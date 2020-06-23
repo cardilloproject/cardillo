@@ -1,0 +1,60 @@
+*
+!/**/
+!*.*
+
+# vs code settings
+.vscode
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+
+# executable
+*.exe
+
+# static libraries
+*.a
+*.lib
+
+# shared libraries
+*.so
+*.dll
+
+# documentation build
+doc/build
+doc/source/generated
+
+# pytest
+.pytest_cache/
+*.pyc
+eggs/
+.eggs/
+*.egg-info/
+.installed.cfg
+*.egg
+.coverage
+
+# ignore log files
+*.log
+
+# git bash error
+bash.exe.stackdump
+
+# results files
+*_results
+
+# python packaging
+build
+dist
+
+# numpy arrays
+*.npy
+*.npz
+
+# dasslc input/ output files
+*.dat
+*.save
+
+# videos
+*.mp4
+*.avi
