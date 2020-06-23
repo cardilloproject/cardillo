@@ -31,6 +31,11 @@ class Pendulum_variable_length():
     def beta(self, t, q):
         return self.l_t(t) / self.l(t) * q
 
+    def callback(self, t, q, u):
+        l_act = np.linalg.norm(q)
+        q = self.l(t) / l_act * q
+        return q, u
+
 if __name__ == "__main__":
     m = 1
     L = 2

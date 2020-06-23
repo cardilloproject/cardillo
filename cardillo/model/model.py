@@ -2,7 +2,7 @@ import numpy as np
 from cardillo.utility.sparse import Coo
 from scipy.sparse import coo_matrix, csc_matrix
 
-properties = ['M', 'f_gyr', 'f_pot', 'f_npot', 'g', 'gamma', 'B', 'beta']
+properties = ['M', 'f_gyr', 'f_pot', 'f_npot', 'g', 'gamma', 'B', 'beta', 'callback']
 
 class Model(object):
     """Sparse model implementation which assembles all global objects without copying on body and element level. 
@@ -36,6 +36,8 @@ class Model(object):
         
         self.__B_contr = []
         self.__beta_contr = []
+
+        self.__callback_contr = []
 
     def add(self, contr):
         if not contr in self.contributions:
@@ -141,6 +143,10 @@ class Model(object):
             f[contr.uDOF] += contr.f_npot(t, q[contr.qDOF], u[contr.uDOF])
         return f
 
+    def h(self, t, q, u):
+        return self.f_pot(t, q) + self.f_npot(t, q, u) - self.f_gyr(t, q, u)
+
+
     def B(self, t, q, scipy_matrix=coo_matrix):
         coo = Coo((self.nq, self.nu))
         for contr in self.__B_contr:
@@ -152,6 +158,11 @@ class Model(object):
         for contr in self.__beta_contr:
             b[contr.qDOF] += contr.beta(t, q[contr.qDOF])
         return b
+
+    def callback(self, t, q, u):
+        for contr in self.__callback_contr:
+            q[contr.qDOF], u[contr.uDOF] = contr.callback(t, q[contr.qDOF], u[contr.uDOF])
+        return q, u
 
 if __name__ == "__main__":
     from cardillo.model.pendulum_variable_length import Pendulum_variable_length
@@ -186,6 +197,7 @@ if __name__ == "__main__":
     print(f'f_gyr = {model.f_gyr(0, model.q0, model.u0)}')
     print(f'f_pot = {model.f_pot(0, model.q0)}')
     print(f'f_npot = {model.f_npot(0, model.q0, model.u0)}')
+    print(f'h = {model.h(0, model.q0, model.u0)}')
     print(f'B = \n{model.B(0, model.q0).toarray()}')
     print(f'beta = {model.beta(0, model.q0)}')
     pass
