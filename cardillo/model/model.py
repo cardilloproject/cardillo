@@ -155,8 +155,6 @@ class Model(object):
     def u_dot(self, t, q, u):
         return spsolve(self.M(t, q, csr_matrix), self.h(t, q, u))
 
-
-
     def B(self, t, q, scipy_matrix=coo_matrix):
         coo = Coo((self.nq, self.nu))
         for contr in self.__B_contr:
@@ -176,6 +174,31 @@ class Model(object):
         for contr in self.__callback_contr:
             q[contr.qDOF], u[contr.uDOF] = contr.callback(t, q[contr.qDOF], u[contr.uDOF])
         return q, u
+
+    def g(self, t, q):
+        g = np.zeros(self.nla_g)
+        for contr in self.__g_contr:
+            g[contr.la_gDOF] = contr.g(t, q[contr.qDOF])
+        return g
+
+    def g_q(self, t, q, scipy_matrix=coo_matrix):
+        coo = Coo((self.nla_g, self.nq))
+        for contr in self.__g_contr:
+            contr.g_q(t, q[contr.qDOF], coo)
+        return coo.tosparse(scipy_matrix)
+
+    def W_g(self, t, q, scipy_matrix=coo_matrix):
+        coo = Coo((self.nu, self.nla_g))
+        for contr in self.__g_contr:
+            contr.W_g(t, q[contr.qDOF], coo)
+        return coo.tosparse(scipy_matrix)
+
+    def Wla_g(self, t, q, la_g):
+        Wla_g = np.zeros(self.nu)
+        for contr in self.__g_contr:
+            Wla_g[contr.uDOF] += contr.Wla_g(t, q[contr.qDOF], la_g[contr.la_gDOF])
+        return Wla_g
+
 
 if __name__ == "__main__":
     from cardillo.model.pendulum_variable_length import Pendulum_variable_length

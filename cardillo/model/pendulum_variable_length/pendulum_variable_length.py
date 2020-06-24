@@ -7,11 +7,29 @@ class Pendulum_variable_length():
         self.l_t = l_t
         self.F = F
         self.r_pivot = r_pivot
+        self.__qDOF = None
+        self.__uDOF = None
 
         self.nq = 2
         self.nu = 1
         self.q0 = np.zeros(self.nq) if q0 is None else q0
         self.u0 = np.zeros(self.nu) if u0 is None else u0
+
+    @property
+    def qDOF(self):
+        return self.__qDOF
+
+    @qDOF.setter
+    def qDOF(self, qDOF):
+        self.__qDOF = qDOF
+
+    @property
+    def uDOF(self):
+        return self.__uDOF
+
+    @uDOF.setter
+    def uDOF(self, uDOF):
+        self.__uDOF = uDOF
 
     def M(self, t, q, M_coo):
         M = np.array([[self.m * self.l(t)**2]])
@@ -45,10 +63,17 @@ class Pendulum_variable_length():
 class Point():
     def __init__(self, subsystem, ID):
         self.subsystem = subsystem
-        self.qDOF = subsystem.qDOF
         self.ID = ID
 
         self.B = subsystem.B_dense
+
+    @property
+    def qDOF(self):
+        return self.subsystem.qDOF
+
+    @property
+    def uDOF(self):
+        return self.subsystem.uDOF        
 
     def position(self, t, q):
         return self.subsystem.r_pivot + self.ID * np.array([q[0], -q[1], 0])

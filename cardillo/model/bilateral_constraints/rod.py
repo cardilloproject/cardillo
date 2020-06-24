@@ -1,457 +1,457 @@
 import numpy as np
 from math import atan2
 
-from cardillo.utility.transformations import rot
+# from cardillo.utility.transformations import rot
 
-class RodBodyEnv(BilateralConstraint):
-    r""" Rod between body and envionment.
+# class RodBodyEnv(BilateralConstraint):
+#     r""" Rod between body and envionment.
 
-    Parameters
-    ----------
-    body : :mod:`bodies<cardillo.model.bodies>`
-        body
+#     Parameters
+#     ----------
+#     body : :mod:`bodies<cardillo.model.bodies>`
+#         body
     
-    point_ID_Body : numpy.ndarray, int
-        coordinates of body point
+#     point_ID_Body : numpy.ndarray, int
+#         coordinates of body point
 
-    dist : float, :ref:`lambda<python:lambda>`
-        distance between body points
+#     dist : float, :ref:`lambda<python:lambda>`
+#         distance between body points
             
-    rPivot : numpy.ndarray, :ref:`lambda<python:lambda>`
-        coordinates of spatial point w.r.t. inertial frame
+#     rPivot : numpy.ndarray, :ref:`lambda<python:lambda>`
+#         coordinates of spatial point w.r.t. inertial frame
 
-    vPivot : :ref:`lambda<python:lambda>`
-        velocity of spatial point w.r.t. inertial frame
+#     vPivot : :ref:`lambda<python:lambda>`
+#         velocity of spatial point w.r.t. inertial frame
 
-    aPivot : :ref:`lambda<python:lambda>`
-        acceleration of spatial point w.r.t. inertial frame
+#     aPivot : :ref:`lambda<python:lambda>`
+#         acceleration of spatial point w.r.t. inertial frame
 
-    la0 : numpy.ndarray, shape (1,)
-        constraint forces at initial configuration
+#     la0 : numpy.ndarray, shape (1,)
+#         constraint forces at initial configuration
 
-    Returns
-    -------
-    rod : :class:`RodBodyEnv`
-        bilateral constraint object
+#     Returns
+#     -------
+#     rod : :class:`RodBodyEnv`
+#         bilateral constraint object
 
-    Notes
-    -----
-    A rod constraint guarantees a constant distance $L$ between the body point 
-    $\\vr_{OQ}(t,\\vq)$ and the spatial point $\\vr_{OP}(t)$.
+#     Notes
+#     -----
+#     A rod constraint guarantees a constant distance $L$ between the body point 
+#     $\\vr_{OQ}(t,\\vq)$ and the spatial point $\\vr_{OP}(t)$.
 
-    .. figure:: ../img/bilateralConstraints/PivotBodyEnv.png
-        :figwidth: 50 %
-        :align: center
+#     .. figure:: ../img/bilateralConstraints/PivotBodyEnv.png
+#         :figwidth: 50 %
+#         :align: center
 
-    $\\vJ_{Q}$ Translational Jacobian of body w.r.t. $Q$: ${}_{I}\\vJ_{Q} = \\pd{{}_{I}\\vr_{OQ}}{\\vq}$
+#     $\\vJ_{Q}$ Translational Jacobian of body w.r.t. $Q$: ${}_{I}\\vJ_{Q} = \\pd{{}_{I}\\vr_{OQ}}{\\vq}$
 
-    ``point_ID_Body`` has to be choosen according to body specific conventions
+#     ``point_ID_Body`` has to be choosen according to body specific conventions
     
-    - rigid body (${}_K \\vr_{SQ}$): coordinates of vector between center of mass $S$ and body point $Q$ w.r.t. body fixed frame $K$.
-    - beam ($\\xi \\in \\{0, 1\\}$): material coordinates of start or end point of beam.
+#     - rigid body (${}_K \\vr_{SQ}$): coordinates of vector between center of mass $S$ and body point $Q$ w.r.t. body fixed frame $K$.
+#     - beam ($\\xi \\in \\{0, 1\\}$): material coordinates of start or end point of beam.
 
-    """
+#     """
 
-    def __init__(self, body, point_ID_Body, dist=0, rPivot=None, vPivot=None, aPivot=None, la0=np.zeros(1)):
+#     def __init__(self, body, point_ID_Body, dist=0, rPivot=None, vPivot=None, aPivot=None, la0=np.zeros(1)):
 
-        self.n_laDOF = 1                            # dimension of constraint forces
-        self.body = body                            
-        self.point_ID_ = point_ID_Body
-        self.dist = dist
-        self.la0 = la0
+#         self.n_laDOF = 1                            # dimension of constraint forces
+#         self.body = body                            
+#         self.point_ID_ = point_ID_Body
+#         self.dist = dist
+#         self.la0 = la0
 
-        if rPivot is None:
-            try:
-                self.rPivot = lambda t: body.position(t, body.Q, point_ID_Body)
-                self.vPivot = lambda t: 0 * body.position(t, body.Q, point_ID_Body)
-                self.aPivot = lambda t: 0 * body.position(t, body.Q, point_ID_Body)
-            except:
-                print('JunctionBodyEnv: point or reference config. must be specified!')
+#         if rPivot is None:
+#             try:
+#                 self.rPivot = lambda t: body.position(t, body.Q, point_ID_Body)
+#                 self.vPivot = lambda t: 0 * body.position(t, body.Q, point_ID_Body)
+#                 self.aPivot = lambda t: 0 * body.position(t, body.Q, point_ID_Body)
+#             except:
+#                 print('JunctionBodyEnv: point or reference config. must be specified!')
 
-        elif not callable(rPivot):
-            self.rPivot = lambda t: rPivot
-            self.vPivot = lambda t: 0 * rPivot
-            self.aPivot = lambda t: 0 * rPivot
-        else:
-            self.rPivot = rPivot
-            if vPivot is not None:
-                self.vPivot = vPivot
-            else:
-                eps = 1e-6
-                self.vPivot = lambda t: (rPivot(t+eps) - rPivot(t-eps)) / (2 * eps)
+#         elif not callable(rPivot):
+#             self.rPivot = lambda t: rPivot
+#             self.vPivot = lambda t: 0 * rPivot
+#             self.aPivot = lambda t: 0 * rPivot
+#         else:
+#             self.rPivot = rPivot
+#             if vPivot is not None:
+#                 self.vPivot = vPivot
+#             else:
+#                 eps = 1e-6
+#                 self.vPivot = lambda t: (rPivot(t+eps) - rPivot(t-eps)) / (2 * eps)
             
-            if aPivot is not None:
-                self.aPivot = aPivot
-            else:
-                eps = 1e-6
-                self.aPivot = lambda t: (self.vPivot(t+eps) - self.vPivot(t-eps)) / (2 * eps)
+#             if aPivot is not None:
+#                 self.aPivot = aPivot
+#             else:
+#                 eps = 1e-6
+#                 self.aPivot = lambda t: (self.vPivot(t+eps) - self.vPivot(t-eps)) / (2 * eps)
 
 
-    def get_qDOF(self):
-        r"""Indices of generalized coordinates for involved bodies.
+#     def get_qDOF(self):
+#         r"""Indices of generalized coordinates for involved bodies.
 
-        Returns
-        -------
-        qDOF : numpy.ndarray, shape (f,)
-            indices of generalized coordinates ``[body.qDOF]``
-        """
-        # returns degrees of freedom of involved bodies for assembler
-        return self.body.qDOF
+#         Returns
+#         -------
+#         qDOF : numpy.ndarray, shape (f,)
+#             indices of generalized coordinates ``[body.qDOF]``
+#         """
+#         # returns degrees of freedom of involved bodies for assembler
+#         return self.body.qDOF
 
-    def gap(self, t, q):
-        r"""Gap functions.
+#     def gap(self, t, q):
+#         r"""Gap functions.
 
-        Parameters
-        ----------
-        t : float
-            time instant
+#         Parameters
+#         ----------
+#         t : float
+#             time instant
 
-        q : numpy.ndarray, shape (f,)
-            generalized coordinates of involved bodies
+#         q : numpy.ndarray, shape (f,)
+#             generalized coordinates of involved bodies
 
-        Returns
-        -------
-        g : numpy.ndarray, shape (1,)
-            gap functions
+#         Returns
+#         -------
+#         g : numpy.ndarray, shape (1,)
+#             gap functions
 
-        Notes
-        -----
-        Gap functions 
+#         Notes
+#         -----
+#         Gap functions 
         
-        .. math::
-            \vg = 
-            ({}_I \vr_{OQ}(t, \vq) - {}_I \vr_{OP}(t))\T 
-            ({}_I \vr_{OQ}(t, \vq) - {}_I \vr_{OP}(t)) - L^2 \in \mathbb{R} \; .
-        """
-        r_OQ = self.body.position(t, q, self.point_ID_)
-        return (r_OQ - self.rPivot(t)) @ (r_OQ - self.rPivot(t))  - self.dist ** 2
+#         .. math::
+#             \vg = 
+#             ({}_I \vr_{OQ}(t, \vq) - {}_I \vr_{OP}(t))\T 
+#             ({}_I \vr_{OQ}(t, \vq) - {}_I \vr_{OP}(t)) - L^2 \in \mathbb{R} \; .
+#         """
+#         r_OQ = self.body.position(t, q, self.point_ID_)
+#         return (r_OQ - self.rPivot(t)) @ (r_OQ - self.rPivot(t))  - self.dist ** 2
 
-    def gap_t(self, t, q):
-        r"""Partial time derivative of gap functions.
+#     def gap_t(self, t, q):
+#         r"""Partial time derivative of gap functions.
         
-        Parameters
-        ----------
-        t : float
-            time instant
+#         Parameters
+#         ----------
+#         t : float
+#             time instant
 
-        q : numpy.ndarray, shape (f,)
-            generalized coordinates of involved bodies
+#         q : numpy.ndarray, shape (f,)
+#             generalized coordinates of involved bodies
 
-        Returns
-        -------
-        g_t : numpy.ndarray, shape (1,)
-            partial time derivative of gap functions
+#         Returns
+#         -------
+#         g_t : numpy.ndarray, shape (1,)
+#             partial time derivative of gap functions
         
-        Notes
-        -----
-        Partial time derivative of gap functions
+#         Notes
+#         -----
+#         Partial time derivative of gap functions
 
-        .. math::
-            \pd{\vg}{t} = 
-            2 \left(\pd{{}_I \vr_{OQ}}{t}(t, \vq) - \pd{{}_I \vr_{OP}}{t}(t)\right)^\mathrm{T}
-            ({}_I \vr_{OQ}(t, \vq) - {}_I \vr_{OP}(t)) \in \mathbb{R} \; .
-        """
+#         .. math::
+#             \pd{\vg}{t} = 
+#             2 \left(\pd{{}_I \vr_{OQ}}{t}(t, \vq) - \pd{{}_I \vr_{OP}}{t}(t)\right)^\mathrm{T}
+#             ({}_I \vr_{OQ}(t, \vq) - {}_I \vr_{OP}(t)) \in \mathbb{R} \; .
+#         """
 
-        r_OQ = self.body.position(t, q, self.point_ID_)
-        r_OQ_t = self.body.position_t(t, q, self.point_ID_)
+#         r_OQ = self.body.position(t, q, self.point_ID_)
+#         r_OQ_t = self.body.position_t(t, q, self.point_ID_)
 
-        return 2 * (r_OQ_t - self.vPivot(t)) @ (r_OQ - self.rPivot(t))
+#         return 2 * (r_OQ_t - self.vPivot(t)) @ (r_OQ - self.rPivot(t))
 
 
-    def gap_tt(self, t, q):
-        r"""Second partial time derivative of gap functions.
+#     def gap_tt(self, t, q):
+#         r"""Second partial time derivative of gap functions.
 
-        Parameters
-        ----------
-        t : float
-            time instant
+#         Parameters
+#         ----------
+#         t : float
+#             time instant
 
-        q : numpy.ndarray, shape (f,)
-            generalized coordinates of involved bodies
+#         q : numpy.ndarray, shape (f,)
+#             generalized coordinates of involved bodies
 
-        Returns
-        -------
-        g_tt : numpy.ndarray, shape (1,)
-            second partial time derivative of gap functions
+#         Returns
+#         -------
+#         g_tt : numpy.ndarray, shape (1,)
+#             second partial time derivative of gap functions
         
-        Notes
-        -----
-        Second partial time derivative of gap functions
+#         Notes
+#         -----
+#         Second partial time derivative of gap functions
 
-        .. math::
-            \frac{\partial^2 \vg}{\partial t^2} = & 
-            2 \left( \frac{\partial^2 {}_I \vr_{OQ}}{\partial t^2}(t, \vq) - 
-            \frac{\partial^2 {}_I \vr_{OP}}{\partial t^2}(t) \right)^\mathrm{T} ({}_I \vr_{OQ}(t, \vq) - {}_I \vr_{OP}(t)) \\
-            &+ 2 \left(\pd{{}_I \vr_{OQ}}{t}(t, \vq) - 
-            \pd{{}_I \vr_{OP}}{t}(\vq)\right)^\mathrm{T} \left(\pd{{}_I \vr_{OQ}}{t}(t, \vq) - 
-            \pd{{}_I \vr_{OP}}{t}(t)\right) \in \mathbb{R} \; .
+#         .. math::
+#             \frac{\partial^2 \vg}{\partial t^2} = & 
+#             2 \left( \frac{\partial^2 {}_I \vr_{OQ}}{\partial t^2}(t, \vq) - 
+#             \frac{\partial^2 {}_I \vr_{OP}}{\partial t^2}(t) \right)^\mathrm{T} ({}_I \vr_{OQ}(t, \vq) - {}_I \vr_{OP}(t)) \\
+#             &+ 2 \left(\pd{{}_I \vr_{OQ}}{t}(t, \vq) - 
+#             \pd{{}_I \vr_{OP}}{t}(\vq)\right)^\mathrm{T} \left(\pd{{}_I \vr_{OQ}}{t}(t, \vq) - 
+#             \pd{{}_I \vr_{OP}}{t}(t)\right) \in \mathbb{R} \; .
 
-        """
+#         """
                 
-        r_OQ = self.body.position(t, q, self.point_ID)
-        r_OQ_t = self.body.position_t(t, q, self.point_ID)
-        r_OQ_tt = self.body.position_tt(t, q, self.point_ID)
+#         r_OQ = self.body.position(t, q, self.point_ID)
+#         r_OQ_t = self.body.position_t(t, q, self.point_ID)
+#         r_OQ_tt = self.body.position_tt(t, q, self.point_ID)
         
-        return 2 * (r_OQ_tt - self.aPivot(t)) @  (r_OQ - self.rPivot(t)) + 2 * (r_OQ_t - self.vPivot(t)) @ (r_OQ_t - self.vPivot(t))
+#         return 2 * (r_OQ_tt - self.aPivot(t)) @  (r_OQ - self.rPivot(t)) + 2 * (r_OQ_t - self.vPivot(t)) @ (r_OQ_t - self.vPivot(t))
 
-    def gap_q(self, t, q):
-        r"""Partial derivatives of gap functions. Derivatives w.r.t. generalized coordinates.
+#     def gap_q(self, t, q):
+#         r"""Partial derivatives of gap functions. Derivatives w.r.t. generalized coordinates.
 
-        Parameters
-        ----------
-        t : float
-            time instant
+#         Parameters
+#         ----------
+#         t : float
+#             time instant
 
-        q : numpy.ndarray, shape (f,)
-            generalized coordinates of involved bodies
+#         q : numpy.ndarray, shape (f,)
+#             generalized coordinates of involved bodies
 
-        Returns
-        -------
-        g_q : numpy.ndarray, shape (1, f)
-            partial derivatives of gap functions w.r.t. generalized coordinates
+#         Returns
+#         -------
+#         g_q : numpy.ndarray, shape (1, f)
+#             partial derivatives of gap functions w.r.t. generalized coordinates
 
-        Notes
-        -----
-        Partial derivatives of gap functions w.r.t. generalized coordinates
+#         Notes
+#         -----
+#         Partial derivatives of gap functions w.r.t. generalized coordinates
 
-        .. math::
-            \pd{\vg}{\vq} & =
-            2 ({}_I \vr_{OQ}(t, \vq) - {}_I \vr_{OP}(t))\T \pd{{}_{I}\vr_{OQ}}{\vq}(t, \vq)\\ 
-            & = 2 ({}_I \vr_{OQ}(t, \vq) - 
-            {}_I \vr_{OP}(t))\T {}_{I}\vJ_{Q}(t, \vq)
-            \in \mathbb{R}^{1 \times f} \; .
+#         .. math::
+#             \pd{\vg}{\vq} & =
+#             2 ({}_I \vr_{OQ}(t, \vq) - {}_I \vr_{OP}(t))\T \pd{{}_{I}\vr_{OQ}}{\vq}(t, \vq)\\ 
+#             & = 2 ({}_I \vr_{OQ}(t, \vq) - 
+#             {}_I \vr_{OP}(t))\T {}_{I}\vJ_{Q}(t, \vq)
+#             \in \mathbb{R}^{1 \times f} \; .
 
-        The term $\\pd{g_i}{q^j}$ is stored in ``g_q[i, j]``.
-        """
-        r_OQ = self.body.position(t, q, self.point_ID) 
-        JQ = self.body.position_q(t, q, self.point_ID)
+#         The term $\\pd{g_i}{q^j}$ is stored in ``g_q[i, j]``.
+#         """
+#         r_OQ = self.body.position(t, q, self.point_ID) 
+#         JQ = self.body.position_q(t, q, self.point_ID)
         
-        return 2 * (r_OQ - self.rPivot(t)) @ JQ
+#         return 2 * (r_OQ - self.rPivot(t)) @ JQ
 
-    def gap_qt(self, t, q):
-        r"""Partial derivatives of gap functions. Derivatives w.r.t. generalized coordinates and time.
+#     def gap_qt(self, t, q):
+#         r"""Partial derivatives of gap functions. Derivatives w.r.t. generalized coordinates and time.
 
-        Parameters
-        ----------
-        t : float
-            time instant
+#         Parameters
+#         ----------
+#         t : float
+#             time instant
 
-        q : numpy.ndarray, shape (f,)
-            generalized coordinates of involved bodies
+#         q : numpy.ndarray, shape (f,)
+#             generalized coordinates of involved bodies
 
-        Returns
-        -------
-        g_qt : numpy.ndarray, shape (1, f)
-            partial derivatives of gap functions w.r.t generalized coordinates and time
+#         Returns
+#         -------
+#         g_qt : numpy.ndarray, shape (1, f)
+#             partial derivatives of gap functions w.r.t generalized coordinates and time
 
-        Notes
-        -----
-        Partial derivatives of gap functions w.r.t. generalized coordinates and time
+#         Notes
+#         -----
+#         Partial derivatives of gap functions w.r.t. generalized coordinates and time
 
-        .. math::
-            \frac{\partial^2 \vg}{\partial \vq \partial t} & = 
-            2 \left(\pd{{}_I \vr_{OQ}}{t}(t, \vq) - 
-            \pd{{}_I \vr_{OP}}{t}(t)\right)^\mathrm{T}
-            {}_{I}\vJ_{Q}(t, \vq) \\ 
-            & + 
-            2 ({}_I \vr_{OQ}(t, \vq) - {}_I \vr_{OP}(t))\T
-            \pd{{}_{I}\vJ_{Q}}{t}(t, \vq) \in \mathbb{R}^{1 \times f} \; .
+#         .. math::
+#             \frac{\partial^2 \vg}{\partial \vq \partial t} & = 
+#             2 \left(\pd{{}_I \vr_{OQ}}{t}(t, \vq) - 
+#             \pd{{}_I \vr_{OP}}{t}(t)\right)^\mathrm{T}
+#             {}_{I}\vJ_{Q}(t, \vq) \\ 
+#             & + 
+#             2 ({}_I \vr_{OQ}(t, \vq) - {}_I \vr_{OP}(t))\T
+#             \pd{{}_{I}\vJ_{Q}}{t}(t, \vq) \in \mathbb{R}^{1 \times f} \; .
 
-        The term $\\frac{\\partial^2 g_i}{\\partial q^j \\partial t}$ is stored in ``g_qt[i, j]``.
-        """
-        r_OQ = self.body.position(t, q, self.point_ID)
-        r_OQ_t = self.body.position_t(t, q, self.point_ID)
-        JQ = self.body.position_q(t, q, self.point_ID)
-        JQ_t = self.body.position_qt(t, q, self.point_ID) 
+#         The term $\\frac{\\partial^2 g_i}{\\partial q^j \\partial t}$ is stored in ``g_qt[i, j]``.
+#         """
+#         r_OQ = self.body.position(t, q, self.point_ID)
+#         r_OQ_t = self.body.position_t(t, q, self.point_ID)
+#         JQ = self.body.position_q(t, q, self.point_ID)
+#         JQ_t = self.body.position_qt(t, q, self.point_ID) 
 
-        return 2 * JQ.T @ (r_OQ_t - self.vPivot(t)) + 2 * (r_OQ - self.rPivot(t)) @ JQ_t
+#         return 2 * JQ.T @ (r_OQ_t - self.vPivot(t)) + 2 * (r_OQ - self.rPivot(t)) @ JQ_t
 
 
-    def gap_qtt(self, t, q):
-        r"""Partial derivatives of gap functions. Derivatives w.r.t. generalized coordinates and time
+#     def gap_qtt(self, t, q):
+#         r"""Partial derivatives of gap functions. Derivatives w.r.t. generalized coordinates and time
 
-        Parameters
-        ----------
-        t : float
-            time instant
+#         Parameters
+#         ----------
+#         t : float
+#             time instant
 
-        q : numpy.ndarray, shape (f,)
-            generalized coordinates of involved bodies
+#         q : numpy.ndarray, shape (f,)
+#             generalized coordinates of involved bodies
 
-        Returns
-        -------
-        g_qtt : numpy.ndarray, shape (1, f)
-            partial derivatives of gap functions w.r.t. generalized coordinates and time
+#         Returns
+#         -------
+#         g_qtt : numpy.ndarray, shape (1, f)
+#             partial derivatives of gap functions w.r.t. generalized coordinates and time
 
-        Notes
-        -----
-        Partial derivatives of gap functions w.r.t. generalized coordinates and time
+#         Notes
+#         -----
+#         Partial derivatives of gap functions w.r.t. generalized coordinates and time
 
-        .. math::
-            \frac{\partial^3 \vg}{\partial \vq \partial t^2} & =
-            2 \left( \frac{\partial^2 {}_I \vr_{OQ}}{\partial t^2}(t, \vq) - 
-            \frac{\partial^2 {}_I \vr_{OP}}{\partial t^2}(t) \right)^\mathrm{T}
-            {}_{I}\vJ_{Q}(t, \vq) \\
-            & + 4 \left(\pd{{}_I \vr_{OQ}}{t}(t, \vq) - \pd{{}_I \vr_{OP}}{t}(t)\right)^\mathrm{T}
-            \pd{{}_{I}\vJ_{Q}}{t}(t, \vq) \\
-            & + 2 ({}_I \vr_{OQ}(t, \vq) - {}_I \vr_{OP}(t))\T
-            \frac{\partial^2 {}_{I}\vJ_Q}{\partial t^2}(t, \vq) \in \mathbb{R}^{1 \times f} \; .
+#         .. math::
+#             \frac{\partial^3 \vg}{\partial \vq \partial t^2} & =
+#             2 \left( \frac{\partial^2 {}_I \vr_{OQ}}{\partial t^2}(t, \vq) - 
+#             \frac{\partial^2 {}_I \vr_{OP}}{\partial t^2}(t) \right)^\mathrm{T}
+#             {}_{I}\vJ_{Q}(t, \vq) \\
+#             & + 4 \left(\pd{{}_I \vr_{OQ}}{t}(t, \vq) - \pd{{}_I \vr_{OP}}{t}(t)\right)^\mathrm{T}
+#             \pd{{}_{I}\vJ_{Q}}{t}(t, \vq) \\
+#             & + 2 ({}_I \vr_{OQ}(t, \vq) - {}_I \vr_{OP}(t))\T
+#             \frac{\partial^2 {}_{I}\vJ_Q}{\partial t^2}(t, \vq) \in \mathbb{R}^{1 \times f} \; .
 
-        The term $\\frac{\\partial^3 g_i}{\\partial q^j \\partial t^2}$ is stored in ``g_qtt[i, j]``.
-        """
+#         The term $\\frac{\\partial^3 g_i}{\\partial q^j \\partial t^2}$ is stored in ``g_qtt[i, j]``.
+#         """
 
-        r_OQ = self.body.position(t, q, self.point_ID)
-        r_OQ_t = self.body.position_t(t, q, self.point_ID)
-        r_OQ_tt = self.body.position_tt(t, q, self.point_ID)
-        JQ = self.body.position_q(t, q, self.point_ID)
-        JQ_t = self.body.position_qt(t, q, self.point_ID) 
-        JQ_tt = self.body.position_qtt(t, q, self.point_ID) 
+#         r_OQ = self.body.position(t, q, self.point_ID)
+#         r_OQ_t = self.body.position_t(t, q, self.point_ID)
+#         r_OQ_tt = self.body.position_tt(t, q, self.point_ID)
+#         JQ = self.body.position_q(t, q, self.point_ID)
+#         JQ_t = self.body.position_qt(t, q, self.point_ID) 
+#         JQ_tt = self.body.position_qtt(t, q, self.point_ID) 
 
-        tmp1 = 2 * (r_OQ_tt - self.aPivot(t)) @ JQ
-        tmp2 = 4 * (r_OQ_t  - self.vPivot(t)) @ JQ
-        tmp3 = 2 * (r_OQ    - self.rPivot(t)) @ JQ
+#         tmp1 = 2 * (r_OQ_tt - self.aPivot(t)) @ JQ
+#         tmp2 = 4 * (r_OQ_t  - self.vPivot(t)) @ JQ
+#         tmp3 = 2 * (r_OQ    - self.rPivot(t)) @ JQ
         
-        return tmp1 + tmp2 + tmp3
+#         return tmp1 + tmp2 + tmp3
 
-    def gap_qq(self, t, q):
-        r"""Partial derivatives of gap functions. Derivatives w.r.t. generalized coordinates.
+#     def gap_qq(self, t, q):
+#         r"""Partial derivatives of gap functions. Derivatives w.r.t. generalized coordinates.
 
-        Parameters
-        ----------
-        t : float
-            time instant
+#         Parameters
+#         ----------
+#         t : float
+#             time instant
 
-        q : numpy.ndarray, shape (f,)
-            generalized coordinates of involved bodies
+#         q : numpy.ndarray, shape (f,)
+#             generalized coordinates of involved bodies
 
-        Returns
-        -------
-        g_qq : numpy.ndarray, shape (1, f, f)
-            second partial derivative of gap functions w.r.t. generalized coordinates
+#         Returns
+#         -------
+#         g_qq : numpy.ndarray, shape (1, f, f)
+#             second partial derivative of gap functions w.r.t. generalized coordinates
 
-        Notes
-        -----
-        Second partial derivatives of gap functions w.r.t. generalized coordinates
+#         Notes
+#         -----
+#         Second partial derivatives of gap functions w.r.t. generalized coordinates
 
-         .. math::
-            \frac{\partial^2 \vg}{\partial \vq^2} = 
-            2 \Big({}_I\vJ_{Q}(t, \vq)\T{}_I\vJ_{Q}(t, \vq) + 
-            ({}_I \vr_{OQ}(t, \vq) - 
-            {}_I \vr_{OP}(t)) \cdot \pd{{}_{I} \vJ_{OQ}}{\vq}(t, \vq)\Big)
-            \in \mathbb{R}^{1 \times f \times f} \; .
+#          .. math::
+#             \frac{\partial^2 \vg}{\partial \vq^2} = 
+#             2 \Big({}_I\vJ_{Q}(t, \vq)\T{}_I\vJ_{Q}(t, \vq) + 
+#             ({}_I \vr_{OQ}(t, \vq) - 
+#             {}_I \vr_{OP}(t)) \cdot \pd{{}_{I} \vJ_{OQ}}{\vq}(t, \vq)\Big)
+#             \in \mathbb{R}^{1 \times f \times f} \; .
 
 
-        The term $\\frac{\\partial^2 g_i}{\\partial q^j \\partial q^k}$ is stored in ``g_qq[i, j, k]``.
-        """
+#         The term $\\frac{\\partial^2 g_i}{\\partial q^j \\partial q^k}$ is stored in ``g_qq[i, j, k]``.
+#         """
         
-        r_OQ = self.body.position(t, q, self.point_ID)
-        JQ = self.body.position_q(t, q, self.point_ID)
-        JQ_q = self.body.position_qq(t, q, self.point_ID) 
+#         r_OQ = self.body.position(t, q, self.point_ID)
+#         JQ = self.body.position_q(t, q, self.point_ID)
+#         JQ_q = self.body.position_qq(t, q, self.point_ID) 
 
-        return 2 * (JQ.T @ JQ + np.tensordot((r_OQ - self.rPivot(t)), JQ_q, 1)) # 2 * (JQ.T @ JQ + (JQ_q.T @ (r_OQ - self.rPivot(t))).T )
+#         return 2 * (JQ.T @ JQ + np.tensordot((r_OQ - self.rPivot(t)), JQ_q, 1)) # 2 * (JQ.T @ JQ + (JQ_q.T @ (r_OQ - self.rPivot(t))).T )
 
 
-    def gap_qqt(self, t, q):
-        r"""Partial derivatives of gap functions. Derivatives w.r.t. generalized coordinates and time.
+#     def gap_qqt(self, t, q):
+#         r"""Partial derivatives of gap functions. Derivatives w.r.t. generalized coordinates and time.
 
-        Parameters
-        ----------
-        t : float
-            time instant
+#         Parameters
+#         ----------
+#         t : float
+#             time instant
 
-        q : numpy.ndarray, shape (f,)
-            generalized coordinates of involved bodies
+#         q : numpy.ndarray, shape (f,)
+#             generalized coordinates of involved bodies
 
-        Returns
-        -------
-        g_qqt : numpy.ndarray, shape (1, f, f)
-            partial derivatives of gap functions w.r.t. generalized coordinates and time
+#         Returns
+#         -------
+#         g_qqt : numpy.ndarray, shape (1, f, f)
+#             partial derivatives of gap functions w.r.t. generalized coordinates and time
 
-        Notes
-        -----
-        Partial derivatives of gap functions w.r.t. generalized coordinates and time
+#         Notes
+#         -----
+#         Partial derivatives of gap functions w.r.t. generalized coordinates and time
 
-        .. math::
-            \frac{\partial^3 \vg}{\partial \vq^2 \partial t} = 
-            &2  \Big(\pd{{}_I\vJ_{Q}}{t}(t, \vq)\T{}_I\vJ_{Q}(t, \vq) + 
-            {}_I\vJ_{Q}(t, \vq)\T\pd{{}_I\vJ_{Q}}{t}(t, \vq) \\ & +
-            \Big(\pd{{}_I \vr_{OQ}}{t}(t, \vq) - 
-            \pd{{}_I \vr_{OP}}{t}(t)\Big) \cdot \pd{{}_{I} \vJ_{OQ}}{\vq}(t, \vq) \\
-            & + ({}_I \vr_{OQ}(t, \vq) - {}_I \vr_{OP}(t)) \cdot 
-            \frac{\partial^2 {}_{I} \vJ_{OQ}}{\partial \vq \partial t}(t, \vq)\Big) 
-            \in \mathbb{R}^{1 \times f \times f} \; .
+#         .. math::
+#             \frac{\partial^3 \vg}{\partial \vq^2 \partial t} = 
+#             &2  \Big(\pd{{}_I\vJ_{Q}}{t}(t, \vq)\T{}_I\vJ_{Q}(t, \vq) + 
+#             {}_I\vJ_{Q}(t, \vq)\T\pd{{}_I\vJ_{Q}}{t}(t, \vq) \\ & +
+#             \Big(\pd{{}_I \vr_{OQ}}{t}(t, \vq) - 
+#             \pd{{}_I \vr_{OP}}{t}(t)\Big) \cdot \pd{{}_{I} \vJ_{OQ}}{\vq}(t, \vq) \\
+#             & + ({}_I \vr_{OQ}(t, \vq) - {}_I \vr_{OP}(t)) \cdot 
+#             \frac{\partial^2 {}_{I} \vJ_{OQ}}{\partial \vq \partial t}(t, \vq)\Big) 
+#             \in \mathbb{R}^{1 \times f \times f} \; .
 
-        The term $\\frac{\\partial^3 g_i}{\\partial q^j \\partial q^k \\partial t}$ is stored in ``g_qqt[i, j, k]``.
-        """
-        nq = self.body.n_qDOF
-        r_OQ = self.body.position(t, q, self.point_ID)
-        r_OQ_t = self.body.position_t(t, q, self.point_ID)
-        JQ = self.body.position_q(t, q, self.point_ID)
-        JQ_t = self.body.position_qt(t, q, self.point_ID) 
-        JQ_q = self.body.position_qq(t, q, self.point_ID)
-        JQ_qt = self.body.position_qqt(t, q, self.point_ID) 
+#         The term $\\frac{\\partial^3 g_i}{\\partial q^j \\partial q^k \\partial t}$ is stored in ``g_qqt[i, j, k]``.
+#         """
+#         nq = self.body.n_qDOF
+#         r_OQ = self.body.position(t, q, self.point_ID)
+#         r_OQ_t = self.body.position_t(t, q, self.point_ID)
+#         JQ = self.body.position_q(t, q, self.point_ID)
+#         JQ_t = self.body.position_qt(t, q, self.point_ID) 
+#         JQ_q = self.body.position_qq(t, q, self.point_ID)
+#         JQ_qt = self.body.position_qqt(t, q, self.point_ID) 
 
-        g_qqt = np.zeros((1, nq, nq))
+#         g_qqt = np.zeros((1, nq, nq))
 
-        tmp1 = JQ_t.T @ JQ + JQ.T @ JQ_t
-        tmp2 = np.tensordot((r_OQ_t - self.vPivot(t)), JQ_q, 1) # tmp2 = (JQ_q.T @ (r_OQ_t - self.vPivot(t))).T
-        tmp3 = np.tensordot((r_OQ - self.rPivot(t)), JQ_qt, 1) # tmp3 = (JQ_qt.T @ (r_OQ - self.rPivot(t))).T
+#         tmp1 = JQ_t.T @ JQ + JQ.T @ JQ_t
+#         tmp2 = np.tensordot((r_OQ_t - self.vPivot(t)), JQ_q, 1) # tmp2 = (JQ_q.T @ (r_OQ_t - self.vPivot(t))).T
+#         tmp3 = np.tensordot((r_OQ - self.rPivot(t)), JQ_qt, 1) # tmp3 = (JQ_qt.T @ (r_OQ - self.rPivot(t))).T
         
-        g_qqt[0, :, :] =  2 * (tmp1 + tmp2 + tmp3)
+#         g_qqt[0, :, :] =  2 * (tmp1 + tmp2 + tmp3)
 
-        return g_qqt
+#         return g_qqt
 
-    def gap_qqq(self, t, q):
-        r"""Partial derivatives of gap functions. Derivatives w.r.t. generalized coordinates.
+#     def gap_qqq(self, t, q):
+#         r"""Partial derivatives of gap functions. Derivatives w.r.t. generalized coordinates.
 
-        Parameters
-        ----------
-        t : float
-            time instant
+#         Parameters
+#         ----------
+#         t : float
+#             time instant
 
-        q : numpy.ndarray, shape (f,)
-            generalized coordinates of involved bodies
+#         q : numpy.ndarray, shape (f,)
+#             generalized coordinates of involved bodies
 
-        Returns
-        -------
-        g_qqq : numpy.ndarray, shape (1, f, f, f)
-            triple partial derivative of gap functions w.r.t. generalized coordinates
+#         Returns
+#         -------
+#         g_qqq : numpy.ndarray, shape (1, f, f, f)
+#             triple partial derivative of gap functions w.r.t. generalized coordinates
 
-        Notes
-        -----        
-        Triple partial derivatives of gap functions w.r.t. generalized coordinates. 
-        We use the following abbreviations for the indices: $({}_I\\vr_{OQ})_i = r^Q_i$, 
-        $({}_I\\vr_{OP})_i = r^P_i$, $({}_I\\vJ_{Q})_{ij} = J_{ij}$.
+#         Notes
+#         -----        
+#         Triple partial derivatives of gap functions w.r.t. generalized coordinates. 
+#         We use the following abbreviations for the indices: $({}_I\\vr_{OQ})_i = r^Q_i$, 
+#         $({}_I\\vr_{OP})_i = r^P_i$, $({}_I\\vJ_{Q})_{ij} = J_{ij}$.
 
 
-        .. math::
-            \frac{\partial^3 g}{\partial q_i \partial q_j \partial q_k} =
-            \sum_{l = 1}^{2} 2 \left[
-            \pd{J_{li}}{q_k} J_{lj} + J_{li} \pd{J_{lj}}{q_k}
-            + J_{lk} \pd{J_{li}}{q_j} + (r^Q_l - r^P_l) \frac{\partial^2 J_{li}}{\partial q_j \partial q_k}\right]
+#         .. math::
+#             \frac{\partial^3 g}{\partial q_i \partial q_j \partial q_k} =
+#             \sum_{l = 1}^{2} 2 \left[
+#             \pd{J_{li}}{q_k} J_{lj} + J_{li} \pd{J_{lj}}{q_k}
+#             + J_{lk} \pd{J_{li}}{q_j} + (r^Q_l - r^P_l) \frac{\partial^2 J_{li}}{\partial q_j \partial q_k}\right]
             
 
-        The term $\\frac{\\partial^3 g_i}{\\partial q^j \\partial q^k \\partial q^l}$ is stored in ``g_qqq[i, j, k, l]``.
-        """
+#         The term $\\frac{\\partial^3 g_i}{\\partial q^j \\partial q^k \\partial q^l}$ is stored in ``g_qqq[i, j, k, l]``.
+#         """
 
-        nq = self.body.n_qDOF
+#         nq = self.body.n_qDOF
 
-        r_OQ = self.body.position(t, q, self.point_ID) 
-        JQ = self.body.position_q(t, q, self.point_ID)
-        JQ_q = self.body.position_qq(t, q, self.point_ID) 
-        JQ_qq = self.body.position_qqq(t, q, self.point_ID) 
+#         r_OQ = self.body.position(t, q, self.point_ID) 
+#         JQ = self.body.position_q(t, q, self.point_ID)
+#         JQ_q = self.body.position_qq(t, q, self.point_ID) 
+#         JQ_qq = self.body.position_qqq(t, q, self.point_ID) 
 
 
-        g_qqq = np.zeros((1, nq, nq, nq))
+#         g_qqq = np.zeros((1, nq, nq, nq))
 
-        for i in range(nq):
-            for j in range(nq):
-                for k in range(nq):
-                    for l in range(2):
-                        g_qqq[0, i, j, k] += 2 * (JQ_q[l, i, k] * JQ[l, j] + JQ[l, i] * JQ_q[l, j, k] \
-                                                                + JQ[l, k] * JQ_q[l, i, j] + (r_OQ[l] - self.rPivot(t)[l]) * JQ_qq[l, i, j, k])   
+#         for i in range(nq):
+#             for j in range(nq):
+#                 for k in range(nq):
+#                     for l in range(2):
+#                         g_qqq[0, i, j, k] += 2 * (JQ_q[l, i, k] * JQ[l, j] + JQ[l, i] * JQ_q[l, j, k] \
+#                                                                 + JQ[l, k] * JQ_q[l, i, j] + (r_OQ[l] - self.rPivot(t)[l]) * JQ_qq[l, i, j, k])   
 
-        return g_qqq
+#         return g_qqq
 
 
 class RodBodyBody():
@@ -508,15 +508,12 @@ class RodBodyBody():
     
     """
 
-    def __init__(self, point1, point2, dist, la0=np.zeros(1)):
+    def __init__(self, point1, point2, dist, la_g0=np.zeros(1)):
         self.nla_g = 1
         self.point1 = point1
         self.point2 = point2
         self.dist = dist
-        self.la0 = la0
-
-        self.nq1 = len(point1.qDOF)
-        self.nu1 = len(point1.uDOF)
+        self.la_g0 = la_g0
 
     @property
     def qDOF(self):
@@ -534,8 +531,10 @@ class RodBodyBody():
             {}_I \vr_{OP_2}(t, \vq_2))\T ({}_I \vr_{OP_1}(t, \vq_1) - 
             {}_I \vr_{OP_2}(t, \vq_2)) - L^2 \in \mathbb{R} \; .
         """
-        r_OP1 = self.point1.position(t, q[:self.nq1]) 
-        r_OP2 = self.point2.position(t, q[self.nq1:])
+
+        nq1 = len(self.point1.qDOF)
+        r_OP1 = self.point1.position(t, q[:nq1]) 
+        r_OP2 = self.point2.position(t, q[nq1:])
         return (r_OP1 - r_OP2) @ (r_OP1 - r_OP2)  - self.dist ** 2
 
     def g_q_dense(self, t, q):
@@ -555,19 +554,30 @@ class RodBodyBody():
 
         The term $\\pd{g_i}{q^j}$ is stored in ``g_q[i, j]``.
         """
-        nq1 = self.nq1
+        nq1 = len(self.point1.qDOF)
         r_OP1 = self.point1.position(t, q[:nq1]) 
         r_OP2 = self.point2.position(t, q[nq1:])
         J1 = self.point1.position_q(t, q[:nq1]) 
         J2 = self.point2.position_q(t, q[nq1:])
-        return 2 * (r_OP1 - r_OP2) @ np.hstack([J1,-J2])
+        return np.array([2 * (r_OP1 - r_OP2) @ np.hstack([J1,-J2])])
 
     def g_q(self, t, q, coo):
         coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
+
+    def B_dense(self, t, q):
+        nq1 = len(self.point1.qDOF)
+        nq2 = len(self.point2.qDOF)
+        nu1 = len(self.point1.uDOF)
+        nu2 = len(self.point2.uDOF)
+        B = np.zeros((nq1 + nq2, nu1 + nu2))
+        
+        B[:nq1, :nu1] = self.point1.B(t, q[:nq1])
+        B[nq1:, nu1:] = self.point2.B(t, q[nq1:])
+
+        return B
     
     def W_g_dense(self, t, q):
-        nq1 = self.nq1
-        return (self.g_q_dense(t, q) @ np.diag([self.point1.B(t, q[:nq1]), self.point2.B(t, q[nq1:])])).T
+        return (self.g_q_dense(t, q) @ self.B_dense(t, q)).T
 
     def W_g(self, t, q, coo):
         coo.extend(self.W_g_dense(t, q), (self.uDOF, self.la_gDOF))
