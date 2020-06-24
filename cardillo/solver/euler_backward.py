@@ -2,8 +2,8 @@ import numpy as np
 from scipy.sparse.linalg import spsolve 
 from scipy.sparse import csr_matrix
 
-class Euler_forward():
-    r""" Euler forward
+class Euler_backward():
+    r""" Euler backward
 
     Parameters
     ----------
@@ -31,7 +31,7 @@ class Euler_forward():
     Note
     ---- 
     """
-    def __init__(self, model, t_span, dt):
+    def __init__(self, model, t_span, dt, newton_tol=1e-6, newton_max_iter=10, newton_error_function=lambda x: np.max(np.abs(x))):
         
         self.model = model
 
@@ -47,7 +47,33 @@ class Euler_forward():
         # constant time step
         self.dt = dt
 
+        self.newton_tol = newton_tol
+        self.newton_max_iter = newton_max_iter
+        self.newton_error_function = newton_error_function
         self.linearSolver = spsolve
+
+        self.nq = self.model.nq
+        self.nu = self.model.nu
+        self.nla_g = self.model.nla_g
+        self.n = self.nq + self.nu + self.nla_g
+
+        self.uDOF = np.arange(self.nu)
+        self.qDOF = self.nu + np.arange(self.nq)
+        self.la_gDOF = self.nu + self.nq + np.arange(self.nla_g)
+
+    def __R(self, qk, uk, tk1, qk1, uk1, la_gk1):
+        R = np.zeros(self.n)
+
+        R[self.uDOF] = self.model.M(tk1, qk1, scipy_matrix=csr_matrix) @ (uk1 - uk) - self.dt * (self.model.h_u(tk1, qk1, uk1) + self.model.Wla_g(tk1, qk1, la_gk1))
+        R[self.qDOF] = qk1 - qk - self.dt * self.model.q_dot(tk1, qk1, uk1)
+        R[self.la_gDOF] = self.model.g(tk1, qk1)
+
+    def __dR(self, qk, uk, tk1, qk1, uk1, la_gk1):
+        dR = np.zeros((self.n, self.n))
+
+        dR_uu = self.model.M(tk1, qk1) - self.dt * self.model.h_u(tk1, qk1, uk1)
+        dR[self.nu:self.nu+self.nq] = qk1 - qk - self.dt * self.model.q_dot(tk1, qk1, uk1)
+        dR[self.nu+self.nq:] = self.model.g(tk1, qk1)
 
     def step(self, tk, qk, uk):
         # general quantities

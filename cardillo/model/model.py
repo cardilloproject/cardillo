@@ -3,7 +3,18 @@ from cardillo.utility.sparse import Coo
 from scipy.sparse import coo_matrix, csr_matrix
 from scipy.sparse.linalg import spsolve 
 
-properties = ['M', 'f_gyr', 'f_pot', 'f_npot', 'g', 'gamma', 'B', 'beta', 'callback']
+properties = []
+properties.extend(['M'])
+properties.extend(['f_gyr', 'f_gyr_q', 'f_gyr_u'])
+properties.extend(['f_pot', 'f_pot_q'])
+properties.extend(['f_npot', 'f_npot_q', 'f_npot_u'])
+
+properties.extend(['B', 'beta'])
+
+properties.extend(['g', 'g_q'])
+properties.extend(['gamma', 'gamma_q', 'gamma_u'])
+
+properties.extend(['callback'])
 
 class Model(object):
     """Sparse model implementation which assembles all global objects without copying on body and element level. 
@@ -26,19 +37,8 @@ class Model(object):
 
         self.contributions = []
 
-        self.__M_contr = []
-
-        self.__f_gyr_contr = []
-        self.__f_pot_contr = []
-        self.__f_npot_contr = []
-
-        self.__g_contr = []
-        self.__gamma_contr = []
-        
-        self.__B_contr = []
-        self.__beta_contr = []
-
-        self.__callback_contr = []
+        for p in properties:
+            setattr(self, f'_{self.__class__.__name__}__{p}_contr',[])
 
     def add(self, contr):
         if not contr in self.contributions:
@@ -74,8 +74,7 @@ class Model(object):
                 # - p in contr.__class__.__dict__: has global class attribute p
                 # - callable(getattr(contr, p, None)): p is callable
                 if (p in contr.__class__.__dict__ and callable(getattr(contr, p, None)) ):
-                    eval(f'self._{self.__class__.__name__}__{p}_contr.append(contr)')
-                    # getattr(f'{p}_contr', self).append(contr)
+                    getattr(self, f'_{self.__class__.__name__}__{p}_contr').append(contr)
 
             if getattr(contr, 'nq', False):
                 contr.qDOF = np.arange(0, contr.nq) + self.nq
@@ -131,11 +130,29 @@ class Model(object):
             contr.M(t, q[contr.qDOF], coo)
         return coo.tosparse(scipy_matrix)
 
+    # def Mu(self, t, q, u):
+    #     f = np.zeros(self.nu)
+    #     for contr in self.__M_contr:
+    #         f[contr.uDOF] += contr.Mu(t, q[contr.qDOF], u[contr.uDOF])
+    #     return f
+
     def f_gyr(self, t, q, u):
         f = np.zeros(self.nu)
         for contr in self.__f_gyr_contr:
             f[contr.uDOF] += contr.f_gyr(t, q[contr.qDOF], u[contr.uDOF])
         return f
+
+    def f_gyr_q(self, t, q, u, scipy_matrix=coo_matrix):
+        coo = Coo((self.nu, self.nq))
+        for contr in self.__f_gyr_q_contr:
+            contr.f_gyr_q(t, q[contr.qDOF], u[contr.uDOF], coo)
+        return coo.tosparse(scipy_matrix)
+
+    def f_gyr_u(self, t, q, u, scipy_matrix=coo_matrix):
+        coo = Coo((self.nu, self.nu))
+        for contr in self.__f_gyr_u_contr:
+            contr.f_gyr_u(t, q[contr.qDOF], u[contr.uDOF], coo)
+        return coo.tosparse(scipy_matrix)
 
     def f_pot(self, t, q):
         f = np.zeros(self.nu)
@@ -143,14 +160,38 @@ class Model(object):
             f[contr.uDOF] += contr.f_pot(t, q[contr.qDOF])
         return f
 
+    def f_pot_q(self, t, q, scipy_matrix=coo_matrix):
+        coo = Coo((self.nu, self.nq))
+        for contr in self.__f_pot_q_contr:
+            contr.f_pot_q(t, q[contr.qDOF], coo)
+        return coo.tosparse(scipy_matrix)
+
     def f_npot(self, t, q, u):
         f = np.zeros(self.nu)
         for contr in self.__f_npot_contr:
             f[contr.uDOF] += contr.f_npot(t, q[contr.qDOF], u[contr.uDOF])
         return f
 
+    def f_npot_q(self, t, q, u, scipy_matrix=coo_matrix):
+        coo = Coo((self.nu, self.nq))
+        for contr in self.__f_npot_q_contr:
+            contr.f_npot_q(t, q[contr.qDOF], u[contr.uDOF], coo)
+        return coo.tosparse(scipy_matrix)
+
+    def f_npot_u(self, t, q, u, scipy_matrix=coo_matrix):
+        coo = Coo((self.nu, self.nu))
+        for contr in self.__f_npot_u_contr:
+            contr.f_npot_u(t, q[contr.qDOF], u[contr.uDOF], coo)
+        return coo.tosparse(scipy_matrix)
+
     def h(self, t, q, u):
         return self.f_pot(t, q) + self.f_npot(t, q, u) - self.f_gyr(t, q, u)
+
+    def h_q(self, t, q, u):
+        return self.f_pot_q(t, q) + self.f_npot_q(t, q, u) - self.f_gyr_q(t, q, u)
+
+    def h_u(self, t, q, u):
+        return self.f_npot_u(t, q, u) - self.f_gyr_u(t, q, u)
 
     def u_dot(self, t, q, u):
         return spsolve(self.M(t, q, csr_matrix), self.h(t, q, u))
@@ -199,6 +240,12 @@ class Model(object):
             Wla_g[contr.uDOF] += contr.Wla_g(t, q[contr.qDOF], la_g[contr.la_gDOF])
         return Wla_g
 
+    def Wla_g_q(self, t, q, la_g, scipy_matrix=coo_matrix):
+        coo = Coo((self.nu, self.nq))
+        for contr in self.__g_contr:
+            contr.Wla_g_q(t, q[contr.qDOF], la_g[contr.la_gDOF], coo)
+        return coo.tosparse(scipy_matrix)
+
 
 if __name__ == "__main__":
     from cardillo.model.pendulum_variable_length import Pendulum_variable_length
@@ -237,5 +284,5 @@ if __name__ == "__main__":
     print(f'B = \n{model.B(0, model.q0).toarray()}')
     print(f'beta = {model.beta(0, model.q0)}')
 
-    Pt = pendulum1.cosserat_point(1)
+    # Pt = pendulum1.cosserat_point(1)
     pass
