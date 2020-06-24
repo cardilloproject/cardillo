@@ -1,6 +1,7 @@
 import numpy as np
 from cardillo.utility.sparse import Coo
-from scipy.sparse import coo_matrix, csc_matrix
+from scipy.sparse import coo_matrix, csr_matrix
+from scipy.sparse.linalg import spsolve 
 
 properties = ['M', 'f_gyr', 'f_pot', 'f_npot', 'g', 'gamma', 'B', 'beta', 'callback']
 
@@ -55,14 +56,16 @@ class Model(object):
         self.contributions.pop(index)
 
     def assemble(self):
-        offset_q = 0
-        offset_u = 0
-        # offset_la_g = 0
-        # offset_la_gamma = 0
-
+        # self.nDOF = 0
+        self.nq = 0
+        self.nu = 0
+        self.nla_g = 0
+        self.nla_gamma = 0
+        # self.nla_N = 0
+        # self.nla_T = 0
         q0 = []
         u0 = []
-        # la_g0 = []
+        la_g0 = []
         # la_gamma0 = []
         
         for contr in self.contributions:
@@ -75,16 +78,19 @@ class Model(object):
                     # getattr(f'{p}_contr', self).append(contr)
 
             if getattr(contr, 'nq', False):
+                contr.qDOF = np.arange(0, contr.nq) + self.nq
                 self.nq += contr.nq
-                contr.qDOF = np.arange(0, contr.nq) + offset_q
-                offset_q += contr.nq
                 q0.extend(contr.q0.tolist())
 
             if getattr(contr, 'nu', False):
+                contr.uDOF = np.arange(0, contr.nu) + self.nu 
                 self.nu += contr.nu
-                contr.uDOF = np.arange(0, contr.nu) + offset_u
-                offset_u += contr.nu
                 u0.extend(contr.u0.tolist())
+            
+            if getattr(contr, 'nla_g', False):
+                contr.la_gDOF = np.arange(0, contr.nla_g) + self.nla_g
+                self.nla_g += contr.nla_g
+                la_g0.extend(contr.la_g0.tolist())
 
                 # TOOD: same for nla, nla_N, ...
                 # if getattr(contr, 'nla_g', False):
@@ -97,7 +103,7 @@ class Model(object):
 
         self.q0 = np.array(q0)
         self.u0 = np.array(u0)
-        # self.la_g0 = np.array(la_g0)
+        self.la_g0 = np.array(la_g0)
         # self.la_gamma0 = np.array(la_gamma0)
     
     # def __assemble_bilateral_constraints(self):
@@ -146,6 +152,10 @@ class Model(object):
     def h(self, t, q, u):
         return self.f_pot(t, q) + self.f_npot(t, q, u) - self.f_gyr(t, q, u)
 
+    def u_dot(self, t, q, u):
+        return spsolve(self.M(t, q, csr_matrix), self.h(t, q, u))
+
+
 
     def B(self, t, q, scipy_matrix=coo_matrix):
         coo = Coo((self.nq, self.nu))
@@ -158,6 +168,9 @@ class Model(object):
         for contr in self.__beta_contr:
             b[contr.qDOF] += contr.beta(t, q[contr.qDOF])
         return b
+
+    def q_dot(self, t, q, u):
+        return self.B(t, q, csr_matrix) @ u + self.beta(t, q)
 
     def callback(self, t, q, u):
         for contr in self.__callback_contr:
@@ -200,4 +213,6 @@ if __name__ == "__main__":
     print(f'h = {model.h(0, model.q0, model.u0)}')
     print(f'B = \n{model.B(0, model.q0).toarray()}')
     print(f'beta = {model.beta(0, model.q0)}')
+
+    Pt = pendulum1.cosserat_point(1)
     pass

@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.sparse.linalg import spsolve 
-from scipy.sparse import csc_matrix
+from scipy.sparse import csr_matrix
 
 class Euler_forward():
     r""" Euler forward
@@ -52,15 +52,10 @@ class Euler_forward():
     def step(self, t0, q0, u0):
         # general quantities
         dt = self.dt
-        t1 = t0 + dt
-        
-        M = self.model.M(t0, q0, scipy_matrix=csc_matrix)
-        h = self.model.h(t0, q0, u0) 
-        u1 = u0 + dt * self.linearSolver(M, h) 
 
-        B = self.model.B(t0, q0, scipy_matrix=csc_matrix)
-        beta = self.model.beta(t0, q0) 
-        q1 = q0 + dt * (B @ u0 + beta)
+        t1 = t0 + dt
+        u1 = u0 + dt * self.model.u_dot(t0, q0, u0)
+        q1 = q0 + dt * self.model.q_dot(t0, q0, u0)
         
         return t1, q1, u1
 

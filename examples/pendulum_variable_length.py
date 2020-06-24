@@ -33,7 +33,7 @@ model.add(pendulum)
 model.assemble()
 
 tspan = [0, 10]
-dt = 1e-3
+dt = 1e-2
 solver = Euler_forward(model, tspan, dt)
 
 t, q, u = solver.solve()
