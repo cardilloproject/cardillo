@@ -47,14 +47,12 @@ class Euler_forward():
         # constant time step
         self.dt = dt
 
-        self.linearSolver = spsolve
-
     def step(self, tk, qk, uk):
         # general quantities
         dt = self.dt
 
         tk1 = tk + dt
-        uk1 = uk + dt * self.model.u_dot(tk, qk, uk)
+        uk1 = uk + dt * spsolve(self.model.M(tk, qk, scipy_matrix=csr_matrix), self.model.h(tk, qk, uk))
         qk1 = qk + dt * self.model.q_dot(tk, qk, uk)
         
         return tk1, qk1, uk1

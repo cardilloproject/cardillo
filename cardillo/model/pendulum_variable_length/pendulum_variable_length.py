@@ -31,26 +31,42 @@ class Pendulum_variable_length():
     def uDOF(self, uDOF):
         self.__uDOF = uDOF
 
-    def M(self, t, q, M_coo):
+    def M(self, t, q, coo):
         M = np.array([[self.m * self.l(t)**2]])
-        M_coo.extend(M, (self.uDOF, self.uDOF))
+        coo.extend(M, (self.uDOF, self.uDOF))
 
     def f_gyr(self, t, q, u):
         return np.array([2 * self.m * self.l(t) * self.l_t(t) * u[0]])
 
-    def f_npot(self, t, q, u):
+    def f_gyr_u(self, t, q, u, coo):
+        dense = np.array([[2 * self.m * self.l(t) * self.l_t(t)]])
+        coo.extend(dense, (self.uDOF, self.uDOF))
+
+    def f_pot(self, t, q):
         F = self.F(t)
         return np.array([F[0] * q[1] + F[1] * q[0]])
 
+    def f_pot_q(self, t, q, coo):
+        F = self.F(t)
+        dense = np.array([[ F[1], F[0] ]])
+        coo.extend(dense, (self.uDOF, self.qDOF))
+
+    def q_dot(self, t, q, u):
+        return np.array([q[1] * u[0], \
+                         -q[0] * u[0]]) + self.l_t(t) / self.l(t) * q
+
+    def q_dot_q(self, t, q, u, coo):
+        dense = self.l_t(t) / self.l(t) * np.eye(2) \
+                + np.array([[0, u[0]], \
+                            [-u[0], 0]])
+        coo.extend(dense, (self.qDOF, self.qDOF))        
+
     def B_dense(self, t, q):
         return np.array([[q[1]], \
-                      [-q[0]]])
+                         [-q[0]]])
 
-    def B(self, t, q, B_coo):
-        B_coo.extend(self.B_dense(t, q), (self.qDOF, self.uDOF))
-        
-    def beta(self, t, q):
-        return self.l_t(t) / self.l(t) * q
+    def B(self, t, q, coo):
+        coo.extend(self.B_dense(t, q), (self.qDOF, self.uDOF))
 
     def callback(self, t, q, u):
         l_act = np.linalg.norm(q)
@@ -80,6 +96,17 @@ class Point():
     
     def position_q(self, t, q):
         return self.ID * np.array([[1 , 0 ], [0, -1], [0, 0]])
+
+    def position_qq(self, t, q):
+        nq = len(self.qDOF)
+        return np.zeros((3, nq, nq))
+
+    def rotation(self, t, q):
+        dr = np.array([q[0], -q[1], 0]) - self.subsystem.r_pivot
+        d1 = dr / np.linalg.norm(dr)
+        d2 = np.array([dr[1], -dr[0], 0])
+        d3 = np.array([0, 0, 1])
+        return np.vstack((d1, d2, d3)).T
 
 if __name__ == "__main__":
     m = 1

@@ -33,6 +33,9 @@ class Point_mass():
     def M(self, t, q, M_coo):
         M_coo.extend(self.M_, (self.uDOF, self.uDOF))
 
+    def q_dot(self, t, q, u):
+        return u
+
     def B_dense(self, t, q):
         return np.eye(self.nq)
 
@@ -65,6 +68,9 @@ class Point():
 
     def position_q(self, t, q):
         return np.eye(3, self.nq)
+
+    def position_qq(self, t, q):
+        return np.zeros((3, self.nq, self.nq))
 
 if __name__ == "__main__":
     m = 1

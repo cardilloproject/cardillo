@@ -9,114 +9,164 @@ from cardillo.model import Model
 from cardillo.model.pendulum_variable_length import Pendulum_variable_length
 from cardillo.model.point_mass import Point_mass
 from cardillo.model.bilateral_constraints import RodBodyBody
-from cardillo.solver import Euler_forward
+from cardillo.model.force import Force, Follower_force
+from cardillo.solver import Euler_backward
 
-m = 1
-L = 2
-g = 9.81
+def double_pendulum():
 
-F = lambda t: np.array([0, -m * g])
+    m = 1
+    L = 2
+    g = 9.81
 
-# l = lambda t: L + np.sin(t)
-# l_t = lambda t: np.cos(t)
-# l_tt = lambda t: -np.sin(t)
+    Fg = lambda t: np.array([0, -m * g, 0])
 
-l = lambda t: L
-l_t = lambda t: 0
-l_tt = lambda t: 0
+    omega = np.pi
+    l = lambda t: L -0.5 * np.sin(omega * t)
+    l_t = lambda t: -0.5 * omega * np.cos(omega * t)
+    l_tt = lambda t: 0.5 * omega**2 * np.sin(omega * t)
 
-model = Model()
+    # l = lambda t: L
+    # l_t = lambda t: 0
+    # l_tt = lambda t: 0
 
-q0 = np.array([L, 0])
-u0 = np.array([0])
-pendulum = Pendulum_variable_length(m, l, l_t, F, q0=q0, u0=u0)
-model.add(pendulum)
+    model = Model()
 
-pm = Point_mass(m, 2, np.array([2 * L, 0]), np.array([0, 0]))
-model.add(pm)
+    q0 = np.array([L, 0])
+    # q0 = np.array([0, L])
+    u0 = np.array([0])
+    pendulum = Pendulum_variable_length(m, l, l_t, Fg, q0=q0, u0=u0)
+    # pendulum = Pendulum_variable_length(m, l, l_t, lambda t: Fg(t) * 0, q0=q0, u0=u0)
+    model.add(pendulum)
 
-rod = RodBodyBody(pendulum.point(1), pm.point(), L)
-model.add(rod)
+    # follower_force = Follower_force(lambda t: np.array([0, -0.5 * m * g, 0]), pendulum.point(1))
+    # model.add(follower_force)
 
+    # pin = 1.0
+    # pm = Point_mass(m, 2, np.array([(1 + pin) * L, 0]), np.array([0, 0]))
+    pm = Point_mass(m, 2, np.array([2 * L, 0]), np.array([0, 0]))
+    # pm = Point_mass(m, 2, np.array([0, -2 * L]), np.array([0, 0]))
+    model.add(pm)
 
-model.assemble()
+    gravity_force = Force(Fg, pm.point())
+    model.add(gravity_force)
 
+    # rod = RodBodyBody(pendulum.point(pin), pm.point(), L)
+    rod = RodBodyBody(pendulum.point(1), pm.point(), L)
+    model.add(rod)
 
+    model.assemble()
 
+    tspan = [0, 2]
+    dt = 1e-3
 
+    solver = Euler_backward(model, tspan, dt)
+    t, q, u, la = solver.solve()
+    
+    # fig, ax = plt.subplots()
+    # ax.set_xlim([-2*L, 2*L])
+    # ax.set_ylim([-2*L, 2*L])
 
-pass
+    # pendulum_line, = ax.plot([], [], '-ok', label='')
+    # point_mass_line, = ax.plot([], [], '-ob', label='')
 
-exit()
+    # def animate(i):
+    #     # pendulum
+    #     pendulum_x0, pendulum_y0, _ = pendulum.point(0).position(t[i], q[i, pendulum.qDOF])
+    #     pendulum_x, pendulum_y, _ = pendulum.point(1).position(t[i], q[i, pendulum.qDOF])
+    #     pendulum_line.set_data(([pendulum_x0, pendulum_x], [pendulum_y0, pendulum_y]))
 
-tspan = [0, 10]
-dt = 1e-2
-solver = Euler_forward(model, tspan, dt)
+    #     # point mass
+    #     rod_x1, rod_y1, _ = rod.point1.position(t[i], q[i, pendulum.qDOF])
+    #     point_mass_x, point_mass_y, _ = pm.point().position(t[i], q[i, pm.qDOF])
+    #     point_mass_line.set_data(([rod_x1, point_mass_x], [rod_y1 , point_mass_y]))
 
-t, q, u = solver.solve()
+    #     return pendulum_line, point_mass_line
 
-# fig, ax = plt.subplots()
+    # anim = animation.FuncAnimation(fig, animate, frames=len(t))
+    # plt.show()
+    
+    # reference solution
+    def eqm(t,x):
+        alpha, beta = x[:2]
+        alpha_t, beta_t = x[2:]
+        sab = np.sin(alpha - beta)
+        cab = np.cos(alpha - beta)
+        
+        F = Fg(t)
 
-# ax.plot(t, q[:,0], '-k', label='x')
-# ax.plot(t, q[:,1], '-b', label='y')
-# ax.plot(t, u[:,0], '-g', label='u')
-# ax.legend()
-# plt.show()
-# exit()
+        M = np.array([[2 * m * l(t)**2, m * l(t) * L * cab], 
+                      [m * l(t) * L * cab, m * L**2]])
 
-##########################
-# reference solution
-def eqm(t,z):
-    x, y, u = z
-    dz = np.zeros(3)
-    dz[0] = y * u + l_t(t) / l(t) * x
-    dz[1] = -x * u + l_t(t) / l(t) * y
-    dz[2] = -2 * l_t(t) / l(t) * u + (F(t)[0] * y + F(t)[1] * x) / (m * l(t)**2)
-    return dz
+        f_gyr = np.array([4 * m * l(t) * l_t(t) * alpha_t + m * L * l(t) * sab * beta_t**2, \
+                          sab * m * L * (l_tt(t) - l(t) * alpha_t**2) + 2 * m * L * cab * l_t(t) * alpha_t])
 
-z0 = np.concatenate([q0, u0])
-# z0 = np.array([0, L, 0])
-sol = solve_ivp(eqm, [t[0], t[-1]], z0, method='RK45', t_eval=t, rtol=1e-8, atol=1e-12)
-z = sol.y[:3]
-dz = np.zeros_like(z)
-for i, (ti, zi) in enumerate(zip(t, z.T)):
-    dz[:, i] = eqm(ti, zi)
+        f_pot = np.array([l(t) * np.cos(alpha) * 2 * F[0] + l(t) * np.sin(alpha) * 2 * F[1], \
+                          L * np.cos(beta) * F[0] + L * np.sin(beta) * F[1]])
+                          
+        h = f_pot - f_gyr
+        
+        dx = np.zeros(4)
+        dx[:2] = x[2:]
+        dx[2:] = np.linalg.inv(M) @ h
+        return dx
 
-fig, ax = plt.subplots(2, 1)
+    alpha0 = np.arctan2(pendulum.q0[0], pendulum.q0[1])
+    beta0 = np.arctan2( pm.q0[0] - pendulum.q0[0], -pm.q0[1] - pendulum.q0[1])
+    
+    x0 = np.array([alpha0, beta0, 0, 0])
+    ref = solve_ivp(eqm, (t[0], t[-1]), x0, t_eval=t, method='RK45', rtol=1e-8, atol=1e-12)
+    x = ref.y
 
-ax[0].plot(t, z[0], '-k', label='x')
-ax[0].plot(t, z[1], '-b', label='y')
-ax[0].plot(t, z[2], '-g', label='u')
-ax[0].plot(t, q[:,0], 'xk', label='x')
-ax[0].plot(t, q[:,1], 'xb', label='y')
-ax[0].plot(t, u[:,0], 'xg', label='u')
-ax[0].legend()
+    alpha = x[0]
+    x_pendulum_ref = l(t) * np.sin(alpha)
+    y_pendulum_ref = -l(t) * np.cos(alpha)
 
-ax[1].plot(t, dz[0], '-k', label='dx')
-ax[1].plot(t, dz[1], '-b', label='dy')
-ax[1].plot(t, dz[2], '-g', label='du')
-ax[1].legend()
+    beta = x[1]
+    x_point_mass_ref = x_pendulum_ref + L * np.sin(beta)
+    y_point_mass_ref = y_pendulum_ref - L * np.cos(beta)
 
-fig, ax = plt.subplots()
-ax.set_xlim([-2*L, 2*L])
-ax.set_ylim([-2*L, 2*L])
-line, = ax.plot([], [], '-ok', label='')
+    # fig, ax = plt.subplots()
+    # ax.set_xlim([-2*L, 2*L])
+    # ax.set_ylim([-2*L, 2*L])
 
-def animate(i):
-    # x = np.array([0, z[0, i]])
-    # y = np.array([0, -z[1, i]])
-    x = np.array([0, q[i, 0]])
-    y = np.array([0, -q[i, 1]])
-    line.set_data((x, y))
-    return line,
+    # pendulum_line, = ax.plot([], [], '-ok', label='')
+    # point_mass_line, = ax.plot([], [], '-ok', label='')
 
-anim = animation.FuncAnimation(fig, animate, frames=len(t))
+    # pendulum_line_ref, = ax.plot([], [], '-xr', label='')
+    # point_mass_line_ref, = ax.plot([], [], '-xr', label='')
 
-plt.show()
+    # def animate(i):
+    #     # pendulum
+    #     pendulum_x0, pendulum_y0, _ = pendulum.point(0).position(t[i], q[i, pendulum.qDOF])
+    #     pendulum_x, pendulum_y, _ = pendulum.point(1).position(t[i], q[i, pendulum.qDOF])
+    #     pendulum_line.set_data(([pendulum_x0, pendulum_x], [pendulum_y0, pendulum_y]))
 
-fig, ax = plt.subplots()
-e_spy = z[0]**2 + z[1]**2 - l(t)**2
-e = q[:,0]**2 + q[:,1]**2 - l(t)**2
-ax.plot(t, e_spy, '-r')
-ax.plot(t, e, 'xr')
-plt.show()
+    #     # point mass
+    #     rod_x1, rod_y1, _ = rod.point1.position(t[i], q[i, pendulum.qDOF])
+    #     point_mass_x, point_mass_y, _ = pm.point().position(t[i], q[i, pm.qDOF])
+    #     point_mass_line.set_data(([rod_x1, point_mass_x], [rod_y1 , point_mass_y]))
+
+    #     # reference solution
+    #     pendulum_line_ref.set_data(([0, x_pendulum_ref[i]], [0, y_pendulum_ref[i]]))
+    #     point_mass_line_ref.set_data(([x_pendulum_ref[i], x_point_mass_ref[i]], [y_pendulum_ref[i] , y_point_mass_ref[i]]))
+
+    #     return pendulum_line, point_mass_line, pendulum_line_ref, point_mass_line_ref
+
+    # anim = animation.FuncAnimation(fig, animate, frames=len(t))
+    # plt.show()
+
+    fig, ax = plt.subplots()
+    ax.plot(t, x_pendulum_ref, '-k', label='x_pendulum_ref')
+    ax.plot(t, y_pendulum_ref, '-b', label='y_pendulum_ref')
+    ax.plot(t, x_point_mass_ref, '-g', label='x_point_mass_ref')
+    ax.plot(t, y_point_mass_ref, '-r', label='y_point_mass_ref')
+
+    ax.plot(t, q[:, 0], 'xk', label='x_pendulum')
+    ax.plot(t, -q[:, 1], 'xb', label='y_pendulum')
+    ax.plot(t, q[:, 2], 'xg', label='x_point_mass')
+    ax.plot(t, q[:, 3], 'xr', label='y_point_mass')
+    
+    plt.show()
+
+if __name__ == "__main__":
+    double_pendulum()

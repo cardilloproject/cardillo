@@ -7,7 +7,7 @@ import matplotlib.animation as animation
 
 from cardillo.model import Model
 from cardillo.model.pendulum_variable_length import Pendulum_variable_length
-from cardillo.solver import Euler_forward
+from cardillo.solver import Euler_forward, Euler_backward
 
 m = 1
 L = 2
@@ -33,10 +33,15 @@ model.add(pendulum)
 model.assemble()
 
 tspan = [0, 10]
+# dt = 1e-1
 dt = 1e-2
-solver = Euler_forward(model, tspan, dt)
 
-t, q, u = solver.solve()
+# solver = Euler_forward(model, tspan, dt)
+# t, q, u = solver.solve()
+
+solver = Euler_backward(model, tspan, dt)
+t, q, u, _ = solver.solve()
+
 
 # fig, ax = plt.subplots()
 

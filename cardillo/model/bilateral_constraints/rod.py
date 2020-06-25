@@ -561,6 +561,42 @@ class RodBodyBody():
         J2 = self.point2.position_q(t, q[nq1:])
         return np.array([2 * (r_OP1 - r_OP2) @ np.hstack([J1,-J2])])
 
+    def g_qq_dense(self, t, q):
+        r"""Second partial derivatives of the constraint functions w.r.t. generalized coordinates
+
+        .. math::
+            \frac{\partial^2 \vg}{\partial \vq^2} = 
+            2 & \Big({}_I\vJ_{P_1}(t, \vq_1)\T{}_I\vJ_{P_1}(t, \vq_1) + 
+            ({}_I \vr_{OP_1}(t, \vq_1) - 
+            {}_I \vr_{OP_2}(t, \vq_2)) \cdot \pd{{}_{I} \vJ_{OP_1}}{\vq_1}(t, \vq_1)\Big) : \vC_1 \otimes \vC_1 \\
+            - &2 \Big({}_I\vJ_{P_1}(t, \vq_1)\T{}_I\vJ_{P_2}(t, \vq_2)\Big) : \vC_1 \otimes \vC_2 \\
+            - &2 \Big({}_I\vJ_{P_2}(t, \vq_2)\T{}_I\vJ_{P_1}(t, \vq_1)\Big) : \vC_2 \otimes \vC_1 \\
+            +&  2 \Big({}_I\vJ_{P_2}(t, \vq_2)\T{}_I\vJ_{P_2}(t, \vq_2) - 
+            ({}_I \vr_{OP_1}(t, \vq_1) - {}_I \vr_{OP_2}(t, \vq_2)) \cdot
+            \pd{{}_{I} \vJ_{OP_2}}{\vq_2}(t, \vq_2)\Big) : \vC_2 \otimes \vC_2 \\
+            &\in \mathbb{R}^{1 \times f \times f} \; .
+
+
+        The term $\\frac{\\partial^2 g_i}{\\partial q^j \\partial q^k}$ is stored in ``g_qq[i, j, k]``.
+        """
+        nq1 = len(self.point1.qDOF)
+        nq2 = len(self.point2.qDOF)
+        nq = nq1 + nq2
+        r_OP1 = self.point1.position(t, q[:nq1]) 
+        r_OP2 = self.point2.position(t, q[nq1:])
+        J1 = self.point1.position_q(t, q[:nq1]) 
+        J2 = self.point2.position_q(t, q[nq1:])
+        J1_q = self.point1.position_qq(t, q[:nq1]) 
+        J2_q = self.point2.position_qq(t, q[nq1:])
+
+        g_qq = np.zeros((1, nq, nq))
+        g_qq[0, :nq1, :nq1] =  2 * J1.T @ J1 + 2 * np.tensordot((r_OP1 - r_OP2), J1_q, 1) # g_qq[0, :nq1, :nq1] =  2 * J1.T @ J1 + 2 * (J1_q.T @ (r_OP1 - r_OP2)).T
+        g_qq[0, :nq1, nq1:] = -2 * J1.T @ J2
+        g_qq[0, nq1:, :nq1] = -2 * J2.T @ J1
+        g_qq[0, nq1:, nq1:] =  2 * J2.T @ J2 - 2 * np.tensordot((r_OP1 - r_OP2), J2_q, 1) # g_qq[0, nq1:, nq1:] =  2 * J2.T @ J2 - 2 * (J2_q.T @ (r_OP1 - r_OP2)).T
+
+        return g_qq
+
     def g_q(self, t, q, coo):
         coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
 
@@ -575,15 +611,34 @@ class RodBodyBody():
         B[nq1:, nu1:] = self.point2.B(t, q[nq1:])
 
         return B
+
+    def B_q_dense(self, t, q):
+        nq1 = len(self.point1.qDOF)
+        nq2 = len(self.point2.qDOF)
+        nq = nq1 + nq2
+        nu1 = len(self.point1.uDOF)
+        nu2 = len(self.point2.uDOF)
+        nu = nu1 + nu2
+        B_q = np.zeros((nq, nu))
+        
+        B[:nq1, :nu1] = self.point1.B(t, q[:nq1])
+        B[nq1:, nu1:] = self.point2.B(t, q[nq1:])
+
+        return B
     
     def W_g_dense(self, t, q):
-        return (self.g_q_dense(t, q) @ self.B_dense(t, q)).T
+        # return (self.g_q_dense(t, q) @ self.B_dense(t, q)).T
+        return self.B_dense(t, q).T @ self.g_q_dense(t, q).T
 
     def W_g(self, t, q, coo):
         coo.extend(self.W_g_dense(t, q), (self.uDOF, self.la_gDOF))
 
-    def Wla_g(self, t, q, la_g):
-        return self.W_g_dense(t, q) @ la_g
+    def Wla_g_q(self, t, q, la_g, coo):
+         @ self.B_dense(t, q) + self.g_q_dense(t, q) @ 
+        # dense = np.einsum('ijk,i->jk', self.g_qq_dense(t, q), la_g) @ self.B_dense(t, q) \
+        #         + self.g_q_dense(t, q)
+        coo.extend(dense, (self.uDOF, self.qDOF))
+
 
     # def __g_t(self, t, q):
     #     r"""Partial time derivative of gap functions.

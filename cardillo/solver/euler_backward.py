@@ -1,6 +1,9 @@
 import numpy as np
 from scipy.sparse.linalg import spsolve 
-from scipy.sparse import csr_matrix
+from scipy.sparse import coo_matrix, csr_matrix, identity, bmat
+from tqdm import tqdm
+
+from cardillo.math import Numerical_derivative
 
 class Euler_backward():
     r""" Euler backward
@@ -46,6 +49,7 @@ class Euler_backward():
         
         # constant time step
         self.dt = dt
+        self.t = np.arange(self.t0, self.t1 + self.dt, self.dt)
 
         self.newton_tol = newton_tol
         self.newton_max_iter = newton_max_iter
@@ -61,53 +65,145 @@ class Euler_backward():
         self.qDOF = self.nu + np.arange(self.nq)
         self.la_gDOF = self.nu + self.nq + np.arange(self.nla_g)
 
-    def __R(self, qk, uk, tk1, qk1, uk1, la_gk1):
-        R = np.zeros(self.n)
+        self.Mk1 = self.model.M(self.t0, model.q0)
+        self.W_gk1 = self.model.W_g(self.t0, model.q0)
 
-        R[self.uDOF] = self.model.M(tk1, qk1, scipy_matrix=csr_matrix) @ (uk1 - uk) - self.dt * (self.model.h_u(tk1, qk1, uk1) + self.model.Wla_g(tk1, qk1, la_gk1))
+    def __R(self, qk, uk, tk1, qk1, uk1, la_gk1):
+        self.Mk1 = self.model.M(tk1, qk1)
+        self.W_gk1 = self.model.W_g(tk1, qk1)
+
+        R = np.zeros(self.n)
+        R[self.uDOF] = self.Mk1 @ (uk1 - uk) - self.dt * (self.model.h(tk1, qk1, uk1) + self.W_gk1 @ la_gk1 )
         R[self.qDOF] = qk1 - qk - self.dt * self.model.q_dot(tk1, qk1, uk1)
         R[self.la_gDOF] = self.model.g(tk1, qk1)
 
-    def __dR(self, qk, uk, tk1, qk1, uk1, la_gk1):
-        dR = np.zeros((self.n, self.n))
+        return R
 
-        dR_uu = self.model.M(tk1, qk1) - self.dt * self.model.h_u(tk1, qk1, uk1)
-        dR[self.nu:self.nu+self.nq] = qk1 - qk - self.dt * self.model.q_dot(tk1, qk1, uk1)
-        dR[self.nu+self.nq:] = self.model.g(tk1, qk1)
+    def __R_wrapper(self, tk1, xk1, xk):
+        qk1 = xk1[self.qDOF]
+        uk1 = xk1[self.uDOF]
+        la_gk1 = xk1[self.la_gDOF]
 
-    def step(self, tk, qk, uk):
-        # general quantities
-        dt = self.dt
+        qk = xk[self.qDOF]
+        uk = xk[self.uDOF]
 
-        tk1 = tk + dt
-        uk1 = uk + dt * self.model.u_dot(tk, qk, uk)
-        qk1 = qk + dt * self.model.q_dot(tk, qk, uk)
+        return self.__R(qk, uk, tk1, qk1, uk1, la_gk1)
+
+    def __R_x(self, qk, uk, tk1, qk1, uk1, la_gk1):
+        Ru_u = self.Mk1 - self.dt * self.model.h_u(tk1, qk1, uk1)
+        Ru_q = self.model.Mu_q(tk1, qk1, uk1 - uk) - self.dt * (self.model.h_q(tk1, qk1, uk1) + self.model.Wla_g_q(tk1, qk1, la_gk1))
+        Ru_la_g = -self.dt * self.W_gk1
+
+        Rq_u = -self.dt * self.model.B(tk1, qk1)
+        Rq_q = identity(self.nq) - self.dt * self.model.q_dot_q(tk1, qk1, uk1)
+        # Rq_la_g = coo_matrix((self.nq, self.nla_g))
+
+        # Rla_g_u = coo_matrix((self.nla_g, self.nu))
+        Rla_g_q = self.model.g_q(tk1, qk1)
+        # Rla_g_la_g = coo_matrix((self.nla_g, self.nla_g))
         
-        return tk1, qk1, uk1
+        return bmat([[Ru_u, Ru_q, Ru_la_g], \
+                     [Rq_u, Rq_q, None], \
+                     [None, Rla_g_q, None]]).tocsc()
+        
+        # R_x = bmat([[Ru_u, Ru_q, Ru_la_g], \
+        #             [Rq_u, Rq_q, None], \
+        #             [None, Rla_g_q, None]])
+
+        # xk = np.zeros(self.n)
+        # xk[self.qDOF] = qk
+        # xk[self.uDOF] = uk
+
+        # xk1 = np.zeros(self.n)
+        # xk1[self.qDOF] = qk1
+        # xk1[self.uDOF] = uk1
+        # xk1[self.la_gDOF] = la_gk1
+
+        # R_x_num = Numerical_derivative(self.__R_wrapper, order=1)._x(tk1, xk1, xk)
+
+        # diff = R_x_num - R_x.toarray()
+        # error = np.linalg.norm(diff)
+        # print(f'error jacobian: {error:.5e}')
+
+        # return csr_matrix( R_x_num )
+
+        # return csr_matrix( Numerical_derivative(self.__R_wrapper, order=1)._x(tk1, xk1, xk) )
+        # # return csr_matrix( Numerical_derivative(self.__R_wrapper, order=2)._x(tk1, xk1, xk) )
+
+        # # hack for testing nuemrical derivative w.r.t. second argument 
+        # # return csr_matrix( Numerical_derivative(lambda tk1, xk, xk1: self.__R_wrapper(tk1, xk1, xk), order=1)._y(tk1, xk, xk1) )
+        # # return csr_matrix( Numerical_derivative(lambda tk1, xk, xk1: self.__R_wrapper(tk1, xk1, xk), order=2)._y(tk1, xk, xk1) )
+
+    def step(self, tk, qk, uk, la_gk):
+        dt = self.dt
+        tk1 = tk + dt
+
+        # foward Euler predictor
+        la_gk1 = la_gk
+        uk1 = uk + dt * spsolve(self.Mk1.tocsc(), self.model.h(tk, qk, uk) + self.W_gk1 @ la_gk)
+        qk1 = qk + dt * self.model.q_dot(tk, qk, uk1)
+
+        # initial guess for Newton-Raphson solver
+        xk1 = np.zeros(self.n)
+        xk1[self.qDOF] = qk1
+        xk1[self.uDOF] = uk1
+        xk1[self.la_gDOF] = la_gk1
+
+        # initial residual and error
+        R = self.__R(qk, uk, tk1, qk1, uk1, la_gk1)
+        error = self.newton_error_function(R)
+        converged = error < self.newton_tol
+        j = 0
+        if not converged:
+            while j < self.newton_max_iter:
+                # jacobian
+                R_x = self.__R_x(qk, uk, tk1, qk1, uk1, la_gk1)
+
+                # Newton update
+                j += 1
+                dx = spsolve(R_x, R)
+                xk1 -= dx
+                qk1 = xk1[self.qDOF]
+                uk1 = xk1[self.uDOF]
+                la_gk1 = xk1[self.la_gDOF]
+
+                R = self.__R(qk, uk, tk1, qk1, uk1, la_gk1)
+                error = self.newton_error_function(R)
+                converged = error < self.newton_tol
+                if converged:
+                    break
+
+            if not converged:
+                raise RuntimeError(f'internal Newton-Raphson method not converged after {j} stepts with error: {error:.5e}')
+            
+        return (converged, j, error), tk1, qk1, uk1, la_gk1
 
     def solve(self): 
-        
         # lists storing output variables
         tk = self.t0
         qk = self.model.q0.copy()
         uk = self.model.u0.copy()
+        la_gk = self.model.la_g0.copy()
         
-        t = [tk]
         q = [qk]
         u = [uk]
+        la_g = [la_gk]
 
-        while tk <= self.t1:
-            tk1, qk1, uk1 = self.step(tk, qk, uk)
+        for tk in tqdm(self.t[:-1]):
+            (converged, n_iter, error), tk1, qk1, uk1, la_gk1 = self.step(tk, qk, uk, la_gk)
+            # print(f't: {tk1:.5f}; converged: {converged}; #iterations: {n_iter}; error: {error:.5e}')
 
             qk1, uk1 = self.model.callback(tk1, qk1, uk1)
 
-            t.append(tk1)
+            # t.append(tk1)
             q.append(qk1)
             u.append(uk1)
+            la_g.append(la_gk1)
+
             # update local variables for accepted time step
-            tk, qk, uk = tk1, qk1, uk1
+            qk, uk, la_gk = qk1, uk1, la_gk1
             
         # write solution
-        return np.array(t), np.array(q), np.array(u)
+        return self.t, np.array(q), np.array(u), np.array(la_g)
     
     
