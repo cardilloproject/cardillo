@@ -633,11 +633,11 @@ class RodBodyBody():
     def W_g(self, t, q, coo):
         coo.extend(self.W_g_dense(t, q), (self.uDOF, self.la_gDOF))
 
-    def Wla_g_q(self, t, q, la_g, coo):
-         @ self.B_dense(t, q) + self.g_q_dense(t, q) @ 
-        # dense = np.einsum('ijk,i->jk', self.g_qq_dense(t, q), la_g) @ self.B_dense(t, q) \
-        #         + self.g_q_dense(t, q)
-        coo.extend(dense, (self.uDOF, self.qDOF))
+    # def Wla_g_q(self, t, q, la_g, coo):
+    #      @ self.B_dense(t, q) + self.g_q_dense(t, q) @ 
+    #     # dense = np.einsum('ijk,i->jk', self.g_qq_dense(t, q), la_g) @ self.B_dense(t, q) \
+    #     #         + self.g_q_dense(t, q)
+    #     coo.extend(dense, (self.uDOF, self.qDOF))
 
 
     # def __g_t(self, t, q):
