@@ -15,7 +15,7 @@ properties.extend(['q_dot', 'q_dot_q', 'B'])
 properties.extend(['g', 'g_q'])
 properties.extend(['gamma', 'gamma_q', 'gamma_u'])
 
-properties.extend(['callback'])
+properties.extend(['assembler_callback', 'solver_step_callback'])
 
 class Model(object):
     """Sparse model implementation which assembles all global objects without copying on body and element level. 
@@ -105,6 +105,12 @@ class Model(object):
         self.u0 = np.array(u0)
         self.la_g0 = np.array(la_g0)
         # self.la_gamma0 = np.array(la_gamma0)
+
+        self.assembler_callback()
+
+    def assembler_callback(self):
+        for contr in self.__assembler_callback_contr:
+            contr.assembler_callback()
     
     # def __assemble_bilateral_constraints(self):
     #     self.la0 = np.zeros(self.n_laDOF)
@@ -229,9 +235,9 @@ class Model(object):
     #         b[contr.qDOF] += contr.beta(t, q[contr.qDOF])
     #     return b
 
-    def callback(self, t, q, u):
-        for contr in self.__callback_contr:
-            q[contr.qDOF], u[contr.uDOF] = contr.callback(t, q[contr.qDOF], u[contr.uDOF])
+    def solver_step_callback(self, t, q, u):
+        for contr in self.__solver_step_callback_contr:
+            q[contr.qDOF], u[contr.uDOF] = contr.solver_step_callback(t, q[contr.qDOF], u[contr.uDOF])
         return q, u
 
     def g(self, t, q):
@@ -260,41 +266,4 @@ class Model(object):
 
 
 if __name__ == "__main__":
-    from cardillo.model.pendulum_variable_length import Pendulum_variable_length
-    m = 1
-    L = 2
-    g = 9.81
-
-    F = lambda t: np.array([0, -m * g])
-
-    l = lambda t: L + np.sin(t)
-    l_t = lambda t: np.cos(t)
-    l_tt = lambda t: -np.sin(t)
-
-    # pendulum1 = Pendulum_variable_length(m, l, l_t, F)
-    q0 = np.array([L, 0])
-    u0 = np.array([-3])
-    pendulum1 = Pendulum_variable_length(m, l, l_t, F, q0=q0, u0=u0)
-
-    model = Model()
-    model.add(pendulum1)
-
-    pendulum2 = Pendulum_variable_length(2 * m, l, l_t, F)
-    model.add(pendulum2)
-
-    # model.remove(pendulum1)
-    # model.remove(model)
-    # model.pop(5)
-
-    model.assemble()
-
-    print(f'M = \n{model.M(0, model.q0).toarray()}')
-    print(f'f_gyr = {model.f_gyr(0, model.q0, model.u0)}')
-    print(f'f_pot = {model.f_pot(0, model.q0)}')
-    print(f'f_npot = {model.f_npot(0, model.q0, model.u0)}')
-    print(f'h = {model.h(0, model.q0, model.u0)}')
-    print(f'B = \n{model.B(0, model.q0).toarray()}')
-    print(f'beta = {model.beta(0, model.q0)}')
-
-    # Pt = pendulum1.cosserat_point(1)
-    pass
+   pass

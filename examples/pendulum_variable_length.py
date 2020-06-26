@@ -36,11 +36,11 @@ tspan = [0, 10]
 # dt = 1e-1
 dt = 1e-2
 
-# solver = Euler_forward(model, tspan, dt)
-# t, q, u = solver.solve()
+solver = Euler_forward(model, tspan, dt)
+t, q, u = solver.solve()
 
-solver = Euler_backward(model, tspan, dt)
-t, q, u, _ = solver.solve()
+# solver = Euler_backward(model, tspan, dt)
+# t, q, u, _ = solver.solve()
 
 
 # fig, ax = plt.subplots()

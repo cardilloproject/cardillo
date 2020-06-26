@@ -7,29 +7,11 @@ class Pendulum_variable_length():
         self.l_t = l_t
         self.F = F
         self.r_pivot = r_pivot
-        self.__qDOF = None
-        self.__uDOF = None
 
         self.nq = 2
         self.nu = 1
         self.q0 = np.zeros(self.nq) if q0 is None else q0
         self.u0 = np.zeros(self.nu) if u0 is None else u0
-
-    @property
-    def qDOF(self):
-        return self.__qDOF
-
-    @qDOF.setter
-    def qDOF(self, qDOF):
-        self.__qDOF = qDOF
-
-    @property
-    def uDOF(self):
-        return self.__uDOF
-
-    @uDOF.setter
-    def uDOF(self, uDOF):
-        self.__uDOF = uDOF
 
     def M(self, t, q, coo):
         M = np.array([[self.m * self.l(t)**2]])
@@ -68,59 +50,31 @@ class Pendulum_variable_length():
     def B(self, t, q, coo):
         coo.extend(self.B_dense(t, q), (self.qDOF, self.uDOF))
 
-    def callback(self, t, q, u):
+    def solver_step_callback(self, t, q, u):
         l_act = np.linalg.norm(q)
         q = self.l(t) / l_act * q
         return q, u
 
-    def point(self, ID):
-        return Point(self, ID)
+    def qDOF_P(self, pointID=None):
+        return self.qDOF
 
-class Point():
-    def __init__(self, subsystem, ID):
-        self.subsystem = subsystem
-        self.ID = ID
+    def uDOF_P(self, pointID=None):
+        return self.uDOF
 
-        self.B = subsystem.B_dense
+    def r_OP(self, t, q, pointID=None):
+        return self.r_pivot + pointID * np.array([q[0], -q[1], 0])
 
-    @property
-    def qDOF(self):
-        return self.subsystem.qDOF
+    def r_OP_q(self, t, q, pointID=None):
+        return pointID * np.array([[1 , 0 ], [0, -1], [0, 0]])
 
-    @property
-    def uDOF(self):
-        return self.subsystem.uDOF        
+    def r_OP_qq(self, t, q, pointID=None):
+        return np.zeros((3, self.nq, self.nq))
 
-    def position(self, t, q):
-        return self.subsystem.r_pivot + self.ID * np.array([q[0], -q[1], 0])
-    
-    def position_q(self, t, q):
-        return self.ID * np.array([[1 , 0 ], [0, -1], [0, 0]])
+    def J_P(self, t, q, pointID=None):
+        return self.r_OP_q(t, q, pointID) @ self.B_dense(t, q)
 
-    def position_qq(self, t, q):
-        nq = len(self.qDOF)
-        return np.zeros((3, nq, nq))
+    def J_P_q(self, t, q, pointID=None):
+        return pointID * np.array( [ [ [0,1] ],[ [1, 0] ],[ [0,0] ] ])
 
-    def rotation(self, t, q):
-        dr = np.array([q[0], -q[1], 0]) - self.subsystem.r_pivot
-        d1 = dr / np.linalg.norm(dr)
-        d2 = np.array([dr[1], -dr[0], 0])
-        d3 = np.array([0, 0, 1])
-        return np.vstack((d1, d2, d3)).T
 
-if __name__ == "__main__":
-    m = 1
-    L = 2
-    g = 9.81
 
-    F = lambda t: np.array([0, -m * g])
-
-    l = lambda t: L + np.sin(t)
-    l_t = lambda t: np.cos(t)
-    l_tt = lambda t: -np.sin(t)
-
-    pendulum = Pendulum_variable_length(m, l, l_t, F)
-
-    Pt = pendulum.cosserat_point(1)
-
-    pass

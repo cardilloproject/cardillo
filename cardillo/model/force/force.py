@@ -4,26 +4,30 @@ from cardillo.math import Numerical_derivative
 class Force(object):
     r"""Force implementation."""
 
-    def __init__(self, force, point):
+    def __init__(self, force, subsystem, point_ID):
         if not callable(force):
             self.force = lambda t: force
         else:
             self.force = force
-        self.point = point
+        self.subsystem = subsystem
+        self.point_ID = point_ID
+        self.r_OP = lambda t, q: subsystem.r_OP(t, q, point_ID)
+        self.J_P = lambda t, q: subsystem.J_P(t, q, point_ID)
+        self.J_P_q = lambda t, q: subsystem.J_P(t, q, point_ID)
 
     @property
     def qDOF(self):
-        return self.point.qDOF
+        return self.subsystem.qDOF_P(self.point_ID)
 
     @property
     def uDOF(self):
-        return self.point.uDOF
+        return self.subsystem.uDOF_P(self.point_ID)
     
     def potential(self, t, q):
-        return - ( self.force(t) @ self.point.position(t, q) )
+        return - ( self.force(t) @ self.r_OP(t, q) )
 
     def f_pot(self, t, q):
-        return (self.force(t) @ self.point.position_q(t, q)) @ self.point.B(t, q)
+        return self.force(t) @ self.J_P(t, q)
 
     def f_pot_q(self, t, q, coo):
         # f_q = einsum('i,ijk->jk', self.force(t), self.point.position_qq(t, q))
@@ -34,19 +38,23 @@ class Follower_force(object):
     r"""Follower force implementation."""
 
     def __init__(self, force, point):
-        if not callable(force):
+        if not callable(force, subsystem, point_ID):
             self.force = lambda t: force
         else:
             self.force = force
-        self.point = point
+        self.subsystem = subsystem
+        self.point_ID = point_ID
+        self.r_OP = lambda t, q: subsystem.r_OP(t, q, point_ID)
+        self.J_P = lambda t, q: subsystem.J_P(t, q, point_ID)
+        self.J_P_q = lambda t, q: subsystem.J_P(t, q, point_ID)
 
     @property
     def qDOF(self):
-        return self.point.qDOF
+        return self.subsystem.qDOF_P(self.point_ID)
 
     @property
     def uDOF(self):
-        return self.point.uDOF
+        return self.subsystem.uDOF_P(self.point_ID)
 
     def f_npot(self, t, q, u):
         R = self.point.rotation(t, q)

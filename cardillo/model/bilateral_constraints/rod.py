@@ -508,20 +508,48 @@ class RodBodyBody():
     
     """
 
-    def __init__(self, point1, point2, dist, la_g0=np.zeros(1)):
+    def __init__(self, subsystem1, point_ID1, subsystem2, point_ID2, dist, la_g0=np.zeros(1)):
         self.nla_g = 1
-        self.point1 = point1
-        self.point2 = point2
+
+        self.subsystem1 = subsystem1
+        self.point_ID1 =point_ID1
+        self.r_OP1 = lambda t, q: subsystem1.r_OP(t, q, point_ID1)
+        self.r_OP1_q = lambda t, q: subsystem1.r_OP_q(t, q, point_ID1)
+        self.J_P1 = lambda t, q: subsystem1.J_P(t, q, point_ID1)
+        self.J_P1_q = lambda t, q: subsystem1.J_P_q(t, q, point_ID1)
+
+        self.subsystem2 = subsystem2
+        self.point_ID2 =point_ID2
+        self.r_OP2 = lambda t, q: subsystem2.r_OP(t, q, point_ID2)
+        self.r_OP2_q = lambda t, q: subsystem2.r_OP_q(t, q, point_ID2)
+        self.J_P2 = lambda t, q: subsystem2.J_P(t, q, point_ID2)
+        self.J_P2_q = lambda t, q: subsystem2.J_P_q(t, q, point_ID2)
+        
         self.dist = dist
         self.la_g0 = la_g0
 
-    @property
-    def qDOF(self):
-        return np.concatenate([self.point1.qDOF, self.point2.qDOF])
+    def assembler_callback(self):
+        self.qDOF1 = self.subsystem1.qDOF_P(self.point_ID1)
+        self.qDOF2 = self.subsystem2.qDOF_P(self.point_ID2)
+        self.qDOF = np.concatenate([self.qDOF1, self.qDOF2])
+        self.nq1 = len(self.qDOF1)
+        self.nq2 = len(self.qDOF2)
+        self.nq = self.nq1 + self.nq2
+        
+        self.uDOF1 = self.subsystem1.uDOF_P(self.point_ID1)
+        self.uDOF2 = self.subsystem2.uDOF_P(self.point_ID2)
+        self.uDOF = np.concatenate([self.uDOF1, self.uDOF2])
+        self.nu1 = len(self.uDOF1)
+        self.nu2 = len(self.uDOF2)
+        self.nu = self.nu1 + self.nu2
+        
+    # @property
+    # def qDOF(self):
+    #     return np.concatenate([self.subsystem1.qDOF_P(self.point_ID1), self.subsystem2.qDOF_P(self.point_ID2)])
 
-    @property
-    def uDOF(self):
-        return np.concatenate([self.point1.uDOF, self.point2.uDOF])
+    # @property
+    # def uDOF(self):
+    #     return np.concatenate([self.subsystem1.uDOF_P(self.point_ID1), self.subsystem2.uDOF_P(self.point_ID2)])
 
     def g(self, t, q):
         r"""Constraint function.
@@ -531,10 +559,9 @@ class RodBodyBody():
             {}_I \vr_{OP_2}(t, \vq_2))\T ({}_I \vr_{OP_1}(t, \vq_1) - 
             {}_I \vr_{OP_2}(t, \vq_2)) - L^2 \in \mathbb{R} \; .
         """
-
-        nq1 = len(self.point1.qDOF)
-        r_OP1 = self.point1.position(t, q[:nq1]) 
-        r_OP2 = self.point2.position(t, q[nq1:])
+        nq1 = self.nq1
+        r_OP1 = self.r_OP1(t, q[:nq1]) 
+        r_OP2 = self.r_OP2(t, q[nq1:])
         return (r_OP1 - r_OP2) @ (r_OP1 - r_OP2)  - self.dist ** 2
 
     def g_q_dense(self, t, q):
@@ -554,12 +581,12 @@ class RodBodyBody():
 
         The term $\\pd{g_i}{q^j}$ is stored in ``g_q[i, j]``.
         """
-        nq1 = len(self.point1.qDOF)
-        r_OP1 = self.point1.position(t, q[:nq1]) 
-        r_OP2 = self.point2.position(t, q[nq1:])
-        J1 = self.point1.position_q(t, q[:nq1]) 
-        J2 = self.point2.position_q(t, q[nq1:])
-        return np.array([2 * (r_OP1 - r_OP2) @ np.hstack([J1,-J2])])
+        nq1 = self.nq1
+        r_OP1 = self.r_OP1(t, q[:nq1]) 
+        r_OP2 = self.r_OP2(t, q[nq1:])
+        r_OP1_q = self.r_OP1_q(t, q[:nq1]) 
+        r_OP2_q = self.r_OP2_q(t, q[nq1:])
+        return np.array([2 * (r_OP1 - r_OP2) @ np.hstack([r_OP1_q,-r_OP2_q])])
 
     def g_qq_dense(self, t, q):
         r"""Second partial derivatives of the constraint functions w.r.t. generalized coordinates
@@ -579,9 +606,8 @@ class RodBodyBody():
 
         The term $\\frac{\\partial^2 g_i}{\\partial q^j \\partial q^k}$ is stored in ``g_qq[i, j, k]``.
         """
-        nq1 = len(self.point1.qDOF)
-        nq2 = len(self.point2.qDOF)
-        nq = nq1 + nq2
+        nq1 = self.nq1
+        nq = self.nq
         r_OP1 = self.point1.position(t, q[:nq1]) 
         r_OP2 = self.point2.position(t, q[nq1:])
         J1 = self.point1.position_q(t, q[:nq1]) 
@@ -599,45 +625,37 @@ class RodBodyBody():
 
     def g_q(self, t, q, coo):
         coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
-
-    def B_dense(self, t, q):
-        nq1 = len(self.point1.qDOF)
-        nq2 = len(self.point2.qDOF)
-        nu1 = len(self.point1.uDOF)
-        nu2 = len(self.point2.uDOF)
-        B = np.zeros((nq1 + nq2, nu1 + nu2))
-        
-        B[:nq1, :nu1] = self.point1.B(t, q[:nq1])
-        B[nq1:, nu1:] = self.point2.B(t, q[nq1:])
-
-        return B
-
-    def B_q_dense(self, t, q):
-        nq1 = len(self.point1.qDOF)
-        nq2 = len(self.point2.qDOF)
-        nq = nq1 + nq2
-        nu1 = len(self.point1.uDOF)
-        nu2 = len(self.point2.uDOF)
-        nu = nu1 + nu2
-        B_q = np.zeros((nq, nu))
-        
-        B[:nq1, :nu1] = self.point1.B(t, q[:nq1])
-        B[nq1:, nu1:] = self.point2.B(t, q[nq1:])
-
-        return B
-    
+   
     def W_g_dense(self, t, q):
-        # return (self.g_q_dense(t, q) @ self.B_dense(t, q)).T
-        return self.B_dense(t, q).T @ self.g_q_dense(t, q).T
+        nq1 = self.nq1
+        r_P2P1 = self.r_OP1(t, q[:nq1]) - self.r_OP2(t, q[nq1:])
+        J_P1 = self.J_P1(t, q[:nq1]) 
+        J_P2 = self.J_P2(t, q[nq1:])
+        return 2 * np.array([ np.concatenate([J_P1.T @ r_P2P1, -J_P2.T @ r_P2P1])]).T
 
     def W_g(self, t, q, coo):
         coo.extend(self.W_g_dense(t, q), (self.uDOF, self.la_gDOF))
 
-    # def Wla_g_q(self, t, q, la_g, coo):
-    #      @ self.B_dense(t, q) + self.g_q_dense(t, q) @ 
-    #     # dense = np.einsum('ijk,i->jk', self.g_qq_dense(t, q), la_g) @ self.B_dense(t, q) \
-    #     #         + self.g_q_dense(t, q)
-    #     coo.extend(dense, (self.uDOF, self.qDOF))
+    def Wla_g_q(self, t, q, la_g, coo):
+        nq1 = self.nq1
+        nu1 = self.nu1
+        r_P2P1 = self.r_OP1(t, q[:nq1]) - self.r_OP2(t, q[nq1:])
+        r_OP1_q = self.r_OP1_q(t, q[:nq1]) 
+        r_OP2_q = self.r_OP2_q(t, q[nq1:])
+        J_P1 = self.J_P1(t, q[:nq1]) 
+        J_P2 = self.J_P2(t, q[nq1:])
+        J_P1_q = self.J_P1_q(t, q[:nq1]) 
+        J_P2_q = self.J_P2_q(t, q[nq1:])
+
+        # dense blocks
+        dense = np.zeros((self.nu, self.nq))
+
+        dense[:nu1, :nq1] = J_P1.T @ r_OP1_q + np.einsum('i,ijk->jk',r_P2P1, J_P1_q)
+        dense[:nu1, nq1:] = - J_P1.T @ r_OP2_q
+        dense[nu1:, :nq1] = - J_P2.T @ r_OP1_q
+        dense[nu1:, nq1:] = J_P2.T @ r_OP2_q - np.einsum('i,ijk->jk',r_P2P1, J_P2_q)
+
+        coo.extend(2 * la_g[0] * dense, (self.uDOF, self.qDOF))
 
 
     # def __g_t(self, t, q):

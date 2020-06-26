@@ -9,7 +9,7 @@ from cardillo.model import Model
 from cardillo.model.pendulum_variable_length import Pendulum_variable_length
 from cardillo.model.point_mass import Point_mass
 from cardillo.model.bilateral_constraints import RodBodyBody
-from cardillo.model.force import Force, Follower_force
+from cardillo.model.force import Force #, Follower_force
 from cardillo.solver import Euler_backward
 
 def double_pendulum():
@@ -47,11 +47,11 @@ def double_pendulum():
     # pm = Point_mass(m, 2, np.array([0, -2 * L]), np.array([0, 0]))
     model.add(pm)
 
-    gravity_force = Force(Fg, pm.point())
+    gravity_force = Force(Fg, pm, [])
     model.add(gravity_force)
 
     # rod = RodBodyBody(pendulum.point(pin), pm.point(), L)
-    rod = RodBodyBody(pendulum.point(1), pm.point(), L)
+    rod = RodBodyBody(pendulum, 1, pm, [], L)
     model.add(rod)
 
     model.assemble()
