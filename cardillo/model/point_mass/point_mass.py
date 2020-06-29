@@ -23,26 +23,23 @@ class Point_mass():
     def B(self, t, q, B_coo):
         B_coo.extend(self.B_dense(t, q), (self.qDOF, self.uDOF))
 
-    def qDOF_P(self, pointID=None):
+    def qDOF_P(self, point_ID=None):
         return self.qDOF
 
-    def uDOF_P(self, pointID=None):
+    def uDOF_P(self, point_ID=None):
         return self.uDOF
 
-    def r_OP(self, t, q, pointID=None):
+    def r_OP(self, t, q, point_ID=None):
         r = np.zeros(3)
         r[:self.nq] = q
         return r
 
-    def r_OP_q(self, t, q, pointID=None):
+    def r_OP_q(self, t, q, point_ID=None):
         return np.eye(3, self.nq)
 
-    def r_OP_qq(self, t, q, pointID=None):
-        return np.zeros((3, self.nq, self.nq))
-
-    def J_P(self, t, q, pointID=None):
+    def J_P(self, t, q, point_ID=None):
         return np.eye(3, self.nu)
 
-    def J_P_q(self, t, q, pointID=None):
+    def J_P_q(self, t, q, point_ID=None):
         return np.zeros((3, self.nu, self.nq))
 

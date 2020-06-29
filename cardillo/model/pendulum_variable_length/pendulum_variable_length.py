@@ -55,26 +55,23 @@ class Pendulum_variable_length():
         q = self.l(t) / l_act * q
         return q, u
 
-    def qDOF_P(self, pointID=None):
+    def qDOF_P(self, point_ID=None):
         return self.qDOF
 
-    def uDOF_P(self, pointID=None):
+    def uDOF_P(self, point_ID=None):
         return self.uDOF
 
-    def r_OP(self, t, q, pointID=None):
-        return self.r_pivot + pointID * np.array([q[0], -q[1], 0])
+    def r_OP(self, t, q, point_ID=None):
+        return self.r_pivot + point_ID * np.array([q[0], -q[1], 0])
 
-    def r_OP_q(self, t, q, pointID=None):
-        return pointID * np.array([[1 , 0 ], [0, -1], [0, 0]])
+    def r_OP_q(self, t, q, point_ID=None):
+        return point_ID * np.array([[1 , 0 ], [0, -1], [0, 0]])
 
-    def r_OP_qq(self, t, q, pointID=None):
-        return np.zeros((3, self.nq, self.nq))
+    def J_P(self, t, q, point_ID=None):
+        return self.r_OP_q(t, q, point_ID) @ self.B_dense(t, q)
 
-    def J_P(self, t, q, pointID=None):
-        return self.r_OP_q(t, q, pointID) @ self.B_dense(t, q)
-
-    def J_P_q(self, t, q, pointID=None):
-        return pointID * np.array( [ [ [0,1] ],[ [1, 0] ],[ [0,0] ] ])
+    def J_P_q(self, t, q, point_ID=None):
+        return point_ID * np.array( [ [ [0,1] ],[ [1, 0] ],[ [0,0] ] ])
 
 
 
