@@ -229,5 +229,3 @@ class Euler_backward():
             
         # write solution
         return self.t, np.array(q), np.array(u), np.array(la_g)
-    
-    

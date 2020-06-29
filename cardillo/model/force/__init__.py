@@ -1,1 +1,1 @@
-from .force import Force, Follower_force
+from .force import Force

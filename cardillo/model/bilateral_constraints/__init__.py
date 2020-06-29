@@ -1,1 +1,1 @@
-from .rod import RodBodyBody
+from .rod import Rod

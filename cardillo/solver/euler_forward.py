@@ -80,6 +80,4 @@ class Euler_forward():
             tk, qk, uk = tk1, qk1, uk1
             
         # write solution
-        return np.array(t), np.array(q), np.array(u)
-    
-    
+        return np.array(t), np.array(q), np.array(u) 

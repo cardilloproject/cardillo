@@ -9,7 +9,6 @@ properties.extend(['f_gyr', 'f_gyr_q', 'f_gyr_u'])
 properties.extend(['f_pot', 'f_pot_q'])
 properties.extend(['f_npot', 'f_npot_q', 'f_npot_u'])
 
-# properties.extend(['B', 'beta'])
 properties.extend(['q_dot', 'q_dot_q', 'B'])
 
 properties.extend(['g', 'g_q'])
@@ -28,7 +27,6 @@ class Model(object):
     """
 
     def __init__(self):
-        # self.nDOF = 0
         self.nq = 0
         self.nu = 0
         self.nla_g = 0
@@ -39,7 +37,7 @@ class Model(object):
         self.contributions = []
 
         for p in properties:
-            setattr(self, f'_{self.__class__.__name__}__{p}_contr',[])
+            setattr(self, f'_{self.__class__.__name__}__{p}_contr', [])
 
     def add(self, contr):
         if not contr in self.contributions:
@@ -57,7 +55,6 @@ class Model(object):
         self.contributions.pop(index)
 
     def assemble(self):
-        # self.nDOF = 0
         self.nq = 0
         self.nu = 0
         self.nla_g = 0
@@ -77,16 +74,19 @@ class Model(object):
                 if (p in contr.__class__.__dict__ and callable(getattr(contr, p, None)) ):
                     getattr(self, f'_{self.__class__.__name__}__{p}_contr').append(contr)
 
+            # if contribution has position degrees of freedom address position coordinates
             if getattr(contr, 'nq', False):
                 contr.qDOF = np.arange(0, contr.nq) + self.nq
                 self.nq += contr.nq
                 q0.extend(contr.q0.tolist())
 
+            # if contribution has velocity degrees of freedom address velocity coordinates
             if getattr(contr, 'nu', False):
                 contr.uDOF = np.arange(0, contr.nu) + self.nu 
                 self.nu += contr.nu
                 u0.extend(contr.u0.tolist())
             
+            # if contribution has constraints on position level address constraint coordinates
             if getattr(contr, 'nla_g', False):
                 contr.la_gDOF = np.arange(0, contr.nla_g) + self.nla_g
                 self.nla_g += contr.nla_g
@@ -106,42 +106,21 @@ class Model(object):
         self.la_g0 = np.array(la_g0)
         # self.la_gamma0 = np.array(la_gamma0)
 
+        # call assembler callback: call methods that require first an assembly of the system
         self.assembler_callback()
 
     def assembler_callback(self):
         for contr in self.__assembler_callback_contr:
             contr.assembler_callback()
     
-    # def __assemble_bilateral_constraints(self):
-    #     self.la0 = np.zeros(self.n_laDOF)
-    #     n_laDOF_tot = 0
-    #     for bilateralConstr in self.bilateralConstraintList:
-    #         bilateralConstr.laDOF = np.arange(n_laDOF_tot, n_laDOF_tot + bilateralConstr.n_laDOF)
-    #         bilateralConstr.qDOF = bilateralConstr.get_qDOF()
-    #         bilateralConstr.n_laDOF = len(bilateralConstr.laDOF)
-    #         bilateralConstr.n_qDOF = len(bilateralConstr.qDOF)
-    #         self.la0[n_laDOF_tot:n_laDOF_tot + bilateralConstr.n_laDOF] = bilateralConstr.la0
-    #         n_laDOF_tot += bilateralConstr.n_laDOF
-
-    #     # store total number of constraint forces  
-    #     # self.n_laDOF = n_laDOF_tot
-    #     self.laDOF = np.arange(self.n_qDOF)
-
-    #########################################################################
-    # functions are implemented with fill in and contraction on element level
-    #########################################################################
-
+    #====================
+    # equations of motion
+    #====================
     def M(self, t, q, scipy_matrix=coo_matrix):
         coo = Coo((self.nu, self.nu))
         for contr in self.__M_contr:
             contr.M(t, q[contr.qDOF], coo)
         return coo.tosparse(scipy_matrix)
-
-    # def Mu(self, t, q, u):
-    #     f = np.zeros(self.nu)
-    #     for contr in self.__M_contr:
-    #         f[contr.uDOF] += contr.Mu(t, q[contr.qDOF], u[contr.uDOF])
-    #     return f
 
     def Mu_q(self, t, q, u, scipy_matrix=coo_matrix):
         coo = Coo((self.nu, self.nq))
@@ -206,12 +185,10 @@ class Model(object):
     def h_u(self, t, q, u):
         return self.f_npot_u(t, q, u) - self.f_gyr_u(t, q, u)
 
-    # def u_dot(self, t, q, u, la_g):
-    #     rhs = self.h(t, q, u) + self.Wla_g(t, q, la_g)
-    #     return spsolve(self.M(t, q, csr_matrix), rhs)
-
+    #====================
+    # kinematic equations
+    #====================
     def q_dot(self, t, q, u):
-        # return self.B(t, q, csr_matrix) @ u + self.beta(t, q)
         q_dot = np.zeros(self.nq)
         for contr in self.__q_dot_contr:
             q_dot[contr.qDOF] += contr.q_dot(t, q[contr.qDOF], u[contr.uDOF])
@@ -229,17 +206,14 @@ class Model(object):
             contr.B(t, q[contr.qDOF], coo)
         return coo.tosparse(scipy_matrix)
 
-    # def beta(self, t, q):
-    #     b = np.zeros(self.nq)
-    #     for contr in self.__beta_contr:
-    #         b[contr.qDOF] += contr.beta(t, q[contr.qDOF])
-    #     return b
-
     def solver_step_callback(self, t, q, u):
         for contr in self.__solver_step_callback_contr:
             q[contr.qDOF], u[contr.uDOF] = contr.solver_step_callback(t, q[contr.qDOF], u[contr.uDOF])
         return q, u
 
+    #========================================
+    # bilateral constraints on position level
+    #========================================
     def g(self, t, q):
         g = np.zeros(self.nla_g)
         for contr in self.__g_contr:
@@ -263,7 +237,3 @@ class Model(object):
         for contr in self.__g_contr:
             contr.Wla_g_q(t, q[contr.qDOF], la_g[contr.la_gDOF], coo)
         return coo.tosparse(scipy_matrix)
-
-
-if __name__ == "__main__":
-   pass
