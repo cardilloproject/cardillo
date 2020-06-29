@@ -90,36 +90,36 @@ class Euler_backward():
         return self.__R(qk, uk, tk1, qk1, uk1, la_gk1)
 
     def __R_x(self, qk, uk, tk1, qk1, uk1, la_gk1):
-        Ru_u = self.Mk1 - self.dt * self.model.h_u(tk1, qk1, uk1)
-        Ru_q = self.model.Mu_q(tk1, qk1, uk1 - uk) - self.dt * (self.model.h_q(tk1, qk1, uk1) + self.model.Wla_g_q(tk1, qk1, la_gk1))
-        Ru_la_g = -self.dt * self.W_gk1
+        # Ru_u = self.Mk1 - self.dt * self.model.h_u(tk1, qk1, uk1)
+        # Ru_q = self.model.Mu_q(tk1, qk1, uk1 - uk) - self.dt * (self.model.h_q(tk1, qk1, uk1) + self.model.Wla_g_q(tk1, qk1, la_gk1))
+        # Ru_la_g = -self.dt * self.W_gk1
 
-        Rq_u = -self.dt * self.model.B(tk1, qk1)
-        Rq_q = identity(self.nq) - self.dt * self.model.q_dot_q(tk1, qk1, uk1)
-        # Rq_la_g = coo_matrix((self.nq, self.nla_g))
+        # Rq_u = -self.dt * self.model.B(tk1, qk1)
+        # Rq_q = identity(self.nq) - self.dt * self.model.q_dot_q(tk1, qk1, uk1)
+        # # Rq_la_g = coo_matrix((self.nq, self.nla_g))
 
-        # Rla_g_u = coo_matrix((self.nla_g, self.nu))
-        Rla_g_q = self.model.g_q(tk1, qk1)
-        # Rla_g_la_g = coo_matrix((self.nla_g, self.nla_g))
+        # # Rla_g_u = coo_matrix((self.nla_g, self.nu))
+        # Rla_g_q = self.model.g_q(tk1, qk1)
+        # # Rla_g_la_g = coo_matrix((self.nla_g, self.nla_g))
         
-        return bmat([[Ru_u, Ru_q, Ru_la_g], \
-                     [Rq_u, Rq_q, None], \
-                     [None, Rla_g_q, None]]).tocsc()
+        # return bmat([[Ru_u, Ru_q, Ru_la_g], \
+        #              [Rq_u, Rq_q, None], \
+        #              [None, Rla_g_q, None]]).tocsc()
         
-        # R_x = bmat([[Ru_u, Ru_q, Ru_la_g], \
-        #             [Rq_u, Rq_q, None], \
-        #             [None, Rla_g_q, None]])
+        # # R_x = bmat([[Ru_u, Ru_q, Ru_la_g], \
+        # #             [Rq_u, Rq_q, None], \
+        # #             [None, Rla_g_q, None]])
 
-        # xk = np.zeros(self.n)
-        # xk[self.qDOF] = qk
-        # xk[self.uDOF] = uk
+        xk = np.zeros(self.n)
+        xk[self.qDOF] = qk
+        xk[self.uDOF] = uk
 
-        # xk1 = np.zeros(self.n)
-        # xk1[self.qDOF] = qk1
-        # xk1[self.uDOF] = uk1
-        # xk1[self.la_gDOF] = la_gk1
+        xk1 = np.zeros(self.n)
+        xk1[self.qDOF] = qk1
+        xk1[self.uDOF] = uk1
+        xk1[self.la_gDOF] = la_gk1
 
-        # R_x_num = Numerical_derivative(self.__R_wrapper, order=2)._x(tk1, xk1, xk)
+        R_x_num = Numerical_derivative(self.__R_wrapper, order=2)._x(tk1, xk1, xk)
 
         # diff = R_x_num - R_x.toarray()
         # error_uu = np.linalg.norm(diff[self.uDOF[:,None], self.uDOF])
@@ -145,7 +145,7 @@ class Euler_backward():
         # print(f'error_laq jacobian: {error_laq:.5e}')
         # print(f'error_lala jacobian: {error_lala:.5e}')
 
-        # return csr_matrix( R_x_num )
+        return csr_matrix( R_x_num )
 
         # return csr_matrix( Numerical_derivative(self.__R_wrapper, order=1)._x(tk1, xk1, xk) )
         # # return csr_matrix( Numerical_derivative(self.__R_wrapper, order=2)._x(tk1, xk1, xk) )

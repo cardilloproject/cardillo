@@ -42,12 +42,13 @@ class Rigid_body_quaternion():
         return q_dot
 
     def q_dot_q(self, t, q, u, coo):
-        dense = np.zeros((self.nq, self.nq))
-        dense[:3, :3] = np.eye(3)
-
+        p = q[3:]
         p2 = p @ p
         Q_p = quat2mat_p(p) / (2 * p2) \
             - np.einsum('ij,k->ijk', quat2mat(p), p / (p2**2))
+            
+        dense = np.zeros((self.nq, self.nq))
+        dense[:3, :3] = np.eye(3)
         dense[3:, 3:] = np.einsum('ijk,j->ik', Q_p[:, 1:, :], u[3:])
         coo.extend(dense, (self.qDOF, self.qDOF))
 
@@ -87,7 +88,7 @@ class Rigid_body_quaternion():
     def r_OP_q(self, t, q, point_ID=np.zeros(3)):
         r_OP_q = np.zeros((3, self.nq))
         r_OP_q[:, :3] = np.eye(3)
-        r_OP_q[:, :3] = np.einsum('ijk,j->ik', self.A_IK_q(t, q), point_ID)
+        r_OP_q[:, :] += np.einsum('ijk,j->ik', self.A_IK_q(t, q), point_ID)
         return r_OP_q
 
     def J_P(self, t, q, point_ID=np.zeros(3)):

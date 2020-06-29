@@ -1,5 +1,5 @@
 import numpy as np
-from cardillo.utility.sparse import Coo
+from cardillo.utility.coo import Coo
 from scipy.sparse import coo_matrix, csr_matrix
 from scipy.sparse.linalg import spsolve 
 
@@ -71,23 +71,27 @@ class Model(object):
                 # if property is implemented as class function append to property contribution
                 # - p in contr.__class__.__dict__: has global class attribute p
                 # - callable(getattr(contr, p, None)): p is callable
-                if (p in contr.__class__.__dict__ and callable(getattr(contr, p, None)) ):
+                if (hasattr(contr, p) and callable(getattr(contr, p)) ):
+                # if (p in contr.__class__.__dict__ and callable(getattr(contr, p, None)) ):
                     getattr(self, f'_{self.__class__.__name__}__{p}_contr').append(contr)
 
             # if contribution has position degrees of freedom address position coordinates
-            if getattr(contr, 'nq', False):
+            if hasattr(contr, 'nq'):
+            # if (contr, 'nq', False):
                 contr.qDOF = np.arange(0, contr.nq) + self.nq
                 self.nq += contr.nq
                 q0.extend(contr.q0.tolist())
 
             # if contribution has velocity degrees of freedom address velocity coordinates
-            if getattr(contr, 'nu', False):
+            # if getattr(contr, 'nu', False):
+            if hasattr(contr, 'nu'):
                 contr.uDOF = np.arange(0, contr.nu) + self.nu 
                 self.nu += contr.nu
                 u0.extend(contr.u0.tolist())
             
             # if contribution has constraints on position level address constraint coordinates
-            if getattr(contr, 'nla_g', False):
+            # if getattr(contr, 'nla_g', False):
+            if hasattr(contr, 'nla_g'):
                 contr.la_gDOF = np.arange(0, contr.nla_g) + self.nla_g
                 self.nla_g += contr.nla_g
                 la_g0.extend(contr.la_g0.tolist())
