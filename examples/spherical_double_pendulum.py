@@ -8,7 +8,7 @@ from cardillo.math.algebra import axis_angle2quat
 from cardillo.model import Model
 from cardillo.model.rigid_body import Rigid_body_quaternion
 from cardillo.model.frame import Frame
-from cardillo.model.bilateral_constraints import Spherical_joint, Rigid_connection
+from cardillo.model.bilateral_constraints import Spherical_joint, Rigid_connection, Revolute_joint
 from cardillo.model.force import Force
 from cardillo.solver import Euler_backward
 
@@ -50,9 +50,13 @@ if __name__ == "__main__":
     model.add(Force(lambda t: np.array([0, 0, -9.81 * m]), RB1))
     model.add(Force(lambda t: np.array([0, 0, -9.81 * m]), RB2))
     model.add(frame)
-    model.add( Spherical_joint(frame, RB1, r_joint=np.zeros(3)) )
+    # model.add( Spherical_joint(frame, RB1, r_joint=np.zeros(3)) )
+    A_IB = np.array([[0, 0, 1], [1, 0, 0], [0, 1, 0]])
+    model.add(Revolute_joint(frame, RB1, A_IB, r_joint=np.zeros(3)))
     # model.add( Spherical_joint(RB1, RB2, r_joint=r01) )
     model.add( Rigid_connection(RB1, RB2, r_joint=r01) )
+    # model.add( Revolute_joint(RB1, RB2, A_IB, r_joint=r01) )
+
     model.assemble()
 
     t0 = 0
