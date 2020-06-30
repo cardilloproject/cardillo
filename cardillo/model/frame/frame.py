@@ -12,26 +12,26 @@ class Frame():
         self.q0 = np.array([])
         self.u0 = np.array([])
 
-    def qDOF_P(self, point_ID=None):
+    def qDOF_P(self, frame_ID=None):
         return self.qDOF
 
-    def uDOF_P(self, point_ID=None):
+    def uDOF_P(self, frame_ID=None):
         return self.uDOF
 
-    def r_OP(self, t, q=None, point_ID=None):
+    def r_OP(self, t, q=None, frame_ID=None, K_r_SP=None):
         return self.r_OP__(t)
 
-    def r_OP_q(self, t, q=None, point_ID=None):
+    def r_OP_q(self, t, q=None, frame_ID=None, K_r_SP=None):
         return np.array([]).reshape((3, 0))
 
-    def A_IK(self, t, q=None, point_ID=None):
+    def A_IK(self, t, q=None, frame_ID=None):
         return self.A_IK__(t)
 
-    def A_IK_q(self, t, q=None, point_ID=None):
+    def A_IK_q(self, t, q=None, frame_ID=None):
         return np.array([]).reshape((3, 3, 0))
 
-    def J_P(self, t, q=None, point_ID=None):
+    def J_P(self, t, q=None, frame_ID=None, K_r_SP=None):
         return np.array([]).reshape((3, 0))
 
-    def J_P_q(self, t, q, point_ID=None):
+    def J_P_q(self, t, q, frame_ID=None, K_r_SP=None):
         return np.array([]).reshape((3, 0, 0))

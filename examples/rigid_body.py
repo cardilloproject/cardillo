@@ -37,10 +37,10 @@ if __name__ == "__main__":
 
     model = Model()
     model.add(cylinder)
-    model.add(Force(lambda t: np.array([0, 0, -9.81 * m]), cylinder, np.zeros(3)))
+    model.add(Force(lambda t: np.array([0, 0, -9.81 * m]), cylinder))
     model.add(frame)
-    point_ID = np.array([0, 0, +l/2])
-    model.add( Rod(frame, None, cylinder, point_ID, l/2) )
+    K_r_SP = np.array([0, 0, +l/2])
+    model.add( Rod(frame, cylinder, K_r_SP2=K_r_SP) )
     model.assemble()
 
     t0 = 0
@@ -67,7 +67,7 @@ if __name__ == "__main__":
     def init(t, q):
         x_0, y_0, z_0 = frame.r_OP(t)
         x_S, y_S, z_S = cylinder.r_OP(t, q)
-        x_P, y_P, z_P = cylinder.r_OP(t, q, point_ID)
+        x_P, y_P, z_P = cylinder.r_OP(t, q, K_r_SP=K_r_SP)
         
         A_IK = cylinder.A_IK(t, q)
         d1 = A_IK[:, 0]
@@ -84,7 +84,7 @@ if __name__ == "__main__":
     def update(t, q, COM, d1_, d2_, d3_):
         x_0, y_0, z_0 = frame.r_OP(t)
         x_S, y_S, z_S = cylinder.r_OP(t, q)
-        x_P, y_P, z_P = cylinder.r_OP(t, q, point_ID)
+        x_P, y_P, z_P = cylinder.r_OP(t, q, K_r_SP=K_r_SP)
 
         A_IK = cylinder.A_IK(t, q)
         d1 = A_IK[:, 0]

@@ -55,40 +55,45 @@ class Rod():
     
     """
 
-    def __init__(self, subsystem1, point_ID1, subsystem2, point_ID2, dist, la_g0=np.zeros(1)):
+    def __init__(self, subsystem1, subsystem2, frame_ID1=np.zeros(3), frame_ID2=np.zeros(3), K_r_SP1=np.zeros(3), K_r_SP2=np.zeros(3), la_g0=None):
         self.nla_g = 1
-
+        self.la_g0 = np.zeros(self.nla_g) if la_g0 is None else la_g0
         self.subsystem1 = subsystem1
-        self.point_ID1 = point_ID1
-        self.r_OP1 = lambda t, q: subsystem1.r_OP(t, q, point_ID1)
-        self.r_OP1_q = lambda t, q: subsystem1.r_OP_q(t, q, point_ID1)
-        self.J_P1 = lambda t, q: subsystem1.J_P(t, q, point_ID1)
-        self.J_P1_q = lambda t, q: subsystem1.J_P_q(t, q, point_ID1)
+        self.frame_ID1 = frame_ID1
+        self.r_OP1 = lambda t, q: subsystem1.r_OP(t, q, frame_ID1, K_r_SP1)
+        self.r_OP1_q = lambda t, q: subsystem1.r_OP_q(t, q, frame_ID1, K_r_SP1)
+        self.J_P1 = lambda t, q: subsystem1.J_P(t, q, frame_ID1, K_r_SP1)
+        self.J_P1_q = lambda t, q: subsystem1.J_P_q(t, q, frame_ID1, K_r_SP1)
 
         self.subsystem2 = subsystem2
-        self.point_ID2 = point_ID2
-        self.r_OP2 = lambda t, q: subsystem2.r_OP(t, q, point_ID2)
-        self.r_OP2_q = lambda t, q: subsystem2.r_OP_q(t, q, point_ID2)
-        self.J_P2 = lambda t, q: subsystem2.J_P(t, q, point_ID2)
-        self.J_P2_q = lambda t, q: subsystem2.J_P_q(t, q, point_ID2)
-        
-        self.dist = dist
-        self.la_g0 = la_g0
+        self.frame_ID2 = frame_ID2
+        self.r_OP2 = lambda t, q: subsystem2.r_OP(t, q, frame_ID2, K_r_SP2)
+        self.r_OP2_q = lambda t, q: subsystem2.r_OP_q(t, q, frame_ID2, K_r_SP2)
+        self.J_P2 = lambda t, q: subsystem2.J_P(t, q, frame_ID2, K_r_SP2)
+        self.J_P2_q = lambda t, q: subsystem2.J_P_q(t, q, frame_ID2, K_r_SP2)
+
 
     def assembler_callback(self):
-        self.qDOF1 = self.subsystem1.qDOF_P(self.point_ID1)
-        self.qDOF2 = self.subsystem2.qDOF_P(self.point_ID2)
+        self.qDOF1 = self.subsystem1.qDOF_P(self.frame_ID1)
+        self.qDOF2 = self.subsystem2.qDOF_P(self.frame_ID2)
         self.qDOF = np.concatenate([self.qDOF1, self.qDOF2])
         self.nq1 = len(self.qDOF1)
         self.nq2 = len(self.qDOF2)
         self.nq = self.nq1 + self.nq2
         
-        self.uDOF1 = self.subsystem1.uDOF_P(self.point_ID1)
-        self.uDOF2 = self.subsystem2.uDOF_P(self.point_ID2)
+        self.uDOF1 = self.subsystem1.uDOF_P(self.frame_ID1)
+        self.uDOF2 = self.subsystem2.uDOF_P(self.frame_ID2)
         self.uDOF = np.concatenate([self.uDOF1, self.uDOF2])
         self.nu1 = len(self.uDOF1)
         self.nu2 = len(self.uDOF2)
         self.nu = self.nu1 + self.nu2
+
+        r_OP10 = self.r_OP1(self.subsystem1.t0, self.subsystem1.q0)
+        r_OP20 = self.r_OP2(self.subsystem2.t0, self.subsystem2.q0)
+        self.dist = np.linalg.norm(r_OP20 - r_OP10)
+        
+        if self.dist < 1e-6:
+            raise ValueError('Distance in rod is close to zero.')
         
     def g(self, t, q):
         r"""Constraint function.

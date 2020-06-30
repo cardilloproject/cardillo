@@ -26,7 +26,8 @@ class Model(object):
 
     """
 
-    def __init__(self):
+    def __init__(self, t0=0):
+        self.t0 = t0
         self.nq = 0
         self.nu = 0
         self.nla_g = 0
@@ -67,6 +68,7 @@ class Model(object):
         # la_gamma0 = []
         
         for contr in self.contributions:
+            contr.t0 = self.t0
             for p in properties:
                 # if property is implemented as class function append to property contribution
                 # - p in contr.__class__.__dict__: has global class attribute p

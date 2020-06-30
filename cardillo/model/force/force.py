@@ -1,23 +1,23 @@
-from numpy import einsum
+from numpy import einsum, zeros
 from cardillo.math import Numerical_derivative
 
 class Force(object):
     r"""Force implementation."""
 
-    def __init__(self, force, subsystem, point_ID):
+    def __init__(self, force, subsystem, frame_ID=zeros(3), K_r_SP=zeros(3)):
         if not callable(force):
             self.force = lambda t: force
         else:
             self.force = force
         self.subsystem = subsystem
-        self.point_ID = point_ID
-        self.r_OP  = lambda t, q: subsystem.r_OP(t, q, point_ID)
-        self.J_P   = lambda t, q: subsystem.J_P(t, q, point_ID)
-        self.J_P_q = lambda t, q: subsystem.J_P_q(t, q, point_ID)
+        self.frame_ID = frame_ID
+        self.r_OP  = lambda t, q: subsystem.r_OP(t, q, frame_ID, K_r_SP)
+        self.J_P   = lambda t, q: subsystem.J_P(t, q, frame_ID, K_r_SP)
+        self.J_P_q = lambda t, q: subsystem.J_P_q(t, q, frame_ID, K_r_SP)
 
     def assembler_callback(self):
-        self.qDOF = self.subsystem.qDOF_P(self.point_ID)
-        self.uDOF = self.subsystem.uDOF_P(self.point_ID)
+        self.qDOF = self.subsystem.qDOF_P(self.frame_ID)
+        self.uDOF = self.subsystem.uDOF_P(self.frame_ID)
           
     def potential(self, t, q):
         return - ( self.force(t) @ self.r_OP(t, q) )

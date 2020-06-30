@@ -47,11 +47,11 @@ def double_pendulum():
     # pm = Point_mass(m, 2, np.array([0, -2 * L]), np.array([0, 0]))
     model.add(pm)
 
-    gravity_force = Force(Fg, pm, [])
+    gravity_force = Force(Fg, pm)
     model.add(gravity_force)
 
     # rod = RodBodyBody(pendulum.point(pin), pm.point(), L)
-    rod = Rod(pendulum, 1, pm, [], L)
+    rod = Rod(pendulum, pm, frame_ID1=(1,))
     model.add(rod)
 
     model.assemble()
