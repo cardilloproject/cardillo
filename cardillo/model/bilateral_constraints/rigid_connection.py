@@ -32,7 +32,7 @@ class Rigid_connection():
         
         A_IK1 = self.subsystem1.A_IK(self.subsystem1.t0, self.subsystem1.q0, self.frame_ID1)
         A_IK2 = self.subsystem2.A_IK(self.subsystem2.t0, self.subsystem2.q0, self.frame_ID2)
-        A_K1K2 = A_IK1.T @ A_IK2
+        A_K2B2 = A_IK2.T @ A_IK1
 
         if self.r_joint is None:
             K_r_SP1 = self.K_r_SP1
@@ -56,8 +56,8 @@ class Rigid_connection():
         self.r_OP2_q = lambda t, q: self.subsystem2.r_OP_q(t, q[self.nq1:], self.frame_ID2, K_r_SP2)
         self.J_P2 = lambda t, q: self.subsystem2.J_P(t, q[self.nq1:], self.frame_ID2, K_r_SP2)
         self.J_P2_q = lambda t, q: self.subsystem2.J_P_q(t, q[self.nq1:], self.frame_ID2, K_r_SP2)
-        self.A_IB2 = lambda t, q: A_K1K2 @ self.subsystem2.A_IK(t, q[self.nq1:], self.frame_ID2)
-        self.A_IB2_q = lambda t, q: np.einsum('ij,jkl->ikl', A_K1K2, self.subsystem2.A_IK_q(t, q[self.nq1:], self.frame_ID2) )
+        self.A_IB2 = lambda t, q:  self.subsystem2.A_IK(t, q[self.nq1:], self.frame_ID2) @ A_K2B2
+        self.A_IB2_q = lambda t, q: np.einsum('ijk,jl->ilk', self.subsystem2.A_IK_q(t, q[self.nq1:], self.frame_ID2), A_K2B2 )
         self.J_R2 = lambda t, q: self.subsystem2.A_IK(t, q[self.nq1:], self.frame_ID2) @ self.subsystem2.K_J_R(t, q[self.nq1:], self.frame_ID2)
         self.J_R2_q = lambda t, q: np.einsum('ijk,jl->ilk', self.subsystem2.A_IK_q(t, q[self.nq1:], self.frame_ID2), self.subsystem2.K_J_R(t, q[self.nq1:], self.frame_ID2) ) + np.einsum('ij,jkl->ikl', self.subsystem2.A_IK(t, q[self.nq1:], self.frame_ID2), self.subsystem2.K_J_R_q(t, q[self.nq1:], self.frame_ID2) )
 

@@ -25,20 +25,23 @@ if __name__ == "__main__":
     r = 1
     l = 0.2
 
-    r0 = np.array([0, r, 0])
+    r01 = np.array([0, r, 0])
     # p0 = np.array([1, 0, 0, 0])
-    p0 = axis_angle2quat(np.array([1, 0, 0]), np.pi/2)
+    p01 = axis_angle2quat(np.array([1, 0, 0]), np.pi/2)
     
 
     r0_t = np.array([0, 0, 0])
-    omega = np.array([0, 0, 10])
+    omega = np.array([0, 0, 0])
     u0 = np.concatenate((r0_t, omega))
 
-    q0 = np.concatenate((r0, p0))
-    RB1 = Rigid_cylinder(m, r, l, q0, u0)
+    q01 = np.concatenate((r01, p01))
+    RB1 = Rigid_cylinder(m, r, l, q01, u0)
 
-    q0 = np.concatenate((2*r0, p0))
-    RB2 = Rigid_cylinder(m, r, l, q0, u0)
+    r02 = np.array([0, r, r])
+    p02 = np.random.rand(4)#axis_angle2quat(np.array([0, 0, 1]), np.pi/4)
+    p02 = p02 / np.linalg.norm(p02)
+    q02 = np.concatenate((r02, p02))
+    RB2 = Rigid_cylinder(m, r, l, q02, u0)
     frame = Frame()
 
     model = Model()
@@ -48,15 +51,15 @@ if __name__ == "__main__":
     model.add(Force(lambda t: np.array([0, 0, -9.81 * m]), RB2))
     model.add(frame)
     model.add( Spherical_joint(frame, RB1, r_joint=np.zeros(3)) )
-    # model.add( Spherical_joint(RB1, RB2, r_joint=r0) )
-    model.add( Rigid_connection(RB1, RB2, r_joint=r0) )
+    # model.add( Spherical_joint(RB1, RB2, r_joint=r01) )
+    model.add( Rigid_connection(RB1, RB2, r_joint=r01) )
     model.assemble()
 
     t0 = 0
     t1 = 5
     dt = 1e-2
     t_span = t0, t1
-    solver = Euler_backward(model, t_span=t_span, dt=dt, newton_max_iter=50, numerical_jacobian=True, debug=False)
+    solver = Euler_backward(model, t_span=t_span, dt=dt, newton_max_iter=50, numerical_jacobian=False, debug=False)
     t, q, u, la = solver.solve()
 
     # animate configurations
