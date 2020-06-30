@@ -47,7 +47,6 @@ class Rigid_body_quaternion():
             - np.einsum('ij,k->ijk', quat2mat(p), p / (p2**2))
             
         dense = np.zeros((self.nq, self.nq))
-        dense[:3, :3] = np.eye(3)
         dense[3:, 3:] = np.einsum('ijk,j->ik', Q_p[:, 1:, :], u[3:])
         coo.extend(dense, (self.qDOF, self.qDOF))
 
@@ -87,19 +86,44 @@ class Rigid_body_quaternion():
     def r_OP_q(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
         r_OP_q = np.zeros((3, self.nq))
         r_OP_q[:, :3] = np.eye(3)
-        r_OP_q[:, :] += np.einsum('ijk,j->ik', self.A_IK_q(t, q))
+        r_OP_q[:, :] += np.einsum('ijk,j->ik', self.A_IK_q(t, q), K_r_SP)
         return r_OP_q
 
     def J_P(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
         J_P = np.zeros((3, self.nu))
         J_P[:, :3] = np.eye(3)
-        J_P[:, 3:] = -ax2skew(K_r_SP) @ self.A_IK(t, q)
+        J_P[:, 3:] = - self.A_IK(t, q) @ ax2skew(K_r_SP)
         return J_P
 
     def J_P_q(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
         J_P_q = np.zeros((3, self.nu, self.nq))
-        J_P_q[:, 3:, :] = np.einsum('ij,jkl->ikl', -ax2skew(K_r_SP), self.A_IK_q(t, q))
+        J_P_q[:, 3:, :] = np.einsum('ijk,jl->ilk', self.A_IK_q(t, q), -ax2skew(K_r_SP))
         return J_P_q
 
+    def K_J_R(self, t, q, frame_ID=None):
+        J_R = np.zeros((3, self.nu))
+        J_R[:, 3:] = np.eye(3)
+        return J_R
 
+    def K_J_R_q(self, t, q, frame_ID=None):
+        return np.zeros((3, self.nu, self.nq))
 
+if __name__ == "__main__":
+    
+    from cardillo.math.numerical_derivative import Numerical_derivative
+    def Q(t, p):
+        return quat2mat(p) / (2 * p @ p)
+
+    def Q_p(t, p):
+        p2 = p @ p
+        return quat2mat_p(p) / (2 * p2) \
+            - np.einsum('ij,k->ijk', quat2mat(p), p / (p2**2))
+
+    p = np.random.rand(4)
+    p = p / norm4(p)
+
+    Q_p_num = Numerical_derivative(Q, order=2)._x(0, p)
+
+    diff = Q_p(0, p) - Q_p_num
+
+    print(np.linalg.norm(diff))

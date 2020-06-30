@@ -4,12 +4,13 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.animation as animation
 
+from cardillo.math.algebra import axis_angle2quat
 from cardillo.model import Model
 from cardillo.model.rigid_body import Rigid_body_quaternion
 from cardillo.model.frame import Frame
-from cardillo.model.bilateral_constraints import Rod
+from cardillo.model.bilateral_constraints import Spherical_joint
 from cardillo.model.force import Force
-from cardillo.solver import Euler_forward, Euler_backward
+from cardillo.solver import Euler_backward
 
 class Rigid_cylinder(Rigid_body_quaternion):
     def __init__(self, m, r, l, q0=None, u0=None):
@@ -20,37 +21,37 @@ class Rigid_cylinder(Rigid_body_quaternion):
         super().__init__(m, K_theta_S, q0=q0, u0=u0)
 
 if __name__ == "__main__":
-    m = 1
-    r = 0.25
-    l = 2.5
+    m = 10
+    r = 1
+    l = 0.2
 
-    r0 = np.array([l/2, 0, -l/2])
-    p0 = np.array([1, 0, 0, 0])
+    r0 = np.array([0, r, 0])
+    # p0 = np.array([1, 0, 0, 0])
+    p0 = axis_angle2quat(np.array([1,0,0]), np.pi/2)
     q0 = np.concatenate((r0, p0))
 
     r0_t = np.array([0, 0, 0])
-    omega = np.array([0, 0, 0])
+    omega = np.array([0, 0, 50])
     u0 = np.concatenate((r0_t, omega))
 
-    cylinder = Rigid_cylinder(m, r, l,  q0, u0)
+    RB = Rigid_cylinder(m, r, l,  q0, u0)
+    # RB = Rigid_body_quaternion(m, 2/5*m*r**2*np.eye(3), q0, u0)
     frame = Frame()
 
     model = Model()
-    model.add(cylinder)
-    model.add(Force(lambda t: np.array([0, 0, -9.81 * m]), cylinder))
+    model.add(RB)
+    model.add(Force(lambda t: np.array([0, 0, -9.81 * m]), RB))
     model.add(frame)
-    K_r_SP = np.array([0, 0, +l/2])
-    model.add( Rod(frame, cylinder, K_r_SP2=K_r_SP) )
+    K_r_SP = np.array([0, 0, r])
+    model.add( Spherical_joint(frame, RB, r_joint=np.zeros(3)) )
     model.assemble()
 
     t0 = 0
-    t1 = 2
-    dt = 1.0e-2
+    t1 = 5
+    dt = 1e-2
     t_span = t0, t1
-    solver = Euler_backward(model, t_span=t_span, dt=dt)
+    solver = Euler_backward(model, t_span=t_span, dt=dt, newton_max_iter=50, numerical_jacobian=False, debug=False)
     t, q, u, la = solver.solve()
-    # solver = Euler_forward(model, t_span=t_span, dt=dt)
-    # t, q, u = solver.solve()
 
     # animate configurations
     fig = plt.figure()
@@ -59,17 +60,17 @@ if __name__ == "__main__":
     ax.set_xlabel('x [m]')
     ax.set_ylabel('y [m]')
     ax.set_zlabel('z [m]')
-    scale = 2 * l
+    scale = 2 * r
     ax.set_xlim3d(left=-scale, right=scale)
     ax.set_ylim3d(bottom=-scale, top=scale)
     ax.set_zlim3d(bottom=-scale, top=scale)
 
     def init(t, q):
         x_0, y_0, z_0 = frame.r_OP(t)
-        x_S, y_S, z_S = cylinder.r_OP(t, q)
-        x_P, y_P, z_P = cylinder.r_OP(t, q, K_r_SP=K_r_SP)
+        x_S, y_S, z_S = RB.r_OP(t, q)
+        x_P, y_P, z_P = RB.r_OP(t, q, K_r_SP=K_r_SP)
         
-        A_IK = cylinder.A_IK(t, q)
+        A_IK = RB.A_IK(t, q)
         d1 = A_IK[:, 0]
         d2 = A_IK[:, 1]
         d3 = A_IK[:, 2]
@@ -83,10 +84,10 @@ if __name__ == "__main__":
 
     def update(t, q, COM, d1_, d2_, d3_):
         x_0, y_0, z_0 = frame.r_OP(t)
-        x_S, y_S, z_S = cylinder.r_OP(t, q)
-        x_P, y_P, z_P = cylinder.r_OP(t, q, K_r_SP=K_r_SP)
+        x_S, y_S, z_S = RB.r_OP(t, q)
+        x_P, y_P, z_P = RB.r_OP(t, q, K_r_SP=K_r_SP)
 
-        A_IK = cylinder.A_IK(t, q)
+        A_IK = RB.A_IK(t, q)
         d1 = A_IK[:, 0]
         d2 = A_IK[:, 1]
         d3 = A_IK[:, 2]

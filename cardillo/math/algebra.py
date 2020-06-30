@@ -1,5 +1,6 @@
 import numpy as np
 from math import sqrt
+from cardillo.math.numerical_derivative import Numerical_derivative
 
 def norm2(a):
     return sqrt(a[0] * a[0] + a[1] * a[1])
@@ -93,7 +94,7 @@ def quat2mat(p):
 
 def quat2mat_p(p):
     A_p = np.zeros((4, 4, 4))
-    A_p[:, :, 1] = np.eye(4)
+    A_p[:, :, 0] = np.eye(4)
     A_p[0, 1:, 1:] = -np.eye(3)
     A_p[1:, 0, 1:] =  np.eye(3)
     A_p[1:, 1:, 1:] = ax2skew_a()
@@ -114,9 +115,28 @@ def quat2rot_p(p):
     
     A_q = np.zeros((3, 3, 4))
     A_q[:, :, 0] = 2 * v_q_tilde
-    A_q[:, :, 1:] += np.einsum('ijk,jl->ikl', v_q_tilde_v_q, 2 * v_q_tilde)
+    A_q[:, :, 1:] += np.einsum('ijk,jl->ilk', v_q_tilde_v_q, 2 * v_q_tilde)
     A_q[:, :, 1:] += np.einsum('ij,jkl->ikl', 2 * v_q_tilde, v_q_tilde_v_q)
     A_q[:, :, 1:] += 2 * (q[0] * v_q_tilde_v_q)
     
     return np.einsum('ijk,kl->ijl', A_q, q_p)
+
+def axis_angle2quat(axis, angle):
+    n = axis / norm3(axis)
+    return np.concatenate([ [np.cos(angle/2)], np.sin(angle/2)*n])
+
+if __name__ == "__main__":
+    # tests
+    quat2rot_num = Numerical_derivative(lambda t,x: quat2rot(x), order=2)
+    p = np.random.rand(4)
+    p = p/np.linalg.norm(p)
+    diff = quat2rot_p(p) - quat2rot_num._x(0,p)
+    print(np.linalg.norm(diff))
+
+    quat2mat_num = Numerical_derivative(lambda t,x: quat2mat(x))
+    p = np.random.rand(4)
+    p = p/np.linalg.norm(p)
+    diff2 = quat2mat_p(p) - quat2mat_num._x(0,p)
+    print(np.linalg.norm(diff2))
+
 
