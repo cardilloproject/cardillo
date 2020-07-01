@@ -82,10 +82,10 @@ class Numerical_derivative(object):
         yPlus[0] += eps
         RPlus = self.residual(t, x, yPlus)
         
-        nx = len(x)
+        ny = len(y)
         shapeR = RPlus.shape
         dim = len(shapeR)
-        R_u = np.zeros(shapeR + (nx,))
+        R_u = np.zeros(shapeR + (ny,))
         R_ui = np.zeros(shapeR)
 
         if self.order == 1:
@@ -100,7 +100,7 @@ class Numerical_derivative(object):
             R_ui = np.squeeze(RPlus - RMinus) / (2 * eps)
         self.view(R_u, 0, R_ui, dim)
 
-        for i in range(1, nx):
+        for i in range(1, ny):
             # forward differences
             yPlus = np.copy(y)
             yPlus[i] += eps

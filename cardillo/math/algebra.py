@@ -1,5 +1,5 @@
 import numpy as np
-from math import sqrt
+from math import sqrt, sin, cos
 from cardillo.math.numerical_derivative import Numerical_derivative
 
 def norm2(a):
@@ -124,6 +124,27 @@ def quat2rot_p(p):
 def axis_angle2quat(axis, angle):
     n = axis / norm3(axis)
     return np.concatenate([ [np.cos(angle/2)], np.sin(angle/2)*n])
+
+def A_IK_basic_x(phi):
+    sp = sin(phi)
+    cp = cos(phi)
+    return np.array([[1,  0,   0],\
+                     [0, cp, -sp],\
+                     [0, sp,  cp]])
+
+def A_IK_basic_y(phi):
+    sp = sin(phi)
+    cp = cos(phi)
+    return np.array([[ cp,  0,  sp],\
+                     [  0,  1,   0],\
+                     [-sp,  0,  cp]])
+
+def A_IK_basic_z(phi):
+    sp = sin(phi)
+    cp = cos(phi)
+    return np.array([[ cp, -sp, 0],\
+                     [ sp,  cp, 0],\
+                     [  0,   0, 1]])
 
 if __name__ == "__main__":
     # tests
