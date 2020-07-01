@@ -2,18 +2,15 @@ import numpy as np
 from cardillo.math.algebra import cross3, ax2skew
 
 class Rigid_connection():
-    def __init__(self, subsystem1, subsystem2, frame_ID1=np.zeros(3), frame_ID2=np.zeros(3), K_r_SP1=np.zeros(3), K_r_SP2=np.zeros(3), r_joint=None, la_g0=None):
+    def __init__(self, subsystem1, subsystem2, r_OB, frame_ID1=np.zeros(3), frame_ID2=np.zeros(3), la_g0=None):
         self.nla_g = 6
         self.la_g0 = np.zeros(self.nla_g) if la_g0 is None else la_g0
 
         self.subsystem1 = subsystem1
         self.frame_ID1 = frame_ID1
-        self.K_r_SP1 = K_r_SP1
         self.subsystem2 = subsystem2
         self.frame_ID2 = frame_ID2
-        self.K_r_SP2 = K_r_SP2
-        self.r_joint = r_joint
-        
+        self.r_OB = r_OB
 
     def assembler_callback(self):
         self.qDOF1 = self.subsystem1.qDOF_P(self.frame_ID1)
@@ -34,14 +31,10 @@ class Rigid_connection():
         A_IK2 = self.subsystem2.A_IK(self.subsystem2.t0, self.subsystem2.q0, self.frame_ID2)
         A_K2B2 = A_IK2.T @ A_IK1
 
-        if self.r_joint is None:
-            K_r_SP1 = self.K_r_SP1
-            K_r_SP2 = self.K_r_SP2
-        else:
-            r_OS1 = self.subsystem1.r_OP(self.subsystem1.t0, self.subsystem1.q0, self.frame_ID1) 
-            r_OS2 = self.subsystem2.r_OP(self.subsystem2.t0, self.subsystem2.q0, self.frame_ID2)
-            K_r_SP1 = A_IK1.T @ (self.r_joint - r_OS1)
-            K_r_SP2 = A_IK2.T @ (self.r_joint - r_OS2)
+        r_OS1 = self.subsystem1.r_OP(self.subsystem1.t0, self.subsystem1.q0, self.frame_ID1) 
+        r_OS2 = self.subsystem2.r_OP(self.subsystem2.t0, self.subsystem2.q0, self.frame_ID2)
+        K_r_SP1 = A_IK1.T @ (self.r_OB - r_OS1)
+        K_r_SP2 = A_IK2.T @ (self.r_OB - r_OS2)
 
         self.r_OP1 = lambda t, q: self.subsystem1.r_OP(t, q[:self.nq1], self.frame_ID1, K_r_SP1)
         self.r_OP1_q = lambda t, q: self.subsystem1.r_OP_q(t, q[:self.nq1], self.frame_ID1, K_r_SP1)
@@ -64,11 +57,8 @@ class Rigid_connection():
     def g(self, t, q):
         r_OP1 = self.r_OP1(t, q) 
         r_OP2 = self.r_OP2(t, q)
-
-        # A_IB1 = self.A_IB1(t, q)
         ex1, ey1, ez1 = self.A_IB1(t, q).T
         ex2, ey2, ez2 = self.A_IB2(t, q).T
-
         return np.concatenate([r_OP2 - r_OP1, [ex1 @ ey2, ey1 @ ez2, ez1 @ ex2]])
 
     def g_q_dense(self, t, q):
@@ -91,13 +81,10 @@ class Rigid_connection():
 
         g_q[3, :nq1] = ey2 @ ex1_q
         g_q[3, nq1:] = ex1 @ ey2_q
-
         g_q[4, :nq1] = ez2 @ ey1_q
         g_q[4, nq1:] = ey1 @ ez2_q
-
         g_q[5, :nq1] = ex2 @ ez1_q
         g_q[5, nq1:] = ez1 @ ex2_q
-
         return g_q
 
     def g_q(self, t, q, coo):

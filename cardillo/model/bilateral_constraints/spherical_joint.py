@@ -1,34 +1,24 @@
 import numpy as np
 
 class Spherical_joint():
-    def __init__(self, subsystem1, subsystem2, frame_ID1=np.zeros(3), frame_ID2=np.zeros(3), K_r_SP1=np.zeros(3), K_r_SP2=np.zeros(3), r_joint=None, la_g0=None):
+    def __init__(self, subsystem1, subsystem2, r_OB, frame_ID1=np.zeros(3), frame_ID2=np.zeros(3), la_g0=None):
         self.nla_g = 3
         self.la_g0 = np.zeros(self.nla_g) if la_g0 is None else la_g0
 
         self.subsystem1 = subsystem1
         self.frame_ID1 = frame_ID1
-        self.K_r_SP1 = K_r_SP1
         self.subsystem2 = subsystem2
         self.frame_ID2 = frame_ID2
-        self.K_r_SP2 = K_r_SP2
-        self.r_joint = r_joint
+        self.r_OB = r_OB
         
-
     def assembler_callback(self):
 
-        if self.r_joint is None:
-            K_r_SP1 = self.K_r_SP1
-            K_r_SP2 = self.K_r_SP2
-        else:
-            r_OS1 = self.subsystem1.r_OP(self.subsystem1.t0, self.subsystem1.q0, self.frame_ID1)
-            A_IK1 = self.subsystem1.A_IK(self.subsystem1.t0, self.subsystem1.q0, self.frame_ID1)
-
-            r_OS2 = self.subsystem2.r_OP(self.subsystem2.t0, self.subsystem2.q0, self.frame_ID2)
-            A_IK2 = self.subsystem2.A_IK(self.subsystem2.t0, self.subsystem2.q0, self.frame_ID2)
-
-            K_r_SP1 = A_IK1.T @ (self.r_joint - r_OS1)
-            K_r_SP2 = A_IK2.T @ (self.r_joint - r_OS2)
-
+        r_OS1 = self.subsystem1.r_OP(self.subsystem1.t0, self.subsystem1.q0, self.frame_ID1)
+        A_IK1 = self.subsystem1.A_IK(self.subsystem1.t0, self.subsystem1.q0, self.frame_ID1)
+        r_OS2 = self.subsystem2.r_OP(self.subsystem2.t0, self.subsystem2.q0, self.frame_ID2)
+        A_IK2 = self.subsystem2.A_IK(self.subsystem2.t0, self.subsystem2.q0, self.frame_ID2)
+        K_r_SP1 = A_IK1.T @ (self.r_OB - r_OS1)
+        K_r_SP2 = A_IK2.T @ (self.r_OB - r_OS2)
 
         self.r_OP1 = lambda t, q: self.subsystem1.r_OP(t, q, self.frame_ID1, K_r_SP1)
         self.r_OP1_q = lambda t, q: self.subsystem1.r_OP_q(t, q, self.frame_ID1, K_r_SP1)
@@ -78,7 +68,6 @@ class Spherical_joint():
         W_g[:nu1, :] = -J_P1.T
         W_g[nu1:, :] = J_P2.T
         return W_g
-        # return np.hstack([-J_P1, J_P2]).T
 
     def W_g(self, t, q, coo):
         coo.extend(self.W_g_dense(t, q), (self.uDOF, self.la_gDOF))
@@ -91,7 +80,6 @@ class Spherical_joint():
 
         # dense blocks
         dense = np.zeros((self.nu, self.nq))
-
         dense[:nu1, :nq1] = np.einsum('i,ijk->jk', -la_g, J_P1_q)
         dense[nu1:, nq1:] = np.einsum('i,ijk->jk', la_g, J_P2_q)
 

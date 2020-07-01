@@ -50,12 +50,12 @@ if __name__ == "__main__":
     model.add(Force(lambda t: np.array([0, 0, -9.81 * m]), RB1))
     model.add(Force(lambda t: np.array([0, 0, -9.81 * m]), RB2))
     model.add(frame)
-    # model.add( Spherical_joint(frame, RB1, r_joint=np.zeros(3)) )
+    model.add( Spherical_joint(frame, RB1, np.zeros(3)) )
     A_IB = np.array([[0, 0, 1], [1, 0, 0], [0, 1, 0]])
-    model.add(Revolute_joint(frame, RB1, A_IB, r_joint=np.zeros(3)))
-    # model.add( Spherical_joint(RB1, RB2, r_joint=r01) )
-    model.add( Rigid_connection(RB1, RB2, r_joint=r01) )
-    # model.add( Revolute_joint(RB1, RB2, A_IB, r_joint=r01) )
+    # model.add(Revolute_joint(frame, RB1, np.zeros(3), A_IB))
+    model.add( Spherical_joint(RB1, RB2, r01) )
+    # model.add( Rigid_connection(RB1, RB2, r01) )
+    # model.add( Revolute_joint(RB1, RB2, r01, A_IB) )
 
     model.assemble()
 
