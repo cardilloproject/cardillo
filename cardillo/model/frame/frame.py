@@ -35,3 +35,9 @@ class Frame():
 
     def J_P_q(self, t, q, frame_ID=None, K_r_SP=None):
         return np.array([]).reshape((3, 0, 0))
+
+    def K_J_R(self, t, q, frame_ID=None):
+        return np.array([]).reshape((3, 0))
+
+    def K_J_R_q(self, t, q, frame_ID=None):
+        return np.array([]).reshape((3, 0, 0))

@@ -34,7 +34,7 @@ class Euler_backward():
     Note
     ---- 
     """
-    def __init__(self, model, t_span, dt, newton_tol=1e-6, newton_max_iter=10, newton_error_function=lambda x: np.max(np.abs(x))):
+    def __init__(self, model, t_span, dt, newton_tol=1e-6, newton_max_iter=10, newton_error_function=lambda x: np.max(np.abs(x)), numerical_jacobian=False, debug=False):
         
         self.model = model
 
@@ -68,6 +68,15 @@ class Euler_backward():
         self.Mk1 = self.model.M(self.t0, model.q0)
         self.W_gk1 = self.model.W_g(self.t0, model.q0)
 
+        self.numerical_jacobian = numerical_jacobian
+        if numerical_jacobian:
+            self.__R_x = self.__R_x_num
+        else:
+            self.__R_x = self.__R_x_analytic
+        
+        if debug:
+            self.__R_x = self.__R_x_debug
+
     def __R(self, qk, uk, tk1, qk1, uk1, la_gk1):
         self.Mk1 = self.model.M(tk1, qk1)
         self.W_gk1 = self.model.W_g(tk1, qk1)
@@ -89,27 +98,7 @@ class Euler_backward():
 
         return self.__R(qk, uk, tk1, qk1, uk1, la_gk1)
 
-    def __R_x(self, qk, uk, tk1, qk1, uk1, la_gk1):
-        # Ru_u = self.Mk1 - self.dt * self.model.h_u(tk1, qk1, uk1)
-        # Ru_q = self.model.Mu_q(tk1, qk1, uk1 - uk) - self.dt * (self.model.h_q(tk1, qk1, uk1) + self.model.Wla_g_q(tk1, qk1, la_gk1))
-        # Ru_la_g = -self.dt * self.W_gk1
-
-        # Rq_u = -self.dt * self.model.B(tk1, qk1)
-        # Rq_q = identity(self.nq) - self.dt * self.model.q_dot_q(tk1, qk1, uk1)
-        # # Rq_la_g = coo_matrix((self.nq, self.nla_g))
-
-        # # Rla_g_u = coo_matrix((self.nla_g, self.nu))
-        # Rla_g_q = self.model.g_q(tk1, qk1)
-        # # Rla_g_la_g = coo_matrix((self.nla_g, self.nla_g))
-        
-        # return bmat([[Ru_u, Ru_q, Ru_la_g], \
-        #              [Rq_u, Rq_q, None], \
-        #              [None, Rla_g_q, None]]).tocsc()
-        
-        # # R_x = bmat([[Ru_u, Ru_q, Ru_la_g], \
-        # #             [Rq_u, Rq_q, None], \
-        # #             [None, Rla_g_q, None]])
-
+    def __R_x_num(self, qk, uk, tk1, qk1, uk1, la_gk1):
         xk = np.zeros(self.n)
         xk[self.qDOF] = qk
         xk[self.uDOF] = uk
@@ -121,39 +110,58 @@ class Euler_backward():
 
         R_x_num = Numerical_derivative(self.__R_wrapper, order=2)._x(tk1, xk1, xk)
 
-        # diff = R_x_num - R_x.toarray()
-        # error_uu = np.linalg.norm(diff[self.uDOF[:,None], self.uDOF])
-        # error_uq = np.linalg.norm(diff[self.uDOF[:,None], self.qDOF])
-        # error_ula = np.linalg.norm(diff[self.uDOF[:,None], self.la_gDOF])
-
-        # error_qu = np.linalg.norm(diff[self.qDOF[:,None], self.uDOF])
-        # error_qq = np.linalg.norm(diff[self.qDOF[:,None], self.qDOF])
-        # error_qla = np.linalg.norm(diff[self.qDOF[:,None], self.la_gDOF])
-
-        # error_lau = np.linalg.norm(diff[self.la_gDOF[:,None], self.uDOF])
-        # error_laq = np.linalg.norm(diff[self.la_gDOF[:,None], self.qDOF])
-        # error_lala = np.linalg.norm(diff[self.la_gDOF[:,None], self.la_gDOF])
-        # print(f'error_uu jacobian: {error_uu:.5e}')
-        # print(f'error_uq jacobian: {error_uq:.5e}')
-        # print(f'error_ula jacobian: {error_ula:.5e}')
-
-        # print(f'error_qu jacobian: {error_qu:.5e}')
-        # print(f'error_qq jacobian: {error_qq:.5e}')
-        # print(f'error_qla jacobian: {error_qla:.5e}')
-
-        # print(f'error_lau jacobian: {error_lau:.5e}')
-        # print(f'error_laq jacobian: {error_laq:.5e}')
-        # print(f'error_lala jacobian: {error_lala:.5e}')
-
         return csr_matrix( R_x_num )
 
-        # return csr_matrix( Numerical_derivative(self.__R_wrapper, order=1)._x(tk1, xk1, xk) )
-        # # return csr_matrix( Numerical_derivative(self.__R_wrapper, order=2)._x(tk1, xk1, xk) )
+    def __R_x_analytic(self, qk, uk, tk1, qk1, uk1, la_gk1):
+        Ru_u = self.Mk1 - self.dt * self.model.h_u(tk1, qk1, uk1)
+        Ru_q = self.model.Mu_q(tk1, qk1, uk1 - uk) - self.dt * (self.model.h_q(tk1, qk1, uk1) + self.model.Wla_g_q(tk1, qk1, la_gk1))
+        Ru_la_g = -self.dt * self.W_gk1
 
-        # # hack for testing nuemrical derivative w.r.t. second argument 
-        # # return csr_matrix( Numerical_derivative(lambda tk1, xk, xk1: self.__R_wrapper(tk1, xk1, xk), order=1)._y(tk1, xk, xk1) )
-        # # return csr_matrix( Numerical_derivative(lambda tk1, xk, xk1: self.__R_wrapper(tk1, xk1, xk), order=2)._y(tk1, xk, xk1) )
+        Rq_u = -self.dt * self.model.B(tk1, qk1)
+        Rq_q = identity(self.nq) - self.dt * self.model.q_dot_q(tk1, qk1, uk1)
+        # Rq_la_g = coo_matrix((self.nq, self.nla_g))
 
+        # Rla_g_u = coo_matrix((self.nla_g, self.nu))
+        Rla_g_q = self.model.g_q(tk1, qk1)
+        # Rla_g_la_g = coo_matrix((self.nla_g, self.nla_g))
+        
+        return bmat([[Ru_u, Ru_q, Ru_la_g], \
+                     [Rq_u, Rq_q, None], \
+                     [None, Rla_g_q, None]]).tocsc()
+
+    def __R_x_debug(self, qk, uk, tk1, qk1, uk1, la_gk1):
+        R_x_num = self.__R_x_num(qk, uk, tk1, qk1, uk1, la_gk1)
+        R_x_analytic = self.__R_x_analytic(qk, uk, tk1, qk1, uk1, la_gk1)
+        diff = R_x_num - R_x_analytic.toarray()
+
+        error_uu = np.linalg.norm(diff[self.uDOF[:,None], self.uDOF])
+        error_uq = np.linalg.norm(diff[self.uDOF[:,None], self.qDOF])
+        error_ula = np.linalg.norm(diff[self.uDOF[:,None], self.la_gDOF])
+
+        error_qu = np.linalg.norm(diff[self.qDOF[:,None], self.uDOF])
+        error_qq = np.linalg.norm(diff[self.qDOF[:,None], self.qDOF])
+        error_qla = np.linalg.norm(diff[self.qDOF[:,None], self.la_gDOF])
+
+        error_lau = np.linalg.norm(diff[self.la_gDOF[:,None], self.uDOF])
+        error_laq = np.linalg.norm(diff[self.la_gDOF[:,None], self.qDOF])
+        error_lala = np.linalg.norm(diff[self.la_gDOF[:,None], self.la_gDOF])
+        print(f'error_uu jacobian: {error_uu:.5e}')
+        print(f'error_uq jacobian: {error_uq:.5e}')
+        print(f'error_ula jacobian: {error_ula:.5e}')
+
+        print(f'error_qu jacobian: {error_qu:.5e}')
+        print(f'error_qq jacobian: {error_qq:.5e}')
+        print(f'error_qla jacobian: {error_qla:.5e}')
+
+        print(f'error_lau jacobian: {error_lau:.5e}')
+        print(f'error_laq jacobian: {error_laq:.5e}')
+        print(f'error_lala jacobian: {error_lala:.5e}')
+
+        if self.numerical_jacobian:
+            return R_x_num
+        else:
+            return R_x_analytic
+        
     def step(self, tk, qk, uk, la_gk):
         dt = self.dt
         tk1 = tk + dt
