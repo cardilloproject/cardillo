@@ -65,7 +65,7 @@ class Model(object):
         q0 = []
         u0 = []
         la_g0 = []
-        # la_gamma0 = []
+        la_gamma0 = []
         
         for contr in self.contributions:
             contr.t0 = self.t0
@@ -74,43 +74,36 @@ class Model(object):
                 # - p in contr.__class__.__dict__: has global class attribute p
                 # - callable(getattr(contr, p, None)): p is callable
                 if (hasattr(contr, p) and callable(getattr(contr, p)) ):
-                # if (p in contr.__class__.__dict__ and callable(getattr(contr, p, None)) ):
                     getattr(self, f'_{self.__class__.__name__}__{p}_contr').append(contr)
 
             # if contribution has position degrees of freedom address position coordinates
             if hasattr(contr, 'nq'):
-            # if (contr, 'nq', False):
                 contr.qDOF = np.arange(0, contr.nq) + self.nq
                 self.nq += contr.nq
                 q0.extend(contr.q0.tolist())
 
             # if contribution has velocity degrees of freedom address velocity coordinates
-            # if getattr(contr, 'nu', False):
             if hasattr(contr, 'nu'):
                 contr.uDOF = np.arange(0, contr.nu) + self.nu 
                 self.nu += contr.nu
                 u0.extend(contr.u0.tolist())
             
             # if contribution has constraints on position level address constraint coordinates
-            # if getattr(contr, 'nla_g', False):
             if hasattr(contr, 'nla_g'):
                 contr.la_gDOF = np.arange(0, contr.nla_g) + self.nla_g
                 self.nla_g += contr.nla_g
                 la_g0.extend(contr.la_g0.tolist())
-
-                # TOOD: same for nla, nla_N, ...
-                # if getattr(contr, 'nla_g', False):
-                #     contr.uDOF = np.arange(0, contr.nu) + offset_u
-                #     offset_u += contr.nu
-
-                # if getattr(contr, 'nla_gamma', False):
-                #     contr.uDOF = np.arange(0, contr.nu) + offset_u
-                #     offset_u += contr.nu
+            
+            # if contribution has constraints on velocity level address constraint coordinates
+            if hasattr(contr, 'nla_gamma'):
+                contr.la_gammaDOF = np.arange(0, contr.nla_gamma) + self.nla_gamma
+                self.nla_gamma += contr.nla_gamma
+                la_gamma0.extend(contr.la_gamma0.tolist())
 
         self.q0 = np.array(q0)
         self.u0 = np.array(u0)
         self.la_g0 = np.array(la_g0)
-        # self.la_gamma0 = np.array(la_gamma0)
+        self.la_gamma0 = np.array(la_gamma0)
 
         # call assembler callback: call methods that require first an assembly of the system
         self.assembler_callback()
@@ -242,4 +235,37 @@ class Model(object):
         coo = Coo((self.nu, self.nq))
         for contr in self.__g_contr:
             contr.Wla_g_q(t, q[contr.qDOF], la_g[contr.la_gDOF], coo)
+        return coo.tosparse(scipy_matrix)
+
+    #========================================
+    # bilateral constraints on velocity level
+    #========================================
+    def gamma(self, t, q, u):
+        gamma = np.zeros(self.nla_gamma)
+        for contr in self.__gamma_contr:
+            gamma[contr.la_gammaDOF] = contr.gamma(t, q[contr.qDOF], u[contr.uDOF])
+        return gamma
+
+    def gamma_q(self, t, q, u, scipy_matrix=coo_matrix):
+        coo = Coo((self.nla_gamma, self.nq))
+        for contr in self.__gamma_contr:
+            contr.gamma_q(t, q[contr.qDOF], u[contr.uDOF], coo)
+        return coo.tosparse(scipy_matrix)
+
+    def gamma_u(self, t, q, scipy_matrix=coo_matrix):
+        coo = Coo((self.nla_gamma, self.nu))
+        for contr in self.__gamma_contr:
+            contr.gamma_u(t, q[contr.qDOF], coo)
+        return coo.tosparse(scipy_matrix)
+
+    def W_gamma(self, t, q, scipy_matrix=coo_matrix):
+        coo = Coo((self.nu, self.nla_gamma))
+        for contr in self.__gamma_contr:
+            contr.W_gamma(t, q[contr.qDOF], coo)
+        return coo.tosparse(scipy_matrix)
+
+    def Wla_gamma_q(self, t, q, la_gamma, scipy_matrix=coo_matrix):
+        coo = Coo((self.nu, self.nq))
+        for contr in self.__gamma_contr:
+            contr.Wla_gamma_q(t, q[contr.qDOF], la_gamma[contr.la_gammaDOF], coo)
         return coo.tosparse(scipy_matrix)

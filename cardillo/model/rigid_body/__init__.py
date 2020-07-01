@@ -1,1 +1,1 @@
-from .rigid_body_quaternion import Rigid_body_quaternion
+from .rigid_body_quaternion import Rigid_body_quaternion, Rigid_cylinder, Rigid_disc, Rigid_disc_Lesaux

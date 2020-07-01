@@ -89,6 +89,12 @@ class Rigid_body_quaternion():
         r_OP_q[:, :] += np.einsum('ijk,j->ik', self.A_IK_q(t, q), K_r_SP)
         return r_OP_q
 
+    def v_P(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
+        return u[:3] + self.A_IK(t, q) @ cross3(u[3:], K_r_SP)
+
+    # def v_P_q(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
+    #     return np.einsum('ijk,j->ik', self.A_IK_q(t, q), cross3(u[3:], K_r_SP))
+
     def J_P(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
         J_P = np.zeros((3, self.nu))
         J_P[:, :3] = np.eye(3)
@@ -100,6 +106,12 @@ class Rigid_body_quaternion():
         J_P_q[:, 3:, :] = np.einsum('ijk,jl->ilk', self.A_IK_q(t, q), -ax2skew(K_r_SP))
         return J_P_q
 
+    # def K_Omega(self, t, q, u, frame_ID=None):
+    #     return u[3:]
+
+    # def K_Omega_q(self, t, q, u, frame_ID=None):
+    #     return np.zeros((3, self.nq))
+
     def K_J_R(self, t, q, frame_ID=None):
         J_R = np.zeros((3, self.nu))
         J_R[:, 3:] = np.eye(3)
@@ -107,6 +119,47 @@ class Rigid_body_quaternion():
 
     def K_J_R_q(self, t, q, frame_ID=None):
         return np.zeros((3, self.nu, self.nq))
+
+class Rigid_cylinder(Rigid_body_quaternion):
+    def __init__(self, m, r, l, q0=None, u0=None):
+        A = 1 / 4 * m * r**2 + 1 / 12 * m * l**2
+        C = 1 / 2 * m * r**2
+        K_theta_S = np.diag(np.array([A, A, C]))
+
+        super().__init__(m, K_theta_S, q0=q0, u0=u0)
+
+class Rigid_disc(Rigid_body_quaternion):
+    def __init__(self, m, r, q0=None, u0=None):
+        A = 1 / 4 * m * r**2
+        C = 1 / 2 * m * r**2
+        K_theta_S = np.diag(np.array([A, C, A]))
+
+        self.r = r
+
+        super().__init__(m, K_theta_S, q0=q0, u0=u0)
+
+    def boundary(self, t, q, n=100):
+        phi = np.linspace(0, 2 * np.pi, n, endpoint=True)
+        K_r_SP = self.r * np.vstack([np.sin(phi), np.zeros(n), np.cos(phi)])
+        return np.repeat(self.r_OP(t, q), n).reshape(3, n) + self.A_IK(t, q) @ K_r_SP
+
+class Rigid_disc_Lesaux(Rigid_body_quaternion):
+    def __init__(self, m, r, q0=None, u0=None):
+        # A = 1 / 4 * m * r**2
+        # C = 1 / 2 * m * r**2
+        # K_theta_S = np.diag(np.array([A, C, A]))
+        assert m == 0.3048
+        assert r == 3.75e-2
+        # m = 0.3048
+        self.r = r
+        K_theta_S = np.diag([1.0716e-4, 2.1433e-4, 1.0716e-4])
+
+        super().__init__(m, K_theta_S, q0=q0, u0=u0)
+
+    def boundary(self, t, q, n=100):
+        phi = np.linspace(0, 2 * np.pi, n, endpoint=True)
+        K_r_SP = self.r * np.vstack([np.sin(phi), np.zeros(n), np.cos(phi)])
+        return np.repeat(self.r_OP(t, q), n).reshape(3, n) + self.A_IK(t, q) @ K_r_SP
 
 if __name__ == "__main__":
     
