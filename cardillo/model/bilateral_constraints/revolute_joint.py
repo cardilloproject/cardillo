@@ -30,8 +30,8 @@ class Revolute_joint():
         
         A_IK1 = self.subsystem1.A_IK(self.subsystem1.t0, self.subsystem1.q0, self.frame_ID1)
         A_IK2 = self.subsystem2.A_IK(self.subsystem2.t0, self.subsystem2.q0, self.frame_ID2)
-        A_K1B1 = A_IK1.T @ self.A_IB
-        A_K2B2 = A_IK2.T @ self.A_IB
+        self.A_K1B1 = A_IK1.T @ self.A_IB
+        self.A_K2B2 = A_IK2.T @ self.A_IB
 
         r_OS1 = self.subsystem1.r_OP(self.subsystem1.t0, self.subsystem1.q0, self.frame_ID1) 
         r_OS2 = self.subsystem2.r_OP(self.subsystem2.t0, self.subsystem2.q0, self.frame_ID2)
@@ -42,8 +42,10 @@ class Revolute_joint():
         self.r_OP1_q = lambda t, q: self.subsystem1.r_OP_q(t, q[:self.nq1], self.frame_ID1, K_r_SP1)
         self.J_P1 = lambda t, q: self.subsystem1.J_P(t, q[:self.nq1], self.frame_ID1, K_r_SP1)
         self.J_P1_q = lambda t, q: self.subsystem1.J_P_q(t, q[:self.nq1], self.frame_ID1, K_r_SP1)
-        self.A_IB1 = lambda t, q: self.subsystem1.A_IK(t, q[:self.nq1], self.frame_ID1) @ A_K1B1
-        self.A_IB1_q = lambda t, q: np.einsum('ijl,jk->ikl', self.subsystem1.A_IK_q(t, q[:self.nq1], self.frame_ID1), A_K1B1)
+        self.A_IB1 = lambda t, q: self.subsystem1.A_IK(t, q[:self.nq1], self.frame_ID1) @ self.A_K1B1
+        self.A_IB1_q = lambda t, q: np.einsum('ijl,jk->ikl', self.subsystem1.A_IK_q(t, q[:self.nq1], self.frame_ID1), self.A_K1B1)
+        self.K_J_R1 = lambda t, q: self.subsystem1.K_J_R(t, q[:self.nq1], self.frame_ID1)
+        self.K_J_R1_q = lambda t, q: self.subsystem1.K_J_R_q(t, q[:self.nq1], self.frame_ID1)
         self.J_R1 = lambda t, q: self.subsystem1.A_IK(t, q[:self.nq1], self.frame_ID1) @ self.subsystem1.K_J_R(t, q[:self.nq1], self.frame_ID1)
         self.J_R1_q = lambda t, q: np.einsum('ijk,jl->ilk', self.subsystem1.A_IK_q(t, q[:self.nq1], self.frame_ID1), self.subsystem1.K_J_R(t, q[:self.nq1], self.frame_ID1) ) + np.einsum('ij,jkl->ikl', self.subsystem1.A_IK(t, q[:self.nq1], self.frame_ID1), self.subsystem1.K_J_R_q(t, q[:self.nq1], self.frame_ID1) )
 
@@ -51,8 +53,10 @@ class Revolute_joint():
         self.r_OP2_q = lambda t, q: self.subsystem2.r_OP_q(t, q[self.nq1:], self.frame_ID2, K_r_SP2)
         self.J_P2 = lambda t, q: self.subsystem2.J_P(t, q[self.nq1:], self.frame_ID2, K_r_SP2)
         self.J_P2_q = lambda t, q: self.subsystem2.J_P_q(t, q[self.nq1:], self.frame_ID2, K_r_SP2)
-        self.A_IB2 = lambda t, q:  self.subsystem2.A_IK(t, q[self.nq1:], self.frame_ID2) @ A_K2B2
-        self.A_IB2_q = lambda t, q: np.einsum('ijk,jl->ilk', self.subsystem2.A_IK_q(t, q[self.nq1:], self.frame_ID2), A_K2B2 )
+        self.A_IB2 = lambda t, q:  self.subsystem2.A_IK(t, q[self.nq1:], self.frame_ID2) @ self.A_K2B2
+        self.A_IB2_q = lambda t, q: np.einsum('ijk,jl->ilk', self.subsystem2.A_IK_q(t, q[self.nq1:], self.frame_ID2), self.A_K2B2 )
+        self.K_J_R2 = lambda t, q: self.subsystem2.K_J_R(t, q[self.nq1:], self.frame_ID2)
+        self.K_J_R2_q = lambda t, q: self.subsystem2.K_J_R_q(t, q[self.nq1:], self.frame_ID2)
         self.J_R2 = lambda t, q: self.subsystem2.A_IK(t, q[self.nq1:], self.frame_ID2) @ self.subsystem2.K_J_R(t, q[self.nq1:], self.frame_ID2)
         self.J_R2_q = lambda t, q: np.einsum('ijk,jl->ilk', self.subsystem2.A_IK_q(t, q[self.nq1:], self.frame_ID2), self.subsystem2.K_J_R(t, q[self.nq1:], self.frame_ID2) ) + np.einsum('ij,jkl->ikl', self.subsystem2.A_IK(t, q[self.nq1:], self.frame_ID2), self.subsystem2.K_J_R_q(t, q[self.nq1:], self.frame_ID2) )
 
@@ -163,3 +167,29 @@ class Revolute_joint():
                                 + np.einsum('ij,ik->kj', - la_g[4] * n_q2, J_R2)
 
         coo.extend( dense, (self.uDOF, self.qDOF))
+
+    def angle(self, t, q):
+        ex1, ey1, _ = self.A_IB1(t, q).T
+        ex2 = self.A_IB2(t, q)[:, 0]
+        return np.arctan2(ex2 @ ey1, ex2 @ ex1)
+
+    def angle_q(self, t, q):
+        ex1, ey1, _ = self.A_IB1(t, q).T
+        ex2 = self.A_IB2(t, q)[:, 0]
+        x = ex2 @ ex1
+        y = ex2 @ ey1
+        
+        A_IB1_q1 = self.A_IB1_q(t, q)
+        ex1_q1 = A_IB1_q1[:, 0]
+        ey1_q1 = A_IB1_q1[:, 1]
+        A_IB2_q2 = self.A_IB2_q(t, q)
+        ex2_q2 = A_IB2_q2[:, 0]
+
+        x_q = np.concatenate((ex2 @ ex1_q1, ex1 @ ex2_q2))
+        y_q = np.concatenate((ex2 @ ey1_q1, ey1 @ ex2_q2)) 
+
+        return (x * y_q - y * x_q) / (x**2 + y**2)
+
+
+
+
