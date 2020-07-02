@@ -43,3 +43,8 @@ class Point_mass():
     def J_P_q(self, t, q, frame_ID=None, K_r_SP=None):
         return np.zeros((3, self.nu, self.nq))
 
+    def v_P(self, t, q, u, frame_ID=None, K_r_SP=None):
+        return u
+
+    def v_P_q(self, t, q, u, frame_ID=None, K_r_SP=None):
+        return np.zeros((3, self.nq))

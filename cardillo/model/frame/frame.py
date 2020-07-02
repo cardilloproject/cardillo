@@ -41,3 +41,9 @@ class Frame():
 
     def K_J_R_q(self, t, q, frame_ID=None):
         return np.array([]).reshape((3, 0, 0))
+
+    def v_P(self, t, q=None, u=None, frame_ID=None, K_r_SP=None):
+        return self.r_OP_t__(t)
+
+    def v_P_q(self, t, q=None, u=None, frame_ID=None, K_r_SP=None):
+        return np.array([]).reshape((3, 0))

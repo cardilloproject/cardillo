@@ -1,5 +1,4 @@
 import numpy as np
-from math import atan2
 
 class Rod():
 
