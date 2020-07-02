@@ -5,11 +5,19 @@ from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.animation as animation
 
 from cardillo.model import Model
-from cardillo.model.rigid_body import Rigid_cylinder
+from cardillo.model.rigid_body import Rigid_body_quaternion
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints import Rod
 from cardillo.model.force import Force
 from cardillo.solver import Euler_forward, Euler_backward
+
+class Rigid_cylinder(Rigid_body_quaternion):
+    def __init__(self, m, r, l, q0=None, u0=None):
+        A = 1 / 4 * m * r**2 + 1 / 12 * m * l**2
+        C = 1 / 2 * m * r**2
+        K_theta_S = np.diag(np.array([A, A, C]))
+
+        super().__init__(m, K_theta_S, q0=q0, u0=u0)
 
 if __name__ == "__main__":
     m = 1
@@ -40,7 +48,7 @@ if __name__ == "__main__":
     dt = 1.0e-2
     t_span = t0, t1
     solver = Euler_backward(model, t_span=t_span, dt=dt)
-    t, q, u, la = solver.solve()
+    t, q, u, la, _ = solver.solve()
     # solver = Euler_forward(model, t_span=t_span, dt=dt)
     # t, q, u = solver.solve()
 

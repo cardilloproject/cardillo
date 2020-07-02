@@ -8,13 +8,79 @@ import matplotlib.animation as animation
 
 from cardillo.model import Model
 from cardillo.model.rolling_disc import Rolling_disc
-from cardillo.model.rigid_body import Rigid_disc, Rigid_disc_Lesaux
+from cardillo.model.rigid_body import Rigid_body_euler, Rigid_body_quaternion
 from cardillo.model.rolling_disc import Rolling_condition_I_frame, Rolling_condition_R_frame, Rolling_condition_I_frame_g_gamma
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints import Rod
 from cardillo.model.force import Force
 from cardillo.solver import Euler_backward
 from cardillo.math.algebra import axis_angle2quat
+
+class Rigid_disc_euler(Rigid_body_euler):
+    def __init__(self, m, r, q0=None, u0=None):
+        A = 1 / 4 * m * r**2
+        C = 1 / 2 * m * r**2
+        K_theta_S = np.diag(np.array([A, C, A]))
+
+        self.r = r
+
+        super().__init__(m, K_theta_S, q0=q0, u0=u0)
+
+    def boundary(self, t, q, n=100):
+        phi = np.linspace(0, 2 * np.pi, n, endpoint=True)
+        K_r_SP = self.r * np.vstack([np.sin(phi), np.zeros(n), np.cos(phi)])
+        return np.repeat(self.r_OP(t, q), n).reshape(3, n) + self.A_IK(t, q) @ K_r_SP
+
+class Rigid_disc_Lesaux_euler(Rigid_body_euler):
+    def __init__(self, m, r, q0=None, u0=None):
+        # A = 1 / 4 * m * r**2
+        # C = 1 / 2 * m * r**2
+        # K_theta_S = np.diag(np.array([A, C, A]))
+        assert m == 0.3048
+        assert r == 3.75e-2
+        # m = 0.3048
+        self.r = r
+        K_theta_S = np.diag([1.0716e-4, 2.1433e-4, 1.0716e-4])
+
+        super().__init__(m, K_theta_S, q0=q0, u0=u0)
+
+    def boundary(self, t, q, n=100):
+        phi = np.linspace(0, 2 * np.pi, n, endpoint=True)
+        K_r_SP = self.r * np.vstack([np.sin(phi), np.zeros(n), np.cos(phi)])
+        return np.repeat(self.r_OP(t, q), n).reshape(3, n) + self.A_IK(t, q) @ K_r_SP
+
+class Rigid_disc_quat(Rigid_body_quaternion):
+    def __init__(self, m, r, q0=None, u0=None):
+        A = 1 / 4 * m * r**2
+        C = 1 / 2 * m * r**2
+        K_theta_S = np.diag(np.array([A, C, A]))
+
+        self.r = r
+
+        super().__init__(m, K_theta_S, q0=q0, u0=u0)
+
+    def boundary(self, t, q, n=100):
+        phi = np.linspace(0, 2 * np.pi, n, endpoint=True)
+        K_r_SP = self.r * np.vstack([np.sin(phi), np.zeros(n), np.cos(phi)])
+        return np.repeat(self.r_OP(t, q), n).reshape(3, n) + self.A_IK(t, q) @ K_r_SP
+
+class Rigid_disc_Lesaux_quat(Rigid_body_quaternion):
+    def __init__(self, m, r, q0=None, u0=None):
+        # A = 1 / 4 * m * r**2
+        # C = 1 / 2 * m * r**2
+        # K_theta_S = np.diag(np.array([A, C, A]))
+        assert m == 0.3048
+        assert r == 3.75e-2
+        # m = 0.3048
+        self.r = r
+        K_theta_S = np.diag([1.0716e-4, 2.1433e-4, 1.0716e-4])
+
+        super().__init__(m, K_theta_S, q0=q0, u0=u0)
+
+    def boundary(self, t, q, n=100):
+        phi = np.linspace(0, 2 * np.pi, n, endpoint=True)
+        K_r_SP = self.r * np.vstack([np.sin(phi), np.zeros(n), np.cos(phi)])
+        return np.repeat(self.r_OP(t, q), n).reshape(3, n) + self.A_IK(t, q) @ K_r_SP
 
 def DMS():
     m = 1
@@ -149,7 +215,8 @@ def rolling_disc_velocity_constraints():
     rho = r / R
 
     r_S0 = np.array([0, R - r * sin(beta0), r * cos(beta0)])
-    p0 = axis_angle2quat(np.array([1, 0, 0]), beta0)
+    # p0 = axis_angle2quat(np.array([1, 0, 0]), beta0)
+    p0 = np.array([0, beta0, 0])
 
     gamma_dot = 4 * g * sin(beta0) / ((6 - 5 * rho * sin(beta0)) * rho * r * cos(beta0))
     gamma_dot = sqrt(gamma_dot)
@@ -168,12 +235,15 @@ def rolling_disc_velocity_constraints():
     # gamma_dot0 = 5
     # v_S0 = np.array([gamma_dot0 * r, 0, 0])
     # omega0 = np.array([0, gamma_dot0, 0])
+    # omega0 = np.array([0, 0, 10])
 
     q0 = np.concatenate((r_S0, p0))
     u0 = np.concatenate((v_S0, omega0))
 
-    # RD = Rigid_disc(m, r, q0=q0, u0=u0)
-    RD = Rigid_disc_Lesaux(m, r, q0=q0, u0=u0)
+    # RD = Rigid_disc_quat(m, r, q0=q0, u0=u0)
+    # RD = Rigid_disc_euler(m, r, q0=q0, u0=u0)
+    # RD = Rigid_disc_Lesaux_quat(m, r, q0=q0, u0=u0)
+    RD = Rigid_disc_Lesaux_euler(m, r, q0=q0, u0=u0)
     # RC = Rolling_condition_I_frame(RD)
     # RC = Rolling_condition_R_frame(RD)
     RC = Rolling_condition_I_frame_g_gamma(RD)
@@ -195,10 +265,10 @@ def rolling_disc_velocity_constraints():
     # gravity = 9.81;
 
     t0 = 0
-    t1 = 2
-    dt = 2.5e-3
+    t1 = 2 * np.pi / np.abs(alpha_dot)
+    dt = 5e-3
     t_span = t0, t1
-    solver = Euler_backward(model, t_span=t_span, dt=dt, numerical_jacobian=True, debug=False)
+    solver = Euler_backward(model, t_span=t_span, dt=dt, numerical_jacobian=False, debug=False)
     t, q, u, la_g, la_gamma = solver.solve()
 
     # # animate configurations

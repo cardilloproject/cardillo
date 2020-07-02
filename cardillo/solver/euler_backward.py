@@ -48,7 +48,7 @@ class Euler_backward():
             self.__R_x = self.__R_x_num
         else:
             self.__R_x = self.__R_x_analytic
-        
+        self.debug = debug
         if debug:
             self.__R_x = self.__R_x_debug
 
@@ -117,45 +117,48 @@ class Euler_backward():
         R_x_analytic = self.__R_x_analytic(qk, uk, tk1, qk1, uk1, la_gk1, la_gammak1)
         diff = R_x_num - R_x_analytic.toarray()
 
-        error_uu = np.linalg.norm(diff[self.uDOF[:,None], self.uDOF])
-        error_uq = np.linalg.norm(diff[self.uDOF[:,None], self.qDOF])
-        error_ula_g = np.linalg.norm(diff[self.uDOF[:,None], self.la_gDOF])
-        error_ula_gamma = np.linalg.norm(diff[self.uDOF[:,None], self.la_gammaDOF])
+        if self.debug > 1:
+            error_uu = np.linalg.norm(diff[self.uDOF[:,None], self.uDOF])
+            error_uq = np.linalg.norm(diff[self.uDOF[:,None], self.qDOF])
+            error_ula_g = np.linalg.norm(diff[self.uDOF[:,None], self.la_gDOF])
+            error_ula_gamma = np.linalg.norm(diff[self.uDOF[:,None], self.la_gammaDOF])
 
-        error_qu = np.linalg.norm(diff[self.qDOF[:,None], self.uDOF])
-        error_qq = np.linalg.norm(diff[self.qDOF[:,None], self.qDOF])
-        error_qla_g = np.linalg.norm(diff[self.qDOF[:,None], self.la_gDOF])
-        error_qla_gamma = np.linalg.norm(diff[self.qDOF[:,None], self.la_gammaDOF])
+            error_qu = np.linalg.norm(diff[self.qDOF[:,None], self.uDOF])
+            error_qq = np.linalg.norm(diff[self.qDOF[:,None], self.qDOF])
+            error_qla_g = np.linalg.norm(diff[self.qDOF[:,None], self.la_gDOF])
+            error_qla_gamma = np.linalg.norm(diff[self.qDOF[:,None], self.la_gammaDOF])
 
-        error_la_gu = np.linalg.norm(diff[self.la_gDOF[:,None], self.uDOF])
-        error_la_gq = np.linalg.norm(diff[self.la_gDOF[:,None], self.qDOF])
-        error_la_gla_g = np.linalg.norm(diff[self.la_gDOF[:,None], self.la_gDOF])
-        error_lala_gamma = np.linalg.norm(diff[self.la_gDOF[:,None], self.la_gammaDOF])
+            error_la_gu = np.linalg.norm(diff[self.la_gDOF[:,None], self.uDOF])
+            error_la_gq = np.linalg.norm(diff[self.la_gDOF[:,None], self.qDOF])
+            error_la_gla_g = np.linalg.norm(diff[self.la_gDOF[:,None], self.la_gDOF])
+            error_lala_gamma = np.linalg.norm(diff[self.la_gDOF[:,None], self.la_gammaDOF])
 
-        error_la_gammau = np.linalg.norm(diff[self.la_gammaDOF[:,None], self.uDOF])
-        error_la_gammaq = np.linalg.norm(diff[self.la_gammaDOF[:,None], self.qDOF])
-        error_la_gammala_g = np.linalg.norm(diff[self.la_gammaDOF[:,None], self.la_gDOF])
-        error_la_gammala_gamma = np.linalg.norm(diff[self.la_gammaDOF[:,None], self.la_gammaDOF])
+            error_la_gammau = np.linalg.norm(diff[self.la_gammaDOF[:,None], self.uDOF])
+            error_la_gammaq = np.linalg.norm(diff[self.la_gammaDOF[:,None], self.qDOF])
+            error_la_gammala_g = np.linalg.norm(diff[self.la_gammaDOF[:,None], self.la_gDOF])
+            error_la_gammala_gamma = np.linalg.norm(diff[self.la_gammaDOF[:,None], self.la_gammaDOF])
 
-        print(f'error_uu jacobian: {error_uu:.5e}')
-        print(f'error_uq jacobian: {error_uq:.5e}')
-        print(f'error_ula_g jacobian: {error_ula_g:.5e}')
-        print(f'error_ula_gamma jacobian: {error_ula_gamma:.5e}')
+            print(f'error_uu jacobian: {error_uu:.5e}')
+            print(f'error_uq jacobian: {error_uq:.5e}')
+            print(f'error_ula_g jacobian: {error_ula_g:.5e}')
+            print(f'error_ula_gamma jacobian: {error_ula_gamma:.5e}')
 
-        print(f'error_qu jacobian: {error_qu:.5e}')
-        print(f'error_qq jacobian: {error_qq:.5e}')
-        print(f'error_qla_g jacobian: {error_qla_g:.5e}')
-        print(f'error_qla_gamma jacobian: {error_qla_gamma:.5e}')
+            print(f'error_qu jacobian: {error_qu:.5e}')
+            print(f'error_qq jacobian: {error_qq:.5e}')
+            print(f'error_qla_g jacobian: {error_qla_g:.5e}')
+            print(f'error_qla_gamma jacobian: {error_qla_gamma:.5e}')
 
-        print(f'error_lau jacobian: {error_la_gu:.5e}')
-        print(f'error_laq jacobian: {error_la_gq:.5e}')
-        print(f'error_la_gla_g jacobian: {error_la_gla_g:.5e}')
-        print(f'error_lala_gamma jacobian: {error_lala_gamma:.5e}')
+            print(f'error_lau jacobian: {error_la_gu:.5e}')
+            print(f'error_laq jacobian: {error_la_gq:.5e}')
+            print(f'error_la_gla_g jacobian: {error_la_gla_g:.5e}')
+            print(f'error_lala_gamma jacobian: {error_lala_gamma:.5e}')
 
-        print(f'error_la_gammau jacobian: {error_la_gammau:.5e}')
-        print(f'error_la_gammaq jacobian: {error_la_gammaq:.5e}')
-        print(f'error_la_gammala_g jacobian: {error_la_gammala_g:.5e}')
-        print(f'error_la_gammala_gamma jacobian: {error_la_gammala_gamma:.5e}')
+            print(f'error_la_gammau jacobian: {error_la_gammau:.5e}')
+            print(f'error_la_gammaq jacobian: {error_la_gammaq:.5e}')
+            print(f'error_la_gammala_g jacobian: {error_la_gammala_g:.5e}')
+            print(f'error_la_gammala_gamma jacobian: {error_la_gammala_gamma:.5e}')
+
+        print(f'total error jacobian: {np.linalg.norm(diff)/ self.n:.5e}')
 
         if self.numerical_jacobian:
             return R_x_num
@@ -221,6 +224,7 @@ class Euler_backward():
         u = [uk]
         la_g = [la_gk]
         la_gamma = [la_gammak]
+
 
         pbar = tqdm(self.t[:-1])
         for tk in pbar:

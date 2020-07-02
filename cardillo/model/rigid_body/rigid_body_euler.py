@@ -1,12 +1,14 @@
 import numpy as np
-from cardillo.math.algebra import cross3, ax2skew, quat2mat, quat2mat_p, norm4, quat2rot, quat2rot_p
+from cardillo.math.algebra import cross3, ax2skew, A_IK_basic_x, A_IK_basic_y, A_IK_basic_z, dA_IK_basic_x, dA_IK_basic_y, dA_IK_basic_z, inverse3D
 
-class Rigid_body_quaternion():
-    def __init__(self, m, K_theta_S, q0=None, u0=None):
+from cardillo.math.numerical_derivative import Numerical_derivative
+
+class Rigid_body_euler():
+    def __init__(self, m, K_theta_S, axis='zxy', q0=None, u0=None):
         self.m = m
         self.theta = K_theta_S
 
-        self.nq = 7
+        self.nq = 6
         self.nu = 6
         self.q0 = np.zeros(self.nq) if q0 is None else q0
         self.u0 = np.zeros(self.nu) if u0 is None else u0
@@ -14,6 +16,21 @@ class Rigid_body_quaternion():
         self.M_ = np.zeros((self.nu, self.nu))
         self.M_[:3, :3] = m * np.eye(3)
         self.M_[3:, 3:] = self.theta
+
+        
+        ex, ey, ez = np.eye(3)
+        axis = axis.lower()
+        self.e1 = eval(f'e{axis[0]}') 
+        self.e2 = eval(f'e{axis[1]}') 
+        self.e3 = eval(f'e{axis[2]}') 
+
+        self.A_I1 = eval(f'lambda t,q: A_IK_basic_{axis[0]}(q[3])')
+        self.A_12 = eval(f'lambda t,q: A_IK_basic_{axis[1]}(q[4])')
+        self.A_2K = eval(f'lambda t,q: A_IK_basic_{axis[2]}(q[5])')
+
+        self.dA_I1 = eval(f'lambda t,q: dA_IK_basic_{axis[0]}(q[3])')
+        self.dA_12 = eval(f'lambda t,q: dA_IK_basic_{axis[1]}(q[4])')
+        self.dA_2K = eval(f'lambda t,q: dA_IK_basic_{axis[2]}(q[5])')
 
     def M(self, t, q, M_coo):
         M_coo.extend(self.M_, (self.uDOF, self.uDOF))
@@ -31,40 +48,33 @@ class Rigid_body_quaternion():
         coo.extend(dense, (self.uDOF, self.uDOF))
 
     def q_dot(self, t, q, u):
-        p = q[3:]
-        Q = quat2mat(p) / (2 * p @ p)
-        
         q_dot = np.zeros(self.nq)
         q_dot[:3] = u[:3]
-        q_dot[3:] = Q[:, 1:] @ u[3:]
+        q_dot[3:] = self.Q(t, q) @ u[3:]
 
         return q_dot
+    
+    def Q(self, t, q):
+        A_K2 = self.A_2K(t, q).T
+        A_K1 = A_K2 @ self.A_12(t, q).T
+        H_ = np.zeros((3, 3))
+        H_[:, 0] = A_K1 @ self.e1
+        H_[:, 1] = A_K2 @ self.e2
+        H_[:, 2] = self.e3
+        return inverse3D(H_) 
 
     def q_dot_q(self, t, q, u, coo):
-        p = q[3:]
-        p2 = p @ p
-        Q_p = quat2mat_p(p) / (2 * p2) \
-            - np.einsum('ij,k->ijk', quat2mat(p), p / (p2**2))
-            
-        dense = np.zeros((self.nq, self.nq))
-        dense[3:, 3:] = np.einsum('ijk,j->ik', Q_p[:, 1:, :], u[3:])
+        dense = Numerical_derivative(self.q_dot, order=2)._x(t, q, u)
         coo.extend(dense, (self.qDOF, self.qDOF))
 
     def B_dense(self, t, q):
-        p = q[3:]
-        Q = quat2mat(p) / (2 * p @ p)
-        
         B = np.zeros((self.nq, self.nu))
         B[:3, :3] = np.eye(3)
-        B[3:, 3:] = Q[:, 1:]
+        B[3:, 3:] = self.Q(t, q)
         return B
 
     def B(self, t, q, coo):
         coo.extend(self.B_dense(t, q), (self.qDOF, self.uDOF))
-
-    def solver_step_callback(self, t, q, u):
-        q[3:] = q[3:] / norm4(q[3:])
-        return q, u
 
     def qDOF_P(self, frame_ID=None):
         return self.qDOF
@@ -73,11 +83,13 @@ class Rigid_body_quaternion():
         return self.uDOF
 
     def A_IK(self, t, q, frame_ID=None):
-        return quat2rot(q[3:])
+        return self.A_I1(t, q) @ self.A_12(t, q) @ self.A_2K(t, q)
 
     def A_IK_q(self, t, q, frame_ID=None):
         A_IK_q = np.zeros((3, 3, self.nq))
-        A_IK_q[:, :, 3:] = quat2rot_p(q[3:])
+        A_IK_q[:, :, 3] = self.dA_I1(t, q) @ self.A_12(t, q) @ self.A_2K(t, q)
+        A_IK_q[:, :, 4] = self.A_I1(t, q) @ self.dA_12(t, q) @ self.A_2K(t, q)
+        A_IK_q[:, :, 5] = self.A_I1(t, q) @ self.A_12(t, q) @ self.dA_2K(t, q)
         return A_IK_q
 
     def r_OP(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
@@ -121,22 +133,5 @@ class Rigid_body_quaternion():
         return np.zeros((3, self.nu, self.nq))
 
 
-if __name__ == "__main__":
-    
-    from cardillo.math.numerical_derivative import Numerical_derivative
-    def Q(t, p):
-        return quat2mat(p) / (2 * p @ p)
 
-    def Q_p(t, p):
-        p2 = p @ p
-        return quat2mat_p(p) / (2 * p2) \
-            - np.einsum('ij,k->ijk', quat2mat(p), p / (p2**2))
 
-    p = np.random.rand(4)
-    p = p / norm4(p)
-
-    Q_p_num = Numerical_derivative(Q, order=2)._x(0, p)
-
-    diff = Q_p(0, p) - Q_p_num
-
-    print(np.linalg.norm(diff))

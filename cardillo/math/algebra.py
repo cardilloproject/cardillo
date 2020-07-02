@@ -132,6 +132,13 @@ def A_IK_basic_x(phi):
                      [0, cp, -sp],\
                      [0, sp,  cp]])
 
+def dA_IK_basic_x(phi):
+    sp = sin(phi)
+    cp = cos(phi)
+    return np.array([[0,  0,   0],\
+                     [0, -sp, -cp],\
+                     [0, cp,  -sp]])
+
 def A_IK_basic_y(phi):
     sp = sin(phi)
     cp = cos(phi)
@@ -139,12 +146,112 @@ def A_IK_basic_y(phi):
                      [  0,  1,   0],\
                      [-sp,  0,  cp]])
 
+def dA_IK_basic_y(phi):
+    sp = sin(phi)
+    cp = cos(phi)
+    return np.array([[ -sp,  0,  cp],\
+                     [  0,  0,   0],\
+                     [-cp,  0,  -sp]])
+
 def A_IK_basic_z(phi):
     sp = sin(phi)
     cp = cos(phi)
     return np.array([[ cp, -sp, 0],\
                      [ sp,  cp, 0],\
                      [  0,   0, 1]])
+
+def dA_IK_basic_z(phi):
+    sp = sin(phi)
+    cp = cos(phi)
+    return np.array([[ -sp, -cp, 0],\
+                     [ cp,  -sp, 0],\
+                     [  0,   0, 0]])
+
+def trace(J):
+    ndim = len(J)
+    if ndim == 1:
+        return J
+    elif ndim == 2:
+        return J[0, 0] + J[1, 1]
+    elif ndim == 3:
+        return J[0, 0] + J[1, 1] + J[2, 2]
+    else:
+        return np.trace(J)
+
+def determinant(J):
+    ndim = len(J)
+    if ndim == 1:
+        return J
+    elif ndim == 2:
+        return determinant2D(J)
+    elif ndim == 3:
+        return determinant3D(J)
+    else:
+        return np.linalg.det(J)
+
+def determinant2D(J):
+    return J[0, 0] * J[1, 1] - J[0, 1] * J[1, 0]
+
+def determinant3D(J):
+    a, b, c = J[0]
+    d, e, f = J[1]
+    g, h, i = J[2]
+
+    return a * (e * i - h * f) - b * ( d * i - g * f) + c * (d * h - g * e)
+
+def inverse(J):
+    ndim = len(J)
+    if ndim == 1:
+        return 1 / J
+    elif ndim == 2:
+        return inverse2D(J)
+    elif ndim == 3:
+        return inverse3D(J)
+    else:
+        return np.linalg.inv(J)
+
+def inverse2D(J):
+    # see https://de.wikipedia.org/wiki/Inverse_Matrix
+    j = determinant2D(J)
+    Jinv = 1 / j * np.array([[J[1, 1], -J[0, 1]], [-J[1, 0], J[0, 0]]])
+    return Jinv
+
+def inverse3D(J):
+    # see https://de.wikipedia.org/wiki/Inverse_Matrix
+    j = determinant3D(J)
+
+    a, b, c = J[0]
+    d, e, f = J[1]
+    g, h, i = J[2]
+
+    A = e * i - f * h
+    B = c * h - b * i
+    C = b * f - c * e
+    D = f * g - d * i
+    E = a * i - c * g
+    F = c * d - a * f
+    G = d * h - e * g
+    H = b * g - a * h
+    I = a * e - b * d
+    Jinv = 1 / j * np.array([[A, B, C], \
+                             [D, E, F], \
+                             [G, H, I]])
+    return Jinv
+
+def test_determinant():
+    n = np.array([1, 2, 3, 4])
+    for i in n:
+        A = np.random.rand(i, i)
+        detA = determinant(A)
+        assert np.allclose(detA, np.linalg.det(A))
+
+def test_inverse():
+    n = np.array([1, 2, 3, 4])
+    for i in n:
+        A = np.random.rand(i, i)
+        Ainv = inverse(A)
+        I = np.identity(i)
+        assert np.allclose(I, A @ Ainv)
 
 if __name__ == "__main__":
     # tests
