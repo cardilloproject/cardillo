@@ -33,13 +33,13 @@ if __name__ == "__main__":
     # r0 = np.zeros(3)
     # p0 = axis_angle2quat(np.array([0, 0, 1]), alpha0)
     # q0 = np.concatenate((r0, p0))
-    q0 = np.array([0, 0, 0, alpha0, 0, 0])
+    q0 = np.array([0, 0, 0, 0, 0, 0])
     u0 = np.zeros(6)
     u0[5] = 0
 
     RB = Rigid_cylinder(m, r, l, q0, u0)
     Origin = Frame()
-    TSpring = Rotational_f_pot(Linear_spring(k, g0=-alpha0), Origin, RB, np.zeros(3), np.eye(3))
+    TSpring = Rotational_f_pot(Linear_spring(k, g0=0), Origin, RB, np.zeros(3), np.eye(3))
     joint = Revolute_joint(Origin, RB, np.zeros(3), np.eye(3))
     F = Force(np.array([0, 0, 0]), RB, np.array([r, 0, 0]))
 
@@ -51,6 +51,8 @@ if __name__ == "__main__":
     # model.add(F)
 
     model.assemble()
+
+    model.q0 = np.array([0, 0, 0, alpha0, 0, 0])
 
     t0 = 0
     t1 = 2
