@@ -1,2 +1,3 @@
 from .rigid_body_quaternion import Rigid_body_quaternion
 from .rigid_body_euler import Rigid_body_euler
+from .rigid_body_director import Rigid_body_director
