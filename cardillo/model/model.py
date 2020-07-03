@@ -11,7 +11,7 @@ properties.extend(['f_npot', 'f_npot_q', 'f_npot_u'])
 
 properties.extend(['q_dot', 'q_dot_q', 'B'])
 
-properties.extend(['g', 'g_q'])
+properties.extend(['g', 'g_q', 'g_t'])
 properties.extend(['gamma', 'gamma_q', 'gamma_u'])
 
 properties.extend(['assembler_callback', 'solver_step_callback'])
@@ -219,6 +219,12 @@ class Model(object):
             g[contr.la_gDOF] = contr.g(t, q[contr.qDOF])
         return g
 
+    def g_t(self, t, q):
+        g_t = np.zeros(self.nla_g)
+        for contr in self.__g_t_contr:
+            g_t[contr.la_gDOF] = contr.g_t(t, q[contr.qDOF])
+        return g_t
+
     def g_q(self, t, q, scipy_matrix=coo_matrix):
         coo = Coo((self.nla_g, self.nq))
         for contr in self.__g_contr:
@@ -236,6 +242,13 @@ class Model(object):
         for contr in self.__g_contr:
             contr.Wla_g_q(t, q[contr.qDOF], la_g[contr.la_gDOF], coo)
         return coo.tosparse(scipy_matrix)
+
+    def g_dot(self, t, q, u):
+        W_g = self.W_g(t, q, scipy_matrix=csr_matrix)
+        return u @ W_g + self.g_t(t, q)
+
+    def g_dot_u(self, t, q):
+        return self.W_g(t, q, scipy_matrix=coo_matrix).T
 
     #========================================
     # bilateral constraints on velocity level
