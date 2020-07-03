@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from cardillo.model import Model
-from cardillo.solver import Euler_forward, Euler_backward
+from cardillo.solver import Euler_forward, Euler_backward, Moreau
 from cardillo.model.frame import Frame
 from cardillo.model.point_mass import Point_mass
 from cardillo.model.force import Force
@@ -45,7 +45,9 @@ if __name__ == "__main__":
     t1 = 2
     t_span = (t0, t1)
     dt = 1.0e-2
-    solver = Euler_backward(model, t_span, dt, numerical_jacobian=False, debug=False)
+    # solver = Euler_backward(model, t_span, dt, numerical_jacobian=False, debug=False)
+    # t, q, u, la_g, la_gamma = solver.solve()
+    solver = Moreau(model, t_span, dt)
     t, q, u, la_g, la_gamma = solver.solve()
     # solver = Euler_forward(model, t_span, dt)
     # t, q, u = solver.solve()

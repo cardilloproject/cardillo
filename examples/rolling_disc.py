@@ -13,11 +13,11 @@ from cardillo.model.rolling_disc import Rolling_condition_I_frame, Rolling_condi
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints import Rod
 from cardillo.model.force import Force
-from cardillo.solver import Euler_backward
+from cardillo.solver import Euler_backward, Moreau, Moreau_sym
 from cardillo.math.algebra import axis_angle2quat, ax2skew, A_IK_basic_x
 
-rigid_body = 'Euler'
-# rigid_body = 'Quaternion'
+# rigid_body = 'Euler'
+rigid_body = 'Quaternion'
 # rigid_body = 'Director'
 
 class Rigid_disc_euler(Rigid_body_euler):
@@ -271,8 +271,8 @@ def rolling_disc_velocity_constraints():
         RD = Rigid_disc_Lesaux_director(m, r, q0=q0, u0=u0)
         
     # RC = Rolling_condition_I_frame(RD)
-    # RC = Rolling_condition_R_frame(RD)
-    RC = Rolling_condition_I_frame_g_gamma(RD)
+    RC = Rolling_condition_R_frame(RD)
+    # RC = Rolling_condition_I_frame_g_gamma(RD)
     f_g = Force(lambda t: np.array([0, 0, -m * g]), RD)
 
     model = Model()
@@ -282,12 +282,16 @@ def rolling_disc_velocity_constraints():
     model.assemble()
 
     t0 = 0
-    t1 = 2 * np.pi / np.abs(alpha_dot)
-    t1 = 1
-    dt = 5e-3
+    t1 = 4 * 2 * np.pi / np.abs(alpha_dot)
+    # t1 = 1
+    dt = 1e-2
     t_span = t0, t1
-    solver = Euler_backward(model, t_span=t_span, dt=dt, numerical_jacobian=False, debug=False)
+    # solver = Euler_backward(model, t_span=t_span, dt=dt, numerical_jacobian=False, debug=False)
+    # t, q, u, la_g, la_gamma = solver.solve()
+    solver = Moreau_sym(model, t_span=t_span, dt=dt, numerical_jacobian=False, debug=False)
     t, q, u, la_g, la_gamma = solver.solve()
+    # solver = Moreau(model, t_span, dt)
+    # t, q, u, la_g, la_gamma = solver.solve()
 
     # animate configurations
     fig = plt.figure()
@@ -308,7 +312,7 @@ def rolling_disc_velocity_constraints():
 
     # prepare data for animation
     frames = len(t)
-    target_frames = 100
+    target_frames = 290
     frac = int(frames / target_frames)
     animation_time = 1
     interval = animation_time * 1000 / target_frames

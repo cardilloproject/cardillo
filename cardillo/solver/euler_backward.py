@@ -234,7 +234,6 @@ class Euler_backward():
 
             qk1, uk1 = self.model.solver_step_callback(tk1, qk1, uk1)
 
-            # t.append(tk1)
             q.append(qk1)
             u.append(uk1)
             la_g.append(la_gk1)
