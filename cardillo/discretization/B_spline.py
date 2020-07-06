@@ -17,19 +17,68 @@ def find_knotspan(degree, knot_vector, knots):
 
     if not hasattr(knots, '__len__'):
         return find_span_linear(degree, knot_vector, m, knots)
+        # return find_span_binsearch(degree, knot_vector, m, knots)
     else:
         return find_spans(degree, knot_vector, m, knots)
+        # return find_spans(degree, knot_vector, m, knots, func=find_span_binsearch)
 
-def B_spline_basis(degree, order, knot_vector, knots):
+def B_spline_basis(degree, derivative_order, knot_vector, knots):
     spans = find_knotspan(degree, knot_vector, knots)
     if not hasattr(spans, '__len__'):
-        ders = basis_function_ders(degree, knot_vector, spans, knots, order)
+        ders = basis_function_ders(degree, knot_vector, spans, knots, derivative_order)
     else:
-        ders = basis_functions_ders(degree, knot_vector, spans, knots, order)
-    # TODO: do we want another ordering here?
+        ders = basis_functions_ders(degree, knot_vector, spans, knots, derivative_order)
+
+    # # TODO: do we want another ordering here?
+    # # ordering: (derivative order, number of evaluation points, different nonzero shape functions)
+    # return np.array(ders).transpose((1, 0, 2))
+
+    # ordering: (number of evaluation points, derivative order, different nonzero shape functions)
     return np.array(ders)
 
 # TODO: wrap fit_B_spline for 3D vectors
+def approximate_curve(points, degree, nEl, centripetal=False):
+    """Curve approximation using least squares method with fixed number of control points.
+
+    Please refer to The NURBS Book (2nd Edition), pp.410-413 for details.
+
+    Parameters
+    ----------
+    points : list, tuple
+        data points
+    degree : int
+        degree of the output B-spline curve
+    nEl: int
+        number of elements of the output B-spline curve
+    centripetal : bool
+        activates centripetal parametrization method. *Default: False*
+    return : tuple(list, list)
+        control points and knot vector of the approximated B-Spline curve
+    """
+    curve = fitting.approximate_curve(points, degree, ctrlpts_size=nEl + degree, centripetal=centripetal)
+    return curve.ctrlpts, curve.knotvector
+
+def test_fitting():
+    from geomdl import fitting
+    from geomdl.visualization import VisMPL as vis
+
+    # The NURBS Book Ex9.1
+    points = ((0, 0), (3, 4), (-1, 4), (-4, 0), (-4, -3))
+    degree = 2  # cubic curve
+
+    nEl = 2
+    ctrlpts, knot_vector = approximate_curve(points, degree, nEl=nEl)
+
+    # Do global curve approximation
+    curve = fitting.approximate_curve(points, degree, ctrlpts_size=nEl + degree)
+
+    assert curve.ctrlpts == ctrlpts
+    assert curve.knotvector == knot_vector
+
+    # Plot the interpolated curve
+    curve.delta = 0.01
+    curve.vis = vis.VisCurve2D()
+    curve.render()
 
 def test_B_splines():
     ###########################################################################
@@ -82,6 +131,7 @@ def test_B_splines():
 
     order = 1
     # knots = [0.01, 0.5, 0.99]
+    # knots = [0.01, 0.5, 0.99, 1]
     knots = np.random.rand(4)
     spans = find_spans(degree, knot_vector, m, knots)
     ders_geomdl = basis_functions_ders(degree, knot_vector, spans, knots, order)
@@ -172,5 +222,6 @@ def visualize_B_splines():
     plt.show()
 
 if __name__ == "__main__":
+    # test_fitting()
     test_B_splines()
     # visualize_B_splines()
