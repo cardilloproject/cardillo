@@ -20,16 +20,6 @@ class Spherical_joint():
         K_r_SP1 = A_IK1.T @ (self.r_OB - r_OS1)
         K_r_SP2 = A_IK2.T @ (self.r_OB - r_OS2)
 
-        self.r_OP1 = lambda t, q: self.subsystem1.r_OP(t, q, self.frame_ID1, K_r_SP1)
-        self.r_OP1_q = lambda t, q: self.subsystem1.r_OP_q(t, q, self.frame_ID1, K_r_SP1)
-        self.J_P1 = lambda t, q: self.subsystem1.J_P(t, q, self.frame_ID1, K_r_SP1)
-        self.J_P1_q = lambda t, q: self.subsystem1.J_P_q(t, q, self.frame_ID1, K_r_SP1)
-
-        self.r_OP2 = lambda t, q: self.subsystem2.r_OP(t, q, self.frame_ID2, K_r_SP2)
-        self.r_OP2_q = lambda t, q: self.subsystem2.r_OP_q(t, q, self.frame_ID2, K_r_SP2)
-        self.J_P2 = lambda t, q: self.subsystem2.J_P(t, q, self.frame_ID2, K_r_SP2)
-        self.J_P2_q = lambda t, q: self.subsystem2.J_P_q(t, q, self.frame_ID2, K_r_SP2)
-
         self.qDOF1 = self.subsystem1.qDOF_P(self.frame_ID1)
         self.qDOF2 = self.subsystem2.qDOF_P(self.frame_ID2)
         self.qDOF = np.concatenate([self.qDOF1, self.qDOF2])
@@ -43,40 +33,63 @@ class Spherical_joint():
         self.nu1 = len(self.uDOF1)
         self.nu2 = len(self.uDOF2)
         self.nu = self.nu1 + self.nu2
+
+        nq1 = self.nq1
+        nu1 = self.nu1
+
+        self.r_OP1 = lambda t, q: self.subsystem1.r_OP(t, q[:nq1], self.frame_ID1, K_r_SP1)
+        # self.r_OP1_t = lambda t, q: self.subsystem1.r_OP_t(t, q, self.frame_ID1, K_r_SP1)
+        self.r_OP1_q = lambda t, q: self.subsystem1.r_OP_q(t, q[:nq1], self.frame_ID1, K_r_SP1)
+        self.v_P1 = lambda t, q, u: self.subsystem1.v_P(t, q[:nq1], u[:nu1], self.frame_ID1, K_r_SP1)
+        self.J_P1 = lambda t, q: self.subsystem1.J_P(t, q[:nq1], self.frame_ID1, K_r_SP1)
+        self.J_P1_q = lambda t, q: self.subsystem1.J_P_q(t, q[:nq1], self.frame_ID1, K_r_SP1)
+
+        self.r_OP2 = lambda t, q: self.subsystem2.r_OP(t, q[nq1:], self.frame_ID2, K_r_SP2)
+        # self.r_OP2_t = lambda t, q: self.subsystem2.r_OP_t(t, q, self.frame_ID2, K_r_SP2)
+        self.r_OP2_q = lambda t, q: self.subsystem2.r_OP_q(t, q[nq1:], self.frame_ID2, K_r_SP2)
+        self.v_P2 = lambda t, q, u: self.subsystem2.v_P(t, q[nq1:], u[nu1:], self.frame_ID2, K_r_SP2)
+        self.J_P2 = lambda t, q: self.subsystem2.J_P(t, q[nq1:], self.frame_ID2, K_r_SP2)
+        self.J_P2_q = lambda t, q: self.subsystem2.J_P_q(t, q[nq1:], self.frame_ID2, K_r_SP2)
         
     def g(self, t, q):
         nq1 = self.nq1
-        r_OP1 = self.r_OP1(t, q[:nq1]) 
-        r_OP2 = self.r_OP2(t, q[nq1:])
+        r_OP1 = self.r_OP1(t, q) 
+        r_OP2 = self.r_OP2(t, q)
         return r_OP2 - r_OP1
 
     def g_q_dense(self, t, q):
-        nq1 = self.nq1
-        r_OP1_q = self.r_OP1_q(t, q[:nq1]) 
-        r_OP2_q = self.r_OP2_q(t, q[nq1:])
+        r_OP1_q = self.r_OP1_q(t, q) 
+        r_OP2_q = self.r_OP2_q(t, q)
         return np.hstack([-r_OP1_q, r_OP2_q])
+
+    def g_dot(self, t, q, u):
+        v_P1 = self.v_P1(t, q, u) 
+        v_P2 = self.v_P2(t, q, u)
+        return v_P2 - v_P1
+
+    def g_dot_u(self, t, q, coo):
+        coo.extend(self.W_g_dense(t, q).T, (self.la_gDOF, self.uDOF))
 
     def g_q(self, t, q, coo):
         coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
    
     def W_g_dense(self, t, q):
-        nq1 = self.nq1
         nu1 = self.nu1
-        J_P1 = self.J_P1(t, q[:nq1]) 
-        J_P2 = self.J_P2(t, q[nq1:])
+        J_P1 = self.J_P1(t, q) 
+        J_P2 = self.J_P2(t, q)
         W_g = np.zeros((self.nu, self.nla_g))
         W_g[:nu1, :] = -J_P1.T
         W_g[nu1:, :] = J_P2.T
         return W_g
-
+        
     def W_g(self, t, q, coo):
         coo.extend(self.W_g_dense(t, q), (self.uDOF, self.la_gDOF))
 
     def Wla_g_q(self, t, q, la_g, coo):
         nq1 = self.nq1
         nu1 = self.nu1
-        J_P1_q = self.J_P1_q(t, q[:nq1]) 
-        J_P2_q = self.J_P2_q(t, q[nq1:])
+        J_P1_q = self.J_P1_q(t, q) 
+        J_P2_q = self.J_P2_q(t, q)
 
         # dense blocks
         dense = np.zeros((self.nu, self.nq))

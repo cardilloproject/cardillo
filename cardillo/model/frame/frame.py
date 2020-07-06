@@ -21,6 +21,9 @@ class Frame():
     def r_OP(self, t, q=None, frame_ID=None, K_r_SP=None):
         return self.r_OP__(t)
 
+    def r_OP_t(self, t, q=None, frame_ID=None, K_r_SP=None):
+        return self.r_OP_t__(t)
+
     def r_OP_q(self, t, q=None, frame_ID=None, K_r_SP=None):
         return np.array([]).reshape((3, 0))
 
