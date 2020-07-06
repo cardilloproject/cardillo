@@ -1,6 +1,6 @@
 import numpy as np
 from math import sqrt, sin, cos
-from cardillo.math.numerical_derivative import Numerical_derivative
+from cardillo.math.numerical_derivative import Numerical_derivative   
 
 def norm2(a):
     return sqrt(a[0] * a[0] + a[1] * a[1])
