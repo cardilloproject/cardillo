@@ -64,11 +64,11 @@ class Rope(object):
             if B_splines:
                 # transform quadrature points for B-spline shape functions
                 xi = self.xi_span[el] + delta_xi * (self.qp + 1) / 2
-                print(f'xi: {xi}')
+                # print(f'xi: {xi}')
 
                 # transform quadrature weights for B-spline shape functions
                 self.qw[el] = qw * delta_xi / 2
-                print(f'qw: {self.qw[el]}')
+                # print(f'qw: {self.qw[el]}')
 
                 # ordering: (number of evaluation points, derivative order, different nonzero shape functions)
                 N_dN = B_spline_basis(polynomial_degree, 1, knot_vector, xi)
@@ -170,43 +170,39 @@ class Rope(object):
         return f
 
     def f_pot_q_el(self, qe, Qe, dN, qw):
-        fe_q_num = Numerical_derivative(lambda t, qe: self.f_pot_el(qe, Qe, dN, qw), order=1)._x(0, qe)
+        # fe_q_num = Numerical_derivative(lambda t, qe: self.f_pot_el(qe, Qe, dN, qw), order=2)._x(0, qe, eps=1.0e-6)
         
-        # fe_q = np.zeros((self.n_elDOF, self.n_elDOF))
+        fe_q = np.zeros((self.nq_el, self.nq_el))
 
-        # for i in range(self.nQP):
-
-        #     # shape functions at quadrature point i
-        #     dNi = self.dN[i]
-
-        #     # build matrix of shape function derivatives
-        #     dNNi = self.stack_shape_functions(dNi)
+        for dNi, qwi in zip(dN, qw):
+            # build matrix of shape function derivatives
+            dNNi = np.kron(np.eye(self.dim), dNi)
             
-        #     # compute current and reference tangent vector w.r.t. [-1, 1]
-        #     dr  = dNNi @ qe 
-        #     dr0 = dNNi @ Qe
-        #     g = norm2(dr)
-        #     G = norm2(dr0)
+            # compute current and reference tangent vector w.r.t. [-1, 1]
+            dr  = dNNi @ qe 
+            dr0 = dNNi @ Qe
+            g = norm2(dr)
+            G = norm2(dr0)
             
-        #     # Calculate the strain and stress
-        #     strain = g / G
-        #     n = self.material_model.n(strain)
-        #     dn = self.material_model.dn(strain)
-        #     dstress = dNNi / g * n + np.outer(dr, dr) @ dNNi / g**2 * (dn / G - n / g)
+            # Calculate the strain and stress
+            strain = g / G
+            n = self.material_model.n(strain)
+            dn = self.material_model.dn(strain)
+            dstress = dNNi / g * n + np.outer(dr, dr) @ dNNi / g**2 * (dn / G - n / g)
 
-        #     # Calcualte element stiffness matrix
-        #     fe_q -= dNNi.T @ dstress * self.wp[i]
+            # Calcualte element stiffness matrix
+            fe_q -= dNNi.T @ dstress * qwi
 
-        # np.set_printoptions(3)
+        # # np.set_printoptions(3)
         # diff = fe_q_num - fe_q
-        # # print(diff)
-        # print(f'fe_q_num =\n{fe_q_num}')
-        # print(f'fe_q =\n{fe_q}')
+        # # # print(diff)
+        # # print(f'fe_q_num =\n{fe_q_num}')
+        # # print(f'fe_q =\n{fe_q}')
         # error = np.linalg.norm(diff)
         # print(f'error in stiffness matrix: {error:.4e}')
-        return fe_q_num
+        # return fe_q_num
 
-        # return fe_q
+        return fe_q
 
     def f_pot_q(self, t, q, coo):
         for el in range(self.nEl):
@@ -282,10 +278,32 @@ class Rope(object):
         return np.zeros((3, self.nq_el, self.nq_el))
 
     def v_P(self, t, q, u, frame_ID=(0,), K_r_SP=None):
-        return self.r_OP(t, u, frame_ID=frame_ID)
+        # return self.r_OP(t, u, frame_ID=frame_ID)
+
+        xi = frame_ID[0]
+        if xi == 0:
+            N = self.N_bdry[0]
+        elif xi == 1:
+            N = self.N_bdry[1]
+        else:
+            print('r_OP can only be computed at frame_ID = (0,) or (1,)')
+
+        # interpolate position vector
+        return np.kron(np.eye(self.dim), N) @ u
 
     def v_P_q(self, t, q, u, frame_ID=(0,), K_r_SP=None):
-        return self.r_OP_q(t, u, frame_ID=frame_ID)
+        # return self.r_OP_q(t, u, frame_ID=frame_ID)
+
+        xi = frame_ID[0]
+        if xi == 0:
+            N = self.N_bdry[0]
+        elif xi == 1:
+            N = self.N_bdry[1]
+        else:
+            print('r_OP can only be computed at frame_ID = (0,) or (1,)')
+
+        # interpolate position vector
+        return np.kron(np.eye(self.dim), N)
 
 if __name__ == "__main__":
     from cardillo.model.rope.hooke import Hooke
@@ -301,7 +319,7 @@ if __name__ == "__main__":
     # physical properties of the rope
     dim = 3
     L = 2 * np.pi
-    EA = 100
+    EA = 1000
     material_model = Hooke(EA)
     A_rho0 = 1
 
@@ -310,7 +328,7 @@ if __name__ == "__main__":
     p = 2
     nQP = int(np.ceil((p + 1)**2 / 2))
     print(f'nQP: {nQP}')
-    nEl = 5
+    nEl = 10
 
     # build reference configuration
     if B_splines:
@@ -325,7 +343,7 @@ if __name__ == "__main__":
         Z0 = np.zeros_like(X0)
         Q = np.hstack((X0, Y0, Z0))
     u0 = np.zeros_like(Q)
-    q0 = np.copy(Q)
+    q0 = np.copy(Q) + np.random.rand(3 * nNd) * 1.0e-1
 
     rope = Rope(A_rho0, material_model, p, nEl, nQP, Q, q0, u0, B_splines=B_splines, dim=dim)
 
@@ -342,14 +360,16 @@ if __name__ == "__main__":
     # f_pot_q = rope.f_pot_q(0, q)
     # print(f'f_pot_q:\n{f_pot_q}')
 
-    # r_OB1 = np.zeros(3)
-    omega = 2 * np.pi
-    A = 0.1
-    r_OB1 = lambda t: np.array([0, A * np.sin(omega * t), 0])
-    r_OB1_t = lambda t: np.array([0, A * omega * np.cos(omega * t), 0])
-    r_OB1_tt = lambda t: np.array([0, -A * omega**2 * np.sin(omega * t), 0])
-    frame_left = Frame(r_OP=r_OB1, r_OP_t=r_OB1_t, r_OP_tt=r_OB1_tt)
-    joint_left = Spherical_joint(frame_left, rope, r_OB1(0), frame_ID1=(0,))
+    r_OB1 = np.zeros(3)
+    frame_left = Frame(r_OP=r_OB1)
+    joint_left = Spherical_joint(frame_left, rope, r_OB1, frame_ID1=(0,))
+    # omega = 2 * np.pi
+    # A = 1
+    # r_OB1 = lambda t: np.array([0, A * np.sin(omega * t), 0])
+    # r_OB1_t = lambda t: np.array([0, A * omega * np.cos(omega * t), 0])
+    # r_OB1_tt = lambda t: np.array([0, -A * omega**2 * np.sin(omega * t), 0])
+    # frame_left = Frame(r_OP=r_OB1, r_OP_t=r_OB1_t, r_OP_tt=r_OB1_tt)
+    # joint_left = Spherical_joint(frame_left, rope, r_OB1(0), frame_ID1=(0,))
 
     r_OB2 = np.array([L, 0, 0])
     frame_right = Frame(r_OP=r_OB2)
@@ -366,13 +386,15 @@ if __name__ == "__main__":
     # model.q0 += np.random.rand(model.nq) * 1.0e-1
 
     t0 = 0
-    t1 = 1
+    t1 = 2
     dt = 1e-2
     t_span = t0, t1
-    # solver = Euler_backward(model, t_span=t_span, dt=dt, numerical_jacobian=False, debug=False)
-    # t, q, u, la_g, la_gamma = solver.solve()
-    solver = Moreau_sym(model, t_span=t_span, dt=dt, numerical_jacobian=False, debug=False)
+    solver = Euler_backward(model, t_span=t_span, dt=dt, numerical_jacobian=False, debug=False)
     t, q, u, la_g, la_gamma = solver.solve()
+    # solver = Euler_backward(model, t_span=t_span, dt=dt, numerical_jacobian=True, debug=True)
+    # t, q, u, la_g, la_gamma = solver.solve()
+    # solver = Moreau_sym(model, t_span=t_span, dt=dt, numerical_jacobian=True, debug=False)
+    # t, q, u, la_g, la_gamma = solver.solve()
     # solver = Moreau(model, t_span, dt)
     # t, q, u, la_g, la_gamma = solver.solve()
 

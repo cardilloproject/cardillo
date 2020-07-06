@@ -83,6 +83,9 @@ class Rigid_body_quaternion():
     def r_OP(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
         return q[:3] + self.A_IK(t, q) @ K_r_SP
 
+    def r_OP_t(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
+        return np.zeros(3)
+
     def r_OP_q(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
         r_OP_q = np.zeros((3, self.nq))
         r_OP_q[:, :3] = np.eye(3)

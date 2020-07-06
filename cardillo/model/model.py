@@ -244,11 +244,19 @@ class Model(object):
         return coo.tosparse(scipy_matrix)
 
     def g_dot(self, t, q, u):
-        W_g = self.W_g(t, q, scipy_matrix=csr_matrix)
-        return u @ W_g + self.g_t(t, q)
+        g_dot = np.zeros(self.nla_g)
+        for contr in self.__g_contr:
+            g_dot[contr.la_gDOF] = contr.g_dot(t, q[contr.qDOF], u[contr.uDOF])
+        return g_dot
 
-    def g_dot_u(self, t, q):
-        return self.W_g(t, q, scipy_matrix=coo_matrix).T
+    def chi_g(self, t, q):
+        return self.g_dot(t, q, np.zeros(self.nu))
+
+    def g_dot_u(self, t, q, scipy_matrix=coo_matrix):
+        coo = Coo((self.nla_g, self.nu))
+        for contr in self.__g_contr:
+            contr.g_dot_u(t, q[contr.qDOF], coo)
+        return coo.tosparse(scipy_matrix)
 
     #========================================
     # bilateral constraints on velocity level
@@ -258,6 +266,9 @@ class Model(object):
         for contr in self.__gamma_contr:
             gamma[contr.la_gammaDOF] = contr.gamma(t, q[contr.qDOF], u[contr.uDOF])
         return gamma
+
+    def chi_gamma(self, t, q):
+        return self.gamma(t, q, np.zeros(self.nu))
 
     def gamma_q(self, t, q, u, scipy_matrix=coo_matrix):
         coo = Coo((self.nla_gamma, self.nq))

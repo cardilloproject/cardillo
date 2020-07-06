@@ -27,6 +27,7 @@ class Spherical_joint():
         self.nu = self.nu1 + self.nu2
 
         nq1 = self.nq1
+        nu1 = self.nu1
 
         r_OS1 = self.subsystem1.r_OP(self.subsystem1.t0, self.subsystem1.q0[self.qDOF1], self.frame_ID1)
         if hasattr(self.subsystem1, 'A_IK'):
@@ -44,11 +45,13 @@ class Spherical_joint():
 
         self.r_OP1 = lambda t, q: self.subsystem1.r_OP(t, q[:nq1], self.frame_ID1, K_r_SP1)
         self.r_OP1_q = lambda t, q: self.subsystem1.r_OP_q(t, q[:nq1], self.frame_ID1, K_r_SP1)
+        self.v_P1 = lambda t, q, u: self.subsystem1.v_P(t, q[:nq1], u[:nu1], self.frame_ID1, K_r_SP1)
         self.J_P1 = lambda t, q: self.subsystem1.J_P(t, q[:nq1], self.frame_ID1, K_r_SP1)
         self.J_P1_q = lambda t, q: self.subsystem1.J_P_q(t, q[:nq1], self.frame_ID1, K_r_SP1)
 
         self.r_OP2 = lambda t, q: self.subsystem2.r_OP(t, q[nq1:], self.frame_ID2, K_r_SP2)
         self.r_OP2_q = lambda t, q: self.subsystem2.r_OP_q(t, q[nq1:], self.frame_ID2, K_r_SP2)
+        self.v_P2 = lambda t, q, u: self.subsystem2.v_P(t, q[nq1:], u[nu1:], self.frame_ID2, K_r_SP2)
         self.J_P2 = lambda t, q: self.subsystem2.J_P(t, q[nq1:], self.frame_ID2, K_r_SP2)
         self.J_P2_q = lambda t, q: self.subsystem2.J_P_q(t, q[nq1:], self.frame_ID2, K_r_SP2)
         
@@ -62,11 +65,18 @@ class Spherical_joint():
         r_OP2_q = self.r_OP2_q(t, q)
         return np.hstack([-r_OP1_q, r_OP2_q])
 
+    def g_dot(self, t, q, u):
+        v_P1 = self.v_P1(t, q, u) 
+        v_P2 = self.v_P2(t, q, u)
+        return v_P2 - v_P1
+
+    def g_dot_u(self, t, q, coo):
+        coo.extend(self.W_g_dense(t, q).T, (self.la_gDOF, self.uDOF))
+
     def g_q(self, t, q, coo):
         coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
    
     def W_g_dense(self, t, q):
-        nq1 = self.nq1
         nu1 = self.nu1
         J_P1 = self.J_P1(t, q) 
         J_P2 = self.J_P2(t, q)
@@ -74,7 +84,7 @@ class Spherical_joint():
         W_g[:nu1, :] = -J_P1.T
         W_g[nu1:, :] = J_P2.T
         return W_g
-
+        
     def W_g(self, t, q, coo):
         coo.extend(self.W_g_dense(t, q), (self.uDOF, self.la_gDOF))
 

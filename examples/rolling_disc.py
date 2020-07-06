@@ -17,8 +17,8 @@ from cardillo.solver import Euler_backward, Moreau, Moreau_sym
 from cardillo.math.algebra import axis_angle2quat, ax2skew, A_IK_basic_x
 
 # rigid_body = 'Euler'
-rigid_body = 'Quaternion'
-# rigid_body = 'Director'
+# rigid_body = 'Quaternion'
+rigid_body = 'Director'
 
 class Rigid_disc_euler(Rigid_body_euler):
     def __init__(self, m, r, q0=None, u0=None):
@@ -257,7 +257,7 @@ def rolling_disc_velocity_constraints():
     if rigid_body == 'Euler' or rigid_body == 'Quaternion':
         u0 = np.concatenate((v_S0, omega0))
     elif rigid_body == 'Director':
-        omega0_tilde = R0 @ ax2skew(omega0)
+        omega0_tilde = R0 @ ax2skew(omega0) 
         u0 = np.concatenate((v_S0, omega0_tilde[:, 0], omega0_tilde[:, 1], omega0_tilde[:, 2]))
     #------------
 
@@ -282,7 +282,7 @@ def rolling_disc_velocity_constraints():
     model.assemble()
 
     t0 = 0
-    t1 = 4 * 2 * np.pi / np.abs(alpha_dot)
+    t1 = 2 * np.pi / np.abs(alpha_dot)
     # t1 = 1
     dt = 1e-2
     t_span = t0, t1

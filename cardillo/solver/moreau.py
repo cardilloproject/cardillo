@@ -41,19 +41,19 @@ class Moreau():
         W_g = self.model.W_g(tk1, qk1)
         W_gamma = self.model.W_gamma(tk1, qk1)
         g_dot_u = self.model.g_dot_u(tk1, qk1)
-        g_t = self.model.g_t(tk1, qk1)
+        chi_g = self.model.chi_g(tk1, qk1)
         gamma_u = self.model.gamma_u(tk1, qk1)
-        chi = self.model.gamma(tk1, qk1, np.zeros_like(uk))
+        chi_gamma = self.model.chi_gamma(tk1, qk1)
 
         # M (uk1 - uk) - dt (h + W_g la_g + W_gamma la_gamma) = 0
-        # g_dot_u @ uk1 + g_t = 0
-        # gamma_u @ uk1 + chi = 0
+        # g_dot_u @ uk1 + chi_g = 0
+        # gamma_u @ uk1 + chi_gamma = 0
 
         A =  bmat([[M      ,  -dt * W_g, -dt * W_gamma], \
                    [g_dot_u,       None,          None], \
                    [gamma_u,       None,          None]]).tocsc()
 
-        b = np.concatenate( (M @ uk + dt*h, -g_t, -chi) )
+        b = np.concatenate( (M @ uk + dt*h, -chi_g, -chi_gamma) )
 
         x = spsolve( A, b)
         
