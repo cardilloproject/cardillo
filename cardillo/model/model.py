@@ -205,6 +205,12 @@ class Model(object):
             contr.B(t, q[contr.qDOF], coo)
         return coo.tosparse(scipy_matrix)
 
+    def q_ddot(self, t, q, u, a):
+        q_ddot = np.zeros(self.nq)
+        for contr in self.__q_dot_contr:
+            q_ddot[contr.qDOF] += contr.q_ddot(t, q[contr.qDOF], u[contr.uDOF], a[contr.uDOF])
+        return q_ddot
+
     def solver_step_callback(self, t, q, u):
         for contr in self.__solver_step_callback_contr:
             q[contr.qDOF], u[contr.uDOF] = contr.solver_step_callback(t, q[contr.qDOF], u[contr.uDOF])
