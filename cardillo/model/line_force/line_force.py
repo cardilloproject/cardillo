@@ -16,20 +16,15 @@ class Line_force():
     def potential(self, t, q):
         raise NotImplementedError('not implemented')
 
-    def f_pot_el(self, t, qe, Qe, N, dN, qp, qw):
+    def f_pot_el(self, t, N, qp, J0, qw):
         fe = np.zeros(self.subsystem.nq_el)
 
-        for Ni, dNi, qpi, qwi in zip(N, dN, qp, qw):
+        for Ni, qpi, J0i, qwi in zip(N, qp, J0, qw):
             # build matrix of shape functions and derivatives
             NNi = np.kron(np.eye(self.subsystem.dim), Ni)
-            dNNi = np.kron(np.eye(self.subsystem.dim), dNi)
-
-            # reference tangential vector
-            dr0 = dNNi @ Qe
-            G = norm3(dr0)
             
             # integrate elemente line force
-            fe += NNi.T @ self.line_force(qpi, t) * G * qwi
+            fe += NNi.T @ self.line_force(qpi, t) * J0i * qwi
         
         return fe
 
@@ -40,9 +35,9 @@ class Line_force():
             # Freedom degree of element
             elDOF = self.subsystem.elDOF[el, :]
             
-            f[elDOF] += self.f_pot_el(t, q[elDOF], self.subsystem.Q[elDOF], self.subsystem.N[el], self.subsystem.dN[el], self.subsystem.qp, self.subsystem.qw[el])
+            f[elDOF] += self.f_pot_el(t, self.subsystem.N[el], self.subsystem.qp, self.subsystem.J0[el], self.subsystem.qw[el])
         
         return f
 
-    def f_pot_q(self, t, q):
-        return np.zeros((self.subsystem.nq, self.subsystem.nq))
+    def f_pot_q(self, t, q, coo):
+        pass

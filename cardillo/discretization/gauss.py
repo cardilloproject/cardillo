@@ -18,7 +18,7 @@ def gauss(nGP, interval=np.array([-1, 1])):
         Tuple storing array of quadrature points and their corresponding weights.
     """
 
-    (gp, wp) = np.polynomial.legendre.leggauss(nGP)
+    gp, wp = np.polynomial.legendre.leggauss(nGP)
 
     # transfrom gauss points on new interval, 
     # see https://de.wikipedia.org/wiki/Gau%C3%9F-Quadratur#Variablentransformation_bei_der_Gauß-Quadratur

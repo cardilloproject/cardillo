@@ -17,10 +17,8 @@ def find_knotspan(degree, knot_vector, knots):
 
     if not hasattr(knots, '__len__'):
         return find_span_linear(degree, knot_vector, m, knots)
-        # return find_span_binsearch(degree, knot_vector, m, knots)
     else:
         return find_spans(degree, knot_vector, m, knots)
-        # return find_spans(degree, knot_vector, m, knots, func=find_span_binsearch)
 
 def B_spline_basis(degree, derivative_order, knot_vector, knots):
     spans = find_knotspan(degree, knot_vector, knots)
