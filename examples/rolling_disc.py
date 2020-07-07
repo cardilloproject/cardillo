@@ -13,12 +13,12 @@ from cardillo.model.rolling_disc import Rolling_condition_I_frame, Rolling_condi
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints import Rod
 from cardillo.model.force import Force
-from cardillo.solver import Euler_backward, Moreau, Moreau_sym
+from cardillo.solver import Euler_backward, Moreau, Moreau_sym, Scipy_ivp
 from cardillo.math.algebra import axis_angle2quat, ax2skew, A_IK_basic_x
 
-# rigid_body = 'Euler'
+rigid_body = 'Euler'
 # rigid_body = 'Quaternion'
-rigid_body = 'Director'
+# rigid_body = 'Director'
 
 class Rigid_disc_euler(Rigid_body_euler):
     def __init__(self, m, r, q0=None, u0=None):
@@ -288,10 +288,12 @@ def rolling_disc_velocity_constraints():
     t_span = t0, t1
     # solver = Euler_backward(model, t_span=t_span, dt=dt, numerical_jacobian=False, debug=False)
     # t, q, u, la_g, la_gamma = solver.solve()
-    solver = Moreau_sym(model, t_span=t_span, dt=dt, numerical_jacobian=False, debug=False)
-    t, q, u, la_g, la_gamma = solver.solve()
+    # solver = Moreau_sym(model, t_span=t_span, dt=dt, numerical_jacobian=False, debug=False)
+    # t, q, u, la_g, la_gamma = solver.solve()
     # solver = Moreau(model, t_span, dt)
     # t, q, u, la_g, la_gamma = solver.solve()
+    solver = Scipy_ivp(model, t1, dt, atol = 1.e-6)
+    t, q, u = solver.solve()
 
     # animate configurations
     fig = plt.figure()

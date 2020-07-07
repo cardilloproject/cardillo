@@ -24,13 +24,15 @@ class Scipy_ivp(object):
         M = self.model.M(t, q)
         h = self.model.h(t, q, u)
         W_g = self.model.W_g(t, q)
+        g_dot_u = self.model.g_dot_u(t, q)
         W_gamma = self.model.W_gamma(t, q)
+        gamma_u = self.model.gamma_u(t,q)
         zeta_g = self.model.zeta_g(t, q, u)
         zeta_gamma = self.model.zeta_gamma(t, q, u)
 
         A = bmat([[M,           -W_g,   -W_gamma], \
-                  [W_g.T,       None,   None], \
-                  [W_gamma.T,   None,   None]]).tocsc()
+                  [g_dot_u,       None,   None], \
+                  [gamma_u,   None,   None]]).tocsc()
 
         ula = spsolve(A, np.concatenate([h, -zeta_g, -zeta_gamma]))
 

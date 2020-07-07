@@ -40,7 +40,6 @@ class Rigid_body_quaternion():
 
         return q_dot
     
-
     def q_dot_q(self, t, q, u, coo):
         p = q[3:]
         p2 = p @ p
@@ -110,8 +109,8 @@ class Rigid_body_quaternion():
     def v_P(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
         return u[:3] + self.A_IK(t, q) @ cross3(u[3:], K_r_SP)
 
-    # def v_P_q(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
-    #     return np.einsum('ijk,j->ik', self.A_IK_q(t, q), cross3(u[3:], K_r_SP))
+    def a_P(self, t, q, u, u_dot, frame_ID=None, K_r_SP=np.zeros(3)):
+        return u_dot[:3] + self.A_IK(t, q) @ (cross3(u_dot[3:], K_r_SP) + cross3(u[3:], cross3(u[3:], K_r_SP)))
 
     def J_P(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
         J_P = np.zeros((3, self.nu))

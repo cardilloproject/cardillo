@@ -24,13 +24,13 @@ class Rigid_body_euler():
         self.e2 = eval(f'e{axis[1]}') 
         self.e3 = eval(f'e{axis[2]}') 
 
-        self.A_I1 = eval(f'lambda t,q: A_IK_basic_{axis[0]}(q[3])')
-        self.A_12 = eval(f'lambda t,q: A_IK_basic_{axis[1]}(q[4])')
-        self.A_2K = eval(f'lambda t,q: A_IK_basic_{axis[2]}(q[5])')
+        self.A_I1 = eval(f'lambda q: A_IK_basic_{axis[0]}(q[3])')
+        self.A_12 = eval(f'lambda q: A_IK_basic_{axis[1]}(q[4])')
+        self.A_2K = eval(f'lambda q: A_IK_basic_{axis[2]}(q[5])')
 
-        self.dA_I1 = eval(f'lambda t,q: dA_IK_basic_{axis[0]}(q[3])')
-        self.dA_12 = eval(f'lambda t,q: dA_IK_basic_{axis[1]}(q[4])')
-        self.dA_2K = eval(f'lambda t,q: dA_IK_basic_{axis[2]}(q[5])')
+        self.dA_I1 = eval(f'lambda q: dA_IK_basic_{axis[0]}(q[3])')
+        self.dA_12 = eval(f'lambda q: dA_IK_basic_{axis[1]}(q[4])')
+        self.dA_2K = eval(f'lambda q: dA_IK_basic_{axis[2]}(q[5])')
 
     def M(self, t, q, M_coo):
         M_coo.extend(self.M_, (self.uDOF, self.uDOF))
@@ -50,18 +50,27 @@ class Rigid_body_euler():
     def q_dot(self, t, q, u):
         q_dot = np.zeros(self.nq)
         q_dot[:3] = u[:3]
-        q_dot[3:] = self.Q(t, q) @ u[3:]
+        q_dot[3:] = self.Q(q) @ u[3:]
 
         return q_dot
     
-    def Q(self, t, q):
-        A_K2 = self.A_2K(t, q).T
-        A_K1 = A_K2 @ self.A_12(t, q).T
+    def Q(self, q):
+        A_K2 = self.A_2K(q).T
+        A_K1 = A_K2 @ self.A_12(q).T
         H_ = np.zeros((3, 3))
         H_[:, 0] = A_K1 @ self.e1
         H_[:, 1] = A_K2 @ self.e2
         H_[:, 2] = self.e3
-        return inverse3D(H_) 
+        return inverse3D(H_)
+
+    def q_ddot(self, t, q, u, u_dot):
+        q_ddot = np.zeros(self.nq)
+        q_ddot[:3] = u_dot[:3]
+        q_ddot[3:] = self.Q(q) @ u_dot[3:]
+
+        q_dot_q = Numerical_derivative(self.q_dot, order=2)._x(t, q, u)
+        q_ddot += q_dot_q @ self.q_dot(t, q, u)
+        return q_ddot
 
     def q_dot_q(self, t, q, u, coo):
         dense = Numerical_derivative(self.q_dot, order=2)._x(t, q, u)
@@ -70,7 +79,7 @@ class Rigid_body_euler():
     def B_dense(self, t, q):
         B = np.zeros((self.nq, self.nu))
         B[:3, :3] = np.eye(3)
-        B[3:, 3:] = self.Q(t, q)
+        B[3:, 3:] = self.Q(q)
         return B
 
     def B(self, t, q, coo):
@@ -83,13 +92,13 @@ class Rigid_body_euler():
         return self.uDOF
 
     def A_IK(self, t, q, frame_ID=None):
-        return self.A_I1(t, q) @ self.A_12(t, q) @ self.A_2K(t, q)
+        return self.A_I1(q) @ self.A_12(q) @ self.A_2K(q)
 
     def A_IK_q(self, t, q, frame_ID=None):
         A_IK_q = np.zeros((3, 3, self.nq))
-        A_IK_q[:, :, 3] = self.dA_I1(t, q) @ self.A_12(t, q) @ self.A_2K(t, q)
-        A_IK_q[:, :, 4] = self.A_I1(t, q) @ self.dA_12(t, q) @ self.A_2K(t, q)
-        A_IK_q[:, :, 5] = self.A_I1(t, q) @ self.A_12(t, q) @ self.dA_2K(t, q)
+        A_IK_q[:, :, 3] = self.dA_I1(q) @ self.A_12(q) @ self.A_2K(q)
+        A_IK_q[:, :, 4] = self.A_I1(q) @ self.dA_12(q) @ self.A_2K(q)
+        A_IK_q[:, :, 5] = self.A_I1(q) @ self.A_12(q) @ self.dA_2K(q)
         return A_IK_q
 
     def r_OP(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
@@ -106,6 +115,9 @@ class Rigid_body_euler():
 
     # def v_P_q(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
     #     return np.einsum('ijk,j->ik', self.A_IK_q(t, q), cross3(u[3:], K_r_SP))
+
+    def a_P(self, t, q, u, u_dot, frame_ID=None, K_r_SP=np.zeros(3)):
+        return u_dot[:3] + self.A_IK(t, q) @ (cross3(u_dot[3:], K_r_SP) + cross3(u[3:], cross3(u[3:], K_r_SP)))
 
     def J_P(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
         J_P = np.zeros((3, self.nu))
@@ -131,7 +143,3 @@ class Rigid_body_euler():
 
     def K_J_R_q(self, t, q, frame_ID=None):
         return np.zeros((3, self.nu, self.nq))
-
-
-
-

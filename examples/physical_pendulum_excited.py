@@ -15,8 +15,8 @@ from cardillo.solver import Moreau, Moreau_sym, Euler_backward, Generalized_alph
 if __name__ == "__main__":
 
     # rigid_body = 'Euler'
-    # rigid_body = 'Quaternion'
-    rigid_body = 'Director'
+    rigid_body = 'Quaternion'
+    # rigid_body = 'Director'
     #%% parameters
     m = 1
     L = 2
@@ -100,7 +100,7 @@ if __name__ == "__main__":
     model.assemble()
 
     t0 = 0
-    t1 = 5
+    t1 = 2
     dt = 5e-3
 
     t_span = t0, t1

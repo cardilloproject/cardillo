@@ -291,6 +291,12 @@ class Model(object):
             gamma_dot[contr.la_gammaDOF] = contr.gamma_dot(t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF])
         return gamma_dot
 
+    # def gamma_dot(self, t, q, u, u_dot):
+    #     gamma_dot = np.zeros(self.nla_gamma)
+    #     gamma_dot += self.gamma_q(t, q, u) @ self.q_dot(t, q, u)
+    #     gamma_dot += self.gamma_u(t, q) @ u_dot
+    #     return gamma_dot
+
     def zeta_gamma(self, t, q, u):
         return self.gamma_dot(t, q, u, np.zeros(self.nu))
 

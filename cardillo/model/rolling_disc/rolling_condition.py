@@ -34,6 +34,12 @@ class Rolling_condition_R_frame():
     def gamma(self, t, q, u):
         return self.A_RI(t, q) @ self.disc.v_P(t, q, u, K_r_SP=self.disc.A_IK(t, q).T @ self.r_SA(t, q))
 
+    def gamma_dot(self, t, q, u, u_dot):
+        gamma_q = Numerical_derivative(self.gamma, order=2)._x(t, q, u)
+        gamma_u = self.gamma_u_dense(t, q)
+        
+        return gamma_q @ self.disc.q_dot(t, q, u) + gamma_u @ u_dot
+
     def gamma_q(self, t, q, u, coo):
         dense = Numerical_derivative(self.gamma, order=2)._x(t, q, u)
         coo.extend(dense, (self.la_gammaDOF, self.qDOF))
@@ -81,6 +87,12 @@ class Rolling_condition_I_frame():
 
     def gamma(self, t, q, u):
         return self.disc.v_P(t, q, u, K_r_SP=self.disc.A_IK(t, q).T @ self.r_SA(t, q))
+
+    def gamma_dot(self, t, q, u, u_dot):
+        gamma_q = Numerical_derivative(self.gamma, order=2)._x(t, q, u)
+        gamma_u = gamma_u = self.gamma_u_dense(t, q)
+        
+        return gamma_q @ self.disc.q_dot(t, q, u) + gamma_u @ u_dot
 
     def gamma_q(self, t, q, u, coo):
         dense = Numerical_derivative(self.gamma, order=2)._x(t, q, u)
