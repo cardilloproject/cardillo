@@ -45,9 +45,10 @@ class Rope(object):
         self.nq_el = nNdDOF * nNd_el # total number of generalized coordinates in a single element
 
         # compute allocation matrices
-        tmp1 = np.tile(np.arange(0, nNd_el), nNdDOF)
-        tmp2 = np.repeat(np.arange(0, nNdDOF * nNd, step=nNd), nNd_el)
-        self.elDOF = (np.zeros((nNdDOF * nNd_el, nEl), dtype=int) + np.arange(nEl)).T + tmp1 + tmp2
+        elDOF_nEl = (np.zeros((nNdDOF * nNd_el, nEl), dtype=int) + np.arange(nEl)).T
+        elDOF_tile = np.tile(np.arange(0, nNd_el), nNdDOF)
+        elDOF_repeat = np.repeat(np.arange(0, nNdDOF * nNd, step=nNd), nNd_el)
+        self.elDOF = elDOF_nEl + elDOF_tile + elDOF_repeat
 
         # TODO: do we need nodal degrees of freedom?
         # tmp3 = (np.zeros((self.nNDOF, nNd), dtype=int) + np.arange(nNd)).T
@@ -93,12 +94,15 @@ class Rope(object):
         self.q0 = np.hstack((X0, Y0, Z0)) if q0 is None else q0
         self.u0 = np.zeros(self.nu) if u0 is None else u0
     
+    # def G(el):
+    #     dr0 = np.kron(np.eye(self.dim), dNi) @ self.Q[elDOF[el]]
+
     def M_el(self, qe, Qe, N, dN, qw):
         Me = np.zeros((self.nq_el, self.nq_el))
 
         for Ni, dNi, qwi in zip(N, dN, qw):
             # build matrix of shape functions and derivatives
-            NN = np.kron(np.eye(self.dim), Ni)
+            NNi = np.kron(np.eye(self.dim), Ni)
             dNNi = np.kron(np.eye(self.dim), dNi)
 
             # reference tangential vector
@@ -106,7 +110,7 @@ class Rope(object):
             G = norm2(dr0)
             
             # integrate elemente mass matrix
-            Me += NN.T @ NN * self.A_rho0 * G * qwi
+            Me += NNi.T @ NNi * self.A_rho0 * G * qwi
 
         return Me
 
@@ -215,16 +219,6 @@ class Rope(object):
             # sparse assemble element internal stiffness matrix
             coo.extend(Ke, (self.uDOF[elDOF], self.qDOF[elDOF]))
 
-    # def M(self, t, q, coo):
-    #     for el in range(self.nEl):
-    #         # extract element degrees of freedom
-    #         elDOF = self.elDOF[el, :]
-
-    #         # compute element mass matrix
-    #         Me = self.M_el(q[elDOF], self.Q[elDOF], self.N[el], self.dN[el], self.qw[el])
-            
-    #         # sparse assemble element mass matrix
-    #         coo.extend(Me, (self.uDOF[elDOF], self.uDOF[elDOF]))
     ####################################################
     # interactions with other bodies and the environment
     ####################################################
@@ -257,7 +251,9 @@ class Rope(object):
             print('r_OP can only be computed at frame_ID = (0,) or (1,)')
 
         # interpolate position vector
-        return np.kron(np.eye(self.dim), N) @ q
+        r = np.zeros(3)
+        r[:self.dim] = np.kron(np.eye(self.dim), N) @ q
+        return r
 
     def r_OP_q(self, t, q, frame_ID=(0,), K_r_SP=None):
         xi = frame_ID[0]
@@ -269,7 +265,9 @@ class Rope(object):
             print('r_OP_q can only be computed at frame_ID = (0,) or (1,)')
 
         # interpolate position vector
-        return np.kron(np.eye(self.dim), N)
+        r_q = np.zeros((3, self.nq_el))
+        r_q[:self.dim] = np.kron(np.eye(self.dim), N)
+        return r_q
 
     def J_P(self, t, q, frame_ID=(0,), K_r_SP=None):
         return np.eye(3, self.nq_el)
@@ -278,55 +276,38 @@ class Rope(object):
         return np.zeros((3, self.nq_el, self.nq_el))
 
     def v_P(self, t, q, u, frame_ID=(0,), K_r_SP=None):
-        # return self.r_OP(t, u, frame_ID=frame_ID)
-
-        xi = frame_ID[0]
-        if xi == 0:
-            N = self.N_bdry[0]
-        elif xi == 1:
-            N = self.N_bdry[1]
-        else:
-            print('r_OP can only be computed at frame_ID = (0,) or (1,)')
-
-        # interpolate position vector
-        return np.kron(np.eye(self.dim), N) @ u
+        return self.r_OP(t, u, frame_ID=frame_ID)
 
     def v_P_q(self, t, q, u, frame_ID=(0,), K_r_SP=None):
-        # return self.r_OP_q(t, u, frame_ID=frame_ID)
-
-        xi = frame_ID[0]
-        if xi == 0:
-            N = self.N_bdry[0]
-        elif xi == 1:
-            N = self.N_bdry[1]
-        else:
-            print('r_OP can only be computed at frame_ID = (0,) or (1,)')
-
-        # interpolate position vector
-        return np.kron(np.eye(self.dim), N)
+        return self.r_OP_q(t, u, frame_ID=frame_ID)
 
 if __name__ == "__main__":
     from cardillo.model.rope.hooke import Hooke
     from cardillo.model.frame import Frame
     from cardillo.model.bilateral_constraints import Spherical_joint
     from cardillo.model import Model
-    from cardillo.solver import Euler_backward, Moreau, Moreau_sym
+    from cardillo.solver import Euler_backward, Moreau, Moreau_sym, Generalized_alpha_1
+    from cardillo.model.line_force.line_force import Line_force
 
     import matplotlib.pyplot as plt
     from mpl_toolkits.mplot3d import Axes3D
     import matplotlib.animation as animation
-
+    
     # physical properties of the rope
+    # dim = 2
     dim = 3
-    L = 2 * np.pi
-    EA = 1000
+    L = 50
+    r = 3.0e-3
+    A = np.pi * r**2
+    EA = 4.0e8 * A
     material_model = Hooke(EA)
-    A_rho0 = 1
+    A_rho0 = 10 * A
 
     # discretization properties
     B_splines = True
-    p = 2
-    nQP = int(np.ceil((p + 1)**2 / 2))
+    p = 1
+    # nQP = int(np.ceil((p + 1)**2 / 2))
+    nQP = 1
     print(f'nQP: {nQP}')
     nEl = 10
 
@@ -343,7 +324,12 @@ if __name__ == "__main__":
         Z0 = np.zeros_like(X0)
         Q = np.hstack((X0, Y0, Z0))
     u0 = np.zeros_like(Q)
-    q0 = np.copy(Q) + np.random.rand(3 * nNd) * 1.0e-1
+    q0 = np.copy(Q)
+
+    fac = 1.0e0
+    q0[nNd+1:2*nNd-1] += np.random.rand(nNd - 2) * fac
+    if dim == 3:
+        q0[2*nNd+1:3*nNd-1] += np.random.rand(nNd - 2) * fac
 
     rope = Rope(A_rho0, material_model, p, nEl, nQP, Q, q0, u0, B_splines=B_splines, dim=dim)
 
@@ -360,20 +346,23 @@ if __name__ == "__main__":
     # f_pot_q = rope.f_pot_q(0, q)
     # print(f'f_pot_q:\n{f_pot_q}')
 
-    r_OB1 = np.zeros(3)
-    frame_left = Frame(r_OP=r_OB1)
-    joint_left = Spherical_joint(frame_left, rope, r_OB1, frame_ID1=(0,))
-    # omega = 2 * np.pi
-    # A = 1
-    # r_OB1 = lambda t: np.array([0, A * np.sin(omega * t), 0])
-    # r_OB1_t = lambda t: np.array([0, A * omega * np.cos(omega * t), 0])
-    # r_OB1_tt = lambda t: np.array([0, -A * omega**2 * np.sin(omega * t), 0])
-    # frame_left = Frame(r_OP=r_OB1, r_OP_t=r_OB1_t, r_OP_tt=r_OB1_tt)
-    # joint_left = Spherical_joint(frame_left, rope, r_OB1(0), frame_ID1=(0,))
+    # r_OB1 = np.zeros(3)
+    # frame_left = Frame(r_OP=r_OB1)
+    # joint_left = Spherical_joint(frame_left, rope, r_OB1, frame_ID2=(0,))
+
+    omega = 2 * np.pi
+    A = 1
+    r_OB1 = lambda t: np.array([0, A * np.sin(omega * t), 0])
+    r_OB1_t = lambda t: np.array([0, A * omega * np.cos(omega * t), 0])
+    r_OB1_tt = lambda t: np.array([0, -A * omega**2 * np.sin(omega * t), 0])
+    frame_left = Frame(r_OP=r_OB1, r_OP_t=r_OB1_t, r_OP_tt=r_OB1_tt)
+    joint_left = Spherical_joint(frame_left, rope, r_OB1(0), frame_ID2=(0,))
 
     r_OB2 = np.array([L, 0, 0])
     frame_right = Frame(r_OP=r_OB2)
-    joint_right = Spherical_joint(frame_right, rope, r_OB2, frame_ID1=(1,))
+    joint_right = Spherical_joint(rope, frame_right, r_OB2, frame_ID1=(1,))
+
+    f_g = Line_force(lambda xi, t: np.array([0, - A_rho0 * L * 9.81 * 1.0e5, 0]), rope)
 
     model = Model()
     model.add(rope)
@@ -381,21 +370,22 @@ if __name__ == "__main__":
     model.add(joint_left)
     model.add(frame_right)
     model.add(joint_right)
+    model.add(f_g)
     model.assemble()
-
-    # model.q0 += np.random.rand(model.nq) * 1.0e-1
-
+    
     t0 = 0
     t1 = 2
     dt = 1e-2
     t_span = t0, t1
-    solver = Euler_backward(model, t_span=t_span, dt=dt, numerical_jacobian=False, debug=False)
-    t, q, u, la_g, la_gamma = solver.solve()
+    # solver = Euler_backward(model, t_span=t_span, dt=dt, numerical_jacobian=False, debug=False)
+    # t, q, u, la_g, la_gamma = solver.solve()
     # solver = Euler_backward(model, t_span=t_span, dt=dt, numerical_jacobian=True, debug=True)
     # t, q, u, la_g, la_gamma = solver.solve()
     # solver = Moreau_sym(model, t_span=t_span, dt=dt, numerical_jacobian=True, debug=False)
     # t, q, u, la_g, la_gamma = solver.solve()
-    # solver = Moreau(model, t_span, dt)
+    solver = Moreau(model, t_span, dt)
+    t, q, u, la_g, la_gamma = solver.solve()
+    # solver = Generalized_alpha_1(model, t1, dt, numerical_jacobian=True)
     # t, q, u, la_g, la_gamma = solver.solve()
 
     # animate configurations
@@ -422,15 +412,23 @@ if __name__ == "__main__":
     q = q[::frac]
 
     q0 = q[0]
-    x0, y0, z0 = q0.reshape((3, -1))
-    center_line, = ax.plot(x0, y0, z0, '-ok')
-    # plt.show()
-    # exit()
+    if dim == 2:
+        x0, y0 = q0.reshape((2, -1))
+        z0 = np.zeros_like(x0)
+        center_line, = ax.plot(x0, y0, z0, '-ok')
+    elif dim == 3:
+        x0, y0, z0 = q0.reshape((3, -1))
+        center_line, = ax.plot(x0, y0, z0, '-ok')
 
     def update(t, q, center_line):
-        x, y, z = q.reshape((3, -1))
-        center_line.set_data(x, y)
-        center_line.set_3d_properties(z)
+        if dim ==2:
+            x, y = q.reshape((2, -1))
+            center_line.set_data(x, y)
+            center_line.set_3d_properties(np.zeros_like(x))
+        elif dim == 3:
+            x, y, z = q.reshape((3, -1))
+            center_line.set_data(x, y)
+            center_line.set_3d_properties(z)
 
         return center_line,
 
