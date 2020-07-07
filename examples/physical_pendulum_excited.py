@@ -9,14 +9,14 @@ from cardillo.model.rigid_body import Rigid_body_euler, Rigid_body_quaternion, R
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints import Revolute_joint, Spherical_joint
 from cardillo.model.force import Force
-from cardillo.solver import Moreau, Moreau_sym, Euler_backward, Generalized_alpha_1
+from cardillo.solver import Moreau, Moreau_sym, Euler_backward, Generalized_alpha_1, Scipy_ivp
 
 
 if __name__ == "__main__":
 
     # rigid_body = 'Euler'
-    rigid_body = 'Quaternion'
-    # rigid_body = 'Director'
+    # rigid_body = 'Quaternion'
+    rigid_body = 'Director'
     #%% parameters
     m = 1
     L = 2
@@ -110,8 +110,10 @@ if __name__ == "__main__":
     # t, q, u, la_g, la_gamma = solver.solve()
     # solver = Moreau(model, t_span, dt)
     # t, q, u, la_g, la_gamma = solver.solve()
-    solver = Generalized_alpha_1(model, t1, dt, rho_inf=1, numerical_jacobian=False, debug=False)
-    t, q, u, la_g, la_gamma = solver.solve()
+    # solver = Generalized_alpha_1(model, t1, dt, rho_inf=1, numerical_jacobian=False, debug=False)
+    # t, q, u, la_g, la_gamma = solver.solve()
+    solver = Scipy_ivp(model, t1, dt)
+    t, q, u = solver.solve()
 
     fig, ax = plt.subplots(2, 1)
     ax[0].plot(t, q[:,0], '-x')

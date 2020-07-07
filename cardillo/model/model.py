@@ -285,6 +285,15 @@ class Model(object):
     def chi_gamma(self, t, q):
         return self.gamma(t, q, np.zeros(self.nu))
 
+    def gamma_dot(self, t, q, u, u_dot):
+        gamma_dot = np.zeros(self.nla_gamma)
+        for contr in self.__gamma_contr:
+            gamma_dot[contr.la_gammaDOF] = contr.gamma_dot(t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF])
+        return gamma_dot
+
+    def zeta_gamma(self, t, q, u):
+        return self.gamma_dot(t, q, u, np.zeros(self.nu))
+
     def gamma_q(self, t, q, u, scipy_matrix=coo_matrix):
         coo = Coo((self.nla_gamma, self.nq))
         for contr in self.__gamma_contr:
