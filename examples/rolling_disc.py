@@ -284,7 +284,7 @@ def rolling_disc_velocity_constraints():
     t0 = 0
     t1 = 2 * np.pi / np.abs(alpha_dot)
     # t1 = 1
-    dt = 1e-2
+    dt = 1e-3
     t_span = t0, t1
     # solver = Euler_backward(model, t_span=t_span, dt=dt, numerical_jacobian=False, debug=False)
     # t, q, u, la_g, la_gamma = solver.solve()

@@ -205,10 +205,10 @@ class Model(object):
             contr.B(t, q[contr.qDOF], coo)
         return coo.tosparse(scipy_matrix)
 
-    def q_ddot(self, t, q, u, a):
+    def q_ddot(self, t, q, u, u_dot):
         q_ddot = np.zeros(self.nq)
         for contr in self.__q_dot_contr:
-            q_ddot[contr.qDOF] += contr.q_ddot(t, q[contr.qDOF], u[contr.uDOF], a[contr.uDOF])
+            q_ddot[contr.qDOF] += contr.q_ddot(t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF])
         return q_ddot
 
     def solver_step_callback(self, t, q, u):
@@ -263,6 +263,15 @@ class Model(object):
         for contr in self.__g_contr:
             contr.g_dot_u(t, q[contr.qDOF], coo)
         return coo.tosparse(scipy_matrix)
+
+    def g_ddot(self, t, q, u, u_dot):
+        g_ddot = np.zeros(self.nla_g)
+        for contr in self.__g_contr:
+            g_ddot[contr.la_gDOF] = contr.g_ddot(t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF])
+        return g_ddot
+
+    def zeta_g(self, t, q, u):
+        return self.g_ddot(t, q, u, np.zeros(self.nu))
 
     #========================================
     # bilateral constraints on velocity level
