@@ -39,7 +39,7 @@ class Rigid_body_quaternion():
         q_dot[3:] = Q[:, 1:] @ u[3:]
 
         return q_dot
-
+    
     def q_dot_q(self, t, q, u, coo):
         p = q[3:]
         p2 = p @ p
@@ -61,6 +61,20 @@ class Rigid_body_quaternion():
 
     def B(self, t, q, coo):
         coo.extend(self.B_dense(t, q), (self.qDOF, self.uDOF))
+
+    def q_ddot(self, t, q, u, u_dot):
+        p = q[3:]
+        p2 = p @ p
+        Q = quat2mat(p) / (2 * p2)
+        p_dot = Q[:, 1:] @ u[3:]
+        Q_p = quat2mat_p(p) / (2 * p2) \
+            - np.einsum('ij,k->ijk', quat2mat(p), p / (p2**2))
+        
+        q_ddot = np.zeros(self.nq)
+        q_ddot[:3] = u_dot[:3]
+        q_ddot[3:] = Q[:, 1:] @ u_dot[3:] + np.einsum('ijk,k,j->i', Q_p[:, 1:, :], p_dot, u[3:])
+
+        return q_ddot
 
     def solver_step_callback(self, t, q, u):
         q[3:] = q[3:] / norm4(q[3:])
@@ -95,8 +109,8 @@ class Rigid_body_quaternion():
     def v_P(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
         return u[:3] + self.A_IK(t, q) @ cross3(u[3:], K_r_SP)
 
-    # def v_P_q(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
-    #     return np.einsum('ijk,j->ik', self.A_IK_q(t, q), cross3(u[3:], K_r_SP))
+    def a_P(self, t, q, u, u_dot, frame_ID=None, K_r_SP=np.zeros(3)):
+        return u_dot[:3] + self.A_IK(t, q) @ (cross3(u_dot[3:], K_r_SP) + cross3(u[3:], cross3(u[3:], K_r_SP)))
 
     def J_P(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
         J_P = np.zeros((3, self.nu))

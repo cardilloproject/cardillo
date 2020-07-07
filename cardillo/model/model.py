@@ -205,10 +205,10 @@ class Model(object):
             contr.B(t, q[contr.qDOF], coo)
         return coo.tosparse(scipy_matrix)
 
-    def q_ddot(self, t, q, u, a):
+    def q_ddot(self, t, q, u, u_dot):
         q_ddot = np.zeros(self.nq)
         for contr in self.__q_dot_contr:
-            q_ddot[contr.qDOF] += contr.q_ddot(t, q[contr.qDOF], u[contr.uDOF], a[contr.uDOF])
+            q_ddot[contr.qDOF] += contr.q_ddot(t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF])
         return q_ddot
 
     def solver_step_callback(self, t, q, u):
@@ -264,6 +264,15 @@ class Model(object):
             contr.g_dot_u(t, q[contr.qDOF], coo)
         return coo.tosparse(scipy_matrix)
 
+    def g_ddot(self, t, q, u, u_dot):
+        g_ddot = np.zeros(self.nla_g)
+        for contr in self.__g_contr:
+            g_ddot[contr.la_gDOF] = contr.g_ddot(t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF])
+        return g_ddot
+
+    def zeta_g(self, t, q, u):
+        return self.g_ddot(t, q, u, np.zeros(self.nu))
+
     #========================================
     # bilateral constraints on velocity level
     #========================================
@@ -275,6 +284,21 @@ class Model(object):
 
     def chi_gamma(self, t, q):
         return self.gamma(t, q, np.zeros(self.nu))
+
+    def gamma_dot(self, t, q, u, u_dot):
+        gamma_dot = np.zeros(self.nla_gamma)
+        for contr in self.__gamma_contr:
+            gamma_dot[contr.la_gammaDOF] = contr.gamma_dot(t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF])
+        return gamma_dot
+
+    # def gamma_dot(self, t, q, u, u_dot):
+    #     gamma_dot = np.zeros(self.nla_gamma)
+    #     gamma_dot += self.gamma_q(t, q, u) @ self.q_dot(t, q, u)
+    #     gamma_dot += self.gamma_u(t, q) @ u_dot
+    #     return gamma_dot
+
+    def zeta_gamma(self, t, q, u):
+        return self.gamma_dot(t, q, u, np.zeros(self.nu))
 
     def gamma_q(self, t, q, u, scipy_matrix=coo_matrix):
         coo = Coo((self.nla_gamma, self.nq))

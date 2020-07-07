@@ -61,6 +61,9 @@ class Rigid_body_director():
     def B(self, t, q, coo):
         coo.extend(np.eye(self.nq, self.nu), (self.qDOF, self.uDOF))
 
+    def q_ddot(self, t, q, u, u_dot):
+        return u_dot
+
     #########################################
     # bilateral constraints on position level
     #########################################
@@ -78,6 +81,47 @@ class Rigid_body_director():
         gap[5] = d2 @ d3
 
         return gap
+
+    def g_dot(self, t, q, u):
+        d1 = q[3:6]
+        d2 = q[6:9]
+        d3 = q[9:]
+        d1_dot = u[3:6]
+        d2_dot = u[6:9]
+        d3_dot = u[9:]
+
+        g_dot = np.zeros(self.nla_g)
+        g_dot[0] = 2 * d1_dot @ d1
+        g_dot[1] = 2 * d2_dot @ d2
+        g_dot[2] = 2 * d3_dot @ d3
+        g_dot[3] = d1_dot @ d2 + d1 @ d2_dot
+        g_dot[4] = d1_dot @ d3 + d1 @ d3_dot
+        g_dot[5] = d2_dot @ d3 + d2 @ d3_dot
+        
+        return g_dot
+
+    def g_dot_u(self, t, q, coo):
+        coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.uDOF))
+
+    def g_ddot(self, t, q, u, u_dot):
+        d1 = q[3:6]
+        d2 = q[6:9]
+        d3 = q[9:]
+        d1_dot = u[3:6]
+        d2_dot = u[6:9]
+        d3_dot = u[9:]
+        d1_ddot = u_dot[3:6]
+        d2_ddot = u_dot[6:9]
+        d3_ddot = u_dot[9:]
+
+        g_ddot = np.zeros(self.nla_g)
+        g_ddot[0] = 2 * (d1_ddot @ d1 + d1_dot @ d1_dot)
+        g_ddot[1] = 2 * (d2_ddot @ d2 + d2_dot @ d2_dot)
+        g_ddot[2] = 2 * (d3_ddot @ d3 + d3_dot @ d3_dot)
+        g_ddot[3] = d1_ddot @ d2 + d1 @ d2_ddot + 2 * d1_dot @ d2_dot
+        g_ddot[4] = d1_ddot @ d3 + d1 @ d3_ddot + 2 * d1_dot @ d3_dot
+        g_ddot[5] = d2_ddot @ d3 + d2 @ d3_ddot + 2 * d2_dot @ d3_dot    
+        return g_ddot
 
     def g_q_dense(self, t, q):
 
@@ -179,6 +223,9 @@ class Rigid_body_director():
 
     def v_P(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
         return self.r_OP_q(t, q, frame_ID=frame_ID, K_r_SP=K_r_SP) @ u
+
+    def a_P(self, t, q, u, u_dot, frame_ID=None, K_r_SP=np.zeros(3)):
+        return self.r_OP_q(t, q, frame_ID=frame_ID, K_r_SP=K_r_SP) @ u_dot
 
     def J_P(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
         return self.r_OP_q(t, q, frame_ID=frame_ID, K_r_SP=K_r_SP)

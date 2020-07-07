@@ -38,7 +38,7 @@ if __name__ == "__main__":
     model.add(mass)
     model.add(f_g)
     model.add(spring_element)
-    model.add(damping_element)
+    # model.add(damping_element)
     model.assemble()
 
     t0 = 0
@@ -51,7 +51,7 @@ if __name__ == "__main__":
     # t, q, u, la_g, la_gamma = solver.solve()
     # solver = Euler_forward(model, t_span, dt)
     # t, q, u = solver.solve()
-    solver = Generalized_alpha_1(model, t1, dt, rho_inf=1, numerical_jacobian=True)
+    solver = Generalized_alpha_1(model, t1, dt, rho_inf=0.8, numerical_jacobian=True)
     t, q, u, la_g, la_gamma = solver.solve()
 
     plt.plot(t, q[:, 0], '-r')

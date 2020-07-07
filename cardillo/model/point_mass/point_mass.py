@@ -17,8 +17,8 @@ class Point_mass():
     def q_dot(self, t, q, u):
         return u
 
-    def q_ddot(self, t, q, u, a):
-        return a
+    def q_ddot(self, t, q, u, u_dot):
+        return u_dot
 
     def B_dense(self, t, q):
         return np.eye(self.nq)

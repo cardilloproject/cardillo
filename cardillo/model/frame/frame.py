@@ -50,3 +50,6 @@ class Frame():
 
     def v_P_q(self, t, q=None, u=None, frame_ID=None, K_r_SP=None):
         return np.array([]).reshape((3, 0))
+
+    def a_P(self, t, q=None, u=None, u_dot=None, frame_ID=None, K_r_SP=None):
+        return self.r_OP_tt__(t)

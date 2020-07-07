@@ -53,9 +53,9 @@ if __name__ == "__main__":
     model.add( Spherical_joint(frame, RB1, np.zeros(3)) )
     A_IB = np.array([[0, 0, 1], [1, 0, 0], [0, 1, 0]])
     # model.add(Revolute_joint(frame, RB1, np.zeros(3), A_IB))
-    model.add( Spherical_joint(RB1, RB2, r01) )
+    # model.add( Spherical_joint(RB1, RB2, r01) )
     # model.add( Rigid_connection(RB1, RB2, r01) )
-    # model.add( Revolute_joint(RB1, RB2, r01, A_IB) )
+    model.add( Revolute_joint(RB1, RB2, r01, A_IB) )
 
     model.assemble()
 
@@ -63,10 +63,10 @@ if __name__ == "__main__":
     t1 = 5
     dt = 1e-2
     t_span = t0, t1
-    # solver = Euler_backward(model, t_span=t_span, dt=dt, newton_max_iter=50, numerical_jacobian=False, debug=False)
-    # t, q, u, la, _ = solver.solve()
-    solver = Moreau(model, t_span, dt)
+    solver = Euler_backward(model, t_span=t_span, dt=dt, newton_max_iter=50, numerical_jacobian=False, debug=False)
     t, q, u, la, _ = solver.solve()
+    # solver = Moreau(model, t_span, dt)
+    # t, q, u, la, _ = solver.solve()
 
     # animate configurations
     fig = plt.figure()
