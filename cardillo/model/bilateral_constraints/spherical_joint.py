@@ -12,33 +12,30 @@ class Spherical_joint():
         self.r_OB = r_OB
         
     def assembler_callback(self):
-        self.qDOF1 = self.subsystem1.qDOF_P(self.frame_ID1)
-        self.qDOF2 = self.subsystem2.qDOF_P(self.frame_ID2)
-        self.qDOF = np.concatenate([self.qDOF1, self.qDOF2])
-        self.nq1 = len(self.qDOF1)
-        self.nq2 = len(self.qDOF2)
+        qDOF1 = self.subsystem1.qDOF_P(self.frame_ID1)
+        qDOF2 = self.subsystem2.qDOF_P(self.frame_ID2)
+        self.qDOF = np.concatenate([self.subsystem1.qDOF[qDOF1], self.subsystem2.qDOF[qDOF2]])
+        self.nq1 = nq1 = len(qDOF1)
+        self.nq2 = len(qDOF2)
         self.nq = self.nq1 + self.nq2
         
-        self.uDOF1 = self.subsystem1.uDOF_P(self.frame_ID1)
-        self.uDOF2 = self.subsystem2.uDOF_P(self.frame_ID2)
-        self.uDOF = np.concatenate([self.uDOF1, self.uDOF2])
-        self.nu1 = len(self.uDOF1)
-        self.nu2 = len(self.uDOF2)
+        uDOF1 = self.subsystem1.uDOF_P(self.frame_ID1)
+        uDOF2 = self.subsystem2.uDOF_P(self.frame_ID2)
+        self.uDOF = np.concatenate([self.subsystem1.uDOF[uDOF1], self.subsystem2.uDOF[uDOF2]])
+        self.nu1 = nu1 = len(uDOF1)
+        self.nu2 = len(uDOF2)
         self.nu = self.nu1 + self.nu2
 
-        nq1 = self.nq1
-        nu1 = self.nu1
-
-        r_OS1 = self.subsystem1.r_OP(self.subsystem1.t0, self.subsystem1.q0[self.qDOF1], self.frame_ID1)
+        r_OS1 = self.subsystem1.r_OP(self.subsystem1.t0, self.subsystem1.q0[qDOF1], self.frame_ID1)
         if hasattr(self.subsystem1, 'A_IK'):
-            A_IK1 = self.subsystem1.A_IK(self.subsystem1.t0, self.subsystem1.q0[self.qDOF1], self.frame_ID1)
+            A_IK1 = self.subsystem1.A_IK(self.subsystem1.t0, self.subsystem1.q0[qDOF1], self.frame_ID1)
             K_r_SP1 = A_IK1.T @ (self.r_OB - r_OS1)
         else:
             K_r_SP1 = np.zeros(3)
 
-        r_OS2 = self.subsystem2.r_OP(self.subsystem2.t0, self.subsystem2.q0[self.qDOF2], self.frame_ID2)
+        r_OS2 = self.subsystem2.r_OP(self.subsystem2.t0, self.subsystem2.q0[qDOF2], self.frame_ID2)
         if hasattr(self.subsystem2, 'A_IK'):
-            A_IK2 = self.subsystem2.A_IK(self.subsystem2.t0, self.subsystem2.q0[self.qDOF2], self.frame_ID2)
+            A_IK2 = self.subsystem2.A_IK(self.subsystem2.t0, self.subsystem2.q0[qDOF2], self.frame_ID2)
             K_r_SP2 = A_IK2.T @ (self.r_OB - r_OS2)
         else:
             K_r_SP2 = np.zeros(3)

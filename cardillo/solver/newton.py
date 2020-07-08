@@ -1,5 +1,6 @@
 from cardillo.utility.coo import Coo
 from cardillo.math.numerical_derivative import Numerical_derivative
+from cardillo.solver import Solution
 
 import numpy as np
 from scipy.sparse.linalg import spsolve # SuperLU direct solver
@@ -22,13 +23,13 @@ class Newton():
     ----------
     model : :class:`Model<cardillo.model>` or :class:`SparseModel<cardillo.model>`
         Model or SparseModel object. Determines representation of matrix objects.
-    nLoadSteps : int
-        number of load steps (ignored if loadSteps is not None)
-    loadSteps : numpy.ndarray
-        list of load steps within the interval :math:`[0,1]`. If initialized with *None*, ``loadSteps = [1/nLoadSteps, 2/nLoadSteps,...,1]`` is used.
+    n_load_stepts : int
+        number of load steps (ignored if load_steps is not None)
+    load_steps : numpy.ndarray
+        list of load steps within the interval :math:`[0,1]`. If initialized with *None*, ``load_steps = [1/n_load_stepts, 2/n_load_stepts,...,1]`` is used.
     tol : float
         error tolerance.
-    maxIter : int
+    max_iter : int
         maximum number of iterations.
 
     Notes
@@ -214,9 +215,8 @@ class Newton():
             if k > self.max_iter:
                 # return solution up to this iteration
                 pbar.close()
-                # self.logger.error(f'Newton-Raphson method not converged, returning solution up to iteration {i+1:>{len_t}d}/{self.nt}')
-                # return Solution(t=self.load_steps[:i], q=self.x[:i, :self.nq], la=self.x[:i, self.nq:])
-                return self.load_steps, self.x[:, :self.nq], self.x[:, self.nq:]
+                print(f'Newton-Raphson method not converged, returning solution up to iteration {i+1:>{len_t}d}/{self.nt}')
+                return Solution(t=self.load_steps, q=self.x[:i+1, :self.nq], la_g=self.x[:i+1, self.nq:])
                     
             # store solution as new initial guess
             if i < self.nt - 1:
@@ -224,5 +224,4 @@ class Newton():
                 
         # return solution object
         pbar.close()
-        # return Solution(t=self.loadSteps, q=self.x[:, :self.nq], la=self.x[:, self.nq:])
-        return self.load_steps, self.x[:, :self.nq], self.x[:, self.nq:]
+        return Solution(t=self.load_steps, q=self.x[:, :self.nq], la_g=self.x[:, self.nq:])

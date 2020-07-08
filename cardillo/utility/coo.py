@@ -55,7 +55,7 @@ class Coo(object):
         return self.__data
 
     def extend(self, matrix, DOF):
-        """Extend container with data given in matrix and indices stored in the tuple shift.
+        """Extend container with data given in `matrix` and indices stored in the tuple `DOF` containing two arrays.
 
         Parameters
         ----------
@@ -63,12 +63,46 @@ class Coo(object):
             dense matrix which has to be stored
         DOF : tuple, 2D
             tuple defining the global row and column indices of the dense matrix
-        transposd: bool
-            should the transposed matrix should be stored 
         """
-        self.data.extend(matrix.reshape(-1, order='C').tolist())
+        # TODO: row and column indices can be calculated in the assembler (see old sparse assembler)
+        self.data.extend( matrix.reshape(-1, order='C').tolist() )
         self.row.extend( repeat(DOF[0], DOF[1].size).tolist() )
         self.col.extend( tile(DOF[1], DOF[0].size).tolist() )
+
+        # TODO: slow in python
+        # array = matrix.reshape(-1, order='C')
+        # nnz_mask = array != 0
+        # row = repeat(DOF[0], DOF[1].size)
+        # col = tile(DOF[1], DOF[0].size)
+        # self.data.extend( array[nnz_mask].tolist() )
+        # self.row.extend( row[nnz_mask].tolist() )
+        # self.col.extend( col[nnz_mask].tolist() )
+
+    def extend_diag(self, array, DOF):
+        """Extend container with diagonal matrix (diagonal elements stored in the input `array` and indices stored in the `DOF` array).
+
+        Parameters
+        ----------
+        matrix: numpy.ndarray, 2D
+            dense matrix which has to be stored
+        DOF : tuple, 2D
+            tuple defining the global row and column indices of the dense matrix
+        """
+        self.data.extend( array.tolist() )
+        self.row.extend( DOF[0].tolist() )
+        self.col.extend( DOF[1].tolist() )
+
+    def extend_sparse(self, coo):
+        """Extend container with sparse matrix defined by three lists `data`, `row` and `col`.
+
+        Parameters
+        ----------
+        coo: Coo
+            Coo container
+        """
+        self.data.extend( coo.data )
+        self.row.extend( coo.row )
+        self.col.extend( coo.col )
 
     def tosparse(self, scipy_matrix):
         """Convert container to scipy sparse matrix.

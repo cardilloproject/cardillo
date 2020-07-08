@@ -10,7 +10,7 @@ from cardillo.model.rigid_body import Rigid_body_quaternion
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints import Spherical_joint
 from cardillo.model.force import Force
-from cardillo.solver import Euler_backward
+from cardillo.solver import Euler_backward, Scipy_ivp
 
 class Rigid_cylinder(Rigid_body_quaternion):
     def __init__(self, m, r, l, q0=None, u0=None):
@@ -49,9 +49,11 @@ if __name__ == "__main__":
     t0 = 0
     t1 = 5
     dt = 1e-2
-    t_span = t0, t1
-    solver = Euler_backward(model, t_span=t_span, dt=dt, newton_max_iter=50, numerical_jacobian=False, debug=False)
-    t, q, u, la = solver.solve()
+    # solver = Euler_backward(model, t1, dt=dt, newton_max_iter=50, numerical_jacobian=False, debug=False)
+    solver = Scipy_ivp(model, t1, dt)
+    sol = solver.solve()
+    t = sol.t
+    q = sol.q
 
     # animate configurations
     fig = plt.figure()

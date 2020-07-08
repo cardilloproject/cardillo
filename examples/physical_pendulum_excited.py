@@ -103,17 +103,15 @@ if __name__ == "__main__":
     t1 = 2
     dt = 5e-3
 
-    t_span = t0, t1
-    # solver = Euler_backward(model, t_span=t_span, dt=dt, numerical_jacobian=False, debug=False)
-    # t, q, u, la_g, la_gamma = solver.solve()
-    # solver = Moreau_sym(model, t_span=t_span, dt=dt, numerical_jacobian=False, debug=False)
-    # t, q, u, la_g, la_gamma = solver.solve()
-    # solver = Moreau(model, t_span, dt)
-    # t, q, u, la_g, la_gamma = solver.solve()
+    # solver = Euler_backward(model, t1, dt, numerical_jacobian=False, debug=False)
+    # solver = Moreau_sym(model, t1, dt, numerical_jacobian=False, debug=False)
+    # solver = Moreau(model, t1, dt)
     # solver = Generalized_alpha_1(model, t1, dt, rho_inf=1, numerical_jacobian=False, debug=False)
-    # t, q, u, la_g, la_gamma = solver.solve()
     solver = Scipy_ivp(model, t1, dt)
-    t, q, u = solver.solve()
+    sol = solver.solve()
+    t = sol.t
+    q = sol.q
+    u = sol.u
 
     fig, ax = plt.subplots(2, 1)
     ax[0].plot(t, q[:,0], '-x')

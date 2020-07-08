@@ -9,11 +9,10 @@ from cardillo.model import Model
 from cardillo.model.pendulum_variable_length import Pendulum_variable_length
 from cardillo.model.point_mass import Point_mass
 from cardillo.model.bilateral_constraints import Rod
-from cardillo.model.force import Force #, Follower_force
-from cardillo.solver import Euler_backward
+from cardillo.model.force import Force
+from cardillo.solver import Euler_backward, Scipy_ivp
 
 def double_pendulum():
-
     m = 1
     L = 2
     g = 9.81
@@ -25,42 +24,32 @@ def double_pendulum():
     l_t = lambda t: -0.5 * omega * np.cos(omega * t)
     l_tt = lambda t: 0.5 * omega**2 * np.sin(omega * t)
 
-    # l = lambda t: L
-    # l_t = lambda t: 0
-    # l_tt = lambda t: 0
-
     model = Model()
 
     q0 = np.array([L, 0])
-    # q0 = np.array([0, L])
     u0 = np.array([0])
     pendulum = Pendulum_variable_length(m, l, l_t, Fg, q0=q0, u0=u0)
-    # pendulum = Pendulum_variable_length(m, l, l_t, lambda t: Fg(t) * 0, q0=q0, u0=u0)
     model.add(pendulum)
 
-    # follower_force = Follower_force(lambda t: np.array([0, -0.5 * m * g, 0]), pendulum.point(1))
-    # model.add(follower_force)
-
-    # pin = 1.0
-    # pm = Point_mass(m, 2, np.array([(1 + pin) * L, 0]), np.array([0, 0]))
     pm = Point_mass(m, 2, np.array([2 * L, 0]), np.array([0, 0]))
-    # pm = Point_mass(m, 2, np.array([0, -2 * L]), np.array([0, 0]))
     model.add(pm)
 
     gravity_force = Force(Fg, pm)
     model.add(gravity_force)
 
-    # rod = RodBodyBody(pendulum.point(pin), pm.point(), L)
     rod = Rod(pendulum, pm, frame_ID1=(1,))
     model.add(rod)
 
     model.assemble()
 
-    tspan = [0, 2]
+    t1 = 1
     dt = 1e-3
 
-    solver = Euler_backward(model, tspan, dt)
-    t, q, u, la = solver.solve()
+    solver = Euler_backward(model, t1, dt)
+    # solver = Scipy_ivp(model, t1, dt) # Rod does not implement g_dot_u
+    sol = solver.solve()
+    t = sol.t
+    q = sol.q
     
     # fig, ax = plt.subplots()
     # ax.set_xlim([-2*L, 2*L])

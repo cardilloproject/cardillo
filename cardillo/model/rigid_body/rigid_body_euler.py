@@ -32,8 +32,8 @@ class Rigid_body_euler():
         self.dA_12 = eval(f'lambda q: dA_IK_basic_{axis[1]}(q[4])')
         self.dA_2K = eval(f'lambda q: dA_IK_basic_{axis[2]}(q[5])')
 
-    def M(self, t, q, M_coo):
-        M_coo.extend(self.M_, (self.uDOF, self.uDOF))
+    def M(self, t, q, coo):
+        coo.extend(self.M_, (self.uDOF, self.uDOF))
 
     def f_gyr(self, t, q, u):
         omega = u[3:]
@@ -76,20 +76,17 @@ class Rigid_body_euler():
         dense = Numerical_derivative(self.q_dot, order=2)._x(t, q, u)
         coo.extend(dense, (self.qDOF, self.qDOF))
 
-    def B_dense(self, t, q):
+    def B(self, t, q, coo):
         B = np.zeros((self.nq, self.nu))
         B[:3, :3] = np.eye(3)
         B[3:, 3:] = self.Q(q)
-        return B
-
-    def B(self, t, q, coo):
-        coo.extend(self.B_dense(t, q), (self.qDOF, self.uDOF))
+        coo.extend(B, (self.qDOF, self.uDOF))
 
     def qDOF_P(self, frame_ID=None):
-        return self.qDOF
+        return np.arange(self.nq)
 
     def uDOF_P(self, frame_ID=None):
-        return self.uDOF
+        return np.arange(self.nu)
 
     def A_IK(self, t, q, frame_ID=None):
         return self.A_I1(q) @ self.A_12(q) @ self.A_2K(q)

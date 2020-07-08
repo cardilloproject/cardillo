@@ -16,8 +16,8 @@ class Force(object):
         self.J_P_q = lambda t, q: subsystem.J_P_q(t, q, frame_ID, K_r_SP)
 
     def assembler_callback(self):
-        self.qDOF = self.subsystem.qDOF_P(self.frame_ID)
-        self.uDOF = self.subsystem.uDOF_P(self.frame_ID)
+        self.qDOF = self.subsystem.qDOF[self.subsystem.qDOF_P(self.frame_ID)]
+        self.uDOF = self.subsystem.uDOF[self.subsystem.uDOF_P(self.frame_ID)]
           
     def potential(self, t, q):
         return - ( self.force(t) @ self.r_OP(t, q) )

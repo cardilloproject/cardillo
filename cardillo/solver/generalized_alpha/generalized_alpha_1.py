@@ -4,6 +4,7 @@ from scipy.sparse import coo_matrix, csr_matrix, identity, bmat
 from tqdm import tqdm
 
 from cardillo.math import Numerical_derivative
+from cardillo.solver import Solution
 
 class Generalized_alpha_1():
     def __init__(self, model, t1, dt, rho_inf=1, beta=None, gamma=None, alpha_m=None, alpha_f=None, newton_tol=1e-6, newton_max_iter=10, newton_error_function=lambda x: np.max(np.abs(x)), numerical_jacobian=False, debug=False):
@@ -11,10 +12,10 @@ class Generalized_alpha_1():
         self.model = model
 
         # integration time
-        self.t0 = model.t0
-        self.t1 = t1 if t1 >= self.t0 else ValueError("t1 must be larger than initial time t0.")
+        t0 = model.t0
+        self.t1 = t1 if t1 > t0 else ValueError("t1 must be larger than initial time t0.")
         self.dt = dt
-        self.t = np.arange(self.t0, self.t1 + self.dt, self.dt)
+        self.t = np.arange(t0, self.t1 + self.dt, self.dt)
 
         # parameter
         self.rho_inf = rho_inf
@@ -44,16 +45,16 @@ class Generalized_alpha_1():
         self.la_gDOF = self.nu + np.arange(self.nla_g)
         self.la_gammaDOF = self.nu + self.nla_g + np.arange(self.nla_gamma)
 
-        self.Mk1 = model.M(self.t0, model.q0)
-        self.W_gk1 = self.model.W_g(self.t0, model.q0)
-        self.W_gammak1 = self.model.W_gamma(self.t0, model.q0)
+        self.Mk1 = model.M(t0, model.q0)
+        self.W_gk1 = self.model.W_g(t0, model.q0)
+        self.W_gammak1 = self.model.W_gamma(t0, model.q0)
 
-        self.tk = self.t0
+        self.tk = model.t0
         self.qk = model.q0 
         self.uk = model.u0 
         self.la_gk = model.la_g0
         self.la_gammak = model.la_gamma0
-        self.ak = spsolve(self.Mk1.tocsr(), self.model.h(self.t0, model.q0, model.u0) + self.W_gk1 @ model.la_g0 + self.W_gammak1 @ model.la_gamma0 )
+        self.ak = spsolve(self.Mk1.tocsr(), self.model.h(t0, model.q0, model.u0) + self.W_gk1 @ model.la_g0 + self.W_gammak1 @ model.la_gamma0 )
         self.a_bark = self.ak.copy()
           
         self.numerical_jacobian = numerical_jacobian
@@ -206,4 +207,4 @@ class Generalized_alpha_1():
             self.la_gammak = la_gammak1
             
         # write solution
-        return self.t, np.array(q), np.array(u), np.array(la_g), np.array(la_gamma)
+        return Solution(t=self.t, q=np.array(q), u=np.array(u), la_g=np.array(la_g), la_gamma=np.array(la_gamma))

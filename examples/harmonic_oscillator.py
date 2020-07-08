@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from cardillo.model import Model
-from cardillo.solver import Euler_forward, Euler_backward, Moreau, Generalized_alpha_1
+from cardillo.solver import Euler_forward, Euler_backward, Moreau, Moreau_sym, Generalized_alpha_1
 from cardillo.model.frame import Frame
 from cardillo.model.point_mass import Point_mass
 from cardillo.model.force import Force
@@ -43,16 +43,15 @@ if __name__ == "__main__":
 
     t0 = 0
     t1 = 2
-    t_span = (t0, t1)
     dt = 1.0e-2
-    # solver = Euler_backward(model, t_span, dt, numerical_jacobian=False, debug=False)
-    # t, q, u, la_g, la_gamma = solver.solve()
-    # solver = Moreau(model, t_span, dt)
-    # t, q, u, la_g, la_gamma = solver.solve()
-    # solver = Euler_forward(model, t_span, dt)
-    # t, q, u = solver.solve()
-    solver = Generalized_alpha_1(model, t1, dt, rho_inf=0.8, numerical_jacobian=True)
-    t, q, u, la_g, la_gamma = solver.solve()
+    solver = Euler_backward(model, t1, dt, numerical_jacobian=False, debug=False)
+    solver = Moreau(model, t1, dt)
+    # solver = Moreau_sym(model, t1, dt)
+    # solver = Euler_forward(model, t1, dt)
+    # solver = Generalized_alpha_1(model, t1, dt, rho_inf=0.8, numerical_jacobian=True)
+    sol = solver.solve()
+    t = sol.t
+    q = sol.q
 
     plt.plot(t, q[:, 0], '-r')
     plt.plot(t, q[:, 1], '-g')

@@ -11,8 +11,8 @@ class Point_mass():
         self.q0 = np.zeros(self.nq) if q0 is None else q0
         self.u0 = np.zeros(self.nu) if u0 is None else u0
 
-    def M(self, t, q, M_coo):
-        M_coo.extend(self.M_, (self.uDOF, self.uDOF))
+    def M(self, t, q, coo):
+        coo.extend(self.M_, (self.uDOF, self.uDOF))
 
     def q_dot(self, t, q, u):
         return u
@@ -20,17 +20,14 @@ class Point_mass():
     def q_ddot(self, t, q, u, u_dot):
         return u_dot
 
-    def B_dense(self, t, q):
-        return np.eye(self.nq)
-
-    def B(self, t, q, B_coo):
-        B_coo.extend(self.B_dense(t, q), (self.qDOF, self.uDOF))
+    def B(self, t, q, coo):
+        coo.extend_diag(np.ones(self.nq), (self.qDOF, self.uDOF))
 
     def qDOF_P(self, frame_ID=None):
-        return self.qDOF
+        return np.arange(self.nq)
 
     def uDOF_P(self, frame_ID=None):
-        return self.uDOF
+        return np.arange(self.nu)
 
     def r_OP(self, t, q, frame_ID=None, K_r_SP=None):
         r = np.zeros(3)

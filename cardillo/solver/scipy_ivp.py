@@ -2,9 +2,9 @@ import numpy as np
 from scipy.sparse.linalg import spsolve
 from scipy.sparse import bmat
 from scipy.integrate import solve_ivp
+from cardillo.solver import Solution
 
 class Scipy_ivp(object):
-
     def __init__(self, model, t1, dt, method='RK45', rtol=1.0e-6, atol=1.0e-10):
         self.model = model
         self.rtol = rtol
@@ -15,7 +15,12 @@ class Scipy_ivp(object):
         self.nu = model.nu
         self.nx = self.nq + self.nu
         self.x0 = np.concatenate([model.q0, model.u0])
-        self.t_span = np.arange(model.t0, t1, dt)
+
+        # integration time
+        t0 = model.t0
+        self.t1 = t1 if t1 > t0 else ValueError("t1 must be larger than initial time t0.")
+        self.dt = dt
+        self.t = np.arange(t0, self.t1 + self.dt, self.dt)
 
     def eqm(self, t, x):
         q = x[:self.nq]
@@ -30,9 +35,9 @@ class Scipy_ivp(object):
         zeta_g = self.model.zeta_g(t, q, u)
         zeta_gamma = self.model.zeta_gamma(t, q, u)
 
-        A = bmat([[M,           -W_g,   -W_gamma], \
-                  [g_dot_u,       None,   None], \
-                  [gamma_u,   None,   None]]).tocsc()
+        A = bmat([[M,       -W_g, -W_gamma], \
+                  [g_dot_u, None,     None], \
+                  [gamma_u, None,     None]]).tocsc()
 
         ula = spsolve(A, np.concatenate([h, -zeta_g, -zeta_gamma]))
 
@@ -43,7 +48,7 @@ class Scipy_ivp(object):
         return dx
 
     def solve(self):
-        sol = solve_ivp(self.eqm, (self.t_span[0], self.t_span[-1]), self.x0,  \
-                        t_eval=self.t_span, method=self.method, rtol=self.rtol, atol=self.atol)
+        sol = solve_ivp(self.eqm, (self.t[0], self.t[-1]), self.x0,  \
+                        t_eval=self.t, method=self.method, rtol=self.rtol, atol=self.atol)
 
-        return sol.t, sol.y[:self.nq, :].T, sol.y[self.nq:, :].T
+        return Solution(t=sol.t, q=sol.y[:self.nq, :].T, u=sol.y[self.nq:, :].T)

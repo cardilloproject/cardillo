@@ -15,8 +15,8 @@ class Rigid_body_quaternion():
         self.M_[:3, :3] = m * np.eye(3)
         self.M_[3:, 3:] = self.theta
 
-    def M(self, t, q, M_coo):
-        M_coo.extend(self.M_, (self.uDOF, self.uDOF))
+    def M(self, t, q, coo):
+        coo.extend(self.M_, (self.uDOF, self.uDOF))
 
     def f_gyr(self, t, q, u):
         omega = u[3:]
@@ -50,17 +50,14 @@ class Rigid_body_quaternion():
         dense[3:, 3:] = np.einsum('ijk,j->ik', Q_p[:, 1:, :], u[3:])
         coo.extend(dense, (self.qDOF, self.qDOF))
 
-    def B_dense(self, t, q):
+    def B(self, t, q, coo):
         p = q[3:]
         Q = quat2mat(p) / (2 * p @ p)
         
         B = np.zeros((self.nq, self.nu))
         B[:3, :3] = np.eye(3)
         B[3:, 3:] = Q[:, 1:]
-        return B
-
-    def B(self, t, q, coo):
-        coo.extend(self.B_dense(t, q), (self.qDOF, self.uDOF))
+        coo.extend(B, (self.qDOF, self.uDOF))
 
     def q_ddot(self, t, q, u, u_dot):
         p = q[3:]
@@ -81,10 +78,10 @@ class Rigid_body_quaternion():
         return q, u
 
     def qDOF_P(self, frame_ID=None):
-        return self.qDOF
+        return np.arange(self.nq)
 
     def uDOF_P(self, frame_ID=None):
-        return self.uDOF
+        return np.arange(self.nu)
 
     def A_IK(self, t, q, frame_ID=None):
         return quat2rot(q[3:])
@@ -136,24 +133,3 @@ class Rigid_body_quaternion():
 
     def K_J_R_q(self, t, q, frame_ID=None):
         return np.zeros((3, self.nu, self.nq))
-
-
-if __name__ == "__main__":
-    
-    from cardillo.math.numerical_derivative import Numerical_derivative
-    def Q(t, p):
-        return quat2mat(p) / (2 * p @ p)
-
-    def Q_p(t, p):
-        p2 = p @ p
-        return quat2mat_p(p) / (2 * p2) \
-            - np.einsum('ij,k->ijk', quat2mat(p), p / (p2**2))
-
-    p = np.random.rand(4)
-    p = p / norm4(p)
-
-    Q_p_num = Numerical_derivative(Q, order=2)._x(0, p)
-
-    diff = Q_p(0, p) - Q_p_num
-
-    print(np.linalg.norm(diff))

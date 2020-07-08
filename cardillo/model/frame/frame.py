@@ -13,10 +13,10 @@ class Frame():
         self.u0 = np.array([])
 
     def qDOF_P(self, frame_ID=None):
-        return self.qDOF
+        return np.array([], dtype=int)
 
     def uDOF_P(self, frame_ID=None):
-        return self.uDOF
+        return np.array([], dtype=int)
 
     def r_OP(self, t, q=None, frame_ID=None, K_r_SP=None):
         return self.r_OP__(t)

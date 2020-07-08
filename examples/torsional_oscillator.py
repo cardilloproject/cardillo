@@ -6,13 +6,12 @@ from cardillo.math.algebra import axis_angle2quat
 from cardillo.solver import Euler_forward, Euler_backward
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints import Revolute_joint
-from cardillo.model.rigid_body import Rigid_body_euler, Rigid_body_quaternion
+from cardillo.model.rigid_body import Rigid_body_euler
 from cardillo.model.scalar_force_interactions.potential_force_laws import Linear_spring
 from cardillo.model.scalar_force_interactions import Rotational_f_pot
 from cardillo.model.force import Force
 
 class Rigid_cylinder(Rigid_body_euler):
-# class Rigid_cylinder(Rigid_body_quaternion):
     def __init__(self, m, r, l, q0=None, u0=None):
         A = 1 / 4 * m * r**2 + 1 / 12 * m * l**2
         C = 1 / 2 * m * r**2
@@ -20,9 +19,7 @@ class Rigid_cylinder(Rigid_body_euler):
 
         super().__init__(m, K_theta_S, q0=q0, u0=u0)
 
-
 if __name__ == "__main__":
-
     m = 1
     r = 0.2
     l = 0
@@ -56,12 +53,12 @@ if __name__ == "__main__":
 
     t0 = 0
     t1 = 2
-    t_span = (t0, t1)
     dt = 1.0e-2
-    solver = Euler_backward(model, t_span, dt, numerical_jacobian=True, debug=False)
-    t, q, u, la_g, la_gamma = solver.solve()
-    # solver = Euler_forward(model, t_span, dt)
-    # t, q, u = solver.solve()
+    # solver = Euler_backward(model, t1, dt, numerical_jacobian=True, debug=False)
+    solver = Euler_forward(model, t1, dt)
+    sol = solver.solve()
+    t = sol.t
+    q = sol.q
     plt.plot(t, q[:, 0], '--r')
     plt.plot(t, q[:, 1], '--g')
     plt.plot(t, q[:, 2], '--b')

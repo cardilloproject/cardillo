@@ -28,14 +28,14 @@ class Rope(object):
         self.nEl = nEl # number of elements
 
         if B_splines:
-            nn = nEl + p # number of nodes
-            self.knot_vector = knot_vector = uniform_knot_vector(p, nEl) # uniform open knot vector
-            self.element_span = self.knot_vector[p:-p] # TODO!
+            nn = nEl + polynomial_degree # number of nodes
+            self.knot_vector = knot_vector = uniform_knot_vector(polynomial_degree, nEl) # uniform open knot vector
+            self.element_span = self.knot_vector[polynomial_degree:-polynomial_degree] # TODO!
         else:
-            nn = nEl * p + 1 # number of nodes
+            nn = nEl * polynomial_degree + 1 # number of nodes
             self.element_span = np.linspace(0, 1, nEl + 1)
 
-        nn_el = p + 1 # number of nodes per element
+        nn_el = polynomial_degree + 1 # number of nodes per element
         nq_n = dim # number of degrees of freedom per node
 
         self.nq = nn * nq_n # total number of generalized coordinates
@@ -70,7 +70,7 @@ class Rope(object):
         self.N  = np.empty((nEl, nQP, nn_el))
         self.N_xi = np.empty((nEl, nQP, nn_el))
         self.qw = np.zeros((nEl, nQP))
-        self.qp = np.zeros((nEl, nQP))
+        self.xi = np.zeros((nEl, nQP))
         self.J0 = np.zeros((nEl, nQP)) # TODO
         for el in range(nEl):
             delta_xi = self.element_span[el + 1] - self.element_span[el]
@@ -79,8 +79,8 @@ class Rope(object):
                 qp, qw = gauss(nQP, self.element_span[el:el+2])
 
                 # store quadrature points and weights
-                self.qp[el] = qp
                 self.qw[el] = qw
+                self.xi[el] = qp
 
                 # evaluate B-spline shape functions
                 N_dN = B_spline_basis(polynomial_degree, derivative_order, knot_vector, qp)
@@ -92,8 +92,11 @@ class Rope(object):
                 # evaluate Gauss points and weights on [-1, 1]
                 qp, qw = gauss(nQP)
 
-                # store quadrature weights
+                # store quadrature points and weights
                 self.qw[el] = qw
+                diff_xi = self.element_span[el + 1] - self.element_span[el]
+                sum_xi = self.element_span[el + 1] + self.element_span[el]
+                self.xi[el] = diff_xi * qp  / 2 + sum_xi / 2
 
                 raise NotImplementedError('not implemented')
                 # N_dN = lagrange_basis(degree, 1, qp)
@@ -117,8 +120,12 @@ class Rope(object):
 
         self.N_bdry = np.array([N_bdry_left, N_bdry_right])
 
-        # TODO: store constant mass matrix
+    def assembler_callback(self):
+        self.__M_coo()
 
+    #########################################
+    # equations of motion
+    #########################################
     def M_el(self, N, J0, qw):
         Me = np.zeros((self.nq_el, self.nq_el))
 
@@ -130,9 +137,9 @@ class Rope(object):
             Me += NNi.T @ NNi * self.A_rho0 * J0i * qwi
 
         return Me
-
-    # TODO: compute constant mass matrix within an assembler callback
-    def M(self, t, q, coo):
+    
+    def __M_coo(self):
+        self.__M = Coo((self.nu, self.nu))
         for el in range(self.nEl):
             # extract element degrees of freedom
             elDOF = self.elDOF[el, :]
@@ -141,8 +148,38 @@ class Rope(object):
             Me = self.M_el(self.N[el], self.J0[el], self.qw[el])
             
             # sparse assemble element mass matrix
-            coo.extend(Me, (self.uDOF[elDOF], self.uDOF[elDOF]))
+            self.__M.extend(Me, (self.uDOF[elDOF], self.uDOF[elDOF]))
+
+    def M(self, t, q, coo):
+        coo.extend_sparse(self.__M)
+
+    def E_pot_el(self, qe, N_xi, J0, qw):
+        E_pot = 0
+
+        for N_xii, J0i, qwi in zip(N_xi, J0, qw):
+            # build matrix of shape function derivatives
+            NN_xii = np.kron(np.eye(self.dim), N_xii)
+
+            # tangential vectors
+            dr  = NN_xii @ qe 
+            g = self.norm(dr)
             
+            # Calculate the strain and stress
+            lambda_ = g / J0i
+            stress = self.material_model.n(lambda_) * dr / g
+
+            # integrate element force vector
+            # fe -= (dr / J0i) @ stress * J0i * qwi
+            E_pot -= dr @ stress * qwi
+
+        return E_pot
+    
+    def E_pot(self, t, q):
+        E_pot = 0
+        for el in range(self.nEl):
+            E_pot += self.E_pot_el(q[self.elDOF[el]], self.N_xi[el], self.J0[el], self.qw[el])     
+        return E_pot
+
     def f_pot_el(self, qe, N_xi, J0, qw):
         fe = np.zeros(self.nq_el)
 
@@ -175,7 +212,6 @@ class Rope(object):
             # assemble internal element potential forces
             f[elDOF] += self.f_pot_el(q[elDOF], self.N_xi[el], self.J0[el], self.qw[el])
                     
-        # print(f'f: {f.T}')
         return f
 
     def f_pot_q_el(self, qe, N_xi, J0, qw):
@@ -225,6 +261,18 @@ class Rope(object):
             # sparse assemble element internal stiffness matrix
             coo.extend(Ke, (self.uDOF[elDOF], self.qDOF[elDOF]))
 
+    #########################################
+    # kinematic equation
+    #########################################
+    def q_dot(self, t, q, u):
+        return u
+
+    def B(self, t, q, coo):
+        coo.extend_diag(np.ones(self.nq), (self.qDOF, self.uDOF))
+
+    def q_ddot(self, t, q, u, u_dot):
+        return u_dot
+
     ####################################################
     # interactions with other bodies and the environment
     ####################################################
@@ -238,27 +286,16 @@ class Rope(object):
             print('local_elDOF can only be computed at frame_ID = (0,) or (1,)')
 
     def qDOF_P(self, frame_ID):
-        elDOF = self.elDOF_P(frame_ID)
-        return self.qDOF[elDOF]
+        return self.elDOF_P(frame_ID)
+        # elDOF = self.elDOF_P(frame_ID)
+        # return self.qDOF[elDOF]
 
     def uDOF_P(self, frame_ID):
-        elDOF = self.elDOF_P(frame_ID)
-        return self.uDOF[elDOF]
+        return self.elDOF_P(frame_ID)
+        # elDOF = self.elDOF_P(frame_ID)
+        # return self.uDOF[elDOF]
 
     def r_OP(self, t, q, frame_ID, K_r_SP=None):
-        # xi = frame_ID[0]
-        # if xi == 0:
-        #     NN = self.N_bdry[0]
-        # elif xi == 1:
-        #     NN = self.N_bdry[1]
-        # else:
-        #     print('r_OP can only be computed at frame_ID = (0,) or (1,)')
-
-        # # interpolate position vector
-        # r = np.zeros(3)
-        # r[:self.dim] = NN @ q
-        # return r
-
         return self.r_OP_q(t, q, frame_ID) @ q
 
     def r_OP_q(self, t, q, frame_ID, K_r_SP=None):
@@ -285,171 +322,40 @@ class Rope(object):
         return self.r_OP_q(t, None, frame_ID=frame_ID)
 
     def J_P(self, t, q, frame_ID, K_r_SP=None):
-        return self.r_OP_q(t, None, frame_ID, K_r_SP)
+        return self.r_OP_q(t, None, frame_ID=frame_ID)
 
     def J_P_q(self, t, q, frame_ID, K_r_SP=None):
         return np.zeros((3, self.nq_el, self.nq_el))
 
-statics = True
-# statics = False
+    def body_force_pot_el(self, force, t, qe, N, xi, J0, qw):
+        E_pot = 0
+        for Ni, xii, J0i, qwi in zip(N, xi, J0, qw):
+            NNi = np.kron(np.eye(self.dim), Ni)
+            E_pot -= (NNi @ qe) @ force(xii, t) * J0i * qwi
+        return E_pot
 
-if __name__ == "__main__":
-    from cardillo.model.rope.hooke import Hooke
-    from cardillo.model.frame import Frame
-    from cardillo.model.bilateral_constraints import Spherical_joint
-    from cardillo.model import Model
-    from cardillo.solver import Euler_backward, Moreau, Moreau_sym, Generalized_alpha_1, Scipy_ivp ,Newton
-    from cardillo.model.line_force.line_force import Line_force
+    def body_force_pot(self, t, q, force):
+        E_pot = 0
+        for el in range(self.nEl):
+            E_pot += self.body_force_pot_el(force, t, q[self.elDOF[el]], self.N[el], self.xi[el], self.J0[el], self.qw[el])
+        return E_pot
 
-    import matplotlib.pyplot as plt
-    from mpl_toolkits.mplot3d import Axes3D
-    import matplotlib.animation as animation
-    
-    # physical properties of the rope
-    dim = 3
-    assert dim == 3
-    L = 50
-    r = 3.0e-3
-    A = np.pi * r**2
-    EA = 4.0e8 * A
-    material_model = Hooke(EA)
-    A_rho0 = 10 * A
+    def body_force_el(self, force, t, N, xi, J0, qw):
+        fe = np.zeros(self.nq_el)
 
-    # discretization properties
-    B_splines = True
-    p = 2
-    nQP = int(np.ceil((p + 1)**2 / 2))
-    print(f'nQP: {nQP}')
-    nEl = 15
+        for Ni, xii, J0i, qwi in zip(N, xi, J0, qw):
+            NNi = np.kron(np.eye(self.dim), Ni)
+            fe += NNi.T @ force(xii, t) * J0i * qwi
+        
+        return fe
 
-    # build reference configuration
-    if B_splines:
-        nNd = nEl + p
-    else:
-        nNd = nEl * p + 1
-    X0 = np.linspace(0, L, nNd)
-    Xi = uniform_knot_vector(p, nEl)
-    for i in range(nNd):
-        X0[i] = np.sum(Xi[i+1:i+p+1])
-    X0 = X0 * L / p
-    Y0 = np.zeros_like(X0)
-    Z0 = np.zeros_like(X0)
-    Q = np.hstack((X0, Y0, Z0))
-    u0 = np.zeros_like(Q)
+    def body_force(self, t, q, force):
+        f = np.zeros(self.nq)
 
-    # X0 = np.linspace(0, L, nNd)
-    q0 = np.hstack((X0, Y0, Z0))
+        for el in range(self.nEl):
+            f[self.elDOF[el, :]] += self.body_force_el(force, t, self.N[el], self.xi[el], self.J0[el], self.qw[el])
+        
+        return f
 
-    # excitation of the initial configuration
-    fac = 1.0e1
-    q0[nNd+1:2*nNd-1] += np.random.rand(nNd - 2) * fac
-    if dim == 3:
-        q0[2*nNd+1:3*nNd-1] += np.random.rand(nNd - 2) * fac
-
-    rope = Rope(A_rho0 * 1.0e-10, material_model, p, nEl, nQP, Q=Q, q0=q0, u0=u0, B_splines=B_splines, dim=dim)
-
-    # # left joint
-    # r_OB1 = np.zeros(3)
-    # frame_left = Frame(r_OP=r_OB1)
-    # joint_left = Spherical_joint(frame_left, rope, r_OB1, frame_ID2=(0,))
-
-    omega = 2 * np.pi
-    A = 5
-    r_OB1 = lambda t: np.array([0, 0, A * np.sin(omega * t)])
-    r_OB1_t = lambda t: np.array([0, 0, A * omega * np.cos(omega * t)])
-    r_OB1_tt = lambda t: np.array([0, 0, -A * omega**2 * np.sin(omega * t)])
-    frame_left = Frame(r_OP=r_OB1, r_OP_t=r_OB1_t, r_OP_tt=r_OB1_tt)
-    joint_left = Spherical_joint(frame_left, rope, r_OB1(0), frame_ID2=(0,))
-
-    # right joint
-    r_OB2 = np.array([1.2 * L, 0, 0])
-    frame_right = Frame(r_OP=r_OB2)
-    joint_right = Spherical_joint(rope, frame_right, r_OB2, frame_ID1=(1,))
-
-    # gravity
-    g = np.array([0, 0, - A_rho0 * L * 9.81]) * 1.0e3
-    if statics:
-        f_g = Line_force(lambda xi, t: t * g, rope)
-    else:
-        f_g = Line_force(lambda xi, t: g, rope)
-
-    # assemble the model
-    model = Model()
-    model.add(rope)
-    model.add(frame_left)
-    model.add(joint_left)
-    model.add(frame_right)
-    model.add(joint_right)
-    model.add(f_g)
-    model.assemble()
-
-    if statics:
-        solver = Newton(model, n_load_stepts=5, max_iter=10)
-        t, q, la = solver.solve()
-    else:
-        t0 = 0
-        t1 = 10
-        dt = 1e-1
-        t_span = t0, t1
-        # solver = Euler_backward(model, t_span=t_span, dt=dt, numerical_jacobian=False, debug=False)
-        # t, q, u, la_g, la_gamma = solver.solve()
-        # solver = Euler_backward(model, t_span=t_span, dt=dt, numerical_jacobian=True, debug=True)
-        # t, q, u, la_g, la_gamma = solver.solve()
-        # solver = Moreau_sym(model, t_span=t_span, dt=dt, numerical_jacobian=True, debug=False)
-        # t, q, u, la_g, la_gamma = solver.solve()
-        # solver = Moreau(model, t_span, dt)
-        # t, q, u, la_g, la_gamma = solver.solve()
-        # solver = Generalized_alpha_1(model, t1, dt, numerical_jacobian=True)
-        # t, q, u, la_g, la_gamma = solver.solve()
-        solver = Scipy_ivp(model, t1, dt)
-        t, q, u = solver.solve()
-
-    # animate configurations
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    
-    ax.set_xlabel('x [m]')
-    ax.set_ylabel('y [m]')
-    ax.set_zlabel('z [m]')
-    scale = L
-    ax.set_xlim3d(left=0, right=L)
-    ax.set_ylim3d(bottom=-L/2, top=L/2)
-    ax.set_zlim3d(bottom=-L/2, top=L/2)
-
-    # # prepare data for animation
-    # frames = len(t)
-    # target_frames = 100
-    # frac = int(frames / target_frames)
-    # animation_time = 1
-    # interval = animation_time * 1000 / target_frames
-
-    # frames = target_frames
-    # t = t[::frac]
-    # q = q[::frac]
-
-    frames = len(t)
-    interval = 100
-    
-    x0, y0, z0 = q0.reshape((3, -1))
-    center_line0, = ax.plot(x0, y0, z0, '-ok')
-
-    x1, y1, z1 = q[-1].reshape((3, -1))
-    center_line, = ax.plot(x1, y1, z1, '-ob')
-
-    def update(t, q, center_line):
-        if dim ==2:
-            x, y = q.reshape((2, -1))
-            center_line.set_data(x, y)
-            center_line.set_3d_properties(np.zeros_like(x))
-        elif dim == 3:
-            x, y, z = q.reshape((3, -1))
-            center_line.set_data(x, y)
-            center_line.set_3d_properties(z)
-
-        return center_line,
-
-    def animate(i):
-        update(t[i], q[i], center_line)
-
-    anim = animation.FuncAnimation(fig, animate, frames=frames, interval=interval, blit=False)
-    plt.show()
+    def body_force_q(self, t, q, coo, force):
+        pass

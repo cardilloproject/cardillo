@@ -56,10 +56,10 @@ class Pendulum_variable_length():
         return q, u
 
     def qDOF_P(self, frame_ID=None):
-        return self.qDOF
+        return np.arange(self.nq)
 
     def uDOF_P(self, frame_ID=None):
-        return self.uDOF
+        return np.arange(self.nu)
 
     def r_OP(self, t, q, frame_ID=(1,), K_r_SP=None):
         return self.r_pivot + frame_ID[0] * np.array([q[0], -q[1], 0])

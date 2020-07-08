@@ -145,6 +145,12 @@ class Model(object):
             contr.f_gyr_u(t, q[contr.qDOF], u[contr.uDOF], coo)
         return coo.tosparse(scipy_matrix)
 
+    def E_pot(self, t, q):
+        E_pot = 0
+        for contr in self.__f_pot_contr:
+            E_pot += contr.E_pot(t, q[contr.qDOF])
+        return E_pot
+
     def f_pot(self, t, q):
         f = np.zeros(self.nu)
         for contr in self.__f_pot_contr:

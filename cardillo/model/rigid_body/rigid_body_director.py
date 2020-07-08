@@ -46,8 +46,8 @@ class Rigid_body_director():
     #########################################
     # equations of motion
     #########################################
-    def M(self, t, q, M_coo):
-        M_coo.extend(self.M_, (self.uDOF, self.uDOF))
+    def M(self, t, q, coo):
+        coo.extend(self.M_, (self.uDOF, self.uDOF))
 
     #########################################
     # kinematic equation
@@ -55,11 +55,8 @@ class Rigid_body_director():
     def q_dot(self, t, q, u):
         return u
 
-    def q_dot_q(self, t, q, u, coo):
-        coo.extend(np.zeros((self.nq, self.nq)), (self.qDOF, self.qDOF))
-
     def B(self, t, q, coo):
-        coo.extend(np.eye(self.nq, self.nu), (self.qDOF, self.uDOF))
+        coo.extend_diag(np.ones(self.nq), (self.qDOF, self.uDOF))
 
     def q_ddot(self, t, q, u, u_dot):
         return u_dot
@@ -191,10 +188,10 @@ class Rigid_body_director():
     # helper functions
     #########################################
     def qDOF_P(self, frame_ID=None):
-        return self.qDOF
+        return np.arange(self.nq)
 
     def uDOF_P(self, frame_ID=None):
-        return self.uDOF
+        return np.arange(self.nu)
 
     def A_IK(self, t, q, frame_ID=None):
         return np.vstack((q[3:6], q[6:9], q[9:12])).T

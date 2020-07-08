@@ -46,11 +46,12 @@ if __name__ == "__main__":
     t0 = 0
     t1 = 2
     dt = 1.0e-2
-    t_span = t0, t1
-    solver = Euler_backward(model, t_span=t_span, dt=dt)
-    t, q, u, la, _ = solver.solve()
-    # solver = Euler_forward(model, t_span=t_span, dt=dt)
-    # t, q, u = solver.solve()
+    solver = Euler_backward(model, t1, dt=dt)
+    # solver = Euler_forward(model, t1, dt=dt)
+    sol = solver.solve()
+    t = sol.t
+    q = sol.q
+    u = sol.u
 
     # animate configurations
     fig = plt.figure()

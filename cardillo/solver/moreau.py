@@ -1,27 +1,21 @@
 import numpy as np
 from scipy.sparse.linalg import spsolve 
 from scipy.sparse import csr_matrix, bmat
-from cardillo.math.numerical_derivative import Numerical_derivative
 from tqdm import tqdm
+
+from cardillo.math.numerical_derivative import Numerical_derivative
+from cardillo.solver import Solution
 
 class Moreau():
 
-    def __init__(self, model, t_span, dt):
-        
+    def __init__(self, model, t1, dt):
         self.model = model
 
         # integration time
-        self.t_span = np.asarray(t_span)
-        if self.t_span.ndim != 1:
-            raise ValueError("`t_span` must be 1-dimensional.")
-        d = np.diff(self.t_span)
-        if np.any(d <= 0):
-            raise ValueError("Values in `t_span` are not an increasing sequence.")
-        self.t0, self.t1 = self.t_span[[0, -1]]
-        
-        # constant time step
+        t0 = model.t0
+        self.t1 = t1 if t1 > t0 else ValueError("t1 must be larger than initial time t0.")
         self.dt = dt
-        self.t = np.arange(self.t0, self.t1 + self.dt, self.dt)
+        self.t = np.arange(t0, self.t1 + self.dt, self.dt)
 
         self.nq = self.model.nq
         self.nu = self.model.nu
@@ -67,7 +61,7 @@ class Moreau():
     def solve(self): 
         
         # lists storing output variables
-        tk = self.t0
+        tk = self.model.t0
         qk = self.model.q0.copy()
         uk = self.model.u0.copy()
         la_gk = self.model.la_g0.copy()
@@ -94,25 +88,18 @@ class Moreau():
             qk, uk, la_gk, la_gammak = qk1, uk1, la_gk1, la_gammak1
             
         # write solution
-        return self.t, np.array(q), np.array(u), np.array(la_g), np.array(la_gamma)
+        return Solution(t=self.t, q=np.array(q), u=np.array(u), la_g=np.array(la_g), la_gamma=np.array(la_gamma))
 
 class Moreau_sym():
-    def __init__(self, model, t_span, dt, newton_tol=1e-6, newton_max_iter=10, newton_error_function=lambda x: np.max(np.abs(x)), numerical_jacobian=False, debug=False):
+    def __init__(self, model, t1, dt, newton_tol=1e-6, newton_max_iter=10, newton_error_function=lambda x: np.max(np.abs(x)), numerical_jacobian=False, debug=False):
         
         self.model = model
 
         # integration time
-        self.t_span = np.asarray(t_span)
-        if self.t_span.ndim != 1:
-            raise ValueError("`t_span` must be 1-dimensional.")
-        d = np.diff(self.t_span)
-        if np.any(d <= 0):
-            raise ValueError("Values in `t_span` are not an increasing sequence.")
-        self.t0, self.t1 = self.t_span[[0, -1]]
-        
-        # constant time step
+        t0 = model.t0
+        self.t1 = t1 if t1 > t0 else ValueError("t1 must be larger than initial time t0.")
         self.dt = dt
-        self.t = np.arange(self.t0, self.t1 + self.dt, self.dt)
+        self.t = np.arange(t0, self.t1 + self.dt, self.dt)
 
         self.newton_tol = newton_tol
         self.newton_max_iter = newton_max_iter
@@ -129,9 +116,9 @@ class Moreau_sym():
         self.la_gDOF = self.nu + np.arange(self.nla_g)
         self.la_gammaDOF = self.nu + self.nla_g + np.arange(self.nla_gamma)
 
-        self.Mk1 = self.model.M(self.t0, model.q0)
-        self.W_gk1 = self.model.W_g(self.t0, model.q0)
-        self.W_gammak1 = self.model.W_gamma(self.t0, model.q0)
+        self.Mk1 = self.model.M(t0, model.q0)
+        self.W_gk1 = self.model.W_g(t0, model.q0)
+        self.W_gammak1 = self.model.W_gamma(t0, model.q0)
 
         self.numerical_jacobian = numerical_jacobian
         if numerical_jacobian:
@@ -252,7 +239,7 @@ class Moreau_sym():
 
     def solve(self): 
         # lists storing output variables
-        tk = self.t0
+        tk = self.model.t0
         qk = self.model.q0.copy()
         uk = self.model.u0.copy()
         la_gk = self.model.la_g0.copy()
@@ -281,4 +268,4 @@ class Moreau_sym():
             qk, uk, la_gk, la_gammak = qk1, uk1, la_gk1, la_gammak1
             
         # write solution
-        return self.t, np.array(q), np.array(u), np.array(la_g), np.array(la_gamma)
+        return Solution(t=self.t, q=np.array(q), u=np.array(u), la_g=np.array(la_g), la_gamma=np.array(la_gamma))
