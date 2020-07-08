@@ -2,6 +2,24 @@ import numpy as np
 from cardillo.math.algebra import cross3, ax2skew, quat2mat, quat2mat_p, norm4, quat2rot, quat2rot_p
 
 class Rigid_body_quaternion():
+    """Rigid body parametrized by center of mass in inertial system and unit quaternions for rotation.
+
+    Parameters
+    ----------
+    m : float
+        mass
+    K_theta_S : ndarray
+        inertia tensor in body-fixed frame
+    q0 : ndarray, optional
+        initial position coordinates
+    u0 : ndarray, optional
+        initial velocity coordinates
+
+    References
+    ----------
+    Nuetzi2016: https://www.research-collection.ethz.ch/handle/20.500.11850/117165 \\
+    Schweizer2015: https://www.research-collection.ethz.ch/handle/20.500.11850/101867
+    """
     def __init__(self, m, K_theta_S, q0=None, u0=None):
         self.m = m
         self.theta = K_theta_S
