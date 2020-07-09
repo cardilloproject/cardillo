@@ -113,13 +113,12 @@ def __lagrange_xx_r(x, degree):
 if __name__ == "__main__":
     import numpy as np
     degree = 2
-    # x = np.array([-1, 1])
     # x = -1
     # x = 0
     x = 1
 
-    # lx = __lagrange(x, degree)
-    # print(f'l({x}): {lx}')
+    lx = __lagrange(x, degree)
+    print(f'l({x}): {lx}')
 
     lx_x = __lagrange_x(x, degree)
     print(f'l_x({x}): {lx_x}')
@@ -130,9 +129,9 @@ if __name__ == "__main__":
     lx_xx = __lagrange_xx_r(x, degree)
     print(f'l_xx({x}): {lx_xx}')
 
-    # degree = 1
-    # derivative_order = 1
-    # x_array = np.array([-1, 0, 1])
-    # N, dN = Lagrange_basis(degree, x_array)
-    # print(f'N({x_array}):\n{N}')
-    # print(f'dN({x_array}):\n{dN}')
+    degree = 1
+    derivative_order = 1
+    x_array = np.array([-1, 0, 1])
+    N, dN = Lagrange_basis(degree, x_array)
+    print(f'N({x_array}):\n{N}')
+    print(f'dN({x_array}):\n{dN}')

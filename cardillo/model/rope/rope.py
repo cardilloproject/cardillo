@@ -42,6 +42,20 @@ class Rope(object):
         self.nq = nn * nq_n # total number of generalized coordinates
         self.nu = self.nq
         self.nq_el = nn_el * nq_n # total number of generalized coordinates per element
+
+        # compute allocation matrix
+        if B_splines:
+            row_offset = np.arange(nEl)
+            elDOF_row = (np.zeros((nq_n * nn_el, nEl), dtype=int) + row_offset).T
+            elDOF_tile = np.tile(np.arange(0, nn_el), nq_n)
+            elDOF_repeat = np.repeat(np.arange(0, nq_n * nn, step=nn), nn_el)
+            self.elDOF = elDOF_row + elDOF_tile + elDOF_repeat
+        else:
+            row_offset = np.arange(0, nn - polynomial_degree, polynomial_degree)
+            elDOF_row = (np.zeros((nq_n * nn_el, nEl), dtype=int) + row_offset).T
+            elDOF_tile = np.tile(np.arange(0, nn_el), nq_n)
+            elDOF_repeat = np.repeat(np.arange(0, nq_n * nn, step=nn), nn_el)
+            self.elDOF = elDOF_row + elDOF_tile + elDOF_repeat
             
         # reference generalized coordinates, initial coordinates and initial velocities
         self.Q = Q
@@ -57,13 +71,6 @@ class Rope(object):
         self.J0 = np.zeros((nEl, nQP))
         for el in range(nEl):
             if B_splines:
-                # compute allocation matrix
-                row_offset = np.arange(nEl)
-                elDOF_row = (np.zeros((nq_n * nn_el, nEl), dtype=int) + row_offset).T
-                elDOF_tile = np.tile(np.arange(0, nn_el), nq_n)
-                elDOF_repeat = np.repeat(np.arange(0, nq_n * nn, step=nn), nn_el)
-                self.elDOF = elDOF_row + elDOF_tile + elDOF_repeat
-
                 # evaluate Gauss points and weights on [xi^el, xi^{el+1}]
                 qp, qw = gauss(nQP, self.element_span[el:el+2])
 
@@ -76,13 +83,6 @@ class Rope(object):
                 self.N[el] = N_dN[:, 0]
                 self.N_xi[el] = N_dN[:, 1]
             else:
-                # compute allocation matrix
-                row_offset = np.arange(0, nn - polynomial_degree, polynomial_degree)
-                elDOF_row = (np.zeros((nq_n * nn_el, nEl), dtype=int) + row_offset).T
-                elDOF_tile = np.tile(np.arange(0, nn_el), nq_n)
-                elDOF_repeat = np.repeat(np.arange(0, nq_n * nn, step=nn), nn_el)
-                self.elDOF = elDOF_row + elDOF_tile + elDOF_repeat
-
                 # evaluate Gauss points and weights on [-1, 1]
                 qp, qw = gauss(nQP)
 

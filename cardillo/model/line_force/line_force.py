@@ -1,3 +1,5 @@
+from cardillo.math import Numerical_derivative
+
 class Line_force():
     def __init__(self, line_force, subsystem):
         if not callable(line_force):
@@ -18,3 +20,5 @@ class Line_force():
 
     def f_pot_q(self, t, q, coo):
         self.subsystem.body_force_q(t, q, coo, self.line_force)
+        # dense = Numerical_derivative(self.f_pot)._x(t, q)
+        # coo.extend(dense, (self.uDOF, self.qDOF))
