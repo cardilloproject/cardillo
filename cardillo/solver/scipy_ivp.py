@@ -2,6 +2,8 @@ import numpy as np
 from scipy.sparse.linalg import spsolve
 from scipy.sparse import bmat
 from scipy.integrate import solve_ivp
+from tqdm import tqdm
+
 from cardillo.solver import Solution
 
 class Scipy_ivp(object):
@@ -22,7 +24,16 @@ class Scipy_ivp(object):
         self.dt = dt
         self.t = np.arange(t0, self.t1 + self.dt, self.dt)
 
+        self.frac = (t1 - t0) / 100
+        self.pbar = tqdm(total=100, leave=True)
+        self.i = 0
+
     def eqm(self, t, x):
+        if int(t // self.frac) == self.i:
+            self.pbar.update(1)
+            self.pbar.set_description(f't: {t:0.2e}s < {self.t1:0.2e}s')
+            self.i += 1
+
         q = x[:self.nq]
         u = x[self.nq:]
 
@@ -50,5 +61,4 @@ class Scipy_ivp(object):
     def solve(self):
         sol = solve_ivp(self.eqm, (self.t[0], self.t[-1]), self.x0,  \
                         t_eval=self.t, method=self.method, rtol=self.rtol, atol=self.atol)
-
         return Solution(t=sol.t, q=sol.y[:self.nq, :].T, u=sol.y[self.nq:, :].T)

@@ -28,8 +28,9 @@ if __name__ == "__main__":
     A_rho0 = 10 * A
 
     # discretization properties
-    B_splines = True
-    p = 3
+    # B_splines = True
+    B_splines = False
+    p = 1
     nQP = int(np.ceil((p + 1)**2 / 2))
     print(f'nQP: {nQP}')
     nEl = 10
@@ -41,9 +42,10 @@ if __name__ == "__main__":
         nNd = nEl * p + 1
     X0 = np.linspace(0, L, nNd)
     Xi = uniform_knot_vector(p, nEl)
-    for i in range(nNd):
-        X0[i] = np.sum(Xi[i+1:i+p+1])
-    X0 = X0 * L / p
+    if B_splines:
+        for i in range(nNd):
+            X0[i] = np.sum(Xi[i+1:i+p+1])
+        X0 = X0 * L / p
     Y0 = np.zeros_like(X0)
     Z0 = np.zeros_like(X0)
     Q = np.hstack((X0, Y0, Z0))
@@ -65,8 +67,8 @@ if __name__ == "__main__":
     frame_left = Frame(r_OP=r_OB1)
     joint_left = Spherical_joint(frame_left, rope, r_OB1, frame_ID2=(0,))
 
-    # omega = 2 * np.pi / 10
-    # A = 5
+    # omega = 2 * np.pi / 2
+    # A = -1
     # r_OB1 = lambda t: np.array([0, 0, A * np.sin(omega * t)])
     # r_OB1_t = lambda t: np.array([0, 0, A * omega * np.cos(omega * t)])
     # r_OB1_tt = lambda t: np.array([0, 0, -A * omega**2 * np.sin(omega * t)])
@@ -105,13 +107,18 @@ if __name__ == "__main__":
         # exit()
     else:
         t0 = 0
-        t1 = 1
+        t1 = 4
         dt = 1e-3
         # solver = Euler_backward(model, t1, dt, numerical_jacobian=False, debug=False)
         # solver = Moreau(model, t1, dt)
         # solver = Moreau_sym(model, t1, dt)
         # solver = Generalized_alpha_1(model, t1, dt, rho_inf=0.75)
-        solver = Scipy_ivp(model, t1, dt, atol=1.0e-6, rtol=1.0e-6)
+        # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='RK23')
+        solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='RK45')
+        # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='DOP853')
+        # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='Radau')
+        # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='BDF')
+        # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='LSODA')
 
         sol = solver.solve()
 

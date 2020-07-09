@@ -3,6 +3,7 @@ import numpy as np
 from cardillo.utility.coo import Coo
 from cardillo.discretization import gauss
 from cardillo.discretization import uniform_knot_vector, B_spline_basis
+from cardillo.discretization import Lagrange_basis
 from cardillo.math.algebra import norm2, norm3
 from cardillo.math.numerical_derivative import Numerical_derivative
 
@@ -30,7 +31,7 @@ class Rope(object):
         if B_splines:
             nn = nEl + polynomial_degree # number of nodes
             self.knot_vector = knot_vector = uniform_knot_vector(polynomial_degree, nEl) # uniform open knot vector
-            self.element_span = self.knot_vector[polynomial_degree:-polynomial_degree] # TODO!
+            self.element_span = self.knot_vector[polynomial_degree:-polynomial_degree]
         else:
             nn = nEl * polynomial_degree + 1 # number of nodes
             self.element_span = np.linspace(0, 1, nEl + 1)
@@ -41,26 +42,8 @@ class Rope(object):
         self.nq = nn * nq_n # total number of generalized coordinates
         self.nu = self.nq
         self.nq_el = nn_el * nq_n # total number of generalized coordinates per element
-
-        # compute allocation matrix
-        elDOF_nEl = (np.zeros((nq_n * nn_el, nEl), dtype=int) + np.arange(nEl)).T
-        elDOF_tile = np.tile(np.arange(0, nn_el), nq_n)
-        elDOF_repeat = np.repeat(np.arange(0, nq_n * nn, step=nn), nn_el)
-        self.elDOF = elDOF_nEl + elDOF_tile + elDOF_repeat
-
-        # TODO: do we need nodal degrees of freedom?
-        # tmp3 = (np.zeros((self.nNDOF, nNd), dtype=int) + np.arange(nNd)).T
-        # tmp4 = np.tile(np.arange(0, nNDOF * nNd, step=nNd), nNd).reshape((nNd, nNDOF))
-        # self.nodalDOF = tmp3 + tmp4
             
         # reference generalized coordinates, initial coordinates and initial velocities
-        # TODO: Greville abscissae/ check 2D or 3D
-        # X0 = np.linspace(0, L, nn)
-        # Y0 = np.zeros_like(X0)
-        # Z0 = np.zeros_like(X0)
-        # self.Q = np.hstack((X0, Y0, Z0)) if Q is None else Q
-        # self.q0 = np.hstack((X0, Y0, Z0)) if q0 is None else q0
-        # self.u0 = np.zeros(self.nu) if u0 is None else u0
         self.Q = Q
         self.q0 = q0
         self.u0 = u0
@@ -71,10 +54,16 @@ class Rope(object):
         self.N_xi = np.empty((nEl, nQP, nn_el))
         self.qw = np.zeros((nEl, nQP))
         self.xi = np.zeros((nEl, nQP))
-        self.J0 = np.zeros((nEl, nQP)) # TODO
+        self.J0 = np.zeros((nEl, nQP))
         for el in range(nEl):
-            delta_xi = self.element_span[el + 1] - self.element_span[el]
             if B_splines:
+                # compute allocation matrix
+                row_offset = np.arange(nEl)
+                elDOF_row = (np.zeros((nq_n * nn_el, nEl), dtype=int) + row_offset).T
+                elDOF_tile = np.tile(np.arange(0, nn_el), nq_n)
+                elDOF_repeat = np.repeat(np.arange(0, nq_n * nn, step=nn), nn_el)
+                self.elDOF = elDOF_row + elDOF_tile + elDOF_repeat
+
                 # evaluate Gauss points and weights on [xi^el, xi^{el+1}]
                 qp, qw = gauss(nQP, self.element_span[el:el+2])
 
@@ -84,11 +73,16 @@ class Rope(object):
 
                 # evaluate B-spline shape functions
                 N_dN = B_spline_basis(polynomial_degree, derivative_order, knot_vector, qp)
-                # ordering: (number of evaluation points, derivative number, nonzero shape functions)
                 self.N[el] = N_dN[:, 0]
                 self.N_xi[el] = N_dN[:, 1]
-                # self.N_s[el] = N_dN[:, 1] / G
             else:
+                # compute allocation matrix
+                row_offset = np.arange(0, nn - polynomial_degree, polynomial_degree)
+                elDOF_row = (np.zeros((nq_n * nn_el, nEl), dtype=int) + row_offset).T
+                elDOF_tile = np.tile(np.arange(0, nn_el), nq_n)
+                elDOF_repeat = np.repeat(np.arange(0, nq_n * nn, step=nn), nn_el)
+                self.elDOF = elDOF_row + elDOF_tile + elDOF_repeat
+
                 # evaluate Gauss points and weights on [-1, 1]
                 qp, qw = gauss(nQP)
 
@@ -98,12 +92,10 @@ class Rope(object):
                 sum_xi = self.element_span[el + 1] + self.element_span[el]
                 self.xi[el] = diff_xi * qp  / 2 + sum_xi / 2
 
-                raise NotImplementedError('not implemented')
-                # N_dN = lagrange_basis(degree, 1, qp)
-                # self.N[el] = N_dN[:, 0]
-                # self.dN[el] = N_dN[:, 1]
+                # raise NotImplementedError('not implemented')
+                self.N[el], self.N_xi[el] = Lagrange_basis(polynomial_degree, qp, derivative=True)
 
-            # TODO: doc me!
+            # compute change of integral measures
             Qe = self.Q[self.elDOF[el]]
             for i in range(nQP):
                 r0_xi = np.kron(np.eye(self.dim), self.N_xi[el, i]) @ Qe
@@ -199,63 +191,47 @@ class Rope(object):
             # fe -= (NN_xii.T / J0i) @ stress * J0i * qwi
             fe -= NN_xii.T @ stress * qwi
 
-        # print(f'fe: {fe.T}')
         return fe
     
     def f_pot(self, t, q):
         f = np.zeros(self.nu)
-
         for el in range(self.nEl):
-            # extract element degrees of freedom
             elDOF = self.elDOF[el]
-
-            # assemble internal element potential forces
             f[elDOF] += self.f_pot_el(q[elDOF], self.N_xi[el], self.J0[el], self.qw[el])
-                    
         return f
 
-    def f_pot_q_el(self, qe, N_xi, J0, qw):
-        fe_q_num = Numerical_derivative(lambda t, qe: self.f_pot_el(qe, N_xi, J0, qw), order=2)._x(0, qe, eps=1.0e-6)
-        return fe_q_num
-        
-        # fe_q = np.zeros((self.nq_el, self.nq_el))
+    def f_pot_q_el(self, qe, N_xi, J0, qw):        
+        fe_q = np.zeros((self.nq_el, self.nq_el))
 
-        # for dNi, qwi in zip(dN, qw):
-        #     # build matrix of shape function derivatives
-        #     dNNi = np.kron(np.eye(self.dim), dNi)
+        for N_xii, J0i, qwi in zip(N_xi, J0, qw):
+            # build matrix of shape function derivatives
+            NN_xii = np.kron(np.eye(self.dim), N_xii)
+
+            # tangential vectors
+            dr  = NN_xii @ qe 
+            g = self.norm(dr)
             
-        #     # compute current and reference tangent vector w.r.t. [-1, 1]
-        #     dr  = dNNi @ qe 
-        #     dr0 = dNNi @ Qe
-        #     g = norm2(dr)
-        #     G = norm2(dr0)
-            
-        #     # Calculate the strain and stress
-        #     strain = g / G
-        #     n = self.material_model.n(strain)
-        #     dn = self.material_model.dn(strain)
-        #     dstress = dNNi / g * n + np.outer(dr, dr) @ dNNi / g**2 * (dn / G - n / g)
+            # Calculate the strain and stress
+            lambda_ = g / J0i
+            n = self.material_model.n(lambda_)
+            dn = self.material_model.dn(lambda_)
+            dstress = NN_xii / g * n + np.outer(dr, dr) @ NN_xii / g**2 * (dn / J0i - n / g)
 
-        #     # Calcualte element stiffness matrix
-        #     fe_q -= dNNi.T @ dstress * qwi
+            # Calcualte element stiffness matrix
+            # fe_q -= (NN_xii.T / J0i) @ dstress * J0i * qwi
+            fe_q -= NN_xii.T @ dstress * qwi
 
-        # # # np.set_printoptions(3)
-        # # diff = fe_q_num - fe_q
-        # # # # print(diff)
-        # # # print(f'fe_q_num =\n{fe_q_num}')
-        # # # print(f'fe_q =\n{fe_q}')
-        # # error = np.linalg.norm(diff)
-        # # print(f'error in stiffness matrix: {error:.4e}')
-        # # return fe_q_num
+        # fe_q_num = Numerical_derivative(lambda t, qe: self.f_pot_el(qe, N_xi, J0, qw), order=2)._x(0, qe, eps=1.0e-6)
+        # diff = fe_q_num - fe_q
+        # error = np.linalg.norm(diff)
+        # print(f'error in stiffness matrix: {error:.4e}')
+        # return fe_q_num
 
-        # return fe_q
+        return fe_q
 
     def f_pot_q(self, t, q, coo):
         for el in range(self.nEl):
-            # extract element degrees of freedom
             elDOF = self.elDOF[el, :]
-
-            # integrate element internal stiffness matrix
             Ke = self.f_pot_q_el(q[elDOF], self.N_xi[el], self.J0[el], self.qw[el])
 
             # sparse assemble element internal stiffness matrix
@@ -287,13 +263,9 @@ class Rope(object):
 
     def qDOF_P(self, frame_ID):
         return self.elDOF_P(frame_ID)
-        # elDOF = self.elDOF_P(frame_ID)
-        # return self.qDOF[elDOF]
 
     def uDOF_P(self, frame_ID):
         return self.elDOF_P(frame_ID)
-        # elDOF = self.elDOF_P(frame_ID)
-        # return self.uDOF[elDOF]
 
     def r_OP(self, t, q, frame_ID, K_r_SP=None):
         return self.r_OP_q(t, q, frame_ID) @ q

@@ -280,12 +280,17 @@ def rolling_disc_velocity_constraints():
     model.assemble()
 
     t0 = 0
-    t1 = 2 * np.pi / np.abs(alpha_dot)
+    t1 = 2 * np.pi / np.abs(alpha_dot) * 2
     dt = 1e-3
     # solver = Euler_backward(model, t1, dt, numerical_jacobian=False, debug=False)
     # solver = Moreau_sym(model, t1, dt, numerical_jacobian=False, debug=False)
     # solver = Moreau(model, t1, dt)
-    solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='DOP853')
+    # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='RK23')
+    solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='RK45')
+    # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='DOP853')
+    # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='Radau')
+    # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='BDF')
+    # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='LSODA')
     sol = solver.solve()
     t = sol.t
     q = sol.q
