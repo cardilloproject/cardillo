@@ -12,8 +12,8 @@ import matplotlib.animation as animation
 
 import numpy as np
 
-# statics = True
-statics = False
+statics = True
+# statics = False
 
 if __name__ == "__main__":
     
@@ -28,9 +28,9 @@ if __name__ == "__main__":
     A_rho0 = 10 * A
 
     # discretization properties
-    # B_splines = True
-    B_splines = False
-    p = 1
+    B_splines = True
+    # B_splines = False
+    p = 2
     nQP = int(np.ceil((p + 1)**2 / 2))
     print(f'nQP: {nQP}')
     nEl = 10
@@ -83,7 +83,7 @@ if __name__ == "__main__":
     # gravity
     g = np.array([0, 0, - A_rho0 * L * 9.81])
     if statics:
-        f_g = Line_force(lambda xi, t: t * g, rope)
+        f_g = Line_force(lambda xi, t: t * g * 10, rope)
     else:
         f_g = Line_force(lambda xi, t: g, rope)
 
@@ -104,17 +104,18 @@ if __name__ == "__main__":
         q = sol.q
         print(f'pot(t0, q0): {model.E_pot(t[0], q[0])}')
         print(f'pot(t1, q1): {model.E_pot(t[-1], q[-1])}')
+        print(f'r_OP(0.5): {rope.r_OP(t[-1], q[-1][rope.elDOF_P((0.5,))], (0.5,))}')
         # exit()
     else:
         t0 = 0
-        t1 = 4
-        dt = 1e-3
-        # solver = Euler_backward(model, t1, dt, numerical_jacobian=False, debug=False)
+        t1 = 1
+        dt = 1e-2
+        solver = Euler_backward(model, t1, dt, numerical_jacobian=False, debug=False)
         # solver = Moreau(model, t1, dt)
         # solver = Moreau_sym(model, t1, dt)
         # solver = Generalized_alpha_1(model, t1, dt, rho_inf=0.75)
         # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='RK23')
-        solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='RK45')
+        # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='RK45')
         # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='DOP853')
         # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='Radau')
         # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='BDF')

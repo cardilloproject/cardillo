@@ -24,6 +24,7 @@ class Rope(object):
         self.material_model = material_model
 
         # discretization parameters
+        self.B_splines = B_splines
         self.polynomial_degree = polynomial_degree # polynomial degree
         self.nQP = nQP # number of quadrature points
         self.nEl = nEl # number of elements
@@ -31,7 +32,7 @@ class Rope(object):
         if B_splines:
             nn = nEl + polynomial_degree # number of nodes
             self.knot_vector = knot_vector = uniform_knot_vector(polynomial_degree, nEl) # uniform open knot vector
-            self.element_span = self.knot_vector[polynomial_degree:-polynomial_degree]
+            self.element_span = np.asarray( self.knot_vector[polynomial_degree:-polynomial_degree] )
         else:
             nn = nEl * polynomial_degree + 1 # number of nodes
             self.element_span = np.linspace(0, 1, nEl + 1)
@@ -45,12 +46,14 @@ class Rope(object):
 
         # compute allocation matrix
         if B_splines:
+            self.basis_functions = self.__basis_functions_b_splines
             row_offset = np.arange(nEl)
             elDOF_row = (np.zeros((nq_n * nn_el, nEl), dtype=int) + row_offset).T
             elDOF_tile = np.tile(np.arange(0, nn_el), nq_n)
             elDOF_repeat = np.repeat(np.arange(0, nq_n * nn, step=nn), nn_el)
             self.elDOF = elDOF_row + elDOF_tile + elDOF_repeat
         else:
+            self.basis_functions = self.__basis_functions_lagrange
             row_offset = np.arange(0, nn - polynomial_degree, polynomial_degree)
             elDOF_row = (np.zeros((nq_n * nn_el, nEl), dtype=int) + row_offset).T
             elDOF_tile = np.tile(np.arange(0, nn_el), nq_n)
@@ -91,8 +94,7 @@ class Rope(object):
                 diff_xi = self.element_span[el + 1] - self.element_span[el]
                 sum_xi = self.element_span[el + 1] + self.element_span[el]
                 self.xi[el] = diff_xi * qp  / 2 + sum_xi / 2
-
-                # raise NotImplementedError('not implemented')
+                
                 self.N[el], self.N_xi[el] = Lagrange_basis(polynomial_degree, qp, derivative=True)
 
             # compute change of integral measures
@@ -111,6 +113,16 @@ class Rope(object):
         N_bdry_right = np.kron(np.eye(dim), N_bdry)
 
         self.N_bdry = np.array([N_bdry_left, N_bdry_right])
+
+    def __basis_functions_b_splines(self, xi):
+        return B_spline_basis(self.polynomial_degree, 0, self.knot_vector, xi)
+
+    def __basis_functions_lagrange(self, xi):
+        el = np.where(xi >= self.element_span)[0][-1]
+        diff_xi = self.element_span[el + 1] - self.element_span[el]
+        sum_xi = self.element_span[el + 1] + self.element_span[el]
+        xi_tilde = (2 * xi - sum_xi) / diff_xi
+        return Lagrange_basis(self.polynomial_degree, xi_tilde, derivative=False)
 
     def assembler_callback(self):
         self.__M_coo()
@@ -259,7 +271,8 @@ class Rope(object):
         elif xi == 1:
             return self.elDOF[-1]
         else:
-            print('local_elDOF can only be computed at frame_ID = (0,) or (1,)')
+            el = np.where(xi >= self.element_span)[0][-1]
+            return self.elDOF[el]
 
     def qDOF_P(self, frame_ID):
         return self.elDOF_P(frame_ID)
@@ -277,7 +290,7 @@ class Rope(object):
         elif xi == 1:
             NN = self.N_bdry[1]
         else:
-            print('r_OP_q can only be computed at frame_ID = (0,) or (1,)')
+            NN = np.kron(np.eye(self.dim), self.basis_functions(xi))
 
         # interpolate position vector
         r_q = np.zeros((3, self.nq_el))
