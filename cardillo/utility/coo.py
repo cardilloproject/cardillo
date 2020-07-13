@@ -1,6 +1,7 @@
 from scipy.sparse import csc_matrix, csr_matrix, coo_matrix
 from scipy.sparse.sputils import isshape, check_shape
 from numpy import repeat, tile
+from numpy import append
 
 class Coo(object):
     """Small container storing the sparse matrix shape and three lists for accumulating the entries for row, column and data [1]_.
@@ -78,6 +79,12 @@ class Coo(object):
         # self.row.extend( row[nnz_mask].tolist() )
         # self.col.extend( col[nnz_mask].tolist() )
 
+        # for i, row_i in enumerate(DOF[0]):
+        #     for j, col_j in enumerate(DOF[1]):
+        #         self.data.append(matrix[i, j])
+        #         self.row.append(row_i)
+        #         self.col.append(col_j)
+
     def extend_diag(self, array, DOF):
         """Extend container with diagonal matrix (diagonal elements stored in the input `array` and indices stored in the `DOF` array).
 
@@ -133,3 +140,71 @@ class Coo(object):
         """Convert container to 2D numpy array.
         """
         return self.tocoo().toarray()
+
+# class Coo(coo_matrix):
+#     def __init__(self, shape):
+#         super().__init__(shape)
+
+#     def extend(self, matrix, DOF):
+#         """Extend coo_matrix with data given in `matrix` and indices stored in the tuple `DOF` containing two arrays.
+
+#         Parameters
+#         ----------
+#         matrix: numpy.ndarray, 2D
+#             dense matrix which has to be stored
+#         DOF : tuple, 2D
+#             tuple defining the global row and column indices of the dense matrix
+#         """
+#         self.data = append( self.data, matrix.reshape(-1, order='C') )
+#         self.row = append( self.row, repeat(DOF[0], DOF[1].size) )
+#         self.col = append( self.col, tile(DOF[1], DOF[0].size) )
+        
+#         # TODO: slow in python
+#         # data = []
+#         # row = []
+#         # col = []
+#         # for i, row_i in enumerate(DOF[0]):
+#         #     for j, col_j in enumerate(DOF[1]):
+#         #         data.append(matrix[i, j])
+#         #         row.append(row_i)
+#         #         col.append(col_j)
+
+#         # self.data = append( self.data, data )
+#         # self.row = append( self.row, row )
+#         # self.col = append( self.col, col )
+
+#     def extend_diag(self, array, DOF):
+#         """Extend container with diagonal matrix (diagonal elements stored in the input `array` and indices stored in the `DOF` array).
+
+#         Parameters
+#         ----------
+#         matrix: numpy.ndarray, 2D
+#             dense matrix which has to be stored
+#         DOF : tuple, 2D
+#             tuple defining the global row and column indices of the dense matrix
+#         """
+#         self.data = append( self.data, array )
+#         self.row = append( self.row, DOF[0] )
+#         self.col = append( self.col, DOF[1] )
+
+#     def extend_sparse(self, sparse_matrix):
+#         """Extend container with sparse matrix defined by three lists `data`, `row` and `col`.
+
+#         Parameters
+#         ----------
+#         sparse_matrix: coo_matrix
+#             scipy coo_matrix
+#         """
+#         self.data = append( self.data, sparse_matrix.data )
+#         self.row = append( self.row, sparse_matrix.row )
+#         self.col = append( self.col, sparse_matrix.col )
+
+#     def tosparse(self, scipy_matrix):
+#         """Convert extended coo_matrix to another arbitrary scipy sparse matrix.
+
+#         Parameters
+#         ----------
+#         scipy_matrix: scipy.sparse.spmatrix
+#             scipy sparse matrix format that should be returned
+#         """
+#         return scipy_matrix(self)
