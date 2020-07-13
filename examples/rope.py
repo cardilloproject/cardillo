@@ -12,10 +12,21 @@ import matplotlib.animation as animation
 
 import numpy as np
 
-statics = True
-# statics = False
+# statics = True
+statics = False
 
 if __name__ == "__main__":
+    # # left joint
+    # r_OB1 = np.zeros(3)
+    # frame_left = Frame(r_OP=r_OB1)
+    # joint_left = Spherical_joint(frame_left, rope, r_OB1, frame_ID2=(0,))
+
+    omega = 2 * np.pi
+    A = 5
+    r_OB1 = lambda t: np.array([0, 0, A * np.sin(omega * t)])
+    r_OB1_t = lambda t: np.array([0, 0, A * omega * np.cos(omega * t)])
+    r_OB1_tt = lambda t: np.array([0, 0, -A * omega**2 * np.sin(omega * t)])
+    frame_left = Frame(r_OP=r_OB1, r_OP_t=r_OB1_t, r_OP_tt=r_OB1_tt)
     
     # physical properties of the rope
     dim = 3
@@ -50,30 +61,15 @@ if __name__ == "__main__":
     Z0 = np.zeros_like(X0)
     Q = np.hstack((X0, Y0, Z0))
     u0 = np.zeros_like(Q)
+    u0[0] = r_OB1_t(0)[0]
+    u0[nNd] = r_OB1_t(0)[1]
+    u0[2 * nNd] = r_OB1_t(0)[2]
 
-    # X0 = np.linspace(0, L, nNd)
     q0 = np.hstack((X0, Y0, Z0)) * 1.2
-
-    # # excitation of the initial configuration
-    # fac = 1.0e-2
-    # q0[nNd+1:2*nNd-1] += np.random.rand(nNd - 2) * fac
-    # if dim == 3:
-    #     q0[2*nNd+1:3*nNd-1] += np.random.rand(nNd - 2) * fac
 
     rope = Rope(A_rho0, material_model, p, nEl, nQP, Q=Q, q0=q0, u0=u0, B_splines=B_splines, dim=dim)
 
-    # left joint
-    r_OB1 = np.zeros(3)
-    frame_left = Frame(r_OP=r_OB1)
-    joint_left = Spherical_joint(frame_left, rope, r_OB1, frame_ID2=(0,))
-
-    # omega = 2 * np.pi / 2
-    # A = -1
-    # r_OB1 = lambda t: np.array([0, 0, A * np.sin(omega * t)])
-    # r_OB1_t = lambda t: np.array([0, 0, A * omega * np.cos(omega * t)])
-    # r_OB1_tt = lambda t: np.array([0, 0, -A * omega**2 * np.sin(omega * t)])
-    # frame_left = Frame(r_OP=r_OB1, r_OP_t=r_OB1_t, r_OP_tt=r_OB1_tt)
-    # joint_left = Spherical_joint(frame_left, rope, r_OB1(0), frame_ID2=(0,))
+    joint_left = Spherical_joint(frame_left, rope, r_OB1(0), frame_ID2=(0,))
 
     # right joint
     r_OB2 = np.array([L, 0, 0]) * 1.2
@@ -105,17 +101,16 @@ if __name__ == "__main__":
         print(f'pot(t0, q0): {model.E_pot(t[0], q[0])}')
         print(f'pot(t1, q1): {model.E_pot(t[-1], q[-1])}')
         print(f'r_OP(0.5): {rope.r_OP(t[-1], q[-1][rope.elDOF_P((0.5,))], (0.5,))}')
-        # exit()
     else:
         t0 = 0
         t1 = 1
-        dt = 1e-2
-        solver = Euler_backward(model, t1, dt, numerical_jacobian=False, debug=False)
+        dt = 5e-3
+        # solver = Euler_backward(model, t1, dt, numerical_jacobian=False, debug=False)
         # solver = Moreau(model, t1, dt)
         # solver = Moreau_sym(model, t1, dt)
         # solver = Generalized_alpha_1(model, t1, dt, rho_inf=0.75)
-        # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='RK23')
-        # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='RK45')
+        # solver = Scipy_ivp(model, t1, dt, rtol=1.0e-2, atol=1.e-2, method='RK23')
+        solver = Scipy_ivp(model, t1, dt, rtol=1.0e-2, atol=1.e-2, method='RK45')
         # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='DOP853')
         # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='Radau')
         # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='BDF')
