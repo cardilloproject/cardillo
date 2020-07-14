@@ -107,8 +107,8 @@ if __name__ == "__main__":
         t0 = 0
         t1 = 1
         dt = 5e-3
-        # solver = Euler_backward(model, t1, dt, numerical_jacobian=False, debug=False)
-        solver = Moreau(model, t1, dt)
+        solver = Euler_backward(model, t1, dt, numerical_jacobian=False, debug=False)
+        # solver = Moreau(model, t1, dt)
         # solver = Moreau_sym(model, t1, dt)
         # solver = Generalized_alpha_1(model, t1, dt, rho_inf=0.75)
         # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='RK23')

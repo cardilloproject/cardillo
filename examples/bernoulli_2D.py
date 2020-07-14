@@ -44,21 +44,22 @@ if __name__ == "__main__":
     u0 = np.zeros_like(Q)
 
     q0 = np.hstack((X0, Y0))
+    print(f'q0: {q0}')
 
     beam = Euler_bernoulli2D(A_rho0, material_model, p, nEl, nQP, Q=Q, q0=q0, u0=u0)
 
-    # np.set_printoptions(precision=1)
-    # model = Model()
-    # model.add(beam)
-    # model.assemble()
+    np.set_printoptions(precision=1)
+    model = Model()
+    model.add(beam)
+    model.assemble()
 
-    # f_int = model.f_pot(0, model.q0)
-    # print(f'f_int:{f_int}')
+    f_int = model.f_pot(0, model.q0)
+    print(f'f_int:{f_int}')
 
-    # f_int_q = model.f_pot_q(0, model.q0).toarray()
-    # print(f'f_int_q:\n{f_int_q}')
+    f_int_q = model.f_pot_q(0, model.q0).toarray()
+    print(f'f_int_q:\n{f_int_q}')
 
-    # exit()
+    exit()
 
     # left joint
     r_OB1 = np.zeros(3)
