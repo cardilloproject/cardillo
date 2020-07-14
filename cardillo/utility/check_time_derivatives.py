@@ -3,9 +3,8 @@ import numpy as np
 def check_time_derivatives(f, f_t, f_tt, eps=1.0e-6):
     if not callable(f):
         f__ = lambda t: f
-        n = len(f)
-        f_t__ = lambda t: np.zeros(n)
-        f_tt__ = lambda t: np.zeros(n)
+        f_t__ = lambda t: np.zeros_like(f)
+        f_tt__ = lambda t: np.zeros_like(f)
     else:
         f__ = f
         if f_t is not None:

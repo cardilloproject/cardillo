@@ -1,5 +1,6 @@
 import numpy as np
 from cardillo.utility.check_time_derivatives import check_time_derivatives
+from cardillo.math.algebra import skew2ax
 
 class Frame():
     def __init__(self, r_OP=np.zeros(3), r_OP_t=None, r_OP_tt=None, A_IK=np.eye(3), A_IK_t=None, A_IK_tt=None):
@@ -11,12 +12,16 @@ class Frame():
 
         self.q0 = np.array([])
         self.u0 = np.array([])
+        self.is_assembled = True
 
     def qDOF_P(self, frame_ID=None):
         return np.array([], dtype=int)
 
     def uDOF_P(self, frame_ID=None):
         return np.array([], dtype=int)
+
+    def q_dot(self, t, q, u):
+        return np.array([])
 
     def r_OP(self, t, q=None, frame_ID=None, K_r_SP=None):
         return self.r_OP__(t)
@@ -32,6 +37,14 @@ class Frame():
 
     def A_IK_q(self, t, q=None, frame_ID=None):
         return np.array([]).reshape((3, 3, 0))
+
+    def K_Omega(self, t, q=None, u=None, frame_ID=None):
+        K_omega_IK = self.A_IK__(t).T @ self.A_IK_t__(t)
+        return skew2ax(K_omega_IK)
+
+    def K_Psi(self, t, q=None, u=None, u_dot=None, frame_ID=None):
+        K_psi_IK = self.A_IK_t__(t).T @ self.A_IK_t__(t) + self.A_IK__(t).T @ self.A_IK_tt__(t)
+        return skew2ax(K_psi_IK)
 
     def J_P(self, t, q=None, frame_ID=None, K_r_SP=None):
         return np.array([]).reshape((3, 0))
