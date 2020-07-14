@@ -1,1 +1,2 @@
 from .revolute_joint import Revolute_joint
+from .rigid_connection import Rigid_connection

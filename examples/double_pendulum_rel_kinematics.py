@@ -9,7 +9,7 @@ from cardillo.math.algebra import A_IK_basic_z
 
 from cardillo.model import Model
 from cardillo.model.frame import Frame
-from cardillo.model.bilateral_constraints.explicit import Revolute_joint
+from cardillo.model.bilateral_constraints.explicit import Revolute_joint, Rigid_connection
 from cardillo.model.rigid_body import Rigid_body_rel_kinematics
 from cardillo.model.force import Force
 from cardillo.solver import Euler_forward, Scipy_ivp
@@ -48,6 +48,7 @@ if __name__ == "__main__":
     r_OB2 = - l * A_IK10[:, 1]
     A_IB2 = A_IK10
     joint2 = Revolute_joint(r_OB2, A_IB2, q0=np.array([beta0]), u0=np.array([beta_dot0]))
+    # joint2 = Rigid_connection(r_OB2, A_IB2)
     A_IK20 = A_IK10 @ A_IK_basic_z(beta0)
     r_OS20 = r_OB2 - 0.5 * l * A_IK20[:, 1]
     RB2 = Rigid_body_rel_kinematics(m, K_theta_S, joint2, RB1, r_OS0=r_OS20, A_IK0=A_IK20)
