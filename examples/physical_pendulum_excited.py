@@ -7,7 +7,7 @@ from cardillo.math.algebra import A_IK_basic_z, axis_angle2quat, cross3, ax2skew
 from cardillo.model import Model
 from cardillo.model.rigid_body import Rigid_body_euler, Rigid_body_quaternion, Rigid_body_director
 from cardillo.model.frame import Frame
-from cardillo.model.bilateral_constraints import Revolute_joint, Spherical_joint
+from cardillo.model.bilateral_constraints.implicit import Revolute_joint, Spherical_joint
 from cardillo.model.force import Force
 from cardillo.solver import Moreau, Moreau_sym, Euler_backward, Generalized_alpha_1, Scipy_ivp
 
@@ -34,8 +34,12 @@ if __name__ == "__main__":
     # e_t = lambda t: A * omega * np.cos(omega * t)
     # e_tt = lambda t: -A * omega * omega * np.sin(omega * t)
 
-    e = lambda t: A * t
-    e_t = lambda t: A 
+    # e = lambda t: A * t
+    # e_t = lambda t: A 
+    # e_tt = lambda t: 0
+
+    e = lambda t: 0
+    e_t = lambda t: 0 
     e_tt = lambda t: 0
 
     r_OP = lambda t: np.array([e(t), 0, 0]) 

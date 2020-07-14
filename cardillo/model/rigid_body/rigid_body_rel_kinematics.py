@@ -80,7 +80,6 @@ class Rigid_body_rel_kinematics():
         coo.extend(M, (self.uDOF, self.uDOF))
 
     def f_gyr(self, t, q, u):
-        J_R = self.K_J_R(t, q)
         Omega = self.K_Omega(t, q, u)
         return self.m * self.J_P(t, q).T @ self.kappa_P(t, q, u) \
             + self.K_J_R(t, q).T @ (self.theta @ self.K_kappa_R(t, q, u) + cross3(Omega, self.theta @ Omega))

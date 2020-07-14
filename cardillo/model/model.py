@@ -196,7 +196,7 @@ class Model(object):
     def q_dot(self, t, q, u):
         q_dot = np.zeros(self.nq)
         for contr in self.__q_dot_contr:
-            q_dot[contr.qDOF] += contr.q_dot(t, q[contr.qDOF], u[contr.uDOF])
+            q_dot[contr.qDOF] = contr.q_dot(t, q[contr.qDOF], u[contr.uDOF])
         return q_dot
 
     def q_dot_q(self, t, q, u, scipy_matrix=coo_matrix):
