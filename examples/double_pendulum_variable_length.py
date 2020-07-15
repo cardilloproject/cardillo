@@ -8,7 +8,7 @@ import matplotlib.animation as animation
 from cardillo.model import Model
 from cardillo.model.pendulum_variable_length import Pendulum_variable_length
 from cardillo.model.point_mass import Point_mass
-from cardillo.model.bilateral_constraints import Rod
+from cardillo.model.bilateral_constraints.implicit import Rod
 from cardillo.model.force import Force
 from cardillo.solver import Euler_backward, Scipy_ivp
 

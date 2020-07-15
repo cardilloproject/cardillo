@@ -7,7 +7,7 @@ import matplotlib.animation as animation
 from cardillo.model import Model
 from cardillo.model.rigid_body import Rigid_body_quaternion
 from cardillo.model.frame import Frame
-from cardillo.model.bilateral_constraints import Rod
+from cardillo.model.bilateral_constraints.implicit import Rod
 from cardillo.model.force import Force
 from cardillo.solver import Euler_forward, Euler_backward
 

@@ -11,7 +11,7 @@ from cardillo.model.rolling_disc import Rolling_disc
 from cardillo.model.rigid_body import Rigid_body_euler, Rigid_body_quaternion, Rigid_body_director
 from cardillo.model.rolling_disc import Rolling_condition
 from cardillo.model.frame import Frame
-from cardillo.model.bilateral_constraints import Rod
+from cardillo.model.bilateral_constraints.implicit import Rod
 from cardillo.model.force import Force
 from cardillo.solver import Euler_backward, Moreau, Moreau_sym, Scipy_ivp
 from cardillo.math.algebra import axis_angle2quat, ax2skew, A_IK_basic_x

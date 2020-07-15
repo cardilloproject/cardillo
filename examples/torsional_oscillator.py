@@ -5,7 +5,7 @@ from cardillo.model import Model
 from cardillo.math.algebra import axis_angle2quat
 from cardillo.solver import Euler_forward, Euler_backward
 from cardillo.model.frame import Frame
-from cardillo.model.bilateral_constraints import Revolute_joint
+from cardillo.model.bilateral_constraints.implicit import Revolute_joint
 from cardillo.model.rigid_body import Rigid_body_euler
 from cardillo.model.scalar_force_interactions.potential_force_laws import Linear_spring
 from cardillo.model.scalar_force_interactions import Rotational_f_pot

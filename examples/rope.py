@@ -1,6 +1,6 @@
 from cardillo.model.rope import Hooke, Rope
 from cardillo.model.frame import Frame
-from cardillo.model.bilateral_constraints import Spherical_joint
+from cardillo.model.bilateral_constraints.implicit import Spherical_joint
 from cardillo.model import Model
 from cardillo.solver import Euler_backward, Moreau, Moreau_sym, Generalized_alpha_1, Scipy_ivp, Newton
 from cardillo.model.line_force.line_force import Line_force
@@ -107,10 +107,10 @@ if __name__ == "__main__":
         t0 = 0
         t1 = 1
         dt = 5e-3
-        solver = Euler_backward(model, t1, dt, numerical_jacobian=False, debug=False)
+        # solver = Euler_backward(model, t1, dt, numerical_jacobian=False, debug=False)
         # solver = Moreau(model, t1, dt)
         # solver = Moreau_sym(model, t1, dt)
-        # solver = Generalized_alpha_1(model, t1, dt, rho_inf=0.75)
+        solver = Generalized_alpha_1(model, t1, dt, rho_inf=0.75)
         # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='RK23')
         # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='RK45')
         # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='DOP853')

@@ -8,7 +8,7 @@ from cardillo.math.algebra import axis_angle2quat
 from cardillo.model import Model
 from cardillo.model.rigid_body import Rigid_body_quaternion
 from cardillo.model.frame import Frame
-from cardillo.model.bilateral_constraints import Spherical_joint
+from cardillo.model.bilateral_constraints.implicit import Spherical_joint
 from cardillo.model.force import Force
 from cardillo.solver import Euler_backward, Scipy_ivp
 

@@ -1,6 +1,6 @@
 import numpy as np
 from cardillo.math.algebra import norm3
-from cardillo.model.bilateral_constraints import Revolute_joint
+from cardillo.model.bilateral_constraints.implicit import Revolute_joint
 
 class Rotational_f_pot(Revolute_joint):
     def __init__(self, force_law, subsystem1, subsystem2, r_OB, A_IB, frame_ID1=np.zeros(3), frame_ID2=np.zeros(3), la_g0=None):
