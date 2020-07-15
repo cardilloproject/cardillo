@@ -27,6 +27,9 @@ class Frame():
     def q_dot(self, t, q, u):
         return np.array([])
 
+    def q_ddot(self, t, q, u, u_dot):
+        return np.array([])
+
     def r_OP(self, t, q=None, frame_ID=None, K_r_SP=None):
         return self.r_OP__(t)
 

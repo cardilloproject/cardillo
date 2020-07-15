@@ -53,6 +53,7 @@ class Rigid_body_rel_kinematics():
         self.B1_Psip = lambda t, q, u, u_dot: A_KpB1.T @ self.predecessor.K_Psi(t, q[:nqp], u[:nup], u_dot[:nup], self.frame_IDp)
         self.a_B1 = lambda t, q, u, u_dot: self.predecessor.a_P(t, q[:nqp], u[:nup], u_dot[:nup], self.frame_IDp, K_r_SpB1)
         self.kappa_B1 = lambda t, q, u: self.predecessor.kappa_P(t, q[:nqp], u[:nup], self.frame_IDp, K_r_SpB1)
+        self.kappa_B1_qp = lambda t, q, u: self.predecessor.kappa_P_q(t, q[:nqp], u[:nup], self.frame_IDp, K_r_SpB1)
         self.B1_kappa_Rp = lambda t, q, u: A_KpB1.T @ self.predecessor.K_kappa_R(t, q[:nqp], u[:nup], self.frame_IDp)
         self.B1_kappa_Rp_qp = lambda t, q, u: A_KpB1.T @ self.predecessor.K_kappa_R_q(t, q[:nqp], u[:nup], self.frame_IDp)
         self.J_B1 = lambda t, q: self.predecessor.J_P(t, q[:nqp], self.frame_IDp, K_r_SpB1)
@@ -62,7 +63,6 @@ class Rigid_body_rel_kinematics():
         self.B1_J_Rp = lambda t, q: A_KpB1.T @ self.predecessor.K_J_R(t, q[:nqp], self.frame_IDp)
         self.B1_J_Rp_qp = lambda t, q: np.einsum('ij,jkl->ikl', A_KpB1.T, self.predecessor.K_J_R_q(t, q[:nqp], self.frame_IDp))
         self.B1_Omegap_qp = lambda t, q, u: A_KpB1.T @ self.predecessor.K_Omega_q(t, q[:nqp], u[:nup]) 
-
 
         self.A_B1B2 = lambda t, q: self.joint.A_B1B2(t, q[nqp:])
         self.A_B1B2_q2 = lambda t, q: self.joint.A_B1B2_q(t, q[nqp:])
@@ -76,9 +76,10 @@ class Rigid_body_rel_kinematics():
         self.B1_Omega_B1B2_q2 = lambda t, q, u: self.joint.B1_Omega_B1B2_q(t, q[nqp:], u[nup:])
         self.B1_a_B1B2 = lambda t, q, u, u_dot: self.joint.B1_a_B1B2(t, q[nqp:], u[nup:], u_dot[nup:])
         self.B1_kappa_B1B2 = lambda t, q, u: self.joint.B1_kappa_B1B2(t, q[nqp:], u[nup:])
+        self.B1_kappa_B1B2_q2 = lambda t, q, u: self.joint.B1_kappa_B1B2_q(t, q[nqp:], u[nup:])
         self.B1_Psi_B1B2 = lambda t, q, u, u_dot: self.joint.B1_Psi_B1B2(t, q[nqp:], u[nup:], u_dot[nup:])
         self.B1_kappa_R_B1B2 = lambda t, q, u: self.joint.B1_kappa_R_B1B2(t, q[nqp:], u[nup:])
-        self.B1_kappa_R_B1B2_q = lambda t, q, u: self.joint.B1_kappa_R_B1B2_q(t, q[nqp:], u[nup:])
+        self.B1_kappa_R_B1B2_q2 = lambda t, q, u: self.joint.B1_kappa_R_B1B2_q(t, q[nqp:], u[nup:])
         self.B1_J_R_B1B2 = lambda t, q: self.joint.B1_J_R_B1B2(t, q[nqp:])
         self.B1_J_R_B1B2_q2 = lambda t, q: self.joint.B1_J_R_B1B2_q(t, q[nqp:])
 
@@ -109,8 +110,6 @@ class Rigid_body_rel_kinematics():
             + self.K_J_R(t, q).T @ (self.theta @ self.K_kappa_R(t, q, u) + cross3(Omega, self.theta @ Omega))
 
     def f_gyr_q(self, t, q, u, coo):
-        # f_gyr_q = Numerical_derivative(self.f_gyr)._x(t, q, u)
-        # coo.extend(f_gyr_q, (self.uDOF, self.qDOF))
         Omega = self.K_Omega(t, q, u)
         Omega_q = self.K_Omega_q(t, q, u)
         tmp1 = self.theta @ self.K_kappa_R(t, q, u)
@@ -125,16 +124,10 @@ class Rigid_body_rel_kinematics():
 
         coo.extend(f_gyr_q, (self.uDOF, self.qDOF))
 
+    # TODO
     def f_gyr_u(self, t, q, u, coo):
         f_gyr_u = Numerical_derivative(self.f_gyr)._y(t, q, u)
         coo.extend(f_gyr_u, (self.uDOF, self.uDOF))
-
-
-    # def f_gyr_u(self, t, q, u, coo):
-    #     omega = u[3:]
-    #     dense = np.zeros((self.nu, self.nu))
-    #     dense[3:, 3:] = ax2skew(omega) @ self.theta - ax2skew(self.theta @ omega)
-    #     coo.extend(dense, (self.uDOF, self.uDOF))
 
     def q_dot(self, t, q, u):
         q_dot = np.zeros(self.__nq)
@@ -142,14 +135,11 @@ class Rigid_body_rel_kinematics():
         q_dot[self.nqp:] = self.joint.q_dot(t, q[self.nqp:], u[self.nup:])
         return q_dot
     
-    # def q_ddot(self, t, q, u, u_dot):
-    #     q_ddot = np.zeros(self.nq)
-    #     q_ddot[:3] = u_dot[:3]
-    #     q_ddot[3:] = self.Q(q) @ u_dot[3:]
-
-    #     q_dot_q = Numerical_derivative(self.q_dot, order=2)._x(t, q, u)
-    #     q_ddot += q_dot_q @ self.q_dot(t, q, u)
-    #     return q_ddot
+    def q_ddot(self, t, q, u, u_dot):
+        q_ddot = np.zeros(self.__nq)
+        q_ddot[:self.nqp] = self.predecessor.q_ddot(t, q[:self.nqp], u[:self.nup], u_dot[:self.nup])
+        q_ddot[self.nqp:] = self.joint.q_ddot(t, q[self.nqp:], u[self.nup:], u_dot[self.nup:])
+        return q_ddot
 
     # def q_dot_q(self, t, q, u, coo):
     #     dense = Numerical_derivative(self.q_dot, order=2)._x(t, q, u)
@@ -195,7 +185,7 @@ class Rigid_body_rel_kinematics():
         return a_B2 + a_B2P
 
     def kappa_P(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
-        # return self.a_P(t, q, u, np.zeros(self.__nu), frame_ID=frame_ID, K_r_SP=K_r_SP)
+        # return self.a_P(t, q, u, np.zeros(self.__nu), K_r_SP=K_r_SP)
 
         K_r_B2P = K_r_SP - self.K_r_SB2
         kappa_P = self.kappa_B1(t, q, u) + self.A_IB1(t, q) @ self.B1_kappa_B1B2(t, q, u)
@@ -204,14 +194,29 @@ class Rigid_body_rel_kinematics():
         return kappa_P
 
     def kappa_P_q(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
-        return Numerical_derivative(lambda t, q, u: self.kappa_P(t, q, u, frame_ID, K_r_SP))._x(t, q, u)
+        # return Numerical_derivative(lambda t, q, u: self.kappa_P(t, q, u, frame_ID, K_r_SP))._x(t, q, u)
+
+        K_r_B2P = K_r_SP - self.K_r_SB2
+        K_Omega = self.K_Omega(t, q, u)
+        K_Omega_q = self.K_Omega_q(t, q, u)
+
+        tmp1 = cross3(self.K_kappa_R(t, q, u), K_r_B2P) 
+        tmp1_q = -ax2skew(K_r_B2P) @ self.K_kappa_R_q(t, q, u)
+        tmp2 = cross3(K_Omega, cross3(K_Omega, K_r_B2P))
+        tmp2_q = -(ax2skew(cross3(K_Omega, K_r_B2P)) + ax2skew(K_Omega) @ ax2skew(K_r_B2P) ) @ K_Omega_q
+
+        kappa_P_q = np.einsum('ijk,j->ik', self.A_IK_q(t, q), tmp1 + tmp2) \
+            + self.A_IK(t, q) @ (tmp1_q + tmp2_q)
+        kappa_P_q[:, :self.nqp] += self.kappa_B1_qp(t, q, u) + np.einsum('ijk,j->ik', self.A_IB1_qp(t, q), self.B1_kappa_B1B2(t, q, u))
+        kappa_P_q[:, self.nqp:] += self.A_IB1(t, q) @ self.B1_kappa_B1B2_q2(t, q, u)
+        return kappa_P_q
 
     def J_P(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
         # J_P_num = np.zeros((3, self.__nu))
-        # nu_P = self.v_P(t, q, np.zeros(self.__nu), frame_ID=frame_ID, K_r_SP=K_r_SP)
+        # nu_P = self.v_P(t, q, np.zeros(self.__nu), K_r_SP=K_r_SP)
         # I = np.eye(self.__nu)
         # for i in range(self.__nu):
-        #     J_P_num[:, i] = self.v_P(t, q, I[i], frame_ID=frame_ID, K_r_SP=K_r_SP) - nu_P
+        #     J_P_num[:, i] = self.v_P(t, q, I[i], K_r_SP=K_r_SP) - nu_P
         # return J_P_num
 
         K_r_B2P = K_r_SP - self.K_r_SB2
@@ -222,7 +227,7 @@ class Rigid_body_rel_kinematics():
         return J_P
 
     def J_P_q(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
-        # return Numerical_derivative(lambda t, q: self.J_P(t, q, frame_ID=frame_ID, K_r_SP=K_r_SP))._x(t, q)
+        # return Numerical_derivative(lambda t, q: self.J_P(t, q, K_r_SP=K_r_SP))._x(t, q)
 
         K_r_B2P = K_r_SP - self.K_r_SB2
         J_P_q = np.einsum('ij,jkl->ikl', -self.A_IK(t, q) @ ax2skew(K_r_B2P), self.K_J_R_q(t, q))
@@ -253,7 +258,7 @@ class Rigid_body_rel_kinematics():
         return (self.B1_Psip(t, q, u, u_dot) + self.B1_Psi_B1B2(t, q, u, u_dot)) @ self.A_B1B2(t, q) @ self.A_B2K
 
     def K_kappa_R(self, t, q, u, frame_ID=None):
-        # return self.K_Psi(t, q, u, np.zeros(self.__nu), frame_ID=frame_ID)
+        # return self.K_Psi(t, q, u, np.zeros(self.__nu))
         return (self.B1_kappa_Rp(t, q, u) + self.B1_kappa_R_B1B2(t, q, u)) @ self.A_B1B2(t, q) @ self.A_B2K
 
     def K_kappa_R_q(self, t, q, u, frame_ID=None):
@@ -263,18 +268,17 @@ class Rigid_body_rel_kinematics():
         A_KB1_q2 = np.einsum('ijk,jl->lik', self.A_B1B2_q2(t, q), self.A_B2K)
 
         K_kappa_R_q[:, :self.nqp] = A_KB1 @ self.B1_kappa_Rp_qp(t, q, u)
-        K_kappa_R_q[:, self.nqp:] = A_KB1 @ self.B1_kappa_R_B1B2_q(t, q, u) \
+        K_kappa_R_q[:, self.nqp:] = A_KB1 @ self.B1_kappa_R_B1B2_q2(t, q, u) \
             + np.einsum('ijk,j->ik', A_KB1_q2, self.B1_kappa_Rp(t, q, u) + self.B1_kappa_R_B1B2(t, q, u))
 
         return K_kappa_R_q
         
-
     def K_J_R(self, t, q, frame_ID=None):
         # J_R = np.zeros((3, self.__nu))
-        # nu_R = self.K_Omega(t, q, np.zeros(self.__nu), frame_ID=frame_ID)
+        # nu_R = self.K_Omega(t, q, np.zeros(self.__nu))
         # I = np.eye(self.__nu)
         # for i in range(self.__nu):
-        #     J_R[:, i] = self.K_Omega(t, q, I[i], frame_ID=frame_ID) - nu_R
+        #     J_R[:, i] = self.K_Omega(t, q, I[i]) - nu_R
         # return J_R
 
         J_R = np.zeros((3, self.__nu))
@@ -285,7 +289,7 @@ class Rigid_body_rel_kinematics():
         return J_R
 
     def K_J_R_q(self, t, q, frame_ID=None):
-        # return Numerical_derivative(lambda t, q: self.K_J_R(t, q, frame_ID=frame_ID))._x(t, q)
+        # return Numerical_derivative(lambda t, q: self.K_J_R(t, q))._x(t, q)
 
         K_J_R_q = np.zeros((3, self.__nu, self.__nq))
 

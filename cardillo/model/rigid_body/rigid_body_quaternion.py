@@ -134,6 +134,9 @@ class Rigid_body_quaternion():
     
     def kappa_P(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
         return self.A_IK(t, q) @ (cross3(u[3:], cross3(u[3:], K_r_SP)))
+    
+    def kappa_P_q(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
+        return np.einsum('ijk,j->ik', self.A_IK_q(t, q), cross3(u[3:], cross3(u[3:], K_r_SP)) )
 
     def J_P(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
         J_P = np.zeros((3, self.nu))

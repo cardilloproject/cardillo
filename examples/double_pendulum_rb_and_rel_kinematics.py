@@ -13,21 +13,12 @@ from cardillo.model.bilateral_constraints.explicit import Revolute_joint, Rigid_
 from cardillo.model.bilateral_constraints.implicit import Spherical_joint
 from cardillo.model.rigid_body import Rigid_body_rel_kinematics, Rigid_body_quaternion
 from cardillo.model.force import Force
-from cardillo.solver import Euler_forward, Scipy_ivp, Euler_backward
+from cardillo.solver import Scipy_ivp, Euler_backward, Generalized_alpha_1, Moreau, Moreau_sym
 
 from scipy.integrate import solve_ivp
 
-class Rigid_cylinder(Rigid_body_quaternion):
-    def __init__(self, m, r, l, q0=None, u0=None):
-        A = 1 / 4 * m * r**2 + 1 / 12 * m * l**2
-        C = 1 / 2 * m * r**2
-        K_theta_S = np.diag(np.array([A, C, A]))
-
-        super().__init__(m, K_theta_S, q0=q0, u0=u0)
-
-
 if __name__ == "__main__":
-    animate = True
+    animate = False
     reference_solution = True
 
     m = 1
@@ -80,15 +71,18 @@ if __name__ == "__main__":
 
     t0 = 0
     t1 = 5
-    dt = 1e-1
-    # solver = Euler_forward(model, t1, dt)
+    dt = 1e-2
     # solver = Scipy_ivp(model, t1, dt)
-    solver = Euler_backward(model, t1, dt, numerical_jacobian=True, debug=True)
+    # solver = Moreau(model, t1, dt)
+    # solver = Moreau_sym(model, t1, dt)
+    # solver = Euler_backward(model, t1, dt, numerical_jacobian=True, debug=True)
+    # solver = Euler_backward(model, t1, dt, numerical_jacobian=False, debug=False)
+    solver = Generalized_alpha_1(model, t1, dt, numerical_jacobian=True, debug=True)
+    # solver = Generalized_alpha_1(model, t1, dt, numerical_jacobian=False, debug=False)
 
     sol = solver.solve()
     t = sol.t
     q = sol.q
-
 
     if animate:
 

@@ -214,7 +214,7 @@ class Model(object):
     def q_ddot(self, t, q, u, u_dot):
         q_ddot = np.zeros(self.nq)
         for contr in self.__q_dot_contr:
-            q_ddot[contr.qDOF] += contr.q_ddot(t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF])
+            q_ddot[contr.qDOF] = contr.q_ddot(t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF])
         return q_ddot
 
     def solver_step_callback(self, t, q, u):

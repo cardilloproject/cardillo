@@ -18,6 +18,9 @@ class Rigid_connection():
     def q_dot(self, t, q, u):
         return np.array([])
 
+    def q_ddot(self, t, q, u, u_dot):
+        return np.array([])
+
     def B(self, t, q):
         return np.array([])
     
@@ -50,6 +53,9 @@ class Rigid_connection():
 
     def B1_kappa_B1B2(self, t, q, u):
         return np.zeros(3)
+
+    def B1_kappa_B1B2_q(self, t, q, u):
+        return np.array([]).reshape((3, 0))
 
     def B1_Omega_B1B2(self, t, q, u):
         return np.zeros(3)
