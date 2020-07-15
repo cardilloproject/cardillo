@@ -5,19 +5,19 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.animation as animation
 
-from cardillo.math.algebra import A_IK_basic_z
+from cardillo.math.algebra import A_IK_basic_z, cross3, axis_angle2quat
 
 from cardillo.model import Model
 from cardillo.model.frame import Frame
-from cardillo.model.bilateral_constraints.explicit import Revolute_joint, Rigid_connection
-from cardillo.model.rigid_body import Rigid_body_rel_kinematics
+from cardillo.model.bilateral_constraints.implicit import Spherical_joint #, Revolute_joint
+from cardillo.model.rigid_body import Rigid_body_quaternion
 from cardillo.model.force import Force
-from cardillo.solver import Euler_forward, Scipy_ivp, Euler_backward, Generalized_alpha_1
+from cardillo.solver import Scipy_ivp, Euler_backward, Generalized_alpha_1, Moreau, Moreau_sym
 
 from scipy.integrate import solve_ivp
 
 if __name__ == "__main__":
-    animate = True
+    animate = False
     reference_solution = True
 
     m = 1
@@ -31,30 +31,47 @@ if __name__ == "__main__":
 
     alpha0 = pi / 2
     alpha_dot0 = 0
-  
+
     r_OB1 = np.zeros(3)
     A_IB1 = np.eye(3)
     origin = Frame(r_OP=r_OB1, A_IK=A_IB1)
-    joint1 = Revolute_joint(r_OB1, A_IB1, q0=np.array([alpha0]), u0=np.array([alpha_dot0]))
+
     A_IK10 = A_IK_basic_z(alpha0)
     r_OS10 = - 0.5 * l * A_IK10[:, 1]
-    RB1 = Rigid_body_rel_kinematics(m, K_theta_S, joint1, origin, r_OS0=r_OS10, A_IK0=A_IK10)
+    p01 = axis_angle2quat(np.array([0, 0, 1]), alpha0)
+    q01 = np.concatenate([r_OS10, p01])
+    omega01 = np.array([0, 0, alpha_dot0])
+    vS1 = cross3(omega01, r_OS10)
+    u01 = np.concatenate([vS1, omega01])
+    RB1 = Rigid_body_quaternion(m, K_theta_S, q01, u01)
+
+    joint1 = Spherical_joint(origin, RB1, r_OB1)
 
     beta0 = 0
     beta_dot0 = 0
   
     r_OB2 = - l * A_IK10[:, 1]
-    A_IB2 = A_IK10
-    joint2 = Revolute_joint(r_OB2, A_IB2, q0=np.array([beta0]), u0=np.array([beta_dot0]))
-    # joint2 = Rigid_connection(r_OB2, A_IB2)
+    # A_IB2 = A_IK10
+    # joint2 = Revolute_joint(r_OB2, A_IB2, q0=np.array([beta0]), u0=np.array([beta_dot0]))
     A_IK20 = A_IK10 @ A_IK_basic_z(beta0)
-    r_OS20 = r_OB2 - 0.5 * l * A_IK20[:, 1]
-    RB2 = Rigid_body_rel_kinematics(m, K_theta_S, joint2, RB1, r_OS0=r_OS20, A_IK0=A_IK20)
+    r_B2S2 = - 0.5 * l * A_IK20[:, 1]
+    r_OS20 = r_OB2 + r_B2S2
+    p02 = axis_angle2quat(np.array([0, 0, 1]), alpha0 + beta0)
+    q02 = np.concatenate([r_OS20, p02])
+    omega02 = np.array([0, 0, alpha_dot0 + beta_dot0])
+    vB2 = cross3(omega01, r_OB2)
+    vS2 = vB2 + cross3(omega02, r_B2S2)
+    u02 = np.concatenate([vS2, omega02])
+    RB2 = Rigid_body_quaternion(m, K_theta_S, q02, u02)
+
+    joint2 = Spherical_joint(RB1, RB2, r_OB2)
 
     model = Model()
     model.add(origin)
     model.add(RB1)
+    model.add(joint1)
     model.add(RB2)
+    model.add(joint2)
     model.add(Force(lambda t: np.array([0, -g * m, 0]), RB1))
     model.add(Force(lambda t: np.array([0, -g * m, 0]), RB2))
 
@@ -64,8 +81,13 @@ if __name__ == "__main__":
     t1 = 5
     dt = 5e-2
     # solver = Scipy_ivp(model, t1, dt)
-    solver = Euler_backward(model, t1, dt, debug=True)
-    # solver = Generalized_alpha_1(model, t1, dt)
+    # solver = Moreau(model, t1, dt)
+    # solver = Moreau_sym(model, t1, dt)
+    # solver = Euler_backward(model, t1, dt, numerical_jacobian=True, debug=True)
+    solver = Euler_backward(model, t1, dt, numerical_jacobian=False, debug=False)
+    # solver = Generalized_alpha_1(model, t1, dt, numerical_jacobian=True, debug=True)
+    # solver = Generalized_alpha_1(model, t1, dt, newton_tol=1.0e-10, numerical_jacobian=False, debug=False)
+
     sol = solver.solve()
     t = sol.t
     q = sol.q
@@ -192,12 +214,22 @@ if __name__ == "__main__":
         x0 = np.array([alpha0, alpha0 + beta0, alpha_dot0, alpha_dot0 + beta_dot0])
         ref = solve_ivp(eqm,[t0,t1],x0, method='RK45', rtol=1e-8, atol=1e-12) # MATLAB ode45
         x = ref.y
-        t = ref.t
+        t_ref = ref.t
 
         # import matplotlib.pyplot as plt
 
-        plt.plot(t,x[0], '-r')
-        plt.plot(t,x[1], '-g')
-        plt.plot(sol.t,sol.q[:, 0], 'xr')
-        plt.plot(sol.t,sol.q[:, 0] + sol.q[:, 1], 'xg')
+        alpha_ref = x[0]
+        phi_ref = x[1]
+
+        alpha = np.arctan2(sol.q[:, 0], -sol.q[:, 1])
+        x_B2 = 2 * sol.q[:, 0]
+        y_B2 = 2 * sol.q[:, 1]
+        phi = np.arctan2(sol.q[:, 7] - x_B2, -(sol.q[:, 8] - y_B2))
+
+        plt.plot(t_ref, alpha_ref, '-r')
+        plt.plot(t, alpha, 'xr')
+
+        plt.plot(t_ref, phi_ref, '-g')
+        plt.plot(t, phi, 'xg')
+    
         plt.show()

@@ -12,7 +12,7 @@ from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints.explicit import Revolute_joint
 from cardillo.model.rigid_body import Rigid_body_rel_kinematics
 from cardillo.model.force import Force
-from cardillo.solver import Euler_forward, Scipy_ivp
+from cardillo.solver import Euler_forward, Scipy_ivp, Euler_backward, Generalized_alpha_1
 from scipy.integrate import solve_ivp
 
 if __name__ == "__main__":
@@ -65,9 +65,11 @@ if __name__ == "__main__":
 
     t0 = 0
     t1 = 5
-    dt = 1e-3
+    dt = 1e-2
     # solver = Euler_forward(model, t1, dt)
-    solver = Scipy_ivp(model, t1, dt)
+    # solver = Scipy_ivp(model, t1, dt)
+    # solver = Euler_backward(model, t1, dt)
+    solver = Generalized_alpha_1(model, t1, dt, newton_tol=1.0e-10)
 
     sol = solver.solve()
     t = sol.t

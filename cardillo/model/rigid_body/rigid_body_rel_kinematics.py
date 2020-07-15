@@ -150,9 +150,9 @@ class Rigid_body_rel_kinematics():
         q_ddot[self.nqp:] = self.joint.q_ddot(t, q[self.nqp:], u[self.nup:], u_dot[self.nup:])
         return q_ddot
 
-    # def q_dot_q(self, t, q, u, coo):
-    #     dense = Numerical_derivative(self.q_dot, order=2)._x(t, q, u)
-    #     coo.extend(dense, (self.qDOF, self.qDOF))
+    def q_dot_q(self, t, q, u, coo):
+        dense = Numerical_derivative(self.q_dot, order=2)._x(t, q, u)
+        coo.extend(dense, (self.qDOF, self.qDOF))
 
     def B(self, t, q, coo):
         coo.extend(self.joint.B(t, q[:self.nqp]), (self.qDOF[self.nqp:], self.uDOF[self.nup:]))

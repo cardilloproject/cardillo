@@ -49,9 +49,21 @@ class Frame():
         K_omega_IK = self.A_IK__(t).T @ self.A_IK_t__(t)
         return skew2ax(K_omega_IK)
 
+    def K_Omega_q(self, t, q=None, u=None, frame_ID=None):
+        return np.array([]).reshape((3, 0))
+
     def K_Psi(self, t, q=None, u=None, u_dot=None, frame_ID=None):
         K_psi_IK = self.A_IK_t__(t).T @ self.A_IK_t__(t) + self.A_IK__(t).T @ self.A_IK_tt__(t)
         return skew2ax(K_psi_IK)
+
+    def K_kappa_R(self, t, q=None, u=None, frame_ID=None):
+        return self.K_Psi(t)
+
+    def K_kappa_R_q(self, t, q=None, u=None, frame_ID=None):
+        return np.array([]).reshape((3, 0))
+
+    def K_kappa_R_u(self, t, q=None, u=None, frame_ID=None):
+        return np.array([]).reshape((3, 0))
 
     def J_P(self, t, q=None, frame_ID=None, K_r_SP=None):
         return np.array([]).reshape((3, 0))
@@ -73,3 +85,12 @@ class Frame():
 
     def a_P(self, t, q=None, u=None, u_dot=None, frame_ID=None, K_r_SP=None):
         return self.r_OP_tt__(t)
+
+    def kappa_P(self, t, q=None, u=None, frame_ID=None, K_r_SP=None):
+        return self.r_OP_tt__(t)
+
+    def kappa_P_q(self, t, q=None, u=None, frame_ID=None, K_r_SP=None):
+        return np.array([]).reshape((3, 0))
+
+    def kappa_P_u(self, t, q=None, u=None, frame_ID=None, K_r_SP=None):
+        return np.array([]).reshape((3, 0))

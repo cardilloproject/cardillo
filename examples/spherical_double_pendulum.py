@@ -8,7 +8,7 @@ from cardillo.math.algebra import axis_angle2quat
 from cardillo.model import Model
 from cardillo.model.rigid_body import Rigid_body_quaternion
 from cardillo.model.frame import Frame
-from cardillo.model.bilateral_constraints import Spherical_joint, Rigid_connection, Revolute_joint
+from cardillo.model.bilateral_constraints.implicit import Spherical_joint, Rigid_connection, Revolute_joint
 from cardillo.model.force import Force
 from cardillo.solver import Euler_backward, Moreau
 
@@ -29,7 +29,6 @@ if __name__ == "__main__":
     # p0 = np.array([1, 0, 0, 0])
     p01 = axis_angle2quat(np.array([1, 0, 0]), np.pi/2)
     
-
     r0_t = np.array([0, 0, 0])
     omega = np.array([0, 0, 0])
     u0 = np.concatenate((r0_t, omega))

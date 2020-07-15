@@ -181,9 +181,8 @@ class Generalized_alpha_1():
         la_g = [self.la_gk]
         la_gamma = [self.la_gammak]
 
-
         pbar = tqdm(self.t[:-1])
-        for tk in pbar:  
+        for _ in pbar:
             dt = self.dt
             dt2 = self.dt**2
             self.q_a = dt2 * self.beta * self.alpha_ratio * self.model.B(self.tk, self.qk)
@@ -203,6 +202,7 @@ class Generalized_alpha_1():
             self.tk = tk1
             self.qk = qk1
             self.uk = uk1
+            self.ak = ak1
             self.la_gk = la_gk1
             self.la_gammak = la_gammak1
             
