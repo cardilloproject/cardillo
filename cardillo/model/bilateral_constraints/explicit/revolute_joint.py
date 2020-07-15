@@ -79,6 +79,9 @@ class Revolute_joint():
 
     def B1_kappa_R_B1B2_q(self, t, q, u):
         return np.zeros((3, 1))
+
+    def B1_kappa_R_B1B2_u(self, t, q, u):
+        return np.zeros((3, 1))
     
     # def angle(self, t, q):
     #     return q[0]

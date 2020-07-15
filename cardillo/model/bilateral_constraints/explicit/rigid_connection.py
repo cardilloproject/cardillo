@@ -77,6 +77,9 @@ class Rigid_connection():
 
     def B1_kappa_R_B1B2_q(self, t, q, u):
         return np.array([]).reshape((3, 0))
+
+    def B1_kappa_R_B1B2_u(self, t, q, u):
+        return np.array([]).reshape((3, 0))
     
     # def angle(self, t, q):
     #     return q[0]

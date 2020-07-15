@@ -53,8 +53,8 @@ if __name__ == "__main__":
   
     r_OB2 = - l * A_IK10[:, 1]
     A_IB2 = A_IK10
-    joint2 = Revolute_joint(r_OB2, A_IB2, q0=np.array([beta0]), u0=np.array([beta_dot0]))
-    # joint2 = Rigid_connection(r_OB2, A_IB2)
+    # joint2 = Revolute_joint(r_OB2, A_IB2, q0=np.array([beta0]), u0=np.array([beta_dot0]))
+    joint2 = Rigid_connection(r_OB2, A_IB2)
     A_IK20 = A_IK10 @ A_IK_basic_z(beta0)
     r_OS20 = r_OB2 - 0.5 * l * A_IK20[:, 1]
     RB2 = Rigid_body_rel_kinematics(m, K_theta_S, joint2, RB1, r_OS0=r_OS20, A_IK0=A_IK20)
@@ -76,8 +76,8 @@ if __name__ == "__main__":
     # solver = Moreau(model, t1, dt)
     # solver = Moreau_sym(model, t1, dt)
     # solver = Euler_backward(model, t1, dt, numerical_jacobian=True, debug=True)
-    # solver = Euler_backward(model, t1, dt, numerical_jacobian=False, debug=False)
-    solver = Generalized_alpha_1(model, t1, dt, numerical_jacobian=True, debug=True)
+    solver = Euler_backward(model, t1, dt, numerical_jacobian=False, debug=False)
+    # solver = Generalized_alpha_1(model, t1, dt, numerical_jacobian=True, debug=True)
     # solver = Generalized_alpha_1(model, t1, dt, numerical_jacobian=False, debug=False)
 
     sol = solver.solve()
