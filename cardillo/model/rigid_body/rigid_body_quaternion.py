@@ -141,8 +141,6 @@ class Rigid_body_quaternion():
         J_P[:, 3:] = - self.A_IK(t, q) @ ax2skew(K_r_SP)
         return J_P
 
-
-
     def J_P_q(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
         J_P_q = np.zeros((3, self.nu, self.nq))
         J_P_q[:, 3:, :] = np.einsum('ijk,jl->ilk', self.A_IK_q(t, q), -ax2skew(K_r_SP))
@@ -151,14 +149,17 @@ class Rigid_body_quaternion():
     def K_Omega(self, t, q, u, frame_ID=None):
         return u[3:]
 
-    # def K_Omega_q(self, t, q, u, frame_ID=None):
-    #     return np.zeros((3, self.nq))
+    def K_Omega_q(self, t, q, u, frame_ID=None):
+        return np.zeros((3, self.nq))
 
     def K_Psi(self, t, q, u, u_dot, frame_ID=None):
         return u_dot[3:]
 
     def K_kappa_R(self, t, q, u, frame_ID=None):
         return np.zeros(3)
+
+    def K_kappa_R_q(self, t, q, u, frame_ID=None):
+        return np.zeros((3, self.nq))
 
     def K_J_R(self, t, q, frame_ID=None):
         J_R = np.zeros((3, self.nu))

@@ -42,6 +42,9 @@ class Rigid_connection():
     def B1_J_B1B2(self, t, q):
         return np.array([]).reshape((3, 0))
 
+    def B1_J_B1B2_q(self, t, q):
+        return np.array([]).reshape((3, 0, 0))
+
     def B1_a_B1B2(self, t, q, u, u_dot):
         return np.zeros(3)
 
@@ -51,14 +54,23 @@ class Rigid_connection():
     def B1_Omega_B1B2(self, t, q, u):
         return np.zeros(3)
 
+    def B1_Omega_B1B2_q(self, t, q, u):
+        return np.array([]).reshape((3, 0))
+
     def B1_J_R_B1B2(self, t, q):
         return np.array([]).reshape((3, 0))
+
+    def B1_J_R_B1B2_q(self, t, q):
+        return np.array([]).reshape((3, 0, 0))
 
     def B1_Psi_B1B2(self, t, q, u, u_dot):
         return np.zeros(3)
 
     def B1_kappa_R_B1B2(self, t, q, u):
         return np.zeros(3)
+
+    def B1_kappa_R_B1B2_q(self, t, q, u):
+        return np.array([]).reshape((3, 0))
     
     # def angle(self, t, q):
     #     return q[0]

@@ -82,8 +82,8 @@ if __name__ == "__main__":
     t1 = 5
     dt = 1e-1
     # solver = Euler_forward(model, t1, dt)
-    solver = Scipy_ivp(model, t1, dt)
-    # solver = Euler_backward(model, t1, dt, numerical_jacobian=True)
+    # solver = Scipy_ivp(model, t1, dt)
+    solver = Euler_backward(model, t1, dt, numerical_jacobian=True, debug=True)
 
     sol = solver.solve()
     t = sol.t
