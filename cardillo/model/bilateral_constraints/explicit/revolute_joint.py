@@ -39,14 +39,26 @@ class Revolute_joint():
     def B1_v_B1B2(self, t, q, u):
         return np.zeros(3)
 
+    def B1_J_B1B2(self, t, q):
+        return np.zeros((3, 1))
+
     def B1_a_B1B2(self, t, q, u, u_dot):
+        return np.zeros(3)
+
+    def B1_kappa_B1B2(self, t, q, u):
         return np.zeros(3)
 
     def B1_Omega_B1B2(self, t, q, u):
         return np.array([0, 0, u[0]])
 
+    def B1_J_R_B1B2(self, t, q):
+        return np.array([[0], [0], [1]])
+
     def B1_Psi_B1B2(self, t, q, u, u_dot):
         return np.array([0, 0, u_dot[0]])
+
+    def B1_kappa_R_B1B2(self, t, q, u):
+        return np.zeros(3)
     
     # def angle(self, t, q):
     #     return q[0]

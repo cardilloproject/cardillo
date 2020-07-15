@@ -12,6 +12,10 @@ class Frame():
 
         self.q0 = np.array([])
         self.u0 = np.array([])
+        
+        self.is_assembled = False
+
+    def assembler_callback(self):
         self.is_assembled = True
 
     def qDOF_P(self, frame_ID=None):
