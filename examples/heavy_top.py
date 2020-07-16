@@ -62,18 +62,17 @@ class Heavy_top():
         return np.repeat(self.r_OP(t, q), n).reshape(3, n) + self.A_IK(t, q) @ K_r_SP
 
 if __name__ == "__main__":
-
     animate = True
     plot_graphs = True
 
     m = 1
-    L = 0.5
+    L = 0.2
     g = 9.81
     r = 0.1
 
     heavy_top = Heavy_top(m, r, L)
 
-    Omega = 1
+    Omega = 3.0e2
     Omega_y = 0 #0.1 * Omega_x
     
     K_r_S0 = np.array([L, 0, 0])
@@ -81,7 +80,8 @@ if __name__ == "__main__":
     t0 = 0
     t1 = 5
     alpha0 = 0
-    beta0 = pi / 4
+    # beta0 = pi / 4
+    beta0 = 0
     gamma0 = 0
 
     omega_x0 = Omega
@@ -129,9 +129,9 @@ if __name__ == "__main__":
 
 
     # reference solution
-    dt = 0.001
+    dt = 0.0001
     x0 = np.array([alpha0, beta0, gamma0, omega_x0, omega_y0, omega_z0])
-    ref = solve_ivp(heavy_top.eqm, [t0, t1], x0, method='RK45', t_eval=np.arange(t0,t1 + dt,dt), rtol=1e-8, atol=1e-12) # MATLAB ode45
+    ref = solve_ivp(heavy_top.eqm, [t0, t1], x0, method='RK45', t_eval=np.arange(t0,t1 + dt,dt), rtol=1e-8, atol=1e-12)
     x_ref = ref.y
     t = ref.t
 
@@ -160,18 +160,13 @@ if __name__ == "__main__":
         scale = L
         ax.set_xlim3d(left=-scale, right=scale)
         ax.set_ylim3d(bottom=-scale, top=scale)
-        ax.set_zlim3d(bottom=-2*scale, top=2*scale)
-
-        # from collections import deque
-        # x_trace = deque([])
-        # y_trace = deque([])
-        # z_trace = deque([])
+        ax.set_zlim3d(bottom=-scale, top=scale)
 
         # prepare data for animation
         frames = len(t)
-        target_frames = 100
+        target_frames = min(frames, 200)
         frac = int(frames / target_frames)
-        animation_time = 5
+        animation_time = t1 - t0
         interval = animation_time * 1000 / target_frames
 
         frames = target_frames
