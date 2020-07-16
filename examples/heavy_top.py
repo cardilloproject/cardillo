@@ -6,7 +6,14 @@ import matplotlib.animation as animation
 
 from cardillo.math.algebra import inverse3D, A_IK_basic_x, A_IK_basic_y, A_IK_basic_z, cross3
 from scipy.integrate import solve_ivp
+
+from cardillo.model import Model
 from cardillo.model.rigid_body import Rigid_body_euler
+from cardillo.model.bilateral_constraints.implicit import Spherical_joint
+from cardillo.model.frame import Frame
+from cardillo.model.force import Force
+from cardillo.solver import Scipy_ivp, Generalized_alpha_1, Moreau_sym
+
 
 class Heavy_top():
     def __init__(self, m, r, L):
@@ -62,31 +69,67 @@ class Heavy_top():
         return np.repeat(self.r_OP(t, q), n).reshape(3, n) + self.A_IK(t, q) @ K_r_SP
 
 if __name__ == "__main__":
-    animate = True
+    animate = False
     plot_graphs = True
 
-    m = 1
+    m = 0.1
     L = 0.2
     g = 9.81
-    r = 0.1
+    r = 0.05
 
     heavy_top = Heavy_top(m, r, L)
 
-    Omega = 3.0e2
+    A = 1 / 2 * m * r**2
+    B = 1 / 4 * m * r**2
+    K_theta_S = np.diag(np.array([A, B, B]))
+
+    Omega = 2 * pi * 50
     Omega_y = 0 #0.1 * Omega_x
     
     K_r_S0 = np.array([L, 0, 0])
 
     t0 = 0
-    t1 = 5
+    t1 = 1
     alpha0 = 0
-    # beta0 = pi / 4
-    beta0 = 0
+    beta0 = pi / 6
+    # beta0 = 0
     gamma0 = 0
 
     omega_x0 = Omega
     omega_y0 = 0
     omega_z0 = 0
+
+    phi0 = np.array([alpha0, -beta0, gamma0])
+    r_OS0 = heavy_top.r_OP(t0, np.array([alpha0, beta0, gamma0]))
+    A_IK0 = heavy_top.A_IK(t0, np.array([alpha0, beta0, gamma0]))
+    K_Omega0 = np.array([omega_x0, omega_y0, omega_z0])
+    v_S0 = cross3(A_IK0 @ K_Omega0, r_OS0)
+
+    q0 = np.concatenate([r_OS0, phi0])
+    u0 = np.concatenate([v_S0, K_Omega0])
+
+    RB = Rigid_body_euler(m, K_theta_S, axis='zyx', q0=q0, u0=u0)
+    origin = Frame()
+    joint = Spherical_joint(origin, RB, np.zeros(3))
+
+    model = Model()
+    model.add(origin)
+    model.add(RB)
+    model.add(joint)
+    model.add(Force(lambda t: np.array([0, 0, -g * m]), RB))
+
+    model.assemble()
+
+    t0 = 0
+    t1 = 1
+    dt = 1e-2
+
+    solver = Scipy_ivp(model, t1, dt, rtol = 1e-6, atol=1.0e-7)
+    # solver = Generalized_alpha_1(model, t1, dt)
+    # solver = Moreau_sym(model, t1, dt)
+    sol = solver.solve()
+    t = sol.t
+    q = sol.q
 
     # A_IB0 = A_IK_basic_y([alpha0])
     # A_BC0 = A_IK_basic_z([beta0])
@@ -129,21 +172,24 @@ if __name__ == "__main__":
 
 
     # reference solution
-    dt = 0.0001
+    # dt = 0.0001
     x0 = np.array([alpha0, beta0, gamma0, omega_x0, omega_y0, omega_z0])
     ref = solve_ivp(heavy_top.eqm, [t0, t1], x0, method='RK45', t_eval=np.arange(t0,t1 + dt,dt), rtol=1e-8, atol=1e-12)
     x_ref = ref.y
-    t = ref.t
+    t_ref = ref.t
 
-    q = ref.y[:3].T
+    q_ref = ref.y[:3].T
 
     if plot_graphs:
         fig, ax = plt.subplots(3, 1)
-        ax[0].plot(t, q[:, 0], '-r')
+        ax[0].plot(t_ref, q_ref[:, 0], '-b')
+        ax[0].plot(t, q[:, 3], 'xb')
         ax[0].set(ylabel='alpha')
-        ax[1].plot(t, q[:, 1], '-r')
+        ax[1].plot(t_ref, q_ref[:, 1], '-b')
+        ax[1].plot(t, -q[:, 4], 'xb')
         ax[1].set(ylabel='beta')
-        ax[2].plot(t, q[:, 2], '-r')
+        ax[2].plot(t_ref, q_ref[:, 2], '-b')
+        ax[2].plot(t, q[:, 5], 'xb')
         ax[2].set(ylabel='gamma')
         plt.xlabel('time')
         # ax.plot(t, 2 * np.arcsin(q[:, 3]), '-x')
