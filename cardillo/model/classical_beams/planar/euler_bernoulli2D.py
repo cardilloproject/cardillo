@@ -169,9 +169,6 @@ class Euler_bernoulli2D():
 
             fe -= (R1 + R2) * J0i * qwi
 
-            # fe += NN_xii.T @ (t * N / g) * J0i * qwi
-
-        # print('bending stiffness not active!!!')
         return fe
     
     def f_pot(self, t, q):
@@ -179,11 +176,11 @@ class Euler_bernoulli2D():
         for el in range(self.nEl):
             elDOF = self.elDOF[el]
             f[elDOF] += self.f_pot_el(q[elDOF], self.Q[elDOF], self.N_xi[el], self.N_xixi[el], self.J0[el], self.qw[el])
-        print(f'f: {f}')
         return f
 
+    # TODO!
     def f_pot_q_el(self, qe, Qe, N_xi, N_xixi, J0, qw):    
-        fe_q_num = Numerical_derivative(lambda t, qe: self.f_pot_el(qe, Qe, N_xi, N_xixi, J0, qw), order=2)._x(0, qe, eps=1.0e-6)
+        fe_q_num = Numerical_derivative(lambda t, qe: self.f_pot_el(qe, Qe, N_xi, N_xixi, J0, qw), order=1)._x(0, qe, eps=1.0e-6)
         return fe_q_num
 
         # fe_q = np.zeros((self.nq_el, self.nq_el))
@@ -244,7 +241,8 @@ class Euler_bernoulli2D():
         elif xi == 1:
             return self.elDOF[-1]
         else:
-            print('local_elDOF can only be computed at frame_ID = (0,) or (1,)')
+            el = np.where(xi >= self.element_span)[0][-1]
+            return self.elDOF[el]
 
     def qDOF_P(self, frame_ID):
         return self.elDOF_P(frame_ID)
@@ -262,7 +260,8 @@ class Euler_bernoulli2D():
         elif xi == 1:
             NN = self.N_bdry[1]
         else:
-            print('r_OP_q can only be computed at frame_ID = (0,) or (1,)')
+            N = B_spline_basis(self.polynomial_degree, 0, self.knot_vector, xi)
+            NN = np.kron(np.eye(2), N)
 
         # interpolate position vector
         r_q = np.zeros((3, self.nq_el))
@@ -304,23 +303,30 @@ class Euler_bernoulli2D():
 
     def body_force_el(self, force, t, N, xi, J0, qw):
         fe = np.zeros(self.nq_el)
-
         for Ni, xii, J0i, qwi in zip(N, xi, J0, qw):
             NNi = np.kron(np.eye(2), Ni)
             r_q = np.zeros((3, self.nq_el))
             r_q[:2] = NNi
             fe += r_q.T @ force(xii, t) * J0i * qwi
-        
         return fe
 
     def body_force(self, t, q, force):
         f = np.zeros(self.nq)
-
         for el in range(self.nEl):
             f[self.elDOF[el]] += self.body_force_el(force, t, self.N[el], self.xi[el], self.J0[el], self.qw[el])
-        
-        print(f'f_body: {f}')
         return f
 
     def body_force_q(self, t, q, coo, force):
         pass
+
+    ####################################################
+    # visualization
+    ####################################################
+    def centerline(self, q, n=100):
+        q_body = q[self.qDOF]
+        r = []
+        for xi in np.linspace(0, 1 - 1.0e-9, n):
+            frame_ID = (xi,)
+            qp = q_body[self.qDOF_P(frame_ID)]
+            r.append( self.r_OP(1, qp, frame_ID) )
+        return np.array(r)

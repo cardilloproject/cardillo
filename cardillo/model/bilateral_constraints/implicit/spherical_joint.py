@@ -55,7 +55,7 @@ class Spherical_joint():
         self.J_P2_q = lambda t, q: self.subsystem2.J_P_q(t, q[nq1:], self.frame_ID2, K_r_SP2)
         
     def g(self, t, q):
-        r_OP1 = self.r_OP1(t, q) 
+        r_OP1 = self.r_OP1(t, q)
         r_OP2 = self.r_OP2(t, q)
         return r_OP2 - r_OP1
 
@@ -102,5 +102,54 @@ class Spherical_joint():
         dense = np.zeros((self.nu, self.nq))
         dense[:nu1, :nq1] = np.einsum('i,ijk->jk', -la_g, J_P1_q)
         dense[nu1:, nq1:] = np.einsum('i,ijk->jk', la_g, J_P2_q)
+
+        coo.extend( dense, (self.uDOF, self.qDOF))
+
+class Spherical_joint2D(Spherical_joint):
+    def __init__(self, subsystem1, subsystem2, r_OB, frame_ID1=np.zeros(3), frame_ID2=np.zeros(3), la_g0=None):
+        super().__init__(subsystem1, subsystem2, r_OB, frame_ID1=frame_ID1, frame_ID2=frame_ID2, la_g0=None)
+        self.nla_g = 2
+        self.la_g0 = np.zeros(self.nla_g) if la_g0 is None else la_g0
+
+    def g(self, t, q):
+        return super().g(t, q)[:2]
+
+    def g_q_dense(self, t, q):
+        return super().g_q_dense(t, q)[:2]
+
+    def g_dot(self, t, q, u):
+        return super().g_dot(t, q, u)[:2]
+
+    def g_dot_u(self, t, q, coo):
+        coo.extend(self.W_g_dense(t, q).T[:2], (self.la_gDOF, self.uDOF))
+
+    def g_ddot(self, t, q, u, u_dot):
+        return super().g_ddot(t, q, u, u_dot)[:2]
+
+    def g_q(self, t, q, coo):
+        coo.extend(self.g_q_dense(t, q)[:2], (self.la_gDOF, self.qDOF))
+   
+    def W_g_dense(self, t, q):
+        nu1 = self.nu1
+        J_P1 = self.J_P1(t, q) 
+        J_P2 = self.J_P2(t, q)
+        W_g = np.zeros((self.nu, self.nla_g))
+        W_g[:nu1, :] = -J_P1[:2].T
+        W_g[nu1:, :] = J_P2[:2].T
+        return W_g
+        
+    def W_g(self, t, q, coo):
+        coo.extend(self.W_g_dense(t, q), (self.uDOF, self.la_gDOF))
+
+    def Wla_g_q(self, t, q, la_g, coo):
+        nq1 = self.nq1
+        nu1 = self.nu1
+        J_P1_q = self.J_P1_q(t, q) 
+        J_P2_q = self.J_P2_q(t, q)
+
+        # dense blocks
+        dense = np.zeros((self.nu, self.nq))
+        dense[:nu1, :nq1] = np.einsum('i,ijk->jk', -la_g, J_P1_q[:2])
+        dense[nu1:, nq1:] = np.einsum('i,ijk->jk', la_g, J_P2_q[:2])
 
         coo.extend( dense, (self.uDOF, self.qDOF))
