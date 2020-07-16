@@ -155,7 +155,7 @@ class Rigid_body_rel_kinematics():
         coo.extend(dense, (self.qDOF, self.qDOF))
 
     def B(self, t, q, coo):
-        coo.extend(self.joint.B(t, q[:self.nqp]), (self.qDOF[self.nqp:], self.uDOF[self.nup:]))
+        coo.extend(self.joint.B(t, q[self.nqp:]), (self.qDOF[self.nqp:], self.uDOF[self.nup:]))
 
     def qDOF_P(self, frame_ID=None):
         return np.arange(self.__nq)

@@ -5,11 +5,11 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.animation as animation
 
-from cardillo.math.algebra import A_IK_basic_z
+from cardillo.math.algebra import A_IK_basic_z, axis_angle2quat
 
 from cardillo.model import Model
 from cardillo.model.frame import Frame
-from cardillo.model.bilateral_constraints.explicit import Revolute_joint
+from cardillo.model.bilateral_constraints.explicit import Revolute_joint, Spherical_joint
 from cardillo.model.rigid_body import Rigid_body_rel_kinematics
 from cardillo.model.force import Force
 from cardillo.solver import Euler_forward, Scipy_ivp, Euler_backward, Generalized_alpha_1
@@ -51,7 +51,8 @@ if __name__ == "__main__":
 
     A_IB1 = np.eye(3)
     origin = Frame(r_OP=r_OP, r_OP_t=v_P, r_OP_tt=a_P, A_IK=A_IB1)
-    joint1 = Revolute_joint(r_OB1, A_IB1, q0=np.array([alpha0]), u0=np.array([alpha_dot0]))
+    # joint1 = Revolute_joint(r_OB1, A_IB1, q0=np.array([alpha0]), u0=np.array([alpha_dot0]))
+    joint1 = Spherical_joint(r_OB1, A_IB1, q0=axis_angle2quat(np.array([0, 0, 1]), alpha0), u0=np.array([0, 0, alpha_dot0]))
     A_IK10 = A_IK_basic_z(alpha0)
     r_OS10 = - r * A_IK10[:, 1]
     RB1 = Rigid_body_rel_kinematics(m, K_theta_S, joint1, origin, r_OS0=r_OS10, A_IK0=A_IK10)
@@ -65,11 +66,11 @@ if __name__ == "__main__":
 
     t0 = 0
     t1 = 5
-    dt = 1e-2
+    dt = 1e-1
     # solver = Euler_forward(model, t1, dt)
     # solver = Scipy_ivp(model, t1, dt)
     # solver = Euler_backward(model, t1, dt)
-    solver = Generalized_alpha_1(model, t1, dt, newton_tol=1.0e-10)
+    solver = Generalized_alpha_1(model, t1, dt, newton_tol=1.0e-6)
 
     sol = solver.solve()
     t = sol.t
@@ -145,7 +146,7 @@ if __name__ == "__main__":
 
 
     fig, ax = plt.subplots()
-    ax.plot(t, q[:, 0], '-x')
+    ax.plot(t, 2 * np.arcsin(q[:, 3]), '-x')
 
     # reference solution
     def eqm(t,x):

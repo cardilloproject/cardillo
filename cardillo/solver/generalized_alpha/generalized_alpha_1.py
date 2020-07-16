@@ -168,9 +168,6 @@ class Generalized_alpha_1():
                 converged = error < self.newton_tol
                 if converged:
                     break
-
-            if not converged:
-                raise RuntimeError(f'internal Newton-Raphson method not converged after {j} stepts with error: {error:.5e}')
             
         return (converged, j, error), tk1, ak1, la_gk1, la_gammak1
 
@@ -190,7 +187,8 @@ class Generalized_alpha_1():
 
             (converged, n_iter, error), tk1, ak1, la_gk1, la_gammak1 = self.step()
             pbar.set_description(f't: {tk1:0.2e}; Newton: {n_iter}/{self.newton_max_iter} iterations; error: {error:0.2e}')
-
+            if not converged:
+                raise RuntimeError(f'internal Newton-Raphson method not converged after {n_iter} stepts with error: {error:.5e}')
             qk1, uk1 = self.model.solver_step_callback(tk1, self.qk1, self.uk1)
 
             q.append(qk1)
@@ -202,6 +200,7 @@ class Generalized_alpha_1():
             self.tk = tk1
             self.qk = qk1
             self.uk = uk1
+            self.a_bark = (self.alpha_f * self.ak + (1-self.alpha_f) * ak1  - self.alpha_m * self.a_bark) / (1 - self.alpha_m)
             self.ak = ak1
             self.la_gk = la_gk1
             self.la_gammak = la_gammak1
