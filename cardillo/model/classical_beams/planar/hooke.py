@@ -15,14 +15,14 @@ class Hooke(object):
     def m(self, lambda_, kappa, kappa_0):
         return self.EI * (kappa - kappa_0)
 
-    def dn_dlambda(self, lambda_, kappa, kappa_0):
+    def n_lambda(self, lambda_, kappa, kappa_0):
         return self.EA
 
-    def dn_dkappa(self, lambda_, kappa, kappa_0):
+    def n_kappa(self, lambda_, kappa, kappa_0):
         return 0
 
-    def dm_dlambda(self, lambda_, kappa, kappa_0):
+    def m_lambda(self, lambda_, kappa, kappa_0):
         return 0
 
-    def dm_dkappa(self, lambda_, kappa, kappa_0):        
+    def m_kappa(self, lambda_, kappa, kappa_0):        
         return self.EI
