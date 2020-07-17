@@ -1,1 +1,1 @@
-from .force import Force
+from .force import Force, K_Force
