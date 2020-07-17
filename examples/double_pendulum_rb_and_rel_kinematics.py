@@ -10,8 +10,8 @@ from cardillo.math.algebra import A_IK_basic_z, cross3, axis_angle2quat
 from cardillo.model import Model
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints.explicit import Revolute_joint, Rigid_connection
-from cardillo.model.bilateral_constraints.implicit import Spherical_joint
-from cardillo.model.rigid_body import Rigid_body_rel_kinematics, Rigid_body_quaternion
+from cardillo.model.bilateral_constraints.implicit import Spherical_joint, Spherical_joint2D
+from cardillo.model.rigid_body import Rigid_body_rel_kinematics, Rigid_body_quaternion, Rigid_body_planar
 from cardillo.model.force import Force
 from cardillo.solver import Scipy_ivp, Euler_backward, Generalized_alpha_1, Moreau, Moreau_sym
 
@@ -40,13 +40,17 @@ if __name__ == "__main__":
     A_IK10 = A_IK_basic_z(alpha0)
     r_OS10 = - 0.5 * l * A_IK10[:, 1]
     p01 = axis_angle2quat(np.array([0, 0, 1]), alpha0)
-    q01 = np.concatenate([r_OS10, p01])
     omega0 = np.array([0, 0, alpha_dot0])
     vS0 = cross3(omega0, r_OS10)
-    u01 = np.concatenate([vS0, omega0])
-    RB1 = Rigid_body_quaternion(m, K_theta_S, q01, u01)
+    # q01 = np.concatenate([r_OS10, p01])
+    # u01 = np.concatenate([vS0, omega0])
+    # RB1 = Rigid_body_quaternion(m, K_theta_S, q01, u01)
+    q01 = np.array([r_OS10[0], r_OS10[1], alpha0])
+    u01 = np.array([vS0[0], vS0[1], alpha_dot0])
+    RB1 = Rigid_body_planar(m, K_theta_S[2, 2], q01, u01)
 
-    joint1 = Spherical_joint(origin, RB1, r_OB1)
+    # joint1 = Spherical_joint(origin, RB1, r_OB1)
+    joint1 = Spherical_joint2D(origin, RB1, r_OB1)
 
     beta0 = 0
     beta_dot0 = 0
@@ -213,7 +217,8 @@ if __name__ == "__main__":
         alpha_ref = x[0]
         phi_ref = x[1]
 
-        alpha = np.arctan2(sol.q[:, 0], -sol.q[:, 1])
+        # alpha = np.arctan2(sol.q[:, 0], -sol.q[:, 1])
+        alpha = sol.q[:, 2]
         phi = alpha + sol.q[:, -1]
 
         plt.plot(t_ref, alpha_ref, '-r')
