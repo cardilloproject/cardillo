@@ -4,20 +4,16 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.animation as animation
 
-from cardillo.math.algebra import inverse3D, A_IK_basic_x, A_IK_basic_y, A_IK_basic_z, cross3
+from cardillo.math.algebra import inverse3D, A_IK_basic_x, A_IK_basic_y, A_IK_basic_z, cross3, axis_angle2quat, ax2skew
 from scipy.integrate import solve_ivp
 
 from cardillo.model import Model
-from cardillo.model.rigid_body import Rigid_body_euler
+from cardillo.model.rigid_body import Rigid_body_euler, Rigid_body_quaternion, Rigid_body_director
 from cardillo.model.bilateral_constraints.implicit import Spherical_joint
 from cardillo.model.frame import Frame
 from cardillo.model.force import Force
 from cardillo.solver import Scipy_ivp, Generalized_alpha_1, Moreau_sym
 
-
-rigid_body = 'Euler'
-# rigid_body = 'Quaternion'
-# rigid_body = 'Director'
 
 class Heavy_top():
     def __init__(self, m, r, L):
@@ -87,20 +83,59 @@ class Heavy_top_euler(Rigid_body_euler):
         K_r_SP = self.r * np.vstack([np.zeros(n), np.sin(phi), np.cos(phi)])
         return np.repeat(self.r_OP(t, q), n).reshape(3, n) + self.A_IK(t, q) @ K_r_SP
 
-def comparison_heavy_top(rigid_body='Euler', plot_graphs=True, animate=True, animate_ref=False):
+class Heavy_top_quaternion(Rigid_body_quaternion):
+    def __init__(self, m, r, q0=None, u0=None):
+        A = 1 / 2 * m * r**2
+        B = 1 / 4 * m * r**2
+        K_theta_S = np.diag(np.array([A, B, B]))
+
+        self.r = r
+
+        super().__init__(m, K_theta_S, q0=q0, u0=u0)
+
+    def boundary(self, t, q, n=100):
+        phi = np.linspace(0, 2 * np.pi, n, endpoint=True)
+        K_r_SP = self.r * np.vstack([np.zeros(n), np.sin(phi), np.cos(phi)])
+        return np.repeat(self.r_OP(t, q), n).reshape(3, n) + self.A_IK(t, q) @ K_r_SP
+
+class Heavy_top_director(Rigid_body_director):
+    def __init__(self, m, r, q0=None, u0=None):
+        A = 1 / 2 * m * r**2
+        B = 1 / 4 * m * r**2
+        K_theta_S = np.diag(np.array([A, B, B]))
+
+        self.r = r
+    
+        I11 = K_theta_S[0,0]
+        I22 = K_theta_S[1,1]
+        I33 = K_theta_S[2,2]
+
+        # Binet inertia tensor
+        i11 = 0.5 * (I22 + I33 - I11)
+        i22 = 0.5 * (I11 + I33 - I22)
+        i33 = 0.5 * (I11 + I22 - I33)
+        B_rho0 = np.zeros(3)
+        C_rho0 = np.diag(np.array([i11, i22, i33]))
+
+        super().__init__(m, B_rho0, C_rho0, q0=q0, u0=u0)
+
+    def boundary(self, t, q, n=100):
+        phi = np.linspace(0, 2 * np.pi, n, endpoint=True)
+        K_r_SP = self.r * np.vstack([np.zeros(n), np.sin(phi), np.cos(phi)])
+        return np.repeat(self.r_OP(t, q), n).reshape(3, n) + self.A_IK(t, q) @ K_r_SP
+
+def comparison_heavy_top(t1=1, rigid_body='Euler', plot_graphs=True, animate=True, animate_ref=False):
     t0 = 0
-    t1 = 5
-    dt = 1e-2
+    dt = 1e-4
 
     m = 0.1
     L = 0.2
     g = 9.81
     r = 0.1
-
-    heavy_top = Heavy_top(m, r, L)
     Omega = 2 * pi * 50
-    
-    K_r_S0 = np.array([L, 0, 0])
+
+    # reference solution
+    heavy_top = Heavy_top(m, r, L)
 
     alpha0 = 0
     beta0 = pi/10 
@@ -110,16 +145,36 @@ def comparison_heavy_top(rigid_body='Euler', plot_graphs=True, animate=True, ani
     omega_y0 = 0
     omega_z0 = 0
 
-    phi0 = np.array([alpha0, -beta0, gamma0])
+    x0 = np.array([alpha0, beta0, gamma0, omega_x0, omega_y0, omega_z0])
+    ref = solve_ivp(heavy_top.eqm, [t0, t1], x0, method='RK45', t_eval=np.arange(t0,t1 + dt,dt), rtol=1e-8, atol=1e-12)
+    t_ref = ref.t
+    q_ref = ref.y[:3].T
+
+    # solutions with cardillo models
     r_OS0 = heavy_top.r_OP(t0, np.array([alpha0, beta0, gamma0]))
     A_IK0 = heavy_top.A_IK(t0, np.array([alpha0, beta0, gamma0]))
+
     K_Omega0 = np.array([omega_x0, omega_y0, omega_z0])
     v_S0 = cross3(A_IK0 @ K_Omega0, r_OS0)
 
-    q0 = np.concatenate([r_OS0, phi0])
-    u0 = np.concatenate([v_S0, K_Omega0])
+    if rigid_body == 'Euler':
+        p0 = np.array([alpha0, -beta0, gamma0])
+        q0 = np.concatenate([r_OS0, p0])
+        u0 = np.concatenate([v_S0, K_Omega0])
+        RB = Heavy_top_euler(m, r, axis='zyx', q0=q0, u0=u0)
+    elif rigid_body == 'Quaternion':
+        p0 = axis_angle2quat(np.array([0, 1, 0]), -beta0)
+        q0 = np.concatenate([r_OS0, p0])
+        u0 = np.concatenate([v_S0, K_Omega0])
+        RB = Heavy_top_quaternion(m, r, q0=q0, u0=u0)
+    elif rigid_body == 'Director':
+        R0 = A_IK0
+        p0 = np.concatenate((R0[:, 0], R0[:, 1], R0[:, 2]))
+        q0 = np.concatenate([r_OS0, p0])
+        omega0_tilde = R0 @ ax2skew(K_Omega0) 
+        u0 = np.concatenate((v_S0, omega0_tilde[:, 0], omega0_tilde[:, 1], omega0_tilde[:, 2]))
+        RB = Heavy_top_director(m, r, q0=q0, u0=u0)
 
-    RB = Heavy_top_euler(m, r, axis='zyx', q0=q0, u0=u0)
     origin = Frame()
     joint = Spherical_joint(origin, RB, np.zeros(3))
 
@@ -132,73 +187,12 @@ def comparison_heavy_top(rigid_body='Euler', plot_graphs=True, animate=True, ani
     model.assemble()
 
     solver = Scipy_ivp(model, t1, dt, rtol = 1e-6, atol=1.0e-7)
-    # solver = Generalized_alpha_1(model, t1, dt)
-    # solver = Moreau_sym(model, t1, dt)
+
     sol = solver.solve()
     t = sol.t
     q = sol.q
 
-    # A_IB0 = A_IK_basic_y([alpha0])
-    # A_BC0 = A_IK_basic_z([beta0])
-    # A_CK0 = A_IK_basic_x([gamma0])
-
-    # r_OS0 = A_IB0 @ A_BC0 @ A_CK0 @ np.array([L, 0, 0])
-    # K_Omega0 = np.array([omega_x0, omega_y0, omega_z0])
-    # v_S0 = cross3(K_Omega0, r_OS0)
-    
-    # if rigid_body == 'Euler':
-    #     p0 = np.array([0, beta0, 0])
-    # elif rigid_body == 'Quaternion':
-    #     p0 = axis_angle2quat(np.array([1, 0, 0]), beta0)
-    # elif rigid_body == 'Director':
-    #     R0 = A_IK_basic_x(beta0)
-    #     p0 = np.concatenate((R0[:, 0], R0[:, 1], R0[:, 2]))
-
-    # gamma_dot = 4 * g * sin(beta0) / ((6 - 5 * rho * sin(beta0)) * rho * r * cos(beta0))
-    # gamma_dot = sqrt(gamma_dot)
-    # alpha_dot = -rho * gamma_dot
-
-    # v_S0 = np.array([-R * alpha_dot + r * alpha_dot * sin(beta0), \
-    #                  0, \
-    #                  0])
-    # omega0 = np.array([0, alpha_dot * sin(beta0) + gamma_dot, alpha_dot * cos(beta0)])
-
-    # if rigid_body == 'Euler' or rigid_body == 'Quaternion':
-    #     u0 = np.concatenate((v_S0, omega0))
-    # elif rigid_body == 'Director':
-    #     omega0_tilde = R0 @ ax2skew(omega0) 
-    #     u0 = np.concatenate((v_S0, omega0_tilde[:, 0], omega0_tilde[:, 1], omega0_tilde[:, 2]))
-    # #------------
-
-    # q0 = np.concatenate((r_S0, p0))
-    
-
-    
-    # reference solution
-
-
-    # reference solution
-    # dt = 0.0001
-    x0 = np.array([alpha0, beta0, gamma0, omega_x0, omega_y0, omega_z0])
-    ref = solve_ivp(heavy_top.eqm, [t0, t1], x0, method='RK45', t_eval=np.arange(t0,t1 + dt,dt), rtol=1e-8, atol=1e-12)
-    t_ref = ref.t
-
-    q_ref = ref.y[:3].T
-
-    if plot_graphs:
-        # fig, ax = plt.subplots(3, 1)
-        # ax[0].plot(t_ref, q_ref[:, 0], '-b')
-        # ax[0].plot(t, q[:, 3], 'xb')
-        # ax[0].set(ylabel='alpha')
-        # ax[1].plot(t_ref, q_ref[:, 1], '-b')
-        # ax[1].plot(t, -q[:, 4], 'xb')
-        # ax[1].set(ylabel='beta')
-        # ax[2].plot(t_ref, q_ref[:, 2], '-b')
-        # ax[2].plot(t, q[:, 5], 'xb')
-        # ax[2].set(ylabel='gamma')
-        # plt.xlabel('time')
-        
-        # fig, ax = plt.subplots(2, 1)
+    if plot_graphs:     
         x_ref_ = []
         y_ref_ = []
         for i, ti in enumerate(t_ref):
@@ -211,16 +205,14 @@ def comparison_heavy_top(rigid_body='Euler', plot_graphs=True, animate=True, ani
             x_.append(RB.r_OP(ti, q[i])[0])
             y_.append(RB.r_OP(ti, q[i])[1])
 
-
         plt.plot(x_ref_, y_ref_, '-b')
         plt.plot(x_, y_, 'xb')
+        scale_ = 1.2 * L
+        plt.xlim(-scale_, scale_)
+        plt.ylim(-scale_, scale_)
         plt.axis('equal')
-        scale = 1.2 * L
-        plt.xlim((-scale, scale))
-        plt.ylim((-scale, scale))
         plt.xlabel('x_S [m]')
         plt.ylabel('y_S [m]')
-
         plt.show()
 
     if animate:
@@ -254,11 +246,8 @@ def comparison_heavy_top(rigid_body='Euler', plot_graphs=True, animate=True, ani
 
         def create(t, q):
             x_0, y_0, z_0 = np.zeros(3)
-            # x_S, y_S, z_S = heavy_top.r_OP(t, q)
             x_S, y_S, z_S = RB.r_OP(t, q)
 
-            
-            # A_IK = heavy_top.A_IK(t, q)
             A_IK = RB.A_IK(t, q)
             d1 = A_IK[:, 0] * r
             d2 = A_IK[:, 1] * r
@@ -272,34 +261,15 @@ def comparison_heavy_top(rigid_body='Euler', plot_graphs=True, animate=True, ani
             d3_, = ax.plot([x_S, x_S + d3[0]], [y_S, y_S + d3[1]], [z_S, z_S + d3[2]], '-b')
         
             return COM, bdry, d1_, d2_, d3_
-            # return COM, bdry, trace, d1_, d2_, d3_
-
-        # COM, bdry, trace, d1_, d2_, d3_ = create(0, q[0])
 
         COM, bdry, d1_, d2_, d3_ = create(0, q[0])
 
         def update(t, q, COM, bdry, d1_, d2_, d3_):
-
-        # def update(t, q, COM, bdry, trace, d1_, d2_, d3_):
-            global x_trace, y_trace, z_trace
-            # if t == t0:
-            #     x_trace = deque([])
-            #     y_trace = deque([])
-            #     z_trace = deque([])
-
             x_0, y_0, z_0 = np.zeros(3)
-            # x_S, y_S, z_S = heavy_top.r_OP(t, q)
             x_S, y_S, z_S = RB.r_OP(t, q)
 
             x_bdry, y_bdry, z_bdry = RB.boundary(t, q)
 
-            # x_t, y_t, z_t = RD.r_OP(t, q) + RC.r_SA(t, q)
-
-            # x_trace.append(x_t)
-            # y_trace.append(y_t)
-            # z_trace.append(z_t)
-            
-            # A_IK = heavy_top.A_IK(t, q)
             A_IK = RB.A_IK(t, q)
             d1 = A_IK[:, 0] * r
             d2 = A_IK[:, 1] * r
@@ -311,13 +281,6 @@ def comparison_heavy_top(rigid_body='Euler', plot_graphs=True, animate=True, ani
             bdry.set_data(x_bdry, y_bdry)
             bdry.set_3d_properties(z_bdry)
 
-            # if len(x_trace) > 500:
-            #     x_trace.popleft()
-            #     y_trace.popleft()
-            #     z_trace.popleft()
-            # trace.set_data(x_trace, y_trace)
-            # trace.set_3d_properties(z_trace)
-
             d1_.set_data([x_S, x_S + d1[0]], [y_S, y_S + d1[1]])
             d1_.set_3d_properties([z_S, z_S + d1[2]])
 
@@ -328,29 +291,12 @@ def comparison_heavy_top(rigid_body='Euler', plot_graphs=True, animate=True, ani
             d3_.set_3d_properties([z_S, z_S + d3[2]])
 
             return COM, bdry, d1_, d2_, d3_
-            # return COM, bdry, trace, d1_, d2_, d3_
 
         def animate(i):
-            # update(t[i], q[i], COM, bdry, trace, d1_, d2_, d3_)
             update(t[i], q[i], COM, bdry, d1_, d2_, d3_)
 
         anim = animation.FuncAnimation(fig, animate, frames=frames, interval=interval, blit=False)
         plt.show()
 
-        # x_trace = []
-        # y_trace = []
-        # z_trace = []
-        # for i, (t_i, q_i) in enumerate(zip(t, q)): 
-        #     x_t, y_t, z_t = RD.r_OP(t_i, q_i) + RC.r_SA(t_i, q_i)
-        #     x_trace.append(x_t)
-        #     y_trace.append(y_t)
-        #     z_trace.append(z_t)
-
-        # fig, ax = plt.subplots(2, 1)
-        # ax[0].plot(x_trace, y_trace, '-k')
-        # ax[1].plot(t, z_trace, '-b')
-        # ax[0].axis('equal')
-        # plt.show()
-
 if __name__ == "__main__":
-    comparison_heavy_top(animate=True, animate_ref=True)
+    comparison_heavy_top(t1=5, rigid_body='Director', animate=True, animate_ref=True)
