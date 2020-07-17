@@ -69,13 +69,13 @@ class Heavy_top():
         return np.repeat(self.r_OP(t, q), n).reshape(3, n) + self.A_IK(t, q) @ K_r_SP
 
 if __name__ == "__main__":
-    animate = False
-    plot_graphs = True
+    animate = True
+    plot_graphs = False
 
     m = 0.1
     L = 0.2
     g = 9.81
-    r = 0.05
+    r = 0.1
 
     heavy_top = Heavy_top(m, r, L)
 
@@ -89,9 +89,11 @@ if __name__ == "__main__":
     K_r_S0 = np.array([L, 0, 0])
 
     t0 = 0
-    t1 = 1
+    t1 = 5
+    dt = 1e-2
+
     alpha0 = 0
-    beta0 = pi / 6
+    beta0 = 0 #pi / 6
     # beta0 = 0
     gamma0 = 0
 
@@ -120,16 +122,16 @@ if __name__ == "__main__":
 
     model.assemble()
 
-    t0 = 0
-    t1 = 1
-    dt = 1e-2
+    # t0 = 0
+    # t1 = 1
+    # dt = 1e-2
 
-    solver = Scipy_ivp(model, t1, dt, rtol = 1e-6, atol=1.0e-7)
-    # solver = Generalized_alpha_1(model, t1, dt)
-    # solver = Moreau_sym(model, t1, dt)
-    sol = solver.solve()
-    t = sol.t
-    q = sol.q
+    # solver = Scipy_ivp(model, t1, dt, rtol = 1e-6, atol=1.0e-7)
+    # # solver = Generalized_alpha_1(model, t1, dt)
+    # # solver = Moreau_sym(model, t1, dt)
+    # sol = solver.solve()
+    # t = sol.t
+    # q = sol.q
 
     # A_IB0 = A_IK_basic_y([alpha0])
     # A_BC0 = A_IK_basic_z([beta0])
@@ -175,10 +177,15 @@ if __name__ == "__main__":
     # dt = 0.0001
     x0 = np.array([alpha0, beta0, gamma0, omega_x0, omega_y0, omega_z0])
     ref = solve_ivp(heavy_top.eqm, [t0, t1], x0, method='RK45', t_eval=np.arange(t0,t1 + dt,dt), rtol=1e-8, atol=1e-12)
-    x_ref = ref.y
-    t_ref = ref.t
+    # x_ref = ref.y
+    # t_ref = ref.t
 
-    q_ref = ref.y[:3].T
+    # q_ref = ref.y[:3].T
+
+    x = ref.y
+    t = ref.t
+
+    q = ref.y[:3].T
 
     if plot_graphs:
         fig, ax = plt.subplots(3, 1)
@@ -210,7 +217,7 @@ if __name__ == "__main__":
 
         # prepare data for animation
         frames = len(t)
-        target_frames = min(frames, 200)
+        target_frames = min(frames, 100)
         frac = int(frames / target_frames)
         animation_time = t1 - t0
         interval = animation_time * 1000 / target_frames
