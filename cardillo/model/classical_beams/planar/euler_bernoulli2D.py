@@ -186,7 +186,7 @@ class Euler_bernoulli2D():
 
             R2 = NN_xixii.T @ t_perp * M / g2_
 
-            fe -= (R1 + R2) * J0i * qwi
+            fe -= (R1 + R2) * qwi
 
         return fe
     
@@ -269,7 +269,7 @@ class Euler_bernoulli2D():
             fe_q -= ( \
                 NN_xii.T @ (k1_q - np.outer(k3 + n_perp, k2_q) - k2 * (k3_q + NN_xixii_perp) ) \
                 + NN_xixii.T @ (k2 * NN_xii_perp + np.outer(t_perp, k2_q)) \
-                    ) * J0i * qwi
+                    ) * qwi
         
         # fe_q_num = Numerical_derivative(lambda t, qe: self.f_pot_el(qe, Qe, N_xi, N_xixi, J0, qw), order=2)._x(0, qe, eps=1.0e-6)
         # # return fe_q_num

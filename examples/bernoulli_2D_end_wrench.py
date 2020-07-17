@@ -26,7 +26,7 @@ if __name__ == "__main__":
 
     # physical properties of the rope
     rho = 7850
-    L = 10
+    L = 2 * np.pi
     r = 5.0e-3
     A = np.pi * r**2
     I = A / 4 * r**2
@@ -45,7 +45,7 @@ if __name__ == "__main__":
     nQP = int(np.ceil((p + 1)**2 / 2))
     # nQP = 2
     print(f'nQP: {nQP}')
-    nEl = 10
+    nEl = 20
 
     # build reference configuration
     nNd = nEl + p
@@ -75,7 +75,7 @@ if __name__ == "__main__":
     F = lambda t: t * np.array([0, 1e-2, 0])
     force = K_Force(F, beam, frame_ID=(1,))
 
-    M_z = lambda t: t * 2 * np.pi * EI / L 
+    M_z = lambda t: t * 2 * np.pi * EI / L
     M = lambda t: np.array([0, 0, M_z(t)])
     moment = K_Moment(M, beam, (1,))
 
@@ -90,7 +90,7 @@ if __name__ == "__main__":
     model.assemble()
 
     if statics:
-        solver = Newton(model, n_load_stepts=10, max_iter=10, numerical_jacobian=True)
+        solver = Newton(model, n_load_stepts=5, max_iter=10, numerical_jacobian=False)
         # solver = Newton(model, n_load_stepts=50, max_iter=10, numerical_jacobian=True)
         sol = solver.solve()
         t = sol.t
@@ -99,6 +99,8 @@ if __name__ == "__main__":
         # print(f'pot(t1, q1): {model.E_pot(t[-1], q[-1])}')
         # exit()
         x, y, z = beam.centerline(q[-1]).T
+        # x = q[-1][:nNd]
+        # y = q[-1][nNd:]
         plt.plot(x, y)
         plt.xlabel('x [m]')
         plt.ylabel('y [m]')
