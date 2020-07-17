@@ -20,7 +20,7 @@ statics = False
 if __name__ == "__main__":
     # solver parameter
     t0 = 0
-    t1 = 10
+    t1 = 3
     dt = 5e-2
 
     # physical properties of the rope
@@ -148,13 +148,17 @@ if __name__ == "__main__":
         # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='BDF')
         # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='LSODA')
 
+
+        import cProfile, pstats
+        pr = cProfile.Profile()
+        pr.enable()
         sol = solver.solve()
+        pr.disable()
 
-        # from cardillo.solver import save_solution
-        # save_solution(sol, f'test')
-
-        # from cardillo.solver import load_solution
-        # sol = load_solution(f'test')
+        sortby = 'cumulative'
+        ps = pstats.Stats(pr).sort_stats(sortby)
+        ps.print_stats(0.05) # print only first 10% of the list
+        exit()
 
         t = sol.t
         q = sol.q

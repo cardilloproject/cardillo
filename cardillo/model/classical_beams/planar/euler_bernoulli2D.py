@@ -71,25 +71,17 @@ class Euler_bernoulli2D():
             # compute change of integral measures
             Qe = self.Q[self.elDOF[el]]
             for i in range(nQP):
-                r0_xi = np.kron(np.eye(2), self.N_xi[el, i]) @ Qe
+                r0_xi = self.stack_shapefunctions(self.N_xi[el, i]) @ Qe
                 self.J0[el, i] = norm2(r0_xi)
 
         # shape functions on the boundary
-        # N_bdry = np.zeros(nn_el)
-        # N_bdry[0] = 1
-        # N_bdry_left = np.kron(np.eye(2), N_bdry)
-
-        # N_bdry = np.zeros(nn_el)
-        # N_bdry[-1] = 1
-        # N_bdry_right = np.kron(np.eye(2), N_bdry)
-
         N_bdry, dN_bdry = B_spline_basis(self.polynomial_degree, 1, self.knot_vector, 0)
-        N_bdry_left = np.kron(np.eye(2), N_bdry)
-        dN_bdry_left = np.kron(np.eye(2), dN_bdry)
+        N_bdry_left = self.stack_shapefunctions(N_bdry)
+        dN_bdry_left = self.stack_shapefunctions(dN_bdry)
 
         N_bdry, dN_bdry = B_spline_basis(self.polynomial_degree, 1, self.knot_vector, 1 - 1.0e-9)
-        N_bdry_right = np.kron(np.eye(2), N_bdry)
-        dN_bdry_right = np.kron(np.eye(2), dN_bdry)
+        N_bdry_right = self.stack_shapefunctions(N_bdry)
+        dN_bdry_right = self.stack_shapefunctions(dN_bdry)
 
         self.N_bdry = np.array([N_bdry_left, N_bdry_right])
         self.dN_bdry = np.array([dN_bdry_left, dN_bdry_right])
@@ -107,9 +99,25 @@ class Euler_bernoulli2D():
             dNN = self.dN_bdry[-1]
         else:
             N, dN = B_spline_basis(self.polynomial_degree, 1, self.knot_vector, xi)
-            NN = np.kron(np.eye(2), N)
-            dNN = np.kron(np.eye(2), dN)
+            NN = self.stack_shapefunctions(N)
+            dNN = self.stack_shapefunctions(dN)
         return NN, dNN
+
+    def stack_shapefunctions(self, N):
+        # return np.kron(np.eye(2), N)
+        n2 = int(self.nq_el / 2)
+        NN = np.zeros((2, 2 * n2))
+        NN[0, :n2] = N
+        NN[1, n2:] = N
+        return NN
+
+    def stack_shapefunctions_perp(self, N):
+        # return np.kron(np.array([[0, -1], [1, 0]]), N)
+        n2 = int(self.nq_el / 2)
+        NN = np.zeros((2, 2 * n2))
+        NN[0, n2:] = -N
+        NN[1, :n2] = N
+        return NN
 
     #########################################
     # equations of motion
@@ -119,7 +127,7 @@ class Euler_bernoulli2D():
 
         for Ni, J0i, qwi in zip(N, J0, qw):
             # build matrix of shape functions and derivatives
-            NNi = np.kron(np.eye(2), Ni)
+            NNi = self.stack_shapefunctions(Ni)
             
             # integrate elemente mass matrix
             Me += NNi.T @ NNi * self.A_rho0 * J0i * qwi
@@ -144,10 +152,10 @@ class Euler_bernoulli2D():
     def f_pot_el(self, qe, Qe, N_xi, N_xixi, J0, qw):
         fe = np.zeros(self.nq_el)
 
-        for N_xii, N_xixii, J0i, qwi in zip(N_xi, N_xixi, J0, qw):
+        for N_xii, N_xixii, qwi in zip(N_xi, N_xixi, qw):
             # build matrix of shape function derivatives
-            NN_xii = np.kron(np.eye(2), N_xii)
-            NN_xixii = np.kron(np.eye(2), N_xixii)
+            NN_xii = self.stack_shapefunctions(N_xii)
+            NN_xixii = self.stack_shapefunctions(N_xixii)
 
             # tangential vectors
             t  = NN_xii @ qe
@@ -203,13 +211,13 @@ class Euler_bernoulli2D():
         
         fe_q = np.zeros((self.nq_el, self.nq_el))
 
-        for N_xii, N_xixii, J0i, qwi in zip(N_xi, N_xixi, J0, qw):
+        for N_xii, N_xixii, qwi in zip(N_xi, N_xixi, qw):
             # build matrix of shape function derivatives
-            NN_xii = np.kron(np.eye(2), N_xii)
-            NN_xixii = np.kron(np.eye(2), N_xixii)
+            NN_xii = self.stack_shapefunctions(N_xii)
+            NN_xixii = self.stack_shapefunctions(N_xixii)
 
-            NN_xii_perp = np.kron(np.array([[0, -1], [1, 0]]), N_xii)
-            NN_xixii_perp = np.kron(np.array([[0, -1], [1, 0]]), N_xixii)
+            NN_xii_perp = self.stack_shapefunctions_perp(N_xii)
+            NN_xixii_perp = self.stack_shapefunctions_perp(N_xixii)
 
             # tangential vectors
             t  = NN_xii @ qe
@@ -274,11 +282,11 @@ class Euler_bernoulli2D():
         # fe_q_num = Numerical_derivative(lambda t, qe: self.f_pot_el(qe, Qe, N_xi, N_xixi, J0, qw), order=2)._x(0, qe, eps=1.0e-6)
         # # return fe_q_num
 
-        # # diff = fe_q_num - fe_q
-        # # # np.set_printoptions(2)
-        # # # print(f'diff:\n{diff}')
-        # # error = np.linalg.norm(diff)
-        # # print(f'error in f_pot_q_el: {error:.4e}')
+        # diff = fe_q_num - fe_q
+        # # np.set_printoptions(2)
+        # # print(f'diff:\n{diff}')
+        # error = np.linalg.norm(diff)
+        # print(f'error in f_pot_q_el: {error:.4e}')
         # return fe_q_num
 
         return fe_q
@@ -333,7 +341,7 @@ class Euler_bernoulli2D():
             NN = self.N_bdry[1]
         else:
             N = B_spline_basis(self.polynomial_degree, 0, self.knot_vector, xi)
-            NN = np.kron(np.eye(2), N)
+            NN = self.stack_shapefunctions(N)
 
         # interpolate position vector
         r_q = np.zeros((3, self.nq_el))
@@ -431,7 +439,7 @@ class Euler_bernoulli2D():
     def body_force_el(self, force, t, N, xi, J0, qw):
         fe = np.zeros(self.nq_el)
         for Ni, xii, J0i, qwi in zip(N, xi, J0, qw):
-            NNi = np.kron(np.eye(2), Ni)
+            NNi = self.stack_shapefunctions(Ni)
             r_q = np.zeros((3, self.nq_el))
             r_q[:2] = NNi
             fe += r_q.T @ force(xii, t) * J0i * qwi

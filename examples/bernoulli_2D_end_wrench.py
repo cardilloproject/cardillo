@@ -43,9 +43,8 @@ if __name__ == "__main__":
     p = 3
     assert p >= 2
     nQP = int(np.ceil((p + 1)**2 / 2))
-    # nQP = 2
     print(f'nQP: {nQP}')
-    nEl = 20
+    nEl = 100
 
     # build reference configuration
     nNd = nEl + p
@@ -90,7 +89,7 @@ if __name__ == "__main__":
     model.assemble()
 
     if statics:
-        solver = Newton(model, n_load_stepts=5, max_iter=10, numerical_jacobian=False)
+        solver = Newton(model, n_load_stepts=10, max_iter=10, numerical_jacobian=False)
         # solver = Newton(model, n_load_stepts=50, max_iter=10, numerical_jacobian=True)
         sol = solver.solve()
         t = sol.t
@@ -101,7 +100,8 @@ if __name__ == "__main__":
         x, y, z = beam.centerline(q[-1]).T
         # x = q[-1][:nNd]
         # y = q[-1][nNd:]
-        plt.plot(x, y)
+        plt.plot(x, y, '-k')
+        plt.plot(*q[-1].reshape(2, -1), '--ob')
         plt.xlabel('x [m]')
         plt.ylabel('y [m]')
         plt.axis('equal')
