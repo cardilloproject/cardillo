@@ -26,7 +26,7 @@ class Rigid_body_quaternion():
 
         self.nq = 7
         self.nu = 6
-        self.q0 = np.zeros(self.nq) if q0 is None else q0
+        self.q0 = np.array([0, 0, 0, 1, 0, 0, 0]) if q0 is None else q0
         self.u0 = np.zeros(self.nu) if u0 is None else u0
 
         self.M_ = np.zeros((self.nu, self.nu))

@@ -1,7 +1,7 @@
 import numpy as np
 from cardillo.math.algebra import cross3, ax2skew, A_IK_basic_z, dA_IK_basic_z
 
-class Rigid_body_planar():
+class Rigid_body2D():
     def __init__(self, m, theta, q0=None, u0=None):
         self.m = m
         self.theta = theta
