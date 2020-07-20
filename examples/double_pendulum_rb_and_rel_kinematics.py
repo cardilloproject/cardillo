@@ -11,7 +11,7 @@ from cardillo.model import Model
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints.explicit import Revolute_joint, Rigid_connection
 from cardillo.model.bilateral_constraints.implicit import Spherical_joint, Spherical_joint2D
-from cardillo.model.rigid_body import Rigid_body_rel_kinematics, Rigid_body_quaternion, Rigid_body_planar
+from cardillo.model.rigid_body import Rigid_body_rel_kinematics, Rigid_body_quaternion, Rigid_body2D
 from cardillo.model.force import Force
 from cardillo.solver import Scipy_ivp, Euler_backward, Generalized_alpha_1, Moreau, Moreau_sym
 
@@ -47,7 +47,7 @@ if __name__ == "__main__":
     # RB1 = Rigid_body_quaternion(m, K_theta_S, q01, u01)
     q01 = np.array([r_OS10[0], r_OS10[1], alpha0])
     u01 = np.array([vS0[0], vS0[1], alpha_dot0])
-    RB1 = Rigid_body_planar(m, K_theta_S[2, 2], q01, u01)
+    RB1 = Rigid_body2D(m, K_theta_S[2, 2], q01, u01)
 
     # joint1 = Spherical_joint(origin, RB1, r_OB1)
     joint1 = Spherical_joint2D(origin, RB1, r_OB1)

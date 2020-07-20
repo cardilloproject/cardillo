@@ -30,17 +30,17 @@ if __name__ == "__main__":
     # e_t = lambda t: -A * omega * np.sin(omega * t)
     # e_tt = lambda t: -A * omega * omega * np.cos(omega * t)
 
-    e = lambda t: A * np.sin(omega * t)
-    e_t = lambda t: A * omega * np.cos(omega * t)
-    e_tt = lambda t: -A * omega * omega * np.sin(omega * t)
+    # e = lambda t: A * np.sin(omega * t)
+    # e_t = lambda t: A * omega * np.cos(omega * t)
+    # e_tt = lambda t: -A * omega * omega * np.sin(omega * t)
 
     # e = lambda t: A * t
     # e_t = lambda t: A 
     # e_tt = lambda t: 0
 
-    # e = lambda t: 0
-    # e_t = lambda t: 0 
-    # e_tt = lambda t: 0
+    e = lambda t: 0
+    e_t = lambda t: 0 
+    e_tt = lambda t: 0
 
     r_OP = lambda t: np.array([e(t), 0, 0]) 
     v_P = lambda t: np.array([e_t(t), 0, 0]) 
@@ -97,8 +97,8 @@ if __name__ == "__main__":
     frame = Frame(r_OP=r_OP, r_OP_t=v_P, r_OP_tt=a_P)
     model.add(frame)
 
-    joint = Revolute_joint(frame, RB, r_OP(0), np.eye(3))
-    # joint = Spherical_joint(frame, RB, r_OP(0))
+    # joint = Revolute_joint(frame, RB, r_OP(0), np.eye(3))
+    joint = Spherical_joint(frame, RB, r_OP(0))
     model.add(joint)
 
     model.assemble()
@@ -109,8 +109,8 @@ if __name__ == "__main__":
 
     # solver = Euler_backward(model, t1, dt, numerical_jacobian=False, debug=False)
     # solver = Moreau_sym(model, t1, dt, numerical_jacobian=False, debug=False)
-    # solver = Moreau(model, t1, dt)
-    solver = Generalized_alpha_1(model, t1, dt, rho_inf=1, numerical_jacobian=False, debug=False)
+    solver = Moreau(model, t1, dt)
+    # solver = Generalized_alpha_1(model, t1, dt, rho_inf=1, numerical_jacobian=False, debug=False)
     # solver = Scipy_ivp(model, t1, dt)
     sol = solver.solve()
     t = sol.t

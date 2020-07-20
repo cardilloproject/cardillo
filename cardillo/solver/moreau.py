@@ -1,15 +1,23 @@
 import numpy as np
-from scipy.sparse.linalg import spsolve 
-from scipy.sparse import csr_matrix, bmat
+from scipy.sparse.linalg import spsolve
+from scipy.sparse import csc_matrix, bmat
 from tqdm import tqdm
 
 from cardillo.math.numerical_derivative import Numerical_derivative
 from cardillo.solver import Solution
+from cardillo.math.prox import prox_Rn0
 
 class Moreau():
 
     def __init__(self, model, t1, dt):
         self.model = model
+
+        self.fix_point_error_function = lambda x: np.max(np.abs(x))
+        self.fix_point_tol = 1e-5
+        self.fix_point_max_iter = 200
+
+        self.e_N = self.model.e_N
+        self.r_N = self.model.prox_r_N
 
         # integration time
         t0 = model.t0
@@ -23,7 +31,7 @@ class Moreau():
         self.nla_gamma = self.model.nla_gamma
         self.n = self.nq + self.nu + self.nla_g + self.nla_gamma
 
-    def step(self, tk, qk, uk):
+    def step(self, tk, qk, uk, la_Nk):
         # general quantities
         dt = self.dt
 
@@ -34,29 +42,58 @@ class Moreau():
         h = self.model.h(tk1, qk1, uk)
         W_g = self.model.W_g(tk1, qk1)
         W_gamma = self.model.W_gamma(tk1, qk1)
+        W_N = self.model.W_N(tk1, qk1, scipy_matrix=csc_matrix)
         g_dot_u = self.model.g_dot_u(tk1, qk1)
         chi_g = self.model.chi_g(tk1, qk1)
         gamma_u = self.model.gamma_u(tk1, qk1)
         chi_gamma = self.model.chi_gamma(tk1, qk1)
+        g_N_dot_u = self.model.g_N_dot_u(tk1, qk1)
+        chi_N = self.model.chi_N(tk1, qk1)
+        
 
-        # M (uk1 - uk) - dt (h + W_g la_g + W_gamma la_gamma) = 0
+        # M (uk1 - uk) - dt (h + W_g la_g + W_gamma la_gamma + W_gN la_N + W_gT la_T) = 0
         # g_dot_u @ uk1 + chi_g = 0
         # gamma_u @ uk1 + chi_gamma = 0
+        g_N = self.model.g_N(tk1, qk1)
+        I = g_N <= 0
 
-        A =  bmat([[M      ,  -dt * W_g, -dt * W_gamma], \
-                   [g_dot_u,       None,          None], \
-                   [gamma_u,       None,          None]]).tocsc()
+        error = 0 #self.fix_point_error_function(R)
+        converged = False
+        la_Nk1_i = la_Nk.copy()[I]
+        j = 0
+        la_Nk1 = np.zeros_like(la_Nk)
+        while j < self.fix_point_max_iter:
+            # Newton update
+            j += 1
 
-        b = np.concatenate( (M @ uk + dt*h, -chi_g, -chi_gamma) )
+            A =  bmat([[M      ,  -dt * W_g, -dt * W_gamma], \
+                    [g_dot_u,       None,          None], \
+                    [gamma_u,       None,          None]]).tocsc()
 
-        x = spsolve( A, b)
-        
-        uk1 = x[:self.nu]
-        la_gk1 = x[self.nu:self.nu+self.nla_g]
-        la_gammak1 = x[self.nu+self.nla_g:]
-        
-        
-        return tk1, qk1, uk1, la_gk1, la_gammak1
+            b = np.concatenate( (M @ uk + dt*(h + W_N[:, I] @ la_Nk1_i), -chi_g, -chi_gamma) )
+
+            x = spsolve(A, b)
+            
+            uk1 = x[:self.nu]
+            la_gk1 = x[self.nu:self.nu+self.nla_g]
+            la_gammak1 = x[self.nu+self.nla_g:]
+
+            # TODO:
+            xi_N = (g_N_dot_u @ uk1 + chi_N) + self.e_N * (g_N_dot_u @ uk + chi_N)
+            la_Nk1_i1 = prox_Rn0(la_Nk1_i - self.r_N[I] * xi_N[I] )
+
+            if len(la_Nk1_i):
+                error = self.fix_point_error_function(la_Nk1_i1-la_Nk1_i)
+                converged = error < self.fix_point_tol
+                la_Nk1_i = la_Nk1_i1.copy()
+            else: 
+                converged = True
+
+            if converged:
+                la_Nk1[I] = la_Nk1_i
+                break
+                
+        return (converged, j, error), tk1, qk1, uk1, la_gk1, la_gammak1, la_Nk1
 
     def solve(self): 
         
@@ -66,16 +103,20 @@ class Moreau():
         uk = self.model.u0.copy()
         la_gk = self.model.la_g0.copy()
         la_gammak = self.model.la_gamma0.copy()
+        la_Nk = self.model.la_N0.copy()
         
         q = [qk]
         u = [uk]
         la_g = [la_gk]
         la_gamma = [la_gammak]
+        la_N = [la_Nk]
 
         pbar = tqdm(self.t[:-1])
         for tk in pbar:
-            tk1, qk1, uk1, la_gk1, la_gammak1 = self.step(tk, qk, uk)
+            (converged, j, error), tk1, qk1, uk1, la_gk1, la_gammak1, la_Nk1 = self.step(tk, qk, uk, la_Nk)
             pbar.set_description(f't: {tk1:0.2e}')
+            if not converged:
+                raise RuntimeError(f'internal fixed point iteration not converged after {j} iterations with error: {error:.5e}')
 
             qk1, uk1 = self.model.solver_step_callback(tk1, qk1, uk1)
 
@@ -83,11 +124,13 @@ class Moreau():
             u.append(uk1)
             la_g.append(la_gk1)
             la_gamma.append(la_gammak1)
+            la_N.append(la_Nk1)
 
             # update local variables for accepted time step
-            qk, uk, la_gk, la_gammak = qk1, uk1, la_gk1, la_gammak1
+            qk, uk, la_gk, la_gammak, la_Nk = qk1, uk1, la_gk1, la_gammak1, la_Nk1
             
         # write solution
+        #TODO
         return Solution(t=self.t, q=np.array(q), u=np.array(u), la_g=np.array(la_g), la_gamma=np.array(la_gamma))
 
 class Moreau_sym():
