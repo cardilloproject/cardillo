@@ -34,9 +34,9 @@ if __name__ == "__main__":
     r = 0.1
     g = 9.81
     y0 = 1
-    y_dot0 = 1
+    y_dot0 = 0
     phi0 = 0 #np.pi / 4
-    phi_dot0 = 0 #10
+    phi_dot0 = 10
     r_OS0 = np.array([0, y0, 0])
     # omega0 = np.array([0, 0, 0])
     vS0 = np.array([0, y_dot0, 0]) #+ cross3(omega0, r_OS10)
@@ -46,7 +46,7 @@ if __name__ == "__main__":
 
 
     frame = Frame(A_IK=np.vstack( (e3, e1, e2) ).T )
-    plane = Sphere_to_plane(frame, RB, r, np.array([0.01]))
+    plane = Sphere_to_plane(frame, RB, r, np.array([0.3]), e_N=np.array([0.5]))
 
     model = Model()
     model.add(RB)
@@ -55,10 +55,10 @@ if __name__ == "__main__":
     model.assemble()
 
     t0 = 0
-    t1 = 1
-    dt = 1e-3
+    t1 = 5
+    dt = 2.5e-3
 
-    print(f'gap = {model.g_N(model.t0, model.q0)}')
+    # print(f'gap = {model.g_N(model.t0, model.q0)}')
     # exit()
     # solver = Scipy_ivp(model, t1, dt)
     solver = Moreau(model, t1, dt)
@@ -71,6 +71,17 @@ if __name__ == "__main__":
     sol = solver.solve()
     t = sol.t
     q = sol.q
+    u = sol.u
+    la_N = sol.la_N
+
+    fig, ax = plt.subplots(3, 1)
+    ax[0].set_title('y(t)')
+    ax[0].plot(t, q[:, 1], '-k')
+    ax[1].set_title('y_dot(t)')
+    ax[1].plot(t, u[:, 1], '-k')
+    ax[2].set_title('P_N(t)')
+    ax[2].plot(t, la_N, '-k')
+    plt.show()
 
     if animate:
 
@@ -81,20 +92,22 @@ if __name__ == "__main__":
         ax.set_xlabel('x [m]')
         ax.set_ylabel('y [m]')
         ax.axis('equal')
-        ax.set_xlim(-  2 * y0,  2 * y0)
-        ax.set_ylim( - 2 * y0 ,  2 * y0)
+        ax.set_xlim(-2 * y0, 2 * y0)
+        ax.set_ylim(-2 * y0, 2 * y0)
         
 
         # prepare data for animation
         frames = len(t)
-        target_frames = min(len(t), 100)
+        target_frames = min(len(t), 200)
         frac = int(frames / target_frames)
-        animation_time = 1
+        animation_time = 5
         interval = animation_time * 1000 / target_frames
 
         frames = target_frames
         t = t[::frac]
         q = q[::frac]
+
+        ax.plot([-2 * y0, 2 * y0], [0, 0], '-k')
 
         def create(t, q):
             x_S, y_S, _ = RB.r_OP(t, q)
@@ -102,7 +115,7 @@ if __name__ == "__main__":
             A_IK = RB.A_IK(t, q)
             d1 = A_IK[:, 0] * r
             d2 = A_IK[:, 1] * r
-            d3 = A_IK[:, 2] * r
+            # d3 = A_IK[:, 2] * r
 
             COM, = ax.plot([x_S], [y_S], 'ok')
             bdry, = ax.plot([], [],  '-k')
@@ -121,7 +134,7 @@ if __name__ == "__main__":
             A_IK = RB.A_IK(t, q)
             d1 = A_IK[:, 0] * r
             d2 = A_IK[:, 1] * r
-            d3 = A_IK[:, 2] * r
+            # d3 = A_IK[:, 2] * r
 
             COM.set_data([x_S], [y_S])
             bdry.set_data(x_bdry, y_bdry)

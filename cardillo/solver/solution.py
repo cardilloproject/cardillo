@@ -16,18 +16,21 @@ class Solution():
          constraint forces of bilateral constraints on position level
     la_gamma : numpy.ndarray
          constraint forces of bilateral constraints on velocity level
+    la_N : numpy.ndarray
+         contact forces in normal direction
     """
-    def __init__(self, t=None, q=None, u=None, la_g=None, la_gamma=None):
+    def __init__(self, t=None, q=None, u=None, la_g=None, la_gamma=None, la_N=None):
         self.t = t
         self.q = q
         self.u = u
         self.la_g = la_g
         self.la_gamma = la_gamma
+        self.la_N = la_N
 
     def unpack(self):
-        """Return solution fields: t, q, u, la_g, la_gamma
+        """Return solution fields: t, q, u, la_g, la_gamma, la_N
         """
-        return self.t, self.q, self.u, self.la_g, self.la_gamma
+        return self.t, self.q, self.u, self.la_g, self.la_gamma, self.la_N
 
 def save_solution(sol, filename):
     """Store a `Solution` object into a given file.

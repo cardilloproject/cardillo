@@ -8,13 +8,12 @@ from cardillo.solver import Solution
 from cardillo.math.prox import prox_Rn0
 
 class Moreau():
-
     def __init__(self, model, t1, dt):
         self.model = model
 
         self.fix_point_error_function = lambda x: np.max(np.abs(x))
-        self.fix_point_tol = 1e-5
-        self.fix_point_max_iter = 200
+        self.fix_point_tol = 1e-6
+        self.fix_point_max_iter = 50
 
         self.e_N = self.model.e_N
         self.r_N = self.model.prox_r_N
@@ -47,51 +46,51 @@ class Moreau():
         chi_g = self.model.chi_g(tk1, qk1)
         gamma_u = self.model.gamma_u(tk1, qk1)
         chi_gamma = self.model.chi_gamma(tk1, qk1)
-        g_N_dot_u = self.model.g_N_dot_u(tk1, qk1)
-        chi_N = self.model.chi_N(tk1, qk1)
         
-
         # M (uk1 - uk) - dt (h + W_g la_g + W_gamma la_gamma + W_gN la_N + W_gT la_T) = 0
         # g_dot_u @ uk1 + chi_g = 0
         # gamma_u @ uk1 + chi_gamma = 0
         g_N = self.model.g_N(tk1, qk1)
-        I = g_N <= 0
+        I = (g_N <= 0)
 
         error = 0 #self.fix_point_error_function(R)
         converged = False
-        la_Nk1_i = la_Nk.copy()[I]
+        # la_Nk1_i = la_Nk.copy()[I]
+        la_Nk1_i = la_Nk.copy()
         j = 0
-        la_Nk1 = np.zeros_like(la_Nk)
+        uk0 = uk.copy()
+        la_Nk0 = la_Nk.copy()
+        la_Nk1 = np.zeros_like(la_Nk0)
         while j < self.fix_point_max_iter:
-            # Newton update
             j += 1
 
+            # solve for new velocities and bilateral constraint forces
             A =  bmat([[M      ,  -dt * W_g, -dt * W_gamma], \
-                    [g_dot_u,       None,          None], \
-                    [gamma_u,       None,          None]]).tocsc()
+                       [g_dot_u,       None,          None], \
+                       [gamma_u,       None,          None]]).tocsr()
 
-            b = np.concatenate( (M @ uk + dt*(h + W_N[:, I] @ la_Nk1_i), -chi_g, -chi_gamma) )
+            b = np.concatenate( (M @ uk + dt * h + W_N[:, I] @ la_Nk1_i[I], -chi_g, -chi_gamma) )
 
             x = spsolve(A, b)
-            
             uk1 = x[:self.nu]
             la_gk1 = x[self.nu:self.nu+self.nla_g]
             la_gammak1 = x[self.nu+self.nla_g:]
 
-            # TODO:
-            xi_N = (g_N_dot_u @ uk1 + chi_N) + self.e_N * (g_N_dot_u @ uk + chi_N)
-            la_Nk1_i1 = prox_Rn0(la_Nk1_i - self.r_N[I] * xi_N[I] )
+            # relative contact velocity and prox equation
+            xi_N = self.model.g_N_dot(tk1, qk1, uk1) + self.e_N * self.model.g_N_dot(tk1, qk1, uk)
+            la_Nk1_i[I] = prox_Rn0(la_Nk1_i[I] - self.r_N[I] * xi_N[I])
 
-            if len(la_Nk1_i):
-                error = self.fix_point_error_function(la_Nk1_i1-la_Nk1_i)
-                converged = error < self.fix_point_tol
-                la_Nk1_i = la_Nk1_i1.copy()
-            else: 
-                converged = True
-
+            # check if velocities or contact percussions do not change
+            # error = self.fix_point_error_function(uk1 - uk0)
+            error = self.fix_point_error_function(la_Nk1_i - la_Nk0)
+            converged = error < self.fix_point_tol
             if converged:
+                la_Nk1 = np.zeros_like(la_Nk1_i)
                 la_Nk1[I] = la_Nk1_i
                 break
+
+            uk0 = uk1.copy()
+            la_Nk0 = la_Nk1_i.copy()
                 
         return (converged, j, error), tk1, qk1, uk1, la_gk1, la_gammak1, la_Nk1
 
@@ -114,7 +113,7 @@ class Moreau():
         pbar = tqdm(self.t[:-1])
         for tk in pbar:
             (converged, j, error), tk1, qk1, uk1, la_gk1, la_gammak1, la_Nk1 = self.step(tk, qk, uk, la_Nk)
-            pbar.set_description(f't: {tk1:0.2e}')
+            pbar.set_description(f't: {tk1:0.2e}; fixed point iterations: {j}; error: {error:.3e}')
             if not converged:
                 raise RuntimeError(f'internal fixed point iteration not converged after {j} iterations with error: {error:.5e}')
 
@@ -130,8 +129,7 @@ class Moreau():
             qk, uk, la_gk, la_gammak, la_Nk = qk1, uk1, la_gk1, la_gammak1, la_Nk1
             
         # write solution
-        #TODO
-        return Solution(t=self.t, q=np.array(q), u=np.array(u), la_g=np.array(la_g), la_gamma=np.array(la_gamma))
+        return Solution(t=self.t, q=np.array(q), u=np.array(u), la_g=np.array(la_g), la_gamma=np.array(la_gamma), la_N=np.array(la_N))
 
 class Moreau_sym():
     def __init__(self, model, t1, dt, newton_tol=1e-6, newton_max_iter=10, newton_error_function=lambda x: np.max(np.abs(x)), numerical_jacobian=False, debug=False):
