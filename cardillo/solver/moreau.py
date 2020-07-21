@@ -83,7 +83,7 @@ class Moreau():
             for j in range(self.fix_point_max_iter):
                 
                 # relative contact velocity and prox equation
-                la_Nk1_i, la_Tk1_i = self.model.contact_force_fixpoint_update(tk1, qk1, uk, uk1, la_Nk1_i, la_Tk1_i)
+                la_Nk1_i, la_Tk1_i = self.model.contact_force_fixpoint_update(tk1, qk1, uk, uk1, la_Nk1_i, la_Tk1_i, I_N=I_N)
 
                 # check if velocities or contact percussions do not change
                 # error = self.fix_point_error_function(uk1 - uk0)

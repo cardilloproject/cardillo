@@ -78,7 +78,9 @@ class Model(object):
         prox_r_N = []
         prox_r_T = []
         NT_connectivity = []
-        
+        Ncontr_connectivity = []
+
+        n_laN_contr = 0
         for contr in self.contributions:
             contr.t0 = self.t0
             for p in properties:
@@ -121,9 +123,12 @@ class Model(object):
                 # tangential
                 contr.la_TDOF = np.arange(0, contr.nla_T) + self.nla_T
                 self.nla_T += contr.nla_T
+                la_T0.extend(contr.la_T0.tolist())
                 for i in range(contr.nla_N):
                     NT_connectivity.append(contr.la_TDOF[contr.NT_connectivity[i]])
-                la_T0.extend(contr.la_T0.tolist())
+                    Ncontr_connectivity.append(n_laN_contr)
+                n_laN_contr += 1
+                
 
         self.q0 = np.array(q0)
         self.u0 = np.array(u0)
@@ -131,7 +136,8 @@ class Model(object):
         self.la_gamma0 = np.array(la_gamma0)
         self.la_N0 = np.array(la_N0)
         self.la_T0 = np.array(la_T0)
-        self.NT_connectivity = np.array(NT_connectivity)
+        self.NT_connectivity = np.array(NT_connectivity, dtype=int)
+        self.Ncontr_connectivity = np.array(Ncontr_connectivity, dtype=int)
 
         # call assembler callback: call methods that require first an assembly of the system
         self.assembler_callback()
@@ -408,6 +414,13 @@ class Model(object):
     def contact_force_fixpoint_update(self, t, q, u_pre, u_post, la_N, la_T, I_N=None):
         la_N1 = np.zeros(self.nla_N)
         la_T1 = np.zeros(self.nla_T)
-        for contr in self.__g_N_contr:
+
+        if I_N is None:
+            contributions = self.__g_N_contr
+        else:
+            indices = np.unique(self.Ncontr_connectivity[I_N])
+            contributions = [self.__g_N_contr[i] for i in indices]
+
+        for contr in contributions:
             la_N1[contr.la_NDOF], la_T1[contr.la_TDOF] = contr.contact_force_fixpoint_update(t, q[contr.qDOF], u_pre[contr.uDOF], u_post[contr.uDOF], la_N[contr.la_NDOF], la_T[contr.la_TDOF])
         return la_N1, la_T1
