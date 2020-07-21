@@ -48,7 +48,6 @@ class Sphere_to_plane():
 
         self.is_assembled = True
 
-    
     def g_N(self, t, q):
         return self.n(t) @ (self.r_OP(t, q) - self.r_OQ(t))
 

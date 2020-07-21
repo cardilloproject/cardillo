@@ -12,8 +12,8 @@ class Moreau():
         self.model = model
 
         self.fix_point_error_function = lambda x: np.max(np.abs(x)) / len(x)
-        self.fix_point_tol = 1e-4
-        self.fix_point_max_iter = 50
+        self.fix_point_tol = 1e-3
+        self.fix_point_max_iter = 1000
 
 
         # integration time

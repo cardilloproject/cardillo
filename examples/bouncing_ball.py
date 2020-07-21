@@ -12,7 +12,7 @@ from cardillo.model.rigid_body import Rigid_body2D
 from cardillo.model.frame import Frame
 from cardillo.model.force import Force
 from cardillo.model.contacts import Sphere_to_plane
-from cardillo.solver import Scipy_ivp, Euler_backward, Generalized_alpha_1, Moreau, Moreau_sym
+from cardillo.solver import Moreau
 
 from scipy.integrate import solve_ivp
 
@@ -77,7 +77,7 @@ if __name__ == "__main__":
     model.assemble()
 
     t0 = 0
-    t1 = 1 
+    t1 = 3
     dt = 2.5e-3
     solver = Moreau(model, t1, dt)
     sol = solver.solve()
