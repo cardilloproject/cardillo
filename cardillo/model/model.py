@@ -16,6 +16,8 @@ properties.extend(['gamma', 'gamma_q', 'gamma_u'])
 
 properties.extend(['g_N'])#, 'g_N_q', 'g_N_t'])
 
+properties.extend(['gamma_T'])
+
 properties.extend(['assembler_callback', 'solver_step_callback'])
 
 class Model(object):
@@ -35,7 +37,7 @@ class Model(object):
         self.nla_g = 0
         self.nla_gamma = 0
         self.nla_N = 0
-        # self.nla_T = 0
+        self.nla_T = 0
 
         self.contributions = []
 
@@ -64,14 +66,18 @@ class Model(object):
         self.nla_g = 0
         self.nla_gamma = 0
         self.nla_N = 0
-        # self.nla_T = 0
+        self.nla_T = 0
         q0 = []
         u0 = []
         la_g0 = []
         la_gamma0 = []
         la_N0 = []
+        la_T0 = []
         e_N = []
+        e_T = []
         prox_r_N = []
+        prox_r_T = []
+        NT_connectivity = []
         
         for contr in self.contributions:
             contr.t0 = self.t0
@@ -106,21 +112,26 @@ class Model(object):
                 self.nla_gamma += contr.nla_gamma
                 la_gamma0.extend(contr.la_gamma0.tolist())
 
-            # if contribution has contacts in normal direction address constraint coordinates
+            # if contribution has contacts address constraint coordinates
             if hasattr(contr, 'nla_N'):
+                # normal
                 contr.la_NDOF = np.arange(0, contr.nla_N) + self.nla_N
                 self.nla_N += contr.nla_N
                 la_N0.extend(contr.la_N0.tolist())
-                e_N.extend(contr.e_N.tolist())
-                prox_r_N.extend(contr.prox_r_N.tolist())
+                # tangential
+                contr.la_TDOF = np.arange(0, contr.nla_T) + self.nla_T
+                self.nla_T += contr.nla_T
+                for i in range(contr.nla_N):
+                    NT_connectivity.append(contr.la_TDOF[contr.NT_connectivity[i]])
+                la_T0.extend(contr.la_T0.tolist())
 
         self.q0 = np.array(q0)
         self.u0 = np.array(u0)
         self.la_g0 = np.array(la_g0)
         self.la_gamma0 = np.array(la_gamma0)
         self.la_N0 = np.array(la_N0)
-        self.e_N = np.array(e_N)
-        self.prox_r_N = np.array(prox_r_N)
+        self.la_T0 = np.array(la_T0)
+        self.NT_connectivity = np.array(NT_connectivity)
 
         # call assembler callback: call methods that require first an assembly of the system
         self.assembler_callback()
@@ -356,29 +367,11 @@ class Model(object):
             g_N[contr.la_NDOF] = contr.g_N(t, q[contr.qDOF])
         return g_N
 
-    # def g_t(self, t, q):
-    #     g_t = np.zeros(self.nla_g)
-    #     for contr in self.__g_t_contr:
-    #         g_t[contr.la_gDOF] = contr.g_t(t, q[contr.qDOF])
-    #     return g_t
-
-    # def g_q(self, t, q, scipy_matrix=coo_matrix):
-    #     coo = Coo((self.nla_g, self.nq))
-    #     for contr in self.__g_contr:
-    #         contr.g_q(t, q[contr.qDOF], coo)
-    #     return coo.tosparse(scipy_matrix)
-
     def W_N(self, t, q, scipy_matrix=coo_matrix):
         coo = Coo((self.nu, self.nla_N))
         for contr in self.__g_N_contr:
             contr.W_N(t, q[contr.qDOF], coo)
         return coo.tosparse(scipy_matrix)
-
-    # def Wla_g_q(self, t, q, la_g, scipy_matrix=coo_matrix):
-    #     coo = Coo((self.nu, self.nq))
-    #     for contr in self.__g_contr:
-    #         contr.Wla_g_q(t, q[contr.qDOF], la_g[contr.la_gDOF], coo)
-    #     return coo.tosparse(scipy_matrix)
 
     def g_N_dot(self, t, q, u):
         g_N_dot = np.zeros(self.nla_N)
@@ -395,11 +388,26 @@ class Model(object):
             contr.g_N_dot_u(t, q[contr.qDOF], coo)
         return coo.tosparse(scipy_matrix)
 
-    # def g_ddot(self, t, q, u, u_dot):
-    #     g_ddot = np.zeros(self.nla_g)
-    #     for contr in self.__g_contr:
-    #         g_ddot[contr.la_gDOF] = contr.g_ddot(t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF])
-    #     return g_ddot
+    #========================================
+    # contacts in tangential direction
+    #========================================
+    def gamma_T(self, t, q, u):
+        gamma_T = np.zeros(self.nla_T)
+        for contr in self.__gamma_T_contr:
+            gamma_T[contr.la_TDOF] = contr.gamma_T(t, q[contr.qDOF], u[contr.uDOF])
+        return gamma_T
 
-    # def zeta_g(self, t, q, u):
-    #     return self.g_ddot(t, q, u, np.zeros(self.nu))
+    def W_T(self, t, q, scipy_matrix=coo_matrix):
+        coo = Coo((self.nu, self.nla_T))
+        for contr in self.__gamma_T_contr:
+            contr.W_T(t, q[contr.qDOF], coo)
+        return coo.tosparse(scipy_matrix)
+    #========================================
+    # contact force
+    #========================================
+    def contact_force_fixpoint_update(self, t, q, u_pre, u_post, la_N, la_T, I_N=None):
+        la_N1 = np.zeros(self.nla_N)
+        la_T1 = np.zeros(self.nla_T)
+        for contr in self.__g_N_contr:
+            la_N1[contr.la_NDOF], la_T1[contr.la_TDOF] = contr.contact_force_fixpoint_update(t, q[contr.qDOF], u_pre[contr.uDOF], u_post[contr.uDOF], la_N[contr.la_NDOF], la_T[contr.la_TDOF])
+        return la_N1, la_T1

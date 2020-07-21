@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.animation as animation
 
-from cardillo.math.algebra import cross3, e1, e2, e3
+from cardillo.math.algebra import cross3, A_IK_basic_z
 
 from cardillo.model import Model
 from cardillo.model.rigid_body import Rigid_body2D
@@ -33,41 +33,53 @@ if __name__ == "__main__":
     m = 1
     r = 0.1
     g = 9.81
+    x0 = 0
     y0 = 1
+    x_dot0 = 2
     y_dot0 = 0
     phi0 = 0 #np.pi / 4
-    phi_dot0 = 10
-    r_OS0 = np.array([0, y0, 0])
+    phi_dot0 = 0
+    r_OS0 = np.array([x0, y0, 0])
     # omega0 = np.array([0, 0, 0])
-    vS0 = np.array([0, y_dot0, 0]) #+ cross3(omega0, r_OS10)
+    vS0 = np.array([x_dot0, y_dot0, 0]) #+ cross3(omega0, r_OS10)
     q0 = np.array([r_OS0[0], r_OS0[1], phi0])
     u0 = np.array([vS0[0], vS0[1], phi_dot0])
     RB = Ball(m, r, q0, u0)
 
+    # e1, e2, e3 = np.eye(3)
+    # frame = Frame(A_IK=np.vstack( (e3, e1, e2) ).T )
+    # mu = 0.5
+    # r_N = 0.2
+    # e_N = 0
+    # plane = Sphere_to_plane(frame, RB, r, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N)
 
-    frame = Frame(A_IK=np.vstack( (e3, e1, e2) ).T )
-    plane = Sphere_to_plane(frame, RB, r, np.array([0.3]), e_N=np.array([0.5]))
+    alpha = pi/4
+    e1, e2, e3 = A_IK_basic_z(alpha)
+    frame1 = Frame(A_IK=np.vstack( (e3, e1, e2) ).T )
+    mu = 0.3
+    r_N = 0.2
+    e_N = 0
+    plane1 = Sphere_to_plane(frame1, RB, r, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N)
+    beta = -pi/4
+    e1, e2, e3 = A_IK_basic_z(beta)
+    frame2 = Frame(A_IK=np.vstack( (e3, e1, e2) ).T )
+    mu = 0
+    r_N = 0.2
+    e_N = 0.9
+    plane2 = Sphere_to_plane(frame2, RB, r, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N)
 
     model = Model()
     model.add(RB)
     model.add(Force(lambda t: np.array([0, -g * m, 0]), RB))
-    model.add(plane)
+    # model.add(plane)
+    model.add(plane1)
+    model.add(plane2)
     model.assemble()
 
     t0 = 0
-    t1 = 5
+    t1 = 1 
     dt = 2.5e-3
-
-    # print(f'gap = {model.g_N(model.t0, model.q0)}')
-    # exit()
-    # solver = Scipy_ivp(model, t1, dt)
     solver = Moreau(model, t1, dt)
-    # solver = Moreau_sym(model, t1, dt)
-    # solver = Euler_backward(model, t1, dt, numerical_jacobian=True, debug=True)
-    # solver = Euler_backward(model, t1, dt, numerical_jacobian=False, debug=False)
-    # solver = Generalized_alpha_1(model, t1, dt, numerical_jacobian=True, debug=True)
-    # solver = Generalized_alpha_1(model, t1, dt, t_eval=np.linspace(t0, t1, 100), newton_tol=1.0e-6, numerical_jacobian=False, debug=False)
-
     sol = solver.solve()
     t = sol.t
     q = sol.q
@@ -107,7 +119,9 @@ if __name__ == "__main__":
         t = t[::frac]
         q = q[::frac]
 
-        ax.plot([-2 * y0, 2 * y0], [0, 0], '-k')
+        # ax.plot([-2 * y0, 2 * y0], [0, 0], '-k')
+        ax.plot([0, y0 * np.cos(alpha)], [0, y0 * np.sin(alpha)], '-k')
+        ax.plot([0, - y0 * np.cos(beta)], [0, - y0 * np.sin(beta)], '-k')
 
         def create(t, q):
             x_S, y_S, _ = RB.r_OP(t, q)
