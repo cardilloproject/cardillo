@@ -19,14 +19,14 @@ class Rod():
         self.qDOF = np.concatenate([self.subsystem1.qDOF[qDOF1], self.subsystem2.qDOF[qDOF2]])
         self.nq1 = nq1 = len(qDOF1)
         self.nq2 = len(qDOF2)
-        self.nq = self.nq1 + self.nq2
+        self.__nq = self.nq1 + self.nq2
         
         uDOF1 = self.subsystem1.uDOF_P(self.frame_ID1)
         uDOF2 = self.subsystem2.uDOF_P(self.frame_ID2)
         self.uDOF = np.concatenate([self.subsystem1.uDOF[uDOF1], self.subsystem2.uDOF[uDOF2]])
         self.nu1 = nu1 = len(uDOF1)
         self.nu2 = len(uDOF2)
-        self.nu = self.nu1 + self.nu2
+        self.__nu = self.nu1 + self.nu2
 
         self.r_OP1 = lambda t, q: self.subsystem1.r_OP(t, q[:nq1], self.frame_ID1, self.K_r_SP1)
         self.r_OP1_q = lambda t, q: self.subsystem1.r_OP_q(t, q[:nq1], self.frame_ID1, self.K_r_SP1)
@@ -84,7 +84,7 @@ class Rod():
         J_P2_q = self.J_P2_q(t, q)
 
         # dense blocks
-        dense = np.zeros((self.nu, self.nq))
+        dense = np.zeros((self.__nu, self.__nq))
         dense[:nu1, :nq1] = J_P1.T @ r_OP1_q + np.einsum('i,ijk->jk',r_P2P1, J_P1_q)
         dense[:nu1, nq1:] = - J_P1.T @ r_OP2_q
         dense[nu1:, :nq1] = - J_P2.T @ r_OP1_q

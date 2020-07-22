@@ -53,8 +53,8 @@ if __name__ == "__main__":
     A_IB = np.array([[0, 0, 1], [1, 0, 0], [0, 1, 0]])
     model.add(Revolute_joint(frame, RB1, np.zeros(3), A_IB))
     # model.add( Spherical_joint(RB1, RB2, r01) )
-    model.add( Rigid_connection(RB1, RB2, r01) )
-    # model.add( Revolute_joint(RB1, RB2, r01, A_IB) )
+    # model.add( Rigid_connection(RB1, RB2, r01) )
+    model.add( Revolute_joint(RB1, RB2, r01, A_IB) )
 
     model.assemble()
 

@@ -19,14 +19,14 @@ class Revolute_joint():
         self.qDOF = np.concatenate([self.subsystem1.qDOF[qDOF1], self.subsystem2.qDOF[qDOF2]])
         self.nq1 = nq1 = len(qDOF1)
         self.nq2 = len(qDOF2)
-        self.nq = self.nq1 + self.nq2
+        self.__nq = self.nq1 + self.nq2
         
         uDOF1 = self.subsystem1.uDOF_P(self.frame_ID1)
         uDOF2 = self.subsystem2.uDOF_P(self.frame_ID2)
         self.uDOF = np.concatenate([self.subsystem1.uDOF[uDOF1], self.subsystem2.uDOF[uDOF2]])
         self.nu1 = len(uDOF1)
         self.nu2 = len(uDOF2)
-        self.nu = self.nu1 + self.nu2
+        self.__nu = self.nu1 + self.nu2
         
         A_IK1 = self.subsystem1.A_IK(self.subsystem1.t0, self.subsystem1.q0[qDOF1], self.frame_ID1)
         A_IK2 = self.subsystem2.A_IK(self.subsystem2.t0, self.subsystem2.q0[qDOF2], self.frame_ID2)
@@ -69,7 +69,7 @@ class Revolute_joint():
 
     def g_q_dense(self, t, q):
         nq1 = self.nq1
-        g_q = np.zeros((self.nla_g, self.nq))
+        g_q = np.zeros((self.nla_g, self.__nq))
         g_q[:3, :nq1] = - self.r_OP1_q(t, q) 
         g_q[:3, nq1:] = self.r_OP2_q(t, q)
 
@@ -94,7 +94,7 @@ class Revolute_joint():
     def W_g_dense(self, t, q):
         nq1 = self.nq1
         nu1 = self.nu1
-        W_g = np.zeros((self.nu, self.nla_g))
+        W_g = np.zeros((self.__nu, self.nla_g))
 
         # position 
         J_P1 = self.J_P1(t, q) 
@@ -119,7 +119,7 @@ class Revolute_joint():
     def Wla_g_q(self, t, q, la_g, coo):
         nq1 = self.nq1
         nu1 = self.nu1
-        dense = np.zeros((self.nu, self.nq))
+        dense = np.zeros((self.__nu, self.__nq))
 
         # position 
         J_P1_q = self.J_P1_q(t, q) 
