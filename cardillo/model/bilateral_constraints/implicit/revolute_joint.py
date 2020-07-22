@@ -1,5 +1,5 @@
 import numpy as np
-from cardillo.math.algebra import cross3, ax2skew
+from cardillo.math.algebra import cross3, ax2skew, e3
 
 class Revolute_joint():
     def __init__(self, subsystem1, subsystem2, r_OB, A_IB, frame_ID1=np.zeros(3), frame_ID2=np.zeros(3), la_g0=None):
@@ -60,6 +60,9 @@ class Revolute_joint():
         self.J_R2 = lambda t, q: self.subsystem2.A_IK(t, q[nq1:], self.frame_ID2) @ self.subsystem2.K_J_R(t, q[nq1:], self.frame_ID2)
         self.J_R2_q = lambda t, q: np.einsum('ijk,jl->ilk', self.subsystem2.A_IK_q(t, q[nq1:], self.frame_ID2), self.subsystem2.K_J_R(t, q[nq1:], self.frame_ID2) ) + np.einsum('ij,jkl->ikl', self.subsystem2.A_IK(t, q[nq1:], self.frame_ID2), self.subsystem2.K_J_R_q(t, q[nq1:], self.frame_ID2) )
 
+        q0 = np.concatenate([self.subsystem1.q0[qDOF1], self.subsystem2.q0[qDOF2]])
+        self.angle0 = self.angle(self.t0, q0)
+
     def g(self, t, q):
         r_OP1 = self.r_OP1(t, q) 
         r_OP2 = self.r_OP2(t, q)
@@ -92,7 +95,6 @@ class Revolute_joint():
         coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
    
     def W_g_dense(self, t, q):
-        nq1 = self.nq1
         nu1 = self.nu1
         W_g = np.zeros((self.__nu, self.nla_g))
 
@@ -173,6 +175,15 @@ class Revolute_joint():
         ex2 = self.A_IB2(t, q)[:, 0]
         return np.arctan2(ex2 @ ey1, ex2 @ ex1)
 
+    # def angle_dot(self, t, q, u):
+    #     ex1, ey1, _ = self.A_IB1(t, q).T
+    #     ex2 = self.A_IB2(t, q)[:, 0]
+        
+    #     x = ex2 @ ey1
+    #     y = ex2 @ ey1
+
+    #     # TODO!
+
     def angle_q(self, t, q):
         ex1, ey1, _ = self.A_IB1(t, q).T
         ex2 = self.A_IB2(t, q)[:, 0]
@@ -190,6 +201,21 @@ class Revolute_joint():
 
         return (x * y_q - y * x_q) / (x**2 + y**2)
 
+    def W_angle(self, t, q):
+        K_J_R1 = self.K_J_R1(t, q) 
+        K_J_R2 = self.K_J_R2(t, q)
+        return np.concatenate([-K_J_R1.T @ e3, K_J_R2.T @ e3])
 
+    def W_angle_q(self, t, q):
+        nq1 = self.nq1
+        nu1 = self.nu1
+        K_J_R1_q1 = self.K_J_R1_q(t, q) 
+        K_J_R2_q2 = self.K_J_R2_q(t, q)
 
+        # dense blocks
+        dense = np.zeros((self.__nu, self.__nq))
+        dense[:nu1, :nq1] = np.einsum('i,ijk->jk', -e3, K_J_R1_q1)
+        dense[nu1:, nq1:] = np.einsum('i,ijk->jk',  e3, K_J_R2_q2)
+
+        return dense
 

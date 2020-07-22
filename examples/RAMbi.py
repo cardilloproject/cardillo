@@ -10,6 +10,8 @@ from cardillo.math.algebra import cross3, A_IK_basic_z
 from cardillo.model import Model
 from cardillo.model.rigid_body import Rigid_body2D
 from cardillo.model.bilateral_constraints.explicit import Revolute_joint
+from cardillo.model.scalar_force_interactions.force_laws import Linear_spring_damper
+from cardillo.model.scalar_force_interactions import add_rotational_forcelaw
 from cardillo.model.rigid_body import Rigid_body_rel_kinematics
 from cardillo.model.frame import Frame
 from cardillo.model.force import Force
@@ -35,14 +37,17 @@ class Main_body(Rigid_body2D):
 if __name__ == "__main__":
     animate = True
 
+    k = 100
+    d = 1.0e-1
+
     g = 9.81
 
     # main body
     x_mb0 = 0
     y_mb0 = 1
-    x_mb_dot0 = 0
+    x_mb_dot0 = 1
     y_mb_dot0 = 0
-    phi0 = 0
+    phi0 = -20 / 180 * np.pi
     phi_dot0 = 0
     A_IK_mb0 = A_IK_basic_z(phi0)
 
@@ -58,7 +63,8 @@ if __name__ == "__main__":
     r_OBh = r_mb0 + A_IK_mb0 @ K_r_mbBh
     alpha_h0 = -10 / 180 * np.pi
     alpha_h_dot0 = 0
-    hip_h = Revolute_joint(r_OBh, A_IK_mb0, q0=np.array([alpha_h0]), u0=np.array([alpha_h_dot0]))
+    # hip_h = Revolute_joint(r_OBh, A_IK_mb0, q0=np.array([alpha_h0]), u0=np.array([alpha_h_dot0]))
+    hip_h = add_rotational_forcelaw(Linear_spring_damper(k, d), Revolute_joint)(r_OBh, A_IK_mb0, q0=np.array([alpha_h0]), u0=np.array([alpha_h_dot0]))
     A_ITh = A_IK_basic_z(phi0 + alpha_h0)
 
     K_r_ThBh = np.array([0, 0.0503, 0])
@@ -74,7 +80,8 @@ if __name__ == "__main__":
     r_OBf = r_mb0 + A_IK_mb0 @ K_r_mbBf
     alpha_f0 = 10 / 180 * np.pi
     alpha_f_dot0 = 0
-    hip_f = Revolute_joint(r_OBf, A_IK_mb0, q0=np.array([alpha_f0]), u0=np.array([alpha_f_dot0]))
+    # hip_f = Revolute_joint(r_OBf, A_IK_mb0, q0=np.array([alpha_f0]), u0=np.array([alpha_f_dot0]))
+    hip_f = add_rotational_forcelaw(Linear_spring_damper(k, d), Revolute_joint)(r_OBf, A_IK_mb0, q0=np.array([alpha_f0]), u0=np.array([alpha_f_dot0]))
     A_ITf = A_IK_basic_z(phi0 + alpha_f0)
 
     K_r_ThBf = np.array([0, 0.0503, 0])
@@ -88,7 +95,7 @@ if __name__ == "__main__":
     # ground
     e1, e2, e3 = np.eye(3)
     frame = Frame(A_IK=np.vstack( (e3, e1, e2) ).T )
-    mu = 0.25
+    mu = 0.5
     r_N = 0.2
     e_N = 0.0
     contact_mb = Sphere_to_plane(frame, main_body, 0, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N)
@@ -113,7 +120,7 @@ if __name__ == "__main__":
     model.assemble()
 
     t0 = 0
-    t1 = 1.5
+    t1 = 1
     dt = 1e-3
     solver = Moreau(model, t1, dt)
     sol = solver.solve()
