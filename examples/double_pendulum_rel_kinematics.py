@@ -53,7 +53,9 @@ if __name__ == "__main__":
 
     model = Model()
     model.add(origin)
+    model.add(joint1)
     model.add(RB1)
+    model.add(joint2)
     model.add(RB2)
     model.add(Force(lambda t: np.array([0, -g * m, 0]), RB1))
     model.add(Force(lambda t: np.array([0, -g * m, 0]), RB2))
@@ -63,8 +65,8 @@ if __name__ == "__main__":
     t0 = 0
     t1 = 5
     dt = 5e-2
-    # solver = Scipy_ivp(model, t1, dt)
-    solver = Euler_backward(model, t1, dt, debug=True)
+    solver = Scipy_ivp(model, t1, dt)
+    # solver = Euler_backward(model, t1, dt, debug=True)
     # solver = Generalized_alpha_1(model, t1, dt)
     sol = solver.solve()
     t = sol.t

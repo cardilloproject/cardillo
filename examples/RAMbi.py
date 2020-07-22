@@ -94,16 +94,16 @@ if __name__ == "__main__":
     contact_mb = Sphere_to_plane(frame, main_body, 0, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N)
     contact_h = Sphere_to_plane(frame, thigh_h, 0, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N, K_r_SP=K_r_ThCh)
     contact_f = Sphere_to_plane(frame, thigh_f, 0, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N, K_r_SP=K_r_ThCf)
-    # contact_h = Sphere_to_plane(frame, thigh_h, 0, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N)
-    # contact_f = Sphere_to_plane(frame, thigh_f, 0, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N)
 
     model = Model()
     model.add(main_body)
     model.add(Force(lambda t: np.array([0, -g * main_body.m, 0]), main_body))
 
+    model.add(hip_f)
     model.add(thigh_f)
     model.add(Force(lambda t: np.array([0, -g * m_Tf, 0]), thigh_f))
 
+    model.add(hip_h)
     model.add(thigh_h)
     model.add(Force(lambda t: np.array([0, -g * m_Th, 0]), thigh_h))
 
@@ -153,22 +153,18 @@ if __name__ == "__main__":
 
         ground, = ax.plot([-100, 100], [0, 0], '-k')
 
-        # COM, = ax.plot([], [], '-ok')
         bdry_mb, = ax.plot([], [],  '-ok')
         d1_mb, = ax.plot([], [], '-r')
         d2_mb, = ax.plot([], [], '-g')
 
-        # COM_Th, = ax.plot([], [], 'ok')
         bdry_Th, = ax.plot([], [],  '-ok')
         bdry_Tf, = ax.plot([], [],  '-ok')
 
-        # def update(t, q, COM, bdry, d1_, d2_):
         def update(t, q, *args):
             bdry_mb, d1_mb, d2_mb, bdry_Th, bdry_Tf = args
 
             # main body
             x_S, y_S, _ = main_body.r_OP(t, q)
-            # x_bdry, y_bdry, _ = main_body.boundary(t, q)
             A_IK = main_body.A_IK(t, q)
             d1 = A_IK[:, 0] * main_body.a / 4
             d2 = A_IK[:, 1] * main_body.a / 4

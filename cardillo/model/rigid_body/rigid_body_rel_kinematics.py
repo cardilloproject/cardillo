@@ -14,28 +14,27 @@ class Rigid_body_rel_kinematics():
         self.frame_IDp = frame_IDp
         
         self.joint = joint
-        self.nq = joint.get_nq()
-        self.nu = joint.get_nu()        
-        self.q0 = joint.q0
-        self.u0 = joint.u0
 
         self.is_assembled = False
 
     def assembler_callback(self):
+        if not self.joint.is_assembled:
+            raise RuntimeError('Joint is not assembled; maybe not added to the model.')
+
         if not self.predecessor.is_assembled:
-            raise RuntimeError('Predecessor is not assembled.')
+            raise RuntimeError('Predecessor is not assembled; maybe not added to the model.')
 
         qDOFp = self.predecessor.qDOF_P(self.frame_IDp)
-        self.qDOF = np.concatenate([qDOFp, self.qDOF])
+        self.qDOF = np.concatenate([self.predecessor.qDOF[qDOFp], self.joint.qDOF])
         self.nqp = nqp = len(qDOFp)
-        self.q0 = np.concatenate([self.predecessor.q0, self.q0])
-        self.__nq = nqp + self.nq
+        self.q0 = np.concatenate([self.predecessor.q0[qDOFp], self.joint.q0])
+        self.__nq = nqp + self.joint.nq
 
         uDOFp = self.predecessor.uDOF_P(self.frame_IDp)
-        self.uDOF = np.concatenate([uDOFp, self.uDOF])
+        self.uDOF = np.concatenate([self.predecessor.uDOF[uDOFp], self.joint.uDOF])
         self.nup = nup = len(uDOFp)
-        self.u0 = np.concatenate([self.predecessor.u0, self.u0])
-        self.__nu = nup + self.nu
+        self.u0 = np.concatenate([self.predecessor.u0[uDOFp], self.joint.u0])
+        self.__nu = nup + self.joint.nu
 
         A_IKp = self.predecessor.A_IK(self.predecessor.t0, self.predecessor.q0[qDOFp], self.frame_IDp)
         A_KpB1 = A_IKp.T @ self.joint.A_IB1
@@ -136,25 +135,6 @@ class Rigid_body_rel_kinematics():
             + self.K_J_R(t, q).T @ (tmp1_u + tmp2_u)
 
         coo.extend(f_gyr_u, (self.uDOF, self.uDOF))
-
-    def q_dot(self, t, q, u):
-        q_dot = np.zeros(self.__nq)
-        q_dot[:self.nqp] = self.predecessor.q_dot(t, q[:self.nqp], u[:self.nup])
-        q_dot[self.nqp:] = self.joint.q_dot(t, q[self.nqp:], u[self.nup:])
-        return q_dot
-    
-    def q_ddot(self, t, q, u, u_dot):
-        q_ddot = np.zeros(self.__nq)
-        q_ddot[:self.nqp] = self.predecessor.q_ddot(t, q[:self.nqp], u[:self.nup], u_dot[:self.nup])
-        q_ddot[self.nqp:] = self.joint.q_ddot(t, q[self.nqp:], u[self.nup:], u_dot[self.nup:])
-        return q_ddot
-
-    def q_dot_q(self, t, q, u, coo):
-        dense = Numerical_derivative(self.q_dot, order=2)._x(t, q, u)
-        coo.extend(dense, (self.qDOF, self.qDOF))
-
-    def B(self, t, q, coo):
-        coo.extend(self.joint.B(t, q[self.nqp:]), (self.qDOF[self.nqp:], self.uDOF[self.nup:]))
 
     def qDOF_P(self, frame_ID=None):
         return np.arange(self.__nq)

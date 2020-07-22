@@ -67,6 +67,7 @@ if __name__ == "__main__":
     model.add(origin)
     model.add(RB1)
     model.add(joint1)
+    model.add(joint2)
     model.add(RB2)
     model.add(Force(lambda t: np.array([0, -g * m, 0]), RB1))
     model.add(Force(lambda t: np.array([0, -g * m, 0]), RB2))
@@ -76,13 +77,13 @@ if __name__ == "__main__":
     t0 = 0
     t1 = 5
     dt = 1e-2
-    # solver = Scipy_ivp(model, t1, dt)
+    solver = Scipy_ivp(model, t1, dt)
     # solver = Moreau(model, t1, dt)
     # solver = Moreau_sym(model, t1, dt)
     # solver = Euler_backward(model, t1, dt, numerical_jacobian=True, debug=True)
     # solver = Euler_backward(model, t1, dt, numerical_jacobian=False, debug=False)
     # solver = Generalized_alpha_1(model, t1, dt, numerical_jacobian=True, debug=True)
-    solver = Generalized_alpha_1(model, t1, dt, t_eval=np.linspace(t0, t1, 100), newton_tol=1.0e-6, numerical_jacobian=False, debug=False)
+    # solver = Generalized_alpha_1(model, t1, dt, t_eval=np.linspace(t0, t1, 100), newton_tol=1.0e-6, numerical_jacobian=False, debug=False)
 
     sol = solver.solve()
     t = sol.t
