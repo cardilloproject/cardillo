@@ -19,8 +19,6 @@ class Sphere_to_plane():
         self.frame_ID = frame_ID
 
         self.r_OQ = lambda t: self.frame.r_OP(t)
-        self.t1 = lambda t: self.frame.A_IK(t)[:, 0]
-        self.t2 = lambda t: self.frame.A_IK(t)[:, 1]
         self.t1t2 = lambda t: self.frame.A_IK(t).T[:2]
         self.n = lambda t: self.frame.A_IK(t)[:, 2]
         self.v_Q = lambda t: self.frame.v_P(t)
@@ -33,11 +31,12 @@ class Sphere_to_plane():
         self.is_assembled = False
 
     def assembler_callback(self):
-
-        self.qDOF = self.subsystem.qDOF_P(self.frame_ID)
+        qDOF = self.subsystem.qDOF_P(self.frame_ID)
+        self.qDOF = self.subsystem.qDOF[qDOF]
         self.nq = len(self.qDOF)
 
-        self.uDOF = self.subsystem.uDOF_P(self.frame_ID)
+        uDOF = self.subsystem.uDOF_P(self.frame_ID)
+        self.uDOF = self.subsystem.uDOF[uDOF]
         self.nu = len(self.uDOF)
 
         self.K_r_SP = lambda t, q: self.K_r_SP_ - self.r * self.subsystem.A_IK(t, q, frame_ID=self.frame_ID).T @ self.n(t)

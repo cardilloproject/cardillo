@@ -31,7 +31,6 @@ class Main_body(Rigid_body2D):
         K_r_SP = np.vstack([xi, np.zeros(n), np.zeros(n)])
         return np.repeat(self.r_OP(t, q), n).reshape(3, n) + self.A_IK(t, q) @ K_r_SP
 
-
 # unit system: kg, m, s
 if __name__ == "__main__":
     animate = True
@@ -54,30 +53,32 @@ if __name__ == "__main__":
 
     main_body = Main_body(q_mb0, u_mb0)
 
-    # left leg
+    # hind leg
     K_r_mbBh = np.array([-0.575 / 2, -0.137675, 0])
     r_OBh = r_mb0 + A_IK_mb0 @ K_r_mbBh
-    alpha_h0 = 0
+    alpha_h0 = -10 / 180 * np.pi
     alpha_h_dot0 = 0
     hip_h = Revolute_joint(r_OBh, A_IK_mb0, q0=np.array([alpha_h0]), u0=np.array([alpha_h_dot0]))
     A_ITh = A_IK_basic_z(phi0 + alpha_h0)
 
     K_r_ThBh = np.array([0, 0.0503, 0])
+    K_r_ThCh = np.array([0, 0.0503 - 0.2, 0])
     r_Th = r_OBh - A_ITh @ K_r_ThBh
     m_Th = 0.7887
     K_theta_Th = 0.002207 * np.eye(3)
     
     thigh_h = Rigid_body_rel_kinematics(m_Th, K_theta_Th, hip_h, main_body, r_OS0=r_Th, A_IK0=A_ITh)
 
-    # right leg
+    # front leg
     K_r_mbBf = np.array([0.575 / 2, -0.137675, 0])
     r_OBf = r_mb0 + A_IK_mb0 @ K_r_mbBf
-    alpha_f0 = 0
+    alpha_f0 = 10 / 180 * np.pi
     alpha_f_dot0 = 0
     hip_f = Revolute_joint(r_OBf, A_IK_mb0, q0=np.array([alpha_f0]), u0=np.array([alpha_f_dot0]))
     A_ITf = A_IK_basic_z(phi0 + alpha_f0)
 
     K_r_ThBf = np.array([0, 0.0503, 0])
+    K_r_ThCf = np.array([0, 0.0503 - 0.2, 0])
     r_Tf = r_OBf - A_ITf @ K_r_ThBf
     m_Tf = 0.7887
     K_theta_Tf = 0.002207 * np.eye(3)
@@ -87,25 +88,32 @@ if __name__ == "__main__":
     # ground
     e1, e2, e3 = np.eye(3)
     frame = Frame(A_IK=np.vstack( (e3, e1, e2) ).T )
-    mu = 0.5
-    r_N = 0.25
-    e_N = 0.5
-    # plane = Sphere_to_plane(frame, thigh_h, 0, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N, K_r_SP=-2.5 * K_r_ThBh)
-    plane = Sphere_to_plane(frame, main_body, 0, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N)
-
+    mu = 0.25
+    r_N = 0.2
+    e_N = 0.0
+    contact_mb = Sphere_to_plane(frame, main_body, 0, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N)
+    contact_h = Sphere_to_plane(frame, thigh_h, 0, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N, K_r_SP=K_r_ThCh)
+    contact_f = Sphere_to_plane(frame, thigh_f, 0, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N, K_r_SP=K_r_ThCf)
+    # contact_h = Sphere_to_plane(frame, thigh_h, 0, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N)
+    # contact_f = Sphere_to_plane(frame, thigh_f, 0, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N)
 
     model = Model()
     model.add(main_body)
     model.add(Force(lambda t: np.array([0, -g * main_body.m, 0]), main_body))
-    model.add(thigh_h)
-    model.add(Force(lambda t: np.array([0, -g * m_Th, 0]), thigh_h))
+
     model.add(thigh_f)
     model.add(Force(lambda t: np.array([0, -g * m_Tf, 0]), thigh_f))
-    model.add(plane)
+
+    model.add(thigh_h)
+    model.add(Force(lambda t: np.array([0, -g * m_Th, 0]), thigh_h))
+
+    model.add(contact_mb)
+    model.add(contact_h)
+    model.add(contact_f)
     model.assemble()
 
     t0 = 0
-    t1 = 2
+    t1 = 1.5
     dt = 1e-3
     solver = Moreau(model, t1, dt)
     sol = solver.solve()
@@ -113,6 +121,12 @@ if __name__ == "__main__":
     q = sol.q
     u = sol.u
     la_N = sol.la_N
+
+    plt.plot(t, q[:, thigh_h.qDOF[-1]], '-r', label='alpha_h')
+    plt.plot(t, q[:, thigh_f.qDOF[-1]], '-g', label='alpha_f')
+    plt.legend()
+    plt.show()
+    # exit()
 
     if animate:
         # animate configurations
@@ -169,14 +183,16 @@ if __name__ == "__main__":
             # hind leg
             x1, y1, _ = thigh_h.r_OP(t, q[thigh_h.qDOF], K_r_SP=K_r_ThBh)
             x_S, y_S, _ = thigh_h.r_OP(t, q[thigh_h.qDOF])
-            x2, y2, _ = thigh_h.r_OP(t, q[thigh_h.qDOF], K_r_SP=-2.5 * K_r_ThBh)
-            bdry_Th.set_data([x1, x_S, x2], [y1, y_S, y2])
+            x2, y2, _ = thigh_h.r_OP(t, q[thigh_h.qDOF], K_r_SP=K_r_ThCh)
+            x_C, y_C, _ = contact_h.r_OP(t, q[contact_h.qDOF])
+            bdry_Th.set_data([x1, x_S, x2, x_C], [y1, y_S, y2, y_C])
 
             # front leg
             x1, y1, _ = thigh_f.r_OP(t, q[thigh_f.qDOF], K_r_SP=K_r_ThBf)
             x_S, y_S, _ = thigh_f.r_OP(t, q[thigh_f.qDOF])
-            x2, y2, _ = thigh_f.r_OP(t, q[thigh_f.qDOF], K_r_SP=-2.5 * K_r_ThBf)
-            bdry_Tf.set_data([x1, x_S, x2], [y1, y_S, y2])
+            x2, y2, _ = thigh_f.r_OP(t, q[thigh_f.qDOF], K_r_SP=K_r_ThCf)
+            x_C, y_C, _ = contact_f.r_OP(t, q[contact_f.qDOF])
+            bdry_Tf.set_data([x1, x_S, x2, x_C], [y1, y_S, y2, y_C])
 
             return bdry_mb, d1_mb, d2_mb, bdry_Th, bdry_Tf
 

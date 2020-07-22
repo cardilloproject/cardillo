@@ -13,7 +13,6 @@ class Rigid_body_rel_kinematics():
         self.predecessor = predecessor
         self.frame_IDp = frame_IDp
         
-
         self.joint = joint
         self.nq = joint.get_nq()
         self.nu = joint.get_nu()        

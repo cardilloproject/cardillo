@@ -8,19 +8,18 @@ from cardillo.solver import Solution
 from cardillo.math.prox import prox_Rn0
 
 class Moreau():
-    def __init__(self, model, t1, dt):
+    def __init__(self, model, t1, dt, fix_point_tol=1e-5, fix_point_max_iter=1000):
         self.model = model
-
-        self.fix_point_error_function = lambda x: np.max(np.abs(x)) / len(x)
-        self.fix_point_tol = 1e-3
-        self.fix_point_max_iter = 1000
-
 
         # integration time
         t0 = model.t0
         self.t1 = t1 if t1 > t0 else ValueError("t1 must be larger than initial time t0.")
         self.dt = dt
         self.t = np.arange(t0, self.t1 + self.dt, self.dt)
+
+        self.fix_point_error_function = lambda x: np.max(np.abs(x)) / len(x)
+        self.fix_point_tol = fix_point_tol
+        self.fix_point_max_iter = fix_point_max_iter
 
         self.nq = self.model.nq
         self.nu = self.model.nu
@@ -45,21 +44,23 @@ class Moreau():
         chi_g = self.model.chi_g(tk1, qk1)
         gamma_u = self.model.gamma_u(tk1, qk1)
         chi_gamma = self.model.chi_gamma(tk1, qk1)
-        
-        # M (uk1 - uk) - dt (h + W_g la_g + W_gamma la_gamma + W_gN la_N + W_gT la_T) = 0
-        # g_dot_u @ uk1 + chi_g = 0
-        # gamma_u @ uk1 + chi_gamma = 0
+
+        # identify active normal and tangential contacts
         g_N = self.model.g_N(tk1, qk1)
         I_N = (g_N <= 0)
         I_T = self.model.NT_connectivity[I_N].reshape(-1)
+
         # solve for new velocities and bilateral constraint forces
+        # M (uk1 - uk) - dt (h + W_g la_g + W_gamma la_gamma + W_gN la_N + W_gT la_T) = 0
+        # g_dot_u @ uk1 + chi_g = 0
+        # gamma_u @ uk1 + chi_gamma = 0
         A =  bmat([[M      ,  -dt * W_g, -dt * W_gamma], \
-                    [g_dot_u,       None,          None], \
-                    [gamma_u,       None,          None]]).tocsr()
+                   [g_dot_u,       None,          None], \
+                   [gamma_u,       None,          None]]).tocsr()
 
         b = np.concatenate( (M @ uk + dt * h + W_N[:, I_N] @ la_Nk[I_N] + W_T[:, I_T] @ la_Tk[I_T],\
-                                -chi_g,\
-                                -chi_gamma) )
+                             -chi_g,\
+                             -chi_gamma) )
 
         x = spsolve(A, b)
         uk1 = x[:self.nu]
@@ -73,8 +74,6 @@ class Moreau():
         error = 0
         j = 0
         if np.any(I_N):
-            #TODO:
-            # I_T = self.model.la_TDOF
             converged = False
             la_Nk0 = la_Nk.copy()
             la_Nk1_i = la_Nk.copy()
@@ -103,8 +102,8 @@ class Moreau():
                         [gamma_u,       None,          None]]).tocsr()
 
                 b = np.concatenate( (M @ uk + dt * h + W_N[:, I_N] @ la_Nk1_i[I_N] + W_T[:, I_T] @ la_Tk1_i[I_T],\
-                                    -chi_g,\
-                                    -chi_gamma) )
+                                     -chi_g,\
+                                     -chi_gamma) )
 
                 x = spsolve(A, b)
                 uk1 = x[:self.nu]
@@ -113,9 +112,8 @@ class Moreau():
                 
         return (converged, j, error), tk1, qk1, uk1, la_gk1, la_gammak1, la_Nk1, la_Tk1
 
-    def solve(self): 
-        
-        # lists storing output variables
+    def solve(self):
+        # initial values
         tk = self.model.t0
         qk = self.model.q0.copy()
         uk = self.model.u0.copy()
@@ -124,6 +122,7 @@ class Moreau():
         la_Nk = self.model.la_N0.copy()
         la_Tk = self.model.la_T0.copy()
         
+        # lists storing output variables
         q = [qk]
         u = [uk]
         la_g = [la_gk]
@@ -151,8 +150,7 @@ class Moreau():
             qk, uk, la_gk, la_gammak, la_Nk, la_Tk = qk1, uk1, la_gk1, la_gammak1, la_Nk1, la_Tk1
             
         # write solution
-        #TODO:
-        return Solution(t=self.t, q=np.array(q), u=np.array(u), la_g=np.array(la_g), la_gamma=np.array(la_gamma), la_N=np.array(la_N))
+        return Solution(t=self.t, q=np.array(q), u=np.array(u), la_g=np.array(la_g), la_gamma=np.array(la_gamma), la_N=np.array(la_N), la_T=np.array(la_T))
 
 class Moreau_sym():
     def __init__(self, model, t1, dt, newton_tol=1e-6, newton_max_iter=10, newton_error_function=lambda x: np.max(np.abs(x)), numerical_jacobian=False, debug=False):
