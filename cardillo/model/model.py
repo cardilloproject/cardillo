@@ -125,7 +125,7 @@ class Model(object):
                 self.nla_T += contr.nla_T
                 la_T0.extend(contr.la_T0.tolist())
                 for i in range(contr.nla_N):
-                    NT_connectivity.append(contr.la_TDOF[contr.NT_connectivity[i]])
+                    NT_connectivity.append(contr.la_TDOF[np.array(contr.NT_connectivity[i], dtype=int)].tolist())
                     Ncontr_connectivity.append(n_laN_contr)
                 n_laN_contr += 1
                 
@@ -136,7 +136,7 @@ class Model(object):
         self.la_gamma0 = np.array(la_gamma0)
         self.la_N0 = np.array(la_N0)
         self.la_T0 = np.array(la_T0)
-        self.NT_connectivity = np.array(NT_connectivity, dtype=int)
+        self.NT_connectivity = NT_connectivity
         self.Ncontr_connectivity = np.array(Ncontr_connectivity, dtype=int)
 
         # call assembler callback: call methods that require first an assembly of the system

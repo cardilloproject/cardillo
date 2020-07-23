@@ -27,7 +27,9 @@ class Moreau():
         self.nla_gamma = self.model.nla_gamma
         self.n = self.nq + self.nu + self.nla_g + self.nla_gamma
 
-    def step(self, tk, qk, uk, la_Nk, la_Tk):
+        self.step = self.__step_prox
+
+    def __step_prox(self, tk, qk, uk, la_Nk, la_Tk):
         # general quantities
         dt = self.dt
 
@@ -48,7 +50,8 @@ class Moreau():
         # identify active normal and tangential contacts
         g_N = self.model.g_N(tk1, qk1)
         I_N = (g_N <= 0)
-        I_T = self.model.NT_connectivity[I_N].reshape(-1)
+        tmp = [self.model.NT_connectivity[i] for i in I_N]
+        I_T = np.array([i for c in tmp for i in c], dtype=int)
 
         # solve for new velocities and bilateral constraint forces
         # M (uk1 - uk) - dt (h + W_g la_g + W_gamma la_gamma + W_gN la_N + W_gT la_T) = 0

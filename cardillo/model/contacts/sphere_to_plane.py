@@ -12,8 +12,16 @@ class Sphere_to_plane():
         self.prox_r_T = prox_r_T
 
         self.nla_N = 1
-        self.nla_T = 2 * self.nla_N
-        self.NT_connectivity = np.array([ [0, 1] ])
+
+        if mu == 0:
+            self.nla_T = 0
+            self.NT_connectivity = [[]]
+            self.contact_force_fixpoint_update = self.__contact_force_fixpoint_update_no_friction
+        else:
+            self.nla_T =  2 * self.nla_N 
+            self.NT_connectivity = [ [0, 1] ]
+            self.gamma_T = self.__gamma_T
+            self.contact_force_fixpoint_update = self.__contact_force_fixpoint_update
         self.e_N = 0 if e_N is None else e_N
         self.e_T = 0 if e_T is None else e_T
         self.frame_ID = frame_ID
@@ -62,7 +70,7 @@ class Sphere_to_plane():
     def W_N(self, t, q, coo):
         coo.extend(self.g_N_dot_u_dense(t, q).T, (self.uDOF, self.la_NDOF))
 
-    def gamma_T(self, t, q, u):
+    def __gamma_T(self, t, q, u):
         return self.t1t2(t) @ (self.v_P(t, q, u) - self.v_Q(t))
 
     def gamma_T_u_dense(self, t, q):
@@ -71,9 +79,14 @@ class Sphere_to_plane():
     def W_T(self, t, q, coo):
         coo.extend(self.gamma_T_u_dense(t, q).T, (self.uDOF, self.la_TDOF))
 
-    def contact_force_fixpoint_update(self, t, q, u_pre, u_post, la_N, la_T):
+    def __contact_force_fixpoint_update(self, t, q, u_pre, u_post, la_N, la_T):
         xi_N = self.g_N_dot(t, q, u_post) + self.e_N * self.g_N_dot(t, q, u_pre)
         la_N1 = prox_Rn0(la_N - self.prox_r_N * xi_N) 
         xi_T = self.gamma_T(t, q, u_post) + self.e_T * self.gamma_T(t, q, u_pre)
         la_T1 = prox_circle(la_T - self.prox_r_T * xi_T, self.mu * la_N1)
         return la_N1, la_T1
+
+    def __contact_force_fixpoint_update_no_friction(self, t, q, u_pre, u_post, la_N, la_T):
+        xi_N = self.g_N_dot(t, q, u_post) + self.e_N * self.g_N_dot(t, q, u_pre)
+        la_N1 = prox_Rn0(la_N - self.prox_r_N * xi_N)
+        return la_N1, la_T.copy()
