@@ -8,7 +8,7 @@ from cardillo.solver import Solution
 from cardillo.math.prox import prox_Rn0
 
 class Moreau():
-    def __init__(self, model, t1, dt, fix_point_tol=1e-5, fix_point_max_iter=1000):
+    def __init__(self, model, t1, dt, fix_point_tol=1e-5, fix_point_max_iter=10):
         self.model = model
 
         # integration time
@@ -25,11 +25,16 @@ class Moreau():
         self.nu = self.model.nu
         self.nla_g = self.model.nla_g
         self.nla_gamma = self.model.nla_gamma
-        self.n = self.nq + self.nu + self.nla_g + self.nla_gamma
+        self.nla_N = self.model.nla_N
+        self.nR_smooth = self.nu + self.nla_g + self.nla_gamma
 
-        self.step = self.__step_prox
+        self.DOFs_smooth = np.arange(self.nR_smooth)
 
-    def __step_prox(self, tk, qk, uk, la_Nk, la_Tk):
+        # self.step = self.__step_prox
+        self.step = self.__step_newton
+
+    # def __step_prox(self, tk, qk, uk, la_Nk, la_Tk):
+    def __step_prox(self, tk, qk, uk, la_gk, la_gammak, la_Nk, la_Tk):
         # general quantities
         dt = self.dt
 
@@ -50,6 +55,9 @@ class Moreau():
         # identify active normal and tangential contacts
         g_N = self.model.g_N(tk1, qk1)
         I_N = (g_N <= 0)
+        # TODO: find error here!
+        if np.any(I_N):
+            print('debug me')
         tmp = [self.model.NT_connectivity[i] for i in I_N]
         I_T = np.array([i for c in tmp for i in c], dtype=int)
 
@@ -115,7 +123,7 @@ class Moreau():
                 
         return (converged, j, error), tk1, qk1, uk1, la_gk1, la_gammak1, la_Nk1, la_Tk1
 
-    def __step_newton(self, tk, qk, uk, la_Nk, la_Tk):
+    def __step_newton(self, tk, qk, uk, la_gk, la_gammak, la_Nk, la_Tk):
         # general quantities
         dt = self.dt
 
@@ -126,94 +134,205 @@ class Moreau():
         h = self.model.h(tk1, qk1, uk)
         W_g = self.model.W_g(tk1, qk1)
         W_gamma = self.model.W_gamma(tk1, qk1)
-        W_N = self.model.W_N(tk1, qk1)
+        W_N = self.model.W_N(tk1, qk1, scipy_matrix=csc_matrix)
         # W_T = self.model.W_T(tk1, qk1, scipy_matrix=csc_matrix)
         g_dot_u = self.model.g_dot_u(tk1, qk1)
         chi_g = self.model.chi_g(tk1, qk1)
         gamma_u = self.model.gamma_u(tk1, qk1)
         chi_gamma = self.model.chi_gamma(tk1, qk1)
-        g_N_dot_u = self.model.g_N_dot_u(tk1, qk1)
+        g_N_dot_u = self.model.g_N_dot_u(tk1, qk1, scipy_matrix=csc_matrix)
         chi_N = self.model.chi_N(tk1, qk1)
         g_N_dotk = self.model.g_N_dot(tk1, qk1, uk)
 
         # identify active normal and tangential contacts
         g_N = self.model.g_N(tk1, qk1)
         I_N = (g_N <= 0)
-        # tmp = [self.model.NT_connectivity[i] for i in I_N]
-        # I_T = np.array([i for c in tmp for i in c], dtype=int)
 
-        # solve for new velocities and bilateral constraint forces
-        # M (uk1 - uk) - dt (h + W_g la_g + W_gamma la_gamma + W_gN la_N + W_gT la_T) = 0
-        # g_dot_u @ uk1 + chi_g = 0
-        # gamma_u @ uk1 + chi_gamma = 0
-        e_N = 0
-        A =  bmat([[M      ,  -dt * W_g, -dt * W_gamma, -W_N], \
-                   [g_dot_u,       None,          None, None], \
-                   [gamma_u,       None,          None, None], \
-                   [g_N_dot_u,     None,          None, None]]).tocsc()
+        # TODO: use e_N on subsystem level!
+        e_N = 0.75
+        # TODO: compute xi on model and subsystem level
+        xi_N = g_N_dot_u @ uk + chi_N + e_N * g_N_dotk
+
+        # divide active set into both parts of the prox equation
+        # S_N contains the parts where the contact velocities and the gaps are <= 0
+        S_N = (xi_N <= 0) * I_N
+        A_N = (la_Nk >= 0) * S_N
+
+        A =  bmat([[M      ,        -dt * W_g, -dt * W_gamma, -W_N[:, A_N]], \
+                   [g_dot_u,        None     , None         , None       ], \
+                   [gamma_u,        None     , None         , None       ], \
+                   [g_N_dot_u[A_N], None     , None         , None       ]]).tocsc()
  
         b = np.concatenate( (M @ uk + dt * h,\
                              -chi_g,\
                              -chi_gamma,\
-                             -chi_N - e_N * g_N_dotk) )
-
-        uk1 = uk.copy()
-        la_Nk1 = la_Nk.copy()
-
-        for j in range(self.fix_point_max_iter):
-            xi_N = g_N_dot_u @ uk1 + chi_N + e_N * g_N_dotk
-            A_N = xi_N >= 0
-            A_N = A_N * I_N
+                             (-chi_N - e_N * g_N_dotk)[A_N] ) ) # TODO: compute this on model level
 
         x = spsolve(A, b)
         uk1 = x[:self.nu]
         la_gk1 = x[self.nu:self.nu+self.nla_g]
-        la_gammak1 = x[self.nu+self.nla_g:]
-
+        la_gammak1 = x[self.nu+self.nla_g:self.nu+self.nla_g+self.nla_gamma]
         la_Nk1 = np.zeros_like(la_Nk)
-        la_Tk1 = np.zeros_like(la_Tk)
+        la_Nk1[A_N] = x[self.nu+self.nla_g+self.nla_gamma:]
 
+        # x = np.concatenate((uk, la_gk, la_gammak, la_Nk[A_N]))
+        # R = A @ x - b
+        # error = np.max(np.abs(R))
+        # if error >= self.fix_point_tol:
+        #     x = spsolve(A, b)
+        #     uk1 = x[:self.nu]
+        #     la_gk1 = x[self.nu:self.nu+self.nla_g]
+        #     la_gammak1 = x[self.nu+self.nla_g:self.nu+self.nla_g+self.nla_gamma]
+        #     la_Nk1 = np.zeros_like(la_Nk)
+        #     la_Nk1[A_N] = x[self.nu+self.nla_g+self.nla_gamma:]
+        # else:
+        #     uk1 = uk.copy()
+        #     la_gk1 = la_gk.copy()
+        #     la_gammak1 = la_gammak.copy()
+        #     la_Nk1 = la_Nk.copy()
+
+        # TODO: they have no meaning for linear systems...
         converged = True
         error = 0
-        j = 0
-        # if np.any(I_N):
-        #     converged = False
-        #     la_Nk0 = la_Nk.copy()
-        #     la_Nk1_i = la_Nk.copy()
-        #     la_Tk0 = la_Tk.copy()
-        #     la_Tk1_i = la_Tk.copy()
-            
-                
-        #         # relative contact velocity and prox equation
-        #         la_Nk1_i, la_Tk1_i = self.model.contact_force_fixpoint_update(tk1, qk1, uk, uk1, la_Nk1_i, la_Tk1_i, I_N=I_N)
+        j = 0         
 
-        #         # check if velocities or contact percussions do not change
-        #         # error = self.fix_point_error_function(uk1 - uk0)
-        #         R = np.concatenate( (la_Nk1_i[I_N] - la_Nk0[I_N], la_Tk1_i[I_T] - la_Tk0[I_T]) )
-        #         error = self.fix_point_error_function(R)
-        #         converged = error < self.fix_point_tol
-        #         if converged:
-        #             la_Nk1[I_N] = la_Nk1_i[I_N]
-        #             la_Tk1[I_T] = la_Tk1_i[I_T]
-        #             break
-        #         la_Nk0 = la_Nk1_i.copy()
-        #         la_Tk0 = la_Tk1_i.copy()
-
-        #         # solve for new velocities and bilateral constraint forces
-        #         A =  bmat([[M      ,  -dt * W_g, -dt * W_gamma], \
-        #                 [g_dot_u,       None,          None], \
-        #                 [gamma_u,       None,          None]]).tocsr()
-
-        #         b = np.concatenate( (M @ uk + dt * h + W_N[:, I_N] @ la_Nk1_i[I_N] + W_T[:, I_T] @ la_Tk1_i[I_T],\
-        #                              -chi_g,\
-        #                              -chi_gamma) )
-
-        #         x = spsolve(A, b)
-        #         uk1 = x[:self.nu]
-        #         la_gk1 = x[self.nu:self.nu+self.nla_g]
-        #         la_gammak1 = x[self.nu+self.nla_g:]
-                
+        la_Tk1 = np.zeros_like(la_Tk)
         return (converged, j, error), tk1, qk1, uk1, la_gk1, la_gammak1, la_Nk1, la_Tk1
+
+    # TODO: old implementation; might be usefull for symmetric Moreau or Moreau with friction
+    # def __step_newton(self, tk, qk, uk, la_gk, la_gammak, la_Nk, la_Tk):
+    #     # general quantities
+    #     dt = self.dt
+
+    #     tk1 = tk + dt
+    #     qk1 = qk + dt * self.model.q_dot(tk, qk, uk)
+
+    #     M = self.model.M(tk1, qk1)
+    #     h = self.model.h(tk1, qk1, uk)
+    #     W_g = self.model.W_g(tk1, qk1)
+    #     W_gamma = self.model.W_gamma(tk1, qk1)
+    #     W_N = self.model.W_N(tk1, qk1)
+    #     # W_T = self.model.W_T(tk1, qk1, scipy_matrix=csc_matrix)
+    #     g_dot_u = self.model.g_dot_u(tk1, qk1)
+    #     chi_g = self.model.chi_g(tk1, qk1)
+    #     gamma_u = self.model.gamma_u(tk1, qk1)
+    #     chi_gamma = self.model.chi_gamma(tk1, qk1)
+    #     g_N_dot_u = self.model.g_N_dot_u(tk1, qk1)
+    #     chi_N = self.model.chi_N(tk1, qk1)
+    #     g_N_dotk = self.model.g_N_dot(tk1, qk1, uk)
+
+    #     # identify active normal and tangential contacts
+    #     g_N = self.model.g_N(tk1, qk1)
+    #     I_N = (g_N <= 0)
+    #     # tmp = [self.model.NT_connectivity[i] for i in I_N]
+    #     # I_T = np.array([i for c in tmp for i in c], dtype=int)
+
+    #     # solve for new velocities and bilateral constraint forces
+    #     # M (uk1 - uk) - dt (h + W_g la_g + W_gamma la_gamma + W_gN la_N + W_gT la_T) = 0
+    #     # g_dot_u @ uk1 + chi_g = 0
+    #     # gamma_u @ uk1 + chi_gamma = 0
+    #     e_N = 0.75
+    #     A =  bmat([[M      ,  -dt * W_g, -dt * W_gamma, -W_N], \
+    #                [g_dot_u,       None,          None, None], \
+    #                [gamma_u,       None,          None, None], \
+    #                [g_N_dot_u,     None,          None, None]]).tocsc()
+ 
+    #     b = np.concatenate( (M @ uk + dt * h,\
+    #                          -chi_g,\
+    #                          -chi_gamma,\
+    #                          -chi_N - e_N * g_N_dotk) )
+
+    #     uk1 = uk.copy()
+    #     la_Nk1 = la_Nk.copy()
+    #     converged = False
+    #     # initial guess
+    #     # x = np.concatenate((uk, la_gk, la_gammak, la_Nk))
+    #     for j in range(self.fix_point_max_iter):
+    #         # # unpack x
+    #         # uk1 = x[:self.nu]
+    #         # la_gk1 = x[self.nu:self.nu+self.nla_g]
+    #         # la_gammak1 = x[self.nu+self.nla_g:self.nu+self.nla_g+self.nla_gamma]
+    #         # la_Nk1 = x[self.nu+self.nla_g+self.nla_gamma:]
+
+    #         # TODO: compute xi on model and subsystem level
+    #         xi_N = g_N_dot_u @ uk1 + chi_N + e_N * g_N_dotk
+
+    #         # divide active set into both parts of the prox equation
+    #         # S_N contains the parts where the contact velocities and the gaps are <= 0
+    #         S_N = (xi_N <= 0) * I_N
+
+    #         A_N = (la_Nk1 >= 0) * S_N
+    #         # # n_A_N = len(A_N.nonzero()[0])
+    #         # n_A_N = np.count_nonzero(A_N)
+
+    #         # r = 0.2
+    #         # A_N = (la_Nk1 - r * xi_N <= 0) * I_N
+
+    #         # if np.any(I_N):
+    #         #     print(f'negative gaps')
+
+    #         # TODO: do we need A_N_bar?
+    #         # A_N_bar = np.array([not i for i in A_N])
+    #         # A_N_bar = ~A_N
+
+    #         # # update both parts of the prox equation
+    #         # la_Nk1[~A_N] = 0
+    #         # # TODO: we need to use the subsystems r parameter of the prox equation
+    #         # r = 0.2
+    #         # la_Nk1[A_N] -= r * g_N[A_N]
+
+    #         # print('TODO')
+
+    #         # residual
+    #         # idx = np.arange(self.nu + self.nla_g + self.nla_gamma + self.nla_N)
+    #         # R1 = 
+    #         # R = (A @ x - b)[A_N]
+    #         # error = np.max(np.abs(R))
+    #         # R = np.zeros(self.nR_smooth + n_A_N)
+    #         # R[:self.nu] = 
+
+    #         # # solve linear system of equations
+    #         # x = spsolve(A, b)
+    #         # uk1 = x[:self.nu]
+    #         # la_gk1 = x[self.nu:self.nu+self.nla_g]
+    #         # la_gammak1 = x[self.nu+self.nla_g:self.nu+self.nla_g+self.nla_gamma]
+    #         # la_Nk1 = np.zeros_like(la_Nk1)
+    #         # la_Nk1[A_N] = x[self.nu+self.nla_g+self.nla_gamma:][A_N]
+
+    #         # DOFs = np.concatenate((self.DOFs_smooth, np.arange(n_A_N) + self.nR_smooth))
+    #         DOFs = np.concatenate((self.DOFs_smooth, np.where(A_N)[0] + self.nR_smooth))
+    #         x = spsolve(A[DOFs[:, None], DOFs], b[DOFs])
+    #         uk1 = x[:self.nu]
+    #         la_gk1 = x[self.nu:self.nu+self.nla_g]
+    #         la_gammak1 = x[self.nu+self.nla_g:self.nu+self.nla_g+self.nla_gamma]
+    #         la_Nk1 = np.zeros_like(la_Nk)
+    #         la_Nk1[A_N] = x[self.nu+self.nla_g+self.nla_gamma:]
+
+    #         # # R = (A @ x - b)[DOFs]
+    #         # R = (A @ x - b)
+    #         # error = np.max(np.abs(R))
+
+    #         # if error < self.fix_point_tol:
+    #         #     converged = True
+    #         #     break
+
+
+    #     # x = spsolve(A, b)
+    #     # uk1 = x[:self.nu]
+    #     # la_gk1 = x[self.nu:self.nu+self.nla_g]
+    #     # la_gammak1 = x[self.nu+self.nla_g:self.nu+self.nla_g+self.nla_gamma]
+    #     # la_Nk1 = x[self.nu+self.nla_g+self.nla_gamma:]
+
+    #     # # la_Nk1 = np.zeros_like(la_Nk)
+    #     # la_Tk1 = np.zeros_like(la_Tk)
+
+    #     # TODO: remove these
+    #     converged = True
+    #     error = 0
+    #     j = 0         
+
+    #     la_Tk1 = np.zeros_like(la_Tk)
+    #     return (converged, j, error), tk1, qk1, uk1, la_gk1, la_gammak1, la_Nk1, la_Tk1
 
     def solve(self):
         # initial values
@@ -235,7 +354,8 @@ class Moreau():
 
         pbar = tqdm(self.t[:-1])
         for tk in pbar:
-            (converged, j, error), tk1, qk1, uk1, la_gk1, la_gammak1, la_Nk1, la_Tk1 = self.step(tk, qk, uk, la_Nk, la_Tk)
+            # (converged, j, error), tk1, qk1, uk1, la_gk1, la_gammak1, la_Nk1, la_Tk1 = self.step(tk, qk, uk, la_Nk, la_Tk)
+            (converged, j, error), tk1, qk1, uk1, la_gk1, la_gammak1, la_Nk1, la_Tk1 = self.step(tk, qk, uk, la_gk, la_gammak, la_Nk, la_Tk)
             pbar.set_description(f't: {tk1:0.2e}; fixed point iterations: {j+1}; error: {error:.3e}')
             if not converged:
                 raise RuntimeError(f'internal fixed point iteration not converged after {j+1} iterations with error: {error:.5e}')
