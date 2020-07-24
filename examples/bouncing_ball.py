@@ -79,7 +79,7 @@ if __name__ == "__main__":
 
     t0 = 0
     t1 = 10
-    dt = 5e-3
+    dt = 5e-4
     solver = Moreau(model, t1, dt)
     sol = solver.solve()
     t = sol.t
