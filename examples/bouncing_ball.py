@@ -8,7 +8,7 @@ import matplotlib.animation as animation
 from cardillo.math.algebra import cross3, A_IK_basic_z
 
 from cardillo.model import Model
-from cardillo.model.rigid_body import Rigid_body2D
+from cardillo.model.rigid_body import Rigid_body2D, Rigid_body_euler
 from cardillo.model.frame import Frame
 from cardillo.model.force import Force
 from cardillo.model.contacts import Sphere_to_plane
@@ -16,11 +16,22 @@ from cardillo.solver import Moreau
 
 from scipy.integrate import solve_ivp
 
-class Ball(Rigid_body2D):
+# class Ball(Rigid_body2D):
+#     def __init__(self, m, r, q0=None, u0=None):
+#         theta = 2 / 5 * m * r**2 
+#         self.r = r
+#         super().__init__(m, theta, q0=q0, u0=u0)
+        
+#     def boundary(self, t, q, n=100):
+#         phi = np.linspace(0, 2 * np.pi, n, endpoint=True)
+#         K_r_SP = self.r * np.vstack([np.sin(phi), np.cos(phi), np.zeros(n)])
+#         return np.repeat(self.r_OP(t, q), n).reshape(3, n) + self.A_IK(t, q) @ K_r_SP
+
+class Ball(Rigid_body_euler):
     def __init__(self, m, r, q0=None, u0=None):
         theta = 2 / 5 * m * r**2 
         self.r = r
-        super().__init__(m, theta, q0=q0, u0=u0)
+        super().__init__(m, theta * np.eye(3), q0=q0, u0=u0)
         
     def boundary(self, t, q, n=100):
         phi = np.linspace(0, 2 * np.pi, n, endpoint=True)
@@ -38,70 +49,120 @@ if __name__ == "__main__":
     x_dot0 = 0
     y_dot0 = 0
     phi0 = 0
-    phi_dot0 = 0
+    phi_dot0 = 10
     r_OS0 = np.array([x0, y0, 0])
     vS0 = np.array([x_dot0, y_dot0, 0])
-    q0 = np.array([r_OS0[0], r_OS0[1], phi0])
-    u0 = np.array([vS0[0], vS0[1], phi_dot0])
+    # q0 = np.array([r_OS0[0], r_OS0[1], phi0])
+    # u0 = np.array([vS0[0], vS0[1], phi_dot0])
+    q0 = np.concatenate([r_OS0, np.array( [phi0, 0, 0]) ])
+    u0 = np.concatenate([vS0, np.array( [0, 0, phi_dot0])])
     RB = Ball(m, r, q0, u0)
 
     e1, e2, e3 = np.eye(3)
     frame = Frame(A_IK=np.vstack( (e3, e1, e2) ).T )
-    mu = 0.5
+    mu = 0.2
     r_N = 0.2
-    e_N = 0.9 * 0
-    plane = Sphere_to_plane(frame, RB, r, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N)
+    e_N = 0
+    plane = Sphere_to_plane(frame, RB, r, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N, e_T=0)
 
-    alpha = pi/4
-    e1, e2, e3 = A_IK_basic_z(alpha)
-    frame1 = Frame(A_IK=np.vstack( (e3, e1, e2) ).T )
-    mu = 0.3
-    r_N = 0.2
-    e_N = 0.9
-    plane_left = Sphere_to_plane(frame1, RB, r, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N)
+    # alpha = pi/4
+    # e1, e2, e3 = A_IK_basic_z(alpha)
+    # frame1 = Frame(A_IK=np.vstack( (e3, e1, e2) ).T )
+    # mu = 0.2
+    # r_N = 0.2
+    # e_N = 0.5
+    # plane_left = Sphere_to_plane(frame1, RB, r, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N)
 
-    beta = -pi/4
-    e1, e2, e3 = A_IK_basic_z(beta)
-    frame2 = Frame(A_IK=np.vstack( (e3, e1, e2) ).T )
-    mu = 0
-    r_N = 0.2
-    e_N = 0.9 * 0
-    plane_right = Sphere_to_plane(frame2, RB, r, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N)
+    # beta = -pi/4
+    # e1, e2, e3 = A_IK_basic_z(beta)
+    # frame2 = Frame(A_IK=np.vstack( (e3, e1, e2) ).T )
+    # mu = 0.2
+    # r_N = 0.2
+    # e_N = 0.5
+    # plane_right = Sphere_to_plane(frame2, RB, r, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N)
 
     model = Model()
     model.add(RB)
     model.add(Force(lambda t: np.array([0, -g * m, 0]), RB))
-    # model.add(plane)
-    model.add(plane_left)
-    model.add(plane_right)
+    model.add(plane)
+    # model.add(plane_left)
+    # model.add(plane_right)
     model.assemble()
 
     t0 = 0
-    t1 = 10
-    dt = 2.5e-2
-    solver = Moreau(model, t1, dt)
-    sol = solver.solve()
-    t = sol.t
-    q = sol.q
-    u = sol.u
-    la_N = sol.la_N
+    t1 = 1
+    dt = 2.5e-3
+
+    solver_n = Moreau(model, t1, dt, prox_solver_method='newton')
+    sol_n = solver_n.solve()
+    t_n = t = sol_n.t
+    q_n = q = sol_n.q
+    u_n = sol_n.u
+    la_N_n = sol_n.la_N
+    la_T_n = sol_n.la_T
+
+    solver_fp = Moreau(model, t1, dt)
+    sol_fp = solver_fp.solve()
+    t_fp = sol_fp.t
+    q_fp = sol_fp.q
+    u_fp = sol_fp.u
+    la_N_fp = sol_fp.la_N
+    la_T_fp = sol_fp.la_T
+    
+    fig, ax = plt.subplots(3, 1)
+
+    ax[0].set_title('x(t)')
+    ax[0].plot(t_fp, q_fp[:, 0], '-r', label='fixed_point')
+    ax[0].plot(t_n, q_n[:, 0], '--b', label='newton')
+    ax[0].legend()
+
+    ax[1].set_title('y(t)')
+    ax[1].plot(t_fp, q_fp[:, 1], '-r', label='fixed_point')
+    ax[1].plot(t_n, q_n[:, 1], '--b', label='newton')
+    ax[1].legend()
+
+    ax[2].set_title('phi(t)')
+    ax[2].plot(t_fp, q_fp[:, 3], '-r', label='fixed_point')
+    ax[2].plot(t_n, q_n[:, 3], '--b', label='newton')
+    ax[2].legend()
 
     fig, ax = plt.subplots(3, 1)
 
-    ax[0].set_title('positions')
-    ax[0].plot(t, q[:, 0], '-r', label='x(t)')
-    ax[0].plot(t, q[:, 1], '-b', label='y(t)')
+    ax[0].set_title('la_N(t)')
+    ax[0].plot(t_fp, la_N_fp[:, 0], '-r', label='fixed_point')
+    ax[0].plot(t_n, la_N_n[:, 0], '--b', label='newton')
     ax[0].legend()
 
-    ax[1].set_title('velocities')
-    ax[1].plot(t, u[:, 0], '-r', label='x_dot(t)')
-    ax[1].plot(t, u[:, 1], '-b', label='y_dot(t)')
+    ax[1].set_title('la_Tx(t)')
+    ax[1].plot(t_fp, la_T_fp[:, 0], '-r', label='fixed_point')
+    ax[1].plot(t_n, la_T_n[:, 0], '--b', label='newton')
     ax[1].legend()
 
-    ax[2].set_title('contact forces')
-    ax[2].plot(t, la_N[:, 0], '-r', label='P_N_left(t)')
-    ax[2].plot(t, la_N[:, -1], '-b', label='P_N_right(t)')
+    ax[2].set_title('la_Ty(t)')
+    ax[2].plot(t_fp, la_T_fp[:, 1], '-r', label='fixed_point')
+    ax[2].plot(t_n, la_T_n[:, 1], '--b', label='newton')
     ax[2].legend()
+
+    # ax[1].set_title('u_y(t)')
+    # ax[1].plot(t_fp, u_fp[:, 1], '-r', label='fixed_point')
+    # ax[1].plot(t_n, u_n[:, 1], '--b',  label='newton')
+    # ax[1].legend()
+
+    # fig, ax = plt.subplots(3, 1)
+    # ax[0].set_title('positions')
+    # ax[0].plot(t, q[:, 0], '-r', label='x(t)')
+    # ax[0].plot(t, q[:, 1], '-b', label='y(t)')
+    # ax[0].legend()
+
+    # ax[1].set_title('velocities')
+    # ax[1].plot(t, u[:, 0], '-r', label='x_dot(t)')
+    # ax[1].plot(t, u[:, 1], '-b', label='y_dot(t)')
+    # ax[1].legend()
+
+    # ax[2].set_title('contact forces')
+    # ax[2].plot(t, la_N[:, 0], '-r', label='P_N_left(t)')
+    # ax[2].plot(t, la_N[:, -1], '-b', label='P_N_right(t)')
+    # ax[2].legend()
 
     plt.show()
 
@@ -129,9 +190,9 @@ if __name__ == "__main__":
         t = t[::frac]
         q = q[::frac]
 
-        # ax.plot([-2 * y0, 2 * y0], [0, 0], '-k')
-        ax.plot([0, y0 * np.cos(alpha)], [0, y0 * np.sin(alpha)], '-k')
-        ax.plot([0, - y0 * np.cos(beta)], [0, - y0 * np.sin(beta)], '-k')
+        ax.plot([-2 * y0, 2 * y0], [0, 0], '-k')
+        # ax.plot([0, y0 * np.cos(alpha)], [0, y0 * np.sin(alpha)], '-k')
+        # ax.plot([0, - y0 * np.cos(beta)], [0, - y0 * np.sin(beta)], '-k')
 
         def create(t, q):
             x_S, y_S, _ = RB.r_OP(t, q)
