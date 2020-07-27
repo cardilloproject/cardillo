@@ -8,7 +8,7 @@ from cardillo.solver import Solution
 from cardillo.math.prox import prox_Rn0
 
 class Moreau():
-    def __init__(self, model, t1, dt, fix_point_tol=1e-5, fix_point_max_iter=10):
+    def __init__(self, model, t1, dt, fix_point_tol=1e-5, fix_point_max_iter=1000):
         self.model = model
 
         # integration time
@@ -30,8 +30,8 @@ class Moreau():
 
         self.DOFs_smooth = np.arange(self.nR_smooth)
 
-        # self.step = self.__step_prox
-        self.step = self.__step_newton
+        self.step = self.__step_prox
+        # self.step = self.__step_newton
 
     # def __step_prox(self, tk, qk, uk, la_Nk, la_Tk):
     def __step_prox(self, tk, qk, uk, la_gk, la_gammak, la_Nk, la_Tk):
@@ -57,9 +57,15 @@ class Moreau():
         I_N = (g_N <= 0)
         # TODO: find error here!
         if np.any(I_N):
-            print('debug me')
-        tmp = [self.model.NT_connectivity[i] for i in I_N]
-        I_T = np.array([i for c in tmp for i in c], dtype=int)
+            # tmp = []
+            # for i, I_N_i in enumerate(I_N):
+            #     if I_N_i:
+            #         for c in self.model.NT_connectivity[i]:
+            #             tmp.append(c)
+            # I_T = np.array(tmp, dtype=int)
+            I_T = np.array([c for i, I_N_i in enumerate(I_N) for c in self.model.NT_connectivity[i] if I_N_i], dtype=int)
+        else:
+            I_T = np.array([], dtype=int)
 
         # solve for new velocities and bilateral constraint forces
         # M (uk1 - uk) - dt (h + W_g la_g + W_gamma la_gamma + W_gN la_N + W_gT la_T) = 0

@@ -50,7 +50,7 @@ if __name__ == "__main__":
     frame = Frame(A_IK=np.vstack( (e3, e1, e2) ).T )
     mu = 0.5
     r_N = 0.2
-    e_N = 0.9
+    e_N = 0.9 * 0
     plane = Sphere_to_plane(frame, RB, r, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N)
 
     alpha = pi/4
@@ -59,15 +59,15 @@ if __name__ == "__main__":
     mu = 0.3
     r_N = 0.2
     e_N = 0.9
-    plane_right = Sphere_to_plane(frame1, RB, r, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N)
+    plane_left = Sphere_to_plane(frame1, RB, r, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N)
 
     beta = -pi/4
     e1, e2, e3 = A_IK_basic_z(beta)
     frame2 = Frame(A_IK=np.vstack( (e3, e1, e2) ).T )
     mu = 0
     r_N = 0.2
-    e_N = 0.9
-    plane_left = Sphere_to_plane(frame2, RB, r, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N)
+    e_N = 0.9 * 0
+    plane_right = Sphere_to_plane(frame2, RB, r, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N)
 
     model = Model()
     model.add(RB)
@@ -79,7 +79,7 @@ if __name__ == "__main__":
 
     t0 = 0
     t1 = 10
-    dt = 5e-4
+    dt = 2.5e-2
     solver = Moreau(model, t1, dt)
     sol = solver.solve()
     t = sol.t
