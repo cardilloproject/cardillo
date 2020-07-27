@@ -37,11 +37,10 @@ if __name__ == "__main__":
     y0 = 1
     x_dot0 = 0
     y_dot0 = 0
-    phi0 = 0 #np.pi / 4
+    phi0 = 0
     phi_dot0 = 0
     r_OS0 = np.array([x0, y0, 0])
-    # omega0 = np.array([0, 0, 0])
-    vS0 = np.array([x_dot0, y_dot0, 0]) #+ cross3(omega0, r_OS10)
+    vS0 = np.array([x_dot0, y_dot0, 0])
     q0 = np.array([r_OS0[0], r_OS0[1], phi0])
     u0 = np.array([vS0[0], vS0[1], phi_dot0])
     RB = Ball(m, r, q0, u0)

@@ -205,7 +205,6 @@ class Euler_bernoulli2D():
             f[elDOF] += self.f_pot_el(q[elDOF], self.Q[elDOF], self.N_xi[el], self.N_xixi[el], self.J0[el], self.qw[el])
         return f
 
-    # TODO!
     def f_pot_q_el(self, qe, Qe, N_xi, N_xixi, J0, qw):
         # return Numerical_derivative(lambda t, qe: self.f_pot_el(qe, Qe, N_xi, N_xixi, J0, qw), order=2)._x(0, qe, eps=1.0e-6)
         
@@ -359,6 +358,7 @@ class Euler_bernoulli2D():
         A_IK[:, 1] = d2
         return A_IK
 
+    # TODO:
     def A_IK_q(self, t, q, frame_ID):
         return Numerical_derivative(lambda t, q: self.A_IK(t, q, frame_ID=frame_ID))._x(t, q)
         # _, dNN = self.__basis_functions(frame_ID)
@@ -373,10 +373,6 @@ class Euler_bernoulli2D():
         # A_IK[:, 0] = d1
         # A_IK[:, 1] = d2
         # return A_IK
-
-    # TODO!
-    # def A_IK_q(self, t, q=None, frame_ID=None):
-    #     return np.array([]).reshape((3, 3, 0))
 
     def v_P(self, t, q, u, frame_ID, K_r_SP=None):
         return self.r_OP(t, u, frame_ID=frame_ID)
@@ -413,29 +409,14 @@ class Euler_bernoulli2D():
         K_J_R[2] = t_perp @ dNN / g2_
         return K_J_R
 
+    # TODO
     def K_J_R_q(self, t, q, frame_ID):
         return Numerical_derivative(lambda t, q: self.K_J_R(t, q, frame_ID=frame_ID))._x(t, q)
-
 
     # TODO!
     ####################################################
     # body force
     ####################################################
-    # def body_force_pot_el(self, force, t, qe, N, xi, J0, qw):
-    #     E_pot = 0
-    #     for Ni, xii, J0i, qwi in zip(N, xi, J0, qw):
-    #         NNi = np.kron(np.eye(2), Ni)
-    #         r_q = np.zeros((3, self.nq_el))
-    #         r_q[:2] = NNi
-    #         E_pot -= (r_q @ qe) @ force(xii, t) * J0i * qwi
-    #     return E_pot
-
-    # def body_force_pot(self, t, q, force):
-    #     E_pot = 0
-    #     for el in range(self.nEl):
-    #         E_pot += self.body_force_pot_el(force, t, q[self.elDOF[el]], self.N[el], self.xi[el], self.J0[el], self.qw[el])
-    #     return E_pot
-
     def body_force_el(self, force, t, N, xi, J0, qw):
         fe = np.zeros(self.nq_el)
         for Ni, xii, J0i, qwi in zip(N, xi, J0, qw):

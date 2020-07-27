@@ -55,14 +55,7 @@ class Moreau():
         # identify active normal and tangential contacts
         g_N = self.model.g_N(tk1, qk1)
         I_N = (g_N <= 0)
-        # TODO: find error here!
         if np.any(I_N):
-            # tmp = []
-            # for i, I_N_i in enumerate(I_N):
-            #     if I_N_i:
-            #         for c in self.model.NT_connectivity[i]:
-            #             tmp.append(c)
-            # I_T = np.array(tmp, dtype=int)
             I_T = np.array([c for i, I_N_i in enumerate(I_N) for c in self.model.NT_connectivity[i] if I_N_i], dtype=int)
         else:
             I_T = np.array([], dtype=int)
