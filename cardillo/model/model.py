@@ -385,6 +385,12 @@ class Model(object):
             g_N_dot[contr.la_NDOF] = contr.g_N_dot(t, q[contr.qDOF], u[contr.uDOF])
         return g_N_dot
 
+    def xi_N(self, t, q, u_pre, u_post):
+        xi_N = np.zeros(self.nla_N)
+        for contr in self.__g_N_contr:
+            xi_N[contr.la_NDOF] = contr.g_N_dot(t, q[contr.qDOF], u_post[contr.uDOF]) + contr.e_N * contr.g_N_dot(t, q[contr.qDOF], u_pre[contr.uDOF])
+        return xi_N
+
     def chi_N(self, t, q):
         return self.g_N_dot(t, q, np.zeros(self.nu))
 
@@ -402,6 +408,12 @@ class Model(object):
         for contr in self.__gamma_T_contr:
             gamma_T[contr.la_TDOF] = contr.gamma_T(t, q[contr.qDOF], u[contr.uDOF])
         return gamma_T
+
+    def xi_T(self, t, q, u_pre, u_post):
+        xi_T = np.zeros(self.nla_N)
+        for contr in self.__gamma_T_contr:
+            xi_T[contr.la_TDOF] = contr.gamma_T(t, q[contr.qDOF], u_post[contr.uDOF]) + contr.e_T * contr.gamma_T(t, q[contr.qDOF], u_pre[contr.uDOF])
+        return xi_T
 
     def W_T(self, t, q, scipy_matrix=coo_matrix):
         coo = Coo((self.nu, self.nla_T))
@@ -424,3 +436,7 @@ class Model(object):
         for contr in contributions:
             la_N1[contr.la_NDOF], la_T1[contr.la_TDOF] = contr.contact_force_fixpoint_update(t, q[contr.qDOF], u_pre[contr.uDOF], u_post[contr.uDOF], la_N[contr.la_NDOF], la_T[contr.la_TDOF])
         return la_N1, la_T1
+
+    def prox_N():
+
+    def prox_T():

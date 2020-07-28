@@ -79,14 +79,20 @@ class Sphere_to_plane():
     def W_T(self, t, q, coo):
         coo.extend(self.gamma_T_u_dense(t, q).T, (self.uDOF, self.la_TDOF))
 
+    def xi_N(self, t, q, u_pre, u_post):
+        return self.g_N_dot(t, q, u_post) + self.e_N * self.g_N_dot(t, q, u_pre)
+
+    def xi_T(self, t, q, u_pre, u_post):
+        return self.gamma_T(t, q, u_post) + self.e_T * self.gamma_T(t, q, u_pre)
+
     def __contact_force_fixpoint_update(self, t, q, u_pre, u_post, la_N, la_T):
-        xi_N = self.g_N_dot(t, q, u_post) + self.e_N * self.g_N_dot(t, q, u_pre)
+        xi_N = self.xi_N(t, q, u_pre, u_post)
         la_N1 = prox_Rn0(la_N - self.prox_r_N * xi_N) 
-        xi_T = self.gamma_T(t, q, u_post) + self.e_T * self.gamma_T(t, q, u_pre)
+        xi_T = self.xi_T(t, q, u_pre, u_post)
         la_T1 = prox_circle(la_T - self.prox_r_T * xi_T, self.mu * la_N1)
         return la_N1, la_T1
 
     def __contact_force_fixpoint_update_no_friction(self, t, q, u_pre, u_post, la_N, la_T):
-        xi_N = self.g_N_dot(t, q, u_post) + self.e_N * self.g_N_dot(t, q, u_pre)
+        xi_N = self.xi_N(t, q, u_pre, u_post)
         la_N1 = prox_Rn0(la_N - self.prox_r_N * xi_N)
         return la_N1, la_T.copy()
