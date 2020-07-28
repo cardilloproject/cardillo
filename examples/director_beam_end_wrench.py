@@ -30,10 +30,10 @@ if __name__ == "__main__":
     frame_left = Frame(r_OP=r_OB1)
 
     # discretization properties
-    p = 1
+    p = 2
     nQP = int(np.ceil((p + 1)**2 / 2))
     print(f'nQP: {nQP}')
-    nEl = 5
+    nEl = 6
 
     # build reference configuration
     Q = straight_configuration(p, nEl, L)
@@ -67,16 +67,22 @@ if __name__ == "__main__":
     np.set_printoptions(suppress=True)
 
     t = model.t0
+    # q = model.q0 + np.random.rand(len(model.q0 ))
     q = model.q0
+    # print(f'q0: {q.T}')
 
     M = model.M(t, q).todense()
     print(f'M:\n{M}')
 
-    f_pot = model.f_pot(t, q + np.random.rand(len(q)))
+    f_pot = model.f_pot(t, q)
     print(f'f_pot:\n{f_pot.T}')
 
-    f_pot_q = model.f_pot_q(t, q + np.random.rand(len(q))).todense()
+    f_pot_q = model.f_pot_q(t, q).todense()
     print(f'f_pot_q:\n{f_pot_q}')
+
+    # g = model.g(t, q + np.random.rand(len(q)))
+    g = model.g(t, q)
+    print(f'g:\n{g.T}')
 
     exit()
 
