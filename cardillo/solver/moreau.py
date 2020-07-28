@@ -22,7 +22,7 @@ class Moreau():
         self.fix_point_tol = fix_point_tol
         self.fix_point_max_iter = fix_point_max_iter
 
-        self.newton_tol = 1e-10
+        self.newton_tol = 1e-6
         self.newton_max_iter = 100
         self.newton_error_function =lambda x: np.max(np.abs(x)) / len(x)
 
@@ -36,7 +36,7 @@ class Moreau():
         self.nR = self.nR_smooth + self.nla_N + self.nla_T
 
         # TODO:
-        self.NT_connectivity = np.array(self.model.NT_connectivity)
+        self.NT_connectivity = self.model.NT_connectivity
 
         self.DOFs_smooth = np.arange(self.nR_smooth)
 
@@ -145,11 +145,11 @@ class Moreau():
         self.uk = uk
 
         # TODO: use e_N on subsystem level!
-        self.e_N = e_N = 0
+        self.e_N = e_N = 0.1
         self.e_T = e_T = 0
-        r_N = 0.2
-        self.r_T = r_T = 0.5
-        self.mu = mu = 0.2
+        r_N = 0.01
+        self.r_T = r_T = 0.01
+        self.mu = mu = 0.1
         # initial residual and error
         R = np.zeros(self.nR)
         uk1 = uk.copy() 
@@ -184,10 +184,13 @@ class Moreau():
         
         B_N = []
         for i_N, i_T in enumerate(self.NT_connectivity):
-            P_N = la_Nk1[i_N]
-            P_T = la_Tk1[i_T]
-            xi_T = gamma_Tk1[i_T] + e_T * gamma_Tk[i_T]
-            B_N.append(norm2(P_T - r_T * xi_T) <= mu * P_N)
+            if np.any(i_T):
+                P_N = la_Nk1[i_N]
+                P_T = la_Tk1[i_T]
+                xi_T = gamma_Tk1[i_T] + e_T * gamma_Tk[i_T]
+                B_N.append(norm2(P_T - r_T * xi_T) <= mu * P_N)
+            else:
+                B_N.append(False)
 
         self.B_N = np.array(B_N)
         B_N_old = np.array(B_N)
@@ -211,6 +214,7 @@ class Moreau():
 
                 # Newton update
                 j += 1
+
                 try:
                     dx = spsolve(R_x, R)
                 except:
@@ -224,18 +228,17 @@ class Moreau():
                 la_Nk1[A_N_] = xk1[self.nR_smooth+len(A_N):self.nR_smooth+self.nla_N]
 
                 offset = 0
-                for i_T in self.NT_connectivity[self.B_N * self.I_N]:
-                    la_Tk1[i_T] = xk1[self.nR_smooth+self.nla_N+offset:self.nR_smooth+self.nla_N+offset+2]
-                    offset += 2
-
-                for i_T in self.NT_connectivity[(~self.B_N) * self.I_N]:
-                    la_Tk1[i_T] = xk1[self.nR_smooth+self.nla_N+offset:self.nR_smooth+self.nla_N+offset+2]
-                    offset += 2
+                for i_N, i_T in enumerate(self.NT_connectivity):
+                    if np.any(i_T):
+                        if self.I_N[i_N]:
+                            if self.B_N[i_N]:
+                                la_Tk1[i_T] = xk1[self.nR_smooth+self.nla_N+offset:self.nR_smooth+self.nla_N+offset+2]
+                            else:
+                                la_Tk1[i_T] = xk1[self.nR_smooth+self.nla_N+offset:self.nR_smooth+self.nla_N+offset+2]
+                        else:
+                            la_Tk1[i_T] = xk1[self.nR_smooth+self.nla_N+offset:self.nR_smooth+self.nla_N+offset+2]
+                        offset += 2 
                 
-                for i_T in self.NT_connectivity[~ self.I_N]:
-                    la_Tk1[i_T] = xk1[self.nR_smooth+self.nla_N+offset:self.nR_smooth+self.nla_N+offset+2]
-                    offset += 2
-
                 # TODO: compute xi on model and subsystem level
                 xi_N = self.model.g_N_dot(tk1, qk1, uk1) + e_N * g_N_dotk
                 # divide active set into both parts of the prox equation
@@ -245,11 +248,15 @@ class Moreau():
                 self.A_N = A_N = np.where(A_N)[0]
 
                 B_N = []
+                gamma_Tk1 = self.model.gamma_T(tk1, qk1, uk1)
                 for i_N, i_T in enumerate(self.NT_connectivity):
-                    P_N = la_Nk1[i_N]
-                    P_T = la_Tk1[i_T]
-                    xi_T = gamma_Tk1[i_T] + e_T * gamma_Tk[i_T]
-                    B_N.append(norm2(P_T - r_T * xi_T) <= mu * P_N)
+                    if np.any(i_T):
+                        P_N = la_Nk1[i_N]
+                        P_T = la_Tk1[i_T]
+                        xi_T = gamma_Tk1[i_T] + e_T * gamma_Tk[i_T]
+                        B_N.append(norm2(P_T - r_T * xi_T) <= mu * P_N)
+                    else:
+                        B_N.append(False)
 
                 self.B_N = np.array(B_N) 
                 
@@ -292,23 +299,22 @@ class Moreau():
         R[self.nR_smooth+len(A_N):self.nR_smooth+self.nla_N] = la_Nk1[A_N_]
 
         offset = 0
-        for i_T in self.NT_connectivity[self.B_N * self.I_N]:
-            R[self.nR_smooth+self.nla_N+offset:self.nR_smooth+self.nla_N+offset+2] = gamma_Tk1[i_T] + self.e_T * gamma_Tk[i_T]
-            offset += 2
-
-        for i_N, i_T in enumerate(self.NT_connectivity[(~self.B_N) * self.I_N]):
-            P_N = la_Nk1[i_N]
-            P_T = la_Tk1[i_T]
-            xi_T = gamma_Tk1[i_T] + self.e_T * gamma_Tk[i_T]
-            radius = self.mu * P_N
-            arg = P_T - self.r_T * xi_T
-            narg = norm2(arg) 
-            R[self.nR_smooth+self.nla_N+offset:self.nR_smooth+self.nla_N+offset+2] = P_T - radius * arg / narg
-            offset += 2
-
-        for i_T in self.NT_connectivity[~ self.I_N]:
-            R[self.nR_smooth+self.nla_N+offset:self.nR_smooth+self.nla_N+offset+2] = la_Tk1[i_T]
-            offset += 2
+        for i_N, i_T in enumerate(self.NT_connectivity):
+            if np.any(i_T):
+                if self.I_N[i_N]:
+                    if self.B_N[i_N]:
+                        R[self.nR_smooth+self.nla_N+offset:self.nR_smooth+self.nla_N+offset+2] = gamma_Tk1[i_T] + self.e_T * gamma_Tk[i_T]
+                    else:
+                        P_N = la_Nk1[i_N]
+                        P_T = la_Tk1[i_T]
+                        xi_T = gamma_Tk1[i_T] + self.e_T * gamma_Tk[i_T]
+                        radius = self.mu * P_N
+                        arg = P_T - self.r_T * xi_T
+                        narg = norm2(arg) 
+                        R[self.nR_smooth+self.nla_N+offset:self.nR_smooth+self.nla_N+offset+2] = P_T - radius * arg / narg
+                else:
+                    R[self.nR_smooth+self.nla_N+offset:self.nR_smooth+self.nla_N+offset+2] = la_Tk1[i_T]
+                offset += 2
 
         return R
 
@@ -322,17 +328,16 @@ class Moreau():
 
         offset = 0
         la_Tk1 = np.empty(self.nla_T)
-        for i_T in self.NT_connectivity[self.B_N * self.I_N]:
-            la_Tk1[i_T] = x[self.nR_smooth+self.nla_N+offset:self.nR_smooth+self.nla_N+offset+2]
-            offset += 2
-
-        for i_T in self.NT_connectivity[(~self.B_N) * self.I_N]:
-            la_Tk1[i_T] = x[self.nR_smooth+self.nla_N+offset:self.nR_smooth+self.nla_N+offset+2]
-            offset += 2
-        
-        for i_T in self.NT_connectivity[~ self.I_N]:
-            la_Tk1[i_T] = x[self.nR_smooth+self.nla_N+offset:self.nR_smooth+self.nla_N+offset+2]
-            offset += 2
+        for i_N, i_T in enumerate(self.NT_connectivity):
+            if np.any(i_T):
+                if self.I_N[i_N]:
+                    if self.B_N[i_N]:
+                        la_Tk1[i_T] = x[self.nR_smooth+self.nla_N+offset:self.nR_smooth+self.nla_N+offset+2]
+                    else:
+                        la_Tk1[i_T] = x[self.nR_smooth+self.nla_N+offset:self.nR_smooth+self.nla_N+offset+2]
+                else:
+                    la_Tk1[i_T] = x[self.nR_smooth+self.nla_N+offset:self.nR_smooth+self.nla_N+offset+2]
+                offset += 2
 
         return self.__R_newton(t, uk1, la_gk1, la_gammak1, la_Nk1, la_Tk1)
 

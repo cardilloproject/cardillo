@@ -49,7 +49,7 @@ if __name__ == "__main__":
     x_dot0 = 0
     y_dot0 = 0
     phi0 = 0
-    phi_dot0 = 10
+    phi_dot0 = 5
     r_OS0 = np.array([x0, y0, 0])
     vS0 = np.array([x_dot0, y_dot0, 0])
     # q0 = np.array([r_OS0[0], r_OS0[1], phi0])
@@ -65,36 +65,40 @@ if __name__ == "__main__":
     e_N = 0
     plane = Sphere_to_plane(frame, RB, r, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N, e_T=0)
 
-    # alpha = pi/4
-    # e1, e2, e3 = A_IK_basic_z(alpha)
-    # frame1 = Frame(A_IK=np.vstack( (e3, e1, e2) ).T )
-    # mu = 0.2
-    # r_N = 0.2
-    # e_N = 0.5
-    # plane_left = Sphere_to_plane(frame1, RB, r, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N)
+    alpha = pi/4
+    e1, e2, e3 = A_IK_basic_z(alpha)
+    frame1 = Frame(A_IK=np.vstack( (e3, e1, e2) ).T )
+    mu = 0.1
+    r_N = 0.2
+    e_N = 0.1
+    plane_left = Sphere_to_plane(frame1, RB, r, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N)
 
-    # beta = -pi/4
-    # e1, e2, e3 = A_IK_basic_z(beta)
-    # frame2 = Frame(A_IK=np.vstack( (e3, e1, e2) ).T )
-    # mu = 0.2
-    # r_N = 0.2
-    # e_N = 0.5
-    # plane_right = Sphere_to_plane(frame2, RB, r, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N)
+    beta = -pi/4
+    e1, e2, e3 = A_IK_basic_z(beta)
+    frame2 = Frame(A_IK=np.vstack( (e3, e1, e2) ).T )
+    mu = 0
+    r_N = 0.2
+    e_N = 0.1
+    plane_right = Sphere_to_plane(frame2, RB, r, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N)
 
     model = Model()
     model.add(RB)
     model.add(Force(lambda t: np.array([0, -g * m, 0]), RB))
-    model.add(plane)
+    # model.add(plane)
     # model.add(plane_left)
-    # model.add(plane_right)
+    # model.add(plane)
+    model.add(plane_right)
+    model.add(plane_left)
     model.assemble()
 
     t0 = 0
-    t1 = 1
-    dt = 2.5e-3
+    t1 = 1.2
+    dt = 5e-3
+
 
     solver_n = Moreau(model, t1, dt, prox_solver_method='newton')
     sol_n = solver_n.solve()
+    # sol_n = sol_fp
     t_n = t = sol_n.t
     q_n = q = sol_n.q
     u_n = sol_n.u
@@ -108,7 +112,7 @@ if __name__ == "__main__":
     u_fp = sol_fp.u
     la_N_fp = sol_fp.la_N
     la_T_fp = sol_fp.la_T
-    
+
     fig, ax = plt.subplots(3, 1)
 
     ax[0].set_title('x(t)')
@@ -126,22 +130,22 @@ if __name__ == "__main__":
     ax[2].plot(t_n, q_n[:, 3], '--b', label='newton')
     ax[2].legend()
 
-    fig, ax = plt.subplots(3, 1)
+    # fig, ax = plt.subplots(3, 1)
 
-    ax[0].set_title('la_N(t)')
-    ax[0].plot(t_fp, la_N_fp[:, 0], '-r', label='fixed_point')
-    ax[0].plot(t_n, la_N_n[:, 0], '--b', label='newton')
-    ax[0].legend()
+    # ax[0].set_title('la_N(t)')
+    # ax[0].plot(t_fp, la_N_fp[:, 0], '-r', label='fixed_point')
+    # ax[0].plot(t_n, la_N_n[:, 0], '--b', label='newton')
+    # ax[0].legend()
 
-    ax[1].set_title('la_Tx(t)')
-    ax[1].plot(t_fp, la_T_fp[:, 0], '-r', label='fixed_point')
-    ax[1].plot(t_n, la_T_n[:, 0], '--b', label='newton')
-    ax[1].legend()
+    # ax[1].set_title('la_Tx(t)')
+    # ax[1].plot(t_fp, la_T_fp[:, 0], '-r', label='fixed_point')
+    # ax[1].plot(t_n, la_T_n[:, 0], '--b', label='newton')
+    # ax[1].legend()
 
-    ax[2].set_title('la_Ty(t)')
-    ax[2].plot(t_fp, la_T_fp[:, 1], '-r', label='fixed_point')
-    ax[2].plot(t_n, la_T_n[:, 1], '--b', label='newton')
-    ax[2].legend()
+    # ax[2].set_title('la_Ty(t)')
+    # ax[2].plot(t_fp, la_T_fp[:, 1], '-r', label='fixed_point')
+    # ax[2].plot(t_n, la_T_n[:, 1], '--b', label='newton')
+    # ax[2].legend()
 
     # ax[1].set_title('u_y(t)')
     # ax[1].plot(t_fp, u_fp[:, 1], '-r', label='fixed_point')
@@ -190,9 +194,9 @@ if __name__ == "__main__":
         t = t[::frac]
         q = q[::frac]
 
-        ax.plot([-2 * y0, 2 * y0], [0, 0], '-k')
-        # ax.plot([0, y0 * np.cos(alpha)], [0, y0 * np.sin(alpha)], '-k')
-        # ax.plot([0, - y0 * np.cos(beta)], [0, - y0 * np.sin(beta)], '-k')
+        # ax.plot([-2 * y0, 2 * y0], [0, 0], '-k')
+        ax.plot([0, -y0 * np.cos(alpha)], [0, y0 * np.sin(alpha)], '-k')
+        ax.plot([0, y0 * np.cos(beta)], [0, - y0 * np.sin(beta)], '-k')
 
         def create(t, q):
             x_S, y_S, _ = RB.r_OP(t, q)
