@@ -6,4 +6,7 @@ def prox_Rn0(x):
 
 def prox_circle(x, radius):
     nx = norm2(x)
-    return x if nx <= radius else radius * x / nx
+    if nx > 0:
+        return x if nx <= radius else radius * x / nx
+    else:
+        return x if nx <= radius else radius * x 
