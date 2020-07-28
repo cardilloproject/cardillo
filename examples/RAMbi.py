@@ -8,7 +8,7 @@ import matplotlib.animation as animation
 from cardillo.math.algebra import cross3, A_IK_basic_z
 
 from cardillo.model import Model
-from cardillo.model.rigid_body import Rigid_body2D
+from cardillo.model.rigid_body import Rigid_body2D, Rigid_body_euler
 from cardillo.model.bilateral_constraints.explicit import Revolute_joint
 from cardillo.model.scalar_force_interactions.force_laws import Linear_spring_damper
 from cardillo.model.scalar_force_interactions import add_rotational_forcelaw
@@ -18,11 +18,11 @@ from cardillo.model.force import Force
 from cardillo.model.contacts import Sphere_to_plane
 from cardillo.solver import Moreau
 
-class Main_body(Rigid_body2D):
+class Main_body(Rigid_body_euler):
     def __init__(self, q0=None, u0=None):
         m = 14 # kg
         theta = 0.32 # kg m^2
-        super().__init__(m, theta, q0=q0, u0=u0)
+        super().__init__(m, theta*np.eye(3), q0=q0, u0=u0)
 
         self.a = 0.6 # m
         
@@ -30,6 +30,19 @@ class Main_body(Rigid_body2D):
         xi = np.linspace(-self.a/2, self.a/2, n, endpoint=True)
         K_r_SP = np.vstack([xi, np.zeros(n), np.zeros(n)])
         return np.repeat(self.r_OP(t, q), n).reshape(3, n) + self.A_IK(t, q) @ K_r_SP
+
+# class Main_body(Rigid_body2D):
+#     def __init__(self, q0=None, u0=None):
+#         m = 14 # kg
+#         theta = 0.32 # kg m^2
+#         super().__init__(m, theta, q0=q0, u0=u0)
+
+#         self.a = 0.6 # m
+        
+#     def boundary(self, t, q, n=100):
+#         xi = np.linspace(-self.a/2, self.a/2, n, endpoint=True)
+#         K_r_SP = np.vstack([xi, np.zeros(n), np.zeros(n)])
+#         return np.repeat(self.r_OP(t, q), n).reshape(3, n) + self.A_IK(t, q) @ K_r_SP
 
 # unit system: kg, m, s
 if __name__ == "__main__":
@@ -55,8 +68,10 @@ if __name__ == "__main__":
 
     r_mb0 = np.array([x_mb0, y_mb0, 0])
     v_mb0 = np.array([x_mb_dot0, y_mb_dot0, 0])
-    q_mb0 = np.array([r_mb0[0], r_mb0[1], phi0])
-    u_mb0 = np.array([v_mb0[0], v_mb0[1], phi_dot0])
+    # q_mb0 = np.array([r_mb0[0], r_mb0[1], phi0])
+    # u_mb0 = np.array([v_mb0[0], v_mb0[1], phi_dot0])
+    q_mb0 = np.concatenate([r_mb0, np.array([phi0, 0, 0])])
+    u_mb0 = np.concatenate([v_mb0, np.array([0, 0, phi_dot0])])
 
     main_body = Main_body(q_mb0, u_mb0)
 
@@ -178,7 +193,7 @@ if __name__ == "__main__":
     t1 = 1.5
     # t1 = 0.1
     dt = 1e-3
-    solver = Moreau(model, t1, dt)
+    solver = Moreau(model, t1, dt, prox_solver_method='newton')
     sol = solver.solve()
     t = sol.t
     q = sol.q

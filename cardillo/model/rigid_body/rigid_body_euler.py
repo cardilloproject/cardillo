@@ -32,6 +32,11 @@ class Rigid_body_euler():
         self.dA_12 = eval(f'lambda q: dA_IK_basic_{axis[1]}(q[4])')
         self.dA_2K = eval(f'lambda q: dA_IK_basic_{axis[2]}(q[5])')
 
+        self.is_assembled = False
+    
+    def assembler_callback(self):
+        self.is_assembled = True
+
     def M(self, t, q, coo):
         coo.extend(self.M_, (self.uDOF, self.uDOF))
 
@@ -110,11 +115,19 @@ class Rigid_body_euler():
     def v_P(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
         return u[:3] + self.A_IK(t, q) @ cross3(u[3:], K_r_SP)
 
-    # def v_P_q(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
-    #     return np.einsum('ijk,j->ik', self.A_IK_q(t, q), cross3(u[3:], K_r_SP))
-
     def a_P(self, t, q, u, u_dot, frame_ID=None, K_r_SP=np.zeros(3)):
         return u_dot[:3] + self.A_IK(t, q) @ (cross3(u_dot[3:], K_r_SP) + cross3(u[3:], cross3(u[3:], K_r_SP)))
+    
+    def kappa_P(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
+        return self.A_IK(t, q) @ (cross3(u[3:], cross3(u[3:], K_r_SP)))
+    
+    def kappa_P_q(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
+        return np.einsum('ijk,j->ik', self.A_IK_q(t, q), cross3(u[3:], cross3(u[3:], K_r_SP)) )
+    
+    def kappa_P_u(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
+        kappa_P_u = np.zeros((3, self.nu))
+        kappa_P_u[:, 3:] = -self.A_IK(t, q) @ (ax2skew(cross3(u[3:], K_r_SP)) + ax2skew(u[3:]) @ ax2skew(K_r_SP))
+        return kappa_P_u
 
     def J_P(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
         J_P = np.zeros((3, self.nu))
@@ -127,11 +140,23 @@ class Rigid_body_euler():
         J_P_q[:, 3:, :] = np.einsum('ijk,jl->ilk', self.A_IK_q(t, q), -ax2skew(K_r_SP))
         return J_P_q
 
-    # def K_Omega(self, t, q, u, frame_ID=None):
-    #     return u[3:]
+    def K_Omega(self, t, q, u, frame_ID=None):
+        return u[3:]
 
-    # def K_Omega_q(self, t, q, u, frame_ID=None):
-    #     return np.zeros((3, self.nq))
+    def K_Omega_q(self, t, q, u, frame_ID=None):
+        return np.zeros((3, self.nq))
+
+    def K_Psi(self, t, q, u, u_dot, frame_ID=None):
+        return u_dot[3:]
+
+    def K_kappa_R(self, t, q, u, frame_ID=None):
+        return np.zeros(3)
+
+    def K_kappa_R_q(self, t, q, u, frame_ID=None):
+        return np.zeros((3, self.nq))
+
+    def K_kappa_R_u(self, t, q, u, frame_ID=None):
+        return np.zeros((3, self.nu))
 
     def K_J_R(self, t, q, frame_ID=None):
         J_R = np.zeros((3, self.nu))

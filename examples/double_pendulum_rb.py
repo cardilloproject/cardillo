@@ -12,7 +12,7 @@ from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints.implicit import Spherical_joint #, Revolute_joint
 from cardillo.model.rigid_body import Rigid_body_quaternion
 from cardillo.model.force import Force
-from cardillo.solver import Scipy_ivp, Euler_backward, Generalized_alpha_1, Moreau, Moreau_sym
+from cardillo.solver import Scipy_ivp, Euler_backward, Generalized_alpha_1, Moreau, Moreau_sym, Generalized_alpha_2
 
 from scipy.integrate import solve_ivp
 
@@ -78,15 +78,16 @@ if __name__ == "__main__":
     model.assemble()
 
     t0 = 0
-    t1 = 5
+    t1 = 3
     dt = 5e-3
     # solver = Scipy_ivp(model, t1, dt)
-    solver = Moreau(model, t1, dt)
+    # solver = Moreau(model, t1, dt)
     # solver = Moreau_sym(model, t1, dt)
     # solver = Euler_backward(model, t1, dt, numerical_jacobian=True, debug=True)
     # solver = Euler_backward(model, t1, dt, numerical_jacobian=False, debug=False)
     # solver = Generalized_alpha_1(model, t1, dt, numerical_jacobian=True, debug=True)
     # solver = Generalized_alpha_1(model, t1, dt, newton_tol=1.0e-10, numerical_jacobian=False, debug=False)
+    solver = Generalized_alpha_2(model, t1, dt, numerical_jacobian=False, debug=False)
 
     sol = solver.solve()
     t = sol.t

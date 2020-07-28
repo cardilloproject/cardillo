@@ -7,12 +7,15 @@ from cardillo.math import Numerical_derivative
 from cardillo.solver import Solution
 
 class Generalized_alpha_1():
-    def __init__(self, model, t1, dt=None, t_eval=None, variable_dt=True, rho_inf=1, beta=None, gamma=None, alpha_m=None, alpha_f=None, atol=1e-3, rtol=1e-3, newton_tol=1e-6, newton_max_iter=10, newton_error_function=lambda x: np.max(np.abs(x)), numerical_jacobian=False, debug=False):
+    def __init__(self, model, t1, dt=None, t_eval=None, variable_dt=True, \
+                       rho_inf=1, beta=None, gamma=None, alpha_m=None, alpha_f=None,\
+                       atol=1e-3, rtol=1e-3, newton_tol=1e-6, newton_max_iter=10, newton_error_function=lambda x: np.max(np.abs(x)),\
+                       numerical_jacobian=False, debug=False):
         
         self.model = model
 
         # integration time
-        t0 = model.t0
+        self.t0 = t0 = model.t0
         self.t1 = t1 if t1 > t0 else ValueError("t1 must be larger than initial time t0.")
         self.dt = dt
         self.t_eval = t_eval
