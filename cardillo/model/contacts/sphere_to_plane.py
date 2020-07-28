@@ -7,9 +7,9 @@ class Sphere_to_plane():
         self.frame = frame
         self.subsystem = subsystem
         self.r = r
-        self.mu = mu
-        self.prox_r_N = prox_r_N
-        self.prox_r_T = prox_r_T
+        self.mu = np.array([mu])
+        self.prox_r_N = np.array([prox_r_N])
+        self.prox_r_T = np.array([prox_r_T])
 
         self.nla_N = 1
 
@@ -22,8 +22,9 @@ class Sphere_to_plane():
             self.NT_connectivity = [ [0, 1] ]
             self.gamma_T = self.__gamma_T
             self.contact_force_fixpoint_update = self.__contact_force_fixpoint_update
-        self.e_N = 0 if e_N is None else e_N
-        self.e_T = 0 if e_T is None else e_T
+            
+        self.e_N = np.zeros(self.nla_N) if e_N is None else np.array([e_N])
+        self.e_T = np.zeros(self.nla_N) if e_T is None else np.array([e_T])
         self.frame_ID = frame_ID
 
         self.r_OQ = lambda t: self.frame.r_OP(t)

@@ -97,26 +97,33 @@ class Moreau():
         j = 0
         if np.any(I_N):
             converged = False
-            la_Nk0 = la_Nk.copy()
             la_Nk1_i = la_Nk.copy()
-            la_Tk0 = la_Tk.copy()
+            la_Nk1_i1 = la_Nk.copy()
             la_Tk1_i = la_Tk.copy()
+            la_Tk1_i1 = la_Tk.copy()
             for j in range(self.fix_point_max_iter):
                 
                 # relative contact velocity and prox equation
-                la_Nk1_i, la_Tk1_i = self.model.contact_force_fixpoint_update(tk1, qk1, uk, uk1, la_Nk1_i, la_Tk1_i, I_N=I_N)
+                la_Nk1_i1[I_N] = prox_Rn0(la_Nk1_i[I_N] - self.model.prox_r_N[I_N] * self.model.xi_N(tk1, qk1, uk, uk1)[I_N])
+
+                xi_T = self.model.xi_T(tk1, qk1, uk, uk1)
+                for i_N, i_T in enumerate(self.NT_connectivity):
+                    if I_N[i_N] and np.any(i_T):
+                        la_Tk1_i1[i_T] = prox_circle(la_Tk1_i[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T], self.model.mu[i_N] * la_Nk1_i1[i_N]) 
+
+                # la_Nk1_i1, la_Tk1_i1 = self.model.contact_force_fixpoint_update(tk1, qk1, uk, uk1, la_Nk1_i, la_Tk1_i, I_N=I_N)
 
                 # check if velocities or contact percussions do not change
                 # error = self.fix_point_error_function(uk1 - uk0)
-                R = np.concatenate( (la_Nk1_i[I_N] - la_Nk0[I_N], la_Tk1_i[I_T] - la_Tk0[I_T]) )
+                R = np.concatenate( (la_Nk1_i1[I_N] - la_Nk1_i[I_N], la_Tk1_i1[I_T] - la_Tk1_i[I_T]) )
                 error = self.fix_point_error_function(R)
                 converged = error < self.fix_point_tol
                 if converged:
-                    la_Nk1[I_N] = la_Nk1_i[I_N]
-                    la_Tk1[I_T] = la_Tk1_i[I_T]
+                    la_Nk1[I_N] = la_Nk1_i1[I_N]
+                    la_Tk1[I_T] = la_Tk1_i1[I_T]
                     break
-                la_Nk0 = la_Nk1_i.copy()
-                la_Tk0 = la_Tk1_i.copy()
+                la_Nk1_i = la_Nk1_i1.copy()
+                la_Tk1_i = la_Tk1_i1.copy()
 
                 # solve for new velocities and bilateral constraint forces
                 A =  bmat([[M      ,  -dt * W_g, -dt * W_gamma], \
@@ -145,11 +152,11 @@ class Moreau():
         self.uk = uk
 
         # TODO: use e_N on subsystem level!
-        self.e_N = e_N = 0.1
+        self.e_N = e_N = 0
         self.e_T = e_T = 0
         self.r_N = r_N = 0.01
         self.r_T = r_T = 0.01
-        self.mu = mu = 0.1
+        self.mu = mu = 0.2
 
         # initial residual and error
         R = np.zeros(self.nR)
@@ -158,6 +165,8 @@ class Moreau():
         la_gammak1 = la_gammak.copy()
         la_Nk1 = la_Nk.copy()
         la_Tk1 = la_Tk.copy()
+        # la_Nk1 = np.zeros_like(la_Nk)
+        # la_Tk1 = np.zeros_like(la_Tk)
         xk1 = np.concatenate( (uk1, la_gk1, la_gammak1, la_Nk1, la_Tk1) )
 
         # identify active normal and tangential contacts
@@ -239,6 +248,7 @@ class Moreau():
                         B_N.append(norm2(P_T - r_T * xi_T[i_T]) <= mu * P_N)
                     else:
                         B_N.append(False)
+                self.B_N = np.array(B_N)
                 
                 R = self.__R_newton(tk1, xk1)
                 error = self.newton_error_function(R)

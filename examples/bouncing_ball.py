@@ -49,7 +49,7 @@ if __name__ == "__main__":
     x_dot0 = 0
     y_dot0 = 0
     phi0 = 0
-    phi_dot0 = 5
+    phi_dot0 = 10
     r_OS0 = np.array([x0, y0, 0])
     vS0 = np.array([x_dot0, y_dot0, 0])
     # q0 = np.array([r_OS0[0], r_OS0[1], phi0])
@@ -86,9 +86,9 @@ if __name__ == "__main__":
     model.add(Force(lambda t: np.array([0, -g * m, 0]), RB))
     # model.add(plane)
     # model.add(plane_left)
-    # model.add(plane)
-    model.add(plane_right)
-    model.add(plane_left)
+    model.add(plane)
+    # model.add(plane_right)
+    # model.add(plane_left)
     model.assemble()
 
     t0 = 0
@@ -130,22 +130,22 @@ if __name__ == "__main__":
     ax[2].plot(t_n, q_n[:, 3], '--b', label='newton')
     ax[2].legend()
 
-    # fig, ax = plt.subplots(3, 1)
+    fig, ax = plt.subplots(3, 1)
 
-    # ax[0].set_title('la_N(t)')
-    # ax[0].plot(t_fp, la_N_fp[:, 0], '-r', label='fixed_point')
-    # ax[0].plot(t_n, la_N_n[:, 0], '--b', label='newton')
-    # ax[0].legend()
+    ax[0].set_title('la_N(t)')
+    ax[0].plot(t_fp, la_N_fp[:, 0], '-r', label='fixed_point')
+    ax[0].plot(t_n, la_N_n[:, 0], '--b', label='newton')
+    ax[0].legend()
 
-    # ax[1].set_title('la_Tx(t)')
-    # ax[1].plot(t_fp, la_T_fp[:, 0], '-r', label='fixed_point')
-    # ax[1].plot(t_n, la_T_n[:, 0], '--b', label='newton')
-    # ax[1].legend()
+    ax[1].set_title('la_Tx(t)')
+    ax[1].plot(t_fp, la_T_fp[:, 0], '-r', label='fixed_point')
+    ax[1].plot(t_n, la_T_n[:, 0], '--b', label='newton')
+    ax[1].legend()
 
-    # ax[2].set_title('la_Ty(t)')
-    # ax[2].plot(t_fp, la_T_fp[:, 1], '-r', label='fixed_point')
-    # ax[2].plot(t_n, la_T_n[:, 1], '--b', label='newton')
-    # ax[2].legend()
+    ax[2].set_title('la_Ty(t)')
+    ax[2].plot(t_fp, la_T_fp[:, 1], '-r', label='fixed_point')
+    ax[2].plot(t_n, la_T_n[:, 1], '--b', label='newton')
+    ax[2].legend()
 
     # ax[1].set_title('u_y(t)')
     # ax[1].plot(t_fp, u_fp[:, 1], '-r', label='fixed_point')
