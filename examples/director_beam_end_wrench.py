@@ -16,9 +16,9 @@ import numpy as np
 
 if __name__ == "__main__":
     # physical properties of the beam
-    A_rho0 = 0
-    B_rho0 = np.zeros(3)
-    C_rho0 = np.zeros((3, 3))
+    A_rho0 = 1
+    B_rho0 = np.ones(3)
+    C_rho0 = np.eye(3)
 
     L = 2 * np.pi
     Ei = np.array([5, 1, 1])
@@ -30,10 +30,10 @@ if __name__ == "__main__":
     frame_left = Frame(r_OP=r_OB1)
 
     # discretization properties
-    p = 3
+    p = 1
     nQP = int(np.ceil((p + 1)**2 / 2))
     print(f'nQP: {nQP}')
-    nEl = 10
+    nEl = 5
 
     # build reference configuration
     Q = straight_configuration(p, nEl, L)
@@ -53,12 +53,30 @@ if __name__ == "__main__":
     # assemble the model
     model = Model()
     model.add(beam)
-    model.add(frame_left)
-    model.add(joint_left)
+    # model.add(frame_left)
+    # model.add(joint_left)
     # model.add(f_g_beam)
     # model.add(force)
     model.add(moment)
     model.assemble()
+
+    ############
+    # test calls
+    ############
+    np.set_printoptions(2)
+    np.set_printoptions(suppress=True)
+
+    t = model.t0
+    q = model.q0
+
+    M = model.M(t, q).todense()
+    print(f'M:\n{M}')
+
+    f_pot = model.f_pot(t, q + np.random.rand(len(q)))
+    print(f'f_pot:\n{f_pot.T}')
+
+    f_pot_q = model.f_pot_q(t, q + np.random.rand(len(q))).todense()
+    print(f'f_pot_q:\n{f_pot_q}')
 
     exit()
 
