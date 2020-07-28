@@ -111,8 +111,6 @@ class Moreau():
                     if I_N[i_N] and np.any(i_T):
                         la_Tk1_i1[i_T] = prox_circle(la_Tk1_i[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T], self.model.mu[i_N] * la_Nk1_i1[i_N]) 
 
-                # la_Nk1_i1, la_Tk1_i1 = self.model.contact_force_fixpoint_update(tk1, qk1, uk, uk1, la_Nk1_i, la_Tk1_i, I_N=I_N)
-
                 # check if velocities or contact percussions do not change
                 # error = self.fix_point_error_function(uk1 - uk0)
                 R = np.concatenate( (la_Nk1_i1[I_N] - la_Nk1_i[I_N], la_Tk1_i1[I_T] - la_Tk1_i[I_T]) )
@@ -151,13 +149,6 @@ class Moreau():
         self.qk1 = qk1
         self.uk = uk
 
-        # TODO: use e_N on subsystem level!
-        self.e_N = e_N = 0
-        self.e_T = e_T = 0
-        self.r_N = r_N = 0.01
-        self.r_T = r_T = 0.01
-        self.mu = mu = 0.2
-
         # initial residual and error
         R = np.zeros(self.nR)
         uk1 = uk.copy() 
@@ -179,7 +170,7 @@ class Moreau():
 
         # divide active set into both parts of the prox equation      
         xi_N = self.model.xi_N(tk1, qk1, uk, uk1)
-        A_N = (la_Nk1- r_N * xi_N >= 0) * I_N
+        A_N = (la_Nk1- self.model.prox_r_N * xi_N >= 0) * I_N
         self.A_N_ = A_N_ = np.where( ~A_N )[0]
         self.A_N = A_N = np.where(A_N)[0]
         
@@ -189,7 +180,7 @@ class Moreau():
             if np.any(i_T):
                 P_N = la_Nk1[i_N]
                 P_T = la_Tk1[i_T]
-                B_N.append(norm2(P_T - r_T * xi_T[i_T]) <= mu * P_N)
+                B_N.append(norm2(P_T - self.model.prox_r_T[i_N] * xi_T[i_T]) <= self.model.mu[i_N] * P_N)
             else:
                 B_N.append(False)
 
@@ -235,7 +226,7 @@ class Moreau():
                 
                 # active sets       
                 xi_N = self.model.xi_N(tk1, qk1, uk, uk1)
-                A_N = (la_Nk1- r_N * xi_N >= 0) * I_N
+                A_N = (la_Nk1- self.model.prox_r_N * xi_N >= 0) * I_N
                 self.A_N_ = A_N_ = np.where( ~A_N )[0]
                 self.A_N = A_N = np.where(A_N)[0]
 
@@ -245,7 +236,7 @@ class Moreau():
                     if np.any(i_T):
                         P_N = la_Nk1[i_N]
                         P_T = la_Tk1[i_T]
-                        B_N.append(norm2(P_T - r_T * xi_T[i_T]) <= mu * P_N)
+                        B_N.append(norm2(P_T - self.model.prox_r_T[i_N] * xi_T[i_T]) <= self.model.mu[i_N] * P_N)
                     else:
                         B_N.append(False)
                 self.B_N = np.array(B_N)
@@ -293,17 +284,14 @@ class Moreau():
         W_gamma = self.model.W_gamma(tk1, qk1)
         W_N = self.model.W_N(tk1, qk1, scipy_matrix=csc_matrix)
         W_T = self.model.W_T(tk1, qk1, scipy_matrix=csc_matrix)
-        g_N_dotk = self.model.g_N_dot(tk1, qk1, uk)
-        xi_N = self.model.g_N_dot(tk1, qk1, uk1) + self.e_N * g_N_dotk
-
-        gamma_Tk = self.model.gamma_T(tk1, qk1, uk)
-        gamma_Tk1 = self.model.gamma_T(tk1, qk1, uk1)
+        xi_N = self.model.xi_N(tk1, qk1, uk, uk1)
+        xi_T = self.model.xi_T(tk1, qk1, uk, uk1)
 
         R = np.zeros(self.nR)
         R[:self.nu] = M @ (uk1 - uk) - dt * (h + W_g @ la_gk1 + W_gamma @ la_gammak1) - W_N[:, A_N] @ la_Nk1[A_N] - W_T[:, I_T] @ la_Tk1[I_T]
         R[self.nu:self.nu+self.nla_g] = self.model.g_dot(tk1, qk1, uk1)
         R[self.nu+self.nla_g:self.nu+self.nla_g+self.nla_gamma] = self.model.gamma(tk1, qk1, uk1)
-        R[self.nR_smooth:self.nR_smooth+len(A_N)] = - self.r_N * xi_N[A_N]
+        R[self.nR_smooth:self.nR_smooth+len(A_N)] = - self.model.prox_r_N[A_N] * xi_N[A_N]
         R[self.nR_smooth+len(A_N):self.nR_smooth+self.nla_N] = la_Nk1[A_N_]
 
         offset = 0
@@ -311,13 +299,12 @@ class Moreau():
             if np.any(i_T):
                 if self.I_N[i_N]:
                     if self.B_N[i_N]:
-                        R[self.nR_smooth+self.nla_N+offset:self.nR_smooth+self.nla_N+offset+2] = - self.r_T * (gamma_Tk1[i_T] + self.e_T * gamma_Tk[i_T])
+                        R[self.nR_smooth+self.nla_N+offset:self.nR_smooth+self.nla_N+offset+2] = - self.model.prox_r_T[i_N] * xi_T[i_T]
                     else:
                         P_N = la_Nk1[i_N]
                         P_T = la_Tk1[i_T]
-                        xi_T = gamma_Tk1[i_T] + self.e_T * gamma_Tk[i_T]
-                        radius = self.mu * P_N
-                        arg = P_T - self.r_T * xi_T
+                        radius = self.model.mu[i_N] * P_N
+                        arg = P_T - self.model.prox_r_T[i_N] * xi_T[i_T]
                         narg = norm2(arg) 
                         R[self.nR_smooth+self.nla_N+offset:self.nR_smooth+self.nla_N+offset+2] = P_T - radius * arg / narg
                 else:
