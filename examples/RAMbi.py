@@ -192,7 +192,7 @@ if __name__ == "__main__":
     t0 = 0
     t1 = 1.5
     # t1 = 0.1
-    dt = 1e-3
+    dt = 5e-3
     solver = Moreau(model, t1, dt, prox_solver_method='newton')
     sol = solver.solve()
     t = sol.t

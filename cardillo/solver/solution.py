@@ -21,19 +21,14 @@ class Solution():
     la_T : numpy.ndarray
          contact forces in tangent direction
     """
-    def __init__(self, t=None, q=None, u=None, la_g=None, la_gamma=None, la_N=None, la_T=None):
-        self.t = t
-        self.q = q
-        self.u = u
-        self.la_g = la_g
-        self.la_gamma = la_gamma
-        self.la_N = la_N
-        self.la_T = la_T
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
+        self.sol_keys = kwargs.keys()
 
     def unpack(self):
-        """Return solution fields: t, q, u, la_g, la_gamma, la_N, la_T
+        """Return solution fields
         """
-        return self.t, self.q, self.u, self.la_g, self.la_gamma, self.la_N, self.la_T
+        return tuple([self.__dict__[key] for key in self.sol_keys])
 
 def save_solution(sol, filename):
     """Store a `Solution` object into a given file.

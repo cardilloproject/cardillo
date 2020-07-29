@@ -31,6 +31,7 @@ class Sphere_to_plane():
         self.t1t2 = lambda t: self.frame.A_IK(t).T[:2]
         self.n = lambda t: self.frame.A_IK(t)[:, 2]
         self.v_Q = lambda t: self.frame.v_P(t)
+        self.a_Q = lambda t: self.frame.a_P(t)
 
         self.K_r_SP_ = K_r_SP 
 
@@ -53,6 +54,7 @@ class Sphere_to_plane():
         self.r_OP = lambda t, q: self.subsystem.r_OP(t, q, frame_ID=self.frame_ID, K_r_SP=self.K_r_SP(t, q))
         self.v_P = lambda t, q, u: self.subsystem.v_P(t, q, u, frame_ID=self.frame_ID, K_r_SP=self.K_r_SP(t, q))
         self.J_P = lambda t, q: self.subsystem.J_P(t, q, frame_ID=self.frame_ID, K_r_SP=self.K_r_SP(t, q))
+        self.a_P = lambda t, q, u, a: self.subsystem.a_P(t, q, u, a, frame_ID=self.frame_ID, K_r_SP=self.K_r_SP(t, q))
 
         self.is_assembled = True
 
@@ -60,7 +62,12 @@ class Sphere_to_plane():
         return self.n(t) @ (self.r_OP(t, q) - self.r_OQ(t))
 
     def g_N_dot(self, t, q, u):
+        #TODO: n_dot(t)
         return self.n(t) @ (self.v_P(t, q, u) - self.v_Q(t))
+
+    def g_N_ddot(self, t, q, u, a):
+        #TODO: n_dot(t)
+        return self.n(t) @ (self.a_P(t, q, u, a) - self.a_Q(t))
     
     def g_N_dot_u(self, t, q, coo):
         coo.extend(self.g_N_dot_u_dense(t, q), (self.la_NDOF, self.uDOF))

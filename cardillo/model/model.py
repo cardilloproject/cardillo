@@ -395,6 +395,12 @@ class Model(object):
             g_N_dot[contr.la_NDOF] = contr.g_N_dot(t, q[contr.qDOF], u[contr.uDOF])
         return g_N_dot
 
+    def g_N_ddot(self, t, q, u, a):
+        g_N_ddot = np.zeros(self.nla_N)
+        for contr in self.__g_N_contr:
+            g_N_ddot[contr.la_NDOF] = contr.g_N_ddot(t, q[contr.qDOF], u[contr.uDOF], a[contr.uDOF])
+        return g_N_ddot
+
     def xi_N(self, t, q, u_pre, u_post):
         xi_N = np.zeros(self.nla_N)
         for contr in self.__g_N_contr:
@@ -434,16 +440,16 @@ class Model(object):
     #========================================
     # contact force
     #========================================
-    def contact_force_fixpoint_update(self, t, q, u_pre, u_post, la_N, la_T, I_N=None):
-        la_N1 = np.zeros(self.nla_N)
-        la_T1 = np.zeros(self.nla_T)
+    # def contact_force_fixpoint_update(self, t, q, u_pre, u_post, la_N, la_T, I_N=None):
+    #     la_N1 = np.zeros(self.nla_N)
+    #     la_T1 = np.zeros(self.nla_T)
 
-        if I_N is None:
-            contributions = self.__g_N_contr
-        else:
-            indices = np.unique(self.Ncontr_connectivity[I_N])
-            contributions = [self.__g_N_contr[i] for i in indices]
+    #     if I_N is None:
+    #         contributions = self.__g_N_contr
+    #     else:
+    #         indices = np.unique(self.Ncontr_connectivity[I_N])
+    #         contributions = [self.__g_N_contr[i] for i in indices]
 
-        for contr in contributions:
-            la_N1[contr.la_NDOF], la_T1[contr.la_TDOF] = contr.contact_force_fixpoint_update(t, q[contr.qDOF], u_pre[contr.uDOF], u_post[contr.uDOF], la_N[contr.la_NDOF], la_T[contr.la_TDOF])
-        return la_N1, la_T1
+    #     for contr in contributions:
+    #         la_N1[contr.la_NDOF], la_T1[contr.la_TDOF] = contr.contact_force_fixpoint_update(t, q[contr.qDOF], u_pre[contr.uDOF], u_post[contr.uDOF], la_N[contr.la_NDOF], la_T[contr.la_TDOF])
+    #     return la_N1, la_T1
