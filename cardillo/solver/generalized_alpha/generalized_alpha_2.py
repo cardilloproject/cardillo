@@ -31,7 +31,8 @@ class Generalized_alpha_2():
         self.nla_g = model.nla_g
         self.nla_gamma = model.nla_gamma
         self.nla_N = model.nla_N
-        self.nR = 3 * self.nu + self.nla_g + self.nla_gamma + 3 * self.nla_N
+        self.nla_T = model.nla_T
+        self.nR = 3 * self.nu + self.nla_g + self.nla_gamma + 3 * self.nla_N + self.nla_T
 
         # self.Mk1 = model.M(t0, model.q0)
         # self.W_gk1 = self.model.W_g(t0, model.q0)
@@ -46,6 +47,8 @@ class Generalized_alpha_2():
         self.kappa_Nk = np.zeros_like(model.la_N0)
         self.la_Nk = model.la_N0
         self.La_Nk = np.zeros_like(model.la_N0)
+        self.la_Tk = model.la_T0
+        self.La_Tk = np.zeros_like(model.la_T0)
         #TODO:
         self.ak = spsolve(model.M(t0, model.q0).tocsr(), self.model.h(t0, model.q0, model.u0) )#+ self.W_gk1 @ model.la_g0 + self.W_gammak1 @ model.la_gamma0 + self.W_Nk1 @ model.la_N0)
         self.Qk = np.zeros(self.nu)
@@ -58,6 +61,7 @@ class Generalized_alpha_2():
         nla_g = self.nla_g
         nla_gamma = self.nla_gamma
         nla_N = self.nla_N
+        nla_T = self.nla_T
         dt = self.dt
         dt2 = self.dt**2
         ak1 = xk1[:nu]
@@ -68,43 +72,62 @@ class Generalized_alpha_2():
         kappa_Nk1 = xk1[3*nu+nla_g+nla_gamma:3*nu+nla_g+nla_gamma+nla_N]
         La_Nk1 = xk1[3*nu+nla_g+nla_gamma+nla_N:3*nu+nla_g+nla_gamma+2*nla_N]
         la_Nk1 = xk1[3*nu+nla_g+nla_gamma+2*nla_N:3*nu+nla_g+nla_gamma+3*nla_N]
+        La_Tk1 = xk1[3*nu+nla_g+nla_gamma+3*nla_N:3*nu+nla_g+nla_gamma+3*nla_N+nla_T]
+        # la_Tk1 = xk1[3*nu+nla_g+nla_gamma+3*nla_N+nla_T:3*nu+nla_g+nla_gamma+3*nla_N+2*nla_T]
 
         # update dependent variables
         uk1 = self.uk + dt * ((1-self.gamma) * self.ak + self.gamma * ak1) + Uk1
         a_beta = (0.5 - self.beta) * self.ak + self.beta * ak1 
         qk1 = self.qk + dt * self.model.q_dot(self.tk, self.qk, self.uk) + dt2 * self.model.q_ddot(self.tk, self.qk, self.uk, a_beta) + self.model.B(self.tk, self.qk) @ Qk1 
         kappa_ast = kappa_Nk1 + dt**2 * ( (0.5 - self.beta) * self.la_Nk + self.beta * la_Nk1 )
-        La_ast = La_Nk1 + dt * ((1-self.gamma) * self.la_Nk + self.gamma * la_Nk1)
+        P_N = La_Nk1 + dt * ((1-self.gamma) * self.la_Nk + self.gamma * la_Nk1)
+        P_T = La_Tk1 #+ dt * ((1-self.gamma) * self.la_Tk + self.gamma * la_Tk1)
 
         Mk1 = self.model.M(tk1, qk1)
         W_gk1 = self.model.W_g(tk1, qk1)
         W_gammak1 = self.model.W_gamma(tk1, qk1)
         W_Nk1 = self.model.W_N(tk1, qk1, scipy_matrix=csc_matrix)
+        W_Tk1 = self.model.W_T(tk1, qk1, scipy_matrix=csc_matrix)
 
         g_N = self.model.g_N(tk1, qk1)
         xi_N = self.model.xi_N(tk1, qk1, self.uk, uk1)
+        xi_T = self.model.xi_T(tk1, qk1, self.uk, uk1)
         I_N = (kappa_ast - self.model.prox_r_N * g_N >= 0)
-        A_N = (La_ast - self.model.prox_r_N * xi_N) >=0
+        A_N = (P_N - self.model.prox_r_N * xi_N) >=0
 
-        g_ddot_post = self.model.g_N_ddot(tk1, qk1, uk1, ak1)
+        g_N_ddot_post = self.model.g_N_ddot(tk1, qk1, uk1, ak1)
         # evaluate residual R(ak1, la_gk1, la_gammak1)
         R = np.zeros(self.nR)
-        R[:nu] = Mk1 @ ak1 - ( self.model.h(tk1, qk1, uk1) + W_gk1 @ la_gk1 + W_gammak1 @ la_gammak1 + W_Nk1 @ la_Nk1)
-        R[nu:2*nu] = Mk1 @ Uk1 - W_Nk1 @ La_Nk1
+        R[:nu] = Mk1 @ ak1 - ( self.model.h(tk1, qk1, uk1) + W_gk1 @ la_gk1 + W_gammak1 @ la_gammak1 + W_Nk1 @ la_Nk1)# + W_Tk1 @ la_Tk1)
+        R[nu:2*nu] = Mk1 @ Uk1 - W_Nk1 @ La_Nk1 - W_Tk1 @ La_Tk1
         R[2*nu:3*nu] = Mk1 @ Qk1 - W_Nk1 @ kappa_Nk1
         R[3*nu:3*nu+nla_g] = self.model.g(tk1, qk1)
         R[3*nu+nla_g:3*nu+nla_g+nla_gamma] = self.model.gamma(tk1, qk1, uk1)
         R[3*nu+nla_g+nla_gamma:3*nu+nla_g+nla_gamma+nla_N] = kappa_ast - prox_Rn0(kappa_ast - self.model.prox_r_N * g_N)
         for i, i_N in enumerate(I_N):
             if i_N:
-                R[3*nu+nla_g+nla_gamma+nla_N+i] = La_ast[i] - prox_Rn0(La_ast[i] - self.model.prox_r_N[i] * xi_N[i])
+                R[3*nu+nla_g+nla_gamma+nla_N+i] = P_N[i] - prox_Rn0(P_N[i] - self.model.prox_r_N[i] * xi_N[i])
                 if A_N[i]:
-                    R[3*nu+nla_g+nla_gamma+2*nla_N+i] = la_Nk1[i] - prox_Rn0(la_Nk1[i] - self.model.prox_r_N[i] * g_ddot_post[i])
+                    R[3*nu+nla_g+nla_gamma+2*nla_N+i] = la_Nk1[i] - prox_Rn0(la_Nk1[i] - self.model.prox_r_N[i] * g_N_ddot_post[i])
                 else:
                     R[3*nu+nla_g+nla_gamma+2*nla_N+i] = la_Nk1[i]
             else:
-                R[3*nu+nla_g+nla_gamma+nla_N+i] = La_ast[i]
+                R[3*nu+nla_g+nla_gamma+nla_N+i] = P_N[i]
                 R[3*nu+nla_g+nla_gamma+2*nla_N+i] = la_Nk1[i]
+
+        offset = 0
+        for i_N, i_T in enumerate(self.model.NT_connectivity):
+            if np.any(i_T):
+                if I_N[i_N]:
+                    R[3*nu+nla_g+nla_gamma+3*nla_N+offset:3*nu+nla_g+nla_gamma+3*nla_N+offset+2] = P_T[i_T] - prox_circle(P_T[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T], self.model.mu[i_N] * P_N[i_N])
+                    # if A_N[i_N]:
+                    #     R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset:3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset+2] = la_Tk1[i_T] - prox_circle(la_Tk1[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T], self.model.mu[i_N] * la_Nk1[i_N])
+                    # else:
+                    #     R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset:3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset+2] = la_Tk1[i_T]
+                else:
+                    R[3*nu+nla_g+nla_gamma+3*nla_N+offset:3*nu+nla_g+nla_gamma+3*nla_N+offset+2] = P_T[i_T]
+                    # R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset:3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset+2] = la_Tk1[i_T]
+                offset += 2
         return R
 
 
@@ -119,6 +142,7 @@ class Generalized_alpha_2():
         nla_g = self.nla_g
         nla_gamma = self.nla_gamma
         nla_N = self.nla_N
+        nla_T = self.nla_T
         dt = self.dt
         tk1 = self.tk + dt
 
@@ -132,6 +156,8 @@ class Generalized_alpha_2():
         xk1[3*nu+nla_g+nla_gamma:3*nu+nla_g+nla_gamma+nla_N] = self.kappa_Nk
         xk1[3*nu+nla_g+nla_gamma+nla_N:3*nu+nla_g+nla_gamma+2*nla_N] = self.La_Nk
         xk1[3*nu+nla_g+nla_gamma+2*nla_N:3*nu+nla_g+nla_gamma+3*nla_N] = self.la_Nk
+        xk1[3*nu+nla_g+nla_gamma+3*nla_N:3*nu+nla_g+nla_gamma+3*nla_N+nla_T] = self.La_Tk
+        # xk1[3*nu+nla_g+nla_gamma+3*nla_N+nla_T:3*nu+nla_g+nla_gamma+3*nla_N+2*nla_T] = self.la_Tk
 
         # initial residual and error
         R = self.__R(tk1, xk1)
@@ -166,10 +192,13 @@ class Generalized_alpha_2():
         kappa_Nk1 = xk1[3*nu+nla_g+nla_gamma:3*nu+nla_g+nla_gamma+nla_N]
         La_Nk1 = xk1[3*nu+nla_g+nla_gamma+nla_N:3*nu+nla_g+nla_gamma+2*nla_N]
         la_Nk1 = xk1[3*nu+nla_g+nla_gamma+2*nla_N:3*nu+nla_g+nla_gamma+3*nla_N]
+        La_Tk1 = xk1[3*nu+nla_g+nla_gamma+3*nla_N:3*nu+nla_g+nla_gamma+3*nla_N+nla_T]
+        la_Tk1 = np.zeros(nla_T)
+        # la_Tk1 = xk1[3*nu+nla_g+nla_gamma+3*nla_N+nla_T:3*nu+nla_g+nla_gamma+3*nla_N+2*nla_T]
         # if not converged:
         #     print('')
             
-        return (converged, j, error), tk1, ak1, Uk1, Qk1, la_gk1, la_gammak1, kappa_Nk1, La_Nk1, la_Nk1
+        return (converged, j, error), tk1, ak1, Uk1, Qk1, la_gk1, la_gammak1, kappa_Nk1, La_Nk1, la_Nk1, La_Tk1, la_Tk1
 
     def solve(self): 
         # lists storing output variables
@@ -182,10 +211,12 @@ class Generalized_alpha_2():
         kappa_N = [self.kappa_Nk]
         La_N = [self.La_Nk]
         la_N = [self.la_Nk]
+        La_T = [self.La_Tk]
+        la_T = [self.la_Tk]
 
         pbar = tqdm(np.arange(self.t0, self.t1, self.dt))
         for _ in pbar:
-            (converged, n_iter, error), tk1, ak1, Uk1, Qk1, la_gk1, la_gammak1, kappa_Nk1, La_Nk1, la_Nk1 = self.step()
+            (converged, n_iter, error), tk1, ak1, Uk1, Qk1, la_gk1, la_gammak1, kappa_Nk1, La_Nk1, la_Nk1, La_Tk1, la_Tk1 = self.step()
             pbar.set_description(f't: {tk1:0.2e}s < {self.t1:0.2e}s; Newton: {n_iter}/{self.newton_max_iter} iterations; error: {error:0.2e}')
             
             if not converged:
@@ -199,12 +230,15 @@ class Generalized_alpha_2():
             t.append(tk1)
             q.append(qk1)
             u.append(uk1)
+            #TODO:
             a.append(ak1 + Uk1/dt)
             la_g.append(la_gk1)
             la_gamma.append(la_gammak1)
             kappa_N.append(kappa_Nk1)
             La_N.append(La_Nk1)
             la_N.append(la_Nk1)
+            La_T.append(La_Tk1)
+            la_T.append(la_Tk1)
 
             # update local variables for accepted time step
             self.tk = tk1
@@ -217,6 +251,8 @@ class Generalized_alpha_2():
             self.kappa_Nk = kappa_Nk1
             self.La_Nk = La_Nk1
             self.la_Nk = la_Nk1
+            self.La_Tk = La_Tk1
+            self.la_Tk = la_Tk1
 
         # write solution
-        return Solution(t=np.array(t), q=np.array(q), u=np.array(u), a=np.array(a), la_g=np.array(la_g), la_gamma=np.array(la_gamma), kappa_P=np.array(kappa_N), La_N=np.array(La_N), la_N=np.array(la_N), la_T=None)
+        return Solution(t=np.array(t), q=np.array(q), u=np.array(u), a=np.array(a), la_g=np.array(la_g), la_gamma=np.array(la_gamma), kappa_P=np.array(kappa_N), La_N=np.array(La_N), la_N=np.array(la_N), La_T=np.array(La_T), la_T=np.array(la_T))

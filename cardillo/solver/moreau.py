@@ -208,11 +208,11 @@ class Moreau():
                 R_x = Numerical_derivative(self.__R_newton, order=2)._x(tk1, xk1)
 
                 # Newton update
-                # dx = spsolve(R_x, R)
-                try:
-                    dx = spsolve(R_x, R)
-                except:
-                    R = self.__R_newton(tk1, xk1)
+                dx = spsolve(R_x, R)
+                # try:
+                #     dx = spsolve(R_x, R)
+                # except:
+                #     R = self.__R_newton(tk1, xk1)
                 
                 xk1 -= dx
                 uk1 = xk1[:self.nu]
