@@ -7,6 +7,7 @@ from cardillo.solver import Newton
 from cardillo.model.line_force.line_force import Line_force
 from cardillo.discretization import uniform_knot_vector
 from cardillo.model.moment import K_Moment
+from cardillo.model.force import Force
 
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
@@ -20,7 +21,8 @@ if __name__ == "__main__":
     B_rho0 = np.ones(3)
     C_rho0 = np.eye(3)
 
-    L = 2 * np.pi
+    # L = 2 * np.pi
+    L = 1
     Ei = np.array([5, 1, 1])
     Fi = np.array([5, 1, 1])
     material_model = Hooke_quadratic(Ei, Fi)
@@ -30,14 +32,14 @@ if __name__ == "__main__":
     frame_left = Frame(r_OP=r_OB1)
 
     # discretization properties
-    p = 2
+    p = 3
     nQP = int(np.ceil((p + 1)**2 / 2))
     print(f'nQP: {nQP}')
-    nEl = 6
+    nEl = 5
 
     # build reference configuration
     Q = straight_configuration(p, nEl, L)
-    beam = Timoshenko_beam_director(material_model, A_rho0, B_rho0, C_rho0, p, nEl, nQP, Q=Q)
+    beam = Timoshenko_beam_director(material_model, A_rho0, B_rho0, C_rho0, p, nQP, nEl, Q=Q)
 
     # left joint
     joint_left = Rigid_connection(frame_left, beam, r_OB1, frame_ID2=(0,))
@@ -47,52 +49,69 @@ if __name__ == "__main__":
     # f_g_beam = Line_force(lambda xi, t: t * __g, beam)
 
     # wrench at right end
-    M = lambda t: np.array([0, 1, 0]) * t * 2 * np.pi * Ei[1] / L
+    M = lambda t: -np.array([0, 1, 0]) * t * 2 * np.pi * Ei[1] / L * 0.5
     moment = K_Moment(M, beam, (1,))
+
+    # force at right end
+    F = lambda t: np.array([0, 0, -1]) * t * 1.0e-1
+    force = Force(F, beam, frame_ID=(1,))
 
     # assemble the model
     model = Model()
     model.add(beam)
-    # model.add(frame_left)
-    # model.add(joint_left)
+    model.add(frame_left)
+    model.add(joint_left)
     # model.add(f_g_beam)
     # model.add(force)
     model.add(moment)
     model.assemble()
 
-    ############
-    # test calls
-    ############
-    np.set_printoptions(2)
-    np.set_printoptions(suppress=True)
+    # ############
+    # # test calls
+    # ############
+    # np.set_printoptions(1)
+    # np.set_printoptions(suppress=True)
 
-    t = model.t0
-    # q = model.q0 + np.random.rand(len(model.q0 ))
-    q = model.q0
-    # print(f'q0: {q.T}')
+    # t = model.t0
+    # # q = model.q0 + np.random.rand(len(model.q0 )) * 0.1
+    # q = model.q0
+    # la_g = np.random.rand(len(model.la_g0))
+    # # print(f'la_g: {la_g.T}')
 
-    M = model.M(t, q).todense()
-    print(f'M:\n{M}')
+    # M = model.M(t, q).todense()
+    # print(f'M:\n{M}')
 
-    f_pot = model.f_pot(t, q)
-    print(f'f_pot:\n{f_pot.T}')
+    # f_pot = model.f_pot(t, q)
+    # print(f'f_pot:\n{f_pot.T}')
 
-    f_pot_q = model.f_pot_q(t, q).todense()
-    print(f'f_pot_q:\n{f_pot_q}')
+    # f_pot_q = model.f_pot_q(t, q).todense()
+    # print(f'f_pot_q:\n{f_pot_q}')
 
-    # g = model.g(t, q + np.random.rand(len(q)))
-    g = model.g(t, q)
-    print(f'g:\n{g.T}')
+    # g = model.g(t, q)
+    # print(f'g:\n{g.T}')
 
-    exit()
+    # g_q = model.g_q(t, q).toarray()
+    # print(f'g_q:\n{g_q}')
 
-    # solver = Newton(model, n_load_stepts=10, max_iter=20, tol=1.0e-6, numerical_jacobian=False)
-    # # solver = Newton(model, n_load_stepts=50, max_iter=10, numerical_jacobian=True)
-    # sol = solver.solve()
-    # t = sol.t
-    # q = sol.q
+    # W_g = model.W_g(t, q).toarray()
+    # print(f'W_g:\n{W_g}')
 
-    # x, y, z = beam.centerline(q[-1]).T
+    # assert np.allclose(W_g, g_q.T)
+
+    # Wla_g_q = model.Wla_g_q(t, q, la_g).toarray()
+    # print(f'Wla_g_q:\n{Wla_g_q}')
+
+    # exit()
+
+    # x, y, z = beam.centerline(model.q0).T
+    # exit()
+
+    solver = Newton(model, n_load_stepts=10, max_iter=20, tol=1.0e-6, numerical_jacobian=False)
+    # solver = Newton(model, n_load_stepts=50, max_iter=10, numerical_jacobian=True)
+    sol = solver.solve()
+    t = sol.t
+    q = sol.q
+
     # plt.plot(x, y, '-k')
     # plt.plot(*q[-1].reshape(2, -1), '--ob')
     # plt.xlabel('x [m]')
@@ -100,3 +119,25 @@ if __name__ == "__main__":
     # plt.axis('equal')
 
     # plt.show()
+
+    ###############
+    # visualization
+    ###############
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    
+    ax.set_xlabel('x [m]')
+    ax.set_ylabel('y [m]')
+    ax.set_zlabel('z [m]')
+    scale = 1.2 * L
+    ax.set_xlim3d(left=-scale, right=scale)
+    ax.set_ylim3d(bottom=-scale, top=scale)
+    ax.set_zlim3d(bottom=-scale, top=scale)
+
+    ax.plot(*q[0, :3*beam.nn].reshape(3, -1), '--ok')
+    ax.plot(*beam.centerline(q[0]).T, '-k')
+
+    ax.plot(*q[-1, :3*beam.nn].reshape(3, -1), '--ob')
+    ax.plot(*beam.centerline(q[-1]).T, '-b')
+
+    plt.show()

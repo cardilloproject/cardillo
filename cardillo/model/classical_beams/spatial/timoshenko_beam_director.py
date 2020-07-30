@@ -3,7 +3,7 @@ import numpy as np
 from cardillo.utility.coo import Coo
 from cardillo.discretization import gauss
 from cardillo.discretization import uniform_knot_vector, B_spline_basis, Lagrange_basis
-from cardillo.math.algebra import norm3, cross3, e1, e2, e3
+from cardillo.math.algebra import norm3, cross3, e1, e2, e3, skew2ax
 from cardillo.math.numerical_derivative import Numerical_derivative
 
 class Timoshenko_beam_director():
@@ -22,7 +22,7 @@ class Timoshenko_beam_director():
         self.nQP = nQP # number of quadrature points
         self.nEl = nEl # number of elements
 
-        nn = nEl + polynomial_degree # number of nodes
+        self.nn = nn = nEl + polynomial_degree # number of nodes
         self.knot_vector = knot_vector = uniform_knot_vector(polynomial_degree, nEl) # uniform open knot vector
         self.element_span = self.knot_vector[polynomial_degree:-polynomial_degree]
 
@@ -66,6 +66,13 @@ class Timoshenko_beam_director():
         self.Q = Q
         self.q0 = Q.copy() if q0 is None else q0
         self.u0 = np.zeros(self.nu) if u0 is None else u0
+
+        # np.set_printoptions(1)
+        # np.set_printoptions(suppress=True)
+        # print(f'Q:{Q.T}')
+        # print(f'elDOF:\n{self.elDOF}')
+        # # print(f'nodalDOF:\n{self.nodalDOF}')
+        # exit()
 
         # compute shape functions
         derivative_order = 1
@@ -130,8 +137,10 @@ class Timoshenko_beam_director():
         self.d2DOF_node = np.arange(6, 9)
         self.d3DOF_node = np.arange(9, 12)
 
-
+    # TODO: find a better solution here
     def __basis_functions_b_splines(self, xi):
+        if xi == 1:
+            xi -= 1.0e-9
         return B_spline_basis(self.polynomial_degree, 1, self.knot_vector, xi)
 
     def __basis_functions_lagrange(self, xi):
@@ -340,103 +349,66 @@ class Timoshenko_beam_director():
 
         return g
 
-    # def g(self, t, q):
-    #     for node in range(self.nn):
-    #         nodalDOF = self.beam.nodalDOF[node]
-    #         idx = node * 6
-    #         DOF = np.arange(idx, idx+6)
+    def gap_q_node(self, qn):
+        g_q = np.zeros((6, 12))
 
-    #         # constraints are unique, so += is not required!
-    #         vec[globalDOF[DOF]] = self.gap_node(q[nodalDOF])
+        d1 = qn[self.d1DOF_node]
+        d2 = qn[self.d2DOF_node]
+        d3 = qn[self.d3DOF_node]
+
+        g_q[0, self.d1DOF_node] = 2 * d1
+        g_q[1, self.d2DOF_node] = 2 * d2
+        g_q[2, self.d3DOF_node] = 2 * d3
+        g_q[3, self.d1DOF_node] = d2
+        g_q[3, self.d2DOF_node] = d1
+        g_q[4, self.d1DOF_node] = d3
+        g_q[4, self.d3DOF_node] = d1
+        g_q[5, self.d2DOF_node] = d3
+        g_q[5, self.d3DOF_node] = d2
+
+        return g_q
+    
+    def gap_qq_node(self):
+        g_qq = np.zeros((6, 12, 12))
+
+        eye3 = np.eye(3)
+
+        g_qq[0, self.d1DOF_node[:, None], self.d1DOF_node] = 2 * eye3
+        g_qq[1, self.d2DOF_node[:, None], self.d2DOF_node] = 2 * eye3
+        g_qq[2, self.d3DOF_node[:, None], self.d3DOF_node] = 2 * eye3
+        
+        g_qq[3, self.d1DOF_node[:, None], self.d2DOF_node] = eye3
+        g_qq[3, self.d2DOF_node[:, None], self.d1DOF_node] = eye3
+
+        g_qq[4, self.d1DOF_node[:, None], self.d3DOF_node] = eye3
+        g_qq[4, self.d3DOF_node[:, None], self.d3DOF_node] = eye3
+        
+        g_qq[5, self.d2DOF_node[:, None], self.d3DOF_node] = eye3
+        g_qq[5, self.d3DOF_node[:, None], self.d2DOF_node] = eye3
+        
+        return g_qq
 
     def g(self, t, q):
         g = np.zeros(self.nla_g)
-
         for i, DOF in enumerate(self.nodalDOF):
             idx = i * 6
             g[idx:idx+6] = self.__nogal_g(q[DOF])
-
         return g
 
+    def g_q(self, t, q, coo):
+        for i, DOF in enumerate(self.nodalDOF):
+            idx = i * 6
+            coo.extend(self.gap_q_node(q[DOF]), (self.la_gDOF[np.arange(idx, idx+6)], self.qDOF[DOF]))
 
-    # def g(self, t, q):
-    #     d1 = q[3:6]
-    #     d2 = q[6:9]
-    #     d3 = q[9:]
+    def W_g(self, t, q, coo):
+        for i, DOF in enumerate(self.nodalDOF):
+            idx = i * 6
+            coo.extend(self.gap_q_node(q[DOF]).T, (self.uDOF[DOF], self.la_gDOF[np.arange(idx, idx+6)]))
 
-    #     gap = np.zeros(self.nla_g)
-    #     gap[0] = d1 @ d1 - 1
-    #     gap[1] = d2 @ d2 - 1
-    #     gap[2] = d3 @ d3 - 1
-    #     gap[3] = d1 @ d2
-    #     gap[4] = d1 @ d3
-    #     gap[5] = d2 @ d3
-
-    #     return gap
-
-    # def g_q_dense(self, t, q):
-
-    #     d1 = q[3:6]
-    #     d2 = q[6:9]
-    #     d3 = q[9:]
-
-    #     gap_q = np.zeros((self.nla_g, self.nq))
-    #     gap_q[0, 3:6] = 2 * d1
-    #     gap_q[1, 6:9] = 2 * d2
-    #     gap_q[2, 9:12] = 2 * d3
-
-    #     gap_q[3, 3:6] = d2
-    #     gap_q[3, 6:9] = d1
-
-    #     gap_q[4, 3:6] = d3
-    #     gap_q[4, 9:12] = d1
-
-    #     gap_q[5, 6:9] = d3
-    #     gap_q[5, 9:12] = d2
-
-    #     # gap_q_num = NumericalDerivativeNew(self.gap_dense, order=2).dR_dq(t, q)
-    #     # diff = gap_q - gap_q_num
-    #     # np.set_printoptions(precision=3)
-    #     # error = np.linalg.norm(diff)
-    #     # print(f'error num_tan - tan = {error}')
-    #     # return gap_q_num
-
-    #     return gap_q
-    
-    # def g_qq_dense(self, t, q):
-
-    #     gap_qq = np.zeros((self.nla_g, self.nq, self.nq))
-    #     gap_qq[0, 3:6, 3:6] = 2 * np.eye(3)
-    #     gap_qq[1, 6:9, 6:9] = 2 * np.eye(3)
-    #     gap_qq[2, 9:12, 9:12] = 2 * np.eye(3)
-        
-    #     gap_qq[3, 3:6, 6:9] = np.eye(3)
-    #     gap_qq[3, 6:9, 3:6] = np.eye(3)
-        
-    #     gap_qq[4, 3:6, 9:12] = np.eye(3)
-    #     gap_qq[4, 9:12, 3:6] = np.eye(3)
-        
-    #     gap_qq[5, 6:9, 9:12] = np.eye(3)
-    #     gap_qq[5, 9:12, 6:9] = np.eye(3)
-
-    #     # gap_qq_num = NumericalDerivativeNew(self.gap_q_dense, order=2).dR_dq(t, q)
-    #     # diff = gap_qq - gap_qq_num
-    #     # np.set_printoptions(precision=3)
-    #     # error = np.linalg.norm(diff)
-    #     # print(f'error num_tan - tan = {error}')
-    #     # return gap_qq_num
-
-    #     return gap_qq
-
-    # def g_q(self, t, q, coo):
-    #     coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
-   
-    # def W_g(self, t, q, coo):
-    #     coo.extend(self.g_q_dense(t, q).T, (self.uDOF, self.la_gDOF))
-
-    # def Wla_g_q(self, t, q, la_g, coo):
-    #     dense = np.einsum('ijk,i->jk', self.g_qq_dense(t, q), la_g)
-    #     coo.extend(dense, (self.uDOF, self.qDOF))
+    def Wla_g_q(self, t, q, la_g, coo):
+        for i, DOF in enumerate(self.nodalDOF):
+            idx = i * 6
+            coo.extend(np.einsum('i,ijk->jk', la_g[idx:idx+6], self.gap_qq_node()), (self.uDOF[DOF], self.qDOF[DOF]))
 
     ####################################################
     # interactions with other bodies and the environment
@@ -458,78 +430,142 @@ class Timoshenko_beam_director():
         return self.elDOF_P(frame_ID)
 
     def r_OP(self, t, q, frame_ID, K_r_SP=None):
-        return self.r_OP_q(t, q, frame_ID) @ q[self.rDOF]
+        return self.r_OP_q(t, q, frame_ID) @ q
 
     def r_OP_q(self, t, q, frame_ID, K_r_SP=None):
         xi = frame_ID[0]
         if xi == 0:
             NN = self.N_bdry[0]
         elif xi == 1:
-            NN = self.N_bdry[1]
+            NN = self.N_bdry[-1]
         else:
-            N, _ = self.basis_functions(xi)
+            N, _ = self.basis_functions(frame_ID[0])
             NN = self.stack_shapefunctions(N)
-        return NN
+
+        r_OP_q = np.zeros((3, self.nq_el))
+        r_OP_q[:, self.rDOF] = NN
+        return r_OP_q
 
     def A_IK(self, t, q, frame_ID):
-        N, _ = self.basis_functions(frame_ID[0])
-        NN = self.stack_shapefunctions(N)
+        xi = frame_ID[0]
+        if xi == 0:
+            NN = self.N_bdry[0]
+        elif xi == 1:
+            NN = self.N_bdry[-1]
+        else:
+            N, _ = self.basis_functions(frame_ID[0])
+            NN = self.stack_shapefunctions(N)
+
         d1 = NN @ q[self.d1DOF]
         d2 = NN @ q[self.d2DOF]
         d3 = NN @ q[self.d3DOF]
         return np.vstack((d1, d2, d3)).T
 
-    # TODO:
     def A_IK_q(self, t, q, frame_ID):
-        A_IK_q_num =  Numerical_derivative(lambda t, q: self.A_IK(t, q, frame_ID=frame_ID))._x(t, q)
-        
-        # N, _ = self.basis_functions(frame_ID[0])
-        # NN = self.stack_shapefunctions(N)
-        # A_IK_q = np.zeros((3, 3, self.nq_el))
-        # A_IK_q[:, 0] = NN
-        # A_IK_q[:, 1] = NN
-        # A_IK_q[:, 2] = NN
+        xi = frame_ID[0]
+        if xi == 0:
+            NN = self.N_bdry[0]
+        elif xi == 1:
+            NN = self.N_bdry[-1]
+        else:
+            N, _ = self.basis_functions(frame_ID[0])
+            NN = self.stack_shapefunctions(N)
 
-        return A_IK_q_num
+        A_IK_q = np.zeros((3, 3, self.nq_el))
+        A_IK_q[:, 0, self.d1DOF] = NN
+        A_IK_q[:, 1, self.d2DOF] = NN
+        A_IK_q[:, 2, self.d3DOF] = NN
+        return A_IK_q
 
-    # def v_P(self, t, q, u, frame_ID, K_r_SP=None):
-    #     return self.r_OP(t, u, frame_ID=frame_ID)
+        # A_IK_q_num =  Numerical_derivative(lambda t, q: self.A_IK(t, q, frame_ID=frame_ID))._x(t, q)
+        # error = np.linalg.norm(A_IK_q - A_IK_q_num)
+        # print(f'error in A_IK_q: {error}')
+        # return A_IK_q_num
 
-    # def a_P(self, t, q, u, u_dot, frame_ID, K_r_SP=None):
-    #     return self.r_OP(t, u_dot, frame_ID=frame_ID)
+    def v_P(self, t, q, u, frame_ID, K_r_SP=None):
+        return self.r_OP(t, u, frame_ID=frame_ID)
 
-    # def v_P_q(self, t, q, u, frame_ID, K_r_SP=None):
-    #     return self.r_OP_q(t, None, frame_ID=frame_ID)
+    def a_P(self, t, q, u, u_dot, frame_ID, K_r_SP=None):
+        return self.r_OP(t, u_dot, frame_ID=frame_ID)
 
-    # def J_P(self, t, q, frame_ID, K_r_SP=None):
-    #     return self.r_OP_q(t, None, frame_ID=frame_ID)
+    def v_P_q(self, t, q, u, frame_ID, K_r_SP=None):
+        return self.r_OP_q(t, None, frame_ID=frame_ID)
 
-    # def J_P_q(self, t, q, frame_ID, K_r_SP=None):
-    #     return np.zeros((3, self.nq_el, self.nq_el))
+    def J_P(self, t, q, frame_ID, K_r_SP=None):
+        xi = frame_ID[0]
+        if xi == 0:
+            NN = self.N_bdry[0]
+        elif xi == 1:
+            NN = self.N_bdry[-1]
+        else:
+            N, _ = self.basis_functions(frame_ID[0])
+            NN = self.stack_shapefunctions(N)
 
-    # def K_Omega(self, t, q, u, frame_ID):
-    #     _, dNN, _ = self.__basis_functions(frame_ID)
-    #     t = dNN @ q
-    #     t_perp = np.array([-t[1], t[0]])
-    #     g2_ = t[0] * t[0] + t[1] * t[1]
-    #     t_dot = dNN @ u
-    #     phi_dot = t_perp @ t_dot / g2_
+        J_P = np.zeros((3, self.nq_el))
+        J_P[:, self.rDOF] = NN
+        return J_P
 
-    #     return np.array([0, 0, phi_dot])
+    def J_P_q(self, t, q, frame_ID, K_r_SP=None):
+        return np.zeros((3, self.nq_el, self.nq_el))
 
-    # def K_J_R(self, t, q, frame_ID):
-    #     _, dNN = self.__basis_functions(frame_ID)
-    #     t = dNN @ q
-    #     t_perp = np.array([-t[1], t[0]])
-    #     g2_ = t[0] * t[0] + t[1] * t[1]
+    def K_Omega(self, t, q, u, frame_ID):
+        xi = frame_ID[0]
+        if xi == 0:
+            NN = self.N_bdry[0]
+        elif xi == 1:
+            NN = self.N_bdry[-1]
+        else:
+            N, _ = self.basis_functions(frame_ID[0])
+            NN = self.stack_shapefunctions(N)
 
-    #     K_J_R = np.zeros((3, self.nq_el))
-    #     K_J_R[2] = t_perp @ dNN / g2_
-    #     return K_J_R
+        d1 = NN @ q[self.d1DOF]
+        d2 = NN @ q[self.d2DOF]
+        d3 = NN @ q[self.d3DOF]
+        A_IK = np.vstack((d1, d2, d3)).T
 
-    # # TODO
-    # def K_J_R_q(self, t, q, frame_ID):
-    #     return Numerical_derivative(lambda t, q: self.K_J_R(t, q, frame_ID=frame_ID))._x(t, q)
+        d1_dot = NN @ u[self.d1DOF]
+        d2_dot = NN @ u[self.d2DOF]
+        d3_dot = NN @ u[self.d3DOF]
+        A_IK_dot = np.vstack((d1_dot, d2_dot, d3_dot)).T
+
+        omega_tilde = A_IK_dot @ A_IK.T
+        return skew2ax(omega_tilde)
+
+    # TODO!
+    def K_J_R(self, t, q, frame_ID):        
+        xi = frame_ID[0]
+        if xi == 0:
+            NN = self.N_bdry[0]
+        elif xi == 1:
+            NN = self.N_bdry[-1]
+        else:
+            N, _ = self.basis_functions(frame_ID[0])
+            NN = self.stack_shapefunctions(N)
+
+        d1 = NN @ q[self.d1DOF]
+        d2 = NN @ q[self.d2DOF]
+        d3 = NN @ q[self.d3DOF]
+        A_IK = np.vstack((d1, d2, d3)).T
+
+        A_IK_dot_u = np.zeros((3, 3, self.nq_el))
+        A_IK_dot_u[:, 0, self.d1DOF] = NN
+        A_IK_dot_u[:, 1, self.d2DOF] = NN
+        A_IK_dot_u[:, 2, self.d3DOF] = NN
+
+        # TODO: this is a really slow implementation!
+        K_J_R_skew = np.einsum('ijl,kj->ikl', A_IK_dot_u, A_IK)
+        K_J_R = np.array([skew2ax(skew.T) for skew in K_J_R_skew.T]).T
+        return K_J_R
+
+        # u = np.zeros_like(q)
+        # K_J_R_num = Numerical_derivative(lambda t, q, u: self.K_Omega(t, q, u, frame_ID=frame_ID))._y(t, q, u)
+        # # error = np.linalg.norm(K_J_R_num - K_J_R)
+        # # print(f'error in K_J_R: {error}')
+        # return K_J_R_num
+
+    # TODO
+    def K_J_R_q(self, t, q, frame_ID):
+        return Numerical_derivative(lambda t, q: self.K_J_R(t, q, frame_ID=frame_ID))._x(t, q)
 
     # # TODO!
     # ####################################################
@@ -553,17 +589,17 @@ class Timoshenko_beam_director():
     # def body_force_q(self, t, q, coo, force):
     #     pass
 
-    # ####################################################
-    # # visualization
-    # ####################################################
-    # def centerline(self, q, n=100):
-    #     q_body = q[self.qDOF]
-    #     r = []
-    #     for xi in np.linspace(0, 1 - 1.0e-9, n):
-    #         frame_ID = (xi,)
-    #         qp = q_body[self.qDOF_P(frame_ID)]
-    #         r.append( self.r_OP(1, qp, frame_ID) )
-    #     return np.array(r)
+    ####################################################
+    # visualization
+    ####################################################
+    def centerline(self, q, n=100):
+        q_body = q[self.qDOF]
+        r = []
+        for xi in np.linspace(0, 1 - 1.0e-9, n):
+            frame_ID = (xi,)
+            qp = q_body[self.qDOF_P(frame_ID)]
+            r.append( self.r_OP(1, qp, frame_ID) )
+        return np.array(r)
 
 ####################################################
 # straight initial configuration
