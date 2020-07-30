@@ -61,7 +61,7 @@ if __name__ == "__main__":
     mu = 0
     r_N = 0.2
     e_N = 0.2
-    plane = Sphere_to_plane(frame, RB, 0*r, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N, e_T=0)
+    plane = Sphere_to_plane(frame, RB, r, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N, e_T=0)
 
     alpha = pi/4
     e1, e2, e3 = A_IK_basic_z(alpha)
@@ -117,7 +117,7 @@ if __name__ == "__main__":
     q_fp = sol_fp.q
     u_fp = sol_fp.u
     a_fp = np.zeros_like(u_fp)
-    a_fp[:-1] = (u_fp[1:] - u_fp[:-1]) / dt
+    a_fp[1:] = (u_fp[1:] - u_fp[:-1]) / dt
     la_N_fp = sol_fp.la_N
     la_T_fp = sol_fp.la_T
 

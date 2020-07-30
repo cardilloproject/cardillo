@@ -195,15 +195,25 @@ class Generalized_alpha_2():
                 uk1 = self.uk + dt * ((1-self.gamma) * self.ak + self.gamma * ak1) + Uk1
                 a_beta = (0.5 - self.beta) * self.ak + self.beta * ak1 
                 qk1 = self.qk + dt * self.model.q_dot(self.tk, self.qk, self.uk) + dt**2 * self.model.q_ddot(self.tk, self.qk, self.uk, a_beta) + self.model.B(self.tk, self.qk) @ Qk1 
+                kappa_ast = kappa_Nk1 + dt**2 * ( (0.5 - self.beta) * self.la_Nk + self.beta * la_Nk1 )
+                La_ast = La_Nk1 + dt * ((1-self.gamma) * self.la_Nk + self.gamma * la_Nk1)
                 g_N = self.model.g_N(tk1, qk1)
-                # self.I_N = (kappa_Nk1 - self.model.prox_r_N * g_N >= 0)
-                g_dot_post = self.model.g_N_dot(tk1, self.qk, self.uk)
-                self.A_N = (g_dot_post <= 0) 
-                # xi_N = self.model.xi_N(tk1, qk1, self.uk, uk1)
-                # self.A_N = (La_Nk1 - self.model.prox_r_N * xi_N) >=0
-                self.I_N = (g_N <= 0)
+                self.I_N = (kappa_ast - self.model.prox_r_N * g_N >= 0)
                 # g_dot_post = self.model.g_N_dot(tk1, qk1, uk1)
                 # self.A_N = (g_dot_post <= 0) 
+                xi_N = self.model.xi_N(tk1, qk1, self.uk, uk1)
+                # self.A_N = (xi_N <= 0) 
+                self.A_N = (La_ast - self.model.prox_r_N * xi_N) >=0
+                # self.I_N = (g_N <= 0)
+                # g_dot_post = self.model.g_N_dot(tk1, qk1, uk1)
+                # self.A_N = (g_dot_post <= 0) 
+                # for i, i_N in enumerate(self.I_N):
+                #     if i_N:
+                #         if ~self.A_N[i]:
+                #             xk1[3*nu+nla_g+nla_gamma+2*nla_N+i] = 0
+                #     else:
+                #         xk1[3*nu+nla_g+nla_gamma+nla_N+i] = 0
+                #         xk1[3*nu+nla_g+nla_gamma+2*nla_N+i] = 0
 
                 R = self.__R(tk1, xk1)
                 # print(f'I_N = {self.I_N}; A_N = {self.A_N}; R = {R}')
@@ -252,7 +262,7 @@ class Generalized_alpha_2():
             t.append(tk1)
             q.append(qk1)
             u.append(uk1)
-            a.append(ak1)
+            a.append(ak1 + Uk1/dt)
             la_g.append(la_gk1)
             la_gamma.append(la_gammak1)
             kappa_N.append(kappa_Nk1)
