@@ -47,7 +47,7 @@ if __name__ == "__main__":
     x_dot0 = 0
     y_dot0 = 0
     phi0 = 0
-    phi_dot0 = 0
+    phi_dot0 = 50
     r_OS0 = np.array([x0, y0, 0])
     vS0 = np.array([x_dot0, y_dot0, 0])
     # q0 = np.array([r_OS0[0], r_OS0[1], phi0])
@@ -58,9 +58,9 @@ if __name__ == "__main__":
 
     e1, e2, e3 = np.eye(3)
     frame = Frame(A_IK=np.vstack( (e3, e1, e2) ).T )
-    mu = 0.1
+    mu = 0.2
     r_N = 0.3
-    e_N = 0.1
+    e_N = 0
     plane = Sphere_to_plane(frame, RB, r, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N, e_T=0)
 
     alpha = pi/4
@@ -84,14 +84,14 @@ if __name__ == "__main__":
     model.add(Force(lambda t: np.array([0, -g * m, 0]), RB))
     # model.add(plane)
     # model.add(plane_left)
-    # model.add(plane)
-    model.add(plane_right)
-    model.add(plane_left)
+    model.add(plane)
+    # model.add(plane_right)
+    # model.add(plane_left)
     model.assemble()
 
     t0 = 0
     t1 = 1
-    dt = 2.5e-3
+    dt = 5e-3
 
     # solver_fp = Moreau(model, t1, dt)
     # sol_fp = solver_fp.solve()
@@ -111,8 +111,8 @@ if __name__ == "__main__":
     la_N_n = sol_n.la_N 
     la_T_n = sol_n.la_T
 
-    P_N_n = sol_n.la_N*dt + sol_n.La_N
-    P_T_n = sol_n.la_T*dt + sol_n.La_T
+    P_N_n = sol_n.la_N*dt #+ sol_n.La_N
+    P_T_n = sol_n.la_T*dt #+ sol_n.La_T
 
     solver_fp = Moreau(model, t1, dt)
     sol_fp = solver_fp.solve()
@@ -124,53 +124,53 @@ if __name__ == "__main__":
     P_N_fp = sol_fp.la_N
     P_T_fp = sol_fp.la_T
 
-    # fig, ax = plt.subplots(3, 1)
-    # ax[0].set_title('x(t)')
-    # ax[0].plot(t_fp, q_fp[:, 0], '-r', label='fixed_point')
-    # ax[0].plot(t_n, q_n[:, 0], '--b', label='newton')
-    # ax[0].legend()
+    fig, ax = plt.subplots(3, 1)
+    ax[0].set_title('x(t)')
+    ax[0].plot(t_fp, q_fp[:, 0], '-r', label='fixed_point')
+    ax[0].plot(t_n, q_n[:, 0], '--b', label='newton')
+    ax[0].legend()
 
-    # ax[1].set_title('u_x(t)')
-    # ax[1].plot(t_fp, u_fp[:, 0], '-r', label='fixed_point')
-    # ax[1].plot(t_n, u_n[:, 0], '--b', label='newton')
-    # ax[1].legend()
+    ax[1].set_title('u_x(t)')
+    ax[1].plot(t_fp, u_fp[:, 0], '-r', label='fixed_point')
+    ax[1].plot(t_n, u_n[:, 0], '--b', label='newton')
+    ax[1].legend()
 
-    # ax[2].set_title('a_x(t)')
-    # ax[2].plot(t_fp, a_fp[:, 0], '-r', label='fixed_point')
-    # ax[2].plot(t_n, a_n[:, 0], '--b', label='newton')
-    # ax[2].legend()
+    ax[2].set_title('a_x(t)')
+    ax[2].plot(t_fp, a_fp[:, 0], '-r', label='fixed_point')
+    ax[2].plot(t_n, a_n[:, 0], '--b', label='newton')
+    ax[2].legend()
 
-    # fig, ax = plt.subplots(3, 1)
-    # ax[0].set_title('y(t)')
-    # ax[0].plot(t_fp, q_fp[:, 1], '-r', label='fixed_point')
-    # ax[0].plot(t_n, q_n[:, 1], '--b', label='newton')
-    # ax[0].legend()
+    fig, ax = plt.subplots(3, 1)
+    ax[0].set_title('y(t)')
+    ax[0].plot(t_fp, q_fp[:, 1], '-r', label='fixed_point')
+    ax[0].plot(t_n, q_n[:, 1], '--b', label='newton')
+    ax[0].legend()
 
-    # ax[1].set_title('u_y(t)')
-    # ax[1].plot(t_fp, u_fp[:, 1], '-r', label='fixed_point')
-    # ax[1].plot(t_n, u_n[:, 1], '--b', label='newton')
-    # ax[1].legend()
+    ax[1].set_title('u_y(t)')
+    ax[1].plot(t_fp, u_fp[:, 1], '-r', label='fixed_point')
+    ax[1].plot(t_n, u_n[:, 1], '--b', label='newton')
+    ax[1].legend()
 
-    # ax[2].set_title('a_y(t)')
-    # ax[2].plot(t_fp, a_fp[:, 1], '-r', label='fixed_point')
-    # ax[2].plot(t_n, a_n[:, 1], '--b', label='newton')
-    # ax[2].legend()
+    ax[2].set_title('a_y(t)')
+    ax[2].plot(t_fp, a_fp[:, 1], '-r', label='fixed_point')
+    ax[2].plot(t_n, a_n[:, 1], '--b', label='newton')
+    ax[2].legend()
 
-    # fig, ax = plt.subplots(3, 1)
-    # ax[0].set_title('phi(t)')
-    # ax[0].plot(t_fp, q_fp[:, 1], '-r', label='fixed_point')
-    # ax[0].plot(t_n, q_n[:, 1], '--b', label='newton')
-    # ax[0].legend()
+    fig, ax = plt.subplots(3, 1)
+    ax[0].set_title('phi(t)')
+    ax[0].plot(t_fp, q_fp[:, 3], '-r', label='fixed_point')
+    ax[0].plot(t_n, q_n[:, 3], '--b', label='newton')
+    ax[0].legend()
 
-    # ax[1].set_title('u_phi(t)')
-    # ax[1].plot(t_fp, u_fp[:, 1], '-r', label='fixed_point')
-    # ax[1].plot(t_n, u_n[:, 1], '--b', label='newton')
-    # ax[1].legend()
+    ax[1].set_title('u_phi(t)')
+    ax[1].plot(t_fp, u_fp[:, -1], '-r', label='fixed_point')
+    ax[1].plot(t_n, u_n[:, -1], '--b', label='newton')
+    ax[1].legend()
 
-    # ax[2].set_title('a_phi(t)')
-    # ax[2].plot(t_fp, a_fp[:, 1], '-r', label='fixed_point')
-    # ax[2].plot(t_n, a_n[:, 1], '--b', label='newton')
-    # ax[2].legend()
+    ax[2].set_title('a_phi(t)')
+    ax[2].plot(t_fp, a_fp[:, -1], '-r', label='fixed_point')
+    ax[2].plot(t_n, a_n[:, -1], '--b', label='newton')
+    ax[2].legend()
 
     # fig, ax = plt.subplots(3, 1)
 
@@ -206,22 +206,22 @@ if __name__ == "__main__":
     # ax[2].plot(t_n, u_n[:, 3], '--b', label='newton')
     # ax[2].legend()
 
-    # fig, ax = plt.subplots(3, 1)
+    fig, ax = plt.subplots(3, 1)
 
-    # ax[0].set_title('P_N(t)')
-    # ax[0].plot(t_fp, P_N_fp[:, 0], '-r', label='fixed_point')
-    # ax[0].plot(t_n, P_N_n[:, 0], '--b', label='newton')
-    # ax[0].legend()
+    ax[0].set_title('P_N(t)')
+    ax[0].plot(t_fp, P_N_fp[:, 0], '-r', label='fixed_point')
+    ax[0].plot(t_n, P_N_n[:, 0], '--b', label='newton')
+    ax[0].legend()
 
-    # ax[1].set_title('P_Tx(t)')
-    # ax[1].plot(t_fp, P_T_fp[:, 0], '-r', label='fixed_point')
-    # ax[1].plot(t_n, P_T_n[:, 0], '--b', label='newton')
-    # ax[1].legend()
+    ax[1].set_title('P_Tx(t)')
+    ax[1].plot(t_fp, P_T_fp[:, 0], '-r', label='fixed_point')
+    ax[1].plot(t_n, P_T_n[:, 0], '--b', label='newton')
+    ax[1].legend()
 
-    # ax[2].set_title('la_Ty(t)')
-    # ax[2].plot(t_fp, P_T_fp[:, 1], '-r', label='fixed_point')
-    # ax[2].plot(t_n, P_T_n[:, 1], '--b', label='newton')
-    # ax[2].legend()
+    ax[2].set_title('la_Ty(t)')
+    ax[2].plot(t_fp, P_T_fp[:, 1], '-r', label='fixed_point')
+    ax[2].plot(t_n, P_T_n[:, 1], '--b', label='newton')
+    ax[2].legend()
 
     # ax[1].set_title('u_y(t)')
     # ax[1].plot(t_fp, u_fp[:, 1], '-r', label='fixed_point')

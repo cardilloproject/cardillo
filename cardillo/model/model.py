@@ -425,6 +425,12 @@ class Model(object):
             gamma_T[contr.la_TDOF] = contr.gamma_T(t, q[contr.qDOF], u[contr.uDOF])
         return gamma_T
 
+    def gamma_T_dot(self, t, q, u, a):
+        gamma_T_dot = np.zeros(self.nla_T)
+        for contr in self.__gamma_T_contr:
+            gamma_T_dot[contr.la_TDOF] = contr.gamma_T_dot(t, q[contr.qDOF], u[contr.uDOF], a[contr.uDOF])
+        return gamma_T_dot
+
     def xi_T(self, t, q, u_pre, u_post):
         xi_T = np.zeros(self.nla_T)
         for contr in self.__gamma_T_contr:

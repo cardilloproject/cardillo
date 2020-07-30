@@ -32,7 +32,7 @@ class Generalized_alpha_2():
         self.nla_gamma = model.nla_gamma
         self.nla_N = model.nla_N
         self.nla_T = model.nla_T
-        self.nR = 3 * self.nu + self.nla_g + self.nla_gamma + 3 * self.nla_N + self.nla_T
+        self.nR = 3 * self.nu + self.nla_g + self.nla_gamma + 3 * self.nla_N + 2 * self.nla_T
 
         # self.Mk1 = model.M(t0, model.q0)
         # self.W_gk1 = self.model.W_g(t0, model.q0)
@@ -73,7 +73,7 @@ class Generalized_alpha_2():
         La_Nk1 = xk1[3*nu+nla_g+nla_gamma+nla_N:3*nu+nla_g+nla_gamma+2*nla_N]
         la_Nk1 = xk1[3*nu+nla_g+nla_gamma+2*nla_N:3*nu+nla_g+nla_gamma+3*nla_N]
         La_Tk1 = xk1[3*nu+nla_g+nla_gamma+3*nla_N:3*nu+nla_g+nla_gamma+3*nla_N+nla_T]
-        # la_Tk1 = xk1[3*nu+nla_g+nla_gamma+3*nla_N+nla_T:3*nu+nla_g+nla_gamma+3*nla_N+2*nla_T]
+        la_Tk1 = xk1[3*nu+nla_g+nla_gamma+3*nla_N+nla_T:3*nu+nla_g+nla_gamma+3*nla_N+2*nla_T]
 
         # update dependent variables
         uk1 = self.uk + dt * ((1-self.gamma) * self.ak + self.gamma * ak1) + Uk1
@@ -81,7 +81,7 @@ class Generalized_alpha_2():
         qk1 = self.qk + dt * self.model.q_dot(self.tk, self.qk, self.uk) + dt2 * self.model.q_ddot(self.tk, self.qk, self.uk, a_beta) + self.model.B(self.tk, self.qk) @ Qk1 
         kappa_ast = kappa_Nk1 + dt**2 * ( (0.5 - self.beta) * self.la_Nk + self.beta * la_Nk1 )
         P_N = La_Nk1 + dt * ((1-self.gamma) * self.la_Nk + self.gamma * la_Nk1)
-        P_T = La_Tk1 #+ dt * ((1-self.gamma) * self.la_Tk + self.gamma * la_Tk1)
+        P_T = La_Tk1 + dt * ((1-self.gamma) * self.la_Tk + self.gamma * la_Tk1)
 
         Mk1 = self.model.M(tk1, qk1)
         W_gk1 = self.model.W_g(tk1, qk1)
@@ -96,9 +96,10 @@ class Generalized_alpha_2():
         A_N = (P_N - self.model.prox_r_N * xi_N) >=0
 
         g_N_ddot_post = self.model.g_N_ddot(tk1, qk1, uk1, ak1)
+        gamma_T_dot = self.model.gamma_T_dot(tk1, qk1, uk1, ak1)
         # evaluate residual R(ak1, la_gk1, la_gammak1)
         R = np.zeros(self.nR)
-        R[:nu] = Mk1 @ ak1 - ( self.model.h(tk1, qk1, uk1) + W_gk1 @ la_gk1 + W_gammak1 @ la_gammak1 + W_Nk1 @ la_Nk1)# + W_Tk1 @ la_Tk1)
+        R[:nu] = Mk1 @ ak1 - ( self.model.h(tk1, qk1, uk1) + W_gk1 @ la_gk1 + W_gammak1 @ la_gammak1 + W_Nk1 @ la_Nk1 + W_Tk1 @ la_Tk1)
         R[nu:2*nu] = Mk1 @ Uk1 - W_Nk1 @ La_Nk1 - W_Tk1 @ La_Tk1
         R[2*nu:3*nu] = Mk1 @ Qk1 - W_Nk1 @ kappa_Nk1
         R[3*nu:3*nu+nla_g] = self.model.g(tk1, qk1)
@@ -120,13 +121,13 @@ class Generalized_alpha_2():
             if np.any(i_T):
                 if I_N[i_N]:
                     R[3*nu+nla_g+nla_gamma+3*nla_N+offset:3*nu+nla_g+nla_gamma+3*nla_N+offset+2] = P_T[i_T] - prox_circle(P_T[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T], self.model.mu[i_N] * P_N[i_N])
-                    # if A_N[i_N]:
-                    #     R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset:3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset+2] = la_Tk1[i_T] - prox_circle(la_Tk1[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T], self.model.mu[i_N] * la_Nk1[i_N])
-                    # else:
-                    #     R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset:3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset+2] = la_Tk1[i_T]
+                    if A_N[i_N]:
+                        R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset:3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset+2] = la_Tk1[i_T] - prox_circle(la_Tk1[i_T] - self.model.prox_r_T[i_N] * gamma_T_dot[i_T], self.model.mu[i_N] * la_Nk1[i_N])
+                    else:
+                        R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset:3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset+2] = la_Tk1[i_T]
                 else:
                     R[3*nu+nla_g+nla_gamma+3*nla_N+offset:3*nu+nla_g+nla_gamma+3*nla_N+offset+2] = P_T[i_T]
-                    # R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset:3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset+2] = la_Tk1[i_T]
+                    R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset:3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset+2] = la_Tk1[i_T]
                 offset += 2
         return R
 
@@ -157,7 +158,7 @@ class Generalized_alpha_2():
         xk1[3*nu+nla_g+nla_gamma+nla_N:3*nu+nla_g+nla_gamma+2*nla_N] = self.La_Nk
         xk1[3*nu+nla_g+nla_gamma+2*nla_N:3*nu+nla_g+nla_gamma+3*nla_N] = self.la_Nk
         xk1[3*nu+nla_g+nla_gamma+3*nla_N:3*nu+nla_g+nla_gamma+3*nla_N+nla_T] = self.La_Tk
-        # xk1[3*nu+nla_g+nla_gamma+3*nla_N+nla_T:3*nu+nla_g+nla_gamma+3*nla_N+2*nla_T] = self.la_Tk
+        xk1[3*nu+nla_g+nla_gamma+3*nla_N+nla_T:3*nu+nla_g+nla_gamma+3*nla_N+2*nla_T] = self.la_Tk
 
         # initial residual and error
         R = self.__R(tk1, xk1)
@@ -193,8 +194,7 @@ class Generalized_alpha_2():
         La_Nk1 = xk1[3*nu+nla_g+nla_gamma+nla_N:3*nu+nla_g+nla_gamma+2*nla_N]
         la_Nk1 = xk1[3*nu+nla_g+nla_gamma+2*nla_N:3*nu+nla_g+nla_gamma+3*nla_N]
         La_Tk1 = xk1[3*nu+nla_g+nla_gamma+3*nla_N:3*nu+nla_g+nla_gamma+3*nla_N+nla_T]
-        la_Tk1 = np.zeros(nla_T)
-        # la_Tk1 = xk1[3*nu+nla_g+nla_gamma+3*nla_N+nla_T:3*nu+nla_g+nla_gamma+3*nla_N+2*nla_T]
+        la_Tk1 = xk1[3*nu+nla_g+nla_gamma+3*nla_N+nla_T:3*nu+nla_g+nla_gamma+3*nla_N+2*nla_T]
         # if not converged:
         #     print('')
             
@@ -231,7 +231,7 @@ class Generalized_alpha_2():
             q.append(qk1)
             u.append(uk1)
             #TODO:
-            a.append(ak1 + Uk1/dt)
+            a.append(ak1)
             la_g.append(la_gk1)
             la_gamma.append(la_gammak1)
             kappa_N.append(kappa_Nk1)

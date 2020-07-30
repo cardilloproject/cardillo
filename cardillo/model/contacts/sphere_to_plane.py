@@ -81,6 +81,10 @@ class Sphere_to_plane():
     def __gamma_T(self, t, q, u):
         return self.t1t2(t) @ (self.v_P(t, q, u) - self.v_Q(t))
 
+    def gamma_T_dot(self, t, q, u, a):
+        #TODO: t1t2_dot(t)
+        return self.t1t2(t) @ (self.a_P(t, q, u, a) - self.a_Q(t))
+
     def gamma_T_u_dense(self, t, q):
         return self.t1t2(t) @ self.J_P(t, q)
 
