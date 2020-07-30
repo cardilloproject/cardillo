@@ -90,10 +90,13 @@ class Generalized_alpha_2():
         W_Tk1 = self.model.W_T(tk1, qk1, scipy_matrix=csc_matrix)
 
         g_N = self.model.g_N(tk1, qk1)
+        # g_N_dot_post = self.model.g_N_dot(tk1, qk1, uk1)
         xi_N = self.model.xi_N(tk1, qk1, self.uk, uk1)
         xi_T = self.model.xi_T(tk1, qk1, self.uk, uk1)
         I_N = (kappa_ast - self.model.prox_r_N * g_N >= 0)
+        # I_N =  (g_N <= 0)
         A_N = (P_N - self.model.prox_r_N * xi_N) >=0
+        # A_N = g_N_dot_post <=0
 
         g_N_ddot_post = self.model.g_N_ddot(tk1, qk1, uk1, ak1)
         gamma_T_dot = self.model.gamma_T_dot(tk1, qk1, uk1, ak1)

@@ -44,10 +44,10 @@ if __name__ == "__main__":
     g = 9.81
     x0 = -0.3
     y0 = 1
-    x_dot0 = 0
+    x_dot0 = 1
     y_dot0 = 0
     phi0 = 0
-    phi_dot0 = 50
+    phi_dot0 = 0
     r_OS0 = np.array([x0, y0, 0])
     vS0 = np.array([x_dot0, y_dot0, 0])
     # q0 = np.array([r_OS0[0], r_OS0[1], phi0])
@@ -57,11 +57,11 @@ if __name__ == "__main__":
     RB = Ball(m, r, q0, u0)
 
     e1, e2, e3 = np.eye(3)
-    frame = Frame(A_IK=np.vstack( (e3, e1, e2) ).T )
+    frame = Frame(A_IK=np.vstack( (e3, e1, e2) ).T, r_OP=np.array([0, y0-0.1, 0]) )
     mu = 0.2
     r_N = 0.3
     e_N = 0
-    plane = Sphere_to_plane(frame, RB, r, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N, e_T=0)
+    plane = Sphere_to_plane(frame, RB, 0*r, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N, e_T=0)
 
     alpha = pi/4
     e1, e2, e3 = A_IK_basic_z(alpha)
@@ -111,8 +111,8 @@ if __name__ == "__main__":
     la_N_n = sol_n.la_N 
     la_T_n = sol_n.la_T
 
-    P_N_n = sol_n.la_N*dt #+ sol_n.La_N
-    P_T_n = sol_n.la_T*dt #+ sol_n.La_T
+    # P_N_n = sol_n.La_N
+    # P_T_n = sol_n.la_T*dt #+ sol_n.La_T
 
     solver_fp = Moreau(model, t1, dt)
     sol_fp = solver_fp.solve()
@@ -210,17 +210,20 @@ if __name__ == "__main__":
 
     ax[0].set_title('P_N(t)')
     ax[0].plot(t_fp, P_N_fp[:, 0], '-r', label='fixed_point')
-    ax[0].plot(t_n, P_N_n[:, 0], '--b', label='newton')
+    ax[0].plot(t_n, sol_n.la_N[:, 0]*dt, '--b', label='newton_la_N')
+    ax[0].plot(t_n, sol_n.La_N[:, 0], '--g', label='newton_La_N')
     ax[0].legend()
 
     ax[1].set_title('P_Tx(t)')
     ax[1].plot(t_fp, P_T_fp[:, 0], '-r', label='fixed_point')
-    ax[1].plot(t_n, P_T_n[:, 0], '--b', label='newton')
+    ax[1].plot(t_n, sol_n.la_T[:, 0]*dt, '--b', label='newton_la_T')
+    ax[1].plot(t_n, sol_n.La_T[:, 0], '--g', label='newton_La_T')
     ax[1].legend()
 
     ax[2].set_title('la_Ty(t)')
     ax[2].plot(t_fp, P_T_fp[:, 1], '-r', label='fixed_point')
-    ax[2].plot(t_n, P_T_n[:, 1], '--b', label='newton')
+    ax[2].plot(t_n, sol_n.la_T[:, 1]*dt, '--b', label='newton_la_T')
+    ax[2].plot(t_n, sol_n.La_T[:, 1], '--g', label='newton_La_T')
     ax[2].legend()
 
     # ax[1].set_title('u_y(t)')
