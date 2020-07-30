@@ -16,7 +16,7 @@ from cardillo.model.rigid_body import Rigid_body_rel_kinematics
 from cardillo.model.frame import Frame
 from cardillo.model.force import Force
 from cardillo.model.contacts import Sphere_to_plane
-from cardillo.solver import Moreau
+from cardillo.solver import Moreau, Generalized_alpha_2
 
 class Main_body(Rigid_body_euler):
     def __init__(self, q0=None, u0=None):
@@ -190,10 +190,11 @@ if __name__ == "__main__":
     model.assemble()
 
     t0 = 0
-    t1 = 1.5
+    t1 = 0.5
     # t1 = 0.1
-    dt = 5e-3
-    solver = Moreau(model, t1, dt, prox_solver_method='newton')
+    dt = 1e-3
+    # solver = Moreau(model, t1, dt, prox_solver_method='newton')
+    solver = Generalized_alpha_2(model, t1, dt)
     sol = solver.solve()
     t = sol.t
     q = sol.q

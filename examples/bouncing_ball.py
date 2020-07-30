@@ -101,7 +101,7 @@ if __name__ == "__main__":
     # la_N_fp = sol_fp.la_N
     # la_T_fp = sol_fp.la_T
 
-    solver_n = Generalized_alpha_2(model, t1, dt, numerical_jacobian=True)
+    solver_n = Generalized_alpha_2(model, t1, dt)
     sol_n = solver_n.solve()
     # sol_n = sol_fp
     t_n = t = sol_n.t
@@ -120,8 +120,6 @@ if __name__ == "__main__":
     a_fp[1:] = (u_fp[1:] - u_fp[:-1]) / dt
     la_N_fp = sol_fp.la_N
     la_T_fp = sol_fp.la_T
-
-    
 
     fig, ax = plt.subplots(3, 1)
 
