@@ -76,7 +76,7 @@ if __name__ == "__main__":
     frame2 = Frame(A_IK=np.vstack( (e3, e1, e2) ).T )
     mu = 0.0
     r_N = 0.1
-    e_N = 0.8
+    e_N = 0.2
     plane_right = Sphere_to_plane(frame2, RB, r, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N)
 
     model = Model()
@@ -84,9 +84,9 @@ if __name__ == "__main__":
     model.add(Force(lambda t: np.array([0, -g * m, 0]), RB))
     # model.add(plane)
     # model.add(plane_left)
-    model.add(plane)
-    # model.add(plane_right)
-    # model.add(plane_left)
+    # model.add(plane)
+    model.add(plane_right)
+    model.add(plane_left)
     model.assemble()
 
     t0 = 0

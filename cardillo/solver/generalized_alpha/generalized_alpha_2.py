@@ -107,15 +107,19 @@ class Generalized_alpha_2():
         W_Nk1 = self.model.W_N(tk1, qk1, scipy_matrix=csc_matrix)
 
         g_N = self.model.g_N(tk1, qk1)
+        xi_N = self.model.xi_N(tk1, qk1, self.uk, uk1)
+        kappa_ast = kappa_Nk1 + dt**2 * ( (0.5 - self.beta) * self.la_Nk + self.beta * la_Nk1 )
+        La_ast = La_Nk1 + dt * ((1-self.gamma) * self.la_Nk + self.gamma * la_Nk1)
         # I_N = (g_N <= 0)
-        # I_N = (kappa_Nk1 - self.model.prox_r_N * g_N >= 0)
+        I_N = (kappa_ast - self.model.prox_r_N * g_N >= 0)
+        A_N = (La_ast - self.model.prox_r_N * xi_N) >=0
         # g_dot_post = self.model.g_N_dot(tk1, qk1, uk1)
         # A_N = (g_dot_post <= 0) 
-        I_N = self.I_N
-        A_N = self.A_N
+        # I_N = self.I_N
+        # A_N = self.A_N
         # if np.any(A_N * I_N):
         #     print('--')
-        xi_N = self.model.xi_N(tk1, qk1, self.uk, uk1)
+        
         # A_N = (La_Nk1 - self.model.prox_r_N * xi_N) >=0
         # A_N = (xi_N <= 0)
         g_ddot_post = self.model.g_N_ddot(tk1, qk1, uk1, ak1)
@@ -126,16 +130,16 @@ class Generalized_alpha_2():
         R[2*nu:3*nu] = Mk1 @ Qk1 - W_Nk1 @ kappa_Nk1
         R[3*nu:3*nu+nla_g] = self.model.g(tk1, qk1)
         R[3*nu+nla_g:3*nu+nla_g+nla_gamma] = self.model.gamma(tk1, qk1, uk1)
-        R[3*nu+nla_g+nla_gamma:3*nu+nla_g+nla_gamma+nla_N] = kappa_Nk1 - prox_Rn0(kappa_Nk1 - self.model.prox_r_N * g_N)
+        R[3*nu+nla_g+nla_gamma:3*nu+nla_g+nla_gamma+nla_N] = kappa_ast - prox_Rn0(kappa_ast - self.model.prox_r_N * g_N)
         for i, i_N in enumerate(I_N):
             if i_N:
-                R[3*nu+nla_g+nla_gamma+nla_N+i] = La_Nk1[i] - prox_Rn0(La_Nk1[i] - self.model.prox_r_N[i] * xi_N[i])
+                R[3*nu+nla_g+nla_gamma+nla_N+i] = La_ast[i] - prox_Rn0(La_ast[i] - self.model.prox_r_N[i] * xi_N[i])
                 if A_N[i]:
                     R[3*nu+nla_g+nla_gamma+2*nla_N+i] = la_Nk1[i] - prox_Rn0(la_Nk1[i] - self.model.prox_r_N[i] * g_ddot_post[i])
                 else:
                     R[3*nu+nla_g+nla_gamma+2*nla_N+i] = la_Nk1[i]
             else:
-                R[3*nu+nla_g+nla_gamma+nla_N+i] = La_Nk1[i]
+                R[3*nu+nla_g+nla_gamma+nla_N+i] = La_ast[i]
                 R[3*nu+nla_g+nla_gamma+2*nla_N+i] = la_Nk1[i]
         return R
 
