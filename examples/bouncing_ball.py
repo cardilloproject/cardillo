@@ -37,14 +37,14 @@ class Ball(Rigid_body_euler):
         return np.repeat(self.r_OP(t, q), n).reshape(3, n) + self.A_IK(t, q) @ K_r_SP
 
 if __name__ == "__main__":
-    animate = True
+    animate = False
 
     m = 1
     r = 0.1
     g = 9.81
     x0 = -0.3
     y0 = 1
-    x_dot0 = 1
+    x_dot0 = 1.2
     y_dot0 = 0
     phi0 = 0
     phi_dot0 = 0
@@ -101,7 +101,7 @@ if __name__ == "__main__":
     # la_N_fp = sol_fp.la_N
     # la_T_fp = sol_fp.la_T
 
-    solver_n = Generalized_alpha_2(model, t1, dt)
+    solver_n = Generalized_alpha_2(model, t1, dt, gamma=0.75)
     sol_n = solver_n.solve()
     # sol_n = sol_fp
     t_n = t = sol_n.t
@@ -156,21 +156,21 @@ if __name__ == "__main__":
     ax[2].plot(t_n, a_n[:, 1], '--b', label='newton')
     ax[2].legend()
 
-    fig, ax = plt.subplots(3, 1)
-    ax[0].set_title('phi(t)')
-    ax[0].plot(t_fp, q_fp[:, 3], '-r', label='fixed_point')
-    ax[0].plot(t_n, q_n[:, 3], '--b', label='newton')
-    ax[0].legend()
+    # fig, ax = plt.subplots(3, 1)
+    # ax[0].set_title('phi(t)')
+    # ax[0].plot(t_fp, q_fp[:, 3], '-r', label='fixed_point')
+    # ax[0].plot(t_n, q_n[:, 3], '--b', label='newton')
+    # ax[0].legend()
 
-    ax[1].set_title('u_phi(t)')
-    ax[1].plot(t_fp, u_fp[:, -1], '-r', label='fixed_point')
-    ax[1].plot(t_n, u_n[:, -1], '--b', label='newton')
-    ax[1].legend()
+    # ax[1].set_title('u_phi(t)')
+    # ax[1].plot(t_fp, u_fp[:, -1], '-r', label='fixed_point')
+    # ax[1].plot(t_n, u_n[:, -1], '--b', label='newton')
+    # ax[1].legend()
 
-    ax[2].set_title('a_phi(t)')
-    ax[2].plot(t_fp, a_fp[:, -1], '-r', label='fixed_point')
-    ax[2].plot(t_n, a_n[:, -1], '--b', label='newton')
-    ax[2].legend()
+    # ax[2].set_title('a_phi(t)')
+    # ax[2].plot(t_fp, a_fp[:, -1], '-r', label='fixed_point')
+    # ax[2].plot(t_n, a_n[:, -1], '--b', label='newton')
+    # ax[2].legend()
 
     # fig, ax = plt.subplots(3, 1)
 
@@ -220,7 +220,7 @@ if __name__ == "__main__":
     ax[1].plot(t_n, sol_n.La_T[:, 0], '--g', label='newton_La_T')
     ax[1].legend()
 
-    ax[2].set_title('la_Ty(t)')
+    ax[2].set_title('P_Ty(t)')
     ax[2].plot(t_fp, P_T_fp[:, 1], '-r', label='fixed_point')
     ax[2].plot(t_n, sol_n.la_T[:, 1]*dt, '--b', label='newton_la_T')
     ax[2].plot(t_n, sol_n.La_T[:, 1], '--g', label='newton_La_T')
@@ -273,9 +273,10 @@ if __name__ == "__main__":
         t = t[::frac]
         q = q[::frac]
 
+        ax.plot([-2 * y0, 2 * y0], (y0-0.1)*np.array([1, 1]), '-k')
         # ax.plot([-2 * y0, 2 * y0], [0, 0], '-k')
-        ax.plot([0, -y0 * np.cos(alpha)], [0, y0 * np.sin(alpha)], '-k')
-        ax.plot([0, y0 * np.cos(beta)], [0, - y0 * np.sin(beta)], '-k')
+        # ax.plot([0, -y0 * np.cos(alpha)], [0, y0 * np.sin(alpha)], '-k')
+        # ax.plot([0, y0 * np.cos(beta)], [0, - y0 * np.sin(beta)], '-k')
 
         def create(t, q):
             x_S, y_S, _ = RB.r_OP(t, q)
