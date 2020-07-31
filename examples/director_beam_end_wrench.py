@@ -1,4 +1,6 @@
-from cardillo.model.classical_beams.spatial import Hooke_quadratic, Timoshenko_beam_director_dirac, Timoshenko_beam_director_integral
+from cardillo.model.classical_beams.spatial import Hooke_quadratic
+from cardillo.model.classical_beams.spatial import Timoshenko_director_dirac, Euler_Bernoulli_director_dirac
+from cardillo.model.classical_beams.spatial import Timoshenko_director_integral, Euler_Bernoulli_director_integral, Inextensible_Euler_Bernoulli_director_integral
 from cardillo.model.classical_beams.spatial.timoshenko_beam_director import straight_configuration
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints.implicit import Rigid_connection
@@ -37,7 +39,7 @@ if __name__ == "__main__":
 
     L = 2 * np.pi
     # L = 1
-    Ei = np.array([5, 1, 1])
+    Ei = np.array([1, 1e-1, 1e-1])
     Fi = np.array([5, 1, 1])
 
     material_model = Hooke_quadratic(Ei, Fi)
@@ -55,8 +57,11 @@ if __name__ == "__main__":
 
     # build reference configuration
     Q = straight_configuration(p, nEl, L)
-    # beam = Timoshenko_beam_director_dirac(material_model, A_rho0, B_rho0, C_rho0, p, nQP, nEl, Q=Q)
-    beam = Timoshenko_beam_director_integral(material_model, A_rho0, B_rho0, C_rho0, p, nQP, nEl, Q=Q)
+    # beam = Timoshenko_director_dirac(material_model, A_rho0, B_rho0, C_rho0, p, nQP, nEl, Q=Q)
+    # beam = Euler_Bernoulli_director_dirac(material_model, A_rho0, B_rho0, C_rho0, p, nQP, nEl, Q=Q)
+    # beam = Timoshenko_director_integral(material_model, A_rho0, B_rho0, C_rho0, p, nQP, nEl, Q=Q)
+    # beam = Euler_Bernoulli_director_integral(material_model, A_rho0, B_rho0, C_rho0, p, nQP, nEl, Q=Q)
+    beam = Inextensible_Euler_Bernoulli_director_integral(material_model, A_rho0, B_rho0, C_rho0, p, nQP, nEl, Q=Q)
     # exit()
 
     # left joint
@@ -83,8 +88,8 @@ if __name__ == "__main__":
     model.add(frame_left)
     model.add(joint_left)
     # model.add(f_g_beam)
-    # model.add(force)
-    model.add(moment)
+    model.add(force)
+    # model.add(moment)
     model.assemble()
 
     # ############
@@ -127,7 +132,7 @@ if __name__ == "__main__":
     # x, y, z = beam.centerline(model.q0).T
     # exit()
 
-    solver = Newton(model, n_load_stepts=20, max_iter=20, tol=1.0e-8, numerical_jacobian=False)
+    solver = Newton(model, n_load_stepts=10, max_iter=20, tol=1.0e-8, numerical_jacobian=False)
     # solver = Newton(model, n_load_stepts=50, max_iter=10, numerical_jacobian=True)
     sol = solver.solve()
     t = sol.t

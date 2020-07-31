@@ -583,7 +583,10 @@ def straight_configuration(polynomial_degree, nEl, L, greville_abscissae=True):
     # assemble all reference generalized coordinates
     return np.concatenate([X, Y, Z, D1, D2, D3])
 
-class Timoshenko_beam_director_dirac(Timoshenko_beam_director):
+####################################################
+# constraint beam using nodal constraints
+####################################################
+class Timoshenko_director_dirac(Timoshenko_beam_director):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -676,7 +679,123 @@ class Timoshenko_beam_director_dirac(Timoshenko_beam_director):
             idx = i * 6
             coo.extend(np.einsum('i,ijk->jk', la_g[idx:idx+6], self.__g_qq()), (self.uDOF[DOF], self.qDOF[DOF]))
 
-class Timoshenko_beam_director_integral(Timoshenko_beam_director):
+class Euler_Bernoulli_director_dirac(Timoshenko_beam_director):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.nla_g = 8 * self.nn
+        la_g0 = kwargs.get('la_g0')
+        self.la_g0 = np.zeros(self.nla_g) if la_g0 is None else la_g0
+
+        # nodal degrees of freedom
+        self.rDOF_node = np.arange(3)
+        self.d1DOF_node = np.arange(3, 6)
+        self.d2DOF_node = np.arange(6, 9)
+        self.d3DOF_node = np.arange(9, 12)
+
+        # nodal shape functions and derivatives
+        self.N_nodes = np.empty((self.nn, self.nQP, self.nn_el))
+        self.N_xi_nodes = np.empty((self.nn, self.nQP, self.nn_el))
+        raise NotImplementedError('nodal shape functions have to be implemented!')
+        for i, xi in enumerate(self.element_span):
+            self.N_nodes[i], self.N_xi_nodes[i] = B_spline_basis(self.polynomial_degree, 1, self.knot_vector, xi)
+
+    # constraints on a single node
+    def __g(self, qn, N_xi):
+        g = np.zeros(6)
+
+        d1 = qn[self.d1DOF_node]
+        d2 = qn[self.d2DOF_node]
+        d3 = qn[self.d3DOF_node]
+
+        r_xi = N_xi @ qn[self.rDOF_node]
+
+        # director constraints
+        g[0] = d1 @ d1 - 1
+        g[1] = d2 @ d2 - 1
+        g[2] = d3 @ d3 - 1
+        g[3] = d1 @ d2
+        g[4] = d1 @ d3
+        g[5] = d2 @ d3
+
+        # unshearability in d2-direction
+        g[6] = d2 @ r_xi
+        g[7] = d3 @ r_xi
+
+        return g
+
+    def __g_q(self, qn, N_xi):
+        # g_q = np.zeros((6, 12))
+
+        # d1 = qn[self.d1DOF_node]
+        # d2 = qn[self.d2DOF_node]
+        # d3 = qn[self.d3DOF_node]
+
+        # g_q[0, self.d1DOF_node] = 2 * d1
+        # g_q[1, self.d2DOF_node] = 2 * d2
+        # g_q[2, self.d3DOF_node] = 2 * d3
+        # g_q[3, self.d1DOF_node] = d2
+        # g_q[3, self.d2DOF_node] = d1
+        # g_q[4, self.d1DOF_node] = d3
+        # g_q[4, self.d3DOF_node] = d1
+        # g_q[5, self.d2DOF_node] = d3
+        # g_q[5, self.d3DOF_node] = d2
+
+        # return g_q
+
+        gap_q_num = Numerical_derivative(lambda t, q: self.__g(q, N_xi))._x(0, qn)
+        return gap_q_num
+    
+    def __g_qq(self, qn, N_xi):
+        # g_qq = np.zeros((6, 12, 12))
+
+        # eye3 = np.eye(3)
+
+        # g_qq[0, self.d1DOF_node[:, None], self.d1DOF_node] = 2 * eye3
+        # g_qq[1, self.d2DOF_node[:, None], self.d2DOF_node] = 2 * eye3
+        # g_qq[2, self.d3DOF_node[:, None], self.d3DOF_node] = 2 * eye3
+        
+        # g_qq[3, self.d1DOF_node[:, None], self.d2DOF_node] = eye3
+        # g_qq[3, self.d2DOF_node[:, None], self.d1DOF_node] = eye3
+
+        # g_qq[4, self.d1DOF_node[:, None], self.d3DOF_node] = eye3
+        # g_qq[4, self.d3DOF_node[:, None], self.d3DOF_node] = eye3
+        
+        # g_qq[5, self.d2DOF_node[:, None], self.d3DOF_node] = eye3
+        # g_qq[5, self.d3DOF_node[:, None], self.d2DOF_node] = eye3
+        
+        # return g_qq
+
+        gap_qq_num = Numerical_derivative(lambda t, q: self.__g_q(q, N_xi))._x(0, qn)
+        return gap_qq_num
+
+    # global constraint functions
+    def g(self, t, q):
+        g = np.zeros(self.nla_g)
+        for i, DOF in enumerate(self.nodalDOF):
+            idx = i * 6
+            g[idx:idx+6] = self.__g(q[DOF])
+        return g
+
+    def g_q(self, t, q, coo):
+        for i, DOF in enumerate(self.nodalDOF):
+            idx = i * 6
+            coo.extend(self.__g_q(q[DOF]), (self.la_gDOF[np.arange(idx, idx+6)], self.qDOF[DOF]))
+
+    def W_g(self, t, q, coo):
+        for i, DOF in enumerate(self.nodalDOF):
+            idx = i * 6
+            coo.extend(self.__g_q(q[DOF]).T, (self.uDOF[DOF], self.la_gDOF[np.arange(idx, idx+6)]))
+
+    def Wla_g_q(self, t, q, la_g, coo):
+        for i, DOF in enumerate(self.nodalDOF):
+            idx = i * 6
+            coo.extend(np.einsum('i,ijk->jk', la_g[idx:idx+6], self.__g_qq()), (self.uDOF[DOF], self.qDOF[DOF]))
+
+####################################################
+# constraint beam using integral constraints
+####################################################
+class Timoshenko_director_integral(Timoshenko_beam_director):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -752,28 +871,31 @@ class Timoshenko_beam_director_integral(Timoshenko_beam_director):
             d2 = NNi @ qe[self.d2DOF]
             d3 = NNi @ qe[self.d3DOF]
 
-            factor = J0i * qwi
-            
+            factor = N_gi * J0i * qwi
+            d1_NNi = d1 @ NNi
+            d2_NNi = d2 @ NNi
+            d3_NNi = d3 @ NNi
+
             # 2 * delta d1 * d1
-            g_q[self.g11DOF[:, None], self.d1DOF] += np.outer(N_gi, 2 * d1 @ NNi) * factor
+            g_q[self.g11DOF[:, None], self.d1DOF] += np.outer(factor, 2 * d1_NNi)
             # delta d1 * d2
-            g_q[self.g12DOF[:, None], self.d1DOF] += np.outer(N_gi, d2 @ NNi)     * factor
+            g_q[self.g12DOF[:, None], self.d1DOF] += np.outer(factor, d2_NNi)
             # delta d2 * d1
-            g_q[self.g12DOF[:, None], self.d2DOF] += np.outer(N_gi, d1 @ NNi)     * factor
+            g_q[self.g12DOF[:, None], self.d2DOF] += np.outer(factor, d1_NNi)
             # delta d1 * d3
-            g_q[self.g13DOF[:, None], self.d1DOF] += np.outer(N_gi, d3 @ NNi)     * factor
+            g_q[self.g13DOF[:, None], self.d1DOF] += np.outer(factor, d3_NNi)
             # delta d3 * d1
-            g_q[self.g13DOF[:, None], self.d3DOF] += np.outer(N_gi, d1 @ NNi)     * factor
+            g_q[self.g13DOF[:, None], self.d3DOF] += np.outer(factor, d1_NNi)
 
             # 2 * delta d2 * d2
-            g_q[self.g22DOF[:, None], self.d2DOF] += np.outer(N_gi, 2 * d2 @ NNi) * factor
+            g_q[self.g22DOF[:, None], self.d2DOF] += np.outer(factor, 2 * d2_NNi)
             # delta d2 * d3
-            g_q[self.g23DOF[:, None], self.d2DOF] += np.outer(N_gi, d3 @ NNi)     * factor
+            g_q[self.g23DOF[:, None], self.d2DOF] += np.outer(factor, d3_NNi)
             # delta d3 * d2
-            g_q[self.g23DOF[:, None], self.d3DOF] += np.outer(N_gi, d2 @ NNi)     * factor
+            g_q[self.g23DOF[:, None], self.d3DOF] += np.outer(factor, d2_NNi)
 
             # 2 * delta d3 * d3
-            g_q[self.g33DOF[:, None], self.d3DOF] += np.outer(N_gi, 2 * d3 @ NNi) * factor
+            g_q[self.g33DOF[:, None], self.d3DOF] += np.outer(factor, 2 * d3_NNi)
 
         return g_q
 
@@ -789,28 +911,29 @@ class Timoshenko_beam_director_integral(Timoshenko_beam_director):
             NNi = self.stack_shapefunctions(Ni)
             factor = NNi.T @ NNi * J0i * qwi
 
-            for j, N_gij in enumerate(N_gi): 
+            for j, N_gij in enumerate(N_gi):
+                N_gij_factor = N_gij * factor
 
                 # 2 * delta d1 * d1
-                g_qq[self.g11DOF[j], self.d1DOF[:, None], self.d1DOF] += 2 * N_gij * factor
+                g_qq[self.g11DOF[j], self.d1DOF[:, None], self.d1DOF] += 2 * N_gij_factor
                 # delta d1 * d2
-                g_qq[self.g12DOF[j], self.d1DOF[:, None], self.d2DOF] += N_gij     * factor
+                g_qq[self.g12DOF[j], self.d1DOF[:, None], self.d2DOF] += N_gij_factor
                 # delta d2 * d1
-                g_qq[self.g12DOF[j], self.d2DOF[:, None], self.d1DOF] += N_gij     * factor
+                g_qq[self.g12DOF[j], self.d2DOF[:, None], self.d1DOF] += N_gij_factor
                 # delta d1 * d3
-                g_qq[self.g13DOF[j], self.d1DOF[:, None], self.d3DOF] += N_gij     * factor
+                g_qq[self.g13DOF[j], self.d1DOF[:, None], self.d3DOF] += N_gij_factor
                 # delta d3 * d1
-                g_qq[self.g13DOF[j], self.d3DOF[:, None], self.d1DOF] += N_gij     * factor
+                g_qq[self.g13DOF[j], self.d3DOF[:, None], self.d1DOF] += N_gij_factor
 
                 # 2 * delta d2 * d2
-                g_qq[self.g22DOF[j], self.d2DOF[:, None], self.d2DOF] += 2 * N_gij * factor
+                g_qq[self.g22DOF[j], self.d2DOF[:, None], self.d2DOF] += 2 * N_gij_factor
                 # delta d2 * d3
-                g_qq[self.g23DOF[j], self.d2DOF[:, None], self.d3DOF] += N_gij     * factor
+                g_qq[self.g23DOF[j], self.d2DOF[:, None], self.d3DOF] += N_gij_factor
                 # delta d3 * d2
-                g_qq[self.g23DOF[j], self.d3DOF[:, None], self.d2DOF] += N_gij     * factor
+                g_qq[self.g23DOF[j], self.d3DOF[:, None], self.d2DOF] += N_gij_factor
 
                 # 2 * delta d3 * d3
-                g_qq[self.g33DOF[j], self.d3DOF[:, None], self.d3DOF] += 2 * N_gij * factor
+                g_qq[self.g33DOF[j], self.d3DOF[:, None], self.d3DOF] += 2 * N_gij_factor
 
         return g_qq
 
@@ -830,9 +953,6 @@ class Timoshenko_beam_director_integral(Timoshenko_beam_director):
         return g
 
     def g_q(self, t, q, coo):
-        # dense = Numerical_derivative(self.g)._x(t, q)
-        # coo.extend(dense, (self.la_gDOF, self.qDOF))
-
         for el in range(self.nEl):
             elDOF = self.elDOF[el]
             elDOF_g = self.elDOF_g[el]
@@ -840,9 +960,6 @@ class Timoshenko_beam_director_integral(Timoshenko_beam_director):
             coo.extend(g_q, (self.la_gDOF[elDOF_g], self.qDOF[elDOF]))
 
     def W_g(self, t, q, coo):
-        # dense = Numerical_derivative(self.g)._x(t, q).T
-        # coo.extend(dense, (self.uDOF, self.la_gDOF))
-
         for el in range(self.nEl):
             elDOF = self.elDOF[el]
             elDOF_g = self.elDOF_g[el]
@@ -850,11 +967,470 @@ class Timoshenko_beam_director_integral(Timoshenko_beam_director):
             coo.extend(g_q.T, (self.uDOF[elDOF], self.la_gDOF[elDOF_g]))
 
     def Wla_g_q(self, t, q, la_g, coo):
-        # dense = Numerical_derivative(self.g)._x(t, q).T
-        # coo.extend(np.einsum('i,ijk->jk', la_g, dense), (self.uDOF, self.la_gDOF))
-
         for el in range(self.nEl):
             elDOF = self.elDOF[el]
             elDOF_g = self.elDOF_g[el]
             g_qq = self.__g_qq_el(q[elDOF], self.N[el], self.N_g[el], self.J0[el], self.qw[el])
+            coo.extend(np.einsum('i,ijk->jk', la_g[elDOF_g], g_qq), (self.uDOF[elDOF], self.qDOF[elDOF]))
+
+class Euler_Bernoulli_director_integral(Timoshenko_beam_director):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.polynomial_degree_g = self.polynomial_degree
+        self.nn_el_g = self.polynomial_degree_g + 1 # number of nodes per element
+        self.nn_g = self.nEl + self.polynomial_degree_g # number of nodes
+        self.nq_n_g = 8 # number of degrees of freedom per node
+        self.nla_g = self.nn_g * self.nq_n_g
+        self.nla_g_el = self.nn_el_g * self.nq_n_g
+
+        la_g0 = kwargs.get('la_g0')
+        self.la_g0 = np.zeros(self.nla_g) if la_g0 is None else la_g0
+        self.knot_vector_g = uniform_knot_vector(self.polynomial_degree_g, self.nEl) # uniform open knot vector
+        self.element_span_g = self.knot_vector_g[self.polynomial_degree_g:-self.polynomial_degree_g]
+
+        if self.B_splines:
+            row_offset = np.arange(self.nEl)
+            elDOF_row = (np.zeros((self.nq_n_g * self.nn_el_g, self.nEl), dtype=int) + row_offset).T
+            elDOF_tile = np.tile(np.arange(0, self.nn_el_g), self.nq_n_g)
+            elDOF_repeat = np.repeat(np.arange(0, self.nq_n_g * self.nn_g, step=self.nn_g), self.nn_el_g)
+            self.elDOF_g = elDOF_row + elDOF_tile + elDOF_repeat
+        else:
+            raise NotImplementedError('Lagrange shape functions are not supported yet')
+
+        # compute shape functions
+        self.N_g = np.empty((self.nEl, self.nQP, self.nn_el_g))
+        for el in range(self.nEl):
+            if self.B_splines:
+                # evaluate Gauss points and weights on [xi^el, xi^{el+1}]
+                qp, _ = gauss(self.nQP, self.element_span_g[el:el+2])
+
+                # evaluate B-spline shape functions
+                self.N_g[el] = B_spline_basis(self.polynomial_degree_g, 0, self.knot_vector_g, qp).squeeze()
+            else:
+                raise NotImplementedError('Lagrange shape functions are not supported yet')
+            
+        # degrees of freedom on the element level (for the constraints)
+        self.g11DOF = np.arange(self.nn_el_g)
+        self.g12DOF = np.arange(self.nn_el_g,   2*self.nn_el_g)
+        self.g13DOF = np.arange(2*self.nn_el_g, 3*self.nn_el_g)
+        self.g22DOF = np.arange(3*self.nn_el_g, 4*self.nn_el_g)
+        self.g23DOF = np.arange(4*self.nn_el_g, 5*self.nn_el_g)
+        self.g33DOF = np.arange(5*self.nn_el_g, 6*self.nn_el_g)
+        self.g2DOF = np.arange(6*self.nn_el_g, 7*self.nn_el_g) # unshearability in d2-direction
+        self.g3DOF = np.arange(7*self.nn_el_g, 8*self.nn_el_g) # unshearability in d3-direction
+
+    def __g_el(self, qe, N, N_xi, N_g, J0, qw):
+        g = np.zeros(self.nla_g_el)
+
+        for Ni, N_xii, N_gi, J0i, qwi in zip(N, N_xi, N_g, J0, qw):
+            NNi = self.stack_shapefunctions(Ni)
+            NN_xii = self.stack_shapefunctions(N_xii)
+
+            d1 = NNi @ qe[self.d1DOF]
+            d2 = NNi @ qe[self.d2DOF]
+            d3 = NNi @ qe[self.d3DOF]
+
+            r_xi = NN_xii @ qe[self.rDOF]
+
+            factor1 = N_gi * J0i * qwi
+            factor2 = N_gi * qwi
+         
+            # director constraints
+            g[self.g11DOF] += (d1 @ d1 - 1) * factor1
+            g[self.g12DOF] += (d1 @ d2)     * factor1
+            g[self.g13DOF] += (d1 @ d3)     * factor1
+            g[self.g22DOF] += (d2 @ d2 - 1) * factor1
+            g[self.g23DOF] += (d2 @ d3)     * factor1
+            g[self.g33DOF] += (d3 @ d3 - 1) * factor1
+
+            # unshearability in d2-direction
+            g[self.g2DOF] += d2 @ r_xi * factor2
+            g[self.g3DOF] += d3 @ r_xi * factor2
+
+        return g
+
+    def __g_q_el(self, qe, N, N_xi, N_g, J0, qw):
+        g_q = np.zeros((self.nla_g_el, self.nq_el))
+
+        for Ni, N_xii, N_gi, J0i, qwi in zip(N, N_xi, N_g, J0, qw):
+            NNi = self.stack_shapefunctions(Ni)
+            NN_xii = self.stack_shapefunctions(N_xii)
+
+            d1 = NNi @ qe[self.d1DOF]
+            d2 = NNi @ qe[self.d2DOF]
+            d3 = NNi @ qe[self.d3DOF]
+
+            d1_NNi = d1 @ NNi
+            d2_NNi = d2 @ NNi
+            d3_NNi = d3 @ NNi
+
+            r_xi = NN_xii @ qe[self.rDOF]
+
+            factor1 = N_gi * J0i * qwi
+            factor2 = N_gi * qwi
+            
+            ######################
+            # director constraints
+            ######################
+
+            # 2 * delta d1 * d1
+            g_q[self.g11DOF[:, None], self.d1DOF] += np.outer(factor1, 2 * d1_NNi)
+            # delta d1 * d2
+            g_q[self.g12DOF[:, None], self.d1DOF] += np.outer(factor1, d2_NNi)
+            # delta d2 * d1
+            g_q[self.g12DOF[:, None], self.d2DOF] += np.outer(factor1, d1_NNi)
+            # delta d1 * d3
+            g_q[self.g13DOF[:, None], self.d1DOF] += np.outer(factor1, d3_NNi)
+            # delta d3 * d1
+            g_q[self.g13DOF[:, None], self.d3DOF] += np.outer(factor1, d1_NNi)
+
+            # 2 * delta d2 * d2
+            g_q[self.g22DOF[:, None], self.d2DOF] += np.outer(factor1, 2 * d2_NNi)
+            # delta d2 * d3
+            g_q[self.g23DOF[:, None], self.d2DOF] += np.outer(factor1, d3_NNi)
+            # delta d3 * d2
+            g_q[self.g23DOF[:, None], self.d3DOF] += np.outer(factor1, d2_NNi)
+
+            # 2 * delta d3 * d3
+            g_q[self.g33DOF[:, None], self.d3DOF] += np.outer(factor1, 2 * d3_NNi)
+
+            ################################
+            # unshearability in d2-direction
+            ################################
+            g_q[self.g2DOF[:, None], self.rDOF] += np.outer(factor2, d2 @ NN_xii)
+            g_q[self.g2DOF[:, None], self.d2DOF] += np.outer(factor2, r_xi @ NNi)
+            g_q[self.g3DOF[:, None], self.rDOF] += np.outer(factor2, d3 @ NN_xii)
+            g_q[self.g3DOF[:, None], self.d3DOF] += np.outer(factor2, r_xi @ NNi)
+
+        return g_q
+
+        # g_q_num = Numerical_derivative(lambda t, q: self.__g_el(q, N, N_xi, N_g, J0, qw), order=2)._x(0, qe)
+        # diff = g_q_num - g_q
+        # error = np.linalg.norm(diff)
+        # print(f'error g_q: {error}')
+        # return g_q_num
+
+    def __g_qq_el(self, qe, N, N_xi, N_g, J0, qw):
+        g_qq = np.zeros((self.nla_g_el, self.nq_el, self.nq_el))
+
+        for Ni, N_xii, N_gi, J0i, qwi in zip(N, N_xi, N_g, J0, qw):
+            NNi = self.stack_shapefunctions(Ni)
+            NN_xii = self.stack_shapefunctions(N_xii)
+
+            factor1 = NNi.T @ NNi * J0i * qwi
+            factor2 = N_gi * qwi
+
+            ######################
+            # director constraints
+            ######################
+            for j, N_gij in enumerate(N_gi):
+                N_gij_factor1 = N_gij * factor1
+
+                # 2 * delta d1 * d1
+                g_qq[self.g11DOF[j], self.d1DOF[:, None], self.d1DOF] += 2 * N_gij_factor1
+                # delta d1 * d2
+                g_qq[self.g12DOF[j], self.d1DOF[:, None], self.d2DOF] += N_gij_factor1
+                # delta d2 * d1
+                g_qq[self.g12DOF[j], self.d2DOF[:, None], self.d1DOF] += N_gij_factor1
+                # delta d1 * d3
+                g_qq[self.g13DOF[j], self.d1DOF[:, None], self.d3DOF] += N_gij_factor1
+                # delta d3 * d1
+                g_qq[self.g13DOF[j], self.d3DOF[:, None], self.d1DOF] += N_gij_factor1
+
+                # 2 * delta d2 * d2
+                g_qq[self.g22DOF[j], self.d2DOF[:, None], self.d2DOF] += 2 * N_gij_factor1
+                # delta d2 * d3
+                g_qq[self.g23DOF[j], self.d2DOF[:, None], self.d3DOF] += N_gij_factor1
+                # delta d3 * d2
+                g_qq[self.g23DOF[j], self.d3DOF[:, None], self.d2DOF] += N_gij_factor1
+
+                # 2 * delta d3 * d3
+                g_qq[self.g33DOF[j], self.d3DOF[:, None], self.d3DOF] += 2 * N_gij_factor1
+
+            ################################
+            # unshearability in d2-direction
+            ################################
+            arg1 = np.einsum('i,jl,jk->ikl', factor2, NNi, NN_xii)
+            arg2 = np.einsum('i,jl,jk->ikl', factor2, NN_xii, NNi)
+            g_qq[self.g2DOF[:, None, None], self.rDOF[:, None], self.d2DOF] += arg1
+            g_qq[self.g2DOF[:, None, None], self.d2DOF[:, None], self.rDOF] += arg2
+            g_qq[self.g3DOF[:, None, None], self.rDOF[:, None], self.d3DOF] += arg1
+            g_qq[self.g3DOF[:, None, None], self.d3DOF[:, None], self.rDOF] += arg2
+
+        return g_qq
+
+        # g_qq_num = Numerical_derivative(lambda t, q: self.__g_q_el(q, N, N_xi, N_g, J0, qw), order=2)._x(0, qe)
+        # diff = g_qq_num - g_qq
+        # error = np.linalg.norm(diff)
+        # print(f'error g_qq: {error}')
+        # return g_qq_num
+
+    # global constraint functions
+    def g(self, t, q):
+        g = np.zeros(self.nla_g)
+        for el in range(self.nEl):
+            elDOF = self.elDOF[el]
+            elDOF_g = self.elDOF_g[el]
+            g[elDOF_g] += self.__g_el(q[elDOF], self.N[el], self.N_xi[el], self.N_g[el], self.J0[el], self.qw[el])
+        return g
+
+    def g_q(self, t, q, coo):
+        for el in range(self.nEl):
+            elDOF = self.elDOF[el]
+            elDOF_g = self.elDOF_g[el]
+            g_q = self.__g_q_el(q[elDOF], self.N[el], self.N_xi[el], self.N_g[el], self.J0[el], self.qw[el])
+            coo.extend(g_q, (self.la_gDOF[elDOF_g], self.qDOF[elDOF]))
+
+    def W_g(self, t, q, coo):
+        for el in range(self.nEl):
+            elDOF = self.elDOF[el]
+            elDOF_g = self.elDOF_g[el]
+            g_q = self.__g_q_el(q[elDOF], self.N[el], self.N_xi[el], self.N_g[el], self.J0[el], self.qw[el])
+            coo.extend(g_q.T, (self.uDOF[elDOF], self.la_gDOF[elDOF_g]))
+
+    def Wla_g_q(self, t, q, la_g, coo):
+        for el in range(self.nEl):
+            elDOF = self.elDOF[el]
+            elDOF_g = self.elDOF_g[el]
+            g_qq = self.__g_qq_el(q[elDOF], self.N[el], self.N_xi[el], self.N_g[el], self.J0[el], self.qw[el])
+            coo.extend(np.einsum('i,ijk->jk', la_g[elDOF_g], g_qq), (self.uDOF[elDOF], self.qDOF[elDOF]))
+
+class Inextensible_Euler_Bernoulli_director_integral(Timoshenko_beam_director):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.polynomial_degree_g = self.polynomial_degree
+        self.nn_el_g = self.polynomial_degree_g + 1 # number of nodes per element
+        self.nn_g = self.nEl + self.polynomial_degree_g # number of nodes
+        self.nq_n_g = 9 # number of degrees of freedom per node
+        self.nla_g = self.nn_g * self.nq_n_g
+        self.nla_g_el = self.nn_el_g * self.nq_n_g
+
+        la_g0 = kwargs.get('la_g0')
+        self.la_g0 = np.zeros(self.nla_g) if la_g0 is None else la_g0
+        self.knot_vector_g = uniform_knot_vector(self.polynomial_degree_g, self.nEl) # uniform open knot vector
+        self.element_span_g = self.knot_vector_g[self.polynomial_degree_g:-self.polynomial_degree_g]
+
+        if self.B_splines:
+            row_offset = np.arange(self.nEl)
+            elDOF_row = (np.zeros((self.nq_n_g * self.nn_el_g, self.nEl), dtype=int) + row_offset).T
+            elDOF_tile = np.tile(np.arange(0, self.nn_el_g), self.nq_n_g)
+            elDOF_repeat = np.repeat(np.arange(0, self.nq_n_g * self.nn_g, step=self.nn_g), self.nn_el_g)
+            self.elDOF_g = elDOF_row + elDOF_tile + elDOF_repeat
+        else:
+            raise NotImplementedError('Lagrange shape functions are not supported yet')
+
+        # compute shape functions
+        self.N_g = np.empty((self.nEl, self.nQP, self.nn_el_g))
+        for el in range(self.nEl):
+            if self.B_splines:
+                # evaluate Gauss points and weights on [xi^el, xi^{el+1}]
+                qp, _ = gauss(self.nQP, self.element_span_g[el:el+2])
+
+                # evaluate B-spline shape functions
+                self.N_g[el] = B_spline_basis(self.polynomial_degree_g, 0, self.knot_vector_g, qp).squeeze()
+            else:
+                raise NotImplementedError('Lagrange shape functions are not supported yet')
+            
+        # degrees of freedom on the element level (for the constraints)
+        self.g11DOF = np.arange(self.nn_el_g)
+        self.g12DOF = np.arange(self.nn_el_g,   2*self.nn_el_g)
+        self.g13DOF = np.arange(2*self.nn_el_g, 3*self.nn_el_g)
+        self.g22DOF = np.arange(3*self.nn_el_g, 4*self.nn_el_g)
+        self.g23DOF = np.arange(4*self.nn_el_g, 5*self.nn_el_g)
+        self.g33DOF = np.arange(5*self.nn_el_g, 6*self.nn_el_g)
+        self.g2DOF = np.arange(6*self.nn_el_g, 7*self.nn_el_g) # unshearability in d2-direction
+        self.g3DOF = np.arange(7*self.nn_el_g, 8*self.nn_el_g) # unshearability in d3-direction
+        self.g1DOF = np.arange(8*self.nn_el_g, 9*self.nn_el_g) # inextensibility
+
+    def __g_el(self, qe, N, N_xi, N_g, J0, qw):
+        g = np.zeros(self.nla_g_el)
+
+        for Ni, N_xii, N_gi, J0i, qwi in zip(N, N_xi, N_g, J0, qw):
+            NNi = self.stack_shapefunctions(Ni)
+            NN_xii = self.stack_shapefunctions(N_xii)
+
+            d1 = NNi @ qe[self.d1DOF]
+            d2 = NNi @ qe[self.d2DOF]
+            d3 = NNi @ qe[self.d3DOF]
+
+            r_xi = NN_xii @ qe[self.rDOF]
+
+            factor1 = N_gi * J0i * qwi
+            factor2 = N_gi * qwi
+         
+            # director constraints
+            g[self.g11DOF] += (d1 @ d1 - 1) * factor1
+            g[self.g12DOF] += (d1 @ d2)     * factor1
+            g[self.g13DOF] += (d1 @ d3)     * factor1
+            g[self.g22DOF] += (d2 @ d2 - 1) * factor1
+            g[self.g23DOF] += (d2 @ d3)     * factor1
+            g[self.g33DOF] += (d3 @ d3 - 1) * factor1
+
+            # unshearability in d2-direction
+            g[self.g2DOF] += d2 @ r_xi * factor2
+            g[self.g3DOF] += d3 @ r_xi * factor2
+
+            # inextensibility
+            g[self.g1DOF] += (d1 @ r_xi - J0i) * factor2
+
+        return g
+
+    def __g_q_el(self, qe, N, N_xi, N_g, J0, qw):
+        g_q = np.zeros((self.nla_g_el, self.nq_el))
+
+        for Ni, N_xii, N_gi, J0i, qwi in zip(N, N_xi, N_g, J0, qw):
+            NNi = self.stack_shapefunctions(Ni)
+            NN_xii = self.stack_shapefunctions(N_xii)
+
+            d1 = NNi @ qe[self.d1DOF]
+            d2 = NNi @ qe[self.d2DOF]
+            d3 = NNi @ qe[self.d3DOF]
+
+            d1_NNi = d1 @ NNi
+            d2_NNi = d2 @ NNi
+            d3_NNi = d3 @ NNi
+
+            r_xi = NN_xii @ qe[self.rDOF]
+
+            factor1 = N_gi * J0i * qwi
+            factor2 = N_gi * qwi
+            
+            ######################
+            # director constraints
+            ######################
+
+            # 2 * delta d1 * d1
+            g_q[self.g11DOF[:, None], self.d1DOF] += np.outer(factor1, 2 * d1_NNi)
+            # delta d1 * d2
+            g_q[self.g12DOF[:, None], self.d1DOF] += np.outer(factor1, d2_NNi)
+            # delta d2 * d1
+            g_q[self.g12DOF[:, None], self.d2DOF] += np.outer(factor1, d1_NNi)
+            # delta d1 * d3
+            g_q[self.g13DOF[:, None], self.d1DOF] += np.outer(factor1, d3_NNi)
+            # delta d3 * d1
+            g_q[self.g13DOF[:, None], self.d3DOF] += np.outer(factor1, d1_NNi)
+
+            # 2 * delta d2 * d2
+            g_q[self.g22DOF[:, None], self.d2DOF] += np.outer(factor1, 2 * d2_NNi)
+            # delta d2 * d3
+            g_q[self.g23DOF[:, None], self.d2DOF] += np.outer(factor1, d3_NNi)
+            # delta d3 * d2
+            g_q[self.g23DOF[:, None], self.d3DOF] += np.outer(factor1, d2_NNi)
+
+            # 2 * delta d3 * d3
+            g_q[self.g33DOF[:, None], self.d3DOF] += np.outer(factor1, 2 * d3_NNi)
+
+            ################################
+            # unshearability in d2-direction
+            ################################
+            g_q[self.g2DOF[:, None], self.rDOF] += np.outer(factor2, d2 @ NN_xii)
+            g_q[self.g2DOF[:, None], self.d2DOF] += np.outer(factor2, r_xi @ NNi)
+            g_q[self.g3DOF[:, None], self.rDOF] += np.outer(factor2, d3 @ NN_xii)
+            g_q[self.g3DOF[:, None], self.d3DOF] += np.outer(factor2, r_xi @ NNi)
+
+            #################
+            # inextensibility
+            #################
+            g_q[self.g1DOF[:, None], self.rDOF] += np.outer(factor2, d1 @ NN_xii)
+            g_q[self.g1DOF[:, None], self.d1DOF] += np.outer(factor2, r_xi @ NNi)
+
+        return g_q
+
+        # g_q_num = Numerical_derivative(lambda t, q: self.__g_el(q, N, N_xi, N_g, J0, qw), order=2)._x(0, qe)
+        # diff = g_q_num - g_q
+        # error = np.linalg.norm(diff)
+        # print(f'error g_q: {error}')
+        # return g_q_num
+
+    def __g_qq_el(self, qe, N, N_xi, N_g, J0, qw):
+        g_qq = np.zeros((self.nla_g_el, self.nq_el, self.nq_el))
+
+        for Ni, N_xii, N_gi, J0i, qwi in zip(N, N_xi, N_g, J0, qw):
+            NNi = self.stack_shapefunctions(Ni)
+            NN_xii = self.stack_shapefunctions(N_xii)
+
+            factor1 = NNi.T @ NNi * J0i * qwi
+            factor2 = N_gi * qwi
+
+            ######################
+            # director constraints
+            ######################
+            for j, N_gij in enumerate(N_gi):
+                N_gij_factor1 = N_gij * factor1
+
+                # 2 * delta d1 * d1
+                g_qq[self.g11DOF[j], self.d1DOF[:, None], self.d1DOF] += 2 * N_gij_factor1
+                # delta d1 * d2
+                g_qq[self.g12DOF[j], self.d1DOF[:, None], self.d2DOF] += N_gij_factor1
+                # delta d2 * d1
+                g_qq[self.g12DOF[j], self.d2DOF[:, None], self.d1DOF] += N_gij_factor1
+                # delta d1 * d3
+                g_qq[self.g13DOF[j], self.d1DOF[:, None], self.d3DOF] += N_gij_factor1
+                # delta d3 * d1
+                g_qq[self.g13DOF[j], self.d3DOF[:, None], self.d1DOF] += N_gij_factor1
+
+                # 2 * delta d2 * d2
+                g_qq[self.g22DOF[j], self.d2DOF[:, None], self.d2DOF] += 2 * N_gij_factor1
+                # delta d2 * d3
+                g_qq[self.g23DOF[j], self.d2DOF[:, None], self.d3DOF] += N_gij_factor1
+                # delta d3 * d2
+                g_qq[self.g23DOF[j], self.d3DOF[:, None], self.d2DOF] += N_gij_factor1
+
+                # 2 * delta d3 * d3
+                g_qq[self.g33DOF[j], self.d3DOF[:, None], self.d3DOF] += 2 * N_gij_factor1
+
+            ################################
+            # unshearability in d2-direction
+            ################################
+            arg1 = np.einsum('i,jl,jk->ikl', factor2, NNi, NN_xii)
+            arg2 = np.einsum('i,jl,jk->ikl', factor2, NN_xii, NNi)
+            g_qq[self.g2DOF[:, None, None], self.rDOF[:, None], self.d2DOF] += arg1
+            g_qq[self.g2DOF[:, None, None], self.d2DOF[:, None], self.rDOF] += arg2
+            g_qq[self.g3DOF[:, None, None], self.rDOF[:, None], self.d3DOF] += arg1
+            g_qq[self.g3DOF[:, None, None], self.d3DOF[:, None], self.rDOF] += arg2
+
+            #################
+            # inextensibility
+            #################
+            g_qq[self.g1DOF[:, None, None], self.rDOF[:, None], self.d1DOF] += arg1
+            g_qq[self.g1DOF[:, None, None], self.d1DOF[:, None], self.rDOF] += arg2
+
+        return g_qq
+
+        # g_qq_num = Numerical_derivative(lambda t, q: self.__g_q_el(q, N, N_xi, N_g, J0, qw), order=2)._x(0, qe)
+        # diff = g_qq_num - g_qq
+        # error = np.linalg.norm(diff)
+        # print(f'error g_qq: {error}')
+        # return g_qq_num
+
+    # global constraint functions
+    def g(self, t, q):
+        g = np.zeros(self.nla_g)
+        for el in range(self.nEl):
+            elDOF = self.elDOF[el]
+            elDOF_g = self.elDOF_g[el]
+            g[elDOF_g] += self.__g_el(q[elDOF], self.N[el], self.N_xi[el], self.N_g[el], self.J0[el], self.qw[el])
+        return g
+
+    def g_q(self, t, q, coo):
+        for el in range(self.nEl):
+            elDOF = self.elDOF[el]
+            elDOF_g = self.elDOF_g[el]
+            g_q = self.__g_q_el(q[elDOF], self.N[el], self.N_xi[el], self.N_g[el], self.J0[el], self.qw[el])
+            coo.extend(g_q, (self.la_gDOF[elDOF_g], self.qDOF[elDOF]))
+
+    def W_g(self, t, q, coo):
+        for el in range(self.nEl):
+            elDOF = self.elDOF[el]
+            elDOF_g = self.elDOF_g[el]
+            g_q = self.__g_q_el(q[elDOF], self.N[el], self.N_xi[el], self.N_g[el], self.J0[el], self.qw[el])
+            coo.extend(g_q.T, (self.uDOF[elDOF], self.la_gDOF[elDOF_g]))
+
+    def Wla_g_q(self, t, q, la_g, coo):
+        for el in range(self.nEl):
+            elDOF = self.elDOF[el]
+            elDOF_g = self.elDOF_g[el]
+            g_qq = self.__g_qq_el(q[elDOF], self.N[el], self.N_xi[el], self.N_g[el], self.J0[el], self.qw[el])
             coo.extend(np.einsum('i,ijk->jk', la_g[elDOF_g], g_qq), (self.uDOF[elDOF], self.qDOF[elDOF]))

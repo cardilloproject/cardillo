@@ -1,2 +1,3 @@
 from .hooke import Hooke, Hooke_quadratic
-from .timoshenko_beam_director import Timoshenko_beam_director_dirac, Timoshenko_beam_director_integral
+from .timoshenko_beam_director import Timoshenko_director_dirac, Euler_Bernoulli_director_dirac
+from .timoshenko_beam_director import Timoshenko_director_integral, Euler_Bernoulli_director_integral, Inextensible_Euler_Bernoulli_director_integral
