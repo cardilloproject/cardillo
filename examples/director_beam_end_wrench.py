@@ -1,4 +1,4 @@
-from cardillo.model.classical_beams.spatial import Hooke_quadratic, Timoshenko_beam_director
+from cardillo.model.classical_beams.spatial import Hooke_quadratic, Timoshenko_beam_director_dirac, Timoshenko_beam_director_integral
 from cardillo.model.classical_beams.spatial.timoshenko_beam_director import straight_configuration
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints.implicit import Rigid_connection
@@ -16,15 +16,30 @@ import matplotlib.animation as animation
 import numpy as np
 
 if __name__ == "__main__":
+    # L = 1000
+    # rho = 100
+    # r = L / rho
+    # A = r**2
+    # E = 1.0
+    # G = 0.5
+    # Ei = np.array([E, G, G]) * A
+    # I_12 = r**4 / 12
+    # I_T = r**4 / 6
+    # Fi = np.array([G * I_T, E * I_12, E * I_12])
+    # A_rho0 = 0.0
+    # B_rho0 = np.zeros(3)
+    # C_rho0 = np.zeros((3, 3))
+
     # physical properties of the beam
     A_rho0 = 1
     B_rho0 = np.ones(3)
     C_rho0 = np.eye(3)
 
-    # L = 2 * np.pi
-    L = 1
+    L = 2 * np.pi
+    # L = 1
     Ei = np.array([5, 1, 1])
     Fi = np.array([5, 1, 1])
+
     material_model = Hooke_quadratic(Ei, Fi)
 
     # junction at the origin
@@ -32,14 +47,17 @@ if __name__ == "__main__":
     frame_left = Frame(r_OP=r_OB1)
 
     # discretization properties
-    p = 3
-    nQP = int(np.ceil((p + 1)**2 / 2))
+    p = 2
+    # nQP = int(np.ceil((p + 1)**2 / 2))
+    nQP = p
     print(f'nQP: {nQP}')
-    nEl = 5
+    nEl = 10
 
     # build reference configuration
     Q = straight_configuration(p, nEl, L)
-    beam = Timoshenko_beam_director(material_model, A_rho0, B_rho0, C_rho0, p, nQP, nEl, Q=Q)
+    # beam = Timoshenko_beam_director_dirac(material_model, A_rho0, B_rho0, C_rho0, p, nQP, nEl, Q=Q)
+    beam = Timoshenko_beam_director_integral(material_model, A_rho0, B_rho0, C_rho0, p, nQP, nEl, Q=Q)
+    # exit()
 
     # left joint
     joint_left = Rigid_connection(frame_left, beam, r_OB1, frame_ID2=(0,))
@@ -49,7 +67,10 @@ if __name__ == "__main__":
     # f_g_beam = Line_force(lambda xi, t: t * __g, beam)
 
     # wrench at right end
-    M = lambda t: -np.array([0, 1, 0]) * t * 2 * np.pi * Ei[1] / L * 0.5
+    # M = lambda t: -np.array([1, 0, 0]) * t * 2 * np.pi * Fi[0] / L * 0.25
+    M = lambda t: -np.array([0, 1, 0]) * t * 2 * np.pi * Fi[1] / L * 0.25
+    # M = lambda t: -np.array([0, 0, 1]) * t * 2 * np.pi * Fi[2] / L * 0.5
+    # M = lambda t: -np.array([1, 1, 0]) * t * 2 * np.pi * Fi[1] / L * 0.5
     moment = K_Moment(M, beam, (1,))
 
     # force at right end
@@ -106,7 +127,7 @@ if __name__ == "__main__":
     # x, y, z = beam.centerline(model.q0).T
     # exit()
 
-    solver = Newton(model, n_load_stepts=10, max_iter=20, tol=1.0e-6, numerical_jacobian=False)
+    solver = Newton(model, n_load_stepts=20, max_iter=20, tol=1.0e-8, numerical_jacobian=False)
     # solver = Newton(model, n_load_stepts=50, max_iter=10, numerical_jacobian=True)
     sol = solver.solve()
     t = sol.t
@@ -134,10 +155,30 @@ if __name__ == "__main__":
     ax.set_ylim3d(bottom=-scale, top=scale)
     ax.set_zlim3d(bottom=-scale, top=scale)
 
-    ax.plot(*q[0, :3*beam.nn].reshape(3, -1), '--ok')
-    ax.plot(*beam.centerline(q[0]).T, '-k')
-
-    ax.plot(*q[-1, :3*beam.nn].reshape(3, -1), '--ob')
-    ax.plot(*beam.centerline(q[-1]).T, '-b')
+    beam.plot_centerline(ax, q[0], color='black')
+    # beam.plot_frames(ax, q[0], n=4, length=0.5)
+    beam.plot_centerline(ax, q[-1], color='blue')
+    beam.plot_frames(ax, q[-1], n=10, length=1)
 
     plt.show()
+
+
+    # ###############
+    # # visualization
+    # ###############
+    # fig = plt.figure()
+    # ax = fig.add_subplot(111, projection='3d')
+    
+    # ax.set_xlabel('x [m]')
+    # ax.set_ylabel('y [m]')
+    # ax.set_zlabel('z [m]')
+    # scale = 1.2 * L
+    # ax.set_xlim3d(left=-scale, right=scale)
+    # ax.set_ylim3d(bottom=-scale, top=scale)
+    # ax.set_zlim3d(bottom=-scale, top=scale)
+
+    # beam.plot_centerline(ax, model.q0)
+    # beam.plot_frames(ax, model.q0, n=4, length=0.5)
+
+    # plt.show()
+    # exit()

@@ -1,2 +1,2 @@
 from .hooke import Hooke, Hooke_quadratic
-from .timoshenko_beam_director import Timoshenko_beam_director
+from .timoshenko_beam_director import Timoshenko_beam_director_dirac, Timoshenko_beam_director_integral

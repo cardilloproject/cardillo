@@ -1,4 +1,5 @@
 import numpy as np
+from abc import ABCMeta, abstractmethod
 
 from cardillo.utility.coo import Coo
 from cardillo.discretization import gauss
@@ -6,7 +7,7 @@ from cardillo.discretization import uniform_knot_vector, B_spline_basis, Lagrang
 from cardillo.math.algebra import norm3, cross3, e1, e2, e3, skew2ax
 from cardillo.math.numerical_derivative import Numerical_derivative
 
-class Timoshenko_beam_director():
+class Timoshenko_beam_director(metaclass=ABCMeta):
     def __init__(self, material_model, A_rho0, B_rho0, C_rho0, polynomial_degree, nQP, nEl, Q, q0=None, u0=None, la_g0=None, B_splines=True):
         # beam properties
         self.materialModel = material_model # material model
@@ -34,8 +35,9 @@ class Timoshenko_beam_director():
         self.nq_el = nn_el * nq_n # total number of generalized coordinates per element
         self.nq_el_r = 3 * nn_el
 
+        self.B_splines = B_splines
+
         # compute allocation matrix
-        # TODO: find error here!
         if B_splines:
             row_offset = np.arange(nEl)
             elDOF_row = (np.zeros((nq_n * nn_el, nEl), dtype=int) + row_offset).T
@@ -126,21 +128,7 @@ class Timoshenko_beam_director():
         self.N_bdry = np.array([N_bdry_left, N_bdry_right])
         self.dN_bdry = np.array([dN_bdry_left, dN_bdry_right])
 
-        # constraints
-        # TODO: enable switch between dirac and integral constraints
-        self.nla_g_n = 6 # number of constraints per node
-        self.nla_g = self.nla_g_n * nn
-        self.la_g0 = np.zeros(self.nla_g) if la_g0 is None else la_g0
-
-        self.rDOF_node = np.arange(3)
-        self.d1DOF_node = np.arange(3, 6)
-        self.d2DOF_node = np.arange(6, 9)
-        self.d3DOF_node = np.arange(9, 12)
-
-    # TODO: find a better solution here
     def __basis_functions_b_splines(self, xi):
-        if xi == 1:
-            xi -= 1.0e-9
         return B_spline_basis(self.polynomial_degree, 1, self.knot_vector, xi)
 
     def __basis_functions_lagrange(self, xi):
@@ -330,86 +318,6 @@ class Timoshenko_beam_director():
     def q_ddot(self, t, q, u, u_dot):
         return u_dot
 
-    #########################################
-    # bilateral constraints on position level
-    #########################################
-    def __nogal_g(self, qn):
-        g = np.zeros(6)
-
-        d1 = qn[self.d1DOF_node]
-        d2 = qn[self.d2DOF_node]
-        d3 = qn[self.d3DOF_node]
-
-        g[0] = d1 @ d1 - 1
-        g[1] = d2 @ d2 - 1
-        g[2] = d3 @ d3 - 1
-        g[3] = d1 @ d2
-        g[4] = d1 @ d3
-        g[5] = d2 @ d3
-
-        return g
-
-    def gap_q_node(self, qn):
-        g_q = np.zeros((6, 12))
-
-        d1 = qn[self.d1DOF_node]
-        d2 = qn[self.d2DOF_node]
-        d3 = qn[self.d3DOF_node]
-
-        g_q[0, self.d1DOF_node] = 2 * d1
-        g_q[1, self.d2DOF_node] = 2 * d2
-        g_q[2, self.d3DOF_node] = 2 * d3
-        g_q[3, self.d1DOF_node] = d2
-        g_q[3, self.d2DOF_node] = d1
-        g_q[4, self.d1DOF_node] = d3
-        g_q[4, self.d3DOF_node] = d1
-        g_q[5, self.d2DOF_node] = d3
-        g_q[5, self.d3DOF_node] = d2
-
-        return g_q
-    
-    def gap_qq_node(self):
-        g_qq = np.zeros((6, 12, 12))
-
-        eye3 = np.eye(3)
-
-        g_qq[0, self.d1DOF_node[:, None], self.d1DOF_node] = 2 * eye3
-        g_qq[1, self.d2DOF_node[:, None], self.d2DOF_node] = 2 * eye3
-        g_qq[2, self.d3DOF_node[:, None], self.d3DOF_node] = 2 * eye3
-        
-        g_qq[3, self.d1DOF_node[:, None], self.d2DOF_node] = eye3
-        g_qq[3, self.d2DOF_node[:, None], self.d1DOF_node] = eye3
-
-        g_qq[4, self.d1DOF_node[:, None], self.d3DOF_node] = eye3
-        g_qq[4, self.d3DOF_node[:, None], self.d3DOF_node] = eye3
-        
-        g_qq[5, self.d2DOF_node[:, None], self.d3DOF_node] = eye3
-        g_qq[5, self.d3DOF_node[:, None], self.d2DOF_node] = eye3
-        
-        return g_qq
-
-    def g(self, t, q):
-        g = np.zeros(self.nla_g)
-        for i, DOF in enumerate(self.nodalDOF):
-            idx = i * 6
-            g[idx:idx+6] = self.__nogal_g(q[DOF])
-        return g
-
-    def g_q(self, t, q, coo):
-        for i, DOF in enumerate(self.nodalDOF):
-            idx = i * 6
-            coo.extend(self.gap_q_node(q[DOF]), (self.la_gDOF[np.arange(idx, idx+6)], self.qDOF[DOF]))
-
-    def W_g(self, t, q, coo):
-        for i, DOF in enumerate(self.nodalDOF):
-            idx = i * 6
-            coo.extend(self.gap_q_node(q[DOF]).T, (self.uDOF[DOF], self.la_gDOF[np.arange(idx, idx+6)]))
-
-    def Wla_g_q(self, t, q, la_g, coo):
-        for i, DOF in enumerate(self.nodalDOF):
-            idx = i * 6
-            coo.extend(np.einsum('i,ijk->jk', la_g[idx:idx+6], self.gap_qq_node()), (self.uDOF[DOF], self.qDOF[DOF]))
-
     ####################################################
     # interactions with other bodies and the environment
     ####################################################
@@ -589,9 +497,31 @@ class Timoshenko_beam_director():
     # def body_force_q(self, t, q, coo, force):
     #     pass
 
+    ##############################################################
+    # abstract methods for bilateral constraints on position level
+    ##############################################################
+    @abstractmethod
+    def g(self, t, q):
+        pass
+
+    @abstractmethod
+    def g_q(self, t, q, coo):
+        pass
+
+    @abstractmethod
+    def W_g(self, t, q, coo):
+        pass
+
+    @abstractmethod
+    def Wla_g_q(self, t, q, la_g, coo):
+        pass
+
     ####################################################
     # visualization
     ####################################################
+    def nodes(self, q):
+        return q[self.qDOF][:3*self.nn].reshape(3, -1)
+
     def centerline(self, q, n=100):
         q_body = q[self.qDOF]
         r = []
@@ -599,7 +529,36 @@ class Timoshenko_beam_director():
             frame_ID = (xi,)
             qp = q_body[self.qDOF_P(frame_ID)]
             r.append( self.r_OP(1, qp, frame_ID) )
-        return np.array(r)
+        return np.array(r).T
+
+    def frames(self, q, n=10):
+        q_body = q[self.qDOF]
+        r = []
+        d1 = []
+        d2 = []
+        d3 = []
+
+        for xi in np.linspace(0, 1 - 1.0e-9, n):
+            frame_ID = (xi,)
+            qp = q_body[self.qDOF_P(frame_ID)]
+            r.append( self.r_OP(1, qp, frame_ID) )
+
+            d1i, d2i, d3i = self.A_IK(1, qp, frame_ID).T
+            d1.extend([d1i])
+            d2.extend([d2i])
+            d3.extend([d3i])
+
+        return *np.array(r).T, np.array(d1).T, np.array(d2).T, np.array(d3).T
+
+    def plot_centerline(self, ax, q, n=100, color='black'):
+        ax.plot(*self.nodes(q), linestyle='dashed', marker='o', color=color)
+        ax.plot(*self.centerline(q, n=n), linestyle='solid', color=color)
+
+    def plot_frames(self, ax, q, n=10, length=1):
+        x, y, z, d1, d2, d3 = self.frames(q, n=n)
+        ax.quiver(x, y, z, *d1, color='red', length=length)
+        ax.quiver(x, y, z, *d2, color='blue', length=length)
+        ax.quiver(x, y, z, *d3, color='green', length=length)
 
 ####################################################
 # straight initial configuration
@@ -623,3 +582,279 @@ def straight_configuration(polynomial_degree, nEl, L, greville_abscissae=True):
     
     # assemble all reference generalized coordinates
     return np.concatenate([X, Y, Z, D1, D2, D3])
+
+class Timoshenko_beam_director_dirac(Timoshenko_beam_director):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.nla_g = 6 * self.nn
+        la_g0 = kwargs.get('la_g0')
+        self.la_g0 = np.zeros(self.nla_g) if la_g0 is None else la_g0
+
+        # nodal degrees of freedom
+        self.rDOF_node = np.arange(3)
+        self.d1DOF_node = np.arange(3, 6)
+        self.d2DOF_node = np.arange(6, 9)
+        self.d3DOF_node = np.arange(9, 12)
+
+    # constraints on a single node
+    def __g(self, qn):
+        g = np.zeros(6)
+
+        d1 = qn[self.d1DOF_node]
+        d2 = qn[self.d2DOF_node]
+        d3 = qn[self.d3DOF_node]
+
+        g[0] = d1 @ d1 - 1
+        g[1] = d2 @ d2 - 1
+        g[2] = d3 @ d3 - 1
+        g[3] = d1 @ d2
+        g[4] = d1 @ d3
+        g[5] = d2 @ d3
+
+        return g
+
+    def __g_q(self, qn):
+        g_q = np.zeros((6, 12))
+
+        d1 = qn[self.d1DOF_node]
+        d2 = qn[self.d2DOF_node]
+        d3 = qn[self.d3DOF_node]
+
+        g_q[0, self.d1DOF_node] = 2 * d1
+        g_q[1, self.d2DOF_node] = 2 * d2
+        g_q[2, self.d3DOF_node] = 2 * d3
+        g_q[3, self.d1DOF_node] = d2
+        g_q[3, self.d2DOF_node] = d1
+        g_q[4, self.d1DOF_node] = d3
+        g_q[4, self.d3DOF_node] = d1
+        g_q[5, self.d2DOF_node] = d3
+        g_q[5, self.d3DOF_node] = d2
+
+        return g_q
+    
+    def __g_qq(self):
+        g_qq = np.zeros((6, 12, 12))
+
+        eye3 = np.eye(3)
+
+        g_qq[0, self.d1DOF_node[:, None], self.d1DOF_node] = 2 * eye3
+        g_qq[1, self.d2DOF_node[:, None], self.d2DOF_node] = 2 * eye3
+        g_qq[2, self.d3DOF_node[:, None], self.d3DOF_node] = 2 * eye3
+        
+        g_qq[3, self.d1DOF_node[:, None], self.d2DOF_node] = eye3
+        g_qq[3, self.d2DOF_node[:, None], self.d1DOF_node] = eye3
+
+        g_qq[4, self.d1DOF_node[:, None], self.d3DOF_node] = eye3
+        g_qq[4, self.d3DOF_node[:, None], self.d3DOF_node] = eye3
+        
+        g_qq[5, self.d2DOF_node[:, None], self.d3DOF_node] = eye3
+        g_qq[5, self.d3DOF_node[:, None], self.d2DOF_node] = eye3
+        
+        return g_qq
+
+    # global constraint functions
+    def g(self, t, q):
+        g = np.zeros(self.nla_g)
+        for i, DOF in enumerate(self.nodalDOF):
+            idx = i * 6
+            g[idx:idx+6] = self.__g(q[DOF])
+        return g
+
+    def g_q(self, t, q, coo):
+        for i, DOF in enumerate(self.nodalDOF):
+            idx = i * 6
+            coo.extend(self.__g_q(q[DOF]), (self.la_gDOF[np.arange(idx, idx+6)], self.qDOF[DOF]))
+
+    def W_g(self, t, q, coo):
+        for i, DOF in enumerate(self.nodalDOF):
+            idx = i * 6
+            coo.extend(self.__g_q(q[DOF]).T, (self.uDOF[DOF], self.la_gDOF[np.arange(idx, idx+6)]))
+
+    def Wla_g_q(self, t, q, la_g, coo):
+        for i, DOF in enumerate(self.nodalDOF):
+            idx = i * 6
+            coo.extend(np.einsum('i,ijk->jk', la_g[idx:idx+6], self.__g_qq()), (self.uDOF[DOF], self.qDOF[DOF]))
+
+class Timoshenko_beam_director_integral(Timoshenko_beam_director):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.polynomial_degree_g = self.polynomial_degree
+        self.nn_el_g = self.polynomial_degree_g + 1 # number of nodes per element
+        self.nn_g = self.nEl + self.polynomial_degree_g # number of nodes
+        self.nq_n_g = 6 # number of degrees of freedom per node
+        self.nla_g = self.nn_g * self.nq_n_g
+        self.nla_g_el = self.nn_el_g * self.nq_n_g
+
+        la_g0 = kwargs.get('la_g0')
+        self.la_g0 = np.zeros(self.nla_g) if la_g0 is None else la_g0
+        self.knot_vector_g = uniform_knot_vector(self.polynomial_degree_g, self.nEl) # uniform open knot vector
+        self.element_span_g = self.knot_vector_g[self.polynomial_degree_g:-self.polynomial_degree_g]
+
+        if self.B_splines:
+            row_offset = np.arange(self.nEl)
+            elDOF_row = (np.zeros((self.nq_n_g * self.nn_el_g, self.nEl), dtype=int) + row_offset).T
+            elDOF_tile = np.tile(np.arange(0, self.nn_el_g), self.nq_n_g)
+            elDOF_repeat = np.repeat(np.arange(0, self.nq_n_g * self.nn_g, step=self.nn_g), self.nn_el_g)
+            self.elDOF_g = elDOF_row + elDOF_tile + elDOF_repeat
+        else:
+            raise NotImplementedError('Lagrange shape functions are not supported yet')
+
+        # compute shape functions
+        self.N_g = np.empty((self.nEl, self.nQP, self.nn_el_g))
+        for el in range(self.nEl):
+            if self.B_splines:
+                # evaluate Gauss points and weights on [xi^el, xi^{el+1}]
+                qp, _ = gauss(self.nQP, self.element_span_g[el:el+2])
+
+                # evaluate B-spline shape functions
+                self.N_g[el] = B_spline_basis(self.polynomial_degree_g, 0, self.knot_vector_g, qp).squeeze()
+            else:
+                raise NotImplementedError('Lagrange shape functions are not supported yet')
+            
+        # degrees of freedom on the element level (for the constraints)
+        self.g11DOF = np.arange(self.nn_el_g)
+        self.g12DOF = np.arange(self.nn_el_g,   2*self.nn_el_g)
+        self.g13DOF = np.arange(2*self.nn_el_g, 3*self.nn_el_g)
+        self.g22DOF = np.arange(3*self.nn_el_g, 4*self.nn_el_g)
+        self.g23DOF = np.arange(4*self.nn_el_g, 5*self.nn_el_g)
+        self.g33DOF = np.arange(5*self.nn_el_g, 6*self.nn_el_g)
+
+    def __g_el(self, qe, N, N_g, J0, qw):
+        g = np.zeros(self.nla_g_el)
+
+        for Ni, N_gi, J0i, qwi in zip(N, N_g, J0, qw):
+            NNi = self.stack_shapefunctions(Ni)
+
+            d1 = NNi @ qe[self.d1DOF]
+            d2 = NNi @ qe[self.d2DOF]
+            d3 = NNi @ qe[self.d3DOF]
+
+            factor = N_gi * J0i * qwi
+         
+            g[self.g11DOF] += (d1 @ d1 - 1) * factor
+            g[self.g12DOF] += (d1 @ d2)     * factor
+            g[self.g13DOF] += (d1 @ d3)     * factor
+            g[self.g22DOF] += (d2 @ d2 - 1) * factor
+            g[self.g23DOF] += (d2 @ d3)     * factor
+            g[self.g33DOF] += (d3 @ d3 - 1) * factor
+
+        return g
+
+    def __g_q_el(self, qe, N, N_g, J0, qw):
+        g_q = np.zeros((self.nla_g_el, self.nq_el))
+
+        for Ni, N_gi, J0i, qwi in zip(N, N_g, J0, qw):
+            NNi = self.stack_shapefunctions(Ni)
+
+            d1 = NNi @ qe[self.d1DOF]
+            d2 = NNi @ qe[self.d2DOF]
+            d3 = NNi @ qe[self.d3DOF]
+
+            factor = J0i * qwi
+            
+            # 2 * delta d1 * d1
+            g_q[self.g11DOF[:, None], self.d1DOF] += np.outer(N_gi, 2 * d1 @ NNi) * factor
+            # delta d1 * d2
+            g_q[self.g12DOF[:, None], self.d1DOF] += np.outer(N_gi, d2 @ NNi)     * factor
+            # delta d2 * d1
+            g_q[self.g12DOF[:, None], self.d2DOF] += np.outer(N_gi, d1 @ NNi)     * factor
+            # delta d1 * d3
+            g_q[self.g13DOF[:, None], self.d1DOF] += np.outer(N_gi, d3 @ NNi)     * factor
+            # delta d3 * d1
+            g_q[self.g13DOF[:, None], self.d3DOF] += np.outer(N_gi, d1 @ NNi)     * factor
+
+            # 2 * delta d2 * d2
+            g_q[self.g22DOF[:, None], self.d2DOF] += np.outer(N_gi, 2 * d2 @ NNi) * factor
+            # delta d2 * d3
+            g_q[self.g23DOF[:, None], self.d2DOF] += np.outer(N_gi, d3 @ NNi)     * factor
+            # delta d3 * d2
+            g_q[self.g23DOF[:, None], self.d3DOF] += np.outer(N_gi, d2 @ NNi)     * factor
+
+            # 2 * delta d3 * d3
+            g_q[self.g33DOF[:, None], self.d3DOF] += np.outer(N_gi, 2 * d3 @ NNi) * factor
+
+        return g_q
+
+        # g_q_num = Numerical_derivative(lambda t, q: self.__g_el(q, N, N_g, J0, qw), order=2)._x(0, qe)
+        # diff = g_q_num - g_q
+        # error = np.linalg.norm(diff)
+        # print(f'error g_q: {error}')
+        # return g_q_num
+
+    def __g_qq_el(self, qe, N, N_g, J0, qw):
+        g_qq = np.zeros((self.nla_g_el, self.nq_el, self.nq_el))
+        for Ni, N_gi, J0i, qwi in zip(N, N_g, J0, qw):
+            NNi = self.stack_shapefunctions(Ni)
+            factor = NNi.T @ NNi * J0i * qwi
+
+            for j, N_gij in enumerate(N_gi): 
+
+                # 2 * delta d1 * d1
+                g_qq[self.g11DOF[j], self.d1DOF[:, None], self.d1DOF] += 2 * N_gij * factor
+                # delta d1 * d2
+                g_qq[self.g12DOF[j], self.d1DOF[:, None], self.d2DOF] += N_gij     * factor
+                # delta d2 * d1
+                g_qq[self.g12DOF[j], self.d2DOF[:, None], self.d1DOF] += N_gij     * factor
+                # delta d1 * d3
+                g_qq[self.g13DOF[j], self.d1DOF[:, None], self.d3DOF] += N_gij     * factor
+                # delta d3 * d1
+                g_qq[self.g13DOF[j], self.d3DOF[:, None], self.d1DOF] += N_gij     * factor
+
+                # 2 * delta d2 * d2
+                g_qq[self.g22DOF[j], self.d2DOF[:, None], self.d2DOF] += 2 * N_gij * factor
+                # delta d2 * d3
+                g_qq[self.g23DOF[j], self.d2DOF[:, None], self.d3DOF] += N_gij     * factor
+                # delta d3 * d2
+                g_qq[self.g23DOF[j], self.d3DOF[:, None], self.d2DOF] += N_gij     * factor
+
+                # 2 * delta d3 * d3
+                g_qq[self.g33DOF[j], self.d3DOF[:, None], self.d3DOF] += 2 * N_gij * factor
+
+        return g_qq
+
+        # g_qq_num = Numerical_derivative(lambda t, q: self.__g_q_el(q, N, N_g, J0, qw), order=2)._x(0, qe)
+        # diff = g_qq_num - g_qq
+        # error = np.linalg.norm(diff)
+        # print(f'error g_qq: {error}')
+        # return g_qq_num
+
+    # global constraint functions
+    def g(self, t, q):
+        g = np.zeros(self.nla_g)
+        for el in range(self.nEl):
+            elDOF = self.elDOF[el]
+            elDOF_g = self.elDOF_g[el]
+            g[elDOF_g] += self.__g_el(q[elDOF], self.N[el], self.N_g[el], self.J0[el], self.qw[el])
+        return g
+
+    def g_q(self, t, q, coo):
+        # dense = Numerical_derivative(self.g)._x(t, q)
+        # coo.extend(dense, (self.la_gDOF, self.qDOF))
+
+        for el in range(self.nEl):
+            elDOF = self.elDOF[el]
+            elDOF_g = self.elDOF_g[el]
+            g_q = self.__g_q_el(q[elDOF], self.N[el], self.N_g[el], self.J0[el], self.qw[el])
+            coo.extend(g_q, (self.la_gDOF[elDOF_g], self.qDOF[elDOF]))
+
+    def W_g(self, t, q, coo):
+        # dense = Numerical_derivative(self.g)._x(t, q).T
+        # coo.extend(dense, (self.uDOF, self.la_gDOF))
+
+        for el in range(self.nEl):
+            elDOF = self.elDOF[el]
+            elDOF_g = self.elDOF_g[el]
+            g_q = self.__g_q_el(q[elDOF], self.N[el], self.N_g[el], self.J0[el], self.qw[el])
+            coo.extend(g_q.T, (self.uDOF[elDOF], self.la_gDOF[elDOF_g]))
+
+    def Wla_g_q(self, t, q, la_g, coo):
+        # dense = Numerical_derivative(self.g)._x(t, q).T
+        # coo.extend(np.einsum('i,ijk->jk', la_g, dense), (self.uDOF, self.la_gDOF))
+
+        for el in range(self.nEl):
+            elDOF = self.elDOF[el]
+            elDOF_g = self.elDOF_g[el]
+            g_qq = self.__g_qq_el(q[elDOF], self.N[el], self.N_g[el], self.J0[el], self.qw[el])
+            coo.extend(np.einsum('i,ijk->jk', la_g[elDOF_g], g_qq), (self.uDOF[elDOF], self.qDOF[elDOF]))
