@@ -66,9 +66,9 @@ if __name__ == "__main__":
     # left joint
     joint_left = Rigid_connection(frame_left, beam, r_OB1, frame_ID2=(0,))
 
-    # # gravity beam
-    # __g = np.array([0, - A_rho0 * 9.81 * 8.0e-4, 0])
-    # f_g_beam = Line_force(lambda xi, t: t * __g, beam)
+    # gravity beam
+    __g = np.array([0, 0, - A_rho0 * 9.81 * 1.0e-3])
+    f_g_beam = Line_force(lambda xi, t: t * __g, beam)
 
     # wrench at right end
     # M = lambda t: -np.array([1, 0, 0]) * t * 2 * np.pi * Fi[0] / L * 0.25
@@ -86,8 +86,8 @@ if __name__ == "__main__":
     model.add(beam)
     model.add(frame_left)
     model.add(joint_left)
-    # model.add(f_g_beam)
-    model.add(force)
+    model.add(f_g_beam)
+    # model.add(force)
     # model.add(moment)
     model.assemble()
 

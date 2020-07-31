@@ -4,7 +4,7 @@ from abc import ABCMeta, abstractmethod
 from cardillo.utility.coo import Coo
 from cardillo.discretization import gauss
 from cardillo.discretization import uniform_knot_vector, B_spline_basis, Lagrange_basis
-from cardillo.math.algebra import norm3, cross3, e1, e2, e3, skew2ax
+from cardillo.math.algebra import norm3, cross3, e1, e2, e3, skew2ax, LeviCivita3_tensor, LeviCivita3
 from cardillo.math.numerical_derivative import Numerical_derivative
 
 class Timoshenko_beam_director(metaclass=ABCMeta):
@@ -440,7 +440,7 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
         return skew2ax(omega_tilde)
 
     # TODO!
-    def K_J_R(self, t, q, frame_ID):        
+    def K_J_R(self, t, q, frame_ID):
         xi = frame_ID[0]
         if xi == 0:
             NN = self.N_bdry[0]
@@ -460,42 +460,56 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
         A_IK_dot_u[:, 1, self.d2DOF] = NN
         A_IK_dot_u[:, 2, self.d3DOF] = NN
 
-        # TODO: this is a really slow implementation!
+        # note: all versions are about the same speed!
+
+        # version 1 using many calls to skew2ax inside a list comprehension
         K_J_R_skew = np.einsum('ijl,kj->ikl', A_IK_dot_u, A_IK)
         K_J_R = np.array([skew2ax(skew.T) for skew in K_J_R_skew.T]).T
+
+        # # version 2 using loops
+        # omega_i_u = np.zeros((3, self.nq_el))
+        # for i in range(3):
+        #     for j in range(3):
+        #         for k in range(3):
+        #             omega_i_u[i] += 0.5 * LeviCivita3(i, j, k) * (A_IK[:, k] @ A_IK_dot_u[:, j])
+        # # K_J_R = np.outer(d1, omega_i_u[0]) + np.outer(d2, omega_i_u[1]) + np.outer(d3, omega_i_u[2])
+        # K_J_R = A_IK @ omega_i_u
+
+        # # version 3 using einsum
+        # omega_i_u = 0.5 * np.einsum('ijk,lk,ljn->in', LeviCivita3_tensor(), A_IK, A_IK_dot_u)
+        # K_J_R = A_IK @ omega_i_u
+        # # K_J_R = 0.5 * np.einsum('mi,ijk,lk,ljn->mn', A_IK, LeviCivita3_tensor(), A_IK, A_IK_dot_u)
+
         return K_J_R
 
         # u = np.zeros_like(q)
-        # K_J_R_num = Numerical_derivative(lambda t, q, u: self.K_Omega(t, q, u, frame_ID=frame_ID))._y(t, q, u)
-        # # error = np.linalg.norm(K_J_R_num - K_J_R)
-        # # print(f'error in K_J_R: {error}')
+        # K_J_R_num = Numerical_derivative(lambda t, q, u: self.K_Omega(t, q, u, frame_ID=frame_ID), order=2)._y(t, q, u)
+        # error = np.linalg.norm(K_J_R_num - K_J_R)
+        # print(f'error in K_J_R: {error}')
         # return K_J_R_num
 
     # TODO
     def K_J_R_q(self, t, q, frame_ID):
         return Numerical_derivative(lambda t, q: self.K_J_R(t, q, frame_ID=frame_ID))._x(t, q)
 
-    # # TODO!
-    # ####################################################
-    # # body force
-    # ####################################################
-    # def body_force_el(self, force, t, N, xi, J0, qw):
-    #     fe = np.zeros(self.nq_el)
-    #     for Ni, xii, J0i, qwi in zip(N, xi, J0, qw):
-    #         NNi = self.stack_shapefunctions(Ni)
-    #         r_q = np.zeros((3, self.nq_el))
-    #         r_q[:2] = NNi
-    #         fe += r_q.T @ force(xii, t) * J0i * qwi
-    #     return fe
+    ####################################################
+    # body force
+    ####################################################
+    def body_force_el(self, force, t, N, xi, J0, qw):
+        fe = np.zeros(self.nq_el)
+        for Ni, xii, J0i, qwi in zip(N, xi, J0, qw):
+            NNi = self.stack_shapefunctions(Ni)
+            fe[self.rDOF] += NNi.T @ force(xii, t) * J0i * qwi
+        return fe
 
-    # def body_force(self, t, q, force):
-    #     f = np.zeros(self.nq)
-    #     for el in range(self.nEl):
-    #         f[self.elDOF[el]] += self.body_force_el(force, t, self.N[el], self.xi[el], self.J0[el], self.qw[el])
-    #     return f
+    def body_force(self, t, q, force):
+        f = np.zeros(self.nq)
+        for el in range(self.nEl):
+            f[self.elDOF[el]] += self.body_force_el(force, t, self.N[el], self.xi[el], self.J0[el], self.qw[el])
+        return f
 
-    # def body_force_q(self, t, q, coo, force):
-    #     pass
+    def body_force_q(self, t, q, coo, force):
+        pass
 
     ##############################################################
     # abstract methods for bilateral constraints on position level
