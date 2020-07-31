@@ -694,21 +694,24 @@ class Euler_Bernoulli_director_dirac(Timoshenko_beam_director):
         self.d3DOF_node = np.arange(9, 12)
 
         # nodal shape functions and derivatives
-        self.N_nodes = np.empty((self.nn, self.nQP, self.nn_el))
-        self.N_xi_nodes = np.empty((self.nn, self.nQP, self.nn_el))
-        raise NotImplementedError('nodal shape functions have to be implemented!')
-        for i, xi in enumerate(self.element_span):
+        self.N_nodes = np.empty((self.nn, self.nn_el))
+        self.N_xi_nodes = np.empty((self.nn, self.nn_el))
+        raise NotImplementedError('nodal shape functions derivatives have to be implemented!')
+        self.xi_nodes = np.linspace(0, 1 - 1.0e-9, num=self.nn)
+        for i, xi in enumerate(self.xi_nodes):
             self.N_nodes[i], self.N_xi_nodes[i] = B_spline_basis(self.polynomial_degree, 1, self.knot_vector, xi)
+            # TODO: we have to find the element index corresponding to the nodal xi's in order to compute the shape function derivatives
 
     # constraints on a single node
     def __g(self, qn, N_xi):
-        g = np.zeros(6)
+        g = np.zeros(8)
 
         d1 = qn[self.d1DOF_node]
         d2 = qn[self.d2DOF_node]
         d3 = qn[self.d3DOF_node]
 
-        r_xi = N_xi @ qn[self.rDOF_node]
+        # TODO: this requires q[elDOF[el]]
+        r_xi = np.kron(N_xi, np.eye(3)) @ qn[self.rDOF_node]
 
         # director constraints
         g[0] = d1 @ d1 - 1
@@ -725,7 +728,7 @@ class Euler_Bernoulli_director_dirac(Timoshenko_beam_director):
         return g
 
     def __g_q(self, qn, N_xi):
-        # g_q = np.zeros((6, 12))
+        # g_q = np.zeros((8, 12))
 
         # d1 = qn[self.d1DOF_node]
         # d2 = qn[self.d2DOF_node]
@@ -747,7 +750,7 @@ class Euler_Bernoulli_director_dirac(Timoshenko_beam_director):
         return gap_q_num
     
     def __g_qq(self, qn, N_xi):
-        # g_qq = np.zeros((6, 12, 12))
+        # g_qq = np.zeros((8, 12, 12))
 
         # eye3 = np.eye(3)
 
@@ -774,23 +777,23 @@ class Euler_Bernoulli_director_dirac(Timoshenko_beam_director):
         g = np.zeros(self.nla_g)
         for i, DOF in enumerate(self.nodalDOF):
             idx = i * 6
-            g[idx:idx+6] = self.__g(q[DOF])
+            g[idx:idx+6] = self.__g(q[DOF], self.N_xi_nodes[i])
         return g
 
     def g_q(self, t, q, coo):
         for i, DOF in enumerate(self.nodalDOF):
             idx = i * 6
-            coo.extend(self.__g_q(q[DOF]), (self.la_gDOF[np.arange(idx, idx+6)], self.qDOF[DOF]))
+            coo.extend(self.__g_q(q[DOF], self.N_xi_nodes[i]), (self.la_gDOF[np.arange(idx, idx+6)], self.qDOF[DOF]))
 
     def W_g(self, t, q, coo):
         for i, DOF in enumerate(self.nodalDOF):
             idx = i * 6
-            coo.extend(self.__g_q(q[DOF]).T, (self.uDOF[DOF], self.la_gDOF[np.arange(idx, idx+6)]))
+            coo.extend(self.__g_q(q[DOF], self.N_xi_nodes[i]).T, (self.uDOF[DOF], self.la_gDOF[np.arange(idx, idx+6)]))
 
     def Wla_g_q(self, t, q, la_g, coo):
         for i, DOF in enumerate(self.nodalDOF):
             idx = i * 6
-            coo.extend(np.einsum('i,ijk->jk', la_g[idx:idx+6], self.__g_qq()), (self.uDOF[DOF], self.qDOF[DOF]))
+            coo.extend(np.einsum('i,ijk->jk', la_g[idx:idx+6], self.__g_qq(q[DOF], self.N_xi_nodes[i])), (self.uDOF[DOF], self.qDOF[DOF]))
 
 ####################################################
 # constraint beam using integral constraints

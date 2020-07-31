@@ -38,8 +38,7 @@ if __name__ == "__main__":
     C_rho0 = np.eye(3)
 
     L = 2 * np.pi
-    # L = 1
-    Ei = np.array([1, 1e-1, 1e-1])
+    Ei = np.array([10e-1, 3e-1, 1e-1])
     Fi = np.array([5, 1, 1])
 
     material_model = Hooke_quadratic(Ei, Fi)
@@ -49,9 +48,9 @@ if __name__ == "__main__":
     frame_left = Frame(r_OP=r_OB1)
 
     # discretization properties
-    p = 2
+    p = 3
     # nQP = int(np.ceil((p + 1)**2 / 2))
-    nQP = p
+    nQP = p + 1
     print(f'nQP: {nQP}')
     nEl = 10
 
@@ -133,7 +132,7 @@ if __name__ == "__main__":
     # exit()
 
     solver = Newton(model, n_load_stepts=10, max_iter=20, tol=1.0e-8, numerical_jacobian=False)
-    # solver = Newton(model, n_load_stepts=50, max_iter=10, numerical_jacobian=True)
+    # solver = Newton(model, n_load_stepts=10, max_iter=10, numerical_jacobian=True)
     sol = solver.solve()
     t = sol.t
     q = sol.q
