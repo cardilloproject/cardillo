@@ -8,7 +8,7 @@ import matplotlib.animation as animation
 
 from cardillo.model import Model
 from cardillo.model.rolling_disc import Rolling_disc
-from cardillo.model.rigid_body import Rigid_body_euler, Rigid_body_quaternion, Rigid_body_director
+from cardillo.model.rigid_body import Rigid_body_euler, Rigid_body_quaternion, Rigid_body_director, Rigid_body_director_angular_velocities
 from cardillo.model.rolling_disc import Rolling_condition
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints.implicit import Rod
@@ -16,9 +16,10 @@ from cardillo.model.force import Force
 from cardillo.solver import Euler_backward, Moreau, Moreau_sym, Scipy_ivp
 from cardillo.math.algebra import axis_angle2quat, ax2skew, A_IK_basic_x
 
-rigid_body = 'Euler'
+# rigid_body = 'Euler'
 # rigid_body = 'Quaternion'
 # rigid_body = 'Director'
+rigid_body = 'Director2'
 
 class Rigid_disc_euler(Rigid_body_euler):
     def __init__(self, m, r, q0=None, u0=None):
@@ -79,6 +80,31 @@ class Rigid_disc_Lesaux_quat(Rigid_body_quaternion):
         return np.repeat(self.r_OP(t, q), n).reshape(3, n) + self.A_IK(t, q) @ K_r_SP
 
 class Rigid_disc_Lesaux_director(Rigid_body_director):
+    def __init__(self, m, r, q0=None, u0=None):
+        assert m == 0.3048
+        assert r == 3.75e-2
+        self.r = r
+        K_theta_S = np.diag([1.0716e-4, 2.1433e-4, 1.0716e-4])
+
+        I11 = K_theta_S[0,0]
+        I22 = K_theta_S[1,1]
+        I33 = K_theta_S[2,2]
+
+        # Binet inertia tensor
+        i11 = 0.5 * (I22 + I33 - I11)
+        i22 = 0.5 * (I11 + I33 - I22)
+        i33 = 0.5 * (I11 + I22 - I33)
+        B_rho0 = np.zeros(3)
+        C_rho0 = np.diag(np.array([i11, i22, i33]))
+
+        super().__init__(m, B_rho0, C_rho0, q0=q0, u0=u0)
+
+    def boundary(self, t, q, n=100):
+        phi = np.linspace(0, 2 * np.pi, n, endpoint=True)
+        K_r_SP = self.r * np.vstack([np.sin(phi), np.zeros(n), np.cos(phi)])
+        return np.repeat(self.r_OP(t, q), n).reshape(3, n) + self.A_IK(t, q) @ K_r_SP
+
+class Rigid_disc_Lesaux_director2(Rigid_body_director_angular_velocities):
     def __init__(self, m, r, q0=None, u0=None):
         assert m == 0.3048
         assert r == 3.75e-2
@@ -241,7 +267,7 @@ def rolling_disc_velocity_constraints():
         p0 = np.array([0, beta0, 0])
     elif rigid_body == 'Quaternion':
         p0 = axis_angle2quat(np.array([1, 0, 0]), beta0)
-    elif rigid_body == 'Director':
+    elif rigid_body == 'Director' or rigid_body == 'Director2':
         R0 = A_IK_basic_x(beta0)
         p0 = np.concatenate((R0[:, 0], R0[:, 1], R0[:, 2]))
 
@@ -253,8 +279,10 @@ def rolling_disc_velocity_constraints():
                      0, \
                      0])
     omega0 = np.array([0, alpha_dot * sin(beta0) + gamma_dot, alpha_dot * cos(beta0)])
+    # omega0 = np.array([0, 1, 0]) * 10
+    # v_S0 = np.array([r * omega0[1], 0, 0])
 
-    if rigid_body == 'Euler' or rigid_body == 'Quaternion':
+    if rigid_body == 'Euler' or rigid_body == 'Quaternion' or rigid_body == 'Director2':
         u0 = np.concatenate((v_S0, omega0))
     elif rigid_body == 'Director':
         omega0_tilde = R0 @ ax2skew(omega0) 
@@ -269,6 +297,8 @@ def rolling_disc_velocity_constraints():
         RD = Rigid_disc_Lesaux_quat(m, r, q0=q0, u0=u0)
     elif rigid_body == 'Director':
         RD = Rigid_disc_Lesaux_director(m, r, q0=q0, u0=u0)
+    elif rigid_body == 'Director2':
+        RD = Rigid_disc_Lesaux_director2(m, r, q0=q0, u0=u0)
         
     RC = Rolling_condition(RD)
     f_g = Force(lambda t: np.array([0, 0, -m * g]), RD)
@@ -280,9 +310,9 @@ def rolling_disc_velocity_constraints():
     model.assemble()
 
     t0 = 0
-    t1 = 2 * np.pi / np.abs(alpha_dot) * 2
+    t1 = 2 * np.pi / np.abs(alpha_dot) * 2 * 0.05
     dt = 1e-3
-    # solver = Euler_backward(model, t1, dt, numerical_jacobian=False, debug=False)
+    # solver = Euler_backward(model, t1, dt, numerical_jacobian=True, debug=True)
     # solver = Moreau_sym(model, t1, dt, numerical_jacobian=False, debug=False)
     # solver = Moreau(model, t1, dt)
     # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='RK23')
