@@ -87,7 +87,7 @@ if __name__ == "__main__":
     # solver = Euler_backward(model, t1, dt, numerical_jacobian=False, debug=False)
     # solver = Generalized_alpha_1(model, t1, dt, numerical_jacobian=True, debug=True)
     # solver = Generalized_alpha_1(model, t1, dt, newton_tol=1.0e-10, numerical_jacobian=False, debug=False)
-    solver = Generalized_alpha_2(model, t1, dt, numerical_jacobian=False, debug=False)
+    solver = Generalized_alpha_2(model, t1, dt)
 
     sol = solver.solve()
     t = sol.t
