@@ -2,8 +2,7 @@ import numpy as np
 
 from cardillo.utility.coo import Coo
 from cardillo.discretization import gauss
-from cardillo.discretization import uniform_knot_vector, B_spline_basis
-from cardillo.discretization import Lagrange_basis
+from cardillo.discretization import uniform_knot_vector, B_spline_basis, Lagrange_basis
 from cardillo.math.algebra import norm2, norm3
 from cardillo.math.numerical_derivative import Numerical_derivative
 
@@ -82,9 +81,10 @@ class Rope(object):
                 self.xi[el] = qp
 
                 # evaluate B-spline shape functions
-                N_dN = B_spline_basis(polynomial_degree, derivative_order, knot_vector, qp)
-                self.N[el] = N_dN[:, 0]
-                self.N_xi[el] = N_dN[:, 1]
+                # N_dN = B_spline_basis(polynomial_degree, derivative_order, knot_vector, qp)
+                # self.N[el] = N_dN[:, 0]
+                # self.N_xi[el] = N_dN[:, 1]
+                self.N[el], self.N_xi[el] = B_spline_basis(polynomial_degree, derivative_order, knot_vector, qp)
             else:
                 # evaluate Gauss points and weights on [-1, 1]
                 qp, qw = gauss(nQP)

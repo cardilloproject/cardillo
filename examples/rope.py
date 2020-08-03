@@ -12,8 +12,8 @@ import matplotlib.animation as animation
 
 import numpy as np
 
-# statics = True
-statics = False
+statics = True
+# statics = False
 
 if __name__ == "__main__":
     # # left joint

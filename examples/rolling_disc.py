@@ -8,17 +8,18 @@ import matplotlib.animation as animation
 
 from cardillo.model import Model
 from cardillo.model.rolling_disc import Rolling_disc
-from cardillo.model.rigid_body import Rigid_body_euler, Rigid_body_quaternion, Rigid_body_director
+from cardillo.model.rigid_body import Rigid_body_euler, Rigid_body_quaternion, Rigid_body_director, Rigid_body_director_angular_velocities
 from cardillo.model.rolling_disc import Rolling_condition
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints.implicit import Rod
 from cardillo.model.force import Force
-from cardillo.solver import Euler_backward, Moreau, Moreau_sym, Scipy_ivp
+from cardillo.solver import Euler_backward, Moreau, Moreau_sym, Scipy_ivp, Generalized_alpha_1
 from cardillo.math.algebra import axis_angle2quat, ax2skew, A_IK_basic_x
 
-rigid_body = 'Euler'
+# rigid_body = 'Euler'
 # rigid_body = 'Quaternion'
 # rigid_body = 'Director'
+rigid_body = 'Director2'
 
 class Rigid_disc_euler(Rigid_body_euler):
     def __init__(self, m, r, q0=None, u0=None):
@@ -97,6 +98,21 @@ class Rigid_disc_Lesaux_director(Rigid_body_director):
         C_rho0 = np.diag(np.array([i11, i22, i33]))
 
         super().__init__(m, B_rho0, C_rho0, q0=q0, u0=u0)
+
+    def boundary(self, t, q, n=100):
+        phi = np.linspace(0, 2 * np.pi, n, endpoint=True)
+        K_r_SP = self.r * np.vstack([np.sin(phi), np.zeros(n), np.cos(phi)])
+        return np.repeat(self.r_OP(t, q), n).reshape(3, n) + self.A_IK(t, q) @ K_r_SP
+
+class Rigid_disc_Lesaux_director2(Rigid_body_director_angular_velocities):
+    def __init__(self, m, r, q0=None, u0=None):
+        A = 1 / 4 * m * r**2
+        C = 1 / 2 * m * r**2
+        K_theta_S = np.diag(np.array([A, C, A]))
+
+        self.r = r
+
+        super().__init__(m, K_theta_S, q0=q0, u0=u0)
 
     def boundary(self, t, q, n=100):
         phi = np.linspace(0, 2 * np.pi, n, endpoint=True)
@@ -188,29 +204,29 @@ def DMS():
         d2 = A_IK[:, 1]
         d3 = A_IK[:, 2]
 
-
         COM.set_data([x_S], [y_S])
-        COM.set_3d_properties([z_S])
+        COM.set_3d_properties(np.array([z_S]))
 
         bdry.set_data(x_bdry, y_bdry)
-        bdry.set_3d_properties(z_bdry)
+        bdry.set_3d_properties(np.array(z_bdry))
 
         trace.set_data(x_trace, y_trace)
-        trace.set_3d_properties(z_trace)
+        trace.set_3d_properties(np.array(z_trace))
 
-        d1_.set_data([x_S, x_S + d1[0]], [y_S, y_S + d1[1]])
-        d1_.set_3d_properties([z_S, z_S + d1[2]])
+        # d1_.set_data([x_S, x_S + d1[0]], [y_S, y_S + d1[1]])
+        # d1_.set_3d_properties([z_S, z_S + d1[2]])
 
-        d2_.set_data([x_S, x_S + d2[0]], [y_S, y_S + d2[1]])
-        d2_.set_3d_properties([z_S, z_S + d2[2]])
+        # d2_.set_data([x_S, x_S + d2[0]], [y_S, y_S + d2[1]])
+        # d2_.set_3d_properties([z_S, z_S + d2[2]])
 
-        d3_.set_data([x_S, x_S + d3[0]], [y_S, y_S + d3[1]])
-        d3_.set_3d_properties([z_S, z_S + d3[2]])
+        # d3_.set_data([x_S, x_S + d3[0]], [y_S, y_S + d3[1]])
+        # d3_.set_3d_properties([z_S, z_S + d3[2]])
 
-        return COM, bdry, trace, d1_, d2_, d3_
+        return COM, bdry, trace, #d1_, d2_, d3_
 
 
-    COM, bdry, trace, d1_, d2_, d3_ = init(0, q[0])
+    # COM, bdry, trace, d1_, d2_, d3_ = init(0, q[0])
+    COM, bdry, trace, = init(0, q[0])
 
     def animate(i):
         update(t[i], q[i], COM, bdry, trace, d1_, d2_, d3_)
@@ -241,7 +257,7 @@ def rolling_disc_velocity_constraints():
         p0 = np.array([0, beta0, 0])
     elif rigid_body == 'Quaternion':
         p0 = axis_angle2quat(np.array([1, 0, 0]), beta0)
-    elif rigid_body == 'Director':
+    elif rigid_body == 'Director' or rigid_body == 'Director2':
         R0 = A_IK_basic_x(beta0)
         p0 = np.concatenate((R0[:, 0], R0[:, 1], R0[:, 2]))
 
@@ -253,8 +269,10 @@ def rolling_disc_velocity_constraints():
                      0, \
                      0])
     omega0 = np.array([0, alpha_dot * sin(beta0) + gamma_dot, alpha_dot * cos(beta0)])
+    # omega0 = np.array([0, 1, 0]) * 10
+    # v_S0 = np.array([r * omega0[1], 0, 0])
 
-    if rigid_body == 'Euler' or rigid_body == 'Quaternion':
+    if rigid_body == 'Euler' or rigid_body == 'Quaternion' or rigid_body == 'Director2':
         u0 = np.concatenate((v_S0, omega0))
     elif rigid_body == 'Director':
         omega0_tilde = R0 @ ax2skew(omega0) 
@@ -269,6 +287,8 @@ def rolling_disc_velocity_constraints():
         RD = Rigid_disc_Lesaux_quat(m, r, q0=q0, u0=u0)
     elif rigid_body == 'Director':
         RD = Rigid_disc_Lesaux_director(m, r, q0=q0, u0=u0)
+    elif rigid_body == 'Director2':
+        RD = Rigid_disc_Lesaux_director2(m, r, q0=q0, u0=u0)
         
     RC = Rolling_condition(RD)
     f_g = Force(lambda t: np.array([0, 0, -m * g]), RD)
@@ -284,6 +304,7 @@ def rolling_disc_velocity_constraints():
     dt = 1e-3
     # solver = Euler_backward(model, t1, dt, numerical_jacobian=False, debug=False)
     # solver = Moreau_sym(model, t1, dt, numerical_jacobian=False, debug=False)
+    # solver = Generalized_alpha_1(model, t1, numerical_jacobian=False, debug=False)
     # solver = Moreau(model, t1, dt)
     # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='RK23')
     solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='RK45')
@@ -343,6 +364,7 @@ def rolling_disc_velocity_constraints():
     COM, bdry, trace, d1_, d2_, d3_ = create(0, q[0])
 
     def update(t, q, COM, bdry, trace, d1_, d2_, d3_):
+    # def update(t, q, COM, bdry, trace):
         global x_trace, y_trace, z_trace
         if t == t0:
             x_trace = deque([])
@@ -364,28 +386,28 @@ def rolling_disc_velocity_constraints():
         d2 = A_IK[:, 1] * r
         d3 = A_IK[:, 2] * r
 
-        COM.set_data([x_S], [y_S])
-        COM.set_3d_properties([z_S])
+        COM.set_data(np.array([x_S]), np.array([y_S]))
+        COM.set_3d_properties(np.array([z_S]))
 
-        bdry.set_data(x_bdry, y_bdry)
-        bdry.set_3d_properties(z_bdry)
+        bdry.set_data(np.array(x_bdry), np.array(y_bdry))
+        bdry.set_3d_properties(np.array(z_bdry))
 
         # if len(x_trace) > 500:
         #     x_trace.popleft()
         #     y_trace.popleft()
         #     z_trace.popleft()
-        trace.set_data(x_trace, y_trace)
-        trace.set_3d_properties(z_trace)
+        trace.set_data(np.array(x_trace), np.array(y_trace))
+        trace.set_3d_properties(np.array(z_trace))
 
 
-        d1_.set_data([x_S, x_S + d1[0]], [y_S, y_S + d1[1]])
-        d1_.set_3d_properties([z_S, z_S + d1[2]])
+        d1_.set_data(np.array([x_S, x_S + d1[0]]), np.array([y_S, y_S + d1[1]]))
+        d1_.set_3d_properties(np.array([z_S, z_S + d1[2]]))
 
-        d2_.set_data([x_S, x_S + d2[0]], [y_S, y_S + d2[1]])
-        d2_.set_3d_properties([z_S, z_S + d2[2]])
+        d2_.set_data(np.array([x_S, x_S + d2[0]]), np.array([y_S, y_S + d2[1]]))
+        d2_.set_3d_properties(np.array([z_S, z_S + d2[2]]))
 
-        d3_.set_data([x_S, x_S + d3[0]], [y_S, y_S + d3[1]])
-        d3_.set_3d_properties([z_S, z_S + d3[2]])
+        d3_.set_data(np.array([x_S, x_S + d3[0]]), np.array([y_S, y_S + d3[1]]))
+        d3_.set_3d_properties(np.array([z_S, z_S + d3[2]]))
 
         return COM, bdry, trace, d1_, d2_, d3_
 

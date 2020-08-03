@@ -36,6 +36,7 @@ class Scipy_ivp(object):
 
         q = x[:self.nq]
         u = x[self.nq:]
+        q, u = self.model.solver_step_callback(t, q, u)
 
         M = self.model.M(t, q)
         h = self.model.h(t, q, u)
