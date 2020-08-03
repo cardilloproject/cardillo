@@ -190,9 +190,9 @@ if __name__ == "__main__":
     model.assemble()
 
     t0 = 0
-    t1 = 0.5
+    t1 = 1.5
     # t1 = 0.1
-    dt = 1e-3
+    dt = 5e-3
     # solver = Moreau(model, t1, dt, prox_solver_method='newton')
     solver = Generalized_alpha_2(model, t1, dt)
     sol = solver.solve()

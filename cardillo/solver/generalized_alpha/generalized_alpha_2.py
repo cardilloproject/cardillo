@@ -225,6 +225,8 @@ class Generalized_alpha_2():
         la_N = [self.la_Nk]
         La_T = [self.La_Tk]
         la_T = [self.la_Tk]
+        P_N = [self.La_Nk + self.dt * self.la_Nk]
+        P_T = [self.La_Tk + self.dt * self.la_Tk]
 
         pbar = tqdm(np.arange(self.t0, self.t1, self.dt))
         for _ in pbar:
@@ -242,7 +244,6 @@ class Generalized_alpha_2():
             t.append(tk1)
             q.append(qk1)
             u.append(uk1)
-            #TODO:
             a.append(ak1)
             la_g.append(la_gk1)
             la_gamma.append(la_gammak1)
@@ -251,6 +252,8 @@ class Generalized_alpha_2():
             la_N.append(la_Nk1)
             La_T.append(La_Tk1)
             la_T.append(la_Tk1)
+            P_N.append( La_Nk1 + dt * ((1-self.gamma) * self.la_Nk + self.gamma * la_Nk1) )
+            P_T.append( La_Tk1 + dt * ((1-self.gamma) * self.la_Tk + self.gamma * la_Tk1) )
 
             # update local variables for accepted time step
             self.tk = tk1
@@ -267,4 +270,4 @@ class Generalized_alpha_2():
             self.la_Tk = la_Tk1
 
         # write solution
-        return Solution(t=np.array(t), q=np.array(q), u=np.array(u), a=np.array(a), la_g=np.array(la_g), la_gamma=np.array(la_gamma), kappa_P=np.array(kappa_N), La_N=np.array(La_N), la_N=np.array(la_N), La_T=np.array(La_T), la_T=np.array(la_T))
+        return Solution(t=np.array(t), q=np.array(q), u=np.array(u), a=np.array(a), la_g=np.array(la_g), la_gamma=np.array(la_gamma), kappa_P=np.array(kappa_N), La_N=np.array(La_N), la_N=np.array(la_N), La_T=np.array(La_T), la_T=np.array(la_T), P_N=np.array(P_N), P_T=np.array(P_T))

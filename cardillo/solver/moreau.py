@@ -40,8 +40,8 @@ class Moreau():
         self.uk = model.u0 
         self.la_gk = model.la_g0
         self.la_gammak = model.la_gamma0
-        self.la_Nk = model.la_N0
-        self.la_Tk = model.la_T0
+        self.P_Nk = model.la_N0 * dt
+        self.P_Tk = model.la_T0 * dt
 
         # TODO:
         self.NT_connectivity = self.model.NT_connectivity
@@ -53,7 +53,6 @@ class Moreau():
         elif prox_solver_method == 'newton':
             self.step = self.__step_newton
 
-    # def __step_prox(self, tk, qk, uk, la_Nk, la_Tk):
     def __step_fixed_point(self):
         # general quantities
         dt = self.dt
@@ -88,7 +87,7 @@ class Moreau():
                    [g_dot_u,       None,          None], \
                    [gamma_u,       None,          None]]).tocsr()
 
-        b = np.concatenate( (M @ uk + dt * h + W_N[:, I_N] @ self.la_Nk[I_N] + W_T[:, I_T] @ self.la_Tk[I_T],\
+        b = np.concatenate( (M @ uk + dt * h + W_N[:, I_N] @ self.P_Nk[I_N] + W_T[:, I_T] @ self.P_Tk[I_T],\
                              -chi_g,\
                              -chi_gamma) )
 
@@ -97,46 +96,46 @@ class Moreau():
         la_gk1 = x[self.nu:self.nu+self.nla_g]
         la_gammak1 = x[self.nu+self.nla_g:]
 
-        la_Nk1 = np.zeros(self.nla_N)
-        la_Tk1 = np.zeros(self.nla_T)
+        P_Nk1 = np.zeros(self.nla_N)
+        P_Tk1 = np.zeros(self.nla_T)
 
         converged = True
         error = 0
         j = 0
         if np.any(I_N):
             converged = False
-            la_Nk1_i = self.la_Nk.copy()
-            la_Nk1_i1 = self.la_Nk.copy()
-            la_Tk1_i = self.la_Tk.copy()
-            la_Tk1_i1 = self.la_Tk.copy()
+            P_Nk1_i = self.P_Nk.copy()
+            P_Nk1_i1 = self.P_Nk.copy()
+            P_Tk1_i = self.P_Tk.copy()
+            P_Tk1_i1 = self.P_Tk.copy()
             for j in range(self.fix_point_max_iter):
                 
                 # relative contact velocity and prox equation
-                la_Nk1_i1[I_N] = prox_Rn0(la_Nk1_i[I_N] - self.model.prox_r_N[I_N] * self.model.xi_N(tk1, qk1, uk, uk1)[I_N])
+                P_Nk1_i1[I_N] = prox_Rn0(P_Nk1_i[I_N] - self.model.prox_r_N[I_N] * self.model.xi_N(tk1, qk1, uk, uk1)[I_N])
 
                 xi_T = self.model.xi_T(tk1, qk1, uk, uk1)
                 for i_N, i_T in enumerate(self.NT_connectivity):
                     if I_N[i_N] and np.any(i_T):
-                        la_Tk1_i1[i_T] = prox_circle(la_Tk1_i[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T], self.model.mu[i_N] * la_Nk1_i1[i_N]) 
+                        P_Tk1_i1[i_T] = prox_circle(P_Tk1_i[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T], self.model.mu[i_N] * P_Nk1_i1[i_N]) 
 
                 # check if velocities or contact percussions do not change
                 # error = self.fix_point_error_function(uk1 - uk0)
-                R = np.concatenate( (la_Nk1_i1[I_N] - la_Nk1_i[I_N], la_Tk1_i1[I_T] - la_Tk1_i[I_T]) )
+                R = np.concatenate( (P_Nk1_i1[I_N] - P_Nk1_i[I_N], P_Tk1_i1[I_T] - P_Tk1_i[I_T]) )
                 error = self.fix_point_error_function(R)
                 converged = error < self.fix_point_tol
                 if converged:
-                    la_Nk1[I_N] = la_Nk1_i1[I_N]
-                    la_Tk1[I_T] = la_Tk1_i1[I_T]
+                    P_Nk1[I_N] = P_Nk1_i1[I_N]
+                    P_Tk1[I_T] = P_Tk1_i1[I_T]
                     break
-                la_Nk1_i = la_Nk1_i1.copy()
-                la_Tk1_i = la_Tk1_i1.copy()
+                P_Nk1_i = P_Nk1_i1.copy()
+                P_Tk1_i = P_Tk1_i1.copy()
 
                 # solve for new velocities and bilateral constraint forces
                 A =  bmat([[M      ,  -dt * W_g, -dt * W_gamma], \
                         [g_dot_u,       None,          None], \
                         [gamma_u,       None,          None]]).tocsr()
 
-                b = np.concatenate( (M @ uk + dt * h + W_N[:, I_N] @ la_Nk1_i[I_N] + W_T[:, I_T] @ la_Tk1_i[I_T],\
+                b = np.concatenate( (M @ uk + dt * h + W_N[:, I_N] @ P_Nk1_i[I_N] + W_T[:, I_T] @ P_Tk1_i[I_T],\
                                      -chi_g,\
                                      -chi_gamma) )
 
@@ -145,7 +144,7 @@ class Moreau():
                 la_gk1 = x[self.nu:self.nu+self.nla_g]
                 la_gammak1 = x[self.nu+self.nla_g:]
                 
-        return (converged, j, error), tk1, qk1, uk1, la_gk1, la_gammak1, la_Nk1, la_Tk1
+        return (converged, j, error), tk1, qk1, uk1, la_gk1, la_gammak1, P_Nk1, P_Tk1
 
     def __step_newton(self):
         # general quantities
@@ -159,11 +158,11 @@ class Moreau():
         uk1 = uk.copy() 
         la_gk1 = self.la_gk.copy()
         la_gammak1 = self.la_gammak.copy()
-        la_Nk1 = self.la_Nk.copy()
-        la_Tk1 = self.la_Tk.copy()
-        # la_Nk1 = np.zeros_like(self.la_Nk)
-        # la_Tk1 = np.zeros_like(self.la_Tk)
-        xk1 = np.concatenate( (uk1, la_gk1, la_gammak1, la_Nk1, la_Tk1) )
+        P_Nk1 = self.P_Nk.copy()
+        P_Tk1 = self.P_Tk.copy()
+        # P_Nk1 = np.zeros_like(self.la_Nk)
+        # P_Tk1 = np.zeros_like(self.la_Tk)
+        xk1 = np.concatenate( (uk1, la_gk1, la_gammak1, P_Nk1, P_Tk1) )
 
         # identify active normal and tangential contacts
         g_N = self.model.g_N(tk1, qk1)
@@ -173,38 +172,14 @@ class Moreau():
         else:
             self.I_T = np.array([], dtype=int)
 
-        # # divide active set into both parts of the prox equation      
-        # xi_N = self.model.xi_N(tk1, qk1, uk, uk1)
-        # A_N = (la_Nk1- self.model.prox_r_N * xi_N >= 0) * I_N
-        # self.A_N_ = A_N_ = np.where( ~A_N )[0]
-        # self.A_N = A_N = np.where(A_N)[0]
-        
-        # B_N = []
-        # xi_T = self.model.xi_T(tk1, qk1, uk, uk1)
-        # for i_N, i_T in enumerate(self.NT_connectivity):
-        #     if np.any(i_T):
-        #         P_N = la_Nk1[i_N]
-        #         P_T = la_Tk1[i_T]
-        #         B_N.append(norm2(P_T - self.model.prox_r_T[i_N] * xi_T[i_T]) <= self.model.mu[i_N] * P_N)
-        #     else:
-        #         B_N.append(False)
-
-        # self.B_N = np.array(B_N)
-
+        # compute residual
         R = self.__R_newton(tk1, xk1)
-
         error = self.newton_error_function(R)
         converged = error < self.newton_tol 
         j = 0
         if not converged:
             for j in range(self.newton_max_iter):
-                # # jacobian
-                # R_x =  bmat([[M      ,        -dt * W_g, -dt * W_gamma, -W_N[:, A_N], None], \
-                #              [g_dot_u,        None     , None         , None        , None], \
-                #              [gamma_u,        None     , None         , None        , None], \
-                #              [g_N_dot_u[A_N], None     , None         , None        , None],
-                #              [None          , None     , None         , None        , eye(len(A_N_), format="coo")]]).tocsc()
-
+                # jacobian
                 R_x = Numerical_derivative(self.__R_newton, order=2)._x(tk1, xk1)
 
                 # Newton update
@@ -218,30 +193,13 @@ class Moreau():
                 uk1 = xk1[:self.nu]
                 la_gk1 = xk1[self.nu:self.nu+self.nla_g]
                 la_gammak1 = xk1[self.nu+self.nla_g:self.nu+self.nla_g+self.nla_gamma]
-                la_Nk1[I_N] = xk1[self.nR_smooth:self.nR_smooth+np.count_nonzero(I_N)]
-                la_Nk1[~I_N] = xk1[self.nR_smooth+np.count_nonzero(I_N):self.nR_smooth+self.nla_N]
+                P_Nk1[I_N] = xk1[self.nR_smooth:self.nR_smooth+np.count_nonzero(I_N)]
+                P_Nk1[~I_N] = xk1[self.nR_smooth+np.count_nonzero(I_N):self.nR_smooth+self.nla_N]
                 offset = 0
                 for i_T in self.NT_connectivity:
                     if np.any(i_T):
-                        la_Tk1[i_T] = xk1[self.nR_smooth+self.nla_N+offset:self.nR_smooth+self.nla_N+offset+2]
+                        P_Tk1[i_T] = xk1[self.nR_smooth+self.nla_N+offset:self.nR_smooth+self.nla_N+offset+2]
                         offset += 2
-                
-                # # active sets       
-                # xi_N = self.model.xi_N(tk1, qk1, uk, uk1)
-                # A_N = (la_Nk1- self.model.prox_r_N * xi_N >= 0) * I_N
-                # self.A_N_ = A_N_ = np.where( ~A_N )[0]
-                # self.A_N = A_N = np.where(A_N)[0]
-
-                # B_N = []
-                # xi_T = self.model.xi_T(tk1, qk1, uk, uk1)
-                # for i_N, i_T in enumerate(self.NT_connectivity):
-                #     if np.any(i_T):
-                #         P_N = la_Nk1[i_N]
-                #         P_T = la_Tk1[i_T]
-                #         B_N.append(norm2(P_T - self.model.prox_r_T[i_N] * xi_T[i_T]) <= self.model.mu[i_N] * P_N)
-                #     else:
-                #         B_N.append(False)
-                # self.B_N = np.array(B_N)
                 
                 R = self.__R_newton(tk1, xk1)
                 error = self.newton_error_function(R)
@@ -249,7 +207,7 @@ class Moreau():
                 if converged:
                     break
         
-        return (converged, j, error), tk1, qk1, uk1, la_gk1, la_gammak1, la_Nk1, la_Tk1
+        return (converged, j, error), tk1, qk1, uk1, la_gk1, la_gammak1, P_Nk1, P_Tk1
 
     def __R_newton(self, tk1, xk1):
         dt = self.dt
@@ -262,10 +220,10 @@ class Moreau():
         uk1 = xk1[:self.nu]
         la_gk1 = xk1[self.nu:self.nu+self.nla_g]
         la_gammak1 = xk1[self.nu+self.nla_g:self.nu+self.nla_g+self.nla_gamma]
-        la_Nk1 = np.zeros(self.nla_N)
-        la_Nk1[I_N] = xk1[self.nR_smooth:self.nR_smooth+nI_N]
-        la_Nk1[~I_N] = xk1[self.nR_smooth+nI_N:self.nR_smooth+self.nla_N]
-        la_Tk1 = xk1[self.nR_smooth+self.nla_N:]
+        P_Nk1 = np.zeros(self.nla_N)
+        P_Nk1[I_N] = xk1[self.nR_smooth:self.nR_smooth+nI_N]
+        P_Nk1[~I_N] = xk1[self.nR_smooth+nI_N:self.nR_smooth+self.nla_N]
+        P_Tk1 = xk1[self.nR_smooth+self.nla_N:]
 
         M = self.model.M(tk1, qk1)
         h = self.model.h(tk1, qk1, uk)
@@ -277,19 +235,19 @@ class Moreau():
         xi_T = self.model.xi_T(tk1, qk1, uk, uk1)
 
         R = np.zeros(self.nR)
-        R[:self.nu] = M @ (uk1 - uk) - dt * (h + W_g @ la_gk1 + W_gamma @ la_gammak1) - W_N[:, I_N] @ la_Nk1[I_N] - W_T[:, I_T] @ la_Tk1[I_T]
+        R[:self.nu] = M @ (uk1 - uk) - dt * (h + W_g @ la_gk1 + W_gamma @ la_gammak1) - W_N[:, I_N] @ P_Nk1[I_N] - W_T[:, I_T] @ P_Tk1[I_T]
         R[self.nu:self.nu+self.nla_g] = self.model.g_dot(tk1, qk1, uk1)
         R[self.nu+self.nla_g:self.nu+self.nla_g+self.nla_gamma] = self.model.gamma(tk1, qk1, uk1)
-        R[self.nR_smooth:self.nR_smooth+nI_N] = la_Nk1[I_N] - prox_Rn0(la_Nk1[I_N] - self.model.prox_r_N[I_N] * xi_N[I_N])
-        R[self.nR_smooth+nI_N:self.nR_smooth+self.nla_N] = la_Nk1[~I_N]
+        R[self.nR_smooth:self.nR_smooth+nI_N] = P_Nk1[I_N] - prox_Rn0(P_Nk1[I_N] - self.model.prox_r_N[I_N] * xi_N[I_N])
+        R[self.nR_smooth+nI_N:self.nR_smooth+self.nla_N] = P_Nk1[~I_N]
 
         offset = 0
         for i_N, i_T in enumerate(self.NT_connectivity):
             if np.any(i_T):
                 if self.I_N[i_N]:
-                    R[self.nR_smooth+self.nla_N+offset:self.nR_smooth+self.nla_N+offset+2] = la_Tk1[i_T] - prox_circle(la_Tk1[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T], self.model.mu[i_N] * la_Nk1[i_N])
+                    R[self.nR_smooth+self.nla_N+offset:self.nR_smooth+self.nla_N+offset+2] = P_Tk1[i_T] - prox_circle(P_Tk1[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T], self.model.mu[i_N] * P_Nk1[i_N])
                 else:
-                    R[self.nR_smooth+self.nla_N+offset:self.nR_smooth+self.nla_N+offset+2] = la_Tk1[i_T]
+                    R[self.nR_smooth+self.nla_N+offset:self.nR_smooth+self.nla_N+offset+2] = P_Tk1[i_T]
                 offset += 2
         return R
 
@@ -300,12 +258,12 @@ class Moreau():
         u = [self.uk]
         la_g = [self.la_gk]
         la_gamma = [self.la_gammak]
-        la_N = [self.la_Nk]
-        la_T = [self.la_Tk]
+        P_N = [self.P_Nk]
+        P_T = [self.P_Tk]
 
         pbar = tqdm(self.t[:-1])
         for _ in pbar:
-            (converged, j, error), tk1, qk1, uk1, la_gk1, la_gammak1, la_Nk1, la_Tk1 = self.step()
+            (converged, j, error), tk1, qk1, uk1, la_gk1, la_gammak1, P_Nk1, P_Tk1 = self.step()
             pbar.set_description(f't: {tk1:0.2e}; internal iterations: {j+1}; error: {error:.3e}')
             if not converged:
                 raise RuntimeError(f'internal iteration not converged after {j+1} iterations with error: {error:.5e}')
@@ -316,14 +274,14 @@ class Moreau():
             u.append(uk1)
             la_g.append(la_gk1)
             la_gamma.append(la_gammak1)
-            la_N.append(la_Nk1)
-            la_T.append(la_Tk1)
+            P_N.append(P_Nk1)
+            P_T.append(P_Tk1)
 
             # update local variables for accepted time step
-            self.qk, self.uk, self.la_gk, self.la_gammak, self.la_Nk, self.la_Tk = qk1, uk1, la_gk1, la_gammak1, la_Nk1, la_Tk1
+            self.qk, self.uk, self.la_gk, self.la_gammak, self.P_Nk, self.P_Tk = qk1, uk1, la_gk1, la_gammak1, P_Nk1, P_Tk1
             
         # write solution
-        return Solution(t=self.t, q=np.array(q), u=np.array(u), la_g=np.array(la_g), la_gamma=np.array(la_gamma), la_N=np.array(la_N), la_T=np.array(la_T))
+        return Solution(t=self.t, q=np.array(q), u=np.array(u), la_g=np.array(la_g), la_gamma=np.array(la_gamma), P_N=np.array(P_N), P_T=np.array(P_T))
 
 class Moreau_sym():
     def __init__(self, model, t1, dt, newton_tol=1e-6, newton_max_iter=50, error_function=lambda x: np.max(np.abs(x)) / len(x)):
