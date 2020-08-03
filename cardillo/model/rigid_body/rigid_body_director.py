@@ -240,7 +240,7 @@ class Rigid_body_director():
     #     return np.zeros((3, self.nu, self.nq))
 
 class Rigid_body_director_angular_velocities():
-    def __init__(self, V_rho, B_rho0, C_rho0, q0=None, u0=None, la0=None):
+    def __init__(self, V_rho, B_rho0, C_rho0, q0=None, u0=None):
         self.nq = 12
         self.nu = 6
         self.V_rho = V_rho
@@ -268,19 +268,16 @@ class Rigid_body_director_angular_velocities():
         d2_tilde = ax2skew(d2)
         d3_tilde = ax2skew(d3)
 
-        off_diag = -self.B_rho0[0] * d1_tilde - self.B_rho0[1] * d2_tilde - self.B_rho0[2] * d3_tilde
+        off_diag1 = -self.B_rho0[0] * d1_tilde - self.B_rho0[1] * d2_tilde - self.B_rho0[2] * d3_tilde
+        off_diag2 = -self.B_rho0[0] * d1_tilde.T - self.B_rho0[1] * d2_tilde.T - self.B_rho0[2] * d3_tilde.T
 
         M = np.zeros((self.nu, self.nu))
         M[:3, :3] = np.eye(3) * self.V_rho
-        M[:3, 3:6] = off_diag
-        M[3:6, :3] = -off_diag
-        M[3:6, 3:6] = - self.C_rho0[0, 0] * d1_tilde.T @ d1_tilde - self.C_rho0[0, 1] * d1_tilde.T @ d2_tilde - self.C_rho0[0, 2] * d1_tilde.T @ d3_tilde
-        M[3:6, 3:6] += -self.C_rho0[1, 0] * d2_tilde.T @ d1_tilde - self.C_rho0[1, 1] * d2_tilde.T @ d2_tilde - self.C_rho0[1, 2] * d2_tilde.T @ d3_tilde
-        M[3:6, 3:6] += -self.C_rho0[2, 0] * d3_tilde.T @ d1_tilde - self.C_rho0[2, 1] * d3_tilde.T @ d2_tilde - self.C_rho0[2, 2] * d3_tilde.T @ d3_tilde
-
-        # M[:3, 3:6] = -M[:3, 3:6]
-        # M[3:6, :3] = -M[3:6, :3]
-        M[3:6, 3:6] = -M[3:6, 3:6]
+        M[:3, 3:6] = off_diag1
+        M[3:6, :3] = off_diag2
+        M[3:6, 3:6] = self.C_rho0[0, 0] * d1_tilde.T @ d1_tilde + self.C_rho0[0, 1] * d1_tilde.T @ d2_tilde + self.C_rho0[0, 2] * d1_tilde.T @ d3_tilde
+        M[3:6, 3:6] += self.C_rho0[1, 0] * d2_tilde.T @ d1_tilde + self.C_rho0[1, 1] * d2_tilde.T @ d2_tilde + self.C_rho0[1, 2] * d2_tilde.T @ d3_tilde
+        M[3:6, 3:6] += self.C_rho0[2, 0] * d3_tilde.T @ d1_tilde + self.C_rho0[2, 1] * d3_tilde.T @ d2_tilde + self.C_rho0[2, 2] * d3_tilde.T @ d3_tilde
 
         coo.extend(M, (self.uDOF, self.uDOF))
 
@@ -298,11 +295,9 @@ class Rigid_body_director_angular_velocities():
 
         f = np.zeros(self.nu)
         f[:3] = self.B_rho0[0] * omega_tilde2 @ d1 + self.B_rho0[1] * omega_tilde2 @ d2 + self.B_rho0[2] * omega_tilde2 @ d3
-        f[3:] = -  self.C_rho0[0, 0] * d1_tilde.T @ omega_tilde2 @ d1 - self.C_rho0[0, 1] * d1_tilde.T @ omega_tilde2 @ d2 - self.C_rho0[0, 2] * d1_tilde.T @ omega_tilde2 @ d3
+        f[3:] = - self.C_rho0[0, 0] * d1_tilde.T @ omega_tilde2 @ d1 - self.C_rho0[0, 1] * d1_tilde.T @ omega_tilde2 @ d2 - self.C_rho0[0, 2] * d1_tilde.T @ omega_tilde2 @ d3
         f[3:] += - self.C_rho0[1, 0] * d2_tilde.T @ omega_tilde2 @ d1 - self.C_rho0[1, 1] * d2_tilde.T @ omega_tilde2 @ d2 - self.C_rho0[1, 2] * d2_tilde.T @ omega_tilde2 @ d3
         f[3:] += - self.C_rho0[2, 0] * d3_tilde.T @ omega_tilde2 @ d1 - self.C_rho0[2, 1] * d3_tilde.T @ omega_tilde2 @ d2 - self.C_rho0[2, 2] * d3_tilde.T @ omega_tilde2 @ d3
-        # f[:3] = - f[:3]
-        # f[3:] = - f[3:]
         return f
 
     # TODO:
