@@ -1,3 +1,4 @@
+from cardillo.math.algebra import norm2
 import numpy as np
 from scipy.sparse.linalg import spsolve 
 from scipy.sparse import coo_matrix, csc_matrix, identity, bmat
@@ -99,7 +100,7 @@ class Generalized_alpha_2():
         # A_N = g_N_dot_post <=0
 
         g_N_ddot_post = self.model.g_N_ddot(tk1, qk1, uk1, ak1)
-        # gamma_T_dot = self.model.gamma_T_dot(tk1, qk1, uk1, ak1)
+        gamma_T_dot_post = self.model.gamma_T_dot(tk1, qk1, uk1, ak1)
         gamma_T_post = self.model.gamma_T(tk1, qk1, uk1)
         # evaluate residual R(ak1, la_gk1, la_gammak1)
         R = np.zeros(self.nR)
@@ -124,30 +125,19 @@ class Generalized_alpha_2():
         for i_N, i_T in enumerate(self.model.NT_connectivity):
             if np.any(i_T):
                 if I_N[i_N]:
-                    R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset:3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset+2] = la_Tk1[i_T] - prox_circle(la_Tk1[i_T] - self.model.prox_r_T[i_N] * gamma_T_post[i_T], self.model.mu[i_N] * la_Nk1[i_N])
-                    R[3*nu+nla_g+nla_gamma+3*nla_N+offset:3*nu+nla_g+nla_gamma+3*nla_N+offset+2] = La_Tk1[i_T] - prox_circle(La_Tk1[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T], self.model.mu[i_N] * La_Nk1[i_N])
+                    # R[3*nu+nla_g+nla_gamma+3*nla_N+offset:3*nu+nla_g+nla_gamma+3*nla_N+offset+2] = La_Tk1[i_T] - prox_circle(La_Tk1[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T], self.model.mu[i_N] * La_Nk1[i_N])
+                    # R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset:3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset+2] = la_Tk1[i_T] - prox_circle(la_Tk1[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T], self.model.mu[i_N] * la_Nk1[i_N])
+                    R[3*nu+nla_g+nla_gamma+3*nla_N+offset:3*nu+nla_g+nla_gamma+3*nla_N+offset+2] = P_T[i_T] - prox_circle(P_T[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T], self.model.mu[i_N] * P_N[i_N])
+                    if norm2( P_T[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T]) <= self.model.mu[i_N] * P_N[i_N]:
+                        R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset:3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset+2] = gamma_T_dot_post[i_T] 
+                    else:
+                        n = gamma_T_post[i_T] / norm2(gamma_T_post[i_T])
+                        R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset:3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset+2] = la_Tk1[i_T] + self.model.mu[i_N] * la_Nk1[i_N] * n
                 else:
-                    R[3*nu+nla_g+nla_gamma+3*nla_N+offset:3*nu+nla_g+nla_gamma+3*nla_N+offset+2] = La_Tk1[i_T]
+                    # R[3*nu+nla_g+nla_gamma+3*nla_N+offset:3*nu+nla_g+nla_gamma+3*nla_N+offset+2] = La_Tk1[i_T]
+                    R[3*nu+nla_g+nla_gamma+3*nla_N+offset:3*nu+nla_g+nla_gamma+3*nla_N+offset+2] = P_T[i_T]
                     R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset:3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset+2] = la_Tk1[i_T]
                 offset += 2
-        # B_N = (la_Nk1 - self.model.prox_r_N * g_N_ddot_post) >= 0
-        # for i_N, i_T in enumerate(self.model.NT_connectivity):
-        #     if np.any(i_T):
-        #         if I_N[i_N]:
-        #             if A_N[i_N]:
-        #                 if B_N[i_N]:
-        #                     R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset:3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset+2] = la_Tk1[i_T] - prox_circle(la_Tk1[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T], self.model.mu[i_N] * P_N[i_N])
-        #                     R[3*nu+nla_g+nla_gamma+3*nla_N+offset:3*nu+nla_g+nla_gamma+3*nla_N+offset+2] = La_Tk1[i_T]
-        #                 else:
-        #                     R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset:3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset+2] = la_Tk1[i_T]
-        #                     R[3*nu+nla_g+nla_gamma+3*nla_N+offset:3*nu+nla_g+nla_gamma+3*nla_N+offset+2] = La_Tk1[i_T] - prox_circle(La_Tk1[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T], self.model.mu[i_N] * P_N[i_N])
-        #             else:
-        #                 R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset:3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset+2] = la_Tk1[i_T]
-        #                 R[3*nu+nla_g+nla_gamma+3*nla_N+offset:3*nu+nla_g+nla_gamma+3*nla_N+offset+2] = La_Tk1[i_T] - prox_circle(La_Tk1[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T], self.model.mu[i_N] * P_N[i_N])
-        #         else:
-        #             R[3*nu+nla_g+nla_gamma+3*nla_N+offset:3*nu+nla_g+nla_gamma+3*nla_N+offset+2] = La_Tk1[i_T]
-        #             R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset:3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset+2] = la_Tk1[i_T]
-        #         offset += 2
         return R
 
 
