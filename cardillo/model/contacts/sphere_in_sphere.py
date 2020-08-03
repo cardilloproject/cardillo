@@ -1,11 +1,12 @@
 import numpy as np
-from cardillo.math.prox import prox_Rn0, prox_circle
+from cardillo.math.algebra import cross3, norm3, e3
 from cardillo.math.numerical_derivative import Numerical_derivative
 
-class Sphere_to_plane():
-    def __init__(self, frame, subsystem, r, mu, prox_r_N, prox_r_T, e_N=None, e_T=None, frame_ID=np.zeros(3), K_r_SP=np.zeros(3), la_N0=None, la_T0=None):
+class Sphere_in_sphere():
+    def __init__(self, frame, R, subsystem, r, mu, prox_r_N, prox_r_T, e_N=None, e_T=None, frame_ID=np.zeros(3), K_r_SP=np.zeros(3), la_N0=None, la_T0=None):
         
         self.frame = frame
+        self.R = R
         self.subsystem = subsystem
         self.r = r
         self.mu = np.array([mu])
@@ -27,8 +28,6 @@ class Sphere_to_plane():
         self.frame_ID = frame_ID
 
         self.r_OQ = lambda t: self.frame.r_OP(t)
-        self.t1t2 = lambda t: self.frame.A_IK(t).T[:2]
-        self.n = lambda t: self.frame.A_IK(t)[:, 2]
         self.v_Q = lambda t: self.frame.v_P(t)
         self.a_Q = lambda t: self.frame.a_P(t)
 
@@ -48,7 +47,8 @@ class Sphere_to_plane():
         self.uDOF = self.subsystem.uDOF[uDOF]
         self.nu = len(self.uDOF)
 
-        self.K_r_SP = lambda t, q: self.K_r_SP_ - self.r * self.subsystem.A_IK(t, q, frame_ID=self.frame_ID).T @ self.n(t)
+        self.n = lambda t, q: - ( self.subsystem.r_OP(t, q, frame_ID=self.frame_ID, K_r_SP=self.K_r_SP_) - self.r_OQ(t) ) / norm3(self.subsystem.r_OP(t, q, frame_ID=self.frame_ID, K_r_SP=self.K_r_SP_) - self.r_OQ(t))
+        self.K_r_SP = lambda t, q: self.K_r_SP_ - self.r * self.subsystem.A_IK(t, q, frame_ID=self.frame_ID).T @ self.n(t, q)
         
         self.r_OP = lambda t, q: self.subsystem.r_OP(t, q, frame_ID=self.frame_ID, K_r_SP=self.K_r_SP(t, q))
         self.v_P = lambda t, q, u: self.subsystem.v_P(t, q, u, frame_ID=self.frame_ID, K_r_SP=self.K_r_SP(t, q))
@@ -58,11 +58,10 @@ class Sphere_to_plane():
         self.is_assembled = True
 
     def g_N(self, t, q):
-        return np.array([self.n(t) @ (self.r_OP(t, q) - self.r_OQ(t))])
+        return np.array([self.R - norm3(self.r_OP(t, q) - self.r_OQ(t))])
 
     def g_N_dot(self, t, q, u):
-        #TODO: n_dot(t)
-        return np.array([self.n(t) @ (self.v_P(t, q, u) - self.v_Q(t))])
+        return np.array([self.n(t, q) @ (self.v_P(t, q, u) - self.v_Q(t))])
 
     def g_N_ddot(self, t, q, u, u_dot):
         # return np.array([self.n(t) @ (self.a_P(t, q, u, u_dot) - self.a_Q(t))])
@@ -74,13 +73,17 @@ class Sphere_to_plane():
         coo.extend(self.g_N_dot_u_dense(t, q), (self.la_NDOF, self.uDOF))
 
     def g_N_dot_u_dense(self, t, q):
-        return np.array([self.n(t) @ self.J_P(t, q)])
+        return np.array([ self.n(t, q) @ self.J_P(t, q)])
 
     def W_N(self, t, q, coo):
         coo.extend(self.g_N_dot_u_dense(t, q).T, (self.uDOF, self.la_NDOF))
 
     def __gamma_T(self, t, q, u):
-        return self.t1t2(t) @ (self.v_P(t, q, u) - self.v_Q(t))
+        t1t2 = np.zeros((2, 3))
+        n = self.n(t, q)
+        t1t2[0] = e3
+        t1t2[1] = cross3(n, t1t2[0])
+        return t1t2 @ (self.v_P(t, q, u) - self.v_Q(t))
 
     def gamma_T_dot(self, t, q, u, u_dot):
         #TODO: t1t2_dot(t)
@@ -90,7 +93,11 @@ class Sphere_to_plane():
         return gamma_T_q @ self.subsystem.q_dot(t, q, u) + gamma_T_u @ u_dot
 
     def gamma_T_u_dense(self, t, q):
-        return self.t1t2(t) @ self.J_P(t, q)
+        t1t2 = np.zeros((2, 3))
+        n = self.n(t, q)
+        t1t2[0] = e3
+        t1t2[1] = cross3(n, t1t2[0])
+        return t1t2 @ self.J_P(t, q)
 
     def W_T(self, t, q, coo):
         coo.extend(self.gamma_T_u_dense(t, q).T, (self.uDOF, self.la_TDOF))

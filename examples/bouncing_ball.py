@@ -42,12 +42,12 @@ if __name__ == "__main__":
     m = 1
     r = 0.1
     g = 9.81
-    x0 = -0.3
+    x0 = -1
     y0 = 1
-    x_dot0 = 0
+    x_dot0 = 3
     y_dot0 = 0
     phi0 = 0
-    phi_dot0 = 0
+    phi_dot0 = 10
     r_OS0 = np.array([x0, y0, 0])
     vS0 = np.array([x_dot0, y_dot0, 0])
     # q0 = np.array([r_OS0[0], r_OS0[1], phi0])
@@ -60,7 +60,7 @@ if __name__ == "__main__":
     frame = Frame(A_IK=np.vstack( (e3, e1, e2) ).T, r_OP=np.array([0, 0, 0]) )
     mu = 0.2
     r_N = 0.1
-    e_N = 0
+    e_N = 0.5
     plane = Sphere_to_plane(frame, RB, r, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N, e_T=0)
 
     alpha = pi/4
@@ -84,13 +84,13 @@ if __name__ == "__main__":
     model.add(Force(lambda t: np.array([0, -g * m, 0]), RB))
     # model.add(plane)
     # model.add(plane_left)
-    # model.add(plane)
-    model.add(plane_right)
-    model.add(plane_left)
+    model.add(plane)
+    # model.add(plane_right)
+    # model.add(plane_left)
     model.assemble()
 
     t0 = 0
-    t1 = 1
+    t1 = 2
     dt = 5e-3
 
     # solver_fp = Moreau(model, t1, dt)
@@ -277,9 +277,9 @@ if __name__ == "__main__":
         q = q[::frac]
 
         # ax.plot([-2 * y0, 2 * y0], (y0-0.1)*np.array([1, 1]), '-k')
-        # ax.plot([-2 * y0, 2 * y0], [0, 0], '-k')
-        ax.plot([0, -y0 * np.cos(alpha)], [0, y0 * np.sin(alpha)], '-k')
-        ax.plot([0, y0 * np.cos(beta)], [0, - y0 * np.sin(beta)], '-k')
+        ax.plot([-2 * y0, 2 * y0], [0, 0], '-k')
+        # ax.plot([0, -y0 * np.cos(alpha)], [0, y0 * np.sin(alpha)], '-k')
+        # ax.plot([0, y0 * np.cos(beta)], [0, - y0 * np.sin(beta)], '-k')
 
         def create(t, q):
             x_S, y_S, _ = RB.r_OP(t, q)
