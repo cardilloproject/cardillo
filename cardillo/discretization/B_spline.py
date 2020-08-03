@@ -24,15 +24,12 @@ def B_spline_basis(degree, derivative_order, knot_vector, knots):
     spans = find_knotspan(degree, knot_vector, knots)
     if not hasattr(spans, '__len__'):
         ders = basis_function_ders(degree, knot_vector, spans, knots, derivative_order)
+        return np.array(ders)
     else:
         ders = basis_functions_ders(degree, knot_vector, spans, knots, derivative_order)
 
-    # # TODO: do we want another ordering here?
-    # # ordering: (derivative order, number of evaluation points, different nonzero shape functions)
-    # return np.array(ders).transpose((1, 0, 2))
-
-    # ordering: (number of evaluation points, derivative order, different nonzero shape functions)
-    return np.array(ders)
+        # ordering: (derivative order, number of evaluation points, different nonzero shape functions)
+        return np.array(ders).transpose((1, 0, 2))
 
 # TODO: wrap fit_B_spline for 3D vectors
 def approximate_curve(points, degree, nEl, centripetal=False):
@@ -134,7 +131,7 @@ def test_B_splines():
     spans = find_spans(degree, knot_vector, m, knots)
     ders_geomdl = basis_functions_ders(degree, knot_vector, spans, knots, order)
     ders = B_spline_basis(degree, order, knot_vector, knots)
-    assert np.allclose(np.array(ders_geomdl), ders)
+    assert np.allclose(np.array(ders_geomdl).transpose((1, 0, 2)), ders)
     print(f'ders.shape: {ders.shape}')
     print(f'{"-" * 80}')
     print(f'order: {order}; knots: {knots}; spans: {spans}; \nbasis_functions_ders:\n{ders}')

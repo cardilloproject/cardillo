@@ -10,7 +10,7 @@ from cardillo.math.numerical_derivative import Numerical_derivative
 class Euler_bernoulli2D():
     """Planar Euler-Bernoulli beam using B-spline shape functions.
     """
-    def __init__(self, A_rho0, material_model, polynomial_degree, nEl, nQP, Q=None, q0=None, u0=None):        
+    def __init__(self, A_rho0, material_model, polynomial_degree, nEl, nQP, Q, q0=None, u0=None):
         # physical parameters
         self.A_rho0 = A_rho0
 
@@ -42,8 +42,8 @@ class Euler_bernoulli2D():
             
         # reference generalized coordinates, initial coordinates and initial velocities
         self.Q = Q
-        self.q0 = q0
-        self.u0 = u0
+        self.q0 = Q.copy() if q0 is None else q0
+        self.u0 = np.zeros(self.nu) if u0 is None else u0
 
         # compute shape functions
         derivative_order = 2
@@ -63,10 +63,7 @@ class Euler_bernoulli2D():
             self.xi[el] = qp
 
             # evaluate B-spline shape functions
-            N = B_spline_basis(polynomial_degree, derivative_order, knot_vector, qp)
-            self.N[el] = N[:, 0]
-            self.N_xi[el] = N[:, 1]
-            self.N_xixi[el] = N[:, 2]
+            self.N[el], self.N_xi[el], self.N_xixi[el] = B_spline_basis(polynomial_degree, derivative_order, knot_vector, qp)
 
             # compute change of integral measures
             Qe = self.Q[self.elDOF[el]]

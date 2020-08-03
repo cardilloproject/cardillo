@@ -1,4 +1,4 @@
-from cardillo.model.classical_beams import Hooke, Euler_bernoulli2D
+from cardillo.model.classical_beams.planar import Hooke, Euler_bernoulli2D
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints.implicit import Spherical_joint2D, Rigid_connection2D, Spherical_joint, Rigid_connection
 from cardillo.model import Model

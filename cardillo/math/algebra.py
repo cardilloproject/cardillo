@@ -60,6 +60,16 @@ def cross_nm(a, b):
                         A[i, n, m] += LeviCivita3(i, j, k) * a[k, n] * b[j, m]
     return A
 
+def LeviCivita3_tensor():
+    A = np.zeros((3, 3, 3))
+    A[0, 1, 2] =  1
+    A[1, 2, 0] =  1
+    A[2, 0, 1] =  1
+    A[2, 1, 0] = -1
+    A[1, 0, 2] = -1
+    A[0, 2, 1] = -1
+    return A
+
 def LeviCivita3(i, j, k):
     return (i - j) * (j - k) * (k - i) / 2
 
