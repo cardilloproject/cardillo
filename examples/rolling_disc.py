@@ -13,7 +13,7 @@ from cardillo.model.rolling_disc import Rolling_condition
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints.implicit import Rod
 from cardillo.model.force import Force
-from cardillo.solver import Euler_backward, Moreau, Moreau_sym, Scipy_ivp
+from cardillo.solver import Euler_backward, Moreau, Moreau_sym, Scipy_ivp, Generalized_alpha_1
 from cardillo.math.algebra import axis_angle2quat, ax2skew, A_IK_basic_x
 
 # rigid_body = 'Euler'
@@ -106,23 +106,13 @@ class Rigid_disc_Lesaux_director(Rigid_body_director):
 
 class Rigid_disc_Lesaux_director2(Rigid_body_director_angular_velocities):
     def __init__(self, m, r, q0=None, u0=None):
-        assert m == 0.3048
-        assert r == 3.75e-2
+        A = 1 / 4 * m * r**2
+        C = 1 / 2 * m * r**2
+        K_theta_S = np.diag(np.array([A, C, A]))
+
         self.r = r
-        K_theta_S = np.diag([1.0716e-4, 2.1433e-4, 1.0716e-4])
 
-        I11 = K_theta_S[0,0]
-        I22 = K_theta_S[1,1]
-        I33 = K_theta_S[2,2]
-
-        # Binet inertia tensor
-        i11 = 0.5 * (I22 + I33 - I11)
-        i22 = 0.5 * (I11 + I33 - I22)
-        i33 = 0.5 * (I11 + I22 - I33)
-        B_rho0 = np.zeros(3)
-        C_rho0 = np.diag(np.array([i11, i22, i33]))
-
-        super().__init__(m, B_rho0, C_rho0, q0=q0, u0=u0)
+        super().__init__(m, K_theta_S, q0=q0, u0=u0)
 
     def boundary(self, t, q, n=100):
         phi = np.linspace(0, 2 * np.pi, n, endpoint=True)
@@ -310,13 +300,14 @@ def rolling_disc_velocity_constraints():
     model.assemble()
 
     t0 = 0
-    t1 = 2 * np.pi / np.abs(alpha_dot) * 2 * 0.25
+    t1 = 2 * np.pi / np.abs(alpha_dot) * 2
     dt = 1e-3
-    solver = Euler_backward(model, t1, dt, numerical_jacobian=True, debug=True)
+    # solver = Euler_backward(model, t1, dt, numerical_jacobian=False, debug=False)
     # solver = Moreau_sym(model, t1, dt, numerical_jacobian=False, debug=False)
+    # solver = Generalized_alpha_1(model, t1, numerical_jacobian=False, debug=False)
     # solver = Moreau(model, t1, dt)
     # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='RK23')
-    # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='RK45')
+    solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='RK45')
     # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='DOP853')
     # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='Radau')
     # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='BDF')
@@ -364,17 +355,16 @@ def rolling_disc_velocity_constraints():
         COM, = ax.plot([x_S], [y_S], [z_S], 'ok')
         bdry, = ax.plot([], [], [], '-k')
         trace, = ax.plot([], [], [], '--k')
-        # d1_, = ax.plot([x_S, x_S + d1[0]], [y_S, y_S + d1[1]], [z_S, z_S + d1[2]], '-r')
-        # d2_, = ax.plot([x_S, x_S + d2[0]], [y_S, y_S + d2[1]], [z_S, z_S + d2[2]], '-g')
-        # d3_, = ax.plot([x_S, x_S + d3[0]], [y_S, y_S + d3[1]], [z_S, z_S + d3[2]], '-b')
+        d1_, = ax.plot([x_S, x_S + d1[0]], [y_S, y_S + d1[1]], [z_S, z_S + d1[2]], '-r')
+        d2_, = ax.plot([x_S, x_S + d2[0]], [y_S, y_S + d2[1]], [z_S, z_S + d2[2]], '-g')
+        d3_, = ax.plot([x_S, x_S + d3[0]], [y_S, y_S + d3[1]], [z_S, z_S + d3[2]], '-b')
        
-        return COM, bdry, trace, #d1_, d2_, d3_
+        return COM, bdry, trace, d1_, d2_, d3_
 
-    # COM, bdry, trace, d1_, d2_, d3_ = create(0, q[0])
-    COM, bdry, trace, = create(0, q[0])
+    COM, bdry, trace, d1_, d2_, d3_ = create(0, q[0])
 
-    # def update(t, q, COM, bdry, trace, d1_, d2_, d3_):
-    def update(t, q, COM, bdry, trace):
+    def update(t, q, COM, bdry, trace, d1_, d2_, d3_):
+    # def update(t, q, COM, bdry, trace):
         global x_trace, y_trace, z_trace
         if t == t0:
             x_trace = deque([])
@@ -410,20 +400,19 @@ def rolling_disc_velocity_constraints():
         trace.set_3d_properties(np.array(z_trace))
 
 
-        # d1_.set_data([x_S, x_S + d1[0]], [y_S, y_S + d1[1]])
-        # d1_.set_3d_properties([z_S, z_S + d1[2]])
+        d1_.set_data(np.array([x_S, x_S + d1[0]]), np.array([y_S, y_S + d1[1]]))
+        d1_.set_3d_properties(np.array([z_S, z_S + d1[2]]))
 
-        # d2_.set_data([x_S, x_S + d2[0]], [y_S, y_S + d2[1]])
-        # d2_.set_3d_properties([z_S, z_S + d2[2]])
+        d2_.set_data(np.array([x_S, x_S + d2[0]]), np.array([y_S, y_S + d2[1]]))
+        d2_.set_3d_properties(np.array([z_S, z_S + d2[2]]))
 
-        # d3_.set_data([x_S, x_S + d3[0]], [y_S, y_S + d3[1]])
-        # d3_.set_3d_properties([z_S, z_S + d3[2]])
+        d3_.set_data(np.array([x_S, x_S + d3[0]]), np.array([y_S, y_S + d3[1]]))
+        d3_.set_3d_properties(np.array([z_S, z_S + d3[2]]))
 
-        return COM, bdry, trace, #d1_, d2_, d3_
+        return COM, bdry, trace, d1_, d2_, d3_
 
     def animate(i):
-        # update(t[i], q[i], COM, bdry, trace, d1_, d2_, d3_)
-        update(t[i], q[i], COM, bdry, trace)
+        update(t[i], q[i], COM, bdry, trace, d1_, d2_, d3_)
 
     anim = animation.FuncAnimation(fig, animate, frames=frames, interval=interval, blit=False)
     plt.show()
