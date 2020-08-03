@@ -37,14 +37,14 @@ class Ball(Rigid_body_euler):
         return np.repeat(self.r_OP(t, q), n).reshape(3, n) + self.A_IK(t, q) @ K_r_SP
 
 if __name__ == "__main__":
-    animate = False
+    animate = True
 
     m = 1
     r = 0.1
-    g = 9.81
+    g = 9.81*3
     x0 = -0.3
     y0 = 1
-    x_dot0 = 1.2
+    x_dot0 = 5
     y_dot0 = 0
     phi0 = 0
     phi_dot0 = 0
@@ -57,11 +57,11 @@ if __name__ == "__main__":
     RB = Ball(m, r, q0, u0)
 
     e1, e2, e3 = np.eye(3)
-    frame = Frame(A_IK=np.vstack( (e3, e1, e2) ).T, r_OP=np.array([0, y0-0.1, 0]) )
+    frame = Frame(A_IK=np.vstack( (e3, e1, e2) ).T, r_OP=np.array([0, 0, 0]) )
     mu = 0.2
-    r_N = 0.3
-    e_N = 0
-    plane = Sphere_to_plane(frame, RB, 0*r, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N, e_T=0)
+    r_N = 0.1
+    e_N = 1
+    plane = Sphere_to_plane(frame, RB, r, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N, e_T=0)
 
     alpha = pi/4
     e1, e2, e3 = A_IK_basic_z(alpha)
@@ -273,8 +273,8 @@ if __name__ == "__main__":
         t = t[::frac]
         q = q[::frac]
 
-        ax.plot([-2 * y0, 2 * y0], (y0-0.1)*np.array([1, 1]), '-k')
-        # ax.plot([-2 * y0, 2 * y0], [0, 0], '-k')
+        # ax.plot([-2 * y0, 2 * y0], (y0-0.1)*np.array([1, 1]), '-k')
+        ax.plot([-2 * y0, 2 * y0], [0, 0], '-k')
         # ax.plot([0, -y0 * np.cos(alpha)], [0, y0 * np.sin(alpha)], '-k')
         # ax.plot([0, y0 * np.cos(beta)], [0, - y0 * np.sin(beta)], '-k')
 

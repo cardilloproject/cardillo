@@ -1,5 +1,6 @@
 import numpy as np
 from cardillo.math.prox import prox_Rn0, prox_circle
+from cardillo.math.numerical_derivative import Numerical_derivative
 
 class Sphere_to_plane():
     def __init__(self, frame, subsystem, r, mu, prox_r_N, prox_r_T, e_N=None, e_T=None, frame_ID=np.zeros(3), K_r_SP=np.zeros(3), la_N0=None, la_T0=None):
@@ -59,15 +60,17 @@ class Sphere_to_plane():
         self.is_assembled = True
 
     def g_N(self, t, q):
-        return self.n(t) @ (self.r_OP(t, q) - self.r_OQ(t))
+        return np.array([self.n(t) @ (self.r_OP(t, q) - self.r_OQ(t))])
 
     def g_N_dot(self, t, q, u):
         #TODO: n_dot(t)
-        return self.n(t) @ (self.v_P(t, q, u) - self.v_Q(t))
+        return np.array([self.n(t) @ (self.v_P(t, q, u) - self.v_Q(t))])
 
-    def g_N_ddot(self, t, q, u, a):
-        #TODO: n_dot(t)
-        return self.n(t) @ (self.a_P(t, q, u, a) - self.a_Q(t))
+    def g_N_ddot(self, t, q, u, u_dot):
+        # return np.array([self.n(t) @ (self.a_P(t, q, u, u_dot) - self.a_Q(t))])
+        g_N_dot_q = Numerical_derivative(self.g_N_dot, order=2)._x(t, q, u)
+        g_N_dot_u = self.g_N_dot_u_dense(t, q)
+        return g_N_dot_q @ self.subsystem.q_dot(t, q, u) + g_N_dot_u @ u_dot
     
     def g_N_dot_u(self, t, q, coo):
         coo.extend(self.g_N_dot_u_dense(t, q), (self.la_NDOF, self.uDOF))
@@ -81,9 +84,12 @@ class Sphere_to_plane():
     def __gamma_T(self, t, q, u):
         return self.t1t2(t) @ (self.v_P(t, q, u) - self.v_Q(t))
 
-    def gamma_T_dot(self, t, q, u, a):
+    def gamma_T_dot(self, t, q, u, u_dot):
         #TODO: t1t2_dot(t)
-        return self.t1t2(t) @ (self.a_P(t, q, u, a) - self.a_Q(t))
+        # return self.t1t2(t) @ (self.a_P(t, q, u, u_dot) - self.a_Q(t))
+        gamma_T_q = Numerical_derivative(self.gamma_T, order=2)._x(t, q, u)
+        gamma_T_u = self.gamma_T_u_dense(t, q)
+        return gamma_T_q @ self.subsystem.q_dot(t, q, u) + gamma_T_u @ u_dot
 
     def gamma_T_u_dense(self, t, q):
         return self.t1t2(t) @ self.J_P(t, q)

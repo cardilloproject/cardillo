@@ -10,7 +10,7 @@ from cardillo.solver import Solution
 
 class Generalized_alpha_2():
     def __init__(self, model, t1, dt, beta=0.25, gamma=0.5,\
-                       newton_tol=1e-10, newton_max_iter=100, newton_error_function=lambda x: np.max(np.abs(x))):
+                       newton_tol=1e-8, newton_max_iter=100, newton_error_function=lambda x: np.max(np.abs(x))):
         
         self.model = model
 
@@ -131,7 +131,10 @@ class Generalized_alpha_2():
                     if norm2( P_T[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T]) <= self.model.mu[i_N] * P_N[i_N]:
                         R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset:3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset+2] = gamma_T_dot_post[i_T] 
                     else:
-                        n = gamma_T_post[i_T] / norm2(gamma_T_post[i_T])
+                        if norm2(gamma_T_post[i_T]) > 0:
+                            n = gamma_T_post[i_T] / norm2(gamma_T_post[i_T])
+                        else:
+                            n = gamma_T_post[i_T]
                         R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset:3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset+2] = la_Tk1[i_T] + self.model.mu[i_N] * la_Nk1[i_N] * n
                 else:
                     # R[3*nu+nla_g+nla_gamma+3*nla_N+offset:3*nu+nla_g+nla_gamma+3*nla_N+offset+2] = La_Tk1[i_T]
@@ -229,7 +232,7 @@ class Generalized_alpha_2():
             pbar.set_description(f't: {tk1:0.2e}s < {self.t1:0.2e}s; Newton: {n_iter}/{self.newton_max_iter} iterations; error: {error:0.2e}')
             
             if not converged:
-                raise RuntimeError(f'internal Newton-Raphson method not converged after {n_iter} stepts with error: {error:.5e}')
+                raise RuntimeError(f'internal Newton-Raphson method not converged after {n_iter} steps with error: {error:.5e}')
             dt = self.dt
             dt2 = dt * dt
             uk1 = self.uk + dt * ((1-self.gamma) * self.ak + self.gamma * ak1) + Uk1
