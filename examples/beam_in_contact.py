@@ -22,8 +22,8 @@ statics = False
 if __name__ == "__main__":
     # solver parameter
     t0 = 0
-    t1 = 1
-    dt = 1e-2
+    t1 = 2
+    dt = 1e-3
 
     # physical properties of the rope
     rho = 7850
@@ -31,24 +31,24 @@ if __name__ == "__main__":
     r = 1e-2
     A = np.pi * r**2
     I = A / 4 * r**2
-    E = 210e7 * 1e-2
-    EA = E * A
-    EI = E * I * 1.2
+    E = 210e8
+    EA = E * A * 1e-3
+    EI = E * I * 50
     material_model = Hooke(EA, EI)
     A_rho0 = A * rho
 
     amplitude = 0
-    e = lambda t: amplitude * t
+    e = lambda t: amplitude * t - L/2
     e_t = lambda t: amplitude
     e_tt = lambda t: 0
 
-    r_OB1 = lambda t: np.array([e(t), 0, 0])
+    r_OB1 = lambda t: np.array([e(t), 0.1 * L, 0])
     r_OB1_t = lambda t: np.array([e_t(t), 0, 0])
     r_OB1_tt = lambda t: np.array([e_tt(t), 0, 0])
     frame_left = Frame(r_OP=r_OB1, r_OP_t=r_OB1_t, r_OP_tt=r_OB1_tt)
 
     # discretization properties
-    p = 2
+    p = 3
     assert p >= 2
     nQP = int(np.ceil((p + 1)**2 / 2))
     print(f'nQP: {nQP}')
@@ -60,21 +60,21 @@ if __name__ == "__main__":
     Xi = uniform_knot_vector(p, nEl)
     for i in range(nNd):
         X0[i] = np.sum(Xi[i+1:i+p+1])
-    # X0 = X0 * L / p
-    # Y0 = np.zeros_like(X0)
-    Y0 = X0 * L / p
-    X0 = np.zeros_like(Y0)
+    X0 = X0 * L / p
+    Y0 = np.zeros_like(X0)
+    q0 = np.hstack((X0 + r_OB1(0)[0], Y0 + r_OB1(0)[1]))
+    # Y0 = X0 * L / p
+    # X0 = np.zeros_like(Y0)
+    # q0 = np.hstack((X0-L, Y0 - 0.9 * L))
     Q = np.hstack((X0, Y0))
 
-    ux0 = np.ones_like(Y0) * 5
-    uy0 = np.zeros_like(Y0)
-    u0 = np.hstack((ux0, uy0))
+    # ux0 = np.ones_like(Y0) * 3
+    # uy0 = np.zeros_like(Y0)
+    # u0 = np.hstack((ux0, uy0))
 
-    # u0 = np.zeros_like(Q)
+    u0 = np.zeros_like(Q)
     # u0[0] = r_OB1_t(0)[0]
     # u0[nNd] = r_OB1_t(0)[1]
-
-    q0 = np.hstack((X0-L, Y0 - 0.9 * L))
 
     beam = Euler_bernoulli2D(A_rho0, material_model, p, nEl, nQP, Q=Q, q0=q0, u0=u0)
 
@@ -110,20 +110,20 @@ if __name__ == "__main__":
     e_N = 0
     # plane = Sphere_to_plane(frame, PM, 0, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N)
     # plane = Sphere_to_plane2D(frame, PM, 0, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N)
-    contact0 = Sphere_to_plane2D(frame, beam, 1, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N, frame_ID=(0,))
-    contact1 = Sphere_to_plane2D(frame, beam, 1, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N, frame_ID=(1,))
+    contact0 = Sphere_to_plane2D(frame, beam, 0, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N, frame_ID=(0,))
+    contact1 = Sphere_to_plane2D(frame, beam, 0, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N, frame_ID=(1,))
 
     # assemble the model
     model = Model()
     model.add(beam)
-    # model.add(frame_left)
-    # model.add(joint_left)
+    model.add(frame_left)
+    model.add(joint_left)
     model.add(f_g_beam)
     # model.add(contact0)
     model.add(contact1)
     model.assemble()
     
-    solver = Generalized_alpha_2(model, t1, dt, newton_tol=1.0e-5)
+    solver = Generalized_alpha_2(model, t1, dt, rho_inf=0.5, newton_tol=1.0e-6)
     sol = solver.solve()
 
     t = sol.t

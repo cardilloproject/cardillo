@@ -12,7 +12,8 @@ from cardillo.math import Numerical_derivative
 from cardillo.solver import Solution
 
 class Generalized_alpha_2():
-    def __init__(self, model, t1, dt, beta=0.25, gamma=0.5,\
+    def __init__(self, model, t1, dt, \
+                    rho_inf=1, beta=None, gamma=None, alpha_m=None, alpha_f=None,\
                        newton_tol=1e-8, newton_max_iter=30, newton_error_function=lambda x: np.max(np.abs(x))):
         
         self.model = model
@@ -23,8 +24,18 @@ class Generalized_alpha_2():
         self.dt = dt
 
         # parameter
-        self.beta = beta
-        self.gamma = gamma
+        self.rho_inf = rho_inf
+        if None in [beta, gamma, alpha_m, alpha_f]:
+            self.alpha_m = (2 * rho_inf - 1) / (1 + rho_inf)
+            self.alpha_f = rho_inf / (1 + rho_inf)
+            self.gamma = 0.5 + self.alpha_f - self.alpha_m
+            self.beta = 0.25 * ((self.gamma + 0.5) ** 2)
+        else:
+            self.gamma = gamma
+            self.beta = beta
+            self.alpha_m = alpha_m
+            self.alpha_f = alpha_f
+        self.alpha_ratio = (1 - self.alpha_f) / (1 - self.alpha_m)
 
         self.newton_tol = newton_tol
         self.newton_max_iter = newton_max_iter
@@ -56,9 +67,12 @@ class Generalized_alpha_2():
         self.la_Tk = model.la_T0
         self.La_Tk = np.zeros_like(model.la_T0)
         #TODO:
-        self.ak = spsolve(model.M(t0, model.q0).tocsr(), self.model.h(t0, model.q0, model.u0) )#+ self.W_gk1 @ model.la_g0 + self.W_gammak1 @ model.la_gamma0 + self.W_Nk1 @ model.la_N0)
+        self.ak = spsolve(model.M(t0, model.q0).tocsr(), self.model.h(t0, model.q0, model.u0) + self.model.W_g(t0, model.q0) @ model.la_g0 + self.model.W_gamma(t0, model.q0) @ model.la_gamma0 + self.model.W_N(t0, model.q0, scipy_matrix=csc_matrix) @ model.la_N0 + self.model.W_T(t0, model.q0, scipy_matrix=csc_matrix) @ model.la_T0 )
         self.Qk = np.zeros(self.nu)
         self.Uk = np.zeros(self.nu)
+        self.a_bark = self.ak.copy()
+        self.la_Nbark = self.la_Nk.copy()
+        self.la_Tbark = self.la_Tk.copy()
 
         # self.__R_x = self.__R_x_num
         self.__R_x = self.__R_x_analytic
@@ -83,12 +97,17 @@ class Generalized_alpha_2():
         la_Tk1 = xk1[3*nu+nla_g+nla_gamma+3*nla_N+nla_T:3*nu+nla_g+nla_gamma+3*nla_N+2*nla_T]
 
         # update dependent variables
-        uk1 = self.uk + dt * ((1-self.gamma) * self.ak + self.gamma * ak1) + Uk1
-        a_beta = (0.5 - self.beta) * self.ak + self.beta * ak1 
+        a_bark1 = (self.alpha_f * self.ak + (1-self.alpha_f) * ak1  - self.alpha_m * self.a_bark) / (1 - self.alpha_m)
+        uk1 = self.uk + dt * ((1-self.gamma) * self.a_bark + self.gamma * a_bark1) + Uk1
+        a_beta = (0.5 - self.beta) * self.a_bark + self.beta * a_bark1 
         qk1 = self.qk + dt * self.model.q_dot(self.tk, self.qk, self.uk) + dt2 * self.model.q_ddot(self.tk, self.qk, self.uk, a_beta) + self.model.B(self.tk, self.qk) @ Qk1 
-        kappa_ast = kappa_Nk1 + dt**2 * ( (0.5 - self.beta) * self.la_Nk + self.beta * la_Nk1 )
-        P_N = La_Nk1 + dt * ((1-self.gamma) * self.la_Nk + self.gamma * la_Nk1)
-        P_T = La_Tk1 + dt * ((1-self.gamma) * self.la_Tk + self.gamma * la_Tk1)
+
+        la_Nbark1 = (self.alpha_f * self.la_Nk + (1-self.alpha_f) * la_Nk1  - self.alpha_m * self.la_Nbark) / (1 - self.alpha_m)
+        kappa_ast = kappa_Nk1 + dt**2 * ( (0.5 - self.beta) * self.la_Nbark + self.beta * la_Nbark1 )
+        P_N = La_Nk1 + dt * ((1-self.gamma) * self.la_Nbark + self.gamma * la_Nbark1)
+
+        la_Tbark1 = (self.alpha_f * self.la_Tk + (1-self.alpha_f) * la_Tk1  - self.alpha_m * self.la_Tbark) / (1 - self.alpha_m)
+        P_T = La_Tk1 + dt * ((1-self.gamma) * self.la_Tbark + self.gamma * la_Tbark1)
 
         Mk1 = self.model.M(tk1, qk1)
         W_gk1 = self.model.W_g(tk1, qk1)
@@ -174,12 +193,17 @@ class Generalized_alpha_2():
         la_Tk1 = xk1[3*nu+nla_g+nla_gamma+3*nla_N+nla_T:3*nu+nla_g+nla_gamma+3*nla_N+2*nla_T]
 
         # update dependent variables
-        uk1 = self.uk + dt * ((1-self.gamma) * self.ak + self.gamma * ak1) + Uk1
-        a_beta = (0.5 - self.beta) * self.ak + self.beta * ak1 
-        qk1 = self.qk + dt * self.model.q_dot(self.tk, self.qk, self.uk) + dt2 * self.model.q_ddot(self.tk, self.qk, self.uk, a_beta) + self.model.B(self.tk, self.qk) @ Qk1
-        kappa_ast = kappa_Nk1 + dt**2 * ( (0.5 - self.beta) * self.la_Nk + self.beta * la_Nk1 )
-        P_N = La_Nk1 + dt * ((1-self.gamma) * self.la_Nk + self.gamma * la_Nk1)
-        P_T = La_Tk1 + dt * ((1-self.gamma) * self.la_Tk + self.gamma * la_Tk1)
+        a_bark1 = (self.alpha_f * self.ak + (1-self.alpha_f) * ak1  - self.alpha_m * self.a_bark) / (1 - self.alpha_m)
+        uk1 = self.uk + dt * ((1-self.gamma) * self.a_bark + self.gamma * a_bark1) + Uk1
+        a_beta = (0.5 - self.beta) * self.a_bark + self.beta * a_bark1 
+        qk1 = self.qk + dt * self.model.q_dot(self.tk, self.qk, self.uk) + dt2 * self.model.q_ddot(self.tk, self.qk, self.uk, a_beta) + self.model.B(self.tk, self.qk) @ Qk1 
+
+        # la_Nbark1 = (self.alpha_f * self.la_Nk + (1-self.alpha_f) * la_Nk1  - self.alpha_m * self.la_Nbark) / (1 - self.alpha_m)
+        # kappa_ast = kappa_Nk1 + dt**2 * ( (0.5 - self.beta) * self.la_Nbark + self.beta * la_Nbark1 )
+        # P_N = La_Nk1 + dt * ((1-self.gamma) * self.la_Nbark + self.gamma * la_Nbark1)
+
+        # la_Tbark1 = (self.alpha_f * self.la_Tk + (1-self.alpha_f) * la_Tk1  - self.alpha_m * self.la_Tbark) / (1 - self.alpha_m)
+        # P_T = La_Tk1 + dt * ((1-self.gamma) * self.la_Tbark + self.gamma * la_Tbark1)
         
 
         # R[3*nu+nla_g+nla_gamma:3*nu+nla_g+nla_gamma+nla_N] = kappa_ast - prox_Rn0(kappa_ast - self.model.prox_r_N * g_N)
@@ -236,6 +260,7 @@ class Generalized_alpha_2():
         # error = np.linalg.norm(diff[:self.nu, :self.nu], ord=inf)
         # error = np.max(np.abs(diff[:self.nu, :self.nu]))
         # error = np.linalg.norm(diff[self.nu:], ord=inf)
+        # error = np.linalg.norm(diff, ord=inf)
         # error = np.linalg.norm(diff[:self.nR_smooth], ord=inf)
         # error = np.linalg.norm(diff[self.nR_smooth:], ord=inf)
         # print(f'error R_x: {error:.3e}')
@@ -332,9 +357,9 @@ class Generalized_alpha_2():
 
         pbar = tqdm(np.arange(self.t0, self.t1, self.dt))
         for _ in pbar:
-            self.q_a = dt2 * self.beta * self.model.B(self.tk, self.qk)
+            self.q_a = dt2 * self.beta * self.alpha_ratio * self.model.B(self.tk, self.qk)
             self.q_Q = self.model.B(self.tk, self.qk)
-            self.u_a = dt * self.gamma
+            self.u_a = dt * self.gamma * self.alpha_ratio
 
             (converged, n_iter, error), tk1, ak1, Uk1, Qk1, la_gk1, la_gammak1, kappa_Nk1, La_Nk1, la_Nk1, La_Tk1, la_Tk1 = self.step()
             pbar.set_description(f't: {tk1:0.2e}s < {self.t1:0.2e}s; Newton: {n_iter}/{self.newton_max_iter} iterations; error: {error:0.2e}')
@@ -343,10 +368,19 @@ class Generalized_alpha_2():
                 raise RuntimeError(f'internal Newton-Raphson method not converged after {n_iter} steps with error: {error:.5e}')
             dt = self.dt
             dt2 = dt * dt
-            uk1 = self.uk + dt * ((1-self.gamma) * self.ak + self.gamma * ak1) + Uk1
-            a_beta = (0.5 - self.beta) * self.ak + self.beta * ak1 
-            qk1 = self.qk + dt * self.model.q_dot(self.tk, self.qk, self.uk) + dt2 * self.model.q_ddot(self.tk, self.qk, self.uk, a_beta) + self.model.B(self.tk, self.qk) @ Qk1
+            a_bark1 = (self.alpha_f * self.ak + (1-self.alpha_f) * ak1  - self.alpha_m * self.a_bark) / (1 - self.alpha_m)
+            uk1 = self.uk + dt * ((1-self.gamma) * self.a_bark + self.gamma * a_bark1) + Uk1
+            a_beta = (0.5 - self.beta) * self.a_bark + self.beta * a_bark1 
+            qk1 = self.qk + dt * self.model.q_dot(self.tk, self.qk, self.uk) + dt2 * self.model.q_ddot(self.tk, self.qk, self.uk, a_beta) + self.model.B(self.tk, self.qk) @ Qk1 
+
+            la_Nbark1 = (self.alpha_f * self.la_Nk + (1-self.alpha_f) * la_Nk1  - self.alpha_m * self.la_Nbark) / (1 - self.alpha_m)
+            P_N_ = La_Nk1 + dt * ((1-self.gamma) * self.la_Nbark + self.gamma * la_Nbark1)
+            
+            la_Tbark1 = (self.alpha_f * self.la_Tk + (1-self.alpha_f) * la_Tk1  - self.alpha_m * self.la_Tbark) / (1 - self.alpha_m)
+            P_T_ = La_Tk1 + dt * ((1-self.gamma) * self.la_Tbark + self.gamma * la_Tbark1)
+
             qk1, uk1 = self.model.solver_step_callback(tk1, qk1, uk1)
+
             t.append(tk1)
             q.append(qk1)
             u.append(uk1)
@@ -358,8 +392,8 @@ class Generalized_alpha_2():
             la_N.append(la_Nk1)
             La_T.append(La_Tk1)
             la_T.append(la_Tk1)
-            P_N.append( La_Nk1 + dt * ((1-self.gamma) * self.la_Nk + self.gamma * la_Nk1) )
-            P_T.append( La_Tk1 + dt * ((1-self.gamma) * self.la_Tk + self.gamma * la_Tk1) )
+            P_N.append( P_N_ )
+            P_T.append( P_T_ )
 
             # update local variables for accepted time step
             self.tk = tk1
@@ -374,6 +408,9 @@ class Generalized_alpha_2():
             self.la_Nk = la_Nk1
             self.La_Tk = La_Tk1
             self.la_Tk = la_Tk1
+            self.a_bark = a_bark1
+            self.la_Nbark = la_Nbark1
+            self.la_Tbark = la_Tbark1
 
         # write solution
         return Solution(t=np.array(t), q=np.array(q), u=np.array(u), a=np.array(a), la_g=np.array(la_g), la_gamma=np.array(la_gamma), kappa_P=np.array(kappa_N), La_N=np.array(La_N), la_N=np.array(la_N), La_T=np.array(La_T), la_T=np.array(la_T), P_N=np.array(P_N), P_T=np.array(P_T))
