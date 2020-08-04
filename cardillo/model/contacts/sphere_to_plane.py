@@ -48,7 +48,10 @@ class Sphere_to_plane():
         self.uDOF = self.subsystem.uDOF[uDOF]
         self.nu = len(self.uDOF)
 
-        self.K_r_SP = lambda t, q: self.K_r_SP_ - self.r * self.subsystem.A_IK(t, q, frame_ID=self.frame_ID).T @ self.n(t)
+        if self.r == 0:
+            self.K_r_SP = lambda t, q: self.K_r_SP_
+        else:
+            self.K_r_SP = lambda t, q: self.K_r_SP_ - self.r * self.subsystem.A_IK(t, q, frame_ID=self.frame_ID).T @ self.n(t)
         
         self.r_OP = lambda t, q: self.subsystem.r_OP(t, q, frame_ID=self.frame_ID, K_r_SP=self.K_r_SP(t, q))
         self.v_P = lambda t, q, u: self.subsystem.v_P(t, q, u, frame_ID=self.frame_ID, K_r_SP=self.K_r_SP(t, q))

@@ -149,16 +149,16 @@ if __name__ == "__main__":
         # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='LSODA')
 
 
-        import cProfile, pstats
-        pr = cProfile.Profile()
-        pr.enable()
+        # import cProfile, pstats
+        # pr = cProfile.Profile()
+        # pr.enable()
         sol = solver.solve()
-        pr.disable()
+        # pr.disable()
 
-        sortby = 'cumulative'
-        ps = pstats.Stats(pr).sort_stats(sortby)
-        ps.print_stats(0.05) # print only first 10% of the list
-        exit()
+        # sortby = 'cumulative'
+        # ps = pstats.Stats(pr).sort_stats(sortby)
+        # ps.print_stats(0.05) # print only first 10% of the list
+        # exit()
 
         t = sol.t
         q = sol.q
@@ -224,18 +224,17 @@ if __name__ == "__main__":
         d2 = A_IK[:, 1] * L / 4
         d3 = A_IK[:, 2] * L / 4
 
-        COM.set_data([x_S], [y_S])
-        COM.set_3d_properties([z_S])
+        COM.set_data(np.array([x_S]), np.array([y_S]))
+        COM.set_3d_properties(np.array([z_S]))
 
+        d1_.set_data(np.array([x_S, x_S + d1[0]]), np.array([y_S, y_S + d1[1]]))
+        d1_.set_3d_properties(np.array([z_S, z_S + d1[2]]))
 
-        d1_.set_data([x_S, x_S + d1[0]], [y_S, y_S + d1[1]])
-        d1_.set_3d_properties([z_S, z_S + d1[2]])
+        d2_.set_data(np.array([x_S, x_S + d2[0]]), np.array([y_S, y_S + d2[1]]))
+        d2_.set_3d_properties(np.array([z_S, z_S + d2[2]]))
 
-        d2_.set_data([x_S, x_S + d2[0]], [y_S, y_S + d2[1]])
-        d2_.set_3d_properties([z_S, z_S + d2[2]])
-
-        d3_.set_data([x_S, x_S + d3[0]], [y_S, y_S + d3[1]])
-        d3_.set_3d_properties([z_S, z_S + d3[2]])
+        d3_.set_data(np.array([x_S, x_S + d3[0]]), np.array([y_S, y_S + d3[1]]))
+        d3_.set_3d_properties(np.array([z_S, z_S + d3[2]]))
 
         return center_line, COM, d1_, d2_, d3_
 
