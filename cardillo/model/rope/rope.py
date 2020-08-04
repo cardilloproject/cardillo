@@ -81,9 +81,6 @@ class Rope(object):
                 self.xi[el] = qp
 
                 # evaluate B-spline shape functions
-                # N_dN = B_spline_basis(polynomial_degree, derivative_order, knot_vector, qp)
-                # self.N[el] = N_dN[:, 0]
-                # self.N_xi[el] = N_dN[:, 1]
                 self.N[el], self.N_xi[el] = B_spline_basis(polynomial_degree, derivative_order, knot_vector, qp)
             else:
                 # evaluate Gauss points and weights on [-1, 1]
@@ -123,6 +120,9 @@ class Rope(object):
         sum_xi = self.element_span[el + 1] + self.element_span[el]
         xi_tilde = (2 * xi - sum_xi) / diff_xi
         return Lagrange_basis(self.polynomial_degree, xi_tilde, derivative=False)
+        
+    def stack_shapefunctions(self, N):
+        return np.kron(np.eye(self.dim), N)
 
     def assembler_callback(self):
         self.__M_coo()
@@ -344,3 +344,124 @@ class Rope(object):
 
     def body_force_q(self, t, q, coo, force):
         pass
+
+class Inextensible_Rope(Rope):
+    def __init__(self, *args, la_g0=None, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.polynomial_degree_g = self.polynomial_degree
+        self.nn_el_g = self.polynomial_degree_g + 1 # number of nodes per element
+        self.nn_g = self.nEl + self.polynomial_degree_g # number of nodes
+        self.nq_n_g = 1 # number of degrees of freedom per node
+        self.nla_g = self.nn_g * self.nq_n_g
+        self.nla_g_el = self.nn_el_g * self.nq_n_g
+
+        # la_g0 = kwargs.get('la_g0')
+        self.la_g0 = np.zeros(self.nla_g) if la_g0 is None else la_g0
+        self.knot_vector_g = uniform_knot_vector(self.polynomial_degree_g, self.nEl) # uniform open knot vector
+        self.element_span_g = self.knot_vector_g[self.polynomial_degree_g:-self.polynomial_degree_g]
+
+        if self.B_splines:
+            row_offset = np.arange(self.nEl)
+            elDOF_row = (np.zeros((self.nq_n_g * self.nn_el_g, self.nEl), dtype=int) + row_offset).T
+            elDOF_tile = np.tile(np.arange(0, self.nn_el_g), self.nq_n_g)
+            elDOF_repeat = np.repeat(np.arange(0, self.nq_n_g * self.nn_g, step=self.nn_g), self.nn_el_g)
+            self.elDOF_g = elDOF_row + elDOF_tile + elDOF_repeat
+        else:
+            raise NotImplementedError('Lagrange shape functions are not supported yet')
+
+        # compute shape functions
+        self.N_g = np.empty((self.nEl, self.nQP, self.nn_el_g))
+        for el in range(self.nEl):
+            if self.B_splines:
+                # evaluate Gauss points and weights on [xi^el, xi^{el+1}]
+                qp, _ = gauss(self.nQP, self.element_span_g[el:el+2])
+
+                # evaluate B-spline shape functions
+                self.N_g[el] = B_spline_basis(self.polynomial_degree_g, 0, self.knot_vector_g, qp).squeeze()
+            else:
+                raise NotImplementedError('Lagrange shape functions are not supported yet')
+
+    def __g_el(self, qe, N, N_xi, N_g, J0, qw):
+        g = np.zeros(self.nla_g_el)
+
+        for Ni, N_xii, N_gi, J0i, qwi in zip(N, N_xi, N_g, J0, qw):
+            NN_xii = self.stack_shapefunctions(N_xii)
+
+            r_xi = NN_xii @ qe
+
+            g += (r_xi @ r_xi / J0i - J0i) * N_gi * qwi
+
+        return g
+
+    def __g_q_el(self, qe, N, N_xi, N_g, J0, qw):
+        g_q = np.zeros((self.nla_g_el, self.nq_el))
+
+        for Ni, N_xii, N_gi, J0i, qwi in zip(N, N_xi, N_g, J0, qw):
+            NN_xii = self.stack_shapefunctions(N_xii)
+
+            r_xi = NN_xii @ qe
+            
+            g_q += np.outer(2 * N_gi * qwi / J0i, r_xi @ NN_xii)
+
+        return g_q
+
+        # g_q_num = Numerical_derivative(lambda t, q: self.__g_el(q, N, N_xi, N_g, J0, qw), order=2)._x(0, qe)
+        # diff = g_q_num - g_q
+        # error = np.linalg.norm(diff)
+        # print(f'error g_q: {error}')
+        # return g_q_num
+
+    def __g_qq_el(self, qe, N, N_xi, N_g, J0, qw):
+        g_qq = np.zeros((self.nla_g_el, self.nq_el, self.nq_el))
+
+        for Ni, N_xii, N_gi, J0i, qwi in zip(N, N_xi, N_g, J0, qw):
+            NN_xii = self.stack_shapefunctions(N_xii)
+
+            g_qq += np.einsum('i,jl,jk->ikl', 2 * N_gi * qwi / J0i, NN_xii, NN_xii)
+
+        return g_qq
+
+        # g_qq_num = Numerical_derivative(lambda t, q: self.__g_q_el(q, N, N_xi, N_g, J0, qw), order=2)._x(0, qe)
+        # diff = g_qq_num - g_qq
+        # error = np.linalg.norm(diff)
+        # print(f'error g_qq: {error}')
+        # return g_qq_num
+
+    # global constraint functions
+    def g(self, t, q):
+        g = np.zeros(self.nla_g)
+        for el in range(self.nEl):
+            elDOF = self.elDOF[el]
+            elDOF_g = self.elDOF_g[el]
+            g[elDOF_g] += self.__g_el(q[elDOF], self.N[el], self.N_xi[el], self.N_g[el], self.J0[el], self.qw[el])
+        return g
+
+    def g_q(self, t, q, coo):
+        for el in range(self.nEl):
+            elDOF = self.elDOF[el]
+            elDOF_g = self.elDOF_g[el]
+            g_q = self.__g_q_el(q[elDOF], self.N[el], self.N_xi[el], self.N_g[el], self.J0[el], self.qw[el])
+            coo.extend(g_q, (self.la_gDOF[elDOF_g], self.qDOF[elDOF]))
+
+    def W_g(self, t, q, coo):
+        for el in range(self.nEl):
+            elDOF = self.elDOF[el]
+            elDOF_g = self.elDOF_g[el]
+            g_q = self.__g_q_el(q[elDOF], self.N[el], self.N_xi[el], self.N_g[el], self.J0[el], self.qw[el])
+            coo.extend(g_q.T, (self.uDOF[elDOF], self.la_gDOF[elDOF_g]))
+
+    def Wla_g_q(self, t, q, la_g, coo):
+        for el in range(self.nEl):
+            elDOF = self.elDOF[el]
+            elDOF_g = self.elDOF_g[el]
+            g_qq = self.__g_qq_el(q[elDOF], self.N[el], self.N_xi[el], self.N_g[el], self.J0[el], self.qw[el])
+            coo.extend(np.einsum('i,ijk->jk', la_g[elDOF_g], g_qq), (self.uDOF[elDOF], self.qDOF[elDOF]))
+
+    # # TODO:
+    # def g_dot(self, t, q, u):
+    #     g_dot = np.zeros(self.nla_g)
+    #     return g_dot
+
+    # def g_dot_u(self, t, q, scipy_matrix=coo_matrix):
+    #     pass

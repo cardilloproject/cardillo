@@ -1,4 +1,5 @@
-from cardillo.model.rope import Hooke, Rope
+from scipy.optimize.minpack import fixed_point
+from cardillo.model.rope import Hooke, Rope, Inextensible_Rope
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints.implicit import Spherical_joint
 from cardillo.model import Model
@@ -12,21 +13,26 @@ import matplotlib.animation as animation
 
 import numpy as np
 
-statics = True
-# statics = False
+# statics = True
+statics = False
 
 if __name__ == "__main__":
-    # # left joint
-    # r_OB1 = np.zeros(3)
-    # frame_left = Frame(r_OP=r_OB1)
-    # joint_left = Spherical_joint(frame_left, rope, r_OB1, frame_ID2=(0,))
+    # left joint
+    # r_OB1 = lambda t: np.array([L/2, 0, 0])
+    r_OB1 = lambda t: np.zeros(3)
+    r_OB1_t = lambda t: np.zeros(3)
+    r_OB1_tt = lambda t: np.zeros(3)
+    frame_left = Frame(r_OP=r_OB1)
 
-    omega = 2 * np.pi
-    a = 5
-    r_OB1 = lambda t: np.array([0, 0, a * np.sin(omega * t)])
-    r_OB1_t = lambda t: np.array([0, 0, a * omega * np.cos(omega * t)])
-    r_OB1_tt = lambda t: np.array([0, 0, -a * omega**2 * np.sin(omega * t)])
-    frame_left = Frame(r_OP=r_OB1, r_OP_t=r_OB1_t, r_OP_tt=r_OB1_tt)
+    # omega = 2 * np.pi
+    # a = 5
+    # # r_OB1 = lambda t: np.array([0, 0, a * np.sin(omega * t)])
+    # # r_OB1_t = lambda t: np.array([0, 0, a * omega * np.cos(omega * t)])
+    # # r_OB1_tt = lambda t: np.array([0, 0, -a * omega**2 * np.sin(omega * t)])
+    # r_OB1 = lambda t: np.array([L / 2 + a * np.sin(omega * t), 0, 0])
+    # r_OB1_t = lambda t: np.array([a * omega * np.cos(omega * t), 0, 0])
+    # r_OB1_tt = lambda t: np.array([-a * omega**2 * np.sin(omega * t), 0, 0])
+    # frame_left = Frame(r_OP=r_OB1, r_OP_t=r_OB1_t, r_OP_tt=r_OB1_tt)
     
     # physical properties of the rope
     dim = 3
@@ -58,22 +64,27 @@ if __name__ == "__main__":
             X0[i] = np.sum(Xi[i+1:i+p+1])
         X0 = X0 * L / p
     Y0 = np.zeros_like(X0)
+    # Y0 = np.random.rand(nNd) * 1.0e-1
     Z0 = np.zeros_like(X0)
     Q = np.hstack((X0, Y0, Z0))
+    # Q = np.hstack((Y0, Z0, -X0))
     u0 = np.zeros_like(Q)
     u0[0] = r_OB1_t(0)[0]
     u0[nNd] = r_OB1_t(0)[1]
     u0[2 * nNd] = r_OB1_t(0)[2]
 
-    q0 = np.hstack((X0, Y0, Z0)) * 1.2
+    # q0 = np.hstack((X0, Y0, Z0)) #* 1.2
+    q0 = np.hstack((Y0 + L / 2, Z0, -X0)) # * 1.1
 
     rope = Rope(A_rho0, material_model, p, nEl, nQP, Q=Q, q0=q0, u0=u0, B_splines=B_splines, dim=dim)
+    # la_g0=np.linspace(1, 0, num=nNd) * A_rho0 * L * 9.81
+    # rope = Inextensible_Rope(A_rho0, material_model, p, nEl, nQP, Q=Q, q0=q0, u0=u0, B_splines=B_splines, dim=dim)
 
     # left joint
     joint_left = Spherical_joint(frame_left, rope, r_OB1(0), frame_ID2=(0,))
 
     # right joint
-    r_OB2 = np.array([L, 0, 0]) * 1.2
+    r_OB2 = np.array([L, 0, 0]) #* 1.2
     frame_right = Frame(r_OP=r_OB2)
     joint_right = Spherical_joint(rope, frame_right, r_OB2, frame_ID1=(1,))
 
@@ -89,13 +100,31 @@ if __name__ == "__main__":
     model.add(rope)
     model.add(frame_left)
     model.add(joint_left)
-    model.add(frame_right)
-    model.add(joint_right)
+    # model.add(frame_right)
+    # model.add(joint_right)
     model.add(f_g)
     model.assemble()
 
+    # fig = plt.figure()
+    # ax = fig.add_subplot(111, projection='3d')
+    
+    # ax.set_xlabel('x [m]')
+    # ax.set_ylabel('y [m]')
+    # ax.set_zlabel('z [m]')
+    # scale = L
+    # ax.set_xlim3d(left=0, right=L)
+    # ax.set_ylim3d(bottom=-L/2, top=L/2)
+    # ax.set_zlim3d(bottom=-L/2, top=L/2)
+    
+    # x0, y0, z0 = q0.reshape((3, -1))
+    # center_line0, = ax.plot(x0, y0, z0, '-ok')
+
+    # plt.show()
+
+    # exit()
+
     if statics:
-        solver = Newton(model, n_load_stepts=10, max_iter=10, numerical_jacobian=False)
+        solver = Newton(model, n_load_stepts=20, max_iter=20, numerical_jacobian=False)
         sol = solver.solve()
         t = sol.t
         q = sol.q
@@ -105,13 +134,13 @@ if __name__ == "__main__":
         # exit()
     else:
         t0 = 0
-        t1 = 1
+        t1 = 3
         dt = 5e-3
-        # solver = Euler_backward(model, t1, dt, numerical_jacobian=False, debug=False)
-        # solver = Moreau(model, t1, dt)
+        solver = Euler_backward(model, t1, dt, numerical_jacobian=False, debug=False, newton_tol=1.0e-6)
+        # solver = Moreau(model, t1, dt, fix_point_tol=1.0e-6)
         # solver = Moreau_sym(model, t1, dt)
         # solver = Generalized_alpha_1(model, t1, dt=dt, variable_dt=True, t_eval=np.linspace(t0, t1, 100), rho_inf=0.75)
-        solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='RK23')
+        # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='RK23')
         # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='RK45')
         # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='DOP853')
         # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='Radau')
