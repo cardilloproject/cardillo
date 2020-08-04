@@ -416,6 +416,12 @@ class Model(object):
             contr.g_N_dot_u(t, q[contr.qDOF], coo)
         return coo.tosparse(scipy_matrix)
 
+    def Wla_N_q(self, t, q, la_N, scipy_matrix=coo_matrix):
+        coo = Coo((self.nu, self.nq))
+        for contr in self.__g_N_contr:
+            contr.Wla_N_q(t, q[contr.qDOF], la_N[contr.la_NDOF], coo)
+        return coo.tosparse(scipy_matrix)
+
     #========================================
     # contacts in tangential direction
     #========================================
@@ -442,6 +448,12 @@ class Model(object):
         coo = Coo((self.nu, self.nla_T))
         for contr in self.__gamma_T_contr:
             contr.W_T(t, q[contr.qDOF], coo)
+        return coo.tosparse(scipy_matrix)
+
+    def Wla_T_q(self, t, q, la_T, scipy_matrix=coo_matrix):
+        coo = Coo((self.nu, self.nq))
+        for contr in self.__gamma_T_contr:
+            contr.Wla_T_q(t, q[contr.qDOF], la_T[contr.la_TDOF], coo)
         return coo.tosparse(scipy_matrix)
     #========================================
     # contact force

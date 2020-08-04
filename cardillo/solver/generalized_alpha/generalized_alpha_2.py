@@ -1,3 +1,6 @@
+from math import inf
+from numpy.core.records import fromarrays
+from scipy.sparse import csc
 from cardillo.math.algebra import norm2
 import numpy as np
 from scipy.sparse.linalg import spsolve 
@@ -10,7 +13,7 @@ from cardillo.solver import Solution
 
 class Generalized_alpha_2():
     def __init__(self, model, t1, dt, beta=0.25, gamma=0.5,\
-                       newton_tol=1e-8, newton_max_iter=100, newton_error_function=lambda x: np.max(np.abs(x))):
+                       newton_tol=1e-8, newton_max_iter=30, newton_error_function=lambda x: np.max(np.abs(x))):
         
         self.model = model
 
@@ -33,7 +36,9 @@ class Generalized_alpha_2():
         self.nla_gamma = model.nla_gamma
         self.nla_N = model.nla_N
         self.nla_T = model.nla_T
-        self.nR = 3 * self.nu + self.nla_g + self.nla_gamma + 3 * self.nla_N + 2 * self.nla_T
+
+        self.nR_smooth = 3 * self.nu + self.nla_g + self.nla_gamma
+        self.nR = self.nR_smooth + 3 * self.nla_N + 2 * self.nla_T
 
         # self.Mk1 = model.M(t0, model.q0)
         # self.W_gk1 = self.model.W_g(t0, model.q0)
@@ -55,8 +60,9 @@ class Generalized_alpha_2():
         self.Qk = np.zeros(self.nu)
         self.Uk = np.zeros(self.nu)
 
-        self.__R_x = self.__R_x_num
-
+        # self.__R_x = self.__R_x_num
+        self.__R_x = self.__R_x_analytic
+        
     def __R(self, tk1, xk1):
         nu = self.nu
         nla_g = self.nla_g
@@ -123,31 +129,124 @@ class Generalized_alpha_2():
 
         offset = 0
         for i_N, i_T in enumerate(self.model.NT_connectivity):
-            if np.any(i_T):
+            nT = len(i_T)
+            if nT:
                 if I_N[i_N]:
                     # R[3*nu+nla_g+nla_gamma+3*nla_N+offset:3*nu+nla_g+nla_gamma+3*nla_N+offset+2] = La_Tk1[i_T] - prox_circle(La_Tk1[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T], self.model.mu[i_N] * La_Nk1[i_N])
                     # R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset:3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset+2] = la_Tk1[i_T] - prox_circle(la_Tk1[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T], self.model.mu[i_N] * la_Nk1[i_N])
-                    R[3*nu+nla_g+nla_gamma+3*nla_N+offset:3*nu+nla_g+nla_gamma+3*nla_N+offset+2] = P_T[i_T] - prox_circle(P_T[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T], self.model.mu[i_N] * P_N[i_N])
-                    if norm2( P_T[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T]) <= self.model.mu[i_N] * P_N[i_N]:
-                        R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset:3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset+2] = gamma_T_dot_post[i_T] 
+                    R[3*nu+nla_g+nla_gamma+3*nla_N+offset:3*nu+nla_g+nla_gamma+3*nla_N+offset+nT] = P_T[i_T] - prox_circle(P_T[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T], self.model.mu[i_N] * P_N[i_N])
+                    if np.linalg.norm( P_T[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T]) <= self.model.mu[i_N] * P_N[i_N]:
+                        R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset:3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset+nT] = gamma_T_dot_post[i_T] 
                     else:
-                        if norm2(gamma_T_post[i_T]) > 0:
-                            n = gamma_T_post[i_T] / norm2(gamma_T_post[i_T])
+                        if np.linalg.norm(gamma_T_post[i_T]) > 0:
+                            n = gamma_T_post[i_T] / np.linalg.norm(gamma_T_post[i_T])
                         else:
                             n = gamma_T_post[i_T]
-                        R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset:3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset+2] = la_Tk1[i_T] + self.model.mu[i_N] * la_Nk1[i_N] * n
+                        R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset:3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset+nT] = la_Tk1[i_T] + self.model.mu[i_N] * la_Nk1[i_N] * n
                 else:
                     # R[3*nu+nla_g+nla_gamma+3*nla_N+offset:3*nu+nla_g+nla_gamma+3*nla_N+offset+2] = La_Tk1[i_T]
-                    R[3*nu+nla_g+nla_gamma+3*nla_N+offset:3*nu+nla_g+nla_gamma+3*nla_N+offset+2] = P_T[i_T]
-                    R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset:3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset+2] = la_Tk1[i_T]
-                offset += 2
+                    R[3*nu+nla_g+nla_gamma+3*nla_N+offset:3*nu+nla_g+nla_gamma+3*nla_N+offset+nT] = P_T[i_T]
+                    R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset:3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset+nT] = la_Tk1[i_T]
+                offset += nT
         return R
+        
+    def __R_nonsmooth(self, tk1, xk1):
+        return self.__R(tk1, xk1)[self.nR_smooth:]
 
+    def __R_x_analytic(self, tk1, xk1):
+        nu = self.nu
+        nla_g = self.nla_g
+        nla_gamma = self.nla_gamma
+        nla_N = self.nla_N
+        nla_T = self.nla_T
+        dt = self.dt
+        dt2 = self.dt**2
+        
+        ak1 = xk1[:nu]
+        Uk1 = xk1[nu:2*nu]
+        Qk1 = xk1[2*nu:3*nu]
+        la_gk1 = xk1[3*nu:3*nu+nla_g]
+        la_gammak1 = xk1[3*nu+nla_g:3*nu+nla_g+nla_gamma]
+        kappa_Nk1 = xk1[3*nu+nla_g+nla_gamma:3*nu+nla_g+nla_gamma+nla_N]
+        La_Nk1 = xk1[3*nu+nla_g+nla_gamma+nla_N:3*nu+nla_g+nla_gamma+2*nla_N]
+        la_Nk1 = xk1[3*nu+nla_g+nla_gamma+2*nla_N:3*nu+nla_g+nla_gamma+3*nla_N]
+        La_Tk1 = xk1[3*nu+nla_g+nla_gamma+3*nla_N:3*nu+nla_g+nla_gamma+3*nla_N+nla_T]
+        la_Tk1 = xk1[3*nu+nla_g+nla_gamma+3*nla_N+nla_T:3*nu+nla_g+nla_gamma+3*nla_N+2*nla_T]
+
+        # update dependent variables
+        uk1 = self.uk + dt * ((1-self.gamma) * self.ak + self.gamma * ak1) + Uk1
+        a_beta = (0.5 - self.beta) * self.ak + self.beta * ak1 
+        qk1 = self.qk + dt * self.model.q_dot(self.tk, self.qk, self.uk) + dt2 * self.model.q_ddot(self.tk, self.qk, self.uk, a_beta) + self.model.B(self.tk, self.qk) @ Qk1
+        kappa_ast = kappa_Nk1 + dt**2 * ( (0.5 - self.beta) * self.la_Nk + self.beta * la_Nk1 )
+        P_N = La_Nk1 + dt * ((1-self.gamma) * self.la_Nk + self.gamma * la_Nk1)
+        P_T = La_Tk1 + dt * ((1-self.gamma) * self.la_Tk + self.gamma * la_Tk1)
+        
+
+        # R[3*nu+nla_g+nla_gamma:3*nu+nla_g+nla_gamma+nla_N] = kappa_ast - prox_Rn0(kappa_ast - self.model.prox_r_N * g_N)
+
+        Mk1 = self.model.M(tk1, qk1)
+        W_gk1 = self.model.W_g(tk1, qk1)
+        W_gammak1 = self.model.W_gamma(tk1, qk1)
+        W_Nk1 = self.model.W_N(tk1, qk1, scipy_matrix=csc_matrix)
+        W_Tk1 = self.model.W_T(tk1, qk1, scipy_matrix=csc_matrix)
+
+        # R[:nu] = Mk1 @ ak1 - ( self.model.h(tk1, qk1, uk1) + W_gk1 @ la_gk1 + W_gammak1 @ la_gammak1 + W_Nk1 @ la_Nk1 + W_Tk1 @ la_Tk1)
+        Ra_q = self.model.Mu_q(tk1, qk1, ak1) - (self.model.h_q(tk1, qk1, uk1) + self.model.Wla_g_q(tk1, qk1, la_gk1) + self.model.Wla_gamma_q(tk1, qk1, la_gammak1) + self.model.Wla_N_q(tk1, qk1, la_Nk1) + self.model.Wla_T_q(tk1, qk1, la_Tk1))
+        Ra_u = -self.model.h_u(tk1, qk1, uk1)
+        Ra_a = Mk1 + Ra_q @ self.q_a + Ra_u * self.u_a
+        Ra_U = Ra_u
+        Ra_Q = Ra_q @ self.q_Q
+        
+        # R[nu:2*nu] = Mk1 @ Uk1 - W_Nk1 @ La_Nk1 - W_Tk1 @ La_Tk1
+        RU_q = self.model.Mu_q(tk1, qk1, Uk1) - self.model.Wla_N_q(tk1, qk1, La_Nk1) - self.model.Wla_T_q(tk1, qk1, La_Tk1)
+        RU_a = RU_q @ self.q_a
+        RU_Q = RU_q @ self.q_Q
+        
+        # R[2*nu:3*nu] = Mk1 @ Qk1 - W_Nk1 @ kappa_Nk1
+        RQ_q = self.model.Mu_q(tk1, qk1, Qk1) - self.model.Wla_N_q(tk1, qk1, kappa_Nk1)
+        RQ_a = RQ_q @ self.q_a
+        RQ_Q = Mk1 + RQ_q @ self.q_Q
+
+        # R[3*nu:3*nu+nla_g] = self.model.g(tk1, qk1)
+        Rla_g_q = self.model.g_q(tk1, qk1)
+        Rla_g_a = Rla_g_q @ self.q_a
+        Rla_g_Q = Rla_g_q @ self.q_Q
+
+        # R[3*nu+nla_g:3*nu+nla_g+nla_gamma] = self.model.gamma(tk1, qk1, uk1)
+        Rla_gamma_q = self.model.gamma_q(tk1, qk1, uk1) 
+        Rla_gamma_u = self.model.gamma_u(tk1, qk1) # == Rla_gamma_U
+        Rla_gamma_a = Rla_gamma_q @ self.q_a + Rla_gamma_u * self.u_a
+        Rla_gamma_Q = Rla_gamma_q @ self.q_Q
+        
+        R_x_smooth =  bmat([[Ra_a, Ra_U, Ra_Q, -W_gk1,  -W_gammak1, None,     None, -W_Nk1,   None, -W_Tk1], \
+                         [RU_a,  Mk1, RU_Q,   None,        None, None,   -W_Nk1,   None, -W_Tk1,   None], \
+                         [RQ_a,  None, RQ_Q,   None,        None, -W_Nk1,   None,   None,   None,   None], \
+                         [Rla_g_a,  None, Rla_g_Q,   None,        None, None,   None,   None,   None,   None], \
+                         [Rla_gamma_a, Rla_gamma_u, Rla_gamma_Q, None, None, None, None, None, None, None] \
+                         ], format='coo')
+
+        R_x_nonsmooth = coo_matrix(Numerical_derivative(self.__R_nonsmooth, order=2)._x(tk1, xk1))
+
+        R_x =  bmat([[R_x_smooth], \
+                     [R_x_nonsmooth]], format='csc')
+
+        # R_x_num = Numerical_derivative(self.__R, order=2)._x(tk1, xk1)
+
+        # diff = R_x_num - R_x.toarray()
+        # error = np.linalg.norm(diff[:self.nu, :self.nu], ord=inf)
+        # error = np.max(np.abs(diff[:self.nu, :self.nu]))
+        # error = np.linalg.norm(diff[self.nu:], ord=inf)
+        # error = np.linalg.norm(diff[:self.nR_smooth], ord=inf)
+        # error = np.linalg.norm(diff[self.nR_smooth:], ord=inf)
+        # print(f'error R_x: {error:.3e}')
+        
+        # print(f'max(abs(R_x)): {np.max(np.abs(R_x_num[:self.nu, :self.nu])):.3e}')
+
+        # return csc_matrix(R_x_num)
+        return R_x
 
     def __R_x_num(self, tk1, xk1):
-
         R_x_num = Numerical_derivative(self.__R, order=2)._x(tk1, xk1)
-
         return csc_matrix( R_x_num )
     
     def step(self):
@@ -213,6 +312,9 @@ class Generalized_alpha_2():
         return (converged, j, error), tk1, ak1, Uk1, Qk1, la_gk1, la_gammak1, kappa_Nk1, La_Nk1, la_Nk1, La_Tk1, la_Tk1
 
     def solve(self): 
+        dt = self.dt
+        dt2 = self.dt**2
+
         # lists storing output variables
         t = [self.tk]
         q = [self.qk]
@@ -230,6 +332,10 @@ class Generalized_alpha_2():
 
         pbar = tqdm(np.arange(self.t0, self.t1, self.dt))
         for _ in pbar:
+            self.q_a = dt2 * self.beta * self.model.B(self.tk, self.qk)
+            self.q_Q = self.model.B(self.tk, self.qk)
+            self.u_a = dt * self.gamma
+
             (converged, n_iter, error), tk1, ak1, Uk1, Qk1, la_gk1, la_gammak1, kappa_Nk1, La_Nk1, la_Nk1, La_Tk1, la_Tk1 = self.step()
             pbar.set_description(f't: {tk1:0.2e}s < {self.t1:0.2e}s; Newton: {n_iter}/{self.newton_max_iter} iterations; error: {error:0.2e}')
             

@@ -387,7 +387,7 @@ class Euler_bernoulli2D():
         return np.zeros((3, self.nq_el, self.nq_el))
 
     def K_Omega(self, t, q, u, frame_ID):
-        _, dNN, _ = self.__basis_functions(frame_ID)
+        _, dNN = self.__basis_functions(frame_ID)
         t = dNN @ q
         t_perp = np.array([-t[1], t[0]])
         g2_ = t[0] * t[0] + t[1] * t[1]
@@ -395,6 +395,19 @@ class Euler_bernoulli2D():
         phi_dot = t_perp @ t_dot / g2_
 
         return np.array([0, 0, phi_dot])
+
+    def K_Psi(self, t, q, u, u_dot, frame_ID):
+        _, dNN = self.__basis_functions(frame_ID)
+        t = dNN @ q
+        t_perp = np.array([-t[1], t[0]])
+        g2_ = t[0] * t[0] + t[1] * t[1]
+        g4_ = g2_ * g2_
+        t_dot = dNN @ u
+        t_dot_perp = np.array([-t_dot[1], t_dot[0]])
+        t_ddot = dNN @ u_dot
+        phi_ddot = (t_perp @ t_ddot + t_dot @ t_dot_perp) / g2_ - (t_perp @ t_dot) / g4_ * 2 * t @ t_dot
+
+        return np.array([0, 0, phi_ddot])
 
     def K_J_R(self, t, q, frame_ID):
         _, dNN = self.__basis_functions(frame_ID)
@@ -408,9 +421,8 @@ class Euler_bernoulli2D():
 
     # TODO
     def K_J_R_q(self, t, q, frame_ID):
-        return Numerical_derivative(lambda t, q: self.K_J_R(t, q, frame_ID=frame_ID))._x(t, q)
+        return Numerical_derivative(lambda t, q: self.K_J_R(t, q, frame_ID=frame_ID), order=2)._x(t, q)
 
-    # TODO!
     ####################################################
     # body force
     ####################################################
