@@ -361,7 +361,7 @@ class Inextensible_Rope(Rope):
     def __init__(self, *args, la_g0=None, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.polynomial_degree_g = self.polynomial_degree
+        self.polynomial_degree_g = self.polynomial_degree - 1
         self.nn_el_g = self.polynomial_degree_g + 1 # number of nodes per element
         self.nn_g = self.nEl + self.polynomial_degree_g # number of nodes
         self.nq_n_g = 1 # number of degrees of freedom per node
@@ -394,10 +394,10 @@ class Inextensible_Rope(Rope):
             else:
                 raise NotImplementedError('Lagrange shape functions are not supported yet')
 
-    def __g_el(self, qe, N, N_xi, N_g, J0, qw):
+    def __g_el(self, qe, N_xi, N_g, J0, qw):
         g = np.zeros(self.nla_g_el)
 
-        for Ni, N_xii, N_gi, J0i, qwi in zip(N, N_xi, N_g, J0, qw):
+        for N_xii, N_gi, J0i, qwi in zip(N_xi, N_g, J0, qw):
             NN_xii = self.stack_shapefunctions(N_xii)
 
             r_xi = NN_xii @ qe
@@ -406,10 +406,37 @@ class Inextensible_Rope(Rope):
 
         return g
 
-    def __g_q_el(self, qe, N, N_xi, N_g, J0, qw):
+    def __g_dot_el(self, qe, ue, N_xi, N_g, J0, qw):
+        g_dot = np.zeros(self.nla_g_el)
+
+        for N_xii, N_gi, J0i, qwi in zip(N_xi, N_g, J0, qw):
+            NN_xii = self.stack_shapefunctions(N_xii)
+
+            r_xi = NN_xii @ qe
+            r_xi_dot = NN_xii @ ue
+
+            g_dot += 2 * r_xi @ r_xi_dot / J0i * N_gi * qwi
+
+        return g_dot
+
+    def __g_ddot_el(self, qe, ue, ue_dot, N_xi, N_g, J0, qw):
+        g_ddot = np.zeros(self.nla_g_el)
+
+        for N_xii, N_gi, J0i, qwi in zip(N_xi, N_g, J0, qw):
+            NN_xii = self.stack_shapefunctions(N_xii)
+
+            r_xi = NN_xii @ qe
+            r_xi_dot = NN_xii @ ue
+            r_xi_ddot = NN_xii @ ue_dot
+
+            g_ddot += (r_xi @ r_xi_ddot + r_xi_dot @ r_xi_dot) * 2 / J0i * N_gi * qwi
+
+        return g_ddot
+
+    def __g_q_el(self, qe, N_xi, N_g, J0, qw):
         g_q = np.zeros((self.nla_g_el, self.nq_el))
 
-        for Ni, N_xii, N_gi, J0i, qwi in zip(N, N_xi, N_g, J0, qw):
+        for N_xii, N_gi, J0i, qwi in zip(N_xi, N_g, J0, qw):
             NN_xii = self.stack_shapefunctions(N_xii)
 
             r_xi = NN_xii @ qe
@@ -424,10 +451,10 @@ class Inextensible_Rope(Rope):
         # print(f'error g_q: {error}')
         # return g_q_num
 
-    def __g_qq_el(self, qe, N, N_xi, N_g, J0, qw):
+    def __g_qq_el(self, N_xi, N_g, J0, qw):
         g_qq = np.zeros((self.nla_g_el, self.nq_el, self.nq_el))
 
-        for Ni, N_xii, N_gi, J0i, qwi in zip(N, N_xi, N_g, J0, qw):
+        for N_xii, N_gi, J0i, qwi in zip(N_xi, N_g, J0, qw):
             NN_xii = self.stack_shapefunctions(N_xii)
 
             g_qq += np.einsum('i,jl,jk->ikl', 2 * N_gi * qwi / J0i, NN_xii, NN_xii)
@@ -446,34 +473,50 @@ class Inextensible_Rope(Rope):
         for el in range(self.nEl):
             elDOF = self.elDOF[el]
             elDOF_g = self.elDOF_g[el]
-            g[elDOF_g] += self.__g_el(q[elDOF], self.N[el], self.N_xi[el], self.N_g[el], self.J0[el], self.qw[el])
+            g[elDOF_g] += self.__g_el(q[elDOF], self.N_xi[el], self.N_g[el], self.J0[el], self.qw[el])
         return g
 
     def g_q(self, t, q, coo):
         for el in range(self.nEl):
             elDOF = self.elDOF[el]
             elDOF_g = self.elDOF_g[el]
-            g_q = self.__g_q_el(q[elDOF], self.N[el], self.N_xi[el], self.N_g[el], self.J0[el], self.qw[el])
+            g_q = self.__g_q_el(q[elDOF], self.N_xi[el], self.N_g[el], self.J0[el], self.qw[el])
             coo.extend(g_q, (self.la_gDOF[elDOF_g], self.qDOF[elDOF]))
 
     def W_g(self, t, q, coo):
         for el in range(self.nEl):
             elDOF = self.elDOF[el]
             elDOF_g = self.elDOF_g[el]
-            g_q = self.__g_q_el(q[elDOF], self.N[el], self.N_xi[el], self.N_g[el], self.J0[el], self.qw[el])
+            g_q = self.__g_q_el(q[elDOF], self.N_xi[el], self.N_g[el], self.J0[el], self.qw[el])
             coo.extend(g_q.T, (self.uDOF[elDOF], self.la_gDOF[elDOF_g]))
 
     def Wla_g_q(self, t, q, la_g, coo):
         for el in range(self.nEl):
             elDOF = self.elDOF[el]
             elDOF_g = self.elDOF_g[el]
-            g_qq = self.__g_qq_el(q[elDOF], self.N[el], self.N_xi[el], self.N_g[el], self.J0[el], self.qw[el])
+            g_qq = self.__g_qq_el(self.N_xi[el], self.N_g[el], self.J0[el], self.qw[el])
             coo.extend(np.einsum('i,ijk->jk', la_g[elDOF_g], g_qq), (self.uDOF[elDOF], self.qDOF[elDOF]))
 
-    # # TODO:
-    # def g_dot(self, t, q, u):
-    #     g_dot = np.zeros(self.nla_g)
-    #     return g_dot
+    # TODO:
+    def g_dot(self, t, q, u):
+        g_dot = np.zeros(self.nla_g)
+        for el in range(self.nEl):
+            elDOF = self.elDOF[el]
+            elDOF_g = self.elDOF_g[el]
+            g_dot[elDOF_g] += self.__g_dot_el(q[elDOF], u[elDOF], self.N_xi[el], self.N_g[el], self.J0[el], self.qw[el])
+        return g_dot
 
-    # def g_dot_u(self, t, q, scipy_matrix=coo_matrix):
-    #     pass
+    def g_ddot(self, t, q, u, u_dot):
+        g_ddot = np.zeros(self.nla_g)
+        for el in range(self.nEl):
+            elDOF = self.elDOF[el]
+            elDOF_g = self.elDOF_g[el]
+            g_ddot[elDOF_g] += self.__g_ddot_el(q[elDOF], u[elDOF], u_dot[elDOF], self.N_xi[el], self.N_g[el], self.J0[el], self.qw[el])
+        return g_ddot
+
+    def g_dot_u(self, t, q, coo):
+        for el in range(self.nEl):
+            elDOF = self.elDOF[el]
+            elDOF_g = self.elDOF_g[el]
+            g_dot_u = self.__g_q_el(q[elDOF], self.N_xi[el], self.N_g[el], self.J0[el], self.qw[el])
+            coo.extend(g_dot_u, (self.la_gDOF[elDOF_g], self.uDOF[elDOF]))

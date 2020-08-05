@@ -1,6 +1,6 @@
 from cardillo.model.classical_beams.planar import Hooke, Euler_bernoulli, Inextensible_Euler_bernoulli
 from cardillo.model.frame import Frame
-from cardillo.model.bilateral_constraints.implicit import Rigid_connection2D
+from cardillo.model.bilateral_constraints.implicit import Rigid_connection2D, Spherical_joint2D
 from cardillo.model import Model
 from cardillo.solver import Newton, Euler_backward, Generalized_alpha_1
 from cardillo.discretization import uniform_knot_vector
@@ -15,6 +15,9 @@ import numpy as np
 statics = False
 
 if __name__ == "__main__":
+    t1 = 200
+    dt = 5e-1
+
     L = 2 * np.pi
     EA = 5
     EI = 2
@@ -26,7 +29,7 @@ if __name__ == "__main__":
     frame_left = Frame(r_OP=r_OB1)
 
     # discretization properties
-    p = 2
+    p = 3
     assert p >= 2
     nQP = int(np.ceil((p + 1)**2 / 2))
     print(f'nQP: {nQP}')
@@ -43,18 +46,21 @@ if __name__ == "__main__":
 
     Q = np.hstack((X0, Y0))
     q0 = np.hstack((X0, Y0))
+    # q0 = np.hstack((Y0, -X0))
     u0 = np.zeros_like(Q)
 
     bernoulli = Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q=Q, q0=q0, u0=u0)
     inextensible_bernoulli = Inextensible_Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q=Q, q0=q0, u0=u0)
-    beams = [bernoulli, inextensible_bernoulli]
+    # beams = [bernoulli, inextensible_bernoulli]
+    beams = [inextensible_bernoulli, bernoulli]
 
     sols = []
     for beam in beams:
         model = Model()
         model.add(beam)
         model.add(frame_left)
-        model.add(Rigid_connection2D(frame_left, beam, r_OB1, frame_ID2=(0,), la_g0=np.ones(3)*1.0e-6))
+        model.add(Rigid_connection2D(frame_left, beam, r_OB1, frame_ID2=(0,)))
+        # model.add(Spherical_joint2D(frame_left, beam, r_OB1, frame_ID2=(0,), la_g0=np.ones(2)*1.0e-6))
 
         if statics:
             F = lambda t: t * np.array([0, -EI * alpha2 / L**2, 0])
@@ -67,8 +73,6 @@ if __name__ == "__main__":
         if statics:
             solver = Newton(model, n_load_stepts=20, max_iter=20, tol=1.0e-6, numerical_jacobian=False)
         else:
-            t1 = 200
-            dt = 1e-1
             solver = Euler_backward(model, t1, dt, newton_max_iter=50, numerical_jacobian=False)
             # solver = Generalized_alpha_1(model, t1, dt, variable_dt=False, rho_inf=0.5)
         sols.append( solver.solve() )

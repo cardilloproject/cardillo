@@ -448,7 +448,7 @@ class Inextensible_Euler_bernoulli(Euler_bernoulli):
     def __init__(self, *args, la_g0=None, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.polynomial_degree_g = self.polynomial_degree
+        self.polynomial_degree_g = self.polynomial_degree - 1
         self.nn_el_g = self.polynomial_degree_g + 1 # number of nodes per element
         self.nn_g = self.nEl + self.polynomial_degree_g # number of nodes
         self.nq_n_g = 1 # number of degrees of freedom per node

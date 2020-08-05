@@ -19,41 +19,63 @@ statics = False
 if __name__ == "__main__":
     # dynamic solver
     t0 = 0
-    t1 = 20
-    dt = 5e-2
+    t1 = 1
+    dt = 5e-3
     
     # physical properties of the rope
     dim = 3
-    assert dim == 3
     L = 2 * np.pi
     EA = 1.0e3
     material_model = Hooke(EA)
-    A_rho0 = 1e-1
+    A_rho0 = 1e0
 
-    # left joint
-    # r_OB1 = lambda t: np.array([0, L, 0])
-    r_OB1 = lambda t: np.zeros(3)
-    r_OB1_t = lambda t: np.zeros(3)
-    r_OB1_tt = lambda t: np.zeros(3)
-    frame0 = Frame(r_OP=r_OB1)
+    # # left joint
+    # omega = 2 * np.pi
+    # a = 0.5
+    # r_OB1 = lambda t: np.array([a * np.sin(omega * t), 0, 0])
+    # r_OB1_t = lambda t: np.array([a * omega * np.cos(omega * t), 0, 0])
+    # r_OB1_tt = lambda t: np.array([-a * omega**2 * np.sin(omega * t), 0, 0])
+    # frame0 = Frame(r_OP=r_OB1, r_OP_t=r_OB1_t, r_OP_tt=r_OB1_tt)
 
-    omega = 2 * np.pi
-    a = 5
+    c1 = np.array([-5, 0, 0]) / t1
+    r_OB1 = lambda t: t**2 * c1
+    r_OB1_t = lambda t: 2 * t * c1
+    r_OB1_tt = lambda t: 2 * c1
+    # r_OB1 = lambda t: t * c1
+    # r_OB1_t = lambda t: c1
+    # r_OB1_tt = lambda t: np.zeros(3)
+    # r_OB1 = lambda t: np.zeros(3)
+    # r_OB1_t = lambda t: np.zeros(3)
+    # r_OB1_tt = lambda t: np.zeros(3)
+    frame0 = Frame(r_OP=r_OB1, r_OP_t=r_OB1_t, r_OP_tt=r_OB1_tt)
+
+    # omega = 2 * np.pi
+    # a = 5
     # r_OB2 = lambda t: np.array([0, -L, 0]) + min(t, 0.5) * np.array([L/2, 0, 0]) + max(2*t-1, 0) * np.array([0, L/2, 0])
     # r_OB2_t = lambda t: np.array([L/2, L, 0]) if t <=1 else np.zeros(3)
     # r_OB2_tt = lambda t: np.zeros(3)
     # frame1 = Frame(r_OP=r_OB2, r_OP_t=r_OB2_t, r_OP_tt=r_OB2_tt)
-    r_OB2 = lambda t: np.array([L, 0, 0]) - min(1, max(3/t1*t-1, 0)) * np.array([0.5*L, 0, 0])
-    frame1 = Frame(r_OP=r_OB2)
+    # r_OB2 = lambda t: np.array([0, -L, 0]) + min(1, max(3/t1*t-1, 0)) * np.array([0.25*L, 0.5*L, 0])
+    # c = np.array([0.5*L, L, 0]) * 0
+    # r_OB2 = lambda t: np.array([0, -L, 0]) + t * c / t1
+    # r_OB2_t = lambda t: c / t1
+    # r_OB2_tt = lambda t: np.zeros(3)
+    # c2 = np.array([0.25*L, 0.5*L, 0])
+    c2 = np.array([0, 0.5*L, 0])
+    # c2 = np.zeros(3)
+    r_OB2 = lambda t: t**2 * c2
+    r_OB2_t = lambda t: 2 * t * c2
+    r_OB2_tt = lambda t: 2 * c2
+    frame1 = Frame(r_OP=r_OB2, r_OP_t=r_OB2_t, r_OP_tt=r_OB2_tt)
 
     # discretization properties
     B_splines = True
     # B_splines = False
-    p = 3
+    p = 2
     nQP = int(np.ceil((p + 1)**2 / 2))
-    # nQP = 2
+    # nQP = 3
     print(f'nQP: {nQP}')
-    nEl = 5
+    nEl = 10
 
     # build reference configuration
     if B_splines:
@@ -69,38 +91,67 @@ if __name__ == "__main__":
             X0[i] = np.sum(Xi[i+1:i+p+1])
         X0 = X0 * L / p
 
-    Q = np.hstack((X0, Y0, Z0))
+    if dim == 2:
+        Q = np.hstack((X0, Y0))
+    else:
+        Q = np.hstack((X0, Y0, Z0))
+
     u0 = np.zeros_like(Q)
     u0[0] = r_OB1_t(0)[0]
     u0[nNd] = r_OB1_t(0)[1]
-    u0[2 * nNd] = r_OB1_t(0)[2]
+    if dim == 3:
+        u0[2 * nNd] = r_OB1_t(0)[2]
 
-    q0 = np.hstack((X0, Y0, Z0))
+    u0[nNd-1] = r_OB2_t(0)[0]
+    u0[2*nNd-1] = r_OB2_t(0)[1]
+    if dim == 3:
+        u0[3*nNd-1] = r_OB2_t(0)[2]
 
-    # rope_ = Rope(A_rho0, material_model, p, nEl, nQP, Q=Q, q0=q0, u0=u0, B_splines=B_splines, dim=dim)
-    inextensible_rope = Inextensible_Rope(A_rho0, material_model, p, nEl, nQP, Q=Q, q0=q0, u0=u0, B_splines=B_splines, dim=dim)
+    if dim == 2:
+        q0 = np.hstack((Y0, -X0))
+    else:
+        # q0 = np.hstack((X0, Y0, Z0))
+        q0 = np.hstack((Y0, -X0, Z0))
+
+    rope_ = Rope(A_rho0, material_model, p, nEl, nQP, Q=Q, q0=q0, u0=u0, B_splines=B_splines, dim=dim)
+    # inextensible_rope = Inextensible_Rope(A_rho0, material_model, p, nEl, nQP, Q=Q, q0=q0, u0=u0, B_splines=B_splines, dim=dim)
     # ropes = [rope_, inextensible_rope]
-    # ropes = [rope_]
-    ropes = [inextensible_rope]
+    # ropes = [inextensible_rope, rope_]
+    ropes = [rope_]
+    # ropes = [inextensible_rope]
 
     sols = []
     for rope in ropes:
         # left joint
-        la_g0 = np.ones(3)*1.0e-6
-        # la_g0 = np.zeros(3)
-        joint_left = Spherical_joint(frame0, rope, r_OB1(0), frame_ID2=(0,), la_g0=la_g0)
+        if dim == 2:
+            # la_g0 = np.random.rand(3)*1.0e-6
+            la_g0 = np.ones(2)*1.0e-6
+            # la_g0 = np.zeros(3)
+            joint_left = Spherical_joint2D(frame0, rope, r_OB1(0), frame_ID2=(0,), la_g0=la_g0)
+        else:
+            # la_g0 = np.random.rand(3)*1.0e-6
+            la_g0 = np.ones(3)*1.0e-6
+            # la_g0 = np.zeros(3)
+            joint_left = Spherical_joint(frame0, rope, r_OB1(0), frame_ID2=(0,), la_g0=la_g0)
 
         # right joint
-        joint_right = Spherical_joint(rope, frame1, r_OB2(0), frame_ID1=(1,), la_g0=la_g0)
+        if dim == 2:
+            joint_right = Spherical_joint2D(rope, frame1, r_OB2(0), frame_ID2=(1,), la_g0=la_g0)
+        else:
+            # la_g0 = np.random.rand(3)*1.0e-6
+            la_g0 = np.ones(3)*1.0e-6
+            # la_g0 = np.zeros(3)
+            joint_right = Spherical_joint(rope, frame1, r_OB2(0), frame_ID1=(1,), la_g0=la_g0)
 
         # gravity
-        g = np.array([0, - A_rho0 * L * 9.81, 0]) * 1.0e-1
+        fg = np.array([0, - A_rho0 * 9.81, 0]) * 1.0e0
         if statics:
-            # # f_g = Line_force(lambda xi, t: max(0, min(t, 0.5)) * 2 * g, rope)
-            # f_g = Line_force(lambda xi, t: (t - 0.5) * 2 * g if t >= 0.5 else np.zeros(3), rope)
-            f_g = Line_force(lambda xi, t: t * g, rope)
+            # # f_g = Line_force(lambda xi, t: max(0, min(t, 0.5)) * 2 * fg, rope)
+            # f_g = Line_force(lambda xi, t: (t - 0.5) * 2 * fg if t >= 0.5 else np.zeros(3), rope)
+            f_g = Line_force(lambda xi, t: t * fg, rope)
         else:
-            f_g = Line_force(lambda xi, t: g, rope)
+            # f_g = Line_force(lambda xi, t: t / t1 * g, rope)
+            f_g = Line_force(lambda xi, t: fg, rope)
 
         # assemble the model
         model = Model()
@@ -109,18 +160,18 @@ if __name__ == "__main__":
         model.add(joint_left)
         model.add(frame1)
         model.add(joint_right)
-        model.add(f_g)
+        # model.add(f_g)
         model.assemble()
 
         if statics:
-            solver = Newton(model, n_load_steps=20, max_iter=30, numerical_jacobian=True, tol=1.0e-6)
+            solver = Newton(model, n_load_steps=10, max_iter=30, numerical_jacobian=True, tol=1.0e-6)
         else:
-            solver = Euler_backward(model, t1, dt, numerical_jacobian=False, debug=False, newton_tol=1.0e-6)
+            # solver = Euler_backward(model, t1, dt, numerical_jacobian=False, debug=False, newton_tol=1.0e-6)
             # solver = Moreau(model, t1, dt, fix_point_tol=1.0e-6)
             # solver = Moreau_sym(model, t1, dt)
             # solver = Generalized_alpha_1(model, t1, dt=dt, variable_dt=True, t_eval=np.linspace(t0, t1, 100), rho_inf=0.75)
-            # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='RK23')
-            # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='RK45')
+            solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='RK23')
+            # solver = Scipy_ivp(model, t1, dt, atol=1.e-1, method='RK45')
             # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='DOP853')
             # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='Radau')
             # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='BDF')
@@ -134,12 +185,14 @@ if __name__ == "__main__":
     ax.set_ylim([-1.5*L, 1.5*L])
     ax.grid(linestyle='-', linewidth='0.5')
     if statics:
-        x, y, _ = rope_.centerline(sols[0].q[-1]).T
-        ax.plot(x, y, '-k', linewidth=4)
-        ax.plot(*sols[0].q[-1].reshape(3, -1)[:2], '--ob')
+        raise RuntimeError('TODO!')
+        # x, y, _ = rope_.centerline(sols[0].q[-1]).T
+        # ax.plot(x, y, '-k')
+        # ax.plot(*sols[0].q[-1].reshape(3, -1)[:2], 'ok')
 
-        # x, y, _ = inextensible_rope.centerline(sols[1].q[-1]).T
-        # ax.plot(x, y, '-r', linewidth=2)
+        x, y, _ = inextensible_rope.centerline(sols[1].q[-1]).T
+        ax.plot(x, y, '--r')
+        ax.plot(*sols[1].q[-1].reshape(3, -1)[:2], 'xr')
 
         plt.show()
     else:
@@ -155,18 +208,29 @@ if __name__ == "__main__":
         t = t[::frac]
         q0 = sols[0].q[::frac]
         # q1 = sols[1].q[::frac]
+        q1 = q0
         
         center_line0, = ax.plot([], [], '-k')
-        # center_line1, = ax.plot([], [], '--b')
+        nodes0, = ax.plot([], [], 'ok')
+        center_line1, = ax.plot([], [], '--r')
+        nodes1, = ax.plot([], [], 'xr')
 
         def animate(i):
             x, y, _ = rope_.centerline(q0[i], n=100).T
             center_line0.set_data(x, y)
+            if dim == 2:
+                nodes0.set_data(*q0[i].reshape(2, -1))
+            else:
+                nodes0.set_data(*q0[i].reshape(3, -1)[:2])
 
-            # x, y, _ = beam.centerline(q1[i], n=50).T
+            # x, y, _ = inextensible_rope.centerline(q1[i], n=50).T
             # center_line1.set_data(x, y)
+            # if dim == 2:
+            #     nodes1.set_data(*q1[i].reshape(2, -1))
+            # else:
+            #     nodes1.set_data(*q1[i].reshape(3, -1)[:2])
 
-            return center_line0, #center_line1
+            return center_line0, center_line1, nodes0, nodes1
 
         anim = animation.FuncAnimation(fig, animate, frames=frames, interval=interval, blit=False)
         plt.show()
