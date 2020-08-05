@@ -59,7 +59,7 @@ if __name__ == "__main__":
     model.assemble()
 
     t0 = 0
-    t1 = 3
+    t1 = 1
     dt = 1e-2
 
     solver_n = Generalized_alpha_2(model, t1, dt, gamma=0.5)
