@@ -1,5 +1,5 @@
 from cardillo.model.classical_beams.spatial import Hooke_quadratic
-from cardillo.model.classical_beams.spatial import Timoshenko_director_dirac, Euler_Bernoulli_director_dirac
+from cardillo.model.classical_beams.spatial import Timoshenko_director_dirac
 from cardillo.model.classical_beams.spatial import Timoshenko_director_integral, Euler_Bernoulli_director_integral, Inextensible_Euler_Bernoulli_director_integral
 from cardillo.model.classical_beams.spatial.director import straight_configuration
 from cardillo.model.frame import Frame
@@ -87,8 +87,8 @@ if __name__ == "__main__":
     model.add(frame_left)
     model.add(joint_left)
     model.add(f_g_beam)
-    # model.add(force)
-    # model.add(moment)
+    model.add(force)
+    model.add(moment)
     model.assemble()
 
     # ############
