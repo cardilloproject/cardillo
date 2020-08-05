@@ -115,13 +115,13 @@ class Newton():
         return bmat([[K,   self.W_g], \
                      [g_q,     None]], format='csc')
     
-    def __init__(self, model, n_load_stepts=1, load_steps=None, tol=1e-8, max_iter=50, sparse_solver='scipyLU', iterative_tol=1.0e-10, numerical_jacobian=False):
+    def __init__(self, model, n_load_steps=1, load_steps=None, tol=1e-8, max_iter=50, sparse_solver='scipyLU', iterative_tol=1.0e-10, numerical_jacobian=False):
         self.max_iter = max_iter
         self.tol = tol
         self.model = model
 
         if load_steps is None:
-            self.load_steps = np.linspace(0, 1, n_load_stepts)
+            self.load_steps = np.linspace(0, 1, n_load_steps)
         else:
             self.load_steps = np.array(load_steps)
 

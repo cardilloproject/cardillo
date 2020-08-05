@@ -17,14 +17,14 @@ class Spherical_joint():
         self.qDOF = np.concatenate([self.subsystem1.qDOF[qDOF1], self.subsystem2.qDOF[qDOF2]])
         self.nq1 = nq1 = len(qDOF1)
         self.nq2 = len(qDOF2)
-        self.__nq = self.nq1 + self.nq2
+        self._nq = self.nq1 + self.nq2
         
         uDOF1 = self.subsystem1.uDOF_P(self.frame_ID1)
         uDOF2 = self.subsystem2.uDOF_P(self.frame_ID2)
         self.uDOF = np.concatenate([self.subsystem1.uDOF[uDOF1], self.subsystem2.uDOF[uDOF2]])
         self.nu1 = nu1 = len(uDOF1)
         self.nu2 = len(uDOF2)
-        self.__nu = self.nu1 + self.nu2
+        self._nu = self.nu1 + self.nu2
 
         r_OS1 = self.subsystem1.r_OP(self.subsystem1.t0, self.subsystem1.q0[qDOF1], self.frame_ID1)
         if hasattr(self.subsystem1, 'A_IK'):
@@ -84,7 +84,7 @@ class Spherical_joint():
         nu1 = self.nu1
         J_P1 = self.J_P1(t, q) 
         J_P2 = self.J_P2(t, q)
-        W_g = np.zeros((self.__nu, self.nla_g))
+        W_g = np.zeros((self._nu, self.nla_g))
         W_g[:nu1, :] = -J_P1.T
         W_g[nu1:, :] = J_P2.T
         return W_g
@@ -99,7 +99,7 @@ class Spherical_joint():
         J_P2_q = self.J_P2_q(t, q)
 
         # dense blocks
-        dense = np.zeros((self.__nu, self.__nq))
+        dense = np.zeros((self._nu, self._nq))
         dense[:nu1, :nq1] = np.einsum('i,ijk->jk', -la_g, J_P1_q)
         dense[nu1:, nq1:] = np.einsum('i,ijk->jk', la_g, J_P2_q)
 
@@ -133,7 +133,7 @@ class Spherical_joint2D(Spherical_joint):
         nu1 = self.nu1
         J_P1 = self.J_P1(t, q) 
         J_P2 = self.J_P2(t, q)
-        W_g = np.zeros((self.__nu, self.nla_g))
+        W_g = np.zeros((self._nu, self.nla_g))
         W_g[:nu1, :] = -J_P1[:2].T
         W_g[nu1:, :] = J_P2[:2].T
         return W_g
@@ -148,7 +148,7 @@ class Spherical_joint2D(Spherical_joint):
         J_P2_q = self.J_P2_q(t, q)
 
         # dense blocks
-        dense = np.zeros((self.__nu, self.__nq))
+        dense = np.zeros((self._nu, self._nq))
         dense[:nu1, :nq1] = np.einsum('i,ijk->jk', -la_g, J_P1_q[:2])
         dense[nu1:, nq1:] = np.einsum('i,ijk->jk', la_g, J_P2_q[:2])
 

@@ -330,7 +330,7 @@ class Rope(object):
 
         for Ni, xii, J0i, qwi in zip(N, xi, J0, qw):
             NNi = np.kron(np.eye(self.dim), Ni)
-            fe += NNi.T @ force(xii, t) * J0i * qwi
+            fe += NNi.T @ force(xii, t)[:self.dim] * J0i * qwi
         
         return fe
 
@@ -344,6 +344,18 @@ class Rope(object):
 
     def body_force_q(self, t, q, coo, force):
         pass
+
+    ####################################################
+    # visualization
+    ####################################################
+    def centerline(self, q, n=100):
+        q_body = q[self.qDOF]
+        r = []
+        for xi in np.linspace(0, 1 - 1.0e-9, n):
+            frame_ID = (xi,)
+            qp = q_body[self.qDOF_P(frame_ID)]
+            r.append( self.r_OP(1, qp, frame_ID) )
+        return np.array(r)
 
 class Inextensible_Rope(Rope):
     def __init__(self, *args, la_g0=None, **kwargs):
