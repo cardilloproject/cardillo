@@ -42,7 +42,7 @@ class Rigid_body_rel_kinematics():
         self.A_B2K = A_KB2.T
         r_OSp = self.predecessor.r_OP(self.predecessor.t0, self.predecessor.q0[qDOFp], self.frame_IDp) 
         K_r_SpB1 = A_IKp.T @ (self.joint.r_OB1 - r_OSp)
-        self.K_r_SB2 = self.A_IK0.T @ (self.joint.r_OB1 - self.r_OS0)
+        self.K_r_SB2 = self.A_IK0.T @ (self.joint.r_OB1 + self.joint.A_IB1 @ self.joint.B1_r_B1B2(self.t0, self.q0[nqp:]) - self.r_OS0)
 
         self.r_OB1 = lambda t, q: self.predecessor.r_OP(t, q[:nqp], self.frame_IDp, K_r_SpB1)
         self.r_OB1_q1 = lambda t, q: self.predecessor.r_OP_q(t, q[:nqp], self.frame_IDp, K_r_SpB1)
