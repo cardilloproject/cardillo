@@ -142,8 +142,8 @@ from numpy import append
 #         return self.tocoo().toarray()
 
 class Coo(coo_matrix):
-    def __init__(self, shape):
-        super().__init__(shape)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     def extend(self, matrix, DOF):
         """Extend coo_matrix with data given in `matrix` and indices stored in the tuple `DOF` containing two arrays.

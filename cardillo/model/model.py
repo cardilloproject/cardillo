@@ -383,6 +383,12 @@ class Model(object):
             g_N[contr.la_NDOF] = contr.g_N(t, q[contr.qDOF])
         return g_N
 
+    def g_N_q(self, t, q, scipy_matrix=coo_matrix):
+        coo = Coo((self.nla_N, self.nq))
+        for contr in self.__g_N_contr:
+            contr.g_N_q(t, q[contr.qDOF], coo)
+        return coo.tosparse(scipy_matrix)
+
     def W_N(self, t, q, scipy_matrix=coo_matrix):
         coo = Coo((self.nu, self.nla_N))
         for contr in self.__g_N_contr:
@@ -404,8 +410,15 @@ class Model(object):
     def xi_N(self, t, q, u_pre, u_post):
         xi_N = np.zeros(self.nla_N)
         for contr in self.__g_N_contr:
-            xi_N[contr.la_NDOF] = contr.g_N_dot(t, q[contr.qDOF], u_post[contr.uDOF]) + contr.e_N * contr.g_N_dot(t, q[contr.qDOF], u_pre[contr.uDOF])
+            # xi_N[contr.la_NDOF] = contr.g_N_dot(t, q[contr.qDOF], u_post[contr.uDOF]) + contr.e_N * contr.g_N_dot(t, q[contr.qDOF], u_pre[contr.uDOF])
+            xi_N[contr.la_NDOF] = contr.xi_N(t, q[contr.qDOF], u_pre[contr.uDOF], u_post[contr.uDOF])
         return xi_N
+
+    def xi_N_q(self, t, q, u_pre, u_post, scipy_matrix=coo_matrix):
+        coo = Coo((self.nla_N, self.nq))
+        for contr in self.__g_N_contr:
+            contr.xi_N_q(t, q[contr.qDOF], u_pre[contr.uDOF], u_post[contr.uDOF], coo)
+        return coo.tosparse(scipy_matrix)
 
     def chi_N(self, t, q):
         return self.g_N_dot(t, q, np.zeros(self.nu))
@@ -414,6 +427,18 @@ class Model(object):
         coo = Coo((self.nla_N, self.nu))
         for contr in self.__g_N_contr:
             contr.g_N_dot_u(t, q[contr.qDOF], coo)
+        return coo.tosparse(scipy_matrix)
+
+    def g_N_ddot_q(self, t, q, u, u_dot, scipy_matrix=coo_matrix):
+        coo = Coo((self.nla_N, self.nu))
+        for contr in self.__g_N_contr:
+            contr.g_N_ddot_q(t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF], coo)
+        return coo.tosparse(scipy_matrix)
+
+    def g_N_ddot_u(self, t, q, u, u_dot, scipy_matrix=coo_matrix):
+        coo = Coo((self.nla_N, self.nu))
+        for contr in self.__g_N_contr:
+            contr.g_N_ddot_u(t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF], coo)
         return coo.tosparse(scipy_matrix)
 
     def Wla_N_q(self, t, q, la_N, scipy_matrix=coo_matrix):
