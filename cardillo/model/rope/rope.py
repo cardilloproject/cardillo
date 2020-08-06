@@ -21,6 +21,10 @@ class Rope(object):
         self.alpha = alpha
         self.beta = beta
 
+        if alpha != 0 or beta != 0:
+            self.f_npot = self.__f_npot
+            self.f_npot_q = self.__f_npot_q
+
         # material model
         self.material_model = material_model
 
@@ -251,17 +255,16 @@ class Rope(object):
             # sparse assemble element internal stiffness matrix
             coo.extend(Ke, (self.uDOF[elDOF], self.qDOF[elDOF]))
     
-    def f_npot(self, t, q, u):
+    def __f_npot(self, t, q, u):
         f = np.zeros(self.nu)
         for el in range(self.nEl):
             elDOF = self.elDOF[el]
             Me = self.M_el(self.N[el], self.J0[el], self.qw[el])
             Ke = -self.f_pot_q_el(q[elDOF], self.N_xi[el], self.J0[el], self.qw[el])
-            f[elDOF] -= (self.alpha * Me + self.beta * Ke ) @ u[elDOF]
-            # f[elDOF] += self.alpha * Me @ u[elDOF]
+            f[elDOF] -= (self.alpha * Me + self.beta * Ke) @ u[elDOF]
         return f
 
-    def f_npot_q(self, t, q, u, coo):
+    def __f_npot_q(self, t, q, u, coo):
         raise NotImplementedError('...')
 
     #########################################

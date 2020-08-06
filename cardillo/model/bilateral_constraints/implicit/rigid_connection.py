@@ -180,11 +180,11 @@ class Rigid_connection():
         coo.extend( dense, (self.uDOF, self.qDOF))
 
 class Rigid_connection2D(Rigid_connection):
-    def __init__(self, subsystem1, subsystem2, r_OB, frame_ID1=np.zeros(3), frame_ID2=np.zeros(3), la_g0=None):
-        super().__init__(subsystem1, subsystem2, r_OB, frame_ID1=frame_ID1, frame_ID2=frame_ID2, la_g0=None)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.nla_g = 3
+        la_g0 = kwargs.get('la_g0')
         self.la_g0 = np.zeros(self.nla_g) if la_g0 is None else la_g0
-        self.__la_g_DOF = np.array([0, 1, 3])
 
     def g(self, t, q):
         r_OP1 = self.r_OP1(t, q)[:2]

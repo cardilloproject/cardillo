@@ -20,8 +20,8 @@ def smoothstep3(x, x_min=0, x_max=1):
     x = np.clip((x - x_min) / (x_max - x_min), 0, 1)
     return -20 * x**7 + 70 * x**6 - 84*x**5 + 35 * x**4
 
-# statics = True
-statics = False
+statics = True
+# statics = False
 
 if __name__ == "__main__":
     # dynamic solver
@@ -89,7 +89,7 @@ if __name__ == "__main__":
     # r_OB2_t = lambda t: 2 * t * c2 if t < t1 / 3 else np.zeros(3)
     # r_OB2_tt = lambda t: 2 * c2 if t < t1 / 3 else np.zeros(3)
     # frame1 = Frame(r_OP=r_OB2, r_OP_t=r_OB2_t, r_OP_tt=r_OB2_tt)
-    r_OB2 = lambda t: np.sqrt(2) / 2 * L * np.array([1, 1, 0]) + smoothstep3(t, x_min=0, x_max=t1/3) * np.array([0, -np.sqrt(2) / 2 * L, 0])
+    r_OB2 = lambda t: np.sqrt(2) / 2 * L * np.array([1, 1, 0]) #+ smoothstep3(t, x_min=0, x_max=t1/3) * np.array([0, -np.sqrt(2) / 2 * L, 0])
     # r_OB2 = lambda t: np.sqrt(2) / 2 * L * np.array([1, 1, 0]) + smoothstep3(t, x_min=0, x_max=t1/3) * np.array([-np.sqrt(2) / 4 * L, 0, 0])
     frame1 = Frame(r_OP=r_OB2)
 
@@ -116,11 +116,11 @@ if __name__ == "__main__":
     alpha = 0
     beta = 0
 
-    # rope_ = Rope(A_rho0, material_model, p, nEl, nQP, alpha=alpha, beta=beta, Q=Q, q0=q0, u0=u0, B_splines=B_splines, dim=dim)
-    # ropes = [rope_]
+    rope_ = Rope(A_rho0, material_model, p, nEl, nQP, alpha=alpha, beta=beta, Q=Q, q0=q0, u0=u0, B_splines=B_splines, dim=dim)
+    ropes = [rope_]
 
-    inextensible_rope = Inextensible_Rope(A_rho0, material_model, p, nEl, nQP, alpha=alpha, beta=beta, Q=Q, q0=q0, u0=u0, B_splines=B_splines, dim=dim)
-    ropes = [inextensible_rope]
+    # inextensible_rope = Inextensible_Rope(A_rho0, material_model, p, nEl, nQP, alpha=alpha, beta=beta, Q=Q, q0=q0, u0=u0, B_splines=B_splines, dim=dim)
+    # ropes = [inextensible_rope]
     # ropes = [rope_, inextensible_rope]
     # ropes = [inextensible_rope, rope_]
 
@@ -189,14 +189,14 @@ if __name__ == "__main__":
     ax.set_ylim([-1.5*L, 1.5*L])
     ax.grid(linestyle='-', linewidth='0.5')
     if statics:
-        raise RuntimeError('TODO!')
-        # x, y, _ = rope_.centerline(sols[0].q[-1]).T
-        # ax.plot(x, y, '-k')
-        # ax.plot(*sols[0].q[-1].reshape(3, -1)[:2], 'ok')
+        # raise RuntimeError('TODO!')
+        x, y, _ = rope_.centerline(sols[0].q[-1]).T
+        ax.plot(x, y, '-k')
+        ax.plot(*sols[0].q[-1].reshape(3, -1)[:2], 'ok')
 
-        x, y, _ = inextensible_rope.centerline(sols[1].q[-1]).T
-        ax.plot(x, y, '--r')
-        ax.plot(*sols[1].q[-1].reshape(3, -1)[:2], 'xr')
+        # x, y, _ = inextensible_rope.centerline(sols[1].q[-1]).T
+        # ax.plot(x, y, '--r')
+        # ax.plot(*sols[1].q[-1].reshape(3, -1)[:2], 'xr')
 
         plt.show()
     else:
@@ -220,19 +220,19 @@ if __name__ == "__main__":
         nodes1, = ax.plot([], [], 'xr')
 
         def animate(i):
-            # x, y, _ = rope_.centerline(q0[i], n=100).T
-            # center_line0.set_data(x, y)
-            # if dim == 2:
-            #     nodes0.set_data(*q0[i].reshape(2, -1))
-            # else:
-            #     nodes0.set_data(*q0[i].reshape(3, -1)[:2])
-
-            x, y, _ = inextensible_rope.centerline(q1[i], n=50).T
-            center_line1.set_data(x, y)
+            x, y, _ = rope_.centerline(q0[i], n=100).T
+            center_line0.set_data(x, y)
             if dim == 2:
-                nodes1.set_data(*q1[i].reshape(2, -1))
+                nodes0.set_data(*q0[i].reshape(2, -1))
             else:
-                nodes1.set_data(*q1[i].reshape(3, -1)[:2])
+                nodes0.set_data(*q0[i].reshape(3, -1)[:2])
+
+            # x, y, _ = inextensible_rope.centerline(q1[i], n=50).T
+            # center_line1.set_data(x, y)
+            # if dim == 2:
+            #     nodes1.set_data(*q1[i].reshape(2, -1))
+            # else:
+            #     nodes1.set_data(*q1[i].reshape(3, -1)[:2])
 
             return center_line0, center_line1, nodes0, nodes1
 
