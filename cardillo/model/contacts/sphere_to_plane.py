@@ -215,6 +215,8 @@ class Sphere_to_plane2D():
         self.J_P = lambda t, q: self.subsystem.J_P(t, q, frame_ID=self.frame_ID, K_r_SP=self.K_r_SP)
         self.J_P_q = lambda t, q: self.subsystem.J_P_q(t, q, frame_ID=self.frame_ID, K_r_SP=self.K_r_SP)
         self.a_P = lambda t, q, u, a: self.subsystem.a_P(t, q, u, a, frame_ID=self.frame_ID, K_r_SP=self.K_r_SP)
+        self.a_P_q = lambda t, q, u, a: self.subsystem.a_P_q(t, q, u, a, frame_ID=self.frame_ID, K_r_SP=self.K_r_SP)
+        self.a_P_u = lambda t, q, u, a: self.subsystem.a_P_u(t, q, u, a, frame_ID=self.frame_ID, K_r_SP=self.K_r_SP)
         
         self.Omega = lambda t, q, u: self.subsystem.A_IK(t, q, frame_ID=self.frame_ID) @ self.subsystem.K_Omega(t, q, u, frame_ID=self.frame_ID)
         self.J_R = lambda t, q: self.subsystem.A_IK(t, q, frame_ID=self.frame_ID) @ self.subsystem.K_J_R(t, q, frame_ID=self.frame_ID)
@@ -264,6 +266,14 @@ class Sphere_to_plane2D():
 
     def g_N_ddot(self, t, q, u, u_dot):
         return np.array([self.n(t) @ (self.a_P(t, q, u, u_dot) - self.a_Q(t))])
+
+    def g_N_ddot_q(self, t, q, u, u_dot, coo):
+        dense = np.array([self.n(t) @ self.a_P_q(t, q, u, u_dot)])
+        coo.extend(dense, (self.la_NDOF, self.qDOF))
+
+    def g_N_ddot_u(self, t, q, u, u_dot, coo):
+        dense = np.array([self.n(t) @ self.a_P_u(t, q, u, u_dot)])
+        coo.extend(dense, (self.la_NDOF, self.uDOF))
 
     def Wla_N_q(self, t, q, la_N, coo):
         dense = la_N[0] * np.einsum('i,ijk->jk', self.n(t), self.J_P_q(t, q))

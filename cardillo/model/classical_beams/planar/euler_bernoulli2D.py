@@ -377,6 +377,12 @@ class Euler_bernoulli2D():
     def a_P(self, t, q, u, u_dot, frame_ID, K_r_SP=None):
         return self.r_OP(t, u_dot, frame_ID=frame_ID)
 
+    def a_P_q(self, t, q, u, u_dot, frame_ID, K_r_SP=None):
+        return np.zeros((3, self.nq_el))
+
+    def a_P_u(self, t, q, u, u_dot, frame_ID, K_r_SP=None):
+        return np.zeros((3, self.nq_el))
+
     def v_P_q(self, t, q, u, frame_ID, K_r_SP=None):
         return self.r_OP_q(t, None, frame_ID=frame_ID)
 
