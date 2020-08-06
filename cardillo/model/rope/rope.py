@@ -7,7 +7,7 @@ from cardillo.math.algebra import norm2, norm3
 from cardillo.math.numerical_derivative import Numerical_derivative
 
 class Rope(object):
-    def __init__(self, A_rho0, material_model, polynomial_degree, nEl, nQP, Q=None, q0=None, u0=None, B_splines=True, dim=3):
+    def __init__(self, A_rho0, material_model, polynomial_degree, nEl, nQP, alpha=0, beta=0, Q=None, q0=None, u0=None, B_splines=True, dim=3):
         self.dim = dim
         if dim == 2:
             self.norm = norm2
@@ -18,6 +18,8 @@ class Rope(object):
         
         # physical parameters
         self.A_rho0 = A_rho0
+        self.alpha = alpha
+        self.beta = beta
 
         # material model
         self.material_model = material_model
@@ -248,6 +250,19 @@ class Rope(object):
 
             # sparse assemble element internal stiffness matrix
             coo.extend(Ke, (self.uDOF[elDOF], self.qDOF[elDOF]))
+    
+    def f_npot(self, t, q, u):
+        f = np.zeros(self.nu)
+        for el in range(self.nEl):
+            elDOF = self.elDOF[el]
+            Me = self.M_el(self.N[el], self.J0[el], self.qw[el])
+            Ke = -self.f_pot_q_el(q[elDOF], self.N_xi[el], self.J0[el], self.qw[el])
+            f[elDOF] -= (self.alpha * Me + self.beta * Ke ) @ u[elDOF]
+            # f[elDOF] += self.alpha * Me @ u[elDOF]
+        return f
+
+    def f_npot_q(self, t, q, u, coo):
+        raise NotImplementedError('...')
 
     #########################################
     # kinematic equation

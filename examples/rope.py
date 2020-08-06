@@ -6,12 +6,19 @@ from cardillo.model import Model
 from cardillo.solver import Euler_backward, Moreau, Moreau_sym, Generalized_alpha_1, Scipy_ivp, Newton
 from cardillo.model.line_force.line_force import Line_force
 from cardillo.discretization import uniform_knot_vector
+from cardillo.math.algebra import A_IK_basic_z
 
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.animation as animation
 
 import numpy as np
+
+# special cases of the smooth step function,
+# see https://en.wikipedia.org/wiki/Smoothstep#Generalization_to_higher-order_equations
+def smoothstep3(x, x_min=0, x_max=1):
+    x = np.clip((x - x_min) / (x_max - x_min), 0, 1)
+    return -20 * x**7 + 70 * x**6 - 84*x**5 + 35 * x**4
 
 # statics = True
 statics = False
@@ -24,49 +31,11 @@ if __name__ == "__main__":
     
     # physical properties of the rope
     dim = 3
+    assert dim == 3
     L = 2 * np.pi
     EA = 1.0e3
     material_model = Hooke(EA)
     A_rho0 = 1e0
-
-    # # left joint
-    # omega = 2 * np.pi
-    # a = 0.5
-    # r_OB1 = lambda t: np.array([a * np.sin(omega * t), 0, 0])
-    # r_OB1_t = lambda t: np.array([a * omega * np.cos(omega * t), 0, 0])
-    # r_OB1_tt = lambda t: np.array([-a * omega**2 * np.sin(omega * t), 0, 0])
-    # frame0 = Frame(r_OP=r_OB1, r_OP_t=r_OB1_t, r_OP_tt=r_OB1_tt)
-
-    c1 = np.array([-5, 0, 0]) / t1
-    r_OB1 = lambda t: t**2 * c1
-    r_OB1_t = lambda t: 2 * t * c1
-    r_OB1_tt = lambda t: 2 * c1
-    # r_OB1 = lambda t: t * c1
-    # r_OB1_t = lambda t: c1
-    # r_OB1_tt = lambda t: np.zeros(3)
-    # r_OB1 = lambda t: np.zeros(3)
-    # r_OB1_t = lambda t: np.zeros(3)
-    # r_OB1_tt = lambda t: np.zeros(3)
-    frame0 = Frame(r_OP=r_OB1, r_OP_t=r_OB1_t, r_OP_tt=r_OB1_tt)
-
-    # omega = 2 * np.pi
-    # a = 5
-    # r_OB2 = lambda t: np.array([0, -L, 0]) + min(t, 0.5) * np.array([L/2, 0, 0]) + max(2*t-1, 0) * np.array([0, L/2, 0])
-    # r_OB2_t = lambda t: np.array([L/2, L, 0]) if t <=1 else np.zeros(3)
-    # r_OB2_tt = lambda t: np.zeros(3)
-    # frame1 = Frame(r_OP=r_OB2, r_OP_t=r_OB2_t, r_OP_tt=r_OB2_tt)
-    # r_OB2 = lambda t: np.array([0, -L, 0]) + min(1, max(3/t1*t-1, 0)) * np.array([0.25*L, 0.5*L, 0])
-    # c = np.array([0.5*L, L, 0]) * 0
-    # r_OB2 = lambda t: np.array([0, -L, 0]) + t * c / t1
-    # r_OB2_t = lambda t: c / t1
-    # r_OB2_tt = lambda t: np.zeros(3)
-    # c2 = np.array([0.25*L, 0.5*L, 0])
-    c2 = np.array([0, 0.5*L, 0])
-    # c2 = np.zeros(3)
-    r_OB2 = lambda t: t**2 * c2
-    r_OB2_t = lambda t: 2 * t * c2
-    r_OB2_tt = lambda t: 2 * c2
-    frame1 = Frame(r_OP=r_OB2, r_OP_t=r_OB2_t, r_OP_tt=r_OB2_tt)
 
     # discretization properties
     B_splines = True
@@ -91,10 +60,38 @@ if __name__ == "__main__":
             X0[i] = np.sum(Xi[i+1:i+p+1])
         X0 = X0 * L / p
 
+    angle = np.pi / 4  
+    for i in range(0, len(X0)):  
+        X0[i], Y0[i], _ = A_IK_basic_z(angle) @ np.array([X0[i], Y0[i], 0])
+
     if dim == 2:
         Q = np.hstack((X0, Y0))
     else:
         Q = np.hstack((X0, Y0, Z0))
+
+    c1 = np.zeros(3)
+    # c1 = np.array([0, 1, 0]) / t1
+    r_OB1 = lambda t: t**2 * c1 + np.array([X0[0], Y0[0], Z0[0]])
+    r_OB1_t = lambda t: 2 * t * c1
+    r_OB1_tt = lambda t: 2 * c1
+    # r_OB1 = lambda t: t * c1
+    # r_OB1_t = lambda t: c1
+    # r_OB1_tt = lambda t: np.zeros(3)
+    # r_OB1 = lambda t: np.zeros(3)
+    # r_OB1_t = lambda t: np.zeros(3)
+    # r_OB1_tt = lambda t: np.zeros(3)
+    frame0 = Frame(r_OP=r_OB1, r_OP_t=r_OB1_t, r_OP_tt=r_OB1_tt)
+
+    # # c2 = np.array([0, 0.5*L, 0])
+    # c2 = np.array([0, -np.sqrt(2) / 2 * L, 0]) / (t1 / 3)
+    # # c2 = np.zeros(3)
+    # r_OB2 = lambda t: t**2 * c2 + np.array([X0[-1], Y0[-1], Z0[-1]]) if t < t1 / 3 else np.zeros(3)
+    # r_OB2_t = lambda t: 2 * t * c2 if t < t1 / 3 else np.zeros(3)
+    # r_OB2_tt = lambda t: 2 * c2 if t < t1 / 3 else np.zeros(3)
+    # frame1 = Frame(r_OP=r_OB2, r_OP_t=r_OB2_t, r_OP_tt=r_OB2_tt)
+    r_OB2 = lambda t: np.sqrt(2) / 2 * L * np.array([1, 1, 0]) + smoothstep3(t, x_min=0, x_max=t1/3) * np.array([0, -np.sqrt(2) / 2 * L, 0])
+    # r_OB2 = lambda t: np.sqrt(2) / 2 * L * np.array([1, 1, 0]) + smoothstep3(t, x_min=0, x_max=t1/3) * np.array([-np.sqrt(2) / 4 * L, 0, 0])
+    frame1 = Frame(r_OP=r_OB2)
 
     u0 = np.zeros_like(Q)
     u0[0] = r_OB1_t(0)[0]
@@ -102,23 +99,30 @@ if __name__ == "__main__":
     if dim == 3:
         u0[2 * nNd] = r_OB1_t(0)[2]
 
-    u0[nNd-1] = r_OB2_t(0)[0]
-    u0[2*nNd-1] = r_OB2_t(0)[1]
-    if dim == 3:
-        u0[3*nNd-1] = r_OB2_t(0)[2]
+    # u0[nNd-1] = r_OB2_t(0)[0]
+    # u0[2*nNd-1] = r_OB2_t(0)[1]
+    # if dim == 3:
+    #     u0[3*nNd-1] = r_OB2_t(0)[2]
 
     if dim == 2:
-        q0 = np.hstack((Y0, -X0))
+        q0 = np.hstack((X0, Y0))
+        # q0 = np.hstack((Y0, -X0))
     else:
-        # q0 = np.hstack((X0, Y0, Z0))
-        q0 = np.hstack((Y0, -X0, Z0))
+        q0 = np.hstack((X0, Y0, Z0))
+        # q0 = np.hstack((Y0, -X0, Z0))
 
-    rope_ = Rope(A_rho0, material_model, p, nEl, nQP, Q=Q, q0=q0, u0=u0, B_splines=B_splines, dim=dim)
-    # inextensible_rope = Inextensible_Rope(A_rho0, material_model, p, nEl, nQP, Q=Q, q0=q0, u0=u0, B_splines=B_splines, dim=dim)
+    # alpha = 1.0e-2
+    # beta = 1.0e-2
+    alpha = 0
+    beta = 0
+
+    # rope_ = Rope(A_rho0, material_model, p, nEl, nQP, alpha=alpha, beta=beta, Q=Q, q0=q0, u0=u0, B_splines=B_splines, dim=dim)
+    # ropes = [rope_]
+
+    inextensible_rope = Inextensible_Rope(A_rho0, material_model, p, nEl, nQP, alpha=alpha, beta=beta, Q=Q, q0=q0, u0=u0, B_splines=B_splines, dim=dim)
+    ropes = [inextensible_rope]
     # ropes = [rope_, inextensible_rope]
     # ropes = [inextensible_rope, rope_]
-    ropes = [rope_]
-    # ropes = [inextensible_rope]
 
     sols = []
     for rope in ropes:
@@ -160,7 +164,7 @@ if __name__ == "__main__":
         model.add(joint_left)
         model.add(frame1)
         model.add(joint_right)
-        # model.add(f_g)
+        model.add(f_g)
         model.assemble()
 
         if statics:
@@ -170,8 +174,8 @@ if __name__ == "__main__":
             # solver = Moreau(model, t1, dt, fix_point_tol=1.0e-6)
             # solver = Moreau_sym(model, t1, dt)
             # solver = Generalized_alpha_1(model, t1, dt=dt, variable_dt=True, t_eval=np.linspace(t0, t1, 100), rho_inf=0.75)
-            solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='RK23')
-            # solver = Scipy_ivp(model, t1, dt, atol=1.e-1, method='RK45')
+            # solver = Scipy_ivp(model, t1, dt, atol=1.e-1, method='RK23')
+            solver = Scipy_ivp(model, t1, dt, atol=1.e-1, method='RK45')
             # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='DOP853')
             # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='Radau')
             # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='BDF')
@@ -216,19 +220,19 @@ if __name__ == "__main__":
         nodes1, = ax.plot([], [], 'xr')
 
         def animate(i):
-            x, y, _ = rope_.centerline(q0[i], n=100).T
-            center_line0.set_data(x, y)
-            if dim == 2:
-                nodes0.set_data(*q0[i].reshape(2, -1))
-            else:
-                nodes0.set_data(*q0[i].reshape(3, -1)[:2])
-
-            # x, y, _ = inextensible_rope.centerline(q1[i], n=50).T
-            # center_line1.set_data(x, y)
+            # x, y, _ = rope_.centerline(q0[i], n=100).T
+            # center_line0.set_data(x, y)
             # if dim == 2:
-            #     nodes1.set_data(*q1[i].reshape(2, -1))
+            #     nodes0.set_data(*q0[i].reshape(2, -1))
             # else:
-            #     nodes1.set_data(*q1[i].reshape(3, -1)[:2])
+            #     nodes0.set_data(*q0[i].reshape(3, -1)[:2])
+
+            x, y, _ = inextensible_rope.centerline(q1[i], n=50).T
+            center_line1.set_data(x, y)
+            if dim == 2:
+                nodes1.set_data(*q1[i].reshape(2, -1))
+            else:
+                nodes1.set_data(*q1[i].reshape(3, -1)[:2])
 
             return center_line0, center_line1, nodes0, nodes1
 
