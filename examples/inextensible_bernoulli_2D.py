@@ -1,8 +1,14 @@
+from scipy.integrate._ivp.ivp import solve_ivp
 from cardillo.model.classical_beams.planar import Hooke, Euler_bernoulli, Inextensible_Euler_bernoulli
+from cardillo.model.rope import Rope, Inextensible_Rope
+from cardillo.model.rope import Hooke as Hooke_rope
 from cardillo.model.frame import Frame
-from cardillo.model.bilateral_constraints.implicit import Rigid_connection2D, Spherical_joint2D
+from cardillo.model.bilateral_constraints.implicit import Rigid_connection2D, Spherical_joint2D, Linear_guidance_x_2D, Linear_guidance_xyz_2D
+from cardillo.model.scalar_force_interactions.force_laws import Linear_spring
+from cardillo.model.scalar_force_interactions.translational_f_pot import Translational_f_pot
+
 from cardillo.model import Model
-from cardillo.solver import Newton, Euler_backward, Generalized_alpha_1
+from cardillo.solver import Newton, Euler_backward, Generalized_alpha_1, Scipy_ivp
 from cardillo.discretization import uniform_knot_vector
 from cardillo.model.force import Force
 from cardillo.model.line_force import Line_force
@@ -16,18 +22,23 @@ import numpy as np
 statics = False
 
 def inextensible_rope():
-    t1 = 10
-    dt = 5e-1
+    t1 = 5
+    dt = 2e-1
 
-    L = 2 * np.pi
-    EA = 5
+    # beam parameters
+    L = 5
+    EA = 5 * 1.0e1
     EI = 2 * 1.0e-1
     material_model = Hooke(EA, EI)
     A_rho0 = 0.1
 
+    # linear spring parameters
+    k = 1e2
+    l0 = 0.5 * L
+
     r_OB1 = np.zeros(3)
     frame_left = Frame(r_OP=r_OB1)
-    r_OB2 = np.array([L, 0, 0])
+    r_OB2 = np.array([L+l0, 0, 0])
     frame_right = Frame(r_OP=r_OB2)
 
     # discretization properties
@@ -48,23 +59,28 @@ def inextensible_rope():
 
     Q = np.hstack((X0, Y0))
     q0 = np.hstack((X0, Y0))
-    # q0 = np.hstack((Y0, -X0))
     u0 = np.zeros_like(Q)
 
     bernoulli = Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q=Q, q0=q0, u0=u0)
     inextensible_bernoulli = Inextensible_Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q=Q, q0=q0, u0=u0)
-    # beams = [bernoulli, inextensible_bernoulli]
-    # beams = [inextensible_bernoulli, bernoulli]
-    beams = [bernoulli]
+
+    beams = [bernoulli, inextensible_bernoulli]
 
     sols = []
     for beam in beams:
         model = Model()
         model.add(beam)
         model.add(frame_left)
-        model.add(Rigid_connection2D(frame_left, beam, r_OB1, frame_ID2=(0,)))
+        # model.add(Rigid_connection2D(frame_left, beam, r_OB1, frame_ID2=(0,)))
+        model.add(Spherical_joint2D(frame_left, beam, r_OB1, frame_ID2=(0,)))
+        
         model.add(frame_right)
-        model.add(Rigid_connection2D(frame_right, beam, r_OB2, frame_ID2=(1,)))
+        # model.add(Spherical_joint2D(frame_right, beam, r_OB2, frame_ID2=(1,)))
+        # model.add(Linear_guidance_xyz_2D(frame_right, beam, r_OB2, frame_right.A_IK(0), frame_ID2=(1,)))
+        model.add(Linear_guidance_x_2D(beam, frame_right, r_OB2, frame_right.A_IK(0), frame_ID1=(1,)))
+        # model.add(Linear_guidance_xyz_2D(beam, frame_right, r_OB2, frame_right.A_IK(0), frame_ID1=(1,)))
+
+        model.add(Translational_f_pot(Linear_spring(k, l0), beam, frame_right, frame_ID1=(1,)))
 
         __g = np.array([0, - A_rho0 * 9.81, 0])
         if statics:
@@ -79,8 +95,42 @@ def inextensible_rope():
             solver = Newton(model, n_load_steps=20, max_iter=20, tol=1.0e-6, numerical_jacobian=False)
         else:
             solver = Euler_backward(model, t1, dt, newton_max_iter=50, numerical_jacobian=False)
+            # solver = Scipy_ivp(model, t1, dt, atol=1e-4)
             # solver = Generalized_alpha_1(model, t1, dt, variable_dt=False, rho_inf=0.5)
         sols.append( solver.solve() )
+
+    if statics:
+        inextensible_bernoulli_precurved = Inextensible_Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q=sols[1].q[-1], q0=sols[1].q[-1], u0=u0)
+        # material_model_rope = Hooke_rope(EA)
+        # rope_precurved = Inextensible_Rope(A_rho0, material_model_rope, p, nEl, nQP, Q=Q, q0=sols[1].q[-1], u0=u0, dim=2, la_g0 = sols[1].la_g[-1, :-3])
+
+        beam = inextensible_bernoulli_precurved
+        # beam = rope_precurved
+        # r_OB2 = lambda t: np.array([sols[1].q[-1, nNd-1], 0, 0])
+        r_OB2 = lambda t: np.array([sols[1].q[-1, nNd-1] - t * L / 2, -t * L / 2, 0])
+        frame_right = Frame(r_OP=r_OB2)
+
+        model2 = Model()
+        model2.add(beam)
+        model2.add(frame_left)
+        # model.add(Rigid_connection2D(frame_left, beam, r_OB1, frame_ID2=(0,)))
+        model2.add(Spherical_joint2D(frame_left, beam, r_OB1, frame_ID2=(0,)))
+
+        model2.add(frame_right)
+        model2.add(Spherical_joint2D(frame_right, beam, r_OB2(0), frame_ID2=(1,)))
+        # model2.add(Spherical_joint2D(frame_right, beam, r_OB2(0), frame_ID2=(1,), la_g0=-sols[1].la_g[-1, -3:-1]))
+
+        __g = np.array([0, - A_rho0 * 9.81, 0])
+        f_g_beam = Line_force(lambda xi, t: __g, beam)
+
+        model2.add(f_g_beam)
+        
+        model2.assemble()
+
+        solver = Newton(model2, n_load_steps=20, max_iter=20, tol=1.0e-6, numerical_jacobian=False)
+
+        sols.append( solver.solve() )
+    
 
     if statics:
         fig, ax = plt.subplots()
@@ -98,6 +148,7 @@ def inextensible_rope():
 
         ax.plot(*sols[0].q[-1].reshape(2, -1), '--ok')
         ax.plot(*sols[1].q[-1].reshape(2, -1), '--ob')
+        ax.plot(*sols[2].q[-1].reshape(2, -1), '--or')
 
         plt.show()
     else:
@@ -126,7 +177,7 @@ def inextensible_rope():
         center_line1, = ax.plot([], [], '--b')
 
         def animate(i):
-            x, y, _ = beam.centerline(q0[i], n=50).T
+            x, y, _ = beam.centerline(q0[i], n=500).T
             center_line0.set_data(x, y)
 
             x, y, _ = beam.centerline(q1[i], n=50).T
@@ -194,7 +245,7 @@ def cantilever():
         model.assemble()
 
         if statics:
-            solver = Newton(model, n_load_stepts=20, max_iter=20, tol=1.0e-6, numerical_jacobian=False)
+            solver = Newton(model, n_load_steps=20, max_iter=20, tol=1.0e-6, numerical_jacobian=False)
         else:
             solver = Euler_backward(model, t1, dt, newton_max_iter=50, numerical_jacobian=False)
             # solver = Generalized_alpha_1(model, t1, dt, variable_dt=False, rho_inf=0.5)
@@ -257,3 +308,4 @@ def cantilever():
 
 if __name__ == "__main__":
     inextensible_rope()
+    # cantilever()

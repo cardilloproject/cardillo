@@ -462,19 +462,6 @@ class Euler_bernoulli():
             r.append( self.r_OP(1, qp, frame_ID) )
         return np.array(r)
 
-
-    ####################################################
-    # visualization
-    ####################################################
-    def centerline(self, q, n=100):
-        q_body = q[self.qDOF]
-        r = []
-        for xi in np.linspace(0, 1 - 1.0e-9, n):
-            frame_ID = (xi,)
-            qp = q_body[self.qDOF_P(frame_ID)]
-            r.append( self.r_OP(1, qp, frame_ID) )
-        return np.array(r)
-
 class Inextensible_Euler_bernoulli(Euler_bernoulli):
     def __init__(self, *args, la_g0=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -516,6 +503,33 @@ class Inextensible_Euler_bernoulli(Euler_bernoulli):
             g += (r_xi @ r_xi / J0i - J0i) * N_gi * qwi
 
         return g
+
+    def __g_dot_el(self, qe, ue, N_xi, N_g, J0, qw):
+        g_dot = np.zeros(self.nla_g_el)
+
+        for N_xii, N_gi, J0i, qwi in zip(N_xi, N_g, J0, qw):
+            NN_xii = self.stack_shapefunctions(N_xii)
+
+            r_xi = NN_xii @ qe
+            r_xi_dot = NN_xii @ ue
+
+            g_dot += 2 * r_xi @ r_xi_dot / J0i * N_gi * qwi
+
+        return g_dot
+
+    def __g_ddot_el(self, qe, ue, ue_dot, N_xi, N_g, J0, qw):
+        g_ddot = np.zeros(self.nla_g_el)
+
+        for N_xii, N_gi, J0i, qwi in zip(N_xi, N_g, J0, qw):
+            NN_xii = self.stack_shapefunctions(N_xii)
+
+            r_xi = NN_xii @ qe
+            r_xi_dot = NN_xii @ ue
+            r_xi_ddot = NN_xii @ ue_dot
+
+            g_ddot += (r_xi @ r_xi_ddot + r_xi_dot @ r_xi_dot) * 2 / J0i * N_gi * qwi
+
+        return g_ddot
 
     def __g_q_el(self, qe, N_xi, N_g, J0, qw):
         g_q = np.zeros((self.nla_g_el, self.nq_el))
@@ -581,10 +595,25 @@ class Inextensible_Euler_bernoulli(Euler_bernoulli):
             g_qq = self.__g_qq_el(q[elDOF], self.N_xi[el], self.N_g[el], self.J0[el], self.qw[el])
             coo.extend(np.einsum('i,ijk->jk', la_g[elDOF_g], g_qq), (self.uDOF[elDOF], self.qDOF[elDOF]))
 
-    # # TODO:
-    # def g_dot(self, t, q, u):
-    #     g_dot = np.zeros(self.nla_g)
-    #     return g_dot
+    def g_dot(self, t, q, u):
+        g_dot = np.zeros(self.nla_g)
+        for el in range(self.nEl):
+            elDOF = self.elDOF[el]
+            elDOF_g = self.elDOF_g[el]
+            g_dot[elDOF_g] += self.__g_dot_el(q[elDOF], u[elDOF], self.N_xi[el], self.N_g[el], self.J0[el], self.qw[el])
+        return g_dot
 
-    # def g_dot_u(self, t, q, scipy_matrix=coo_matrix):
-    #     pass     
+    def g_ddot(self, t, q, u, u_dot):
+        g_ddot = np.zeros(self.nla_g)
+        for el in range(self.nEl):
+            elDOF = self.elDOF[el]
+            elDOF_g = self.elDOF_g[el]
+            g_ddot[elDOF_g] += self.__g_ddot_el(q[elDOF], u[elDOF], u_dot[elDOF], self.N_xi[el], self.N_g[el], self.J0[el], self.qw[el])
+        return g_ddot
+
+    def g_dot_u(self, t, q, coo):
+        for el in range(self.nEl):
+            elDOF = self.elDOF[el]
+            elDOF_g = self.elDOF_g[el]
+            g_dot_u = self.__g_q_el(q[elDOF], self.N_xi[el], self.N_g[el], self.J0[el], self.qw[el])
+            coo.extend(g_dot_u, (self.la_gDOF[elDOF_g], self.uDOF[elDOF]))  

@@ -515,7 +515,6 @@ class Inextensible_Rope(Rope):
             g_qq = self.__g_qq_el(self.N_xi[el], self.N_g[el], self.J0[el], self.qw[el])
             coo.extend(np.einsum('i,ijk->jk', la_g[elDOF_g], g_qq), (self.uDOF[elDOF], self.qDOF[elDOF]))
 
-    # TODO:
     def g_dot(self, t, q, u):
         g_dot = np.zeros(self.nla_g)
         for el in range(self.nEl):
