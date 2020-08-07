@@ -1,8 +1,9 @@
 import numpy as np
 from cardillo.math.algebra import cross3, ax2skew
 
-class Linear_guidance():
+class Linear_guidance_x():
     def __init__(self, subsystem1, subsystem2, r_OB, A_IB, frame_ID1=np.zeros(3), frame_ID2=np.zeros(3), la_g0=None):
+        # 1 position dof in exB direction + 1 rotation dof in exB direction
         self.nla_g = 4
         self.la_g0 = np.zeros(self.nla_g) if la_g0 is None else la_g0
 
@@ -19,12 +20,12 @@ class Linear_guidance():
         self.qDOF = np.concatenate([self.subsystem1.qDOF[qDOF1], self.subsystem2.qDOF[qDOF2]])
         self.nq1 = nq1 = len(qDOF1)
         self.nq2 = len(qDOF2)
-        self.__nq = self.nq1 + self.nq2
+        self._nq = self.nq1 + self.nq2
         
         uDOF1 = self.subsystem1.uDOF_P(self.frame_ID1)
         uDOF2 = self.subsystem2.uDOF_P(self.frame_ID2)
         self.uDOF = np.concatenate([self.subsystem1.uDOF[uDOF1], self.subsystem2.uDOF[uDOF2]])
-        self.nu1 = len(uDOF1)
+        self.nu1 = nu1 = len(uDOF1)
         self.nu2 = len(uDOF2)
         self._nu = self.nu1 + self.nu2
         
@@ -40,10 +41,14 @@ class Linear_guidance():
 
         self.r_OP1 = lambda t, q: self.subsystem1.r_OP(t, q[:nq1], self.frame_ID1, K_r_SP1)
         self.r_OP1_q = lambda t, q: self.subsystem1.r_OP_q(t, q[:nq1], self.frame_ID1, K_r_SP1)
+        self.v_P1 = lambda t, q, u: self.subsystem1.v_P(t, q[:nq1], u[:nu1], self.frame_ID1, K_r_SP1)
+        self.a_P1 = lambda t, q, u, u_dot: self.subsystem1.a_P(t, q[:nq1], u[:nu1], u_dot[:nu1], self.frame_ID1, K_r_SP1)
         self.J_P1 = lambda t, q: self.subsystem1.J_P(t, q[:nq1], self.frame_ID1, K_r_SP1)
         self.J_P1_q = lambda t, q: self.subsystem1.J_P_q(t, q[:nq1], self.frame_ID1, K_r_SP1)
         self.A_IB1 = lambda t, q: self.subsystem1.A_IK(t, q[:nq1], self.frame_ID1) @ A_K1B1
         self.A_IB1_q = lambda t, q: np.einsum('ijl,jk->ikl', self.subsystem1.A_IK_q(t, q[:nq1], self.frame_ID1), A_K1B1)
+        self.Omega1 = lambda t, q, u: self.subsystem1.A_IK(t, q[:nq1], self.frame_ID1) @ self.subsystem1.K_Omega(t, q[:nq1], u[:nu1], self.frame_ID1)
+        self.Psi1 = lambda t, q, u, u_dot: self.subsystem1.A_IK(t, q[:nq1], self.frame_ID1) @ self.subsystem1.K_Psi(t, q[:nq1], u[:nu1], u_dot[:nu1], self.frame_ID1)
         self.K_J_R1 = lambda t, q: self.subsystem1.K_J_R(t, q[:nq1], self.frame_ID1)
         self.K_J_R1_q = lambda t, q: self.subsystem1.K_J_R_q(t, q[:nq1], self.frame_ID1)
         self.J_R1 = lambda t, q: self.subsystem1.A_IK(t, q[:nq1], self.frame_ID1) @ self.subsystem1.K_J_R(t, q[:nq1], self.frame_ID1)
@@ -51,10 +56,14 @@ class Linear_guidance():
 
         self.r_OP2 = lambda t, q: self.subsystem2.r_OP(t, q[nq1:], self.frame_ID2, K_r_SP2)
         self.r_OP2_q = lambda t, q: self.subsystem2.r_OP_q(t, q[nq1:], self.frame_ID2, K_r_SP2)
+        self.v_P2 = lambda t, q, u: self.subsystem2.v_P(t, q[nq1:], u[nu1:], self.frame_ID2, K_r_SP2)
+        self.a_P2 = lambda t, q, u, u_dot: self.subsystem2.a_P(t, q[nq1:], u[nu1:], u_dot[nu1:], self.frame_ID2, K_r_SP2)
         self.J_P2 = lambda t, q: self.subsystem2.J_P(t, q[nq1:], self.frame_ID2, K_r_SP2)
         self.J_P2_q = lambda t, q: self.subsystem2.J_P_q(t, q[nq1:], self.frame_ID2, K_r_SP2)
         self.A_IB2 = lambda t, q:  self.subsystem2.A_IK(t, q[nq1:], self.frame_ID2) @ A_K2B2
         self.A_IB2_q = lambda t, q: np.einsum('ijk,jl->ilk', self.subsystem2.A_IK_q(t, q[nq1:], self.frame_ID2), A_K2B2 )
+        self.Omega2 = lambda t, q, u:  self.subsystem2.A_IK(t, q[nq1:], self.frame_ID2) @ self.subsystem2.K_Omega(t, q[nq1:], u[nu1:], self.frame_ID2)
+        self.Psi2 = lambda t, q, u, u_dot:  self.subsystem2.A_IK(t, q[nq1:], self.frame_ID2) @ self.subsystem2.K_Psi(t, q[nq1:], u[nu1:], u_dot[nu1:], self.frame_ID2)
         self.K_J_R2 = lambda t, q: self.subsystem2.K_J_R(t, q[nq1:], self.frame_ID2)
         self.K_J_R2_q = lambda t, q: self.subsystem2.K_J_R_q(t, q[nq1:], self.frame_ID2)
         self.J_R2 = lambda t, q: self.subsystem2.A_IK(t, q[nq1:], self.frame_ID2) @ self.subsystem2.K_J_R(t, q[nq1:], self.frame_ID2)
@@ -72,7 +81,7 @@ class Linear_guidance():
 
     def g_q_dense(self, t, q):
         nq1 = self.nq1
-        g_q = np.zeros((self.nla_g, self.__nq))
+        g_q = np.zeros((self.nla_g, self._nq))
 
         r_OP1 = self.r_OP1(t, q) 
         r_OP2 = self.r_OP2(t, q)
@@ -88,14 +97,69 @@ class Linear_guidance():
         
         # np.array([r_P1P2 @ ey2, r_P1P2 @ ez2, ex1 @ ey2, ex1 @ ez2])
         g_q[0, :nq1] = -ey2 @ self.r_OP1_q(t, q) 
-        g_q[0, nq1:] =  ey2 @ self.r_OP2_q(t, q) + r_OP2 @ ey2_q
+        g_q[0, nq1:] =  ey2 @ self.r_OP2_q(t, q) + r_P1P2 @ ey2_q
         g_q[1, :nq1] = -ez2 @ self.r_OP1_q(t, q) 
-        g_q[1, nq1:] =  ez2 @ self.r_OP2_q(t, q) + r_OP2 @ ez2_q
+        g_q[1, nq1:] =  ez2 @ self.r_OP2_q(t, q) + r_P1P2 @ ez2_q
         g_q[2, :nq1] = ey2 @ ex1_q
         g_q[2, nq1:] = ex1 @ ey2_q
         g_q[3, :nq1] = ez2 @ ex1_q
         g_q[3, nq1:] = ex1 @ ez2_q
         return g_q
+
+    def g_dot(self, t, q, u):
+        g_dot = np.zeros(self.nla_g)
+
+        r_P1P2 = self.r_OP2(t, q) - self.r_OP1(t, q) 
+        ex1, _, _ = self.A_IB1(t, q).T
+        _, ey2, ez2 = self.A_IB2(t, q).T
+
+        v_P1P2 = self.v_P2(t, q, u) - self.v_P1(t, q, u) 
+        Omega1 = self.Omega1(t, q, u)
+        Omega2 = self.Omega2(t, q, u)
+
+        # np.array([r_P1P2 @ ey2, r_P1P2 @ ez2, ex1 @ ey2, ex1 @ ez2])
+        g_dot[0] = v_P1P2 @ ey2 + cross3(ey2, r_P1P2) @ Omega2
+        g_dot[1] = v_P1P2 @ ez2 + cross3(ez2, r_P1P2) @ Omega2
+        g_dot[2] = cross3(ex1, ey2) @ (Omega1 - Omega2)
+        g_dot[3] = cross3(ex1, ez2) @ (Omega1 - Omega2)
+        return g_dot
+
+    def g_dot_u(self, t, q, coo):
+        coo.extend(self.W_g_dense(t, q).T, (self.la_gDOF, self.uDOF))
+
+    def g_ddot(self, t, q, u, u_dot):
+        g_ddot = np.zeros(self.nla_g)
+
+        r_P1P2 = self.r_OP2(t, q) - self.r_OP1(t, q) 
+        ex1, _, _ = self.A_IB1(t, q).T
+        _, ey2, ez2 = self.A_IB2(t, q).T
+
+        v_P1P2 = self.v_P2(t, q, u) - self.v_P1(t, q, u) 
+        Omega1 = self.Omega1(t, q, u)
+        Omega2 = self.Omega2(t, q, u)
+        Omega21 = Omega1 - Omega2
+
+        a_P1P2 = self.a_P2(t, q, u, u_dot) - self.a_P1(t, q, u, u_dot) 
+        Psi1 = self.Psi1(t, q, u, u_dot)
+        Psi2 = self.Psi2(t, q, u, u_dot)
+
+        g_ddot[0] = a_P1P2 @ ey2 + v_P1P2 @ cross3(Omega2, ey2) \
+                    + cross3(cross3(Omega2, ey2), r_P1P2) @ Omega2 \
+                    + cross3(ey2, v_P1P2) @ Omega2 + cross3(ey2, r_P1P2) @ Psi2
+
+        g_ddot[1] = a_P1P2 @ ez2 + v_P1P2 @ cross3(Omega2, ez2) \
+                    + cross3(cross3(Omega2, ez2), r_P1P2) @ Omega2 \
+                    + cross3(ez2, v_P1P2) @ Omega2 + cross3(ez2, r_P1P2) @ Psi2
+
+        g_ddot[2] =   cross3(cross3(Omega1, ex1), ey2) @ Omega21 \
+                    + cross3(ex1, cross3(Omega2, ey2)) @ Omega21 \
+                    + cross3(ex1, ey2) @ (Psi1 - Psi2)
+
+        g_ddot[3] =   cross3(cross3(Omega1, ex1), ez2) @ Omega21 \
+                    + cross3(ex1, cross3(Omega2, ez2)) @ Omega21 \
+                    + cross3(ex1, ez2) @ (Psi1 - Psi2)
+
+        return g_ddot
 
     def g_q(self, t, q, coo):
         coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
@@ -183,10 +247,116 @@ class Linear_guidance():
 
         # coo.extend( dense, (self.uDOF, self.qDOF))
 
-# class Linear_guidance2D(Linear_guidance):
-#     def __init__(self, *args, **kwargs):
-#         super().__init__(*args, **kwargs)
-#         self.nla_g = 1
-#         la_g0 = kwargs.get('la_g0')
-#         self.la_g0 = np.zeros(self.nla_g) if la_g0 is None else la_g0
-#         self.__la_g_DOF = np.array([0])
+class Linear_guidance_x_2D(Linear_guidance_x):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.nla_g = 2
+        la_g0 = kwargs.get('la_g0')
+        self.la_g0 = np.zeros(self.nla_g) if la_g0 is None else la_g0
+        self.__la_g_DOF = np.array([0, 1])
+
+    def g(self, t, q):
+        r_OP1 = self.r_OP1(t, q)
+        r_OP2 = self.r_OP2(t, q)
+        r_P1P2 = r_OP2 - r_OP1
+        ex1, _, _ = self.A_IB1(t, q).T
+        _, ey2, _ = self.A_IB2(t, q).T
+        return np.array([r_P1P2 @ ey2, ex1 @ ey2])
+
+    def g_q_dense(self, t, q):
+        nq1 = self.nq1
+        g_q = np.zeros((self.nla_g, self._nq))
+
+        r_OP1 = self.r_OP1(t, q)
+        r_OP2 = self.r_OP2(t, q)
+        r_P1P2 = r_OP2 - r_OP1
+        ex1, _, _ = self.A_IB1(t, q).T
+        _, ey2, _ = self.A_IB2(t, q).T
+
+        ex1_q = self.A_IB1_q(t, q)[:, 0]
+        ey2_q = self.A_IB2_q(t, q)[:, 1]
+        
+        # np.array([r_P1P2 @ ey2, ex1 @ ey2])
+        g_q[0, :nq1] = -ey2 @ self.r_OP1_q(t, q) 
+        g_q[0, nq1:] =  ey2 @ self.r_OP2_q(t, q) + r_P1P2 @ ey2_q
+        g_q[1, :nq1] = ey2 @ ex1_q
+        g_q[1, nq1:] = ex1 @ ey2_q
+        return g_q
+
+    def g_dot(self, t, q, u):
+        g_dot = np.zeros(self.nla_g)
+
+        r_P1P2 = self.r_OP2(t, q) - self.r_OP1(t, q) 
+        ex1, _, _ = self.A_IB1(t, q).T
+        _, ey2, _ = self.A_IB2(t, q).T
+
+        v_P1P2 = self.v_P2(t, q, u) - self.v_P1(t, q, u) 
+        Omega1 = self.Omega1(t, q, u)
+        Omega2 = self.Omega2(t, q, u)
+
+        # # np.array([r_P1P2 @ ey2, ex1 @ ey2])
+        g_dot[0] = v_P1P2 @ ey2 + cross3(ey2, r_P1P2) @ Omega2
+        g_dot[1] = cross3(ex1, ey2) @ (Omega1 - Omega2)
+        return g_dot
+
+    def g_dot_u(self, t, q, coo):
+        coo.extend(self.W_g_dense(t, q).T, (self.la_gDOF, self.uDOF))
+
+    def g_ddot(self, t, q, u, u_dot):
+        g_ddot = np.zeros(self.nla_g)
+
+        r_P1P2 = self.r_OP2(t, q) - self.r_OP1(t, q) 
+        ex1, _, _ = self.A_IB1(t, q).T
+        _, ey2, _ = self.A_IB2(t, q).T
+
+        v_P1P2 = self.v_P2(t, q, u) - self.v_P1(t, q, u) 
+        Omega1 = self.Omega1(t, q, u)
+        Omega2 = self.Omega2(t, q, u)
+        Omega21 = Omega1 - Omega2
+
+        a_P1P2 = self.a_P2(t, q, u, u_dot) - self.a_P1(t, q, u, u_dot) 
+        Psi1 = self.Psi1(t, q, u, u_dot)
+        Psi2 = self.Psi2(t, q, u, u_dot)
+
+        g_ddot[0] = a_P1P2 @ ey2 + v_P1P2 @ cross3(Omega2, ey2) \
+                    + cross3(cross3(Omega2, ey2), r_P1P2) @ Omega2 \
+                    + cross3(ey2, v_P1P2) @ Omega2 + cross3(ey2, r_P1P2) @ Psi2
+
+        g_ddot[1] =   cross3(cross3(Omega1, ex1), ey2) @ Omega21 \
+                    + cross3(ex1, cross3(Omega2, ey2)) @ Omega21 \
+                    + cross3(ex1, ey2) @ (Psi1 - Psi2)
+
+        return g_ddot
+
+    def g_q(self, t, q, coo):
+        coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
+   
+    def W_g_dense(self, t, q):
+        nu1 = self.nu1
+        W_g = np.zeros((self._nu, self.nla_g))
+
+        r_OP1 = self.r_OP1(t, q) 
+        r_OP2 = self.r_OP2(t, q)
+        r_P1P2 = r_OP2 - r_OP1
+        ex1, _, _ = self.A_IB1(t, q).T
+        _, ey2, _ = self.A_IB2(t, q).T
+
+        # np.array([r_P1P2 @ ey2, r_P1P2 @ ez2, ex1 @ ey2, ex1 @ ez2])
+        # position 
+        J_P1 = self.J_P1(t, q) 
+        J_P2 = self.J_P2(t, q)
+        J_R1 = self.J_R1(t, q)
+        J_R2 = self.J_R2(t, q)
+        J = np.hstack([J_R1, -J_R2])
+
+        W_g[:nu1, 0] = -ey2 @ J_P1
+        W_g[nu1:, 0] =  ey2 @ J_P2 + cross3(ey2, r_P1P2) @ J_R2
+        W_g[:, 1] = cross3(ex1, ey2) @ J
+
+        return W_g
+
+    def W_g(self, t, q, coo):
+        coo.extend(self.W_g_dense(t, q), (self.uDOF, self.la_gDOF))
+
+    def Wla_g_q(self, t, q, la_g, coo):
+        pass

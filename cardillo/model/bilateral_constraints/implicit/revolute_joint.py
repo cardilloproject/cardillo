@@ -24,7 +24,7 @@ class Revolute_joint():
         uDOF1 = self.subsystem1.uDOF_P(self.frame_ID1)
         uDOF2 = self.subsystem2.uDOF_P(self.frame_ID2)
         self.uDOF = np.concatenate([self.subsystem1.uDOF[uDOF1], self.subsystem2.uDOF[uDOF2]])
-        self.nu1 = len(uDOF1)
+        self.nu1 = nu1 = len(uDOF1)
         self.nu2 = len(uDOF2)
         self.__nu = self.nu1 + self.nu2
         
@@ -40,10 +40,14 @@ class Revolute_joint():
 
         self.r_OP1 = lambda t, q: self.subsystem1.r_OP(t, q[:nq1], self.frame_ID1, K_r_SP1)
         self.r_OP1_q = lambda t, q: self.subsystem1.r_OP_q(t, q[:nq1], self.frame_ID1, K_r_SP1)
+        self.v_P1 = lambda t, q, u: self.subsystem1.v_P(t, q[:nq1], u[:nu1], self.frame_ID1, K_r_SP1)
+        self.a_P1 = lambda t, q, u, u_dot: self.subsystem1.a_P(t, q[:nq1], u[:nu1], u_dot[:nu1], self.frame_ID1, K_r_SP1)
         self.J_P1 = lambda t, q: self.subsystem1.J_P(t, q[:nq1], self.frame_ID1, K_r_SP1)
         self.J_P1_q = lambda t, q: self.subsystem1.J_P_q(t, q[:nq1], self.frame_ID1, K_r_SP1)
         self.A_IB1 = lambda t, q: self.subsystem1.A_IK(t, q[:nq1], self.frame_ID1) @ A_K1B1
         self.A_IB1_q = lambda t, q: np.einsum('ijl,jk->ikl', self.subsystem1.A_IK_q(t, q[:nq1], self.frame_ID1), A_K1B1)
+        self.Omega1 = lambda t, q, u: self.subsystem1.A_IK(t, q[:nq1], self.frame_ID1) @ self.subsystem1.K_Omega(t, q[:nq1], u[:nu1], self.frame_ID1)
+        self.Psi1 = lambda t, q, u, u_dot: self.subsystem1.A_IK(t, q[:nq1], self.frame_ID1) @ self.subsystem1.K_Psi(t, q[:nq1], u[:nu1], u_dot[:nu1], self.frame_ID1)
         self.K_J_R1 = lambda t, q: self.subsystem1.K_J_R(t, q[:nq1], self.frame_ID1)
         self.K_J_R1_q = lambda t, q: self.subsystem1.K_J_R_q(t, q[:nq1], self.frame_ID1)
         self.J_R1 = lambda t, q: self.subsystem1.A_IK(t, q[:nq1], self.frame_ID1) @ self.subsystem1.K_J_R(t, q[:nq1], self.frame_ID1)
@@ -51,10 +55,14 @@ class Revolute_joint():
 
         self.r_OP2 = lambda t, q: self.subsystem2.r_OP(t, q[nq1:], self.frame_ID2, K_r_SP2)
         self.r_OP2_q = lambda t, q: self.subsystem2.r_OP_q(t, q[nq1:], self.frame_ID2, K_r_SP2)
+        self.v_P2 = lambda t, q, u: self.subsystem2.v_P(t, q[nq1:], u[nu1:], self.frame_ID2, K_r_SP2)
+        self.a_P2 = lambda t, q, u, u_dot: self.subsystem2.a_P(t, q[nq1:], u[nu1:], u_dot[nu1:], self.frame_ID2, K_r_SP2)
         self.J_P2 = lambda t, q: self.subsystem2.J_P(t, q[nq1:], self.frame_ID2, K_r_SP2)
         self.J_P2_q = lambda t, q: self.subsystem2.J_P_q(t, q[nq1:], self.frame_ID2, K_r_SP2)
         self.A_IB2 = lambda t, q:  self.subsystem2.A_IK(t, q[nq1:], self.frame_ID2) @ A_K2B2
         self.A_IB2_q = lambda t, q: np.einsum('ijk,jl->ilk', self.subsystem2.A_IK_q(t, q[nq1:], self.frame_ID2), A_K2B2 )
+        self.Omega2 = lambda t, q, u:  self.subsystem2.A_IK(t, q[nq1:], self.frame_ID2) @ self.subsystem2.K_Omega(t, q[nq1:], u[nu1:], self.frame_ID2)
+        self.Psi2 = lambda t, q, u, u_dot:  self.subsystem2.A_IK(t, q[nq1:], self.frame_ID2) @ self.subsystem2.K_Psi(t, q[nq1:], u[nu1:], u_dot[nu1:], self.frame_ID2)
         self.K_J_R2 = lambda t, q: self.subsystem2.K_J_R(t, q[nq1:], self.frame_ID2)
         self.K_J_R2_q = lambda t, q: self.subsystem2.K_J_R_q(t, q[nq1:], self.frame_ID2)
         self.J_R2 = lambda t, q: self.subsystem2.A_IK(t, q[nq1:], self.frame_ID2) @ self.subsystem2.K_J_R(t, q[nq1:], self.frame_ID2)
@@ -90,6 +98,48 @@ class Revolute_joint():
         g_q[4, :nq1] = ey2 @ ez1_q
         g_q[4, nq1:] = ez1 @ ey2_q
         return g_q
+
+    def g_dot(self, t, q, u):
+        g_dot = np.zeros(self.nla_g)
+
+        _, _, ez1 = self.A_IB1(t, q).T
+        ex2, ey2, _ = self.A_IB2(t, q).T
+
+        Omega21 = self.Omega1(t, q, u) - self.Omega2(t, q, u)
+
+        # np.concatenate([r_OP2 - r_OP1, [ez1 @ ex2, ez1 @ ey2]])
+        g_dot[:3] = self.v_P2(t, q, u) - self.v_P1(t, q, u)
+        g_dot[3] = cross3(ez1, ex2) @ Omega21
+        g_dot[4] = cross3(ez1, ey2) @ Omega21
+        return g_dot
+
+    def g_dot_u(self, t, q, coo):
+        coo.extend(self.W_g_dense(t, q).T, (self.la_gDOF, self.uDOF))
+
+    def g_ddot(self, t, q, u, u_dot):
+        g_ddot = np.zeros(self.nla_g)
+
+        _, _, ez1 = self.A_IB1(t, q).T
+        ex2, ey2, _ = self.A_IB2(t, q).T
+
+        Omega1 = self.Omega1(t, q, u)
+        Omega2 = self.Omega2(t, q, u)
+        Omega21 = Omega1 - Omega2
+
+        Psi1 = self.Psi1(t, q, u, u_dot)
+        Psi2 = self.Psi2(t, q, u, u_dot)
+
+        g_ddot[:3] = self.a_P2(t, q, u, u_dot) - self.a_P1(t, q, u, u_dot) 
+
+        g_ddot[3] =   cross3(cross3(Omega1, ez1), ex2) @ Omega21 \
+                    + cross3(ez1, cross3(Omega2, ex2)) @ Omega21 \
+                    + cross3(ez1, ex2) @ (Psi1 - Psi2)
+
+        g_ddot[4] =   cross3(cross3(Omega1, ez1), ey2) @ Omega21 \
+                    + cross3(ez1, cross3(Omega2, ey2)) @ Omega21 \
+                    + cross3(ez1, ey2) @ (Psi1 - Psi2)
+
+        return g_ddot
 
     def g_q(self, t, q, coo):
         coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
