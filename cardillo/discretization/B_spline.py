@@ -83,30 +83,20 @@ def __basis_functions_ders(degree, knot_vector, spans, knots, order, dtype=np.fl
         basis_ders[:, i] = __basis_function_ders(degree, knot_vector, span, knot, order)
     return basis_ders
 
-def __basis_function_ders(degree, knot_vector, span, knot, order, dtype=np.float64):
-    p = degree
-    d = order
-    Xi = knot_vector
-    xi = knot
-    i = span
-    
+def __basis_function_ders(degree, knot_vector, span, knot, order, dtype=np.float64):    
     # initialize output
-    ndu = np.zeros((p + 1, p + 1), dtype=dtype)
-    a = np.zeros((2, p + 1), dtype=dtype)
-    N  = np.zeros((d + 1, p + 1), dtype=dtype)
+    ndu = np.zeros((degree + 1, degree + 1), dtype=dtype)
+    a = np.zeros((2, degree + 1), dtype=dtype)
+    N  = np.zeros((order + 1, degree + 1), dtype=dtype)
 
     # lambda functions for left and right
-    left = lambda j: xi - Xi[i - j + 1]
-    right = lambda j: Xi[i + j] - xi
-    
-    # for every element of xi
-    a.fill(0)
-    ndu.fill(0)
+    left = lambda j: knot - knot_vector[span - j + 1]
+    right = lambda j: knot_vector[span + j] - knot
 
     # ALGORITHM A2.3 of Piegl1997
     ndu[0, 0] = 1
 
-    for j in range(1,p+1):
+    for j in range(1,degree+1):
         saved = 0
         for r in range(j): 
             # lower triangle
@@ -120,20 +110,20 @@ def __basis_function_ders(degree, knot_vector, span, knot, order, dtype=np.float
         ndu[j,j] = saved
 
     # load the basis functions
-    for j in range(0, p + 1):
-        N[0, j] = ndu[j, p]
+    for j in range(0, degree + 1):
+        N[0, j] = ndu[j, degree]
 
     # compute the derivatives (Eq. 2.9)
-    for r in range(p + 1): # loop over function index
+    for r in range(degree + 1): # loop over function index
         s1 = 0
         s2 = 1
         a[0, 0] = 1
 
         # loop to compute k-th derivative
-        for k in range(1, d + 1):
+        for k in range(1, order + 1):
             dd = 0
             rk = r - k
-            pk = p - k
+            pk = degree - k
             if (r >= k):
                 a[s2, 0] = a[s1, 0] / ndu[pk + 1, rk]
                 dd = a[s2, 0] * ndu[rk, pk]
@@ -145,7 +135,7 @@ def __basis_function_ders(degree, knot_vector, span, knot, order, dtype=np.float
             if (r - 1 <= pk):
                 j2 = k - 1 
             else:
-                j2 = p - r
+                j2 = degree - r
             
             for j in range(j1, j2 + 1):
                 a[s2, j] = (a[s1, j] - a[s1, j - 1]) / ndu[pk + 1, rk + j]
@@ -163,11 +153,11 @@ def __basis_function_ders(degree, knot_vector, span, knot, order, dtype=np.float
             s2 = j
 
     # multiply through by the correct factors
-    r = p
-    for k in range(1, d + 1):
-        for j in range(p + 1):
+    r = degree
+    for k in range(1, order + 1):
+        for j in range(degree + 1):
             N[k, j] *= r
-        r *= (p - k)
+        r *= (degree - k)
 
     return N
     
