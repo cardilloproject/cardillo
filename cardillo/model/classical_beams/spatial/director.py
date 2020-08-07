@@ -121,7 +121,7 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
         N_bdry_left = self.stack_shapefunctions(N_bdry)
         dN_bdry_left = self.stack_shapefunctions(dN_bdry)
 
-        N_bdry, dN_bdry = self.basis_functions(1.0 - 1.0e-9)
+        N_bdry, dN_bdry = self.basis_functions(1)
         N_bdry_right = self.stack_shapefunctions(N_bdry)
         dN_bdry_right = self.stack_shapefunctions(dN_bdry)
 
@@ -706,7 +706,7 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
     def centerline(self, q, n=100):
         q_body = q[self.qDOF]
         r = []
-        for xi in np.linspace(0, 1 - 1.0e-9, n):
+        for xi in np.linspace(0, 1, n):
             frame_ID = (xi,)
             qp = q_body[self.qDOF_P(frame_ID)]
             r.append( self.r_OP(1, qp, frame_ID) )
@@ -719,7 +719,7 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
         d2 = []
         d3 = []
 
-        for xi in np.linspace(0, 1 - 1.0e-9, n):
+        for xi in np.linspace(0, 1, n):
             frame_ID = (xi,)
             qp = q_body[self.qDOF_P(frame_ID)]
             r.append( self.r_OP(1, qp, frame_ID) )
