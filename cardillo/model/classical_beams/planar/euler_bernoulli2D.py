@@ -24,7 +24,7 @@ class Euler_bernoulli2D():
 
         nn = nEl + polynomial_degree # number of nodes
         self.knot_vector = knot_vector = uniform_knot_vector(polynomial_degree, nEl) # uniform open knot vector
-        self.element_span = self.knot_vector[polynomial_degree:-polynomial_degree]
+        self.element_span = np.array(self.knot_vector[polynomial_degree:-polynomial_degree])
 
         nn_el = polynomial_degree + 1 # number of nodes per element
         nq_n = 2 # number of degrees of freedom per node (x, y)
@@ -76,7 +76,7 @@ class Euler_bernoulli2D():
         N_bdry_left = self.stack_shapefunctions(N_bdry)
         dN_bdry_left = self.stack_shapefunctions(dN_bdry)
 
-        N_bdry, dN_bdry = B_spline_basis(self.polynomial_degree, 1, self.knot_vector, 1 - 1.0e-9)
+        N_bdry, dN_bdry = B_spline_basis(self.polynomial_degree, 1, self.knot_vector, 1)
         N_bdry_right = self.stack_shapefunctions(N_bdry)
         dN_bdry_right = self.stack_shapefunctions(dN_bdry)
 
@@ -202,9 +202,7 @@ class Euler_bernoulli2D():
             f[elDOF] += self.f_pot_el(q[elDOF], self.Q[elDOF], self.N_xi[el], self.N_xixi[el], self.J0[el], self.qw[el])
         return f
 
-    def f_pot_q_el(self, qe, Qe, N_xi, N_xixi, J0, qw):
-        # return Numerical_derivative(lambda t, qe: self.f_pot_el(qe, Qe, N_xi, N_xixi, J0, qw), order=2)._x(0, qe, eps=1.0e-6)
-        
+    def f_pot_q_el(self, qe, Qe, N_xi, N_xixi, J0, qw):        
         fe_q = np.zeros((self.nq_el, self.nq_el))
 
         for N_xii, N_xixii, qwi in zip(N_xi, N_xixi, qw):
@@ -456,7 +454,7 @@ class Euler_bernoulli2D():
     def centerline(self, q, n=100):
         q_body = q[self.qDOF]
         r = []
-        for xi in np.linspace(0, 1 - 1.0e-9, n):
+        for xi in np.linspace(0, 1, n):
             frame_ID = (xi,)
             qp = q_body[self.qDOF_P(frame_ID)]
             r.append( self.r_OP(1, qp, frame_ID) )
