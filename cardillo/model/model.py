@@ -79,6 +79,7 @@ class Model(object):
         prox_r_N = []
         prox_r_T = []
         NT_connectivity = []
+        N_has_friction = []
         Ncontr_connectivity = []
 
         n_laN_contr = 0
@@ -132,6 +133,7 @@ class Model(object):
                 mu.extend(contr.mu.tolist())
                 for i in range(contr.nla_N):
                     NT_connectivity.append(contr.la_TDOF[np.array(contr.NT_connectivity[i], dtype=int)].tolist())
+                    N_has_friction.append(True if contr.NT_connectivity[i] else False)
                     Ncontr_connectivity.append(n_laN_contr)
                 n_laN_contr += 1
                 
@@ -142,6 +144,7 @@ class Model(object):
         self.la_N0 = np.array(la_N0)
         self.la_T0 = np.array(la_T0)
         self.NT_connectivity = NT_connectivity
+        self.N_has_friction = np.array(N_has_friction, dtype=bool)
         self.Ncontr_connectivity = np.array(Ncontr_connectivity, dtype=int)
         self.e_N = np.array(e_N)
         self.prox_r_N = np.array(prox_r_N)
@@ -468,6 +471,18 @@ class Model(object):
             # TODO: dimension if subsystem has multiple contacts
             xi_T[contr.la_TDOF] = contr.gamma_T(t, q[contr.qDOF], u_post[contr.uDOF]) + self.e_T[contr.la_NDOF] * contr.gamma_T(t, q[contr.qDOF], u_pre[contr.uDOF])
         return xi_T
+
+    def xi_T_q(self, t, q, u_pre, u_post, scipy_matrix=coo_matrix):
+        coo = Coo((self.nla_T, self.nq))
+        for contr in self.__g_N_contr:
+            contr.xi_T_q(t, q[contr.qDOF], u_pre[contr.uDOF], u_post[contr.uDOF], coo)
+        return coo.tosparse(scipy_matrix)
+
+    def gamma_T_u(self, t, q, scipy_matrix=coo_matrix):
+        coo = Coo((self.nla_T, self.nu))
+        for contr in self.__gamma_T_contr:
+            contr.gamma_T_u(t, q[contr.qDOF], coo)
+        return coo.tosparse(scipy_matrix)
 
     def W_T(self, t, q, scipy_matrix=coo_matrix):
         coo = Coo((self.nu, self.nla_T))
