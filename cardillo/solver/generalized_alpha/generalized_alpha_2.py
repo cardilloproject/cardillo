@@ -15,7 +15,8 @@ from cardillo.solver import Solution
 class Generalized_alpha_2():
     def __init__(self, model, t1, dt, \
                     rho_inf=1, beta=None, gamma=None, alpha_m=None, alpha_f=None,\
-                       newton_tol=1e-8, newton_max_iter=30, newton_error_function=lambda x: np.max(np.abs(x))):
+                       newton_tol=1e-8, newton_max_iter=30, newton_error_function=lambda x: np.max(np.abs(x)),\
+                           numerical_jacobian=False):
         
         self.model = model
 
@@ -38,10 +39,12 @@ class Generalized_alpha_2():
             self.alpha_f = alpha_f
         self.alpha_ratio = (1 - self.alpha_f) / (1 - self.alpha_m)
 
+        # newton settings
         self.newton_tol = newton_tol
         self.newton_max_iter = newton_max_iter
         self.newton_error_function = newton_error_function
 
+        # dimensions
         self.nq = model.nq
         self.nu = model.nu
         self.nla_g = model.nla_g
@@ -52,10 +55,11 @@ class Generalized_alpha_2():
         self.nR_smooth = 3 * self.nu + self.nla_g + self.nla_gamma
         self.nR = self.nR_smooth + 3 * self.nla_N + 2 * self.nla_T
 
-        # self.Mk1 = model.M(t0, model.q0)
-        # self.W_gk1 = self.model.W_g(t0, model.q0)
-        # self.W_gammak1 = self.model.W_gamma(t0, model.q0)
-        # self.W_Nk1 = self.model.W_N(t0, model.q0, scipy_matrix=csc_matrix)
+        self.Mk1 = model.M(t0, model.q0)
+        self.W_gk1 = self.model.W_g(t0, model.q0)
+        self.W_gammak1 = self.model.W_gamma(t0, model.q0)
+        self.W_Nk1 = self.model.W_N(t0, model.q0, scipy_matrix=csc_matrix)
+        self.W_Tk1 = self.model.W_T(t0, model.q0, scipy_matrix=csc_matrix)
 
         self.tk = model.t0
         self.qk = model.q0 
@@ -80,8 +84,10 @@ class Generalized_alpha_2():
         self.la_Nk1 = model.la_N0
         self.la_Tk1 = model.la_T0
 
-        # self.__R_x = self.__R_x_num
-        self.__R_x = self.__R_x_analytic
+        if numerical_jacobian:
+            self.__R_x = self.__R_x_num
+        else:
+            self.__R_x = self.__R_x_analytic
         
     def __R(self, tk1, xk1):
         nu = self.nu
@@ -100,7 +106,7 @@ class Generalized_alpha_2():
         La_Nk1 = xk1[3*nu+nla_g+nla_gamma+nla_N:3*nu+nla_g+nla_gamma+2*nla_N]
         la_Nk1 = xk1[3*nu+nla_g+nla_gamma+2*nla_N:3*nu+nla_g+nla_gamma+3*nla_N]
         La_Tk1 = xk1[3*nu+nla_g+nla_gamma+3*nla_N:3*nu+nla_g+nla_gamma+3*nla_N+nla_T]
-        self.la_Tk1 = la_Tk1 = xk1[3*nu+nla_g+nla_gamma+3*nla_N+nla_T:3*nu+nla_g+nla_gamma+3*nla_N+2*nla_T]
+        la_Tk1 = xk1[3*nu+nla_g+nla_gamma+3*nla_N+nla_T:3*nu+nla_g+nla_gamma+3*nla_N+2*nla_T]
 
         # update dependent variables
         a_bark1 = (self.alpha_f * self.ak + (1-self.alpha_f) * ak1  - self.alpha_m * self.a_bark) / (1 - self.alpha_m)
@@ -129,7 +135,8 @@ class Generalized_alpha_2():
         g_N_ddot_post = self.model.g_N_ddot(tk1, qk1, uk1, ak1)
         self.gamma_T_dot_post = gamma_T_dot_post = self.model.gamma_T_dot(tk1, qk1, uk1, ak1)
         self.gamma_T_post = gamma_T_post = self.model.gamma_T(tk1, qk1, uk1)
-        # evaluate residual R(ak1, la_gk1, la_gammak1)
+        
+        # evaluate residual 
         R = np.zeros(self.nR)
         R[:nu] = self.Mk1 @ ak1 - ( self.model.h(tk1, qk1, uk1) + self.W_gk1 @ la_gk1 + self.W_gammak1 @ la_gammak1 + self.W_Nk1 @ la_Nk1 + self.W_Tk1 @ la_Tk1)
         R[nu:2*nu] = self.Mk1 @ Uk1 - self.W_Nk1 @ La_Nk1 - self.W_Tk1 @ La_Tk1
@@ -138,11 +145,10 @@ class Generalized_alpha_2():
         R[3*nu+nla_g:3*nu+nla_g+nla_gamma] = self.model.gamma(tk1, qk1, uk1)
 
         self.I_N = I_N = (kappa_ast - self.model.prox_r_N * g_N >= 0)
-        I_N_ind = np.where(I_N)[0]
-        _I_N_ind = np.where(~I_N)[0]
-        # R[3*nu+nla_g+nla_gamma:3*nu+nla_g+nla_gamma+nla_N] = kappa_ast - prox_Rn0(kappa_ast - self.model.prox_r_N * g_N)
-        R[3*nu+nla_g+nla_gamma+I_N_ind] = g_N[I_N]
-        R[3*nu+nla_g+nla_gamma+_I_N_ind] = kappa_ast[~I_N]
+        act_ind = np.where(I_N)[0]
+        _act_ind = np.where(~I_N)[0]
+        R[3*nu+nla_g+nla_gamma+act_ind] = g_N[I_N]
+        R[3*nu+nla_g+nla_gamma+_act_ind] = kappa_ast[~I_N]
 
         self.A_N = A_N = (P_N - self.model.prox_r_N * xi_N) >= 0
         act = I_N * A_N
@@ -152,22 +158,39 @@ class Generalized_alpha_2():
         R[3*nu+nla_g+nla_gamma+nla_N+_act_ind] = P_N[~act]
 
         B_N = (la_Nk1 - self.model.prox_r_N * g_N_ddot_post) >= 0
-        act = I_N * A_N * B_N
+        act *= B_N # I_N * A_N * B_N
         act_ind = np.where(act)[0]
         _act_ind = np.where(~act)[0]
         R[3*nu+nla_g+nla_gamma+2*nla_N+act_ind] = g_N_ddot_post[act]
         R[3*nu+nla_g+nla_gamma+2*nla_N+_act_ind] = la_Nk1[~act]
-        # for i, i_N in enumerate(I_N):
-        #     if i_N:
-        #         # R[3*nu+nla_g+nla_gamma+nla_N+i] = P_N[i] - prox_Rn0(P_N[i] - self.model.prox_r_N[i] * xi_N[i])
-        #         if A_N[i]:
-        #             R[3*nu+nla_g+nla_gamma+2*nla_N+i] = la_Nk1[i] - prox_Rn0(la_Nk1[i] - self.model.prox_r_N[i] * g_N_ddot_post[i])
-        #         else:
-        #             R[3*nu+nla_g+nla_gamma+2*nla_N+i] = la_Nk1[i]
-        #     else:
-        #         # R[3*nu+nla_g+nla_gamma+nla_N+i] = P_N[i]
-        #         R[3*nu+nla_g+nla_gamma+2*nla_N+i] = la_Nk1[i]
 
+        C_N = I_N * self.model.N_has_friction
+
+        C_T = []
+        for i_N, i_T in enumerate(self.model.NT_connectivity):
+            C_T.append(np.linalg.norm(P_T[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T]) <= self.model.mu[i_N] * P_N[i_N])
+        C_T = np.array(C_T, dtype=bool)
+        N_open = ~I_N * self.model.N_has_friction
+        N_stick = C_N * C_T
+        N_slip = C_N * ~C_T
+        N_open_ind = np.where(N_open)[0]
+        N_stick_ind = np.where(N_stick)[0]
+        N_slip_ind = np.where(N_slip)[0]
+        T_open_ind = np.array([j for i in N_open_ind for j in self.model.NT_connectivity[i]], dtype=int)
+        T_stick_ind = np.array([j for i in N_stick_ind for j in self.model.NT_connectivity[i]], dtype=int)
+        T_slip_ind = np.array([j for i in N_slip_ind for j in self.model.NT_connectivity[i]], dtype=int)
+        T_slip_ind_mat = np.array([self.model.NT_connectivity[i] for i in N_slip_ind], dtype=int)
+
+        R[3*nu+nla_g+nla_gamma+3*nla_N+T_open_ind] = P_T[T_open_ind]
+        R[3*nu+nla_g+nla_gamma+3*nla_N+T_stick_ind] = xi_T[T_stick_ind]
+        tmp = xi_T[T_slip_ind_mat]
+        # TODO
+        norm_xi_ = np.linalg.norm(tmp, axis=-1) 
+        norm_xi = np.ones_like(norm_xi_)
+        norm_xi[norm_xi_>0] = norm_xi_[norm_xi_>0]
+        R[3*nu+nla_g+nla_gamma+3*nla_N+T_slip_ind] = P_T[T_slip_ind] + ((self.model.mu[N_slip_ind] * P_N[N_slip_ind] / norm_xi).reshape(-1, 1) * tmp).reshape(-1)
+        
+        # R[3*nu+nla_g+nla_gamma+3*nla_N+offset:3*nu+nla_g+nla_gamma+3*nla_N+offset+nT] = P_T[i_T] - prox_circle(P_T[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T], self.model.mu[i_N] * P_N[i_N])
         offset = 0
         for i_N, i_T in enumerate(self.model.NT_connectivity):
             nT = len(i_T)
@@ -175,7 +198,7 @@ class Generalized_alpha_2():
                 if I_N[i_N]:
                     # R[3*nu+nla_g+nla_gamma+3*nla_N+offset:3*nu+nla_g+nla_gamma+3*nla_N+offset+2] = La_Tk1[i_T] - prox_circle(La_Tk1[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T], self.model.mu[i_N] * La_Nk1[i_N])
                     # R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset:3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset+2] = la_Tk1[i_T] - prox_circle(la_Tk1[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T], self.model.mu[i_N] * la_Nk1[i_N])
-                    R[3*nu+nla_g+nla_gamma+3*nla_N+offset:3*nu+nla_g+nla_gamma+3*nla_N+offset+nT] = P_T[i_T] - prox_circle(P_T[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T], self.model.mu[i_N] * P_N[i_N])
+                    # R[3*nu+nla_g+nla_gamma+3*nla_N+offset:3*nu+nla_g+nla_gamma+3*nla_N+offset+nT] = P_T[i_T] - prox_circle(P_T[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T], self.model.mu[i_N] * P_N[i_N])
                     if np.linalg.norm( P_T[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T]) <= self.model.mu[i_N] * P_N[i_N]:
                         R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset:3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset+nT] = gamma_T_dot_post[i_T] 
                     else:
@@ -186,7 +209,7 @@ class Generalized_alpha_2():
                         R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset:3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset+nT] = la_Tk1[i_T] + self.model.mu[i_N] * la_Nk1[i_N] * n
                 else:
                     # R[3*nu+nla_g+nla_gamma+3*nla_N+offset:3*nu+nla_g+nla_gamma+3*nla_N+offset+2] = La_Tk1[i_T]
-                    R[3*nu+nla_g+nla_gamma+3*nla_N+offset:3*nu+nla_g+nla_gamma+3*nla_N+offset+nT] = P_T[i_T]
+                    # R[3*nu+nla_g+nla_gamma+3*nla_N+offset:3*nu+nla_g+nla_gamma+3*nla_N+offset+nT] = P_T[i_T]
                     R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset:3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset+nT] = la_Tk1[i_T]
                 offset += nT
         return R
@@ -371,7 +394,7 @@ class Generalized_alpha_2():
         RLaN_q.resize(nla_N, nq)
         RLaN_q.row = act_ind[RLaN_q.row]
 
-        RLaN_a = RLaN_q @ self.q_a + RLaN_u *self.u_a
+        RLaN_a = RLaN_q @ self.q_a + RLaN_u * self.u_a
         RLaN_Q = RLaN_q @ self.q_Q
         RLaN_La_N = RLaN_P_N
         RLaN_la_N = RLaN_P_N * self.P_N_la_N
@@ -399,7 +422,7 @@ class Generalized_alpha_2():
         RlaN_q.resize(nla_N, nq)
         RlaN_q.row = act_ind[RlaN_q.row]
 
-        RlaN_a += RlaN_q @ self.q_a + RlaN_u *self.u_a
+        RlaN_a += RlaN_q @ self.q_a + RlaN_u * self.u_a
         RlaN_Q = RlaN_q @ self.q_Q
         
         

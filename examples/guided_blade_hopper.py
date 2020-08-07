@@ -61,7 +61,7 @@ if __name__ == "__main__":
     
 
     # contact
-    mu = 0.2
+    mu = 0
     e_N = 0
     e_T = 0
 
@@ -146,7 +146,7 @@ if __name__ == "__main__":
     # ground
     inclination_angle = 0
     frame = Frame(A_IK=A_IK_basic_z(inclination_angle) )
-    r_N = 0.05
+    r_N = 0.2
     ground = Sphere_to_plane2D(frame, blade, 0, mu, frame_ID=(0,), prox_r_N=r_N, prox_r_T=r_N, e_N=e_N, e_T=e_T)
     model.add( ground )
 
@@ -156,12 +156,12 @@ if __name__ == "__main__":
     #--------------------------------------------------------------------------------
     #%% SIMULATE
 
-    t1 = 0.1 #4*T
-    dt = 0.001
+    t1 = 0.8 #4*T
+    dt = 0.0005
 
     # build solver and solve the problem
     # solver = Moreau(model, t1, dt)
-    solver = Generalized_alpha_2(model, t1, dt, rho_inf=0.8)
+    solver = Generalized_alpha_2(model, t1, dt, rho_inf=0.7)
     
     sol = solver.solve()
     t = sol.t

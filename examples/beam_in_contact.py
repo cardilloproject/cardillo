@@ -1,3 +1,4 @@
+from cardillo.math.numerical_derivative import Numerical_derivative
 from cardillo.model.classical_beams.planar import Hooke, Euler_bernoulli2D
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints.implicit import Spherical_joint2D, Spherical_joint
@@ -22,8 +23,8 @@ statics = False
 if __name__ == "__main__":
     # solver parameter
     t0 = 0
-    t1 = 2
-    dt = 1e-3
+    t1 = 1
+    dt = 1e-2
 
     # physical properties of the rope
     rho = 7850
@@ -123,7 +124,7 @@ if __name__ == "__main__":
     model.add(contact1)
     model.assemble()
     
-    solver = Generalized_alpha_2(model, t1, dt, rho_inf=0.5, newton_tol=1.0e-6)
+    solver = Generalized_alpha_2(model, t1, dt, rho_inf=0.5, newton_tol=1.0e-6, numerical_jacobian=False)
     sol = solver.solve()
 
     t = sol.t

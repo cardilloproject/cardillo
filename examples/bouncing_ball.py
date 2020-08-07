@@ -42,12 +42,12 @@ if __name__ == "__main__":
     m = 1
     r = 0.1
     g = 9.81
-    x0 = -1
+    x0 = -0.3
     y0 = 1
-    x_dot0 = 3
+    x_dot0 = 0
     y_dot0 = 0
     phi0 = 0
-    phi_dot0 = 10
+    phi_dot0 = 0
     r_OS0 = np.array([x0, y0, 0])
     vS0 = np.array([x_dot0, y_dot0, 0])
     # q0 = np.array([r_OS0[0], r_OS0[1], phi0])
@@ -68,7 +68,7 @@ if __name__ == "__main__":
     frame1 = Frame(A_IK=np.vstack( (e3, e1, e2) ).T )
     mu = 0.2
     r_N = 0.2
-    e_N = 0.3
+    e_N = 1
     plane_left = Sphere_to_plane(frame1, RB, r, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N)
 
     beta = -pi/4
@@ -76,7 +76,7 @@ if __name__ == "__main__":
     frame2 = Frame(A_IK=np.vstack( (e3, e1, e2) ).T )
     mu = 0.1
     r_N = 0.2
-    e_N = 0.8
+    e_N = 1
     plane_right = Sphere_to_plane(frame2, RB, r, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N)
 
     model = Model()
@@ -84,9 +84,9 @@ if __name__ == "__main__":
     model.add(Force(lambda t: np.array([0, -g * m, 0]), RB))
     # model.add(plane)
     # model.add(plane_left)
-    model.add(plane)
-    # model.add(plane_right)
-    # model.add(plane_left)
+    # model.add(plane)
+    model.add(plane_right)
+    model.add(plane_left)
     model.assemble()
 
     t0 = 0
@@ -101,7 +101,7 @@ if __name__ == "__main__":
     # la_N_fp = sol_fp.la_N
     # la_T_fp = sol_fp.la_T
 
-    solver_n = Generalized_alpha_2(model, t1, dt, rho_inf=1)
+    solver_n = Generalized_alpha_2(model, t1, dt, rho_inf=1, numerical_jacobian=True)
     sol_n = solver_n.solve()
     # sol_n = sol_fp
     t_n = t = sol_n.t
@@ -277,9 +277,9 @@ if __name__ == "__main__":
         q = q[::frac]
 
         # ax.plot([-2 * y0, 2 * y0], (y0-0.1)*np.array([1, 1]), '-k')
-        ax.plot([-2 * y0, 2 * y0], [0, 0], '-k')
-        # ax.plot([0, -y0 * np.cos(alpha)], [0, y0 * np.sin(alpha)], '-k')
-        # ax.plot([0, y0 * np.cos(beta)], [0, - y0 * np.sin(beta)], '-k')
+        # ax.plot([-2 * y0, 2 * y0], [0, 0], '-k')
+        ax.plot([0, -y0 * np.cos(alpha)], [0, y0 * np.sin(alpha)], '-k')
+        ax.plot([0, y0 * np.cos(beta)], [0, - y0 * np.sin(beta)], '-k')
 
         def create(t, q):
             x_S, y_S, _ = RB.r_OP(t, q)
