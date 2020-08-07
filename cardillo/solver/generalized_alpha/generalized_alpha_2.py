@@ -184,34 +184,44 @@ class Generalized_alpha_2():
         R[3*nu+nla_g+nla_gamma+3*nla_N+T_open_ind] = P_T[T_open_ind]
         R[3*nu+nla_g+nla_gamma+3*nla_N+T_stick_ind] = xi_T[T_stick_ind]
         tmp = xi_T[T_slip_ind_mat]
-        # TODO
+        # TODO: might only be needed for numerical jacobian
         norm_xi_ = np.linalg.norm(tmp, axis=-1) 
         norm_xi = np.ones_like(norm_xi_)
         norm_xi[norm_xi_>0] = norm_xi_[norm_xi_>0]
         R[3*nu+nla_g+nla_gamma+3*nla_N+T_slip_ind] = P_T[T_slip_ind] + ((self.model.mu[N_slip_ind] * P_N[N_slip_ind] / norm_xi).reshape(-1, 1) * tmp).reshape(-1)
+
+        R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+T_open_ind] = la_Tk1[T_open_ind]
+        R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+T_stick_ind] = gamma_T_dot_post[T_stick_ind]
+
+        tmp = gamma_T_post[T_slip_ind_mat]
+        # TODO: might only be needed for numerical jacobian
+        norm_xi_ = np.linalg.norm(tmp, axis=-1) 
+        norm_xi = np.ones_like(norm_xi_)
+        norm_xi[norm_xi_>0] = norm_xi_[norm_xi_>0]
+        R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+T_slip_ind] = la_Tk1[T_slip_ind] + ((self.model.mu[N_slip_ind] * la_Nk1[N_slip_ind] / norm_xi).reshape(-1, 1) * tmp).reshape(-1)
         
         # R[3*nu+nla_g+nla_gamma+3*nla_N+offset:3*nu+nla_g+nla_gamma+3*nla_N+offset+nT] = P_T[i_T] - prox_circle(P_T[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T], self.model.mu[i_N] * P_N[i_N])
-        offset = 0
-        for i_N, i_T in enumerate(self.model.NT_connectivity):
-            nT = len(i_T)
-            if nT:
-                if I_N[i_N]:
-                    # R[3*nu+nla_g+nla_gamma+3*nla_N+offset:3*nu+nla_g+nla_gamma+3*nla_N+offset+2] = La_Tk1[i_T] - prox_circle(La_Tk1[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T], self.model.mu[i_N] * La_Nk1[i_N])
-                    # R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset:3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset+2] = la_Tk1[i_T] - prox_circle(la_Tk1[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T], self.model.mu[i_N] * la_Nk1[i_N])
-                    # R[3*nu+nla_g+nla_gamma+3*nla_N+offset:3*nu+nla_g+nla_gamma+3*nla_N+offset+nT] = P_T[i_T] - prox_circle(P_T[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T], self.model.mu[i_N] * P_N[i_N])
-                    if np.linalg.norm( P_T[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T]) <= self.model.mu[i_N] * P_N[i_N]:
-                        R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset:3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset+nT] = gamma_T_dot_post[i_T] 
-                    else:
-                        if np.linalg.norm(gamma_T_post[i_T]) > 0:
-                            n = gamma_T_post[i_T] / np.linalg.norm(gamma_T_post[i_T])
-                        else:
-                            n = gamma_T_post[i_T]
-                        R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset:3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset+nT] = la_Tk1[i_T] + self.model.mu[i_N] * la_Nk1[i_N] * n
-                else:
-                    # R[3*nu+nla_g+nla_gamma+3*nla_N+offset:3*nu+nla_g+nla_gamma+3*nla_N+offset+2] = La_Tk1[i_T]
-                    # R[3*nu+nla_g+nla_gamma+3*nla_N+offset:3*nu+nla_g+nla_gamma+3*nla_N+offset+nT] = P_T[i_T]
-                    R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset:3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset+nT] = la_Tk1[i_T]
-                offset += nT
+        # offset = 0
+        # for i_N, i_T in enumerate(self.model.NT_connectivity):
+        #     nT = len(i_T)
+        #     if nT:
+        #         if I_N[i_N]:
+        #             # R[3*nu+nla_g+nla_gamma+3*nla_N+offset:3*nu+nla_g+nla_gamma+3*nla_N+offset+2] = La_Tk1[i_T] - prox_circle(La_Tk1[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T], self.model.mu[i_N] * La_Nk1[i_N])
+        #             # R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset:3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset+2] = la_Tk1[i_T] - prox_circle(la_Tk1[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T], self.model.mu[i_N] * la_Nk1[i_N])
+        #             # R[3*nu+nla_g+nla_gamma+3*nla_N+offset:3*nu+nla_g+nla_gamma+3*nla_N+offset+nT] = P_T[i_T] - prox_circle(P_T[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T], self.model.mu[i_N] * P_N[i_N])
+        #             if np.linalg.norm( P_T[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T]) <= self.model.mu[i_N] * P_N[i_N]:
+        #                 R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset:3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset+nT] = gamma_T_dot_post[i_T] 
+        #             else:
+        #                 if np.linalg.norm(gamma_T_post[i_T]) > 0:
+        #                     n = gamma_T_post[i_T] / np.linalg.norm(gamma_T_post[i_T])
+        #                 else:
+        #                     n = gamma_T_post[i_T]
+        #                 R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset:3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset+nT] = la_Tk1[i_T] + self.model.mu[i_N] * la_Nk1[i_N] * n
+        #         else:
+        #             # R[3*nu+nla_g+nla_gamma+3*nla_N+offset:3*nu+nla_g+nla_gamma+3*nla_N+offset+2] = La_Tk1[i_T]
+        #             # R[3*nu+nla_g+nla_gamma+3*nla_N+offset:3*nu+nla_g+nla_gamma+3*nla_N+offset+nT] = P_T[i_T]
+        #             R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset:3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset+nT] = la_Tk1[i_T]
+        #         offset += nT
         return R
         
     def __R_nonsmooth(self, tk1, xk1):
@@ -250,27 +260,41 @@ class Generalized_alpha_2():
 
         I_N = (kappa_ast - self.model.prox_r_N * self.model.g_N(tk1, qk1) >= 0)
         R = np.zeros(2 * self.nla_T)
-        offset = 0
+        C_N = I_N * self.model.N_has_friction
+
+        C_T = []
         for i_N, i_T in enumerate(self.model.NT_connectivity):
-            nT = len(i_T)
-            if nT:
-                if I_N[i_N]:
-                    # R[3*nu+nla_g+nla_gamma+3*nla_N+offset:3*nu+nla_g+nla_gamma+3*nla_N+offset+2] = La_Tk1[i_T] - prox_circle(La_Tk1[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T], self.model.mu[i_N] * La_Nk1[i_N])
-                    # R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset:3*nu+nla_g+nla_gamma+3*nla_N+nla_T+offset+2] = la_Tk1[i_T] - prox_circle(la_Tk1[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T], self.model.mu[i_N] * la_Nk1[i_N])
-                    R[offset:offset+nT] = P_T[i_T] - prox_circle(P_T[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T], self.model.mu[i_N] * P_N[i_N])
-                    if np.linalg.norm( P_T[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T]) <= self.model.mu[i_N] * P_N[i_N]:
-                        R[offset+nla_T:offset+nla_T+nT] = gamma_T_dot_post[i_T] 
-                    else:
-                        if np.linalg.norm(gamma_T_post[i_T]) > 0:
-                            n = gamma_T_post[i_T] / np.linalg.norm(gamma_T_post[i_T])
-                        else:
-                            n = gamma_T_post[i_T]
-                        R[offset+nla_T:offset+nla_T+nT] = la_Tk1[i_T] + self.model.mu[i_N] * la_Nk1[i_N] * n
-                else:
-                    # R[3*nu+nla_g+nla_gamma+3*nla_N+offset:3*nu+nla_g+nla_gamma+3*nla_N+offset+2] = La_Tk1[i_T]
-                    R[offset:offset+nT] = P_T[i_T]
-                    R[offset+nla_T:offset+nla_T+nT] = la_Tk1[i_T]
-                offset += nT
+            C_T.append(np.linalg.norm(P_T[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T]) <= self.model.mu[i_N] * P_N[i_N])
+        C_T = np.array(C_T, dtype=bool)
+        N_open = ~I_N * self.model.N_has_friction
+        N_stick = C_N * C_T
+        N_slip = C_N * ~C_T
+        N_open_ind = np.where(N_open)[0]
+        N_stick_ind = np.where(N_stick)[0]
+        N_slip_ind = np.where(N_slip)[0]
+        T_open_ind = np.array([j for i in N_open_ind for j in self.model.NT_connectivity[i]], dtype=int)
+        T_stick_ind = np.array([j for i in N_stick_ind for j in self.model.NT_connectivity[i]], dtype=int)
+        T_slip_ind = np.array([j for i in N_slip_ind for j in self.model.NT_connectivity[i]], dtype=int)
+        T_slip_ind_mat = np.array([self.model.NT_connectivity[i] for i in N_slip_ind], dtype=int)
+
+        R[T_open_ind] = P_T[T_open_ind]
+        R[T_stick_ind] = xi_T[T_stick_ind]
+        tmp = xi_T[T_slip_ind_mat]
+        # TODO: might only be needed for numerical jacobian
+        norm_xi_ = np.linalg.norm(tmp, axis=-1) 
+        norm_xi = np.ones_like(norm_xi_)
+        norm_xi[norm_xi_>0] = norm_xi_[norm_xi_>0]
+        R[T_slip_ind] = P_T[T_slip_ind] + ((self.model.mu[N_slip_ind] * P_N[N_slip_ind] / norm_xi).reshape(-1, 1) * tmp).reshape(-1)
+
+        R[nla_T+T_open_ind] = la_Tk1[T_open_ind]
+        R[nla_T+T_stick_ind] = gamma_T_dot_post[T_stick_ind]
+
+        tmp = gamma_T_post[T_slip_ind_mat]
+        # TODO: might only be needed for numerical jacobian
+        norm_xi_ = np.linalg.norm(tmp, axis=-1) 
+        norm_xi = np.ones_like(norm_xi_)
+        norm_xi[norm_xi_>0] = norm_xi_[norm_xi_>0]
+        R[nla_T+T_slip_ind] = la_Tk1[T_slip_ind] + ((self.model.mu[N_slip_ind] * la_Nk1[N_slip_ind] / norm_xi).reshape(-1, 1) * tmp).reshape(-1)
         return R
 
     def __R_x_analytic(self, tk1, xk1):
@@ -299,6 +323,7 @@ class Generalized_alpha_2():
         uk1 = self.uk1
         kappa_ast = self.kappa_ast
         P_N = self.P_N
+        P_T = self.P_T
 
         # a_bark1 = (self.alpha_f * self.ak + (1-self.alpha_f) * ak1  - self.alpha_m * self.a_bark) / (1 - self.alpha_m)
         # uk1 = self.uk + dt * ((1-self.gamma) * self.a_bark + self.gamma * a_bark1) + Uk1
@@ -328,6 +353,8 @@ class Generalized_alpha_2():
         g_N_ddot_post_q = self.model.g_N_ddot_q(tk1, qk1, uk1, ak1, scipy_matrix=csc_matrix)
         g_N_ddot_post_u = self.model.g_N_ddot_u(tk1, qk1, uk1, ak1, scipy_matrix=csc_matrix)
         xi_T = self.model.xi_T(tk1, qk1, self.uk, uk1)
+        xi_T_q = self.model.xi_T_q(tk1, qk1, self.uk, uk1, scipy_matrix=csc_matrix)
+        xi_T_u = self.model.gamma_T_u(tk1, qk1, scipy_matrix=csc_matrix)
         # A_N = (P_N - self.model.prox_r_N * xi_N) >=0
         # A_N = g_N_dot_post <=0
 
@@ -424,8 +451,88 @@ class Generalized_alpha_2():
 
         RlaN_a += RlaN_q @ self.q_a + RlaN_u * self.u_a
         RlaN_Q = RlaN_q @ self.q_Q
-        
-        
+
+        # friction
+        C_N = I_N * self.model.N_has_friction
+        C_T = []
+        for i_N, i_T in enumerate(self.model.NT_connectivity):
+            C_T.append(np.linalg.norm(P_T[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T]) <= self.model.mu[i_N] * P_N[i_N])
+        C_T = np.array(C_T, dtype=bool)
+        N_open = ~I_N * self.model.N_has_friction
+        N_stick = C_N * C_T
+        N_slip = C_N * ~C_T
+        N_open_ind = np.where(N_open)[0]
+        N_stick_ind = np.where(N_stick)[0]
+        N_slip_ind = np.where(N_slip)[0]
+        T_open_ind = np.array([j for i in N_open_ind for j in self.model.NT_connectivity[i]], dtype=int)
+        T_stick_ind = np.array([j for i in N_stick_ind for j in self.model.NT_connectivity[i]], dtype=int)
+        T_slip_ind = np.array([j for i in N_slip_ind for j in self.model.NT_connectivity[i]], dtype=int)
+        T_slip_ind_mat = np.array([self.model.NT_connectivity[i] for i in N_slip_ind], dtype=int)
+
+        # R[T_open_ind] = P_T[T_open_ind]
+        # R[T_stick_ind] = xi_T[T_stick_ind]
+        # tmp = xi_T[T_slip_ind_mat]
+        # # TODO: might only be needed for numerical jacobian
+        # norm_xi_ = np.linalg.norm(tmp, axis=-1) 
+        # norm_xi = np.ones_like(norm_xi_)
+        # norm_xi[norm_xi_>0] = norm_xi_[norm_xi_>0]
+        # R[T_slip_ind] = P_T[T_slip_ind] + ((self.model.mu[N_slip_ind] * P_N[N_slip_ind] / norm_xi).reshape(-1, 1) * tmp).reshape(-1)
+        row = col = np.concatenate( (T_open_ind, T_slip_ind) )
+        data = np.ones_like(row)
+        RLaT_P_T = Coo((data, (row, col)), shape=(nla_T, nla_T))
+
+        RLaT_u = xi_T_u[T_stick_ind].tocoo()
+        RLaT_u.resize(nla_T, nu)
+        RLaT_u.row = act_ind[RLaT_u.row]
+
+        RLaT_q = Coo( (nla_T, nq) )
+        RLaT_P_N = Coo( (nla_T, nla_N) )
+
+        u_data = q_data = P_N_data = []
+        u_row = q_row = P_N_row = []
+        u_col = q_col = P_N_col = []
+        for i_N in N_slip_ind:
+            i_T = self.model.NT_connectivity[i_N]
+            xi_T_loc = xi_T[i_T]
+            xi_T_u_loc = xi_T_u[i_T]
+            xi_T_q_loc = xi_T_q[i_T]
+            norm_T = np.linalg.norm(xi_T_loc)
+
+            tmp = (self.model.mu[i_N] * P_N[i_N] / norm_T) * (xi_T_u_loc  - np.outer(xi_T_loc / norm_T, xi_T_loc @ xi_T_u_loc) )
+            u_data.append(tmp.data.tolist())
+            u_row.append(T_slip_ind[tmp.row].tolist())
+            u_col.append(tmp.col.tolist())
+
+            tmp = (self.model.mu[i_N] * P_N[i_N] / norm_T) * (xi_T_q_loc  - np.outer(xi_T_loc / norm_T, xi_T_loc @ xi_T_q_loc) )
+            q_data.append(tmp.data.tolist())
+            q_row.append(T_slip_ind[tmp.row].tolist())
+            q_col.append(tmp.col.tolist())
+
+            tmp = (self.model.mu[i_N] / norm_T) * xi_T_loc
+            P_N_data.append(tmp.tolist())
+            P_N_row.append(T_slip_ind[i_T].tolist())
+            P_N_col.append((i_N * np.ones_like(i_T)).tolist())
+
+        RLaT_u.data = np.append(RLaT_u.data, u_data)
+        RLaT_u.row = np.append(RLaT_u.row, u_row)
+        RLaT_u.col = np.append(RLaT_u.col, u_col)
+
+        RLaT_q.data = np.append(RLaT_q.data, q_data)
+        RLaT_q.row = np.append(RLaT_q.row, q_row)
+        RLaT_q.col = np.append(RLaT_q.col, q_col)
+
+        RLaT_P_N.data = np.append(RLaT_P_N.data, P_N_data)
+        RLaT_P_N.row = np.append(RLaT_P_N.row, P_N_row)
+        RLaT_P_N.col = np.append(RLaT_P_N.col, P_N_col)
+
+        RLaT_a = RLaT_u @ self.u_a + RLaT_q * self.q_a
+        RLaT_U = RLaT_u
+        RLaT_Q = RLaT_q @ self.q_Q
+        RLaT_La_N = RLaT_P_N
+        RLaT_la_N = RLaT_P_N * self.P_N_la_N
+        RLaT_La_T = RLaT_P_T
+        RLaT_la_T = RLaT_P_T * self.P_T_la_T
+
         R_x_smooth =  bmat([[Ra_a, Ra_U, Ra_Q, -self.W_gk1,  -self.W_gammak1, None,     None, -self.W_Nk1,   None, -self.W_Tk1], \
                          [RU_a,  self.Mk1, RU_Q,   None,        None, None,   -self.W_Nk1,   None, -self.W_Tk1,   None], \
                          [RQ_a,  None, RQ_Q,   None,        None, -self.W_Nk1,   None,   None,   None,   None], \
@@ -433,7 +540,8 @@ class Generalized_alpha_2():
                          [Rla_gamma_a, Rla_gamma_u, Rla_gamma_Q, None, None, None, None, None, None, None], \
                          [Rka_a, None, Rka_Q, None, None, Rka_ka,  None, Rka_la_N, None, None], \
                          [RLaN_a, RLaN_u, RLaN_Q, None, None, None,  RLaN_La_N, RLaN_la_N, None, None], \
-                         [RlaN_a, RlaN_u, RlaN_Q, None, None, None,  None, RlaN_la_N, None, None] \
+                         [RlaN_a, RlaN_u, RlaN_Q, None, None, None,  None, RlaN_la_N, None, None], \
+                         [RLaT_a, RLaT_U, RLaT_Q, None, None, None,  RLaT_La_N, RLaT_la_N, RLaT_La_T, RLaT_la_T] \
                          ], format='coo')
 
         R_x_nonsmooth = coo_matrix(Numerical_derivative(self.__R_nonsmooth, order=2)._x(tk1, xk1))
@@ -551,6 +659,7 @@ class Generalized_alpha_2():
             self.u_a = dt * self.gamma * self.alpha_ratio
             self.ka_ast_la_N = dt2 * self.beta * self.alpha_ratio
             self.P_N_la_N =  dt * self.gamma * self.alpha_ratio
+            self.P_T_la_T =  dt * self.gamma * self.alpha_ratio
 
             (converged, n_iter, error), tk1, ak1, Uk1, Qk1, la_gk1, la_gammak1, kappa_Nk1, La_Nk1, la_Nk1, La_Tk1, la_Tk1 = self.step()
             pbar.set_description(f't: {tk1:0.2e}s < {self.t1:0.2e}s; Newton: {n_iter}/{self.newton_max_iter} iterations; error: {error:0.2e}')

@@ -472,6 +472,18 @@ class Model(object):
             xi_T[contr.la_TDOF] = contr.gamma_T(t, q[contr.qDOF], u_post[contr.uDOF]) + self.e_T[contr.la_NDOF] * contr.gamma_T(t, q[contr.qDOF], u_pre[contr.uDOF])
         return xi_T
 
+    def xi_T_q(self, t, q, u_pre, u_post, scipy_matrix=coo_matrix):
+        coo = Coo((self.nla_T, self.nq))
+        for contr in self.__g_N_contr:
+            contr.xi_T_q(t, q[contr.qDOF], u_pre[contr.uDOF], u_post[contr.uDOF], coo)
+        return coo.tosparse(scipy_matrix)
+
+    def gamma_T_u(self, t, q, scipy_matrix=coo_matrix):
+        coo = Coo((self.nla_T, self.nu))
+        for contr in self.__gamma_T_contr:
+            contr.gamma_T_u(t, q[contr.qDOF], coo)
+        return coo.tosparse(scipy_matrix)
+
     def W_T(self, t, q, scipy_matrix=coo_matrix):
         coo = Coo((self.nu, self.nla_T))
         for contr in self.__gamma_T_contr:

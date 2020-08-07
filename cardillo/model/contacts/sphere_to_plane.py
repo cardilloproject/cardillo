@@ -59,6 +59,7 @@ class Sphere_to_plane():
         self.a_P_u = lambda t, q, u, a: self.subsystem.a_P_u(t, q, u, a, frame_ID=self.frame_ID, K_r_SP=self.K_r_SP)
         
         self.Omega = lambda t, q, u: self.subsystem.A_IK(t, q, frame_ID=self.frame_ID) @ self.subsystem.K_Omega(t, q, u, frame_ID=self.frame_ID)
+        self.Omega_q = lambda t, q, u: self.subsystem.A_IK(t, q, frame_ID=self.frame_ID) @ self.subsystem.K_Omega_q(t, q, u, frame_ID=self.frame_ID) + np.einsum('ijk,j->ik', self.subsystem.A_IK_q(t, q, frame_ID=self.frame_ID), self.subsystem.K_Omega(t, q, u, frame_ID=self.frame_ID))
         self.J_R = lambda t, q: self.subsystem.A_IK(t, q, frame_ID=self.frame_ID) @ self.subsystem.K_J_R(t, q, frame_ID=self.frame_ID)
         self.J_R_q = lambda t, q: np.einsum('ijl,jk->ikl', self.subsystem.A_IK_q(t, q, frame_ID=self.frame_ID), self.subsystem.K_J_R(t, q, frame_ID=self.frame_ID)) + np.einsum('ij,jkl->ikl', self.subsystem.A_IK(t, q, frame_ID=self.frame_ID), self.subsystem.K_J_R_q(t, q, frame_ID=self.frame_ID))
         self.Psi = lambda t, q, u, a: self.subsystem.A_IK(t, q, frame_ID=self.frame_ID) @ self.subsystem.K_Psi(t, q, u, a, frame_ID=self.frame_ID)
@@ -125,6 +126,10 @@ class Sphere_to_plane():
         v_C = self.v_P(t, q, u) + self.r * cross3(self.n(t), self.Omega(t, q, u))
         return self.t1t2(t) @ (v_C - self.v_Q(t))
 
+    def gamma_T_q_dense(self, t, q, u):
+        v_C_q = self.v_P_q(t, q, u) + self.r * ax2skew(self.n(t)) @ self.Omega_q(t, q, u)
+        return self.t1t2(t) @ v_C_q
+
     def gamma_T_dot(self, t, q, u, u_dot):
         # #TODO: t1t2_dot(t) & n_dot(t)
         Omega = self.Omega(t, q, u)
@@ -144,6 +149,9 @@ class Sphere_to_plane():
         J_C = self.J_P(t, q) + self.r * ax2skew(self.n(t)) @ self.J_R(t, q)
         return self.t1t2(t) @ J_C
 
+    def gamma_T_u(self, t, q, coo):
+        coo.extend(self.gamma_T_u_dense(t, q).T, (self.la_TDOF, self.uDOF))
+
     def W_T(self, t, q, coo):
         coo.extend(self.gamma_T_u_dense(t, q).T, (self.uDOF, self.la_TDOF))
 
@@ -161,6 +169,18 @@ class Sphere_to_plane():
 
     def xi_T(self, t, q, u_pre, u_post):
         return self.gamma_T(t, q, u_post) + self.e_T * self.gamma_T(t, q, u_pre)
+
+    def xi_N_q(self, t, q, u_pre, u_post, coo):
+        g_N_q_pre = self.g_N_dot_q_dense(t, q, u_pre)
+        g_N_q_post = self.g_N_dot_q_dense(t, q, u_post)
+        dense = g_N_q_post + self.e_N * g_N_q_pre
+        coo.extend(dense, (self.la_NDOF, self.qDOF))
+    
+    def xi_T_q(self, t, q, u_pre, u_post, coo):
+        gamma_T_q_pre = self.gamma_T_q_dense(t, q, u_pre)
+        gamma_T_q_post = self.gamma_T_q_dense(t, q, u_post)
+        dense = gamma_T_q_post + self.e_N * gamma_T_q_pre
+        coo.extend(dense, (self.la_TDOF, self.qDOF))
         
 class Sphere_to_plane2D():
     def __init__(self, frame, subsystem, r, mu, prox_r_N, prox_r_T, e_N=None, e_T=None, frame_ID=np.zeros(3), K_r_SP=np.zeros(3), la_N0=None, la_T0=None):
@@ -219,6 +239,7 @@ class Sphere_to_plane2D():
         self.a_P_u = lambda t, q, u, a: self.subsystem.a_P_u(t, q, u, a, frame_ID=self.frame_ID, K_r_SP=self.K_r_SP)
         
         self.Omega = lambda t, q, u: self.subsystem.A_IK(t, q, frame_ID=self.frame_ID) @ self.subsystem.K_Omega(t, q, u, frame_ID=self.frame_ID)
+        self.Omega_q = lambda t, q, u: self.subsystem.A_IK(t, q, frame_ID=self.frame_ID) @ self.subsystem.K_Omega_q(t, q, u, frame_ID=self.frame_ID) + np.einsum('ijk,jl->ilk', self.subsystem.A_IK_q(t, q, frame_ID=self.frame_ID), self.subsystem.K_Omega(t, q, u, frame_ID=self.frame_ID))
         self.J_R = lambda t, q: self.subsystem.A_IK(t, q, frame_ID=self.frame_ID) @ self.subsystem.K_J_R(t, q, frame_ID=self.frame_ID)
         self.J_R_q = lambda t, q: np.einsum('ijl,jk->ikl', self.subsystem.A_IK_q(t, q, frame_ID=self.frame_ID), self.subsystem.K_J_R(t, q, frame_ID=self.frame_ID)) + np.einsum('ij,jkl->ikl', self.subsystem.A_IK(t, q, frame_ID=self.frame_ID), self.subsystem.K_J_R_q(t, q, frame_ID=self.frame_ID))
         self.Psi = lambda t, q, u, a: self.subsystem.A_IK(t, q, frame_ID=self.frame_ID) @ self.subsystem.K_Psi(t, q, u, a, frame_ID=self.frame_ID)
@@ -252,15 +273,6 @@ class Sphere_to_plane2D():
     def g_N_dot_u(self, t, q, coo):
         coo.extend(self.g_N_dot_u_dense(t, q), (self.la_NDOF, self.uDOF))
 
-    def xi_N(self, t, q, u_pre, u_post):
-        return self.g_N_dot(t, q, u_post) + self.e_N * self.g_N_dot(t, q, u_pre)
-
-    def xi_N_q(self, t, q, u_pre, u_post, coo):
-        g_N_q_pre = self.g_N_dot_q_dense(t, q, u_pre)
-        g_N_q_post = self.g_N_dot_q_dense(t, q, u_post)
-        dense = g_N_q_post + self.e_N * g_N_q_pre
-        coo.extend(dense, (self.la_NDOF, self.qDOF))
-
     def W_N(self, t, q, coo):
         coo.extend(self.g_N_dot_u_dense(t, q).T, (self.uDOF, self.la_NDOF))
 
@@ -285,6 +297,10 @@ class Sphere_to_plane2D():
     def __gamma_T(self, t, q, u):
         v_C = self.v_P(t, q, u) + self.r * cross3(self.n(t), self.Omega(t, q, u))
         return np.array([self.t(t) @ (v_C - self.v_Q(t))])
+
+    def gamma_T_q_dense(self, t, q, u):
+        v_C_q = self.v_P_q(t, q, u) + self.r * ax2skew(self.n(t)) @ self.Omega_q(t, q, u)
+        return np.array([self.t(t) @ v_C_q])
 
     # TODO
     def gamma_T_dot(self, t, q, u, u_dot):
@@ -323,3 +339,15 @@ class Sphere_to_plane2D():
 
     def xi_T(self, t, q, u_pre, u_post):
         return self.gamma_T(t, q, u_post) + self.e_T * self.gamma_T(t, q, u_pre)
+
+    def xi_N_q(self, t, q, u_pre, u_post, coo):
+        g_N_q_pre = self.g_N_dot_q_dense(t, q, u_pre)
+        g_N_q_post = self.g_N_dot_q_dense(t, q, u_post)
+        dense = g_N_q_post + self.e_N * g_N_q_pre
+        coo.extend(dense, (self.la_NDOF, self.qDOF))
+    
+    def xi_T_q(self, t, q, u_pre, u_post, coo):
+        gamma_T_q_pre = self.gamma_T_q_dense(t, q, u_pre)
+        gamma_T_q_post = self.gamma_T_q_dense(t, q, u_post)
+        dense = gamma_T_q_post + self.e_N * gamma_T_q_pre
+        coo.extend(dense, (self.la_TDOF, self.qDOF))
