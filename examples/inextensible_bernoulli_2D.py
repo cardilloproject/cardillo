@@ -18,8 +18,8 @@ import matplotlib.animation as animation
 
 import numpy as np
 
-# statics = True
-statics = False
+statics = True
+# statics = False
 
 def inextensible_rope():
     t1 = 5
@@ -77,8 +77,8 @@ def inextensible_rope():
         model.add(frame_right)
         # model.add(Spherical_joint2D(frame_right, beam, r_OB2, frame_ID2=(1,)))
         # model.add(Linear_guidance_xyz_2D(frame_right, beam, r_OB2, frame_right.A_IK(0), frame_ID2=(1,)))
-        model.add(Linear_guidance_x_2D(beam, frame_right, r_OB2, frame_right.A_IK(0), frame_ID1=(1,)))
-        # model.add(Linear_guidance_xyz_2D(beam, frame_right, r_OB2, frame_right.A_IK(0), frame_ID1=(1,)))
+        # model.add(Linear_guidance_x_2D(beam, frame_right, r_OB2, frame_right.A_IK(0), frame_ID1=(1,)))
+        model.add(Linear_guidance_xyz_2D(beam, frame_right, r_OB2, frame_right.A_IK(0), frame_ID1=(1,)))
 
         model.add(Translational_f_pot(Linear_spring(k, l0), beam, frame_right, frame_ID1=(1,)))
 
@@ -100,7 +100,8 @@ def inextensible_rope():
         sols.append( solver.solve() )
 
     if statics:
-        inextensible_bernoulli_precurved = Inextensible_Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q=sols[1].q[-1], q0=sols[1].q[-1], u0=u0)
+        material_model = Hooke(EA, EI * 1e-5)
+        inextensible_bernoulli_precurved = Inextensible_Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q=Q, q0=sols[1].q[-1], u0=u0)
         # material_model_rope = Hooke_rope(EA)
         # rope_precurved = Inextensible_Rope(A_rho0, material_model_rope, p, nEl, nQP, Q=Q, q0=sols[1].q[-1], u0=u0, dim=2, la_g0 = sols[1].la_g[-1, :-3])
 
@@ -120,14 +121,46 @@ def inextensible_rope():
         model2.add(Spherical_joint2D(frame_right, beam, r_OB2(0), frame_ID2=(1,)))
         # model2.add(Spherical_joint2D(frame_right, beam, r_OB2(0), frame_ID2=(1,), la_g0=-sols[1].la_g[-1, -3:-1]))
 
-        __g = np.array([0, - A_rho0 * 9.81, 0])
+        __g = np.array([0, - A_rho0 * 9.81, EI * 1e-6])
         f_g_beam = Line_force(lambda xi, t: __g, beam)
 
         model2.add(f_g_beam)
         
         model2.assemble()
 
-        solver = Newton(model2, n_load_steps=20, max_iter=20, tol=1.0e-6, numerical_jacobian=False)
+        solver = Newton(model2, n_load_steps=50, max_iter=50, tol=1.0e-6, numerical_jacobian=False)
+
+        sols.append( solver.solve() )
+
+        material_model = Hooke(EA, EI * 0)
+        inextensible_bernoulli_precurved = Inextensible_Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q=Q, q0=sols[2].q[-1], u0=u0)
+        # material_model_rope = Hooke_rope(EA)
+        # rope_precurved = Inextensible_Rope(A_rho0, material_model_rope, p, nEl, nQP, Q=Q, q0=sols[1].q[-1], u0=u0, dim=2, la_g0 = sols[1].la_g[-1, :-3])
+
+        beam = inextensible_bernoulli_precurved
+        # beam = rope_precurved
+        # r_OB2 = lambda t: np.array([sols[1].q[-1, nNd-1], 0, 0])
+        r_OB2 = lambda t: np.array([sols[1].q[-1, nNd-1] - t * L / 2, -t * L / 2, 0])
+        frame_right = Frame(r_OP=r_OB2(1))
+
+        model3 = Model()
+        model3.add(beam)
+        model3.add(frame_left)
+        # model.add(Rigid_connection2D(frame_left, beam, r_OB1, frame_ID2=(0,)))
+        model3.add(Spherical_joint2D(frame_left, beam, r_OB1, frame_ID2=(0,)))
+
+        model3.add(frame_right)
+        model3.add(Spherical_joint2D(frame_right, beam, r_OB2(0), frame_ID2=(1,)))
+        # model2.add(Spherical_joint2D(frame_right, beam, r_OB2(0), frame_ID2=(1,), la_g0=-sols[1].la_g[-1, -3:-1]))
+
+        __g = np.array([0, - A_rho0 * 9.81, 0])
+        f_g_beam = Line_force(lambda xi, t: __g, beam)
+
+        model3.add(f_g_beam)
+        
+        model3.assemble()
+
+        solver = Newton(model3, n_load_steps=50, max_iter=50, tol=1.0e-6, numerical_jacobian=False)
 
         sols.append( solver.solve() )
     
@@ -149,6 +182,7 @@ def inextensible_rope():
         ax.plot(*sols[0].q[-1].reshape(2, -1), '--ok')
         ax.plot(*sols[1].q[-1].reshape(2, -1), '--ob')
         ax.plot(*sols[2].q[-1].reshape(2, -1), '--or')
+        ax.plot(*sols[3].q[-1].reshape(2, -1), '--xg')
 
         plt.show()
     else:
