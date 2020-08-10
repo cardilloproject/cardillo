@@ -60,9 +60,12 @@ class Sphere_to_plane():
         
         self.Omega = lambda t, q, u: self.subsystem.A_IK(t, q, frame_ID=self.frame_ID) @ self.subsystem.K_Omega(t, q, u, frame_ID=self.frame_ID)
         self.Omega_q = lambda t, q, u: self.subsystem.A_IK(t, q, frame_ID=self.frame_ID) @ self.subsystem.K_Omega_q(t, q, u, frame_ID=self.frame_ID) + np.einsum('ijk,j->ik', self.subsystem.A_IK_q(t, q, frame_ID=self.frame_ID), self.subsystem.K_Omega(t, q, u, frame_ID=self.frame_ID))
+        self.Omega_u = lambda t, q, u: self.subsystem.A_IK(t, q, frame_ID=self.frame_ID) @ self.subsystem.K_Omega_u(t, q, u, frame_ID=self.frame_ID)
         self.J_R = lambda t, q: self.subsystem.A_IK(t, q, frame_ID=self.frame_ID) @ self.subsystem.K_J_R(t, q, frame_ID=self.frame_ID)
         self.J_R_q = lambda t, q: np.einsum('ijl,jk->ikl', self.subsystem.A_IK_q(t, q, frame_ID=self.frame_ID), self.subsystem.K_J_R(t, q, frame_ID=self.frame_ID)) + np.einsum('ij,jkl->ikl', self.subsystem.A_IK(t, q, frame_ID=self.frame_ID), self.subsystem.K_J_R_q(t, q, frame_ID=self.frame_ID))
         self.Psi = lambda t, q, u, a: self.subsystem.A_IK(t, q, frame_ID=self.frame_ID) @ self.subsystem.K_Psi(t, q, u, a, frame_ID=self.frame_ID)
+        self.Psi_q = lambda t, q, u, a: self.subsystem.A_IK(t, q, frame_ID=self.frame_ID) @ self.subsystem.K_Psi_q(t, q, u, a, frame_ID=self.frame_ID) + np.einsum('ijk,j->ik', self.subsystem.A_IK_q(t, q, frame_ID=self.frame_ID), self.subsystem.K_Psi(t, q, u, a, frame_ID=self.frame_ID))
+        self.Psi_u = lambda t, q, u, a: self.subsystem.A_IK(t, q, frame_ID=self.frame_ID) @ self.subsystem.K_Psi_u(t, q, u, a, frame_ID=self.frame_ID)
 
         self.is_assembled = True
 
@@ -130,6 +133,9 @@ class Sphere_to_plane():
         v_C_q = self.v_P_q(t, q, u) + self.r * ax2skew(self.n(t)) @ self.Omega_q(t, q, u)
         return self.t1t2(t) @ v_C_q
 
+    def gamma_T_q(self, t, q, u, coo):
+        coo.extend(self.gamma_T_q_dense(t, q, u), (self.la_TDOF, self.qDOF))
+
     def gamma_T_dot(self, t, q, u, u_dot):
         # #TODO: t1t2_dot(t) & n_dot(t)
         Omega = self.Omega(t, q, u)
@@ -144,6 +150,24 @@ class Sphere_to_plane():
         # error = np.linalg.norm(gamma_T_dot_num - gamma_T_dot)
         # print(f'error: {error}')
         # return gamma_T_dot_num
+
+    def gamma_T_dot_q(self, t, q, u, u_dot, coo):
+        # #TODO: t1t2_dot(t) & n_dot(t)
+        gamma_T_dot_q_num = Numerical_derivative(lambda t, q, u: self.gamma_T_dot(t, q, u, u_dot), order=2)._x(t, q, u)
+        # Omega = self.Omega(t, q, u)
+        # r_PC = -self.r * self.n(t)
+        # a_C = self.a_P(t, q, u, u_dot) + cross3(self.Psi(t, q, u, u_dot), r_PC) + cross3(Omega, cross3(Omega, r_PC))
+        # gamma_T_dot = self.t1t2(t) @ (a_C - self.a_Q(t))
+        coo.extend(gamma_T_dot_q_num, (self.la_TDOF, self.qDOF))
+    
+    def gamma_T_dot_u(self, t, q, u, u_dot, coo):
+        # #TODO: t1t2_dot(t) & n_dot(t)
+        gamma_T_dot_u_num = Numerical_derivative(lambda t, u: self.gamma_T_dot(t, q, u, u_dot), order=2)._x(t, u)
+        # Omega = self.Omega(t, q, u)
+        # r_PC = -self.r * self.n(t)
+        # a_C = self.a_P(t, q, u, u_dot) + cross3(self.Psi(t, q, u, u_dot), r_PC) + cross3(Omega, cross3(Omega, r_PC))
+        # gamma_T_dot = self.t1t2(t) @ (a_C - self.a_Q(t))
+        coo.extend(gamma_T_dot_u_num, (self.la_TDOF, self.uDOF))
 
     def gamma_T_u_dense(self, t, q):
         J_C = self.J_P(t, q) + self.r * ax2skew(self.n(t)) @ self.J_R(t, q)
@@ -301,21 +325,49 @@ class Sphere_to_plane2D():
     def gamma_T_q_dense(self, t, q, u):
         v_C_q = self.v_P_q(t, q, u) + self.r * ax2skew(self.n(t)) @ self.Omega_q(t, q, u)
         return np.array([self.t(t) @ v_C_q])
+    
+    def gamma_T_q(self, t, q, u, coo):
+        coo.extend(self.gamma_T_q_dense(t, q, u), (self.la_TDOF, self.qDOF))
    
     # TODO
     def gamma_T_dot(self, t, q, u, u_dot):
         Omega = self.Omega(t, q, u)
         r_PC = -self.r * self.n(t)
         a_C = self.a_P(t, q, u, u_dot) + cross3(self.Psi(t, q, u, u_dot), r_PC) + cross3(Omega, cross3(Omega, r_PC))
-        gamma_T_dot = self.t(t) @ (a_C - self.a_Q(t))
+        gamma_T_dot = np.array([self.t(t) @ (a_C - self.a_Q(t))])
         return gamma_T_dot
-
         # gamma_T_q = Numerical_derivative(self.gamma_T, order=2)._x(t, q, u)
         # gamma_T_u = self.gamma_T_u_dense(t, q)
         # gamma_T_dot_num = gamma_T_q @ self.subsystem.q_dot(t, q, u) + gamma_T_u @ u_dot
         # error = np.linalg.norm(gamma_T_dot_num - gamma_T_dot)
         # print(f'error: {error}')
         # return gamma_T_dot_num
+
+    # def gamma_T_dot_q_dense(self, t, q, u, u_dot):
+    #     Omega = self.Omega(t, q, u)
+    #     r_PC = -self.r * self.n(t)
+    #     a_C = self.a_P(t, q, u, u_dot) + cross3(self.Psi(t, q, u, u_dot), r_PC) + cross3(Omega, cross3(Omega, r_PC))
+    #     gamma_T_dot = self.t(t) @ (a_C - self.a_Q(t))
+    #     return gamma_T_dot
+
+    def gamma_T_dot_q(self, t, q, u, u_dot, coo):
+        # #TODO: t1t2_dot(t) & n_dot(t)
+        gamma_T_dot_q_num = Numerical_derivative(lambda t, q, u: self.gamma_T_dot(t, q, u, u_dot), order=2)._x(t, q, u)
+        # Omega = self.Omega(t, q, u)
+        # r_PC = -self.r * self.n(t)
+        # a_C = self.a_P(t, q, u, u_dot) + cross3(self.Psi(t, q, u, u_dot), r_PC) + cross3(Omega, cross3(Omega, r_PC))
+        # gamma_T_dot = self.t1t2(t) @ (a_C - self.a_Q(t))
+        coo.extend(gamma_T_dot_q_num, (self.la_TDOF, self.qDOF))
+    
+    def gamma_T_dot_u(self, t, q, u, u_dot, coo):
+        # #TODO: t1t2_dot(t) & n_dot(t)
+        gamma_T_dot_u_num = Numerical_derivative(lambda t, u: self.gamma_T_dot(t, q, u, u_dot), order=2)._x(t, u)
+        # Omega = self.Omega(t, q, u)
+        # r_PC = -self.r * self.n(t)
+        # a_C = self.a_P(t, q, u, u_dot) + cross3(self.Psi(t, q, u, u_dot), r_PC) + cross3(Omega, cross3(Omega, r_PC))
+        # gamma_T_dot = self.t1t2(t) @ (a_C - self.a_Q(t))
+        coo.extend(gamma_T_dot_u_num, (self.la_TDOF, self.uDOF))
+        
 
     def gamma_T_u_dense(self, t, q):
         J_C = self.J_P(t, q) + self.r * ax2skew(self.n(t)) @ self.J_R(t, q)

@@ -1,4 +1,4 @@
-from math import inf
+from math import inf, isnan
 from numpy.core.records import fromarrays
 from scipy.sparse import csc
 from cardillo.math.algebra import norm2
@@ -192,7 +192,6 @@ class Generalized_alpha_2():
 
         R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+T_open_ind] = la_Tk1[T_open_ind]
         R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+T_stick_ind] = gamma_T_dot_post[T_stick_ind]
-
         tmp = gamma_T_post[T_slip_ind_mat]
         # TODO: might only be needed for numerical jacobian
         norm_xi_ = np.linalg.norm(tmp, axis=-1) 
@@ -354,7 +353,12 @@ class Generalized_alpha_2():
         g_N_ddot_post_u = self.model.g_N_ddot_u(tk1, qk1, uk1, ak1, scipy_matrix=csc_matrix)
         xi_T = self.model.xi_T(tk1, qk1, self.uk, uk1)
         xi_T_q = self.model.xi_T_q(tk1, qk1, self.uk, uk1, scipy_matrix=csc_matrix)
-        xi_T_u = self.model.gamma_T_u(tk1, qk1, scipy_matrix=csc_matrix)
+        xi_T_u = gamma_T_u = self.model.gamma_T_u(tk1, qk1, scipy_matrix=csc_matrix)
+        gamma_T_post = self.model.gamma_T(tk1, qk1, uk1)
+        gamma_T_q = self.model.gamma_T_q(tk1, qk1, uk1, scipy_matrix=csc_matrix)
+        gamma_T_dot_post = self.model.gamma_T_dot(tk1, qk1, uk1, ak1)
+        gamma_T_dot_post_q = self.model.gamma_T_dot_q(tk1, qk1, uk1, ak1, scipy_matrix=csc_matrix)
+        gamma_T_dot_post_u = self.model.gamma_T_dot_u(tk1, qk1, uk1, ak1, scipy_matrix=csc_matrix)
         # A_N = (P_N - self.model.prox_r_N * xi_N) >=0
         # A_N = g_N_dot_post <=0
 
@@ -469,13 +473,14 @@ class Generalized_alpha_2():
         T_slip_ind = np.array([j for i in N_slip_ind for j in self.model.NT_connectivity[i]], dtype=int)
         T_slip_ind_mat = np.array([self.model.NT_connectivity[i] for i in N_slip_ind], dtype=int)
 
-        # R[T_open_ind] = P_T[T_open_ind]
-        # R[T_stick_ind] = xi_T[T_stick_ind]
+        
         # tmp = xi_T[T_slip_ind_mat]
         # # TODO: might only be needed for numerical jacobian
         # norm_xi_ = np.linalg.norm(tmp, axis=-1) 
         # norm_xi = np.ones_like(norm_xi_)
         # norm_xi[norm_xi_>0] = norm_xi_[norm_xi_>0]
+        # R[T_open_ind] = P_T[T_open_ind]
+        # R[T_stick_ind] = xi_T[T_stick_ind]
         # R[T_slip_ind] = P_T[T_slip_ind] + ((self.model.mu[N_slip_ind] * P_N[N_slip_ind] / norm_xi).reshape(-1, 1) * tmp).reshape(-1)
         row = col = np.concatenate( (T_open_ind, T_slip_ind) )
         data = np.ones_like(row)
@@ -485,7 +490,10 @@ class Generalized_alpha_2():
         RLaT_u.resize(nla_T, nu)
         RLaT_u.row = T_stick_ind[RLaT_u.row]
 
-        RLaT_q = Coo( (nla_T, nq) )
+        RLaT_q = xi_T_q[T_stick_ind].tocoo()
+        RLaT_q.resize(nla_T, nq)
+        RLaT_q.row = T_stick_ind[RLaT_q.row]
+
         RLaT_P_N = Coo( (nla_T, nla_N) )
 
         u_data = []
@@ -503,18 +511,28 @@ class Generalized_alpha_2():
             xi_T_u_loc = xi_T_u[i_T]
             xi_T_q_loc = xi_T_q[i_T]
             norm_T = np.linalg.norm(xi_T_loc)
+            norm_T2 = norm_T**2
 
-            tmp = (self.model.mu[i_N] * P_N[i_N] / norm_T) * (xi_T_u_loc  - np.outer(xi_T_loc / norm_T, xi_T_loc @ xi_T_u_loc) )
+            if norm_T > 0:
+                tmp = (self.model.mu[i_N] * P_N[i_N] / norm_T) * (xi_T_u_loc  - np.outer(xi_T_loc / norm_T2, xi_T_loc @ xi_T_u_loc) )
+            else:
+                tmp = (self.model.mu[i_N] * P_N[i_N]) * xi_T_u_loc.toarray() 
             u_data.extend(np.asarray(tmp).reshape(-1, order='C').tolist())
             u_row.extend(np.repeat(i_T, nu).tolist())
             u_col.extend(np.tile(np.arange(nu), len(i_T)).tolist())
-
-            tmp = (self.model.mu[i_N] * P_N[i_N] / norm_T) * (xi_T_q_loc  - np.outer(xi_T_loc / norm_T, xi_T_loc @ xi_T_q_loc) )
+            
+            if norm_T > 0:
+                tmp = (self.model.mu[i_N] * P_N[i_N] / norm_T) * (xi_T_q_loc  - np.outer(xi_T_loc / norm_T2, xi_T_loc @ xi_T_q_loc) )
+            else:
+                tmp = (self.model.mu[i_N] * P_N[i_N]) * xi_T_q_loc.toarray()
             q_data.extend(np.asarray(tmp).reshape(-1, order='C').tolist())
             q_row.extend(np.repeat(i_T, nq).tolist())
             q_col.extend(np.tile(np.arange(nq), len(i_T)).tolist())
 
-            tmp = (self.model.mu[i_N] / norm_T) * xi_T_loc
+            if norm_T > 0:
+                tmp = (self.model.mu[i_N] / norm_T) * xi_T_loc
+            else:
+                tmp = (self.model.mu[i_N]) * xi_T_loc
             P_N_data.extend(tmp.tolist())
             P_N_row.extend(i_T)
             P_N_col.extend((i_N * np.ones_like(i_T)).tolist())
@@ -539,7 +557,91 @@ class Generalized_alpha_2():
         RLaT_La_T = RLaT_P_T
         RLaT_la_T = RLaT_P_T * self.P_T_la_T
 
-        R_x_smooth =  bmat([[Ra_a, Ra_U, Ra_Q, -self.W_gk1,  -self.W_gammak1, None,     None, -self.W_Nk1,   None, -self.W_Tk1], \
+        # tmp = gamma_T_post[T_slip_ind_mat]
+        # # TODO: might only be needed for numerical jacobian
+        # norm_xi_ = np.linalg.norm(tmp, axis=-1) 
+        # norm_xi = np.ones_like(norm_xi_)
+        # norm_xi[norm_xi_>0] = norm_xi_[norm_xi_>0]
+        # R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+T_open_ind] = la_Tk1[T_open_ind]
+        # R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+T_stick_ind] = gamma_T_dot_post[T_stick_ind]
+        # R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+T_slip_ind] = la_Tk1[T_slip_ind] + ((self.model.mu[N_slip_ind] * la_Nk1[N_slip_ind] / norm_xi).reshape(-1, 1) * tmp).reshape(-1)
+        row = col = np.concatenate( (T_open_ind, T_slip_ind) )
+        data = np.ones_like(row)
+        RlaT_la_T = Coo((data, (row, col)), shape=(nla_T, nla_T))
+
+        RlaT_a = gamma_T_u[T_stick_ind].tocoo()
+        RlaT_a.resize(nla_T, nu)
+        RlaT_a.row = T_stick_ind[RlaT_a.row]
+
+        RlaT_u = gamma_T_dot_post_u[T_stick_ind].tocoo()
+        RlaT_u.resize(nla_T, nu)
+        RlaT_u.row = T_stick_ind[RlaT_u.row]
+
+        RlaT_q = gamma_T_dot_post_q[T_stick_ind].tocoo()
+        RlaT_q.resize(nla_T, nq)
+        RlaT_q.row = T_stick_ind[RlaT_q.row]
+
+        RlaT_la_N = Coo( (nla_T, nla_N) )
+
+        u_data = []
+        u_row = []
+        u_col = []
+        q_data = []
+        q_row = []
+        q_col = []
+        la_N_data = []
+        la_N_row = []
+        la_N_col = []
+        for i_N in N_slip_ind:
+            i_T = self.model.NT_connectivity[i_N]
+            gamma_T_loc = gamma_T_post[i_T]
+            gamma_T_u_loc = gamma_T_u[i_T]
+            gamma_T_q_loc = gamma_T_q[i_T]
+            norm_T = np.linalg.norm(gamma_T_loc)
+            norm_T2 = norm_T**2
+
+            if norm_T > 0:
+                tmp = (self.model.mu[i_N] * la_Nk1[i_N] / norm_T) * (gamma_T_u_loc  - np.outer(gamma_T_loc / norm_T2, gamma_T_loc @ gamma_T_u_loc) )
+            else:
+                tmp = (self.model.mu[i_N] * la_Nk1[i_N]) * gamma_T_u_loc.toarray()
+
+            u_data.extend(np.asarray(tmp).reshape(-1, order='C').tolist())
+            u_row.extend(np.repeat(i_T, nu).tolist())
+            u_col.extend(np.tile(np.arange(nu), len(i_T)).tolist())
+
+            if norm_T > 0:
+                tmp = (self.model.mu[i_N] * la_Nk1[i_N] / norm_T) * (gamma_T_q_loc  - np.outer(gamma_T_loc / norm_T2, gamma_T_loc @ gamma_T_q_loc) )
+            else:
+                tmp = (self.model.mu[i_N] * la_Nk1[i_N]) * gamma_T_q_loc.toarray()
+            q_data.extend(np.asarray(tmp).reshape(-1, order='C').tolist())
+            q_row.extend(np.repeat(i_T, nq).tolist())
+            q_col.extend(np.tile(np.arange(nq), len(i_T)).tolist())
+
+            if norm_T > 0:
+                tmp = (self.model.mu[i_N] / norm_T) * gamma_T_loc
+            else:
+                tmp = (self.model.mu[i_N]) * gamma_T_loc
+            la_N_data.extend(tmp.tolist())
+            la_N_row.extend(i_T)
+            la_N_col.extend((i_N * np.ones_like(i_T)).tolist())
+
+        RlaT_u.data = np.append(RlaT_u.data, u_data)
+        RlaT_u.row = np.append(RlaT_u.row, u_row).astype(int)
+        RlaT_u.col = np.append(RlaT_u.col, u_col).astype(int)
+
+        RlaT_q.data = np.append(RlaT_q.data, q_data)
+        RlaT_q.row = np.append(RlaT_q.row, q_row).astype(int)
+        RlaT_q.col = np.append(RlaT_q.col, q_col).astype(int)
+
+        RlaT_la_N.data = np.append(RlaT_la_N.data, la_N_data)
+        RlaT_la_N.row = np.append(RlaT_la_N.row, la_N_row).astype(int)
+        RlaT_la_N.col = np.append(RlaT_la_N.col, la_N_col).astype(int)
+
+        RlaT_a += RlaT_u * self.u_a + RlaT_q @ self.q_a
+        RlaT_U = RlaT_u
+        RlaT_Q = RlaT_q @ self.q_Q
+
+        R_x =  bmat([[Ra_a, Ra_U, Ra_Q, -self.W_gk1,  -self.W_gammak1, None,     None, -self.W_Nk1,   None, -self.W_Tk1], \
                          [RU_a,  self.Mk1, RU_Q,   None,        None, None,   -self.W_Nk1,   None, -self.W_Tk1,   None], \
                          [RQ_a,  None, RQ_Q,   None,        None, -self.W_Nk1,   None,   None,   None,   None], \
                          [Rla_g_a,  None, Rla_g_Q,   None,        None, None,   None,   None,   None,   None], \
@@ -547,26 +649,32 @@ class Generalized_alpha_2():
                          [Rka_a, None, Rka_Q, None, None, Rka_ka,  None, Rka_la_N, None, None], \
                          [RLaN_a, RLaN_u, RLaN_Q, None, None, None,  RLaN_La_N, RLaN_la_N, None, None], \
                          [RlaN_a, RlaN_u, RlaN_Q, None, None, None,  None, RlaN_la_N, None, None], \
-                         [RLaT_a, RLaT_U, RLaT_Q, None, None, None,  RLaT_La_N, RLaT_la_N, RLaT_La_T, RLaT_la_T] \
-                         ], format='coo')
+                         [RLaT_a, RLaT_U, RLaT_Q, None, None, None,  RLaT_La_N, RLaT_la_N, RLaT_La_T, RLaT_la_T], \
+                         [RlaT_a, RlaT_U, RlaT_Q, None, None, None,  None, RlaT_la_N, None, RlaT_la_T] \
+                         ], format='csc')
 
-        R_x_nonsmooth = coo_matrix(Numerical_derivative(self.__R_nonsmooth, order=2)._x(tk1, xk1))
+        # try:
+        #     spsolve(R_x, xk1)
+        # except:
+        #     print('singular jacobian')
 
-        R_x =  bmat([[R_x_smooth], \
-                     [R_x_nonsmooth]], format='csc')
+        # R_x_nonsmooth = coo_matrix(Numerical_derivative(self.__R_nonsmooth, order=2)._x(tk1, xk1))
+
+        # R_x =  bmat([[R_x_smooth], \
+        #              [R_x_nonsmooth]], format='csc')
 
         # R_x_num = Numerical_derivative(self.__R, order=2)._x(tk1, xk1)
 
         # diff = R_x_num - R_x.toarray()
-        # # error = np.linalg.norm(diff[:self.nu, :self.nu], ord=inf)
-        # # error = np.max(np.abs(diff[:self.nu, :self.nu]))
-        # # error = np.linalg.norm(diff[self.nu:], ord=inf)
-        # # error = np.linalg.norm(diff, ord=inf)
-        # # error = np.linalg.norm(diff[:self.nR_smooth], ord=inf)
-        # error = np.linalg.norm(diff[self.nR_smooth+3*nla_N:self.nR_smooth+3*nla_N+nla_T, :], ord=inf)
-        # if error > 1:
+        # # # error = np.linalg.norm(diff[:self.nu, :self.nu], ord=inf)
+        # # # error = np.max(np.abs(diff[:self.nu, :self.nu]))
+        # # # error = np.linalg.norm(diff[self.nu:], ord=inf)
+        # # # error = np.linalg.norm(diff, ord=inf)
+        # # # error = np.linalg.norm(diff[:self.nR_smooth], ord=inf)
+        # error = np.linalg.norm(diff[self.nR_smooth:], ord=inf)
+        # if error > 0.8 or isnan(error):
         #     print('')
-        # print(f'error R_x: {error:.3e}')
+        # print(f'error R_x: {error:.3e}')#, R = {self.__R(tk1, xk1)}')
         
         # print(f'max(abs(R_x)): {np.max(np.abs(R_x_num[:self.nu, :self.nu])):.3e}')
 

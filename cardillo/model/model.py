@@ -478,10 +478,28 @@ class Model(object):
             contr.xi_T_q(t, q[contr.qDOF], u_pre[contr.uDOF], u_post[contr.uDOF], coo)
         return coo.tosparse(scipy_matrix)
 
+    def gamma_T_q(self, t, q, u, scipy_matrix=coo_matrix):
+        coo = Coo((self.nla_T, self.nq))
+        for contr in self.__gamma_T_contr:
+            contr.gamma_T_q(t, q[contr.qDOF], u[contr.uDOF], coo)
+        return coo.tosparse(scipy_matrix)
+
     def gamma_T_u(self, t, q, scipy_matrix=coo_matrix):
         coo = Coo((self.nla_T, self.nu))
         for contr in self.__gamma_T_contr:
             contr.gamma_T_u(t, q[contr.qDOF], coo)
+        return coo.tosparse(scipy_matrix)
+    
+    def gamma_T_dot_q(self, t, q, u, u_dot, scipy_matrix=coo_matrix):
+        coo = Coo((self.nla_T, self.nq))
+        for contr in self.__gamma_T_contr:
+            contr.gamma_T_dot_q(t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF], coo)
+        return coo.tosparse(scipy_matrix)
+
+    def gamma_T_dot_u(self, t, q, u, u_dot, scipy_matrix=coo_matrix):
+        coo = Coo((self.nla_T, self.nu))
+        for contr in self.__gamma_T_contr:
+            contr.gamma_T_dot_u(t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF], coo)
         return coo.tosparse(scipy_matrix)
 
     def W_T(self, t, q, scipy_matrix=coo_matrix):
