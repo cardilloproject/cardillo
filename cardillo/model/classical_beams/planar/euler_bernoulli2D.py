@@ -382,7 +382,7 @@ class Euler_bernoulli2D():
         return np.zeros((3, self.nq_el))
 
     def v_P_q(self, t, q, u, frame_ID, K_r_SP=None):
-        return self.r_OP_q(t, None, frame_ID=frame_ID)
+        return np.zeros((3, self.nq_el))
 
     def J_P(self, t, q, frame_ID, K_r_SP=None):
         return self.r_OP_q(t, None, frame_ID=frame_ID)
