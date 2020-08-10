@@ -744,7 +744,7 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
 ####################################################
 # straight initial configuration
 ####################################################
-def straight_configuration(polynomial_degree, nEl, L, greville_abscissae=True):
+def straight_configuration(polynomial_degree, nEl, L, greville_abscissae=True, r_OP=np.zeros(3), A_IK=np.eye(3)):
     nn = polynomial_degree + nEl
     
     X = np.linspace(0, L, num=nn)
@@ -755,11 +755,16 @@ def straight_configuration(polynomial_degree, nEl, L, greville_abscissae=True):
         for i in range(nn):
             X[i] = np.sum(kv[i+1:i+polynomial_degree+1])
         X = X * L / polynomial_degree
+
+    r0 = np.vstack((X, Y, Z)).T
+    for i, r0i in enumerate(r0):
+        X[i], Y[i], Z[i] = r_OP + A_IK @ r0i
     
     # compute reference directors
-    D1 = np.repeat(e1, nn)
-    D2 = np.repeat(e2, nn)
-    D3 = np.repeat(e3, nn)
+    D1, D2, D3 = A_IK.T
+    D1 = np.repeat(D1, nn)
+    D2 = np.repeat(D2, nn)
+    D3 = np.repeat(D3, nn)
     
     # assemble all reference generalized coordinates
     return np.concatenate([X, Y, Z, D1, D2, D3])
