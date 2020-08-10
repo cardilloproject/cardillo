@@ -402,6 +402,9 @@ class Euler_bernoulli2D():
 
         return np.array([0, 0, phi_dot])
 
+    def K_Omega_q(self, t, q, u, frame_ID):
+        return np.zeros((3, self.nq_el))
+
     def K_Psi(self, t, q, u, u_dot, frame_ID):
         _, dNN = self.__basis_functions(frame_ID)
         t = dNN @ q

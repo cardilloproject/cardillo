@@ -157,11 +157,11 @@ if __name__ == "__main__":
     #%% SIMULATE
 
     t1 = 0.8 #4*T
-    dt = 0.0005
+    dt = 0.0001
 
     # build solver and solve the problem
     # solver = Moreau(model, t1, dt)
-    solver = Generalized_alpha_2(model, t1, dt, rho_inf=0.7)
+    solver = Generalized_alpha_2(model, t1, dt, rho_inf=0.7, newton_tol=1e-6, numerical_jacobian=0)
     
     sol = solver.solve()
     t = sol.t

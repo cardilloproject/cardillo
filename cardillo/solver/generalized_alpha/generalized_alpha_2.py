@@ -295,7 +295,7 @@ class Generalized_alpha_2():
         norm_xi = np.ones_like(norm_xi_)
         norm_xi[norm_xi_>0] = norm_xi_[norm_xi_>0]
         R[nla_T+T_slip_ind] = la_Tk1[T_slip_ind] + ((self.model.mu[N_slip_ind] * la_Nk1[N_slip_ind] / norm_xi).reshape(-1, 1) * tmp).reshape(-1)
-        return R
+        return R[nla_T:]
 
     def __R_x_analytic(self, tk1, xk1):
         nq = self.nq
@@ -483,14 +483,20 @@ class Generalized_alpha_2():
 
         RLaT_u = xi_T_u[T_stick_ind].tocoo()
         RLaT_u.resize(nla_T, nu)
-        RLaT_u.row = act_ind[RLaT_u.row]
+        RLaT_u.row = T_stick_ind[RLaT_u.row]
 
         RLaT_q = Coo( (nla_T, nq) )
         RLaT_P_N = Coo( (nla_T, nla_N) )
 
-        u_data = q_data = P_N_data = []
-        u_row = q_row = P_N_row = []
-        u_col = q_col = P_N_col = []
+        u_data = []
+        u_row = []
+        u_col = []
+        q_data = []
+        q_row = []
+        q_col = []
+        P_N_data = []
+        P_N_row = []
+        P_N_col = []
         for i_N in N_slip_ind:
             i_T = self.model.NT_connectivity[i_N]
             xi_T_loc = xi_T[i_T]
@@ -499,33 +505,33 @@ class Generalized_alpha_2():
             norm_T = np.linalg.norm(xi_T_loc)
 
             tmp = (self.model.mu[i_N] * P_N[i_N] / norm_T) * (xi_T_u_loc  - np.outer(xi_T_loc / norm_T, xi_T_loc @ xi_T_u_loc) )
-            u_data.append(tmp.data.tolist())
-            u_row.append(T_slip_ind[tmp.row].tolist())
-            u_col.append(tmp.col.tolist())
+            u_data.extend(np.asarray(tmp).reshape(-1, order='C').tolist())
+            u_row.extend(np.repeat(i_T, nu).tolist())
+            u_col.extend(np.tile(np.arange(nu), len(i_T)).tolist())
 
             tmp = (self.model.mu[i_N] * P_N[i_N] / norm_T) * (xi_T_q_loc  - np.outer(xi_T_loc / norm_T, xi_T_loc @ xi_T_q_loc) )
-            q_data.append(tmp.data.tolist())
-            q_row.append(T_slip_ind[tmp.row].tolist())
-            q_col.append(tmp.col.tolist())
+            q_data.extend(np.asarray(tmp).reshape(-1, order='C').tolist())
+            q_row.extend(np.repeat(i_T, nq).tolist())
+            q_col.extend(np.tile(np.arange(nq), len(i_T)).tolist())
 
             tmp = (self.model.mu[i_N] / norm_T) * xi_T_loc
-            P_N_data.append(tmp.tolist())
-            P_N_row.append(T_slip_ind[i_T].tolist())
-            P_N_col.append((i_N * np.ones_like(i_T)).tolist())
+            P_N_data.extend(tmp.tolist())
+            P_N_row.extend(i_T)
+            P_N_col.extend((i_N * np.ones_like(i_T)).tolist())
 
         RLaT_u.data = np.append(RLaT_u.data, u_data)
-        RLaT_u.row = np.append(RLaT_u.row, u_row)
-        RLaT_u.col = np.append(RLaT_u.col, u_col)
+        RLaT_u.row = np.append(RLaT_u.row, u_row).astype(int)
+        RLaT_u.col = np.append(RLaT_u.col, u_col).astype(int)
 
         RLaT_q.data = np.append(RLaT_q.data, q_data)
-        RLaT_q.row = np.append(RLaT_q.row, q_row)
-        RLaT_q.col = np.append(RLaT_q.col, q_col)
+        RLaT_q.row = np.append(RLaT_q.row, q_row).astype(int)
+        RLaT_q.col = np.append(RLaT_q.col, q_col).astype(int)
 
         RLaT_P_N.data = np.append(RLaT_P_N.data, P_N_data)
-        RLaT_P_N.row = np.append(RLaT_P_N.row, P_N_row)
-        RLaT_P_N.col = np.append(RLaT_P_N.col, P_N_col)
+        RLaT_P_N.row = np.append(RLaT_P_N.row, P_N_row).astype(int)
+        RLaT_P_N.col = np.append(RLaT_P_N.col, P_N_col).astype(int)
 
-        RLaT_a = RLaT_u @ self.u_a + RLaT_q * self.q_a
+        RLaT_a = RLaT_u * self.u_a + RLaT_q @ self.q_a
         RLaT_U = RLaT_u
         RLaT_Q = RLaT_q @ self.q_Q
         RLaT_La_N = RLaT_P_N
@@ -557,7 +563,7 @@ class Generalized_alpha_2():
         # # error = np.linalg.norm(diff[self.nu:], ord=inf)
         # # error = np.linalg.norm(diff, ord=inf)
         # # error = np.linalg.norm(diff[:self.nR_smooth], ord=inf)
-        # error = np.linalg.norm(diff[self.nR_smooth+3*nla_N:], ord=inf)
+        # error = np.linalg.norm(diff[self.nR_smooth+3*nla_N:self.nR_smooth+3*nla_N+nla_T, :], ord=inf)
         # if error > 1:
         #     print('')
         # print(f'error R_x: {error:.3e}')

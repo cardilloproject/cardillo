@@ -474,7 +474,7 @@ class Model(object):
 
     def xi_T_q(self, t, q, u_pre, u_post, scipy_matrix=coo_matrix):
         coo = Coo((self.nla_T, self.nq))
-        for contr in self.__g_N_contr:
+        for contr in self.__gamma_T_contr:
             contr.xi_T_q(t, q[contr.qDOF], u_pre[contr.uDOF], u_post[contr.uDOF], coo)
         return coo.tosparse(scipy_matrix)
 
