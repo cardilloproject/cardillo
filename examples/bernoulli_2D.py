@@ -1,23 +1,175 @@
+from operator import sub
 from cardillo.model.classical_beams.planar import Hooke, Euler_bernoulli2D
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints.implicit import Spherical_joint2D, Rigid_connection2D, Spherical_joint, Rigid_connection
 from cardillo.model import Model
 from cardillo.solver import Euler_backward, Moreau, Moreau_sym, Generalized_alpha_1, Scipy_ivp, Newton
 from cardillo.model.line_force.line_force import Line_force
+from cardillo.model.force import Force
 from cardillo.discretization import uniform_knot_vector
+from cardillo.discretization.B_spline import fit_B_Spline
 from cardillo.model.rigid_body import Rigid_body_quaternion
 from cardillo.model.force import Force
 
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.animation as animation
 
 import numpy as np
 
-# statics = True
-statics = False
+statics = True
+# statics = False
 
-if __name__ == "__main__":
+def B_spline_fitting():
+    # physical properties of the rope
+    rho = 7850
+    L = 50
+    r = 5.0e-3
+    A = np.pi * r**2
+    I = A / 4 * r**2
+    E = 210e9 * 1.0e-3
+    EA = E * A
+    EI = E * I
+    material_model = Hooke(EA, EI)
+    A_rho0 = A * rho * 10
+
+    # discretization properties
+    p = 2
+    assert p >= 2
+    nQP = int(np.ceil((p + 1)**2 / 2))
+    print(f'nQP: {nQP}')
+    nEl = 6
+
+    # fit reference configuration
+    nxi = 100
+    R = 1.25
+    phi_max = np.pi / 2
+
+    phi1 = np.linspace(0, phi_max, num=nxi)
+    points1 = R * np.array([-np.cos(phi1), np.sin(phi1)]).T
+    # ctrlpts1, knot_vector1 = approximate_curve(points1.tolist(), p, nEl=nEl)
+    ctrlpts1 = fit_B_Spline(points1, p, nEl)
+    
+    phi2 = np.linspace(phi_max, 2 * phi_max, num=nxi)
+    points2 = R * np.array([-np.cos(phi2), np.sin(phi2)]).T
+    # ctrlpts2, knot_vector2 = approximate_curve(points2.tolist(), p, nEl=nEl)
+    ctrlpts2 = fit_B_Spline(points2, p, nEl)
+
+    # plt.plot(*points1.T, '-k', label='target curve')
+    # plt.plot(*ctrlpts1.T, '--ob', label='B-spline control polygon')
+    # plt.plot(*points2.T, '-g', label='target curve')
+    # plt.plot(*ctrlpts2.T, '--or', label='B-spline control polygon')
+    # plt.axis('equal')
+    # plt.legend()
+    # plt.show()
+
+    # exit()
+
+    Q1 = ctrlpts1.T.reshape(-1)
+    beam1 = Euler_bernoulli2D(A_rho0, material_model, p, nEl, nQP, Q=Q1, q0=Q1, u0=np.zeros_like(Q1))
+
+    Q2 = ctrlpts2.T.reshape(-1)
+    beam2 = Euler_bernoulli2D(A_rho0, material_model, p, nEl, nQP, Q=Q2, q0=Q2, u0=np.zeros_like(Q2))
+
+    # joints
+    r_OP0 = np.array([*ctrlpts1[0], 0])
+    r_OP01 = np.array([*ctrlpts1[-1], 0])
+    r_OP1 = np.array([*ctrlpts2[-1], 0])
+    frame0 = Frame(r_OP=r_OP0)
+    frame1 = Frame(r_OP=r_OP1)
+    # joint0 = Rigid_connection2D(frame0, beam1, r_OP0, frame_ID2=(0,))
+    joint0 = Spherical_joint2D(frame0, beam1, r_OP0, frame_ID2=(0,))
+    joint01 = Rigid_connection2D(beam1, beam2, r_OP01, frame_ID1=(1,), frame_ID2=(0,))
+    joint1 = Spherical_joint2D(beam2, frame1, r_OP1, frame_ID1=(1,))
+
+    if statics:
+        F = 8.0e0
+        # F = 2.0e0
+        f_point = Force(lambda t: t * F * np.array([0, -1, 0]), beam1, frame_ID=(1,))
+    else:
+        F = 8.0e1
+        f_point = Force(lambda t: t * F * np.array([0, -1, 0]), beam1, frame_ID=(1,))
+
+    # assemble the model
+    model = Model()
+    model.add(beam1)
+    model.add(beam2)
+
+    model.add(frame0)
+    model.add(joint0)
+
+    model.add(joint01)
+
+    model.add(frame1)
+    model.add(joint1)
+
+    # model.add(f_g_beam)
+    model.add(f_point)
+    model.assemble()
+
+    # plt.plot(*points.T, '-k', label='target curve')
+    # plt.plot(*ctrlpts.T, '--ob', label='B-spline control polygon')
+    # plt.plot(*(beam.centerline(q0, n=100).T[:2]), '--r', label='B-spline cruve')
+    # plt.axis('equal')
+    # plt.legend()
+    # plt.show()
+
+    if statics:
+        solver = Newton(model, n_load_stepts=50, max_iter=10, numerical_jacobian=False)
+    else:
+        t1 = 1
+        dt = 1.0e-2
+        solver = Euler_backward(model, t1, dt)
+        # solver = Generalized_alpha_1(model, t1, dt, rtol=0, atol=1.0e-1, rho_inf=0.25)
+        # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='RK45')
+    sol = solver.solve()
+    t = sol.t
+    q = sol.q
+
+    # animate configurations
+    fig, ax = plt.subplots()
+    # ax.axis('equal')
+    scale = 2.5 * R
+    ax.axis('equal')
+    ax.set_xlim([-scale, scale])
+    ax.set_ylim([-scale, scale])
+
+    # prepare data for animation
+    frames = q.shape[0]
+    target_frames = min(frames, 200)
+    frac = int(frames / target_frames)
+    animation_time = 1
+    interval = animation_time * 1000 / target_frames
+
+    frames = target_frames
+    t = t[::frac]
+    q = q[::frac]
+
+    center_line0, = ax.plot([], [], '-k')
+    nodes0, = ax.plot([], [], '--ob')
+    center_line1, = ax.plot([], [], '-g')
+    nodes1, = ax.plot([], [], '--or')
+
+    def animate(i):
+        x, y, z = beam1.centerline(q[i], n=50).T
+        center_line0.set_data(x, y)
+
+        x, y, z = beam2.centerline(q[i], n=50).T
+        center_line1.set_data(x, y)
+
+        x, y = q[i][beam1.qDOF].reshape(2, -1)
+        nodes0.set_data(x, y)
+
+        x, y = q[i][beam2.qDOF].reshape(2, -1)
+        nodes1.set_data(x, y)
+
+        return center_line0, center_line1, nodes0, nodes1, 
+
+    animate(1)
+
+    anim = animation.FuncAnimation(fig, animate, frames=frames, interval=interval, blit=False)
+    plt.show()
+
+def top():
     # solver parameter
     t0 = 0
     t1 = 3
@@ -243,3 +395,7 @@ if __name__ == "__main__":
 
     anim = animation.FuncAnimation(fig, animate, frames=frames, interval=interval, blit=False)
     plt.show()
+
+if __name__ == "__main__":
+    # top()
+    B_spline_fitting()
