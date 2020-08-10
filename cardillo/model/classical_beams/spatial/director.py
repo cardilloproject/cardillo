@@ -467,10 +467,16 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
 
         return Ke
 
-        # Ke_num = Numerical_derivative(lambda t, qe: self.f_pot_el(qe, Qe, N, N_xi, J0, qw), order=2)._x(0, qe, eps=1.0e-6)
+        # Ke_num = Numerical_derivative(lambda t, qe: self.f_pot_el(qe, Qe, N, N_xi, J0, qw), order=2)._x(0, qe, eps=1.0e-3)
         # diff = Ke_num - Ke
         # error = np.max(np.abs(diff))
         # print(f'error f_pot_q_el: {error}')
+        # # np.set_printoptions(2, suppress=True)
+        # # print(f'diff[self.rDOF[:, None], self.rDOF]: {np.max(np.abs(diff[self.rDOF[:, None], self.rDOF]))}')
+        # # print(f'diff[self.rDOF[:, None], self.d1DOF]: {np.max(np.abs(diff[self.rDOF[:, None], self.d1DOF]))}')
+        # # print(f'diff[self.rDOF[:, None], self.d2DOF]: {np.max(np.abs(diff[self.rDOF[:, None], self.d2DOF]))}')
+        # # print(f'diff[self.rDOF[:, None], self.d3DOF]: {np.max(np.abs(diff[self.rDOF[:, None], self.d3DOF]))}')
+        # # print(f'diff[self.d1DOF[:, None], self.d1DOF]: {np.max(np.abs(diff[self.d1DOF[:, None], self.d1DOF]))}')
         # return Ke_num
     
     #########################################
@@ -564,7 +570,7 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
         return self.r_OP(t, u_dot, frame_ID=frame_ID)
 
     def v_P_q(self, t, q, u, frame_ID, K_r_SP=None):
-        return self.r_OP_q(t, None, frame_ID=frame_ID)
+        return np.zeros((3, self.nq_el, self.nq_el))
 
     def J_P(self, t, q, frame_ID, K_r_SP=None):
         xi = frame_ID[0]
