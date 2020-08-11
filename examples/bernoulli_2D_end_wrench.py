@@ -88,8 +88,8 @@ if __name__ == "__main__":
     model.add(moment)
     model.assemble()
 
-    solver = Newton(model, n_load_stepts=10, max_iter=20, tol=1.0e-6, numerical_jacobian=False)
-    # solver = Newton(model, n_load_stepts=50, max_iter=10, numerical_jacobian=True)
+    solver = Newton(model, n_load_steps=10, max_iter=20, tol=1.0e-6, numerical_jacobian=False)
+    # solver = Newton(model, n_load_steps=50, max_iter=10, numerical_jacobian=True)
     sol = solver.solve()
     t = sol.t
     q = sol.q

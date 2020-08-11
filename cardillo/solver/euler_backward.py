@@ -202,7 +202,7 @@ class Euler_backward():
                     break
 
             if not converged:
-                raise RuntimeError(f'internal Newton-Raphson method not converged after {j} stepts with error: {error:.5e}')
+                raise RuntimeError(f'internal Newton-Raphson method not converged after {j} steps with error: {error:.5e}')
             
         return (converged, j, error), tk1, qk1, uk1, la_gk1, la_gammak1
 

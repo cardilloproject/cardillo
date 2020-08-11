@@ -273,7 +273,7 @@ class Generalized_alpha_1():
                     raise RuntimeError('Maximum number of rejected steps per time step reached.')
             else:
                 if not converged:
-                    raise RuntimeError(f'internal Newton-Raphson method not converged after {n_iter} stepts with error: {error:.5e}')
+                    raise RuntimeError(f'internal Newton-Raphson method not converged after {n_iter} steps with error: {error:.5e}')
             if step_accepted:
                 # print(f'n_rejected = {n_rejected_iter}')
                 # print(f'dt = {self.dt}')

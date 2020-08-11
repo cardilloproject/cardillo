@@ -114,7 +114,7 @@ def B_spline_fitting():
     # plt.show()
 
     if statics:
-        solver = Newton(model, n_load_stepts=50, max_iter=10, numerical_jacobian=False)
+        solver = Newton(model, n_load_steps=50, max_iter=10, numerical_jacobian=False)
     else:
         t1 = 1
         dt = 1.0e-2
@@ -279,8 +279,8 @@ def top():
     model.assemble()
 
     if statics:
-        solver = Newton(model, n_load_stepts=10, max_iter=10, numerical_jacobian=True)
-        # solver = Newton(model, n_load_stepts=50, max_iter=10, numerical_jacobian=True)
+        solver = Newton(model, n_load_steps=10, max_iter=10, numerical_jacobian=True)
+        # solver = Newton(model, n_load_steps=50, max_iter=10, numerical_jacobian=True)
         sol = solver.solve()
         t = sol.t
         q = sol.q

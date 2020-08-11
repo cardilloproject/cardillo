@@ -23,10 +23,10 @@ class Newton():
     ----------
     model : :class:`Model<cardillo.model>` or :class:`SparseModel<cardillo.model>`
         Model or SparseModel object. Determines representation of matrix objects.
-    n_load_stepts : int
+    n_load_steps : int
         number of load steps (ignored if load_steps is not None)
     load_steps : numpy.ndarray
-        list of load steps within the interval :math:`[0,1]`. If initialized with *None*, ``load_steps = [1/n_load_stepts, 2/n_load_stepts,...,1]`` is used.
+        list of load steps within the interval :math:`[0,1]`. If initialized with *None*, ``load_steps = [1/n_load_steps, 2/n_load_steps,...,1]`` is used.
     tol : float
         error tolerance.
     max_iter : int
