@@ -9,7 +9,7 @@ from cardillo.math.algebra import A_IK_basic_z, cross3, axis_angle2quat
 
 from cardillo.model import Model
 from cardillo.model.frame import Frame
-from cardillo.model.bilateral_constraints.implicit import Spherical_joint #, Revolute_joint
+from cardillo.model.bilateral_constraints.implicit import Spherical_joint, Revolute_joint, Linear_guidance_x, Linear_guidance_xyz
 from cardillo.model.rigid_body import Rigid_body_quaternion
 from cardillo.model.force import Force
 from cardillo.solver import Scipy_ivp, Euler_backward, Generalized_alpha_1, Moreau, Moreau_sym, Generalized_alpha_2
@@ -17,7 +17,7 @@ from cardillo.solver import Scipy_ivp, Euler_backward, Generalized_alpha_1, More
 from scipy.integrate import solve_ivp
 
 if __name__ == "__main__":
-    animate = False
+    animate = True
     reference_solution = True
 
     m = 1
@@ -45,14 +45,14 @@ if __name__ == "__main__":
     u01 = np.concatenate([vS1, omega01])
     RB1 = Rigid_body_quaternion(m, K_theta_S, q01, u01)
 
-    joint1 = Spherical_joint(origin, RB1, r_OB1)
+    # joint1 = Spherical_joint(origin, RB1, r_OB1)
+    joint1 = Revolute_joint(origin, RB1, np.zeros(3), A_IB1)
 
     beta0 = 0
     beta_dot0 = 0
   
     r_OB2 = - l * A_IK10[:, 1]
-    # A_IB2 = A_IK10
-    # joint2 = Revolute_joint(r_OB2, A_IB2, q0=np.array([beta0]), u0=np.array([beta_dot0]))
+
     A_IK20 = A_IK10 @ A_IK_basic_z(beta0)
     r_B2S2 = - 0.5 * l * A_IK20[:, 1]
     r_OS20 = r_OB2 + r_B2S2
@@ -64,7 +64,16 @@ if __name__ == "__main__":
     u02 = np.concatenate([vS2, omega02])
     RB2 = Rigid_body_quaternion(m, K_theta_S, q02, u02)
 
-    joint2 = Spherical_joint(RB1, RB2, r_OB2)
+    A_IB2 = A_IK10
+    joint2 = Revolute_joint(RB1, RB2, r_OB2, A_IB2)
+    # joint2 = Spherical_joint(RB1, RB2, r_OB2)
+    
+    # # permute x to z axis
+    # ex2, ey2, ez2 = A_IB2.T
+    # A_IB2 = np.array([ez2, ex2, ey2]).T
+    # # joint2 = Linear_guidance_x(RB1, RB2, r_OB2, A_IB2)
+    # joint2 = Linear_guidance_xyz(RB1, RB2, r_OB2, A_IB2)
+
 
     model = Model()
     model.add(origin)
@@ -75,6 +84,8 @@ if __name__ == "__main__":
     model.add(Force(lambda t: np.array([0, -g * m, 0]), RB1))
     model.add(Force(lambda t: np.array([0, -g * m, 0]), RB2))
 
+    model.add(Force(lambda t: np.array([0, 0, -g * m]), RB2))
+
     model.assemble()
 
     t0 = 0
@@ -84,10 +95,10 @@ if __name__ == "__main__":
     # solver = Moreau(model, t1, dt)
     # solver = Moreau_sym(model, t1, dt)
     # solver = Euler_backward(model, t1, dt, numerical_jacobian=True, debug=True)
-    # solver = Euler_backward(model, t1, dt, numerical_jacobian=False, debug=False)
+    solver = Euler_backward(model, t1, dt, numerical_jacobian=False, debug=False)
     # solver = Generalized_alpha_1(model, t1, dt, numerical_jacobian=True, debug=True)
     # solver = Generalized_alpha_1(model, t1, dt, newton_tol=1.0e-10, numerical_jacobian=False, debug=False)
-    solver = Generalized_alpha_2(model, t1, dt, numerical_jacobian=False, debug=False)
+    # solver = Generalized_alpha_2(model, t1, dt, numerical_jacobian=False, debug=False)
 
     sol = solver.solve()
     t = sol.t

@@ -45,7 +45,7 @@ def inextensible_rope():
     assert p >= 2
     nQP = int(np.ceil((p + 1)**2 / 2))
     print(f'nQP: {nQP}')
-    nEl = 15
+    nEl = 20
 
     # build reference configuration
     nNd = nEl + p
@@ -152,7 +152,7 @@ def inextensible_rope():
     plt.show()
     
 def cantilever():
-    t1 = 200
+    t1 = 20
     dt = 5e-1
 
     L = 2 * np.pi
@@ -198,11 +198,11 @@ def cantilever():
         model = Model()
         model.add(beam)
         model.add(frame_left)
-        model.add(Rigid_connection2D(frame_left, beam, r_OB1, frame_ID2=(0,)))
-        # model.add(Spherical_joint2D(frame_left, beam, r_OB1, frame_ID2=(0,)))
+        # model.add(Rigid_connection2D(frame_left, beam, r_OB1, frame_ID2=(0,)))
+        model.add(Spherical_joint2D(frame_left, beam, r_OB1, frame_ID2=(0,)))
         model.add(frame_right)
-        # model.add(Linear_guidance_xyz_2D(frame_right, beam, r_OB1, frame_right.A_IK(0), frame_ID2=(1,)))
-        model.add(Linear_guidance_x_2D(frame_right, beam, r_OB1, frame_right.A_IK(0), frame_ID2=(1,)))
+        model.add(Linear_guidance_xyz_2D(frame_right, beam, r_OB1, frame_right.A_IK(0), frame_ID2=(1,)))
+        # model.add(Linear_guidance_x_2D(frame_right, beam, r_OB1, frame_right.A_IK(0), frame_ID2=(1,)))
 
         __g = np.array([0, - A_rho0 * 9.81, 0])
 
@@ -220,7 +220,7 @@ def cantilever():
         if statics:
             solver = Newton(model, n_load_steps=20, max_iter=20, tol=1.0e-6, numerical_jacobian=False)
         else:
-            solver = Euler_backward(model, t1, dt, newton_max_iter=50, numerical_jacobian=False)
+            solver = Euler_backward(model, t1, dt, newton_max_iter=50, numerical_jacobian=False, debug=False)
             # solver = Generalized_alpha_1(model, t1, dt, variable_dt=False, rho_inf=0.5)
         sols.append( solver.solve() )
 
@@ -280,5 +280,5 @@ def cantilever():
         plt.show()
 
 if __name__ == "__main__":
-    # inextensible_rope()
-    cantilever()
+    inextensible_rope()
+    # cantilever()
