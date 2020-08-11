@@ -23,7 +23,7 @@ statics = False
 if __name__ == "__main__":
     # solver parameter
     t0 = 0
-    t1 = 5
+    t1 = 3
     dt = 1e-4
 
     # physical properties of the rope

@@ -101,7 +101,7 @@ if __name__ == "__main__":
     # la_N_fp = sol_fp.la_N
     # la_T_fp = sol_fp.la_T
 
-    solver_n = Generalized_alpha_2(model, t1, dt, rho_inf=1, numerical_jacobian=False)
+    solver_n = Generalized_alpha_2(model, t1, dt, rho_inf=1, numerical_jacobian=0)
     sol_n = solver_n.solve()
     # sol_n = sol_fp
     t_n = t = sol_n.t
