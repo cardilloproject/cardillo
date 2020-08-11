@@ -609,7 +609,7 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
         d3_dot = NN @ u[self.d3DOF]
         A_IK_dot = np.vstack((d1_dot, d2_dot, d3_dot)).T
 
-        omega_tilde = A_IK_dot @ A_IK.T
+        omega_tilde = A_IK.T @ A_IK_dot
         return skew2ax(omega_tilde)
 
     # TODO!
@@ -636,7 +636,7 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
         # note: all versions are about the same speed!
 
         # version 1 using many calls to skew2ax inside a list comprehension
-        K_J_R_skew = np.einsum('ijl,kj->ikl', A_IK_dot_u, A_IK)
+        K_J_R_skew = np.einsum('ij,jkl->ikl', A_IK.T, A_IK_dot_u)
         K_J_R = np.array([skew2ax(skew.T) for skew in K_J_R_skew.T]).T
 
         # # version 2 using loops
@@ -744,8 +744,8 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
     def plot_frames(self, ax, q, n=10, length=1):
         x, y, z, d1, d2, d3 = self.frames(q, n=n)
         ax.quiver(x, y, z, *d1, color='red', length=length)
-        ax.quiver(x, y, z, *d2, color='blue', length=length)
-        ax.quiver(x, y, z, *d3, color='green', length=length)
+        ax.quiver(x, y, z, *d2, color='green', length=length)
+        ax.quiver(x, y, z, *d3, color='blue', length=length)
 
 ####################################################
 # straight initial configuration
