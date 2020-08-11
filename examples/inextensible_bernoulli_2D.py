@@ -18,8 +18,8 @@ import matplotlib.animation as animation
 
 import numpy as np
 
-statics = True
-# statics = False
+# statics = True
+statics = False
 
 def inextensible_rope():
     t1 = 5
@@ -28,12 +28,11 @@ def inextensible_rope():
     # beam parameters
     L = 5
     EA = 5 * 1.0e1
-    EI = 2 * 1.0e-1
-    material_model = Hooke(EA, EI)
+    EI = 2 * 1.0e0
     A_rho0 = 0.1
 
     # linear spring parameters
-    k = 1e2
+    k = 1e1
     l0 = 0.5 * L
 
     r_OB1 = np.zeros(3)
@@ -46,7 +45,7 @@ def inextensible_rope():
     assert p >= 2
     nQP = int(np.ceil((p + 1)**2 / 2))
     print(f'nQP: {nQP}')
-    nEl = 20
+    nEl = 15
 
     # build reference configuration
     nNd = nEl + p
@@ -61,180 +60,112 @@ def inextensible_rope():
     q0 = np.hstack((X0, Y0))
     u0 = np.zeros_like(Q)
 
-    bernoulli = Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q=Q, q0=q0, u0=u0)
-    inextensible_bernoulli = Inextensible_Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q=Q, q0=q0, u0=u0)
-
-    beams = [bernoulli, inextensible_bernoulli]
-
     sols = []
-    for beam in beams:
-        model = Model()
-        model.add(beam)
-        model.add(frame_left)
-        # model.add(Rigid_connection2D(frame_left, beam, r_OB1, frame_ID2=(0,)))
-        model.add(Spherical_joint2D(frame_left, beam, r_OB1, frame_ID2=(0,)))
-        
-        model.add(frame_right)
-        # model.add(Spherical_joint2D(frame_right, beam, r_OB2, frame_ID2=(1,)))
-        # model.add(Linear_guidance_xyz_2D(frame_right, beam, r_OB2, frame_right.A_IK(0), frame_ID2=(1,)))
-        # model.add(Linear_guidance_x_2D(beam, frame_right, r_OB2, frame_right.A_IK(0), frame_ID1=(1,)))
-        model.add(Linear_guidance_xyz_2D(beam, frame_right, r_OB2, frame_right.A_IK(0), frame_ID1=(1,)))
 
-        model.add(Translational_f_pot(Linear_spring(k, l0), beam, frame_right, frame_ID1=(1,)))
+    __g = np.array([0, - A_rho0 * 9.81, 0])
 
-        __g = np.array([0, - A_rho0 * 9.81, 0])
-        if statics:
-            f_g_beam = Line_force(lambda xi, t: t * __g, beam)
-        else:
-            f_g_beam = Line_force(lambda xi, t: __g, beam)
-        model.add(f_g_beam)
+    # Model 1: left fixed, right linear guidance
+    model1 = Model()
+    material_model1 = Hooke(EA, EI)
+    inextensible_bernoulli1 = Inextensible_Euler_bernoulli(A_rho0, material_model1, p, nEl, nQP, Q=Q, q0=q0, u0=u0)
+    model1.add(inextensible_bernoulli1)
+    model1.add(frame_left)
+    model1.add(Spherical_joint2D(frame_left, inextensible_bernoulli1, r_OB1, frame_ID2=(0,)))
+    model1.add(frame_right)
+    model1.add(Linear_guidance_xyz_2D(frame_right, inextensible_bernoulli1, r_OB2, frame_right.A_IK(0), frame_ID2=(1,)))
+    model1.add(Translational_f_pot(Linear_spring(k, l0), inextensible_bernoulli1, frame_right, frame_ID1=(1,)))
+    model1.add(Line_force(lambda xi, t: t * __g, inextensible_bernoulli1))
+    model1.assemble()
 
-        model.assemble()
+    solver = Newton(model1, n_load_steps=20, max_iter=20, tol=1.0e-6, numerical_jacobian=False)
+    sols.append( solver.solve() )
 
-        if statics:
-            solver = Newton(model, n_load_steps=20, max_iter=20, tol=1.0e-6, numerical_jacobian=False)
-        else:
-            solver = Euler_backward(model, t1, dt, newton_max_iter=50, numerical_jacobian=False)
-            # solver = Scipy_ivp(model, t1, dt, atol=1e-4)
-            # solver = Generalized_alpha_1(model, t1, dt, variable_dt=False, rho_inf=0.5)
-        sols.append( solver.solve() )
-
-    if statics:
-        material_model = Hooke(EA, EI * 1e-5)
-        inextensible_bernoulli_precurved = Inextensible_Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q=Q, q0=sols[1].q[-1], u0=u0)
-        # material_model_rope = Hooke_rope(EA)
-        # rope_precurved = Inextensible_Rope(A_rho0, material_model_rope, p, nEl, nQP, Q=Q, q0=sols[1].q[-1], u0=u0, dim=2, la_g0 = sols[1].la_g[-1, :-3])
-
-        beam = inextensible_bernoulli_precurved
-        # beam = rope_precurved
-        # r_OB2 = lambda t: np.array([sols[1].q[-1, nNd-1], 0, 0])
-        r_OB2 = lambda t: np.array([sols[1].q[-1, nNd-1] - t * L / 2, -t * L / 2, 0])
-        frame_right = Frame(r_OP=r_OB2)
-
-        model2 = Model()
-        model2.add(beam)
-        model2.add(frame_left)
-        # model.add(Rigid_connection2D(frame_left, beam, r_OB1, frame_ID2=(0,)))
-        model2.add(Spherical_joint2D(frame_left, beam, r_OB1, frame_ID2=(0,)))
-
-        model2.add(frame_right)
-        model2.add(Spherical_joint2D(frame_right, beam, r_OB2(0), frame_ID2=(1,)))
-        # model2.add(Spherical_joint2D(frame_right, beam, r_OB2(0), frame_ID2=(1,), la_g0=-sols[1].la_g[-1, -3:-1]))
-
-        __g = np.array([0, - A_rho0 * 9.81, EI * 1e-6])
-        f_g_beam = Line_force(lambda xi, t: __g, beam)
-
-        model2.add(f_g_beam)
-        
-        model2.assemble()
-
-        solver = Newton(model2, n_load_steps=50, max_iter=50, tol=1.0e-6, numerical_jacobian=False)
-
-        sols.append( solver.solve() )
-
-        material_model = Hooke(EA, EI * 0)
-        inextensible_bernoulli_precurved = Inextensible_Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q=Q, q0=sols[2].q[-1], u0=u0)
-        # material_model_rope = Hooke_rope(EA)
-        # rope_precurved = Inextensible_Rope(A_rho0, material_model_rope, p, nEl, nQP, Q=Q, q0=sols[1].q[-1], u0=u0, dim=2, la_g0 = sols[1].la_g[-1, :-3])
-
-        beam = inextensible_bernoulli_precurved
-        # beam = rope_precurved
-        # r_OB2 = lambda t: np.array([sols[1].q[-1, nNd-1], 0, 0])
-        r_OB2 = lambda t: np.array([sols[1].q[-1, nNd-1] - t * L / 2, -t * L / 2, 0])
-        frame_right = Frame(r_OP=r_OB2(1))
-
-        model3 = Model()
-        model3.add(beam)
-        model3.add(frame_left)
-        # model.add(Rigid_connection2D(frame_left, beam, r_OB1, frame_ID2=(0,)))
-        model3.add(Spherical_joint2D(frame_left, beam, r_OB1, frame_ID2=(0,)))
-
-        model3.add(frame_right)
-        model3.add(Spherical_joint2D(frame_right, beam, r_OB2(0), frame_ID2=(1,)))
-        # model2.add(Spherical_joint2D(frame_right, beam, r_OB2(0), frame_ID2=(1,), la_g0=-sols[1].la_g[-1, -3:-1]))
-
-        __g = np.array([0, - A_rho0 * 9.81, 0])
-        f_g_beam = Line_force(lambda xi, t: __g, beam)
-
-        model3.add(f_g_beam)
-        
-        model3.assemble()
-
-        solver = Newton(model3, n_load_steps=50, max_iter=50, tol=1.0e-6, numerical_jacobian=False)
-
-        sols.append( solver.solve() )
+    # Model 2: left fixed, right fixed
+    model2 = Model()
+    material_model2 = material_model1
+    # inextensible_bernoulli2 = Inextensible_Euler_bernoulli(A_rho0, material_model2, p, nEl, nQP, Q=Q, q0=sols[0].q[-1], u0=u0)
+    inextensible_bernoulli2 = Inextensible_Euler_bernoulli(A_rho0, material_model2, p, nEl, nQP, Q=Q, q0=sols[0].q[-1], u0=u0, la_g0 = sols[0].la_g[-1, :-3])
     
-
-    if statics:
-        fig, ax = plt.subplots()
-        ax.set_xlabel('x [m]')
-        ax.set_ylabel('y [m]')
-        ax.set_xlim([-0.2, L])
-        ax.set_ylim([-L, 0.2])
-        ax.grid(linestyle='-', linewidth='0.5')
-
-        x, y, z = bernoulli.centerline(sols[0].q[-1]).T
-        ax.plot(x, y, '--k')
-
-        x, y, z = inextensible_bernoulli.centerline(sols[1].q[-1]).T
-        ax.plot(x, y, '-b')
-
-        ax.plot(*sols[0].q[-1].reshape(2, -1), '--ok')
-        ax.plot(*sols[1].q[-1].reshape(2, -1), '--ob')
-        ax.plot(*sols[2].q[-1].reshape(2, -1), '--or')
-        ax.plot(*sols[3].q[-1].reshape(2, -1), '--xg')
-
-        plt.show()
-    else:
-        # animate configurations
-        fig, ax = plt.subplots()
-        ax.set_xlabel('x [m]')
-        ax.set_ylabel('y [m]')
-        ax.set_xlim([-0.1*L, 1.1*L])
-        ax.set_ylim([-1.1*L, 0.1*L])
-        ax.grid(linestyle='-', linewidth='0.5')
-
-        # prepare data for animation
-        t = sols[0].t
-        frames = len(t)
-        target_frames = min(len(t), 100)
-        frac = int(frames / target_frames)
-        animation_time = 10
-        interval = animation_time * 1000 / target_frames
-
-        frames = target_frames
-        t = t[::frac]
-        q0 = sols[0].q[::frac]
-        q1 = sols[1].q[::frac]
+    model2.add(inextensible_bernoulli2)
+    model2.add(frame_left)
+    model2.add(Spherical_joint2D(frame_left, inextensible_bernoulli2, r_OB1, frame_ID2=(0,)))
         
-        center_line0, = ax.plot([], [], '-k')
-        center_line1, = ax.plot([], [], '--b')
+    r_OB2 = lambda t: np.array([sols[0].q[-1, nNd-1], 0, 0])
+    # r_OB2 = lambda t: np.array([sols[1].q[-1, nNd-1] - t * L / 2, -t * L / 2, 0])
+    frame_right = Frame(r_OP=r_OB2)
+    model2.add(frame_right)
+    model2.add(Spherical_joint2D(frame_right, inextensible_bernoulli2, r_OB2(0), frame_ID2=(1,)))
+    model2.add(Line_force(lambda xi, t: __g, inextensible_bernoulli2))
+    model2.assemble()
 
-        def animate(i):
-            x, y, _ = beam.centerline(q0[i], n=500).T
-            center_line0.set_data(x, y)
+    solver = Newton(model2, n_load_steps=50, max_iter=50, tol=1.0e-6, numerical_jacobian=False)
 
-            x, y, _ = beam.centerline(q1[i], n=50).T
-            center_line1.set_data(x, y)
+    sols.append( solver.solve() )
 
-            return center_line0, center_line1
+    # Model 3: left fixed, right fixed, modified EI
+    model3 = Model()
+    material_model3 = Hooke(EA, 0)
+    # inextensible_bernoulli3 = Inextensible_Euler_bernoulli(A_rho0, material_model3, p, nEl, nQP, Q=Q, q0=sols[1].q[-1], u0=u0)
+    inextensible_bernoulli3 = Inextensible_Euler_bernoulli(A_rho0, material_model3, p, nEl, nQP, Q=Q, q0=sols[1].q[-1], u0=u0, la_g0 = sols[1].la_g[-1, :-4])
+    
+    model3.add(inextensible_bernoulli3)
+    model3.add(frame_left)
+    model3.add(Spherical_joint2D(frame_left, inextensible_bernoulli3, r_OB1, frame_ID2=(0,)))
+        
+    # r_OB2 = lambda t: np.array([sols[1].q[-1, nNd-1], 0, 0])
+    r_OB2initial = np.array([sols[1].q[-1, nNd-1], 0, 0])
+    r_OB2final = np.array([L / 3, -L / 3, 0])
+    r_OB2 = lambda t: r_OB2initial + t * (r_OB2final - r_OB2initial)
+    frame_right = Frame(r_OP=r_OB2)
+    model3.add(frame_right)
+    model3.add(Spherical_joint2D(frame_right, inextensible_bernoulli3, r_OB2(0), frame_ID2=(1,)))
+    model3.add(Line_force(lambda xi, t: __g, inextensible_bernoulli3))
+    model3.assemble()
 
-        anim = animation.FuncAnimation(fig, animate, frames=frames, interval=interval, blit=False)
-        plt.show()
+    solver = Newton(model3, n_load_steps=50, max_iter=50, tol=1.0e-6, numerical_jacobian=False)
 
+    sols.append( solver.solve() )
+    
+    fig, ax = plt.subplots()
+    ax.set_xlabel('x [m]')
+    ax.set_ylabel('y [m]')
+    ax.set_xlim([-0.2, L])
+    ax.set_ylim([-L, 0.2])
+    ax.grid(linestyle='-', linewidth='0.5')
+
+    # x, y, z = bernoulli.centerline(sols[0].q[-1]).T
+    # ax.plot(x, y, '--k')
+
+    x, y, z = inextensible_bernoulli1.centerline(sols[0].q[-1]).T
+    ax.plot(x, y, '-r')
+
+    x, y, z = inextensible_bernoulli2.centerline(sols[1].q[-1]).T
+    ax.plot(x, y, '-g')
+
+    x, y, z = inextensible_bernoulli3.centerline(sols[2].q[-1]).T
+    ax.plot(x, y, '-b')
+
+    ax.plot(*sols[0].q[-1].reshape(2, -1), '--or')
+    ax.plot(*sols[1].q[-1].reshape(2, -1), '--og')
+    ax.plot(*sols[2].q[-1].reshape(2, -1), '--ob')
+
+    plt.show()
+    
 def cantilever():
     t1 = 200
     dt = 5e-1
 
     L = 2 * np.pi
     EA = 5
-    EI = 2
+    EI = 2*1e0
     material_model = Hooke(EA, EI)
     A_rho0 = 0.1
     alpha2 = 10
 
     r_OB1 = np.zeros(3)
     frame_left = Frame(r_OP=r_OB1)
+    r_OB2 = np.array([L, 0, 0])
+    frame_right = Frame(r_OP=r_OB2)
 
     # discretization properties
     p = 3
@@ -259,8 +190,8 @@ def cantilever():
 
     bernoulli = Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q=Q, q0=q0, u0=u0)
     inextensible_bernoulli = Inextensible_Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q=Q, q0=q0, u0=u0)
-    # beams = [bernoulli, inextensible_bernoulli]
-    beams = [inextensible_bernoulli, bernoulli]
+    beams = [bernoulli, inextensible_bernoulli]
+    # beams = [inextensible_bernoulli, bernoulli]
 
     sols = []
     for beam in beams:
@@ -268,14 +199,22 @@ def cantilever():
         model.add(beam)
         model.add(frame_left)
         model.add(Rigid_connection2D(frame_left, beam, r_OB1, frame_ID2=(0,)))
-        # model.add(Spherical_joint2D(frame_left, beam, r_OB1, frame_ID2=(0,), la_g0=np.ones(2)*1.0e-6))
+        # model.add(Spherical_joint2D(frame_left, beam, r_OB1, frame_ID2=(0,)))
+        model.add(frame_right)
+        # model.add(Linear_guidance_xyz_2D(frame_right, beam, r_OB1, frame_right.A_IK(0), frame_ID2=(1,)))
+        model.add(Linear_guidance_x_2D(frame_right, beam, r_OB1, frame_right.A_IK(0), frame_ID2=(1,)))
+
+        __g = np.array([0, - A_rho0 * 9.81, 0])
 
         if statics:
             F = lambda t: t * np.array([0, -EI * alpha2 / L**2, 0])
+            F_g = lambda xi, t: t * __g
         else:
             F = lambda t: min(t, 10) / 10 * np.array([0, -EI * alpha2 / L**2, 0])
+            F_g = lambda xi, t: __g
                 
-        model.add(Force(F, beam, frame_ID=(1,)))
+        # model.add(Force(F, beam, frame_ID=(1,)))
+        model.add(Line_force(F_g, beam))
         model.assemble()
 
         if statics:
@@ -341,5 +280,5 @@ def cantilever():
         plt.show()
 
 if __name__ == "__main__":
-    inextensible_rope()
-    # cantilever()
+    # inextensible_rope()
+    cantilever()
