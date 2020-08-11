@@ -23,8 +23,8 @@ statics = False
 if __name__ == "__main__":
     # solver parameter
     t0 = 0
-    t1 = 1
-    dt = 1e-2
+    t1 = 5
+    dt = 1e-4
 
     # physical properties of the rope
     rho = 7850
@@ -117,10 +117,10 @@ if __name__ == "__main__":
     # assemble the model
     model = Model()
     model.add(beam)
-    model.add(frame_left)
-    model.add(joint_left)
+    # model.add(frame_left)
+    # model.add(joint_left)
     model.add(f_g_beam)
-    # model.add(contact0)
+    model.add(contact0)
     model.add(contact1)
     model.assemble()
     

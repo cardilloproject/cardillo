@@ -47,6 +47,7 @@ class Rigid_body_rel_kinematics():
         self.r_OB1 = lambda t, q: self.predecessor.r_OP(t, q[:nqp], self.frame_IDp, K_r_SpB1)
         self.r_OB1_q1 = lambda t, q: self.predecessor.r_OP_q(t, q[:nqp], self.frame_IDp, K_r_SpB1)
         self.v_B1 = lambda t, q, u: self.predecessor.v_P(t, q[:nqp], u[:nup], self.frame_IDp, K_r_SpB1)
+        self.v_B1_qp = lambda t, q, u: self.predecessor.v_P_q(t, q[:nqp], u[:nup], self.frame_IDp, K_r_SpB1)
         self.B1_Omegap = lambda t, q, u: A_KpB1.T @ self.predecessor.K_Omega(t, q[:nqp], u[:nup], self.frame_IDp)
         self.B1_Psip = lambda t, q, u, u_dot: A_KpB1.T @ self.predecessor.K_Psi(t, q[:nqp], u[:nup], u_dot[:nup], self.frame_IDp)
         self.a_B1 = lambda t, q, u, u_dot: self.predecessor.a_P(t, q[:nqp], u[:nup], u_dot[:nup], self.frame_IDp, K_r_SpB1)
@@ -70,6 +71,7 @@ class Rigid_body_rel_kinematics():
         self.B1_r_B1B2 = lambda t, q: self.joint.B1_r_B1B2(t, q[nqp:])
         self.B1_r_B1B2_q2 = lambda t, q: self.joint.B1_r_B1B2_q(t, q[nqp:])
         self.B1_v_B1B2 = lambda t, q, u: self.joint.B1_v_B1B2(t, q[nqp:], u[nup:])
+        self.B1_v_B1B2_q2 = lambda t, q, u: self.joint.B1_v_B1B2_q(t, q[nqp:], u[nup:])
         self.B1_J_B1B2 = lambda t, q: self.joint.B1_J_B1B2(t, q[nqp:])
         self.B1_J_B1B2_q2 = lambda t, q: self.joint.B1_J_B1B2_q(t, q[nqp:])
         self.B1_Omega_B1B2 = lambda t, q, u: self.joint.B1_Omega_B1B2(t, q[nqp:], u[nup:])
@@ -166,11 +168,20 @@ class Rigid_body_rel_kinematics():
         v_B2P = self.A_IK(t, q) @ cross3( self.K_Omega(t, q, u), K_r_SP - self.K_r_SB2 )
         return v_B2 + v_B2P
 
+    def v_P_q(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
+        return Numerical_derivative(self.v_P)._x(t, q, u)
+
     def a_P(self, t, q, u, u_dot, frame_ID=None, K_r_SP=np.zeros(3)):
         K_r_B2P = K_r_SP - self.K_r_SB2
         a_B2 = self.a_B1(t, q, u, u_dot) + self.A_IB1(t, q) @ self.B1_a_B1B2(t, q, u, u_dot)
         a_B2P = self.A_IK(t, q) @ (cross3(self.K_Psi(t, q, u, u_dot), K_r_B2P) + cross3( self.K_Omega(t, q, u), cross3( self.K_Omega(t, q, u), K_r_B2P )) )
         return a_B2 + a_B2P
+
+    def a_P_q(self, t, q, u, u_dot, frame_ID=None, K_r_SP=np.zeros(3)):
+        return Numerical_derivative(lambda t, q, u: self.a_P(t, q, u, u_dot))._x(t, q, u)
+    
+    def a_P_u(self, t, q, u, u_dot, frame_ID=None, K_r_SP=np.zeros(3)):
+        return Numerical_derivative(lambda t, q, u: self.a_P(t, q, u, u_dot))._y(t, q, u)
 
     def kappa_P(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
         # return self.a_P(t, q, u, np.zeros(self.__nu), K_r_SP=K_r_SP)
