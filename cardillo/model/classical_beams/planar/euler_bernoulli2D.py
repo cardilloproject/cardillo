@@ -4,7 +4,7 @@ from math import atan2, sqrt
 from cardillo.utility.coo import Coo
 from cardillo.discretization import gauss
 from cardillo.discretization import uniform_knot_vector, B_spline_basis
-from cardillo.math.algebra import norm2, norm3, cross3, e3
+from cardillo.math.algebra import ax2skew, norm2, norm3, cross3, e3
 from cardillo.math.numerical_derivative import Numerical_derivative
 
 class Euler_bernoulli2D():
@@ -353,21 +353,27 @@ class Euler_bernoulli2D():
         A_IK[:, 1] = d2
         return A_IK
 
-    # TODO:
     def A_IK_q(self, t, q, frame_ID):
-        return Numerical_derivative(lambda t, q: self.A_IK(t, q, frame_ID=frame_ID))._x(t, q)
-        # _, dNN = self.__basis_functions(frame_ID)
-        # t = np.zeros(3)
-        # t[:2] = dNN @ q
-        # g_ = norm3(t)
-        # d1 = t / g_
-        # g_q = ...
-        # d1_q = dNN / g_ + np.outer(-d1 / g, g_q)
-        # d2 = cross3(e3, d1)
-        # A_IK = np.eye(3)
-        # A_IK[:, 0] = d1
-        # A_IK[:, 1] = d2
-        # return A_IK
+        _, dNN = self.__basis_functions(frame_ID)
+        t = np.zeros(3)
+        t_ = dNN @ q
+        t[:2] = t_
+        g_ = norm3(t)
+        d1_q = np.zeros((3, self.nq_el))
+        d1_q[:2] = dNN / g_ - np.outer(t_ / (g_**3), t_ @ dNN)
+        d2_q = ax2skew(e3) @ d1_q
+
+        A_IK_q = np.zeros((3, 3, self.nq_el))
+        A_IK_q[:, 0] = d1_q
+        A_IK_q[:, 1] = d2_q
+
+        return A_IK_q
+        
+        # A_IK_q_num = Numerical_derivative(lambda t, q: self.A_IK(t, q, frame_ID=frame_ID), order=2)._x(t, q)
+        # diff = A_IK_q - A_IK_q_num
+        # error = np.max(np.abs(diff))
+        # print(f'error A_IK_q: {error}')
+        # return A_IK_q_num
 
     def v_P(self, t, q, u, frame_ID, K_r_SP=None):
         return self.r_OP(t, u, frame_ID=frame_ID)
@@ -426,9 +432,23 @@ class Euler_bernoulli2D():
         K_J_R[2] = t_perp @ dNN / g2_
         return K_J_R
 
-    # TODO
     def K_J_R_q(self, t, q, frame_ID):
-        return Numerical_derivative(lambda t, q: self.K_J_R(t, q, frame_ID=frame_ID), order=2)._x(t, q)
+        _, dN = B_spline_basis(self.polynomial_degree, 1, self.knot_vector, frame_ID[0])
+        dNN = self.stack_shapefunctions(dN)
+        dNN_perp = self.stack_shapefunctions_perp(dN)
+        t = dNN @ q
+        t_perp = dNN_perp @ q
+        g2_ = t[0] * t[0] + t[1] * t[1]
+
+        K_J_R_q = np.zeros((3, self.nq_el, self.nq_el))
+        K_J_R_q[2] = np.einsum('ik,ij->jk', dNN_perp, dNN) / g2_ - (2 / g2_**2) * np.outer(t_perp @ dNN, t @ dNN)
+        return K_J_R_q
+ 
+        # K_J_R_q_num = Numerical_derivative(lambda t, q: self.K_J_R(t, q, frame_ID=frame_ID), order=2)._x(t, q)
+        # diff = K_J_R_q - K_J_R_q_num
+        # error = np.max(np.abs(diff))
+        # print(f'error K_J_R_q: {error}')
+        # return K_J_R_q_num
 
     ####################################################
     # body force
