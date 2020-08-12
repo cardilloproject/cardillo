@@ -16,16 +16,19 @@ if __name__ == "__main__":
 
     # rigid_body = 'Euler'
     # rigid_body = 'Quaternion'
+    # rigid_body = 'Quaternion_connected'
     # rigid_body = 'Director'
     # rigid_body = 'Rigid_body2D'
-    # rigid_body = 'Rigid_body2D_connected'
-    rigid_body = 'Quaternion_connected'
+    rigid_body = 'Rigid_body2D_connected'
+    
     #%% parameters
     m = 1
     L = 2
     theta = 1 / 12 * m * (L ** 2)
     theta_O = theta + m * (L ** 2) / 4
     theta1 = theta2 = 1 / 12 * m / 2 * (L ** 2) / 4
+    K_theta_S = theta * np.eye(3)
+    K_theta_S1 = K_theta_S2 = theta1 * np.eye(3)
     g = 9.81
     omega = 10
     A = L / 10
@@ -50,16 +53,20 @@ if __name__ == "__main__":
     v_P = lambda t: np.array([e_t(t), 0, 0]) 
     a_P = lambda t: np.array([e_tt(t), 0, 0]) 
 
-    K_r_SP = np.array([0, L / 2, 0])
-    K_r_SP1 = np.array([0, L / 4, 0])
-    K_r_SP2 = np.array([0, 3 * L / 4, 0])
-    # phi0 = 0
+    K_r_SP = np.array([0, L / 2, 0])      # center of mass single rigid body
+    K_r_SP1 = np.array([0, L / 4, 0])     # center of mass half rigid body 1
+    K_r_SP2 = np.array([0, 3 * L / 4, 0]) # center of mass half rigid body 2
+
     phi0 = 0.5
     phi_dot0 = 0
     K_omega0 = np.array([0, 0, phi_dot0])
     A_IK0 = A_IK_basic_z(phi0)
+
+    # single rigid body
     r_OS0 = r_OP(0) - A_IK0 @ K_r_SP
     v_S0 = v_P(0) + A_IK0 @ ( cross3(K_omega0, K_r_SP) )
+    
+    # connected rigid bodies
     r_OS10 = r_OP(0) - A_IK0 @ K_r_SP1
     v_S10 = v_P(0) + A_IK0 @ ( cross3(K_omega0, K_r_SP1) )
     r_OS20 = r_OP(0) - A_IK0 @ K_r_SP2
@@ -67,49 +74,46 @@ if __name__ == "__main__":
 
     model = Model()
 
+    frame = Frame(r_OP=r_OP, r_OP_t=v_P, r_OP_tt=a_P)
+    model.add(frame)
+
     if rigid_body == 'Euler':
         p0 = np.array([phi0, 0, 0])
         q0 = np.concatenate((r_OS0, p0))
+        u0 = np.concatenate((v_S0, K_omega0))
+        RB = Rigid_body_euler(m, K_theta_S, q0=q0, u0=u0)
+        model.add(RB)
+        model.add(Force(np.array([0, -m*g, 0]), RB))
+        model.add(Revolute_joint(frame, RB, r_OP(0), np.eye(3)))
     elif rigid_body == 'Quaternion':
         p0 = axis_angle2quat(np.array([0, 0, 1]), phi0)
         q0 = np.concatenate((r_OS0, p0))
+        u0 = np.concatenate((v_S0, K_omega0))
+        RB = Rigid_body_quaternion(m, K_theta_S, q0=q0, u0=u0)
+        model.add(RB)
+        model.add(Force(np.array([0, -m*g, 0]), RB))
+        model.add(Revolute_joint(frame, RB, r_OP(0), np.eye(3)))
     elif rigid_body == 'Quaternion_connected':
         p0 = axis_angle2quat(np.array([0, 0, 1]), phi0)
         q10 = np.concatenate((r_OS10, p0))
         q20 = np.concatenate((r_OS20, p0))
+        u10 = np.concatenate((v_S10, K_omega0))
+        u20 = np.concatenate((v_S20, K_omega0))
+        RB1 = Rigid_body_quaternion(m / 2, K_theta_S1, q0=q10, u0=u10)
+        RB2 = Rigid_body_quaternion(m / 2, K_theta_S2, q0=q20, u0=u20)
+        model.add(RB1)
+        model.add(RB2)
+        gravity1 = Force(np.array([0, -m / 2 * g, 0]), RB1)
+        model.add(gravity1)
+        gravity2 = Force(np.array([0, -m / 2 * g, 0]), RB2)
+        model.add(gravity2)
+        model.add(Revolute_joint(frame, RB1, r_OP(0), np.eye(3)))
+        model.add(Rigid_connection(RB1, RB2, r_OS0))
     elif rigid_body == 'Director':
         p0 = np.concatenate((A_IK0[:, 0], A_IK0[:, 1], A_IK0[:, 2]))
         q0 = np.concatenate((r_OS0, p0))
-    elif rigid_body == 'Rigid_body2D':
-        q0 = np.append(r_OS0[:2], phi0)
-    elif rigid_body == 'Rigid_body2D_connected':
-        q10 = np.append(r_OS10[:2], phi0)
-        q20 = np.append(r_OS20[:2], phi0)
-
-    if rigid_body == 'Euler' or rigid_body == 'Quaternion':
-        u0 = np.concatenate((v_S0, K_omega0))
-    elif rigid_body == 'Quaternion_connected':
-        u10 = np.concatenate((v_S10, K_omega0))
-        u20 = np.concatenate((v_S20, K_omega0))
-    elif rigid_body == 'Director':
         A_IK_dot0 = A_IK0 @ ax2skew(K_omega0)
         u0 = np.concatenate((v_S0, A_IK_dot0[:, 0], A_IK_dot0[:, 1], A_IK_dot0[:, 2]))
-    elif rigid_body == 'Rigid_body2D':
-        u0 = np.append(v_S0[:2], phi_dot0)
-    elif rigid_body == 'Rigid_body2D_connected':
-        u10 = np.append(v_S10[:2], phi_dot0)
-        u20 = np.append(v_S20[:2], phi_dot0)
-
-    K_theta_S = theta * np.eye(3)
-    K_theta_S1 = K_theta_S2 = theta1 * np.eye(3)
-    if rigid_body == 'Euler':
-        RB = Rigid_body_euler(m, K_theta_S, q0=q0, u0=u0)
-    elif rigid_body == 'Quaternion':
-        RB = Rigid_body_quaternion(m, K_theta_S, q0=q0, u0=u0)
-    elif rigid_body == 'Quaternion_connected':
-        RB1 = Rigid_body_quaternion(m / 2, K_theta_S1, q0=q10, u0=u10)
-        RB2 = Rigid_body_quaternion(m / 2, K_theta_S2, q0=q20, u0=u20)
-    elif rigid_body == 'Director':
         I11 = K_theta_S[0,0]
         I22 = K_theta_S[1,1]
         I33 = K_theta_S[2,2]
@@ -120,41 +124,32 @@ if __name__ == "__main__":
         B_rho0 = np.zeros(3)
         C_rho0 = np.diag(np.array([i11, i22, i33]))
         RB = Rigid_body_director(m, B_rho0, C_rho0, q0=q0, u0=u0)
+        model.add(RB)
+        model.add(Force(np.array([0, -m*g, 0]), RB))
+        model.add(Spherical_joint(frame, RB, r_OP(0)))
     elif rigid_body == 'Rigid_body2D':
+        q0 = np.append(r_OS0[:2], phi0)
+        u0 = np.append(v_S0[:2], phi_dot0)
         RB = Rigid_body2D(m, theta, q0=q0, u0=u0)
+        model.add(RB)
+        model.add(Force(np.array([0, -m * g, 0]), RB))
+        model.add(Spherical_joint2D(frame, RB, r_OP(0)))
     elif rigid_body == 'Rigid_body2D_connected':
+        q10 = np.append(r_OS10[:2], phi0)
+        q20 = np.append(r_OS20[:2], phi0)
+        u10 = np.append(v_S10[:2], phi_dot0)
+        u20 = np.append(v_S20[:2], phi_dot0)
         RB1 = Rigid_body2D(m / 2, theta1, q0=q10, u0=u10)
         RB2 = Rigid_body2D(m / 2, theta2, q0=q20, u0=u20)
-    
-    if not (rigid_body == 'Rigid_body2D_connected' or rigid_body == 'Quaternion_connected'):
-        model.add(RB)
-        gravity = Force(np.array([0, -m*g, 0]), RB)
-        model.add(gravity)
-    else:
         model.add(RB1)
         model.add(RB2)
         gravity1 = Force(np.array([0, -m/2*g, 0]), RB1)
         model.add(gravity1)
         gravity2 = Force(np.array([0, -m/2*g, 0]), RB2)
         model.add(gravity2)
-
-
-    frame = Frame(r_OP=r_OP, r_OP_t=v_P, r_OP_tt=a_P)
-    model.add(frame)
-
-    if rigid_body == 'Rigid_body2D':
-        model.add(Spherical_joint2D(frame, RB, r_OP(0)))
-    elif rigid_body == 'Rigid_body2D_connected':
         model.add(Spherical_joint2D(frame, RB1, r_OP(0)))
         model.add(Rigid_connection2D(RB1, RB2, r_OS0))
-    elif rigid_body == 'Quaternion_connected':
-        model.add(Revolute_joint(frame, RB1, r_OP(0), np.eye(3)))
-        model.add(Rigid_connection(RB1, RB2, r_OS0))
-    else:
-        # joint = Revolute_joint(frame, RB, r_OP(0), np.eye(3))
-        joint = Spherical_joint(frame, RB, r_OP(0))
-        model.add(joint)
-
+        
     model.assemble()
 
     t0 = 0
@@ -171,25 +166,23 @@ if __name__ == "__main__":
     q = sol.q
     u = sol.u
 
-    fig, ax = plt.subplots(2, 1)
-    if not (rigid_body == 'Rigid_body2D_connected' or rigid_body == 'Quaternion_connected'):
-        ax[0].plot(t, q[:,0], '-x')
-        ax[1].plot(t, q[:,1], '-x')
+    fig, ax = plt.subplots(2, 1)       
+    
+    if rigid_body == 'Quaternion_connected':
+        r_OS = np.zeros((3, len(q[:, 0])))
+        for i in range(len(q[:, 0])):
+            r_OS[:, i] = q[i, :3] - (RB1.A_IK(0, q[i, :7]) @ K_r_SP1)
+        ax[0].plot(t, r_OS[0, :], '-x')
+        ax[1].plot(t, r_OS[1, :], '-x')
     elif rigid_body == 'Rigid_body2D_connected':
         r_OS = np.zeros((2, len(q[:, 0])))
         for i in range(len(q[:, 0])):
             r_OS[:, i] = q[i, :2] - (A_IK_basic_z(q[i, 2]) @ K_r_SP1)[:2]
-
         ax[0].plot(t, r_OS[0, :], '-x')
         ax[1].plot(t, r_OS[1, :], '-x')
-    elif rigid_body == 'Quaternion_connected':
-        r_OS = np.zeros((3, len(q[:, 0])))
-        for i in range(len(q[:, 0])):
-            r_OS[:, i] = q[i, :3] - (RB1.A_IK(0, q[i, :7]) @ K_r_SP1)
-
-        ax[0].plot(t, r_OS[0, :], '-x')
-        ax[1].plot(t, r_OS[1, :], '-x')
-
+    else:
+        ax[0].plot(t, q[:,0], '-x')
+        ax[1].plot(t, q[:,1], '-x')
 
     # reference solution
     def eqm(t,x):
