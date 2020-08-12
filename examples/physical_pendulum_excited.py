@@ -166,23 +166,30 @@ if __name__ == "__main__":
     q = sol.q
     u = sol.u
 
-    fig, ax = plt.subplots(2, 1)       
+    fig, ax = plt.subplots(2, 1)
+
+    x_ = []
+    y_ = []   
     
     if rigid_body == 'Quaternion_connected':
         r_OS = np.zeros((3, len(q[:, 0])))
-        for i in range(len(q[:, 0])):
-            r_OS[:, i] = q[i, :3] - (RB1.A_IK(0, q[i, :7]) @ K_r_SP1)
-        ax[0].plot(t, r_OS[0, :], '-x')
-        ax[1].plot(t, r_OS[1, :], '-x')
+        r_OS1 = np.zeros((3, len(q[:, 0])))
+        for i, ti in enumerate(t):
+            r_OS = q[i, :3] - (RB1.A_IK(ti, q[i, :7]) @ K_r_SP1)
+            x_.append(r_OS[0])
+            y_.append(r_OS[1])
     elif rigid_body == 'Rigid_body2D_connected':
         r_OS = np.zeros((2, len(q[:, 0])))
-        for i in range(len(q[:, 0])):
-            r_OS[:, i] = q[i, :2] - (A_IK_basic_z(q[i, 2]) @ K_r_SP1)[:2]
-        ax[0].plot(t, r_OS[0, :], '-x')
-        ax[1].plot(t, r_OS[1, :], '-x')
+        for i, ti in enumerate(t):
+            r_OS = q[i, :2] - (A_IK_basic_z(q[i, 2]) @ K_r_SP1)[:2]
+            x_.append(r_OS[0])
+            y_.append(r_OS[1])
     else:
-        ax[0].plot(t, q[:,0], '-x')
-        ax[1].plot(t, q[:,1], '-x')
+        x_ = q[:,0]
+        y_ = q[:,1]
+
+    ax[0].plot(t, x_, '--gx')
+    ax[1].plot(t, y_, '--gx')
 
     # reference solution
     def eqm(t,x):
@@ -199,7 +206,7 @@ if __name__ == "__main__":
     t = ref.t
 
     # plot reference solution
-    ax[0].plot(t, e(t) + L/2 * np.sin(x[0]))
-    ax[1].plot(t, -L/2 * np.cos(x[0]))
+    ax[0].plot(t, e(t) + L/2 * np.sin(x[0]), '-r')
+    ax[1].plot(t, -L/2 * np.cos(x[0]), '-r')
 
     plt.show()
