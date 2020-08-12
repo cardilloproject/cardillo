@@ -1,3 +1,4 @@
+from cardillo.math.numerical_derivative import Numerical_derivative
 import numpy as np
 
 class Spherical_joint():
@@ -43,14 +44,20 @@ class Spherical_joint():
         self.r_OP1 = lambda t, q: self.subsystem1.r_OP(t, q[:nq1], self.frame_ID1, K_r_SP1)
         self.r_OP1_q = lambda t, q: self.subsystem1.r_OP_q(t, q[:nq1], self.frame_ID1, K_r_SP1)
         self.v_P1 = lambda t, q, u: self.subsystem1.v_P(t, q[:nq1], u[:nu1], self.frame_ID1, K_r_SP1)
+        self.v_P1_q = lambda t, q, u: self.subsystem1.v_P_q(t, q[:nq1], u[:nu1], self.frame_ID1, K_r_SP1)
         self.a_P1 = lambda t, q, u, u_dot: self.subsystem1.a_P(t, q[:nq1], u[:nu1], u_dot[:nu1], self.frame_ID1, K_r_SP1)
+        self.a_P1_q = lambda t, q, u, u_dot: self.subsystem1.a_P_q(t, q[:nq1], u[:nu1], u_dot[:nu1], self.frame_ID1, K_r_SP1)
+        self.a_P1_u = lambda t, q, u, u_dot: self.subsystem1.a_P_u(t, q[:nq1], u[:nu1], u_dot[:nu1], self.frame_ID1, K_r_SP1)
         self.J_P1 = lambda t, q: self.subsystem1.J_P(t, q[:nq1], self.frame_ID1, K_r_SP1)
         self.J_P1_q = lambda t, q: self.subsystem1.J_P_q(t, q[:nq1], self.frame_ID1, K_r_SP1)
 
         self.r_OP2 = lambda t, q: self.subsystem2.r_OP(t, q[nq1:], self.frame_ID2, K_r_SP2)
         self.r_OP2_q = lambda t, q: self.subsystem2.r_OP_q(t, q[nq1:], self.frame_ID2, K_r_SP2)
         self.v_P2 = lambda t, q, u: self.subsystem2.v_P(t, q[nq1:], u[nu1:], self.frame_ID2, K_r_SP2)
+        self.v_P2_q = lambda t, q, u: self.subsystem2.v_P_q(t, q[nq1:], u[nu1:], self.frame_ID2, K_r_SP2)
         self.a_P2 = lambda t, q, u, u_dot: self.subsystem2.a_P(t, q[nq1:], u[nu1:], u_dot[nu1:], self.frame_ID2, K_r_SP2)
+        self.a_P2_q = lambda t, q, u, u_dot: self.subsystem2.a_P_q(t, q[nq1:], u[nu1:], u_dot[nu1:], self.frame_ID2, K_r_SP2)
+        self.a_P2_u = lambda t, q, u, u_dot: self.subsystem2.a_P_u(t, q[nq1:], u[nu1:], u_dot[nu1:], self.frame_ID2, K_r_SP2)
         self.J_P2 = lambda t, q: self.subsystem2.J_P(t, q[nq1:], self.frame_ID2, K_r_SP2)
         self.J_P2_q = lambda t, q: self.subsystem2.J_P_q(t, q[nq1:], self.frame_ID2, K_r_SP2)
         
@@ -69,6 +76,13 @@ class Spherical_joint():
         v_P2 = self.v_P2(t, q, u)
         return v_P2 - v_P1
 
+    def g_dot_q(self, t, q, u, coo):
+        nq1 = self.nq1
+        dense = np.zeros((self.nla_g, self._nq))
+        dense[:, :nq1] = - self.v_P1_q(t, q, u)
+        dense[:, nq1:] = self.v_P2_q(t, q, u)
+        coo.extend(dense, (self.la_gDOF, self.qDOF))
+
     def g_dot_u(self, t, q, coo):
         coo.extend(self.W_g_dense(t, q).T, (self.la_gDOF, self.uDOF))
 
@@ -76,6 +90,20 @@ class Spherical_joint():
         a_P1 = self.a_P1(t, q, u, u_dot) 
         a_P2 = self.a_P2(t, q, u, u_dot)
         return a_P2 - a_P1
+
+    def g_ddot_q(self, t, q, u, u_dot, coo):
+        nq1 = self.nq1
+        dense = np.zeros((self.nla_g, self._nq))
+        dense[:, :nq1] = - self.a_P1_q(t, q, u, u_dot)
+        dense[:, nq1:] = self.a_P2_q(t, q, u, u_dot)
+        coo.extend(dense, (self.la_gDOF, self.qDOF))
+
+    def g_ddot_u(self, t, q, u, u_dot, coo):
+        nu1 = self.nu1
+        dense = np.zeros((self.nla_g, self._nq))
+        dense[:, :nu1] = - self.a_P1_u(t, q, u, u_dot)
+        dense[:, nu1:] = self.a_P2_u(t, q, u, u_dot)
+        coo.extend(dense, (self.la_gDOF, self.uDOF))
 
     def g_q(self, t, q, coo):
         coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
@@ -121,11 +149,34 @@ class Spherical_joint2D(Spherical_joint):
     def g_dot(self, t, q, u):
         return super().g_dot(t, q, u)[:2]
 
+    def g_dot_q(self, t, q, u, coo):
+        nq1 = self.nq1
+        dense = np.zeros((self.nla_g, self._nq))
+        dense[:, :nq1] = - self.v_P1_q(t, q, u)[:2]
+        dense[:, nq1:] = self.v_P2_q(t, q, u)[:2]
+        coo.extend(dense, (self.la_gDOF, self.qDOF))
+
     def g_dot_u(self, t, q, coo):
         coo.extend(self.W_g_dense(t, q).T[:2], (self.la_gDOF, self.uDOF))
 
     def g_ddot(self, t, q, u, u_dot):
         return super().g_ddot(t, q, u, u_dot)[:2]
+
+    def g_ddot_q(self, t, q, u, u_dot, coo):
+        nq1 = self.nq1
+        dense = np.zeros((self.nla_g, self._nq))
+        dense[:, :nq1] = - self.a_P1_q(t, q, u, u_dot)[:2]
+        dense[:, nq1:] = self.a_P2_q(t, q, u, u_dot)[:2]
+        coo.extend(dense, (self.la_gDOF, self.qDOF))
+        # dense_num = Numerical_derivative(lambda t, q: self.g_ddot(t, q, u, u_dot), order=2)._x(t, q)
+        # coo.extend(dense_num, (self.la_gDOF, self.qDOF))
+
+    def g_ddot_u(self, t, q, u, u_dot, coo):
+        nu1 = self.nu1
+        dense = np.zeros((self.nla_g, self._nq))
+        dense[:, :nu1] = - self.a_P1_u(t, q, u, u_dot)[:2]
+        dense[:, nu1:] = self.a_P2_u(t, q, u, u_dot)[:2]
+        coo.extend(dense, (self.la_gDOF, self.uDOF))
 
     def g_q(self, t, q, coo):
         coo.extend(self.g_q_dense(t, q)[:2], (self.la_gDOF, self.qDOF))

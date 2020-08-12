@@ -13,7 +13,7 @@ from cardillo.model.contacts import Sphere_to_plane2D
 from cardillo.model.scalar_force_interactions.force_laws import Linear_spring, Linear_damper, Linear_spring_damper
 from cardillo.model.scalar_force_interactions import add_rotational_forcelaw
 
-from cardillo.solver import Moreau, Generalized_alpha_2
+from cardillo.solver import Moreau, Generalized_alpha_2, Generalized_alpha_3
 
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
@@ -27,7 +27,7 @@ if __name__ == "__main__":
     # body
     l_bdy = 0.1
     h_bdy = 0.7 * l_bdy
-    m_bdy = 3
+    m_bdy = 4
 
     # thigh
     m_t = 1.56
@@ -48,9 +48,9 @@ if __name__ == "__main__":
     k_a = 120
 
     # contact
-    mu = 0
-    eN = 0
-    eT = 0
+    mu = 0.1
+    e_N = 0
+    e_T = 0
 
     #--------------------------------------------------------------------------------
     #%% INITIAL CONDITIONS
@@ -144,11 +144,9 @@ if __name__ == "__main__":
     # ground
     inclination_angle = 0
     frame = Frame(A_IK=A_IK_basic_z(inclination_angle) )
-    mu = 0.1
     r_N = 0.15
-    e_N = 0
     K_r_SP =  l_f / 2 * e2
-    ground = Sphere_to_plane2D(frame, foot, 0, mu, K_r_SP=K_r_SP, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N)
+    ground = Sphere_to_plane2D(frame, foot, 0, mu, K_r_SP=K_r_SP, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N, e_T=e_T)
     model.add( ground )
 
     # assemble model
@@ -157,12 +155,12 @@ if __name__ == "__main__":
     #--------------------------------------------------------------------------------
     #%% SIMULATE
 
-    t1 = 0.3 #4*T
-    dt = 1e-5
+    t1 = 0.6 #4*T
+    dt = 5e-3
 
     # build solver and solve the problem
     # solver = Moreau(model, t1, dt)
-    solver = Generalized_alpha_2(model, t1, dt, rho_inf=0.7)
+    solver = Generalized_alpha_3(model, t1, dt, rho_inf=0.7, numerical_jacobian=False)
     
     sol = solver.solve()
     t = sol.t

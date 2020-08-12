@@ -69,7 +69,8 @@ class Rigid_body2D():
         return self.__vec_xy(u_dot[:2]) + self.A_IK(t, q) @ (cross3(self.__vec_z(u_dot[2]), K_r_SP) + cross3(omega, cross3(omega, K_r_SP)))
 
     def a_P_q(self, t, q, u, u_dot, frame_ID=None, K_r_SP=np.zeros(3)):
-        return self.kappa_P_q(t, q, u, frame_ID=frame_ID, K_r_SP=K_r_SP)
+        omega = self.__vec_z(u[2])
+        return np.einsum('ijk,j->ik', self.A_IK_q(t, q), cross3(self.__vec_z(u_dot[2]), K_r_SP) + cross3(omega, cross3(omega, K_r_SP)) )
 
     def a_P_u(self, t, q, u, u_dot, frame_ID=None, K_r_SP=np.zeros(3)):
         return self.kappa_P_u(t, q, u, frame_ID=frame_ID, K_r_SP=K_r_SP)
