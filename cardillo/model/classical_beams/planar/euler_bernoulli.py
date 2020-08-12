@@ -7,7 +7,7 @@ from cardillo.discretization import uniform_knot_vector, B_spline_basis
 from cardillo.math.algebra import ax2skew, norm2, norm3, cross3, e3
 from cardillo.math.numerical_derivative import Numerical_derivative
 
-class Euler_bernoulli2D():
+class Euler_bernoulli():
     """Planar Euler-Bernoulli beam using B-spline shape functions.
     """
     def __init__(self, A_rho0, material_model, polynomial_degree, nEl, nQP, Q, q0=None, u0=None):
@@ -482,3 +482,159 @@ class Euler_bernoulli2D():
             qp = q_body[self.qDOF_P(frame_ID)]
             r.append( self.r_OP(1, qp, frame_ID) )
         return np.array(r)
+
+class Inextensible_Euler_bernoulli(Euler_bernoulli):
+    def __init__(self, *args, la_g0=None, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.polynomial_degree_g = self.polynomial_degree - 1
+        self.nn_el_g = self.polynomial_degree_g + 1 # number of nodes per element
+        self.nn_g = self.nEl + self.polynomial_degree_g # number of nodes
+        self.nq_n_g = 1 # number of degrees of freedom per node
+        self.nla_g = self.nn_g * self.nq_n_g
+        self.nla_g_el = self.nn_el_g * self.nq_n_g
+
+        self.la_g0 = np.zeros(self.nla_g) if la_g0 is None else la_g0
+        self.knot_vector_g = uniform_knot_vector(self.polynomial_degree_g, self.nEl) # uniform open knot vector
+        self.element_span_g = self.knot_vector_g[self.polynomial_degree_g:-self.polynomial_degree_g]
+
+        row_offset = np.arange(self.nEl)
+        elDOF_row = (np.zeros((self.nq_n_g * self.nn_el_g, self.nEl), dtype=int) + row_offset).T
+        elDOF_tile = np.tile(np.arange(0, self.nn_el_g), self.nq_n_g)
+        elDOF_repeat = np.repeat(np.arange(0, self.nq_n_g * self.nn_g, step=self.nn_g), self.nn_el_g)
+        self.elDOF_g = elDOF_row + elDOF_tile + elDOF_repeat
+
+        # compute shape functions
+        self.N_g = np.empty((self.nEl, self.nQP, self.nn_el_g))
+        for el in range(self.nEl):
+            # evaluate Gauss points and weights on [xi^el, xi^{el+1}]
+            qp, _ = gauss(self.nQP, self.element_span_g[el:el+2])
+
+            # evaluate B-spline shape functions
+            self.N_g[el] = B_spline_basis(self.polynomial_degree_g, 0, self.knot_vector_g, qp).squeeze()
+
+    def __g_el(self, qe, N_xi, N_g, J0, qw):
+        g = np.zeros(self.nla_g_el)
+
+        for N_xii, N_gi, J0i, qwi in zip(N_xi, N_g, J0, qw):
+            NN_xii = self.stack_shapefunctions(N_xii)
+
+            r_xi = NN_xii @ qe
+
+            g += (r_xi @ r_xi / J0i - J0i) * N_gi * qwi
+
+        return g
+
+    def __g_dot_el(self, qe, ue, N_xi, N_g, J0, qw):
+        g_dot = np.zeros(self.nla_g_el)
+
+        for N_xii, N_gi, J0i, qwi in zip(N_xi, N_g, J0, qw):
+            NN_xii = self.stack_shapefunctions(N_xii)
+
+            r_xi = NN_xii @ qe
+            r_xi_dot = NN_xii @ ue
+
+            g_dot += 2 * r_xi @ r_xi_dot / J0i * N_gi * qwi
+
+        return g_dot
+
+    def __g_ddot_el(self, qe, ue, ue_dot, N_xi, N_g, J0, qw):
+        g_ddot = np.zeros(self.nla_g_el)
+
+        for N_xii, N_gi, J0i, qwi in zip(N_xi, N_g, J0, qw):
+            NN_xii = self.stack_shapefunctions(N_xii)
+
+            r_xi = NN_xii @ qe
+            r_xi_dot = NN_xii @ ue
+            r_xi_ddot = NN_xii @ ue_dot
+
+            g_ddot += (r_xi @ r_xi_ddot + r_xi_dot @ r_xi_dot) * 2 / J0i * N_gi * qwi
+
+        return g_ddot
+
+    def __g_q_el(self, qe, N_xi, N_g, J0, qw):
+        g_q = np.zeros((self.nla_g_el, self.nq_el))
+
+        for N_xii, N_gi, J0i, qwi in zip(N_xi, N_g, J0, qw):
+            NN_xii = self.stack_shapefunctions(N_xii)
+
+            r_xi = NN_xii @ qe
+            
+            g_q += np.outer(2 * N_gi * qwi / J0i, r_xi @ NN_xii)
+
+        return g_q
+
+        # g_q_num = Numerical_derivative(lambda t, q: self.__g_el(q, N, N_xi, N_g, J0, qw), order=2)._x(0, qe)
+        # diff = g_q_num - g_q
+        # error = np.linalg.norm(diff)
+        # print(f'error g_q: {error}')
+        # return g_q_num
+
+    def __g_qq_el(self, qe, N_xi, N_g, J0, qw):
+        g_qq = np.zeros((self.nla_g_el, self.nq_el, self.nq_el))
+
+        for N_xii, N_gi, J0i, qwi in zip(N_xi, N_g, J0, qw):
+            NN_xii = self.stack_shapefunctions(N_xii)
+
+            g_qq += np.einsum('i,jl,jk->ikl', 2 * N_gi * qwi / J0i, NN_xii, NN_xii)
+
+        return g_qq
+
+        # g_qq_num = Numerical_derivative(lambda t, q: self.__g_q_el(q, N, N_xi, N_g, J0, qw), order=2)._x(0, qe)
+        # diff = g_qq_num - g_qq
+        # error = np.linalg.norm(diff)
+        # print(f'error g_qq: {error}')
+        # return g_qq_num
+
+    # global constraint functions
+    def g(self, t, q):
+        g = np.zeros(self.nla_g)
+        for el in range(self.nEl):
+            elDOF = self.elDOF[el]
+            elDOF_g = self.elDOF_g[el]
+            g[elDOF_g] += self.__g_el(q[elDOF], self.N_xi[el], self.N_g[el], self.J0[el], self.qw[el])
+        return g
+
+    def g_q(self, t, q, coo):
+        for el in range(self.nEl):
+            elDOF = self.elDOF[el]
+            elDOF_g = self.elDOF_g[el]
+            g_q = self.__g_q_el(q[elDOF], self.N_xi[el], self.N_g[el], self.J0[el], self.qw[el])
+            coo.extend(g_q, (self.la_gDOF[elDOF_g], self.qDOF[elDOF]))
+
+    def W_g(self, t, q, coo):
+        for el in range(self.nEl):
+            elDOF = self.elDOF[el]
+            elDOF_g = self.elDOF_g[el]
+            g_q = self.__g_q_el(q[elDOF], self.N_xi[el], self.N_g[el], self.J0[el], self.qw[el])
+            coo.extend(g_q.T, (self.uDOF[elDOF], self.la_gDOF[elDOF_g]))
+
+    def Wla_g_q(self, t, q, la_g, coo):
+        for el in range(self.nEl):
+            elDOF = self.elDOF[el]
+            elDOF_g = self.elDOF_g[el]
+            g_qq = self.__g_qq_el(q[elDOF], self.N_xi[el], self.N_g[el], self.J0[el], self.qw[el])
+            coo.extend(np.einsum('i,ijk->jk', la_g[elDOF_g], g_qq), (self.uDOF[elDOF], self.qDOF[elDOF]))
+
+    def g_dot(self, t, q, u):
+        g_dot = np.zeros(self.nla_g)
+        for el in range(self.nEl):
+            elDOF = self.elDOF[el]
+            elDOF_g = self.elDOF_g[el]
+            g_dot[elDOF_g] += self.__g_dot_el(q[elDOF], u[elDOF], self.N_xi[el], self.N_g[el], self.J0[el], self.qw[el])
+        return g_dot
+
+    def g_ddot(self, t, q, u, u_dot):
+        g_ddot = np.zeros(self.nla_g)
+        for el in range(self.nEl):
+            elDOF = self.elDOF[el]
+            elDOF_g = self.elDOF_g[el]
+            g_ddot[elDOF_g] += self.__g_ddot_el(q[elDOF], u[elDOF], u_dot[elDOF], self.N_xi[el], self.N_g[el], self.J0[el], self.qw[el])
+        return g_ddot
+
+    def g_dot_u(self, t, q, coo):
+        for el in range(self.nEl):
+            elDOF = self.elDOF[el]
+            elDOF_g = self.elDOF_g[el]
+            g_dot_u = self.__g_q_el(q[elDOF], self.N_xi[el], self.N_g[el], self.J0[el], self.qw[el])
+            coo.extend(g_dot_u, (self.la_gDOF[elDOF_g], self.uDOF[elDOF]))  

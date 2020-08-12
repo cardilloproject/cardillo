@@ -39,7 +39,7 @@ class Linear_guidance():
 
     def B1_r_B1B2_q(self, t, q):
         r_q = np.zeros((3, 1))
-        r_q[0 , 0] = 1
+        r_q[0, 0] = 1
         return r_q
 
     def B1_v_B1B2(self, t, q, u):
