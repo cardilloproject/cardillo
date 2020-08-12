@@ -44,7 +44,14 @@ class Point_mass():
         return np.zeros((3, self.nu, self.nq))
 
     def v_P(self, t, q, u, frame_ID=None, K_r_SP=None):
-        return u
+        v_P = np.zeros(3)
+        v_P[:self.nq] = u
+        return v_P
 
     def v_P_q(self, t, q, u, frame_ID=None, K_r_SP=None):
         return np.zeros((3, self.nq))
+
+    def a_P(self, t, q, u, u_dot, frame_ID=None, K_r_SP=None):
+        a_P = np.zeros(3)
+        a_P[:self.nq] = u_dot
+        return a_P
