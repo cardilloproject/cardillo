@@ -816,17 +816,17 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
             d2.extend([d2i])
             d3.extend([d3i])
 
-        return *np.array(r).T, np.array(d1).T, np.array(d2).T, np.array(d3).T
+        return np.array(r).T, np.array(d1).T, np.array(d2).T, np.array(d3).T
 
     def plot_centerline(self, ax, q, n=100, color='black'):
         ax.plot(*self.nodes(q), linestyle='dashed', marker='o', color=color)
         ax.plot(*self.centerline(q, n=n), linestyle='solid', color=color)
 
     def plot_frames(self, ax, q, n=10, length=1):
-        x, y, z, d1, d2, d3 = self.frames(q, n=n)
-        ax.quiver(x, y, z, *d1, color='red', length=length)
-        ax.quiver(x, y, z, *d2, color='green', length=length)
-        ax.quiver(x, y, z, *d3, color='blue', length=length)
+        r, d1, d2, d3 = self.frames(q, n=n)
+        ax.quiver(*r, *d1, color='red', length=length)
+        ax.quiver(*r, *d2, color='green', length=length)
+        ax.quiver(*r, *d3, color='blue', length=length)
 
 ####################################################
 # straight initial configuration
