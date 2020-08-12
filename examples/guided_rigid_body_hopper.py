@@ -5,8 +5,9 @@ from cardillo.math.algebra import A_IK_basic_z, e1, e2, e3
 
 from cardillo.model import Model
 from cardillo.model.frame import Frame
-from cardillo.model.rigid_body import Rigid_body_rel_kinematics
+from cardillo.model.rigid_body import Rigid_body_rel_kinematics, Rigid_body_euler
 from cardillo.model.bilateral_constraints.explicit import Linear_guidance, Revolute_joint
+from cardillo.model.bilateral_constraints.implicit import Revolute_joint as Revolute_joint_impl
 from cardillo.model.force import Force
 from cardillo.model.contacts import Sphere_to_plane2D
 from cardillo.model.scalar_force_interactions.force_laws import Linear_spring, Linear_damper, Linear_spring_damper
@@ -20,6 +21,8 @@ import matplotlib.animation as animation
 if __name__ == "__main__":
     #--------------------------------------------------------------------------------
     #%% PARAMETERS
+
+    minimal_coordinates = False
 
     # body
     l_bdy = 0.1
@@ -98,7 +101,7 @@ if __name__ == "__main__":
 
     # hip and thigh
     r_OB1 = r_OS0 - np.array([0, h_bdy/2, 0])
-    hip_force_law = Linear_spring_damper(200, 0.2)
+    hip_force_law = Linear_spring_damper(200, 1)
     hip = add_rotational_forcelaw(hip_force_law, Revolute_joint)(r_OB1, np.eye(3), q0=np.array([alpha0]), u0=np.array([alpha_dot0]))
     A_IK = A_IK_basic_z(alpha0)
     r_OS0 = r_OB1 - l_t / 2 * A_IK[:, 1] 
@@ -109,22 +112,31 @@ if __name__ == "__main__":
 
     # knee and shank
     r_OB1 = r_OS0 - l_t / 2 * A_IK[:, 1] 
-    knee_force_law = Linear_spring_damper(200, 0.2)
-    knee = add_rotational_forcelaw(knee_force_law, Revolute_joint)(r_OB1, A_IK, q0=np.array([beta0]), u0=np.array([beta_dot0]))
+    knee_force_law = Linear_spring(200)
     A_IK = A_IK_basic_z(alpha0 + beta0)
     r_OS0 = r_OB1 + l_s / 2 * A_IK[:, 1] 
-    shank = Rigid_body_rel_kinematics(m_s, theta_s * np.eye(3), knee, thigh, r_OS0=r_OS0, A_IK0=A_IK)
+    if minimal_coordinates:
+        knee = add_rotational_forcelaw(knee_force_law, Revolute_joint)(r_OB1, A_IK, q0=np.array([beta0]), u0=np.array([beta_dot0]))
+        shank = Rigid_body_rel_kinematics(m_s, theta_s * np.eye(3), knee, thigh, r_OS0=r_OS0, A_IK0=A_IK)
+    else:
+        shank = Rigid_body_euler(m_s, theta_s * np.eye(3), q0=np.concatenate([r_OS0, np.array([alpha0 + beta0, 0, 0])]))
+        knee = add_rotational_forcelaw(knee_force_law, Revolute_joint_impl)(thigh, shank, r_OB1, A_IK)
+    
     model.add( knee )
     model.add( shank )
     model.add(Force(lambda t: f_gravity(t, m=m_s), shank))
 
     # ankle and foot
     r_OB1 = r_OS0 + l_s / 2 * A_IK[:, 1] 
-    ankle_force_law = Linear_spring_damper(120, 0.2)
-    ankle = add_rotational_forcelaw(ankle_force_law, Revolute_joint)(r_OB1, A_IK, q0=np.array([gamma0]), u0=np.array([gamma_dot0]))
+    ankle_force_law = Linear_spring(200)
     # A_IK = A_IK_basic_z(alpha0 + beta0)
     r_OS0 = r_OB1 + l_f / 2 * A_IK[:, 1] 
-    foot = Rigid_body_rel_kinematics(m_f, theta_f * np.eye(3), ankle, shank, r_OS0=r_OS0, A_IK0=A_IK)
+    if minimal_coordinates:
+        ankle = add_rotational_forcelaw(ankle_force_law, Revolute_joint)(r_OB1, A_IK, q0=np.array([gamma0]), u0=np.array([gamma_dot0]))
+        foot = Rigid_body_rel_kinematics(m_f, theta_f * np.eye(3), ankle, shank, r_OS0=r_OS0, A_IK0=A_IK)
+    else:
+        foot = Rigid_body_euler(m_f, theta_f * np.eye(3), q0=np.concatenate([r_OS0, np.array([alpha0 + beta0, 0, 0])]))
+        ankle = add_rotational_forcelaw(ankle_force_law, Revolute_joint_impl)(shank, foot, r_OB1, A_IK)
     model.add( ankle )
     model.add( foot )
     model.add(Force(lambda t: f_gravity(t, m=m_f), foot))
@@ -145,8 +157,8 @@ if __name__ == "__main__":
     #--------------------------------------------------------------------------------
     #%% SIMULATE
 
-    t1 = 0.5 #4*T
-    dt = 1e-3
+    t1 = 0.3 #4*T
+    dt = 1e-5
 
     # build solver and solve the problem
     # solver = Moreau(model, t1, dt)
