@@ -1,2 +1,2 @@
 from .hooke import Hooke
-from .euler_bernoulli2D import Euler_bernoulli2D
+from .euler_bernoulli import Euler_bernoulli, Inextensible_Euler_bernoulli

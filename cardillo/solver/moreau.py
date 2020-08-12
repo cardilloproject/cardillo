@@ -85,7 +85,7 @@ class Moreau():
         # gamma_u @ uk1 + chi_gamma = 0
         A =  bmat([[M      ,  -dt * W_g, -dt * W_gamma], \
                    [g_dot_u,       None,          None], \
-                   [gamma_u,       None,          None]]).tocsr()
+                   [gamma_u,       None,          None]]).tocsc()
 
         b = np.concatenate( (M @ uk + dt * h + W_N[:, I_N] @ self.P_Nk[I_N] + W_T[:, I_T] @ self.P_Tk[I_T],\
                              -chi_g,\
@@ -278,7 +278,7 @@ class Moreau():
             P_T.append(P_Tk1)
 
             # update local variables for accepted time step
-            self.qk, self.uk, self.la_gk, self.la_gammak, self.P_Nk, self.P_Tk = qk1, uk1, la_gk1, la_gammak1, P_Nk1, P_Tk1
+            self.tk, self.qk, self.uk, self.la_gk, self.la_gammak, self.P_Nk, self.P_Tk = tk1, qk1, uk1, la_gk1, la_gammak1, P_Nk1, P_Tk1
             
         # write solution
         return Solution(t=self.t, q=np.array(q), u=np.array(u), la_g=np.array(la_g), la_gamma=np.array(la_gamma), P_N=np.array(P_N), P_T=np.array(P_T))
@@ -452,7 +452,7 @@ class Moreau_sym():
             la_T.append(la_Tk1)
 
             # update local variables for accepted time step
-            self.qk, self.uk, self.la_gk, self.la_gammak, self.la_Nk, self.la_Tk = qk1, uk1, la_gk1, la_gammak1, la_Nk1, la_Tk1
+            self.tk, self.qk, self.uk, self.la_gk, self.la_gammak, self.la_Nk, self.la_Tk = tk1, qk1, uk1, la_gk1, la_gammak1, la_Nk1, la_Tk1
             
         # write solution
         return Solution(t=self.t, q=np.array(q), u=np.array(u), la_g=np.array(la_g), la_gamma=np.array(la_gamma), la_N=np.array(la_N), la_T=np.array(la_T))

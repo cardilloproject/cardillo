@@ -1,2 +1,2 @@
-from .rope import Rope
-from.hooke import Hooke
+from .rope import Rope, Inextensible_Rope
+from .hooke import Hooke

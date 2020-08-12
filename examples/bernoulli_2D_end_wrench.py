@@ -1,4 +1,4 @@
-from cardillo.model.classical_beams.planar import Hooke, Euler_bernoulli2D
+from cardillo.model.classical_beams.planar import Hooke, Euler_bernoulli, Inextensible_Euler_bernoulli
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints.implicit import Rigid_connection2D
 from cardillo.model import Model
@@ -19,22 +19,12 @@ statics = False
 animate = False
 
 if __name__ == "__main__":
-    # solver parameter
-    t0 = 0
-    t1 = 10
-    dt = 5e-2
-
     # physical properties of the rope
-    rho = 7850
     L = 2 * np.pi
-    r = 5.0e-3
-    A = np.pi * r**2
-    I = A / 4 * r**2
-    E = 210e9 * 1.0e-3
-    EA = E * A
-    EI = E * I
+    EA = 5
+    EI = 2
     material_model = Hooke(EA, EI)
-    A_rho0 = A * rho
+    A_rho0 = 0
 
     r_OB1 = np.zeros(3)
     frame_left = Frame(r_OP=r_OB1)
@@ -58,34 +48,22 @@ if __name__ == "__main__":
     Q = np.hstack((X0, Y0))
     q0 = np.hstack((X0, Y0))
     u0 = np.zeros_like(Q)
-    beam = Euler_bernoulli2D(A_rho0, material_model, p, nEl, nQP, Q=Q, q0=q0, u0=u0)
+    beam = Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q=Q, q0=q0, u0=u0)
+    # beam = Inextensible_Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q=Q, q0=q0, u0=u0)
 
     # left joint
     joint_left = Rigid_connection2D(frame_left, beam, r_OB1, frame_ID2=(0,))
 
-    # gravity beam
-    __g = np.array([0, - A_rho0 * 9.81 * 8.0e-4, 0])
-    if statics:
-        f_g_beam = Line_force(lambda xi, t: t * __g, beam)
-    else:
-        f_g_beam = Line_force(lambda xi, t: __g, beam)
-
     # wrench at right end
-    F = lambda t: t * np.array([0, 1e-2, 0])
-    force = K_Force(F, beam, frame_ID=(1,))
-
-    M_z = lambda t: t * 2 * np.pi * EI / L / 2
-    M = lambda t: np.array([0, 0, M_z(t)])
-    moment = K_Moment(M, beam, (1,))
+    F = lambda t: t * np.array([0, -EI / L**2, 0])
+    force = Force(F, beam, frame_ID=(1,))
 
     # assemble the model
     model = Model()
     model.add(beam)
     model.add(frame_left)
     model.add(joint_left)
-    # model.add(f_g_beam)
-    # model.add(force)
-    model.add(moment)
+    model.add(force)
     model.assemble()
 
     solver = Newton(model, n_load_steps=10, max_iter=20, tol=1.0e-6, numerical_jacobian=False)
