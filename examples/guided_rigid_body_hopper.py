@@ -132,8 +132,8 @@ if __name__ == "__main__":
     # ground
     inclination_angle = 0
     frame = Frame(A_IK=A_IK_basic_z(inclination_angle) )
-    mu = 0
-    r_N = 0.05
+    mu = 0.1
+    r_N = 0.15
     e_N = 0
     K_r_SP =  l_f / 2 * e2
     ground = Sphere_to_plane2D(frame, foot, 0, mu, K_r_SP=K_r_SP, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N)
@@ -145,12 +145,12 @@ if __name__ == "__main__":
     #--------------------------------------------------------------------------------
     #%% SIMULATE
 
-    t1 = 0.25 #4*T
-    dt = 0.005
+    t1 = 0.5 #4*T
+    dt = 1e-3
 
     # build solver and solve the problem
     # solver = Moreau(model, t1, dt)
-    solver = Generalized_alpha_2(model, t1, dt, rho_inf=0.8)
+    solver = Generalized_alpha_2(model, t1, dt, rho_inf=0.7)
     
     sol = solver.solve()
     t = sol.t
@@ -219,7 +219,9 @@ if __name__ == "__main__":
     fps = 50
     animation_time = slowmotion * t1
     target_frames = int(fps * animation_time)
-    frac = int(len(t) / target_frames)
+    frac = max(1, int(len(t) / target_frames))
+    if frac == 1:
+        target_frames = len(t)
     interval = 1000 / fps
 
     frames = target_frames
