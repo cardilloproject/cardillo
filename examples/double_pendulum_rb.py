@@ -1,3 +1,4 @@
+from cardillo.model.bilateral_constraints.implicit.rigid_connection import Rigid_connection
 import numpy as np
 from math import cos, sin, pi
 
@@ -69,10 +70,11 @@ if __name__ == "__main__":
     # joint2 = Spherical_joint(RB1, RB2, r_OB2)
     
     # # permute x to z axis
-    # ex2, ey2, ez2 = A_IB2.T
-    # A_IB2 = np.array([ez2, ex2, ey2]).T
-    # # joint2 = Linear_guidance_x(RB1, RB2, r_OB2, A_IB2)
+    ex2, ey2, ez2 = A_IB2.T
+    A_IB2 = np.array([ez2, ex2, ey2]).T
+    # joint2 = Linear_guidance_x(RB1, RB2, r_OB2, A_IB2)
     # joint2 = Linear_guidance_xyz(RB1, RB2, r_OB2, A_IB2)
+    joint2 = Rigid_connection(RB1, RB2, r_OB2)
 
 
     model = Model()
@@ -91,11 +93,11 @@ if __name__ == "__main__":
     t0 = 0
     t1 = 3
     dt = 5e-3
-    # solver = Scipy_ivp(model, t1, dt)
+    solver = Scipy_ivp(model, t1, dt)
     # solver = Moreau(model, t1, dt)
     # solver = Moreau_sym(model, t1, dt)
     # solver = Euler_backward(model, t1, dt, numerical_jacobian=True, debug=True)
-    solver = Euler_backward(model, t1, dt, numerical_jacobian=False, debug=False)
+    # solver = Euler_backward(model, t1, dt, numerical_jacobian=False, debug=False)
     # solver = Generalized_alpha_1(model, t1, dt, numerical_jacobian=True, debug=True)
     # solver = Generalized_alpha_1(model, t1, dt, newton_tol=1.0e-10, numerical_jacobian=False, debug=False)
     # solver = Generalized_alpha_2(model, t1, dt, numerical_jacobian=False, debug=False)
