@@ -1,5 +1,6 @@
 import numpy as np
 from numpy import sin, cos, pi
+from scipy.sparse.linalg.eigen.arpack.arpack import gmres_loose
 
 from cardillo.math.algebra import A_IK_basic_z, e1, e2, e3
 
@@ -22,7 +23,7 @@ if __name__ == "__main__":
     #--------------------------------------------------------------------------------
     #%% PARAMETERS
 
-    minimal_coordinates = False
+    minimal_coordinates = True
 
     # body
     l_bdy = 0.1
@@ -112,7 +113,8 @@ if __name__ == "__main__":
 
     # knee and shank
     r_OB1 = r_OS0 - l_t / 2 * A_IK[:, 1] 
-    knee_force_law = Linear_spring(200)
+    # knee_force_law = Linear_spring(200)
+    knee_force_law = Linear_spring_damper(200, 1)
     A_IK = A_IK_basic_z(alpha0 + beta0)
     r_OS0 = r_OB1 + l_s / 2 * A_IK[:, 1] 
     if minimal_coordinates:
@@ -128,7 +130,8 @@ if __name__ == "__main__":
 
     # ankle and foot
     r_OB1 = r_OS0 + l_s / 2 * A_IK[:, 1] 
-    ankle_force_law = Linear_spring(200)
+    # ankle_force_law = Linear_spring(200)
+    ankle_force_law = Linear_spring_damper(200, 1)
     # A_IK = A_IK_basic_z(alpha0 + beta0)
     r_OS0 = r_OB1 + l_f / 2 * A_IK[:, 1] 
     if minimal_coordinates:
@@ -155,21 +158,59 @@ if __name__ == "__main__":
     #--------------------------------------------------------------------------------
     #%% SIMULATE
 
-    t1 = 1 #4*T
-    dt = 1e-3
+    t1 = 0.4 #4*T
+    dt = 5e-4
 
     # build solver and solve the problem
-    # solver = Moreau(model, t1, dt)
-    # solver = Generalized_alpha_2(model, t1, dt, rho_inf=0.7, numerical_jacobian=False)
-    solver = Generalized_alpha_3(model, t1, dt, rho_inf=0.7, numerical_jacobian=False)
-    
-    sol = solver.solve()
-    t = sol.t
-    q = sol.q
+    solver_g = Generalized_alpha_3(model, t1, dt, rho_inf=0.5, newton_tol=1e-6, numerical_jacobian=False)
+    sol_g = solver_g.solve()
+ 
+    solver_m = Moreau(model, t1, dt)
+    sol_m = solver_m.solve()
 
     #--------------------------------------------------------------------------------
     #%% VISUALIZE RESULTS
+    fig, ax = plt.subplots(2, 1)
+    fig.suptitle('main body', fontsize=16)
+    ax[0].plot(sol_g.t, sol_g.q[:, 0], '-r', label='gen. alpha')
+    ax[0].plot(sol_m.t, sol_m.q[:, 0], '--b', label='moreau')
+    ax[0].set_xlabel('t')
+    ax[0].set_ylabel('y')
+    ax[0].legend()
+
+    ax[1].plot(sol_g.t, sol_g.u[:, 0], '-r', label='gen. alpha')
+    ax[1].plot(sol_m.t, sol_m.u[:, 0], '--b', label='moreau')
+    ax[1].set_xlabel('t')
+    ax[1].set_ylabel('y_dot')
+    ax[1].legend()
+
+    g_m = []
+    g_g = []
+    for i, ti in enumerate(sol_g.t):
+        g_g.extend(model.g_N(ti, sol_g.q[i]).tolist())
+    for i, ti in enumerate(sol_m.t):
+        g_m.extend(model.g_N(ti, sol_m.q[i]).tolist())
+
+    fig, ax = plt.subplots(2, 1)
+    fig.suptitle('normal contact', fontsize=16)
+    ax[0].plot(sol_g.t, g_g, '-r', label='gen. alpha')
+    ax[0].plot(sol_m.t, g_m, '--b', label='moreau')
+    ax[0].set_xlabel('t')
+    ax[0].set_ylabel('g_N')
+    ax[0].legend()
+
+    ax[1].plot(sol_g.t, sol_g.la_N*dt, '-r', label='la_N*dt, gen. alpha')
+    ax[1].plot(sol_g.t, sol_g.La_N, '-g', label='La_N, gen. alpha')
+    ax[1].plot(sol_m.t, sol_m.P_N, '--b', label='P_N, moreau')
+    ax[1].set_xlabel('t')
+    ax[1].set_ylabel('force')
+    ax[1].legend()
+
+    plt.show()
     # set up figure and animation
+    exit()
+    t = sol_g.t
+    q = sol_g.q
     fig_anim = plt.figure()
     ax = fig_anim.add_subplot(111, aspect='equal', autoscale_on=True,
                         xlim=(-0.1, l_t), ylim=(-0.1, l_t + l_s + l_f + h_bdy))

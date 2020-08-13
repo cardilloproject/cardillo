@@ -12,7 +12,7 @@ from cardillo.model.rigid_body import Rigid_body2D, Rigid_body_euler
 from cardillo.model.frame import Frame
 from cardillo.model.force import Force
 from cardillo.model.contacts import Sphere_to_plane
-from cardillo.solver import Moreau, Moreau_sym, Generalized_alpha_2
+from cardillo.solver import Moreau, Moreau_sym, Generalized_alpha_2, Generalized_alpha_3
 
 # class Ball(Rigid_body2D):
 #     def __init__(self, m, r, q0=None, u0=None):
@@ -42,9 +42,9 @@ if __name__ == "__main__":
     m = 1
     r = 0.1
     g = 9.81
-    x0 = 0 #-1
+    x0 = -1
     y0 = 1
-    x_dot0 = 0#3
+    x_dot0 = 1
     y_dot0 = 0
     phi0 = 0
     phi_dot0 = 50
@@ -60,7 +60,7 @@ if __name__ == "__main__":
     frame = Frame(A_IK=np.vstack( (e3, e1, e2) ).T, r_OP=np.array([0, 0, 0]) )
     mu = 0.2
     r_N = 0.1
-    e_N = 0
+    e_N = 0.5
     plane = Sphere_to_plane(frame, RB, r, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N, e_T=0)
 
     alpha = pi/4
@@ -90,7 +90,7 @@ if __name__ == "__main__":
     model.assemble()
 
     t0 = 0
-    t1 = 1
+    t1 = 2
     dt = 5e-3
 
     # solver_fp = Moreau(model, t1, dt)
@@ -101,7 +101,7 @@ if __name__ == "__main__":
     # la_N_fp = sol_fp.la_N
     # la_T_fp = sol_fp.la_T
 
-    solver_n = Generalized_alpha_2(model, t1, dt, rho_inf=1, numerical_jacobian=0)
+    solver_n = Generalized_alpha_3(model, t1, dt, rho_inf=1, numerical_jacobian=0)
     sol_n = solver_n.solve()
     # sol_n = sol_fp
     t_n = t = sol_n.t
