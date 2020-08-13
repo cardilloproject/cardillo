@@ -27,7 +27,7 @@ def ax2skew(a):
                      [-a[1], a[0], 0    ]])
 
 def ax2skew_a():
-    A = np.zeros((3,3,3))
+    A = np.zeros((3, 3, 3))
     A[1, 2, 0] = -1
     A[2, 1, 0] =  1
     A[0, 2, 1] =  1
@@ -58,16 +58,6 @@ def cross_nm(a, b):
                 for j in range(na0):
                     for k in range(nb0):
                         A[i, n, m] += LeviCivita3(i, j, k) * a[k, n] * b[j, m]
-    return A
-
-def LeviCivita3_tensor():
-    A = np.zeros((3, 3, 3))
-    A[0, 1, 2] =  1
-    A[1, 2, 0] =  1
-    A[2, 0, 1] =  1
-    A[2, 1, 0] = -1
-    A[1, 0, 2] = -1
-    A[0, 2, 1] = -1
     return A
 
 def LeviCivita3(i, j, k):

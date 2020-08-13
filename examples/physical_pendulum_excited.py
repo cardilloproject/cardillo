@@ -182,15 +182,16 @@ if __name__ == "__main__":
 
     t0 = 0
     t1 = 2
-    dt = 5e-2
+    dt = 5e-3
 
     # solver = Euler_backward(model, t1, dt, numerical_jacobian=False, debug=False)
     # solver = Moreau_sym(model, t1, dt)
     # solver = Moreau(model, t1, dt)
-    # solver = Generalized_alpha_1(model, t1, dt, rho_inf=1, numerical_jacobian=False, debug=False)
+    # solver = Generalized_alpha_1(model, t1, variable_dt=True, rtol=0, atol=2.5e-2, rho_inf=1, numerical_jacobian=False, debug=False)
     # solver = Generalized_alpha_2(model, t1, dt, rho_inf=1, numerical_jacobian=False, debug=False)
+    solver = Generalized_alpha_3(model, t1, dt, rho_inf=1, numerical_jacobian=False, debug=False)
 
-    solver = Scipy_ivp(model, t1, dt)
+    # solver = Scipy_ivp(model, t1, dt)
     sol = solver.solve()
     t = sol.t
     q = sol.q

@@ -1,6 +1,6 @@
 import numpy as np
 from cardillo.math.numerical_derivative import Numerical_derivative
-from cardillo.math.algebra import ax2skew, cross3, norm3, skew2ax
+from cardillo.math.algebra import ax2skew, ax2skew_a, cross3, norm3, skew2ax
 
 # TODO: enable construction with standard inertia tensor
 class Rigid_body_director():
@@ -217,8 +217,11 @@ class Rigid_body_director():
         return np.zeros((3, self.nq, self.nq))
 
     def v_P(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
-        A_IK_dot = self.A_IK(t, u)
-        return u[:3] + A_IK_dot @ K_r_SP
+        # v_P1 = u[:3] + self.A_IK(t, q) @ cross3(self.K_Omega(t, q, u), K_r_SP)
+        # v_P2 = u[:3] + self.A_IK(t, u) @ K_r_SP
+        # print(v_P1 - v_P2)
+
+        return u[:3] + self.A_IK(t, u) @ K_r_SP
 
     def J_P(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
         return self.r_OP_q(t, q, frame_ID=frame_ID, K_r_SP=K_r_SP)
@@ -227,9 +230,11 @@ class Rigid_body_director():
         return np.zeros((3, self.nu, self.nq))
 
     def a_P(self, t, q, u, u_dot, frame_ID=None, K_r_SP=np.zeros(3)):
-        K_Omega = self.K_Omega(t, q, u, frame_ID=frame_ID)
-        K_Psi = self.K_Psi(t, q, u, u_dot, frame_ID=frame_ID)
-        return u_dot[:3] + self.A_IK(t, q) @ (cross3(K_Psi, K_r_SP) + cross3(K_Omega, cross3(K_Omega, K_r_SP)))
+        # K_Omega = self.K_Omega(t, q, u, frame_ID=frame_ID)
+        # K_Psi = self.K_Psi(t, q, u, u_dot, frame_ID=frame_ID)
+        # return u_dot[:3] + self.A_IK(t, q) @ (cross3(K_Psi, K_r_SP) + cross3(K_Omega, cross3(K_Omega, K_r_SP))) # numerically unstable (A_IK is not orthogonal)
+
+        return u_dot[:3] + self.A_IK(t, u_dot) @ K_r_SP
 
     def K_Omega(self, t, q, u, frame_ID=None):
         A_IK = self.A_IK(t, q)
@@ -239,7 +244,7 @@ class Rigid_body_director():
 
     def K_J_R(self, t, q, frame_ID=None):
         A_IK = self.A_IK(t, q)
-        K_J_R = np.zeros((3, self.nq_el))
+        K_J_R = np.zeros((3, self.nu))
         K_J_R[:, 3:6] = 0.5 * A_IK.T @ ax2skew(q[3:6])
         K_J_R[:, 6:9] = 0.5 * A_IK.T @ ax2skew(q[6:9])
         K_J_R[:, 9:12] = 0.5 * A_IK.T @ ax2skew(q[9:12])
@@ -247,25 +252,29 @@ class Rigid_body_director():
 
     # TODO:
     def K_J_R_q(self, t, q, frame_ID=None):
+        A_IK = self.A_IK(t, q)
         A_IK_q = self.A_IK_q(t, q)
         K_J_R_q = np.zeros((3, self.nu, self.nq))
-        K_J_R_q[:, 3:6] = 0.5 * np.einsum('jil,jk->ik', A_IK_q, ax2skew(q[3:6]))
-        K_J_R_q[:, 6:9] = 0.5 * np.einsum('jil,jk->ik', A_IK_q, ax2skew(q[6:9]))
-        K_J_R_q[:, 9:12] = 0.5 * np.einsum('jil,jk->ik', A_IK_q, ax2skew(q[9:12]))
+        tmp = 0.5 * np.einsum('ij,jkl->ikl', A_IK.T, ax2skew_a())
+        K_J_R_q[:, 3:6] = 0.5 * np.einsum('jil,jk->ikl', A_IK_q, ax2skew(q[3:6]))
+        K_J_R_q[:, 3:6, 3:6] += tmp
+        K_J_R_q[:, 6:9] = 0.5 * np.einsum('jil,jk->ikl', A_IK_q, ax2skew(q[6:9]))
+        K_J_R_q[:, 6:9, 6:9] += tmp
+        K_J_R_q[:, 9:12] = 0.5 * np.einsum('jil,jk->ikl', A_IK_q, ax2skew(q[9:12]))
+        K_J_R_q[:, 9:12, 9:12] += tmp
+        return K_J_R_q
 
-
-        K_J_R_q_num = Numerical_derivative(self.K_J_R)._x(t, q)
-        error = np.max(np.abs(K_J_R_q_num - K_J_R_q))
-        print(f'error K_J_R_q: {error}')
-        
-        return K_J_R_q_num
+        # K_J_R_q_num = Numerical_derivative(self.K_J_R)._x(t, q)
+        # error = np.max(np.abs(K_J_R_q_num - K_J_R_q))
+        # print(f'error K_J_R_q: {error}')
+        # return K_J_R_q_num
 
     def K_Psi(self, t, q, u, u_dot, frame_ID=None):
         A_IK = self.A_IK(t, q)
         A_IK_dot = self.A_IK(t, u)
         A_IK_ddot = self.A_IK(t, u_dot)
-        omega_tilde_dot = A_IK.T @ A_IK_ddot + A_IK_dot.T @ A_IK_dot
-        return skew2ax(omega_tilde_dot)
+        K_Psi_tilde = A_IK_dot.T @ A_IK_dot + A_IK.T @ A_IK_ddot
+        return skew2ax(K_Psi_tilde)
 
 class Rigid_body_director_angular_velocities():
     def __init__(self, m, K_Theta_S, q0=None, u0=None):
