@@ -174,7 +174,6 @@ class Rigid_body_director():
 
         coo.extend(g_ddot_q, (self.la_gDOF, self.qDOF))
 
-
     def g_ddot_u(self, t, q, u, u_dot, coo):
         d1_dot = u[3:6]
         d2_dot = u[6:9]
@@ -306,6 +305,9 @@ class Rigid_body_director():
 
         return u[:3] + self.A_IK(t, u) @ K_r_SP
 
+    def v_P_q(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
+        return np.zeros((3, self.nq))
+
     def J_P(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
         return self.r_OP_q(t, q, frame_ID=frame_ID, K_r_SP=K_r_SP)
 
@@ -319,11 +321,17 @@ class Rigid_body_director():
 
         return u_dot[:3] + self.A_IK(t, u_dot) @ K_r_SP
 
+    def a_P_q(self, t, q, u, u_dot, frame_ID=None, K_r_SP=np.zeros(3)):
+        return np.zeros((3, self.nq))
+
+    def a_P_u(self, t, q, u, u_dot, frame_ID=None, K_r_SP=np.zeros(3)):
+        return np.zeros((3, self.nu))
+
     def K_Omega(self, t, q, u, frame_ID=None):
         A_IK = self.A_IK(t, q)
         A_IK_dot = self.A_IK(t, u)
-        K_omega_tilde = A_IK.T @ A_IK_dot
-        return skew2ax(K_omega_tilde)
+        K_Omega_tilde = A_IK.T @ A_IK_dot
+        return skew2ax(K_Omega_tilde)
 
     def K_J_R(self, t, q, frame_ID=None):
         A_IK = self.A_IK(t, q)
@@ -333,7 +341,6 @@ class Rigid_body_director():
         K_J_R[:, 9:12] = 0.5 * A_IK.T @ ax2skew(q[9:12])
         return K_J_R
 
-    # TODO:
     def K_J_R_q(self, t, q, frame_ID=None):
         A_IK = self.A_IK(t, q)
         A_IK_q = self.A_IK_q(t, q)
