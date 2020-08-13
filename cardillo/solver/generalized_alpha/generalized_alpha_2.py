@@ -16,7 +16,7 @@ class Generalized_alpha_2():
     def __init__(self, model, t1, dt, \
                     rho_inf=1, beta=None, gamma=None, alpha_m=None, alpha_f=None,\
                        newton_tol=1e-8, newton_max_iter=40, newton_error_function=lambda x: np.max(np.abs(x)),\
-                           numerical_jacobian=False, debug=False):
+                           numerical_jacobian=False):
         
         self.model = model
 
@@ -72,7 +72,6 @@ class Generalized_alpha_2():
         self.la_Nbark = self.la_Nk.copy()
         self.la_Tbark = self.la_Tk.copy()
 
-        self.debug = debug
         if numerical_jacobian:
             self.__R_gen = self.__R_gen_num
         else:
@@ -456,9 +455,10 @@ class Generalized_alpha_2():
         # try:
         #     spsolve(R_x, xk1)
         # except:
-        #     print('jacobian might be singular')
-        # diff = R_x.toarray() - self.__R_x_num(tk1, xk1)
-        # error = np.linalg.norm(diff, ord=inf)
+        # R_x_num = self.__R_x_num(tk1, xk1)
+        # diff = R_x.toarray() - R_x_num
+        # error = np.max(np.abs(diff)) / np.max(np.abs(R_x_num))
+        # # error = np.linalg.norm(diff[:nu], ord=inf)
         # print(f'error = {error}')
 
         yield R_x

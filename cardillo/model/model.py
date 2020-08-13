@@ -317,11 +317,29 @@ class Model(object):
             contr.g_dot_u(t, q[contr.qDOF], coo)
         return coo.tosparse(scipy_matrix)
 
+    def g_dot_q(self, t, q, u, scipy_matrix=coo_matrix):
+        coo = Coo((self.nla_g, self.nq))
+        for contr in self.__g_contr:
+            contr.g_dot_q(t, q[contr.qDOF], u[contr.uDOF], coo)
+        return coo.tosparse(scipy_matrix)
+
     def g_ddot(self, t, q, u, u_dot):
         g_ddot = np.zeros(self.nla_g)
         for contr in self.__g_contr:
             g_ddot[contr.la_gDOF] = contr.g_ddot(t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF])
         return g_ddot
+    
+    def g_ddot_q(self, t, q, u, u_dot, scipy_matrix=coo_matrix):
+        coo = Coo((self.nla_g, self.nq))
+        for contr in self.__g_contr:
+            contr.g_ddot_q(t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF], coo)
+        return coo.tosparse(scipy_matrix)
+
+    def g_ddot_u(self, t, q, u, u_dot, scipy_matrix=coo_matrix):
+        coo = Coo((self.nla_g, self.nu))
+        for contr in self.__g_contr:
+            contr.g_ddot_u(t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF], coo)
+        return coo.tosparse(scipy_matrix)
 
     def zeta_g(self, t, q, u):
         return self.g_ddot(t, q, u, np.zeros(self.nu))
