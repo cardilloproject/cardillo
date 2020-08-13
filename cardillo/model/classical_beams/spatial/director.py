@@ -4,7 +4,7 @@ from abc import ABCMeta, abstractmethod
 from cardillo.utility.coo import Coo
 from cardillo.discretization import gauss
 from cardillo.discretization import uniform_knot_vector, B_spline_basis, Lagrange_basis
-from cardillo.math.algebra import norm3, cross3, e1, e2, e3, skew2ax, LeviCivita3_tensor, LeviCivita3
+from cardillo.math.algebra import norm3, cross3, e1, e2, e3, ax2skew, skew2ax, LeviCivita3_tensor, LeviCivita3
 from cardillo.math.numerical_derivative import Numerical_derivative
 
 class Timoshenko_beam_director(metaclass=ABCMeta):
@@ -591,10 +591,18 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
     def uDOF_P(self, frame_ID):
         return self.elDOF_P(frame_ID)
 
-    def r_OP(self, t, q, frame_ID, K_r_SP=None):
-        return self.r_OP_q(t, q, frame_ID) @ q
+    def r_OP(self, t, q, frame_ID, K_r_SP=np.zeros(3)):
+        xi = frame_ID[0]
+        if xi == 0:
+            NN = self.N_bdry[0]
+        elif xi == 1:
+            NN = self.N_bdry[-1]
+        else:
+            N, _ = self.basis_functions(frame_ID[0])
+            NN = self.stack_shapefunctions(N)
+        return NN @ q[self.rDOF] + self.A_IK(t, q, frame_ID=frame_ID) @ K_r_SP
 
-    def r_OP_q(self, t, q, frame_ID, K_r_SP=None):
+    def r_OP_q(self, t, q, frame_ID, K_r_SP=np.zeros(3)):
         xi = frame_ID[0]
         if xi == 0:
             NN = self.N_bdry[0]
@@ -606,7 +614,17 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
 
         r_OP_q = np.zeros((3, self.nq_el))
         r_OP_q[:, self.rDOF] = NN
+
+        tmp = np.einsum('ijk,j->ik', self.A_IK_q(t, q, frame_ID=frame_ID), K_r_SP)
+        r_OP_q[:, self.d1DOF] = tmp[:, self.d1DOF]
+        r_OP_q[:, self.d2DOF] = tmp[:, self.d2DOF]
+        r_OP_q[:, self.d3DOF] = tmp[:, self.d3DOF]
         return r_OP_q
+
+        # r_OP_q_num = Numerical_derivative(lambda t, q: self.r_OP(t, q, frame_ID=frame_ID, K_r_SP=K_r_SP))._x(t, q)
+        # error = np.max(np.abs(r_OP_q_num - r_OP_q))
+        # print(f'error in r_OP_q: {error}')
+        # return r_OP_q_num
 
     def A_IK(self, t, q, frame_ID):
         xi = frame_ID[0]
@@ -645,13 +663,34 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
         # return A_IK_q_num
 
     def v_P(self, t, q, u, frame_ID, K_r_SP=None):
-        return self.r_OP(t, u, frame_ID=frame_ID)
-
-    def a_P(self, t, q, u, u_dot, frame_ID, K_r_SP=None):
-        return self.r_OP(t, u_dot, frame_ID=frame_ID)
+        xi = frame_ID[0]
+        if xi == 0:
+            NN = self.N_bdry[0]
+        elif xi == 1:
+            NN = self.N_bdry[-1]
+        else:
+            N, _ = self.basis_functions(frame_ID[0])
+            NN = self.stack_shapefunctions(N)
+        
+        return NN @ u[self.rDOF] + self.A_IK(t, q) @ cross3(self.K_Omega(t, q, u, frame_ID=frame_ID), K_r_SP)
 
     def v_P_q(self, t, q, u, frame_ID, K_r_SP=None):
+        raise NotImplementedError('TODO')
         return np.zeros((3, self.nq_el, self.nq_el))
+
+    def a_P(self, t, q, u, u_dot, frame_ID, K_r_SP=None):
+        xi = frame_ID[0]
+        if xi == 0:
+            NN = self.N_bdry[0]
+        elif xi == 1:
+            NN = self.N_bdry[-1]
+        else:
+            N, _ = self.basis_functions(frame_ID[0])
+            NN = self.stack_shapefunctions(N)
+        
+        K_Omega = self.K_Omega(t, q, u, frame_ID=frame_ID)
+        K_Psi = self.K_Psi(t, q, u, u_dot, frame_ID=frame_ID)
+        return NN @ u_dot[self.rDOF] + self.A_IK(t, q) @ (cross3(K_Psi, K_r_SP) + cross3(K_Omega, cross3(K_Omega, K_r_SP)))
 
     def J_P(self, t, q, frame_ID, K_r_SP=None):
         xi = frame_ID[0]
@@ -693,7 +732,6 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
         omega_tilde = A_IK.T @ A_IK_dot
         return skew2ax(omega_tilde)
 
-    # TODO!
     def K_J_R(self, t, q, frame_ID):
         xi = frame_ID[0]
         if xi == 0:
@@ -709,16 +747,24 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
         d3 = NN @ q[self.d3DOF]
         A_IK = np.vstack((d1, d2, d3)).T
 
-        A_IK_dot_u = np.zeros((3, 3, self.nq_el))
-        A_IK_dot_u[:, 0, self.d1DOF] = NN
-        A_IK_dot_u[:, 1, self.d2DOF] = NN
-        A_IK_dot_u[:, 2, self.d3DOF] = NN
+        K_J_R = np.zeros((3, self.nq_el))
+        K_J_R[:, self.d1DOF] = 0.5 * A_IK.T @ ax2skew(d1) @ NN
+        K_J_R[:, self.d2DOF] = 0.5 * A_IK.T @ ax2skew(d2) @ NN
+        K_J_R[:, self.d3DOF] = 0.5 * A_IK.T @ ax2skew(d3) @ NN
 
         # note: all versions are about the same speed!
 
-        # version 1 using many calls to skew2ax inside a list comprehension
-        K_J_R_skew = np.einsum('ij,jkl->ikl', A_IK.T, A_IK_dot_u)
-        K_J_R = np.array([skew2ax(skew.T) for skew in K_J_R_skew.T]).T
+        # A_IK_dot_u = np.zeros((3, 3, self.nq_el))
+        # A_IK_dot_u[:, 0, self.d1DOF] = NN
+        # A_IK_dot_u[:, 1, self.d2DOF] = NN
+        # A_IK_dot_u[:, 2, self.d3DOF] = NN
+
+        # # version 1 using many calls to skew2ax inside a list comprehension
+        # K_J_R_skew = np.einsum('ij,jkl->ikl', A_IK.T, A_IK_dot_u)
+        # K_J_R = np.array([skew2ax(skew.T) for skew in K_J_R_skew.T]).T
+
+        # error = np.max(np.abs(K_J_R2 - K_J_R))
+        # print(f'error: {error}')
 
         # # version 2 using loops
         # omega_i_u = np.zeros((3, self.nq_el))
@@ -734,17 +780,46 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
         # K_J_R = A_IK @ omega_i_u
         # # K_J_R = 0.5 * np.einsum('mi,ijk,lk,ljn->mn', A_IK, LeviCivita3_tensor(), A_IK, A_IK_dot_u)
 
-        return K_J_R
+        # return K_J_R
 
-        # u = np.zeros_like(q)
+        # u = np.ones_like(q)
         # K_J_R_num = Numerical_derivative(lambda t, q, u: self.K_Omega(t, q, u, frame_ID=frame_ID), order=2)._y(t, q, u)
-        # error = np.linalg.norm(K_J_R_num - K_J_R)
-        # print(f'error in K_J_R: {error}')
+        # # error = np.linalg.norm(K_J_R_num - K_J_R2)
+        # # print(f'error in K_J_R: {error}')
         # return K_J_R_num
 
     # TODO
     def K_J_R_q(self, t, q, frame_ID):
         return Numerical_derivative(lambda t, q: self.K_J_R(t, q, frame_ID=frame_ID))._x(t, q)
+
+    def K_Psi(self, t, q, u, u_dot, frame_ID):
+        raise NotImplementedError('TODO')
+        xi = frame_ID[0]
+        if xi == 0:
+            NN = self.N_bdry[0]
+        elif xi == 1:
+            NN = self.N_bdry[-1]
+        else:
+            N, _ = self.basis_functions(frame_ID[0])
+            NN = self.stack_shapefunctions(N)
+
+        d1 = NN @ q[self.d1DOF]
+        d2 = NN @ q[self.d2DOF]
+        d3 = NN @ q[self.d3DOF]
+        A_IK = np.vstack((d1, d2, d3)).T
+
+        d1_dot = NN @ u[self.d1DOF]
+        d2_dot = NN @ u[self.d2DOF]
+        d3_dot = NN @ u[self.d3DOF]
+        A_IK_dot = np.vstack((d1_dot, d2_dot, d3_dot)).T
+
+        d1_dot = NN @ u_dot[self.d1DOF]
+        d2_dot = NN @ u[self.d2DOF]
+        d3_dot = NN @ u[self.d3DOF]
+        A_IK_dot = np.vstack((d1_dot, d2_dot, d3_dot)).T
+
+        omega_tilde = A_IK.T @ A_IK_dot
+        return skew2ax(omega_tilde)
 
     ####################################################
     # body force
