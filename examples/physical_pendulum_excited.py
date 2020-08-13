@@ -1,3 +1,4 @@
+from cardillo.model.rigid_body import rigid_body_quaternion
 import numpy as np
 from scipy.integrate import solve_ivp
 from math import cos, sin, sqrt, tan
@@ -9,7 +10,7 @@ from cardillo.model.rigid_body import Rigid_body_euler, Rigid_body_quaternion, R
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints.implicit import Revolute_joint, Spherical_joint, Spherical_joint2D, Rigid_connection, Rigid_connection2D
 from cardillo.model.force import Force
-from cardillo.solver import Moreau, Moreau_sym, Euler_backward, Generalized_alpha_1, Scipy_ivp
+from cardillo.solver import Moreau, Moreau_sym, Euler_backward, Generalized_alpha_1, Scipy_ivp, Generalized_alpha_2, Generalized_alpha_3
 
 
 if __name__ == "__main__":
@@ -18,8 +19,9 @@ if __name__ == "__main__":
     # rigid_body = 'Quaternion'
     # rigid_body = 'Quaternion_connected'
     # rigid_body = 'Director'
+    rigid_body = 'Director_connected'
     # rigid_body = 'Rigid_body2D'
-    rigid_body = 'Rigid_body2D_connected'
+    # rigid_body = 'Rigid_body2D_connected'
     
     #%% parameters
     m = 1
@@ -127,6 +129,32 @@ if __name__ == "__main__":
         model.add(RB)
         model.add(Force(np.array([0, -m*g, 0]), RB))
         model.add(Spherical_joint(frame, RB, r_OP(0)))
+    elif rigid_body == 'Director_connected':
+        p0 = np.concatenate((A_IK0[:, 0], A_IK0[:, 1], A_IK0[:, 2]))
+        q10 = np.concatenate((r_OS10, p0))
+        q20 = np.concatenate((r_OS20, p0))
+        A_IK_dot0 = A_IK0 @ ax2skew(K_omega0)
+        u10 = np.concatenate((v_S10, A_IK_dot0[:, 0], A_IK_dot0[:, 1], A_IK_dot0[:, 2]))
+        u20 = np.concatenate((v_S20, A_IK_dot0[:, 0], A_IK_dot0[:, 1], A_IK_dot0[:, 2]))
+        I11 = K_theta_S1[0,0]
+        I22 = K_theta_S1[1,1]
+        I33 = K_theta_S1[2,2]
+        # Binet inertia tensor
+        i11 = 0.5 * (I22 + I33 - I11)
+        i22 = 0.5 * (I11 + I33 - I22)
+        i33 = 0.5 * (I11 + I22 - I33)
+        B_rho0 = np.zeros(3)
+        C_rho0 = np.diag(np.array([i11, i22, i33]))
+        RB1 = Rigid_body_director(m / 2, B_rho0, C_rho0, q0=q10, u0=u10)
+        model.add(RB1)
+        RB2 = Rigid_body_director(m / 2, B_rho0, C_rho0, q0=q20, u0=u20)
+        model.add(RB2)
+        gravity1 = Force(np.array([0, -m / 2 * g, 0]), RB1)
+        model.add(gravity1)
+        gravity2 = Force(np.array([0, -m / 2 * g, 0]), RB2)
+        model.add(gravity2)
+        model.add(Revolute_joint(frame, RB1, r_OP(0), np.eye(3)))
+        model.add(Rigid_connection(RB1, RB2, r_OS0))
     elif rigid_body == 'Rigid_body2D':
         q0 = np.append(r_OS0[:2], phi0)
         u0 = np.append(v_S0[:2], phi_dot0)
@@ -154,12 +182,14 @@ if __name__ == "__main__":
 
     t0 = 0
     t1 = 2
-    dt = 1e-2
+    dt = 5e-2
 
     # solver = Euler_backward(model, t1, dt, numerical_jacobian=False, debug=False)
     # solver = Moreau_sym(model, t1, dt)
     # solver = Moreau(model, t1, dt)
     # solver = Generalized_alpha_1(model, t1, dt, rho_inf=1, numerical_jacobian=False, debug=False)
+    # solver = Generalized_alpha_2(model, t1, dt, rho_inf=1, numerical_jacobian=False, debug=False)
+
     solver = Scipy_ivp(model, t1, dt)
     sol = solver.solve()
     t = sol.t
@@ -176,6 +206,11 @@ if __name__ == "__main__":
         r_OS1 = np.zeros((3, len(q[:, 0])))
         for i, ti in enumerate(t):
             r_OS = q[i, :3] - (RB1.A_IK(ti, q[i, :7]) @ K_r_SP1)
+            x_.append(r_OS[0])
+            y_.append(r_OS[1])
+    elif rigid_body == 'Director_connected':
+        for i, ti in enumerate(t):
+            r_OS = q[i, :3] - (RB1.A_IK(ti, q[i, :12]) @ K_r_SP1)
             x_.append(r_OS[0])
             y_.append(r_OS[1])
     elif rigid_body == 'Rigid_body2D_connected':
