@@ -1,3 +1,4 @@
+from cardillo.math.numerical_derivative import Numerical_derivative
 import numpy as np
 from cardillo.math.algebra import cross3, ax2skew
 
@@ -279,6 +280,10 @@ class Rigid_connection2D(Rigid_connection):
         g_dot[2] = cross3(ex1, ey2) @ (self.Omega1(t, q, u) - self.Omega2(t, q, u))
         return g_dot
 
+    def g_dot_q(self, t, q, u, coo):
+        dense = Numerical_derivative(self.g_dot, order=2)._x(t, q, u)
+        coo.extend(dense, (self.la_gDOF, self.qDOF))
+
     def g_dot_u(self, t, q, coo):
         coo.extend(self.W_g_dense(t, q).T, (self.la_gDOF, self.uDOF))
 
@@ -301,6 +306,14 @@ class Rigid_connection2D(Rigid_connection):
                     + cross3(ex1, ey2) @ (self.Psi1(t, q, u, u_dot) - self.Psi2(t, q, u, u_dot))
 
         return g_ddot
+
+    def g_ddot_q(self, t, q, u, u_dot, coo):
+        dense = Numerical_derivative(lambda t, x: self.g_ddot(t, x, u, u_dot), order=2)._x(t, q)
+        coo.extend(dense, (self.la_gDOF, self.qDOF))
+
+    def g_ddot_u(self, t, q, u, u_dot, coo):
+        dense = Numerical_derivative(lambda t, x: self.g_ddot(t, q, x, u_dot), order=2)._x(t, u)
+        coo.extend(dense, (self.la_gDOF, self.uDOF))
 
     def g_q(self, t, q, coo):
         coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))

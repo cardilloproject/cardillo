@@ -306,6 +306,11 @@ class Sphere_to_plane2D():
     def g_N_ddot_q(self, t, q, u, u_dot, coo):
         dense = np.array([self.n(t) @ self.a_P_q(t, q, u, u_dot)])
         coo.extend(dense, (self.la_NDOF, self.qDOF))
+        # a_P_q_num = Numerical_derivative(lambda t, x: self.a_P(t, x, u, u_dot), order=2)._x(t, q)
+        # print(f'error a_P = {np.linalg.norm(self.a_P_q(t, q, u, u_dot) - a_P_q_num)}')
+        # dense_num = Numerical_derivative(lambda t, x: self.g_N_ddot(t, x, u, u_dot), order=2)._x(t, q)
+        # print(f'error g_N_ddot = {np.linalg.norm(dense - dense_num)}')
+        # coo.extend(dense_num, (self.la_NDOF, self.qDOF))
 
     def g_N_ddot_u(self, t, q, u, u_dot, coo):
         dense = np.array([self.n(t) @ self.a_P_u(t, q, u, u_dot)])
@@ -328,6 +333,14 @@ class Sphere_to_plane2D():
     
     def gamma_T_q(self, t, q, u, coo):
         coo.extend(self.gamma_T_q_dense(t, q, u), (self.la_TDOF, self.qDOF))
+
+    def gamma_T_u_dense(self, t, q):
+        J_C = self.J_P(t, q) + self.r * ax2skew(self.n(t)) @ self.J_R(t, q)
+        return np.array([self.t(t) @ J_C])
+        # return Numerical_derivative(self.__gamma_T)._y(t, q, np.zeros(self.nu))
+
+    def gamma_T_u(self, t, q, coo):
+        coo.extend(self.gamma_T_u_dense(t, q), (self.la_TDOF, self.uDOF))
    
     # TODO
     def gamma_T_dot(self, t, q, u, u_dot):
@@ -368,14 +381,6 @@ class Sphere_to_plane2D():
         # gamma_T_dot = self.t1t2(t) @ (a_C - self.a_Q(t))
         coo.extend(gamma_T_dot_u_num, (self.la_TDOF, self.uDOF))
         
-
-    def gamma_T_u_dense(self, t, q):
-        J_C = self.J_P(t, q) + self.r * ax2skew(self.n(t)) @ self.J_R(t, q)
-        return np.array([self.t(t) @ J_C])
-
-    def gamma_T_u(self, t, q, coo):
-        coo.extend(self.gamma_T_u_dense(t, q), (self.la_TDOF, self.uDOF))
-
     def W_T(self, t, q, coo):
         coo.extend(self.gamma_T_u_dense(t, q).T, (self.uDOF, self.la_TDOF))
 

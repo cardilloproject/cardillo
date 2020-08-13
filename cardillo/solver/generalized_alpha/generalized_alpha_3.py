@@ -479,11 +479,12 @@ class Generalized_alpha_3():
         #     spsolve(R_x, xk1)
         # except:
         #     print('jacobian might be singular')
-        R_x_num = self.__R_x_num(tk1, xk1)
-        diff = R_x.toarray() - R_x_num
-        # error = np.linalg.norm(diff, ord=inf)
-        error = np.linalg.norm(diff[:nu], ord=inf)
-        print(f'error = {error}')
+        # R_x_num = self.__R_x_num(tk1, xk1)
+        # diff = R_x.toarray() - R_x_num
+        # # # error = np.linalg.norm(diff, ord=inf)
+        # # # error = np.linalg.norm(diff[:nu], ord=inf)
+        # error = np.max(np.abs(diff)) / np.max(np.abs(R_x_num))
+        # print(f'error = {error}')
 
         yield R_x
         

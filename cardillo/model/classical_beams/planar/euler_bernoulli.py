@@ -525,33 +525,6 @@ class Inextensible_Euler_bernoulli(Euler_bernoulli):
 
         return g
 
-    def __g_dot_el(self, qe, ue, N_xi, N_g, J0, qw):
-        g_dot = np.zeros(self.nla_g_el)
-
-        for N_xii, N_gi, J0i, qwi in zip(N_xi, N_g, J0, qw):
-            NN_xii = self.stack_shapefunctions(N_xii)
-
-            r_xi = NN_xii @ qe
-            r_xi_dot = NN_xii @ ue
-
-            g_dot += 2 * r_xi @ r_xi_dot / J0i * N_gi * qwi
-
-        return g_dot
-
-    def __g_ddot_el(self, qe, ue, ue_dot, N_xi, N_g, J0, qw):
-        g_ddot = np.zeros(self.nla_g_el)
-
-        for N_xii, N_gi, J0i, qwi in zip(N_xi, N_g, J0, qw):
-            NN_xii = self.stack_shapefunctions(N_xii)
-
-            r_xi = NN_xii @ qe
-            r_xi_dot = NN_xii @ ue
-            r_xi_ddot = NN_xii @ ue_dot
-
-            g_ddot += (r_xi @ r_xi_ddot + r_xi_dot @ r_xi_dot) * 2 / J0i * N_gi * qwi
-
-        return g_ddot
-
     def __g_q_el(self, qe, N_xi, N_g, J0, qw):
         g_q = np.zeros((self.nla_g_el, self.nq_el))
 
@@ -569,6 +542,71 @@ class Inextensible_Euler_bernoulli(Euler_bernoulli):
         # error = np.linalg.norm(diff)
         # print(f'error g_q: {error}')
         # return g_q_num
+
+    def __g_dot_el(self, qe, ue, N_xi, N_g, J0, qw):
+        g_dot = np.zeros(self.nla_g_el)
+
+        for N_xii, N_gi, J0i, qwi in zip(N_xi, N_g, J0, qw):
+            NN_xii = self.stack_shapefunctions(N_xii)
+
+            r_xi = NN_xii @ qe
+            r_xi_dot = NN_xii @ ue
+
+            g_dot += 2 * r_xi @ r_xi_dot / J0i * N_gi * qwi
+
+        return g_dot
+
+    def __g_dot_q_el(self, qe, ue, N_xi, N_g, J0, qw):
+        g_dot_q = np.zeros((self.nla_g_el, self.nq_el))
+
+        for N_xii, N_gi, J0i, qwi in zip(N_xi, N_g, J0, qw):
+            NN_xii = self.stack_shapefunctions(N_xii)
+
+            r_xi_dot = NN_xii @ ue
+
+            g_dot_q += np.outer(N_gi, 2 * r_xi_dot @ NN_xii / J0i * qwi)
+
+        return g_dot_q
+
+    def __g_ddot_el(self, qe, ue, ue_dot, N_xi, N_g, J0, qw):
+        g_ddot = np.zeros(self.nla_g_el)
+
+        for N_xii, N_gi, J0i, qwi in zip(N_xi, N_g, J0, qw):
+            NN_xii = self.stack_shapefunctions(N_xii)
+
+            r_xi = NN_xii @ qe
+            r_xi_dot = NN_xii @ ue
+            r_xi_ddot = NN_xii @ ue_dot
+
+            g_ddot += (r_xi @ r_xi_ddot + r_xi_dot @ r_xi_dot) * 2 / J0i * N_gi * qwi
+
+        return g_ddot
+
+    def __g_ddot_q_el(self, qe, ue, ue_dot, N_xi, N_g, J0, qw):
+        g_ddot_q = np.zeros((self.nla_g_el, self.nq_el))
+
+        for N_xii, N_gi, J0i, qwi in zip(N_xi, N_g, J0, qw):
+            NN_xii = self.stack_shapefunctions(N_xii)
+
+            r_xi_ddot = NN_xii @ ue_dot
+
+            g_ddot_q += np.outer(N_gi, (r_xi_ddot @ NN_xii) * 2 / J0i * qwi)
+
+        return g_ddot_q
+
+    def __g_ddot_u_el(self, qe, ue, ue_dot, N_xi, N_g, J0, qw):
+        g_ddot_u = np.zeros((self.nla_g_el, self.nq_el))
+
+        for N_xii, N_gi, J0i, qwi in zip(N_xi, N_g, J0, qw):
+            NN_xii = self.stack_shapefunctions(N_xii)
+
+            r_xi_dot = NN_xii @ ue
+
+            g_ddot_u += np.outer(N_gi, (r_xi_dot @ NN_xii) * 4 / J0i * qwi)
+
+        return g_ddot_u
+
+    
 
     def __g_qq_el(self, qe, N_xi, N_g, J0, qw):
         g_qq = np.zeros((self.nla_g_el, self.nq_el, self.nq_el))
@@ -624,6 +662,20 @@ class Inextensible_Euler_bernoulli(Euler_bernoulli):
             g_dot[elDOF_g] += self.__g_dot_el(q[elDOF], u[elDOF], self.N_xi[el], self.N_g[el], self.J0[el], self.qw[el])
         return g_dot
 
+    def g_dot_q(self, t, q, u, coo):
+        for el in range(self.nEl):
+            elDOF = self.elDOF[el]
+            elDOF_g = self.elDOF_g[el]
+            g_dot_q = self.__g_dot_q_el(q[elDOF], u[elDOF], self.N_xi[el], self.N_g[el], self.J0[el], self.qw[el])
+            coo.extend(g_dot_q, (self.la_gDOF[elDOF_g], self.qDOF[elDOF]))  
+
+    def g_dot_u(self, t, q, coo):
+        for el in range(self.nEl):
+            elDOF = self.elDOF[el]
+            elDOF_g = self.elDOF_g[el]
+            g_dot_u = self.__g_q_el(q[elDOF], self.N_xi[el], self.N_g[el], self.J0[el], self.qw[el])
+            coo.extend(g_dot_u, (self.la_gDOF[elDOF_g], self.uDOF[elDOF]))  
+
     def g_ddot(self, t, q, u, u_dot):
         g_ddot = np.zeros(self.nla_g)
         for el in range(self.nEl):
@@ -632,9 +684,16 @@ class Inextensible_Euler_bernoulli(Euler_bernoulli):
             g_ddot[elDOF_g] += self.__g_ddot_el(q[elDOF], u[elDOF], u_dot[elDOF], self.N_xi[el], self.N_g[el], self.J0[el], self.qw[el])
         return g_ddot
 
-    def g_dot_u(self, t, q, coo):
+    def g_ddot_q(self, t, q, u, u_dot, coo):
         for el in range(self.nEl):
             elDOF = self.elDOF[el]
             elDOF_g = self.elDOF_g[el]
-            g_dot_u = self.__g_q_el(q[elDOF], self.N_xi[el], self.N_g[el], self.J0[el], self.qw[el])
-            coo.extend(g_dot_u, (self.la_gDOF[elDOF_g], self.uDOF[elDOF]))  
+            g_ddot_q = self.__g_ddot_q_el(q[elDOF], u[elDOF], u_dot[elDOF], self.N_xi[el], self.N_g[el], self.J0[el], self.qw[el])
+            coo.extend(g_ddot_q, (self.la_gDOF[elDOF_g], self.qDOF[elDOF]))  
+
+    def g_ddot_u(self, t, q, u, u_dot, coo):
+        for el in range(self.nEl):
+            elDOF = self.elDOF[el]
+            elDOF_g = self.elDOF_g[el]
+            g_ddot_u = self.__g_ddot_u_el(q[elDOF], u[elDOF], u_dot[elDOF], self.N_xi[el], self.N_g[el], self.J0[el], self.qw[el])
+            coo.extend(g_ddot_u, (self.la_gDOF[elDOF_g], self.uDOF[elDOF]))  

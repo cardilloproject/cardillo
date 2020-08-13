@@ -122,7 +122,7 @@ class Rigid_body_euler():
         return u_dot[:3] + self.A_IK(t, q) @ (cross3(u_dot[3:], K_r_SP) + cross3(u[3:], cross3(u[3:], K_r_SP)))
 
     def a_P_q(self, t, q, u, u_dot, frame_ID=None, K_r_SP=np.zeros(3)):
-        return self.kappa_P_q(t, q, u, frame_ID=frame_ID, K_r_SP=K_r_SP)
+        return np.einsum('ijk,j->ik', self.A_IK_q(t, q),cross3(u_dot[3:], K_r_SP) + cross3(u[3:], cross3(u[3:], K_r_SP)) )
 
     def a_P_u(self, t, q, u, u_dot, frame_ID=None, K_r_SP=np.zeros(3)):
         return self.kappa_P_u(t, q, u, frame_ID=frame_ID, K_r_SP=K_r_SP)

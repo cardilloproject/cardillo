@@ -12,10 +12,11 @@ from cardillo.model.bilateral_constraints.explicit import Revolute_joint as Revo
 from cardillo.model.bilateral_constraints.implicit import Revolute_joint2D as Revolute_joint_impl
 from cardillo.model.bilateral_constraints.implicit import Rigid_connection2D
 from cardillo.model.force import Force
+from cardillo.model.line_force import Line_force
 from cardillo.model.contacts import Sphere_to_plane2D
 from cardillo.model.scalar_force_interactions.force_laws import Linear_spring, Linear_damper, Linear_spring_damper
 from cardillo.model.scalar_force_interactions import add_rotational_forcelaw
-from cardillo.model.classical_beams.planar import Hooke, Euler_bernoulli
+from cardillo.model.classical_beams.planar import Hooke, Euler_bernoulli, Inextensible_Euler_bernoulli
 
 from cardillo.solver import Moreau, Generalized_alpha_2, Generalized_alpha_3
 
@@ -25,7 +26,7 @@ import matplotlib.animation as animation
 if __name__ == "__main__":
     #--------------------------------------------------------------------------------
     #%% PARAMETERS
-
+    inextensible = True
     # body
     l_bdy = 0.1
     h_bdy = 0.7 * l_bdy
@@ -44,24 +45,26 @@ if __name__ == "__main__":
     A = width * height
     I = width * (height ** 3) / 12
     
-    E = 210e9     # elastic modulus (210 kN/mm2) [N m-2]
+    E = 210e9    # elastic modulus (210 kN/mm2) [N m-2]
 
-    EA = E*A *1e-3   # elongation stiffness
+    EA = E*A    # bending stiffness
     EI = E*I    # bending stiffness
+    if inextensible:
+        EA = EI    #elongation stiffness
+
 
     A_rho0 = 7850 * A  # mass line density [kg m-1] 
 
     material_model = Hooke(EA, EI)
-    p = 3
-    nEl = 10
+    p = 2
+    nEl = 2
     assert p >= 2
     nQP = int(np.ceil((p + 1)**2 / 2))
     print(f'nQP: {nQP}')
-    nEl = 5
     
 
     # contact
-    mu = 0.01
+    mu = 0.1
     e_N = 0
     e_T = 0
 
@@ -73,7 +76,7 @@ if __name__ == "__main__":
 
     # generalized position
     alpha0 = pi/3      
-    h = h_bdy / 2
+    h = h_bdy 
     beta0 = pi - 2 * alpha0
     gamma0 = beta0 - (pi/2 - alpha0)
     hight_over_foot = l_t * cos(alpha0) + l_bl * sin(gamma0) + h_bdy / 2
@@ -113,7 +116,7 @@ if __name__ == "__main__":
     model.add(Force(lambda t: f_gravity(t, m=m_bdy), main_body))
 
     # hip and thigh
-    r_OB1 = r_OS0 - np.array([0, h_bdy/2, 0])5
+    r_OB1 = r_OS0 - np.array([0, h_bdy/2, 0])
     # hip_force_law = Linear_spring_damper(200, 0.2)
     hip_force_law = Linear_spring(200)
     hip = add_rotational_forcelaw(hip_force_law, Revolute_joint_expl)(r_OB1, np.eye(3), q0=np.array([alpha0]), u0=np.array([alpha_dot0]))
@@ -135,15 +138,20 @@ if __name__ == "__main__":
     Q = np.hstack((X0, Y0))
     q0 = np.hstack((X0 * cos(gamma0) , X0 * sin(gamma0) + h))
     u0 = np.zeros_like(q0)
-    blade = Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q=Q, q0=q0, u0=u0)
+    if inextensible:
+        blade = Inextensible_Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q=Q, q0=q0, u0=u0)
+    else:
+        blade = Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q=Q, q0=q0, u0=u0)
+
     model.add( blade )
     # TODO: gravity for blade
+    model.add(Line_force(lambda xi, t: f_gravity(t, A_rho0), blade))
 
     # knee
     r_OB1 = r_OS0 - l_t / 2 * A_IK[:, 1] 
     knee_force_law = Linear_spring(200)
-    # knee = Rigid_connection2D(thigh, blade, r_OB1, A_IK, frame_ID2=(1,) )
-    knee = add_rotational_forcelaw(knee_force_law, Revolute_joint_impl)(thigh, blade, r_OB1, A_IK)
+    knee = Rigid_connection2D(thigh, blade, r_OB1, A_IK, frame_ID2=(1,) )
+    # knee = add_rotational_forcelaw(knee_force_law, Revolute_joint_impl)(thigh, blade, r_OB1, A_IK)
     model.add( knee )
     
     # ground
@@ -159,13 +167,13 @@ if __name__ == "__main__":
     #--------------------------------------------------------------------------------
     #%% SIMULATE
 
-    t1 = 0.4 #4*T
+    t1 = 0.5 #4*T
     dt = 1e-3
 
     # build solver and solve the problem
     # solver = Moreau(model, t1, dt)
     # solver = Generalized_alpha_2(model, t1, dt, rho_inf=0.6, newton_tol=1e-6, numerical_jacobian=0)
-    solver = Generalized_alpha_3(model, t1, dt, rho_inf=0.6, newton_tol=1e-6, numerical_jacobian=0)
+    solver = Generalized_alpha_3(model, t1, dt, rho_inf=0.5, newton_tol=1e-6, numerical_jacobian=0)
     
     sol = solver.solve()
     t = sol.t
