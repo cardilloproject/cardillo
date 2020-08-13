@@ -141,7 +141,7 @@ class Generalized_alpha_3():
         R[3*nu:3*nu+nla_g] = self.model.g(tk1, qk1)
         R[3*nu+nla_g:3*nu+2*nla_g] = self.model.g_dot(tk1, qk1, uk1)
         R[3*nu+2*nla_g:3*nu+3*nla_g] = self.model.g_ddot(tk1, qk1, uk1, ak1)
-        R[3*nu+nla_g:3*nu+nla_g+nla_gamma] = self.model.gamma(tk1, qk1, uk1)
+        R[3*nu+3*nla_g:3*nu+3*nla_g+nla_gamma] = self.model.gamma(tk1, qk1, uk1)
 
         I_N = (kappa_Nast - self.model.prox_r_N * g_N >= 0)
         I_N_ind = np.where(I_N)[0]
@@ -475,10 +475,7 @@ class Generalized_alpha_3():
                          [RLaT_a, RLaT_U, RLaT_Q, None, None,None, None, None,  RLaT_La_N, RLaT_la_N, RLaT_La_T, RLaT_la_T], \
                          [RlaT_a, RlaT_U, RlaT_Q, None, None,None, None, None,  None, RlaT_la_N, None, RlaT_la_T] \
                          ], format='csc')
-        # try:
-        #     spsolve(R_x, xk1)
-        # except:
-        #     print('jacobian might be singular')
+
         # R_x_num = self.__R_x_num(tk1, xk1)
         # diff = R_x.toarray() - R_x_num
         # # # error = np.linalg.norm(diff, ord=inf)

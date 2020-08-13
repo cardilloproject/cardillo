@@ -98,6 +98,30 @@ class Rigid_body_director():
         
         return g_dot
 
+    def g_dot_q(self, t, q, u, coo):
+        d1_dot = u[3:6]
+        d2_dot = u[6:9]
+        d3_dot = u[9:]
+
+        g_dot_q = np.zeros((self.nla_g, self.nq))
+        g_dot_q[0, 3:6] = 2 * d1_dot
+        g_dot_q[1, 6:9] = 2 * d2_dot
+        g_dot_q[2, 9:12] = 2 * d3_dot
+
+        # g_dot[3] = d1_dot @ d2 + d1 @ d2_dot
+        g_dot_q[3, 6:9] = d1_dot
+        g_dot_q[3, 3:6] = d2_dot
+        
+        # g_dot[4] = d1_dot @ d3 + d1 @ d3_dot
+        g_dot_q[4, 9:12] = d1_dot
+        g_dot_q[4, 3:6] = d3_dot
+
+        # g_dot[5] = d2_dot @ d3 + d2 @ d3_dot
+        g_dot_q[5, 9:12] = d2_dot
+        g_dot_q[5, 6:9] = d3_dot
+
+        coo.extend(g_dot_q, (self.la_gDOF, self.qDOF))
+
     def g_dot_u(self, t, q, coo):
         coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.uDOF))
 
@@ -120,6 +144,65 @@ class Rigid_body_director():
         g_ddot[4] = d1_ddot @ d3 + d1 @ d3_ddot + 2 * d1_dot @ d3_dot
         g_ddot[5] = d2_ddot @ d3 + d2 @ d3_ddot + 2 * d2_dot @ d3_dot    
         return g_ddot
+
+    def g_ddot_q(self, t, q, u, u_dot, coo):
+        d1_ddot = u_dot[3:6]
+        d2_ddot = u_dot[6:9]
+        d3_ddot = u_dot[9:]
+
+        g_ddot_q = np.zeros((self.nla_g, self.nq))
+        # g_ddot[0] = 2 * (d1_ddot @ d1 + d1_dot @ d1_dot)
+        g_ddot_q[0, 3:6] = 2 * d1_ddot
+
+        # g_ddot[1] = 2 * (d2_ddot @ d2 + d2_dot @ d2_dot)
+        g_ddot_q[1, 6:9] = 2 * d2_ddot
+
+        # g_ddot[2] = 2 * (d3_ddot @ d3 + d3_dot @ d3_dot)
+        g_ddot_q[2, 9:12] = 2 * d3_ddot
+
+        # g_ddot[3] = d1_ddot @ d2 + d1 @ d2_ddot + 2 * d1_dot @ d2_dot
+        g_ddot_q[3, 6:9] = d1_ddot
+        g_ddot_q[3, 3:6] = d2_ddot
+
+        # g_ddot[4] = d1_ddot @ d3 + d1 @ d3_ddot + 2 * d1_dot @ d3_dot
+        g_ddot_q[4, 9:12] = d1_ddot
+        g_ddot_q[4, 3:6] = d3_ddot
+
+        # g_ddot[5] = d2_ddot @ d3 + d2 @ d3_ddot + 2 * d2_dot @ d3_dot
+        g_ddot_q[5, 9:12] = d2_ddot
+        g_ddot_q[5, 6:9] = d3_ddot
+
+        coo.extend(g_ddot_q, (self.la_gDOF, self.qDOF))
+
+
+    def g_ddot_u(self, t, q, u, u_dot, coo):
+        d1_dot = u[3:6]
+        d2_dot = u[6:9]
+        d3_dot = u[9:]
+
+        g_ddot_u = np.zeros((self.nla_g, self.nq))
+        # g_ddot[0] = 2 * (d1_ddot @ d1 + d1_dot @ d1_dot)
+        g_ddot_u[0, 3:6] = 4 * d1_dot
+
+        # # g_ddot[1] = 2 * (d2_ddot @ d2 + d2_dot @ d2_dot)
+        g_ddot_u[1, 6:9] = 4 * d2_dot
+
+        # # g_ddot[2] = 2 * (d3_ddot @ d3 + d3_dot @ d3_dot)
+        g_ddot_u[2, 9:12] = 4 * d3_dot
+
+        # # g_ddot[3] = d1_ddot @ d2 + d1 @ d2_ddot + 2 * d1_dot @ d2_dot
+        g_ddot_u[3, 6:9] = 2 * d1_dot
+        g_ddot_u[3, 3:6] = 2 * d2_dot
+
+        # # g_ddot[4] = d1_ddot @ d3 + d1 @ d3_ddot + 2 * d1_dot @ d3_dot
+        g_ddot_u[4, 9:12] = 2 * d1_dot
+        g_ddot_u[4, 3:6] = 2 * d3_dot
+
+        # # g_ddot[5] = d2_ddot @ d3 + d2 @ d3_ddot + 2 * d2_dot @ d3_dot
+        g_ddot_u[5, 9:12] = 2 * d2_dot
+        g_ddot_u[5, 6:9] = 2 * d3_dot
+
+        coo.extend(g_ddot_u, (self.la_gDOF, self.uDOF))
 
     def g_q_dense(self, t, q):
 
@@ -345,40 +428,62 @@ class Rigid_body_director_angular_velocities():
         coo.extend(self.__B_dense(q), (self.qDOF, self.uDOF))
 
     def q_ddot(self, t, q, u, u_dot):
-        raise RuntimeError('not tested!')
+        # raise RuntimeError('not tested!')
         d1 = q[3:6]
         d2 = q[6:9]
         d3 = q[9:]
-        d1_tilde = ax2skew(d1)
-        d2_tilde = ax2skew(d2)
-        d3_tilde = ax2skew(d3)
+        # d1_tilde = ax2skew(d1)
+        # d2_tilde = ax2skew(d2)
+        # d3_tilde = ax2skew(d3)
 
         A_IK = self.A_IK(0, q)
-        A_IK_q = self.A_IK_q(0, q)
+        # A_IK_q = self.A_IK_q(0, q)
 
-        omega = u[3:]
-        omega_tilde = ax2skew(omega)
-        omega_dot = u_dot[3:]
+        K_Omega = u[3:]
+        I_Omega = A_IK @ K_Omega
+        I_Omega_tilde = ax2skew(I_Omega)
+        I_Omega_tilde2 = I_Omega_tilde @ I_Omega_tilde
+        # K_Omega_dot = u_dot[3:]
 
-        I_omega = A_IK @ omega
-        tmp = (A_IK_q @ self.q_dot(t, q, u)) @ omega
+        # I_omega = A_IK @ K_Omega
+        # tmp = (A_IK_q @ self.q_dot(t, q, u)) @ K_Omega
 
-        q_ddot = np.zeros(self.nq)
-        q_ddot[:3] = u_dot[:3]
-        q_ddot[3:6] = cross3(d1_tilde @ I_omega, I_omega) - d1_tilde @ (tmp + A_IK @ omega_dot)
-        q_ddot[6:9] = cross3(d2_tilde @ I_omega, I_omega) - d2_tilde @ (tmp + A_IK @ omega_dot)
-        q_ddot[9:12] = cross3(d3_tilde @ I_omega, I_omega) - d3_tilde @ (tmp + A_IK @ omega_dot)
+        q_ddot = self.__B_dense(q) @ u_dot
+        # q_ddot[3:6] += I_Omega_tilde2 @ d1
+        # q_ddot[6:9] += I_Omega_tilde2 @ d2
+        # q_ddot[9:12] += I_Omega_tilde2 @ d3
+        q_ddot[3:6] += cross3(I_Omega, cross3(I_Omega, d1))
+        q_ddot[6:9] += cross3(I_Omega, cross3(I_Omega, d2))
+        q_ddot[9:12] += cross3(I_Omega, cross3(I_Omega, d3))
+
+        # q_ddot[3:6] = cross3(d1_tilde @ I_omega, I_omega) - d1_tilde @ (tmp + A_IK @ omega_dot)
+        # q_ddot[6:9] = cross3(d2_tilde @ I_omega, I_omega) - d2_tilde @ (tmp + A_IK @ omega_dot)
+        # q_ddot[9:12] = cross3(d3_tilde @ I_omega, I_omega) - d3_tilde @ (tmp + A_IK @ omega_dot)
 
         return q_ddot
 
     def solver_step_callback(self, t, q, u):        
         # Gram-Schmidtsche's Orthonormalisierungsverfahren: https://de.wikipedia.org/wiki/Gram-Schmidtsches_Orthogonalisierungsverfahren#Algorithmus_des_Orthonormalisierungsverfahrens   
         d1, d2, d3 = self.A_IK(t, q).T
-        v1 = d1 / norm3(d1)
-        v2_p = d2 - (v1 @ d2) * v1
+
+        # v1 = d1 / norm3(d1)
+        # v2_p = d2 - (v1 @ d2) * v1
+        # v2 = v2_p / norm3(v2_p)
+        # v3_p = d3 - (v1 @ d3) * v1 - (v2 @ d3) * v2
+        # v3 = v3_p / norm3(v3_p)
+
+        # v2 = d2 / norm3(d2)
+        # v3_p = d3 - (v2 @ d3) * v2
+        # v3 = v3_p / norm3(v3_p)
+        # v1_p = d1 - (v2 @ d1) * v2 - (v3 @ d1) * v3
+        # v1 = v1_p / norm3(v1_p)
+
+        v3 = d3 / norm3(d3)
+        v1_p = d1 - (v3 @ d1) * v3
+        v1 = v1_p / norm3(v1_p)
+        v2_p = d2 - (v3 @ d2) * v3 - (v1 @ d2) * v1
         v2 = v2_p / norm3(v2_p)
-        v3_p = d3 - (v1 @ d3) * v1 - (v2 @ d3) * v2
-        v3 = v3_p / norm3(v3_p)
+
         q[3:6] = v1
         q[6:9] = v2
         q[9:12] = v3

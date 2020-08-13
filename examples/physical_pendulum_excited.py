@@ -18,8 +18,8 @@ if __name__ == "__main__":
     # rigid_body = 'Euler'
     # rigid_body = 'Quaternion'
     # rigid_body = 'Quaternion_connected'
-    # rigid_body = 'Director'
-    rigid_body = 'Director_connected'
+    rigid_body = 'Director'
+    # rigid_body = 'Director_connected'
     # rigid_body = 'Rigid_body2D'
     # rigid_body = 'Rigid_body2D_connected'
     
@@ -128,7 +128,8 @@ if __name__ == "__main__":
         RB = Rigid_body_director(m, B_rho0, C_rho0, q0=q0, u0=u0)
         model.add(RB)
         model.add(Force(np.array([0, -m*g, 0]), RB))
-        model.add(Spherical_joint(frame, RB, r_OP(0)))
+        # model.add(Spherical_joint(frame, RB, r_OP(0)))
+        model.add(Revolute_joint(frame, RB, r_OP(0), np.eye(3)))
     elif rigid_body == 'Director_connected':
         p0 = np.concatenate((A_IK0[:, 0], A_IK0[:, 1], A_IK0[:, 2]))
         q10 = np.concatenate((r_OS10, p0))
@@ -188,7 +189,7 @@ if __name__ == "__main__":
     # solver = Moreau_sym(model, t1, dt)
     # solver = Moreau(model, t1, dt)
     # solver = Generalized_alpha_1(model, t1, variable_dt=True, rtol=0, atol=2.5e-2, rho_inf=1, numerical_jacobian=False, debug=False)
-    # solver = Generalized_alpha_2(model, t1, dt, rho_inf=1, numerical_jacobian=False, debug=False)
+    # solver = Generalized_alpha_2(model, t1, dt, rho_inf=1)
     solver = Generalized_alpha_3(model, t1, dt, rho_inf=1, numerical_jacobian=False, debug=False)
 
     # solver = Scipy_ivp(model, t1, dt)
