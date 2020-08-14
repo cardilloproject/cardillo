@@ -9,7 +9,7 @@ from cardillo.math.prox import prox_Rn0, prox_circle
 from cardillo.math.algebra import norm2
 
 class Moreau():
-    def __init__(self, model, t1, dt, fix_point_tol=1e-6, fix_point_max_iter=1000, prox_solver_method='fixed-point', newton_tol=1e-6, newton_max_iter=50, error_function=lambda x: np.max(np.abs(x)) / len(x)):
+    def __init__(self, model, t1, dt, fix_point_tol=1e-8, fix_point_max_iter=1000, prox_solver_method='fixed-point', newton_tol=1e-6, newton_max_iter=50, error_function=lambda x: np.max(np.abs(x)) / len(x)):
         self.model = model
 
         # integration time
@@ -115,7 +115,7 @@ class Moreau():
 
                 xi_T = self.model.xi_T(tk1, qk1, uk, uk1)
                 for i_N, i_T in enumerate(self.NT_connectivity):
-                    if I_N[i_N] and np.any(i_T):
+                    if I_N[i_N] and len(i_T):
                         P_Tk1_i1[i_T] = prox_circle(P_Tk1_i[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T], self.model.mu[i_N] * P_Nk1_i1[i_N]) 
 
                 # check if velocities or contact percussions do not change
@@ -197,9 +197,10 @@ class Moreau():
                 P_Nk1[~I_N] = xk1[self.nR_smooth+np.count_nonzero(I_N):self.nR_smooth+self.nla_N]
                 offset = 0
                 for i_T in self.NT_connectivity:
-                    if np.any(i_T):
-                        P_Tk1[i_T] = xk1[self.nR_smooth+self.nla_N+offset:self.nR_smooth+self.nla_N+offset+2]
-                        offset += 2
+                    nT = len(i_T)
+                    if nT:
+                        P_Tk1[i_T] = xk1[self.nR_smooth+self.nla_N+offset:self.nR_smooth+self.nla_N+offset+nT]
+                        offset += nT
                 
                 R = self.__R_newton(tk1, xk1)
                 error = self.newton_error_function(R)
@@ -235,7 +236,7 @@ class Moreau():
         xi_T = self.model.xi_T(tk1, qk1, uk, uk1)
 
         R = np.zeros(self.nR)
-        R[:self.nu] = M @ (uk1 - uk) - dt * (h + W_g @ la_gk1 + W_gamma @ la_gammak1) - W_N[:, I_N] @ P_Nk1[I_N] - W_T[:, I_T] @ P_Tk1[I_T]
+        R[:self.nu] = M @ (uk1 - uk) - dt * (h + W_g @ la_gk1 + W_gamma @ la_gammak1) - W_N @ P_Nk1 - W_T @ P_Tk1
         R[self.nu:self.nu+self.nla_g] = self.model.g_dot(tk1, qk1, uk1)
         R[self.nu+self.nla_g:self.nu+self.nla_g+self.nla_gamma] = self.model.gamma(tk1, qk1, uk1)
         R[self.nR_smooth:self.nR_smooth+nI_N] = P_Nk1[I_N] - prox_Rn0(P_Nk1[I_N] - self.model.prox_r_N[I_N] * xi_N[I_N])
@@ -243,12 +244,13 @@ class Moreau():
 
         offset = 0
         for i_N, i_T in enumerate(self.NT_connectivity):
-            if np.any(i_T):
+            nT = len(i_T)
+            if nT:
                 if self.I_N[i_N]:
-                    R[self.nR_smooth+self.nla_N+offset:self.nR_smooth+self.nla_N+offset+2] = P_Tk1[i_T] - prox_circle(P_Tk1[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T], self.model.mu[i_N] * P_Nk1[i_N])
+                    R[self.nR_smooth+self.nla_N+offset:self.nR_smooth+self.nla_N+offset+nT] = P_Tk1[i_T] - prox_circle(P_Tk1[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T], self.model.mu[i_N] * P_Nk1[i_N])
                 else:
-                    R[self.nR_smooth+self.nla_N+offset:self.nR_smooth+self.nla_N+offset+2] = P_Tk1[i_T]
-                offset += 2
+                    R[self.nR_smooth+self.nla_N+offset:self.nR_smooth+self.nla_N+offset+nT] = P_Tk1[i_T]
+                offset += nT
         return R
 
     def solve(self):
@@ -370,9 +372,10 @@ class Moreau_sym():
                 la_Nk1[~I_N] = xk1[self.nR_smooth+np.count_nonzero(I_N):self.nR_smooth+self.nla_N]
                 offset = 0
                 for i_T in self.NT_connectivity:
-                    if np.any(i_T):
-                        la_Tk1[i_T] = xk1[self.nR_smooth+self.nla_N+offset:self.nR_smooth+self.nla_N+offset+2]
-                        offset += 2
+                    nT = len(i_T)
+                    if nT:
+                        la_Tk1[i_T] = xk1[self.nR_smooth+self.nla_N+offset:self.nR_smooth+self.nla_N+offset+nT]
+                        offset += nT
                 
                 R = self.__R_newton(tk1, xk1)
                 error = self.newton_error_function(R)
@@ -417,12 +420,13 @@ class Moreau_sym():
 
         offset = 0
         for i_N, i_T in enumerate(self.NT_connectivity):
-            if np.any(i_T):
+            nT = len(i_T)
+            if nT:
                 if self.I_N[i_N]:
-                    R[self.nR_smooth+self.nla_N+offset:self.nR_smooth+self.nla_N+offset+2] = la_Tk1[i_T] - prox_circle(la_Tk1[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T], self.model.mu[i_N] * la_Nk1[i_N])
+                    R[self.nR_smooth+self.nla_N+offset:self.nR_smooth+self.nla_N+offset+nT] = la_Tk1[i_T] - prox_circle(la_Tk1[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T], self.model.mu[i_N] * la_Nk1[i_N])
                 else:
-                    R[self.nR_smooth+self.nla_N+offset:self.nR_smooth+self.nla_N+offset+2] = la_Tk1[i_T]
-                offset += 2
+                    R[self.nR_smooth+self.nla_N+offset:self.nR_smooth+self.nla_N+offset+nT] = la_Tk1[i_T]
+                offset += nT
         return R
 
     def solve(self):

@@ -147,7 +147,7 @@ if __name__ == "__main__":
     # ground
     inclination_angle = 0
     frame = Frame(A_IK=A_IK_basic_z(inclination_angle) )
-    r_N = 0.15
+    r_N = 0.1
     K_r_SP =  l_f / 2 * e2
     ground = Sphere_to_plane2D(frame, foot, 0, mu, K_r_SP=K_r_SP, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N, e_T=e_T)
     model.add( ground )
@@ -158,14 +158,14 @@ if __name__ == "__main__":
     #--------------------------------------------------------------------------------
     #%% SIMULATE
 
-    t1 = 0.4 #4*T
+    t1 = 1 #4*T
     dt = 5e-4
 
     # build solver and solve the problem
     solver_g = Generalized_alpha_3(model, t1, dt, rho_inf=0.5, newton_tol=1e-6, numerical_jacobian=False)
     sol_g = solver_g.solve()
  
-    solver_m = Moreau(model, t1, dt)
+    solver_m = Moreau(model, t1, dt, prox_solver_method='fixed-point')
     sol_m = solver_m.solve()
 
     #--------------------------------------------------------------------------------
@@ -191,7 +191,7 @@ if __name__ == "__main__":
     for i, ti in enumerate(sol_m.t):
         g_m.extend(model.g_N(ti, sol_m.q[i]).tolist())
 
-    fig, ax = plt.subplots(2, 1)
+    fig, ax = plt.subplots(3, 1)
     fig.suptitle('normal contact', fontsize=16)
     ax[0].plot(sol_g.t, g_g, '-r', label='gen. alpha')
     ax[0].plot(sol_m.t, g_m, '--b', label='moreau')
@@ -205,10 +205,18 @@ if __name__ == "__main__":
     ax[1].set_xlabel('t')
     ax[1].set_ylabel('force')
     ax[1].legend()
+    
+    
+    ax[2].plot(sol_g.t, mu*sol_g.la_N*dt-np.abs(sol_g.la_T)*dt, '-', label='(mu*la_N-|la_T|)dt, gen. alpha', color='lightgrey')
+    ax[2].plot(sol_g.t, sol_g.la_T*dt, '-r', label='la_T*dt, gen. alpha')
+    ax[2].plot(sol_g.t, sol_g.La_T, '-g', label='La_T, gen. alpha')
+    ax[2].plot(sol_m.t, sol_m.P_T, '--b', label='P_T, moreau')
+    ax[2].set_xlabel('t')
+    ax[2].set_ylabel('force')
+    ax[2].legend()
 
     plt.show()
     # set up figure and animation
-    exit()
     t = sol_g.t
     q = sol_g.q
     fig_anim = plt.figure()
