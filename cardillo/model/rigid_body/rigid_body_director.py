@@ -1,3 +1,4 @@
+from ast import Num
 import numpy as np
 from cardillo.math.numerical_derivative import Numerical_derivative
 from cardillo.math.algebra import ax2skew, ax2skew_a, cross3, norm3, skew2ax
@@ -367,12 +368,13 @@ class Rigid_body_director():
         return skew2ax(K_Psi_tilde)
 
 class Rigid_body_director_angular_velocities():
-    def __init__(self, m, K_Theta_S, q0=None, u0=None):
+    def __init__(self, m, K_Theta_S, q0=None, u0=None, nka_c0=None):
         self.m = m
         self.theta = K_Theta_S
 
         self.nq = 12
         self.nu = 6
+        self.nka_c = 6
         
         self.M_ = np.zeros((self.nu, self.nu))
         self.M_[:3, :3] = m * np.eye(3)
@@ -387,6 +389,7 @@ class Rigid_body_director_angular_velocities():
             self.q0 = q0
 
         self.u0 = np.zeros(self.nu) if u0 is None else u0
+        self.ka_c0 = np.zeros(self.nka_c) if nka_c0 is None else nka_c0
 
     #########################################
     # equations of motion
@@ -435,7 +438,6 @@ class Rigid_body_director_angular_velocities():
         coo.extend(self.__B_dense(q), (self.qDOF, self.uDOF))
 
     def q_ddot(self, t, q, u, u_dot):
-        # raise RuntimeError('not tested!')
         d1 = q[3:6]
         d2 = q[6:9]
         d3 = q[9:]
@@ -456,12 +458,12 @@ class Rigid_body_director_angular_velocities():
         # tmp = (A_IK_q @ self.q_dot(t, q, u)) @ K_Omega
 
         q_ddot = self.__B_dense(q) @ u_dot
-        # q_ddot[3:6] += I_Omega_tilde2 @ d1
-        # q_ddot[6:9] += I_Omega_tilde2 @ d2
-        # q_ddot[9:12] += I_Omega_tilde2 @ d3
-        q_ddot[3:6] += cross3(I_Omega, cross3(I_Omega, d1))
-        q_ddot[6:9] += cross3(I_Omega, cross3(I_Omega, d2))
-        q_ddot[9:12] += cross3(I_Omega, cross3(I_Omega, d3))
+        q_ddot[3:6] += I_Omega_tilde2 @ d1
+        q_ddot[6:9] += I_Omega_tilde2 @ d2
+        q_ddot[9:12] += I_Omega_tilde2 @ d3
+        # q_ddot[3:6] += cross3(I_Omega, cross3(I_Omega, d1))
+        # q_ddot[6:9] += cross3(I_Omega, cross3(I_Omega, d2))
+        # q_ddot[9:12] += cross3(I_Omega, cross3(I_Omega, d3))
 
         # q_ddot[3:6] = cross3(d1_tilde @ I_omega, I_omega) - d1_tilde @ (tmp + A_IK @ omega_dot)
         # q_ddot[6:9] = cross3(d2_tilde @ I_omega, I_omega) - d2_tilde @ (tmp + A_IK @ omega_dot)
@@ -469,33 +471,81 @@ class Rigid_body_director_angular_velocities():
 
         return q_ddot
 
-    def solver_step_callback(self, t, q, u):        
-        # Gram-Schmidtsche's Orthonormalisierungsverfahren: https://de.wikipedia.org/wiki/Gram-Schmidtsches_Orthogonalisierungsverfahren#Algorithmus_des_Orthonormalisierungsverfahrens   
-        d1, d2, d3 = self.A_IK(t, q).T
+    #########################################
+    # stabilization conditions for the kinematic equation
+    #########################################
+    def c(self, t, q):
+        d1 = q[3:6]
+        d2 = q[6:9]
+        d3 = q[9:]
 
-        # v1 = d1 / norm3(d1)
-        # v2_p = d2 - (v1 @ d2) * v1
-        # v2 = v2_p / norm3(v2_p)
-        # v3_p = d3 - (v1 @ d3) * v1 - (v2 @ d3) * v2
-        # v3 = v3_p / norm3(v3_p)
+        c = np.zeros(self.nka_c)
+        c[0] = d1 @ d1 - 1
+        c[1] = d2 @ d2 - 1
+        c[2] = d3 @ d3 - 1
+        c[3] = d1 @ d2
+        c[4] = d1 @ d3
+        c[5] = d2 @ d3
 
-        # v2 = d2 / norm3(d2)
-        # v3_p = d3 - (v2 @ d3) * v2
-        # v3 = v3_p / norm3(v3_p)
-        # v1_p = d1 - (v2 @ d1) * v2 - (v3 @ d1) * v3
-        # v1 = v1_p / norm3(v1_p)
+        return c
 
-        v3 = d3 / norm3(d3)
-        v1_p = d1 - (v3 @ d1) * v3
-        v1 = v1_p / norm3(v1_p)
-        v2_p = d2 - (v3 @ d2) * v3 - (v1 @ d2) * v1
-        v2 = v2_p / norm3(v2_p)
+    def __c_q_dense(self, t, q):
+        d1 = q[3:6]
+        d2 = q[6:9]
+        d3 = q[9:]
 
-        q[3:6] = v1
-        q[6:9] = v2
-        q[9:12] = v3
+        c_q = np.zeros((self.nka_c, self.nq))
+        c_q[0, 3:6] = 2 * d1
+        c_q[1, 6:9] = 2 * d2
+        c_q[2, 9:12] = 2 * d3
 
-        return q, u
+        c_q[3, 3:6] = d2
+        c_q[3, 6:9] = d1
+
+        c_q[4, 3:6] = d3
+        c_q[4, 9:12] = d1
+
+        c_q[5, 6:9] = d3
+        c_q[5, 9:12] = d2
+        return c_q
+
+        # c_q_num = Numerical_derivative(self.c, order=2)._x(t, q)
+        # diff = c_q - c_q_num
+        # np.set_printoptions(precision=3)
+        # error = np.linalg.norm(diff)
+        # print(f'error num_tan - tan = {error}')
+        # return c_q_num
+
+    def __c_qq_dense(self, t, q):
+        gap_qq = np.zeros((self.nka_c, self.nq, self.nq))
+        gap_qq[0, 3:6, 3:6] = 2 * np.eye(3)
+        gap_qq[1, 6:9, 6:9] = 2 * np.eye(3)
+        gap_qq[2, 9:12, 9:12] = 2 * np.eye(3)
+        
+        gap_qq[3, 3:6, 6:9] = np.eye(3)
+        gap_qq[3, 6:9, 3:6] = np.eye(3)
+        
+        gap_qq[4, 3:6, 9:12] = np.eye(3)
+        gap_qq[4, 9:12, 3:6] = np.eye(3)
+        
+        gap_qq[5, 6:9, 9:12] = np.eye(3)
+        gap_qq[5, 9:12, 6:9] = np.eye(3)
+
+        # gap_qq_num = NumericalDerivativeNew(self.gap_q_dense, order=2).dR_dq(t, q)
+        # diff = gap_qq - gap_qq_num
+        # np.set_printoptions(precision=3)
+        # error = np.linalg.norm(diff)
+        # print(f'error num_tan - tan = {error}')
+        # return gap_qq_num
+
+        return gap_qq
+
+    def c_q(self, t, q, coo):
+        coo.extend(self.__c_q_dense(t, q), (self.ka_cDOF, self.qDOF))
+
+    def ka_cc_qq(self, t, q, ka_c, coo):
+        dense = Numerical_derivative(lambda t, q: ka_c @ self.__c_qq_dense(t, q), order=2)._x(t, q)
+        coo.extend(dense, (self.ka_cDOF, self.qDOF))
 
     #########################################
     # helper functions

@@ -129,16 +129,16 @@ class Generalized_alpha_4():
 
         rhs = -( self.model.h(tk1, qk1, uk1) + W_gk1 @ la_gk1 + W_gammak1 @ la_gammak1 )
         
-        # evaluate residual 
-        # R = np.zeros(self.nR)
-        # R[:nu_dyn] = Mk1 @ ak1 + rhs[uDOF_dyn]
-        # R[nu_dyn:nu] = rhs[uDOF_alg]
-        # R[nu:2*nu] = Mk1 @ Uk1 - W_gk1 @ La_gk1
-        # R[2*nu:3*nu] = Mk1 @ Qk1 - W_gk1 @ kappa_gk1 - W_Nk1 @ kappa_Nk1
+        # # evaluate residual
+        # # R = np.zeros(self.nR)
+        # # R[:nu_dyn] = Mk1 @ ak1 + rhs[uDOF_dyn]
+        # # R[nu_dyn:nu] = rhs[uDOF_alg]
+        # # R[nu:2*nu] = Mk1 @ Uk1 - W_gk1 @ La_gk1
+        # # R[2*nu:3*nu] = Mk1 @ Qk1 - W_gk1 @ kappa_gk1
         # R[3*nu:3*nu+nla_g] = self.model.g(tk1, qk1)
         # R[3*nu+nla_g:3*nu+2*nla_g] = self.model.g_dot(tk1, qk1, uk1)
         # R[3*nu+2*nla_g:3*nu+3*nla_g] = self.model.g_ddot(tk1, qk1, uk1, ak1)
-        # R[3*nu+3*nla_g:3*nu+3*nla_g+nla_gamma] = self.model.gamma(tk1, qk1, uk1)
+        # # R[3*nu+3*nla_g:3*nu+3*nla_g+nla_gamma] = self.model.gamma(tk1, qk1, uk1)
 
         R = np.zeros(self.nR)
         R[:nu_dyn] = Mk1 @ ak1[uDOF_dyn] + rhs[uDOF_dyn]
@@ -147,7 +147,6 @@ class Generalized_alpha_4():
         R[nu+nla_g:nu+nla_g+nla_gamma] = self.model.gamma(tk1, qk1, uk1)
         
         yield R
-
 
         ##################################################
         # R[:nu_dyn] = Mk1 @ ak1[uDOF_dyn] + rhs[uDOF_dyn]

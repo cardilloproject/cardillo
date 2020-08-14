@@ -12,6 +12,7 @@ from cardillo.model.moment import K_Moment
 from cardillo.model.line_force.line_force import Line_force
 from cardillo.math.algebra import e3, ax2skew
 from cardillo.model.rigid_body import Rigid_body_euler
+from cardillo.solver.solution import save_solution, load_solution
 
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
@@ -200,6 +201,9 @@ Beams = [Timoshenko_director_integral]
 # statics = True
 statics = False
 
+load_sol = False
+# load_sol = True
+
 if __name__ == "__main__":
     ################################################################################################
     # beam parameters, taken from https://faraday.physics.utoronto.ca/PHY182S/WilberforceRefBerg.pdf
@@ -239,8 +243,8 @@ if __name__ == "__main__":
     nQP = int(np.ceil((p**2 + 1) / 2)) + 1 # dynamics
     print(f'nQP: {nQP}')
     # nEl = 16 # 2 turns
-    nEl = 32 # 5 turns
-    # nEl = 64 # 10 turns
+    # nEl = 32 # 5 turns
+    nEl = 64 # 10 turns
     # nEl = 128 # 20 turns
 
     #############################
@@ -250,8 +254,8 @@ if __name__ == "__main__":
     coil_radius = coil_diameter / 2
     pitch_unloaded = 1.0e-3 # 1mm
     # turns = 2
-    turns = 5
-    # turns = 10
+    # turns = 5
+    turns = 10
     # turns = 20
     nxi = 500
 
@@ -323,8 +327,10 @@ if __name__ == "__main__":
     max_iter = 30
     tol = 1.0e-6
 
-    t1 = 5.0
-    dt = 1.0e-2 # beam as static force element
+    # t1 = 5.0
+    t1 = 1
+    # dt = 1.0e-2 # beam as static force element
+    dt = 5.0e-3 # beam as static force element
     # dt = 2.0e-5 # full beam dynamics
     # dt = 1.0e-5 # full beam dynamics
 
@@ -368,7 +374,11 @@ if __name__ == "__main__":
             # solver = Euler_backward_singular(model, t1, dt, uDOF_algebraic=uDOF_algebraic, numerical_jacobian=False, debug=False, newton_max_iter=20)
             solver = Generalized_alpha_4(model, t1, dt, uDOF_algebraic=uDOF_algebraic, rho_inf=0.5, newton_tol=1.0e-6, numerical_jacobian=False)
             
-        sols.append( solver.solve() )
+        if not load_sol:
+            sols.append( solver.solve() )
+            save_solution(sols[0], 'Wilberforce_pendulum')
+        else:
+            sols.append( load_solution('Wilberforce_pendulum') )
 
     t = sols[0].t
     q = sols[0].q

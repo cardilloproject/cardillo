@@ -20,6 +20,8 @@ properties.extend(['gamma_T'])
 
 properties.extend(['assembler_callback', 'solver_step_callback'])
 
+properties.extend(['c'])
+
 class Model(object):
     """Sparse model implementation which assembles all global objects without copying on body and element level. 
 
@@ -34,6 +36,7 @@ class Model(object):
         self.t0 = t0
         self.nq = 0
         self.nu = 0
+        self.nka_c = 0
         self.nla_g = 0
         self.nla_gamma = 0
         self.nla_N = 0
@@ -65,12 +68,14 @@ class Model(object):
         self.nu = 0
         self.nla_g = 0
         self.nla_gamma = 0
+        self.nka_c = 0
         self.nla_N = 0
         self.nla_T = 0
         q0 = []
         u0 = []
         la_g0 = []
         la_gamma0 = []
+        ka_c0 = []
         la_N0 = []
         la_T0 = []
         e_N = []
@@ -115,6 +120,12 @@ class Model(object):
                 contr.la_gammaDOF = np.arange(0, contr.nla_gamma) + self.nla_gamma
                 self.nla_gamma += contr.nla_gamma
                 la_gamma0.extend(contr.la_gamma0.tolist())
+            
+            # if contribution has stabilization conditions for the kinematic equation
+            if hasattr(contr, 'nka_c'):
+                contr.ka_cDOF = np.arange(0, contr.nka_c) + self.nka_c
+                self.nka_c += contr.nka_c
+                ka_c0.extend(contr.ka_c0.tolist())
 
             # if contribution has contacts address constraint coordinates
             if hasattr(contr, 'nla_N'):
@@ -141,6 +152,7 @@ class Model(object):
         self.u0 = np.array(u0)
         self.la_g0 = np.array(la_g0)
         self.la_gamma0 = np.array(la_gamma0)
+        self.ka_c0 = np.array(ka_c0)
         self.la_N0 = np.array(la_N0)
         self.la_T0 = np.array(la_T0)
         self.NT_connectivity = NT_connectivity
@@ -393,6 +405,21 @@ class Model(object):
         coo = Coo((self.nu, self.nq))
         for contr in self.__gamma_contr:
             contr.Wla_gamma_q(t, q[contr.qDOF], la_gamma[contr.la_gammaDOF], coo)
+        return coo.tosparse(scipy_matrix)
+
+    #========================================
+    # stabilization conditions for the kinematic equation
+    #========================================
+    def c(self, t, q):
+        c = np.zeros(self.nka_c)
+        for contr in self.__c_contr:
+            c[contr.ka_cDOF] = contr.c(t, q[contr.qDOF])
+        return c
+
+    def c_q(self, t, q, scipy_matrix=coo_matrix):
+        coo = Coo((self.nka_c, self.nq))
+        for contr in self.__c_contr:
+            contr.c_q(t, q[contr.qDOF], coo)
         return coo.tosparse(scipy_matrix)
 
     #========================================

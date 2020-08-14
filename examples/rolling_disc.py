@@ -13,13 +13,13 @@ from cardillo.model.rolling_disc import Rolling_condition
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints.implicit import Rod
 from cardillo.model.force import Force
-from cardillo.solver import Euler_backward, Moreau, Moreau_sym, Scipy_ivp, Generalized_alpha_1, Generalized_alpha_2, Generalized_alpha_3
+from cardillo.solver import Euler_backward, Moreau, Moreau_sym, Scipy_ivp, Generalized_alpha_1, Generalized_alpha_2, Generalized_alpha_3, Generalized_alpha_4, Generalized_alpha_5
 from cardillo.math.algebra import axis_angle2quat, ax2skew, A_IK_basic_x
 
 # rigid_body = 'Euler'
 # rigid_body = 'Quaternion'
-rigid_body = 'Director'
-# rigid_body = 'Director2'
+# rigid_body = 'Director'
+rigid_body = 'Director2'
 
 class Rigid_disc_euler(Rigid_body_euler):
     def __init__(self, m, r, q0=None, u0=None):
@@ -300,14 +300,17 @@ def rolling_disc_velocity_constraints():
     model.assemble()
 
     t0 = 0
-    t1 = 2 * np.pi / np.abs(alpha_dot) * 2
+    t1 = 2 * np.pi / np.abs(alpha_dot) #* 1.5
     dt = 1e-2
     # solver = Euler_backward(model, t1, dt, numerical_jacobian=False, debug=False)
     # solver = Moreau_sym(model, t1, dt, numerical_jacobian=False, debug=False)
     # solver = Generalized_alpha_1(model, t1, variable_dt=True, rtol=0, atol=1.0e-2)
     # solver = Generalized_alpha_1(model, t1, dt=dt, variable_dt=False)
     # solver = Generalized_alpha_2(model, t1, dt)
-    solver = Generalized_alpha_3(model, t1, dt)
+    # solver = Generalized_alpha_3(model, t1, dt, numerical_jacobian=True)
+    # solver = Generalized_alpha_3(model, t1, dt, numerical_jacobian=False)
+    # solver = Generalized_alpha_4(model, t1, dt)
+    solver = Generalized_alpha_5(model, t1, dt, numerical_jacobian=False)
     # solver = Moreau(model, t1, dt)
     # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='RK23')
     # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='RK45')
@@ -336,12 +339,14 @@ def rolling_disc_velocity_constraints():
     y_trace = deque([])
     z_trace = deque([])
 
-    # prepare data for animation
-    frames = len(t)
-    target_frames = 290
-    frac = int(frames / target_frames)
-    animation_time = 1
-    interval = animation_time * 1000 / target_frames
+    slowmotion = 1
+    fps = 50
+    animation_time = slowmotion * t1
+    target_frames = int(fps * animation_time)
+    frac = max(1, int(len(t) / target_frames))
+    if frac == 1:
+        target_frames = len(t)
+    interval = 1000 / fps
 
     frames = target_frames
     t = t[::frac]

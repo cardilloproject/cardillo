@@ -1,6 +1,30 @@
 import numpy as np
 import pickle
 
+def save_solution(sol, filename):
+    """Store a `Solution` object into a given file.
+
+    Parameters
+    ----------
+    sol: `Solution`
+        Solution object
+    filename: str
+        Filename where the solution will be saved
+    """
+    with open(filename, mode='wb') as f:
+        pickle.dump(sol, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+def load_solution(filename):
+    """Load a `Solution` object from a given file.
+
+    Parameters
+    ----------
+    filename: str
+        Filename where the solution was saved
+    """
+    with open(filename, mode='rb') as f:
+        return pickle.load(f)
+
 class Solution():
     r"""Class to store and manage solver outputs.
 
@@ -22,34 +46,7 @@ class Solution():
          contact forces in tangent direction
     """
     def __init__(self, **kwargs):
-        self.__dict__.update(kwargs)
-        self.sol_keys = kwargs.keys()
+        self.__dict__.update(**kwargs)
 
-    def unpack(self):
-        """Return solution fields
-        """
-        return tuple([self.__dict__[key] for key in self.sol_keys])
-
-def save_solution(sol, filename):
-    """Store a `Solution` object into a given file.
-
-    Parameters
-    ----------
-    sol: `Solution`
-        Solution object
-    filename: str
-        Filename where the solution will be saved
-    """
-    with open(filename, mode='wb') as f:
-        pickle.dump(sol, f)
-
-def load_solution(filename):
-    """Load a `Solution` object from a given file.
-
-    Parameters
-    ----------
-    filename: str
-        Filename where the solution was saved
-    """
-    with open(filename, mode='rb') as f:
-        return pickle.load(f)
+    def save(self, filename):
+        save_solution(self, filename)
