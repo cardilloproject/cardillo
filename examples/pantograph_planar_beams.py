@@ -1,44 +1,53 @@
 import numpy as np
 from math import pi, ceil, sin, cos
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+
 
 from cardillo.model import Model
 from cardillo.model.classical_beams.planar import Euler_bernoulli, Hooke
 from cardillo.model.bilateral_constraints.implicit import Spherical_joint2D, Rigid_connection2D 
 from cardillo.solver.newton import Newton
 from cardillo.solver.euler_backward import Euler_backward
+from cardillo.solver import Generalized_alpha_1, Scipy_ivp
 from cardillo.discretization.B_spline import uniform_knot_vector
 from cardillo.model.frame import Frame
 from cardillo.math.algebra import A_IK_basic_z
 
 if __name__ == "__main__":
-    statics = True
-    t1 = 1
-    dt = 1e-2
+    statics = False
+    t1 = 1e-2
+    dt = 1e-4
     # physical parameters
     gamma = pi/4
     # nRow = 6
     # nCol = 10
     nRow = 10
-    nCol = 20
+    nCol = 100
     L = 0.2041
     H = L / nCol * nRow
     LBeam = L / (nCol * cos(gamma))
     EA = 1.6e9 * 1.6e-3 * 0.9e-3
     EI = 1.6e9 * (1.6e-3) * (0.9e-3)**3/12
 
-    displacementX_l = -0.0567/4
+    displacementX_l = 0 #-0.0567/4
     # displacementX = 0.02
     displacementY_l = 0.0
-    rotationZ_l = -np.pi/10
+    rotationZ_l = 0# -np.pi/10
 
-    displacementX_r = 0.0567/4
+    displacementX_r = 0# 0.0567/4
     # displacementX = 0.02
     displacementY_r = 0.0
     
-    rotationZ_r = 0 # np.pi/10
+    rotationZ_r = 0 #np.pi/10
 
-    r_OP_l = lambda t: np.array([0, H / 2, 0]) + np.array([t * displacementX_l, t * displacementY_r, 0])
+    # r_OP_l = lambda t: np.array([0, H / 2, 0]) + np.array([t * displacementX_l, t * displacementY_r, 0])
+
+    A = LBeam
+    frq = 1/2 # frq times oscillation during simulation
+    Omega = 2 * np.pi * frq / t1
+    r_OP_l = lambda t: np.array([0, H / 2, 0]) + A * np.array([sin(Omega *t), 0, 0])
+
     A_IK_l = lambda t: A_IK_basic_z(t * rotationZ_l)
 
     r_OP_r = lambda t: np.array([L, H / 2, 0]) +  np.array([t * displacementX_r, t * displacementY_r, 0])
@@ -50,10 +59,10 @@ if __name__ == "__main__":
     ###################
     # create pantograph
     ###################
-    p = 4
+    p = 3
     assert p >= 2
-    # nQP = int(np.ceil((p + 1)**2 / 2))
-    nQP = p
+    nQP = int(np.ceil((p + 1)**2 / 2))
+    # nQP = p
 
     print(f'nQP: {nQP}')
     nEl = 1
@@ -221,6 +230,8 @@ if __name__ == "__main__":
     else:
         solver = Euler_backward(model, t1, dt, newton_max_iter=50, numerical_jacobian=False, debug=False)
         # solver = Generalized_alpha_1(model, t1, dt, variable_dt=False, rho_inf=0.5)
+        # solver = Scipy_ivp(model, t1, dt, atol=1e-6)
+
 
     sol = solver.solve()
 
@@ -238,20 +249,41 @@ if __name__ == "__main__":
             ax.plot(x, y, '-b')
 
         plt.show()
-    # # solve system and measure time (includes a dummy solver step, thus compilation time will not be measured)
-    # # TODO: we need to build a better assembler/ a better sparse Newton-Raphson method in order to decreaase computation
-    # #       time in the assembling of the sparse structures. SuperLu takes less than 10% of the computation time!
-    # sol = Newton(model, nLoadSteps=2, tol=tol).integrate()
-    # pr.enable()
-    # sol = Newton(model, nLoadSteps=nLoadSteps, tol=tol).integrate()
-    # pr.disable()
+    else:
+        # animate configurations
+        fig, ax = plt.subplots()
+        ax.set_xlabel('x [m]')
+        ax.set_ylabel('y [m]')
+        ax.set_xlim([-Ly + H/2 * sin(rotationZ_l), Ly*(nCol+1) + displacementX_r + H/2 * sin(rotationZ_r)])
+        ax.set_ylim([-Ly, Ly*(nRow+1) + displacementY_r])
+        ax.grid(linestyle='-', linewidth='0.5')
+        ax.set_aspect('equal')
 
-    # # plot deformed configuration
-    # for bdy in assembler.bodyList:
-    #     plotBeamConfiguration(bdy, ax[1], sol.q[-1], nPlot=100, nodeStyle='--o')
+        # prepare data for animation
+        t = sol.t
+        frames = len(t)
+        target_frames = min(len(t), 100)
+        frac = int(frames / target_frames)
+        animation_time = 5
+        interval = animation_time * 1000 / target_frames
 
-    # plt.show()
+        frames = target_frames
+        t = t[::frac]
+        q = sol.q[::frac]
 
-    # sortby = 'cumulative'
-    # ps = pstats.Stats(pr).sort_stats(sortby)
-    # ps.print_stats(0.10) # print only first 10% of the list
+        centerlines = []
+        # lobj, = ax.plot([], [], '-k')
+        for bdy in beams:
+            lobj, = ax.plot([], [], '-k')
+            centerlines.append(lobj)
+            
+        def animate(i):
+            for idx, bdy in enumerate(beams):
+                x, y, _ = bdy.centerline(q[i], n=2).T
+                centerlines[idx].set_data(x, y)
+
+            return centerlines
+
+        anim = animation.FuncAnimation(fig, animate, frames=frames, interval=interval, blit=False)
+
+        plt.show()
