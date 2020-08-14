@@ -242,9 +242,9 @@ if __name__ == "__main__":
     # nQP = p + 1
     nQP = int(np.ceil((p**2 + 1) / 2)) + 1 # dynamics
     print(f'nQP: {nQP}')
-    # nEl = 16 # 2 turns
+    nEl = 16 # 2 turns
     # nEl = 32 # 5 turns
-    nEl = 64 # 10 turns
+    # nEl = 64 # 10 turns
     # nEl = 128 # 20 turns
 
     #############################
@@ -253,9 +253,9 @@ if __name__ == "__main__":
     coil_diameter = 32.0e-3 # 32mm
     coil_radius = coil_diameter / 2
     pitch_unloaded = 1.0e-3 # 1mm
-    # turns = 2
+    turns = 2
     # turns = 5
-    turns = 10
+    # turns = 10
     # turns = 20
     nxi = 500
 
@@ -327,8 +327,8 @@ if __name__ == "__main__":
     max_iter = 30
     tol = 1.0e-6
 
-    # t1 = 5.0
-    t1 = 1
+    t1 = 5.0
+    # t1 = 1
     # dt = 1.0e-2 # beam as static force element
     dt = 5.0e-3 # beam as static force element
     # dt = 2.0e-5 # full beam dynamics
@@ -372,7 +372,8 @@ if __name__ == "__main__":
             # uDOF_algebraic = beam.uDOF # beams as static force element
 
             # solver = Euler_backward_singular(model, t1, dt, uDOF_algebraic=uDOF_algebraic, numerical_jacobian=False, debug=False, newton_max_iter=20)
-            solver = Generalized_alpha_4(model, t1, dt, uDOF_algebraic=uDOF_algebraic, rho_inf=0.5, newton_tol=1.0e-6, numerical_jacobian=False)
+            solver = Generalized_alpha_4(model, t1, dt, uDOF_algebraic=uDOF_algebraic, rho_inf=0.85, newton_tol=1.0e-6, numerical_jacobian=False)
+            # solver = Generalized_alpha_4(model, t1, dt, uDOF_algebraic=uDOF_algebraic, rho_inf=0.5, newton_tol=1.0e-6, numerical_jacobian=False)
             
         if not load_sol:
             sols.append( solver.solve() )
@@ -431,7 +432,7 @@ if __name__ == "__main__":
     target_frames = min(frames, 200)
     frac = int(frames / target_frames)
     animation_time = 1
-    interval = animation_time * 1000 / target_frames
+    interval = animation_time * 5000 / target_frames
 
     frames = target_frames
     t = t[::frac]
@@ -446,13 +447,13 @@ if __name__ == "__main__":
     d3_, = ax1.plot([], [], [], '-b')
 
     def animate(i):
-        x, y, z = beam.centerline(q[i], n=50)
+        x, y, z = beam.centerline(q[i], n=100)
         center_line.set_data(x, y)
         center_line.set_3d_properties(z)
 
-        x, y, z = q[i][beam.qDOF].reshape(12, -1)[:3]
-        nodes.set_data(x, y)
-        nodes.set_3d_properties(z)
+        # x, y, z = q[i][beam.qDOF].reshape(12, -1)[:3]
+        # nodes.set_data(x, y)
+        # nodes.set_3d_properties(z)
 
         x_S, y_S, z_S = bob.r_OP(t[i], q[i][bob.qDOF])    
         bob_com.set_data(np.array([x_S]), np.array([y_S]))
