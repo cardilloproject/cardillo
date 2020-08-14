@@ -269,7 +269,7 @@ class Euler_backward_singular():
         self.nla_gamma = self.model.nla_gamma
         self.n = self.nq + self.nu + self.nla_g + self.nla_gamma
 
-        self.uDOF = np.arange(nq)
+        self.uDOF = np.arange(self.nu)
         self.uDOF_dyn = np.setdiff1d(self.uDOF, self.uDOF_algebraic)
         self.nu_alg = len(self.uDOF_algebraic)
         self.nu_dyn = len(self.uDOF_dyn)
