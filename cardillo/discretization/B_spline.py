@@ -6,6 +6,36 @@ def uniform_knot_vector(degree, nEl, interval=[0, 1]):
                             np.linspace(interval[0], interval[1], nEl+1), \
                             np.ones(degree) * interval[1] ] )
 
+class Knot_vector():
+    def __init__(self, degree, nel, data=None):
+        self.degree = degree
+        self.nel = nel
+        if data is None:
+            self.data = uniform_knot_vector(self.degree, self.nel)
+        else:
+            self.data = data
+
+        self.element_data = np.unique(self.data)
+        self.verify_data()
+
+    def element_number(self, knots):        
+        if not hasattr(knots, '__len__'):
+            knots = [knots]
+        lenxi = len(knots)
+
+        element = np.zeros(lenxi, dtype=int)
+        for j in range(lenxi):
+            element[j] = np.where(self.element_data <= knots[j])[0][-1]
+            if knots[j] == 1:
+                element[j] -= 1
+        return element
+        
+    def element_interval(self, el):
+        return self.element_data[el:el+2]
+
+    def verify_data(self):
+        assert len(self.element_data) == self.nel + 1
+
 def find_knotspan(degree, knot_vector, knots):
     r"""Finds the span index in the `knot_vector` for each element in `knots`.
 
@@ -388,20 +418,20 @@ def Piegl_Ex3_4():
 
     plt.show()
 
-if __name__ == '__main__':
-    # degrees = (2, 2)
-    # nEls = (3, 3)
-    # Xi = uniform_knot_vector(degrees[0], nEls[0])
-    # Eta = uniform_knot_vector(degrees[1], nEls[1])
-    # N, N_xi, N_xixi = B_spline_basis2D(degrees, 2, (Xi, Eta), (0.25, 0.35))
+def test_Knot_vector():
+    degree = 2
+    nel = 3
+    U = Knot_vector(degree, nel)
+    print(f'U.data: {U.data}')
     
-    # degrees = (2, 5, 1)
-    # nEls = (1, 3, 2)
-    # Xi = uniform_knot_vector(degrees[0], nEls[0])
-    # Eta = uniform_knot_vector(degrees[1], nEls[1])
-    # Zeta = uniform_knot_vector(degrees[2], nEls[2])
-    # N, N_xi, N_xixi = B_spline_basis3D(degrees, 2, (Xi, Eta, Zeta), (0.25, 0.35, 0))
+    U = Knot_vector(degree, nel, data=np.array([0, 0, 0, 0.25, 0.5, 0.5, 1, 1, 1]))
+    print(f'U.data: {U.data}')
+    print(f'U.element_data: {U.element_data}')
 
-    # print(f'')
+    print(f'el(0.3): {U.element_number(0.3)}')
+    print(f'el(0.7): {U.element_number(0.7)}')
+    print(f'el([0.3, 0.5, 0.7, 1.0]): {U.element_number([0.2, 0.5, 0.7, 1.0])}')
 
-    Piegl_Ex3_4()
+if __name__ == '__main__':
+    # Piegl_Ex3_4()
+    test_Knot_vector()

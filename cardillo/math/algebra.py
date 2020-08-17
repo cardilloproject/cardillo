@@ -257,6 +257,45 @@ def test_inverse():
         I = np.identity(i)
         assert np.allclose(I, A @ Ainv)
 
+#############################################################
+# invariants and their derivatives
+# see https://en.wikipedia.org/wiki/Tensor_derivative_(continuum_mechanics)#Derivatives_of_the_invariants_of_a_second-order_tensor
+#############################################################
+
+def I1(A):
+    r"""First matrix invariant (trace).
+    """
+    return trace(A)
+
+def dI1(A):
+    r"""Gradient of first matrix invariant (trace).
+    """
+    a, _ = A.shape
+    return np.identity(a)
+
+def I2(A):
+    r"""Second matrix invariant.
+    """
+    I1 = I1(A)
+    I21 = I1(A.T @ A)
+    return 0.5 * (I1 * I1 + I21)
+
+def dI2(self, A):
+    r"""Gradient of second matrix invariant.
+    """
+    a, _ = A.shape
+    return I1(A) * np.identity(a) - A.T
+
+def I3(self, A):
+    r"""Third matrix invariant (determinant).
+    """
+    return determinant(A)
+
+def dI3(self, A):
+    r"""Gradient of first matrix invariant (determinant).
+    """
+    return I3(A) * inverse(A).T
+ 
 if __name__ == "__main__":
     # tests
     quat2rot_num = Numerical_derivative(lambda t,x: quat2rot(x), order=2)
