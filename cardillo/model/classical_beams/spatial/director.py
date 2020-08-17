@@ -3,7 +3,7 @@ from abc import ABCMeta, abstractmethod
 
 from cardillo.utility.coo import Coo
 from cardillo.discretization import gauss
-from cardillo.discretization import uniform_knot_vector, B_spline_basis, Lagrange_basis
+from cardillo.discretization import uniform_knot_vector, B_spline_basis1D, Lagrange_basis
 from cardillo.math.algebra import norm3, cross3, e1, e2, e3, ax2skew, skew2ax, ax2skew_a
 from cardillo.math.numerical_derivative import Numerical_derivative
 
@@ -95,7 +95,7 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
                 self.xi[el] = qp
 
                 # evaluate B-spline shape functions
-                self.N[el], self.N_xi[el] = B_spline_basis(polynomial_degree, derivative_order, knot_vector, qp)
+                self.N[el], self.N_xi[el] = B_spline_basis1D(polynomial_degree, derivative_order, knot_vector, qp)
             else:
                 self.basis_functions = self.__basis_functions_lagrange
 
@@ -129,7 +129,7 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
         self.dN_bdry = np.array([dN_bdry_left, dN_bdry_right])
 
     def __basis_functions_b_splines(self, xi):
-        return B_spline_basis(self.polynomial_degree, 1, self.knot_vector, xi)
+        return B_spline_basis1D(self.polynomial_degree, 1, self.knot_vector, xi)
 
     def __basis_functions_lagrange(self, xi):
         el = np.where(xi >= self.element_span)[0][-1]
@@ -1063,7 +1063,7 @@ class Timoshenko_director_integral(Timoshenko_beam_director):
                 qp, _ = gauss(self.nQP, self.element_span_g[el:el+2])
 
                 # evaluate B-spline shape functions
-                self.N_g[el] = B_spline_basis(self.polynomial_degree_g, 0, self.knot_vector_g, qp).squeeze()
+                self.N_g[el] = B_spline_basis1D(self.polynomial_degree_g, 0, self.knot_vector_g, qp).squeeze()
             else:
                 raise NotImplementedError('Lagrange shape functions are not supported yet')
             
@@ -1241,7 +1241,7 @@ class Euler_Bernoulli_director_integral(Timoshenko_beam_director):
                 qp, _ = gauss(self.nQP, self.element_span_g[el:el+2])
 
                 # evaluate B-spline shape functions
-                self.N_g[el] = B_spline_basis(self.polynomial_degree_g, 0, self.knot_vector_g, qp).squeeze()
+                self.N_g[el] = B_spline_basis1D(self.polynomial_degree_g, 0, self.knot_vector_g, qp).squeeze()
             else:
                 raise NotImplementedError('Lagrange shape functions are not supported yet')
             
@@ -1464,7 +1464,7 @@ class Inextensible_Euler_Bernoulli_director_integral(Timoshenko_beam_director):
                 qp, _ = gauss(self.nQP, self.element_span_g[el:el+2])
 
                 # evaluate B-spline shape functions
-                self.N_g[el] = B_spline_basis(self.polynomial_degree_g, 0, self.knot_vector_g, qp).squeeze()
+                self.N_g[el] = B_spline_basis1D(self.polynomial_degree_g, 0, self.knot_vector_g, qp).squeeze()
             else:
                 raise NotImplementedError('Lagrange shape functions are not supported yet')
             

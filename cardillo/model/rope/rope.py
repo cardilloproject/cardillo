@@ -2,7 +2,7 @@ import numpy as np
 
 from cardillo.utility.coo import Coo
 from cardillo.discretization import gauss
-from cardillo.discretization import uniform_knot_vector, B_spline_basis, Lagrange_basis
+from cardillo.discretization import uniform_knot_vector, B_spline_basis1D, Lagrange_basis
 from cardillo.math.algebra import norm2, norm3
 from cardillo.math.numerical_derivative import Numerical_derivative
 
@@ -87,7 +87,7 @@ class Rope(object):
                 self.xi[el] = qp
 
                 # evaluate B-spline shape functions
-                self.N[el], self.N_xi[el] = B_spline_basis(polynomial_degree, derivative_order, knot_vector, qp)
+                self.N[el], self.N_xi[el] = B_spline_basis1D(polynomial_degree, derivative_order, knot_vector, qp)
             else:
                 # evaluate Gauss points and weights on [-1, 1]
                 qp, qw = gauss(nQP)
@@ -118,7 +118,7 @@ class Rope(object):
         self.N_bdry = np.array([N_bdry_left, N_bdry_right])
 
     def __basis_functions_b_splines(self, xi):
-        return B_spline_basis(self.polynomial_degree, 0, self.knot_vector, xi)
+        return B_spline_basis1D(self.polynomial_degree, 0, self.knot_vector, xi)
 
     def __basis_functions_lagrange(self, xi):
         el = np.where(xi >= self.element_span)[0][-1]
@@ -408,7 +408,7 @@ class Inextensible_Rope(Rope):
                 qp, _ = gauss(self.nQP, self.element_span_g[el:el+2])
 
                 # evaluate B-spline shape functions
-                self.N_g[el] = B_spline_basis(self.polynomial_degree_g, 0, self.knot_vector_g, qp).squeeze()
+                self.N_g[el] = B_spline_basis1D(self.polynomial_degree_g, 0, self.knot_vector_g, qp).squeeze()
             else:
                 raise NotImplementedError('Lagrange shape functions are not supported yet')
 
