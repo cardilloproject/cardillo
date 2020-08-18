@@ -402,21 +402,23 @@ def decompose_B_spline_curve(knot_vector, Pw):
     p = knot_vector.degree
     Xi = knot_vector.data
     # TODO: append to list insead of overestimating number of Bezier cells
-    Qw = np.zeros((n, p + 1, dim))
+    # Qw = np.zeros((n, p + 1, dim))
+    # nbezier__ = knot_vector.nel
+    Qw = np.zeros((knot_vector.nel, p + 1, dim))
 
     # ignore n = n - 1 of Piegl1997 p. 93
-    # m = n + p + 1
-    m = n + p
+    # mknot = n + p + 1
+    mknot = n + p
     a = p
     b = p + 1
     nbezier = 0
     for i in range(p + 1):
         Qw[nbezier, i] = Pw[i]
 
-    while (b < m):
+    while (b < mknot):
         i = b
         # compute multiplicity of knot
-        while(b < m and Xi[b + 1] == Xi[b]):
+        while(b < mknot and Xi[b + 1] == Xi[b]):
             b += 1
         mult = b - i + 1
 
@@ -437,19 +439,109 @@ def decompose_B_spline_curve(knot_vector, Pw):
                 for k in reversed(range(s, p + 1)):
                     alpha = alphas[k - s]
                     Qw[nbezier, k] = alpha * Qw[nbezier, k] + (1 - alpha) * Qw[nbezier, k - 1]
-                if (b < m):
+                if (b < mknot):
                     # control point of next segment
                     Qw[nbezier + 1, save] = Qw[nbezier, p]
         nbezier += 1  # bezier segment completed
 
-        if (b < m):
+        if (b < mknot):
             # initialize for next segment
             for i in range(p - mult, p + 1):
                 Qw[nbezier, i] = Pw[b - p + i]
             a = b
             b += 1
 
-    return Qw[:nbezier]
+    # return Qw[:nbezier]
+    return Qw
+
+def decompose_B_spline_surface(knot_vectors, Pw):
+    r"""Decomposes a NURBS curve into Bezier patches. See Piegl/Tiller 1997 algorithm A5.6 (p. 173)
+
+    Parameters
+    ----------
+    knot_vectors: tuple of both Knot_vectors
+        knot vector object
+    Pw : numpy.ndarray
+        (n)-by-(dim) array containing (weighted) control points
+
+
+    Returns
+    -------
+    Qw: numpy.ndarray
+        (nbezier + 1)-by-(Xi.degree + 1) array containing the control points of the segments
+    """
+    
+    def decompose_1D(n, m, p, Xi, Pw, Qw):
+        a = p
+        b = p + 1
+        nbezier = 0
+        mknot = n + p
+        for i in range(p + 1):
+            for row in range(m):
+                Qw[nbezier, i, row] = Pw[i, row]
+        while (b < mknot):
+            i = b
+            # compute multiplicity of knot
+            while(b < mknot and Xi[b + 1] == Xi[b]):
+                b += 1
+            mult = b - i + 1
+
+            if (mult < p):
+                # numerator of alpha
+                numer = Xi[b] - Xi[a]
+
+                # compute and store alphas
+                alphas = np.zeros(p - mult)
+                for j in reversed(range(mult + 1, p + 1)):
+                    alphas[j - mult - 1] = numer/(Xi[a + j] - Xi[a])
+                r = p - mult
+                # insert knot r times
+                for j in range(1, r+1):
+                    save = r - j
+                    # this many new points
+                    s = mult + j    
+                    for k in reversed(range(s, p+1)):
+                        alpha = alphas[k-s]
+                        for row in range(m):
+                            Qw[nbezier, k, row] = alpha * Qw[nbezier, k, row] + (1 - alpha) * Qw[nbezier, k-1, row]
+                    if (b < mknot):
+                        for row in range(m):
+                            Qw[nbezier + 1, save, row] = Qw[nbezier, p, row]
+            nbezier += 1
+            if (b < mknot):
+                for i in range(p - mult, p + 1):
+                    for row in range(m):
+                        Qw[nbezier, i, row] = Pw[b - p + i, row]
+                a = b
+                b += 1
+
+        # return Qw[:nbezier], nbezier
+
+    n, m, dim = Pw.shape
+    # n -= 1 # see Piegl1997 p. 93
+    p = knot_vectors[0].degree
+    Xi = knot_vectors[0].data
+    q = knot_vectors[1].degree
+    Eta = knot_vectors[1].data
+
+    nbezier = knot_vectors[0].nel
+    mbezier = knot_vectors[1].nel
+    
+    Qw_xi = np.zeros((nbezier, p + 1, m, dim))
+    decompose_1D(n, m, p, Xi, Pw, Qw_xi)
+
+    # return Qw_xi
+    
+    # # Qw_eta = np.zeros((nbezier, mbezier, p + 1, q + 1, dim))
+    # Qw_eta = np.zeros((nbezier, mbezier, p + 1, q + 1, dim))
+    Qw_eta = np.zeros((nbezier, mbezier, q + 1, p + 1, dim))
+    for i, Qw_xii in enumerate(Qw_xi):
+        decompose_1D(m, p+1, q, Eta, Qw_xii.transpose(1, 0, 2), Qw_eta[i])
+        # n, m, dim = Qw_xii.transpose(1, 0, 2).shape
+        # decompose_1D(n, m, q, Eta, Qw_xii.transpose(1, 0, 2), Qw_eta[i])
+
+    return Qw_eta.transpose(0, 1, 3, 2, 4)
+    # return Qw_eta
 
 def B_spline_curve2vtk(knot_vector, Pw, filename):
     from meshio import _mesh
@@ -526,8 +618,8 @@ def Piegl_Fig5_18():
     knot_vector = Knot_vector(degree, nel, data=data)
 
     q = np.array([[0, 0], [0.1, 1], [1, 1], [1.5, -0.1], [2.2, -0.1], [2.5, 0.8], [2.0, 1.3]])
-    B_spline_curve2vtk(knot_vector, q, 'test.vtu')
-    exit()
+    # B_spline_curve2vtk(knot_vector, q, 'test.vtu')
+    # exit()
 
     num = 100
     xis = np.linspace(0, 4, num=num)    
@@ -549,6 +641,114 @@ def Piegl_Fig5_18():
 
     plt.show()
 
+def Piegl_Fig5_20():
+    degrees = (2, 3)
+    nels = (2, 2)
+    data0 = np.array([0, 0, 0, 2/5, 1, 1, 1])
+    data1 = np.array([0, 0, 0, 0, 3/5, 1, 1, 1, 1])
+    knot_vector0 = Knot_vector(degrees[0], nels[0], data=data0)
+    knot_vector1 = Knot_vector(degrees[1], nels[1], data=data1)
+
+    # n = 200
+    # xi_idx = 2
+    # eta_idx = 1
+
+    # xis = np.linspace(0, 1, num=n)
+    # etas = np.linspace(0, 1, num=n)
+
+    # import matplotlib.pyplot as plt
+    # from matplotlib import gridspec
+
+    # fig = plt.figure()
+    # gs = gridspec.GridSpec(2, 2, figure=fig, width_ratios=[1, 1])
+    # ax0 = fig.add_subplot(gs[0, 0])
+    # ax1 = fig.add_subplot(gs[1, 0])
+    # ax2 = fig.add_subplot(gs[:, 1], projection='3d')
+
+    # Nxi = np.zeros((degrees[0] + nels[0], n))
+    # for i, xi in enumerate(xis):
+    #     el = knot_vector0.element_number(xi)[0]
+    #     Nxi[el:el+degrees[0] + 1, i] = B_spline_basis1D(degrees[0], 0, data0, xi)
+
+    # ax0.plot(xis, Nxi[xi_idx])
+    # # for Nxii in Nxi:
+    # #     ax0.plot(xis, Nxii)
+
+    # Neta = np.zeros((degrees[1] + nels[1], n))
+    # for j, eta in enumerate(etas):
+    #     el = knot_vector1.element_number(eta)[0]
+    #     Neta[el:el+degrees[1] + 1, j] = B_spline_basis1D(degrees[1], 0, data1, eta)
+
+    # ax1.plot(etas, Neta[eta_idx])
+    # # for Netaj in Neta:
+    # #     ax1.plot(etas, Netaj)
+    
+    # ax2.set_xlabel('x [m]')
+    # ax2.set_ylabel('y [m]')
+    # ax2.set_zlabel('z [m]')
+    # ax2.set_xlim3d(left=0, right=1)
+    # ax2.set_ylim3d(bottom=0, top=1)
+    # ax2.set_zlim3d(bottom=0, top=1)
+    
+    # ax2.plot_surface(*np.meshgrid(xis, etas), np.outer(Nxi[xi_idx], Neta[eta_idx]))
+
+    # plt.show()
+
+    q0 = np.array([[0, 0, 2], [1, 0, 2], [1.5, 0, 1], [2.5, 0, 1]])
+    q1 = q0.copy()
+    q1[:, 1] += 0.5
+    q2 = q1.copy()
+    q2[:, 1] += 0.4
+    q2[:, 2] -= 0.6
+    q3 = q2.copy()
+    q3[:, 1] += 0.6
+    q3[:, 2] -= 0.4
+    q4 = q3.copy()
+    q4[:, 1] += 0.5
+
+    X, Y, Z = np.vstack((q0, q1, q2, q3, q4)).T
+    Q = np.concatenate((X, Y, Z))
+    
+    # import matplotlib.pyplot as plt
+    # fig = plt.figure()
+    # ax = fig.add_subplot(111, projection='3d')
+    # ax.scatter(X, Y, Z)
+    # plt.show()
+
+    nn_xi = knot_vector0.nel + knot_vector0.degree
+    nn_eta = knot_vector1.nel + knot_vector1.degree
+    nn = nn_xi * nn_eta
+    Pw = np.zeros((nn_xi, nn_eta, 3))
+    for j in range(nn):
+        j_xi, j_eta = split2D(j, (nn_xi, nn_eta))
+        Pw[j_xi, j_eta] = np.array([Q[j], Q[j + nn], Q[j + 2 * nn]])
+
+    Qw = decompose_B_spline_surface((knot_vector0, knot_vector1), Pw)
+    
+    import matplotlib.pyplot as plt
+    fig = plt.figure()
+    ax0 = fig.add_subplot(121, projection='3d')
+    ax1 = fig.add_subplot(122, projection='3d')
+    n, m = Qw.shape[:2]
+    colors1 = ['red', 'blue']
+    colors2 = [['red', 'blue'], ['green', 'black']]
+    # for i, c1 in enumerate(colors1):
+    for i in range(n):
+        # Qw_i = Qw[i]
+        # Qw_i_1D = Qw_i.reshape(-1, 3)
+        # ax0.scatter(*Qw_i_1D.T, color=c1)
+        for j in range(m):
+            Qw_ij = Qw[i, j]
+            Qw_ij_1D = Qw_ij.reshape(-1, 3)
+            ax0.scatter(*Qw_ij_1D.T, color=colors2[i][j])
+            # ax0.scatter(*Qw_ij_1D.T, color='black')
+
+    # ax1.scatter(*Qw[0, 0].reshape(-1, 3).T, color='black')
+    ax1.scatter(X, Y, Z, color='red')
+    plt.show()
+
+    # B_spline_curve2vtk(knot_vector, q, 'test.vtu')
+    # exit()
 
 def Piegl_Ex3_4():
     degrees = (3, 2)
@@ -621,4 +821,5 @@ def test_Knot_vector():
 if __name__ == '__main__':
     # Piegl_Ex3_4()
     # test_Knot_vector()
-    Piegl_Fig5_18()
+    # Piegl_Fig5_18()
+    Piegl_Fig5_20()
