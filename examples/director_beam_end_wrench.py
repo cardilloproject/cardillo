@@ -48,7 +48,7 @@ if __name__ == "__main__":
     frame_left = Frame(r_OP=r_OB1)
 
     # discretization properties
-    p = 3
+    p = 1
     # nQP = int(np.ceil((p + 1)**2 / 2))
     nQP = p + 1
     print(f'nQP: {nQP}')
@@ -56,11 +56,17 @@ if __name__ == "__main__":
 
     # build reference configuration
     Q = straight_configuration(p, nEl, L)
+    q0 = Q.copy()
+    nn = nEl + p
+    # q0[nn + 1] += 1.0e-3
+    # q0[2 * nn + 1] += 1.0e-3
+    # q0[] + np.random.rand(len(Q)) * 1.0e-4
+    la_g0 = np.ones(9 * nn) * 1.0e-3
     # beam = Timoshenko_director_dirac(material_model, A_rho0, B_rho0, C_rho0, p, nQP, nEl, Q=Q)
     # beam = Euler_Bernoulli_director_dirac(material_model, A_rho0, B_rho0, C_rho0, p, nQP, nEl, Q=Q)
     # beam = Timoshenko_director_integral(material_model, A_rho0, B_rho0, C_rho0, p, nQP, nEl, Q=Q)
     # beam = Euler_Bernoulli_director_integral(material_model, A_rho0, B_rho0, C_rho0, p, nQP, nEl, Q=Q)
-    beam = Inextensible_Euler_Bernoulli_director_integral(material_model, A_rho0, B_rho0, C_rho0, p, nQP, nEl, Q=Q)
+    beam = Inextensible_Euler_Bernoulli_director_integral(material_model, A_rho0, B_rho0, C_rho0, p, nQP, nEl, Q=Q, q0=q0, la_g0=la_g0)
     # exit()
 
     # left joint
