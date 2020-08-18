@@ -6,7 +6,9 @@ import matplotlib.animation as animation
 
 from cardillo.model import Model
 from cardillo.model.classical_beams.planar import Euler_bernoulli, Hooke
-from cardillo.model.bilateral_constraints.implicit import Spherical_joint2D, Rigid_connection2D 
+from cardillo.model.bilateral_constraints.implicit import Spherical_joint2D, Rigid_connection2D, Revolute_joint2D
+from cardillo.model.scalar_force_interactions.force_laws import Linear_spring
+from cardillo.model.scalar_force_interactions import add_rotational_forcelaw
 from cardillo.solver.newton import Newton
 from cardillo.solver.euler_backward import Euler_backward
 from cardillo.solver import Generalized_alpha_1, Scipy_ivp
@@ -15,35 +17,44 @@ from cardillo.model.frame import Frame
 from cardillo.math.algebra import A_IK_basic_z
 
 if __name__ == "__main__":
-    statics = False
-    t1 = 1e-2
+    statics = True
+    t1 = 5e-2
     dt = 1e-4
     # physical parameters
     gamma = pi/4
     # nRow = 6
     # nCol = 10
-    nRow = 10
-    nCol = 100
+    nRow = 20
+    nCol = 40
     L = 0.2041
     H = L / nCol * nRow
     LBeam = L / (nCol * cos(gamma))
     EA = 1.6e9 * 1.6e-3 * 0.9e-3
-    EI = 1.6e9 * (1.6e-3) * (0.9e-3)**3/12
+    EI = 1.6e9 * (1.6e-3) * (0.9e-3)**3 / 12
+    GI = 0.1 * 1/3 * 1.6e9 * np.pi * ((0.9e-3)**4)/32 * 1e3 
+
+    # EA = 1.34e5
+    # EI = 1.92e-2
+    # GI = 1.59e2 * LBeam**2
+
+    # EA = 2304
+    # EI = 1.555e-4
+    # GI = 0.004
 
     displacementX_l = 0 #-0.0567/4
     # displacementX = 0.02
     displacementY_l = 0.0
-    rotationZ_l = 0# -np.pi/10
+    rotationZ_l = 0 #-np.pi/10
 
-    displacementX_r = 0# 0.0567/4
+    displacementX_r = 0 #0.0567
     # displacementX = 0.02
-    displacementY_r = 0.0
+    displacementY_r = 0.07
     
     rotationZ_r = 0 #np.pi/10
 
     # r_OP_l = lambda t: np.array([0, H / 2, 0]) + np.array([t * displacementX_l, t * displacementY_r, 0])
 
-    A = LBeam
+    A = 0 #LBeam
     frq = 1/2 # frq times oscillation during simulation
     Omega = 2 * np.pi * frq / t1
     r_OP_l = lambda t: np.array([0, H / 2, 0]) + A * np.array([sin(Omega *t), 0, 0])
@@ -59,10 +70,10 @@ if __name__ == "__main__":
     ###################
     # create pantograph
     ###################
-    p = 3
+    p = 4
     assert p >= 2
-    nQP = int(np.ceil((p + 1)**2 / 2))
-    # nQP = p
+    # nQP = int(np.ceil((p + 1)**2 / 2))
+    nQP = p
 
     print(f'nQP: {nQP}')
     nEl = 1
@@ -170,7 +181,7 @@ if __name__ == "__main__":
             r_OB = beam1.r_OP(0, beam1.q0[beam1.qDOF_P(frame_ID1)], frame_ID1)
             model.add(Rigid_connection2D(beam1, beam2, r_OB, frame_ID1=frame_ID1, frame_ID2=frame_ID2))
 
-    # pivots between beam families
+    # pivots and torsional springs between beam families
             
     # internal pivots
     for brow in range(0, nRow, 2):
@@ -178,14 +189,18 @@ if __name__ == "__main__":
             beam1 = beams[ID_mat[brow, bcol]]
             beam2 = beams[ID_mat[brow, bcol + 1]]
             r_OB = beam1.r_OP(0, beam1.q0[beam1.qDOF_P(frame_ID1)], frame_ID1)
-            model.add(Spherical_joint2D(beam1, beam2, r_OB, frame_ID1=frame_ID1, frame_ID2=frame_ID2))
+            # model.add(Revolute_joint2D(beam1, beam2, r_OB, np.eye(3), frame_ID1=frame_ID1, frame_ID2=frame_ID2))
+            spring = Linear_spring(GI)
+            model.add(add_rotational_forcelaw(spring, Revolute_joint2D)(beam1, beam2, r_OB, np.eye(3), frame_ID1=frame_ID1, frame_ID2=frame_ID2))
 
     # lower boundary pivots
     for bcol in range(1, nCol - 1, 2):
         beam1 = beams[ID_mat[-1, bcol]]
         beam2 = beams[ID_mat[-1, bcol + 1]]
         r_OB = beam1.r_OP(0, beam1.q0[beam1.qDOF_P(frame_ID1)], frame_ID1)
-        model.add(Spherical_joint2D(beam1, beam2, r_OB, frame_ID1=frame_ID1, frame_ID2=frame_ID2))
+        # model.add(Revolute_joint2D(beam1, beam2, r_OB, np.eye(3), frame_ID1=frame_ID1, frame_ID2=frame_ID2))
+        spring = Linear_spring(GI)
+        model.add(add_rotational_forcelaw(spring, Revolute_joint2D)(beam1, beam2, r_OB, np.eye(3), frame_ID1=frame_ID1, frame_ID2=frame_ID2))
 
     # clamping at the left hand side
     frame_l = Frame(r_OP=r_OP_l, A_IK=A_IK_l)
@@ -206,7 +221,9 @@ if __name__ == "__main__":
     # assemble model
     model.assemble()
 
-    # plot initial configuration
+    # print(f'ID matrix:{ID_mat}')
+
+    # # plot initial configuration
     # fig, ax = plt.subplots()
     # ax.set_xlabel('x [m]')
     # ax.set_ylabel('y [m]')
@@ -222,14 +239,16 @@ if __name__ == "__main__":
 
     # plt.show()
 
+
+
     ######################
     # solve static problem
     ######################
     if statics:
-        solver = Newton(model, n_load_steps=3, max_iter=20, tol=1.0e-6, numerical_jacobian=False)
+        solver = Newton(model, n_load_steps=3, max_iter=50, tol=1.0e-10, numerical_jacobian=False)
     else:
-        solver = Euler_backward(model, t1, dt, newton_max_iter=50, numerical_jacobian=False, debug=False)
-        # solver = Generalized_alpha_1(model, t1, dt, variable_dt=False, rho_inf=0.5)
+        # solver = Euler_backward(model, t1, dt, newton_max_iter=50, numerical_jacobian=False, debug=False)
+        solver = Generalized_alpha_1(model, t1, dt, variable_dt=True, rho_inf=0.5)
         # solver = Scipy_ivp(model, t1, dt, atol=1e-6)
 
 
