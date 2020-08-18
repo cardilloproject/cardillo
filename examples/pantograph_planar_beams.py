@@ -1,7 +1,9 @@
 import numpy as np
-from math import pi, ceil, sin, cos
+from math import pi, ceil, sin, cos, exp
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
+from numpy.core.function_base import linspace
+from numpy.lib.function_base import disp
 
 
 from cardillo.model import Model
@@ -17,21 +19,38 @@ from cardillo.model.frame import Frame
 from cardillo.math.algebra import A_IK_basic_z
 
 if __name__ == "__main__":
-    statics = True
-    t1 = 5e-2
-    dt = 1e-4
+    statics = False
+    t1 = 5e-2 #/500
+    dt = t1 / 1500
     # physical parameters
     gamma = pi/4
     # nRow = 6
     # nCol = 10
     nRow = 20
-    nCol = 40
-    L = 0.2041
-    H = L / nCol * nRow
-    LBeam = L / (nCol * cos(gamma))
-    EA = 1.6e9 * 1.6e-3 * 0.9e-3
-    EI = 1.6e9 * (1.6e-3) * (0.9e-3)**3 / 12
-    GI = 0.1 * 1/3 * 1.6e9 * np.pi * ((0.9e-3)**4)/32 * 1e3 
+    nCol = 400
+    nf = nRow / 2
+
+    H = 0.07
+    L = 20 * H
+    LBeam = H / (nRow * sin(gamma))
+
+    Yb = 500e6
+    Gb = Yb / (2 * (1 + 0.4))
+    a = 1.6e-3
+    b = 1e-3
+    rp = 0.45e-3
+    hp = 1e-3
+
+    Jg = (a * b**3) / 12
+    
+    EA = Yb * a * b
+    EI = Yb * Jg
+    GI = Gb * 0.5*(np.pi * rp**4)/hp
+
+    displ = H / 5
+    # EA = 1.6e9 * 1.6e-3 * 0.9e-3
+    # EI = 1.6e9 * (1.6e-3) * (0.9e-3)**3 / 12
+    # GI = 0.1 * 1/3 * 1.6e9 * np.pi * ((0.9e-3)**4)/32 * 1e3 
 
     # EA = 1.34e5
     # EI = 1.92e-2
@@ -41,39 +60,50 @@ if __name__ == "__main__":
     # EI = 1.555e-4
     # GI = 0.004
 
-    displacementX_l = 0 #-0.0567/4
+    displacementX_l = displ #-0.0567/4
     # displacementX = 0.02
     displacementY_l = 0.0
     rotationZ_l = 0 #-np.pi/10
 
     displacementX_r = 0 #0.0567
     # displacementX = 0.02
-    displacementY_r = 0.07
+    displacementY_r = 0.00
     
     rotationZ_r = 0 #np.pi/10
 
     # r_OP_l = lambda t: np.array([0, H / 2, 0]) + np.array([t * displacementX_l, t * displacementY_r, 0])
 
-    A = 0 #LBeam
-    frq = 1/2 # frq times oscillation during simulation
-    Omega = 2 * np.pi * frq / t1
-    r_OP_l = lambda t: np.array([0, H / 2, 0]) + A * np.array([sin(Omega *t), 0, 0])
+    fcn = lambda t: displ * np.exp(-(t-0.004)**2/0.001**2)*(t*(t<0.001)+0.001*(t>=0.001))/0.001
+
+    fig, ax = plt.subplots()
+    ax.set_xlabel('x [m]')
+    ax.set_ylabel('y [m]')
+    x = linspace(0, t1, 1000)
+    y = []
+
+    for t in x:
+        y.append(fcn(t))
+
+    ax.plot(x, y)
+    plt.show()
+
+    r_OP_l = lambda t: np.array([0, H / 2, 0]) + np.array([fcn(t), 0, 0])
 
     A_IK_l = lambda t: A_IK_basic_z(t * rotationZ_l)
 
     r_OP_r = lambda t: np.array([L, H / 2, 0]) +  np.array([t * displacementX_r, t * displacementY_r, 0])
     A_IK_r = lambda t: A_IK_basic_z(t * rotationZ_r)
     
-    A_rho0 = 0.1
+    A_rho0 = 930 * a * b
     material_model = Hooke(EA, EI)
 
     ###################
     # create pantograph
     ###################
-    p = 4
+    p = 3
     assert p >= 2
-    # nQP = int(np.ceil((p + 1)**2 / 2))
-    nQP = p
+    nQP = int(np.ceil((p + 1)**2 / 2))
+    # nQP = p
 
     print(f'nQP: {nQP}')
     nEl = 1
@@ -88,7 +118,7 @@ if __name__ == "__main__":
 
     # build reference configuration
     nNd = nEl + p
-    X0 = np.linspace(0, L, nNd)
+    X0 = np.linspace(0, LBeam, nNd)
     Xi = uniform_knot_vector(p, nEl)
     for i in range(nNd):
         X0[i] = np.sum(Xi[i+1:i+p+1])
@@ -239,6 +269,8 @@ if __name__ == "__main__":
 
     # plt.show()
 
+    # exit()
+
 
 
     ######################
@@ -248,11 +280,13 @@ if __name__ == "__main__":
         solver = Newton(model, n_load_steps=3, max_iter=50, tol=1.0e-10, numerical_jacobian=False)
     else:
         # solver = Euler_backward(model, t1, dt, newton_max_iter=50, numerical_jacobian=False, debug=False)
-        solver = Generalized_alpha_1(model, t1, dt, variable_dt=True, rho_inf=0.5)
+        solver = Generalized_alpha_1(model, t1, dt, variable_dt=False, rho_inf=0.9)
         # solver = Scipy_ivp(model, t1, dt, atol=1e-6)
 
 
     sol = solver.solve()
+
+    # exit()
 
     if statics:
         fig, ax = plt.subplots()
