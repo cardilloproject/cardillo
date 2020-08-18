@@ -26,7 +26,7 @@ class Knot_vector():
         element = np.zeros(lenxi, dtype=int)
         for j in range(lenxi):
             element[j] = np.where(self.element_data <= knots[j])[0][-1]
-            if knots[j] == 1:
+            if knots[j] == self.data[-1]:
                 element[j] -= 1
         return element
         
@@ -65,7 +65,7 @@ def find_knotspan(degree, knot_vector, knots):
     span = np.zeros(lenxi, dtype=int)
     for j in range(lenxi):
         span[j] = np.where(knot_vector <= knots[j])[0][-1]
-        if knots[j] == 1:
+        if knots[j] == knot_vector[-1]:
             span[j] += -degree - 1
     return span
 
@@ -244,10 +244,14 @@ def B_spline_basis3D(degrees, derivative_order, knot_vectors, knots):
     m = len(zeta)
     klm = k * l * m
 
-    NN = []
-    for d in range(derivative_order + 1):
-        N = np.zeros((klm, p1q1r1, *(3,) * d))
-        NN.append(N)
+    # compute number of shape functions and derivatives
+    # and store them consecutively
+    n = sum([3**d for d in range(derivative_order + 1)])
+    NN = np.zeros((klm, p1q1r1, n))
+    # NN = []
+    # for d in range(derivative_order + 1):
+    #     N = np.zeros((klm, p1q1r1, *(3,) * d))
+    #     NN.append(N)
 
     Nxi = B_spline_basis1D(p, derivative_order, Xi, xi, squeeze=False)
     Neta = B_spline_basis1D(q, derivative_order, Eta, eta, squeeze=False)
@@ -259,22 +263,35 @@ def B_spline_basis3D(degrees, derivative_order, knot_vectors, knots):
         for a in range(p1q1r1):
             a_xi, a_eta, a_zeta = split3D(a, (p + 1, q + 1))
 
-            NN[0][i, a] = Nxi[0, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[0, im, a_zeta]
+            # NN[0][i, a] = Nxi[0, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[0, im, a_zeta]
+            NN[i, a, 0] = Nxi[0, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[0, im, a_zeta]
 
             if derivative_order > 0:
-                NN[1][i, a, 0] = Nxi[1, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[0, im, a_zeta]
-                NN[1][i, a, 1] = Nxi[0, ik ,a_xi] * Neta[1, il, a_eta] * Nzeta[0, im, a_zeta]
-                NN[1][i, a, 2] = Nxi[0, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[1, im, a_zeta]
+                # NN[1][i, a, 0] = Nxi[1, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[0, im, a_zeta]
+                # NN[1][i, a, 1] = Nxi[0, ik ,a_xi] * Neta[1, il, a_eta] * Nzeta[0, im, a_zeta]
+                # NN[1][i, a, 2] = Nxi[0, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[1, im, a_zeta]
+                NN[i, a, 1] = Nxi[1, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[0, im, a_zeta]
+                NN[i, a, 2] = Nxi[0, ik, a_xi] * Neta[1, il, a_eta] * Nzeta[0, im, a_zeta]
+                NN[i, a, 3] = Nxi[0, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[1, im, a_zeta]
                 if derivative_order > 1:
-                    NN[2][i, a, 0, 0] = Nxi[2, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[0, im, a_zeta]
-                    NN[2][i, a, 0, 1] = Nxi[1, ik, a_xi] * Neta[1, il, a_eta] * Nzeta[0, im, a_zeta]
-                    NN[2][i, a, 0, 2] = Nxi[1, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[1, im, a_zeta]
-                    NN[2][i, a, 1, 0] = NN[2][i, a, 0, 1]
-                    NN[2][i, a, 1, 1] = Nxi[0, ik, a_xi] * Neta[2, il, a_eta] * Nzeta[0, im, a_zeta]
-                    NN[2][i, a, 1, 2] = Nxi[0, ik, a_xi] * Neta[1, il, a_eta] * Nzeta[1, im, a_zeta]
-                    NN[2][i, a, 2, 0] = NN[2][i, a, 0, 2]
-                    NN[2][i, a, 2, 1] = NN[2][i, a, 1, 2]
-                    NN[2][i, a, 2, 2] = Nxi[0, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[2, im, a_zeta]
+                    # NN[2][i, a, 0, 0] = Nxi[2, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[0, im, a_zeta]
+                    # NN[2][i, a, 0, 1] = Nxi[1, ik, a_xi] * Neta[1, il, a_eta] * Nzeta[0, im, a_zeta]
+                    # NN[2][i, a, 0, 2] = Nxi[1, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[1, im, a_zeta]
+                    # NN[2][i, a, 1, 0] = NN[2][i, a, 0, 1]
+                    # NN[2][i, a, 1, 1] = Nxi[0, ik, a_xi] * Neta[2, il, a_eta] * Nzeta[0, im, a_zeta]
+                    # NN[2][i, a, 1, 2] = Nxi[0, ik, a_xi] * Neta[1, il, a_eta] * Nzeta[1, im, a_zeta]
+                    # NN[2][i, a, 2, 0] = NN[2][i, a, 0, 2]
+                    # NN[2][i, a, 2, 1] = NN[2][i, a, 1, 2]
+                    # NN[2][i, a, 2, 2] = Nxi[0, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[2, im, a_zeta]
+                    NN[i, a, 4] = Nxi[2, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[0, im, a_zeta]
+                    NN[i, a, 5] = Nxi[1, ik, a_xi] * Neta[1, il, a_eta] * Nzeta[0, im, a_zeta]
+                    NN[i, a, 6] = Nxi[1, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[1, im, a_zeta]
+                    NN[i, a, 7] = NN[i, a, 5]
+                    NN[i, a, 8] = Nxi[0, ik, a_xi] * Neta[2, il, a_eta] * Nzeta[0, im, a_zeta]
+                    NN[i, a, 9] = Nxi[0, ik, a_xi] * Neta[1, il, a_eta] * Nzeta[1, im, a_zeta]
+                    NN[i, a, 10] = NN[i, a, 6]
+                    NN[i, a, 11] = NN[i, a, 7]
+                    NN[i, a, 12] = Nxi[0, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[2, im, a_zeta]
 
     return NN
 
@@ -364,9 +381,178 @@ def fit_B_Spline(points, degree, nEl, fixFirst=True, fixLast=True):
         Q_r[cDOF2] = points[-1]
     return Q_r.reshape(dim, -1).T
 
+def decompose_B_spline_curve(knot_vector, Pw):
+    r"""Decomposes a NURBS curve into Bezier patches. See Piegl/Tiller 1997 algorithm A5.6 (p. 173)
+
+    Parameters
+    ----------
+    Xi: Knot_vector
+        knot vector object
+    Pw : numpy.ndarray
+        (n)-by-(dim) array containing (weighted) control points
+
+
+    Returns
+    -------
+    Qw: numpy.ndarray
+        (nbezier + 1)-by-(Xi.degree + 1) array containing the control points of the segments
+    """
+    n, dim = Pw.shape
+    # n -= 1 # see Piegl1997 p. 93
+    p = knot_vector.degree
+    Xi = knot_vector.data
+    # TODO: append to list insead of overestimating number of Bezier cells
+    Qw = np.zeros((n, p + 1, dim))
+
+    # ignore n = n - 1 of Piegl1997 p. 93
+    # m = n + p + 1
+    m = n + p
+    a = p
+    b = p + 1
+    nbezier = 0
+    for i in range(p + 1):
+        Qw[nbezier, i] = Pw[i]
+
+    while (b < m):
+        i = b
+        # compute multiplicity of knot
+        while(b < m and Xi[b + 1] == Xi[b]):
+            b += 1
+        mult = b - i + 1
+
+        if (mult < p):
+            # numerator of alpha
+            numer = Xi[b] - Xi[a]
+
+            # compute and store alphas
+            alphas = np.zeros(p - mult)
+            for j in reversed(range(mult + 1, p + 1)):
+                alphas[j - mult - 1] = numer / (Xi[a + j] - Xi[a])
+            r = p - mult
+            # insert knot r times
+            for j in range(1, r + 1):
+                save = r - j
+                # this many new points
+                s = mult + j    
+                for k in reversed(range(s, p + 1)):
+                    alpha = alphas[k - s]
+                    Qw[nbezier, k] = alpha * Qw[nbezier, k] + (1 - alpha) * Qw[nbezier, k - 1]
+                if (b < m):
+                    # control point of next segment
+                    Qw[nbezier + 1, save] = Qw[nbezier, p]
+        nbezier += 1  # bezier segment completed
+
+        if (b < m):
+            # initialize for next segment
+            for i in range(p - mult, p + 1):
+                Qw[nbezier, i] = Pw[b - p + i]
+            a = b
+            b += 1
+
+    return Qw[:nbezier]
+
+def B_spline_curve2vtk(knot_vector, Pw, filename):
+    from meshio import _mesh
+    from meshio.vtu._vtu import write
+
+    # create bezier patches
+    Qw = decompose_B_spline_curve(knot_vector, Pw)
+    nbezier, degree1, dim = Qw.shape
+
+    # # iterate over all bezier patches
+    # for i in range(nbezier):
+    #     Qw[i] = Qw[i, mask]
+
+    # initialize the array containing all points of all patches
+    points = np.zeros((nbezier * degree1, dim))
+
+    # mask rearrange point ordering in a single Bezier patch
+    mask = np.concatenate([[0], [degree1-1], np.arange(1, degree1-1)]) 
+
+    # iterate over all bezier patches and fill cell data and connectivities
+    offset = np.zeros(nbezier)
+    cells = []
+    HigherOrderDegree_patches = []
+    conn = np.zeros(nbezier * degree1)
+    for i in range(nbezier):
+        # point_range of patch
+        point_range =  np.arange(i * degree1, (i + 1) * degree1) 
+
+        # define points
+        # points_patch = np.zeros((degree1, dim))
+        # # points_patch[:, :] = rearrange_points(Qw,i,sort=False)
+        # Qw[i] = Qw[i, mask]
+        points[point_range] = Qw[i, mask]
+
+        # define connectivity or vertices that belongs to each element
+        conn[point_range] = point_range
+
+        # # Define offset of last vertex of each element
+        # offset[i] =  point_range[-1] +1
+
+        # Define cell types
+        cells.append( ("VTK_BEZIER_CURVE", point_range[None]) )
+
+
+    # Define HigherOrderDegree
+    degrees = np.ones(nbezier) * (degree1 - 1)
+    # HigherOrderDegree_patches = np.stack((degrees, np.zeros_like(degrees), np.zeros_like(degrees))).T
+    HigherOrderDegree_patches = np.stack((degrees, degrees, degrees)).T
+
+    cell_data = { "HigherOrderDegrees": HigherOrderDegree_patches}
+
+    # # point_data = {
+    # #                 "J": build_point_dat(J_all),
+    # #                 "W": build_point_dat(W_all),
+    # #                 "P": build_point_dat(P_all),
+    # #                 "F": build_point_dat(F_all),
+    # #                 }
+
+
+    # create meshio Mesh
+    mesh_meshio = _mesh.Mesh(
+        points,
+        cells,
+        # point_data=point_data,
+        cell_data=cell_data,
+    )
+
+    write(filename, mesh_meshio, binary=False)
+
+def Piegl_Fig5_18():
+    degree = 3
+    nel = 4
+    data = np.array([0, 0, 0, 0, 1, 2, 3, 4, 4, 4, 4])
+    knot_vector = Knot_vector(degree, nel, data=data)
+
+    q = np.array([[0, 0], [0.1, 1], [1, 1], [1.5, -0.1], [2.2, -0.1], [2.5, 0.8], [2.0, 1.3]])
+    B_spline_curve2vtk(knot_vector, q, 'test.vtu')
+    exit()
+
+    num = 100
+    xis = np.linspace(0, 4, num=num)    
+    Nxi = np.zeros((degree + nel, num))
+    for i, xi in enumerate(xis):
+        el = knot_vector.element_number(xi)[0]
+        Nxi[el:el+degree + 1, i] = B_spline_basis1D(degree, 0, data, xi)
+    c = Nxi.T @ q
+
+    Qw = decompose_B_spline_curve(knot_vector, q)
+
+    import matplotlib.pyplot as plt
+    fig, ax = plt.subplots(2, 1)
+    for Ni in Nxi:
+        ax[0].plot(xis, Ni)
+    ax[1].plot(*q.T, '--ob')
+    ax[1].plot(*c.T, '-k')
+    ax[1].plot(*Qw.T, '--xr')
+
+    plt.show()
+
+
 def Piegl_Ex3_4():
     degrees = (3, 2)
-    nEls = (4, 5)
+    nEls = (4, 6)
     # U = np.array([0, 0, 0, 0, 1/4, 1/2, 3/4, 1, 1, 1, 1])
     U = uniform_knot_vector(degrees[0], nEls[0])
     V = np.array([0, 0, 0, 1/5, 2/5, 3/5, 3/5, 4/5, 1, 1, 1])
@@ -387,7 +573,7 @@ def Piegl_Ex3_4():
     ax1 = fig.add_subplot(gs[1, 0])
     ax2 = fig.add_subplot(gs[:, 1], projection='3d')
 
-    Nxi = np.zeros((degrees[0] * nEls[0], n))
+    Nxi = np.zeros((degrees[0] + nEls[0], n))
     for i, xi in enumerate(xis):
         span = find_knotspan(degrees[0], U, xi)[0]
         el = span - degrees[0]
@@ -397,7 +583,7 @@ def Piegl_Ex3_4():
     # for Nxii in Nxi:
     #     ax0.plot(xis, Nxii)
 
-    Neta = np.zeros((degrees[1] * nEls[1], n))
+    Neta = np.zeros((degrees[1] + nEls[1], n))
     for j, eta in enumerate(etas):
         span = find_knotspan(degrees[1], V, eta)[0]
         el = span - degrees[1]
@@ -434,4 +620,5 @@ def test_Knot_vector():
 
 if __name__ == '__main__':
     # Piegl_Ex3_4()
-    test_Knot_vector()
+    # test_Knot_vector()
+    Piegl_Fig5_18()
