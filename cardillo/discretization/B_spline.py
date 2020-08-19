@@ -382,32 +382,27 @@ def fit_B_Spline(points, degree, nEl, fixFirst=True, fixLast=True):
     return Q_r.reshape(dim, -1).T
 
 def decompose_B_spline_curve(knot_vector, Pw):
-    r"""Decomposes a NURBS curve into Bezier patches. See Piegl/Tiller 1997 algorithm A5.6 (p. 173)
+    r"""Decomposes a NURBS curve into Bezier patches. See Piegl1997 algorithm A5.6 (p. 173).
+    We use n = number of weighted control points instead of n = number of weighted control points + 1 
+    as done in Piegl1997 (p. 93).
 
     Parameters
     ----------
-    Xi: Knot_vector
+    knot_vector: Knot_vector
         knot vector object
     Pw : numpy.ndarray
-        (n)-by-(dim) array containing (weighted) control points
-
+        (n)x(dim) array containing (weighted) control points
 
     Returns
     -------
     Qw: numpy.ndarray
-        (nbezier + 1)-by-(Xi.degree + 1) array containing the control points of the segments
+        (nbezier + 1)x(Xi.degree + 1) array containing the control points of the nbezier Bezier patches.
     """
     n, dim = Pw.shape
-    # n -= 1 # see Piegl1997 p. 93
     p = knot_vector.degree
     Xi = knot_vector.data
-    # TODO: append to list insead of overestimating number of Bezier cells
-    # Qw = np.zeros((n, p + 1, dim))
-    # nbezier__ = knot_vector.nel
     Qw = np.zeros((knot_vector.nel, p + 1, dim))
 
-    # ignore n = n - 1 of Piegl1997 p. 93
-    # mknot = n + p + 1
     mknot = n + p
     a = p
     b = p + 1
@@ -451,26 +446,27 @@ def decompose_B_spline_curve(knot_vector, Pw):
             a = b
             b += 1
 
-    # return Qw[:nbezier]
     return Qw
 
 def decompose_B_spline_surface(knot_vectors, Pw):
-    r"""Decomposes a NURBS curve into Bezier patches. See Piegl/Tiller 1997 algorithm A5.6 (p. 173)
+    r"""Decomposes a NURBS surface into Bezier patches. See Piegl1997 algorithm A5.6 (p. 173).
+    We use n = number of weighted control points in xi direction instead of n = number of weighted 
+    control points in xi direction + 1 as done in Piegl1997 (p. 93). Same applies for m = number of 
+    control points in eta direction.
 
     Parameters
     ----------
-    knot_vectors: tuple of both Knot_vectors
-        knot vector object
+    knot_vectors: (Knot_vector, Knot_vector)
+        tuple containing both knot vector objects
     Pw : numpy.ndarray
-        (n)-by-(dim) array containing (weighted) control points
-
+        (n)x(m)x(dim) array containing (weighted) control points
 
     Returns
     -------
     Qw: numpy.ndarray
-        (nbezier + 1)-by-(Xi.degree + 1) array containing the control points of the segments
+        (nbezier + 1)x(mbezier + 1)x(Xi.degree + 1)x(Eta.degree + 1)x(dim) array containing 
+        the control points of the nbezierxmbezier Bezier patches.
     """
-    
     def decompose_1D(n, m, p, Xi, Pw, Qw):
         a = p
         b = p + 1
@@ -515,10 +511,7 @@ def decompose_B_spline_surface(knot_vectors, Pw):
                 a = b
                 b += 1
 
-        # return Qw[:nbezier], nbezier
-
     n, m, dim = Pw.shape
-    # n -= 1 # see Piegl1997 p. 93
     p = knot_vectors[0].degree
     Xi = knot_vectors[0].data
     q = knot_vectors[1].degree
@@ -529,19 +522,16 @@ def decompose_B_spline_surface(knot_vectors, Pw):
     
     Qw_xi = np.zeros((nbezier, p + 1, m, dim))
     decompose_1D(n, m, p, Xi, Pw, Qw_xi)
-
-    # return Qw_xi
     
-    # # Qw_eta = np.zeros((nbezier, mbezier, p + 1, q + 1, dim))
-    # Qw_eta = np.zeros((nbezier, mbezier, p + 1, q + 1, dim))
-    Qw_eta = np.zeros((nbezier, mbezier, q + 1, p + 1, dim))
-    for i, Qw_xii in enumerate(Qw_xi):
-        decompose_1D(m, p+1, q, Eta, Qw_xii.transpose(1, 0, 2), Qw_eta[i])
-        # n, m, dim = Qw_xii.transpose(1, 0, 2).shape
-        # decompose_1D(n, m, q, Eta, Qw_xii.transpose(1, 0, 2), Qw_eta[i])
-
-    return Qw_eta.transpose(0, 1, 3, 2, 4)
-    # return Qw_eta
+    # store (nbezier+1)x(mbezier+1) Bezier segments of shape (q+1)x(p+1) and dimension dim
+    # each segment has to be transposed in the end!
+    Qw = np.zeros((nbezier, mbezier, q + 1, p + 1, dim))
+    # for i, Qw_xii in enumerate(Qw_xi):
+    for i in range(nbezier):
+        # we rotate xi and eta direction, thus xi and eta direction has to be swapped
+        decompose_1D(m, p+1, q, Eta, Qw_xi[i].transpose(1, 0, 2), Qw[i])
+    # return correct ordered Bezier patches
+    return Qw.transpose(0, 1, 3, 2, 4)
 
 def B_spline_curve2vtk(knot_vector, Pw, filename):
     from meshio import _mesh
