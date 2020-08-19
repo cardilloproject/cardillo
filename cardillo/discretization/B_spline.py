@@ -1,5 +1,5 @@
 import numpy as np
-from cardillo.discretization.indexing import split2D, split3D
+from cardillo.discretization.indexing import flat3D, split2D, split3D
 
 def uniform_knot_vector(degree, nEl, interval=[0, 1]):
     return np.concatenate( [np.ones(degree) * interval[0], \
@@ -544,6 +544,105 @@ def decompose_B_spline_surface(knot_vectors, Pw):
         decompose_1D(m, p+1, q, Eta, Qw_xi[i].transpose(1, 0, 2), Qw[i])
     # return correct ordered Bezier patches
     return Qw.transpose(0, 1, 3, 2, 4)
+    
+def decompose_B_spline_volume(knot_vectors, Pw):
+    r"""Decomposes a NURBS volume into Bezier patches. See Piegl1997 algorithm A5.6 (p. 173).
+    We use n = number of weighted control points in xi direction instead of n = number of weighted 
+    control points in xi direction + 1 as done in Piegl1997 (p. 93). Same applies for m = number of 
+    control points in eta direction.
+
+    Parameters
+    ----------
+    knot_vectors: (Knot_vector, Knot_vector)
+        tuple containing both knot vector objects
+    Pw : numpy.ndarray
+        (n)x(m)x(dim) array containing (weighted) control points
+
+    Returns
+    -------
+    Qw: numpy.ndarray
+        (nbezier_xi + 1)x(mbezier_eta + 1)x(Xi.degree + 1)x(Eta.degree + 1)x(dim) array containing 
+        the control points of the nbezier_xi x mbezier_eta Bezier patches.
+    """    
+    def decompose_1D(n, m, o, p, Xi, Pw, Qw):
+        a = p
+        b = p + 1
+        nbezier = 0
+        mknot = n + p
+        for i in range(p + 1):
+            for row in range(m):
+                for col in range(o):
+                    Qw[nbezier, i, row, col] = Pw[i, row, col]
+        while (b < mknot):
+            i = b
+            # compute multiplicity of knot
+            while(b < mknot and Xi[b + 1] == Xi[b]):
+                b += 1
+            mult = b - i + 1
+
+            if (mult < p):
+                # numerator of alpha
+                numer = Xi[b] - Xi[a]
+
+                # compute and store alphas
+                alphas = np.zeros(p - mult)
+                for j in reversed(range(mult + 1, p + 1)):
+                    alphas[j - mult - 1] = numer / (Xi[a + j] - Xi[a])
+                rk = p - mult
+                # insert knot rk times
+                for j in range(1, rk + 1):
+                    save = rk - j
+                    # this many new points
+                    s = mult + j    
+                    for k in reversed(range(s, p + 1)):
+                        alpha = alphas[k - s]
+                        for row in range(m):
+                            for col in range(o):
+                                Qw[nbezier, k, row, col] = alpha * Qw[nbezier, k, row, col] + (1 - alpha) * Qw[nbezier, k - 1, row, col]
+                    if (b < mknot):
+                        for row in range(m):
+                            for col in range(o):
+                                Qw[nbezier + 1, save, row, col] = Qw[nbezier, p, row, col]
+            nbezier += 1
+            if (b < mknot):
+                for i in range(p - mult, p + 1):
+                    for row in range(m):
+                        for col in range(o):
+                            Qw[nbezier, i, row, col] = Pw[b - p + i, row, col]
+                a = b
+                b += 1
+
+    n, m, o, dim = Pw.shape
+    p = knot_vectors[0].degree
+    Xi = knot_vectors[0].data
+    q = knot_vectors[1].degree
+    Eta = knot_vectors[1].data
+    r = knot_vectors[2].degree
+    Zeta = knot_vectors[2].data
+
+    nbezier_xi = knot_vectors[0].nel
+    nbezier_eta = knot_vectors[1].nel
+    nbezier_zeta = knot_vectors[2].nel
+    
+    Qw_xi = np.zeros((nbezier_xi, p + 1, m, o, dim))
+    decompose_1D(n, m, o, p, Xi, Pw, Qw_xi)
+    
+    # store (nbezier_xi+1)x(mbezier_eta+1) Bezier segments of shape (q+1)x(p+1) and dimension dim
+    # each segment has to be transposed in the end!
+    # Qw_eta = np.zeros((nbezier_xi, nbezier_eta, q + 1, p + 1, o, dim))
+    Qw_eta = np.zeros((nbezier_xi, nbezier_eta, q + 1, o, p + 1, dim))
+    for i in range(nbezier_xi):
+        # we rotate xi and eta direction, thus xi and eta direction has to be swapped
+        # decompose_1D(m, p+1, o, q, Eta, Qw_xi[i].transpose(1, 2, 0, 3), Qw_eta[i])
+        decompose_1D(m, o, p+1, q, Eta, Qw_xi[i].transpose(1, 2, 0, 3), Qw_eta[i])
+
+    Qw = np.zeros((nbezier_xi, nbezier_eta, nbezier_zeta, r + 1, p + 1, q + 1, dim))
+    for i in range(nbezier_xi):
+        for j in range(nbezier_eta):
+            decompose_1D(o, p+1, q+1, r, Zeta, Qw_eta[i, j].transpose(1, 2, 0, 3), Qw[i, j])
+
+    # return correct ordered Bezier patches
+    return Qw.transpose(0, 1, 2, 4, 5, 3, 6)
 
 def B_spline_curve2vtk(knot_vector, Pw, filename):
     # TODO: import global meshio
@@ -595,7 +694,7 @@ def B_spline_curve2vtk(knot_vector, Pw, filename):
         binary=False
     )
 
-def elDOF_vtk3D(mesh):
+def elDOF_vtk3D(mesh, split=False):
     """ Rearranges either a Point Array or a sorting array like elDOF in vtk ordering
         if sort is true, obj must be a mesh object.
         If sort is false, object must ba an array with dimensions:
@@ -611,7 +710,12 @@ def elDOF_vtk3D(mesh):
 
     for el, elDOF_el in enumerate(elDOF):
         # reshape element elDOF for easier rearrangement
-        elDOF_nd = elDOF_el[:mesh.nn_el].reshape(degrees1).T
+        elDOF_nd = np.zeros(degrees1)
+        elDOF_el_xi = elDOF_el[:mesh.nn_el]
+        for n_el in range(mesh.nn_el):
+            i, j, k = split3D(n_el, degrees1)
+            elDOF_nd[i, j, k] = elDOF_el_xi[n_el]
+        # elDOF_nd = elDOF_el[:mesh.nn_el].reshape(np.flip(degrees1)).T
         nn_xi, nn_eta, nn_zeta = elDOF_nd.shape
         
         # corners
@@ -826,8 +930,8 @@ def Piegl_Fig5_20():
         j_xi, j_eta = split2D(j, (nn_xi, nn_eta))
         Pw[j_xi, j_eta] = np.array([Q[j], Q[j + nn], Q[j + 2 * nn]])
 
-    B_spline_surface2vtk((knot_vector0, knot_vector1), Pw, 'Bezier_surface.vtu')
-    exit()
+    # B_spline_surface2vtk((knot_vector0, knot_vector1), Pw, 'Bezier_surface.vtu')
+    # exit()
     
     # import matplotlib.pyplot as plt
     # fig = plt.figure()
@@ -858,9 +962,6 @@ def Piegl_Fig5_20():
     # ax1.scatter(*Qw[0, 0].reshape(-1, 3).T, color='black')
     ax1.scatter(X, Y, Z, color='red')
     plt.show()
-
-    # B_spline_curve2vtk(knot_vector, q, 'test.vtu')
-    # exit()
 
 def Piegl_Ex3_4():
     degrees = (3, 2)
@@ -931,11 +1032,12 @@ def test_Knot_vector():
     print(f'el([0.3, 0.5, 0.7, 1.0]): {U.element_number([0.2, 0.5, 0.7, 1.0])}')
 
 def mesh3D_vtk_export():
-    # degrees = (2, 3, 1)
+    # degrees = (1, 1, 1)
     degrees = (2, 2, 2)
     QP_shape = (3, 4, 2)
-    # element_shape = (1, 2, 3)
-    element_shape = (1, 1, 1)
+    element_shape = (1, 1, 2)
+    # element_shape = (3, 2, 1)
+    # element_shape = (2, 3, 4)
 
     Xi = Knot_vector(degrees[0], element_shape[0])
     Eta = Knot_vector(degrees[1], element_shape[1])
@@ -949,15 +1051,42 @@ def mesh3D_vtk_export():
     cube_shape = (3, 3, 3)
     Q_cube = cube(cube_shape, mesh, Greville=False, Fuzz=0)
     # scatter_Qs(Q_cube)
-    # exit()
+    
+    # rearrange generalized coordinates
+    nn_xi = Xi.nel + Xi.degree
+    nn_eta = Eta.nel + Eta.degree
+    nn_zeta = Zeta.nel + Zeta.degree
+    nn = nn_xi * nn_eta * nn_zeta
+    Pw = np.zeros((nn_xi, nn_eta, nn_zeta, 3))
+    for j in range(nn):
+        j_xi, j_eta, j_zeta = split3D(j, (nn_xi, nn_eta, nn_zeta))
+        Pw[j_xi, j_eta, j_zeta] = np.array([Q_cube[j], Q_cube[j + nn], Q_cube[j + 2 * nn]])
 
-    points = Q_cube.reshape((3, -1)).T
+    Qw = decompose_B_spline_volume((Xi, Eta, Zeta), Pw)
+    
+    points = np.zeros((nn, 3))
+    for i in range(nn_xi):
+        for j in range(nn_eta):
+            for k in range(nn_zeta):
+                idx = flat3D(i, j, k, (nn_xi, nn_eta, nn_zeta))
+                points[idx] = Qw[a, b, c, i, j, k]
+
+    # TODO: 3D Bezier patches
+
+    # points = Q_cube.reshape((3, -1)).T
+    points = Qw.reshape((3, -1)).T
+    # points = Qw.reshape((-1, 3)).T
     cells_type = ["VTK_BEZIER_HEXAHEDRON"] * mesh.nel
     cells_array = np.reshape(elDOF_vtk, (mesh.nel, mesh.nn_el))
-    cells = list(zip(cells_type, [cells_array]))
+    cells = list(zip(cells_type, cells_array))
+    cells = []
+    for c, c_array in enumerate(cells_array):
+        cells.append(("VTK_BEZIER_HEXAHEDRON", c_array[None]))
     
-    HigherOrderDegree_patches = np.repeat(degrees, elDOF_vtk.shape[0])
-    cell_data = { "HigherOrderDegrees": HigherOrderDegree_patches[None]}
+    # HigherOrderDegree_patches = np.repeat(degrees, elDOF_vtk.shape[0]).reshape(len(cells), 1, 3)
+    HigherOrderDegree_patches = np.tile(degrees, elDOF_vtk.shape[0]).reshape(len(cells), 1, 3)
+    # HigherOrderDegree_patches = np.repeat(degrees, elDOF_vtk.shape[0]).reshape(len(cells), 1, 3)
+    cell_data = { "HigherOrderDegrees": HigherOrderDegree_patches}
     
     import meshio as meshio
     meshio.write_points_cells(
