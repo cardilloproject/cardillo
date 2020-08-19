@@ -476,8 +476,8 @@ def decompose_B_spline_surface(knot_vectors, Pw):
     Returns
     -------
     Qw: numpy.ndarray
-        (nbezier + 1)x(mbezier + 1)x(Xi.degree + 1)x(Eta.degree + 1)x(dim) array containing 
-        the control points of the nbezierxmbezier Bezier patches.
+        (nbezier_xi + 1)x(mbezier_eta + 1)x(Xi.degree + 1)x(Eta.degree + 1)x(dim) array containing 
+        the control points of the nbezier_xi x mbezier_eta Bezier patches.
     """
     def decompose_1D(n, m, p, Xi, Pw, Qw):
         a = p
@@ -529,33 +529,29 @@ def decompose_B_spline_surface(knot_vectors, Pw):
     q = knot_vectors[1].degree
     Eta = knot_vectors[1].data
 
-    nbezier = knot_vectors[0].nel
-    mbezier = knot_vectors[1].nel
+    nbezier_xi = knot_vectors[0].nel
+    mbezier_eta = knot_vectors[1].nel
     
-    Qw_xi = np.zeros((nbezier, p + 1, m, dim))
+    Qw_xi = np.zeros((nbezier_xi, p + 1, m, dim))
     decompose_1D(n, m, p, Xi, Pw, Qw_xi)
     
-    # store (nbezier+1)x(mbezier+1) Bezier segments of shape (q+1)x(p+1) and dimension dim
+    # store (nbezier_xi+1)x(mbezier_eta+1) Bezier segments of shape (q+1)x(p+1) and dimension dim
     # each segment has to be transposed in the end!
-    Qw = np.zeros((nbezier, mbezier, q + 1, p + 1, dim))
+    Qw = np.zeros((nbezier_xi, mbezier_eta, q + 1, p + 1, dim))
     # for i, Qw_xii in enumerate(Qw_xi):
-    for i in range(nbezier):
+    for i in range(nbezier_xi):
         # we rotate xi and eta direction, thus xi and eta direction has to be swapped
         decompose_1D(m, p+1, q, Eta, Qw_xi[i].transpose(1, 0, 2), Qw[i])
     # return correct ordered Bezier patches
     return Qw.transpose(0, 1, 3, 2, 4)
 
 def B_spline_curve2vtk(knot_vector, Pw, filename):
-    from meshio import _mesh
-    from meshio.vtu._vtu import write
+    # TODO: import global meshio
+    import meshio as meshio
 
     # create bezier patches
     Qw = decompose_B_spline_curve(knot_vector, Pw)
     nbezier, degree1, dim = Qw.shape
-
-    # # iterate over all bezier patches
-    # for i in range(nbezier):
-    #     Qw[i] = Qw[i, mask]
 
     # initialize the array containing all points of all patches
     points = np.zeros((nbezier * degree1, dim))
@@ -570,48 +566,158 @@ def B_spline_curve2vtk(knot_vector, Pw, filename):
     conn = np.zeros(nbezier * degree1)
     for i in range(nbezier):
         # point_range of patch
-        point_range =  np.arange(i * degree1, (i + 1) * degree1) 
+        point_range =  np.arange(i * degree1, (i + 1) * degree1).reshape(1, -1)
 
         # define points
-        # points_patch = np.zeros((degree1, dim))
-        # # points_patch[:, :] = rearrange_points(Qw,i,sort=False)
-        # Qw[i] = Qw[i, mask]
         points[point_range] = Qw[i, mask]
 
         # define connectivity or vertices that belongs to each element
         conn[point_range] = point_range
 
-        # # Define offset of last vertex of each element
-        # offset[i] =  point_range[-1] +1
-
         # Define cell types
-        cells.append( ("VTK_BEZIER_CURVE", point_range[None]) )
+        cells.append( ("VTK_BEZIER_CURVE", point_range) )
 
 
     # Define HigherOrderDegree
     degrees = np.ones(nbezier) * (degree1 - 1)
-    # HigherOrderDegree_patches = np.stack((degrees, np.zeros_like(degrees), np.zeros_like(degrees))).T
-    HigherOrderDegree_patches = np.stack((degrees, degrees, degrees)).T
+    HigherOrderDegree_patches = np.stack((degrees, np.zeros_like(degrees), np.zeros_like(degrees))).T
 
     cell_data = { "HigherOrderDegrees": HigherOrderDegree_patches}
 
-    # # point_data = {
-    # #                 "J": build_point_dat(J_all),
-    # #                 "W": build_point_dat(W_all),
-    # #                 "P": build_point_dat(P_all),
-    # #                 "F": build_point_dat(F_all),
-    # #                 }
-
-
-    # create meshio Mesh
-    mesh_meshio = _mesh.Mesh(
+    meshio.write_points_cells(
+        filename,
         points,
         cells,
+        # Optionally provide extra data on points, cells, etc.
         # point_data=point_data,
         cell_data=cell_data,
+        # field_data=field_data
+        binary=False
     )
 
-    write(filename, mesh_meshio, binary=False)
+def elDOF_vtk3D(mesh):
+    """ Rearranges either a Point Array or a sorting array like elDOF in vtk ordering
+        if sort is true, obj must be a mesh object.
+        If sort is false, object must ba an array with dimensions:
+        (mesh.n) -by- (p+1) -by- (q+1) -by- (r+1)
+        See https://blog.kitware.com/modeling-arbitrary-order-lagrange-finite-elements-in-the-visualization-toolkit/
+    """
+    # creates a selection matrix like elDOF for vtk ordering
+    nel = mesh.nel
+    nn_el = mesh.nn_el
+    elDOF = mesh.elDOF
+    degrees1 = mesh.degrees1
+    elDOF_vtk = np.zeros((nel, nn_el), dtype=int)
+
+    for el, elDOF_el in enumerate(elDOF):
+        # reshape element elDOF for easier rearrangement
+        elDOF_nd = elDOF_el[:mesh.nn_el].reshape(degrees1).T
+        nn_xi, nn_eta, nn_zeta = elDOF_nd.shape
+        
+        # corners
+        tmp = []
+        tmp.extend([elDOF_nd[0, 0, 0], elDOF_nd[-1, 0, 0], elDOF_nd[-1, -1, 0], elDOF_nd[0, -1, 0], elDOF_nd[0 ,0, -1], elDOF_nd[-1, 0, -1], elDOF_nd[-1, -1, -1], elDOF_nd[0, -1, -1]])
+        
+        # edges
+        for iz in [0, -1]:
+            tmp.extend(elDOF_nd[1:-1, 0, iz])
+            tmp.extend(elDOF_nd[-1,1:-1, iz])
+            tmp.extend(elDOF_nd[1:-1,-1, iz])
+            tmp.extend(elDOF_nd[0,1:-1, iz])
+        for ix in [0, -1]:
+            tmp.extend(elDOF_nd[ix, 0, 1:-1])
+        for ix in [0, -1]:
+            tmp.extend(elDOF_nd[ix, -1, 1:-1])
+
+        # faces 
+        # yz
+        for ix in [0, -1]:
+            for iz in range(nn_zeta - 2):
+                tmp.extend(elDOF_nd[ix, 1:-1, iz + 1])
+        # xz
+        for iy in [0, -1]:
+            for iz in range(nn_zeta - 2):
+                tmp.extend(elDOF_nd[1:-1, iy, iz + 1])
+        # xy
+        for iz in [0, -1]:
+            for iy in range(nn_eta - 2):
+                tmp.extend(elDOF_nd[1:-1, iy + 1, iz])
+        # Volume
+        for iz in range(nn_zeta - 2):
+            for iy in range(nn_eta - 2):
+                for ix in range(nn_xi - 2):
+                    tmp.extend([elDOF_nd[ix + 1, iy + 1, iz + 1]])
+
+        elDOF_vtk[el] = tmp
+
+    return elDOF_vtk
+
+def B_spline_surface2vtk(knot_vectors, Pw, filename):
+    # TODO: import global meshio
+    import meshio as meshio
+
+    # create bezier patches
+    Qw = decompose_B_spline_surface(knot_vectors, Pw)
+    nbezier_xi, nbezier_eta, p1, q1, dim = Qw.shape
+
+    # number of bezier patches
+    nbezier = nbezier_xi * nbezier_eta
+
+    # offset = np.zeros(nbezier)
+    cells = []
+    HigherOrderDegree_patches = []
+    # np_xi = Qw.shape[1]
+    # np_eta = Qw.shape[2]
+    conn = np.zeros((nbezier * p1 * q1))
+
+    # number of points on corners, edges and faces per patch
+    np_corners = 4
+    np_edges = 2*(np_xi-2) + 2*(np_eta-2)
+    np_faces = np_xi*np_eta - np_corners - np_edges
+    idx_edges = np_corners + np_edges
+    idx_faces = idx_edges + np_faces
+
+    # initialize the array containing all points of all patches
+    points = np.zeros((nbezier * p1, dim))
+
+    # mask rearrange point ordering in a single Bezier patch
+    mask = np.concatenate([[0], [p1-1], np.arange(1, p1-1)]) 
+
+    # iterate over all bezier patches and fill cell data and connectivities
+    offset = np.zeros(nbezier)
+    cells = []
+    HigherOrderDegree_patches = []
+    conn = np.zeros(nbezier * p1)
+    for i in range(nbezier):
+        # point_range of patch
+        point_range =  np.arange(i * p1, (i + 1) * p1).reshape(1, -1)
+
+        # define points
+        points[point_range] = Qw[i, mask]
+
+        # define connectivity or vertices that belongs to each element
+        conn[point_range] = point_range
+
+        # Define cell types
+        cells.append( ("VTK_BEZIER_CURVE", point_range) )
+
+
+    # Define HigherOrderDegree
+    degrees = np.ones(nbezier) * (p1 - 1)
+    HigherOrderDegree_patches = np.stack((degrees, np.zeros_like(degrees), np.zeros_like(degrees))).T
+
+    cell_data = { "HigherOrderDegrees": HigherOrderDegree_patches}
+
+    meshio.write_points_cells(
+        filename,
+        points,
+        cells,
+        # Optionally provide extra data on points, cells, etc.
+        # point_data=point_data,
+        cell_data=cell_data,
+        # field_data=field_data
+        binary=False
+    )
 
 def Piegl_Fig5_18():
     degree = 3
@@ -620,8 +726,8 @@ def Piegl_Fig5_18():
     knot_vector = Knot_vector(degree, nel, data=data)
 
     q = np.array([[0, 0], [0.1, 1], [1, 1], [1.5, -0.1], [2.2, -0.1], [2.5, 0.8], [2.0, 1.3]])
-    # B_spline_curve2vtk(knot_vector, q, 'test.vtu')
-    # exit()
+    B_spline_curve2vtk(knot_vector, q, 'Bezier_curve.vtu')
+    exit()
 
     num = 100
     xis = np.linspace(0, 4, num=num)    
@@ -710,13 +816,8 @@ def Piegl_Fig5_20():
 
     X, Y, Z = np.vstack((q0, q1, q2, q3, q4)).T
     Q = np.concatenate((X, Y, Z))
-    
-    # import matplotlib.pyplot as plt
-    # fig = plt.figure()
-    # ax = fig.add_subplot(111, projection='3d')
-    # ax.scatter(X, Y, Z)
-    # plt.show()
 
+    # rearrange points
     nn_xi = knot_vector0.nel + knot_vector0.degree
     nn_eta = knot_vector1.nel + knot_vector1.degree
     nn = nn_xi * nn_eta
@@ -724,6 +825,15 @@ def Piegl_Fig5_20():
     for j in range(nn):
         j_xi, j_eta = split2D(j, (nn_xi, nn_eta))
         Pw[j_xi, j_eta] = np.array([Q[j], Q[j + nn], Q[j + 2 * nn]])
+
+    B_spline_surface2vtk((knot_vector0, knot_vector1), Pw, 'Bezier_surface.vtu')
+    exit()
+    
+    # import matplotlib.pyplot as plt
+    # fig = plt.figure()
+    # ax = fig.add_subplot(111, projection='3d')
+    # ax.scatter(X, Y, Z)
+    # plt.show()
 
     Qw = decompose_B_spline_surface((knot_vector0, knot_vector1), Pw)
     
@@ -820,8 +930,47 @@ def test_Knot_vector():
     print(f'el(0.7): {U.element_number(0.7)}')
     print(f'el([0.3, 0.5, 0.7, 1.0]): {U.element_number([0.2, 0.5, 0.7, 1.0])}')
 
+def mesh3D_vtk_export():
+    # degrees = (2, 3, 1)
+    degrees = (2, 2, 2)
+    QP_shape = (3, 4, 2)
+    # element_shape = (1, 2, 3)
+    element_shape = (1, 1, 1)
+
+    Xi = Knot_vector(degrees[0], element_shape[0])
+    Eta = Knot_vector(degrees[1], element_shape[1])
+    Zeta = Knot_vector(degrees[2], element_shape[2])
+    
+    from cardillo.discretization.mesh import Mesh, cube, scatter_Qs
+    mesh = Mesh((Xi, Eta, Zeta), QP_shape, derivative_order=2, basis='B-spline', nq_n=3)
+
+    elDOF_vtk = elDOF_vtk3D(mesh)
+
+    cube_shape = (3, 3, 3)
+    Q_cube = cube(cube_shape, mesh, Greville=False, Fuzz=0)
+    # scatter_Qs(Q_cube)
+    # exit()
+
+    points = Q_cube.reshape((3, -1)).T
+    cells_type = ["VTK_BEZIER_HEXAHEDRON"] * mesh.nel
+    cells_array = np.reshape(elDOF_vtk, (mesh.nel, mesh.nn_el))
+    cells = list(zip(cells_type, [cells_array]))
+    
+    HigherOrderDegree_patches = np.repeat(degrees, elDOF_vtk.shape[0])
+    cell_data = { "HigherOrderDegrees": HigherOrderDegree_patches[None]}
+    
+    import meshio as meshio
+    meshio.write_points_cells(
+        'Bezier_volume.vtu',
+        points,
+        cells,
+        cell_data=cell_data,
+        binary=False
+    )
+
 if __name__ == '__main__':
     # Piegl_Ex3_4()
     # test_Knot_vector()
     # Piegl_Fig5_18()
-    Piegl_Fig5_20()
+    # Piegl_Fig5_20() # TODO: vtk export
+    mesh3D_vtk_export()
