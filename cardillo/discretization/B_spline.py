@@ -694,68 +694,64 @@ def B_spline_curve2vtk(knot_vector, Pw, filename):
         binary=False
     )
 
-def elDOF_vtk3D(mesh, split=False):
-    """ Rearranges either a Point Array or a sorting array like elDOF in vtk ordering
+def flat3D_vtk(Qw):
+    """ TODO: Rearranges either a Point Array or a sorting array like elDOF in vtk ordering
         if sort is true, obj must be a mesh object.
         If sort is false, object must ba an array with dimensions:
         (mesh.n) -by- (p+1) -by- (q+1) -by- (r+1)
         See https://blog.kitware.com/modeling-arbitrary-order-lagrange-finite-elements-in-the-visualization-toolkit/
     """
     # creates a selection matrix like elDOF for vtk ordering
-    nel = mesh.nel
-    nn_el = mesh.nn_el
-    elDOF = mesh.elDOF
-    degrees1 = mesh.degrees1
-    elDOF_vtk = np.zeros((nel, nn_el), dtype=int)
+    p1, q1, r1, dim = Qw.shape
+    # patch_size = p1 * q1 * r1
+    # points = np.zeros((patch_size, 3))
+    # points = []
 
-    for el, elDOF_el in enumerate(elDOF):
-        # reshape element elDOF for easier rearrangement
-        elDOF_nd = np.zeros(degrees1)
-        elDOF_el_xi = elDOF_el[:mesh.nn_el]
-        for n_el in range(mesh.nn_el):
-            i, j, k = split3D(n_el, degrees1)
-            elDOF_nd[i, j, k] = elDOF_el_xi[n_el]
-        # elDOF_nd = elDOF_el[:mesh.nn_el].reshape(np.flip(degrees1)).T
-        nn_xi, nn_eta, nn_zeta = elDOF_nd.shape
-        
-        # corners
-        tmp = []
-        tmp.extend([elDOF_nd[0, 0, 0], elDOF_nd[-1, 0, 0], elDOF_nd[-1, -1, 0], elDOF_nd[0, -1, 0], elDOF_nd[0 ,0, -1], elDOF_nd[-1, 0, -1], elDOF_nd[-1, -1, -1], elDOF_nd[0, -1, -1]])
-        
-        # edges
-        for iz in [0, -1]:
-            tmp.extend(elDOF_nd[1:-1, 0, iz])
-            tmp.extend(elDOF_nd[-1,1:-1, iz])
-            tmp.extend(elDOF_nd[1:-1,-1, iz])
-            tmp.extend(elDOF_nd[0,1:-1, iz])
-        for ix in [0, -1]:
-            tmp.extend(elDOF_nd[ix, 0, 1:-1])
-        for ix in [0, -1]:
-            tmp.extend(elDOF_nd[ix, -1, 1:-1])
+    # # reshape element elDOF for easier rearrangement
+    # elDOF_nd = np.zeros(degrees1)
+    # elDOF_el_xi = elDOF_el[:mesh.nn_el]
+    # for n_el in range(mesh.nn_el):
+    #     i, j, k = split3D(n_el, degrees1)
+    #     elDOF_nd[i, j, k] = elDOF_el_xi[n_el]
+    # # elDOF_nd = elDOF_el[:mesh.nn_el].reshape(np.flip(degrees1)).T
+    # nn_xi, nn_eta, nn_zeta = elDOF_nd.shape
+    
+    # corners
+    points = []
+    points.extend([Qw[0, 0, 0], Qw[-1, 0, 0], Qw[-1, -1, 0], Qw[0, -1, 0], Qw[0 ,0, -1], Qw[-1, 0, -1], Qw[-1, -1, -1], Qw[0, -1, -1]])
+    
+    # edges
+    for iz in [0, -1]:
+        points.extend(Qw[1:-1, 0, iz])
+        points.extend(Qw[-1,1:-1, iz])
+        points.extend(Qw[1:-1,-1, iz])
+        points.extend(Qw[0,1:-1, iz])
+    for ix in [0, -1]:
+        points.extend(Qw[ix, 0, 1:-1])
+    for ix in [0, -1]:
+        points.extend(Qw[ix, -1, 1:-1])
 
-        # faces 
-        # yz
-        for ix in [0, -1]:
-            for iz in range(nn_zeta - 2):
-                tmp.extend(elDOF_nd[ix, 1:-1, iz + 1])
-        # xz
-        for iy in [0, -1]:
-            for iz in range(nn_zeta - 2):
-                tmp.extend(elDOF_nd[1:-1, iy, iz + 1])
-        # xy
-        for iz in [0, -1]:
-            for iy in range(nn_eta - 2):
-                tmp.extend(elDOF_nd[1:-1, iy + 1, iz])
-        # Volume
-        for iz in range(nn_zeta - 2):
-            for iy in range(nn_eta - 2):
-                for ix in range(nn_xi - 2):
-                    tmp.extend([elDOF_nd[ix + 1, iy + 1, iz + 1]])
+    # faces 
+    # yz
+    for ix in [0, -1]:
+        for iz in range(r1 - 2):
+            points.extend(Qw[ix, 1:-1, iz + 1])
+    # xz
+    for iy in [0, -1]:
+        for iz in range(r1 - 2):
+            points.extend(Qw[1:-1, iy, iz + 1])
+    # xy
+    for iz in [0, -1]:
+        for iy in range(q1 - 2):
+            points.extend(Qw[1:-1, iy + 1, iz])
+    # Volume
+    for iz in range(r1 - 2):
+        for iy in range(q1 - 2):
+            for ix in range(p1 - 2):
+                points.extend([Qw[ix + 1, iy + 1, iz + 1]])
 
-        elDOF_vtk[el] = tmp
-
-    return elDOF_vtk
-
+    return np.array(points)
+    
 def B_spline_surface2vtk(knot_vectors, Pw, filename):
     # TODO: import global meshio
     import meshio as meshio
@@ -1033,10 +1029,11 @@ def test_Knot_vector():
 
 def mesh3D_vtk_export():
     # degrees = (1, 1, 1)
-    degrees = (2, 2, 2)
+    # degrees = (2, 2, 2)
+    degrees = (1, 2, 3)
     QP_shape = (3, 4, 2)
-    element_shape = (1, 1, 2)
-    # element_shape = (3, 2, 1)
+    # element_shape = (1, 1, 2)
+    element_shape = (3, 2, 1)
     # element_shape = (2, 3, 4)
 
     Xi = Knot_vector(degrees[0], element_shape[0])
@@ -1046,10 +1043,10 @@ def mesh3D_vtk_export():
     from cardillo.discretization.mesh import Mesh, cube, scatter_Qs
     mesh = Mesh((Xi, Eta, Zeta), QP_shape, derivative_order=2, basis='B-spline', nq_n=3)
 
-    elDOF_vtk = elDOF_vtk3D(mesh)
+    # elDOF_vtk = elDOF_vtk3D(mesh)
 
     cube_shape = (3, 3, 3)
-    Q_cube = cube(cube_shape, mesh, Greville=False, Fuzz=0)
+    Q_cube = cube(cube_shape, mesh, Greville=True, Fuzz=1.0e-1)
     # scatter_Qs(Q_cube)
     
     # rearrange generalized coordinates
@@ -1063,37 +1060,31 @@ def mesh3D_vtk_export():
         Pw[j_xi, j_eta, j_zeta] = np.array([Q_cube[j], Q_cube[j + nn], Q_cube[j + 2 * nn]])
 
     Qw = decompose_B_spline_volume((Xi, Eta, Zeta), Pw)
-    
-    points = np.zeros((nn, 3))
-    for i in range(nn_xi):
-        for j in range(nn_eta):
-            for k in range(nn_zeta):
-                idx = flat3D(i, j, k, (nn_xi, nn_eta, nn_zeta))
-                points[idx] = Qw[a, b, c, i, j, k]
+    nbezier_xi, nbezier_eta, nbezier_zeta, p1, q1, r1, dim = Qw.shape
 
-    # TODO: 3D Bezier patches
-
-    # points = Q_cube.reshape((3, -1)).T
-    points = Qw.reshape((3, -1)).T
-    # points = Qw.reshape((-1, 3)).T
-    cells_type = ["VTK_BEZIER_HEXAHEDRON"] * mesh.nel
-    cells_array = np.reshape(elDOF_vtk, (mesh.nel, mesh.nn_el))
-    cells = list(zip(cells_type, cells_array))
+    # rearrange Qw's
+    n_patches = nbezier_xi * nbezier_eta * nbezier_zeta
+    patch_size = p1 * q1 * r1
+    points = np.zeros((n_patches * patch_size, 3))
+    # connectivity = np.zeros((n_patches * patch_size))
     cells = []
-    for c, c_array in enumerate(cells_array):
-        cells.append(("VTK_BEZIER_HEXAHEDRON", c_array[None]))
-    
-    # HigherOrderDegree_patches = np.repeat(degrees, elDOF_vtk.shape[0]).reshape(len(cells), 1, 3)
-    HigherOrderDegree_patches = np.tile(degrees, elDOF_vtk.shape[0]).reshape(len(cells), 1, 3)
-    # HigherOrderDegree_patches = np.repeat(degrees, elDOF_vtk.shape[0]).reshape(len(cells), 1, 3)
-    cell_data = { "HigherOrderDegrees": HigherOrderDegree_patches}
-    
+    HigherOrderDegree_patches = []
+    for i in range(nbezier_xi):
+        for j in range(nbezier_eta):
+            for k in range(nbezier_zeta):
+                idx = flat3D(i, j, k, (nbezier_xi, nbezier_eta))
+                point_range = np.arange(idx * patch_size, (idx + 1) * patch_size)
+                points[point_range] = flat3D_vtk(Qw[i, j, k])
+                
+                cells.append( ("VTK_BEZIER_HEXAHEDRON", point_range[None]) )
+                HigherOrderDegree_patches.append( np.array(degrees)[None] )
+                    
     import meshio as meshio
     meshio.write_points_cells(
         'Bezier_volume.vtu',
         points,
         cells,
-        cell_data=cell_data,
+        cell_data={"HigherOrderDegrees": HigherOrderDegree_patches},
         binary=False
     )
 

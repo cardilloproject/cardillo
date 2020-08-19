@@ -11,13 +11,13 @@ def cube(shape, mesh, Greville=False, Fuzz=None):
     X = np.linspace(0, L, mesh.nn_xi)
     Y = np.linspace(0, B, mesh.nn_eta)
     Z = np.linspace(0, H, mesh.nn_zeta)
-    if Greville and mesh.basis == 'splines':
+    if Greville:
         for i in range(len(X)):
-            X[i] = np.sum(mesh.Xi[i+1:i+mesh.p+1])
+            X[i] = np.sum(mesh.Xi.data[i+1:i+mesh.p+1])
         for i in range(len(Y)):
-            Y[i] = np.sum(mesh.Eta[i+1:i+mesh.q+1])
+            Y[i] = np.sum(mesh.Eta.data[i+1:i+mesh.q+1])
         for i in range(len(Z)):
-            Z[i] = np.sum(mesh.Zeta[i+1:i+mesh.r+1])
+            Z[i] = np.sum(mesh.Zeta.data[i+1:i+mesh.r+1])
         X = X * L / mesh.p
         Y = Y * B / mesh.q
         Z = Z * H / mesh.r
