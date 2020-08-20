@@ -1111,8 +1111,8 @@ def test_mesh3D_vtk_export():
     B_spline_volume2vtk((Xi, Eta, Zeta), Q_cube, 'Bezier_volume.vtu')
 
 def test_fit_B_spline_volume():
-    degrees = np.ones(3, dtype=int) * 3
-    # degrees = (3, 1, 1)
+    # degrees = np.ones(3, dtype=int) * 3
+    degrees = (3, 3, 1)
     QP_shape = (1, 1, 1)
     element_shape = np.ones(3, dtype=int) * 5
     # element_shape = (10, 3, 3)
@@ -1163,8 +1163,23 @@ def test_fit_B_spline_volume():
         z = zeta * H + eta**2 * zeta * d
         return x, y, z
 
+    def cylinder(xi, eta, zeta, R=1, H=1):
+        xi_ = 2 * xi - 1
+        eta_ = 2 * eta - 1
+
+        if np.abs(xi_) > np.abs(eta_):
+            r = np.sqrt(1 + eta_**2)
+        else:
+            r = np.sqrt(1 + xi_**2)
+
+        x = R / r * xi_
+        y = R / r * eta_
+        z = zeta * H
+        return x, y, z
+
     # nxi, neta, nzeta = 20, 5, 5
     nxi, neta, nzeta = 10, 10, 10
+    # nxi, neta, nzeta = 20, 20, 20
     xi = np.linspace(0, 1, num=nxi)
     eta = np.linspace(0, 1, num=neta)
     zeta = np.linspace(0, 1, num=nzeta)
@@ -1184,7 +1199,8 @@ def test_fit_B_spline_volume():
                 # Pw[idx] = bending(xii, etai, zetai, R=R, B=B)
                 # Pw[idx] = sherical_dome(xii, etai, zetai, R=R, H=B)
                 # Pw[idx] = parabolic(xii, etai, zetai)
-                Pw[idx] = twist(xii, etai, zetai)
+                # Pw[idx] = twist(xii, etai, zetai)
+                Pw[idx] = cylinder(xii, etai, zetai)
 
     cDOF = np.array([], dtype=int)
     qc = np.array([], dtype=float).reshape((0, 3))
@@ -1210,6 +1226,6 @@ if __name__ == '__main__':
     # test_test_Knot_vector()
     # test_Piegl_Ex3_4()
     # test_Piegl_Fig5_18()
-    test_Piegl_Fig5_20()
+    # test_Piegl_Fig5_20()
     # test_mesh3D_vtk_export()
-    # test_fit_B_spline_volume()
+    test_fit_B_spline_volume()
