@@ -4,6 +4,7 @@ from cardillo.discretization.B_spline import uniform_knot_vector, B_spline_basis
 from cardillo.math.algebra import inverse2D, determinant2D, inverse3D, determinant3D
 from cardillo.discretization.indexing import flat3D, split3D
 from cardillo.discretization.gauss import gauss
+from cardillo.utility.coo import Coo
 
 def cube(shape, mesh, Greville=False, Fuzz=None):
     L, B, H = shape
@@ -175,9 +176,7 @@ class Mesh():
                 i_xi, i_eta, i_zeta = split3D(i, self.nqp_per_dim)
                 self.wp[el, i] = w_xi[i_xi] * w_eta[i_eta] * w_zeta[i_zeta]
 
-    # TODO: profile me!
     def shape_functions(self):
-        # self.NN = []
         self.N = np.zeros((self.nel, self.nqp, self.nn_el))
         if self.derivative_order > 0:
             self.N_xi = np.zeros((self.nel, self.nqp, self.nn_el, 3))
@@ -186,8 +185,6 @@ class Mesh():
         
         for el in range(self.nel):
             el_xi, el_eta, el_zeta = split3D(el, self.nel_per_dim)
-
-            # self.NN.append( B_spline_basis3D(self.degrees, self.derivative_order, self.knot_vectors, (self.qp_xi[el_xi], self.qp_eta[el_eta], self.qp_zeta[el_zeta])) )
 
             NN = B_spline_basis3D(self.degrees, self.derivative_order, self.knot_vectors, (self.qp_xi[el_xi], self.qp_eta[el_eta], self.qp_zeta[el_zeta]))
             self.N[el] = NN[:, :, 0]
@@ -214,6 +211,39 @@ class Mesh():
                 x[i] += NN[0, a, 0] * qe[self.nodalDOF[a]]
             
         return x
+
+    def L2_projection_A(self, knots):
+        A = Coo((self.nn, self.nn))
+        for xi, eta, zeta in knots:
+            el_xi = self.Xi.element_number(xi)[0]
+            el_eta = self.Eta.element_number(eta)[0]
+            el_zeta = self.Zeta.element_number(zeta)[0]
+            el = flat3D(el_xi, el_eta, el_zeta, self.nel_per_dim)
+            elDOF = self.elDOF[el, :self.nn_el]
+
+            Ae = np.zeros((self.nn_el, self.nn_el))
+            NN = B_spline_basis3D(self.degrees, 0, self.knot_vectors, (xi, eta, zeta))
+            for i in range(self.nn_el):
+                for j in range(self.nn_el):
+                    Ae[i, j] = NN[0, i, 0] * NN[0, j, 0]
+            A.extend(Ae, (elDOF, elDOF))
+        return A
+
+    def L2_projection_b(self, knots, Pw):
+        b = np.zeros(self.nn)
+        for (xi, eta, zeta), Pwi in zip(knots, Pw):
+            el_xi = self.Xi.element_number(xi)[0]
+            el_eta = self.Eta.element_number(eta)[0]
+            el_zeta = self.Zeta.element_number(zeta)[0]
+            el = flat3D(el_xi, el_eta, el_zeta, self.nel_per_dim)
+            elDOF = self.elDOF[el, :self.nn_el]
+
+            be = np.zeros((self.nn_el))
+            NN = B_spline_basis3D(self.degrees, 0, self.knot_vectors, (xi, eta, zeta))
+            for i in range(self.nn_el):
+                be[i] = NN[0, i, 0] * Pwi
+            b[elDOF] += be
+        return b
 
     # TODO:
     def compute_all_N_3D_lagrange(self, PointsOnEdge=False):
@@ -634,5 +664,5 @@ def test_mesh():
 
     kappa0_xi_inv, N_X, w_J0 = mesh.reference_mappings(Q_cube)
 
-if __name__ == "__main__":
-    export_mesh_vtk_meshio_splines(0, 0, 0, 0)
+# if __name__ == "__main__":
+#     export_mesh_vtk_meshio_splines(0, 0, 0, 0)

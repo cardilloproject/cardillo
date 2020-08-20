@@ -1,5 +1,6 @@
 import numpy as np
-from cardillo.discretization.indexing import flat3D, split2D, split3D
+from scipy.sparse.linalg import spsolve
+from cardillo.discretization.indexing import flat2D, flat3D, split2D, split3D
 
 # knot vector
 def uniform_knot_vector(degree, nEl, interval=[0, 1]):
@@ -396,6 +397,24 @@ def fit_B_Spline(points, degree, nEl, fixFirst=True, fixLast=True):
         Q_r[cDOF2] = points[-1]
     return Q_r.reshape(dim, -1).T
 
+def fit_B_spline_volume(mesh, knots, Pw, qc, cDOF):
+    A = mesh.L2_projection_A(knots)
+    nq = A.shape[0]
+    qDOF = np.arange(nq)
+    fDOF = np.setdiff1d(qDOF, cDOF)
+
+    Acsc = A.tocsc()
+    Aff = Acsc[fDOF[:, None], fDOF]
+    Afc = Acsc[fDOF[:, None], cDOF]
+
+    qs = np.zeros((nq,) + Pw.shape[1:])
+    for i, Pwi in enumerate(Pw.T):
+        b = mesh.L2_projection_b(knots, Pwi)
+        qs[cDOF, i] = qc[:, i]
+        qs[fDOF, i] = spsolve(Aff, b[fDOF] - Afc @ qs[cDOF, i])
+
+    return qs.T
+
 # Bezier decomposition
 def decompose_B_spline_curve(knot_vector, Pw):
     r"""Decomposes a NURBS curve into Bezier patches. See Piegl1997 algorithm A5.6 (p. 173).
@@ -680,16 +699,90 @@ def B_spline_curve2vtk(knot_vector, Pw, filename, binary=False):
         binary=binary
     )
 
-# TODO: 
-# def B_spline_surface2vtk(knot_vectors, Pw, filename, binary=False):
-#     pass
-
-def B_spline_volume2vtk(knot_vectors, q, filename, binary=False):
+def B_spline_surface2vtk(knot_vectors, Q, filename, binary=False):
     # TODO: import global meshio
     import meshio as meshio
 
     # rearrange q's from solver to Piegl's 3D ordering
-    Pw = q_2_Pw_3D(knot_vectors, q)
+    Pw = q_to_Pw_2D(knot_vectors, Q)
+
+    p = knot_vectors[0].degree
+    q = knot_vectors[1].degree
+    degrees = (p, q, 0)
+    
+    Qw = decompose_B_spline_surface(knot_vectors, Pw)
+    nbezier_xi, nbezier_eta, p1, q1, dim = Qw.shape
+
+    # rearrange Qw's
+    n_patches = nbezier_xi * nbezier_eta
+    patch_size = p1 * q1
+    points = np.zeros((n_patches * patch_size, dim))
+    cells = []
+    HigherOrderDegree_patches = []
+    for i in range(nbezier_xi):
+        for j in range(nbezier_eta):
+            idx = flat2D(i, j, (nbezier_xi, nbezier_eta))
+            point_range = np.arange(idx * patch_size, (idx + 1) * patch_size)
+            points[point_range] = flat2D_vtk(Qw[i, j])
+            
+            cells.append( ("VTK_BEZIER_QUADRILATERAL", point_range[None]) )
+            HigherOrderDegree_patches.append( np.array(degrees)[None] )
+                    
+    meshio.write_points_cells(
+        filename,
+        points,
+        cells,
+        cell_data={"HigherOrderDegrees": HigherOrderDegree_patches},
+        binary=binary
+    )
+
+def q_to_Pw_2D(knot_vectors, q, dim=3):
+    Xi, Eta = knot_vectors
+    nn_xi = Xi.nel + Xi.degree
+    nn_eta = Eta.nel + Eta.degree
+    nn = nn_xi * nn_eta
+    
+    # rearrange generalized coordinates from solver ordering to Piegl's Pw 3D array
+    Pw = np.zeros((nn_xi, nn_eta, dim))
+    for j in range(nn):
+        j_xi, j_eta = split2D(j, (nn_xi, nn_eta))
+        idx = j + np.arange(dim) * nn
+        Pw[j_xi, j_eta] = q[idx]
+
+    return Pw
+
+def flat2D_vtk(Qw):
+    """ TODO: Rearranges either a Point Array or a sorting array like elDOF in vtk ordering
+        if sort is true, obj must be a mesh object.
+        If sort is false, object must ba an array with dimensions:
+        (mesh.n) -by- (p+1) -by- (q+1) -by- (r+1)
+        See https://blog.kitware.com/modeling-arbitrary-order-lagrange-finite-elements-in-the-visualization-toolkit/
+    """
+    # creates a selection matrix like elDOF for vtk ordering
+    p1, q1, dim = Qw.shape
+    
+    # corners
+    points = []
+    points.extend([Qw[0, 0], Qw[-1, 0], Qw[-1, -1], Qw[0, -1]])
+    
+    # edges
+    points.extend(Qw[1:-1, 0])
+    points.extend(Qw[-1,1:-1])
+    points.extend(Qw[1:-1,-1])
+    points.extend(Qw[0,1:-1])
+
+    # xy face
+    for iy in range(1, q1 - 1):
+        points.extend(Qw[1:-1, iy])
+
+    return np.array(points)
+
+def B_spline_volume2vtk(knot_vectors, Q, filename, binary=False):
+    # TODO: import global meshio
+    import meshio as meshio
+
+    # rearrange q's from solver to Piegl's 3D ordering
+    Pw = q_to_Pw_3D(knot_vectors, Q)
 
     p = knot_vectors[0].degree
     q = knot_vectors[1].degree
@@ -702,7 +795,7 @@ def B_spline_volume2vtk(knot_vectors, q, filename, binary=False):
     # rearrange Qw's
     n_patches = nbezier_xi * nbezier_eta * nbezier_zeta
     patch_size = p1 * q1 * r1
-    points = np.zeros((n_patches * patch_size, 3))
+    points = np.zeros((n_patches * patch_size, dim))
     # connectivity = np.zeros((n_patches * patch_size))
     cells = []
     HigherOrderDegree_patches = []
@@ -724,7 +817,7 @@ def B_spline_volume2vtk(knot_vectors, q, filename, binary=False):
         binary=binary
     )
 
-def q_2_Pw_3D(knot_vectors, q):
+def q_to_Pw_3D(knot_vectors, q, dim=3):
     Xi, Eta, Zeta = knot_vectors
     nn_xi = Xi.nel + Xi.degree
     nn_eta = Eta.nel + Eta.degree
@@ -732,10 +825,11 @@ def q_2_Pw_3D(knot_vectors, q):
     nn = nn_xi * nn_eta * nn_zeta
     
     # rearrange generalized coordinates from solver ordering to Piegl's Pw 3D array
-    Pw = np.zeros((nn_xi, nn_eta, nn_zeta, 3))
+    Pw = np.zeros((nn_xi, nn_eta, nn_zeta, dim))
     for j in range(nn):
         j_xi, j_eta, j_zeta = split3D(j, (nn_xi, nn_eta, nn_zeta))
-        Pw[j_xi, j_eta, j_zeta] = np.array([q[j], q[j + nn], q[j + 2 * nn]])
+        idx = j + np.arange(dim) * nn
+        Pw[j_xi, j_eta, j_zeta] = q[idx]
 
     return Pw
 
@@ -830,7 +924,6 @@ def test_Piegl_Fig5_18():
 
     plt.show()
 
-# TODO: Bezier decomposition for surface B-spline elements
 def test_Piegl_Fig5_20():
     degrees = (2, 3)
     nels = (2, 2)
@@ -908,8 +1001,8 @@ def test_Piegl_Fig5_20():
         j_xi, j_eta = split2D(j, (nn_xi, nn_eta))
         Pw[j_xi, j_eta] = np.array([Q[j], Q[j + nn], Q[j + 2 * nn]])
 
-    # B_spline_surface2vtk((knot_vector0, knot_vector1), Pw, 'Bezier_surface.vtu')
-    # exit()
+    B_spline_surface2vtk((knot_vector0, knot_vector1), Q, 'Bezier_surface.vtu')
+    exit()
     
     # import matplotlib.pyplot as plt
     # fig = plt.figure()
@@ -1017,10 +1110,106 @@ def test_mesh3D_vtk_export():
     # rearrange generalized coordinates
     B_spline_volume2vtk((Xi, Eta, Zeta), Q_cube, 'Bezier_volume.vtu')
 
+def test_fit_B_spline_volume():
+    degrees = np.ones(3, dtype=int) * 3
+    # degrees = (3, 1, 1)
+    QP_shape = (1, 1, 1)
+    element_shape = np.ones(3, dtype=int) * 5
+    # element_shape = (10, 3, 3)
+
+    Xi = Knot_vector(degrees[0], element_shape[0])
+    Eta = Knot_vector(degrees[1], element_shape[1])
+    Zeta = Knot_vector(degrees[2], element_shape[2])
+    knot_vectors = (Xi, Eta, Zeta)
+    
+    from cardillo.discretization.mesh import Mesh
+    mesh = Mesh(knot_vectors, QP_shape, derivative_order=0, basis='B-spline', nq_n=3)
+
+    def shear(xi, eta, zeta, gamma=1.5, L=5, B=2, H=1):
+        x = xi * L + gamma * eta * B
+        y = eta * B
+        z = zeta * H
+        return x, y, z
+
+    def bending(xi, eta, zeta, phi0=np.pi, R=1, B=2, H=1):
+        phi = (1 - xi) * phi0
+        x = (R + B * eta) * np.cos(phi)
+        y = (R + B * eta) * np.sin(phi)
+        # x = (R + B * eta**2) * np.cos(phi)
+        # y = (R + B * eta**2) * np.sin(phi)
+        z = zeta * H
+        return x, y, z
+
+    def sherical_dome(xi, eta, zeta, phi0=np.pi, theta0=np.pi/2, R=1, H=1):
+        phi = (1 - xi) * phi0
+        theta = eta * theta0
+        r = R + zeta * H
+        x = r * np.cos(phi) * np.sin(theta)
+        y = r * np.sin(phi) * np.sin(theta)
+        z = r * np.cos(theta)
+        return x, y, z
+
+    def parabolic(xi, eta, zeta, L=1, B=1, H=1):
+        x = xi * L
+        y = eta * B + (xi - L/2)**2 * eta
+        z = zeta * H
+        return x, y, z
+
+    def twist(xi, eta, zeta, phi0=np.pi/2, R=1, d=1, B=1, H=1):
+        phi = xi * phi0
+        r = R + B * eta
+        x = r * np.cos(phi)
+        y = r * np.sin(phi)
+        z = zeta * H + eta**2 * zeta * d
+        return x, y, z
+
+    # nxi, neta, nzeta = 20, 5, 5
+    nxi, neta, nzeta = 10, 10, 10
+    xi = np.linspace(0, 1, num=nxi)
+    eta = np.linspace(0, 1, num=neta)
+    zeta = np.linspace(0, 1, num=nzeta)
+
+    B = 1
+    R = 1
+    
+    n3 = nxi * neta * nzeta
+    knots = np.zeros((n3, 3))
+    Pw = np.zeros((n3, 3))
+    for i, xii in enumerate(xi):
+        for j, etai in enumerate(eta):
+            for k, zetai in enumerate(zeta):
+                idx = flat3D(i, j, k, (nxi, neta, nzeta))
+                knots[idx] = xii, etai, zetai
+                # Pw[idx] = shear(xii, etai, zetai)
+                # Pw[idx] = bending(xii, etai, zetai, R=R, B=B)
+                # Pw[idx] = sherical_dome(xii, etai, zetai, R=R, H=B)
+                # Pw[idx] = parabolic(xii, etai, zetai)
+                Pw[idx] = twist(xii, etai, zetai)
+
+    cDOF = np.array([], dtype=int)
+    qc = np.array([], dtype=float).reshape((0, 3))
+    # cDOF = np.array([0], dtype=int)
+    # qc = np.array([-np.ones(3) * 0.1])
+    X, Y, Z = fit_B_spline_volume(mesh, knots, Pw, qc, cDOF)
+
+    B_spline_volume2vtk(knot_vectors, np.concatenate((X, Y, Z)), 'fit_B_spline_colume.vtu')
+    
+    import matplotlib.pyplot as plt
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.scatter(*Pw.T)
+    ax.scatter(X, Y, Z, color='red')
+    # RB = R + 0.5*B
+    # # RB = R
+    # ax.set_xlim(-RB, RB)
+    # ax.set_ylim(-RB, RB)
+    # ax.set_zlim(-RB, RB)
+    plt.show()
+
 if __name__ == '__main__':
     # test_test_Knot_vector()
     # test_Piegl_Ex3_4()
     # test_Piegl_Fig5_18()
-    # TODO: Bezier decomposition for surface B-spline elements
-    # test_Piegl_Fig5_20()
-    test_mesh3D_vtk_export()
+    test_Piegl_Fig5_20()
+    # test_mesh3D_vtk_export()
+    # test_fit_B_spline_volume()
