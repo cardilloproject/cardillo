@@ -567,7 +567,7 @@ def decompose_B_spline_surface(knot_vectors, Pw):
         decompose_1D(m, p+1, q, Eta, Qw_xi[i].transpose(1, 0, 2), Qw[i])
     # return correct ordered Bezier patches
     return Qw.transpose(0, 1, 3, 2, 4)
-    
+
 def decompose_B_spline_volume(knot_vectors, Pw):
     r"""Decomposes a NURBS volume into Bezier patches. See Piegl1997 algorithm A5.6 (p. 173).
     We use n = number of weighted control points in xi direction instead of n = number of weighted 

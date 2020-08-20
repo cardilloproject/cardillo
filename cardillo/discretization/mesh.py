@@ -155,6 +155,27 @@ class Mesh():
         self.i_front_y = self.i_front_x + self.nn
         self.i_front_z = self.i_front_y + self.nn
 
+    def evaluation_points(self):
+        self.qp_xi = np.zeros((self.nel_xi, self.nqp_xi))
+        self.qp_eta = np.zeros((self.nel_eta, self.nqp_eta))
+        self.qp_zeta = np.zeros((self.nel_zeta, self.nqp_zeta))
+        self.wp = np.zeros((self.nel, self.nqp))
+                
+        for el in range(self.nel):
+            el_xi, el_eta, el_zeta = split3D(el, self.nel_per_dim)
+            
+            Xi_element_interval = self.Xi.element_interval(el_xi)
+            Eta_element_interval = self.Eta.element_interval(el_eta)
+            Zeta_element_interval = self.Zeta.element_interval(el_zeta)
+
+            self.qp_xi[el_xi], w_xi = gauss(self.nqp_xi, interval=Xi_element_interval)
+            self.qp_eta[el_eta], w_eta = gauss(self.nqp_eta, interval=Eta_element_interval)
+            self.qp_zeta[el_zeta], w_zeta = gauss(self.nqp_zeta, interval=Zeta_element_interval)
+            
+            for i in range(self.nqp):
+                i_xi, i_eta, i_zeta = split3D(i, self.nqp_per_dim)
+                self.wp[el, i] = w_xi[i_xi] * w_eta[i_eta] * w_zeta[i_zeta]
+
     def quadrature_points(self):
         self.qp_xi = np.zeros((self.nel_xi, self.nqp_xi))
         self.qp_eta = np.zeros((self.nel_eta, self.nqp_eta))
@@ -164,13 +185,13 @@ class Mesh():
         for el in range(self.nel):
             el_xi, el_eta, el_zeta = split3D(el, self.nel_per_dim)
             
-            xi_element_interval = self.Xi.element_interval(el_xi)
-            eta_element_interval = self.Eta.element_interval(el_eta)
-            zeta_element_interval = self.Zeta.element_interval(el_zeta)
+            Xi_element_interval = self.Xi.element_interval(el_xi)
+            Eta_element_interval = self.Eta.element_interval(el_eta)
+            Zeta_element_interval = self.Zeta.element_interval(el_zeta)
 
-            self.qp_xi[el_xi], w_xi = gauss(self.nqp_xi, interval=xi_element_interval)
-            self.qp_eta[el_eta], w_eta = gauss(self.nqp_eta, interval=eta_element_interval)
-            self.qp_zeta[el_zeta], w_zeta = gauss(self.nqp_zeta, interval=zeta_element_interval)
+            self.qp_xi[el_xi], w_xi = gauss(self.nqp_xi, interval=Xi_element_interval)
+            self.qp_eta[el_eta], w_eta = gauss(self.nqp_eta, interval=Eta_element_interval)
+            self.qp_zeta[el_zeta], w_zeta = gauss(self.nqp_zeta, interval=Zeta_element_interval)
             
             for i in range(self.nqp):
                 i_xi, i_eta, i_zeta = split3D(i, self.nqp_per_dim)
