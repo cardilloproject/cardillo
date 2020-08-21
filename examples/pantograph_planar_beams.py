@@ -1,10 +1,11 @@
+from pickle import load
+from cardillo.solver.solution import load_solution, save_solution
 import numpy as np
 from math import pi, ceil, sin, cos, exp
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from numpy.core.function_base import linspace
 from numpy.lib.function_base import disp
-
 
 from cardillo.model import Model
 from cardillo.model.classical_beams.planar import Euler_bernoulli, Hooke
@@ -17,21 +18,24 @@ from cardillo.solver import Generalized_alpha_1, Scipy_ivp
 from cardillo.discretization.B_spline import uniform_knot_vector
 from cardillo.model.frame import Frame
 from cardillo.math.algebra import A_IK_basic_z
+from cardillo.discretization.B_spline import B_spline_basis
 
 if __name__ == "__main__":
     statics = False
-    t1 = 5e-2 #/500
+    solveProblem = True
+    
+    t1 = 5e-2 / 2
     dt = t1 / 1500
     # physical parameters
     gamma = pi/4
-    # nRow = 6
-    # nCol = 10
+    # nRow = 2
+    # nCol = 100
     nRow = 20
     nCol = 400
     nf = nRow / 2
 
     H = 0.07
-    L = 20 * H
+    L = nCol / nRow * H
     LBeam = H / (nRow * sin(gamma))
 
     Yb = 500e6
@@ -75,17 +79,17 @@ if __name__ == "__main__":
 
     fcn = lambda t: displ * np.exp(-(t-0.004)**2/0.001**2)*(t*(t<0.001)+0.001*(t>=0.001))/0.001
 
-    fig, ax = plt.subplots()
-    ax.set_xlabel('x [m]')
-    ax.set_ylabel('y [m]')
-    x = linspace(0, t1, 1000)
-    y = []
+    # fig, ax = plt.subplots()
+    # ax.set_xlabel('x [m]')
+    # ax.set_ylabel('y [m]')
+    # x = linspace(0, t1, 1000)
+    # y = []
 
-    for t in x:
-        y.append(fcn(t))
+    # for t in x:
+    #     y.append(fcn(t))
 
-    ax.plot(x, y)
-    plt.show()
+    # ax.plot(x, y)
+    # plt.show()
 
     r_OP_l = lambda t: np.array([0, H / 2, 0]) + np.array([fcn(t), 0, 0])
 
@@ -100,10 +104,10 @@ if __name__ == "__main__":
     ###################
     # create pantograph
     ###################
-    p = 3
+    p = 2
     assert p >= 2
-    nQP = int(np.ceil((p + 1)**2 / 2))
-    # nQP = p
+    # nQP = int(np.ceil((p + 1)**2 / 2))
+    nQP = p + 2
 
     print(f'nQP: {nQP}')
     nEl = 1
@@ -253,25 +257,50 @@ if __name__ == "__main__":
 
     # print(f'ID matrix:{ID_mat}')
 
-    # # plot initial configuration
-    # fig, ax = plt.subplots()
-    # ax.set_xlabel('x [m]')
-    # ax.set_ylabel('y [m]')
-    # ax.set_xlim([-Ly, Ly*(nCol+1)])
-    # ax.set_ylim([-Ly, Ly*(nRow+1)])
-    # ax.grid(linestyle='-', linewidth='0.5')
-    # ax.set_aspect('equal')
+    # plot initial configuration
+    fig, ax = plt.subplots()
+    ax.set_xlabel('x [m]')
+    ax.set_ylabel('y [m]')
+    ax.set_xlim([-Ly, Ly*(nCol+1)])
+    ax.set_ylim([-Ly, Ly*(nRow+1)])
+    ax.grid(linestyle='-', linewidth='0.5')
+    ax.set_aspect('equal')
 
+    # n_plt = 5
+    # bdy = beams[0]
+    # q_body = model.q0[bdy.qDOF]
+    # xi_plt = np.linspace(0, 1, n_plt)
+    # NN = np.zeros((len(xi_plt), 2, bdy.nq_el))
+    # bdy_qDOF_P = np.zeros((len(xi_plt), bdy.nq_el), dtype=int)
+
+    # for i, xi in enumerate(xi_plt):
+    #     frame_ID = (xi,)
+    #     bdy_qDOF_P[i] = bdy.qDOF_P(frame_ID)
+    #     if xi == 0:
+    #         NN[i] = bdy.N_bdry[0]
+    #     elif xi == 1:
+    #         NN[i] = bdy.N_bdry[1]
+    #     else:
+    #         N = B_spline_basis(bdy.polynomial_degree, 0, bdy.knot_vector, xi)
+    #         NN[i] = bdy.stack_shapefunctions(N)
 
     # for bdy in beams:
-    #     x, y, z = bdy.centerline(model.q0).T
+    #     q_body = model.q0[bdy.qDOF]
+    #     r = []
+    #     for i, xi in enumerate(xi_plt):
+    #         qp = q_body[bdy_qDOF_P[i]]
+    #         r.append(NN[i] @ qp)
+
+    #     x, y = np.array(r).T
     #     ax.plot(x, y, '--k')
 
     # plt.show()
 
-    # exit()
+    # for bdy in beams:
+    #     x, y, z = bdy.centerline(model.q0, n=2).T
+    #     ax.plot(x, y, '--k')
 
-
+    # plt.show()
 
     ######################
     # solve static problem
@@ -280,11 +309,16 @@ if __name__ == "__main__":
         solver = Newton(model, n_load_steps=3, max_iter=50, tol=1.0e-10, numerical_jacobian=False)
     else:
         # solver = Euler_backward(model, t1, dt, newton_max_iter=50, numerical_jacobian=False, debug=False)
-        solver = Generalized_alpha_1(model, t1, dt, variable_dt=False, rho_inf=0.9)
+        solver = Generalized_alpha_1(model, t1, dt, variable_dt=False, rho_inf=0.8)
         # solver = Scipy_ivp(model, t1, dt, atol=1e-6)
 
+    if solveProblem == True:
+        sol = solver.solve()
+        save_solution(sol, 'pantograph20times400')
+    else:
+        sol = load_solution('pantograph2times2')
 
-    sol = solver.solve()
+    
 
     # exit()
 
@@ -332,6 +366,15 @@ if __name__ == "__main__":
             
         def animate(i):
             for idx, bdy in enumerate(beams):
+                    # q_body = q[i][bdy.qDOF]
+                    # r = []
+                    # for i, xi in enumerate(xi_plt):
+                    #     qp = q_body[bdy_qDOF_P[i]]
+                    #     r.append(NN[i] @ qp)
+
+                    # x, y = np.array(r).T
+                    # centerlines[idx].set_data(x, y)
+
                 x, y, _ = bdy.centerline(q[i], n=2).T
                 centerlines[idx].set_data(x, y)
 
