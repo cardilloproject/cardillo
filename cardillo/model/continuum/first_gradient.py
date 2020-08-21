@@ -1,10 +1,7 @@
 import numpy as np
-from numpy.core.multiarray import concatenate
-from scipy.sparse.linalg import spsolve
-from cardillo.discretization.indexing import flat2D, flat3D, split2D, split3D
-from cardillo.discretization.B_spline import B_spline_basis3D, decompose_B_spline_volume, q_to_Pw_3D, flat3D_vtk
-from cardillo.math.algebra import inverse3D, determinant3D, quat2mat, quat2mat_p
-from cardillo.utility.coo import Coo
+from cardillo.discretization.indexing import flat2D, flat3D
+from cardillo.discretization.B_spline import B_spline_basis3D
+from cardillo.math.algebra import inverse3D, determinant3D
 
 # TODO: import global meshio
 import meshio as meshio
@@ -365,7 +362,7 @@ def test_gradient_vtk_export():
     cDOF = np.array([], dtype=int)
     qc = np.array([], dtype=float).reshape((0, 3))
     x, y, z = fit_B_spline_volume(mesh, knots, Pw, qc, cDOF)
-    q = concatenate((x, y, z))
+    q = np.concatenate((x, y, z))
 
     # export current configuration and deformation gradient on quadrature points to paraview
     continuum.post_processing(q, 'test.vtu')
