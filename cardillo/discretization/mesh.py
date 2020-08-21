@@ -81,6 +81,7 @@ class Mesh():
 
         self.basis = basis # B-spline or Lagrange basis
         self.nq_n = nq_n # number of degrees of freedom per node
+        self.nq_el = self.nn_el * nq_n # total number of generalized coordinates per element
         
         if basis == 'lagrange':
             raise NotImplementedError('...')

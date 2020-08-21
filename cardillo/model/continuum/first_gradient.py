@@ -7,9 +7,8 @@ from cardillo.math.algebra import inverse3D, determinant3D
 import meshio as meshio
 
 class First_gradient(object):
-    def __init__(self, mesh, Q, q0=None):
-    # def __init__(self, material, mesh):
-    #     self.mat = material
+    def __init__(self, material, mesh, Q, q0=None):
+        self.mat = material
 
         # store generalized coordinates
         self.Q = Q
@@ -23,7 +22,10 @@ class First_gradient(object):
         self.elDOF = mesh.elDOF
         self.nodalDOF = mesh.nodalDOF
         self.nel = mesh.nel
-        self.nn = mesh.nn # number of nodes of an element
+        self.nn = mesh.nn
+        self.nn_el = mesh.nn_el # number of nodes of an element
+        self.nq_el = mesh.nq_el
+        self.nqp = mesh.nqp
 
         self.dim = int(len(Q) / self.nn)
         if self.dim == 2:
@@ -105,25 +107,24 @@ class First_gradient(object):
 
         return F
 
-    # def internal_forces_el(self, qel, el):
-    #     f = np.zeros(self.mesh.nodal_DOF * self.mesh.n)
+    def internal_forces_el(self, qe, e):
+        f = np.zeros(self.nq_el)
 
-    #     for i in range(self.mesh.nQP):
+        for i in range(self.nqp):
 
-    #         # compute deformation gradient of the deformed placement w.r.t. reference placement
-    #         F_gp = np.zeros((self.mesh.nodal_DOF, self.mesh.nodal_DOF))
-    #         for a in range(self.nn):
-    #             # TODO: reference
-    #             qa = qel[self.mesh.ndDOF[a]]
-    #             F_gp += np.outer(qa, self.nablaX_N[el,i,a])
+            # compute deformation gradient of the deformed placement w.r.t. reference placement
+            F_gp = np.zeros((self.dim, self.dim))
+            for a in range(self.nn_el):
+                F_gp += np.outer(qe[self.mesh.nodalDOF[a]], self.N_X[e, i, a]) # Bonet 1997 (7.5)
 
-    #         P_gp = self.mat.P(F_gp)
+            P_gp = self.mat.P(F_gp)
 
-    #         for a in range(self.nn):
-    #             # TODO: reference to Bonet1997
-    #             f[self.ndDOF[a]] += P_gp @ self.nablaX_N[el,i,a] * self.w_J0[el, i]
+            for a in range(self.nn_el):
+                # TODO: reference to Bonet1997?
+                # Bonet1997 (2.52b)
+                f[self.nodaldDOF[a]] += P_gp @ self.N_X[e, i, a] * self.w_J0[e, i]
 
-    #     return -f
+        return -f
 
     # def internal_forces(self, q):
     #     f_int = np.zeros(self.nq)
@@ -276,7 +277,7 @@ def test_gradient():
     cube_shape = (L, B, H)
     Q = cube(cube_shape, mesh, Greville=True)
     q0 = np.concatenate((x, y, z))
-    continuum = First_gradient(mesh, Q, q0=q0)
+    continuum = First_gradient(None, mesh, Q, q0=q0)
     
     # import matplotlib.pyplot as plt
     # fig = plt.figure()
@@ -334,7 +335,7 @@ def test_gradient_vtk_export():
     Q = cube(cube_shape, mesh, Greville=True)
 
     # 3D continuum
-    continuum = First_gradient(mesh, Q, q0=Q)
+    continuum = First_gradient(None, mesh, Q, q0=Q)
 
     # fit quater circle configuration
     def bending(xi, eta, zeta, phi0, R, B, H):
