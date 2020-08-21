@@ -1,9 +1,13 @@
 import numpy as np
+from numpy.core.multiarray import concatenate
 from scipy.sparse.linalg import spsolve
 from cardillo.discretization.indexing import flat2D, flat3D, split2D, split3D
 from cardillo.discretization.B_spline import B_spline_basis3D, decompose_B_spline_volume, q_to_Pw_3D, flat3D_vtk
 from cardillo.math.algebra import inverse3D, determinant3D, quat2mat, quat2mat_p
 from cardillo.utility.coo import Coo
+
+# TODO: import global meshio
+import meshio as meshio
 
 class First_gradient(object):
     def __init__(self, mesh, Q, q0=None):
@@ -44,29 +48,31 @@ class First_gradient(object):
 
         # L2 projection of deformation gradient on nodes
         A = Coo((self.mesh.nn, self.mesh.nn))
-        bb = np.zeros((self.mesh.nn, self.dim * self.dim))
+        # B = np.zeros((self.mesh.nn, self.mesh.nel, self.mesh.nqp))
+        b_F = np.zeros((self.mesh.nn, self.dim * self.dim))
         for el in range(self.mesh.nel):
-            elDOF = self.elDOF[el, :self.mesh.nn_el]
-            be = np.zeros((self.mesh.nn_el, self.dim * self.dim))
+            elDOF_el = self.elDOF[el, :self.mesh.nn_el]
+            be_F = np.zeros((self.mesh.nn_el, self.dim * self.dim))
             Ae = np.zeros((self.mesh.nn_el, self.mesh.nn_el))
             Nel = self.mesh.N[el]
             for a in range(self.mesh.nn_el):
                 for i in range(self.mesh.nqp):
-                    be[a] += Nel[i, a] * F[el, i].reshape(-1)
+                    be_F[a] += Nel[i, a] * F[el, i].reshape(-1)
+                # B[elDOF_el[a], el] =  Nel[:, a]
 
                 for b in range(self.mesh.nn_el):
                     for i in range(self.mesh.nqp):
                         Ae[a, b] += Nel[i, a] * Nel[i, b]
-            bb[elDOF] += be
-            A.extend(Ae, (elDOF, elDOF))
+            b_F[elDOF_el] += be_F
+            A.extend(Ae, (elDOF_el, elDOF_el))
 
-        A = A.tocsc()            
+        # b_F = np.einsum('ijk,jkl->il', B, F.reshape(self.mesh.nel, self.mesh.nqp, -1))
+
+        A = A.tocsc()
+        
         q_F = np.zeros((self.mesh.nn, self.dim * self.dim))
-        for i, b in enumerate(bb.T):
+        for i, b in enumerate(b_F.T):
             q_F[:, i] = spsolve(A, b)
-
-        # TODO: import global meshio
-        import meshio as meshio
 
         # rearrange q's from solver to Piegl's 3D ordering
         knot_vectors = self.mesh.knot_vector_objs
@@ -96,69 +102,54 @@ class First_gradient(object):
                     cells.append( ("VTK_BEZIER_HEXAHEDRON", point_range[None]) )
                     HigherOrderDegree_patches.append( np.array(degrees)[None] )
 
-        # decompose deformation gradient
-        Pw = q_to_Pw_3D(knot_vectors, q_F.reshape(-1), dim=q_F.shape[1])
+        point_data_fields = {
+            "F": (lambda F: F, self.mesh.nq_n * self.mesh.nq_n),
+            "C": (lambda F: F.T @ F, self.mesh.nq_n * self.mesh.nq_n),
+            "J": (lambda F: determinant3D(F), 1),
+        }
 
-        p = knot_vectors[0].degree
-        q = knot_vectors[1].degree
-        r = knot_vectors[2].degree
-        degrees = (p, q, r)
-        
-        Qw = decompose_B_spline_volume(knot_vectors, Pw)
-        nbezier_xi, nbezier_eta, nbezier_zeta, p1, q1, r1, dim = Qw.shape
-        
-        points_F = np.zeros((n_patches * patch_size, dim))
-        for i in range(nbezier_xi):
-            for j in range(nbezier_eta):
-                for k in range(nbezier_zeta):
-                    idx = flat3D(i, j, k, (nbezier_xi, nbezier_eta))
-                    point_range = np.arange(idx * patch_size, (idx + 1) * patch_size)
-                    points_F[point_range] = flat3D_vtk(Qw[i, j, k])
+        point_data = {}
+        for name, (fun, dim) in point_data_fields.items():               
+            # build rhs vector for L2 projection
+            field_b = np.zeros((self.mesh.nn, dim))
+            for el in range(self.mesh.nel):
+                elDOF_el = self.elDOF[el, :self.mesh.nn_el]
+                
+                Nel = self.mesh.N[el]
+                for i in range(self.mesh.nqp):
+                    field_bei = fun(F[el, i]).reshape(-1)
+                    for a in range(self.mesh.nn_el):
+                        field_b[elDOF_el[a]] += Nel[i, a] * field_bei
+
+            # solve L2 projection
+            field_q = np.zeros((self.mesh.nn, dim))
+            for i, b in enumerate(field_b.T):
+                field_q[:, i] = spsolve(A, b)
+
+            # Bezier decomposition of point data fields
+            field_Pw = q_to_Pw_3D(knot_vectors, field_q.T.reshape(-1), dim=field_q.shape[1])
+            field_Qw = decompose_B_spline_volume(knot_vectors, field_Pw)
+            
+            # rearrange Bezier cell coordinate in vtk ordering
+            field_points = np.zeros((n_patches * patch_size, dim))
+            for i in range(nbezier_xi):
+                for j in range(nbezier_eta):
+                    for k in range(nbezier_zeta):
+                        idx = flat3D(i, j, k, (nbezier_xi, nbezier_eta))
+                        point_range = np.arange(idx * patch_size, (idx + 1) * patch_size)
+                        field_points[point_range] = flat3D_vtk(field_Qw[i, j, k])
+
+            # update dictionary of point data fields
+            point_data.update({name: field_points})
                         
         meshio.write_points_cells(
             filename,
             points,
             cells,
-            point_data={"F": points_F},
+            point_data=point_data,
             cell_data={"HigherOrderDegrees": HigherOrderDegree_patches},
             binary=binary
         )
-
-    # def __post_processing_shape_functions(self, knots):
-    #     NN = B_spline_basis3D(self.mesh.degrees, 1, self.mesh.knot_vectors, knots)
-    #     return NN[:, :, 0], NN[:, :, 1:4]
-
-    # # TODO:
-    # def post_processing(self, knots, q):
-    #     N, N_xi = self.__post_processing_shape_functions(knots)
-
-    #     n = len(N)
-    #     F = np.zeros((n, self.mesh.nq_n, self.mesh.nq_n))
-
-    #     for i, (xi, eta, zeta) in enumerate(knots):
-    #         el_xi = self.mesh.Xi.element_number(xi)[0]
-    #         el_eta = self.mesh.Eta.element_number(eta)[0]
-    #         el_zeta = self.mesh.Zeta.element_number(zeta)[0]
-    #         el = flat3D(el_xi, el_eta, el_zeta, self.mesh.nel_per_dim)
-    #         elDOF = self.elDOF[el]
-    #         qe = q[elDOF]
-    #         Qe = self.Q[elDOF]
-
-    #         # reference mapping gradient w.r.t. parameter space
-    #         kappa0_xi = np.zeros((self.mesh.nq_n, self.mesh.nq_n))
-    #         for a in range(self.mesh.nn_el):
-    #             kappa0_xi += np.outer(Qe[self.mesh.nodalDOF[a]], N_xi[i, a]) # Bonet 1997 (7.6b)
-            
-    #         N_X = np.zeros((self.mesh.nn_el, self.dim))
-    #         for a in range(self.mesh.nn_el):
-    #             N_X[a] = N_xi[i, a] @ inverse3D(kappa0_xi) # Bonet 1997 (7.6a) modified
-
-    #         for a in range(self.mesh.nn_el):
-    #             F[i] += np.outer(qe[self.mesh.nodalDOF[a]], N_X[a]) # Bonet 1997 (7.5)
-
-    #     export = {
-    #         "F": F
-    #     }
 
     def F(self, knots, q):
         n = len(knots)
@@ -362,15 +353,6 @@ def test_gradient():
     Q = cube(cube_shape, mesh, Greville=True)
     q0 = np.concatenate((x, y, z))
     continuum = First_gradient(mesh, Q, q0=q0)
-
-    n = 20
-    xis = np.linspace(0, 1, num=n)
-    etas = np.linspace(0, 1, num=n)
-    zetas = np.linspace(0, 1, num=n)
-    knots = (xis, etas, zetas)
-    continuum.post_processing_shape_functions(knots, q0)
-
-    exit()
     
     # import matplotlib.pyplot as plt
     # fig = plt.figure()
@@ -380,7 +362,9 @@ def test_gradient():
     # ax.scatter(*q0.reshape(3, -1), color='red')
     # plt.show()
 
-    knots = np.array([[0.5, 0.5, 0.5]])
+    # knots = np.array([[0.5, 0.5, 0.5]])
+    # knots = np.array([[0.125, 0.35, 0.85]])
+    knots = np.random.rand(3).reshape(1, 3)
     F_num = continuum.F(knots, q0)
     print(f'F_num({knots[0]}):\n{F_num[0]}')
 
@@ -402,10 +386,10 @@ def test_gradient():
     
 def test_gradient_vtk_export():
     from cardillo.discretization.mesh import Mesh, cube
-    from cardillo.discretization.B_spline import Knot_vector, B_spline_volume2vtk
+    from cardillo.discretization.B_spline import Knot_vector, B_spline_volume2vtk, fit_B_spline_volume
     from cardillo.discretization.indexing import flat3D
 
-    QP_shape = (3, 3, 3)
+    QP_shape = (5, 5, 5)
     degrees = (3, 3, 1)
     element_shape = (5, 5, 1)
 
@@ -416,11 +400,47 @@ def test_gradient_vtk_export():
     
     mesh = Mesh(knot_vectors, QP_shape, derivative_order=1, basis='B-spline', nq_n=3)
 
-    cube_shape = (1, 1, 1)
+    # reference configuration is a cube
+    phi0 = np.pi / 2
+    R = 1
+    B = 1
+    H = 1
+    L = (R + B / 2) * phi0
+    cube_shape = (L, B, H)
     Q = cube(cube_shape, mesh, Greville=True)
+
+    # 3D continuum
     continuum = First_gradient(mesh, Q, q0=Q)
 
-    q = Q + np.random.rand(len(Q)) * 0.1
+    # fit quater circle configuration
+    def bending(xi, eta, zeta, phi0, R, B, H):
+        phi = (1 - xi) * phi0
+        x = (R + B * eta) * np.cos(phi)
+        y = (R + B * eta) * np.sin(phi)
+        z = zeta * H
+        return x, y, z
+
+    nxi, neta, nzeta = 15, 15, 5
+    xi = np.linspace(0, 1, num=nxi)
+    eta = np.linspace(0, 1, num=neta)
+    zeta = np.linspace(0, 1, num=nzeta)
+    
+    n3 = nxi * neta * nzeta
+    knots = np.zeros((n3, 3))
+    Pw = np.zeros((n3, 3))
+    for i, xii in enumerate(xi):
+        for j, etai in enumerate(eta):
+            for k, zetai in enumerate(zeta):
+                idx = flat3D(i, j, k, (nxi, neta, nzeta))
+                knots[idx] = xii, etai, zetai
+                Pw[idx] = bending(xii, etai, zetai, phi0=phi0, R=R, B=B, H=H)
+    
+    cDOF = np.array([], dtype=int)
+    qc = np.array([], dtype=float).reshape((0, 3))
+    x, y, z = fit_B_spline_volume(mesh, knots, Pw, qc, cDOF)
+    q = concatenate((x, y, z))
+
+    # export current configuration and deformation gradient on quadrature points to paraview
     continuum.post_processing(q, 'test.vtu')
 
 if __name__ == "__main__":
