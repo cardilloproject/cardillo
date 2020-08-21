@@ -1,7 +1,8 @@
 import numpy as np
+from scipy.sparse.linalg import spsolve
 # from cardillo_fem.discretization.lagrange import lagrange2D, lagrange1D, lagrange3D
-from cardillo.discretization.B_spline import uniform_knot_vector, B_spline_basis1D, B_spline_basis2D, B_spline_basis3D
-from cardillo.math.algebra import inverse2D, determinant2D, inverse3D, determinant3D
+from cardillo.discretization.B_spline import uniform_knot_vector, B_spline_basis1D, B_spline_basis2D, B_spline_basis3D, q_to_Pw_3D, decompose_B_spline_volume, flat3D_vtk
+from cardillo.math.algebra import inverse2D, determinant2D, inverse3D, determinant3D, quat2rot
 from cardillo.discretization.indexing import flat3D, split3D
 from cardillo.discretization.gauss import gauss
 from cardillo.utility.coo import Coo
@@ -326,3 +327,90 @@ class Mesh():
                     # N_X[el, i, a] = kappa0_xi_inv[el, i].T @ N_xi[a] # Bonet 1997 (7.6a)
 
         return kappa0_xi_inv, N_X, w_J0
+
+    # functions for vtk export
+    def ensure_L2_projection_A(self):
+        if not hasattr(self, "A"):
+            A = Coo((self.nn, self.nn))
+            for el in range(self.nel):
+                elDOF_el = self.elDOF[el, :self.nn_el]
+                Ae = np.zeros((self.nn_el, self.nn_el))
+                Nel = self.N[el]
+                for a in range(self.nn_el):
+                    for b in range(self.nn_el):
+                        for i in range(self.nqp):
+                            Ae[a, b] += Nel[i, a] * Nel[i, b]
+                A.extend(Ae, (elDOF_el, elDOF_el))
+            self.A = A.tocsc()
+
+    def rhs_L2_projection(self, field):
+        _, nqp, *shape = field.shape
+        dim = np.prod(shape)
+
+        b = np.zeros((self.nn, dim))
+        for el in range(self.nel):
+            elDOF_el = self.elDOF[el, :self.nn_el]
+            be = np.zeros((self.nn_el, dim))
+            Nel = self.N[el]
+            for a in range(self.nn_el):
+                for i in range(nqp):
+                    be[a] += Nel[i, a] * field[el, i].reshape(-1)
+            b[elDOF_el] += be
+        return b
+
+    def field_to_vtk(self, field):
+        _, _, *shape = field.shape
+        dim = np.prod(shape)
+
+        # L2 projection on B-spline mesh
+        self.ensure_L2_projection_A()
+        b = self.rhs_L2_projection(field)
+        q = np.zeros((self.nn, dim))
+        for i, bi in enumerate(b.T):
+            q[:, i] = spsolve(self.A, bi)
+
+        # rearrange q's from solver to Piegl's 3D ordering
+        Pw = q_to_Pw_3D(self.knot_vector_objs, q.reshape(-1, order='F'), dim=self.nq_n * self.nq_n)
+
+        # decompose B-spline mesh in Bezier patches      
+        Qw = decompose_B_spline_volume(self.knot_vector_objs, Pw)
+        nbezier_xi, nbezier_eta, nbezier_zeta, p1, q1, r1, dim = Qw.shape
+
+        # rearrange Bezier mesh points for vtk ordering
+        n_patches = nbezier_xi * nbezier_eta * nbezier_zeta
+        patch_size = p1 * q1 * r1
+        point_data = np.zeros((n_patches * patch_size, dim))
+        for i in range(nbezier_xi):
+            for j in range(nbezier_eta):
+                for k in range(nbezier_zeta):
+                    idx = flat3D(i, j, k, (nbezier_xi, nbezier_eta))
+                    point_range = np.arange(idx * patch_size, (idx + 1) * patch_size)
+                    point_data[point_range] = flat3D_vtk(Qw[i, j, k])
+
+        return point_data
+        
+    def vtk_mesh(self, q):
+        # rearrange q's from solver to Piegl's 3D ordering
+        Pw = q_to_Pw_3D(self.knot_vector_objs, q, dim=self.nq_n)
+        
+        # decompose B-spline mesh in Bezier patches       
+        Qw = decompose_B_spline_volume(self.knot_vector_objs, Pw)
+        nbezier_xi, nbezier_eta, nbezier_zeta, p1, q1, r1, dim = Qw.shape
+        
+        # build vtk mesh
+        n_patches = nbezier_xi * nbezier_eta * nbezier_zeta
+        patch_size = p1 * q1 * r1
+        points = np.zeros((n_patches * patch_size, dim))
+        cells = []
+        HigherOrderDegrees = []
+        for i in range(nbezier_xi):
+            for j in range(nbezier_eta):
+                for k in range(nbezier_zeta):
+                    idx = flat3D(i, j, k, (nbezier_xi, nbezier_eta))
+                    point_range = np.arange(idx * patch_size, (idx + 1) * patch_size)
+                    points[point_range] = flat3D_vtk(Qw[i, j, k])
+                    
+                    cells.append( ("VTK_BEZIER_HEXAHEDRON", point_range[None]) )
+                    HigherOrderDegrees.append( np.array(self.degrees)[None] )
+
+        return cells, points, HigherOrderDegrees

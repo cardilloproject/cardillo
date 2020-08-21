@@ -38,6 +38,13 @@ class First_gradient(object):
         self.kappa0_xi_inv, self.N_X, self.w_J0 = self.mesh.reference_mappings(Q)
         
     def post_processing(self, q, filename, binary=False):
+
+        # generalized coordinates, connectivity and polynomial degree
+        cells, points, HigherOrderDegrees = self.mesh.vtk_mesh(q)
+
+        # dictionary storing point data
+        point_data = {}
+        
         # evaluate deformation gradient at quadrature points
         F = np.zeros((self.mesh.nel, self.mesh.nqp, self.mesh.nq_n, self.mesh.nq_n))
         for el in range(self.mesh.nel):
@@ -46,108 +53,28 @@ class First_gradient(object):
                 for a in range(self.mesh.nn_el):
                     F[el, i] += np.outer(qe[self.mesh.nodalDOF[a]], self.N_X[el, i, a]) # Bonet 1997 (7.6b)
 
-        # L2 projection of deformation gradient on nodes
-        A = Coo((self.mesh.nn, self.mesh.nn))
-        # B = np.zeros((self.mesh.nn, self.mesh.nel, self.mesh.nqp))
-        b_F = np.zeros((self.mesh.nn, self.dim * self.dim))
-        for el in range(self.mesh.nel):
-            elDOF_el = self.elDOF[el, :self.mesh.nn_el]
-            be_F = np.zeros((self.mesh.nn_el, self.dim * self.dim))
-            Ae = np.zeros((self.mesh.nn_el, self.mesh.nn_el))
-            Nel = self.mesh.N[el]
-            for a in range(self.mesh.nn_el):
-                for i in range(self.mesh.nqp):
-                    be_F[a] += Nel[i, a] * F[el, i].reshape(-1)
-                # B[elDOF_el[a], el] =  Nel[:, a]
+        F_vtk = self.mesh.field_to_vtk(F)
+        point_data.update({"F": F_vtk})
 
-                for b in range(self.mesh.nn_el):
-                    for i in range(self.mesh.nqp):
-                        Ae[a, b] += Nel[i, a] * Nel[i, b]
-            b_F[elDOF_el] += be_F
-            A.extend(Ae, (elDOF_el, elDOF_el))
-
-        # b_F = np.einsum('ijk,jkl->il', B, F.reshape(self.mesh.nel, self.mesh.nqp, -1))
-
-        A = A.tocsc()
-        
-        q_F = np.zeros((self.mesh.nn, self.dim * self.dim))
-        for i, b in enumerate(b_F.T):
-            q_F[:, i] = spsolve(A, b)
-
-        # rearrange q's from solver to Piegl's 3D ordering
-        knot_vectors = self.mesh.knot_vector_objs
-        Pw = q_to_Pw_3D(knot_vectors, q)
-
-        p = knot_vectors[0].degree
-        q = knot_vectors[1].degree
-        r = knot_vectors[2].degree
-        degrees = (p, q, r)
-        
-        Qw = decompose_B_spline_volume(knot_vectors, Pw)
-        nbezier_xi, nbezier_eta, nbezier_zeta, p1, q1, r1, dim = Qw.shape
-
-        # build cells
-        n_patches = nbezier_xi * nbezier_eta * nbezier_zeta
-        patch_size = p1 * q1 * r1
-        points = np.zeros((n_patches * patch_size, dim))
-        cells = []
-        HigherOrderDegree_patches = []
-        for i in range(nbezier_xi):
-            for j in range(nbezier_eta):
-                for k in range(nbezier_zeta):
-                    idx = flat3D(i, j, k, (nbezier_xi, nbezier_eta))
-                    point_range = np.arange(idx * patch_size, (idx + 1) * patch_size)
-                    points[point_range] = flat3D_vtk(Qw[i, j, k])
-                    
-                    cells.append( ("VTK_BEZIER_HEXAHEDRON", point_range[None]) )
-                    HigherOrderDegree_patches.append( np.array(degrees)[None] )
-
+        # field data vtk export
         point_data_fields = {
-            "F": (lambda F: F, self.mesh.nq_n * self.mesh.nq_n),
-            "C": (lambda F: F.T @ F, self.mesh.nq_n * self.mesh.nq_n),
-            "J": (lambda F: determinant3D(F), 1),
+            "C": lambda F: F.T @ F,
+            "J": lambda F: determinant3D(F),
         }
 
-        point_data = {}
-        for name, (fun, dim) in point_data_fields.items():               
-            # build rhs vector for L2 projection
-            field_b = np.zeros((self.mesh.nn, dim))
-            for el in range(self.mesh.nel):
-                elDOF_el = self.elDOF[el, :self.mesh.nn_el]
-                
-                Nel = self.mesh.N[el]
-                for i in range(self.mesh.nqp):
-                    field_bei = fun(F[el, i]).reshape(-1)
-                    for a in range(self.mesh.nn_el):
-                        field_b[elDOF_el[a]] += Nel[i, a] * field_bei
-
-            # solve L2 projection
-            field_q = np.zeros((self.mesh.nn, dim))
-            for i, b in enumerate(field_b.T):
-                field_q[:, i] = spsolve(A, b)
-
-            # Bezier decomposition of point data fields
-            field_Pw = q_to_Pw_3D(knot_vectors, field_q.T.reshape(-1), dim=field_q.shape[1])
-            field_Qw = decompose_B_spline_volume(knot_vectors, field_Pw)
-            
-            # rearrange Bezier cell coordinate in vtk ordering
-            field_points = np.zeros((n_patches * patch_size, dim))
-            for i in range(nbezier_xi):
-                for j in range(nbezier_eta):
-                    for k in range(nbezier_zeta):
-                        idx = flat3D(i, j, k, (nbezier_xi, nbezier_eta))
-                        point_range = np.arange(idx * patch_size, (idx + 1) * patch_size)
-                        field_points[point_range] = flat3D_vtk(field_Qw[i, j, k])
-
-            # update dictionary of point data fields
-            point_data.update({name: field_points})
-                        
+        for name, fun in point_data_fields.items():
+            field = np.zeros_like(F_vtk)
+            for i, Fi in enumerate(F_vtk):
+                field[i] = fun(Fi.reshape(self.dim, self.dim)).reshape(-1)
+            point_data.update({name: field})
+     
+        # write vtk mesh using meshio
         meshio.write_points_cells(
             filename,
             points,
             cells,
             point_data=point_data,
-            cell_data={"HigherOrderDegrees": HigherOrderDegree_patches},
+            cell_data={"HigherOrderDegrees": HigherOrderDegrees},
             binary=binary
         )
 
