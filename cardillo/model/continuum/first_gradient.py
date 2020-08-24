@@ -1,3 +1,4 @@
+from cardillo.math.numerical_derivative import Numerical_derivative
 import numpy as np
 from cardillo.discretization.indexing import flat2D, flat3D
 from cardillo.discretization.B_spline import B_spline_basis3D
@@ -110,12 +111,12 @@ class First_gradient(object):
 
         return F
 
-    def f_pot_el(self, qe, e):
+    def f_pot_el(self, qe, el):
         f = np.zeros(self.nq_el)
 
         for i in range(self.nqp):
-            N_X = self.N_X[e, i]
-            w_J0 = self.w_J0[e, i]
+            N_X = self.N_X[el, i]
+            w_J0 = self.w_J0[el, i]
 
             # deformation gradient
             F = np.zeros((self.dim, self.dim))
@@ -135,102 +136,17 @@ class First_gradient(object):
 
     def f_pot(self, t, q):
         f_pot = np.zeros(self.nq)
-        for e in range(self.nel):
-            f_pot[self.elDOF[e]] += self.f_pot_el(q[self.elDOF[e]], e)
+        for el in range(self.nel):
+            f_pot[self.elDOF[el]] += self.f_pot_el(q[self.elDOF[el]], el)
         return f_pot
 
-    # # def internal_forces_q(self, q):
-    # #     eps = 1.0e-6
-    # #     K_int = np.zeros((self.nq, self.nq))
+    def f_pot_q(self, t, q, coo):
+        for el in range(self.nEl):
+            elDOF = self.elDOF[el]
+            Ke = Numerical_derivative(lambda t, q: self.f_pot_el(q, el))._x(t, q[elDOF])
 
-    # #     for el in range(self.nel):
-    # #         qel = q[self.elDOF[el]]
-    # #         residual = lambda t, q: self.internal_forces_el(q, el)
-
-    # #         # C^e^T C_a^T K C_a C^e += K^e
-    # #         K_int[np.ix_(self.elDOF[el], self.elDOF[el])] += NumericalDerivative(residual, order=1).dR_dq(0, qel, eps=eps)
-
-    # #     return K_int
-
-
-    # def internal_forces_el_q(self, qel, el):
-    #     K_el = np.zeros((self.mesh.nodal_DOF * self.mesh.n, self.mesh.nodal_DOF * self.mesh.n))
-
-    #     for i in range(self.mesh.nQP):
-
-    #         # compute deformation gradient of the deformed placement w.r.t. reference placement
-    #         F_gp = np.zeros((self.mesh.nodal_DOF, self.mesh.nodal_DOF))
-    #         dF_dq = np.zeros((self.ndim,self.ndim,self.mesh.nodal_DOF * self.mesh.n))
-    #         for a in range(self.nn):
-    #             # TODO: reference
-    #             qa = qel[self.mesh.ndDOF[a]]
-    #             F_gp += np.outer(qa, self.nablaX_N[el,i,a])
-    #             dF_dq[:,:,self.mesh.ndDOF[a]] += np.einsum('ik,j->ijk', np.eye(self.ndim), self.nablaX_N[el,i,a])
-
-    #         #dS_dC_gp = self.mat.dS_dC(F_gp.T @ F_gp)
-    #         S_gp = self.mat.S(F_gp.T @ F_gp)
-    #         #dC_dF = np.einsum('kp,ol->opkl', F_gp, np.eye(2)) + np.einsum('ko,pl->opkl', F_gp, np.eye(2))
-    #         #dP_dF = np.einsum('ik,lj->ijkl', np.eye(2), S_gp)  + np.einsum('in,njop,opkl->ijkl',F_gp, dS_dC_gp, dC_dF)
-            
-    #         ######## numerical derivatives
-    #         #dP_dF_num = NumericalDerivative(lambda t,F: self.mat.P(F), order=1).dR_dQ(0, F_gp, eps=eps)
-    #         #dC_dF_num = NumericalDerivative(lambda t,F:  F.T @ F, order=1).dR_dQ(0, F_gp, eps=eps)
-    #         #dS_dF_analytical = np.einsum('njop,opkl->njkl',dS_dC_gp, dC_dF)  
-    #         eps = 1e-6
-    #         dS_dF_num = NumericalDerivative(lambda t,F: self.mat.S(F.T @ F), order=1).dR_dQ(0, F_gp, eps=eps)
-
-    #         dP_dF  = np.einsum('ik,lj->ijkl', np.eye(self.mat.ndim), S_gp)  + np.einsum('in,njkl->ijkl',F_gp, dS_dF_num)
-
-
-    #         #######
-
-    #         dP_dq_gp = np.einsum('klmn,mnj->klj',dP_dF, dF_dq)
-
-    #         for a in range(self.nn):
-    #             # TODO: reference to Bonet1997
-    #             K_el[self.ndDOF[a]] += np.einsum('ijk,j->ik', dP_dq_gp ,self.nablaX_N[el,i,a]) * self.w_J0[el, i]
-
-    #     return -K_el
-
-
-    # def internal_forces_q(self, q):
-    #     # analytical derivatives
-    #     K_int = np.zeros((self.nq, self.nq))
-
-    #     for el in range(self.nel):
-    #         qel = q[self.elDOF[el]]
-
-    #         # C^e^T C_a^T K C_a C^e += K^e
-    #         K_int[np.ix_(self.elDOF[el], self.elDOF[el])] += self.internal_forces_el_q(qel, el)
-
-    #     return K_int
-
-
-    # def eval_all_gp(self, q):
-    #     # required for vtk visualization
-    #     P_all_gp = np.zeros((self.nel * self.mesh.nQP, self.mesh.nodal_DOF, self.mesh.nodal_DOF))
-    #     F_all_gp = np.zeros((self.nel * self.mesh.nQP, self.mesh.nodal_DOF, self.mesh.nodal_DOF))
-    #     W_all_gp = np.zeros((self.nel * self.mesh.nQP))
-    #     n_all_eta = self.mesh.nel_eta * self.mesh.nQP_eta
-    #     for el in range(self.nel):
-    #         qel = q[self.elDOF[el]]
-    #         el_xi, el_eta, el_nu = self.mesh.split_el(el)
-    #         for i in range(self.mesh.nQP):
-    #             i_xi, i_eta, i_nu = self.mesh.split_gp(i)
-    #             i_all_xi = i_xi + el_xi*self.mesh.nQP_xi
-    #             i_all_eta = i_eta + el_eta*self.mesh.nQP_eta
-    #             i_all_nu = i_nu *el_nu*self.mesh.nQP_nu
-    #             # compute deformation gradient of the deformed placement w.r.t. reference placement
-    #             F_gp = np.zeros((self.mesh.nodal_DOF, self.mesh.nodal_DOF))
-    #             for a in range(self.nn):
-    #                 # TODO: reference
-    #                 qa = qel[self.mesh.ndDOF[a]]
-    #                 F_gp += np.outer(qa, self.nablaX_N[el,i,a])
-                
-    #             F_all_gp[i_all_eta + n_all_eta * i_all_xi] = F_gp
-    #             P_all_gp[i_all_eta + n_all_eta * i_all_xi] = self.mat.P(F_gp)
-    #             W_all_gp[i_all_eta + n_all_eta * i_all_xi] =  self.mat.W(F_gp.T @ F_gp)
-    #     return F_all_gp, P_all_gp, W_all_gp
+            # sparse assemble element internal stiffness matrix
+            coo.extend(Ke, (self.uDOF[elDOF], self.qDOF[elDOF]))
 
 def test_gradient():
     from cardillo.discretization.mesh import Mesh, cube
