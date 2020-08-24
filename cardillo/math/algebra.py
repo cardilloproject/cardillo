@@ -1,5 +1,5 @@
 import numpy as np
-from math import sqrt, sin, cos
+from math import sqrt, sin, cos, acos, pi
 from cardillo.math.numerical_derivative import Numerical_derivative
 
 e1 = np.array([1, 0, 0])
@@ -276,28 +276,138 @@ def dI1(A):
 def I2(A):
     r"""Second matrix invariant.
     """
-    I1 = I1(A)
+    I1_ = I1(A)
     I21 = I1(A.T @ A)
-    return 0.5 * (I1 * I1 + I21)
+    return 0.5 * (I1_ * I1_ + I21)
 
-def dI2(self, A):
+def dI2(A):
     r"""Gradient of second matrix invariant.
     """
     a, _ = A.shape
     return I1(A) * np.identity(a) - A.T
 
-def I3(self, A):
+def I3(A):
     r"""Third matrix invariant (determinant).
     """
     return determinant(A)
 
-def dI3(self, A):
+def dI3(A):
     r"""Gradient of first matrix invariant (determinant).
     """
     return I3(A) * inverse(A).T
- 
-if __name__ == "__main__":
-    # tests
+
+# def eig(C):
+#     """Eigenvalues of 3x3 matrix C, see Basar2001"""
+#     I1_ = I1(C)
+#     I2_ = I2(C)
+#     I3_ = I3(C)
+
+#     tmp1 = I1_**2 - 3 * I2_
+#     Theta = acos((2 * I1_**3 - 9 * I1_ * I2_ + 27 * I3_) / (2 * tmp1**(3/2)))
+
+#     la1 = (I1_ + 2 * sqrt(tmp1) * cos((Theta + 2 * pi) / 3)) / 3
+#     la2 = (I1_ + 2 * sqrt(tmp1) * cos((Theta + 4 * pi) / 3)) / 3
+#     la3 = (I1_ + 2 * sqrt(tmp1) * cos((Theta + 6 * pi) / 3)) / 3
+
+#     return la1, la2, la3
+
+def eig(C):
+    """eigenvalues of 3x3 matrix, see https://en.wikipedia.org/wiki/Eigenvalue_algorithm#3%C3%973_matrices"""
+    p1 = C[0, 1]**2 + C[0, 2]**2 + C[1, 2]**2
+    if p1 == 0:
+        # C is diagonal
+        eig1 = C[0, 0]
+        eig2 = C[1, 1]
+        eig3 = C[2, 2]
+    else:
+        q = (C[0, 0] + C[1, 1] + C[2, 2]) / 3 # trace(C)
+        p2 = (C[0, 0] - q)**2 \
+             + (C[1, 1] - q)**2 \
+             + (C[2, 2] - q)**2 \
+             + 2 * p1
+        p = sqrt(p2 / 6)
+        B = (1 / p) * (C - q * np.eye(3))
+        r = determinant3D(B) / 2
+
+        # In exact arithmetic for a symmetric matrix  -1 <= r <= 1
+        # but computation error can leave it slightly outside this range.
+        if r <= -1:
+            phi = pi / 3
+        elif r >= 1:
+            phi = 0
+        else:
+            phi = acos(r) / 3
+
+        # the eigenvalues satisfy eig3 <= eig2 <= eig1
+        eig1 = q + 2 * p * cos(phi)
+        eig3 = q + 2 * p * cos(phi + (2 * pi / 3))
+        eig2 = 3 * q - eig1 - eig3     # since trace(A) = eig1 + eig2 + eig3
+
+    return eig3, eig2, eig1
+
+def eigh_Basar(C):
+    la1, la2, la3 = eig(C)
+
+    I1_ = I1(C)
+    I3_ = I3(C)
+
+    Cinv = inverse3D(C)
+
+    C1 = la1 * ((C - (I1_ - la1) * np.eye(3) + I3_ * Cinv / la1) / (2 * la1**2 - I1_ * la1 + I3_ / la1))
+    C2 = la2 * ((C - (I1_ - la2) * np.eye(3) + I3_ * Cinv / la2) / (2 * la2**2 - I1_ * la2 + I3_ / la2))
+    C3 = la3 * ((C - (I1_ - la3) * np.eye(3) + I3_ * Cinv / la3) / (2 * la3**2 - I1_ * la3 + I3_ / la3))
+
+    return la1, la2, la3, C1, C2, C3
+
+def eigh_numpy(C):
+    la, u = np.linalg.eigh(C)
+    C1 = np.outer(u[:, 0], u[:, 0])
+    C2 = np.outer(u[:, 1], u[:, 1])
+    C3 = np.outer(u[:, 2], u[:, 2])
+    return la[0], la[1], la[2], C1, C2, C3
+
+def test_eigh():
+    import time
+
+    det = -1
+    while det < 0:
+        F = np.random.rand(3, 3)
+        det = determinant(F)
+    C = F.T @ F
+
+    print(C)
+
+    n = 100
+
+    start_time = time.time()
+    for _ in range(n):
+        while det < 0:
+            F = np.random.rand(3, 3)
+            det = determinant(F)
+        C = F.T @ F
+        la1, la2, la3, C1, C2, C3 = eigh_numpy(C)
+    elapsed_time_numpy = time.time() - start_time
+
+    start_time = time.time()
+    for _ in range(n):
+        while det < 0:
+            F = np.random.rand(3, 3)
+            det = determinant(F)
+        C = F.T @ F
+        la1_, la2_, la3_, C1_, C2_, C3_ = eigh_Basar(C)
+    elapsed_time_Basar = time.time() - start_time
+    
+    assert np.allclose(la1, la1_)
+    assert np.allclose(la2, la2_)
+    assert np.allclose(la3, la3_)
+    assert np.allclose(C1, C1_)
+    assert np.allclose(C2, C2_)
+    assert np.allclose(C3, C3_)
+
+    print(f'elapsed time numpy: {elapsed_time_numpy}')
+    print(f'elapsed time Basar: {elapsed_time_Basar}')
+
+def test_quat2mat():
     quat2rot_num = Numerical_derivative(lambda t,x: quat2rot(x), order=2)
     p = np.random.rand(4)
     p = p/np.linalg.norm(p)
@@ -311,3 +421,6 @@ if __name__ == "__main__":
     print(np.linalg.norm(diff2))
 
 
+if __name__ == "__main__":
+    # test_quat2mat()
+    test_eigh()

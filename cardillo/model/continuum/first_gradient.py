@@ -59,6 +59,8 @@ class First_gradient(object):
         point_data_fields = {
             "C": lambda F: F.T @ F,
             "J": lambda F: np.array([determinant3D(F)]),
+            "P": lambda F: self.mat.P(F),
+            "S": lambda F: self.mat.S(F),
         }
 
         for name, fun in point_data_fields.items():
@@ -108,34 +110,34 @@ class First_gradient(object):
 
         return F
 
-    def internal_forces_el(self, qe, e):
+    def f_pot_el(self, qe, e):
         f = np.zeros(self.nq_el)
 
         for i in range(self.nqp):
+            N_X = self.N_X[e, i]
+            w_J0 = self.w_J0[e, i]
 
-            # compute deformation gradient of the deformed placement w.r.t. reference placement
-            F_gp = np.zeros((self.dim, self.dim))
+            # deformation gradient
+            F = np.zeros((self.dim, self.dim))
             for a in range(self.nn_el):
-                F_gp += np.outer(qe[self.mesh.nodalDOF[a]], self.N_X[e, i, a]) # Bonet 1997 (7.5)
+                F += np.outer(qe[self.nodalDOF[a]], N_X[a]) # Bonet 1997 (7.5)
 
-            P_gp = self.mat.P(F_gp)
+            # first Piola-Kirchhoff deformation tensor
+            P = self.mat.P(F)
 
+            # internal forces
             for a in range(self.nn_el):
                 # TODO: reference to Bonet1997?
                 # Bonet1997 (2.52b)
-                f[self.nodaldDOF[a]] += P_gp @ self.N_X[e, i, a] * self.w_J0[e, i]
+                f[self.nodalDOF[a]] += -P @ N_X[a] * w_J0
 
-        return -f
+        return f
 
-    # def internal_forces(self, q):
-    #     f_int = np.zeros(self.nq)
-
-    #     for el in range(self.nel):
-    #         qel = q[self.elDOF[el]]
-    #         f_int[self.elDOF[el]] += self.internal_forces_el(qel, el)
-
-    #     return f_int
-
+    def f_pot(self, t, q):
+        f_pot = np.zeros(self.nq)
+        for e in range(self.nel):
+            f_pot[self.elDOF[e]] += self.f_pot_el(q[self.elDOF[e]], e)
+        return f_pot
 
     # # def internal_forces_q(self, q):
     # #     eps = 1.0e-6
@@ -312,7 +314,7 @@ def test_gradient():
     
 def test_gradient_vtk_export():
     from cardillo.discretization.mesh import Mesh, cube
-    from cardillo.discretization.B_spline import Knot_vector, B_spline_volume2vtk, fit_B_spline_volume
+    from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume
     from cardillo.discretization.indexing import flat3D
 
     QP_shape = (5, 5, 5)
@@ -331,7 +333,8 @@ def test_gradient_vtk_export():
     R = 1
     B = 1
     H = 1
-    L = (R + B / 2) * phi0
+    # L = (R + B / 2) * phi0
+    L = (R) * phi0
     cube_shape = (L, B, H)
     Q = cube(cube_shape, mesh, Greville=True)
 
@@ -369,6 +372,77 @@ def test_gradient_vtk_export():
     # export current configuration and deformation gradient on quadrature points to paraview
     continuum.post_processing(q, 'test.vtu')
 
+def test_internal_forces():
+    from cardillo.discretization.mesh import Mesh, cube
+    from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume
+    from cardillo.discretization.indexing import flat3D
+    from cardillo.model.continuum import Ogden1997_compressible
+
+    QP_shape = (5, 5, 5)
+    degrees = (3, 3, 1)
+    element_shape = (5, 5, 1)
+
+    Xi = Knot_vector(degrees[0], element_shape[0])
+    Eta = Knot_vector(degrees[1], element_shape[1])
+    Zeta = Knot_vector(degrees[2], element_shape[2])
+    knot_vectors = (Xi, Eta, Zeta)
+    
+    mesh = Mesh(knot_vectors, QP_shape, derivative_order=1, basis='B-spline', nq_n=3)
+
+    # reference configuration is a cube
+    phi0 = np.pi / 2
+    R = 1
+    B = 1
+    H = 1
+    # L = (R + B / 2) * phi0
+    L = (R) * phi0
+    cube_shape = (L, B, H)
+    Q = cube(cube_shape, mesh, Greville=True)
+
+    # material model    
+    mu1 = 0.3
+    mu2 = 0.5
+    mat = Ogden1997_compressible(mu1, mu2)
+
+    # 3D continuum
+    continuum = First_gradient(mat, mesh, Q, q0=Q)
+
+    # fit quater circle configuration
+    def bending(xi, eta, zeta, phi0, R, B, H):
+        phi = (1 - xi) * phi0
+        x = (R + B * eta) * np.cos(phi)
+        y = (R + B * eta) * np.sin(phi)
+        z = zeta * H
+        return x, y, z
+
+    nxi, neta, nzeta = 15, 15, 5
+    xi = np.linspace(0, 1, num=nxi)
+    eta = np.linspace(0, 1, num=neta)
+    zeta = np.linspace(0, 1, num=nzeta)
+    
+    n3 = nxi * neta * nzeta
+    knots = np.zeros((n3, 3))
+    Pw = np.zeros((n3, 3))
+    for i, xii in enumerate(xi):
+        for j, etai in enumerate(eta):
+            for k, zetai in enumerate(zeta):
+                idx = flat3D(i, j, k, (nxi, neta, nzeta))
+                knots[idx] = xii, etai, zetai
+                Pw[idx] = bending(xii, etai, zetai, phi0=phi0, R=R, B=B, H=H)
+    
+    cDOF = np.array([], dtype=int)
+    qc = np.array([], dtype=float).reshape((0, 3))
+    x, y, z = fit_B_spline_volume(mesh, knots, Pw, qc, cDOF)
+    q = np.concatenate((x, y, z))
+
+    # evaluate internal forces in deformed configuration
+    f_pot = continuum.f_pot(0, q)
+    print(f'f_pot:\n{f_pot}')
+
+    # export current configuration and deformation gradient on quadrature points to paraview
+    continuum.post_processing(q, 'test.vtu')
+
 if __name__ == "__main__":
     # test_gradient()
-    test_gradient_vtk_export()
+    # test_gradient_vtk_export()
+    test_internal_forces()

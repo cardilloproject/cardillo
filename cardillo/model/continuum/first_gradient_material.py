@@ -1,20 +1,20 @@
 from abc import ABC, abstractmethod
 import numpy as np
-from math import sqrt
+from math import sqrt, log
 from cardillo.math.algebra import determinant2D, determinant3D
 
 class Material_model_ev(ABC):
     """Abstract base class for Ogden type material models.
     """
 
-    def __init__(self, ndim=3):
-        self.ndim = ndim
-        if ndim == 2:
-            self.J = lambda A: determinant2D(A)
-        elif ndim == 3:
-            self.J = lambda A: determinant3D(A)
+    def __init__(self, dim=3):
+        self.dim = dim
+        if dim == 2:
+            self.J = lambda C: sqrt(determinant2D(C))
+        elif dim == 3:
+            self.J = lambda C: sqrt(determinant3D(C))
         else:
-            raise ValueError('ndim has to be 2 or 3')
+            raise ValueError('dim has to be 2 or 3')
 
     def EV(self, A):
         r"""Calculate eigenvalues and eigenvectors of A
@@ -30,19 +30,16 @@ class Material_model_ev(ABC):
     def S(self, C):
         r"""Second Piola Kirchhoff stress.
         """
-        w, v = self.EV(C)
-        J = self.J(C)
-        Sk = np.zeros((self.ndim, self.ndim))
-        for n in range(self.ndim):
-            Sk += self.dW_dw(C, w, n, J) * np.outer(v[:,n], v[:,n])
-        return 2 * Sk
+        la2, u = self.EV(C)
+        S = np.zeros((self.dim, self.dim))
+        for i in range(self.dim):
+            S += self.W_w(C, la2, i) * np.outer(u[:, i], u[:, i])
+        return 2 * S
         
     def P(self, F):
         r"""First Piola Kirchhoff stress.
         """
-        C = F.T @ F
-        # TODO: proof if F @ S is the single contraction or if we have to use F.T @ S!
-        return F @ self.S(C)
+        return F @ self.S(F.T @ F)
         
     #############################################################
     # abstract methods for energy functions and their derivatives
@@ -53,97 +50,70 @@ class Material_model_ev(ABC):
         return
                
     @abstractmethod
-    def dW_dw(self, C, w, n, J):
+    def W_w(self, C, la2, i):
         return
+
+class Ogden1997_compressible():
+    """Ogden 1997 p. 222, (4.4.1)
+    """
+    def __init__(self, mu1, mu2):
+        self.mu1 = mu1
+        self.mu2 = mu2
+
+    def W(self, F):
+        la2, _ = np.linalg.eigh(F.T @ F)
         
-# # TODO: Needs implementation of pressure
-# # Bonet1997 p. 176 6.6.1 / Ogden1985 p.221
-# class Ogden_comp(Material_model_ev):
-#     def __init__(self, al, mu, d, ndim):
-#         Material_model_ev.__init__(self, ndim)
-#         self.al = al
-#         self.mu = mu
-#         self.d = d
-#         self.ndim = ndim
+        I1 = sum(la2)
+        I3 = np.prod(la2)
+        J = sqrt(I3)
+        lnJ = log(J)
 
-#     def W(self,C):
-#         J = self.J(C)
-#         w, _ = self.EV(C)
-#         Wk = 0
-#         for k in range(len(self.mu)):
-#             Wk += self.mu[k] / self.al[k] * (sum(wn**(self.al[k]/2) for wn in w) - self.ndim) + 1 / self.d[k] * (J-1)**(2 * (k+1))
-#         return Wk
+        return self.mu1 / 2 * (I1 - 3) \
+               - self.mu1 * lnJ \
+               + self.mu2 * (J - 1)**2
 
-#     def dW_dw(self,C,w,n,J):
-#         Wk = 0
-#         for k in range(len(self.mu)):
-#             Wk += self.mu[k] / self.al[k] * (self.al[k] / 2 * w[n]**(self.al[k] / 2 - 1)) + J * (k+1) / (self.d[k] * w[n]) * (J-1)**(2 * k + 1) 
-#         return Wk
+    def S(self, F):
+        la2, u = np.linalg.eigh(F.T @ F)
+        J = sqrt(np.prod(la2))
 
-# #bonet 1997 p. 176 6.6.1 / Ogden 1985 p.221
-# class Ogden_incomp(Material_model_ev):
-#     def __init__(self,al,mu,d,ndim):
-#         Material_model_ev.__init__(self, ndim)
-#         self.al = al
-#         self.mu = mu
-#         self.d = d
-#         self.ndim = ndim
-#     # Plane stress assumption
-#     def W(self,C):
-#         J = self.J(C)
-#         w, _ = self.EV(C)
-#         Wk = 0
-#         for k in range(len(self.mu)):
-#             Wk += self.mu[k] / self.al[k] * (sum(wn**(self.al[k]/2) for wn in w) + 1 / J**(self.al[k]) - 3)
-#         return Wk
+        S = np.zeros_like(F)
+        for A in range(len(la2)):
+            SA = self.mu1 * (1 - 1 / la2[A]) \
+                 + self.mu2 * J * (J - 1) / la2[A]
+            S += SA * np.outer(u[:, A], u[:, A])
+        return S
 
-#     def dW_dw(self,C,w,n,J):
-#         Wk = 0
-#         for k in range(len(self.mu)):
-#             Wk += self.mu[k] / self.al[k] * (self.al[k] / 2 * w[n]**(self.al[k] / 2 - 1) - self.al[k] / (2 * w[n]) * 1 / J**(self.al[k]))
-#         return Wk  
-
-# class Ogden_incomp_plane_strain(Material_model_ev):
-#     def __init__(self,al,mu,d,ndim):
-#         Material_model_ev.__init__(self, ndim)
-#         self.al = al
-#         self.mu = mu
-#         self.d = d
-#         self.ndim = ndim
-#     # Plane strain assumption
-#     # Simo 1985 p. 284
-#     def W(self,C):
-#         w, _ = self.EV(C)
-#         Wk = 0
-#         for k in range(len(self.mu)):
-#             Wk += self.mu[k] / self.al[k] * (sum(wn**(self.al[k]/2) for wn in w) - 2)
-#         return Wk
-
-#     def dW_dw(self,C,w,n,J):
-#         #dW_iso_dw
-#         Wk = 0
-#         for k in range(len(self.mu)):
-#             Wk += self.mu[k] / 2 * J**(-self.al[k]/3) * ( w[n]**(self.al[k] / 2) - 1/3 * sum(wn**(self.al[k]/2) for wn in w) - 1/3)
-#         return Wk  
-
-# 3D Ogden type material model
-class Ogden(Material_model_ev):
-    def __init__(self, al, mu, d):
-        Material_model_ev.__init__(self)
-        self.al = al
+    def P(self, F):
+        return F @ self.S(F)
+        
+class Ogden1997_incompressible():
+    """Ogden 1997 p. 293, (7.2.20)
+    """
+    def __init__(self, mu, alpha):
         self.mu = mu
-        self.d = d
+        self.alpha = alpha
 
-    def W(self, C):
-        J = self.J(C)
-        w, _ = self.EV(C)
-        Wk = 0
-        for k in range(len(self.mu)):
-            Wk += self.mu[k] / self.al[k] * (sum(wn**(self.al[k] / 2) for wn in w) - 3 - 1 / self.d[k] * np.log(J)) #+ 1 / self.d[k] * (J-1)**(2 * (k+1))
-        return Wk
+    def W(self, F):        
+        raise NotImplementedError('...')
 
-    def dW_dw(self, C, w, n, J):
-        dW_dw = 0
-        for k in range(len(self.mu)):
-            dW_dw += self.mu[k] * (0.5 * w[n]**(self.al[k] / 2 - 1) - 1 / self.d[k] / w[n]) #+ J * (k+1) / (self.d[k] * w[n]) * (J-1)**(2 * k + 1) 
-        return dW_dw
+    def P(self, F):
+        raise NotImplementedError('...')
+
+def test_Ogden1997_compressible():
+    mu1 = 0.3
+    mu2 = 0.5
+    mat = Ogden1997_compressible(mu1, mu2)
+
+    # F = np.random.rand(3, 3)
+    F = np.eye(3)
+    # F = np.diag(np.array([1, 1, 0.95]))
+    C = F.T @ F
+
+    W = mat.W(C)
+    print(f'W: {W}')
+    
+    P = mat.P(F)
+    print(f'P:\n{P}')
+
+if __name__ == "__main__":
+    test_Ogden1997_compressible()
