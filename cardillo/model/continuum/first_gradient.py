@@ -58,11 +58,12 @@ class First_gradient(object):
         # field data vtk export
         point_data_fields = {
             "C": lambda F: F.T @ F,
-            "J": lambda F: determinant3D(F),
+            "J": lambda F: np.array([determinant3D(F)]),
         }
 
         for name, fun in point_data_fields.items():
-            field = np.zeros_like(F_vtk)
+            tmp = fun(F_vtk[0].reshape(self.dim, self.dim)).reshape(-1)
+            field = np.zeros((len(F_vtk), len(tmp)))
             for i, Fi in enumerate(F_vtk):
                 field[i] = fun(Fi.reshape(self.dim, self.dim)).reshape(-1)
             point_data.update({name: field})
