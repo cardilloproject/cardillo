@@ -1091,9 +1091,9 @@ def test_Piegl_Ex3_4():
 def test_mesh3D_vtk_export():
     # degrees = (1, 2, 3)
     # element_shape = (3, 2, 1)
-    degrees = (2, 4, 3)
+    degrees = (2, 2, 2)
     QP_shape = (3, 4, 2)
-    element_shape = (3, 5, 4)
+    element_shape = (1, 1, 1)
 
     Xi = Knot_vector(degrees[0], element_shape[0])
     Eta = Knot_vector(degrees[1], element_shape[1])
@@ -1107,6 +1107,8 @@ def test_mesh3D_vtk_export():
     Q_cube = cube(cube_shape, mesh, Greville=True, Fuzz=1.0e-1)
     # scatter_Qs(Q_cube)
     
+    surf = mesh.select_surface_2(nn_1 = [mesh.nn_eta-1])
+
     # rearrange generalized coordinates
     B_spline_volume2vtk((Xi, Eta, Zeta), Q_cube, 'Bezier_volume.vtu')
 
@@ -1227,5 +1229,5 @@ if __name__ == '__main__':
     # test_Piegl_Ex3_4()
     # test_Piegl_Fig5_18()
     # test_Piegl_Fig5_20()
-    # test_mesh3D_vtk_export()
-    test_fit_B_spline_volume()
+     test_mesh3D_vtk_export()
+    #test_fit_B_spline_volume()

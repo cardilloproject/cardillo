@@ -141,6 +141,58 @@ class Mesh():
         self.shape_functions()
 
         # constraint matrices 3D
+        self.surface_DOF = {}
+
+    def select_surface_2(self, **kwargs):
+
+        nn_0 =  kwargs.get('nn_0',range(self.nn_xi))
+        nn_1 =  kwargs.get('nn_1',range(self.nn_eta))
+        nn_2 =  kwargs.get('nn_2',range(self.nn_zeta))
+
+        surface = []
+
+        for k in nn_2:
+            for j in nn_1:
+                for i in nn_0:
+
+                    surface.append(flat3D(i,j,k,self.nn_per_dim))
+
+        return np.array(surface)
+
+       # select_surface_2(nn_2 = [0])
+
+#        for s in range(3):
+
+            
+        #     surface_0 = np.zeros((3,self.nn_xi*self.nn_eta))
+
+
+        #    # for k in np.array([0,self.nn_zeta]):
+        #     for i in range(self.nn_xi):
+        #         for j in range(self.nn_eta):
+
+        #             surface_0[0,flat2D(i,j,self.nn_xi)] = flat3D(i,j,0,self.nn_per_dim)
+        #             surface_1[0,flat2D(i,j,self.nn_xi)] = flat3D(i,j,self.nn_zeta,self.nn_per_dim)
+
+        #     surface_0[1:,n] =
+
+
+        # def select_surface_DOF(pos_blocked):
+        #     temp = [0, 1, 2].pop(pos_blocked)
+
+        #     nn_0, nn_1 = self.nn_per_dim[temp]
+        #     for i in range(nn_0):
+        #         for j in range(nn_1):
+        #             for k in range(2):
+
+        #                 idx = [i,j].insert(pos_blocked, k*self.nn_per_dim[pos_blocked])
+
+        #                 surface[0,flat2D(i,j,nn_xi)] = flat3D(*idx,self.nn_per_dim)
+
+        #     return surface
+
+            
+
         # xy plane
         self.i_bottom_x = np.arange(0, self.nn_xi * self.nn_eta)
         self.i_bottom_y = self.i_bottom_x + self.nn
