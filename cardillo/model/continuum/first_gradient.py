@@ -4,7 +4,7 @@ from cardillo.math.numerical_derivative import Numerical_derivative
 import numpy as np
 from cardillo.discretization.indexing import flat2D, flat3D
 from cardillo.discretization.B_spline import B_spline_basis3D
-from cardillo.math.algebra import inverse3D, determinant3D, outer3
+from cardillo.math.algebra import inverse3D, determinant3D
 import meshio
 
 class First_gradient():
@@ -69,7 +69,7 @@ class First_gradient():
         z[self.cDOF] = self.b(t)
         return z
         
-    def post_processing(self, t, q, filename, binary=False):
+    def post_processing(self, t, q, filename, binary=True):
         z = self.z(t, q)
 
         # generalized coordinates, connectivity and polynomial degree
