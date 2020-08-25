@@ -1,4 +1,5 @@
 import numpy as np
+import meshio
 from scipy.sparse.linalg import spsolve
 from cardillo.discretization.indexing import flat2D, flat3D, split2D, split3D
 
@@ -662,9 +663,6 @@ def decompose_B_spline_volume(knot_vectors, Pw):
 
 # vtk export
 def B_spline_curve2vtk(knot_vector, Pw, filename, binary=False):
-    # TODO: import global meshio
-    import meshio as meshio
-
     # create bezier patches
     Qw = decompose_B_spline_curve(knot_vector, Pw)
     nbezier, degree1, dim = Qw.shape
@@ -700,9 +698,6 @@ def B_spline_curve2vtk(knot_vector, Pw, filename, binary=False):
     )
 
 def B_spline_surface2vtk(knot_vectors, Q, filename, binary=False):
-    # TODO: import global meshio
-    import meshio as meshio
-
     # rearrange q's from solver to Piegl's 3D ordering
     Pw = q_to_Pw_2D(knot_vectors, Q)
 
@@ -778,9 +773,6 @@ def flat2D_vtk(Qw):
     return np.array(points)
 
 def B_spline_volume2vtk(knot_vectors, Q, filename, binary=False):
-    # TODO: import global meshio
-    import meshio as meshio
-
     # rearrange q's from solver to Piegl's 3D ordering
     Pw = q_to_Pw_3D(knot_vectors, Q)
 

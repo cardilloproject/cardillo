@@ -1,3 +1,0 @@
-[submodule "meshio"]
-	path = meshio
-	url = https://github.com/nschloe/meshio.git

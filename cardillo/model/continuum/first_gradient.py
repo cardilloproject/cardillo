@@ -3,9 +3,7 @@ import numpy as np
 from cardillo.discretization.indexing import flat2D, flat3D
 from cardillo.discretization.B_spline import B_spline_basis3D
 from cardillo.math.algebra import inverse3D, determinant3D
-
-# TODO: import global meshio
-import meshio as meshio
+import meshio
 
 class First_gradient(object):
     def __init__(self, material, mesh, Q, q0=None):
@@ -356,7 +354,7 @@ def test_internal_forces():
     print(f'f_pot:\n{f_pot}')
 
     # export current configuration and deformation gradient on quadrature points to paraview
-    continuum.post_processing(q, 'test.vtu')
+    continuum.post_processing(q, 'test.vtu', binary=False)
 
 if __name__ == "__main__":
     # test_gradient()
