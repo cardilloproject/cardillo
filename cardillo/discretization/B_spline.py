@@ -1106,8 +1106,6 @@ def test_mesh3D_vtk_export():
     cube_shape = (3, 3, 3)
     Q_cube = cube(cube_shape, mesh, Greville=True, Fuzz=1.0e-1)
     # scatter_Qs(Q_cube)
-    
-    surf = mesh.select_surface_2(nn_1 = [mesh.nn_eta-1])
 
     # rearrange generalized coordinates
     B_spline_volume2vtk((Xi, Eta, Zeta), Q_cube, 'Bezier_volume.vtu')

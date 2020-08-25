@@ -141,57 +141,8 @@ class Mesh():
         self.shape_functions()
 
         # constraint matrices 3D
-        self.surface_DOF = {}
+        self.surface_DOF = self.surfaces()
 
-    def select_surface_2(self, **kwargs):
-
-        nn_0 =  kwargs.get('nn_0',range(self.nn_xi))
-        nn_1 =  kwargs.get('nn_1',range(self.nn_eta))
-        nn_2 =  kwargs.get('nn_2',range(self.nn_zeta))
-
-        surface = []
-
-        for k in nn_2:
-            for j in nn_1:
-                for i in nn_0:
-
-                    surface.append(flat3D(i,j,k,self.nn_per_dim))
-
-        return np.array(surface)
-
-       # select_surface_2(nn_2 = [0])
-
-#        for s in range(3):
-
-            
-        #     surface_0 = np.zeros((3,self.nn_xi*self.nn_eta))
-
-
-        #    # for k in np.array([0,self.nn_zeta]):
-        #     for i in range(self.nn_xi):
-        #         for j in range(self.nn_eta):
-
-        #             surface_0[0,flat2D(i,j,self.nn_xi)] = flat3D(i,j,0,self.nn_per_dim)
-        #             surface_1[0,flat2D(i,j,self.nn_xi)] = flat3D(i,j,self.nn_zeta,self.nn_per_dim)
-
-        #     surface_0[1:,n] =
-
-
-        # def select_surface_DOF(pos_blocked):
-        #     temp = [0, 1, 2].pop(pos_blocked)
-
-        #     nn_0, nn_1 = self.nn_per_dim[temp]
-        #     for i in range(nn_0):
-        #         for j in range(nn_1):
-        #             for k in range(2):
-
-        #                 idx = [i,j].insert(pos_blocked, k*self.nn_per_dim[pos_blocked])
-
-        #                 surface[0,flat2D(i,j,nn_xi)] = flat3D(*idx,self.nn_per_dim)
-
-        #     return surface
-
-            
 
         # xy plane
         self.i_bottom_x = np.arange(0, self.nn_xi * self.nn_eta)
@@ -267,6 +218,32 @@ class Mesh():
                 self.N_xi[el] = NN[:, :, range(1, 4)]
                 if self.derivative_order > 1:
                     self.N_xixi[el] = NN[:, :, range(4, 13)].reshape(self.nqp, self.nn_el, 3, 3)
+
+    def surfaces(self):
+        def select_surface(**kwargs):
+            nn_0 =  kwargs.get('nn_0', range(self.nn_xi))
+            nn_1 =  kwargs.get('nn_1', range(self.nn_eta))
+            nn_2 =  kwargs.get('nn_2', range(self.nn_zeta))
+
+            surface = []
+            for k in nn_2:
+                for j in nn_1:
+                    for i in nn_0:
+                        surface.append(flat3D(i, j, k, self.nn_per_dim))
+
+            DOF_x = np.array(surface)
+            return np.stack((DOF_x, DOF_x + self.nn, DOF_x + 2 * self.nn))
+
+        DOF_tup = (
+            select_surface(nn_2=[0]), 
+            select_surface(nn_2=[self.nn_zeta - 1]), 
+            select_surface(nn_1=[0]),
+            select_surface(nn_1=[self.nn_eta - 1]),
+            select_surface(nn_0=[0]),
+            select_surface(nn_0=[self.nn_xi - 1])
+        )
+
+        return DOF_tup
 
     # TODO: handle derivatives
     def interpolate(self, knots, q, derivative_order=0):
@@ -467,3 +444,50 @@ class Mesh():
                     HigherOrderDegrees.append( np.array(self.degrees)[None] )
 
         return cells, points, HigherOrderDegrees
+
+
+
+
+def test_surface_DOF():
+    from cardillo.discretization.B_spline import Knot_vector
+    # degrees = (1, 2, 3)
+    # element_shape = (3, 2, 1)
+    degrees = (3, 2, 1)
+    QP_shape = (3, 4, 2)
+    element_shape = (4, 5, 3)
+
+    Xi = Knot_vector(degrees[0], element_shape[0])
+    Eta = Knot_vector(degrees[1], element_shape[1])
+    Zeta = Knot_vector(degrees[2], element_shape[2])
+    knot_vectors = (Xi, Eta, Zeta)
+    
+    #from cardillo.discretization.mesh import Mesh, cube, scatter_Qs
+    mesh = Mesh(knot_vectors, QP_shape, derivative_order=2, basis='B-spline', nq_n=3)
+
+    cube_shape = (3, 3, 3)
+    Q = cube(cube_shape, mesh, Greville=True, Fuzz=0)
+    #scatter_Qs(Q_cube)
+
+    import matplotlib.pyplot as plt
+    fig = plt.figure()
+    ax = fig.gca(projection='3d')
+    ax.set_xlabel('x [m]')
+    ax.set_ylabel('y [m]')
+    ax.set_zlabel('z [m]')
+    max_val = np.max(np.abs(Q))
+    ax.set_xlim3d(left=-max_val, right=max_val)
+    ax.set_ylim3d(bottom=-max_val, top=max_val)
+    ax.set_zlim3d(bottom=-max_val, top=max_val)
+#    ax.scatter(*Q.reshape(3, -1), marker='p')
+
+    ax.scatter(*Q[mesh.surface_DOF[0].reshape(-1)].reshape(3,-1), marker='x', color='red')
+    ax.scatter(*Q[mesh.surface_DOF[2].reshape(-1)].reshape(3,-1), marker='x', color='green')
+    ax.scatter(*Q[mesh.surface_DOF[4].reshape(-1)].reshape(3,-1), marker='x', color='black')
+    ax.scatter(*Q[mesh.surface_DOF[1].reshape(-1)].reshape(3,-1), marker='x', color='red')
+    ax.scatter(*Q[mesh.surface_DOF[3].reshape(-1)].reshape(3,-1), marker='x', color='green')
+    ax.scatter(*Q[mesh.surface_DOF[5].reshape(-1)].reshape(3,-1), marker='x', color='black')
+
+    plt.show()
+
+if __name__ == "__main__":
+    test_surface_DOF()
