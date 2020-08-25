@@ -5,16 +5,14 @@ class Numerical_derivative(object):
         self.residual = residual
         self.order = order
 
-    # TODO: get a better solution for this!
-    def view(self, obj, idx, value, dim):
-        if dim == 1:
-            obj[:, idx] += value
-        elif dim == 2:
-            obj[:, :, idx] += value
-        elif dim == 3:
-            obj[:, :, :, idx] += value
-        else:
-            raise RuntimeError('dim > 3 is not implemented!')
+    def _X(self, X, eps=1.0e-6):
+        x = X.reshape(-1)
+        Xshape = X.shape
+        R = lambda t, x: self.residual(x.reshape(Xshape))
+        R_x = Numerical_derivative(R, order=self.order)._x(0, x, eps=eps)
+
+        Rshape = R_x.shape[:-1]
+        return R_x.reshape(Rshape+Xshape)
 
     def _x(self, t, x, y=None, eps=1.0e-6):
         # evaluate residual residual and vary first x
@@ -27,7 +25,6 @@ class Numerical_derivative(object):
         
         nx = len(x)
         shapeR = RPlus.shape
-        dim = len(shapeR)
         R_x = np.zeros(shapeR + (nx,))
         R_xi = np.zeros(shapeR)
 
@@ -47,7 +44,7 @@ class Numerical_derivative(object):
             else:
                 RMinus = self.residual(t, xMinus, y)
             R_xi = np.squeeze(RPlus - RMinus) / (2 * eps)
-        self.view(R_x, 0, R_xi, dim)
+        R_x[... , 0] += R_xi
 
         for i in range(1, nx):
             # forward differences
@@ -72,7 +69,7 @@ class Numerical_derivative(object):
                                         
                 # compute central differences
                 R_xi = np.squeeze(RPlus - RMinus) / (2 * eps)
-            self.view(R_x, i, R_xi, dim)
+            R_x[... , i] += R_xi
 
         return R_x
 
@@ -84,21 +81,20 @@ class Numerical_derivative(object):
         
         ny = len(y)
         shapeR = RPlus.shape
-        dim = len(shapeR)
-        R_u = np.zeros(shapeR + (ny,))
-        R_ui = np.zeros(shapeR)
+        R_y = np.zeros(shapeR + (ny,))
+        R_yi = np.zeros(shapeR)
 
         if self.order == 1:
             # evaluate true residual
             R = self.residual(t, x, y)
-            R_ui = np.squeeze(RPlus - R) / eps
+            R_yi = np.squeeze(RPlus - R) / eps
         else:
             # evaluate first residual at x[0] - eps
             yMinus = np.copy(y)
             yMinus[0] -= eps    
             RMinus = self.residual(t, x, yMinus)   
-            R_ui = np.squeeze(RPlus - RMinus) / (2 * eps)
-        self.view(R_u, 0, R_ui, dim)
+            R_yi = np.squeeze(RPlus - RMinus) / (2 * eps)
+        R_y[... , 0] += R_yi
 
         for i in range(1, ny):
             # forward differences
@@ -109,17 +105,17 @@ class Numerical_derivative(object):
             # backward differences for central differences computation
             if self.order == 1:
                 # compute forward differences
-                R_ui = np.squeeze(RPlus - R) / eps
+                R_yi = np.squeeze(RPlus - R) / eps
             else:
                 yMinus = np.copy(y)
                 yMinus[i] -= eps       
                 RMinus = self.residual(t, x, yMinus)            
                                         
                 # compute central differences
-                R_ui = np.squeeze(RPlus - RMinus) / (2 * eps)
-            self.view(R_u, i, R_ui, dim)
+                R_yi = np.squeeze(RPlus - RMinus) / (2 * eps)
+            R_y[... , i] += R_yi
 
-        return R_u
+        return R_y
 
     def _t(self, t, x, y=None, eps=1.0e-6):
         if y is None:

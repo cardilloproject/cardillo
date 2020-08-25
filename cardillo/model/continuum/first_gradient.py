@@ -1,44 +1,79 @@
+from cardillo.model.model import Model
+from cardillo.utility.coo import Coo
 from cardillo.math.numerical_derivative import Numerical_derivative
 import numpy as np
 from cardillo.discretization.indexing import flat2D, flat3D
 from cardillo.discretization.B_spline import B_spline_basis3D
-from cardillo.math.algebra import inverse3D, determinant3D
+from cardillo.math.algebra import inverse3D, determinant3D, outer3
 import meshio
 
-class First_gradient(object):
-    def __init__(self, material, mesh, Q, q0=None):
+class First_gradient():
+    def __init__(self, material, mesh, Z, z0=None, v0=None, cDOF=[], b=None):
         self.mat = material
 
         # store generalized coordinates
-        self.Q = Q
-        self.q0 = q0 if q0 is not None else Q.copy()
-        self.nq = len(Q)
-        self.nu = self.nq
+        self.Z = Z
+        z0 = z0 if z0 is not None else Z.copy()
+        v0 = v0 if v0 is not None else np.zeros_like(Z)
+        self.nz = len(Z)
+        self.nc = len(cDOF)
+        self.nq = self.nu = self.nz - self.nc
+        self.zDOF = np.arange(self.nz)
+        self.cDOF = cDOF
+        self.fDOF = np.setdiff1d(self.zDOF, cDOF)
+        self.q0 = z0[self.fDOF]
+        self.u0 = v0[self.fDOF]
+
+        if b is None:
+            self.b = lambda t: np.array([], dtype=float)
+        else:
+            if callable(b):
+                self.b = b
+            else:
+                self.b = lambda t: b
+        assert len(cDOF) == len(self.b(0))
 
         # store mesh and extrac data
         self.mesh = mesh
-
-        self.elDOF = mesh.elDOF
-        self.nodalDOF = mesh.nodalDOF
         self.nel = mesh.nel
         self.nn = mesh.nn
         self.nn_el = mesh.nn_el # number of nodes of an element
         self.nq_el = mesh.nq_el
         self.nqp = mesh.nqp
+        self.elDOF = mesh.elDOF
+        self.nodalDOF = mesh.nodalDOF
 
-        self.dim = int(len(Q) / self.nn)
+        self.dim = int(len(Z) / self.nn)
         if self.dim == 2:
             self.flat = flat2D
         else:
             self.flat = flat3D
 
         # for each Gauss point, compute kappa0^-1, N_X and w_J0 = w * det(kappa0^-1)
-        self.kappa0_xi_inv, self.N_X, self.w_J0 = self.mesh.reference_mappings(Q)
+        self.kappa0_xi_inv, self.N_X, self.w_J0 = self.mesh.reference_mappings(Z)
+
+    def assembler_callback(self):
+        self.elfDOF = []
+        self.elqDOF = []
+        self.eluDOF = []
+        for elDOF in self.elDOF:
+            elfDOF = np.setdiff1d(elDOF, self.cDOF)
+            self.elfDOF.append(np.searchsorted(elDOF, elfDOF))
+            idx = np.searchsorted(self.fDOF, elfDOF)
+            self.elqDOF.append(self.qDOF[idx])
+            self.eluDOF.append(self.uDOF[idx])
+
+    def z(self, t, q):
+        z = np.zeros(self.nz)
+        z[self.fDOF] = q
+        z[self.cDOF] = self.b(t)
+        return z
         
-    def post_processing(self, q, filename, binary=False):
+    def post_processing(self, t, q, filename, binary=False):
+        z = self.z(t, q)
 
         # generalized coordinates, connectivity and polynomial degree
-        cells, points, HigherOrderDegrees = self.mesh.vtk_mesh(q)
+        cells, points, HigherOrderDegrees = self.mesh.vtk_mesh(z)
 
         # dictionary storing point data
         point_data = {}
@@ -46,10 +81,10 @@ class First_gradient(object):
         # evaluate deformation gradient at quadrature points
         F = np.zeros((self.mesh.nel, self.mesh.nqp, self.mesh.nq_n, self.mesh.nq_n))
         for el in range(self.mesh.nel):
-            qe = q[self.mesh.elDOF[el]]
+            ze = z[self.mesh.elDOF[el]]
             for i in range(self.mesh.nqp):
                 for a in range(self.mesh.nn_el):
-                    F[el, i] += np.outer(qe[self.mesh.nodalDOF[a]], self.N_X[el, i, a]) # Bonet 1997 (7.6b)
+                    F[el, i] += np.outer(ze[self.mesh.nodalDOF[a]], self.N_X[el, i, a]) # Bonet 1997 (7.6b)
 
         F_vtk = self.mesh.field_to_vtk(F)
         point_data.update({"F": F_vtk})
@@ -60,6 +95,7 @@ class First_gradient(object):
             "J": lambda F: np.array([determinant3D(F)]),
             "P": lambda F: self.mat.P(F),
             "S": lambda F: self.mat.S(F),
+            "W": lambda F: self.mat.W(F),
         }
 
         for name, fun in point_data_fields.items():
@@ -76,10 +112,12 @@ class First_gradient(object):
             cells,
             point_data=point_data,
             cell_data={"HigherOrderDegrees": HigherOrderDegrees},
+            # field_data={"TIME": np.array([t], dtype=float)}, # TODO!
             binary=binary
         )
 
     def F(self, knots, q):
+        raise NotImplementedError('adapt with z(t, q)')
         n = len(knots)
         F = np.zeros((n, self.dim, self.dim))
 
@@ -90,7 +128,7 @@ class First_gradient(object):
             el = flat3D(el_xi, el_eta, el_zeta, self.mesh.nel_per_dim)
             elDOF = self.elDOF[el]
             qe = q[elDOF]
-            Qe = self.Q[elDOF]
+            Qe = self.Z[elDOF]
 
             # evaluate shape functions
             NN = B_spline_basis3D(self.mesh.degrees, 1, self.mesh.knot_vectors, (xi, eta, zeta))
@@ -109,7 +147,7 @@ class First_gradient(object):
 
         return F
 
-    def f_pot_el(self, qe, el):
+    def f_pot_el(self, ze, el):
         f = np.zeros(self.nq_el)
 
         for i in range(self.nqp):
@@ -119,7 +157,7 @@ class First_gradient(object):
             # deformation gradient
             F = np.zeros((self.dim, self.dim))
             for a in range(self.nn_el):
-                F += np.outer(qe[self.nodalDOF[a]], N_X[a]) # Bonet 1997 (7.5)
+                F += np.outer(ze[self.nodalDOF[a]], N_X[a]) # Bonet 1997 (7.5)
 
             # first Piola-Kirchhoff deformation tensor
             P = self.mat.P(F)
@@ -133,18 +171,52 @@ class First_gradient(object):
         return f
 
     def f_pot(self, t, q):
-        f_pot = np.zeros(self.nq)
+        z = self.z(t, q)
+        f_pot = np.zeros(self.nz)
         for el in range(self.nel):
-            f_pot[self.elDOF[el]] += self.f_pot_el(q[self.elDOF[el]], el)
-        return f_pot
+            f_pot[self.elDOF[el]] += self.f_pot_el(z[self.elDOF[el]], el)
+        return f_pot[self.fDOF]
+
+    def f_pot_q_el(self, ze, el):
+        Ke = np.zeros((self.nq_el, self.nq_el))
+        I3 = np.eye(self.dim)
+
+        for i in range(self.nqp):
+            N_X = self.N_X[el, i]
+            w_J0 = self.w_J0[el, i]
+
+            # deformation gradient
+            F = np.zeros((self.dim, self.dim))
+            F_q = np.zeros((self.dim, self.dim, self.nq_el))
+            for a in range(self.nn_el):
+                F += np.outer(ze[self.nodalDOF[a]], N_X[a]) # Bonet 1997 (7.5)
+                F_q[:, :, self.nodalDOF[a]] += np.einsum('ik,j->ijk', I3, N_X[a])
+
+            # differentiate first Piola-Kirchhoff deformation tensor w.r.t. generalized coordinates
+            S = self.mat.S(F)
+            S_F = self.mat.S_F(F)
+            P_F  = np.einsum('ik,lj->ijkl', I3, S)  + np.einsum('in,njkl->ijkl', F, S_F)
+            P_q = np.einsum('klmn,mnj->klj', P_F, F_q)
+
+            # internal element stiffness matrix
+            for a in range(self.nn_el):
+                Ke[self.nodalDOF[a]] += np.einsum('ijk,j->ik', P_q, -N_X[a] * w_J0)
+
+        return Ke
 
     def f_pot_q(self, t, q, coo):
-        for el in range(self.nEl):
-            elDOF = self.elDOF[el]
-            Ke = Numerical_derivative(lambda t, q: self.f_pot_el(q, el))._x(t, q[elDOF])
+        z = self.z(t, q)
+        for el in range(self.nel):
+            Ke = self.f_pot_q_el(z[self.elDOF[el]], el)
+            # Ke_num = Numerical_derivative(lambda t, z: self.f_pot_el(z, el), order=2)._x(t, z[self.elDOF[el]])
+            # error = np.linalg.norm(Ke - Ke_num)
+            # print(f'error: {error}')
 
             # sparse assemble element internal stiffness matrix
-            coo.extend(Ke, (self.uDOF[elDOF], self.qDOF[elDOF]))
+            elfDOF = self.elfDOF[el]
+            eluDOF = self.eluDOF[el]
+            elqDOF = self.elqDOF[el]
+            coo.extend(Ke[elfDOF[:, None], elfDOF], (eluDOF, elqDOF))
 
 def test_gradient():
     from cardillo.discretization.mesh import Mesh, cube
@@ -194,7 +266,7 @@ def test_gradient():
     cube_shape = (L, B, H)
     Q = cube(cube_shape, mesh, Greville=True)
     q0 = np.concatenate((x, y, z))
-    continuum = First_gradient(None, mesh, Q, q0=q0)
+    continuum = First_gradient(None, mesh, Q, z0=q0)
     
     # import matplotlib.pyplot as plt
     # fig = plt.figure()
@@ -253,7 +325,7 @@ def test_gradient_vtk_export():
     Q = cube(cube_shape, mesh, Greville=True)
 
     # 3D continuum
-    continuum = First_gradient(None, mesh, Q, q0=Q)
+    continuum = First_gradient(None, mesh, Q, z0=Q)
 
     # fit quater circle configuration
     def bending(xi, eta, zeta, phi0, R, B, H):
@@ -292,9 +364,9 @@ def test_internal_forces():
     from cardillo.discretization.indexing import flat3D
     from cardillo.model.continuum import Ogden1997_compressible
 
-    QP_shape = (5, 5, 5)
-    degrees = (3, 3, 1)
-    element_shape = (5, 5, 1)
+    QP_shape = (2, 2, 2)
+    degrees = (2, 2, 2)
+    element_shape = (4, 4, 2)
 
     Xi = Knot_vector(degrees[0], element_shape[0])
     Eta = Knot_vector(degrees[1], element_shape[1])
@@ -311,7 +383,7 @@ def test_internal_forces():
     # L = (R + B / 2) * phi0
     L = (R) * phi0
     cube_shape = (L, B, H)
-    Q = cube(cube_shape, mesh, Greville=True)
+    Z = cube(cube_shape, mesh, Greville=True)
 
     # material model    
     mu1 = 0.3
@@ -319,42 +391,37 @@ def test_internal_forces():
     mat = Ogden1997_compressible(mu1, mu2)
 
     # 3D continuum
-    continuum = First_gradient(mat, mesh, Q, q0=Q)
+    # cDOF = []
+    # b = lambda t: np.array([], dtype=float)
+    cDOF1 = mesh.surface_DOF[0].reshape(-1)
+    cDOF2 = mesh.surface_DOF[1][2]
+    cDOF = np.concatenate((cDOF1, cDOF2))
+    b1 = lambda t: Z[cDOF1]
+    b2 = lambda t: Z[cDOF2] + t * 0.25
+    b = lambda t: np.concatenate((b1(t), b2(t)))
 
-    # fit quater circle configuration
-    def bending(xi, eta, zeta, phi0, R, B, H):
-        phi = (1 - xi) * phi0
-        x = (R + B * eta) * np.cos(phi)
-        y = (R + B * eta) * np.sin(phi)
-        z = zeta * H
-        return x, y, z
+    continuum = First_gradient(mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
 
-    nxi, neta, nzeta = 15, 15, 5
-    xi = np.linspace(0, 1, num=nxi)
-    eta = np.linspace(0, 1, num=neta)
-    zeta = np.linspace(0, 1, num=nzeta)
+    from cardillo.model import Model
+    model = Model()
+    model.add(continuum)
+    model.assemble()
     
-    n3 = nxi * neta * nzeta
-    knots = np.zeros((n3, 3))
-    Pw = np.zeros((n3, 3))
-    for i, xii in enumerate(xi):
-        for j, etai in enumerate(eta):
-            for k, zetai in enumerate(zeta):
-                idx = flat3D(i, j, k, (nxi, neta, nzeta))
-                knots[idx] = xii, etai, zetai
-                Pw[idx] = bending(xii, etai, zetai, phi0=phi0, R=R, B=B, H=H)
-    
-    cDOF = np.array([], dtype=int)
-    qc = np.array([], dtype=float).reshape((0, 3))
-    x, y, z = fit_B_spline_volume(mesh, knots, Pw, qc, cDOF)
-    q = np.concatenate((x, y, z))
+    # evaluate internal forces in reference configuration
+    Q = Z[continuum.fDOF]
+    # f_pot = continuum.f_pot(0, Q)
+    f_pot = model.f_pot(0, Q)
+    # print(f'f_pot:\n{f_pot}')
+    print(f'f_pot.shape: {f_pot.shape}')
+    print(f'len(cDOF): {len(cDOF)}')
+    print(f'len(b(0)): {len(b(0))}')
 
-    # evaluate internal forces in deformed configuration
-    f_pot = continuum.f_pot(0, q)
-    print(f'f_pot:\n{f_pot}')
+    f_pot_q = model.f_pot_q(0, Q)
+    # print(f'f_pot_q:\n{f_pot_q.toarray()}')
+    print(f'f_pot_q.shape:\n{f_pot_q.toarray().shape}')
 
     # export current configuration and deformation gradient on quadrature points to paraview
-    continuum.post_processing(q, 'test.vtu', binary=False)
+    continuum.post_processing(0.137, Q, 'test.vtu')
 
 if __name__ == "__main__":
     # test_gradient()

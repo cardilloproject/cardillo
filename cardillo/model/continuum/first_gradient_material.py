@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 import numpy as np
 from math import sqrt, log
 from cardillo.math.algebra import determinant2D, determinant3D
+from cardillo.math.numerical_derivative import Numerical_derivative
 
 class Material_model_ev(ABC):
     """Abstract base class for Ogden type material models.
@@ -73,15 +74,53 @@ class Ogden1997_compressible():
                + self.mu2 * (J - 1)**2
 
     def S(self, F):
-        la2, u = np.linalg.eigh(F.T @ F)
-        J = sqrt(np.prod(la2))
+        La, u = np.linalg.eigh(F.T @ F)
+        J = sqrt(np.prod(La))
 
         S = np.zeros_like(F)
-        for A in range(len(la2)):
-            SA = self.mu1 * (1 - 1 / la2[A]) \
-                 + self.mu2 * J * (J - 1) / la2[A]
-            S += SA * np.outer(u[:, A], u[:, A])
+        for i in range(len(La)):
+            Si = self.mu1 * (1 - 1 / La[i]) \
+                 + self.mu2 * J * (J - 1) / La[i]
+            S += Si * np.outer(u[:, i], u[:, i])
         return S
+
+    def S_F(self, F):
+        La, u = np.linalg.eigh(F.T @ F)
+        J = sqrt(np.prod(La))
+
+        Si = np.zeros(3)
+        Si_Laj = np.zeros((3, 3))
+        for i in range(len(La)):
+            Si[i] = self.mu1 * (1 - 1 / La[i]) \
+                    + self.mu2 * J * (J - 1) / La[i]
+
+            Si_Laj[i, i] += (self.mu1 - self.mu2 * J * (J - 1)) / La[i]**2
+            for j in range(len(La)):
+                Si_Laj[i, j] += self.mu2 * J * (J - 0.5) / (La[j] * La[i])
+
+        S_C = np.zeros((3, 3, 3, 3))
+        for i in range(len(La)):
+            for j in range(len(La)):
+                S_C += Si_Laj[i, j] * np.einsum('i,j,k,l->ijkl', u[:, i], u[:, i], u[:, j], u[:, j])
+                if i != j:
+                    # for La[j] -> La[i] we use L'Hôpital's rule, see Connolly2019 - Isotropic hyperelasticity in principal stretches: explicit elasticity tensors and numerical implementation
+                    if np.allclose(La[i], La[j]):
+                        S_C += 0.5 * (Si_Laj[j, j] - Si_Laj[i, j]) * (np.einsum('i,j,k,l->ijkl', u[:, i], u[:, j], u[:, i], u[:, j]) + np.einsum('i,j,k,l->ijkl', u[:, i], u[:, j], u[:, j], u[:, i]))
+                    else:
+                        S_C += 0.5 * ((Si[j] - Si[i]) / (La[j] - La[i])) * (np.einsum('i,j,k,l->ijkl', u[:, i], u[:, j], u[:, i], u[:, j]) + np.einsum('i,j,k,l->ijkl', u[:, i], u[:, j], u[:, j], u[:, i]))
+
+        I3 = np.eye(3)
+        C_F = np.einsum('kj,il->ijkl', F, I3) + np.einsum('ki,jl->ijkl', F, I3)
+        S_F = np.einsum('ijkl,klmn->ijmn', S_C, C_F)
+
+        # S_F_num = Numerical_derivative(self.S, order=2)._X(F)
+        # error = np.linalg.norm(S_F - S_F_num)
+        # # print(f'error: {error}')
+        # if error > 1.0e-5:
+        #     print(f'error: {error}')
+        # return S_F_num
+
+        return S_F
 
     def P(self, F):
         return F @ self.S(F)

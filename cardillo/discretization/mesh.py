@@ -143,23 +143,6 @@ class Mesh():
         # constraint matrices 3D
         self.surface_DOF = self.surfaces()
 
-
-        # xy plane
-        self.i_bottom_x = np.arange(0, self.nn_xi * self.nn_eta)
-        self.i_bottom_y = self.i_bottom_x + self.nn
-        self.i_bottom_z = self.i_bottom_y + self.nn
-        self.i_top_x = np.arange(self.nn-self.nn_xi * self.nn_eta,self.nn)
-        self.i_top_y = self.i_top_x + self.nn
-        self.i_top_z = self.i_top_y + self.nn
-        
-        # yz plane 
-        self.i_back_x = np.arange(0,self.nn,self.nn_xi)
-        self.i_back_y = self.i_back_x + self.nn
-        self.i_back_z = self.i_back_y + self.nn
-        self.i_front_x = np.arange(self.nn_xi-1,self.nn,self.nn_xi)
-        self.i_front_y = self.i_front_x + self.nn
-        self.i_front_z = self.i_front_y + self.nn
-
     def evaluation_points(self):
         self.qp_xi = np.zeros((self.nel_xi, self.nqp_xi))
         self.qp_eta = np.zeros((self.nel_eta, self.nqp_eta))
