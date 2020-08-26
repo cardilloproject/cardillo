@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 import numpy as np
-from math import sqrt, log
+from math import sqrt, log, isclose
 from cardillo.math.algebra import determinant2D, determinant3D
 from cardillo.math.numerical_derivative import Numerical_derivative
 
@@ -104,7 +104,7 @@ class Ogden1997_compressible():
                 S_C += Si_Laj[i, j] * np.einsum('i,j,k,l->ijkl', u[:, i], u[:, i], u[:, j], u[:, j])
                 if i != j:
                     # for La[j] -> La[i] we use L'Hôpital's rule, see Connolly2019 - Isotropic hyperelasticity in principal stretches: explicit elasticity tensors and numerical implementation
-                    if np.allclose(La[i], La[j]):
+                    if isclose(La[i], La[j]):
                         S_C += 0.5 * (Si_Laj[j, j] - Si_Laj[i, j]) * (np.einsum('i,j,k,l->ijkl', u[:, i], u[:, j], u[:, i], u[:, j]) + np.einsum('i,j,k,l->ijkl', u[:, i], u[:, j], u[:, j], u[:, i]))
                     else:
                         S_C += 0.5 * ((Si[j] - Si[i]) / (La[j] - La[i])) * (np.einsum('i,j,k,l->ijkl', u[:, i], u[:, j], u[:, i], u[:, j]) + np.einsum('i,j,k,l->ijkl', u[:, i], u[:, j], u[:, j], u[:, i]))
