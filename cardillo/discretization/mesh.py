@@ -32,8 +32,8 @@ def cube(shape, mesh, Greville=False, Fuzz=None):
     # prevents singular stifness matrix
     if Fuzz is not None:
         Xs += np.random.rand(len(Xs)) * L * Fuzz
-        Ys += np.random.rand(len(Ys)) * H * Fuzz
-        Zs += np.random.rand(len(Ys)) * B * Fuzz
+        Ys += np.random.rand(len(Ys)) * B * Fuzz
+        Zs += np.random.rand(len(Ys)) * H * Fuzz
 
     # build generalized coordinates
     return np.concatenate((Xs, Ys, Zs))
@@ -144,6 +144,7 @@ class Mesh():
         self.surface_DOF = self.surfaces()
 
     def evaluation_points(self):
+        raise NotImplementedError('...')
         self.qp_xi = np.zeros((self.nel_xi, self.nqp_xi))
         self.qp_eta = np.zeros((self.nel_eta, self.nqp_eta))
         self.qp_zeta = np.zeros((self.nel_zeta, self.nqp_zeta))
@@ -215,7 +216,12 @@ class Mesh():
                         surface.append(flat3D(i, j, k, self.nn_per_dim))
 
             DOF_x = np.array(surface)
-            return np.stack((DOF_x, DOF_x + self.nn, DOF_x + 2 * self.nn))
+            nn_surface = len(surface)
+            DOF = np.zeros((self.nq_n, nn_surface), dtype=int)
+            for i in range(self.nq_n):
+                DOF[i] = DOF_x + i * self.nn
+                
+            return DOF
 
         DOF_tup = (
             select_surface(nn_2=[0]), 
@@ -383,7 +389,7 @@ class Mesh():
             q[:, i] = spsolve(self.A, bi)
 
         # rearrange q's from solver to Piegl's 3D ordering
-        Pw = q_to_Pw_3D(self.knot_vector_objs, q.reshape(-1, order='F'), dim=self.nq_n * self.nq_n)
+        Pw = q_to_Pw_3D(self.knot_vector_objs, q.reshape(-1, order='F'), dim=dim)
 
         # decompose B-spline mesh in Bezier patches      
         Qw = decompose_B_spline_volume(self.knot_vector_objs, Pw)
