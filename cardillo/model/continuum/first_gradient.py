@@ -2,7 +2,7 @@ from cardillo.model.model import Model
 from cardillo.utility.coo import Coo
 from cardillo.math.numerical_derivative import Numerical_derivative
 import numpy as np
-from cardillo.discretization.indexing import flat2D, flat3D, split2D
+from cardillo.discretization.indexing import flat2D, flat3D, split2D, split3D
 from cardillo.discretization.B_spline import B_spline_basis3D
 from cardillo.math.algebra import determinant2D, inverse3D, determinant3D
 import meshio
@@ -290,6 +290,42 @@ class First_gradient():
 
     def force_distr2D_q(self, t, q, coo, force, srf_idx):
         pass
+
+
+    ####################################################
+    # volume forces
+    ####################################################
+    def force_distr3D_el(self, force, t, el):
+        fe = np.zeros(self.nq_el)
+
+        el_xi, el_eta, el_zeta = split3D(el, (self.mesh.nel_xi, self.mesh.nel_eta))
+
+        for i in range(self.nqp):
+            N = self.mesh.N[el, i]
+            w_J0 = self.w_J0[el, i]
+            
+            i_xi, i_eta, i_zeta = split3D(i, (self.mesh.nqp_xi, self.mesh.nqp_eta))
+            xi = self.mesh.qp_xi[el_xi, i_xi]
+            eta = self.mesh.qp_xi[el_eta, i_eta]
+            zeta = self.mesh.qp_xi[el_zeta, i_zeta]
+
+            # internal forces
+            for a in range(self.nn_el):
+                fe[self.nodalDOF[a]] += force(t, xi, eta, zeta) * N[a] * w_J0
+
+        return fe
+
+    def force_distr3D(self, t, q, force):
+        z = self.z(t, q)
+        f = np.zeros(self.nz)
+        
+        for el in range(self.nel):
+            f[self.elDOF[el]] += self.force_distr3D_el(force, t, el)
+        return f[self.fDOF]
+
+    def force_distr3D_q(self, t, q, coo, force):
+        pass
+
 
 
 

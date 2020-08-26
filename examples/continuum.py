@@ -11,13 +11,15 @@ from cardillo.solver import Newton
 from cardillo.model import Model
 from cardillo.math.algebra import A_IK_basic_z
 from cardillo.model.force_distr2D import Force_distr2D
+from cardillo.model.force_distr3D import Force_distr3D
 
 def test_cube():
     TractionForce = True
+    Gravity = True
     # build mesh
-    degrees = (3, 3, 3)
-    QP_shape = (3, 3, 3)
-    element_shape = (3, 3, 3)
+    degrees = (2, 2, 2)
+    QP_shape = (2, 2, 2)
+    element_shape = (5, 5, 5)
 
     Xi = Knot_vector(degrees[0], element_shape[0])
     Eta = Knot_vector(degrees[1], element_shape[1])
@@ -61,6 +63,10 @@ def test_cube():
     if TractionForce:
         F = lambda t, xi, eta: t * np.array([0, 0, -5e0]) * (0.25 - (xi-0.5)**2) * (0.25 - (eta-0.5)**2)
         model.add(Force_distr2D(F, continuum, 1))
+    
+    if Gravity:
+        G = lambda t, xi, eta, zeta: t * np.array([0, 0, -5e-2])
+        model.add(Force_distr3D(G, continuum))
 
     model.assemble()
 
