@@ -8,11 +8,10 @@ from cardillo.model import Model
 from cardillo.solver import Newton
 from cardillo.solver import Euler_backward_singular, Generalized_alpha_4
 from cardillo.model.force import Force
-from cardillo.model.moment import K_Moment
 from cardillo.model.line_force.line_force import Line_force
 from cardillo.math.algebra import e3, ax2skew
 from cardillo.model.rigid_body import Rigid_body_euler
-from cardillo.solver.solution import save_solution, load_solution
+from cardillo.solver.solution import load_solution
 
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
@@ -192,17 +191,21 @@ def helix_spring3D(n_turns, pitch, r, n_points, plane='xyz'):
 
     return P, dP, ddP
 
-# Beams = [Timoshenko_director_dirac, Timoshenko_director_integral, Euler_Bernoulli_director_integral, Inextensible_Euler_Bernoulli_director_integral]
-# Beams = [Timoshenko_director_dirac]
-Beams = [Timoshenko_director_integral]
-# Beams = [Euler_Bernoulli_director_integral]
-# Beams = [Inextensible_Euler_Bernoulli_director_integral]
+# Beam = Timoshenko_director_dirac
+Beam = Timoshenko_director_integral
+# Beam = Euler_Bernoulli_director_integral
+# Beam = Inextensible_Euler_Bernoulli_director_integral
 
 # statics = True
 statics = False
 
-load_sol = False
-# load_sol = True
+save = True
+# save = False
+
+import os
+path = os.path.dirname(os.path.abspath(__file__))
+# export_path = os.path.join(path, 'Wilberforce_pendulum')
+export_path = 'Wilberforce_pendulum'
 
 if __name__ == "__main__":
     ################################################################################################
@@ -231,20 +234,20 @@ if __name__ == "__main__":
     ##########
     # gravity
     #########
-    g = 9.81 / 20
+    g = 9.81
 
     ###########################
     # discretization properties
     ###########################
     # p = 1
-    p = 2
-    # p = 3
+    # p = 2
+    p = 3
     # nQP = p + 1
     nQP = int(np.ceil((p**2 + 1) / 2)) + 1 # dynamics
     print(f'nQP: {nQP}')
-    nEl = 16 # 2 turns
+    # nEl = 16 # 2 turns
     # nEl = 32 # 5 turns
-    # nEl = 64 # 10 turns
+    nEl = 64 # 10 turns
     # nEl = 128 # 20 turns
 
     #############################
@@ -253,9 +256,9 @@ if __name__ == "__main__":
     coil_diameter = 32.0e-3 # 32mm
     coil_radius = coil_diameter / 2
     pitch_unloaded = 1.0e-3 # 1mm
-    turns = 2
+    # turns = 2
     # turns = 5
-    # turns = 10
+    turns = 10
     # turns = 20
     nxi = 500
 
@@ -317,6 +320,7 @@ if __name__ == "__main__":
     # TODO: which Theta is calculated here?
     m, Theta = Wilberforce_bob(coil_radius, debug=True)
     q0 = np.zeros(6)
+    q0[2] = -49e-3 / 2 # center of mass is shifted!
     u0 = np.zeros(6)
     bob = Rigid_body_euler(m , Theta, q0=q0, u0=u0)
     
@@ -327,69 +331,61 @@ if __name__ == "__main__":
     max_iter = 30
     tol = 1.0e-6
 
-    t1 = 5.0
-    # t1 = 1
+    t1 = 10
     # dt = 1.0e-2 # beam as static force element
-    dt = 5.0e-3 # beam as static force element
-    # dt = 2.0e-5 # full beam dynamics
+    dt = 5.0e-3 # beam as static force element generalized alpha
     # dt = 1.0e-5 # full beam dynamics
 
-    sols = []
-    beams = []
-    models = []
-    for i, Beam in enumerate(Beams):
-        beam = Beam(material_model, A_rho0, B_rho0, C_rho0, p, nQP, nEl, q0=Q, Q=Q)
-        beams.append(beam)
+    beam = Beam(material_model, A_rho0, B_rho0, C_rho0, p, nQP, nEl, q0=Q, Q=Q)
 
-        model = Model()
+    model = Model()
 
-        model.add(beam)
-        model.add(frame)
-        model.add(Rigid_connection(frame, beam, r_OB1, frame_ID2=(1,)))
+    model.add(beam)
+    model.add(frame)
+    model.add(Rigid_connection(frame, beam, r_OB1, frame_ID2=(1,)))
 
-        model.add(bob)
-        r_OB = np.zeros(3)
-        model.add(Rigid_connection(bob, beam, r_OB, frame_ID2=(0,)))
+    model.add(bob)
+    r_OB = np.zeros(3)
+    model.add(Rigid_connection(bob, beam, r_OB, frame_ID2=(0,)))
 
-        if statics:
-            model.add(Line_force(lambda xi, t: -t * g * A_rho0 * e3, beam))
-            model.add(Force(lambda t: -t * g * m * e3, bob))
-            # model.add(K_Moment(lambda t: t * 5.0e-2 * e3, bob))
-        else:
-            model.add(Line_force(lambda xi, t: -g * A_rho0 * e3, beam))
-            model.add(Force(lambda t: -g * m * e3, bob))
+    if statics:
+        model.add(Line_force(lambda xi, t: -t * g * A_rho0 * e3, beam))
+        model.add(Force(lambda t: -t * g * m * e3, bob))
+    else:
+        model.add(Line_force(lambda xi, t: -g * A_rho0 * e3, beam))
+        model.add(Force(lambda t: -g * m * e3, bob))
 
-        model.assemble()
-        models.append(model)
+    model.assemble()
 
-        if statics:
-            solver = Newton(model, n_load_steps=n_load_steps, max_iter=max_iter, tol=tol)
-        else:
-            # build algebraic degrees of freedom indices for multiple beams
-            tmp = int(beam.nu / 4)
-            uDOF_algebraic = beam.uDOF[tmp:2*tmp] # include whole beam dynamics
-            # uDOF_algebraic = beam.uDOF[tmp:4*tmp] # include centerline beam dynamics
-            # uDOF_algebraic = beam.uDOF # beams as static force element
+    if statics:
+        solver = Newton(model, n_load_steps=n_load_steps, max_iter=max_iter, tol=tol)
+    else:
+        # build algebraic degrees of freedom indices for multiple beams
+        tmp = int(beam.nu / 4)
+        # uDOF_algebraic = beam.uDOF[tmp:2*tmp] # include whole beam dynamics
+        # uDOF_algebraic = beam.uDOF[tmp:4*tmp] # exclude centerline beam dynamics
+        uDOF_algebraic = beam.uDOF # beam as static force element
+        solver = Euler_backward_singular(model, t1, dt, uDOF_algebraic=uDOF_algebraic, numerical_jacobian=False, debug=False, newton_max_iter=20)
 
-            # solver = Euler_backward_singular(model, t1, dt, uDOF_algebraic=uDOF_algebraic, numerical_jacobian=False, debug=False, newton_max_iter=20)
-            solver = Generalized_alpha_4(model, t1, dt, uDOF_algebraic=uDOF_algebraic, rho_inf=0.85, newton_tol=1.0e-6, numerical_jacobian=False)
-            # solver = Generalized_alpha_4(model, t1, dt, uDOF_algebraic=uDOF_algebraic, rho_inf=0.5, newton_tol=1.0e-6, numerical_jacobian=False)
-            
-        if not load_sol:
-            sols.append( solver.solve() )
-            save_solution(sols[0], 'Wilberforce_pendulum')
-        else:
-            sols.append( load_solution('Wilberforce_pendulum') )
+        # solver = Generalized_alpha_4(model, t1, dt, rho_inf=0.75, uDOF_algebraic=uDOF_algebraic, newton_tol=1.0e-6)
+        # solver = Generalized_alpha_4(model, t1, dt=None, rho_inf=0.75, uDOF_algebraic=uDOF_algebraic, atol=5e-4, rtol=0, newton_tol=1.0e-6)
+        # solver = Generalized_alpha_4(model, t1, dt=dt, variable_dt=False, rho_inf=0.75, uDOF_algebraic=uDOF_algebraic, newton_tol=1.0e-6)
+        
+    if save:
+        sol = solver.solve()
+        sol.save(export_path)
+    else:
+        sol = load_solution(export_path)
 
-    t = sols[0].t
-    q = sols[0].q
+    t = sol.t
+    q = sol.q
 
     ########################
     # compute tip deflection
     ########################
-    r0 = sols[0].q[0][beam.qDOF].reshape(12, -1)[:3, -1]
+    r0 = sol.q[0][beam.qDOF].reshape(12, -1)[:3, -1]
     dr = []
-    for i, qi in enumerate(sols[0].q):
+    for i, qi in enumerate(sol.q):
         dr.append( beam.centerline(qi)[:, -1] - r0)
         # dr.append( qi[beam.qDOF].reshape(12, -1)[:3, -1] - r0)
     dr = np.array(dr).T
@@ -427,12 +423,15 @@ if __name__ == "__main__":
     ax1.set_ylim3d(bottom=-scale, top=scale)
     ax1.set_zlim3d(bottom=-scale, top=scale)
 
-    # prepare data for animation
-    frames = q.shape[0]
-    target_frames = min(frames, 200)
-    frac = int(frames / target_frames)
-    animation_time = 1
-    interval = animation_time * 5000 / target_frames
+    # prepare data for animation    
+    slowmotion = 5
+    fps = 50
+    animation_time = slowmotion * t1
+    target_frames = int(fps * animation_time)
+    frac = max(1, int(len(t) / target_frames))
+    if frac == 1:
+        target_frames = len(t)
+    interval = 1000 / fps
 
     frames = target_frames
     t = t[::frac]

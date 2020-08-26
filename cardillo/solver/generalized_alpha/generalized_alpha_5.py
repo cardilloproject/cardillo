@@ -1,18 +1,15 @@
-from math import inf, isnan
-from numpy.core.records import fromarrays
-from scipy.sparse import csc
-from cardillo.math.algebra import norm2
 import numpy as np
 from scipy.sparse.linalg import spsolve 
-from scipy.sparse import coo_matrix, csc_matrix, identity, bmat, diags
+from scipy.sparse import csc_matrix, bmat
 from tqdm import tqdm
 
-from cardillo.math.prox import prox_Rn0, prox_circle
 from cardillo.math import Numerical_derivative
 from cardillo.utility.coo import Coo
 from cardillo.solver import Solution
 
 class Generalized_alpha_5():
+    """Generalized alpha solver including stabilization conditions for the kinematic equation.
+    """
     def __init__(self, model, t1, dt, \
                     rho_inf=1, beta=None, gamma=None, alpha_m=None, alpha_f=None,\
                        newton_tol=1e-8, newton_max_iter=40, newton_error_function=lambda x: np.max(np.abs(x)),\
