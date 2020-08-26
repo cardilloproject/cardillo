@@ -2,7 +2,7 @@ from cardillo.model.model import Model
 from cardillo.utility.coo import Coo
 from cardillo.math.numerical_derivative import Numerical_derivative
 import numpy as np
-from cardillo.discretization.indexing import flat2D, flat3D
+from cardillo.discretization.indexing import flat2D, flat3D, split2D
 from cardillo.discretization.B_spline import B_spline_basis3D
 from cardillo.math.algebra import determinant2D, inverse3D, determinant3D
 import meshio
@@ -53,6 +53,11 @@ class First_gradient():
 
         # for each Gauss point, compute kappa0^-1, N_X and w_J0 = w * det(kappa0^-1)
         self.kappa0_xi_inv, self.N_X, self.w_J0 = self.mesh.reference_mappings(Z)
+        self.srf_w_J0 = []
+        for i in range(6):
+            self.srf_w_J0.append(self.mesh.surface_mesh[i].reference_mappings(Z[self.mesh.surface_qDOF[i].ravel()]))
+
+       
 
     def assembler_callback(self):
         self.elfDOF = []
@@ -248,6 +253,45 @@ class First_gradient():
             eluDOF = self.eluDOF[el]
             elqDOF = self.elqDOF[el]
             coo.extend(Ke[elfDOF[:, None], elfDOF], (eluDOF, elqDOF))
+
+
+    ####################################################
+    # surface forces
+    ####################################################
+    def force_distr2D_el(self, force, t, el, srf_mesh):
+        fe = np.zeros(srf_mesh.nq_el)
+
+        el_xi, el_eta = split2D(el, (srf_mesh.nel_xi,))
+
+        for i in range(srf_mesh.nqp):
+            N = srf_mesh.N[el, i]
+            w_J0 = self.srf_w_J0[srf_mesh.idx][el, i]
+            
+            i_xi, i_eta = split2D(i, (srf_mesh.nqp_xi,))
+            xi = srf_mesh.qp_xi[el_xi, i_xi]
+            eta = srf_mesh.qp_xi[el_eta, i_eta]
+
+            # internal forces
+            for a in range(srf_mesh.nn_el):
+                fe[srf_mesh.nodalDOF[a]] += force(t, xi, eta) * N[a] * w_J0
+
+        return fe
+
+    def force_distr2D(self, t, q, force, srf_idx):
+        z = self.z(t, q)
+        f = np.zeros(self.nz)
+
+        srf_mesh = self.mesh.surface_mesh[srf_idx]
+        srf_zDOF = self.mesh.surface_qDOF[srf_idx].ravel()
+        
+        for el in range(srf_mesh.nel):
+            f[srf_zDOF[srf_mesh.elDOF[el]]] += self.force_distr2D_el(force, t, el, srf_mesh)
+        return f[self.fDOF]
+
+    def force_distr2D_q(self, t, q, coo, force, srf_idx):
+        pass
+
+
 
 def test_gradient():
     from cardillo.discretization.mesh import Mesh, cube

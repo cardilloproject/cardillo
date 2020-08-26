@@ -10,11 +10,13 @@ from cardillo.model.continuum import Ogden1997_compressible, First_gradient
 from cardillo.solver import Newton
 from cardillo.model import Model
 from cardillo.math.algebra import A_IK_basic_z
+from cardillo.model.force_distr2D import Force_distr2D
 
 def test_cube():
+    TractionForce = True
     # build mesh
-    degrees = (2, 2, 2)
-    QP_shape = (2, 2, 2)
+    degrees = (3, 3, 3)
+    QP_shape = (3, 3, 3)
     element_shape = (3, 3, 3)
 
     Xi = Knot_vector(degrees[0], element_shape[0])
@@ -37,12 +39,17 @@ def test_cube():
     mat = Ogden1997_compressible(mu1, mu2)
 
     # boundary conditions
-    cDOF1 = mesh.surface_DOF[0].reshape(-1)
-    cDOF2 = mesh.surface_DOF[1][2]
-    cDOF = np.concatenate((cDOF1, cDOF2))
-    b1 = lambda t: Z[cDOF1]
-    b2 = lambda t: Z[cDOF2] + t * 0.5
-    b = lambda t: np.concatenate((b1(t), b2(t)))
+    if TractionForce:
+        cDOF = mesh.surface_qDOF[0].reshape(-1)
+        b = lambda t: Z[cDOF]
+
+    else:
+        cDOF1 = mesh.surface_qDOF[0].reshape(-1)
+        cDOF2 = mesh.surface_qDOF[1][2]
+        cDOF = np.concatenate((cDOF1, cDOF2))
+        b1 = lambda t: Z[cDOF1]
+        b2 = lambda t: Z[cDOF2] + t * 0.5
+        b = lambda t: np.concatenate((b1(t), b2(t)))
 
     # 3D continuum
     continuum = First_gradient(mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
@@ -50,6 +57,11 @@ def test_cube():
     # build model
     model = Model()
     model.add(continuum)
+
+    if TractionForce:
+        F = lambda t, xi, eta: t * np.array([0, 0, -5e0]) * (0.25 - (xi-0.5)**2) * (0.25 - (eta-0.5)**2)
+        model.add(Force_distr2D(F, continuum, 1))
+
     model.assemble()
 
     # static solver
@@ -264,7 +276,7 @@ def write_xml():
         f.write(xml_str)
 
 if __name__ == "__main__":
-    # test_cube()
+    test_cube()
     # test_cylinder()
-    test_rectangle()
+    # test_rectangle()
     # write_xml()   

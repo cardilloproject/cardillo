@@ -4,6 +4,7 @@ from scipy.sparse.linalg import spsolve
 from cardillo.discretization.B_spline import uniform_knot_vector, B_spline_basis1D, B_spline_basis2D, B_spline_basis3D, q_to_Pw_3D, decompose_B_spline_volume, flat3D_vtk
 from cardillo.math.algebra import inverse2D, determinant2D, inverse3D, determinant3D, quat2rot
 from cardillo.discretization.indexing import flat3D, split3D
+from cardillo.discretization.mesh2D import Mesh2D
 from cardillo.discretization.gauss import gauss
 from cardillo.utility.coo import Coo
 
@@ -52,7 +53,7 @@ def scatter_Qs(Q):
     ax.scatter(*Q.reshape(3, -1), marker='p')
     plt.show()
 
-# Mesh for quadrilateral elements on rectangular domain
+# Mesh for hexahedral elements on 3D domain
 class Mesh():
     def __init__(self, knot_vector_objs, nqp_per_dim, derivative_order=1, basis='B-spline', nq_n=3):
         # number of elements
@@ -140,8 +141,8 @@ class Mesh():
         # evaluate element shape functions at quadrature points
         self.shape_functions()
 
-        # constraint matrices 3D
-        self.surface_DOF = self.surfaces()
+        # stores evaluated shape functions for all 6 surfaces together with position degrees of freedom
+        self.surfaces()
 
     def evaluation_points(self):
         raise NotImplementedError('...')
@@ -223,7 +224,7 @@ class Mesh():
                 
             return DOF
 
-        DOF_tup = (
+        self.surface_qDOF = (
             select_surface(nn_2=[0]), 
             select_surface(nn_2=[self.nn_zeta - 1]), 
             select_surface(nn_1=[0]),
@@ -232,7 +233,16 @@ class Mesh():
             select_surface(nn_0=[self.nn_xi - 1])
         )
 
-        return DOF_tup
+        surface01 = Mesh2D(self.knot_vector_objs[:2], self.nqp_per_dim[:2], derivative_order=self.derivative_order, basis=self.basis, nq_n=self.nq_n)
+
+        surface23 = Mesh2D(self.knot_vector_objs[1:3], self.nqp_per_dim[1:3], derivative_order=self.derivative_order, basis=self.basis, nq_n=self.nq_n)
+
+        surface45 = Mesh2D(self.knot_vector_objs[::2], self.nqp_per_dim[::2], derivative_order=self.derivative_order, basis=self.basis, nq_n=self.nq_n)
+
+        self.surface_mesh = (surface01, surface01, surface23, surface23, surface45, surface45)
+        for i in range(6):
+            self.surface_mesh[i].idx = i
+
 
     # TODO: handle derivatives
     def interpolate(self, knots, q, derivative_order=0):
@@ -469,12 +479,12 @@ def test_surface_DOF():
     ax.set_zlim3d(bottom=-max_val, top=max_val)
 #    ax.scatter(*Q.reshape(3, -1), marker='p')
 
-    ax.scatter(*Q[mesh.surface_DOF[0].reshape(-1)].reshape(3,-1), marker='x', color='red')
-    ax.scatter(*Q[mesh.surface_DOF[2].reshape(-1)].reshape(3,-1), marker='x', color='green')
-    ax.scatter(*Q[mesh.surface_DOF[4].reshape(-1)].reshape(3,-1), marker='x', color='black')
-    ax.scatter(*Q[mesh.surface_DOF[1].reshape(-1)].reshape(3,-1), marker='x', color='red')
-    ax.scatter(*Q[mesh.surface_DOF[3].reshape(-1)].reshape(3,-1), marker='x', color='green')
-    ax.scatter(*Q[mesh.surface_DOF[5].reshape(-1)].reshape(3,-1), marker='x', color='black')
+    ax.scatter(*Q[mesh.surface_qDOF[0].reshape(-1)].reshape(3,-1), marker='x', color='red')
+    ax.scatter(*Q[mesh.surface_qDOF[2].reshape(-1)].reshape(3,-1), marker='x', color='green')
+    ax.scatter(*Q[mesh.surface_qDOF[4].reshape(-1)].reshape(3,-1), marker='x', color='black')
+    ax.scatter(*Q[mesh.surface_qDOF[1].reshape(-1)].reshape(3,-1), marker='x', color='red')
+    ax.scatter(*Q[mesh.surface_qDOF[3].reshape(-1)].reshape(3,-1), marker='x', color='green')
+    ax.scatter(*Q[mesh.surface_qDOF[5].reshape(-1)].reshape(3,-1), marker='x', color='black')
 
     plt.show()
 
