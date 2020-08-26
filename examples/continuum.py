@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from cardillo.discretization.mesh import Mesh, cube
+from cardillo.discretization.mesh2D import Mesh2D, rectangle
 from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume
 from cardillo.discretization.indexing import flat3D
 from cardillo.model.continuum import Ogden1997_compressible, First_gradient
@@ -70,7 +71,7 @@ def test_cube():
     # vtk export
     continuum.post_processing(sol.t, sol.q, 'cube')
 
-def test_cylidner():    
+def test_cylinder():    
     # build mesh
     degrees = (3, 3, 3)
     QP_shape = (3, 3, 3)
@@ -170,6 +171,68 @@ def test_cylidner():
     # vtk export
     continuum.post_processing(sol.t, sol.q, 'cylinder')
 
+def test_rectangle():
+    # build mesh
+    degrees = (3, 3)
+    QP_shape = (3, 3)
+    element_shape = (4, 8)
+
+    Xi = Knot_vector(degrees[0], element_shape[0])
+    Eta = Knot_vector(degrees[1], element_shape[1])
+    knot_vectors = (Xi, Eta)
+    
+    mesh = Mesh2D(knot_vectors, QP_shape, derivative_order=1, basis='B-spline', nq_n=2)
+
+    # reference configuration is a cube
+    L = 2
+    B = 4
+
+    rectangle_shape = (L, B)
+    Z = rectangle(rectangle_shape, mesh, Greville=True)
+
+    # material model    
+    mu1 = 0.3
+    mu2 = 0.5
+    mat = Ogden1997_compressible(mu1, mu2, dim=2)
+
+    # boundary conditions
+    cDOF1 = mesh.edge_DOF[0].reshape(-1)
+    cDOF2 = mesh.edge_DOF[1][1]
+    cDOF = np.concatenate((cDOF1, cDOF2))
+    b1 = lambda t: Z[cDOF1]
+    b2 = lambda t: Z[cDOF2] + t * 4
+    b = lambda t: np.concatenate((b1(t), b2(t)))
+
+    # 3D continuum
+    continuum = First_gradient(mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
+
+    # vtk export reference configuration
+    # continuum.post_processing_single_configuration(0, Z, 'rectangleReferenceConfig.vtu')
+
+    # build model
+    model = Model()
+    model.add(continuum)
+    model.assemble()
+
+    # static solver
+    n_load_steps = 30
+    tol = 1.0e-5
+    max_iter = 10
+    solver = Newton(model, n_load_steps=n_load_steps, tol=tol, max_iter=max_iter)
+    
+    # import cProfile, pstats
+    # pr = cProfile.Profile()
+    # pr.enable()
+    sol = solver.solve()
+    # pr.disable()
+
+    # sortby = 'cumulative'
+    # ps = pstats.Stats(pr).sort_stats(sortby)
+    # ps.print_stats(0.1) # print only first 10% of the list
+
+    # # vtk export
+    continuum.post_processing(sol.t, sol.q, 'rectangle')
+
 def write_xml():
     # write paraview PVD file, see https://www.paraview.org/Wiki/ParaView/Data_formats#PVD_File_Format
     from xml.dom import minidom
@@ -202,5 +265,6 @@ def write_xml():
 
 if __name__ == "__main__":
     # test_cube()
-    test_cylidner()
-    # write_xml()
+    # test_cylinder()
+    test_rectangle()
+    # write_xml()   

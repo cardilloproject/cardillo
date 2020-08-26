@@ -57,9 +57,10 @@ class Material_model_ev(ABC):
 class Ogden1997_compressible():
     """Ogden 1997 p. 222, (4.4.1)
     """
-    def __init__(self, mu1, mu2):
+    def __init__(self, mu1, mu2, dim=3):
         self.mu1 = mu1
         self.mu2 = mu2
+        self.dim = dim
 
     def W(self, F):
         la2, _ = np.linalg.eigh(F.T @ F)
@@ -88,8 +89,8 @@ class Ogden1997_compressible():
         La, u = np.linalg.eigh(F.T @ F)
         J = sqrt(np.prod(La))
 
-        Si = np.zeros(3)
-        Si_Laj = np.zeros((3, 3))
+        Si = np.zeros(self.dim)
+        Si_Laj = np.zeros((self.dim, self.dim))
         for i in range(len(La)):
             Si[i] = self.mu1 * (1 - 1 / La[i]) \
                     + self.mu2 * J * (J - 1) / La[i]
@@ -98,7 +99,7 @@ class Ogden1997_compressible():
             for j in range(len(La)):
                 Si_Laj[i, j] += self.mu2 * J * (J - 0.5) / (La[j] * La[i])
 
-        S_C = np.zeros((3, 3, 3, 3))
+        S_C = np.zeros((self.dim, self.dim, self.dim, self.dim))
         for i in range(len(La)):
             for j in range(len(La)):
                 S_C += Si_Laj[i, j] * np.einsum('i,j,k,l->ijkl', u[:, i], u[:, i], u[:, j], u[:, j])
@@ -109,8 +110,8 @@ class Ogden1997_compressible():
                     else:
                         S_C += 0.5 * ((Si[j] - Si[i]) / (La[j] - La[i])) * (np.einsum('i,j,k,l->ijkl', u[:, i], u[:, j], u[:, i], u[:, j]) + np.einsum('i,j,k,l->ijkl', u[:, i], u[:, j], u[:, j], u[:, i]))
 
-        I3 = np.eye(3)
-        C_F = np.einsum('kj,il->ijkl', F, I3) + np.einsum('ki,jl->ijkl', F, I3)
+        eye_dim = np.eye(self.dim)
+        C_F = np.einsum('kj,il->ijkl', F, eye_dim) + np.einsum('ki,jl->ijkl', F, eye_dim)
         S_F = np.einsum('ijkl,klmn->ijmn', S_C, C_F)
 
         # S_F_num = Numerical_derivative(self.S, order=2)._X(F)

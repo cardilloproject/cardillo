@@ -4,7 +4,7 @@ from cardillo.math.numerical_derivative import Numerical_derivative
 import numpy as np
 from cardillo.discretization.indexing import flat2D, flat3D
 from cardillo.discretization.B_spline import B_spline_basis3D
-from cardillo.math.algebra import inverse3D, determinant3D
+from cardillo.math.algebra import determinant2D, inverse3D, determinant3D
 import meshio
 
 class First_gradient():
@@ -46,8 +46,10 @@ class First_gradient():
         self.dim = int(len(Z) / self.nn)
         if self.dim == 2:
             self.flat = flat2D
+            self.determinant = determinant2D
         else:
             self.flat = flat3D
+            self.determinant = determinant3D
 
         # for each Gauss point, compute kappa0^-1, N_X and w_J0 = w * det(kappa0^-1)
         self.kappa0_xi_inv, self.N_X, self.w_J0 = self.mesh.reference_mappings(Z)
@@ -93,7 +95,7 @@ class First_gradient():
             # field data vtk export
             point_data_fields = {
                 "C": lambda F: F.T @ F,
-                "J": lambda F: np.array([determinant3D(F)]),
+                "J": lambda F: np.array([self.determinant(F)]),
                 "P": lambda F: self.mat.P(F),
                 "S": lambda F: self.mat.S(F),
                 "W": lambda F: self.mat.W(F),
