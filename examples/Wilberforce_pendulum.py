@@ -333,7 +333,7 @@ if __name__ == "__main__":
 
     t1 = 10
     # dt = 1.0e-2 # beam as static force element
-    dt = 5.0e-3 # beam as static force element generalized alpha
+    dt = 1.0e-3 # beam as static force element generalized alpha
     # dt = 1.0e-5 # full beam dynamics
 
     beam = Beam(material_model, A_rho0, B_rho0, C_rho0, p, nQP, nEl, q0=Q, Q=Q)
