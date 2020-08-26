@@ -10,14 +10,71 @@ from cardillo.solver import Newton
 from cardillo.model import Model
 from cardillo.math.algebra import A_IK_basic_z
 
-if __name__ == "__main__":
-    pass
+def test_cube():
+    # build mesh
+    degrees = (2, 2, 2)
+    QP_shape = (2, 2, 2)
+    element_shape = (3, 3, 3)
+
+    Xi = Knot_vector(degrees[0], element_shape[0])
+    Eta = Knot_vector(degrees[1], element_shape[1])
+    Zeta = Knot_vector(degrees[2], element_shape[2])
+    knot_vectors = (Xi, Eta, Zeta)
+    
+    mesh = Mesh(knot_vectors, QP_shape, derivative_order=1, basis='B-spline', nq_n=3)
+
+    # reference configuration is a cube
+    L = 1
+    B = 1
+    H = 1
+    cube_shape = (L, B, H)
+    Z = cube(cube_shape, mesh, Greville=True)
+
+    # material model    
+    mu1 = 0.3
+    mu2 = 0.5
+    mat = Ogden1997_compressible(mu1, mu2)
+
+    # boundary conditions
+    cDOF1 = mesh.surface_DOF[0].reshape(-1)
+    cDOF2 = mesh.surface_DOF[1][2]
+    cDOF = np.concatenate((cDOF1, cDOF2))
+    b1 = lambda t: Z[cDOF1]
+    b2 = lambda t: Z[cDOF2] + t * 0.5
+    b = lambda t: np.concatenate((b1(t), b2(t)))
+
+    # 3D continuum
+    continuum = First_gradient(mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
+
+    # build model
+    model = Model()
+    model.add(continuum)
+    model.assemble()
+
+    # static solver
+    n_load_steps = 10
+    tol = 1.0e-5
+    max_iter = 10
+    solver = Newton(model, n_load_steps=n_load_steps, tol=tol, max_iter=max_iter)
+    
+    import cProfile, pstats
+    pr = cProfile.Profile()
+    pr.enable()
+    sol = solver.solve()
+    pr.disable()
+
+    sortby = 'cumulative'
+    ps = pstats.Stats(pr).sort_stats(sortby)
+    ps.print_stats(0.1) # print only first 10% of the list
+
+    # vtk export
+    continuum.post_processing(sol.t, sol.q, 'cube')
 
 def test_cylidner():    
     # build mesh
     degrees = (3, 3, 3)
     QP_shape = (3, 3, 3)
-    element_shape = (3, 3, 5)
+    element_shape = (2, 2, 4)
 
     Xi = Knot_vector(degrees[0], element_shape[0])
     Eta = Knot_vector(degrees[1], element_shape[1])
@@ -65,26 +122,13 @@ def test_cylidner():
     mu2 = 0.5
     mat = Ogden1997_compressible(mu1, mu2)
 
-    # # 3D continuum
-    # # cDOF = []
-    # # b = lambda t: np.array([], dtype=float)
-    # cDOF1 = mesh.surface_DOF[0].reshape(-1)
-    # cDOF2 = mesh.surface_DOF[1][2]
-    # cDOF = np.concatenate((cDOF1, cDOF2))
-    # b1 = lambda t: Z[cDOF1]
-    # b2 = lambda t: Z[cDOF2] + t * 0.5
-    # b = lambda t: np.concatenate((b1(t), b2(t)))
-
+    # boundary conditions
     cDOF1 = mesh.surface_DOF[0].reshape(-1)
-    # cDOF2 = mesh.surface_DOF[1][2]
-    # cDOF2x, cDOF2y, cDOF2z = mesh.surface_DOF[1]
-    # cDOF2 = mesh.surface_DOF[1].reshape(-1, order='F')
     cDOF2 = mesh.surface_DOF[1].reshape(-1)
     cDOF = np.concatenate((cDOF1, cDOF2))
     b1 = lambda t: Z[cDOF1]
-    # b2 = lambda t: Z[cDOF2] + t * 0.5
 
-    def b2(t, phi0=2*np.pi, h=0.5):
+    def b2(t, phi0=np.pi, h=0.25):
         cDOF2_xyz = cDOF2.reshape(3, -1).T
         out = np.zeros_like(Z)
 
@@ -99,69 +143,7 @@ def test_cylidner():
 
     b = lambda t: np.concatenate((b1(t), b2(t)))
 
-    continuum = First_gradient(mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
-
-    # build model
-    model = Model()
-    model.add(continuum)
-    model.assemble()
-
-    # static solver
-    n_load_steps = 10
-    tol = 1.0e-5
-    max_iter = 10
-    solver = Newton(model, n_load_steps=n_load_steps, tol=tol, max_iter=max_iter)
-    
-    import cProfile, pstats
-    pr = cProfile.Profile()
-    pr.enable()
-    sol = solver.solve()
-    pr.disable()
-
-    sortby = 'cumulative'
-    ps = pstats.Stats(pr).sort_stats(sortby)
-    ps.print_stats(0.1) # print only first 5% of the list
-
-    # vtk export
-    for i, (ti, qi) in enumerate(zip(sol.t, sol.q)):
-        continuum.post_processing(ti, qi, f'continuum{i}.vtu')
-
-def test_cube():
-    # build mesh
-    degrees = (2, 2, 2)
-    QP_shape = (2, 2, 2)
-    # element_shape = (5, 5, 5)
-    element_shape = (3, 3, 3)
-
-    Xi = Knot_vector(degrees[0], element_shape[0])
-    Eta = Knot_vector(degrees[1], element_shape[1])
-    Zeta = Knot_vector(degrees[2], element_shape[2])
-    knot_vectors = (Xi, Eta, Zeta)
-    
-    mesh = Mesh(knot_vectors, QP_shape, derivative_order=1, basis='B-spline', nq_n=3)
-
-    # reference configuration is a cube
-    L = 1
-    B = 1
-    H = 1
-    cube_shape = (L, B, H)
-    Z = cube(cube_shape, mesh, Greville=True)
-
-    # material model    
-    mu1 = 0.3
-    mu2 = 0.5
-    mat = Ogden1997_compressible(mu1, mu2)
-
     # 3D continuum
-    # cDOF = []
-    # b = lambda t: np.array([], dtype=float)
-    cDOF1 = mesh.surface_DOF[0].reshape(-1)
-    cDOF2 = mesh.surface_DOF[1][2]
-    cDOF = np.concatenate((cDOF1, cDOF2))
-    b1 = lambda t: Z[cDOF1]
-    b2 = lambda t: Z[cDOF2] + t * 0.5
-    b = lambda t: np.concatenate((b1(t), b2(t)))
-
     continuum = First_gradient(mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
 
     # build model
@@ -183,12 +165,42 @@ def test_cube():
 
     sortby = 'cumulative'
     ps = pstats.Stats(pr).sort_stats(sortby)
-    ps.print_stats(0.05) # print only first 5% of the list
+    ps.print_stats(0.1) # print only first 10% of the list
 
     # vtk export
-    for i, (ti, qi) in enumerate(zip(sol.t, sol.q)):
-        continuum.post_processing(ti, qi, f'continuum{i}.vtu')
+    continuum.post_processing(sol.t, sol.q, 'cylinder')
+
+def write_xml():
+    # write paraview PVD file, see https://www.paraview.org/Wiki/ParaView/Data_formats#PVD_File_Format
+    from xml.dom import minidom
+    
+    root = minidom.Document()
+    
+    vkt_file = root.createElement('VTKFile')
+    vkt_file.setAttribute('type', 'Collection')
+    root.appendChild(vkt_file)
+    
+    collection = root.createElement('Collection')
+    vkt_file.appendChild(collection)
+
+    for i in range(10):
+        ti = 0.1 * i
+        dataset = root.createElement('DataSet')
+        dataset.setAttribute('timestep', f'{ti:0.6f}')
+        # dataset.setAttribute('group', '')
+        # dataset.setAttribute('part', '0')
+        dataset.setAttribute('file', f'continuum{i}.vtu')
+        collection.appendChild(dataset)
+
+    
+    xml_str = root.toprettyxml(indent ="\t")  
+    
+    save_path_file = "continuum.pvd"
+    
+    with open(save_path_file, "w") as f:
+        f.write(xml_str)
 
 if __name__ == "__main__":
     # test_cube()
     test_cylidner()
+    # write_xml()
