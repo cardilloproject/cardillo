@@ -57,9 +57,10 @@ class First_gradient():
 
         # for each Gauss point, compute kappa0^-1, N_X and w_J0 = w * det(kappa0^-1)
         self.kappa0_xi_inv, self.N_X, self.w_J0 = self.mesh.reference_mappings(Z)
-        self.srf_w_J0 = []
-        for i in range(6):
-            self.srf_w_J0.append(self.mesh.surface_mesh[i].reference_mappings(Z[self.mesh.surface_qDOF[i].ravel()]))
+        if self.dim ==3:
+            self.srf_w_J0 = []
+            for i in range(6):
+                self.srf_w_J0.append(self.mesh.surface_mesh[i].reference_mappings(Z[self.mesh.surface_qDOF[i].ravel()]))
 
     def assembler_callback(self):
         self.elfDOF = []
@@ -185,8 +186,25 @@ class First_gradient():
 
         return F
 
+    #########################################
+    # kinematic equation
+    #########################################
+    def q_dot(self, t, q, u):
+        return u
+
+    def B(self, t, q, coo):
+        coo.extend_diag(np.ones(self.nq), (self.qDOF, self.uDOF))
+
+    def q_ddot(self, t, q, u, u_dot):
+        return u_dot
+
+    #########################################
+    # equations of motion
+    #########################################
     def M_el(self, el):
         M_el = np.zeros((self.nq_el, self.nq_el))
+
+        I_nq_n = np.eye(self.dim)
 
         for a in range(self.nn_el):
             for b in range(self.nn_el):
@@ -194,7 +212,7 @@ class First_gradient():
                 for i in range(self.nqp):
                     N = self.N[el, i]
                     w_J0 = self.w_J0[el, i]
-                    M_el[idx] += N[a] * N[b] * self.density * w_J0
+                    M_el[idx] += N[a] * N[b] * self.density * w_J0 * I_nq_n
 
         return M_el
 
@@ -205,8 +223,7 @@ class First_gradient():
             # sparse assemble element internal stiffness matrix
             elfDOF = self.elfDOF[el]
             eluDOF = self.eluDOF[el]
-            elqDOF = self.elqDOF[el]
-            coo.extend(M_el[elfDOF[:, None], elfDOF], (eluDOF, elqDOF))
+            coo.extend(M_el[elfDOF[:, None], elfDOF], (eluDOF, eluDOF))
 
     def f_pot_el(self, ze, el):
         f = np.zeros(self.nq_el)
