@@ -199,13 +199,11 @@ Beam = Timoshenko_director_integral
 # statics = True
 statics = False
 
-save = True
-# save = False
+# save = True
+save = False
 
 import os
 path = os.path.dirname(os.path.abspath(__file__))
-# export_path = os.path.join(path, 'Wilberforce_pendulum')
-export_path = 'Wilberforce_pendulum'
 
 if __name__ == "__main__":
     ################################################################################################
@@ -327,13 +325,14 @@ if __name__ == "__main__":
     ###################
     # solver parameters
     ###################
-    n_load_steps = 20
+    n_load_steps = 10
     max_iter = 30
     tol = 1.0e-6
 
     t1 = 10
     # dt = 1.0e-2 # beam as static force element
-    dt = 1.0e-3 # beam as static force element generalized alpha
+    dt = 1e-3 # beam as static force element
+    # dt = 5e-4 # beam as static force element
     # dt = 1.0e-5 # full beam dynamics
 
     beam = Beam(material_model, A_rho0, B_rho0, C_rho0, p, nQP, nEl, q0=Q, Q=Q)
@@ -371,6 +370,10 @@ if __name__ == "__main__":
         # solver = Generalized_alpha_4(model, t1, dt=None, rho_inf=0.75, uDOF_algebraic=uDOF_algebraic, atol=5e-4, rtol=0, newton_tol=1.0e-6)
         # solver = Generalized_alpha_4(model, t1, dt=dt, variable_dt=False, rho_inf=0.75, uDOF_algebraic=uDOF_algebraic, newton_tol=1.0e-6)
         
+        
+    # export_path = os.path.join(path, 'Wilberforce_pendulum')
+    export_path = f'Wilberforce_pendulum_p{p}_nEL{nEl}_turns{turns}_t1{t1}_dt{dt}'
+
     if save:
         sol = solver.solve()
         sol.save(export_path)
@@ -424,8 +427,8 @@ if __name__ == "__main__":
     ax1.set_zlim3d(bottom=-scale, top=scale)
 
     # prepare data for animation    
-    slowmotion = 5
-    fps = 50
+    slowmotion = 2
+    fps = 10
     animation_time = slowmotion * t1
     target_frames = int(fps * animation_time)
     frac = max(1, int(len(t) / target_frames))
@@ -446,7 +449,7 @@ if __name__ == "__main__":
     d3_, = ax1.plot([], [], [], '-b')
 
     def animate(i):
-        x, y, z = beam.centerline(q[i], n=100)
+        x, y, z = beam.centerline(q[i], n=200)
         center_line.set_data(x, y)
         center_line.set_3d_properties(z)
 
