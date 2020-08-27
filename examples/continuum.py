@@ -19,7 +19,8 @@ def test_cube():
     # build mesh
     degrees = (2, 2, 2)
     QP_shape = (2, 2, 2)
-    element_shape = (5, 5, 5)
+    # element_shape = (5, 5, 5)
+    element_shape = (3, 3, 3)
 
     Xi = Knot_vector(degrees[0], element_shape[0])
     Eta = Knot_vector(degrees[1], element_shape[1])

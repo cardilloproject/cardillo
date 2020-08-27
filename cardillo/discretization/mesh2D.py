@@ -245,42 +245,6 @@ class Mesh2D():
             b[elDOF] += be
         return b
 
-    # TODO:
-    def compute_all_N_3D_lagrange(self, PointsOnEdge=False):
-        r"""Computes the shape functions and their derivatives for all Gauss points of all elements. Also returns weighting of the Gauss points.
-
-        Returns
-        -------
-        N : numpy.ndarray
-            (n_QP)-by-((p+1)*(q+1)) array holding for each Gauss point on each element the shape function values.
-        dN_dvxi : numpy.ndarray
-            (n_QP)-by-((p+1)*(q+1))-by-(2) array holding for each Gauss point on each element the derivative of the shape function wrt xi and eta.
-
-        """
-        # compute Gauss points
-        if PointsOnEdge:
-            gp_xi, wp_xi = np.linspace(start = -1, stop = 1, num = self.nqp_xi), np.ones(self.nqp_xi)
-            gp_eta, wp_eta = np.linspace(start = -1, stop = 1, num = self.nqp_eta), np.ones(self.nqp_eta)
-            gp_nu, wp_nu = np.linspace(start = -1, stop = 1, num = self.nqp_zeta), np.ones(self.nqp_zeta)
-        else:
-            gp_xi, wp_xi = np.polynomial.legendre.leggauss(self.nqp_xi)
-            gp_eta, wp_eta = np.polynomial.legendre.leggauss(self.nqp_eta)
-            gp_nu, wp_nu = np.polynomial.legendre.leggauss(self.nqp_zeta)
-
-        N = np.zeros((self.nqp, self.nn_el))
-        dN = np.zeros((self.nqp, self.nn_el, 3))
-
-        for gi in range(self.nqp):
-            gix, gie, ginu = self.split_gp(gi)
-            N[gi], dN[gi] = lagrange3D(self.p, self.q, self.r, gp_xi[gix], gp_eta[gie], gp_nu[ginu])
-
-        wp = np.zeros((self.nqp))
-        for i in range(self.nqp):
-            i_xi, i_eta, i_nu = self.split_gp(i)
-            wp[i] = wp_xi[i_xi] * wp_eta[i_eta] * wp_nu[i_nu]
-
-        return np.vstack([[N]]*self.nel), np.vstack([[dN]]*self.nel), None ,  np.vstack([gp_xi]*self.nel), np.vstack([gp_eta]*self.nel), np.vstack([gp_nu]*self.nel), np.vstack([wp]*self.nel)
-
     def reference_mappings(self, Q):
         """Compute inverse gradient from the reference configuration to the parameter space (only possible for planar elements) and scale quadrature points by its determinant. See Bonet 1997 (7.6a,b)
         """
@@ -322,13 +286,10 @@ class Mesh2D():
                     for a in range(self.nn_el):
                         kappa0_xi += np.outer(Qe[self.nodalDOF[a]], N_xi[a]) # Bonet 1997 (7.6b)
 
+                    # Ciarlet2005 Theorem 2.3-1 (a) and Schulte2020 below (5)
                     w_J0[el, i] = norm3(cross3(kappa0_xi[:, 0], kappa0_xi[:, 1])) * self.wp[el, i]
             
             return w_J0
-                    
-
-
-
 
     # functions for vtk export
     def ensure_L2_projection_A(self):

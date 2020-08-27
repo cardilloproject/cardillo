@@ -1,11 +1,13 @@
+import numpy as np
+import meshio
+import os
+
 from cardillo.model.model import Model
 from cardillo.utility.coo import Coo
 from cardillo.math.numerical_derivative import Numerical_derivative
-import numpy as np
 from cardillo.discretization.indexing import flat2D, flat3D, split2D, split3D
 from cardillo.discretization.B_spline import B_spline_basis3D
 from cardillo.math.algebra import determinant2D, inverse3D, determinant3D
-import meshio
 
 class First_gradient():
     def __init__(self, material, mesh, Z, z0=None, v0=None, cDOF=[], b=None):
@@ -56,8 +58,6 @@ class First_gradient():
         self.srf_w_J0 = []
         for i in range(6):
             self.srf_w_J0.append(self.mesh.surface_mesh[i].reference_mappings(Z[self.mesh.surface_qDOF[i].ravel()]))
-
-       
 
     def assembler_callback(self):
         self.elfDOF = []
@@ -115,7 +115,7 @@ class First_gradient():
         
             # write vtk mesh using meshio
             meshio.write_points_cells(
-                filename,
+                os.path.splitext(os.path.basename(filename))[0] + '.vtu',
                 points,
                 cells,
                 point_data=point_data,
