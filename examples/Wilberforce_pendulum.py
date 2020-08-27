@@ -238,14 +238,14 @@ if __name__ == "__main__":
     # discretization properties
     ###########################
     # p = 1
-    # p = 2
-    p = 3
+    p = 2
+    # p = 3
     # nQP = p + 1
     nQP = int(np.ceil((p**2 + 1) / 2)) + 1 # dynamics
     print(f'nQP: {nQP}')
     # nEl = 16 # 2 turns
-    # nEl = 32 # 5 turns
-    nEl = 64 # 10 turns
+    nEl = 32 # 5 turns
+    # nEl = 64 # 10 turns
     # nEl = 128 # 20 turns
 
     #############################
@@ -255,8 +255,8 @@ if __name__ == "__main__":
     coil_radius = coil_diameter / 2
     pitch_unloaded = 1.0e-3 # 1mm
     # turns = 2
-    # turns = 5
-    turns = 10
+    turns = 5
+    # turns = 10
     # turns = 20
     nxi = 500
 
@@ -329,11 +329,17 @@ if __name__ == "__main__":
     max_iter = 30
     tol = 1.0e-6
 
+<<<<<<< HEAD
     t1 = 10
     # dt = 1.0e-2 # beam as static force element
     dt = 1e-3 # beam as static force element
     # dt = 5e-4 # beam as static force element
     # dt = 1.0e-5 # full beam dynamics
+=======
+    t1 = 0.25
+    # dt = 1.0e-2 # beam as static force element implicit Euler
+    dt = 1e-3 # full beam dynamics generalized alpha
+>>>>>>> 8e283e14986a391bac076ee20851f3a70df7f920
 
     beam = Beam(material_model, A_rho0, B_rho0, C_rho0, p, nQP, nEl, q0=Q, Q=Q)
 
@@ -361,14 +367,12 @@ if __name__ == "__main__":
     else:
         # build algebraic degrees of freedom indices for multiple beams
         tmp = int(beam.nu / 4)
-        # uDOF_algebraic = beam.uDOF[tmp:2*tmp] # include whole beam dynamics
+        uDOF_algebraic = beam.uDOF[tmp:2*tmp] # include whole beam dynamics
         # uDOF_algebraic = beam.uDOF[tmp:4*tmp] # exclude centerline beam dynamics
-        uDOF_algebraic = beam.uDOF # beam as static force element
-        solver = Euler_backward_singular(model, t1, dt, uDOF_algebraic=uDOF_algebraic, numerical_jacobian=False, debug=False, newton_max_iter=20)
+        # uDOF_algebraic = beam.uDOF # beam as static force element
+        # solver = Euler_backward_singular(model, t1, dt, uDOF_algebraic=uDOF_algebraic, numerical_jacobian=False, debug=False, newton_max_iter=20)
 
-        # solver = Generalized_alpha_4(model, t1, dt, rho_inf=0.75, uDOF_algebraic=uDOF_algebraic, newton_tol=1.0e-6)
-        # solver = Generalized_alpha_4(model, t1, dt=None, rho_inf=0.75, uDOF_algebraic=uDOF_algebraic, atol=5e-4, rtol=0, newton_tol=1.0e-6)
-        # solver = Generalized_alpha_4(model, t1, dt=dt, variable_dt=False, rho_inf=0.75, uDOF_algebraic=uDOF_algebraic, newton_tol=1.0e-6)
+        solver = Generalized_alpha_4(model, t1, dt, rho_inf=0.75, uDOF_algebraic=uDOF_algebraic, newton_tol=1.0e-6)
         
         
     # export_path = os.path.join(path, 'Wilberforce_pendulum')
