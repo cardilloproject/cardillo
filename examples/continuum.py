@@ -15,12 +15,16 @@ from cardillo.model.force_distr3D import Force_distr3D
 
 def test_cube():
     TractionForce = True
+    # TractionForce = False
     Gravity = True
     # build mesh
     degrees = (2, 2, 2)
     QP_shape = (2, 2, 2)
     # element_shape = (5, 5, 5)
-    element_shape = (3, 3, 3)
+    element_shape = (3, 4, 2)
+    # degrees = (1, 1, 1)
+    # QP_shape = (2, 2, 2)
+    # element_shape = (2, 1, 1)
 
     Xi = Knot_vector(degrees[0], element_shape[0])
     Eta = Knot_vector(degrees[1], element_shape[1])
@@ -36,40 +40,54 @@ def test_cube():
     cube_shape = (L, B, H)
     Z = cube(cube_shape, mesh, Greville=True)
 
-    # material model    
+    # material model
     mu1 = 0.3
     mu2 = 0.5
     mat = Ogden1997_compressible(mu1, mu2)
 
+    density = 1
+
     # boundary conditions
     if TractionForce:
-        cDOF = mesh.surface_qDOF[0].reshape(-1)
+        # cDOF = mesh.surface_qDOF[0].reshape(-1)
+        cDOF = mesh.surface_qDOF[2].reshape(-1)
+        # cDOF = mesh.surface_qDOF[4].reshape(-1)
         b = lambda t: Z[cDOF]
 
     else:
-        cDOF1 = mesh.surface_qDOF[0].reshape(-1)
-        cDOF2 = mesh.surface_qDOF[1][2]
+        cDOF1 = mesh.surface_qDOF[4].reshape(-1)
+        cDOF2 = mesh.surface_qDOF[5][2]
         cDOF = np.concatenate((cDOF1, cDOF2))
         b1 = lambda t: Z[cDOF1]
         b2 = lambda t: Z[cDOF2] + t * 0.5
         b = lambda t: np.concatenate((b1(t), b2(t)))
 
     # 3D continuum
-    continuum = First_gradient(mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
+    continuum = First_gradient(density, mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
 
     # build model
     model = Model()
     model.add(continuum)
 
     if TractionForce:
-        F = lambda t, xi, eta: t * np.array([0, 0, -5e0]) * (0.25 - (xi-0.5)**2) * (0.25 - (eta-0.5)**2)
-        model.add(Force_distr2D(F, continuum, 1))
+        # F = lambda t, xi, eta: t * np.array([-2.5e0, 0, 0]) * (0.25 - (xi-0.5)**2) * (0.25 - (eta-0.5)**2)
+        # model.add(Force_distr2D(F, continuum, 1))
+        F = lambda t, xi, eta: t * np.array([0, -2.5e0, 0]) * (0.25 - (xi-0.5)**2) * (0.25 - (eta-0.5)**2)
+        model.add(Force_distr2D(F, continuum, 3))
+        # F = lambda t, xi, eta: t * np.array([0, 0, -5e0]) * (0.25 - (xi-0.5)**2) * (0.25 - (eta-0.5)**2)
+        # model.add(Force_distr2D(F, continuum, 5))
     
-    if Gravity:
-        G = lambda t, xi, eta, zeta: t * np.array([0, 0, -5e-2])
-        model.add(Force_distr3D(G, continuum))
+    # if Gravity:
+    #     G = lambda t, xi, eta, zeta: t * np.array([0, 0, -5e-2])
+    #     model.add(Force_distr3D(G, continuum))
 
     model.assemble()
+
+    M = model.M(0, model.q0)
+    np.set_printoptions(precision=5, suppress=True)
+    print(M.toarray())
+
+    exit()
 
     # static solver
     n_load_steps = 10

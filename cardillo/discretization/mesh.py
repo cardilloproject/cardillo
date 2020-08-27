@@ -225,19 +225,19 @@ class Mesh():
             return DOF
 
         self.surface_qDOF = (
-            select_surface(nn_2=[0]), 
-            select_surface(nn_2=[self.nn_zeta - 1]), 
+            select_surface(nn_0=[0]),
+            select_surface(nn_0=[self.nn_xi - 1]),
             select_surface(nn_1=[0]),
             select_surface(nn_1=[self.nn_eta - 1]),
-            select_surface(nn_0=[0]),
-            select_surface(nn_0=[self.nn_xi - 1])
+            select_surface(nn_2=[0]), 
+            select_surface(nn_2=[self.nn_zeta - 1]), 
         )
 
-        surface01 = Mesh2D(self.knot_vector_objs[:2], self.nqp_per_dim[:2], derivative_order=self.derivative_order, basis=self.basis, nq_n=self.nq_n)
+        surface01 = Mesh2D(self.knot_vector_objs[1:3], self.nqp_per_dim[1:3], derivative_order=self.derivative_order, basis=self.basis, nq_n=self.nq_n)
 
-        surface23 = Mesh2D(self.knot_vector_objs[1:3], self.nqp_per_dim[1:3], derivative_order=self.derivative_order, basis=self.basis, nq_n=self.nq_n)
-
-        surface45 = Mesh2D(self.knot_vector_objs[::2], self.nqp_per_dim[::2], derivative_order=self.derivative_order, basis=self.basis, nq_n=self.nq_n)
+        surface23 = Mesh2D(self.knot_vector_objs[::2], self.nqp_per_dim[::2], derivative_order=self.derivative_order, basis=self.basis, nq_n=self.nq_n)
+        
+        surface45 = Mesh2D(self.knot_vector_objs[:2], self.nqp_per_dim[:2], derivative_order=self.derivative_order, basis=self.basis, nq_n=self.nq_n)
 
         self.surface_mesh = (surface01, surface01, surface23, surface23, surface45, surface45)
         for i in range(6):

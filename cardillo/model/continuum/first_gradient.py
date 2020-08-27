@@ -10,7 +10,8 @@ from cardillo.discretization.B_spline import B_spline_basis3D
 from cardillo.math.algebra import determinant2D, inverse3D, determinant3D
 
 class First_gradient():
-    def __init__(self, material, mesh, Z, z0=None, v0=None, cDOF=[], b=None):
+    def __init__(self, density, material, mesh, Z, z0=None, v0=None, cDOF=[], b=None):
+        self.density = density
         self.mat = material
 
         # store generalized coordinates
@@ -44,6 +45,7 @@ class First_gradient():
         self.nqp = mesh.nqp
         self.elDOF = mesh.elDOF
         self.nodalDOF = mesh.nodalDOF
+        self.N = self.mesh.N
 
         self.dim = int(len(Z) / self.nn)
         if self.dim == 2:
@@ -183,6 +185,29 @@ class First_gradient():
 
         return F
 
+    def M_el(self, el):
+        M_el = np.zeros((self.nq_el, self.nq_el))
+
+        for a in range(self.nn_el):
+            for b in range(self.nn_el):
+                idx = np.ix_(self.nodalDOF[a], self.nodalDOF[b])
+                for i in range(self.nqp):
+                    N = self.N[el, i]
+                    w_J0 = self.w_J0[el, i]
+                    M_el[idx] += N[a] * N[b] * self.density * w_J0
+
+        return M_el
+
+    def M(self, t, q, coo):
+        for el in range(self.nel):
+            M_el = self.M_el(el)
+
+            # sparse assemble element internal stiffness matrix
+            elfDOF = self.elfDOF[el]
+            eluDOF = self.eluDOF[el]
+            elqDOF = self.elqDOF[el]
+            coo.extend(M_el[elfDOF[:, None], elfDOF], (eluDOF, elqDOF))
+
     def f_pot_el(self, ze, el):
         f = np.zeros(self.nq_el)
 
@@ -254,7 +279,6 @@ class First_gradient():
             elqDOF = self.elqDOF[el]
             coo.extend(Ke[elfDOF[:, None], elfDOF], (eluDOF, elqDOF))
 
-
     ####################################################
     # surface forces
     ####################################################
@@ -269,7 +293,7 @@ class First_gradient():
             
             i_xi, i_eta = split2D(i, (srf_mesh.nqp_xi,))
             xi = srf_mesh.qp_xi[el_xi, i_xi]
-            eta = srf_mesh.qp_xi[el_eta, i_eta]
+            eta = srf_mesh.qp_eta[el_eta, i_eta]
 
             # internal forces
             for a in range(srf_mesh.nn_el):
@@ -306,8 +330,8 @@ class First_gradient():
             
             i_xi, i_eta, i_zeta = split3D(i, (self.mesh.nqp_xi, self.mesh.nqp_eta))
             xi = self.mesh.qp_xi[el_xi, i_xi]
-            eta = self.mesh.qp_xi[el_eta, i_eta]
-            zeta = self.mesh.qp_xi[el_zeta, i_zeta]
+            eta = self.mesh.qp_eta[el_eta, i_eta]
+            zeta = self.mesh.qp_zeta[el_zeta, i_zeta]
 
             # internal forces
             for a in range(self.nn_el):
