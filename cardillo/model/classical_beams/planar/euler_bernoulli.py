@@ -3,7 +3,7 @@ from math import atan2, sqrt
 
 from cardillo.utility.coo import Coo
 from cardillo.discretization import gauss
-from cardillo.discretization import uniform_knot_vector, B_spline_basis
+from cardillo.discretization import uniform_knot_vector, B_spline_basis1D
 from cardillo.math.algebra import ax2skew, norm2, norm3, cross3, e3
 from cardillo.math.numerical_derivative import Numerical_derivative
 
@@ -63,7 +63,7 @@ class Euler_bernoulli():
             self.xi[el] = qp
 
             # evaluate B-spline shape functions
-            self.N[el], self.N_xi[el], self.N_xixi[el] = B_spline_basis(polynomial_degree, derivative_order, knot_vector, qp)
+            self.N[el], self.N_xi[el], self.N_xixi[el] = B_spline_basis1D(polynomial_degree, derivative_order, knot_vector, qp)
 
             # compute change of integral measures
             Qe = self.Q[self.elDOF[el]]
@@ -72,11 +72,11 @@ class Euler_bernoulli():
                 self.J0[el, i] = norm2(r0_xi)
 
         # shape functions on the boundary
-        N_bdry, dN_bdry = B_spline_basis(self.polynomial_degree, 1, self.knot_vector, 0)
+        N_bdry, dN_bdry = B_spline_basis1D(self.polynomial_degree, 1, self.knot_vector, 0)
         N_bdry_left = self.stack_shapefunctions(N_bdry)
         dN_bdry_left = self.stack_shapefunctions(dN_bdry)
 
-        N_bdry, dN_bdry = B_spline_basis(self.polynomial_degree, 1, self.knot_vector, 1)
+        N_bdry, dN_bdry = B_spline_basis1D(self.polynomial_degree, 1, self.knot_vector, 1)
         N_bdry_right = self.stack_shapefunctions(N_bdry)
         dN_bdry_right = self.stack_shapefunctions(dN_bdry)
 
@@ -95,7 +95,7 @@ class Euler_bernoulli():
             NN = self.N_bdry[-1]
             dNN = self.dN_bdry[-1]
         else:
-            N, dN = B_spline_basis(self.polynomial_degree, 1, self.knot_vector, xi)
+            N, dN = B_spline_basis1D(self.polynomial_degree, 1, self.knot_vector, xi)
             NN = self.stack_shapefunctions(N)
             dNN = self.stack_shapefunctions(dN)
         return NN, dNN
@@ -334,7 +334,7 @@ class Euler_bernoulli():
         elif xi == 1:
             NN = self.N_bdry[1]
         else:
-            N = B_spline_basis(self.polynomial_degree, 0, self.knot_vector, xi)
+            N = B_spline_basis1D(self.polynomial_degree, 0, self.knot_vector, xi)
             NN = self.stack_shapefunctions(N)
 
         # interpolate position vector
@@ -433,7 +433,7 @@ class Euler_bernoulli():
         return K_J_R
 
     def K_J_R_q(self, t, q, frame_ID):
-        _, dN = B_spline_basis(self.polynomial_degree, 1, self.knot_vector, frame_ID[0])
+        _, dN = B_spline_basis1D(self.polynomial_degree, 1, self.knot_vector, frame_ID[0])
         dNN = self.stack_shapefunctions(dN)
         dNN_perp = self.stack_shapefunctions_perp(dN)
         t = dNN @ q
@@ -511,7 +511,7 @@ class Inextensible_Euler_bernoulli(Euler_bernoulli):
             qp, _ = gauss(self.nQP, self.element_span_g[el:el+2])
 
             # evaluate B-spline shape functions
-            self.N_g[el] = B_spline_basis(self.polynomial_degree_g, 0, self.knot_vector_g, qp).squeeze()
+            self.N_g[el] = B_spline_basis1D(self.polynomial_degree_g, 0, self.knot_vector_g, qp).squeeze()
 
     def __g_el(self, qe, N_xi, N_g, J0, qw):
         g = np.zeros(self.nla_g_el)

@@ -58,3 +58,8 @@ dist
 # videos
 *.mp4
 *.avi
+
+# vtk files
+*.vtu
+*.vtk
+*.pvd

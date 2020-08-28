@@ -25,7 +25,7 @@ setup(
         'scipy>=1.4.1', 
         'matplotlib>=3.2.1', 
         'tqdm>=4.46.0',
-        'geomdl>=5.2.9', ],
+        'meshio>=4.1.1', ],
     packages=find_packages(),
     python_requires='>=3.7',
 )
