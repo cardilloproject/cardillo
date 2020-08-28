@@ -290,6 +290,25 @@ class Mesh2D():
                     w_J0[el, i] = norm3(cross3(kappa0_xi[:, 0], kappa0_xi[:, 1])) * self.wp[el, i]
             
             return w_J0
+                        
+    def N_XX(self, Q, kappa0_xi_inv):
+        assert self.derivative_order == 2
+        N_XX = np.zeros((self.nel, self.nqp, self.nn_el, self.nq_n, self.nq_n))
+        for el in range(self.nel):
+            Qe = Q[self.elDOF[el]]
+
+            for i in range(self.nqp):
+                N_xi = self.N_xi[el, i]
+                N_xixi = self.N_xixi[el, i]
+                kappa0_xi_inv_el_i = kappa0_xi_inv[el, i]
+                
+                kappa0_xixi = np.zeros((self.nq_n, 2, 2))
+                for a in range(self.nn_el):
+                    kappa0_xixi += np.einsum('i,jk->ijk', Qe[self.nodalDOF[a]], N_xixi[a])
+
+                for a in range(self.nn_el):
+                    N_XX[el, i, a] = kappa0_xi_inv_el_i.T @ (N_xixi[a] - np.einsum('i,ijk->jk', N_xi[a] @ kappa0_xi_inv_el_i, kappa0_xixi)) @ kappa0_xi_inv_el_i # Maurin2019 (28) modified
+        return N_XX
 
     # functions for vtk export
     def ensure_L2_projection_A(self):

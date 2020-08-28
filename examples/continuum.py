@@ -7,6 +7,7 @@ from cardillo.discretization.mesh2D import Mesh2D, rectangle
 from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume
 from cardillo.discretization.indexing import flat3D
 from cardillo.model.continuum import Ogden1997_compressible, First_gradient
+from cardillo.model.continuum import Pantographic_sheet, Maurin2019_linear
 from cardillo.solver import Newton, Generalized_alpha_1, Euler_backward
 from cardillo.model import Model
 from cardillo.math.algebra import A_IK_basic_z
@@ -282,7 +283,6 @@ def test_rectangle():
     model.add(continuum)
     model.assemble()
 
-
     # static solver
     n_load_steps = 30
     tol = 1.0e-5
@@ -332,8 +332,67 @@ def write_xml():
     with open(save_path_file, "w") as f:
         f.write(xml_str)
 
+def pantographic_sheet():
+    # build mesh
+    degrees = (2, 2)
+    QP_shape = (2, 2)
+    element_shape = (3, 4)
+
+    Xi = Knot_vector(degrees[0], element_shape[0])
+    Eta = Knot_vector(degrees[1], element_shape[1])
+    knot_vectors = (Xi, Eta)
+    
+    mesh = Mesh2D(knot_vectors, QP_shape, derivative_order=2, basis='B-spline', nq_n=2)
+
+    # reference configuration is a cube
+    L = 2
+    B = 2
+
+    rectangle_shape = (L, B)
+    Z = rectangle(rectangle_shape, mesh, Greville=True)
+
+    # material model
+    K_rho = 1.34e5
+    K_Gamma = 1.59e2
+    K_Theta_s = 1.92e-2
+    mat = Maurin2019_linear(K_rho, K_Gamma, K_Theta_s)
+
+    # boundary conditions
+    cDOF1 = mesh.edge_DOF[0].reshape(-1)
+    cDOF2x = mesh.edge_DOF[1][0]
+    cDOF2y = mesh.edge_DOF[1][1]
+    cDOF2 = np.concatenate((cDOF2x, cDOF2y))
+    # cDOF2 = mesh.edge_DOF[1][1]
+    cDOF = np.concatenate((cDOF1, cDOF2))
+    b1 = lambda t: Z[cDOF1]
+    b2x = lambda t: Z[cDOF2x] + t * 0.5
+    b2y = lambda t: Z[cDOF2y]
+    b = lambda t: np.concatenate((b1(t), b2x(t), b2y(t)))
+    # b = lambda t: np.concatenate((b1(t), b2(t)))
+
+    # 3D continuum
+    continuum = Pantographic_sheet(None, mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
+
+    model = Model()
+    model.add(continuum)
+    model.assemble()
+
+    # f_pot = model.f_pot(0, model.q0)
+    
+    # static solver
+    n_load_steps = 5
+    tol = 1.0e-5
+    max_iter = 10
+    solver = Newton(model, n_load_steps=n_load_steps, tol=tol, max_iter=max_iter)
+
+    sol = solver.solve()
+
+    # vtk export
+    continuum.post_processing(sol.t, sol.q, 'pantographic_sheet')
+
 if __name__ == "__main__":
-    test_cube()
+    # test_cube()
     # test_cylinder()
     # test_rectangle()
-    # write_xml()   
+    # write_xml()
+    pantographic_sheet()
