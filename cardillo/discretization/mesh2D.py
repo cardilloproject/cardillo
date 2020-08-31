@@ -113,7 +113,7 @@ class Mesh2D():
         self.shape_functions()
 
         # edge degrees of freedom
-        self.edge_DOF = self.edges()
+        self.edges()
 
     def evaluation_points(self):
         raise NotImplementedError('...')
@@ -187,14 +187,12 @@ class Mesh2D():
                 
             return DOF
 
-        DOF_tup = (
+        self.edge_DOF = (
+            select_edge(nn_0=[0]),
+            select_edge(nn_0=[self.nn_xi - 1]),
             select_edge(nn_1=[0]),
             select_edge(nn_1=[self.nn_eta - 1]),
-            select_edge(nn_0=[0]),
-            select_edge(nn_0=[self.nn_xi - 1])
         )
-
-        return DOF_tup
 
     # TODO: handle derivatives, check usage of function
     def interpolate(self, knots, q, derivative_order=0):

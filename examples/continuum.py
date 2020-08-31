@@ -336,7 +336,7 @@ def pantographic_sheet():
     # build mesh
     degrees = (2, 2)
     QP_shape = (2, 2)
-    element_shape = (3, 4)
+    element_shape = (4, 3)
 
     Xi = Knot_vector(degrees[0], element_shape[0])
     Eta = Knot_vector(degrees[1], element_shape[1])
@@ -344,9 +344,11 @@ def pantographic_sheet():
     
     mesh = Mesh2D(knot_vectors, QP_shape, derivative_order=2, basis='B-spline', nq_n=2)
 
-    # reference configuration is a cube
-    L = 2
-    B = 2
+    # reference configuration is a rectangle
+    # L = 2
+    # B = 2
+    B = 10 * np.sqrt(2) * 0.0048
+    L = 3 * B
 
     rectangle_shape = (L, B)
     Z = rectangle(rectangle_shape, mesh, Greville=True)
@@ -358,17 +360,19 @@ def pantographic_sheet():
     mat = Maurin2019_linear(K_rho, K_Gamma, K_Theta_s)
 
     # boundary conditions
-    cDOF1 = mesh.edge_DOF[0].reshape(-1)
-    cDOF2x = mesh.edge_DOF[1][0]
-    cDOF2y = mesh.edge_DOF[1][1]
-    cDOF2 = np.concatenate((cDOF2x, cDOF2y))
-    # cDOF2 = mesh.edge_DOF[1][1]
-    cDOF = np.concatenate((cDOF1, cDOF2))
-    b1 = lambda t: Z[cDOF1]
-    b2x = lambda t: Z[cDOF2x] + t * 0.5
-    b2y = lambda t: Z[cDOF2y]
-    b = lambda t: np.concatenate((b1(t), b2x(t), b2y(t)))
-    # b = lambda t: np.concatenate((b1(t), b2(t)))
+    # cDOF1 = mesh.edge_DOF[0].ravel()
+    # cDOF2x = mesh.edge_DOF[1][0]
+    # cDOF2y = mesh.edge_DOF[1][1]
+    # cDOF2 = np.concatenate((cDOF2x, cDOF2y))
+    # # cDOF2 = mesh.edge_DOF[1][1]
+    # cDOF = np.concatenate((cDOF1, cDOF2))
+    # b1 = lambda t: Z[cDOF1]
+    # b2x = lambda t: Z[cDOF2x] + t * 0.5
+    # b2y = lambda t: Z[cDOF2y]
+    # b = lambda t: np.concatenate((b1(t), b2x(t), b2y(t)))
+    # # b = lambda t: np.concatenate((b1(t), b2(t)))
+
+    cDOF, b = standard_displacements(mesh, Z, case="test_d")
 
     # 3D continuum
     continuum = Pantographic_sheet(None, mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
@@ -380,7 +384,7 @@ def pantographic_sheet():
     # f_pot = model.f_pot(0, model.q0)
     
     # static solver
-    n_load_steps = 5
+    n_load_steps = 25
     tol = 1.0e-5
     max_iter = 10
     solver = Newton(model, n_load_steps=n_load_steps, tol=tol, max_iter=max_iter)
@@ -389,6 +393,90 @@ def pantographic_sheet():
 
     # vtk export
     continuum.post_processing(sol.t, sol.q, 'pantographic_sheet')
+
+
+def standard_displacements(mesh, Z, case, displacement=None):
+    from cardillo.math.algebra import A_IK_basic_z
+    
+    # recreates the test cases A, B, C, D as defined in dellIsola 2016. The dimensions of the undeformed rectangle must correspond to the source as well.
+    if case == "test_a":
+        displacement = (0.0567, 0)
+
+        cDOF1 = mesh.edge_DOF[0].ravel()
+        cDOF2x = mesh.edge_DOF[1][0]
+        cDOF2y = mesh.edge_DOF[1][1]
+        cDOF2 = np.concatenate((cDOF2x, cDOF2y))
+        cDOF = np.concatenate((cDOF1, cDOF2)) 
+
+        b1 = lambda t: Z[cDOF1]
+        b2x = lambda t: Z[cDOF2x] + t * displacement[0]
+        b2y = lambda t: Z[cDOF2y]
+        b = lambda t: np.concatenate((b1(t), b2x(t), b2y(t)))
+
+    elif case == "test_b":
+        displacement = (0, 20 * np.sqrt(2) * 0.0048)
+
+        cDOF1 = mesh.edge_DOF[0].ravel()
+        cDOF2x = mesh.edge_DOF[1][0]
+        cDOF2y = mesh.edge_DOF[1][1]
+        cDOF2 = np.concatenate((cDOF2x, cDOF2y))
+        cDOF = np.concatenate((cDOF1, cDOF2)) 
+
+        b1 = lambda t: Z[cDOF1]
+        b2x = lambda t: Z[cDOF2x] 
+        b2y = lambda t: Z[cDOF2y] + t * displacement[1]
+        b = lambda t: np.concatenate((b1(t), b2x(t), b2y(t)))
+
+    elif case == "test_c":
+        # rotation of right edge in counterclockwise direction around center, translation in x-direction
+        alpha = np.pi /4
+        translation =  np.array([5 * np.sqrt(2) * 0.0048, 0])
+        R = A_IK_basic_z(alpha)[:2, :2]
+
+        cDOF1 = mesh.edge_DOF[0].ravel()
+        cDOF2x = mesh.edge_DOF[1][0]
+        cDOF2y = mesh.edge_DOF[1][1]
+        cDOF2 = np.concatenate((cDOF2x, cDOF2y))
+        cDOF = np.concatenate((cDOF1, cDOF2)) 
+
+        # center: pivot point of right edge
+        center = np.array([np.mean([Z[cDOF2x[0]], Z[cDOF2x[-1]]]), np.mean([Z[cDOF2y[0]], Z[cDOF2y[-1]]])])
+        displacement = R @ (Z[np.array([cDOF2x, cDOF2y])] - center[:,None]) + center[:, None] - Z[np.array([cDOF2x, cDOF2y])] + translation[:,None] 
+
+        b1 = lambda t: Z[cDOF1]
+        b2x = lambda t: Z[cDOF2x] + t * displacement[0]
+        b2y = lambda t: Z[cDOF2y] + t * displacement[1]
+        b = lambda t: np.concatenate((b1(t), b2x(t), b2y(t)))
+
+    elif case == "test_d":
+        # rotation of left edge in clockwise direction around top left corner and right edge in counterclockwise direction around top right corner, with overlayed translation
+        alpha = np.pi /3
+        translation =  np.array([-15 * np.sqrt(2) * 0.0048, 0])
+        R1 = A_IK_basic_z(-alpha)[:2, :2]
+        R2 = A_IK_basic_z(alpha)[:2, :2]        
+
+        cDOF1x = mesh.edge_DOF[0][0]
+        cDOF1y = mesh.edge_DOF[0][1]        
+        cDOF2x = mesh.edge_DOF[1][0]
+        cDOF2y = mesh.edge_DOF[1][1]
+        cDOF1 = np.concatenate((cDOF1x, cDOF1y))
+        cDOF2 = np.concatenate((cDOF2x, cDOF2y))
+        cDOF = np.concatenate((cDOF1, cDOF2)) 
+
+        # center: pivot point of the edges
+        center1 = np.array([Z[cDOF1x[-1]], Z[cDOF1y[-1]]])
+        center2 = np.array([Z[cDOF2x[-1]], Z[cDOF2y[-1]]])
+        displacement1 = R1 @ (Z[np.array([cDOF1x, cDOF1y])] - center1[:,None]) + center1[:, None] - Z[np.array([cDOF1x, cDOF1y])]
+        displacement2 = R2 @ (Z[np.array([cDOF2x, cDOF2y])] - center2[:,None]) + center2[:, None] - Z[np.array([cDOF2x, cDOF2y])] + translation[:,None]
+
+        # b1 = lambda t: Z[cDOF1]
+        b1x = lambda t: Z[cDOF1x] + t * displacement1[0]
+        b1y = lambda t: Z[cDOF1y] + t * displacement1[1]
+        b2x = lambda t: Z[cDOF2x] + t * displacement2[0]
+        b2y = lambda t: Z[cDOF2y] + t * displacement2[1]
+        b = lambda t: np.concatenate((b1x(t), b1y(t), b2x(t), b2y(t)))
+
+    return cDOF, b
 
 if __name__ == "__main__":
     # test_cube()
