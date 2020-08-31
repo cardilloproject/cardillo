@@ -83,6 +83,8 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
         self.qw = np.zeros((nEl, nQP))
         self.xi = np.zeros((nEl, nQP))
         self.J0 = np.zeros((nEl, nQP))
+        self.Gamma0_i = np.zeros((nEl, nQP, 3))
+        self.Kappa0_i = np.zeros((nEl, nQP, 3))
         for el in range(nEl):
             if B_splines:
                 self.basis_functions = self.__basis_functions_b_splines
@@ -110,11 +112,53 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
                 
                 self.N[el], self.N_xi[el] = Lagrange_basis(polynomial_degree, qp, derivative=True)
 
-            # compute change of integral measures
-            Qe = self.Q[self.elDOF[el]][self.rDOF]
-            for i in range(nQP):
-                r0_xi = self.stack_shapefunctions(self.N_xi[el, i]) @ Qe
-                self.J0[el, i] = norm3(r0_xi)
+            # precompute quantities of the reference configuration
+            Qe = self.Q[self.elDOF[el]]
+            Qe_r0 = Qe[self.rDOF]
+            Qe_D1 = Qe[self.d1DOF]
+            Qe_D2 = Qe[self.d2DOF]
+            Qe_D3 = Qe[self.d3DOF]
+
+            # for i in range(nQP):
+            for i, (Ni, N_xii) in enumerate(zip(self.N[el], self.N_xi[el])):
+                # r0_xi = self.stack_shapefunctions(self.N_xi[el, i]) @ Qe
+                # self.J0[el, i] = norm3(r0_xi)
+                
+                # build matrix of shape function derivatives
+                NNi = self.stack_shapefunctions(Ni)
+                NN_xii = self.stack_shapefunctions(N_xii)
+
+                # Interpolate necessary quantities. The derivatives are evaluated w.r.t.
+                # the parameter space \xi and thus need to be transformed later
+                r0_xi = NN_xii @ Qe_r0
+                J0i = norm3(r0_xi)
+                self.J0[el, i] = J0i
+
+                D1 = NNi @ Qe_D1
+                D1_xi = NN_xii @ Qe_D1
+
+                D2 = NNi @ Qe_D2
+                D2_xi = NN_xii @ Qe_D2
+
+                D3 = NNi @ Qe_D3
+                D3_xi = NN_xii @ Qe_D3
+                
+                # compute derivatives w.r.t. the arc lenght parameter s
+                r0_s = r0_xi / J0i                
+                D1_s = D1_xi / J0i
+                D2_s = D2_xi / J0i
+                D3_s = D3_xi / J0i
+
+                # build rotation matrices
+                R0 = np.vstack((D1, D2, D3)).T
+
+                # axial and shear strains
+                self.Gamma0_i[el, i] = R0.T @ r0_s
+
+                # torsional and flexural strains
+                self.Kappa0_i[el, i] = np.array([0.5 * (D3 @ D2_s - D2 @ D3_s), \
+                                                 0.5 * (D1 @ D3_s - D3 @ D1_s), \
+                                                 0.5 * (D2 @ D1_s - D1 @ D2_s)])
 
         # shape functions on the boundary
         N_bdry, dN_bdry = self.basis_functions(0)
@@ -279,11 +323,13 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
         f = np.zeros(self.nu)
         for el in range(self.nEl):
             elDOF = self.elDOF[el]
-            f[elDOF] += self.f_pot_el(q[elDOF], self.Q[elDOF], self.N[el], self.N_xi[el], self.J0[el], self.qw[el])
+            f[elDOF] += self.f_pot_el(q[elDOF], el)
         return f
     
-    def f_pot_el(self, qe, Qe, N, N_xi, J0, qw):
+    def f_pot_el(self, qe, el):
         fe = np.zeros(self.nq_el)
+
+        N, N_xi, Gamma0, Kappa0, J0, qw = self.N[el], self.N_xi[el], self.Gamma0_i[el], self.Kappa0_i[el], self.J0[el], self.qw[el]
 
         # extract generalized coordinates for beam centerline and directors 
         # in the current and reference configuration
@@ -291,65 +337,39 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
         qe_d1 = qe[self.d1DOF]
         qe_d2 = qe[self.d2DOF]
         qe_d3 = qe[self.d3DOF]
-        
-        Qe_r0 = Qe[self.rDOF]
-        Qe_D1 = Qe[self.d1DOF]
-        Qe_D2 = Qe[self.d2DOF]
-        Qe_D3 = Qe[self.d3DOF]
 
         # integrate element force vector
-        for Ni, N_xii, J0i, qwi in zip(N, N_xi, J0, qw):
+        for Ni, N_xii, Gamma0_i, Kappa0_i, J0i, qwi in zip(N, N_xi, Gamma0, Kappa0, J0, qw):
             # build matrix of shape function derivatives
             NNi = self.stack_shapefunctions(Ni)
             NN_xii = self.stack_shapefunctions(N_xii)
 
             # Interpolate necessary quantities. The derivatives are evaluated w.r.t.
             # the parameter space \xi and thus need to be transformed later
-            dr_dxi = NN_xii @ qe_r
-            dr0_dxi = NN_xii @ Qe_r0
-
+            r_xi = NN_xii @ qe_r
             d1 = NNi @ qe_d1
-            D1 = NNi @ Qe_D1
-            dd1_dxi = NN_xii @ qe_d1
-            dD1_dxi = NN_xii @ Qe_D1
-
+            d1_xi = NN_xii @ qe_d1
             d2 = NNi @ qe_d2
-            D2 = NNi @ Qe_D2
-            dd2_dxi = NN_xii @ qe_d2
-            dD2_dxi = NN_xii @ Qe_D2
-
+            d2_xi = NN_xii @ qe_d2
             d3 = NNi @ qe_d3
-            D3 = NNi @ Qe_D3
-            dd3_dxi = NN_xii @ qe_d3
-            dD3_dxi = NN_xii @ Qe_D3
+            d3_xi = NN_xii @ qe_d3
             
             # compute derivatives w.r.t. the arc lenght parameter s
-            dr_ds = dr_dxi / J0i
-            dr0_ds = dr0_dxi / J0i
-
-            dd1_ds = dd1_dxi / J0i
-            dd2_ds = dd2_dxi / J0i
-            dd3_ds = dd3_dxi / J0i
-            
-            dD1_ds = dD1_dxi / J0i
-            dD2_ds = dD2_dxi / J0i
-            dD3_ds = dD3_dxi / J0i
+            r_s = r_xi / J0i
+            d1_s = d1_xi / J0i
+            d2_s = d2_xi / J0i
+            d3_s = d3_xi / J0i
 
             # build rotation matrices
             R = np.vstack((d1, d2, d3)).T
-            R0 = np.vstack((D1, D2, D3)).T
             
             # axial and shear strains
-            Gamma_i = R.T @ dr_ds
-            Gamma0_i = R0.T @ dr0_ds
+            Gamma_i = R.T @ r_s
 
             # torsional and flexural strains
-            Kappa_i = np.array([0.5 * (d3 @ dd2_ds - d2 @ dd3_ds), \
-                                0.5 * (d1 @ dd3_ds - d3 @ dd1_ds), \
-                                0.5 * (d2 @ dd1_ds - d1 @ dd2_ds)])
-            Kappa0_i = np.array([0.5 * (D3 @ dD2_ds - D2 @ dD3_ds), \
-                                 0.5 * (D1 @ dD3_ds - D3 @ dD1_ds), \
-                                 0.5 * (D2 @ dD1_ds - D1 @ dD2_ds)])
+            Kappa_i = np.array([0.5 * (d3 @ d2_s - d2 @ d3_s), \
+                                0.5 * (d1 @ d3_s - d3 @ d1_s), \
+                                0.5 * (d2 @ d1_s - d1 @ d2_s)])
             
             # compute contact forces and couples from partial derivatives of the strain energy function w.r.t. strain measures
             n_i = self.material_model.n_i(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
@@ -361,24 +381,24 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
             
             # quadrature point contribution to element residual
             fe[self.rDOF] -= ( NN_xii.T @ n ) * qwi
-            fe[self.d1DOF] -= ( NNi.T @ ( dr_dxi * n_i[0] + 0.5 * cross3(m, dd1_dxi) ) + 0.5 * NN_xii.T @ cross3(m, d1) ) * qwi
-            fe[self.d2DOF] -= ( NNi.T @ ( dr_dxi * n_i[1] + 0.5 * cross3(m, dd2_dxi) ) + 0.5 * NN_xii.T @ cross3(m, d2) ) * qwi
-            fe[self.d3DOF] -= ( NNi.T @ ( dr_dxi * n_i[2] + 0.5 * cross3(m, dd3_dxi) ) + 0.5 * NN_xii.T @ cross3(m, d3) ) * qwi
-
-            # fe -= np.concatenate((f_int_e_r, f_int_e_d1, f_int_e_d2, f_int_e_d3)) * qwi
+            fe[self.d1DOF] -= ( NNi.T @ ( r_xi * n_i[0] + 0.5 * cross3(m, d1_xi) ) + 0.5 * NN_xii.T @ cross3(m, d1) ) * qwi
+            fe[self.d2DOF] -= ( NNi.T @ ( r_xi * n_i[1] + 0.5 * cross3(m, d2_xi) ) + 0.5 * NN_xii.T @ cross3(m, d2) ) * qwi
+            fe[self.d3DOF] -= ( NNi.T @ ( r_xi * n_i[2] + 0.5 * cross3(m, d3_xi) ) + 0.5 * NN_xii.T @ cross3(m, d3) ) * qwi
 
         return fe
 
     def f_pot_q(self, t, q, coo):
         for el in range(self.nEl):
             elDOF = self.elDOF[el]
-            Ke = self.f_pot_q_el(q[elDOF], self.Q[elDOF], self.N[el], self.N_xi[el], self.J0[el], self.qw[el])
+            Ke = self.f_pot_q_el(q[elDOF], el)
 
             # sparse assemble element internal stiffness matrix
             coo.extend(Ke, (self.uDOF[elDOF], self.qDOF[elDOF]))
-
-    def f_pot_q_el(self, qe, Qe, N, N_xi, J0, qw):
+     
+    def f_pot_q_el(self, qe, el):
         Ke = np.zeros((self.nq_el, self.nq_el))
+
+        N, N_xi, Gamma0, Kappa0, J0, qw = self.N[el], self.N_xi[el], self.Gamma0_i[el], self.Kappa0_i[el], self.J0[el], self.qw[el]
 
         # extract generalized coordinates for beam centerline and directors 
         # in the current and reference configuration
@@ -386,14 +406,9 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
         qe_d1 = qe[self.d1DOF]
         qe_d2 = qe[self.d2DOF]
         qe_d3 = qe[self.d3DOF]
-        
-        Qe_r0 = Qe[self.rDOF]
-        Qe_D1 = Qe[self.d1DOF]
-        Qe_D2 = Qe[self.d2DOF]
-        Qe_D3 = Qe[self.d3DOF]
 
         # integrate element force vector
-        for Ni, N_xii, J0i, qwi in zip(N, N_xi, J0, qw):
+        for Ni, N_xii, Gamma0_i, Kappa0_i, J0i, qwi in zip(N, N_xi, Gamma0, Kappa0, J0, qw):
             # build matrix of shape function derivatives
             NNi = self.stack_shapefunctions(Ni)
             NN_xii = self.stack_shapefunctions(N_xii)
@@ -401,42 +416,24 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
             # Interpolate necessary quantities. The derivatives are evaluated w.r.t.
             # the parameter space \xi and thus need to be transformed later
             dr_dxi = NN_xii @ qe_r
-            dr0_dxi = NN_xii @ Qe_r0
-
             d1 = NNi @ qe_d1
-            D1 = NNi @ Qe_D1
             dd1_dxi = NN_xii @ qe_d1
-            dD1_dxi = NN_xii @ Qe_D1
-
             d2 = NNi @ qe_d2
-            D2 = NNi @ Qe_D2
             dd2_dxi = NN_xii @ qe_d2
-            dD2_dxi = NN_xii @ Qe_D2
-
             d3 = NNi @ qe_d3
-            D3 = NNi @ Qe_D3
             dd3_dxi = NN_xii @ qe_d3
-            dD3_dxi = NN_xii @ Qe_D3
             
             # compute derivatives w.r.t. the arc lenght parameter s
             dr_ds = dr_dxi / J0i
-            dr0_ds = dr0_dxi / J0i
-
             dd1_ds = dd1_dxi / J0i
             dd2_ds = dd2_dxi / J0i
             dd3_ds = dd3_dxi / J0i
-            
-            dD1_ds = dD1_dxi / J0i
-            dD2_ds = dD2_dxi / J0i
-            dD3_ds = dD3_dxi / J0i
 
             # build rotation matrices
             R = np.vstack((d1, d2, d3)).T
-            R0 = np.vstack((D1, D2, D3)).T
             
             # axial and shear strains
             Gamma_i = R.T @ dr_ds
-            Gamma0_i = R0.T @ dr0_ds
 
             # derivative of axial and shear strains
             Gamma_j_qr = R.T @ NN_xii / J0i 
@@ -452,9 +449,6 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
             Kappa_i = np.array([0.5 * (d3 @ dd2_ds - d2 @ dd3_ds), \
                                 0.5 * (d1 @ dd3_ds - d3 @ dd1_ds), \
                                 0.5 * (d2 @ dd1_ds - d1 @ dd2_ds)])
-            Kappa0_i = np.array([0.5 * (D3 @ dD2_ds - D2 @ dD3_ds), \
-                                 0.5 * (D1 @ dD3_ds - D3 @ dD1_ds), \
-                                 0.5 * (D2 @ dD1_ds - D1 @ dD2_ds)])
 
             # derivative of torsional and flexural strains
             dkappa_1_dqe_d1 = np.zeros(3 * self.nn_el)
@@ -473,7 +467,6 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
             dkappa_j_dqe_d2 = np.vstack((dkappa_1_dqe_d2, dkappa_2_dqe_d2, dkappa_3_dqe_d2))
             dkappa_j_dqe_d3 = np.vstack((dkappa_1_dqe_d3, dkappa_2_dqe_d3, dkappa_3_dqe_d3))
 
-            
             # compute contact forces and couples from partial derivatives of the strain energy function w.r.t. strain measures
             n_i = self.material_model.n_i(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
             n_i_Gamma_i_j = self.material_model.n_i_Gamma_i_j(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)

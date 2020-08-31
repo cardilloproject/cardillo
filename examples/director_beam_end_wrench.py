@@ -48,11 +48,11 @@ if __name__ == "__main__":
     frame_left = Frame(r_OP=r_OB1)
 
     # discretization properties
-    p = 1
+    p = 3
     # nQP = int(np.ceil((p + 1)**2 / 2))
     nQP = p + 1
     print(f'nQP: {nQP}')
-    nEl = 10
+    nEl = 32
 
     # build reference configuration
     Q = straight_configuration(p, nEl, L)
