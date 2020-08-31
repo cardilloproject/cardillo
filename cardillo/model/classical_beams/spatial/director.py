@@ -1,14 +1,17 @@
 import numpy as np
 from abc import ABCMeta, abstractmethod
+import meshio
+import os
 
 from cardillo.utility.coo import Coo
-from cardillo.discretization import gauss
 from cardillo.discretization import uniform_knot_vector, B_spline_basis1D, Lagrange_basis
-from cardillo.math.algebra import norm3, cross3, e1, e2, e3, ax2skew, skew2ax, ax2skew_a
+from cardillo.discretization.B_spline import Knot_vector
+from cardillo.math.algebra import norm3, cross3, ax2skew, skew2ax, ax2skew_a
 from cardillo.math.numerical_derivative import Numerical_derivative
+from cardillo.discretization.mesh1D import Mesh1D
 
 class Timoshenko_beam_director(metaclass=ABCMeta):
-    def __init__(self, material_model, A_rho0, B_rho0, C_rho0, polynomial_degree, nQP, nEl, Q, q0=None, u0=None, la_g0=None, B_splines=True):
+    def __init__(self, material_model, A_rho0, B_rho0, C_rho0, polynomial_degree, nQP, nEl, Q, q0=None, u0=None, la_g0=None, basis='B-spline'):
         # beam properties
         self.materialModel = material_model # material model
         self.A_rho0 = A_rho0 # line density
@@ -24,39 +27,23 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
         self.nEl = nEl # number of elements
 
         self.nn = nn = nEl + polynomial_degree # number of nodes
-        self.knot_vector = knot_vector = uniform_knot_vector(polynomial_degree, nEl) # uniform open knot vector
-        self.element_span = self.knot_vector[polynomial_degree:-polynomial_degree]
+        self.knot_vector = Knot_vector(polynomial_degree, nEl)
+        self.element_span = self.knot_vector.data[polynomial_degree:-polynomial_degree]
 
         self.nn_el = nn_el = polynomial_degree + 1 # number of nodes per element
         self.nq_n = nq_n = 12 # number of degrees of freedom per node (x, y, z) + 3 * d_i
+        
+        self.mesh_kinematics = Mesh1D(self.knot_vector, nQP, derivative_order=1, basis=basis, nq_n=self.nq_n)
 
         self.nq = nn * nq_n # total number of generalized coordinates
         self.nu = self.nq
         self.nq_el = nn_el * nq_n # total number of generalized coordinates per element
         self.nq_el_r = 3 * nn_el
 
-        self.B_splines = B_splines
+        self.basis = basis
 
-        # compute allocation matrix
-        if B_splines:
-            row_offset = np.arange(nEl)
-            elDOF_row = (np.zeros((nq_n * nn_el, nEl), dtype=int) + row_offset).T
-            elDOF_tile = np.tile(np.arange(0, nn_el), nq_n)
-            elDOF_repeat = np.repeat(np.arange(0, nq_n * nn, step=nn), nn_el)
-            self.elDOF = elDOF_row + elDOF_tile + elDOF_repeat
-
-            row_offset = np.arange(nn)
-            elDOF_row = (np.zeros((nq_n, nn), dtype=int) + row_offset).T
-            elDOF_tile = np.tile(np.arange(0, nq_n * nn, step=nn), nn).reshape((nn, nq_n))
-            self.nodalDOF = elDOF_row + elDOF_tile
-        else:
-            row_offset = np.arange(0, nn - polynomial_degree, polynomial_degree)
-            elDOF_row = (np.zeros((nq_n * nn_el, nEl), dtype=int) + row_offset).T
-            elDOF_tile = np.tile(np.arange(0, nn_el), nq_n)
-            elDOF_repeat = np.repeat(np.arange(0, nq_n * nn, step=nn), nn_el)
-            self.elDOF = elDOF_row + elDOF_tile + elDOF_repeat
-
-            raise NotImplementedError('Lagrange shape functions are not supported yet')
+        self.elDOF = self.mesh_kinematics.elDOF
+        self.nodalDOF = np.arange(self.nq_n * self.nn).reshape(self.nq_n, self.nn).T
 
         # degrees of freedom on element level
         self.rDOF = np.arange(3 * nn_el)
@@ -69,48 +56,19 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
         self.q0 = Q.copy() if q0 is None else q0
         self.u0 = np.zeros(self.nu) if u0 is None else u0
 
-        # np.set_printoptions(1)
-        # np.set_printoptions(suppress=True)
-        # print(f'Q:{Q.T}')
-        # print(f'elDOF:\n{self.elDOF}')
-        # # print(f'nodalDOF:\n{self.nodalDOF}')
-        # exit()
-
         # compute shape functions
-        derivative_order = 1
-        self.N  = np.empty((nEl, nQP, nn_el))
-        self.N_xi = np.empty((nEl, nQP, nn_el))
-        self.qw = np.zeros((nEl, nQP))
-        self.xi = np.zeros((nEl, nQP))
+        self.N = self.mesh_kinematics.N
+        self.N_xi = self.mesh_kinematics.N_xi
+        self.qw = self.mesh_kinematics.wp
+        self.xi = self.mesh_kinematics.qp
         self.J0 = np.zeros((nEl, nQP))
-        self.Gamma0_i = np.zeros((nEl, nQP, 3))
-        self.Kappa0_i = np.zeros((nEl, nQP, 3))
+        self.Gamma0 = np.zeros((nEl, nQP, 3))
+        self.Kappa0 = np.zeros((nEl, nQP, 3))
         for el in range(nEl):
-            if B_splines:
+            if self.basis == 'B-spline':
                 self.basis_functions = self.__basis_functions_b_splines
-
-                # evaluate Gauss points and weights on [xi^el, xi^{el+1}]
-                qp, qw = gauss(nQP, self.element_span[el:el+2])
-
-                # store quadrature points and weights
-                self.qw[el] = qw
-                self.xi[el] = qp
-
-                # evaluate B-spline shape functions
-                self.N[el], self.N_xi[el] = B_spline_basis1D(polynomial_degree, derivative_order, knot_vector, qp)
             else:
                 self.basis_functions = self.__basis_functions_lagrange
-
-                # evaluate Gauss points and weights on [-1, 1]
-                qp, qw = gauss(nQP)
-
-                # store quadrature points and weights
-                self.qw[el] = qw
-                diff_xi = self.element_span[el + 1] - self.element_span[el]
-                sum_xi = self.element_span[el + 1] + self.element_span[el]
-                self.xi[el] = diff_xi * qp  / 2 + sum_xi / 2
-                
-                self.N[el], self.N_xi[el] = Lagrange_basis(polynomial_degree, qp, derivative=True)
 
             # precompute quantities of the reference configuration
             Qe = self.Q[self.elDOF[el]]
@@ -153,10 +111,10 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
                 R0 = np.vstack((D1, D2, D3)).T
 
                 # axial and shear strains
-                self.Gamma0_i[el, i] = R0.T @ r0_s
+                self.Gamma0[el, i] = R0.T @ r0_s
 
                 # torsional and flexural strains
-                self.Kappa0_i[el, i] = np.array([0.5 * (D3 @ D2_s - D2 @ D3_s), \
+                self.Kappa0[el, i] = np.array([0.5 * (D3 @ D2_s - D2 @ D3_s), \
                                                  0.5 * (D1 @ D3_s - D3 @ D1_s), \
                                                  0.5 * (D2 @ D1_s - D1 @ D2_s)])
 
@@ -173,7 +131,7 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
         self.dN_bdry = np.array([dN_bdry_left, dN_bdry_right])
 
     def __basis_functions_b_splines(self, xi):
-        return B_spline_basis1D(self.polynomial_degree, 1, self.knot_vector, xi)
+        return B_spline_basis1D(self.polynomial_degree, 1, self.knot_vector.data, xi).T
 
     def __basis_functions_lagrange(self, xi):
         el = np.where(xi >= self.element_span)[0][-1]
@@ -329,7 +287,7 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
     def f_pot_el(self, qe, el):
         fe = np.zeros(self.nq_el)
 
-        N, N_xi, Gamma0, Kappa0, J0, qw = self.N[el], self.N_xi[el], self.Gamma0_i[el], self.Kappa0_i[el], self.J0[el], self.qw[el]
+        N, N_xi, Gamma0, Kappa0, J0, qw = self.N[el], self.N_xi[el], self.Gamma0[el], self.Kappa0[el], self.J0[el], self.qw[el]
 
         # extract generalized coordinates for beam centerline and directors 
         # in the current and reference configuration
@@ -398,7 +356,7 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
     def f_pot_q_el(self, qe, el):
         Ke = np.zeros((self.nq_el, self.nq_el))
 
-        N, N_xi, Gamma0, Kappa0, J0, qw = self.N[el], self.N_xi[el], self.Gamma0_i[el], self.Kappa0_i[el], self.J0[el], self.qw[el]
+        N, N_xi, Gamma0, Kappa0, J0, qw = self.N[el], self.N_xi[el], self.Gamma0[el], self.Kappa0[el], self.J0[el], self.qw[el]
 
         # extract generalized coordinates for beam centerline and directors 
         # in the current and reference configuration
@@ -896,6 +854,134 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
         ax.quiver(*r, *d2, color='green', length=length)
         ax.quiver(*r, *d3, color='blue', length=length)
 
+    ############
+    # vtk export
+    ############
+    def post_processing(self, t, q, filename, binary=True):
+        # write paraview PVD file collecting time and all vtk files, see https://www.paraview.org/Wiki/ParaView/Data_formats#PVD_File_Format
+        from xml.dom import minidom
+        
+        root = minidom.Document()
+        
+        vkt_file = root.createElement('VTKFile')
+        vkt_file.setAttribute('type', 'Collection')
+        root.appendChild(vkt_file)
+        
+        collection = root.createElement('Collection')
+        vkt_file.appendChild(collection)
+
+        for i, (ti, qi) in enumerate(zip(t, q)):
+            filei = filename + f'{i}.vtu'
+
+            # write time step and file name in pvd file
+            dataset = root.createElement('DataSet')
+            dataset.setAttribute('timestep', f'{ti:0.6f}')
+            dataset.setAttribute('file', filei)
+            collection.appendChild(dataset)
+
+            self.post_processing_single_configuration(ti, qi, filei, binary=binary)
+
+        # write pvd file        
+        xml_str = root.toprettyxml(indent ="\t")          
+        with open(filename + '.pvd', "w") as f:
+            f.write(xml_str)
+
+    def post_processing_single_configuration(self, t, q, filename, binary=True):
+        cells, points, HigherOrderDegrees = self.mesh_kinematics.vtk_mesh(q)
+
+        # dictionary storing point data
+        point_data = {
+            "d1": points[:, 3:6],
+            "d2": points[:, 6:9],
+            "d3": points[:, 9:12],
+        }
+
+        # evaluate deformation gradient at quadrature points
+        Gamma = np.zeros((self.mesh_kinematics.nel, self.mesh_kinematics.nqp, 3))
+        Kappa = np.zeros((self.mesh_kinematics.nel, self.mesh_kinematics.nqp, 3))
+        for el in range(self.mesh_kinematics.nel):
+            qe = q[self.elDOF[el]]
+            N, N_xi, Gamma0, Kappa0, J0, qw = self.N[el], self.N_xi[el], self.Gamma0[el], self.Kappa0[el], self.J0[el], self.qw[el]
+
+            # extract generalized coordinates for beam centerline and directors 
+            # in the current and reference configuration
+            qe_r = qe[self.rDOF]
+            qe_d1 = qe[self.d1DOF]
+            qe_d2 = qe[self.d2DOF]
+            qe_d3 = qe[self.d3DOF]
+
+            # integrate element force vector
+            for i, (Ni, N_xii, Gamma0_i, Kappa0_i, J0i, qwi) in enumerate(zip(N, N_xi, Gamma0, Kappa0, J0, qw)):
+                # build matrix of shape function derivatives
+                NNi = self.stack_shapefunctions(Ni)
+                NN_xii = self.stack_shapefunctions(N_xii)
+
+                # Interpolate necessary quantities. The derivatives are evaluated w.r.t.
+                # the parameter space \xi and thus need to be transformed later
+                r_xi = NN_xii @ qe_r
+                d1 = NNi @ qe_d1
+                d1_xi = NN_xii @ qe_d1
+                d2 = NNi @ qe_d2
+                d2_xi = NN_xii @ qe_d2
+                d3 = NNi @ qe_d3
+                d3_xi = NN_xii @ qe_d3
+                
+                # compute derivatives w.r.t. the arc lenght parameter s
+                r_s = r_xi / J0i
+                d1_s = d1_xi / J0i
+                d2_s = d2_xi / J0i
+                d3_s = d3_xi / J0i
+
+                # build rotation matrices
+                R = np.vstack((d1, d2, d3)).T
+                
+                # axial and shear strains
+                Gamma[el, i] = R.T @ r_s
+
+                # torsional and flexural strains
+                Kappa[el, i] = np.array([0.5 * (d3 @ d2_s - d2 @ d3_s), \
+                                    0.5 * (d1 @ d3_s - d3 @ d1_s), \
+                                    0.5 * (d2 @ d1_s - d1 @ d2_s)])
+        
+        Gamma_vtk = self.mesh_kinematics.field_to_vtk(Gamma)
+        point_data.update({"Gamma": Gamma_vtk})
+        
+        Kappa_vtk = self.mesh_kinematics.field_to_vtk(Kappa)
+        point_data.update({"Kappa": Kappa_vtk})
+
+        J0_vtk = self.mesh_kinematics.field_to_vtk(self.J0.reshape(self.nEl, self.nQP, 1))
+        point_data.update({"J0": J0_vtk})
+        
+        Gamma0_vtk = self.mesh_kinematics.field_to_vtk(self.Gamma0)
+        point_data.update({"Gamma0": Gamma0_vtk})
+        
+        Kappa0_vtk = self.mesh_kinematics.field_to_vtk(self.Kappa0)
+        point_data.update({"Kappa0": Kappa0_vtk})
+
+        # field data vtk export
+        point_data_fields = {
+            "W": lambda Gamma, Gamma0, Kappa, Kappa0: np.array([self.material_model.potential(Gamma, Gamma0, Kappa, Kappa0)]),
+            "n_i": lambda Gamma, Gamma0, Kappa, Kappa0: self.material_model.n_i(Gamma, Gamma0, Kappa, Kappa0),
+            "m_i": lambda Gamma, Gamma0, Kappa, Kappa0: self.material_model.m_i(Gamma, Gamma0, Kappa, Kappa0)
+        }
+
+        for name, fun in point_data_fields.items():
+            tmp = fun(Gamma_vtk[0], Gamma0_vtk[0], Kappa_vtk[0], Kappa0_vtk[0]).reshape(-1)
+            field = np.zeros((len(Gamma_vtk), len(tmp)))
+            for i, (Gamma_i, Gamma0_i, Kappa_i, Kappa0_i) in enumerate(zip(Gamma_vtk, Gamma0_vtk, Kappa_vtk, Kappa0_vtk)):
+                field[i] = fun(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i).reshape(-1)
+            point_data.update({name: field})
+
+        # write vtk mesh using meshio
+        meshio.write_points_cells(
+            os.path.splitext(os.path.basename(filename))[0] + '.vtu',
+            points[:, :3],
+            cells,
+            point_data=point_data,
+            cell_data={"HigherOrderDegrees": HigherOrderDegrees},
+            binary=binary
+        )
+
 ####################################################
 # straight initial configuration
 ####################################################
@@ -1036,29 +1122,13 @@ class Timoshenko_director_integral(Timoshenko_beam_director):
 
         la_g0 = kwargs.get('la_g0')
         self.la_g0 = np.zeros(self.nla_g) if la_g0 is None else la_g0
-        self.knot_vector_g = uniform_knot_vector(self.polynomial_degree_g, self.nEl) # uniform open knot vector
-        self.element_span_g = self.knot_vector_g[self.polynomial_degree_g:-self.polynomial_degree_g]
-
-        if self.B_splines:
-            row_offset = np.arange(self.nEl)
-            elDOF_row = (np.zeros((self.nq_n_g * self.nn_el_g, self.nEl), dtype=int) + row_offset).T
-            elDOF_tile = np.tile(np.arange(0, self.nn_el_g), self.nq_n_g)
-            elDOF_repeat = np.repeat(np.arange(0, self.nq_n_g * self.nn_g, step=self.nn_g), self.nn_el_g)
-            self.elDOF_g = elDOF_row + elDOF_tile + elDOF_repeat
-        else:
-            raise NotImplementedError('Lagrange shape functions are not supported yet')
+        self.knot_vector_g = Knot_vector(self.polynomial_degree_g, self.nEl)
+        self.element_span_g = self.knot_vector_g.data[self.polynomial_degree_g:-self.polynomial_degree_g]
+        self.mesh_g = Mesh1D(self.knot_vector_g, self.nQP, derivative_order=0, nq_n=self.nq_n_g)
+        self.elDOF_g = self.mesh_g.elDOF
 
         # compute shape functions
-        self.N_g = np.empty((self.nEl, self.nQP, self.nn_el_g))
-        for el in range(self.nEl):
-            if self.B_splines:
-                # evaluate Gauss points and weights on [xi^el, xi^{el+1}]
-                qp, _ = gauss(self.nQP, self.element_span_g[el:el+2])
-
-                # evaluate B-spline shape functions
-                self.N_g[el] = B_spline_basis1D(self.polynomial_degree_g, 0, self.knot_vector_g, qp).squeeze()
-            else:
-                raise NotImplementedError('Lagrange shape functions are not supported yet')
+        self.N_g = self.mesh_g.N
             
         # degrees of freedom on the element level (for the constraints)
         self.g11DOF = np.arange(self.nn_el_g)
@@ -1211,32 +1281,16 @@ class Euler_Bernoulli_director_integral(Timoshenko_beam_director):
         self.nq_n_g = 8 # number of degrees of freedom per node
         self.nla_g = self.nn_g * self.nq_n_g
         self.nla_g_el = self.nn_el_g * self.nq_n_g
-
+        
         la_g0 = kwargs.get('la_g0')
         self.la_g0 = np.zeros(self.nla_g) if la_g0 is None else la_g0
-        self.knot_vector_g = uniform_knot_vector(self.polynomial_degree_g, self.nEl) # uniform open knot vector
-        self.element_span_g = self.knot_vector_g[self.polynomial_degree_g:-self.polynomial_degree_g]
-
-        if self.B_splines:
-            row_offset = np.arange(self.nEl)
-            elDOF_row = (np.zeros((self.nq_n_g * self.nn_el_g, self.nEl), dtype=int) + row_offset).T
-            elDOF_tile = np.tile(np.arange(0, self.nn_el_g), self.nq_n_g)
-            elDOF_repeat = np.repeat(np.arange(0, self.nq_n_g * self.nn_g, step=self.nn_g), self.nn_el_g)
-            self.elDOF_g = elDOF_row + elDOF_tile + elDOF_repeat
-        else:
-            raise NotImplementedError('Lagrange shape functions are not supported yet')
+        self.knot_vector_g = Knot_vector(self.polynomial_degree_g, self.nEl)
+        self.element_span_g = self.knot_vector_g.data[self.polynomial_degree_g:-self.polynomial_degree_g]
+        self.mesh_g = Mesh1D(self.knot_vector_g, self.nQP, derivative_order=0, nq_n=self.nq_n_g)
+        self.elDOF_g = self.mesh_g.elDOF
 
         # compute shape functions
-        self.N_g = np.empty((self.nEl, self.nQP, self.nn_el_g))
-        for el in range(self.nEl):
-            if self.B_splines:
-                # evaluate Gauss points and weights on [xi^el, xi^{el+1}]
-                qp, _ = gauss(self.nQP, self.element_span_g[el:el+2])
-
-                # evaluate B-spline shape functions
-                self.N_g[el] = B_spline_basis1D(self.polynomial_degree_g, 0, self.knot_vector_g, qp).squeeze()
-            else:
-                raise NotImplementedError('Lagrange shape functions are not supported yet')
+        self.N_g = self.mesh_g.N
             
         # degrees of freedom on the element level (for the constraints)
         self.g11DOF = np.arange(self.nn_el_g)
@@ -1437,29 +1491,13 @@ class Inextensible_Euler_Bernoulli_director_integral(Timoshenko_beam_director):
 
         la_g0 = kwargs.get('la_g0')
         self.la_g0 = np.zeros(self.nla_g) if la_g0 is None else la_g0
-        self.knot_vector_g = uniform_knot_vector(self.polynomial_degree_g, self.nEl) # uniform open knot vector
-        self.element_span_g = self.knot_vector_g[self.polynomial_degree_g:-self.polynomial_degree_g]
-
-        if self.B_splines:
-            row_offset = np.arange(self.nEl)
-            elDOF_row = (np.zeros((self.nq_n_g * self.nn_el_g, self.nEl), dtype=int) + row_offset).T
-            elDOF_tile = np.tile(np.arange(0, self.nn_el_g), self.nq_n_g)
-            elDOF_repeat = np.repeat(np.arange(0, self.nq_n_g * self.nn_g, step=self.nn_g), self.nn_el_g)
-            self.elDOF_g = elDOF_row + elDOF_tile + elDOF_repeat
-        else:
-            raise NotImplementedError('Lagrange shape functions are not supported yet')
+        self.knot_vector_g = Knot_vector(self.polynomial_degree_g, self.nEl)
+        self.element_span_g = self.knot_vector_g.data[self.polynomial_degree_g:-self.polynomial_degree_g]
+        self.mesh_g = Mesh1D(self.knot_vector_g, self.nQP, derivative_order=0, nq_n=self.nq_n_g)
+        self.elDOF_g = self.mesh_g.elDOF
 
         # compute shape functions
-        self.N_g = np.empty((self.nEl, self.nQP, self.nn_el_g))
-        for el in range(self.nEl):
-            if self.B_splines:
-                # evaluate Gauss points and weights on [xi^el, xi^{el+1}]
-                qp, _ = gauss(self.nQP, self.element_span_g[el:el+2])
-
-                # evaluate B-spline shape functions
-                self.N_g[el] = B_spline_basis1D(self.polynomial_degree_g, 0, self.knot_vector_g, qp).squeeze()
-            else:
-                raise NotImplementedError('Lagrange shape functions are not supported yet')
+        self.N_g = self.mesh_g.N
             
         # degrees of freedom on the element level (for the constraints)
         self.g11DOF = np.arange(self.nn_el_g)

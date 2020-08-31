@@ -52,7 +52,7 @@ if __name__ == "__main__":
     # nQP = int(np.ceil((p + 1)**2 / 2))
     nQP = p + 1
     print(f'nQP: {nQP}')
-    nEl = 32
+    nEl = 10
 
     # build reference configuration
     Q = straight_configuration(p, nEl, L)
@@ -61,12 +61,12 @@ if __name__ == "__main__":
     # q0[nn + 1] += 1.0e-3
     # q0[2 * nn + 1] += 1.0e-3
     # q0[] + np.random.rand(len(Q)) * 1.0e-4
-    la_g0 = np.ones(9 * nn) * 1.0e-3
-    # beam = Timoshenko_director_dirac(material_model, A_rho0, B_rho0, C_rho0, p, nQP, nEl, Q=Q)
-    # beam = Euler_Bernoulli_director_dirac(material_model, A_rho0, B_rho0, C_rho0, p, nQP, nEl, Q=Q)
+    # la_g0 = np.ones(6 * nn) * 1.0e-3
+    # beam = Timoshenko_director_dirac(material_model, A_rho0, B_rho0, C_rho0, p, nQP, nEl, Q=Q, q0=q0)
+    # la_g0 = np.ones(9 * nn) * 1.0e-3
     # beam = Timoshenko_director_integral(material_model, A_rho0, B_rho0, C_rho0, p, nQP, nEl, Q=Q)
     # beam = Euler_Bernoulli_director_integral(material_model, A_rho0, B_rho0, C_rho0, p, nQP, nEl, Q=Q)
-    beam = Inextensible_Euler_Bernoulli_director_integral(material_model, A_rho0, B_rho0, C_rho0, p, nQP, nEl, Q=Q, q0=q0, la_g0=la_g0)
+    beam = Inextensible_Euler_Bernoulli_director_integral(material_model, A_rho0, B_rho0, C_rho0, p, nQP, nEl, Q=Q, q0=q0)
     # exit()
 
     # left joint
@@ -97,59 +97,16 @@ if __name__ == "__main__":
     model.add(moment)
     model.assemble()
 
-    # ############
-    # # test calls
-    # ############
-    # np.set_printoptions(1)
-    # np.set_printoptions(suppress=True)
-
-    # t = model.t0
-    # # q = model.q0 + np.random.rand(len(model.q0 )) * 0.1
-    # q = model.q0
-    # la_g = np.random.rand(len(model.la_g0))
-    # # print(f'la_g: {la_g.T}')
-
-    # M = model.M(t, q).todense()
-    # print(f'M:\n{M}')
-
-    # f_pot = model.f_pot(t, q)
-    # print(f'f_pot:\n{f_pot.T}')
-
-    # f_pot_q = model.f_pot_q(t, q).todense()
-    # print(f'f_pot_q:\n{f_pot_q}')
-
-    # g = model.g(t, q)
-    # print(f'g:\n{g.T}')
-
-    # g_q = model.g_q(t, q).toarray()
-    # print(f'g_q:\n{g_q}')
-
-    # W_g = model.W_g(t, q).toarray()
-    # print(f'W_g:\n{W_g}')
-
-    # assert np.allclose(W_g, g_q.T)
-
-    # Wla_g_q = model.Wla_g_q(t, q, la_g).toarray()
-    # print(f'Wla_g_q:\n{Wla_g_q}')
-
-    # exit()
-
-    # x, y, z = beam.centerline(model.q0).T
-    # exit()
-
     solver = Newton(model, n_load_steps=10, max_iter=20, tol=1.0e-8, numerical_jacobian=False)
     # solver = Newton(model, n_load_steps=10, max_iter=10, numerical_jacobian=True)
     sol = solver.solve()
     t = sol.t
     q = sol.q
 
-    # plt.plot(x, y, '-k')
-    # plt.plot(*q[-1].reshape(2, -1), '--ob')
-    # plt.xlabel('x [m]')
-    # plt.ylabel('y [m]')
-    # plt.axis('equal')
+    # vtk export
+    beam.post_processing(t, q, 'director_beam')
 
-    # plt.show()
+    exit()
 
     ###############
     # visualization

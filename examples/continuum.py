@@ -2,7 +2,7 @@ from threading import main_thread
 import numpy as np
 import matplotlib.pyplot as plt
 
-from cardillo.discretization.mesh import Mesh, cube
+from cardillo.discretization.mesh3D import Mesh3D, cube
 from cardillo.discretization.mesh2D import Mesh2D, rectangle
 from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume
 from cardillo.discretization.indexing import flat3D
@@ -31,7 +31,7 @@ def test_cube():
     Zeta = Knot_vector(degrees[2], element_shape[2])
     knot_vectors = (Xi, Eta, Zeta)
     
-    mesh = Mesh(knot_vectors, QP_shape, derivative_order=1, basis='B-spline', nq_n=3)
+    mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=1, basis='B-spline', nq_n=3)
 
     # reference configuration is a cube
     L = 1
@@ -148,7 +148,7 @@ def test_cylinder():
     Zeta = Knot_vector(degrees[2], element_shape[2])
     knot_vectors = (Xi, Eta, Zeta)
     
-    mesh = Mesh(knot_vectors, QP_shape, derivative_order=1, basis='B-spline', nq_n=3)
+    mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=1, basis='B-spline', nq_n=3)
     
     def cylinder(xi, eta, zeta, R=1, H=3):
         xi_ = 2 * xi - 1

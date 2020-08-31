@@ -74,9 +74,9 @@ def find_knotspan(degree, knot_vector, knots):
 
 # basis functions
 def __basis_functions_ders(degree, knot_vector, spans, knots, order, dtype=np.float64):
-    basis_ders = np.zeros((order + 1, len(knots), degree + 1))
+    basis_ders = np.zeros((len(knots), degree + 1, order + 1))
     for i, (span, knot) in enumerate(zip(spans, knots)):
-        basis_ders[:, i] = __basis_function_ders(degree, knot_vector, span, knot, order)
+        basis_ders[i] = __basis_function_ders(degree, knot_vector, span, knot, order).T
     return basis_ders
 
 def __basis_function_ders(degree, knot_vector, span, knot, order, dtype=np.float64):    
@@ -209,11 +209,6 @@ def B_spline_basis2D(degrees, derivative_order, knot_vectors, knots):
     n = sum([2**d for d in range(derivative_order + 1)])
     NN = np.zeros((kl, p1q1, n))
 
-    # NN = []
-    # for d in range(derivative_order + 1):
-    #     N = np.zeros((kl, p1q1, *(2,) * d))
-    #     NN.append(N)
-
     Nxi = B_spline_basis1D(p, derivative_order, Xi, xi, squeeze=False)
     Neta = B_spline_basis1D(q, derivative_order, Eta, eta, squeeze=False)
 
@@ -222,23 +217,15 @@ def B_spline_basis2D(degrees, derivative_order, knot_vectors, knots):
 
         for a in range(p1q1):
             a_xi, a_eta = split2D(a, (p + 1,))
-
-            # NN[0][i, a] = Nxi[0, ik, a_xi] * Neta[0, il, a_eta]
-            NN[i, a, 0] = Nxi[0, ik, a_xi] * Neta[0, il, a_eta]
+            NN[i, a, 0] = Nxi[ik, a_xi, 0] * Neta[il, a_eta, 0]
 
             if derivative_order > 0:
-                # NN[1][i, a, 0] = Nxi[1, ik, a_xi] * Neta[0, il, a_eta]
-                # NN[1][i, a, 1] = Nxi[0, ik, a_xi] * Neta[1, il, a_eta]
-                NN[i, a, 1] = Nxi[1, ik, a_xi] * Neta[0, il, a_eta]
-                NN[i, a, 2] = Nxi[0, ik, a_xi] * Neta[1, il, a_eta]
+                NN[i, a, 1] = Nxi[ik, a_xi, 1] * Neta[il, a_eta, 0]
+                NN[i, a, 2] = Nxi[ik, a_xi, 0] * Neta[il, a_eta, 1]
                 if derivative_order > 1:
-                    # NN[2][i, a, 0, 0] = Nxi[2, ik, a_xi] * Neta[0, il, a_eta]
-                    # NN[2][i, a, 0, 1] = Nxi[1, ik, a_xi] * Neta[1, il, a_eta]
-                    # NN[2][i, a, 1, 1] = Nxi[0, ik, a_xi] * Neta[2, il, a_eta]
-                    # NN[2][i, a, 1, 0] = NN[2][i, a, 0, 1]
-                    NN[i, a, 3] = Nxi[2, ik, a_xi] * Neta[0, il, a_eta]
-                    NN[i, a, 4] = Nxi[1, ik, a_xi] * Neta[1, il, a_eta]
-                    NN[i, a, 5] = Nxi[0, ik, a_xi] * Neta[2, il, a_eta]
+                    NN[i, a, 3] = Nxi[ik, a_xi, 2] * Neta[il, a_eta, 0]
+                    NN[i, a, 4] = Nxi[ik, a_xi, 1] * Neta[il, a_eta, 1]
+                    NN[i, a, 5] = Nxi[ik, a_xi, 0] * Neta[il, a_eta, 2]
                     NN[i, a, 6] = NN[i, a, 4]
 
     return NN
@@ -264,10 +251,6 @@ def B_spline_basis3D(degrees, derivative_order, knot_vectors, knots):
     # and store them consecutively
     n = sum([3**d for d in range(derivative_order + 1)])
     NN = np.zeros((klm, p1q1r1, n))
-    # NN = []
-    # for d in range(derivative_order + 1):
-    #     N = np.zeros((klm, p1q1r1, *(3,) * d))
-    #     NN.append(N)
 
     Nxi = B_spline_basis1D(p, derivative_order, Xi, xi, squeeze=False)
     Neta = B_spline_basis1D(q, derivative_order, Eta, eta, squeeze=False)
@@ -278,36 +261,22 @@ def B_spline_basis3D(degrees, derivative_order, knot_vectors, knots):
 
         for a in range(p1q1r1):
             a_xi, a_eta, a_zeta = split3D(a, (p + 1, q + 1))
-
-            # NN[0][i, a] = Nxi[0, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[0, im, a_zeta]
-            NN[i, a, 0] = Nxi[0, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[0, im, a_zeta]
+            NN[i, a, 0] = Nxi[ik, a_xi, 0] * Neta[il, a_eta, 0] * Nzeta[im, a_zeta, 0]
 
             if derivative_order > 0:
-                # NN[1][i, a, 0] = Nxi[1, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[0, im, a_zeta]
-                # NN[1][i, a, 1] = Nxi[0, ik ,a_xi] * Neta[1, il, a_eta] * Nzeta[0, im, a_zeta]
-                # NN[1][i, a, 2] = Nxi[0, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[1, im, a_zeta]
-                NN[i, a, 1] = Nxi[1, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[0, im, a_zeta]
-                NN[i, a, 2] = Nxi[0, ik, a_xi] * Neta[1, il, a_eta] * Nzeta[0, im, a_zeta]
-                NN[i, a, 3] = Nxi[0, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[1, im, a_zeta]
+                NN[i, a, 1] = Nxi[ik, a_xi, 1] * Neta[il, a_eta, 0] * Nzeta[im, a_zeta, 0]
+                NN[i, a, 2] = Nxi[ik, a_xi, 0] * Neta[il, a_eta, 1] * Nzeta[im, a_zeta, 0]
+                NN[i, a, 3] = Nxi[ik, a_xi, 0] * Neta[il, a_eta, 0] * Nzeta[im, a_zeta, 1]
                 if derivative_order > 1:
-                    # NN[2][i, a, 0, 0] = Nxi[2, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[0, im, a_zeta]
-                    # NN[2][i, a, 0, 1] = Nxi[1, ik, a_xi] * Neta[1, il, a_eta] * Nzeta[0, im, a_zeta]
-                    # NN[2][i, a, 0, 2] = Nxi[1, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[1, im, a_zeta]
-                    # NN[2][i, a, 1, 0] = NN[2][i, a, 0, 1]
-                    # NN[2][i, a, 1, 1] = Nxi[0, ik, a_xi] * Neta[2, il, a_eta] * Nzeta[0, im, a_zeta]
-                    # NN[2][i, a, 1, 2] = Nxi[0, ik, a_xi] * Neta[1, il, a_eta] * Nzeta[1, im, a_zeta]
-                    # NN[2][i, a, 2, 0] = NN[2][i, a, 0, 2]
-                    # NN[2][i, a, 2, 1] = NN[2][i, a, 1, 2]
-                    # NN[2][i, a, 2, 2] = Nxi[0, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[2, im, a_zeta]
-                    NN[i, a, 4] = Nxi[2, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[0, im, a_zeta]
-                    NN[i, a, 5] = Nxi[1, ik, a_xi] * Neta[1, il, a_eta] * Nzeta[0, im, a_zeta]
-                    NN[i, a, 6] = Nxi[1, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[1, im, a_zeta]
+                    NN[i, a, 4] = Nxi[ik, a_xi, 2] * Neta[il, a_eta, 0] * Nzeta[im, a_zeta, 0]
+                    NN[i, a, 5] = Nxi[ik, a_xi, 1] * Neta[il, a_eta, 1] * Nzeta[im, a_zeta, 0]
+                    NN[i, a, 6] = Nxi[ik, a_xi, 1] * Neta[il, a_eta, 0] * Nzeta[im, a_zeta, 1]
                     NN[i, a, 7] = NN[i, a, 5]
-                    NN[i, a, 8] = Nxi[0, ik, a_xi] * Neta[2, il, a_eta] * Nzeta[0, im, a_zeta]
-                    NN[i, a, 9] = Nxi[0, ik, a_xi] * Neta[1, il, a_eta] * Nzeta[1, im, a_zeta]
+                    NN[i, a, 8] = Nxi[ik, a_xi, 0] * Neta[il, a_eta, 2] * Nzeta[im, a_zeta, 0]
+                    NN[i, a, 9] = Nxi[ik, a_xi, 0] * Neta[il, a_eta, 1] * Nzeta[im, a_zeta, 1]
                     NN[i, a, 10] = NN[i, a, 6]
                     NN[i, a, 11] = NN[i, a, 7]
-                    NN[i, a, 12] = Nxi[0, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[2, im, a_zeta]
+                    NN[i, a, 12] = Nxi[ik, a_xi, 0] * Neta[il, a_eta, 0] * Nzeta[im, a_zeta, 2]
 
     return NN
 
@@ -697,6 +666,27 @@ def B_spline_curve2vtk(knot_vector, Pw, filename, binary=False):
         binary=binary
     )
 
+# def q_to_Pw_1D(knot_vector, q, dim=3):
+#     Xi = knot_vector
+#     nn_xi = Xi.nel + Xi.degree
+#     nn = nn_xi
+    
+#     # rearrange generalized coordinates from solver ordering to Piegl's Pw 3D array
+#     Pw = np.zeros((nn_xi, dim))
+#     for j in range(nn):
+#         idx = j + np.arange(dim) * nn
+#         Pw[j] = q[idx]
+
+#     return Pw
+
+# TODO: rename
+def flat1D_vtk(Qw):
+    p1, _ = Qw.shape
+
+    mask = np.concatenate([[0], [p1-1], np.arange(1, p1-1)])
+        
+    return np.array(Qw[mask])
+
 def B_spline_surface2vtk(knot_vectors, Q, filename, binary=False):
     # rearrange q's from solver to Piegl's 3D ordering
     Pw = q_to_Pw_2D(knot_vectors, Q)
@@ -746,6 +736,7 @@ def q_to_Pw_2D(knot_vectors, q, dim=3):
 
     return Pw
 
+# TODO: rename
 def flat2D_vtk(Qw):
     """ TODO: Rearranges either a Point Array or a sorting array like elDOF in vtk ordering
         if sort is true, obj must be a mesh object.
@@ -825,6 +816,7 @@ def q_to_Pw_3D(knot_vectors, q, dim=3):
 
     return Pw
 
+# TODO: rename
 def flat3D_vtk(Qw):
     """ TODO: Rearranges either a Point Array or a sorting array like elDOF in vtk ordering
         if sort is true, obj must be a mesh object.
@@ -1092,8 +1084,8 @@ def test_mesh3D_vtk_export():
     Zeta = Knot_vector(degrees[2], element_shape[2])
     knot_vectors = (Xi, Eta, Zeta)
     
-    from cardillo.discretization.mesh import Mesh, cube, scatter_Qs
-    mesh = Mesh(knot_vectors, QP_shape, derivative_order=2, basis='B-spline', nq_n=3)
+    from cardillo.discretization.mesh3D import Mesh3D, cube, scatter_Qs
+    mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=2, basis='B-spline', nq_n=3)
 
     cube_shape = (3, 3, 3)
     Q_cube = cube(cube_shape, mesh, Greville=True, Fuzz=1.0e-1)
@@ -1114,8 +1106,8 @@ def test_fit_B_spline_volume():
     Zeta = Knot_vector(degrees[2], element_shape[2])
     knot_vectors = (Xi, Eta, Zeta)
     
-    from cardillo.discretization.mesh import Mesh
-    mesh = Mesh(knot_vectors, QP_shape, derivative_order=0, basis='B-spline', nq_n=3)
+    from cardillo.discretization.mesh3D import Mesh3D
+    mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=0, basis='B-spline', nq_n=3)
 
     def shear(xi, eta, zeta, gamma=1.5, L=5, B=2, H=1):
         x = xi * L + gamma * eta * B
@@ -1215,9 +1207,9 @@ def test_fit_B_spline_volume():
     plt.show()
 
 if __name__ == '__main__':
-    # test_test_Knot_vector()
+    # test_Knot_vector()
     # test_Piegl_Ex3_4()
     # test_Piegl_Fig5_18()
     # test_Piegl_Fig5_20()
-     test_mesh3D_vtk_export()
-    #test_fit_B_spline_volume()
+    # test_mesh3D_vtk_export()
+    test_fit_B_spline_volume()

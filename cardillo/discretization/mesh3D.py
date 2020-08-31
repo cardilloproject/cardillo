@@ -54,7 +54,7 @@ def scatter_Qs(Q):
     plt.show()
 
 # Mesh for hexahedral elements on 3D domain
-class Mesh():
+class Mesh3D():
     def __init__(self, knot_vector_objs, nqp_per_dim, derivative_order=1, basis='B-spline', nq_n=3):
         # number of elements
         self.nel_per_dim = (knot_vector_objs[0].nel, knot_vector_objs[1].nel, knot_vector_objs[2].nel)
@@ -424,7 +424,7 @@ def test_surface_DOF():
     knot_vectors = (Xi, Eta, Zeta)
     
     #from cardillo.discretization.mesh import Mesh, cube, scatter_Qs
-    mesh = Mesh(knot_vectors, QP_shape, derivative_order=2, basis='B-spline', nq_n=3)
+    mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=2, basis='B-spline', nq_n=3)
 
     cube_shape = (3, 3, 3)
     Q = cube(cube_shape, mesh, Greville=True, Fuzz=0)

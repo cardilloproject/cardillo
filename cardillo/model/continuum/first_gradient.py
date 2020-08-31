@@ -371,7 +371,7 @@ class First_gradient():
 
 
 def test_gradient():
-    from cardillo.discretization.mesh import Mesh, cube
+    from cardillo.discretization.mesh3D import Mesh3D, cube
     from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume, B_spline_volume2vtk
     from cardillo.discretization.indexing import flat3D
 
@@ -384,7 +384,7 @@ def test_gradient():
     Zeta = Knot_vector(degrees[2], element_shape[2])
     knot_vectors = (Xi, Eta, Zeta)
     
-    mesh = Mesh(knot_vectors, QP_shape, derivative_order=1, basis='B-spline', nq_n=3)
+    mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=1, basis='B-spline', nq_n=3)
 
     def bending(xi, eta, zeta, phi0=np.pi/2, R=1, B=1, H=1):
         phi = (1 - xi) * phi0
@@ -451,7 +451,7 @@ def test_gradient():
     print(f'error: {error}')
     
 def test_gradient_vtk_export():
-    from cardillo.discretization.mesh import Mesh, cube
+    from cardillo.discretization.mesh3D import Mesh3D, cube
     from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume
     from cardillo.discretization.indexing import flat3D
 
@@ -464,7 +464,7 @@ def test_gradient_vtk_export():
     Zeta = Knot_vector(degrees[2], element_shape[2])
     knot_vectors = (Xi, Eta, Zeta)
     
-    mesh = Mesh(knot_vectors, QP_shape, derivative_order=1, basis='B-spline', nq_n=3)
+    mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=1, basis='B-spline', nq_n=3)
 
     # reference configuration is a cube
     phi0 = np.pi / 2
@@ -511,7 +511,7 @@ def test_gradient_vtk_export():
     continuum.post_processing(q, 'test.vtu')
 
 def test_internal_forces():
-    from cardillo.discretization.mesh import Mesh, cube
+    from cardillo.discretization.mesh3D import Mesh3D, cube
     from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume
     from cardillo.discretization.indexing import flat3D
     from cardillo.model.continuum import Ogden1997_compressible
@@ -525,7 +525,7 @@ def test_internal_forces():
     Zeta = Knot_vector(degrees[2], element_shape[2])
     knot_vectors = (Xi, Eta, Zeta)
     
-    mesh = Mesh(knot_vectors, QP_shape, derivative_order=1, basis='B-spline', nq_n=3)
+    mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=1, basis='B-spline', nq_n=3)
 
     # reference configuration is a cube
     phi0 = np.pi / 2
