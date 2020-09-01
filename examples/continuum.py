@@ -2,18 +2,27 @@ from threading import main_thread
 import numpy as np
 import matplotlib.pyplot as plt
 
-from cardillo.discretization.mesh import Mesh, cube
+from cardillo.discretization.mesh3D import Mesh3D, cube
 from cardillo.discretization.mesh2D import Mesh2D, rectangle
 from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume
 from cardillo.discretization.indexing import flat3D
 from cardillo.model.continuum import Ogden1997_compressible, First_gradient
-from cardillo.solver import Newton
+from cardillo.solver import Newton, Generalized_alpha_1, Euler_backward
 from cardillo.model import Model
 from cardillo.math.algebra import A_IK_basic_z
+from cardillo.model.force_distr2D import Force_distr2D
+from cardillo.model.force_distr3D import Force_distr3D
 
 def test_cube():
+    TractionForce = False
+    Gravity = False
+    Statics = False
     # build mesh
-    degrees = (2, 2, 2)
+    # degrees = (2, 2, 2)
+    # QP_shape = (3, 3, 3)
+    # # element_shape = (5, 5, 5)
+    # element_shape = (2, 2, 2)
+    degrees = (1, 1, 1)
     QP_shape = (2, 2, 2)
     element_shape = (3, 3, 3)
 
@@ -22,51 +31,108 @@ def test_cube():
     Zeta = Knot_vector(degrees[2], element_shape[2])
     knot_vectors = (Xi, Eta, Zeta)
     
-    mesh = Mesh(knot_vectors, QP_shape, derivative_order=1, basis='B-spline', nq_n=3)
+    mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=1, basis='B-spline', nq_n=3)
 
     # reference configuration is a cube
     L = 1
     B = 1
-    H = 1
+    H = 2
     cube_shape = (L, B, H)
     Z = cube(cube_shape, mesh, Greville=True)
 
-    # material model    
-    mu1 = 0.3
-    mu2 = 0.5
+    # material model
+    mu1 = 0.3 # * 1e3
+    mu2 = 0.5 # * 1e3
     mat = Ogden1997_compressible(mu1, mu2)
 
-    # boundary conditions
-    cDOF1 = mesh.surface_DOF[0].reshape(-1)
-    cDOF2 = mesh.surface_DOF[1][2]
-    cDOF = np.concatenate((cDOF1, cDOF2))
-    b1 = lambda t: Z[cDOF1]
-    b2 = lambda t: Z[cDOF2] + t * 0.5
-    b = lambda t: np.concatenate((b1(t), b2(t)))
+    density = 1e-2
+
+    if Statics:
+        # boundary conditions
+        if TractionForce:
+            # cDOF = mesh.surface_qDOF[0].reshape(-1)
+            cDOF = mesh.surface_qDOF[2].reshape(-1)
+            # cDOF = mesh.surface_qDOF[4].reshape(-1)
+            b = lambda t: Z[cDOF]
+
+        else:
+            # cDOF1 = mesh.surface_qDOF[4].reshape(-1)
+            # cDOF2 = mesh.surface_qDOF[5][2]
+            # cDOF = np.concatenate((cDOF1, cDOF2))
+            # b1 = lambda t: Z[cDOF1]
+            # b2 = lambda t: Z[cDOF2] + t * 0.5
+            # b = lambda t: np.concatenate((b1(t), b2(t)))
+            cDOF = mesh.surface_qDOF[4].ravel()
+            b = lambda t: Z[cDOF]
+    else:
+        cDOF_xi = mesh.surface_qDOF[4][0]
+        cDOF_eta = mesh.surface_qDOF[4][1]
+        cDOF_zeta = mesh.surface_qDOF[4][2]
+        cDOF = np.concatenate((cDOF_xi, cDOF_eta, cDOF_zeta))
+        Omega = 2 * np.pi
+        b_xi = lambda t: Z[cDOF_xi] + 0.1 * np.sin(Omega * t)
+        b_eta = lambda t: Z[cDOF_eta]
+        b_zeta = lambda t: Z[cDOF_zeta]
+        b = lambda t: np.concatenate((b_xi(t), b_eta(t), b_zeta(t)))
+
 
     # 3D continuum
-    continuum = First_gradient(mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
+    continuum = First_gradient(density, mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
+    # continuum = First_gradient(density, mat, mesh, Z)
+
 
     # build model
     model = Model()
     model.add(continuum)
+
+    if TractionForce:
+        # F = lambda t, xi, eta: t * np.array([-2.5e0, 0, 0]) * (0.25 - (xi-0.5)**2) * (0.25 - (eta-0.5)**2)
+        # model.add(Force_distr2D(F, continuum, 1))
+        # F = lambda t, xi, eta: t * np.array([0, -2.5e0, 0]) * (0.25 - (xi-0.5)**2) * (0.25 - (eta-0.5)**2)
+        # model.add(Force_distr2D(F, continuum, 5))
+        F = lambda t, xi, eta: np.array([0, 0, -5e0]) * (0.25 - (xi-0.5)**2) * (0.25 - (eta-0.5)**2)
+        model.add(Force_distr2D(F, continuum, 5))
+    
+    if Gravity:
+        if Statics:
+            G = lambda t, xi, eta, zeta: t * np.array([0, 0, -9.81 * density])
+        else:
+            G = lambda t, xi, eta, zeta: np.array([0, 0, -9.81 * density])
+        model.add(Force_distr3D(G, continuum))
+
     model.assemble()
 
-    # static solver
-    n_load_steps = 10
-    tol = 1.0e-5
-    max_iter = 10
-    solver = Newton(model, n_load_steps=n_load_steps, tol=tol, max_iter=max_iter)
-    
-    import cProfile, pstats
-    pr = cProfile.Profile()
-    pr.enable()
-    sol = solver.solve()
-    pr.disable()
+    # M = model.M(0, model.q0)
+    # np.set_printoptions(precision=5, suppress=True)
+    # print(M.toarray())
+    # print(np.linalg.det(M.toarray()))
 
-    sortby = 'cumulative'
-    ps = pstats.Stats(pr).sort_stats(sortby)
-    ps.print_stats(0.1) # print only first 10% of the list
+    if Statics:
+    # static solver
+        n_load_steps = 10
+        tol = 1.0e-5
+        max_iter = 10
+        solver = Newton(model, n_load_steps=n_load_steps, tol=tol, max_iter=max_iter)
+
+    else:
+        t1 = 10
+        dt = 1e-1
+        # solver = Generalized_alpha_1(model, t1, dt=dt, variable_dt=False, rho_inf=0.25)
+        solver = Euler_backward(model, t1, dt)
+
+    # import cProfile, pstats
+    # pr = cProfile.Profile()
+    # pr.enable()
+    sol = solver.solve()
+    # pr.disable()
+
+    # sortby = 'cumulative'
+    # ps = pstats.Stats(pr).sort_stats(sortby)
+    # ps.print_stats(0.1) # print only first 10% of the list
+
+    # plt.plot(sol.t, sol.q[:, -1])
+    # plt.show()
+    # exit()
 
     # vtk export
     continuum.post_processing(sol.t, sol.q, 'cube')
@@ -82,7 +148,7 @@ def test_cylinder():
     Zeta = Knot_vector(degrees[2], element_shape[2])
     knot_vectors = (Xi, Eta, Zeta)
     
-    mesh = Mesh(knot_vectors, QP_shape, derivative_order=1, basis='B-spline', nq_n=3)
+    mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=1, basis='B-spline', nq_n=3)
     
     def cylinder(xi, eta, zeta, R=1, H=3):
         xi_ = 2 * xi - 1
@@ -173,7 +239,7 @@ def test_cylinder():
 
 def test_rectangle():
     # build mesh
-    degrees = (3, 3)
+    degrees = (1, 1)
     QP_shape = (3, 3)
     element_shape = (4, 8)
 
@@ -204,7 +270,9 @@ def test_rectangle():
     b = lambda t: np.concatenate((b1(t), b2(t)))
 
     # 3D continuum
-    continuum = First_gradient(mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
+    continuum = First_gradient(1, mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
+
+    
 
     # vtk export reference configuration
     # continuum.post_processing_single_configuration(0, Z, 'rectangleReferenceConfig.vtu')
@@ -213,6 +281,7 @@ def test_rectangle():
     model = Model()
     model.add(continuum)
     model.assemble()
+
 
     # static solver
     n_load_steps = 30
@@ -264,7 +333,7 @@ def write_xml():
         f.write(xml_str)
 
 if __name__ == "__main__":
-    # test_cube()
+    test_cube()
     # test_cylinder()
-    test_rectangle()
+    # test_rectangle()
     # write_xml()   

@@ -155,7 +155,7 @@ class Coo(coo_matrix):
         DOF : tuple, 2D
             tuple defining the global row and column indices of the dense matrix
         """
-        self.data = append( self.data, matrix.reshape(-1, order='C') )
+        self.data = append( self.data, matrix.ravel(order='C') )
         self.row = append( self.row, repeat(DOF[0], DOF[1].size) )
         self.col = append( self.col, tile(DOF[1], DOF[0].size) )
         

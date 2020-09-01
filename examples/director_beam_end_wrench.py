@@ -38,7 +38,7 @@ if __name__ == "__main__":
     frame_left = Frame(r_OP=r_OB1)
 
     # discretization properties
-    p = 1
+    p = 3
     # nQP = int(np.ceil((p + 1)**2 / 2))
     nQP = p + 1
     print(f'nQP: {nQP}')
@@ -51,12 +51,12 @@ if __name__ == "__main__":
     # q0[nn + 1] += 1.0e-3
     # q0[2 * nn + 1] += 1.0e-3
     # q0[] + np.random.rand(len(Q)) * 1.0e-4
-    la_g0 = np.ones(9 * nn) * 1.0e-3
-    # beam = Timoshenko_director_dirac(material_model, A_rho0, B_rho0, C_rho0, p, nQP, nEl, Q=Q)
-    # beam = Euler_Bernoulli_director_dirac(material_model, A_rho0, B_rho0, C_rho0, p, nQP, nEl, Q=Q)
+    # la_g0 = np.ones(6 * nn) * 1.0e-3
+    # beam = Timoshenko_director_dirac(material_model, A_rho0, B_rho0, C_rho0, p, nQP, nEl, Q=Q, q0=q0)
+    # la_g0 = np.ones(9 * nn) * 1.0e-3
     # beam = Timoshenko_director_integral(material_model, A_rho0, B_rho0, C_rho0, p, nQP, nEl, Q=Q)
     # beam = Euler_Bernoulli_director_integral(material_model, A_rho0, B_rho0, C_rho0, p, nQP, nEl, Q=Q)
-    beam = Inextensible_Euler_Bernoulli_director_integral(material_model, A_rho0, B_rho0, C_rho0, p, nQP, nEl, Q=Q, q0=q0, la_g0=la_g0)
+    beam = Inextensible_Euler_Bernoulli_director_integral(material_model, A_rho0, B_rho0, C_rho0, p, nQP, nEl, Q=Q, q0=q0)
     # exit()
 
     # left joint
@@ -90,15 +90,31 @@ if __name__ == "__main__":
     solver = Newton(model, n_load_steps=10, max_iter=20, tol=1.0e-8, numerical_jacobian=False)
     # solver = Newton(model, n_load_steps=10, max_iter=10, numerical_jacobian=True)
 
-    export_path = 'test'
-    if save:
-        sol = solver.solve()
-        sol.save(export_path)
-    else:
-        sol = load_solution(export_path)
+    # vtk export
+    beam.post_processing(t, q, 'director_beam')
 
-    t = sol.t
-    q = sol.q
+    exit()
+
+    ###############
+    # visualization
+    ###############
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    
+    ax.set_xlabel('x [m]')
+    ax.set_ylabel('y [m]')
+    ax.set_zlabel('z [m]')
+    scale = 1.2 * L
+    ax.set_xlim3d(left=-scale, right=scale)
+    ax.set_ylim3d(bottom=-scale, top=scale)
+    ax.set_zlim3d(bottom=-scale, top=scale)
+
+    beam.plot_centerline(ax, q[0], color='black')
+    # beam.plot_frames(ax, q[0], n=4, length=0.5)
+    beam.plot_centerline(ax, q[-1], color='blue')
+    beam.plot_frames(ax, q[-1], n=10, length=1)
+
+    plt.show()
 
     #################
     # build vtk files

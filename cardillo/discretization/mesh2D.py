@@ -2,7 +2,7 @@ import numpy as np
 from scipy.sparse.linalg import spsolve
 # from cardillo_fem.discretization.lagrange import lagrange2D, lagrange1D, lagrange3D
 from cardillo.discretization.B_spline import uniform_knot_vector, B_spline_basis1D, B_spline_basis2D, B_spline_basis3D, q_to_Pw_2D, decompose_B_spline_surface, flat2D_vtk
-from cardillo.math.algebra import inverse2D, determinant2D, inverse3D, determinant3D, quat2rot
+from cardillo.math.algebra import inverse2D, determinant2D, inverse3D, determinant3D, quat2rot, norm3, cross3
 from cardillo.discretization.indexing import flat2D, split2D
 from cardillo.discretization.gauss import gauss
 from cardillo.utility.coo import Coo
@@ -245,66 +245,51 @@ class Mesh2D():
             b[elDOF] += be
         return b
 
-    # TODO:
-    def compute_all_N_3D_lagrange(self, PointsOnEdge=False):
-        r"""Computes the shape functions and their derivatives for all Gauss points of all elements. Also returns weighting of the Gauss points.
-
-        Returns
-        -------
-        N : numpy.ndarray
-            (n_QP)-by-((p+1)*(q+1)) array holding for each Gauss point on each element the shape function values.
-        dN_dvxi : numpy.ndarray
-            (n_QP)-by-((p+1)*(q+1))-by-(2) array holding for each Gauss point on each element the derivative of the shape function wrt xi and eta.
-
-        """
-        # compute Gauss points
-        if PointsOnEdge:
-            gp_xi, wp_xi = np.linspace(start = -1, stop = 1, num = self.nqp_xi), np.ones(self.nqp_xi)
-            gp_eta, wp_eta = np.linspace(start = -1, stop = 1, num = self.nqp_eta), np.ones(self.nqp_eta)
-            gp_nu, wp_nu = np.linspace(start = -1, stop = 1, num = self.nqp_zeta), np.ones(self.nqp_zeta)
-        else:
-            gp_xi, wp_xi = np.polynomial.legendre.leggauss(self.nqp_xi)
-            gp_eta, wp_eta = np.polynomial.legendre.leggauss(self.nqp_eta)
-            gp_nu, wp_nu = np.polynomial.legendre.leggauss(self.nqp_zeta)
-
-        N = np.zeros((self.nqp, self.nn_el))
-        dN = np.zeros((self.nqp, self.nn_el, 3))
-
-        for gi in range(self.nqp):
-            gix, gie, ginu = self.split_gp(gi)
-            N[gi], dN[gi] = lagrange3D(self.p, self.q, self.r, gp_xi[gix], gp_eta[gie], gp_nu[ginu])
-
-        wp = np.zeros((self.nqp))
-        for i in range(self.nqp):
-            i_xi, i_eta, i_nu = self.split_gp(i)
-            wp[i] = wp_xi[i_xi] * wp_eta[i_eta] * wp_nu[i_nu]
-
-        return np.vstack([[N]]*self.nel), np.vstack([[dN]]*self.nel), None ,  np.vstack([gp_xi]*self.nel), np.vstack([gp_eta]*self.nel), np.vstack([gp_nu]*self.nel), np.vstack([wp]*self.nel)
-
     def reference_mappings(self, Q):
-        """Compute inverse gradient from the reference configuration to the parameter space and scale quadrature points by its determinant. See Bonet 1997 (7.6a,b)
+        """Compute inverse gradient from the reference configuration to the parameter space (only possible for planar elements) and scale quadrature points by its determinant. See Bonet 1997 (7.6a,b)
         """
-        kappa0_xi_inv = np.zeros((self.nel, self.nqp, self.nq_n, self.nq_n))
-        N_X = np.zeros((self.nel, self.nqp, self.nn_el, self.nq_n))
-        w_J0 = np.zeros((self.nel, self.nqp))
-        for el in range(self.nel):
-            Qe = Q[self.elDOF[el]]
+        
+        # planar elements
+        if self.nq_n == 2:
+            kappa0_xi_inv = np.zeros((self.nel, self.nqp, self.nq_n, self.nq_n))
+            N_X = np.zeros((self.nel, self.nqp, self.nn_el, self.nq_n))
+            w_J0 = np.zeros((self.nel, self.nqp))
+            for el in range(self.nel):
+                Qe = Q[self.elDOF[el]]
 
-            for i in range(self.nqp):
-                N_xi = self.N_xi[el, i]
+                for i in range(self.nqp):
+                    N_xi = self.N_xi[el, i]
 
-                kappa0_xi = np.zeros((self.nq_n, self.nq_n))
-                for a in range(self.nn_el):
-                    kappa0_xi += np.outer(Qe[self.nodalDOF[a]], N_xi[a]) # Bonet 1997 (7.6b)
-                
-                kappa0_xi_inv[el, i] = inverse2D(kappa0_xi)
-                w_J0[el, i] = determinant2D(kappa0_xi) * self.wp[el, i]
+                    kappa0_xi = np.zeros((self.nq_n, 2))
+                    for a in range(self.nn_el):
+                        kappa0_xi += np.outer(Qe[self.nodalDOF[a]], N_xi[a]) # Bonet 1997 (7.6b)
+                    
+                    kappa0_xi_inv[el, i] = inverse2D(kappa0_xi)
+                    w_J0[el, i] = determinant2D(kappa0_xi) * self.wp[el, i]
 
-                for a in range(self.nn_el):
-                    N_X[el, i, a] = N_xi[a] @ kappa0_xi_inv[el, i] # Bonet 1997 (7.6a) modified
-                    # N_X[el, i, a] = kappa0_xi_inv[el, i].T @ N_xi[a] # Bonet 1997 (7.6a)
+                    for a in range(self.nn_el):
+                        N_X[el, i, a] = N_xi[a] @ kappa0_xi_inv[el, i] # Bonet 1997 (7.6a) modified
+                        # N_X[el, i, a] = kappa0_xi_inv[el, i].T @ N_xi[a] # Bonet 1997 (7.6a)
 
-        return kappa0_xi_inv, N_X, w_J0
+            return kappa0_xi_inv, N_X, w_J0
+
+        # surface Jacobian for embedded surfaces
+        else:
+            w_J0 = np.zeros((self.nel, self.nqp))
+            for el in range(self.nel):
+                Qe = Q[self.elDOF[el]]
+
+                for i in range(self.nqp):
+                    N_xi = self.N_xi[el, i]
+
+                    kappa0_xi = np.zeros((self.nq_n, 2))
+                    for a in range(self.nn_el):
+                        kappa0_xi += np.outer(Qe[self.nodalDOF[a]], N_xi[a]) # Bonet 1997 (7.6b)
+
+                    # Ciarlet2005 Theorem 2.3-1 (a) and Schulte2020 below (5)
+                    w_J0[el, i] = norm3(cross3(kappa0_xi[:, 0], kappa0_xi[:, 1])) * self.wp[el, i]
+            
+            return w_J0
 
     # functions for vtk export
     def ensure_L2_projection_A(self):

@@ -1,14 +1,17 @@
+import numpy as np
+import meshio
+import os
+
 from cardillo.model.model import Model
 from cardillo.utility.coo import Coo
 from cardillo.math.numerical_derivative import Numerical_derivative
-import numpy as np
-from cardillo.discretization.indexing import flat2D, flat3D
+from cardillo.discretization.indexing import flat2D, flat3D, split2D, split3D
 from cardillo.discretization.B_spline import B_spline_basis3D
 from cardillo.math.algebra import determinant2D, inverse3D, determinant3D
-import meshio
 
 class First_gradient():
-    def __init__(self, material, mesh, Z, z0=None, v0=None, cDOF=[], b=None):
+    def __init__(self, density, material, mesh, Z, z0=None, v0=None, cDOF=[], b=None):
+        self.density = density
         self.mat = material
 
         # store generalized coordinates
@@ -42,6 +45,7 @@ class First_gradient():
         self.nqp = mesh.nqp
         self.elDOF = mesh.elDOF
         self.nodalDOF = mesh.nodalDOF
+        self.N = self.mesh.N
 
         self.dim = int(len(Z) / self.nn)
         if self.dim == 2:
@@ -53,6 +57,10 @@ class First_gradient():
 
         # for each Gauss point, compute kappa0^-1, N_X and w_J0 = w * det(kappa0^-1)
         self.kappa0_xi_inv, self.N_X, self.w_J0 = self.mesh.reference_mappings(Z)
+        if self.dim ==3:
+            self.srf_w_J0 = []
+            for i in range(6):
+                self.srf_w_J0.append(self.mesh.surface_mesh[i].reference_mappings(Z[self.mesh.surface_qDOF[i].ravel()]))
 
     def assembler_callback(self):
         self.elfDOF = []
@@ -110,7 +118,7 @@ class First_gradient():
         
             # write vtk mesh using meshio
             meshio.write_points_cells(
-                filename,
+                os.path.splitext(os.path.basename(filename))[0] + '.vtu',
                 points,
                 cells,
                 point_data=point_data,
@@ -177,6 +185,45 @@ class First_gradient():
                 F[i] += np.outer(qe[self.mesh.nodalDOF[a]], self.N_X[el, i, a]) # Bonet 1997 (7.5)
 
         return F
+
+    #########################################
+    # kinematic equation
+    #########################################
+    def q_dot(self, t, q, u):
+        return u
+
+    def B(self, t, q, coo):
+        coo.extend_diag(np.ones(self.nq), (self.qDOF, self.uDOF))
+
+    def q_ddot(self, t, q, u, u_dot):
+        return u_dot
+
+    #########################################
+    # equations of motion
+    #########################################
+    def M_el(self, el):
+        M_el = np.zeros((self.nq_el, self.nq_el))
+
+        I_nq_n = np.eye(self.dim)
+
+        for a in range(self.nn_el):
+            for b in range(self.nn_el):
+                idx = np.ix_(self.nodalDOF[a], self.nodalDOF[b])
+                for i in range(self.nqp):
+                    N = self.N[el, i]
+                    w_J0 = self.w_J0[el, i]
+                    M_el[idx] += N[a] * N[b] * self.density * w_J0 * I_nq_n
+
+        return M_el
+
+    def M(self, t, q, coo):
+        for el in range(self.nel):
+            M_el = self.M_el(el)
+
+            # sparse assemble element internal stiffness matrix
+            elfDOF = self.elfDOF[el]
+            eluDOF = self.eluDOF[el]
+            coo.extend(M_el[elfDOF[:, None], elfDOF], (eluDOF, eluDOF))
 
     def f_pot_el(self, ze, el):
         f = np.zeros(self.nq_el)
@@ -249,8 +296,82 @@ class First_gradient():
             elqDOF = self.elqDOF[el]
             coo.extend(Ke[elfDOF[:, None], elfDOF], (eluDOF, elqDOF))
 
+    ####################################################
+    # surface forces
+    ####################################################
+    def force_distr2D_el(self, force, t, el, srf_mesh):
+        fe = np.zeros(srf_mesh.nq_el)
+
+        el_xi, el_eta = split2D(el, (srf_mesh.nel_xi,))
+
+        for i in range(srf_mesh.nqp):
+            N = srf_mesh.N[el, i]
+            w_J0 = self.srf_w_J0[srf_mesh.idx][el, i]
+            
+            i_xi, i_eta = split2D(i, (srf_mesh.nqp_xi,))
+            xi = srf_mesh.qp_xi[el_xi, i_xi]
+            eta = srf_mesh.qp_eta[el_eta, i_eta]
+
+            # internal forces
+            for a in range(srf_mesh.nn_el):
+                fe[srf_mesh.nodalDOF[a]] += force(t, xi, eta) * N[a] * w_J0
+
+        return fe
+
+    def force_distr2D(self, t, q, force, srf_idx):
+        z = self.z(t, q)
+        f = np.zeros(self.nz)
+
+        srf_mesh = self.mesh.surface_mesh[srf_idx]
+        srf_zDOF = self.mesh.surface_qDOF[srf_idx].ravel()
+        
+        for el in range(srf_mesh.nel):
+            f[srf_zDOF[srf_mesh.elDOF[el]]] += self.force_distr2D_el(force, t, el, srf_mesh)
+        return f[self.fDOF]
+
+    def force_distr2D_q(self, t, q, coo, force, srf_idx):
+        pass
+
+
+    ####################################################
+    # volume forces
+    ####################################################
+    def force_distr3D_el(self, force, t, el):
+        fe = np.zeros(self.nq_el)
+
+        el_xi, el_eta, el_zeta = split3D(el, (self.mesh.nel_xi, self.mesh.nel_eta))
+
+        for i in range(self.nqp):
+            N = self.mesh.N[el, i]
+            w_J0 = self.w_J0[el, i]
+            
+            i_xi, i_eta, i_zeta = split3D(i, (self.mesh.nqp_xi, self.mesh.nqp_eta))
+            xi = self.mesh.qp_xi[el_xi, i_xi]
+            eta = self.mesh.qp_eta[el_eta, i_eta]
+            zeta = self.mesh.qp_zeta[el_zeta, i_zeta]
+
+            # internal forces
+            for a in range(self.nn_el):
+                fe[self.nodalDOF[a]] += force(t, xi, eta, zeta) * N[a] * w_J0
+
+        return fe
+
+    def force_distr3D(self, t, q, force):
+        z = self.z(t, q)
+        f = np.zeros(self.nz)
+        
+        for el in range(self.nel):
+            f[self.elDOF[el]] += self.force_distr3D_el(force, t, el)
+        return f[self.fDOF]
+
+    def force_distr3D_q(self, t, q, coo, force):
+        pass
+
+
+
+
 def test_gradient():
-    from cardillo.discretization.mesh import Mesh, cube
+    from cardillo.discretization.mesh3D import Mesh3D, cube
     from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume, B_spline_volume2vtk
     from cardillo.discretization.indexing import flat3D
 
@@ -263,7 +384,7 @@ def test_gradient():
     Zeta = Knot_vector(degrees[2], element_shape[2])
     knot_vectors = (Xi, Eta, Zeta)
     
-    mesh = Mesh(knot_vectors, QP_shape, derivative_order=1, basis='B-spline', nq_n=3)
+    mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=1, basis='B-spline', nq_n=3)
 
     def bending(xi, eta, zeta, phi0=np.pi/2, R=1, B=1, H=1):
         phi = (1 - xi) * phi0
@@ -330,7 +451,7 @@ def test_gradient():
     print(f'error: {error}')
     
 def test_gradient_vtk_export():
-    from cardillo.discretization.mesh import Mesh, cube
+    from cardillo.discretization.mesh3D import Mesh3D, cube
     from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume
     from cardillo.discretization.indexing import flat3D
 
@@ -343,7 +464,7 @@ def test_gradient_vtk_export():
     Zeta = Knot_vector(degrees[2], element_shape[2])
     knot_vectors = (Xi, Eta, Zeta)
     
-    mesh = Mesh(knot_vectors, QP_shape, derivative_order=1, basis='B-spline', nq_n=3)
+    mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=1, basis='B-spline', nq_n=3)
 
     # reference configuration is a cube
     phi0 = np.pi / 2
@@ -390,7 +511,7 @@ def test_gradient_vtk_export():
     continuum.post_processing(q, 'test.vtu')
 
 def test_internal_forces():
-    from cardillo.discretization.mesh import Mesh, cube
+    from cardillo.discretization.mesh3D import Mesh3D, cube
     from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume
     from cardillo.discretization.indexing import flat3D
     from cardillo.model.continuum import Ogden1997_compressible
@@ -404,7 +525,7 @@ def test_internal_forces():
     Zeta = Knot_vector(degrees[2], element_shape[2])
     knot_vectors = (Xi, Eta, Zeta)
     
-    mesh = Mesh(knot_vectors, QP_shape, derivative_order=1, basis='B-spline', nq_n=3)
+    mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=1, basis='B-spline', nq_n=3)
 
     # reference configuration is a cube
     phi0 = np.pi / 2

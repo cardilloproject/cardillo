@@ -1,5 +1,5 @@
 from cardillo.math.numerical_derivative import Numerical_derivative
-from cardillo.model.classical_beams.planar import Hooke, Euler_bernoulli2D
+from cardillo.model.classical_beams.planar import Hooke, Euler_bernoulli
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints.implicit import Spherical_joint2D, Spherical_joint
 from cardillo.model import Model
@@ -77,7 +77,7 @@ if __name__ == "__main__":
     # u0[0] = r_OB1_t(0)[0]
     # u0[nNd] = r_OB1_t(0)[1]
 
-    beam = Euler_bernoulli2D(A_rho0, material_model, p, nEl, nQP, Q=Q, q0=q0, u0=u0)
+    beam = Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q=Q, q0=q0, u0=u0)
 
     # left joint
     joint_left = Spherical_joint2D(frame_left, beam, r_OB1(0), frame_ID2=(0,))
