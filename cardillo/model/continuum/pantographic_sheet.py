@@ -8,6 +8,41 @@ from cardillo.discretization.indexing import flat2D, flat3D, split2D, split3D
 from cardillo.discretization.B_spline import B_spline_basis3D
 from cardillo.math.algebra import determinant2D, inverse3D, determinant3D, A_IK_basic_z, norm2
 
+def strain_measures(F, G):
+    # strain measures of pantographic sheet
+    d1 = F[:, 0]
+    d2 = F[:, 1]
+    rho1 = norm2(d1)
+    rho2 = norm2(d2)
+    rho = np.array([rho1, rho2])
+
+    e1 = d1 / rho1
+    e2 = d2 / rho2
+
+    d1_1 = G[:, 0, 0]
+    d1_2 = G[:, 0, 1]
+    d2_1 = G[:, 1, 0]
+    d2_2 = G[:, 1, 1]
+    rho1_1 = d1_1 @ e1
+    rho1_2 = d1_2 @ e1
+    rho2_1 = d2_1 @ e2
+    rho2_2 = d2_2 @ e2
+    rho_s = np.array([[rho1_1, rho1_2],
+                        [rho2_1, rho2_2]])
+
+    d1_perp = np.array([-d1[1], d1[0]])
+    d2_perp = np.array([-d2[1], d2[0]])
+    theta1_1 = d1_1 @ d1_perp / rho1**2
+    theta1_2 = d1_2 @ d1_perp / rho1**2
+    theta2_1 = d2_1 @ d2_perp / rho2**2
+    theta2_2 = d2_2 @ d2_perp / rho2**2
+    theta_s = np.array([[theta1_1, theta1_2],
+                        [theta2_1, theta2_2]])
+
+    Gamma = asin(e2 @ e1)
+
+    return rho, rho_s, Gamma, theta_s
+
 class Pantographic_sheet():
     def __init__(self, density, material, mesh, Z, z0=None, v0=None, cDOF=[], b=None, fiber_angle=np.pi/4):
         self.density = density
@@ -97,30 +132,37 @@ class Pantographic_sheet():
             point_data = {}
             
             # evaluate deformation gradient at quadrature points
-            F = np.zeros((self.mesh.nel, self.mesh.nqp, self.mesh.nq_n, self.mesh.nq_n))
+            F = np.zeros((self.mesh.nel, self.mesh.nqp, self.dim, self.dim))
+            G = np.zeros((self.mesh.nel, self.mesh.nqp, self.dim, self.dim, self.dim))
             for el in range(self.mesh.nel):
                 ze = z[self.mesh.elDOF[el]]
                 for i in range(self.mesh.nqp):
                     for a in range(self.mesh.nn_el):
+                        # first deformation gradient
                         F[el, i] += np.outer(ze[self.mesh.nodalDOF[a]], self.N_Theta[el, i, a]) # Bonet 1997 (7.6b)
-
+                        G[el, i] += np.einsum('i,jk->ijk', ze[self.nodalDOF[a]], self.N_ThetaTheta[el, i, a]) 
+                                    
             F_vtk = self.mesh.field_to_vtk(F)
-            point_data.update({"F": F_vtk})
+            G_vtk = self.mesh.field_to_vtk(G)
+            point_data.update({"F": F_vtk, "G": G_vtk})
 
             # field data vtk export
             point_data_fields = {
-                "C": lambda F: F.T @ F,
-                "J": lambda F: np.array([self.determinant(F)]),
-                # "P": lambda F: self.mat.P(F),
-                # "S": lambda F: self.mat.S(F),
-                # "W": lambda F: self.mat.W(F),
+                "C": lambda F, G: F.T @ F,
+                "J": lambda F, G: np.array([self.determinant(F)]),
+                "W": lambda F, G: self.mat.W(*strain_measures(F, G)),
+                "rho": lambda F, G: strain_measures(F, G)[0],
+                "rho_s": lambda F, G: strain_measures(F, G)[1].ravel(),
+                "Gamma": lambda F, G:  np.array([strain_measures(F, G)[2]]),
+                "theta_s": lambda F, G:  strain_measures(F, G)[3].ravel(), #TODO: make function calls less redundant
             }
 
             for name, fun in point_data_fields.items():
-                tmp = fun(F_vtk[0].reshape(self.dim, self.dim)).reshape(-1)
+                tmp = fun(F_vtk[0].reshape(self.dim, self.dim), G_vtk[0].reshape(self.dim, self.dim, self.dim)).ravel()
                 field = np.zeros((len(F_vtk), len(tmp)))
                 for i, Fi in enumerate(F_vtk):
-                    field[i] = fun(Fi.reshape(self.dim, self.dim)).reshape(-1)
+                    Gi = G_vtk[i]
+                    field[i] = fun(Fi.reshape(self.dim, self.dim), Gi.reshape(self.dim, self.dim, self.dim)).ravel()
                 point_data.update({name: field})
         
             # write vtk mesh using meshio

@@ -7,7 +7,7 @@ from cardillo.discretization.mesh2D import Mesh2D, rectangle
 from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume
 from cardillo.discretization.indexing import flat3D
 from cardillo.model.continuum import Ogden1997_compressible, First_gradient
-from cardillo.model.continuum import Pantographic_sheet, Maurin2019_linear
+from cardillo.model.continuum import Pantographic_sheet, Maurin2019_linear, Maurin2019, verify_derivatives
 from cardillo.solver import Newton, Generalized_alpha_1, Euler_backward
 from cardillo.model import Model
 from cardillo.math.algebra import A_IK_basic_z
@@ -335,7 +335,7 @@ def write_xml():
 def pantographic_sheet():
     # build mesh
     degrees = (2, 2)
-    QP_shape = (2, 2)
+    QP_shape = (3, 3)
     element_shape = (4, 3)
 
     Xi = Knot_vector(degrees[0], element_shape[0])
@@ -357,22 +357,25 @@ def pantographic_sheet():
     K_rho = 1.34e5
     K_Gamma = 1.59e2
     K_Theta_s = 1.92e-2
+    gamma = 1.36
     mat = Maurin2019_linear(K_rho, K_Gamma, K_Theta_s)
+    # mat = Maurin2019(K_rho, K_Gamma, K_Theta_s, gamma)
+
+    
+    verify_derivatives(mat)
 
     # boundary conditions
     # cDOF1 = mesh.edge_DOF[0].ravel()
     # cDOF2x = mesh.edge_DOF[1][0]
     # cDOF2y = mesh.edge_DOF[1][1]
     # cDOF2 = np.concatenate((cDOF2x, cDOF2y))
-    # # cDOF2 = mesh.edge_DOF[1][1]
     # cDOF = np.concatenate((cDOF1, cDOF2))
     # b1 = lambda t: Z[cDOF1]
-    # b2x = lambda t: Z[cDOF2x] + t * 0.5
+    # b2x = lambda t: Z[cDOF2x] + t * 0.
     # b2y = lambda t: Z[cDOF2y]
     # b = lambda t: np.concatenate((b1(t), b2x(t), b2y(t)))
-    # # b = lambda t: np.concatenate((b1(t), b2(t)))
 
-    cDOF, b = standard_displacements(mesh, Z, case="test_d")
+    cDOF, b = standard_displacements(mesh, Z, case="test_a")
 
     # 3D continuum
     continuum = Pantographic_sheet(None, mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
@@ -384,7 +387,7 @@ def pantographic_sheet():
     # f_pot = model.f_pot(0, model.q0)
     
     # static solver
-    n_load_steps = 25
+    n_load_steps = 2
     tol = 1.0e-5
     max_iter = 10
     solver = Newton(model, n_load_steps=n_load_steps, tol=tol, max_iter=max_iter)
@@ -397,7 +400,7 @@ def pantographic_sheet():
 
 def standard_displacements(mesh, Z, case, displacement=None):
     from cardillo.math.algebra import A_IK_basic_z
-    
+
     # recreates the test cases A, B, C, D as defined in dellIsola 2016. The dimensions of the undeformed rectangle must correspond to the source as well.
     if case == "test_a":
         displacement = (0.0567, 0)

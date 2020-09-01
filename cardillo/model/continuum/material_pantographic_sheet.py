@@ -1,18 +1,34 @@
 import numpy as np
 from cardillo.math.numerical_derivative import Numerical_derivative
 
-# def verify_derivatives(W_func, dW_func):
-#     eps = np.array([0.1, 0.2])
-#     eps_al = np.array([2, 3])
-#     theta = np.array([0.7, 1.2])
-#     theta_al = np.array([0.2, 0.3])
-#     Eps0 = np.vstack((eps, eps_al, theta, theta_al))
+def verify_derivatives(mat):
+    from numpy.random import rand
+    from numpy import isclose
+    from cardillo.math.numerical_derivative import Numerical_derivative
+    
+    rho = rand(2)
+    rho_s = rand(2,2)
+    Gamma = rand(1)
+    theta_s = rand(2,2)
 
-#     dW_num = Numerical_derivative(lambda t, Eps: np.sum(W_func(*Eps)), order=1)._x(0, Eps0)
-#     dW_ana = dW_func(*Eps0)
+    W_rho_num = Numerical_derivative(lambda t, rho: mat.W(rho, rho_s, Gamma, theta_s), order=1)._x(0, rho).ravel()
+    W_rho_an = mat.W_rho(rho, rho_s, Gamma, theta_s).ravel()
 
-#     error = np.linalg.norm(dW_num - dW_ana)
-#     print(f'error: {error}')
+    W_rho_s_num = Numerical_derivative(lambda rho_s: mat.W(rho, rho_s, Gamma, theta_s), order=1)._X(rho_s).ravel()
+    W_rho_s_an = mat.W_rho_s(rho, rho_s, Gamma, theta_s).ravel()
+
+    W_Gamma_num = Numerical_derivative(lambda t, Gamma: mat.W(rho, rho_s, Gamma, theta_s), order=1)._x(0, Gamma).ravel()
+    W_Gamma_an = mat.W_Gamma(rho, rho_s, Gamma, theta_s).ravel()
+
+    W_theta_s_num = Numerical_derivative(lambda theta_s: mat.W(rho, rho_s, Gamma, theta_s), order=1)._X(theta_s, eps=1e-5).ravel() # poorly conditioned due to lacking normalization
+    W_theta_s_an = mat.W_theta_s(rho, rho_s, Gamma, theta_s).ravel()
+
+    if (not np.isclose(W_rho_num, W_rho_an).all() or 
+        not np.isclose(W_rho_s_num, W_rho_s_an).all() or 
+        not np.isclose(W_Gamma_num, W_Gamma_an).all() or  
+        not np.isclose(W_theta_s_num, W_theta_s_an, rtol=1e-02).all() #TODO: implement stronger check than rtol=1e-02
+    ):
+        raise ValueError('The analytic derivatives in the material do not match the numerical derivatives')
 
 class Maurin2019_linear():
     def __init__(self, K_rho, K_Gamma, K_Theta_s):
@@ -24,7 +40,7 @@ class Maurin2019_linear():
         W = 0
         for i in range(2):
             W += 0.5 * self.K_rho * (rho[i] - 1)**2  
-            W += 0.5 * self.K_Theta_s * theta_s[i]**2 
+            W += 0.5 * self.K_Theta_s * theta_s[i,i]**2  # only s-s derivatives
         return W + 0.5 * self.K_Gamma * Gamma**2
 
     def W_rho(self, rho, rho_s, Gamma, theta_s):
@@ -37,7 +53,33 @@ class Maurin2019_linear():
         return self.K_Gamma * Gamma
         
     def W_theta_s(self, rho, rho_s, Gamma, theta_s):
-        return self.K_Theta_s * theta_s 
+        return self.K_Theta_s * theta_s * np.eye(2) # only s-s derivatives
+
+class Maurin2019():
+    def __init__(self, K_rho, K_Gamma, K_Theta_s, gamma):
+        self.K_rho = K_rho         # [Nm^-1]
+        self.K_Gamma = K_Gamma     # [Nm^-1]
+        self.K_Theta_s = K_Theta_s # [Nm]
+        self.gamma = gamma
+
+    def W(self, rho, rho_s, Gamma, theta_s):
+        W = 0
+        for i in range(2):
+            W += 0.5 * self.K_rho * (rho[i] - 1)**2  
+            W += 0.5 * self.K_Theta_s * theta_s[i,i]**2 
+        return W + self.K_Gamma * np.abs(Gamma)**self.gamma
+
+    def W_rho(self, rho, rho_s, Gamma, theta_s):
+        return self.K_rho * (rho - 1)
+
+    def W_rho_s(self, rho, rho_s, Gamma, theta_s):
+        return np.zeros((2, 2))
+
+    def W_Gamma(self, rho, rho_s, Gamma, theta_s):
+        return self.gamma * self.K_Gamma * np.sign(Gamma) * np.abs(Gamma)**(self.gamma - 1)
+        
+    def W_theta_s(self, rho, rho_s, Gamma, theta_s):
+        return self.K_Theta_s * theta_s * np.eye(2) # only s-s derivatives
 
 # class Maurin2019():
 #     # def __init__(self, gamma, K_eps, K_kap, K_theta):
