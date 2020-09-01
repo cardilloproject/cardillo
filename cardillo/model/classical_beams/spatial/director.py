@@ -887,16 +887,27 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
             f.write(xml_str)
 
     def post_processing_single_configuration(self, t, q, filename, binary=True):
+        # centerline and connectivity + director data
         cells, points, HigherOrderDegrees = self.mesh_kinematics.vtk_mesh(q)
 
-        # dictionary storing point data
+        # fill dictionary storing point data with directors
         point_data = {
             "d1": points[:, 3:6],
             "d2": points[:, 6:9],
             "d3": points[:, 9:12],
         }
 
-        # evaluate deformation gradient at quadrature points
+        # export existing values on quadrature points using L2 projection
+        J0_vtk = self.mesh_kinematics.field_to_vtk(self.J0.reshape(self.nEl, self.nQP, 1))
+        point_data.update({"J0": J0_vtk})
+        
+        Gamma0_vtk = self.mesh_kinematics.field_to_vtk(self.Gamma0)
+        point_data.update({"Gamma0": Gamma0_vtk})
+        
+        Kappa0_vtk = self.mesh_kinematics.field_to_vtk(self.Kappa0)
+        point_data.update({"Kappa0": Kappa0_vtk})
+
+        # evaluate strain measures at quadrature points
         Gamma = np.zeros((self.mesh_kinematics.nel, self.mesh_kinematics.nqp, 3))
         Kappa = np.zeros((self.mesh_kinematics.nel, self.mesh_kinematics.nqp, 3))
         for el in range(self.mesh_kinematics.nel):
@@ -943,22 +954,14 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
                                     0.5 * (d1 @ d3_s - d3 @ d1_s), \
                                     0.5 * (d2 @ d1_s - d1 @ d2_s)])
         
+        # L2 projection of strain measures
         Gamma_vtk = self.mesh_kinematics.field_to_vtk(Gamma)
         point_data.update({"Gamma": Gamma_vtk})
         
         Kappa_vtk = self.mesh_kinematics.field_to_vtk(Kappa)
         point_data.update({"Kappa": Kappa_vtk})
 
-        J0_vtk = self.mesh_kinematics.field_to_vtk(self.J0.reshape(self.nEl, self.nQP, 1))
-        point_data.update({"J0": J0_vtk})
-        
-        Gamma0_vtk = self.mesh_kinematics.field_to_vtk(self.Gamma0)
-        point_data.update({"Gamma0": Gamma0_vtk})
-        
-        Kappa0_vtk = self.mesh_kinematics.field_to_vtk(self.Kappa0)
-        point_data.update({"Kappa0": Kappa0_vtk})
-
-        # field data vtk export
+        # fields depending on strain measures and other previously computed quantities
         point_data_fields = {
             "W": lambda Gamma, Gamma0, Kappa, Kappa0: np.array([self.material_model.potential(Gamma, Gamma0, Kappa, Kappa0)]),
             "n_i": lambda Gamma, Gamma0, Kappa, Kappa0: self.material_model.n_i(Gamma, Gamma0, Kappa, Kappa0),
@@ -975,7 +978,7 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
         # write vtk mesh using meshio
         meshio.write_points_cells(
             os.path.splitext(os.path.basename(filename))[0] + '.vtu',
-            points[:, :3],
+            points[:, :3], # only export centerline as geometry here!
             cells,
             point_data=point_data,
             cell_data={"HigherOrderDegrees": HigherOrderDegrees},

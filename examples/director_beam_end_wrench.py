@@ -90,6 +90,10 @@ if __name__ == "__main__":
     solver = Newton(model, n_load_steps=10, max_iter=20, tol=1.0e-8, numerical_jacobian=False)
     # solver = Newton(model, n_load_steps=10, max_iter=10, numerical_jacobian=True)
 
+    sol = solver.solve()
+    t = sol.t
+    q = sol.q
+
     # vtk export
     beam.post_processing(t, q, 'director_beam')
 

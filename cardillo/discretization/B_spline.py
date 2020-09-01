@@ -666,19 +666,6 @@ def B_spline_curve2vtk(knot_vector, Pw, filename, binary=False):
         binary=binary
     )
 
-# def q_to_Pw_1D(knot_vector, q, dim=3):
-#     Xi = knot_vector
-#     nn_xi = Xi.nel + Xi.degree
-#     nn = nn_xi
-    
-#     # rearrange generalized coordinates from solver ordering to Piegl's Pw 3D array
-#     Pw = np.zeros((nn_xi, dim))
-#     for j in range(nn):
-#         idx = j + np.arange(dim) * nn
-#         Pw[j] = q[idx]
-
-#     return Pw
-
 # TODO: rename
 def flat1D_vtk(Qw):
     p1, _ = Qw.shape
