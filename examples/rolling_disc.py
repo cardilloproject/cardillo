@@ -300,8 +300,8 @@ def rolling_disc_velocity_constraints():
     model.assemble()
 
     t0 = 0
-    t1 = 2 * np.pi / np.abs(alpha_dot) #* 1.5
-    dt = 1e-2
+    t1 = 2 * np.pi / np.abs(alpha_dot)
+    dt = 2.5e-2
     # solver = Euler_backward(model, t1, dt, numerical_jacobian=False, debug=False)
     # solver = Moreau_sym(model, t1, dt, numerical_jacobian=False, debug=False)
     # solver = Generalized_alpha_1(model, t1, variable_dt=True, rtol=0, atol=1.0e-2)
@@ -309,7 +309,7 @@ def rolling_disc_velocity_constraints():
     # solver = Generalized_alpha_2(model, t1, dt)
     # solver = Generalized_alpha_3(model, t1, dt, numerical_jacobian=True)
     # solver = Generalized_alpha_3(model, t1, dt, numerical_jacobian=False)
-    solver = Generalized_alpha_4(model, t1, dt)
+    solver = Generalized_alpha_4(model, t1, dt, numerical_jacobian=True)
     # solver = Generalized_alpha_5(model, t1, dt, numerical_jacobian=False)
     # solver = Moreau(model, t1, dt)
     # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='RK23')

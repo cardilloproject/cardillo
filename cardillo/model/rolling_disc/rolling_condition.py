@@ -1,8 +1,6 @@
-from ast import Num
-from math import gamma
 import numpy as np
 
-from cardillo.math.algebra import cross3, norm3, ax2skew
+from cardillo.math.algebra import cross3, norm3
 from cardillo.math.numerical_derivative import Numerical_derivative
 
 class Rolling_condition():
