@@ -17,7 +17,6 @@ class Generalized_alpha_1():
         # integration time
         self.t0 = t0 = model.t0
         self.t1 = t1 if t1 > t0 else ValueError("t1 must be larger than initial time t0.")
-        self.dt = dt
         self.t_eval = t_eval
 
         # parameter
@@ -226,7 +225,6 @@ class Generalized_alpha_1():
         la_g = [self.la_gk]
         la_gamma = [self.la_gammak]
 
-        #pbar = tqdm(self.t[:-1])
         n_rejected_iter = 0
         step_accepted = True
         max_factor = self.MAX_FACTOR

@@ -18,8 +18,8 @@ from cardillo.math.algebra import axis_angle2quat, ax2skew, A_IK_basic_x
 
 # rigid_body = 'Euler'
 # rigid_body = 'Quaternion'
-# rigid_body = 'Director'
-rigid_body = 'Director2'
+rigid_body = 'Director'
+# rigid_body = 'Director2'
 
 class Rigid_disc_euler(Rigid_body_euler):
     def __init__(self, m, r, q0=None, u0=None):
@@ -309,8 +309,8 @@ def rolling_disc_velocity_constraints():
     # solver = Generalized_alpha_2(model, t1, dt)
     # solver = Generalized_alpha_3(model, t1, dt, numerical_jacobian=True)
     # solver = Generalized_alpha_3(model, t1, dt, numerical_jacobian=False)
-    # solver = Generalized_alpha_4(model, t1, dt)
-    solver = Generalized_alpha_5(model, t1, dt, numerical_jacobian=False)
+    solver = Generalized_alpha_4(model, t1, dt)
+    # solver = Generalized_alpha_5(model, t1, dt, numerical_jacobian=False)
     # solver = Moreau(model, t1, dt)
     # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='RK23')
     # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='RK45')
