@@ -17,6 +17,8 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import numpy as np
 
+c = 8.0e-3 # eccentricity
+
 # TODO: this inertia tensor is not w.r.t. the center of mass! (maybe set screw centered in this example)
 def cylinder():
     rho = 7850 # [kg / m^3]; steel
@@ -41,8 +43,8 @@ def disc(a, coil_radius):
     rho = 7850 # [kg / m^3]; steel
     # rho = 2698.9 # [kg / m^3]; aluminum
     b = 5.925e-3 # height
-    # c = 3.0e-3 # eccentricity (best results for n=20, nEl=128)
-    c = 4.0e-3 # eccentricity
+    # # c = 3.0e-3 # eccentricity (best results for n=20, nEl=128)
+    # c = 4.0e-3 # eccentricity
     V = np.pi * (a / 2)**2 * b # volume
     m = V * rho # mass inner disc
 
@@ -238,15 +240,15 @@ if __name__ == "__main__":
     # discretization properties
     ###########################
     # p = 1
-    p = 2
-    # p = 3
+    # p = 2
+    p = 3
     # nQP = p + 1
     nQP = int(np.ceil((p**2 + 1) / 2)) + 1 # dynamics
     print(f'nQP: {nQP}')
     # nEl = 16 # 2 turns
-    nEl = 32 # 5 turns
+    # nEl = 32 # 5 turns
     # nEl = 64 # 10 turns
-    # nEl = 128 # 20 turns
+    nEl = 128 # 20 turns
 
     #############################
     # fit reference configuration
@@ -255,10 +257,10 @@ if __name__ == "__main__":
     coil_radius = coil_diameter / 2
     pitch_unloaded = 1.0e-3 # 1mm
     # turns = 2
-    turns = 5
+    # turns = 5
     # turns = 10
-    # turns = 20
-    nxi = 500
+    turns = 20
+    nxi = 1000
 
     xi = np.linspace(0, turns, nxi)
     P, dP, ddP = helix3D(xi, coil_radius, pitch_unloaded)
@@ -329,17 +331,10 @@ if __name__ == "__main__":
     max_iter = 30
     tol = 1.0e-6
 
-<<<<<<< HEAD
     t1 = 10
-    # dt = 1.0e-2 # beam as static force element
-    dt = 1e-3 # beam as static force element
-    # dt = 5e-4 # beam as static force element
-    # dt = 1.0e-5 # full beam dynamics
-=======
-    t1 = 0.25
     # dt = 1.0e-2 # beam as static force element implicit Euler
     dt = 1e-3 # full beam dynamics generalized alpha
->>>>>>> 8e283e14986a391bac076ee20851f3a70df7f920
+    # dt = 5e-4 # full beam dynamics generalized alpha
 
     beam = Beam(material_model, A_rho0, B_rho0, C_rho0, p, nQP, nEl, q0=Q, Q=Q)
 
@@ -374,9 +369,7 @@ if __name__ == "__main__":
 
         solver = Generalized_alpha_4(model, t1, dt, rho_inf=0.75, uDOF_algebraic=uDOF_algebraic, newton_tol=1.0e-6)
         
-        
-    # export_path = os.path.join(path, 'Wilberforce_pendulum')
-    export_path = f'Wilberforce_pendulum_p{p}_nEL{nEl}_turns{turns}_t1{t1}_dt{dt}'
+    export_path = f'Wilberforce_pendulum_p{p}_nEL{nEl}_turns{turns}_t1{t1}_dt{dt}_c{c}'
 
     if save:
         sol = solver.solve()
@@ -431,7 +424,7 @@ if __name__ == "__main__":
     ax1.set_zlim3d(bottom=-scale, top=scale)
 
     # prepare data for animation    
-    slowmotion = 2
+    slowmotion = 1
     fps = 10
     animation_time = slowmotion * t1
     target_frames = int(fps * animation_time)
@@ -453,7 +446,7 @@ if __name__ == "__main__":
     d3_, = ax1.plot([], [], [], '-b')
 
     def animate(i):
-        x, y, z = beam.centerline(q[i], n=200)
+        x, y, z = beam.centerline(q[i], n=400)
         center_line.set_data(x, y)
         center_line.set_3d_properties(z)
 
