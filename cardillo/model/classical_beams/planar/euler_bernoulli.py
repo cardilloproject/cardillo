@@ -1,3 +1,4 @@
+from cardillo.discretization.B_spline import Knot_vector
 import numpy as np
 from math import atan2, sqrt
 
@@ -6,6 +7,7 @@ from cardillo.discretization import gauss
 from cardillo.discretization import uniform_knot_vector, B_spline_basis1D
 from cardillo.math.algebra import ax2skew, norm2, norm3, cross3, e3
 from cardillo.math.numerical_derivative import Numerical_derivative
+from cardillo.discretization.mesh1D import Mesh1D
 
 class Euler_bernoulli():
     """Planar Euler-Bernoulli beam using B-spline shape functions.
@@ -23,22 +25,19 @@ class Euler_bernoulli():
         self.nEl = nEl # number of elements
 
         nn = nEl + polynomial_degree # number of nodes
-        self.knot_vector = knot_vector = uniform_knot_vector(polynomial_degree, nEl) # uniform open knot vector
-        self.element_span = np.array(self.knot_vector[polynomial_degree:-polynomial_degree])
+        self.knot_vector = Knot_vector(polynomial_degree, nEl)
+        self.element_span = self.knot_vector.data[polynomial_degree:-polynomial_degree]
 
         nn_el = polynomial_degree + 1 # number of nodes per element
-        nq_n = 2 # number of degrees of freedom per node (x, y)
+        self.nq_n = nq_n = 2 # number of degrees of freedom per node (x, y)
+
+        self.mesh_kinematics = Mesh1D(self.knot_vector, nQP, derivative_order=2, basis='B-spline', nq_n = self.nq_n)
 
         self.nq = nn * nq_n # total number of generalized coordinates
         self.nu = self.nq
         self.nq_el = nn_el * nq_n # total number of generalized coordinates per element
 
-        # compute allocation matrix
-        row_offset = np.arange(nEl)
-        elDOF_row = (np.zeros((nq_n * nn_el, nEl), dtype=int) + row_offset).T
-        elDOF_tile = np.tile(np.arange(0, nn_el), nq_n)
-        elDOF_repeat = np.repeat(np.arange(0, nq_n * nn, step=nn), nn_el)
-        self.elDOF = elDOF_row + elDOF_tile + elDOF_repeat
+        self.elDOF = self.mesh_kinematics.elDOF
             
         # reference generalized coordinates, initial coordinates and initial velocities
         self.Q = Q
@@ -46,37 +45,40 @@ class Euler_bernoulli():
         self.u0 = np.zeros(self.nu) if u0 is None else u0
 
         # compute shape functions
-        derivative_order = 2
-        self.N  = np.empty((nEl, nQP, nn_el))
-        self.N_xi = np.empty((nEl, nQP, nn_el))
-        self.N_xixi = np.empty((nEl, nQP, nn_el))
-        self.qw = np.zeros((nEl, nQP))
-        self.xi = np.zeros((nEl, nQP))
+        self.N  = self.mesh_kinematics.N
+        self.N_xi = self.mesh_kinematics.N_xi
+        self.N_xixi = self.mesh_kinematics.N_xixi
+        self.qw = self.mesh_kinematics.wp
+        self.xi = self.mesh_kinematics.qp
         self.J0 = np.zeros((nEl, nQP))
+        self.kappa0 = np.zeros((nEl, nQP))
+
         for el in range(nEl):
-
-            # evaluate Gauss points and weights on [xi^el, xi^{el+1}]
-            qp, qw = gauss(nQP, self.element_span[el:el+2])
-
-            # store quadrature points and weights
-            self.qw[el] = qw
-            self.xi[el] = qp
-
-            # evaluate B-spline shape functions
-            self.N[el], self.N_xi[el], self.N_xixi[el] = B_spline_basis1D(polynomial_degree, derivative_order, knot_vector, qp).transpose(2, 0, 1)
-
-            # compute change of integral measures
             Qe = self.Q[self.elDOF[el]]
-            for i in range(nQP):
-                r0_xi = self.stack_shapefunctions(self.N_xi[el, i]) @ Qe
-                self.J0[el, i] = norm2(r0_xi)
+            for i, (Ni, N_xii, N_xixii) in enumerate(zip(self.N[el], self.N_xi[el], self.N_xixi[el])):
+                # build matrix of shape function and derivatives
+                NNi = self.stack_shapefunctions(Ni)
+                NN_xii = self.stack_shapefunctions(N_xii)
+                NN_xixii = self.stack_shapefunctions(N_xixii)
 
+                # tangent vector reference configuration
+                t0 = NN_xii @ Qe
+                J02 = t0[0] * t0[0] + t0[1] * t0[1]
+                self.J0[el, i] = J0 = sqrt(J02)
+
+                n0 = NN_xixii @ Qe            
+                # rotated tangential and normal vectors
+                t0_perp = np.array([-t0[1], t0[0]])
+
+                self.kappa0[el, i] = t0_perp @ n0 / (J0**3)
+
+        # TODO: move evaluation of B_spline_basis to mesh1D
         # shape functions on the boundary
-        N_bdry, dN_bdry = B_spline_basis1D(self.polynomial_degree, 1, self.knot_vector, 0).T
+        N_bdry, dN_bdry = B_spline_basis1D(self.polynomial_degree, 1, self.knot_vector.data, 0).T
         N_bdry_left = self.stack_shapefunctions(N_bdry)
         dN_bdry_left = self.stack_shapefunctions(dN_bdry)
 
-        N_bdry, dN_bdry = B_spline_basis1D(self.polynomial_degree, 1, self.knot_vector, 1).T
+        N_bdry, dN_bdry = B_spline_basis1D(self.polynomial_degree, 1, self.knot_vector.data, 1).T
         N_bdry_right = self.stack_shapefunctions(N_bdry)
         dN_bdry_right = self.stack_shapefunctions(dN_bdry)
 
@@ -95,7 +97,7 @@ class Euler_bernoulli():
             NN = self.N_bdry[-1]
             dNN = self.dN_bdry[-1]
         else:
-            N, dN = B_spline_basis1D(self.polynomial_degree, 1, self.knot_vector, xi).T
+            N, dN = B_spline_basis1D(self.polynomial_degree, 1, self.knot_vector.data, xi).T
             NN = self.stack_shapefunctions(N)
             dNN = self.stack_shapefunctions(dN)
         return NN, dNN
@@ -146,43 +148,37 @@ class Euler_bernoulli():
     def M(self, t, q, coo):
         coo.extend_sparse(self.__M)
 
-    def f_pot_el(self, qe, Qe, N_xi, N_xixi, J0, qw):
+    def f_pot_el(self, qe, el):
         fe = np.zeros(self.nq_el)
 
-        for N_xii, N_xixii, qwi in zip(N_xi, N_xixi, qw):
+        N_xi, N_xixi, kappa0, J0, qw = self.N_xi[el], self.N_xixi[el], self.kappa0[el], self.J0[el], self.qw[el]
+
+        for N_xii, N_xixii, kappa0i, J0i, qwi in zip(N_xi, N_xixi, kappa0, J0, qw):
             # build matrix of shape function derivatives
             NN_xii = self.stack_shapefunctions(N_xii)
             NN_xixii = self.stack_shapefunctions(N_xixii)
 
             # tangential vectors
             t  = NN_xii @ qe
-            t0 = NN_xii @ Qe
             n  = NN_xixii @ qe
-            n0 = NN_xixii @ Qe
         
-            G2_ = t0[0] * t0[0] + t0[1] * t0[1]
-            G_ = sqrt(G2_)
             g2_ = t[0] * t[0] + t[1] * t[1]
             g_ = sqrt(g2_)
 
             # rotated tangential and normal vectors
             t_perp = np.array([-t[1], t[0]])
             n_perp = np.array([-n[1], n[0]])
-            t0_perp = np.array([-t0[1], t0[0]])
             # n0_perp = np.array([-n0[1], n0[0]])
 
             # change of angle
             theta_bar_xi = t_perp @ n / g2_
-            theta0_bar_xi = t0_perp @ n0 / G2_
-
             # strain measures
-            g = g_ / G_
-            kappa = theta_bar_xi / G_
-            kappa0 = theta0_bar_xi / G_
+            g = g_ / J0i
+            kappa = theta_bar_xi / J0i
             
             # evaluate material model
-            N = self.material_model.n(g, kappa, kappa0)
-            M = self.material_model.m(g, kappa, kappa0)
+            N = self.material_model.n(g, kappa, kappa0i)
+            M = self.material_model.m(g, kappa, kappa0i)
 
             # quadrature contribution to element internal force vector
             R1 = NN_xii.T @ (t * N / g_ \
@@ -199,13 +195,15 @@ class Euler_bernoulli():
         f = np.zeros(self.nu)
         for el in range(self.nEl):
             elDOF = self.elDOF[el]
-            f[elDOF] += self.f_pot_el(q[elDOF], self.Q[elDOF], self.N_xi[el], self.N_xixi[el], self.J0[el], self.qw[el])
+            f[elDOF] += self.f_pot_el(q[elDOF], el)
         return f
 
-    def f_pot_q_el(self, qe, Qe, N_xi, N_xixi, J0, qw):        
+    def f_pot_q_el(self, qe, el):        
         fe_q = np.zeros((self.nq_el, self.nq_el))
 
-        for N_xii, N_xixii, qwi in zip(N_xi, N_xixi, qw):
+        N_xi, N_xixi, kappa0, J0, qw = self.N_xi[el], self.N_xixi[el], self.kappa0[el], self.J0[el], self.qw[el]
+
+        for N_xii, N_xixii, kappa0i, J0i, qwi in zip(N_xi, N_xixi, kappa0, J0, qw):
             # build matrix of shape function derivatives
             NN_xii = self.stack_shapefunctions(N_xii)
             NN_xixii = self.stack_shapefunctions(N_xixii)
@@ -215,28 +213,21 @@ class Euler_bernoulli():
 
             # tangential vectors
             t  = NN_xii @ qe
-            t0 = NN_xii @ Qe
             n  = NN_xixii @ qe
-            n0 = NN_xixii @ Qe
         
-            G2_ = t0[0] * t0[0] + t0[1] * t0[1]
-            G_ = sqrt(G2_)
             g2_ = t[0] * t[0] + t[1] * t[1]
             g_ = sqrt(g2_)
 
             # rotated tangential and normal vectors
             t_perp = np.array([-t[1], t[0]])
             n_perp = np.array([-n[1], n[0]])
-            t0_perp = np.array([-t0[1], t0[0]])
 
             # change of angle
             theta_bar_xi = t_perp @ n / g2_
-            theta0_bar_xi = t0_perp @ n0 / G2_
 
             # strain measures
-            g = g_ / G_
-            kappa = theta_bar_xi / G_
-            kappa0 = theta0_bar_xi / G_
+            g = g_ / J0i
+            kappa = theta_bar_xi / J0i
 
             # auxiliary functions
             g_bar_q = t @ NN_xii / g_
@@ -244,17 +235,17 @@ class Euler_bernoulli():
                             - 2 * theta_bar_xi / g_ * g_bar_q
 
             # derivative of strain measures
-            g_q = g_bar_q / G_
-            kappa_q = theta_bar_xi_q / G_
+            g_q = g_bar_q / J0i
+            kappa_q = theta_bar_xi_q / J0i
             
             # evaluate material model
-            N = self.material_model.n(g, kappa, kappa0)
-            M = self.material_model.m(g, kappa, kappa0)
+            N = self.material_model.n(g, kappa, kappa0i)
+            M = self.material_model.m(g, kappa, kappa0i)
         
-            N_g = self.material_model.n_lambda(g, kappa, kappa0)
-            N_kappa = self.material_model.n_kappa(g, kappa, kappa0)
-            M_g = self.material_model.m_lambda(g, kappa, kappa0)
-            M_kappa = self.material_model.m_kappa(g, kappa, kappa0)
+            N_g = self.material_model.n_lambda(g, kappa, kappa0i)
+            N_kappa = self.material_model.n_kappa(g, kappa, kappa0i)
+            M_g = self.material_model.m_lambda(g, kappa, kappa0i)
+            M_kappa = self.material_model.m_kappa(g, kappa, kappa0i)
 
             N_q = N_g * g_q + N_kappa * kappa_q # we need the derivatives of g w.r.t. q not \overline{g}
             M_q = M_g * g_q + M_kappa * kappa_q # we need the derivatives of g w.r.t. q not \overline{g}
@@ -288,7 +279,7 @@ class Euler_bernoulli():
     def f_pot_q(self, t, q, coo):
         for el in range(self.nEl):
             elDOF = self.elDOF[el]
-            Ke = self.f_pot_q_el(q[elDOF], self.Q[elDOF], self.N_xi[el], self.N_xixi[el], self.J0[el], self.qw[el])
+            Ke = self.f_pot_q_el(q[elDOF], el)
 
             # sparse assemble element internal stiffness matrix
             coo.extend(Ke, (self.uDOF[elDOF], self.qDOF[elDOF]))
@@ -334,7 +325,7 @@ class Euler_bernoulli():
         elif xi == 1:
             NN = self.N_bdry[1]
         else:
-            N = B_spline_basis1D(self.polynomial_degree, 0, self.knot_vector, xi)
+            N = B_spline_basis1D(self.polynomial_degree, 0, self.knot_vector.data, xi)
             NN = self.stack_shapefunctions(N)
 
         # interpolate position vector
@@ -433,7 +424,7 @@ class Euler_bernoulli():
         return K_J_R
 
     def K_J_R_q(self, t, q, frame_ID):
-        _, dN = B_spline_basis1D(self.polynomial_degree, 1, self.knot_vector, frame_ID[0]).T
+        _, dN = B_spline_basis1D(self.polynomial_degree, 1, self.knot_vector.data, frame_ID[0]).T
         dNN = self.stack_shapefunctions(dN)
         dNN_perp = self.stack_shapefunctions_perp(dN)
         t = dNN @ q
@@ -453,8 +444,10 @@ class Euler_bernoulli():
     ####################################################
     # body force
     ####################################################
-    def body_force_el(self, force, t, N, xi, J0, qw):
+    def body_force_el(self, force, t, el):
         fe = np.zeros(self.nq_el)
+        N, J0, xi, qw, = self.N[el], self.J0[el], self.qp[el], self.qw[el]
+
         for Ni, xii, J0i, qwi in zip(N, xi, J0, qw):
             NNi = self.stack_shapefunctions(Ni)
             r_q = np.zeros((3, self.nq_el))
@@ -465,7 +458,7 @@ class Euler_bernoulli():
     def body_force(self, t, q, force):
         f = np.zeros(self.nq)
         for el in range(self.nEl):
-            f[self.elDOF[el]] += self.body_force_el(force, t, self.N[el], self.xi[el], self.J0[el], self.qw[el])
+            f[self.elDOF[el]] += self.body_force_el(force, t, el)
         return f
 
     def body_force_q(self, t, q, coo, force):
