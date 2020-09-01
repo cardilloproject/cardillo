@@ -10,6 +10,7 @@ from cardillo.model.line_force.line_force import Line_force
 from cardillo.discretization import uniform_knot_vector
 from cardillo.model.moment import K_Moment
 from cardillo.model.force import Force
+from cardillo.solver.solution import load_solution
 
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
@@ -17,21 +18,10 @@ import matplotlib.animation as animation
 
 import numpy as np
 
-if __name__ == "__main__":
-    # L = 1000
-    # rho = 100
-    # r = L / rho
-    # A = r**2
-    # E = 1.0
-    # G = 0.5
-    # Ei = np.array([E, G, G]) * A
-    # I_12 = r**4 / 12
-    # I_T = r**4 / 6
-    # Fi = np.array([G * I_T, E * I_12, E * I_12])
-    # A_rho0 = 0.0
-    # B_rho0 = np.zeros(3)
-    # C_rho0 = np.zeros((3, 3))
+# save = True
+save = False
 
+if __name__ == "__main__":
     # physical properties of the beam
     A_rho0 = 1
     B_rho0 = np.ones(3)
@@ -91,81 +81,85 @@ if __name__ == "__main__":
     model.add(moment)
     model.assemble()
 
-    # ############
-    # # test calls
-    # ############
-    # np.set_printoptions(1)
-    # np.set_printoptions(suppress=True)
-
-    # t = model.t0
-    # # q = model.q0 + np.random.rand(len(model.q0 )) * 0.1
-    # q = model.q0
-    # la_g = np.random.rand(len(model.la_g0))
-    # # print(f'la_g: {la_g.T}')
-
-    # M = model.M(t, q).todense()
-    # print(f'M:\n{M}')
-
-    # f_pot = model.f_pot(t, q)
-    # print(f'f_pot:\n{f_pot.T}')
-
-    # f_pot_q = model.f_pot_q(t, q).todense()
-    # print(f'f_pot_q:\n{f_pot_q}')
-
-    # g = model.g(t, q)
-    # print(f'g:\n{g.T}')
-
-    # g_q = model.g_q(t, q).toarray()
-    # print(f'g_q:\n{g_q}')
-
-    # W_g = model.W_g(t, q).toarray()
-    # print(f'W_g:\n{W_g}')
-
-    # assert np.allclose(W_g, g_q.T)
-
-    # Wla_g_q = model.Wla_g_q(t, q, la_g).toarray()
-    # print(f'Wla_g_q:\n{Wla_g_q}')
-
-    # exit()
-
-    # x, y, z = beam.centerline(model.q0).T
-    # exit()
-
     solver = Newton(model, n_load_steps=10, max_iter=20, tol=1.0e-8, numerical_jacobian=False)
     # solver = Newton(model, n_load_steps=10, max_iter=10, numerical_jacobian=True)
-    sol = solver.solve()
+
+    export_path = 'test'
+    if save:
+        sol = solver.solve()
+        sol.save(export_path)
+    else:
+        sol = load_solution(export_path)
+
     t = sol.t
     q = sol.q
 
-    # plt.plot(x, y, '-k')
-    # plt.plot(*q[-1].reshape(2, -1), '--ob')
-    # plt.xlabel('x [m]')
-    # plt.ylabel('y [m]')
-    # plt.axis('equal')
+    #################
+    # build vtk files
+    #################
+    from cardillo.discretization.B_spline import Knot_vector, decompose_B_spline_curve, B_spline_curve2vtk
+    import meshio
 
-    # plt.show()
+    for i, qi in enumerate(q):
+        filename = f'Bezier_curve{i}.vtu'
 
-    ###############
-    # visualization
-    ###############
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    
-    ax.set_xlabel('x [m]')
-    ax.set_ylabel('y [m]')
-    ax.set_zlabel('z [m]')
-    scale = 1.2 * L
-    ax.set_xlim3d(left=-scale, right=scale)
-    ax.set_ylim3d(bottom=-scale, top=scale)
-    ax.set_zlim3d(bottom=-scale, top=scale)
+        nn = beam.nn
+        Pr = qi[:3*nn].reshape(3, -1).T
+        Pd1 = qi[3*nn:6*nn].reshape(3, -1).T
+        Pd2 = qi[6*nn:9*nn].reshape(3, -1).T
+        Pd3 = qi[9*nn:12*nn].reshape(3, -1).T
+        knot_vector = Knot_vector(beam.polynomial_degree, beam.nEl)
+        # B_spline_curve2vtk(knot_vector, Pr, f'Bezier_curve{i}.vtu')
+        
+        # create bezier patches
+        Qw_r = decompose_B_spline_curve(knot_vector, Pr)
+        Qw_d1 = decompose_B_spline_curve(knot_vector, Pd1)
+        Qw_d2 = decompose_B_spline_curve(knot_vector, Pd2)
+        Qw_d3 = decompose_B_spline_curve(knot_vector, Pd3)
+        nbezier, degree1, dim = Qw_r.shape
 
-    beam.plot_centerline(ax, q[0], color='black')
-    # beam.plot_frames(ax, q[0], n=4, length=0.5)
-    beam.plot_centerline(ax, q[-1], color='blue')
-    beam.plot_frames(ax, q[-1], n=10, length=1)
+        # initialize the array containing all points of all patches
+        points = np.zeros((nbezier * degree1, dim))
+        d1s = np.zeros((nbezier * degree1, dim))
+        d2s = np.zeros((nbezier * degree1, dim))
+        d3s = np.zeros((nbezier * degree1, dim))
 
-    plt.show()
+        # mask rearrange point ordering in a single Bezier patch
+        mask = np.concatenate([[0], [degree1-1], np.arange(1, degree1-1)]) 
 
+        # iterate over all bezier patches and fill cell data and connectivities
+        cells = []
+        HigherOrderDegree_patches = []
+        for i in range(nbezier):
+            # point_range of patch
+            point_range =  np.arange(i * degree1, (i + 1) * degree1).reshape(1, -1)
+
+            # define points
+            points[point_range] = Qw_r[i, mask]
+            d1s[point_range] = Qw_d1[i, mask]
+            d2s[point_range] = Qw_d2[i, mask]
+            d3s[point_range] = Qw_d3[i, mask]
+
+            # build cells
+            cells.append( ("VTK_BEZIER_CURVE", point_range) )
+
+            # build cells polynomial degrees
+            HigherOrderDegree_patches.append( (np.ones(3, dtype=int) * (degree1 - 1))[None] )
+
+        point_data = {
+            "d1": d1s,
+            "d2": d2s,
+            "d3": d3s,
+        }
+
+        meshio.write_points_cells(
+            filename,
+            points,
+            cells,
+            cell_data={"HigherOrderDegrees": HigherOrderDegree_patches},
+            point_data=point_data,
+            binary=False
+        )
 
     # ###############
     # # visualization
@@ -181,8 +175,9 @@ if __name__ == "__main__":
     # ax.set_ylim3d(bottom=-scale, top=scale)
     # ax.set_zlim3d(bottom=-scale, top=scale)
 
-    # beam.plot_centerline(ax, model.q0)
-    # beam.plot_frames(ax, model.q0, n=4, length=0.5)
+    # beam.plot_centerline(ax, q[0], color='black')
+    # # beam.plot_frames(ax, q[0], n=4, length=0.5)
+    # beam.plot_centerline(ax, q[-1], color='blue')
+    # beam.plot_frames(ax, q[-1], n=10, length=1)
 
     # plt.show()
-    # exit()
