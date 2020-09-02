@@ -16,7 +16,7 @@ import numpy as np
 
 # statics = True
 statics = False
-animate = False
+animate = True
 
 if __name__ == "__main__":
     # physical properties of the rope
@@ -30,7 +30,7 @@ if __name__ == "__main__":
     frame_left = Frame(r_OP=r_OB1)
 
     # discretization properties
-    p = 3
+    p = 2
     assert p >= 2
     nQP = int(np.ceil((p + 1)**2 / 2))
     print(f'nQP: {nQP}')
@@ -48,14 +48,14 @@ if __name__ == "__main__":
     Q = np.hstack((X0, Y0))
     q0 = np.hstack((X0, Y0))
     u0 = np.zeros_like(Q)
-    beam = Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q=Q, q0=q0, u0=u0)
-    # beam = Inextensible_Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q=Q, q0=q0, u0=u0)
+    # beam = Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q=Q, q0=q0, u0=u0)
+    beam = Inextensible_Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q=Q, q0=q0, u0=u0)
 
     # left joint
     joint_left = Rigid_connection2D(frame_left, beam, r_OB1, frame_ID2=(0,))
 
     # wrench at right end
-    F = lambda t: t * np.array([0, -EI / L**2, 0])
+    F = lambda t: t * np.array([EI * 0.1, -EI / L**2, 0])
     force = Force(F, beam, frame_ID=(1,))
 
     # assemble the model
@@ -71,6 +71,9 @@ if __name__ == "__main__":
     sol = solver.solve()
     t = sol.t
     q = sol.q
+
+    # vtk export
+    beam.post_processing(sol.t, sol.q, 'E-Bbeam')
 
     x, y, z = beam.centerline(q[-1]).T
     plt.plot(x, y, '-k')

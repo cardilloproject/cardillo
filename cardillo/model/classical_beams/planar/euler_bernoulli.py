@@ -482,7 +482,7 @@ class Euler_bernoulli():
     ############
     # vtk export
     ############
-    def post_processing(self, t, q, filename, u=None, binary=True):
+    def post_processing(self, t, q, filename, u=None, binary=True, dim=3):
         # write paraview PVD file collecting time and all vtk files, see https://www.paraview.org/Wiki/ParaView/Data_formats#PVD_File_Format
         from xml.dom import minidom
         
@@ -507,7 +507,22 @@ class Euler_bernoulli():
             dataset.setAttribute('file', filei)
             collection.appendChild(dataset)
 
-            self.post_processing_single_configuration(ti, qi, filei, u=ui, binary=binary)
+            geom_points = np.array([]).reshape(0, dim)
+            cells = []
+            HigherOrderDegrees = []
+            point_data = {}
+
+            geom_points, point_data, cells, HigherOrderDegrees = self.post_processing_subsystem(ti, qi[self.qDOF], ui[self.uDOF], binary=binary)
+
+            # write vtk mesh using meshio
+            meshio.write_points_cells(
+                os.path.splitext(os.path.basename(filei))[0] + '.vtu',
+                geom_points, # only export centerline as geometry here!
+                cells,
+                point_data=point_data,
+                cell_data={"HigherOrderDegrees": HigherOrderDegrees},
+                binary=binary
+            )
 
         # write pvd file        
         xml_str = root.toprettyxml(indent ="\t")          
@@ -518,133 +533,72 @@ class Euler_bernoulli():
         # centerline and connectivity + director data
         cells, points, HigherOrderDegrees = self.mesh_kinematics.vtk_mesh(q)
 
-        geom_points = points[:, :2]
+        geom_points = np.zeros((points.shape[0], 3))
+        geom_points[:, :2] = points
 
         point_data = {}
 
         # fill dictionary storing point data with directors
         
         _, velocities, _ = self.mesh_kinematics.vtk_mesh(u)
-        point_data = {"u": velocities[:, :2]}
+        point_data = {"u": velocities}
 
         # export existing values on quadrature points using L2 projection
         J0_vtk = self.mesh_kinematics.field_to_vtk(self.J0.reshape(self.nEl, self.nQP, 1))
-
         point_data.update({"J0": J0_vtk})
         
         kappa0_vtk = self.mesh_kinematics.field_to_vtk(self.kappa0.reshape(self.nEl, self.nQP, 1))
         point_data.update({"kappa0": kappa0_vtk})
 
-        # cell_data={"HigherOrderDegrees": HigherOrderDegrees}
+        # evaluate strain measures at quadrature points
+        kappa = np.zeros((self.mesh_kinematics.nel, self.mesh_kinematics.nqp))
+        stretch = np.zeros((self.mesh_kinematics.nel, self.mesh_kinematics.nqp))
 
-        return geom_points, point_data, cells, HigherOrderDegrees
+        for el in range(self.mesh_kinematics.nel):
+            qe = q[self.elDOF[el]]
+            N_xi, N_xixi, J0 = self.N_xi[el], self.N_xixi[el], self.J0[el]
 
-        # meshio.write_points_cells(
-        #     os.path.splitext(os.path.basename(filename))[0] + '.vtu',
-        #     geom_points, # only export centerline as geometry here!
-        #     cells,
-        #     point_data=point_data,
-        #     cell_data={"HigherOrderDegrees": HigherOrderDegrees},
-        #     binary=binary
-        # )
+            for i, (N_xii, N_xixii, J0i) in enumerate(zip(N_xi, N_xixi, J0)):
+                # build matrix of shape function derivatives
+                NN_xii = self.stack_shapefunctions(N_xii)
+                NN_xixii = self.stack_shapefunctions(N_xixii)
+                # tangential vectors
+                t  = NN_xii @ qe
+                n  = NN_xixii @ qe
+                # current stretch
+                g2_ = t[0] * t[0] + t[1] * t[1]
+                g_ = sqrt(g2_)
+                # rotated tangential and normal vectors
+                t_perp = np.array([-t[1], t[0]])
+                # change of angle
+                theta_bar_xi = t_perp @ n / g2_
+                # strain measures
+                stretch[el, i] = g_ / J0i
+                kappa[el, i] = theta_bar_xi / J0i
+            
+        # L2 projection of strain measures
+        kappa_vtk = self.mesh_kinematics.field_to_vtk(kappa.reshape(self.nEl, self.nQP, 1))
+        point_data.update({"kappa": kappa_vtk})
         
-    def post_processing_single_configuration(self, t, q, filename, u=None, binary=True):
-        # centerline and connectivity + director data
-        cells, points, HigherOrderDegrees = self.mesh_kinematics.vtk_mesh(q)
+        stretch_vtk = self.mesh_kinematics.field_to_vtk(stretch.reshape(self.nEl, self.nQP, 1))
+        point_data.update({"stretch": stretch_vtk})
 
-        # fill dictionary storing point data with directors
-        if u is None:
-            point_data = {}
-        else:
-            _, velocities, _ = self.mesh_kinematics.vtk_mesh(u)
-            point_data = {
-            "u": velocities[:, :2],
+        # fields depending on strain measures and other previously computed quantities
+        point_data_fields = {
+            "W": lambda stretch, kappa, kappa0: np.array([self.material_model.potential(stretch, kappa, kappa0)]),
+            "n": lambda stretch, kappa, kappa0: self.material_model.n(stretch, kappa, kappa0),
+            "m": lambda stretch, kappa, kappa0: self.material_model.m(stretch, kappa, kappa0)
         }
 
-        # export existing values on quadrature points using L2 projection
-        J0_vtk = self.mesh_kinematics.field_to_vtk(self.J0.reshape(self.nEl, self.nQP, 1))
-        point_data.update({"J0": J0_vtk})
-        
-        kappa0_vtk = self.mesh_kinematics.field_to_vtk(self.kappa0.reshape(self.nEl, self.nQP, 1))
-        point_data.update({"kappa0": kappa0_vtk})
+        for name, fun in point_data_fields.items():
+            tmp = fun(stretch_vtk[0], kappa_vtk[0], kappa0_vtk[0]).reshape(-1)
+            field = np.zeros((len(stretch_vtk), len(tmp)))
+            for i, (stretch_i, kappa_i, kappa0_i) in enumerate(zip(stretch_vtk, kappa_vtk, kappa0_vtk)):
+                field[i] = fun(stretch_i, kappa_i, kappa0_i).reshape(-1)
+            point_data.update({name: field})
 
-        # # evaluate strain measures at quadrature points
-        # kappa = np.zeros((self.mesh_kinematics.nel, self.mesh_kinematics.nqp, 3))
-        # for el in range(self.mesh_kinematics.nel):
-        #     qe = q[self.elDOF[el]]
-        #     N, N_xi, Gamma0, Kappa0, J0, qw = self.N[el], self.N_xi[el], self.Gamma0[el], self.Kappa0[el], self.J0[el], self.qw[el]
 
-        #     # extract generalized coordinates for beam centerline and directors 
-        #     # in the current and reference configuration
-        #     qe_r = qe[self.rDOF]
-        #     qe_d1 = qe[self.d1DOF]
-        #     qe_d2 = qe[self.d2DOF]
-        #     qe_d3 = qe[self.d3DOF]
-
-        #     # integrate element force vector
-        #     for i, (Ni, N_xii, Gamma0_i, Kappa0_i, J0i, qwi) in enumerate(zip(N, N_xi, Gamma0, Kappa0, J0, qw)):
-        #         # build matrix of shape function derivatives
-        #         NNi = self.stack_shapefunctions(Ni)
-        #         NN_xii = self.stack_shapefunctions(N_xii)
-
-        #         # Interpolate necessary quantities. The derivatives are evaluated w.r.t.
-        #         # the parameter space \xi and thus need to be transformed later
-        #         r_xi = NN_xii @ qe_r
-        #         d1 = NNi @ qe_d1
-        #         d1_xi = NN_xii @ qe_d1
-        #         d2 = NNi @ qe_d2
-        #         d2_xi = NN_xii @ qe_d2
-        #         d3 = NNi @ qe_d3
-        #         d3_xi = NN_xii @ qe_d3
-                
-        #         # compute derivatives w.r.t. the arc lenght parameter s
-        #         r_s = r_xi / J0i
-        #         d1_s = d1_xi / J0i
-        #         d2_s = d2_xi / J0i
-        #         d3_s = d3_xi / J0i
-
-        #         # build rotation matrices
-        #         R = np.vstack((d1, d2, d3)).T
-                
-        #         # axial and shear strains
-        #         Gamma[el, i] = R.T @ r_s
-
-        #         # torsional and flexural strains
-        #         Kappa[el, i] = np.array([0.5 * (d3 @ d2_s - d2 @ d3_s), \
-        #                             0.5 * (d1 @ d3_s - d3 @ d1_s), \
-        #                             0.5 * (d2 @ d1_s - d1 @ d2_s)])
-        
-        # # L2 projection of strain measures
-        # Gamma_vtk = self.mesh_kinematics.field_to_vtk(Gamma)
-        # point_data.update({"Gamma": Gamma_vtk})
-        
-        # Kappa_vtk = self.mesh_kinematics.field_to_vtk(Kappa)
-        # point_data.update({"Kappa": Kappa_vtk})
-
-        # # fields depending on strain measures and other previously computed quantities
-        # point_data_fields = {
-        #     "W": lambda Gamma, Gamma0, Kappa, Kappa0: np.array([self.material_model.potential(Gamma, Gamma0, Kappa, Kappa0)]),
-        #     "n_i": lambda Gamma, Gamma0, Kappa, Kappa0: self.material_model.n_i(Gamma, Gamma0, Kappa, Kappa0),
-        #     "m_i": lambda Gamma, Gamma0, Kappa, Kappa0: self.material_model.m_i(Gamma, Gamma0, Kappa, Kappa0)
-        # }
-
-        # for name, fun in point_data_fields.items():
-        #     tmp = fun(Gamma_vtk[0], Gamma0_vtk[0], Kappa_vtk[0], Kappa0_vtk[0]).reshape(-1)
-        #     field = np.zeros((len(Gamma_vtk), len(tmp)))
-        #     for i, (Gamma_i, Gamma0_i, Kappa_i, Kappa0_i) in enumerate(zip(Gamma_vtk, Gamma0_vtk, Kappa_vtk, Kappa0_vtk)):
-        #         field[i] = fun(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i).reshape(-1)
-        #     point_data.update({name: field})
-
-        # write vtk mesh using meshio
-        meshio.write_points_cells(
-            os.path.splitext(os.path.basename(filename))[0] + '.vtu',
-            points[:, :2], # only export centerline as geometry here!
-            cells,
-            point_data=point_data,
-            cell_data={"HigherOrderDegrees": HigherOrderDegrees},
-            binary=binary
-        )
-
+        return geom_points, point_data, cells, HigherOrderDegrees
 
 
 class Inextensible_Euler_bernoulli(Euler_bernoulli):

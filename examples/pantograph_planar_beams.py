@@ -20,77 +20,13 @@ from cardillo.solver import Generalized_alpha_1, Scipy_ivp
 from cardillo.discretization.B_spline import uniform_knot_vector
 from cardillo.model.frame import Frame
 from cardillo.math.algebra import A_IK_basic_z
+from cardillo.utility.post_processing_vtk import post_processing
 
-def post_processing(subsystem, t, q, filename, u=None, binary=True, dim=3):
-    # write paraview PVD file collecting time and all vtk files, see https://www.paraview.org/Wiki/ParaView/Data_formats#PVD_File_Format
-    from xml.dom import minidom
-    
-    root = minidom.Document()
-    
-    vkt_file = root.createElement('VTKFile')
-    vkt_file.setAttribute('type', 'Collection')
-    root.appendChild(vkt_file)
-    
-    collection = root.createElement('Collection')
-    vkt_file.appendChild(collection)
 
-    if u is None:
-        u = np.zeros_like(q)
-
-    for i, (ti, qi, ui) in enumerate(zip(t, q, u)):
-        filei = filename + f'{i}.vtu'
-
-        # write time step and file name in pvd file
-        dataset = root.createElement('DataSet')
-        dataset.setAttribute('timestep', f'{ti:0.6f}')
-        dataset.setAttribute('file', filei)
-        collection.appendChild(dataset)
-
-        geom_points = np.array([]).reshape(0, dim)
-        cells = []
-        HigherOrderDegrees = []
-        point_data = {}
-        offset = 0
-
-        for subsystemi in subsystem:
-            geom_pointsi, point_datai, cellsi, HigherOrderDegreesi = subsystemi.post_processing_subsystem(ti, qi[subsystemi.qDOF], ui[subsystemi.uDOF], binary=binary)
-
-            geom_points = np.append(geom_points, geom_pointsi, axis=0)
-
-            # update cell type and global connectivity
-            for k, (cell_type, connectivity) in enumerate(cellsi):
-                cellsi[k] = (cell_type, connectivity + offset)
-            cells.extend(cellsi)
-            offset = cellsi[-1][-1][-1,-1] + 1
-
-            HigherOrderDegrees.extend(HigherOrderDegreesi)
-
-            # update point_data dictionary. For first subsystem generate dictionary
-            for key in point_datai:
-                if key in point_data:
-                    point_data.update({key: np.append(point_data[key], point_datai[key], axis=0)})
-                else:
-                    point_data.update({key: point_datai[key]})
-            
-
-        # write vtk mesh using meshio
-        meshio.write_points_cells(
-            os.path.splitext(os.path.basename(filei))[0] + '.vtu',
-            geom_points, # only export centerline as geometry here!
-            cells,
-            point_data=point_data,
-            cell_data={"HigherOrderDegrees": HigherOrderDegrees},
-            binary=binary
-        )
-
-    # write pvd file        
-    xml_str = root.toprettyxml(indent ="\t")          
-    with open(filename + '.pvd', "w") as f:
-        f.write(xml_str)
 
 if __name__ == "__main__":
     statics = True
-    solveProblem = False
+    solveProblem = True
     
     t1 = 5e-2
     dt = t1 / 1500
@@ -99,7 +35,7 @@ if __name__ == "__main__":
     # nRow = 2
     # nCol = 100
     nRow = 20
-    nCol = 400
+    nCol = 40
     nf = nRow / 2
 
     H = 0.07
@@ -137,7 +73,7 @@ if __name__ == "__main__":
     displacementY_l = 0.0
     rotationZ_l = 0 #-np.pi/10
 
-    displacementX_r = 0.0567/5
+    displacementX_r = 0.0567/2
     # displacementX = 0.02
     displacementY_r = 0.00
     
@@ -172,13 +108,13 @@ if __name__ == "__main__":
     ###################
     # create pantograph
     ###################
-    p = 2
+    p = 3
     assert p >= 2
     # nQP = int(np.ceil((p + 1)**2 / 2))
     nQP = p + 2
 
     print(f'nQP: {nQP}')
-    nEl = 1
+    nEl = 2
 
     # projections of beam length
     Lx = LBeam * cos(gamma)
@@ -216,8 +152,8 @@ if __name__ == "__main__":
             Q = np.concatenate([X, Y])
             q0 = np.copy(Q)
             u0 = np.zeros_like(Q)
-            # beams.append(Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
-            beams.append(Inextensible_Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
+            beams.append(Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
+            # beams.append(Inextensible_Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
             model.add(beams[ID])
             ID_mat[brow, bcol] = ID
             ID = ID + 1
@@ -226,8 +162,8 @@ if __name__ == "__main__":
             Q = np.concatenate([X2 + X[-1], Y2 + Y[-1]])
             q0 = np.copy(Q)
             u0 = np.zeros_like(Q)
-            # beams.append(Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
-            beams.append(Inextensible_Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
+            beams.append(Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
+            # beams.append(Inextensible_Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
             model.add(beams[ID])
             ID_mat[brow, bcol + 1] = ID
             ID = ID + 1
@@ -241,8 +177,8 @@ if __name__ == "__main__":
             Q = np.concatenate([X, Y])
             q0 = np.copy(Q)
             u0 = np.zeros_like(Q)
-            # beams.append(Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
-            beams.append(Inextensible_Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
+            beams.append(Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
+            # beams.append(Inextensible_Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
             model.add(beams[ID])
             ID_mat[brow, bcol] = ID
             ID = ID + 1
@@ -250,8 +186,8 @@ if __name__ == "__main__":
             Q = np.concatenate([X1 + X[-1], Y1 + Y[-1]])
             q0 = np.copy(Q)
             u0 = np.zeros_like(Q)
-            # beams.append(Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
-            beams.append(Inextensible_Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
+            beams.append(Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
+            # beams.append(Inextensible_Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
             model.add(beams[ID])
             ID_mat[brow, bcol + 1] = ID
             ID = ID + 1
@@ -327,50 +263,15 @@ if __name__ == "__main__":
     # assemble model
     model.assemble()
 
-    # print(f'ID matrix:{ID_mat}')
-
-    # plot initial configuration
-    fig, ax = plt.subplots()
-    ax.set_xlabel('x [m]')
-    ax.set_ylabel('y [m]')
-    ax.set_xlim([-Ly, Ly*(nCol+1)])
-    ax.set_ylim([-Ly, Ly*(nRow+1)])
-    ax.grid(linestyle='-', linewidth='0.5')
-    ax.set_aspect('equal')
-
-    # n_plt = 5
-    # bdy = beams[0]
-    # q_body = model.q0[bdy.qDOF]
-    # xi_plt = np.linspace(0, 1, n_plt)
-    # NN = np.zeros((len(xi_plt), 2, bdy.nq_el))
-    # bdy_qDOF_P = np.zeros((len(xi_plt), bdy.nq_el), dtype=int)
-
-    # for i, xi in enumerate(xi_plt):
-    #     frame_ID = (xi,)
-    #     bdy_qDOF_P[i] = bdy.qDOF_P(frame_ID)
-    #     if xi == 0:
-    #         NN[i] = bdy.N_bdry[0]
-    #     elif xi == 1:
-    #         NN[i] = bdy.N_bdry[1]
-    #     else:
-    #         N = B_spline_basis(bdy.polynomial_degree, 0, bdy.knot_vector, xi)
-    #         NN[i] = bdy.stack_shapefunctions(N)
+    # fig, ax = plt.subplots()
+    # ax.set_xlabel('x [m]')
+    # ax.set_ylabel('y [m]')
+    # ax.grid(linestyle='-', linewidth='0.5')
+    # ax.set_aspect('equal')
 
     # for bdy in beams:
-    #     q_body = model.q0[bdy.qDOF]
-    #     r = []
-    #     for i, xi in enumerate(xi_plt):
-    #         qp = q_body[bdy_qDOF_P[i]]
-    #         r.append(NN[i] @ qp)
-
-    #     x, y = np.array(r).T
-    #     ax.plot(x, y, '--k')
-
-    # plt.show()
-
-    # for bdy in beams:
-    #     x, y, z = bdy.centerline(model.q0, n=2).T
-    #     ax.plot(x, y, '--k')
+    #     x, y, z = bdy.centerline(model.q0).T
+    #     ax.plot(x, y, '-b')
 
     # plt.show()
 
@@ -390,11 +291,10 @@ if __name__ == "__main__":
     else:
         sol = load_solution('pantograph20times400-2')
 
-    
-
-    # exit()
-
-    post_processing(beams, sol.t[::5], sol.q[::5], 'PantographDynamicLonger', u=sol.u[::5], dim=2, binary=True)
+    if statics:
+        post_processing(beams, sol.t, sol.q, 'PantographicSheetStatic', binary=True)
+    else:    
+        post_processing(beams, sol.t[::5], sol.q[::5], 'PantographicSheetDynamic', u = sol.u[::5], binary=True)
 
     # if statics:
     #     fig, ax = plt.subplots()
