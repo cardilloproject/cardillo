@@ -13,13 +13,14 @@ from cardillo.discretization import uniform_knot_vector
 from cardillo.model.force import Force
 from cardillo.model.line_force import Line_force
 
+
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
 import numpy as np
 
-# statics = True
-statics = False
+statics = True
+# statics = False
 
 def inextensible_rope():
     t1 = 5
@@ -152,7 +153,7 @@ def inextensible_rope():
     plt.show()
     
 def cantilever():
-    t1 = 20
+    t1 = 2 #20
     dt = 5e-1
 
     L = 2 * np.pi
@@ -168,7 +169,7 @@ def cantilever():
     frame_right = Frame(r_OP=r_OB2)
 
     # discretization properties
-    p = 3
+    p = 2
     assert p >= 2
     nQP = int(np.ceil((p + 1)**2 / 2))
     print(f'nQP: {nQP}')
@@ -198,10 +199,11 @@ def cantilever():
         model = Model()
         model.add(beam)
         model.add(frame_left)
-        # model.add(Rigid_connection2D(frame_left, beam, r_OB1, frame_ID2=(0,)))
-        model.add(Spherical_joint2D(frame_left, beam, r_OB1, frame_ID2=(0,)))
-        model.add(frame_right)
-        model.add(Linear_guidance_xyz_2D(frame_right, beam, r_OB1, frame_right.A_IK(0), frame_ID2=(1,)))
+        model.add(Rigid_connection2D(frame_left, beam, r_OB1, frame_ID2=(0,)))
+        # model.add(Spherical_joint2D(frame_left, beam, r_OB1, frame_ID2=(0,)))
+        
+        # model.add(frame_right)
+        # model.add(Linear_guidance_xyz_2D(frame_right, beam, r_OB1, frame_right.A_IK(0), frame_ID2=(1,)))
         # model.add(Linear_guidance_x_2D(frame_right, beam, r_OB1, frame_right.A_IK(0), frame_ID2=(1,)))
 
         __g = np.array([0, - A_rho0 * 9.81, 0])
@@ -242,6 +244,10 @@ def cantilever():
         ax.plot(*sols[1].q[-1].reshape(2, -1), '--ob')
 
         plt.show()
+
+        # vtk export
+        beams[0].post_processing(sols[0].t, sols[0].q, 'CantileverA', binary=True)
+        beams[1].post_processing(sols[1].t, sols[1].q, 'CantileverB', binary=True)
     else:
         # animate configurations
         fig, ax = plt.subplots()
@@ -279,6 +285,10 @@ def cantilever():
         anim = animation.FuncAnimation(fig, animate, frames=frames, interval=interval, blit=False)
         plt.show()
 
+        # vtk export
+        beams[0].post_processing(sols[0].t, sols[0].q, 'CantileverA', u=sols[0].u, binary=True)
+        beams[1].post_processing(sols[1].t, sols[1].q, 'CantileverB', u=sols[1].u, binary=True)
+
 if __name__ == "__main__":
-    inextensible_rope()
-    # cantilever()
+    # inextensible_rope()
+    cantilever()

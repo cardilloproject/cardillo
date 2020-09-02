@@ -1,4 +1,3 @@
-from operator import sub
 from cardillo.model.classical_beams.planar import Hooke, Euler_bernoulli
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints.implicit import Spherical_joint2D, Rigid_connection2D, Spherical_joint, Rigid_connection
@@ -10,6 +9,7 @@ from cardillo.discretization import uniform_knot_vector
 from cardillo.discretization.B_spline import fit_B_Spline
 from cardillo.model.rigid_body import Rigid_body_quaternion
 from cardillo.model.force import Force
+from cardillo.utility.post_processing_vtk import post_processing
 
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
@@ -169,6 +169,10 @@ def B_spline_fitting():
     anim = animation.FuncAnimation(fig, animate, frames=frames, interval=interval, blit=False)
     plt.show()
 
+    
+    # vtk export
+    post_processing([beam1, beam2], t, q, 'Arch', binary=True)
+
 def top():
     # solver parameter
     t0 = 0
@@ -232,7 +236,7 @@ def top():
 
     q0 = np.hstack((X0, Y0))
 
-    beam = Euler_bernoulli2D(A_rho0, material_model, p, nEl, nQP, Q=Q, q0=q0, u0=u0)
+    beam = Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q=Q, q0=q0, u0=u0)
 
     # left joint
     # joint_left = Spherical_joint2D(frame_left, beam, r_OB1(0), frame_ID2=(0,))
@@ -395,6 +399,7 @@ def top():
 
     anim = animation.FuncAnimation(fig, animate, frames=frames, interval=interval, blit=False)
     plt.show()
+
 
 if __name__ == "__main__":
     # top()

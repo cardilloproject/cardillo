@@ -6,9 +6,11 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from numpy.core.function_base import linspace
 from numpy.lib.function_base import disp
+import meshio
+import os
 
 from cardillo.model import Model
-from cardillo.model.classical_beams.planar import Euler_bernoulli, Hooke
+from cardillo.model.classical_beams.planar import Euler_bernoulli, Hooke, Inextensible_Euler_bernoulli
 from cardillo.model.bilateral_constraints.implicit import Spherical_joint2D, Rigid_connection2D, Revolute_joint2D
 from cardillo.model.scalar_force_interactions.force_laws import Linear_spring
 from cardillo.model.scalar_force_interactions import add_rotational_forcelaw
@@ -18,20 +20,22 @@ from cardillo.solver import Generalized_alpha_1, Scipy_ivp
 from cardillo.discretization.B_spline import uniform_knot_vector
 from cardillo.model.frame import Frame
 from cardillo.math.algebra import A_IK_basic_z
-from cardillo.discretization.B_spline import B_spline_basis
+from cardillo.utility.post_processing_vtk import post_processing
+
+
 
 if __name__ == "__main__":
-    statics = False
+    statics = True
     solveProblem = True
     
-    t1 = 5e-2 / 2
+    t1 = 5e-2
     dt = t1 / 1500
     # physical parameters
     gamma = pi/4
     # nRow = 2
     # nCol = 100
     nRow = 20
-    nCol = 400
+    nCol = 40
     nf = nRow / 2
 
     H = 0.07
@@ -64,12 +68,12 @@ if __name__ == "__main__":
     # EI = 1.555e-4
     # GI = 0.004
 
-    displacementX_l = displ #-0.0567/4
+    displacementX_l = 0#displ #-0.0567/4
     # displacementX = 0.02
     displacementY_l = 0.0
     rotationZ_l = 0 #-np.pi/10
 
-    displacementX_r = 0 #0.0567
+    displacementX_r = 0.0567/2
     # displacementX = 0.02
     displacementY_r = 0.00
     
@@ -104,13 +108,13 @@ if __name__ == "__main__":
     ###################
     # create pantograph
     ###################
-    p = 2
+    p = 3
     assert p >= 2
     # nQP = int(np.ceil((p + 1)**2 / 2))
     nQP = p + 2
 
     print(f'nQP: {nQP}')
-    nEl = 1
+    nEl = 2
 
     # projections of beam length
     Lx = LBeam * cos(gamma)
@@ -149,6 +153,7 @@ if __name__ == "__main__":
             q0 = np.copy(Q)
             u0 = np.zeros_like(Q)
             beams.append(Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
+            # beams.append(Inextensible_Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
             model.add(beams[ID])
             ID_mat[brow, bcol] = ID
             ID = ID + 1
@@ -158,6 +163,7 @@ if __name__ == "__main__":
             q0 = np.copy(Q)
             u0 = np.zeros_like(Q)
             beams.append(Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
+            # beams.append(Inextensible_Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
             model.add(beams[ID])
             ID_mat[brow, bcol + 1] = ID
             ID = ID + 1
@@ -172,6 +178,7 @@ if __name__ == "__main__":
             q0 = np.copy(Q)
             u0 = np.zeros_like(Q)
             beams.append(Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
+            # beams.append(Inextensible_Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
             model.add(beams[ID])
             ID_mat[brow, bcol] = ID
             ID = ID + 1
@@ -180,6 +187,7 @@ if __name__ == "__main__":
             q0 = np.copy(Q)
             u0 = np.zeros_like(Q)
             beams.append(Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
+            # beams.append(Inextensible_Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
             model.add(beams[ID])
             ID_mat[brow, bcol + 1] = ID
             ID = ID + 1
@@ -255,50 +263,15 @@ if __name__ == "__main__":
     # assemble model
     model.assemble()
 
-    # print(f'ID matrix:{ID_mat}')
-
-    # plot initial configuration
-    fig, ax = plt.subplots()
-    ax.set_xlabel('x [m]')
-    ax.set_ylabel('y [m]')
-    ax.set_xlim([-Ly, Ly*(nCol+1)])
-    ax.set_ylim([-Ly, Ly*(nRow+1)])
-    ax.grid(linestyle='-', linewidth='0.5')
-    ax.set_aspect('equal')
-
-    # n_plt = 5
-    # bdy = beams[0]
-    # q_body = model.q0[bdy.qDOF]
-    # xi_plt = np.linspace(0, 1, n_plt)
-    # NN = np.zeros((len(xi_plt), 2, bdy.nq_el))
-    # bdy_qDOF_P = np.zeros((len(xi_plt), bdy.nq_el), dtype=int)
-
-    # for i, xi in enumerate(xi_plt):
-    #     frame_ID = (xi,)
-    #     bdy_qDOF_P[i] = bdy.qDOF_P(frame_ID)
-    #     if xi == 0:
-    #         NN[i] = bdy.N_bdry[0]
-    #     elif xi == 1:
-    #         NN[i] = bdy.N_bdry[1]
-    #     else:
-    #         N = B_spline_basis(bdy.polynomial_degree, 0, bdy.knot_vector, xi)
-    #         NN[i] = bdy.stack_shapefunctions(N)
+    # fig, ax = plt.subplots()
+    # ax.set_xlabel('x [m]')
+    # ax.set_ylabel('y [m]')
+    # ax.grid(linestyle='-', linewidth='0.5')
+    # ax.set_aspect('equal')
 
     # for bdy in beams:
-    #     q_body = model.q0[bdy.qDOF]
-    #     r = []
-    #     for i, xi in enumerate(xi_plt):
-    #         qp = q_body[bdy_qDOF_P[i]]
-    #         r.append(NN[i] @ qp)
-
-    #     x, y = np.array(r).T
-    #     ax.plot(x, y, '--k')
-
-    # plt.show()
-
-    # for bdy in beams:
-    #     x, y, z = bdy.centerline(model.q0, n=2).T
-    #     ax.plot(x, y, '--k')
+    #     x, y, z = bdy.centerline(model.q0).T
+    #     ax.plot(x, y, '-b')
 
     # plt.show()
 
@@ -316,70 +289,71 @@ if __name__ == "__main__":
         sol = solver.solve()
         save_solution(sol, 'pantograph20times400')
     else:
-        sol = load_solution('pantograph2times2')
-
-    
-
-    # exit()
+        sol = load_solution('pantograph20times400-2')
 
     if statics:
-        fig, ax = plt.subplots()
-        ax.set_xlabel('x [m]')
-        ax.set_ylabel('y [m]')
-        # ax.set_xlim([-Ly + H/2 * sin(rotationZ_l), Ly*(nCol+1) + displacementX + H/2 * sin(rotationZ_r)])
-        # ax.set_ylim([-Ly, Ly*(nRow+1) + displacementY])
-        ax.grid(linestyle='-', linewidth='0.5')
-        ax.set_aspect('equal')
+        post_processing(beams, sol.t, sol.q, 'PantographicSheetStatic', binary=True)
+    else:    
+        post_processing(beams, sol.t[::5], sol.q[::5], 'PantographicSheetDynamic', u = sol.u[::5], binary=True)
 
-        for bdy in beams:
-            x, y, z = bdy.centerline(sol.q[-1]).T
-            ax.plot(x, y, '-b')
+    # if statics:
+    #     fig, ax = plt.subplots()
+    #     ax.set_xlabel('x [m]')
+    #     ax.set_ylabel('y [m]')
+    #     # ax.set_xlim([-Ly + H/2 * sin(rotationZ_l), Ly*(nCol+1) + displacementX + H/2 * sin(rotationZ_r)])
+    #     # ax.set_ylim([-Ly, Ly*(nRow+1) + displacementY])
+    #     ax.grid(linestyle='-', linewidth='0.5')
+    #     ax.set_aspect('equal')
 
-        plt.show()
-    else:
-        # animate configurations
-        fig, ax = plt.subplots()
-        ax.set_xlabel('x [m]')
-        ax.set_ylabel('y [m]')
-        ax.set_xlim([-Ly + H/2 * sin(rotationZ_l), Ly*(nCol+1) + displacementX_r + H/2 * sin(rotationZ_r)])
-        ax.set_ylim([-Ly, Ly*(nRow+1) + displacementY_r])
-        ax.grid(linestyle='-', linewidth='0.5')
-        ax.set_aspect('equal')
+    #     for bdy in beams:
+    #         x, y, z = bdy.centerline(sol.q[-1]).T
+    #         ax.plot(x, y, '-b')
 
-        # prepare data for animation
-        t = sol.t
-        frames = len(t)
-        target_frames = min(len(t), 100)
-        frac = int(frames / target_frames)
-        animation_time = 5
-        interval = animation_time * 1000 / target_frames
+    #     plt.show()
+    # else:
+    #     # animate configurations
+    #     fig, ax = plt.subplots()
+    #     ax.set_xlabel('x [m]')
+    #     ax.set_ylabel('y [m]')
+    #     ax.set_xlim([-Ly + H/2 * sin(rotationZ_l), Ly*(nCol+1) + displacementX_r + H/2 * sin(rotationZ_r)])
+    #     ax.set_ylim([-Ly, Ly*(nRow+1) + displacementY_r])
+    #     ax.grid(linestyle='-', linewidth='0.5')
+    #     ax.set_aspect('equal')
 
-        frames = target_frames
-        t = t[::frac]
-        q = sol.q[::frac]
+    #     # prepare data for animation
+    #     t = sol.t
+    #     frames = len(t)
+    #     target_frames = min(len(t), 100)
+    #     frac = int(frames / target_frames)
+    #     animation_time = 5
+    #     interval = animation_time * 1000 / target_frames
 
-        centerlines = []
-        # lobj, = ax.plot([], [], '-k')
-        for bdy in beams:
-            lobj, = ax.plot([], [], '-k')
-            centerlines.append(lobj)
+    #     frames = target_frames
+    #     t = t[::frac]
+    #     q = sol.q[::frac]
+
+    #     centerlines = []
+    #     # lobj, = ax.plot([], [], '-k')
+    #     for bdy in beams:
+    #         lobj, = ax.plot([], [], '-k')
+    #         centerlines.append(lobj)
             
-        def animate(i):
-            for idx, bdy in enumerate(beams):
-                    # q_body = q[i][bdy.qDOF]
-                    # r = []
-                    # for i, xi in enumerate(xi_plt):
-                    #     qp = q_body[bdy_qDOF_P[i]]
-                    #     r.append(NN[i] @ qp)
+    #     def animate(i):
+    #         for idx, bdy in enumerate(beams):
+    #                 # q_body = q[i][bdy.qDOF]
+    #                 # r = []
+    #                 # for i, xi in enumerate(xi_plt):
+    #                 #     qp = q_body[bdy_qDOF_P[i]]
+    #                 #     r.append(NN[i] @ qp)
 
-                    # x, y = np.array(r).T
-                    # centerlines[idx].set_data(x, y)
+    #                 # x, y = np.array(r).T
+    #                 # centerlines[idx].set_data(x, y)
 
-                x, y, _ = bdy.centerline(q[i], n=2).T
-                centerlines[idx].set_data(x, y)
+    #             x, y, _ = bdy.centerline(q[i], n=2).T
+    #             centerlines[idx].set_data(x, y)
 
-            return centerlines
+    #         return centerlines
 
-        anim = animation.FuncAnimation(fig, animate, frames=frames, interval=interval, blit=False)
+    #     anim = animation.FuncAnimation(fig, animate, frames=frames, interval=interval, blit=False)
 
-        plt.show()
+    #     plt.show()
