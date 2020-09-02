@@ -5,6 +5,13 @@ class Numerical_derivative(object):
         self.residual = residual
         self.order = order
 
+    # def _dot(self, t, x, x_dot, x_ddot, eps=1.0e-6):
+    #     f_t = self._t(t, x, x_dot, eps=eps)
+    #     f_x = self._x(t, x, x_dot, eps=eps)
+    #     f_x_dot = self._y(t, x, x_dot, eps=eps)
+    #     f_dot = f_t + f_x @ x_dot + f_x_dot @ x_ddot
+    #     return f_dot
+
     def _X(self, X, eps=1.0e-6):
         x = X.reshape(-1)
         Xshape = X.shape

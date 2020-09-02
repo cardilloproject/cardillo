@@ -16,9 +16,9 @@ from cardillo.model.force import Force
 from cardillo.solver import Euler_backward, Moreau, Moreau_sym, Scipy_ivp, Generalized_alpha_1, Generalized_alpha_2, Generalized_alpha_3, Generalized_alpha_4, Generalized_alpha_5
 from cardillo.math.algebra import axis_angle2quat, ax2skew, A_IK_basic_x
 
-# rigid_body = 'Euler'
+rigid_body = 'Euler'
 # rigid_body = 'Quaternion'
-rigid_body = 'Director'
+# rigid_body = 'Director'
 # rigid_body = 'Director2'
 
 class Rigid_disc_euler(Rigid_body_euler):
@@ -300,16 +300,16 @@ def rolling_disc_velocity_constraints():
     model.assemble()
 
     t0 = 0
-    t1 = 2 * np.pi / np.abs(alpha_dot)
-    dt = 2.5e-2
+    t1 = 2 * np.pi / np.abs(alpha_dot) * 0.25
+    dt = 5e-3
     # solver = Euler_backward(model, t1, dt, numerical_jacobian=False, debug=False)
-    # solver = Moreau_sym(model, t1, dt, numerical_jacobian=False, debug=False)
+    # solver = Moreau_sym(model, t1, dt)
     # solver = Generalized_alpha_1(model, t1, variable_dt=True, rtol=0, atol=1.0e-2)
     # solver = Generalized_alpha_1(model, t1, dt=dt, variable_dt=False)
     # solver = Generalized_alpha_2(model, t1, dt)
     # solver = Generalized_alpha_3(model, t1, dt, numerical_jacobian=True)
     # solver = Generalized_alpha_3(model, t1, dt, numerical_jacobian=False)
-    solver = Generalized_alpha_4(model, t1, dt, numerical_jacobian=True)
+    solver = Generalized_alpha_4(model, t1, dt, numerical_jacobian=False)
     # solver = Generalized_alpha_5(model, t1, dt, numerical_jacobian=False)
     # solver = Moreau(model, t1, dt)
     # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='RK23')

@@ -96,6 +96,14 @@ class Rigid_connection():
         g_q[5, nq1:] = ez1 @ ex2_q
         return g_q
 
+        # g_q_num = Numerical_derivative(self.g, order=2)._x(t, q)
+        # diff = g_q_num - g_q
+        # diff_error = diff
+        # error = np.linalg.norm(diff_error)
+        # print(f'error g_q: {error}')
+        # return g_q_num
+
+    # TODO:
     def g_dot(self, t, q, u):
         g_dot = np.zeros(self.nla_g)
 
@@ -110,6 +118,20 @@ class Rigid_connection():
         g_dot[4] = cross3(ey1, ez2) @ Omega21
         g_dot[5] = cross3(ez1, ex2) @ Omega21
         return g_dot
+
+        # g_dot_num = Numerical_derivative(self.g, order=2)._t(t, q)
+        # # g_dot_num += self.g_q_dense(t, q) @ u
+        # g_dot_num += Numerical_derivative(self.g, order=2)._x(t, q) @ u
+        # # diff = g_dot_num - g_dot
+        # # diff_error = diff[3:]
+        # # error = np.linalg.norm(diff_error)
+        # # print(f'error g_dot: {error}')
+        # return g_dot_num
+
+    # TODO:
+    def g_dot_q(self, t, q, u, coo):
+        dense = Numerical_derivative(self.g_dot, order=2)._x(t, q, u)
+        coo.extend(dense, (self.la_gDOF, self.qDOF))
 
     def g_dot_u(self, t, q, coo):
         coo.extend(self.W_g_dense(t, q).T, (self.la_gDOF, self.uDOF))
@@ -145,6 +167,24 @@ class Rigid_connection():
 
         return g_ddot
 
+        # g_ddot_num = Numerical_derivative(self.g_dot)._t(t, q, u)
+        # g_ddot_num += Numerical_derivative(self.g_dot)._x(t, q, u) @ u
+        # g_ddot_num += Numerical_derivative(self.g_dot)._y(t, q, u) @ u_dot
+        # diff = g_ddot_num - g_ddot
+        # error = np.linalg.norm(diff)
+        # print(f'error g_ddot: {error}')
+        # return g_ddot_num
+
+    # TODO:
+    def g_ddot_q(self, t, q, u, u_dot, coo):
+        dense = Numerical_derivative(lambda t, q, u: self.g_ddot(t, q, u, u_dot), order=2)._x(t, q, u)
+        coo.extend(dense, (self.la_gDOF, self.qDOF))
+
+    # TODO:
+    def g_ddot_u(self, t, q, u, u_dot, coo):
+        dense = Numerical_derivative(lambda t, q, u: self.g_ddot(t, q, u, u_dot), order=2)._y(t, q, u)
+        coo.extend(dense, (self.la_gDOF, self.uDOF))
+
     def g_q(self, t, q, coo):
         coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
    
@@ -158,16 +198,22 @@ class Rigid_connection():
         W_g[:nu1, :3] = -J_P1.T
         W_g[nu1:, :3] = J_P2.T
 
-        # angular velocity
+        # orientations
         ex1, ey1, ez1 = self.A_IB1(t, q).T
         ex2, ey2, ez2 = self.A_IB2(t, q).T
-        
         J = np.hstack([self.J_R1(t, q), -self.J_R2(t, q)])
 
         W_g[:, 3] = cross3(ex1, ey2) @ J
         W_g[:, 4] = cross3(ey1, ez2) @ J
         W_g[:, 5] = cross3(ez1, ex2) @ J
         return W_g
+
+        # W_g_num = Numerical_derivative(self.g_dot, order=2)._y(t, q, np.zeros(self._nu)).T
+        # diff = W_g_num - W_g
+        # diff_error = diff
+        # error = np.linalg.norm(diff_error)
+        # print(f'error W_g: {error}')
+        # return W_g_num
 
     def W_g(self, t, q, coo):
         coo.extend(self.W_g_dense(t, q), (self.uDOF, self.la_gDOF))
@@ -236,6 +282,14 @@ class Rigid_connection():
                                 + np.einsum('ij,ik->kj', - la_g[5] * n_q2, J_R2)
 
         coo.extend( dense, (self.uDOF, self.qDOF))
+
+        # W_g_q = Numerical_derivative(self.W_g_dense, order=2)._x(t, q)
+        # dense_num = np.einsum('ijk,j->ik', W_g_q, la_g)
+        # diff = dense_num - dense
+        # diff_error = diff
+        # error = np.linalg.norm(diff_error)
+        # print(f'error Wla_g_q: {error}')
+        # coo.extend(dense_num, (self.uDOF, self.qDOF))
 
 class Rigid_connection2D(Rigid_connection):
     def __init__(self, *args, **kwargs):

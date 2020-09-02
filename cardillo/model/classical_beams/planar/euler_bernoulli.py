@@ -606,8 +606,6 @@ class Inextensible_Euler_bernoulli(Euler_bernoulli):
 
         return g_ddot_u
 
-    
-
     def __g_qq_el(self, qe, N_xi, N_g, J0, qw):
         g_qq = np.zeros((self.nla_g_el, self.nq_el, self.nq_el))
 

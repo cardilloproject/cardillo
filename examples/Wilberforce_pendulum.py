@@ -149,50 +149,6 @@ def helix3D(t, r, c, plane='xyz'):
 
     return P, dP, ddP
 
-def helix_spring3D(n_turns, pitch, r, n_points, plane='xyz'):
-    """Helix function in xyz plane, see https://mathworld.wolfram.com/Helix.html
-    """
-    print('this function does not work!')
-    orientation = 'xyz'
-    perm = []
-    for i in plane:
-        perm.append(orientation.find(i))
-
-    n_start = n_end = int(0.25 * n_points / n_turns)
-    n_cricle = n_points - n_start - n_end
-
-    # end of the helix shaped spring
-    phi0 = np.linspace(-0.5, 0, n_start, endpoint=False)
-    # phi0 = np.linspace(-np.pi, 0, n_start, endpoint=False)
-    P0, dP0, ddP0 = helix3D(phi0, r / 2, 0.5 * pitch, plane=plane)
-    z_min = P0[:, 2].min()
-    P0[:, perm[0]] += r / 2
-
-    phi1 = np.linspace(0, n_turns, n_cricle, endpoint=False)
-    P1, dP1, ddP1 = helix3D(phi1, r, pitch, plane=plane)
-
-    phi2 = np.linspace(0, 0.5, n_end, endpoint=True)
-    P2, dP2, ddP2 = helix3D(phi2, r / 2, 0.5 * pitch, plane=plane)
-    P2[:, perm[0]] += r / 2
-    P2[:, perm[2]] += pitch * phi1[-1]
-
-    # combine all three parts of the spring
-    P = np.concatenate([P0, P1, P2])
-    P[:, perm[2]] -= z_min
-    dP = np.concatenate([dP0, dP1, dP2])
-    ddP = np.concatenate([ddP0, ddP1, ddP2])
-    
-    # P = np.concatenate([P0, P1])
-    # P[:, perm[2]] -= z_min
-    # dP = np.concatenate([dP0, dP1])
-    # ddP = np.concatenate([ddP0, ddP1])
-    
-    # P = P1
-    # dP = dP1
-    # ddP = ddP1
-
-    return P, dP, ddP
-
 # Beam = Timoshenko_director_dirac
 Beam = Timoshenko_director_integral
 # Beam = Euler_Bernoulli_director_integral
@@ -201,8 +157,8 @@ Beam = Timoshenko_director_integral
 # statics = True
 statics = False
 
-# save = True
-save = False
+save = True
+# save = False
 
 import os
 path = os.path.dirname(os.path.abspath(__file__))
@@ -239,16 +195,16 @@ if __name__ == "__main__":
     ###########################
     # discretization properties
     ###########################
-    # p = 1
     # p = 2
     p = 3
     # nQP = p + 1
     nQP = int(np.ceil((p**2 + 1) / 2)) + 1 # dynamics
     print(f'nQP: {nQP}')
-    # nEl = 16 # 2 turns
+    # nEl = 4 # 1 turn
+    nEl = 16 # 2 turns
     # nEl = 32 # 5 turns
     # nEl = 64 # 10 turns
-    nEl = 128 # 20 turns
+    # nEl = 128 # 20 turns
 
     #############################
     # fit reference configuration
@@ -256,10 +212,11 @@ if __name__ == "__main__":
     coil_diameter = 32.0e-3 # 32mm
     coil_radius = coil_diameter / 2
     pitch_unloaded = 1.0e-3 # 1mm
-    # turns = 2
+    # turns = 0.5
+    turns = 2
     # turns = 5
     # turns = 10
-    turns = 20
+    # turns = 20
     nxi = 1000
 
     xi = np.linspace(0, turns, nxi)
@@ -331,9 +288,9 @@ if __name__ == "__main__":
     max_iter = 30
     tol = 1.0e-6
 
-    t1 = 10
+    t1 = 1
     # dt = 1.0e-2 # beam as static force element implicit Euler
-    dt = 1e-3 # full beam dynamics generalized alpha
+    dt = 5e-3 # full beam dynamics generalized alpha
     # dt = 5e-4 # full beam dynamics generalized alpha
 
     beam = Beam(material_model, A_rho0, B_rho0, C_rho0, p, nQP, nEl, q0=Q, Q=Q)
@@ -367,7 +324,8 @@ if __name__ == "__main__":
         # uDOF_algebraic = beam.uDOF # beam as static force element
         # solver = Euler_backward_singular(model, t1, dt, uDOF_algebraic=uDOF_algebraic, numerical_jacobian=False, debug=False, newton_max_iter=20)
 
-        solver = Generalized_alpha_4(model, t1, dt, rho_inf=0.75, uDOF_algebraic=uDOF_algebraic, newton_tol=1.0e-6)
+        # solver = Generalized_alpha_4(model, t1, dt, rho_inf=0.75, uDOF_algebraic=uDOF_algebraic, newton_tol=1.0e-6, numerical_jacobian=False)
+        solver = Generalized_alpha_4(model, t1, dt, rho_inf=0.5, uDOF_algebraic=uDOF_algebraic, newton_tol=1.0e-6, numerical_jacobian=False)
         
     export_path = f'Wilberforce_pendulum_p{p}_nEL{nEl}_turns{turns}_t1{t1}_dt{dt}_c{c}'
 
@@ -395,22 +353,24 @@ if __name__ == "__main__":
     #####################################
     # fig = plt.figure()
     fig = plt.figure(figsize=(10, 6))
-    ax1 = fig.add_subplot(1, 3, 1, projection='3d')
-    ax2 = fig.add_subplot(1, 3, 2)
-    ax3 = fig.add_subplot(1, 3, 3)
+    ax1 = fig.add_subplot(1, 2, 1, projection='3d')
+    ax2 = fig.add_subplot(1, 2, 2)
+    ax3 = ax2.twinx()
 
-    # visualize bob's displacements
+    # # visualize bob's displacements
     q_bob = q[:, bob.qDOF]
-    ax2.plot(t, q_bob[:, 0], '-k', label='x')
-    ax2.plot(t, q_bob[:, 1], '--k', label='y')
-    ax2.plot(t, q_bob[:, 2], '-.k', label='z')
+    ax2.plot(t, q_bob[:, 0], '-b', label='x')
+    ax2.plot(t, q_bob[:, 1], '--b', label='y')
+    ax2.plot(t, q_bob[:, 2], '-.b', label='z')
+    ax2.tick_params(axis='y', labelcolor='blue')
     ax2.grid(True)
     ax2.legend()
 
     # visualize brotation angles
-    ax3.plot(t, q_bob[:, 3] * 180 / np.pi, '-k', label='phi_z')
-    ax3.plot(t, q_bob[:, 4] * 180 / np.pi, '--k', label='phi_x')
-    ax3.plot(t, q_bob[:, 5] * 180 / np.pi, '-.k', label='phi_y')
+    ax3.plot(t, q_bob[:, 3] * 180 / np.pi, '-r', label='phi_z')
+    ax3.plot(t, q_bob[:, 4] * 180 / np.pi, '--r', label='phi_x')
+    ax3.plot(t, q_bob[:, 5] * 180 / np.pi, '-.r', label='phi_y')
+    ax3.tick_params(axis='y', labelcolor='red')
     ax3.grid(True)
     ax3.legend()
     
@@ -421,10 +381,10 @@ if __name__ == "__main__":
     length_directors = 1.0e-2
     ax1.set_xlim3d(left=-scale, right=scale)
     ax1.set_ylim3d(bottom=-scale, top=scale)
-    ax1.set_zlim3d(bottom=-scale, top=scale)
+    ax1.set_zlim3d(bottom=-2*scale, top=0)
 
     # prepare data for animation    
-    slowmotion = 1
+    slowmotion = 10
     fps = 10
     animation_time = slowmotion * t1
     target_frames = int(fps * animation_time)
@@ -445,15 +405,21 @@ if __name__ == "__main__":
     d2_, = ax1.plot([], [], [], '-g')
     d3_, = ax1.plot([], [], [], '-b')
 
+    y_, = ax2.plot([], [], 'ob')
+    phi_z_, = ax3.plot([], [], 'or')
+
     def animate(i):
+        # animate beam centerline
         x, y, z = beam.centerline(q[i], n=400)
         center_line.set_data(x, y)
         center_line.set_3d_properties(z)
 
-        # x, y, z = q[i][beam.qDOF].reshape(12, -1)[:3]
-        # nodes.set_data(x, y)
-        # nodes.set_3d_properties(z)
+        # animate beam nodes
+        x, y, z = q[i][beam.qDOF].reshape(12, -1)[:3]
+        nodes.set_data(x, y)
+        nodes.set_3d_properties(z)
 
+        # animate rigid body
         x_S, y_S, z_S = bob.r_OP(t[i], q[i][bob.qDOF])    
         bob_com.set_data(np.array([x_S]), np.array([y_S]))
         bob_com.set_3d_properties(np.array([z_S]))
@@ -469,9 +435,11 @@ if __name__ == "__main__":
         d3_.set_data(np.array([x_S, x_S + d3[0]]), np.array([y_S, y_S + d3[1]]))
         d3_.set_3d_properties(np.array([z_S, z_S + d3[2]]))
 
-        return center_line, nodes, bob_com, d1_, d2_, d3_
+        # animate y and phi_z
+        y_.set_data(np.array([t[i]]), np.array([z_S]))
+        phi_z_.set_data(np.array([t[i]]), np.array([q[i, bob.qDOF[3]] * 180 / np.pi]))
 
-    animate(1)
+        return center_line, nodes, bob_com, d1_, d2_, d3_, y_, phi_z_
 
     anim = animation.FuncAnimation(fig, animate, frames=frames, interval=interval, blit=False)
     plt.show()

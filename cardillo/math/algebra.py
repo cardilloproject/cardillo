@@ -16,11 +16,20 @@ def norm4(a):
     return sqrt(a[0] * a[0] + a[1] * a[1] + a[2] * a[2] + a[3] * a[3])
 
 def skew2ax(A):
-    # build skew symmetric matrix first and then compute axial vector
-    B = 0.5 * (A - A.T)
-    return np.array([B[2, 1], B[0, 2], B[1, 0]])
+    return 0.5 * np.array([A[2, 1] - A[1, 2], A[0, 2] - A[2, 0], A[1, 0] - A[0, 1]])
 
-# see https://pythonpath.wordpress.com/2012/09/04/skew-with-numpy-operations/
+def skew2ax_A():
+    A = np.zeros((3, 3, 3))
+    A[0, 2, 1] = 0.5
+    A[0, 1, 2] = -0.5
+
+    A[1, 0, 2] = 0.5
+    A[1, 2, 0] = -0.5
+
+    A[2, 1, 0] = 0.5
+    A[2, 0, 1] = -0.5
+    return A
+
 def ax2skew(a):
     return np.array([[0,    -a[2], a[1] ],
                      [a[2],  0,    -a[0]],
@@ -36,29 +45,10 @@ def ax2skew_a():
     A[1, 0, 2] =  1
     return A
 
-def ax2skew2(a):
-    skv = np.roll(np.roll(np.diag(a.flatten()), 1, 1), -1, 0)
-    return skv - skv.T
-
 def cross3(a, b):
     return np.array([a[1] * b[2] - a[2] * b[1], \
                      a[2] * b[0] - a[0] * b[2], \
                      a[0] * b[1] - a[1] * b[0] ])
-
-# TODO: think of a test for this function
-def cross_nm(a, b):
-    na0 = a.shape[0]
-    na1 = a.shape[1]
-    nb0 = b.shape[0]
-    nb1 = b.shape[1]
-    A = np.zeros((na0, na1, nb1))
-    for i in range(na0):
-        for n in range(na1):
-            for m in range(nb1):
-                for j in range(na0):
-                    for k in range(nb0):
-                        A[i, n, m] += LeviCivita3(i, j, k) * a[k, n] * b[j, m]
-    return A
 
 def LeviCivita3(i, j, k):
     return (i - j) * (j - k) * (k - i) / 2

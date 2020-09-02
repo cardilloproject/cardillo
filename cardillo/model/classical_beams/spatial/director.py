@@ -6,7 +6,7 @@ import os
 from cardillo.utility.coo import Coo
 from cardillo.discretization import uniform_knot_vector, B_spline_basis1D, Lagrange_basis
 from cardillo.discretization.B_spline import Knot_vector
-from cardillo.math.algebra import norm3, cross3, ax2skew, skew2ax, ax2skew_a
+from cardillo.math.algebra import norm3, cross3, ax2skew, skew2ax, skew2ax_A, ax2skew_a
 from cardillo.math.numerical_derivative import Numerical_derivative
 from cardillo.discretization.mesh1D import Mesh1D
 
@@ -614,7 +614,7 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
         # return A_IK_q_num
 
     def v_P(self, t, q, u, frame_ID, K_r_SP=None):
-        raise NotImplementedError('not tested!')
+        # raise NotImplementedError('not tested!')
         xi = frame_ID[0]
         if xi == 0:
             NN = self.N_bdry[0]
@@ -624,9 +624,9 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
             N, _ = self.basis_functions(frame_ID[0])
             NN = self.stack_shapefunctions(N)
         
-        v_P1 = NN @ u[self.rDOF] + self.A_IK(t, q, frame_ID) @ cross3(self.K_Omega(t, q, u, frame_ID=frame_ID), K_r_SP)
+        # v_P1 = NN @ u[self.rDOF] + self.A_IK(t, q, frame_ID) @ cross3(self.K_Omega(t, q, u, frame_ID=frame_ID), K_r_SP)
         v_P2 = NN @ u[self.rDOF] + self.A_IK(t, u, frame_ID) @ K_r_SP
-        print(v_P1 - v_P2)
+        # print(v_P1 - v_P2)
         return v_P2
 
     def v_P_q(self, t, q, u, frame_ID, K_r_SP=None):
@@ -639,7 +639,7 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
         return np.zeros((3, self.nq_el, self.nq_el))
 
     def a_P(self, t, q, u, u_dot, frame_ID, K_r_SP=None):
-        raise NotImplementedError('not tested!')
+        # raise NotImplementedError('not tested!')
         xi = frame_ID[0]
         if xi == 0:
             NN = self.N_bdry[0]
@@ -650,11 +650,11 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
             NN = self.stack_shapefunctions(N)
         
         # TODO: simplifications?
-        K_Omega = self.K_Omega(t, q, u, frame_ID=frame_ID)
-        K_Psi = self.K_Psi(t, q, u, u_dot, frame_ID=frame_ID)
-        a_P1 = NN @ u_dot[self.rDOF] + self.A_IK(t, q) @ (cross3(K_Psi, K_r_SP) + cross3(K_Omega, cross3(K_Omega, K_r_SP)))
-        a_P2 = NN @ u_dot[self.rDOF] + self.A_IK(t, u_dot, frame_ID) @ K_r_SP
-        print(a_P1 - a_P2)
+        # K_Omega = self.K_Omega(t, q, u, frame_ID=frame_ID)
+        # K_Psi = self.K_Psi(t, q, u, u_dot, frame_ID=frame_ID)
+        # a_P1 = NN @ u_dot[self.rDOF] + self.A_IK(t, q, frame_ID=frame_ID) @ (cross3(K_Psi, K_r_SP) + cross3(K_Omega, cross3(K_Omega, K_r_SP)))
+        a_P2 = NN @ u_dot[self.rDOF] + self.A_IK(t, u_dot, frame_ID=frame_ID) @ K_r_SP
+        # print(a_P1 - a_P2)
         return a_P2
 
     def a_P_q(self, t, q, u, u_dot, frame_ID, K_r_SP=None):
@@ -701,11 +701,20 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
         d3 = NN @ q[self.d3DOF]
         A_IK = np.vstack((d1, d2, d3)).T
 
+        K_Omega_tilde_Omega_tilde = skew2ax_A()
+
         K_J_R = np.zeros((3, self.nq_el))
-        K_J_R[:, self.d1DOF] = 0.5 * A_IK.T @ ax2skew(d1) @ NN
-        K_J_R[:, self.d2DOF] = 0.5 * A_IK.T @ ax2skew(d2) @ NN
-        K_J_R[:, self.d3DOF] = 0.5 * A_IK.T @ ax2skew(d3) @ NN
+        K_J_R[:, self.d1DOF] = K_Omega_tilde_Omega_tilde[0] @ A_IK.T @ NN
+        K_J_R[:, self.d2DOF] = K_Omega_tilde_Omega_tilde[1] @ A_IK.T @ NN
+        K_J_R[:, self.d3DOF] = K_Omega_tilde_Omega_tilde[2] @ A_IK.T @ NN
         return K_J_R
+
+        # K_J_R_num = Numerical_derivative(lambda t, q, u: self.K_Omega(t, q, u, frame_ID=frame_ID), order=2)._y(t, q, np.zeros_like(q))
+        # diff = K_J_R_num - K_J_R
+        # diff_error = diff
+        # error = np.linalg.norm(diff_error)
+        # print(f'error K_J_R: {error}')
+        # return K_J_R_num
 
     def K_J_R_q(self, t, q, frame_ID):
         xi = frame_ID[0]
@@ -717,25 +726,18 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
             N, _ = self.basis_functions(frame_ID[0])
             NN = self.stack_shapefunctions(N)
 
-        d1 = NN @ q[self.d1DOF]
-        d2 = NN @ q[self.d2DOF]
-        d3 = NN @ q[self.d3DOF]
-        A_IK = np.vstack((d1, d2, d3)).T
-
         A_IK_q = np.zeros((3, 3, self.nq_el))
         A_IK_q[:, 0, self.d1DOF] = NN
         A_IK_q[:, 1, self.d2DOF] = NN
         A_IK_q[:, 2, self.d3DOF] = NN
-        
+
+        K_Omega_tilde_Omega_tilde = skew2ax_A()
+        tmp = np.einsum('jil,jk->ikl', A_IK_q, NN)
+
         K_J_R_q = np.zeros((3, self.nq_el, self.nq_el))
-        di_tilde_qi = np.einsum('ijk,kl->ijl', ax2skew_a(), NN)
-        tmp = 0.5 * np.einsum('ij,jkm,kl->ilm', A_IK.T, di_tilde_qi, NN)
-        K_J_R_q[:, self.d1DOF] = 0.5 * np.einsum('jil,jk->ikl', A_IK_q, ax2skew(d1) @ NN)
-        K_J_R_q[:, self.d1DOF[:, None], self.d1DOF] += tmp
-        K_J_R_q[:, self.d2DOF] = 0.5 * np.einsum('jil,jk->ikl', A_IK_q, ax2skew(d2) @ NN)
-        K_J_R_q[:, self.d2DOF[:, None], self.d2DOF] += tmp
-        K_J_R_q[:, self.d3DOF] = 0.5 * np.einsum('jil,jk->ikl', A_IK_q, ax2skew(d3) @ NN)
-        K_J_R_q[:, self.d3DOF[:, None], self.d3DOF] += tmp
+        K_J_R_q[:, self.d1DOF] = np.einsum('ij,jkl->ikl', K_Omega_tilde_Omega_tilde[0], tmp)
+        K_J_R_q[:, self.d2DOF] = np.einsum('ij,jkl->ikl', K_Omega_tilde_Omega_tilde[1], tmp)
+        K_J_R_q[:, self.d3DOF] = np.einsum('ij,jkl->ikl', K_Omega_tilde_Omega_tilde[2], tmp)
         return K_J_R_q
 
         # K_J_R_q_num = Numerical_derivative(lambda t, q: self.K_J_R(t, q, frame_ID))._x(t, q)
@@ -744,7 +746,7 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
         # return K_J_R_q_num
 
     def K_Psi(self, t, q, u, u_dot, frame_ID):
-        raise NotImplementedError('not tested!')
+        # raise NotImplementedError('not tested!')
         xi = frame_ID[0]
         if xi == 0:
             NN = self.N_bdry[0]
@@ -1141,9 +1143,10 @@ class Timoshenko_director_integral(Timoshenko_beam_director):
         self.g23DOF = np.arange(4*self.nn_el_g, 5*self.nn_el_g)
         self.g33DOF = np.arange(5*self.nn_el_g, 6*self.nn_el_g)
 
-    def __g_el(self, qe, N, N_g, J0, qw):
+    def __g_el(self, qe, el):
         g = np.zeros(self.nla_g_el)
 
+        N, N_g , J0, qw = self.N[el], self.N_g[el], self.J0[el], self.qw[el]
         for Ni, N_gi, J0i, qwi in zip(N, N_g, J0, qw):
             NNi = self.stack_shapefunctions(Ni)
 
@@ -1162,9 +1165,10 @@ class Timoshenko_director_integral(Timoshenko_beam_director):
 
         return g
 
-    def __g_q_el(self, qe, N, N_g, J0, qw):
+    def __g_q_el(self, qe, el):
         g_q = np.zeros((self.nla_g_el, self.nq_el))
 
+        N, N_g , J0, qw = self.N[el], self.N_g[el], self.J0[el], self.qw[el]
         for Ni, N_gi, J0i, qwi in zip(N, N_g, J0, qw):
             NNi = self.stack_shapefunctions(Ni)
 
@@ -1206,8 +1210,10 @@ class Timoshenko_director_integral(Timoshenko_beam_director):
         # print(f'error g_q: {error}')
         # return g_q_num
 
-    def __g_qq_el(self, qe, N, N_g, J0, qw):
+    def __g_qq_el(self, el):
         g_qq = np.zeros((self.nla_g_el, self.nq_el, self.nq_el))
+
+        N, N_g , J0, qw = self.N[el], self.N_g[el], self.J0[el], self.qw[el]
         for Ni, N_gi, J0i, qwi in zip(N, N_g, J0, qw):
             NNi = self.stack_shapefunctions(Ni)
             factor = NNi.T @ NNi * J0i * qwi
@@ -1244,35 +1250,199 @@ class Timoshenko_director_integral(Timoshenko_beam_director):
         # print(f'error g_qq: {error}')
         # return g_qq_num
 
+    def __g_dot_el(self, qe, ue, el):
+        g_dot = np.zeros(self.nla_g_el)
+
+        N, N_g , J0, qw = self.N[el], self.N_g[el], self.J0[el], self.qw[el]
+        for Ni, N_gi, J0i, qwi in zip(N, N_g, J0, qw):
+            NNi = self.stack_shapefunctions(Ni)
+
+            d1 = NNi @ qe[self.d1DOF]
+            d2 = NNi @ qe[self.d2DOF]
+            d3 = NNi @ qe[self.d3DOF]
+            d1_dot = NNi @ ue[self.d1DOF]
+            d2_dot = NNi @ ue[self.d2DOF]
+            d3_dot = NNi @ ue[self.d3DOF]
+
+            factor = N_gi * J0i * qwi
+         
+            g_dot[self.g11DOF] += 2 * d1 @ d1_dot * factor
+            g_dot[self.g12DOF] += (d1 @ d2_dot + d2 @ d1_dot) * factor
+            g_dot[self.g13DOF] += (d1 @ d3_dot + d3 @ d1_dot) * factor
+
+            g_dot[self.g22DOF] += 2 * d2 @ d2_dot * factor
+            g_dot[self.g23DOF] += (d2 @ d3_dot + d3 @ d2_dot) * factor
+
+            g_dot[self.g33DOF] += 2 * d3 @ d3_dot * factor
+
+        return g_dot
+        
+        # g_dot_num = Numerical_derivative(lambda t, q, u: self.__g_el(q, el))._t(0, qe, ue)
+        # g_dot_num += Numerical_derivative(lambda t, q, u: self.__g_el(q, el))._x(0, qe, ue) @ ue
+        # diff = g_dot_num - g_dot
+        # error = np.linalg.norm(diff)
+        # print(f'error g_dot: {error}')
+        # return g_dot_num
+
+    def __g_dot_q_el(self, qe, ue, el):
+        g_dot_q = np.zeros((self.nla_g_el, self.nq_el))
+
+        N, N_g , J0, qw = self.N[el], self.N_g[el], self.J0[el], self.qw[el]
+        for Ni, N_gi, J0i, qwi in zip(N, N_g, J0, qw):
+            NNi = self.stack_shapefunctions(Ni)
+
+            d1_dot = NNi @ ue[self.d1DOF]
+            d2_dot = NNi @ ue[self.d2DOF]
+            d3_dot = NNi @ ue[self.d3DOF]
+
+            factor = N_gi * J0i * qwi
+            outer1 = np.outer(factor, d1_dot @ NNi)
+            outer2 = np.outer(factor, d2_dot @ NNi)
+            outer3 = np.outer(factor, d3_dot @ NNi)
+         
+            # g_dot[self.g11DOF] += 2 * d1 @ d1_dot * factor
+            g_dot_q[self.g11DOF[:, None], self.d1DOF] += 2 * outer1
+            # g_dot[self.g12DOF] += (d1 @ d2_dot + d2 @ d1_dot) * factor
+            g_dot_q[self.g12DOF[:, None], self.d1DOF] += outer2
+            g_dot_q[self.g12DOF[:, None], self.d2DOF] += outer1
+            # g_dot[self.g13DOF] += (d1 @ d3_dot + d3 @ d1_dot) * factor
+            g_dot_q[self.g13DOF[:, None], self.d1DOF] += outer3
+            g_dot_q[self.g13DOF[:, None], self.d3DOF] += outer1
+
+            # g_dot[self.g22DOF] += 2 * d2 @ d2_dot * factor
+            g_dot_q[self.g22DOF[:, None], self.d2DOF] += 2 * outer2
+            # g_dot[self.g23DOF] += (d2 @ d3_dot + d3 @ d2_dot) * factor
+            g_dot_q[self.g23DOF[:, None], self.d2DOF] += outer3
+            g_dot_q[self.g23DOF[:, None], self.d3DOF] += outer2
+
+            # g_dot[self.g33DOF] += 2 * d3 @ d3_dot * factor
+            g_dot_q[self.g33DOF[:, None], self.d3DOF] += 2 * outer3
+
+        return g_dot_q
+
+        # g_dot_q_num = Numerical_derivative(lambda t, q, u: self.__g_dot_el(q, u, el), order=2)._x(0, qe, ue)
+        # diff = g_dot_q - g_dot_q_num
+        # error = np.linalg.norm(diff)
+        # print(f'error: {error}')
+        # return g_dot_q_num
+
+    def __g_ddot_el(self, qe, ue, ue_dot, el):
+        g_ddot = np.zeros(self.nla_g_el)
+
+        N, N_g , J0, qw = self.N[el], self.N_g[el], self.J0[el], self.qw[el]
+        for Ni, N_gi, J0i, qwi in zip(N, N_g, J0, qw):
+            NNi = self.stack_shapefunctions(Ni)
+
+            d1 = NNi @ qe[self.d1DOF]
+            d2 = NNi @ qe[self.d2DOF]
+            d3 = NNi @ qe[self.d3DOF]
+            d1_dot = NNi @ ue[self.d1DOF]
+            d2_dot = NNi @ ue[self.d2DOF]
+            d3_dot = NNi @ ue[self.d3DOF]
+            d1_ddot = NNi @ ue_dot[self.d1DOF]
+            d2_ddot = NNi @ ue_dot[self.d2DOF]
+            d3_ddot = NNi @ ue_dot[self.d3DOF]
+
+            factor = N_gi * J0i * qwi
+         
+            g_ddot[self.g11DOF] += 2 * (d1 @ d1_ddot + d1_dot @ d1_dot) * factor
+            g_ddot[self.g12DOF] += (d1 @ d2_ddot + 2 * d1_dot @ d2_dot + d2 @ d1_ddot) * factor
+            g_ddot[self.g13DOF] += (d1 @ d3_ddot + 2 * d1_dot @ d3_dot + d3 @ d1_ddot) * factor
+
+            g_ddot[self.g22DOF] += 2 * (d2 @ d2_ddot + d2_dot @ d2_dot) * factor
+            g_ddot[self.g23DOF] += (d2 @ d3_ddot + 2 * d2_dot @ d3_dot + d3 @ d2_ddot) * factor
+
+            g_ddot[self.g33DOF] += 2 * (d3 @ d3_ddot + d3_dot @ d3_dot) * factor
+
+        return g_ddot
+
+        # g_ddot_num = Numerical_derivative(lambda t, q, u: self.__g_dot_el(q, u, el))._t(0, qe, ue)
+        # g_ddot_num += Numerical_derivative(lambda t, q, u: self.__g_dot_el(q, u, el))._x(0, qe, ue) @ ue
+        # g_ddot_num += Numerical_derivative(lambda t, q, u: self.__g_dot_el(q, u, el))._y(0, qe, ue) @ ue_dot
+        # diff = g_ddot_num - g_ddot
+        # error = np.linalg.norm(diff)
+        # print(f'error g_ddot: {error}')
+        # return g_ddot_num
+
+    def __g_ddot_q_el(self, qe, ue, ue_dot, el):
+        return Numerical_derivative(lambda t, q, u: self.__g_ddot_el(q, u, ue_dot, el), order=2)._x(0, qe, ue)
+
+    def __g_ddot_u_el(self, qe, ue, ue_dot, el):
+        return Numerical_derivative(lambda t, q, u: self.__g_ddot_el(q, u, ue_dot, el), order=2)._y(0, qe, ue)
+
     # global constraint functions
     def g(self, t, q):
         g = np.zeros(self.nla_g)
         for el in range(self.nEl):
             elDOF = self.elDOF[el]
             elDOF_g = self.elDOF_g[el]
-            g[elDOF_g] += self.__g_el(q[elDOF], self.N[el], self.N_g[el], self.J0[el], self.qw[el])
+            g[elDOF_g] += self.__g_el(q[elDOF], el)
         return g
 
     def g_q(self, t, q, coo):
         for el in range(self.nEl):
             elDOF = self.elDOF[el]
             elDOF_g = self.elDOF_g[el]
-            g_q = self.__g_q_el(q[elDOF], self.N[el], self.N_g[el], self.J0[el], self.qw[el])
+            g_q = self.__g_q_el(q[elDOF], el)
             coo.extend(g_q, (self.la_gDOF[elDOF_g], self.qDOF[elDOF]))
 
     def W_g(self, t, q, coo):
         for el in range(self.nEl):
             elDOF = self.elDOF[el]
             elDOF_g = self.elDOF_g[el]
-            g_q = self.__g_q_el(q[elDOF], self.N[el], self.N_g[el], self.J0[el], self.qw[el])
+            g_q = self.__g_q_el(q[elDOF], el)
             coo.extend(g_q.T, (self.uDOF[elDOF], self.la_gDOF[elDOF_g]))
 
     def Wla_g_q(self, t, q, la_g, coo):
         for el in range(self.nEl):
             elDOF = self.elDOF[el]
             elDOF_g = self.elDOF_g[el]
-            g_qq = self.__g_qq_el(q[elDOF], self.N[el], self.N_g[el], self.J0[el], self.qw[el])
+            g_qq = self.__g_qq_el(el)
             coo.extend(np.einsum('i,ijk->jk', la_g[elDOF_g], g_qq), (self.uDOF[elDOF], self.qDOF[elDOF]))
+
+    def g_dot(self, t, q, u):
+        g_dot = np.zeros(self.nla_g)
+        for el in range(self.nEl):
+            elDOF = self.elDOF[el]
+            elDOF_g = self.elDOF_g[el]
+            g_dot[elDOF_g] += self.__g_dot_el(q[elDOF], u[elDOF], el)
+        return g_dot
+
+    def g_dot_q(self, t, q, u, coo):
+        for el in range(self.nEl):
+            elDOF = self.elDOF[el]
+            elDOF_g = self.elDOF_g[el]
+            g_dot_q = self.__g_dot_q_el(q[elDOF], u[elDOF], el)
+            coo.extend(g_dot_q, (self.la_gDOF[elDOF_g], self.qDOF[elDOF]))  
+
+    def g_dot_u(self, t, q, coo):
+        for el in range(self.nEl):
+            elDOF = self.elDOF[el]
+            elDOF_g = self.elDOF_g[el]
+            g_dot_u = self.__g_q_el(q[elDOF], el)
+            coo.extend(g_dot_u, (self.la_gDOF[elDOF_g], self.uDOF[elDOF]))  
+
+    def g_ddot(self, t, q, u, u_dot):
+        g_ddot = np.zeros(self.nla_g)
+        for el in range(self.nEl):
+            elDOF = self.elDOF[el]
+            elDOF_g = self.elDOF_g[el]
+            g_ddot[elDOF_g] += self.__g_ddot_el(q[elDOF], u[elDOF], u_dot[elDOF], el)
+        return g_ddot
+
+    def g_ddot_q(self, t, q, u, u_dot, coo):
+        for el in range(self.nEl):
+            elDOF = self.elDOF[el]
+            elDOF_g = self.elDOF_g[el]
+            g_ddot_q = self.__g_ddot_q_el(q[elDOF], u[elDOF], u_dot[elDOF], el)
+            coo.extend(g_ddot_q, (self.la_gDOF[elDOF_g], self.qDOF[elDOF]))  
+
+    def g_ddot_u(self, t, q, u, u_dot, coo):
+        for el in range(self.nEl):
+            elDOF = self.elDOF[el]
+            elDOF_g = self.elDOF_g[el]
+            g_ddot_u = self.__g_ddot_u_el(q[elDOF], u[elDOF], u_dot[elDOF], el)
+            coo.extend(g_ddot_u, (self.la_gDOF[elDOF_g], self.uDOF[elDOF]))  
 
 class Euler_Bernoulli_director_integral(Timoshenko_beam_director):
     def __init__(self, *args, **kwargs):
