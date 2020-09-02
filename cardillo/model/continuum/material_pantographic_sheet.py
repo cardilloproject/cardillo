@@ -23,9 +23,9 @@ def verify_derivatives(mat):
     W_theta_s_num = Numerical_derivative(lambda theta_s: mat.W(rho, rho_s, Gamma, theta_s), order=1)._X(theta_s, eps=1e-5).ravel() # poorly conditioned due to lacking normalization
     W_theta_s_an = mat.W_theta_s(rho, rho_s, Gamma, theta_s).ravel()
 
-    if (not np.isclose(W_rho_num, W_rho_an).all() or 
-        not np.isclose(W_rho_s_num, W_rho_s_an).all() or 
-        not np.isclose(W_Gamma_num, W_Gamma_an).all() or  
+    if (not np.isclose(W_rho_num, W_rho_an, rtol=1e-04).all() or 
+        not np.isclose(W_rho_s_num, W_rho_s_an, rtol=1e-04).all() or 
+        not np.isclose(W_Gamma_num, W_Gamma_an, rtol=1e-04).all() or  
         not np.isclose(W_theta_s_num, W_theta_s_an, rtol=1e-02).all() #TODO: implement stronger check than rtol=1e-02
     ):
         raise ValueError('The analytic derivatives in the material do not match the numerical derivatives')

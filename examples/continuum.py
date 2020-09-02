@@ -336,7 +336,7 @@ def pantographic_sheet():
     # build mesh
     degrees = (2, 2)
     QP_shape = (3, 3)
-    element_shape = (4, 3)
+    element_shape = (6, 4)
 
     Xi = Knot_vector(degrees[0], element_shape[0])
     Eta = Knot_vector(degrees[1], element_shape[1])
@@ -352,14 +352,16 @@ def pantographic_sheet():
 
     rectangle_shape = (L, B)
     Z = rectangle(rectangle_shape, mesh, Greville=True)
+    z0 = rectangle(rectangle_shape, mesh, Greville=True, Fuzz=0.02)
 
     # material model
     K_rho = 1.34e5
     K_Gamma = 1.59e2
     K_Theta_s = 1.92e-2
     gamma = 1.36
-    mat = Maurin2019_linear(K_rho, K_Gamma, K_Theta_s)
-    # mat = Maurin2019(K_rho, K_Gamma, K_Theta_s, gamma)
+    # gamma = 1.7
+    # mat = Maurin2019_linear(K_rho, K_Gamma, K_Theta_s)
+    mat = Maurin2019(K_rho, K_Gamma, K_Theta_s, gamma)
 
     
     verify_derivatives(mat)
@@ -375,10 +377,10 @@ def pantographic_sheet():
     # b2y = lambda t: Z[cDOF2y]
     # b = lambda t: np.concatenate((b1(t), b2x(t), b2y(t)))
 
-    cDOF, b = standard_displacements(mesh, Z, case="test_a")
+    cDOF, b = standard_displacements(mesh, z0, case="test_a")
 
     # 3D continuum
-    continuum = Pantographic_sheet(None, mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
+    continuum = Pantographic_sheet(None, mat, mesh, Z, z0=z0, cDOF=cDOF, b=b)
 
     model = Model()
     model.add(continuum)
@@ -387,8 +389,8 @@ def pantographic_sheet():
     # f_pot = model.f_pot(0, model.q0)
     
     # static solver
-    n_load_steps = 2
-    tol = 1.0e-5
+    n_load_steps = 10
+    tol = 1.0e-6
     max_iter = 10
     solver = Newton(model, n_load_steps=n_load_steps, tol=tol, max_iter=max_iter)
 
