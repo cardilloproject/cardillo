@@ -6,9 +6,11 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from numpy.core.function_base import linspace
 from numpy.lib.function_base import disp
+import meshio
+import os
 
 from cardillo.model import Model
-from cardillo.model.classical_beams.planar import Euler_bernoulli, Hooke
+from cardillo.model.classical_beams.planar import Euler_bernoulli, Hooke, Inextensible_Euler_bernoulli
 from cardillo.model.bilateral_constraints.implicit import Spherical_joint2D, Rigid_connection2D, Revolute_joint2D
 from cardillo.model.scalar_force_interactions.force_laws import Linear_spring
 from cardillo.model.scalar_force_interactions import add_rotational_forcelaw
@@ -18,13 +20,79 @@ from cardillo.solver import Generalized_alpha_1, Scipy_ivp
 from cardillo.discretization.B_spline import uniform_knot_vector
 from cardillo.model.frame import Frame
 from cardillo.math.algebra import A_IK_basic_z
-from cardillo.discretization.B_spline import B_spline_basis
+
+def post_processing(subsystem, t, q, filename, u=None, binary=True, dim=3):
+    # write paraview PVD file collecting time and all vtk files, see https://www.paraview.org/Wiki/ParaView/Data_formats#PVD_File_Format
+    from xml.dom import minidom
+    
+    root = minidom.Document()
+    
+    vkt_file = root.createElement('VTKFile')
+    vkt_file.setAttribute('type', 'Collection')
+    root.appendChild(vkt_file)
+    
+    collection = root.createElement('Collection')
+    vkt_file.appendChild(collection)
+
+    if u is None:
+        u = np.zeros_like(q)
+
+    for i, (ti, qi, ui) in enumerate(zip(t, q, u)):
+        filei = filename + f'{i}.vtu'
+
+        # write time step and file name in pvd file
+        dataset = root.createElement('DataSet')
+        dataset.setAttribute('timestep', f'{ti:0.6f}')
+        dataset.setAttribute('file', filei)
+        collection.appendChild(dataset)
+
+        geom_points = np.array([]).reshape(0, dim)
+        cells = []
+        HigherOrderDegrees = []
+        point_data = {}
+        offset = 0
+
+        for subsystemi in subsystem:
+            geom_pointsi, point_datai, cellsi, HigherOrderDegreesi = subsystemi.post_processing_subsystem(ti, qi[subsystemi.qDOF], ui[subsystemi.uDOF], binary=binary)
+
+            geom_points = np.append(geom_points, geom_pointsi, axis=0)
+
+            # update cell type and global connectivity
+            for k, (cell_type, connectivity) in enumerate(cellsi):
+                cellsi[k] = (cell_type, connectivity + offset)
+            cells.extend(cellsi)
+            offset = cellsi[-1][-1][-1,-1] + 1
+
+            HigherOrderDegrees.extend(HigherOrderDegreesi)
+
+            # update point_data dictionary. For first subsystem generate dictionary
+            for key in point_datai:
+                if key in point_data:
+                    point_data.update({key: np.append(point_data[key], point_datai[key], axis=0)})
+                else:
+                    point_data.update({key: point_datai[key]})
+            
+
+        # write vtk mesh using meshio
+        meshio.write_points_cells(
+            os.path.splitext(os.path.basename(filei))[0] + '.vtu',
+            geom_points, # only export centerline as geometry here!
+            cells,
+            point_data=point_data,
+            cell_data={"HigherOrderDegrees": HigherOrderDegrees},
+            binary=binary
+        )
+
+    # write pvd file        
+    xml_str = root.toprettyxml(indent ="\t")          
+    with open(filename + '.pvd', "w") as f:
+        f.write(xml_str)
 
 if __name__ == "__main__":
-    statics = False
-    solveProblem = True
+    statics = True
+    solveProblem = False
     
-    t1 = 5e-2 / 2
+    t1 = 5e-2
     dt = t1 / 1500
     # physical parameters
     gamma = pi/4
@@ -64,12 +132,12 @@ if __name__ == "__main__":
     # EI = 1.555e-4
     # GI = 0.004
 
-    displacementX_l = displ #-0.0567/4
+    displacementX_l = 0#displ #-0.0567/4
     # displacementX = 0.02
     displacementY_l = 0.0
     rotationZ_l = 0 #-np.pi/10
 
-    displacementX_r = 0 #0.0567
+    displacementX_r = 0.0567/5
     # displacementX = 0.02
     displacementY_r = 0.00
     
@@ -148,7 +216,8 @@ if __name__ == "__main__":
             Q = np.concatenate([X, Y])
             q0 = np.copy(Q)
             u0 = np.zeros_like(Q)
-            beams.append(Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
+            # beams.append(Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
+            beams.append(Inextensible_Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
             model.add(beams[ID])
             ID_mat[brow, bcol] = ID
             ID = ID + 1
@@ -157,7 +226,8 @@ if __name__ == "__main__":
             Q = np.concatenate([X2 + X[-1], Y2 + Y[-1]])
             q0 = np.copy(Q)
             u0 = np.zeros_like(Q)
-            beams.append(Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
+            # beams.append(Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
+            beams.append(Inextensible_Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
             model.add(beams[ID])
             ID_mat[brow, bcol + 1] = ID
             ID = ID + 1
@@ -171,7 +241,8 @@ if __name__ == "__main__":
             Q = np.concatenate([X, Y])
             q0 = np.copy(Q)
             u0 = np.zeros_like(Q)
-            beams.append(Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
+            # beams.append(Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
+            beams.append(Inextensible_Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
             model.add(beams[ID])
             ID_mat[brow, bcol] = ID
             ID = ID + 1
@@ -179,7 +250,8 @@ if __name__ == "__main__":
             Q = np.concatenate([X1 + X[-1], Y1 + Y[-1]])
             q0 = np.copy(Q)
             u0 = np.zeros_like(Q)
-            beams.append(Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
+            # beams.append(Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
+            beams.append(Inextensible_Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
             model.add(beams[ID])
             ID_mat[brow, bcol + 1] = ID
             ID = ID + 1
@@ -316,70 +388,72 @@ if __name__ == "__main__":
         sol = solver.solve()
         save_solution(sol, 'pantograph20times400')
     else:
-        sol = load_solution('pantograph2times2')
+        sol = load_solution('pantograph20times400-2')
 
     
 
     # exit()
 
-    if statics:
-        fig, ax = plt.subplots()
-        ax.set_xlabel('x [m]')
-        ax.set_ylabel('y [m]')
-        # ax.set_xlim([-Ly + H/2 * sin(rotationZ_l), Ly*(nCol+1) + displacementX + H/2 * sin(rotationZ_r)])
-        # ax.set_ylim([-Ly, Ly*(nRow+1) + displacementY])
-        ax.grid(linestyle='-', linewidth='0.5')
-        ax.set_aspect('equal')
+    post_processing(beams, sol.t[::5], sol.q[::5], 'PantographDynamicLonger', u=sol.u[::5], dim=2, binary=True)
 
-        for bdy in beams:
-            x, y, z = bdy.centerline(sol.q[-1]).T
-            ax.plot(x, y, '-b')
+    # if statics:
+    #     fig, ax = plt.subplots()
+    #     ax.set_xlabel('x [m]')
+    #     ax.set_ylabel('y [m]')
+    #     # ax.set_xlim([-Ly + H/2 * sin(rotationZ_l), Ly*(nCol+1) + displacementX + H/2 * sin(rotationZ_r)])
+    #     # ax.set_ylim([-Ly, Ly*(nRow+1) + displacementY])
+    #     ax.grid(linestyle='-', linewidth='0.5')
+    #     ax.set_aspect('equal')
 
-        plt.show()
-    else:
-        # animate configurations
-        fig, ax = plt.subplots()
-        ax.set_xlabel('x [m]')
-        ax.set_ylabel('y [m]')
-        ax.set_xlim([-Ly + H/2 * sin(rotationZ_l), Ly*(nCol+1) + displacementX_r + H/2 * sin(rotationZ_r)])
-        ax.set_ylim([-Ly, Ly*(nRow+1) + displacementY_r])
-        ax.grid(linestyle='-', linewidth='0.5')
-        ax.set_aspect('equal')
+    #     for bdy in beams:
+    #         x, y, z = bdy.centerline(sol.q[-1]).T
+    #         ax.plot(x, y, '-b')
 
-        # prepare data for animation
-        t = sol.t
-        frames = len(t)
-        target_frames = min(len(t), 100)
-        frac = int(frames / target_frames)
-        animation_time = 5
-        interval = animation_time * 1000 / target_frames
+    #     plt.show()
+    # else:
+    #     # animate configurations
+    #     fig, ax = plt.subplots()
+    #     ax.set_xlabel('x [m]')
+    #     ax.set_ylabel('y [m]')
+    #     ax.set_xlim([-Ly + H/2 * sin(rotationZ_l), Ly*(nCol+1) + displacementX_r + H/2 * sin(rotationZ_r)])
+    #     ax.set_ylim([-Ly, Ly*(nRow+1) + displacementY_r])
+    #     ax.grid(linestyle='-', linewidth='0.5')
+    #     ax.set_aspect('equal')
 
-        frames = target_frames
-        t = t[::frac]
-        q = sol.q[::frac]
+    #     # prepare data for animation
+    #     t = sol.t
+    #     frames = len(t)
+    #     target_frames = min(len(t), 100)
+    #     frac = int(frames / target_frames)
+    #     animation_time = 5
+    #     interval = animation_time * 1000 / target_frames
 
-        centerlines = []
-        # lobj, = ax.plot([], [], '-k')
-        for bdy in beams:
-            lobj, = ax.plot([], [], '-k')
-            centerlines.append(lobj)
+    #     frames = target_frames
+    #     t = t[::frac]
+    #     q = sol.q[::frac]
+
+    #     centerlines = []
+    #     # lobj, = ax.plot([], [], '-k')
+    #     for bdy in beams:
+    #         lobj, = ax.plot([], [], '-k')
+    #         centerlines.append(lobj)
             
-        def animate(i):
-            for idx, bdy in enumerate(beams):
-                    # q_body = q[i][bdy.qDOF]
-                    # r = []
-                    # for i, xi in enumerate(xi_plt):
-                    #     qp = q_body[bdy_qDOF_P[i]]
-                    #     r.append(NN[i] @ qp)
+    #     def animate(i):
+    #         for idx, bdy in enumerate(beams):
+    #                 # q_body = q[i][bdy.qDOF]
+    #                 # r = []
+    #                 # for i, xi in enumerate(xi_plt):
+    #                 #     qp = q_body[bdy_qDOF_P[i]]
+    #                 #     r.append(NN[i] @ qp)
 
-                    # x, y = np.array(r).T
-                    # centerlines[idx].set_data(x, y)
+    #                 # x, y = np.array(r).T
+    #                 # centerlines[idx].set_data(x, y)
 
-                x, y, _ = bdy.centerline(q[i], n=2).T
-                centerlines[idx].set_data(x, y)
+    #             x, y, _ = bdy.centerline(q[i], n=2).T
+    #             centerlines[idx].set_data(x, y)
 
-            return centerlines
+    #         return centerlines
 
-        anim = animation.FuncAnimation(fig, animate, frames=frames, interval=interval, blit=False)
+    #     anim = animation.FuncAnimation(fig, animate, frames=frames, interval=interval, blit=False)
 
-        plt.show()
+    #     plt.show()

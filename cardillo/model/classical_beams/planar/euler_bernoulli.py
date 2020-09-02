@@ -514,6 +514,40 @@ class Euler_bernoulli():
         with open(filename + '.pvd', "w") as f:
             f.write(xml_str)
 
+    def post_processing_subsystem(self, t, q, u, binary=True):
+        # centerline and connectivity + director data
+        cells, points, HigherOrderDegrees = self.mesh_kinematics.vtk_mesh(q)
+
+        geom_points = points[:, :2]
+
+        point_data = {}
+
+        # fill dictionary storing point data with directors
+        
+        _, velocities, _ = self.mesh_kinematics.vtk_mesh(u)
+        point_data = {"u": velocities[:, :2]}
+
+        # export existing values on quadrature points using L2 projection
+        J0_vtk = self.mesh_kinematics.field_to_vtk(self.J0.reshape(self.nEl, self.nQP, 1))
+
+        point_data.update({"J0": J0_vtk})
+        
+        kappa0_vtk = self.mesh_kinematics.field_to_vtk(self.kappa0.reshape(self.nEl, self.nQP, 1))
+        point_data.update({"kappa0": kappa0_vtk})
+
+        # cell_data={"HigherOrderDegrees": HigherOrderDegrees}
+
+        return geom_points, point_data, cells, HigherOrderDegrees
+
+        # meshio.write_points_cells(
+        #     os.path.splitext(os.path.basename(filename))[0] + '.vtu',
+        #     geom_points, # only export centerline as geometry here!
+        #     cells,
+        #     point_data=point_data,
+        #     cell_data={"HigherOrderDegrees": HigherOrderDegrees},
+        #     binary=binary
+        # )
+        
     def post_processing_single_configuration(self, t, q, filename, u=None, binary=True):
         # centerline and connectivity + director data
         cells, points, HigherOrderDegrees = self.mesh_kinematics.vtk_mesh(q)
