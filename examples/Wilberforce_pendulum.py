@@ -201,10 +201,10 @@ if __name__ == "__main__":
     nQP = int(np.ceil((p**2 + 1) / 2)) + 1 # dynamics
     print(f'nQP: {nQP}')
     # nEl = 4 # 1 turn
-    nEl = 16 # 2 turns
+    # nEl = 16 # 2 turns
     # nEl = 32 # 5 turns
     # nEl = 64 # 10 turns
-    # nEl = 128 # 20 turns
+    nEl = 128 # 20 turns
 
     #############################
     # fit reference configuration
@@ -213,10 +213,10 @@ if __name__ == "__main__":
     coil_radius = coil_diameter / 2
     pitch_unloaded = 1.0e-3 # 1mm
     # turns = 0.5
-    turns = 2
+    # turns = 2
     # turns = 5
     # turns = 10
-    # turns = 20
+    turns = 20
     nxi = 1000
 
     xi = np.linspace(0, turns, nxi)
@@ -357,7 +357,7 @@ if __name__ == "__main__":
     ax2 = fig.add_subplot(1, 2, 2)
     ax3 = ax2.twinx()
 
-    # # visualize bob's displacements
+    # visualize bob's displacements
     q_bob = q[:, bob.qDOF]
     ax2.plot(t, q_bob[:, 0], '-b', label='x')
     ax2.plot(t, q_bob[:, 1], '--b', label='y')
@@ -366,7 +366,7 @@ if __name__ == "__main__":
     ax2.grid(True)
     ax2.legend()
 
-    # visualize brotation angles
+    # visualize rotation angles
     ax3.plot(t, q_bob[:, 3] * 180 / np.pi, '-r', label='phi_z')
     ax3.plot(t, q_bob[:, 4] * 180 / np.pi, '--r', label='phi_x')
     ax3.plot(t, q_bob[:, 5] * 180 / np.pi, '-.r', label='phi_y')

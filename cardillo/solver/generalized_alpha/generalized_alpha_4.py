@@ -1,5 +1,3 @@
-from numpy.core.fromnumeric import searchsorted
-from cardillo.solver import newton
 import numpy as np
 from scipy.sparse.linalg import spsolve 
 from scipy.sparse import csc_matrix, bmat
@@ -70,7 +68,6 @@ class Generalized_alpha_4():
         self.la_gk = model.la_g0
         self.la_gammak = model.la_gamma0
 
-        # TODO: compute initial constraint forces?
         Mk = model.M(t0, model.q0).tocsr()
         rhsk = self.model.h(t0, model.q0, model.u0) + self.model.W_g(t0, model.q0) @ model.la_g0 + self.model.W_gamma(t0, model.q0) @ model.la_gamma0
         self.ak = np.zeros(model.nu)
@@ -259,6 +256,30 @@ class Generalized_alpha_4():
 
         Ra_alg_la_gamma = -W_gammak1[uDOF_alg]
 
+        # # numerical derivative for equations of motion
+        # Ra_x = Numerical_derivative(lambda t, x: self.__R(t, x)[:nu], order=2)._x(tk1, xk1)
+        # Ra_dyn_a_dyn = Ra_x[:nu_dyn, :nu_dyn]
+        # Ra_dyn_a_alg = Ra_x[:nu_dyn, nu_dyn:nu]
+        # Ra_dyn_U_dyn = Ra_x[:nu_dyn, nu:nu+nu_dyn]
+        # Ra_dyn_U_alg = Ra_x[:nu_dyn, nu+nu_dyn:2*nu]
+        # Ra_dyn_Q_dyn = Ra_x[:nu_dyn, 2*nu:2*nu+nu_dyn]
+        # Ra_dyn_Q_alg = Ra_x[:nu_dyn, 2*nu+nu_dyn:3*nu]
+        # Ra_dyn_kappa_g = Ra_x[:nu_dyn, 3*nu:3*nu+nla_g]
+        # Ra_dyn_La_g = Ra_x[:nu_dyn, 3*nu+nla_g:3*nu+2*nla_g]
+        # Ra_dyn_la_g = Ra_x[:nu_dyn, 3*nu+2*nla_g:3*nu+3*nla_g]
+        # Ra_dyn_la_gamma = Ra_x[:nu_dyn, 3*nu+3*nla_g:3*nu+3*nla_g+nla_gamma]
+
+        # Ra_alg_a_dyn = Ra_x[nu_dyn:nu, :nu_dyn]
+        # Ra_alg_a_alg = Ra_x[nu_dyn:nu, nu_dyn:nu]
+        # Ra_alg_U_dyn = Ra_x[nu_dyn:nu, nu:nu+nu_dyn]
+        # Ra_alg_U_alg = Ra_x[nu_dyn:nu, nu+nu_dyn:2*nu]
+        # Ra_alg_Q_dyn = Ra_x[nu_dyn:nu, 2*nu:2*nu+nu_dyn]
+        # Ra_alg_Q_alg = Ra_x[nu_dyn:nu, 2*nu+nu_dyn:3*nu]
+        # Ra_alg_kappa_g = Ra_x[nu_dyn:nu, 3*nu:3*nu+nla_g]
+        # Ra_alg_La_g = Ra_x[nu_dyn:nu, 3*nu+nla_g:3*nu+2*nla_g]
+        # Ra_alg_la_g = Ra_x[nu_dyn:nu, 3*nu+2*nla_g:3*nu+3*nla_g]
+        # Ra_alg_la_gamma = Ra_x[nu_dyn:nu, 3*nu+3*nla_g:3*nu+3*nla_g+nla_gamma]
+        
         ##########################################################
         # W_g_La = W_gk1 @ La_gk1
         # R[nu:nu+nu_dyn] = Mk1 @ Uk1[uDOF_dyn] - W_g_La[uDOF_dyn]
@@ -456,11 +477,13 @@ class Generalized_alpha_4():
                       [Rla_gamma_a_dyn, Rla_gamma_a_alg, Rla_gamma_U_dyn, Rla_gamma_U_alg, Rla_gamma_Q_dyn, Rla_gamma_Q_alg, Rla_gamma_kappa_g, Rla_gamma_La_g, Rla_gamma_la_g, Rla_gamma_la_gamma],
                     ], format='csc')
 
+        yield R_x
+
         # R_x_num = self.__R_x_num(tk1, xk1)
         # diff = R_x.toarray() - R_x_num
 
         # # diff_error = diff[:nu] #~1.0e-5
-        # # diff_error = diff[:nu_dyn] #~1.0e-5
+        # diff_error = diff[:nu_dyn] #~1.0e-5
         # # diff_error = diff[nu_dyn:nu] #~1.0e-7
 
         # # diff_error = diff[nu:2*nu] #~1.0e-17
@@ -477,7 +500,7 @@ class Generalized_alpha_4():
 
         # # diff_error = diff[nu:] #~1.0e-9
 
-        # diff_error = diff #~1.0e-5
+        # # diff_error = diff #~1.0e-5
         
         # error = np.max(np.abs(diff_error))
         # print(f'absolute error R_x = {error}')
@@ -486,8 +509,6 @@ class Generalized_alpha_4():
         # # print(f'relative error R_x = {error}')
 
         # yield R_x_num
-
-        yield R_x
         
     def __R(self, tk1, xk1):
         return next(self.__R_gen_analytic(tk1, xk1))

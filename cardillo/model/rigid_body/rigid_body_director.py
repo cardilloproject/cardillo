@@ -335,6 +335,7 @@ class Rigid_body_director():
         return skew2ax(K_Omega_tilde)
 
     def K_J_R(self, t, q, frame_ID=None):
+        raise NotImplementedError('see director rigid body for implementation')
         A_IK = self.A_IK(t, q)
         K_J_R = np.zeros((3, self.nu))
         K_J_R[:, 3:6] = 0.5 * A_IK.T @ ax2skew(q[3:6])
@@ -343,6 +344,7 @@ class Rigid_body_director():
         return K_J_R
 
     def K_J_R_q(self, t, q, frame_ID=None):
+        raise NotImplementedError('see director rigid body for implementation')
         A_IK = self.A_IK(t, q)
         A_IK_q = self.A_IK_q(t, q)
         K_J_R_q = np.zeros((3, self.nu, self.nq))
