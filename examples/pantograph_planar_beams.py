@@ -17,7 +17,7 @@ from cardillo.model.scalar_force_interactions.force_laws import Linear_spring
 from cardillo.model.scalar_force_interactions import add_rotational_forcelaw
 from cardillo.solver.newton import Newton
 from cardillo.solver.euler_backward import Euler_backward
-from cardillo.solver import Generalized_alpha_1, Scipy_ivp
+from cardillo.solver import Generalized_alpha_1, Scipy_ivp, Generalized_alpha_4_index3, Generalized_alpha_index3_panto
 from cardillo.discretization.B_spline import uniform_knot_vector
 from cardillo.model.frame import Frame
 from cardillo.math.algebra import A_IK_basic_z
@@ -87,17 +87,17 @@ if __name__ == "__main__":
     fcn = lambda t: displ * np.exp(-(t-0.003)**2/0.001**2)*(t*(t<0.00)+0.001*(t>=0.00))/0.001
 
 
-    fig, ax = plt.subplots()
-    ax.set_xlabel('x [m]')
-    ax.set_ylabel('y [m]')
-    x = linspace(0, t1, 1000)
-    y = []
+    # fig, ax = plt.subplots()
+    # ax.set_xlabel('x [m]')
+    # ax.set_ylabel('y [m]')
+    # x = linspace(0, t1, 1000)
+    # y = []
 
-    for t in x:
-        y.append(fcn(t))
+    # for t in x:
+    #     y.append(fcn(t))
 
-    ax.plot(x, y)
-    plt.show()
+    # ax.plot(x, y)
+    # plt.show()
 
     r_OP_l = lambda t: np.array([0, H / 2, 0]) + np.array([fcn(t), 0, 0])
 
@@ -290,7 +290,9 @@ if __name__ == "__main__":
         solver = Newton(model, n_load_steps=3, max_iter=50, tol=1.0e-10, numerical_jacobian=False)
     else:
         # solver = Euler_backward(model, t1, dt, newton_max_iter=50, numerical_jacobian=False, debug=False)
-        solver = Generalized_alpha_1(model, t1, dt, variable_dt=False, rho_inf=0.8)
+        # solver = Generalized_alpha_1(model, t1, dt, variable_dt=False, rho_inf=0.8)
+        # solver = Generalized_alpha_4_index3(model, t1, dt, rho_inf=0.8)
+        solver = Generalized_alpha_index3_panto(model, t1, dt, rho_inf=0.8)
         # solver = Scipy_ivp(model, t1, dt, atol=1e-6)
 
     if solveProblem == True:
