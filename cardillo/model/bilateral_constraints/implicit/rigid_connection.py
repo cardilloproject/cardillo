@@ -428,3 +428,101 @@ class Rigid_connection2D(Rigid_connection):
                                 + np.einsum('ij,ik->kj', - la_g[2] * n_q2, J_R2)
 
         coo.extend( dense, (self.uDOF, self.qDOF))
+
+from cardillo.discretization.B_spline import B_spline_basis1D
+class Rigid_beam_beam_connection2D():
+    def __init__(self, beam1, beam2, la_g0=None):
+        # rigid connection between to consecutive beams. End of beam1 is connected to start of beam2.
+        self.nla_g = 3
+        self.la_g0 = np.zeros(self.nla_g) if la_g0 is None else la_g0
+
+        self.beam1 = beam1
+        self.beam2 = beam2
+
+        self.frame_ID1 = (1,)
+        self.frame_ID2 = (0,)
+       
+        N, N_xi = B_spline_basis1D(beam1.polynomial_degree, 1, beam1.knot_vector.data, 1).T
+        self.beam1_N = self.stack_shapefunctions(N, beam1.nq_el)
+        self.beam1_N_xi = self.stack_shapefunctions(N_xi, beam1.nq_el)
+
+        N, N_xi = B_spline_basis1D(beam2.polynomial_degree, 1, beam2.knot_vector.data, 0).T
+        self.beam2_N = self.stack_shapefunctions(N, beam2.nq_el)
+        self.beam2_N_xi_perp = self.stack_shapefunctions_perp(N_xi, beam2.nq_el)
+        
+
+    def assembler_callback(self):
+        qDOF1 = self.beam1.qDOF_P(self.frame_ID1)
+        qDOF2 = self.beam2.qDOF_P(self.frame_ID2)
+        self.qDOF = np.concatenate([self.beam1.qDOF[qDOF1], self.beam2.qDOF[qDOF2]])
+        self.nq1 = nq1 = len(qDOF1)
+        self.nq2 = len(qDOF2)
+        self._nq = self.nq1 + self.nq2
+        
+        uDOF1 = self.beam1.uDOF_P(self.frame_ID1)
+        uDOF2 = self.beam2.uDOF_P(self.frame_ID2)
+        self.uDOF = np.concatenate([self.beam1.uDOF[uDOF1], self.beam2.uDOF[uDOF2]])
+        self.nu1 = nu1 = len(uDOF1)
+        self.nu2 = len(uDOF2)
+        self._nu = self.nu1 + self.nu2
+
+    def g(self, t, q):
+        nq1 = self.nq1
+        r_OP1 = self.beam1_N @ q[:nq1]
+        r_OP2 = self.beam2_N @ q[nq1:]
+        # tangent vector beam 1
+        t = self.beam1_N_xi @ q[:nq1]
+        # normal vector beam 2
+        n = self.beam2_N_xi_perp @ q[nq1:]
+
+        return np.concatenate([r_OP2 - r_OP1, [t @ n]]) 
+        
+    def g_q_dense(self, t, q):
+        nq1 = self.nq1
+        g_q = np.zeros((self.nla_g, self._nq))
+        g_q[:2, :nq1] = - self.beam1_N
+        g_q[:2, nq1:] = self.beam2_N
+
+        # tangent vector beam 1
+        t = self.beam1_N_xi @ q[:nq1]
+        # normal vector beam 2
+        n = self.beam2_N_xi_perp @ q[nq1:]
+
+        g_q[2, :nq1] = n @ self.beam1_N_xi
+        g_q[2, nq1:] = t @ self.beam2_N_xi_perp
+        return g_q
+
+    def g_q(self, t, q, coo):
+        coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
+
+    def W_g(self, t, q, coo):
+        coo.extend(self.g_q_dense(t, q).T, (self.uDOF, self.la_gDOF))
+
+    def Wla_g_q(self, t, q, la_g, coo):
+        # dense_num = Numerical_derivative(lambda t, q: self.g_q_dense(t, q).T @ la_g, order=2)._x(t, q)
+        # [la_g[0], la_g[1]] @ (self.beam2_N - self.beam1_N) independent of q
+        # [la_g[2] * self.beam1_N_xi.T @ n , la_g[2] * self.beam2_N_xi_perp.T @ t]
+        nq1 = self.nq1
+        nu1 = self.nu1
+
+        dense = np.zeros((self._nu, self._nq))
+        dense[:nu1, nq1:] = la_g[2] * self.beam1_N_xi.T @ self.beam2_N_xi_perp
+        dense[nu1:, :nq1] = la_g[2] * self.beam2_N_xi_perp.T @ self.beam1_N_xi
+        
+        coo.extend( dense, (self.uDOF, self.qDOF))
+
+    def stack_shapefunctions(self, N, nq_el):
+        # return np.kron(np.eye(2), N)
+        n2 = int(nq_el / 2)
+        NN = np.zeros((2, 2 * n2))
+        NN[0, :n2] = N
+        NN[1, n2:] = N
+        return NN
+
+    def stack_shapefunctions_perp(self, N, nq_el):
+        # return np.kron(np.array([[0, -1], [1, 0]]), N)
+        n2 = int(nq_el / 2)
+        NN = np.zeros((2, 2 * n2))
+        NN[0, n2:] = -N
+        NN[1, :n2] = N
+        return NN

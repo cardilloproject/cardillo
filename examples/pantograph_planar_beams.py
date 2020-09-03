@@ -12,6 +12,7 @@ import os
 from cardillo.model import Model
 from cardillo.model.classical_beams.planar import Euler_bernoulli, Hooke, Inextensible_Euler_bernoulli
 from cardillo.model.bilateral_constraints.implicit import Spherical_joint2D, Rigid_connection2D, Revolute_joint2D
+from cardillo.model.bilateral_constraints.implicit import Rigid_beam_beam_connection2D as junction
 from cardillo.model.scalar_force_interactions.force_laws import Linear_spring
 from cardillo.model.scalar_force_interactions import add_rotational_forcelaw
 from cardillo.solver.newton import Newton
@@ -25,11 +26,11 @@ from cardillo.utility.post_processing_vtk import post_processing
 
 
 if __name__ == "__main__":
-    statics = True
+    statics = False
     solveProblem = True
     
-    t1 = 5e-2
-    dt = t1 / 1500
+    t1 = 5e-2 / 50
+    dt = 5e-2 / 1500
     # physical parameters
     gamma = pi/4
     # nRow = 2
@@ -73,7 +74,7 @@ if __name__ == "__main__":
     displacementY_l = 0.0
     rotationZ_l = 0 #-np.pi/10
 
-    displacementX_r = 0.0567/2
+    displacementX_r = 0 #0.0567/2
     # displacementX = 0.02
     displacementY_r = 0.00
     
@@ -81,19 +82,22 @@ if __name__ == "__main__":
 
     # r_OP_l = lambda t: np.array([0, H / 2, 0]) + np.array([t * displacementX_l, t * displacementY_r, 0])
 
-    fcn = lambda t: displ * np.exp(-(t-0.004)**2/0.001**2)*(t*(t<0.001)+0.001*(t>=0.001))/0.001
+    # fcn = lambda t: displ * np.exp(-(t-0.004)**2/0.001**2)*(t*(t<0.001)+0.001*(t>=0.001))/0.001
 
-    # fig, ax = plt.subplots()
-    # ax.set_xlabel('x [m]')
-    # ax.set_ylabel('y [m]')
-    # x = linspace(0, t1, 1000)
-    # y = []
+    fcn = lambda t: displ * np.exp(-(t-0.003)**2/0.001**2)*(t*(t<0.00)+0.001*(t>=0.00))/0.001
 
-    # for t in x:
-    #     y.append(fcn(t))
 
-    # ax.plot(x, y)
-    # plt.show()
+    fig, ax = plt.subplots()
+    ax.set_xlabel('x [m]')
+    ax.set_ylabel('y [m]')
+    x = linspace(0, t1, 1000)
+    y = []
+
+    for t in x:
+        y.append(fcn(t))
+
+    ax.plot(x, y)
+    plt.show()
 
     r_OP_l = lambda t: np.array([0, H / 2, 0]) + np.array([fcn(t), 0, 0])
 
@@ -108,13 +112,13 @@ if __name__ == "__main__":
     ###################
     # create pantograph
     ###################
-    p = 3
+    p = 2
     assert p >= 2
     # nQP = int(np.ceil((p + 1)**2 / 2))
     nQP = p + 2
 
     print(f'nQP: {nQP}')
-    nEl = 2
+    nEl = 1
 
     # projections of beam length
     Lx = LBeam * cos(gamma)
@@ -203,12 +207,14 @@ if __name__ == "__main__":
             beam1 = beams[ID_mat[brow, bcol]]
             beam2 = beams[ID_mat[brow + 1, bcol + 1]]
             r_OB = beam1.r_OP(0, beam1.q0[beam1.qDOF_P(frame_ID1)], frame_ID1)
-            model.add(Rigid_connection2D(beam1, beam2, r_OB, frame_ID1=frame_ID1, frame_ID2=frame_ID2))
+            # model.add(Rigid_connection2D(beam1, beam2, r_OB, frame_ID1=frame_ID1, frame_ID2=frame_ID2))
+            model.add(junction(beam1, beam2))
 
             beam1 = beams[ID_mat[brow + 1, bcol]]
             beam2 = beams[ID_mat[brow, bcol + 1]]
             r_OB = beam1.r_OP(0, beam1.q0[beam1.qDOF_P(frame_ID1)], frame_ID1)
-            model.add(Rigid_connection2D(beam1, beam2, r_OB, frame_ID1=frame_ID1, frame_ID2=frame_ID2))
+            # model.add(Rigid_connection2D(beam1, beam2, r_OB, frame_ID1=frame_ID1, frame_ID2=frame_ID2))
+            model.add(junction(beam1, beam2))
 
     # even columns
     for bcol in range(1, nCol - 1, 2):
@@ -216,12 +222,14 @@ if __name__ == "__main__":
             beam1 = beams[ID_mat[brow, bcol]]
             beam2 = beams[ID_mat[brow + 1, bcol + 1]]
             r_OB = beam1.r_OP(0, beam1.q0[beam1.qDOF_P(frame_ID1)], frame_ID1)
-            model.add(Rigid_connection2D(beam1, beam2, r_OB, frame_ID1=frame_ID1, frame_ID2=frame_ID2))
+            # model.add(Rigid_connection2D(beam1, beam2, r_OB, frame_ID1=frame_ID1, frame_ID2=frame_ID2))
+            model.add(junction(beam1, beam2))
 
             beam1 = beams[ID_mat[brow + 1, bcol]]
             beam2 = beams[ID_mat[brow, bcol + 1]]
             r_OB = beam1.r_OP(0, beam1.q0[beam1.qDOF_P(frame_ID1)], frame_ID1)
-            model.add(Rigid_connection2D(beam1, beam2, r_OB, frame_ID1=frame_ID1, frame_ID2=frame_ID2))
+            # model.add(Rigid_connection2D(beam1, beam2, r_OB, frame_ID1=frame_ID1, frame_ID2=frame_ID2))
+            model.add(junction(beam1, beam2))
 
     # pivots and torsional springs between beam families
             
@@ -286,8 +294,16 @@ if __name__ == "__main__":
         # solver = Scipy_ivp(model, t1, dt, atol=1e-6)
 
     if solveProblem == True:
+        import cProfile, pstats
+        pr = cProfile.Profile()
+        pr.enable()
         sol = solver.solve()
-        save_solution(sol, 'pantograph20times400')
+        pr.disable()
+
+        sortby = 'cumulative'
+        ps = pstats.Stats(pr).sort_stats(sortby)
+        ps.print_stats(0.1) # print only first 10% of the list
+        save_solution(sol, 'PantographicSheet')
     else:
         sol = load_solution('pantograph20times400-2')
 
