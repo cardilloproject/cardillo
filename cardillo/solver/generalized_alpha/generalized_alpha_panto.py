@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.sparse.linalg import spsolve 
-from scipy.sparse import csc_matrix, bmat
+from scipy.sparse import csc_matrix, bmat, identity
 from tqdm import tqdm
 
 from cardillo.math import Numerical_derivative
@@ -54,12 +54,18 @@ class Generalized_alpha_index3_panto():
         self.uk = model.u0
         self.la_gk = model.la_g0
 
-        M0 = model.M(t0, model.q0).tocsr()
+        self.M0 = M0 = model.M(t0, model.q0)
         rhs0 = self.model.h(t0, model.q0, model.u0) + self.model.W_g(t0, model.q0) @ model.la_g0
-        self.ak = spsolve(M0, rhs0)
+        self.ak = spsolve(M0.tocsr(), rhs0)
         self.a_bark = self.ak.copy()
         
         self.__R_gen = self.__R_gen_analytic
+
+        # evaluate quantities at previous time step
+        # self.q_a = dt**2 * self.beta * self.alpha_ratio * self.model.B(self.tk, self.qk, scipy_matrix=csc_matrix)
+        # self.q_a = dt**2 * self.beta * self.alpha_ratio * identity(self.model.nq) 
+        self.q_a = dt**2 * self.beta * self.alpha_ratio * identity(self.model.nq) 
+        self.u_a = dt * self.gamma * self.alpha_ratio 
 
     def update(self, ak1, store=False):
         """update dependent variables modifed version of Capobianco2019 (17):
@@ -74,7 +80,7 @@ class Generalized_alpha_index3_panto():
         a_beta = (0.5 - self.beta) * self.a_bark + self.beta * a_bark1
         if store:
             self.a_bark = a_bark1
-        qk1 = self.qk + dt * self.model.q_dot(self.tk, self.qk, self.uk) + dt2 * self.model.q_ddot(self.tk, self.qk, self.uk, a_beta)
+        qk1 = self.qk + dt * self.uk + dt2 * a_beta
         return qk1, uk1
 
     def pack(self, a, la_g):
@@ -109,7 +115,8 @@ class Generalized_alpha_index3_panto():
         qk1, uk1 = self.update(ak1)
 
         # evaluate mass matrix and constraint force directions and rhs
-        Mk1 = self.model.M(tk1, qk1)
+        # Mk1 = self.model.M(tk1, qk1)
+        Mk1 = self.M0
         W_gk1 = self.model.W_g(tk1, qk1)
         
         ###################
@@ -131,16 +138,17 @@ class Generalized_alpha_index3_panto():
         Wla_g_q = self.model.Wla_g_q(tk1, qk1, la_gk1, scipy_matrix=csc_matrix)
         rhs_q = - ( self.model.h_q(tk1, qk1, uk1) + Wla_g_q )
         rhs_u = -self.model.h_u(tk1, qk1, uk1)
-        rhs_a = rhs_q @ self.q_a + rhs_u * self.u_a
-        Ma_a = self.model.Mu_q(tk1, qk1, ak1, scipy_matrix=csc_matrix) @ self.q_a + rhs_a
+        # rhs_a = rhs_q @ self.q_a + rhs_u * self.u_a
+        # Ma_a = self.model.Mu_q(tk1, qk1, ak1, scipy_matrix=csc_matrix) @ self.q_a + rhs_a
 
-        Ra_a = Mk1 + Ma_a
+        Ra_a = Mk1 + rhs_q @ self.q_a + rhs_u * self.u_a
         Ra_la_g = -W_gk1
 
         #########################################
         # R[nu:nu+nla_g] = self.model.g(tk1, qk1)
         #########################################
-        Rla_g_a = self.model.g_q(tk1, qk1) @ self.q_a
+        # Rla_g_a = self.model.g_q(tk1, qk1) @ self.q_a
+        Rla_g_a = W_gk1.T @ self.q_a
         Rla_g_la_g = None
         
         # sparse assemble global tangent matrix
@@ -206,9 +214,7 @@ class Generalized_alpha_index3_panto():
 
         pbar = tqdm(np.arange(self.t0, self.t1, self.dt))
         for _ in pbar:
-            # evaluate quantities at previous time step
-            self.q_a = dt2 * self.beta * self.alpha_ratio * self.model.B(self.tk, self.qk, scipy_matrix=csc_matrix)
-            self.u_a = dt * self.gamma * self.alpha_ratio
+            
 
             # initial guess for Newton-Raphson solver and time step
             tk1 = self.tk + self.dt
