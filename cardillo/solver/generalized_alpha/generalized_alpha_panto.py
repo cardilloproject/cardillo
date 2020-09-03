@@ -109,9 +109,9 @@ class Generalized_alpha_index3_panto():
         # R[:nu] = Mk1 @ ak1 -( self.model.h(tk1, qk1, uk1) + W_gk1 @ la_gk1 + W_gammak1 @ la_gammak1 )
         ###############################################################################################
         rhs_q = self.model.h_q(tk1, qk1, uk1, scipy_matrix=csr_matrix) + self.model.Wla_g_q(tk1, qk1, la_gk1, scipy_matrix=csr_matrix)
-        rhs_u = -self.model.h_u(tk1, qk1, uk1, scipy_matrix=csr_matrix)
+        rhs_u = self.model.h_u(tk1, qk1, uk1)
 
-        Ra_a = self.M0 - rhs_q @ self.q_a + rhs_u * self.u_a
+        Ra_a = self.M0 - rhs_q @ self.q_a - self.u_a * rhs_u
         Ra_la_g = -W_gk1
 
         #########################################
