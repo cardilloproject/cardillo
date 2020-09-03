@@ -238,8 +238,8 @@ def B_spline_basis2D(degrees, derivative_order, knot_vectors, knots):
                     # NN[2][i, a, 1, 0] = NN[2][i, a, 0, 1]
                     NN[i, a, 3] = Nxi[2, ik, a_xi] * Neta[0, il, a_eta]
                     NN[i, a, 4] = Nxi[1, ik, a_xi] * Neta[1, il, a_eta]
-                    NN[i, a, 5] = Nxi[0, ik, a_xi] * Neta[2, il, a_eta]
-                    NN[i, a, 6] = NN[i, a, 4]
+                    NN[i, a, 5] = NN[i, a, 4]
+                    NN[i, a, 6] = Nxi[0, ik, a_xi] * Neta[2, il, a_eta]
 
     return NN
     
