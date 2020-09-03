@@ -10,15 +10,15 @@ from cardillo.model.rigid_body import Rigid_body_euler, Rigid_body_quaternion, R
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints.implicit import Revolute_joint, Spherical_joint, Spherical_joint2D, Rigid_connection, Rigid_connection2D
 from cardillo.model.force import Force
-from cardillo.solver import Moreau, Moreau_sym, Euler_backward, Generalized_alpha_1, Scipy_ivp, Generalized_alpha_2, Generalized_alpha_3
+from cardillo.solver import Moreau, Moreau_sym, Euler_backward, Generalized_alpha_1, Scipy_ivp, Generalized_alpha_2, Generalized_alpha_3, Generalized_alpha_4_index3, Generalized_alpha_4_index1
 
 
 if __name__ == "__main__":
 
-    # rigid_body = 'Euler'
+    rigid_body = 'Euler'
     # rigid_body = 'Quaternion'
     # rigid_body = 'Quaternion_connected'
-    rigid_body = 'Director'
+    # rigid_body = 'Director'
     # rigid_body = 'Director_connected'
     # rigid_body = 'Rigid_body2D'
     # rigid_body = 'Rigid_body2D_connected'
@@ -190,7 +190,9 @@ if __name__ == "__main__":
     # solver = Moreau(model, t1, dt)
     # solver = Generalized_alpha_1(model, t1, variable_dt=True, rtol=0, atol=2.5e-2, rho_inf=1, numerical_jacobian=False, debug=False)
     # solver = Generalized_alpha_2(model, t1, dt, rho_inf=1)
-    solver = Generalized_alpha_3(model, t1, dt, rho_inf=1, numerical_jacobian=False, debug=False)
+    # solver = Generalized_alpha_3(model, t1, dt, rho_inf=1, numerical_jacobian=False, debug=False)
+    solver = Generalized_alpha_4_index3(model, t1, dt, rho_inf=1)
+    # solver = Generalized_alpha_4_index1(model, t1, dt, rho_inf=1)
 
     # solver = Scipy_ivp(model, t1, dt)
     sol = solver.solve()

@@ -6,7 +6,7 @@ from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints.implicit import Rigid_connection
 from cardillo.model import Model
 from cardillo.solver import Newton
-from cardillo.solver import Euler_backward_singular, Generalized_alpha_4
+from cardillo.solver import Euler_backward_singular, Generalized_alpha_4_singular_index1, Generalized_alpha_4_singular_index3
 from cardillo.model.force import Force
 from cardillo.model.line_force.line_force import Line_force
 from cardillo.math.algebra import e3, ax2skew
@@ -203,8 +203,8 @@ if __name__ == "__main__":
     # nEl = 4 # 1 turn
     # nEl = 16 # 2 turns
     # nEl = 32 # 5 turns
-    # nEl = 64 # 10 turns
-    nEl = 128 # 20 turns
+    nEl = 64 # 10 turns
+    # nEl = 128 # 20 turns
 
     #############################
     # fit reference configuration
@@ -215,9 +215,9 @@ if __name__ == "__main__":
     # turns = 0.5
     # turns = 2
     # turns = 5
-    # turns = 10
-    turns = 20
-    nxi = 1000
+    turns = 10
+    # turns = 20
+    nxi = 10000
 
     xi = np.linspace(0, turns, nxi)
     P, dP, ddP = helix3D(xi, coil_radius, pitch_unloaded)
@@ -288,7 +288,7 @@ if __name__ == "__main__":
     max_iter = 30
     tol = 1.0e-6
 
-    t1 = 1
+    t1 = 2.5e-2
     # dt = 1.0e-2 # beam as static force element implicit Euler
     dt = 5e-3 # full beam dynamics generalized alpha
     # dt = 5e-4 # full beam dynamics generalized alpha
@@ -324,13 +324,22 @@ if __name__ == "__main__":
         # uDOF_algebraic = beam.uDOF # beam as static force element
         # solver = Euler_backward_singular(model, t1, dt, uDOF_algebraic=uDOF_algebraic, numerical_jacobian=False, debug=False, newton_max_iter=20)
 
-        # solver = Generalized_alpha_4(model, t1, dt, rho_inf=0.75, uDOF_algebraic=uDOF_algebraic, newton_tol=1.0e-6, numerical_jacobian=False)
-        solver = Generalized_alpha_4(model, t1, dt, rho_inf=0.5, uDOF_algebraic=uDOF_algebraic, newton_tol=1.0e-6, numerical_jacobian=False)
+        # solver = Generalized_alpha_4_singular_index1(model, t1, dt, rho_inf=0.5, uDOF_algebraic=uDOF_algebraic, newton_tol=1.0e-6, numerical_jacobian=False)
+        solver = Generalized_alpha_4_singular_index3(model, t1, dt, rho_inf=0.5, uDOF_algebraic=uDOF_algebraic, newton_tol=1.0e-6, numerical_jacobian=False)
         
     export_path = f'Wilberforce_pendulum_p{p}_nEL{nEl}_turns{turns}_t1{t1}_dt{dt}_c{c}'
 
     if save:
+        import cProfile, pstats
+        pr = cProfile.Profile()
+        pr.enable()
         sol = solver.solve()
+        pr.disable()
+
+        sortby = 'cumulative'
+        ps = pstats.Stats(pr).sort_stats(sortby)
+        ps.print_stats(0.1) # print only first 10% of the list
+
         sol.save(export_path)
     else:
         sol = load_solution(export_path)

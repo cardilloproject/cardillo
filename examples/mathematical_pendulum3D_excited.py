@@ -12,7 +12,7 @@ from cardillo.model.point_mass import Point_mass
 from cardillo.model.bilateral_constraints.implicit import Rod
 from cardillo.model.frame import Frame
 from cardillo.model.force import Force
-from cardillo.solver import Scipy_ivp, Generalized_alpha_1, Moreau_sym, Euler_backward, Moreau
+from cardillo.solver import Scipy_ivp, Generalized_alpha_1, Moreau_sym, Euler_backward, Moreau, Generalized_alpha_4_index3
 
 class Mathematical_pendulum3D_excited():
     def __init__(self, m, L, e, e_t, e_tt):
@@ -55,7 +55,7 @@ class Mathematical_pendulum3D_excited():
 
 def comparison_mathematical_pendulum3D(t1=1, plot_graphs=True, animate=True, animate_ref=False):
     t0 = 0
-    dt = 1e-4
+    dt = 5e-3
 
     m = 0.1
     L = 0.2
@@ -120,7 +120,8 @@ def comparison_mathematical_pendulum3D(t1=1, plot_graphs=True, animate=True, ani
     # solver = Moreau(model, t1, dt)
     # solver = Generalized_alpha_1(model, t1, dt, rho_inf=1, numerical_jacobian=False, debug=False)
     # solver = Scipy_ivp(model, t1, dt)
-    solver = Scipy_ivp(model, t1, dt, rtol = 1e-6, atol=1.0e-7)
+    # solver = Scipy_ivp(model, t1, dt, rtol = 1e-6, atol=1.0e-7)
+    solver = Generalized_alpha_4_index3(model, t1, dt, rho_inf=0.95)
 
     sol = solver.solve()
     t = sol.t
