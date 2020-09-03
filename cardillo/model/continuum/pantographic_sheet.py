@@ -41,7 +41,7 @@ def strain_measures(F, G):
 
     Gamma = asin(e2 @ e1)
 
-    return rho, rho_s, Gamma, theta_s
+    return rho, rho_s, Gamma, theta_s, e1, e2
 
 class Pantographic_sheet():
     def __init__(self, density, material, mesh, Z, z0=None, v0=None, cDOF=[], b=None, fiber_angle=np.pi/4):
@@ -148,13 +148,16 @@ class Pantographic_sheet():
 
             # field data vtk export
             point_data_fields = {
+                #TODO: make strain_measures function calls less redundant
                 "C": lambda F, G: F.T @ F,
                 "J": lambda F, G: np.array([self.determinant(F)]),
-                "W": lambda F, G: self.mat.W(*strain_measures(F, G)),
+                "W": lambda F, G: self.mat.W(*strain_measures(F, G)[:4]),
                 "rho": lambda F, G: strain_measures(F, G)[0],
                 "rho_s": lambda F, G: strain_measures(F, G)[1].ravel(),
                 "Gamma": lambda F, G:  np.array([strain_measures(F, G)[2]]),
-                "theta_s": lambda F, G:  strain_measures(F, G)[3].ravel(), #TODO: make function calls less redundant
+                "theta_s": lambda F, G:  strain_measures(F, G)[3].ravel(), 
+                "e1": lambda F, G: np.append(strain_measures(F, G)[4], 0),
+                "e2": lambda F, G: np.append(strain_measures(F, G)[5], 0),
             }
 
             for name, fun in point_data_fields.items():
@@ -197,7 +200,7 @@ class Pantographic_sheet():
             dataset.setAttribute('file', filei)
             collection.appendChild(dataset)
 
-            self.post_processing_single_configuration(ti, qi, filei, binary=binary)
+            self.post_processing_single_configuration(ti, qi, filei, binary=True)
 
         # write pvd file        
         xml_str = root.toprettyxml(indent ="\t")          
@@ -482,3 +485,112 @@ class Pantographic_sheet():
 
     def force_distr3D_q(self, t, q, coo, force):
         pass
+
+
+
+def test_gradients():
+    # this test compares the deformation gradients F and G for the analytical and the discretized formulation of a deformed body
+
+    from cardillo.discretization.mesh2D import Mesh2D, rectangle
+    from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume
+    from cardillo.discretization.indexing import flat2D
+    from cardillo.model.continuum import Maurin2019
+    from cardillo.math.numerical_derivative import Numerical_derivative
+    from cardillo.discretization.indexing import split2D 
+    from cardillo.math.algebra import A_IK_basic_z
+
+
+    QP_shape = (2, 2)
+    degrees = (3, 3)
+    element_shape = (5, 3)
+
+    Xi = Knot_vector(degrees[0], element_shape[0])
+    Eta = Knot_vector(degrees[1], element_shape[1])
+    knot_vectors = (Xi, Eta)
+    
+    mesh = Mesh2D(knot_vectors, QP_shape, derivative_order=2, basis='B-spline', nq_n=2)
+
+    # reference configuration is a cube
+    alpha0 = np.pi / 2
+    R = 0.1
+    B = 1
+    # L = (R) * alpha0
+    L = 2
+    rectangle_shape = (L, B)
+    Z = rectangle(rectangle_shape, mesh, Greville=True)
+    
+
+    # material model
+    K_rho = 1.34e5
+    K_Gamma = 1.59e2
+    K_Theta_s = 1.92e-2
+    gamma = 1.36
+    mat = Maurin2019(K_rho, K_Gamma, K_Theta_s, gamma)
+
+    # 3D continuum
+    continuum = Pantographic_sheet(None, mat, mesh, Z, z0=Z, fiber_angle=0)
+
+    # fit quater circle configuration
+    def kappa(vxi):
+        xi, eta = vxi
+        alpha = (1 - xi) * alpha0
+        x = (R + B * eta) * np.cos(alpha)
+        y = (R + B * eta) * np.sin(alpha)
+        return np.array([x, y])
+
+    A = np.array([[L, 0], [0, B]])
+    rotation = A_IK_basic_z(continuum.fiber_angle)[:2, :2]
+    kappa0 = lambda vxi: rotation @ A @ vxi
+    inv_kappa0 = lambda vX: np.linalg.inv(rotation @ A) @ vX
+    phi = lambda vX: kappa(inv_kappa0(vX))
+    phi_vX_num = lambda vX: Numerical_derivative(phi)._X(vX)
+
+    nxi, neta = 20, 20
+    xi = np.linspace(0, 1, num=nxi)
+    eta = np.linspace(0, 1, num=neta)
+    
+    n2 = nxi * neta
+    knots = np.zeros((n2, 2))
+    Pw = np.zeros((n2, 2))
+    for i, xii in enumerate(xi):
+        for j, etai in enumerate(eta):
+            idx = flat2D(i, j, (nxi, neta))
+            knots[idx] = xii, etai
+            Pw[idx] = kappa(np.array([xii, etai]))
+
+    cDOF = np.array([], dtype=int)
+    qc = np.array([], dtype=float).reshape((0, 3))
+    x, y = fit_B_spline_volume(mesh, knots, Pw, qc, cDOF)
+    z = np.concatenate((x, y))
+
+    # export current configuration and deformation gradient on quadrature points to paraview
+    continuum.post_processing([0], [z], 'test')
+
+    # evaluate deformation gradient at quadrature points
+    F = np.zeros((mesh.nel, mesh.nqp, continuum.dim, continuum.dim))
+    G = np.zeros((mesh.nel, mesh.nqp, continuum.dim, continuum.dim, continuum.dim))
+    F_num = np.zeros((mesh.nel, mesh.nqp, continuum.dim, continuum.dim))
+    G_num = np.zeros((mesh.nel, mesh.nqp, continuum.dim, continuum.dim, continuum.dim))
+    for el in range(mesh.nel):
+        ze = z[mesh.elDOF[el]]
+        el_xi, el_eta = split2D(el, mesh.element_shape)
+        for i in range(mesh.nqp):
+            i_xi, i_eta = split2D(i, mesh.nqp_per_dim)
+            for a in range(mesh.nn_el):
+                # deformation gradients
+                F[el, i] += np.outer(ze[mesh.nodalDOF[a]], continuum.N_Theta[el, i, a]) # Bonet 1997 (7.6b)
+                G[el, i] += np.einsum('i,jk->ijk', ze[mesh.nodalDOF[a]], continuum.N_ThetaTheta[el, i, a]) 
+
+            vxi = np.array([mesh.qp_xi[el_xi, i_xi], mesh.qp_eta[el_eta, i_eta]])
+            vX = kappa0(vxi)
+            F_num[el, i] = phi_vX_num(vX)
+        
+            G_num[el, i] = Numerical_derivative(phi_vX_num)._X(vX)
+
+    print(f"error F: {np.linalg.norm(F-F_num)}")
+    print(f"error G: {np.linalg.norm(G-G_num)}")
+    print("a")
+
+
+if __name__ == "__main__":
+    test_gradients()
