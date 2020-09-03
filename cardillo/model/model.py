@@ -243,11 +243,11 @@ class Model(object):
     def h(self, t, q, u):
         return self.f_pot(t, q) + self.f_npot(t, q, u) - self.f_gyr(t, q, u)
 
-    def h_q(self, t, q, u):
-        return self.f_pot_q(t, q) + self.f_npot_q(t, q, u) - self.f_gyr_q(t, q, u)
+    def h_q(self, t, q, u, scipy_matrix=coo_matrix):
+        return self.f_pot_q(t, q, scipy_matrix=scipy_matrix) + self.f_npot_q(t, q, u, scipy_matrix=scipy_matrix) - self.f_gyr_q(t, q, u, scipy_matrix=scipy_matrix)
 
-    def h_u(self, t, q, u):
-        return self.f_npot_u(t, q, u) - self.f_gyr_u(t, q, u)
+    def h_u(self, t, q, u, scipy_matrix=coo_matrix):
+        return self.f_npot_u(t, q, u, scipy_matrix=scipy_matrix) - self.f_gyr_u(t, q, u, scipy_matrix=scipy_matrix)
 
     #====================
     # kinematic equations

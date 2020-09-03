@@ -30,30 +30,14 @@ class Coo(object):
         if isshape(shape, nonneg=True):
             M, N = shape
             # see https://github.com/scipy/scipy/blob/adc4f4f7bab120ccfab9383aba272954a0a12fb0/scipy/sparse/sputils.py#L267
-            self.__shape = check_shape((M, N))
+            self.shape = check_shape((M, N))
         else:
             raise TypeError('input argument shape cannot be interpreted as correct shape')
         
         # initialice empty lists for row, columns and data
-        self.__row = []
-        self.__col = []
-        self.__data = []
-
-    @property
-    def shape(self):
-        return self.__shape
-
-    @property
-    def row(self):
-        return self.__row
-
-    @property
-    def col(self):
-        return self.__col
-        
-    @property
-    def data(self):
-        return self.__data
+        self.row = []
+        self.col = []
+        self.data = []
 
     def extend(self, matrix, DOF):
         """Extend container with data given in `matrix` and indices stored in the tuple `DOF` containing two arrays.
@@ -65,25 +49,19 @@ class Coo(object):
         DOF : tuple, 2D
             tuple defining the global row and column indices of the dense matrix
         """
-        # TODO: row and column indices can be calculated in the assembler (see old sparse assembler)
-        self.data.extend( matrix.reshape(-1, order='C').tolist() )
-        self.row.extend( repeat(DOF[0], DOF[1].size).tolist() )
-        self.col.extend( tile(DOF[1], DOF[0].size).tolist() )
+        # # TODO: row and column indices can be calculated in the assembler (see old sparse assembler)
+        # self.data.extend( matrix.ravel(order='C').tolist() )
+        # self.row.extend( repeat(DOF[0], DOF[1].size).tolist() )
+        # self.col.extend( tile(DOF[1], DOF[0].size).tolist() )
 
-        # TODO: slow in python
-        # array = matrix.reshape(-1, order='C')
-        # nnz_mask = array != 0
-        # row = repeat(DOF[0], DOF[1].size)
-        # col = tile(DOF[1], DOF[0].size)
-        # self.data.extend( array[nnz_mask].tolist() )
-        # self.row.extend( row[nnz_mask].tolist() )
-        # self.col.extend( col[nnz_mask].tolist() )
-
-        # for i, row_i in enumerate(DOF[0]):
-        #     for j, col_j in enumerate(DOF[1]):
-        #         self.data.append(matrix[i, j])
-        #         self.row.append(row_i)
-        #         self.col.append(col_j)
+        # do not assemble zero elements
+        array = matrix.ravel(order='C')
+        nnz_mask = array.nonzero()[0]
+        row = repeat(DOF[0], DOF[1].size)
+        col = tile(DOF[1], DOF[0].size)
+        self.data.extend( array[nnz_mask].tolist() )
+        self.row.extend( row[nnz_mask].tolist() )
+        self.col.extend( col[nnz_mask].tolist() )
 
     def extend_diag(self, array, DOF):
         """Extend container with diagonal matrix (diagonal elements stored in the input `array` and indices stored in the `DOF` array).

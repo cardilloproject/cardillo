@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.sparse.linalg import spsolve 
-from scipy.sparse import csc_matrix, bmat, identity
+from scipy.sparse import csr_matrix, bmat, identity
 from tqdm import tqdm
 
 from cardillo.math import Numerical_derivative
@@ -62,9 +62,7 @@ class Generalized_alpha_index3_panto():
         self.__R_gen = self.__R_gen_analytic
 
         # evaluate quantities at previous time step
-        # self.q_a = dt**2 * self.beta * self.alpha_ratio * self.model.B(self.tk, self.qk, scipy_matrix=csc_matrix)
-        # self.q_a = dt**2 * self.beta * self.alpha_ratio * identity(self.model.nq) 
-        self.q_a = dt**2 * self.beta * self.alpha_ratio * identity(self.model.nq) 
+        self.q_a = dt**2 * self.beta * self.alpha_ratio * identity(self.model.nq, format='csr') 
         self.u_a = dt * self.gamma * self.alpha_ratio 
 
     def update(self, ak1, store=False):
@@ -82,41 +80,16 @@ class Generalized_alpha_index3_panto():
             self.a_bark = a_bark1
         qk1 = self.qk + dt * self.uk + dt2 * a_beta
         return qk1, uk1
-
-    def pack(self, a, la_g):
-        nu = self.nu
-        nla_g = self.nla_g
-
-        x = np.zeros(self.nR)
-
-        x[:nu] = a
-        x[nu:nu+nla_g] = la_g
-
-        return x
-
-    def unpack(self, x):
-        nu = self.nu
-        nla_g = self.nla_g
-
-        # acceleration
-        a = x[:nu]
-
-        # constraints on position level
-        la_g = x[nu:nu+nla_g]
-
-        return a, la_g
         
     def __R_gen_analytic(self, tk1, xk1):
         nu = self.nu
-        nla_g = self.nla_g
 
         # unpack x and update kinematic variables update dependent variables
-        ak1, la_gk1 = self.unpack(xk1)
+        ak1 = xk1[:nu]
+        la_gk1 = xk1[nu:]
         qk1, uk1 = self.update(ak1)
 
         # evaluate mass matrix and constraint force directions and rhs
-        # Mk1 = self.model.M(tk1, qk1)
-        Mk1 = self.M0
         W_gk1 = self.model.W_g(tk1, qk1)
         
         ###################
@@ -125,55 +98,33 @@ class Generalized_alpha_index3_panto():
         R = np.zeros(self.nR)
 
         # equations of motion
-        R[:nu] = Mk1 @ ak1 -( self.model.h(tk1, qk1, uk1) + W_gk1 @ la_gk1)
+        R[:nu] = self.M0 @ ak1 -( self.model.h(tk1, qk1, uk1) + W_gk1 @ la_gk1)
 
         # constraints on position level
-        R[nu:nu+nla_g] = self.model.g(tk1, qk1)
+        R[nu:] = self.model.g(tk1, qk1)
        
         yield R
 
         ###############################################################################################
         # R[:nu] = Mk1 @ ak1 -( self.model.h(tk1, qk1, uk1) + W_gk1 @ la_gk1 + W_gammak1 @ la_gammak1 )
         ###############################################################################################
-        Wla_g_q = self.model.Wla_g_q(tk1, qk1, la_gk1, scipy_matrix=csc_matrix)
-        rhs_q = - ( self.model.h_q(tk1, qk1, uk1) + Wla_g_q )
-        rhs_u = -self.model.h_u(tk1, qk1, uk1)
-        # rhs_a = rhs_q @ self.q_a + rhs_u * self.u_a
-        # Ma_a = self.model.Mu_q(tk1, qk1, ak1, scipy_matrix=csc_matrix) @ self.q_a + rhs_a
+        rhs_q = self.model.h_q(tk1, qk1, uk1, scipy_matrix=csr_matrix) + self.model.Wla_g_q(tk1, qk1, la_gk1, scipy_matrix=csr_matrix)
+        rhs_u = -self.model.h_u(tk1, qk1, uk1, scipy_matrix=csr_matrix)
 
-        Ra_a = Mk1 + rhs_q @ self.q_a + rhs_u * self.u_a
+        Ra_a = self.M0 - rhs_q @ self.q_a + rhs_u * self.u_a
         Ra_la_g = -W_gk1
 
         #########################################
         # R[nu:nu+nla_g] = self.model.g(tk1, qk1)
         #########################################
-        # Rla_g_a = self.model.g_q(tk1, qk1) @ self.q_a
         Rla_g_a = W_gk1.T @ self.q_a
-        Rla_g_la_g = None
         
         # sparse assemble global tangent matrix
-        R_x =  bmat([ [Ra_a,               Ra_la_g],
-                      [Rla_g_a,         Rla_g_la_g],
-                    ], format='csc')
+        R_x =  bmat([ [Ra_a,    Ra_la_g],
+                      [Rla_g_a,    None],
+                    ], format='csr')
 
         yield R_x
-
-        # R_x_num = self.__R_x_num(tk1, xk1)
-        # diff = R_x.toarray() - R_x_num
-
-        # # diff_error = diff[:nu] #~1.0e-5
-
-        # # diff_error = diff[nu+nla_g:nu+nla_g+nla_gamma]
-
-        # diff_error = diff #~1.0e-5
-        
-        # error = np.max(np.abs(diff_error))
-        # print(f'absolute error R_x = {error}')
-
-        # # error = np.max(np.abs(diff_error)) / np.max(np.abs(R_x_num))
-        # # print(f'relative error R_x = {error}')
-
-        # yield R_x_num
            
     def step(self, tk1, xk1):
         # initial residual and error
@@ -201,9 +152,8 @@ class Generalized_alpha_index3_panto():
 
         return converged, j, error, xk1
 
-    def solve(self): 
-        dt = self.dt
-        dt2 = self.dt**2
+    def solve(self):
+        nu = self.nu
 
         # lists storing output variables
         t = [self.tk]
@@ -214,13 +164,12 @@ class Generalized_alpha_index3_panto():
 
         pbar = tqdm(np.arange(self.t0, self.t1, self.dt))
         for _ in pbar:
-            
-
             # initial guess for Newton-Raphson solver and time step
             tk1 = self.tk + self.dt
-            xk1 = self.pack(self.ak, self.la_gk)
+            xk1 = np.concatenate((self.ak, self.la_gk))
             converged, n_iter, error, xk1 = self.step(tk1, xk1)
-            ak1, la_gk1 = self.unpack(xk1)
+            ak1 = xk1[:nu]
+            la_gk1 = xk1[nu:]
 
             # update progress bar and check convergence
             pbar.set_description(f't: {tk1:0.2e}s < {self.t1:0.2e}s; Newton: {n_iter}/{self.newton_max_iter} iterations; error: {error:0.2e}')
