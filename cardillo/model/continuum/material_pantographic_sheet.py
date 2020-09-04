@@ -41,7 +41,7 @@ class Maurin2019_linear():
         for i in range(2):
             W += 0.5 * self.K_rho * (rho[i] - 1)**2  
             W += 0.5 * self.K_Theta_s * theta_s[i,i]**2  # only s-s derivatives
-        return W + 0.5 * self.K_Gamma * Gamma**2
+        return W + 0.5 * self.K_Gamma * Gamma**2 
 
     def W_rho(self, rho, rho_s, Gamma, theta_s):
         return self.K_rho * (rho - 1)
@@ -67,7 +67,7 @@ class Maurin2019():
         for i in range(2):
             W += 0.5 * self.K_rho * (rho[i] - 1)**2  
             W += 0.5 * self.K_Theta_s * theta_s[i,i]**2 
-        return W + self.K_Gamma * np.abs(Gamma)**self.gamma
+        return W + 0.5 * self.K_Gamma * np.abs(Gamma)**self.gamma
 
     def W_rho(self, rho, rho_s, Gamma, theta_s):
         return self.K_rho * (rho - 1)
@@ -76,10 +76,26 @@ class Maurin2019():
         return np.zeros((2, 2))
 
     def W_Gamma(self, rho, rho_s, Gamma, theta_s):
-        return self.gamma * self.K_Gamma * np.sign(Gamma) * np.abs(Gamma)**(self.gamma - 1)
+        return 0.5 * self.gamma * self.K_Gamma * np.sign(Gamma) * np.abs(Gamma)**(self.gamma - 1)
         
     def W_theta_s(self, rho, rho_s, Gamma, theta_s):
         return self.K_Theta_s * theta_s * np.eye(2) # only s-s derivatives
+
+    # for post processing: axial, bending and shear strain energy density
+    def W_axial(self, rho, rho_s, Gamma, theta_s):
+        W = 0
+        for i in range(2):
+            W += 0.5 * self.K_rho * (rho[i] - 1)**2  
+        return W 
+
+    def W_bending(self, rho, rho_s, Gamma, theta_s):
+        W = 0
+        for i in range(2):
+            W += 0.5 * self.K_Theta_s * theta_s[i,i]**2 
+        return W
+
+    def W_shear(self, rho, rho_s, Gamma, theta_s):
+         return 0.5 * self.K_Gamma * np.abs(Gamma)**self.gamma
 
 # class Maurin2019():
 #     # def __init__(self, gamma, K_eps, K_kap, K_theta):

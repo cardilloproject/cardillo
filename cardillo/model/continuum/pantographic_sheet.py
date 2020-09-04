@@ -158,6 +158,9 @@ class Pantographic_sheet():
                 "theta_s": lambda F, G:  strain_measures(F, G)[3].ravel(), 
                 "e1": lambda F, G: np.append(strain_measures(F, G)[4], 0),
                 "e2": lambda F, G: np.append(strain_measures(F, G)[5], 0),
+                "W_axial": lambda F, G: self.mat.W_axial(*strain_measures(F, G)[:4]),
+                "W_bending": lambda F, G: self.mat.W_bending(*strain_measures(F, G)[:4]),
+                "W_shear": lambda F, G: self.mat.W_shear(*strain_measures(F, G)[:4]),
             }
 
             for name, fun in point_data_fields.items():
@@ -304,33 +307,6 @@ class Pantographic_sheet():
             
             # internal forces
             for a in range(self.nn_el):
-                # # delta rho_alpha
-                # rho1_q = N_Theta[a, 0] * e1
-                # rho2_q = N_Theta[a, 1] * e2
-
-                # # TODO: delta rho_s zero for Maurin2019 material
-
-                # # delta Gamma 
-                # d1_q = np.array([N_Theta[a, 0], N_Theta[a, 0]])   
-                # d2_q = np.array([N_Theta[a, 1], N_Theta[a, 1]])   
-
-                # Gamma_q = ((d1 @ d2_q + d2 @ d1_q) / (rho1 * rho2) 
-                #           - (d1 @ d2) / (rho1 * rho2)**2 * (rho2 * rho1_q + rho1 * rho2_q))
-
-                # # delta theta_s
-                # d1_1_q = np.array([N_ThetaTheta[a, 0, 0], N_ThetaTheta[a, 0, 0]])
-                # d1_2_q = np.array([N_ThetaTheta[a, 0, 1], N_ThetaTheta[a, 0, 1]])
-                # d2_1_q = np.array([N_ThetaTheta[a, 1, 0], N_ThetaTheta[a, 1, 0]])
-                # d2_2_q = np.array([N_ThetaTheta[a, 1, 1], N_ThetaTheta[a, 1, 1]])
-
-                # d1_perp_q = np.array([-N_Theta[a, 0], N_Theta[a, 0]])   
-                # d2_perp_q = np.array([-N_Theta[a, 1], N_Theta[a, 1]]) 
-
-                # theta1_1_q = (d1_1 @ d1_perp_q + d1_perp @ d1_1_q) / rho1**2 + (d1_1 @ d1_perp) / rho1**3 * rho1_q
-                # theta1_2_q = (d1_2 @ d1_perp_q + d1_perp @ d1_2_q) / rho1**2 + (d1_2 @ d1_perp) / rho1**3 * rho1_q
-                
-                # theta2_1_q = (d2_1 @ d2_perp_q + d2_perp @ d2_1_q) / rho2**2 + (d2_1 @ d2_perp) / rho2**3 * rho2_q
-                # theta2_2_q = (d2_2 @ d2_perp_q + d2_perp @ d2_2_q) / rho2**2 + (d2_2 @ d2_perp) / rho2**3 * rho2_q
 
                 d1_q = N_Theta[a, 0]   
                 d2_q = N_Theta[a, 1]
@@ -363,7 +339,6 @@ class Pantographic_sheet():
                 f[self.nodalDOF[a]] -= (W_rho[0] * rho1_q + W_rho[1] * rho2_q
                                         + W_Gamma * Gamma_q
                                         + W_theta_s[0, 0] * theta1_1_q + W_theta_s[0, 1] * theta1_2_q + W_theta_s[1, 0] * theta2_1_q + W_theta_s[1, 1] * theta2_2_q) * w_J0
-                # f[self.nodalDOF[a]] -= (W_rho[0] * rho1_q + W_rho[1] * rho2_q) * w_J0
 
         return f
 
@@ -518,7 +493,6 @@ def test_gradients():
     L = 2
     rectangle_shape = (L, B)
     Z = rectangle(rectangle_shape, mesh, Greville=True)
-    
 
     # material model
     K_rho = 1.34e5
@@ -528,7 +502,7 @@ def test_gradients():
     mat = Maurin2019(K_rho, K_Gamma, K_Theta_s, gamma)
 
     # 3D continuum
-    continuum = Pantographic_sheet(None, mat, mesh, Z, z0=Z, fiber_angle=0)
+    continuum = Pantographic_sheet(None, mat, mesh, Z, z0=Z, fiber_angle=np.pi/4)
 
     # fit quater circle configuration
     def kappa(vxi):
@@ -584,13 +558,170 @@ def test_gradients():
             vxi = np.array([mesh.qp_xi[el_xi, i_xi], mesh.qp_eta[el_eta, i_eta]])
             vX = kappa0(vxi)
             F_num[el, i] = phi_vX_num(vX)
-        
             G_num[el, i] = Numerical_derivative(phi_vX_num)._X(vX)
 
     print(f"error F: {np.linalg.norm(F-F_num)}")
     print(f"error G: {np.linalg.norm(G-G_num)}")
+
+def test_variations():
+    # compare analytical and numerical expressions for rho_q, Gamma_q and theta_s_q
+    from cardillo.math.numerical_derivative import Numerical_derivative
+    from cardillo.discretization.mesh2D import Mesh2D, rectangle
+    from cardillo.model.continuum.pantographic_sheet import Pantographic_sheet
+    from cardillo.discretization.B_spline import Knot_vector
+
+    QP_shape = (2, 2)
+    degrees = (3, 3)
+    element_shape = (1, 1)
+
+    Xi = Knot_vector(degrees[0], element_shape[0])
+    Eta = Knot_vector(degrees[1], element_shape[1])
+    knot_vectors = (Xi, Eta)
+    mesh = Mesh2D(knot_vectors, QP_shape, derivative_order=2, basis='B-spline', nq_n=2)
+
+    Z = rectangle((1, 1), mesh, Greville=True)
+    continuum = Pantographic_sheet(None, None, mesh, Z, z0=Z, fiber_angle=np.pi/4)
+
+    el = 0 # select arbitrary element
+    i = 0 # select arbitrary quadrature point
+    ze = Z[mesh.elDOF[el]] 
+
+    N_Theta = continuum.N_Theta[el, i]
+    N_ThetaTheta = continuum.N_ThetaTheta[el, i]
+
+    def strain_measure_single_point(continuum, ze):
+
+        # first deformation gradient
+        F = np.zeros((continuum.dim, continuum.dim))
+        for a in range(continuum.nn_el):
+            F += np.outer(ze[continuum.nodalDOF[a]], N_Theta[a]) # Bonet 1997 (7.5)
+
+        # second deformation gradient
+        G = np.zeros((continuum.dim, continuum.dim, continuum.dim))
+        for a in range(continuum.nn_el):
+            G += np.einsum('i,jk->ijk', ze[continuum.nodalDOF[a]], N_ThetaTheta[a]) # TODO: reference to Evan's thesis
+
+        # strain measures of pantographic sheet
+        d1 = F[:, 0]
+        d2 = F[:, 1]
+        rho1 = norm2(d1)
+        rho2 = norm2(d2)
+        rho = np.array([rho1, rho2])
+
+        e1 = d1 / rho1
+        e2 = d2 / rho2
+
+        d1_1 = G[:, 0, 0]
+        d1_2 = G[:, 0, 1]
+        d2_1 = G[:, 1, 0]
+        d2_2 = G[:, 1, 1]
+        rho1_1 = d1_1 @ e1
+        rho1_2 = d1_2 @ e1
+        rho2_1 = d2_1 @ e2
+        rho2_2 = d2_2 @ e2
+        rho_s = np.array([[rho1_1, rho1_2],
+                            [rho2_1, rho2_2]])
+
+        d1_perp = np.array([-d1[1], d1[0]])
+        d2_perp = np.array([-d2[1], d2[0]])
+        theta1_1 = d1_1 @ d1_perp / rho1**2
+        theta1_2 = d1_2 @ d1_perp / rho1**2
+        theta2_1 = d2_1 @ d2_perp / rho2**2
+        theta2_2 = d2_2 @ d2_perp / rho2**2
+        theta_s = np.array([[theta1_1, theta1_2],
+                            [theta2_1, theta2_2]])
+
+        Gamma = asin(e2 @ e1)
+
+        return rho, rho_s, Gamma, theta_s
+
+    rho_q_num = Numerical_derivative(lambda t, ze: strain_measure_single_point(continuum, ze)[0])._x(0, ze)
+    Gamma_q_num = Numerical_derivative(lambda t, ze: np.array([strain_measure_single_point(continuum, ze)[2]]))._x(0, ze)
+    theta_s_q_num = Numerical_derivative(lambda t, ze: strain_measure_single_point(continuum, ze)[3])._x(0, ze)
+
+
+    # Analytical derivatives
+
+    # first deformation gradient
+    F = np.zeros((continuum.dim, continuum.dim))
+    for a in range(continuum.nn_el):
+        F += np.outer(ze[continuum.nodalDOF[a]], N_Theta[a]) # Bonet 1997 (7.5)
+
+    # second deformation gradient
+    G = np.zeros((continuum.dim, continuum.dim, continuum.dim))
+    for a in range(continuum.nn_el):
+        G += np.einsum('i,jk->ijk', ze[continuum.nodalDOF[a]], N_ThetaTheta[a]) # TODO: reference to Evan's thesis
+
+    # strain measures of pantographic sheet
+    d1 = F[:, 0]
+    d2 = F[:, 1]
+    rho1 = norm2(d1)
+    rho2 = norm2(d2)
+
+    e1 = d1 / rho1
+    e2 = d2 / rho2
+
+    d1_1 = G[:, 0, 0]
+    d1_2 = G[:, 0, 1]
+    d2_1 = G[:, 1, 0]
+    d2_2 = G[:, 1, 1]
+    rho1_1 = d1_1 @ e1
+    rho1_2 = d1_2 @ e1
+    rho2_1 = d2_1 @ e2
+    rho2_2 = d2_2 @ e2
+
+    d1_perp = np.array([-d1[1], d1[0]])
+    d2_perp = np.array([-d2[1], d2[0]])
+    theta1_1 = d1_1 @ d1_perp / rho1**2
+    theta1_2 = d1_2 @ d1_perp / rho1**2
+    theta2_1 = d2_1 @ d2_perp / rho2**2
+    theta2_2 = d2_2 @ d2_perp / rho2**2
+    theta_s = np.array([[theta1_1, theta1_2],
+                        [theta2_1, theta2_2]])
+
+    rho_q_an = np.zeros((2, mesh.nq_el))
+    Gamma_q_an = np.zeros((1, mesh.nq_el))
+    theta_s_q_an = np.zeros((2, 2, mesh.nq_el))
+    for a in range(continuum.nn_el):
+        d1_q = N_Theta[a, 0]   
+        d2_q = N_Theta[a, 1]
+
+        # delta rho_alpha
+        rho1_q = d1_q * e1
+        rho2_q = d2_q * e2
+
+        # delta Gamma 
+        Gamma_q = ((d1 * d2_q + d2 * d1_q) / (rho1 * rho2) 
+                    - (d1 @ d2) / (rho1 * rho2)**2 * (rho2 * rho1_q + rho1 * rho2_q))
+
+        # delta theta_s
+        d1_1_q = N_ThetaTheta[a, 0, 0]
+        d1_2_q = N_ThetaTheta[a, 0, 1]
+        d2_1_q = N_ThetaTheta[a, 1, 0]
+        d2_2_q = N_ThetaTheta[a, 1, 1]
+
+        d1_perp_q = np.array([[0,-1],[1,0]]) * N_Theta[a, 0]  
+        d2_perp_q = np.array([[0,-1],[1,0]]) * N_Theta[a, 1]
+        
+        theta1_1_q = (d1_1 @ d1_perp_q + d1_perp * d1_1_q) / rho1**2 - (d1_1 @ d1_perp) / rho1**3 * 2 * rho1_q
+        theta1_2_q = (d1_2 @ d1_perp_q + d1_perp * d1_2_q) / rho1**2 - (d1_2 @ d1_perp) / rho1**3 * 2 * rho1_q
+        
+        theta2_1_q = (d2_1 @ d2_perp_q + d2_perp * d2_1_q) / rho2**2 - (d2_1 @ d2_perp) / rho2**3 * 2 * rho2_q
+        theta2_2_q = (d2_2 @ d2_perp_q + d2_perp * d2_2_q) / rho2**2 - (d2_2 @ d2_perp) / rho2**3 * 2 * rho2_q
+
+        rho_q_an[:, mesh.nodalDOF[a]] += np.array([rho1_q, rho2_q])
+        Gamma_q_an[:, mesh.nodalDOF[a]] += Gamma_q
+        theta_s_q_an[:, :, mesh.nodalDOF[a]] += np.array([[theta1_1_q, theta1_2_q],
+                                  [theta2_1_q, theta2_2_q]])
+
+
+    print(f"error rho_q: {np.linalg.norm(rho_q_an - rho_q_num)}")
+    print(f"error Gamma_q: {np.linalg.norm(Gamma_q_an - Gamma_q_num)}")
+    print(f"error theta_a_q: {np.linalg.norm(theta_s_q_an - theta_s_q_num)}")
+
     print("a")
 
 
 if __name__ == "__main__":
-    test_gradients()
+    # test_gradients()
+    test_variations()
