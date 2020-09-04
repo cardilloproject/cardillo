@@ -160,6 +160,9 @@ statics = False
 save = True
 # save = False
 
+profile = True
+# profile = False
+
 import os
 path = os.path.dirname(os.path.abspath(__file__))
 
@@ -195,10 +198,11 @@ if __name__ == "__main__":
     ###########################
     # discretization properties
     ###########################
-    # p = 2
     p = 3
     # nQP = p + 1
-    nQP = int(np.ceil((p**2 + 1) / 2)) + 1 # dynamics
+    # nQP = int(np.ceil((p**2 + 1) / 2)) + 1 # dynamics
+    # nQP = int(np.ceil((p**2 + 1) / 2)) # dynamics
+    nQP = 4
     print(f'nQP: {nQP}')
     # nEl = 4 # 1 turn
     # nEl = 16 # 2 turns
@@ -288,7 +292,7 @@ if __name__ == "__main__":
     max_iter = 30
     tol = 1.0e-6
 
-    t1 = 2.5e-2
+    t1 = 0.5
     # dt = 1.0e-2 # beam as static force element implicit Euler
     dt = 5e-3 # full beam dynamics generalized alpha
     # dt = 5e-4 # full beam dynamics generalized alpha
@@ -330,15 +334,18 @@ if __name__ == "__main__":
     export_path = f'Wilberforce_pendulum_p{p}_nEL{nEl}_turns{turns}_t1{t1}_dt{dt}_c{c}'
 
     if save:
-        import cProfile, pstats
-        pr = cProfile.Profile()
-        pr.enable()
-        sol = solver.solve()
-        pr.disable()
+        if profile:
+            import cProfile, pstats
+            pr = cProfile.Profile()
+            pr.enable()
+            sol = solver.solve()
+            pr.disable()
 
-        sortby = 'cumulative'
-        ps = pstats.Stats(pr).sort_stats(sortby)
-        ps.print_stats(0.1) # print only first 10% of the list
+            sortby = 'cumulative'
+            ps = pstats.Stats(pr).sort_stats(sortby)
+            ps.print_stats(0.1) # print only first 10% of the list
+        else:
+            sol = solver.solve()
 
         sol.save(export_path)
     else:
