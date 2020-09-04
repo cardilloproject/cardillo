@@ -26,7 +26,7 @@ from cardillo.math import Numerical_derivative
 
 
 from cardillo.discretization.B_spline import B_spline_basis1D
-class junction():
+class Junction():
     def __init__(self, beam1, beam2, la_g0=None):
         # rigid connection between to consecutive beams. End of beam1 is connected to start of beam2.
         self.nla_g = 3
@@ -124,7 +124,7 @@ class junction():
         return NN
 
 
-class pivot_w_spring():
+class Pivot_w_spring():
     def __init__(self, beam1, beam2, force_law, la_g0=None):
         # pivot between to consecutive beams. End of beam1 is connected to start of beam2.
         self.nla_g = 2
@@ -178,20 +178,10 @@ class pivot_w_spring():
         if self.force_law.g0 is None:
             self.force_law.g0 = self.delta_theta0
 
-        # # initialize normalized tangent vector and angle
-        # self.ex1 = t0_beam1 / norm2(t0_beam1)
-        # self.ey1 = np.array([-self.ex1[1], self.ex1[0]])
-        # self.theta1 = theta0_beam1
-
-        # self.ex2 = t0_beam2 / norm2(t0_beam2)
-        # self.ey2 = np.array([-self.ex2[1], self.ex2[0]])
-        # self.theta2 = theta0_beam2
-
     def g(self, t, q):
         nq1 = self.nq1
         r_OP1 = self.beam1_N @ q[:nq1]
         r_OP2 = self.beam2_N @ q[nq1:]
-
         return r_OP2 - r_OP1
         
     def g_q_dense(self, t, q):
@@ -231,24 +221,21 @@ class pivot_w_spring():
     def g_spring(self, t, q):
         nq1 = self.nq1
 
-        t_beam1 = self.beam1_N_xi @ q[:nq1]
-        t_beam2 = self.beam2_N_xi @ q[nq1:]
+        T1 = self.beam1_N_xi @ q[:nq1]
+        T2 = self.beam2_N_xi @ q[nq1:]
 
-        theta1 = atan2(t_beam1[1], t_beam1[0])
-        theta2 = atan2(t_beam2[1], t_beam2[0])
+        theta1 = atan2(T1[1], T1[0])
+        theta2 = atan2(T2[1], T2[0])
 
         return theta1 - theta2
 
     def g_spring_q(self, t, q):
         nq1 = self.nq1
-        t_beam1 = self.beam1_N_xi @ q[:nq1]
-        t_beam2 = self.beam2_N_xi @ q[nq1:]
-
-        theta1 = atan2(t_beam1[1], t_beam1[0])
-        theta2 = atan2(t_beam2[1], t_beam2[0])
+        T1 = self.beam1_N_xi @ q[:nq1]
+        T2 = self.beam2_N_xi @ q[nq1:]
         
-        g_q1 = (t_beam1[0] * self.beam1_N_xi[1] - t_beam1[1] * self.beam1_N_xi[0]) / (t_beam1 @ t_beam1)
-        g_q2 = (t_beam2[0] * self.beam2_N_xi[1] - t_beam2[1] * self.beam2_N_xi[0]) / (t_beam2 @ t_beam2)
+        g_q1 = (T1[0] * self.beam1_N_xi[1] - T1[1] * self.beam1_N_xi[0]) / (T1 @ T1)
+        g_q2 = (T2[0] * self.beam2_N_xi[1] - T2[1] * self.beam2_N_xi[0]) / (T2 @ T2)
 
         W = np.hstack([g_q1, -g_q2])
 
@@ -260,11 +247,8 @@ class pivot_w_spring():
 
         # current tangent vector
         nq1 = self.nq1
-        T1 = t_beam1 = self.beam1_N_xi @ q[:nq1]
-        T2 = t_beam2 = self.beam2_N_xi @ q[nq1:]
-
-        nn1 = (t_beam1 @ t_beam1)**2
-        nn2 = (t_beam2 @ t_beam2)**2
+        T1 = self.beam1_N_xi @ q[:nq1]
+        T2 = self.beam2_N_xi @ q[nq1:]
 
         # angle stiffness
         tmp1_1 = np.outer(self.beam1_N_xi[1], self.beam1_N_xi[0]) + np.outer(self.beam1_N_xi[0], self.beam1_N_xi[1])
@@ -274,12 +258,13 @@ class pivot_w_spring():
         tmp2_2 = np.outer(self.beam2_N_xi[0], self.beam2_N_xi[0]) - np.outer(self.beam2_N_xi[1], self.beam2_N_xi[1])
 
         g_qq = np.zeros((self._nq, self._nq))
-        g_qq[:nq1, :nq1] =   ((T1[1]**2 - T1[0]**2) * tmp1_1 + 2 * T1[0] * T1[1] * tmp1_2) / nn1
-        g_qq[nq1:, nq1:] = - ((T2[1]**2 - T2[0]**2) * tmp2_1 + 2 * T2[0] * T2[1] * tmp2_2) / nn2
+        g_qq[:nq1, :nq1] =   ((T1[1]**2 - T1[0]**2) * tmp1_1 + 2 * T1[0] * T1[1] * tmp1_2) / (T1 @ T1)**2
+        g_qq[nq1:, nq1:] = - ((T2[1]**2 - T2[0]**2) * tmp2_1 + 2 * T2[0] * T2[1] * tmp2_2) / (T2 @ T2)**2
    
         W = self.g_spring_q(t, q)
 
-        dense = - g_qq * self.force_law.pot_g(t, self.g_spring(t,q)) - self.force_law.pot_gg(t, self.g_spring(t,q)) * np.outer(W, W)
+        dense = - g_qq * self.force_law.pot_g(t, self.g_spring(t,q)) \
+            - self.force_law.pot_gg(t, self.g_spring(t,q)) * np.outer(W, W)
                     
         coo.extend(dense, (self.uDOF, self.qDOF))
 
@@ -287,7 +272,7 @@ class pivot_w_spring():
 # import Rigid_beam_beam_connection2D as junction
 
 if __name__ == "__main__":
-    statics = True
+    statics = False
     solveProblem = True
     
     t1 = 5e-2 / 10
@@ -335,7 +320,7 @@ if __name__ == "__main__":
     displacementY_l = 0.0
     rotationZ_l = 0 #-np.pi/10
 
-    displacementX_r = 0.0567/2
+    displacementX_r = 0 #0.0567/2
     # displacementX = 0.02
     displacementY_r = 0.00
     
@@ -469,13 +454,13 @@ if __name__ == "__main__":
             beam2 = beams[ID_mat[brow + 1, bcol + 1]]
             r_OB = beam1.r_OP(0, beam1.q0[beam1.qDOF_P(frame_ID1)], frame_ID1)
             # model.add(Rigid_connection2D(beam1, beam2, r_OB, frame_ID1=frame_ID1, frame_ID2=frame_ID2))
-            model.add(junction(beam1, beam2))
+            model.add(Junction(beam1, beam2))
 
             beam1 = beams[ID_mat[brow + 1, bcol]]
             beam2 = beams[ID_mat[brow, bcol + 1]]
             r_OB = beam1.r_OP(0, beam1.q0[beam1.qDOF_P(frame_ID1)], frame_ID1)
             # model.add(Rigid_connection2D(beam1, beam2, r_OB, frame_ID1=frame_ID1, frame_ID2=frame_ID2))
-            model.add(junction(beam1, beam2))
+            model.add(Junction(beam1, beam2))
 
     # even columns
     for bcol in range(1, nCol - 1, 2):
@@ -484,13 +469,13 @@ if __name__ == "__main__":
             beam2 = beams[ID_mat[brow + 1, bcol + 1]]
             r_OB = beam1.r_OP(0, beam1.q0[beam1.qDOF_P(frame_ID1)], frame_ID1)
             # model.add(Rigid_connection2D(beam1, beam2, r_OB, frame_ID1=frame_ID1, frame_ID2=frame_ID2))
-            model.add(junction(beam1, beam2))
+            model.add(Junction(beam1, beam2))
 
             beam1 = beams[ID_mat[brow + 1, bcol]]
             beam2 = beams[ID_mat[brow, bcol + 1]]
             r_OB = beam1.r_OP(0, beam1.q0[beam1.qDOF_P(frame_ID1)], frame_ID1)
             # model.add(Rigid_connection2D(beam1, beam2, r_OB, frame_ID1=frame_ID1, frame_ID2=frame_ID2))
-            model.add(junction(beam1, beam2))
+            model.add(Junction(beam1, beam2))
 
     # pivots and torsional springs between beam families
             
@@ -503,7 +488,7 @@ if __name__ == "__main__":
             # model.add(Revolute_joint2D(beam1, beam2, r_OB, np.eye(3), frame_ID1=frame_ID1, frame_ID2=frame_ID2))
             spring = Linear_spring(GI)
             # model.add(add_rotational_forcelaw(spring, Revolute_joint2D)(beam1, beam2, r_OB, np.eye(3), frame_ID1=frame_ID1, frame_ID2=frame_ID2))
-            model.add(pivot_w_spring(beam1, beam2, spring))
+            model.add(Pivot_w_spring(beam1, beam2, spring))
 
     # lower boundary pivots
     for bcol in range(1, nCol - 1, 2):
@@ -513,7 +498,7 @@ if __name__ == "__main__":
         # model.add(Revolute_joint2D(beam1, beam2, r_OB, np.eye(3), frame_ID1=frame_ID1, frame_ID2=frame_ID2))
         spring = Linear_spring(GI)
         # model.add(add_rotational_forcelaw(spring, Revolute_joint2D)(beam1, beam2, r_OB, np.eye(3), frame_ID1=frame_ID1, frame_ID2=frame_ID2))
-        model.add(pivot_w_spring(beam1, beam2, spring))
+        model.add(Pivot_w_spring(beam1, beam2, spring))
 
     # clamping at the left hand side
     frame_l = Frame(r_OP=r_OP_l, A_IK=A_IK_l)
