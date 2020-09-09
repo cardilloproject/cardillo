@@ -1,12 +1,11 @@
 from cardillo.model.classical_beams.spatial import Hooke_quadratic
-from cardillo.model.classical_beams.spatial import Timoshenko_director_dirac
-from cardillo.model.classical_beams.spatial import Timoshenko_director_integral, Euler_Bernoulli_director_integral, Inextensible_Euler_Bernoulli_director_integral
+from cardillo.model.classical_beams.spatial import Timoshenko_director_integral
 from cardillo.discretization.B_spline import fit_B_Spline
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints.implicit import Rigid_connection
 from cardillo.model import Model
 from cardillo.solver import Newton
-from cardillo.solver import Euler_backward_singular, Generalized_alpha_4_singular_index1, Generalized_alpha_4_singular_index3
+from cardillo.solver import Generalized_alpha_4_singular_index3
 from cardillo.model.force import Force
 from cardillo.model.line_force.line_force import Line_force
 from cardillo.math.algebra import e3, ax2skew
@@ -16,75 +15,79 @@ from cardillo.solver.solution import load_solution
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import numpy as np
+import pandas as pd
 
-c = 8.0e-3 # eccentricity
+import os
+path = os.path.dirname(os.path.abspath(__file__))
 
-# TODO: this inertia tensor is not w.r.t. the center of mass! (maybe set screw centered in this example)
-def cylinder():
+c = 9.0e-3 # eccentricity
+
+def cylinder(R, h):
     rho = 7850 # [kg / m^3]; steel
     R = 18e-3 # radius
-    # L = 50e-3 # height
-    L = 49e-3 # height; fixed in order to get same weight as measured
-    e = 10e-3 # eccentricity
-    V = np.pi * R**2 * L # volume
+    h = 50e-3 # height
+    V = np.pi * R**2 * h # volume
     m = V * rho # mass
 
-    I11 = I22 = (1/4) * m * R**2 + (1/12) * m * L**2
-    I33 = 0.5 * m * R**2
+    I11 = I22 = (1/4) * m * R**2 + (1/12) * m * h**2
+    I33 = (1/2) * m * R**2
     Theta_S = np.diag([I11, I22, I33]) # intertia tensor
-    r = np.array([0, 0, -e])
-    r_tilde = ax2skew(r)
-    Theta_Steiner = m * r_tilde.T @ r_tilde # Steiner part
-    Theta = Theta_S + Theta_Steiner
+    return m, Theta_S
 
-    return m, Theta
-
-def disc(a, coil_radius):
+def discs(a, R):
     rho = 7850 # [kg / m^3]; steel
-    # rho = 2698.9 # [kg / m^3]; aluminum
     b = 5.925e-3 # height
-    # # c = 3.0e-3 # eccentricity (best results for n=20, nEl=128)
-    # c = 4.0e-3 # eccentricity
-    V = np.pi * (a / 2)**2 * b # volume
-    m = V * rho # mass inner disc
-
-    I11 = 0.5 * m * (a/2)**2
-    I22 = I33 = (1/4) * m * (a/2)**2 + (1/12) * m * b**2
-    Theta_S13 = np.diag([I11, I22, I33]) # intertia tensor
-    Theta_S24 = np.diag([I22, I11, I33]) # intertia tensor ( rotated with pi/2 around d3)
-    r_13 = np.array([coil_radius + c, 0, 0])
-    r_24 = np.array([0, coil_radius + c, 0])
-    r_13_tilde = ax2skew(r_13)
-    r_24_tilde = ax2skew(r_24)
-    Theta_Steiner = m * ( 2 * r_13_tilde.T @ r_13_tilde + 2 * r_24_tilde.T @ r_24_tilde ) # Steiner part
-    Theta = 2 * Theta_S13 + 2 * Theta_S24 + Theta_Steiner
-    return 4 * m, Theta
-
-def screw(coil_radius):
-    rho = 7850 # [kg / m^3]; steel
-    R = 18e-3 # radius central cylinder
-    d = 5.01e-3
-    l = 33e-3
-    V = np.pi * (d/2)**2 * l # volume
+    r = a / 2
+    r2 = r**2
+    V = np.pi * b * r2 # volume
     m = V * rho # mass
 
-    I11 = 0.5 * m * (d/2)**2
-    I22 = I33 = (1/4) * m * (d/2)**2 + (1/12) * m * l**2
+    I11 = 0.5 * m * r2
+    I22 = I33 = (1/4) * m * r2 + (1/12) * m * b**2
+
     Theta_S13 = np.diag([I11, I22, I33]) # intertia tensor
     Theta_S24 = np.diag([I22, I11, I33]) # intertia tensor ( rotated with pi/2 around d3)
-    r_13 = np.array([coil_radius + l/2, 0, 0])
-    r_24 = np.array([0, coil_radius + l/2, 0])
+
+    r13 = np.array([R + c, 0, 0])
+    r24 = np.array([0, R + c, 0])
+    r13_tilde = ax2skew(r13)
+    r24_tilde = ax2skew(r24)
+    Theta_Steiner = m * ( 2 * r13_tilde.T @ r13_tilde + 2 * r24_tilde.T @ r24_tilde ) # Steiner part
+
+    Theta_S = 2 * Theta_S13 + 2 * Theta_S24 + Theta_Steiner
+    
+    return 4 * m, Theta_S
+
+def screws(R):
+    rho = 7850 # [kg / m^3]; steel
+    d = 5e-3 # diameter of the skrew
+    r = d / 2
+    r2 = r**2
+    l = 33e-3 # length of the skrew
+    V = np.pi * r2 * l # volume
+    m = V * rho # mass
+
+    I11 = 0.5 * m * r2
+    I22 = I33 = (1/4) * m * r2 + (1/12) * m * l**2
+
+    Theta_S13 = np.diag([I11, I22, I33]) # intertia tensor
+    Theta_S24 = np.diag([I22, I11, I33]) # intertia tensor ( rotated with pi/2 around d3)
+
+    r_13 = np.array([R + l/2, 0, 0])
+    r_24 = np.array([0, R + l/2, 0])
     r_13_tilde = ax2skew(r_13)
     r_24_tilde = ax2skew(r_24)
-    Theta_Steiner = m * ( 2 * r_13_tilde.T @ r_13_tilde + 2 * r_24_tilde.T @ r_24_tilde ) # Steiner part
-    Theta = 2 * Theta_S13 + 2 * Theta_S24 + Theta_Steiner
-    return 4 * m, Theta
 
-def Wilberforce_bob(coil_radius, debug=True):
+    Theta_Steiner = m * ( 2 * r_13_tilde.T @ r_13_tilde + 2 * r_24_tilde.T @ r_24_tilde ) # Steiner part
+    Theta_S = 2 * Theta_S13 + 2 * Theta_S24 + Theta_Steiner
+
+    return 4 * m, Theta_S
+
+def Wilberforce_bob(R, h, debug=True):
     ##########
     # cylinder
     ##########
-    m1, Theta1 = cylinder()
+    m1, Theta1_S = cylinder(R, h)
     if debug:
         print(f'mass cylinder = {m1};')
         # print(f'inertia cylinder =\n{Theta1}')
@@ -92,7 +95,7 @@ def Wilberforce_bob(coil_radius, debug=True):
     ###########
     # 4 screw's
     ###########
-    m2, Theta2 = screw(coil_radius)
+    m2, Theta2_S = screws(R)
     if debug:
         print(f"mass 4 screw's = {m2}")
         # print(f"inertia 4 screw's  =\n{Theta2}")
@@ -106,18 +109,18 @@ def Wilberforce_bob(coil_radius, debug=True):
     ##########
     # 4 disc's
     ##########
-    a1 = 5e-3 # radius
-    a2 = 19e-3 # radius
-    m3_1, Theta3_1 = disc(a1, coil_radius)
-    m3_2, Theta3_2 = disc(a2, coil_radius)
-    m3 = m3_2 - m3_1
-    Theta3 = Theta3_2 - Theta3_1
+    a = 19e-3 # outer radius
+    d = 5e-3 # inner radius
+    m3_outer, Theta3_outer_S = discs(a, R)
+    m3_inner, Theta3_inner_S = discs(d, R)
+    m3 = m3_outer - m3_inner
+    Theta3_S = Theta3_outer_S - Theta3_inner_S
     if debug:
         print(f"mass 4 disc's = {m3}; measured mass = {0.049}; error = {np.abs(m3 - 0.049) / 0.049}")
         # print(f"inertia 4 disc's =\n{Theta3}")
 
     m = m1 + m2 + m3
-    Theta = Theta1 + Theta2 + Theta3
+    Theta = Theta1_S + Theta2_S + Theta3_S
 
     if debug:
         print(f'total mass = {m}')
@@ -149,11 +152,6 @@ def helix3D(t, r, c, plane='xyz'):
 
     return P, dP, ddP
 
-# Beam = Timoshenko_director_dirac
-Beam = Timoshenko_director_integral
-# Beam = Euler_Bernoulli_director_integral
-# Beam = Inextensible_Euler_Bernoulli_director_integral
-
 # statics = True
 statics = False
 
@@ -169,7 +167,7 @@ if __name__ == "__main__":
     ################################################################################################
     # see https://de.wikipedia.org/wiki/Fl%C3%A4chentr%C3%A4gheitsmoment#Beispiele
     d = 1e-3 # 1mm cross sectional diameter
-    r = d / 2  # cross sectional radius
+    r = wire_radius = d / 2  # cross sectional radius
     A = np.pi * r**2
     I2 = I3 = (np.pi / 4) * r**4
     Ip = I2 + I3
@@ -195,9 +193,7 @@ if __name__ == "__main__":
     ###########################
     # discretization properties
     ###########################
-    # p = 2
     p = 3
-    # nQP = p + 1
     nQP = int(np.ceil((p**2 + 1) / 2)) + 1 # dynamics
     print(f'nQP: {nQP}')
     # nEl = 4 # 1 turn
@@ -219,10 +215,10 @@ if __name__ == "__main__":
     # turns = 20
     nxi = 10000
 
+    # evaluate helixa at discrete points
     xi = np.linspace(0, turns, nxi)
     P, dP, ddP = helix3D(xi, coil_radius, pitch_unloaded)
-    # Q = beam_reference_configuration(P, dP, ddP, p, nEl)
-    # # Q = beam_reference_configuration(P, dP, ddP, p, nEl, debug=True)
+    
     # compute directors using Serret-Frenet frame
     d1 = (dP.T / np.linalg.norm(dP, axis=-1)).T
     d2 = (ddP.T / np.linalg.norm(ddP, axis=-1)).T
@@ -233,40 +229,11 @@ if __name__ == "__main__":
     qd1 = fit_B_Spline(d1, p, nEl)
     qd2 = fit_B_Spline(d2, p, nEl)
     qd3 = fit_B_Spline(d3, p, nEl)
-
-    # ###############################
-    # # debug reference configuration
-    # ###############################
-    # fig = plt.figure()
-    # ax = fig.add_subplot(111, projection='3d')
-    
-    # ax.set_xlabel('x [m]')
-    # ax.set_ylabel('y [m]')
-    # ax.set_zlabel('z [m]')
-    # scale = 1.1 * coil_radius
-    # ax.set_xlim3d(left=-scale, right=scale)
-    # ax.set_ylim3d(bottom=-scale, top=scale)
-    # ax.set_zlim3d(bottom=-scale, top=scale)
-
-    # # ax.plot(*P.T, '-k')
-    # length = 1.0e-3
-    # # ax.quiver(*P.T, *d1.T, color='red', length=length, label='D1')
-    # # ax.quiver(*P.T, *d2.T, color='green', length=length, label='D2')
-    # # ax.quiver(*P.T, *d3.T, color='blue', length=length, label='D3')
-
-    # ax.plot(*qr0.T, '--ob')
-    # ax.quiver(*qr0.T, *qd1.T, color='red', length=length, label='D1_1')
-    # ax.quiver(*qr0.T, *qd2.T, color='green', length=length, label='D2_1')
-    # ax.quiver(*qr0.T, *qd3.T, color='blue', length=length, label='D3_1')
-
-    # plt.show()
-    # exit()
-
     Q = np.concatenate((qr0.T.reshape(-1), qd1.T.reshape(-1), qd2.T.reshape(-1), qd3.T.reshape(-1)))
 
-    ########################
-    # junction at the origin
-    ########################
+    ##############################
+    # junction at upper spring end
+    ##############################
     r_OB1 = P[-1]
     A_IK1 = np.vstack((d1[-1], d2[-1], d3[-1])).T
     frame = Frame(r_OP=r_OB1, A_IK=A_IK1)
@@ -274,12 +241,13 @@ if __name__ == "__main__":
     ############
     # rigid body
     ############
-    # TODO: which Theta is calculated here?
-    m, Theta = Wilberforce_bob(coil_radius, debug=True)
+    R = 18e-3 # radius of the main cylinder
+    h = 50e-3 # height of the main cylinder
+    m, Theta = Wilberforce_bob(R, h, debug=True)
     q0 = np.zeros(6)
-    q0[2] = -49e-3 / 2 # center of mass is shifted!
+    q0[2] = -h / 2 - wire_radius # center of mass is shifted!
     u0 = np.zeros(6)
-    bob = Rigid_body_euler(m , Theta, q0=q0, u0=u0)
+    bob = Rigid_body_euler(m, Theta, q0=q0, u0=u0)
     
     ###################
     # solver parameters
@@ -288,12 +256,11 @@ if __name__ == "__main__":
     max_iter = 30
     tol = 1.0e-6
 
-    t1 = 2.5e-2
-    # dt = 1.0e-2 # beam as static force element implicit Euler
-    dt = 5e-3 # full beam dynamics generalized alpha
-    # dt = 5e-4 # full beam dynamics generalized alpha
+    # t1 = 10
+    t1 = 5
+    dt = 1e-3 # full beam dynamics generalized alpha
 
-    beam = Beam(material_model, A_rho0, B_rho0, C_rho0, p, nQP, nEl, q0=Q, Q=Q)
+    beam = Timoshenko_director_integral(material_model, A_rho0, B_rho0, C_rho0, p, nQP, nEl, q0=Q, Q=Q)
 
     model = Model()
 
@@ -322,30 +289,34 @@ if __name__ == "__main__":
         uDOF_algebraic = beam.uDOF[tmp:2*tmp] # include whole beam dynamics
         # uDOF_algebraic = beam.uDOF[tmp:4*tmp] # exclude centerline beam dynamics
         # uDOF_algebraic = beam.uDOF # beam as static force element
-        # solver = Euler_backward_singular(model, t1, dt, uDOF_algebraic=uDOF_algebraic, numerical_jacobian=False, debug=False, newton_max_iter=20)
-
-        # solver = Generalized_alpha_4_singular_index1(model, t1, dt, rho_inf=0.5, uDOF_algebraic=uDOF_algebraic, newton_tol=1.0e-6, numerical_jacobian=False)
         solver = Generalized_alpha_4_singular_index3(model, t1, dt, rho_inf=0.5, uDOF_algebraic=uDOF_algebraic, newton_tol=1.0e-6, numerical_jacobian=False)
         
     export_path = f'Wilberforce_pendulum_p{p}_nEL{nEl}_turns{turns}_t1{t1}_dt{dt}_c{c}'
 
     if save:
-        import cProfile, pstats
-        pr = cProfile.Profile()
-        pr.enable()
         sol = solver.solve()
-        pr.disable()
-
-        sortby = 'cumulative'
-        ps = pstats.Stats(pr).sort_stats(sortby)
-        ps.print_stats(0.1) # print only first 10% of the list
-
         sol.save(export_path)
     else:
         sol = load_solution(export_path)
 
-    t = sol.t
-    q = sol.q
+    ##################
+    # export less data
+    ##################
+    frac = 20
+    t = sol.t[::frac]
+    q = sol.q[::frac]
+
+    ##################################
+    # export bob deflection and angles
+    ##################################
+    r = q[:, bob.qDOF[:3]]
+    angles = q[:, bob.qDOF[3:]] * 180 / np.pi
+    data = np.hstack((r, angles))
+    
+    columns = ['x', 'y', 'z', 'alpha', 'beta', 'gamma']
+    frame = pd.DataFrame(data=data, index=t, columns=columns)
+    frame = frame.rename_axis(index='t')
+    frame.to_csv(os.path.join(path, f'../bob_position_angles.csv'))
 
     ########################
     # compute tip deflection
@@ -354,12 +325,39 @@ if __name__ == "__main__":
     dr = []
     for i, qi in enumerate(sol.q):
         dr.append( beam.centerline(qi)[:, -1] - r0)
-        # dr.append( qi[beam.qDOF].reshape(12, -1)[:3, -1] - r0)
     dr = np.array(dr).T
 
-    #####################################
-    # TODO: export solution for each beam
-    #####################################
+    ###################################
+    # export data for Blender animation
+    ###################################
+    nt = len(t)
+    n_points = 1000
+    r = np.zeros((nt, 3, n_points))
+    d1 = np.zeros((nt, 3, n_points))
+    d2 = np.zeros((nt, 3, n_points))
+    d3 = np.zeros((nt, 3, n_points))
+    bob_r = np.zeros((nt, 3))
+    bob_R = np.zeros((nt, 3, 3))
+    for i, (ti, qi) in enumerate(zip(t, q)):
+        r[i], d1[i], d2[i], d3[i] = beam.frames(qi, n_points)
+
+        bob_r[i] = bob.r_OP(ti, qi[bob.qDOF])
+        bob_R[i] = bob.A_IK(ti, qi[bob.qDOF])
+
+    data = {'t': t,
+            'dt': dt,
+            'r': r.transpose(0, 2, 1),
+            'R': np.array((d1, d2, d3)).transpose(1, 3, 0, 2),
+            'radius': wire_radius,
+            'bob_r': bob_r,
+            'bob_R': bob_R,
+            }
+    export_path = os.path.join(path, '../Wilberforce_pendulum.npy')
+    np.save(export_path, data, allow_pickle=True)
+
+    #########
+    # animate
+    #########
     # fig = plt.figure()
     fig = plt.figure(figsize=(10, 6))
     ax1 = fig.add_subplot(1, 2, 1, projection='3d')
