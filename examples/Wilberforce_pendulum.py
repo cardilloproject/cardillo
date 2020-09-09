@@ -158,6 +158,9 @@ statics = False
 save = True
 # save = False
 
+profile = True
+# profile = False
+
 import os
 path = os.path.dirname(os.path.abspath(__file__))
 

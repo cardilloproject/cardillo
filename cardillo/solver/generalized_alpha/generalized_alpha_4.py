@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.sparse.linalg import spsolve 
-from scipy.sparse import csc_matrix, bmat
+from scipy.sparse import csr_matrix, bmat
 from tqdm import tqdm
 
 from cardillo.math import Numerical_derivative
@@ -115,7 +115,7 @@ class Generalized_alpha_4_index3():
 
     def __R_gen_num(self, tk1, xk1):
         yield self.__R(tk1, xk1)
-        yield csc_matrix(self.__R_x_num(tk1, xk1))
+        yield csr_matrix(self.__R_x_num(tk1, xk1))
         
     def __R_gen_analytic(self, tk1, xk1):
         nu = self.nu
@@ -150,12 +150,12 @@ class Generalized_alpha_4_index3():
         ###############################################################################################
         # R[:nu] = Mk1 @ ak1 -( self.model.h(tk1, qk1, uk1) + W_gk1 @ la_gk1 + W_gammak1 @ la_gammak1 )
         ###############################################################################################
-        Wla_g_q = self.model.Wla_g_q(tk1, qk1, la_gk1, scipy_matrix=csc_matrix)
-        Wla_gamma_q = self.model.Wla_gamma_q(tk1, qk1, la_gammak1, scipy_matrix=csc_matrix)
+        Wla_g_q = self.model.Wla_g_q(tk1, qk1, la_gk1, scipy_matrix=csr_matrix)
+        Wla_gamma_q = self.model.Wla_gamma_q(tk1, qk1, la_gammak1, scipy_matrix=csr_matrix)
         rhs_q = - ( self.model.h_q(tk1, qk1, uk1) + Wla_g_q + Wla_gamma_q )
         rhs_u = -self.model.h_u(tk1, qk1, uk1)
         rhs_a = rhs_q @ self.q_a + rhs_u * self.u_a
-        Ma_a = self.model.Mu_q(tk1, qk1, ak1, scipy_matrix=csc_matrix) @ self.q_a + rhs_a
+        Ma_a = self.model.Mu_q(tk1, qk1, ak1, scipy_matrix=csr_matrix) @ self.q_a + rhs_a
 
         Ra_a = Mk1 + Ma_a
         Ra_la_g = -W_gk1
@@ -179,7 +179,7 @@ class Generalized_alpha_4_index3():
         R_x =  bmat([ [Ra_a,               Ra_la_g,        Ra_la_gamma],
                       [Rla_g_a,         Rla_g_la_g,     Rla_g_la_gamma],
                       [Rla_gamma_a, Rla_gamma_la_g, Rla_gamma_la_gamma],
-                    ], format='csc')
+                    ], format='csr')
 
         yield R_x
 
@@ -247,7 +247,7 @@ class Generalized_alpha_4_index3():
         pbar = tqdm(np.arange(self.t0, self.t1, self.dt))
         for _ in pbar:
             # evaluate quantities at previous time step
-            self.q_a = dt2 * self.beta * self.alpha_ratio * self.model.B(self.tk, self.qk, scipy_matrix=csc_matrix)
+            self.q_a = dt2 * self.beta * self.alpha_ratio * self.model.B(self.tk, self.qk, scipy_matrix=csr_matrix)
             self.u_a = dt * self.gamma * self.alpha_ratio
 
             # initial guess for Newton-Raphson solver and time step
@@ -413,7 +413,7 @@ class Generalized_alpha_4_index1():
 
     def __R_gen_num(self, tk1, xk1):
         yield self.__R(tk1, xk1)
-        yield csc_matrix(self.__R_x_num(tk1, xk1))
+        yield csr_matrix(self.__R_x_num(tk1, xk1))
         
     def __R_gen_analytic(self, tk1, xk1):
         nu = self.nu
@@ -457,12 +457,12 @@ class Generalized_alpha_4_index1():
         #########################################################################################################################
         # R[:nu] = Mk1 @ ak1[uDOF_dyn] + rhs[uDOF_dyn] -( self.model.h(tk1, qk1, uk1) + W_gk1 @ la_gk1 + W_gammak1 @ la_gammak1 )
         #########################################################################################################################
-        Wla_g_q = self.model.Wla_g_q(tk1, qk1, la_gk1, scipy_matrix=csc_matrix)
-        Wla_gamma_q = self.model.Wla_gamma_q(tk1, qk1, la_gammak1, scipy_matrix=csc_matrix)
+        Wla_g_q = self.model.Wla_g_q(tk1, qk1, la_gk1, scipy_matrix=csr_matrix)
+        Wla_gamma_q = self.model.Wla_gamma_q(tk1, qk1, la_gammak1, scipy_matrix=csr_matrix)
         rhs_q = - ( self.model.h_q(tk1, qk1, uk1) + Wla_g_q + Wla_gamma_q )
         rhs_u = -self.model.h_u(tk1, qk1, uk1)
         rhs_a = rhs_q @ self.q_a + rhs_u * self.u_a
-        Ma_q = self.model.Mu_q(tk1, qk1, ak1, scipy_matrix=csc_matrix)
+        Ma_q = self.model.Mu_q(tk1, qk1, ak1, scipy_matrix=csr_matrix)
 
         Ra_a = Mk1 + Ma_q @ self.q_a + rhs_a
         Ra_U = rhs_u
@@ -638,7 +638,7 @@ class Generalized_alpha_4_index1():
         pbar = tqdm(np.arange(self.t0, self.t1, self.dt))
         for _ in pbar:
             # evaluate quantities at previous time step
-            self.Bk = self.model.B(self.tk, self.qk, scipy_matrix=csc_matrix)
+            self.Bk = self.model.B(self.tk, self.qk, scipy_matrix=csr_matrix)
             self.q_a = dt2 * self.beta * self.alpha_ratio * self.Bk
             self.q_Q = self.Bk
             self.u_a = dt * self.gamma * self.alpha_ratio
@@ -693,7 +693,7 @@ class Generalized_alpha_4_singular_index3():
     def __init__(self, model, t1, dt, uDOF_algebraic=None, \
                  rho_inf=1, beta=None, gamma=None, alpha_m=None, alpha_f=None,\
                  newton_tol=1e-8, newton_max_iter=40, newton_error_function=lambda x: np.max(np.abs(x)),\
-                 numerical_jacobian=False, debug=False):
+                 numerical_jacobian=False):
         
         self.model = model
 
@@ -746,13 +746,12 @@ class Generalized_alpha_4_singular_index3():
         self.la_gk = model.la_g0
         self.la_gammak = model.la_gamma0
 
-        Mk = model.M(t0, model.q0).tocsr()
-        rhsk = self.model.h(t0, model.q0, model.u0) + self.model.W_g(t0, model.q0) @ model.la_g0 + self.model.W_gamma(t0, model.q0) @ model.la_gamma0
+        M0 = model.M(t0, model.q0).tocsr()[self.uDOF_dynamic[:, None], self.uDOF_dynamic]
+        rhs0 = self.model.h(t0, model.q0, model.u0) + self.model.W_g(t0, model.q0) @ model.la_g0 + self.model.W_gamma(t0, model.q0) @ model.la_gamma0
         self.ak = np.zeros(model.nu)
-        self.ak[self.uDOF_dynamic] = spsolve(Mk[self.uDOF_dynamic[:, None], self.uDOF_dynamic], rhsk[self.uDOF_dynamic])
+        self.ak[self.uDOF_dynamic] = spsolve(M0, rhs0[self.uDOF_dynamic])
         self.a_bark = self.ak.copy()
 
-        self.debug = debug
         if numerical_jacobian:
             self.__R_gen = self.__R_gen_num
         else:
@@ -760,18 +759,17 @@ class Generalized_alpha_4_singular_index3():
 
     def update(self, ak1, store=False):
         """update dependent variables modifed version of Capobianco2019 (17):
-        - q_dot(uk) instead of uk
-        - q_ddot(a_beta) instead of a_beta (weighted a_beta is used inside q_ddot instead of evaluating it twice with both parts)
-        - B @ Qk1 instead of Qk1
+        - dt * q_dot(uk) instead of dt * uk
+        - dt1^2 * q_ddot(a_beta) instead of dt^2 * a_beta (weighted a_beta is used inside q_ddot instead of evaluating it twice with both parts)
         """
         dt = self.dt
         dt2 = dt * dt
         a_bark1 = (self.alpha_f * self.ak + (1 - self.alpha_f) * ak1 - self.alpha_m * self.a_bark) / (1 - self.alpha_m)
         uk1 = self.uk + dt * ((1 - self.gamma) * self.a_bark + self.gamma * a_bark1)
         a_beta = (0.5 - self.beta) * self.a_bark + self.beta * a_bark1
+        qk1 = self.qk + dt * self.model.q_dot(self.tk, self.qk, self.uk) + dt2 * self.model.q_ddot(self.tk, self.qk, self.uk, a_beta)
         if store:
             self.a_bark = a_bark1
-        qk1 = self.qk + dt * self.model.q_dot(self.tk, self.qk, self.uk) + dt2 * self.model.q_ddot(self.tk, self.qk, self.uk, a_beta)
         return qk1, uk1
 
     def pack(self, a, la_g, la_gamma):
@@ -814,7 +812,7 @@ class Generalized_alpha_4_singular_index3():
 
     def __R_gen_num(self, tk1, xk1):
         yield self.__R(tk1, xk1)
-        yield csc_matrix(self.__R_x_num(tk1, xk1))
+        yield csr_matrix(self.__R_x_num(tk1, xk1))
         
     def __R_gen_analytic(self, tk1, xk1):
         nu = self.nu
@@ -829,9 +827,9 @@ class Generalized_alpha_4_singular_index3():
         qk1, uk1 = self.update(ak1)
 
         # evaluate mass matrix and constraint force directions and rhs
-        Mk1 = self.model.M(tk1, qk1, scipy_matrix=csc_matrix)[uDOF_dyn[:, None], uDOF_dyn]
-        W_gk1 = self.model.W_g(tk1, qk1, scipy_matrix=csc_matrix)
-        W_gammak1 = self.model.W_gamma(tk1, qk1, scipy_matrix=csc_matrix)
+        Mk1 = self.model.M(tk1, qk1, scipy_matrix=csr_matrix)[uDOF_dyn[:, None], uDOF_dyn]
+        W_gk1 = self.model.W_g(tk1, qk1, scipy_matrix=csr_matrix)
+        W_gammak1 = self.model.W_gamma(tk1, qk1, scipy_matrix=csr_matrix)
         rhs = -( self.model.h(tk1, qk1, uk1) + W_gk1 @ la_gk1 + W_gammak1 @ la_gammak1 )
         
         ###################
@@ -856,13 +854,13 @@ class Generalized_alpha_4_singular_index3():
         # R[:nu_dyn] = Mk1 @ ak1[uDOF_dyn] + rhs[uDOF_dyn]
         # R[nu_dyn:nu] = rhs[uDOF_alg]
         ##################################################################################
-        Wla_g_q = self.model.Wla_g_q(tk1, qk1, la_gk1, scipy_matrix=csc_matrix)
-        Wla_gamma_q = self.model.Wla_gamma_q(tk1, qk1, la_gammak1, scipy_matrix=csc_matrix)
+        Wla_g_q = self.model.Wla_g_q(tk1, qk1, la_gk1, scipy_matrix=csr_matrix)
+        Wla_gamma_q = self.model.Wla_gamma_q(tk1, qk1, la_gammak1, scipy_matrix=csr_matrix)
         rhs_q = - ( self.model.h_q(tk1, qk1, uk1) + Wla_g_q + Wla_gamma_q )
         rhs_u = -self.model.h_u(tk1, qk1, uk1)
         rhs_a = rhs_q @ self.q_a + rhs_u * self.u_a
 
-        Ma_dyn_q = self.model.Mu_q(tk1, qk1, ak1, scipy_matrix=csc_matrix)[uDOF_dyn]
+        Ma_dyn_q = self.model.Mu_q(tk1, qk1, ak1, scipy_matrix=csr_matrix)[uDOF_dyn]
         Ma_dyn_a = Ma_dyn_q @ self.q_a + rhs_a[uDOF_dyn]
 
         Ra_dyn_a_dyn = Mk1 + Ma_dyn_a[:, uDOF_dyn]
@@ -896,7 +894,7 @@ class Generalized_alpha_4_singular_index3():
         # R[nu+nla_g:nu+nla_g+nla_gamma] = self.model.gamma(tk1, qk1, uk1)
         ##################################################################
         Rla_gamma_q = self.model.gamma_q(tk1, qk1, uk1) 
-        Rla_gamma_u = self.model.gamma_u(tk1, qk1, scipy_matrix=csc_matrix)
+        Rla_gamma_u = self.model.gamma_u(tk1, qk1, scipy_matrix=csr_matrix)
         Rla_gamma_a = Rla_gamma_q @ self.q_a + Rla_gamma_u * self.u_a
 
         Rla_gamma_a_dyn = Rla_gamma_a[:, uDOF_dyn]
@@ -911,7 +909,7 @@ class Generalized_alpha_4_singular_index3():
                       [Ra_alg_a_dyn,       Ra_alg_a_alg,    Ra_alg_la_g,    Ra_alg_la_gamma],
                       [Rla_g_a_dyn,         Rla_g_a_alg,     Rla_g_la_g,     Rla_g_la_gamma],
                       [Rla_gamma_a_dyn, Rla_gamma_a_alg, Rla_gamma_la_g, Rla_gamma_la_gamma],
-                    ], format='csc')
+                    ], format='csr')
 
         yield R_x
 
@@ -981,7 +979,7 @@ class Generalized_alpha_4_singular_index3():
         pbar = tqdm(np.arange(self.t0, self.t1, self.dt))
         for _ in pbar:
             # evaluate quantities at previous time step
-            self.q_a = dt2 * self.beta * self.alpha_ratio * self.model.B(self.tk, self.qk, scipy_matrix=csc_matrix)
+            self.q_a = dt2 * self.beta * self.alpha_ratio * self.model.B(self.tk, self.qk, scipy_matrix=csr_matrix)
             self.u_a = dt * self.gamma * self.alpha_ratio
 
             # initial guess for Newton-Raphson solver and time step
@@ -1173,7 +1171,7 @@ class Generalized_alpha_4_singular_index1():
 
     def __R_gen_num(self, tk1, xk1):
         yield self.__R(tk1, xk1)
-        yield csc_matrix(self.__R_x_num(tk1, xk1))
+        yield csr_matrix(self.__R_x_num(tk1, xk1))
         
     def __R_gen_analytic(self, tk1, xk1):
         nu = self.nu
@@ -1189,9 +1187,9 @@ class Generalized_alpha_4_singular_index1():
         qk1, uk1 = self.update(ak1, Uk1, Qk1)
 
         # evaluate mass matrix and constraint force directions and rhs
-        Mk1 = self.model.M(tk1, qk1, scipy_matrix=csc_matrix)[uDOF_dyn[:, None], uDOF_dyn]
-        W_gk1 = self.model.W_g(tk1, qk1, scipy_matrix=csc_matrix)
-        W_gammak1 = self.model.W_gamma(tk1, qk1, scipy_matrix=csc_matrix)
+        Mk1 = self.model.M(tk1, qk1, scipy_matrix=csr_matrix)[uDOF_dyn[:, None], uDOF_dyn]
+        W_gk1 = self.model.W_g(tk1, qk1, scipy_matrix=csr_matrix)
+        W_gammak1 = self.model.W_gamma(tk1, qk1, scipy_matrix=csr_matrix)
         rhs = -( self.model.h(tk1, qk1, uk1) + W_gk1 @ la_gk1 + W_gammak1 @ la_gammak1 )
         
         ###################
@@ -1228,14 +1226,14 @@ class Generalized_alpha_4_singular_index1():
         # R[:nu_dyn] = Mk1 @ ak1[uDOF_dyn] + rhs[uDOF_dyn]
         # R[nu_dyn:nu] = rhs[uDOF_alg]
         ##################################################################################
-        Wla_g_q = self.model.Wla_g_q(tk1, qk1, la_gk1, scipy_matrix=csc_matrix)
-        Wla_gamma_q = self.model.Wla_gamma_q(tk1, qk1, la_gammak1, scipy_matrix=csc_matrix)
+        Wla_g_q = self.model.Wla_g_q(tk1, qk1, la_gk1, scipy_matrix=csr_matrix)
+        Wla_gamma_q = self.model.Wla_gamma_q(tk1, qk1, la_gammak1, scipy_matrix=csr_matrix)
         rhs_q = - ( self.model.h_q(tk1, qk1, uk1) + Wla_g_q + Wla_gamma_q )
         rhs_u = -self.model.h_u(tk1, qk1, uk1)
         rhs_a = rhs_q @ self.q_a + rhs_u * self.u_a
         rhs_Q = rhs_q @ self.q_Q
 
-        Ma_dyn_q = self.model.Mu_q(tk1, qk1, ak1, scipy_matrix=csc_matrix)[uDOF_dyn]
+        Ma_dyn_q = self.model.Mu_q(tk1, qk1, ak1, scipy_matrix=csr_matrix)[uDOF_dyn]
         Ma_dyn_a = Ma_dyn_q @ self.q_a + rhs_a[uDOF_dyn]
         Ma_dyn_Q = Ma_dyn_q @ self.q_Q
 
@@ -1274,8 +1272,8 @@ class Generalized_alpha_4_singular_index1():
         # R[nu:nu+nu_dyn] = Mk1 @ Uk1[uDOF_dyn] - W_g_La[uDOF_dyn]
         # R[nu+nu_dyn:2*nu] = - W_g_La[uDOF_alg]
         ##########################################################
-        WLa_g_q = self.model.Wla_g_q(tk1, qk1, La_gk1, scipy_matrix=csc_matrix)
-        MU_dyn_q = self.model.Mu_q(tk1, qk1, Uk1, scipy_matrix=csc_matrix)[uDOF_dyn]
+        WLa_g_q = self.model.Wla_g_q(tk1, qk1, La_gk1, scipy_matrix=csr_matrix)
+        MU_dyn_q = self.model.Mu_q(tk1, qk1, Uk1, scipy_matrix=csr_matrix)[uDOF_dyn]
         RU_dyn_q = MU_dyn_q - WLa_g_q[uDOF_dyn]
         RU_dyn_a = RU_dyn_q @ self.q_a
         RU_dyn_Q = RU_dyn_q @ self.q_Q
@@ -1320,8 +1318,8 @@ class Generalized_alpha_4_singular_index1():
         # R[2*nu:2*nu+nu_dyn] = Mk1 @ Qk1[uDOF_dyn] - W_g_ka[uDOF_dyn]
         # R[2*nu+nu_dyn:3*nu] = - W_g_ka[uDOF_alg]
         ##############################################################
-        Wkappa_g_q = self.model.Wla_g_q(tk1, qk1, kappa_gk1, scipy_matrix=csc_matrix)
-        MQ_dyn_q = self.model.Mu_q(tk1, qk1, Qk1, scipy_matrix=csc_matrix)[uDOF_dyn]
+        Wkappa_g_q = self.model.Wla_g_q(tk1, qk1, kappa_gk1, scipy_matrix=csr_matrix)
+        MQ_dyn_q = self.model.Mu_q(tk1, qk1, Qk1, scipy_matrix=csr_matrix)[uDOF_dyn]
         RQ_dyn_q = MQ_dyn_q - Wkappa_g_q[uDOF_dyn]
         RQ_dyn_a = RQ_dyn_q @ self.q_a
         RQ_dyn_Q = RQ_dyn_q @ self.q_Q
@@ -1387,7 +1385,7 @@ class Generalized_alpha_4_singular_index1():
         # R[3*nu+nla_g:3*nu+2*nla_g] = self.model.g_dot(tk1, qk1, uk1)
         ##############################################################
         RLa_g_q = self.model.g_dot_q(tk1, qk1, uk1)
-        RLa_g_u = self.model.g_dot_u(tk1, qk1, scipy_matrix=csc_matrix)
+        RLa_g_u = self.model.g_dot_u(tk1, qk1, scipy_matrix=csr_matrix)
         RLa_g_a = RLa_g_q @ self.q_a + RLa_g_u * self.u_a
         RLa_g_Q = RLa_g_q @ self.q_Q
 
@@ -1410,7 +1408,7 @@ class Generalized_alpha_4_singular_index1():
         # R[3*nu+2*nla_g:3*nu+3*nla_g] = self.model.g_ddot(tk1, qk1, uk1, ak1)
         ######################################################################
         Rla_g_q = self.model.g_ddot_q(tk1, qk1, uk1, ak1)
-        Rla_g_u = self.model.g_ddot_u(tk1, qk1, uk1, ak1, scipy_matrix=csc_matrix)
+        Rla_g_u = self.model.g_ddot_u(tk1, qk1, uk1, ak1, scipy_matrix=csr_matrix)
         Rla_g_a = RLa_g_u # = self.model.g_ddot_a(tk1, qk1, uk1)!
         Rla_g_a += Rla_g_q @ self.q_a + Rla_g_u * self.u_a
         Rla_g_Q = Rla_g_q @ self.q_Q
@@ -1434,7 +1432,7 @@ class Generalized_alpha_4_singular_index1():
         # R[nu+nla_g:nu+nla_g+nla_gamma] = self.model.gamma(tk1, qk1, uk1)
         ##################################################################
         Rla_gamma_q = self.model.gamma_q(tk1, qk1, uk1) 
-        Rla_gamma_u = self.model.gamma_u(tk1, qk1, scipy_matrix=csc_matrix)
+        Rla_gamma_u = self.model.gamma_u(tk1, qk1, scipy_matrix=csr_matrix)
         Rla_gamma_a = Rla_gamma_q @ self.q_a + Rla_gamma_u * self.u_a
         Rla_gamma_Q = Rla_gamma_q @ self.q_Q
 
@@ -1464,7 +1462,7 @@ class Generalized_alpha_4_singular_index1():
                       [RLa_g_a_dyn,         RLa_g_a_alg,     RLa_g_U_dyn,     RLa_g_U_alg,     RLa_g_Q_dyn,     RLa_g_Q_alg,     RLa_g_kappa_g,     RLa_g_La_g,     RLa_g_la_g,     RLa_g_la_gamma],
                       [Rla_g_a_dyn,         Rla_g_a_alg,     Rla_g_U_dyn,     Rla_g_U_alg,     Rla_g_Q_dyn,     Rla_g_Q_alg,     Rla_g_kappa_g,     Rla_g_La_g,     Rla_g_la_g,     Rla_g_la_gamma],
                       [Rla_gamma_a_dyn, Rla_gamma_a_alg, Rla_gamma_U_dyn, Rla_gamma_U_alg, Rla_gamma_Q_dyn, Rla_gamma_Q_alg, Rla_gamma_kappa_g, Rla_gamma_La_g, Rla_gamma_la_g, Rla_gamma_la_gamma],
-                    ], format='csc')
+                    ], format='csr')
 
         yield R_x
 
@@ -1548,7 +1546,7 @@ class Generalized_alpha_4_singular_index1():
         pbar = tqdm(np.arange(self.t0, self.t1, self.dt))
         for _ in pbar:
             # evaluate quantities at previous time step
-            self.Bk = self.model.B(self.tk, self.qk, scipy_matrix=csc_matrix)
+            self.Bk = self.model.B(self.tk, self.qk, scipy_matrix=csr_matrix)
             self.q_a = dt2 * self.beta * self.alpha_ratio * self.Bk
             self.q_Q = self.Bk
             self.u_a = dt * self.gamma * self.alpha_ratio
@@ -1762,7 +1760,7 @@ class Generalized_alpha_4_singular_index1():
 
 #     def __R_gen_num(self, tk1, xk1):
 #         yield self.__R(tk1, xk1)
-#         yield csc_matrix(self.__R_x_num(tk1, xk1))
+#         yield csr_matrix(self.__R_x_num(tk1, xk1))
         
 #     def __R_gen_analytic(self, tk1, xk1):
 #         nu = self.nu
@@ -1778,9 +1776,9 @@ class Generalized_alpha_4_singular_index1():
 #         qk1, uk1 = self.update(ak1, Uk1, Qk1, Vk1)
 
 #         # evaluate mass matrix and constraint force directions and rhs
-#         Mk1 = self.model.M(tk1, qk1, scipy_matrix=csc_matrix)[uDOF_dyn[:, None], uDOF_dyn]
-#         W_gk1 = self.model.W_g(tk1, qk1, scipy_matrix=csc_matrix)
-#         W_gammak1 = self.model.W_gamma(tk1, qk1, scipy_matrix=csc_matrix)
+#         Mk1 = self.model.M(tk1, qk1, scipy_matrix=csr_matrix)[uDOF_dyn[:, None], uDOF_dyn]
+#         W_gk1 = self.model.W_g(tk1, qk1, scipy_matrix=csr_matrix)
+#         W_gammak1 = self.model.W_gamma(tk1, qk1, scipy_matrix=csr_matrix)
 #         rhs = -( self.model.h(tk1, qk1, uk1) + W_gk1 @ la_gk1 + W_gammak1 @ la_gammak1 )
         
 #         ###################
@@ -1893,7 +1891,7 @@ class Generalized_alpha_4_singular_index1():
 #                       [Ra_alg_a_dyn,      Ra_alg_a_alg, Ra_alg_la_g, Ra_alg_la_gamma], \
 #                       [Rla_g_a_dyn,        Rla_g_a_alg,        None,            None], \
 #                       [Rla_gamm_a_dyn,  Rla_gamm_a_alg,        None,            None], \
-#                     ], format='csc')
+#                     ], format='csr')
 
 #         # R_x_num = self.__R_x_num(tk1, xk1)
 #         # diff = R_x.toarray() - R_x_num
