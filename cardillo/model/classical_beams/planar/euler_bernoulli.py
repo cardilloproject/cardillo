@@ -538,10 +538,13 @@ class Euler_bernoulli():
 
         point_data = {}
 
-        # fill dictionary storing point data with directors
+        #
+
+        _, displacement, _ = self.mesh_kinematics.vtk_mesh(q - self.q0)
+        point_data = {"u": displacement}
         
         _, velocities, _ = self.mesh_kinematics.vtk_mesh(u)
-        point_data = {"u": velocities}
+        point_data.update({"v": velocities})
 
         # export existing values on quadrature points using L2 projection
         J0_vtk = self.mesh_kinematics.field_to_vtk(self.J0.reshape(self.nEl, self.nQP, 1))
