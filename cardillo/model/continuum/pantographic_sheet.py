@@ -290,6 +290,10 @@ class Pantographic_sheet():
 
             d1_perp = np.array([-d1[1], d1[0]])
             d2_perp = np.array([-d2[1], d2[0]])
+            d1_1_perp = np.array([d1_1[1], -d1_1[0]])
+            d1_2_perp = np.array([d1_2[1], -d1_2[0]])
+            d2_1_perp = np.array([d2_1[1], -d2_1[0]])
+            d2_2_perp = np.array([d2_2[1], -d2_2[0]])
             theta1_1 = d1_1 @ d1_perp / rho1**2
             theta1_2 = d1_2 @ d1_perp / rho1**2
             theta2_1 = d2_1 @ d2_perp / rho2**2
@@ -312,22 +316,19 @@ class Pantographic_sheet():
             # internal forces
             for a in range(self.nn_el):
 
-                d1_q = N_Theta[a, 0]   
-                d2_q = N_Theta[a, 1]
-
                 # delta rho_s
-                rho1_q = d1_q * e1
-                rho2_q = d2_q * e2
+                rho1_q = N_Theta[a, 0] * e1
+                rho2_q = N_Theta[a, 1] * e2   
 
-                # delta rho_s_s (currently unused)
-                rho1_1_q = N_ThetaTheta[a, 0, 0] * e1  +  N_Theta[a, 0] * G_rho1 @ d1_1
-                rho1_2_q = N_ThetaTheta[a, 0, 1] * e1  +  N_Theta[a, 0] * G_rho1 @ d1_2
-                rho2_1_q = N_ThetaTheta[a, 1, 0] * e2  +  N_Theta[a, 1] * G_rho2 @ d2_1
-                rho2_2_q = N_ThetaTheta[a, 1, 1] * e2  +  N_Theta[a, 1] * G_rho2 @ d2_2
+                # # delta rho_s_s (currently unused)
+                # rho1_1_q = N_ThetaTheta[a, 0, 0] * e1 + N_Theta[a, 0] * G_rho1 @ d1_1
+                # rho1_2_q = N_ThetaTheta[a, 0, 1] * e1 + N_Theta[a, 0] * G_rho1 @ d1_2
+                # rho2_1_q = N_ThetaTheta[a, 1, 0] * e2 + N_Theta[a, 1] * G_rho2 @ d2_1
+                # rho2_2_q = N_ThetaTheta[a, 1, 1] * e2 + N_Theta[a, 1] * G_rho2 @ d2_2
 
                 # delta Gamma 
                 Gamma_q = 1/(1-(e2 @ e1)**2)**0.5 * (
-                     (d1 * d2_q + d2 * d1_q) / (rho1 * rho2) 
+                     (d1 * N_Theta[a, 1] + d2 * N_Theta[a, 0]) / (rho1 * rho2) 
                     - (d1 @ d2) / (rho1 * rho2)**2 * (rho2 * rho1_q + rho1 * rho2_q)
                     )
 
@@ -340,11 +341,10 @@ class Pantographic_sheet():
                 d1_perp_q = np.array([[0,-1],[1,0]]) * N_Theta[a, 0]  
                 d2_perp_q = np.array([[0,-1],[1,0]]) * N_Theta[a, 1]
                 
-                theta1_1_q = (d1_1 @ d1_perp_q + d1_perp * d1_1_q) / rho1**2 - (d1_1 @ d1_perp) / rho1**3 * 2 * rho1_q
-                theta1_2_q = (d1_2 @ d1_perp_q + d1_perp * d1_2_q) / rho1**2 - (d1_2 @ d1_perp) / rho1**3 * 2 * rho1_q
-                
-                theta2_1_q = (d2_1 @ d2_perp_q + d2_perp * d2_1_q) / rho2**2 - (d2_1 @ d2_perp) / rho2**3 * 2 * rho2_q
-                theta2_2_q = (d2_2 @ d2_perp_q + d2_perp * d2_2_q) / rho2**2 - (d2_2 @ d2_perp) / rho2**3 * 2 * rho2_q
+                theta1_1_q = (d1_1_perp * N_Theta[a, 0] + d1_perp * d1_1_q) / rho1**2 - (d1_1 @ d1_perp) / rho1**3 * 2 * rho1_q
+                theta1_2_q = (d1_2_perp * N_Theta[a, 0] + d1_perp * d1_2_q) / rho1**2 - (d1_2 @ d1_perp) / rho1**3 * 2 * rho1_q
+                theta2_1_q = (d2_1_perp * N_Theta[a, 1] + d2_perp * d2_1_q) / rho2**2 - (d2_1 @ d2_perp) / rho2**3 * 2 * rho2_q
+                theta2_2_q = (d2_2_perp * N_Theta[a, 1] + d2_perp * d2_2_q) / rho2**2 - (d2_2 @ d2_perp) / rho2**3 * 2 * rho2_q
 
                 f[self.nodalDOF[a]] -= (W_rho[0] * rho1_q + W_rho[1] * rho2_q
                                         + W_Gamma * Gamma_q
@@ -400,6 +400,10 @@ class Pantographic_sheet():
 
             d1_perp = np.array([-d1[1], d1[0]])
             d2_perp = np.array([-d2[1], d2[0]])
+            d1_1_perp = np.array([d1_1[1], -d1_1[0]])
+            d1_2_perp = np.array([d1_2[1], -d1_2[0]])
+            d2_1_perp = np.array([d2_1[1], -d2_1[0]])
+            d2_2_perp = np.array([d2_2[1], -d2_2[0]])
             theta1_1 = d1_1 @ d1_perp / rho1**2
             theta1_2 = d1_2 @ d1_perp / rho1**2
             theta2_1 = d2_1 @ d2_perp / rho2**2
@@ -412,6 +416,11 @@ class Pantographic_sheet():
             # precompute matrices
             G_rho1 = (np.eye(2) - np.outer(e1, e1)) / rho1
             G_rho2 = (np.eye(2) - np.outer(e2, e2)) / rho2
+            G_rho1_1 = (-G_rho1 @ np.outer(d1_1, e1) - np.dot(e1, d1_1) * G_rho1 - np.outer(e1, d1_1) @ G_rho1) / rho1
+            G_rho1_2 = (-G_rho1 @ np.outer(d1_2, e1) - np.dot(e1, d1_2) * G_rho1 - np.outer(e1, d1_2) @ G_rho1) / rho1
+            G_rho2_1 = (-G_rho2 @ np.outer(d2_1, e2) - np.dot(e2, d2_1) * G_rho2 - np.outer(e2, d2_1) @ G_rho2) / rho2
+            G_rho2_2 = (-G_rho2 @ np.outer(d2_2, e2) - np.dot(e2, d2_2) * G_rho2 - np.outer(e2, d2_2) @ G_rho2) / rho2
+
             tmp = (1 - (e1 @ e2)**2)**0.5
             G_Gamma11 = (e1 @ e2 * G_rho1 @ np.outer(e2, e2) @ G_rho1 / (1 - (e1 @ e2)**2) - (np.outer(e1, e2) + np.outer(e2, e1) + (np.eye(2) - 3 * np.outer(e1, e1)) * (e1 @ e2)) / rho1**2 ) / tmp
             G_Gamma12 = (e1 @ e2 * G_rho1 @ np.outer(e2, e1) @ G_rho2 / (1 - (e1 @ e2)**2) + G_rho1 @ G_rho2) / tmp
@@ -444,38 +453,27 @@ class Pantographic_sheet():
             for a in range(self.nn_el):
                 ndDOFa = self.mesh.nodalDOF[a]
 
-                d1_q = N_Theta[a, 0]   
-                d2_q = N_Theta[a, 1]
-
                 # delta rho_s
-                rho1_q[ndDOFa] = d1_q * e1
-                rho2_q[ndDOFa] = d2_q * e2    
+                rho1_q[ndDOFa] = N_Theta[a, 0] * e1
+                rho2_q[ndDOFa] = N_Theta[a, 1] * e2    
 
                 # delta rho_s_s
-                rho1_1_q = N_ThetaTheta[a, 0, 0] * e1  +  N_Theta[a, 0] * G_rho1 @ d1_1
-                rho1_2_q = N_ThetaTheta[a, 0, 1] * e1  +  N_Theta[a, 0] * G_rho1 @ d1_2
-                rho2_1_q = N_ThetaTheta[a, 1, 0] * e2  +  N_Theta[a, 1] * G_rho2 @ d2_1
-                rho2_2_q = N_ThetaTheta[a, 1, 1] * e2  +  N_Theta[a, 1] * G_rho2 @ d2_2
+                # rho1_1_q = N_ThetaTheta[a, 0, 0] * e1  +  N_Theta[a, 0] * G_rho1 @ d1_1
+                # rho1_2_q = N_ThetaTheta[a, 0, 1] * e1  +  N_Theta[a, 0] * G_rho1 @ d1_2
+                # rho2_1_q = N_ThetaTheta[a, 1, 0] * e2  +  N_Theta[a, 1] * G_rho2 @ d2_1
+                # rho2_2_q = N_ThetaTheta[a, 1, 1] * e2  +  N_Theta[a, 1] * G_rho2 @ d2_2
 
                 # delta Gamma 
                 Gamma_q[ndDOFa] = 1/(1-(e2 @ e1)**2)**0.5 * (
-                     (d1 * d2_q + d2 * d1_q) / (rho1 * rho2) 
+                     (d1 * N_Theta[a, 1] + d2 * N_Theta[a, 0]) / (rho1 * rho2) 
                     - (d1 @ d2) / (rho1 * rho2)**2 * (rho2 * rho1_q[ndDOFa] + rho1 * rho2_q[ndDOFa])
                     )
-
-                d1_1_q = N_ThetaTheta[a, 0, 0]
-                d1_2_q = N_ThetaTheta[a, 0, 1]
-                d2_1_q = N_ThetaTheta[a, 1, 0]
-                d2_2_q = N_ThetaTheta[a, 1, 1]
-
-                d1_perp_q = np.array([[0,-1],[1,0]]) * N_Theta[a, 0]  
-                d2_perp_q = np.array([[0,-1],[1,0]]) * N_Theta[a, 1]
                 
                 # delta theta_s_s
-                theta1_1_q[ndDOFa] = (d1_1 @ d1_perp_q + d1_perp * d1_1_q) / rho1**2 - (d1_1 @ d1_perp) / rho1**3 * 2 * rho1_q[ndDOFa]
-                # theta1_2_q[ndDOFa] = (d1_2 @ d1_perp_q + d1_perp * d1_2_q) / rho1**2 - (d1_2 @ d1_perp) / rho1**3 * 2 * rho1_q[ndDOFa]
-                # theta2_1_q[ndDOFa] = (d2_1 @ d2_perp_q + d2_perp * d2_1_q) / rho2**2 - (d2_1 @ d2_perp) / rho2**3 * 2 * rho2_q[ndDOFa]
-                theta2_2_q[ndDOFa] = (d2_2 @ d2_perp_q + d2_perp * d2_2_q) / rho2**2 - (d2_2 @ d2_perp) / rho2**3 * 2 * rho2_q[ndDOFa]
+                theta1_1_q[ndDOFa] = (d1_1_perp * N_Theta[a, 0] + d1_perp * N_ThetaTheta[a, 0, 0]) / rho1**2 - (d1_1 @ d1_perp) / rho1**3 * 2 * rho1_q[ndDOFa]
+                # theta1_2_q[ndDOFa] = (d1_2_perp * N_Theta[a, 0] + d1_perp * N_ThetaTheta[a, 0, 1]) / rho1**2 - (d1_2 @ d1_perp) / rho1**3 * 2 * rho1_q[ndDOFa]
+                # theta2_1_q[ndDOFa] = (d2_1_perp * N_Theta[a, 1] + d2_perp * N_ThetaTheta[a, 1, 0]) / rho2**2 - (d2_1 @ d2_perp) / rho2**3 * 2 * rho2_q[ndDOFa]
+                theta2_2_q[ndDOFa] = (d2_2_perp * N_Theta[a, 1] + d2_perp * N_ThetaTheta[a, 1, 1]) / rho2**2 - (d2_2 @ d2_perp) / rho2**3 * 2 * rho2_q[ndDOFa]  
                 
             for a in range(self.nn_el):
                 ndDOFa = self.mesh.nodalDOF[a]
@@ -485,26 +483,22 @@ class Pantographic_sheet():
                     rho1_qq = N_Theta[a, 0] * G_rho1 * N_Theta[b, 0]
                     rho2_qq = N_Theta[a, 1] * G_rho2 * N_Theta[b, 1]
 
-                    rho1_1_qq = (N_ThetaTheta[a, 0, 0] * G_rho1 * N_Theta[b, 0] + N_Theta[a, 0] * G_rho1 * N_ThetaTheta[b, 0, 0]
-                                + N_Theta[a, 0] * (-G_rho1 @ np.outer(d1_1, e1) - np.dot(e1, d1_1) * G_rho1 - np.outer(e1, d1_1) @ G_rho1) / rho1  * N_Theta[b, 0])
-                    rho1_2_qq = (N_ThetaTheta[a, 0, 1] * G_rho1 * N_Theta[b, 0] + N_Theta[a, 0] * G_rho1 * N_ThetaTheta[b, 0, 1]
-                                + N_Theta[a, 0] * (-G_rho1 @ np.outer(d1_2, e1) - np.dot(e1, d1_2) * G_rho1 - np.outer(e1, d1_2) @ G_rho1) / rho1  * N_Theta[b, 0])
-                    rho2_1_qq = (N_ThetaTheta[a, 1, 0] * G_rho2 * N_Theta[b, 1] + N_Theta[a, 1] * G_rho2 * N_ThetaTheta[b, 1, 0]
-                                + N_Theta[a, 1] * (-G_rho2 @ np.outer(d2_1, e2) - np.dot(e2, d2_1) * G_rho2 - np.outer(e2, d2_1) @ G_rho2) / rho2  * N_Theta[b, 1])
-                    rho2_2_qq = (N_ThetaTheta[a, 1, 1] * G_rho2 * N_Theta[b, 1] + N_Theta[a, 1] * G_rho2 * N_ThetaTheta[b, 1, 1]
-                                + N_Theta[a, 1] * (-G_rho2 @ np.outer(d2_2, e2) - np.dot(e2, d2_2) * G_rho2 - np.outer(e2, d2_2) @ G_rho2) / rho2  * N_Theta[b, 1])
+                    # rho1_1_qq = N_ThetaTheta[a, 0, 0] * G_rho1 * N_Theta[b, 0] + N_Theta[a, 0] * G_rho1 * N_ThetaTheta[b, 0, 0] + N_Theta[a, 0] * G_rho1_1  * N_Theta[b, 0]
+                    # rho1_2_qq = N_ThetaTheta[a, 0, 1] * G_rho1 * N_Theta[b, 0] + N_Theta[a, 0] * G_rho1 * N_ThetaTheta[b, 0, 1] + N_Theta[a, 0] * G_rho1_2  * N_Theta[b, 0]
+                    # rho2_1_qq = N_ThetaTheta[a, 1, 0] * G_rho2 * N_Theta[b, 1] + N_Theta[a, 1] * G_rho2 * N_ThetaTheta[b, 1, 0] + N_Theta[a, 1] * G_rho2_1  * N_Theta[b, 1]
+                    # rho2_2_qq = N_ThetaTheta[a, 1, 1] * G_rho2 * N_Theta[b, 1] + N_Theta[a, 1] * G_rho2 * N_ThetaTheta[b, 1, 1] + N_Theta[a, 1] * G_rho2_2  * N_Theta[b, 1]
 
                     Gamma_qq = N_Theta[a, 0] * G_Gamma11 * N_Theta[b, 0] + N_Theta[a, 0] * G_Gamma12 * N_Theta[b, 1] + N_Theta[a, 1] * G_Gamma21 * N_Theta[b, 0] + N_Theta[a, 1] * G_Gamma22 * N_Theta[b, 1]
                     
                     theta1_1_qq = N_Theta[a, 0] * G_theta11_1 * N_Theta[b, 0] + N_ThetaTheta[a, 0, 0] * G_theta11 * N_Theta[b, 0] + N_Theta[a, 0] * G_theta11 * N_ThetaTheta[b, 0, 0]
                     theta2_2_qq = N_Theta[a, 1] * G_theta22_2 * N_Theta[b, 1] + N_ThetaTheta[a, 1, 1] * G_theta22 * N_Theta[b, 1] + N_Theta[a, 1] * G_theta22 * N_ThetaTheta[b, 1, 1]
-                    theta1_2_qq = N_Theta[a, 0] * G_theta12_1 * N_Theta[b, 0] + N_ThetaTheta[a, 0, 1] * G_theta11 * N_Theta[b, 0] + N_Theta[a, 0] * G_theta11 * N_ThetaTheta[b, 0, 1]
-                    theta2_1_qq = N_Theta[a, 1] * G_theta21_2 * N_Theta[b, 1] + N_ThetaTheta[a, 1, 0] * G_theta22 * N_Theta[b, 1] + N_Theta[a, 1] * G_theta22 * N_ThetaTheta[b, 1, 0]
+                    # theta1_2_qq = N_Theta[a, 0] * G_theta12_1 * N_Theta[b, 0] + N_ThetaTheta[a, 0, 1] * G_theta11 * N_Theta[b, 0] + N_Theta[a, 0] * G_theta11 * N_ThetaTheta[b, 0, 1]
+                    # theta2_1_qq = N_Theta[a, 1] * G_theta21_2 * N_Theta[b, 1] + N_ThetaTheta[a, 1, 0] * G_theta22 * N_Theta[b, 1] + N_Theta[a, 1] * G_theta22 * N_ThetaTheta[b, 1, 0]
 
                     Ke[np.ix_(ndDOFa, ndDOFb)] -= (
                           W_rho[0] * rho1_qq + W_rho[1] * rho2_qq
                         + W_Gamma * Gamma_qq
-                        + W_theta_s[0, 0] * theta1_1_qq + W_theta_s[1, 1] * theta2_2_qq + W_theta_s[0, 1] * theta1_2_qq + W_theta_s[1, 0] * theta2_1_qq # commented out for Maurin
+                        + W_theta_s[0, 0] * theta1_1_qq + W_theta_s[1, 1] * theta2_2_qq# + W_theta_s[0, 1] * theta1_2_qq + W_theta_s[1, 0] * theta2_1_qq
                         + W_rho_rho[0, 0] * np.outer(rho1_q[ndDOFa], rho1_q[ndDOFb]) + W_rho_rho[0, 1] * np.outer(rho1_q[ndDOFa], rho2_q[ndDOFb]) + W_rho_rho[1, 0] * np.outer(rho2_q[ndDOFa], rho1_q[ndDOFb]) + W_rho_rho[1, 1] * np.outer(rho2_q[ndDOFa], rho2_q[ndDOFb])
                         + W_Gamma_Gamma * np.outer(Gamma_q[ndDOFa], Gamma_q[ndDOFb])
                         + W_theta_s_theta_s[0, 0, 0, 0] * np.outer(theta1_1_q[ndDOFa], theta1_1_q[ndDOFb]) + W_theta_s_theta_s[1, 1, 1, 1] * np.outer(theta2_2_q[ndDOFa], theta2_2_q[ndDOFb]) # +... omitted for Maurin 2019
@@ -721,13 +715,12 @@ def test_variations():
     el = 0 # select arbitrary element
     i = 3 # select arbitrary quadrature point
 
-    # fit annulus
+    # fit quater circle configuration
     B = 1
     L = 2
     alpha0 = np.pi / 2
     R = 0.1
 
-    # fit quater circle configuration
     def kappa(vxi):
         xi, eta = vxi
         alpha = (1 - xi) * alpha0
@@ -826,23 +819,6 @@ def test_variations():
     Gamma_qq_num = Numerical_derivative(Gamma_q_num_fun)._X(ze)
     theta_s_qq_num = Numerical_derivative(theta_s_q_num_fun)._X(ze)
 
-    # # test for specific a and b
-    # a = 2
-    # b = 2
-    # za = ze[mesh.nodalDOF[a]]
-    # zb = ze[mesh.nodalDOF[b]]
-    # def test_fun(t, za):
-    #     ze[mesh.nodalDOF[a]] = za
-    #     return strain_measure_single_point(continuum, ze)[3]
-    # test_theta_s_q_num_fun = lambda zb: Numerical_derivative(test_fun)._x(0, zb)
-    # test_theta_s_qq_num = Numerical_derivative(test_theta_s_q_num_fun)._X(zb)
-
-    # def test_fun2(t, za):
-    #     ze[mesh.nodalDOF[a]] = za
-    #     return np.array([strain_measure_single_point(continuum, ze)[2] ])
-    # test_Gamma_q_num_fun = lambda zb: Numerical_derivative(test_fun2)._x(0, zb)
-    # test_Gamma_qq_num = Numerical_derivative(test_Gamma_q_num_fun)._X(zb)
-
     # Analytical derivatives
     # first deformation gradient
     F = np.zeros((continuum.dim, continuum.dim))
@@ -874,6 +850,10 @@ def test_variations():
 
     d1_perp = np.array([-d1[1], d1[0]])
     d2_perp = np.array([-d2[1], d2[0]])
+    d1_1_perp = np.array([d1_1[1], -d1_1[0]])
+    d1_2_perp = np.array([d1_2[1], -d1_2[0]])
+    d2_1_perp = np.array([d2_1[1], -d2_1[0]])
+    d2_2_perp = np.array([d2_2[1], -d2_2[0]])
     theta1_1 = d1_1 @ d1_perp / rho1**2
     theta1_2 = d1_2 @ d1_perp / rho1**2
     theta2_1 = d2_1 @ d2_perp / rho2**2
@@ -884,6 +864,10 @@ def test_variations():
     # contributions to stiffness matrix
     G_rho1 = (np.eye(2) - np.outer(e1, e1)) / rho1
     G_rho2 = (np.eye(2) - np.outer(e2, e2)) / rho2
+    G_rho1_1 = (-G_rho1 @ np.outer(d1_1, e1) - np.dot(e1, d1_1) * G_rho1 - np.outer(e1, d1_1) @ G_rho1) / rho1
+    G_rho1_2 = (-G_rho1 @ np.outer(d1_2, e1) - np.dot(e1, d1_2) * G_rho1 - np.outer(e1, d1_2) @ G_rho1) / rho1
+    G_rho2_1 = (-G_rho2 @ np.outer(d2_1, e2) - np.dot(e2, d2_1) * G_rho2 - np.outer(e2, d2_1) @ G_rho2) / rho2
+    G_rho2_2 = (-G_rho2 @ np.outer(d2_2, e2) - np.dot(e2, d2_2) * G_rho2 - np.outer(e2, d2_2) @ G_rho2) / rho2
 
     tmp = (1 - (e1 @ e2)**2)**0.5
     G_Gamma11 = (e1 @ e2 * G_rho1 @ np.outer(e2, e2) @ G_rho1 / (1 - (e1 @ e2)**2) - (np.outer(e1, e2) + np.outer(e2, e1) + (np.eye(2) - 3 * np.outer(e1, e1)) * (e1 @ e2)) / rho1**2 ) / tmp
@@ -911,16 +895,13 @@ def test_variations():
     theta_s_qq_an = np.zeros((2, 2, mesh.nq_el, mesh.nq_el))
 
     for a in range(continuum.nn_el):
-        d1_q = N_Theta[a, 0]   
-        d2_q = N_Theta[a, 1]
-
         # delta rho_alpha
-        rho1_q = d1_q * e1
-        rho2_q = d2_q * e2
+        rho1_q = N_Theta[a, 0] * e1
+        rho2_q = N_Theta[a, 1] * e2
 
         # delta Gamma 
         Gamma_q = 1/(1-(e2 @ e1)**2)**0.5 * (
-                     (d1 * d2_q + d2 * d1_q) / (rho1 * rho2) 
+                     (d1 * N_Theta[a, 1] + d2 * N_Theta[a, 0]) / (rho1 * rho2) 
                     - (d1 @ d2) / (rho1 * rho2)**2 * (rho2 * rho1_q + rho1 * rho2_q)
                     )
 
@@ -938,11 +919,10 @@ def test_variations():
         rho2_1_q = N_ThetaTheta[a, 1, 0] * e2  +  N_Theta[a, 1] * G_rho2 @ d2_1
         rho2_2_q = N_ThetaTheta[a, 1, 1] * e2  +  N_Theta[a, 1] * G_rho2 @ d2_2
         
-        theta1_1_q = (d1_1 @ d1_perp_q + d1_perp * d1_1_q) / rho1**2 - (d1_1 @ d1_perp) / rho1**3 * 2 * rho1_q
-        theta1_2_q = (d1_2 @ d1_perp_q + d1_perp * d1_2_q) / rho1**2 - (d1_2 @ d1_perp) / rho1**3 * 2 * rho1_q
-        
-        theta2_1_q = (d2_1 @ d2_perp_q + d2_perp * d2_1_q) / rho2**2 - (d2_1 @ d2_perp) / rho2**3 * 2 * rho2_q
-        theta2_2_q = (d2_2 @ d2_perp_q + d2_perp * d2_2_q) / rho2**2 - (d2_2 @ d2_perp) / rho2**3 * 2 * rho2_q
+        theta1_1_q = (d1_1_perp * N_Theta[a, 0] + d1_perp * d1_1_q) / rho1**2 - (d1_1 @ d1_perp) / rho1**3 * 2 * rho1_q
+        theta1_2_q = (d1_2_perp * N_Theta[a, 0] + d1_perp * d1_2_q) / rho1**2 - (d1_2 @ d1_perp) / rho1**3 * 2 * rho1_q
+        theta2_1_q = (d2_1_perp * N_Theta[a, 1] + d2_perp * d2_1_q) / rho2**2 - (d2_1 @ d2_perp) / rho2**3 * 2 * rho2_q
+        theta2_2_q = (d2_2_perp * N_Theta[a, 1] + d2_perp * d2_2_q) / rho2**2 - (d2_2 @ d2_perp) / rho2**3 * 2 * rho2_q
         
         rho_q_an[:, mesh.nodalDOF[a]] += np.array([rho1_q, rho2_q])
         rho_s_q_an[:, :, mesh.nodalDOF[a]] += np.array([[rho1_1_q, rho1_2_q],
@@ -956,14 +936,10 @@ def test_variations():
             rho1_qq = N_Theta[a, 0] * G_rho1 * N_Theta[b, 0]
             rho2_qq = N_Theta[a, 1] * G_rho2 * N_Theta[b, 1]
 
-            rho1_1_qq = (N_ThetaTheta[a, 0, 0] * G_rho1 * N_Theta[b, 0] + N_Theta[a, 0] * G_rho1 * N_ThetaTheta[b, 0, 0]
-                         + N_Theta[a, 0] * (-G_rho1 @ np.outer(d1_1, e1) - np.dot(e1, d1_1) * G_rho1 - np.outer(e1, d1_1) @ G_rho1) / rho1  * N_Theta[b, 0])
-            rho1_2_qq = (N_ThetaTheta[a, 0, 1] * G_rho1 * N_Theta[b, 0] + N_Theta[a, 0] * G_rho1 * N_ThetaTheta[b, 0, 1]
-                        + N_Theta[a, 0] * (-G_rho1 @ np.outer(d1_2, e1) - np.dot(e1, d1_2) * G_rho1 - np.outer(e1, d1_2) @ G_rho1) / rho1  * N_Theta[b, 0])
-            rho2_1_qq = (N_ThetaTheta[a, 1, 0] * G_rho2 * N_Theta[b, 1] + N_Theta[a, 1] * G_rho2 * N_ThetaTheta[b, 1, 0]
-                        + N_Theta[a, 1] * (-G_rho2 @ np.outer(d2_1, e2) - np.dot(e2, d2_1) * G_rho2 - np.outer(e2, d2_1) @ G_rho2) / rho2  * N_Theta[b, 1])
-            rho2_2_qq = (N_ThetaTheta[a, 1, 1] * G_rho2 * N_Theta[b, 1] + N_Theta[a, 1] * G_rho2 * N_ThetaTheta[b, 1, 1]
-                        + N_Theta[a, 1] * (-G_rho2 @ np.outer(d2_2, e2) - np.dot(e2, d2_2) * G_rho2 - np.outer(e2, d2_2) @ G_rho2) / rho2  * N_Theta[b, 1])
+            rho1_1_qq = N_ThetaTheta[a, 0, 0] * G_rho1 * N_Theta[b, 0] + N_Theta[a, 0] * G_rho1 * N_ThetaTheta[b, 0, 0] + N_Theta[a, 0] * G_rho1_1  * N_Theta[b, 0]
+            rho1_2_qq = N_ThetaTheta[a, 0, 1] * G_rho1 * N_Theta[b, 0] + N_Theta[a, 0] * G_rho1 * N_ThetaTheta[b, 0, 1] + N_Theta[a, 0] * G_rho1_2  * N_Theta[b, 0]
+            rho2_1_qq = N_ThetaTheta[a, 1, 0] * G_rho2 * N_Theta[b, 1] + N_Theta[a, 1] * G_rho2 * N_ThetaTheta[b, 1, 0] + N_Theta[a, 1] * G_rho2_1  * N_Theta[b, 1]
+            rho2_2_qq = N_ThetaTheta[a, 1, 1] * G_rho2 * N_Theta[b, 1] + N_Theta[a, 1] * G_rho2 * N_ThetaTheta[b, 1, 1] + N_Theta[a, 1] * G_rho2_2  * N_Theta[b, 1]
 
             Gamma_qq = N_Theta[a, 0] * G_Gamma11 * N_Theta[b, 0] + N_Theta[a, 0] * G_Gamma12 * N_Theta[b, 1] + N_Theta[a, 1] * G_Gamma21 * N_Theta[b, 0] + N_Theta[a, 1] * G_Gamma22 * N_Theta[b, 1]
             theta1_1_qq = N_Theta[a, 0] * G_theta11_1 * N_Theta[b, 0] + N_ThetaTheta[a, 0, 0] * G_theta11 * N_Theta[b, 0] + N_Theta[a, 0] * G_theta11 * N_ThetaTheta[b, 0, 0]
