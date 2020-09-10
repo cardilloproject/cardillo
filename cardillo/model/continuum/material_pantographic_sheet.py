@@ -4,7 +4,9 @@ from cardillo.math.numerical_derivative import Numerical_derivative
 def verify_derivatives(mat):
     from numpy.random import rand
     from numpy import isclose
-    from cardillo.math.numerical_derivative import Numerical_derivative
+
+    #TODO: use normalized parameters
+    #mat_temp = mat.__class__()
     
     rho = rand(2)
     rho_s = rand(2,2)
@@ -110,3 +112,63 @@ class Maurin2019():
 
     def W_shear(self, rho, rho_s, Gamma, theta_s):
          return 0.5 * self.K_Gamma * np.abs(Gamma)**self.gamma
+
+
+class Barchiesi2020():
+    def __init__(self,gamma, K_F, K_E, K_S):
+        self.gamma = gamma
+        self.K_F = 0.9   #[J]
+        self.K_E = 0.33  #[J]
+        self.K_S = 34    #[J]
+        self.coga2 = np.cos(self.gamma)**2
+
+    def W(self, rho, rho_s, Gamma, theta_s):
+        den1 = rho**2 * self.coga2 * (self.K_E - 8*self.K_F*self.coga2) - self.K_E
+        den2 = (1 - rho**2 * self.coga2 )* (8*self.K_F + rho**2 *(self.K_E - 8*self.K_F*self.coga2))
+
+        W = np.sum(self.K_E * self.K_F *  rho**2 * self.coga2 / den2 * rho_s**2  ) 
+        W += np.sum(self.K_E * self.K_F * (rho**2 * self.coga2 - 1)/den1 * theta_s**2 ) 
+        W += np.sum(   self.K_S * (np.arccos(1 - rho**2 * 2 * self.coga2) - np.pi + 2*self.gamma)**2  )
+        return  W 
+
+    def W_rho(self, rho, rho_s, Gamma, theta_s):
+        den1 = (rho**2 * self.coga2 * (self.K_E - 8*self.K_F*self.coga2) - self.K_E)
+        den2 = (1 - rho**2 * self.coga2 )* (8*self.K_F + rho**2 *(self.K_E - 8*self.K_F*self.coga2))
+
+        return (theta_s**2 * self.K_E*self.K_F * ((2*rho*self.coga2 )/den1  - ((rho**2 * self.coga2-1)*(2*rho*self.coga2*(self.K_E - 8*self.K_F*self.coga2)))/den1**2) 
+                                    + rho_s**2 * self.K_E*self.K_F * (2*rho*self.coga2/den2 - (rho**2 * self.coga2 *(2*rho*(self.K_E-16*self.K_F*self.coga2) - 4*rho**3*self.coga2*(self.K_E-8*self.K_F*self.coga2)))/den2**2 ) 
+                                    + 8*self.K_S*(np.arccos(1- rho**2 *2 *self.coga2)-np.pi + 2*self.gamma)  /np.sqrt(1-(1-rho**2 *2*self.coga2)**2)  *rho * self.coga2 
+                                    )
+    
+    def W_rho_s(self, rho, rho_s, Gamma, theta_s):
+        den2 = (1 - rho**2 * self.coga2 )* (8*self.K_F + rho**2 *(self.K_E - 8*self.K_F*self.coga2))
+        return (rho**2 * self.coga2  /den2 * 2 * rho_s) * self.K_E * self.K_F
+
+    def W_Gamma(self, rho, rho_s, Gamma, theta_s):
+        return 0
+
+    def W_theta_s(self, rho, rho_s, Gamma, theta_s):
+        den1 = (rho**2 * self.coga2 * (self.K_E - 8*self.K_F*self.coga2) - self.K_E)
+        return ((rho**2 * self.coga2 -1 ) /den1 * 2 * theta_s)  * self.K_E * self.K_F
+
+    def W_rho_rho(self, rho, rho_s, Gamma, theta_s):
+        return Numerical_derivative(lambda t, rho: self.W_rho(rho, rho_s, Gamma, theta_s), order=1)._x(0, rho)
+
+    def W_rho_rho_s(self, rho, rho_s, Gamma, theta_s):
+        return Numerical_derivative(lambda t, rho_s: self.W_rho(rho, rho_s, Gamma, theta_s), order=1)._x(0, rho_s)
+
+
+    def W_rho_theta_s(self, rho, rho_s, Gamma, theta_s):
+        return Numerical_derivative(lambda t, theta_s: self.W_rho(rho, rho_s, Gamma, theta_s), order=1)._x(0, theta_s)
+
+    def W_rho_s_rho(self, rho, rho_s, Gamma, theta_s):
+        return Numerical_derivative(lambda t, rho: self.W_rho_s(rho, rho_s, Gamma, theta_s), order=1)._x(0, rho)
+
+    def W_rho_s_rho_s(self, rho, rho_s, Gamma, theta_s):
+        return Numerical_derivative(lambda t, rho_s: self.W_rho_s(rho, rho_s, Gamma, theta_s), order=1)._x(0, rho_s)
+
+    def W_theta_s_rho(self, rho, rho_s, Gamma, theta_s):
+        return Numerical_derivative(lambda t, rho: self.W_theta_s(rho, rho_s, Gamma, theta_s), order=1)._x(0, rho)
+
+    def W_theta_s_theta_s(self, rho, rho_s, Gamma, theta_s):
+        return Numerical_derivative(lambda t, rho: self.W_theta_s(rho, rho_s, Gamma, theta_s), order=1)._x(0, theta_s)

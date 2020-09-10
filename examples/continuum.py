@@ -1,6 +1,7 @@
 from threading import main_thread
 import numpy as np
 import matplotlib.pyplot as plt
+import pickle
 
 from cardillo.discretization.mesh import Mesh, cube
 from cardillo.discretization.mesh2D import Mesh2D, rectangle
@@ -332,11 +333,11 @@ def write_xml():
     with open(save_path_file, "w") as f:
         f.write(xml_str)
 
-def pantographic_sheet():
+def pantographic_sheet(case="test_a", filename="pantographic_sheet_test_a", n_load_steps=20, starting_step=0):
     # build mesh
     degrees = (2, 2)
     QP_shape = (3, 3)
-    element_shape = (6, 4)
+    element_shape = (36, 12)
 
     Xi = Knot_vector(degrees[0], element_shape[0])
     Eta = Knot_vector(degrees[1], element_shape[1])
@@ -352,10 +353,10 @@ def pantographic_sheet():
 
     rectangle_shape = (L, B)
     Z = rectangle(rectangle_shape, mesh, Greville=True)
-    z0 = rectangle(rectangle_shape, mesh, Greville=True, Fuzz=0.02)
+    z0 = rectangle(rectangle_shape, mesh, Greville=True, Fuzz=0.00001)
 
     # material model
-    K_rho = 1.34e5
+    K_rho = 1.34e5 
     K_Gamma = 1.59e2
     K_Theta_s = 1.92e-2
     gamma = 1.36
@@ -363,7 +364,6 @@ def pantographic_sheet():
     # mat = Maurin2019_linear(K_rho, K_Gamma, K_Theta_s)
     mat = Maurin2019(K_rho, K_Gamma, K_Theta_s, gamma)
 
-    
     verify_derivatives(mat)
 
     # boundary conditions
@@ -373,11 +373,11 @@ def pantographic_sheet():
     # cDOF2 = np.concatenate((cDOF2x, cDOF2y))
     # cDOF = np.concatenate((cDOF1, cDOF2))
     # b1 = lambda t: Z[cDOF1]
-    # b2x = lambda t: Z[cDOF2x] + t * 0.
+    # b2x = lambda t: Z[cDOF2x] + t * 0.02
     # b2y = lambda t: Z[cDOF2y]
     # b = lambda t: np.concatenate((b1(t), b2x(t), b2y(t)))
 
-    cDOF, b = standard_displacements(mesh, z0, case="test_a")
+    cDOF, b = standard_displacements(mesh, Z, case=case)
 
     # 3D continuum
     continuum = Pantographic_sheet(None, mat, mesh, Z, z0=z0, cDOF=cDOF, b=b)
@@ -389,15 +389,18 @@ def pantographic_sheet():
     # f_pot = model.f_pot(0, model.q0)
     
     # static solver
-    n_load_steps = 10
+    # n_load_steps = 20
+    load_steps = np.linspace(0, 1, n_load_steps)[starting_step:]
     tol = 1.0e-6
-    max_iter = 10
-    solver = Newton(model, n_load_steps=n_load_steps, tol=tol, max_iter=max_iter)
+    max_iter = 12
+    solver = Newton(model, n_load_steps=n_load_steps, load_steps=load_steps, tol=tol, max_iter=max_iter)
 
     sol = solver.solve()
+    with open(filename, mode='wb') as f:
+        pickle.dump((sol, mat, mesh), f)
 
     # vtk export
-    continuum.post_processing(sol.t, sol.q, 'pantographic_sheet')
+    continuum.post_processing(sol.t, sol.q, filename)
 
 
 def standard_displacements(mesh, Z, case, displacement=None):
@@ -483,9 +486,20 @@ def standard_displacements(mesh, Z, case, displacement=None):
 
     return cDOF, b
 
+def task_queue():
+    # pantographic_sheet(case="test_a", filename="pantographic_sheet_test_a", n_load_steps=10, starting_step=1)
+    pantographic_sheet(case="test_c", filename="pantographic_sheet_test_c", n_load_steps=25, starting_step=3)
+    pantographic_sheet(case="test_c", filename="pantographic_sheet_test_c2", n_load_steps=30, starting_step=4)
+    pantographic_sheet(case="test_d", filename="pantographic_sheet_test_d", n_load_steps=25, starting_step=2)
+    pantographic_sheet(case="test_d", filename="pantographic_sheet_test_d2", n_load_steps=25, starting_step=1)
+    # pantographic_sheet(case="test_b", filename="pantographic_sheet_test_b", n_load_steps=25, starting_step=4)
+    # pantographic_sheet(case="test_b", filename="pantographic_sheet_test_b2", n_load_steps=25, starting_step=3)
+    # pantographic_sheet(case="test_a", filename="pantographic_sheet_test_a2", n_load_steps=20, starting_step=2)
+
 if __name__ == "__main__":
     # test_cube()
     # test_cylinder()
     # test_rectangle()
     # write_xml()
-    pantographic_sheet()
+    # pantographic_sheet()
+    task_queue()
