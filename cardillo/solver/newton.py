@@ -115,7 +115,7 @@ class Newton():
         return bmat([[K,   self.W_g], \
                      [g_q,     None]], format='csc')
     
-    def __init__(self, model, n_load_steps=1, load_steps=None, tol=1e-8, max_iter=50, sparse_solver='scipyLU', iterative_tol=1.0e-10, numerical_jacobian=False):
+    def __init__(self, model, n_load_steps=1, load_steps=None, tol=1e-8, max_iter=50, sparse_solver='scipyLU', iterative_tol=1.0e-10, numerical_jacobian=False, error_function=None):
         self.max_iter = max_iter
         self.tol = tol
         self.model = model
@@ -161,6 +161,11 @@ class Newton():
             self._jacobian = self._jacobian_num
         else:
             self._jacobian = self._jacobian_an
+
+        if error_function is None:
+            self.error_function = lambda R: np.absolute(R).max()
+        else:
+            self.error_function = error_function
         
     def solve(self):
         # compute numbe rof digits for status update
@@ -173,7 +178,7 @@ class Newton():
             
             # compute initial residual
             R = self._residual(self.load_steps[i], self.x[i])
-            error = np.absolute(R).max()
+            error = self.error_function(R)
             
             # reset counter and print inital status
             k = 0
@@ -202,7 +207,7 @@ class Newton():
                                 
                     # compute new residual
                     R = self._residual(self.load_steps[i], self.x[i])
-                    error = np.absolute(R).max()
+                    error = self.error_function(R)
 
                     # update counter and print status
                     k += 1
