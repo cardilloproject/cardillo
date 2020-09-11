@@ -1,3 +1,4 @@
+from numpy.lib.npyio import save
 from cardillo.solver.solution import load_solution, save_solution
 import numpy as np
 from math import pi, sin, cos, exp, atan2, sqrt, ceil
@@ -14,7 +15,7 @@ from cardillo.discretization.B_spline import uniform_knot_vector
 from cardillo.model.frame import Frame
 from cardillo.math.algebra import A_IK_basic_z
 from cardillo.utility.post_processing_vtk import post_processing
-
+from scipy.interpolate import interp1d
 
 from cardillo.discretization.B_spline import B_spline_basis1D
 class Junction():
@@ -399,12 +400,34 @@ def create_pantograph(gamma, nRow, nCol, H, EA, EI, GI, A_rho0, p, nEl, nQP, r_O
     ###########################
 
     # clamping at the left hand side
-    frame_l = Frame(r_OP=r_OP_l, A_IK=A_IK_l)
-    model.add(frame_l)
-    for idx in ID_mat[:, 0]:
-        beam = beams[idx]
+
+    # frame_l = Frame(r_OP=r_OP_l, A_IK=A_IK_l)
+    # model.add(frame_l)
+    # for idx in ID_mat[:, 0]:
+    #     beam = beams[idx]
+    #     r_OB = beam.r_OP(0, beam.q0[beam.qDOF_P(frame_ID2)], frame_ID=frame_ID2)
+    #     model.add(Rigid_connection2D(frame_l, beam, r_OB, frame_ID2=frame_ID2))
+
+    # excitation even beams
+    exc_frames = []
+    ex_ID = 0
+    for i in range(0, nRow, 2):        
+        exc_frames.append(Frame(r_OP=r_OP_l[ceil(i / 2)], A_IK=A_IK_l))
+        model.add(exc_frames[ex_ID])
+        beam = beams[ID_mat[i, 0]]
         r_OB = beam.r_OP(0, beam.q0[beam.qDOF_P(frame_ID2)], frame_ID=frame_ID2)
-        model.add(Rigid_connection2D(frame_l, beam, r_OB, frame_ID2=frame_ID2))
+        model.add(Rigid_connection2D(exc_frames[ex_ID], beam, r_OB, frame_ID2=frame_ID2))
+        ex_ID += 1
+
+    # excitation odd beams
+    for i in range(1, nRow, 2):        
+        exc_frames.append(Frame(r_OP=r_OP_l[ceil((i + 1) / 2)], A_IK=A_IK_l))
+        model.add(exc_frames[ex_ID])
+        beam = beams[ID_mat[i, 0]]
+        r_OB = beam.r_OP(0, beam.q0[beam.qDOF_P(frame_ID2)], frame_ID=frame_ID2)
+        model.add(Rigid_connection2D(exc_frames[ex_ID], beam, r_OB, frame_ID2=frame_ID2))
+        ex_ID += 1
+    
 
     # clamping at the right hand side
     frame_r = Frame(r_OP=r_OP_r, A_IK = A_IK_r)
@@ -421,13 +444,13 @@ def create_pantograph(gamma, nRow, nCol, H, EA, EI, GI, A_rho0, p, nEl, nQP, r_O
 
 if __name__ == "__main__":
     dynamics = True
-    solve_problem = False
+    solve_problem = True
     paraview_export = True
 
     # time simulation parameters
-    t1 = 5e-2                           # simulation time
-    dt = 5e-2 / 1500                    # time step
-    rho_inf = 0.8                       # damping parameter generalized-alpha integrator
+    t1 = 5e-2                         # simulation time
+    dt = 5e-2 / 1500                   # time step
+    rho_inf = 0.9                       # damping parameter generalized-alpha integrator
 
     # beam finite element parameters
     p = 2                               # polynomial degree
@@ -437,7 +460,7 @@ if __name__ == "__main__":
     # geometric parameters
     gamma = pi/4                        # angle between fiber families
     nRow = 20                           # number of rows = 2 * number of fibers per height
-    nCol = 800                          # number of columns = 2 * number of fibers per length
+    nCol = 800                        # number of columns = 2 * number of fibers per length
 
     H = 0.07                            # height of pantographic sheet
     LBeam = H / (nRow * sin(gamma))     # length of individual beam
@@ -477,11 +500,66 @@ if __name__ == "__main__":
 
     # ax.plot(x, y)
     # plt.show()
+
+    u_x_crosssection = load_solution(f'displacement_x')
+    u_y_crosssection = load_solution(f'displacement_y')
+    new_time = load_solution(f'time')
+
+    idx_u_x = np.where(new_time <= 0.009)[0][-1]
+    idx_u_y = np.where(new_time <= 0.00985)[0][-1]-2
+    # idx_1 = np.where(sol.t <= 0.026)[0][-1]
+
+
+    delta_time = new_time[1]-new_time[0]
+    new_time_ext = np.arange(0, t1+delta_time, delta_time)
+
+    n_excited_fibers = ceil(nRow / 2 + 1)
+
+    u_x = np.zeros((n_excited_fibers, len(new_time_ext)))
+    for i in range(n_excited_fibers):
+        tmp1 = np.array(u_x_crosssection[i][:idx_u_x])
+        tmp2 = np.flip(tmp1)
+        tmp3 = np.ones(len(new_time_ext) - 2 * len(tmp1)) * tmp2[-1]
+        u_x[i] = np.concatenate([tmp1, tmp2, tmp3])
+
+    u_y = np.zeros((n_excited_fibers, len(new_time_ext)))
+    for i in range(n_excited_fibers):
+        tmp1 = np.array(u_y_crosssection[i][:idx_u_y])
+        tmp2 = np.flip(tmp1)
+        tmp3 = np.ones(len(new_time_ext) - 2 * len(tmp1)) * tmp2[-1]
+        u_y[i] = np.concatenate([tmp1, tmp2, tmp3])
+
+    fig, ax = plt.subplots(2, 1)
+    fig.suptitle('displacements', fontsize=16)
+
+    for i in range(len(u_x_crosssection)):
+        ax[0].plot(new_time_ext, u_x[i], label=f'Row {i}')
+        ax[1].plot(new_time_ext, u_y[i], label=f'Row {i}')
+
+
+    ax[0].set_xlabel('time t [s]')
+    ax[0].set_ylabel('displacement x-direction [m]')
+    ax[0].grid()
+    ax[0].legend()
+     
+    ax[1].set_xlabel('time t [s]')
+    ax[1].set_ylabel('displacement y-direction [m]')
+    ax[1].grid()
+    ax[1].legend()
+
+    plt.show()
+
+    r_OP_l = []
+    for i in range(n_excited_fibers):
+        r_OP_l.append(lambda t, k=i: np.array([interp1d(new_time_ext, u_x[k])([t])[0],
+                                  interp1d(new_time_ext, u_y[k])([t])[0],
+                                  0]))
     
+
     rotationZ_l = 0 #-np.pi/10
     rotationZ_r = 0 #np.pi/10
 
-    r_OP_l = lambda t: np.array([0, H / 2, 0]) + fcn(t) * np.array([1, 0, 0])
+    # r_OP_l = lambda t: np.array([0, H / 2, 0]) + fcn(t) * np.array([1, 0, 0])
     A_IK_l = lambda t: A_IK_basic_z(t * rotationZ_l)
 
     r_OP_r = lambda t: np.array([L, H / 2, 0])
@@ -520,25 +598,37 @@ if __name__ == "__main__":
         else:
             sol = load_solution(f'Pantographic_sheet_{nRow}x{nCol}_statics')
 
-    sol.t = sol.t[::5]
-    sol.q = sol.q[::5]
-    sol.u = sol.u[::5]
+    # sol.t = sol.t[::5]
+    # sol.q = sol.q[::5]
+    # sol.u = sol.u[::5]
 
-    # time-displacement diagramm
+    # idx_0 = np.where(sol.t >= 0.015)[0][0]
+    # idx_1 = np.where(sol.t <= 0.026)[0][-1]
+
+    # sol.t = sol.t[idx_0:idx_1]
+    # sol.q = sol.q[idx_0:idx_1]
+    # sol.u = sol.u[idx_0:idx_1]
+
+
+    # # time-displacement diagramm
+
+    # cs_idx = 399
 
     # u_x_crosssection = []
     # u_y_crosssection = []
+    # u_zero_crosssection = []
 
     # for i in range(0, nRow, 2):
     #     u_x = []
     #     u_y = []
-    #     beam = beams[ID_mat[i, 599]]
+    #     beam = beams[ID_mat[i, cs_idx]]
     #     pos_0 = beam.r_OP(0,sol.q[0, beam.qDOF], (1,))
     #     for i, t in enumerate(sol.t):
     #         pos_t = beam.r_OP(t,sol.q[i, beam.qDOF], (1,))
-    #         displacement = pos_t - pos_0 + pos_0[1] - H/2
+    #         displacement = pos_t - pos_0 + pos_0[1]
     #         u_x.append(displacement[0])
     #         u_y.append(displacement[1])
+
 
     #     u_x_crosssection.extend([u_x])
     #     u_y_crosssection.extend([u_y])
@@ -549,15 +639,13 @@ if __name__ == "__main__":
     # i = nRow-1
     # u_x = []
     # u_y = []
-    # u_approx = []
-    # beam = beams[ID_mat[i, 599]]
+    # beam = beams[ID_mat[i, cs_idx]]
     # pos_0 = beam.r_OP(0,sol.q[0, beam.qDOF], (1,))
     # for i, t in enumerate(sol.t):
     #     pos_t = beam.r_OP(t,sol.q[i, beam.qDOF], (1,))
-    #     displacement = pos_t - pos_0 + pos_0[1] - H/2
+    #     displacement = pos_t - pos_0 + pos_0[1]
     #     u_x.append(displacement[0])
     #     u_y.append(displacement[1])
-    #     u_approx.append(Amp * sin(2 * pi / T * (t - t_shift)))
 
     # u_x_crosssection.extend([u_x])
     # u_y_crosssection.extend([u_y])
@@ -570,8 +658,6 @@ if __name__ == "__main__":
     #     ax[0].plot(sol.t, u_x_crosssection[i], label=f'Row {i}')
     #     ax[1].plot(sol.t, u_y_crosssection[i], label=f'Row {i}')
 
-    # ax[0].plot(sol.t, u_approx, label=f'Approximation')
-
     # ax[0].set_xlabel('time t [s]')
     # ax[0].set_ylabel('displacement x-direction [m]')
     # ax[0].grid()
@@ -582,7 +668,16 @@ if __name__ == "__main__":
     # ax[1].grid()
     # ax[1].legend()
 
+    # new_time = sol.t - sol.t[0]
+    # save_solution(u_x_crosssection, f'displacement_x')
+    # save_solution(u_y_crosssection, f'displacement_y')
+    # save_solution(new_time, f'time')
+
     # plt.show()
+
+
+
+
 
     # position displacement diagramm
 
@@ -650,6 +745,14 @@ if __name__ == "__main__":
     # # ax[1].legend()
 
     # plt.show()
+
+    # sol.t = sol.t[::5]
+    # sol.q = sol.q[::5]
+    # sol.u = sol.u[::5]
+
+    sol.t = sol.t[::5]
+    sol.q = sol.q[::5]
+    sol.u = sol.u[::5]
 
     # post processing for paraview
     if paraview_export:
