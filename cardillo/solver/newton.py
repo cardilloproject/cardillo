@@ -115,7 +115,7 @@ class Newton():
         return bmat([[K,   self.W_g], \
                      [g_q,     None]], format='csc')
     
-    def __init__(self, model, n_load_steps=1, load_steps=None, tol=1e-8, max_iter=50, sparse_solver='scipyLU', iterative_tol=1.0e-10, numerical_jacobian=False):
+    def __init__(self, model, n_load_steps=1, load_steps=None, tol=1e-8, max_iter=50, sparse_solver='scipyLU', iterative_tol=1.0e-10, numerical_jacobian=False, init_guess=None):
         self.max_iter = max_iter
         self.tol = tol
         self.model = model
@@ -161,6 +161,8 @@ class Newton():
             self._jacobian = self._jacobian_num
         else:
             self._jacobian = self._jacobian_an
+        
+        self.init_guess = init_guess
         
     def solve(self):
         # compute numbe rof digits for status update
@@ -220,7 +222,10 @@ class Newton():
                     
             # store solution as new initial guess
             if i < self.nt - 1:
-                self.x[i + 1] = self.x[i]
+                if self.init_guess is None:
+                    self.x[i + 1] = self.x[i]
+                else:
+                    self.x[i + 1] = self.init_guess(self.load_steps[i], self.load_steps[i+1], self.x[i])
                 
         # return solution object
         pbar.close()

@@ -2,6 +2,7 @@ from threading import main_thread
 import numpy as np
 import matplotlib.pyplot as plt
 import pickle
+import dill
 
 from cardillo.discretization.mesh import Mesh, cube
 from cardillo.discretization.mesh2D import Mesh2D, rectangle
@@ -286,7 +287,7 @@ def test_rectangle():
 
     # static solver
     n_load_steps = 30
-    tol = 1.0e-5
+    tol = 1.0e-6
     max_iter = 10
     solver = Newton(model, n_load_steps=n_load_steps, tol=tol, max_iter=max_iter)
     
@@ -334,70 +335,118 @@ def write_xml():
         f.write(xml_str)
 
 def pantographic_sheet(case="test_a", filename="pantographic_sheet_test_a", n_load_steps=20, starting_step=0):
-    # build mesh
-    degrees = (2, 2)
-    QP_shape = (3, 3)
-    element_shape = (36, 12)
 
-    Xi = Knot_vector(degrees[0], element_shape[0])
-    Eta = Knot_vector(degrees[1], element_shape[1])
-    knot_vectors = (Xi, Eta)
+
+    solve_problem = False
+
+    if solve_problem:   
+        # build mesh
+        degrees = (2, 2)
+        QP_shape = (3, 3)
+        element_shape = (36, 12)
+        # QP_shape = (2, 2)
+        # element_shape = (10, 4)
+
+        Xi = Knot_vector(degrees[0], element_shape[0])
+        Eta = Knot_vector(degrees[1], element_shape[1])
+        knot_vectors = (Xi, Eta)
+        
+        mesh = Mesh2D(knot_vectors, QP_shape, derivative_order=2, basis='B-spline', nq_n=2)
+
+        # reference configuration is a rectangle
+        # L = 2
+        # B = 2
+        B = 10 * np.sqrt(2) * 0.0048
+        L = 3 * B
+
+        rectangle_shape = (L, B)
+        Z = rectangle(rectangle_shape, mesh, Greville=True)
+        z0 = rectangle(rectangle_shape, mesh, Greville=True, Fuzz=0.00001)
+
+        # material model
+        K_rho = 1.34e5 
+        K_Gamma = 1.59e2
+        K_Theta_s = 1.92e-2
+        gamma = 1.36
+        # gamma = 1.7
+        mat = Maurin2019_linear(K_rho, K_Gamma, K_Theta_s)
+        # mat = Maurin2019(K_rho, K_Gamma, K_Theta_s, gamma)
+
+        verify_derivatives(mat)
+
+        # boundary conditions
+        # cDOF1 = mesh.edge_DOF[0].ravel()
+        # cDOF2x = mesh.edge_DOF[1][0]
+        # cDOF2y = mesh.edge_DOF[1][1]
+        # cDOF2 = np.concatenate((cDOF2x, cDOF2y))
+        # cDOF = np.concatenate((cDOF1, cDOF2))
+        # b1 = lambda t: Z[cDOF1]
+        # b2x = lambda t: Z[cDOF2x] + t * 0.02
+        # b2y = lambda t: Z[cDOF2y]
+        # b = lambda t: np.concatenate((b1(t), b2x(t), b2y(t)))
+
+        cDOF, b = standard_displacements(mesh, Z, case=case)
+
+        # 3D continuum
+        continuum = Pantographic_sheet(None, mat, mesh, Z, z0=z0, cDOF=cDOF, b=b)
+
+        model = Model()
+        model.add(continuum)
+        model.assemble()
+
+        # f_pot = model.f_pot(0, model.q0)
+        
+        # static solver
+        def init_guess(t, t_new, x):
+            from cardillo.math.algebra import norm2
+            from cardillo.discretization.indexing import split2D
+            #TODO: make smarter choice for new initial guess
+            # self.x[i + 1] = distribute_points_sides_constrained(self.load_steps[i], self.x[i])
+            #continuum = self.model.contributions[0]
+            left_DOF = continuum.mesh.edge_DOF[0]
+            right_DOF = continuum.mesh.edge_DOF[1]
+            z = continuum.z(t, x)
+            z_new = continuum.z(t_new, x)
+            left_z = z[left_DOF.T]
+            right_z = z[right_DOF.T]
+            # compute left and right displacement
+            left_disp = z_new[left_DOF.T] - left_z 
+            right_disp = z_new[right_DOF.T] - right_z 
+
+            # iterate over control points
+            for a in range(continuum.mesh.nn):
+                a_xi, a_eta = split2D(a, (continuum.mesh.nn_xi,))
+                
+                # x and y value of control points
+                z_a = z[np.array([a, a + continuum.mesh.nn])]
+
+                # compute distance to left and right points
+                left_a = left_z[a_eta]
+                right_a = right_z[a_eta]
+                d_left =  norm2(z_a - left_a)
+                d_right =  norm2(z_a - right_a)
+
+                p_right = d_left / (d_left + d_right)
+                p_left = 1 - p_right
+                z_new[np.array([a, a + continuum.mesh.nn])] = z_new[np.array([a, a + continuum.mesh.nn])] + left_disp[a_eta] * p_left + right_disp[a_eta] * p_right
+
+            return z_new[continuum.fDOF]
+
+        # n_load_steps = 20
+        load_steps = np.linspace(0, 1, n_load_steps)[starting_step:]
+        tol = 1.0e-6
+        max_iter = 12
+        solver = Newton(model, n_load_steps=n_load_steps, load_steps=load_steps, tol=tol, max_iter=max_iter, init_guess=init_guess)
+
     
-    mesh = Mesh2D(knot_vectors, QP_shape, derivative_order=2, basis='B-spline', nq_n=2)
+        sol = solver.solve()
+        with open(filename, mode='wb') as f:
+            # pickle.dump((sol, mat, mesh), f)
+            dill.dump((continuum, sol), f)
+    else:
+        with open(filename, mode='rb') as f:
+            continuum, sol = dill.load(f)
 
-    # reference configuration is a rectangle
-    # L = 2
-    # B = 2
-    B = 10 * np.sqrt(2) * 0.0048
-    L = 3 * B
-
-    rectangle_shape = (L, B)
-    Z = rectangle(rectangle_shape, mesh, Greville=True)
-    z0 = rectangle(rectangle_shape, mesh, Greville=True, Fuzz=0.00001)
-
-    # material model
-    K_rho = 1.34e5 
-    K_Gamma = 1.59e2
-    K_Theta_s = 1.92e-2
-    gamma = 1.36
-    # gamma = 1.7
-    # mat = Maurin2019_linear(K_rho, K_Gamma, K_Theta_s)
-    mat = Maurin2019(K_rho, K_Gamma, K_Theta_s, gamma)
-
-    verify_derivatives(mat)
-
-    # boundary conditions
-    # cDOF1 = mesh.edge_DOF[0].ravel()
-    # cDOF2x = mesh.edge_DOF[1][0]
-    # cDOF2y = mesh.edge_DOF[1][1]
-    # cDOF2 = np.concatenate((cDOF2x, cDOF2y))
-    # cDOF = np.concatenate((cDOF1, cDOF2))
-    # b1 = lambda t: Z[cDOF1]
-    # b2x = lambda t: Z[cDOF2x] + t * 0.02
-    # b2y = lambda t: Z[cDOF2y]
-    # b = lambda t: np.concatenate((b1(t), b2x(t), b2y(t)))
-
-    cDOF, b = standard_displacements(mesh, Z, case=case)
-
-    # 3D continuum
-    continuum = Pantographic_sheet(None, mat, mesh, Z, z0=z0, cDOF=cDOF, b=b)
-
-    model = Model()
-    model.add(continuum)
-    model.assemble()
-
-    # f_pot = model.f_pot(0, model.q0)
-    
-    # static solver
-    # n_load_steps = 20
-    load_steps = np.linspace(0, 1, n_load_steps)[starting_step:]
-    tol = 1.0e-6
-    max_iter = 12
-    solver = Newton(model, n_load_steps=n_load_steps, load_steps=load_steps, tol=tol, max_iter=max_iter)
-
-    sol = solver.solve()
-    with open(filename, mode='wb') as f:
-        pickle.dump((sol, mat, mesh), f)
 
     # vtk export
     continuum.post_processing(sol.t, sol.q, filename)
@@ -487,14 +536,16 @@ def standard_displacements(mesh, Z, case, displacement=None):
     return cDOF, b
 
 def task_queue():
-    # pantographic_sheet(case="test_a", filename="pantographic_sheet_test_a", n_load_steps=10, starting_step=1)
-    pantographic_sheet(case="test_c", filename="pantographic_sheet_test_c", n_load_steps=25, starting_step=3)
-    pantographic_sheet(case="test_c", filename="pantographic_sheet_test_c2", n_load_steps=30, starting_step=4)
-    pantographic_sheet(case="test_d", filename="pantographic_sheet_test_d", n_load_steps=25, starting_step=2)
-    pantographic_sheet(case="test_d", filename="pantographic_sheet_test_d2", n_load_steps=25, starting_step=1)
-    # pantographic_sheet(case="test_b", filename="pantographic_sheet_test_b", n_load_steps=25, starting_step=4)
-    # pantographic_sheet(case="test_b", filename="pantographic_sheet_test_b2", n_load_steps=25, starting_step=3)
-    # pantographic_sheet(case="test_a", filename="pantographic_sheet_test_a2", n_load_steps=20, starting_step=2)
+    pantographic_sheet(case="test_a", filename="pantographic_sheet_test_maurin_lin_a", n_load_steps=30, starting_step=0)
+    # pantographic_sheet(case="test_b", filename="pantographic_sheet_test_maurin_lin_b", n_load_steps=30, starting_step=0)
+    # pantographic_sheet(case="test_c", filename="pantographic_sheet_test_maurin_lin_c", n_load_steps=30, starting_step=0)
+    # pantographic_sheet(case="test_d", filename="pantographic_sheet_test_maurin_lin_d", n_load_steps=30, starting_step=0)
+    # pantographic_sheet(case="test_a", filename="pantographic_sheet_test_maurin_lin_finer_a", n_load_steps=50, starting_step=0)
+    # pantographic_sheet(case="test_b", filename="pantographic_sheet_test_maurin_lin_finer_b", n_load_steps=50, starting_step=0)
+    # pantographic_sheet(case="test_c", filename="pantographic_sheet_test_maurin_lin_finer_c", n_load_steps=50, starting_step=0)
+    # pantographic_sheet(case="test_d", filename="pantographic_sheet_test_maurin_lin_finer_d", n_load_steps=50, starting_step=0)
+    # pantographic_sheet(case="test_b", filename="dill_test2_", n_load_steps=8, starting_step=0)
+print
 
 if __name__ == "__main__":
     # test_cube()
