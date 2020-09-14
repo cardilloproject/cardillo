@@ -160,16 +160,19 @@ class Pantographic_sheet():
                 "e2": lambda F, G: np.append(strain_measures(F, G)[5], 0),
                 "W_axial": lambda F, G: self.mat.W_axial(*strain_measures(F, G)[:4]),
                 "W_bending": lambda F, G: self.mat.W_bending(*strain_measures(F, G)[:4]),
-                "W_shear": lambda F, G: self.mat.W_shear(*strain_measures(F, G)[:4]),
+                "W_shear": lambda F, G: np.array([self.mat.W_shear(*strain_measures(F, G)[:4])]),
             }
 
             for name, fun in point_data_fields.items():
-                tmp = fun(F_vtk[0].reshape(self.dim, self.dim), G_vtk[0].reshape(self.dim, self.dim, self.dim)).ravel()
-                field = np.zeros((len(F_vtk), len(tmp)))
-                for i, Fi in enumerate(F_vtk):
-                    Gi = G_vtk[i]
-                    field[i] = fun(Fi.reshape(self.dim, self.dim), Gi.reshape(self.dim, self.dim, self.dim)).ravel()
-                point_data.update({name: field})
+                try:
+                    tmp = fun(F_vtk[0].reshape(self.dim, self.dim), G_vtk[0].reshape(self.dim, self.dim, self.dim)).ravel()
+                    field = np.zeros((len(F_vtk), len(tmp)))
+                    for i, Fi in enumerate(F_vtk):
+                        Gi = G_vtk[i]
+                        field[i] = fun(Fi.reshape(self.dim, self.dim), Gi.reshape(self.dim, self.dim, self.dim)).ravel()
+                    point_data.update({name: field})
+                except ValueError:
+                    print(f"A math domain error occured in evaluating {name}. No field data returned for this metric.")
         
             # write vtk mesh using meshio
             meshio.write_points_cells(
@@ -510,9 +513,9 @@ class Pantographic_sheet():
         z = self.z(t, q)
         for el in range(self.nel):
             Ke = self.f_pot_q_el(z[self.elDOF[el]], el)
-            #Ke_num = Numerical_derivative(lambda t, z: self.f_pot_el(z, el), order=2)._x(t, z[self.elDOF[el]])
-            #error = np.linalg.norm(Ke - Ke_num)
-            #print(f'error K: {error}')
+            # Ke_num = Numerical_derivative(lambda t, z: self.f_pot_el(z, el), order=2)._x(t, z[self.elDOF[el]])
+            # error = np.linalg.norm(Ke - Ke_num)
+            # print(f'error K: {error}')
             # Ke = Numerical_derivative(lambda t, z: self.f_pot_el(z, el), order=2)._x(t, z[self.elDOF[el]])
 
             # sparse assemble element internal stiffness matrix

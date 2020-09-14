@@ -8,10 +8,10 @@ def verify_derivatives(mat):
     #TODO: use normalized parameters
     #mat_temp = mat.__class__()
     
-    rho = rand(2)
-    rho_s = rand(2,2)
-    Gamma = rand(1)
-    theta_s = rand(2,2)
+    rho = np.array([0.3,0.5])
+    rho_s = np.array([[0.3,0.5],[0.1,0.8]])
+    Gamma = np.array([0.4])
+    theta_s = np.array([[0.1,0.6],[0.7,0.7]])
 
     W_rho_num = Numerical_derivative(lambda t, rho: mat.W(rho, rho_s, Gamma, theta_s), order=1)._x(0, rho).ravel()
     W_rho_an = mat.W_rho(rho, rho_s, Gamma, theta_s).ravel()
@@ -57,6 +57,35 @@ class Maurin2019_linear():
     def W_theta_s(self, rho, rho_s, Gamma, theta_s):
         return self.K_Theta_s * theta_s * np.eye(2) # only s-s derivatives
 
+    def W_rho_rho(self, rho, rho_s, Gamma, theta_s):
+        return self.K_rho * np.eye(2)
+
+    def W_Gamma_Gamma(self, rho, rho_s, Gamma, theta_s):
+        return self.K_Gamma
+
+    def W_theta_s_theta_s(self, rho, rho_s, Gamma, theta_s):
+        W_theta_s_theta_s = np.zeros((2, 2, 2, 2))
+        for i in range(2):
+            W_theta_s_theta_s[i, i, i, i] = self.K_Theta_s
+        return W_theta_s_theta_s
+
+    # for post processing: axial, bending and shear strain energy density
+    def W_axial(self, rho, rho_s, Gamma, theta_s):
+        W = 0
+        for i in range(2):
+            W += 0.5 * self.K_rho * (rho[i] - 1)**2  
+        return W 
+
+    def W_bending(self, rho, rho_s, Gamma, theta_s):
+        W = 0
+        for i in range(2):
+            W += 0.5 * self.K_Theta_s * theta_s[i,i]**2 
+        return W
+
+    def W_shear(self, rho, rho_s, Gamma, theta_s):
+         return 0.5 * self.K_Gamma * Gamma**2 
+
+
 class Maurin2019():
     def __init__(self, K_rho, K_Gamma, K_Theta_s, gamma):
         self.K_rho = K_rho         # [Nm^-1]
@@ -79,6 +108,8 @@ class Maurin2019():
         return np.zeros((2, 2))
 
     def W_Gamma(self, rho, rho_s, Gamma, theta_s):
+        # if np.isclose(Gamma, 0, atol=1e-03):
+        #     return 0
         return 0.5 * self.gamma * self.K_Gamma * np.sign(Gamma) * np.abs(Gamma)**(self.gamma - 1)
         
     def W_theta_s(self, rho, rho_s, Gamma, theta_s):
@@ -89,6 +120,8 @@ class Maurin2019():
         return self.K_rho * np.eye(2)
 
     def W_Gamma_Gamma(self, rho, rho_s, Gamma, theta_s):
+        # if np.isclose(Gamma, 0, atol=1e-03):
+        #     return 0
         return 0.5 * self.gamma * self.K_Gamma * (self.gamma - 1) * np.abs(Gamma)**(self.gamma - 2)
 
     def W_theta_s_theta_s(self, rho, rho_s, Gamma, theta_s):
