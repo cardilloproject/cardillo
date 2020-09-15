@@ -2,11 +2,13 @@ import numpy as np
 import meshio
 import os
 from math import asin
+import matplotlib.pyplot as plt
 
 from cardillo.math.numerical_derivative import Numerical_derivative
 from cardillo.discretization.indexing import flat2D, flat3D, split2D, split3D
 from cardillo.discretization.B_spline import B_spline_basis3D
 from cardillo.math.algebra import determinant2D, inverse3D, determinant3D, A_IK_basic_z, norm2
+from cardillo.discretization.mesh2D import Mesh2D
 
 def strain_measures(F, G):
     # strain measures of pantographic sheet
@@ -43,6 +45,37 @@ def strain_measures(F, G):
 
     return rho, rho_s, Gamma, theta_s, e1, e2
 
+def strain_single_point(continuum, t, q, vxi):
+    # evaluate individual points
+    mesh = continuum.mesh
+    knot_vector_objs = mesh.knot_vector_objs
+    el_xi, el_eta = tuple(knot_vector_objs[i].element_number(vxi[i]) for i in range(2))
+    el = flat2D(el_xi, el_eta, mesh.nel_per_dim)
+    mesh_eval = Mesh2D(knot_vector_objs, mesh.nqp_per_dim, derivative_order=2, basis='B-spline', nq_n=2, vxi=vxi, elDOF=mesh.elDOF[el])
+    continuum_eval = Pantographic_sheet(None, continuum.mat, mesh_eval, continuum.Z, cDOF=continuum.cDOF, b=continuum.b)
+
+    rho = np.zeros([len(t), 2])
+    rho_s = np.zeros([len(t), 2, 2])
+    Gamma = np.zeros([len(t)])
+    theta_s = np.zeros([len(t), 2, 2])
+
+    for i, (ti, qi) in enumerate(zip(t, q)):
+        rho[i], rho_s[i], Gamma[i], theta_s[i] = continuum_eval.post_processing_single_configuration(ti, qi, None, return_strain=True)
+    fig, ax = plt.subplots(2, 2)
+    ax[0, 0].plot(t, rho)
+    ax[0, 1].plot(t, - Gamma * 180 / np.pi + 90)
+    ax[1, 0].plot(t, rho_s.reshape(-1, 4))
+    ax[1, 1].plot(t, theta_s.reshape(-1, 4))
+
+    ax[0, 0].set_title("rho")
+    ax[0, 1].set_title("phi")
+    ax[1, 0].set_title("rho_s")
+    ax[1, 1].set_title("theta_s")
+    ax[1, 0].set_xlabel("time")
+    ax[1, 1].set_xlabel("time")
+
+    plt.show()
+
 class Pantographic_sheet():
     def __init__(self, density, material, mesh, Z, z0=None, v0=None, cDOF=[], b=None, fiber_angle=np.pi/4):
         self.density = density
@@ -73,7 +106,7 @@ class Pantographic_sheet():
         # store mesh and extrac data
         self.mesh = mesh
         self.nel = mesh.nel
-        self.nn = mesh.nn
+        # self.nn = mesh.nn
         self.nn_el = mesh.nn_el # number of nodes of an element
         self.nq_el = mesh.nq_el
         self.nqp = mesh.nqp
@@ -81,8 +114,9 @@ class Pantographic_sheet():
         self.nodalDOF = mesh.nodalDOF
         self.N = self.mesh.N
 
-        self.dim = int(len(Z) / self.nn)
-        assert self.dim == 2
+        # self.dim = int(len(Z) / self.nn)
+        # assert self.dim == 2  #TODO: check is currently not compatible with evaluation mesh
+        self.dim = 2
         self.flat = flat2D
         self.determinant = determinant2D
 
@@ -121,7 +155,7 @@ class Pantographic_sheet():
         z[self.cDOF] = self.b(t)
         return z
         
-    def post_processing_single_configuration(self, t, q, filename, binary=True):
+    def post_processing_single_configuration(self, t, q, filename, binary=True, return_strain=False):
             # compute redundant generalized coordinates
             z = self.z(t, q)
 
@@ -141,48 +175,52 @@ class Pantographic_sheet():
                         # first deformation gradient
                         F[el, i] += np.outer(ze[self.mesh.nodalDOF[a]], self.N_Theta[el, i, a]) # Bonet 1997 (7.6b)
                         G[el, i] += np.einsum('i,jk->ijk', ze[self.nodalDOF[a]], self.N_ThetaTheta[el, i, a]) 
-                                    
-            F_vtk = self.mesh.field_to_vtk(F)
-            G_vtk = self.mesh.field_to_vtk(G)
-            point_data.update({"F": F_vtk, "G": G_vtk})
 
-            # field data vtk export
-            point_data_fields = {
-                #TODO: make strain_measures function calls less redundant
-                "C": lambda F, G: F.T @ F,
-                "J": lambda F, G: np.array([self.determinant(F)]),
-                "W": lambda F, G: self.mat.W(*strain_measures(F, G)[:4]),
-                "rho": lambda F, G: strain_measures(F, G)[0],
-                "rho_s": lambda F, G: strain_measures(F, G)[1].ravel(),
-                "Gamma": lambda F, G:  np.array([strain_measures(F, G)[2]]),
-                "theta_s": lambda F, G:  strain_measures(F, G)[3].ravel(), 
-                "e1": lambda F, G: np.append(strain_measures(F, G)[4], 0),
-                "e2": lambda F, G: np.append(strain_measures(F, G)[5], 0),
-                "W_axial": lambda F, G: self.mat.W_axial(*strain_measures(F, G)[:4]),
-                "W_bending": lambda F, G: self.mat.W_bending(*strain_measures(F, G)[:4]),
-                "W_shear": lambda F, G: np.array([self.mat.W_shear(*strain_measures(F, G)[:4])]),
-            }
+            if return_strain == False:             
+                F_vtk = self.mesh.field_to_vtk(F)
+                G_vtk = self.mesh.field_to_vtk(G)
+                point_data.update({"F": F_vtk, "G": G_vtk})
 
-            for name, fun in point_data_fields.items():
-                try:
-                    tmp = fun(F_vtk[0].reshape(self.dim, self.dim), G_vtk[0].reshape(self.dim, self.dim, self.dim)).ravel()
-                    field = np.zeros((len(F_vtk), len(tmp)))
-                    for i, Fi in enumerate(F_vtk):
-                        Gi = G_vtk[i]
-                        field[i] = fun(Fi.reshape(self.dim, self.dim), Gi.reshape(self.dim, self.dim, self.dim)).ravel()
-                    point_data.update({name: field})
-                except ValueError:
-                    print(f"A math domain error occured in evaluating {name}. No field data returned for this metric.")
-        
-            # write vtk mesh using meshio
-            meshio.write_points_cells(
-                os.path.splitext(os.path.basename(filename))[0] + '.vtu',
-                points,
-                cells,
-                point_data=point_data,
-                cell_data={"HigherOrderDegrees": HigherOrderDegrees},
-                binary=binary
-            )
+                # field data vtk export
+                point_data_fields = {
+                    #TODO: make strain_measures function calls less redundant
+                    "C": lambda F, G: F.T @ F,
+                    "J": lambda F, G: np.array([self.determinant(F)]),
+                    "W": lambda F, G: self.mat.W(*strain_measures(F, G)[:4]),
+                    "rho": lambda F, G: strain_measures(F, G)[0],
+                    "rho_s": lambda F, G: strain_measures(F, G)[1].ravel(),
+                    "Gamma": lambda F, G:  np.array([strain_measures(F, G)[2]]),
+                    "theta_s": lambda F, G:  strain_measures(F, G)[3].ravel(), 
+                    "e1": lambda F, G: np.append(strain_measures(F, G)[4], 0),
+                    "e2": lambda F, G: np.append(strain_measures(F, G)[5], 0),
+                    "W_axial": lambda F, G: self.mat.W_axial(*strain_measures(F, G)[:4]),
+                    "W_bending": lambda F, G: self.mat.W_bending(*strain_measures(F, G)[:4]),
+                    "W_shear": lambda F, G: np.array([self.mat.W_shear(*strain_measures(F, G)[:4])]),
+                }
+
+                for name, fun in point_data_fields.items():
+                    try:
+                        tmp = fun(F_vtk[0].reshape(self.dim, self.dim), G_vtk[0].reshape(self.dim, self.dim, self.dim)).ravel()
+                        field = np.zeros((len(F_vtk), len(tmp)))
+                        for i, Fi in enumerate(F_vtk):
+                            Gi = G_vtk[i]
+                            field[i] = fun(Fi.reshape(self.dim, self.dim), Gi.reshape(self.dim, self.dim, self.dim)).ravel()
+                        point_data.update({name: field})
+                    except ValueError:
+                        print(f"A math domain error occured in evaluating {name}. No field data returned for this metric.")
+            
+                # write vtk mesh using meshio
+                meshio.write_points_cells(
+                    os.path.splitext(os.path.basename(filename))[0] + '.vtu',
+                    points,
+                    cells,
+                    point_data=point_data,
+                    cell_data={"HigherOrderDegrees": HigherOrderDegrees},
+                    binary=binary
+                )
+
+            else:
+                return strain_measures(F[0, 0], G[0, 0])[:4]
         
     def post_processing(self, t, q, filename, binary=True):
         # write paraview PVD file collecting time and all vtk files, see https://www.paraview.org/Wiki/ParaView/Data_formats#PVD_File_Format
@@ -212,6 +250,7 @@ class Pantographic_sheet():
         xml_str = root.toprettyxml(indent ="\t")          
         with open(filename + '.pvd', "w") as f:
             f.write(xml_str)
+
 
     #########################################
     # kinematic equation

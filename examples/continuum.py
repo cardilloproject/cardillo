@@ -7,9 +7,9 @@ import dill
 from cardillo.discretization.mesh import Mesh, cube
 from cardillo.discretization.mesh2D import Mesh2D, rectangle
 from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume
-from cardillo.discretization.indexing import flat3D
+from cardillo.discretization.indexing import flat3D, flat2D
 from cardillo.model.continuum import Ogden1997_compressible, First_gradient
-from cardillo.model.continuum import Pantographic_sheet, Maurin2019_linear, Maurin2019, verify_derivatives
+from cardillo.model.continuum import Pantographic_sheet, Maurin2019_linear, Maurin2019, verify_derivatives, strain_single_point
 from cardillo.solver import Newton, Generalized_alpha_1, Euler_backward
 from cardillo.model import Model
 from cardillo.math.algebra import A_IK_basic_z
@@ -344,7 +344,7 @@ def pantographic_sheet(case="test_a", filename="pantographic_sheet_test_a", n_lo
         degrees = (2, 2)
         QP_shape = (3, 3)
         element_shape = (36, 12)
-        # QP_shape = (2, 2)
+        # QP_shape = (3, 3)
         # element_shape = (10, 4)
 
         Xi = Knot_vector(degrees[0], element_shape[0])
@@ -369,8 +369,8 @@ def pantographic_sheet(case="test_a", filename="pantographic_sheet_test_a", n_lo
         K_Theta_s = 1.92e-2
         gamma = 1.36
         # gamma = 1.7
-        mat = Maurin2019_linear(K_rho, K_Gamma, K_Theta_s)
-        # mat = Maurin2019(K_rho, K_Gamma, K_Theta_s, gamma)
+        # mat = Maurin2019_linear(K_rho, K_Gamma, K_Theta_s)
+        mat = Maurin2019(K_rho, K_Gamma, K_Theta_s, gamma)
 
         verify_derivatives(mat)
 
@@ -400,9 +400,7 @@ def pantographic_sheet(case="test_a", filename="pantographic_sheet_test_a", n_lo
         def init_guess(t, t_new, x):
             from cardillo.math.algebra import norm2
             from cardillo.discretization.indexing import split2D
-            #TODO: make smarter choice for new initial guess
-            # self.x[i + 1] = distribute_points_sides_constrained(self.load_steps[i], self.x[i])
-            #continuum = self.model.contributions[0]
+
             left_DOF = continuum.mesh.edge_DOF[0]
             right_DOF = continuum.mesh.edge_DOF[1]
             z = continuum.z(t, x)
@@ -449,7 +447,12 @@ def pantographic_sheet(case="test_a", filename="pantographic_sheet_test_a", n_lo
 
 
     # vtk export
-    continuum.post_processing(sol.t, sol.q, filename)
+    # continuum.post_processing(sol.t, sol.q, filename)
+
+    vxi = np.array([0.5, 0.5])
+    strain_single_point(continuum, sol.t, sol.q, vxi)
+
+
 
 
 def standard_displacements(mesh, Z, case, displacement=None):
@@ -536,16 +539,27 @@ def standard_displacements(mesh, Z, case, displacement=None):
     return cDOF, b
 
 def task_queue():
-    pantographic_sheet(case="test_a", filename="pantographic_sheet_test_maurin_lin_a", n_load_steps=30, starting_step=0)
-    # pantographic_sheet(case="test_b", filename="pantographic_sheet_test_maurin_lin_b", n_load_steps=30, starting_step=0)
-    # pantographic_sheet(case="test_c", filename="pantographic_sheet_test_maurin_lin_c", n_load_steps=30, starting_step=0)
-    # pantographic_sheet(case="test_d", filename="pantographic_sheet_test_maurin_lin_d", n_load_steps=30, starting_step=0)
+    # pantographic_sheet(case="test_b", filename="pantographic_sheet_test_maurin_b_0step", n_load_steps=30, starting_step=0)
+    # pantographic_sheet(case="test_c", filename="pantographic_sheet_test_maurin_c_0step", n_load_steps=50, starting_step=0)
+    # pantographic_sheet(case="test_d", filename="pantographic_sheet_test_maurin_d_0step", n_load_steps=50, starting_step=0)
+    pantographic_sheet(case="test_a", filename="pantographic_sheet_test_maurin_a_0step", n_load_steps=30, starting_step=0)
+    # pantographic_sheet(case="test_b", filename="pantographic_sheet_test_maurin_b_1step", n_load_steps=30, starting_step=1)
+    # pantographic_sheet(case="test_c", filename="pantographic_sheet_test_maurin_c_1step", n_load_steps=50, starting_step=1)
+    # pantographic_sheet(case="test_d", filename="pantographic_sheet_test_maurin_d_1step", n_load_steps=50, starting_step=1)
+    # pantographic_sheet(case="test_a", filename="pantographic_sheet_test_maurin_a_1step", n_load_steps=30, starting_step=1)
+    # pantographic_sheet(case="test_b", filename="pantographic_sheet_test_maurin_b_2step", n_load_steps=30, starting_step=2)
+    # pantographic_sheet(case="test_c", filename="pantographic_sheet_test_maurin_c_2step", n_load_steps=50, starting_step=2)
+    # pantographic_sheet(case="test_d", filename="pantographic_sheet_test_maurin_d_2step", n_load_steps=50, starting_step=2)
+    # pantographic_sheet(case="test_a", filename="pantographic_sheet_test_maurin_a_2step", n_load_steps=30, starting_step=2)
+    # pantographic_sheet(case="test_b", filename="pantographic_sheet_test_maurin_b_3step", n_load_steps=30, starting_step=3)
+    # pantographic_sheet(case="test_c", filename="pantographic_sheet_test_maurin_c_3step", n_load_steps=50, starting_step=3)
+    # pantographic_sheet(case="test_d", filename="pantographic_sheet_test_maurin_d_3step", n_load_steps=50, starting_step=3)
+    # pantographic_sheet(case="test_a", filename="pantographic_sheet_test_maurin_a_3step", n_load_steps=30, starting_step=3)
     # pantographic_sheet(case="test_a", filename="pantographic_sheet_test_maurin_lin_finer_a", n_load_steps=50, starting_step=0)
     # pantographic_sheet(case="test_b", filename="pantographic_sheet_test_maurin_lin_finer_b", n_load_steps=50, starting_step=0)
     # pantographic_sheet(case="test_c", filename="pantographic_sheet_test_maurin_lin_finer_c", n_load_steps=50, starting_step=0)
     # pantographic_sheet(case="test_d", filename="pantographic_sheet_test_maurin_lin_finer_d", n_load_steps=50, starting_step=0)
     # pantographic_sheet(case="test_b", filename="dill_test2_", n_load_steps=8, starting_step=0)
-print
 
 if __name__ == "__main__":
     # test_cube()
