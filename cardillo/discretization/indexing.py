@@ -17,7 +17,7 @@ def flat3D(i, j, k, shape):
 
 if __name__ == "__main__":
     shape = (2, 3)
-    idx = 5
+    idx = 4
     split = split2D(idx, shape)
     print(f'split: {split}')
     flat = flat2D(*split, shape)

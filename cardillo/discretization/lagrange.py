@@ -1,4 +1,108 @@
 import numpy as np
+from cardillo.discretization.indexing import flat2D, flat3D, split2D, split3D
+
+def lagrange_basis1D(degree, xi, derivative=1):
+    p = degree
+
+    if not hasattr(xi, '__len__'):
+        xi = np.array([xi])
+ 
+    n = sum([1 for d in range(derivative + 1)])
+    NN = np.zeros((k, p+1, n))
+    #TODO: make seperate 1D Basis function with second derrivative
+    Nxi = np.transpose(np.array(Lagrange_basis(p, xi)),(1,2,0))
+
+    NN = Nxi[:n]
+
+    return NN
+
+def lagrange_basis2D(degrees, xis, derivative=1):
+    p, q = degrees
+    xi, eta = xis
+    p1q1 = (p + 1) * (q + 1)
+
+    if not hasattr(xi, '__len__'):
+        xi = np.array([xi])
+    if not hasattr(eta, '__len__'):
+        eta = np.array([eta])
+
+    k = len(xi)
+    l = len(eta)
+    kl = k * l
+ 
+    n = sum([2**d for d in range(derivative + 1)])
+    NN = np.zeros((kl, p1q1, n))
+    #TODO: make seperate 1D Basis function with second derrivative
+    Nxi = np.transpose(np.array(Lagrange_basis(p, xi)),(1,2,0))
+    Neta = np.transpose(np.array(Lagrange_basis(q, eta)),(1,2,0))
+
+    for i in range(kl):
+        ik, il = split2D(i, (k, ))
+
+        for a in range(p1q1):
+            a_xi, a_eta = split2D(a, (p + 1, ))
+            NN[i, a, 0] = Nxi[ik, a_xi, 0] * Neta[il, a_eta, 0]
+
+            if derivative > 0:
+                NN[i, a, 1] = Nxi[ik, a_xi, 1] * Neta[il, a_eta, 0] 
+                NN[i, a, 2] = Nxi[ik, a_xi, 0] * Neta[il, a_eta, 1] 
+                if derivative > 1:
+                    raise NotImplementedError('...')
+                    NN[i, a, 3] = Nxi[ik, a_xi, 2] * Neta[il, a_eta, 0]
+                    NN[i, a, 4] = Nxi[ik, a_xi, 1] * Neta[il, a_eta, 1]
+                    NN[i, a, 6] = NN[i, a, 4]
+                    NN[i, a, 5] = Nxi[ik, a_xi, 0] * Neta[il, a_eta, 2] 
+
+    return NN
+
+def lagrange_basis3D(degrees, xis, derivative=1):
+    p, q, r = degrees
+    xi, eta, zeta = xis
+    p1q1r1 = (p + 1) * (q + 1) * (r + 1)
+
+    if not hasattr(xi, '__len__'):
+        xi = np.array([xi])
+    if not hasattr(eta, '__len__'):
+        eta = np.array([eta])
+    if not hasattr(zeta, '__len__'):
+        zeta = np.array([zeta])
+
+    k = len(xi)
+    l = len(eta)
+    m = len(zeta)
+    klm = k * l * m
+ 
+    n = sum([3**d for d in range(derivative + 1)])
+    NN = np.zeros((klm, p1q1r1, n))
+    #TODO: make seperate 1D Basis function with second derrivative
+    Nxi = np.transpose(np.array(Lagrange_basis(p, xi)),(1,2,0))
+    Neta = np.transpose(np.array(Lagrange_basis(q, eta)),(1,2,0))
+    Nzeta = np.transpose(np.array(Lagrange_basis(r, zeta)),(1,2,0))
+
+    for i in range(klm):
+        ik, il, im = split3D(i, (k, l))
+
+        for a in range(p1q1r1):
+            a_xi, a_eta, a_zeta = split3D(a, (p + 1, q + 1))
+            NN[i, a, 0] = Nxi[ik, a_xi, 0] * Neta[il, a_eta, 0] * Nzeta[im, a_zeta, 0]
+
+            if derivative > 0:
+                NN[i, a, 1] = Nxi[ik, a_xi, 1] * Neta[il, a_eta, 0] * Nzeta[im, a_zeta, 0]
+                NN[i, a, 2] = Nxi[ik, a_xi, 0] * Neta[il, a_eta, 1] * Nzeta[im, a_zeta, 0]
+                NN[i, a, 3] = Nxi[ik, a_xi, 0] * Neta[il, a_eta, 0] * Nzeta[im, a_zeta, 1]
+                if derivative > 1:
+                    raise NotImplementedError('...')
+                    NN[i, a, 4] = Nxi[ik, a_xi, 2] * Neta[il, a_eta, 0] * Nzeta[im, a_zeta, 0]
+                    NN[i, a, 5] = Nxi[ik, a_xi, 1] * Neta[il, a_eta, 1] * Nzeta[im, a_zeta, 0]
+                    NN[i, a, 6] = Nxi[ik, a_xi, 1] * Neta[il, a_eta, 0] * Nzeta[im, a_zeta, 1]
+                    NN[i, a, 7] = NN[i, a, 5]
+                    NN[i, a, 8] = Nxi[ik, a_xi, 0] * Neta[il, a_eta, 2] * Nzeta[im, a_zeta, 0]
+                    NN[i, a, 9] = Nxi[ik, a_xi, 0] * Neta[il, a_eta, 1] * Nzeta[im, a_zeta, 1]
+                    NN[i, a, 10] = NN[i, a, 6]
+                    NN[i, a, 11] = NN[i, a, 7]
+                    NN[i, a, 12] = Nxi[ik, a_xi, 0] * Neta[il, a_eta, 0] * Nzeta[im, a_zeta, 2]
+
+    return NN
 
 def Lagrange_basis(degree, x, derivative=True):
     """Compute Lagrange shape function basis.
@@ -21,7 +125,7 @@ def Lagrange_basis(degree, x, derivative=True):
     N = np.zeros((nx, degree + 1))
     for i, xi in enumerate(x):
         N[i] = __lagrange(xi, degree)
-    if derivative:
+    if derivative == True:
         dN = np.zeros((nx, degree + 1))
         for i, xi in enumerate(x):
             dN[i] = __lagrange_x(xi, degree)
@@ -110,8 +214,19 @@ def __lagrange_xx_r(x, degree):
             
     return l_xx
 
+def test_shape_functions():
+    degree = (1,2,3)
+    xi = [0,1,2]
+    eta = [3,4,5,6]
+    zeta = [7,8,9,11]
+    xis = (xi,eta,zeta)
+    return lagrange_basis3D(degree,xis)
+
 if __name__ == "__main__":
     import numpy as np
+
+    #NN = test_shape_functions()
+
     degree = 2
     # x = -1
     # x = 0
