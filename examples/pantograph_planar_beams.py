@@ -1,7 +1,7 @@
 from pickle import load
 from cardillo.solver.solution import load_solution, save_solution
 import numpy as np
-from math import pi, ceil, sin, cos, exp, atan2
+from math import pi, ceil, sin, cos, exp, atan2, sqrt
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from numpy.core.function_base import linspace
@@ -268,41 +268,39 @@ class Pivot_w_spring():
                     
         coo.extend(dense, (self.uDOF, self.qDOF))
 
-
-# import Rigid_beam_beam_connection2D as junction
-
 if __name__ == "__main__":
-    statics = False
     solveProblem = True
-    
-    t1 = 5e-2 / 10
-    dt = 5e-2 / 1500
+    E_B_beam = True
+
     # physical parameters
     gamma = pi/4
     # nRow = 20
     # nCol = 400
     nRow = 20
-    nCol = 40
+    nCol = 60
     nf = nRow / 2
 
-    H = 0.07
+    H = 0.0048 * 10 *sqrt(2)
     L = nCol / nRow * H
     LBeam = H / (nRow * sin(gamma))
 
-    Yb = 500e6
-    Gb = Yb / (2 * (1 + 0.4))
-    a = 1.6e-3
-    b = 1e-3
-    rp = 0.45e-3
-    hp = 1e-3
+    EA = 1.34e5 * LBeam
+    EI = 1.92e-2 * LBeam
+    GI = 1.59e2 * LBeam**2
 
-    Jg = (a * b**3) / 12
+    # Yb = 500e6
+    # Gb = Yb / (2 * (1 + 0.4))
+    # a = 1.6e-3
+    # b = 1e-3
+    # rp = 0.45e-3
+    # hp = 1e-3
+
+    # Jg = (a * b**3) / 12
     
-    EA = Yb * a * b
-    EI = Yb * Jg
-    GI = Gb * 0.5*(np.pi * rp**4)/hp
+    # EA = Yb * a * b
+    # EI = Yb * Jg
+    # GI = Gb * 0.5*(np.pi * rp**4)/hp
 
-    displ = H / 5
     # EA = 1.6e9 * 1.6e-3 * 0.9e-3
     # EI = 1.6e9 * (1.6e-3) * (0.9e-3)**3 / 12
     # GI = 0.1 * 1/3 * 1.6e9 * np.pi * ((0.9e-3)**4)/32 * 1e3 
@@ -315,56 +313,35 @@ if __name__ == "__main__":
     # EI = 1.555e-4
     # GI = 0.004
 
+    A_rho0 = 0
+
     displacementX_l = 0#displ #-0.0567/4
-    # displacementX = 0.02
     displacementY_l = 0.0
     rotationZ_l = 0 #-np.pi/10
 
-    displacementX_r = 0 #0.0567/2
-    # displacementX = 0.02
+    displacementX_r = 0.0567 * 1.1
     displacementY_r = 0.00
     
     rotationZ_r = 0 #np.pi/10
 
-    # r_OP_l = lambda t: np.array([0, H / 2, 0]) + np.array([t * displacementX_l, t * displacementY_r, 0])
-
-    fcn = lambda t: displ * np.exp(-(t-0.004)**2/0.001**2)*(t*(t<0.001)+0.001*(t>=0.001))/0.001
-
-    # fcn = lambda t: displ * np.exp(-(t-0.003)**2/0.001**2)*(t*(t<0.00)+0.001*(t>=0.00))/0.001
-
-
-    # fig, ax = plt.subplots()
-    # ax.set_xlabel('x [m]')
-    # ax.set_ylabel('y [m]')
-    # x = linspace(0, t1, 1000)
-    # y = []
-
-    # for t in x:
-    #     y.append(fcn(t))
-
-    # ax.plot(x, y)
-    # plt.show()
-
-    r_OP_l = lambda t: np.array([0, H / 2, 0]) + np.array([fcn(t), 0, 0])
-
+    r_OP_l = lambda t: np.array([0, H / 2, 0]) +  np.array([t * displacementX_l, t * displacementY_l, 0])
     A_IK_l = lambda t: A_IK_basic_z(t * rotationZ_l)
 
     r_OP_r = lambda t: np.array([L, H / 2, 0]) +  np.array([t * displacementX_r, t * displacementY_r, 0])
     A_IK_r = lambda t: A_IK_basic_z(t * rotationZ_r)
     
-    A_rho0 = 930 * a * b
     material_model = Hooke(EA, EI)
 
     ###################
     # create pantograph
     ###################
-    p = 2
+    p = 3
     assert p >= 2
     # nQP = int(np.ceil((p + 1)**2 / 2))
-    nQP = p + 2
+    nQP = p + 1
 
     print(f'nQP: {nQP}')
-    nEl = 1
+    nEl = 2
 
     # projections of beam length
     Lx = LBeam * cos(gamma)
@@ -453,14 +430,18 @@ if __name__ == "__main__":
             beam1 = beams[ID_mat[brow, bcol]]
             beam2 = beams[ID_mat[brow + 1, bcol + 1]]
             r_OB = beam1.r_OP(0, beam1.q0[beam1.qDOF_P(frame_ID1)], frame_ID1)
-            # model.add(Rigid_connection2D(beam1, beam2, r_OB, frame_ID1=frame_ID1, frame_ID2=frame_ID2))
-            model.add(Junction(beam1, beam2))
+            if E_B_beam:
+                model.add(Junction(beam1, beam2))
+            else:
+                model.add(Rigid_connection2D(beam1, beam2, r_OB, frame_ID1=frame_ID1, frame_ID2=frame_ID2))
 
             beam1 = beams[ID_mat[brow + 1, bcol]]
             beam2 = beams[ID_mat[brow, bcol + 1]]
             r_OB = beam1.r_OP(0, beam1.q0[beam1.qDOF_P(frame_ID1)], frame_ID1)
-            # model.add(Rigid_connection2D(beam1, beam2, r_OB, frame_ID1=frame_ID1, frame_ID2=frame_ID2))
-            model.add(Junction(beam1, beam2))
+            if E_B_beam:
+                model.add(Junction(beam1, beam2))
+            else:
+                model.add(Rigid_connection2D(beam1, beam2, r_OB, frame_ID1=frame_ID1, frame_ID2=frame_ID2))
 
     # even columns
     for bcol in range(1, nCol - 1, 2):
@@ -468,14 +449,18 @@ if __name__ == "__main__":
             beam1 = beams[ID_mat[brow, bcol]]
             beam2 = beams[ID_mat[brow + 1, bcol + 1]]
             r_OB = beam1.r_OP(0, beam1.q0[beam1.qDOF_P(frame_ID1)], frame_ID1)
-            # model.add(Rigid_connection2D(beam1, beam2, r_OB, frame_ID1=frame_ID1, frame_ID2=frame_ID2))
-            model.add(Junction(beam1, beam2))
+            if E_B_beam:
+                model.add(Junction(beam1, beam2))
+            else:
+                model.add(Rigid_connection2D(beam1, beam2, r_OB, frame_ID1=frame_ID1, frame_ID2=frame_ID2))
 
             beam1 = beams[ID_mat[brow + 1, bcol]]
             beam2 = beams[ID_mat[brow, bcol + 1]]
             r_OB = beam1.r_OP(0, beam1.q0[beam1.qDOF_P(frame_ID1)], frame_ID1)
-            # model.add(Rigid_connection2D(beam1, beam2, r_OB, frame_ID1=frame_ID1, frame_ID2=frame_ID2))
-            model.add(Junction(beam1, beam2))
+            if E_B_beam:
+                model.add(Junction(beam1, beam2))
+            else:
+                model.add(Rigid_connection2D(beam1, beam2, r_OB, frame_ID1=frame_ID1, frame_ID2=frame_ID2))
 
     # pivots and torsional springs between beam families
             
@@ -485,21 +470,29 @@ if __name__ == "__main__":
             beam1 = beams[ID_mat[brow, bcol]]
             beam2 = beams[ID_mat[brow, bcol + 1]]
             r_OB = beam1.r_OP(0, beam1.q0[beam1.qDOF_P(frame_ID1)], frame_ID1)
+            # revolute joint without shear stiffness
             # model.add(Revolute_joint2D(beam1, beam2, r_OB, np.eye(3), frame_ID1=frame_ID1, frame_ID2=frame_ID2))
+            # revolute joint with shear stiffness
             spring = Linear_spring(GI)
-            # model.add(add_rotational_forcelaw(spring, Revolute_joint2D)(beam1, beam2, r_OB, np.eye(3), frame_ID1=frame_ID1, frame_ID2=frame_ID2))
-            model.add(Pivot_w_spring(beam1, beam2, spring))
+            if E_B_beam:
+                model.add(Pivot_w_spring(beam1, beam2, spring))
+            else:
+                model.add(add_rotational_forcelaw(spring, Revolute_joint2D)(beam1, beam2, r_OB, np.eye(3), frame_ID1=frame_ID1, frame_ID2=frame_ID2))
 
     # lower boundary pivots
     for bcol in range(1, nCol - 1, 2):
         beam1 = beams[ID_mat[-1, bcol]]
         beam2 = beams[ID_mat[-1, bcol + 1]]
         r_OB = beam1.r_OP(0, beam1.q0[beam1.qDOF_P(frame_ID1)], frame_ID1)
+        # revolute joint without shear stiffness
         # model.add(Revolute_joint2D(beam1, beam2, r_OB, np.eye(3), frame_ID1=frame_ID1, frame_ID2=frame_ID2))
+        # revolute joint with shear stiffness
         spring = Linear_spring(GI)
-        # model.add(add_rotational_forcelaw(spring, Revolute_joint2D)(beam1, beam2, r_OB, np.eye(3), frame_ID1=frame_ID1, frame_ID2=frame_ID2))
-        model.add(Pivot_w_spring(beam1, beam2, spring))
-
+        if E_B_beam:
+            model.add(Pivot_w_spring(beam1, beam2, spring))
+        else:
+            model.add(add_rotational_forcelaw(spring, Revolute_joint2D)(beam1, beam2, r_OB, np.eye(3), frame_ID1=frame_ID1, frame_ID2=frame_ID2))
+        
     # clamping at the left hand side
     frame_l = Frame(r_OP=r_OP_l, A_IK=A_IK_l)
     model.add(frame_l)
@@ -519,29 +512,10 @@ if __name__ == "__main__":
     # assemble model
     model.assemble()
 
-    # fig, ax = plt.subplots()
-    # ax.set_xlabel('x [m]')
-    # ax.set_ylabel('y [m]')
-    # ax.grid(linestyle='-', linewidth='0.5')
-    # ax.set_aspect('equal')
-
-    # for bdy in beams:
-    #     x, y, z = bdy.centerline(model.q0).T
-    #     ax.plot(x, y, '-b')
-
-    # plt.show()
-
     ######################
     # solve static problem
     ######################
-    if statics:
-        solver = Newton(model, n_load_steps=5, max_iter=50, tol=1.0e-10, numerical_jacobian=False)
-    else:
-        # solver = Euler_backward(model, t1, dt, newton_max_iter=50, numerical_jacobian=False, debug=False)
-        # solver = Generalized_alpha_1(model, t1, dt, variable_dt=False, rho_inf=0.8)
-        # solver = Generalized_alpha_4_index3(model, t1, dt, rho_inf=0.8)
-        solver = Generalized_alpha_index3_panto(model, t1, dt, rho_inf=0.8)
-        # solver = Scipy_ivp(model, t1, dt, atol=1e-6)
+    solver = Newton(model, n_load_steps=5, max_iter=50, tol=1.0e-6, numerical_jacobian=False)
 
     if solveProblem == True:
         import cProfile, pstats
@@ -553,15 +527,11 @@ if __name__ == "__main__":
         sortby = 'cumulative'
         ps = pstats.Stats(pr).sort_stats(sortby)
         ps.print_stats(0.1) # print only first 10% of the list
-        save_solution(sol, 'PantographicSheet20times40')
+        save_solution(sol, f'Pantographic_sheet_{nRow}x{nCol}_statics')
     else:
-        sol = load_solution('pantograph20times400-2')
+        sol = load_solution(f'Pantographic_sheet_{nRow}x{nCol}_statics')
 
-    if statics:
-        post_processing(beams, sol.t, sol.q, 'PantographicSheetStatic', binary=True)
-    else:    
-        post_processing(beams, sol.t[::5], sol.q[::5], 'PantographicSheetDynamicShort', u = sol.u[::5], binary=True)
-
+    post_processing(beams, sol.t, sol.q, f'Pantographic_sheet_{nRow}x{nCol}_statics', binary=True)
     # if statics:
     #     fig, ax = plt.subplots()
     #     ax.set_xlabel('x [m]')
