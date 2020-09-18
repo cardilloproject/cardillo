@@ -13,7 +13,7 @@ from cardillo.model import Model
 from cardillo.model.classical_beams.planar import Euler_bernoulli, Hooke, Inextensible_Euler_bernoulli
 from cardillo.model.bilateral_constraints.implicit import Spherical_joint2D, Rigid_connection2D, Revolute_joint2D
 # from cardillo.model.bilateral_constraints.implicit import Rigid_beam_beam_connection2D as junction
-from cardillo.model.scalar_force_interactions.force_laws import Linear_spring
+from cardillo.model.scalar_force_interactions.force_laws import Linear_spring, Power_spring
 from cardillo.model.scalar_force_interactions import add_rotational_forcelaw
 from cardillo.solver.newton import Newton
 from cardillo.solver.euler_backward import Euler_backward
@@ -243,6 +243,8 @@ class Pivot_w_spring():
 
     def f_pot_q(self, t, q, coo):
         # dense_num = Numerical_derivative(lambda t, q: self.f_pot(t, q), order=2)._x(t, q)
+        # coo.extend(dense_num, (self.uDOF, self.qDOF))
+
         dense = np.zeros((self._nu, self._nq))
 
         # current tangent vector
@@ -287,6 +289,7 @@ if __name__ == "__main__":
     EA = 1.34e5 * LBeam
     EI = 1.92e-2 * LBeam
     GI = 1.59e2 * LBeam**2
+    spring_power = 2
 
     # Yb = 500e6
     # Gb = Yb / (2 * (1 + 0.4))
@@ -473,7 +476,8 @@ if __name__ == "__main__":
             # revolute joint without shear stiffness
             # model.add(Revolute_joint2D(beam1, beam2, r_OB, np.eye(3), frame_ID1=frame_ID1, frame_ID2=frame_ID2))
             # revolute joint with shear stiffness
-            spring = Linear_spring(GI)
+            # spring = Linear_spring(GI)
+            spring = Power_spring(GI, spring_power)
             if E_B_beam:
                 model.add(Pivot_w_spring(beam1, beam2, spring))
             else:
@@ -487,7 +491,8 @@ if __name__ == "__main__":
         # revolute joint without shear stiffness
         # model.add(Revolute_joint2D(beam1, beam2, r_OB, np.eye(3), frame_ID1=frame_ID1, frame_ID2=frame_ID2))
         # revolute joint with shear stiffness
-        spring = Linear_spring(GI)
+        # spring = Linear_spring(GI)
+        spring = Power_spring(GI, spring_power)
         if E_B_beam:
             model.add(Pivot_w_spring(beam1, beam2, spring))
         else:
@@ -515,18 +520,18 @@ if __name__ == "__main__":
     ######################
     # solve static problem
     ######################
-    solver = Newton(model, n_load_steps=5, max_iter=50, tol=1.0e-6, numerical_jacobian=False)
+    solver = Newton(model, n_load_steps=3, max_iter=50, tol=1.0e-2, numerical_jacobian=False)
 
     if solveProblem == True:
-        import cProfile, pstats
-        pr = cProfile.Profile()
-        pr.enable()
+        # import cProfile, pstats
+        # pr = cProfile.Profile()
+        # pr.enable()
         sol = solver.solve()
-        pr.disable()
+        # pr.disable()
 
-        sortby = 'cumulative'
-        ps = pstats.Stats(pr).sort_stats(sortby)
-        ps.print_stats(0.1) # print only first 10% of the list
+        # sortby = 'cumulative'
+        # ps = pstats.Stats(pr).sort_stats(sortby)
+        # ps.print_stats(0.1) # print only first 10% of the list
         save_solution(sol, f'Pantographic_sheet_{nRow}x{nCol}_statics')
     else:
         sol = load_solution(f'Pantographic_sheet_{nRow}x{nCol}_statics')
