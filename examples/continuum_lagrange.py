@@ -16,24 +16,24 @@ from cardillo.model.force_distr3D import Force_distr3D
 def test_cube():
     TractionForce = False
     Gravity = False
-    Statics = True
+    Statics = False
     # build mesh
     # degrees = (2, 2, 2)
     # QP_shape = (3, 3, 3)
     # # element_shape = (5, 5, 5)
     # element_shape = (2, 2, 2)
-    degrees = (1, 1, 1)
-    QP_shape = (2, 2, 2)
-    element_shape = (3, 3, 3)
+    degrees = (2, 2, 2)
+    QP_shape = (4, 4, 4)
+    element_shape = (2, 2, 4)
     
     mesh = Mesh3D_lagrange(degrees, QP_shape, element_shape, derivative_order=1, nq_n=3)
 
     # reference configuration is a cube
     L = 1
     B = 1
-    H = 2
+    H = 4
     cube_shape = (L, B, H)
-    Z = cube(cube_shape, mesh)
+    Z = cube(cube_shape, mesh, Fuzz=False)
 
     # material model
     mu1 = 0.3 # * 1e3
@@ -51,21 +51,21 @@ def test_cube():
             b = lambda t: Z[cDOF]
 
         else:
-            # cDOF1 = mesh.surface_qDOF[4].reshape(-1)
-            # cDOF2 = mesh.surface_qDOF[5][2]
-            # cDOF = np.concatenate((cDOF1, cDOF2))
-            # b1 = lambda t: Z[cDOF1]
-            # b2 = lambda t: Z[cDOF2] + t * 0.5
-            # b = lambda t: np.concatenate((b1(t), b2(t)))
-            cDOF = mesh.surface_qDOF[4].ravel()
-            b = lambda t: Z[cDOF]
+            cDOF1 = mesh.surface_qDOF[4].reshape(-1)
+            cDOF2 = mesh.surface_qDOF[5][2]
+            cDOF = np.concatenate((cDOF1, cDOF2))
+            b1 = lambda t: Z[cDOF1]
+            b2 = lambda t: Z[cDOF2] + t * 0.1
+            b = lambda t: np.concatenate((b1(t), b2(t)))
+            # cDOF = mesh.surface_qDOF[4].ravel()
+            # b = lambda t: Z[cDOF]
     else:
         cDOF_xi = mesh.surface_qDOF[4][0]
         cDOF_eta = mesh.surface_qDOF[4][1]
         cDOF_zeta = mesh.surface_qDOF[4][2]
         cDOF = np.concatenate((cDOF_xi, cDOF_eta, cDOF_zeta))
         Omega = 2 * np.pi
-        b_xi = lambda t: Z[cDOF_xi] + 0.1 * np.sin(Omega * t)
+        b_xi = lambda t: Z[cDOF_xi] + 0.3 * np.sin(Omega * t)
         b_eta = lambda t: Z[cDOF_eta]
         b_zeta = lambda t: Z[cDOF_zeta]
         b = lambda t: np.concatenate((b_xi(t), b_eta(t), b_zeta(t)))
@@ -111,7 +111,7 @@ def test_cube():
 
     else:
         t1 = 10
-        dt = 1e-1
+        dt = 5e-3
         # solver = Generalized_alpha_1(model, t1, dt=dt, variable_dt=False, rho_inf=0.25)
         solver = Euler_backward(model, t1, dt)
 
@@ -130,7 +130,7 @@ def test_cube():
     # exit()
 
     # vtk export
-    continuum.post_processing(sol.t, sol.q, 'cube')
+    continuum.post_processing(sol.t, sol.q, 'cube_lagrange')
 
 def test_cylinder():    
     # build mesh

@@ -96,7 +96,7 @@ class Mesh3D_lagrange():
             el_xi, el_eta, el_zeta = split3D(el, self.element_shape)
             for a in range(self.nn_el):
                 a_xi, a_eta, a_zeta = split3D(a, self.degrees1)
-                elDOF_x = el_xi + a_xi + (el_eta + a_eta) * (self.nn_xi) + (el_zeta + a_zeta) * (self.nn_xi) * (self.nn_eta)
+                elDOF_x = el_xi * self.p + a_xi + (el_eta * self.q + a_eta) * (self.nn_xi) + (el_zeta * self.r + a_zeta) * (self.nn_xi) * (self.nn_eta)
                 for d in range(self.nq_n):
                     self.elDOF[el, a + self.nn_el * d] = elDOF_x + self.nn * d
 
@@ -178,24 +178,63 @@ class Mesh3D_lagrange():
         for i in range(6):
             self.surface_mesh[i].idx = i
 
-    # TODO: handle derivatives
-    def interpolate(self, knots, q, derivative_order=0):
-        n = len(knots)
-        x = np.zeros((n, 3))
-
-        for i, (xi, eta, zeta) in enumerate(knots):
+    def L2_projection_A(self, knots):
+        A = Coo((self.nn, self.nn))
+        for xi, eta, zeta in knots:
             el_xi = self.Xi.element_number(xi)[0]
             el_eta = self.Eta.element_number(eta)[0]
             el_zeta = self.Zeta.element_number(zeta)[0]
             el = flat3D(el_xi, el_eta, el_zeta, self.nel_per_dim)
-            elDOF = self.elDOF[el]
-            qe = q[elDOF]
+            elDOF = self.elDOF[el, :self.nn_el]
 
-            NN = lagrange_basis3D(self.degrees, (xi, eta, zeta), derivative=0)
-            for a in range(self.nn_el):
-                x[i] += NN[0, a, 0] * qe[self.nodalDOF[a]]
-            
-        return x
+            Ae = np.zeros((self.nn_el, self.nn_el))
+            NN = lagrange_basis3D(self.degrees, 0, self.knot_vectors, (xi, eta, zeta))
+            for i in range(self.nn_el):
+                for j in range(self.nn_el):
+                    Ae[i, j] = NN[0, i, 0] * NN[0, j, 0]
+            A.extend(Ae, (elDOF, elDOF))
+        return A
+
+    def L2_projection_b(self, knots, Pw):
+        b = np.zeros(self.nn)
+        for (xi, eta, zeta), Pwi in zip(knots, Pw):
+            el_xi = self.Xi.element_number(xi)[0]
+            el_eta = self.Eta.element_number(eta)[0]
+            el_zeta = self.Zeta.element_number(zeta)[0]
+            el = flat3D(el_xi, el_eta, el_zeta, self.nel_per_dim)
+            elDOF = self.elDOF[el, :self.nn_el]
+
+            be = np.zeros((self.nn_el))
+            NN = lagrange_basis3D(self.degrees, 0, self.knot_vectors, (xi, eta, zeta))
+            for i in range(self.nn_el):
+                be[i] = NN[0, i, 0] * Pwi
+            b[elDOF] += be
+        return b
+
+    # TODO: handle derivatives
+    def compute_F_nodes(self, Q, q, derivative_order=0):
+        # calculate F values at nodes from reference configuration Q and state q
+        F_nodes = np.zeros((self.nel, self.nn_el,  self.nq_n , self.nq_n))
+        xi = np.linspace(-1,1,self.p+1)
+        eta = np.linspace(-1,1,self.q+1)
+        zeta = np.linspace(-1,1,self.r+1)
+        xis = (xi, eta, zeta)
+        NN = lagrange_basis3D(self.degrees, xis)
+        for el in range(self.nel):
+            q_el = q[self.elDOF[el]]
+            Q_el = Q[self.elDOF[el]]
+            for i in range(self.nn_el):
+                N_xi = NN[:,:,range(1,4)]
+                Fhat0 = np.zeros((self.nq_n, self.nq_n))
+                for a in range(self.nn_el):
+                    Fhat0 += np.eye(3) @ np.outer(Q_el[self.nodalDOF[a]], N_xi[a])
+                Fhat0_inv[el, i] = inverse3D(Fhat0)
+
+                for a in range(self.nn_el):
+                    N_X[el,i,a] = N_xi[a] @ Fhat0_inv[el, i] 
+                    F_nodes[el,i] += np.outer(q_el[self.nodalDOF[a]], N_X[el,i,a])
+
+        return F_nodes
 
     def reference_mappings(self, Q):
         """Compute inverse gradient from the reference configuration to the parameter space and scale quadrature points by its determinant. See Bonet 1997 (7.6a,b)
@@ -222,17 +261,54 @@ class Mesh3D_lagrange():
 
         return kappa0_xi_inv, N_X, w_J0
 
+    def ensure_L2_projection_A(self):
+        if not hasattr(self, "A"):
+            A = Coo((self.nn, self.nn))
+            for el in range(self.nel):
+                elDOF_el = self.elDOF[el, :self.nn_el]
+                Ae = np.zeros((self.nn_el, self.nn_el))
+                Nel = self.N[el]
+                for a in range(self.nn_el):
+                    for b in range(self.nn_el):
+                        for i in range(self.nqp):
+                            Ae[a, b] += Nel[i, a] * Nel[i, b]
+                A.extend(Ae, (elDOF_el, elDOF_el))
+            self.A = A.tocsc()
+
+    def rhs_L2_projection(self, field):
+        _, nqp, *shape = field.shape
+        dim = np.prod(shape)
+
+        b = np.zeros((self.nn, dim))
+        for el in range(self.nel):
+            elDOF_el = self.elDOF[el, :self.nn_el]
+            be = np.zeros((self.nn_el, dim))
+            Nel = self.N[el]
+            for a in range(self.nn_el):
+                for i in range(self.nqp):
+                    be[a] += Nel[i, a] * field[el, i].ravel()
+            b[elDOF_el] += be
+        return b
+
     # functions for vtk export
     def field_to_vtk(self, field):
         _, _, *shape = field.shape
         dim = np.prod(shape)
 
+        # L2 projection on lagrange mesh
+        self.ensure_L2_projection_A()
+        b = self.rhs_L2_projection(field)
+        q = np.zeros((self.nn, dim))
+        for i, bi in enumerate(b.T):
+            q[:, i] = spsolve(self.A, bi)
+
         # rearrange q's from solver to Piegl's 3D ordering
-        Pw = np.zeros((self.nn_xi, self.nn_eta, self.nn_zeta, dim))
-        for j in range(nn):
-            j_xi, j_eta, j_zeta = split3D(j, (self.nn_xi, self.nn_eta))
-            idx = j + np.arange(dim) * self.nn_el
-            Pw[j_xi, j_eta, j_zeta] = q[idx]
+        Qw = np.zeros((self.nel_xi, self.nel_eta, self.nel_zeta, self.p+1, self.q+1, self.r+1, dim))
+        for el in range(self.nel):
+            el_xi, el_eta, el_zeta = split3D(el, self.element_shape)
+            for a in range(self.nn_el):
+                a_xi, a_eta, a_zeta = split3D(a, self.degrees1)
+                Qw[el_xi, el_eta, el_zeta, a_xi, a_eta, a_zeta] = q[self.elDOF[el][self.nodalDOF[a][0]]]
 
         # rearrange mesh points for vtk ordering
         point_data = np.zeros((self.nel * self.nn_el, dim))
@@ -240,19 +316,20 @@ class Mesh3D_lagrange():
             for j in range(self.nel_eta):
                 for k in range(self.nel_zeta):
                     idx = flat3D(i, j, k, (self.nel_xi, self.nel_eta))
-                    point_range = np.arange(idx * self.nn_el, (idx + 1) * patch_size)
-                    point_data[point_range] = flat3D_vtk(Pw[i, j, k])
+                    point_range = np.arange(idx * self.nn_el, (idx + 1) * self.nn_el)
+                    point_data[point_range] = flat3D_vtk(Qw[i, j, k])
 
         return point_data
         
     def vtk_mesh(self, q): 
 
         # rearrange q's from solver to Piegl's 3D ordering
-        Pw = np.zeros((self.nn_xi, self.nn_eta, self.nn_zeta, self.nq_n))
-        for j in range(self.nn_el):
-            j_xi, j_eta, j_zeta = split3D(j, (self.nn_xi, self.nn_eta))
-            idx = j + np.arange(self.nq_n) * self.nn_el
-            Pw[j_xi, j_eta, j_zeta] = q[idx]
+        Qw = np.zeros((self.nel_xi, self.nel_eta, self.nel_zeta, self.p+1, self.q+1, self.r+1, self.nq_n))
+        for el in range(self.nel):
+            el_xi, el_eta, el_zeta = split3D(el, self.element_shape)
+            for a in range(self.nn_el):
+                a_xi, a_eta, a_zeta = split3D(a, self.degrees1)
+                Qw[el_xi, el_eta, el_zeta, a_xi, a_eta, a_zeta] = q[self.elDOF[el][self.nodalDOF[a]]]
         
         # build vtk mesh
         points = np.zeros((self.nel * self.nn_el, self.nq_n))
@@ -263,7 +340,7 @@ class Mesh3D_lagrange():
                 for k in range(self.nel_zeta):
                     idx = flat3D(i, j, k, (self.nel_xi, self.nel_eta))
                     point_range = np.arange(idx * self.nn_el, (idx + 1) * self.nn_el)
-                    points[point_range] = flat3D_vtk(Pw[i, j, k])
+                    points[point_range] = flat3D_vtk(Qw[i, j, k])
                     cells.append( ("VTK_LAGRANGE_HEXAHEDRON", point_range[None]) )
                     HigherOrderDegrees.append( np.array(self.degrees)[None] )
 
@@ -280,6 +357,7 @@ def test_surface_DOF():
     Q = cube(cube_shape, mesh, Fuzz=0)
 
     import matplotlib.pyplot as plt
+    from mpl_toolkits.mplot3d import Axes3D
     fig = plt.figure()
     ax = fig.gca(projection='3d')
     ax.set_xlabel('x [m]')

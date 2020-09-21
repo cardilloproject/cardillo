@@ -7,12 +7,16 @@ def lagrange_basis1D(degree, xi, derivative=1):
     if not hasattr(xi, '__len__'):
         xi = np.array([xi])
  
+    k =len(xi)
     n = sum([1 for d in range(derivative + 1)])
     NN = np.zeros((k, p+1, n))
-    #TODO: make seperate 1D Basis function with second derrivative
-    Nxi = np.transpose(np.array(Lagrange_basis(p, xi)),(1,2,0))
-
-    NN = Nxi[:n]
+    Nxi, N_xi = Lagrange_basis(p, xi, derivative=True)
+       
+    NN[:,:,0] = Nxi
+    if derivative > 0:
+        NN[:,:,1] = N_xi
+        if derivative > 1:
+            NN[:,:,2] = N_xixi
 
     return NN
 
@@ -33,8 +37,8 @@ def lagrange_basis2D(degrees, xis, derivative=1):
     n = sum([2**d for d in range(derivative + 1)])
     NN = np.zeros((kl, p1q1, n))
     #TODO: make seperate 1D Basis function with second derrivative
-    Nxi = np.transpose(np.array(Lagrange_basis(p, xi)),(1,2,0))
-    Neta = np.transpose(np.array(Lagrange_basis(q, eta)),(1,2,0))
+    Nxi = lagrange_basis1D(p, xi)
+    Neta =lagrange_basis1D(q, eta)
 
     for i in range(kl):
         ik, il = split2D(i, (k, ))
@@ -75,9 +79,9 @@ def lagrange_basis3D(degrees, xis, derivative=1):
     n = sum([3**d for d in range(derivative + 1)])
     NN = np.zeros((klm, p1q1r1, n))
     #TODO: make seperate 1D Basis function with second derrivative
-    Nxi = np.transpose(np.array(Lagrange_basis(p, xi)),(1,2,0))
-    Neta = np.transpose(np.array(Lagrange_basis(q, eta)),(1,2,0))
-    Nzeta = np.transpose(np.array(Lagrange_basis(r, zeta)),(1,2,0))
+    Nxi = lagrange_basis1D(p, xi)
+    Neta = lagrange_basis1D(q, eta)
+    Nzeta = lagrange_basis1D(r, zeta)
 
     for i in range(klm):
         ik, il, im = split3D(i, (k, l))
@@ -214,39 +218,47 @@ def __lagrange_xx_r(x, degree):
             
     return l_xx
 
-def test_shape_functions():
-    degree = (1,2,3)
-    xi = [0,1,2]
-    eta = [3,4,5,6]
-    zeta = [7,8,9,11]
-    xis = (xi,eta,zeta)
-    return lagrange_basis3D(degree,xis)
+def test_shape_functions_der():
+    import matplotlib.pyplot as plt
+    fig = plt.figure()
+    x = np.linspace (-1,1,10)
+    y = x
+    z = x
+    NN = lagrange_basis1D(2, x, derivative=1)
+
+    plt.plot(x,NN[:10,0,0])
+    plt.plot(x,NN[:10,1,0])
+    plt.plot(x,NN[:10,2,0])
+    plt.plot(x,NN[:10,0,1])
+    plt.plot(x,NN[:10,1,1])
+    plt.plot(x,NN[:10,2,1])
+    plt.show()
 
 if __name__ == "__main__":
     import numpy as np
 
-    #NN = test_shape_functions()
+    test_shape_functions_der()
 
-    degree = 2
-    # x = -1
-    # x = 0
-    x = 1
+    # degree = 2
+    # # x = -1
+    # # x = 0
+    # x = 1
 
-    lx = __lagrange(x, degree)
-    print(f'l({x}): {lx}')
+    # lx = __lagrange(x, degree)
+    # print(f'l({x}): {lx}')
 
-    lx_x = __lagrange_x(x, degree)
-    print(f'l_x({x}): {lx_x}')
+    # lx_x = __lagrange_x(x, degree)
+    # print(f'l_x({x}): {lx_x}')
 
-    lx_x = __lagrange_x_r(x, degree)
-    print(f'l_x({x}): {lx_x}')
+    # lx_x = __lagrange_x_r(x, degree)
+    # print(f'l_x({x}): {lx_x}')
 
-    lx_xx = __lagrange_xx_r(x, degree)
-    print(f'l_xx({x}): {lx_xx}')
+    # lx_xx = __lagrange_xx_r(x, degree)
+    # print(f'l_xx({x}): {lx_xx}')
 
-    degree = 1
-    derivative_order = 1
-    x_array = np.array([-1, 0, 1])
-    N, dN = Lagrange_basis(degree, x_array)
-    print(f'N({x_array}):\n{N}')
-    print(f'dN({x_array}):\n{dN}')
+    # degree = 1
+    # derivative_order = 1
+    # x_array = np.array([-1, 0, 1])
+    # N, dN = Lagrange_basis(degree, x_array)
+    # print(f'N({x_array}):\n{N}')
+    # print(f'dN({x_array}):\n{dN}')
