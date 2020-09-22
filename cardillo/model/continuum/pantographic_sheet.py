@@ -160,12 +160,16 @@ class Pantographic_sheet():
         z[self.cDOF] = self.b(t)
         return z
         
-    def post_processing_single_configuration(self, t, q, filename, binary=True, return_strain=False):
+    def post_processing_single_configuration(self, t, q, filename, binary=True, return_strain=False, project_to_reference=False):
             # compute redundant generalized coordinates
             z = self.z(t, q)
+            if project_to_reference == True:
+                z_geo = self.z(0, self.q0)
+            else:
+                z_geo = z
 
             # generalized coordinates, connectivity and polynomial degree
-            cells, points, HigherOrderDegrees = self.mesh.vtk_mesh(z)
+            cells, points, HigherOrderDegrees = self.mesh.vtk_mesh(z_geo)
 
             # dictionary storing point data
             point_data = {}
@@ -216,7 +220,8 @@ class Pantographic_sheet():
             
                 # write vtk mesh using meshio
                 meshio.write_points_cells(
-                    os.path.splitext(os.path.basename(filename))[0] + '.vtu',
+                    # os.path.splitext(os.path.basename(filename))[0] + '.vtu',
+                    filename.parent / (filename.stem + '.vtu'),
                     points,
                     cells,
                     point_data=point_data,
@@ -227,7 +232,7 @@ class Pantographic_sheet():
             else:
                 return strain_measures(F[0, 0], G[0, 0])[:4]
         
-    def post_processing(self, t, q, filename, binary=True):
+    def post_processing(self, t, q, filename, binary=True, project_to_reference=False):
         # write paraview PVD file collecting time and all vtk files, see https://www.paraview.org/Wiki/ParaView/Data_formats#PVD_File_Format
         from xml.dom import minidom
         
@@ -241,19 +246,20 @@ class Pantographic_sheet():
         vkt_file.appendChild(collection)
 
         for i, (ti, qi) in enumerate(zip(t, q)):
-            filei = filename + f'{i}.vtu'
+            # filei = filename + f'{i}.vtu'
+            filei = filename.parent / (filename.stem + f'_{i}.vtu')
 
             # write time step and file name in pvd file
             dataset = root.createElement('DataSet')
             dataset.setAttribute('timestep', f'{ti:0.6f}')
-            dataset.setAttribute('file', filei)
+            dataset.setAttribute('file', filei.name)
             collection.appendChild(dataset)
 
-            self.post_processing_single_configuration(ti, qi, filei, binary=True)
+            self.post_processing_single_configuration(ti, qi, filei, binary=True, project_to_reference=project_to_reference)
 
         # write pvd file        
         xml_str = root.toprettyxml(indent ="\t")          
-        with open(filename + '.pvd', "w") as f:
+        with (filename.parent / (filename.stem + '.pvd')).open("w") as f:
             f.write(xml_str)
 
 

@@ -1,15 +1,17 @@
 from threading import main_thread
 import numpy as np
 import matplotlib.pyplot as plt
-import pickle
+import os
 import dill
+import datetime
+import pathlib
 
 from cardillo.discretization.mesh import Mesh, cube
 from cardillo.discretization.mesh2D import Mesh2D, rectangle
 from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume
 from cardillo.discretization.indexing import flat3D, flat2D
 from cardillo.model.continuum import Ogden1997_compressible, First_gradient
-from cardillo.model.continuum import Pantographic_sheet, Maurin2019_linear, Maurin2019, verify_derivatives, strain_single_point
+from cardillo.model.continuum import Pantographic_sheet, Maurin2019_linear, Maurin2019, verify_derivatives, strain_single_point, Barchiesi2020
 from cardillo.solver import Newton, Generalized_alpha_1, Euler_backward
 from cardillo.model import Model
 from cardillo.math.algebra import A_IK_basic_z
@@ -334,28 +336,26 @@ def write_xml():
     with open(save_path_file, "w") as f:
         f.write(xml_str)
 
-def pantographic_sheet(case="test_a", filename="pantographic_sheet_test_a", n_load_steps=20, starting_step=0):
+def pantographic_sheet_solve(case="test_a", n_load_steps=20, starting_step=0, source="Maurin", element_shape=(15,5)):
 
+    time_string = datetime.datetime.now().strftime("%m%d_%H_%M_%S")
+    filename = f"{time_string}__{source}_{case}_nstep{n_load_steps}__elshape{element_shape[0]}_{element_shape[1]}"
+    folderpath = pathlib.Path("output") / filename  #os.path.join("output", filename)
+    folderpath.mkdir(parents=True) #os.makedirs(folderpath)
+    filepath = folderpath / (filename + ".dill") #os.path.join(folderpath, filename + ".dill")
 
-    solve_problem = False
+    # build mesh
+    degrees = (2, 2)
+    QP_shape = (3, 3)
 
-    if solve_problem:   
-        # build mesh
-        degrees = (2, 2)
-        QP_shape = (3, 3)
-        element_shape = (36, 12)
-        # QP_shape = (3, 3)
-        # element_shape = (10, 4)
+    Xi = Knot_vector(degrees[0], element_shape[0])
+    Eta = Knot_vector(degrees[1], element_shape[1])
+    knot_vectors = (Xi, Eta)
+    
+    mesh = Mesh2D(knot_vectors, QP_shape, derivative_order=2, basis='B-spline', nq_n=2)
 
-        Xi = Knot_vector(degrees[0], element_shape[0])
-        Eta = Knot_vector(degrees[1], element_shape[1])
-        knot_vectors = (Xi, Eta)
-        
-        mesh = Mesh2D(knot_vectors, QP_shape, derivative_order=2, basis='B-spline', nq_n=2)
-
+    if source == "Maurin":
         # reference configuration is a rectangle
-        # L = 2
-        # B = 2
         B = 10 * np.sqrt(2) * 0.0048
         L = 3 * B
 
@@ -364,103 +364,200 @@ def pantographic_sheet(case="test_a", filename="pantographic_sheet_test_a", n_lo
         z0 = rectangle(rectangle_shape, mesh, Greville=True, Fuzz=0.00001)
 
         # material model
-        K_rho = 1.34e5 
+        K_rho =  1.34e5 
         K_Gamma = 1.59e2
         K_Theta_s = 1.92e-2
         gamma = 1.36
-        # gamma = 1.7
         # mat = Maurin2019_linear(K_rho, K_Gamma, K_Theta_s)
         mat = Maurin2019(K_rho, K_Gamma, K_Theta_s, gamma)
+        fiber_angle = np.pi/4
 
-        verify_derivatives(mat)
+    elif source == "Barchiesi":
+            # reference configuration is a rectangle
+        B = 7 * 0.017
+        L = 11 * 0.017
 
-        # boundary conditions
-        # cDOF1 = mesh.edge_DOF[0].ravel()
-        # cDOF2x = mesh.edge_DOF[1][0]
-        # cDOF2y = mesh.edge_DOF[1][1]
-        # cDOF2 = np.concatenate((cDOF2x, cDOF2y))
-        # cDOF = np.concatenate((cDOF1, cDOF2))
-        # b1 = lambda t: Z[cDOF1]
-        # b2x = lambda t: Z[cDOF2x] + t * 0.02
-        # b2y = lambda t: Z[cDOF2y]
-        # b = lambda t: np.concatenate((b1(t), b2x(t), b2y(t)))
+        # material model
+        gamma = np.pi / 6
+        K_F = 0.9   #[J]
+        K_E = 0.33  #[J]
+        K_S = 34    #[J]
+        mat = Barchiesi2020(gamma, K_F, K_E, K_S)
+        fiber_angle = 0
 
-        cDOF, b = standard_displacements(mesh, Z, case=case)
+    verify_derivatives(mat)
 
-        # 3D continuum
-        continuum = Pantographic_sheet(None, mat, mesh, Z, z0=z0, cDOF=cDOF, b=b)
+    rectangle_shape = (L, B)
+    Z = rectangle(rectangle_shape, mesh, Greville=True)
+    z0 = rectangle(rectangle_shape, mesh, Greville=True, Fuzz=0.00001)
 
-        model = Model()
-        model.add(continuum)
-        model.assemble()
+    # boundary conditions
+    cDOF, b = standard_displacements(mesh, Z, case=case, source=source)
 
-        # f_pot = model.f_pot(0, model.q0)
-        
-        # static solver
-        def init_guess(t, t_new, x):
-            from cardillo.math.algebra import norm2
-            from cardillo.discretization.indexing import split2D
+    # 3D continuum
+    continuum = Pantographic_sheet(None, mat, mesh, Z, z0=z0, cDOF=cDOF, b=b, fiber_angle=fiber_angle)
 
-            left_DOF = continuum.mesh.edge_DOF[0]
-            right_DOF = continuum.mesh.edge_DOF[1]
-            z = continuum.z(t, x)
-            z_new = continuum.z(t_new, x)
-            left_z = z[left_DOF.T]
-            right_z = z[right_DOF.T]
-            # compute left and right displacement
-            left_disp = z_new[left_DOF.T] - left_z 
-            right_disp = z_new[right_DOF.T] - right_z 
+    model = Model()
+    model.add(continuum)
+    model.assemble()
 
-            # iterate over control points
-            for a in range(continuum.mesh.nn):
-                a_xi, a_eta = split2D(a, (continuum.mesh.nn_xi,))
-                
-                # x and y value of control points
-                z_a = z[np.array([a, a + continuum.mesh.nn])]
-
-                # compute distance to left and right points
-                left_a = left_z[a_eta]
-                right_a = right_z[a_eta]
-                d_left =  norm2(z_a - left_a)
-                d_right =  norm2(z_a - right_a)
-
-                p_right = d_left / (d_left + d_right)
-                p_left = 1 - p_right
-                z_new[np.array([a, a + continuum.mesh.nn])] = z_new[np.array([a, a + continuum.mesh.nn])] + left_disp[a_eta] * p_left + right_disp[a_eta] * p_right
-
-            return z_new[continuum.fDOF]
-
-        # n_load_steps = 20
-        load_steps = np.linspace(0, 1, n_load_steps)[starting_step:]
-        tol = 1.0e-6
-        max_iter = 12
-        solver = Newton(model, n_load_steps=n_load_steps, load_steps=load_steps, tol=tol, max_iter=max_iter, init_guess=init_guess)
-
+    # f_pot = model.f_pot(0, model.q0)
     
-        sol = solver.solve()
-        with open(filename, mode='wb') as f:
-            # pickle.dump((sol, mat, mesh), f)
-            dill.dump((continuum, sol), f)
-    else:
-        with open(filename, mode='rb') as f:
-            continuum, sol = dill.load(f)
+    # static solver
+    def init_guess(t, t_new, x):
+        from cardillo.math.algebra import norm2
+        from cardillo.discretization.indexing import split2D
+
+        left_DOF = continuum.mesh.edge_DOF[0]
+        right_DOF = continuum.mesh.edge_DOF[1]
+        z = continuum.z(t, x)
+        z_new = continuum.z(t_new, x)
+        left_z = z[left_DOF.T]
+        right_z = z[right_DOF.T]
+        # compute left and right displacement
+        left_disp = z_new[left_DOF.T] - left_z 
+        right_disp = z_new[right_DOF.T] - right_z 
+
+        # iterate over control points
+        for a in range(continuum.mesh.nn):
+            a_xi, a_eta = split2D(a, (continuum.mesh.nn_xi,))
+            
+            # x and y value of control points
+            z_a = z[np.array([a, a + continuum.mesh.nn])]
+
+            # compute distance to left and right points
+            left_a = left_z[a_eta]
+            right_a = right_z[a_eta]
+            d_left =  norm2(z_a - left_a)
+            d_right =  norm2(z_a - right_a)
+
+            p_right = d_left / (d_left + d_right)
+            p_left = 1 - p_right
+            z_new[np.array([a, a + continuum.mesh.nn])] = z_new[np.array([a, a + continuum.mesh.nn])] + left_disp[a_eta] * p_left + right_disp[a_eta] * p_right
+
+        return z_new[continuum.fDOF]
+
+    load_steps = np.linspace(0, 1, n_load_steps)[starting_step:]
+    # test init_guess
+    continuum.q0 = init_guess(0, load_steps[0], z0[continuum.fDOF]) # assembler callback
+    
+    tol = 1.0e-6
+    max_iter = 12
+    solver = Newton(model, n_load_steps=n_load_steps, load_steps=load_steps, tol=tol, max_iter=max_iter, init_guess=init_guess)
+
+    sol = solver.solve()
+    with filepath.open(mode='wb') as f:
+        dill.dump((continuum, sol), f)
+
+    # # start postprocessing
+    # try:
+    #     pantographic_sheet_post(filepath)
+
+def pantographic_sheet_post(filepath, vtu_export=True, time_series_plots=False, project_to_reference=False, case=None):
+    filepath = pathlib.Path(filepath)
+    with filepath.open(mode='rb') as f:
+        continuum, sol = dill.load(f)
+
+    if vtu_export:
+        continuum.post_processing(sol.t, sol.q, filepath.parent / filepath.stem, project_to_reference=project_to_reference)
+
+    if time_series_plots:
+        if case == "Maurin":
+            # Maurin
+            vxi = np.array([0.5, 0.5])
+            comp_data_gamma = np.genfromtxt(r"C:\Users\Evan\OneDrive\Masterarbeit\Thesis\Plot_data\Maurin2019_Fig5c_shearAngle_continuous.csv",delimiter=';').T
+            strain_single_point(continuum, sol.t, sol.q, vxi, displ=0.0567, comp_data_gamma=comp_data_gamma)
+
+            vxi = np.array([1/30 * 3/4, 1/10 * 3/4])
+            comp_data_rho = np.genfromtxt(r"C:\Users\Evan\OneDrive\Masterarbeit\Thesis\Plot_data\Maurin2019_Fig5e_Elongation_continuous.csv",delimiter=';').T
+            strain_single_point(continuum, sol.t, sol.q, vxi, displ=0.0567, comp_data_rho=comp_data_rho)
+
+            B = 10 * np.sqrt(2) * 0.0048 #TODO: only temporary quick fix
+            disp = 0.0567
+
+        elif case == "Barchiesi":
+            # Barchiesi
+            vxi = np.array([0.5, 0.5])
+            comp_data_gamma = np.genfromtxt(r"C:\Users\Evan\OneDrive\Masterarbeit\Thesis\Plot_data\Barchiesi2020_Fig11_shearAngle_B_continuum.csv",delimiter=';').T
+            strain_single_point(continuum, sol.t, sol.q, vxi, displ=0.05, comp_data_gamma=comp_data_gamma)
+
+            vxi = np.array([0.25, 0.5])
+            comp_data_gamma = np.genfromtxt(r"C:\Users\Evan\OneDrive\Masterarbeit\Thesis\Plot_data\Barchiesi2020_Fig11_shearAngle_A_continuum.csv",delimiter=';').T
+            strain_single_point(continuum, sol.t, sol.q, vxi, displ=0.05, comp_data_gamma=comp_data_gamma)
+
+            B = 7 * 0.017
+            disp = 0.05
+
+        # integrate external force on one side
+        from cardillo.discretization.gauss import gauss
+        from cardillo.discretization.B_spline import B_spline_basis1D
+
+        mesh = continuum.mesh
+    
+        
 
 
-    # vtk export
-    # continuum.post_processing(sol.t, sol.q, filename)
+        def f_pot_left(continuum, t, q):
+            z = continuum.z(t, q)
+            f_pot = np.zeros(continuum.nz)
+            el_xi = 0
+            for el_eta in range(continuum.mesh.nel_eta):
+                el = flat2D(el_xi, el_eta, (continuum.mesh.nel_xi,))
+                f_pot[continuum.elDOF[el]] += continuum.f_pot_el(z[continuum.elDOF[el]], el)
+            return f_pot
 
-    vxi = np.array([0.5, 0.5])
-    strain_single_point(continuum, sol.t, sol.q, vxi)
+        Fn = np.zeros((len(sol.t)))
+
+        for n in range(len(sol.t)):
+
+            f = f_pot_left(continuum, sol.t[n], sol.q[n])
+
+            f_edge = f[mesh.edge_DOF[0]].flatten()
+            ndDOF_eta = np.array([np.arange(mesh.q+1), np.arange(mesh.q+1) + mesh.q+1]).T
+            n_eta = mesh.q + mesh.nel_eta
+
+            F = np.zeros((mesh.nel_eta, 2))
+
+            Fn[n] = np.sum(f_edge[:(len(f_edge)//2)])
+
+            # for el_eta in range(mesh.nel_eta):
+            #     elDOF_edge = np.concatenate([np.arange(el_eta,el_eta+mesh.q+1), np.arange(el_eta, el_eta + mesh.q + 1) + n_eta])
+            #     f_el = f_edge[elDOF_edge]
+
+            #     Eta_element_interval = mesh.Eta.element_interval(el_eta)
+            #     qp_eta, w_eta = gauss(mesh.nqp_eta, interval=Eta_element_interval)
+            #     Neta = B_spline_basis1D(mesh.q, 0, mesh.Eta.data, qp_eta, squeeze=False)[0]
+
+            #     for i in range(mesh.nqp_eta):
+            #         w_J0 = B * w_eta[i]
+
+            #         for a in range(mesh.q + 1):
+            #             f_a = f_el[ndDOF_eta[a]]
+            #             F[el_eta] += f_a * Neta[i, a] * w_J0
+
+            # Fn[n] = F.sum(axis=0)[0]
+
+        print(Fn)
+        fig, ax = plt.subplots(2, sharex=True)
+        ax[0].plot(sol.t * disp, Fn)
+
+        if case == "Maurin":
+            force_data = np.genfromtxt(r"C:\Users\Evan\OneDrive\Masterarbeit\Thesis\Plot_data\Maurin2019_Fig5a_Force_continuous.csv",delimiter=';').T
+        elif case == "Barchiesi":
+            force_data = np.genfromtxt(r"C:\Users\Evan\OneDrive\Masterarbeit\Thesis\Plot_data\Barchiesi2020_Fig11_Force_continuum.csv",delimiter=';').T
+        ax[1].plot(force_data[0], force_data[1])
+        plt.show()
 
 
 
-
-def standard_displacements(mesh, Z, case, displacement=None):
+def standard_displacements(mesh, Z, case, source="Maurin"):
     from cardillo.math.algebra import A_IK_basic_z
 
     # recreates the test cases A, B, C, D as defined in dellIsola 2016. The dimensions of the undeformed rectangle must correspond to the source as well.
     if case == "test_a":
         displacement = (0.0567, 0)
+        if source == "Barchiesi":
+            displacement = (0.05, 0)
 
         cDOF1 = mesh.edge_DOF[0].ravel()
         cDOF2x = mesh.edge_DOF[1][0]
@@ -538,33 +635,33 @@ def standard_displacements(mesh, Z, case, displacement=None):
 
     return cDOF, b
 
-def task_queue():
-    # pantographic_sheet(case="test_b", filename="pantographic_sheet_test_maurin_b_0step", n_load_steps=30, starting_step=0)
-    # pantographic_sheet(case="test_c", filename="pantographic_sheet_test_maurin_c_0step", n_load_steps=50, starting_step=0)
-    # pantographic_sheet(case="test_d", filename="pantographic_sheet_test_maurin_d_0step", n_load_steps=50, starting_step=0)
-    pantographic_sheet(case="test_a", filename="pantographic_sheet_test_maurin_a_0step", n_load_steps=30, starting_step=0)
-    # pantographic_sheet(case="test_b", filename="pantographic_sheet_test_maurin_b_1step", n_load_steps=30, starting_step=1)
-    # pantographic_sheet(case="test_c", filename="pantographic_sheet_test_maurin_c_1step", n_load_steps=50, starting_step=1)
-    # pantographic_sheet(case="test_d", filename="pantographic_sheet_test_maurin_d_1step", n_load_steps=50, starting_step=1)
-    # pantographic_sheet(case="test_a", filename="pantographic_sheet_test_maurin_a_1step", n_load_steps=30, starting_step=1)
-    # pantographic_sheet(case="test_b", filename="pantographic_sheet_test_maurin_b_2step", n_load_steps=30, starting_step=2)
-    # pantographic_sheet(case="test_c", filename="pantographic_sheet_test_maurin_c_2step", n_load_steps=50, starting_step=2)
-    # pantographic_sheet(case="test_d", filename="pantographic_sheet_test_maurin_d_2step", n_load_steps=50, starting_step=2)
-    # pantographic_sheet(case="test_a", filename="pantographic_sheet_test_maurin_a_2step", n_load_steps=30, starting_step=2)
-    # pantographic_sheet(case="test_b", filename="pantographic_sheet_test_maurin_b_3step", n_load_steps=30, starting_step=3)
-    # pantographic_sheet(case="test_c", filename="pantographic_sheet_test_maurin_c_3step", n_load_steps=50, starting_step=3)
-    # pantographic_sheet(case="test_d", filename="pantographic_sheet_test_maurin_d_3step", n_load_steps=50, starting_step=3)
-    # pantographic_sheet(case="test_a", filename="pantographic_sheet_test_maurin_a_3step", n_load_steps=30, starting_step=3)
-    # pantographic_sheet(case="test_a", filename="pantographic_sheet_test_maurin_lin_finer_a", n_load_steps=50, starting_step=0)
-    # pantographic_sheet(case="test_b", filename="pantographic_sheet_test_maurin_lin_finer_b", n_load_steps=50, starting_step=0)
-    # pantographic_sheet(case="test_c", filename="pantographic_sheet_test_maurin_lin_finer_c", n_load_steps=50, starting_step=0)
-    # pantographic_sheet(case="test_d", filename="pantographic_sheet_test_maurin_lin_finer_d", n_load_steps=50, starting_step=0)
-    # pantographic_sheet(case="test_b", filename="dill_test2_", n_load_steps=8, starting_step=0)
+def task_queue_solve():
+    pantographic_sheet_solve(case="test_a", n_load_steps=20, starting_step=0, source="Barchiesi", element_shape=(55, 35))
+    pantographic_sheet_solve(case="test_a", n_load_steps=10, starting_step=0, source="Barchiesi", element_shape=(77, 49))
+    # pantographic_sheet_solve(case="test_a", n_load_steps=10, starting_step=0, source="Barchiesi", element_shape=(55, 35))
+    # pantographic_sheet_solve(case="test_a", n_load_steps=10, starting_step=1, source="Maurin", element_shape=(30, 30))
+    # pantographic_sheet_solve(case="test_a", n_load_steps=10, starting_step=1, source="Maurin", element_shape=(40, 40))
+    # pantographic_sheet_solve(case="test_a", n_load_steps=10, starting_step=1, source="Maurin", element_shape=(50, 50))
+    # pantographic_sheet_solve(case="test_a", n_load_steps=20, starting_step=1, source="Maurin", element_shape=(40, 40))
+    # pantographic_sheet_solve(case="test_a", n_load_steps=30, starting_step=1, source="Maurin", element_shape=(45, 15))
+    # pantographic_sheet_solve(case="test_a", n_load_steps=50, starting_step=1, source="Maurin", element_shape=(45, 15))
+    # pantographic_sheet_solve(case="test_a", n_load_steps=50, starting_step=1, source="Maurin", element_shape=(60, 20))
+    # pantographic_sheet_solve(case="test_a", n_load_steps=50, starting_step=3, source="Maurin", element_shape=(30, 10))
+    # pantographic_sheet_solve(case="test_a", n_load_steps=50, starting_step=3, source="Maurin", element_shape=(45, 15))
+    # pantographic_sheet_solve(case="test_a", n_load_steps=50, starting_step=3, source="Maurin", element_shape=(60, 20))
 
+def task_queue_post():
+    # pantographic_sheet_post(r"output\0920_16_13_59__Barchiesi_test_a_nstep10__elshape55_35\0920_16_13_59__Barchiesi_test_a_nstep10__elshape55_35.dill", vtu_export=False, time_series_plots=True, case="Barchiesi")
+    pantographic_sheet_post(r"output\0921_09_02_10__Barchiesi_test_a_nstep10__elshape77_49\0921_09_02_10__Barchiesi_test_a_nstep10__elshape77_49.dill", vtu_export=False, time_series_plots=True, case="Barchiesi")
+    # pantographic_sheet_post(r"output\0921_23_57_06__Barchiesi_test_a_nstep20__elshape55_35\0921_23_57_06__Barchiesi_test_a_nstep20__elshape55_35.dill", vtu_export=True, time_series_plots=False, case="Barchiesi")
+    # pantographic_sheet_post(r"output\0921_09_02_10__Barchiesi_test_a_nstep10__elshape77_49_projectedToReference\0921_09_02_10__Barchiesi_test_a_nstep10__elshape77_49.dill", project_to_reference=True, case="Barchiesi")
+    # pantographic_sheet_post(r"output\0920_05_31_17__Maurin_test_a_nstep10__elshape50_50_100percent\0920_05_31_17__Maurin_test_a_nstep10__elshape50_50.dill", vtu_export=False, time_series_plots=True, case="Maurin")
+    # pantographic_sheet_post(r"output\Maurin_test_a_elshape36_12\pantographic_sheet_test_maurin_a_2step", vtu_export=False, time_series_plots=True, case="Maurin")
+    
 if __name__ == "__main__":
     # test_cube()
     # test_cylinder()
     # test_rectangle()
     # write_xml()
-    # pantographic_sheet()
-    task_queue()
+    # task_queue_solve()
+    task_queue_post()
