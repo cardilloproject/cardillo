@@ -63,3 +63,6 @@ dist
 *.vtu
 *.vtk
 *.pvd
+
+# visual code environment file
+*.env

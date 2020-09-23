@@ -2,10 +2,10 @@ import numpy as np
 from scipy.sparse.linalg import spsolve
 # from cardillo_fem.discretization.lagrange import lagrange2D, lagrange1D, lagrange3D
 #from cardillo.discretization.B_spline import uniform_knot_vector, B_spline_basis1D, B_spline_basis2D, B_spline_basis3D, q_to_Pw_3D, decompose_B_spline_volume, flat3D_vtk
-from cardillo.discretization.lagrange import lagrange_basis3D, lagrange_basis2D
+from cardillo.discretization.lagrange import lagrange_basis1D, lagrange_basis2D, finde_element_number
 from cardillo.math.algebra import inverse2D, determinant2D, inverse3D, determinant3D, quat2rot, norm3, cross3
 from cardillo.discretization.indexing import flat2D, split2D
-#from cardillo.discretization.mesh2D_lagrange import Mesh2D_lagrange
+from cardillo.discretization.mesh1D_lagrange import Mesh1D_lagrange
 from cardillo.discretization.gauss import gauss
 from cardillo.utility.coo import Coo
 
@@ -14,13 +14,6 @@ def rectangle(shape, mesh, Greville=False, Fuzz=None):
 
     X = np.linspace(0, L, mesh.nn_xi)
     Y = np.linspace(0, B, mesh.nn_eta)
-    if Greville:
-        for i in range(len(X)):
-            X[i] = np.sum(mesh.Xi.data[i+1:i+mesh.p+1])
-        for i in range(len(Y)):
-            Y[i] = np.sum(mesh.Eta.data[i+1:i+mesh.q+1])
-        X = X * L / mesh.p
-        Y = Y * B / mesh.q
         
     Xs = np.tile(X, mesh.nn_eta)
     Ys = np.repeat(Y, mesh.nn_xi)
@@ -69,7 +62,7 @@ class Mesh2D_lagrange():
         self.p, self.q = self.degrees
 
         # number of total nodes
-        self.nn = (self.p * self.nel_xi + 1) * (self.p * self.nel_eta + 1)
+        self.nn = (self.p  * self.nel_xi + 1)  * (self.q * self.nel_eta + 1)
 
         #nodes per row
         self.nn_xi = self.p * self.nel_xi + 1
@@ -90,6 +83,9 @@ class Mesh2D_lagrange():
         self.nq_n = nq_n # number of degrees of freedom per node
         self.nq_el = self.nn_el * nq_n # total number of generalized coordinates per element
 
+        # evaluate edge DOF
+        self.edges()
+
         # construct selection matrix elDOF assigning to each element its DOFs of the displacement
         # q[elDOF[el]] is equivalent to q_e = C^e * q
         self.elDOF = np.zeros((self.nel, self.nq_n * self.nn_el), dtype=int)
@@ -97,7 +93,7 @@ class Mesh2D_lagrange():
             el_xi, el_eta = split2D(el, self.element_shape)
             for a in range(self.nn_el):
                 a_xi, a_eta = split2D(a, self.degrees1)
-                elDOF_x = el_xi + a_xi + (el_eta + a_eta) * (self.nn_xi)
+                elDOF_x = el_xi * self.p + a_xi + (el_eta * self.q + a_eta) * (self.nn_xi)
                 for d in range(self.nq_n):
                     self.elDOF[el, a + self.nn_el * d] = elDOF_x + self.nn * d
 
@@ -138,8 +134,37 @@ class Mesh2D_lagrange():
             if self.derivative_order > 1:
                 self.N_xixi = np.vstack([[NN[:, :, range(4, 7)].reshape(self.nqp, self.nn_el, 3, 3)]] * self.nel)
     
-    def edge_DOF(self):
-        pass
+    def edges(self):
+        def select_edge(**kwargs):
+            nn_0 =  kwargs.get('nn_0', range(self.nn_xi))
+            nn_1 =  kwargs.get('nn_1', range(self.nn_eta))
+
+            edge = []
+            for j in nn_1:
+                for i in nn_0:
+                    edge.append(flat2D(i, j, self.nn_per_dim))
+
+            DOF_x = np.array(edge)
+            nn_edge = len(edge)
+            DOF = np.zeros((self.nq_n, nn_edge), dtype=int)
+            for i in range(self.nq_n):
+                DOF[i] = DOF_x + i * self.nn
+                
+            return DOF
+
+        self.edge_qDOF = (
+            select_edge(nn_1=[0]),
+            select_edge(nn_1=[self.nn_eta - 1]),
+            select_edge(nn_0=[0]),
+            select_edge(nn_0=[self.nn_xi - 1])
+        )
+
+        edge01 = Mesh1D_lagrange(self.degrees[0], self.nqp_per_dim[0], nel = self.nel_per_dim[0], derivative_order=self.derivative_order, nq_n=self.nq_n)
+        edge23 = Mesh1D_lagrange(self.degrees[1], self.nqp_per_dim[1], nel = self.nel_per_dim[1], derivative_order=self.derivative_order, nq_n=self.nq_n)
+
+        self.edge_mesh = (edge01, edge23)
+        for i in range(2):
+            self.edge_mesh[i].idx = i
 
     # TODO: handle derivatives
     def interpolate(self, knots, q, derivative_order=0):
@@ -160,6 +185,34 @@ class Mesh2D_lagrange():
                 x[i] += NN[0, a, 0] * qe[self.nodalDOF[a]]
             
         return x
+
+    #Mass matrix for L2 projection fitting
+    def L2_projection_A(self, xis):
+        A = Coo((self.nn, self.nn))  
+        for xi in xis:
+            (el_xi, el_eta), (xi_l, eta_l) = find_element_number(self, xi)
+            el = int(flat2D(el_xi, el_eta, self.nel_per_dim))
+            elDOF_el = self.elDOF[el, :self.nn_el]
+            Ae = np.zeros((self.nn_el, self.nn_el))
+            NN = lagrange_basis2D(self.degrees, (xi_l, eta_l), 0)
+            for i in range(self.nn_el):
+                for j in range(self.nn_el):
+                    Ae[i,j] = NN[0, i, 0] * NN[0, j, 0]
+            A.extend(Ae, (elDOF_el, elDOF_el))
+        return A
+
+    def L2_projection_b(self, xis, Pw):
+        b = np.zeros(self.nn)
+        for xi, Pwi in zip(xis, Pw):
+            (el_xi, el_eta), (xi_l, eta_l) = find_element_number(self, xi)
+            el = int(flat2D(el_xi, el_eta, self.nel_per_dim))
+            elDOF_el = self.elDOF[el, :self.nn_el]
+            NN = lagrange_basis2D(self.degrees,  (xi_l, eta_l), 0)
+            be = np.zeros((self.nn_el))
+            for i in range(self.nn_el):
+                be[i] = NN[0, i, 0] * Pwi
+            b[elDOF_el] += be
+        return b
 
     def reference_mappings(self, Q):
         """Compute inverse gradient from the reference configuration to the parameter space and scale quadrature points by its determinant. See Bonet 1997 (7.6a,b)
@@ -205,12 +258,42 @@ class Mesh2D_lagrange():
             
             return w_J0
 
+    def ensure_L2_projection_A(self):
+        if not hasattr(self, "A"):
+            A = Coo((self.nn, self.nn))
+            for el in range(self.nel):
+                elDOF_el = self.elDOF[el, :self.nn_el]
+                Ae = np.zeros((self.nn_el, self.nn_el))
+                Nel = self.N[el]
+                for a in range(self.nn_el):
+                    for b in range(self.nn_el):
+                        for i in range(self.nqp):
+                            Ae[a, b] += Nel[i, a] * Nel[i, b]
+                A.extend(Ae, (elDOF_el, elDOF_el))
+            self.A = A.tocsc()
+
+    def rhs_L2_projection(self, field):
+        _, nqp, *shape = field.shape
+        dim = np.prod(shape)
+
+        b = np.zeros((self.nn, dim))
+        for el in range(self.nel):
+            elDOF_el = self.elDOF[el, :self.nn_el]
+            be = np.zeros((self.nn_el, dim))
+            Nel = self.N[el]
+            for a in range(self.nn_el):
+                for i in range(self.nqp):
+                    be[a] += Nel[i, a] * field[el, i].ravel()
+            b[elDOF_el] += be
+        return b
+
+
     # functions for vtk export
     def field_to_vtk(self, field):
         _, _, *shape = field.shape
         dim = np.prod(shape)
 
-        # L2 projection on B-spline mesh
+        # L2 projection on lagrange mesh
         self.ensure_L2_projection_A()
         b = self.rhs_L2_projection(field)
         q = np.zeros((self.nn, dim))
@@ -218,124 +301,76 @@ class Mesh2D_lagrange():
             q[:, i] = spsolve(self.A, bi)
 
         # rearrange q's from solver to Piegl's 3D ordering
-        Pw = q_to_Pw_3D(self.knot_vector_objs, q.reshape(-1, order='F'), dim=dim)
+        Qw = np.zeros((self.nel_xi, self.nel_eta, self.p+1, self.q+1, dim))
+        for el in range(self.nel):
+            el_xi, el_eta = split2D(el, self.element_shape)
+            for a in range(self.nn_el):
+                a_xi, a_eta, = split2D(a, self.degrees1)
+                Qw[el_xi, el_eta, a_xi, a_eta] = q[self.elDOF[el][self.nodalDOF[a][0]]]
 
-        # decompose B-spline mesh in Bezier patches      
-        Qw = decompose_B_spline_volume(self.knot_vector_objs, Pw)
-        nbezier_xi, nbezier_eta, nbezier_zeta, p1, q1, r1, dim = Qw.shape
-
-        # rearrange Bezier mesh points for vtk ordering
-        n_patches = nbezier_xi * nbezier_eta * nbezier_zeta
-        patch_size = p1 * q1 * r1
-        point_data = np.zeros((n_patches * patch_size, dim))
-        for i in range(nbezier_xi):
-            for j in range(nbezier_eta):
-                for k in range(nbezier_zeta):
-                    idx = flat3D(i, j, k, (nbezier_xi, nbezier_eta))
-                    point_range = np.arange(idx * patch_size, (idx + 1) * patch_size)
-                    point_data[point_range] = flat3D_vtk(Qw[i, j, k])
+        # rearrange mesh points for vtk ordering
+        point_data = np.zeros((self.nel * self.nn_el, dim))
+        for i in range(self.nel_xi):
+            for j in range(self.nel_eta):
+                idx = flat2D(i, j, (self.nel_xi, ))
+                point_range = np.arange(idx * self.nn_el, (idx + 1) * self.nn_el)
+                point_data[point_range] = flat2D_vtk(Qw[i, j, k])
 
         return point_data
         
-    def vtk_mesh(self, q):
+    def vtk_mesh(self, q): 
+
         # rearrange q's from solver to Piegl's 3D ordering
-        Pw = q_to_Pw_3D(self.knot_vector_objs, q, dim=self.nq_n)
-        
-        # decompose B-spline mesh in Bezier patches       
-        Qw = decompose_B_spline_volume(self.knot_vector_objs, Pw)
-        nbezier_xi, nbezier_eta, nbezier_zeta, p1, q1, r1, dim = Qw.shape
+        Qw = np.zeros((self.nel_xi, self.nel_eta, self.p+1, self.q+1, self.nq_n))
+        for el in range(self.nel):
+            el_xi, el_eta = split2D(el, self.element_shape)
+            for a in range(self.nn_el):
+                a_xi, a_eta = split2D(a, self.degrees1)
+                Qw[el_xi, el_eta, a_xi, a_eta] = q[self.elDOF[el][self.nodalDOF[a]]]
         
         # build vtk mesh
-        n_patches = nbezier_xi * nbezier_eta * nbezier_zeta
-        patch_size = p1 * q1 * r1
-        points = np.zeros((n_patches * patch_size, dim))
+        points = np.zeros((self.nel * self.nn_el, self.nq_n))
         cells = []
         HigherOrderDegrees = []
-        for i in range(nbezier_xi):
-            for j in range(nbezier_eta):
-                for k in range(nbezier_zeta):
-                    idx = flat3D(i, j, k, (nbezier_xi, nbezier_eta))
-                    point_range = np.arange(idx * patch_size, (idx + 1) * patch_size)
-                    points[point_range] = flat3D_vtk(Qw[i, j, k])
-                    
-                    cells.append( ("VTK_BEZIER_HEXAHEDRON", point_range[None]) )
-                    HigherOrderDegrees.append( np.array(self.degrees)[None] )
+        for i in range(self.nel_xi):
+            for j in range(self.nel_eta):
+                idx = flat2D(i, j, (self.nel_xi, ))
+                point_range = np.arange(idx * self.nn_el, (idx + 1) * self.nn_el)
+                points[point_range] = flat2D_vtk(Qw[i, j])
+                cells.append( ("VTK_LAGRANGE_QUADRILATERAL", point_range[None]) )
+                HigherOrderDegrees.append( np.array(self.degrees)[None] )
 
         return cells, points, HigherOrderDegrees
 
-
-def test_lagrange_cube_vtk():
-    degrees = (1, 1, 1)
-    QP_shape = (3, 4, 2)
-    element_shape = (1, 2, 3)
-
-    mesh = Mesh3D(degrees, QP_shape, element_shape, derivative_order=1, basis='lagrange', nq_n=3)
-
-    cube_shape = (3, 3, 3)
-    Q = cube(cube_shape, mesh, Greville=False, Fuzz=0)
-
-    import matplotlib.pyplot as plt
-    fig = plt.figure()
-    ax = fig.gca(projection='3d')
-    ax.set_xlabel('x [m]')
-    ax.set_ylabel('y [m]')
-    ax.set_zlabel('z [m]')
-    max_val = np.max(np.abs(Q))
-    ax.set_xlim3d(left=-max_val, right=max_val)
-    ax.set_ylim3d(bottom=-max_val, top=max_val)
-    ax.set_zlim3d(bottom=-max_val, top=max_val)
-    ax.scatter(*Q.reshape(3, -1), marker='p')
-
-    # ax.scatter(*Q[mesh.surface_qDOF[0].reshape(-1)].reshape(3,-1), marker='x', color='red')
-    # ax.scatter(*Q[mesh.surface_qDOF[2].reshape(-1)].reshape(3,-1), marker='x', color='green')
-    # ax.scatter(*Q[mesh.surface_qDOF[4].reshape(-1)].reshape(3,-1), marker='x', color='black')
-    # ax.scatter(*Q[mesh.surface_qDOF[1].reshape(-1)].reshape(3,-1), marker='x', color='red')
-    # ax.scatter(*Q[mesh.surface_qDOF[3].reshape(-1)].reshape(3,-1), marker='x', color='green')
-    # ax.scatter(*Q[mesh.surface_qDOF[5].reshape(-1)].reshape(3,-1), marker='x', color='black')
-
-    plt.show()
-
-def test_surface_DOF():
-    from cardillo.discretization.B_spline import Knot_vector
+def test_edge_DOF():
     # degrees = (1, 2, 3)
     # element_shape = (3, 2, 1)
-    degrees = (3, 2, 1)
-    QP_shape = (3, 4, 2)
-    element_shape = (4, 5, 3)
-
-    Xi = Knot_vector(degrees[0], element_shape[0])
-    Eta = Knot_vector(degrees[1], element_shape[1])
-    Zeta = Knot_vector(degrees[2], element_shape[2])
-    knot_vectors = (Xi, Eta, Zeta)
+    degrees = (2, 1)
+    QP_shape = (2, 2)
+    element_shape = (2, 2)
     
     #from cardillo.discretization.mesh import Mesh, cube, scatter_Qs
-    mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=2, basis='B-spline', nq_n=3)
+    mesh = Mesh2D_lagrange(degrees, QP_shape, element_shape, derivative_order=1, nq_n=2)
 
-    cube_shape = (3, 3, 3)
-    Q = cube(cube_shape, mesh, Greville=True, Fuzz=0)
-    #scatter_Qs(Q_cube)
+    rectangle_shape = (5, 3)
+    Q = rectangle(rectangle_shape, mesh, Fuzz=0)
+    # scatter_Qs(Q)
 
     import matplotlib.pyplot as plt
-    fig = plt.figure()
-    ax = fig.gca(projection='3d')
+    fig= plt.figure()
+    ax = fig.add_subplot(111)
     ax.set_xlabel('x [m]')
     ax.set_ylabel('y [m]')
-    ax.set_zlabel('z [m]')
     max_val = np.max(np.abs(Q))
-    ax.set_xlim3d(left=-max_val, right=max_val)
-    ax.set_ylim3d(bottom=-max_val, top=max_val)
-    ax.set_zlim3d(bottom=-max_val, top=max_val)
-#    ax.scatter(*Q.reshape(3, -1), marker='p')
+    ax.set_xlim(left=-max_val, right=max_val)
+    ax.set_ylim(bottom=-max_val, top=max_val)
 
-    ax.scatter(*Q[mesh.surface_qDOF[0].reshape(-1)].reshape(3,-1), marker='x', color='red')
-    ax.scatter(*Q[mesh.surface_qDOF[2].reshape(-1)].reshape(3,-1), marker='x', color='green')
-    ax.scatter(*Q[mesh.surface_qDOF[4].reshape(-1)].reshape(3,-1), marker='x', color='black')
-    ax.scatter(*Q[mesh.surface_qDOF[1].reshape(-1)].reshape(3,-1), marker='x', color='red')
-    ax.scatter(*Q[mesh.surface_qDOF[3].reshape(-1)].reshape(3,-1), marker='x', color='green')
-    ax.scatter(*Q[mesh.surface_qDOF[5].reshape(-1)].reshape(3,-1), marker='x', color='black')
+    ax.scatter(*Q[mesh.edge_qDOF[2].reshape(-1)].reshape(2,-1), marker='x', color='green')
+    ax.scatter(*Q[mesh.edge_qDOF[0].reshape(-1)].reshape(2,-1), marker='x', color='red')
+    ax.scatter(*Q[mesh.edge_qDOF[1].reshape(-1)].reshape(2,-1), marker='x', color='red')
+    ax.scatter(*Q[mesh.edge_qDOF[3].reshape(-1)].reshape(2,-1), marker='x', color='green')
 
     plt.show()
 
 if __name__ == "__main__":
-    #test_surface_DOF()
-    test_lagrange_cube_vtk()
+    test_edge_DOF()

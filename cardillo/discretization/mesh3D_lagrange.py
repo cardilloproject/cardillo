@@ -2,7 +2,7 @@ import numpy as np
 from scipy.sparse.linalg import spsolve
 # from cardillo_fem.discretization.lagrange import lagrange2D, lagrange1D, lagrange3D
 from cardillo.discretization.B_spline import q_to_Pw_3D,  flat3D_vtk
-from cardillo.discretization.lagrange import lagrange_basis3D, lagrange_basis2D
+from cardillo.discretization.lagrange import lagrange_basis3D, lagrange_basis2D, find_element_number
 from cardillo.math.algebra import inverse2D, determinant2D, inverse3D, determinant3D, quat2rot
 from cardillo.discretization.indexing import flat3D, split3D
 from cardillo.discretization.mesh2D_lagrange import Mesh2D_lagrange
@@ -139,6 +139,34 @@ class Mesh3D_lagrange():
             if self.derivative_order > 1:
                 self.N_xixi = np.vstack([[NN[:, :, range(4, 13)].reshape(self.nqp, self.nn_el, 3, 3)]] * self.nel)
 
+    #Mass matrix for L2 projection fitting
+    def L2_projection_A(self, xis):
+        A = Coo((self.nn, self.nn))  
+        for xi in xis:
+            (el_xi, el_eta, el_zeta), (xi_l, eta_l, zeta_l) = find_element_number(self, xi)
+            el = int(flat3D(el_xi, el_eta, el_zeta, self.nel_per_dim))
+            elDOF_el = self.elDOF[el, :self.nn_el]
+            Ae = np.zeros((self.nn_el, self.nn_el))
+            NN = lagrange_basis3D(self.degrees, (xi_l, eta_l, zeta_l), 0)
+            for i in range(self.nn_el):
+                for j in range(self.nn_el):
+                    Ae[i,j] = NN[0, i, 0] * NN[0, j, 0]
+            A.extend(Ae, (elDOF_el, elDOF_el))
+        return A
+
+    def L2_projection_b(self, xis, Pw):
+        b = np.zeros(self.nn)
+        for xi, Pwi in zip(xis, Pw):
+            (el_xi, el_eta, el_zeta), (xi_l, eta_l, zeta_l) = find_element_number(self, xi)
+            el = int(flat3D(el_xi, el_eta, el_zeta, self.nel_per_dim))
+            elDOF_el = self.elDOF[el, :self.nn_el]
+            NN = lagrange_basis3D(self.degrees,  (xi_l, eta_l, zeta_l), 0)
+            be = np.zeros((self.nn_el))
+            for i in range(self.nn_el):
+                be[i] = NN[0, i, 0] * Pwi
+            b[elDOF_el] += be
+        return b
+
     def surfaces(self):
         def select_surface(**kwargs):
             nn_0 =  kwargs.get('nn_0', range(self.nn_xi))
@@ -159,6 +187,21 @@ class Mesh3D_lagrange():
                 
             return DOF
 
+        #    6-------7
+        #   /|      /|   |z /y
+        #  / |     / |   | /
+        # 4--|----5  |   |/---x
+        # |  2----|--3
+        # | /     | /
+        # 0-------1
+        #
+        # surface0 = [0, 2, 4, 6] => left, x = 0
+        # surface1 = [1, 3, 5, 7] => right, x = x_max
+        # surface2 = [0, 1, 4, 5] => front, y = 0
+        # surface3 = [2, 3, 6, 7] => back, y = y_max
+        # surface4 = [0, 1, 2, 3] => bottom, z = 0
+        # surface5 = [4, 5, 6, 7] => top, z = z_max
+
         self.surface_qDOF = (
             select_surface(nn_0=[0]),
             select_surface(nn_0=[self.nn_xi - 1]),
@@ -178,40 +221,6 @@ class Mesh3D_lagrange():
         for i in range(6):
             self.surface_mesh[i].idx = i
 
-    def L2_projection_A(self, knots):
-        A = Coo((self.nn, self.nn))
-        for xi, eta, zeta in knots:
-            el_xi = self.Xi.element_number(xi)[0]
-            el_eta = self.Eta.element_number(eta)[0]
-            el_zeta = self.Zeta.element_number(zeta)[0]
-            el = flat3D(el_xi, el_eta, el_zeta, self.nel_per_dim)
-            elDOF = self.elDOF[el, :self.nn_el]
-
-            Ae = np.zeros((self.nn_el, self.nn_el))
-            NN = lagrange_basis3D(self.degrees, 0, self.knot_vectors, (xi, eta, zeta))
-            for i in range(self.nn_el):
-                for j in range(self.nn_el):
-                    Ae[i, j] = NN[0, i, 0] * NN[0, j, 0]
-            A.extend(Ae, (elDOF, elDOF))
-        return A
-
-    def L2_projection_b(self, knots, Pw):
-        b = np.zeros(self.nn)
-        for (xi, eta, zeta), Pwi in zip(knots, Pw):
-            el_xi = self.Xi.element_number(xi)[0]
-            el_eta = self.Eta.element_number(eta)[0]
-            el_zeta = self.Zeta.element_number(zeta)[0]
-            el = flat3D(el_xi, el_eta, el_zeta, self.nel_per_dim)
-            elDOF = self.elDOF[el, :self.nn_el]
-
-            be = np.zeros((self.nn_el))
-            NN = lagrange_basis3D(self.degrees, 0, self.knot_vectors, (xi, eta, zeta))
-            for i in range(self.nn_el):
-                be[i] = NN[0, i, 0] * Pwi
-            b[elDOF] += be
-        return b
-
-    # TODO: handle derivatives
     def compute_F_nodes(self, Q, q, derivative_order=0):
         # calculate F values at nodes from reference configuration Q and state q
         F_nodes = np.zeros((self.nel, self.nn_el,  self.nq_n , self.nq_n))

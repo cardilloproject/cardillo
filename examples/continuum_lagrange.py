@@ -23,7 +23,7 @@ def test_cube():
     # # element_shape = (5, 5, 5)
     # element_shape = (2, 2, 2)
     degrees = (2, 2, 2)
-    QP_shape = (4, 4, 4)
+    QP_shape = (2, 2, 2)
     element_shape = (2, 2, 4)
     
     mesh = Mesh3D_lagrange(degrees, QP_shape, element_shape, derivative_order=1, nq_n=3)

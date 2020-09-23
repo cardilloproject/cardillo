@@ -1,22 +1,24 @@
 import numpy as np
+from scipy.sparse.linalg import spsolve
 from cardillo.discretization.indexing import flat2D, flat3D, split2D, split3D
+import meshio
 
 def lagrange_basis1D(degree, xi, derivative=1):
     p = degree
 
     if not hasattr(xi, '__len__'):
         xi = np.array([xi])
- 
-    k =len(xi)
+
+    k = len(xi)
     n = sum([1 for d in range(derivative + 1)])
     NN = np.zeros((k, p+1, n))
     Nxi, N_xi = Lagrange_basis(p, xi, derivative=True)
-       
-    NN[:,:,0] = Nxi
+
+    NN[:, :, 0] = Nxi
     if derivative > 0:
-        NN[:,:,1] = N_xi
+        NN[:, :, 1] = N_xi
         if derivative > 1:
-            NN[:,:,2] = N_xixi
+            NN[:, :, 2] = N_xixi
 
     return NN
 
@@ -38,7 +40,7 @@ def lagrange_basis2D(degrees, xis, derivative=1):
     NN = np.zeros((kl, p1q1, n))
     #TODO: make seperate 1D Basis function with second derrivative
     Nxi = lagrange_basis1D(p, xi)
-    Neta =lagrange_basis1D(q, eta)
+    Neta = lagrange_basis1D(q, eta)
 
     for i in range(kl):
         ik, il = split2D(i, (k, ))
@@ -218,6 +220,51 @@ def __lagrange_xx_r(x, degree):
             
     return l_xx
 
+def lagrange_volume2vtk(mesh, Q, filename, binary=False):
+    cells, points, HigherOrderDegrees = mesh.vtk_mesh(Q)
+
+    meshio.write_points_cells(
+        filename,
+        points,
+        cells,
+        cell_data={"HigherOrderDegrees": HigherOrderDegrees},
+        binary=binary
+    )
+def find_element_number(mesh, xis):
+    # finds the element number for a xis vector from the 0 to 1 parameter space
+    # also gives the parameter space value of xis
+    el = np.zeros(len(xis))
+    xis_l = np.zeros_like(xis)
+    for i, xi in enumerate(xis):
+        if int((xi // (1 / mesh.element_shape[i]))) >= mesh.element_shape[i]:
+            el[i] = mesh.element_shape[i] - 1
+            xis_l[i] = 1
+        else:
+            el[i] = int((xi // (1 / mesh.element_shape[i])))
+            xis_l[i] = (xis[i]  * mesh.element_shape[i] - el[i]) * 2 - 1
+    return el, xis_l
+
+def fit_lagrange_volume(mesh, xis, Pw, qc, cDOF):
+    A = mesh.L2_projection_A(xis)
+    nq = A.shape[0]
+    qDOF = np.arange(nq)
+    fDOF = np.setdiff1d(qDOF, cDOF)
+
+    Acsc = A.tocsc()
+    Aff = Acsc[fDOF[:, None], fDOF]
+    Afc = Acsc[fDOF[:, None], cDOF]
+
+    qs = np.zeros((nq,) + Pw.shape[1:])
+    for i, Pwi in enumerate(Pw.T):
+        b = mesh.L2_projection_b(xis, Pwi)
+        qs[cDOF, i] = qc[:, i]
+        qs[fDOF, i] = spsolve(Aff, b[fDOF] - Afc @ qs[cDOF, i])
+
+    return qs.T
+
+def fit_lagrange_surface(mesh, xis, Pw, qc, cDOF):
+    return fit_lagrange_volume(mesh, xis, Pw, qc, cDOF)
+
 def test_shape_functions_der():
     import matplotlib.pyplot as plt
     fig = plt.figure()
@@ -234,10 +281,123 @@ def test_shape_functions_der():
     plt.plot(x,NN[:10,2,1])
     plt.show()
 
+def test_fit_lagrange_volume():
+    # degrees = np.ones(3, dtype=int) * 3
+    degrees = (3, 3, 3)
+    QP_shape = (1, 1, 1)
+    element_shape = np.ones(3, dtype=int) * 5
+    element_shape = (3, 3, 3)
+    
+    from cardillo.discretization.mesh3D_lagrange import Mesh3D_lagrange
+    mesh = Mesh3D_lagrange(degrees, QP_shape, element_shape, derivative_order=0, nq_n=3)
+
+    def shear(xi, eta, zeta, gamma=1.5, L=5, B=2, H=1):
+        x = xi * L + gamma * eta * B
+        y = eta * B
+        z = zeta * H
+        return x, y, z
+
+    def bending(xi, eta, zeta, phi0=np.pi, R=1, B=2, H=1):
+        phi = (1 - xi) * phi0
+        x = (R + B * eta) * np.cos(phi)
+        y = (R + B * eta) * np.sin(phi)
+        # x = (R + B * eta**2) * np.cos(phi)
+        # y = (R + B * eta**2) * np.sin(phi)
+        z = zeta * H
+        return x, y, z
+
+    def sherical_dome(xi, eta, zeta, phi0=np.pi, theta0=np.pi/2, R=1, H=1):
+        phi = (1 - xi) * phi0
+        theta = eta * theta0
+        r = R + zeta * H
+        x = r * np.cos(phi) * np.sin(theta)
+        y = r * np.sin(phi) * np.sin(theta)
+        z = r * np.cos(theta)
+        return x, y, z
+
+    def parabolic(xi, eta, zeta, L=1, B=1, H=1):
+        x = xi * L
+        y = eta * B + (xi - L/2)**2 * eta
+        z = zeta * H
+        return x, y, z
+
+    def twist(xi, eta, zeta, phi0=np.pi/2, R=1, d=1, B=1, H=1):
+        phi = xi * phi0
+        r = R + B * eta
+        x = r * np.cos(phi)
+        y = r * np.sin(phi)
+        z = zeta * H + eta**2 * zeta * d
+        return x, y, z
+
+    def cylinder(xi, eta, zeta, R=1, H=1):
+        xi_ = 2 * xi - 1
+        eta_ = 2 * eta - 1
+
+        if np.abs(xi_) > np.abs(eta_):
+            r = np.sqrt(1 + eta_**2)
+        else:
+            r = np.sqrt(1 + xi_**2)
+
+        x = R / r * xi_
+        y = R / r * eta_
+        z = zeta * H
+        return x, y, z
+
+    # nxi, neta, nzeta = 20, 5, 5
+    nxi, neta, nzeta = 10, 10, 10
+    # nxi, neta, nzeta = 20, 20, 20
+    xi = np.linspace(0, 1, num=nxi)
+    eta = np.linspace(0, 1, num=neta)
+    zeta = np.linspace(0, 1, num=nzeta)
+
+    B = 1
+    R = 1
+    
+    n3 = nxi * neta * nzeta
+    xis = np.zeros((n3, 3))
+    Pw = np.zeros((n3, 3))
+    for i, xii in enumerate(xi):
+        for j, etai in enumerate(eta):
+            for k, zetai in enumerate(zeta):
+                idx = flat3D(i, j, k, (nxi, neta, nzeta))
+                xis[idx] = xii, etai, zetai
+                # Pw[idx] = shear(xii, etai, zetai)
+                # Pw[idx] = bending(xii, etai, zetai, R=R, B=B)
+                # Pw[idx] = sherical_dome(xii, etai, zetai, R=R, H=B)
+                # Pw[idx] = parabolic(xii, etai, zetai)
+                # Pw[idx] = twist(xii, etai, zetai)
+                Pw[idx] = cylinder(xii, etai, zetai)
+
+    cDOF = np.array([], dtype=int)
+    qc = np.array([], dtype=float).reshape((0, 3))
+    # cDOF = np.array([0], dtype=int)
+    # qc = np.array([-np.ones(3) * 0.1])
+    X, Y, Z = fit_lagrange_volume(mesh, xis, Pw, qc, cDOF)
+
+    lagrange_volume2vtk(mesh, np.concatenate((X, Y, Z)), 'fit_lagrange_volume.vtu')
+    
+    import matplotlib.pyplot as plt
+    from mpl_toolkits.mplot3d import Axes3D
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.scatter(*Pw.T)
+    ax.scatter(X, Y, Z, color='red')
+    # RB = R + 0.5*B
+    # # RB = R
+    # ax.set_xlim(-RB, RB)
+    # ax.set_ylim(-RB, RB)
+    # ax.set_zlim(-RB, RB)
+    plt.show()
+
+
 if __name__ == "__main__":
     import numpy as np
 
-    test_shape_functions_der()
+
+
+    #test_shape_functions_der()
+
+    test_fit_lagrange_volume()
 
     # degree = 2
     # # x = -1

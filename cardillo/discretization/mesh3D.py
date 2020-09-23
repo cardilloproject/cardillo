@@ -224,6 +224,21 @@ class Mesh3D():
                 
             return DOF
 
+        #    6-------7
+        #   /|      /|   |z /y
+        #  / |     / |   | /
+        # 4--|----5  |   |/---x
+        # |  2----|--3
+        # | /     | /
+        # 0-------1
+        #
+        # surface0 = [0, 2, 4, 6] => left, x = 0
+        # surface1 = [1, 3, 5, 7] => right, x = x_max
+        # surface2 = [0, 1, 4, 5] => front, y = 0
+        # surface3 = [2, 3, 6, 7] => back, y = y_max
+        # surface4 = [0, 1, 2, 3] => bottom, z = 0
+        # surface5 = [4, 5, 6, 7] => top, z = z_max
+
         self.surface_qDOF = (
             select_surface(nn_0=[0]),
             select_surface(nn_0=[self.nn_xi - 1]),
