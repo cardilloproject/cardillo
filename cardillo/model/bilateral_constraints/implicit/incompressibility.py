@@ -13,6 +13,11 @@ class Incompressibility():
         #self.uDOF = self.subsystem.uDOF
 
     # assembler callback??
+    def get_z(t, q)
+        z = np.zeros(self.subsystem.zDOF)
+        z[self.qDOF] = q
+        z[self.subsystem.cDOF] = self.b(t)
+        return z
 
     def g_el(self, t, qe, el):
         ge = np.zeros(self.la_mesh.nn_el)
