@@ -2,7 +2,7 @@ import numpy as np
 from scipy.sparse.linalg import spsolve
 # from cardillo_fem.discretization.lagrange import lagrange2D, lagrange1D, lagrange3D
 #from cardillo.discretization.B_spline import uniform_knot_vector, B_spline_basis1D, B_spline_basis2D, B_spline_basis3D, q_to_Pw_3D, decompose_B_spline_volume, flat3D_vtk
-from cardillo.discretization.lagrange import lagrange_basis1D, lagrange_basis2D, finde_element_number
+from cardillo.discretization.lagrange import lagrange_basis1D, lagrange_basis2D, find_element_number
 from cardillo.math.algebra import inverse2D, determinant2D, inverse3D, determinant3D, quat2rot, norm3, cross3
 from cardillo.discretization.indexing import flat2D, split2D
 from cardillo.discretization.mesh1D_lagrange import Mesh1D_lagrange
