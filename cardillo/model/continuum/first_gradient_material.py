@@ -129,15 +129,63 @@ class Ogden1997_compressible():
 class Ogden1997_incompressible():
     """Ogden 1997 p. 293, (7.2.20)
     """
-    def __init__(self, mu, alpha):
+    def __init__(self, mu, dim=3):
         self.mu = mu
-        self.alpha = alpha
+        self.dim = dim
 
-    def W(self, F):        
-        raise NotImplementedError('...')
+    def W(self, F):
+        la2, _ = np.linalg.eigh(F.T @ F)
+        
+        I1 = sum(la2)
+        I3 = np.prod(la2)
+
+        return self.mu / 2 * (I1 - 3)
+
+    def S(self, F):
+        La, u = np.linalg.eigh(F.T @ F)
+
+        S = np.zeros_like(F)
+        for i in range(len(La)):
+            Si = self.mu
+            S += Si * np.outer(u[:, i], u[:, i])
+        return S
+
+    def S_F(self, F):
+        # La, u = np.linalg.eigh(F.T @ F)
+
+        # Si = np.zeros(self.dim)
+        # Si_Laj = np.zeros((self.dim, self.dim))
+        # for i in range(len(La)):
+        #     Si[i] = self.mu
+
+        #     Si_Laj[i, i] += self.mu / La[i]**2
+
+        # S_C = np.zeros((self.dim, self.dim, self.dim, self.dim))
+        # for i in range(len(La)):
+        #     for j in range(len(La)):
+        #         S_C += Si_Laj[i, j] * np.einsum('i,j,k,l->ijkl', u[:, i], u[:, i], u[:, j], u[:, j])
+        #         if i != j:
+        #             # for La[j] -> La[i] we use L'Hôpital's rule, see Connolly2019 - Isotropic hyperelasticity in principal stretches: explicit elasticity tensors and numerical implementation
+        #             if isclose(La[i], La[j]):
+        #                 S_C += 0.5 * (Si_Laj[j, j] - Si_Laj[i, j]) * (np.einsum('i,j,k,l->ijkl', u[:, i], u[:, j], u[:, i], u[:, j]) + np.einsum('i,j,k,l->ijkl', u[:, i], u[:, j], u[:, j], u[:, i]))
+        #             else:
+        #                 S_C += 0.5 * ((Si[j] - Si[i]) / (La[j] - La[i])) * (np.einsum('i,j,k,l->ijkl', u[:, i], u[:, j], u[:, i], u[:, j]) + np.einsum('i,j,k,l->ijkl', u[:, i], u[:, j], u[:, j], u[:, i]))
+
+        # eye_dim = np.eye(self.dim)
+        # C_F = np.einsum('kj,il->ijkl', F, eye_dim) + np.einsum('ki,jl->ijkl', F, eye_dim)
+        # S_F = np.einsum('ijkl,klmn->ijmn', S_C, C_F)
+
+        S_F_num = Numerical_derivative(self.S, order=2)._X(F)
+        # error = np.linalg.norm(S_F - S_F_num)
+        # # print(f'error: {error}')
+        # if error > 1.0e-5:
+        #     print(f'error: {error}')
+        return S_F_num
+
+        # return S_F
 
     def P(self, F):
-        raise NotImplementedError('...')
+        return F @ self.S(F)
 
 def test_Ogden1997_compressible():
     mu1 = 0.3

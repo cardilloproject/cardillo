@@ -6,25 +6,27 @@ from cardillo.discretization.mesh3D import Mesh3D, cube
 from cardillo.discretization.mesh2D import Mesh2D, rectangle
 from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume
 from cardillo.discretization.indexing import flat3D
-from cardillo.model.continuum import Ogden1997_compressible, First_gradient
+from cardillo.model.continuum import Ogden1997_compressible, Ogden1997_incompressible, First_gradient
 from cardillo.solver import Newton, Generalized_alpha_1, Euler_backward
 from cardillo.model import Model
 from cardillo.math.algebra import A_IK_basic_z
 from cardillo.model.force_distr2D import Force_distr2D
 from cardillo.model.force_distr3D import Force_distr3D
+from cardillo.model.bilateral_constraints.implicit.incompressibility import Incompressibility
 
 def test_cube():
     TractionForce = False
     Gravity = False
-    Statics = False
+    Statics = True
+    Incompressible = True
     # build mesh
     # degrees = (2, 2, 2)
     # QP_shape = (3, 3, 3)
     # # element_shape = (5, 5, 5)
     # element_shape = (2, 2, 2)
-    degrees = (1, 1, 1)
+    degrees = (3, 3, 3)
     QP_shape = (2, 2, 2)
-    element_shape = (3, 3, 3)
+    element_shape = (2, 2, 2)
 
     Xi = Knot_vector(degrees[0], element_shape[0])
     Eta = Knot_vector(degrees[1], element_shape[1])
@@ -36,14 +38,23 @@ def test_cube():
     # reference configuration is a cube
     L = 1
     B = 1
-    H = 2
+    H = 1
     cube_shape = (L, B, H)
     Z = cube(cube_shape, mesh, Greville=True)
 
     # material model
     mu1 = 0.3 # * 1e3
     mu2 = 0.5 # * 1e3
-    mat = Ogden1997_compressible(mu1, mu2)
+
+    if Incompressible:
+        mat = Ogden1997_incompressible(mu1)
+        Xi_la = Knot_vector(degrees[0] - 2, element_shape[0])
+        Eta_la = Knot_vector(degrees[1] - 2, element_shape[1])
+        Zeta_la = Knot_vector(degrees[2] - 2, element_shape[2])
+        knot_vectors_la = (Xi_la, Eta_la, Zeta_la)
+        la_mesh = Mesh3D(knot_vectors_la, QP_shape, derivative_order=0, basis='B-spline', nq_n=1)
+    else:
+        mat = Ogden1997_compressible(mu1, mu2)
 
     density = 1e-2
 
@@ -56,14 +67,14 @@ def test_cube():
             b = lambda t: Z[cDOF]
 
         else:
-            # cDOF1 = mesh.surface_qDOF[4].reshape(-1)
-            # cDOF2 = mesh.surface_qDOF[5][2]
-            # cDOF = np.concatenate((cDOF1, cDOF2))
-            # b1 = lambda t: Z[cDOF1]
-            # b2 = lambda t: Z[cDOF2] + t * 0.5
-            # b = lambda t: np.concatenate((b1(t), b2(t)))
-            cDOF = mesh.surface_qDOF[4].ravel()
-            b = lambda t: Z[cDOF]
+            cDOF1 = mesh.surface_qDOF[4].reshape(-1)
+            cDOF2 = mesh.surface_qDOF[5][2]
+            cDOF = np.concatenate((cDOF1, cDOF2))
+            b1 = lambda t: Z[cDOF1]
+            b2 = lambda t: Z[cDOF2] + t * 0.2
+            b = lambda t: np.concatenate((b1(t), b2(t)))
+            # cDOF = mesh.surface_qDOF[4].ravel()
+            # b = lambda t: Z[cDOF]
     else:
         cDOF_xi = mesh.surface_qDOF[4][0]
         cDOF_eta = mesh.surface_qDOF[4][1]
@@ -84,6 +95,10 @@ def test_cube():
     # build model
     model = Model()
     model.add(continuum)
+
+    if Incompressible:
+        incompressibility = Incompressibility(continuum, la_mesh)
+        model.add(incompressibility)
 
     if TractionForce:
         # F = lambda t, xi, eta: t * np.array([-2.5e0, 0, 0]) * (0.25 - (xi-0.5)**2) * (0.25 - (eta-0.5)**2)
@@ -135,7 +150,7 @@ def test_cube():
     # exit()
 
     # vtk export
-    continuum.post_processing(sol.t, sol.q, 'cube')
+    continuum.post_processing(sol.t, sol.q, 'cube_splines_incomp')
 
 def test_cylinder():    
     # build mesh
