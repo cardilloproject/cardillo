@@ -1,8 +1,7 @@
 from numpy import einsum, zeros
-from cardillo.math import Numerical_derivative
 
 class K_Moment():
-    r"""Force implementation."""
+    r"""Moment in the body fixed frame."""
 
     def __init__(self, moment, subsystem, frame_ID=zeros(3)):
         if not callable(moment):

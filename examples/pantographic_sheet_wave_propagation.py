@@ -1,29 +1,21 @@
-from pickle import load
+from numpy.lib.npyio import save
 from cardillo.solver.solution import load_solution, save_solution
 import numpy as np
-from math import pi, ceil, sin, cos, exp, atan2, sqrt
+from math import pi, sin, cos, exp, atan2, sqrt, ceil
 import matplotlib.pyplot as plt
-import matplotlib.animation as animation
-from numpy.core.function_base import linspace
-from numpy.lib.function_base import disp
-import meshio
-import os
 
 from cardillo.model import Model
 from cardillo.model.classical_beams.planar import Euler_bernoulli, Hooke, Inextensible_Euler_bernoulli
-from cardillo.model.bilateral_constraints.implicit import Spherical_joint2D, Rigid_connection2D, Revolute_joint2D
-# from cardillo.model.bilateral_constraints.implicit import Rigid_beam_beam_connection2D as junction
-from cardillo.model.scalar_force_interactions.force_laws import Linear_spring, Power_spring
+from cardillo.model.bilateral_constraints.implicit import Rigid_connection2D
+from cardillo.model.scalar_force_interactions.force_laws import Linear_spring
 from cardillo.model.scalar_force_interactions import add_rotational_forcelaw
 from cardillo.solver.newton import Newton
-from cardillo.solver.euler_backward import Euler_backward
-from cardillo.solver import Generalized_alpha_1, Scipy_ivp, Generalized_alpha_4_index3, Generalized_alpha_index3_panto
+from cardillo.solver import Generalized_alpha_index3_panto
 from cardillo.discretization.B_spline import uniform_knot_vector
 from cardillo.model.frame import Frame
-from cardillo.math.algebra import A_IK_basic_z, norm2
+from cardillo.math.algebra import A_IK_basic_z
 from cardillo.utility.post_processing_vtk import post_processing
-from cardillo.math import Numerical_derivative
-
+from scipy.interpolate import interp1d
 
 from cardillo.discretization.B_spline import B_spline_basis1D
 class Junction():
@@ -122,7 +114,6 @@ class Junction():
         NN[0, n2:] = -N
         NN[1, :n2] = N
         return NN
-
 
 class Pivot_w_spring():
     def __init__(self, beam1, beam2, force_law, la_g0=None):
@@ -243,8 +234,6 @@ class Pivot_w_spring():
 
     def f_pot_q(self, t, q, coo):
         # dense_num = Numerical_derivative(lambda t, q: self.f_pot(t, q), order=2)._x(t, q)
-        # coo.extend(dense_num, (self.uDOF, self.qDOF))
-
         dense = np.zeros((self._nu, self._nq))
 
         # current tangent vector
@@ -270,91 +259,23 @@ class Pivot_w_spring():
                     
         coo.extend(dense, (self.uDOF, self.qDOF))
 
-if __name__ == "__main__":
-    solveProblem = True
-    E_B_beam = True
-
-    # physical parameters
-    gamma = pi/4
-    # nRow = 20
-    # nCol = 400
-    nRow = 20
-    nCol = 60
-    nf = nRow / 2
-
-    H = 0.0048 * 10 *sqrt(2)
-    L = nCol / nRow * H
-    LBeam = H / (nRow * sin(gamma))
-
-    EA = 1.34e5 * LBeam
-    EI = 1.92e-2 * LBeam
-    GI = 1.59e2 * LBeam**2
-    spring_power = 2
-
-    # Yb = 500e6
-    # Gb = Yb / (2 * (1 + 0.4))
-    # a = 1.6e-3
-    # b = 1e-3
-    # rp = 0.45e-3
-    # hp = 1e-3
-
-    # Jg = (a * b**3) / 12
+def create_pantograph(gamma, nRow, nCol, H, EA, EI, GI, A_rho0, p, nEl, nQP, r_OP_l, A_IK_l, r_OP_r, A_IK_r):
     
-    # EA = Yb * a * b
-    # EI = Yb * Jg
-    # GI = Gb * 0.5*(np.pi * rp**4)/hp
-
-    # EA = 1.6e9 * 1.6e-3 * 0.9e-3
-    # EI = 1.6e9 * (1.6e-3) * (0.9e-3)**3 / 12
-    # GI = 0.1 * 1/3 * 1.6e9 * np.pi * ((0.9e-3)**4)/32 * 1e3 
-
-    # EA = 1.34e5
-    # EI = 1.92e-2
-    # GI = 1.59e2 * LBeam**2
-
-    # EA = 2304
-    # EI = 1.555e-4
-    # GI = 0.004
-
-    A_rho0 = 0
-
-    displacementX_l = 0#displ #-0.0567/4
-    displacementY_l = 0.0
-    rotationZ_l = 0 #-np.pi/10
-
-    displacementX_r = 0.0567 * 1.1
-    displacementY_r = 0.00
-    
-    rotationZ_r = 0 #np.pi/10
-
-    r_OP_l = lambda t: np.array([0, H / 2, 0]) +  np.array([t * displacementX_l, t * displacementY_l, 0])
-    A_IK_l = lambda t: A_IK_basic_z(t * rotationZ_l)
-
-    r_OP_r = lambda t: np.array([L, H / 2, 0]) +  np.array([t * displacementX_r, t * displacementY_r, 0])
-    A_IK_r = lambda t: A_IK_basic_z(t * rotationZ_r)
-    
-    material_model = Hooke(EA, EI)
-
-    ###################
-    # create pantograph
-    ###################
-    p = 3
     assert p >= 2
-    # nQP = int(np.ceil((p + 1)**2 / 2))
-    nQP = p + 1
+    LBeam = H / (nRow * sin(gamma))
+    L = nCol * LBeam * cos(gamma)
 
-    print(f'nQP: {nQP}')
-    nEl = 2
-
+    ###################################################
+    # create reference configuration individual beams #
+    ###################################################
+    
     # projections of beam length
     Lx = LBeam * cos(gamma)
     Ly = LBeam * sin(gamma)
-
     # upper left node
     xUL = 0         
     yUL = Ly*nRow
-
-    # build reference configuration
+    # build reference configuration beam family 1
     nNd = nEl + p
     X0 = np.linspace(0, LBeam, nNd)
     Xi = uniform_knot_vector(p, nEl)
@@ -362,14 +283,17 @@ if __name__ == "__main__":
         X0[i] = np.sum(Xi[i+1:i+p+1])
     Y1 = -np.copy(X0) * Ly / p
     X1 = X0 * Lx / p
-
+    # build reference configuration beam family 2
     X2 = np.copy(X1)
     Y2 = -np.copy(Y1)
     
-    # create model
+    #############
+    # add beams #
+    #############
+
     model = Model()
 
-    # create beams
+    material_model = Hooke(EA, EI)
     beams = []
     ID_mat = np.zeros((nRow, nCol)).astype(int)
     ID = 0
@@ -383,22 +307,19 @@ if __name__ == "__main__":
             q0 = np.copy(Q)
             u0 = np.zeros_like(Q)
             beams.append(Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
-            # beams.append(Inextensible_Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
             model.add(beams[ID])
             ID_mat[brow, bcol] = ID
-            ID = ID + 1
+            ID += 1
             
             # beam 2
             Q = np.concatenate([X2 + X[-1], Y2 + Y[-1]])
             q0 = np.copy(Q)
             u0 = np.zeros_like(Q)
             beams.append(Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
-            # beams.append(Inextensible_Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
             model.add(beams[ID])
             ID_mat[brow, bcol + 1] = ID
-            ID = ID + 1
-
-            
+            ID += 1
+      
     for brow in range(1, nRow, 2):
         for bcol in range(0, nCol, 2):
             X = X2 + xUL + Lx * bcol
@@ -408,21 +329,21 @@ if __name__ == "__main__":
             q0 = np.copy(Q)
             u0 = np.zeros_like(Q)
             beams.append(Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
-            # beams.append(Inextensible_Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
             model.add(beams[ID])
             ID_mat[brow, bcol] = ID
-            ID = ID + 1
+            ID += 1
             # beam 2
             Q = np.concatenate([X1 + X[-1], Y1 + Y[-1]])
             q0 = np.copy(Q)
             u0 = np.zeros_like(Q)
             beams.append(Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
-            # beams.append(Inextensible_Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
             model.add(beams[ID])
             ID_mat[brow, bcol + 1] = ID
-            ID = ID + 1
+            ID += 1
 
-    # junctions in the beam families 
+    ######################################
+    # add junctions within beam families #
+    ######################################
 
     frame_ID1 = (1,)
     frame_ID2 = (0,)
@@ -433,18 +354,12 @@ if __name__ == "__main__":
             beam1 = beams[ID_mat[brow, bcol]]
             beam2 = beams[ID_mat[brow + 1, bcol + 1]]
             r_OB = beam1.r_OP(0, beam1.q0[beam1.qDOF_P(frame_ID1)], frame_ID1)
-            if E_B_beam:
-                model.add(Junction(beam1, beam2))
-            else:
-                model.add(Rigid_connection2D(beam1, beam2, r_OB, frame_ID1=frame_ID1, frame_ID2=frame_ID2))
+            model.add(Junction(beam1, beam2))
 
             beam1 = beams[ID_mat[brow + 1, bcol]]
             beam2 = beams[ID_mat[brow, bcol + 1]]
             r_OB = beam1.r_OP(0, beam1.q0[beam1.qDOF_P(frame_ID1)], frame_ID1)
-            if E_B_beam:
-                model.add(Junction(beam1, beam2))
-            else:
-                model.add(Rigid_connection2D(beam1, beam2, r_OB, frame_ID1=frame_ID1, frame_ID2=frame_ID2))
+            model.add(Junction(beam1, beam2))
 
     # even columns
     for bcol in range(1, nCol - 1, 2):
@@ -452,59 +367,67 @@ if __name__ == "__main__":
             beam1 = beams[ID_mat[brow, bcol]]
             beam2 = beams[ID_mat[brow + 1, bcol + 1]]
             r_OB = beam1.r_OP(0, beam1.q0[beam1.qDOF_P(frame_ID1)], frame_ID1)
-            if E_B_beam:
-                model.add(Junction(beam1, beam2))
-            else:
-                model.add(Rigid_connection2D(beam1, beam2, r_OB, frame_ID1=frame_ID1, frame_ID2=frame_ID2))
+            model.add(Junction(beam1, beam2))
 
             beam1 = beams[ID_mat[brow + 1, bcol]]
             beam2 = beams[ID_mat[brow, bcol + 1]]
             r_OB = beam1.r_OP(0, beam1.q0[beam1.qDOF_P(frame_ID1)], frame_ID1)
-            if E_B_beam:
-                model.add(Junction(beam1, beam2))
-            else:
-                model.add(Rigid_connection2D(beam1, beam2, r_OB, frame_ID1=frame_ID1, frame_ID2=frame_ID2))
+            model.add(Junction(beam1, beam2))
 
-    # pivots and torsional springs between beam families
-            
+    ##########################################################
+    # add pivots and torsional springs between beam families #
+    ##########################################################
+    
     # internal pivots
     for brow in range(0, nRow, 2):
         for bcol in range(0, nCol - 1):
             beam1 = beams[ID_mat[brow, bcol]]
             beam2 = beams[ID_mat[brow, bcol + 1]]
             r_OB = beam1.r_OP(0, beam1.q0[beam1.qDOF_P(frame_ID1)], frame_ID1)
-            # revolute joint without shear stiffness
-            # model.add(Revolute_joint2D(beam1, beam2, r_OB, np.eye(3), frame_ID1=frame_ID1, frame_ID2=frame_ID2))
-            # revolute joint with shear stiffness
-            # spring = Linear_spring(GI)
-            spring = Power_spring(GI, spring_power)
-            if E_B_beam:
-                model.add(Pivot_w_spring(beam1, beam2, spring))
-            else:
-                model.add(add_rotational_forcelaw(spring, Revolute_joint2D)(beam1, beam2, r_OB, np.eye(3), frame_ID1=frame_ID1, frame_ID2=frame_ID2))
+            spring = Linear_spring(GI)
+            model.add(Pivot_w_spring(beam1, beam2, spring))
 
     # lower boundary pivots
     for bcol in range(1, nCol - 1, 2):
         beam1 = beams[ID_mat[-1, bcol]]
         beam2 = beams[ID_mat[-1, bcol + 1]]
         r_OB = beam1.r_OP(0, beam1.q0[beam1.qDOF_P(frame_ID1)], frame_ID1)
-        # revolute joint without shear stiffness
-        # model.add(Revolute_joint2D(beam1, beam2, r_OB, np.eye(3), frame_ID1=frame_ID1, frame_ID2=frame_ID2))
-        # revolute joint with shear stiffness
-        # spring = Linear_spring(GI)
-        spring = Power_spring(GI, spring_power)
-        if E_B_beam:
-            model.add(Pivot_w_spring(beam1, beam2, spring))
-        else:
-            model.add(add_rotational_forcelaw(spring, Revolute_joint2D)(beam1, beam2, r_OB, np.eye(3), frame_ID1=frame_ID1, frame_ID2=frame_ID2))
-        
+        spring = Linear_spring(GI)
+        model.add(Pivot_w_spring(beam1, beam2, spring))
+
+    ###########################
+    # add boundary conditions #
+    ###########################
+
     # clamping at the left hand side
-    frame_l = Frame(r_OP=r_OP_l, A_IK=A_IK_l)
-    model.add(frame_l)
-    for idx in ID_mat[:, 0]:
-        beam = beams[idx]
+
+    # frame_l = Frame(r_OP=r_OP_l, A_IK=A_IK_l)
+    # model.add(frame_l)
+    # for idx in ID_mat[:, 0]:
+    #     beam = beams[idx]
+    #     r_OB = beam.r_OP(0, beam.q0[beam.qDOF_P(frame_ID2)], frame_ID=frame_ID2)
+    #     model.add(Rigid_connection2D(frame_l, beam, r_OB, frame_ID2=frame_ID2))
+
+    # excitation even beams
+    exc_frames = []
+    ex_ID = 0
+    for i in range(0, nRow, 2):        
+        exc_frames.append(Frame(r_OP=r_OP_l[ceil(i / 2)], A_IK=A_IK_l))
+        model.add(exc_frames[ex_ID])
+        beam = beams[ID_mat[i, 0]]
         r_OB = beam.r_OP(0, beam.q0[beam.qDOF_P(frame_ID2)], frame_ID=frame_ID2)
-        model.add(Rigid_connection2D(frame_l, beam, r_OB, frame_ID2=frame_ID2))
+        model.add(Rigid_connection2D(exc_frames[ex_ID], beam, r_OB, frame_ID2=frame_ID2))
+        ex_ID += 1
+
+    # excitation odd beams
+    for i in range(1, nRow, 2):        
+        exc_frames.append(Frame(r_OP=r_OP_l[ceil((i + 1) / 2)], A_IK=A_IK_l))
+        model.add(exc_frames[ex_ID])
+        beam = beams[ID_mat[i, 0]]
+        r_OB = beam.r_OP(0, beam.q0[beam.qDOF_P(frame_ID2)], frame_ID=frame_ID2)
+        model.add(Rigid_connection2D(exc_frames[ex_ID], beam, r_OB, frame_ID2=frame_ID2))
+        ex_ID += 1
+    
 
     # clamping at the right hand side
     frame_r = Frame(r_OP=r_OP_r, A_IK = A_IK_r)
@@ -517,12 +440,132 @@ if __name__ == "__main__":
     # assemble model
     model.assemble()
 
-    ######################
-    # solve static problem
-    ######################
-    solver = Newton(model, n_load_steps=3, max_iter=50, tol=1.0e-2, numerical_jacobian=False)
+    return model, beams, ID_mat
 
-    if solveProblem == True:
+if __name__ == "__main__":
+    load_excitation = False
+    dynamics = True
+    solve_problem = True
+    time_displacement_diagram = False
+    paraview_export = True
+
+    # time simulation parameters
+    t1 = 5e-2                         # simulation time
+    dt = 5e-2 / 1500                   # time step
+    rho_inf = 0.8                       # damping parameter generalized-alpha integrator
+
+    # beam finite element parameters
+    p = 2                               # polynomial degree
+    nQP = p + 2                         # number of quadrature points
+    nEl = 1                             # number of elements per beam
+
+    # geometric parameters
+    gamma = pi/4                        # angle between fiber families
+    nRow = 20                           # number of rows = 2 * number of fibers per height
+    nCol = 800                        # number of columns = 2 * number of fibers per length
+
+    H = 0.07                            # height of pantographic sheet
+    LBeam = H / (nRow * sin(gamma))     # length of individual beam
+    L = nCol * LBeam * cos(gamma)       # length of pantographic sheet
+    
+    # material prameters
+    Yb = 500e6                          # Young's modulus material
+    Gb = Yb / (2 * (1 + 0.4))           # Shear modulus material
+    a = 1.6e-3                          # height of beam cross section
+    b = 1e-3                            # width of beam cross section
+    rp = 0.45e-3                        # radius of pivots
+    hp = 1e-3                           # height of pivots
+    
+    EA = Yb * a * b                     # axial stiffness
+    EI = Yb * (a * b**3) / 12           # bending stiffness
+    GI = Gb * 0.5*(np.pi * rp**4) / hp  # shear stiffness
+
+    A_rho0 = 930 * a * b                # density per unit length
+
+    # boundary conditions
+    # excitation function
+    displ = H / 5
+
+
+
+    n_excited_fibers = ceil(nRow / 2 + 1)
+
+    r_OP_l = []
+
+    if load_excitation:
+        u_x = load_solution(f'displacement_x')
+        u_y = load_solution(f'displacement_y')
+        time = load_solution(f'time')
+
+
+        fig, ax = plt.subplots(2, 1)
+        fig.suptitle('displacements', fontsize=16)
+
+        for i in range(len(u_x)):
+            ax[0].plot(time, u_x[i], label=f'Row {i}')
+            ax[1].plot(time, u_y[i], label=f'Row {i}')
+
+
+        ax[0].set_xlabel('time t [s]')
+        ax[0].set_ylabel('displacement x-direction [m]')
+        ax[0].grid()
+        ax[0].legend()
+        
+        ax[1].set_xlabel('time t [s]')
+        ax[1].set_ylabel('displacement y-direction [m]')
+        ax[1].grid()
+        ax[1].legend()
+
+        plt.show()
+
+        for i in range(n_excited_fibers):       
+            r_OP_l.append(lambda t, k=i: np.array([interp1d(time, u_x[k])([t])[0],
+                                      interp1d(time, u_y[k])([t])[0],
+                                      0]))
+    else:
+
+        c1 = 0.001 * 5
+        c2 = 0.004 * 3
+        fcn = lambda t: displ * np.exp(-(t-c2)**2/c1**2)*(t*(t<c1)+c1*(t>=c1))/c1
+
+        fig, ax = plt.subplots()
+        ax.set_xlabel('time t [s]')
+        ax.set_ylabel('displacement [m]')
+        x = np.linspace(0, t1, 1000)
+        y = []
+
+        for t in x:
+            y.append(fcn(t))
+
+        ax.plot(x, y)
+        plt.show()
+        for i in range(n_excited_fibers):       
+            r_OP_l.append(lambda t, k=i: np.array([fcn(t), 0, 0]))
+    
+
+    rotationZ_l = 0 #-np.pi/10
+    rotationZ_r = 0 #np.pi/10
+
+    # r_OP_l = lambda t: np.array([0, H / 2, 0]) + fcn(t) * np.array([1, 0, 0])
+    A_IK_l = lambda t: A_IK_basic_z(t * rotationZ_l)
+
+    r_OP_r = lambda t: np.array([L, H / 2, 0])
+    A_IK_r = lambda t: A_IK_basic_z(t * rotationZ_r)
+
+    # create pantograph
+    model, beams, ID_mat = create_pantograph(gamma, nRow, nCol, H, EA, EI, GI, A_rho0, p, nEl, nQP, r_OP_l, A_IK_l, r_OP_r, A_IK_r)
+
+    # create .vtu file for initial configuration
+    # post_processing(beams, np.array([0]), model.q0.reshape(1, model.q0.shape[0]), 'Pantograph_initial_configuration', binary=True)
+
+    # choose solver
+    if dynamics:
+        solver = Generalized_alpha_index3_panto(model, t1, dt, rho_inf=rho_inf)
+    else:
+        solver = Newton(model, n_load_steps=5, max_iter=50, tol=1.0e-10, numerical_jacobian=False)
+        
+    # solve or load problem
+    if solve_problem:
         # import cProfile, pstats
         # pr = cProfile.Profile()
         # pr.enable()
@@ -532,69 +575,156 @@ if __name__ == "__main__":
         # sortby = 'cumulative'
         # ps = pstats.Stats(pr).sort_stats(sortby)
         # ps.print_stats(0.1) # print only first 10% of the list
-        save_solution(sol, f'Pantographic_sheet_{nRow}x{nCol}_statics')
+        if dynamics == True:
+            save_solution(sol, f'Pantographic_sheet_{nRow}x{nCol}_{rho_inf}_dynamics')
+        else:
+            save_solution(sol, f'Pantographic_sheet_{nRow}x{nCol}_statics')
     else:
-        sol = load_solution(f'Pantographic_sheet_{nRow}x{nCol}_statics')
+        if dynamics == True:
+            sol = load_solution(f'Pantographic_sheet_{nRow}x{nCol}_dynamics')
+        else:
+            sol = load_solution(f'Pantographic_sheet_{nRow}x{nCol}_statics')
 
-    post_processing(beams, sol.t, sol.q, f'Pantographic_sheet_{nRow}x{nCol}_statics', binary=True)
-    # if statics:
-    #     fig, ax = plt.subplots()
-    #     ax.set_xlabel('x [m]')
-    #     ax.set_ylabel('y [m]')
-    #     # ax.set_xlim([-Ly + H/2 * sin(rotationZ_l), Ly*(nCol+1) + displacementX + H/2 * sin(rotationZ_r)])
-    #     # ax.set_ylim([-Ly, Ly*(nRow+1) + displacementY])
-    #     ax.grid(linestyle='-', linewidth='0.5')
-    #     ax.set_aspect('equal')
+    # time-displacement diagramm
 
-    #     for bdy in beams:
-    #         x, y, z = bdy.centerline(sol.q[-1]).T
-    #         ax.plot(x, y, '-b')
+    if time_displacement_diagram:
+        cs_idx = 399
 
-    #     plt.show()
-    # else:
-    #     # animate configurations
-    #     fig, ax = plt.subplots()
-    #     ax.set_xlabel('x [m]')
-    #     ax.set_ylabel('y [m]')
-    #     ax.set_xlim([-Ly + H/2 * sin(rotationZ_l), Ly*(nCol+1) + displacementX_r + H/2 * sin(rotationZ_r)])
-    #     ax.set_ylim([-Ly, Ly*(nRow+1) + displacementY_r])
-    #     ax.grid(linestyle='-', linewidth='0.5')
-    #     ax.set_aspect('equal')
+        u_x_crosssection = []
+        u_y_crosssection = []
+        u_zero_crosssection = []
 
-    #     # prepare data for animation
-    #     t = sol.t
-    #     frames = len(t)
-    #     target_frames = min(len(t), 100)
-    #     frac = int(frames / target_frames)
-    #     animation_time = 5
-    #     interval = animation_time * 1000 / target_frames
+        for i in range(0, nRow, 2):
+            u_x = []
+            u_y = []
+            beam = beams[ID_mat[i, cs_idx]]
+            pos_0 = beam.r_OP(0,sol.q[0, beam.qDOF], (1,))
+            for i, t in enumerate(sol.t):
+                pos_t = beam.r_OP(t,sol.q[i, beam.qDOF], (1,))
+                displacement = pos_t - pos_0 + pos_0[1]
+                u_x.append(displacement[0])
+                u_y.append(displacement[1])
 
-    #     frames = target_frames
-    #     t = t[::frac]
-    #     q = sol.q[::frac]
+            u_x_crosssection.extend([u_x])
+            u_y_crosssection.extend([u_y])
 
-    #     centerlines = []
-    #     # lobj, = ax.plot([], [], '-k')
-    #     for bdy in beams:
-    #         lobj, = ax.plot([], [], '-k')
-    #         centerlines.append(lobj)
-            
-    #     def animate(i):
-    #         for idx, bdy in enumerate(beams):
-    #                 # q_body = q[i][bdy.qDOF]
-    #                 # r = []
-    #                 # for i, xi in enumerate(xi_plt):
-    #                 #     qp = q_body[bdy_qDOF_P[i]]
-    #                 #     r.append(NN[i] @ qp)
+        i = nRow-1
+        u_x = []
+        u_y = []
+        beam = beams[ID_mat[i, cs_idx]]
+        pos_0 = beam.r_OP(0,sol.q[0, beam.qDOF], (1,))
+        for i, t in enumerate(sol.t):
+            pos_t = beam.r_OP(t,sol.q[i, beam.qDOF], (1,))
+            displacement = pos_t - pos_0 + pos_0[1]
+            u_x.append(displacement[0])
+            u_y.append(displacement[1])
 
-    #                 # x, y = np.array(r).T
-    #                 # centerlines[idx].set_data(x, y)
+        u_x_crosssection.extend([u_x])
+        u_y_crosssection.extend([u_y])
 
-    #             x, y, _ = bdy.centerline(q[i], n=2).T
-    #             centerlines[idx].set_data(x, y)
+        # post processing data
+        fig, ax = plt.subplots(2, 1)
+        fig.suptitle('displacements', fontsize=16)
 
-    #         return centerlines
+        for i in range(len(u_x_crosssection)):
+            ax[0].plot(sol.t, u_x_crosssection[i], label=f'Row {i}')
+            ax[1].plot(sol.t, u_y_crosssection[i], label=f'Row {i}')
 
-    #     anim = animation.FuncAnimation(fig, animate, frames=frames, interval=interval, blit=False)
+        ax[0].set_xlabel('time t [s]')
+        ax[0].set_ylabel('displacement x-direction [m]')
+        ax[0].grid()
+        ax[0].legend()
+        
+        ax[1].set_xlabel('time t [s]')
+        ax[1].set_ylabel('displacement y-direction [m]')
+        ax[1].grid()
+        ax[1].legend()
 
-    #     plt.show()
+        # new_time = sol.t - sol.t[0]
+        # save_solution(u_x_crosssection, f'displacement_x')
+        # save_solution(u_y_crosssection, f'displacement_y')
+        # save_solution(new_time, f'time')
+
+        plt.show()
+
+    # position displacement diagramm
+
+    # for i in range(0, nRow, 2):
+    #     u_x = []
+    #     u_y = []
+    #     beam = beams[ID_mat[i, 599]]
+    #     pos_0 = beam.r_OP(0,sol.q[0, beam.qDOF], (1,))
+    #     for i, t in enumerate(sol.t):
+    #         pos_t = beam.r_OP(t,sol.q[i, beam.qDOF], (1,))
+    #         displacement = pos_t - pos_0 + pos_0[1] - H/2
+    #         u_x.append(displacement[0])
+    #         u_y.append(displacement[1])
+
+    #     u_x_crosssection.extend([u_x])
+    #     u_y_crosssection.extend([u_y])
+
+    # t_idx = ceil(0.6 * len(sol.t))
+    # u_x_time = []
+    # u_y_time = []
+    # time = []
+
+    # sol.t = sol.t[::50]
+    # sol.q = sol.q[::50]
+    # sol.u = sol.u[::50]
+    
+    # for t_idx, t in enumerate(sol.t):
+    #     u_x = []
+    #     u_y = []
+    #     X_0 = []
+
+    #     for i in range(0, nCol, 2):
+    #         beam = beams[ID_mat[10, i]]
+    #         pos_0 = beam.r_OP(0 , sol.q[0, beam.qDOF], (1,))
+    #         pos_t = beam.r_OP(t , sol.q[t_idx, beam.qDOF], (1,))
+    #         displacement = pos_t - pos_0 + t
+    #         u_x.append(displacement[0])
+    #         u_y.append(displacement[1])
+    #         X_0.append(pos_0[0])
+
+    #     u_x_time.extend([u_x])
+    #     u_y_time.extend([u_y])
+    #     time.append(t)
+
+
+    # # post processing data
+    # fig, ax = plt.subplots(2, 1)
+    # fig.suptitle('displacements', fontsize=16)
+
+    # for i in range(len(time)):
+    #     ax[0].plot(X_0, u_x_time[i], label=f'time {time[i]}')
+    #     ax[1].plot(X_0, u_y_time[i], label=f'time {time[i]}')
+
+    # # ax[0].plot(X_0, u_x)
+    # # ax[1].plot(X_0, u_y)
+
+    # ax[0].set_xlabel('time t [s]')
+    # ax[0].set_ylabel('displacement x-direction [m]')
+    # ax[0].grid()
+    # # ax[0].legend()
+     
+    # ax[1].set_xlabel('time t [s]')
+    # ax[1].set_ylabel('displacement y-direction [m]')
+    # ax[1].grid()
+    # # ax[1].legend()
+
+    # plt.show()
+
+    # sol.t = sol.t[::5]
+    # sol.q = sol.q[::5]
+    # sol.u = sol.u[::5]
+
+    sol.t = sol.t[::5]
+    sol.q = sol.q[::5]
+    sol.u = sol.u[::5]
+
+    # post processing for paraview
+    if paraview_export:
+        if dynamics:
+            post_processing(beams, sol.t, sol.q, f'Pantographic_sheet_{nRow}x{nCol}_{rho_inf}_dynamics', u = sol.u, binary=True)
+        else:
+            post_processing(beams, sol.t, sol.q, f'Pantographic_sheet_{nRow}x{nCol}_statics', binary=True)
