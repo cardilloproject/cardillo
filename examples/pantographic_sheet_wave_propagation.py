@@ -452,10 +452,10 @@ def create_pantograph(gamma, nRow, nCol, H, EA, EI, GI, A_rho0, p, nEl, nQP, r_O
 if __name__ == "__main__":
     load_excitation = False
     dynamics = True
-    solve_problem = True
-    time_displacement_diagram = False
-    position_displacement_diagram = False
-    paraview_export = True
+    solve_problem = False
+    time_displacement_diagram = True
+    position_displacement_diagram = True
+    paraview_export = False
 
 ###############################################################################################
     # time simulation parameters
@@ -465,7 +465,7 @@ if __name__ == "__main__":
 
     # beam finite element parameters
     p = 3                               # polynomial degree
-    nQP = p + 2                         # number of quadrature points
+    nQP = p + 5                         # number of quadrature points
     nEl = 2                             # number of elements per beam
 
     # geometric parameters
@@ -597,6 +597,18 @@ if __name__ == "__main__":
         else:
             sol = load_solution(f'Pantographic_sheet_{nRow}x{nCol}_statics')
 
+    # prepare data for animation and paraview export
+    slow_motion_factor = 100
+    animation_time = t1 * slow_motion_factor
+    fps = 25
+    frames = int(min(sol.q.shape[0], fps * animation_time))
+    frac = int(sol.q.shape[0] / frames)
+    interval = animation_time * 1000 / frames # delay between frams in milliseconds
+    
+    tt = sol.t[::frac]
+    qq = sol.q[::frac]
+    uu = sol.u[::frac]
+
     # time-displacement diagramm
 
     if time_displacement_diagram:
@@ -683,7 +695,7 @@ if __name__ == "__main__":
 
         fig3.suptitle(f'displacement in x-direction of centerline at x={cs_idx/nCol}L', fontsize=16)
         ax3.plot(sol.t, u_x_centerline[0], label=f'num')
-        ax3.plot(sol.t, y, label=f'moved excitation')
+        # ax3.plot(sol.t, y, label=f'moved excitation')
 
     # position-displacement diagramm centerline
     if position_displacement_diagram:
@@ -691,36 +703,24 @@ if __name__ == "__main__":
         u_x_time = []
         u_y_time = []
         time = []
-
-        # prepare data for animation
-        frames = sol.q.shape[0]
-        target_frames = min(frames, 200)
-        frac = int(frames / target_frames)
-        animation_time = 5
-        interval = animation_time * 1000 / target_frames
-
-        frames = target_frames
-
-        sol.t = sol.t[::frac]
-        sol.q = sol.q[::frac]
         
-        for t_idx, t in enumerate(sol.t):
+        for t_idx, t in enumerate(tt):
             u_x = []
             u_y = []
             X_0 = []
 
             for i in range(0, nCol, 2):
                 beam = beams[ID_mat[10, i]]
-                pos_0 = beam.r_OP(0 , sol.q[0, beam.qDOF[beam.qDOF_P((0,))]], (0,))
-                pos_t = beam.r_OP(t , sol.q[t_idx, beam.qDOF[beam.qDOF_P((0,))]], (0,))
+                pos_0 = beam.r_OP(0 , qq[0, beam.qDOF[beam.qDOF_P((0,))]], (0,))
+                pos_t = beam.r_OP(t , qq[t_idx, beam.qDOF[beam.qDOF_P((0,))]], (0,))
                 displacement = pos_t - pos_0
                 u_x.append(displacement[0])
                 u_y.append(displacement[1])
                 X_0.append(pos_0[0])
 
             beam = beams[ID_mat[10, nCol-1]]
-            pos_0 = beam.r_OP(0 , sol.q[0, beam.qDOF[beam.qDOF_P((1,))]], (1,))
-            pos_t = beam.r_OP(t , sol.q[t_idx, beam.qDOF[beam.qDOF_P((1,))]], (1,))
+            pos_0 = beam.r_OP(0 , qq[0, beam.qDOF[beam.qDOF_P((1,))]], (1,))
+            pos_t = beam.r_OP(t , qq[t_idx, beam.qDOF[beam.qDOF_P((1,))]], (1,))
             displacement = pos_t - pos_0
             u_x.append(displacement[0])
             u_y.append(displacement[1])
@@ -762,23 +762,18 @@ if __name__ == "__main__":
         ax5[0].set_xlabel('position x [m]')
         ax5[0].set_ylabel('displacement x-direction [m]')
         ax5[0].grid()
-        # ax[0].legend()
         
         ax5[1].set_xlabel('position x [m]')
         ax5[1].set_ylabel('displacement y-direction [m]')
         ax5[1].grid()
-        # ax[1].legend()
 
 
     plt.show()
 
-    sol.t = sol.t[::5]
-    sol.q = sol.q[::5]
-    sol.u = sol.u[::5]
 
     # post processing for paraview
     if paraview_export:
         if dynamics:
-            post_processing(beams, sol.t, sol.q, f'Pantographic_sheet_{nRow}x{nCol}_rho_{rho_inf}_nEl_{nEl}_nQP_{nQP}_', u = sol.u, binary=True)
+            post_processing(beams, tt, qq, f'Pantographic_sheet_{nRow}x{nCol}_rho_{rho_inf}_nEl_{nEl}_nQP_{nQP}_', u = uu, binary=True)
         else:
-            post_processing(beams, sol.t, sol.q, f'Pantographic_sheet_{nRow}x{nCol}_statics', binary=True)
+            post_processing(beams, tt, qq, f'Pantographic_sheet_{nRow}x{nCol}_statics', binary=True)
