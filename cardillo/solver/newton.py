@@ -4,10 +4,14 @@ from cardillo.solver import Solution
 
 import numpy as np
 from scipy.sparse.linalg import spsolve # SuperLU direct solver
-from scipy.sparse.linalg import splu # SuperLU direct solver
+from scipy.sparse.linalg import splu # SuperLU direct solver/ umfpack if scikit-umfpack is installed
 from scipy.sparse.linalg import LinearOperator, spilu # incomplete LU preconditioner
+try:
+    from sksparse.cholmod import cholesky # supernodal Cholesky; appears as CHOL and x=A\b in MATLAB
+except:
+    print(f"cholesky can't be imported: you have to install 'scik-sparse'")
 from scipy.sparse.linalg import bicg, bicgstab, cg, cgs, gmres, lgmres, minres, qmr, gcrotmk # iterative solvers
-from scipy.sparse import csc_matrix, csr_matrix
+from scipy.sparse import csr_matrix
 from scipy.sparse import bmat
 from tqdm import tqdm
 
@@ -101,7 +105,7 @@ class Newton():
 
         return R
 
-    def _jacobian_num(self, t, x, scipy_matrix=csc_matrix):
+    def _jacobian_num(self, t, x, scipy_matrix=csr_matrix):
         return scipy_matrix(Numerical_derivative(self._residual, order=2)._x(t, x))
         
     def _jacobian_an(self, t, x):
@@ -113,9 +117,9 @@ class Newton():
         g_q = self.model.g_q(t, q)
 
         return bmat([[K,   self.W_g], \
-                     [g_q,     None]], format='csc')
+                     [g_q,     None]], format='csr')
     
-    def __init__(self, model, n_load_steps=1, load_steps=None, tol=1e-8, max_iter=50, sparse_solver='scipyLU', iterative_tol=1.0e-10, numerical_jacobian=False, error_function=None):
+    def __init__(self, model, n_load_steps=1, load_steps=None, tol=1e-8, max_iter=50, sparse_solver='scipyLU', iterative_tol=1.0e-10, numerical_jacobian=False):
         self.max_iter = max_iter
         self.tol = tol
         self.model = model
@@ -140,7 +144,9 @@ class Newton():
 
         # chose sparse solver
         sparse_direct_solvers = {'superLU': lambda A, b: splu(A).solve(b),
-                                 'scipyLU': lambda A, b: spsolve(A, b),
+                                 'scipyLU': lambda A, b: spsolve(A, b, use_umfpack=False),
+                                 'umfpack': lambda A, b: spsolve(A, b, use_umfpack=True),
+                                 'cholesky': lambda A, b: cholesky(A)(b),
                                 } 
         sparse_iterative_solvers = {'cgs': lambda A, b, M:       cgs(A, b, M=M, tol=iterative_tol),
                                     'gmres': lambda A, b, M:     gmres(A, b, M=M, tol=iterative_tol),
@@ -161,11 +167,6 @@ class Newton():
             self._jacobian = self._jacobian_num
         else:
             self._jacobian = self._jacobian_an
-
-        if error_function is None:
-            self.error_function = lambda R: np.absolute(R).max()
-        else:
-            self.error_function = error_function
         
     def solve(self):
         # compute numbe rof digits for status update
@@ -178,7 +179,7 @@ class Newton():
             
             # compute initial residual
             R = self._residual(self.load_steps[i], self.x[i])
-            error = self.error_function(R)
+            error = np.absolute(R).max()
             
             # reset counter and print inital status
             k = 0
@@ -207,7 +208,7 @@ class Newton():
                                 
                     # compute new residual
                     R = self._residual(self.load_steps[i], self.x[i])
-                    error = self.error_function(R)
+                    error = np.absolute(R).max()
 
                     # update counter and print status
                     k += 1
