@@ -7,14 +7,22 @@ from cardillo.math import Numerical_derivative
 from cardillo.solver import Solution
 
 class Generalized_alpha_4_index3():
-    """Generalized alpha solver. 
-    Constraints on position level and constraints on velocity level can be solved;
-    no derivatives of constraint functions are computed!
+    """Generalized alpha solver for constraint mechanical systems of DAE index 3 with the right precondtioner introduced in Arnold2008 and Bottasso2008. 
+    Aditionally constraints on velocity level can be solved.
+
+    To-Do:
+    -----
+    Study Bottasso2008 and figure out if we have to use another preconditioner for the constraints on velocity level?
+
+    References
+    ----------
+    Arnold2008: https://doi.org/10.1007/s11044-007-9084-0 \\
+    Bottasso2008 https://doi.org/10.1007/s11044-007-9051-9
     """
     def __init__(self, model, t1, dt, \
                  rho_inf=1, beta=None, gamma=None, alpha_m=None, alpha_f=None,\
                  newton_tol=1e-8, newton_max_iter=40, newton_error_function=lambda x: np.max(np.abs(x)),\
-                 numerical_jacobian=False, debug=False):
+                 numerical_jacobian=False, debug=False, a0=None, pre_cond=True):
         
         self.model = model
 
@@ -36,6 +44,11 @@ class Generalized_alpha_4_index3():
             self.alpha_m = alpha_m
             self.alpha_f = alpha_f
         self.alpha_ratio = (1 - self.alpha_f) / (1 - self.alpha_m)
+        # usage of a right preconditioner, see Arnold2008 and Bottasso2008
+        if pre_cond:
+            self.pre_cond = 1.0 / (self.dt**2 * self.beta)
+        else:
+            self.pre_cond = 1 # no preconditioning
 
         # newton settings
         self.newton_tol = newton_tol
@@ -57,9 +70,12 @@ class Generalized_alpha_4_index3():
         self.la_gk = model.la_g0
         self.la_gammak = model.la_gamma0
 
-        M0 = model.M(t0, model.q0).tocsr()
-        rhs0 = self.model.h(t0, model.q0, model.u0) + self.model.W_g(t0, model.q0) @ model.la_g0 + self.model.W_gamma(t0, model.q0) @ model.la_gamma0
-        self.ak = spsolve(M0, rhs0)
+        if a0 is not None:
+            self.ak = a0
+        else:
+            M0 = model.M(t0, model.q0).tocsr()
+            rhs0 = self.model.h(t0, model.q0, model.u0) + self.model.W_g(t0, model.q0) @ model.la_g0 + self.model.W_gamma(t0, model.q0) @ model.la_gamma0
+            self.ak = spsolve(M0, rhs0, use_umfpack=False)
         self.a_bark = self.ak.copy()
 
         self.debug = debug
@@ -137,7 +153,7 @@ class Generalized_alpha_4_index3():
         R = np.zeros(self.nR)
 
         # equations of motion
-        R[:nu] = Mk1 @ ak1 -( self.model.h(tk1, qk1, uk1) + W_gk1 @ la_gk1 + W_gammak1 @ la_gammak1 )
+        R[:nu] = Mk1 @ ak1 -( self.model.h(tk1, qk1, uk1) + W_gk1 @ la_gk1 + W_gammak1 @ la_gammak1)
 
         # constraints on position level
         R[nu:nu+nla_g] = self.model.g(tk1, qk1)
@@ -159,6 +175,7 @@ class Generalized_alpha_4_index3():
 
         Ra_a = Mk1 + Ma_a
         Ra_la_g = -W_gk1
+        Ra_la_g *= self.pre_cond
         Ra_la_gamma = -W_gammak1
 
         #########################################
@@ -220,7 +237,8 @@ class Generalized_alpha_4_index3():
                 
                 # Newton update
                 j += 1
-                dx = spsolve(R_x, R)
+                dx = spsolve(R_x, R, use_umfpack=True)
+                dx[self.nu:] *= self.pre_cond
                 xk1 -= dx
                 R_gen = self.__R_gen(tk1, xk1)
                 R = next(R_gen)
@@ -293,7 +311,7 @@ class Generalized_alpha_4_index1():
     def __init__(self, model, t1, dt, \
                  rho_inf=1, beta=None, gamma=None, alpha_m=None, alpha_f=None,\
                  newton_tol=1e-8, newton_max_iter=40, newton_error_function=lambda x: np.max(np.abs(x)),\
-                 numerical_jacobian=False, debug=False):
+                 numerical_jacobian=False, debug=False, a0=None):
         
         self.model = model
 
@@ -339,9 +357,12 @@ class Generalized_alpha_4_index1():
         self.la_gk = model.la_g0
         self.la_gammak = model.la_gamma0
 
-        M0 = model.M(t0, model.q0).tocsr()
-        rhs0 = self.model.h(t0, model.q0, model.u0) + self.model.W_g(t0, model.q0) @ model.la_g0 + self.model.W_gamma(t0, model.q0) @ model.la_gamma0
-        self.ak = spsolve(M0, rhs0)
+        if a0 is not None:
+            self.ak = a0
+        else:
+            M0 = model.M(t0, model.q0).tocsr()
+            rhs0 = self.model.h(t0, model.q0, model.u0) + self.model.W_g(t0, model.q0) @ model.la_g0 + self.model.W_gamma(t0, model.q0) @ model.la_gamma0
+            self.ak = spsolve(M0, rhs0)
         self.Qk = np.zeros(self.nu)
         self.Uk = np.zeros(self.nu)
         self.a_bark = self.ak.copy()
