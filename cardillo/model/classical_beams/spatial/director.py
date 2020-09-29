@@ -1849,6 +1849,11 @@ class Inextensible_Euler_Bernoulli_director_integral(Timoshenko_beam_director):
             # inextensibility
             g[self.g1DOF] += (d1 @ r_xi - J0i) * factor2
 
+            # g[self.g1DOF] += (d1 @ r_xi / J0i - 1) * factor1
+
+            # r_s = r_xi / J0i
+            # g[self.g1DOF] += (r_s @ r_s - 1) * factor1
+
         return g
 
     def __g_q_el(self, qe, N, N_xi, N_g, J0, qw):
@@ -1907,15 +1912,24 @@ class Inextensible_Euler_Bernoulli_director_integral(Timoshenko_beam_director):
             #################
             # inextensibility
             #################
+            # g[self.g1DOF] += (d1 @ r_xi - J0i) * factor2
             g_q[self.g1DOF[:, None], self.rDOF] += np.outer(factor2, d1 @ NN_xii)
             g_q[self.g1DOF[:, None], self.d1DOF] += np.outer(factor2, r_xi @ NNi)
+            
+            # # g[self.g1DOF] += (d1 @ r_xi / J0i - 1) * factor1
+            # g_q[self.g1DOF[:, None], self.rDOF] += np.outer(factor1, d1 @ NN_xii / J0i)
+            # g_q[self.g1DOF[:, None], self.d1DOF] += np.outer(factor1, r_xi / J0i @ NNi)
+            
+            # r_s = r_xi / J0i
+            # # g[self.g1DOF] += (r_s @ r_s - 1) * factor1
+            # g_q[self.g1DOF[:, None], self.rDOF] += np.outer(factor1, 2 * r_s @ NN_xii / J0i)
 
         return g_q
 
         # g_q_num = Numerical_derivative(lambda t, q: self.__g_el(q, N, N_xi, N_g, J0, qw), order=2)._x(0, qe)
-        # diff = g_q_num - g_q
-        # error = np.linalg.norm(diff)
-        # print(f'error g_q: {error}')
+        # # diff = g_q_num - g_q
+        # # error = np.linalg.norm(diff)
+        # # print(f'error g_q: {error}')
         # return g_q_num
 
     def __g_qq_el(self, qe, N, N_xi, N_g, J0, qw):
@@ -1970,13 +1984,24 @@ class Inextensible_Euler_Bernoulli_director_integral(Timoshenko_beam_director):
             #################
             g_qq[self.g1DOF[:, None, None], self.rDOF[:, None], self.d1DOF] += arg1
             g_qq[self.g1DOF[:, None, None], self.d1DOF[:, None], self.rDOF] += arg2
+            # g_qq[self.g1DOF[:, None, None], self.rDOF[:, None], self.rDOF] += np.einsum('i,jl,jk->ikl', 2 * factor2, NN_xii, NN_xii)
+            
+            # # g_q[self.g1DOF[:, None], self.rDOF] += np.outer(factor1, d1 @ NN_xii / J0i)
+            # # g_q[self.g1DOF[:, None], self.d1DOF] += np.outer(factor1, r_xi / J0i @ NNi)
+            # g_qq[self.g1DOF[:, None, None], self.rDOF[:, None], self.d1DOF] += arg1
+            # g_qq[self.g1DOF[:, None, None], self.d1DOF[:, None], self.rDOF] += arg2
+            
+            # # # r_s = r_xi / J0i
+            # # g_q[self.g1DOF[:, None], self.rDOF] += np.outer(factor1, 2 * r_s @ NN_xii / J0i)
+            # # g_qq[self.g1DOF[:, None, None], self.rDOF[:, None], self.rDOF] += np.einsum('i,jl,jk->ikl', factor2 * J0i, NN_xii / J0i, NN_xii / J0i)
+            # g_qq[self.g1DOF[:, None, None], self.rDOF[:, None], self.rDOF] += np.einsum('i,jl,jk->ikl', 2 * factor2, NN_xii, NN_xii / J0i)
 
         return g_qq
 
         # g_qq_num = Numerical_derivative(lambda t, q: self.__g_q_el(q, N, N_xi, N_g, J0, qw), order=2)._x(0, qe)
-        # diff = g_qq_num - g_qq
-        # error = np.linalg.norm(diff)
-        # print(f'error g_qq: {error}')
+        # # diff = g_qq_num - g_qq
+        # # error = np.linalg.norm(diff)
+        # # print(f'error g_qq: {error}')
         # return g_qq_num
 
     # global constraint functions
