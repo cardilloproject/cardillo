@@ -2,7 +2,7 @@ import numpy as np
 from scipy.sparse.linalg import spsolve
 # from cardillo_fem.discretization.lagrange import lagrange2D, lagrange1D, lagrange3D
 from cardillo.discretization.B_spline import flat1D_vtk
-from cardillo.discretization.lagrange import lagrange_basis1D
+from cardillo.discretization.lagrange import lagrange_basis1D, find_element_number
 #from cardillo.discretization.mesh2D_lagrange import Mesh2D_lagrange
 from cardillo.discretization.gauss import gauss
 from cardillo.utility.coo import Coo
@@ -86,7 +86,33 @@ class Mesh1D_lagrange():
             self.N_xi = np.vstack([[NN[:, :, 1]]] * self.nel)
             if self.derivative_order > 1:
                 self.N_xixi = np.vstack([[NN[:, :, 2].reshape(self.nqp, self.nn_el)]] * self.nel)
-    
+
+    #Mass matrix for L2 projection fitting
+    def L2_projection_A(self, xis):
+        A = Coo((self.nn, self.nn))  
+        for xi in xis:
+            (el,), (xi_l,) = find_element_number(self, xi)
+            elDOF_el = self.elDOF[el, :self.nn_el]
+            Ae = np.zeros((self.nn_el, self.nn_el))
+            NN = lagrange_basis1D(self.degree, xi_l, 0)
+            for i in range(self.nn_el):
+                for j in range(self.nn_el):
+                    Ae[i,j] = NN[0, i, 0] * NN[0, j, 0]
+            A.extend(Ae, (elDOF_el, elDOF_el))
+        return A
+
+    def L2_projection_b(self, xis, Pw):
+        b = np.zeros(self.nn)
+        for xi, Pwi in zip(xis, Pw):
+            (el, ), (xi_l, ) = find_element_number(self, xi)
+            elDOF_el = self.elDOF[el, :self.nn_el]
+            NN = lagrange_basis1D(self.degree,  xi_l,  0)
+            be = np.zeros((self.nn_el))
+            for i in range(self.nn_el):
+                be[i] = NN[0, i, 0] * Pwi
+            b[elDOF_el] += be
+        return b 
+
 
     def end_points(self):
         def select_end_points(**kwargs):

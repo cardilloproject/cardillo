@@ -233,7 +233,7 @@ def lagrange_volume2vtk(mesh, Q, filename, binary=False):
 def find_element_number(mesh, xis):
     # finds the element number for a xis vector from the 0 to 1 parameter space
     # also gives the parameter space value of xis
-    el = np.zeros(len(xis))
+    el = np.zeros(len(xis), dtype=int)
     xis_l = np.zeros_like(xis)
     for i, xi in enumerate(xis):
         if int((xi // (1 / mesh.element_shape[i]))) >= mesh.element_shape[i]:
@@ -265,6 +265,11 @@ def fit_lagrange_volume(mesh, xis, Pw, qc, cDOF):
 def fit_lagrange_surface(mesh, xis, Pw, qc, cDOF):
     return fit_lagrange_volume(mesh, xis, Pw, qc, cDOF)
 
+def fit_lagrange_curve(mesh, xi, Pw, qc, cDOF):
+    xis = np.array([(xii,) for xii in xi])
+    Pws = np.array([(xii, Pwi) for xii, Pwi in zip(xi, Pw)])
+    return fit_lagrange_volume(mesh, xis, Pws, qc, cDOF)
+
 def test_shape_functions_der():
     import matplotlib.pyplot as plt
     fig = plt.figure()
@@ -283,7 +288,7 @@ def test_shape_functions_der():
 
 def test_fit_lagrange_volume():
     # degrees = np.ones(3, dtype=int) * 3
-    degrees = (3, 3, 3)
+    degrees = (2, 2, 2)
     QP_shape = (1, 1, 1)
     element_shape = np.ones(3, dtype=int) * 5
     element_shape = (3, 3, 3)
@@ -350,8 +355,8 @@ def test_fit_lagrange_volume():
     eta = np.linspace(0, 1, num=neta)
     zeta = np.linspace(0, 1, num=nzeta)
 
-    B = 1
-    R = 1
+    B = 2
+    R = 3
     
     n3 = nxi * neta * nzeta
     xis = np.zeros((n3, 3))
@@ -361,12 +366,12 @@ def test_fit_lagrange_volume():
             for k, zetai in enumerate(zeta):
                 idx = flat3D(i, j, k, (nxi, neta, nzeta))
                 xis[idx] = xii, etai, zetai
-                # Pw[idx] = shear(xii, etai, zetai)
+                Pw[idx] = shear(xii, etai, zetai)
                 # Pw[idx] = bending(xii, etai, zetai, R=R, B=B)
                 # Pw[idx] = sherical_dome(xii, etai, zetai, R=R, H=B)
                 # Pw[idx] = parabolic(xii, etai, zetai)
                 # Pw[idx] = twist(xii, etai, zetai)
-                Pw[idx] = cylinder(xii, etai, zetai)
+                # Pw[idx] = cylinder(xii, etai, zetai)
 
     cDOF = np.array([], dtype=int)
     qc = np.array([], dtype=float).reshape((0, 3))
@@ -389,6 +394,34 @@ def test_fit_lagrange_volume():
     # ax.set_zlim(-RB, RB)
     plt.show()
 
+def test_fit_lagrange_curve():
+
+    degree = 3
+    QP_shape = 2
+    element_shape = 2 
+    from cardillo.discretization.mesh1D_lagrange import Mesh1D_lagrange
+    mesh = Mesh1D_lagrange(degree, QP_shape, element_shape, derivative_order=0, nq_n=1)
+
+    def polynom(xi, a):
+        return np.polynomial.polynomial.polyval(xi, a)
+
+    xi = np.linspace(0, 1, 100)
+    a = np.array([1.46, 6.8, -28.8, 49, -32.6, 5.8])
+    Pw = polynom(xi, a)
+
+    cDOF = np.array([], dtype=int)
+    qc = np.array([], dtype=float).reshape((0, 2))
+
+    X = fit_lagrange_curve(mesh, xi, Pw, qc, cDOF)
+
+    import matplotlib.pyplot as plt
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    plt.plot(xi, Pw)
+    plt.scatter(*X,   color='red')
+
+    plt.show()
+
 
 if __name__ == "__main__":
     import numpy as np
@@ -397,7 +430,9 @@ if __name__ == "__main__":
 
     #test_shape_functions_der()
 
-    test_fit_lagrange_volume()
+    test_fit_lagrange_curve()
+
+    # test_fit_lagrange_volume()
 
     # degree = 2
     # # x = -1

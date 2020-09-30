@@ -65,7 +65,7 @@ def test_cube():
         cDOF_zeta = mesh.surface_qDOF[4][2]
         cDOF = np.concatenate((cDOF_xi, cDOF_eta, cDOF_zeta))
         Omega = 2 * np.pi
-        b_xi = lambda t: Z[cDOF_xi] + 0.3 * np.sin(Omega * t)
+        b_xi = lambda t: Z[cDOF_xi] + 0.01 * np.sin(Omega * t)
         b_eta = lambda t: Z[cDOF_eta]
         b_zeta = lambda t: Z[cDOF_zeta]
         b = lambda t: np.concatenate((b_xi(t), b_eta(t), b_zeta(t)))
