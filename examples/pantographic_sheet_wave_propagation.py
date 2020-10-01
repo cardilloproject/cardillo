@@ -397,6 +397,24 @@ def create_pantograph(gamma, nRow, nCol, H, EA, EI, GI, A_rho0, p, nEl, nQP, r_O
         spring = Linear_spring(GI)
         model.add(Pivot_w_spring(beam1, beam2, spring))
 
+    # not used for convergence study
+    # left boundary pivots
+    for brow in range(1, nRow - 2, 2):
+        beam1 = beams[ID_mat[brow, 0]]
+        beam2 = beams[ID_mat[brow + 1, 0]]
+        r_OB = beam1.r_OP(0, beam1.q0[beam1.qDOF_P(frame_ID2)], frame_ID2)
+        spring = Linear_spring(GI)
+        model.add(Pivot_w_spring(beam1, beam2, spring))
+
+    # right boundary pivots
+    for brow in range(1, nRow - 2, 2):
+        beam1 = beams[ID_mat[brow, -1]]
+        beam2 = beams[ID_mat[brow + 1, -1]]
+        r_OB = beam1.r_OP(0, beam1.q0[beam1.qDOF_P(frame_ID1)], frame_ID1)
+        spring = Linear_spring(GI)
+        model.add(Pivot_w_spring(beam1, beam2, spring))
+    
+
     ###########################
     # add boundary conditions #
     ###########################
@@ -452,10 +470,10 @@ def create_pantograph(gamma, nRow, nCol, H, EA, EI, GI, A_rho0, p, nEl, nQP, r_O
 if __name__ == "__main__":
     load_excitation = False
     dynamics = True
-    solve_problem = False
+    solve_problem = True
     time_displacement_diagram = True
     position_displacement_diagram = True
-    paraview_export = False
+    paraview_export = True
 
 ###############################################################################################
     # time simulation parameters
@@ -465,8 +483,8 @@ if __name__ == "__main__":
 
     # beam finite element parameters
     p = 3                               # polynomial degree
-    nQP = p + 5                         # number of quadrature points
-    nEl = 2                             # number of elements per beam
+    nQP = p + 2                         # number of quadrature points
+    nEl = 1                             # number of elements per beam
 
     # geometric parameters
     gamma = pi/4                        # angle between fiber families
@@ -494,8 +512,6 @@ if __name__ == "__main__":
     # boundary conditions
     # excitation function
     displ = H / 5
-
-
 
     n_excited_fibers = ceil(nRow / 2 + 1)
 
@@ -553,14 +569,14 @@ if __name__ == "__main__":
             r_OP_l.append(lambda t, k=i: np.array([fcn(t), 0, 0]))
     
 
-    rotationZ_l = 0 #-np.pi/10
-    rotationZ_r = 0 #np.pi/10
+    rotationZ_l = 0
+    rotationZ_r = 0
 
     # r_OP_l = lambda t: np.array([0, H / 2, 0]) + fcn(t) * np.array([1, 0, 0])
     A_IK_l = lambda t: A_IK_basic_z(t * rotationZ_l)
 
-    # r_OP_r = lambda t: np.array([L, H / 2, 0]) - fcn(t) * np.array([1, 0, 0])
-    r_OP_r = lambda t: np.array([L, H / 2, 0])
+    r_OP_r = lambda t: np.array([L, H / 2, 0]) - fcn(t) * np.array([1, 0, 0])
+    # r_OP_r = lambda t: np.array([L, H / 2, 0])
     A_IK_r = lambda t: A_IK_basic_z(t * rotationZ_r)
     ######################################################################################
 
@@ -610,7 +626,6 @@ if __name__ == "__main__":
     uu = sol.u[::frac]
 
     # time-displacement diagramm
-
     if time_displacement_diagram:
         cs_idx = 100
 
@@ -767,9 +782,7 @@ if __name__ == "__main__":
         ax5[1].set_ylabel('displacement y-direction [m]')
         ax5[1].grid()
 
-
     plt.show()
-
 
     # post processing for paraview
     if paraview_export:
