@@ -9,7 +9,7 @@ from cardillo.math.prox import prox_Rn0, prox_circle
 from cardillo.math.algebra import norm2
 
 class Moreau():
-    def __init__(self, model, t1, dt, fix_point_tol=1e-8, fix_point_max_iter=1000, prox_solver_method='fixed-point', newton_tol=1e-6, newton_max_iter=50, error_function=lambda x: np.max(np.abs(x)) / len(x)):
+    def __init__(self, model, t1, dt, fix_point_tol=1e-8, fix_point_max_iter=1000, prox_solver_method='fixed-point', newton_tol=1e-6, newton_max_iter=50, error_function=lambda x: np.max(np.abs(x))):
         self.model = model
 
         # integration time

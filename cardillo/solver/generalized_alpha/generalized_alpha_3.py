@@ -9,7 +9,7 @@ from tqdm import tqdm
 
 from cardillo.math.prox import prox_Rn0, prox_circle
 from cardillo.math import Numerical_derivative
-from cardillo.utility.coo import Coo
+# from cardillo.utility.coo import Coo
 from cardillo.solver import Solution
 
 class Generalized_alpha_3():
@@ -252,7 +252,7 @@ class Generalized_alpha_3():
         # R[3*nu+nla_g+nla_gamma:3*nu+nla_g+nla_gamma+nla_N] = kappa_ast - prox_Rn0(kappa_ast - self.model.prox_r_N * g_N)
         row = col = np.where(~I_N)[0]
         data = np.ones_like(row)
-        Rka_ka_ast = Coo((data, (row, col)), shape=(nla_N, nla_N))
+        Rka_ka_ast = coo_matrix((data, (row, col)), shape=(nla_N, nla_N))
 
         # Rka_q = (diags(self.model.prox_r_N) @ g_N_q)[I_N].tocoo()
         Rka_q = g_N_q[I_N].tocoo()
@@ -268,7 +268,7 @@ class Generalized_alpha_3():
         # R[3*nu+nla_g+nla_gamma+nla_N+_A_N_ind] = P_N[~A_N]
         row = col = _A_N_ind
         data = np.ones_like(row)
-        RLaN_P_N = Coo((data, (row, col)), shape=(nla_N, nla_N))
+        RLaN_P_N = coo_matrix((data, (row, col)), shape=(nla_N, nla_N))
         
         RLaN_u = g_N_dot_u[A_N].tocoo()
         RLaN_u.resize(nla_N, nu)
@@ -287,7 +287,7 @@ class Generalized_alpha_3():
         # R[3*nu+nla_g+nla_gamma+2*nla_N+_B_N_ind] = la_Nk1[~B_N]
         row = col = _B_N_ind
         data = np.ones_like(row)
-        RlaN_la_N = Coo((data, (row, col)), shape=(nla_N, nla_N))
+        RlaN_la_N = coo_matrix((data, (row, col)), shape=(nla_N, nla_N))
 
         RlaN_a = g_N_dot_u[B_N].tocoo()
         RlaN_a.resize(nla_N, nu)
@@ -313,7 +313,7 @@ class Generalized_alpha_3():
         # R[T_slip_ind] = P_T[T_slip_ind] + ((self.model.mu[N_slip_ind] * P_N[N_slip_ind] / norm_xi).reshape(-1, 1) * tmp).reshape(-1)
         row = col = np.concatenate( (T_open_ind, T_slip_ind) )
         data = np.ones_like(row)
-        RLaT_P_T = Coo((data, (row, col)), shape=(nla_T, nla_T))
+        RLaT_P_T = coo_matrix((data, (row, col)), shape=(nla_T, nla_T))
 
         RLaT_u = xi_T_u[T_stick_ind].tocoo()
         RLaT_u.resize(nla_T, nu)
@@ -323,7 +323,7 @@ class Generalized_alpha_3():
         RLaT_q.resize(nla_T, nq)
         RLaT_q.row = T_stick_ind[RLaT_q.row]
 
-        RLaT_P_N = Coo( (nla_T, nla_N) )
+        RLaT_P_N = coo_matrix( (nla_T, nla_N) )
 
         u_data = []
         u_row = []
@@ -392,7 +392,7 @@ class Generalized_alpha_3():
         # R[3*nu+nla_g+nla_gamma+3*nla_N+nla_T+T_slip_ind] = la_Tk1[T_slip_ind] + ((self.model.mu[N_slip_ind] * la_Nk1[N_slip_ind] / norm_xi).reshape(-1, 1) * tmp).reshape(-1)
         row = col = np.concatenate( (T_open_ind, T_slip_ind) )
         data = np.ones_like(row)
-        RlaT_la_T = Coo((data, (row, col)), shape=(nla_T, nla_T))
+        RlaT_la_T = coo_matrix((data, (row, col)), shape=(nla_T, nla_T))
 
         RlaT_a = gamma_T_u[T_stick_ind].tocoo()
         RlaT_a.resize(nla_T, nu)
@@ -406,7 +406,7 @@ class Generalized_alpha_3():
         RlaT_q.resize(nla_T, nq)
         RlaT_q.row = T_stick_ind[RlaT_q.row]
 
-        RlaT_la_N = Coo( (nla_T, nla_N) )
+        RlaT_la_N = coo_matrix( (nla_T, nla_N) )
 
         u_data = []
         u_row = []
