@@ -335,13 +335,23 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
             n = R @ n_i
             m_i = self.material_model.m_i(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
             # m = m_i[0] * d1 + m_i[1] * d2 + m_i[2] * d3
-            m = R @ m_i
+            # m = R @ m_i
             
+            # new version
             # quadrature point contribution to element residual
+            n1, n2, n3 = n_i
+            m1, m2, m3 = m_i
             fe[self.rDOF] -= ( NN_xii.T @ n ) * qwi
-            fe[self.d1DOF] -= ( NNi.T @ ( r_xi * n_i[0] + 0.5 * cross3(m, d1_xi) ) + 0.5 * NN_xii.T @ cross3(m, d1) ) * qwi
-            fe[self.d2DOF] -= ( NNi.T @ ( r_xi * n_i[1] + 0.5 * cross3(m, d2_xi) ) + 0.5 * NN_xii.T @ cross3(m, d2) ) * qwi
-            fe[self.d3DOF] -= ( NNi.T @ ( r_xi * n_i[2] + 0.5 * cross3(m, d3_xi) ) + 0.5 * NN_xii.T @ cross3(m, d3) ) * qwi
+            fe[self.d1DOF] -= ( NNi.T @ ( r_xi * n1 + (m2 / 2 * d3_xi - m3 / 2 * d2_xi) ) + NN_xii.T @ (m3 / 2 * d2 - m2 / 2 * d3) ) * qwi
+            fe[self.d2DOF] -= ( NNi.T @ ( r_xi * n2 + (m3 / 2 * d1_xi - m1 / 2 * d3_xi) ) + NN_xii.T @ (m1 / 2 * d3 - m3 / 2 * d1) ) * qwi
+            fe[self.d3DOF] -= ( NNi.T @ ( r_xi * n3 + (m1 / 2 * d2_xi - m2 / 2 * d1_xi) ) + NN_xii.T @ (m2 / 2 * d1 - m1 / 2 * d2) ) * qwi
+            
+            # old version:
+            # # quadrature point contribution to element residual
+            # fe[self.rDOF] -= ( NN_xii.T @ n ) * qwi
+            # fe[self.d1DOF] -= ( NNi.T @ ( r_xi * n_i[0] + 0.5 * cross3(m, d1_xi) ) + 0.5 * NN_xii.T @ cross3(m, d1) ) * qwi
+            # fe[self.d2DOF] -= ( NNi.T @ ( r_xi * n_i[1] + 0.5 * cross3(m, d2_xi) ) + 0.5 * NN_xii.T @ cross3(m, d2) ) * qwi
+            # fe[self.d3DOF] -= ( NNi.T @ ( r_xi * n_i[2] + 0.5 * cross3(m, d3_xi) ) + 0.5 * NN_xii.T @ cross3(m, d3) ) * qwi
 
         return fe
 
@@ -352,8 +362,9 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
 
             # sparse assemble element internal stiffness matrix
             coo.extend(Ke, (self.uDOF[elDOF], self.qDOF[elDOF]))
-     
+
     def f_pot_q_el(self, qe, el):
+        # return Numerical_derivative(lambda t, q: self.f_pot_el(q, el))._x(0, qe)
         Ke = np.zeros((self.nq_el, self.nq_el))
 
         N, N_xi, Gamma0, Kappa0, J0, qw = self.N[el], self.N_xi[el], self.Gamma0[el], self.Kappa0[el], self.J0[el], self.qw[el]
@@ -394,14 +405,10 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
             Gamma_i = R.T @ r_s
 
             # derivative of axial and shear strains
-            Gamma_j_qr = R.T @ NN_xii / J0i 
+            Gamma_j_qr = R.T @ NN_xii / J0i
             Gamma_1_qd1 = r_xi @ NNi / J0i
             Gamma_2_qd2 = r_xi @ NNi / J0i
             Gamma_3_qd3 = r_xi @ NNi / J0i
-            # # note: only the ii derivatives are nonzero
-            # Gamma_j_qd1 = Gamma_1_qd1
-            # Gamma_j_qd2 = Gamma_2_qd2
-            # Gamma_j_qd3 = Gamma_3_qd3
 
             # torsional and flexural strains
             Kappa_i = np.array([0.5 * (d3 @ d2_s - d2 @ d3_s), \
@@ -426,144 +433,85 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
             kappa_j_qe_d3 = np.vstack((kappa_1_qe_d3, kappa_2_qe_d3, kappa_3_qe_d3))
 
             # compute contact forces and couples from partial derivatives of the strain energy function w.r.t. strain measures
-            n_i = self.material_model.n_i(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
+            n1, n2, n3 = self.material_model.n_i(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
             n_i_Gamma_i_j = self.material_model.n_i_Gamma_i_j(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
             n_i_Kappa_i_j = self.material_model.n_i_Kappa_i_j(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
-            # n = n_i[0] * d1 + n_i[1] * d2 + n_i[2] * d3
-            # n = R @ n_i
-            n_i_qr = n_i_Gamma_i_j @ Gamma_j_qr
-            n_qr = R @ n_i_qr
-            n_i_qd1 = np.outer(n_i_Gamma_i_j[0], Gamma_1_qd1) + n_i_Kappa_i_j @ kappa_j_qe_d1
-            n_qd1 = R @ n_i_qd1 + n_i[0] * NNi
-            n_i_qd2 = np.outer(n_i_Gamma_i_j[1], Gamma_2_qd2) + n_i_Kappa_i_j @ kappa_j_qe_d2
-            n_qd2 = R @ n_i_qd2 + n_i[1] * NNi
-            n_i_qd3 = np.outer(n_i_Gamma_i_j[2], Gamma_3_qd3) + n_i_Kappa_i_j @ kappa_j_qe_d3
-            n_qd3 = R @ n_i_qd3 + n_i[2] * NNi
+            n1_qr, n2_qr, n3_qr = n_i_Gamma_i_j @ Gamma_j_qr
 
-            m_i = self.material_model.m_i(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
+            n1_qd1, n2_qd1, n3_qd1 = np.outer(n_i_Gamma_i_j[0], Gamma_1_qd1) + n_i_Kappa_i_j @ kappa_j_qe_d1
+            n1_qd2, n2_qd2, n3_qd2 = np.outer(n_i_Gamma_i_j[1], Gamma_2_qd2) + n_i_Kappa_i_j @ kappa_j_qe_d2
+            n1_qd3, n2_qd3, n3_qd3 = np.outer(n_i_Gamma_i_j[2], Gamma_3_qd3) + n_i_Kappa_i_j @ kappa_j_qe_d3
+
+            m1, m2, m3 = self.material_model.m_i(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
             m_i_Gamma_i_j = self.material_model.m_i_Gamma_i_j(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
             m_i_Kappa_i_j = self.material_model.m_i_Kappa_i_j(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
-            # m = m_i[0] * d1 + m_i[1] * d2 + m_i[2] * d3
-            m = R @ m_i
 
-            m_i_qr = m_i_Gamma_i_j @ Gamma_j_qr
-            m_qr = R @ m_i_qr
-            m_i_qd1 = np.outer(m_i_Gamma_i_j[0], Gamma_1_qd1) + m_i_Kappa_i_j @ kappa_j_qe_d1
-            m_qd1 = R @ m_i_qd1 + m_i[0] * NNi
-            m_i_qd2 = np.outer(m_i_Gamma_i_j[1], Gamma_2_qd2) + m_i_Kappa_i_j @ kappa_j_qe_d2
-            m_qd2 = R @ m_i_qd2 + m_i[1] * NNi
-            m_i_qd3 = np.outer(m_i_Gamma_i_j[2], Gamma_3_qd3) + m_i_Kappa_i_j @ kappa_j_qe_d3
-            m_qd3 = R @ m_i_qd3 + m_i[2] * NNi
+            m1_qr, m2_qr, m3_qr = m_i_Gamma_i_j @ Gamma_j_qr
+            m1_qd1, m2_qd1, m3_qd1 = np.outer(m_i_Gamma_i_j[0], Gamma_1_qd1) + m_i_Kappa_i_j @ kappa_j_qe_d1
+            m1_qd2, m2_qd2, m3_qd2 = np.outer(m_i_Gamma_i_j[1], Gamma_2_qd2) + m_i_Kappa_i_j @ kappa_j_qe_d2
+            m1_qd3, m2_qd3, m3_qd3 = np.outer(m_i_Gamma_i_j[2], Gamma_3_qd3) + m_i_Kappa_i_j @ kappa_j_qe_d3
 
-            Ke[self.rDOF[:, None], self.rDOF] -= NN_xii.T @ n_qr * qwi
-            Ke[self.rDOF[:, None], self.d1DOF] -= NN_xii.T @ n_qd1 * qwi
-            Ke[self.rDOF[:, None], self.d2DOF] -= NN_xii.T @ n_qd2 * qwi
-            Ke[self.rDOF[:, None], self.d3DOF] -= NN_xii.T @ n_qd3 * qwi
+            Ke[self.rDOF[:, None], self.rDOF] -= NN_xii.T @ (np.outer(d1, n1_qr) + np.outer(d2, n2_qr) + np.outer(d3, n3_qr)) * qwi
+            Ke[self.rDOF[:, None], self.d1DOF] -= NN_xii.T @ (np.outer(d1, n1_qd1) + np.outer(d2, n2_qd1) + np.outer(d3, n3_qd1) + n1 * NNi) * qwi
+            Ke[self.rDOF[:, None], self.d2DOF] -= NN_xii.T @ (np.outer(d1, n1_qd2) + np.outer(d2, n2_qd2) + np.outer(d3, n3_qd2) + n2 * NNi) * qwi
+            Ke[self.rDOF[:, None], self.d3DOF] -= NN_xii.T @ (np.outer(d1, n1_qd3) + np.outer(d2, n2_qd3) + np.outer(d3, n3_qd3) + n3 * NNi) * qwi
 
-            m_tilde = ax2skew(m)
-            d1_tilde = ax2skew(d1)
-            d2_tilde = ax2skew(d2)
-            d3_tilde = ax2skew(d3)
-            d1_xi_tilde = ax2skew(d1_xi)
-            d2_xi_tilde = ax2skew(d2_xi)
-            d3_xi_tilde = ax2skew(d3_xi)
+            Ke[self.d1DOF[:, None], self.rDOF] -= NNi.T @ (np.outer(r_xi, n1_qr) + n1 * NN_xii + np.outer(0.5 * d3_xi, m2_qr) - np.outer(0.5 * d2_xi, m3_qr)) * qwi \
+                                                  + NN_xii.T @ (np.outer(0.5 * d2, m3_qr) - np.outer(0.5 * d3, m2_qr)) * qwi
+            Ke[self.d1DOF[:, None], self.d1DOF] -= NNi.T @ (np.outer(r_xi, n1_qd1) + np.outer(0.5 * d3_xi, m2_qd1) - np.outer(0.5 * d2_xi, m3_qd1)) * qwi \
+                                                  + NN_xii.T @ (np.outer(0.5 * d2, m3_qd1) - np.outer(0.5 * d3, m2_qd1)) * qwi
+            Ke[self.d1DOF[:, None], self.d2DOF] -= NNi.T @ (np.outer(r_xi, n1_qd2) + np.outer(0.5 * d3_xi, m2_qd2) - np.outer(0.5 * d2_xi, m3_qd2) - 0.5 * m3 * NN_xii) * qwi \
+                                                  + NN_xii.T @ (np.outer(0.5 * d2, m3_qd2) + 0.5 * m3 * NNi - np.outer(0.5 * d3, m2_qd2)) * qwi
+            Ke[self.d1DOF[:, None], self.d3DOF] -= NNi.T @ (np.outer(r_xi, n1_qd3) + np.outer(0.5 * d3_xi, m2_qd3) + 0.5 * m2 * NN_xii - np.outer(0.5 * d2_xi, m3_qd3)) * qwi \
+                                                  + NN_xii.T @ (np.outer(0.5 * d2, m3_qd3) - np.outer(0.5 * d3, m2_qd3) - 0.5 * m2 * NNi) * qwi
 
-            Ke[self.d1DOF[:, None], self.rDOF] -= ( NNi.T @ (NN_xii * n_i[0] + np.outer(r_xi, n_i_qr[0]) - 0.5 * d1_xi_tilde @ m_qr) \
-                                                      - 0.5 * NN_xii.T @ d1_tilde @ m_qr ) * qwi
-            Ke[self.d2DOF[:, None], self.rDOF] -= ( NNi.T @ (NN_xii * n_i[1] + np.outer(r_xi, n_i_qr[1]) - 0.5 * d2_xi_tilde @ m_qr) \
-                                                      - 0.5 * NN_xii.T @ d2_tilde @ m_qr ) * qwi
-            Ke[self.d3DOF[:, None], self.rDOF] -= ( NNi.T @ (NN_xii * n_i[2] + np.outer(r_xi, n_i_qr[2]) - 0.5 * d3_xi_tilde @ m_qr) \
-                                                      - 0.5 * NN_xii.T @ d3_tilde @ m_qr ) * qwi
+            Ke[self.d2DOF[:, None], self.rDOF] -= NNi.T @ (np.outer(r_xi, n2_qr) + n2 * NN_xii + np.outer(0.5 * d1_xi, m3_qr) - np.outer(0.5 * d3_xi, m1_qr)) * qwi \
+                                                  + NN_xii.T @ (np.outer(0.5 * d3, m1_qr) - np.outer(0.5 * d1, m3_qr)) * qwi
+            Ke[self.d2DOF[:, None], self.d1DOF] -= NNi.T @ (np.outer(r_xi, n2_qd1) + np.outer(0.5 * d1_xi, m3_qd1) + 0.5 * m3 * NN_xii - np.outer(0.5 * d3_xi, m1_qd1)) * qwi \
+                                                  + NN_xii.T @ (np.outer(0.5 * d3, m1_qd1) - np.outer(0.5 * d1, m3_qd1) - 0.5 * m3 * NNi) * qwi
+            Ke[self.d2DOF[:, None], self.d2DOF] -= NNi.T @ (np.outer(r_xi, n2_qd2) + np.outer(0.5 * d1_xi, m3_qd2) - np.outer(0.5 * d3_xi, m1_qd2)) * qwi \
+                                                  + NN_xii.T @ (np.outer(0.5 * d3, m1_qd2) - np.outer(0.5 * d1, m3_qd2)) * qwi
+            Ke[self.d2DOF[:, None], self.d3DOF] -= NNi.T @ (np.outer(r_xi, n2_qd3) + np.outer(0.5 * d1_xi, m3_qd3) - np.outer(0.5 * d3_xi, m1_qd3) - 0.5 * m1 * NN_xii) * qwi \
+                                                  + NN_xii.T @ (np.outer(0.5 * d3, m1_qd3) + 0.5 * m1 * NNi - np.outer(0.5 * d1, m3_qd3)) * qwi
 
-            Ke[self.d1DOF[:, None], self.d1DOF] -= ( NNi.T @ (np.outer(r_xi, n_i_qd1[0]) + 0.5 * m_tilde @ NN_xii - 0.5 * d1_xi_tilde @ m_qd1) \
-                                                       + 0.5 * NN_xii.T @ (m_tilde @ NNi - d1_tilde @ m_qd1) \
-                                                     ) * qwi
-            Ke[self.d1DOF[:, None], self.d2DOF] -= ( NNi.T @ (np.outer(r_xi, n_i_qd2[0]) - 0.5 * d1_xi_tilde @ m_qd2) \
-                                                       + 0.5 * NN_xii.T @ (-d1_tilde @ m_qd2) \
-                                                     ) * qwi
-            Ke[self.d1DOF[:, None], self.d3DOF] -= ( NNi.T @ (np.outer(r_xi, n_i_qd3[0]) - 0.5 * d1_xi_tilde @ m_qd3) \
-                                                       - 0.5 * NN_xii.T @ d1_tilde @ m_qd3 \
-                                                     ) * qwi
-                                                     
-            Ke[self.d2DOF[:, None], self.d1DOF] -= ( NNi.T @ (np.outer(r_xi, n_i_qd1[1]) - 0.5 * d2_xi_tilde @ m_qd1) \
-                                                       - 0.5 * NN_xii.T @ d2_tilde @ m_qd1 \
-                                                     ) * qwi
-            Ke[self.d2DOF[:, None], self.d2DOF] -= ( NNi.T @ (np.outer(r_xi, n_i_qd2[1]) + 0.5 * m_tilde @ NN_xii - 0.5 * d2_xi_tilde @ m_qd2) \
-                                                       + 0.5 * NN_xii.T @ (m_tilde @ NNi - d2_tilde @ m_qd2) \
-                                                     ) * qwi
-            Ke[self.d2DOF[:, None], self.d3DOF] -= ( NNi.T @ (np.outer(r_xi, n_i_qd3[1]) - 0.5 * d2_xi_tilde @ m_qd3) \
-                                                       - 0.5 * NN_xii.T @ d2_tilde @ m_qd3 \
-                                                     ) * qwi
-                                                     
-            Ke[self.d3DOF[:, None], self.d1DOF] -= ( NNi.T @ (np.outer(r_xi, n_i_qd1[2]) - 0.5 * d3_xi_tilde @ m_qd1) \
-                                                       - 0.5 * NN_xii.T @ d3_tilde @ m_qd1 \
-                                                     ) * qwi
-            Ke[self.d3DOF[:, None], self.d2DOF] -= ( NNi.T @ (np.outer(r_xi, n_i_qd2[2]) - 0.5 * d3_xi_tilde @ m_qd2) \
-                                                       - 0.5 * NN_xii.T @ d3_tilde @ m_qd2 \
-                                                     ) * qwi
-            Ke[self.d3DOF[:, None], self.d3DOF] -= ( NNi.T @ (np.outer(r_xi, n_i_qd3[2]) + 0.5 * m_tilde @ NN_xii - 0.5 * d3_xi_tilde @ m_qd3) \
-                                                       + 0.5 * NN_xii.T @ (m_tilde @ NNi - d3_tilde @ m_qd3) \
-                                                     ) * qwi
-
-            # #####
-            # # old
-            # #####
-            # # r_xi = 0
-            # # d1_xi = 0
-            # # d2_xi = 0
-            # # d3_xi = 0
-
-            # Ke[self.d1DOF[:, None], self.rDOF] -= ( NNi.T @ ( NN_xii * n_i[0] + np.outer(r_xi, n_i_qr[0]) - 0.5 * cross3(d1_xi, m_qr) ) \
-            #                                           - 0.5 * NN_xii.T @ cross3(d1, m_qr) ) * qwi
-            # Ke[self.d2DOF[:, None], self.rDOF] -= ( NNi.T @ ( NN_xii * n_i[1] + np.outer(r_xi, n_i_qr[1]) - 0.5 * cross3(d2_xi, m_qr) ) \
-            #                                           - 0.5 * NN_xii.T @ cross3(d2, m_qr) ) * qwi
-            # Ke[self.d3DOF[:, None], self.rDOF] -= ( NNi.T @ ( NN_xii * n_i[2] + np.outer(r_xi, n_i_qr[2]) - 0.5 * cross3(d3_xi, m_qr) ) \
-            #                                           - 0.5 * NN_xii.T @ cross3(d3, m_qr) ) * qwi
-
-            # Ke[self.d1DOF[:, None], self.d1DOF] -= ( NNi.T @ ( np.outer(r_xi, n_i_qd1[0]) + 0.5 * cross3(m, NN_xii) - 0.5 * cross3(d1_xi, m_qd1) ) \
-            #                                            + 0.5 * NN_xii.T @ ( cross3(m, NNi) - cross3(d1, m_qd1) ) \
-            #                                          ) * qwi
-            # Ke[self.d1DOF[:, None], self.d2DOF] -= ( NNi.T @ ( np.outer(r_xi, n_i_qd2[0]) - 0.5 * cross3(d1_xi, m_qd2) ) \
-            #                                            + 0.5 * NN_xii.T @ ( - cross3(d1, m_qd2) ) \
-            #                                          ) * qwi
-            # Ke[self.d1DOF[:, None], self.d3DOF] -= ( NNi.T @ ( np.outer(r_xi, n_i_qd3[0]) - 0.5 * cross3(d1_xi, m_qd3) ) \
-            #                                            + 0.5 * NN_xii.T @ ( - cross3(d1, m_qd3) ) \
-            #                                          ) * qwi
-                                                     
-            # Ke[self.d2DOF[:, None], self.d1DOF] -= ( NNi.T @ ( np.outer(r_xi, n_i_qd1[1]) - 0.5 * cross3(d2_xi, m_qd1) ) \
-            #                                            + 0.5 * NN_xii.T @ ( - cross3(d2, m_qd1) ) \
-            #                                          ) * qwi
-            # Ke[self.d2DOF[:, None], self.d2DOF] -= ( NNi.T @ ( np.outer(r_xi, n_i_qd2[1]) + 0.5 * cross3(m, NN_xii) - 0.5 * cross3(d2_xi, m_qd2) ) \
-            #                                            + 0.5 * NN_xii.T @ ( cross3(m, NNi) - cross3(d2, m_qd2) ) \
-            #                                          ) * qwi
-            # Ke[self.d2DOF[:, None], self.d3DOF] -= ( NNi.T @ ( np.outer(r_xi, n_i_qd3[1]) - 0.5 * cross3(d2_xi, m_qd3) ) \
-            #                                            + 0.5 * NN_xii.T @ ( - cross3(d2, m_qd3) ) \
-            #                                          ) * qwi
-                                                     
-            # Ke[self.d3DOF[:, None], self.d1DOF] -= ( NNi.T @ ( np.outer(r_xi, n_i_qd1[2]) - 0.5 * cross3(d3_xi, m_qd1) ) \
-            #                                            + 0.5 * NN_xii.T @ ( - cross3(d3, m_qd1) ) \
-            #                                          ) * qwi
-            # Ke[self.d3DOF[:, None], self.d2DOF] -= ( NNi.T @ ( np.outer(r_xi, n_i_qd2[2]) - 0.5 * cross3(d3_xi, m_qd2) ) \
-            #                                            + 0.5 * NN_xii.T @ ( - cross3(d3, m_qd2) ) \
-            #                                          ) * qwi
-            # Ke[self.d3DOF[:, None], self.d3DOF] -= ( NNi.T @ ( np.outer(r_xi, n_i_qd3[2]) + 0.5 * cross3(m, NN_xii) - 0.5 * cross3(d3_xi, m_qd3) ) \
-            #                                            + 0.5 * NN_xii.T @ ( cross3(m, NNi) - cross3(d3, m_qd3) ) \
-            #                                          ) * qwi
+            Ke[self.d3DOF[:, None], self.rDOF] -= NNi.T @ (np.outer(r_xi, n3_qr) + n3 * NN_xii + np.outer(0.5 * d2_xi, m1_qr) - np.outer(0.5 * d1_xi, m2_qr)) * qwi \
+                                                  + NN_xii.T @ (np.outer(0.5 * d1, m2_qr) - np.outer(0.5 * d2, m1_qr)) * qwi
+            Ke[self.d3DOF[:, None], self.d1DOF] -= NNi.T @ (np.outer(r_xi, n3_qd1) + np.outer(0.5 * d2_xi, m1_qd1) - np.outer(0.5 * d1_xi, m2_qd1) - 0.5 * m2 * NN_xii) * qwi \
+                                                  + NN_xii.T @ (np.outer(0.5 * d1, m2_qd1) + 0.5 * m2 * NNi - np.outer(0.5 * d2, m1_qd1)) * qwi
+            Ke[self.d3DOF[:, None], self.d2DOF] -= NNi.T @ (np.outer(r_xi, n3_qd2) + np.outer(0.5 * d2_xi, m1_qd2) + 0.5 * m1 * NN_xii - np.outer(0.5 * d1_xi, m2_qd2)) * qwi \
+                                                  + NN_xii.T @ (np.outer(0.5 * d1, m2_qd2) - np.outer(0.5 * d2, m1_qd2) - 0.5 * m1 * NNi) * qwi
+            Ke[self.d3DOF[:, None], self.d3DOF] -= NNi.T @ (np.outer(r_xi, n3_qd3) + np.outer(0.5 * d2_xi, m1_qd3) - np.outer(0.5 * d1_xi, m2_qd3)) * qwi \
+                                                  + NN_xii.T @ (np.outer(0.5 * d1, m2_qd3) - np.outer(0.5 * d2, m1_qd3)) * qwi
 
         return Ke
 
         # Ke_num = Numerical_derivative(lambda t, qe: self.f_pot_el(qe, el), order=2)._x(0, qe)
         # diff = Ke_num - Ke
         # error = np.max(np.abs(diff))
-        # print(f'error f_pot_q_el: {error}')
-        # # # np.set_printoptions(2, suppress=True)
+        # print(f'max error f_pot_q_el: {error}')
+        
         # # # print(f'diff[self.rDOF[:, None], self.rDOF]: {np.max(np.abs(diff[self.rDOF[:, None], self.rDOF]))}')
         # # # print(f'diff[self.rDOF[:, None], self.d1DOF]: {np.max(np.abs(diff[self.rDOF[:, None], self.d1DOF]))}')
         # # # print(f'diff[self.rDOF[:, None], self.d2DOF]: {np.max(np.abs(diff[self.rDOF[:, None], self.d2DOF]))}')
         # # # print(f'diff[self.rDOF[:, None], self.d3DOF]: {np.max(np.abs(diff[self.rDOF[:, None], self.d3DOF]))}')
+        
+        # # # print(f'diff[self.d1DOF[:, None], self.rDOF]: {np.max(np.abs(diff[self.d1DOF[:, None], self.rDOF]))}')
         # # # print(f'diff[self.d1DOF[:, None], self.d1DOF]: {np.max(np.abs(diff[self.d1DOF[:, None], self.d1DOF]))}')
+        # # # print(f'diff[self.d1DOF[:, None], self.d2DOF]: {np.max(np.abs(diff[self.d1DOF[:, None], self.d2DOF]))}')
+        # # # print(f'diff[self.d1DOF[:, None], self.d3DOF]: {np.max(np.abs(diff[self.d1DOF[:, None], self.d3DOF]))}')
+
+        # # # print(f'diff[self.d2DOF[:, None], self.rDOF]: {np.max(np.abs(diff[self.d2DOF[:, None], self.rDOF]))}')
+        # # # print(f'diff[self.d2DOF[:, None], self.d1DOF]: {np.max(np.abs(diff[self.d2DOF[:, None], self.d1DOF]))}')
+        # # # print(f'diff[self.d2DOF[:, None], self.d2DOF]: {np.max(np.abs(diff[self.d2DOF[:, None], self.d2DOF]))}')
+        # # # print(f'diff[self.d2DOF[:, None], self.d3DOF]: {np.max(np.abs(diff[self.d2DOF[:, None], self.d3DOF]))}')
+
+        # # # print(f'diff[self.d3DOF[:, None], self.rDOF]: {np.max(np.abs(diff[self.d3DOF[:, None], self.rDOF]))}')
+        # # # print(f'diff[self.d3DOF[:, None], self.d1DOF]: {np.max(np.abs(diff[self.d3DOF[:, None], self.d1DOF]))}')
+        # # # print(f'diff[self.d3DOF[:, None], self.d2DOF]: {np.max(np.abs(diff[self.d3DOF[:, None], self.d2DOF]))}')
+        # # # print(f'diff[self.d3DOF[:, None], self.d3DOF]: {np.max(np.abs(diff[self.d3DOF[:, None], self.d3DOF]))}')
+
         # return Ke_num
-    
+
     #########################################
     # kinematic equation
     #########################################
