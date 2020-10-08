@@ -189,22 +189,37 @@ class Ogden1997_incompressible():
 
 class Pantobox_linear():
     """anisotropic linear elastic first gradient material model for 3D Pantograph"""
-    def __init__(self, Es, r, l):
+    def __init__(self, Es, r, l, rp=0, lp=0):
         self.ke = Es * np.pi * r**2 / l
         self.kf = 3 * Es * np.pi * r**4 / l**3
-        self.kr = 0
         self.K = np.zeros((6,6))
-        self.K[0, 0] = self.ke + self.kf
-        self.K[0, 1] = self.ke - self.kf
-        self.K[1, 1] = 2 * self.K[0, 0]
-        self.K[1, 0] = self.K[0, 1]
-        self.K[1, 2] = self.K[0, 1]
-        self.K[2, 1] = self.K[1, 2]
-        self.K[2, 2] = self.K[0, 0]
-        self.K[3, 3] = self.ke + self.kf / 3
-        self.K[4, 4] = self.K[3, 3]
-        self.K[5, 5] = self.kf
-        self.K *= 1 / (np.sqrt(2) * l)
+        if rp == 0 and lp == 0:
+            self.K[0, 0] = self.ke + self.kf
+            self.K[0, 1] = self.ke - self.kf
+            self.K[1, 1] = 2 * self.K[0, 0]
+            self.K[1, 0] = self.K[0, 1]
+            self.K[1, 2] = self.K[0, 1]
+            self.K[2, 1] = self.K[1, 2]
+            self.K[2, 2] = self.K[0, 0]
+            self.K[3, 3] = self.ke + self.kf / 3
+            self.K[4, 4] = self.K[3, 3]
+            self.K[5, 5] = self.kf
+            self.K *= 1 / (np.sqrt(2) * l)
+        else:
+            self.kr = Es / (2 + 0.6) * np.pi * rp**4 / lp / 2
+            self.K[0, 0] = (2 * self.ke * self.kr + 2 * self.kf * self.kr + self.ke * self.kf * l**2) \
+                            / (2 * self.kr + self.kf * l**2)
+            self.K[0, 1] = (2 * self.ke * self.kr - 2 * self.kf * self.kr + self.ke * self.kf * l**2) \
+                            / (2 * self.kr + self.kf * l**2)
+            self.K[1, 1] = 2 * self.K[0, 0]
+            self.K[1, 0] = self.K[0, 1]
+            self.K[1, 2] = self.K[0, 1]
+            self.K[2, 1] = self.K[1, 2]
+            self.K[2, 2] = self.K[0, 0]
+            self.K[3, 3] = 2 * self.ke
+            self.K[4, 4] = self.K[3, 3]
+            self.K[5, 5] = 2 * self.kf
+            self.K *= 1 / (np.sqrt(2) * l)            
 
     def W(self, F):
         return 0.5 * np.tensordot(self.S(F), self.E(F), axes=2)

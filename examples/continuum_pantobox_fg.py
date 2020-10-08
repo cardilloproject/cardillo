@@ -25,8 +25,8 @@ def test_cube():
     # # element_shape = (5, 5, 5)
     # element_shape = (2, 2, 2)
     degrees = (3, 3, 3)
-    QP_shape = (2, 2, 3)
-    element_shape = (2, 2, 3)
+    QP_shape = (3, 3, 3)
+    element_shape = (3, 3, 5)
 
     Xi = Knot_vector(degrees[0], element_shape[0])
     Eta = Knot_vector(degrees[1], element_shape[1])
@@ -36,9 +36,9 @@ def test_cube():
     mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=1, basis='B-spline', nq_n=3)
 
     # reference configuration is a cube
-    L = 100
-    B = 100
-    H = 200
+    L = 105
+    B = 105
+    H = 318
     cube_shape = (L, B, H)
     Z = cube(cube_shape, mesh, Greville=True)
 
@@ -55,7 +55,7 @@ def test_cube():
         la_mesh = Mesh3D(knot_vectors_la, QP_shape, derivative_order=0, basis='B-spline', nq_n=1)
     else:
         # mat = Ogden1997_compressible(mu1, mu2)
-        mat = Pantobox_linear(700, 0.5, 10)
+        mat = Pantobox_linear(68, 0.5*1.5, 10*1.5, 0.3*1.5, 6*1.5)
 
     density = 2.7 * 10**6
 
@@ -68,11 +68,11 @@ def test_cube():
             b = lambda t: Z[cDOF]
 
         else:
-            cDOF1 = mesh.surface_qDOF[4].reshape(-1)
+            cDOF1 = np.concatenate((mesh.surface_qDOF[4].ravel(), mesh.surface_qDOF[5][0:2].ravel()))
             cDOF2 = mesh.surface_qDOF[5][2]
             cDOF = np.concatenate((cDOF1, cDOF2))
             b1 = lambda t: Z[cDOF1]
-            b2 = lambda t: Z[cDOF2] + t * 10
+            b2 = lambda t: Z[cDOF2] + t * 51
             b = lambda t: np.concatenate((b1(t), b2(t)))
             # cDOF = mesh.surface_qDOF[4].ravel()
             # b = lambda t: Z[cDOF]
@@ -126,7 +126,7 @@ def test_cube():
     if Statics:
     # static solver
         n_load_steps = 20
-        tol = 1.0e-3
+        tol = 1.0e-6
         max_iter = 10
         solver = Newton(model, n_load_steps=n_load_steps, tol=tol, max_iter=max_iter)
 
