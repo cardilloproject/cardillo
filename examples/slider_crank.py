@@ -1,12 +1,9 @@
-from ast import Num
 from cardillo.math.numerical_derivative import Numerical_derivative
-import enum
-from matplotlib.pyplot import contour
 import numpy as np
 from math import cos, sin, pi
 
-import matplotlib
-matplotlib.use("Agg")
+# import matplotlib
+# matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
@@ -20,16 +17,16 @@ class Slider_crank():
         self.nq = 3
         self.nu = 3
         self.nla_N = 4
-        self.nla_T = 0
-        # self.nla_T = 4
+        # self.nla_T = 0
+        # # self.nla_T = 4
 
         # geometric characteristics
         self.l1 = 0.1530
         self.l2 = 0.306
         self.a = 0.05
         self.b = 0.025
-        # self.c = 0.001
-        self.c = 0.01
+        self.c = 0.001
+        # self.c = 0.01
         self.d = 2 * self.c + 2 * self.b
 
         # inertial properties
@@ -46,13 +43,24 @@ class Slider_crank():
         # contact parameters
         self.e_N = 0.4 * np.ones(4)
         self.e_T = np.zeros(4)
-        self.mu = 0.01 * np.ones(4)
+        mu = 0.01
+        # mu = 0
+        self.mu = mu * np.ones(4)
         # r = 0.01
-        r = 0.001
+        # r = 0.001
+        r = 0.0005
         self.prox_r_N = r * np.ones(4)
         self.prox_r_T = r * np.ones(4)
-        self.NT_connectivity = [[], [], [], []]
+        # self.NT_connectivity = [[], [], [], []]
         # self.NT_connectivity = [[0], [1], [2], [3]]
+
+        if mu == 0:
+            self.nla_T = 0
+            self.NT_connectivity = [[], [], [], []]
+        else:
+            self.nla_T =  4 
+            self.NT_connectivity = [[0], [1], [2], [3]]
+            self.gamma_T = self.__gamma_T
 
         # initial conditions
         theta10 = 0
@@ -61,8 +69,8 @@ class Slider_crank():
 
         omega10 = 150
         omega20 = -75
-        # omega30 = 0
-        omega30 = 5
+        omega30 = 0
+        # omega30 = 5
 
         self.q0 = np.array([theta10, theta20, theta30]) if q0 is None else q0
         self.u0 = np.array([omega10, omega20, omega30]) if u0 is None else u0
@@ -108,7 +116,7 @@ class Slider_crank():
     #####################
     # equations of motion
     #####################
-    def M(self, t, q, coo):
+    def M_dense(self, t, q):
         theta1, theta2, theta3 = q
 
         M11 = self.J1 + (self.m1 / 4 + self.m2 + self.m3) * self.l1**2 # (90)
@@ -117,13 +125,33 @@ class Slider_crank():
         M22 = self.J2 + (self.m2 / 4 + self.m3) * self.l2**2 # (93)
         M33 = self.J3 # (94)
 
-        dense = np.array([[M11, M12, M13],
-                          [M21, M22, M23],
-                          [M31, M32, M33]])
-        coo.extend(dense, (self.uDOF, self.uDOF))
+        return np.array([[M11, M12, M13],
+                         [M21, M22, M23],
+                         [M31, M32, M33]])
 
-    def Mu_q(self, t, q, u, c00):
-        raise NotImplementedError('...')
+    def M(self, t, q, coo):
+        coo.extend(self.M_dense(t, q), (self.uDOF, self.uDOF))
+
+    def Mu_q(self, t, q, u, coo):
+
+        M_q = np.zeros((3, 3, 3))
+
+        theta1, theta2, theta3 = q
+        M12_theta1 = (self.m2 / 2 + self.m3) * self.l1 * self.l2 * (-cos(theta2) * sin(theta1) + sin(theta2) * cos(theta1))
+        M_q[0, 1, 0] = M12_theta1
+        M_q[1, 0, 0] = M12_theta1
+        M12_theta2 = (self.m2 / 2 + self.m3) * self.l1 * self.l2 * (-sin(theta2) * cos(theta1) + cos(theta2) * sin(theta1))
+        M_q[0, 1, 1] = M12_theta2
+        M_q[1, 0, 1] = M12_theta2
+
+        dense = np.einsum('ijk,j->ik', M_q, u)
+
+        # Mu = lambda t, q: self.M_dense(t, q) @ u
+        # dense_num = Numerical_derivative(Mu, order=2)._x(t, q)
+        # error = np.linalg.norm(dense_num - dense)
+        # print(f'error Mu_q: {error}')
+
+        coo.extend(dense, (self.uDOF, self.qDOF))
 
     def f_npot(self, t, q, u):
         theta1, theta2, theta3 = q
@@ -135,11 +163,37 @@ class Slider_crank():
         return np.array([h1, h2, h3])
 
     def f_npot_q(self, t, q, u, coo):
-        dense = Numerical_derivative(self.f_npot)._x(t, q, u)
+        theta1, theta2, theta3 = q
+        omega1, omega2, omega3 = u
+
+        factor1_theta1 = (self.m2 / 2 + self.m3) * self.l1 * self.l2 * (-sin(theta2) * sin(theta1) - cos(theta2) * cos(theta1))
+        factor1_theta2 = (self.m2 / 2 + self.m3) * self.l1 * self.l2 * (cos(theta2) * cos(theta1) + sin(theta2) * sin(theta1))
+
+        dense = np.zeros((3, 3))
+        dense[0, 0] = factor1_theta1 * omega2**2 + (self.m1 / 2 + self.m2 + self.m3) * self.g * self.l1 * sin(theta1)
+        dense[0, 1] = factor1_theta2 * omega2**2
+        dense[1, 0] = -factor1_theta1 * omega1**2
+        dense[1, 1] = -factor1_theta2 * omega1**2 + (self.m2 / 2 + self.m3) * self.g * self.l2 * sin(theta2)
+
+        # dense_num = Numerical_derivative(self.f_npot, order=2)._x(t, q, u)
+        # error = np.linalg.norm(dense_num - dense)
+        # print(f'error f_npot_q: {error}')
+
         coo.extend(dense, (self.uDOF, self.qDOF))
 
     def f_npot_u(self, t, q, u, coo):
-        dense = Numerical_derivative(self.f_npot)._y(t, q, u)
+        theta1, theta2, theta3 = q
+        omega1, omega2, omega3 = u
+        factor1 = (self.m2 / 2 + self.m3) * self.l1 * self.l2 * sin(theta2 - theta1)
+        
+        dense = np.zeros((3, 3))
+        dense[0, 1] = 2 * factor1 * omega2
+        dense[1, 0] = -2 * factor1 * omega1
+
+        # dense_num = Numerical_derivative(self.f_npot, order=2)._y(t, q, u)
+        # error = np.linalg.norm(dense_num - dense)
+        # print(f'error f_npot_u: {error}')
+
         coo.extend(dense, (self.uDOF, self.uDOF))
 
     #####################
@@ -166,9 +220,19 @@ class Slider_crank():
         return np.array([g_N1, g_N2, g_N3, g_N4])
 
     def g_N_q_dense(self, t, q):
-        return Numerical_derivative(self.g_N)._x(t, q)
-        # x, y, phi = q
-        # return np.array([[0, 1, -self.s * cos(phi)]])
+        theta1, theta2, theta3 = q
+        w_N1 = np.array([-self.l1 * cos(theta1), -self.l2 * cos(theta2), self.a * cos(theta3) + self.b * sin(theta3)])
+        w_N2 = np.array([-self.l1 * cos(theta1), -self.l2 * cos(theta2), -self.a * cos(theta3) + self.b * sin(theta3)])
+        w_N3 = np.array([self.l1 * cos(theta1), self.l2 * cos(theta2), -self.a * cos(theta3) + self.b * sin(theta3)])
+        w_N4 = np.array([self.l1 * cos(theta1), self.l2 * cos(theta2), self.a * cos(theta3) + self.b * sin(theta3)])
+
+        g_N_q_dense = np.vstack((w_N1, w_N2, w_N3, w_N4))
+
+        # g_N_q_dense_num = Numerical_derivative(self.g_N, order=2)._x(t, q)
+        # error = np.linalg.norm(g_N_q_dense_num - g_N_q_dense)
+        # print(f'error g_N_q_dense: {error}')
+        
+        return g_N_q_dense
 
     def g_N_q(self, t, q, coo):
         coo.extend(self.g_N_q_dense(t, q), (self.la_NDOF, self.qDOF))
@@ -182,14 +246,15 @@ class Slider_crank():
         g_N4_dot = + self.l1 * cos(theta1) * omega1 + self.l2 * cos(theta2) * omega2 + self.a * cos(theta3) * omega3 + self.b * sin(theta3) * omega3
         return np.array([g_N1_dot, g_N2_dot, g_N3_dot, g_N4_dot])
 
+    # TODO!
     def g_N_dot_q_dense(self, t, q, u):
-        return Numerical_derivative(self.g_N_dot)._x(t, q, np.zeros(self.nu))
+        return Numerical_derivative(self.g_N_dot, order=2)._x(t, q, np.zeros(self.nu))
 
     def g_N_dot_q(self, t, q, u, coo):
         coo.extend(self.g_N_dot_q_dense(t, q, u), (self.la_NDOF, self.qDOF))
 
     def g_N_dot_u_dense(self, t, q):
-        return Numerical_derivative(self.g_N_dot)._y(t, q, np.zeros(self.nu))
+        return self.g_N_q_dense(t, q)
     
     def g_N_dot_u(self, t, q, coo):
         coo.extend(self.g_N_dot_u_dense(t, q), (self.la_NDOF, self.uDOF))
@@ -200,102 +265,121 @@ class Slider_crank():
     def xi_N_q(self, t, q, u_pre, u_post, coo):
         g_N_q_pre = self.g_N_dot_q_dense(t, q, u_pre)
         g_N_q_post = self.g_N_dot_q_dense(t, q, u_post)
-        dense = g_N_q_post + self.e_N * g_N_q_pre
+        dense = g_N_q_post + np.diag(self.e_N) @ g_N_q_pre
         coo.extend(dense, (self.la_NDOF, self.qDOF))
 
     def W_N(self, t, q, coo):
-        # # w_N1 = np.array([-self.l1 * cos(theta1), -self.l2 * cos(theta2), self.a * cos(theta3) + self.b * sin(theta3)]) # (106)
-        # dense = self.g_N_q_dense(t, q).T
         dense = self.g_N_dot_u_dense(t, q).T
         coo.extend(dense, (self.uDOF, self.la_NDOF))
 
-    # def g_N_ddot(self, t, q, u, u_dot):
-    #     x, y, phi = q
-    #     x_dot, y_dot, phi_dot = u
-    #     x_ddot, y_ddot, phi_ddot = u_dot
-    #     return np.array([y_ddot + self.s * sin(phi) * phi_dot**2 - self.s * cos(phi) * phi_ddot])
+    def g_N_ddot(self, t, q, u, u_dot):
+        theta1, theta2, theta3 = q
+        omega1, omega2, omega3 = u
+        omega1_dot, omega2_dot, omega3_dot = u_dot
+        g_N1_ddot = self.l1 * sin(theta1) * omega1**2 - self.l1 * cos(theta1) * omega1_dot \
+                    + self.l2 * sin(theta2) * omega2**2 - self.l2 * cos(theta2) * omega2_dot \
+                    - self.a * sin(theta3) * omega3**2 + self.a * cos(theta3) * omega3_dot \
+                    + self.b * cos(theta3) * omega3**2 + self.b * sin(theta3) * omega3_dot
+        g_N2_ddot = self.l1 * sin(theta1) * omega1**2 - self.l1 * cos(theta1) * omega1_dot \
+                    + self.l2 * sin(theta2) * omega2**2 - self.l2 * cos(theta2) * omega2_dot \
+                    + self.a * sin(theta3) * omega3**2 - self.a * cos(theta3) * omega3_dot \
+                    + self.b * cos(theta3) * omega3**2 + self.b * sin(theta3) * omega3_dot
+        g_N3_ddot = -self.l1 * sin(theta1) * omega1**2 + self.l1 * cos(theta1) * omega1_dot \
+                    - self.l2 * sin(theta2) * omega2**2 + self.l2 * cos(theta2) * omega2_dot \
+                    + self.a * sin(theta3) * omega3**2 - self.a * cos(theta3) * omega3_dot \
+                    + self.b * cos(theta3) * omega3**2 + self.b * sin(theta3) * omega3_dot
+        g_N4_ddot = -self.l1 * sin(theta1) * omega1**2 + self.l1 * cos(theta1) * omega1_dot \
+                    - self.l2 * sin(theta2) * omega2**2 + self.l2 * cos(theta2) * omega2_dot \
+                    - self.a * sin(theta3) * omega3**2 + self.a * cos(theta3) * omega3_dot \
+                    + self.b * cos(theta3) * omega3**2 + self.b * sin(theta3) * omega3_dot
+        return np.array([g_N1_ddot, g_N2_ddot, g_N3_ddot, g_N4_ddot])
 
-    # def g_N_ddot_q(self, t, q, u, u_dot, coo):
-    #     x, y, phi = q
-    #     x_dot, y_dot, phi_dot = u
-    #     x_ddot, y_ddot, phi_ddot = u_dot
-    #     dense = np.array([0, 0, self.s * cos(phi) * phi_dot**2 + self.s * sin(phi) * phi_ddot])
-    #     coo.extend(dense, (self.la_NDOF, self.qDOF))
+    # TODO:
+    def g_N_ddot_q(self, t, q, u, u_dot, coo):
+        dense = Numerical_derivative(lambda t, q, u: self.g_N_ddot(t, q, u, u_dot), order=2)._x(t, q, u)
+        coo.extend(dense, (self.la_NDOF, self.qDOF))
 
-    # def g_N_ddot_u(self, t, q, u, u_dot, coo):
-    #     x, y, phi = q
-    #     x_dot, y_dot, phi_dot = u
-    #     dense = np.array([0, 0, 2 * self.s * sin(phi) * phi_dot])
-    #     coo.extend(dense, (self.la_NDOF, self.uDOF))
+    # TODO:
+    def g_N_ddot_u(self, t, q, u, u_dot, coo):
+        dense = Numerical_derivative(lambda t, q, u: self.g_N_ddot(t, q, u, u_dot), order=2)._y(t, q, u)
+        coo.extend(dense, (self.la_NDOF, self.uDOF))
 
-    # def Wla_N_q(self, t, q, la_N, coo):
-    #     x, y, phi = q
-    #     dense = la_N[0] * np.array([[0, 0, 0],
-    #                                 [0, 0, 0],
-    #                                 [0, 0, self.s * sin(phi)]])
-    #     coo.extend(dense, (self.uDOF, self.qDOF))
+    # TODO:
+    def Wla_N_q(self, t, q, la_N, coo):
+        Wla_N = lambda t, q: self.g_N_dot_u_dense(t, q).T @ la_N
+        dense = Numerical_derivative(Wla_N, order=2)._x(t, q)
+        coo.extend(dense, (self.uDOF, self.qDOF))
 
-    # #################
-    # # tanget contacts
-    # #################
-    # def gamma_T(self, t, q, u):
-    #     x, y, phi = q
-    #     x_dot, y_dot, phi_dot = u
-    #     return np.array([x_dot - self.s * sin(phi) * phi_dot])
+    #################
+    # tanget contacts
+    #################
+    def __gamma_T(self, t, q, u):
+        theta1, theta2, theta3 = q
+        omega1, omega2, omega3 = u
+        gamma_1 = - self.l1 * sin(theta1) * omega1 - self.l2 * sin(theta2) * omega2 + self.a * sin(theta3) * omega3 - self.b * cos(theta3) * omega3
+        gamma_2 = - self.l1 * sin(theta1) * omega1 - self.l2 * sin(theta2) * omega2 - self.a * sin(theta3) * omega3 - self.b * cos(theta3) * omega3
+        gamma_3 = - self.l1 * sin(theta1) * omega1 - self.l2 * sin(theta2) * omega2 + self.a * sin(theta3) * omega3 + self.b * cos(theta3) * omega3
+        gamma_4 = - self.l1 * sin(theta1) * omega1 - self.l2 * sin(theta2) * omega2 - self.a * sin(theta3) * omega3 + self.b * cos(theta3) * omega3
+        return np.array([gamma_1, gamma_2, gamma_3, gamma_4])
 
-    # def gamma_T_q_dense(self, t, q, u):
-    #     x, y, phi = q
-    #     x_dot, y_dot, phi_dot = u
-    #     return np.array([[0, 0, - self.s * cos(phi) * phi_dot]])
+    def gamma_T_q_dense(self, t, q, u):
+        return Numerical_derivative(self.__gamma_T, order=2)._x(t, q, u)
 
-    # def gamma_T_q(self, t, q, u, coo):
-    #     coo.extend(self.gamma_T_q_dense(t, q, u), (self.la_TDOF, self.qDOF))
+    def gamma_T_q(self, t, q, u, coo):
+        coo.extend(self.gamma_T_q_dense(t, q, u), (self.la_TDOF, self.qDOF))
 
-    # def gamma_T_u_dense(self, t, q):
-    #     x, y, phi = q
-    #     return np.array([[1, 0, -self.s * sin(phi)]])
+    def gamma_T_u_dense(self, t, q):
+        return Numerical_derivative(self.__gamma_T, order=2)._y(t, q, np.zeros(self.nu))
 
-    # def gamma_T_u(self, t, q, coo):
-    #     coo.extend(self.gamma_T_u_dense(t, q), (self.la_TDOF, self.uDOF))
+    def gamma_T_u(self, t, q, coo):
+        coo.extend(self.gamma_T_u_dense(t, q), (self.la_TDOF, self.uDOF))
 
-    # def W_T(self, t, q, coo):
-    #     coo.extend(self.gamma_T_u_dense(t, q).T, (self.uDOF, self.la_TDOF))
+    def W_T(self, t, q, coo):
+        coo.extend(self.gamma_T_u_dense(t, q).T, (self.uDOF, self.la_TDOF))
 
-    # def Wla_T_q(self, t, q, la_T, coo):
-    #     x, y, phi = q
-    #     dense = la_T[0] * np.array([[0, 0, 0],
-    #                                 [0, 0, 0],
-    #                                 [0, 0, -self.s * cos(phi)]])
-    #     coo.extend(dense, (self.uDOF, self.qDOF))
+    def Wla_T_q(self, t, q, la_T, coo):
+        Wla_T = lambda t, q: self.gamma_T_u_dense(t, q).T @ la_T
+        dense = Numerical_derivative(Wla_T, order=2)._x(t, q)
+        coo.extend(dense, (self.uDOF, self.qDOF))
 
-    # def gamma_T_dot(self, t, q, u, u_dot):
-    #     x, y, phi = q
-    #     x_dot, y_dot, phi_dot = u
-    #     x_ddot, y_ddot, phi_ddot = u_dot
-    #     return np.array([x_ddot - self.s * cos(phi) * phi_dot**2 - self.s * sin(phi) * phi_ddot])
+    def gamma_T_dot(self, t, q, u, u_dot):
+        theta1, theta2, theta3 = q
+        omega1, omega2, omega3 = u
+        omega1_dot, omega2_dot, omega3_dot = u_dot
+        gamma_1_dot = - self.l1 * cos(theta1) * omega1**2 - self.l1 * sin(theta1) * omega1_dot \
+                      - self.l2 * cos(theta2) * omega2**2 - self.l2 * sin(theta2) * omega2_dot \
+                      + self.a * cos(theta3) * omega3**2 + self.a * sin(theta3) * omega3_dot \
+                      + self.b * sin(theta3) * omega3**2 - self.b * cos(theta3) * omega3_dot
+        gamma_2_dot = - self.l1 * cos(theta1) * omega1**2 - self.l1 * sin(theta1) * omega1_dot \
+                      - self.l2 * cos(theta2) * omega2**2 - self.l2 * sin(theta2) * omega2_dot \
+                      - self.a * cos(theta3) * omega3**2 - self.a * sin(theta3) * omega3_dot \
+                      + self.b * sin(theta3) * omega3**2 - self.b * cos(theta3) * omega3_dot
+        gamma_3_dot = - self.l1 * cos(theta1) * omega1**2 - self.l1 * sin(theta1) * omega1_dot \
+                      - self.l2 * cos(theta2) * omega2**2 - self.l2 * sin(theta2) * omega2_dot \
+                      + self.a * cos(theta3) * omega3**2 + self.a * sin(theta3) * omega3_dot \
+                      - self.b * sin(theta3) * omega3**2 + self.b * cos(theta3) * omega3_dot
+        gamma_4_dot = - self.l1 * cos(theta1) * omega1**2 - self.l1 * sin(theta1) * omega1_dot \
+                      - self.l2 * cos(theta2) * omega2**2 - self.l2 * sin(theta2) * omega2_dot \
+                      - self.a * cos(theta3) * omega3**2 - self.a * sin(theta3) * omega3_dot \
+                      - self.b * sin(theta3) * omega3**2 + self.b * cos(theta3) * omega3_dot
+        return np.array([gamma_1_dot, gamma_2_dot, gamma_3_dot, gamma_4_dot])
 
-    # def gamma_T_dot_q(self, t, q, u, u_dot, coo):
-    #     x, y, phi = q
-    #     x_dot, y_dot, phi_dot = u
-    #     x_ddot, y_ddot, phi_ddot = u_dot
-    #     dense = np.array([[0, 0, self.s * sin(phi) * phi_dot**2 - self.s * cos(phi) * phi_ddot]])
-    #     coo.extend(dense, (self.la_TDOF, self.qDOF))
+    def gamma_T_dot_q(self, t, q, u, u_dot, coo):
+        dense = Numerical_derivative(lambda t, q, u: self.gamma_T_dot(t, q, u, u_dot), order=2)._x(t, q, u)
+        coo.extend(dense, (self.la_TDOF, self.qDOF))
         
-    # def gamma_T_dot_u(self, t, q, u, u_dot, coo):
-    #     x, y, phi = q
-    #     x_dot, y_dot, phi_dot = u
-    #     x_ddot, y_ddot, phi_ddot = u_dot
-    #     dense = np.array([[0, 0, - 2 * self.s * cos(phi) * phi_dot]])
-    #     coo.extend(dense, (self.la_TDOF, self.uDOF))
+    def gamma_T_dot_u(self, t, q, u, u_dot, coo):
+        dense = Numerical_derivative(lambda t, q, u: self.gamma_T_dot(t, q, u, u_dot), order=2)._y(t, q, u)
+        coo.extend(dense, (self.la_TDOF, self.uDOF))
 
-    # def xi_T(self, t, q, u_pre, u_post):
-    #     return self.gamma_T(t, q, u_post) + self.e_T * self.gamma_T(t, q, u_pre)
+    def xi_T(self, t, q, u_pre, u_post):
+        return self.gamma_T(t, q, u_post) + self.e_T * self.gamma_T(t, q, u_pre)
     
-    # def xi_T_q(self, t, q, u_pre, u_post, coo):
-    #     gamma_T_q_pre = self.gamma_T_q_dense(t, q, u_pre)
-    #     gamma_T_q_post = self.gamma_T_q_dense(t, q, u_post)
-    #     dense = gamma_T_q_post + self.e_T * gamma_T_q_pre
-    #     coo.extend(dense, (self.la_TDOF, self.qDOF))
+    def xi_T_q(self, t, q, u_pre, u_post, coo):
+        gamma_T_q_pre = self.gamma_T_q_dense(t, q, u_pre)
+        gamma_T_q_post = self.gamma_T_q_dense(t, q, u_post)
+        dense = gamma_T_q_post + np.diag(self.e_T) @ gamma_T_q_pre
+        coo.extend(dense, (self.la_TDOF, self.qDOF))
 
 if __name__ == "__main__":
     animate = True
@@ -306,75 +390,75 @@ if __name__ == "__main__":
     model.add(slider_crank)
     model.assemble()
 
-    # t1 = 1.0
-    t1 = 0.25
-    dt = 1e-3
+    t1 = 0.5
+    dt = 5e-4
 
-    solver = Moreau(model, t1, dt)
-    # solver = Generalized_alpha_2(model, t1, dt, numerical_jacobian=True, newton_tol=1.0e-10)
-    # solver = Generalized_alpha_3(model, t1, dt, numerical_jacobian=False, newton_tol=1.0e-10)
+    # solver = Moreau(model, t1, dt, fix_point_max_iter=5000)
+    # solver = Generalized_alpha_2(model, t1, dt, numerical_jacobian=True, newton_tol=1.0e-8)
+    # solver = Generalized_alpha_3(model, t1, dt, numerical_jacobian=True, newton_tol=1.0e-6)
+    solver = Generalized_alpha_3(model, t1, dt, numerical_jacobian=False, newton_tol=1.0e-8)
     sol = solver.solve()
     t = sol.t
     q = sol.q
     u = sol.u
 
-    # # positions
-    # fig, ax = plt.subplots(3, 3)
-    # ax[0, 0].set_xlabel('t [s]')
-    # ax[0, 0].set_ylabel('theta1 [rad]')
-    # ax[0, 0].plot(t, q[:, 0], '-k')
+    # positions
+    fig, ax = plt.subplots(3, 3)
+    ax[0, 0].set_xlabel('t [s]')
+    ax[0, 0].set_ylabel('theta1 [rad]')
+    ax[0, 0].plot(t, q[:, 0], '-k')
 
-    # ax[0, 1].set_xlabel('t [s]')
-    # ax[0, 1].set_ylabel('theta2 [rad]')
-    # ax[0, 1].plot(t, q[:, 1], '-k')
+    ax[0, 1].set_xlabel('t [s]')
+    ax[0, 1].set_ylabel('theta2 [rad]')
+    ax[0, 1].plot(t, q[:, 1], '-k')
 
-    # ax[0, 2].set_xlabel('t [s]')
-    # ax[0, 2].set_ylabel('theta3 [rad]')
-    # ax[0, 2].plot(t, q[:, 2], '-k')
+    ax[0, 2].set_xlabel('t [s]')
+    ax[0, 2].set_ylabel('theta3 [rad]')
+    ax[0, 2].plot(t, q[:, 2], '-k')
 
-    # # velocities
-    # ax[1, 0].set_xlabel('t [s]')
-    # ax[1, 0].set_ylabel('omega1 [rad/s]')
-    # ax[1, 0].plot(t, u[:, 0], '-k')
+    # velocities
+    ax[1, 0].set_xlabel('t [s]')
+    ax[1, 0].set_ylabel('omega1 [rad/s]')
+    ax[1, 0].plot(t, u[:, 0], '-k')
 
-    # ax[1, 1].set_xlabel('t [s]')
-    # ax[1, 1].set_ylabel('omega2 [rad/s]')
-    # ax[1, 1].plot(t, u[:, 1], '-k')
+    ax[1, 1].set_xlabel('t [s]')
+    ax[1, 1].set_ylabel('omega2 [rad/s]')
+    ax[1, 1].plot(t, u[:, 1], '-k')
 
-    # ax[1, 2].set_xlabel('t [s]')
-    # ax[1, 2].set_ylabel('omega3 [rad/s]')
-    # ax[1, 2].plot(t, u[:, 2], '-k')
+    ax[1, 2].set_xlabel('t [s]')
+    ax[1, 2].set_ylabel('omega3 [rad/s]')
+    ax[1, 2].plot(t, u[:, 2], '-k')
 
-    # # gaps
-    # nt = len(t)
-    # g_N = np.zeros((nt, 4))
-    # g_N_dot = np.zeros((nt, 4))
-    # # gamma_T = np.zeros(nt)
+    # gaps
+    nt = len(t)
+    g_N = np.zeros((nt, 4))
+    g_N_dot = np.zeros((nt, 4))
+    # gamma_T = np.zeros(nt)
 
-    # for i, ti in enumerate(t):
-    #     g_N[i] = slider_crank.g_N(ti, q[i])
-    #     g_N_dot[i] = slider_crank.g_N_dot(ti, q[i], u[i])
-    #     # gamma_T[i] = silder_crank.gamma_T(ti, q[i], u[i])
+    for i, ti in enumerate(t):
+        g_N[i] = slider_crank.g_N(ti, q[i])
+        g_N_dot[i] = slider_crank.g_N_dot(ti, q[i], u[i])
+        # gamma_T[i] = silder_crank.gamma_T(ti, q[i], u[i])
 
-    # ax[2, 0].set_xlabel('t [s]')
-    # ax[2, 0].set_ylabel('g_N [m]')
-    # ax[2, 0].plot(t, g_N[:, 0], '-k', label='g_N1')
-    # ax[2, 0].plot(t, g_N[:, 1], '--k', label='g_N2')
-    # ax[2, 0].plot(t, g_N[:, 2], '-.k', label='g_N3')
-    # ax[2, 0].plot(t, g_N[:, 3], ':k', label='g_N4')
-    # ax[2, 0].legend(shadow=True, fancybox=True)
+    ax[2, 0].set_xlabel('t [s]')
+    ax[2, 0].set_ylabel('g_N [m]')
+    ax[2, 0].plot(t, g_N[:, 0], '-k', label='g_N1')
+    ax[2, 0].plot(t, g_N[:, 1], '--k', label='g_N2')
+    ax[2, 0].plot(t, g_N[:, 2], '-.k', label='g_N3')
+    ax[2, 0].plot(t, g_N[:, 3], ':k', label='g_N4')
+    ax[2, 0].legend(shadow=True, fancybox=True)
 
-    # ax[2, 1].set_xlabel('t [s]')
-    # ax[2, 1].set_ylabel('g_N_dot [m/s]')
-    # ax[2, 1].plot(t, g_N_dot[:, 0], '-k', label='g_N1_dot')
-    # ax[2, 1].plot(t, g_N_dot[:, 1], '--k', label='g_N2_dot')
-    # ax[2, 1].plot(t, g_N_dot[:, 2], '-.k', label='g_N3_dot')
-    # ax[2, 1].plot(t, g_N_dot[:, 3], ':k', label='g_N4_dot')
-    # ax[2, 1].legend(shadow=True, fancybox=True)
+    ax[2, 1].set_xlabel('t [s]')
+    ax[2, 1].set_ylabel('g_N_dot [m/s]')
+    ax[2, 1].plot(t, g_N_dot[:, 0], '-k', label='g_N1_dot')
+    ax[2, 1].plot(t, g_N_dot[:, 1], '--k', label='g_N2_dot')
+    ax[2, 1].plot(t, g_N_dot[:, 2], '-.k', label='g_N3_dot')
+    ax[2, 1].plot(t, g_N_dot[:, 3], ':k', label='g_N4_dot')
+    ax[2, 1].legend(shadow=True, fancybox=True)
 
-    # # ax[2, 2].set_xlabel('t [s]')
-    # # ax[2, 2].set_ylabel('gamma_T [m/s]')
-    # # ax[2, 2].plot(t, gamma_T, '-k')
+    # ax[2, 2].set_xlabel('t [s]')
+    # ax[2, 2].set_ylabel('gamma_T [m/s]')
+    # ax[2, 2].plot(t, gamma_T, '-k')
 
     if not animate:
         plt.show()
@@ -416,7 +500,7 @@ if __name__ == "__main__":
             return line1, line2, line3,
 
         anim = animation.FuncAnimation(fig_anim, animate, frames=frames, interval=interval, blit=False)
-        # plt.show()
+        plt.show()
 
-        writer = animation.writers['ffmpeg'](fps=fps, bitrate=1800)
-        anim.save('slider_crank.mp4', writer=writer)
+        # writer = animation.writers['ffmpeg'](fps=fps, bitrate=1800)
+        # anim.save('slider_crank.mp4', writer=writer)
