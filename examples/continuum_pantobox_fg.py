@@ -2,6 +2,7 @@ from threading import main_thread
 import numpy as np
 import matplotlib.pyplot as plt
 
+from cardillo.discretization.mesh import Mesh
 from cardillo.discretization.mesh3D import Mesh3D, cube
 from cardillo.discretization.mesh2D import Mesh2D, rectangle
 from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume
@@ -18,7 +19,7 @@ def test_cube():
     TractionForce = False
     Gravity = False
     Statics = True
-    Incompressible = False
+    Incompressible = True
     # build mesh
     # degrees = (2, 2, 2)
     # QP_shape = (3, 3, 3)
@@ -26,14 +27,14 @@ def test_cube():
     # element_shape = (2, 2, 2)
     degrees = (3, 3, 3)
     QP_shape = (3, 3, 3)
-    element_shape = (3, 3, 5)
+    element_shape = (2, 2, 4)
 
     Xi = Knot_vector(degrees[0], element_shape[0])
     Eta = Knot_vector(degrees[1], element_shape[1])
     Zeta = Knot_vector(degrees[2], element_shape[2])
     knot_vectors = (Xi, Eta, Zeta)
     
-    mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=1, basis='B-spline', nq_n=3)
+    mesh = Mesh(3, knot_vectors, QP_shape, derivative_order=1, basis='B-spline', nq_n=3)
 
     # reference configuration is a cube
     L = 105
@@ -52,7 +53,7 @@ def test_cube():
         Eta_la = Knot_vector(degrees[1] - 2, element_shape[1])
         Zeta_la = Knot_vector(degrees[2] - 2, element_shape[2])
         knot_vectors_la = (Xi_la, Eta_la, Zeta_la)
-        la_mesh = Mesh3D(knot_vectors_la, QP_shape, derivative_order=0, basis='B-spline', nq_n=1)
+        la_mesh = Mesh(3, knot_vectors_la, QP_shape, derivative_order=0, basis='B-spline', nq_n=1)
     else:
         # mat = Ogden1997_compressible(mu1, mu2)
         mat = Pantobox_linear(68, 0.5*1.5, 10*1.5, 0.3*1.5, 6*1.5)
@@ -151,7 +152,7 @@ def test_cube():
     # exit()
 
     # vtk export
-    continuum.post_processing(sol.t, sol.q, 'pantobox_splines')
+    continuum.post_processing(sol.t, sol.q, 'pantobox_splines_3')
 
 def test_cylinder():    
     # build mesh

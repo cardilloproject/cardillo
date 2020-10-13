@@ -1,7 +1,7 @@
 from threading import main_thread
 import numpy as np
 import matplotlib.pyplot as plt
-
+from cardillo.discretization.lagrange import Knot_vector
 from cardillo.discretization.mesh3D_lagrange import Mesh3D_lagrange, cube
 from cardillo.discretization.mesh2D_lagrange import Mesh2D_lagrange, rectangle
 #from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume
@@ -16,22 +16,34 @@ from cardillo.model.force_distr3D import Force_distr3D
 def test_cube():
     TractionForce = False
     Gravity = False
-    Statics = False
+    Statics = True
     # build mesh
     # degrees = (2, 2, 2)
     # QP_shape = (3, 3, 3)
     # # element_shape = (5, 5, 5)
     # element_shape = (2, 2, 2)
     degrees = (2, 2, 2)
-    QP_shape = (2, 2, 2)
-    element_shape = (2, 2, 4)
-    
-    mesh = Mesh3D_lagrange(degrees, QP_shape, element_shape, derivative_order=1, nq_n=3)
+    QP_shape = (3, 3, 3)
+    element_shape = (2, 2, 2)
+
+    data_xi = [0, 0.1, 1]
+    data_eta = [0, 0.4, 0.7, 1]
+    data_zeta = [0, 0.3, 0.6, 0.8, 1]
+
+    # Xi = Knot_vector(degrees[0], element_shape[0], data=data_xi)
+    # Eta = Knot_vector(degrees[1], element_shape[1], data=data_eta)
+    # Zeta = Knot_vector(degrees[2], element_shape[2], data=data_zeta)
+    Xi = Knot_vector(degrees[0], element_shape[0])
+    Eta = Knot_vector(degrees[1], element_shape[1])
+    Zeta = Knot_vector(degrees[2], element_shape[2])
+    knot_vectors = (Xi, Eta, Zeta)
+
+    mesh = Mesh3D_lagrange(knot_vectors, QP_shape, derivative_order=1, nq_n=3, structured=True)
 
     # reference configuration is a cube
     L = 1
     B = 1
-    H = 4
+    H = 1
     cube_shape = (L, B, H)
     Z = cube(cube_shape, mesh, Fuzz=False)
 
@@ -55,7 +67,7 @@ def test_cube():
             cDOF2 = mesh.surface_qDOF[5][2]
             cDOF = np.concatenate((cDOF1, cDOF2))
             b1 = lambda t: Z[cDOF1]
-            b2 = lambda t: Z[cDOF2] + t * 0.1
+            b2 = lambda t: Z[cDOF2] + t * 0.3
             b = lambda t: np.concatenate((b1(t), b2(t)))
             # cDOF = mesh.surface_qDOF[4].ravel()
             # b = lambda t: Z[cDOF]
@@ -104,8 +116,8 @@ def test_cube():
 
     if Statics:
     # static solver
-        n_load_steps = 10
-        tol = 1.0e-5
+        n_load_steps = 20
+        tol = 1.0e-4
         max_iter = 10
         solver = Newton(model, n_load_steps=n_load_steps, tol=tol, max_iter=max_iter)
 

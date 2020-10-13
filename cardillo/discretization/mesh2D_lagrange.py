@@ -42,24 +42,33 @@ def scatter_Qs(Q):
 
 # Mesh for hexahedral lagrange elements on 2D domain
 class Mesh2D_lagrange():
-    def __init__(self, degrees, nqp_per_dim, nel_per_dim, derivative_order=1, nq_n=3):
+    def __init__(self, knot_vector_objs, nqp_per_dim, derivative_order=1, nq_n=3, structured=True):
         self.basis = 'lagrange'
         self.derivative_order = derivative_order
+        self.structured = structured
 
         # number of quadrature points
         self.nqp_per_dim = nqp_per_dim
         self.nqp_xi, self.nqp_eta = nqp_per_dim
         self.nqp = self.nqp_xi * self.nqp_eta
         
-        self.nel_per_dim = nel_per_dim
+        # knot vectors
+        self.knot_vector_objs = knot_vector_objs
+        self.knot_vectors = [kv.data for kv in knot_vector_objs]
+        self.Xi, self.Eta = knot_vector_objs
+        self.degrees = self.Xi.degree, self.Eta.degree
+        self.degrees1 = np.array(self.degrees) + 1
+        self.p, self.q  = self.degrees
+
+        self.nel_per_dim = (knot_vector_objs[0].nel, knot_vector_objs[1].nel) 
         self.nel_xi, self.nel_eta = self.nel_per_dim
         self.nel = self.nel_xi * self.nel_eta
         self.element_shape = (self.nel_xi, self.nel_eta)
 
-        # polynomial degree
-        self.degrees = degrees
-        self.degrees1 = np.array(self.degrees) + 1
-        self.p, self.q = self.degrees
+        # # polynomial degree
+        # self.degrees = degrees
+        # self.degrees1 = np.array(self.degrees) + 1
+        # self.p, self.q = self.degrees
 
         # number of total nodes
         self.nn = (self.p  * self.nel_xi + 1)  * (self.q * self.nel_eta + 1)
@@ -84,7 +93,7 @@ class Mesh2D_lagrange():
         self.nq_el = self.nn_el * nq_n # total number of generalized coordinates per element
 
         # evaluate edge DOF
-        self.edges()
+        #self.edges()
 
         # construct selection matrix elDOF assigning to each element its DOFs of the displacement
         # q[elDOF[el]] is equivalent to q_e = C^e * q
@@ -107,18 +116,36 @@ class Mesh2D_lagrange():
         # self.surfaces()
 
     def quadrature_points(self):
-        qp_xi, w_xi = gauss(self.nqp_xi)
-        qp_eta, w_eta = gauss(self.nqp_eta)
+        if self.structured is False:
+            qp_xi, w_xi = gauss(self.nqp_xi)
+            qp_eta, w_eta = gauss(self.nqp_eta)
 
-        self.qp_xi = np.tile(qp_xi, (self.nel_xi,1))
-        self.qp_eta = np.tile(qp_eta, (self.nel_eta,1))
+            self.qp_xi = np.tile(qp_xi, (self.nel_xi,1))
+            self.qp_eta = np.tile(qp_eta, (self.nel_eta,1))
 
-        wp = np.zeros(self.nqp)
-        for i in range(self.nqp):
-            i_xi, i_eta = split2D(i, self.nqp_per_dim)
-            wp[i] = w_xi[i_xi] * w_eta[i_eta]
+            wp = np.zeros(self.nqp)
+            for i in range(self.nqp):
+                i_xi, i_eta = split2D(i, self.nqp_per_dim)
+                wp[i] = w_xi[i_xi] * w_eta[i_eta]
 
-        self.wp = np.tile(wp, (self.nel,1))
+            self.wp = np.tile(wp, (self.nel,1))
+
+        else:
+            self.qp_xi = np.zeros((self.nel_xi, self.nqp_xi))
+            self.qp_eta = np.zeros((self.nel_eta, self.nqp_eta))
+            self.wp = np.zeros((self.nel, self.nqp))
+            for el in range(self.nel):
+                el_xi, el_eta = split2D(el, self.nel_per_dim)
+            
+                Xi_element_interval = self.Xi.element_interval(el_xi)
+                Eta_element_interval = self.Eta.element_interval(el_eta)
+
+                self.qp_xi[el_xi], w_xi = gauss(self.nqp_xi, interval=Xi_element_interval)
+                self.qp_eta[el_eta], w_eta = gauss(self.nqp_eta, interval=Eta_element_interval)
+                
+                for i in range(self.nqp):
+                    i_xi, i_eta = split2D(i, self.nqp_per_dim)
+                    self.wp[el, i] = w_xi[i_xi] * w_eta[i_eta]
 
     def shape_functions(self):
         self.N = np.zeros((self.nel, self.nqp, self.nn_el))
@@ -127,13 +154,25 @@ class Mesh2D_lagrange():
             if self.derivative_order > 1:
                 self.N_xixi = np.zeros((self.nel, self.nqp, self.nn_el, 2, 2))
 
-        NN = lagrange_basis2D(self.degrees,(self.qp_xi[0], self.qp_eta[0]))
-        self.N = np.vstack([[NN[:, :, 0]]] * self.nel)
-        if self.derivative_order > 0:
-            self.N_xi = np.vstack([[NN[:, :, range(1, 3)]]] * self.nel)
-            if self.derivative_order > 1:
-                self.N_xixi = np.vstack([[NN[:, :, range(4, 7)].reshape(self.nqp, self.nn_el, 3, 3)]] * self.nel)
+        if self.structured is False:
+            NN = lagrange_basis2D(self.degrees,(self.qp_xi[0], self.qp_eta[0]))
+            self.N = np.vstack([[NN[:, :, 0]]] * self.nel)
+            if self.derivative_order > 0:
+                self.N_xi = np.vstack([[NN[:, :, range(1, 3)]]] * self.nel)
+                if self.derivative_order > 1:
+                    self.N_xixi = np.vstack([[NN[:, :, range(4, 7)].reshape(self.nqp, self.nn_el, 2, 2)]] * self.nel)
     
+        else:
+            for el in range(self.nel):
+                el_xi, el_eta = split2D(el, self.nel_per_dim)
+
+                NN = lagrange_basis2D(self.degrees, (self.qp_xi[el_xi], self.qp_eta[el_eta]), self.derivative_order, self.knot_vector_objs)
+                self.N[el] = NN[:, :, 0]
+                if self.derivative_order > 0:
+                    self.N_xi[el] = NN[:, :, range(1, 3)]
+                    if self.derivative_order > 1:
+                        self.N_xixi[el] = NN[:, :, range(4, 7)].reshape(self.nqp, self.nn_el, 2, 2)
+
     def edges(self):
         def select_edge(**kwargs):
             nn_0 =  kwargs.get('nn_0', range(self.nn_xi))

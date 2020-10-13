@@ -9,7 +9,7 @@ from cardillo.utility.coo import Coo
 
 # Mesh for lagrange elements on 1D domain
 class Mesh1D_lagrange():
-    def __init__(self, degree, nqp, nel, derivative_order=1, nq_n=3):
+    def __init__(self, knot_vector_obj, derivative_order=1, nq_n=3):
         self.basis = 'lagrange'
         self.derivative_order = derivative_order
 

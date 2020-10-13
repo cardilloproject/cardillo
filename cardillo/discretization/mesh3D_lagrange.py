@@ -2,7 +2,7 @@ import numpy as np
 from scipy.sparse.linalg import spsolve
 # from cardillo_fem.discretization.lagrange import lagrange2D, lagrange1D, lagrange3D
 from cardillo.discretization.B_spline import q_to_Pw_3D,  flat3D_vtk
-from cardillo.discretization.lagrange import lagrange_basis3D, lagrange_basis2D, find_element_number
+from cardillo.discretization.lagrange import lagrange_basis3D, lagrange_basis2D, find_element_number, Knot_vector
 from cardillo.math.algebra import inverse2D, determinant2D, inverse3D, determinant3D, quat2rot
 from cardillo.discretization.indexing import flat3D, split3D
 from cardillo.discretization.mesh2D_lagrange import Mesh2D_lagrange
@@ -12,10 +12,14 @@ from cardillo.utility.coo import Coo
 def cube(shape, mesh, Fuzz=None):
     L, B, H = shape
 
-    X = np.linspace(0, L, mesh.nn_xi)
-    Y = np.linspace(0, B, mesh.nn_eta)
-    Z = np.linspace(0, H, mesh.nn_zeta)
-        
+    # X = np.linspace(0, L, mesh.nn_xi)
+    # Y = np.linspace(0, B, mesh.nn_eta)
+    # Z = np.linspace(0, H, mesh.nn_zeta)
+
+    X = mesh.knot_vector_objs[0].data * L
+    Y = mesh.knot_vector_objs[1].data * B
+    Z = mesh.knot_vector_objs[2].data * H
+
     Xs = np.tile(X, mesh.nn_eta * mesh.nn_zeta)
     Ys = np.tile(np.repeat(Y, mesh.nn_xi), mesh.nn_zeta)
     Zs = np.repeat(Z, mesh.nn_eta * mesh.nn_xi)
@@ -46,25 +50,34 @@ def scatter_Qs(Q):
 
 # Mesh for hexahedral lagrange elements on 3D domain
 class Mesh3D_lagrange():
-    def __init__(self, degrees, nqp_per_dim, nel_per_dim, derivative_order=1, nq_n=3):
+    def __init__(self, knot_vector_objs, nqp_per_dim, derivative_order=1, nq_n=3, structured=True):
         self.basis = 'lagrange'
         self.derivative_order = derivative_order
+        self.structured = structured
 
         # number of quadrature points
         self.nqp_per_dim = nqp_per_dim
         self.nqp_xi, self.nqp_eta, self.nqp_zeta = nqp_per_dim
         self.nqp = self.nqp_xi * self.nqp_eta * self.nqp_zeta
 
+        # knot vectors
+        self.knot_vector_objs = knot_vector_objs
+        self.knot_vectors = [kv.data for kv in knot_vector_objs]
+        self.Xi, self.Eta, self.Zeta = knot_vector_objs
+        self.degrees = self.Xi.degree, self.Eta.degree, self.Zeta.degree
+        self.degrees1 = np.array(self.degrees) + 1
+        self.p, self.q, self.r  = self.degrees
+
         
-        self.nel_per_dim = nel_per_dim
+        self.nel_per_dim = (knot_vector_objs[0].nel, knot_vector_objs[1].nel , knot_vector_objs[2].nel) 
         self.nel_xi, self.nel_eta, self.nel_zeta = self.nel_per_dim
         self.nel = self.nel_xi * self.nel_eta * self.nel_zeta
         self.element_shape = (self.nel_xi, self.nel_eta, self.nel_zeta)
 
-        # polynomial degree
-        self.degrees = degrees
-        self.degrees1 = np.array(self.degrees) + 1
-        self.p, self.q, self.r = self.degrees
+        # # polynomial degree
+        # self.degrees = degrees
+        # self.degrees1 = np.array(self.degrees) + 1
+        # self.p, self.q, self.r = self.degrees
 
         # number of total nodes
         self.nn = (self.p * self.nel_xi + 1) * (self.p * self.nel_eta + 1) * (self.r * self.nel_zeta +1 )
@@ -110,20 +123,43 @@ class Mesh3D_lagrange():
         self.surfaces()
 
     def quadrature_points(self):
-        qp_xi, w_xi = gauss(self.nqp_xi)
-        qp_eta, w_eta = gauss(self.nqp_eta)
-        qp_zeta, w_zeta = gauss(self.nqp_zeta)
+        if self.structured is False:
+            qp_xi, w_xi = gauss(self.nqp_xi)
+            qp_eta, w_eta = gauss(self.nqp_eta)
+            qp_zeta, w_zeta = gauss(self.nqp_zeta)
 
-        self.qp_xi = np.tile(qp_xi, (self.nel_xi,1))
-        self.qp_eta = np.tile(qp_eta, (self.nel_eta,1))
-        self.qp_zeta = np.tile(qp_zeta, (self.nel_zeta,1))
+            self.qp_xi = np.tile(qp_xi, (self.nel_xi,1))
+            self.qp_eta = np.tile(qp_eta, (self.nel_eta,1))
+            self.qp_zeta = np.tile(qp_zeta, (self.nel_zeta,1))
 
-        wp = np.zeros(self.nqp)
-        for i in range(self.nqp):
-            i_xi, i_eta, i_zeta = split3D(i, self.nqp_per_dim)
-            wp[i] = w_xi[i_xi] * w_eta[i_eta] * w_zeta[i_zeta]
+            wp = np.zeros(self.nqp)
+            for i in range(self.nqp):
+                i_xi, i_eta, i_zeta = split3D(i, self.nqp_per_dim)
+                wp[i] = w_xi[i_xi] * w_eta[i_eta] * w_zeta[i_zeta]
 
-        self.wp = np.tile(wp, (self.nel,1))
+            self.wp = np.tile(wp, (self.nel,1))
+
+        else:
+            self.qp_xi = np.zeros((self.nel_xi, self.nqp_xi))
+            self.qp_eta = np.zeros((self.nel_eta, self.nqp_eta))
+            self.qp_zeta = np.zeros((self.nel_zeta, self.nqp_zeta))
+            self.wp = np.zeros((self.nel, self.nqp))
+            for el in range(self.nel):
+                el_xi, el_eta, el_zeta = split3D(el, self.nel_per_dim)
+
+                Xi_element_interval = self.Xi.element_interval(el_xi)
+                Eta_element_interval = self.Eta.element_interval(el_eta)
+                Zeta_element_interval = self.Zeta.element_interval(el_zeta)
+
+                self.qp_xi[el_xi], w_xi = gauss(self.nqp_xi, interval=Xi_element_interval)
+                self.qp_eta[el_eta], w_eta = gauss(self.nqp_eta, interval=Eta_element_interval)
+                self.qp_zeta[el_zeta], w_zeta = gauss(self.nqp_zeta, interval=Zeta_element_interval)
+                
+                for i in range(self.nqp):
+                    i_xi, i_eta, i_zeta = split3D(i, self.nqp_per_dim)
+                    self.wp[el, i] = w_xi[i_xi] * w_eta[i_eta] * w_zeta[i_zeta]
+
+
 
     def shape_functions(self):
         self.N = np.zeros((self.nel, self.nqp, self.nn_el))
@@ -131,13 +167,24 @@ class Mesh3D_lagrange():
             self.N_xi = np.zeros((self.nel, self.nqp, self.nn_el, 3))
             if self.derivative_order > 1:
                 self.N_xixi = np.zeros((self.nel, self.nqp, self.nn_el, 3, 3))
+        
+        if self.structured is False:
+            NN = lagrange_basis3D(self.degrees,(self.qp_xi[0], self.qp_eta[0], self.qp_zeta[0]))
+            self.N = np.vstack([[NN[:, :, 0]]] * self.nel)
+            if self.derivative_order > 0:
+                self.N_xi = np.vstack([[NN[:, :, range(1, 4)]]] * self.nel)
+                if self.derivative_order > 1:
+                    self.N_xixi = np.vstack([[NN[:, :, range(4, 13)].reshape(self.nqp, self.nn_el, 3, 3)]] * self.nel)
+        else:
+            for el in range(self.nel):
+                el_xi, el_eta, el_zeta = split3D(el, self.nel_per_dim)
 
-        NN = lagrange_basis3D(self.degrees,(self.qp_xi[0], self.qp_eta[0], self.qp_zeta[0]))
-        self.N = np.vstack([[NN[:, :, 0]]] * self.nel)
-        if self.derivative_order > 0:
-            self.N_xi = np.vstack([[NN[:, :, range(1, 4)]]] * self.nel)
-            if self.derivative_order > 1:
-                self.N_xixi = np.vstack([[NN[:, :, range(4, 13)].reshape(self.nqp, self.nn_el, 3, 3)]] * self.nel)
+                NN = lagrange_basis3D(self.degrees, (self.qp_xi[el_xi], self.qp_eta[el_eta], self.qp_zeta[el_zeta]), self.derivative_order, self.knot_vector_objs)
+                self.N[el] = NN[:, :, 0]
+                if self.derivative_order > 0:
+                    self.N_xi[el] = NN[:, :, range(1, 4)]
+                    if self.derivative_order > 1:
+                        self.N_xixi[el] = NN[:, :, range(4, 13)].reshape(self.nqp, self.nn_el, 3, 3)
 
     #Mass matrix for L2 projection fitting
     def L2_projection_A(self, xis):
@@ -211,11 +258,11 @@ class Mesh3D_lagrange():
             select_surface(nn_2=[self.nn_zeta - 1]), 
         )
 
-        surface01 = Mesh2D_lagrange(self.degrees[1:3], self.nqp_per_dim[1:3], nel_per_dim=self.nel_per_dim[1:3], derivative_order=self.derivative_order, nq_n=self.nq_n)
+        surface01 = Mesh2D_lagrange(self.knot_vector_objs[1:3], self.nqp_per_dim[1:3], derivative_order=self.derivative_order, nq_n=self.nq_n)
 
-        surface23 = Mesh2D_lagrange(self.degrees[::2], self.nqp_per_dim[::2], nel_per_dim=self.nel_per_dim[::2], derivative_order=self.derivative_order, nq_n=self.nq_n)
+        surface23 = Mesh2D_lagrange(self.knot_vector_objs[::2], self.nqp_per_dim[::2], derivative_order=self.derivative_order, nq_n=self.nq_n)
         
-        surface45 = Mesh2D_lagrange(self.degrees[:2], self.nqp_per_dim[:2], nel_per_dim=self.nel_per_dim[:2], derivative_order=self.derivative_order, nq_n=self.nq_n)
+        surface45 = Mesh2D_lagrange(self.knot_vector_objs[:2], self.nqp_per_dim[:2], derivative_order=self.derivative_order, nq_n=self.nq_n)
 
         self.surface_mesh = (surface01, surface01, surface23, surface23, surface45, surface45)
         for i in range(6):
@@ -358,9 +405,18 @@ class Mesh3D_lagrange():
 def test_surface_DOF():
     degrees = (2, 2, 2)
     QP_shape = (3, 4, 2)
-    element_shape = (3, 4, 5)
+    element_shape = (2, 3, 4)
 
-    mesh = Mesh3D_lagrange(degrees, QP_shape, element_shape, derivative_order=1, nq_n=3)
+    data_xi = [0, 0.1, 1]
+    data_eta = [0, 0.5, 0.7, 1]
+    data_zeta = [0, 0.5, 0.6, 0.7, 1]
+
+    Xi = Knot_vector(degrees[0], element_shape[0], data=data_xi)
+    Eta = Knot_vector(degrees[1], element_shape[1], data=data_eta)
+    Zeta = Knot_vector(degrees[2], element_shape[2], data=data_zeta)
+    knot_vectors = (Xi, Eta, Zeta)
+
+    mesh = Mesh3D_lagrange(knot_vectors, QP_shape, derivative_order=1, nq_n=3)
 
     cube_shape = (3, 3, 3)
     Q = cube(cube_shape, mesh, Fuzz=0)
