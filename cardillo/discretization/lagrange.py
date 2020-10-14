@@ -31,7 +31,7 @@ class Knot_vector():
 
         element = np.zeros(lenxi, dtype=int)
         for j in range(lenxi):
-            element[j] = (np.where(self.element_data <= nodes[j])[0][-1] + 1) // (self.degree + 1)
+            element[j] = (np.asarray(self.element_data <= nodes[j]).nonzero()[0][-1]) // (self.degree)
             if nodes[j] == self.data[-1]:
                 element[j] -= 1
         if lenxi == 1:
@@ -224,7 +224,7 @@ def __lagrange(x, degree, skip=[], interval=[-1, 1]):
 
     return l
 
-def __lagrange_x(x, degree, interval=[-1,1]):
+def __lagrange_x(x, degree, interval=[-1, 1]):
     """First derivative of 1D Lagrange shape functions, see https://en.wikipedia.org/wiki/Lagrange_polynomial#Derivatives.
 
     Parameter

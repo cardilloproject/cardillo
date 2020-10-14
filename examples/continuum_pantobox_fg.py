@@ -19,7 +19,7 @@ def test_cube():
     TractionForce = False
     Gravity = False
     Statics = True
-    Incompressible = True
+    Incompressible = False
     # build mesh
     # degrees = (2, 2, 2)
     # QP_shape = (3, 3, 3)

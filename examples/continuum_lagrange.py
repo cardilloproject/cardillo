@@ -1,10 +1,11 @@
 from threading import main_thread
 import numpy as np
 import matplotlib.pyplot as plt
+from cardillo.discretization import Mesh
 from cardillo.discretization.lagrange import Knot_vector
 from cardillo.discretization.mesh3D_lagrange import Mesh3D_lagrange, cube
 from cardillo.discretization.mesh2D_lagrange import Mesh2D_lagrange, rectangle
-#from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume
+# from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume
 from cardillo.discretization.indexing import flat3D
 from cardillo.model.continuum import Ogden1997_compressible, First_gradient
 from cardillo.solver import Newton, Generalized_alpha_1, Euler_backward
@@ -12,6 +13,7 @@ from cardillo.model import Model
 from cardillo.math.algebra import A_IK_basic_z
 from cardillo.model.force_distr2D import Force_distr2D
 from cardillo.model.force_distr3D import Force_distr3D
+
 
 def test_cube():
     TractionForce = False
@@ -22,23 +24,24 @@ def test_cube():
     # QP_shape = (3, 3, 3)
     # # element_shape = (5, 5, 5)
     # element_shape = (2, 2, 2)
-    degrees = (2, 2, 2)
-    QP_shape = (3, 3, 3)
-    element_shape = (2, 2, 2)
+    degrees = (1, 2, 3)
+    QP_shape = (2, 3, 4)
+    element_shape = (2, 3, 4)
 
     data_xi = [0, 0.1, 1]
-    data_eta = [0, 0.4, 0.7, 1]
-    data_zeta = [0, 0.3, 0.6, 0.8, 1]
+    data_eta = [0, 0.4, 0.5, 1]
+    data_zeta = [0, 0.6, 0.7, 0.8, 1]
 
-    # Xi = Knot_vector(degrees[0], element_shape[0], data=data_xi)
-    # Eta = Knot_vector(degrees[1], element_shape[1], data=data_eta)
-    # Zeta = Knot_vector(degrees[2], element_shape[2], data=data_zeta)
-    Xi = Knot_vector(degrees[0], element_shape[0])
-    Eta = Knot_vector(degrees[1], element_shape[1])
-    Zeta = Knot_vector(degrees[2], element_shape[2])
+    Xi = Knot_vector(degrees[0], element_shape[0], data=data_xi)
+    Eta = Knot_vector(degrees[1], element_shape[1], data=data_eta)
+    Zeta = Knot_vector(degrees[2], element_shape[2], data=data_zeta)
+    # Xi = Knot_vector(degrees[0], element_shape[0])
+    # Eta = Knot_vector(degrees[1], element_shape[1])
+    # Zeta = Knot_vector(degrees[2], element_shape[2])
     knot_vectors = (Xi, Eta, Zeta)
 
-    mesh = Mesh3D_lagrange(knot_vectors, QP_shape, derivative_order=1, nq_n=3, structured=True)
+    mesh = Mesh(3, knot_vectors, QP_shape, derivative_order=1, basis='lagrange',
+                nq_n=3, structured=True)
 
     # reference configuration is a cube
     L = 1
@@ -75,12 +78,14 @@ def test_cube():
         cDOF_xi = mesh.surface_qDOF[4][0]
         cDOF_eta = mesh.surface_qDOF[4][1]
         cDOF_zeta = mesh.surface_qDOF[4][2]
-        cDOF = np.concatenate((cDOF_xi, cDOF_eta, cDOF_zeta))
+        cDOF_zeta2 = mesh.surface_qDOF[5][2]
+        cDOF = np.concatenate((cDOF_xi, cDOF_eta, cDOF_zeta, cDOF_zeta2))
         Omega = 2 * np.pi
-        b_xi = lambda t: Z[cDOF_xi] + 0.01 * np.sin(Omega * t)
+        b_xi = lambda t: Z[cDOF_xi] #* np.sin(Omega * t)
         b_eta = lambda t: Z[cDOF_eta]
         b_zeta = lambda t: Z[cDOF_zeta]
-        b = lambda t: np.concatenate((b_xi(t), b_eta(t), b_zeta(t)))
+        b_zeta2 = lambda t: Z[cDOF_zeta2] + 0.3 * t
+        b = lambda t: np.concatenate((b_xi(t), b_eta(t), b_zeta(t), b_zeta2(t)))
 
 
     # 3D continuum
@@ -122,8 +127,8 @@ def test_cube():
         solver = Newton(model, n_load_steps=n_load_steps, tol=tol, max_iter=max_iter)
 
     else:
-        t1 = 10
-        dt = 5e-3
+        t1 = 1
+        dt = 1e-1
         # solver = Generalized_alpha_1(model, t1, dt=dt, variable_dt=False, rho_inf=0.25)
         solver = Euler_backward(model, t1, dt)
 

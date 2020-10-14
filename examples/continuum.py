@@ -1,7 +1,7 @@
 from threading import main_thread
 import numpy as np
 import matplotlib.pyplot as plt
-
+from cardillo.discretization import Mesh
 from cardillo.discretization.mesh3D import Mesh3D, cube
 from cardillo.discretization.mesh2D import Mesh2D, rectangle
 from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume
@@ -24,7 +24,7 @@ def test_cube():
     # QP_shape = (3, 3, 3)
     # # element_shape = (5, 5, 5)
     # element_shape = (2, 2, 2)
-    degrees = (3, 3, 3)
+    degrees = (2, 2, 2)
     QP_shape = (2, 2, 2)
     element_shape = (2, 2, 2)
 
@@ -33,7 +33,7 @@ def test_cube():
     Zeta = Knot_vector(degrees[2], element_shape[2])
     knot_vectors = (Xi, Eta, Zeta)
     
-    mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=1, basis='B-spline', nq_n=3)
+    mesh = Mesh(3, knot_vectors, QP_shape, derivative_order=1, basis='B-spline', nq_n=3)
 
     # reference configuration is a cube
     L = 1
@@ -48,9 +48,9 @@ def test_cube():
 
     if Incompressible:
         mat = Ogden1997_incompressible(mu1)
-        Xi_la = Knot_vector(degrees[0] - 2, element_shape[0])
-        Eta_la = Knot_vector(degrees[1] - 2, element_shape[1])
-        Zeta_la = Knot_vector(degrees[2] - 2, element_shape[2])
+        Xi_la = Knot_vector(degrees[0] - 1, element_shape[0])
+        Eta_la = Knot_vector(degrees[1] - 1, element_shape[1])
+        Zeta_la = Knot_vector(degrees[2] - 1, element_shape[2])
         knot_vectors_la = (Xi_la, Eta_la, Zeta_la)
         la_mesh = Mesh3D(knot_vectors_la, QP_shape, derivative_order=0, basis='B-spline', nq_n=1)
     else:
