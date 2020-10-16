@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 import numpy as np
 from math import sqrt, log, isclose
-from cardillo.math.algebra import determinant2D, determinant3D
+from cardillo.math.algebra import determinant2D, determinant3D, inverse3D
 from cardillo.math.numerical_derivative import Numerical_derivative
 
 class Material_model_ev(ABC):
@@ -139,15 +139,14 @@ class Ogden1997_incompressible():
         I1 = sum(la2)
         I3 = np.prod(la2)
 
-        return self.mu / 2 * (I1 - 3)
+        return self.mu / 2 * (I3**(-1 / 3) * I1 - 3)
 
     def S(self, F):
-        La, u = np.linalg.eigh(F.T @ F)
+        C = F.T @ F
+        la2, _ = np.linalg.eigh(C)
 
-        S = np.zeros_like(F)
-        for i in range(len(La)):
-            Si = self.mu
-            S += Si * np.outer(u[:, i], u[:, i])
+        S = self.mu * np.prod(la2)**(-1 / 3) * (np.eye(3) - 1 / 3 * sum(la2) * inverse3D(C))
+
         return S
 
     def S_F(self, F):

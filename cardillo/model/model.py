@@ -63,6 +63,11 @@ class Model(object):
     def pop(self, index):
         self.contributions.pop(index)
 
+    def update(self, t, q):
+        for contr in self.contributions:
+            if callable(getattr(contr, 'update', None)):
+                contr.update(t, q)
+
     def assemble(self):
         self.nq = 0
         self.nu = 0

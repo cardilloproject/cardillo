@@ -7,37 +7,39 @@ from cardillo.discretization.mesh3D_lagrange import Mesh3D_lagrange, cube
 from cardillo.discretization.mesh2D_lagrange import Mesh2D_lagrange, rectangle
 # from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume
 from cardillo.discretization.indexing import flat3D
-from cardillo.model.continuum import Ogden1997_compressible, First_gradient
+from cardillo.model.continuum import Ogden1997_compressible, First_gradient, Ogden1997_incompressible
 from cardillo.solver import Newton, Generalized_alpha_1, Euler_backward
 from cardillo.model import Model
 from cardillo.math.algebra import A_IK_basic_z
 from cardillo.model.force_distr2D import Force_distr2D
 from cardillo.model.force_distr3D import Force_distr3D
+from cardillo.model.bilateral_constraints.implicit.incompressibility import Incompressibility
 
 
 def test_cube():
     TractionForce = False
     Gravity = False
     Statics = True
+    Incompressible = True
     # build mesh
     # degrees = (2, 2, 2)
     # QP_shape = (3, 3, 3)
     # # element_shape = (5, 5, 5)
     # element_shape = (2, 2, 2)
-    degrees = (1, 2, 3)
-    QP_shape = (2, 3, 4)
-    element_shape = (2, 3, 4)
+    degrees = (2, 2, 2)
+    QP_shape = (3, 3, 3)
+    element_shape = (2, 2, 2)
 
     data_xi = [0, 0.1, 1]
     data_eta = [0, 0.4, 0.5, 1]
     data_zeta = [0, 0.6, 0.7, 0.8, 1]
 
-    Xi = Knot_vector(degrees[0], element_shape[0], data=data_xi)
-    Eta = Knot_vector(degrees[1], element_shape[1], data=data_eta)
-    Zeta = Knot_vector(degrees[2], element_shape[2], data=data_zeta)
-    # Xi = Knot_vector(degrees[0], element_shape[0])
-    # Eta = Knot_vector(degrees[1], element_shape[1])
-    # Zeta = Knot_vector(degrees[2], element_shape[2])
+    # Xi = Knot_vector(degrees[0], element_shape[0], data=data_xi)
+    # Eta = Knot_vector(degrees[1], element_shape[1], data=data_eta)
+    # Zeta = Knot_vector(degrees[2], element_shape[2], data=data_zeta)
+    Xi = Knot_vector(degrees[0], element_shape[0])
+    Eta = Knot_vector(degrees[1], element_shape[1])
+    Zeta = Knot_vector(degrees[2], element_shape[2])
     knot_vectors = (Xi, Eta, Zeta)
 
     mesh = Mesh(3, knot_vectors, QP_shape, derivative_order=1, basis='lagrange',
@@ -53,7 +55,15 @@ def test_cube():
     # material model
     mu1 = 0.3 # * 1e3
     mu2 = 0.5 # * 1e3
-    mat = Ogden1997_compressible(mu1, mu2)
+    if Incompressible:
+        mat = Ogden1997_incompressible(mu1)
+        Xi_la = Knot_vector(degrees[0] - 0, element_shape[0])
+        Eta_la = Knot_vector(degrees[1] - 0, element_shape[1])
+        Zeta_la = Knot_vector(degrees[2] - 0, element_shape[2])
+        knot_vectors_la = (Xi_la, Eta_la, Zeta_la)
+        la_mesh = Mesh(3,knot_vectors_la, QP_shape, derivative_order=0, basis='lagrange', nq_n=1)
+    else:
+        mat = Ogden1997_compressible(mu1, mu2)
 
     density = 1e-2
 
@@ -97,6 +107,10 @@ def test_cube():
     model = Model()
     model.add(continuum)
 
+    if Incompressible:
+        incompressibility = Incompressibility(continuum, la_mesh)
+        model.add(incompressibility)
+
     if TractionForce:
         # F = lambda t, xi, eta: t * np.array([-2.5e0, 0, 0]) * (0.25 - (xi-0.5)**2) * (0.25 - (eta-0.5)**2)
         # model.add(Force_distr2D(F, continuum, 1))
@@ -121,7 +135,7 @@ def test_cube():
 
     if Statics:
     # static solver
-        n_load_steps = 20
+        n_load_steps = 10
         tol = 1.0e-4
         max_iter = 10
         solver = Newton(model, n_load_steps=n_load_steps, tol=tol, max_iter=max_iter)

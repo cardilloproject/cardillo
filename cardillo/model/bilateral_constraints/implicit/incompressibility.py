@@ -17,14 +17,16 @@ class Incompressibility():
     def g_el(self, t, qe, el):
         ge = np.zeros(self.la_mesh.nn_el)
         for i in range(self.mesh.nqp):
-            F_qp = np.zeros((self.subsystem.dim, self.subsystem.dim))
-            for a in range(self.mesh.nn_el):
-                qa = qe[self.mesh.nodalDOF[a]]
-                F_qp += np.outer(qa, self.subsystem.N_X[el, i, a])
-
+            w_J0 = self.subsystem.w_J0[el, i]
+            N_la_eli = self.la_mesh.N[el, i]
+            # F_qp = np.zeros((self.subsystem.dim, self.subsystem.dim))
+            # for a in range(self.mesh.nn_el):
+            #     qa = qe[self.mesh.nodalDOF[a]]
+            #     F_qp += np.outer(qa, self.subsystem.N_X[el, i, a])
+            F_qp = self.subsystem.F[el, i]
             detF = determinant(F_qp)
             for a_tilde in range(self.la_mesh.nn_el):
-                ge[a_tilde] += self.la_mesh.N[el, i, a_tilde] * (detF - 1) * self.subsystem.w_J0[el, i]
+                ge[a_tilde] += N_la_eli[a_tilde] * (detF - 1) * w_J0
        
         return ge
 
@@ -42,16 +44,19 @@ class Incompressibility():
     def g_el_q(self, t, qe, el):
         ge_q = np.zeros((self.la_mesh.nn_el, qe.shape[0]))
         for i in range(self.mesh.nqp):
-            F_qp = np.zeros((self.subsystem.dim, self.subsystem.dim))
-            for a in range(self.mesh.nn_el):
-                qa = qe[self.mesh.nodalDOF[a]]
-                F_qp += np.outer(qa, self.subsystem.N_X[el, i, a])
-
+            N_la_eli = self.la_mesh.N[el, i]
+            w_J0 = self.subsystem.w_J0[el, i]
+            N_X_eli = self.subsystem.N_X[el, i]
+            # F_qp = np.zeros((self.subsystem.dim, self.subsystem.dim))
+            # for a in range(self.mesh.nn_el):
+            #     qa = qe[self.mesh.nodalDOF[a]]
+            #     F_qp += np.outer(qa, self.subsystem.N_X[el, i, a])
+            F_qp = self.subsystem.F[el, i]
             F_inv = inverse(F_qp)
             detF = determinant(F_qp)
             for a in range(self.mesh.nn_el):
                 for a_tilde in range(self.la_mesh.nn_el):
-                    ge_q[np.ix_(np.array([a_tilde]), self.mesh.nodalDOF[a])] += self.la_mesh.N[el, i, a_tilde] * detF * np.einsum('kl,l', F_inv.T,  self.subsystem.N_X[el, i, a]) * self.subsystem.w_J0[el, i]
+                    ge_q[np.ix_(np.array([a_tilde]), self.mesh.nodalDOF[a])] += N_la_eli[a_tilde] * detF * np.einsum('kl,l', F_inv.T,  N_X_eli[a]) * w_J0
         
         return ge_q
 
@@ -66,22 +71,23 @@ class Incompressibility():
         return g_q[:, self.subsystem.fDOF]
 
     def g_q(self, t, q, coo):
-        coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.subsystem.qDOF))
+        coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
 
     def W_g(self, t, q, coo):
-        coo.extend(self.g_q_dense(t, q).T, (self.subsystem.qDOF, self.la_gDOF))
+        coo.extend(self.g_q_dense(t, q).T, (self.qDOF, self.la_gDOF))
         
     def Wla_g_q_el(self, t, qel, lael, el):
         Wla_g_q_el = np.zeros((qel.shape[0], qel.shape[0]))
         for i in range(self.mesh.nqp):
-            F_qp = np.zeros((self.subsystem.dim, self.subsystem.dim))
+            # F_qp = np.zeros((self.subsystem.dim, self.subsystem.dim))
             dF_dq = np.zeros((self.subsystem.dim, self.subsystem.dim, self.mesh.nq_n * self.mesh.nn_el))
             for a in range(self.mesh.nn_el):
                 # TODO: reference
-                qa = qel[self.mesh.nodalDOF[a]]
-                F_qp += np.outer(qa, self.subsystem.N_X[el, i, a])
+                # qa = qel[self.mesh.nodalDOF[a]]
+                # F_qp += np.outer(qa, self.subsystem.N_X[el, i, a])
                 dF_dq[:, :, self.mesh.nodalDOF[a]] += np.einsum('ik,j->ijk', np.eye(self.subsystem.dim), self.subsystem.N_X[el, i, a])
             
+            F_qp = self.subsystem.F[el, i]
             F_inv = inverse(F_qp)
             detF = determinant(F_qp)
             dJFinvT_dqe = detF * np.einsum('klmn, mnj->klj', (np.einsum('nm,lk->klmn', F_inv, F_inv) - np.einsum('lm,nk->klmn', F_inv, F_inv)),  dF_dq)

@@ -155,37 +155,48 @@ class First_gradient():
         with open(filename + '.pvd', "w") as f:
             f.write(xml_str)
 
-    def F(self, knots, q):
-        raise NotImplementedError('adapt with z(t, q)')
-        n = len(knots)
-        F = np.zeros((n, self.dim, self.dim))
+    def F_qp(self, q):
+        F = np.zeros((self.nel, self.nqp, self.dim, self.dim))
+        for el in range(self.nel):
+            qel = q[self.elDOF[el]]
+            for i in range(self.mesh.nqp):
+                for a in range(self.nn_el):
+                    F[el, i] += np.outer(qel[self.nodalDOF[a]], self.N_X[el, i, a])
 
-        for i, (xi, eta, zeta) in enumerate(knots):
-            el_xi = self.mesh.Xi.element_number(xi)[0]
-            el_eta = self.mesh.Eta.element_number(eta)[0]
-            el_zeta = self.mesh.Zeta.element_number(zeta)[0]
-            el = flat3D(el_xi, el_eta, el_zeta, self.mesh.nel_per_dim)
-            elDOF = self.elDOF[el]
-            qe = q[elDOF]
-            Qe = self.Z[elDOF]
+        self.F = F
 
-            # evaluate shape functions
-            NN = B_spline_basis3D(self.mesh.degrees, 1, self.mesh.knot_vectors, (xi, eta, zeta))
-            N_xi = NN[0, :, 1:4]
+        # raise NotImplementedError('adapt with z(t, q)')
+        # n = len(knots)
+        # F = np.zeros((n, self.dim, self.dim))
 
-            # reference mapping gradient w.r.t. parameter space
-            kappa0_xi = np.zeros((self.mesh.nq_n, self.mesh.nq_n))
-            for a in range(self.mesh.nn_el):
-                kappa0_xi += np.outer(Qe[self.mesh.nodalDOF[a]], N_xi[a]) # Bonet 1997 (7.6b)
+        # for i, (xi, eta, zeta) in enumerate(knots):
+        #     el_xi = self.mesh.Xi.element_number(xi)[0]
+        #     el_eta = self.mesh.Eta.element_number(eta)[0]
+        #     el_zeta = self.mesh.Zeta.element_number(zeta)[0]
+        #     el = flat3D(el_xi, el_eta, el_zeta, self.mesh.nel_per_dim)
+        #     elDOF = self.elDOF[el]
+        #     qe = q[elDOF]
+        #     Qe = self.Z[elDOF]
+
+        #     # evaluate shape functions
+        #     NN = B_spline_basis3D(self.mesh.degrees, 1, self.mesh.knot_vectors, (xi, eta, zeta))
+        #     N_xi = NN[0, :, 1:4]
+
+        #     # reference mapping gradient w.r.t. parameter space
+        #     kappa0_xi = np.zeros((self.mesh.nq_n, self.mesh.nq_n))
+        #     for a in range(self.mesh.nn_el):
+        #         kappa0_xi += np.outer(Qe[self.mesh.nodalDOF[a]], N_xi[a]) # Bonet 1997 (7.6b)
             
-            for a in range(self.mesh.nn_el):
-                self.N_X[el, i, a] = N_xi[a] @ inverse3D(kappa0_xi) # Bonet 1997 (7.6a) modified
+        #     for a in range(self.mesh.nn_el):
+        #         self.N_X[el, i, a] = N_xi[a] @ inverse3D(kappa0_xi) # Bonet 1997 (7.6a) modified
 
-            for a in range(self.mesh.nn_el):
-                F[i] += np.outer(qe[self.mesh.nodalDOF[a]], self.N_X[el, i, a]) # Bonet 1997 (7.5)
+        #     for a in range(self.mesh.nn_el):
+        #         F[i] += np.outer(qe[self.mesh.nodalDOF[a]], self.N_X[el, i, a]) # Bonet 1997 (7.5)
 
-        return F
+        # return F
 
+    def update(self,t, q):
+        self.F_qp(self.z(t, q))
     #########################################
     # kinematic equation
     #########################################

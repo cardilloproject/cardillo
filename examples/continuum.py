@@ -1,6 +1,9 @@
 from threading import main_thread
 import numpy as np
 import matplotlib.pyplot as plt
+import os
+import os.path
+import pickle
 from cardillo.discretization import Mesh
 from cardillo.discretization.mesh3D import Mesh3D, cube
 from cardillo.discretization.mesh2D import Mesh2D, rectangle
@@ -14,18 +17,29 @@ from cardillo.model.force_distr2D import Force_distr2D
 from cardillo.model.force_distr3D import Force_distr3D
 from cardillo.model.bilateral_constraints.implicit.incompressibility import Incompressibility
 
+def save_solution(sol, filename):
+    import pickle
+    with open(filename, mode='wb') as f:
+        pickle.dump(sol, f)
+
 def test_cube():
+
+    path_name, file_name = [x[0] for x in map(os.path.splitext, os.path.split(__file__)) ]
+    export_dir = os.path.join(path_name, 'results', file_name)
+    export_path = os.path.join(export_dir, 'sol')
+
     TractionForce = False
     Gravity = False
     Statics = True
     Incompressible = True
+    save_sol = True
     # build mesh
     # degrees = (2, 2, 2)
     # QP_shape = (3, 3, 3)
     # # element_shape = (5, 5, 5)
     # element_shape = (2, 2, 2)
     degrees = (2, 2, 2)
-    QP_shape = (2, 2, 2)
+    QP_shape = (3, 3, 3)
     element_shape = (2, 2, 2)
 
     Xi = Knot_vector(degrees[0], element_shape[0])
@@ -124,8 +138,8 @@ def test_cube():
 
     if Statics:
     # static solver
-        n_load_steps = 10
-        tol = 1.0e-5
+        n_load_steps = 20
+        tol = 1.0e-8
         max_iter = 10
         solver = Newton(model, n_load_steps=n_load_steps, tol=tol, max_iter=max_iter)
 
@@ -135,10 +149,43 @@ def test_cube():
         # solver = Generalized_alpha_1(model, t1, dt=dt, variable_dt=False, rho_inf=0.25)
         solver = Euler_backward(model, t1, dt)
 
+
+    if save_sol:
+        sol = solver.solve()
+        # export solution object
+        if not os.path.exists(export_dir):
+            os.makedirs(export_dir)
+        save_solution(sol, export_path)
+    else:
+        sol = pickle.load( open(export_path, 'rb') )
+
+    import matplotlib.pyplot as plt
+
+    fig = plt.figure()
+    ax = fig.gca(projection='3d')
+    ax.scatter(*model.contributions[0].z(sol.t[-1], sol.q[-1]).reshape(3,-1))
+    z = model.contributions[0].z(sol.t[-1], sol.q[-1])
+    model.contributions[0].F_qp(z)
+    F = model.contributions[0].F
+    J = list(map(np.linalg.det, F.reshape(-1,3,3)))
+    plt.figure()
+    plt.plot(np.array(J))
+
+    z_y = z[mesh.nn:2*mesh.nn:mesh.nn_xi*mesh.nn_eta]
+
+    plt.figure()
+    from scipy.interpolate import BSpline
+    Spline = BSpline(Zeta.data, z_y, 2)
+
+    xx = np.linspace(0,1,20)
+
+    plt.plot(xx,Spline(xx))
+
+    plt.show()
     # import cProfile, pstats
     # pr = cProfile.Profile()
     # pr.enable()
-    sol = solver.solve()
+    # sol = solver.solve()
     # pr.disable()
 
     # sortby = 'cumulative'
