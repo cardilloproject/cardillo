@@ -519,7 +519,7 @@ if __name__ == "__main__":
 
     # boundary conditions
     # excitation function
-    displ = 1 * H / 10
+    displ = 4 * H / 10
 
     n_excited_fibers = ceil(nRow / 2 + 1)
 
@@ -573,7 +573,9 @@ if __name__ == "__main__":
 
     ax.plot(x, y)
     ax.grid()
-    plt.savefig(f'excitation_{nRow}x{nCol}_c1_{int(c1*1e3)}e-3_displ_{int(displ*1e3)}e-3')
+    plt.savefig(f'excitation_{nRow}x{nCol}_c1_{int(c1*1e3)}e-3_displ_{int(displ*1e3)}e-3.eps', format='eps')
+    plt.savefig(f'excitation_{nRow}x{nCol}_c1_{int(c1*1e3)}e-3_displ_{int(displ*1e3)}e-3.png', format='png')
+
 
 
     plt.show()
@@ -622,6 +624,7 @@ if __name__ == "__main__":
     else:
         if dynamics == True:
             sol = load_solution(f'Pantographic_sheet_{nRow}x{nCol}_c1_{c1}_displ_{int(displ*1e3)}e-3_')
+
         else:
             sol = load_solution(f'Pantographic_sheet_{nRow}x{nCol}_statics')
 
@@ -806,7 +809,8 @@ if __name__ == "__main__":
         # ax5[1].set_ylabel('displacement y-direction [m]')
         # ax5[1].grid()
 
-        plt.savefig(f'centerline_displacement_{nRow}x{nCol}_c1_{int(c1*1e3)}e-3_displ_{int(displ*1e3)}e-3')
+        plt.savefig(f'centerline_displacement_{nRow}x{nCol}_c1_{int(c1*1e3)}e-3_displ_{int(displ*1e3)}e-3.eps', format='eps')
+        plt.savefig(f'centerline_displacement_{nRow}x{nCol}_c1_{int(c1*1e3)}e-3_displ_{int(displ*1e3)}e-3.png', format='png')
 
     plt.show()
 
