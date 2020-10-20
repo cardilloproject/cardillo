@@ -485,23 +485,23 @@ if __name__ == "__main__":
 
 ###############################################################################################
     # time simulation parameters
-    t1 = 6.3e-2                      # simulation time
+    t1 = 7e-2                      # simulation time
     dt = 4e-5                           # time step
     rho_inf = 0.8                       # damping parameter generalized-alpha integrator
+
+    # geometric parameters
+    gamma = pi/4                        # angle between fiber families
+    nRow = 20                           # number of rows = 2 * number of fibers per height
+    nCol = 800                        # number of columns = 2 * number of fibers per length
+
+    H = 0.07                            # height of pantographic sheet
+    LBeam = H / (nRow * sin(gamma))     # length of individual beam
+    L = nCol * LBeam * cos(gamma)       # length of pantographic sheet
 
     # beam finite element parameters
     p = 3                               # polynomial degree
     nQP = p + 2                         # number of quadrature points
     nEl = 1                             # number of elements per beam
-
-    # geometric parameters
-    gamma = pi/4                        # angle between fiber families
-    nRow = 20                           # number of rows = 2 * number of fibers per height
-    nCol = 400                        # number of columns = 2 * number of fibers per length
-
-    H = 0.07                            # height of pantographic sheet
-    LBeam = H / (nRow * sin(gamma))     # length of individual beam
-    L = nCol * LBeam * cos(gamma)       # length of pantographic sheet
     
     # material prameters
     Yb = 500e6                          # Young's modulus material
@@ -518,50 +518,32 @@ if __name__ == "__main__":
     A_rho0 = 930 * a * b                # density per unit length
 
     # boundary conditions
-    # excitation function
-    displ = 4 * H / 10
-
-    n_excited_fibers = ceil(nRow / 2 + 1)
-
-    r_OP_l = []
-
-    # if load_excitation:
-    #     u_x = load_solution(f'displacement_x')
-    #     u_y = load_solution(f'displacement_y')
-    #     time = load_solution(f'time')
-
-
-    #     fig, ax = plt.subplots(2, 1)
-    #     fig.suptitle('displacements', fontsize=16)
-
-    #     for i in range(len(u_x)):
-    #         ax[0].plot(time, u_x[i], label=f'Row {i}')
-    #         ax[1].plot(time, u_y[i], label=f'Row {i}')
-
-
-    #     ax[0].set_xlabel('time t [s]')
-    #     ax[0].set_ylabel('displacement x-direction [m]')
-    #     ax[0].grid()
-    #     ax[0].legend()
-        
-    #     ax[1].set_xlabel('time t [s]')
-    #     ax[1].set_ylabel('displacement y-direction [m]')
-    #     ax[1].grid()
-    #     ax[1].legend()
-
-    #     plt.show()
-
-    #     for i in range(n_excited_fibers):       
-    #         r_OP_l.append(lambda t, k=i: np.array([interp1d(time, u_x[k])([t])[0],
-    #                                   interp1d(time, u_y[k])([t])[0],
-    #                                   0]))
-    # else:
-
-    c1 = 0.008
-    c2 = 0.033     # center of bell
-
+    # Gaussian excitation
+    displ = 2 * H / 10
+    c1 = 0.005    # c1 = sqrt(2)*std
+    c2 = 0.02     # center of bell
     fcn = lambda t: displ * np.exp(-(t-c2)**2/c1**2)
 
+    # generate directories
+    # import the os module
+    import os
+    # detect the current working directory and print it
+    working_path = os.getcwd()
+    # print ("The current working directory is %s" % path)
+
+    # define the name of the directory to be created
+    # file name label
+    fn_label = f'c1_{int(c1*1e3)}e-3_displ_{int(displ*1e3)}e-3'
+    path = working_path + f'\\c1_{int(c1*1e3)}e-3\\' + fn_label
+
+    try:
+        os.makedirs(path)
+    except OSError:
+        print ("Creation of the directory %s failed" % path)
+    else:
+        print ("Successfully created the directory %s " % path)
+
+    # plot excitation function
     fig, ax = plt.subplots()
     ax.set_xlabel('time t [s]')
     ax.set_ylabel('displacement [m]')
@@ -573,15 +555,12 @@ if __name__ == "__main__":
 
     ax.plot(x, y)
     ax.grid()
-    plt.savefig(f'excitation_{nRow}x{nCol}_c1_{int(c1*1e3)}e-3_displ_{int(displ*1e3)}e-3.eps', format='eps')
-    plt.savefig(f'excitation_{nRow}x{nCol}_c1_{int(c1*1e3)}e-3_displ_{int(displ*1e3)}e-3.png', format='png')
 
-
+    # save excitation function
+    plt.savefig(path + f'\\excitation_' + fn_label + '.eps', format='eps')
+    plt.savefig(path + f'\\excitation_' + fn_label + '.png', format='png')
 
     plt.show()
-    # for i in range(n_excited_fibers):       
-    #         r_OP_l.append(lambda t, k=i: np.array([fcn(t), 0, 0]))
-    
 
     rotationZ_l = 0
     rotationZ_r = 0
@@ -605,7 +584,9 @@ if __name__ == "__main__":
         solver = Generalized_alpha_index3_panto(model, t1, dt, rho_inf=rho_inf)
     else:
         solver = Newton(model, n_load_steps=5, max_iter=50, tol=1.0e-10, numerical_jacobian=False)
-        
+
+    
+
     # solve or load problem
     if solve_problem:
         # import cProfile, pstats
@@ -617,28 +598,43 @@ if __name__ == "__main__":
         # sortby = 'cumulative'
         # ps = pstats.Stats(pr).sort_stats(sortby)
         # ps.print_stats(0.1) # print only first 10% of the list
+
+        # prepare data for storage, animation and paraview export
+        slow_motion_factor = 100
+        animation_time = t1 * slow_motion_factor
+        fps = 25
+        frames = int(min(sol.q.shape[0], fps * animation_time))
+        frac = int(sol.q.shape[0] / frames)
+        interval = animation_time * 1000 / frames # delay between frams in milliseconds
+
+        sol.t = sol.t[::frac]
+        sol.q = sol.q[::frac]
+        sol.u = sol.u[::frac]
+        del sol.a
+        del sol.la_g
+
         if dynamics == True:
-            save_solution(sol, f'Pantographic_sheet_{nRow}x{nCol}_c1_{c1}_displ_{int(displ*1e3)}e-3_')
+            save_solution(sol, path + f'\\pantographic_sheet_' + fn_label + '_')
         else:
-            save_solution(sol, f'Pantographic_sheet_{nRow}x{nCol}_statics')
+            save_solution(sol, path + f'\\pantographic_sheet_' + fn_label + '_statics_')
     else:
         if dynamics == True:
-            sol = load_solution(f'Pantographic_sheet_{nRow}x{nCol}_c1_{c1}_displ_{int(displ*1e3)}e-3_')
+            sol = load_solution(path + f'\\pantographic_sheet_' + fn_label + '_')
 
         else:
-            sol = load_solution(f'Pantographic_sheet_{nRow}x{nCol}_statics')
+            sol = load_solution(path + f'\\pantographic_sheet_' + fn_label + '_statics_')
 
-    # prepare data for animation and paraview export
-    slow_motion_factor = 100
-    animation_time = t1 * slow_motion_factor
-    fps = 25
-    frames = int(min(sol.q.shape[0], fps * animation_time))
-    frac = int(sol.q.shape[0] / frames)
-    interval = animation_time * 1000 / frames # delay between frams in milliseconds
-    
-    tt = sol.t[::frac]
-    qq = sol.q[::frac]
-    uu = sol.u[::frac]
+        # prepare data for storage, animation and paraview export
+        slow_motion_factor = 100
+        animation_time = t1 * slow_motion_factor
+        fps = 25
+        frames = int(min(sol.q.shape[0], fps * animation_time))
+        frac = int(sol.q.shape[0] / frames)
+        interval = animation_time * 1000 / frames # delay between frams in milliseconds
+
+    tt = sol.t
+    qq = sol.q
+    uu = sol.u
 
     # time-displacement diagramm
     if time_displacement_diagram:
@@ -682,7 +678,6 @@ if __name__ == "__main__":
             u_x.append(displacement[0])
             u_y.append(displacement[1])
             
-
         u_x_crosssection.extend([u_x])
         u_y_crosssection.extend([u_y])
 
@@ -766,7 +761,6 @@ if __name__ == "__main__":
         Writer = animation.writers['ffmpeg']
         writer = Writer(fps=fps, bitrate=1800)
 
-
         fig4, ax4 = plt.subplots()
         fig4.suptitle(f'displacement in x-direction of centerline', fontsize=16)
 
@@ -786,7 +780,7 @@ if __name__ == "__main__":
 
         anim = animation.FuncAnimation(fig4, animate, frames=frames, interval=interval, blit=False)
 
-        anim.save(f'centerline_displacement_{nRow}x{nCol}_c1_{int(c1*1e3)}e-3_displ_{int(displ*1e3)}e-3.mp4', writer=writer)
+        anim.save(path + f'\\centerline_displacement_' + fn_label + '.mp4', writer=writer)
 
         # post processing data
         # fig5, ax5 = plt.subplots(2, 1)
@@ -809,14 +803,14 @@ if __name__ == "__main__":
         # ax5[1].set_ylabel('displacement y-direction [m]')
         # ax5[1].grid()
 
-        plt.savefig(f'centerline_displacement_{nRow}x{nCol}_c1_{int(c1*1e3)}e-3_displ_{int(displ*1e3)}e-3.eps', format='eps')
-        plt.savefig(f'centerline_displacement_{nRow}x{nCol}_c1_{int(c1*1e3)}e-3_displ_{int(displ*1e3)}e-3.png', format='png')
+        plt.savefig(path + f'\\centerline_displacement_' + fn_label + '.eps', format='eps')
+        plt.savefig(path + f'\\centerline_displacement_' + fn_label + '.png', format='png')
 
     plt.show()
 
     # post processing for paraview
     if paraview_export:
         if dynamics:
-            post_processing(beams, tt, qq, f'Pantographic_sheet_{nRow}x{nCol}_c1_{c1}_displ_{int(displ*1e3)}e-3_', u = uu, binary=True)
+            post_processing(beams, tt, qq, path + f'\\pantographic_sheet_' + fn_label + '_', u = uu, binary=True)
         else:
-            post_processing(beams, tt, qq, f'Pantographic_sheet_{nRow}x{nCol}_statics', binary=True)
+            post_processing(beams, tt, qq, path + f'\\pantographic_sheet_' + fn_label + '_statics_', binary=True)
