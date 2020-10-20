@@ -406,7 +406,7 @@ def create_pantograph(gamma, nRow, nCol, H, EA, EI, GI, A_rho0, p, nEl, nQP, r_O
         spring = Linear_spring(GI)
         model.add(Pivot_w_spring(beam1, frame_ID2, beam2, frame_ID2, spring))
 
-    # right boundary pivots
+    # # right boundary pivots
     for brow in range(1, nRow - 2, 2):
         beam1 = beams[ID_mat[brow, -1]]
         beam2 = beams[ID_mat[brow + 1, -1]]
@@ -485,7 +485,7 @@ if __name__ == "__main__":
 
 ###############################################################################################
     # time simulation parameters
-    t1 = 0.7e-2                      # simulation time
+    t1 = 6.3e-2                      # simulation time
     dt = 4e-5                           # time step
     rho_inf = 0.8                       # damping parameter generalized-alpha integrator
 
@@ -497,7 +497,7 @@ if __name__ == "__main__":
     # geometric parameters
     gamma = pi/4                        # angle between fiber families
     nRow = 20                           # number of rows = 2 * number of fibers per height
-    nCol = 20                        # number of columns = 2 * number of fibers per length
+    nCol = 400                        # number of columns = 2 * number of fibers per length
 
     H = 0.07                            # height of pantographic sheet
     LBeam = H / (nRow * sin(gamma))     # length of individual beam
@@ -519,7 +519,7 @@ if __name__ == "__main__":
 
     # boundary conditions
     # excitation function
-    displ = H / 5
+    displ = 7 * H / 10
 
     n_excited_fibers = ceil(nRow / 2 + 1)
 
@@ -557,8 +557,8 @@ if __name__ == "__main__":
     #                                   0]))
     # else:
 
-    c1 = 0.001
-    c2 = 0.005     # center of bell
+    c1 = 0.009
+    c2 = 0.033     # center of bell
 
     fcn = lambda t: displ * np.exp(-(t-c2)**2/c1**2)
 
@@ -583,8 +583,8 @@ if __name__ == "__main__":
     r_OP_l = lambda t: np.array([0, H / 2, 0]) + fcn(t) * np.array([1, 0, 0])
     A_IK_l = lambda t: A_IK_basic_z(t * rotationZ_l)
 
-    r_OP_r = lambda t: np.array([L, H / 2, 0]) - fcn(t) * np.array([1, 0, 0])
-    # r_OP_r = lambda t: np.array([L, H / 2, 0])
+    # r_OP_r = lambda t: np.array([L, H / 2, 0]) - fcn(t) * np.array([1, 0, 0])
+    r_OP_r = lambda t: np.array([L, H / 2, 0])
     A_IK_r = lambda t: A_IK_basic_z(t * rotationZ_r)
     ######################################################################################
 
@@ -612,12 +612,12 @@ if __name__ == "__main__":
         # ps = pstats.Stats(pr).sort_stats(sortby)
         # ps.print_stats(0.1) # print only first 10% of the list
         if dynamics == True:
-            save_solution(sol, f'Pantographic_sheet_{nRow}x{nCol}_rho_{rho_inf}_dt_{int(dt*1e5)}_')
+            save_solution(sol, f'Pantographic_sheet_{nRow}x{nCol}_c1_{c1}_displ_{int(displ*1e3)}e-3_')
         else:
             save_solution(sol, f'Pantographic_sheet_{nRow}x{nCol}_statics')
     else:
         if dynamics == True:
-            sol = load_solution(f'Pantographic_sheet_{nRow}x{nCol}_rho_{rho_inf}_dt_{int(dt*1e5)}_')
+            sol = load_solution(f'Pantographic_sheet_{nRow}x{nCol}_c1_{c1}_displ_{int(displ*1e3)}e-3_')
         else:
             sol = load_solution(f'Pantographic_sheet_{nRow}x{nCol}_statics')
 
@@ -702,10 +702,9 @@ if __name__ == "__main__":
         # save_solution(u_y_crosssection, f'displacement_y')
         # save_solution(new_time, f'time')
 
-        c1 = 0.00475
-        c2 = 0.01865 # center of bell
+        c2 = 0.0266 # center of bell
         fcn2 = lambda t: displ * np.exp(-(t-c2)**2/c1**2) #*(t*(t<c1)+c1*(t>=c1))/c1
-        # fcn2 = lambda t: displ * 1 / cosh((t-c2)*350)*(t*(t<c1)+c1*(t>=c1))/c1
+        # fcn2 = lambda t: displ * 1 / cosh((t-c2)*350)
 
         y = []
         for t in sol.t:
@@ -718,7 +717,7 @@ if __name__ == "__main__":
 
         fig3.suptitle(f'displacement in x-direction of centerline at x={cs_idx/nCol}L', fontsize=16)
         ax3.plot(sol.t, u_x_centerline[0], label=f'num')
-        # ax3.plot(sol.t, y, label=f'moved excitation')
+        ax3.plot(sol.t, y, label=f'moved excitation')
 
     # position-displacement diagramm centerline
     if position_displacement_diagram:
@@ -795,6 +794,6 @@ if __name__ == "__main__":
     # post processing for paraview
     if paraview_export:
         if dynamics:
-            post_processing(beams, tt, qq, f'Pantographic_sheet_{nRow}x{nCol}_rho_{rho_inf}_dt_{int(dt*1e5)}_', u = uu, binary=True)
+            post_processing(beams, tt, qq, f'Pantographic_sheet_{nRow}x{nCol}_c1_{c1}_displ_{int(displ*1e3)}e-3_', u = uu, binary=True)
         else:
             post_processing(beams, tt, qq, f'Pantographic_sheet_{nRow}x{nCol}_statics', binary=True)
