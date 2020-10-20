@@ -31,7 +31,7 @@ def test_cube():
     TractionForce = False
     Gravity = False
     Statics = True
-    Incompressible = True
+    Incompressible = False
     save_sol = True
     # build mesh
     # degrees = (2, 2, 2)
@@ -39,8 +39,8 @@ def test_cube():
     # # element_shape = (5, 5, 5)
     # element_shape = (2, 2, 2)
     degrees = (2, 2, 2)
-    QP_shape = (3, 3, 3)
-    element_shape = (2, 2, 2)
+    QP_shape = (2, 2, 2)
+    element_shape = (1, 1, 1)
 
     Xi = Knot_vector(degrees[0], element_shape[0])
     Eta = Knot_vector(degrees[1], element_shape[1])
@@ -81,11 +81,11 @@ def test_cube():
             b = lambda t: Z[cDOF]
 
         else:
-            cDOF1 = mesh.surface_qDOF[4].reshape(-1)
+            cDOF1 = mesh.surface_qDOF[4].ravel()
             cDOF2 = mesh.surface_qDOF[5][2]
             cDOF = np.concatenate((cDOF1, cDOF2))
             b1 = lambda t: Z[cDOF1]
-            b2 = lambda t: Z[cDOF2] + t * 0.2
+            b2 = lambda t: Z[cDOF2] + t * 0.1
             b = lambda t: np.concatenate((b1(t), b2(t)))
             # cDOF = mesh.surface_qDOF[4].ravel()
             # b = lambda t: Z[cDOF]
@@ -161,27 +161,27 @@ def test_cube():
 
     import matplotlib.pyplot as plt
 
-    fig = plt.figure()
-    ax = fig.gca(projection='3d')
-    ax.scatter(*model.contributions[0].z(sol.t[-1], sol.q[-1]).reshape(3,-1))
-    z = model.contributions[0].z(sol.t[-1], sol.q[-1])
-    model.contributions[0].F_qp(z)
-    F = model.contributions[0].F
-    J = list(map(np.linalg.det, F.reshape(-1,3,3)))
-    plt.figure()
-    plt.plot(np.array(J))
+    # fig = plt.figure()
+    # ax = fig.gca(projection='3d')
+    # ax.scatter(*model.contributions[0].z(sol.t[-1], sol.q[-1]).reshape(3,-1))
+    # z = model.contributions[0].z(sol.t[-1], sol.q[-1])
+    # model.contributions[0].F_qp(z)
+    # F = model.contributions[0].F
+    # J = list(map(np.linalg.det, F.reshape(-1,3,3)))
+    # plt.figure()
+    # plt.plot(np.array(J))
 
-    z_y = z[mesh.nn:2*mesh.nn:mesh.nn_xi*mesh.nn_eta]
+    # z_y = z[mesh.nn:2*mesh.nn:mesh.nn_xi*mesh.nn_eta]
 
-    plt.figure()
-    from scipy.interpolate import BSpline
-    Spline = BSpline(Zeta.data, z_y, 2)
+    # plt.figure()
+    # from scipy.interpolate import BSpline
+    # Spline = BSpline(Zeta.data, z_y, 2)
 
-    xx = np.linspace(0,1,20)
+    # xx = np.linspace(0,1,20)
 
-    plt.plot(xx,Spline(xx))
+    # plt.plot(xx,Spline(xx))
 
-    plt.show()
+    # plt.show()
     # import cProfile, pstats
     # pr = cProfile.Profile()
     # pr.enable()

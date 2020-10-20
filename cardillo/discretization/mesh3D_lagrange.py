@@ -197,35 +197,37 @@ class Mesh3D_lagrange():
                                           .reshape(self.nqp, self.nn_el, 3, 3)
 
     # Mass matrix for L2 projection fitting
-    def L2_projection_A(self, xis):
+    def L2_projection_A(self, knots):
         A = Coo((self.nn, self.nn))  
-        for xi in xis:
-            (el_xi, el_eta, el_zeta), (xi_l, eta_l, zeta_l) = \
-                find_element_number(self, xi)
-            el = int(flat3D(el_xi, el_eta, el_zeta, self.nel_per_dim))
-            elDOF_el = self.elDOF[el, :self.nn_el]
+        for xi, eta, zeta in knots:
+            el_xi = self.Xi.element_number(xi)[0]
+            el_eta = self.Eta.element_number(eta)[0]
+            el_zeta = self.Zeta.element_number(zeta)[0]
+            el = flat3D(el_xi, el_eta, el_zeta, self.nel_per_dim)
+            elDOF = self.elDOF[el, :self.nn_el]
             Ae = np.zeros((self.nn_el, self.nn_el))
-            NN = lagrange_basis3D(self.degrees, (xi_l, eta_l, zeta_l), 0,
+            NN = lagrange_basis3D(self.degrees, (xi, eta, zeta), 0,
                                   self.knot_vector_objs)
             for i in range(self.nn_el):
                 for j in range(self.nn_el):
                     Ae[i, j] = NN[0, i, 0] * NN[0, j, 0]
-            A.extend(Ae, (elDOF_el, elDOF_el))
+            A.extend(Ae, (elDOF, elDOF))
         return A
 
-    def L2_projection_b(self, xis, Pw):
+    def L2_projection_b(self, knots, Pw):
         b = np.zeros(self.nn)
-        for xi, Pwi in zip(xis, Pw):
-            (el_xi, el_eta, el_zeta), (xi_l, eta_l, zeta_l) = \
-                find_element_number(self, xi)
-            el = int(flat3D(el_xi, el_eta, el_zeta, self.nel_per_dim))
-            elDOF_el = self.elDOF[el, :self.nn_el]
-            NN = lagrange_basis3D(self.degrees,  (xi_l, eta_l, zeta_l), 0,
-                                  self.knot_vectors_objs)
+        for (xi, eta, zeta), Pwi in zip(knots, Pw):
+            el_xi = self.Xi.element_number(xi)[0]
+            el_eta = self.Eta.element_number(eta)[0]
+            el_zeta = self.Zeta.element_number(zeta)[0]
+            el = flat3D(el_xi, el_eta, el_zeta, self.nel_per_dim)
+            elDOF = self.elDOF[el, :self.nn_el]
+
             be = np.zeros((self.nn_el))
+            NN = lagrange_basis3D(self.degrees, (xi, eta, zeta), 0, self.knot_vectors)
             for i in range(self.nn_el):
                 be[i] = NN[0, i, 0] * Pwi
-            b[elDOF_el] += be
+            b[elDOF] += be
         return b
 
     def surfaces(self):

@@ -9,22 +9,33 @@ from cardillo.utility.coo import Coo
 
 # Mesh for lagrange elements on 1D domain
 class Mesh1D_lagrange():
-    def __init__(self, knot_vector_obj, derivative_order=1, nq_n=3):
+    def __init__(self, knot_vector_obj, derivative_order=1, nq_n=3,
+                 structured=True):
         self.basis = 'lagrange'
         self.derivative_order = derivative_order
+        self.structured = structured
 
         # number of quadrature points
         self.nqp = nqp
+        self.nqp_per_dim = self.nqp
         self.nqp_xi = self.nqp
-        
+
+        # knot vectors
+        self.knot_vector_objs = knot_vector_objs
+        self.Xi = knot_vector_objs
+        self.knot_vectors = [Xi.data]
+        self.degrees = (self.Xi.degree, )
+        self.degrees1 = np.array(self.degrees) + 1
+        self.p = self.degrees
+
         self.nel = nel
         self.nel_xi = self.nel
         self.element_shape = (self.nel_xi, )
 
         # polynomial degree
-        self.degree = degree
-        self.degree1 = self.degree + 1
-        self.p = self.degree
+        # self.degree = degree
+        # self.degree1 = self.degree + 1
+        # self.p = self.degree
 
         # number of total nodes
         self.nn = self.p * self.nel_xi + 1
@@ -68,10 +79,19 @@ class Mesh1D_lagrange():
         # self.surfaces()
 
     def quadrature_points(self):
-        qp_xi, w_xi = gauss(self.nqp_xi)
+        if self.structured is False:
+            qp_xi, w_xi = gauss(self.nqp_xi)
 
-        self.qp = np.tile(qp_xi, (self.nel_xi,1))
-        self.wp = np.tile(w_xi, (self.nel,1))
+            self.qp = np.tile(qp_xi, (self.nel_xi, 1))
+            self.wp = np.tile(w_xi, (self.nel, 1))
+
+        else:
+            self.qp = np.zeros((self.nel, self.nqp))
+            self.wp = np.zeros((self.nel, self.nqp))
+            for el in range(self.nel):
+                Xi_element_interval = self.element_interval(el)
+
+                self.qp[el], self.wp[el] = gauss(self.mqp, interval=Xi_element_interval)
 
     def shape_functions(self):
         self.N = np.zeros((self.nel, self.nqp, self.nn_el))
@@ -80,13 +100,24 @@ class Mesh1D_lagrange():
             if self.derivative_order > 1:
                 self.N_xixi = np.zeros((self.nel, self.nqp, self.nn_el))
 
-        NN = lagrange_basis1D(self.degree, self.qp[0])
-        self.N = np.vstack([[NN[:, :, 0]]] * self.nel)
-        if self.derivative_order > 0:
-            self.N_xi = np.vstack([[NN[:, :, 1]]] * self.nel)
-            if self.derivative_order > 1:
-                self.N_xixi = np.vstack([[NN[:, :, 2].reshape(self.nqp, self.nn_el)]] * self.nel)
+        if self.structured is False:
+            NN = lagrange_basis1D(self.degree, self.qp[0])
+            self.N = np.vstack([[NN[:, :, 0]]] * self.nel)
+            if self.derivative_order > 0:
+                self.N_xi = np.vstack([[NN[:, :, 1]]] * self.nel)
+                if self.derivative_order > 1:
+                    self.N_xixi = np.vstack([[NN[:, :, 2].reshape(self.nqp, self.nn_el)]] * self.nel)
 
+        else:
+            for el in range(self.nel):
+                NN = lagrange_basis1D(self.degrees, self.qp,
+                                      self.derivative_order, self.knot_vector_objs)
+                self.N[el] = NN[:, :, 0]
+                if self.derivative_order > 0:
+                    self.N_xi[el] = NN[:, :, 1]
+                    if self.derivative_order > 1:
+                        self.N_xixi[el] = NN[:, :, 2]
+                        
     #Mass matrix for L2 projection fitting
     def L2_projection_A(self, xis):
         A = Coo((self.nn, self.nn))  

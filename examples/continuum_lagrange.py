@@ -28,7 +28,7 @@ def test_cube():
     # element_shape = (2, 2, 2)
     degrees = (2, 2, 2)
     QP_shape = (3, 3, 3)
-    element_shape = (2, 2, 2)
+    element_shape = (4, 4, 6)
 
     data_xi = [0, 0.1, 1]
     data_eta = [0, 0.4, 0.5, 1]
@@ -57,11 +57,11 @@ def test_cube():
     mu2 = 0.5 # * 1e3
     if Incompressible:
         mat = Ogden1997_incompressible(mu1)
-        Xi_la = Knot_vector(degrees[0] - 0, element_shape[0])
-        Eta_la = Knot_vector(degrees[1] - 0, element_shape[1])
-        Zeta_la = Knot_vector(degrees[2] - 0, element_shape[2])
+        Xi_la = Knot_vector(degrees[0] - 1, element_shape[0])
+        Eta_la = Knot_vector(degrees[1] - 1, element_shape[1])
+        Zeta_la = Knot_vector(degrees[2] - 1, element_shape[2])
         knot_vectors_la = (Xi_la, Eta_la, Zeta_la)
-        la_mesh = Mesh(3,knot_vectors_la, QP_shape, derivative_order=0, basis='lagrange', nq_n=1)
+        la_mesh = Mesh(3, knot_vectors_la, QP_shape, derivative_order=0, basis='lagrange', nq_n=1)
     else:
         mat = Ogden1997_compressible(mu1, mu2)
 
@@ -76,10 +76,12 @@ def test_cube():
             b = lambda t: Z[cDOF]
 
         else:
-            cDOF1 = mesh.surface_qDOF[4].reshape(-1)
+            # cDOF1 = mesh.surface_qDOF[4][0:2, 0]
+            cDOF1 = mesh.surface_qDOF[4][2]
             cDOF2 = mesh.surface_qDOF[5][2]
             cDOF = np.concatenate((cDOF1, cDOF2))
             b1 = lambda t: Z[cDOF1]
+            # b11 = lambda t: Z[cDOF11]
             b2 = lambda t: Z[cDOF2] + t * 0.3
             b = lambda t: np.concatenate((b1(t), b2(t)))
             # cDOF = mesh.surface_qDOF[4].ravel()
@@ -135,9 +137,9 @@ def test_cube():
 
     if Statics:
     # static solver
-        n_load_steps = 10
-        tol = 1.0e-4
-        max_iter = 10
+        n_load_steps = 20
+        tol = 1.0e-5
+        max_iter = 20
         solver = Newton(model, n_load_steps=n_load_steps, tol=tol, max_iter=max_iter)
 
     else:

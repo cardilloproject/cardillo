@@ -42,7 +42,8 @@ def scatter_Qs(Q):
 
 # Mesh for hexahedral lagrange elements on 2D domain
 class Mesh2D_lagrange():
-    def __init__(self, knot_vector_objs, nqp_per_dim, derivative_order=1, nq_n=3, structured=True):
+    def __init__(self, knot_vector_objs, nqp_per_dim, derivative_order=1, nq_n=3,
+                 structured=True):
         self.basis = 'lagrange'
         self.derivative_order = derivative_order
         self.structured = structured
@@ -93,7 +94,7 @@ class Mesh2D_lagrange():
         self.nq_el = self.nn_el * nq_n # total number of generalized coordinates per element
 
         # evaluate edge DOF
-        #self.edges()
+        # self.edges()
 
         # construct selection matrix elDOF assigning to each element its DOFs of the displacement
         # q[elDOF[el]] is equivalent to q_e = C^e * q
@@ -120,15 +121,15 @@ class Mesh2D_lagrange():
             qp_xi, w_xi = gauss(self.nqp_xi)
             qp_eta, w_eta = gauss(self.nqp_eta)
 
-            self.qp_xi = np.tile(qp_xi, (self.nel_xi,1))
-            self.qp_eta = np.tile(qp_eta, (self.nel_eta,1))
+            self.qp_xi = np.tile(qp_xi, (self.nel_xi, 1))
+            self.qp_eta = np.tile(qp_eta, (self.nel_eta, 1))
 
             wp = np.zeros(self.nqp)
             for i in range(self.nqp):
                 i_xi, i_eta = split2D(i, self.nqp_per_dim)
                 wp[i] = w_xi[i_xi] * w_eta[i_eta]
 
-            self.wp = np.tile(wp, (self.nel,1))
+            self.wp = np.tile(wp, (self.nel, 1))
 
         else:
             self.qp_xi = np.zeros((self.nel_xi, self.nqp_xi))
