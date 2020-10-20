@@ -478,10 +478,10 @@ def create_pantograph(gamma, nRow, nCol, H, EA, EI, GI, A_rho0, p, nEl, nQP, r_O
 if __name__ == "__main__":
     # load_excitation = False
     dynamics = True
-    solve_problem = True
-    time_displacement_diagram = False
-    position_displacement_diagram = False
-    paraview_export = True
+    solve_problem = False
+    time_displacement_diagram = True
+    position_displacement_diagram = True
+    paraview_export = False
 
 ###############################################################################################
     # time simulation parameters
@@ -519,7 +519,7 @@ if __name__ == "__main__":
 
     # boundary conditions
     # excitation function
-    displ = 7 * H / 10
+    displ = 1 * H / 10
 
     n_excited_fibers = ceil(nRow / 2 + 1)
 
@@ -557,7 +557,7 @@ if __name__ == "__main__":
     #                                   0]))
     # else:
 
-    c1 = 0.009
+    c1 = 0.008
     c2 = 0.033     # center of bell
 
     fcn = lambda t: displ * np.exp(-(t-c2)**2/c1**2)
@@ -572,6 +572,10 @@ if __name__ == "__main__":
         y.append(fcn(t))
 
     ax.plot(x, y)
+    ax.grid()
+    plt.savefig(f'excitation_{nRow}x{nCol}_c1_{int(c1*1e3)}e-3_displ_{int(displ*1e3)}e-3')
+
+
     plt.show()
     # for i in range(n_excited_fibers):       
     #         r_OP_l.append(lambda t, k=i: np.array([fcn(t), 0, 0]))
@@ -635,7 +639,7 @@ if __name__ == "__main__":
 
     # time-displacement diagramm
     if time_displacement_diagram:
-        cs_idx = 100
+        cs_idx = 200
 
         u_x_centerline = []
 
@@ -702,13 +706,14 @@ if __name__ == "__main__":
         # save_solution(u_y_crosssection, f'displacement_y')
         # save_solution(new_time, f'time')
 
-        c2 = 0.0266 # center of bell
-        fcn2 = lambda t: displ * np.exp(-(t-c2)**2/c1**2) #*(t*(t<c1)+c1*(t>=c1))/c1
-        # fcn2 = lambda t: displ * 1 / cosh((t-c2)*350)
+        # c1 = 0.00475
+        # c2 = 0.01865 # center of bell
+        # fcn2 = lambda t: displ * np.exp(-(t-c2)**2/c1**2) #*(t*(t<c1)+c1*(t>=c1))/c1
+        # fcn2 = lambda t: displ * 1 / cosh((t-c2)*350)*(t*(t<c1)+c1*(t>=c1))/c1
 
-        y = []
-        for t in sol.t:
-            y.append(fcn2(t))
+        # y = []
+        # for t in sol.t:
+        #     y.append(fcn2(t))
 
 
         fig3, ax3 = plt.subplots()
@@ -717,7 +722,7 @@ if __name__ == "__main__":
 
         fig3.suptitle(f'displacement in x-direction of centerline at x={cs_idx/nCol}L', fontsize=16)
         ax3.plot(sol.t, u_x_centerline[0], label=f'num')
-        ax3.plot(sol.t, y, label=f'moved excitation')
+        # ax3.plot(sol.t, y, label=f'moved excitation')
 
     # position-displacement diagramm centerline
     if position_displacement_diagram:
@@ -754,6 +759,11 @@ if __name__ == "__main__":
 
 
         # animate configurations
+        # Set up formatting for the movie files
+        Writer = animation.writers['ffmpeg']
+        writer = Writer(fps=fps, bitrate=1800)
+
+
         fig4, ax4 = plt.subplots()
         fig4.suptitle(f'displacement in x-direction of centerline', fontsize=16)
 
@@ -773,21 +783,30 @@ if __name__ == "__main__":
 
         anim = animation.FuncAnimation(fig4, animate, frames=frames, interval=interval, blit=False)
 
+        anim.save(f'centerline_displacement_{nRow}x{nCol}_c1_{int(c1*1e3)}e-3_displ_{int(displ*1e3)}e-3.mp4', writer=writer)
+
         # post processing data
-        fig5, ax5 = plt.subplots(2, 1)
+        # fig5, ax5 = plt.subplots(2, 1)
+        fig5, ax5 = plt.subplots()
         fig5.suptitle(f'displacement in x-direction of centerline', fontsize=16)
 
-        for i in range(len(time)):
-            ax5[0].plot(X_0, u_x_time[i], label=f'time {time[i]}')
-            ax5[1].plot(X_0, u_y_time[i], label=f'time {time[i]}')
+        for i in range(0, len(time), 10):
+            ax5.plot(X_0, u_x_time[i], label=f'time {time[i]}')
+            # ax5[0].plot(X_0, u_x_time[i], label=f'time {time[i]}')
+            # ax5[1].plot(X_0, u_y_time[i], label=f'time {time[i]}')
 
-        ax5[0].set_xlabel('position x [m]')
-        ax5[0].set_ylabel('displacement x-direction [m]')
-        ax5[0].grid()
+        ax5.set_xlabel('position x [m]')
+        ax5.set_ylabel('displacement x-direction [m]')
+        ax5.grid()
+        # ax5[0].set_xlabel('position x [m]')
+        # ax5[0].set_ylabel('displacement x-direction [m]')
+        # ax5[0].grid()
         
-        ax5[1].set_xlabel('position x [m]')
-        ax5[1].set_ylabel('displacement y-direction [m]')
-        ax5[1].grid()
+        # ax5[1].set_xlabel('position x [m]')
+        # ax5[1].set_ylabel('displacement y-direction [m]')
+        # ax5[1].grid()
+
+        plt.savefig(f'centerline_displacement_{nRow}x{nCol}_c1_{int(c1*1e3)}e-3_displ_{int(displ*1e3)}e-3')
 
     plt.show()
 
