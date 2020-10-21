@@ -1,10 +1,10 @@
 from threading import main_thread
 import numpy as np
 import matplotlib.pyplot as plt
-from cardillo.discretization import Mesh
-from cardillo.discretization.lagrange import Knot_vector
-from cardillo.discretization.mesh3D_lagrange import Mesh3D_lagrange, cube
-from cardillo.discretization.mesh2D_lagrange import Mesh2D_lagrange, rectangle
+# from cardillo.discretization import Mesh
+from cardillo.discretization.lagrange import Node_vector
+from cardillo.discretization.mesh3D import Mesh3D, cube
+from cardillo.discretization.mesh2D import Mesh2D, rectangle
 # from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume
 from cardillo.discretization.indexing import flat3D
 from cardillo.model.continuum import Ogden1997_compressible, First_gradient, Ogden1997_incompressible
@@ -17,7 +17,7 @@ from cardillo.model.bilateral_constraints.implicit.incompressibility import Inco
 
 
 def test_cube():
-    TractionForce = False
+    TractionForce = True
     Gravity = False
     Statics = True
     Incompressible = True
@@ -28,7 +28,7 @@ def test_cube():
     # element_shape = (2, 2, 2)
     degrees = (2, 2, 2)
     QP_shape = (3, 3, 3)
-    element_shape = (4, 4, 6)
+    element_shape = (2, 2, 3)
 
     data_xi = [0, 0.1, 1]
     data_eta = [0, 0.4, 0.5, 1]
@@ -37,13 +37,13 @@ def test_cube():
     # Xi = Knot_vector(degrees[0], element_shape[0], data=data_xi)
     # Eta = Knot_vector(degrees[1], element_shape[1], data=data_eta)
     # Zeta = Knot_vector(degrees[2], element_shape[2], data=data_zeta)
-    Xi = Knot_vector(degrees[0], element_shape[0])
-    Eta = Knot_vector(degrees[1], element_shape[1])
-    Zeta = Knot_vector(degrees[2], element_shape[2])
+    Xi = Node_vector(degrees[0], element_shape[0])
+    Eta = Node_vector(degrees[1], element_shape[1])
+    Zeta = Node_vector(degrees[2], element_shape[2])
     knot_vectors = (Xi, Eta, Zeta)
 
-    mesh = Mesh(3, knot_vectors, QP_shape, derivative_order=1, basis='lagrange',
-                nq_n=3, structured=True)
+    mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=1, basis='lagrange',
+                nq_n=3)
 
     # reference configuration is a cube
     L = 1
@@ -57,11 +57,11 @@ def test_cube():
     mu2 = 0.5 # * 1e3
     if Incompressible:
         mat = Ogden1997_incompressible(mu1)
-        Xi_la = Knot_vector(degrees[0] - 1, element_shape[0])
-        Eta_la = Knot_vector(degrees[1] - 1, element_shape[1])
-        Zeta_la = Knot_vector(degrees[2] - 1, element_shape[2])
+        Xi_la = Node_vector(degrees[0] - 1, element_shape[0])
+        Eta_la = Node_vector(degrees[1] - 1, element_shape[1])
+        Zeta_la = Node_vector(degrees[2] - 1, element_shape[2])
         knot_vectors_la = (Xi_la, Eta_la, Zeta_la)
-        la_mesh = Mesh(3, knot_vectors_la, QP_shape, derivative_order=0, basis='lagrange', nq_n=1)
+        la_mesh = Mesh3D(knot_vectors_la, QP_shape, derivative_order=0, basis='lagrange', nq_n=1)
     else:
         mat = Ogden1997_compressible(mu1, mu2)
 
@@ -71,7 +71,7 @@ def test_cube():
         # boundary conditions
         if TractionForce:
             # cDOF = mesh.surface_qDOF[0].reshape(-1)
-            cDOF = mesh.surface_qDOF[2].reshape(-1)
+            cDOF = mesh.surface_qDOF[4].ravel()
             # cDOF = mesh.surface_qDOF[4].reshape(-1)
             b = lambda t: Z[cDOF]
 
@@ -118,7 +118,8 @@ def test_cube():
         # model.add(Force_distr2D(F, continuum, 1))
         # F = lambda t, xi, eta: t * np.array([0, -2.5e0, 0]) * (0.25 - (xi-0.5)**2) * (0.25 - (eta-0.5)**2)
         # model.add(Force_distr2D(F, continuum, 5))
-        F = lambda t, xi, eta: np.array([0, 0, -5e0]) * (0.25 - (xi-0.5)**2) * (0.25 - (eta-0.5)**2)
+        # F = lambda t, xi, eta: np.array([0, 0, -5e0]) * (0.25 - (xi-0.5)**2) * (0.25 - (eta-0.5)**2)
+        F = lambda t, xi, eta: np.array([0, 0, 0.2]) * t
         model.add(Force_distr2D(F, continuum, 5))
     
     if Gravity:
@@ -137,7 +138,7 @@ def test_cube():
 
     if Statics:
     # static solver
-        n_load_steps = 20
+        n_load_steps = 10
         tol = 1.0e-5
         max_iter = 20
         solver = Newton(model, n_load_steps=n_load_steps, tol=tol, max_iter=max_iter)

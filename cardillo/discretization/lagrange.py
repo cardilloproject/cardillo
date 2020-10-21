@@ -4,16 +4,17 @@ from cardillo.discretization.indexing import flat2D, flat3D, split2D, split3D
 import meshio
 
 
-def uniform_knot_vector(degree, nEl, interval=[0, 1]):
+def uniform_node_vector(degree, nEl, interval=[0, 1]):
     return np.linspace(interval[0], interval[1], degree*nEl+1)
 
+
 # data are only the corner nodes
-class Knot_vector():
+class Node_vector():
     def __init__(self, degree, nel, data=None):
         self.degree = degree
         self.nel = nel
         if data is None:
-            self.data = uniform_knot_vector(self.degree, self.nel)
+            self.data = uniform_node_vector(self.degree, self.nel)
         else:
             self.data = np.zeros(self.nel*self.degree+1)
             for el in range(nel):
@@ -178,7 +179,7 @@ def Lagrange_basis(degree, x, derivative=True, knot_vector=None, interval=[-1, 1
         x = [x]
     nx = len(x)
     N = np.zeros((nx, degree + 1))
-    if knot_vector:
+    if knot_vector is not None:
         for i, xi in enumerate(x):
             el = knot_vector.element_number(xi)
             N[i] = __lagrange(xi, degree, interval=knot_vector.element_interval(el))

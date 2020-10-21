@@ -2,7 +2,7 @@ import numpy as np
 from scipy.sparse.linalg import spsolve
 # from cardillo_fem.discretization.lagrange import lagrange2D, lagrange1D, lagrange3D
 from cardillo.discretization.B_spline import q_to_Pw_3D,  flat3D_vtk
-from cardillo.discretization.lagrange import lagrange_basis3D, lagrange_basis2D, find_element_number, Knot_vector
+from cardillo.discretization.lagrange import lagrange_basis3D, lagrange_basis2D, find_element_number, Node_vector
 from cardillo.math.algebra import inverse2D, determinant2D, inverse3D, determinant3D, quat2rot
 from cardillo.discretization.indexing import flat3D, split3D
 from cardillo.discretization.mesh2D_lagrange import Mesh2D_lagrange
@@ -81,7 +81,7 @@ class Mesh3D_lagrange():
         # number of total nodes
         self.nn = (self.p * self.nel_xi + 1) * (self.q * self.nel_eta + 1) * (self.r * self.nel_zeta +1 )
 
-        #nodes per row
+        # nodes per row
         self.nn_xi = self.p * self.nel_xi + 1
         self.nn_eta = self.q * self.nel_eta + 1
         self.nn_zeta = self.r * self.nel_zeta + 1

@@ -1,13 +1,17 @@
 import numpy as np
 from scipy.sparse.linalg import spsolve
 from cardillo.discretization.B_spline import uniform_knot_vector, B_spline_basis1D, decompose_B_spline_curve, flat1D_vtk
+from cardillo.discretization.lagrange import lagrange_basis1D
 # from cardillo.math.algebra import inverse2D, determinant2D, inverse3D, determinant3D, quat2rot, norm3, cross3
 # from cardillo.discretization.indexing import flat2D, split2D
 from cardillo.discretization.gauss import gauss
 from cardillo.utility.coo import Coo
 
+
 class Mesh1D():
-    def __init__(self, knot_vector, nqp, derivative_order=1, basis='B-spline', nq_n=2):
+    def __init__(self, knot_vector, nqp, derivative_order=1, basis='B-spline',
+                 nq_n=2):
+        self.basis = basis
         # number of elements
         self.nel = knot_vector.nel
 
@@ -25,13 +29,21 @@ class Mesh1D():
 
         # number of nodes influencing each element
         self.nn_el = self.p + 1
-
-        self.basis = basis # B-spline or Lagrange basis
-        self.nq_n = nq_n # number of degrees of freedom per node
-        self.nq_el = self.nn_el * nq_n # total number of generalized coordinates per element
+        self.nq_n = nq_n  # number of degrees of freedom per node
+        self.nq_el = self.nn_el * nq_n  # total number of generalized coordinates per element
         
         if basis == 'lagrange':
-            raise NotImplementedError('...')
+            self.nn = self.p * self.nel + 1
+
+            # elDOF
+            self.elDOF = np.zeros((self.nel, self.nq_n*self.nn_el), dtype=int)
+            for el in range(self.nel):
+                for a in range(self.nn_el):
+                    elDOF_x = self.p * el + a
+                    for d in range(self.nq_n):
+                        self.elDOF[el, a+self.nn_el*d] = elDOF_x + self.nn * d
+
+            self.vtk_cell_type = 'VTK_LAGRANGE_CURVE'
 
         elif basis == 'B-spline':
             # number of total nodes
@@ -44,7 +56,9 @@ class Mesh1D():
                 for a in range(self.nn_el):
                     elDOF_x = el + a
                     for d in range(self.nq_n):
-                        self.elDOF[el, a + self.nn_el * d] = elDOF_x + self.nn * d
+                        self.elDOF[el, a+self.nn_el*d] = elDOF_x + self.nn * d
+
+            self.vtk_cell_type = 'VTK_BEZIER_CURVE'
 
         # self.nn_per_dim = (self.nn_xi, self.nn_eta)
 
@@ -63,13 +77,22 @@ class Mesh1D():
         # end_points degrees of freedom
         self.end_points_DOF = self.end_points()
 
+    def basis1D(self, degree, derivative_order, knot_vector, knots):
+        if self.basis == 'B-spline':
+            return B_spline_basis1D(degree, derivative_order,
+                                    knot_vector.data, knots)
+        elif self.basis == 'lagrange':
+            return lagrange_basis1D(degree, knots, derivative_order,
+                                    knot_vector)
+
     def quadrature_points(self):
         self.qp = np.zeros((self.nel, self.nqp))
         self.wp = np.zeros((self.nel, self.nqp))
                 
         for el in range(self.nel):            
             Xi_element_interval = self.knot_vector.element_interval(el)
-            self.qp[el], self.wp[el] = gauss(self.nqp, interval=Xi_element_interval)
+            self.qp[el], self.wp[el] = gauss(self.nqp,
+                                             interval=Xi_element_interval)
 
     def shape_functions(self):
         self.N = np.zeros((self.nel, self.nqp, self.nn_el))
@@ -79,7 +102,8 @@ class Mesh1D():
                 self.N_xixi = np.zeros((self.nel, self.nqp, self.nn_el))
         
         for el in range(self.nel):
-            NN = B_spline_basis1D(self.degree, self.derivative_order, self.Xi, self.qp[el], squeeze=False)
+            NN = self.basis1D(self.degree, self.derivative_order,
+                              self.knot_vector, self.qp[el])
             self.N[el] = NN[:, :, 0]
             if self.derivative_order > 0:
                 self.N_xi[el] = NN[:, :, 1]
@@ -88,7 +112,7 @@ class Mesh1D():
 
     def end_points(self):
         def select_end_points(**kwargs):
-            nn_0 =  kwargs.get('nn_0', range(self.nn))
+            nn_0 = kwargs.get('nn_0', range(self.nn))
 
             end_points = []
             for i in nn_0:
@@ -108,7 +132,7 @@ class Mesh1D():
         )
 
         return DOF_tup
-
+ 
     # functions for vtk export
     def ensure_L2_projection_A(self):
         if not hasattr(self, "A"):
@@ -150,11 +174,20 @@ class Mesh1D():
         for i, bi in enumerate(b.T):
             q[:, i] = spsolve(self.A, bi)
 
-        # rearrange q's from solver to Piegl's 1D ordering
-        Pw = q.reshape(-1, dim, order='F')
+        if self.basis == 'B-spline':
+            # rearrange q's from solver to Piegl's 1D ordering
+            Pw = q.reshape(-1, dim, order='F')
 
-        # decompose B-spline mesh in Bezier patches      
-        Qw = decompose_B_spline_curve(self.knot_vector, Pw)
+            # decompose B-spline mesh in Bezier patches
+            Qw = decompose_B_spline_curve(self.knot_vector, Pw)
+
+        elif self.basis == 'lagrange':
+            # rearrange q's from solver to Piegl's 3D ordering
+            Qw = np.zeros((self.nel_xi, self.p+1, dim))
+            for el in range(self.nel):
+                for a in range(self.nn_el):
+                    Qw[el, a] = q[self.elDOF[el][self.nodalDOF[a]]]
+
         nbezier_xi, p1, dim = Qw.shape
 
         # rearrange Bezier mesh points for vtk ordering
@@ -166,13 +199,22 @@ class Mesh1D():
             point_data[point_range] = flat1D_vtk(Qw[i])
 
         return point_data
-        
-    def vtk_mesh(self, q):
-        # rearrange q's from solver to Piegl's 1D ordering
-        Pw = q.reshape(-1, self.nq_n, order='F')
 
-        # decompose B-spline mesh in Bezier patches 
-        Qw = decompose_B_spline_curve(self.knot_vector, Pw)
+    def vtk_mesh(self, q):
+        if self.basis == 'B-spline':
+            # rearrange q's from solver to Piegl's 1D ordering
+            Pw = q.reshape(-1, self.nq_n, order='F')
+
+            # decompose B-spline mesh in Bezier patches
+            Qw = decompose_B_spline_curve(self.knot_vector, Pw)
+
+        elif self.basis == 'lagrange':
+            # rearrange q's from solver to Piegl's 3D ordering
+            Qw = np.zeros((self.nel_xi, self.p+1, self.nq_n))
+            for el in range(self.nel):
+                for a in range(self.nn_el):
+                    Qw[el, a] = q[self.elDOF[el][self.nodalDOF[a]]]
+
         nbezier_xi, p1, dim = Qw.shape
 
         # build vtk mesh
@@ -184,11 +226,12 @@ class Mesh1D():
         for i in range(nbezier_xi):
             point_range = np.arange(i * patch_size, (i + 1) * patch_size)
             points[point_range] = flat1D_vtk(Qw[i])
-            
-            cells.append( ("VTK_BEZIER_CURVE", point_range[None]) )
-            HigherOrderDegrees.append( np.array((self.degree, 0, 0))[None] )
+
+            cells.append((self.vtk_cell_type, point_range[None]))
+            HigherOrderDegrees.append(np.array((self.degree, 0, 0))[None])
 
         return cells, points, HigherOrderDegrees
+
 
 if __name__ == "__main__":
     pass

@@ -42,7 +42,7 @@ def scatter_Qs(Q):
 
 # Mesh for hexahedral lagrange elements on 2D domain
 class Mesh2D_lagrange():
-    def __init__(self, knot_vector_objs, nqp_per_dim, derivative_order=1, nq_n=3,
+    def __init__(self, knot_vector_objs, nqp_per_dim, derivative_order=1, basis='lagrange', nq_n=3,
                  structured=True):
         self.basis = 'lagrange'
         self.derivative_order = derivative_order

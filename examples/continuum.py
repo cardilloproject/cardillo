@@ -8,6 +8,7 @@ from cardillo.discretization import Mesh
 from cardillo.discretization.mesh3D import Mesh3D, cube
 from cardillo.discretization.mesh2D import Mesh2D, rectangle
 from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume
+from cardillo.discretization.lagrange import Node_vector
 from cardillo.discretization.indexing import flat3D
 from cardillo.model.continuum import Ogden1997_compressible, Ogden1997_incompressible, First_gradient
 from cardillo.solver import Newton, Generalized_alpha_1, Euler_backward
@@ -31,7 +32,7 @@ def test_cube():
     TractionForce = False
     Gravity = False
     Statics = True
-    Incompressible = False
+    Incompressible = True
     save_sol = True
     # build mesh
     # degrees = (2, 2, 2)
@@ -39,22 +40,22 @@ def test_cube():
     # # element_shape = (5, 5, 5)
     # element_shape = (2, 2, 2)
     degrees = (2, 2, 2)
-    QP_shape = (2, 2, 2)
-    element_shape = (1, 1, 1)
+    QP_shape = (3, 3, 3)
+    element_shape = (2, 2, 2)
 
     Xi = Knot_vector(degrees[0], element_shape[0])
     Eta = Knot_vector(degrees[1], element_shape[1])
     Zeta = Knot_vector(degrees[2], element_shape[2])
     knot_vectors = (Xi, Eta, Zeta)
     
-    mesh = Mesh(3, knot_vectors, QP_shape, derivative_order=1, basis='B-spline', nq_n=3)
+    mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=1, basis='B-spline', nq_n=3)
 
     # reference configuration is a cube
     L = 1
     B = 1
     H = 1
     cube_shape = (L, B, H)
-    Z = cube(cube_shape, mesh, Greville=True)
+    Z = cube(cube_shape, mesh, Greville=False)
 
     # material model
     mu1 = 0.3 # * 1e3
@@ -85,7 +86,7 @@ def test_cube():
             cDOF2 = mesh.surface_qDOF[5][2]
             cDOF = np.concatenate((cDOF1, cDOF2))
             b1 = lambda t: Z[cDOF1]
-            b2 = lambda t: Z[cDOF2] + t * 0.1
+            b2 = lambda t: Z[cDOF2] - t * 0.1
             b = lambda t: np.concatenate((b1(t), b2(t)))
             # cDOF = mesh.surface_qDOF[4].ravel()
             # b = lambda t: Z[cDOF]
@@ -138,8 +139,8 @@ def test_cube():
 
     if Statics:
     # static solver
-        n_load_steps = 20
-        tol = 1.0e-8
+        n_load_steps = 10
+        tol = 1.0e-5
         max_iter = 10
         solver = Newton(model, n_load_steps=n_load_steps, tol=tol, max_iter=max_iter)
 
