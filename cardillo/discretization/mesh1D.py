@@ -133,6 +133,26 @@ class Mesh1D():
 
         return DOF_tup
  
+    def reference_mappings(self, Q):
+        """Compute inverse gradient from the reference configuration to the parameter space and scale quadrature points by its determinant. See Bonet 1997 (7.6a,b)
+        """
+        if self.nq_n == 3:
+            w_J0 = np.zeros((self.nel, self.nqp))
+            for el in range(self.nel):
+                Qe = Q[self.elDOF[el]]
+
+                for i in range(self.nqp):
+                    N_xi = self.N_xi[el, i]
+
+                    kappa0_xi = np.zeros((self.nq_n, self.nq_n))
+                    for a in range(self.nn_el):
+                        kappa0_xi += Qe[self.nodalDOF[a]] * N_xi[a] # Bonet 1997 (7.6b)
+
+                w_J0[el, i] = np.linalg.norm(kappa0_xi)
+
+            return w_J0        
+
+
     # functions for vtk export
     def ensure_L2_projection_A(self):
         if not hasattr(self, "A"):

@@ -156,10 +156,11 @@ class First_gradient():
             f.write(xml_str)
 
     def F_qp(self, q):
+        """ Compute deformation gradient at quadrature points """
         F = np.zeros((self.nel, self.nqp, self.dim, self.dim))
         for el in range(self.nel):
             qel = q[self.elDOF[el]]
-            for i in range(self.mesh.nqp):
+            for i in range(self.nqp):
                 for a in range(self.nn_el):
                     F[el, i] += np.outer(qel[self.nodalDOF[a]], self.N_X[el, i, a])
 
@@ -195,8 +196,9 @@ class First_gradient():
 
         # return F
 
-    def update(self,t, q):
+    def pre_iteration_update(self,t, q, u):
         self.F_qp(self.z(t, q))
+
     #########################################
     # kinematic equation
     #########################################

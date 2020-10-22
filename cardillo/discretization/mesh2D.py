@@ -135,7 +135,7 @@ class Mesh2D():
         self.shape_functions()
 
         # edge degrees of freedom
-        self.edges()
+        # self.edges()
 
     def basis2D(self, degrees, derivative_order, knot_vectors, knots):
         if self.basis == 'B-spline':
@@ -228,11 +228,11 @@ class Mesh2D():
             select_edge(nn_1=[self.nn_eta - 1])
         )
 
-        line01 = Mesh1D(self.knot_vector_objs[1], self.nqp_per_dim[1]),
+        line01 = Mesh1D(self.knot_vector_objs[1], self.nqp_per_dim[1],
                         derivative_order=self.derivative_order,
                         basis=self.basis, nq_n=self.nq_n)
 
-        line23 = Mesh1D(self.knot_vector_objs[0], self.nqp_per_dim[0]),
+        line23 = Mesh1D(self.knot_vector_objs[0], self.nqp_per_dim[0],
                         derivative_order=self.derivative_order,
                         basis=self.basis, nq_n=self.nq_n)
 

@@ -95,7 +95,6 @@ class Newton():
         la = x[nq:]
 
         R = np.zeros(self.nx)
-        self.model.update(t, q)
         self.W_g = self.model.W_g(t, q)
         R[:nq] = self.model.h(t, q, self.u) + self.W_g @ la
         R[nq:] = self.model.g(t, q)
@@ -178,6 +177,7 @@ class Newton():
             pbar.update(1)
             
             # compute initial residual
+            self.model.pre_iteration_update(self.load_steps[i], self.x[i, :self.nq], self.u)
             R = self._residual(self.load_steps[i], self.x[i])
             error = self.error_function(R)
             
@@ -207,6 +207,7 @@ class Newton():
                     self.x[i] -= update
                                 
                     # compute new residual
+                    self.model.pre_iteration_update(self.load_steps[i], self.x[i, :self.nq], self.u)
                     R = self._residual(self.load_steps[i], self.x[i])
                     error = self.error_function(R)
 

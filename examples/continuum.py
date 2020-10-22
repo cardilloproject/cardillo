@@ -32,15 +32,15 @@ def test_cube():
     TractionForce = False
     Gravity = False
     Statics = True
-    Incompressible = True
+    Incompressible = False
     save_sol = True
     # build mesh
     # degrees = (2, 2, 2)
     # QP_shape = (3, 3, 3)
     # # element_shape = (5, 5, 5)
     # element_shape = (2, 2, 2)
-    degrees = (2, 2, 2)
-    QP_shape = (3, 3, 3)
+    degrees = (3, 3, 3)
+    QP_shape = (2, 2, 2)
     element_shape = (2, 2, 2)
 
     Xi = Knot_vector(degrees[0], element_shape[0])
@@ -86,7 +86,7 @@ def test_cube():
             cDOF2 = mesh.surface_qDOF[5][2]
             cDOF = np.concatenate((cDOF1, cDOF2))
             b1 = lambda t: Z[cDOF1]
-            b2 = lambda t: Z[cDOF2] - t * 0.1
+            b2 = lambda t: Z[cDOF2] + t * 0.1
             b = lambda t: np.concatenate((b1(t), b2(t)))
             # cDOF = mesh.surface_qDOF[4].ravel()
             # b = lambda t: Z[cDOF]

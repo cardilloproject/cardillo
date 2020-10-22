@@ -26,9 +26,9 @@ def test_cube():
     # QP_shape = (3, 3, 3)
     # # element_shape = (5, 5, 5)
     # element_shape = (2, 2, 2)
-    degrees = (2, 2, 2)
-    QP_shape = (3, 3, 3)
-    element_shape = (2, 2, 3)
+    degrees = (1, 1, 1)
+    QP_shape = (2, 2, 2)
+    element_shape = (2, 2, 2)
 
     data_xi = [0, 0.1, 1]
     data_eta = [0, 0.4, 0.5, 1]
