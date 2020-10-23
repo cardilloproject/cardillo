@@ -68,7 +68,8 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
             if self.basis == 'B-spline':
                 self.basis_functions = self.__basis_functions_b_splines
             else:
-                self.basis_functions = self.__basis_functions_lagrange
+                raise NotImplementedError('not implemented!')
+                # self.basis_functions = self.__basis_functions_lagrange
 
             # precompute quantities of the reference configuration
             Qe = self.Q[self.elDOF[el]]

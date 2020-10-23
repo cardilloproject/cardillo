@@ -63,6 +63,12 @@ class Model(object):
     def pop(self, index):
         self.contributions.pop(index)
 
+    def pre_iteration_update(self, t, q, u):
+        """ Update or precalculate any system variables before next solver iteration """
+        for contr in self.contributions:
+            if callable(getattr(contr, 'pre_iteration_update', None)):
+                contr.pre_iteration_update(t, q, u)
+
     def assemble(self):
         self.nq = 0
         self.nu = 0

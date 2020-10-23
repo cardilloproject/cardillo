@@ -57,7 +57,7 @@ class First_gradient():
 
         # for each Gauss point, compute kappa0^-1, N_X and w_J0 = w * det(kappa0^-1)
         self.kappa0_xi_inv, self.N_X, self.w_J0 = self.mesh.reference_mappings(Z)
-        if self.dim ==3:
+        if self.dim == 3:
             self.srf_w_J0 = []
             for i in range(6):
                 self.srf_w_J0.append(self.mesh.surface_mesh[i].reference_mappings(Z[self.mesh.surface_qDOF[i].ravel()]))
@@ -155,36 +155,49 @@ class First_gradient():
         with open(filename + '.pvd', "w") as f:
             f.write(xml_str)
 
-    def F(self, knots, q):
-        raise NotImplementedError('adapt with z(t, q)')
-        n = len(knots)
-        F = np.zeros((n, self.dim, self.dim))
+    def F_qp(self, q):
+        """ Compute deformation gradient at quadrature points """
+        F = np.zeros((self.nel, self.nqp, self.dim, self.dim))
+        for el in range(self.nel):
+            qel = q[self.elDOF[el]]
+            for i in range(self.nqp):
+                for a in range(self.nn_el):
+                    F[el, i] += np.outer(qel[self.nodalDOF[a]], self.N_X[el, i, a])
 
-        for i, (xi, eta, zeta) in enumerate(knots):
-            el_xi = self.mesh.Xi.element_number(xi)[0]
-            el_eta = self.mesh.Eta.element_number(eta)[0]
-            el_zeta = self.mesh.Zeta.element_number(zeta)[0]
-            el = flat3D(el_xi, el_eta, el_zeta, self.mesh.nel_per_dim)
-            elDOF = self.elDOF[el]
-            qe = q[elDOF]
-            Qe = self.Z[elDOF]
+        self.F = F
 
-            # evaluate shape functions
-            NN = B_spline_basis3D(self.mesh.degrees, 1, self.mesh.knot_vectors, (xi, eta, zeta))
-            N_xi = NN[0, :, 1:4]
+        # raise NotImplementedError('adapt with z(t, q)')
+        # n = len(knots)
+        # F = np.zeros((n, self.dim, self.dim))
 
-            # reference mapping gradient w.r.t. parameter space
-            kappa0_xi = np.zeros((self.mesh.nq_n, self.mesh.nq_n))
-            for a in range(self.mesh.nn_el):
-                kappa0_xi += np.outer(Qe[self.mesh.nodalDOF[a]], N_xi[a]) # Bonet 1997 (7.6b)
-            
-            for a in range(self.mesh.nn_el):
-                self.N_X[el, i, a] = N_xi[a] @ inverse3D(kappa0_xi) # Bonet 1997 (7.6a) modified
+        # for i, (xi, eta, zeta) in enumerate(knots):
+        #     el_xi = self.mesh.Xi.element_number(xi)[0]
+        #     el_eta = self.mesh.Eta.element_number(eta)[0]
+        #     el_zeta = self.mesh.Zeta.element_number(zeta)[0]
+        #     el = flat3D(el_xi, el_eta, el_zeta, self.mesh.nel_per_dim)
+        #     elDOF = self.elDOF[el]
+        #     qe = q[elDOF]
+        #     Qe = self.Z[elDOF]
 
-            for a in range(self.mesh.nn_el):
-                F[i] += np.outer(qe[self.mesh.nodalDOF[a]], self.N_X[el, i, a]) # Bonet 1997 (7.5)
+        #     # evaluate shape functions
+        #     NN = B_spline_basis3D(self.mesh.degrees, 1, self.mesh.knot_vectors, (xi, eta, zeta))
+        #     N_xi = NN[0, :, 1:4]
 
-        return F
+        #     # reference mapping gradient w.r.t. parameter space
+        #     kappa0_xi = np.zeros((self.mesh.nq_n, self.mesh.nq_n))
+        #     for a in range(self.mesh.nn_el):
+        #         kappa0_xi += np.outer(Qe[self.mesh.nodalDOF[a]], N_xi[a]) # Bonet 1997 (7.6b)
+
+        #     for a in range(self.mesh.nn_el):
+        #         self.N_X[el, i, a] = N_xi[a] @ inverse3D(kappa0_xi) # Bonet 1997 (7.6a) modified
+
+        #     for a in range(self.mesh.nn_el):
+        #         F[i] += np.outer(qe[self.mesh.nodalDOF[a]], self.N_X[el, i, a]) # Bonet 1997 (7.5)
+
+        # return F
+
+    def pre_iteration_update(self,t, q, u):
+        self.F_qp(self.z(t, q))
 
     #########################################
     # kinematic equation
@@ -233,12 +246,12 @@ class First_gradient():
             w_J0 = self.w_J0[el, i]
 
             # deformation gradient
-            F = np.zeros((self.dim, self.dim))
-            for a in range(self.nn_el):
-                F += np.outer(ze[self.nodalDOF[a]], N_X[a]) # Bonet 1997 (7.5)
+            # F = np.zeros((self.dim, self.dim))
+            # for a in range(self.nn_el):
+            #     F += np.outer(ze[self.nodalDOF[a]], N_X[a]) # Bonet 1997 (7.5)
 
             # first Piola-Kirchhoff deformation tensor
-            P = self.mat.P(F)
+            P = self.mat.P(self.F[el, i])
 
             # internal forces
             for a in range(self.nn_el):
@@ -264,16 +277,17 @@ class First_gradient():
             w_J0 = self.w_J0[el, i]
 
             # deformation gradient
-            F = np.zeros((self.dim, self.dim))
+            # F = np.zeros((self.dim, self.dim))
+            F_eli = self.F[el, i]
             F_q = np.zeros((self.dim, self.dim, self.nq_el))
             for a in range(self.nn_el):
-                F += np.outer(ze[self.nodalDOF[a]], N_X[a]) # Bonet 1997 (7.5)
+                # F += np.outer(ze[self.nodalDOF[a]], N_X[a]) # Bonet 1997 (7.5)
                 F_q[:, :, self.nodalDOF[a]] += np.einsum('ik,j->ijk', I3, N_X[a])
 
             # differentiate first Piola-Kirchhoff deformation tensor w.r.t. generalized coordinates
-            S = self.mat.S(F)
-            S_F = self.mat.S_F(F)
-            P_F  = np.einsum('ik,lj->ijkl', I3, S)  + np.einsum('in,njkl->ijkl', F, S_F)
+            S = self.mat.S(F_eli)
+            S_F = self.mat.S_F(F_eli)
+            P_F  = np.einsum('ik,lj->ijkl', I3, S)  + np.einsum('in,njkl->ijkl', F_eli, S_F)
             P_q = np.einsum('klmn,mnj->klj', P_F, F_q)
 
             # internal element stiffness matrix

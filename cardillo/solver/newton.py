@@ -178,6 +178,7 @@ class Newton():
             pbar.update(1)
             
             # compute initial residual
+            self.model.pre_iteration_update(self.load_steps[i], self.x[i, :self.nq], self.u)
             R = self._residual(self.load_steps[i], self.x[i])
             error = np.absolute(R).max()
             
@@ -207,6 +208,7 @@ class Newton():
                     self.x[i] -= update
                                 
                     # compute new residual
+                    self.model.pre_iteration_update(self.load_steps[i], self.x[i, :self.nq], self.u)
                     R = self._residual(self.load_steps[i], self.x[i])
                     error = np.absolute(R).max()
 

@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 import numpy as np
 from math import sqrt, log, isclose
-from cardillo.math.algebra import determinant2D, determinant3D
+from cardillo.math.algebra import determinant2D, determinant3D, inverse3D
 from cardillo.math.numerical_derivative import Numerical_derivative
 
 class Material_model_ev(ABC):
@@ -127,17 +127,90 @@ class Ogden1997_compressible():
         return F @ self.S(F)
         
 class Ogden1997_incompressible():
-    """Ogden 1997 p. 293, (7.2.20)
+    """Ogden 1997 p. 293, (7.2.20)k
     """
-    def __init__(self, mu, alpha):
+    def __init__(self, mu, dim=3):
         self.mu = mu
-        self.alpha = alpha
+        self.dim = dim
 
-    def W(self, F):        
-        raise NotImplementedError('...')
+    def W(self, F):
+        la2, _ = np.linalg.eigh(F.T @ F)
+        
+        I1 = sum(la2)
+        I3 = np.prod(la2)
+
+        return self.mu / 2 * (I3**(-1 / 3) * I1 - 3)
+
+    def S(self, F):
+        C = F.T @ F
+        la2, _ = np.linalg.eigh(C)
+
+        S = self.mu * np.prod(la2)**(-1 / 3) * (np.eye(3) - 1 / 3 * sum(la2) * inverse3D(C))
+
+        return S
+
+    # TODO
+    def S_F(self, F):
+        S_F_num = Numerical_derivative(self.S, order=2)._X(F)
+        return S_F_num
 
     def P(self, F):
-        raise NotImplementedError('...')
+        return F @ self.S(F)
+
+class Pantobox_linear():
+    """anisotropic linear elastic first gradient material model for 3D Pantograph"""
+    def __init__(self, Es, r, l, rp=0, lp=0):
+        self.ke = Es * np.pi * r**2 / l
+        self.kf = 3 * Es * np.pi * r**4 / l**3
+        self.K = np.zeros((6,6))
+        if rp == 0 and lp == 0:
+            self.K[0, 0] = self.ke + self.kf
+            self.K[0, 1] = self.ke - self.kf
+            self.K[1, 1] = 2 * self.K[0, 0]
+            self.K[1, 0] = self.K[0, 1]
+            self.K[1, 2] = self.K[0, 1]
+            self.K[2, 1] = self.K[1, 2]
+            self.K[2, 2] = self.K[0, 0]
+            self.K[3, 3] = self.ke + self.kf / 3
+            self.K[4, 4] = self.K[3, 3]
+            self.K[5, 5] = self.kf
+            self.K *= 1 / (np.sqrt(2) * l)
+        else:
+            self.kr = Es / (2 + 0.6) * np.pi * rp**4 / lp / 2
+            self.K[0, 0] = (2 * self.ke * self.kr + 2 * self.kf * self.kr + self.ke * self.kf * l**2) \
+                            / (2 * self.kr + self.kf * l**2)
+            self.K[0, 1] = (2 * self.ke * self.kr - 2 * self.kf * self.kr + self.ke * self.kf * l**2) \
+                            / (2 * self.kr + self.kf * l**2)
+            self.K[1, 1] = 2 * self.K[0, 0]
+            self.K[1, 0] = self.K[0, 1]
+            self.K[1, 2] = self.K[0, 1]
+            self.K[2, 1] = self.K[1, 2]
+            self.K[2, 2] = self.K[0, 0]
+            self.K[3, 3] = 2 * self.ke
+            self.K[4, 4] = self.K[3, 3]
+            self.K[5, 5] = 2 * self.kf
+            self.K *= 1 / (np.sqrt(2) * l)            
+
+    def W(self, F):
+        return 0.5 * np.tensordot(self.S(F), self.E(F), axes=2)
+
+    def E(self, F):
+        return 0.5 * (F.T @ F - np.eye(3))
+
+    def S(self, F):
+        E = self.E(F)
+        E_voigt = [E[0, 0], E[1, 1], E[2, 2], E[1, 0], E[2, 1], E[0, 2]]
+        S_voigt = self.K @ E_voigt
+        return np.array([[S_voigt[0], S_voigt[3], S_voigt[5]], [S_voigt[3], S_voigt[1], S_voigt[4]],
+                [S_voigt[5], S_voigt[4], S_voigt[2]]])
+
+    # TODO
+    def S_F(self, F):
+        S_F_num = Numerical_derivative(self.S, order=2)._X(F)
+        return S_F_num
+
+    def P(self, F):
+        return F @ self.S(F)
 
 def test_Ogden1997_compressible():
     mu1 = 0.3

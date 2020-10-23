@@ -1,13 +1,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import os
-import os.path
-import pickle
+from cardillo.discretization.lagrange import Node_vector
 from cardillo.discretization.mesh3D import Mesh3D, cube
 from cardillo.discretization.mesh2D import Mesh2D, rectangle
-from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume
 from cardillo.discretization.indexing import flat3D
-from cardillo.model.continuum import Ogden1997_compressible, Ogden1997_incompressible, First_gradient
+from cardillo.model.continuum import Ogden1997_compressible, First_gradient, Ogden1997_incompressible
 from cardillo.solver import Newton, Euler_backward
 from cardillo.model import Model
 from cardillo.math.algebra import A_IK_basic_z
@@ -15,53 +12,53 @@ from cardillo.model.force_distr2D import Force_distr2D
 from cardillo.model.force_distr3D import Force_distr3D
 from cardillo.model.bilateral_constraints.implicit.incompressibility import Incompressibility
 
-def save_solution(sol, filename):
-    import pickle
-    with open(filename, mode='wb') as f:
-        pickle.dump(sol, f)
 
 def test_cube():
-
-    path_name, file_name = [x[0] for x in map(os.path.splitext, os.path.split(__file__)) ]
-    export_dir = os.path.join(path_name, 'results', file_name)
-    export_path = os.path.join(export_dir, 'sol')
-
-    TractionForce = False
+    TractionForce = True
     Gravity = False
     Statics = True
-    Incompressible = False
-    save_sol = True
-
+    Incompressible = True
     # build mesh
-    degrees = (2, 2, 2)
-    QP_shape = (3, 3, 3)
+    # degrees = (2, 2, 2)
+    # QP_shape = (3, 3, 3)
+    # # element_shape = (5, 5, 5)
+    # element_shape = (2, 2, 2)
+    degrees = (1, 1, 1)
+    QP_shape = (2, 2, 2)
     element_shape = (2, 2, 2)
 
-    Xi = Knot_vector(degrees[0], element_shape[0])
-    Eta = Knot_vector(degrees[1], element_shape[1])
-    Zeta = Knot_vector(degrees[2], element_shape[2])
+    data_xi = [0, 0.1, 1]
+    data_eta = [0, 0.4, 0.5, 1]
+    data_zeta = [0, 0.6, 0.7, 0.8, 1]
+
+    # Xi = Knot_vector(degrees[0], element_shape[0], data=data_xi)
+    # Eta = Knot_vector(degrees[1], element_shape[1], data=data_eta)
+    # Zeta = Knot_vector(degrees[2], element_shape[2], data=data_zeta)
+    Xi = Node_vector(degrees[0], element_shape[0])
+    Eta = Node_vector(degrees[1], element_shape[1])
+    Zeta = Node_vector(degrees[2], element_shape[2])
     knot_vectors = (Xi, Eta, Zeta)
-    
-    mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=1, basis='B-spline', nq_n=3)
+
+    mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=1, basis='lagrange',
+                nq_n=3)
 
     # reference configuration is a cube
     L = 1
     B = 1
     H = 1
     cube_shape = (L, B, H)
-    Z = cube(cube_shape, mesh, Greville=False)
+    Z = cube(cube_shape, mesh, Fuzz=False)
 
     # material model
     mu1 = 0.3 # * 1e3
     mu2 = 0.5 # * 1e3
-
     if Incompressible:
         mat = Ogden1997_incompressible(mu1)
-        Xi_la = Knot_vector(degrees[0] - 1, element_shape[0])
-        Eta_la = Knot_vector(degrees[1] - 1, element_shape[1])
-        Zeta_la = Knot_vector(degrees[2] - 1, element_shape[2])
+        Xi_la = Node_vector(degrees[0] - 1, element_shape[0])
+        Eta_la = Node_vector(degrees[1] - 1, element_shape[1])
+        Zeta_la = Node_vector(degrees[2] - 1, element_shape[2])
         knot_vectors_la = (Xi_la, Eta_la, Zeta_la)
-        la_mesh = Mesh3D(knot_vectors_la, QP_shape, derivative_order=0, basis='B-spline', nq_n=1)
+        la_mesh = Mesh3D(knot_vectors_la, QP_shape, derivative_order=0, basis='lagrange', nq_n=1)
     else:
         mat = Ogden1997_compressible(mu1, mu2)
 
@@ -71,16 +68,18 @@ def test_cube():
         # boundary conditions
         if TractionForce:
             # cDOF = mesh.surface_qDOF[0].reshape(-1)
-            cDOF = mesh.surface_qDOF[2].reshape(-1)
+            cDOF = mesh.surface_qDOF[4].ravel()
             # cDOF = mesh.surface_qDOF[4].reshape(-1)
             b = lambda t: Z[cDOF]
 
         else:
-            cDOF1 = mesh.surface_qDOF[4].ravel()
+            # cDOF1 = mesh.surface_qDOF[4][0:2, 0]
+            cDOF1 = mesh.surface_qDOF[4][2]
             cDOF2 = mesh.surface_qDOF[5][2]
             cDOF = np.concatenate((cDOF1, cDOF2))
             b1 = lambda t: Z[cDOF1]
-            b2 = lambda t: Z[cDOF2] + t * 0.1
+            # b11 = lambda t: Z[cDOF11]
+            b2 = lambda t: Z[cDOF2] + t * 0.3
             b = lambda t: np.concatenate((b1(t), b2(t)))
             # cDOF = mesh.surface_qDOF[4].ravel()
             # b = lambda t: Z[cDOF]
@@ -88,12 +87,14 @@ def test_cube():
         cDOF_xi = mesh.surface_qDOF[4][0]
         cDOF_eta = mesh.surface_qDOF[4][1]
         cDOF_zeta = mesh.surface_qDOF[4][2]
-        cDOF = np.concatenate((cDOF_xi, cDOF_eta, cDOF_zeta))
+        cDOF_zeta2 = mesh.surface_qDOF[5][2]
+        cDOF = np.concatenate((cDOF_xi, cDOF_eta, cDOF_zeta, cDOF_zeta2))
         Omega = 2 * np.pi
-        b_xi = lambda t: Z[cDOF_xi] + 0.1 * np.sin(Omega * t)
+        b_xi = lambda t: Z[cDOF_xi] #* np.sin(Omega * t)
         b_eta = lambda t: Z[cDOF_eta]
         b_zeta = lambda t: Z[cDOF_zeta]
-        b = lambda t: np.concatenate((b_xi(t), b_eta(t), b_zeta(t)))
+        b_zeta2 = lambda t: Z[cDOF_zeta2] + 0.3 * t
+        b = lambda t: np.concatenate((b_xi(t), b_eta(t), b_zeta(t), b_zeta2(t)))
 
 
     # 3D continuum
@@ -114,7 +115,8 @@ def test_cube():
         # model.add(Force_distr2D(F, continuum, 1))
         # F = lambda t, xi, eta: t * np.array([0, -2.5e0, 0]) * (0.25 - (xi-0.5)**2) * (0.25 - (eta-0.5)**2)
         # model.add(Force_distr2D(F, continuum, 5))
-        F = lambda t, xi, eta: np.array([0, 0, -5e0]) * (0.25 - (xi-0.5)**2) * (0.25 - (eta-0.5)**2)
+        # F = lambda t, xi, eta: np.array([0, 0, -5e0]) * (0.25 - (xi-0.5)**2) * (0.25 - (eta-0.5)**2)
+        F = lambda t, xi, eta: np.array([0, 0, 0.2]) * t
         model.add(Force_distr2D(F, continuum, 5))
     
     if Gravity:
@@ -135,52 +137,19 @@ def test_cube():
     # static solver
         n_load_steps = 10
         tol = 1.0e-5
-        max_iter = 10
+        max_iter = 20
         solver = Newton(model, n_load_steps=n_load_steps, tol=tol, max_iter=max_iter)
 
     else:
-        t1 = 10
+        t1 = 1
         dt = 1e-1
         # solver = Generalized_alpha_1(model, t1, dt=dt, variable_dt=False, rho_inf=0.25)
         solver = Euler_backward(model, t1, dt)
 
-
-    if save_sol:
-        sol = solver.solve()
-        # export solution object
-        if not os.path.exists(export_dir):
-            os.makedirs(export_dir)
-        save_solution(sol, export_path)
-    else:
-        sol = pickle.load( open(export_path, 'rb') )
-
-    import matplotlib.pyplot as plt
-
-    # fig = plt.figure()
-    # ax = fig.gca(projection='3d')
-    # ax.scatter(*model.contributions[0].z(sol.t[-1], sol.q[-1]).reshape(3,-1))
-    # z = model.contributions[0].z(sol.t[-1], sol.q[-1])
-    # model.contributions[0].F_qp(z)
-    # F = model.contributions[0].F
-    # J = list(map(np.linalg.det, F.reshape(-1,3,3)))
-    # plt.figure()
-    # plt.plot(np.array(J))
-
-    # z_y = z[mesh.nn:2*mesh.nn:mesh.nn_xi*mesh.nn_eta]
-
-    # plt.figure()
-    # from scipy.interpolate import BSpline
-    # Spline = BSpline(Zeta.data, z_y, 2)
-
-    # xx = np.linspace(0,1,20)
-
-    # plt.plot(xx,Spline(xx))
-
-    # plt.show()
     # import cProfile, pstats
     # pr = cProfile.Profile()
     # pr.enable()
-    # sol = solver.solve()
+    sol = solver.solve()
     # pr.disable()
 
     # sortby = 'cumulative'
@@ -192,7 +161,7 @@ def test_cube():
     # exit()
 
     # vtk export
-    continuum.post_processing(sol.t, sol.q, 'cube_splines_incomp')
+    continuum.post_processing(sol.t, sol.q, 'cube_lagrange')
 
 def test_cylinder():    
     # build mesh
@@ -319,8 +288,8 @@ def test_rectangle():
     mat = Ogden1997_compressible(mu1, mu2, dim=2)
 
     # boundary conditions
-    cDOF1 = mesh.edge_qDOF[0].reshape(-1)
-    cDOF2 = mesh.edge_qDOF[1][1]
+    cDOF1 = mesh.edge_DOF[0].reshape(-1)
+    cDOF2 = mesh.edge_DOF[1][1]
     cDOF = np.concatenate((cDOF1, cDOF2))
     b1 = lambda t: Z[cDOF1]
     b2 = lambda t: Z[cDOF2] + t * 4
@@ -393,4 +362,4 @@ if __name__ == "__main__":
     test_cube()
     # test_cylinder()
     # test_rectangle()
-    # write_xml()
+    # write_xml()   
