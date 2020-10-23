@@ -1,4 +1,5 @@
 import numpy as np
+from numpy.core.fromnumeric import squeeze
 from scipy.sparse.linalg import spsolve
 from cardillo.discretization.indexing import flat2D, flat3D, split2D, split3D
 import meshio
@@ -60,8 +61,6 @@ def lagrange_basis1D(degree, xi, derivative=1, knot_vector=None, interval=[-1,1]
     NN[:, :, 0] = Nxi
     if derivative > 0:
         NN[:, :, 1] = N_xi
-        if derivative > 1:
-            NN[:, :, 2] = N_xixi
 
     return NN
 
@@ -293,6 +292,7 @@ def lagrange_volume2vtk(mesh, Q, filename, binary=False):
         cell_data={"HigherOrderDegrees": HigherOrderDegrees},
         binary=binary
     )
+
 def find_element_number(mesh, xis):
     # finds the element number for a xis vector from the 0 to 1 parameter space
     # also gives the parameter space value of xis

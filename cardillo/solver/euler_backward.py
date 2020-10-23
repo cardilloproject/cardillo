@@ -34,6 +34,7 @@ class Euler_backward():
         self.la_gDOF = self.nu + self.nq + np.arange(self.nla_g)
         self.la_gammaDOF = self.nu + self.nq + self.nla_g + np.arange(self.nla_gamma)
 
+        self.model.pre_iteration_update(t0, model.q0, model.u0)
         self.Mk1 = self.model.M(t0, model.q0)
         self.W_gk1 = self.model.W_g(t0, model.q0)
         self.W_gammak1 = self.model.W_gamma(t0, model.q0)
@@ -178,6 +179,7 @@ class Euler_backward():
         xk1[self.la_gammaDOF] = la_gammak1
 
         # initial residual and error
+        self.model.pre_iteration_update(tk1, qk1, uk1)
         R = self.__R(qk, uk, tk1, qk1, uk1, la_gk1, la_gammak1)
         error = self.newton_error_function(R)
         converged = error < self.newton_tol
@@ -196,6 +198,7 @@ class Euler_backward():
                 la_gk1 = xk1[self.la_gDOF]
                 la_gammak1 = xk1[self.la_gammaDOF]
 
+                self.model.pre_iteration_update(tk1, qk1, uk1)
                 R = self.__R(qk, uk, tk1, qk1, uk1, la_gk1, la_gammak1)
                 error = self.newton_error_function(R)
                 converged = error < self.newton_tol

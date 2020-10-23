@@ -1,13 +1,12 @@
 import numpy as np
 from scipy.sparse.linalg import spsolve
-# from cardillo_fem.discretization.lagrange import lagrange2D, lagrange1D, lagrange3D
-from cardillo.discretization.B_spline import uniform_knot_vector, B_spline_basis1D, B_spline_basis2D, B_spline_basis3D, q_to_Pw_2D, decompose_B_spline_surface, flat2D_vtk
+from cardillo.discretization.B_spline import B_spline_basis2D, q_to_Pw_2D, decompose_B_spline_surface, flat2D_vtk
 from cardillo.discretization.lagrange import lagrange_basis2D
-from cardillo.math.algebra import inverse2D, determinant2D, inverse3D, determinant3D, quat2rot, norm3, cross3
+from cardillo.math.algebra import inverse2D, determinant2D, norm3, cross3
 from cardillo.discretization.indexing import flat2D, split2D
+from cardillo.discretization.mesh1D import Mesh1D
 from cardillo.discretization.gauss import gauss
 from cardillo.utility.coo import Coo
-
 
 def rectangle(shape, mesh, Greville=False, Fuzz=None):
     L, B = shape
@@ -135,7 +134,7 @@ class Mesh2D():
         self.shape_functions()
 
         # edge degrees of freedom
-        # self.edges()
+        self.edges()
 
     def basis2D(self, degrees, derivative_order, knot_vectors, knots):
         if self.basis == 'B-spline':
@@ -221,7 +220,7 @@ class Mesh2D():
                 
             return DOF
 
-        self.line_qDOF = (
+        self.edge_qDOF = (
             select_edge(nn_0=[0]),
             select_edge(nn_0=[self.nn_xi - 1]),
             select_edge(nn_1=[0]),
@@ -448,8 +447,7 @@ class Mesh2D():
 
         return cells, points, HigherOrderDegrees
 
-
-def test_edge_DOF():
+def test_edge_qDOF():
     from cardillo.discretization.B_spline import Knot_vector
     # degrees = (1, 2, 3)
     # element_shape = (3, 2, 1)
@@ -477,12 +475,12 @@ def test_edge_DOF():
     ax.set_xlim(left=-max_val, right=max_val)
     ax.set_ylim(bottom=-max_val, top=max_val)
 
-    ax.scatter(*Q[mesh.edge_DOF[2].reshape(-1)].reshape(2,-1), marker='x', color='green')
-    ax.scatter(*Q[mesh.edge_DOF[0].reshape(-1)].reshape(2,-1), marker='x', color='red')
-    ax.scatter(*Q[mesh.edge_DOF[1].reshape(-1)].reshape(2,-1), marker='x', color='red')
-    ax.scatter(*Q[mesh.edge_DOF[3].reshape(-1)].reshape(2,-1), marker='x', color='green')
+    ax.scatter(*Q[mesh.edge_qDOF[2].reshape(-1)].reshape(2,-1), marker='x', color='green')
+    ax.scatter(*Q[mesh.edge_qDOF[0].reshape(-1)].reshape(2,-1), marker='x', color='red')
+    ax.scatter(*Q[mesh.edge_qDOF[1].reshape(-1)].reshape(2,-1), marker='x', color='red')
+    ax.scatter(*Q[mesh.edge_qDOF[3].reshape(-1)].reshape(2,-1), marker='x', color='green')
 
     plt.show()
 
 if __name__ == "__main__":
-    test_edge_DOF()
+    test_edge_qDOF()

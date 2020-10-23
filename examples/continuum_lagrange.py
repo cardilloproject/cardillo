@@ -1,14 +1,11 @@
-from threading import main_thread
 import numpy as np
 import matplotlib.pyplot as plt
-# from cardillo.discretization import Mesh
 from cardillo.discretization.lagrange import Node_vector
 from cardillo.discretization.mesh3D import Mesh3D, cube
 from cardillo.discretization.mesh2D import Mesh2D, rectangle
-# from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume
 from cardillo.discretization.indexing import flat3D
 from cardillo.model.continuum import Ogden1997_compressible, First_gradient, Ogden1997_incompressible
-from cardillo.solver import Newton, Generalized_alpha_1, Euler_backward
+from cardillo.solver import Newton, Euler_backward
 from cardillo.model import Model
 from cardillo.math.algebra import A_IK_basic_z
 from cardillo.model.force_distr2D import Force_distr2D

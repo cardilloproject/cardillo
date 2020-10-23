@@ -1,12 +1,10 @@
 import numpy as np
 from scipy.sparse.linalg import spsolve
-# from cardillo_fem.discretization.lagrange import lagrange2D, lagrange1D, lagrange3D
-from cardillo.discretization.B_spline import uniform_knot_vector, B_spline_basis1D, B_spline_basis2D, B_spline_basis3D, q_to_Pw_3D, decompose_B_spline_volume, flat3D_vtk
-from cardillo.discretization.lagrange import lagrange_basis3D, lagrange_basis1D
-from cardillo.math.algebra import inverse2D, determinant2D, inverse3D, determinant3D, quat2rot
+from cardillo.discretization.B_spline import B_spline_basis3D, q_to_Pw_3D, decompose_B_spline_volume, flat3D_vtk
+from cardillo.discretization.lagrange import lagrange_basis3D
+from cardillo.math.algebra import inverse3D, determinant3D
 from cardillo.discretization.indexing import flat3D, split3D
 from cardillo.discretization.mesh2D import Mesh2D
-from cardillo.discretization.mesh2D_lagrange import Mesh2D_lagrange
 from cardillo.discretization.gauss import gauss
 from cardillo.utility.coo import Coo
 
@@ -496,11 +494,8 @@ class Mesh3D():
         return cells, points, HigherOrderDegrees
 
 
-def test_surface_DOF():
-    from cardillo.discretization.B_spline import Knot_vector
+def test_surface_qDOF():
     from cardillo.discretization.lagrange import Node_vector
-    # degrees = (1, 2, 3)
-    # element_shape = (3, 2, 1)
     degrees = (3, 3, 3)
     QP_shape = (2, 2, 2)
     element_shape = (2, 2, 2)
@@ -515,7 +510,6 @@ def test_surface_DOF():
 
     cube_shape = (3, 3, 3)
     Q = cube(cube_shape, mesh, Greville=False, Fuzz=0)
-    #scatter_Qs(Q_cube)
 
     import matplotlib.pyplot as plt
     fig = plt.figure()
@@ -527,7 +521,6 @@ def test_surface_DOF():
     ax.set_xlim3d(left=-max_val, right=max_val)
     ax.set_ylim3d(bottom=-max_val, top=max_val)
     ax.set_zlim3d(bottom=-max_val, top=max_val)
-#    ax.scatter(*Q.reshape(3, -1), marker='p')
 
     ax.scatter(*Q[mesh.surface_qDOF[0].reshape(-1)].reshape(3,-1), marker='x', color='red')
     ax.scatter(*Q[mesh.surface_qDOF[2].reshape(-1)].reshape(3,-1), marker='x', color='green')
@@ -539,4 +532,4 @@ def test_surface_DOF():
     plt.show()
 
 if __name__ == "__main__":
-    test_surface_DOF()
+    test_surface_qDOF()
