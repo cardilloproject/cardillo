@@ -58,7 +58,8 @@ def post_processing(subsystem, t, q, filename, u=None, binary=True):
 
         # write vtk mesh using meshio
         meshio.write_points_cells(
-            os.path.splitext(os.path.basename(filei))[0] + '.vtu',
+            filei,   
+            # os.path.splitext(os.path.basename(filei))[0] + '.vtu',
             geom_points, # only export centerline as geometry here!
             cells,
             point_data=point_data,

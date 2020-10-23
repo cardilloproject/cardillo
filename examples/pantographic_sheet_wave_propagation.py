@@ -485,14 +485,14 @@ if __name__ == "__main__":
 
 ###############################################################################################
     # time simulation parameters
-    t1 = 7e-2                      # simulation time
+    t1 = 7.5e-2                         # simulation time
     dt = 4e-5                           # time step
     rho_inf = 0.8                       # damping parameter generalized-alpha integrator
 
     # geometric parameters
     gamma = pi/4                        # angle between fiber families
     nRow = 20                           # number of rows = 2 * number of fibers per height
-    nCol = 800                        # number of columns = 2 * number of fibers per length
+    nCol = 1000                        # number of columns = 2 * number of fibers per length
 
     H = 0.07                            # height of pantographic sheet
     LBeam = H / (nRow * sin(gamma))     # length of individual beam
@@ -517,11 +517,14 @@ if __name__ == "__main__":
 
     A_rho0 = 930 * a * b                # density per unit length
 
+    # prepare data for storage, animation and paraview export
+    storage_compression_factor = 10 # store only every 10th time step
+
     # boundary conditions
     # Gaussian excitation
     displ = 2 * H / 10
-    c1 = 0.005    # c1 = sqrt(2)*std
-    c2 = 0.02     # center of bell
+    c1 = 0.006    # c1 = sqrt(2)*std
+    c2 = 0.033     # center of bell
     fcn = lambda t: displ * np.exp(-(t-c2)**2/c1**2)
 
     # generate directories
@@ -534,7 +537,8 @@ if __name__ == "__main__":
     # define the name of the directory to be created
     # file name label
     fn_label = f'c1_{int(c1*1e3)}e-3_displ_{int(displ*1e3)}e-3'
-    path = working_path + f'\\c1_{int(c1*1e3)}e-3\\' + fn_label
+    # path = working_path + f'\\c1_{int(c1*1e3)}e-3\\' + fn_label
+    path = os.path.join(working_path, f'c1_{int(c1*1e3)}e-3', fn_label)
 
     try:
         os.makedirs(path)
@@ -557,8 +561,8 @@ if __name__ == "__main__":
     ax.grid()
 
     # save excitation function
-    plt.savefig(path + f'\\excitation_' + fn_label + '.eps', format='eps')
-    plt.savefig(path + f'\\excitation_' + fn_label + '.png', format='png')
+    plt.savefig(os.path.join(path, f'excitation_' + fn_label + '.eps'), format='eps')
+    plt.savefig(os.path.join(path, f'excitation_' + fn_label + '.png'), format='png')
 
     plt.show()
 
@@ -585,8 +589,6 @@ if __name__ == "__main__":
     else:
         solver = Newton(model, n_load_steps=5, max_iter=50, tol=1.0e-10, numerical_jacobian=False)
 
-    
-
     # solve or load problem
     if solve_problem:
         # import cProfile, pstats
@@ -599,42 +601,34 @@ if __name__ == "__main__":
         # ps = pstats.Stats(pr).sort_stats(sortby)
         # ps.print_stats(0.1) # print only first 10% of the list
 
-        # prepare data for storage, animation and paraview export
-        slow_motion_factor = 100
-        animation_time = t1 * slow_motion_factor
-        fps = 25
-        frames = int(min(sol.q.shape[0], fps * animation_time))
-        frac = int(sol.q.shape[0] / frames)
-        interval = animation_time * 1000 / frames # delay between frams in milliseconds
-
-        sol.t = sol.t[::frac]
-        sol.q = sol.q[::frac]
-        sol.u = sol.u[::frac]
+        sol.t = sol.t[::storage_compression_factor]
+        sol.q = sol.q[::storage_compression_factor]
+        sol.u = sol.u[::storage_compression_factor]
         del sol.a
         del sol.la_g
 
         if dynamics == True:
-            save_solution(sol, path + f'\\pantographic_sheet_' + fn_label + '_')
+            save_solution(sol, os.path.join(path, 'pantographic_sheet_' + fn_label + '_'))
         else:
-            save_solution(sol, path + f'\\pantographic_sheet_' + fn_label + '_statics_')
+            save_solution(sol, os.path.join(path, 'pantographic_sheet_' + fn_label + '_statics_'))
     else:
         if dynamics == True:
-            sol = load_solution(path + f'\\pantographic_sheet_' + fn_label + '_')
+            sol = load_solution(os.path.join(path, 'pantographic_sheet_' + fn_label + '_'))
 
         else:
-            sol = load_solution(path + f'\\pantographic_sheet_' + fn_label + '_statics_')
+            sol = load_solution(os.path.join(path, 'pantographic_sheet_' + fn_label + '_statics_'))
 
-        # prepare data for storage, animation and paraview export
-        slow_motion_factor = 100
-        animation_time = t1 * slow_motion_factor
-        fps = 25
-        frames = int(min(sol.q.shape[0], fps * animation_time))
-        frac = int(sol.q.shape[0] / frames)
-        interval = animation_time * 1000 / frames # delay between frams in milliseconds
 
-    tt = sol.t
-    qq = sol.q
-    uu = sol.u
+    slow_motion_factor = 100
+    animation_time = t1 * slow_motion_factor
+    fps = 25
+    frames = int(min(sol.q.shape[0], fps * animation_time))
+    frac = int(sol.q.shape[0] / frames)
+    interval = animation_time * 1000 / frames # delay between frams in milliseconds
+
+    tt = sol.t[::frac]
+    qq = sol.q[::frac]
+    uu = sol.u[::frac]
 
     # time-displacement diagramm
     if time_displacement_diagram:
@@ -780,10 +774,11 @@ if __name__ == "__main__":
 
         anim = animation.FuncAnimation(fig4, animate, frames=frames, interval=interval, blit=False)
 
-        anim.save(path + f'\\centerline_displacement_' + fn_label + '.mp4', writer=writer)
 
-        # post processing data
-        # fig5, ax5 = plt.subplots(2, 1)
+        anim.save(os.path.join(path, 'centerline_displacement_' + fn_label + '.mp4'), writer=writer)
+
+        # # post processing data
+        # # fig5, ax5 = plt.subplots(2, 1)
         fig5, ax5 = plt.subplots()
         fig5.suptitle(f'displacement in x-direction of centerline', fontsize=16)
 
@@ -803,14 +798,14 @@ if __name__ == "__main__":
         # ax5[1].set_ylabel('displacement y-direction [m]')
         # ax5[1].grid()
 
-        plt.savefig(path + f'\\centerline_displacement_' + fn_label + '.eps', format='eps')
-        plt.savefig(path + f'\\centerline_displacement_' + fn_label + '.png', format='png')
+        plt.savefig(os.path.join(path, 'centerline_displacement_' + fn_label + '.eps'), format='eps')
+        plt.savefig(os.path.join(path, 'centerline_displacement_' + fn_label + '.png'), format='png')
 
-    plt.show()
+    # plt.show()
 
     # post processing for paraview
     if paraview_export:
         if dynamics:
-            post_processing(beams, tt, qq, path + f'\\pantographic_sheet_' + fn_label + '_', u = uu, binary=True)
+            post_processing(beams, tt, qq, os.path.join(path, 'pantographic_sheet_' + fn_label + '_'), u = uu, binary=True)
         else:
-            post_processing(beams, tt, qq, path + f'\\pantographic_sheet_' + fn_label + '_statics_', binary=True)
+            post_processing(beams, tt, qq, os.path.join(path, 'pantographic_sheet_' + fn_label + '_statics_'), binary=True)
