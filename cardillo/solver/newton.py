@@ -1,4 +1,3 @@
-from cardillo.utility.coo import Coo
 from cardillo.math.numerical_derivative import Numerical_derivative
 from cardillo.solver import Solution
 
