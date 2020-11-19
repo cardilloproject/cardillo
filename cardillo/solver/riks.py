@@ -9,6 +9,12 @@ from tqdm import tqdm
 
 # TODO: generalize this for arbitrary arc-length functions
 # TODO: try to build arc-length equations that measures the external and constraint forces
+# TODO: adapt Crisfield notation? la: load level, q_ef: fixed external loading vector
+# TODO. cite original works of Riks and Wempner, see Crisfield1991
+# TODO: predictor solution, see Crisfield1991 section 9.4.3
+# TODO: automatic increment cutting: Crisfield1991 section 9.5.1
+# TODO: read Crisfield1996 section 21 Branch switching and further advanced solution procedures
+#       - line-searches with Riks/Wempner linear arc-length method Crisfield1996 section 21.7.1
   
 class Riks():
     r"""Linear arc-length solver close to Riks method as dervied in Crisfield1991 section 9.3.2 
@@ -66,17 +72,62 @@ class Riks():
     #     df_dla = 2 * dla_arc * psi**2 * (fe @ fe)
     #     return df_dx, df_dla
 
-    def __f_simple(self, la_arc, x, ds, psi):
+    def __f_simple(self, x, ds, psi):
         """TODO: cite equation number in Crisfield1991.
         """
-        dx = x - self.x_i
-        return dx @ dx - ds * ds
+        # limit generalized coordinates only
+        nq = self.nq
+        dq = x[:nq] - self.x_i[:nq]
+        return dq @ dq[:nq] - ds * ds
         
-    def __df_simple(self, la_arc, x, ds, psi):
+        # # limit generalized coordinates and Lagrange-multipliers
+        # nq = self.nq
+        # nla = self.nla
+        # dqla = x[:nq + nla] - self.x_i[:nq + nla]
+        # return dx @ dx - ds * ds
+        
+    def __df_simple(self, x, ds, psi):
         dx = x - self.x_i
         df_dx = 2 * dx
         df_dla = 0
         return df_dx, df_dla
+
+    def gen(self, t, x, u, ds, psi):
+        # extract generalized coordinates and lagrange multipliers
+        nq = self.nq
+        nla = self.nla
+        q = x[:nq]
+        la = x[nq:]
+        la_arc = x[nq + nla]
+
+        # compute total external force which are scaled by lambda
+        f_arc = self.model.forceLawArcLength(1, q, self.u)
+
+        # compute all other force contributions (evaluated at t=1)
+        h = self.model.h(1, q, self.u)
+
+        # compute required quantites for the residual
+        g = self.model.gap(la_arc, q)
+        W_g = self.model.W_g(t, q)
+
+        # build residual
+        R = np.zeros(self.nx + 1)
+        R[:nq] = h + W_g @ la + la_arc * f_arc
+        R[nq:nq+nla] = g
+        R[nq + nla] = self.a(la_arc, x, ds, psi) # TODO: la_arc should be in x
+
+        # build residual
+        R = np.zeros(self.nx + 1)
+        R[:nq] = h + W_g @ la + la_arc * f_arc
+        R[nq:nq+nla] = g
+        R[nq + nla] = self.a(la_arc, x, ds, psi)
+        
+        yield R
+
+        # compute required quantities for the tangent matrix
+        h_q = self.model.h_q(1, q, self.u)
+        g_q = self.model.gap_q(la_arc, q)
+        df_dx, df_dla = self.a_x(la_arc, x, ds, psi)
         
     def __residual(self, t, x, u, ds, psi):
         # extract generalized coordinates and lagrange multipliers
@@ -93,20 +144,19 @@ class Riks():
 
         # compute all other force contributions (evaluated at t=1)
         h = self.model.h(1, q, u)
-        # fi = self.model.internalForces(0, q, u)
 
         # compute the gap and their force directions
         g = self.model.gap(la_arc, q)
         g_q = self.model.gap_q(la_arc, q)
+        W_g = self.model.W_g(t, q)
 
         # build residual
         R = np.zeros(self.nx + 1)
-        R[:nq] = fe + la_arc * feArcLength + h + g_q.T @ la
+        R[:nq] = h + W_g @ la + la_arc * f_arc
         R[nq:nq+nla] = g
-        R[nq + nla] = self.__f(la_arc, x, ds, psi)
+        R[nq + nla] = self.a(la_arc, x, ds, psi)
         
         return R
-        # return self.R
         
     def __jacobian(self, t, x, u, ds, psi):
         # extract generalized coordinates and lagrange multipliers
@@ -135,7 +185,7 @@ class Riks():
         fi_q = self.model.internalForces_q(0, q, u)
         
         # compute arc length equation derivatives
-        df_dx, df_dla = self.__df(la_arc, x, ds, psi)
+        df_dx, df_dla = self.a_x(la_arc, x, ds, psi)
 
         if self.sparse:
             # gradient of generalized force directions of the constraints
@@ -185,6 +235,8 @@ class Riks():
         self.laArcInit = laArcInit
         self.laArcRange = laArcRange
 
+        # TODO: think of chosing an initial value for ds, see Crisfield1991 end of section 9.5.1
+
         if model.__class__.__name__ == 'Model':
             self.sparse = False
             self.linearSolver = np.linalg.solve
@@ -198,12 +250,14 @@ class Riks():
         # dimensions
         self.nq = self.model.assembler.n_qDOF
         self.nla = self.model.assembler.n_laDOF
-        self.nx = self.nq + self.nla
+        # self.nx = self.nq + self.nla
+        self.nx = self.nq + self.nla + 1
 
         # initial conditions
         self.la_arc = [0.0]
         self.q = [self.model.assembler.q0]
         self.la = [self.model.assembler.la0]
+        self.u = np.zeros(model.nu) # statics
 
         # Store converged values of the last force increment here, beginn with initial values.
         # These are necessary for the secant predictor!
@@ -212,17 +266,17 @@ class Riks():
 
         # chose constraint equation
         if method == 'simple':
-            self.__f = self.__f_simple
-            self.__df = self.__df_simple
+            self.a = self.__f_simple
+            self.a_x = self.__df_simple
         elif method == 'Wriggers':
-            self.__f = self.__f_Wriggers
-            self.__df = self.__df_Wriggers
+            self.a = self.__f_Wriggers
+            self.a_x = self.__df_Wriggers
         elif method == 'Crisfield':
-            self.__f = self.__f_Crisfield
-            self.__df = self.__df_Crisfield
+            self.a = self.__f_Crisfield
+            self.a_x = self.__df_Crisfield
         else:
-            self.__f = self.__f_simple
-            self.__df = self.__df_simple
+            self.a = self.__f_simple
+            self.a_x = self.__df_simple
             print('Method "{method}" is not implemented, we use "simple" method insead!')
 
         # chose scaling strategy
@@ -241,26 +295,8 @@ class Riks():
         else:
             self.__scaleMethod = lambda frac: 0
             self.scaleDs = False
-
-    
-    @logIntegrationInfo('Linear arc-length solver')
-    def integrate(self):
-        r"""Finds the static solution of the model.
-
-        Returns
-        -------
-            sol : Solution
-                Solution object
-
-                - **sol.t** (:class:`numpy.ndarray`)  - load steps.
-                - **sol.q** (:class:`numpy.ndarray`)  - generalized coordinates.
-                - **sol.la** (:class:`numpy.ndarray`) - constraint forces
-
-        Notes
-        -----
-        The vector of generalized coordinates ``sol.q[i]`` is the static solution of the system defined in ``model`` for the load step ``sol.t[i]``. The applied constraint forces for this load step are ``sol.t[i]``.
-        """
-
+ 
+    def solve(self):
         # count number of force increments to get first increment with tangential predictor
         forceCounter = 0
 
@@ -288,6 +324,20 @@ class Riks():
             forceCounter += 1
 
             # use secant predictor for all other force increments than the first one
+            # TODO: - see Crisfield1991 section 9.4.3 (9.38) and (9.39) for another possible predictor 
+            #         involving the computation of the definiteness of the stiffness matrix of the static
+            #         equilibrium (is this related to the current stiffness parameter Philipp has found?)
+            #       - oszillation will occur when a bifurcation poin tis found; Crisfield proposes if 
+            #         solely the unstable post-buckling path has to be followed, one may instead 
+            #         deltaq @ delta p becomes positive (read literature about that!) 
+            #         -> this is essentially the current stiffness parameter, see Crisfield1991 section 9.5.2.
+            #        - automaticall switch to the (more) stable post-buckling path: see Crisfield1991 
+            #          section 9.10 and volume 2!
+            #        - restarts, Crisfield1991 section 9.5.5
+            #        - predictor solution of higher order, Crisfield1991 section 9.6
+            #        - current stiffness parameter: Crisfield1991, section 9.5.2: see also Bergan papers
+            #        - A range of alternative or supplementary 'path-measuring parameters' has been
+            #          advocated by Eriksson [E3].
             if forceCounter > 1:
                 dx = self.x_i - x_old
                 dla_arc = self.la_arc_i - la_arc_old
@@ -360,11 +410,15 @@ class Riks():
                 self.logger.info(f' - internal Netwon converged for lambda = {la_arc:2.4e} with error {error:2.2e} in {iter} steps.')
 
             # scale ds such that iter goal is satisfied
+            # see Crisfield1991, section 9.5 (9.40) or (9.41) for the quadratic scaling case
             if self.scaleDs:
                 # TODO: clean this up
                 if iter != 0: # disable scaling if we have halfed the ds parameter before
                     frac = (self.iterGoal) / (iter)
                     self.ds = self.__scaleMethod(frac) * self.ds
+
+                # TODO: as done in the varible time step solvers we should have a minimum and maximum number of increments
+                #       and maybe also introduce a safety factor for the increasing step length
                 # frac = (self.iterGoal) / (iter)
                 # # frac = 1 / frac
                 # self.ds = self.__scaleMethod(frac) * self.ds
