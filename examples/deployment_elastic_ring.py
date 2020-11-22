@@ -2,11 +2,11 @@ from cardillo.model.classical_beams.spatial import Hooke_quadratic, Hooke
 from cardillo.model.classical_beams.spatial import Timoshenko_director_integral
 from cardillo.discretization.B_spline import fit_B_Spline
 from cardillo.model.frame import Frame
-from cardillo.model.bilateral_constraints.implicit import Rigid_connection
+from cardillo.model.bilateral_constraints.implicit import Rigid_connection, Linear_guidance_x
 from cardillo.model import Model
-from cardillo.solver import Newton
+from cardillo.solver import Newton, Riks
 from cardillo.model.force import Force
-from cardillo.model.moment import K_Moment
+from cardillo.model.moment import K_Moment, K_Moment_scaled
 from cardillo.math.algebra import e1, e2, e3
 
 import matplotlib.pyplot as plt
@@ -55,8 +55,8 @@ if __name__ == "__main__":
     # TODO: what parameter to use for I1?
     # I1 = b**3 * h / 3 * (1 - 192 * h / (np.pi**5 * h)
     # I1 = 
-    # # I1 = I2 + I3
-    I1 = 9.753e-3
+    I1 = I2 + I3
+    # I1 = 9.753e-3
     print(f'I1: {I1}')
     print(f'I2: {I2}')
     print(f'I3: {I3}')
@@ -78,26 +78,27 @@ if __name__ == "__main__":
     nxi = 500
 
     #################
-    # external forces
-    #################
-    P = 1.0e2
-    print(f'P: {P}')
-    force = lambda t: -P * e1 * t
-
-    #################
     # external moment
     #################
-    M = 1.0e4
+    # MREIy = 0.45          # Smolenski1998 Fig.17
+    # M = MREIy * Ei[1] / R # Smolenski1998 Fig.17
+    M = 6.0e4               # Smolenski1998 Fig.17
     print(f'M: {M}')
     moment = lambda t: M * e2 * t
 
     ###########################
     # discretization properties
     ###########################
+    # Smolenski1998 used 48 elements -> nEl = 48 / 2 = 24
     p = 3
     nQP = p + 1
     print(f'nQP: {nQP}')
-    nEl = 16
+    nEl = 24 # p = 3 and nEl = 24 gets this example working!
+
+    # p = 3
+    # nQP = p + 1
+    # print(f'nQP: {nQP}')
+    # nEl = 10 # p = 3 and nEl = 10 gets this example working!
 
     #######################
     # fit first half circle
@@ -161,33 +162,53 @@ if __name__ == "__main__":
     ########################################
     r_OB1= np.zeros(3) # origin
     r_OB2= np.array([R, 0, 0]) # apex
-    
-    ###################
-    # solver parameters
-    ###################
-    # n_load_steps = 60 # Bathe1979
-    n_load_steps = 10
-    max_iter = 10
-    tol = 1.0e-6
 
+    # build the model
     model = Model()
     beam1 = Beam(material_model, A_rho0, B_rho0, C_rho0, p, nQP, nEl, Q=Q1)
     model.add(beam1)
     beam2 = Beam(material_model, A_rho0, B_rho0, C_rho0, p, nQP, nEl, Q=Q2)
     model.add(beam2)
 
-    frame = Frame(r_OP=r_OB1)
-    model.add(frame)
-    model.add(Rigid_connection(frame, beam1, r_OB1, frame_ID2=(0,)))
-    model.add(Rigid_connection(beam1, beam2, r_OB2, frame_ID1=(1,), frame_ID2=(0,)))
-    model.add(Rigid_connection(beam2, beam1, r_OB2, frame_ID1=(1,), frame_ID2=(0,)))
+    # clamp both beams at the origin
+    frame1 = Frame(r_OP=r_OB1)
+    model.add(frame1)
+    model.add(Rigid_connection(frame1, beam1, r_OB1, frame_ID2=(0,)))
+    model.add(Rigid_connection(frame1, beam2, r_OB1, frame_ID2=(1,)))
 
-    # model.add(Force(force, beam1, frame_ID=(1,)))
-    model.add(K_Moment(moment, beam1, frame_ID=(1,)))
+    # TODO: there is a bug here!
+    model.add(Rigid_connection(beam1, beam2, r_OB2, frame_ID1=(1,), frame_ID2=(0,)))
+    # model.add(Rigid_connection(beam2, beam1, r_OB2, frame_ID1=(0,), frame_ID2=(1,)))
+    # model.add(Rigid_connection(beam2, beam1, r_OB1, frame_ID1=(0,), frame_ID2=(1,)))
+
+    # linear guidance at the circle apex
+    frame2 = Frame(r_OP=r_OB2)
+    model.add(frame2)
+    A_IB = np.eye(3)
+    model.add(Linear_guidance_x(frame2, beam1, r_OB=r_OB2, A_IB=A_IB, frame_ID2=(1,)))
+
+    # # model.add(Force(force, beam1, frame_ID=(1,)))
+    # model.add(K_Moment(moment, beam1, frame_ID=(1,)))
+    model.add(K_Moment_scaled(moment, beam1, frame_ID=(1,)))
 
     model.assemble()
 
-    sol = Newton(model, n_load_steps=n_load_steps, max_iter=max_iter, tol=tol).solve()
+    ###################
+    # solver parameters
+    ###################
+    # n_load_steps = 100
+    # max_iter = 20
+    # tol = 1.0e-6
+    # sol = Newton(model, n_load_steps=n_load_steps, max_iter=max_iter, tol=tol).solve()
+
+    la_arc0 = 1.0e-3
+    # la_arc_span = [0, 5.0e-1]
+    la_arc_span = [-0.05, 1]
+    iter_goal = 3
+    tol = 1.0e-5
+    sol = Riks(model, la_arc0=la_arc0, tol=tol, la_arc_span=la_arc_span, iter_goal=iter_goal, debug=0).solve()
+
+    # visualization
     t = sol.t
     q = sol.q
 
@@ -217,31 +238,36 @@ if __name__ == "__main__":
     #     # dr.append( qi[beam.qDOF].reshape(12, -1)[:3, -1] - r0)
     # dr = np.array(dr).T
 
-    # #####################################
-    # # TODO: export solution for each beam
-    # #####################################
-    # fig = plt.figure(figsize=(10, 6))
-    # ax1 = fig.add_subplot(1, 2, 1, projection='3d')
-    # ax2 = fig.add_subplot(1, 2, 2)
-
-    # # Pt = P * sols[0].t
-    # # ax2.plot(-dr[0] / R, Pt, '-k', label='-u_x/R')
-    # # ax2.plot(-dr[1] / R, Pt, '--k', label='-u_y/R')
-    # # ax2.plot(dr[2] / R, Pt, '-.k', label='u_z/R')
-    # kt = P * R**2 / (E * I2) * sols[0].t
-    # ax2.plot(kt, -dr[0] / R, '-k', label='-u_x/R')
-    # ax2.plot(kt, -dr[1] / R, '--k', label='-u_y/R')
-    # ax2.plot(kt, dr[2] / R, '-.k', label='u_z/R')
-    # ax2.grid(True)
-    # ax2.legend()
-    
-    # ax1.set_xlabel('x [m]')
-    # ax1.set_ylabel('y [m]')
-    # ax1.set_zlabel('z [m]')
+    # ##############################################
+    # # visualize initial and deformed configuration
+    # ##############################################
+    # fig = plt.figure()
+    # ax = fig.add_subplot(111, projection='3d')
     # scale = 1.2 * R
-    # ax1.set_xlim3d(left=-scale, right=scale)
-    # ax1.set_ylim3d(bottom=-scale, top=scale)
-    # ax1.set_zlim3d(bottom=-scale, top=scale)
+    # ax.set_xlim3d(left=-0.2 * scale, right=1.8 * scale)
+    # ax.set_ylim3d(bottom=-scale, top=scale)
+    # ax.set_zlim3d(bottom=-scale, top=scale)
+    # ax.set_xlabel('x [m]')
+    # ax.set_ylabel('y [m]')
+    # ax.set_zlabel('z [m]')
+
+    # # initial configuration
+    # n_points = 100
+    # ax.plot(*beam1.centerline(q[0], n=n_points), '-k')
+    # ax.plot(*beam2.centerline(q[0], n=n_points), '-k')
+    # ax.plot(*beam1.nodes(q[0]), '--ok')
+    # ax.plot(*beam2.nodes(q[0]), '--ok')
+
+    # # center_line1, = ax.plot([], [], '-g')
+    # # center_line2, = ax.plot([], [], '-b')
+    # # nodes1, = ax.plot([], [], '--og')
+    # # nodes2, = ax.plot([], [], '--ob')
+    # ax.plot(*beam1.centerline(q[-5], n=n_points), '-g')
+    # ax.plot(*beam2.centerline(q[-5], n=n_points), '-b')
+    # ax.plot(*beam1.nodes(q[-5]), '--og')
+    # ax.plot(*beam2.nodes(q[-5]), '--ob')
+
+    # plt.show()
 
     ###########
     # animation
@@ -252,13 +278,18 @@ if __name__ == "__main__":
     ax.set_xlim3d(left=-0.2 * scale, right=1.8 * scale)
     ax.set_ylim3d(bottom=-scale, top=scale)
     ax.set_zlim3d(bottom=-scale, top=scale)
+    ax.set_xlabel('x [m]')
+    ax.set_ylabel('y [m]')
+    ax.set_zlabel('z [m]')
 
-    # prepare data for animation
-    frames = q.shape[0]
-    target_frames = min(frames, 200)
-    frac = int(frames / target_frames)
-    animation_time = 1
-    interval = animation_time * 1000 / target_frames
+    slowmotion = 3
+    fps = 50
+    animation_time = slowmotion * 1
+    target_frames = int(fps * animation_time)
+    frac = max(1, int(len(t) / target_frames))
+    if frac == 1:
+        target_frames = len(t)
+    interval = 1000 / fps
 
     frames = target_frames
     t = t[::frac]
@@ -277,25 +308,25 @@ if __name__ == "__main__":
     nodes2, = ax.plot([], [], '--ob')
 
     def animate(i):
-        x, y, z = beam1.centerline(q[i], n=n_points)
+        qi = q[i].copy()
+
+        x, y, z = beam1.centerline(qi, n=n_points)
         center_line1.set_data(x, y)
         center_line1.set_3d_properties(z)
 
-        x, y, z = beam1.nodes(q[i])
+        x, y, z = beam1.nodes(qi)
         nodes1.set_data(x, y)
         nodes1.set_3d_properties(z)
 
-        x, y, z = beam2.centerline(q[i], n=n_points)
+        x, y, z = beam2.centerline(qi, n=n_points)
         center_line2.set_data(x, y)
         center_line2.set_3d_properties(z)
 
-        x, y, z = beam2.nodes(q[i])
+        x, y, z = beam2.nodes(qi)
         nodes2.set_data(x, y)
         nodes2.set_3d_properties(z)
 
         return center_line1, nodes1, center_line2, nodes2
-
-    # animate(1)
 
     anim = animation.FuncAnimation(fig, animate, frames=frames, interval=interval, blit=False)
     plt.show()

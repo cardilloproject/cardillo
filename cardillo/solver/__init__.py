@@ -13,3 +13,4 @@ from .generalized_alpha.generalized_alpha_5 import Generalized_alpha_5
 from .generalized_alpha.generalized_alpha_panto import Generalized_alpha_index3_panto
 from .scipy_ivp import Scipy_ivp
 from .newton import Newton
+from .riks import Riks
