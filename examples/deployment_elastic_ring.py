@@ -52,14 +52,13 @@ if __name__ == "__main__":
     I2 = b * h**3 / 12
     I3 = h * b**3 / 12
 
-    # TODO: what parameter to use for I1?
-    # I1 = b**3 * h / 3 * (1 - 192 * h / (np.pi**5 * h)
-    # I1 = 
-    I1 = I2 + I3
-    # I1 = 9.753e-3
+    # note this low torsional stiffness is required for this example!!!
+    # I1_ = b**3 * h / 3 * (1 - 192 * h / (np.pi**5 * h))
+    I1 = 9.753e-3
     print(f'I1: {I1}')
     print(f'I2: {I2}')
     print(f'I3: {I3}')
+    # print(f'I1_: {I1_}')
 
     Ei = np.array([E * A, G * A, G * A])
     Fi = np.array([G * I1, E * I2, E * I3])
@@ -89,16 +88,16 @@ if __name__ == "__main__":
     ###########################
     # discretization properties
     ###########################
-    # Smolenski1998 used 48 elements -> nEl = 48 / 2 = 24
-    p = 3
-    nQP = p + 1
-    print(f'nQP: {nQP}')
-    nEl = 24 # p = 3 and nEl = 24 gets this example working!
-
+    # # Smolenski1998 used 48 elements -> nEl = 48 / 2 = 24
     # p = 3
     # nQP = p + 1
     # print(f'nQP: {nQP}')
-    # nEl = 10 # p = 3 and nEl = 10 gets this example working!
+    # nEl = 24 # p = 3 and nEl = 24 gets this example working!
+
+    p = 3
+    nQP = p + 1
+    print(f'nQP: {nQP}')
+    nEl = 10 # p = 3 and nEl = 10 gets this example working!
 
     #######################
     # fit first half circle
@@ -203,7 +202,7 @@ if __name__ == "__main__":
 
     la_arc0 = 1.0e-3
     # la_arc_span = [0, 5.0e-1]
-    la_arc_span = [-0.05, 1]
+    la_arc_span = [-0.01, 1]
     iter_goal = 3
     tol = 1.0e-5
     sol = Riks(model, la_arc0=la_arc0, tol=tol, la_arc_span=la_arc_span, iter_goal=iter_goal, debug=0).solve()

@@ -101,7 +101,7 @@ class Riks():
         else:
             self.gen = self.gen_analytic
 
-        # TODO: check if we have an external force that is scaled by scalar parameter
+        # check if we have an external force that is scaled by scalar parameter
         if not len(model._Model__f_scaled_contr):
             raise RuntimeError('No scaled external force is given.')
 
@@ -123,10 +123,6 @@ class Riks():
         
         # initial values for generalized coordinates, lagrange multipliers and force scaling
         self.x0 = self.xk = np.concatenate((self.q0, self.la_g0, np.array([self.la_arc0])))
-
-        # chose constraint equation
-        self.a = self.a
-        self.a_x = self.a_x
         
         ####################################################################################################
         # Solve linearized system for fixed external force using Newtons method.
@@ -178,7 +174,6 @@ class Riks():
         la_arc = [self.la_arc0]
         q = [self.q0]
         la_g = [self.la_g0]
-        u = np.zeros(self.nu) # statics
         xk1 = np.concatenate((self.q0, self.la_g0, np.array([self.la_arc0])))
         
         # compute initial residual and error
