@@ -4,10 +4,11 @@ from scipy.sparse import bmat
 from cardillo.solver import Solution
 from cardillo.math.numerical_derivative import Numerical_derivative
 
-# TODO. cite original works of Riks and Wempner, see Crisfield1991
 # TODO: automatic increment cutting: Crisfield1991 section 9.5.1
 # TODO: read Crisfield1996 section 21 Branch switching and further advanced solution procedures
 # TODO: implement line searcher technique mention in Crisfield1991 and Crisfield1996
+
+# TODO: implement dense output
   
 class Riks():
     r"""Linear arc-length solver close to Riks method as dervied in Crisfield1991 section 9.3.2 
@@ -25,7 +26,7 @@ class Riks():
     - Crisfield1996: http://inis.jinr.ru/sl/M_Mathematics/MN_Numerical%20methods/MNf_Finite%20elements/Crisfield%20M.A.%20Vol.2.%20Non-linear%20Finite%20Element%20Analysis%20of%20Solids%20and%20Structures..%20Advanced%20Topics%20(Wiley,1996)(ISBN%20047195649X)(509s).pdf
     """
     def a(self, x):
-        """most simple arc length equation restricting the change of all generalized coordinates"""
+        """The most simple arc length equation restricting the change of all generalized coordinates w.r.t. the last converged Newton step."""
         nq = self.nq
         dq = x[:nq] - self.xk[:nq]
         return dq @ dq

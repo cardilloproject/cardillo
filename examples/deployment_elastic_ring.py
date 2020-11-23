@@ -12,6 +12,7 @@ from cardillo.math.algebra import e1, e2, e3
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import numpy as np
+from scipy.spatial.transform import Rotation
 
 def arc3D(t, R, plane='xz'):
     orientation = 'xyz'
@@ -51,14 +52,18 @@ if __name__ == "__main__":
     A = h * b
     I2 = b * h**3 / 12
     I3 = h * b**3 / 12
+    print(f'E / G: {E / G} (should be 2.6 due to Goto1992)')
+    print(f'h / b: {h / b} (should be 3 due to Goto1992)')
 
     # note this low torsional stiffness is required for this example!!!
-    # I1_ = b**3 * h / 3 * (1 - 192 * h / (np.pi**5 * h))
-    I1 = 9.753e-3
+    f = lambda n: np.tanh((2 * n - 1) * np.pi * h / (2 * b)) / (2 * n - 1)**2
+    N = int(1.0e5)
+    I1_ = b**3 * h / 3 * (1 - 192 * b / (np.pi**5 * h) * np.array([f(n) for n in range(1, N)]).sum() ) # Goto1992 (19-d)
+    I1 = 9.753e-3 # Romero2004
     print(f'I1: {I1}')
     print(f'I2: {I2}')
     print(f'I3: {I3}')
-    # print(f'I1_: {I1_}')
+    print(f'I1_: {I1_}')
 
     Ei = np.array([E * A, G * A, G * A])
     Fi = np.array([G * I1, E * I2, E * I3])
@@ -71,17 +76,16 @@ if __name__ == "__main__":
     C_rho0 = np.zeros((3, 3))
 
     # beam fitting
-    Ro = 20
-    Ri = 12
-    R = (Ro + Ri) / 2
+    R = 20 # Goto1992 & Smolenski1998
     nxi = 500
+    print(f'R / h: {R / h} (should be 20 due to Goto1992)')
 
     #################
     # external moment
     #################
-    # MREIy = 0.45          # Smolenski1998 Fig.17
-    # M = MREIy * Ei[1] / R # Smolenski1998 Fig.17
-    M = 6.0e4               # Smolenski1998 Fig.17
+    M = Fi[1] / R # Smolenski1998 Fig.17 and Goto1992 Fig. 8 + (19-c) 
+    # M = 6.0e4               # Smolenski1998 Fig.17
+    # M = 1.0e4               # Newton
     print(f'M: {M}')
     moment = lambda t: M * e2 * t
 
@@ -195,15 +199,15 @@ if __name__ == "__main__":
     ###################
     # solver parameters
     ###################
-    # n_load_steps = 100
+    # n_load_steps = 20
     # max_iter = 20
     # tol = 1.0e-6
     # sol = Newton(model, n_load_steps=n_load_steps, max_iter=max_iter, tol=tol).solve()
 
     la_arc0 = 1.0e-3
-    # la_arc_span = [0, 5.0e-1]
-    la_arc_span = [-0.01, 1]
-    iter_goal = 3
+    # la_arc_span = [0, 1.0e-1]
+    la_arc_span = [-0.05, 1]
+    iter_goal = 4
     tol = 1.0e-5
     sol = Riks(model, la_arc0=la_arc0, tol=tol, la_arc_span=la_arc_span, iter_goal=iter_goal, debug=0).solve()
 
@@ -268,18 +272,42 @@ if __name__ == "__main__":
 
     # plt.show()
 
+    ###############################
+    # compute tip deflection
+    # of the middle point in beam 1
+    ###############################
+    M = M * t
+    r0 = beam1.centerline(q[0], n=3)[:, 1]
+    dr = np.zeros((len(t), 3))
+    r = np.zeros((len(t), 3))
+    for i, qi in enumerate(q):
+        r[i] = beam1.centerline(qi, n=3)[:, 1]
+        dr[i] = r[i] - r0
+
+    #######################################
+    # compute rotation angle ad circle apex
+    #######################################
+    alpha = np.zeros_like(t)
+    beta = np.zeros_like(t)
+    gamma = np.zeros_like(t)
+    for i, qi in enumerate(q):
+        r, d1, d2, d3 = beam1.frames(qi, n=3)
+        Ri = np.vstack((d1[:, 1], d2[:, 1], d3[:, 1])).T
+        # alpha[i], beta[i], gamma[i] = Rotation.from_matrix(Ri).as_euler('zyx', degrees=True)
+        alpha[i], beta[i], gamma[i] = Rotation.from_matrix(Ri).as_euler('xyz', degrees=True)
+        
     ###########
     # animation
     ###########
     fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
+    ax1 = fig.add_subplot(1, 3, 1, projection='3d')
     scale = 1.2 * R
-    ax.set_xlim3d(left=-0.2 * scale, right=1.8 * scale)
-    ax.set_ylim3d(bottom=-scale, top=scale)
-    ax.set_zlim3d(bottom=-scale, top=scale)
-    ax.set_xlabel('x [m]')
-    ax.set_ylabel('y [m]')
-    ax.set_zlabel('z [m]')
+    ax1.set_xlim3d(left=-0.2 * scale, right=1.8 * scale)
+    ax1.set_ylim3d(bottom=-scale, top=scale)
+    ax1.set_zlim3d(bottom=-scale, top=scale)
+    ax1.set_xlabel('x [m]')
+    ax1.set_ylabel('y [m]')
+    ax1.set_zlabel('z [m]')
 
     slowmotion = 3
     fps = 50
@@ -296,15 +324,40 @@ if __name__ == "__main__":
 
     # initial configuration
     n_points = 100
-    ax.plot(*beam1.centerline(q[0], n=n_points), '-k')
-    ax.plot(*beam2.centerline(q[0], n=n_points), '-k')
-    ax.plot(*beam1.nodes(q[0]), '--ok')
-    ax.plot(*beam2.nodes(q[0]), '--ok')
+    ax1.plot(*beam1.centerline(q[0], n=n_points), '-k')
+    ax1.plot(*beam2.centerline(q[0], n=n_points), '-k')
+    ax1.plot(*beam1.nodes(q[0]), '--ok')
+    ax1.plot(*beam2.nodes(q[0]), '--ok')
 
-    center_line1, = ax.plot([], [], '-g')
-    center_line2, = ax.plot([], [], '-b')
-    nodes1, = ax.plot([], [], '--og')
-    nodes2, = ax.plot([], [], '--ob')
+    center_line1, = ax1.plot([], [], '-g')
+    center_line2, = ax1.plot([], [], '-b')
+    nodes1, = ax1.plot([], [], '--og')
+    nodes2, = ax1.plot([], [], '--ob')
+
+    # tip deflection
+    ax2 = fig.add_subplot(1, 3, 2)
+    ax2.plot(dr[:, 0], M, '-k', label='u_x')
+    ax2.plot(dr[:, 1], M, '-.k', label='u_y')
+    ax2.plot(dr[:, 2], M, '--k', label='u_z')
+    ax2.grid()
+    ax2.legend()
+
+    # ax3 = ax2.twinx()
+    ax3 = fig.add_subplot(1, 3, 3)
+    # ax3.tick_params(axis='y', labelcolor='blue')
+    ax3.plot(alpha, M, '-b', label='alpha')
+    ax3.plot(beta, M, '-.b', label='beta')
+    ax3.plot(gamma, M, '--b', label='gamma')
+    ax3.grid()
+    ax3.legend()
+
+    plt.show()
+
+    # animate tip deflection
+    nodes_xyz, = ax1.plot([], [], [], 'or')
+    nodes_u_x, = ax2.plot([], [], 'or')
+    nodes_u_y, = ax2.plot([], [], 'or')
+    nodes_u_z, = ax2.plot([], [], 'or')
 
     def animate(i):
         qi = q[i].copy()
@@ -325,7 +378,15 @@ if __name__ == "__main__":
         nodes2.set_data(x, y)
         nodes2.set_3d_properties(z)
 
-        return center_line1, nodes1, center_line2, nodes2
+        # node where deflection is measured
+        nodes_xyz.set_data(r[i, 0], r[i, 1])
+        nodes_xyz.set_3d_properties(r[i, 2])
+
+        nodes_u_x.set_data(dr[i, 0], M[i])
+        nodes_u_y.set_data(dr[i, 1], M[i])
+        nodes_u_z.set_data(dr[i, 2], M[i])
+
+        return center_line1, nodes1, center_line2, nodes2, nodes_xyz, nodes_u_x, nodes_u_y, nodes_u_z
 
     anim = animation.FuncAnimation(fig, animate, frames=frames, interval=interval, blit=False)
     plt.show()
