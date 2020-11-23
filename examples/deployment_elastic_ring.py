@@ -191,8 +191,8 @@ if __name__ == "__main__":
     model.add(Linear_guidance_x(frame2, beam1, r_OB=r_OB2, A_IB=A_IB, frame_ID2=(1,)))
 
     # # model.add(Force(force, beam1, frame_ID=(1,)))
-    # model.add(K_Moment(moment, beam1, frame_ID=(1,)))
-    model.add(K_Moment_scaled(moment, beam1, frame_ID=(1,)))
+    model.add(K_Moment(moment, beam1, frame_ID=(1,)))
+    # model.add(K_Moment_scaled(moment, beam1, frame_ID=(1,)))
 
     model.assemble()
 
@@ -271,30 +271,6 @@ if __name__ == "__main__":
     # ax.plot(*beam2.nodes(q[-5]), '--ob')
 
     # plt.show()
-
-    ###############################
-    # compute tip deflection
-    # of the middle point in beam 1
-    ###############################
-    M = M * t
-    r0 = beam1.centerline(q[0], n=3)[:, 1]
-    dr = np.zeros((len(t), 3))
-    r = np.zeros((len(t), 3))
-    for i, qi in enumerate(q):
-        r[i] = beam1.centerline(qi, n=3)[:, 1]
-        dr[i] = r[i] - r0
-
-    #######################################
-    # compute rotation angle ad circle apex
-    #######################################
-    alpha = np.zeros_like(t)
-    beta = np.zeros_like(t)
-    gamma = np.zeros_like(t)
-    for i, qi in enumerate(q):
-        r, d1, d2, d3 = beam1.frames(qi, n=3)
-        Ri = np.vstack((d1[:, 1], d2[:, 1], d3[:, 1])).T
-        # alpha[i], beta[i], gamma[i] = Rotation.from_matrix(Ri).as_euler('zyx', degrees=True)
-        alpha[i], beta[i], gamma[i] = Rotation.from_matrix(Ri).as_euler('xyz', degrees=True)
         
     ###########
     # animation
@@ -322,6 +298,31 @@ if __name__ == "__main__":
     t = t[::frac]
     q = q[::frac]
 
+    ###############################
+    # compute tip deflection
+    # of the middle point in beam 1
+    ###############################
+    M = M * t
+    r0 = beam1.centerline(q[0], n=3)[:, 1]
+    dr = np.zeros((len(t), 3))
+    r = np.zeros((len(t), 3))
+    for i, qi in enumerate(q):
+        r[i] = beam1.centerline(qi, n=3)[:, 1]
+        dr[i] = r[i] - r0
+
+    #######################################
+    # compute rotation angle ad circle apex
+    #######################################
+    alpha = np.zeros_like(t)
+    beta = np.zeros_like(t)
+    gamma = np.zeros_like(t)
+    for i, qi in enumerate(q):
+        _, d1, d2, d3 = beam1.frames(qi, n=2)
+        Ri = np.vstack((d1[:, -1], d2[:, -1], d3[:, -1])).T
+        alpha[i], beta[i], gamma[i] = Rotation.from_matrix(Ri).as_euler('zyx', degrees=True)
+    # correct angle
+    gamma = -(gamma - 180)
+
     # initial configuration
     n_points = 100
     ax1.plot(*beam1.centerline(q[0], n=n_points), '-k')
@@ -345,13 +346,12 @@ if __name__ == "__main__":
     # ax3 = ax2.twinx()
     ax3 = fig.add_subplot(1, 3, 3)
     # ax3.tick_params(axis='y', labelcolor='blue')
-    ax3.plot(alpha, M, '-b', label='alpha')
-    ax3.plot(beta, M, '-.b', label='beta')
+    # ax3.plot(alpha, M, '-b', label='alpha')
+    # ax3.plot(beta, M, '-.b', label='beta')
     ax3.plot(gamma, M, '--b', label='gamma')
+    nodes_gamma, = ax3.plot([], [], 'or')
     ax3.grid()
     ax3.legend()
-
-    plt.show()
 
     # animate tip deflection
     nodes_xyz, = ax1.plot([], [], [], 'or')
@@ -386,7 +386,10 @@ if __name__ == "__main__":
         nodes_u_y.set_data(dr[i, 1], M[i])
         nodes_u_z.set_data(dr[i, 2], M[i])
 
-        return center_line1, nodes1, center_line2, nodes2, nodes_xyz, nodes_u_x, nodes_u_y, nodes_u_z
+        # rotation angle
+        nodes_gamma.set_data(gamma[i], M[i])
+
+        return center_line1, nodes1, center_line2, nodes2, nodes_xyz, nodes_u_x, nodes_u_y, nodes_u_z, nodes_gamma
 
     anim = animation.FuncAnimation(fig, animate, frames=frames, interval=interval, blit=False)
     plt.show()

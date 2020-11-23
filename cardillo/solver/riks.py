@@ -51,32 +51,54 @@ class Riks():
         la = x[nq:nq + nla]
         la_arc = x[nq + nla]
 
-        # compute total external force (evaluated at t=1) which are scaled by lambda
-        f_arc = self.model.f_scaled(1, q)
+        # # compute total external force (evaluated at t=1) which are scaled by lambda
+        # f_arc = self.model.f_scaled(1, q)
 
-        # compute all other force contributions (evaluated at t=0)
-        h = self.model.h(0, q, self.u0)
-        # TODO: this should also be split into constraints that are scaled
-        #       -> displacement controlled arc-length method
-        g = self.model.g(0, q)
-        W_g = self.model.W_g(0, q)
+        # # compute all other force contributions (evaluated at t=0)
+        # h = self.model.h(0, q, self.u0)
+        # # TODO: this should also be split into constraints that are scaled
+        # #       -> displacement controlled arc-length method
+        # g = self.model.g(0, q)
+        # W_g = self.model.W_g(0, q)
+
+        # evaluate all functions with t = la_arc -> model does not change!
+        # this requires the external force that should be scaled to be of the form
+        # F_ext(t) = t * F
+        t = la_arc
+        h = self.model.h(t, q, self.u0)
+        g = self.model.g(t, q)
+        W_g = self.model.W_g(t, q)
 
         # build residual
         R = np.zeros(self.nx)
-        R[:nq] = h + W_g @ la + la_arc * f_arc
+        R[:nq] = h + W_g @ la
         R[nq:nq+nla] = g
         R[nq + nla] = self.a(x) - self.ds**2
         
         yield R
 
-        # compute gradient of total external force (evaluated at t=1) which are scaled by lambda 
-        f_arc_q = self.model.f_scaled_q(1, q)
+        # # compute gradient of total external force (evaluated at t=1) which are scaled by lambda 
+        # f_arc_q = self.model.f_scaled_q(1, q)
 
-        # compute required quantities for the gradient of R (evaluated at t=0)
-        h_q = self.model.h_q(0, q, self.u0)
-        Wla_g_q = self.model.Wla_g_q(0, q, la)
-        g_q = self.model.g_q(0, q)
-        Rq_q = h_q + Wla_g_q + la_arc * f_arc_q
+        # # compute required quantities for the gradient of R (evaluated at t=0)
+        # h_q = self.model.h_q(0, q, self.u0)
+        # Wla_g_q = self.model.Wla_g_q(0, q, la)
+        # g_q = self.model.g_q(0, q)
+        # Rq_q = h_q + Wla_g_q + la_arc * f_arc_q
+    
+
+        # evaluate all functions with t = la_arc -> model does not change!
+        # this requires the external force that should be scaled to be of the form
+        # F_ext(t) = t * F
+        h_q = self.model.h_q(t, q, self.u0)
+        Wla_g_q = self.model.Wla_g_q(t, q, la)
+        g_q = self.model.g_q(t, q)
+        Rq_q = h_q + Wla_g_q
+
+        # TODO: this is a hack and can't be fixed without specifying the scaled equation
+        #       further we restrict ourselves to force controlled arc-length methods
+        eps = 1.0e-6
+        f_arc = (self.model.h(t + eps, q, self.u0) - h) / eps
 
         # derivative of the arc length equation
         a_q, a_la, a_la_arc = self.a_x(x)
@@ -102,9 +124,9 @@ class Riks():
         else:
             self.gen = self.gen_analytic
 
-        # check if we have an external force that is scaled by scalar parameter
-        if not len(model._Model__f_scaled_contr):
-            raise RuntimeError('No scaled external force is given.')
+        # # check if we have an external force that is scaled by scalar parameter
+        # if not len(model._Model__f_scaled_contr):
+        #     raise RuntimeError('No scaled external force is given.')
 
         # parameter for the step size scaling
         self.MIN_FACTOR = 0.25 # minimal scaling factor
