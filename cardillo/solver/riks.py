@@ -60,10 +60,12 @@ class Riks():
         # #       -> displacement controlled arc-length method
         # g = self.model.g(0, q)
         # W_g = self.model.W_g(0, q)
-
+    
         # evaluate all functions with t = la_arc -> model does not change!
-        # this requires the external force that should be scaled to be of the form
-        # F_ext(t) = t * F
+        # - this requires the external force that should be scaled to be of the form
+        #   F_ext(t, q) = t * F(q)
+        # - the constraints for displacement control have to be of the form
+        #   g(t, q) = t * g(q)
         t = la_arc
         h = self.model.h(t, q, self.u0)
         g = self.model.g(t, q)
@@ -86,25 +88,27 @@ class Riks():
         # g_q = self.model.g_q(0, q)
         # Rq_q = h_q + Wla_g_q + la_arc * f_arc_q
     
-
         # evaluate all functions with t = la_arc -> model does not change!
-        # this requires the external force that should be scaled to be of the form
-        # F_ext(t) = t * F
+        # - this requires the external force that should be scaled to be of the form
+        #   F_ext(t, q) = t * F(q)
+        # - the constraints for displacement control have to be of the form
+        #   g(t, q) = t * g(q)
         h_q = self.model.h_q(t, q, self.u0)
         Wla_g_q = self.model.Wla_g_q(t, q, la)
         g_q = self.model.g_q(t, q)
         Rq_q = h_q + Wla_g_q
 
-        # TODO: this is a hack and can't be fixed without specifying the scaled equation
-        #       further we restrict ourselves to force controlled arc-length methods
+        # TODO: this is a hack and can't be fixed without specifying the scaled equations
+        # but it is only two addition evaluations of the h vector and the constraints
         eps = 1.0e-6
         f_arc = (self.model.h(t + eps, q, self.u0) - h) / eps
+        g_arc = (self.model.g(t + eps, q) - g) / eps
 
         # derivative of the arc length equation
         a_q, a_la, a_la_arc = self.a_x(x)
 
         yield bmat([[Rq_q, W_g,  f_arc[:, None]],
-                    [g_q,  None, None],
+                    [g_q,  None, g_arc[:, None]],
                     [a_q,  a_la, a_la_arc]], format='csr')
     
     def __init__(self, model, tol=1e-10, max_newton_iter=50, iter_goal=4, 
