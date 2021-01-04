@@ -8,6 +8,7 @@ properties.extend(['M', 'Mu_q'])
 properties.extend(['f_gyr', 'f_gyr_q', 'f_gyr_u'])
 properties.extend(['f_pot', 'f_pot_q'])
 properties.extend(['f_npot', 'f_npot_q', 'f_npot_u'])
+properties.extend(['f_scaled', 'f_scaled_q'])
 
 properties.extend(['q_dot', 'q_dot_q', 'B'])
 
@@ -254,6 +255,20 @@ class Model(object):
 
     def h_u(self, t, q, u, scipy_matrix=coo_matrix):
         return self.f_npot_u(t, q, u, scipy_matrix=scipy_matrix) - self.f_gyr_u(t, q, u, scipy_matrix=scipy_matrix)
+
+    # TODO: do this better!
+    # scaled forces for arc-length solvers
+    def f_scaled(self, t, q):
+        f = np.zeros(self.nu)
+        for contr in self.__f_scaled_contr:
+            f[contr.uDOF] += contr.f_scaled(t, q[contr.qDOF])
+        return f
+
+    def f_scaled_q(self, t, q, scipy_matrix=coo_matrix):
+        coo = Coo((self.nu, self.nq))
+        for contr in self.__f_scaled_q_contr:
+            contr.f_scaled_q(t, q[contr.qDOF], coo)
+        return coo.tosparse(scipy_matrix)
 
     #====================
     # kinematic equations
