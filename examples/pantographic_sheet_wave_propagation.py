@@ -478,21 +478,21 @@ def create_pantograph(gamma, nRow, nCol, H, EA, EI, GI, A_rho0, p, nEl, nQP, r_O
 if __name__ == "__main__":
     # load_excitation = False
     dynamics = True
-    solve_problem = False
+    solve_problem = True
     time_displacement_diagram = True
     position_displacement_diagram = True
-    paraview_export = False
+    paraview_export = True
 
 ###############################################################################################
     # time simulation parameters
-    t1 = 7.5e-2                         # simulation time
+    t1 = 10e-2                        # simulation time
     dt = 4e-5                           # time step
     rho_inf = 0.8                       # damping parameter generalized-alpha integrator
 
     # geometric parameters
     gamma = pi/4                        # angle between fiber families
     nRow = 20                           # number of rows = 2 * number of fibers per height
-    nCol = 1000                        # number of columns = 2 * number of fibers per length
+    nCol = 1200                        # number of columns = 2 * number of fibers per length
 
     H = 0.07                            # height of pantographic sheet
     LBeam = H / (nRow * sin(gamma))     # length of individual beam
@@ -522,10 +522,13 @@ if __name__ == "__main__":
 
     # boundary conditions
     # Gaussian excitation
-    displ = 2 * H / 10
-    c1 = 0.006    # c1 = sqrt(2)*std
+    displ = 0.5 * H
+    c1 = 0.010    # c1 = sqrt(2)*std
     c2 = 0.033     # center of bell
-    fcn = lambda t: displ * np.exp(-(t-c2)**2/c1**2)
+    c3 = 0.005
+    # fcn = lambda t: displ * np.exp(-(t-c2)**2/c1**2)
+    # fcn = lambda t: displ * np.exp(-(t-c2)**2/c1**2) - 0.8 * displ * np.exp(-(t-c2)**2/c3**2)
+    fcn = lambda t: displ * sin(t / (3*c1) * (2 * pi)) * np.exp(-(t-c2)**2/c1**2)
 
     # generate directories
     # import the os module
