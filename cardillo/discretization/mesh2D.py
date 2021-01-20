@@ -86,14 +86,14 @@ class Mesh2D():
             raise NotImplementedError('...')
 
         elif basis == 'B-spline':
+            # number of total nodes
+            self.nn = (self.p + self.nel_xi) * (self.q + self.nel_eta)
+
+            # nodes per row
+            self.nn_xi = self.p + self.nel_xi
+            self.nn_eta = self.q + self.nel_eta
+
             if elDOF is None:
-                # number of total nodes
-                self.nn = (self.p + self.nel_xi) * (self.q + self.nel_eta)
-
-                # nodes per row
-                self.nn_xi = self.p + self.nel_xi
-                self.nn_eta = self.q + self.nel_eta
-
                 # construct selection matrix elDOF assigning to each element its DOFs of the displacement
                 # q[elDOF[el]] is equivalent to q_e = C^e * q
                 self.elDOF = np.zeros((self.nel, self.nq_n * self.nn_el), dtype=int)

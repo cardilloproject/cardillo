@@ -385,19 +385,11 @@ class Pantographic_sheet():
                     - (d1 @ d2) / (rho1 * rho2)**2 * (rho2 * rho1_q + rho1 * rho2_q)
                     )
 
-                # delta theta_s_s
-                d1_1_q = N_ThetaTheta[a, 0, 0]
-                d1_2_q = N_ThetaTheta[a, 0, 1]
-                d2_1_q = N_ThetaTheta[a, 1, 0]
-                d2_2_q = N_ThetaTheta[a, 1, 1]
-
-                d1_perp_q = np.array([[0,-1],[1,0]]) * N_Theta[a, 0]  
-                d2_perp_q = np.array([[0,-1],[1,0]]) * N_Theta[a, 1]
-                
-                theta1_1_q = (d1_1_perp * N_Theta[a, 0] + d1_perp * d1_1_q) / rho1**2 - (d1_1 @ d1_perp) / rho1**3 * 2 * rho1_q
-                theta1_2_q = (d1_2_perp * N_Theta[a, 0] + d1_perp * d1_2_q) / rho1**2 - (d1_2 @ d1_perp) / rho1**3 * 2 * rho1_q
-                theta2_1_q = (d2_1_perp * N_Theta[a, 1] + d2_perp * d2_1_q) / rho2**2 - (d2_1 @ d2_perp) / rho2**3 * 2 * rho2_q
-                theta2_2_q = (d2_2_perp * N_Theta[a, 1] + d2_perp * d2_2_q) / rho2**2 - (d2_2 @ d2_perp) / rho2**3 * 2 * rho2_q
+               
+                theta1_1_q = (d1_1_perp * N_Theta[a, 0] + d1_perp * N_ThetaTheta[a, 0, 0]) / rho1**2 - (d1_1 @ d1_perp) / rho1**3 * 2 * rho1_q
+                theta1_2_q = (d1_2_perp * N_Theta[a, 0] + d1_perp * N_ThetaTheta[a, 0, 1]) / rho1**2 - (d1_2 @ d1_perp) / rho1**3 * 2 * rho1_q
+                theta2_1_q = (d2_1_perp * N_Theta[a, 1] + d2_perp * N_ThetaTheta[a, 1, 0]) / rho2**2 - (d2_1 @ d2_perp) / rho2**3 * 2 * rho2_q
+                theta2_2_q = (d2_2_perp * N_Theta[a, 1] + d2_perp * N_ThetaTheta[a, 1, 1]) / rho2**2 - (d2_2 @ d2_perp) / rho2**3 * 2 * rho2_q
 
                 f[self.nodalDOF[a]] -= (  
                                         W_rho[0] * rho1_q + W_rho[1] * rho2_q
@@ -498,12 +490,12 @@ class Pantographic_sheet():
             W_Gamma_Gamma = self.mat.W_Gamma_Gamma(rho, rho_s, Gamma, theta_s)
             W_theta_s_theta_s = self.mat.W_theta_s_theta_s(rho, rho_s, Gamma, theta_s)
 
-            # for Barchiesi
-            W_rho_rho_s = self.mat.W_rho_rho_s(rho, rho_s, Gamma, theta_s)
-            W_rho_theta_s = self.mat.W_rho_theta_s(rho, rho_s, Gamma, theta_s)
-            W_rho_s_rho = self.mat.W_rho_s_rho(rho, rho_s, Gamma, theta_s)
-            W_rho_s_rho_s = self.mat.W_rho_s_rho_s(rho, rho_s, Gamma, theta_s)
-            W_theta_s_rho = self.mat.W_theta_s_rho(rho, rho_s, Gamma, theta_s)
+            # # for Barchiesi
+            # W_rho_rho_s = self.mat.W_rho_rho_s(rho, rho_s, Gamma, theta_s)
+            # W_rho_theta_s = self.mat.W_rho_theta_s(rho, rho_s, Gamma, theta_s)
+            # W_rho_s_rho = self.mat.W_rho_s_rho(rho, rho_s, Gamma, theta_s)
+            # W_rho_s_rho_s = self.mat.W_rho_s_rho_s(rho, rho_s, Gamma, theta_s)
+            # W_theta_s_rho = self.mat.W_theta_s_rho(rho, rho_s, Gamma, theta_s)
             
             rho1_q = np.zeros((self.nq_el))
             rho2_q = np.zeros((self.nq_el))
@@ -572,11 +564,11 @@ class Pantographic_sheet():
                         #Maurin
                         + W_Gamma_Gamma * np.outer(Gamma_q[ndDOFa], Gamma_q[ndDOFb])
                         #Barchiesi
-                        + W_rho_rho_s[0, 0, 0] * np.outer(rho1_q[ndDOFa], rho1_1_q[ndDOFb]) + W_rho_rho_s[1, 1, 1] * np.outer(rho2_q[ndDOFa], rho2_2_q[ndDOFb])
-                        + W_rho_theta_s[0, 0, 0] * np.outer(rho1_q[ndDOFa], theta1_1_q[ndDOFb]) + W_rho_theta_s[1, 1, 1] * np.outer(rho2_q[ndDOFa], theta2_2_q[ndDOFb]) 
-                        + W_rho_s_rho[0, 0, 0] * np.outer(rho1_1_q[ndDOFa], rho1_q[ndDOFb]) + W_rho_s_rho[1, 1, 1] * np.outer(rho2_2_q[ndDOFa], rho2_q[ndDOFb])
-                        + W_rho_s_rho_s[0, 0, 0, 0] * np.outer(rho1_1_q[ndDOFa], rho1_1_q[ndDOFb]) + W_rho_s_rho_s[1, 1, 1, 1] * np.outer(rho2_2_q[ndDOFa], rho2_2_q[ndDOFb])
-                        + W_theta_s_rho[0, 0, 0] * np.outer(theta1_1_q[ndDOFa], rho1_q[ndDOFb]) + W_theta_s_rho[1, 1, 1] * np.outer(theta2_2_q[ndDOFa], rho2_q[ndDOFb])
+                        # + W_rho_rho_s[0, 0, 0] * np.outer(rho1_q[ndDOFa], rho1_1_q[ndDOFb]) + W_rho_rho_s[1, 1, 1] * np.outer(rho2_q[ndDOFa], rho2_2_q[ndDOFb])
+                        # + W_rho_theta_s[0, 0, 0] * np.outer(rho1_q[ndDOFa], theta1_1_q[ndDOFb]) + W_rho_theta_s[1, 1, 1] * np.outer(rho2_q[ndDOFa], theta2_2_q[ndDOFb]) 
+                        # + W_rho_s_rho[0, 0, 0] * np.outer(rho1_1_q[ndDOFa], rho1_q[ndDOFb]) + W_rho_s_rho[1, 1, 1] * np.outer(rho2_2_q[ndDOFa], rho2_q[ndDOFb])
+                        # + W_rho_s_rho_s[0, 0, 0, 0] * np.outer(rho1_1_q[ndDOFa], rho1_1_q[ndDOFb]) + W_rho_s_rho_s[1, 1, 1, 1] * np.outer(rho2_2_q[ndDOFa], rho2_2_q[ndDOFb])
+                        # + W_theta_s_rho[0, 0, 0] * np.outer(theta1_1_q[ndDOFa], rho1_q[ndDOFb]) + W_theta_s_rho[1, 1, 1] * np.outer(theta2_2_q[ndDOFa], rho2_q[ndDOFb])
                         ) * w_J0
 
         return Ke
