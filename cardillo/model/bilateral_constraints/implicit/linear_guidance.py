@@ -461,7 +461,7 @@ class Linear_guidance_x_2D(Linear_guidance_x):
 
 class Linear_guidance_xyz():
     def __init__(self, subsystem1, subsystem2, r_OB, A_IB, frame_ID1=np.zeros(3), frame_ID2=np.zeros(3), la_g0=None):
-        # 1 position dof in exB direction + 1 rotation dof in exB direction
+        # 1 position dof in exB direction + free rotation
         self.nla_g = 2
         self.la_g0 = np.zeros(self.nla_g) if la_g0 is None else la_g0
 
@@ -735,7 +735,8 @@ class Linear_guidance_xyz():
 
         # coo.extend( dense, (self.uDOF, self.qDOF))
 
-class Linear_guidance_xyz_2D(Linear_guidance_x):
+class Linear_guidance_xyz_2D(Linear_guidance_xyz):
+    # 1 position dof in exB direction + free rotation
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.nla_g = 1
