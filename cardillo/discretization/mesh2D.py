@@ -116,7 +116,10 @@ class Mesh2D():
             self.nodalDOF[:, d] = np.arange(self.nn_el) + d * self.nn_el
 
         # transform quadrature points on element intervals
-        self.quadrature_points(vxi)
+        if vxi is None:
+            self.quadrature_points()
+        else:
+            self.evaluation_points(vxi)
 
         # evaluate element shape functions at quadrature points
         self.shape_functions()
@@ -125,46 +128,31 @@ class Mesh2D():
         if vxi is None:
             self.edges()
 
-    # def evaluation_points(self, vxi):
-    #     raise NotImplementedError('...')
-    #     # self.qp_xi = np.zeros((self.nel_xi, self.nqp_xi))
-    #     # self.qp_eta = np.zeros((self.nel_eta, self.nqp_eta))
-    #     # self.wp = np.zeros((self.nel, self.nqp))
-                
-    #     # for el in range(self.nel):
-    #     #     el_xi, el_eta = split2D(el, self.nel_per_dim)
-            
-    #     #     Xi_element_interval = self.Xi.element_interval(el_xi)
-    #     #     Eta_element_interval = self.Eta.element_interval(el_eta)
+    def evaluation_points(self, vxi):
+        self.qp_xi = np.zeros((self.nel_xi, self.nqp_xi))
+        self.qp_eta = np.zeros((self.nel_eta, self.nqp_eta))
+        self.wp = np.zeros((self.nel, self.nqp))
 
-    #     #     self.qp_xi[el_xi], w_xi = gauss(self.nqp_xi, interval=Xi_element_interval)
-    #     #     self.qp_eta[el_eta], w_eta = gauss(self.nqp_eta, interval=Eta_element_interval)
-            
-    #     #     for i in range(self.nqp):
-    #     #         i_xi, i_eta = split2D(i, self.nqp_per_dim)
-    #     #         self.wp[el, i] = w_xi[i_xi] * w_eta[i_eta]
+        self.qp_xi, self.qp_eta = vxi[:, None]
+        self.wp[0, 0] = 1
 
-    def quadrature_points(self, vxi):
+    def quadrature_points(self):
         self.qp_xi = np.zeros((self.nel_xi, self.nqp_xi))
         self.qp_eta = np.zeros((self.nel_eta, self.nqp_eta))
         self.wp = np.zeros((self.nel, self.nqp))
         
-        if vxi is None:
-            for el in range(self.nel):
-                el_xi, el_eta = split2D(el, self.nel_per_dim)
-                
-                Xi_element_interval = self.Xi.element_interval(el_xi)
-                Eta_element_interval = self.Eta.element_interval(el_eta)
+        for el in range(self.nel):
+            el_xi, el_eta = split2D(el, self.nel_per_dim)
+            
+            Xi_element_interval = self.Xi.element_interval(el_xi)
+            Eta_element_interval = self.Eta.element_interval(el_eta)
 
-                self.qp_xi[el_xi], w_xi = gauss(self.nqp_xi, interval=Xi_element_interval)
-                self.qp_eta[el_eta], w_eta = gauss(self.nqp_eta, interval=Eta_element_interval)
-                
-                for i in range(self.nqp):
-                    i_xi, i_eta = split2D(i, self.nqp_per_dim)
-                    self.wp[el, i] = w_xi[i_xi] * w_eta[i_eta]
-        else:
-            self.qp_xi, self.qp_eta = vxi[:, None]
-            self.wp[0, 0] = 1
+            self.qp_xi[el_xi], w_xi = gauss(self.nqp_xi, interval=Xi_element_interval)
+            self.qp_eta[el_eta], w_eta = gauss(self.nqp_eta, interval=Eta_element_interval)
+            
+            for i in range(self.nqp):
+                i_xi, i_eta = split2D(i, self.nqp_per_dim)
+                self.wp[el, i] = w_xi[i_xi] * w_eta[i_eta]
 
     def shape_functions(self):
         self.N = np.zeros((self.nel, self.nqp, self.nn_el))
@@ -201,7 +189,7 @@ class Mesh2D():
                 
             return DOF
 
-        self.edge_DOF = (
+        self.edge_qDOF = (
             select_edge(nn_0=[0]),
             select_edge(nn_0=[self.nn_xi - 1]),
             select_edge(nn_1=[0]),
@@ -436,10 +424,10 @@ def test_edge_DOF():
     ax.set_xlim(left=-max_val, right=max_val)
     ax.set_ylim(bottom=-max_val, top=max_val)
 
-    ax.scatter(*Q[mesh.edge_DOF[2].reshape(-1)].reshape(2,-1), marker='x', color='green')
-    ax.scatter(*Q[mesh.edge_DOF[0].reshape(-1)].reshape(2,-1), marker='x', color='red')
-    ax.scatter(*Q[mesh.edge_DOF[1].reshape(-1)].reshape(2,-1), marker='x', color='red')
-    ax.scatter(*Q[mesh.edge_DOF[3].reshape(-1)].reshape(2,-1), marker='x', color='green')
+    ax.scatter(*Q[mesh.edge_qDOF[2].reshape(-1)].reshape(2,-1), marker='x', color='green')
+    ax.scatter(*Q[mesh.edge_qDOF[0].reshape(-1)].reshape(2,-1), marker='x', color='red')
+    ax.scatter(*Q[mesh.edge_qDOF[1].reshape(-1)].reshape(2,-1), marker='x', color='red')
+    ax.scatter(*Q[mesh.edge_qDOF[3].reshape(-1)].reshape(2,-1), marker='x', color='green')
 
     plt.show()
 

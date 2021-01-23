@@ -20,8 +20,8 @@ from cardillo.model.force_distr3D import Force_distr3D
 def init_guess(continuum, t, t_new, x):
     # computes initial guess for new displacement step
     # shifts all nodes within surface in dependence of displacement of left and right edge
-    left_DOF = continuum.mesh.edge_DOF[0]
-    right_DOF = continuum.mesh.edge_DOF[1]
+    left_DOF = continuum.mesh.edge_qDOF[0]
+    right_DOF = continuum.mesh.edge_qDOF[1]
     z = continuum.z(t, x)
     z_new = continuum.z(t_new, x)
     left_z = z[left_DOF.T]
@@ -235,9 +235,9 @@ def standard_displacements(mesh, Z, case, source="Maurin"):
         if source == "Barchiesi":
             displacement = (0.05, 0)
 
-        cDOF1 = mesh.edge_DOF[0].ravel()
-        cDOF2x = mesh.edge_DOF[1][0]
-        cDOF2y = mesh.edge_DOF[1][1]
+        cDOF1 = mesh.edge_qDOF[0].ravel()
+        cDOF2x = mesh.edge_qDOF[1][0]
+        cDOF2y = mesh.edge_qDOF[1][1]
         cDOF2 = np.concatenate((cDOF2x, cDOF2y))
         cDOF = np.concatenate((cDOF1, cDOF2)) 
 
@@ -249,9 +249,9 @@ def standard_displacements(mesh, Z, case, source="Maurin"):
     elif case == "test_b":
         displacement = (0, 0.9* 20 * np.sqrt(2) * 0.0048)
 
-        cDOF1 = mesh.edge_DOF[0].ravel()
-        cDOF2x = mesh.edge_DOF[1][0]
-        cDOF2y = mesh.edge_DOF[1][1]
+        cDOF1 = mesh.edge_qDOF[0].ravel()
+        cDOF2x = mesh.edge_qDOF[1][0]
+        cDOF2y = mesh.edge_qDOF[1][1]
         cDOF2 = np.concatenate((cDOF2x, cDOF2y))
         cDOF = np.concatenate((cDOF1, cDOF2)) 
 
@@ -266,9 +266,9 @@ def standard_displacements(mesh, Z, case, source="Maurin"):
         translation =  np.array([5 * np.sqrt(2) * 0.0048, 0])
         R = A_IK_basic_z(alpha)[:2, :2]
 
-        cDOF1 = mesh.edge_DOF[0].ravel()
-        cDOF2x = mesh.edge_DOF[1][0]
-        cDOF2y = mesh.edge_DOF[1][1]
+        cDOF1 = mesh.edge_qDOF[0].ravel()
+        cDOF2x = mesh.edge_qDOF[1][0]
+        cDOF2y = mesh.edge_qDOF[1][1]
         cDOF2 = np.concatenate((cDOF2x, cDOF2y))
         cDOF = np.concatenate((cDOF1, cDOF2)) 
 
@@ -288,10 +288,10 @@ def standard_displacements(mesh, Z, case, source="Maurin"):
         R1 = A_IK_basic_z(-alpha)[:2, :2]
         R2 = A_IK_basic_z(alpha)[:2, :2]        
 
-        cDOF1x = mesh.edge_DOF[0][0]
-        cDOF1y = mesh.edge_DOF[0][1]        
-        cDOF2x = mesh.edge_DOF[1][0]
-        cDOF2y = mesh.edge_DOF[1][1]
+        cDOF1x = mesh.edge_qDOF[0][0]
+        cDOF1y = mesh.edge_qDOF[0][1]        
+        cDOF2x = mesh.edge_qDOF[1][0]
+        cDOF2y = mesh.edge_qDOF[1][1]
         cDOF1 = np.concatenate((cDOF1x, cDOF1y))
         cDOF2 = np.concatenate((cDOF2x, cDOF2y))
         cDOF = np.concatenate((cDOF1, cDOF2)) 
@@ -312,9 +312,9 @@ def standard_displacements(mesh, Z, case, source="Maurin"):
     if case == "simple_tension":#
         displacement = (5* 3 * 10 * np.sqrt(2) * 0.0048, 0)
        
-        cDOF1x = mesh.edge_DOF[0][0] # x direcion, one node
-        cDOF2x = mesh.edge_DOF[1][0]
-        cDOF1y = mesh.edge_DOF[0][1][0] # y direcion, one node
+        cDOF1x = mesh.edge_qDOF[0][0] # x direcion, one node
+        cDOF2x = mesh.edge_qDOF[1][0]
+        cDOF1y = mesh.edge_qDOF[0][1][0] # y direcion, one node
         # cDOF2 = np.hstack((cDOF2x, cDOF2y))
         cDOF = np.hstack((cDOF1x, cDOF2x, cDOF1y)) 
 
@@ -326,10 +326,10 @@ def standard_displacements(mesh, Z, case, source="Maurin"):
     if case == "equibiaxial_tension":#
         displacement = (3* 3 * 10 * np.sqrt(2) * 0.0048, 3 * 10 * np.sqrt(2) * 0.0048)
        
-        cDOF1x = mesh.edge_DOF[0][0] # x direcion, one node
-        cDOF2x = mesh.edge_DOF[1][0]
-        cDOF3y = mesh.edge_DOF[2][1]
-        cDOF4y = mesh.edge_DOF[3][1]
+        cDOF1x = mesh.edge_qDOF[0][0] # x direcion, one node
+        cDOF2x = mesh.edge_qDOF[1][0]
+        cDOF3y = mesh.edge_qDOF[2][1]
+        cDOF4y = mesh.edge_qDOF[3][1]
         # cDOF2 = np.hstack((cDOF2x, cDOF2y))
         cDOF = np.hstack((cDOF1x, cDOF2x, cDOF3y, cDOF4y)) 
 
@@ -342,14 +342,14 @@ def standard_displacements(mesh, Z, case, source="Maurin"):
     if case == "simple_shear":#
         displacement = (0, 3 * 3 * 10 * np.sqrt(2) * 0.0048)
        
-        cDOF1x = mesh.edge_DOF[0][0][1:-1] # x direcion, one node
-        cDOF2x = mesh.edge_DOF[1][0][1:-1]
-        cDOF3x = mesh.edge_DOF[2][0]
-        cDOF4x = mesh.edge_DOF[3][0]
-        cDOF1y = mesh.edge_DOF[0][1][1:-1]
-        cDOF2y = mesh.edge_DOF[1][1][1:-1]
-        cDOF3y = mesh.edge_DOF[2][1]
-        cDOF4y = mesh.edge_DOF[3][1]
+        cDOF1x = mesh.edge_qDOF[0][0][1:-1] # x direcion, one node
+        cDOF2x = mesh.edge_qDOF[1][0][1:-1]
+        cDOF3x = mesh.edge_qDOF[2][0]
+        cDOF4x = mesh.edge_qDOF[3][0]
+        cDOF1y = mesh.edge_qDOF[0][1][1:-1]
+        cDOF2y = mesh.edge_qDOF[1][1][1:-1]
+        cDOF3y = mesh.edge_qDOF[2][1]
+        cDOF4y = mesh.edge_qDOF[3][1]
         # cDOF2 = np.hstack((cDOF2x, cDOF2y))
         cDOF = np.hstack((cDOF1x, cDOF2x, cDOF3x, cDOF4x, cDOF1y,  cDOF2y,  cDOF3y, cDOF4y)) 
 
@@ -369,10 +369,10 @@ def standard_displacements(mesh, Z, case, source="Maurin"):
     if case == "pure_shear":
         displacement = (3* 3 * 10 * np.sqrt(2) * 0.0048, 0)
        
-        cDOF1x = mesh.edge_DOF[0][0] # x direcion, one node
-        cDOF2x = mesh.edge_DOF[1][0]
-        cDOF3y = mesh.edge_DOF[2][1]
-        cDOF4y = mesh.edge_DOF[3][1]
+        cDOF1x = mesh.edge_qDOF[0][0] # x direcion, one node
+        cDOF2x = mesh.edge_qDOF[1][0]
+        cDOF3y = mesh.edge_qDOF[2][1]
+        cDOF4y = mesh.edge_qDOF[3][1]
         # cDOF2 = np.hstack((cDOF2x, cDOF2y))
         cDOF = np.hstack((cDOF1x, cDOF2x, cDOF3y, cDOF4y)) 
 

@@ -272,8 +272,8 @@ def test_rectangle():
     mat = Ogden1997_compressible(mu1, mu2, dim=2)
 
     # boundary conditions
-    cDOF1 = mesh.edge_DOF[0].reshape(-1)
-    cDOF2 = mesh.edge_DOF[1][1]
+    cDOF1 = mesh.edge_qDOF[0].reshape(-1)
+    cDOF2 = mesh.edge_qDOF[1][1]
     cDOF = np.concatenate((cDOF1, cDOF2))
     b1 = lambda t: Z[cDOF1]
     b2 = lambda t: Z[cDOF2] + t * 4
