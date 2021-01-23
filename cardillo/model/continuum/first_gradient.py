@@ -79,23 +79,25 @@ class First_gradient():
         z[self.cDOF] = self.b(t)
         return z
         
-    def post_processing_single_configuration(self, t, q, filename, binary=True):
-            # compute redundant generalized coordinates
-            z = self.z(t, q)
+    def post_processing_single_configuration(self, t, q, filename, binary=True, return_strain=False):
+        # compute redundant generalized coordinates
+        z = self.z(t, q)
 
-            # generalized coordinates, connectivity and polynomial degree
-            cells, points, HigherOrderDegrees = self.mesh.vtk_mesh(z)
+        # generalized coordinates, connectivity and polynomial degree
+        cells, points, HigherOrderDegrees = self.mesh.vtk_mesh(z)
 
-            # dictionary storing point data
-            point_data = {}
-            
-            # evaluate deformation gradient at quadrature points
-            F = np.zeros((self.mesh.nel, self.mesh.nqp, self.mesh.nq_n, self.mesh.nq_n))
-            for el in range(self.mesh.nel):
-                ze = z[self.mesh.elDOF[el]]
-                for i in range(self.mesh.nqp):
-                    for a in range(self.mesh.nn_el):
-                        F[el, i] += np.outer(ze[self.mesh.nodalDOF[a]], self.N_X[el, i, a]) # Bonet 1997 (7.6b)
+        # dictionary storing point data
+        point_data = {}
+        
+        # evaluate deformation gradient at quadrature points
+        F = np.zeros((self.mesh.nel, self.mesh.nqp, self.mesh.nq_n, self.mesh.nq_n))
+        for el in range(self.mesh.nel):
+            ze = z[self.mesh.elDOF[el]]
+            for i in range(self.mesh.nqp):
+                for a in range(self.mesh.nn_el):
+                    F[el, i] += np.outer(ze[self.mesh.nodalDOF[a]], self.N_X[el, i, a]) # Bonet 1997 (7.6b)
+
+        if return_strain == False:
 
             F_vtk = self.mesh.field_to_vtk(F)
             point_data.update({"F": F_vtk})
@@ -118,13 +120,16 @@ class First_gradient():
         
             # write vtk mesh using meshio
             meshio.write_points_cells(
-                os.path.splitext(os.path.basename(filename))[0] + '.vtu',
+                filename.parent / (filename.stem + '.vtu'),
                 points,
                 cells,
                 point_data=point_data,
                 cell_data={"HigherOrderDegrees": HigherOrderDegrees},
                 binary=binary
             )
+        
+        else:
+            return F[0, 0]
         
     def post_processing(self, t, q, filename, binary=True):
         # write paraview PVD file collecting time and all vtk files, see https://www.paraview.org/Wiki/ParaView/Data_formats#PVD_File_Format
@@ -140,19 +145,19 @@ class First_gradient():
         vkt_file.appendChild(collection)
 
         for i, (ti, qi) in enumerate(zip(t, q)):
-            filei = filename + f'{i}.vtu'
+            filei = filename.parent / (filename.stem + f'_{i}.vtu')
 
             # write time step and file name in pvd file
             dataset = root.createElement('DataSet')
             dataset.setAttribute('timestep', f'{ti:0.6f}')
-            dataset.setAttribute('file', filei)
+            dataset.setAttribute('file', filei.name)
             collection.appendChild(dataset)
 
             self.post_processing_single_configuration(ti, qi, filei, binary=binary)
 
         # write pvd file        
         xml_str = root.toprettyxml(indent ="\t")          
-        with open(filename + '.pvd', "w") as f:
+        with (filename.parent / (filename.stem + '.pvd')).open("w") as f:
             f.write(xml_str)
 
     def F_qp(self, q):

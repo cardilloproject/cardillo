@@ -66,3 +66,5 @@ dist
 
 # visual code environment file
 *.env
+# pickle and dill files
+*.dill

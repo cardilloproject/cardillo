@@ -48,13 +48,15 @@ def scatter_Qs(Q):
 
 # Mesh for quadrilateral elements on rectangular domain
 class Mesh2D():
-    def __init__(self, knot_vector_objs, nqp_per_dim, derivative_order=1,
-                 basis='B-spline', nq_n=2):
+    def __init__(self, knot_vector_objs, nqp_per_dim, derivative_order=1, 
+                basis='B-spline', nq_n=2, vxi=None, elDOF=None):
         self.basis = basis
         self.derivative_order = derivative_order
-
         # number of elements
-        self.nel_per_dim = (knot_vector_objs[0].nel, knot_vector_objs[1].nel)
+        if vxi is None:
+            self.nel_per_dim = (knot_vector_objs[0].nel, knot_vector_objs[1].nel)
+        else:
+            self.nel_per_dim = (1, 1)
         self.nel_xi, self.nel_eta = self.nel_per_dim
         self.nel = self.nel_xi * self.nel_eta
         self.element_shape = (self.nel_xi, self.nel_eta)
@@ -68,8 +70,11 @@ class Mesh2D():
         self.p, self.q = self.degrees
 
         # number of quadrature points
-        self.nqp_per_dim = nqp_per_dim
-        self.nqp_xi, self.nqp_eta = nqp_per_dim
+        if vxi is None:
+            self.nqp_per_dim = nqp_per_dim
+        else:
+            self.nqp_per_dim = (1, 1)
+        self.nqp_xi, self.nqp_eta = self.nqp_per_dim
         self.nqp = self.nqp_xi * self.nqp_eta
 
         # number of nodes influencing each element
@@ -106,20 +111,21 @@ class Mesh2D():
             self.nn_xi = self.p + self.nel_xi
             self.nn_eta = self.q + self.nel_eta
 
-            # construct selection matrix elDOF assigning to each element its DOFs of the displacement
-            # q[elDOF[el]] is equivalent to q_e = C^e * q
-            self.elDOF = np.zeros((self.nel, self.nq_n * self.nn_el), dtype=int)
-            for el in range(self.nel):
-                el_xi, el_eta = split2D(el, self.element_shape)
-                for a in range(self.nn_el):
-                    a_xi, a_eta = split2D(a, self.degrees1)
-                    elDOF_x = el_xi + a_xi + (el_eta + a_eta) * (self.nn_xi)
-                    for d in range(self.nq_n):
-                        self.elDOF[el, a + self.nn_el * d] = elDOF_x + self.nn * d
+            if elDOF is None:
+                # construct selection matrix elDOF assigning to each element its DOFs of the displacement
+                # q[elDOF[el]] is equivalent to q_e = C^e * q
+                self.elDOF = np.zeros((self.nel, self.nq_n * self.nn_el), dtype=int)
+                for el in range(self.nel):
+                    el_xi, el_eta = split2D(el, self.element_shape)
+                    for a in range(self.nn_el):
+                        a_xi, a_eta = split2D(a, self.degrees1)
+                        elDOF_x = el_xi + a_xi + (el_eta + a_eta) * (self.nn_xi)
+                        for d in range(self.nq_n):
+                            self.elDOF[el, a + self.nn_el * d] = elDOF_x + self.nn * d
+            else: 
+                self.elDOF = elDOF
 
             self.vtk_cell_type = 'VTK_BEZIER_QUADRILATERAL'
-
-        self.nn_per_dim = (self.nn_xi, self.nn_eta)
 
         # construct selection matrix ndDOF assining to each node its DOFs
         # qe[ndDOF[a]] is equivalent to q_e^a = C^a * q^e
@@ -128,13 +134,17 @@ class Mesh2D():
             self.nodalDOF[:, d] = np.arange(self.nn_el) + d * self.nn_el
 
         # transform quadrature points on element intervals
-        self.quadrature_points()
+        if vxi is None:
+            self.quadrature_points()
+        else:
+            self.evaluation_points(vxi)
 
         # evaluate element shape functions at quadrature points
         self.shape_functions()
 
         # edge degrees of freedom
-        self.edges()
+        if vxi is None:
+            self.edges()
 
     def basis2D(self, degrees, derivative_order, knot_vectors, knots):
         if self.basis == 'B-spline':
@@ -144,30 +154,19 @@ class Mesh2D():
             return lagrange_basis2D(degrees, knots, derivative_order,
                                     knot_vectors)
 
-    def evaluation_points(self):
-        raise NotImplementedError('...')
+    def evaluation_points(self, vxi):
         self.qp_xi = np.zeros((self.nel_xi, self.nqp_xi))
         self.qp_eta = np.zeros((self.nel_eta, self.nqp_eta))
         self.wp = np.zeros((self.nel, self.nqp))
-                
-        for el in range(self.nel):
-            el_xi, el_eta = split2D(el, self.nel_per_dim)
-            
-            Xi_element_interval = self.Xi.element_interval(el_xi)
-            Eta_element_interval = self.Eta.element_interval(el_eta)
 
-            self.qp_xi[el_xi], w_xi = gauss(self.nqp_xi, interval=Xi_element_interval)
-            self.qp_eta[el_eta], w_eta = gauss(self.nqp_eta, interval=Eta_element_interval)
-            
-            for i in range(self.nqp):
-                i_xi, i_eta = split2D(i, self.nqp_per_dim)
-                self.wp[el, i] = w_xi[i_xi] * w_eta[i_eta]
+        self.qp_xi, self.qp_eta = vxi[:, None]
+        self.wp[0, 0] = 1
 
     def quadrature_points(self):
         self.qp_xi = np.zeros((self.nel_xi, self.nqp_xi))
         self.qp_eta = np.zeros((self.nel_eta, self.nqp_eta))
         self.wp = np.zeros((self.nel, self.nqp))
-                
+        
         for el in range(self.nel):
             el_xi, el_eta = split2D(el, self.nel_per_dim)
             
@@ -210,7 +209,7 @@ class Mesh2D():
             edge = []
             for j in nn_1:
                 for i in nn_0:
-                    edge.append(flat2D(i, j, self.nn_per_dim))
+                    edge.append(flat2D(i, j, (self.nn_xi, )))
 
             DOF_x = np.array(edge)
             nn_edge = len(edge)
@@ -332,6 +331,25 @@ class Mesh2D():
                                    * self.wp[el, i])
             
             return w_J0
+                        
+    def N_XX(self, Q, kappa0_xi_inv):
+        assert self.derivative_order == 2
+        N_XX = np.zeros((self.nel, self.nqp, self.nn_el, self.nq_n, self.nq_n))
+        for el in range(self.nel):
+            Qe = Q[self.elDOF[el]]
+
+            for i in range(self.nqp):
+                N_xi = self.N_xi[el, i]
+                N_xixi = self.N_xixi[el, i]
+                kappa0_xi_inv_el_i = kappa0_xi_inv[el, i]
+                
+                kappa0_xixi = np.zeros((self.nq_n, 2, 2))
+                for a in range(self.nn_el):
+                    kappa0_xixi += np.einsum('i,jk->ijk', Qe[self.nodalDOF[a]], N_xixi[a])
+
+                for a in range(self.nn_el):
+                    N_XX[el, i, a] = kappa0_xi_inv_el_i.T @ (N_xixi[a] - np.einsum('i,ijk->jk', N_xi[a] @ kappa0_xi_inv_el_i, kappa0_xixi)) @ kappa0_xi_inv_el_i # Maurin2019 (28) modified
+        return N_XX
 
     # functions for vtk export
     def ensure_L2_projection_A(self):

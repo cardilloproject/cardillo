@@ -3,12 +3,14 @@ import matplotlib.pyplot as plt
 import os
 import os.path
 import pickle
+import pathlib
+import datetime
 from cardillo.discretization.mesh3D import Mesh3D, cube
 from cardillo.discretization.mesh2D import Mesh2D, rectangle
 from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume
-from cardillo.discretization.indexing import flat3D
-from cardillo.model.continuum import Ogden1997_compressible, Ogden1997_incompressible, First_gradient
-from cardillo.solver import Newton, Euler_backward
+from cardillo.discretization.indexing import flat3D, flat2D
+from cardillo.model.continuum import Ogden1997_compressible, Ogden1997_incompressible, First_gradient, Ogden1997_complete_2D_incompressible
+from cardillo.solver import Newton, Euler_backward, Generalized_alpha_1
 from cardillo.model import Model
 from cardillo.math.algebra import A_IK_basic_z
 from cardillo.model.force_distr2D import Force_distr2D
@@ -25,6 +27,12 @@ def test_cube():
     path_name, file_name = [x[0] for x in map(os.path.splitext, os.path.split(__file__)) ]
     export_dir = os.path.join(path_name, 'results', file_name)
     export_path = os.path.join(export_dir, 'sol')
+
+    # time_string = datetime.datetime.now().strftime("%y%m%d_%H_%M_%S")
+    # filename = f"{time_string}__test_cube"
+    # folderpath = pathlib.Path("output") / filename  #os.path.join("output", filename)
+    # folderpath.mkdir(parents=True) #os.makedirs(folderpath)
+    # filepath = folderpath / (filename + ".dill") #os.path.join(folderpath, filename + ".dill")
 
     TractionForce = False
     Gravity = False
@@ -183,18 +191,17 @@ def test_cube():
     # sol = solver.solve()
     # pr.disable()
 
-    # sortby = 'cumulative'
-    # ps = pstats.Stats(pr).sort_stats(sortby)
-    # ps.print_stats(0.1) # print only first 10% of the list
-
-    # plt.plot(sol.t, sol.q[:, -1])
-    # plt.show()
-    # exit()
-
     # vtk export
     continuum.post_processing(sol.t, sol.q, 'cube_splines_incomp')
+    #continuum.post_processing(sol.t, sol.q, filepath.parent / filepath.stem)
 
-def test_cylinder():    
+def test_cylinder(): 
+    time_string = datetime.datetime.now().strftime("%y%m%d_%H_%M_%S")
+    filename = f"{time_string}__test_cylinder"
+    folderpath = pathlib.Path("output") / filename  #os.path.join("output", filename)
+    folderpath.mkdir(parents=True) #os.makedirs(folderpath)
+    filepath = folderpath / (filename + ".dill") #os.path.join(folderpath, filename + ".dill")   
+
     # build mesh
     degrees = (3, 3, 3)
     QP_shape = (3, 3, 3)
@@ -292,9 +299,15 @@ def test_cylinder():
     ps.print_stats(0.1) # print only first 10% of the list
 
     # vtk export
-    continuum.post_processing(sol.t, sol.q, 'cylinder')
+    continuum.post_processing(sol.t, sol.q, filepath.parent / filepath.stem)
 
 def test_rectangle():
+    time_string = datetime.datetime.now().strftime("%y%m%d_%H_%M_%S")
+    filename = f"{time_string}__test_rectangle"
+    folderpath = pathlib.Path("output") / filename  #os.path.join("output", filename)
+    folderpath.mkdir(parents=True) #os.makedirs(folderpath)
+    filepath = folderpath / (filename + ".dill") #os.path.join(folderpath, filename + ".dill")   
+
     # build mesh
     degrees = (1, 1)
     QP_shape = (3, 3)
@@ -329,8 +342,6 @@ def test_rectangle():
     # 3D continuum
     continuum = First_gradient(1, mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
 
-    
-
     # vtk export reference configuration
     # continuum.post_processing_single_configuration(0, Z, 'rectangleReferenceConfig.vtu')
 
@@ -339,25 +350,18 @@ def test_rectangle():
     model.add(continuum)
     model.assemble()
 
-
     # static solver
     n_load_steps = 30
-    tol = 1.0e-5
+    tol = 1.0e-6
     max_iter = 10
     solver = Newton(model, n_load_steps=n_load_steps, tol=tol, max_iter=max_iter)
     
-    # import cProfile, pstats
-    # pr = cProfile.Profile()
-    # pr.enable()
     sol = solver.solve()
-    # pr.disable()
-
-    # sortby = 'cumulative'
-    # ps = pstats.Stats(pr).sort_stats(sortby)
-    # ps.print_stats(0.1) # print only first 10% of the list
 
     # # vtk export
-    continuum.post_processing(sol.t, sol.q, 'rectangle')
+    continuum.post_processing(sol.t, sol.q, filepath.parent / filepath.stem)
+
+
 
 def write_xml():
     # write paraview PVD file, see https://www.paraview.org/Wiki/ParaView/Data_formats#PVD_File_Format
@@ -380,15 +384,13 @@ def write_xml():
         # dataset.setAttribute('part', '0')
         dataset.setAttribute('file', f'continuum{i}.vtu')
         collection.appendChild(dataset)
-
-    
-    xml_str = root.toprettyxml(indent ="\t")  
-    
+ 
+    xml_str = root.toprettyxml(indent ="\t")   
     save_path_file = "continuum.pvd"
-    
     with open(save_path_file, "w") as f:
         f.write(xml_str)
 
+    
 if __name__ == "__main__":
     test_cube()
     # test_cylinder()
