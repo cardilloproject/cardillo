@@ -28,11 +28,14 @@ def test_cube():
     export_dir = os.path.join(path_name, 'results', file_name)
     export_path = os.path.join(export_dir, 'sol')
 
+    filepath = pathlib.Path(export_dir)
+
     # time_string = datetime.datetime.now().strftime("%y%m%d_%H_%M_%S")
     # filename = f"{time_string}__test_cube"
     # folderpath = pathlib.Path("output") / filename  #os.path.join("output", filename)
     # folderpath.mkdir(parents=True) #os.makedirs(folderpath)
     # filepath = folderpath / (filename + ".dill") #os.path.join(folderpath, filename + ".dill")
+
 
     TractionForce = False
     Gravity = False
@@ -138,6 +141,7 @@ def test_cube():
     # np.set_printoptions(precision=5, suppress=True)
     # print(M.toarray())
     # print(np.linalg.det(M.toarray()))
+    
 
     if Statics:
     # static solver
@@ -161,6 +165,11 @@ def test_cube():
         save_solution(sol, export_path)
     else:
         sol = pickle.load( open(export_path, 'rb') )
+
+    # sol = solver.solve()
+
+    # with filepath.open(mode='wb') as f:
+    #     dill.dump((continuum, sol), f)
 
     import matplotlib.pyplot as plt
 
@@ -192,8 +201,8 @@ def test_cube():
     # pr.disable()
 
     # vtk export
-    continuum.post_processing(sol.t, sol.q, 'cube_splines_incomp')
-    #continuum.post_processing(sol.t, sol.q, filepath.parent / filepath.stem)
+    # continuum.post_processing(sol.t, sol.q, 'cube_splines_incomp')
+    continuum.post_processing(sol.t, sol.q, filepath.parent / filepath.stem)
 
 def test_cylinder(): 
     time_string = datetime.datetime.now().strftime("%y%m%d_%H_%M_%S")
@@ -254,8 +263,8 @@ def test_cylinder():
     mat = Ogden1997_compressible(mu1, mu2)
 
     # boundary conditions
-    cDOF1 = mesh.surface_DOF[0].reshape(-1)
-    cDOF2 = mesh.surface_DOF[1].reshape(-1)
+    cDOF1 = mesh.surface_qDOF[0].reshape(-1)
+    cDOF2 = mesh.surface_qDOF[1].reshape(-1)
     cDOF = np.concatenate((cDOF1, cDOF2))
     b1 = lambda t: Z[cDOF1]
 
@@ -274,8 +283,10 @@ def test_cylinder():
 
     b = lambda t: np.concatenate((b1(t), b2(t)))
 
+    density = 1e-2
+
     # 3D continuum
-    continuum = First_gradient(mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
+    continuum = First_gradient(density, mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
 
     # build model
     model = Model()

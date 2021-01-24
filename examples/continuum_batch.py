@@ -5,7 +5,7 @@ import dill
 import datetime
 import pathlib
 
-from cardillo.discretization.mesh import Mesh, cube
+from cardillo.discretization.mesh3D import Mesh3D, cube
 from cardillo.discretization.mesh2D import Mesh2D, rectangle
 from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume
 from cardillo.discretization.indexing import flat3D, flat2D, split2D
