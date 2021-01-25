@@ -5,17 +5,14 @@ import dill
 import datetime
 import pathlib
 
-from cardillo.discretization.mesh3D import Mesh3D, cube
 from cardillo.discretization.mesh2D import Mesh2D, rectangle
-from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume
-from cardillo.discretization.indexing import flat3D, flat2D, split2D
+from cardillo.discretization.B_spline import Knot_vector
+from cardillo.discretization.indexing import split2D
 from cardillo.model.continuum import Ogden1997_compressible, First_gradient, Ogden1997_complete_2D_incompressible
-from cardillo.model.continuum import Pantographic_sheet, Maurin2019_linear, Maurin2019, verify_derivatives, strain_single_point, Barchiesi2020
-from cardillo.solver import Newton, Generalized_alpha_1, Euler_backward
+from cardillo.model.continuum import Pantographic_sheet, verify_derivatives, Pantographic_lattice, Bipantographic_fabric
+from cardillo.solver import Newton
 from cardillo.model import Model
 from cardillo.math.algebra import A_IK_basic_z, norm2
-from cardillo.model.force_distr2D import Force_distr2D
-from cardillo.model.force_distr3D import Force_distr3D
 
 def init_guess(continuum, t, t_new, x):
     # computes initial guess for new displacement step
@@ -140,8 +137,9 @@ def pantographic_sheet_solve(case="test_a", n_load_steps=20, starting_step=0, so
         K_Gamma = 1.59e2
         K_Theta_s = 1.92e-2
         gamma = 1.36
-        # mat = Maurin2019_linear(K_rho, K_Gamma, K_Theta_s)
-        mat = Maurin2019(K_rho, K_Gamma, K_Theta_s, gamma)
+        # mat = Maurin2019(K_rho, K_Gamma, K_Theta_s, gamma)
+        mat_param = (K_rho, K_Gamma, K_Theta_s, gamma)
+
 
     elif source == "MaurinSquare":
         # reference configuration is a rectangle
@@ -157,8 +155,7 @@ def pantographic_sheet_solve(case="test_a", n_load_steps=20, starting_step=0, so
         K_Gamma = 1.59e2
         K_Theta_s = 1.92e-2
         gamma = 2 # this is different to previous case
-        # mat = Maurin2019_linear(K_rho, K_Gamma, K_Theta_s)
-        mat = Maurin2019(K_rho, K_Gamma, K_Theta_s, gamma)
+        mat_param = (K_rho, K_Gamma, K_Theta_s, gamma)
 
     elif source == "Barchiesi" or source == "Barchiesi_newFormat":
             # reference configuration is a rectangle
@@ -174,10 +171,7 @@ def pantographic_sheet_solve(case="test_a", n_load_steps=20, starting_step=0, so
         K_F = 0.9   #[J]
         K_E = 0.33  #[J]
         K_S = 34    #[J]
-        mat = Barchiesi2020(gamma, K_F, K_E, K_S)
-
-    # run derivative check for the chosen material
-    verify_derivatives(mat)
+        mat_param = (gamma, K_F, K_E, K_S)
 
     rectangle_shape = (L, B)
     Z = rectangle(rectangle_shape, mesh, Greville=True)
@@ -186,8 +180,14 @@ def pantographic_sheet_solve(case="test_a", n_load_steps=20, starting_step=0, so
     # boundary conditions
     cDOF, b = standard_displacements(mesh, Z, case=case, source=source)
 
-    # 3D continuum
-    continuum = Pantographic_sheet(None, mat, mesh, Z, z0=z0, cDOF=cDOF, b=b)
+    # 2D continuum
+    if source == "Maurin" or source == "MaurinSquare":
+        continuum = Pantographic_lattice(None, mat_param, mesh, Z, z0=z0, cDOF=cDOF, b=b)
+    elif source == "Barchiesi" or source == "Barchiesi_newFormat":
+        continuum = Bipantographic_fabric(None, mat_param, mesh, Z, z0=z0, cDOF=cDOF, b=b)
+
+    # run derivative check for the chosen material
+    verify_derivatives(continuum)
 
     model = Model()
     model.add(continuum)

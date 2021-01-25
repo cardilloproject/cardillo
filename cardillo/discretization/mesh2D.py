@@ -249,7 +249,7 @@ class Mesh2D():
             qe = q[elDOF]
 
             NN = self.basis2D(self.degrees, derivative_order,
-                              self.knot_vectors_objs, (xi, eta))
+                              self.knot_vector_objs, (xi, eta))
             for a in range(self.nn_el):
                 x[i] += NN[0, a, 0] * qe[self.nodalDOF[a]]
             
@@ -264,7 +264,7 @@ class Mesh2D():
             elDOF = self.elDOF[el, :self.nn_el]
 
             Ae = np.zeros((self.nn_el, self.nn_el))
-            NN = self.basis2D(self.degrees, 0, self.knot_vectors_objs, (xi, eta))
+            NN = self.basis2D(self.degrees, 0, self.knot_vector_objs, (xi, eta))
             for i in range(self.nn_el):
                 for j in range(self.nn_el):
                     Ae[i, j] = NN[0, i, 0] * NN[0, j, 0]
@@ -280,7 +280,7 @@ class Mesh2D():
             elDOF = self.elDOF[el, :self.nn_el]
 
             be = np.zeros((self.nn_el))
-            NN = self.basis2D(self.degrees, 0, self.knot_vectors_objs, (xi, eta))
+            NN = self.basis2D(self.degrees, 0, self.knot_vector_objs, (xi, eta))
             for i in range(self.nn_el):
                 be[i] = NN[0, i, 0] * Pwi
             b[elDOF] += be

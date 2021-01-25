@@ -93,8 +93,10 @@ class Mesh1D():
 
     def basis1D(self, degree, derivative_order, knot_vector, knots):
         if self.basis == 'B-spline':
-            return B_spline_basis1D(degree, derivative_order,
+            NN_ = B_spline_basis1D(degree, derivative_order,
                                     knot_vector.data, knots, squeeze=False)
+            # rearrange dimensions to match order in Mesh2D and lagrange
+            return np.einsum('kij->ijk', NN_) 
         elif self.basis == 'lagrange':
             return lagrange_basis1D(degree, knots, derivative_order,
                                     knot_vector)

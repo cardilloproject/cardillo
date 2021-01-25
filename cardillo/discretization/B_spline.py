@@ -72,11 +72,10 @@ def find_knotspan(degree, knot_vector, knots):
             span[j] += -degree - 1
     return span
 
-# basis functions
 def __basis_functions_ders(degree, knot_vector, spans, knots, order, dtype=np.float64):
-    basis_ders = np.zeros((len(knots), degree + 1, order + 1))
+    basis_ders = np.zeros((order + 1, len(knots), degree + 1))
     for i, (span, knot) in enumerate(zip(spans, knots)):
-        basis_ders[i] = __basis_function_ders(degree, knot_vector, span, knot, order).T
+        basis_ders[:, i] = __basis_function_ders(degree, knot_vector, span, knot, order)
     return basis_ders
 
 def __basis_function_ders(degree, knot_vector, span, knot, order, dtype=np.float64):    
