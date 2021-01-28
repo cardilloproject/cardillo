@@ -24,18 +24,10 @@ def save_solution(sol, filename):
 
 def test_cube():
 
-    path_name, file_name = [x[0] for x in map(os.path.splitext, os.path.split(__file__)) ]
-    export_dir = os.path.join(path_name, 'results', file_name)
-    export_path = os.path.join(export_dir, 'sol')
-
-    filepath = pathlib.Path(export_dir)
-
-    # time_string = datetime.datetime.now().strftime("%y%m%d_%H_%M_%S")
-    # filename = f"{time_string}__test_cube"
-    # folderpath = pathlib.Path("output") / filename  #os.path.join("output", filename)
-    # folderpath.mkdir(parents=True) #os.makedirs(folderpath)
-    # filepath = folderpath / (filename + ".dill") #os.path.join(folderpath, filename + ".dill")
-
+    file_name = pathlib.Path(__file__).stem
+    file_path = pathlib.Path(__file__).parent / 'results' / f"{file_name}_cube" / file_name
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    export_path = file_path.parent / 'sol'
 
     TractionForce = False
     Gravity = False
@@ -160,16 +152,11 @@ def test_cube():
     if save_sol:
         sol = solver.solve()
         # export solution object
-        if not os.path.exists(export_dir):
-            os.makedirs(export_dir)
-        save_solution(sol, export_path)
+        # if not os.path.exists(export_dir):
+        #     os.makedirs(export_dir)
+        save_solution(sol, str(export_path))
     else:
-        sol = pickle.load( open(export_path, 'rb') )
-
-    # sol = solver.solve()
-
-    # with filepath.open(mode='wb') as f:
-    #     dill.dump((continuum, sol), f)
+        sol = pickle.load( open(str(export_path), 'rb') )
 
     import matplotlib.pyplot as plt
 
@@ -202,14 +189,14 @@ def test_cube():
 
     # vtk export
     # continuum.post_processing(sol.t, sol.q, 'cube_splines_incomp')
-    continuum.post_processing(sol.t, sol.q, filepath.parent / filepath.stem)
+    # continuum.post_processing(sol.t, sol.q, filepath.parent / filepath.stem)
+    continuum.post_processing(sol.t, sol.q, file_path)
 
-def test_cylinder(): 
-    time_string = datetime.datetime.now().strftime("%y%m%d_%H_%M_%S")
-    filename = f"{time_string}__test_cylinder"
-    folderpath = pathlib.Path("output") / filename  #os.path.join("output", filename)
-    folderpath.mkdir(parents=True) #os.makedirs(folderpath)
-    filepath = folderpath / (filename + ".dill") #os.path.join(folderpath, filename + ".dill")   
+def test_cylinder():  
+    file_name = pathlib.Path(__file__).stem
+    file_path = pathlib.Path(__file__).parent / 'results' / f"{file_name}_cylinder" / file_name
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    # export_path = file_path.parent / 'sol'
 
     # build mesh
     degrees = (3, 3, 3)
@@ -310,14 +297,14 @@ def test_cylinder():
     ps.print_stats(0.1) # print only first 10% of the list
 
     # vtk export
-    continuum.post_processing(sol.t, sol.q, filepath.parent / filepath.stem)
+    continuum.post_processing(sol.t, sol.q, file_path)
 
 def test_rectangle():
-    time_string = datetime.datetime.now().strftime("%y%m%d_%H_%M_%S")
-    filename = f"{time_string}__test_rectangle"
-    folderpath = pathlib.Path("output") / filename  #os.path.join("output", filename)
-    folderpath.mkdir(parents=True) #os.makedirs(folderpath)
-    filepath = folderpath / (filename + ".dill") #os.path.join(folderpath, filename + ".dill")   
+
+    file_name = pathlib.Path(__file__).stem
+    file_path = pathlib.Path(__file__).parent / 'results' / f"{file_name}_rectangle" / file_name
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    # export_path = file_path.parent / 'sol'  
 
     # build mesh
     degrees = (1, 1)
@@ -370,7 +357,7 @@ def test_rectangle():
     sol = solver.solve()
 
     # # vtk export
-    continuum.post_processing(sol.t, sol.q, filepath.parent / filepath.stem)
+    continuum.post_processing(sol.t, sol.q, file_path)
 
 
 
@@ -403,7 +390,7 @@ def write_xml():
 
     
 if __name__ == "__main__":
-    test_cube()
+    # test_cube()
     # test_cylinder()
-    # test_rectangle()
+    test_rectangle()
     # write_xml()
