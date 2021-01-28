@@ -132,7 +132,7 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
         self.dN_bdry = np.array([dN_bdry_left, dN_bdry_right])
 
     def __basis_functions_b_splines(self, xi):
-        return B_spline_basis1D(self.polynomial_degree, 1, self.knot_vector.data, xi).T
+        return B_spline_basis1D(self.polynomial_degree, 1, self.knot_vector.data, xi)#.T
 
     def __basis_functions_lagrange(self, xi):
         el = np.where(xi >= self.element_span)[0][-1]

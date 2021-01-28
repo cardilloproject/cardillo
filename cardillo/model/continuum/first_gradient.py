@@ -131,10 +131,10 @@ class First_gradient():
         else:
             return F[0, 0]
         
-    def post_processing(self, t, q, filename, binary=True):
+    def post_processing(self, t, q, filename, binary=True, project_to_reference=False):
         # write paraview PVD file collecting time and all vtk files, see https://www.paraview.org/Wiki/ParaView/Data_formats#PVD_File_Format
         from xml.dom import minidom
-        
+     
         root = minidom.Document()
         
         vkt_file = root.createElement('VTKFile')
@@ -153,6 +153,8 @@ class First_gradient():
             dataset.setAttribute('file', filei.name)
             collection.appendChild(dataset)
 
+            if project_to_reference == True:
+                raise NotImplementedError
             self.post_processing_single_configuration(ti, qi, filei, binary=binary)
 
         # write pvd file        
@@ -391,7 +393,7 @@ class First_gradient():
 
 def test_gradient():
     from cardillo.discretization.mesh3D import Mesh3D, cube
-    from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume, B_spline_volume2vtk
+    from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume
     from cardillo.discretization.indexing import flat3D
 
     QP_shape = (1, 1, 1)

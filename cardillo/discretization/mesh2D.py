@@ -193,13 +193,13 @@ class Mesh2D():
             NN = self.basis2D(self.degrees, self.derivative_order,
                          self.knot_vector_objs, (self.qp_xi[el_xi],
                                                  self.qp_eta[el_eta]))
-            self.N[el] = NN[:, :, 0]
+            self.N[el] = NN[0]
             if self.derivative_order > 0:
-                self.N_xi[el] = NN[:, :, range(1, 3)]
+                self.N_xi[el] = NN[range(1, 3)].transpose(1, 2, 0)
                 if self.derivative_order > 1:
-                    self.N_xixi[el] = NN[:, :, range(3, 7)].reshape(self.nqp,
-                                                                    self.nn_el,
-                                                                     2, 2)
+                    self.N_xixi[el] = NN[range(3, 7)].transpose(1, 2, 0).reshape(self.nqp,
+                                                                                 self.nn_el,
+                                                                                 2, 2)
 
     def edges(self):
         def select_edge(**kwargs):
@@ -251,7 +251,7 @@ class Mesh2D():
             NN = self.basis2D(self.degrees, derivative_order,
                               self.knot_vector_objs, (xi, eta))
             for a in range(self.nn_el):
-                x[i] += NN[0, a, 0] * qe[self.nodalDOF[a]]
+                x[i] += NN[0, 0, a] * qe[self.nodalDOF[a]]
             
         return x
 
@@ -267,7 +267,7 @@ class Mesh2D():
             NN = self.basis2D(self.degrees, 0, self.knot_vector_objs, (xi, eta))
             for i in range(self.nn_el):
                 for j in range(self.nn_el):
-                    Ae[i, j] = NN[0, i, 0] * NN[0, j, 0]
+                    Ae[i, j] = NN[0, 0, i] * NN[0, 0, j]
             A.extend(Ae, (elDOF, elDOF))
         return A
 
@@ -282,7 +282,7 @@ class Mesh2D():
             be = np.zeros((self.nn_el))
             NN = self.basis2D(self.degrees, 0, self.knot_vector_objs, (xi, eta))
             for i in range(self.nn_el):
-                be[i] = NN[0, i, 0] * Pwi
+                be[i] = NN[0, 0, i] * Pwi
             b[elDOF] += be
         return b
 
@@ -409,7 +409,7 @@ class Mesh2D():
                 for a in range(self.nn_el):
                     a_xi, a_eta = split2D(a, self.degrees1)
                     Qw[el_xi, el_eta, a_xi, a_eta] = \
-                        q[self.elDOF[el][self.nodalDOF[a]]]
+                        q[self.elDOF[el][self.nodalDOF[a][0]]]
 
         nbezier_xi, nbezier_eta, p1, q1, dim = Qw.shape
 

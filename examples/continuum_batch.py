@@ -7,9 +7,10 @@ import pathlib
 
 from cardillo.discretization.mesh2D import Mesh2D, rectangle
 from cardillo.discretization.B_spline import Knot_vector
+from cardillo.discretization.lagrange import Node_vector
 from cardillo.discretization.indexing import split2D
 from cardillo.model.continuum import Ogden1997_compressible, First_gradient, Ogden1997_complete_2D_incompressible
-from cardillo.model.continuum import Pantographic_sheet, verify_derivatives, Pantographic_lattice, Bipantographic_fabric
+from cardillo.model.continuum import Pantographic_sheet, verify_derivatives, Pantographic_lattice, Bipantographic_lattice
 from cardillo.solver import Newton
 from cardillo.model import Model
 from cardillo.math.algebra import A_IK_basic_z, norm2
@@ -58,13 +59,15 @@ def first_gradient_solve(case="test_a",  n_load_steps=20, source="Treolar",  ele
     degrees = (2, 2)
     QP_shape = (3, 3)
 
-    Xi = Knot_vector(degrees[0], element_shape[0])
-    Eta = Knot_vector(degrees[1], element_shape[1])
-    knot_vectors = (Xi, Eta)
     
-    mesh = Mesh2D(knot_vectors, QP_shape, derivative_order=2, basis='B-spline', nq_n=2)
 
     if source == "Treolar":
+        Xi = Knot_vector(degrees[0], element_shape[0])
+        Eta = Knot_vector(degrees[1], element_shape[1])
+        knot_vectors = (Xi, Eta)
+
+        mesh = Mesh2D(knot_vectors, QP_shape, derivative_order=1, basis='B-spline', nq_n=2)
+
         # reference configuration is a rectangle
         B = 10 * np.sqrt(2) * 0.0048
         L = 3 * B
@@ -80,9 +83,27 @@ def first_gradient_solve(case="test_a",  n_load_steps=20, source="Treolar",  ele
         mu = [mu_star[i] *4.225 for i in range(len(al))]
         mat = Ogden1997_complete_2D_incompressible(mu, al)
 
-    rectangle_shape = (L, B)
-    Z = rectangle(rectangle_shape, mesh, Greville=True)
-    z0 = rectangle(rectangle_shape, mesh, Greville=True, Fuzz=0.00001)
+    if source == "Treolar_lagrange":
+        Xi = Node_vector(degrees[0], element_shape[0])
+        Eta = Node_vector(degrees[1], element_shape[1])
+        knot_vectors = (Xi, Eta)
+
+        mesh = Mesh2D(knot_vectors, QP_shape, derivative_order=1, basis='lagrange', nq_n=2)
+
+        # reference configuration is a rectangle
+        B = 10 * np.sqrt(2) * 0.0048
+        L = 3 * B
+
+        rectangle_shape = (L, B)
+        Z = rectangle(rectangle_shape, mesh, Greville=False)
+        z0 = rectangle(rectangle_shape, mesh, Greville=False, Fuzz=0.0)
+
+        # material model
+        al = [1.3, 5, -2]    # values: see Ogden 1997 p. 498
+        #mu = [6.3, 0.012, -0.1]
+        mu_star = [1.491, 0.003, -0.0237]
+        mu = [mu_star[i] *4.225 for i in range(len(al))]
+        mat = Ogden1997_complete_2D_incompressible(mu, al)
 
     # boundary conditions
     cDOF, b = standard_displacements(mesh, Z, case=case, source=source)
@@ -114,8 +135,8 @@ def pantographic_sheet_solve(case="test_a", n_load_steps=20, starting_step=0, so
     filepath = folderpath / (filename + ".dill") #os.path.join(folderpath, filename + ".dill")
 
     # build mesh
-    degrees = (2, 2)
-    QP_shape = (3, 3)
+    degrees = (2, 3)
+    QP_shape = (2, 3)
 
     Xi = Knot_vector(degrees[0], element_shape[0])
     Eta = Knot_vector(degrees[1], element_shape[1])
@@ -184,7 +205,7 @@ def pantographic_sheet_solve(case="test_a", n_load_steps=20, starting_step=0, so
     if source == "Maurin" or source == "MaurinSquare":
         continuum = Pantographic_lattice(None, mat_param, mesh, Z, z0=z0, cDOF=cDOF, b=b)
     elif source == "Barchiesi" or source == "Barchiesi_newFormat":
-        continuum = Bipantographic_fabric(None, mat_param, mesh, Z, z0=z0, cDOF=cDOF, b=b)
+        continuum = Bipantographic_lattice(None, mat_param, mesh, Z, z0=z0, cDOF=cDOF, b=b)
 
     # run derivative check for the chosen material
     verify_derivatives(continuum)
@@ -385,7 +406,7 @@ def standard_displacements(mesh, Z, case, source="Maurin"):
     return cDOF, b
 
 def task_queue_solve():
-    pantographic_sheet_solve(case="test_a", n_load_steps=5, starting_step=2, source="Maurin", element_shape=(6, 3))
+    # pantographic_sheet_solve(case="test_a", n_load_steps=5, starting_step=2, source="Maurin", element_shape=(6, 3))
     # pantographic_sheet_solve(case="test_a", n_load_steps=60, starting_step=2, source="Maurin", element_shape=(60, 60))
     # pantographic_sheet_solve(case="test_a", n_load_steps=30, starting_step=0, source="Barchiesi_newFormat", element_shape=(30, 10))
     # pantographic_sheet_solve(case="test_d", n_load_steps=90, starting_step=0, source="Barchiesi_newFormat", element_shape=(45, 15))
@@ -395,10 +416,12 @@ def task_queue_solve():
     # first_gradient_solve(case="pure_shear", n_load_steps=20, source="Treolar", element_shape=(12, 4))
     # first_gradient_solve(case="equibiaxial_tension", n_load_steps=20, source="Treolar", element_shape=(12, 4))
     # first_gradient_solve(case="test_a", n_load_steps=20, source="Treolar", element_shape=(30, 10))
+    first_gradient_solve(case="test_a", n_load_steps=20, source="Treolar_lagrange", element_shape=(30, 10))
+
 
 def task_queue_post():
-    # pantographic_sheet_post(r"output\1109_11_56_55__MaurinSquare_test_b_nstep30__elshape30_10_40percent\1109_11_56_55__MaurinSquare_test_b_nstep30__elshape30_10.dill", case="Maurin")
-   pass
+    # pantographic_sheet_post(r"output\210127_13_19_51__Treolar_test_a_nstep20__elshape30_10\210127_13_19_51__Treolar_test_a_nstep20__elshape30_10.dill")
+    pass
 
 if __name__ == "__main__":
     task_queue_solve()

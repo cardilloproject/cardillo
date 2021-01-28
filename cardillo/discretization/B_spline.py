@@ -206,7 +206,7 @@ def B_spline_basis2D(degrees, derivative_order, knot_vectors, knots):
     # compute number of shape functions and derivatives
     # and store them consecutively
     n = sum([2**d for d in range(derivative_order + 1)])
-    NN = np.zeros((kl, p1q1, n))
+    NN = np.zeros((n, kl, p1q1))
 
     Nxi = B_spline_basis1D(p, derivative_order, Xi, xi, squeeze=False)
     Neta = B_spline_basis1D(q, derivative_order, Eta, eta, squeeze=False)
@@ -216,17 +216,17 @@ def B_spline_basis2D(degrees, derivative_order, knot_vectors, knots):
 
         for a in range(p1q1):
             a_xi, a_eta = split2D(a, (p + 1,))
-            NN[i, a, 0] = Nxi[0, ik, a_xi] * Neta[0, il, a_eta]
+            NN[0, i, a] = Nxi[0, ik, a_xi] * Neta[0, il, a_eta]
             
             if derivative_order > 0:
-                NN[i, a, 1] = Nxi[1, ik, a_xi] * Neta[0, il, a_eta]
-                NN[i, a, 2] = Nxi[0, ik, a_xi] * Neta[1, il, a_eta]
+                NN[1, i, a] = Nxi[1, ik, a_xi] * Neta[0, il, a_eta]
+                NN[2, i, a] = Nxi[0, ik, a_xi] * Neta[1, il, a_eta]
 
                 if derivative_order > 1:
-                    NN[i, a, 3] = Nxi[2, ik, a_xi] * Neta[0, il, a_eta]
-                    NN[i, a, 4] = Nxi[1, ik, a_xi] * Neta[1, il, a_eta]
-                    NN[i, a, 5] = NN[i, a, 4]
-                    NN[i, a, 6] = Nxi[0, ik, a_xi] * Neta[2, il, a_eta]
+                    NN[3, i, a] = Nxi[2, ik, a_xi] * Neta[0, il, a_eta]
+                    NN[4, i, a] = Nxi[1, ik, a_xi] * Neta[1, il, a_eta]
+                    NN[5, i, a] = NN[4, i, a]
+                    NN[6, i, a] = Nxi[0, ik, a_xi] * Neta[2, il, a_eta]
 
 
     return NN
@@ -251,7 +251,7 @@ def B_spline_basis3D(degrees, derivative_order, knot_vectors, knots):
     # compute number of shape functions and derivatives
     # and store them consecutively
     n = sum([3**d for d in range(derivative_order + 1)])
-    NN = np.zeros((klm, p1q1r1, n))
+    NN = np.zeros((n, klm, p1q1r1))
 
     Nxi = B_spline_basis1D(p, derivative_order, Xi, xi, squeeze=False)
     Neta = B_spline_basis1D(q, derivative_order, Eta, eta, squeeze=False)
@@ -262,23 +262,22 @@ def B_spline_basis3D(degrees, derivative_order, knot_vectors, knots):
 
         for a in range(p1q1r1):
             a_xi, a_eta, a_zeta = split3D(a, (p + 1, q + 1))
-            NN[i, a, 0] = Nxi[0, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[0, im, a_zeta]
+            NN[0, i, a] = Nxi[0, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[0, im, a_zeta]
 
             if derivative_order > 0:
-                NN[i, a, 1] = Nxi[1, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[0, im, a_zeta]
-                NN[i, a, 2] = Nxi[0, ik, a_xi] * Neta[1, il, a_eta] * Nzeta[0, im, a_zeta]
-                NN[i, a, 3] = Nxi[0, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[1, im, a_zeta]
-
+                NN[1, i, a] = Nxi[1, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[0, im, a_zeta]
+                NN[2, i, a] = Nxi[0, ik, a_xi] * Neta[1, il, a_eta] * Nzeta[0, im, a_zeta]
+                NN[3, i, a] = Nxi[0, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[1, im, a_zeta]
                 if derivative_order > 1:
-                    NN[i, a, 4] = Nxi[2, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[0, im, a_zeta]
-                    NN[i, a, 5] = Nxi[1, ik, a_xi] * Neta[1, il, a_eta] * Nzeta[0, im, a_zeta]
-                    NN[i, a, 6] = Nxi[1, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[1, im, a_zeta]
-                    NN[i, a, 7] = NN[i, a, 5]
-                    NN[i, a, 8] = Nxi[0, ik, a_xi] * Neta[2, il, a_eta] * Nzeta[0, im, a_zeta]
-                    NN[i, a, 9] = Nxi[0, ik, a_xi] * Neta[1, il, a_eta] * Nzeta[1, im, a_zeta]
-                    NN[i, a, 10] = NN[i, a, 6]
-                    NN[i, a, 11] = NN[i, a, 7]
-                    NN[i, a, 12] = Nxi[0, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[2, im, a_zeta]
+                    NN[4 , i, a] = Nxi[2, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[0, im, a_zeta]
+                    NN[5 , i, a] = Nxi[1, ik, a_xi] * Neta[1, il, a_eta] * Nzeta[0, im, a_zeta]
+                    NN[6 , i, a] = Nxi[1, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[1, im, a_zeta]
+                    NN[7 , i, a] = NN[5, i, a]
+                    NN[8 , i, a] = Nxi[0, ik, a_xi] * Neta[2, il, a_eta] * Nzeta[0, im, a_zeta]
+                    NN[9 , i, a] = Nxi[0, ik, a_xi] * Neta[1, il, a_eta] * Nzeta[1, im, a_zeta]
+                    NN[10, i, a] = NN[6, i, a]
+                    NN[11, i, a] = NN[7, i, a]
+                    NN[12, i, a] = Nxi[0, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[2, im, a_zeta]
 
     return NN
 

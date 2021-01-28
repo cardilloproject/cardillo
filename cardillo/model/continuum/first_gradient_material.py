@@ -149,6 +149,9 @@ class Ogden1997_incompressible():
 
         return S
 
+    def P(self, F):
+        return F @ self.S(F)
+
     # TODO
     def S_F(self, F):
         S_F_num = Numerical_derivative(self.S, order=2)._X(F)

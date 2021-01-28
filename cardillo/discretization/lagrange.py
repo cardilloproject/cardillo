@@ -47,22 +47,29 @@ class Node_vector():
         assert len(self.element_data) == self.nel * self.degree + 1
 
 
-def lagrange_basis1D(degree, xi, derivative=1, knot_vector=None, interval=[-1,1]):
+def lagrange_basis1D(degree, xi, derivative=1, knot_vector=None, interval=[-1,1], squeeze=False):
     p = degree
 
     if not hasattr(xi, '__len__'):
         xi = np.array([xi])
 
-    k = len(xi)
-    n = sum([1 for d in range(derivative + 1)])
-    NN = np.zeros((k, p+1, n))
-    Nxi, N_xi = Lagrange_basis(p, xi, derivative=True, knot_vector=knot_vector, interval=interval)
+    # k = len(xi)
+    # n = sum([1 for d in range(derivative + 1)])
+    # NN = np.zeros((n, k, p+1))
+    # Nxi, N_xi = Lagrange_basis(p, xi, derivative=True, knot_vector=knot_vector, interval=interval)
 
-    NN[:, :, 0] = Nxi
-    if derivative > 0:
-        NN[:, :, 1] = N_xi
+    # NN[0] = Nxi
+    # if derivative > 0:
+    #     NN[1] = N_xi
 
-    return NN
+    # return NN
+    if squeeze:
+        return Lagrange_basis(p, xi, derivative=True, knot_vector=knot_vector, interval=interval).squeeze()
+    else:
+        return Lagrange_basis(p, xi, derivative=True, knot_vector=knot_vector, interval=interval)
+
+
+
 
 
 def lagrange_basis2D(degrees, xis, derivative=1, knot_vectors=None, interval=[-1, 1]):
@@ -80,7 +87,7 @@ def lagrange_basis2D(degrees, xis, derivative=1, knot_vectors=None, interval=[-1
     kl = k * l
  
     n = sum([2**d for d in range(derivative + 1)])
-    NN = np.zeros((kl, p1q1, n))
+    NN = np.zeros((n, kl, p1q1))
     #TODO: make seperate 1D Basis function with second derrivative
     Nxi = lagrange_basis1D(p, xi,  knot_vector=knot_vectors[0], interval=interval)
     Neta = lagrange_basis1D(q, eta,  knot_vector=knot_vectors[1], interval=interval)
@@ -90,17 +97,17 @@ def lagrange_basis2D(degrees, xis, derivative=1, knot_vectors=None, interval=[-1
 
         for a in range(p1q1):
             a_xi, a_eta = split2D(a, (p + 1, ))
-            NN[i, a, 0] = Nxi[ik, a_xi, 0] * Neta[il, a_eta, 0]
+            NN[0, i, a] = Nxi[0, ik, a_xi] * Neta[0, il, a_eta]
 
             if derivative > 0:
-                NN[i, a, 1] = Nxi[ik, a_xi, 1] * Neta[il, a_eta, 0] 
-                NN[i, a, 2] = Nxi[ik, a_xi, 0] * Neta[il, a_eta, 1] 
+                NN[1, i, a] = Nxi[1, ik, a_xi] * Neta[0, il, a_eta] 
+                NN[2, i, a] = Nxi[0, ik, a_xi] * Neta[1, il, a_eta] 
                 if derivative > 1:
                     raise NotImplementedError('...')
-                    NN[i, a, 3] = Nxi[ik, a_xi, 2] * Neta[il, a_eta, 0]
-                    NN[i, a, 4] = Nxi[ik, a_xi, 1] * Neta[il, a_eta, 1]
-                    NN[i, a, 6] = NN[i, a, 4]
-                    NN[i, a, 5] = Nxi[ik, a_xi, 0] * Neta[il, a_eta, 2] 
+                    NN[3, i, a] = Nxi[2, ik, a_xi] * Neta[0, il, a_eta]
+                    NN[4, i, a] = Nxi[1, ik, a_xi] * Neta[1, il, a_eta]
+                    NN[5, i, a] = NN[4, i, a]
+                    NN[6, i, a] = Nxi[0, ik, a_xi] * Neta[2, il, a_eta]
 
     return NN
 
@@ -123,7 +130,7 @@ def lagrange_basis3D(degrees, xis, derivative=1, knot_vectors=None, interval=[-1
     klm = k * l * m
 
     n = sum([3**d for d in range(derivative + 1)])
-    NN = np.zeros((klm, p1q1r1, n))
+    NN = np.zeros((n, klm, p1q1r1))
     #TODO: make seperate 1D Basis function with second derrivative
     if knot_vectors:
         Nxi = lagrange_basis1D(p, xi,  knot_vector=knot_vectors[0], interval=interval)
@@ -139,23 +146,23 @@ def lagrange_basis3D(degrees, xis, derivative=1, knot_vectors=None, interval=[-1
 
         for a in range(p1q1r1):
             a_xi, a_eta, a_zeta = split3D(a, (p + 1, q + 1))
-            NN[i, a, 0] = Nxi[ik, a_xi, 0] * Neta[il, a_eta, 0] * Nzeta[im, a_zeta, 0]
+            NN[0, i, a] = Nxi[0, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[0, im, a_zeta]
 
             if derivative > 0:
-                NN[i, a, 1] = Nxi[ik, a_xi, 1] * Neta[il, a_eta, 0] * Nzeta[im, a_zeta, 0]
-                NN[i, a, 2] = Nxi[ik, a_xi, 0] * Neta[il, a_eta, 1] * Nzeta[im, a_zeta, 0]
-                NN[i, a, 3] = Nxi[ik, a_xi, 0] * Neta[il, a_eta, 0] * Nzeta[im, a_zeta, 1]
+                NN[1, i, a] = Nxi[1, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[0, im, a_zeta]
+                NN[2, i, a] = Nxi[0, ik, a_xi] * Neta[1, il, a_eta] * Nzeta[0, im, a_zeta]
+                NN[3, i, a] = Nxi[0, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[1, im, a_zeta]
                 if derivative > 1:
                     raise NotImplementedError('...')
-                    NN[i, a, 4] = Nxi[ik, a_xi, 2] * Neta[il, a_eta, 0] * Nzeta[im, a_zeta, 0]
-                    NN[i, a, 5] = Nxi[ik, a_xi, 1] * Neta[il, a_eta, 1] * Nzeta[im, a_zeta, 0]
-                    NN[i, a, 6] = Nxi[ik, a_xi, 1] * Neta[il, a_eta, 0] * Nzeta[im, a_zeta, 1]
-                    NN[i, a, 7] = NN[i, a, 5]
-                    NN[i, a, 8] = Nxi[ik, a_xi, 0] * Neta[il, a_eta, 2] * Nzeta[im, a_zeta, 0]
-                    NN[i, a, 9] = Nxi[ik, a_xi, 0] * Neta[il, a_eta, 1] * Nzeta[im, a_zeta, 1]
-                    NN[i, a, 10] = NN[i, a, 6]
-                    NN[i, a, 11] = NN[i, a, 7]
-                    NN[i, a, 12] = Nxi[ik, a_xi, 0] * Neta[il, a_eta, 0] * Nzeta[im, a_zeta, 2]
+                    NN[4 , i, a] = Nxi[2, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[0, im, a_zeta]
+                    NN[5 , i, a] = Nxi[1, ik, a_xi] * Neta[1, il, a_eta] * Nzeta[0, im, a_zeta]
+                    NN[6 , i, a] = Nxi[1, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[1, im, a_zeta]
+                    NN[7 , i, a] = NN[5, i, a]
+                    NN[8 , i, a] = Nxi[0, ik, a_xi] * Neta[2, il, a_eta] * Nzeta[0, im, a_zeta]
+                    NN[9 , i, a] = Nxi[0, ik, a_xi] * Neta[1, il, a_eta] * Nzeta[1, im, a_zeta]
+                    NN[10, i, a] = NN[6, i, a]
+                    NN[11, i, a] = NN[7, i, a]
+                    NN[12, i, a] = Nxi[0, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[2, im, a_zeta]
 
     return NN
 
@@ -177,29 +184,23 @@ def Lagrange_basis(degree, x, derivative=True, knot_vector=None, interval=[-1, 1
     if not hasattr(x, '__len__'):
         x = [x]
     nx = len(x)
-    N = np.zeros((nx, degree + 1))
+    N = np.zeros((derivative + 1, nx, degree + 1))
     if knot_vector is not None:
         for i, xi in enumerate(x):
             el = knot_vector.element_number(xi)
-            N[i] = __lagrange(xi, degree, interval=knot_vector.element_interval(el))
+            N[0, i] = __lagrange(xi, degree, interval=knot_vector.element_interval(el))
         if derivative is True:
-            dN = np.zeros((nx, degree + 1))
             for i, xi in enumerate(x):
                 el = knot_vector.element_number(xi)
-                dN[i] = __lagrange_x(xi, degree, interval=knot_vector.element_interval(el))
-            return N, dN
-        else:
-            return N
+                N[1, i] = __lagrange_x(xi, degree, interval=knot_vector.element_interval(el))
+        return N
     else:
         for i, xi in enumerate(x):
-            N[i] = __lagrange(xi, degree, interval=interval)
+            N[0, i] = __lagrange(xi, degree, interval=interval)
         if derivative is True:
-            dN = np.zeros((nx, degree + 1))
             for i, xi in enumerate(x):
-                dN[i] = __lagrange_x(xi, degree, interval=interval)
-            return N, dN
-        else:
-            return N
+                N[1, i] = __lagrange_x(xi, degree, interval=interval)
+        return N
 
 def __lagrange(x, degree, skip=[], interval=[-1, 1]):
     """1D Lagrange shape functions, see https://en.wikipedia.org/wiki/Lagrange_polynomial#Definition.
@@ -349,141 +350,141 @@ def test_shape_functions_der():
     plt.plot(x,NN[:10,2,1])
     plt.show()
 
-def test_fit_lagrange_volume():
-    # degrees = np.ones(3, dtype=int) * 3
-    degrees = (2, 2, 2)
-    QP_shape = (1, 1, 1)
-    element_shape = np.ones(3, dtype=int) * 5
-    element_shape = (3, 3, 3)
+# def test_fit_lagrange_volume():
+#     # degrees = np.ones(3, dtype=int) * 3
+#     degrees = (2, 2, 2)
+#     QP_shape = (1, 1, 1)
+#     element_shape = np.ones(3, dtype=int) * 5
+#     element_shape = (3, 3, 3)
     
-    from cardillo.discretization.mesh3D_lagrange import Mesh3D_lagrange
-    mesh = Mesh3D_lagrange(degrees, QP_shape, element_shape, derivative_order=0, nq_n=3)
+#     from cardillo.discretization.mesh3D_lagrange import Mesh3D_lagrange
+#     mesh = Mesh3D_lagrange(degrees, QP_shape, element_shape, derivative_order=0, nq_n=3)
 
-    def shear(xi, eta, zeta, gamma=1.5, L=5, B=2, H=1):
-        x = xi * L + gamma * eta * B
-        y = eta * B
-        z = zeta * H
-        return x, y, z
+#     def shear(xi, eta, zeta, gamma=1.5, L=5, B=2, H=1):
+#         x = xi * L + gamma * eta * B
+#         y = eta * B
+#         z = zeta * H
+#         return x, y, z
 
-    def bending(xi, eta, zeta, phi0=np.pi, R=1, B=2, H=1):
-        phi = (1 - xi) * phi0
-        x = (R + B * eta) * np.cos(phi)
-        y = (R + B * eta) * np.sin(phi)
-        # x = (R + B * eta**2) * np.cos(phi)
-        # y = (R + B * eta**2) * np.sin(phi)
-        z = zeta * H
-        return x, y, z
+#     def bending(xi, eta, zeta, phi0=np.pi, R=1, B=2, H=1):
+#         phi = (1 - xi) * phi0
+#         x = (R + B * eta) * np.cos(phi)
+#         y = (R + B * eta) * np.sin(phi)
+#         # x = (R + B * eta**2) * np.cos(phi)
+#         # y = (R + B * eta**2) * np.sin(phi)
+#         z = zeta * H
+#         return x, y, z
 
-    def sherical_dome(xi, eta, zeta, phi0=np.pi, theta0=np.pi/2, R=1, H=1):
-        phi = (1 - xi) * phi0
-        theta = eta * theta0
-        r = R + zeta * H
-        x = r * np.cos(phi) * np.sin(theta)
-        y = r * np.sin(phi) * np.sin(theta)
-        z = r * np.cos(theta)
-        return x, y, z
+#     def sherical_dome(xi, eta, zeta, phi0=np.pi, theta0=np.pi/2, R=1, H=1):
+#         phi = (1 - xi) * phi0
+#         theta = eta * theta0
+#         r = R + zeta * H
+#         x = r * np.cos(phi) * np.sin(theta)
+#         y = r * np.sin(phi) * np.sin(theta)
+#         z = r * np.cos(theta)
+#         return x, y, z
 
-    def parabolic(xi, eta, zeta, L=1, B=1, H=1):
-        x = xi * L
-        y = eta * B + (xi - L/2)**2 * eta
-        z = zeta * H
-        return x, y, z
+#     def parabolic(xi, eta, zeta, L=1, B=1, H=1):
+#         x = xi * L
+#         y = eta * B + (xi - L/2)**2 * eta
+#         z = zeta * H
+#         return x, y, z
 
-    def twist(xi, eta, zeta, phi0=np.pi/2, R=1, d=1, B=1, H=1):
-        phi = xi * phi0
-        r = R + B * eta
-        x = r * np.cos(phi)
-        y = r * np.sin(phi)
-        z = zeta * H + eta**2 * zeta * d
-        return x, y, z
+#     def twist(xi, eta, zeta, phi0=np.pi/2, R=1, d=1, B=1, H=1):
+#         phi = xi * phi0
+#         r = R + B * eta
+#         x = r * np.cos(phi)
+#         y = r * np.sin(phi)
+#         z = zeta * H + eta**2 * zeta * d
+#         return x, y, z
 
-    def cylinder(xi, eta, zeta, R=1, H=1):
-        xi_ = 2 * xi - 1
-        eta_ = 2 * eta - 1
+#     def cylinder(xi, eta, zeta, R=1, H=1):
+#         xi_ = 2 * xi - 1
+#         eta_ = 2 * eta - 1
 
-        if np.abs(xi_) > np.abs(eta_):
-            r = np.sqrt(1 + eta_**2)
-        else:
-            r = np.sqrt(1 + xi_**2)
+#         if np.abs(xi_) > np.abs(eta_):
+#             r = np.sqrt(1 + eta_**2)
+#         else:
+#             r = np.sqrt(1 + xi_**2)
 
-        x = R / r * xi_
-        y = R / r * eta_
-        z = zeta * H
-        return x, y, z
+#         x = R / r * xi_
+#         y = R / r * eta_
+#         z = zeta * H
+#         return x, y, z
 
-    # nxi, neta, nzeta = 20, 5, 5
-    nxi, neta, nzeta = 10, 10, 10
-    # nxi, neta, nzeta = 20, 20, 20
-    xi = np.linspace(0, 1, num=nxi)
-    eta = np.linspace(0, 1, num=neta)
-    zeta = np.linspace(0, 1, num=nzeta)
+#     # nxi, neta, nzeta = 20, 5, 5
+#     nxi, neta, nzeta = 10, 10, 10
+#     # nxi, neta, nzeta = 20, 20, 20
+#     xi = np.linspace(0, 1, num=nxi)
+#     eta = np.linspace(0, 1, num=neta)
+#     zeta = np.linspace(0, 1, num=nzeta)
 
-    B = 2
-    R = 3
+#     B = 2
+#     R = 3
     
-    n3 = nxi * neta * nzeta
-    xis = np.zeros((n3, 3))
-    Pw = np.zeros((n3, 3))
-    for i, xii in enumerate(xi):
-        for j, etai in enumerate(eta):
-            for k, zetai in enumerate(zeta):
-                idx = flat3D(i, j, k, (nxi, neta, nzeta))
-                xis[idx] = xii, etai, zetai
-                Pw[idx] = shear(xii, etai, zetai)
-                # Pw[idx] = bending(xii, etai, zetai, R=R, B=B)
-                # Pw[idx] = sherical_dome(xii, etai, zetai, R=R, H=B)
-                # Pw[idx] = parabolic(xii, etai, zetai)
-                # Pw[idx] = twist(xii, etai, zetai)
-                # Pw[idx] = cylinder(xii, etai, zetai)
+#     n3 = nxi * neta * nzeta
+#     xis = np.zeros((n3, 3))
+#     Pw = np.zeros((n3, 3))
+#     for i, xii in enumerate(xi):
+#         for j, etai in enumerate(eta):
+#             for k, zetai in enumerate(zeta):
+#                 idx = flat3D(i, j, k, (nxi, neta, nzeta))
+#                 xis[idx] = xii, etai, zetai
+#                 Pw[idx] = shear(xii, etai, zetai)
+#                 # Pw[idx] = bending(xii, etai, zetai, R=R, B=B)
+#                 # Pw[idx] = sherical_dome(xii, etai, zetai, R=R, H=B)
+#                 # Pw[idx] = parabolic(xii, etai, zetai)
+#                 # Pw[idx] = twist(xii, etai, zetai)
+#                 # Pw[idx] = cylinder(xii, etai, zetai)
 
-    cDOF = np.array([], dtype=int)
-    qc = np.array([], dtype=float).reshape((0, 3))
-    # cDOF = np.array([0], dtype=int)
-    # qc = np.array([-np.ones(3) * 0.1])
-    X, Y, Z = fit_lagrange_volume(mesh, xis, Pw, qc, cDOF)
+#     cDOF = np.array([], dtype=int)
+#     qc = np.array([], dtype=float).reshape((0, 3))
+#     # cDOF = np.array([0], dtype=int)
+#     # qc = np.array([-np.ones(3) * 0.1])
+#     X, Y, Z = fit_lagrange_volume(mesh, xis, Pw, qc, cDOF)
 
-    lagrange_volume2vtk(mesh, np.concatenate((X, Y, Z)), 'fit_lagrange_volume.vtu')
+#     lagrange_volume2vtk(mesh, np.concatenate((X, Y, Z)), 'fit_lagrange_volume.vtu')
     
-    import matplotlib.pyplot as plt
-    from mpl_toolkits.mplot3d import Axes3D
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    ax.scatter(*Pw.T)
-    ax.scatter(X, Y, Z, color='red')
-    # RB = R + 0.5*B
-    # # RB = R
-    # ax.set_xlim(-RB, RB)
-    # ax.set_ylim(-RB, RB)
-    # ax.set_zlim(-RB, RB)
-    plt.show()
+#     import matplotlib.pyplot as plt
+#     from mpl_toolkits.mplot3d import Axes3D
+#     fig = plt.figure()
+#     ax = fig.add_subplot(111, projection='3d')
+#     ax.scatter(*Pw.T)
+#     ax.scatter(X, Y, Z, color='red')
+#     # RB = R + 0.5*B
+#     # # RB = R
+#     # ax.set_xlim(-RB, RB)
+#     # ax.set_ylim(-RB, RB)
+#     # ax.set_zlim(-RB, RB)
+#     plt.show()
 
-def test_fit_lagrange_curve():
+# def test_fit_lagrange_curve():
 
-    degree = 3
-    QP_shape = 2
-    element_shape = 2 
-    from cardillo.discretization.mesh1D_lagrange import Mesh1D_lagrange
-    mesh = Mesh1D_lagrange(degree, QP_shape, element_shape, derivative_order=0, nq_n=1)
+#     degree = 3
+#     QP_shape = 2
+#     element_shape = 2 
+#     from cardillo.discretization.mesh1D import Mesh1D
+#     mesh = Mesh1D_lagrange(degree, QP_shape, element_shape, derivative_order=0, nq_n=1)
 
-    def polynom(xi, a):
-        return np.polynomial.polynomial.polyval(xi, a)
+#     def polynom(xi, a):
+#         return np.polynomial.polynomial.polyval(xi, a)
 
-    xi = np.linspace(0, 1, 100)
-    a = np.array([1.46, 6.8, -28.8, 49, -32.6, 5.8])
-    Pw = polynom(xi, a)
+#     xi = np.linspace(0, 1, 100)
+#     a = np.array([1.46, 6.8, -28.8, 49, -32.6, 5.8])
+#     Pw = polynom(xi, a)
 
-    cDOF = np.array([], dtype=int)
-    qc = np.array([], dtype=float).reshape((0, 2))
+#     cDOF = np.array([], dtype=int)
+#     qc = np.array([], dtype=float).reshape((0, 2))
 
-    X = fit_lagrange_curve(mesh, xi, Pw, qc, cDOF)
+#     X = fit_lagrange_curve(mesh, xi, Pw, qc, cDOF)
 
-    import matplotlib.pyplot as plt
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    plt.plot(xi, Pw)
-    plt.scatter(*X,   color='red')
+#     import matplotlib.pyplot as plt
+#     fig = plt.figure()
+#     ax = fig.add_subplot(111)
+#     plt.plot(xi, Pw)
+#     plt.scatter(*X,   color='red')
 
-    plt.show()
+#     plt.show()
 
 
 if __name__ == "__main__":
@@ -493,7 +494,7 @@ if __name__ == "__main__":
 
     #test_shape_functions_der()
 
-    test_fit_lagrange_curve()
+    # test_fit_lagrange_curve()
 
     # test_fit_lagrange_volume()
 

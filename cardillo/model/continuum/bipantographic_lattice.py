@@ -5,7 +5,7 @@ from cardillo.math.numerical_derivative import Numerical_derivative
 from cardillo.math.algebra import norm2
 from cardillo.model.continuum import Pantographic_sheet, strain_measures
 
-class Bipantographic_fabric(Pantographic_sheet):
+class Bipantographic_lattice(Pantographic_sheet):
     """ 
     material based on Barchiesi2020
     """

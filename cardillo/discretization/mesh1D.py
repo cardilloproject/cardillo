@@ -93,10 +93,8 @@ class Mesh1D():
 
     def basis1D(self, degree, derivative_order, knot_vector, knots):
         if self.basis == 'B-spline':
-            NN_ = B_spline_basis1D(degree, derivative_order,
+            return B_spline_basis1D(degree, derivative_order,
                                     knot_vector.data, knots, squeeze=False)
-            # rearrange dimensions to match order in Mesh2D and lagrange
-            return np.einsum('kij->ijk', NN_) 
         elif self.basis == 'lagrange':
             return lagrange_basis1D(degree, knots, derivative_order,
                                     knot_vector)
@@ -120,11 +118,11 @@ class Mesh1D():
         for el in range(self.nel):
             NN = self.basis1D(self.degree, self.derivative_order,
                               self.knot_vector, self.qp[el])
-            self.N[el] = NN[:, :, 0]
+            self.N[el] = NN[0]
             if self.derivative_order > 0:
-                self.N_xi[el] = NN[:, :, 1]
+                self.N_xi[el] = NN[1]
                 if self.derivative_order > 1:
-                    self.N_xixi[el] = NN[:, :, 2]
+                    self.N_xixi[el] = NN[2]
 
     def end_points(self):
         def select_end_points(**kwargs):
