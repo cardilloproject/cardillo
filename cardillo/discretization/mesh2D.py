@@ -443,7 +443,7 @@ class Mesh2D():
                 for a in range(self.nn_el):
                     a_xi, a_eta  = split2D(a, self.degrees1)
                     Qw[el_xi, el_eta, a_xi, a_eta] = \
-                        q[self.elDOF[el][self.nodalDOF[a][0]]]
+                        q[self.elDOF[el][self.nodalDOF[a]]]
 
         nbezier_xi, nbezier_eta, p1, q1, dim = Qw.shape
         

@@ -36,8 +36,8 @@ class Node_vector():
             element[j] = (np.asarray(self.element_data <= nodes[j]).nonzero()[0][-1]) // (self.degree)
             if nodes[j] == self.data[-1]:
                 element[j] -= 1
-        if lenxi == 1:
-            return int(element)
+        # if lenxi == 1:
+        #     return int(element)
         return element
         
     def element_interval(self, el):
@@ -64,9 +64,9 @@ def lagrange_basis1D(degree, xi, derivative=1, knot_vector=None, interval=[-1,1]
 
     # return NN
     if squeeze:
-        return Lagrange_basis(p, xi, derivative=True, knot_vector=knot_vector, interval=interval).squeeze()
+        return Lagrange_basis(p, xi, derivative=derivative, knot_vector=knot_vector, interval=interval).squeeze()
     else:
-        return Lagrange_basis(p, xi, derivative=True, knot_vector=knot_vector, interval=interval)
+        return Lagrange_basis(p, xi, derivative=derivative, knot_vector=knot_vector, interval=interval)
 
 
 
@@ -89,8 +89,8 @@ def lagrange_basis2D(degrees, xis, derivative=1, knot_vectors=None, interval=[-1
     n = sum([2**d for d in range(derivative + 1)])
     NN = np.zeros((n, kl, p1q1))
     #TODO: make seperate 1D Basis function with second derrivative
-    Nxi = lagrange_basis1D(p, xi,  knot_vector=knot_vectors[0], interval=interval)
-    Neta = lagrange_basis1D(q, eta,  knot_vector=knot_vectors[1], interval=interval)
+    Nxi = lagrange_basis1D(p, xi,  derivative=derivative, knot_vector=knot_vectors[0], interval=interval)
+    Neta = lagrange_basis1D(q, eta,  derivative=derivative, knot_vector=knot_vectors[1], interval=interval)
 
     for i in range(kl):
         ik, il = split2D(i, (k, ))
@@ -133,9 +133,9 @@ def lagrange_basis3D(degrees, xis, derivative=1, knot_vectors=None, interval=[-1
     NN = np.zeros((n, klm, p1q1r1))
     #TODO: make seperate 1D Basis function with second derrivative
     if knot_vectors:
-        Nxi = lagrange_basis1D(p, xi,  knot_vector=knot_vectors[0], interval=interval)
-        Neta = lagrange_basis1D(q, eta,  knot_vector=knot_vectors[1], interval=interval)
-        Nzeta = lagrange_basis1D(r, zeta,  knot_vector=knot_vectors[2], interval=interval)
+        Nxi = lagrange_basis1D(p, xi,  derivative=derivative, knot_vector=knot_vectors[0], interval=interval)
+        Neta = lagrange_basis1D(q, eta,  derivative=derivative, knot_vector=knot_vectors[1], interval=interval)
+        Nzeta = lagrange_basis1D(r, zeta,  derivative=derivative, knot_vector=knot_vectors[2], interval=interval)
     else:
         Nxi = lagrange_basis1D(p, xi, interval=interval)
         Neta = lagrange_basis1D(q, eta, interval=interval)
@@ -166,7 +166,7 @@ def lagrange_basis3D(degrees, xis, derivative=1, knot_vectors=None, interval=[-1
 
     return NN
 
-def Lagrange_basis(degree, x, derivative=True, knot_vector=None, interval=[-1, 1]):
+def Lagrange_basis(degree, x, derivative=1, knot_vector=None, interval=[-1, 1]):
     """Compute Lagrange shape function basis.
 
     Parameters
@@ -187,17 +187,17 @@ def Lagrange_basis(degree, x, derivative=True, knot_vector=None, interval=[-1, 1
     N = np.zeros((derivative + 1, nx, degree + 1))
     if knot_vector is not None:
         for i, xi in enumerate(x):
-            el = knot_vector.element_number(xi)
+            el = knot_vector.element_number(xi)[0]
             N[0, i] = __lagrange(xi, degree, interval=knot_vector.element_interval(el))
-        if derivative is True:
+        if derivative:
             for i, xi in enumerate(x):
-                el = knot_vector.element_number(xi)
+                el = knot_vector.element_number(xi)[0]
                 N[1, i] = __lagrange_x(xi, degree, interval=knot_vector.element_interval(el))
         return N
     else:
         for i, xi in enumerate(x):
             N[0, i] = __lagrange(xi, degree, interval=interval)
-        if derivative is True:
+        if derivative:
             for i, xi in enumerate(x):
                 N[1, i] = __lagrange_x(xi, degree, interval=interval)
         return N

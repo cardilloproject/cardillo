@@ -6,6 +6,7 @@ import os
 from cardillo.utility.coo import Coo
 from cardillo.discretization import uniform_knot_vector, B_spline_basis1D, Lagrange_basis
 from cardillo.discretization.B_spline import Knot_vector
+from cardillo.discretization.lagrange import Node_vector
 from cardillo.math.algebra import norm3, cross3, skew2ax, skew2ax_A, ax2skew
 from cardillo.math.numerical_derivative import Numerical_derivative
 from cardillo.discretization.mesh1D import Mesh1D
@@ -25,16 +26,24 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
         self.polynomial_degree = polynomial_degree # polynomial degree
         self.nQP = nQP # number of quadrature points
         self.nEl = nEl # number of elements
-
-        self.nn = nn = nEl + polynomial_degree # number of nodes
-        self.knot_vector = Knot_vector(polynomial_degree, nEl)
-        self.element_span = self.knot_vector.data[polynomial_degree:-polynomial_degree]
-
-        self.nn_el = nn_el = polynomial_degree + 1 # number of nodes per element
+        
+        if basis == 'lagrange':
+            self.knot_vector = Node_vector(polynomial_degree, nEl)
+            self.nn = nn = nEl * polynomial_degree + 1
+            self.vtk_cell_type = 'VTK_LAGRANGE_CURVE'
+            self.element_span = self.knot_vector.data
+        elif basis == 'B-Splines':
+            self.knot_vector = Knot_vector(polynomial_degree, nEl)
+            self.nn = nn = nEl + polynomial_degree # number of nodes
+            self.vtk_cell_type = 'VTK_BEZIER_CURVE'
+            self.element_span = self.knot_vector.data[polynomial_degree:-polynomial_degree]
+        
+         # number of nodes per element
         self.nq_n = nq_n = 12 # number of degrees of freedom per node (x, y, z) + 3 * d_i
         
         self.mesh_kinematics = Mesh1D(self.knot_vector, nQP, derivative_order=1, basis=basis, nq_n=self.nq_n)
 
+        self.nn_el = nn_el = polynomial_degree + 1
         self.nq = nn * nq_n # total number of generalized coordinates
         self.nu = self.nq
         self.nq_el = nn_el * nq_n # total number of generalized coordinates per element
@@ -68,8 +77,8 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
             if self.basis == 'B-spline':
                 self.basis_functions = self.__basis_functions_b_splines
             else:
-                raise NotImplementedError('not implemented!')
-                # self.basis_functions = self.__basis_functions_lagrange
+                # raise NotImplementedError('not implemented!')
+                self.basis_functions = self.__basis_functions_lagrange
 
             # precompute quantities of the reference configuration
             Qe = self.Q[self.elDOF[el]]
@@ -135,11 +144,11 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
         return B_spline_basis1D(self.polynomial_degree, 1, self.knot_vector.data, xi)#.T
 
     def __basis_functions_lagrange(self, xi):
-        el = np.where(xi >= self.element_span)[0][-1]
-        diff_xi = self.element_span[el + 1] - self.element_span[el]
-        sum_xi = self.element_span[el + 1] + self.element_span[el]
-        xi_tilde = (2 * xi - sum_xi) / diff_xi
-        return Lagrange_basis(self.polynomial_degree, xi_tilde, derivative=True)
+        # el = np.where(xi >= self.element_span)[0][-1]
+        # diff_xi = self.element_span[el + 1] - self.element_span[el]
+        # sum_xi = self.element_span[el + 1] + self.element_span[el]
+        # xi_tilde = (2 * xi - sum_xi) / diff_xi
+        return Lagrange_basis(self.polynomial_degree, xi, 1, self.knot_vector)
 
     def stack_shapefunctions(self, N):
         nn_el = self.nn_el
@@ -992,8 +1001,11 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
 ####################################################
 # straight initial configuration
 ####################################################
-def straight_configuration(polynomial_degree, nEl, L, greville_abscissae=True, r_OP=np.zeros(3), A_IK=np.eye(3)):
-    nn = polynomial_degree + nEl
+def straight_configuration(polynomial_degree, nEl, L, greville_abscissae=True, r_OP=np.zeros(3), A_IK=np.eye(3), basis='B-Splines'):
+    if basis == 'B-Splines':    
+        nn = polynomial_degree + nEl
+    elif basis == 'lagrange':
+        nn = polynomial_degree * nEl +1
     
     X = np.linspace(0, L, num=nn)
     Y = np.zeros(nn)

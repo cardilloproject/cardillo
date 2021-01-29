@@ -214,10 +214,10 @@ class Mesh1D():
 
         elif self.basis == 'lagrange':
             # rearrange q's from solver to Piegl's 3D ordering
-            Qw = np.zeros((self.nel_xi, self.p+1, dim))
+            Qw = np.zeros((self.nel, self.p+1, dim))
             for el in range(self.nel):
                 for a in range(self.nn_el):
-                    Qw[el, a] = q[self.elDOF[el][self.nodalDOF[a]]]
+                    Qw[el, a] = q[self.elDOF[el][self.nodalDOF[a][0]]]
 
         nbezier_xi, p1, dim = Qw.shape
 
@@ -241,7 +241,7 @@ class Mesh1D():
 
         elif self.basis == 'lagrange':
             # rearrange q's from solver to Piegl's 3D ordering
-            Qw = np.zeros((self.nel_xi, self.p+1, self.nq_n))
+            Qw = np.zeros((self.nel, self.p+1, self.nq_n))
             for el in range(self.nel):
                 for a in range(self.nn_el):
                     Qw[el, a] = q[self.elDOF[el][self.nodalDOF[a]]]
