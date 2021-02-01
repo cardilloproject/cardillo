@@ -31,7 +31,7 @@ class Mesh1D():
 
         # knot vectors
         self.knot_vector = knot_vector
-        self.Xi = self.knot_vector.data
+        self.data = self.knot_vector.data
         self.degree = self.knot_vector.degree
         self.degrees1 = self.degree + 1
         self.p = self.degree
@@ -97,7 +97,13 @@ class Mesh1D():
                                     knot_vector.data, knots, squeeze=False)
         elif self.basis == 'lagrange':
             return lagrange_basis1D(degree, knots, derivative_order,
-                                    knot_vector)
+                                    knot_vector)    
+                                    
+    def eval_basis(self, xi):
+        if self.basis == 'B-spline':
+            return B_spline_basis1D(self.degree, self.derivative_order, self.data, xi, squeeze=True)
+        elif self.basis == 'lagrange':
+            return lagrange_basis1D(self.degree, xi, self.derivative_order, self.knot_vector, squeeze=True)
 
     def quadrature_points(self):
         self.qp = np.zeros((self.nel, self.nqp))
