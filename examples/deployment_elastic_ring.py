@@ -168,9 +168,9 @@ if __name__ == "__main__":
 
     # build the model
     model = Model()
-    beam1 = Beam(material_model, A_rho0, B_rho0, C_rho0, p, nQP, nEl, Q=Q1)
+    beam1 = Beam(material_model, A_rho0, B_rho0, C_rho0, p, p, nQP, nEl, Q=Q1)
     model.add(beam1)
-    beam2 = Beam(material_model, A_rho0, B_rho0, C_rho0, p, nQP, nEl, Q=Q2)
+    beam2 = Beam(material_model, A_rho0, B_rho0, C_rho0, p, p, nQP, nEl, Q=Q2)
     model.add(beam2)
 
     # clamp both beams at the origin

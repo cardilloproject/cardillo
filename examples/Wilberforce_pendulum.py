@@ -263,7 +263,7 @@ if __name__ == "__main__":
     t1 = 5
     dt = 1e-3 # full beam dynamics generalized alpha
 
-    beam = Timoshenko_director_integral(material_model, A_rho0, B_rho0, C_rho0, p, nQP, nEl, q0=Q, Q=Q)
+    beam = Timoshenko_director_integral(material_model, A_rho0, B_rho0, C_rho0, p, p, nQP, nEl, q0=Q, Q=Q)
 
     model = Model()
 

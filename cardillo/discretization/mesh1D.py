@@ -31,7 +31,7 @@ class Mesh1D():
 
         # knot vectors
         self.knot_vector = knot_vector
-        self.Xi = self.knot_vector.data
+        self.data = self.knot_vector.data
         self.degree = self.knot_vector.degree
         self.degrees1 = self.degree + 1
         self.p = self.degree
@@ -97,7 +97,13 @@ class Mesh1D():
                                     knot_vector.data, knots, squeeze=False)
         elif self.basis == 'lagrange':
             return lagrange_basis1D(degree, knots, derivative_order,
-                                    knot_vector)
+                                    knot_vector)    
+                                    
+    def eval_basis(self, xi):
+        if self.basis == 'B-spline':
+            return B_spline_basis1D(self.degree, self.derivative_order, self.data, xi, squeeze=True)
+        elif self.basis == 'lagrange':
+            return lagrange_basis1D(self.degree, xi, self.derivative_order, self.knot_vector, squeeze=True)
 
     def quadrature_points(self):
         self.qp = np.zeros((self.nel, self.nqp))
@@ -118,11 +124,11 @@ class Mesh1D():
         for el in range(self.nel):
             NN = self.basis1D(self.degree, self.derivative_order,
                               self.knot_vector, self.qp[el])
-            self.N[el] = NN[:, :, 0]
+            self.N[el] = NN[0]
             if self.derivative_order > 0:
-                self.N_xi[el] = NN[:, :, 1]
+                self.N_xi[el] = NN[1]
                 if self.derivative_order > 1:
-                    self.N_xixi[el] = NN[:, :, 2]
+                    self.N_xixi[el] = NN[2]
 
     def end_points(self):
         def select_end_points(**kwargs):
@@ -214,10 +220,10 @@ class Mesh1D():
 
         elif self.basis == 'lagrange':
             # rearrange q's from solver to Piegl's 3D ordering
-            Qw = np.zeros((self.nel_xi, self.p+1, dim))
+            Qw = np.zeros((self.nel, self.p+1, dim))
             for el in range(self.nel):
                 for a in range(self.nn_el):
-                    Qw[el, a] = q[self.elDOF[el][self.nodalDOF[a]]]
+                    Qw[el, a] = q[self.elDOF[el][self.nodalDOF[a][0]]]
 
         nbezier_xi, p1, dim = Qw.shape
 
@@ -241,7 +247,7 @@ class Mesh1D():
 
         elif self.basis == 'lagrange':
             # rearrange q's from solver to Piegl's 3D ordering
-            Qw = np.zeros((self.nel_xi, self.p+1, self.nq_n))
+            Qw = np.zeros((self.nel, self.p+1, self.nq_n))
             for el in range(self.nel):
                 for a in range(self.nn_el):
                     Qw[el, a] = q[self.elDOF[el][self.nodalDOF[a]]]

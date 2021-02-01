@@ -225,13 +225,13 @@ class Mesh3D():
                               self.knot_vector_objs, (self.qp_xi[el_xi],
                                                   self.qp_eta[el_eta],
                                                   self.qp_zeta[el_zeta]))
-            self.N[el] = NN[:, :, 0]
+            self.N[el] = NN[0]
             if self.derivative_order > 0:
-                self.N_xi[el] = NN[:, :, range(1, 4)]
+                self.N_xi[el] = NN[range(1, 4)].transpose(1, 2, 0)
                 if self.derivative_order > 1:
-                    self.N_xixi[el] = NN[:, :, range(4, 13)].reshape(self.nqp,
-                                                                     self.nn_el,
-                                                                     3, 3)
+                    self.N_xixi[el] = NN[range(4, 13)].transpose(1, 2, 0).reshape(self.nqp,
+                                                                                  self.nn_el,
+                                                                                  3, 3)
 
     def surfaces(self):
         def select_surface(**kwargs):
@@ -310,7 +310,7 @@ class Mesh3D():
             NN = self.basis3D(self.degrees, derivative_order, self.knot_vector_objs,
                               (xi, eta, zeta))
             for a in range(self.nn_el):
-                x[i] += NN[0, a, 0] * qe[self.nodalDOF[a]]
+                x[i] += NN[0, 0, a] * qe[self.nodalDOF[a]]
            
         return x
 
@@ -328,7 +328,7 @@ class Mesh3D():
                               (xi, eta, zeta))
             for i in range(self.nn_el):
                 for j in range(self.nn_el):
-                    Ae[i, j] = NN[0, i, 0] * NN[0, j, 0]
+                    Ae[i, j] = NN[0, 0, i] * NN[0, 0, j]
             A.extend(Ae, (elDOF, elDOF))
         return A
 
@@ -345,7 +345,7 @@ class Mesh3D():
             NN = self.basis3D(self.degrees, 0, self.knot_vector_objs,
                               (xi, eta, zeta))
             for i in range(self.nn_el):
-                be[i] = NN[0, i, 0] * Pwi
+                be[i] = NN[0, 0, i] * Pwi
             b[elDOF] += be
         return b
 
