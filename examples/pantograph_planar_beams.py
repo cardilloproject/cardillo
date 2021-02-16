@@ -38,11 +38,11 @@ class Junction():
         self.frame_ID1 = (1,)
         self.frame_ID2 = (0,)
        
-        N, N_xi = B_spline_basis1D(beam1.polynomial_degree, 1, beam1.knot_vector.data, 1).T
+        N, N_xi, _ = beam1.basis_functions(1)
         self.beam1_N = self.stack_shapefunctions(N, beam1.nq_el)
         self.beam1_N_xi = self.stack_shapefunctions(N_xi, beam1.nq_el)
 
-        N, N_xi = B_spline_basis1D(beam2.polynomial_degree, 1, beam2.knot_vector.data, 0).T
+        N, N_xi, _ = beam2.basis_functions(0)
         self.beam2_N = self.stack_shapefunctions(N, beam2.nq_el)
         self.beam2_N_xi_perp = self.stack_shapefunctions_perp(N_xi, beam2.nq_el)
         
@@ -138,12 +138,12 @@ class Pivot_w_spring():
 
         self.force_law = force_law
        
-        N, N_xi = B_spline_basis1D(beam1.polynomial_degree, 1, beam1.knot_vector.data, 1).T
+        N, N_xi, _ = beam1.basis_functions(1)
         self.beam1_N = self.stack_shapefunctions(N, beam1.nq_el)
         self.beam1_N_xi = self.stack_shapefunctions(N_xi, beam1.nq_el)
         self.beam1_N_xi_perp = self.stack_shapefunctions_perp(N_xi, beam1.nq_el)
 
-        N, N_xi = B_spline_basis1D(beam2.polynomial_degree, 1, beam2.knot_vector.data, 0).T
+        N, N_xi, _ = beam2.basis_functions(0)
         self.beam2_N = self.stack_shapefunctions(N, beam2.nq_el)
         self.beam2_N_xi = self.stack_shapefunctions(N_xi, beam2.nq_el)
         self.beam2_N_xi_perp = self.stack_shapefunctions_perp(N_xi, beam2.nq_el)
