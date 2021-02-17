@@ -84,8 +84,8 @@ if __name__ == "__main__":
     t = sol.t
     q = sol.q
 
-    # # vtk export
-    # beam.post_processing(sol.t, sol.q, 'E-Bbeam')
+    # vtk export
+    beam.post_processing(sol.t, sol.q, 'Bernoulli2D-cantilever')
 
     ##############################
     # visualize static deformation

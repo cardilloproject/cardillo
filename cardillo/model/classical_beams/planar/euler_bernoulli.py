@@ -5,7 +5,7 @@ import meshio
 import os
 
 from cardillo.utility.coo import Coo
-from cardillo.math.algebra import ax2skew, norm3, cross3, e3
+from cardillo.math.algebra import ax2skew, norm2, norm3, cross3, e3
 from cardillo.math.numerical_derivative import Numerical_derivative
 from cardillo.discretization.mesh1D import Mesh1D
 from cardillo.discretization.B_spline import uniform_knot_vector
@@ -108,16 +108,16 @@ class Euler_bernoulli():
 
         # evaluate shape functions on the boundary in davance to save
         # computation time later
-        N_bdry, dN_bdry, _ = self.basis_functions(0)
-        N_bdry_left = self.stack2(N_bdry)
-        dN_bdry_left = self.stack2(dN_bdry)
+        N_bdry0, N_xi_bdry0, _ = self.mesh.NN_bdry0
+        NN_bdry0 = self.stack2(N_bdry0)
+        NN_xi_bdry0 = self.stack2(N_xi_bdry0)
 
-        N_bdry, dN_bdry, _ = self.basis_functions(1)
-        N_bdry_right = self.stack2(N_bdry)
-        dN_bdry_right = self.stack2(dN_bdry)
+        N_bdry1, N_xi_bdry1, _ = self.mesh.NN_bdry1
+        NN_bdry1 = self.stack2(N_bdry1)
+        NN_xi_bdry1 = self.stack2(N_xi_bdry1)
 
-        self.N_bdry = np.array([N_bdry_left, N_bdry_right])
-        self.dN_bdry = np.array([dN_bdry_left, dN_bdry_right])
+        self.N_bdry = np.array([NN_bdry0, NN_bdry1])
+        self.dN_bdry = np.array([NN_xi_bdry0, NN_xi_bdry1])
 
     def assembler_callback(self):
         self.__M_coo()
@@ -507,6 +507,9 @@ class Euler_bernoulli():
     ####################################################
     # visualization
     ####################################################
+    def nodes(self, q):
+        return q.reshape(2, -1)
+
     def centerline(self, q, n=100):
         q_body = q[self.qDOF]
         r = []
@@ -515,10 +518,25 @@ class Euler_bernoulli():
             qp = q_body[self.qDOF_P(frame_ID)]
             r.append( self.r_OP(1, qp, frame_ID) )
         return np.array(r)
+    
+    def frames(self, q, n=10):
+        q_body = q[self.qDOF]
+        r = []
+        d1 = []
+        d2 = []
+        d3 = []
 
-    def nodes(self, q):
-        return q.reshape(2, -1)
+        for xi in np.linspace(0, 1, n):
+            frame_ID = (xi,)
+            qp = q_body[self.qDOF_P(frame_ID)]
+            r.append( self.r_OP(1, qp, frame_ID) )
 
+            d1i, d2i, d3i = self.A_IK(1, qp, frame_ID).T
+            d1.extend([d1i])
+            d2.extend([d2i])
+            d3.extend([d3i])
+
+        return np.array(r).T, np.array(d1).T, np.array(d2).T, np.array(d3).T
 
     ############
     # vtk export
@@ -579,8 +597,6 @@ class Euler_bernoulli():
 
         point_data = {}
 
-        #
-
         _, displacement, _ = self.mesh.vtk_mesh(q - self.q0)
         point_data = {"u": displacement}
         
@@ -598,6 +614,10 @@ class Euler_bernoulli():
         kappa = np.zeros((self.mesh.nel, self.mesh.nqp))
         stretch = np.zeros((self.mesh.nel, self.mesh.nqp))
 
+        d1 = np.zeros((self.mesh.nel, self.mesh.nqp, 3))
+        d2 = np.zeros((self.mesh.nel, self.mesh.nqp, 3))
+        d3 = np.zeros((self.mesh.nel, self.mesh.nqp, 3))
+
         for el in range(self.mesh.nel):
             qe = q[self.elDOF[el]]
             N_xi, N_xixi, J0 = self.N_xi[el], self.N_xixi[el], self.J0[el]
@@ -609,11 +629,15 @@ class Euler_bernoulli():
                 # tangential vectors
                 t  = NN_xii @ qe
                 n  = NN_xixii @ qe
+                # rotated tangential and normal vectors
+                t_perp = np.array([-t[1], t[0]])
+                # directors
+                d1[el, i] = np.array([*t / norm2(t), 0])
+                d2[el, i] = np.array([*t_perp / norm2(t_perp), 0])
+                d3[el, i] = np.array([0, 0, 1])
                 # current stretch
                 g2_ = t[0] * t[0] + t[1] * t[1]
                 g_ = sqrt(g2_)
-                # rotated tangential and normal vectors
-                t_perp = np.array([-t[1], t[0]])
                 # change of angle
                 theta_bar_xi = t_perp @ n / g2_
                 # strain measures
@@ -626,6 +650,16 @@ class Euler_bernoulli():
         
         stretch_vtk = self.mesh.field_to_vtk(stretch.reshape(self.nEl, self.nQP, 1))
         point_data.update({"stretch": stretch_vtk})
+        
+        # L2 projections of directors
+        d1_vtk = self.mesh.field_to_vtk(d1)
+        point_data.update({"d1": d1_vtk})
+        d2_vtk = self.mesh.field_to_vtk(d2)
+        point_data.update({"d2": d2_vtk})
+        # TODO: d3 cannot be exported due to limited number of fileds that can be 
+        #       tessellated by paraview in the default setting
+        # d3_vtk = self.mesh.field_to_vtk(d3)
+        # point_data.update({"d3": d3_vtk})
 
         # fields depending on strain measures and other previously computed quantities
         point_data_fields = {

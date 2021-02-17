@@ -89,7 +89,7 @@ class Mesh1D():
         self.shape_functions()
 
         # end_points degrees of freedom
-        self.end_points_DOF = self.end_points()
+        self.end_points()
 
     def basis1D(self, degree, derivative_order, knot_vector, knots):
         if self.basis == 'B-spline':
@@ -150,6 +150,10 @@ class Mesh1D():
             select_end_points(nn_0=[0]),
             select_end_points(nn_0=[self.nn - 1])
         )
+
+        # evaluate shape functions at the boundaries
+        self.NN_bdry0 = self.eval_basis(0)
+        self.NN_bdry1 = self.eval_basis(1)
  
     def reference_mappings(self, Q):
         """Compute inverse gradient from the reference configuration to the parameter space and scale quadrature points by its determinant. See Bonet 1997 (7.6a,b)
@@ -246,7 +250,7 @@ class Mesh1D():
             Qw = decompose_B_spline_curve(self.knot_vector, Pw)
 
         elif self.basis == 'lagrange':
-            # rearrange q's from solver to Piegl's 3D ordering
+            # rearrange q's from solver to Piegl's 1D ordering
             Qw = np.zeros((self.nel, self.p+1, self.nq_n))
             for el in range(self.nel):
                 for a in range(self.nn_el):
