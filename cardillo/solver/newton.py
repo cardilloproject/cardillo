@@ -5,11 +5,7 @@ import numpy as np
 from scipy.sparse.linalg import spsolve # SuperLU direct solver
 from scipy.sparse.linalg import splu # SuperLU direct solver/ umfpack if scikit-umfpack is installed
 from scipy.sparse.linalg import LinearOperator, spilu # incomplete LU preconditioner
-try:
-    from sksparse.cholmod import cholesky # supernodal Cholesky; appears as CHOL and x=A\b in MATLAB
-except:
-    print(f"cholesky can't be imported: you have to install 'scik-sparse'")
-from scipy.sparse.linalg import bicg, bicgstab, cg, cgs, gmres, lgmres, minres, qmr, gcrotmk # iterative solvers
+from scipy.sparse.linalg import bicgstab, cgs, gmres, lgmres, gcrotmk # iterative solvers
 from scipy.sparse import csr_matrix
 from scipy.sparse import bmat
 from tqdm import tqdm
@@ -145,7 +141,6 @@ class Newton():
         sparse_direct_solvers = {'superLU': lambda A, b: splu(A).solve(b),
                                  'scipyLU': lambda A, b: spsolve(A, b, use_umfpack=False),
                                  'umfpack': lambda A, b: spsolve(A, b, use_umfpack=True),
-                                 'cholesky': lambda A, b: cholesky(A)(b),
                                 } 
         sparse_iterative_solvers = {'cgs': lambda A, b, M:       cgs(A, b, M=M, tol=iterative_tol),
                                     'gmres': lambda A, b, M:     gmres(A, b, M=M, tol=iterative_tol),

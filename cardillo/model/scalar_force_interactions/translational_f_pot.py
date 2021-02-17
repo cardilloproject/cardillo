@@ -16,19 +16,19 @@ class Translational_f_pot():
         self.n = n
 
     def assembler_callback(self):
-        if self.force_law.g0 is None:
-            r_OP10 = self.subsystem1.r_OP(self.subsystem1.t0, self.subsystem1.q0, self.frame_ID1, self.K_r_SP1)
-            r_OP20 = self.subsystem2.r_OP(self.subsystem2.t0, self.subsystem2.q0, self.frame_ID2, self.K_r_SP2)
-            self.force_law.g0 = np.linalg.norm(r_OP20 - r_OP10)
-            if self.force_law.g0 < 1e-6:
-                raise ValueError('computed g0 from given subsystems is close to zero.')
-
         self.qDOF1 = self.subsystem1.qDOF[self.subsystem1.qDOF_P(self.frame_ID1)]
         self.qDOF2 = self.subsystem2.qDOF[self.subsystem2.qDOF_P(self.frame_ID2)]
         self.qDOF = np.concatenate([self.qDOF1, self.qDOF2])
         self.nq1 = len(self.qDOF1)
         self.nq2 = len(self.qDOF2)
         self.nq = self.nq1 + self.nq2
+        
+        if self.force_law.g0 is None:
+            r_OP10 = self.subsystem1.r_OP(self.subsystem1.t0, self.subsystem1.q0[self.qDOF1], self.frame_ID1, self.K_r_SP1)
+            r_OP20 = self.subsystem2.r_OP(self.subsystem2.t0, self.subsystem2.q0[self.qDOF2], self.frame_ID2, self.K_r_SP2)
+            self.force_law.g0 = np.linalg.norm(r_OP20 - r_OP10)
+            if self.force_law.g0 < 1e-6:
+                raise ValueError('computed g0 from given subsystems is close to zero.')
         
         self.uDOF1 = self.subsystem1.uDOF[self.subsystem1.uDOF_P(self.frame_ID1)]
         self.uDOF2 = self.subsystem2.uDOF[self.subsystem2.uDOF_P(self.frame_ID2)]

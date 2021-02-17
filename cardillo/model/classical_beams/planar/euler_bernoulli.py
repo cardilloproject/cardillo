@@ -5,12 +5,32 @@ import meshio
 import os
 
 from cardillo.utility.coo import Coo
-# from cardillo.discretization import B_spline_basis1D
-from cardillo.math.algebra import ax2skew, norm2, norm3, cross3, e3
+from cardillo.math.algebra import ax2skew, norm3, cross3, e3
 from cardillo.math.numerical_derivative import Numerical_derivative
 from cardillo.discretization.mesh1D import Mesh1D
-# from cardillo.discretization.B_spline import B_spline_basis1D
+from cardillo.discretization.B_spline import uniform_knot_vector
 
+def straight_configuration(polynomial_degree, nEl, L, greville_abscissae=True, r_OP=np.zeros(3), 
+                           A_IK=np.eye(3)):
+
+    # number of nodes
+    nn = polynomial_degree + nEl
+    
+    X = np.linspace(0, L, num=nn)
+    Y = np.zeros(nn)
+    if greville_abscissae:
+        kv = uniform_knot_vector(polynomial_degree, nEl)
+        for i in range(nn):
+            X[i] = np.sum(kv[i+1:i+polynomial_degree+1])
+        X = X * L / polynomial_degree
+
+    r0 = np.vstack((X, Y)).T
+    for i in range(nn):
+        r0i = np.array([*r0[i], 0])
+        X[i], Y[i], _ = r_OP + A_IK @ r0i
+    
+    # assemble all reference generalized coordinates
+    return np.concatenate([X, Y])
 
 class Euler_bernoulli():
     """Planar Euler-Bernoulli beam using B-spline shape functions introduced in 
@@ -147,6 +167,9 @@ class Euler_bernoulli():
             NNi = self.stack2(Ni)
             
             # integrate elemente mass matrix
+            # note: we only use the constant part of the mass matrix introduced in
+            # Harsch2020a (50) and thus neglect the inertia of the cross-sectional rotations.
+            # Also see Eugster2020b (104) and Elishakoff2015 for a discusson of the neglected term.
             Me += NNi.T @ NNi * self.A_rho0 * J0i * qwi
 
         return Me
@@ -283,7 +306,8 @@ class Euler_bernoulli():
             k2_q = - 2 * k2 / g_ * g_bar_q + M_q / g2_
             k3_q = 2 * (np.outer(t, theta_bar_xi_q) + theta_bar_xi * NN_xii)
             
-            # quadrature contribution to element stiffness matrix integrated using specified quadrature rule
+            # quadrature contribution to element stiffness matrix integrated using specified
+            # quadrature rule, see Harsch2020a (52)
             fe_q -= ( \
                 NN_xii.T @ (k1_q - np.outer(k3 + n_perp, k2_q) - k2 * (k3_q + NN_xixii_perp) ) \
                 + NN_xixii.T @ (k2 * NN_xii_perp + np.outer(t_perp, k2_q)) \
@@ -491,6 +515,10 @@ class Euler_bernoulli():
             qp = q_body[self.qDOF_P(frame_ID)]
             r.append( self.r_OP(1, qp, frame_ID) )
         return np.array(r)
+
+    def nodes(self, q):
+        return q.reshape(2, -1)
+
 
     ############
     # vtk export
