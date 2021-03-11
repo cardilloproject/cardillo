@@ -244,14 +244,17 @@ class Revolute_joint():
         ex2 = self.A_IB2(t, q)[:, 0]
         return np.arctan2(ex2 @ ey1, ex2 @ ex1)
 
-    # def angle_dot(self, t, q, u):
-    #     ex1, ey1, _ = self.A_IB1(t, q).T
-    #     ex2 = self.A_IB2(t, q)[:, 0]
-        
-    #     x = ex2 @ ey1
-    #     y = ex2 @ ey1
+    def angle_dot(self, t, q, u):
+        ex1, ey1, _ = self.A_IB1(t, q).T
+        ex2 = self.A_IB2(t, q)[:, 0]
 
-    #     # TODO!
+        arg = ex2 @ ey1, ex2 @ ex1
+
+        Omega1 = self.Omega1(t, q, u)
+        Omega2 = self.Omega2(t, q, u)
+
+        raise NotImplementedError('...')
+        # return 1 / (1 + arg**2) * (...)
 
     def angle_q(self, t, q):
         ex1, ey1, _ = self.A_IB1(t, q).T
