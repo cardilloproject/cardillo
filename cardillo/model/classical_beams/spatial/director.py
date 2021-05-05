@@ -1218,7 +1218,139 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
             cell_data={"HigherOrderDegrees": HigherOrderDegrees_r},
             binary=binary
         )
+   
+    def post_processing_subsystem(self, t, q, u, binary=True):
+        # centerline and connectivity
+        cells_r, points_r, HigherOrderDegrees_r = self.mesh_r.vtk_mesh(q[:self.nq_r])
 
+        # if the centerline and the directors are interpolated with the same
+        # polynomial degree we can use the values on the nodes and decompose the B-spline
+        # into multiple Bezier patches, otherwise the directors have to be interpolated
+        # onto the nodes of the centerline by a so-called L2-projection, see below 
+        same_shape_functions = False
+        if self.polynomial_degree_r == self.polynomial_degree_di:
+            same_shape_functions = True
+            
+        if same_shape_functions:
+            _, points_di, _ = self.mesh_di.vtk_mesh(q[self.nq_r:])
+
+            # fill dictionary storing point data with directors
+            point_data = {
+                "d1": points_di[:, 0:3],
+                "d2": points_di[:, 3:6],
+                "d3": points_di[:, 6:9],
+            }
+
+        else:
+            point_data = {}
+
+        # export existing values on quadrature points using L2 projection
+        J0_vtk = self.mesh_r.field_to_vtk(self.J0.reshape(self.nEl, self.nQP, 1))
+        point_data.update({"J0": J0_vtk})
+        
+        Gamma0_vtk = self.mesh_r.field_to_vtk(self.Gamma0)
+        point_data.update({"Gamma0": Gamma0_vtk})
+        
+        Kappa0_vtk = self.mesh_r.field_to_vtk(self.Kappa0)
+        point_data.update({"Kappa0": Kappa0_vtk})
+
+        # evaluate fields at quadrature points that have to be projected onto the centerline mesh:
+        # - strain measures Gamma & Kappa
+        # - directors d1, d2, d3
+        Gamma = np.zeros((self.mesh_r.nel, self.mesh_r.nqp, 3))
+        Kappa = np.zeros((self.mesh_r.nel, self.mesh_r.nqp, 3))
+        if not same_shape_functions:
+            d1s = np.zeros((self.mesh_r.nel, self.mesh_r.nqp, 3))
+            d2s = np.zeros((self.mesh_r.nel, self.mesh_r.nqp, 3))
+            d3s = np.zeros((self.mesh_r.nel, self.mesh_r.nqp, 3))
+        for el in range(self.nEl):
+            qe = q[self.elDOF[el]]
+
+            # extract generalized coordinates for beam centerline and directors 
+            # in the current and reference configuration
+            qe_r = qe[self.rDOF]
+            qe_d1 = qe[self.d1DOF]
+            qe_d2 = qe[self.d2DOF]
+            qe_d3 = qe[self.d3DOF]
+
+            for i in range(self.nQP):
+                # build matrix of shape function derivatives
+                NN_di_i = self.stack3di(self.N_di[el, i])
+                NN_r_xii = self.stack3r(self.N_r_xi[el, i])
+                NN_di_xii = self.stack3di(self.N_di_xi[el, i])
+
+                # extract reference state variables
+                J0i = self.J0[el, i]
+                Gamma0_i = self.Gamma0[el, i]
+                Kappa0_i = self.Kappa0[el, i]
+
+                # Interpolate necessary quantities. The derivatives are evaluated w.r.t.
+                # the parameter space \xi and thus need to be transformed later
+                r_xi = NN_r_xii @ qe_r
+
+                d1 = NN_di_i @ qe_d1
+                d1_xi = NN_di_xii @ qe_d1
+
+                d2 = NN_di_i @ qe_d2
+                d2_xi = NN_di_xii @ qe_d2
+
+                d3 = NN_di_i @ qe_d3
+                d3_xi = NN_di_xii @ qe_d3
+                
+                # compute derivatives w.r.t. the arc lenght parameter s
+                r_s = r_xi / J0i
+
+                d1_s = d1_xi / J0i
+                d2_s = d2_xi / J0i
+                d3_s = d3_xi / J0i
+
+                # build rotation matrices
+                if not same_shape_functions:
+                    d1s[el, i] = d1
+                    d2s[el, i] = d2
+                    d3s[el, i] = d3
+                R = np.vstack((d1, d2, d3)).T
+                
+                # axial and shear strains
+                Gamma[el, i] = R.T @ r_s
+
+                # torsional and flexural strains
+                Kappa[el, i] = np.array([0.5 * (d3 @ d2_s - d2 @ d3_s), \
+                                         0.5 * (d1 @ d3_s - d3 @ d1_s), \
+                                         0.5 * (d2 @ d1_s - d1 @ d2_s)])
+        
+        # L2 projection of strain measures
+        Gamma_vtk = self.mesh_r.field_to_vtk(Gamma)
+        point_data.update({"Gamma": Gamma_vtk})
+        
+        Kappa_vtk = self.mesh_r.field_to_vtk(Kappa)
+        point_data.update({"Kappa": Kappa_vtk})
+
+        # L2 projection of directors
+        if not same_shape_functions:
+            d1_vtk = self.mesh_r.field_to_vtk(d1s)
+            point_data.update({"d1": d1_vtk})
+            d2_vtk = self.mesh_r.field_to_vtk(d2s)
+            point_data.update({"d2": d2_vtk})
+            d3_vtk = self.mesh_r.field_to_vtk(d3s)
+            point_data.update({"d3": d3_vtk})
+
+        # fields depending on strain measures and other previously computed quantities
+        point_data_fields = {
+            "W": lambda Gamma, Gamma0, Kappa, Kappa0: np.array([self.material_model.potential(Gamma, Gamma0, Kappa, Kappa0)]),
+            "n_i": lambda Gamma, Gamma0, Kappa, Kappa0: self.material_model.n_i(Gamma, Gamma0, Kappa, Kappa0),
+            "m_i": lambda Gamma, Gamma0, Kappa, Kappa0: self.material_model.m_i(Gamma, Gamma0, Kappa, Kappa0)
+        }
+
+        for name, fun in point_data_fields.items():
+            tmp = fun(Gamma_vtk[0], Gamma0_vtk[0], Kappa_vtk[0], Kappa0_vtk[0]).reshape(-1)
+            field = np.zeros((len(Gamma_vtk), len(tmp)))
+            for i, (Gamma_i, Gamma0_i, Kappa_i, Kappa0_i) in enumerate(zip(Gamma_vtk, Gamma0_vtk, Kappa_vtk, Kappa0_vtk)):
+                field[i] = fun(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i).reshape(-1)
+            point_data.update({name: field})
+
+        return points_r, point_data, cells_r, HigherOrderDegrees_r
+        
 ####################################################
 # straight initial configuration
 ####################################################
@@ -1237,7 +1369,7 @@ def straight_configuration(polynomial_degree_r, polynomial_degree_di, nEl, L,
     X = np.linspace(0, L, num=nn_r)
     Y = np.zeros(nn_r)
     Z = np.zeros(nn_r)
-    if greville_abscissae and basis == 'B-Splines':
+    if greville_abscissae and basis == 'B-spline':
         kv = uniform_knot_vector(polynomial_degree_r, nEl)
         for i in range(nn_r):
             X[i] = np.sum(kv[i+1:i+polynomial_degree_r+1])
