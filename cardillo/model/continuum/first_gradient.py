@@ -472,9 +472,15 @@ def test_gradient():
     print(f'error: {error}')
     
 def test_gradient_vtk_export():
+    import pathlib
     from cardillo.discretization.mesh3D import Mesh3D, cube
     from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume
     from cardillo.discretization.indexing import flat3D
+
+    file_name = pathlib.Path(__file__).stem
+    file_path = pathlib.Path(__file__).parent / 'results' / f"{file_name}_cube" / file_name
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    export_path = file_path.parent / 'sol'
 
     QP_shape = (5, 5, 5)
     degrees = (3, 3, 1)
@@ -498,7 +504,7 @@ def test_gradient_vtk_export():
     Q = cube(cube_shape, mesh, Greville=True)
 
     # 3D continuum
-    continuum = First_gradient(None, mesh, Q, z0=Q)
+    continuum = First_gradient(1, None, mesh, Q, z0=Q)
 
     # fit quater circle configuration
     def bending(xi, eta, zeta, phi0, R, B, H):
@@ -529,7 +535,7 @@ def test_gradient_vtk_export():
     q = np.concatenate((x, y, z))
 
     # export current configuration and deformation gradient on quadrature points to paraview
-    continuum.post_processing(q, 'test.vtu')
+    continuum.post_processing([0], [q], file_path)
 
 def test_internal_forces():
     from cardillo.discretization.mesh3D import Mesh3D, cube
@@ -594,9 +600,9 @@ def test_internal_forces():
     print(f'f_pot_q.shape:\n{f_pot_q.toarray().shape}')
 
     # export current configuration and deformation gradient on quadrature points to paraview
-    continuum.post_processing(0.137, Q, 'test.vtu')
+    continuum.post_processing(0.137, Q, file_path)
 
 if __name__ == "__main__":
     # test_gradient()
-    # test_gradient_vtk_export()
-    test_internal_forces()
+    test_gradient_vtk_export()
+    # test_internal_forces()

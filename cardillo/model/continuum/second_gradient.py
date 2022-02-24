@@ -9,6 +9,7 @@ from cardillo.discretization.indexing import flat2D, flat3D, split2D, split3D
 from cardillo.discretization.B_spline import B_spline_basis3D
 from cardillo.math.algebra import determinant2D, inverse3D, determinant3D
 
+
 class Second_gradient():
     def __init__(self, density, material, mesh, Z, z0=None, v0=None, cDOF=[], b=None):
         self.density = density
@@ -62,6 +63,8 @@ class Second_gradient():
             for i in range(6):
                 self.srf_w_J0.append(self.mesh.surface_mesh[i].reference_mappings(Z[self.mesh.surface_qDOF[i].ravel()]))
 
+        self.N_XX = self.mesh.N_XX(Z, self.kappa0_xi_inv)
+
     def assembler_callback(self):
         self.elfDOF = []
         self.elqDOF = []
@@ -103,23 +106,22 @@ class Second_gradient():
 
             F_vtk = self.mesh.field_to_vtk(F)
             G_vtk = self.mesh.field_to_vtk(G)
-            point_data.update({"F": F_vtk})
-            point_data.update({"G": G_vtk})
+            point_data.update({"F": F_vtk, "G": G_vtk})
 
             # field data vtk export
             point_data_fields = {
-                "C": lambda F: F.T @ F,
-                "J": lambda F: np.array([self.determinant(F)]),
-                "P": lambda F: self.mat.P(F),
-                "S": lambda F: self.mat.S(F),
-                "W": lambda F: self.mat.W(F),
+                # "C": lambda F: F.T @ F,
+                "J": lambda F, G: np.array([self.determinant(F)]),
+                "P": lambda F, G: self.mat.P(F, G),
+                # "S": lambda F: self.mat.S(F),
+                "W": lambda F, G: self.mat.W(F, G),
             }
 
             for name, fun in point_data_fields.items():
-                tmp = fun(F_vtk[0].reshape(self.dim, self.dim)).reshape(-1)
+                tmp = fun(F_vtk[0].reshape(self.dim, self.dim), G_vtk[0].reshape(self.dim, self.dim, self.dim)).ravel()
                 field = np.zeros((len(F_vtk), len(tmp)))
                 for i, Fi in enumerate(F_vtk):
-                    field[i] = fun(Fi.reshape(self.dim, self.dim)).reshape(-1)
+                    field[i] = fun(Fi.reshape(self.dim, self.dim), G_vtk[i].reshape(self.dim, self.dim, self.dim)).ravel()
                 point_data.update({name: field})
         
             # write vtk mesh using meshio
@@ -236,6 +238,7 @@ class Second_gradient():
 
         for i in range(self.nqp):
             N_X = self.N_X[el, i]
+            N_XX = self.N_XX[el, i]
             w_J0 = self.w_J0[el, i]
 
             # Piola-Lagrange stress tensor
@@ -246,7 +249,7 @@ class Second_gradient():
             # internal forces
             for a in range(self.nn_el):
                 # TODO: reference
-                f[self.nodalDOF[a]] -= (P @ N_X[a] + bbP @ N_XX[a]) * w_J0
+                f[self.nodalDOF[a]] -= (P @ N_X[a] + np.einsum('ijk,jk->i', bbP, N_XX[a])) * w_J0
 
         return f
 
@@ -282,16 +285,16 @@ class Second_gradient():
             # P_q = np.einsum('klmn,mnj->klj', P_F, F_q)
 
             # derivative of P and bbP w.r.t. q
-            P_F = self.mat.P_F(F_eli)
-            P_G = self.mat.P_G(F_eli)
-            bbP_F = self.mat.bbP_F(F_eli)
-            bbP_G = self.mat.bbp_G(F_eli)
+            P_F = self.mat.P_F(F_eli, G_eli)
+            P_G = self.mat.P_G(F_eli, G_eli)
+            bbP_F = self.mat.bbP_F(F_eli, G_eli)
+            bbP_G = self.mat.bbP_G(F_eli, G_eli)
             P_q = np.einsum('klmn,mnj->klj', P_F, F_q) + np.einsum('klmnj,mnjo->klo', P_G, G_q)
             bbP_q = np.einsum('klomn,mnj->kloj', bbP_F, F_q) +  np.einsum('klomnl,mnlj->kloj', bbP_G, G_q)
 
             # internal element stiffness matrix
             for a in range(self.nn_el):
-                Ke[self.nodalDOF[a]] += np.einsum('ijk,j->ik', P_q, -N_X[a] * w_J0) 
+                Ke[self.nodalDOF[a]] += np.einsum('ijk,j->ik', P_q, -N_X[a] * w_J0) \
                                         + np.einsum('ijkl,jk->il', bbP_q, -N_XX[a] * w_J0)
 
         return Ke
@@ -367,7 +370,7 @@ class Second_gradient():
     def force_distr2D_q(self, t, q, coo, force, srf_idx):
         pass
 
-    def double_force_distr2D(self, t, q, coo, dforce, srf_idx)
+    def double_force_distr2D(self, t, q, coo, dforce, srf_idx):
         pass
 
     ####################################################
