@@ -68,11 +68,14 @@ class Translational_f_npot():
 
     def __gamma_q(self, t, q, u):
         n_q1, n_q2 = self.__n_q(t, q)
+        n = self.__n(t, q)
+        v_P1 = self.v_P1(t, q, u)
+        v_P2 = self.v_P2(t, q, u)
 
         nq1 = self.nq1
         gamma_q = np.zeros(self.nq)
-        gamma_q[:nq1] = -self.__n(t, q) @ self.v_P1_q(t, q, u) - self.v_P1(t, q, u) @ n_q1
-        gamma_q[nq1:] = self.__n(t, q) @ self.v_P2_q(t, q, u) + self.v_P2(t, q, u) @ n_q2
+        gamma_q[:nq1] = -n @ self.v_P1_q(t, q, u) + (v_P2 - v_P1) @ n_q1
+        gamma_q[nq1:] =  n @ self.v_P2_q(t, q, u) + (v_P2 - v_P1) @ n_q2
         return gamma_q
 
     def __n_PQ(self, t, q):
