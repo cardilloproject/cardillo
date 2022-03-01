@@ -48,9 +48,9 @@ def test_cube():
     mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=2, basis='B-spline', nq_n=3)
 
     # reference configuration is a cube
-    L = 2/3
-    B = 2/3
-    H = 2.0
+    L = 20/3
+    B = 20/3
+    H = 20.0
     cube_shape = (L, B, H)
     Z = cube(cube_shape, mesh, Greville=False)
 
@@ -59,7 +59,7 @@ def test_cube():
     L = 3 * l
     a = 1.0
     b = 1.0
-    Yb = 0.5
+    Yb = 70.0
     Gb = Yb / (2 + 0.8)
     rp = 0.45
     hp = 1.5
@@ -80,7 +80,7 @@ def test_cube():
 
     mat = Pantobox_beam_network(Ke*nsH, Ks*nsH, Kg*nsH, Kn*nsH, Kt*nsH, Kc*nsH)
 
-    density = 1.0
+    density = 1.0e-3
 
     if Statics:
         # boundary conditions
@@ -98,7 +98,7 @@ def test_cube():
             cDOF134 = np.concatenate((cDOF1, cDOF3, cDOF4,))
             cDOF = np.concatenate((cDOF134, cDOF2))
             b1 = lambda t: Z[cDOF134]
-            b2 = lambda t: Z[cDOF2] + t * 0.1
+            b2 = lambda t: Z[cDOF2] + t * 5.0
             b = lambda t: np.concatenate((b1(t), b2(t)))
             # cDOF = mesh.surface_qDOF[4].ravel()
             # b = lambda t: Z[cDOF]
