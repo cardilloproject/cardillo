@@ -23,6 +23,208 @@ class Pantobox_beam_network():
         self.D3 = np.array([0, 1, 1]) / np.sqrt(2)
         self.D4 = np.array([0, -1, 1]) / np.sqrt(2)
         self.D = np.array([self.D1, self.D2, self.D3, self.D4])
+        self.I3 = np.eye(3)
+
+    def rho_F(self, F, G):
+        d1 = F @ self.D1
+        d2 = F @ self.D2
+        rho1 = norm3(d1)
+        rho2 = norm3(d2)
+        e1 = d1 / rho1
+        e2 = d2 / rho2
+
+        rho1_F = np.outer(e1, self.D1)
+
+        return rho1_F
+
+    def rho_F_F(self, F, G):
+        rho_F_F = np.einsum('ijk,l->iljk', self.e_F(F, G, 0), self.D1)
+        return rho_F_F
+
+    def e(self, F, G, al):
+        d1 = F @ self.D1
+        d2 = F @ self.D2
+        rho1 = norm3(d1)
+        rho2 = norm3(d2)
+        e1 = d1 / rho1
+        e2 = d2 / rho2
+
+        return e1
+
+    def e_F(self, F, G, al):
+        """ derivative of tangent vectors w.r.t. to F
+        """
+        d1 = F @ self.D1
+        d2 = F @ self.D2
+        rho1 = norm3(d1)
+        rho2 = norm3(d2)
+        e1 = d1 / rho1
+        e2 = d2 / rho2
+        e_F = np.einsum('ij,k->ijk', self.I3, self.D[al]) / rho1 \
+            - np.einsum('i,j,k->ijk', e1,  e1, self.D[al]) / rho1
+
+        return e_F
+
+    def e_F_F(self, F, G, al=0):
+        d1 = F @ self.D1
+        d2 = F @ self.D2
+        rho1 = norm3(d1)
+        rho2 = norm3(d2)
+        e1 = d1 / rho1
+        e2 = d2 / rho2
+
+        e_F_F = - np.einsum('ijk,lm->ijklm', self.e_F(F, G, 0), self.rho_F(F, G)) / rho1 \
+                - np.einsum('ijk,lm->ilmjk', self.e_F(F, G, 0), self.rho_F(F, G)) / rho1 \
+                - np.einsum('i,jklm->ijklm', e1, self.rho_F_F(F, G)) / rho1
+
+        return e_F_F
+
+
+    def ga(self, F, G):
+
+        d1 = F @ self.D1
+        d2 = F @ self.D2
+        rho1 = norm3(d1)
+        rho2 = norm3(d2)
+        e1 = d1 / rho1
+        e2 = d2 / rho2
+
+        return np.arcsin(e1@e2)
+
+    def ga_F(self, F, G):
+                
+        ga_F = np.outer(self.m[0], self.D1) / self.rho[0] - np.outer(self.m[1], self.D2) / rho[1]
+
+        return ga_F
+
+    def m(self, F, G):
+        d1 = F @ self.D1
+        d2 = F @ self.D2
+        rho1 = norm3(d1)
+        rho2 = norm3(d2)
+        e1 = d1 / rho1
+        e2 = d2 / rho2
+        e1xe2 = cross3(e1, e2)
+        cosga = norm3(e1xe2)
+        singa = e1 @ e2
+        tanga = singa / cosga
+        na = e1xe2 / cosga
+        m1 = cross3(na, e1)
+        m2 = cross3(na, e2)
+
+        return m1
+
+    def m_F(self, F, G):
+
+        m_F = np.einsum('i,jk->ijk', tanga * m1 - e1, self.ga_F(F, G)) \
+                + self.e_F(F, G, 1) / cosga - tanga * self.e_F(F, G, 0)
+
+        return m_F
+
+    def na(self, F, G):
+        d1 = F @ self.D1
+        d2 = F @ self.D2
+        rho1 = norm3(d1)
+        rho2 = norm3(d2)
+        e1 = d1 / rho1
+        e2 = d2 / rho2
+        e1xe2 = cross3(e1, e2)
+        cosga = norm3(e1xe2)
+        singa = e1 @ e2
+        tanga = singa / cosga
+        na = e1xe2 / cosga
+
+        return na
+
+    def na_F(self, F, G):
+        d1 = F @ self.D1
+        d2 = F @ self.D2
+        rho1 = norm3(d1)
+        rho2 = norm3(d2)
+        e1 = d1 / rho1
+        e2 = d2 / rho2
+        e1xe2 = cross3(e1, e2)
+        cosga = norm3(e1xe2)
+        singa = e1 @ e2
+        tanga = singa / cosga
+        na = e1xe2 / cosga
+
+        na_F = np.einsum('i,jk->ijk', tanga * na, self.ga_F(F, G)) \
+                + np.cross(self.e_F(F, G, 0), e2, axisa=0, axisc=0) / cosga \
+                 - np.cross(self.e_F(F, G, 1), e1, axisa=0, axisc=0) / cosga
+        return na_F
+
+    def c_F(self, F, G):
+        d1 = F @ self.D1
+        d2 = F @ self.D2
+        rho1 = norm3(d1)
+        rho2 = norm3(d2)
+        e1 = d1 / rho1
+        e2 = d2 / rho2
+        e1xe2 = cross3(e1, e2)
+        cosga = norm3(e1xe2)
+        singa = e1 @ e2
+        tanga = singa / cosga
+        na = e1xe2 / cosga
+        m1 = cross3(na, e1)
+        m2 = cross3(na, e2)
+        c1 = np.einsum('ijk,j,k->i', G, self.D1, self.D1) / rho1
+        c2 = np.einsum('ijk,j,k->i', G, self.D2, self.D2) / rho2
+        g1 = np.einsum('ijk,j,k->i', G, self.D2, self.D1) / rho2
+        g2 = np.einsum('ijk,j,k->i', G, self.D1, self.D2) / rho1
+
+        c_F = - np.einsum('i,j,k', c1, e1, self.D1) / rho1
+
+        return c_F
+
+    def c(self, F, G):
+        d1 = F @ self.D1
+        d2 = F @ self.D2
+        rho1 = norm3(d1)
+        rho2 = norm3(d2)
+        e1 = d1 / rho1
+        e2 = d2 / rho2
+        e1xe2 = cross3(e1, e2)
+        cosga = norm3(e1xe2)
+        singa = e1 @ e2
+        tanga = singa / cosga
+        na = e1xe2 / cosga
+        m1 = cross3(na, e1)
+        m2 = cross3(na, e2)
+        c1 = np.einsum('ijk,j,k->i', G, self.D1, self.D1) / rho1
+        c2 = np.einsum('ijk,j,k->i', G, self.D2, self.D2) / rho2
+        g1 = np.einsum('ijk,j,k->i', G, self.D2, self.D1) / rho2
+        g2 = np.einsum('ijk,j,k->i', G, self.D1, self.D2) / rho1
+
+        return c1
+
+    def g_F(sefl, F, G, al=0):
+        d1 = F @ self.D1
+        d2 = F @ self.D2
+        rho1 = norm3(d1)
+        rho2 = norm3(d2)
+        e1 = d1 / rho1
+        e2 = d2 / rho2
+        e1xe2 = cross3(e1, e2)
+        cosga = norm3(e1xe2)
+        singa = e1 @ e2
+        tanga = singa / cosga
+        na = e1xe2 / cosga
+        m1 = cross3(na, e1)
+        m2 = cross3(na, e2)
+        c1 = np.einsum('ijk,j,k->i', G, self.D1, self.D1) / rho1
+        c2 = np.einsum('ijk,j,k->i', G, self.D2, self.D2) / rho2
+        g1 = np.einsum('ijk,j,k->i', G, self.D2, self.D1) / rho2
+        g2 = np.einsum('ijk,j,k->i', G, self.D1, self.D2) / rho1
+
+        g_F = - np.einsum('i,j,k', g1, e2, self.D2) / rho2
+
+        return g_F
+
+
+    def v_F_num(self, F, G, v=e_F):
+        v_F_num = Numerical_derivative(lambda F: v(F, G, 0), order=2)._X(F)
+        return v_F_num
 
     def P(self, F, G):
         """Piola-Lagrange stress tensor
@@ -879,8 +1081,11 @@ class Pantobox_beam_network():
         e1 = d1 / rho1
         e2 = d2 / rho2
 
-        Pe1_F = self.Ke *1 / rho1 * np.einsum('i,j,k,l->ijkl', e1, self.D1 ,e1 ,self.D1) \
-                + self.Ke * (rho1-1) / rho1 * np.einsum('i,jk,l->jikl', self.D1, np.eye(3),  self.D1)
+        Pe1_F = self.Ke * 1 / rho1 * np.einsum('i,j,k,l->ijkl', e1, self.D1 ,e1 ,self.D1) \
+                + self.Ke * (rho1-1) / rho1 * np.einsum('i,jk,l->jikl', self.D1, np.eye(3), self.D1)
+
+        Pe1_F = self.Ke *  np.einsum('i,j,k,l->ijkl', e1, self.D1 ,e1 ,self.D1) \
+                + self.Ke * np.einsum('i,jkl->jikl', self.D1, e_F(F, G))
 
         return Pe1_F
 
@@ -894,12 +1099,12 @@ def verify_derivatives():
     G = np.random.rand(3,3,3)
     # Pe = mat.Pe(F, G)
     # Pe_num = mat.Pe_num(F, G)
-    P1 = mat.Pe_F(F, G)
-    P1_num = mat.P_F_num(F, G, P=mat.Pe)    
+    P1 = mat.e_F_F(F, G)
+    P1_num = mat.v_F_num(F, G, v=mat.e_F)    
     error = np.linalg.norm(P1 - P1_num)
     print("%s\n\n%s" %(P1,P1_num))
     # print(P1 - P1_num)
-    print(error)
+    print("%s" % error)
 if __name__ == "__main__":
     verify_derivatives()
 
