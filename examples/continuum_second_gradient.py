@@ -25,7 +25,7 @@ def save_solution(sol, filename):
 def test_cube():
 
     file_name = pathlib.Path(__file__).stem
-    file_path = pathlib.Path(__file__).parent / 'results' / f"{file_name}_cube" / file_name
+    file_path = pathlib.Path(__file__).parent / 'results' / f"{file_name}_cube_2" / file_name
     file_path.parent.mkdir(parents=True, exist_ok=True)
     export_path = file_path.parent / 'sol'
 
@@ -38,7 +38,7 @@ def test_cube():
     # build mesh
     degrees = (3, 3, 3)
     QP_shape = (3, 3, 3)
-    element_shape = (2, 2, 2)
+    element_shape = (3, 3, 9)
 
     Xi = Knot_vector(degrees[0], element_shape[0])
     Eta = Knot_vector(degrees[1], element_shape[1])
@@ -77,6 +77,13 @@ def test_cube():
     ns = 6
     H = (ns*2-1)*hp+2*ns*a
     nsH = ns/H
+
+    # reference configuration is a cube
+    L = l
+    B = l
+    H = 3 * l
+    cube_shape = (L, B, H)
+    Z = cube(cube_shape, mesh, Greville=False)
 
     mat = Pantobox_beam_network(Ke*nsH, Ks*nsH, Kg*nsH, Kn*nsH, Kt*nsH, Kc*nsH)
 

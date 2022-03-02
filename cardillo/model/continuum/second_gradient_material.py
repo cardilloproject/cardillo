@@ -25,7 +25,7 @@ class Pantobox_beam_network():
         self.D = np.array([self.D1, self.D2, self.D3, self.D4])
 
     def P(self, F, G):
-        """Piola Lagrange stress tensor
+        """Piola-Lagrange stress tensor
         """
         # P_num = Numerical_derivative(lambda F: self.W(F, G), order=num_order)._X(F)
         # Parameters
@@ -184,7 +184,7 @@ class Pantobox_beam_network():
         return Pe + Psa + Psb + Pc + Pn + Pg + Pt
 
     def bbP(self, F, G):
-        """Piola Lagrange double stress
+        """Piola-Lagrange double stress tensor
         """
         d1 = F @ self.D1
         d2 = F @ self.D2
@@ -379,10 +379,12 @@ class Pantobox_beam_network():
         e3 = d3 / rho3
         e4 = d4 / rho4
 
+        Pe1 = self.Ke * (rho1-1) * np.outer(e1, self.D1)
+
         Pe = self.Ke * ( (rho1-1) * np.outer(e1, self.D1) + (rho2-1) * np.outer(e2, self.D2) \
                     + (rho3-1) * np.outer(e3, self.D3) + (rho4-1) * np.outer(e4, self.D4))
 
-        return Pe
+        return Pe1
 
     def Wn(self, F, G):
         d1 = F @ self.D1
@@ -868,18 +870,39 @@ class Pantobox_beam_network():
         bbP_num = Numerical_derivative(lambda G: W(F, G), order=2)._X(G)
         return bbP_num
 
+    # second variation
+    def Pe_F(self, F, G):
+        d1 = F @ self.D1
+        d2 = F @ self.D2
+        rho1 = norm3(d1)
+        rho2 = norm3(d2)
+        e1 = d1 / rho1
+        e2 = d2 / rho2
+
+        Pe1_F = self.Ke *1 / rho1 * np.einsum('i,j,k,l->ijkl', e1, self.D1 ,e1 ,self.D1) \
+                + self.Ke * (rho1-1) / rho1 * np.einsum('i,jk,l->jikl', self.D1, np.eye(3),  self.D1)
+
+        return Pe1_F
+
+    def P_F_num(self, F, G, P=P):
+        P_F_num = Numerical_derivative(lambda F: P(F, G), order=2)._X(F)
+        return P_F_num
+
 def verify_derivatives():
     mat = Pantobox_beam_network(1,1,1,1,1,1)
     F = np.random.rand(3,3)
     G = np.random.rand(3,3,3)
     # Pe = mat.Pe(F, G)
     # Pe_num = mat.Pe_num(F, G)
-    P1 = mat.bbP(F, G)
-    P1_num = mat.bbP_num(F, G, W=mat.W)    
+    P1 = mat.Pe_F(F, G)
+    P1_num = mat.P_F_num(F, G, P=mat.Pe)    
     error = np.linalg.norm(P1 - P1_num)
-    #print("%s\n\n%s" %(P1,P1_num))
-    print(P1 - P1_num)
+    print("%s\n\n%s" %(P1,P1_num))
+    # print(P1 - P1_num)
     print(error)
 if __name__ == "__main__":
     verify_derivatives()
+
+
+
 
