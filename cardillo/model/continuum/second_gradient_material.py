@@ -195,7 +195,7 @@ class Pantobox_beam_network():
 
         return ga_F_F
 
-    def m(self, F, G, al):
+    def m(self, F, G, al=0):
         d1 = F @ self.D1
         d2 = F @ self.D2
         rho1 = norm3(d1)
@@ -454,6 +454,27 @@ class Pantobox_beam_network():
         c4 = np.einsum('ijk,j,k->i', G, self.D4, self.D4) / rho4
 
         return c1, c2, c3, c4
+
+    def g(self, F, G):
+        d1 = F @ self.D1
+        d2 = F @ self.D2
+        rho1 = norm3(d1)
+        rho2 = norm3(d2)
+        e1 = d1 / rho1
+        e2 = d2 / rho2
+        g1 = np.einsum('ijk,j,k->i', G, self.D2, self.D1) / rho2
+        g2 = np.einsum('ijk,j,k->i', G, self.D1, self.D2) / rho1
+
+        d3 = F @ self.D3
+        d4 = F @ self.D4
+        rho3 = norm3(d3)
+        rho4 = norm3(d4)
+        e3 = d3 / rho3
+        e4 = d4 / rho4
+        g3 = np.einsum('ijk,j,k->i', G, self.D4, self.D3) / rho4
+        g4 = np.einsum('ijk,j,k->i', G, self.D3, self.D4) / rho3
+       
+        return g1, g2, g3, g4
 
     def g_F(self, F, G):
         d1 = F @ self.D1
@@ -1012,15 +1033,15 @@ class Pantobox_beam_network():
         
         Pg_F = Pg1_F + Pg2_F + Pg3_F + Pg4_F
 
-        tau1_F = ga_F * (tau1 * tanga + na @ c1) + np.einsum('ijk,i->jk', - na_F, (g1 - singa * c1) / cosga)
-                                + np.einsum('i,ijk->jk', - na / cosga, g1_F) + np.einsum('i,ijk->jk', tanga * na, c1_F)
+        # tau1_F = ga_F * (tau1 * tanga + na @ c1) + np.einsum('ijk,i->jk', - na_F, (g1 - singa * c1) / cosga)
+        #                         + np.einsum('i,ijk->jk', - na / cosga, g1_F) + np.einsum('i,ijk->jk', tanga * na, c1_F)
 
-        tau1_F_F = ga_F_F * (tau1 * tanga + na @ c1) + np.einsum('jk,lm->jklm', \
-            ga_F, tau1_F * tanga + tau1 / cosga**2 * ga_F + np.einsum('ijk,i->jk', na_F, c1) +
-                                     np.einsum('ijk,i->jk', c1_F, na))
+        # tau1_F_F = ga_F_F * (tau1 * tanga + na @ c1) + np.einsum('jk,lm->jklm', \
+        #     ga_F, tau1_F * tanga + tau1 / cosga**2 * ga_F + np.einsum('ijk,i->jk', na_F, c1) +
+        #                              np.einsum('ijk,i->jk', c1_F, na))
 
 
-        Pt1_F = self.Kt * (np.einsum('ij,kl', tau1_F, tau1_F) + tau1 * tau1_F_F)
+        # Pt1_F = self.Kt * (np.einsum('ij,kl', tau1_F, tau1_F) + tau1 * tau1_F_F)
 
         # num = Numerical_derivative(\
         #     lambda F: self.na_F(F, G), order=2)._X(F)
@@ -1101,11 +1122,11 @@ class Pantobox_beam_network():
         # normal
         bbPn1 = - self.Kn * kn1 / rho1 * \
             np.einsum('i,j,k->ijk', m1, self.D1, self.D1)
-        bbPn2 = -self.Kn * kn2 / rho2 * \
+        bbPn2 = - self.Kn * kn2 / rho2 * \
             np.einsum('i,j,k->ijk', m2, self.D2, self.D2)
-        bbPn3 = -self.Kn * kn3 / rho3 * \
+        bbPn3 = - self.Kn * kn3 / rho3 * \
             np.einsum('i,j,k->ijk', m3, self.D3, self.D3)
-        bbPn4 = -self.Kn * kn4 / rho4 * \
+        bbPn4 = - self.Kn * kn4 / rho4 * \
             np.einsum('i,j,k->ijk', m4, self.D4, self.D4)
 
         bbPn = bbPn1 + bbPn2 + bbPn3 + bbPn4
@@ -1122,29 +1143,476 @@ class Pantobox_beam_network():
 
         bbPt = bbPt1 + bbPt2 + bbPt3 + bbPt4
 
-        return bbPg + bbPn + bbPt
+        return  bbPn + bbPg + bbPt
 
     def P_F(self, F, G):
         P_F_num = Numerical_derivative(
             lambda F: self.P(F, G), order=num_order)._X(F)
         return P_F_num
 
-    def P_G_alt(self, F, G):
-
-        Pn1_G = self.Kn * (np.einsum('i,ijkl->ijkl', m1, c1_G) \
-            + np.einsum('ijk,ilmo->jklmo')
-
     def P_G(self, F, G):
-        P_G_num = Numerical_derivative(
-            lambda G: self.P(F, G), order=num_order)._X(G)
-        return P_G_num
+
+        # layer a
+        d1 = F @ self.D1
+        d2 = F @ self.D2
+        rho1 = norm3(d1)
+        rho2 = norm3(d2)
+        e1 = d1 / rho1
+        e2 = d2 / rho2
+        e1xe2 = cross3(e1, e2)
+        cosga = norm3(e1xe2)
+        singa = e1 @ e2
+        tanga = singa / cosga
+        na = e1xe2 / cosga
+        m1 = cross3(na, e1)
+        m2 = cross3(na, e2)
+        c1 = np.einsum('ijk,j,k->i', G, self.D1, self.D1) / rho1
+        c2 = np.einsum('ijk,j,k->i', G, self.D2, self.D2) / rho2
+        g1 = np.einsum('ijk,j,k->i', G, self.D2, self.D1) / rho2
+        g2 = np.einsum('ijk,j,k->i', G, self.D1, self.D2) / rho1
+
+        # layer b
+        d3 = F @ self.D3
+        d4 = F @ self.D4
+        rho3 = norm3(d3)
+        rho4 = norm3(d4)
+        e3 = d3 / rho3
+        e4 = d4 / rho4
+        e3xe4 = cross3(e3, e4)
+        cosgb = norm3(e3xe4)
+        singb = e3 @ e4
+        tangb = singb / cosgb
+        nb = e3xe4 / cosgb
+        m3 = cross3(nb, e3)
+        m4 = cross3(nb, e4)
+        c3 = np.einsum('ijk,j,k->i', G, self.D3, self.D3) / rho3
+        c4 = np.einsum('ijk,j,k->i', G, self.D4, self.D4) / rho4
+        g3 = np.einsum('ijk,j,k->i', G, self.D4, self.D3) / rho4
+        g4 = np.einsum('ijk,j,k->i', G, self.D3, self.D4) / rho3
+
+        singc = na @ nb
+        cosgc = norm(cross3(na, nb))
+
+        rho1_F = np.outer(e1, self.D1)
+        rho2_F = np.outer(e2, self.D2)
+        rho3_F = np.outer(e3, self.D3)
+        rho4_F = np.outer(e4, self.D4)
+
+        e1_F = np.einsum('ij,k->ijk', self.I3, self.D1) / rho1 \
+            - np.einsum('i,j,k->ijk', e1,  e1, self.D1) / rho1
+        e2_F = np.einsum('ij,k->ijk', self.I3, self.D2) / rho2 \
+            - np.einsum('i,j,k->ijk', e2,  e2, self.D2) / rho2
+        e3_F = np.einsum('ij,k->ijk', self.I3, self.D3) / rho3 \
+            - np.einsum('i,j,k->ijk', e3,  e3, self.D3) / rho3
+        e4_F = np.einsum('ij,k->ijk', self.I3, self.D4) / rho4 \
+            - np.einsum('i,j,k->ijk', e4,  e4, self.D4) / rho4
+
+        e_F = e1_F, e2_F, e3_F, e4_F
+
+        ga_F = np.outer(m1, self.D1) / rho1 - \
+            np.outer(m2, self.D2) / rho2
+
+        gb_F = np.outer(m3, self.D3) / rho3 - \
+            np.outer(m4, self.D4) / rho4
+
+        m1_F = np.einsum('i,jk->ijk', tanga * m1 - e1, ga_F) \
+            + e2_F / cosga - tanga * e1_F
+        m2_F = np.einsum('i,jk->ijk', tanga * m2 + e2, ga_F) \
+            - e1_F / cosga + tanga * e2_F
+        m3_F = np.einsum('i,jk->ijk', tangb * m3 - e3, gb_F) \
+            + e4_F / cosgb - tangb * e3_F
+        m4_F = np.einsum('i,jk->ijk', tangb * m4 + e4, gb_F) \
+            - e3_F / cosgb + tangb * e4_F
+
+        na_F = np.einsum('i,jk->ijk', tanga * na, ga_F) \
+            + np.cross(e1_F, e2 / cosga, axis=0)  \
+            - np.cross(e2_F, e1 / cosga, axis=0)
+        nb_F = np.einsum('i,jk->ijk', tangb * nb, gb_F) \
+            + np.cross(e3_F, e4 / cosgb, axis=0)  \
+            - np.cross(e4_F, e3 / cosgb, axis=0)
+
+
+        c1_F = - np.einsum('i,j,k', c1, e1, self.D1) / rho1
+        c2_F = - np.einsum('i,j,k', c2, e2, self.D2) / rho2
+        c3_F = - np.einsum('i,j,k', c3, e3, self.D3) / rho3
+        c4_F = - np.einsum('i,j,k', c4, e4, self.D4) / rho4
+
+        c1_G = np.einsum('ij,A,B->ijAB', self.I3, self.D1, self.D1 / rho1)
+        c2_G = np.einsum('ij,A,B->ijAB', self.I3, self.D2, self.D2 / rho2)
+        c3_G = np.einsum('ij,A,B->ijAB', self.I3, self.D3, self.D3 / rho3)
+        c4_G = np.einsum('ij,A,B->ijAB', self.I3, self.D4, self.D4 / rho4)
+
+        c1_F_G = - np.einsum('ik,j,A,B,C->ijAkBC', self.I3, e1, self.D1, self.D1, self.D1 / rho1**2)
+        c2_F_G = - np.einsum('ik,j,A,B,C->ijAkBC', self.I3, e2, self.D2, self.D2, self.D2 / rho2**2)
+        c3_F_G = - np.einsum('ik,j,A,B,C->ijAkBC', self.I3, e3, self.D3, self.D3, self.D3 / rho3**2)
+        c4_F_G = - np.einsum('ik,j,A,B,C->ijAkBC', self.I3, e4, self.D4, self.D4, self.D4 / rho4**2)
+
+        g1_F = - np.einsum('i,j,k', g1, e2, self.D2) / rho2
+        g2_F = - np.einsum('i,j,k', g2, e1, self.D1) / rho1
+        g3_F = - np.einsum('i,j,k', g3, e4, self.D4) / rho4
+        g4_F = - np.einsum('i,j,k', g4, e3, self.D3) / rho3
+
+        g1_G = np.einsum('ij,A,B->ijAB', self.I3, self.D2, self.D1 / rho2)
+        g2_G = np.einsum('ij,A,B->ijAB', self.I3, self.D1, self.D2 / rho1)
+        g3_G = np.einsum('ij,A,B->ijAB', self.I3, self.D4, self.D3 / rho4)
+        g4_G = np.einsum('ij,A,B->ijAB', self.I3, self.D3, self.D4 / rho3)
+
+        g1_F_G = - np.einsum('ik,j,A,B,C->ijAkBC', self.I3, e2, self.D2, self.D2, self.D1 / rho2**2)
+        g2_F_G = - np.einsum('ik,j,A,B,C->ijAkBC', self.I3, e1, self.D1, self.D1, self.D2 / rho1**2)
+        g3_F_G = - np.einsum('ik,j,A,B,C->ijAkBC', self.I3, e4, self.D4, self.D4, self.D3 / rho4**2)
+        g4_F_G = - np.einsum('ik,j,A,B,C->ijAkBC', self.I3, e3, self.D3, self.D3, self.D4 / rho3**2)
+
+        kn1_F = np.einsum('ijA,i->jA', m1_F, c1) + np.einsum('ijA,i->jA', c1_F, m1)
+        kn2_F = np.einsum('ijA,i->jA', m2_F, c2) + np.einsum('ijA,i->jA', c2_F, m2)
+        kn3_F = np.einsum('ijA,i->jA', m3_F, c3) + np.einsum('ijA,i->jA', c3_F, m3)
+        kn4_F = np.einsum('ijA,i->jA', m4_F, c4) + np.einsum('ijA,i->jA', c4_F, m4)
+       
+        kn1_F_G = np.einsum('ijA,ikBC->jAkBC', m1_F, c1_G) + np.einsum('ijAkBC,i->jAkBC', c1_F_G, m1)
+        kn2_F_G = np.einsum('ijA,ikBC->jAkBC', m2_F, c2_G) + np.einsum('ijAkBC,i->jAkBC', c2_F_G, m2)
+        kn3_F_G = np.einsum('ijA,ikBC->jAkBC', m3_F, c3_G) + np.einsum('ijAkBC,i->jAkBC', c3_F_G, m3)
+        kn4_F_G = np.einsum('ijA,ikBC->jAkBC', m4_F, c4_G) + np.einsum('ijAkBC,i->jAkBC', c4_F_G, m4)
+
+        Pn1_G =  np.einsum('i,ikBC,jA->jAkBC', self.Kn * m1, c1_G, kn1_F) \
+                + self.Kn * m1 @ c1 * kn1_F_G
+        Pn2_G =  np.einsum('i,ikBC,jA->jAkBC', self.Kn * m2, c2_G, kn2_F) \
+                + self.Kn * m2 @ c2 * kn2_F_G
+        Pn3_G =  np.einsum('i,ikBC,jA->jAkBC', self.Kn * m3, c3_G, kn3_F) \
+                + self.Kn * m3 @ c3 * kn3_F_G
+        Pn4_G =  np.einsum('i,ikBC,jA->jAkBC', self.Kn * m4, c4_G, kn4_F) \
+                + self.Kn * m4 @ c4 * kn4_F_G   
+
+        Pn_G = Pn1_G + Pn2_G + Pn3_G + Pn4_G
+
+        kg1_F = np.einsum('ijA,i->jA', na_F, c1) + np.einsum('ijA,i->jA', c1_F, na)
+        kg2_F = np.einsum('ijA,i->jA', na_F, c2) + np.einsum('ijA,i->jA', c2_F, na)
+        kg3_F = np.einsum('ijA,i->jA', nb_F, c3) + np.einsum('ijA,i->jA', c3_F, nb)
+        kg4_F = np.einsum('ijA,i->jA', nb_F, c4) + np.einsum('ijA,i->jA', c4_F, nb)
+
+        kg1_F_G = np.einsum('ijA,ikBC->jAkBC', na_F, c1_G) + np.einsum('ijAkBC,i->jAkBC', c1_F_G, na)
+        kg2_F_G = np.einsum('ijA,ikBC->jAkBC', na_F, c2_G) + np.einsum('ijAkBC,i->jAkBC', c2_F_G, na)
+        kg3_F_G = np.einsum('ijA,ikBC->jAkBC', nb_F, c3_G) + np.einsum('ijAkBC,i->jAkBC', c3_F_G, nb)
+        kg4_F_G = np.einsum('ijA,ikBC->jAkBC', nb_F, c4_G) + np.einsum('ijAkBC,i->jAkBC', c4_F_G, nb)
+
+        Pg1_G =  np.einsum('i,ikBC,jA->jAkBC', self.Kg * na, c1_G, kg1_F) \
+                + self.Kg * na @ c1 * kg1_F_G
+        Pg2_G =  np.einsum('i,ikBC,jA->jAkBC', self.Kg * na, c2_G, kg2_F) \
+                + self.Kg * na @ c2 * kg2_F_G
+        Pg3_G =  np.einsum('i,ikBC,jA->jAkBC', self.Kg * nb, c3_G, kg3_F) \
+                + self.Kg * nb @ c3 * kg3_F_G
+        Pg4_G =  np.einsum('i,ikBC,jA->jAkBC', self.Kg * nb, c4_G, kg4_F) \
+                + self.Kg * nb @ c4 * kg4_F_G
+
+        Pg_G = Pg1_G + Pg2_G + Pg3_G + Pg4_G
+
+        tau1 = - na @ (g1 - singa * c1) / cosga
+        tau2 = - na @ (g2 - singa * c2) / cosga
+        tau3 = - nb @ (g3 - singb * c3) / cosgb
+        tau4 = - nb @ (g4 - singb * c4) / cosgb
+
+        tau1_F = ga_F * (tau1 * tanga + na @ c1) + np.einsum('ijA,i->jA', - na_F, (g1 - singa * c1) / cosga)\
+                                + np.einsum('i,ijA->jA', - na / cosga, g1_F) + np.einsum('i,ijA->jA', tanga * na, c1_F)
+        tau2_F = ga_F * (tau2 * tanga + na @ c2) + np.einsum('ijk,i->jk', - na_F, (g2 - singa * c2) / cosga)\
+                                + np.einsum('i,ijk->jk', - na / cosga, g2_F) + np.einsum('i,ijk->jk', tanga * na, c2_F)
+        tau3_F = gb_F * (tau3 * tangb + nb @ c3) + np.einsum('ijk,i->jk', - nb_F, (g3 - singb * c3) / cosgb)\
+                                + np.einsum('i,ijk->jk', - nb / cosgb, g3_F) + np.einsum('i,ijk->jk', tangb * nb, c3_F)
+        tau4_F = gb_F * (tau4 * tangb + nb @ c4) + np.einsum('ijk,i->jk', - nb_F, (g4 - singb * c4) / cosgb)\
+                                + np.einsum('i,ijk->jk', - nb / cosgb, g4_F) + np.einsum('i,ijk->jk', tangb * nb, c4_F)
+
+        tau1_G = np.einsum('ijAB,i->jAB', g1_G / cosga - tanga * c1_G, - na)
+        tau2_G = np.einsum('ijAB,i->jAB', g2_G / cosga - tanga * c2_G, - na)
+        tau3_G = np.einsum('ijAB,i->jAB', g3_G / cosgb - tangb * c3_G, - nb)
+        tau4_G = np.einsum('ijAB,i->jAB', g4_G / cosgb - tangb * c4_G, - nb)
+
+        tau1_F_G = np.einsum('jA,kBC->jAkBC', ga_F , tau1_G * tanga + np.einsum('i,ijAB->jAB', na, c1_G)) \
+                    + np.einsum('ijA,ikBC->jAkBC', - na_F, g1_G / cosga- tanga * c1_G) \
+                        + np.einsum('i,ijAkBC->jAkBC', - na / cosga, g1_F_G) \
+                        + np.einsum('i,ijAkBC->jAkBC', tanga * na, c1_F_G)
+        tau2_F_G = np.einsum('jA,kBC->jAkBC', ga_F , tau2_G * tanga + np.einsum('i,ijAB->jAB', na, c2_G)) \
+                    + np.einsum('ijA,ikBC->jAkBC', - na_F, g2_G / cosga- tanga * c2_G) \
+                        + np.einsum('i,ijAkBC->jAkBC', - na / cosga, g2_F_G) \
+                        + np.einsum('i,ijAkBC->jAkBC', tanga * na, c2_F_G)
+        tau3_F_G = np.einsum('jA,kBC->jAkBC', gb_F , tau3_G * tangb + np.einsum('i,ijAB->jAB', nb, c3_G)) \
+                    + np.einsum('ijA,ikBC->jAkBC', - nb_F, g3_G / cosgb- tangb * c3_G) \
+                        + np.einsum('i,ijAkBC->jAkBC', - nb / cosgb, g3_F_G) \
+                        + np.einsum('i,ijAkBC->jAkBC', tangb * nb, c3_F_G)
+        tau4_F_G = np.einsum('jA,kBC->jAkBC', gb_F , tau4_G * tangb + np.einsum('i,ijAB->jAB', nb, c4_G)) \
+                    + np.einsum('ijA,ikBC->jAkBC', - nb_F, g4_G / cosgb- tangb * c4_G) \
+                        + np.einsum('i,ijAkBC->jAkBC', - nb / cosgb, g4_F_G) \
+                        + np.einsum('i,ijAkBC->jAkBC', tangb * nb, c4_F_G)
+
+        Pt1_G = self.Kt * tau1 * tau1_F_G + np.einsum('jA,kBC->jAkBC', self.Kt * tau1_F, tau1_G)
+        Pt2_G = self.Kt * tau2 * tau2_F_G + np.einsum('jA,kBC->jAkBC', self.Kt * tau2_F, tau2_G)
+        Pt3_G = self.Kt * tau3 * tau3_F_G + np.einsum('jA,kBC->jAkBC', self.Kt * tau3_F, tau3_G)
+        Pt4_G = self.Kt * tau4 * tau4_F_G + np.einsum('jA,kBC->jAkBC', self.Kt * tau4_F, tau4_G)
+
+        Pt_G = Pt1_G + Pt2_G + Pt3_G + Pt4_G
+
+        # num = Numerical_derivative(\
+        # lambda G: self.g(F, G)[0], order=2)._X(G)
+        # print(np.linalg.norm(num - g1_G))
+        # print('a')
+
+        # num = Numerical_derivative(\
+        # lambda F: - na @ (self.g(F, G)[0] - singa * self.c(F, G)[0]) / cosga, order=2)._X(F)
+        # print(np.linalg.norm(num - tau1_F))
+        # print('a')
+
+        return Pn_G + Pg_G + Pt_G
 
     def bbP_F(self, F, G):
+        # layer a
+        d1 = F @ self.D1
+        d2 = F @ self.D2
+        rho1 = norm3(d1)
+        rho2 = norm3(d2)
+        e1 = d1 / rho1
+        e2 = d2 / rho2
+        e1xe2 = cross3(e1, e2)
+        cosga = norm3(e1xe2)
+        singa = e1 @ e2
+        tanga = singa / cosga
+        na = e1xe2 / cosga
+        m1 = cross3(na, e1)
+        m2 = cross3(na, e2)
+        c1 = np.einsum('ijk,j,k->i', G, self.D1, self.D1) / rho1
+        c2 = np.einsum('ijk,j,k->i', G, self.D2, self.D2) / rho2
+        g1 = np.einsum('ijk,j,k->i', G, self.D2, self.D1) / rho2
+        g2 = np.einsum('ijk,j,k->i', G, self.D1, self.D2) / rho1
+
+        # layer b
+        d3 = F @ self.D3
+        d4 = F @ self.D4
+        rho3 = norm3(d3)
+        rho4 = norm3(d4)
+        e3 = d3 / rho3
+        e4 = d4 / rho4
+        e3xe4 = cross3(e3, e4)
+        cosgb = norm3(e3xe4)
+        singb = e3 @ e4
+        tangb = singb / cosgb
+        nb = e3xe4 / cosgb
+        m3 = cross3(nb, e3)
+        m4 = cross3(nb, e4)
+        c3 = np.einsum('ijk,j,k->i', G, self.D3, self.D3) / rho3
+        c4 = np.einsum('ijk,j,k->i', G, self.D4, self.D4) / rho4
+        g3 = np.einsum('ijk,j,k->i', G, self.D4, self.D3) / rho4
+        g4 = np.einsum('ijk,j,k->i', G, self.D3, self.D4) / rho3
+
+        rho1_F = np.outer(e1, self.D1)
+        rho2_F = np.outer(e2, self.D2)
+        rho3_F = np.outer(e3, self.D3)
+        rho4_F = np.outer(e4, self.D4)
+
+        e1_F = np.einsum('ij,k->ijk', self.I3, self.D1) / rho1 \
+            - np.einsum('i,j,k->ijk', e1,  e1, self.D1) / rho1
+        e2_F = np.einsum('ij,k->ijk', self.I3, self.D2) / rho2 \
+            - np.einsum('i,j,k->ijk', e2,  e2, self.D2) / rho2
+        e3_F = np.einsum('ij,k->ijk', self.I3, self.D3) / rho3 \
+            - np.einsum('i,j,k->ijk', e3,  e3, self.D3) / rho3
+        e4_F = np.einsum('ij,k->ijk', self.I3, self.D4) / rho4 \
+            - np.einsum('i,j,k->ijk', e4,  e4, self.D4) / rho4
+
+        e_F = e1_F, e2_F, e3_F, e4_F
+
+        ga_F = np.outer(m1, self.D1) / rho1 - \
+            np.outer(m2, self.D2) / rho2
+
+        gb_F = np.outer(m3, self.D3) / rho3 - \
+            np.outer(m4, self.D4) / rho4
+
+        m1_F = np.einsum('i,jk->ijk', tanga * m1 - e1, ga_F) \
+            + e2_F / cosga - tanga * e1_F
+        m2_F = np.einsum('i,jk->ijk', tanga * m2 + e2, ga_F) \
+            - e1_F / cosga + tanga * e2_F
+        m3_F = np.einsum('i,jk->ijk', tangb * m3 - e3, gb_F) \
+            + e4_F / cosgb - tangb * e3_F
+        m4_F = np.einsum('i,jk->ijk', tangb * m4 + e4, gb_F) \
+            - e3_F / cosgb + tangb * e4_F
+
+        na_F = np.einsum('i,jk->ijk', tanga * na, ga_F) \
+            + np.cross(e1_F, e2 / cosga, axis=0)  \
+            - np.cross(e2_F, e1 / cosga, axis=0)
+        nb_F = np.einsum('i,jk->ijk', tangb * nb, gb_F) \
+            + np.cross(e3_F, e4 / cosgb, axis=0)  \
+            - np.cross(e4_F, e3 / cosgb, axis=0)
+
+        c1_F = - np.einsum('i,j,A->ijA', c1, e1, self.D1 / rho1) 
+        c2_F = - np.einsum('i,j,A->ijA', c2, e2, self.D2 / rho2) 
+        c3_F = - np.einsum('i,j,A->ijA', c3, e3, self.D3 / rho3) 
+        c4_F = - np.einsum('i,j,A->ijA', c4, e4, self.D4 / rho4) 
+        g1_F = - np.einsum('i,j,A->ijA', g1, e2, self.D2 / rho2) 
+        g2_F = - np.einsum('i,j,A->ijA', g2, e1, self.D1 / rho1) 
+        g3_F = - np.einsum('i,j,A->ijA', g3, e4, self.D4 / rho4) 
+        g4_F = - np.einsum('i,j,A->ijA', g4, e3, self.D3 / rho3) 
+
+        kg1_F = np.einsum('ijA,i->jA', na_F, c1) + np.einsum('ijA,i->jA', c1_F, na)
+        kg2_F = np.einsum('ijA,i->jA', na_F, c2) + np.einsum('ijA,i->jA', c2_F, na)
+        kg3_F = np.einsum('ijA,i->jA', nb_F, c3) + np.einsum('ijA,i->jA', c3_F, nb)
+        kg4_F = np.einsum('ijA,i->jA', nb_F, c4) + np.einsum('ijA,i->jA', c4_F, nb)
+
+        bbPg1_F = np.einsum('kC,j,A,B->jABkC', kg1_F, na, self.D1, self.D1 * self.Kg / rho1) \
+                    + np.einsum('ikC,A,B->iABkC', na_F, self.D1, self.D1 * (na @ c1) * self.Kg / rho1) \
+                    - np.einsum('kC,j,A,B->jABkC', rho1_F, na, self.D1, self.D1 * (na @ c1) * self.Kg / rho1**2)
+        bbPg2_F = np.einsum('kC,j,A,B->jABkC', kg2_F, na, self.D2, self.D2 * self.Kg / rho2) \
+                    + np.einsum('ikC,A,B->iABkC', na_F, self.D2, self.D2 * (na @ c2) * self.Kg / rho2) \
+                    - np.einsum('kC,j,A,B->jABkC', rho2_F, na, self.D2, self.D2 * (na @ c2) * self.Kg / rho2**2)
+        bbPg3_F = np.einsum('kC,j,A,B->jABkC', kg3_F, nb, self.D3, self.D3 * self.Kg / rho3) \
+                    + np.einsum('ikC,A,B->iABkC', nb_F, self.D3, self.D3 * (nb @ c3) * self.Kg / rho3) \
+                    - np.einsum('kC,j,A,B->jABkC', rho3_F, nb, self.D3, self.D3 * (nb @ c3) * self.Kg / rho3**2)
+        bbPg4_F = np.einsum('kC,j,A,B->jABkC', kg4_F, nb, self.D4, self.D4 * self.Kg / rho4) \
+                    + np.einsum('ikC,A,B->iABkC', nb_F, self.D4, self.D4 * (nb @ c4) * self.Kg / rho4) \
+                    - np.einsum('kC,j,A,B->jABkC', rho4_F, nb, self.D4, self.D4 * (nb @ c4) * self.Kg / rho4**2)
+
+        bbPg_F = bbPg1_F + bbPg2_F + bbPg3_F + bbPg4_F
+
+        tau1 = - na @ (g1 - singa * c1) / cosga
+        tau2 = - na @ (g2 - singa * c2) / cosga
+        tau3 = - nb @ (g3 - singb * c3) / cosgb
+        tau4 = - nb @ (g4 - singb * c4) / cosgb
+
+        tau1_F = ga_F * (tau1 * tanga + na @ c1) + np.einsum('ijA,i->jA', - na_F, (g1 - singa * c1) / cosga)\
+                                + np.einsum('i,ijA->jA', - na / cosga, g1_F) + np.einsum('i,ijA->jA', tanga * na, c1_F)
+        tau2_F = ga_F * (tau2 * tanga + na @ c2) + np.einsum('ijk,i->jk', - na_F, (g2 - singa * c2) / cosga)\
+                                + np.einsum('i,ijk->jk', - na / cosga, g2_F) + np.einsum('i,ijk->jk', tanga * na, c2_F)
+        tau3_F = gb_F * (tau3 * tangb + nb @ c3) + np.einsum('ijk,i->jk', - nb_F, (g3 - singb * c3) / cosgb)\
+                                + np.einsum('i,ijk->jk', - nb / cosgb, g3_F) + np.einsum('i,ijk->jk', tangb * nb, c3_F)
+        tau4_F = gb_F * (tau4 * tangb + nb @ c4) + np.einsum('ijk,i->jk', - nb_F, (g4 - singb * c4) / cosgb)\
+                                + np.einsum('i,ijk->jk', - nb / cosgb, g4_F) + np.einsum('i,ijk->jk', tangb * nb, c4_F)
+
+        bbPt1_F = np.einsum('i,A,B,kC->iABkC', na, self.D1, self.D1 * (self.Kt / rho1) , \
+                    tau1_F * tanga + ga_F * (tau1 / cosga**2) - rho1_F * (tau1 * tanga / rho1)) \
+                        + np.einsum('ikC,A,B->iABkC', na_F, self.D1, self.D1 * (self.Kt * tau1 * tanga / rho1)) \
+                  - np.einsum('i,A,B,kC->iABkC', na, self.D2, self.D1 * (self.Kt / (rho2 * cosga)), \
+                    tau1_F + ga_F * tau1 * tanga - rho2_F * (tau1 / rho2)) \
+                        - np.einsum('ikC,A,B->iABkC', na_F, self.D2, self.D1 * (self.Kt * tau1 / (rho2 * cosga)))  
+        bbPt2_F = np.einsum('i,A,B,kC->iABkC', na, self.D2, self.D2 * (self.Kt / rho2) , \
+                    tau2_F * tanga + ga_F * (tau2 / cosga**2) - rho2_F * (tau2 * tanga / rho2)) \
+                        + np.einsum('ikC,A,B->iABkC', na_F, self.D2, self.D2 * (self.Kt * tau2 * tanga / rho2)) \
+                  - np.einsum('i,A,B,kC->iABkC', na, self.D1, self.D2 * (self.Kt / (rho1 * cosga)), \
+                    tau2_F + ga_F * tau2 * tanga - rho1_F * (tau2 / rho1)) \
+                        - np.einsum('ikC,A,B->iABkC', na_F, self.D1, self.D2 * (self.Kt * tau2 / (rho1 * cosga))) 
+        bbPt3_F = np.einsum('i,A,B,kC->iABkC', nb, self.D3, self.D3 * (self.Kt / rho3) , \
+                    tau3_F * tangb + gb_F * (tau3 / cosgb**2) - rho3_F * (tau3 * tangb / rho3)) \
+                        + np.einsum('ikC,A,B->iABkC', nb_F, self.D3, self.D3 * (self.Kt * tau3 * tangb / rho3)) \
+                  - np.einsum('i,A,B,kC->iABkC', nb, self.D4, self.D3 * (self.Kt / (rho4 * cosgb)), \
+                    tau3_F + gb_F * tau3 * tangb - rho4_F * (tau3 / rho4)) \
+                        - np.einsum('ikC,A,B->iABkC', nb_F, self.D4, self.D3 * (self.Kt * tau3 / (rho4 * cosgb))) 
+        bbPt4_F = np.einsum('i,A,B,kC->iABkC', nb, self.D4, self.D4 * (self.Kt / rho4) , \
+                    tau4_F * tangb + gb_F * (tau4 / cosgb**2) - rho4_F * (tau4 * tangb / rho4)) \
+                        + np.einsum('ikC,A,B->iABkC', nb_F, self.D4, self.D4 * (self.Kt * tau4 * tangb / rho4)) \
+                  - np.einsum('i,A,B,kC->iABkC', nb, self.D3, self.D4 * (self.Kt / (rho3 * cosgb)), \
+                    tau4_F + gb_F * tau4 * tangb - rho3_F * (tau4 / rho3)) \
+                        - np.einsum('ikC,A,B->iABkC', nb_F, self.D3, self.D4 * (self.Kt * tau4 / (rho3 * cosgb))) 
+
+        bbPt_F = bbPt1_F + bbPt2_F + bbPt3_F + bbPt4_F
+
+        kn1_F = np.einsum('ijA,i->jA', m1_F, c1) + np.einsum('ijA,i->jA', c1_F, m1)
+        kn2_F = np.einsum('ijA,i->jA', m2_F, c2) + np.einsum('ijA,i->jA', c2_F, m2)
+        kn3_F = np.einsum('ijA,i->jA', m3_F, c3) + np.einsum('ijA,i->jA', c3_F, m3)
+        kn4_F = np.einsum('ijA,i->jA', m4_F, c4) + np.einsum('ijA,i->jA', c4_F, m4)
+       
+        bbPn1_F = np.einsum('kC,j,A,B->jABkC', kn1_F, m1, self.D1, self.D1 * self.Kn / rho1) \
+                    + np.einsum('ikC,A,B->iABkC', m1_F, self.D1, self.D1 * (m1 @ c1) * self.Kn / rho1) \
+                    - np.einsum('kC,j,A,B->jABkC', rho1_F, m1, self.D1, self.D1 * (m1 @ c1) * self.Kn / rho1**2)
+        bbPn2_F = np.einsum('kC,j,A,B->jABkC', kn2_F, m2, self.D2, self.D2 * self.Kn / rho2) \
+                    + np.einsum('ikC,A,B->iABkC', m2_F, self.D2, self.D2 * (m2 @ c2) * self.Kn / rho2) \
+                    - np.einsum('kC,j,A,B->jABkC', rho2_F, m2, self.D2, self.D2 * (m2 @ c2) * self.Kn / rho2**2)
+        bbPn3_F = np.einsum('kC,j,A,B->jABkC', kn3_F, m3, self.D3, self.D3 * self.Kn / rho3) \
+                    + np.einsum('ikC,A,B->iABkC', m3_F, self.D3, self.D3 * (m3 @ c3) * self.Kn / rho3) \
+                    - np.einsum('kC,j,A,B->jABkC', rho3_F, m3, self.D3, self.D3 * (m3 @ c3) * self.Kn / rho3**2)
+        bbPn4_F = np.einsum('kC,j,A,B->jABkC', kn4_F, m4, self.D4, self.D4 * self.Kn / rho4) \
+                    + np.einsum('ikC,A,B->iABkC', m4_F, self.D4, self.D4 * (m4 @ c4) * self.Kn / rho4) \
+                    - np.einsum('kC,j,A,B->jABkC', rho4_F, m4, self.D4, self.D4 * (m4 @ c4) * self.Kn / rho4**2)
+
+        bbPn_F = bbPn1_F + bbPn2_F + bbPn3_F + bbPn4_F
+
+        return bbPn_F + bbPg_F + bbPt_F
+
+    def bbP_F_num(self, F, G):
         bbP_F_num = Numerical_derivative(
             lambda F: self.bbP(F, G), order=num_order)._X(F)
         return bbP_F_num
 
     def bbP_G(self, F, G):
+        # layer a
+        d1 = F @ self.D1
+        d2 = F @ self.D2
+        rho1 = norm3(d1)
+        rho2 = norm3(d2)
+        e1 = d1 / rho1
+        e2 = d2 / rho2
+        e1xe2 = cross3(e1, e2)
+        cosga = norm3(e1xe2)
+        singa = e1 @ e2
+        tanga = singa / cosga
+        na = e1xe2 / cosga
+        m1 = cross3(na, e1)
+        m2 = cross3(na, e2)
+        c1 = np.einsum('ijk,j,k->i', G, self.D1, self.D1) / rho1
+        c2 = np.einsum('ijk,j,k->i', G, self.D2, self.D2) / rho2
+        g1 = np.einsum('ijk,j,k->i', G, self.D2, self.D1) / rho2
+        g2 = np.einsum('ijk,j,k->i', G, self.D1, self.D2) / rho1
+
+        # layer b
+        d3 = F @ self.D3
+        d4 = F @ self.D4
+        rho3 = norm3(d3)
+        rho4 = norm3(d4)
+        e3 = d3 / rho3
+        e4 = d4 / rho4
+        e3xe4 = cross3(e3, e4)
+        cosgb = norm3(e3xe4)
+        singb = e3 @ e4
+        tangb = singb / cosgb
+        nb = e3xe4 / cosgb
+        m3 = cross3(nb, e3)
+        m4 = cross3(nb, e4)
+        c3 = np.einsum('ijk,j,k->i', G, self.D3, self.D3) / rho3
+        c4 = np.einsum('ijk,j,k->i', G, self.D4, self.D4) / rho4
+        g3 = np.einsum('ijk,j,k->i', G, self.D4, self.D3) / rho4
+        g4 = np.einsum('ijk,j,k->i', G, self.D3, self.D4) / rho3
+
+        c1_G = np.einsum('ij,A,B->ijAB', self.I3, self.D1, self.D1 / rho1)
+        c2_G = np.einsum('ij,A,B->ijAB', self.I3, self.D2, self.D2 / rho2)
+        c3_G = np.einsum('ij,A,B->ijAB', self.I3, self.D3, self.D3 / rho3)
+        c4_G = np.einsum('ij,A,B->ijAB', self.I3, self.D4, self.D4 / rho4)
+
+        g1_G = np.einsum('ij,A,B->ijAB', self.I3, self.D2, self.D1 / rho2)
+        g2_G = np.einsum('ij,A,B->ijAB', self.I3, self.D1, self.D2 / rho1)
+        g3_G = np.einsum('ij,A,B->ijAB', self.I3, self.D4, self.D3 / rho4)
+        g4_G = np.einsum('ij,A,B->ijAB', self.I3, self.D3, self.D4 / rho3)
+
+        # normal bending
+        bbPn1_G = np.einsum('i,ikCD,j,A,B->jABkCD', m1, c1_G, m1, self.D1, self.D1 * self.Kn / rho1)
+        bbPn2_G = np.einsum('i,ikCD,j,A,B->jABkCD', m2, c2_G, m2, self.D2, self.D2 * self.Kn / rho2)
+        bbPn3_G = np.einsum('i,ikCD,j,A,B->jABkCD', m3, c3_G, m3, self.D3, self.D3 * self.Kn / rho3)
+        bbPn4_G = np.einsum('i,ikCD,j,A,B->jABkCD', m4, c4_G, m4, self.D4, self.D4 * self.Kn / rho4)
+
+        bbPn_G = bbPn1_G + bbPn2_G + bbPn3_G + bbPn4_G
+
+        # geodesic bending
+        bbPg1_G = np.einsum('i,ikCD,j,A,B->jABkCD', na, c1_G, na, self.D1, self.D1 * self.Kg / rho1)
+        bbPg2_G = np.einsum('i,ikCD,j,A,B->jABkCD', na, c2_G, na, self.D2, self.D2 * self.Kg / rho2)
+        bbPg3_G = np.einsum('i,ikCD,j,A,B->jABkCD', nb, c3_G, nb, self.D3, self.D3 * self.Kg / rho3)
+        bbPg4_G = np.einsum('i,ikCD,j,A,B->jABkCD', nb, c4_G, nb, self.D4, self.D4 * self.Kg / rho4)
+
+        bbPg_G = bbPg1_G + bbPg2_G + bbPg3_G + bbPg4_G
+
+        # torsion
+        bbPt1_G = np.einsum('i,ikCD,j,A,B->jABkCD', - na * tanga / cosga, g1_G - singa * c1_G, na, self.D1, self.D1 * self.Kt / rho1) \
+                    + np.einsum('i,ikCD,j,A,B->jABkCD', na / cosga**2, g1_G - singa * c1_G, na, self.D2, self.D1 * self.Kt / rho2)
+        bbPt2_G = np.einsum('i,ikCD,j,A,B->jABkCD', - na * tanga / cosga, g2_G - singa * c2_G, na, self.D2, self.D2 * self.Kt / rho2) \
+                    + np.einsum('i,ikCD,j,A,B->jABkCD', na / cosga**2, g2_G - singa * c2_G, na, self.D1, self.D2 * self.Kt / rho1)
+        bbPt3_G = np.einsum('i,ikCD,j,A,B->jABkCD', - nb * tangb / cosgb, g3_G - singb * c3_G, nb, self.D3, self.D3 * self.Kt / rho3) \
+                    + np.einsum('i,ikCD,j,A,B->jABkCD', nb / cosgb**2, g3_G - singb * c3_G, nb, self.D4, self.D3 * self.Kt / rho4)
+        bbPt4_G = np.einsum('i,ikCD,j,A,B->jABkCD', - nb * tangb / cosgb, g4_G - singb * c4_G, nb, self.D4, self.D4 * self.Kt / rho4) \
+                    + np.einsum('i,ikCD,j,A,B->jABkCD', nb / cosgb**2, g4_G - singb * c4_G, nb, self.D3, self.D4 * self.Kt / rho3)
+
+        bbPt_G = bbPt1_G + bbPt2_G + bbPt3_G + bbPt4_G
+
+        return bbPn_G + bbPg_G + bbPt_G
+
+    def bbP_G_num(self, F, G):
         bbP_G_num = Numerical_derivative(
             lambda G: self.bbP(F, G), order=num_order)._X(G)
         # bbP_G_num = np.zeros((3,3,3,3,3,3))
@@ -1360,6 +1828,11 @@ class Pantobox_beam_network():
                         + np.outer(kn3*Pn3D3 + kn4*Pn4D3, self.D3)) \
             + np.outer(kn3*Pn3D4 + kn4*Pn4D4, self.D4)
 
+        # num = Numerical_derivative(\
+        # lambda G: self.c_F(F, G), order=2)._X(G)
+        # print(np.linalg.norm(num - c_F_G))
+        # print('a')
+
         return Pn
 
     def Wg(self, F, G):
@@ -1477,7 +1950,7 @@ class Pantobox_beam_network():
         Pg4 = self.Kg * kg4 * \
             (np.outer(Pg4D3, self.D3) + np.outer(Pg4D4, self.D4))
 
-        return Pg1 + Pg2 + Pg3 + Pg4
+        return Pg1  + Pg2 + Pg3 + Pg4
 
     def Wt(self, F, G):
         # torisonl energy density
@@ -1781,6 +2254,9 @@ class Pantobox_beam_network():
         P_F_num = Numerical_derivative(lambda F: P(F, G), order=2)._X(F)
         return P_F_num
 
+    def P_G_num(self, F, G, P=P):
+        P_G_num = Numerical_derivative(lambda G: P(F, G), order=2)._X(G)
+        return P_G_num
 
 def verify_derivatives():
     mat = Pantobox_beam_network(1, 1, 1, 1, 1, 1)
@@ -1790,10 +2266,10 @@ def verify_derivatives():
     # mat.var(F, G)
     # Pe = mat.Pe(F, G)
     # Pe_num = mat.Pe_num(F, G)
-    P1 = mat.P_F_alt(F, G)
-    P1_num = mat.P_F_num(F, G, P=mat.Pg)
+    P1 = mat.bbP_F(F, G)
+    P1_num = mat.bbP_F_num(F, G)
     error = np.linalg.norm(P1 - P1_num)
-    print("%s\n\n%s" % (P1, P1_num))
+    print("%s\n\n%s" % (P1[0,0,0], P1_num[0,0,0]))
     # print(P1 - P1_num)
     print("%s" % error)
 
@@ -1804,9 +2280,10 @@ def speed_test():
     F = np.random.rand(3, 3)
     G = np.random.rand(3, 3, 3)
     t0 = time.time()
-    P1 = mat.P_num(F, G, W=mat.Pg)
+    # P1 = mat.P_G_num(F, G, P=mat.P)
+    P1 = mat.P_G(F, G)
     t1 = time.time()
-    P2 = mat.P_F_alt(F, G)
+    P2 = mat.P_G_alt(F, G)
     t2 = time.time()
     print(t1-t0, t2-t1)
 

@@ -25,7 +25,7 @@ def save_solution(sol, filename):
 def test_cube():
 
     file_name = pathlib.Path(__file__).stem
-    file_path = pathlib.Path(__file__).parent / 'results' / f"{file_name}_cube_2" / file_name
+    file_path = pathlib.Path(__file__).parent / 'results' / f"{file_name}_cube_3x3x9" / file_name
     file_path.parent.mkdir(parents=True, exist_ok=True)
     export_path = file_path.parent / 'sol'
 
@@ -46,13 +46,6 @@ def test_cube():
     knot_vectors = (Xi, Eta, Zeta)
     
     mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=2, basis='B-spline', nq_n=3)
-
-    # reference configuration is a cube
-    L = 20/3
-    B = 20/3
-    H = 20.0
-    cube_shape = (L, B, H)
-    Z = cube(cube_shape, mesh, Greville=False)
 
     # material model
     l = 0.7
@@ -105,7 +98,7 @@ def test_cube():
             cDOF134 = np.concatenate((cDOF1, cDOF3, cDOF4,))
             cDOF = np.concatenate((cDOF134, cDOF2))
             b1 = lambda t: Z[cDOF134]
-            b2 = lambda t: Z[cDOF2] + t * 5.0
+            b2 = lambda t: Z[cDOF2] + t * 1.0
             b = lambda t: np.concatenate((b1(t), b2(t)))
             # cDOF = mesh.surface_qDOF[4].ravel()
             # b = lambda t: Z[cDOF]
@@ -159,7 +152,7 @@ def test_cube():
 
     if Statics:
     # static solver
-        n_load_steps = 20
+        n_load_steps = 10
         tol = 1.0e-5
         max_iter = 10
         solver = Newton(model, n_load_steps=n_load_steps, tol=tol, max_iter=max_iter)
@@ -172,10 +165,19 @@ def test_cube():
 
 
     if save_sol:
+
+        # import cProfile, pstats
+        # pr = cProfile.Profile()
+        # pr.enable()
         sol = solver.solve()
-        # export solution object
-        # if not os.path.exists(export_dir):
-        #     os.makedirs(export_dir)
+        # pr.disable()
+
+        # sortby = 'cumulative'
+        # ps = pstats.Stats(pr).sort_stats(sortby)
+        # ps.print_stats(0.1) # print only first 10% of the list
+            # export solution object
+            # if not os.path.exists(export_dir):
+            #     os.makedirs(export_dir)
         save_solution(sol, str(export_path))
     else:
         sol = pickle.load( open(str(export_path), 'rb') )
