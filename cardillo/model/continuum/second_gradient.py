@@ -109,12 +109,19 @@ class Second_gradient():
             point_data.update({"F": F_vtk, "G": G_vtk})
 
             # field data vtk export
+            # TODO: get export field from material
             point_data_fields = {
                 # "C": lambda F: F.T @ F,
                 "J": lambda F, G: np.array([self.determinant(F)]),
                 "P": lambda F, G: self.mat.P(F, G),
                 # "S": lambda F: self.mat.S(F),
                 "W": lambda F, G: self.mat.W(F, G),
+                "We": lambda F, G: self.mat.We(F, G),
+                "Ws": lambda F, G: self.mat.Ws(F, G),
+                "Wc": lambda F, G: self.mat.Wc(F, G),
+                "Wg": lambda F, G: self.mat.Wg(F, G),
+                "Wn": lambda F, G: self.mat.Wn(F, G),
+                "Wt": lambda F, G: self.mat.Wt(F, G),
             }
 
             for name, fun in point_data_fields.items():

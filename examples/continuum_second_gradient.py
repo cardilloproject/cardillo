@@ -25,7 +25,7 @@ def save_solution(sol, filename):
 def test_cube():
 
     file_name = pathlib.Path(__file__).stem
-    file_path = pathlib.Path(__file__).parent / 'results' / f"{file_name}_cube_3x3x9" / file_name
+    file_path = pathlib.Path(__file__).parent / 'results' / f"{file_name}_cube_1x1x2" / file_name
     file_path.parent.mkdir(parents=True, exist_ok=True)
     export_path = file_path.parent / 'sol'
 
@@ -37,8 +37,8 @@ def test_cube():
 
     # build mesh
     degrees = (3, 3, 3)
-    QP_shape = (3, 3, 3)
-    element_shape = (3, 3, 9)
+    QP_shape = (2, 2, 2)
+    element_shape = (1, 1, 2)
 
     Xi = Knot_vector(degrees[0], element_shape[0])
     Eta = Knot_vector(degrees[1], element_shape[1])
@@ -48,7 +48,7 @@ def test_cube():
     mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=2, basis='B-spline', nq_n=3)
 
     # material model
-    l = 0.7
+    l = 7.0
     L = 3 * l
     a = 1.0
     b = 1.0
@@ -69,13 +69,14 @@ def test_cube():
     Kc = Ks
     ns = 6
     H = (ns*2-1)*hp+2*ns*a
-    nsH = ns/H
+    # nsH = ns/H
+    nsH = 1
 
     # reference configuration is a cube
-    L = l
-    B = l
-    H = 3 * l
-    cube_shape = (L, B, H)
+    W = L * 10
+    B = L * 10
+    H = 3 * L * 10
+    cube_shape = (W, B, H)
     Z = cube(cube_shape, mesh, Greville=False)
 
     mat = Pantobox_beam_network(Ke*nsH, Ks*nsH, Kg*nsH, Kn*nsH, Kt*nsH, Kc*nsH)
@@ -98,7 +99,7 @@ def test_cube():
             cDOF134 = np.concatenate((cDOF1, cDOF3, cDOF4,))
             cDOF = np.concatenate((cDOF134, cDOF2))
             b1 = lambda t: Z[cDOF134]
-            b2 = lambda t: Z[cDOF2] + t * 1.0
+            b2 = lambda t: Z[cDOF2] + t * 10.0
             b = lambda t: np.concatenate((b1(t), b2(t)))
             # cDOF = mesh.surface_qDOF[4].ravel()
             # b = lambda t: Z[cDOF]
