@@ -923,29 +923,29 @@ class Pantobox_beam_network():
         nb = e3xe4 / cosgb
         m3 = cross3(nb, e3)
         m4 = cross3(nb, e4)
-        c3 = np.einsum('ijk,j,k->i', G, self.D3, self.D3) / rho3
-        c4 = np.einsum('ijk,j,k->i', G, self.D4, self.D4) / rho4
-        g3 = np.einsum('ijk,j,k->i', G, self.D4, self.D3) / rho4
-        g4 = np.einsum('ijk,j,k->i', G, self.D3, self.D4) / rho3
+        c3 = np.einsum('ijk,j,k->i', G, self.D3, self.D3) / rho3 
+        c4 = np.einsum('ijk,j,k->i', G, self.D4, self.D4) / rho4 
+        g3 = np.einsum('ijk,j,k->i', G, self.D4, self.D3) / rho4 
+        g4 = np.einsum('ijk,j,k->i', G, self.D3, self.D4) / rho3 
 
         rho1_F = np.outer(e1, self.D1)
         rho2_F = np.outer(e2, self.D2)
         rho3_F = np.outer(e3, self.D3)
         rho4_F = np.outer(e4, self.D4)
 
-        e1_F = np.einsum('ij,k->ijk', self.I3, self.D1) / rho1 \
-            - np.einsum('i,j,k->ijk', e1,  e1, self.D1) / rho1
-        e2_F = np.einsum('ij,k->ijk', self.I3, self.D2) / rho2 \
-            - np.einsum('i,j,k->ijk', e2,  e2, self.D2) / rho2
-        e3_F = np.einsum('ij,k->ijk', self.I3, self.D3) / rho3 \
-            - np.einsum('i,j,k->ijk', e3,  e3, self.D3) / rho3
-        e4_F = np.einsum('ij,k->ijk', self.I3, self.D4) / rho4 \
-            - np.einsum('i,j,k->ijk', e4,  e4, self.D4) / rho4
+        e1_F = np.einsum('ij,k->ijk', self.I3, self.D1) / rho1  \
+            - np.einsum('i,j,k->ijk', e1,  e1, self.D1) / rho1 
+        e2_F = np.einsum('ij,k->ijk', self.I3, self.D2) / rho2  \
+            - np.einsum('i,j,k->ijk', e2,  e2, self.D2) / rho2 
+        e3_F = np.einsum('ij,k->ijk', self.I3, self.D3) / rho3  \
+            - np.einsum('i,j,k->ijk', e3,  e3, self.D3) / rho3 
+        e4_F = np.einsum('ij,k->ijk', self.I3, self.D4) / rho4  \
+            - np.einsum('i,j,k->ijk', e4,  e4, self.D4) / rho4 
 
         e_F = e1_F, e2_F, e3_F, e4_F
 
-        ga_F = np.outer(m1, self.D1) / rho1 - \
-            np.outer(m2, self.D2) / rho2
+        ga_F = np.outer(m1, self.D1 / rho1)  - \
+            np.outer(m2, self.D2 / rho2) 
 
         gb_F = np.outer(m3, self.D3) / rho3 - \
             np.outer(m4, self.D4) / rho4
@@ -966,14 +966,14 @@ class Pantobox_beam_network():
             + np.cross(e3_F, e4 / cosgb, axis=0)  \
             - np.cross(e4_F, e3 / cosgb, axis=0)
 
-        c1_F = - np.einsum('i,j,A->ijA', c1, e1, self.D1 / rho1)
-        c2_F = - np.einsum('i,j,A->ijA', c2, e2, self.D2 / rho2)
-        c3_F = - np.einsum('i,j,A->ijA', c3, e3, self.D3 / rho3)
-        c4_F = - np.einsum('i,j,A->ijA', c4, e4, self.D4 / rho4)
-        g1_F = - np.einsum('i,j,A->ijA', g1, e2, self.D2 / rho2)
-        g2_F = - np.einsum('i,j,A->ijA', g2, e1, self.D1 / rho1)
-        g3_F = - np.einsum('i,j,A->ijA', g3, e4, self.D4 / rho4)
-        g4_F = - np.einsum('i,j,A->ijA', g4, e3, self.D3 / rho3)
+        c1_F = - np.einsum('i,j,A->ijA', c1, e1, self.D1) / rho1
+        c2_F = - np.einsum('i,j,A->ijA', c2, e2, self.D2) / rho2
+        c3_F = - np.einsum('i,j,A->ijA', c3, e3, self.D3) / rho3
+        c4_F = - np.einsum('i,j,A->ijA', c4, e4, self.D4) / rho4
+        g1_F = - np.einsum('i,j,A->ijA', g1, e2, self.D2) / rho2
+        g2_F = - np.einsum('i,j,A->ijA', g2, e1, self.D1) / rho1
+        g3_F = - np.einsum('i,j,A->ijA', g3, e4, self.D4) / rho4
+        g4_F = - np.einsum('i,j,A->ijA', g4, e3, self.D3) / rho3
 
         kg1_F = np.einsum('ijA,i->jA', na_F, c1) + \
             np.einsum('ijA,i->jA', c1_F, na)
@@ -2375,12 +2375,12 @@ class Pantobox_beam_network():
         bbP_num = Numerical_derivative(lambda G: W(F, G), order=2)._X(G)
         return bbP_num
 
-    def P_F_num(self, F, G, P=P):
-        P_F_num = Numerical_derivative(lambda F: P(F, G), order=2)._X(F)
+    def P_F_num(self, F, G):
+        P_F_num = Numerical_derivative(lambda F: self.P(F, G), order=2)._X(F)
         return P_F_num
 
-    def P_G_num(self, F, G, P=P):
-        P_G_num = Numerical_derivative(lambda G: P(F, G), order=2)._X(G)
+    def P_G_num(self, F, G):
+        P_G_num = Numerical_derivative(lambda G: self.P(F, G), order=2)._X(G)
         return P_G_num
 
     def bbP_F_num(self, F, G):
@@ -2416,14 +2416,24 @@ def speed_test():
     mat = Pantobox_beam_network(1, 1, 1, 1, 1, 1)
     F = np.random.rand(3, 3)
     G = np.random.rand(3, 3, 3)
-    t0 = time.time()
-    # P1 = mat.P_G_num(F, G, P=mat.P)
-    P1 = mat.P_F(F, G)
-    t1 = time.time()
-    P2 = mat.P_F_num(F, G)
-    t2 = time.time()
-    print(t1-t0, t2-t1)
+    # t0 = time.time()
+    # # P1 = mat.P_G_num(F, G, P=mat.P)
+    # P1 = mat.P_F(F, G)
+    # t1 = time.time()
+    # P2 = mat.P_F_num(F, G)
+    # t2 = time.time()
+    # print(t1-t0, t2-t1)
+    # t0 = time.time()
+    # for i in range(100000):
+    #     #np.outer(np.array([1,2, 3]), np.array([4, 5, 6]) ) / 10
+    #     np.einsum('i,j,k->ijk',np.array([4.1, 5.2, 6.3]),np.array([4.4, 5.5, 6.6]),np.array([4.7, 5.8, 6.9])) / 10.7
+    # t1 = time.time()
+    # for i in range(100000):
+    #     # np.outer(np.array([1,2, 3]), np.array([4, 5, 6]) / 10)
+    #     np.einsum('i,j,k->ijk',np.array([4.1, 5.2, 6.3]),np.array([4.4, 5.5, 6.6]),np.array([4.7, 5.8, 6.9])/ 10.7) 
+    # t2 = time.time()
 
+    # print(t1-t0, t2-t1)
 
 if __name__ == "__main__":
    #  verify_derivatives()

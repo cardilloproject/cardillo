@@ -25,7 +25,7 @@ def save_solution(sol, filename):
 def test_cube():
 
     file_name = pathlib.Path(__file__).stem
-    file_path = pathlib.Path(__file__).parent / 'results' / f"{file_name}_cube_1x1x2" / file_name
+    file_path = pathlib.Path(__file__).parent / 'results' / f"{file_name}_cube_2x2x4" / file_name
     file_path.parent.mkdir(parents=True, exist_ok=True)
     export_path = file_path.parent / 'sol'
 
@@ -34,11 +34,13 @@ def test_cube():
     Statics = True
     Incompressible = False
     save_sol = True
+    torsion = True
+    tension = False
 
     # build mesh
     degrees = (3, 3, 3)
-    QP_shape = (2, 2, 2)
-    element_shape = (1, 1, 2)
+    QP_shape = (3, 3, 3)
+    element_shape = (2, 2, 4)
 
     Xi = Knot_vector(degrees[0], element_shape[0])
     Eta = Knot_vector(degrees[1], element_shape[1])
@@ -48,11 +50,11 @@ def test_cube():
     mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=2, basis='B-spline', nq_n=3)
 
     # material model
-    l = 7.0
+    l = 70.0
     L = 3 * l
     a = 1.0
     b = 1.0
-    Yb = 70.0
+    Yb = 0.5
     Gb = Yb / (2 + 0.8)
     rp = 0.45
     hp = 1.5
@@ -65,17 +67,18 @@ def test_cube():
     Kg = Yb*Jg/p
     Kn = Yb*Jn/p
     Kt = Gb*Jt/p
-    Ks = 1.0*0
+    Kp = Gb*np.pi*rp**4/2/hp/p**2
+    Ks = Kp
     Kc = Ks
     ns = 6
     H = (ns*2-1)*hp+2*ns*a
-    # nsH = ns/H
-    nsH = 1
+    nsH = ns/H
+    # nsH = 1
 
     # reference configuration is a cube
-    W = L * 10
-    B = L * 10
-    H = 3 * L * 10
+    W = L/3
+    B = L/3
+    H = L
     cube_shape = (W, B, H)
     Z = cube(cube_shape, mesh, Greville=False)
 
@@ -92,15 +95,38 @@ def test_cube():
             b = lambda t: Z[cDOF]
 
         else:
-            cDOF1 = mesh.surface_qDOF[4].ravel()
-            cDOF3 = mesh.surface_qDOF[5][0]
-            cDOF4 = mesh.surface_qDOF[5][1]
-            cDOF2 = mesh.surface_qDOF[5][2]
-            cDOF134 = np.concatenate((cDOF1, cDOF3, cDOF4,))
-            cDOF = np.concatenate((cDOF134, cDOF2))
-            b1 = lambda t: Z[cDOF134]
-            b2 = lambda t: Z[cDOF2] + t * 10.0
-            b = lambda t: np.concatenate((b1(t), b2(t)))
+            if tension:
+                cDOF1 = mesh.surface_qDOF[4].ravel()
+                cDOF3 = mesh.surface_qDOF[5][0]
+                cDOF4 = mesh.surface_qDOF[5][1]
+                cDOF2 = mesh.surface_qDOF[5][2]
+                cDOF134 = np.concatenate((cDOF1, cDOF3, cDOF4,))
+                cDOF = np.concatenate((cDOF134, cDOF2))
+                b1 = lambda t: Z[cDOF134]
+                b2 = lambda t: Z[cDOF2] + t * 100.0
+                b = lambda t: np.concatenate((b1(t), b2(t)))
+            if torsion:
+                cDOF1 = mesh.surface_qDOF[4].ravel()
+                cDOF3 = mesh.surface_qDOF[5][0]
+                cDOF4 = mesh.surface_qDOF[5][1]
+                cDOF2 = mesh.surface_qDOF[5].ravel()
+                cDOF = np.concatenate((cDOF1, cDOF2))
+
+                def bt(t, phi0=0.5*np.pi, h=100):
+                    cDOF2_xyz = cDOF2.reshape(3, -1).T
+                    out = np.zeros_like(Z)
+
+                    phi = t * phi0
+                    R = A_IK_basic_z(phi)
+
+                    th = t * np.array([0, 0, h])
+                    for DOF in cDOF2_xyz:
+                        out[DOF] = R @ (Z[DOF] - [W/2, B/2, 0]) + th + [W/2, B/2, 0]
+                    
+                    return out[cDOF2]
+
+                b1 = lambda t: Z[cDOF1]
+                b = lambda t: np.concatenate((b1(t), bt(t)))
             # cDOF = mesh.surface_qDOF[4].ravel()
             # b = lambda t: Z[cDOF]
     else:
@@ -153,7 +179,7 @@ def test_cube():
 
     if Statics:
     # static solver
-        n_load_steps = 10
+        n_load_steps = 20
         tol = 1.0e-5
         max_iter = 10
         solver = Newton(model, n_load_steps=n_load_steps, tol=tol, max_iter=max_iter)

@@ -1,7 +1,6 @@
 import numpy as np
 import meshio
 import os
-
 from cardillo.model.model import Model
 from cardillo.utility.coo import Coo
 from cardillo.math.numerical_derivative import Numerical_derivative
@@ -248,7 +247,16 @@ class Second_gradient():
             N_XX = self.N_XX[el, i]
             w_J0 = self.w_J0[el, i]
 
-            # Piola-Lagrange stress tensor
+            # F_eli = 0
+            # G_eli = 0
+            # for a in range(self.nn_el):
+            #     G_eli += np.einsum('i,jk->ijk', ze[self.nodalDOF[a]], self.N_XX[el, i, a])
+            #     F_eli += np.outer(ze[self.nodalDOF[a]], self.N_X[el, i, a])
+
+            # P = self.mat.P(F_eli, G_eli)
+            # bbP = self.mat.bbP(F_eli, G_eli)
+
+            #  Piola-Lagrange stress tensor
             P = self.mat.P(self.F[el, i], self.G[el, i])
             # Piola-Lagrange double-stress tensor
             bbP = self.mat.bbP(self.F[el, i], self.G[el, i])
@@ -301,18 +309,23 @@ class Second_gradient():
 
             # internal element stiffness matrix
             for a in range(self.nn_el):
-                Ke[self.nodalDOF[a]] += np.einsum('ijk,j->ik', P_q, -N_X[a] ) * w_J0 \
-                                        + np.einsum('ijkl,jk->il', bbP_q, -N_XX[a] ) * w_J0
+                Ke[self.nodalDOF[a]] += np.einsum('ijk,j->ik', P_q, -N_X[a] * w_J0)  \
+                                        + np.einsum('ijkl,jk->il', bbP_q, -N_XX[a] * w_J0) 
 
         return Ke
 
     def f_pot_q(self, t, q, coo):
+        # import time
         z = self.z(t, q)
         for el in range(self.nel):
+            # t0 = time.time()
             Ke = self.f_pot_q_el(z[self.elDOF[el]], el)
-            # Ke_num = Numerical_derivative(lambda t, z: self.f_pot_el(z, el), order=2)._x(t, z[self.elDOF[el]])
+            # t1 = time.time()
+            # Ke_num = Numerical_derivative(lambda z: self.f_pot_el(z, el), order=2)._X(z[self.elDOF[el]])
+            # t2 = time.time()
             # error = np.linalg.norm(Ke - Ke_num)
             # print(f'error: {error}')
+            # print('time%s,%s:' %(t1-t0, t2-t1))
 
             # sparse assemble element internal stiffness matrix
             elfDOF = self.elfDOF[el]
