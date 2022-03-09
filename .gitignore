@@ -1,7 +1,3 @@
-*
-!/**/
-!*.*
-
 # vs code settings
 .vscode
 
@@ -9,20 +5,10 @@
 __pycache__/
 *.py[cod]
 
-# executable
-*.exe
-
-# static libraries
-*.a
-*.lib
-
-# shared libraries
-*.so
-*.dll
-
 # documentation build
-doc/build
-doc/source/generated
+docs/_build
+build/
+public/
 
 # pytest
 .pytest_cache/
@@ -37,34 +23,14 @@ eggs/
 # ignore log files
 *.log
 
-# git bash error
-bash.exe.stackdump
-
-# results files
-*_results
-
-# python packaging
-build
-dist
-
 # numpy arrays
 *.npy
 *.npz
-
-# dasslc input/ output files
-*.dat
-*.save
 
 # videos
 *.mp4
 *.avi
 
-# vtk files
-*.vtu
-*.vtk
-*.pvd
-
-# visual code environment file
-*.env
-# pickle and dill files
-*.dill
+# jupyter cache
+.jupyter_cache/
+jupyter_execute/
