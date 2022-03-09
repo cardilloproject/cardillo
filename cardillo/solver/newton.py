@@ -10,10 +10,6 @@ from scipy.sparse import csr_matrix
 from scipy.sparse import bmat
 from tqdm import tqdm
 
-# raise exceptions for MatrixRankWarning of scipy
-from scipy.sparse.linalg.dsolve.linsolve import MatrixRankWarning as MatrixRankWarning
-import warnings
-warnings.filterwarnings('error', category=MatrixRankWarning)
 
 class Newton():
     r"""Force and displacement controlled Newton--Raphson method. This solver is used to find a static solution for a mechanical system.
