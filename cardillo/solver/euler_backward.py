@@ -230,7 +230,7 @@ class Euler_backward():
 
             pbar.set_description(f't: {tk1:0.2e}; Newton: {n_iter}/{self.newton_max_iter} iterations; error: {error:0.2e}')
 
-            qk1, uk1 = self.model.solver_step_callback(tk1, qk1, uk1)
+            qk1, uk1 = self.model.step_callback(tk1, qk1, uk1)
 
             q.append(qk1)
             u.append(uk1)
@@ -506,7 +506,7 @@ class Euler_backward_singular():
 
             pbar.set_description(f't: {tk1:0.2e}; Newton: {n_iter}/{self.newton_max_iter} iterations; error: {error:0.2e}')
 
-            qk1, uk1 = self.model.solver_step_callback(tk1, qk1, uk1)
+            qk1, uk1 = self.model.step_callback(tk1, qk1, uk1)
 
             q.append(qk1)
             u.append(uk1)

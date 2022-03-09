@@ -283,7 +283,7 @@ class Generalized_alpha_4_index3():
             qk1, uk1 = self.update(ak1, store=True)
 
             # modify converged quantities
-            qk1, uk1 = self.model.solver_step_callback(tk1, qk1, uk1)
+            qk1, uk1 = self.model.step_callback(tk1, qk1, uk1)
 
             # store soltuion fields
             t.append(tk1)
@@ -679,7 +679,7 @@ class Generalized_alpha_4_index1():
             qk1, uk1 = self.update(ak1, Uk1, Qk1, store=True)
 
             # modify converged quantities
-            qk1, uk1 = self.model.solver_step_callback(tk1, qk1, uk1)
+            qk1, uk1 = self.model.step_callback(tk1, qk1, uk1)
 
             # store soltuion fields
             t.append(tk1)
@@ -1018,7 +1018,7 @@ class Generalized_alpha_4_singular_index3():
             qk1, uk1 = self.update(ak1, store=True)
 
             # modify converged quantities
-            qk1, uk1 = self.model.solver_step_callback(tk1, qk1, uk1)
+            qk1, uk1 = self.model.step_callback(tk1, qk1, uk1)
 
             # store soltuion fields
             t.append(tk1)
@@ -1587,7 +1587,7 @@ class Generalized_alpha_4_singular_index1():
             qk1, uk1 = self.update(ak1, Uk1, Qk1, store=True)
 
             # modify converged quantities
-            qk1, uk1 = self.model.solver_step_callback(tk1, qk1, uk1)
+            qk1, uk1 = self.model.step_callback(tk1, qk1, uk1)
 
             # store soltuion fields
             t.append(tk1)
@@ -1995,7 +1995,7 @@ class Generalized_alpha_4_singular_index1():
 #             qk1, uk1 = self.update(ak1, Uk1, Qk1, Vk1, store=True)
 
 #             # modify converged quantities
-#             qk1, uk1 = self.model.solver_step_callback(tk1, qk1, uk1)
+#             qk1, uk1 = self.model.step_callback(tk1, qk1, uk1)
 
 #             # store soltuion fields
 #             t.append(tk1)

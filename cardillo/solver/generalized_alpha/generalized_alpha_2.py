@@ -577,7 +577,7 @@ class Generalized_alpha_2():
             la_Tbark1 = (self.alpha_f * self.la_Tk + (1-self.alpha_f) * la_Tk1  - self.alpha_m * self.la_Tbark) / (1 - self.alpha_m)
             P_T_ = La_Tk1 + dt * ((1-self.gamma) * self.la_Tbark + self.gamma * la_Tbark1)
 
-            qk1, uk1 = self.model.solver_step_callback(tk1, qk1, uk1)
+            qk1, uk1 = self.model.step_callback(tk1, qk1, uk1)
 
             t.append(tk1)
             q.append(qk1)

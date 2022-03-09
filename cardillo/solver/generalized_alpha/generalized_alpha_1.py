@@ -275,7 +275,7 @@ class Generalized_alpha_1():
             if step_accepted:
                 # print(f'n_rejected = {n_rejected_iter}')
                 # print(f'dt = {self.dt}')
-                qk1, uk1 = self.model.solver_step_callback(tk1, self.qk1, self.uk1)
+                qk1, uk1 = self.model.step_callback(tk1, self.qk1, self.uk1)
                 # inspired by https://github.com/scipy/scipy/blob/maintenance/1.4.x/scipy/integrate/_ivp/ivp.py#L616
                 if t_eval is not None:
                     t_eval_i_new = np.searchsorted(t_eval, tk1, side='right')

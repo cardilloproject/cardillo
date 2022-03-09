@@ -270,7 +270,7 @@ class Moreau():
             if not converged:
                 raise RuntimeError(f'internal iteration not converged after {j+1} iterations with error: {error:.5e}')
 
-            qk1, uk1 = self.model.solver_step_callback(tk1, qk1, uk1)
+            qk1, uk1 = self.model.step_callback(tk1, qk1, uk1)
 
             q.append(qk1)
             u.append(uk1)
@@ -446,7 +446,7 @@ class Moreau_sym():
             if not converged:
                 raise RuntimeError(f'internal iteration not converged after {j+1} iterations with error: {error:.5e}')
 
-            qk1, uk1 = self.model.solver_step_callback(tk1, qk1, uk1)
+            qk1, uk1 = self.model.step_callback(tk1, qk1, uk1)
 
             q.append(qk1)
             u.append(uk1)

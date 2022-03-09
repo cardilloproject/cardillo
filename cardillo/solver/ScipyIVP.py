@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.sparse.linalg import spsolve
-from scipy.sparse import bmat, csr_matrix
+from scipy.sparse import bmat, csr_matrix, csc_matrix
 from scipy.integrate import solve_ivp
 from tqdm import tqdm
 
@@ -50,7 +50,7 @@ class ScipyIVP:
 
         q = x[: self.nq]
         u = x[self.nq :]
-        q, u = self.model.solver_step_callback(t, q, u)
+        q, u = self.model.step_callback(t, q, u)
 
         M = self.model.M(t, q)
         h = self.model.h(t, q, u)
@@ -75,21 +75,21 @@ class ScipyIVP:
         return dx
 
     def la_g_la_gamma(self, t, q, u):
-        W_g = self.model.W_g(t, q, scipy_matrix=csr_matrix)
-        W_gamma = self.model.W_gamma(t, q, scipy_matrix=csr_matrix)
+        W_g = self.model.W_g(t, q, scipy_matrix=csc_matrix)
+        W_gamma = self.model.W_gamma(t, q, scipy_matrix=csc_matrix)
         zeta_g = self.model.zeta_g(t, q, u)
         zeta_gamma = self.model.zeta_gamma(t, q, u)
-        M = self.model.M(t, q, scipy_matrix=csr_matrix)
+        M = self.model.M(t, q, scipy_matrix=csc_matrix)
         h = self.model.h(t, q, u)
 
         if self.nla_g > 0:
             MW_g = spsolve(M, W_g)
         else:
-            MW_g = csr_matrix((self.nu, self.nla_g))
+            MW_g = csc_matrix((self.nu, self.nla_g))
         if self.nla_gamma > 0:
             MW_gamma = spsolve(M, W_gamma)
         else:
-            MW_gamma = csr_matrix((self.nu, self.nla_gamma))
+            MW_gamma = csc_matrix((self.nu, self.nla_gamma))
         Mh = spsolve(M, h)
         
         # fmt: off

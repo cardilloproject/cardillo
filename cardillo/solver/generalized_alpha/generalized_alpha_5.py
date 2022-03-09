@@ -299,7 +299,7 @@ class Generalized_alpha_5():
             a_beta = (0.5 - self.beta) * self.a_bark + self.beta * a_bark1
             qk1 = self.qk + dt * self.model.q_dot(self.tk, self.qk, self.uk) + dt2 * self.model.q_ddot(self.tk, self.qk, self.uk, a_beta) + Bk @ Qk1 + kappa_ck1 @ self.c_qk
 
-            qk1, uk1 = self.model.solver_step_callback(tk1, qk1, uk1)
+            qk1, uk1 = self.model.step_callback(tk1, qk1, uk1)
 
             t.append(tk1)
             q.append(qk1)
@@ -934,7 +934,7 @@ class Generalized_alpha_5__():
             la_Tbark1 = (self.alpha_f * self.la_Tk + (1-self.alpha_f) * la_Tk1  - self.alpha_m * self.la_Tbark) / (1 - self.alpha_m)
             P_T_ = La_Tk1 + dt * ((1-self.gamma) * self.la_Tbark + self.gamma * la_Tbark1)
 
-            qk1, uk1 = self.model.solver_step_callback(tk1, qk1, uk1)
+            qk1, uk1 = self.model.step_callback(tk1, qk1, uk1)
 
             t.append(tk1)
             q.append(qk1)

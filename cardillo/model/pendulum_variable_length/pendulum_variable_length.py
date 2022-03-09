@@ -50,7 +50,7 @@ class Pendulum_variable_length():
     def B(self, t, q, coo):
         coo.extend(self.B_dense(t, q), (self.qDOF, self.uDOF))
 
-    def solver_step_callback(self, t, q, u):
+    def step_callback(self, t, q, u):
         l_act = np.linalg.norm(q)
         q = self.l(t) / l_act * q
         return q, u

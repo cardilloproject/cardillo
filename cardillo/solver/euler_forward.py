@@ -40,7 +40,7 @@ class Euler_forward():
         for tk in self.t[:-1]:
             tk1, qk1, uk1 = self.step(tk, qk, uk)
 
-            qk1, uk1 = self.model.solver_step_callback(tk1, qk1, uk1)
+            qk1, uk1 = self.model.step_callback(tk1, qk1, uk1)
 
             q.append(qk1)
             u.append(uk1)

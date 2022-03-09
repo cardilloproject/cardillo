@@ -180,7 +180,7 @@ class Generalized_alpha_index3_panto():
             qk1, uk1 = self.update(ak1, store=True)
 
             # modify converged quantities
-            qk1, uk1 = self.model.solver_step_callback(tk1, qk1, uk1)
+            qk1, uk1 = self.model.step_callback(tk1, qk1, uk1)
 
             # store soltuion fields
             t.append(tk1)

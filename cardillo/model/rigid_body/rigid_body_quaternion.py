@@ -96,7 +96,7 @@ class Rigid_body_quaternion():
 
         return q_ddot
 
-    def solver_step_callback(self, t, q, u):
+    def step_callback(self, t, q, u):
         q[3:] = q[3:] / norm4(q[3:])
         return q, u
 

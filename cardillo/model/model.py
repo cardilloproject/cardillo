@@ -1,7 +1,6 @@
 import numpy as np
 from cardillo.utility.coo import Coo
-from scipy.sparse import coo_matrix, csr_matrix
-from scipy.sparse.linalg import spsolve 
+from scipy.sparse import coo_matrix
 
 properties = []
 properties.extend(['M', 'Mu_q'])
@@ -15,11 +14,11 @@ properties.extend(['q_dot', 'q_dot_q', 'B'])
 properties.extend(['g', 'g_q', 'g_t'])
 properties.extend(['gamma', 'gamma_q', 'gamma_u'])
 
-properties.extend(['g_N'])#, 'g_N_q', 'g_N_t'])
+properties.extend(['g_N'])
 
-properties.extend(['gamma_T'])
+properties.extend(['gamma_F'])
 
-properties.extend(['assembler_callback', 'solver_step_callback'])
+properties.extend(['assembler_callback', 'step_callback'])
 
 properties.extend(['c'])
 
@@ -41,7 +40,7 @@ class Model(object):
         self.nla_g = 0
         self.nla_gamma = 0
         self.nla_N = 0
-        self.nla_T = 0
+        self.nla_F = 0
 
         self.contributions = []
 
@@ -77,19 +76,19 @@ class Model(object):
         self.nla_gamma = 0
         self.nka_c = 0
         self.nla_N = 0
-        self.nla_T = 0
+        self.nla_F = 0
         q0 = []
         u0 = []
         la_g0 = []
         la_gamma0 = []
         ka_c0 = []
         la_N0 = []
-        la_T0 = []
+        la_F0 = []
         e_N = []
-        e_T = []
+        e_F = []
         mu = []
         prox_r_N = []
-        prox_r_T = []
+        prox_r_F = []
         NT_connectivity = []
         N_has_friction = []
         Ncontr_connectivity = []
@@ -143,14 +142,14 @@ class Model(object):
                 e_N.extend(contr.e_N.tolist())
                 prox_r_N.extend(contr.prox_r_N.tolist())
                 # tangential
-                contr.la_TDOF = np.arange(0, contr.nla_T) + self.nla_T
-                self.nla_T += contr.nla_T
-                la_T0.extend(contr.la_T0.tolist())
-                e_T.extend(contr.e_T.tolist())
-                prox_r_T.extend(contr.prox_r_T.tolist())
+                contr.la_FDOF = np.arange(0, contr.nla_F) + self.nla_F
+                self.nla_F += contr.nla_F
+                la_F0.extend(contr.la_F0.tolist())
+                e_F.extend(contr.e_F.tolist())
+                prox_r_F.extend(contr.prox_r_F.tolist())
                 mu.extend(contr.mu.tolist())
                 for i in range(contr.nla_N):
-                    NT_connectivity.append(contr.la_TDOF[np.array(contr.NT_connectivity[i], dtype=int)].tolist())
+                    NT_connectivity.append(contr.la_FDOF[np.array(contr.NT_connectivity[i], dtype=int)].tolist())
                     N_has_friction.append(True if contr.NT_connectivity[i] else False)
                     Ncontr_connectivity.append(n_laN_contr)
                 n_laN_contr += 1
@@ -161,14 +160,14 @@ class Model(object):
         self.la_gamma0 = np.array(la_gamma0)
         self.ka_c0 = np.array(ka_c0)
         self.la_N0 = np.array(la_N0)
-        self.la_T0 = np.array(la_T0)
+        self.la_F0 = np.array(la_F0)
         self.NT_connectivity = NT_connectivity
         self.N_has_friction = np.array(N_has_friction, dtype=bool)
         self.Ncontr_connectivity = np.array(Ncontr_connectivity, dtype=int)
         self.e_N = np.array(e_N)
         self.prox_r_N = np.array(prox_r_N)
-        self.e_T = np.array(e_T)
-        self.prox_r_T = np.array(prox_r_T)
+        self.e_F = np.array(e_F)
+        self.prox_r_F = np.array(prox_r_F)
         self.mu = np.array(mu)
 
         # call assembler callback: call methods that require first an assembly of the system
@@ -177,10 +176,42 @@ class Model(object):
     def assembler_callback(self):
         for contr in self.__assembler_callback_contr:
             contr.assembler_callback()
+
+    #####################
+    # kinematic equations
+    #####################
+    def q_dot(self, t, q, u):
+        q_dot = np.zeros(self.nq)
+        for contr in self.__q_dot_contr:
+            q_dot[contr.qDOF] = contr.q_dot(t, q[contr.qDOF], u[contr.uDOF])
+        return q_dot
+
+    def q_dot_q(self, t, q, u, scipy_matrix=coo_matrix):
+        coo = Coo((self.nq, self.nq))
+        for contr in self.__q_dot_q_contr:
+            contr.q_dot_q(t, q[contr.qDOF], u[contr.uDOF], coo)
+        return coo.tosparse(scipy_matrix)
+
+    def B(self, t, q, scipy_matrix=coo_matrix):
+        coo = Coo((self.nq, self.nu))
+        for contr in self.__B_contr:
+            contr.B(t, q[contr.qDOF], coo)
+        return coo.tosparse(scipy_matrix)
+
+    def q_ddot(self, t, q, u, u_dot):
+        q_ddot = np.zeros(self.nq)
+        for contr in self.__q_dot_contr:
+            q_ddot[contr.qDOF] = contr.q_ddot(t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF])
+        return q_ddot
+
+    def step_callback(self, t, q, u):
+        for contr in self.__step_callback_contr:
+            q[contr.qDOF], u[contr.uDOF] = contr.step_callback(t, q[contr.qDOF], u[contr.uDOF])
+        return q, u
     
-    #====================
+    #####################
     # equations of motion
-    #====================
+    #####################
     def M(self, t, q, scipy_matrix=coo_matrix):
         coo = Coo((self.nu, self.nu))
         for contr in self.__M_contr:
@@ -270,41 +301,9 @@ class Model(object):
             contr.f_scaled_q(t, q[contr.qDOF], coo)
         return coo.tosparse(scipy_matrix)
 
-    #====================
-    # kinematic equations
-    #====================
-    def q_dot(self, t, q, u):
-        q_dot = np.zeros(self.nq)
-        for contr in self.__q_dot_contr:
-            q_dot[contr.qDOF] = contr.q_dot(t, q[contr.qDOF], u[contr.uDOF])
-        return q_dot
-
-    def q_dot_q(self, t, q, u, scipy_matrix=coo_matrix):
-        coo = Coo((self.nq, self.nq))
-        for contr in self.__q_dot_q_contr:
-            contr.q_dot_q(t, q[contr.qDOF], u[contr.uDOF], coo)
-        return coo.tosparse(scipy_matrix)
-
-    def B(self, t, q, scipy_matrix=coo_matrix):
-        coo = Coo((self.nq, self.nu))
-        for contr in self.__B_contr:
-            contr.B(t, q[contr.qDOF], coo)
-        return coo.tosparse(scipy_matrix)
-
-    def q_ddot(self, t, q, u, u_dot):
-        q_ddot = np.zeros(self.nq)
-        for contr in self.__q_dot_contr:
-            q_ddot[contr.qDOF] = contr.q_ddot(t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF])
-        return q_ddot
-
-    def solver_step_callback(self, t, q, u):
-        for contr in self.__solver_step_callback_contr:
-            q[contr.qDOF], u[contr.uDOF] = contr.solver_step_callback(t, q[contr.qDOF], u[contr.uDOF])
-        return q, u
-
-    #========================================
+    #########################################
     # bilateral constraints on position level
-    #========================================
+    #########################################
     def g(self, t, q):
         g = np.zeros(self.nla_g)
         for contr in self.__g_contr:
@@ -377,9 +376,9 @@ class Model(object):
     def zeta_g(self, t, q, u):
         return self.g_ddot(t, q, u, np.zeros(self.nu))
 
-    #========================================
+    #########################################
     # bilateral constraints on velocity level
-    #========================================
+    #########################################
     def gamma(self, t, q, u):
         gamma = np.zeros(self.nla_gamma)
         for contr in self.__gamma_contr:
@@ -394,12 +393,6 @@ class Model(object):
         for contr in self.__gamma_contr:
             gamma_dot[contr.la_gammaDOF] = contr.gamma_dot(t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF])
         return gamma_dot
-
-    # def gamma_dot(self, t, q, u, u_dot):
-    #     gamma_dot = np.zeros(self.nla_gamma)
-    #     gamma_dot += self.gamma_q(t, q, u) @ self.q_dot(t, q, u)
-    #     gamma_dot += self.gamma_u(t, q) @ u_dot
-    #     return gamma_dot
 
     def zeta_gamma(self, t, q, u):
         return self.gamma_dot(t, q, u, np.zeros(self.nu))
@@ -428,9 +421,9 @@ class Model(object):
             contr.Wla_gamma_q(t, q[contr.qDOF], la_gamma[contr.la_gammaDOF], coo)
         return coo.tosparse(scipy_matrix)
 
-    #========================================
+    #####################################################
     # stabilization conditions for the kinematic equation
-    #========================================
+    #####################################################
     def c(self, t, q):
         c = np.zeros(self.nka_c)
         for contr in self.__c_contr:
@@ -443,9 +436,9 @@ class Model(object):
             contr.c_q(t, q[contr.qDOF], coo)
         return coo.tosparse(scipy_matrix)
 
-    #========================================
-    # contacts in normal direction
-    #========================================
+    #################
+    # normal contacts
+    #################
     def g_N(self, t, q):
         g_N = np.zeros(self.nla_N)
         for contr in self.__g_N_contr:
@@ -516,82 +509,65 @@ class Model(object):
             contr.Wla_N_q(t, q[contr.qDOF], la_N[contr.la_NDOF], coo)
         return coo.tosparse(scipy_matrix)
 
-    #========================================
-    # contacts in tangential direction
-    #========================================
-    def gamma_T(self, t, q, u):
-        gamma_T = np.zeros(self.nla_T)
-        for contr in self.__gamma_T_contr:
-            gamma_T[contr.la_TDOF] = contr.gamma_T(t, q[contr.qDOF], u[contr.uDOF])
-        return gamma_T
+    #################
+    # friction
+    #################
+    def gamma_F(self, t, q, u):
+        gamma_F = np.zeros(self.nla_F)
+        for contr in self.__gamma_F_contr:
+            gamma_F[contr.la_FDOF] = contr.gamma_F(t, q[contr.qDOF], u[contr.uDOF])
+        return gamma_F
 
-    def gamma_T_dot(self, t, q, u, a):
-        gamma_T_dot = np.zeros(self.nla_T)
-        for contr in self.__gamma_T_contr:
-            gamma_T_dot[contr.la_TDOF] = contr.gamma_T_dot(t, q[contr.qDOF], u[contr.uDOF], a[contr.uDOF])
-        return gamma_T_dot
+    def gamma_F_dot(self, t, q, u, a):
+        gamma_F_dot = np.zeros(self.nla_F)
+        for contr in self.__gamma_F_contr:
+            gamma_F_dot[contr.la_FDOF] = contr.gamma_F_dot(t, q[contr.qDOF], u[contr.uDOF], a[contr.uDOF])
+        return gamma_F_dot
 
-    def xi_T(self, t, q, u_pre, u_post):
-        xi_T = np.zeros(self.nla_T)
-        for contr in self.__gamma_T_contr:
-            # TODO: dimension if subsystem has multiple contacts
-            xi_T[contr.la_TDOF] = contr.gamma_T(t, q[contr.qDOF], u_post[contr.uDOF]) + self.e_T[contr.la_NDOF] * contr.gamma_T(t, q[contr.qDOF], u_pre[contr.uDOF])
-        return xi_T
+    def xi_F(self, t, q, u_pre, u_post):
+        xi_F = np.zeros(self.nla_F)
+        for contr in self.__gamma_F_contr:
+            xi_F[contr.la_FDOF] = contr.gamma_F(t, q[contr.qDOF], u_post[contr.uDOF]) + self.e_F[contr.la_NDOF] * contr.gamma_F(t, q[contr.qDOF], u_pre[contr.uDOF])
+        return xi_F
 
-    def xi_T_q(self, t, q, u_pre, u_post, scipy_matrix=coo_matrix):
-        coo = Coo((self.nla_T, self.nq))
-        for contr in self.__gamma_T_contr:
-            contr.xi_T_q(t, q[contr.qDOF], u_pre[contr.uDOF], u_post[contr.uDOF], coo)
+    def xi_F_q(self, t, q, u_pre, u_post, scipy_matrix=coo_matrix):
+        coo = Coo((self.nla_F, self.nq))
+        for contr in self.__gamma_F_contr:
+            contr.xi_F_q(t, q[contr.qDOF], u_pre[contr.uDOF], u_post[contr.uDOF], coo)
         return coo.tosparse(scipy_matrix)
 
-    def gamma_T_q(self, t, q, u, scipy_matrix=coo_matrix):
-        coo = Coo((self.nla_T, self.nq))
-        for contr in self.__gamma_T_contr:
-            contr.gamma_T_q(t, q[contr.qDOF], u[contr.uDOF], coo)
+    def gamma_F_q(self, t, q, u, scipy_matrix=coo_matrix):
+        coo = Coo((self.nla_F, self.nq))
+        for contr in self.__gamma_F_contr:
+            contr.gamma_F_q(t, q[contr.qDOF], u[contr.uDOF], coo)
         return coo.tosparse(scipy_matrix)
 
-    def gamma_T_u(self, t, q, scipy_matrix=coo_matrix):
-        coo = Coo((self.nla_T, self.nu))
-        for contr in self.__gamma_T_contr:
-            contr.gamma_T_u(t, q[contr.qDOF], coo)
+    def gamma_F_u(self, t, q, scipy_matrix=coo_matrix):
+        coo = Coo((self.nla_F, self.nu))
+        for contr in self.__gamma_F_contr:
+            contr.gamma_F_u(t, q[contr.qDOF], coo)
         return coo.tosparse(scipy_matrix)
     
-    def gamma_T_dot_q(self, t, q, u, u_dot, scipy_matrix=coo_matrix):
-        coo = Coo((self.nla_T, self.nq))
-        for contr in self.__gamma_T_contr:
-            contr.gamma_T_dot_q(t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF], coo)
+    def gamma_F_dot_q(self, t, q, u, u_dot, scipy_matrix=coo_matrix):
+        coo = Coo((self.nla_F, self.nq))
+        for contr in self.__gamma_F_contr:
+            contr.gamma_F_dot_q(t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF], coo)
         return coo.tosparse(scipy_matrix)
 
-    def gamma_T_dot_u(self, t, q, u, u_dot, scipy_matrix=coo_matrix):
-        coo = Coo((self.nla_T, self.nu))
-        for contr in self.__gamma_T_contr:
-            contr.gamma_T_dot_u(t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF], coo)
+    def gamma_F_dot_u(self, t, q, u, u_dot, scipy_matrix=coo_matrix):
+        coo = Coo((self.nla_F, self.nu))
+        for contr in self.__gamma_F_contr:
+            contr.gamma_F_dot_u(t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF], coo)
         return coo.tosparse(scipy_matrix)
 
-    def W_T(self, t, q, scipy_matrix=coo_matrix):
-        coo = Coo((self.nu, self.nla_T))
-        for contr in self.__gamma_T_contr:
-            contr.W_T(t, q[contr.qDOF], coo)
+    def W_F(self, t, q, scipy_matrix=coo_matrix):
+        coo = Coo((self.nu, self.nla_F))
+        for contr in self.__gamma_F_contr:
+            contr.W_F(t, q[contr.qDOF], coo)
         return coo.tosparse(scipy_matrix)
 
-    def Wla_T_q(self, t, q, la_T, scipy_matrix=coo_matrix):
+    def Wla_F_q(self, t, q, la_F, scipy_matrix=coo_matrix):
         coo = Coo((self.nu, self.nq))
-        for contr in self.__gamma_T_contr:
-            contr.Wla_T_q(t, q[contr.qDOF], la_T[contr.la_TDOF], coo)
+        for contr in self.__gamma_F_contr:
+            contr.Wla_F_q(t, q[contr.qDOF], la_F[contr.la_FDOF], coo)
         return coo.tosparse(scipy_matrix)
-    #========================================
-    # contact force
-    #========================================
-    # def contact_force_fixpoint_update(self, t, q, u_pre, u_post, la_N, la_T, I_N=None):
-    #     la_N1 = np.zeros(self.nla_N)
-    #     la_T1 = np.zeros(self.nla_T)
-
-    #     if I_N is None:
-    #         contributions = self.__g_N_contr
-    #     else:
-    #         indices = np.unique(self.Ncontr_connectivity[I_N])
-    #         contributions = [self.__g_N_contr[i] for i in indices]
-
-    #     for contr in contributions:
-    #         la_N1[contr.la_NDOF], la_T1[contr.la_TDOF] = contr.contact_force_fixpoint_update(t, q[contr.qDOF], u_pre[contr.uDOF], u_post[contr.uDOF], la_N[contr.la_NDOF], la_T[contr.la_TDOF])
-    #     return la_N1, la_T1
