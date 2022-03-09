@@ -14,6 +14,60 @@ from cardillo.solver import ScipyIVP
 #                             GenAlphaFirstOrderVelocityGGL, MoreauTheta, Scipy_ivp, \
 #                             Euler_backward, GenAlphaFirstOrderPosition
 
+# class HeavyTop(Rigid_body_euler):
+#     def __init__(self, A, B, grav, r_OQ, q0=None, u0=None, la_g0=None):
+#         self.grav = grav
+#         self.r_OQ = r_OQ
+
+#         # initialize rigid body
+#         self.K_Theta_S = np.diag([A, A, B])
+#         super().__init__(m, self.K_Theta_S, axis="zxz", q0=q0, u0=u0)
+
+#         # gravity
+#         self.f_g = np.array([0, 0, -self.m * self.grav])
+
+#         self.nla_g = 3
+#         self.la_g0 = np.zeros(self.nla_g) if la_g0 is None else la_g0
+
+#     def assembler_callback(self):
+#         t0 = self.t0
+#         self.K_r_SQ = self.A_IK(t0, q0).T @ (self.r_OQ - self.r_OP(t0, q0))
+
+#     def f_pot(self, t, q):
+#         return self.f_g @ self.J_P(t, q)
+
+#     def f_pot_q(self, t, q, coo):
+#         dense = np.einsum("i,ijk->jk", self.f_g, self.J_P_q(t, q))
+#         coo.extend(dense, (self.uDOF, self.qDOF))
+
+#     def g(self, t, q):
+#         return self.r_OP(t, q, K_r_SP=self.K_r_SQ) - self.r_OQ
+
+#     def g_dot(self, t, q, u):
+#         return self.v_P(t, q, u, K_r_SP=self.K_r_SQ)
+
+#     def g_dot_u(self, t, q, coo):
+#         coo.extend(self.J_P(t, q, K_r_SP=self.K_r_SQ), (self.la_gDOF, self.qDOF))
+
+#     def g_ddot(self, t, q, u, u_dot):
+#         return self.a_P(t, q, u, u_dot, K_r_SP=self.K_r_SQ)
+
+#     def g_q_dense(self, t, q):
+#         return self.r_OP_q(t, q, K_r_SP=self.K_r_SQ)
+
+#     def g_q(self, t, q, coo):
+#         coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
+
+#     def W_g_dense(self, t, q):
+#         return self.J_P(t, q, K_r_SP=self.K_r_SQ).T
+
+#     def W_g(self, t, q, coo):
+#         coo.extend(self.W_g_dense(t, q), (self.uDOF, self.la_gDOF))
+
+#     def Wla_g_q(self, t, q, la_g, coo):
+#         dense = np.einsum("ijk,i->jk", self.J_P_q(t, q, K_r_SP=self.K_r_SQ), la_g)
+#         coo.extend(dense, (self.uDOF, self.qDOF))
+
 
 class HeavyTop():
     def __init__(self, m, l, A, B, grav, r_OQ, q0=None, u0=None, la_g0=None):

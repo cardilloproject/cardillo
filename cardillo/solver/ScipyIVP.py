@@ -71,7 +71,6 @@ class ScipyIVP:
         dx = np.zeros(self.nx)
         dx[: self.nq] = self.model.q_dot(t, q, u)
         dx[self.nq :] = ula[: self.nu]
-
         return dx
 
     def la_g_la_gamma(self, t, q, u):
@@ -83,11 +82,11 @@ class ScipyIVP:
         h = self.model.h(t, q, u)
 
         if self.nla_g > 0:
-            MW_g = spsolve(M, W_g)
+            MW_g = (spsolve(M, W_g)).reshape((self.nu, self.nla_g))
         else:
             MW_g = csc_matrix((self.nu, self.nla_g))
         if self.nla_gamma > 0:
-            MW_gamma = spsolve(M, W_gamma)
+            MW_gamma = (spsolve(M, W_gamma)).reshape((self.nu, self.nla_gamma))
         else:
             MW_gamma = csc_matrix((self.nu, self.nla_gamma))
         Mh = spsolve(M, h)
