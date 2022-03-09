@@ -1,5 +1,5 @@
 import numpy as np
-from cardillo.math.algebra import cross3, ax2skew, quat2mat, quat2mat_p, norm4, quat2rot, quat2rot_p
+from cardillo.math import norm, cross3, ax2skew, quat2mat, quat2mat_p, quat2rot, quat2rot_p
 
 class Rigid_body_quaternion():
     """Rigid body parametrized by center of mass in inertial system and unit quaternions for rotation.
@@ -97,7 +97,7 @@ class Rigid_body_quaternion():
         return q_ddot
 
     def step_callback(self, t, q, u):
-        q[3:] = q[3:] / norm4(q[3:])
+        q[3:] = q[3:] / norm(q[3:])
         return q, u
 
     def qDOF_P(self, frame_ID=None):

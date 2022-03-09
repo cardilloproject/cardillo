@@ -1,6 +1,38 @@
 import numpy as np
 
-class Numerical_derivative(object):
+
+def approx_fprime(x0, f, eps=1.0e-6, method="2-point"):
+    x0 = np.atleast_1d(x0)
+    f0 = np.atleast_1d(f(x0))
+
+    shape = f0.shape
+    m = len(x0)
+    grad = np.empty(shape + (m,))
+
+    h = np.diag(eps * np.ones_like(x0))
+    for i in range(m):
+        if method == "2-point":
+            x = x0 + h[i]
+            dx = x[i] - x0[i]  # Recompute dx as exactly representable number.
+            df = f(x) - f0
+        elif method == "3-point":
+            x1 = x0 + h[i]
+            x2 = x0 - h[i]
+            dx = x2[i] - x1[i]  # Recompute dx as exactly representable number.
+            df = f(x2) - f(x1)
+        elif method == "cs":
+            f1 = f(x0 + h[i] * 1.0j)
+            df = f1.imag
+            dx = h[i]
+        else:
+            raise RuntimeError('method "{method}" is not implemented!')
+
+        grad[..., i] = df / dx
+
+    return np.squeeze(grad)
+
+
+class Numerical_derivative:
     def __init__(self, residual, order=1):
         self.residual = residual
         self.order = order
@@ -19,7 +51,7 @@ class Numerical_derivative(object):
         R_x = Numerical_derivative(R, order=self.order)._x(0, x, eps=eps)
 
         Rshape = R_x.shape[:-1]
-        return R_x.reshape(Rshape+Xshape)
+        return R_x.reshape(Rshape + Xshape)
 
     def _x(self, t, x, y=None, eps=1.0e-6):
         # evaluate residual residual and vary first x
@@ -29,7 +61,7 @@ class Numerical_derivative(object):
             RPlus = self.residual(t, xPlus)
         else:
             RPlus = self.residual(t, xPlus, y)
-        
+
         nx = len(x)
         shapeR = RPlus.shape
         R_x = np.zeros(shapeR + (nx,))
@@ -45,13 +77,13 @@ class Numerical_derivative(object):
         else:
             # evaluate first residual at x[0] - eps
             xMinus = np.copy(x)
-            xMinus[0] -= eps    
+            xMinus[0] -= eps
             if y is None:
-                RMinus = self.residual(t, xMinus)   
+                RMinus = self.residual(t, xMinus)
             else:
                 RMinus = self.residual(t, xMinus, y)
             R_xi = np.squeeze(RPlus - RMinus) / (2 * eps)
-        R_x[... , 0] += R_xi
+        R_x[..., 0] += R_xi
 
         for i in range(1, nx):
             # forward differences
@@ -68,15 +100,15 @@ class Numerical_derivative(object):
                 R_xi = np.squeeze(RPlus - R) / eps
             else:
                 xMinus = np.copy(x)
-                xMinus[i] -= eps       
+                xMinus[i] -= eps
                 if y is None:
-                    RMinus = self.residual(t, xMinus)   
+                    RMinus = self.residual(t, xMinus)
                 else:
-                    RMinus = self.residual(t, xMinus, y)            
-                                        
+                    RMinus = self.residual(t, xMinus, y)
+
                 # compute central differences
                 R_xi = np.squeeze(RPlus - RMinus) / (2 * eps)
-            R_x[... , i] += R_xi
+            R_x[..., i] += R_xi
 
         return R_x
 
@@ -85,7 +117,7 @@ class Numerical_derivative(object):
         yPlus = np.copy(y)
         yPlus[0] += eps
         RPlus = self.residual(t, x, yPlus)
-        
+
         ny = len(y)
         shapeR = RPlus.shape
         R_y = np.zeros(shapeR + (ny,))
@@ -98,10 +130,10 @@ class Numerical_derivative(object):
         else:
             # evaluate first residual at x[0] - eps
             yMinus = np.copy(y)
-            yMinus[0] -= eps    
-            RMinus = self.residual(t, x, yMinus)   
+            yMinus[0] -= eps
+            RMinus = self.residual(t, x, yMinus)
             R_yi = np.squeeze(RPlus - RMinus) / (2 * eps)
-        R_y[... , 0] += R_yi
+        R_y[..., 0] += R_yi
 
         for i in range(1, ny):
             # forward differences
@@ -115,12 +147,12 @@ class Numerical_derivative(object):
                 R_yi = np.squeeze(RPlus - R) / eps
             else:
                 yMinus = np.copy(y)
-                yMinus[i] -= eps       
-                RMinus = self.residual(t, x, yMinus)            
-                                        
+                yMinus[i] -= eps
+                RMinus = self.residual(t, x, yMinus)
+
                 # compute central differences
                 R_yi = np.squeeze(RPlus - RMinus) / (2 * eps)
-            R_y[... , i] += R_yi
+            R_y[..., i] += R_yi
 
         return R_y
 
@@ -142,7 +174,7 @@ class Numerical_derivative(object):
                 return (RPlus - self.residual(t - eps, x)) / (2 * eps)
             else:
                 return (RPlus - self.residual(t - eps, x, y)) / (2 * eps)
-        
+
     def _tt(self, t, x, y=None, eps=1.0e-6):
         if y is None:
             R = self.residual(t, x)

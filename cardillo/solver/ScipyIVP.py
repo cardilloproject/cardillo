@@ -90,18 +90,20 @@ class ScipyIVP:
         else:
             MW_gamma = csc_matrix((self.nu, self.nla_gamma))
         Mh = spsolve(M, h)
-        
+
         # fmt: off
         G = bmat([[    W_g.T @ MW_g,     W_g.T @ MW_gamma], \
                   [W_gamma.T @ MW_g, W_gamma.T @ MW_gamma]], format="csc")
         # fmt: on
 
-        mu = np.concatenate((
-            zeta_g + W_g.T @ Mh,
-            zeta_gamma + W_gamma.T @ Mh,
-        ))
+        mu = np.concatenate(
+            (
+                zeta_g + W_g.T @ Mh,
+                zeta_gamma + W_gamma.T @ Mh,
+            )
+        )
         la = spsolve(G, -mu)
-        return la[:self.nla_g], la[self.nla_g:]
+        return la[: self.nla_g], la[self.nla_g :]
 
     def solve(self):
         sol = solve_ivp(

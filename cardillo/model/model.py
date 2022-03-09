@@ -89,7 +89,7 @@ class Model(object):
         mu = []
         prox_r_N = []
         prox_r_F = []
-        NT_connectivity = []
+        NF_connectivity = []
         N_has_friction = []
         Ncontr_connectivity = []
 
@@ -149,8 +149,8 @@ class Model(object):
                 prox_r_F.extend(contr.prox_r_F.tolist())
                 mu.extend(contr.mu.tolist())
                 for i in range(contr.nla_N):
-                    NT_connectivity.append(contr.la_FDOF[np.array(contr.NT_connectivity[i], dtype=int)].tolist())
-                    N_has_friction.append(True if contr.NT_connectivity[i] else False)
+                    NF_connectivity.append(contr.la_FDOF[np.array(contr.NF_connectivity[i], dtype=int)].tolist())
+                    N_has_friction.append(True if contr.NF_connectivity[i] else False)
                     Ncontr_connectivity.append(n_laN_contr)
                 n_laN_contr += 1
                 
@@ -161,7 +161,7 @@ class Model(object):
         self.ka_c0 = np.array(ka_c0)
         self.la_N0 = np.array(la_N0)
         self.la_F0 = np.array(la_F0)
-        self.NT_connectivity = NT_connectivity
+        self.NF_connectivity = NF_connectivity
         self.N_has_friction = np.array(N_has_friction, dtype=bool)
         self.Ncontr_connectivity = np.array(Ncontr_connectivity, dtype=int)
         self.e_N = np.array(e_N)

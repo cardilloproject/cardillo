@@ -1,7 +1,7 @@
 from ast import Num
 import numpy as np
 from cardillo.math.numerical_derivative import Numerical_derivative
-from cardillo.math.algebra import ax2skew, ax2skew_a, cross3, norm3, skew2ax
+from cardillo.math.algebra import ax2skew, ax2skew_a, cross3, skew2ax
 
 # TODO: enable construction with standard inertia tensor
 class Rigid_body_director():

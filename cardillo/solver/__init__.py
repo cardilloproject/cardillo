@@ -3,6 +3,7 @@ from .Solution import Solution, save_solution, load_solution
 
 # solver
 from .ScipyIVP import ScipyIVP
+from .Moreau import Moreau
 # from .euler_forward import Euler_forward
 # from .euler_backward import Euler_backward, Euler_backward_singular
 # from .moreau import Moreau, Moreau_sym

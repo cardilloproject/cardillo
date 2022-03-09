@@ -1,119 +1,67 @@
-from cardillo.math.numerical_derivative import Numerical_derivative
-from cardillo.solver import Solution
+from PyRod.math import approx_fprime
+from PyRod.solver.Solution import Solution
 
 import numpy as np
-from scipy.sparse.linalg import spsolve # SuperLU direct solver
-from scipy.sparse.linalg import splu # SuperLU direct solver/ umfpack if scikit-umfpack is installed
-from scipy.sparse.linalg import LinearOperator, spilu # incomplete LU preconditioner
-from scipy.sparse.linalg import bicgstab, cgs, gmres, lgmres, gcrotmk # iterative solvers
-from scipy.sparse import csr_matrix
-from scipy.sparse import bmat
+from scipy.sparse.linalg import spsolve
+from scipy.sparse import csr_matrix, bmat, lil_matrix
 from tqdm import tqdm
 
 
-class Newton():
-    r"""Force and displacement controlled Newton--Raphson method. This solver is used to find a static solution for a mechanical system.
+class Newton:
+    """Force and displacement controlled Newton-Raphson method. This solver
+    is used to find a static solution for a mechanical system. External forces
+    and bilateral constraint functions are incremented in each load step if
+    they depend on the time t. Thus, a force controlled Netwon-Raphson method
+    is obtained by constructing a time constant constraint function function.
+    On the other hand a displacement controlled Newton-Raphson method is
+    obtained by passing a constant external forces and time dependent
+    constraint functions.
 
-    Parameters
-    ----------
-    model : :class:`Model<cardillo.model>` or :class:`SparseModel<cardillo.model>`
-        Model or SparseModel object. Determines representation of matrix objects.
-    n_load_steps : int
-        number of load steps (ignored if load_steps is not None)
-    load_steps : numpy.ndarray
-        list of load steps within the interval :math:`[0,1]`. If initialized with *None*, ``load_steps = [1/n_load_steps, 2/n_load_steps,...,1]`` is used.
-    tol : float
-        error tolerance.
-    max_iter : int
-        maximum number of iterations.
-
-    Notes
-    -----
-    Let the following be given functions of the load step parameter (time) :math:`t`, generalized coordinates :math:`\mathbf{q}` and 
-    generalized velocity :math:`\mathbf{u}`.
-    
-    - :math:`\mathbf{f}^\mathrm{int}(t,\mathbf{q},\mathbf{u})` the internal forces of all bodies which constitute the mechanical system 
-    - :math:`\mathbf{f}^\mathrm{ext}(t,\mathbf{q},\mathbf{u})` the forces describing all force laws acting on the system
-    - :math:`\mathbf{g}(t,\mathbf{q})` the gap function describing the bilateral constraints
-    - :math:`\mathbf{W}^\textrm{T}=\frac{\partial\mathbf{g}}{\partial\mathbf{q}}` the generalized force directions of the constraints
-    
-    For every load step :math:`0\leq t_1\leq \dots \leq t_i \leq \dots \leq 1` the nonlinear equation 
-
-    .. math::
-
-        \begin{equation}
-        \mathbf{R}(\mathbf{q}_i,\mathbf{\lambda}_i) =
-        \begin{pmatrix}
-        \mathbf{f}^\mathrm{int}(0,\mathbf{q}_i,0) + \mathbf{f}^\mathrm{ext}(t_i,\mathbf{q}_i,0) + \mathbf{W}(t_i,\mathbf{q}_i)\mathbf{\lambda}_i\\
-        \mathbf{g}(t_i,\mathbf{q}_i)
-        \end{pmatrix} = 0
-        \end{equation}
-    
-    is solved for the generalized positions :math:`\mathbf{q}_i` and the constraint force vector :math:`\mathbf{\lambda}_i.` 
-    The solution is found using the Newton--Raphson method which is defined as follows:
-
-    The method starts with an initial guess :math:`(\mathbf{q}^0_i,\mathbf{\lambda}^0_i)` which is the initial values provided by the model 
-    if :math:`i = 1` (first load step) and is the solution of the previous load step otherwise. The update formula
-    
-    .. math::
-        \begin{equation}
-        \begin{pmatrix}
-        \mathbf{q}^{k+1}_i\\
-        \mathbf{\lambda}^{k+1}_i
-        \end{pmatrix} = 
-        \begin{pmatrix}
-        \mathbf{q}^{k}_i\\
-        \mathbf{\lambda}^{k}_i
-        \end{pmatrix}
-        -
-        \left.\left(
-        \frac{\partial \mathbf{R}}{\partial \mathbf{q}_i}\quad  \frac{\partial \mathbf{R}}{\partial \mathbf{\lambda}_i} 
-        \right)\right|^{-1}_{(\mathbf{q}^k_i,\mathbf{\lambda}^k_i)}
-        \begin{pmatrix}
-        \mathbf{q}^{k}_i\\
-        \mathbf{\lambda}^{k}_i
-        \end{pmatrix}
-        \end{equation}
-
-    is applied until :math:`||\mathbf{R}(\mathbf{q}^k_i,\mathbf{\lambda}^k_i)||_\infty < \mathrm{tol}`, where :math:`||\,.\,||_\infty` is the maximum norm, or the maximum number of iterations is reached (:math:`k=\mathrm{maxIter}`).
-
-    Attention
-    ---------
-
-    External forces and gap functions are incremented in each load step if they are depending on a parameter `t`. So force controlled Netwon is obtained by constructing a time constant gap function. On the other hand a displacement controlled Newton method is obtained by passing a constant external forces and time dependent gap functions.
-    
+    Dirichlet constraints can globally be handled by passing an integer array
+    `cDOF` of the constraint degrees of freedoms together with a time dependent
+    function `b` that defines their values at time instant `t`.
     """
-        
-    def _residual(self, t, x):
-        nq = self.nq
-        q = x[:nq]
-        la = x[nq:]
 
-        R = np.zeros(self.nx)
-        self.W_g = self.model.W_g(t, q)
-        R[:nq] = self.model.h(t, q, self.u) + self.W_g @ la
-        R[nq:] = self.model.g(t, q)
-
-        return R
-
-    def _jacobian_num(self, t, x, scipy_matrix=csr_matrix):
-        return scipy_matrix(Numerical_derivative(self._residual, order=2)._x(t, x))
-        
-    def _jacobian_an(self, t, x):
-        nq = self.nq
-        q = x[:nq]
-        la = x[nq:]
-
-        K = self.model.h_q(t, q, self.u) + self.model.Wla_g_q(t, q, la)
-        g_q = self.model.g_q(t, q)
-
-        return bmat([[K,   self.W_g], \
-                     [g_q,     None]], format='csr')
-    
-    def __init__(self, model, n_load_steps=1, load_steps=None, tol=1e-8, max_iter=50, sparse_solver='scipyLU', iterative_tol=1.0e-10, numerical_jacobian=False, init_guess=None):
-        self.max_iter = max_iter
-        self.tol = tol
+    def __init__(
+        self,
+        model,
+        cDOF=np.array([], dtype=int),
+        b=lambda t: np.array([]),
+        n_load_steps=1,
+        load_steps=None,
+        atol=1e-8,
+        max_iter=50,
+        prox_r_N=1.0e-2,
+        numerical_jacobian=False,
+        verbose=True,
+        newton_error_function=lambda x: np.max(np.abs(x)),
+        numdiff_method="2-point",
+        numdiff_eps=1.0e-6,
+    ):
         self.model = model
+
+        # handle constraint degrees of freedoms
+        z0 = model.q0.copy()
+        self.nz = len(z0)
+        nc = len(cDOF)
+        self.nq = self.nz - nc
+        self.cDOF = cDOF
+        self.zDOF = np.arange(self.nz)
+        self.fDOF = np.setdiff1d(self.zDOF, cDOF)
+        q0 = z0[self.fDOF]
+
+        print(f"zDOF: {self.zDOF}")
+        print(f"cDOF: {cDOF}")
+        print(f"fDOF: {self.fDOF}")
+
+        if callable(b):
+            self.b = b
+        else:
+            self.b = lambda t: b
+
+        self.max_iter = max_iter
+        self.atol = atol
+        self.prox_r_N = prox_r_N
 
         if load_steps is None:
             self.load_steps = np.linspace(0, 1, n_load_steps)
@@ -122,109 +70,249 @@ class Newton():
 
         # dimensions
         self.nt = len(self.load_steps)
-        self.nq = self.model.nq
-        self.nla = self.model.nla_g
-        self.nx = self.nq + self.nla
-        
+        # self.nu = self.model.nu
+        # TODO: How do we define the cDOF/ fDOF for the u's?
+        self.nu = self.model.nu
+        self.nla_g = self.model.nla_g
+        self.nla_N = self.model.nla_N
+        self.nx = self.nq + self.nla_g + self.nla_N
+
         # memory allocation
         self.x = np.zeros((self.nt, self.nx))
 
         # initial conditions
-        self.x[0] = np.concatenate((self.model.q0, self.model.la_g0))
-        self.u = np.zeros(self.nq) # zeros as system is static
+        self.x[0] = np.concatenate((q0, self.model.la_g0, self.model.la_N0))
+        self.u = np.zeros(self.nu)  # zero velocities as system is static
 
-        # chose sparse solver
-        sparse_direct_solvers = {'superLU': lambda A, b: splu(A).solve(b),
-                                 'scipyLU': lambda A, b: spsolve(A, b, use_umfpack=False),
-                                 'umfpack': lambda A, b: spsolve(A, b, use_umfpack=True),
-                                } 
-        sparse_iterative_solvers = {'cgs': lambda A, b, M:       cgs(A, b, M=M, tol=iterative_tol),
-                                    'gmres': lambda A, b, M:     gmres(A, b, M=M, tol=iterative_tol),
-                                    'lgmres': lambda A, b, M:    lgmres(A, b, M=M, tol=iterative_tol),
-                                    'gcrotmk': lambda A, b, M:   gcrotmk(A, b, M=M, tol=iterative_tol),
-                                    'bicgstab': lambda A, b, M:  bicgstab(A, b, M=M, tol=iterative_tol),
-                                   }
-        if sparse_solver in sparse_direct_solvers:
-            self.direct_solver = True
-            self.sparse_solver = sparse_direct_solvers[sparse_solver]
-        elif sparse_solver in sparse_iterative_solvers:
-            self.direct_solver = False
-            self.sparse_solver = sparse_iterative_solvers[sparse_solver]
-        else:
-            raise ValueError(f'sparse solver: {sparse_solver} is not supported')
+        self.numdiff_method = numdiff_method
+        self.numdiff_eps = numdiff_eps
+
+        self.verbose = verbose
+        self.newton_error_function = newton_error_function
 
         if numerical_jacobian:
-            self._jacobian = self._jacobian_num
+            self.__eval__ = self.__eval__num
         else:
-            self._jacobian = self._jacobian_an
-        
-        self.init_guess = init_guess
-        
+            self.__eval__ = self.__eval__analytic
+
+    def z(self, t, q):
+        z = np.zeros(self.nz)
+        z[self.fDOF] = q
+        z[self.cDOF] = self.b(t)
+        return z
+
+    def __eval__analytic(self, t, x):
+        nq = self.nq
+        nu = self.nu
+        nla_g = self.nla_g
+        q = x[:nq]
+        la_g = x[nq : nq + nla_g]
+        la_N = x[nq + nla_g :]
+
+        # compute redundant coordinates
+        z = self.z(t, q)
+
+        # evaluate quantites that are required for computing the residual and
+        # the jacobian
+        W_g = self.model.W_g(t, z, scipy_matrix=csr_matrix)[self.fDOF]
+        W_N = self.model.W_N(t, z, scipy_matrix=csr_matrix)[self.fDOF]
+        g_N = self.model.g_N(t, z)
+
+        R = np.zeros(self.nx)
+        R[:nu] = self.model.h(t, z, self.u)[self.fDOF] + W_g @ la_g + W_N @ la_N
+        R[nu : nu + nla_g] = self.model.g(t, z)
+        R[nq + nla_g :] = np.minimum(la_N, g_N)
+
+        yield R
+
+        # evaluate additionally required quantites for computing the jacobian
+        K = (
+            self.model.h_q(t, z, self.u, scipy_matrix=csr_matrix)[
+                self.fDOF[:, None], self.fDOF
+            ]
+            + self.model.Wla_g_q(t, z, la_g, scipy_matrix=csr_matrix)[
+                self.fDOF[:, None], self.fDOF
+            ]
+        )
+        g_q = self.model.g_q(t, z, scipy_matrix=csr_matrix)[:, self.fDOF]
+        # note: csr_matrix is best for row slicing, see
+        # (https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csr_matrix.html#scipy.sparse.csr_matrix)
+        g_N_q = self.model.g_N_q(t, z, scipy_matrix=csr_matrix)[:, self.fDOF]
+
+        Rla_N_q = lil_matrix((self.nla_N, self.nq))
+        Rla_N_la_N = lil_matrix((self.nla_N, self.nla_N))
+        for i in range(self.nla_N):
+            if la_N[i] < g_N[i]:
+                Rla_N_la_N[i, i] = 1.0
+            else:
+                Rla_N_q[i] = g_N_q[i]
+
+        # fmt: off
+        # TODO: What is more efficient: Using csr or csc format?
+        yield bmat([[  K,     W_g,         W_N], 
+                    [g_q,     None,       None],
+                    [Rla_N_q, None, Rla_N_la_N]], format="csr")
+        # fmt: on
+
+    def __residual(self, t, x):
+        return next(self.__eval__(t, x))
+
+    def __jacobian(self, t, x, scipy_matrix=csr_matrix):
+        return scipy_matrix(
+            approx_fprime(
+                x,
+                lambda x: self.__residual(t, x),
+                eps=self.numdiff_eps,
+                method=self.numdiff_method,
+            )
+        )
+
+    def __eval__num(self, t, x):
+        yield next(self.__eval__analytic(t, x))
+        yield self.__jacobian(t, x)
+
+    # def residual(self, t, x):
+    #     nq = self.nq
+    #     q = x[:nq]
+    #     la = x[nq:]
+
+    #     # compute redundant coordinates
+    #     z = self.z(t, q)
+
+    #     R = np.zeros(self.nx)
+    #     self.W_g = self.model.W_g(t, z, scipy_matrix=csr_matrix)[self.fDOF]
+    #     R[:nq] = self.model.h(t, z, self.u)[self.fDOF] + self.W_g @ la
+    #     R[nq:] = self.model.g(t, z)
+
+    #     return R
+
+    # def jacobian_num(self, t, x, scipy_matrix=csr_matrix):
+    #     return scipy_matrix(
+    #         approx_fprime(
+    #             x,
+    #             lambda x: self.residual(t, x),
+    #             eps=self.numdiff_method,
+    #             method=self.numdiff_method,
+    #         )
+    #     )
+
+    # def jacobian_an(self, t, x):
+    #     nq = self.nq
+    #     q = x[:nq]
+    #     la = x[nq:]
+
+    #     # compute redundant coordinates
+    #     z = self.z(t, q)
+
+    #     K = (
+    #         self.model.h_q(t, z, self.u, scipy_matrix=csr_matrix)
+    #         + self.model.Wla_g_q(t, z, la, scipy_matrix=csr_matrix)
+    #     )[self.fDOF[:, None], self.fDOF]
+    #     g_q = self.model.g_q(t, z, scipy_matrix=csr_matrix)[:, self.fDOF]
+
+    #     # fmt: off
+    #     return bmat([[  K, self.W_g],
+    #                  [g_q,     None]], format="csr")
+    #     # fmt: on
+
     def solve(self):
         # compute numbe rof digits for status update
         len_t = len(str(self.nt))
         len_maxIter = len(str(self.max_iter))
 
-        pbar = tqdm(range(0, self.nt), leave=True)
+        if self.verbose:
+            pbar = tqdm(range(0, self.nt), leave=True)
+        else:
+            pbar = range(0, self.nt)
         for i in pbar:
-            pbar.update(1)
-            
+            if self.verbose:
+                pbar.update(1)
+
             # compute initial residual
-            self.model.pre_iteration_update(self.load_steps[i], self.x[i, :self.nq], self.u)
-            R = self._residual(self.load_steps[i], self.x[i])
-            error = np.absolute(R).max()
-            
+            # self.model.pre_iteration_update(self.load_steps[i],
+            #                                 self.x[i, :self.nq],
+            #                                 self.u)
+            generator = self.__eval__(self.load_steps[i], self.x[i])
+            R = next(generator)
+            # R = self.residual(self.load_steps[i], self.x[i])
+            error = self.newton_error_function(R)
+            converged = error < self.atol
+
             # reset counter and print inital status
             k = 0
-            pbar.set_description(f' force iter {i+1:>{len_t}d}/{self.nt}; Newton steps {k:>{len_maxIter}d}/{self.max_iter}; error {error:.4e}/{self.tol:.2e}')
-            
+            if self.verbose:
+                pbar.set_description(
+                    f" force iter {i+1:>{len_t}d}/{self.nt};"
+                    f" Newton steps {k:>{len_maxIter}d}/{self.max_iter};"
+                    f" error {error:.4e}/{self.atol:.2e}"
+                )
+
             # perform netwon step if necessary
-            if error >= self.tol:
+            if not converged:
                 while k <= self.max_iter:
                     # compute jacobian
-                    dR = self._jacobian(self.load_steps[i], self.x[i])
+                    dR = next(generator)
 
                     # solve linear system of equations
-                    if self.direct_solver:
-                        update = self.sparse_solver(dR, R)
-                    else:
-                        # preconditioner
-                        ilu = spilu(dR)
-                        Mx = lambda x: ilu.solve(x)
-                        M = LinearOperator((self.nx, self.nx), Mx)
-
-                        # solve linear system
-                        update = self.sparse_solver(dR, R, M)[0]
+                    update = spsolve(dR, R)
 
                     # perform update
                     self.x[i] -= update
-                                
+
                     # compute new residual
-                    self.model.pre_iteration_update(self.load_steps[i], self.x[i, :self.nq], self.u)
-                    R = self._residual(self.load_steps[i], self.x[i])
-                    error = np.absolute(R).max()
+                    # self.model.pre_iteration_update(self.load_steps[i], self.x[i, :self.nq], self.u)
+                    generator = self.__eval__(self.load_steps[i], self.x[i])
+                    R = next(generator)
+                    error = self.newton_error_function(R)
+                    converged = error < self.atol
 
                     # update counter and print status
                     k += 1
-                    pbar.set_description(f' force iter {i+1:>{len_t}d}/{self.nt}; Newton steps {k:>{len_maxIter}d}/{self.max_iter}; error {error:.4e}/{self.tol:.2e}')
+                    if self.verbose:
+                        pbar.set_description(
+                            f" force iter {i+1:>{len_t}d}/{self.nt};"
+                            f" Newton steps {k:>{len_maxIter}d}/{self.max_iter};"
+                            f" error {error:.4e}/{self.atol:.2e}"
+                        )
 
                     # check convergence
-                    if (error < self.tol):
+                    if converged:
                         break
 
             if k > self.max_iter:
                 # return solution up to this iteration
-                pbar.close()
-                print(f'Newton-Raphson method not converged, returning solution up to iteration {i+1:>{len_t}d}/{self.nt}')
-                return Solution(t=self.load_steps, q=self.x[:i+1, :self.nq], la_g=self.x[:i+1, self.nq:])
-                    
+                if self.verbose:
+                    pbar.close()
+                print(
+                    f"Newton-Raphson method not converged, returning solution "
+                    f"up to iteration {i+1:>{len_t}d}/{self.nt}"
+                )
+                z = np.array(
+                    [
+                        self.z(self.load_steps[j], self.x[j, : self.nq])
+                        for j in range(i + 1)
+                    ]
+                )
+                return Solution(
+                    t=self.load_steps,
+                    q=z,
+                    la_g=self.x[: i + 1, self.nq :],
+                    la_N=self.x[: i + 1, self.nq + self.nla_g :],
+                )
+
             # store solution as new initial guess
             if i < self.nt - 1:
-                if self.init_guess is None:
-                    self.x[i + 1] = self.x[i]
-                else:
-                    self.x[i + 1] = self.init_guess(self.load_steps[i], self.load_steps[i+1], self.x[i])
-                
+                self.x[i + 1] = self.x[i]
+
         # return solution object
-        pbar.close()
-        return Solution(t=self.load_steps, q=self.x[:, :self.nq], la_g=self.x[:, self.nq:])
+        if self.verbose:
+            pbar.close()
+        z = np.array(
+            [self.z(self.load_steps[j], self.x[j, : self.nq]) for j in range(i + 1)]
+        )
+        return Solution(
+            t=self.load_steps,
+            q=z,
+            la_g=self.x[: i + 1, self.nq :],
+            la_N=self.x[: i + 1, self.nq + self.nla_g :],
+        )

@@ -5,27 +5,19 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.animation as animation
 
-from cardillo.math.algebra import cross3, A_IK_basic_z
+# from cardillo.math.algebra import cross3, A_IK_basic_z
+from cardillo.math import cross3, A_IK_basic
 
 from cardillo.model import Model
-from cardillo.model.rigid_body import Rigid_body2D, Rigid_body_euler
+from cardillo.model.rigid_body import RigidBodyEuler
 from cardillo.model.frame import Frame
 from cardillo.model.force import Force
-from cardillo.model.contacts import Sphere_to_plane
-from cardillo.solver import Moreau, Moreau_sym, Generalized_alpha_2, Generalized_alpha_3
+# from cardillo.model.contacts import Sphere_to_plane
+from cardillo.contacts import Sphere2Plane
+from cardillo.solver import Moreau #, Moreau_sym, Generalized_alpha_2, Generalized_alpha_3
 
-# class Ball(Rigid_body2D):
-#     def __init__(self, m, r, q0=None, u0=None):
-#         theta = 2 / 5 * m * r**2 
-#         self.r = r
-#         super().__init__(m, theta, q0=q0, u0=u0)
-        
-#     def boundary(self, t, q, n=100):
-#         phi = np.linspace(0, 2 * np.pi, n, endpoint=True)
-#         K_r_SP = self.r * np.vstack([np.sin(phi), np.cos(phi), np.zeros(n)])
-#         return np.repeat(self.r_OP(t, q), n).reshape(3, n) + self.A_IK(t, q) @ K_r_SP
 
-class Ball(Rigid_body_euler):
+class Ball(RigidBodyEuler):
     def __init__(self, m, r, q0=None, u0=None):
         theta = 2 / 5 * m * r**2 
         self.r = r
@@ -61,23 +53,25 @@ if __name__ == "__main__":
     mu = 0.2
     r_N = 0.1
     e_N = 0.5
-    plane = Sphere_to_plane(frame, RB, r, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N, e_T=0)
+    plane = Sphere2Plane(frame, RB, r, mu, prox_r_N=r_N, prox_r_F=r_N, e_N=e_N, e_F=0)
 
     alpha = pi/4
-    e1, e2, e3 = A_IK_basic_z(alpha)
+    # e1, e2, e3 = A_IK_basic_z(alpha)
+    e1, e2, e3 = A_IK_basic(alpha).z()
     frame1 = Frame(A_IK=np.vstack( (e3, e1, e2) ).T )
     mu = 0.2
     r_N = 0.2
     e_N = 1
-    plane_left = Sphere_to_plane(frame1, RB, r, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N)
+    plane_left = Sphere2Plane(frame1, RB, r, mu, prox_r_N=r_N, prox_r_F=r_N, e_N=e_N)
 
     beta = -pi/4
-    e1, e2, e3 = A_IK_basic_z(beta)
+    # e1, e2, e3 = A_IK_basic_z(beta)
+    e1, e2, e3 = A_IK_basic(beta).z()
     frame2 = Frame(A_IK=np.vstack( (e3, e1, e2) ).T )
     mu = 0.1
     r_N = 0.2
     e_N = 1
-    plane_right = Sphere_to_plane(frame2, RB, r, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N)
+    plane_right = Sphere2Plane(frame2, RB, r, mu, prox_r_N=r_N, prox_r_F=r_N, e_N=e_N)
 
     model = Model()
     model.add(RB)
@@ -99,20 +93,23 @@ if __name__ == "__main__":
     # q_fp = sol_fp.q
     # u_fp = sol_fp.u
     # la_N_fp = sol_fp.la_N
-    # la_T_fp = sol_fp.la_T
+    # la_F_fp = sol_fp.la_F
 
-    solver_n = Generalized_alpha_3(model, t1, dt, rho_inf=1, numerical_jacobian=0)
+    # solver_n = Generalized_alpha_3(model, t1, dt, rho_inf=1, numerical_jacobian=0)
+    solver_n = Moreau(model, t1, dt)
     sol_n = solver_n.solve()
     # sol_n = sol_fp
     t_n = t = sol_n.t
     q_n = q = sol_n.q
     u_n = sol_n.u
-    a_n = sol_n.a
-    la_N_n = sol_n.la_N 
-    la_T_n = sol_n.la_T
+    # a_n = sol_n.a
+    # la_N_n = sol_n.la_N
+    # la_F_n = sol_n.la_F
+    la_N_n = sol_n.P_N
+    la_F_n = sol_n.P_F
 
     P_N_n = sol_n.P_N
-    P_T_n = sol_n.P_T
+    P_F_n = sol_n.P_F
 
     solver_fp = Moreau(model, t1, dt)
     sol_fp = solver_fp.solve()
@@ -122,7 +119,7 @@ if __name__ == "__main__":
     a_fp = np.zeros_like(u_fp)
     a_fp[1:] = (u_fp[1:] - u_fp[:-1]) / dt
     P_N_fp = sol_fp.P_N
-    P_T_fp = sol_fp.P_T
+    P_F_fp = sol_fp.P_F
 
     fig, ax = plt.subplots(3, 1)
     ax[0].set_title('x(t)')
@@ -135,10 +132,10 @@ if __name__ == "__main__":
     ax[1].plot(t_n, u_n[:, 0], '--b', label='newton')
     ax[1].legend()
 
-    ax[2].set_title('a_x(t)')
-    ax[2].plot(t_fp, a_fp[:, 0], '-r', label='fixed_point')
-    ax[2].plot(t_n, a_n[:, 0], '--b', label='newton')
-    ax[2].legend()
+    # ax[2].set_title('a_x(t)')
+    # ax[2].plot(t_fp, a_fp[:, 0], '-r', label='fixed_point')
+    # ax[2].plot(t_n, a_n[:, 0], '--b', label='newton')
+    # ax[2].legend()
 
     fig, ax = plt.subplots(3, 1)
     ax[0].set_title('y(t)')
@@ -151,10 +148,10 @@ if __name__ == "__main__":
     ax[1].plot(t_n, u_n[:, 1], '--b', label='newton')
     ax[1].legend()
 
-    ax[2].set_title('a_y(t)')
-    ax[2].plot(t_fp, a_fp[:, 1], '-r', label='fixed_point')
-    ax[2].plot(t_n, a_n[:, 1], '--b', label='newton')
-    ax[2].legend()
+    # ax[2].set_title('a_y(t)')
+    # ax[2].plot(t_fp, a_fp[:, 1], '-r', label='fixed_point')
+    # ax[2].plot(t_n, a_n[:, 1], '--b', label='newton')
+    # ax[2].legend()
 
     # fig, ax = plt.subplots(3, 1)
     # ax[0].set_title('phi(t)')
@@ -215,18 +212,18 @@ if __name__ == "__main__":
     ax[0].plot(t_n, P_N_n[:, 0], '--g', label='newton_P_N')
     ax[0].legend()
 
-    ax[1].set_title('P_Tx(t)')
-    ax[1].plot(t_fp, P_T_fp[:, 0], '-r', label='fixed_point')
-    # ax[1].plot(t_n, sol_n.la_T[:, 0]*dt, '--b', label='newton_la_T')
-    # ax[1].plot(t_n, sol_n.La_T[:, 0], '--g', label='newton_La_T')
-    ax[1].plot(t_n, P_T_n[:, 0], '--g', label='newton_P_N')
+    ax[1].set_title('P_Fx(t)')
+    ax[1].plot(t_fp, P_F_fp[:, 0], '-r', label='fixed_point')
+    # ax[1].plot(t_n, sol_n.la_F[:, 0]*dt, '--b', label='newton_la_F')
+    # ax[1].plot(t_n, sol_n.La_F[:, 0], '--g', label='newton_La_F')
+    ax[1].plot(t_n, P_F_n[:, 0], '--g', label='newton_P_N')
     ax[1].legend()
 
-    ax[2].set_title('P_Ty(t)')
-    ax[2].plot(t_fp, P_T_fp[:, 1], '-r', label='fixed_point')
-    # ax[2].plot(t_n, sol_n.la_T[:, 1]*dt, '--b', label='newton_la_T')
-    # ax[2].plot(t_n, sol_n.La_T[:, 1], '--g', label='newton_La_T')
-    ax[2].plot(t_n, P_T_n[:, 1], '--g', label='newton_P_N')
+    ax[2].set_title('P_Fy(t)')
+    ax[2].plot(t_fp, P_F_fp[:, 1], '-r', label='fixed_point')
+    # ax[2].plot(t_n, sol_n.la_F[:, 1]*dt, '--b', label='newton_la_F')
+    # ax[2].plot(t_n, sol_n.La_F[:, 1], '--g', label='newton_La_F')
+    ax[2].plot(t_n, P_F_n[:, 1], '--g', label='newton_P_N')
     ax[2].legend()
 
     # ax[1].set_title('u_y(t)')
