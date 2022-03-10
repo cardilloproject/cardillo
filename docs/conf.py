@@ -4,7 +4,7 @@
 
 # -- Project information -----------------------------------------------------
 
-project = "cardillo"
+project = "cardillo3"
 html_title = "cardillo: Solvers, algorithms and benchmark systems for nonsmooth dynamics"
 author = (
     "Jonas Harsch, Giuseppe Capobianco, Simon Eugster"
