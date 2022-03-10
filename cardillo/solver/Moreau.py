@@ -43,8 +43,6 @@ class Moreau:
         self.tk = t0
         self.qk = model.q0
         self.uk = model.u0
-        self.la_gk = model.la_g0
-        self.la_gammak = model.la_gamma0
         self.P_Nk = model.la_N0 * dt
         self.P_Fk = model.la_F0 * dt
 
@@ -55,6 +53,50 @@ class Moreau:
             self.step_callback = model.step_callback
         else:
             self.step_callback = self.__step_callback
+
+        # initial velocites
+        self.q_dotk = self.model.q_dot(self.tk, self.qk, self.uk)
+
+        # solve for consistent initial accelerations and Lagrange mutlipliers
+        M0 = self.model.M(self.tk, self.qk, scipy_matrix=csr_matrix)
+        h0 = self.model.h(self.tk, self.qk, self.uk)
+        W_g0 = self.model.W_g(self.tk, self.qk, scipy_matrix=csr_matrix)
+        W_gamma0 = self.model.W_gamma(self.tk, self.qk, scipy_matrix=csr_matrix)
+        zeta_g0 = self.model.zeta_g(t0, self.qk, self.uk)
+        zeta_gamma0 = self.model.zeta_gamma(t0, self.qk, self.uk)
+        A = bmat(
+            [[M0, -W_g0, -W_gamma0], [W_g0.T, None, None], [W_gamma0.T, None, None]],
+            format="csc",
+        )
+        b = np.concatenate([h0, -zeta_g0, -zeta_gamma0])
+        u_dot_la_g_la_gamma = splu(A).solve(b)
+        self.u_dotk = u_dot_la_g_la_gamma[: self.nu]
+        self.la_gk = u_dot_la_g_la_gamma[self.nu : self.nu + self.nla_g]
+        self.la_gammak = u_dot_la_g_la_gamma[self.nu + self.nla_g :]
+
+        # check if initial conditions satisfy constraints on position, velocity
+        # and acceleration level
+        g0 = model.g(self.tk, self.qk)
+        g_dot0 = model.g_dot(self.tk, self.qk, self.uk)
+        g_ddot0 = model.g_ddot(self.tk, self.qk, self.uk, self.u_dotk)
+        gamma0 = model.gamma(self.tk, self.qk, self.uk)
+        gamma_dot0 = model.gamma_dot(self.tk, self.qk, self.uk, self.u_dotk)
+
+        assert np.allclose(
+            g0, np.zeros(self.nla_g)
+        ), "Initial conditions do not fulfill g0!"
+        assert np.allclose(
+            g_dot0, np.zeros(self.nla_g)
+        ), "Initial conditions do not fulfill g_dot0!"
+        assert np.allclose(
+            g_ddot0, np.zeros(self.nla_g)
+        ), "Initial conditions do not fulfill g_ddot0!"
+        assert np.allclose(
+            gamma0, np.zeros(self.nla_gamma)
+        ), "Initial conditions do not fulfill gamma0!"
+        assert np.allclose(
+            gamma_dot0, np.zeros(self.nla_gamma)
+        ), "Initial conditions do not fulfill gamma_dot0!"
 
     def __step_callback(self, q, u):
         return q, u

@@ -1,12 +1,13 @@
 import numpy as np
 from scipy.sparse.linalg import spsolve
-from scipy.sparse import csc_matrix, identity, bmat
+from scipy.sparse import csc_matrix, csr_matrix, identity, bmat
 from tqdm import tqdm
 
 from cardillo.math import approx_fprime
 from cardillo.solver import Solution
 
 
+# TODO: Refactor like Moreau using :nq, nq:nq+nu, etc.
 class EulerBackward:
     def __init__(
         self,
@@ -59,6 +60,53 @@ class EulerBackward:
         if debug:
             self.__R_x = self.__R_x_debug
 
+        # initial conditions
+        self.tk = model.t0
+        self.qk = model.q0
+        self.uk = model.u0
+        self.q_dotk = self.model.q_dot(self.tk, self.qk, self.uk)
+
+        # solve for consistent initial accelerations and Lagrange mutlipliers
+        M0 = self.model.M(self.tk, self.qk, scipy_matrix=csr_matrix)
+        h0 = self.model.h(self.tk, self.qk, self.uk)
+        W_g0 = self.model.W_g(self.tk, self.qk, scipy_matrix=csr_matrix)
+        W_gamma0 = self.model.W_gamma(self.tk, self.qk, scipy_matrix=csr_matrix)
+        zeta_g0 = self.model.zeta_g(t0, self.qk, self.uk)
+        zeta_gamma0 = self.model.zeta_gamma(t0, self.qk, self.uk)
+        A = bmat(
+            [[M0, -W_g0, -W_gamma0], [W_g0.T, None, None], [W_gamma0.T, None, None]],
+            format="csc",
+        )
+        b = np.concatenate([h0, -zeta_g0, -zeta_gamma0])
+        u_dot_la_g_la_gamma = spsolve(A, b)
+        self.u_dotk = u_dot_la_g_la_gamma[: self.nu]
+        self.la_gk = u_dot_la_g_la_gamma[self.nu : self.nu + self.nla_g]
+        self.la_gammak = u_dot_la_g_la_gamma[self.nu + self.nla_g :]
+
+        # check if initial conditions satisfy constraints on position, velocity
+        # and acceleration level
+        g0 = model.g(self.tk, self.qk)
+        g_dot0 = model.g_dot(self.tk, self.qk, self.uk)
+        g_ddot0 = model.g_ddot(self.tk, self.qk, self.uk, self.u_dotk)
+        gamma0 = model.gamma(self.tk, self.qk, self.uk)
+        gamma_dot0 = model.gamma_dot(self.tk, self.qk, self.uk, self.u_dotk)
+
+        assert np.allclose(
+            g0, np.zeros(self.nla_g)
+        ), "Initial conditions do not fulfill g0!"
+        assert np.allclose(
+            g_dot0, np.zeros(self.nla_g)
+        ), "Initial conditions do not fulfill g_dot0!"
+        assert np.allclose(
+            g_ddot0, np.zeros(self.nla_g)
+        ), "Initial conditions do not fulfill g_ddot0!"
+        assert np.allclose(
+            gamma0, np.zeros(self.nla_gamma)
+        ), "Initial conditions do not fulfill gamma0!"
+        assert np.allclose(
+            gamma_dot0, np.zeros(self.nla_gamma)
+        ), "Initial conditions do not fulfill gamma_dot0!"
+
     def __R(self, qk, uk, tk1, qk1, uk1, la_gk1, la_gammak1):
         self.Mk1 = self.model.M(tk1, qk1)
         self.W_gk1 = self.model.W_g(tk1, qk1)
@@ -98,7 +146,9 @@ class EulerBackward:
         xk1[self.la_gDOF] = la_gk1
         xk1[self.la_gammaDOF] = la_gammak1
 
-        R_x_num = approx_fprime(xk1, lambda xk1: self.__R_wrappe(tk1, xk1, xk), method="2-point")
+        R_x_num = approx_fprime(
+            xk1, lambda xk1: self.__R_wrappe(tk1, xk1, xk), method="2-point"
+        )
 
         return csc_matrix(R_x_num)
 
@@ -246,11 +296,11 @@ class EulerBackward:
 
     def solve(self):
         # lists storing output variables
-        tk = self.model.t0
-        qk = self.model.q0.copy()
-        uk = self.model.u0.copy()
-        la_gk = self.model.la_g0.copy()
-        la_gammak = self.model.la_gamma0.copy()
+        tk = self.tk
+        qk = self.qk.copy()
+        uk = self.uk.copy()
+        la_gk = self.la_gk.copy()
+        la_gammak = self.la_gammak.copy()
 
         q = [qk]
         u = [uk]

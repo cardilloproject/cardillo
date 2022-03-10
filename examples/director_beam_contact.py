@@ -1,7 +1,10 @@
 from cardillo.model.classical_beams.spatial.material_models import Simo1986
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints.implicit import RigidConnection
-from cardillo.model.classical_beams.spatial.director import straight_configuration, animate_beam
+from cardillo.model.classical_beams.spatial.director import (
+    straight_configuration,
+    animate_beam,
+)
 from cardillo.model.classical_beams.spatial import TimoshenkoDirectorIntegral
 from cardillo.forces import Force, K_Moment, DistributedForce1D
 from cardillo.model import Model

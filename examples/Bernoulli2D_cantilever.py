@@ -1,13 +1,19 @@
 from cardillo.math import A_IK_basic
 from cardillo.model.frame import Frame
-from cardillo.model.classical_beams.planar import Hooke, EulerBernoulli, straight_configuration
+from cardillo.model.classical_beams.planar import (
+    Hooke,
+    EulerBernoulli,
+    straight_configuration,
+)
 from cardillo.model.bilateral_constraints.implicit import RigidConnection2D
 from cardillo.forces import Force, K_Moment
 from cardillo.model import Model
 from cardillo.solver import Newton
 
 from cardillo.model.scalar_force_interactions.force_laws import Linear_spring
-from cardillo.model.scalar_force_interactions.translational_f_pot import Translational_f_pot
+from cardillo.model.scalar_force_interactions.translational_f_pot import (
+    Translational_f_pot,
+)
 
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
@@ -32,12 +38,12 @@ if __name__ == "__main__":
     assert p >= 2
     # nQP = int(np.ceil((p + 1)**2 / 2))
     nQP = p + 1
-    print(f'nQP: {nQP}')
+    print(f"nQP: {nQP}")
     nEl = 5
-    
+
     # position and orientation of the rigid connection
-    r_OP = np.zeros(3) # origin at (0, 0, 0)
-    A_IK = A_IK_basic(pi / 2).z() # rotate beam and rigid connection by 90° clock-wise
+    r_OP = np.zeros(3)  # origin at (0, 0, 0)
+    A_IK = A_IK_basic(pi / 2).z()  # rotate beam and rigid connection by 90° clock-wise
 
     # build reference configuration
     Q = straight_configuration(p, nEl, L, r_OP=r_OP, A_IK=A_IK)
@@ -94,18 +100,18 @@ if __name__ == "__main__":
     # draw ground
     l = 1
     h = 0.5
-    ax.plot([-l, l], [0, 0], '-k', lw=1)
-    p = patches.Rectangle((-l, -h), 2 * l, h, linewidth=0, fill=None, hatch='///')
+    ax.plot([-l, l], [0, 0], "-k", lw=1)
+    p = patches.Rectangle((-l, -h), 2 * l, h, linewidth=0, fill=None, hatch="///")
     ax.add_patch(p)
 
     # plot the deformed beam centerline and the control polygon of the B-splines
-    ax.plot(*beam.nodes(q[-1]), '--ob')
+    ax.plot(*beam.nodes(q[-1]), "--ob")
     x, y, z = beam.centerline(q[-1]).T
-    ax.plot(x, y, '-k')
-    
+    ax.plot(x, y, "-k")
+
     # set labels and scale axis equal
-    ax.set_xlabel('x [m]')
-    ax.set_ylabel('y [m]')
-    ax.axis('equal')
+    ax.set_xlabel("x [m]")
+    ax.set_ylabel("y [m]")
+    ax.axis("equal")
 
     plt.show()

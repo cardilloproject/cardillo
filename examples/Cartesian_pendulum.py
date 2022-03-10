@@ -7,14 +7,15 @@ from cardillo.model import Model
 from cardillo.solver import ScipyIVP, EulerBackward
 
 
-class MathematicalPendulumCartesian():
-    """Mathematical pendulum in Cartesian coordinates and with bilateral 
+class MathematicalPendulumCartesian:
+    """Mathematical pendulum in Cartesian coordinates and with bilateral
     constraint, see Hairer1996 p. 464 - Example 2.
 
     References
     ----------
     Hairer1996: https://link.springer.com/book/10.1007/978-3-642-05221-7
     """
+
     def __init__(self, m, l, grav, q0=None, u0=None, la_g0=None):
         self.m = m
         self.l = l
@@ -29,7 +30,7 @@ class MathematicalPendulumCartesian():
 
     def q_dot(self, t, q, u):
         return u
-    
+
     def q_dot_q(self, t, q, u, coo):
         pass
 
@@ -100,6 +101,7 @@ class MathematicalPendulumCartesian():
         eta = zeta + W.T @ np.linalg.solve(M, h)
         return np.linalg.solve(G, -eta)
 
+
 if __name__ == "__main__":
     # system parameters
     m = 1
@@ -120,7 +122,6 @@ if __name__ == "__main__":
         q = np.array([x, y])
         u = np.array([x_dot, y_dot])
         return pendulum.la_g(t, q, u)
-
 
     # rhs of ODE formulation
     def eqm(t, x):
@@ -198,13 +199,20 @@ if __name__ == "__main__":
         t_span = np.array([0, t1])
         y0 = np.array([phi0, phi_dot0])
         t_eval = np.linspace(0, t1, num=len(t_GenAlphaFirstOrderGGl))
-        sol_RK45 = solve_ivp(eqm, t_span, y0, method="RK45", t_eval=t_eval, atol=1.0e-12, rtol=1.0e-12)
+        sol_RK45 = solve_ivp(
+            eqm, t_span, y0, method="RK45", t_eval=t_eval, atol=1.0e-12, rtol=1.0e-12
+        )
         t_RK45 = sol_RK45.t
         phi_RK45 = sol_RK45.y[0, :]
         omega_RK45 = sol_RK45.y[1, :]
         q_RK45 = cartesian_coordinates(phi_RK45).T
         u_RK45 = cartesian_coordinates_dot(phi_RK45, omega_RK45).T
-        la_g_RK4 = np.array([la_g_analytic(t, phi, omega) for (t, phi, omega) in zip(t_RK45, phi_RK45, omega_RK45)])
+        la_g_RK4 = np.array(
+            [
+                la_g_analytic(t, phi, omega)
+                for (t, phi, omega) in zip(t_RK45, phi_RK45, omega_RK45)
+            ]
+        )
 
         # compute errors
         # x_y_errors[0, i] = np.linalg.norm(q_GenAlphaFirstOrder - q_RK45)
@@ -250,12 +258,22 @@ if __name__ == "__main__":
     # ax[0, 0].plot(t_GenAlphaFirstOrder, q_GenAlphaFirstOrder[:, 1], 'ob', label="y - GenAlphaFirstOrder")
     # ax[0, 0].plot(t_GenAlphaSecondOrder, q_GenAlphaSecondOrder[:, 0], 'xr', label="x - GenAlphaSecondOrder")
     # ax[0, 0].plot(t_GenAlphaSecondOrder, q_GenAlphaSecondOrder[:, 1], 'or', label="y - GenAlphaSecondOrder")
-    ax[0, 0].plot(t_GenAlphaFirstOrderGGl, q_GenAlphaFirstOrderGGl[:, 0], 'xg', label="x - GenAlphaFirstOrderGGl")
-    ax[0, 0].plot(t_GenAlphaFirstOrderGGl, q_GenAlphaFirstOrderGGl[:, 1], 'og', label="y - GenAlphaFirstOrderGGl")
+    ax[0, 0].plot(
+        t_GenAlphaFirstOrderGGl,
+        q_GenAlphaFirstOrderGGl[:, 0],
+        "xg",
+        label="x - GenAlphaFirstOrderGGl",
+    )
+    ax[0, 0].plot(
+        t_GenAlphaFirstOrderGGl,
+        q_GenAlphaFirstOrderGGl[:, 1],
+        "og",
+        label="y - GenAlphaFirstOrderGGl",
+    )
     # ax[0, 0].plot(t_ThetaNewton, q_ThetaNewton[:, 0], 'xm', label="x - Theta")
     # ax[0, 0].plot(t_ThetaNewton, q_ThetaNewton[:, 1], 'om', label="y - Theta")
-    ax[0, 0].plot(t_RK45, q_RK45[:, 0], '-k', label="x - RK45")
-    ax[0, 0].plot(t_RK45, q_RK45[:, 1], '--k', label="y - RK45")
+    ax[0, 0].plot(t_RK45, q_RK45[:, 0], "-k", label="x - RK45")
+    ax[0, 0].plot(t_RK45, q_RK45[:, 1], "--k", label="y - RK45")
     ax[0, 0].grid()
     ax[0, 0].legend()
 
@@ -264,12 +282,22 @@ if __name__ == "__main__":
     # ax[0, 1].plot(t_GenAlphaFirstOrder, u_GenAlphaFirstOrder[:, 1], 'ob', label="y_dot - GenAlphaFirstOrder")
     # ax[0, 1].plot(t_GenAlphaSecondOrder, u_GenAlphaSecondOrder[:, 0], 'xr', label="x_dot - GenAlphaSecondOrder")
     # ax[0, 1].plot(t_GenAlphaSecondOrder, u_GenAlphaSecondOrder[:, 1], 'or', label="y_dot - GenAlphaSecondOrder")
-    ax[0, 1].plot(t_GenAlphaFirstOrderGGl, u_GenAlphaFirstOrderGGl[:, 0], 'xg', label="x_dot - GenAlphaFirstOrderGGl")
-    ax[0, 1].plot(t_GenAlphaFirstOrderGGl, u_GenAlphaFirstOrderGGl[:, 1], 'og', label="y_dot - GenAlphaFirstOrderGGl")
+    ax[0, 1].plot(
+        t_GenAlphaFirstOrderGGl,
+        u_GenAlphaFirstOrderGGl[:, 0],
+        "xg",
+        label="x_dot - GenAlphaFirstOrderGGl",
+    )
+    ax[0, 1].plot(
+        t_GenAlphaFirstOrderGGl,
+        u_GenAlphaFirstOrderGGl[:, 1],
+        "og",
+        label="y_dot - GenAlphaFirstOrderGGl",
+    )
     # ax[0, 1].plot(t_ThetaNewton, u_ThetaNewton[:, 0], 'xm', label="x_dot - Theta")
     # ax[0, 1].plot(t_ThetaNewton, u_ThetaNewton[:, 1], 'om', label="y_dot - Theta")
-    ax[0, 1].plot(t_RK45, u_RK45[:, 0], '-k', label="x_dot - RK45")
-    ax[0, 1].plot(t_RK45, u_RK45[:, 1], '--k', label="y_dot - RK45")
+    ax[0, 1].plot(t_RK45, u_RK45[:, 0], "-k", label="x_dot - RK45")
+    ax[0, 1].plot(t_RK45, u_RK45[:, 1], "--k", label="y_dot - RK45")
     ax[0, 1].grid()
     ax[0, 1].legend()
 
@@ -277,39 +305,53 @@ if __name__ == "__main__":
     # ax[0, 2].plot(t_GenAlphaFirstOrder, la_g_GenAlphaFirstOrder[:, 0], 'ob', label="la_g - GenAlphaFirstOrder")
     # ax[0, 2].plot(t_GenAlphaSecondOrder, la_g_GenAlphaSecondOrder[:, 0], 'xr', label="la_g - GenAlphaSecondOrder")
     # ax[0, 2].plot(t_GenAlphaFirstOrderGGl, la_g_GenAlphaFirstOrderGGl[:, 0], 'sg', label="la_g - GenAlphaFirstOrderGGl")
-    ax[0, 2].plot(t_GenAlphaFirstOrderGGl, la_g_GenAlphaFirstOrderGGl[:, 0], 'sg', label="la_g - GenAlphaFirstOrderGGl")
+    ax[0, 2].plot(
+        t_GenAlphaFirstOrderGGl,
+        la_g_GenAlphaFirstOrderGGl[:, 0],
+        "sg",
+        label="la_g - GenAlphaFirstOrderGGl",
+    )
     # ax[0, 2].plot(t_ThetaNewton, la_g_ThetaNewton[:, 0], 'sm', label="la_g - Theta")
-    ax[0, 2].plot(t_RK45, la_g_RK4, '-k', label="la_g - RK45")
+    ax[0, 2].plot(t_RK45, la_g_RK4, "-k", label="la_g - RK45")
     ax[0, 2].grid()
     ax[0, 2].legend()
 
     # (x,y) - errors
     # ax[1, 0].loglog(dts, x_y_errors[0], '-b', label="(x,y) - error - GenAlphaFirstOrder")
     # ax[1, 0].loglog(dts, x_y_errors[1], '--r', label="(x,y) - error - GenAlphaSecondOrder")
-    ax[1, 0].loglog(dts, x_y_errors[2], '-.g', label="(x,y) - error - GenAlphaFirstOrderGGl")
+    ax[1, 0].loglog(
+        dts, x_y_errors[2], "-.g", label="(x,y) - error - GenAlphaFirstOrderGGl"
+    )
     # ax[1, 0].loglog(dts, x_y_errors[3], '--m', label="(x,y) - error - Theta")
-    ax[1, 0].loglog(dts, dts_1, '-k', label="dt")
-    ax[1, 0].loglog(dts, dts_2, '--k', label="dt^2")
+    ax[1, 0].loglog(dts, dts_1, "-k", label="dt")
+    ax[1, 0].loglog(dts, dts_2, "--k", label="dt^2")
     ax[1, 0].grid()
     ax[1, 0].legend()
 
     # (x_dot,y_dot) - errors
     # ax[1, 1].loglog(dts, x_dot_y_dot_errors[0], '-b', label="(x_dot,y_dot) - error - GenAlphaFirstOrder")
     # ax[1, 1].loglog(dts, x_dot_y_dot_errors[1], '--r', label="(x_dot,y_dot) - error - GenAlphaSecondOrder")
-    ax[1, 1].loglog(dts, x_dot_y_dot_errors[2], '-.g', label="(x_dot,y_dot) - error - GenAlphaFirstOrderGGl")
+    ax[1, 1].loglog(
+        dts,
+        x_dot_y_dot_errors[2],
+        "-.g",
+        label="(x_dot,y_dot) - error - GenAlphaFirstOrderGGl",
+    )
     # ax[1, 1].loglog(dts, x_dot_y_dot_errors[3], '--m', label="(x_dot,y_dot) - error - Theta")
-    ax[1, 1].loglog(dts, dts_1, '-k', label="dt")
-    ax[1, 1].loglog(dts, dts_2, '--k', label="dt^2")
+    ax[1, 1].loglog(dts, dts_1, "-k", label="dt")
+    ax[1, 1].loglog(dts, dts_2, "--k", label="dt^2")
     ax[1, 1].grid()
     ax[1, 1].legend()
 
     # TODO: la_g - errors
     # ax[1, 2].loglog(dts, la_g_errors[0], '-b', label="la_g - error - GenAlphaFirstOrder")
     # ax[1, 2].loglog(dts, la_g_errors[1], '--r', label="la_g - error - GenAlphaSecondOrder")
-    ax[1, 2].loglog(dts, la_g_errors[2], '-.g', label="la_g - error - GenAlphaFirstOrderGGl")
+    ax[1, 2].loglog(
+        dts, la_g_errors[2], "-.g", label="la_g - error - GenAlphaFirstOrderGGl"
+    )
     # ax[1, 2].loglog(dts, la_g_errors[3], '-.m', label="la_g - error - Theta")
-    ax[1, 2].loglog(dts, dts_1, '-k', label="dt")
-    ax[1, 2].loglog(dts, dts_2, '--k', label="dt^2")
+    ax[1, 2].loglog(dts, dts_1, "-k", label="dt")
+    ax[1, 2].loglog(dts, dts_2, "--k", label="dt^2")
     ax[1, 2].grid()
     ax[1, 2].legend()
 
