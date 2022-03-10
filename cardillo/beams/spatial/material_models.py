@@ -1,5 +1,5 @@
 import numpy as np
-from cardillo.math import e1, e2, e3, norm
+from cardillo.math import norm
 
 
 class Simo1986:

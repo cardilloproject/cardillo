@@ -2,138 +2,14 @@ import numpy as np
 from abc import ABCMeta, abstractmethod
 import meshio
 import os
-import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
 
 from cardillo.utility.coo import Coo
 from cardillo.discretization import uniform_knot_vector
 from cardillo.discretization.B_spline import Knot_vector
 from cardillo.discretization.lagrange import Node_vector
 from cardillo.math.algebra import norm, cross3, skew2ax, skew2ax_A
-from cardillo.math.numerical_derivative import Numerical_derivative
+from cardillo.math import approx_fprime
 from cardillo.discretization.mesh1D import Mesh1D
-
-order = 2
-
-
-#####################
-# auxiliary functions
-#####################
-def straight_configuration(
-    polynomial_degree_r,
-    polynomial_degree_di,
-    nEl,
-    L,
-    greville_abscissae=True,
-    r_OP=np.zeros(3),
-    A_IK=np.eye(3),
-    basis="B-spline",
-):
-    if basis == "B-spline":
-        nn_r = polynomial_degree_r + nEl
-        nn_di = polynomial_degree_di + nEl
-    elif basis == "lagrange":
-        nn_r = polynomial_degree_r * nEl + 1
-        nn_di = polynomial_degree_di * nEl + 1
-    else:
-        raise RuntimeError(f'wrong basis: "{basis}" was chosen')
-
-    X = np.linspace(0, L, num=nn_r)
-    Y = np.zeros(nn_r)
-    Z = np.zeros(nn_r)
-    if greville_abscissae and basis == "B-spline":
-        kv = uniform_knot_vector(polynomial_degree_r, nEl)
-        for i in range(nn_r):
-            X[i] = np.sum(kv[i + 1 : i + polynomial_degree_r + 1])
-        X = X * L / polynomial_degree_r
-
-    r0 = np.vstack((X, Y, Z)).T
-    for i, r0i in enumerate(r0):
-        X[i], Y[i], Z[i] = r_OP + A_IK @ r0i
-
-    # compute reference directors
-    D1, D2, D3 = A_IK.T
-    D1 = np.repeat(D1, nn_di)
-    D2 = np.repeat(D2, nn_di)
-    D3 = np.repeat(D3, nn_di)
-
-    # assemble all reference generalized coordinates
-    return np.concatenate([X, Y, Z, D1, D2, D3])
-
-
-def animate_beam(t, q, beam, L, show=False):
-
-    ########################
-    # animate configurations
-    ########################
-    fig, ax = plt.subplots(figsize=(8, 8), subplot_kw=dict(projection="3d"))
-    ax.set_xlabel("x [m]")
-    ax.set_ylabel("y [m]")
-    ax.set_zlabel("z [m]")
-
-    scale = 0.5 * L
-    ax.set_xlim3d(left=0, right=2 * scale)
-    ax.set_ylim3d(bottom=-scale, top=scale)
-    ax.set_zlim3d(bottom=-scale, top=scale)
-
-    # prepare data for animation
-    frames = len(q) - 1
-    target_frames = min(frames, 100)
-    frac = max(1, int(frames / target_frames))
-    animation_time = 1
-    interval = animation_time * 1000 / target_frames
-
-    t = t[::frac]
-    q = q[::frac]
-
-    # animated objects
-    (nodes,) = ax.plot(*beam.nodes(q[0]), "--ob")
-    (center_line,) = ax.plot(*beam.centerline(q[0]), "-k")
-    n_frames = 25
-    r, d1, d2, d3 = beam.frames(q[0], n=n_frames)
-    global d1s, d2s, d3s
-    d1s = [ax.quiver(*r[:, i].T, *d1[:, i].T, color="red") for i in range(n_frames)]
-    d2s = [ax.quiver(*r[:, i].T, *d2[:, i].T, color="green") for i in range(n_frames)]
-    d3s = [ax.quiver(*r[:, i].T, *d3[:, i].T, color="blue") for i in range(n_frames)]
-
-    def update(t, q):
-        # beam nodes
-        x, y, z = beam.nodes(q)
-        nodes.set_data(x, y)
-        nodes.set_3d_properties(z)
-
-        # beam centerline
-        x, y, z = beam.centerline(q)
-        center_line.set_data(x, y)
-        center_line.set_3d_properties(z)
-
-        # animate directors
-        global d1s, d2s, d3s
-        # # TODO: why is this not working?
-        # map(lambda d1: d1.remove(), d1s)
-        # map(lambda d2: d2.remove(), d2s)
-        # map(lambda d3: d3.remove(), d3s)
-        for i in range(n_frames):
-            d1s[i].remove()
-            d2s[i].remove()
-            d3s[i].remove()
-
-        r, d1, d2, d3 = beam.frames(q, n=n_frames)
-        d1s = [ax.quiver(*r[:, i].T, *d1[:, i].T, color="red") for i in range(n_frames)]
-        d2s = [
-            ax.quiver(*r[:, i].T, *d2[:, i].T, color="green") for i in range(n_frames)
-        ]
-        d3s = [
-            ax.quiver(*r[:, i].T, *d3[:, i].T, color="blue") for i in range(n_frames)
-        ]
-
-    def animate(i):
-        update(t[i], q[i])
-
-    anim = FuncAnimation(fig, animate, frames=frames, interval=interval * 2, blit=False)
-    if show:
-        plt.show()
-    return anim
 
 
 class TimoshenkoBeamDirector(metaclass=ABCMeta):
@@ -337,6 +213,48 @@ class TimoshenkoBeamDirector(metaclass=ABCMeta):
 
         # self.N_bdry = np.array([N_bdry_left, N_bdry_right])
         # self.dN_bdry = np.array([dN_bdry_left, dN_bdry_right])
+
+    @staticmethod
+    def straight_configuration(
+        polynomial_degree_r,
+        polynomial_degree_di,
+        nEl,
+        L,
+        greville_abscissae=True,
+        r_OP=np.zeros(3),
+        A_IK=np.eye(3),
+        basis="B-spline",
+    ):
+        if basis == "B-spline":
+            nn_r = polynomial_degree_r + nEl
+            nn_di = polynomial_degree_di + nEl
+        elif basis == "lagrange":
+            nn_r = polynomial_degree_r * nEl + 1
+            nn_di = polynomial_degree_di * nEl + 1
+        else:
+            raise RuntimeError(f'wrong basis: "{basis}" was chosen')
+
+        X = np.linspace(0, L, num=nn_r)
+        Y = np.zeros(nn_r)
+        Z = np.zeros(nn_r)
+        if greville_abscissae and basis == "B-spline":
+            kv = uniform_knot_vector(polynomial_degree_r, nEl)
+            for i in range(nn_r):
+                X[i] = np.sum(kv[i + 1 : i + polynomial_degree_r + 1])
+            X = X * L / polynomial_degree_r
+
+        r0 = np.vstack((X, Y, Z)).T
+        for i, r0i in enumerate(r0):
+            X[i], Y[i], Z[i] = r_OP + A_IK @ r0i
+
+        # compute reference directors
+        D1, D2, D3 = A_IK.T
+        D1 = np.repeat(D1, nn_di)
+        D2 = np.repeat(D2, nn_di)
+        D3 = np.repeat(D3, nn_di)
+
+        # assemble all reference generalized coordinates
+        return np.concatenate([X, Y, Z, D1, D2, D3])
 
     def element_number(self, xi):
         # note the elements coincide for both meshes!

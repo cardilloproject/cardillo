@@ -11,33 +11,10 @@ from cardillo.discretization.mesh1D import Mesh1D
 from cardillo.discretization.B_spline import uniform_knot_vector
 
 
-def straight_configuration(
-    polynomial_degree, nEl, L, greville_abscissae=True, r_OP=np.zeros(3), A_IK=np.eye(3)
-):
-
-    # number of nodes
-    nn = polynomial_degree + nEl
-
-    X = np.linspace(0, L, num=nn)
-    Y = np.zeros(nn)
-    if greville_abscissae:
-        kv = uniform_knot_vector(polynomial_degree, nEl)
-        for i in range(nn):
-            X[i] = np.sum(kv[i + 1 : i + polynomial_degree + 1])
-        X = X * L / polynomial_degree
-
-    r0 = np.vstack((X, Y)).T
-    for i in range(nn):
-        r0i = np.array([*r0[i], 0])
-        X[i], Y[i], _ = r_OP + A_IK @ r0i
-
-    # assemble all reference generalized coordinates
-    return np.concatenate([X, Y])
-
-
-class EulerBernoulli:
+class EulerBernoulli2D:
     """Planar Euler-Bernoulli beam using B-spline shape functions introduced in
-    Eugster2020b (https://doi.org/10.1007/978-3-030-50460-1_9) and Harsch2020a (https://doi.org/10.1007/978-3-030-50460-1_10).
+    Eugster2020b (https://doi.org/10.1007/978-3-030-50460-1_9) and Harsch2020a
+    (https://doi.org/10.1007/978-3-030-50460-1_10).
     """
 
     def __init__(
@@ -130,6 +107,35 @@ class EulerBernoulli:
 
         self.N_bdry = np.array([NN_bdry0, NN_bdry1])
         self.dN_bdry = np.array([NN_xi_bdry0, NN_xi_bdry1])
+
+    @staticmethod
+    def straight_configuration(
+        polynomial_degree,
+        nEl,
+        L,
+        greville_abscissae=True,
+        r_OP=np.zeros(3),
+        A_IK=np.eye(3),
+    ):
+
+        # number of nodes
+        nn = polynomial_degree + nEl
+
+        X = np.linspace(0, L, num=nn)
+        Y = np.zeros(nn)
+        if greville_abscissae:
+            kv = uniform_knot_vector(polynomial_degree, nEl)
+            for i in range(nn):
+                X[i] = np.sum(kv[i + 1 : i + polynomial_degree + 1])
+            X = X * L / polynomial_degree
+
+        r0 = np.vstack((X, Y)).T
+        for i in range(nn):
+            r0i = np.array([*r0[i], 0])
+            X[i], Y[i], _ = r_OP + A_IK @ r0i
+
+        # assemble all reference generalized coordinates
+        return np.concatenate([X, Y])
 
     def assembler_callback(self):
         self.__M_coo()
@@ -533,7 +539,10 @@ class EulerBernoulli:
     # visualization
     ####################################################
     def nodes(self, q):
-        return q.reshape(2, -1)
+        nodes2D = q.reshape(2, -1)
+        nodes = np.zeros((3, nodes2D.shape[1]))
+        nodes[:2, :] = nodes2D
+        return nodes
 
     def centerline(self, q, n=100):
         q_body = q[self.qDOF]
@@ -542,7 +551,7 @@ class EulerBernoulli:
             frame_ID = (xi,)
             qp = q_body[self.qDOF_P(frame_ID)]
             r.append(self.r_OP(1, qp, frame_ID))
-        return np.array(r)
+        return np.array(r).T
 
     def frames(self, q, n=10):
         q_body = q[self.qDOF]
@@ -719,7 +728,7 @@ class EulerBernoulli:
 
 
 # TODO: adapt this implementation with new style from spatial beams
-class Inextensible_Euler_bernoulli(EulerBernoulli):
+class Inextensible_Euler_bernoulli(EulerBernoulli2D):
     def __init__(self, *args, la_g0=None, **kwargs):
         super().__init__(*args, **kwargs)
 

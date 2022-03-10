@@ -1,11 +1,11 @@
-from cardillo.model.classical_beams.spatial.material_models import Simo1986
+from cardillo.beams.spatial.material_models import Simo1986
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints.implicit import RigidConnection
-from cardillo.model.classical_beams.spatial.director import (
-    straight_configuration,
+from cardillo.beams import (
+    # straight_configuration_director_beam,
     animate_beam,
+    TimoshenkoDirectorIntegral,
 )
-from cardillo.model.classical_beams.spatial import TimoshenkoDirectorIntegral
 from cardillo.forces import Force, K_Moment, DistributedForce1D
 from cardillo.model import Model
 from cardillo.solver import Newton
@@ -44,7 +44,9 @@ def junction_left_plane_contact_right():
     # basis = 'lagrange'
 
     # build reference configuration
-    Q = straight_configuration(p_r, p_di, nEl, L, basis=basis)
+    Q = TimoshenkoDirectorIntegral.straight_configuration(
+        p_r, p_di, nEl, L, basis=basis
+    )
     q0 = Q.copy()
 
     beam = TimoshenkoDirectorIntegral(

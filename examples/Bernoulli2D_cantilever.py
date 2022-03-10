@@ -1,10 +1,10 @@
 from cardillo.math import A_IK_basic
 from cardillo.model.frame import Frame
-from cardillo.model.classical_beams.planar import (
-    Hooke,
-    EulerBernoulli,
-    straight_configuration,
+from cardillo.beams import (
+    EulerBernoulli2D,
+    animate_beam,
 )
+from cardillo.beams.planar import Hooke
 from cardillo.model.bilateral_constraints.implicit import RigidConnection2D
 from cardillo.forces import Force, K_Moment
 from cardillo.model import Model
@@ -46,10 +46,11 @@ if __name__ == "__main__":
     A_IK = A_IK_basic(pi / 2).z()  # rotate beam and rigid connection by 90° clock-wise
 
     # build reference configuration
-    Q = straight_configuration(p, nEl, L, r_OP=r_OP, A_IK=A_IK)
+    # Q = straight_configuration_EulerBernoulli2D(p, nEl, L, r_OP=r_OP, A_IK=A_IK)
+    Q = EulerBernoulli2D.straight_configuration(p, nEl, L, r_OP=r_OP, A_IK=A_IK)
 
     # build beam model
-    beam = EulerBernoulli(A_rho0, material_model, p, nEl, nQP, Q=Q)
+    beam = EulerBernoulli2D(A_rho0, material_model, p, nEl, nQP, Q=Q)
 
     # rigid connection at the bottom end of the beam (xi = 0)
     frame = Frame(r_OP=r_OP, A_IK=A_IK)
@@ -95,23 +96,4 @@ if __name__ == "__main__":
     ##############################
     # visualize static deformation
     ##############################
-    fig, ax = plt.subplots()
-
-    # draw ground
-    l = 1
-    h = 0.5
-    ax.plot([-l, l], [0, 0], "-k", lw=1)
-    p = patches.Rectangle((-l, -h), 2 * l, h, linewidth=0, fill=None, hatch="///")
-    ax.add_patch(p)
-
-    # plot the deformed beam centerline and the control polygon of the B-splines
-    ax.plot(*beam.nodes(q[-1]), "--ob")
-    x, y, z = beam.centerline(q[-1]).T
-    ax.plot(x, y, "-k")
-
-    # set labels and scale axis equal
-    ax.set_xlabel("x [m]")
-    ax.set_ylabel("y [m]")
-    ax.axis("equal")
-
-    plt.show()
+    animate_beam(t, q, beam, L, show=True)
