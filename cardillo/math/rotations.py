@@ -1,6 +1,6 @@
 import numpy as np
 from math import sin, cos, tan, sqrt, atan2
-from PyRod.math import norm, ax2skew, cross3
+from PyRod.math import norm, cross3, ax2skew, ax2skew_a
 
 
 class A_IK_basic:
