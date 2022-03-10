@@ -1,6 +1,6 @@
 from cardillo.model.classical_beams.spatial import Hooke_quadratic
-from cardillo.model.classical_beams.spatial import Timoshenko_director_dirac
-from cardillo.model.classical_beams.spatial import Timoshenko_director_integral, Euler_Bernoulli_director_integral, Inextensible_Euler_Bernoulli_director_integral
+from cardillo.model.classical_beams.spatial import TimoshenkoDirectorDirac
+from cardillo.model.classical_beams.spatial import TimoshenkoDirectorIntegral, EulerBernoulliDirectorIntegral, InextensibleEulerBernoulliDirectorIntegral
 from cardillo.model.classical_beams.spatial.director import straight_configuration
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints.implicit import Rigid_connection
@@ -53,7 +53,7 @@ if __name__ == "__main__":
     Q = straight_configuration(p_r, p_di, nEl, L, basis=basis)
     q0 = Q.copy()
     # beam = Timoshenko_director_dirac(material_model, A_rho0, B_rho0, C_rho0, p_r, p_di, nQP, nEl, Q=Q, q0=q0, basis=basis)
-    beam = Timoshenko_director_integral(material_model, A_rho0, B_rho0, C_rho0, p_r, p_di, nQP, nEl, Q=Q, basis=basis)
+    beam = TimoshenkoDirectorIntegral(material_model, A_rho0, B_rho0, C_rho0, p_r, p_di, nQP, nEl, Q=Q, basis=basis)
     # beam = Euler_Bernoulli_director_integral(material_model, A_rho0, B_rho0, C_rho0, p_r, p_di, nQP, nEl, Q=Q, basis=basis)
     # beam = Inextensible_Euler_Bernoulli_director_integral(material_model, A_rho0, B_rho0, C_rho0, p_r, p_di, nQP, nEl, Q=Q, basis=basis)
     # exit()

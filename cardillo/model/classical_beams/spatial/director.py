@@ -136,7 +136,7 @@ def animate_beam(t, q, beam, L, show=False):
     return anim
 
 
-class Timoshenko_beam_director(metaclass=ABCMeta):
+class TimoshenkoBeamDirector(metaclass=ABCMeta):
     def __init__(
         self,
         material_model,
@@ -2021,7 +2021,7 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
 ####################################################
 # constraint beam using nodal constraints
 ####################################################
-class Timoshenko_director_dirac(Timoshenko_beam_director):
+class TimoshenkoDirectorDirac(TimoshenkoBeamDirector):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -2126,7 +2126,7 @@ class Timoshenko_director_dirac(Timoshenko_beam_director):
 ####################################################
 # constraint beam using integral constraints
 ####################################################
-class Timoshenko_director_integral(Timoshenko_beam_director):
+class TimoshenkoDirectorIntegral(TimoshenkoBeamDirector):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -2572,7 +2572,7 @@ class Timoshenko_director_integral(Timoshenko_beam_director):
 
 
 # TODO: implement time derivatives of constraint functions
-class Euler_Bernoulli_director_integral(Timoshenko_beam_director):
+class EulerBernoulliDirectorIntegral(TimoshenkoBeamDirector):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -2869,7 +2869,7 @@ class Euler_Bernoulli_director_integral(Timoshenko_beam_director):
 
 
 # TODO: implement time derivatives of constraint functions
-class Inextensible_Euler_Bernoulli_director_integral(Timoshenko_beam_director):
+class InextensibleEulerBernoulliDirectorIntegral(TimoshenkoBeamDirector):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 

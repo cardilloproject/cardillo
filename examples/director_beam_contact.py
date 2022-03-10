@@ -2,8 +2,7 @@ from cardillo.model.classical_beams.spatial.material_models import Simo1986
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints.implicit import RigidConnection
 from cardillo.model.classical_beams.spatial.director import straight_configuration, animate_beam
-from cardillo.model.classical_beams.spatial import Timoshenko_director_integral
-from cardillo.math.rotations import A_IK_basic
+from cardillo.model.classical_beams.spatial import TimoshenkoDirectorIntegral
 from cardillo.model.force import Force
 from cardillo.model.moment import K_Moment
 from cardillo.model.distributed_force import DistributedForce1D
@@ -29,7 +28,6 @@ def junction_left_plane_contact_right():
 
     # junction at the origin
     r_OB1 = np.zeros(3)
-    # r_OB1 = lambda t: t * np.array([1, 2, 3])
     frame_left = Frame(r_OP=r_OB1)
 
     # discretization properties
@@ -39,7 +37,7 @@ def junction_left_plane_contact_right():
     # nQP = int(np.ceil((p + 1)**2 / 2))
     nQP = p + 1
     print(f"nQP: {nQP}")
-    nEl = 5
+    nEl = 10
 
     basis = "B-spline"
     # basis = 'lagrange'
@@ -48,7 +46,7 @@ def junction_left_plane_contact_right():
     Q = straight_configuration(p_r, p_di, nEl, L, basis=basis)
     q0 = Q.copy()
 
-    beam = Timoshenko_director_integral(
+    beam = TimoshenkoDirectorIntegral(
         material_model,
         A_rho0,
         B_rho0,
@@ -69,6 +67,14 @@ def junction_left_plane_contact_right():
     __g = np.array([0, 0, -A_rho0 * 9.81 * 5.0e-3])
     f_g_beam = DistributedForce1D(lambda t, xi: t * __g, beam)
 
+    # moment at right end
+    M = lambda t: -np.array([1, 0, 1]) * t * 2 * np.pi * Fi[1] / L * 0.5
+    moment = K_Moment(M, beam, (1,))
+
+    # force at right end
+    F = lambda t: np.array([0, 0, -1]) * t * 1.0e-2
+    force = Force(F, beam, frame_ID=(1,))
+
     # add point to plane contact
     r_OP_contact = np.array([L, 0, -0.0 * L])
     frame_contact = Frame(r_OP=r_OP_contact)
@@ -84,6 +90,8 @@ def junction_left_plane_contact_right():
     model.add(f_g_beam)
     model.add(frame_contact)
     model.add(contact)
+    # model.add(moment)
+    # model.add(force)
     model.assemble()
 
     solver = Newton(

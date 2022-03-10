@@ -1,5 +1,5 @@
 from cardillo.model.classical_beams.spatial import Hooke_quadratic, Hooke
-from cardillo.model.classical_beams.spatial import Timoshenko_director_integral
+from cardillo.model.classical_beams.spatial import TimoshenkoDirectorIntegral
 from cardillo.discretization.B_spline import fit_B_Spline
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints.implicit import Rigid_connection, Linear_guidance_x
@@ -35,7 +35,7 @@ def arc3D(t, R, plane='xz'):
 
     return P, dP, ddP
 
-Beam = Timoshenko_director_integral
+Beam = TimoshenkoDirectorIntegral
 
 if __name__ == "__main__":
     ################################

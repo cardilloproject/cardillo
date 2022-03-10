@@ -1,5 +1,5 @@
 from cardillo.model.classical_beams.spatial import Hooke_quadratic
-from cardillo.model.classical_beams.spatial import Timoshenko_director_integral
+from cardillo.model.classical_beams.spatial import TimoshenkoDirectorIntegral
 from cardillo.discretization.B_spline import fit_B_Spline
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints.implicit import Rigid_connection
@@ -263,7 +263,7 @@ if __name__ == "__main__":
     t1 = 5
     dt = 1e-3 # full beam dynamics generalized alpha
 
-    beam = Timoshenko_director_integral(material_model, A_rho0, B_rho0, C_rho0, p, p, nQP, nEl, q0=Q, Q=Q)
+    beam = TimoshenkoDirectorIntegral(material_model, A_rho0, B_rho0, C_rho0, p, p, nQP, nEl, q0=Q, Q=Q)
 
     model = Model()
 
