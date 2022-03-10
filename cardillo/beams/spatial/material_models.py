@@ -20,7 +20,7 @@ class ShearStiffQuadratic:
 
     def potential(self, lambda_, K_i, K0_i):
         dK = K_i - K0_i
-        return 0.5 * self.E1 * (lambda_ - 1)**2 + 0.5 * dK @ self.C_m @ dK
+        return 0.5 * self.E1 * (lambda_ - 1) ** 2 + 0.5 * dK @ self.C_m @ dK
 
     def n_1(self, lambda_, K_i, K0_i):
         return self.E1 * (lambda_ - 1)

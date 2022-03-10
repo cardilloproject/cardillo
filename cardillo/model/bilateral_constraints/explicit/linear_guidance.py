@@ -1,16 +1,17 @@
 import numpy as np
 from cardillo.math.algebra import A_IK_basic_z, dA_IK_basic_z
 
-class Linear_guidance():
+
+class Linear_guidance:
     def __init__(self, r_OB1, A_IB1, q0=None, u0=None):
-        '''Linear guidance allowing only  motion on line starting in r_OB1 having e1 of A_IB1 as direction'''
+        """Linear guidance allowing only  motion on line starting in r_OB1 having e1 of A_IB1 as direction"""
         self.nq = 1
         self.nu = 1
         self.q0 = np.zeros(self.nq) if q0 is None else q0
         self.u0 = np.zeros(self.nu) if u0 is None else u0
-        
+
         self.r_OB1 = r_OB1
-        self.A_IB1  = A_IB1
+        self.A_IB1 = A_IB1
 
         self.is_assembled = False
 
@@ -47,7 +48,7 @@ class Linear_guidance():
 
     def B1_J_B1B2(self, t, q):
         J = np.zeros((3, 1))
-        J[0 , 0] = 1
+        J[0, 0] = 1
         return J
 
     def B1_J_B1B2_q(self, t, q):

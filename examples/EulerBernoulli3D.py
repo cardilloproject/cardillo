@@ -1,6 +1,10 @@
 from cardillo.beams.spatial.material_models import ShearStiffQuadratic
 from cardillo.model.frame import Frame
-from cardillo.model.bilateral_constraints.implicit import RigidConnection, SphericalJoint
+from cardillo.model.bilateral_constraints.implicit import (
+    RigidConnection,
+    SphericalJoint,
+    RigidConnectionCable,
+)
 from cardillo.beams import (
     animate_beam,
     EulerBernoulli,
@@ -9,6 +13,7 @@ from cardillo.forces import Force, K_Moment, DistributedForce1D
 from cardillo.model import Model
 from cardillo.solver import Newton
 from cardillo.contacts import Point2Plane
+from cardillo.math import e1, e2, e3
 
 import numpy as np
 
@@ -31,18 +36,16 @@ if __name__ == "__main__":
     frame2 = Frame(r_OP=r_OB2)
 
     # discretization properties
-    p = 2
+    p = 3
     p_r = p
     p_phi = p
     # nQP = int(np.ceil((p + 1)**2 / 2))
     nQP = p + 1
     print(f"nQP: {nQP}")
-    nEl = 2
+    nEl = 5
 
     # build reference configuration
-    Q = EulerBernoulli.straight_configuration(
-        p_r, p_phi, nEl, L
-    )
+    Q = EulerBernoulli.straight_configuration(p_r, p_phi, nEl, L)
     q0 = Q.copy()
 
     beam = EulerBernoulli(
@@ -78,18 +81,23 @@ if __name__ == "__main__":
     # exit()
 
     # left and right joint
-    # joint1 = RigidConnection(frame1, beam, r_OB1, frame_ID2=(0,))
-    # joint2 = RigidConnection(frame2, beam, r_OB2, frame_ID2=(1,))
-    joint1 = SphericalJoint(frame1, beam, r_OB1, frame_ID2=(0,))
-    joint2 = SphericalJoint(frame2, beam, r_OB2, frame_ID2=(1,))
+    # # joint1 = RigidConnection(frame1, beam, r_OB1, frame_ID2=(0,))
+    # # joint2 = RigidConnection(frame2, beam, r_OB2, frame_ID2=(1,))
+    # joint1 = SphericalJoint(frame1, beam, r_OB1, frame_ID2=(0,))
+    # joint2 = SphericalJoint(frame2, beam, r_OB2, frame_ID2=(1,))
+    joint1 = RigidConnectionCable(frame1, beam, r_OB1, frame_ID2=(0,))
+    joint2 = RigidConnectionCable(frame2, beam, r_OB2, frame_ID2=(1,))
 
     # gravity beam
     __g = np.array([0, 0, -A_rho0 * 9.81 * 5.0e-3])
     f_g_beam = DistributedForce1D(lambda t, xi: t * __g, beam)
 
-    # # moment at right end
+    # moment at right end
     # M = lambda t: -np.array([1, 0, 1]) * t * 2 * np.pi * Fi[1] / L * 0.5
-    # moment = K_Moment(M, beam, (1,))
+    # M = lambda t: e1 * t * 2 * np.pi * Fi[0] / L * 0.45
+    M = lambda t: e2 * t * 2 * np.pi * Fi[1] / L * 0.45
+    # M = lambda t: e3 * t * 2 * np.pi * Fi[2] / L * 0.45
+    moment = K_Moment(M, beam, (1,))
 
     # # force at right end
     # F = lambda t: np.array([0, 0, -1]) * t * 1.0e-2
@@ -107,12 +115,12 @@ if __name__ == "__main__":
     model.add(beam)
     model.add(frame1)
     model.add(joint1)
-    model.add(frame2)
-    model.add(joint2)
-    model.add(f_g_beam)
+    # model.add(frame2)
+    # model.add(joint2)
+    # model.add(f_g_beam)
     # model.add(frame_contact)
     # model.add(contact)
-    # model.add(moment)
+    model.add(moment)
     # model.add(force)
     model.assemble()
 
@@ -122,6 +130,7 @@ if __name__ == "__main__":
         max_iter=20,
         atol=1.0e-8,
         numerical_jacobian=False,
+        # numerical_jacobian=True,
         prox_r_N=1.0e-3,
     )
 

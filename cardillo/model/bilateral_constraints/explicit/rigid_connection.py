@@ -1,7 +1,8 @@
 import numpy as np
 from cardillo.math.algebra import A_IK_basic_z, dA_IK_basic_z
 
-class Rigid_connection():
+
+class Rigid_connection:
     def __init__(self, r_OB1, A_IB1):
         self.nq = 0
         self.nu = 0
@@ -9,7 +10,7 @@ class Rigid_connection():
         self.u0 = np.array([])
 
         self.r_OB1 = r_OB1
-        self.A_IB1  = A_IB1
+        self.A_IB1 = A_IB1
 
         self.is_assembled = False
 

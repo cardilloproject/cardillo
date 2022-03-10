@@ -2,6 +2,7 @@ from cardillo.math import approx_fprime
 import numpy as np
 from cardillo.math.algebra import cross3, ax2skew
 
+
 class RigidConnection:
     def __init__(
         self,
@@ -386,49 +387,83 @@ class RigidConnection:
         # print(f'error Wla_g_q: {error}')
         # coo.extend(dense_num, (self.uDOF, self.qDOF))
 
-class RigidConnection2D(RigidConnection):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.nla_g = 3
-        la_g0 = kwargs.get('la_g0')
+
+class RigidConnectionCable(RigidConnection):
+    """Rigid connection for cable elements. The first director of subsystem1
+    is constraint such that it is orthogonal to the second and third director
+    of subsystem 2, see g(t, q).
+
+    Note:
+    -----
+    subsystem1 has to be the cable element!
+    """
+
+    # def __init__(self, *args, **kwargs):
+    def __init__(
+        self,
+        subsystem1,
+        subsystem2,
+        frame_ID1=np.zeros(3),
+        frame_ID2=np.zeros(3),
+        la_g0=None,
+    ):
+        super().__init__(
+            subsystem1,
+            subsystem2,
+            frame_ID1,
+            frame_ID2,
+            la_g0,
+        )
+
+        # overwrite some quantities of the base class
+        self.nla_g = 5
         self.la_g0 = np.zeros(self.nla_g) if la_g0 is None else la_g0
 
     def g(self, t, q):
-        r_OB1 = self.r_OB1(t, q)[:2]
-        r_OB2 = self.r_OB2(t, q)[:2]
+        r_OB1 = self.r_OB1(t, q)
+        r_OB2 = self.r_OB2(t, q)
         ex1, _, _ = self.A_IB1(t, q).T
-        _, ey2, _ = self.A_IB2(t, q).T
-        return np.concatenate([r_OB2 - r_OB1, [ex1 @ ey2]]) 
-        
+        _, ey2, ez2 = self.A_IB2(t, q).T
+        return np.concatenate([r_OB2 - r_OB1, [ex1 @ ey2, ex1 @ ez2]])
+
     def g_q_dense(self, t, q):
+        # return approx_fprime(q, lambda q: self.g(t, q))
         nq1 = self.nq1
         g_q = np.zeros((self.nla_g, self._nq))
-        g_q[:2, :nq1] = - self.r_OB1_q(t, q)[:2]
-        g_q[:2, nq1:] = self.r_OB2_q(t, q)[:2]
+        g_q[:3, :nq1] = -self.r_OB1_q(t, q)
+        g_q[:3, nq1:] = self.r_OB2_q(t, q)
 
         ex1, _, _ = self.A_IB1(t, q).T
-        _, ey2, _ = self.A_IB2(t, q).T
+        _, ey2, ez2 = self.A_IB2(t, q).T
 
         A_IB1_q = self.A_IB1_q(t, q)
         ex1_q = A_IB1_q[:, 0]
         A_IB2_q = self.A_IB2_q(t, q)
         ey2_q = A_IB2_q[:, 1]
+        ez2_q = A_IB2_q[:, 2]
 
-        g_q[2, :nq1] = ey2 @ ex1_q
-        g_q[2, nq1:] = ex1 @ ey2_q
+        # return np.concatenate([r_OB2 - r_OB1, [ex1 @ ey2, ex1 @ ez2]])
+        g_q[3, :nq1] = ey2 @ ex1_q
+        g_q[3, nq1:] = ex1 @ ey2_q
+        g_q[4, :nq1] = ez2 @ ex1_q
+        g_q[4, nq1:] = ex1 @ ez2_q
         return g_q
 
     def g_dot(self, t, q, u):
         g_dot = np.zeros(self.nla_g)
 
         ex1, _, _ = self.A_IB1(t, q).T
-        _, ey2, _ = self.A_IB2(t, q).T
+        _, ey2, ez2 = self.A_IB2(t, q).T
 
-        # np.concatenate([r_OB2 - r_OB1, [ex1 @ ey2]])
-        g_dot[:2] = self.v_B2(t, q, u)[:2] - self.v_B1(t, q, u)[:2]
-        g_dot[2] = cross3(ex1, ey2) @ (self.Omega1(t, q, u) - self.Omega2(t, q, u))
+        Omega21 = self.Omega1(t, q, u) - self.Omega2(t, q, u)
+
+        # return np.concatenate([r_OB2 - r_OB1, [ex1 @ ey2, ex1 @ ez2]])
+        g_dot[:3] = self.v_B2(t, q, u) - self.v_B1(t, q, u)
+        g_dot[3] = cross3(ex1, ey2) @ Omega21
+        g_dot[4] = cross3(ex1, ez2) @ Omega21
         return g_dot
 
+    # TODO:
     def g_dot_q(self, t, q, u, coo):
         dense = approx_fprime(q, lambda q: self.g_dot(t, q, u), method="3-point")
         coo.extend(dense, (self.la_gDOF, self.qDOF))
@@ -440,51 +475,65 @@ class RigidConnection2D(RigidConnection):
         g_ddot = np.zeros(self.nla_g)
 
         ex1, _, _ = self.A_IB1(t, q).T
-        _, ey2, _ = self.A_IB2(t, q).T
+        _, ey2, ez2 = self.A_IB2(t, q).T
 
         Omega1 = self.Omega1(t, q, u)
         Omega2 = self.Omega2(t, q, u)
         Omega21 = Omega1 - Omega2
+        Psi21 = self.Psi1(t, q, u, u_dot) - self.Psi2(t, q, u, u_dot)
 
-        #g_dot[:2] = self.v_B2(t, q, u)[:2] - self.v_B1(t, q, u)[:2]
-        g_ddot[:2] = self.a_B2(t, q, u, u_dot)[:2] - self.a_B1(t, q, u, u_dot)[:2]
+        # g_dot[:3] = self.v_B2(t, q, u) - self.v_B1(t, q, u)
+        g_ddot[:3] = self.a_B2(t, q, u, u_dot) - self.a_B1(t, q, u, u_dot)
 
-        #g_dot[2] = cross3(ex1, ey2) @ Omega21
-        g_ddot[2] =   cross3(cross3(Omega1, ex1), ey2) @ Omega21 \
-                    + cross3(ex1, cross3(Omega2, ey2)) @ Omega21 \
-                    + cross3(ex1, ey2) @ (self.Psi1(t, q, u, u_dot) - self.Psi2(t, q, u, u_dot))
+        # g_dot[3] = cross3(ex1, ey2) @ Omega21
+        g_ddot[3] = (
+            cross3(cross3(Omega1, ex1), ey2) @ Omega21
+            + cross3(ex1, cross3(Omega2, ey2)) @ Omega21
+            + cross3(ex1, ey2) @ Psi21
+        )
+
+        # g_dot[4] = cross3(ex1, ez2) @ Omega21
+        g_ddot[4] = (
+            cross3(cross3(Omega1, ex1), ez2) @ Omega21
+            + cross3(ex1, cross3(Omega2, ez2)) @ Omega21
+            + cross3(ex1, ez2) @ Psi21
+        )
 
         return g_ddot
 
     def g_ddot_q(self, t, q, u, u_dot, coo):
-        dense = approx_fprime(q, lambda q: self.g_ddot(t, q, u), method="3-point")
+        dense = approx_fprime(
+            q, lambda q: self.g_ddot(t, q, u, u_dot), method="3-point"
+        )
         coo.extend(dense, (self.la_gDOF, self.qDOF))
 
     def g_ddot_u(self, t, q, u, u_dot, coo):
-        # TODO: This should we W_g.T?
-        dense = approx_fprime(u, lambda u: self.g_ddot(t, q, u), method="3-point")
+        dense = approx_fprime(
+            u, lambda u: self.g_ddot(t, q, u, u_dot), method="3-point"
+        )
         coo.extend(dense, (self.la_gDOF, self.uDOF))
 
     def g_q(self, t, q, coo):
         coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
 
     def W_g_dense(self, t, q):
+        # return approx_fprime(np.zeros_like(q), lambda u: self.g_dot(t, q, u)).T
         nu1 = self.nu1
         W_g = np.zeros((self._nu, self.nla_g))
 
-        # position 
-        J_B1 = self.J_B1(t, q) 
+        # position
+        J_B1 = self.J_B1(t, q)
         J_B2 = self.J_B2(t, q)
-        W_g[:nu1, :2] = -J_B1[:2].T
-        W_g[nu1:, :2] = J_B2[:2].T
+        W_g[:nu1, :3] = -J_B1.T
+        W_g[nu1:, :3] = J_B2.T
 
-        # angular velocity
+        # orientations
         ex1, _, _ = self.A_IB1(t, q).T
-        _, ey2, _ = self.A_IB2(t, q).T
-        
+        _, ey2, ez2 = self.A_IB2(t, q).T
         J = np.hstack([self.J_R1(t, q), -self.J_R2(t, q)])
 
-        W_g[:, 2] = cross3(ex1, ey2) @ J
+        W_g[:, 3] = cross3(ex1, ey2) @ J
+        W_g[:, 4] = cross3(ex1, ez2) @ J
         return W_g
 
     def W_g(self, t, q, coo):
@@ -495,38 +544,63 @@ class RigidConnection2D(RigidConnection):
         nu1 = self.nu1
         dense = np.zeros((self._nu, self._nq))
 
-        # position 
-        J_B1_q = self.J_B1_q(t, q) 
+        # position
+        J_B1_q = self.J_B1_q(t, q)
         J_B2_q = self.J_B2_q(t, q)
-        dense[:nu1, :nq1] += np.einsum('i,ijk->jk', -la_g[:2], J_B1_q[:2])
-        dense[nu1:, nq1:] += np.einsum('i,ijk->jk', la_g[:2], J_B2_q[:2])
+        dense[:nu1, :nq1] += np.einsum("i,ijk->jk", -la_g[:3], J_B1_q)
+        dense[nu1:, nq1:] += np.einsum("i,ijk->jk", la_g[:3], J_B2_q)
 
         # angular velocity
         ex1, _, _ = self.A_IB1(t, q).T
-        _, ey2, _ = self.A_IB2(t, q).T
+        _, ey2, ez2 = self.A_IB2(t, q).T
         A_IB1_q = self.A_IB1_q(t, q)
         ex1_q = A_IB1_q[:, 0]
         A_IB2_q = self.A_IB2_q(t, q)
         ey2_q = A_IB2_q[:, 1]
+        ez2_q = A_IB2_q[:, 2]
         J_R1 = self.J_R1(t, q)
         J_R2 = self.J_R2(t, q)
         J_R1_q = self.J_R1_q(t, q)
         J_R2_q = self.J_R2_q(t, q)
 
+        # W_g[:nu1, 3] la_g[3] = cross3(ex1, ey2) @ J_R1 * la_g[3]
+        # W_g[nu1:, 3] la_g[3] = - cross3(ex1, ey2) @ J_R2 * la_g[3]
         n = cross3(ex1, ey2)
         n_q1 = -ax2skew(ey2) @ ex1_q
         n_q2 = ax2skew(ex1) @ ey2_q
-        dense[:nu1, :nq1] += np.einsum('i,ijk->jk', la_g[2] * n, J_R1_q) \
-                                + np.einsum('ij,ik->kj', la_g[2] * n_q1, J_R1)
-        dense[:nu1, nq1:] += np.einsum('ij,ik->kj', la_g[2] * n_q2, J_R1)
-        dense[nu1:, :nq1] += np.einsum('ij,ik->kj', - la_g[2] * n_q1, J_R2)
-        dense[nu1:, nq1:] += np.einsum('i,ijk->jk', - la_g[2] * n, J_R2_q) \
-                                + np.einsum('ij,ik->kj', - la_g[2] * n_q2, J_R2)
+        dense[:nu1, :nq1] += np.einsum("i,ijk->jk", la_g[3] * n, J_R1_q) + np.einsum(
+            "ij,ik->kj", la_g[3] * n_q1, J_R1
+        )
+        dense[:nu1, nq1:] += np.einsum("ij,ik->kj", la_g[3] * n_q2, J_R1)
+        dense[nu1:, :nq1] += np.einsum("ij,ik->kj", -la_g[3] * n_q1, J_R2)
+        dense[nu1:, nq1:] += np.einsum("i,ijk->jk", -la_g[3] * n, J_R2_q) + np.einsum(
+            "ij,ik->kj", -la_g[3] * n_q2, J_R2
+        )
 
-        coo.extend( dense, (self.uDOF, self.qDOF))
+        # W_g[:, 4] = cross3(ex1, ez2) @ J
+        # W_g[:nu1, 4] la_g[4] = cross3(ex1, ez2) @ J_R1 * la_g[4]
+        # W_g[nu1:, 4] la_g[4] = -cross3(ex1, ez2) @ J_R2 * la_g[4]
+        # # W_g[:nu1, 4] la_g[4] = cross3(ey1, ez2) @ J_R1 * la_g[4]
+        # # W_g[nu1:, 4] la_g[4] = - cross3(ey1, ez2) @ J_R2 * la_g[4]
+        n = cross3(ex1, ez2)
+        n_q1 = -ax2skew(ez2) @ ex1_q
+        n_q2 = ax2skew(ex1) @ ez2_q
+        dense[:nu1, :nq1] += np.einsum("i,ijk->jk", la_g[4] * n, J_R1_q) + np.einsum(
+            "ij,ik->kj", la_g[4] * n_q1, J_R1
+        )
+        dense[:nu1, nq1:] += np.einsum("ij,ik->kj", la_g[4] * n_q2, J_R1)
+        dense[nu1:, :nq1] += np.einsum("ij,ik->kj", -la_g[4] * n_q1, J_R2)
+        dense[nu1:, nq1:] += np.einsum("i,ijk->jk", -la_g[4] * n, J_R2_q) + np.einsum(
+            "ij,ik->kj", -la_g[4] * n_q2, J_R2
+        )
+
+        coo.extend(dense, (self.uDOF, self.qDOF))
+
 
 from cardillo.discretization.B_spline import B_spline_basis1D
-class Rigid_beam_beam_connection2D():
+
+
+class Rigid_beam_beam_connection2D:
     def __init__(self, beam1, beam2, la_g0=None):
         # rigid connection between to consecutive beams. End of beam1 is connected to start of beam2.
         self.nla_g = 3
@@ -537,15 +611,18 @@ class Rigid_beam_beam_connection2D():
 
         self.frame_ID1 = (1,)
         self.frame_ID2 = (0,)
-       
-        N, N_xi = B_spline_basis1D(beam1.polynomial_degree, 1, beam1.knot_vector.data, 1).T
+
+        N, N_xi = B_spline_basis1D(
+            beam1.polynomial_degree, 1, beam1.knot_vector.data, 1
+        ).T
         self.beam1_N = self.stack_shapefunctions(N, beam1.nq_el)
         self.beam1_N_xi = self.stack_shapefunctions(N_xi, beam1.nq_el)
 
-        N, N_xi = B_spline_basis1D(beam2.polynomial_degree, 1, beam2.knot_vector.data, 0).T
+        N, N_xi = B_spline_basis1D(
+            beam2.polynomial_degree, 1, beam2.knot_vector.data, 0
+        ).T
         self.beam2_N = self.stack_shapefunctions(N, beam2.nq_el)
         self.beam2_N_xi_perp = self.stack_shapefunctions_perp(N_xi, beam2.nq_el)
-        
 
     def assembler_callback(self):
         qDOF1 = self.beam1.qDOF_P(self.frame_ID1)
@@ -554,7 +631,7 @@ class Rigid_beam_beam_connection2D():
         self.nq1 = nq1 = len(qDOF1)
         self.nq2 = len(qDOF2)
         self._nq = self.nq1 + self.nq2
-        
+
         uDOF1 = self.beam1.uDOF_P(self.frame_ID1)
         uDOF2 = self.beam2.uDOF_P(self.frame_ID2)
         self.uDOF = np.concatenate([self.beam1.uDOF[uDOF1], self.beam2.uDOF[uDOF2]])
@@ -571,12 +648,12 @@ class Rigid_beam_beam_connection2D():
         # normal vector beam 2
         n = self.beam2_N_xi_perp @ q[nq1:]
 
-        return np.concatenate([r_OP2 - r_OP1, [t @ n]]) 
-        
+        return np.concatenate([r_OP2 - r_OP1, [t @ n]])
+
     def g_q_dense(self, t, q):
         nq1 = self.nq1
         g_q = np.zeros((self.nla_g, self._nq))
-        g_q[:2, :nq1] = - self.beam1_N
+        g_q[:2, :nq1] = -self.beam1_N
         g_q[:2, nq1:] = self.beam2_N
 
         # tangent vector beam 1
@@ -604,8 +681,8 @@ class Rigid_beam_beam_connection2D():
         dense = np.zeros((self._nu, self._nq))
         dense[:nu1, nq1:] = la_g[2] * self.beam1_N_xi.T @ self.beam2_N_xi_perp
         dense[nu1:, :nq1] = la_g[2] * self.beam2_N_xi_perp.T @ self.beam1_N_xi
-        
-        coo.extend( dense, (self.uDOF, self.qDOF))
+
+        coo.extend(dense, (self.uDOF, self.qDOF))
 
     def stack_shapefunctions(self, N, nq_el):
         # return np.kron(np.eye(2), N)

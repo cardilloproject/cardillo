@@ -1,17 +1,18 @@
 import numpy as np
 from cardillo.math.algebra import A_IK_basic_z, dA_IK_basic_z
 
-class Revolute_joint():
+
+class Revolute_joint:
     def __init__(self, r_OB1, A_IB1, q0=None, u0=None):
         self.nq = 1
         self.nu = 1
         self.q0 = np.zeros(self.nq) if q0 is None else q0
         self.u0 = np.zeros(self.nu) if u0 is None else u0
-        
+
         self.angle0 = self.q0[0]
 
         self.r_OB1 = r_OB1
-        self.A_IB1  = A_IB1
+        self.A_IB1 = A_IB1
 
         self.is_assembled = False
 

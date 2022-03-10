@@ -181,11 +181,12 @@ class EulerBernoulli:
                 d1, d2, d3 = R0.T
 
                 # torsional and flexural strains
+                # TODO: Check ordering!
                 self.Kappa0[el, i] = np.array(
                     [
                         0,  # TODO: This is not correct!
-                        -(d2 @ r0_xixi) / J0i**2,
-                        (d3 @ r0_xixi) / J0i**2,
+                        -(d3 @ r0_xixi) / J0i**2,
+                        (d2 @ r0_xixi) / J0i**2,
                     ]
                 )
 
@@ -345,11 +346,12 @@ class EulerBernoulli:
             lambda_ = ji / J0i
 
             # torsional and flexural strains
+            # TODO: Check ordering!
             Kappa_i = np.array(
                 [
                     0,  # r_xixi @ cross3(d1, e1) / (J0i * ji * (1 + d1 @ e1)), # Mitterbach2020 (2.105)
-                    -(d2 @ r_xixi) / (J0i * ji),
-                    (d3 @ r_xixi) / (J0i * ji),
+                    -(d3 @ r_xixi) / (J0i * ji),
+                    (d2 @ r_xixi) / (J0i * ji),
                 ]
             )
 
