@@ -83,7 +83,8 @@ class EulerBernoulli:
         self.nu = self.nq
         self.nq_el = (
             # nn_el_r * nq_n_r + nn_el_phi * nq_n_phi # TODO
-            nn_el_r * nq_n_r
+            nn_el_r
+            * nq_n_r
         )  # total number of generalized coordinates per element
         self.nq_el_r = nn_el_r * nq_n_r
         self.nq_el_phi = nn_el_phi * nq_n_phi
@@ -346,9 +347,9 @@ class EulerBernoulli:
             # torsional and flexural strains
             Kappa_i = np.array(
                 [
-                    0,  # TODO: This is not correct!
-                    -(d2 @ r_xixi) / J0i**2,
-                    (d3 @ r_xixi) / J0i**2,
+                    0,  # r_xixi @ cross3(d1, e1) / (J0i * ji * (1 + d1 @ e1)), # Mitterbach2020 (2.105)
+                    -(d2 @ r_xixi) / (J0i * ji),
+                    (d3 @ r_xixi) / (J0i * ji),
                 ]
             )
 
@@ -980,58 +981,21 @@ class EulerBernoulli:
     def uDOF_P(self, frame_ID):
         return self.elDOF_P(frame_ID)
 
-    # TODO: optimized implementation for boundaries
     def r_OP(self, t, q, frame_ID, K_r_SP=np.zeros(3)):
-        # xi = frame_ID[0]
-        # if xi == 0:
-        #     NN = self.N_bdry[0]
-        # elif xi == 1:
-        #     NN = self.N_bdry[-1]
-        # else:
-        #     N, _ = self.basis_functions(frame_ID[0])
-        #     NN = self.stack3r(N)
         N, _, _ = self.basis_functions_r(frame_ID[0])
         NN = self.stack3r(N)
         return NN @ q[self.rDOF] + self.A_IK(t, q, frame_ID=frame_ID) @ K_r_SP
 
-    # TODO: optimized implementation for boundaries
     def r_OP_q(self, t, q, frame_ID, K_r_SP=np.zeros(3)):
-        # xi = frame_ID[0]
-        # if xi == 0:
-        #     NN = self.N_bdry[0]
-        # elif xi == 1:
-        #     NN = self.N_bdry[-1]
-        # else:
-        #     N, _ = self.basis_functions(frame_ID[0])
-        #     NN = self.stack3r(N)
         N, _, _ = self.basis_functions_r(frame_ID[0])
         NN = self.stack3r(N)
 
         r_OP_q = np.zeros((3, self.nq_el))
         r_OP_q[:, self.rDOF] = NN
         r_OP_q += np.einsum("ijk,j->ik", self.A_IK_q(t, q, frame_ID=frame_ID), K_r_SP)
-
-        # tmp = np.einsum("ijk,j->ik", self.A_IK_q(t, q, frame_ID=frame_ID), K_r_SP)
-        # r_OP_q[:, self.d1DOF] = tmp[:, self.d1DOF]
-        # r_OP_q[:, self.d2DOF] = tmp[:, self.d2DOF]
-        # r_OP_q[:, self.d3DOF] = tmp[:, self.d3DOF]
         return r_OP_q
 
-        # r_OP_q_num = Numerical_derivative(lambda t, q: self.r_OP(t, q, frame_ID=frame_ID, K_r_SP=K_r_SP))._x(t, q)
-        # error = np.max(np.abs(r_OP_q_num - r_OP_q))
-        # print(f'error in r_OP_q: {error}')
-        # return r_OP_q_num
-
-    # TODO: optimized implementation for boundaries
     def A_IK(self, t, q, frame_ID):
-        # xi = frame_ID[0]
-        # if xi == 0:
-        #     NN = self.N_bdry[0]
-        # elif xi == 1:
-        #     NN = self.N_bdry[-1]
-        # else:
-        #     N, _ = self.basis_functions(frame_ID[0])
-        #     NN = self.stack3r(N)
         _, N_xi, _ = self.basis_functions_r(frame_ID[0])
         NN_xi = self.stack3r(N_xi)
         r_xi = NN_xi @ q[self.rDOF]
@@ -1052,19 +1016,22 @@ class EulerBernoulli:
         N, _, _ = self.basis_functions_r(frame_ID[0])
         NN = self.stack3r(N)
 
-        print("Caution: K_r_SP is assumed to be zero here!")
-
-        # v_P = NN @ u[self.rDOF] + self.A_IK(t, q, frame_ID) @ cross3(self.K_Omega(t, q, u, frame_ID=frame_ID), K_r_SP)
-        v_P = NN @ u[self.rDOF]
+        v_P = NN @ u[self.rDOF] + self.A_IK(t, q, frame_ID) @ cross3(
+            self.K_Omega(t, q, u, frame_ID=frame_ID), K_r_SP
+        )
+        # print("Caution: K_r_SP is assumed to be zero here!")
+        # v_P = NN @ u[self.rDOF]
         return v_P
 
-    # TODO    
+    # TODO
     def v_P_q(self, t, q, u, frame_ID, K_r_SP=np.zeros(3)):
         return approx_fprime(q, lambda q: self.v_P(t, q, u, frame_ID, K_r_SP))
 
     # TODO
     def J_P(self, t, q, frame_ID, K_r_SP=np.zeros(3)):
-        return approx_fprime(np.zeros_like(q), lambda u: self.v_P(t, q, u, frame_ID, K_r_SP))
+        return approx_fprime(
+            np.zeros_like(q), lambda u: self.v_P(t, q, u, frame_ID, K_r_SP)
+        )
 
     # TODO
     def J_P_q(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
@@ -1077,7 +1044,9 @@ class EulerBernoulli:
 
         K_Omega = self.K_Omega(t, q, u, frame_ID=frame_ID)
         K_Psi = self.K_Psi(t, q, u, u_dot, frame_ID=frame_ID)
-        a_P = NN @ u_dot[self.rDOF] + self.A_IK(t, q, frame_ID=frame_ID) @ (cross3(K_Psi, K_r_SP) + cross3(K_Omega, cross3(K_Omega, K_r_SP)))
+        a_P = NN @ u_dot[self.rDOF] + self.A_IK(t, q, frame_ID=frame_ID) @ (
+            cross3(K_Psi, K_r_SP) + cross3(K_Omega, cross3(K_Omega, K_r_SP))
+        )
         return a_P
 
     def a_P_q(self, t, q, u, u_dot, frame_ID, K_r_SP=None):
@@ -1086,36 +1055,42 @@ class EulerBernoulli:
     def a_P_u(self, t, q, u, u_dot, frame_ID, K_r_SP=None):
         return approx_fprime(u, lambda u: self.a_P(t, q, u, u_dot, frame_ID, K_r_SP))
 
-    # TODO:
+    # TODO: This angular velocity and the respective K_J_R cannot be used
+    # together with three constraint conditions, sicne two of them are
+    # linear deendent. Eigther this can be fixed or we have to write a special
+    # RigidConnection for this beam formulation. Later if we add the additional
+    # angle phi this is not problem anymore.
     def K_Omega(self, t, q, u, frame_ID):
-        raise NotImplementedError("")
-        # xi = frame_ID[0]
-        # if xi == 0:
-        #     NN = self.N_bdry[0]
-        # elif xi == 1:
-        #     NN = self.N_bdry[-1]
-        # else:
-        #     N, _ = self.basis_functions(frame_ID[0])
-        #     NN = self.stack3r(N)
-        N, _ = self.basis_functions_phi(frame_ID[0])
-        NN = self.stack3di(N)
+        _, N_xi, _ = self.basis_functions_r(frame_ID[0])
+        NN_xi = self.stack3r(N_xi)
+        r_xi = NN_xi @ q[self.rDOF]
+        r_xi_dot = NN_xi @ u[self.rDOF]
 
-        d1 = NN @ q[self.phiDOF]
-        d2 = NN @ q[self.d2DOF]
-        d3 = NN @ q[self.d3DOF]
-        A_IK = np.vstack((d1, d2, d3)).T
+        # compute first director
+        ji = norm(r_xi)
+        d1 = r_xi / ji
 
-        d1_dot = NN @ u[self.phiDOF]
-        d2_dot = NN @ u[self.d2DOF]
-        d3_dot = NN @ u[self.d3DOF]
-        A_IK_dot = np.vstack((d1_dot, d2_dot, d3_dot)).T
+        # rotation and directors
+        R = smallest_rotation(e1, d1)
+        d1, d2, d3 = R.T
 
-        K_Omega_tilde = A_IK.T @ A_IK_dot
-        return skew2ax(K_Omega_tilde)
+        return np.array(
+            [
+                r_xi_dot
+                @ cross3(d1, e1)
+                / (ji * (1 + d1 @ e1)),  # Mitterbach2020 (2.105)
+                -(d3 @ r_xi_dot) / ji,
+                (d2 @ r_xi_dot) / ji,
+            ]
+        )
 
     # TODO:
     def K_J_R(self, t, q, frame_ID):
-        return approx_fprime(np.zeros_like(q), lambda u: self.K_Omega(t, q, u, frame_ID))
+        return approx_fprime(
+            np.zeros_like(q),
+            lambda u: self.K_Omega(t, q, u, frame_ID),
+            method="2-point",
+        )
         N, _ = self.basis_functions_phi(frame_ID[0])
         NN = self.stack3di(N)
 
