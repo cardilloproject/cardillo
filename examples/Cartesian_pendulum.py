@@ -1,5 +1,3 @@
-from fileinput import filename
-from re import T
 import numpy as np
 import matplotlib.pyplot as plt
 

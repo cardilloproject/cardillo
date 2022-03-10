@@ -11,7 +11,7 @@ from cardillo.math import cross3, A_IK_basic
 from cardillo.model import Model
 from cardillo.model.rigid_body import RigidBodyEuler
 from cardillo.model.frame import Frame
-from cardillo.model.force import Force
+from cardillo.model.forces import Force
 # from cardillo.model.contacts import Sphere_to_plane
 from cardillo.contacts import Sphere2Plane
 from cardillo.solver import Moreau #, Moreau_sym, Generalized_alpha_2, Generalized_alpha_3
