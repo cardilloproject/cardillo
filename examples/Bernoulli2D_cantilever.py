@@ -2,7 +2,7 @@ from cardillo.math import A_IK_basic
 from cardillo.model.frame import Frame
 from cardillo.model.classical_beams.planar import Hooke, EulerBernoulli, straight_configuration
 from cardillo.model.bilateral_constraints.implicit import RigidConnection2D
-from cardillo.model.forces import Force, K_Moment
+from cardillo.forces import Force, K_Moment
 from cardillo.model import Model
 from cardillo.solver import Newton
 

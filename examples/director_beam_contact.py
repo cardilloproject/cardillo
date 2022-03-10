@@ -3,7 +3,7 @@ from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints.implicit import RigidConnection
 from cardillo.model.classical_beams.spatial.director import straight_configuration, animate_beam
 from cardillo.model.classical_beams.spatial import TimoshenkoDirectorIntegral
-from cardillo.model.forces import Force, K_Moment, DistributedForce1D
+from cardillo.forces import Force, K_Moment, DistributedForce1D
 from cardillo.model import Model
 from cardillo.solver import Newton
 from cardillo.contacts import Point2Plane
