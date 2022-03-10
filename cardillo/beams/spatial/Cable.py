@@ -250,25 +250,30 @@ class Cable:
             # # compute derivatives w.r.t. the arc lenght parameter s
             # r_s = r_xi / J0i
 
-            # compute first director
-            d1 = r_xi / ji
-
-            # build rotation matrices
-            R0 = smallest_rotation(e1, d1)
-            d1, d2, d3 = R0.T
-
             # axial stretch
             lambda_ = ji / J0i
 
-            # torsional and flexural strains
-            # TODO: Use \vka = d1 x d1,s and norm as strain measure?
-            Kappa_i = np.array(
-                [
-                    0,  # no torsion for cable element
-                    -(d3 @ r_xixi) / (J0i * ji),
-                    (d2 @ r_xixi) / (J0i * ji),
-                ]
-            )
+            # compute first director
+            d1 = r_xi / ji
+
+            # first directors derivative
+            d1_s = (np.eye(3) - np.outer(d1, d1)) @ r_xixi / (ji * J0i)
+
+            Kappa_i = cross3(d1, d1_s)
+
+            # # build rotation matrices
+            # R0 = smallest_rotation(e1, d1)
+            # d1, d2, d3 = R0.T
+
+            # # torsional and flexural strains
+            # # TODO: Use \vka = d1 x d1,s and norm as strain measure?
+            # Kappa_i = np.array(
+            #     [
+            #         0,  # no torsion for cable element
+            #         -(d3 @ r_xixi) / (J0i * ji),
+            #         (d2 @ r_xixi) / (J0i * ji),
+            #     ]
+            # )
 
             # evaluate strain energy function
             Ee += (
@@ -287,7 +292,7 @@ class Cable:
         return f
 
     def f_pot_el(self, qe, el):
-        return -approx_fprime(qe, lambda qe: self.E_pot_el(qe, el), method="2-point")
+        return -approx_fprime(qe, lambda qe: self.E_pot_el(qe, el), method="3-point")
         fe = np.zeros(self.nq_el)
 
         # extract generalized coordinates for beam centerline and directors
@@ -892,15 +897,15 @@ class Cable:
     def r_OP(self, t, q, frame_ID, K_r_SP=np.zeros(3)):
         N, _, _ = self.basis_functions(frame_ID[0])
         NN = self.stack3(N)
-        return NN @ q + self.A_IK(t, q, frame_ID=frame_ID) @ K_r_SP
+        return NN @ q  # + self.A_IK(t, q, frame_ID=frame_ID) @ K_r_SP
 
     def r_OP_q(self, t, q, frame_ID, K_r_SP=np.zeros(3)):
         N, _, _ = self.basis_functions(frame_ID[0])
         NN = self.stack3(N)
 
-        r_OP_q = NN + np.einsum(
-            "ijk,j->ik", self.A_IK_q(t, q, frame_ID=frame_ID), K_r_SP
-        )
+        r_OP_q = NN  # + np.einsum(
+        #     "ijk,j->ik", self.A_IK_q(t, q, frame_ID=frame_ID), K_r_SP
+        # )
         return r_OP_q
 
     def A_IK(self, t, q, frame_ID):
@@ -924,11 +929,9 @@ class Cable:
         N, _, _ = self.basis_functions(frame_ID[0])
         NN = self.stack3(N)
 
-        v_P = NN @ u + self.A_IK(t, q, frame_ID) @ cross3(
-            self.K_Omega(t, q, u, frame_ID=frame_ID), K_r_SP
-        )
-        # print("Caution: K_r_SP is assumed to be zero here!")
-        # v_P = NN @ u
+        v_P = NN @ u  # + self.A_IK(t, q, frame_ID) @ cross3(
+        #     self.K_Omega(t, q, u, frame_ID=frame_ID), K_r_SP
+        # )
         return v_P
 
     # TODO
@@ -938,12 +941,16 @@ class Cable:
     # TODO
     def J_P(self, t, q, frame_ID, K_r_SP=np.zeros(3)):
         return approx_fprime(
-            np.zeros_like(q), lambda u: self.v_P(t, q, u, frame_ID, K_r_SP)
+            np.zeros_like(q),
+            lambda u: self.v_P(t, q, u, frame_ID, K_r_SP),
+            method="3-point",
         )
 
     # TODO
     def J_P_q(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
-        return approx_fprime(q, lambda q: self.J_P(t, q, frame_ID, K_r_SP))
+        return approx_fprime(
+            q, lambda q: self.J_P(t, q, frame_ID, K_r_SP), method="2-point"
+        )
 
     # TODO: optimized implementation for boundaries
     def a_P(self, t, q, u, u_dot, frame_ID, K_r_SP=np.zeros(3)):
@@ -963,11 +970,8 @@ class Cable:
     def a_P_u(self, t, q, u, u_dot, frame_ID, K_r_SP=None):
         return approx_fprime(u, lambda u: self.a_P(t, q, u, u_dot, frame_ID, K_r_SP))
 
-    # TODO: This angular velocity and the respective K_J_R cannot be used
-    # together with three constraint conditions, sicne two of them are
-    # linear deendent. Eigther this can be fixed or we have to write a special
-    # RigidConnection for this beam formulation. Later if we add the additional
-    # angle phi this is not problem anymore.
+    # TODO: The implementation cross3(d1, d1_dot) yields the angular velocity
+    # in the I-frame?
     def K_Omega(self, t, q, u, frame_ID):
         _, N_xi, _ = self.basis_functions(frame_ID[0])
         NN_xi = self.stack3(N_xi)
@@ -978,69 +982,37 @@ class Cable:
         ji = norm(r_xi)
         d1 = r_xi / ji
 
-        # rotation and directors
-        R = smallest_rotation(e1, d1)
-        d1, d2, d3 = R.T
+        # first directors derivative
+        d1_dot = (np.eye(3) - np.outer(d1, d1)) @ r_xi_dot / ji
 
-        return np.array(
-            [
-                # r_xi_dot
-                # @ cross3(d1, e1)
-                # / (ji * (1 + d1 @ e1)),  # Mitterbach2020 (2.105)
-                0,
-                -(d3 @ r_xi_dot) / ji,
-                (d2 @ r_xi_dot) / ji,
-            ]
-        )
+        return cross3(d1, d1_dot)
+
+        # # rotation and directors
+        # R = smallest_rotation(e1, d1)
+        # d1, d2, d3 = R.T
+
+        # return np.array(
+        #     [
+        #         # r_xi_dot
+        #         # @ cross3(d1, e1)
+        #         # / (ji * (1 + d1 @ e1)),  # Mitterbach2020 (2.105)
+        #         0,
+        #         -(d3 @ r_xi_dot) / ji,
+        #         (d2 @ r_xi_dot) / ji,
+        #     ]
+        # )
 
     # TODO:
     def K_J_R(self, t, q, frame_ID):
         return approx_fprime(
             np.zeros_like(q),
             lambda u: self.K_Omega(t, q, u, frame_ID),
-            method="2-point",
+            method="3-point",
         )
-        N, _ = self.basis_functions_phi(frame_ID[0])
-        NN = self.stack3di(N)
-
-        d1 = NN @ q[self.phiDOF]
-        d2 = NN @ q[self.d2DOF]
-        d3 = NN @ q[self.d3DOF]
-        A_IK = np.vstack((d1, d2, d3)).T
-
-        K_Omega_tilde_Omega_tilde = skew2ax_A()
-
-        K_J_R = np.zeros((3, self.nq_el))
-        K_J_R[:, self.phiDOF] = K_Omega_tilde_Omega_tilde[0] @ A_IK.T @ NN
-        K_J_R[:, self.d2DOF] = K_Omega_tilde_Omega_tilde[1] @ A_IK.T @ NN
-        K_J_R[:, self.d3DOF] = K_Omega_tilde_Omega_tilde[2] @ A_IK.T @ NN
-        return K_J_R
 
     # TODO:
     def K_J_R_q(self, t, q, frame_ID):
-        return approx_fprime(q, lambda q: self.K_J_R(t, q, frame_ID))
-        N, _ = self.basis_functions_phi(frame_ID[0])
-        NN = self.stack3di(N)
-
-        A_IK_q = np.zeros((3, 3, self.nq_el))
-        A_IK_q[:, 0, self.phiDOF] = NN
-        A_IK_q[:, 1, self.d2DOF] = NN
-        A_IK_q[:, 2, self.d3DOF] = NN
-
-        K_Omega_tilde_Omega_tilde = skew2ax_A()
-        tmp = np.einsum("jil,jk->ikl", A_IK_q, NN)
-
-        K_J_R_q = np.zeros((3, self.nq_el, self.nq_el))
-        K_J_R_q[:, self.phiDOF] = np.einsum(
-            "ij,jkl->ikl", K_Omega_tilde_Omega_tilde[0], tmp
-        )
-        K_J_R_q[:, self.d2DOF] = np.einsum(
-            "ij,jkl->ikl", K_Omega_tilde_Omega_tilde[1], tmp
-        )
-        K_J_R_q[:, self.d3DOF] = np.einsum(
-            "ij,jkl->ikl", K_Omega_tilde_Omega_tilde[2], tmp
-        )
-        return K_J_R_q
+        return approx_fprime(q, lambda q: self.K_J_R(t, q, frame_ID), method="2-point")
 
     # TODO:
     def K_Psi(self, t, q, u, u_dot, frame_ID):

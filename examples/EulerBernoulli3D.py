@@ -18,8 +18,8 @@ from cardillo.math import e1, e2, e3
 
 import numpy as np
 
-case = "Cable"
-# case = "Bernoulli"
+# case = "Cable"
+case = "Bernoulli"
 
 if __name__ == "__main__":
     # physical properties of the beam
@@ -46,7 +46,7 @@ if __name__ == "__main__":
     # nQP = int(np.ceil((p + 1)**2 / 2))
     nQP = p + 1
     print(f"nQP: {nQP}")
-    nEl = 5
+    nEl = 10
 
     # build reference configuration
     if case == "Cable":
@@ -119,7 +119,7 @@ if __name__ == "__main__":
     # moment at right end
     # M = lambda t: -np.array([1, 0, 1]) * t * 2 * np.pi * Fi[1] / L * 0.5
     # M = lambda t: e1 * t * 2 * np.pi * Fi[0] / L * 0.45
-    M = lambda t: e2 * t * 2 * np.pi * Fi[1] / L * 0.45
+    M = lambda t: e2 * t * 2 * np.pi * Fi[1] / L * 1.0
     # M = lambda t: e3 * t * 2 * np.pi * Fi[2] / L * 0.45
     moment = K_Moment(M, beam, (1,))
 
@@ -150,7 +150,7 @@ if __name__ == "__main__":
 
     solver = Newton(
         model,
-        n_load_steps=10,
+        n_load_steps=20,
         max_iter=20,
         atol=1.0e-8,
         numerical_jacobian=False,
