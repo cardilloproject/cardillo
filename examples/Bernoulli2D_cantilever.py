@@ -1,7 +1,7 @@
 from cardillo.math import A_IK_basic
 from cardillo.model.frame import Frame
 from cardillo.model.classical_beams.planar import Hooke, EulerBernoulli, straight_configuration
-from cardillo.model.bilateral_constraints.implicit import Rigid_connection2D
+from cardillo.model.bilateral_constraints.implicit import RigidConnection2D
 from cardillo.model.force import Force
 from cardillo.model.moment import K_Moment
 from cardillo.model import Model
@@ -48,7 +48,7 @@ if __name__ == "__main__":
 
     # rigid connection at the bottom end of the beam (xi = 0)
     frame = Frame(r_OP=r_OP, A_IK=A_IK)
-    joint = Rigid_connection2D(frame, beam, r_OP, frame_ID2=(0,))
+    joint = RigidConnection2D(frame, beam, r_OP, frame_ID2=(0,))
 
     # force at top end of the beam (xi = 1)
     # F = lambda t: t * np.array([EI * 0.1, -EI / L**2, 0])

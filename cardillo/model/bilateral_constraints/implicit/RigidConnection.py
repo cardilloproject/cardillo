@@ -238,7 +238,7 @@ class RigidConnection:
         Omega21 = Omega1 - Omega2
         Psi21 = self.Psi1(t, q, u, u_dot) - self.Psi2(t, q, u, u_dot)
 
-        # g_dot[:3] = self.v_P2(t, q, u) - self.v_P1(t, q, u)
+        # g_dot[:3] = self.v_B2(t, q, u) - self.v_B1(t, q, u)
         g_ddot[:3] = self.a_B2(t, q, u, u_dot) - self.a_B1(t, q, u, u_dot)
 
         # g_dot[3] = cross3(ex1, ey2) @ Omega21
@@ -282,10 +282,10 @@ class RigidConnection:
         W_g = np.zeros((self._nu, self.nla_g))
 
         # position
-        J_P1 = self.J_B1(t, q)
-        J_P2 = self.J_B2(t, q)
-        W_g[:nu1, :3] = -J_P1.T
-        W_g[nu1:, :3] = J_P2.T
+        J_B1 = self.J_B1(t, q)
+        J_B2 = self.J_B2(t, q)
+        W_g[:nu1, :3] = -J_B1.T
+        W_g[nu1:, :3] = J_B2.T
 
         # orientations
         ex1, ey1, ez1 = self.A_IB1(t, q).T
@@ -313,10 +313,10 @@ class RigidConnection:
         dense = np.zeros((self._nu, self._nq))
 
         # position
-        J_P1_q = self.J_B1_q(t, q)
-        J_P2_q = self.J_B2_q(t, q)
-        dense[:nu1, :nq1] += np.einsum("i,ijk->jk", -la_g[:3], J_P1_q)
-        dense[nu1:, nq1:] += np.einsum("i,ijk->jk", la_g[:3], J_P2_q)
+        J_B1_q = self.J_B1_q(t, q)
+        J_B2_q = self.J_B2_q(t, q)
+        dense[:nu1, :nq1] += np.einsum("i,ijk->jk", -la_g[:3], J_B1_q)
+        dense[nu1:, nq1:] += np.einsum("i,ijk->jk", la_g[:3], J_B2_q)
 
         # angular velocity
         ex1, ey1, ez1 = self.A_IB1(t, q).T
@@ -394,17 +394,17 @@ class RigidConnection2D(RigidConnection):
         self.la_g0 = np.zeros(self.nla_g) if la_g0 is None else la_g0
 
     def g(self, t, q):
-        r_OP1 = self.r_OP1(t, q)[:2]
-        r_OP2 = self.r_OP2(t, q)[:2]
+        r_OB1 = self.r_OB1(t, q)[:2]
+        r_OB2 = self.r_OB2(t, q)[:2]
         ex1, _, _ = self.A_IB1(t, q).T
         _, ey2, _ = self.A_IB2(t, q).T
-        return np.concatenate([r_OP2 - r_OP1, [ex1 @ ey2]]) 
+        return np.concatenate([r_OB2 - r_OB1, [ex1 @ ey2]]) 
         
     def g_q_dense(self, t, q):
         nq1 = self.nq1
         g_q = np.zeros((self.nla_g, self._nq))
-        g_q[:2, :nq1] = - self.r_OP1_q(t, q)[:2]
-        g_q[:2, nq1:] = self.r_OP2_q(t, q)[:2]
+        g_q[:2, :nq1] = - self.r_OB1_q(t, q)[:2]
+        g_q[:2, nq1:] = self.r_OB2_q(t, q)[:2]
 
         ex1, _, _ = self.A_IB1(t, q).T
         _, ey2, _ = self.A_IB2(t, q).T
@@ -424,8 +424,8 @@ class RigidConnection2D(RigidConnection):
         ex1, _, _ = self.A_IB1(t, q).T
         _, ey2, _ = self.A_IB2(t, q).T
 
-        # np.concatenate([r_OP2 - r_OP1, [ex1 @ ey2]])
-        g_dot[:2] = self.v_P2(t, q, u)[:2] - self.v_P1(t, q, u)[:2]
+        # np.concatenate([r_OB2 - r_OB1, [ex1 @ ey2]])
+        g_dot[:2] = self.v_B2(t, q, u)[:2] - self.v_B1(t, q, u)[:2]
         g_dot[2] = cross3(ex1, ey2) @ (self.Omega1(t, q, u) - self.Omega2(t, q, u))
         return g_dot
 
@@ -446,8 +446,8 @@ class RigidConnection2D(RigidConnection):
         Omega2 = self.Omega2(t, q, u)
         Omega21 = Omega1 - Omega2
 
-        #g_dot[:2] = self.v_P2(t, q, u)[:2] - self.v_P1(t, q, u)[:2]
-        g_ddot[:2] = self.a_P2(t, q, u, u_dot)[:2] - self.a_P1(t, q, u, u_dot)[:2]
+        #g_dot[:2] = self.v_B2(t, q, u)[:2] - self.v_B1(t, q, u)[:2]
+        g_ddot[:2] = self.a_B2(t, q, u, u_dot)[:2] - self.a_B1(t, q, u, u_dot)[:2]
 
         #g_dot[2] = cross3(ex1, ey2) @ Omega21
         g_ddot[2] =   cross3(cross3(Omega1, ex1), ey2) @ Omega21 \
@@ -473,10 +473,10 @@ class RigidConnection2D(RigidConnection):
         W_g = np.zeros((self._nu, self.nla_g))
 
         # position 
-        J_P1 = self.J_P1(t, q) 
-        J_P2 = self.J_P2(t, q)
-        W_g[:nu1, :2] = -J_P1[:2].T
-        W_g[nu1:, :2] = J_P2[:2].T
+        J_B1 = self.J_B1(t, q) 
+        J_B2 = self.J_B2(t, q)
+        W_g[:nu1, :2] = -J_B1[:2].T
+        W_g[nu1:, :2] = J_B2[:2].T
 
         # angular velocity
         ex1, _, _ = self.A_IB1(t, q).T
@@ -496,10 +496,10 @@ class RigidConnection2D(RigidConnection):
         dense = np.zeros((self._nu, self._nq))
 
         # position 
-        J_P1_q = self.J_P1_q(t, q) 
-        J_P2_q = self.J_P2_q(t, q)
-        dense[:nu1, :nq1] += np.einsum('i,ijk->jk', -la_g[:2], J_P1_q[:2])
-        dense[nu1:, nq1:] += np.einsum('i,ijk->jk', la_g[:2], J_P2_q[:2])
+        J_B1_q = self.J_B1_q(t, q) 
+        J_B2_q = self.J_B2_q(t, q)
+        dense[:nu1, :nq1] += np.einsum('i,ijk->jk', -la_g[:2], J_B1_q[:2])
+        dense[nu1:, nq1:] += np.einsum('i,ijk->jk', la_g[:2], J_B2_q[:2])
 
         # angular velocity
         ex1, _, _ = self.A_IB1(t, q).T
