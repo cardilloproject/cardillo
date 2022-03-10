@@ -5,7 +5,6 @@ import os
 from cardillo.utility.coo import Coo
 from cardillo.discretization import uniform_knot_vector
 from cardillo.discretization.B_spline import Knot_vector
-from cardillo.discretization.lagrange import Node_vector
 from cardillo.math import (
     e1,
     norm,
@@ -66,7 +65,7 @@ class EulerBernoulli:
         self.nq_n_phi = nq_n_phi = 1
 
         self.mesh_r = Mesh1D(
-            self.knot_vector_r, nQP, derivative_order=1, basis="B-spline", nq_n=nq_n_r
+            self.knot_vector_r, nQP, derivative_order=2, basis="B-spline", nq_n=nq_n_r
         )
         self.mesh_phi = Mesh1D(
             self.knot_vector_phi,
@@ -107,7 +106,7 @@ class EulerBernoulli:
 
         # degrees of freedom on element level
         self.rDOF = np.arange(0, self.nq_el_r)
-        self.phiDOF = np.arange(0, self.nq_el_phi) + nq_r
+        self.phiDOF = np.arange(0, self.nq_el_phi) + self.nq_el_r
 
         # shape functions
         self.N_r = self.mesh_r.N  # shape functions
@@ -154,8 +153,8 @@ class EulerBernoulli:
                 # NN_r_i = self.stack3r(self.N_r[el, i])
                 NN_r_xii = self.stack3r(self.N_r_xi[el, i])
                 NN_r_xixii = self.stack3r(self.N_r_xixi[el, i])
-                NN_phi_i = self.stack3di(self.N_phi[el, i])
-                NN_phi_xii = self.stack3di(self.N_phi_xi[el, i])
+                NN_phi_i = self.N_phi[el, i]
+                NN_phi_xii = self.N_phi_xi[el, i]
 
                 # Interpolate necessary quantities. The derivatives are evaluated w.r.t.
                 # the parameter space \xi and thus need to be transformed later
@@ -177,9 +176,6 @@ class EulerBernoulli:
                 # build rotation matrices
                 R0 = smallest_rotation(e1, d1)
                 d1, d2, d3 = R0.T
-
-                # axial and shear strains
-                self.lambda0[el, i] = R0.T @ r0_s
 
                 # torsional and flexural strains
                 self.Kappa0[el, i] = np.array(
@@ -240,14 +236,6 @@ class EulerBernoulli:
         NN[2, 2 * nn_el :] = N
         return NN
 
-    def stack3di(self, N):
-        nn_el = self.nn_el_phi
-        NN = np.zeros((3, self.nq_el_phi))
-        NN[0, :nn_el] = N
-        NN[1, nn_el : 2 * nn_el] = N
-        NN[2, 2 * nn_el :] = N
-        return NN
-
     def assembler_callback(self):
         self.__M_coo()
 
@@ -257,35 +245,36 @@ class EulerBernoulli:
     def M_el(self, el):
         Me = np.zeros((self.nq_el, self.nq_el))
 
-        for i in range(self.nQP):
-            # build matrix of shape function derivatives
-            NN_r_i = self.stack3r(self.N_r[el, i])
-            NN_di_i = self.stack3di(self.N_phi[el, i])
+        # # TODO
+        # for i in range(self.nQP):
+        #     # build matrix of shape function derivatives
+        #     NN_r_i = self.stack3r(self.N_r[el, i])
+        #     NN_di_i = self.stack3di(self.N_phi[el, i])
 
-            # extract reference state variables
-            J0i = self.J0[el, i]
-            qwi = self.qw[el, i]
-            factor_rr = NN_r_i.T @ NN_r_i * J0i * qwi
-            factor_rdi = NN_r_i.T @ NN_di_i * J0i * qwi
-            factor_dir = NN_di_i.T @ NN_r_i * J0i * qwi
-            factor_didi = NN_di_i.T @ NN_di_i * J0i * qwi
+        #     # extract reference state variables
+        #     J0i = self.J0[el, i]
+        #     qwi = self.qw[el, i]
+        #     factor_rr = NN_r_i.T @ NN_r_i * J0i * qwi
+        #     factor_rdi = NN_r_i.T @ NN_di_i * J0i * qwi
+        #     factor_dir = NN_di_i.T @ NN_r_i * J0i * qwi
+        #     factor_didi = NN_di_i.T @ NN_di_i * J0i * qwi
 
-            # delta r * ddot r
-            Me[self.rDOF[:, None], self.rDOF] += self.A_rho0 * factor_rr
-            # delta r * ddot d2
-            Me[self.rDOF[:, None], self.d2DOF] += self.B_rho0[1] * factor_rdi
-            # delta r * ddot d3
-            Me[self.rDOF[:, None], self.d3DOF] += self.B_rho0[2] * factor_rdi
+        #     # delta r * ddot r
+        #     Me[self.rDOF[:, None], self.rDOF] += self.A_rho0 * factor_rr
+        #     # delta r * ddot d2
+        #     Me[self.rDOF[:, None], self.d2DOF] += self.B_rho0[1] * factor_rdi
+        #     # delta r * ddot d3
+        #     Me[self.rDOF[:, None], self.d3DOF] += self.B_rho0[2] * factor_rdi
 
-            # delta d2 * ddot r
-            Me[self.d2DOF[:, None], self.rDOF] += self.B_rho0[1] * factor_dir
-            Me[self.d2DOF[:, None], self.d2DOF] += self.C_rho0[1, 1] * factor_didi
-            Me[self.d2DOF[:, None], self.d3DOF] += self.C_rho0[1, 2] * factor_didi
+        #     # delta d2 * ddot r
+        #     Me[self.d2DOF[:, None], self.rDOF] += self.B_rho0[1] * factor_dir
+        #     Me[self.d2DOF[:, None], self.d2DOF] += self.C_rho0[1, 1] * factor_didi
+        #     Me[self.d2DOF[:, None], self.d3DOF] += self.C_rho0[1, 2] * factor_didi
 
-            # delta d3 * ddot r
-            Me[self.d3DOF[:, None], self.rDOF] += self.B_rho0[2] * factor_dir
-            Me[self.d3DOF[:, None], self.d2DOF] += self.C_rho0[2, 1] * factor_didi
-            Me[self.d3DOF[:, None], self.d3DOF] += self.C_rho0[2, 2] * factor_didi
+        #     # delta d3 * ddot r
+        #     Me[self.d3DOF[:, None], self.rDOF] += self.B_rho0[2] * factor_dir
+        #     Me[self.d3DOF[:, None], self.d2DOF] += self.C_rho0[2, 1] * factor_didi
+        #     Me[self.d3DOF[:, None], self.d3DOF] += self.C_rho0[2, 2] * factor_didi
 
         return Me
 
@@ -314,58 +303,54 @@ class EulerBernoulli:
         # extract generalized coordinates for beam centerline and directors
         # in the current and reference configuration
         qe_r = qe[self.rDOF]
-        qe_d1 = qe[self.phiDOF]
-        qe_d2 = qe[self.d2DOF]
-        qe_d3 = qe[self.d3DOF]
+        qe_phi = qe[self.phiDOF]
 
         for i in range(self.nQP):
             # build matrix of shape function derivatives
-            NN_di_i = self.stack3di(self.N_phi[el, i])
             NN_r_xii = self.stack3r(self.N_r_xi[el, i])
-            NN_di_xii = self.stack3di(self.N_phi_xi[el, i])
+            NN_r_xixii = self.stack3r(self.N_r_xixi[el, i])
+            NN_phi_i = self.N_phi[el, i]
+            NN_phi_xii = self.N_phi_xi[el, i]
 
             # extract reference state variables
             J0i = self.J0[el, i]
-            Gamma0_i = self.lambda0[el, i]
             Kappa0_i = self.Kappa0[el, i]
 
             # Interpolate necessary quantities. The derivatives are evaluated w.r.t.
             # the parameter space \xi and thus need to be transformed later
             r_xi = NN_r_xii @ qe_r
+            r_xixi = NN_r_xixii @ qe_r
+            ji = norm(r_xi)
 
-            d1 = NN_di_i @ qe_d1
-            d1_xi = NN_di_xii @ qe_d1
-
-            d2 = NN_di_i @ qe_d2
-            d2_xi = NN_di_xii @ qe_d2
-
-            d3 = NN_di_i @ qe_d3
-            d3_xi = NN_di_xii @ qe_d3
+            phi = NN_phi_i @ qe_phi
+            phi_xi = NN_phi_xii @ qe_phi
 
             # compute derivatives w.r.t. the arc lenght parameter s
             r_s = r_xi / J0i
-            d1_s = d1_xi / J0i
-            d2_s = d2_xi / J0i
-            d3_s = d3_xi / J0i
+            # phi_s = phi_xi / J0i
+
+            # compute first director
+            d1 = r_xi / ji
 
             # build rotation matrices
-            R = np.vstack((d1, d2, d3)).T
+            R0 = smallest_rotation(e1, d1)
+            d1, d2, d3 = R0.T
 
-            # axial and shear strains
-            Gamma_i = R.T @ r_s
+            # axial stretch
+            lambda_ = ji / J0i
 
             # torsional and flexural strains
             Kappa_i = np.array(
                 [
-                    0.5 * (d3 @ d2_s - d2 @ d3_s),
-                    0.5 * (d1 @ d3_s - d3 @ d1_s),
-                    0.5 * (d2 @ d1_s - d1 @ d2_s),
+                    0,  # TODO: This is not correct!
+                    -(d2 @ r_xixi) / J0i**2,
+                    (d3 @ r_xixi) / J0i**2,
                 ]
             )
 
             # evaluate strain energy function
             Ee += (
-                self.material_model.potential(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
+                self.material_model.potential(lambda_, Kappa_i, Kappa0_i)
                 * J0i
                 * self.qw[el, i]
             )
@@ -380,6 +365,7 @@ class EulerBernoulli:
         return f
 
     def f_pot_el(self, qe, el):
+        return approx_fprime(qe, lambda qe: self.E_pot_el(qe, el), method="3-point")
         fe = np.zeros(self.nq_el)
 
         # extract generalized coordinates for beam centerline and directors
@@ -499,7 +485,7 @@ class EulerBernoulli:
             coo.extend(Ke, (self.uDOF[elDOF], self.qDOF[elDOF]))
 
     def f_pot_q_el(self, qe, el):
-        # return Numerical_derivative(lambda t, qe: self.f_pot_el(qe, el), order=order)._x(0, qe)
+        return approx_fprime(qe, lambda qe: self.f_pot_el(qe, el), method="2-point")
 
         Ke = np.zeros((self.nq_el, self.nq_el))
 
@@ -1280,25 +1266,6 @@ class EulerBernoulli:
     def distributed_force1D_q(self, t, q, coo, force):
         pass
 
-    ##############################################################
-    # abstract methods for bilateral constraints on position level
-    ##############################################################
-    @abstractmethod
-    def g(self, t, q):
-        pass
-
-    @abstractmethod
-    def g_q(self, t, q, coo):
-        pass
-
-    @abstractmethod
-    def W_g(self, t, q, coo):
-        pass
-
-    @abstractmethod
-    def Wla_g_q(self, t, q, la_g, coo):
-        pass
-
     ####################################################
     # visualization
     ####################################################
@@ -1333,1763 +1300,576 @@ class EulerBernoulli:
 
         return np.array(r).T, np.array(d1).T, np.array(d2).T, np.array(d3).T
 
-    def plot_centerline(self, ax, q, n=100, color="black"):
-        ax.plot(*self.nodes(q), linestyle="dashed", marker="o", color=color)
-        ax.plot(*self.centerline(q, n=n), linestyle="solid", color=color)
-
-    def plot_frames(self, ax, q, n=10, length=1):
-        r, d1, d2, d3 = self.frames(q, n=n)
-        ax.quiver(*r, *d1, color="red", length=length)
-        ax.quiver(*r, *d2, color="green", length=length)
-        ax.quiver(*r, *d3, color="blue", length=length)
-
-    ############
-    # vtk export
-    ############
-    def post_processing_vtk_volume_circle(self, t, q, filename, R, binary=False):
-        # This is mandatory, otherwise we cannot construct the 3D continuum without L2 projection!
-        assert (
-            self.polynomial_degree_r == self.polynomial_degree_phi
-        ), "Not implemented for mixed polynomial degrees"
-
-        # rearrange generalized coordinates from solver ordering to Piegl's Pw 3D array
-        nn_xi = self.nEl + self.polynomial_degree_r
-        nEl_eta = 1
-        nEl_zeta = 4
-        # see Cotrell2009 Section 2.4.2
-        # TODO: Maybe eta and zeta have to be interchanged
-        polynomial_degree_eta = 1
-        polynomial_degree_zeta = 2
-        nn_eta = nEl_eta + polynomial_degree_eta
-        nn_zeta = nEl_zeta + polynomial_degree_zeta
-
-        # # TODO: We do the hard coded case for rectangular cross section here, but this has to be extended to the circular cross section case too!
-        # as_ = np.linspace(-a/2, a/2, num=nn_eta, endpoint=True)
-        # bs_ = np.linspace(-b/2, b/2, num=nn_eta, endpoint=True)
-
-        circle_points = (
-            0.5
-            * R
-            * np.array(
-                [
-                    [1, 0, 0],
-                    [1, 1, 0],
-                    [0, 1, 0],
-                    [-1, 1, 0],
-                    [-1, 0, 0],
-                    [-1, -1, 0],
-                    [0, -1, 0],
-                    [1, -1, 0],
-                    [1, 0, 0],
-                ],
-                dtype=float,
-            )
-        )
-
-        Pw = np.zeros((nn_xi, nn_eta, nn_zeta, 3))
-        for i in range(self.nn_r):
-            qr = q[self.nodalDOF_r[i]]
-            q_di = q[self.nodalDOF_phi[i]]
-            A_IK = q_di.reshape(3, 3, order="F")  # TODO: Check this!
-
-            for k, point in enumerate(circle_points):
-                # Note: eta index is always 0!
-                Pw[i, 0, k] = qr + A_IK @ point
-
-        if self.basis == "B-spline":
-            knot_vector_eta = Knot_vector(polynomial_degree_eta, nEl_eta)
-            knot_vector_zeta = Knot_vector(polynomial_degree_zeta, nEl_zeta)
-        elif self.basis == "lagrange":
-            knot_vector_eta = Node_vector(polynomial_degree_eta, nEl_eta)
-            knot_vector_zeta = Node_vector(polynomial_degree_zeta, nEl_zeta)
-        knot_vector_objs = [self.knot_vector_r, knot_vector_eta, knot_vector_zeta]
-        degrees = (
-            self.polynomial_degree_r,
-            polynomial_degree_eta,
-            polynomial_degree_zeta,
-        )
-
-        # Build Bezier patches from B-spline control points
-        from cardillo.discretization.B_spline import decompose_B_spline_volume
-
-        Qw = decompose_B_spline_volume(knot_vector_objs, Pw)
-
-        nbezier_xi, nbezier_eta, nbezier_zeta, p1, q1, r1, dim = Qw.shape
-
-        # build vtk mesh
-        n_patches = nbezier_xi * nbezier_eta * nbezier_zeta
-        patch_size = p1 * q1 * r1
-        points = np.zeros((n_patches * patch_size, dim))
-        cells = []
-        HigherOrderDegrees = []
-        RationalWeights = []
-        vtk_cell_type = "VTK_BEZIER_HEXAHEDRON"
-        from PyPanto.miscellaneous.indexing import flat3D, rearange_vtk3D
-
-        for i in range(nbezier_xi):
-            for j in range(nbezier_eta):
-                for k in range(nbezier_zeta):
-                    idx = flat3D(i, j, k, (nbezier_xi, nbezier_eta))
-                    point_range = np.arange(idx * patch_size, (idx + 1) * patch_size)
-                    points[point_range] = rearange_vtk3D(Qw[i, j, k])
-
-                    cells.append((vtk_cell_type, point_range[None]))
-                    HigherOrderDegrees.append(np.array(degrees, dtype=float)[None])
-                    weight = np.sqrt(2) / 2
-                    # tmp = np.array([np.sqrt(2) / 2, 1.0])
-                    # RationalWeights.append(np.tile(tmp, 8)[None])
-                    weights_vertices = weight * np.ones(8)
-                    weights_edges = np.ones(4 * nn_xi)
-                    weights_faces = np.ones(2)
-                    weights_volume = np.ones(nn_xi - 2)
-                    weights = np.concatenate(
-                        (weights_edges, weights_vertices, weights_faces, weights_volume)
-                    )
-                    # weights = np.array([weight, weight, weight, weight,
-                    #                     1.0,    1.0,    1.0,    1.0,
-                    #                     0.0,    0.0,    0.0,    0.0 ])
-                    weights = np.ones_like(point_range)
-                    RationalWeights.append(weights[None])
-
-        # RationalWeights = np.ones(len(points))
-        RationalWeights = 2 * (np.random.rand(len(points)) + 1)
-
-        # write vtk mesh using meshio
-        meshio.write_points_cells(
-            # filename.parent / (filename.stem + '.vtu'),
-            filename,
-            points,
-            cells,
-            point_data={
-                "RationalWeights": RationalWeights,
-            },
-            cell_data={"HigherOrderDegrees": HigherOrderDegrees},
-            binary=binary,
-        )
-
-    def post_processing_vtk_volume(self, t, q, filename, circular=True, binary=False):
-        # This is mandatory, otherwise we cannot construct the 3D continuum without L2 projection!
-        assert (
-            self.polynomial_degree_r == self.polynomial_degree_phi
-        ), "Not implemented for mixed polynomial degrees"
-
-        # rearrange generalized coordinates from solver ordering to Piegl's Pw 3D array
-        nn_xi = self.nEl + self.polynomial_degree_r
-        nEl_eta = 1
-        nEl_zeta = 1
-        if circular:
-            polynomial_degree_eta = 2
-            polynomial_degree_zeta = 2
-        else:
-            polynomial_degree_eta = 1
-            polynomial_degree_zeta = 1
-        nn_eta = nEl_eta + polynomial_degree_eta
-        nn_zeta = nEl_zeta + polynomial_degree_zeta
-
-        # TODO: We do the hard coded case for rectangular cross section here, but this has to be extended to the circular cross section case too!
-        if circular:
-            r = 0.2
-            a = b = r
-        else:
-            a = 0.2
-            b = 0.1
-        as_ = np.linspace(-a / 2, a / 2, num=nn_eta, endpoint=True)
-        bs_ = np.linspace(-b / 2, b / 2, num=nn_eta, endpoint=True)
-
-        Pw = np.zeros((nn_xi, nn_eta, nn_zeta, 3))
-        for i in range(self.nn_r):
-            qr = q[self.nodalDOF_r[i]]
-            q_di = q[self.nodalDOF_phi[i]]
-            A_IK = q_di.reshape(3, 3, order="F")  # TODO: Check this!
-
-            for j, aj in enumerate(as_):
-                for k, bk in enumerate(bs_):
-                    Pw[i, j, k] = qr + A_IK @ np.array([0, aj, bk])
-
-        if self.basis == "B-spline":
-            knot_vector_eta = Knot_vector(polynomial_degree_eta, nEl_eta)
-            knot_vector_zeta = Knot_vector(polynomial_degree_zeta, nEl_zeta)
-        elif self.basis == "lagrange":
-            knot_vector_eta = Node_vector(polynomial_degree_eta, nEl_eta)
-            knot_vector_zeta = Node_vector(polynomial_degree_zeta, nEl_zeta)
-        knot_vector_objs = [self.knot_vector_r, knot_vector_eta, knot_vector_zeta]
-        degrees = (
-            self.polynomial_degree_r,
-            polynomial_degree_eta,
-            polynomial_degree_zeta,
-        )
-
-        # Build Bezier patches from B-spline control points
-        from cardillo.discretization.B_spline import decompose_B_spline_volume
-
-        Qw = decompose_B_spline_volume(knot_vector_objs, Pw)
-
-        nbezier_xi, nbezier_eta, nbezier_zeta, p1, q1, r1, dim = Qw.shape
-
-        # build vtk mesh
-        n_patches = nbezier_xi * nbezier_eta * nbezier_zeta
-        patch_size = p1 * q1 * r1
-        points = np.zeros((n_patches * patch_size, dim))
-        cells = []
-        HigherOrderDegrees = []
-        RationalWeights = []
-        vtk_cell_type = "VTK_BEZIER_HEXAHEDRON"
-        from PyPanto.miscellaneous.indexing import flat3D, rearange_vtk3D
-
-        for i in range(nbezier_xi):
-            for j in range(nbezier_eta):
-                for k in range(nbezier_zeta):
-                    idx = flat3D(i, j, k, (nbezier_xi, nbezier_eta))
-                    point_range = np.arange(idx * patch_size, (idx + 1) * patch_size)
-                    points[point_range] = rearange_vtk3D(Qw[i, j, k])
-
-                    cells.append((vtk_cell_type, point_range[None]))
-                    HigherOrderDegrees.append(np.array(degrees, dtype=float)[None])
-                    weight = np.sqrt(2) / 2
-                    # tmp = np.array([np.sqrt(2) / 2, 1.0])
-                    # RationalWeights.append(np.tile(tmp, 8)[None])
-                    weights_vertices = weight * np.ones(8)
-                    weights_edges = np.ones(4 * nn_xi)
-                    weights_faces = np.ones(2)
-                    weights_volume = np.ones(nn_xi - 2)
-                    weights = np.concatenate(
-                        (weights_edges, weights_vertices, weights_faces, weights_volume)
-                    )
-                    # weights = np.array([weight, weight, weight, weight,
-                    #                     1.0,    1.0,    1.0,    1.0,
-                    #                     0.0,    0.0,    0.0,    0.0 ])
-                    weights = np.ones_like(point_range)
-                    RationalWeights.append(weights[None])
-
-        # RationalWeights = np.ones(len(points))
-        RationalWeights = 2 * (np.random.rand(len(points)) + 1)
-
-        # write vtk mesh using meshio
-        meshio.write_points_cells(
-            # filename.parent / (filename.stem + '.vtu'),
-            filename,
-            points,
-            cells,
-            point_data={
-                "RationalWeights": RationalWeights,
-            },
-            cell_data={"HigherOrderDegrees": HigherOrderDegrees},
-            binary=binary,
-        )
-
-    def post_processing(self, t, q, filename, binary=True):
-        # write paraview PVD file collecting time and all vtk files, see https://www.paraview.org/Wiki/ParaView/Data_formats#PVD_File_Format
-        from xml.dom import minidom
-
-        root = minidom.Document()
-
-        vkt_file = root.createElement("VTKFile")
-        vkt_file.setAttribute("type", "Collection")
-        root.appendChild(vkt_file)
-
-        collection = root.createElement("Collection")
-        vkt_file.appendChild(collection)
-
-        for i, (ti, qi) in enumerate(zip(t, q)):
-            filei = filename + f"{i}.vtu"
-
-            # write time step and file name in pvd file
-            dataset = root.createElement("DataSet")
-            dataset.setAttribute("timestep", f"{ti:0.6f}")
-            dataset.setAttribute("file", filei)
-            collection.appendChild(dataset)
-
-            self.post_processing_single_configuration(ti, qi, filei, binary=binary)
-
-        # write pvd file
-        xml_str = root.toprettyxml(indent="\t")
-        with open(filename + ".pvd", "w") as f:
-            f.write(xml_str)
-
-    def post_processing_single_configuration(self, t, q, filename, binary=True):
-        # centerline and connectivity
-        cells_r, points_r, HigherOrderDegrees_r = self.mesh_r.vtk_mesh(q[: self.nq_r])
-
-        # if the centerline and the directors are interpolated with the same
-        # polynomial degree we can use the values on the nodes and decompose the B-spline
-        # into multiple Bezier patches, otherwise the directors have to be interpolated
-        # onto the nodes of the centerline by a so-called L2-projection, see below
-        same_shape_functions = False
-        if self.polynomial_degree_r == self.polynomial_degree_phi:
-            same_shape_functions = True
-
-        if same_shape_functions:
-            _, points_di, _ = self.mesh_phi.vtk_mesh(q[self.nq_r :])
-
-            # fill dictionary storing point data with directors
-            point_data = {
-                "d1": points_di[:, 0:3],
-                "d2": points_di[:, 3:6],
-                "d3": points_di[:, 6:9],
-            }
-
-        else:
-            point_data = {}
-
-        # export existing values on quadrature points using L2 projection
-        J0_vtk = self.mesh_r.field_to_vtk(self.J0.reshape(self.nEl, self.nQP, 1))
-        point_data.update({"J0": J0_vtk})
-
-        Gamma0_vtk = self.mesh_r.field_to_vtk(self.lambda0)
-        point_data.update({"Gamma0": Gamma0_vtk})
-
-        Kappa0_vtk = self.mesh_r.field_to_vtk(self.Kappa0)
-        point_data.update({"Kappa0": Kappa0_vtk})
-
-        # evaluate fields at quadrature points that have to be projected onto the centerline mesh:
-        # - strain measures Gamma & Kappa
-        # - directors d1, d2, d3
-        Gamma = np.zeros((self.mesh_r.nel, self.mesh_r.nqp, 3))
-        Kappa = np.zeros((self.mesh_r.nel, self.mesh_r.nqp, 3))
-        if not same_shape_functions:
-            d1s = np.zeros((self.mesh_r.nel, self.mesh_r.nqp, 3))
-            d2s = np.zeros((self.mesh_r.nel, self.mesh_r.nqp, 3))
-            d3s = np.zeros((self.mesh_r.nel, self.mesh_r.nqp, 3))
-        for el in range(self.nEl):
-            qe = q[self.elDOF[el]]
-
-            # extract generalized coordinates for beam centerline and directors
-            # in the current and reference configuration
-            qe_r = qe[self.rDOF]
-            qe_d1 = qe[self.phiDOF]
-            qe_d2 = qe[self.d2DOF]
-            qe_d3 = qe[self.d3DOF]
-
-            for i in range(self.nQP):
-                # build matrix of shape function derivatives
-                NN_di_i = self.stack3di(self.N_phi[el, i])
-                NN_r_xii = self.stack3r(self.N_r_xi[el, i])
-                NN_di_xii = self.stack3di(self.N_phi_xi[el, i])
-
-                # extract reference state variables
-                J0i = self.J0[el, i]
-                Gamma0_i = self.lambda0[el, i]
-                Kappa0_i = self.Kappa0[el, i]
-
-                # Interpolate necessary quantities. The derivatives are evaluated w.r.t.
-                # the parameter space \xi and thus need to be transformed later
-                r_xi = NN_r_xii @ qe_r
-
-                d1 = NN_di_i @ qe_d1
-                d1_xi = NN_di_xii @ qe_d1
-
-                d2 = NN_di_i @ qe_d2
-                d2_xi = NN_di_xii @ qe_d2
-
-                d3 = NN_di_i @ qe_d3
-                d3_xi = NN_di_xii @ qe_d3
-
-                # compute derivatives w.r.t. the arc lenght parameter s
-                r_s = r_xi / J0i
-
-                d1_s = d1_xi / J0i
-                d2_s = d2_xi / J0i
-                d3_s = d3_xi / J0i
-
-                # build rotation matrices
-                if not same_shape_functions:
-                    d1s[el, i] = d1
-                    d2s[el, i] = d2
-                    d3s[el, i] = d3
-                R = np.vstack((d1, d2, d3)).T
-
-                # axial and shear strains
-                Gamma[el, i] = R.T @ r_s
-
-                # torsional and flexural strains
-                Kappa[el, i] = np.array(
-                    [
-                        0.5 * (d3 @ d2_s - d2 @ d3_s),
-                        0.5 * (d1 @ d3_s - d3 @ d1_s),
-                        0.5 * (d2 @ d1_s - d1 @ d2_s),
-                    ]
-                )
-
-        # L2 projection of strain measures
-        Gamma_vtk = self.mesh_r.field_to_vtk(Gamma)
-        point_data.update({"Gamma": Gamma_vtk})
-
-        Kappa_vtk = self.mesh_r.field_to_vtk(Kappa)
-        point_data.update({"Kappa": Kappa_vtk})
-
-        # L2 projection of directors
-        if not same_shape_functions:
-            d1_vtk = self.mesh_r.field_to_vtk(d1s)
-            point_data.update({"d1": d1_vtk})
-            d2_vtk = self.mesh_r.field_to_vtk(d2s)
-            point_data.update({"d2": d2_vtk})
-            d3_vtk = self.mesh_r.field_to_vtk(d3s)
-            point_data.update({"d3": d3_vtk})
-
-        # fields depending on strain measures and other previously computed quantities
-        point_data_fields = {
-            "W": lambda Gamma, Gamma0, Kappa, Kappa0: np.array(
-                [self.material_model.potential(Gamma, Gamma0, Kappa, Kappa0)]
-            ),
-            "n_i": lambda Gamma, Gamma0, Kappa, Kappa0: self.material_model.n_i(
-                Gamma, Gamma0, Kappa, Kappa0
-            ),
-            "m_i": lambda Gamma, Gamma0, Kappa, Kappa0: self.material_model.m_i(
-                Gamma, Gamma0, Kappa, Kappa0
-            ),
-        }
-
-        for name, fun in point_data_fields.items():
-            tmp = fun(Gamma_vtk[0], Gamma0_vtk[0], Kappa_vtk[0], Kappa0_vtk[0]).reshape(
-                -1
-            )
-            field = np.zeros((len(Gamma_vtk), len(tmp)))
-            for i, (Gamma_i, Gamma0_i, Kappa_i, Kappa0_i) in enumerate(
-                zip(Gamma_vtk, Gamma0_vtk, Kappa_vtk, Kappa0_vtk)
-            ):
-                field[i] = fun(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i).reshape(-1)
-            point_data.update({name: field})
-
-        # write vtk mesh using meshio
-        meshio.write_points_cells(
-            os.path.splitext(os.path.basename(filename))[0] + ".vtu",
-            points_r,  # only export centerline as geometry here!
-            cells_r,
-            point_data=point_data,
-            cell_data={"HigherOrderDegrees": HigherOrderDegrees_r},
-            binary=binary,
-        )
-
-    def post_processing_subsystem(self, t, q, u, binary=True):
-        # centerline and connectivity
-        cells_r, points_r, HigherOrderDegrees_r = self.mesh_r.vtk_mesh(q[: self.nq_r])
-
-        # if the centerline and the directors are interpolated with the same
-        # polynomial degree we can use the values on the nodes and decompose the B-spline
-        # into multiple Bezier patches, otherwise the directors have to be interpolated
-        # onto the nodes of the centerline by a so-called L2-projection, see below
-        same_shape_functions = False
-        if self.polynomial_degree_r == self.polynomial_degree_phi:
-            same_shape_functions = True
-
-        if same_shape_functions:
-            _, points_di, _ = self.mesh_phi.vtk_mesh(q[self.nq_r :])
-
-            # fill dictionary storing point data with directors
-            point_data = {
-                "u_r": points_r - points_r[0],
-                "d1": points_di[:, 0:3],
-                "d2": points_di[:, 3:6],
-                "d3": points_di[:, 6:9],
-            }
-
-        else:
-            point_data = {}
-
-        # export existing values on quadrature points using L2 projection
-        J0_vtk = self.mesh_r.field_to_vtk(self.J0.reshape(self.nEl, self.nQP, 1))
-        point_data.update({"J0": J0_vtk})
-
-        Gamma0_vtk = self.mesh_r.field_to_vtk(self.lambda0)
-        point_data.update({"Gamma0": Gamma0_vtk})
-
-        Kappa0_vtk = self.mesh_r.field_to_vtk(self.Kappa0)
-        point_data.update({"Kappa0": Kappa0_vtk})
-
-        # evaluate fields at quadrature points that have to be projected onto the centerline mesh:
-        # - strain measures Gamma & Kappa
-        # - directors d1, d2, d3
-        Gamma = np.zeros((self.mesh_r.nel, self.mesh_r.nqp, 3))
-        Kappa = np.zeros((self.mesh_r.nel, self.mesh_r.nqp, 3))
-        if not same_shape_functions:
-            d1s = np.zeros((self.mesh_r.nel, self.mesh_r.nqp, 3))
-            d2s = np.zeros((self.mesh_r.nel, self.mesh_r.nqp, 3))
-            d3s = np.zeros((self.mesh_r.nel, self.mesh_r.nqp, 3))
-        for el in range(self.nEl):
-            qe = q[self.elDOF[el]]
-
-            # extract generalized coordinates for beam centerline and directors
-            # in the current and reference configuration
-            qe_r = qe[self.rDOF]
-            qe_d1 = qe[self.phiDOF]
-            qe_d2 = qe[self.d2DOF]
-            qe_d3 = qe[self.d3DOF]
-
-            for i in range(self.nQP):
-                # build matrix of shape function derivatives
-                NN_di_i = self.stack3di(self.N_phi[el, i])
-                NN_r_xii = self.stack3r(self.N_r_xi[el, i])
-                NN_di_xii = self.stack3di(self.N_phi_xi[el, i])
-
-                # extract reference state variables
-                J0i = self.J0[el, i]
-                Gamma0_i = self.lambda0[el, i]
-                Kappa0_i = self.Kappa0[el, i]
-
-                # Interpolate necessary quantities. The derivatives are evaluated w.r.t.
-                # the parameter space \xi and thus need to be transformed later
-                r_xi = NN_r_xii @ qe_r
-
-                d1 = NN_di_i @ qe_d1
-                d1_xi = NN_di_xii @ qe_d1
-
-                d2 = NN_di_i @ qe_d2
-                d2_xi = NN_di_xii @ qe_d2
-
-                d3 = NN_di_i @ qe_d3
-                d3_xi = NN_di_xii @ qe_d3
-
-                # compute derivatives w.r.t. the arc lenght parameter s
-                r_s = r_xi / J0i
-
-                d1_s = d1_xi / J0i
-                d2_s = d2_xi / J0i
-                d3_s = d3_xi / J0i
-
-                # build rotation matrices
-                if not same_shape_functions:
-                    d1s[el, i] = d1
-                    d2s[el, i] = d2
-                    d3s[el, i] = d3
-                R = np.vstack((d1, d2, d3)).T
-
-                # axial and shear strains
-                Gamma[el, i] = R.T @ r_s
-
-                # torsional and flexural strains
-                Kappa[el, i] = np.array(
-                    [
-                        0.5 * (d3 @ d2_s - d2 @ d3_s),
-                        0.5 * (d1 @ d3_s - d3 @ d1_s),
-                        0.5 * (d2 @ d1_s - d1 @ d2_s),
-                    ]
-                )
-
-        # L2 projection of strain measures
-        Gamma_vtk = self.mesh_r.field_to_vtk(Gamma)
-        point_data.update({"Gamma": Gamma_vtk})
-
-        Kappa_vtk = self.mesh_r.field_to_vtk(Kappa)
-        point_data.update({"Kappa": Kappa_vtk})
-
-        # L2 projection of directors
-        if not same_shape_functions:
-            d1_vtk = self.mesh_r.field_to_vtk(d1s)
-            point_data.update({"d1": d1_vtk})
-            d2_vtk = self.mesh_r.field_to_vtk(d2s)
-            point_data.update({"d2": d2_vtk})
-            d3_vtk = self.mesh_r.field_to_vtk(d3s)
-            point_data.update({"d3": d3_vtk})
-
-        # fields depending on strain measures and other previously computed quantities
-        point_data_fields = {
-            "W": lambda Gamma, Gamma0, Kappa, Kappa0: np.array(
-                [self.material_model.potential(Gamma, Gamma0, Kappa, Kappa0)]
-            ),
-            "n_i": lambda Gamma, Gamma0, Kappa, Kappa0: self.material_model.n_i(
-                Gamma, Gamma0, Kappa, Kappa0
-            ),
-            "m_i": lambda Gamma, Gamma0, Kappa, Kappa0: self.material_model.m_i(
-                Gamma, Gamma0, Kappa, Kappa0
-            ),
-        }
-
-        for name, fun in point_data_fields.items():
-            tmp = fun(Gamma_vtk[0], Gamma0_vtk[0], Kappa_vtk[0], Kappa0_vtk[0]).reshape(
-                -1
-            )
-            field = np.zeros((len(Gamma_vtk), len(tmp)))
-            for i, (Gamma_i, Gamma0_i, Kappa_i, Kappa0_i) in enumerate(
-                zip(Gamma_vtk, Gamma0_vtk, Kappa_vtk, Kappa0_vtk)
-            ):
-                field[i] = fun(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i).reshape(-1)
-            point_data.update({name: field})
-
-        return points_r, point_data, cells_r, HigherOrderDegrees_r
-
-
-####################################################
-# constraint beam using nodal constraints
-####################################################
-class TimoshenkoDirectorDirac(TimoshenkoBeamDirector):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        self.nla_g = 6 * self.nn_di  # we enforce constraints on every director node
-        la_g0 = kwargs.get("la_g0")
-        self.la_g0 = np.zeros(self.nla_g) if la_g0 is None else la_g0
-
-        # nodal degrees of freedom
-        self.d1DOF_node = np.arange(0, 3)
-        self.d2DOF_node = np.arange(3, 6)
-        self.d3DOF_node = np.arange(6, 9)
-
-    # constraints on a single node
-    def __g(self, qn):
-        g = np.zeros(6)
-
-        d1 = qn[self.d1DOF_node]
-        d2 = qn[self.d2DOF_node]
-        d3 = qn[self.d3DOF_node]
-
-        g[0] = d1 @ d1 - 1
-        g[1] = d2 @ d2 - 1
-        g[2] = d3 @ d3 - 1
-        g[3] = d1 @ d2
-        g[4] = d1 @ d3
-        g[5] = d2 @ d3
-
-        return g
-
-    def __g_q(self, qn):
-        g_q = np.zeros((6, 9))
-
-        d1 = qn[self.d1DOF_node]
-        d2 = qn[self.d2DOF_node]
-        d3 = qn[self.d3DOF_node]
-
-        g_q[0, self.d1DOF_node] = 2 * d1
-        g_q[1, self.d2DOF_node] = 2 * d2
-        g_q[2, self.d3DOF_node] = 2 * d3
-        g_q[3, self.d1DOF_node] = d2
-        g_q[3, self.d2DOF_node] = d1
-        g_q[4, self.d1DOF_node] = d3
-        g_q[4, self.d3DOF_node] = d1
-        g_q[5, self.d2DOF_node] = d3
-        g_q[5, self.d3DOF_node] = d2
-
-        return g_q
-
-    def __g_qq(self):
-        g_qq = np.zeros((6, 9, 9))
-
-        eye3 = np.eye(3)
-
-        g_qq[0, self.d1DOF_node[:, None], self.d1DOF_node] = 2 * eye3
-        g_qq[1, self.d2DOF_node[:, None], self.d2DOF_node] = 2 * eye3
-        g_qq[2, self.d3DOF_node[:, None], self.d3DOF_node] = 2 * eye3
-
-        g_qq[3, self.d1DOF_node[:, None], self.d2DOF_node] = eye3
-        g_qq[3, self.d2DOF_node[:, None], self.d1DOF_node] = eye3
-
-        g_qq[4, self.d1DOF_node[:, None], self.d3DOF_node] = eye3
-        g_qq[4, self.d3DOF_node[:, None], self.d3DOF_node] = eye3
-
-        g_qq[5, self.d2DOF_node[:, None], self.d3DOF_node] = eye3
-        g_qq[5, self.d3DOF_node[:, None], self.d2DOF_node] = eye3
-
-        return g_qq
-
-    # global constraint functions
-    def g(self, t, q):
-        g = np.zeros(self.nla_g)
-        for i, DOF in enumerate(self.nodalDOF_di):
-            idx = i * 6
-            g[idx : idx + 6] = self.__g(q[DOF])
-        return g
-
-    def g_q(self, t, q, coo):
-        for i, DOF in enumerate(self.nodalDOF_di):
-            idx = i * 6
-            coo.extend(
-                self.__g_q(q[DOF]),
-                (self.la_gDOF[np.arange(idx, idx + 6)], self.qDOF[DOF]),
-            )
-
-    def W_g(self, t, q, coo):
-        for i, DOF in enumerate(self.nodalDOF_di):
-            idx = i * 6
-            coo.extend(
-                self.__g_q(q[DOF]).T,
-                (self.uDOF[DOF], self.la_gDOF[np.arange(idx, idx + 6)]),
-            )
-
-    def Wla_g_q(self, t, q, la_g, coo):
-        for i, DOF in enumerate(self.nodalDOF_di):
-            idx = i * 6
-            coo.extend(
-                np.einsum("i,ijk->jk", la_g[idx : idx + 6], self.__g_qq()),
-                (self.uDOF[DOF], self.qDOF[DOF]),
-            )
-
-
-####################################################
-# constraint beam using integral constraints
-####################################################
-class TimoshenkoDirectorIntegral(TimoshenkoBeamDirector):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        self.polynomial_degree_g = (
-            self.polynomial_degree_di
-        )  # if polynomial_degree_g is None else polynomial_degree_g
-        self.nn_el_g = self.polynomial_degree_g + 1  # number of nodes per element
-
-        if self.basis == "B-spline":
-            self.knot_vector_g = Knot_vector(self.polynomial_degree_g, self.nEl)
-            self.nn_g = self.nEl + self.polynomial_degree_g  # number of nodes
-        elif self.basis == "lagrange":
-            self.knot_vector_g = Node_vector(self.polynomial_degree_g, self.nEl)
-            self.nn_g = self.nEl * self.polynomial_degree_g + 1  # number of nodes
-
-        self.nq_n_g = 6  # number of degrees of freedom per node
-        self.nla_g = self.nn_g * self.nq_n_g
-        self.nla_g_el = self.nn_el_g * self.nq_n_g
-
-        la_g0 = kwargs.get("la_g0")
-        self.la_g0 = np.zeros(self.nla_g) if la_g0 is None else la_g0
-
-        self.element_span_g = self.knot_vector_g.element_data
-        self.mesh_g = Mesh1D(
-            self.knot_vector_g,
-            self.nQP,
-            derivative_order=0,
-            nq_n=self.nq_n_g,
-            basis=self.basis,
-        )
-        self.elDOF_g = self.mesh_g.elDOF
-
-        # compute shape functions
-        self.N_g = self.mesh_g.N
-
-        # degrees of freedom on the element level (for the constraints)
-        self.g11DOF = np.arange(self.nn_el_g)
-        self.g12DOF = np.arange(self.nn_el_g, 2 * self.nn_el_g)
-        self.g13DOF = np.arange(2 * self.nn_el_g, 3 * self.nn_el_g)
-        self.g22DOF = np.arange(3 * self.nn_el_g, 4 * self.nn_el_g)
-        self.g23DOF = np.arange(4 * self.nn_el_g, 5 * self.nn_el_g)
-        self.g33DOF = np.arange(5 * self.nn_el_g, 6 * self.nn_el_g)
-
-    def __g_el(self, qe, el):
-        g = np.zeros(self.nla_g_el)
-
-        for i in range(self.nQP):
-            NNi = self.stack3di(self.N_di[el, i])
-
-            d1 = NNi @ qe[self.d1DOF]
-            d2 = NNi @ qe[self.d2DOF]
-            d3 = NNi @ qe[self.d3DOF]
-
-            factor = self.N_g[el, i] * self.J0[el, i] * self.qw[el, i]
-
-            g[self.g11DOF] += (d1 @ d1 - 1) * factor
-            g[self.g12DOF] += (d1 @ d2) * factor
-            g[self.g13DOF] += (d1 @ d3) * factor
-            g[self.g22DOF] += (d2 @ d2 - 1) * factor
-            g[self.g23DOF] += (d2 @ d3) * factor
-            g[self.g33DOF] += (d3 @ d3 - 1) * factor
-
-        return g
-
-    def __g_q_el(self, qe, el):
-        # return Numerical_derivative(lambda t, q: self.__g_el(q, el), order=order)._x(0, qe)
-
-        g_q = np.zeros((self.nla_g_el, self.nq_el))
-
-        for i in range(self.nQP):
-            NNi = self.stack3di(self.N_di[el, i])
-
-            d1 = NNi @ qe[self.d1DOF]
-            d2 = NNi @ qe[self.d2DOF]
-            d3 = NNi @ qe[self.d3DOF]
-
-            factor = self.N_g[el, i] * self.J0[el, i] * self.qw[el, i]
-            d1_NNi = d1 @ NNi
-            d2_NNi = d2 @ NNi
-            d3_NNi = d3 @ NNi
-
-            # 2 * delta d1 * d1
-            g_q[self.g11DOF[:, None], self.d1DOF] += np.outer(factor, 2 * d1_NNi)
-            # delta d1 * d2
-            g_q[self.g12DOF[:, None], self.d1DOF] += np.outer(factor, d2_NNi)
-            # delta d2 * d1
-            g_q[self.g12DOF[:, None], self.d2DOF] += np.outer(factor, d1_NNi)
-            # delta d1 * d3
-            g_q[self.g13DOF[:, None], self.d1DOF] += np.outer(factor, d3_NNi)
-            # delta d3 * d1
-            g_q[self.g13DOF[:, None], self.d3DOF] += np.outer(factor, d1_NNi)
-
-            # 2 * delta d2 * d2
-            g_q[self.g22DOF[:, None], self.d2DOF] += np.outer(factor, 2 * d2_NNi)
-            # delta d2 * d3
-            g_q[self.g23DOF[:, None], self.d2DOF] += np.outer(factor, d3_NNi)
-            # delta d3 * d2
-            g_q[self.g23DOF[:, None], self.d3DOF] += np.outer(factor, d2_NNi)
-
-            # 2 * delta d3 * d3
-            g_q[self.g33DOF[:, None], self.d3DOF] += np.outer(factor, 2 * d3_NNi)
-
-        return g_q
-
-        # g_q_num = Numerical_derivative(lambda t, q: self.__g_el(q, el), order=2)._x(0, qe)
-        # diff = g_q_num - g_q
-        # error = np.linalg.norm(diff)
-        # if error > 1.0e-8:
-        #     print(f'error g_q: {error}')
-        # return g_q_num
-
-    def __g_qq_el(self, el):
-        # return Numerical_derivative(lambda t, q: self.__g_q_el(q, el), order=order)._x(0, np.zeros(self.nq_el))
-
-        g_qq = np.zeros((self.nla_g_el, self.nq_el, self.nq_el))
-
-        for i in range(self.nQP):
-            NNi = self.stack3di(self.N_di[el, i])
-            factor = NNi.T @ NNi * self.J0[el, i] * self.qw[el, i]
-
-            for j, N_gij in enumerate(self.N_g[el, i]):
-                N_gij_factor = N_gij * factor
-
-                # 2 * delta d1 * d1
-                g_qq[self.g11DOF[j], self.d1DOF[:, None], self.d1DOF] += (
-                    2 * N_gij_factor
-                )
-                # delta d1 * d2
-                g_qq[self.g12DOF[j], self.d1DOF[:, None], self.d2DOF] += N_gij_factor
-                # delta d2 * d1
-                g_qq[self.g12DOF[j], self.d2DOF[:, None], self.d1DOF] += N_gij_factor
-                # delta d1 * d3
-                g_qq[self.g13DOF[j], self.d1DOF[:, None], self.d3DOF] += N_gij_factor
-                # delta d3 * d1
-                g_qq[self.g13DOF[j], self.d3DOF[:, None], self.d1DOF] += N_gij_factor
-
-                # 2 * delta d2 * d2
-                g_qq[self.g22DOF[j], self.d2DOF[:, None], self.d2DOF] += (
-                    2 * N_gij_factor
-                )
-                # delta d2 * d3
-                g_qq[self.g23DOF[j], self.d2DOF[:, None], self.d3DOF] += N_gij_factor
-                # delta d3 * d2
-                g_qq[self.g23DOF[j], self.d3DOF[:, None], self.d2DOF] += N_gij_factor
-
-                # 2 * delta d3 * d3
-                g_qq[self.g33DOF[j], self.d3DOF[:, None], self.d3DOF] += (
-                    2 * N_gij_factor
-                )
-
-        return g_qq
-
-        # g_qq_num = Numerical_derivative(lambda t, q: self.__g_q_el(q, el), order=2)._x(0, np.zeros(self.nq_el))
-        # diff = g_qq_num - g_qq
-        # error = np.linalg.norm(diff)
-        # if error > 1.0e-8:
-        #     print(f'error g_qq: {error}')
-        # return g_qq_num
-
-    def __g_dot_el(self, qe, ue, el):
-        g_dot = np.zeros(self.nla_g_el)
-
-        N, N_g, J0, qw = self.N_di[el], self.N_g[el], self.J0[el], self.qw[el]
-        for Ni, N_gi, J0i, qwi in zip(N, N_g, J0, qw):
-            NNi = self.stack3r(Ni)
-
-            d1 = NNi @ qe[self.d1DOF]
-            d2 = NNi @ qe[self.d2DOF]
-            d3 = NNi @ qe[self.d3DOF]
-            d1_dot = NNi @ ue[self.d1DOF]
-            d2_dot = NNi @ ue[self.d2DOF]
-            d3_dot = NNi @ ue[self.d3DOF]
-
-            factor = N_gi * J0i * qwi
-
-            g_dot[self.g11DOF] += 2 * d1 @ d1_dot * factor
-            g_dot[self.g12DOF] += (d1 @ d2_dot + d2 @ d1_dot) * factor
-            g_dot[self.g13DOF] += (d1 @ d3_dot + d3 @ d1_dot) * factor
-
-            g_dot[self.g22DOF] += 2 * d2 @ d2_dot * factor
-            g_dot[self.g23DOF] += (d2 @ d3_dot + d3 @ d2_dot) * factor
-
-            g_dot[self.g33DOF] += 2 * d3 @ d3_dot * factor
-
-        return g_dot
-
-        # g_dot_num = Numerical_derivative(lambda t, q, u: self.__g_el(q, el))._t(0, qe, ue)
-        # g_dot_num += Numerical_derivative(lambda t, q, u: self.__g_el(q, el))._x(0, qe, ue) @ ue
-        # diff = g_dot_num - g_dot
-        # error = np.linalg.norm(diff)
-        # print(f'error g_dot: {error}')
-        # return g_dot_num
-
-    def __g_dot_q_el(self, qe, ue, el):
-        g_dot_q = np.zeros((self.nla_g_el, self.nq_el))
-
-        N, N_g, J0, qw = self.N[el], self.N_g[el], self.J0[el], self.qw[el]
-        for Ni, N_gi, J0i, qwi in zip(N, N_g, J0, qw):
-            NNi = self.stack3r(Ni)
-
-            d1_dot = NNi @ ue[self.d1DOF]
-            d2_dot = NNi @ ue[self.d2DOF]
-            d3_dot = NNi @ ue[self.d3DOF]
-
-            factor = N_gi * J0i * qwi
-            d1_dot_N = np.outer(factor, d1_dot @ NNi)
-            d2_dot_N = np.outer(factor, d2_dot @ NNi)
-            d3_dot_N = np.outer(factor, d3_dot @ NNi)
-
-            # g_dot[self.g11DOF] += 2 * d1 @ d1_dot * factor
-            g_dot_q[self.g11DOF[:, None], self.d1DOF] += 2 * d1_dot_N
-            # g_dot[self.g12DOF] += (d1 @ d2_dot + d2 @ d1_dot) * factor
-            g_dot_q[self.g12DOF[:, None], self.d1DOF] += d2_dot_N
-            g_dot_q[self.g12DOF[:, None], self.d2DOF] += d1_dot_N
-            # g_dot[self.g13DOF] += (d1 @ d3_dot + d3 @ d1_dot) * factor
-            g_dot_q[self.g13DOF[:, None], self.d1DOF] += d3_dot_N
-            g_dot_q[self.g13DOF[:, None], self.d3DOF] += d1_dot_N
-
-            # g_dot[self.g22DOF] += 2 * d2 @ d2_dot * factor
-            g_dot_q[self.g22DOF[:, None], self.d2DOF] += 2 * d2_dot_N
-            # g_dot[self.g23DOF] += (d2 @ d3_dot + d3 @ d2_dot) * factor
-            g_dot_q[self.g23DOF[:, None], self.d2DOF] += d3_dot_N
-            g_dot_q[self.g23DOF[:, None], self.d3DOF] += d2_dot_N
-
-            # g_dot[self.g33DOF] += 2 * d3 @ d3_dot * factor
-            g_dot_q[self.g33DOF[:, None], self.d3DOF] += 2 * d3_dot_N
-
-        return g_dot_q
-
-        # g_dot_q_num = Numerical_derivative(lambda t, q, u: self.__g_dot_el(q, u, el), order=2)._x(0, qe, ue)
-        # diff = g_dot_q - g_dot_q_num
-        # error = np.linalg.norm(diff)
-        # print(f'error g_dot_q: {error}')
-        # return g_dot_q_num
-
-    def __g_ddot_el(self, qe, ue, ue_dot, el):
-        g_ddot = np.zeros(self.nla_g_el)
-
-        for i in range(self.nQP):
-            NNi = self.stack3di(self.N_di[el, i])
-
-            d1 = NNi @ qe[self.d1DOF]
-            d2 = NNi @ qe[self.d2DOF]
-            d3 = NNi @ qe[self.d3DOF]
-            d1_dot = NNi @ ue[self.d1DOF]
-            d2_dot = NNi @ ue[self.d2DOF]
-            d3_dot = NNi @ ue[self.d3DOF]
-            d1_ddot = NNi @ ue_dot[self.d1DOF]
-            d2_ddot = NNi @ ue_dot[self.d2DOF]
-            d3_ddot = NNi @ ue_dot[self.d3DOF]
-
-            factor = self.N_g[el, i] * self.J0[el, i] * self.qw[el, i]
-
-            g_ddot[self.g11DOF] += 2 * (d1 @ d1_ddot + d1_dot @ d1_dot) * factor
-            g_ddot[self.g12DOF] += (
-                d1 @ d2_ddot + 2 * d1_dot @ d2_dot + d2 @ d1_ddot
-            ) * factor
-            g_ddot[self.g13DOF] += (
-                d1 @ d3_ddot + 2 * d1_dot @ d3_dot + d3 @ d1_ddot
-            ) * factor
-
-            g_ddot[self.g22DOF] += 2 * (d2 @ d2_ddot + d2_dot @ d2_dot) * factor
-            g_ddot[self.g23DOF] += (
-                d2 @ d3_ddot + 2 * d2_dot @ d3_dot + d3 @ d2_ddot
-            ) * factor
-
-            g_ddot[self.g33DOF] += 2 * (d3 @ d3_ddot + d3_dot @ d3_dot) * factor
-
-        return g_ddot
-
-        # g_ddot_num = Numerical_derivative(lambda t, q, u: self.__g_dot_el(q, u, el))._t(0, qe, ue)
-        # g_ddot_num += Numerical_derivative(lambda t, q, u: self.__g_dot_el(q, u, el))._x(0, qe, ue) @ ue
-        # g_ddot_num += Numerical_derivative(lambda t, q, u: self.__g_dot_el(q, u, el))._y(0, qe, ue) @ ue_dot
-        # diff = g_ddot_num - g_ddot
-        # error = np.linalg.norm(diff)
-        # print(f'error g_ddot: {error}')
-        # return g_ddot_num
-
-    def __g_ddot_q_el(self, qe, ue, ue_dot, el):
-        g_ddot_q = np.zeros((self.nla_g_el, self.nq_el))
-
-        N, N_g, J0, qw = self.N[el], self.N_g[el], self.J0[el], self.qw[el]
-        for Ni, N_gi, J0i, qwi in zip(N, N_g, J0, qw):
-            NNi = self.stack3r(Ni)
-
-            d1_ddot = NNi @ ue_dot[self.d1DOF]
-            d2_ddot = NNi @ ue_dot[self.d2DOF]
-            d3_ddot = NNi @ ue_dot[self.d3DOF]
-
-            factor = N_gi * J0i * qwi
-            d1_ddot_N = np.outer(factor, d1_ddot @ NNi)
-            d2_ddot_N = np.outer(factor, d2_ddot @ NNi)
-            d3_ddot_N = np.outer(factor, d3_ddot @ NNi)
-
-            # g_ddot[self.g11DOF] += 2 * (d1 @ d1_ddot + d1_dot @ d1_dot) * factor
-            g_ddot_q[self.g11DOF[:, None], self.d1DOF] += 2 * d1_ddot_N
-
-            # g_ddot[self.g12DOF] += (d1 @ d2_ddot + 2 * d1_dot @ d2_dot + d2 @ d1_ddot) * factor
-            g_ddot_q[self.g12DOF[:, None], self.d1DOF] += d2_ddot_N
-            g_ddot_q[self.g12DOF[:, None], self.d2DOF] += d1_ddot_N
-            # g_ddot[self.g13DOF] += (d1 @ d3_ddot + 2 * d1_dot @ d3_dot + d3 @ d1_ddot) * factor
-            g_ddot_q[self.g13DOF[:, None], self.d1DOF] += d3_ddot_N
-            g_ddot_q[self.g13DOF[:, None], self.d3DOF] += d1_ddot_N
-
-            # g_ddot[self.g22DOF] += 2 * (d2 @ d2_ddot + d2_dot @ d2_dot) * factor
-            g_ddot_q[self.g22DOF[:, None], self.d2DOF] += 2 * d2_ddot_N
-            # g_ddot[self.g23DOF] += (d2 @ d3_ddot + 2 * d2_dot @ d3_dot + d3 @ d2_ddot) * factor
-            g_ddot_q[self.g23DOF[:, None], self.d2DOF] += d3_ddot_N
-            g_ddot_q[self.g23DOF[:, None], self.d3DOF] += d2_ddot_N
-
-            # g_ddot[self.g33DOF] += 2 * (d3 @ d3_ddot + d3_dot @ d3_dot) * factor
-            g_ddot_q[self.g33DOF[:, None], self.d3DOF] += 2 * d3_ddot_N
-
-        return g_ddot_q
-
-        # g_ddot_q_num = Numerical_derivative(lambda t, q, u: self.__g_ddot_el(q, u, ue_dot, el), order=2)._x(0, qe, ue)
-        # diff = g_ddot_q - g_ddot_q_num
-        # diff_error = diff #[self.g11DOF]
-        # error = np.linalg.norm(diff_error)
-        # print(f'error g_ddot_q: {error}')
-        # return g_ddot_q_num
-
-    def __g_ddot_u_el(self, qe, ue, ue_dot, el):
-        g_ddot_u = np.zeros((self.nla_g_el, self.nq_el))
-
-        N, N_g, J0, qw = self.N[el], self.N_g[el], self.J0[el], self.qw[el]
-        for Ni, N_gi, J0i, qwi in zip(N, N_g, J0, qw):
-            NNi = self.stack3r(Ni)
-
-            d1_dot = NNi @ ue[self.d1DOF]
-            d2_dot = NNi @ ue[self.d2DOF]
-            d3_dot = NNi @ ue[self.d3DOF]
-
-            factor = N_gi * J0i * qwi
-            d1_dot_N = np.outer(factor, d1_dot @ NNi)
-            d2_dot_N = np.outer(factor, d2_dot @ NNi)
-            d3_dot_N = np.outer(factor, d3_dot @ NNi)
-
-            # g_ddot[self.g11DOF] += 2 * (d1 @ d1_ddot + d1_dot @ d1_dot) * factor
-            g_ddot_u[self.g11DOF[:, None], self.d1DOF] += 4 * d1_dot_N
-
-            # g_ddot[self.g12DOF] += (d1 @ d2_ddot + 2 * d1_dot @ d2_dot + d2 @ d1_ddot) * factor
-            g_ddot_u[self.g12DOF[:, None], self.d1DOF] += 2 * d2_dot_N
-            g_ddot_u[self.g12DOF[:, None], self.d2DOF] += 2 * d1_dot_N
-            # g_ddot[self.g13DOF] += (d1 @ d3_ddot + 2 * d1_dot @ d3_dot + d3 @ d1_ddot) * factor
-            g_ddot_u[self.g13DOF[:, None], self.d1DOF] += 2 * d3_dot_N
-            g_ddot_u[self.g13DOF[:, None], self.d3DOF] += 2 * d1_dot_N
-
-            # g_ddot[self.g22DOF] += 2 * (d2 @ d2_ddot + d2_dot @ d2_dot) * factor
-            g_ddot_u[self.g22DOF[:, None], self.d2DOF] += 4 * d2_dot_N
-            # g_ddot[self.g23DOF] += (d2 @ d3_ddot + 2 * d2_dot @ d3_dot + d3 @ d2_ddot) * factor
-            g_ddot_u[self.g23DOF[:, None], self.d2DOF] += 2 * d3_dot_N
-            g_ddot_u[self.g23DOF[:, None], self.d3DOF] += 2 * d2_dot_N
-
-            # g_ddot[self.g33DOF] += 2 * (d3 @ d3_ddot + d3_dot @ d3_dot) * factor
-            g_ddot_u[self.g33DOF[:, None], self.d3DOF] += 4 * d3_dot_N
-
-        return g_ddot_u
-
-        # g_ddot_u_num = Numerical_derivative(lambda t, q, u: self.__g_ddot_el(q, u, ue_dot, el), order=2)._y(0, qe, ue)
-        # diff = g_ddot_u - g_ddot_u_num
-        # diff_error = diff
-        # error = np.linalg.norm(diff_error)
-        # print(f'error g_ddot_u: {error}')
-        # return g_ddot_u_num
-
-    # global constraint functions
-    def g(self, t, q):
-        g = np.zeros(self.nla_g)
-        for el in range(self.nEl):
-            elDOF = self.elDOF[el]
-            elDOF_g = self.elDOF_g[el]
-            g[elDOF_g] += self.__g_el(q[elDOF], el)
-        return g
-
-    def g_q(self, t, q, coo):
-        for el in range(self.nEl):
-            elDOF = self.elDOF[el]
-            elDOF_g = self.elDOF_g[el]
-            g_q = self.__g_q_el(q[elDOF], el)
-            coo.extend(g_q, (self.la_gDOF[elDOF_g], self.qDOF[elDOF]))
-
-    def W_g(self, t, q, coo):
-        for el in range(self.nEl):
-            elDOF = self.elDOF[el]
-            elDOF_g = self.elDOF_g[el]
-            g_q = self.__g_q_el(q[elDOF], el)
-            coo.extend(g_q.T, (self.uDOF[elDOF], self.la_gDOF[elDOF_g]))
-
-    def Wla_g_q(self, t, q, la_g, coo):
-        for el in range(self.nEl):
-            elDOF = self.elDOF[el]
-            elDOF_g = self.elDOF_g[el]
-            g_qq = self.__g_qq_el(el)
-            coo.extend(
-                np.einsum("i,ijk->jk", la_g[elDOF_g], g_qq),
-                (self.uDOF[elDOF], self.qDOF[elDOF]),
-            )
-
-    def g_dot(self, t, q, u):
-        g_dot = np.zeros(self.nla_g)
-        for el in range(self.nEl):
-            elDOF = self.elDOF[el]
-            elDOF_g = self.elDOF_g[el]
-            g_dot[elDOF_g] += self.__g_dot_el(q[elDOF], u[elDOF], el)
-        return g_dot
-
-    def g_dot_q(self, t, q, u, coo):
-        for el in range(self.nEl):
-            elDOF = self.elDOF[el]
-            elDOF_g = self.elDOF_g[el]
-            g_dot_q = self.__g_dot_q_el(q[elDOF], u[elDOF], el)
-            coo.extend(g_dot_q, (self.la_gDOF[elDOF_g], self.qDOF[elDOF]))
-
-    def g_dot_u(self, t, q, coo):
-        for el in range(self.nEl):
-            elDOF = self.elDOF[el]
-            elDOF_g = self.elDOF_g[el]
-            g_dot_u = self.__g_q_el(q[elDOF], el)
-            coo.extend(g_dot_u, (self.la_gDOF[elDOF_g], self.uDOF[elDOF]))
-
-    def g_ddot(self, t, q, u, u_dot):
-        g_ddot = np.zeros(self.nla_g)
-        for el in range(self.nEl):
-            elDOF = self.elDOF[el]
-            elDOF_g = self.elDOF_g[el]
-            g_ddot[elDOF_g] += self.__g_ddot_el(q[elDOF], u[elDOF], u_dot[elDOF], el)
-        return g_ddot
-
-    def g_ddot_q(self, t, q, u, u_dot, coo):
-        for el in range(self.nEl):
-            elDOF = self.elDOF[el]
-            elDOF_g = self.elDOF_g[el]
-            g_ddot_q = self.__g_ddot_q_el(q[elDOF], u[elDOF], u_dot[elDOF], el)
-            coo.extend(g_ddot_q, (self.la_gDOF[elDOF_g], self.qDOF[elDOF]))
-
-    def g_ddot_u(self, t, q, u, u_dot, coo):
-        for el in range(self.nEl):
-            elDOF = self.elDOF[el]
-            elDOF_g = self.elDOF_g[el]
-            g_ddot_u = self.__g_ddot_u_el(q[elDOF], u[elDOF], u_dot[elDOF], el)
-            coo.extend(g_ddot_u, (self.la_gDOF[elDOF_g], self.uDOF[elDOF]))
-
-
-# TODO: implement time derivatives of constraint functions
-class EulerBernoulliDirectorIntegral(TimoshenkoBeamDirector):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        self.polynomial_degree_g = (
-            self.polynomial_degree_di
-        )  # if polynomial_degree_g is None else polynomial_degree_g
-        self.nn_el_g = self.polynomial_degree_g + 1  # number of nodes per element
-
-        if self.basis == "B-spline":
-            self.knot_vector_g = Knot_vector(self.polynomial_degree_g, self.nEl)
-            self.nn_g = self.nEl + self.polynomial_degree_g  # number of nodes
-        elif self.basis == "lagrange":
-            self.knot_vector_g = Node_vector(self.polynomial_degree_g, self.nEl)
-            self.nn_g = self.nEl * self.polynomial_degree_g + 1  # number of nodes
-
-        self.nq_n_g = 8  # number of degrees of freedom per node
-        self.nla_g = self.nn_g * self.nq_n_g
-        self.nla_g_el = self.nn_el_g * self.nq_n_g
-
-        la_g0 = kwargs.get("la_g0")
-        self.la_g0 = np.zeros(self.nla_g) if la_g0 is None else la_g0
-
-        self.element_span_g = self.knot_vector_g.element_data
-        self.mesh_g = Mesh1D(
-            self.knot_vector_g,
-            self.nQP,
-            derivative_order=0,
-            nq_n=self.nq_n_g,
-            basis=self.basis,
-        )
-        self.elDOF_g = self.mesh_g.elDOF
-
-        # compute shape functions
-        self.N_g = self.mesh_g.N
-
-        # degrees of freedom on the element level (for the constraints)
-        self.g11DOF = np.arange(self.nn_el_g)
-        self.g12DOF = np.arange(self.nn_el_g, 2 * self.nn_el_g)
-        self.g13DOF = np.arange(2 * self.nn_el_g, 3 * self.nn_el_g)
-        self.g22DOF = np.arange(3 * self.nn_el_g, 4 * self.nn_el_g)
-        self.g23DOF = np.arange(4 * self.nn_el_g, 5 * self.nn_el_g)
-        self.g33DOF = np.arange(5 * self.nn_el_g, 6 * self.nn_el_g)
-        self.g2DOF = np.arange(
-            6 * self.nn_el_g, 7 * self.nn_el_g
-        )  # unshearability in d2-direction
-        self.g3DOF = np.arange(
-            7 * self.nn_el_g, 8 * self.nn_el_g
-        )  # unshearability in d3-direction
-
-    def __g_el(self, qe, el):
-        g = np.zeros(self.nla_g_el)
-
-        for i in range(self.nQP):
-            NN_dii = self.stack3di(self.N_di[el, i])
-            d1 = NN_dii @ qe[self.d1DOF]
-            d2 = NN_dii @ qe[self.d2DOF]
-            d3 = NN_dii @ qe[self.d3DOF]
-
-            r_xi = self.stack3r(self.N_r_xi[el, i]) @ qe[self.rDOF]
-
-            factor1 = self.N_g[el, i] * self.J0[el, i] * self.qw[el, i]
-            factor2 = self.N_g[el, i] * self.qw[el, i]
-
-            # director constraints
-            g[self.g11DOF] += (d1 @ d1 - 1) * factor1
-            g[self.g12DOF] += (d1 @ d2) * factor1
-            g[self.g13DOF] += (d1 @ d3) * factor1
-            g[self.g22DOF] += (d2 @ d2 - 1) * factor1
-            g[self.g23DOF] += (d2 @ d3) * factor1
-            g[self.g33DOF] += (d3 @ d3 - 1) * factor1
-
-            # unshearability in d2-direction
-            g[self.g2DOF] += d2 @ r_xi * factor2
-            g[self.g3DOF] += d3 @ r_xi * factor2
-
-        return g
-
-    def __g_q_el(self, qe, el):
-        # return Numerical_derivative(lambda t, q: self.__g_el(q, el), order=order)._x(0, qe)
-
-        g_q = np.zeros((self.nla_g_el, self.nq_el))
-
-        for i in range(self.nQP):
-            NN_dii = self.stack3di(self.N_di[el, i])
-            d1 = NN_dii @ qe[self.d1DOF]
-            d2 = NN_dii @ qe[self.d2DOF]
-            d3 = NN_dii @ qe[self.d3DOF]
-
-            d1_NNi = d1 @ NN_dii
-            d2_NNi = d2 @ NN_dii
-            d3_NNi = d3 @ NN_dii
-
-            NN_r_xii = self.stack3r(self.N_r_xi[el, i])
-            r_xi = NN_r_xii @ qe[self.rDOF]
-
-            factor1 = self.N_g[el, i] * self.J0[el, i] * self.qw[el, i]
-            factor2 = self.N_g[el, i] * self.qw[el, i]
-
-            ######################
-            # director constraints
-            ######################
-
-            # 2 * delta d1 * d1
-            g_q[self.g11DOF[:, None], self.d1DOF] += np.outer(factor1, 2 * d1_NNi)
-            # delta d1 * d2
-            g_q[self.g12DOF[:, None], self.d1DOF] += np.outer(factor1, d2_NNi)
-            # delta d2 * d1
-            g_q[self.g12DOF[:, None], self.d2DOF] += np.outer(factor1, d1_NNi)
-            # delta d1 * d3
-            g_q[self.g13DOF[:, None], self.d1DOF] += np.outer(factor1, d3_NNi)
-            # delta d3 * d1
-            g_q[self.g13DOF[:, None], self.d3DOF] += np.outer(factor1, d1_NNi)
-
-            # 2 * delta d2 * d2
-            g_q[self.g22DOF[:, None], self.d2DOF] += np.outer(factor1, 2 * d2_NNi)
-            # delta d2 * d3
-            g_q[self.g23DOF[:, None], self.d2DOF] += np.outer(factor1, d3_NNi)
-            # delta d3 * d2
-            g_q[self.g23DOF[:, None], self.d3DOF] += np.outer(factor1, d2_NNi)
-
-            # 2 * delta d3 * d3
-            g_q[self.g33DOF[:, None], self.d3DOF] += np.outer(factor1, 2 * d3_NNi)
-
-            ################################
-            # unshearability in d2-direction
-            ################################
-            g_q[self.g2DOF[:, None], self.rDOF] += np.outer(factor2, d2 @ NN_r_xii)
-            g_q[self.g2DOF[:, None], self.d2DOF] += np.outer(factor2, r_xi @ NN_dii)
-            g_q[self.g3DOF[:, None], self.rDOF] += np.outer(factor2, d3 @ NN_r_xii)
-            g_q[self.g3DOF[:, None], self.d3DOF] += np.outer(factor2, r_xi @ NN_dii)
-
-        return g_q
-
-        # g_q_num = Numerical_derivative(lambda t, q: self.__g_el(q, el), order=2)._x(0, qe)
-        # diff = g_q_num - g_q
-        # error = np.linalg.norm(diff)
-        # print(f'error g_q: {error}')
-        # return g_q_num
-
-    def __g_qq_el(self, qe, el):
-        # return Numerical_derivative(lambda t, q: self.__g_q_el(q, el), order=order)._x(0, np.zeros(self.nq_el))
-
-        g_qq = np.zeros((self.nla_g_el, self.nq_el, self.nq_el))
-
-        for i in range(self.nQP):
-            NN_dii = self.stack3di(self.N_di[el, i])
-            NN_r_xii = self.stack3r(self.N_r_xi[el, i])
-
-            factor1 = NN_dii.T @ NN_dii * self.J0[el, i] * self.qw[el, i]
-            factor2 = self.N_g[el, i] * self.qw[el, i]
-
-            ######################
-            # director constraints
-            ######################
-            for j, N_gij in enumerate(self.N_g[el, i]):
-                N_gij_factor1 = N_gij * factor1
-
-                # 2 * delta d1 * d1
-                g_qq[self.g11DOF[j], self.d1DOF[:, None], self.d1DOF] += (
-                    2 * N_gij_factor1
-                )
-                # delta d1 * d2
-                g_qq[self.g12DOF[j], self.d1DOF[:, None], self.d2DOF] += N_gij_factor1
-                # delta d2 * d1
-                g_qq[self.g12DOF[j], self.d2DOF[:, None], self.d1DOF] += N_gij_factor1
-                # delta d1 * d3
-                g_qq[self.g13DOF[j], self.d1DOF[:, None], self.d3DOF] += N_gij_factor1
-                # delta d3 * d1
-                g_qq[self.g13DOF[j], self.d3DOF[:, None], self.d1DOF] += N_gij_factor1
-
-                # 2 * delta d2 * d2
-                g_qq[self.g22DOF[j], self.d2DOF[:, None], self.d2DOF] += (
-                    2 * N_gij_factor1
-                )
-                # delta d2 * d3
-                g_qq[self.g23DOF[j], self.d2DOF[:, None], self.d3DOF] += N_gij_factor1
-                # delta d3 * d2
-                g_qq[self.g23DOF[j], self.d3DOF[:, None], self.d2DOF] += N_gij_factor1
-
-                # 2 * delta d3 * d3
-                g_qq[self.g33DOF[j], self.d3DOF[:, None], self.d3DOF] += (
-                    2 * N_gij_factor1
-                )
-
-            ################################
-            # unshearability in d2-direction
-            ################################
-            arg1 = np.einsum("i,jl,jk->ikl", factor2, NN_dii, NN_r_xii)
-            arg2 = np.einsum("i,jl,jk->ikl", factor2, NN_r_xii, NN_dii)
-            g_qq[self.g2DOF[:, None, None], self.rDOF[:, None], self.d2DOF] += arg1
-            g_qq[self.g2DOF[:, None, None], self.d2DOF[:, None], self.rDOF] += arg2
-            g_qq[self.g3DOF[:, None, None], self.rDOF[:, None], self.d3DOF] += arg1
-            g_qq[self.g3DOF[:, None, None], self.d3DOF[:, None], self.rDOF] += arg2
-
-        return g_qq
-
-        # g_qq_num = Numerical_derivative(lambda t, q: self.__g_q_el(q, el), order=2)._x(0, np.zeros(self.nq_el))
-        # diff = g_qq_num - g_qq
-        # error = np.linalg.norm(diff)
-        # print(f'error g_qq: {error}')
-        # return g_qq_num
-
-    def __g_dot_el(self, qe, ue, el):
-        raise NotImplementedError("...")
-
-    def __g_dot_q_el(self, qe, ue, el):
-        raise NotImplementedError("...")
-
-    def __g_ddot_el(self, qe, ue, ue_dot, el):
-        raise NotImplementedError("...")
-
-    def __g_ddot_q_el(self, qe, ue, ue_dot, el):
-        raise NotImplementedError("...")
-
-    def __g_ddot_u_el(self, qe, ue, ue_dot, el):
-        raise NotImplementedError("...")
-
-    # global constraint functions
-    def g(self, t, q):
-        g = np.zeros(self.nla_g)
-        for el in range(self.nEl):
-            elDOF = self.elDOF[el]
-            elDOF_g = self.elDOF_g[el]
-            g[elDOF_g] += self.__g_el(q[elDOF], el)
-        return g
-
-    def g_q(self, t, q, coo):
-        for el in range(self.nEl):
-            elDOF = self.elDOF[el]
-            elDOF_g = self.elDOF_g[el]
-            g_q = self.__g_q_el(q[elDOF], el)
-            coo.extend(g_q, (self.la_gDOF[elDOF_g], self.qDOF[elDOF]))
-
-    def W_g(self, t, q, coo):
-        for el in range(self.nEl):
-            elDOF = self.elDOF[el]
-            elDOF_g = self.elDOF_g[el]
-            g_q = self.__g_q_el(q[elDOF], el)
-            coo.extend(g_q.T, (self.uDOF[elDOF], self.la_gDOF[elDOF_g]))
-
-    def Wla_g_q(self, t, q, la_g, coo):
-        for el in range(self.nEl):
-            elDOF = self.elDOF[el]
-            elDOF_g = self.elDOF_g[el]
-            g_qq = self.__g_qq_el(q[elDOF], el)
-            coo.extend(
-                np.einsum("i,ijk->jk", la_g[elDOF_g], g_qq),
-                (self.uDOF[elDOF], self.qDOF[elDOF]),
-            )
-
-    def g_dot(self, t, q, u):
-        g_dot = np.zeros(self.nla_g)
-        for el in range(self.nEl):
-            elDOF = self.elDOF[el]
-            elDOF_g = self.elDOF_g[el]
-            g_dot[elDOF_g] += self.__g_dot_el(q[elDOF], u[elDOF], el)
-        return g_dot
-
-    def g_dot_q(self, t, q, u, coo):
-        for el in range(self.nEl):
-            elDOF = self.elDOF[el]
-            elDOF_g = self.elDOF_g[el]
-            g_dot_q = self.__g_dot_q_el(q[elDOF], u[elDOF], el)
-            coo.extend(g_dot_q, (self.la_gDOF[elDOF_g], self.qDOF[elDOF]))
-
-    def g_dot_u(self, t, q, coo):
-        for el in range(self.nEl):
-            elDOF = self.elDOF[el]
-            elDOF_g = self.elDOF_g[el]
-            g_dot_u = self.__g_q_el(q[elDOF], el)
-            coo.extend(g_dot_u, (self.la_gDOF[elDOF_g], self.uDOF[elDOF]))
-
-    def g_ddot(self, t, q, u, u_dot):
-        g_ddot = np.zeros(self.nla_g)
-        for el in range(self.nEl):
-            elDOF = self.elDOF[el]
-            elDOF_g = self.elDOF_g[el]
-            g_ddot[elDOF_g] += self.__g_ddot_el(q[elDOF], u[elDOF], u_dot[elDOF], el)
-        return g_ddot
-
-    def g_ddot_q(self, t, q, u, u_dot, coo):
-        for el in range(self.nEl):
-            elDOF = self.elDOF[el]
-            elDOF_g = self.elDOF_g[el]
-            g_ddot_q = self.__g_ddot_q_el(q[elDOF], u[elDOF], u_dot[elDOF], el)
-            coo.extend(g_ddot_q, (self.la_gDOF[elDOF_g], self.qDOF[elDOF]))
-
-    def g_ddot_u(self, t, q, u, u_dot, coo):
-        for el in range(self.nEl):
-            elDOF = self.elDOF[el]
-            elDOF_g = self.elDOF_g[el]
-            g_ddot_u = self.__g_ddot_u_el(q[elDOF], u[elDOF], u_dot[elDOF], el)
-            coo.extend(g_ddot_u, (self.la_gDOF[elDOF_g], self.uDOF[elDOF]))
-
-
-# TODO: implement time derivatives of constraint functions
-class InextensibleEulerBernoulliDirectorIntegral(TimoshenkoBeamDirector):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        self.polynomial_degree_g = (
-            self.polynomial_degree_di
-        )  # if polynomial_degree_g is None else polynomial_degree_g
-        self.nn_el_g = self.polynomial_degree_g + 1  # number of nodes per element
-
-        if self.basis == "B-spline":
-            self.knot_vector_g = Knot_vector(self.polynomial_degree_g, self.nEl)
-            self.nn_g = self.nEl + self.polynomial_degree_g  # number of nodes
-        elif self.basis == "lagrange":
-            self.knot_vector_g = Node_vector(self.polynomial_degree_g, self.nEl)
-            self.nn_g = self.nEl * self.polynomial_degree_g + 1  # number of nodes
-
-        self.nq_n_g = 9  # number of degrees of freedom per node
-        self.nla_g = self.nn_g * self.nq_n_g
-        self.nla_g_el = self.nn_el_g * self.nq_n_g
-
-        la_g0 = kwargs.get("la_g0")
-        self.la_g0 = np.zeros(self.nla_g) if la_g0 is None else la_g0
-
-        self.element_span_g = self.knot_vector_g.element_data
-        self.mesh_g = Mesh1D(
-            self.knot_vector_g,
-            self.nQP,
-            derivative_order=0,
-            nq_n=self.nq_n_g,
-            basis=self.basis,
-        )
-        self.elDOF_g = self.mesh_g.elDOF
-
-        # compute shape functions
-        self.N_g = self.mesh_g.N
-
-        # degrees of freedom on the element level (for the constraints)
-        self.g11DOF = np.arange(self.nn_el_g)
-        self.g12DOF = np.arange(self.nn_el_g, 2 * self.nn_el_g)
-        self.g13DOF = np.arange(2 * self.nn_el_g, 3 * self.nn_el_g)
-        self.g22DOF = np.arange(3 * self.nn_el_g, 4 * self.nn_el_g)
-        self.g23DOF = np.arange(4 * self.nn_el_g, 5 * self.nn_el_g)
-        self.g33DOF = np.arange(5 * self.nn_el_g, 6 * self.nn_el_g)
-        self.g2DOF = np.arange(
-            6 * self.nn_el_g, 7 * self.nn_el_g
-        )  # unshearability in d2-direction
-        self.g3DOF = np.arange(
-            7 * self.nn_el_g, 8 * self.nn_el_g
-        )  # unshearability in d3-direction
-        self.g1DOF = np.arange(8 * self.nn_el_g, 9 * self.nn_el_g)  # inextensibility
-
-    def __g_el(self, qe, el):
-        g = np.zeros(self.nla_g_el)
-
-        for i in range(self.nQP):
-            NN_dii = self.stack3di(self.N_di[el, i])
-            d1 = NN_dii @ qe[self.d1DOF]
-            d2 = NN_dii @ qe[self.d2DOF]
-            d3 = NN_dii @ qe[self.d3DOF]
-
-            r_xi = self.stack3r(self.N_r_xi[el, i]) @ qe[self.rDOF]
-
-            factor1 = self.N_g[el, i] * self.J0[el, i] * self.qw[el, i]
-            factor2 = self.N_g[el, i] * self.qw[el, i]
-
-            # director constraints
-            g[self.g11DOF] += (d1 @ d1 - 1) * factor1
-            g[self.g12DOF] += (d1 @ d2) * factor1
-            g[self.g13DOF] += (d1 @ d3) * factor1
-            g[self.g22DOF] += (d2 @ d2 - 1) * factor1
-            g[self.g23DOF] += (d2 @ d3) * factor1
-            g[self.g33DOF] += (d3 @ d3 - 1) * factor1
-
-            # unshearability in d2-direction
-            g[self.g2DOF] += d2 @ r_xi * factor2
-            g[self.g3DOF] += d3 @ r_xi * factor2
-
-            # inextensibility
-            g[self.g1DOF] += (d1 @ r_xi - self.J0[el, i]) * factor2
-            # g[self.g1DOF] += (d1 @ r_xi / self.J0[el, i] - 1) * factor1
-
-            # r_s = r_xi / self.J0[el, i]
-            # g[self.g1DOF] += (r_s @ r_s - 1) * factor1
-
-        return g
-
-    def __g_q_el(self, qe, el):
-        # return Numerical_derivative(lambda t, q: self.__g_el(q, el), order=order)._x(0, qe)
-
-        g_q = np.zeros((self.nla_g_el, self.nq_el))
-
-        for i in range(self.nQP):
-            NN_dii = self.stack3di(self.N_di[el, i])
-            d1 = NN_dii @ qe[self.d1DOF]
-            d2 = NN_dii @ qe[self.d2DOF]
-            d3 = NN_dii @ qe[self.d3DOF]
-
-            d1_NNi = d1 @ NN_dii
-            d2_NNi = d2 @ NN_dii
-            d3_NNi = d3 @ NN_dii
-
-            NN_r_xii = self.stack3r(self.N_r_xi[el, i])
-            r_xi = NN_r_xii @ qe[self.rDOF]
-
-            factor1 = self.N_g[el, i] * self.J0[el, i] * self.qw[el, i]
-            factor2 = self.N_g[el, i] * self.qw[el, i]
-
-            ######################
-            # director constraints
-            ######################
-
-            # 2 * delta d1 * d1
-            g_q[self.g11DOF[:, None], self.d1DOF] += np.outer(factor1, 2 * d1_NNi)
-            # delta d1 * d2
-            g_q[self.g12DOF[:, None], self.d1DOF] += np.outer(factor1, d2_NNi)
-            # delta d2 * d1
-            g_q[self.g12DOF[:, None], self.d2DOF] += np.outer(factor1, d1_NNi)
-            # delta d1 * d3
-            g_q[self.g13DOF[:, None], self.d1DOF] += np.outer(factor1, d3_NNi)
-            # delta d3 * d1
-            g_q[self.g13DOF[:, None], self.d3DOF] += np.outer(factor1, d1_NNi)
-
-            # 2 * delta d2 * d2
-            g_q[self.g22DOF[:, None], self.d2DOF] += np.outer(factor1, 2 * d2_NNi)
-            # delta d2 * d3
-            g_q[self.g23DOF[:, None], self.d2DOF] += np.outer(factor1, d3_NNi)
-            # delta d3 * d2
-            g_q[self.g23DOF[:, None], self.d3DOF] += np.outer(factor1, d2_NNi)
-
-            # 2 * delta d3 * d3
-            g_q[self.g33DOF[:, None], self.d3DOF] += np.outer(factor1, 2 * d3_NNi)
-
-            ################################
-            # unshearability in d2-direction
-            ################################
-            g_q[self.g2DOF[:, None], self.rDOF] += np.outer(factor2, d2 @ NN_r_xii)
-            g_q[self.g2DOF[:, None], self.d2DOF] += np.outer(factor2, r_xi @ NN_dii)
-            g_q[self.g3DOF[:, None], self.rDOF] += np.outer(factor2, d3 @ NN_r_xii)
-            g_q[self.g3DOF[:, None], self.d3DOF] += np.outer(factor2, r_xi @ NN_dii)
-
-            #################
-            # inextensibility
-            #################
-            # g[self.g1DOF] += (d1 @ r_xi - self.J0[el, i]) * factor2
-            g_q[self.g1DOF[:, None], self.rDOF] += np.outer(factor2, d1 @ NN_r_xii)
-            g_q[self.g1DOF[:, None], self.d1DOF] += np.outer(factor2, r_xi @ NN_dii)
-
-            # # g[self.g1DOF] += (d1 @ r_xi / self.J0[el, i] - 1) * factor1
-            # g_q[self.g1DOF[:, None], self.rDOF] += np.outer(factor1, d1 @ NN_r_xii / self.J0[el, i])
-            # g_q[self.g1DOF[:, None], self.d1DOF] += np.outer(factor1, r_xi / self.J0[el, i] @ NN_dii)
-
-            # r_s = r_xi / self.J0[el, i]
-            # # g[self.g1DOF] += (r_s @ r_s - 1) * factor1
-            # g_q[self.g1DOF[:, None], self.rDOF] += np.outer(factor1, 2 * r_s @ NN_r_xii / self.J0[el, i])
-
-        return g_q
-
-        # g_q_num = Numerical_derivative(lambda t, q: self.__g_el(q, el), order=order)._x(0, qe)
-        # diff = g_q_num - g_q
-        # error = np.linalg.norm(diff)
-        # print(f'error g_q: {error}')
-        # return g_q_num
-
-    def __g_qq_el(self, qe, el):
-        # return Numerical_derivative(lambda t, q: self.__g_q_el(q, el), order=order)._x(0, np.zeros(self.nq_el))
-
-        g_qq = np.zeros((self.nla_g_el, self.nq_el, self.nq_el))
-
-        for i in range(self.nQP):
-            NN_dii = self.stack3di(self.N_di[el, i])
-            NN_r_xii = self.stack3r(self.N_r_xi[el, i])
-
-            factor1 = NN_dii.T @ NN_dii * self.J0[el, i] * self.qw[el, i]
-            factor2 = self.N_g[el, i] * self.qw[el, i]
-
-            ######################
-            # director constraints
-            ######################
-            for j, N_gij in enumerate(self.N_g[el, i]):
-                N_gij_factor1 = N_gij * factor1
-
-                # 2 * delta d1 * d1
-                g_qq[self.g11DOF[j], self.d1DOF[:, None], self.d1DOF] += (
-                    2 * N_gij_factor1
-                )
-                # delta d1 * d2
-                g_qq[self.g12DOF[j], self.d1DOF[:, None], self.d2DOF] += N_gij_factor1
-                # delta d2 * d1
-                g_qq[self.g12DOF[j], self.d2DOF[:, None], self.d1DOF] += N_gij_factor1
-                # delta d1 * d3
-                g_qq[self.g13DOF[j], self.d1DOF[:, None], self.d3DOF] += N_gij_factor1
-                # delta d3 * d1
-                g_qq[self.g13DOF[j], self.d3DOF[:, None], self.d1DOF] += N_gij_factor1
-
-                # 2 * delta d2 * d2
-                g_qq[self.g22DOF[j], self.d2DOF[:, None], self.d2DOF] += (
-                    2 * N_gij_factor1
-                )
-                # delta d2 * d3
-                g_qq[self.g23DOF[j], self.d2DOF[:, None], self.d3DOF] += N_gij_factor1
-                # delta d3 * d2
-                g_qq[self.g23DOF[j], self.d3DOF[:, None], self.d2DOF] += N_gij_factor1
-
-                # 2 * delta d3 * d3
-                g_qq[self.g33DOF[j], self.d3DOF[:, None], self.d3DOF] += (
-                    2 * N_gij_factor1
-                )
-
-            ################################
-            # unshearability in d2-direction
-            ################################
-            arg1 = np.einsum("i,jl,jk->ikl", factor2, NN_dii, NN_r_xii)
-            arg2 = np.einsum("i,jl,jk->ikl", factor2, NN_r_xii, NN_dii)
-            g_qq[self.g2DOF[:, None, None], self.rDOF[:, None], self.d2DOF] += arg1
-            g_qq[self.g2DOF[:, None, None], self.d2DOF[:, None], self.rDOF] += arg2
-            g_qq[self.g3DOF[:, None, None], self.rDOF[:, None], self.d3DOF] += arg1
-            g_qq[self.g3DOF[:, None, None], self.d3DOF[:, None], self.rDOF] += arg2
-
-            #################
-            # inextensibility
-            #################
-            g_qq[self.g1DOF[:, None, None], self.rDOF[:, None], self.d1DOF] += arg1
-            g_qq[self.g1DOF[:, None, None], self.d1DOF[:, None], self.rDOF] += arg2
-            # g_qq[self.g1DOF[:, None, None], self.rDOF[:, None], self.rDOF] += np.einsum('i,jl,jk->ikl', 2 * factor2, NN_r_xii, NN_r_xii)
-
-            # # g_q[self.g1DOF[:, None], self.rDOF] += np.outer(factor1, d1 @ NN_r_xii / self.J0[el, i])
-            # # g_q[self.g1DOF[:, None], self.d1DOF] += np.outer(factor1, r_xi / self.J0[el, i] @ NN_dii)
-            # g_qq[self.g1DOF[:, None, None], self.rDOF[:, None], self.d1DOF] += arg1
-            # g_qq[self.g1DOF[:, None, None], self.d1DOF[:, None], self.rDOF] += arg2
-
-            # # # r_s = r_xi / self.J0[el, i]
-            # # g_q[self.g1DOF[:, None], self.rDOF] += np.outer(factor1, 2 * r_s @ NN_r_xii / self.J0[el, i])
-            # # g_qq[self.g1DOF[:, None, None], self.rDOF[:, None], self.rDOF] += np.einsum('i,jl,jk->ikl', factor2 * self.J0[el, i], NN_r_xii / self.J0[el, i], NN_r_xii / self.J0[el, i])
-            # g_qq[self.g1DOF[:, None, None], self.rDOF[:, None], self.rDOF] += np.einsum('i,jl,jk->ikl', 2 * factor2, NN_r_xii, NN_r_xii / self.J0[el, i])
-
-        return g_qq
-
-        # g_qq_num = Numerical_derivative(lambda t, q: self.__g_q_el(q, el), order=order)._x(0, np.zeros(self.nq_el))
-        # diff = g_qq_num - g_qq
-        # error = np.linalg.norm(diff)
-        # print(f'error g_qq: {error}')
-        # return g_qq_num
-
-    def __g_dot_el(self, qe, ue, el):
-        raise NotImplementedError("...")
-
-    def __g_dot_q_el(self, qe, ue, el):
-        raise NotImplementedError("...")
-
-    def __g_ddot_el(self, qe, ue, ue_dot, el):
-        raise NotImplementedError("...")
-
-    def __g_ddot_q_el(self, qe, ue, ue_dot, el):
-        raise NotImplementedError("...")
-
-    def __g_ddot_u_el(self, qe, ue, ue_dot, el):
-        raise NotImplementedError("...")
-
-    # global constraint functions
-    def g(self, t, q):
-        g = np.zeros(self.nla_g)
-        for el in range(self.nEl):
-            elDOF = self.elDOF[el]
-            elDOF_g = self.elDOF_g[el]
-            g[elDOF_g] += self.__g_el(q[elDOF], el)
-        return g
-
-    def g_q(self, t, q, coo):
-        for el in range(self.nEl):
-            elDOF = self.elDOF[el]
-            elDOF_g = self.elDOF_g[el]
-            g_q = self.__g_q_el(q[elDOF], el)
-            coo.extend(g_q, (self.la_gDOF[elDOF_g], self.qDOF[elDOF]))
-
-    def W_g(self, t, q, coo):
-        for el in range(self.nEl):
-            elDOF = self.elDOF[el]
-            elDOF_g = self.elDOF_g[el]
-            g_q = self.__g_q_el(q[elDOF], el)
-            coo.extend(g_q.T, (self.uDOF[elDOF], self.la_gDOF[elDOF_g]))
-
-    def Wla_g_q(self, t, q, la_g, coo):
-        for el in range(self.nEl):
-            elDOF = self.elDOF[el]
-            elDOF_g = self.elDOF_g[el]
-            g_qq = self.__g_qq_el(q[elDOF], el)
-            coo.extend(
-                np.einsum("i,ijk->jk", la_g[elDOF_g], g_qq),
-                (self.uDOF[elDOF], self.qDOF[elDOF]),
-            )
-
-    def g_dot(self, t, q, u):
-        g_dot = np.zeros(self.nla_g)
-        for el in range(self.nEl):
-            elDOF = self.elDOF[el]
-            elDOF_g = self.elDOF_g[el]
-            g_dot[elDOF_g] += self.__g_dot_el(q[elDOF], u[elDOF], el)
-        return g_dot
-
-    def g_dot_q(self, t, q, u, coo):
-        for el in range(self.nEl):
-            elDOF = self.elDOF[el]
-            elDOF_g = self.elDOF_g[el]
-            g_dot_q = self.__g_dot_q_el(q[elDOF], u[elDOF], el)
-            coo.extend(g_dot_q, (self.la_gDOF[elDOF_g], self.qDOF[elDOF]))
-
-    def g_dot_u(self, t, q, coo):
-        for el in range(self.nEl):
-            elDOF = self.elDOF[el]
-            elDOF_g = self.elDOF_g[el]
-            g_dot_u = self.__g_q_el(q[elDOF], el)
-            coo.extend(g_dot_u, (self.la_gDOF[elDOF_g], self.uDOF[elDOF]))
-
-    def g_ddot(self, t, q, u, u_dot):
-        g_ddot = np.zeros(self.nla_g)
-        for el in range(self.nEl):
-            elDOF = self.elDOF[el]
-            elDOF_g = self.elDOF_g[el]
-            g_ddot[elDOF_g] += self.__g_ddot_el(q[elDOF], u[elDOF], u_dot[elDOF], el)
-        return g_ddot
-
-    def g_ddot_q(self, t, q, u, u_dot, coo):
-        for el in range(self.nEl):
-            elDOF = self.elDOF[el]
-            elDOF_g = self.elDOF_g[el]
-            g_ddot_q = self.__g_ddot_q_el(q[elDOF], u[elDOF], u_dot[elDOF], el)
-            coo.extend(g_ddot_q, (self.la_gDOF[elDOF_g], self.qDOF[elDOF]))
-
-    def g_ddot_u(self, t, q, u, u_dot, coo):
-        for el in range(self.nEl):
-            elDOF = self.elDOF[el]
-            elDOF_g = self.elDOF_g[el]
-            g_ddot_u = self.__g_ddot_u_el(q[elDOF], u[elDOF], u_dot[elDOF], el)
-            coo.extend(g_ddot_u, (self.la_gDOF[elDOF_g], self.uDOF[elDOF]))
+    # def plot_centerline(self, ax, q, n=100, color="black"):
+    #     ax.plot(*self.nodes(q), linestyle="dashed", marker="o", color=color)
+    #     ax.plot(*self.centerline(q, n=n), linestyle="solid", color=color)
+
+    # def plot_frames(self, ax, q, n=10, length=1):
+    #     r, d1, d2, d3 = self.frames(q, n=n)
+    #     ax.quiver(*r, *d1, color="red", length=length)
+    #     ax.quiver(*r, *d2, color="green", length=length)
+    #     ax.quiver(*r, *d3, color="blue", length=length)
+
+    # ############
+    # # vtk export
+    # ############
+    # def post_processing_vtk_volume_circle(self, t, q, filename, R, binary=False):
+    #     # This is mandatory, otherwise we cannot construct the 3D continuum without L2 projection!
+    #     assert (
+    #         self.polynomial_degree_r == self.polynomial_degree_phi
+    #     ), "Not implemented for mixed polynomial degrees"
+
+    #     # rearrange generalized coordinates from solver ordering to Piegl's Pw 3D array
+    #     nn_xi = self.nEl + self.polynomial_degree_r
+    #     nEl_eta = 1
+    #     nEl_zeta = 4
+    #     # see Cotrell2009 Section 2.4.2
+    #     # TODO: Maybe eta and zeta have to be interchanged
+    #     polynomial_degree_eta = 1
+    #     polynomial_degree_zeta = 2
+    #     nn_eta = nEl_eta + polynomial_degree_eta
+    #     nn_zeta = nEl_zeta + polynomial_degree_zeta
+
+    #     # # TODO: We do the hard coded case for rectangular cross section here, but this has to be extended to the circular cross section case too!
+    #     # as_ = np.linspace(-a/2, a/2, num=nn_eta, endpoint=True)
+    #     # bs_ = np.linspace(-b/2, b/2, num=nn_eta, endpoint=True)
+
+    #     circle_points = (
+    #         0.5
+    #         * R
+    #         * np.array(
+    #             [
+    #                 [1, 0, 0],
+    #                 [1, 1, 0],
+    #                 [0, 1, 0],
+    #                 [-1, 1, 0],
+    #                 [-1, 0, 0],
+    #                 [-1, -1, 0],
+    #                 [0, -1, 0],
+    #                 [1, -1, 0],
+    #                 [1, 0, 0],
+    #             ],
+    #             dtype=float,
+    #         )
+    #     )
+
+    #     Pw = np.zeros((nn_xi, nn_eta, nn_zeta, 3))
+    #     for i in range(self.nn_r):
+    #         qr = q[self.nodalDOF_r[i]]
+    #         q_di = q[self.nodalDOF_phi[i]]
+    #         A_IK = q_di.reshape(3, 3, order="F")  # TODO: Check this!
+
+    #         for k, point in enumerate(circle_points):
+    #             # Note: eta index is always 0!
+    #             Pw[i, 0, k] = qr + A_IK @ point
+
+    #     if self.basis == "B-spline":
+    #         knot_vector_eta = Knot_vector(polynomial_degree_eta, nEl_eta)
+    #         knot_vector_zeta = Knot_vector(polynomial_degree_zeta, nEl_zeta)
+    #     elif self.basis == "lagrange":
+    #         knot_vector_eta = Node_vector(polynomial_degree_eta, nEl_eta)
+    #         knot_vector_zeta = Node_vector(polynomial_degree_zeta, nEl_zeta)
+    #     knot_vector_objs = [self.knot_vector_r, knot_vector_eta, knot_vector_zeta]
+    #     degrees = (
+    #         self.polynomial_degree_r,
+    #         polynomial_degree_eta,
+    #         polynomial_degree_zeta,
+    #     )
+
+    #     # Build Bezier patches from B-spline control points
+    #     from cardillo.discretization.B_spline import decompose_B_spline_volume
+
+    #     Qw = decompose_B_spline_volume(knot_vector_objs, Pw)
+
+    #     nbezier_xi, nbezier_eta, nbezier_zeta, p1, q1, r1, dim = Qw.shape
+
+    #     # build vtk mesh
+    #     n_patches = nbezier_xi * nbezier_eta * nbezier_zeta
+    #     patch_size = p1 * q1 * r1
+    #     points = np.zeros((n_patches * patch_size, dim))
+    #     cells = []
+    #     HigherOrderDegrees = []
+    #     RationalWeights = []
+    #     vtk_cell_type = "VTK_BEZIER_HEXAHEDRON"
+    #     from PyPanto.miscellaneous.indexing import flat3D, rearange_vtk3D
+
+    #     for i in range(nbezier_xi):
+    #         for j in range(nbezier_eta):
+    #             for k in range(nbezier_zeta):
+    #                 idx = flat3D(i, j, k, (nbezier_xi, nbezier_eta))
+    #                 point_range = np.arange(idx * patch_size, (idx + 1) * patch_size)
+    #                 points[point_range] = rearange_vtk3D(Qw[i, j, k])
+
+    #                 cells.append((vtk_cell_type, point_range[None]))
+    #                 HigherOrderDegrees.append(np.array(degrees, dtype=float)[None])
+    #                 weight = np.sqrt(2) / 2
+    #                 # tmp = np.array([np.sqrt(2) / 2, 1.0])
+    #                 # RationalWeights.append(np.tile(tmp, 8)[None])
+    #                 weights_vertices = weight * np.ones(8)
+    #                 weights_edges = np.ones(4 * nn_xi)
+    #                 weights_faces = np.ones(2)
+    #                 weights_volume = np.ones(nn_xi - 2)
+    #                 weights = np.concatenate(
+    #                     (weights_edges, weights_vertices, weights_faces, weights_volume)
+    #                 )
+    #                 # weights = np.array([weight, weight, weight, weight,
+    #                 #                     1.0,    1.0,    1.0,    1.0,
+    #                 #                     0.0,    0.0,    0.0,    0.0 ])
+    #                 weights = np.ones_like(point_range)
+    #                 RationalWeights.append(weights[None])
+
+    #     # RationalWeights = np.ones(len(points))
+    #     RationalWeights = 2 * (np.random.rand(len(points)) + 1)
+
+    #     # write vtk mesh using meshio
+    #     meshio.write_points_cells(
+    #         # filename.parent / (filename.stem + '.vtu'),
+    #         filename,
+    #         points,
+    #         cells,
+    #         point_data={
+    #             "RationalWeights": RationalWeights,
+    #         },
+    #         cell_data={"HigherOrderDegrees": HigherOrderDegrees},
+    #         binary=binary,
+    #     )
+
+    # def post_processing_vtk_volume(self, t, q, filename, circular=True, binary=False):
+    #     # This is mandatory, otherwise we cannot construct the 3D continuum without L2 projection!
+    #     assert (
+    #         self.polynomial_degree_r == self.polynomial_degree_phi
+    #     ), "Not implemented for mixed polynomial degrees"
+
+    #     # rearrange generalized coordinates from solver ordering to Piegl's Pw 3D array
+    #     nn_xi = self.nEl + self.polynomial_degree_r
+    #     nEl_eta = 1
+    #     nEl_zeta = 1
+    #     if circular:
+    #         polynomial_degree_eta = 2
+    #         polynomial_degree_zeta = 2
+    #     else:
+    #         polynomial_degree_eta = 1
+    #         polynomial_degree_zeta = 1
+    #     nn_eta = nEl_eta + polynomial_degree_eta
+    #     nn_zeta = nEl_zeta + polynomial_degree_zeta
+
+    #     # TODO: We do the hard coded case for rectangular cross section here, but this has to be extended to the circular cross section case too!
+    #     if circular:
+    #         r = 0.2
+    #         a = b = r
+    #     else:
+    #         a = 0.2
+    #         b = 0.1
+    #     as_ = np.linspace(-a / 2, a / 2, num=nn_eta, endpoint=True)
+    #     bs_ = np.linspace(-b / 2, b / 2, num=nn_eta, endpoint=True)
+
+    #     Pw = np.zeros((nn_xi, nn_eta, nn_zeta, 3))
+    #     for i in range(self.nn_r):
+    #         qr = q[self.nodalDOF_r[i]]
+    #         q_di = q[self.nodalDOF_phi[i]]
+    #         A_IK = q_di.reshape(3, 3, order="F")  # TODO: Check this!
+
+    #         for j, aj in enumerate(as_):
+    #             for k, bk in enumerate(bs_):
+    #                 Pw[i, j, k] = qr + A_IK @ np.array([0, aj, bk])
+
+    #     if self.basis == "B-spline":
+    #         knot_vector_eta = Knot_vector(polynomial_degree_eta, nEl_eta)
+    #         knot_vector_zeta = Knot_vector(polynomial_degree_zeta, nEl_zeta)
+    #     elif self.basis == "lagrange":
+    #         knot_vector_eta = Node_vector(polynomial_degree_eta, nEl_eta)
+    #         knot_vector_zeta = Node_vector(polynomial_degree_zeta, nEl_zeta)
+    #     knot_vector_objs = [self.knot_vector_r, knot_vector_eta, knot_vector_zeta]
+    #     degrees = (
+    #         self.polynomial_degree_r,
+    #         polynomial_degree_eta,
+    #         polynomial_degree_zeta,
+    #     )
+
+    #     # Build Bezier patches from B-spline control points
+    #     from cardillo.discretization.B_spline import decompose_B_spline_volume
+
+    #     Qw = decompose_B_spline_volume(knot_vector_objs, Pw)
+
+    #     nbezier_xi, nbezier_eta, nbezier_zeta, p1, q1, r1, dim = Qw.shape
+
+    #     # build vtk mesh
+    #     n_patches = nbezier_xi * nbezier_eta * nbezier_zeta
+    #     patch_size = p1 * q1 * r1
+    #     points = np.zeros((n_patches * patch_size, dim))
+    #     cells = []
+    #     HigherOrderDegrees = []
+    #     RationalWeights = []
+    #     vtk_cell_type = "VTK_BEZIER_HEXAHEDRON"
+    #     from PyPanto.miscellaneous.indexing import flat3D, rearange_vtk3D
+
+    #     for i in range(nbezier_xi):
+    #         for j in range(nbezier_eta):
+    #             for k in range(nbezier_zeta):
+    #                 idx = flat3D(i, j, k, (nbezier_xi, nbezier_eta))
+    #                 point_range = np.arange(idx * patch_size, (idx + 1) * patch_size)
+    #                 points[point_range] = rearange_vtk3D(Qw[i, j, k])
+
+    #                 cells.append((vtk_cell_type, point_range[None]))
+    #                 HigherOrderDegrees.append(np.array(degrees, dtype=float)[None])
+    #                 weight = np.sqrt(2) / 2
+    #                 # tmp = np.array([np.sqrt(2) / 2, 1.0])
+    #                 # RationalWeights.append(np.tile(tmp, 8)[None])
+    #                 weights_vertices = weight * np.ones(8)
+    #                 weights_edges = np.ones(4 * nn_xi)
+    #                 weights_faces = np.ones(2)
+    #                 weights_volume = np.ones(nn_xi - 2)
+    #                 weights = np.concatenate(
+    #                     (weights_edges, weights_vertices, weights_faces, weights_volume)
+    #                 )
+    #                 # weights = np.array([weight, weight, weight, weight,
+    #                 #                     1.0,    1.0,    1.0,    1.0,
+    #                 #                     0.0,    0.0,    0.0,    0.0 ])
+    #                 weights = np.ones_like(point_range)
+    #                 RationalWeights.append(weights[None])
+
+    #     # RationalWeights = np.ones(len(points))
+    #     RationalWeights = 2 * (np.random.rand(len(points)) + 1)
+
+    #     # write vtk mesh using meshio
+    #     meshio.write_points_cells(
+    #         # filename.parent / (filename.stem + '.vtu'),
+    #         filename,
+    #         points,
+    #         cells,
+    #         point_data={
+    #             "RationalWeights": RationalWeights,
+    #         },
+    #         cell_data={"HigherOrderDegrees": HigherOrderDegrees},
+    #         binary=binary,
+    #     )
+
+    # def post_processing(self, t, q, filename, binary=True):
+    #     # write paraview PVD file collecting time and all vtk files, see https://www.paraview.org/Wiki/ParaView/Data_formats#PVD_File_Format
+    #     from xml.dom import minidom
+
+    #     root = minidom.Document()
+
+    #     vkt_file = root.createElement("VTKFile")
+    #     vkt_file.setAttribute("type", "Collection")
+    #     root.appendChild(vkt_file)
+
+    #     collection = root.createElement("Collection")
+    #     vkt_file.appendChild(collection)
+
+    #     for i, (ti, qi) in enumerate(zip(t, q)):
+    #         filei = filename + f"{i}.vtu"
+
+    #         # write time step and file name in pvd file
+    #         dataset = root.createElement("DataSet")
+    #         dataset.setAttribute("timestep", f"{ti:0.6f}")
+    #         dataset.setAttribute("file", filei)
+    #         collection.appendChild(dataset)
+
+    #         self.post_processing_single_configuration(ti, qi, filei, binary=binary)
+
+    #     # write pvd file
+    #     xml_str = root.toprettyxml(indent="\t")
+    #     with open(filename + ".pvd", "w") as f:
+    #         f.write(xml_str)
+
+    # def post_processing_single_configuration(self, t, q, filename, binary=True):
+    #     # centerline and connectivity
+    #     cells_r, points_r, HigherOrderDegrees_r = self.mesh_r.vtk_mesh(q[: self.nq_r])
+
+    #     # if the centerline and the directors are interpolated with the same
+    #     # polynomial degree we can use the values on the nodes and decompose the B-spline
+    #     # into multiple Bezier patches, otherwise the directors have to be interpolated
+    #     # onto the nodes of the centerline by a so-called L2-projection, see below
+    #     same_shape_functions = False
+    #     if self.polynomial_degree_r == self.polynomial_degree_phi:
+    #         same_shape_functions = True
+
+    #     if same_shape_functions:
+    #         _, points_di, _ = self.mesh_phi.vtk_mesh(q[self.nq_r :])
+
+    #         # fill dictionary storing point data with directors
+    #         point_data = {
+    #             "d1": points_di[:, 0:3],
+    #             "d2": points_di[:, 3:6],
+    #             "d3": points_di[:, 6:9],
+    #         }
+
+    #     else:
+    #         point_data = {}
+
+    #     # export existing values on quadrature points using L2 projection
+    #     J0_vtk = self.mesh_r.field_to_vtk(self.J0.reshape(self.nEl, self.nQP, 1))
+    #     point_data.update({"J0": J0_vtk})
+
+    #     Gamma0_vtk = self.mesh_r.field_to_vtk(self.lambda0)
+    #     point_data.update({"Gamma0": Gamma0_vtk})
+
+    #     Kappa0_vtk = self.mesh_r.field_to_vtk(self.Kappa0)
+    #     point_data.update({"Kappa0": Kappa0_vtk})
+
+    #     # evaluate fields at quadrature points that have to be projected onto the centerline mesh:
+    #     # - strain measures Gamma & Kappa
+    #     # - directors d1, d2, d3
+    #     Gamma = np.zeros((self.mesh_r.nel, self.mesh_r.nqp, 3))
+    #     Kappa = np.zeros((self.mesh_r.nel, self.mesh_r.nqp, 3))
+    #     if not same_shape_functions:
+    #         d1s = np.zeros((self.mesh_r.nel, self.mesh_r.nqp, 3))
+    #         d2s = np.zeros((self.mesh_r.nel, self.mesh_r.nqp, 3))
+    #         d3s = np.zeros((self.mesh_r.nel, self.mesh_r.nqp, 3))
+    #     for el in range(self.nEl):
+    #         qe = q[self.elDOF[el]]
+
+    #         # extract generalized coordinates for beam centerline and directors
+    #         # in the current and reference configuration
+    #         qe_r = qe[self.rDOF]
+    #         qe_d1 = qe[self.phiDOF]
+    #         qe_d2 = qe[self.d2DOF]
+    #         qe_d3 = qe[self.d3DOF]
+
+    #         for i in range(self.nQP):
+    #             # build matrix of shape function derivatives
+    #             NN_di_i = self.stack3di(self.N_phi[el, i])
+    #             NN_r_xii = self.stack3r(self.N_r_xi[el, i])
+    #             NN_di_xii = self.stack3di(self.N_phi_xi[el, i])
+
+    #             # extract reference state variables
+    #             J0i = self.J0[el, i]
+    #             Gamma0_i = self.lambda0[el, i]
+    #             Kappa0_i = self.Kappa0[el, i]
+
+    #             # Interpolate necessary quantities. The derivatives are evaluated w.r.t.
+    #             # the parameter space \xi and thus need to be transformed later
+    #             r_xi = NN_r_xii @ qe_r
+
+    #             d1 = NN_di_i @ qe_d1
+    #             d1_xi = NN_di_xii @ qe_d1
+
+    #             d2 = NN_di_i @ qe_d2
+    #             d2_xi = NN_di_xii @ qe_d2
+
+    #             d3 = NN_di_i @ qe_d3
+    #             d3_xi = NN_di_xii @ qe_d3
+
+    #             # compute derivatives w.r.t. the arc lenght parameter s
+    #             r_s = r_xi / J0i
+
+    #             d1_s = d1_xi / J0i
+    #             d2_s = d2_xi / J0i
+    #             d3_s = d3_xi / J0i
+
+    #             # build rotation matrices
+    #             if not same_shape_functions:
+    #                 d1s[el, i] = d1
+    #                 d2s[el, i] = d2
+    #                 d3s[el, i] = d3
+    #             R = np.vstack((d1, d2, d3)).T
+
+    #             # axial and shear strains
+    #             Gamma[el, i] = R.T @ r_s
+
+    #             # torsional and flexural strains
+    #             Kappa[el, i] = np.array(
+    #                 [
+    #                     0.5 * (d3 @ d2_s - d2 @ d3_s),
+    #                     0.5 * (d1 @ d3_s - d3 @ d1_s),
+    #                     0.5 * (d2 @ d1_s - d1 @ d2_s),
+    #                 ]
+    #             )
+
+    #     # L2 projection of strain measures
+    #     Gamma_vtk = self.mesh_r.field_to_vtk(Gamma)
+    #     point_data.update({"Gamma": Gamma_vtk})
+
+    #     Kappa_vtk = self.mesh_r.field_to_vtk(Kappa)
+    #     point_data.update({"Kappa": Kappa_vtk})
+
+    #     # L2 projection of directors
+    #     if not same_shape_functions:
+    #         d1_vtk = self.mesh_r.field_to_vtk(d1s)
+    #         point_data.update({"d1": d1_vtk})
+    #         d2_vtk = self.mesh_r.field_to_vtk(d2s)
+    #         point_data.update({"d2": d2_vtk})
+    #         d3_vtk = self.mesh_r.field_to_vtk(d3s)
+    #         point_data.update({"d3": d3_vtk})
+
+    #     # fields depending on strain measures and other previously computed quantities
+    #     point_data_fields = {
+    #         "W": lambda Gamma, Gamma0, Kappa, Kappa0: np.array(
+    #             [self.material_model.potential(Gamma, Gamma0, Kappa, Kappa0)]
+    #         ),
+    #         "n_i": lambda Gamma, Gamma0, Kappa, Kappa0: self.material_model.n_i(
+    #             Gamma, Gamma0, Kappa, Kappa0
+    #         ),
+    #         "m_i": lambda Gamma, Gamma0, Kappa, Kappa0: self.material_model.m_i(
+    #             Gamma, Gamma0, Kappa, Kappa0
+    #         ),
+    #     }
+
+    #     for name, fun in point_data_fields.items():
+    #         tmp = fun(Gamma_vtk[0], Gamma0_vtk[0], Kappa_vtk[0], Kappa0_vtk[0]).reshape(
+    #             -1
+    #         )
+    #         field = np.zeros((len(Gamma_vtk), len(tmp)))
+    #         for i, (Gamma_i, Gamma0_i, Kappa_i, Kappa0_i) in enumerate(
+    #             zip(Gamma_vtk, Gamma0_vtk, Kappa_vtk, Kappa0_vtk)
+    #         ):
+    #             field[i] = fun(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i).reshape(-1)
+    #         point_data.update({name: field})
+
+    #     # write vtk mesh using meshio
+    #     meshio.write_points_cells(
+    #         os.path.splitext(os.path.basename(filename))[0] + ".vtu",
+    #         points_r,  # only export centerline as geometry here!
+    #         cells_r,
+    #         point_data=point_data,
+    #         cell_data={"HigherOrderDegrees": HigherOrderDegrees_r},
+    #         binary=binary,
+    #     )
+
+    # def post_processing_subsystem(self, t, q, u, binary=True):
+    #     # centerline and connectivity
+    #     cells_r, points_r, HigherOrderDegrees_r = self.mesh_r.vtk_mesh(q[: self.nq_r])
+
+    #     # if the centerline and the directors are interpolated with the same
+    #     # polynomial degree we can use the values on the nodes and decompose the B-spline
+    #     # into multiple Bezier patches, otherwise the directors have to be interpolated
+    #     # onto the nodes of the centerline by a so-called L2-projection, see below
+    #     same_shape_functions = False
+    #     if self.polynomial_degree_r == self.polynomial_degree_phi:
+    #         same_shape_functions = True
+
+    #     if same_shape_functions:
+    #         _, points_di, _ = self.mesh_phi.vtk_mesh(q[self.nq_r :])
+
+    #         # fill dictionary storing point data with directors
+    #         point_data = {
+    #             "u_r": points_r - points_r[0],
+    #             "d1": points_di[:, 0:3],
+    #             "d2": points_di[:, 3:6],
+    #             "d3": points_di[:, 6:9],
+    #         }
+
+    #     else:
+    #         point_data = {}
+
+    #     # export existing values on quadrature points using L2 projection
+    #     J0_vtk = self.mesh_r.field_to_vtk(self.J0.reshape(self.nEl, self.nQP, 1))
+    #     point_data.update({"J0": J0_vtk})
+
+    #     Gamma0_vtk = self.mesh_r.field_to_vtk(self.lambda0)
+    #     point_data.update({"Gamma0": Gamma0_vtk})
+
+    #     Kappa0_vtk = self.mesh_r.field_to_vtk(self.Kappa0)
+    #     point_data.update({"Kappa0": Kappa0_vtk})
+
+    #     # evaluate fields at quadrature points that have to be projected onto the centerline mesh:
+    #     # - strain measures Gamma & Kappa
+    #     # - directors d1, d2, d3
+    #     Gamma = np.zeros((self.mesh_r.nel, self.mesh_r.nqp, 3))
+    #     Kappa = np.zeros((self.mesh_r.nel, self.mesh_r.nqp, 3))
+    #     if not same_shape_functions:
+    #         d1s = np.zeros((self.mesh_r.nel, self.mesh_r.nqp, 3))
+    #         d2s = np.zeros((self.mesh_r.nel, self.mesh_r.nqp, 3))
+    #         d3s = np.zeros((self.mesh_r.nel, self.mesh_r.nqp, 3))
+    #     for el in range(self.nEl):
+    #         qe = q[self.elDOF[el]]
+
+    #         # extract generalized coordinates for beam centerline and directors
+    #         # in the current and reference configuration
+    #         qe_r = qe[self.rDOF]
+    #         qe_d1 = qe[self.phiDOF]
+    #         qe_d2 = qe[self.d2DOF]
+    #         qe_d3 = qe[self.d3DOF]
+
+    #         for i in range(self.nQP):
+    #             # build matrix of shape function derivatives
+    #             NN_di_i = self.stack3di(self.N_phi[el, i])
+    #             NN_r_xii = self.stack3r(self.N_r_xi[el, i])
+    #             NN_di_xii = self.stack3di(self.N_phi_xi[el, i])
+
+    #             # extract reference state variables
+    #             J0i = self.J0[el, i]
+    #             Gamma0_i = self.lambda0[el, i]
+    #             Kappa0_i = self.Kappa0[el, i]
+
+    #             # Interpolate necessary quantities. The derivatives are evaluated w.r.t.
+    #             # the parameter space \xi and thus need to be transformed later
+    #             r_xi = NN_r_xii @ qe_r
+
+    #             d1 = NN_di_i @ qe_d1
+    #             d1_xi = NN_di_xii @ qe_d1
+
+    #             d2 = NN_di_i @ qe_d2
+    #             d2_xi = NN_di_xii @ qe_d2
+
+    #             d3 = NN_di_i @ qe_d3
+    #             d3_xi = NN_di_xii @ qe_d3
+
+    #             # compute derivatives w.r.t. the arc lenght parameter s
+    #             r_s = r_xi / J0i
+
+    #             d1_s = d1_xi / J0i
+    #             d2_s = d2_xi / J0i
+    #             d3_s = d3_xi / J0i
+
+    #             # build rotation matrices
+    #             if not same_shape_functions:
+    #                 d1s[el, i] = d1
+    #                 d2s[el, i] = d2
+    #                 d3s[el, i] = d3
+    #             R = np.vstack((d1, d2, d3)).T
+
+    #             # axial and shear strains
+    #             Gamma[el, i] = R.T @ r_s
+
+    #             # torsional and flexural strains
+    #             Kappa[el, i] = np.array(
+    #                 [
+    #                     0.5 * (d3 @ d2_s - d2 @ d3_s),
+    #                     0.5 * (d1 @ d3_s - d3 @ d1_s),
+    #                     0.5 * (d2 @ d1_s - d1 @ d2_s),
+    #                 ]
+    #             )
+
+    #     # L2 projection of strain measures
+    #     Gamma_vtk = self.mesh_r.field_to_vtk(Gamma)
+    #     point_data.update({"Gamma": Gamma_vtk})
+
+    #     Kappa_vtk = self.mesh_r.field_to_vtk(Kappa)
+    #     point_data.update({"Kappa": Kappa_vtk})
+
+    #     # L2 projection of directors
+    #     if not same_shape_functions:
+    #         d1_vtk = self.mesh_r.field_to_vtk(d1s)
+    #         point_data.update({"d1": d1_vtk})
+    #         d2_vtk = self.mesh_r.field_to_vtk(d2s)
+    #         point_data.update({"d2": d2_vtk})
+    #         d3_vtk = self.mesh_r.field_to_vtk(d3s)
+    #         point_data.update({"d3": d3_vtk})
+
+    #     # fields depending on strain measures and other previously computed quantities
+    #     point_data_fields = {
+    #         "W": lambda Gamma, Gamma0, Kappa, Kappa0: np.array(
+    #             [self.material_model.potential(Gamma, Gamma0, Kappa, Kappa0)]
+    #         ),
+    #         "n_i": lambda Gamma, Gamma0, Kappa, Kappa0: self.material_model.n_i(
+    #             Gamma, Gamma0, Kappa, Kappa0
+    #         ),
+    #         "m_i": lambda Gamma, Gamma0, Kappa, Kappa0: self.material_model.m_i(
+    #             Gamma, Gamma0, Kappa, Kappa0
+    #         ),
+    #     }
+
+    #     for name, fun in point_data_fields.items():
+    #         tmp = fun(Gamma_vtk[0], Gamma0_vtk[0], Kappa_vtk[0], Kappa0_vtk[0]).reshape(
+    #             -1
+    #         )
+    #         field = np.zeros((len(Gamma_vtk), len(tmp)))
+    #         for i, (Gamma_i, Gamma0_i, Kappa_i, Kappa0_i) in enumerate(
+    #             zip(Gamma_vtk, Gamma0_vtk, Kappa_vtk, Kappa0_vtk)
+    #         ):
+    #             field[i] = fun(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i).reshape(-1)
+    #         point_data.update({name: field})
+
+    #     return points_r, point_data, cells_r, HigherOrderDegrees_r

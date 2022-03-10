@@ -2,6 +2,46 @@ import numpy as np
 from cardillo.math import norm
 
 
+class ShearStiffQuadratic:
+    """
+    Material model for shear stiff beam with quadratic strain energy
+    function found in Simo1986 (2.8), (2.9) and (2.10).
+
+    References
+    ----------
+    Simo1986: https://doi.org/10.1016/0045-7825(86)90079-4
+    """
+
+    def __init__(self, E1, Fi):
+        self.E1 = E1  # axial stiffness E1
+        self.Fi = Fi  # torsional stiffness F1 and both flexural stiffnesses F2
+        # and F3
+        self.C_m = np.diag(self.Fi)
+
+    def potential(self, lambda_, K_i, K0_i):
+        dK = K_i - K0_i
+        return 0.5 * self.E1 * (lambda_ - 1)**2 + 0.5 * dK @ self.C_m @ dK
+
+    def n_1(self, lambda_, K_i, K0_i):
+        return self.E1 * (lambda_ - 1)
+
+    def m_i(self, lambda_, K_i, K0_i):
+        dK = K_i - K0_i
+        return self.C_m @ dK
+
+    def n_1_lambda(self, lambda_, K_i, K0_i):
+        return self.E1
+
+    def n_1_K_j(self, lambda_, K_i, K0_i):
+        return np.zeros(3)
+
+    def m_i_lambda(self, lambda_, K_i, K0_i):
+        return np.zeros(3)
+
+    def m_i_K_j(self, lambda_, K_i, K0_i):
+        return self.C_m
+
+
 class Simo1986:
     """
     Material model for shear deformable beam with quadratic strain energy

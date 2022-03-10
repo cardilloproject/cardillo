@@ -1,4 +1,4 @@
-from cardillo.beams.spatial.material_models import Simo1986
+from cardillo.beams.spatial.material_models import ShearStiffQuadratic
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints.implicit import RigidConnection
 from cardillo.beams import (
@@ -19,29 +19,23 @@ if __name__ == "__main__":
     C_rho0 = np.eye(3)
 
     L = 2 * np.pi
-    Ei = np.ones(3) * 1.0e0
+    E1 = 1.0e0
     Fi = np.ones(3) * 1.0e-1
 
-    # note: we abuse this material model for an Euler-Bernoulli beam by 
-    # setting Gamma = [lambda, 0, 0]!
-    # TODO: Change this later.
-    material_model = Simo1986(Ei, Fi)
+    material_model = ShearStiffQuadratic(E1, Fi)
 
     # junction at the origin
     r_OB1 = np.zeros(3)
     frame_left = Frame(r_OP=r_OB1)
 
     # discretization properties
-    p = 3
+    p = 2
     p_r = p
     p_phi = p
     # nQP = int(np.ceil((p + 1)**2 / 2))
     nQP = p + 1
     print(f"nQP: {nQP}")
-    nEl = 10
-
-    basis = "B-spline"
-    # basis = 'lagrange'
+    nEl = 2
 
     # build reference configuration
     Q = EulerBernoulli.straight_configuration(
@@ -61,6 +55,24 @@ if __name__ == "__main__":
         Q=Q,
         q0=q0,
     )
+
+    # assemble the model
+    model = Model()
+    model.add(beam)
+    model.assemble()
+
+    # dummy values for debugging internal forces
+    t = 0
+    q = np.random.rand(model.nq)
+
+    E_pot = model.E_pot(t, q)
+    print(f"E_pot: {E_pot}")
+    f_pot = model.f_pot(t, q)
+    print(f"f_pot:\n{f_pot}")
+    # f_pot_q = model.f_pot_q(t, q)
+    # print(f"f_pot_q:\n{f_pot_q}")
+
+    exit()
 
     # left joint
     joint_frame_beam = RigidConnection(frame_left, beam, r_OB1, frame_ID2=(0,))
