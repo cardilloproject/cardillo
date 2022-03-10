@@ -1,5 +1,5 @@
-from PyRod.math import approx_fprime
-from PyRod.solver.Solution import Solution
+from cardillo.math import approx_fprime
+from cardillo.solver.Solution import Solution
 
 import numpy as np
 from scipy.sparse.linalg import spsolve
@@ -171,50 +171,6 @@ class Newton:
         yield next(self.__eval__analytic(t, x))
         yield self.__jacobian(t, x)
 
-    # def residual(self, t, x):
-    #     nq = self.nq
-    #     q = x[:nq]
-    #     la = x[nq:]
-
-    #     # compute redundant coordinates
-    #     z = self.z(t, q)
-
-    #     R = np.zeros(self.nx)
-    #     self.W_g = self.model.W_g(t, z, scipy_matrix=csr_matrix)[self.fDOF]
-    #     R[:nq] = self.model.h(t, z, self.u)[self.fDOF] + self.W_g @ la
-    #     R[nq:] = self.model.g(t, z)
-
-    #     return R
-
-    # def jacobian_num(self, t, x, scipy_matrix=csr_matrix):
-    #     return scipy_matrix(
-    #         approx_fprime(
-    #             x,
-    #             lambda x: self.residual(t, x),
-    #             eps=self.numdiff_method,
-    #             method=self.numdiff_method,
-    #         )
-    #     )
-
-    # def jacobian_an(self, t, x):
-    #     nq = self.nq
-    #     q = x[:nq]
-    #     la = x[nq:]
-
-    #     # compute redundant coordinates
-    #     z = self.z(t, q)
-
-    #     K = (
-    #         self.model.h_q(t, z, self.u, scipy_matrix=csr_matrix)
-    #         + self.model.Wla_g_q(t, z, la, scipy_matrix=csr_matrix)
-    #     )[self.fDOF[:, None], self.fDOF]
-    #     g_q = self.model.g_q(t, z, scipy_matrix=csr_matrix)[:, self.fDOF]
-
-    #     # fmt: off
-    #     return bmat([[  K, self.W_g],
-    #                  [g_q,     None]], format="csr")
-    #     # fmt: on
-
     def solve(self):
         # compute numbe rof digits for status update
         len_t = len(str(self.nt))
@@ -225,8 +181,6 @@ class Newton:
         else:
             pbar = range(0, self.nt)
         for i in pbar:
-            if self.verbose:
-                pbar.update(1)
 
             # compute initial residual
             # self.model.pre_iteration_update(self.load_steps[i],
