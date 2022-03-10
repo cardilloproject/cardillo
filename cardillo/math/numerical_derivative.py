@@ -1,21 +1,21 @@
 import numpy as np
 
 
-# TODO: 
-# * Implement derivatives with respect to tensors by reshaping to vector 
+# TODO:
+# * Implement derivatives with respect to tensors by reshaping to vector
 #   as done below. Then, we can replace Numerical_derivative in cardillo.
 # * Can we implement second derivatives as done for _tt below?
 def approx_fprime(x0, f, eps=1.0e-6, method="2-point"):
     x0 = np.atleast_1d(x0)
     f0 = np.atleast_1d(f(x0))
 
-    # reshape possible mutidimensional arguments to 1D arrays and wrap f 
+    # reshape possible mutidimensional arguments to 1D arrays and wrap f
     # accordingly
     x_shape = x0.shape
     xx = x0.reshape(-1)
     ff = lambda x: f(x.reshape(x_shape))
     m = len(xx)
-    
+
     f_shape = f0.shape
     grad = np.empty(f_shape + (m,))
 

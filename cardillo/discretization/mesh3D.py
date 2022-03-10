@@ -2,7 +2,7 @@ import numpy as np
 from scipy.sparse.linalg import spsolve
 from cardillo.discretization.B_spline import B_spline_basis3D, q_to_Pw_3D, decompose_B_spline_volume, flat3D_vtk
 from cardillo.discretization.lagrange import lagrange_basis3D
-from cardillo.math.algebra import inverse3D, determinant3D
+from cardillo.math.algebra import inv3D, det3D
 from cardillo.discretization.indexing import flat3D, split3D
 from cardillo.discretization.mesh2D import Mesh2D
 from cardillo.discretization.gauss import gauss
@@ -365,8 +365,8 @@ class Mesh3D():
                 for a in range(self.nn_el):
                     kappa0_xi += np.outer(Qe[self.nodalDOF[a]], N_xi[a]) # Bonet 1997 (7.6b)
                 
-                kappa0_xi_inv[el, i] = inverse3D(kappa0_xi)
-                w_J0[el, i] = determinant3D(kappa0_xi) * self.wp[el, i]
+                kappa0_xi_inv[el, i] = inv3D(kappa0_xi)
+                w_J0[el, i] = det3D(kappa0_xi) * self.wp[el, i]
 
                 for a in range(self.nn_el):
                     N_X[el, i, a] = N_xi[a] @ kappa0_xi_inv[el, i] # Bonet 1997 (7.6a) modified

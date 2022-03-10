@@ -1,5 +1,5 @@
 import numpy as np
-from cardillo.math.algebra import norm3
+from cardillo.math.algebra import norm
 
 
 class Hooke(object):
@@ -57,8 +57,8 @@ class Hooke(object):
             Returns the scalar potential for the given material law.
 
         """
-        nga = norm3(Gamma_i)
-        nga0 = norm3(Gamma0_i)
+        nga = norm(Gamma_i)
+        nga0 = norm(Gamma0_i)
         dla = nga / nga0 - 1.0
         dga1 = Gamma_i[1] - Gamma0_i[1]
         dga2 = Gamma_i[2] - Gamma0_i[2]
@@ -91,8 +91,8 @@ class Hooke(object):
             Returns the vector valued contact forces for the given material law.
 
         """
-        nga = norm3(Gamma_i)
-        nga0 = norm3(Gamma0_i)
+        nga = norm(Gamma_i)
+        nga0 = norm(Gamma0_i)
         dga1 = Gamma_i[1] - Gamma0_i[1]
         dga2 = Gamma_i[2] - Gamma0_i[2]
 
@@ -146,8 +146,8 @@ class Hooke(object):
             Returns the stiffness of the contact forces for the given material law.
 
         """
-        nga = norm3(Gamma_i)
-        nga0 = norm3(Gamma0_i)
+        nga = norm(Gamma_i)
+        nga0 = norm(Gamma0_i)
 
         dn_dGamma_i1 = (
             self.Ei[0] / (nga * nga * nga * nga0) * np.outer(Gamma_i, Gamma_i)

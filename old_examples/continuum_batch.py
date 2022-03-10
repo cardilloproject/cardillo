@@ -13,7 +13,7 @@ from cardillo.model.continuum import Ogden1997_compressible, First_gradient, Ogd
 from cardillo.model.continuum import Pantographic_sheet, verify_derivatives, Pantographic_lattice, Bipantographic_lattice
 from cardillo.solver import Newton
 from cardillo.model import Model
-from cardillo.math.algebra import A_IK_basic_z, norm2
+from cardillo.math.algebra import A_IK_basic_z, norm
 
 def init_guess(continuum, t, t_new, x):
     # computes initial guess for new displacement step
@@ -39,8 +39,8 @@ def init_guess(continuum, t, t_new, x):
         # compute distance to left and right points
         left_a = left_z[a_eta]
         right_a = right_z[a_eta]
-        d_left =  norm2(z_a - left_a)
-        d_right =  norm2(z_a - right_a)
+        d_left =  norm(z_a - left_a)
+        d_right =  norm(z_a - right_a)
 
         p_right = d_left / (d_left + d_right)
         p_left = 1 - p_right

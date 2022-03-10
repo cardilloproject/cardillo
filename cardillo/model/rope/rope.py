@@ -3,16 +3,16 @@ import numpy as np
 from cardillo.utility.coo import Coo
 from cardillo.discretization import gauss
 from cardillo.discretization import uniform_knot_vector, B_spline_basis1D, Lagrange_basis
-from cardillo.math.algebra import norm2, norm3
+from cardillo.math.algebra import norm, norm
 from cardillo.math.numerical_derivative import Numerical_derivative
 
 class Rope(object):
     def __init__(self, A_rho0, material_model, polynomial_degree, nEl, nQP, alpha=0, beta=0, Q=None, q0=None, u0=None, B_splines=True, dim=3):
         self.dim = dim
         if dim == 2:
-            self.norm = norm2
+            self.norm = norm
         elif dim == 3:
-            self.norm = norm3
+            self.norm = norm
         else:
             raise ValueError('dim has to be 2 or 3')
         

@@ -50,9 +50,9 @@ class Newton:
         self.fDOF = np.setdiff1d(self.zDOF, cDOF)
         q0 = z0[self.fDOF]
 
-        print(f"zDOF: {self.zDOF}")
-        print(f"cDOF: {cDOF}")
-        print(f"fDOF: {self.fDOF}")
+        # print(f"zDOF: {self.zDOF}")
+        # print(f"cDOF: {cDOF}")
+        # print(f"fDOF: {self.fDOF}")
 
         if callable(b):
             self.b = b

@@ -8,15 +8,15 @@ import matplotlib.pyplot as plt
 from cardillo.math.numerical_derivative import Numerical_derivative
 from cardillo.discretization.indexing import flat2D, flat3D, split2D, split3D
 from cardillo.discretization.B_spline import B_spline_basis3D
-from cardillo.math.algebra import determinant2D, inverse3D, determinant3D, A_IK_basic_z, norm2
+from cardillo.math.algebra import det2D, inv3D, det3D, A_IK_basic_z, norm
 from cardillo.discretization.mesh2D import Mesh2D
 
 def strain_measures(F, G):
     # strain measures of pantographic sheet
     d1 = F[:, 0]
     d2 = F[:, 1]
-    rho1 = norm2(d1)
-    rho2 = norm2(d2)
+    rho1 = norm(d1)
+    rho2 = norm(d2)
     rho = np.array([rho1, rho2])
 
     e1 = d1 / rho1
@@ -185,7 +185,7 @@ class Pantographic_sheet():
         # assert self.dim == 2  #TODO: check is currently not compatible with evaluation mesh
         self.dim = 2
         self.flat = flat2D
-        self.determinant = determinant2D
+        self.determinant = det2D
 
         self.fiber_angle = fiber_angle
         self.R = A_IK_basic_z(fiber_angle)[:2, :2]
@@ -503,8 +503,8 @@ class Dummy_pantograph(Pantographic_sheet):
             # strain measures of pantographic sheet
             d1 = F[:, 0]
             d2 = F[:, 1]
-            rho1 = norm2(d1)
-            rho2 = norm2(d2)
+            rho1 = norm(d1)
+            rho2 = norm(d2)
             rho = np.array([rho1, rho2])
 
             e1 = d1 / rho1
@@ -607,8 +607,8 @@ class Dummy_pantograph(Pantographic_sheet):
             # strain measures of pantographic sheet
             d1 = F[:, 0]
             d2 = F[:, 1]
-            rho1 = norm2(d1)
-            rho2 = norm2(d2)
+            rho1 = norm(d1)
+            rho2 = norm(d2)
             rho = np.array([rho1, rho2])
 
             e1 = d1 / rho1
@@ -948,8 +948,8 @@ def test_gradients():
 #         # strain measures of pantographic sheet
 #         d1 = F[:, 0]
 #         d2 = F[:, 1]
-#         rho1 = norm2(d1)
-#         rho2 = norm2(d2)
+#         rho1 = norm(d1)
+#         rho2 = norm(d2)
 #         rho = np.array([rho1, rho2])
 
 #         e1 = d1 / rho1
@@ -1008,8 +1008,8 @@ def test_gradients():
 #     # strain measures of pantographic sheet
 #     d1 = F[:, 0]
 #     d2 = F[:, 1]
-#     rho1 = norm2(d1)
-#     rho2 = norm2(d2)
+#     rho1 = norm(d1)
+#     rho2 = norm(d2)
 
 #     e1 = d1 / rho1
 #     e2 = d2 / rho2

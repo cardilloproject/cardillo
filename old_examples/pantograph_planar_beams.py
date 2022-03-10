@@ -20,7 +20,7 @@ from cardillo.solver.EulerBackward import Euler_backward
 from cardillo.solver import Generalized_alpha_1, Scipy_ivp, Generalized_alpha_4_index3, Generalized_alpha_index3_panto
 from cardillo.discretization.B_spline import uniform_knot_vector
 from cardillo.model.frame import Frame
-from cardillo.math.algebra import A_IK_basic_z, norm2
+from cardillo.math.algebra import A_IK_basic_z, norm
 from cardillo.utility.post_processing_vtk import post_processing
 from cardillo.math import Numerical_derivative
 

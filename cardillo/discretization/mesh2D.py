@@ -2,7 +2,7 @@ import numpy as np
 from scipy.sparse.linalg import spsolve
 from cardillo.discretization.B_spline import B_spline_basis2D, q_to_Pw_2D, decompose_B_spline_surface, flat2D_vtk
 from cardillo.discretization.lagrange import lagrange_basis2D
-from cardillo.math.algebra import inverse2D, determinant2D, norm3, cross3
+from cardillo.math.algebra import inv2D, det2D, norm, cross3
 from cardillo.discretization.indexing import flat2D, split2D
 from cardillo.discretization.mesh1D import Mesh1D
 from cardillo.discretization.gauss import gauss
@@ -304,8 +304,8 @@ class Mesh2D():
                     for a in range(self.nn_el):
                         kappa0_xi += np.outer(Qe[self.nodalDOF[a]], N_xi[a])  # Bonet 1997 (7.6b)
                     
-                    kappa0_xi_inv[el, i] = inverse2D(kappa0_xi)
-                    w_J0[el, i] = determinant2D(kappa0_xi) * self.wp[el, i]
+                    kappa0_xi_inv[el, i] = inv2D(kappa0_xi)
+                    w_J0[el, i] = det2D(kappa0_xi) * self.wp[el, i]
 
                     for a in range(self.nn_el):
                         N_X[el, i, a] = N_xi[a] @ kappa0_xi_inv[el, i]  # Bonet 1997 (7.6a) modified
@@ -327,7 +327,7 @@ class Mesh2D():
                         kappa0_xi += np.outer(Qe[self.nodalDOF[a]], N_xi[a]) # Bonet 1997 (7.6b)
 
                     # Ciarlet2005 Theorem 2.3-1 (a) and Schulte2020 below (5)
-                    w_J0[el, i] = (norm3(cross3(kappa0_xi[:, 0], kappa0_xi[:, 1]))
+                    w_J0[el, i] = (norm(cross3(kappa0_xi[:, 0], kappa0_xi[:, 1]))
                                    * self.wp[el, i])
             
             return w_J0

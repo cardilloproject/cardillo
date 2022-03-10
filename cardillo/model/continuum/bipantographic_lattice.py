@@ -2,7 +2,7 @@ import numpy as np
 from math import asin
 
 from cardillo.math.numerical_derivative import Numerical_derivative
-from cardillo.math.algebra import norm2
+from cardillo.math.algebra import norm
 from cardillo.model.continuum import Pantographic_sheet, strain_measures
 
 class Bipantographic_lattice(Pantographic_sheet):
@@ -115,8 +115,8 @@ class Bipantographic_lattice(Pantographic_sheet):
             # strain measures of pantographic sheet
             d1 = F[:, 0]
             d2 = F[:, 1]
-            rho1 = norm2(d1)
-            rho2 = norm2(d2)
+            rho1 = norm(d1)
+            rho2 = norm(d2)
             rho = np.array([rho1, rho2])
 
             e1 = d1 / rho1
@@ -212,8 +212,8 @@ class Bipantographic_lattice(Pantographic_sheet):
             # strain measures of pantographic sheet
             d1 = F[:, 0]
             d2 = F[:, 1]
-            rho1 = norm2(d1)
-            rho2 = norm2(d2)
+            rho1 = norm(d1)
+            rho2 = norm(d2)
             rho = np.array([rho1, rho2])
 
             e1 = d1 / rho1

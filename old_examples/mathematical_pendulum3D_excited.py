@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.animation as animation
 
-from cardillo.math.algebra import inverse2D, A_IK_basic_x, A_IK_basic_y, A_IK_basic_z, cross3, axis_angle2quat, ax2skew
+from cardillo.math.algebra import inv2D, A_IK_basic_x, A_IK_basic_y, A_IK_basic_z, cross3, axis_angle2quat, ax2skew
 from scipy.integrate import solve_ivp
 
 from cardillo.model import Model
@@ -50,7 +50,7 @@ class Mathematical_pendulum3D_excited():
             -mL * cos(beta) * self.e_tt(t) -mL2 * cos(beta) * sin(beta) * alpha_dot**2 - mL * cos(beta)* g])
 
         dx[:2] = x[2:]
-        dx[2:] = inverse2D(M) @ h
+        dx[2:] = inv2D(M) @ h
         return dx
 
 def comparison_mathematical_pendulum3D(t1=1, plot_graphs=True, animate=True, animate_ref=False):

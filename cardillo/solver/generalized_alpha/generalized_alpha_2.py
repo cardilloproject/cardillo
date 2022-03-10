@@ -1,7 +1,7 @@
 from math import inf, isnan
 from numpy.core.records import fromarrays
 from scipy.sparse import csc
-from cardillo.math.algebra import norm2
+from cardillo.math.algebra import norm
 import numpy as np
 from scipy.sparse.linalg import spsolve 
 from scipy.sparse import coo_matrix, csc_matrix, identity, bmat, diags

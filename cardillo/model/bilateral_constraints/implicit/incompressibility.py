@@ -1,5 +1,5 @@
 import numpy as np
-from cardillo.math.algebra import determinant, inverse
+from cardillo.math.algebra import det, inv
 
 # TODO: F_qp nur einmal berechnen
 class Incompressibility():
@@ -24,7 +24,7 @@ class Incompressibility():
             #     qa = qe[self.mesh.nodalDOF[a]]
             #     F_qp += np.outer(qa, self.subsystem.N_X[el, i, a])
             F_qp = self.subsystem.F[el, i]
-            detF = determinant(F_qp)
+            detF = det(F_qp)
             for a_tilde in range(self.la_mesh.nn_el):
                 ge[a_tilde] += N_la_eli[a_tilde] * (detF - 1) * w_J0
        
@@ -52,8 +52,8 @@ class Incompressibility():
             #     qa = qe[self.mesh.nodalDOF[a]]
             #     F_qp += np.outer(qa, self.subsystem.N_X[el, i, a])
             F_qp = self.subsystem.F[el, i]
-            F_inv = inverse(F_qp)
-            detF = determinant(F_qp)
+            F_inv = inv(F_qp)
+            detF = det(F_qp)
             for a in range(self.mesh.nn_el):
                 for a_tilde in range(self.la_mesh.nn_el):
                     ge_q[np.ix_(np.array([a_tilde]), self.mesh.nodalDOF[a])] += N_la_eli[a_tilde] * detF * np.einsum('kl,l', F_inv.T,  N_X_eli[a]) * w_J0
@@ -88,8 +88,8 @@ class Incompressibility():
                 dF_dq[:, :, self.mesh.nodalDOF[a]] += np.einsum('ik,j->ijk', np.eye(self.subsystem.dim), self.subsystem.N_X[el, i, a])
             
             F_qp = self.subsystem.F[el, i]
-            F_inv = inverse(F_qp)
-            detF = determinant(F_qp)
+            F_inv = inv(F_qp)
+            detF = det(F_qp)
             dJFinvT_dqe = detF * np.einsum('klmn, mnj->klj', (np.einsum('nm,lk->klmn', F_inv, F_inv) - np.einsum('lm,nk->klmn', F_inv, F_inv)),  dF_dq)
             for a in range(self.mesh.nn_el):
                 for a_tilde in range(self.la_mesh.nn_el):

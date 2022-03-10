@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.animation as animation
 
-from cardillo.math.algebra import inverse3D, A_IK_basic_x, A_IK_basic_y, A_IK_basic_z, cross3, axis_angle2quat, ax2skew
+from cardillo.math.algebra import inv3D, A_IK_basic_x, A_IK_basic_y, A_IK_basic_z, cross3, axis_angle2quat, ax2skew
 from scipy.integrate import solve_ivp
 
 from cardillo.model import Model
@@ -59,8 +59,8 @@ class Heavy_top():
                 (B + m * L**2 - A) * omega_x * omega_z + m * g * L * cos(beta) * cos(gamma), \
                -(B + m * L**2 - A) * omega_x * omega_y - m * g * L * cos(beta) * sin(gamma)])
 
-        dx[:3] = inverse3D(Q) @ x[3:]
-        dx[3:] = inverse3D(M) @ h
+        dx[:3] = inv3D(Q) @ x[3:]
+        dx[3:] = inv3D(M) @ h
         return dx
 
     def boundary(self, t, q, n=100):

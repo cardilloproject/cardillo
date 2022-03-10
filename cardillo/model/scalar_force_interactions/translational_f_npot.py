@@ -1,5 +1,5 @@
 import numpy as np
-from cardillo.math.algebra import norm3
+from cardillo.math.algebra import norm
 
 class Translational_f_npot():
     def __init__(self, force_law, subsystem1, subsystem2, frame_ID1=np.zeros(3), frame_ID2=np.zeros(3), K_r_SP1=np.zeros(3), K_r_SP2=np.zeros(3), n=None):
@@ -61,7 +61,7 @@ class Translational_f_npot():
         else:
             self.__n = self.__n_PQ
             self.__n_q = self.__n_PQ_q
-            self.__g = lambda t, q: norm3(self.r_OP2(t, q) - self.r_OP1(t, q))
+            self.__g = lambda t, q: norm(self.r_OP2(t, q) - self.r_OP1(t, q))
 
     def __gamma(self, t, q, u):
         return self.__n(t, q) @ (self.v_P2(t, q, u) - self.v_P1(t, q, u))
@@ -81,14 +81,14 @@ class Translational_f_npot():
     def __n_PQ(self, t, q):
         r_OP1 = self.r_OP1(t, q) 
         r_OP2 = self.r_OP2(t, q)
-        return (r_OP2 - r_OP1) / norm3(r_OP2 - r_OP1)
+        return (r_OP2 - r_OP1) / norm(r_OP2 - r_OP1)
 
     def __n_PQ_q(self, t, q):
         r_OP1_q = self.r_OP1_q(t, q) 
         r_OP2_q = self.r_OP2_q(t, q)
         
         r_P1P2 = self.r_OP2(t, q) - self.r_OP1(t, q) 
-        g = norm3(r_P1P2)
+        g = norm(r_P1P2)
         tmp = np.outer(r_P1P2, r_P1P2) / (g**3)
         n_q1 = -r_OP1_q / g + tmp @ r_OP1_q
         n_q2 =  r_OP2_q / g - tmp @ r_OP2_q

@@ -1,5 +1,5 @@
 import numpy as np
-from cardillo.math import cross3, ax2skew, inverse3D, A_IK_basic, approx_fprime
+from cardillo.math import cross3, ax2skew, inv3D, A_IK_basic, approx_fprime
 
 
 class RigidBodyEuler:
@@ -64,7 +64,7 @@ class RigidBodyEuler:
         H_[:, 0] = A_K1 @ self.e1
         H_[:, 1] = A_K2 @ self.e2
         H_[:, 2] = self.e3
-        return inverse3D(H_)
+        return inv3D(H_)
 
     def q_ddot(self, t, q, u, u_dot):
         q_ddot = np.zeros(self.nq)

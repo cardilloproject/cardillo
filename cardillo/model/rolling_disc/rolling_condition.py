@@ -1,6 +1,6 @@
 import numpy as np
 
-from cardillo.math.algebra import cross3, norm3
+from cardillo.math.algebra import cross3, norm
 from cardillo.math.numerical_derivative import Numerical_derivative
 
 class Rolling_condition():
@@ -17,14 +17,14 @@ class Rolling_condition():
     def r_SA(self, t, q):
         e_K_y = self.subsystem.A_IK(t, q)[:, 1]
         g_K_x = cross3( e_K_y, np.array([0, 0, 1]) )
-        e_K_x = g_K_x / norm3(g_K_x)
+        e_K_x = g_K_x / norm(g_K_x)
         e_K_z = cross3(e_K_x, e_K_y)
         return -self.subsystem.r * e_K_z
 
     def A_RI(self, t, q):
         e_K_y = self.subsystem.A_IK(t, q)[:, 1]
         g_R_x = cross3( e_K_y, np.array([0, 0, 1]) )
-        e_R_x = g_R_x / norm3(g_R_x)
+        e_R_x = g_R_x / norm(g_R_x)
 
         e_R_z = np.array([0, 0, 1])
         e_R_y = cross3( e_R_z, e_R_x )

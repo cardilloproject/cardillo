@@ -7,7 +7,7 @@ from cardillo.utility.coo import Coo
 from cardillo.math.numerical_derivative import Numerical_derivative
 from cardillo.discretization.indexing import flat2D, flat3D, split2D, split3D
 from cardillo.discretization.B_spline import B_spline_basis3D
-from cardillo.math.algebra import determinant2D, inverse3D, determinant3D
+from cardillo.math.algebra import det2D, inv3D, det3D
 
 class First_gradient():
     def __init__(self, density, material, mesh, Z, z0=None, v0=None, cDOF=[], b=None):
@@ -50,10 +50,10 @@ class First_gradient():
         self.dim = int(len(Z) / self.nn)
         if self.dim == 2:
             self.flat = flat2D
-            self.determinant = determinant2D
+            self.determinant = det2D
         else:
             self.flat = flat3D
-            self.determinant = determinant3D
+            self.determinant = det3D
 
         # for each Gauss point, compute kappa0^-1, N_X and w_J0 = w * det(kappa0^-1)
         self.kappa0_xi_inv, self.N_X, self.w_J0 = self.mesh.reference_mappings(Z)

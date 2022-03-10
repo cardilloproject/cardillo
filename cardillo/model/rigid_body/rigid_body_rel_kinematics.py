@@ -1,5 +1,5 @@
 import numpy as np
-from cardillo.math.algebra import cross3, ax2skew, A_IK_basic_x, A_IK_basic_y, A_IK_basic_z, dA_IK_basic_x, dA_IK_basic_y, dA_IK_basic_z, inverse3D
+from cardillo.math.algebra import cross3, ax2skew, A_IK_basic_x, A_IK_basic_y, A_IK_basic_z, dA_IK_basic_x, dA_IK_basic_y, dA_IK_basic_z, inv3D
 
 from cardillo.math.numerical_derivative import Numerical_derivative
 

@@ -1,5 +1,5 @@
 import numpy as np
-from math import sqrt, sin, cos, acos, pi
+from math import sqrt, sin, cos, tan, asin, acos, atan, pi
 
 e1 = np.array([1, 0, 0])
 e2 = np.array([0, 1, 0])
@@ -81,51 +81,6 @@ def cross3(a: np.ndarray, b: np.ndarray) -> np.ndarray:
 ###############################################################################
 # TODO: move on here!
 ###############################################################################
-
-# def axis_angle2quat(axis, angle):
-#     n = axis / norm(axis)
-#     return np.concatenate([ [np.cos(angle/2)], np.sin(angle/2)*n])
-
-# def rodriguez_A(a, alpha):
-#     """Rodriguez formula for rotation around axis a by the angle alpha, see Crisfield1996 Section 16.3 and (16.22).
-
-#     Parameters
-#     ----------
-#     a : ndarray
-#         axis of rotation (possibly not normalized)
-#     alpha : float
-#         angle of rotation
-
-#     References
-#     ----------
-#     Crisfield1996: http://inis.jinr.ru/sl/M_Mathematics/MN_Numerical%20methods/MNf_Finite%20elements/Crisfield%20M.A.%20Vol.2.%20Non-linear%20Finite%20Element%20Analysis%20of%20Solids%20and%20Structures..%20Advanced%20Topics%20(Wiley,1996)(ISBN%20047195649X)(509s).pdf
-#     """
-#     a_bar = a / norm(a)
-#     a_bar_tilde = ax2skew(a_bar)
-#     return np.eye(3) + sin(alpha) * a_bar_tilde + (1 - cos(alpha)) * a_bar_tilde @ a_bar_tilde # Crisfield1996 (16.22)
-
-# def rodriguez_B(a0, a):
-#     """Rotation matrix that rotates an unit vector a0 / ||a0|| to another unit vector a / ||a||, see Crisfield1996 16.13 and (16.104).
-#        This rotation is sometimes referred to 'smallest rotation'.
-
-#     Parameters
-#     ----------
-#     a0 : ndarray
-#         original vector (possibly not normalized)
-#     a : ndarray
-#         final vector (possibly not normalized)
-
-#     References
-#     ----------
-#     Crisfield1996: http://inis.jinr.ru/sl/M_Mathematics/MN_Numerical%20methods/MNf_Finite%20elements/Crisfield%20M.A.%20Vol.2.%20Non-linear%20Finite%20Element%20Analysis%20of%20Solids%20and%20Structures..%20Advanced%20Topics%20(Wiley,1996)(ISBN%20047195649X)(509s).pdf
-#     """
-#     a0_bar = a0 / norm(a0)
-#     a_bar = a / norm(a)
-#     e = cross3(a0_bar, a_bar)
-#     e_tilde = ax2skew(e)
-#     return np.eye(3) + e_tilde + (e_tilde @ e_tilde) / (1 + a0_bar @ a_bar) # Crisfield1996 (16.104)
-
-
 def trace(J):
     ndim = len(J)
     if ndim == 1:
@@ -138,23 +93,23 @@ def trace(J):
         return np.trace(J)
 
 
-def determinant(J):
+def det(J):
     ndim = len(J)
     if ndim == 1:
         return J
     elif ndim == 2:
-        return determinant2D(J)
+        return det2D(J)
     elif ndim == 3:
-        return determinant3D(J)
+        return det3D(J)
     else:
         return np.linalg.det(J)
 
 
-def determinant2D(J):
+def det2D(J):
     return J[0, 0] * J[1, 1] - J[0, 1] * J[1, 0]
 
 
-def determinant3D(J):
+def det3D(J):
     a, b, c = J[0]
     d, e, f = J[1]
     g, h, i = J[2]
@@ -162,23 +117,23 @@ def determinant3D(J):
     return a * (e * i - h * f) - b * (d * i - g * f) + c * (d * h - g * e)
 
 
-def inverse(J):
+def inv(J):
     ndim = len(J)
     if ndim == 1:
         return 1 / J
     elif ndim == 2:
-        return inverse2D(J)
+        return inv2D(J)
     elif ndim == 3:
-        return inverse3D(J)
+        return inv3D(J)
     elif ndim == 4:
-        return inverse4D(J)
+        return inv4D(J)
     else:
         return np.linalg.inv(J)
 
 
-def inverse2D(J):
+def inv2D(J):
     # see https://de.wikipedia.org/wiki/Inverse_Matrix
-    j = determinant2D(J)
+    j = det2D(J)
     # fmt: off
     Jinv = 1 / j * np.array([[ J[1, 1], -J[0, 1]], 
                              [-J[1, 0],  J[0, 0]]])
@@ -186,9 +141,9 @@ def inverse2D(J):
     return Jinv
 
 
-def inverse3D(J):
+def inv3D(J):
     # see https://de.wikipedia.org/wiki/Inverse_Matrix
-    j = determinant3D(J)
+    j = det3D(J)
 
     a, b, c = J[0]
     d, e, f = J[1]
@@ -211,7 +166,7 @@ def inverse3D(J):
     return Jinv
 
 
-def inverse4D(J):
+def inv4D(J):
     # see https://stackoverflow.com/a/60374938/7280763
     # and https://gitlab.com/libeigen/eigen/-/blob/master/Eigen/src/LU/InverseImpl.h#L198-252
 
@@ -266,8 +221,6 @@ def inverse4D(J):
 # invariants and their derivatives
 # see https://en.wikipedia.org/wiki/Tensor_derivative_(continuum_mechanics)#Derivatives_of_the_invariants_of_a_second-order_tensor
 #############################################################
-
-
 def I1(A):
     """First matrix invariant (trace)."""
     return trace(A)
@@ -294,12 +247,12 @@ def dI2(A):
 
 def I3(A):
     """Third matrix invariant (determinant)."""
-    return determinant(A)
+    return det(A)
 
 
 def dI3(A):
     """Gradient of first matrix invariant (determinant)."""
-    return I3(A) * inverse(A).T
+    return I3(A) * inv(A).T
 
 
 # def eig(C):
@@ -331,7 +284,7 @@ def eig(C):
         p2 = (C[0, 0] - q) ** 2 + (C[1, 1] - q) ** 2 + (C[2, 2] - q) ** 2 + 2 * p1
         p = sqrt(p2 / 6)
         B = (1 / p) * (C - q * np.eye(3))
-        r = determinant3D(B) / 2
+        r = det3D(B) / 2
 
         # In exact arithmetic for a symmetric matrix  -1 <= r <= 1
         # but computation error can leave it slightly outside this range.
@@ -356,7 +309,7 @@ def eigh_Basar(C):
     I1_ = I1(C)
     I3_ = I3(C)
 
-    Cinv = inverse3D(C)
+    Cinv = inv3D(C)
 
     C1 = la1 * (
         (C - (I1_ - la1) * np.eye(3) + I3_ * Cinv / la1)
