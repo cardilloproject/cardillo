@@ -25,7 +25,7 @@ def save_solution(sol, filename):
 def test_cube():
 
     file_name = pathlib.Path(__file__).stem
-    file_path = pathlib.Path(__file__).parent / 'results' / f"{file_name}_cube_2x2x4" / file_name
+    file_path = pathlib.Path(__file__).parent / 'results' / f"{file_name}_cube_1x1x2" / file_name
     file_path.parent.mkdir(parents=True, exist_ok=True)
     export_path = file_path.parent / 'sol'
 
@@ -34,13 +34,13 @@ def test_cube():
     Statics = True
     Incompressible = False
     save_sol = True
-    torsion = True
-    tension = False
+    torsion = False
+    tension = True
 
     # build mesh
     degrees = (3, 3, 3)
-    QP_shape = (3, 3, 3)
-    element_shape = (2, 2, 4)
+    QP_shape = (2, 2, 2)
+    element_shape = (1, 1, 1)
 
     Xi = Knot_vector(degrees[0], element_shape[0])
     Eta = Knot_vector(degrees[1], element_shape[1])
@@ -103,7 +103,7 @@ def test_cube():
                 cDOF134 = np.concatenate((cDOF1, cDOF3, cDOF4,))
                 cDOF = np.concatenate((cDOF134, cDOF2))
                 b1 = lambda t: Z[cDOF134]
-                b2 = lambda t: Z[cDOF2] + t * 100.0
+                b2 = lambda t: Z[cDOF2] + t * 100.0*0
                 b = lambda t: np.concatenate((b1(t), b2(t)))
             if torsion:
                 cDOF1 = mesh.surface_qDOF[4].ravel()

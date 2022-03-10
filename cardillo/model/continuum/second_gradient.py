@@ -46,6 +46,7 @@ class Second_gradient():
         self.elDOF = mesh.elDOF
         self.nodalDOF = mesh.nodalDOF
         self.N = self.mesh.N
+        self.nq_n = mesh.nq_n
 
         self.dim = int(len(Z) / self.nn)
         if self.dim == 2:
@@ -56,13 +57,25 @@ class Second_gradient():
             self.determinant = determinant3D
 
         # for each Gauss point, compute kappa0^-1, N_X and w_J0 = w * det(kappa0^-1)
-        self.kappa0_xi_inv, self.N_X, self.w_J0 = self.mesh.reference_mappings(Z)
-        if self.dim == 3:
-            self.srf_w_J0 = []
-            for i in range(6):
-                self.srf_w_J0.append(self.mesh.surface_mesh[i].reference_mappings(Z[self.mesh.surface_qDOF[i].ravel()]))
+        if self.nq_n > 1:
+            self.kappa0_xi_inv, self.N_X, self.w_J0 = self.mesh.reference_mappings(Z)
+            if self.dim == 3:
+                self.srf_w_J0 = []
+                for i in range(6):
+                    self.srf_w_J0.append(self.mesh.surface_mesh[i].reference_mappings(Z[self.mesh.surface_qDOF[i].ravel()]))
+           
+            self.N_XX = self.mesh.N_XX(Z, self.kappa0_xi_inv)
+        # For 1D Continua
+        else:
+            self.w_J0 = self.mesh.reference_mappings(Z)
+            for el in range(self.nel):
+                for i in range(self.nqp):
+                    for a in range(self.nn_el):
+                        kappa0_xixi = 
+                    self.N_X[el, i] = mesh.N_xi[el, i] / self.w_J0[el, i]
+                    self.N_XX[el, i] = mesh.n_xixi[el ,i] - self.N_X[el ,i] * 
 
-        self.N_XX = self.mesh.N_XX(Z, self.kappa0_xi_inv)
+        
 
     def assembler_callback(self):
         self.elfDOF = []

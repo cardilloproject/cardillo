@@ -36,9 +36,9 @@ def test_cube():
     save_sol = True
 
     # build mesh
-    degrees = (2, 2, 2)
-    QP_shape = (3, 3, 3)
-    element_shape = (2, 2, 2)
+    degrees = (3, 3, 3)
+    QP_shape = (2, 2, 2)
+    element_shape = (1, 1, 1)
 
     Xi = Knot_vector(degrees[0], element_shape[0])
     Eta = Knot_vector(degrees[1], element_shape[1])
@@ -307,9 +307,9 @@ def test_rectangle():
     # export_path = file_path.parent / 'sol'  
 
     # build mesh
-    degrees = (1, 1)
-    QP_shape = (3, 3)
-    element_shape = (4, 8)
+    degrees = (3, 3)
+    QP_shape = (2, 2)
+    element_shape = (2, 2)
 
     Xi = Knot_vector(degrees[0], element_shape[0])
     Eta = Knot_vector(degrees[1], element_shape[1])
