@@ -6,3 +6,4 @@ from .director import (
 )
 
 from .EulerBernoulli import EulerBernoulli
+from .Cable import Cable

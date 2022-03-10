@@ -7,6 +7,7 @@ from cardillo.model.bilateral_constraints.implicit import (
 )
 from cardillo.beams import (
     animate_beam,
+    Cable,
     EulerBernoulli,
 )
 from cardillo.forces import Force, K_Moment, DistributedForce1D
@@ -16,6 +17,9 @@ from cardillo.contacts import Point2Plane
 from cardillo.math import e1, e2, e3
 
 import numpy as np
+
+case = "Cable"
+# case = "Bernoulli"
 
 if __name__ == "__main__":
     # physical properties of the beam
@@ -45,21 +49,41 @@ if __name__ == "__main__":
     nEl = 5
 
     # build reference configuration
-    Q = EulerBernoulli.straight_configuration(p_r, p_phi, nEl, L)
+    if case == "Cable":
+        Q = Cable.straight_configuration(p_r, nEl, L)
+    elif case == "Bernoulli":
+        Q = EulerBernoulli.straight_configuration(p_r, p_phi, nEl, L)
+    else:
+        raise NotImplementedError("")
     q0 = Q.copy()
 
-    beam = EulerBernoulli(
-        material_model,
-        A_rho0,
-        B_rho0,
-        C_rho0,
-        p_r,
-        p_phi,
-        nQP,
-        nEl,
-        Q=Q,
-        q0=q0,
-    )
+    if case == "Cable":
+        beam = Cable(
+            material_model,
+            A_rho0,
+            B_rho0,
+            C_rho0,
+            p_r,
+            nQP,
+            nEl,
+            Q=Q,
+            q0=q0,
+        )
+    elif case == "Bernoulli":
+        beam = EulerBernoulli(
+            material_model,
+            A_rho0,
+            B_rho0,
+            C_rho0,
+            p_r,
+            p_phi,
+            nQP,
+            nEl,
+            Q=Q,
+            q0=q0,
+        )
+    else:
+        raise NotImplementedError("")
 
     # ############################################
     # # dummy values for debugging internal forces

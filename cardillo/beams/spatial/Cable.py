@@ -17,15 +17,14 @@ from cardillo.math import (
 from cardillo.discretization.mesh1D import Mesh1D
 
 
-class EulerBernoulli:
+class Cable:
     def __init__(
         self,
         material_model,
         A_rho0,  # TODO
         B_rho0,  # TODO
         C_rho0,  # TODO
-        polynomial_degree_r,
-        polynomial_degree_phi,
+        polynomial_degree,
         nQP,
         nEl,
         Q,
@@ -43,86 +42,38 @@ class EulerBernoulli:
         self.material_model = material_model
 
         # discretization parameters
-        self.polynomial_degree_r = polynomial_degree_r  # polynomial degree
-        self.polynomial_degree_phi = polynomial_degree_phi  # polynomial degree
+        self.polynomial_degree_r = polynomial_degree  # polynomial degree
         self.nQP = nQP  # number of quadrature points
         self.nEl = nEl  # number of elements
 
-        self.knot_vector_r = Knot_vector(polynomial_degree_r, nEl)
-        self.knot_vector_phi = Knot_vector(polynomial_degree_phi, nEl)
-        self.nn_r = nn_r = nEl + polynomial_degree_r  # number of nodes
-        self.nn_phi = nn_phi = nEl + polynomial_degree_phi  # number of nodes
+        self.knot_vector = Knot_vector(polynomial_degree, nEl)
+        self.nn = nn = nEl + polynomial_degree  # number of nodes
 
-        self.nn_el_r = nn_el_r = polynomial_degree_r + 1  # number of nodes per element
-        self.nn_el_phi = nn_el_phi = (
-            polynomial_degree_phi + 1
-        )  # number of nodes per element
+        self.nn_el = nn_el = polynomial_degree + 1  # number of nodes per element
 
-        # distinguish centerline and director meshes
-        # - number of degrees of freedom per node of the centerline
-        self.nq_n_r = nq_n_r = 3
-        # - number of degrees of freedom per node of the additional angle phi
-        self.nq_n_phi = nq_n_phi = 1
+        # number of degrees of freedom per node of the centerline
+        self.nq_n = nq_n = 3
 
-        self.mesh_r = Mesh1D(
-            self.knot_vector_r, nQP, derivative_order=2, basis="B-spline", nq_n=nq_n_r
-        )
-        self.mesh_phi = Mesh1D(
-            self.knot_vector_phi,
-            nQP,
-            derivative_order=1,
-            basis="B-spline",
-            nq_n=nq_n_phi,
+        self.mesh = Mesh1D(
+            self.knot_vector, nQP, derivative_order=2, basis="B-spline", nq_n=nq_n
         )
 
-        self.nq_r = nq_r = nn_r * nq_n_r
-        self.nq_phi = nq_phi = nn_phi * nq_n_phi
-        # TODO:
-        # self.nq = nq_r + nq_phi  # total number of generalized coordinates
-        self.nq = nq_r  # total number of generalized coordinates
+        self.nq = nq = nn * nq_n  # total number of generalized coordinates
         self.nu = self.nq
-        self.nq_el = (
-            # nn_el_r * nq_n_r + nn_el_phi * nq_n_phi # TODO
-            nn_el_r
-            * nq_n_r
-        )  # total number of generalized coordinates per element
-        self.nq_el_r = nn_el_r * nq_n_r
-        self.nq_el_phi = nn_el_phi * nq_n_phi
+        self.nq_el = nn_el * nq_n  # total number of generalized coordinates per element
 
-        # connectivity matrices for both meshes
-        self.elDOF_r = self.mesh_r.elDOF
-        self.elDOF_phi = (
-            self.mesh_phi.elDOF + nq_r
-        )  # offset of first field (centerline r)
-        self.nodalDOF_r = (
-            np.arange(self.nq_n_r * self.nn_r).reshape(self.nq_n_r, self.nn_r).T
-        )
-        self.nodalDOF_phi = (
-            np.arange(self.nq_n_phi * self.nn_phi).reshape(self.nq_n_phi, self.nn_phi).T
-            + nq_r
-        )
-
-        # build global elDOF connectivity matrix
-        self.elDOF = np.zeros((nEl, self.nq_el), dtype=int)
-        for el in range(nEl):
-            self.elDOF[el, : self.nq_el_r] = self.elDOF_r[el]
-            # self.elDOF[el, self.nq_el_r :] = self.elDOF_phi[el] # TODO
-
-        # degrees of freedom on element level
-        self.rDOF = np.arange(0, self.nq_el_r)
-        # self.phiDOF = np.arange(0, self.nq_el_phi) + self.nq_el_r
+        # global connectivity matrix
+        self.elDOF = self.mesh.elDOF
+        self.nodalDOF = np.arange(self.nq_n * self.nn).reshape(self.nq_n, self.nn).T
 
         # shape functions
-        self.N_r = self.mesh_r.N  # shape functions
-        self.N_r_xi = self.mesh_r.N_xi  # first derivative w.r.t. xi
-        self.N_r_xixi = self.mesh_r.N_xixi  # second derivative w.r.t. xi
-        # self.N_phi = self.mesh_phi.N
-        # self.N_phi_xi = self.mesh_phi.N_xi
-        # # self.N_phi_xixi = self.mesh_phi.N_xixi
+        self.N_r = self.mesh.N  # shape functions
+        self.N_r_xi = self.mesh.N_xi  # first derivative w.r.t. xi
+        self.N_r_xixi = self.mesh.N_xixi  # second derivative w.r.t. xi
 
         # quadrature points
-        self.qp = self.mesh_r.qp  # quadrature points
-        self.qw = self.mesh_r.wp  # quadrature weights
+        self.qp = self.mesh.qp  # quadrature points
+        self.qw = self.mesh.wp  # quadrature weights
 
         # reference generalized coordinates, initial coordinates and initial velocities
         self.Q = Q
@@ -130,8 +81,7 @@ class EulerBernoulli:
         self.u0 = np.zeros(self.nu) if u0 is None else u0
 
         # evaluate shape functions at specific xi
-        self.basis_functions_r = self.mesh_r.eval_basis
-        # self.basis_functions_phi = self.mesh_phi.eval_basis
+        self.basis_functions = self.mesh.eval_basis
 
         # reference generalized coordinates, initial coordinates and initial velocities
         self.Q = Q  # reference configuration
@@ -149,32 +99,24 @@ class EulerBernoulli:
         for el in range(nEl):
             # precompute quantities of the reference configuration
             Qe = self.Q[self.elDOF[el]]
-            Qe_r = Qe[self.rDOF]
-            # Qe_phi = Qe[self.phiDOF]
 
             for i in range(nQP):
                 # build matrix of shape function derivatives
-                NN_r_xii = self.stack3r(self.N_r_xi[el, i])
-                NN_r_xixii = self.stack3r(self.N_r_xixi[el, i])
-                # NN_phi_i = self.N_phi[el, i]
-                # NN_phi_xii = self.N_phi_xi[el, i]
+                NN_r_xii = self.stack3(self.N_r_xi[el, i])
+                NN_r_xixii = self.stack3(self.N_r_xixi[el, i])
 
                 # Interpolate necessary quantities. The derivatives are evaluated w.r.t.
                 # the parameter space \xi and thus need to be transformed later
-                r0_xi = NN_r_xii @ Qe_r
-                r0_xixi = NN_r_xixii @ Qe_r
+                r0_xi = NN_r_xii @ Qe
+                r0_xixi = NN_r_xixii @ Qe
                 J0i = norm(r0_xi)
                 self.J0[el, i] = J0i
 
-                # phi0 = NN_phi_i @ Qe_phi
-                # phi0_xi = NN_phi_xii @ Qe_phi
-
                 # compute derivatives w.r.t. the arc lenght parameter s
                 r0_s = r0_xi / J0i
-                # phi0_s = phi0_xi / J0i
 
                 # first director
-                d1 = r0_s  # TODO: This is only valid for the reference configuration
+                d1 = r0_s  # note: This is only valid for the reference configuration
 
                 # build rotation matrices
                 R0 = smallest_rotation(e1, d1)
@@ -183,7 +125,7 @@ class EulerBernoulli:
                 # torsional and flexural strains
                 self.Kappa0[el, i] = np.array(
                     [
-                        0,  # TODO: This is not correct!
+                        0,  # no torsion for cable element
                         -(d3 @ r0_xixi) / J0i**2,
                         (d2 @ r0_xixi) / J0i**2,
                     ]
@@ -191,31 +133,23 @@ class EulerBernoulli:
 
     @staticmethod
     def straight_configuration(
-        polynomial_degree_r,
-        polynomial_degree_phi,
+        polynomial_degree,
         nEl,
         L,
         greville_abscissae=True,
         r_OP=np.zeros(3),
         A_IK=np.eye(3),
     ):
-        nn_r = polynomial_degree_r + nEl
-        nn_phi = polynomial_degree_phi + nEl
+        nn = polynomial_degree + nEl
 
-        X = np.linspace(0, L, num=nn_r)
-        Y = np.zeros(nn_r)
-        Z = np.zeros(nn_r)
+        X = np.linspace(0, L, num=nn)
+        Y = np.zeros(nn)
+        Z = np.zeros(nn)
         if greville_abscissae:
-            kv = uniform_knot_vector(polynomial_degree_r, nEl)
-            for i in range(nn_r):
-                X[i] = np.sum(kv[i + 1 : i + polynomial_degree_r + 1])
-            X = X * L / polynomial_degree_r
-
-        # # extract first director and buld new rotation
-        # # note: This rotation does not coincide with the initial A_IK and has
-        # # to be corrected afterwards using the superimposed rotation with phi!
-        # d1, d2, d3 = A_IK.T
-        # A_IK = smallest_rotation(e1, d1)
+            kv = uniform_knot_vector(polynomial_degree, nEl)
+            for i in range(nn):
+                X[i] = np.sum(kv[i + 1 : i + polynomial_degree + 1])
+            X = X * L / polynomial_degree
 
         r0 = np.vstack((X, Y, Z)).T
         for i, r0i in enumerate(r0):
@@ -223,19 +157,13 @@ class EulerBernoulli:
 
         return np.concatenate([X, Y, Z])
 
-        # # TODO: How to compute initial phi?
-        # phi0 = np.zeros(nn_phi)
-
-        # # assemble all reference generalized coordinates
-        # return np.concatenate([X, Y, Z, phi0])
-
     def element_number(self, xi):
         # note the elements coincide for both meshes!
-        return self.knot_vector_r.element_number(xi)[0]
+        return self.knot_vector.element_number(xi)[0]
 
-    def stack3r(self, N):
-        nn_el = self.nn_el_r
-        NN = np.zeros((3, self.nq_el_r))
+    def stack3(self, N):
+        nn_el = self.nn_el
+        NN = np.zeros((3, self.nq_el))
         NN[0, :nn_el] = N
         NN[1, nn_el : 2 * nn_el] = N
         NN[2, 2 * nn_el :] = N
@@ -304,35 +232,23 @@ class EulerBernoulli:
 
     def E_pot_el(self, qe, el):
         Ee = 0
-
-        # extract generalized coordinates for beam centerline and directors
-        # in the current and reference configuration
-        qe_r = qe[self.rDOF]
-        # qe_phi = qe[self.phiDOF]
-
         for i in range(self.nQP):
             # build matrix of shape function derivatives
-            NN_r_xii = self.stack3r(self.N_r_xi[el, i])
-            NN_r_xixii = self.stack3r(self.N_r_xixi[el, i])
-            # NN_phi_i = self.N_phi[el, i]
-            # NN_phi_xii = self.N_phi_xi[el, i]
+            NN_r_xii = self.stack3(self.N_r_xi[el, i])
+            NN_r_xixii = self.stack3(self.N_r_xixi[el, i])
 
             # extract reference state variables
             J0i = self.J0[el, i]
             Kappa0_i = self.Kappa0[el, i]
 
             # Interpolate necessary quantities. The derivatives are evaluated w.r.t.
-            # the parameter space \xi and thus need to be transformed later
-            r_xi = NN_r_xii @ qe_r
-            r_xixi = NN_r_xixii @ qe_r
+            # the parameter space \xi and thus need to be transformed later.
+            r_xi = NN_r_xii @ qe
+            r_xixi = NN_r_xixii @ qe
             ji = norm(r_xi)
 
-            # phi = NN_phi_i @ qe_phi
-            # phi_xi = NN_phi_xii @ qe_phi
-
-            # compute derivatives w.r.t. the arc lenght parameter s
-            r_s = r_xi / J0i
-            # phi_s = phi_xi / J0i
+            # # compute derivatives w.r.t. the arc lenght parameter s
+            # r_s = r_xi / J0i
 
             # compute first director
             d1 = r_xi / ji
@@ -345,9 +261,10 @@ class EulerBernoulli:
             lambda_ = ji / J0i
 
             # torsional and flexural strains
+            # TODO: Use \vka = d1 x d1,s and norm as strain measure?
             Kappa_i = np.array(
                 [
-                    0,  # r_xixi @ cross3(d1, e1) / (J0i * ji * (1 + d1 @ e1)), # Mitterbach2020 (2.105)
+                    0,  # no torsion for cable element
                     -(d3 @ r_xixi) / (J0i * ji),
                     (d2 @ r_xixi) / (J0i * ji),
                 ]
@@ -375,7 +292,7 @@ class EulerBernoulli:
 
         # extract generalized coordinates for beam centerline and directors
         # in the current and reference configuration
-        qe_r = qe[self.rDOF]
+        qe_r = qe
         qe_d1 = qe[self.phiDOF]
         qe_d2 = qe[self.d2DOF]
         qe_d3 = qe[self.d3DOF]
@@ -436,7 +353,7 @@ class EulerBernoulli:
             m1, m2, m3 = self.material_model.m_i(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
 
             # quadrature point contribution to element residual
-            fe[self.rDOF] -= NN_r_xii.T @ (n1 * d1 + n2 * d2 + n3 * d3) * qwi
+            fe -= NN_r_xii.T @ (n1 * d1 + n2 * d2 + n3 * d3) * qwi
             fe[self.phiDOF] -= (
                 NN_di_i.T @ (r_xi * n1 + (m2 / 2 * d3_xi - m3 / 2 * d2_xi))
                 + NN_di_xii.T @ (m3 / 2 * d2 - m2 / 2 * d3)
@@ -471,7 +388,7 @@ class EulerBernoulli:
         #     # quadrature point contribution to element residual
         #     n1, n2, n3 = n_i
         #     m1, m2, m3 = m_i
-        #     fe[self.rDOF] -=  NN_r_xii.T @ ( n1 * d1 + n2 * d2 + n3 * d3 ) * qwi # delta r'
+        #     fe -=  NN_r_xii.T @ ( n1 * d1 + n2 * d2 + n3 * d3 ) * qwi # delta r'
         #     fe[self.d1DOF] -= ( NN_di_i.T @ ( r_xi * n1 + m2 * d3_xi ) # delta d1 \
         #                         + NN_di_xii.T @ ( m3 * d2 ) ) * qwi    # delta d1'
         #     fe[self.d2DOF] -= ( NN_di_i.T @ ( r_xi * n2 + m3 * d1_xi ) # delta d2 \
@@ -496,7 +413,7 @@ class EulerBernoulli:
 
         # extract generalized coordinates for beam centerline and directors
         # in the current and reference configuration
-        qe_r = qe[self.rDOF]
+        qe_r = qe
         qe_d1 = qe[self.phiDOF]
         qe_d2 = qe[self.d2DOF]
         qe_d3 = qe[self.d3DOF]
@@ -878,7 +795,7 @@ class EulerBernoulli:
 
             # # quadrature point contribution to element stiffness matrix
 
-            # # fe[self.rDOF] -=  NN_r_xii.T @ ( n1 * d1 + n2 * d2 + n3 * d3 ) * qwi # delta r'
+            # # fe -=  NN_r_xii.T @ ( n1 * d1 + n2 * d2 + n3 * d3 ) * qwi # delta r'
             # Ke[self.rDOF[:, None], self.rDOF] -= NN_r_xii.T @ (np.outer(d1, n1_qr) + np.outer(d2, n2_qr) + np.outer(d3, n3_qr)) * qwi
             # Ke[self.rDOF[:, None], self.d1DOF] -= NN_r_xii.T @ (np.outer(d1, n1_qd1) + np.outer(d2, n2_qd1) + np.outer(d3, n3_qd1) + n1 * NN_di_i) * qwi
             # Ke[self.rDOF[:, None], self.d2DOF] -= NN_r_xii.T @ (np.outer(d1, n1_qd2) + np.outer(d2, n2_qd2) + np.outer(d3, n3_qd2) + n2 * NN_di_i) * qwi
@@ -961,17 +878,8 @@ class EulerBernoulli:
     ####################################################
     # interactions with other bodies and the environment
     ####################################################
-    # TODO: optimized implementation for boundaries
     def elDOF_P(self, frame_ID):
         xi = frame_ID[0]
-        # if xi == 0:
-        #     return self.elDOF[0]
-        # elif xi == 1:
-        #     return self.elDOF[-1]
-        # else:
-        #     el = np.where(xi >= self.element_span)[0][-1]
-        #     return self.elDOF[el]
-        # el = np.where(xi >= self.element_span)[0][-1]
         el = self.element_number(xi)
         return self.elDOF[el]
 
@@ -982,23 +890,23 @@ class EulerBernoulli:
         return self.elDOF_P(frame_ID)
 
     def r_OP(self, t, q, frame_ID, K_r_SP=np.zeros(3)):
-        N, _, _ = self.basis_functions_r(frame_ID[0])
-        NN = self.stack3r(N)
-        return NN @ q[self.rDOF] + self.A_IK(t, q, frame_ID=frame_ID) @ K_r_SP
+        N, _, _ = self.basis_functions(frame_ID[0])
+        NN = self.stack3(N)
+        return NN @ q + self.A_IK(t, q, frame_ID=frame_ID) @ K_r_SP
 
     def r_OP_q(self, t, q, frame_ID, K_r_SP=np.zeros(3)):
-        N, _, _ = self.basis_functions_r(frame_ID[0])
-        NN = self.stack3r(N)
+        N, _, _ = self.basis_functions(frame_ID[0])
+        NN = self.stack3(N)
 
-        r_OP_q = np.zeros((3, self.nq_el))
-        r_OP_q[:, self.rDOF] = NN
-        r_OP_q += np.einsum("ijk,j->ik", self.A_IK_q(t, q, frame_ID=frame_ID), K_r_SP)
+        r_OP_q = NN + np.einsum(
+            "ijk,j->ik", self.A_IK_q(t, q, frame_ID=frame_ID), K_r_SP
+        )
         return r_OP_q
 
     def A_IK(self, t, q, frame_ID):
-        _, N_xi, _ = self.basis_functions_r(frame_ID[0])
-        NN_xi = self.stack3r(N_xi)
-        r_xi = NN_xi @ q[self.rDOF]
+        _, N_xi, _ = self.basis_functions(frame_ID[0])
+        NN_xi = self.stack3(N_xi)
+        r_xi = NN_xi @ q
 
         # compute first director
         ji = norm(r_xi)
@@ -1013,14 +921,14 @@ class EulerBernoulli:
 
     # TODO
     def v_P(self, t, q, u, frame_ID, K_r_SP=np.zeros(3)):
-        N, _, _ = self.basis_functions_r(frame_ID[0])
-        NN = self.stack3r(N)
+        N, _, _ = self.basis_functions(frame_ID[0])
+        NN = self.stack3(N)
 
-        v_P = NN @ u[self.rDOF] + self.A_IK(t, q, frame_ID) @ cross3(
+        v_P = NN @ u + self.A_IK(t, q, frame_ID) @ cross3(
             self.K_Omega(t, q, u, frame_ID=frame_ID), K_r_SP
         )
         # print("Caution: K_r_SP is assumed to be zero here!")
-        # v_P = NN @ u[self.rDOF]
+        # v_P = NN @ u
         return v_P
 
     # TODO
@@ -1039,12 +947,12 @@ class EulerBernoulli:
 
     # TODO: optimized implementation for boundaries
     def a_P(self, t, q, u, u_dot, frame_ID, K_r_SP=np.zeros(3)):
-        N, _ = self.basis_functions_r(frame_ID[0])
-        NN = self.stack3r(N)
+        N, _ = self.basis_functions(frame_ID[0])
+        NN = self.stack3(N)
 
         K_Omega = self.K_Omega(t, q, u, frame_ID=frame_ID)
         K_Psi = self.K_Psi(t, q, u, u_dot, frame_ID=frame_ID)
-        a_P = NN @ u_dot[self.rDOF] + self.A_IK(t, q, frame_ID=frame_ID) @ (
+        a_P = NN @ u_dot + self.A_IK(t, q, frame_ID=frame_ID) @ (
             cross3(K_Psi, K_r_SP) + cross3(K_Omega, cross3(K_Omega, K_r_SP))
         )
         return a_P
@@ -1061,10 +969,10 @@ class EulerBernoulli:
     # RigidConnection for this beam formulation. Later if we add the additional
     # angle phi this is not problem anymore.
     def K_Omega(self, t, q, u, frame_ID):
-        _, N_xi, _ = self.basis_functions_r(frame_ID[0])
-        NN_xi = self.stack3r(N_xi)
-        r_xi = NN_xi @ q[self.rDOF]
-        r_xi_dot = NN_xi @ u[self.rDOF]
+        _, N_xi, _ = self.basis_functions(frame_ID[0])
+        NN_xi = self.stack3(N_xi)
+        r_xi = NN_xi @ q
+        r_xi_dot = NN_xi @ u
 
         # compute first director
         ji = norm(r_xi)
@@ -1164,10 +1072,8 @@ class EulerBernoulli:
     def distributed_force1D_el(self, force, t, el):
         fe = np.zeros(self.nq_el)
         for i in range(self.nQP):
-            NNi = self.stack3r(self.N_r[el, i])
-            fe[self.rDOF] += (
-                NNi.T @ force(t, self.qp[el, i]) * self.J0[el, i] * self.qw[el, i]
-            )
+            NNi = self.stack3(self.N_r[el, i])
+            fe += NNi.T @ force(t, self.qp[el, i]) * self.J0[el, i] * self.qw[el, i]
         return fe
 
     def distributed_force1D(self, t, q, force):
@@ -1184,7 +1090,7 @@ class EulerBernoulli:
     # visualization
     ####################################################
     def nodes(self, q):
-        return q[self.qDOF][: 3 * self.nn_r].reshape(3, -1)
+        return q[self.qDOF][: 3 * self.nn].reshape(3, -1)
 
     def centerline(self, q, n=100):
         q_body = q[self.qDOF]
@@ -1536,7 +1442,7 @@ class EulerBernoulli:
 
     #         # extract generalized coordinates for beam centerline and directors
     #         # in the current and reference configuration
-    #         qe_r = qe[self.rDOF]
+    #         qe_r = qe
     #         qe_d1 = qe[self.phiDOF]
     #         qe_d2 = qe[self.d2DOF]
     #         qe_d3 = qe[self.d3DOF]
@@ -1691,7 +1597,7 @@ class EulerBernoulli:
 
     #         # extract generalized coordinates for beam centerline and directors
     #         # in the current and reference configuration
-    #         qe_r = qe[self.rDOF]
+    #         qe_r = qe
     #         qe_d1 = qe[self.phiDOF]
     #         qe_d2 = qe[self.d2DOF]
     #         qe_d3 = qe[self.d3DOF]

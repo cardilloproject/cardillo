@@ -4,6 +4,7 @@ from .spatial import (
     EulerBernoulliDirectorIntegral,
     InextensibleEulerBernoulliDirectorIntegral,
     EulerBernoulli,
+    Cable,
 )
 
 from .planar import (
