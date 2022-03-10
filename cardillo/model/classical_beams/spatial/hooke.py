@@ -1,6 +1,7 @@
 import numpy as np
 from cardillo.math.algebra import norm3
 
+
 class Hooke(object):
     r"""Simple Hooke material model which accounts for compression effects in simple shear experiments.
     
@@ -33,9 +34,9 @@ class Hooke(object):
     """
 
     def __init__(self, Ei, Fi):
-        self.Ei = Ei # axial stiffness E1 and shear stiffnesses E2 and E3
-        self.Fi = Fi # torsional stiffness F1 and both flexural stiffnesses F2 and F3
-        
+        self.Ei = Ei  # axial stiffness E1 and shear stiffnesses E2 and E3
+        self.Fi = Fi  # torsional stiffness F1 and both flexural stiffnesses F2 and F3
+
     def potential(self, Gamma_i, Gamma0_i, Kappa_i, Kappa0_i):
         """Compute the strain energy density `\psi(\\vGa, \\vka)`.
 
@@ -63,10 +64,12 @@ class Hooke(object):
         dga2 = Gamma_i[2] - Gamma0_i[2]
         dka = Kappa_i - Kappa0_i
 
-        return 0.5 * self.Ei[0] * dla * dla \
-                + 0.5 * self.Ei[1] * dga1 * dga1 \
-                + 0.5 * self.Ei[2] * dga2 * dga2 \
-                + 0.5 * self.Fi @ (dka * dka)
+        return (
+            0.5 * self.Ei[0] * dla * dla
+            + 0.5 * self.Ei[1] * dga1 * dga1
+            + 0.5 * self.Ei[2] * dga2 * dga2
+            + 0.5 * self.Fi @ (dka * dka)
+        )
 
     def n_i(self, Gamma_i, Gamma0_i, Kappa_i, Kappa0_i):
         """Compute the contact forces `n_i(\\vGa, \\vka)`.
@@ -93,9 +96,11 @@ class Hooke(object):
         dga1 = Gamma_i[1] - Gamma0_i[1]
         dga2 = Gamma_i[2] - Gamma0_i[2]
 
-        return self.Ei[0] * (1 / nga0 - 1 / nga) * Gamma_i / nga0 \
-                + self.Ei[1] * dga1 * np.array([0, 1, 0]) \
-                + self.Ei[2] * dga2 * np.array([0, 0, 1])
+        return (
+            self.Ei[0] * (1 / nga0 - 1 / nga) * Gamma_i / nga0
+            + self.Ei[1] * dga1 * np.array([0, 1, 0])
+            + self.Ei[2] * dga2 * np.array([0, 0, 1])
+        )
 
     def m_i(self, Gamma_i, Gamma0_i, Kappa_i, Kappa0_i):
         """Compute the contact couples `m_i(\\vGa, \\vka)`.
@@ -143,9 +148,11 @@ class Hooke(object):
         """
         nga = norm3(Gamma_i)
         nga0 = norm3(Gamma0_i)
-        
-        dn_dGamma_i1 = self.Ei[0] / (nga * nga * nga * nga0) * np.outer(Gamma_i, Gamma_i)
-        
+
+        dn_dGamma_i1 = (
+            self.Ei[0] / (nga * nga * nga * nga0) * np.outer(Gamma_i, Gamma_i)
+        )
+
         dn_dGamma_i2 = self.Ei[0] * (1 / nga0 - 1 / nga) / nga0 * np.diag(np.ones(3))
 
         dn_dGamma_i3 = np.diag(self.Ei)
@@ -218,22 +225,23 @@ class Hooke(object):
 
         """
         return np.diag(self.Fi)
-       
+
+
 class Hooke_quadratic(object):
     r"""Simple Hooke material model with quadratic energy function as found in Simo1985, (4.13) and (4.14).
 
     Parameters
     ----------
     Ei : :class:`numpy.ndarray` with shape=(3,)
-        Axial stiffness $E_1$ and shear stiffnesses $E_2, E_3$. 
+        Axial stiffness $E_1$ and shear stiffnesses $E_2, E_3$.
     Fi : :class:`numpy.ndarray` with shape=(3,)
-        Torsional stiffness $F_1$ and flexural stiffnesses $F_2, F_3$.  
+        Torsional stiffness $F_1$ and flexural stiffnesses $F_2, F_3$.
     """
 
     def __init__(self, Ei, Fi):
-        self.Ei = Ei # axial stiffness E1 and shear stiffnesses E2 and E3
-        self.Fi = Fi # torsional stiffness F1 and both flexural stiffnesses F2 and F3
-        
+        self.Ei = Ei  # axial stiffness E1 and shear stiffnesses E2 and E3
+        self.Fi = Fi  # torsional stiffness F1 and both flexural stiffnesses F2 and F3
+
     def potential(self, Gamma_i, Gamma0_i, Kappa_i, Kappa0_i):
         """Compute the strain energy density `\psi(\\vGa, \\vka)`.
 

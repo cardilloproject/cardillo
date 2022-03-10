@@ -1,4 +1,4 @@
-from cardillo.model.classical_beams.planar import Hooke, Euler_bernoulli
+from cardillo.model.classical_beams.planar import Hooke, EulerBernoulli
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints.implicit import Spherical_joint2D, Rigid_connection2D, Spherical_joint, Rigid_connection
 from cardillo.model import Model
@@ -65,10 +65,10 @@ def B_spline_fitting():
     # exit()
 
     Q1 = ctrlpts1.T.reshape(-1)
-    beam1 = Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q=Q1, q0=Q1, u0=np.zeros_like(Q1))
+    beam1 = EulerBernoulli(A_rho0, material_model, p, nEl, nQP, Q=Q1, q0=Q1, u0=np.zeros_like(Q1))
 
     Q2 = ctrlpts2.T.reshape(-1)
-    beam2 = Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q=Q2, q0=Q2, u0=np.zeros_like(Q2))
+    beam2 = EulerBernoulli(A_rho0, material_model, p, nEl, nQP, Q=Q2, q0=Q2, u0=np.zeros_like(Q2))
 
     # joints
     r_OP0 = np.array([*ctrlpts1[0], 0])
@@ -236,7 +236,7 @@ def top():
 
     q0 = np.hstack((X0, Y0))
 
-    beam = Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q=Q, q0=q0, u0=u0)
+    beam = EulerBernoulli(A_rho0, material_model, p, nEl, nQP, Q=Q, q0=q0, u0=u0)
 
     # left joint
     # joint_left = Spherical_joint2D(frame_left, beam, r_OB1(0), frame_ID2=(0,))

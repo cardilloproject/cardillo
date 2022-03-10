@@ -75,8 +75,12 @@ class Moreau:
         W_gamma = self.model.W_gamma(tk1, qk1)
         chi_g = self.model.g_dot(tk1, qk1, np.zeros_like(uk))
         chi_gamma = self.model.gamma(tk1, qk1, np.zeros_like(uk))
-        W_N = self.model.W_N(tk1, qk1, scipy_matrix=csr_matrix)
-        W_F = self.model.W_F(tk1, qk1, scipy_matrix=csr_matrix)
+        W_N = self.model.W_N(
+            tk1, qk1, scipy_matrix=csr_matrix
+        )  # csr for column slicing
+        W_F = self.model.W_F(
+            tk1, qk1, scipy_matrix=csr_matrix
+        )  # csr for column slicing
         prox_r_N = self.model.prox_r_N
         prox_r_F = self.model.prox_r_F
         mu = self.model.mu
@@ -102,7 +106,6 @@ class Moreau:
         # W_g.T @ uk1 + chi_g = 0
         # W_gamma.T @ uk1 + chi_gamma = 0
         # fmt: off
-        # Note: np.bmat can't handle empty matrices, so we use sparse bmat.
         A = bmat([[        M, -dt * W_g, -dt * W_gamma], \
                   [    W_g.T,      None,          None], \
                   [W_gamma.T,      None,          None]], format="csc")

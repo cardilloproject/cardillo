@@ -1,5 +1,5 @@
 from scipy.integrate._ivp.ivp import solve_ivp
-from cardillo.model.classical_beams.planar import Hooke, Euler_bernoulli, Inextensible_Euler_bernoulli
+from cardillo.model.classical_beams.planar import Hooke, EulerBernoulli, Inextensible_Euler_bernoulli
 from cardillo.model.rope import Rope, Inextensible_Rope
 from cardillo.model.rope import Hooke as Hooke_rope
 from cardillo.model.frame import Frame
@@ -189,7 +189,7 @@ def cantilever():
     # q0 = np.hstack((Y0, -X0))
     u0 = np.zeros_like(Q)
 
-    bernoulli = Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q=Q, q0=q0, u0=u0)
+    bernoulli = EulerBernoulli(A_rho0, material_model, p, nEl, nQP, Q=Q, q0=q0, u0=u0)
     inextensible_bernoulli = Inextensible_Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q=Q, q0=q0, u0=u0)
     beams = [bernoulli, inextensible_bernoulli]
     # beams = [inextensible_bernoulli, bernoulli]

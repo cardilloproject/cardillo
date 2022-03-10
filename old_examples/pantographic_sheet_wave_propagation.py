@@ -7,11 +7,11 @@ import matplotlib.animation as animation
 
 
 from cardillo.model import Model
-from cardillo.model.classical_beams.planar import Euler_bernoulli, Hooke, Inextensible_Euler_bernoulli
+from cardillo.model.classical_beams.planar import EulerBernoulli, Hooke, Inextensible_Euler_bernoulli
 from cardillo.model.bilateral_constraints.implicit import Rigid_connection2D, Linear_guidance_x_2D
 from cardillo.model.scalar_force_interactions.force_laws import Linear_spring
 from cardillo.model.scalar_force_interactions import add_rotational_forcelaw
-from cardillo.solver.newton import Newton
+from cardillo.solver.Newton import Newton
 from cardillo.solver import Generalized_alpha_index3_panto
 from cardillo.discretization.B_spline import uniform_knot_vector
 from cardillo.model.frame import Frame
@@ -308,7 +308,7 @@ def create_pantograph(gamma, nRow, nCol, H, EA, EI, GI, A_rho0, p, nEl, nQP, r_O
             Q = np.concatenate([X, Y])
             q0 = np.copy(Q)
             u0 = np.zeros_like(Q)
-            beams.append(Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
+            beams.append(EulerBernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
             model.add(beams[ID])
             ID_mat[brow, bcol] = ID
             ID += 1
@@ -317,7 +317,7 @@ def create_pantograph(gamma, nRow, nCol, H, EA, EI, GI, A_rho0, p, nEl, nQP, r_O
             Q = np.concatenate([X2 + X[-1], Y2 + Y[-1]])
             q0 = np.copy(Q)
             u0 = np.zeros_like(Q)
-            beams.append(Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
+            beams.append(EulerBernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
             model.add(beams[ID])
             ID_mat[brow, bcol + 1] = ID
             ID += 1
@@ -330,7 +330,7 @@ def create_pantograph(gamma, nRow, nCol, H, EA, EI, GI, A_rho0, p, nEl, nQP, r_O
             Q = np.concatenate([X, Y])
             q0 = np.copy(Q)
             u0 = np.zeros_like(Q)
-            beams.append(Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
+            beams.append(EulerBernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
             model.add(beams[ID])
             ID_mat[brow, bcol] = ID
             ID += 1
@@ -338,7 +338,7 @@ def create_pantograph(gamma, nRow, nCol, H, EA, EI, GI, A_rho0, p, nEl, nQP, r_O
             Q = np.concatenate([X1 + X[-1], Y1 + Y[-1]])
             q0 = np.copy(Q)
             u0 = np.zeros_like(Q)
-            beams.append(Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
+            beams.append(EulerBernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
             model.add(beams[ID])
             ID_mat[brow, bcol + 1] = ID
             ID += 1

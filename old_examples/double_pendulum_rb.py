@@ -1,4 +1,4 @@
-from cardillo.model.bilateral_constraints.implicit.rigid_connection import Rigid_connection
+from cardillo.model.bilateral_constraints.implicit.RigidConnection import Rigid_connection
 import numpy as np
 from math import cos, sin, pi
 

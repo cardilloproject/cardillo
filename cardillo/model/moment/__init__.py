@@ -1,1 +1,1 @@
-from .moment import K_Moment, K_Moment_scaled
+from .moment import K_Moment

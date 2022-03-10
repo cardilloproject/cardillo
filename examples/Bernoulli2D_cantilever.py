@@ -1,4 +1,4 @@
-from cardillo.math import A_IK_basic_z
+from cardillo.math import A_IK_basic
 from cardillo.model.frame import Frame
 from cardillo.model.classical_beams.planar import Hooke, EulerBernoulli, straight_configuration
 from cardillo.model.bilateral_constraints.implicit import Rigid_connection2D
@@ -38,7 +38,7 @@ if __name__ == "__main__":
     
     # position and orientation of the rigid connection
     r_OP = np.zeros(3) # origin at (0, 0, 0)
-    A_IK = A_IK_basic_z(pi / 2) # rotate beam and rigid connection by 90° clock-wise
+    A_IK = A_IK_basic(pi / 2).z() # rotate beam and rigid connection by 90° clock-wise
 
     # build reference configuration
     Q = straight_configuration(p, nEl, L, r_OP=r_OP, A_IK=A_IK)
@@ -78,14 +78,14 @@ if __name__ == "__main__":
     # solver options and solve the static system
     n_load_steps = 10
     max_iter = 20
-    tol = 1.0e-8
-    solver = Newton(model, n_load_steps=n_load_steps, max_iter=max_iter, tol=tol)
+    atol = 1.0e-8
+    solver = Newton(model, n_load_steps=n_load_steps, max_iter=max_iter, atol=atol)
     sol = solver.solve()
     t = sol.t
     q = sol.q
 
-    # vtk export
-    beam.post_processing(sol.t, sol.q, 'Bernoulli2D-cantilever')
+    # # vtk export
+    # beam.post_processing(sol.t, sol.q, 'Bernoulli2D-cantilever')
 
     ##############################
     # visualize static deformation

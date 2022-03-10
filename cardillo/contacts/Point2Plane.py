@@ -16,17 +16,17 @@ class Point2Plane:
         self.frame = frame
         self.subsystem = subsystem
         self.prox_r_N = np.array([prox_r_N])
-        self.prox_r_T = np.array([prox_r_N])
-        self.mu_T = np.array([0])
+        self.prox_r_F = np.array([prox_r_N])
+        self.mu = np.array([0])
 
         self.nla_N = 1
 
         # TODO: Can we delete these for static examples?
-        self.nla_T = 0
-        self.NT_connectivity = [[]]
+        self.nla_F = 0
+        self.NF_connectivity = [[]]
 
         self.e_N = np.zeros(self.nla_N) if e_N is None else np.array([e_N])
-        self.e_T = np.zeros(self.nla_T)
+        self.e_F = np.zeros(self.nla_F)
         self.frame_ID = frame_ID
 
         self.r_OQ = lambda t: self.frame.r_OP(t)
@@ -40,7 +40,7 @@ class Point2Plane:
         self.K_r_SP = K_r_SP
 
         self.la_N0 = np.zeros(self.nla_N) if la_N0 is None else la_N0
-        self.la_T0 = np.zeros(self.nla_T)
+        self.la_F0 = np.zeros(self.nla_F)
 
         self.is_assembled = False
 

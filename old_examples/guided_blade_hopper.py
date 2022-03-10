@@ -16,7 +16,7 @@ from cardillo.model.line_force import Line_force
 from cardillo.model.contacts import Sphere_to_plane2D
 from cardillo.model.scalar_force_interactions.force_laws import Linear_spring, Linear_damper, Linear_spring_damper
 from cardillo.model.scalar_force_interactions import add_rotational_forcelaw
-from cardillo.model.classical_beams.planar import Hooke, Euler_bernoulli, Inextensible_Euler_bernoulli
+from cardillo.model.classical_beams.planar import Hooke, EulerBernoulli, Inextensible_Euler_bernoulli
 
 from cardillo.solver import Moreau, Generalized_alpha_2, Generalized_alpha_3
 
@@ -141,7 +141,7 @@ if __name__ == "__main__":
     if inextensible:
         blade = Inextensible_Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q=Q, q0=q0, u0=u0)
     else:
-        blade = Euler_bernoulli(A_rho0, material_model, p, nEl, nQP, Q=Q, q0=q0, u0=u0)
+        blade = EulerBernoulli(A_rho0, material_model, p, nEl, nQP, Q=Q, q0=q0, u0=u0)
 
     model.add( blade )
     # TODO: gravity for blade

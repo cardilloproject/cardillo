@@ -1,11 +1,14 @@
-from cardillo.beams.material_models import Simo1986
-from cardillo import Frame, RigidConnection
-from cardillo.beams import straight_configuration
-from cardillo.beams import Timoshenko_director_integral
+from cardillo.model.classical_beams.spatial.material_models import Simo1986
+from cardillo.model.frame import Frame
+from cardillo.model.bilateral_constraints.implicit import RigidConnection
+from cardillo.model.classical_beams.spatial.director import straight_configuration, animate_beam
+from cardillo.model.classical_beams.spatial import Timoshenko_director_integral
 from cardillo.math.rotations import A_IK_basic
-from cardillo.miscellaneous import Force, K_Moment
-from cardillo import Model, Newton
-from cardillo.miscellaneous.line_force import LineForce
+from cardillo.model.force import Force
+from cardillo.model.moment import K_Moment
+from cardillo.model.distributed_force import DistributedForce1D
+from cardillo.model import Model
+from cardillo.solver import Newton
 from cardillo.contacts import Point2Plane
 
 import numpy as np
@@ -64,7 +67,7 @@ def junction_left_plane_contact_right():
 
     # gravity beam
     __g = np.array([0, 0, -A_rho0 * 9.81 * 5.0e-3])
-    f_g_beam = LineForce(lambda xi, t: t * __g, beam)
+    f_g_beam = DistributedForce1D(lambda t, xi: t * __g, beam)
 
     # add point to plane contact
     r_OP_contact = np.array([L, 0, -0.0 * L])
@@ -85,7 +88,7 @@ def junction_left_plane_contact_right():
 
     solver = Newton(
         model,
-        n_load_steps=1,
+        n_load_steps=10,
         max_iter=20,
         atol=1.0e-8,
         numerical_jacobian=False,
@@ -96,24 +99,33 @@ def junction_left_plane_contact_right():
     t = sol.t
     q = sol.q
 
+    ###########
+    # animation
+    ###########
+    animate_beam(t, q, beam, L, show=True)
+
+    ############
     # vtk export
-    # beam.post_processing(t, q[:, beam.qDOF], f"director_beam_{basis}")
+    ############
 
-    path = Path(__file__)
-    path = path.parent / path.stem
-    path.mkdir(parents=True, exist_ok=True)  # create directory
-    # post_processing(
-    #     [beam],
-    #     sol.t,
-    #     sol.q,
-    #     str(path / ("beam")),
-    # )
+    # # vtk export
+    # # beam.post_processing(t, q[:, beam.qDOF], f"director_beam_{basis}")
 
-    for i, (ti, qi) in enumerate(zip(t, q)):
-        # beam.post_processing_vtk_volume(
-        beam.post_processing_vtk_volume_circle(
-            ti, qi[beam.qDOF], str(path / (f"beam_{i}.vtu")), R=1
-        )
+    # path = Path(__file__)
+    # path = path.parent / path.stem
+    # path.mkdir(parents=True, exist_ok=True)  # create directory
+    # # post_processing(
+    # #     [beam],
+    # #     sol.t,
+    # #     sol.q,
+    # #     str(path / ("beam")),
+    # # )
+
+    # for i, (ti, qi) in enumerate(zip(t, q)):
+    #     # beam.post_processing_vtk_volume(
+    #     beam.post_processing_vtk_volume_circle(
+    #         ti, qi[beam.qDOF], str(path / (f"beam_{i}.vtu")), R=1
+    #     )
 
 
 # def junction_left_cylindrical_contact_right():
