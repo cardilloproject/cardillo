@@ -187,7 +187,9 @@ if __name__ == "__main__":
 
         # solve with generalzed-alpha method positin implementation
         # sol_ThetaNewton = GenAlphaFirstOrderPosition(model, t1, dt, rho_inf=rho_inf).solve()
-        sol_GenAlphaFirstOrderGGl = GenAlphaFirstOrderVelocityGGL(model, t1, dt, rho_inf=rho_inf).solve()
+        sol_GenAlphaFirstOrderGGl = GenAlphaFirstOrderVelocityGGL(
+            model, t1, dt, rho_inf=rho_inf
+        ).solve()
         # sol_GenAlphaFirstOrderGGl = ScipyIVP(model, t1, dt, method="RK45", atol=1.0e-10, rtol=1.0e-10).solve()
         # sol_GenAlphaFirstOrderGGl = EulerBackward(model, t1, dt, atol=1.0e-12).solve()
         t_GenAlphaFirstOrderGGl = sol_GenAlphaFirstOrderGGl.t

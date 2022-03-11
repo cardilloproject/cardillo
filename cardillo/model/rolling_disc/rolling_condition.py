@@ -159,13 +159,17 @@ class Rolling_condition_I_frame_g_gamma:
 
     # TODO: Compue time derivative!
     def g_dot(self, t, q, u):
-        f = lambda t, q, u: self.g(t, q)
-        return Numerical_derivative(f)._dot(t, q, u, np.zeros_like(u))
+        return self.disc.v_P(t, q, u, K_r_SP=self.disc.A_IK(t, q).T @ self.r_SA(t, q))[
+            2
+        ]
 
     # TODO: Compute time derivative g_ddot!
     def g_ddot(self, t, q, u, u_dot):
-        f = lambda t, q, u: self.g_dot(t, q, u)
-        return Numerical_derivative(f)._dot(t, q, u, u_dot)
+        # f = lambda t, q, u: self.g_dot(t, q, u)
+        # return Numerical_derivative(f)._dot(t, q, u, u_dot)
+        return self.disc.a_P(
+            t, q, u, u_dot, K_r_SP=self.disc.A_IK(t, q).T @ self.r_SA(t, q)
+        )[2]
 
     def g_q_dense(self, t, q):
         return Numerical_derivative(self.g)._x(t, q)

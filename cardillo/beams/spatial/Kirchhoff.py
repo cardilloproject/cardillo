@@ -13,7 +13,7 @@ from cardillo.math import (
     rodriguez,
     rodriguez_inv,
     approx_fprime,
-    sign
+    sign,
 )
 from cardillo.discretization.mesh1D import Mesh1D
 
@@ -347,7 +347,6 @@ class Kirchhoff:
             # axial stretch
             lambda_ = ji / J0i
 
-
             if switching_beam:
                 # check sign of inner product
                 cos_theta = e1 @ d1
@@ -355,7 +354,7 @@ class Kirchhoff:
             else:
                 sign_cos = 1.0
 
-            if sign_cos >= 0:
+            def kappa(e1, d1, phi, phi_xi, r_xixi, ji, J0i):
                 # build rotation matrices
                 A = smallest_rotation(e1, d1)
                 B = rodriguez(d1 * phi)
@@ -373,33 +372,51 @@ class Kirchhoff:
                         (d2 @ r_xixi) / (J0i * ji),
                     ]
                 )
-            else:
-                # build rotation matrices
-                A = smallest_rotation(e1, d1)
+
+                return A, B, Kappa_i
+
+            def kappa_C(e1, d1, phi, phi_xi, r_xixi, ji, J0i):
+                e_complement = cross3(-e1, d1) / norm(cross3(-e1, d1))
+                A_pi = rodriguez(e_complement * np.pi)
+                A = smallest_rotation(-e1, d1) @ A_pi
                 B = rodriguez(d1 * phi)
-                R_e1 = B @ A
-                print(f"B(d1 * phi) @ A(e1, d1):\n{R_e1}")
-                
-                # TODO: sin(psi) changes sign but cos(psi) not!
-                #       We have to build the correct complement rotation vector!!!
-                # build rotation matrices
-                A = smallest_rotation(-e1, d1)
-                B = rodriguez(d1 * (np.pi - phi))
                 R = B @ A
-                print(f"B(d1 * phi) @ A(-e1, d1):\n{R}")
+                # print(f"B(d1 * phi) @ A(-e1, d1):\n{R}")
                 d1, d2, d3 = R.T
 
                 # torsional and flexural strains
                 Kappa_i = np.array(
                     [
+                        # phi_xi / J0i
+                        # + r_xixi
+                        # @ cross3(d1, -e1)
+                        # / (J0i * ji * (1 - d1 @ e1)),  # Mitterbach2020 (2.105)
                         phi_xi / J0i
-                        + r_xixi
-                        @ cross3(d1, -e1)
-                        / (J0i * ji * (1 - d1 @ e1)),  # Mitterbach2020 (2.105)
+                        + r_xixi @ cross3(d1, -e1) / (J0i * ji * (1 - d1 @ e1)),
                         -(d3 @ r_xixi) / (J0i * ji),
                         (d2 @ r_xixi) / (J0i * ji),
                     ]
                 )
+
+                print(f"A_pi.T @ Kappa_i: {A_pi.T @ Kappa_i}")
+
+                return A, B, Kappa_i
+
+            if sign_cos >= 0:
+                A, B, Kappa_i = kappa(e1, d1, phi, phi_xi, r_xixi, ji, J0i)
+            else:
+                A, B, Kappa_i = kappa(e1, d1, phi, phi_xi, r_xixi, ji, J0i)
+                print(f"A:\n{A}")
+                print(f"B:\n{B}")
+                print(f"Kappa_i:\n{Kappa_i}")
+                A, B, Kappa_i = kappa_C(e1, d1, phi, phi_xi, r_xixi, ji, J0i)
+                print(f"A:\n{A}")
+                print(f"B:\n{B}")
+                print(f"Kappa_i:\n{Kappa_i}")
+
+                print(f"")
+
+                # phi_xi / J0i + r_xixi @ cross3(d1, -e1) / (J0i * ji * (1 - d1 @ e1))
 
             # evaluate strain energy function
             Ee += (
@@ -1120,22 +1137,86 @@ class Kirchhoff:
         ji = norm(r_xi)
         d1 = r_xi / ji
 
-        # build rotation matrices
-        A = smallest_rotation(e1, d1)
-        B = rodriguez(d1 * phi)
-        R = B @ A
-        d1, d2, d3 = R.T
+        def Omega(e1, d1, phi, phi_dot, r_xi_dot, ji):
+            # build rotation matrices
+            A = smallest_rotation(e1, d1)
+            B = rodriguez(d1 * phi)
+            R = B @ A
+            d1, d2, d3 = R.T
 
-        return np.array(
-            [
-                phi_dot
-                + r_xi_dot
-                @ cross3(d1, e1)
-                / (ji * (1 + d1 @ e1)),  # Mitterbach2020 (2.105)
-                -(d3 @ r_xi_dot) / ji,
-                (d2 @ r_xi_dot) / ji,
-            ]
-        )
+            K_Omega = np.array(
+                [
+                    phi_dot
+                    + r_xi_dot
+                    @ cross3(d1, e1)
+                    / (ji * (1 + d1 @ e1)),  # Mitterbach2020 (2.105)
+                    -(d3 @ r_xi_dot) / ji,
+                    (d2 @ r_xi_dot) / ji,
+                ]
+            )
+
+            return A, B, K_Omega
+
+        def Omega_C(e1, d1, phi, phi_dot, r_xi_dot, ji):
+            e_complement = cross3(-e1, d1) / norm(cross3(-e1, d1))
+            A_pi = rodriguez(e_complement * np.pi)
+            A = smallest_rotation(-e1, d1) @ A_pi
+            B = rodriguez(d1 * phi)
+            R = B @ A
+            d1, d2, d3 = R.T
+
+            K_Omega = np.array(
+                [
+                    phi_dot
+                    - r_xi_dot
+                    @ cross3(d1, -e1)
+                    / (ji * (1 + d1 @ e1)),  # Mitterbach2020 (2.105)
+                    -(d3 @ r_xi_dot) / ji,
+                    (d2 @ r_xi_dot) / ji,
+                ]
+            )
+
+            return A, B, K_Omega
+
+        if switching_beam:
+            # check sign of inner product
+            cos_theta = e1 @ d1
+            sign_cos = sign(cos_theta)
+        else:
+            sign_cos = 1.0
+
+        if sign_cos >= 0:
+            A, B, K_Omega = Omega(e1, d1, phi, phi_dot, r_xi_dot, ji)
+        else:
+            # A, B, K_Omega = Omega(e1, d1, phi, phi_dot, r_xi_dot, ji)
+            # print(f"A:\n{A}")
+            # print(f"B:\n{B}")
+            # print(f"K_Omega:\n{K_Omega}")
+            A, B, K_Omega = Omega_C(e1, d1, phi, phi_dot, r_xi_dot, ji)
+            # print(f"A:\n{A}")
+            # print(f"B:\n{B}")
+            # print(f"K_Omega:\n{K_Omega}")
+
+            # print(f"")
+
+        return K_Omega
+
+        # # build rotation matrices
+        # A = smallest_rotation(e1, d1)
+        # B = rodriguez(d1 * phi)
+        # R = B @ A
+        # d1, d2, d3 = R.T
+
+        # return np.array(
+        #     [
+        #         phi_dot
+        #         + r_xi_dot
+        #         @ cross3(d1, e1)
+        #         / (ji * (1 + d1 @ e1)),  # Mitterbach2020 (2.105)
+        #         -(d3 @ r_xi_dot) / ji,
+        #         (d2 @ r_xi_dot) / ji,
+        #     ]
+        # )
 
     # TODO:
     def K_J_R(self, t, q, frame_ID):

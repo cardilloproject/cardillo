@@ -672,6 +672,7 @@ class GenAlphaFirstOrderVelocityGGL:
         #######################################################################
         # consistent initial conditions
         #######################################################################
+        # TODO: Adapt this as done in velocity formulation!
         self.tk = model.t0
         self.qk = model.q0
         self.uk = model.u0
@@ -1130,11 +1131,6 @@ class GenAlphaFirstOrderVelocity:
         #######################################################################
         # consistent initial conditions
         #######################################################################
-        self.tk = model.t0
-        self.qk = model.q0
-        self.uk = model.u0
-        self.la_gk = model.la_g0
-        self.la_gammak = model.la_gamma0
 
         # def initial_values_Arnold2014(t0, q0, u0, h, s=1, order=2):
         #     assert order in [1, 2], "order hast to be in [1, 2]!"
@@ -1203,38 +1199,55 @@ class GenAlphaFirstOrderVelocity:
 
         #     # return q_dot0, u_dot0, la_g0, la_gamma0, v0
 
-        # (
-        #     self.q_dotk,
-        #     self.u_dotk,
-        #     self.la_gk,
-        #     self.la_gammak,
-        #     self.vk,
+        def initial_values(t0, q0, u0):
+            # initial velocites
+            q_dot0 = self.model.q_dot(t0, q0, u0)
+
+            # solve for consistent initial accelerations and Lagrange mutlipliers
+            M0 = self.model.M(t0, q0, scipy_matrix=csr_matrix)
+            h0 = self.model.h(t0, q0, u0)
+            W_g0 = self.model.W_g(t0, q0, scipy_matrix=csr_matrix)
+            W_gamma0 = self.model.W_gamma(t0, q0, scipy_matrix=csr_matrix)
+            zeta_g0 = self.model.zeta_g(t0, q0, u0)
+            zeta_gamma0 = self.model.zeta_gamma(t0, q0, u0)
+            A = bmat([
+                [M0, -W_g0, -W_gamma0],
+                [W_g0.T , None, None],
+                [W_gamma0.T, None, None]
+            ], format="csc")
+            b = np.concatenate([
+                h0,
+                -zeta_g0,
+                -zeta_gamma0
+            ])
+            u_dot_la_g_la_gamma = spsolve(A, b)
+            u_dot0 = u_dot_la_g_la_gamma[:self.nu]
+            la_g0 = u_dot_la_g_la_gamma[self.nu:self.nu + self.nla_g]
+            la_gamma0 = u_dot_la_g_la_gamma[self.nu + self.nla_g:]
+
+            y0 = np.concatenate((q0, u0))
+            y_dot0 = np.concatenate((q_dot0, u_dot0))
+            v0 = y_dot0.copy() # TODO: Is there a better choice?
+            x0 = self.pack(q_dot0, u_dot0, la_g0, la_gamma0)
+
+            return t0, q0, u0, q_dot0, u_dot0, v0, la_g0, la_gamma0, x0, y0, y_dot0
+
+        # compute consistent initial conditions
+        (
+            self.tk,
+            self.qk,
+            self.uk,
+            self.q_dotk,
+            self.u_dotk,
+            self.vk,
+            self.la_gk,
+            self.la_gammak,
+            self.xk,
+            self.yk,
+            self.y_dotk,
+        ) = initial_values(t0, model.q0, model.u0)
+        # TODO:
         # ) = initial_values_Arnold2014(self.tk, self.qk, self.uk, dt)
-
-        # initial velocites
-        self.q_dotk = self.model.q_dot(self.tk, self.qk, self.uk)
-
-        # solve for consistent initial accelerations and Lagrange mutlipliers
-        M0 = self.model.M(self.tk, self.qk, scipy_matrix=csr_matrix)
-        h0 = self.model.h(self.tk, self.qk, self.uk)
-        W_g0 = self.model.W_g(self.tk, self.qk, scipy_matrix=csr_matrix)
-        W_gamma0 = self.model.W_gamma(self.tk, self.qk, scipy_matrix=csr_matrix)
-        zeta_g0 = self.model.zeta_g(t0, self.qk, self.uk)
-        zeta_gamma0 = self.model.zeta_gamma(t0, self.qk, self.uk)
-        A = bmat([
-            [M0, -W_g0, -W_gamma0],
-            [W_g0.T , None, None],
-            [W_gamma0.T, None, None]
-        ], format="csc")
-        b = np.concatenate([
-            h0,
-            -zeta_g0,
-            -zeta_gamma0
-        ])
-        u_dot_la_g_la_gamma = spsolve(A, b)
-        self.u_dotk = u_dot_la_g_la_gamma[:self.nu]
-        self.la_gk = u_dot_la_g_la_gamma[self.nu:self.nu + self.nla_g]
-        self.la_gammak = u_dot_la_g_la_gamma[self.nu + self.nla_g:]
 
         # check if initial conditions satisfy constraints on position, velocity
         # and acceleration level
@@ -1259,15 +1272,6 @@ class GenAlphaFirstOrderVelocity:
         assert np.allclose(
             gamma_dot0, np.zeros(self.nla_gamma)
         ), "Initial conditions do not fulfill gamma_dot0!"
-
-        # #######################################################################
-        # # starting values for generalized state vector, its derivatives and
-        # # auxiliary velocities
-        # #######################################################################
-        # self.yk = np.concatenate((self.qk, self.uk))
-        # self.y_dotk = np.concatenate((self.q_dotk, self.u_dotk))
-        # self.vk = self.y_dotk.copy() # TODO: Is there a better choice?
-        # self.xk = self.pack(self.q_dotk, self.u_dotk, self.la_gk, self.la_gammak)
 
     def update(self, y_dotk1, store=False):
         """Update dependent variables modifed version of Arnold2008 (3) and (5)."""
@@ -2221,7 +2225,7 @@ class GenAlphaDAEAcc:
         newton_error_function=lambda x: np.max(np.abs(x)),
         numerical_jacobian=False,
         a0=None,
-        pre_cond=True,
+        pre_cond=False,
     ):
 
         self.model = model
