@@ -1136,105 +1136,105 @@ class GenAlphaFirstOrderVelocity:
         self.la_gk = model.la_g0
         self.la_gammak = model.la_gamma0
 
-        def initial_values_Arnold2014(t0, q0, u0, h, s=1, order=2):
-            assert order in [1, 2], "order hast to be in [1, 2]!"
+        # def initial_values_Arnold2014(t0, q0, u0, h, s=1, order=2):
+        #     assert order in [1, 2], "order hast to be in [1, 2]!"
 
-            # initial velocites
-            q_dot0 = self.model.q_dot(t0, q0, u0)
+        #     # initial velocites
+        #     q_dot0 = self.model.q_dot(t0, q0, u0)
 
-            # solve for consistent initial accelerations and Lagrange mutlipliers
-            M0 = self.model.M(t0, q0, scipy_matrix=csr_matrix)
-            h0 = self.model.h(t0, q0, u0)
-            W_g0 = self.model.W_g(t0, q0, scipy_matrix=csr_matrix)
-            W_gamma0 = self.model.W_gamma(t0, q0, scipy_matrix=csr_matrix)
-            zeta_g0 = self.model.zeta_g(t0, q0, u0)
-            zeta_gamma0 = self.model.zeta_gamma(t0, q0, u0)
-            A = bmat(
-                [
-                    [M0, -W_g0, -W_gamma0],
-                    [W_g0.T, None, None],
-                    [W_gamma0.T, None, None],
-                ],
-                format="csc",
-            )
-            b = np.concatenate([h0, -zeta_g0, -zeta_gamma0])
-            tmp = spsolve(A, b)
-            u_dot0 = tmp[: self.nu]
-            la_g0 = tmp[self.nu : self.nu + self.nla_g]
-            la_gamma0 = tmp[self.nu + self.nla_g :]
+        #     # solve for consistent initial accelerations and Lagrange mutlipliers
+        #     M0 = self.model.M(t0, q0, scipy_matrix=csr_matrix)
+        #     h0 = self.model.h(t0, q0, u0)
+        #     W_g0 = self.model.W_g(t0, q0, scipy_matrix=csr_matrix)
+        #     W_gamma0 = self.model.W_gamma(t0, q0, scipy_matrix=csr_matrix)
+        #     zeta_g0 = self.model.zeta_g(t0, q0, u0)
+        #     zeta_gamma0 = self.model.zeta_gamma(t0, q0, u0)
+        #     A = bmat(
+        #         [
+        #             [M0, -W_g0, -W_gamma0],
+        #             [W_g0.T, None, None],
+        #             [W_gamma0.T, None, None],
+        #         ],
+        #         format="csc",
+        #     )
+        #     b = np.concatenate([h0, -zeta_g0, -zeta_gamma0])
+        #     tmp = spsolve(A, b)
+        #     u_dot0 = tmp[: self.nu]
+        #     la_g0 = tmp[self.nu : self.nu + self.nla_g]
+        #     la_gamma0 = tmp[self.nu + self.nla_g :]
 
-            self.yk = np.concatenate((q0, u0))
-            self.y_dotk = np.concatenate((q_dot0, u_dot0))
-            # self.vk = self.y_dotk.copy() # TODO: Is there a better choice?
-            self.xk = self.pack(q_dot0, u_dot0, la_g0, la_gamma0)
+        #     self.yk = np.concatenate((q0, u0))
+        #     self.y_dotk = np.concatenate((q_dot0, u_dot0))
+        #     # self.vk = self.y_dotk.copy() # TODO: Is there a better choice?
+        #     self.xk = self.pack(q_dot0, u_dot0, la_g0, la_gamma0)
 
-            vk = self.y_dotk.copy()
-            return q_dot0, u_dot0, la_g0, la_gamma0, vk
+        #     vk = self.y_dotk.copy()
+        #     return q_dot0, u_dot0, la_g0, la_gamma0, vk
 
-            # # TODO: This is not correct yet!
-            # if order == 2:
-            #     # solve residual for forward step
-            #     ts_p = t0 + s * h
-            #     # xs_p = self.pack(q_dot0, u_dot0, la_g0, la_gamma0)
-            #     # converged, j, error, xs_p = self.step(ts_p, xs_p)
-            #     qs_p = q0 + s * h * q_dot0
-            #     us_p = u0 + s * h * u_dot0
+        #     # # TODO: This is not correct yet!
+        #     # if order == 2:
+        #     #     # solve residual for forward step
+        #     #     ts_p = t0 + s * h
+        #     #     # xs_p = self.pack(q_dot0, u_dot0, la_g0, la_gamma0)
+        #     #     # converged, j, error, xs_p = self.step(ts_p, xs_p)
+        #     #     qs_p = q0 + s * h * q_dot0
+        #     #     us_p = u0 + s * h * u_dot0
 
-            #     # solve residual for backward step
-            #     ts_m = t0 - s * h
-            #     # xs_m = self.pack(q_dot0, u_dot0, la_g0, la_gamma0)
-            #     # converged, j, error, xs_m = self.step(ts_m, xs_m)
-            #     qs_m = q0 - s * h * q_dot0
-            #     us_m = u0 - s * h * u_dot0
+        #     #     # solve residual for backward step
+        #     #     ts_m = t0 - s * h
+        #     #     # xs_m = self.pack(q_dot0, u_dot0, la_g0, la_gamma0)
+        #     #     # converged, j, error, xs_m = self.step(ts_m, xs_m)
+        #     #     qs_m = q0 - s * h * q_dot0
+        #     #     us_m = u0 - s * h * u_dot0
 
-            #     # v0 = (xs_p - xs_m) / (2 * s * h)
-            #     vs_p = np.concatenate((qs_p, us_p))
-            #     vs_m = np.concatenate((qs_m, us_m))
-            #     delta_alpha = self.alpha_m - self.alpha_f # Arnold2015 (41)
-            #     v0 = self.y_dotk + delta_alpha * h * (vs_p - vs_m) / (2 * s * h) # Arnold2015 Table 1
-            # else:
-            #     raise NotImplementedError("")
-            #     # # solve residual for forward step
-            #     # ts_p = t0 + s * h
-            #     # xs_p = self.pack(q_dot0, u_dot0, la_g0, la_gamma0)
-            #     # converged, j, error, xs_p = self.step(ts_p, xs_p)
+        #     #     # v0 = (xs_p - xs_m) / (2 * s * h)
+        #     #     vs_p = np.concatenate((qs_p, us_p))
+        #     #     vs_m = np.concatenate((qs_m, us_m))
+        #     #     delta_alpha = self.alpha_m - self.alpha_f # Arnold2015 (41)
+        #     #     v0 = self.y_dotk + delta_alpha * h * (vs_p - vs_m) / (2 * s * h) # Arnold2015 Table 1
+        #     # else:
+        #     #     raise NotImplementedError("")
+        #     #     # # solve residual for forward step
+        #     #     # ts_p = t0 + s * h
+        #     #     # xs_p = self.pack(q_dot0, u_dot0, la_g0, la_gamma0)
+        #     #     # converged, j, error, xs_p = self.step(ts_p, xs_p)
 
-            #     # v0 = (xs_p - self.xk) / (s * h)
+        #     #     # v0 = (xs_p - self.xk) / (s * h)
 
-            # return q_dot0, u_dot0, la_g0, la_gamma0, v0
+        #     # return q_dot0, u_dot0, la_g0, la_gamma0, v0
 
-        (
-            self.q_dotk,
-            self.u_dotk,
-            self.la_gk,
-            self.la_gammak,
-            self.vk,
-        ) = initial_values_Arnold2014(self.tk, self.qk, self.uk, dt)
+        # (
+        #     self.q_dotk,
+        #     self.u_dotk,
+        #     self.la_gk,
+        #     self.la_gammak,
+        #     self.vk,
+        # ) = initial_values_Arnold2014(self.tk, self.qk, self.uk, dt)
 
-        # # initial velocites
-        # self.q_dotk = self.model.q_dot(self.tk, self.qk, self.uk)
+        # initial velocites
+        self.q_dotk = self.model.q_dot(self.tk, self.qk, self.uk)
 
-        # # solve for consistent initial accelerations and Lagrange mutlipliers
-        # M0 = self.model.M(self.tk, self.qk, scipy_matrix=csr_matrix)
-        # h0 = self.model.h(self.tk, self.qk, self.uk)
-        # W_g0 = self.model.W_g(self.tk, self.qk, scipy_matrix=csr_matrix)
-        # W_gamma0 = self.model.W_gamma(self.tk, self.qk, scipy_matrix=csr_matrix)
-        # zeta_g0 = self.model.zeta_g(t0, self.qk, self.uk)
-        # zeta_gamma0 = self.model.zeta_gamma(t0, self.qk, self.uk)
-        # A = bmat([
-        #     [M0, -W_g0, -W_gamma0],
-        #     [W_g0.T , None, None],
-        #     [W_gamma0.T, None, None]
-        # ], format="csc")
-        # b = np.concatenate([
-        #     h0,
-        #     -zeta_g0,
-        #     -zeta_gamma0
-        # ])
-        # u_dot_la_g_la_gamma = spsolve(A, b)
-        # self.u_dotk = u_dot_la_g_la_gamma[:self.nu]
-        # self.la_gk = u_dot_la_g_la_gamma[self.nu:self.nu + self.nla_g]
-        # self.la_gammak = u_dot_la_g_la_gamma[self.nu + self.nla_g:]
+        # solve for consistent initial accelerations and Lagrange mutlipliers
+        M0 = self.model.M(self.tk, self.qk, scipy_matrix=csr_matrix)
+        h0 = self.model.h(self.tk, self.qk, self.uk)
+        W_g0 = self.model.W_g(self.tk, self.qk, scipy_matrix=csr_matrix)
+        W_gamma0 = self.model.W_gamma(self.tk, self.qk, scipy_matrix=csr_matrix)
+        zeta_g0 = self.model.zeta_g(t0, self.qk, self.uk)
+        zeta_gamma0 = self.model.zeta_gamma(t0, self.qk, self.uk)
+        A = bmat([
+            [M0, -W_g0, -W_gamma0],
+            [W_g0.T , None, None],
+            [W_gamma0.T, None, None]
+        ], format="csc")
+        b = np.concatenate([
+            h0,
+            -zeta_g0,
+            -zeta_gamma0
+        ])
+        u_dot_la_g_la_gamma = spsolve(A, b)
+        self.u_dotk = u_dot_la_g_la_gamma[:self.nu]
+        self.la_gk = u_dot_la_g_la_gamma[self.nu:self.nu + self.nla_g]
+        self.la_gammak = u_dot_la_g_la_gamma[self.nu + self.nla_g:]
 
         # check if initial conditions satisfy constraints on position, velocity
         # and acceleration level

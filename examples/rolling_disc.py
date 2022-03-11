@@ -11,6 +11,7 @@ from cardillo.math import axis_angle2quat
 from cardillo.model.rolling_disc import Rolling_condition, Rolling_condition_I_frame, Rolling_condition_I_frame_g_gamma
 from cardillo.forces import Force
 from cardillo.solver import GenAlphaFirstOrderVelocityGGL, GenAlphaFirstOrderVelocity
+# from cardillo.solver.generalized_alpha.generalized_alpha_3 import Generalized_alpha_3
 
 
 def rolling_disc_DMS(rigid_body_case="Euler", constraint_case="velocity_K"):
@@ -126,7 +127,7 @@ def rolling_disc_DMS(rigid_body_case="Euler", constraint_case="velocity_K"):
         rolling = Rolling_condition(disc)
     elif constraint_case == "velocity_I":
         rolling = Rolling_condition_I_frame(disc)
-    elif constraint_case == "position":
+    elif constraint_case == "g_gamma":
         # TODO: We have to implement g_dot, g_ddot and gamma_dot!
         rolling = Rolling_condition_I_frame_g_gamma(disc)
     else:
@@ -143,11 +144,12 @@ def rolling_disc_DMS(rigid_body_case="Euler", constraint_case="velocity_K"):
     # t1 = 2 * np.pi / np.abs(alpha_dot0) * 0.1
     t1 = 2 * np.pi / np.abs(alpha_dot0) * 1.0
     dt = 1e-2
-    rho_inf = 0.95
-    # rho_inf = 1.0
+    # rho_inf = 0.95
+    rho_inf = 1.0
     tol = 1.0e-8
     sol_genAlphaFirstOrderVelocity = GenAlphaFirstOrderVelocity(model, t1, dt, rho_inf=rho_inf, tol=tol).solve()
-    # sol_genAlphaFirstOrderVelocityGGL = GenAlphaFirstOrderVelocityGGL(model, t1, dt, rho_inf=rho_inf, tol=tol).solve()
+    # sol_genAlphaFirstOrderVelocity = Generalized_alpha_3(model, t1, dt, rho_inf=rho_inf, newton_tol=tol, numerical_jacobian=True).solve()
+    # sol_genAlphaFirstOrderVelocity = GenAlphaFirstOrderVelocityGGL(model, t1, dt, rho_inf=rho_inf, tol=tol).solve()
     # solver = GenAlphaFirstOrder(model, t1, dt, tol=1.0e-10, rho_inf=1.0)
     # solver = Euler_backward(model, t1, dt, numerical_jacobian=False, debug=False)
     # solver = Moreau_sym(model, t1, dt)
@@ -353,5 +355,7 @@ if __name__ == "__main__":
     # DMS()
     # rolling_disc_velocity_constraints()
     # rolling_disc_constrained()
-    rolling_disc_DMS(rigid_body_case="Euler")
+    # rolling_disc_DMS(rigid_body_case="Euler", constraint_case="g_gamma")
+    # rolling_disc_DMS(rigid_body_case="Euler", constraint_case="velocity_I")
+    rolling_disc_DMS(rigid_body_case="Euler", constraint_case="velocity_K")
     # rolling_disc_DMS(case="Quaternion")

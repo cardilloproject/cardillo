@@ -183,7 +183,7 @@ class Rolling_condition_I_frame_g_gamma:
 
     def Wla_g_q(self, t, q, la_g, coo):
         dense = approx_fprime(
-            q, lambda q: self.gamma_u_dense(t, q).T @ la_g, method="2-point"
+            q, lambda q: self.g_q_dense(t, q).T @ la_g, method="2-point"
         )
         coo.extend(dense, (self.uDOF, self.qDOF))
 

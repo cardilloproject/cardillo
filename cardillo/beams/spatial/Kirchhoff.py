@@ -13,8 +13,13 @@ from cardillo.math import (
     rodriguez,
     rodriguez_inv,
     approx_fprime,
+    sign
 )
 from cardillo.discretization.mesh1D import Mesh1D
+
+
+switching_beam = True
+# switching_beam = False
 
 
 class Kirchhoff:
@@ -339,26 +344,62 @@ class Kirchhoff:
             # compute first director
             d1 = r_xi / ji
 
-            # build rotation matrices
-            A = smallest_rotation(e1, d1)
-            B = rodriguez(d1 * phi)
-            R = B @ A
-            d1, d2, d3 = R.T
-
             # axial stretch
             lambda_ = ji / J0i
 
-            # torsional and flexural strains
-            Kappa_i = np.array(
-                [
-                    phi_xi / J0i
-                    + r_xixi
-                    @ cross3(d1, e1)
-                    / (J0i * ji * (1 + d1 @ e1)),  # Mitterbach2020 (2.105)
-                    -(d3 @ r_xixi) / (J0i * ji),
-                    (d2 @ r_xixi) / (J0i * ji),
-                ]
-            )
+
+            if switching_beam:
+                # check sign of inner product
+                cos_theta = e1 @ d1
+                sign_cos = sign(cos_theta)
+            else:
+                sign_cos = 1.0
+
+            if sign_cos >= 0:
+                # build rotation matrices
+                A = smallest_rotation(e1, d1)
+                B = rodriguez(d1 * phi)
+                R = B @ A
+                d1, d2, d3 = R.T
+
+                # torsional and flexural strains
+                Kappa_i = np.array(
+                    [
+                        phi_xi / J0i
+                        + r_xixi
+                        @ cross3(d1, e1)
+                        / (J0i * ji * (1 + d1 @ e1)),  # Mitterbach2020 (2.105)
+                        -(d3 @ r_xixi) / (J0i * ji),
+                        (d2 @ r_xixi) / (J0i * ji),
+                    ]
+                )
+            else:
+                # build rotation matrices
+                A = smallest_rotation(e1, d1)
+                B = rodriguez(d1 * phi)
+                R_e1 = B @ A
+                print(f"B(d1 * phi) @ A(e1, d1):\n{R_e1}")
+                
+                # TODO: sin(psi) changes sign but cos(psi) not!
+                #       We have to build the correct complement rotation vector!!!
+                # build rotation matrices
+                A = smallest_rotation(-e1, d1)
+                B = rodriguez(d1 * (np.pi - phi))
+                R = B @ A
+                print(f"B(d1 * phi) @ A(-e1, d1):\n{R}")
+                d1, d2, d3 = R.T
+
+                # torsional and flexural strains
+                Kappa_i = np.array(
+                    [
+                        phi_xi / J0i
+                        + r_xixi
+                        @ cross3(d1, -e1)
+                        / (J0i * ji * (1 - d1 @ e1)),  # Mitterbach2020 (2.105)
+                        -(d3 @ r_xixi) / (J0i * ji),
+                        (d2 @ r_xixi) / (J0i * ji),
+                    ]
+                )
 
             # evaluate strain energy function
             Ee += (
@@ -377,7 +418,7 @@ class Kirchhoff:
         return f
 
     def f_pot_el(self, qe, el):
-        return -approx_fprime(qe, lambda qe: self.E_pot_el(qe, el), method="3-point")
+        return -approx_fprime(qe, lambda qe: self.E_pot_el(qe, el), method="2-point")
         fe = np.zeros(self.nq_el)
 
         # extract generalized coordinates for beam centerline and directors
