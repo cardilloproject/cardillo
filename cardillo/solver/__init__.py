@@ -7,6 +7,7 @@ from .Moreau import Moreau
 from .EulerBackward import EulerBackward
 
 # TODO: gen alpha solvers
+from .genAlphaDAE import *
 
 # static solvers
 from .Newton import Newton
