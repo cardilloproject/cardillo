@@ -274,3 +274,8 @@ def quat2rot_p(p):
     A_q[:, :, 1:] += 2 * (q[0] * v_q_tilde_v_q)
 
     return np.einsum("ijk,kl->ijl", A_q, q_p)
+
+
+def axis_angle2quat(axis, angle):
+    n = axis / norm(axis)
+    return np.concatenate([[cos(angle / 2)], sin(angle / 2) * n])

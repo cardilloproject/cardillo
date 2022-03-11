@@ -1,10 +1,10 @@
 import numpy as np
-from cardillo.math.numerical_derivative import Numerical_derivative
-from cardillo.math.algebra import A_IK_basic_x, A_IK_basic_y, A_IK_basic_z
+from cardillo.math import A_IK_basic, approx_fprime
 
-class Rolling_disc():
+
+class Rolling_disc:
     def __init__(self, m, r, g, q0=None, u0=None):
-        ''' Rolling disc of Ex. 5.11 (DMS)'''
+        """Rolling disc of Ex. 5.11 (DMS)"""
         self.m = m
         self.r = r
         self.g = g
@@ -17,9 +17,7 @@ class Rolling_disc():
 
     def M(self, t, q, coo):
         sb = np.sin(q[3])
-        M = self.A * np.array([[5 * sb**2 + 1, 0, 6 * sb],\
-                               [0            , 5, 0     ],\
-                               [6 * sb       , 0, 6     ]])
+        M = self.A * np.array([[5 * sb**2 + 1, 0, 6 * sb], [0, 5, 0], [6 * sb, 0, 6]])
         coo.extend(M, (self.uDOF, self.uDOF))
 
     def Mu_q(self, t, q, u, coo):
@@ -27,7 +25,7 @@ class Rolling_disc():
         cb = np.cos(q[3])
         dense = np.zeros((self.nu, self.nq))
         dense[0, 3] = 10 * sb * cb * u[0] + 6 * cb * u[2]
-        dense[2, 3] =  6 * cb * u[0]
+        dense[2, 3] = 6 * cb * u[0]
         coo.extend(self.A * dense, (self.uDOF, self.qDOF))
 
     def f_gyr(self, t, q, u):
@@ -36,16 +34,20 @@ class Rolling_disc():
         g_t = u[2]
         sb = np.sin(q[3])
         cb = np.cos(q[3])
-        return self.A * np.array([10 * a_t * b_t * sb * cb + 2 * b_t * g_t * cb,\
-                                  -5 * a_t**2 * sb * cb - 6 * a_t * g_t * cb,\
-                                  10 * a_t * b_t * cb])
+        return self.A * np.array(
+            [
+                10 * a_t * b_t * sb * cb + 2 * b_t * g_t * cb,
+                -5 * a_t**2 * sb * cb - 6 * a_t * g_t * cb,
+                10 * a_t * b_t * cb,
+            ]
+        )
 
     def f_gyr_q(self, t, q, u, coo):
-        dense = Numerical_derivative(self.f_gyr, order=2)._x(t, q, u)
+        dense = approx_fprime(q, lambda q: self.f_gyr(t, q, u), method="2-point")
         coo.extend(dense, (self.uDOF, self.qDOF))
 
     def f_gyr_u(self, t, q, u, coo):
-        dense = Numerical_derivative(self.f_gyr, order=2)._y(t, q, u)
+        dense = approx_fprime(u, lambda u: self.f_gyr(t, q, u), method="2-point")
         coo.extend(dense, (self.uDOF, self.uDOF))
 
     def f_pot(self, t, q):
@@ -65,7 +67,7 @@ class Rolling_disc():
         dense = np.zeros((self.nq, self.nq))
         dense[0, 1] = u[0]
         dense[1, 0] = u[0]
-        coo.extend(dense, (self.qDOF, self.qDOF))        
+        coo.extend(dense, (self.qDOF, self.qDOF))
 
     def B_dense(self, t, q):
         x, y = q[:2]
@@ -80,21 +82,21 @@ class Rolling_disc():
 
     def r_OS(self, t, q):
         x, y, a, b, g = q
-        A_IR = A_IK_basic_z(a)
+        A_IR = A_IK_basic(a).z()
         R_r_OS = np.array([x, y - self.r * np.sin(b), self.r * np.cos(b)])
         return A_IR @ R_r_OS
 
     def r_OA(self, t, q):
-        x, y, a= q[:3]
-        A_IR = A_IK_basic_z(a)
+        x, y, a = q[:3]
+        A_IR = A_IK_basic(a).z()
         R_r_OA = np.array([x, y, 0])
         return A_IR @ R_r_OA
 
     def A_IK(self, t, q):
         a, b, g = q[2:]
-        A_IR = A_IK_basic_z(a)
-        A_RB = A_IK_basic_x(b)
-        A_BK = A_IK_basic_y(g)
+        A_IR = A_IK_basic(a).z()
+        A_RB = A_IK_basic(b).x()
+        A_BK = A_IK_basic(g).y()
         return A_IR @ A_RB @ A_BK
 
     def boundary(self, t, q, n=100):
@@ -119,6 +121,3 @@ class Rolling_disc():
 
     # def J_P_q(self, t, q, frame_ID=(1,), K_r_SP=None):
     #     return frame_ID[0] * np.array( [ [ [0,1] ],[ [1, 0] ],[ [0,0] ] ])
-
-
-
