@@ -8,7 +8,7 @@ from cardillo.model.bilateral_constraints.implicit import (
 from cardillo.beams import (
     animate_beam,
     Cable,
-    EulerBernoulli,
+    Kirchhoff,
 )
 from cardillo.forces import Force, K_Moment, DistributedForce1D
 from cardillo.model import Model
@@ -46,13 +46,13 @@ if __name__ == "__main__":
     # nQP = int(np.ceil((p + 1)**2 / 2))
     nQP = p + 1
     print(f"nQP: {nQP}")
-    nEl = 10
+    nEl = 5
 
     # build reference configuration
     if case == "Cable":
         Q = Cable.straight_configuration(p_r, nEl, L)
     elif case == "Bernoulli":
-        Q = EulerBernoulli.straight_configuration(p_r, p_phi, nEl, L)
+        Q = Kirchhoff.straight_configuration(p_r, p_phi, nEl, L)
     else:
         raise NotImplementedError("")
     q0 = Q.copy()
@@ -70,7 +70,7 @@ if __name__ == "__main__":
             q0=q0,
         )
     elif case == "Bernoulli":
-        beam = EulerBernoulli(
+        beam = Kirchhoff(
             material_model,
             A_rho0,
             B_rho0,
@@ -105,12 +105,16 @@ if __name__ == "__main__":
     # exit()
 
     # left and right joint
-    # # joint1 = RigidConnection(frame1, beam, r_OB1, frame_ID2=(0,))
-    # # joint2 = RigidConnection(frame2, beam, r_OB2, frame_ID2=(1,))
+    if case == "Cable":
+        joint1 = RigidConnectionCable(frame1, beam, r_OB1, frame_ID2=(0,))
+        joint2 = RigidConnectionCable(frame2, beam, r_OB2, frame_ID2=(1,))
+    elif case == "Bernoulli":
+        joint1 = RigidConnection(frame1, beam, r_OB1, frame_ID2=(0,))
+        joint2 = RigidConnection(frame2, beam, r_OB2, frame_ID2=(1,))
+    else:
+        raise NotImplementedError("")
     # joint1 = SphericalJoint(frame1, beam, r_OB1, frame_ID2=(0,))
     # joint2 = SphericalJoint(frame2, beam, r_OB2, frame_ID2=(1,))
-    joint1 = RigidConnectionCable(frame1, beam, r_OB1, frame_ID2=(0,))
-    joint2 = RigidConnectionCable(frame2, beam, r_OB2, frame_ID2=(1,))
 
     # gravity beam
     __g = np.array([0, 0, -A_rho0 * 9.81 * 5.0e-3])
@@ -118,8 +122,8 @@ if __name__ == "__main__":
 
     # moment at right end
     # M = lambda t: -np.array([1, 0, 1]) * t * 2 * np.pi * Fi[1] / L * 0.5
-    # M = lambda t: e1 * t * 2 * np.pi * Fi[0] / L * 0.45
-    M = lambda t: e2 * t * 2 * np.pi * Fi[1] / L * 1.0
+    # M = lambda t: e1 * t * 2 * np.pi * Fi[0] / L * 1.0
+    M = lambda t: e2 * t * 2 * np.pi * Fi[1] / L * 0.45
     # M = lambda t: e3 * t * 2 * np.pi * Fi[2] / L * 0.45
     moment = K_Moment(M, beam, (1,))
 
@@ -150,7 +154,7 @@ if __name__ == "__main__":
 
     solver = Newton(
         model,
-        n_load_steps=20,
+        n_load_steps=10,
         max_iter=20,
         atol=1.0e-8,
         numerical_jacobian=False,

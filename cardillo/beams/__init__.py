@@ -3,7 +3,7 @@ from .spatial import (
     TimoshenkoDirectorIntegral,
     EulerBernoulliDirectorIntegral,
     InextensibleEulerBernoulliDirectorIntegral,
-    EulerBernoulli,
+    Kirchhoff,
     Cable,
 )
 

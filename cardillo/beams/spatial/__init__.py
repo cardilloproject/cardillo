@@ -5,5 +5,5 @@ from .director import (
     InextensibleEulerBernoulliDirectorIntegral,
 )
 
-from .EulerBernoulli import EulerBernoulli
+from .Kirchhoff import Kirchhoff
 from .Cable import Cable

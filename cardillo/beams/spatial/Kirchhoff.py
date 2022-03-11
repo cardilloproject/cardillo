@@ -9,15 +9,15 @@ from cardillo.math import (
     e1,
     norm,
     cross3,
-    skew2ax,
-    skew2ax_A,
     smallest_rotation,
+    rodriguez,
+    rodriguez_inv,
     approx_fprime,
 )
 from cardillo.discretization.mesh1D import Mesh1D
 
 
-class EulerBernoulli:
+class Kirchhoff:
     def __init__(
         self,
         material_model,
@@ -78,13 +78,10 @@ class EulerBernoulli:
         self.nq_r = nq_r = nn_r * nq_n_r
         self.nq_phi = nq_phi = nn_phi * nq_n_phi
         # TODO:
-        # self.nq = nq_r + nq_phi  # total number of generalized coordinates
-        self.nq = nq_r  # total number of generalized coordinates
+        self.nq = nq_r + nq_phi  # total number of generalized coordinates
         self.nu = self.nq
         self.nq_el = (
-            # nn_el_r * nq_n_r + nn_el_phi * nq_n_phi # TODO
-            nn_el_r
-            * nq_n_r
+            nn_el_r * nq_n_r + nn_el_phi * nq_n_phi
         )  # total number of generalized coordinates per element
         self.nq_el_r = nn_el_r * nq_n_r
         self.nq_el_phi = nn_el_phi * nq_n_phi
@@ -106,19 +103,18 @@ class EulerBernoulli:
         self.elDOF = np.zeros((nEl, self.nq_el), dtype=int)
         for el in range(nEl):
             self.elDOF[el, : self.nq_el_r] = self.elDOF_r[el]
-            # self.elDOF[el, self.nq_el_r :] = self.elDOF_phi[el] # TODO
+            self.elDOF[el, self.nq_el_r :] = self.elDOF_phi[el]
 
         # degrees of freedom on element level
         self.rDOF = np.arange(0, self.nq_el_r)
-        # self.phiDOF = np.arange(0, self.nq_el_phi) + self.nq_el_r
+        self.phiDOF = np.arange(0, self.nq_el_phi) + self.nq_el_r
 
         # shape functions
         self.N_r = self.mesh_r.N  # shape functions
         self.N_r_xi = self.mesh_r.N_xi  # first derivative w.r.t. xi
         self.N_r_xixi = self.mesh_r.N_xixi  # second derivative w.r.t. xi
-        # self.N_phi = self.mesh_phi.N
-        # self.N_phi_xi = self.mesh_phi.N_xi
-        # # self.N_phi_xixi = self.mesh_phi.N_xixi
+        self.N_phi = self.mesh_phi.N
+        self.N_phi_xi = self.mesh_phi.N_xi
 
         # quadrature points
         self.qp = self.mesh_r.qp  # quadrature points
@@ -131,7 +127,7 @@ class EulerBernoulli:
 
         # evaluate shape functions at specific xi
         self.basis_functions_r = self.mesh_r.eval_basis
-        # self.basis_functions_phi = self.mesh_phi.eval_basis
+        self.basis_functions_phi = self.mesh_phi.eval_basis
 
         # reference generalized coordinates, initial coordinates and initial velocities
         self.Q = Q  # reference configuration
@@ -150,14 +146,14 @@ class EulerBernoulli:
             # precompute quantities of the reference configuration
             Qe = self.Q[self.elDOF[el]]
             Qe_r = Qe[self.rDOF]
-            # Qe_phi = Qe[self.phiDOF]
+            Qe_phi = Qe[self.phiDOF]
 
             for i in range(nQP):
                 # build matrix of shape function derivatives
                 NN_r_xii = self.stack3r(self.N_r_xi[el, i])
                 NN_r_xixii = self.stack3r(self.N_r_xixi[el, i])
-                # NN_phi_i = self.N_phi[el, i]
-                # NN_phi_xii = self.N_phi_xi[el, i]
+                NN_phi_i = self.N_phi[el, i]
+                NN_phi_xii = self.N_phi_xi[el, i]
 
                 # Interpolate necessary quantities. The derivatives are evaluated w.r.t.
                 # the parameter space \xi and thus need to be transformed later
@@ -166,24 +162,30 @@ class EulerBernoulli:
                 J0i = norm(r0_xi)
                 self.J0[el, i] = J0i
 
-                # phi0 = NN_phi_i @ Qe_phi
-                # phi0_xi = NN_phi_xii @ Qe_phi
+                phi0 = NN_phi_i @ Qe_phi
+                phi0_xi = NN_phi_xii @ Qe_phi
 
                 # compute derivatives w.r.t. the arc lenght parameter s
                 r0_s = r0_xi / J0i
-                # phi0_s = phi0_xi / J0i
+                phi0_s = phi0_xi / J0i
 
                 # first director
                 d1 = r0_s  # TODO: This is only valid for the reference configuration
 
                 # build rotation matrices
-                R0 = smallest_rotation(e1, d1)
+                A = smallest_rotation(e1, d1)
+                B = rodriguez(d1 * phi0)
+                R0 = B @ A
                 d1, d2, d3 = R0.T
 
                 # torsional and flexural strains
+                # raise NotImplementedError("Move on here: Use curvature terms of Mitterbach2020")
                 self.Kappa0[el, i] = np.array(
                     [
-                        0,  # TODO: This is not correct!
+                        phi0_s
+                        + r0_xixi
+                        @ cross3(d1, e1)
+                        / (J0i * J0i * (1 + d1 @ e1)),  # Mitterbach2020 (2.105)
                         -(d3 @ r0_xixi) / J0i**2,
                         (d2 @ r0_xixi) / J0i**2,
                     ]
@@ -211,23 +213,27 @@ class EulerBernoulli:
                 X[i] = np.sum(kv[i + 1 : i + polynomial_degree_r + 1])
             X = X * L / polynomial_degree_r
 
-        # # extract first director and buld new rotation
-        # # note: This rotation does not coincide with the initial A_IK and has
-        # # to be corrected afterwards using the superimposed rotation with phi!
-        # d1, d2, d3 = A_IK.T
-        # A_IK = smallest_rotation(e1, d1)
+        # extract first director and buld new rotation
+        # note: This rotation does not coincide with the initial A_IK and has
+        # to be corrected afterwards using the superimposed rotation with phi!
+        d1, d2, d3 = A_IK.T
+        A = smallest_rotation(e1, d1)
+
+        # extract axis angle vector between first and desired rotation
+        psi = rodriguez_inv(A.T @ A_IK)
+
+        # extract rotation angle
+        norm_psi = norm(psi)
 
         r0 = np.vstack((X, Y, Z)).T
         for i, r0i in enumerate(r0):
             X[i], Y[i], Z[i] = r_OP + A_IK @ r0i
 
-        return np.concatenate([X, Y, Z])
+        # TODO: How to compute initial phi?
+        phi0 = norm_psi * np.ones(nn_phi)
 
-        # # TODO: How to compute initial phi?
-        # phi0 = np.zeros(nn_phi)
-
-        # # assemble all reference generalized coordinates
-        # return np.concatenate([X, Y, Z, phi0])
+        # assemble all reference generalized coordinates
+        return np.concatenate([X, Y, Z, phi0])
 
     def element_number(self, xi):
         # note the elements coincide for both meshes!
@@ -308,14 +314,14 @@ class EulerBernoulli:
         # extract generalized coordinates for beam centerline and directors
         # in the current and reference configuration
         qe_r = qe[self.rDOF]
-        # qe_phi = qe[self.phiDOF]
+        qe_phi = qe[self.phiDOF]
 
         for i in range(self.nQP):
             # build matrix of shape function derivatives
             NN_r_xii = self.stack3r(self.N_r_xi[el, i])
             NN_r_xixii = self.stack3r(self.N_r_xixi[el, i])
-            # NN_phi_i = self.N_phi[el, i]
-            # NN_phi_xii = self.N_phi_xi[el, i]
+            NN_phi_i = self.N_phi[el, i]
+            NN_phi_xii = self.N_phi_xi[el, i]
 
             # extract reference state variables
             J0i = self.J0[el, i]
@@ -327,19 +333,17 @@ class EulerBernoulli:
             r_xixi = NN_r_xixii @ qe_r
             ji = norm(r_xi)
 
-            # phi = NN_phi_i @ qe_phi
-            # phi_xi = NN_phi_xii @ qe_phi
-
-            # compute derivatives w.r.t. the arc lenght parameter s
-            r_s = r_xi / J0i
-            # phi_s = phi_xi / J0i
+            phi = NN_phi_i @ qe_phi
+            phi_xi = NN_phi_xii @ qe_phi
 
             # compute first director
             d1 = r_xi / ji
 
             # build rotation matrices
-            R0 = smallest_rotation(e1, d1)
-            d1, d2, d3 = R0.T
+            A = smallest_rotation(e1, d1)
+            B = rodriguez(d1 * phi)
+            R = B @ A
+            d1, d2, d3 = R.T
 
             # axial stretch
             lambda_ = ji / J0i
@@ -347,7 +351,10 @@ class EulerBernoulli:
             # torsional and flexural strains
             Kappa_i = np.array(
                 [
-                    0,  # r_xixi @ cross3(d1, e1) / (J0i * ji * (1 + d1 @ e1)), # Mitterbach2020 (2.105)
+                    phi_xi / J0i
+                    + r_xixi
+                    @ cross3(d1, e1)
+                    / (J0i * ji * (1 + d1 @ e1)),  # Mitterbach2020 (2.105)
                     -(d3 @ r_xixi) / (J0i * ji),
                     (d2 @ r_xixi) / (J0i * ji),
                 ]
@@ -946,9 +953,9 @@ class EulerBernoulli:
 
         # return Ke_num
 
-    #########################################
+    ####################
     # kinematic equation
-    #########################################
+    ####################
     def q_dot(self, t, q, u):
         return u
 
@@ -964,14 +971,6 @@ class EulerBernoulli:
     # TODO: optimized implementation for boundaries
     def elDOF_P(self, frame_ID):
         xi = frame_ID[0]
-        # if xi == 0:
-        #     return self.elDOF[0]
-        # elif xi == 1:
-        #     return self.elDOF[-1]
-        # else:
-        #     el = np.where(xi >= self.element_span)[0][-1]
-        #     return self.elDOF[el]
-        # el = np.where(xi >= self.element_span)[0][-1]
         el = self.element_number(xi)
         return self.elDOF[el]
 
@@ -996,22 +995,28 @@ class EulerBernoulli:
         return r_OP_q
 
     def A_IK(self, t, q, frame_ID):
+        # evaluate basis functions
         _, N_xi, _ = self.basis_functions_r(frame_ID[0])
+        N, _ = self.basis_functions_phi(frame_ID[0])
+
+        # evaluate tangent and angle
         NN_xi = self.stack3r(N_xi)
         r_xi = NN_xi @ q[self.rDOF]
+        phi = N @ q[self.phiDOF]
 
         # compute first director
         ji = norm(r_xi)
         d1 = r_xi / ji
 
         # build rotation matrices
-        return smallest_rotation(e1, d1)
+        A = smallest_rotation(e1, d1)
+        B = rodriguez(d1 * phi)
+        return B @ A
 
     # TODO
     def A_IK_q(self, t, q, frame_ID):
         return approx_fprime(q, lambda q: self.A_IK(t, q, frame_ID))
 
-    # TODO
     def v_P(self, t, q, u, frame_ID, K_r_SP=np.zeros(3)):
         N, _, _ = self.basis_functions_r(frame_ID[0])
         NN = self.stack3r(N)
@@ -1019,8 +1024,6 @@ class EulerBernoulli:
         v_P = NN @ u[self.rDOF] + self.A_IK(t, q, frame_ID) @ cross3(
             self.K_Omega(t, q, u, frame_ID=frame_ID), K_r_SP
         )
-        # print("Caution: K_r_SP is assumed to be zero here!")
-        # v_P = NN @ u[self.rDOF]
         return v_P
 
     # TODO
@@ -1043,7 +1046,6 @@ class EulerBernoulli:
             q, lambda q: self.J_P(t, q, frame_ID, K_r_SP), method="2-point"
         )
 
-    # TODO: optimized implementation for boundaries
     def a_P(self, t, q, u, u_dot, frame_ID, K_r_SP=np.zeros(3)):
         N, _ = self.basis_functions_r(frame_ID[0])
         NN = self.stack3r(N)
@@ -1061,31 +1063,34 @@ class EulerBernoulli:
     def a_P_u(self, t, q, u, u_dot, frame_ID, K_r_SP=None):
         return approx_fprime(u, lambda u: self.a_P(t, q, u, u_dot, frame_ID, K_r_SP))
 
-    # TODO: This angular velocity and the respective K_J_R cannot be used
-    # together with three constraint conditions, sicne two of them are
-    # linear deendent. Eigther this can be fixed or we have to write a special
-    # RigidConnection for this beam formulation. Later if we add the additional
-    # angle phi this is not problem anymore.
     def K_Omega(self, t, q, u, frame_ID):
+        # evaluate basis functions
         _, N_xi, _ = self.basis_functions_r(frame_ID[0])
+        N, _ = self.basis_functions_phi(frame_ID[0])
+
+        # evaluate tangent and angle + their time derivatives
         NN_xi = self.stack3r(N_xi)
         r_xi = NN_xi @ q[self.rDOF]
         r_xi_dot = NN_xi @ u[self.rDOF]
+        phi = N @ q[self.phiDOF]
+        phi_dot = N @ u[self.phiDOF]
 
         # compute first director
         ji = norm(r_xi)
         d1 = r_xi / ji
 
-        # rotation and directors
-        R = smallest_rotation(e1, d1)
+        # build rotation matrices
+        A = smallest_rotation(e1, d1)
+        B = rodriguez(d1 * phi)
+        R = B @ A
         d1, d2, d3 = R.T
 
         return np.array(
             [
-                # r_xi_dot
-                # @ cross3(d1, e1)
-                # / (ji * (1 + d1 @ e1)),  # Mitterbach2020 (2.105)
-                0,
+                phi_dot
+                + r_xi_dot
+                @ cross3(d1, e1)
+                / (ji * (1 + d1 @ e1)),  # Mitterbach2020 (2.105)
                 -(d3 @ r_xi_dot) / ji,
                 (d2 @ r_xi_dot) / ji,
             ]
@@ -1107,9 +1112,9 @@ class EulerBernoulli:
     def K_Psi(self, t, q, u, u_dot, frame_ID):
         raise NotImplementedError("")
 
-    ####################################################
+    ############
     # body force
-    ####################################################
+    ############
     def distributed_force1D_el(self, force, t, el):
         fe = np.zeros(self.nq_el)
         for i in range(self.nQP):
