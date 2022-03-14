@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
 
 from cardillo.model import Model
-from cardillo.solver import ScipyIVP, EulerBackward, GenAlphaFirstOrderVelocityGGL
+from cardillo.solver import ScipyIVP, EulerBackward, GenAlphaFirstOrderVelocityGGL, GenAlphaFirstOrderVelocity
 
 
 class MathematicalPendulumCartesian:
@@ -149,7 +149,7 @@ if __name__ == "__main__":
     rho_inf = 0.95
 
     # log spaced time steps
-    num = 3
+    num = 5
     dts = np.logspace(-1, -num, num=num, endpoint=True)
     dts_1 = dts
     dts_2 = dts**2
@@ -187,9 +187,12 @@ if __name__ == "__main__":
 
         # solve with generalzed-alpha method positin implementation
         # sol_ThetaNewton = GenAlphaFirstOrderPosition(model, t1, dt, rho_inf=rho_inf).solve()
-        sol_GenAlphaFirstOrderGGl = GenAlphaFirstOrderVelocityGGL(
+        sol_GenAlphaFirstOrderGGl = GenAlphaFirstOrderVelocity(
             model, t1, dt, rho_inf=rho_inf
         ).solve()
+        # sol_GenAlphaFirstOrderGGl = GenAlphaFirstOrderVelocityGGL(
+        #     model, t1, dt, rho_inf=rho_inf
+        # ).solve()
         # sol_GenAlphaFirstOrderGGl = ScipyIVP(model, t1, dt, method="RK45", atol=1.0e-10, rtol=1.0e-10).solve()
         # sol_GenAlphaFirstOrderGGl = EulerBackward(model, t1, dt, atol=1.0e-12).solve()
         t_GenAlphaFirstOrderGGl = sol_GenAlphaFirstOrderGGl.t

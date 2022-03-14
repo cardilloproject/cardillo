@@ -1041,6 +1041,7 @@ class GenAlphaFirstOrderVelocity:
         error_function=lambda x: np.max(np.abs(x)),
         numerical_jacobian=False,
         DAE_index=3,
+        preconditioning=False,
     ):
 
         self.model = model
@@ -1088,6 +1089,24 @@ class GenAlphaFirstOrderVelocity:
             self.__R_gen = self.__R_gen_num
         else:
             self.__R_gen = self.__R_gen_analytic
+
+        #################
+        # preconditioning
+        #################
+        self.preconditioning = preconditioning
+        if preconditioning:
+            raise RuntimeError("This is not working as expected!")
+            # fmt: off
+            self.D_L = bmat([[eye(self.nq),         None,                 None,                     None],
+                             [        None, eye(self.nu),                 None,                     None],
+                             [        None,         None, eye(self.nla_g) / dt,                     None],
+                             [        None,         None,                 None, eye(self.nla_gamma) / dt]])
+
+            self.D_R = bmat([[eye(self.nq),         None,                 None,                     None],
+                             [        None, eye(self.nu),                 None,                     None],
+                             [        None,         None, eye(self.nla_g) * dt,                     None],
+                             [        None,         None,                 None, eye(self.nla_gamma) * dt]])
+            # fmt: on
 
         #######################################################################
         # consistent initial conditions
@@ -1319,7 +1338,7 @@ class GenAlphaFirstOrderVelocity:
         R = np.zeros(self.nx)
 
         # kinematic differential equation
-        # TODO: Use be here?
+        # TODO: Use Bk1 here?
         R[:nq] = q_dotk1 - self.model.q_dot(tk1, qk1, uk1)
 
         # equations of motion
@@ -1492,8 +1511,22 @@ class GenAlphaFirstOrderVelocity:
 
                 # Newton update
                 j += 1
-                dx = spsolve(R_x, R, use_umfpack=True)
-                xk1 -= dx
+                if self.preconditioning:
+                    # raise NotImplementedError("Not correct yet!")
+                    # TODO: It this efficient? Blas level 3 and blas level 2
+                    #       operation shouldn't be that bad for sparse
+                    #       matrices.
+                    dx = spsolve(self.D_L @ R_x @ self.D_R, self.D_L @ R, use_umfpack=True)
+                    xk1 -= self.D_R @ dx
+                    # dx = spsolve(R_x @ self.D_R, R, use_umfpack=True)
+                    # xk1 -= self.D_R @ dx
+                    # dx = spsolve(self.D_L @ R_x, self.D_L @ R, use_umfpack=True)
+                    # xk1 -= dx
+                else:
+                    dx = spsolve(R_x, R, use_umfpack=True)
+                    xk1 -= dx
+                # dx = spsolve(R_x, R, use_umfpack=True)
+                # xk1 -= dx
                 R_gen = self.__R_gen(tk1, xk1)
                 R = next(R_gen)
 
