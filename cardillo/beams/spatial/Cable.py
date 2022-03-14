@@ -10,11 +10,16 @@ from cardillo.math import (
     norm,
     cross3,
     skew2ax,
-    skew2ax_A,
     smallest_rotation,
+    rodriguez,
     approx_fprime,
+    sign,
 )
 from cardillo.discretization.mesh1D import Mesh1D
+
+
+switching_beam = True
+# switching_beam = False
 
 
 class Cable:
@@ -30,7 +35,10 @@ class Cable:
         Q,
         q0=None,
         u0=None,
+        symmetric_formulation=False,
     ):
+        # assume symmetric cross section
+        self.symmetric_formulation = symmetric_formulation
 
         # beam properties
         self.materialModel = material_model  # material model
@@ -123,13 +131,19 @@ class Cable:
                 d1, d2, d3 = R0.T
 
                 # torsional and flexural strains
-                self.Kappa0[el, i] = np.array(
-                    [
-                        0,  # no torsion for cable element
-                        -(d3 @ r0_xixi) / J0i**2,
-                        (d2 @ r0_xixi) / J0i**2,
-                    ]
-                )
+                if self.symmetric_formulation:
+                    # first directors derivative
+                    d1_s = (np.eye(3) - np.outer(d1, d1)) @ r0_xixi / (J0i * J0i)
+
+                    self.Kappa0[el, i] = cross3(d1, d1_s)
+                else:
+                    self.Kappa0[el, i] = np.array(
+                        [
+                            0,  # no torsion for cable element
+                            -(d3 @ r0_xixi) / J0i**2,
+                            (d2 @ r0_xixi) / J0i**2,
+                        ]
+                    )
 
     @staticmethod
     def straight_configuration(
@@ -247,33 +261,65 @@ class Cable:
             r_xixi = NN_r_xixii @ qe
             ji = norm(r_xi)
 
-            # # compute derivatives w.r.t. the arc lenght parameter s
-            # r_s = r_xi / J0i
-
             # axial stretch
             lambda_ = ji / J0i
 
             # compute first director
             d1 = r_xi / ji
 
-            # first directors derivative
-            d1_s = (np.eye(3) - np.outer(d1, d1)) @ r_xixi / (ji * J0i)
+            if switching_beam:
+                # check sign of inner product
+                cos_theta = e1 @ d1
+                sign_cos = sign(cos_theta)
+            else:
+                sign_cos = 1.0
 
-            Kappa_i = cross3(d1, d1_s)
+            # torsional and flexural strains
+            if self.symmetric_formulation:
+                # first directors derivative
+                d1_s = (np.eye(3) - np.outer(d1, d1)) @ r_xixi / (ji * J0i)
 
-            # # build rotation matrices
-            # R0 = smallest_rotation(e1, d1)
-            # d1, d2, d3 = R0.T
+                Kappa_i = cross3(d1, d1_s)
+            else:
 
-            # # torsional and flexural strains
-            # # TODO: Use \vka = d1 x d1,s and norm as strain measure?
-            # Kappa_i = np.array(
-            #     [
-            #         0,  # no torsion for cable element
-            #         -(d3 @ r_xixi) / (J0i * ji),
-            #         (d2 @ r_xixi) / (J0i * ji),
-            #     ]
-            # )
+                def kappa(e1, d1, r_xixi, ji, J0i):
+                    # build rotation matrices
+                    R = smallest_rotation(e1, d1)
+                    d1, d2, d3 = R.T
+
+                    return R, np.array(
+                        [
+                            0,  # no torsion for cable element
+                            -(d3 @ r_xixi) / (J0i * ji),
+                            (d2 @ r_xixi) / (J0i * ji),
+                        ]
+                    )
+
+                def kappa_C(e1, d1, r_xixi, ji, J0i):
+                    # build rotation matrices
+                    e_complement = cross3(-e1, d1) / norm(cross3(-e1, d1))
+                    A_pi = rodriguez(e_complement * np.pi)
+                    R = smallest_rotation(-e1, d1) @ A_pi
+                    d1, d2, d3 = R.T
+
+                    return R, np.array(
+                        [
+                            0,  # no torsion for cable element
+                            -(d3 @ r_xixi) / (J0i * ji),
+                            (d2 @ r_xixi) / (J0i * ji),
+                        ]
+                    )
+
+                if sign_cos >= 0:
+                    R, Kappa_i = kappa(e1, d1, r_xixi, ji, J0i)
+                else:
+                    # R, Kappa_i = kappa(e1, d1, r_xixi, ji, J0i)
+                    # print(f"R:\n{R}")
+                    # print(f"Kappa_i:\n{Kappa_i}")
+                    R, Kappa_i = kappa_C(e1, d1, r_xixi, ji, J0i)
+                    # print(f"R:\n{R}")
+                    # print(f"Kappa_i:\n{Kappa_i}")
+                    # print(f"")
 
             # evaluate strain energy function
             Ee += (
