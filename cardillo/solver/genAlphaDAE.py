@@ -1362,16 +1362,15 @@ class GenAlphaFirstOrderVelocity:
         #     - self.model.W_gamma(tk1, qk1) @ la_gammak1
         # )
         #####################
-        # TODO: Ru_q has an error!
         Ru_q = (
             self.model.Mu_q(tk1, qk1, u_dotk1)
             # approx_fprime(qk1, lambda q: self.model.M(tk1, qk1) @ u_dotk1, method="2-point")
-            # - self.model.h_q(tk1, qk1, uk1)
+            - self.model.h_q(tk1, qk1, uk1)
             # - approx_fprime(qk1, lambda q: self.model.h(tk1, q, uk1), method="2-point")
             - self.model.Wla_g_q(tk1, qk1, la_gk1)
             # - approx_fprime(qk1, lambda q: self.model.W_g(tk1, q) @ la_gk1, method="2-point")
-            # - self.model.Wla_gamma_q(tk1, qk1, la_gammak1)
-            - approx_fprime(qk1, lambda q: self.model.W_gamma(tk1, q) @ la_gammak1, method="2-point")
+            - self.model.Wla_gamma_q(tk1, qk1, la_gammak1)
+            # - approx_fprime(qk1, lambda q: self.model.W_gamma(tk1, q) @ la_gammak1, method="2-point")
         )
         # f = lambda q: self.model.M(tk1, q) @ u_dotk1 - self.model.h(tk1, q, uk1) - self.model.W_g(tk1, q) @ la_gk1 - self.model.W_gamma(tk1, q) @ la_gammak1
         # Ru_q = approx_fprime(qk1, f, method="3-point")
@@ -1409,7 +1408,7 @@ class GenAlphaFirstOrderVelocity:
         Rla_gamma_la_g = None
         Rla_gamma_la_gamma = None
         if self.DAE_index == 3:
-            Rla_g_q_dot = self.model.g_q(tk1, qk1) / self.x_x_dot
+            Rla_g_q_dot = self.model.g_q(tk1, qk1) * self.x_x_dot
             Rla_gamma_q_dot = self.model.gamma_q(tk1, qk1, uk1) * self.x_x_dot
             Rla_gamma_u_dot = self.model.gamma_u(tk1, qk1) * self.x_x_dot
         elif self.DAE_index == 2:
@@ -1449,36 +1448,35 @@ class GenAlphaFirstOrderVelocity:
             # print(f"error Rq_x: {error_Rq_x}")
             # print()
 
-            ###########################
-            # error equations of motion
-            # TODO: spot error here in Ru_q_dot term
-            ###########################
-            Ru_x_num = approx_fprime(xk1, lambda x: self.__R(tk1, x)[nq:nq+nu], method="3-point")
-            diff_Ru_x = Ru_x_num - R_x[nq:nq+nu, :].toarray()
-            error_Ru_x = np.linalg.norm(diff_Ru_x)
-            # print(f"diff Ru_x:\n{diff_Ru_x}")
-            print(f"diff Ru_q:\n{diff_Ru_x[:, :nq]}")
-            print(f"diff Ru_u:\n{diff_Ru_x[:, nq:nq+nu]}")
+            # ###########################
+            # # error equations of motion
+            # ###########################
+            # Ru_x_num = approx_fprime(xk1, lambda x: self.__R(tk1, x)[nq:nq+nu], method="3-point")
+            # diff_Ru_x = Ru_x_num - R_x[nq:nq+nu, :].toarray()
+            # error_Ru_x = np.linalg.norm(diff_Ru_x)
+            # # print(f"diff Ru_x:\n{diff_Ru_x}")
+            # print(f"diff Ru_q:\n{diff_Ru_x[:, :nq]}")
+            # print(f"diff Ru_u:\n{diff_Ru_x[:, nq:nq+nu]}")
             # print(f"diff Ru_la_g:\n{diff_Ru_x[:, nq+nu:nq+nu+nla_g]}")
             # print(f"diff Ru_la_gamma:\n{diff_Ru_x[:, nq+nu+nla_g:]}")
-            print(f"error Ru_x: {error_Ru_x}")
-            print()
-
-            # #############################
-            # # error bilateral constraints
-            # #############################
-            # Rla_x_num = approx_fprime(xk1, lambda x: self.__R(tk1, x)[nq+nu:], method="3-point")
-            # diff_Rla_x = Rla_x_num - R_x[nq+nu:, :].toarray()
-            # error_Rla_x = np.linalg.norm(diff_Rla_x)
-            # # print(f"diff Rla_x:\n{error_Rla_x}")
-            # print(f"diff Rla_q:\n{diff_Rla_x[:, :nq]}")
-            # print(f"diff Rla_u:\n{diff_Rla_x[:, nq:nq+nu]}")
-            # print(f"diff Rla_la_g:\n{diff_Rla_x[:, nq+nu:nq+nu+nla_g]}")
-            # print(f"diff Rla_la_gamma:\n{diff_Rla_x[:, nq+nu+nla_g:]}")
-            # print(f"error Rla_x: {error_Rla_x}")
+            # print(f"error Ru_x: {error_Ru_x}")
             # print()
 
-            # R_x_num = approx_fprime(xk1, lambda x: self.__R(tk1, x), method="3-point")
+            #############################
+            # error bilateral constraints
+            #############################
+            Rla_x_num = approx_fprime(xk1, lambda x: self.__R(tk1, x)[nq+nu:], method="3-point")
+            diff_Rla_x = Rla_x_num - R_x[nq+nu:, :].toarray()
+            error_Rla_x = np.linalg.norm(diff_Rla_x)
+            # print(f"diff Rla_x:\n{error_Rla_x}")
+            print(f"diff Rla_q:\n{diff_Rla_x[:, :nq]}")
+            print(f"diff Rla_u:\n{diff_Rla_x[:, nq:nq+nu]}")
+            print(f"diff Rla_la_g:\n{diff_Rla_x[:, nq+nu:nq+nu+nla_g]}")
+            print(f"diff Rla_la_gamma:\n{diff_Rla_x[:, nq+nu+nla_g:]}")
+            print(f"error Rla_x: {error_Rla_x}")
+            print()
+
+            # R_x_num = approx_fprime(xk1, lambda x: self.__R(tk1, x), method="2-point")
             # diff = R_x_num - R_x.toarray()
             # error = np.linalg.norm(diff)
             # print(f"error R_x: {error}")

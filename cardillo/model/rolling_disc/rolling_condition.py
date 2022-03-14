@@ -172,7 +172,8 @@ class Rolling_condition_I_frame_g_gamma:
         )[2]
 
     def g_q_dense(self, t, q):
-        return Numerical_derivative(self.g)._x(t, q)
+        # return Numerical_derivative(self.g)._x(t, q)
+        return approx_fprime(q, lambda q: self.g(t, q), method="2-point").reshape(self.nla_g, self.disc.nq)
 
     def g_q(self, t, q, coo):
         coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
@@ -187,7 +188,7 @@ class Rolling_condition_I_frame_g_gamma:
 
     def Wla_g_q(self, t, q, la_g, coo):
         dense = approx_fprime(
-            q, lambda q: self.g_q_dense(t, q).T @ la_g, method="2-point"
+            q, lambda q: self.W_g_dense(t, q) @ la_g, method="3-point"
         )
         coo.extend(dense, (self.uDOF, self.qDOF))
 
