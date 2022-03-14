@@ -1,3 +1,4 @@
+from contextlib import suppress
 import numpy as np
 from scipy.sparse.linalg import spsolve
 from scipy.sparse import csr_matrix, bmat, eye
@@ -822,41 +823,6 @@ class GenAlphaFirstOrderVelocityGGL:
         u_dotk1 = y_dotk1[nq : nq + nu]
         return qk1, uk1, q_dotk1, u_dotk1
 
-    # def update(self, s_dotk1, store=False):
-    #     """Update dependent variables modifed version of Arnold2008 (3) and (5).
-    #     """
-    #     nq = self.nq
-    #     nu = self.nu
-    #     nla_g = self.nla_g
-    #     nla_gamma = self.nla_gamma
-
-    #     # constants
-    #     dt = self.dt
-    #     gamma = self.gamma
-    #     alpha_f = self.alpha_f
-    #     alpha_m = self.alpha_m
-
-    #     # auxiliary variables, see Arnold2008 (3)
-    #     vk1 = (alpha_f * self.s_dotk + (1. - alpha_f) * s_dotk1 - alpha_m * self.vk) / (1. - alpha_m)
-
-    #     # approximation of the single integral, see Arnold2008 (5)
-    #     sk1 = self.sk + dt * ((1. - gamma) * self.vk + gamma * vk1)
-
-    #     if store:
-    #         self.vk = vk1.copy()
-    #         self.sk = sk1.copy()
-    #         self.s_dotk = s_dotk1.copy()
-
-    #     # extract generaliezd coordinates and velocities
-    #     qk1 = sk1[:nq]
-    #     uk1 = sk1[nq:nq+nu]
-    #     la_gk1 = sk1[nq+nu:nq+nu+nla_g]
-    #     la_gammak1 = sk1[nq+nu+nla_g:nq+nu+nla_g+nla_gamma]
-    #     mu_gk1 = sk1[nq+nu+nla_g+nla_gamma:nq+nu+2*nla_g+nla_gamma]
-    #     q_dotk1 = s_dotk1[:nq]
-    #     u_dotk1 = s_dotk1[nq:nq+nu]
-    #     return qk1, uk1, la_gk1, la_gammak1, mu_gk1, q_dotk1, u_dotk1
-
     def pack(self, q_dot, u_dot, la_g, la_gamma, mu_g):
         nq = self.nq
         nu = self.nu
@@ -1073,7 +1039,7 @@ class GenAlphaFirstOrderVelocity:
         tol=1e-8,
         max_iter=40,
         error_function=lambda x: np.max(np.abs(x)),
-        numerical_jacobian=True,
+        numerical_jacobian=False,
         DAE_index=3,
     ):
 
@@ -1343,20 +1309,27 @@ class GenAlphaFirstOrderVelocity:
         # update dependent variables
         qk1, uk1, q_dotk1, u_dotk1 = self.update(y_dotk1, store=False)
 
+        # evaluate repeated used quantities
+        Mk1 = self.model.M(tk1, qk1, scipy_matrix=csr_matrix)
+        W_gk1 = self.model.W_g(tk1, qk1, scipy_matrix=csr_matrix)
+        W_gammak1 = self.model.W_gamma(tk1, qk1, scipy_matrix=csr_matrix)
+        Bk1 = self.model.B(tk1, qk1, scipy_matrix=csr_matrix)
+
         ###################
         # evaluate residual
         ###################
         R = np.zeros(self.nx)
 
         # kinematic differential equation
+        # TODO: Use be here?
         R[:nq] = q_dotk1 - self.model.q_dot(tk1, qk1, uk1)
 
         # equations of motion
         R[nq : nq + nu] = (
-            self.model.M(tk1, qk1) @ u_dotk1
+            Mk1 @ u_dotk1
             - self.model.h(tk1, qk1, uk1)
-            - self.model.W_g(tk1, qk1) @ la_gk1
-            - self.model.W_gamma(tk1, qk1) @ la_gammak1
+            - W_gk1 @ la_gk1
+            - W_gammak1 @ la_gammak1
         )
 
         if self.DAE_index == 3:
@@ -1373,79 +1346,142 @@ class GenAlphaFirstOrderVelocity:
 
         #################################
         # kinematic differential equation
-        #################################
         # R[:nq] = q_dotk1 - self.model.q_dot(tk1, qk1, uk1)
+        #################################
         Rq_q_dot = eye(self.nq) - self.model.q_dot_q(tk1, qk1, uk1) * self.x_x_dot
-        Rq_u_dot = self.model.B(tk1, qk1) * self.x_x_dot
+        Rq_u_dot = -Bk1 * self.x_x_dot
         Rq_la_g = None
         Rq_la_gamma = None
 
         #####################
         # equations of motion
-        #####################
         # R[nq : nq + nu] = (
         #     self.model.M(tk1, qk1) @ u_dotk1
         #     - self.model.h(tk1, qk1, uk1)
         #     - self.model.W_g(tk1, qk1) @ la_gk1
         #     - self.model.W_gamma(tk1, qk1) @ la_gammak1
         # )
-        R_u_q_dot = (
+        #####################
+        # TODO: Ru_q has an error!
+        Ru_q = (
             self.model.Mu_q(tk1, qk1, u_dotk1)
-            - self.model.h_q(tk1, qk1, uk1)
+            # approx_fprime(qk1, lambda q: self.model.M(tk1, qk1) @ u_dotk1, method="2-point")
+            # - self.model.h_q(tk1, qk1, uk1)
+            # - approx_fprime(qk1, lambda q: self.model.h(tk1, q, uk1), method="2-point")
             - self.model.Wla_g_q(tk1, qk1, la_gk1)
-            - self.model.Wla_gamma_q(tk1, qk1, la_gammak1)
-        ) * self.x_x_dot
-        R_u_u_dot = (
-            self.model.M(tk1, qk1) - self.model.h_u(tk1, qk1, uk1) * self.x_x_dot
+            # - approx_fprime(qk1, lambda q: self.model.W_g(tk1, q) @ la_gk1, method="2-point")
+            # - self.model.Wla_gamma_q(tk1, qk1, la_gammak1)
+            - approx_fprime(qk1, lambda q: self.model.W_gamma(tk1, q) @ la_gammak1, method="2-point")
         )
-        Ru_la_g = None
-        Ru_la_gamma = None
-
-        ###############################################################################################
-        # R[:nu] = Mk1 @ ak1 -( self.model.h(tk1, qk1, uk1) + W_gk1 @ la_gk1 + W_gammak1 @ la_gammak1 )
-        ###############################################################################################
-        Wla_g_q = self.model.Wla_g_q(tk1, qk1, la_gk1, scipy_matrix=csr_matrix)
-        Wla_gamma_q = self.model.Wla_gamma_q(
-            tk1, qk1, la_gammak1, scipy_matrix=csr_matrix
-        )
-        rhs_q = -(self.model.h_q(tk1, qk1, uk1) + Wla_g_q + Wla_gamma_q)
-        rhs_u = -self.model.h_u(tk1, qk1, uk1)
-        rhs_a = rhs_q @ self.q_a + rhs_u * self.u_a
-        Ma_a = (
-            self.model.Mu_q(tk1, qk1, ak1, scipy_matrix=csr_matrix) @ self.q_a + rhs_a
-        )
-
-        Ra_a = Mk1 + Ma_a
-        Ra_la_g = -W_gk1
-        Ra_la_g *= self.pre_cond
-        Ra_la_gamma = -W_gammak1
+        # f = lambda q: self.model.M(tk1, q) @ u_dotk1 - self.model.h(tk1, q, uk1) - self.model.W_g(tk1, q) @ la_gk1 - self.model.W_gamma(tk1, q) @ la_gammak1
+        # Ru_q = approx_fprime(qk1, f, method="3-point")
+        Ru_u = -self.model.h_u(tk1, qk1, uk1)
+        # TODO: Ru_q_dot and Ru_u_dot are both wrong
+        # Ru_q_dot = Ru_q * self.x_x_dot #+ Ru_q @ Bk1 * self.x_x_dot**2
+        # TODO: This is also not true?
+        # u_dot_q_dot = spsolve(Bk1.T @ Bk1, Bk1.T)
+        # Ru_q_dot = Ru_q * self.x_x_dot + Ru_u * u_dot_q_dot * self.x_x_dot
+        Ru_q_dot = Ru_q * self.x_x_dot
+        # Ru_q_dot = approx_fprime(xk1, lambda x: self.__R(tk1, x), method="2-point")[nq:nq+nu, :nq]
+        # Ru_u_dot = Mk1 + (Ru_q @ Bk1 * self.x_x_dot + Ru_u) * self.x_x_dot
+        Ru_u_dot = Mk1 + Ru_u * self.x_x_dot
+        # Ru_x_dotk1 = approx_fprime(xk1, lambda x: self.__R(tk1, x), method="2-point")[nq:nq+nu, :nq+nu]
+        # Ru_q_dot = Ru_x_dotk1[:, :nq]
+        # Ru_u_dot = Ru_x_dotk1[:, nq:nq+nu]
+        Ru_la_g = -W_gk1
+        Ru_la_gamma = -W_gammak1
 
         #########################################
-        # R[nu:nu+nla_g] = self.model.g(tk1, qk1)
+        # bilateral constraints
+        # if self.DAE_index == 3:
+        #     R[nq + nu : nq + nu + nla_g] = self.model.g(tk1, qk1)
+        #     R[nq + nu + nla_g :] = self.model.gamma(tk1, qk1, uk1)
+        # elif self.DAE_index == 2:
+        #     R[nq + nu : nq + nu + nla_g] = self.model.g_dot(tk1, qk1, uk1)
+        #     R[nq + nu + nla_g :] = self.model.gamma(tk1, qk1, uk1)
+        # elif self.DAE_index == 1:
+        #     R[nq + nu : nq + nu + nla_g] = self.model.g_ddot(tk1, qk1, uk1, u_dotk1)
+        #     R[nq + nu + nla_g :] = self.model.gamma_dot(tk1, qk1, uk1, u_dotk1)
         #########################################
-        Rla_g_a = self.model.g_q(tk1, qk1) @ self.q_a
         Rla_g_la_g = None
         Rla_g_la_gamma = None
-
-        ##################################################################
-        # R[nu+nla_g:nu+nla_g+nla_gamma] = self.model.gamma(tk1, qk1, uk1)
-        ##################################################################
-        Rla_gamma_a = (
-            self.model.gamma_q(tk1, qk1, uk1) @ self.q_a
-            + self.model.gamma_u(tk1, qk1) * self.u_a
-        )
+        Rla_g_u_dot = None
         Rla_gamma_la_g = None
         Rla_gamma_la_gamma = None
+        if self.DAE_index == 3:
+            Rla_g_q_dot = self.model.g_q(tk1, qk1) / self.x_x_dot
+            Rla_gamma_q_dot = self.model.gamma_q(tk1, qk1, uk1) * self.x_x_dot
+            Rla_gamma_u_dot = self.model.gamma_u(tk1, qk1) * self.x_x_dot
+        elif self.DAE_index == 2:
+            raise NotImplementedError("")
+            Rla_g_q_dot = self.model.g_dot_q(tk1, qk1) * self.x_x_dot
+        elif self.DAE_index == 1:
+            raise NotImplementedError("")
+            Rla_g_q_dot = self.model.g_ddot_q(tk1, qk1) * self.x_x_dot
 
         # sparse assemble global tangent matrix
+        # fmt: off
         R_x = bmat(
             [
-                [Ra_a, Ra_la_g, Ra_la_gamma],
-                [Rla_g_a, Rla_g_la_g, Rla_g_la_gamma],
-                [Rla_gamma_a, Rla_gamma_la_g, Rla_gamma_la_gamma],
+                [       Rq_q_dot,        Rq_u_dot,        Rq_la_g,        Rq_la_gamma],
+                [       Ru_q_dot,        Ru_u_dot,        Ru_la_g,        Ru_la_gamma],
+                [    Rla_g_q_dot,     Rla_g_u_dot,     Rla_g_la_g,     Rla_g_la_gamma],
+                [Rla_gamma_q_dot, Rla_gamma_u_dot, Rla_gamma_la_g, Rla_gamma_la_gamma],
             ],
             format="csr",
         )
+        # fmt: on
+
+        if True:
+            np.set_printoptions(4, suppress=True)
+
+            # ##########################
+            # # error kinematic equation
+            # ##########################
+            # Rq_x_num = approx_fprime(xk1, lambda x: self.__R(tk1, x)[:nq], method="3-point")
+            # diff_Rq_x = Rq_x_num - R_x[:nq, :].toarray()
+            # error_Rq_x = np.linalg.norm(diff_Rq_x)
+            # # print(f"diff Rq_x:\n{diff_Rq_x}")
+            # print(f"diff Rq_q:\n{diff_Rq_x[:, :nq]}")
+            # print(f"diff Rq_u:\n{diff_Rq_x[:, nq:nq+nu]}")
+            # print(f"diff Rq_la_g:\n{diff_Rq_x[:, nq+nu:nq+nu+nla_g]}")
+            # print(f"diff Rq_la_gamma:\n{diff_Rq_x[:, nq+nu+nla_g:]}")
+            # print(f"error Rq_x: {error_Rq_x}")
+            # print()
+
+            ###########################
+            # error equations of motion
+            # TODO: spot error here in Ru_q_dot term
+            ###########################
+            Ru_x_num = approx_fprime(xk1, lambda x: self.__R(tk1, x)[nq:nq+nu], method="3-point")
+            diff_Ru_x = Ru_x_num - R_x[nq:nq+nu, :].toarray()
+            error_Ru_x = np.linalg.norm(diff_Ru_x)
+            # print(f"diff Ru_x:\n{diff_Ru_x}")
+            print(f"diff Ru_q:\n{diff_Ru_x[:, :nq]}")
+            print(f"diff Ru_u:\n{diff_Ru_x[:, nq:nq+nu]}")
+            # print(f"diff Ru_la_g:\n{diff_Ru_x[:, nq+nu:nq+nu+nla_g]}")
+            # print(f"diff Ru_la_gamma:\n{diff_Ru_x[:, nq+nu+nla_g:]}")
+            print(f"error Ru_x: {error_Ru_x}")
+            print()
+
+            # #############################
+            # # error bilateral constraints
+            # #############################
+            # Rla_x_num = approx_fprime(xk1, lambda x: self.__R(tk1, x)[nq+nu:], method="3-point")
+            # diff_Rla_x = Rla_x_num - R_x[nq+nu:, :].toarray()
+            # error_Rla_x = np.linalg.norm(diff_Rla_x)
+            # # print(f"diff Rla_x:\n{error_Rla_x}")
+            # print(f"diff Rla_q:\n{diff_Rla_x[:, :nq]}")
+            # print(f"diff Rla_u:\n{diff_Rla_x[:, nq:nq+nu]}")
+            # print(f"diff Rla_la_g:\n{diff_Rla_x[:, nq+nu:nq+nu+nla_g]}")
+            # print(f"diff Rla_la_gamma:\n{diff_Rla_x[:, nq+nu+nla_g:]}")
+            # print(f"error Rla_x: {error_Rla_x}")
+            # print()
+
+            # R_x_num = approx_fprime(xk1, lambda x: self.__R(tk1, x), method="3-point")
+            # diff = R_x_num - R_x.toarray()
+            # error = np.linalg.norm(diff)
+            # print(f"error R_x: {error}")
 
         yield R_x
 
