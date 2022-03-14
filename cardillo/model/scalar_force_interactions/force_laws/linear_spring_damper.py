@@ -1,11 +1,11 @@
-class Linear_spring_damper():
+class Linear_spring_damper:
     def __init__(self, k, d, g0=None):
         self.k = k
         self.d = d
         self.g0 = g0
 
     def pot(self, t, g):
-        return 0.5 * self.k * (g - self.g0)**2
+        return 0.5 * self.k * (g - self.g0) ** 2
 
     def pot_g(self, t, g):
         return self.k * (g - self.g0)

@@ -12,6 +12,7 @@ from cardillo.model.bilateral_constraints.implicit import Rod
 from cardillo.model.force import Force
 from cardillo.solver import Euler_backward, Scipy_ivp
 
+
 def double_pendulum():
     m = 1
     L = 2
@@ -20,7 +21,7 @@ def double_pendulum():
     Fg = lambda t: np.array([0, -m * g, 0])
 
     omega = np.pi
-    l = lambda t: L -0.5 * np.sin(omega * t)
+    l = lambda t: L - 0.5 * np.sin(omega * t)
     l_t = lambda t: -0.5 * omega * np.cos(omega * t)
     l_tt = lambda t: 0.5 * omega**2 * np.sin(omega * t)
 
@@ -50,7 +51,7 @@ def double_pendulum():
     sol = solver.solve()
     t = sol.t
     q = sol.q
-    
+
     # fig, ax = plt.subplots()
     # ax.set_xlim([-2*L, 2*L])
     # ax.set_ylim([-2*L, 2*L])
@@ -73,37 +74,49 @@ def double_pendulum():
 
     # anim = animation.FuncAnimation(fig, animate, frames=len(t))
     # plt.show()
-    
+
     # reference solution
-    def eqm(t,x):
+    def eqm(t, x):
         alpha, beta = x[:2]
         alpha_t, beta_t = x[2:]
         sab = np.sin(alpha - beta)
         cab = np.cos(alpha - beta)
-        
+
         F = Fg(t)
 
-        M = np.array([[2 * m * l(t)**2, m * l(t) * L * cab], 
-                      [m * l(t) * L * cab, m * L**2]])
+        M = np.array(
+            [[2 * m * l(t) ** 2, m * l(t) * L * cab], [m * l(t) * L * cab, m * L**2]]
+        )
 
-        f_gyr = np.array([4 * m * l(t) * l_t(t) * alpha_t + m * L * l(t) * sab * beta_t**2, \
-                          sab * m * L * (l_tt(t) - l(t) * alpha_t**2) + 2 * m * L * cab * l_t(t) * alpha_t])
+        f_gyr = np.array(
+            [
+                4 * m * l(t) * l_t(t) * alpha_t + m * L * l(t) * sab * beta_t**2,
+                sab * m * L * (l_tt(t) - l(t) * alpha_t**2)
+                + 2 * m * L * cab * l_t(t) * alpha_t,
+            ]
+        )
 
-        f_pot = np.array([l(t) * np.cos(alpha) * 2 * F[0] + l(t) * np.sin(alpha) * 2 * F[1], \
-                          L * np.cos(beta) * F[0] + L * np.sin(beta) * F[1]])
-                          
+        f_pot = np.array(
+            [
+                l(t) * np.cos(alpha) * 2 * F[0] + l(t) * np.sin(alpha) * 2 * F[1],
+                L * np.cos(beta) * F[0] + L * np.sin(beta) * F[1],
+            ]
+        )
+
         h = f_pot - f_gyr
-        
+
         dx = np.zeros(4)
         dx[:2] = x[2:]
         dx[2:] = np.linalg.inv(M) @ h
         return dx
 
     alpha0 = np.arctan2(pendulum.q0[0], pendulum.q0[1])
-    beta0 = np.arctan2( pm.q0[0] - pendulum.q0[0], -pm.q0[1] - pendulum.q0[1])
-    
+    beta0 = np.arctan2(pm.q0[0] - pendulum.q0[0], -pm.q0[1] - pendulum.q0[1])
+
     x0 = np.array([alpha0, beta0, 0, 0])
-    ref = solve_ivp(eqm, (t[0], t[-1]), x0, t_eval=t, method='RK45', rtol=1e-8, atol=1e-12)
+    ref = solve_ivp(
+        eqm, (t[0], t[-1]), x0, t_eval=t, method="RK45", rtol=1e-8, atol=1e-12
+    )
     x = ref.y
 
     alpha = x[0]
@@ -145,17 +158,18 @@ def double_pendulum():
     # plt.show()
 
     fig, ax = plt.subplots()
-    ax.plot(t, x_pendulum_ref, '-k', label='x_pendulum_ref')
-    ax.plot(t, y_pendulum_ref, '-b', label='y_pendulum_ref')
-    ax.plot(t, x_point_mass_ref, '-g', label='x_point_mass_ref')
-    ax.plot(t, y_point_mass_ref, '-r', label='y_point_mass_ref')
+    ax.plot(t, x_pendulum_ref, "-k", label="x_pendulum_ref")
+    ax.plot(t, y_pendulum_ref, "-b", label="y_pendulum_ref")
+    ax.plot(t, x_point_mass_ref, "-g", label="x_point_mass_ref")
+    ax.plot(t, y_point_mass_ref, "-r", label="y_point_mass_ref")
 
-    ax.plot(t, q[:, 0], 'xk', label='x_pendulum')
-    ax.plot(t, -q[:, 1], 'xb', label='y_pendulum')
-    ax.plot(t, q[:, 2], 'xg', label='x_point_mass')
-    ax.plot(t, q[:, 3], 'xr', label='y_point_mass')
-    
+    ax.plot(t, q[:, 0], "xk", label="x_pendulum")
+    ax.plot(t, -q[:, 1], "xb", label="y_pendulum")
+    ax.plot(t, q[:, 2], "xg", label="x_point_mass")
+    ax.plot(t, q[:, 3], "xr", label="y_point_mass")
+
     plt.show()
+
 
 if __name__ == "__main__":
     double_pendulum()

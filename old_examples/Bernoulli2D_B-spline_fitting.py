@@ -1,8 +1,20 @@
 from cardillo.model.classical_beams.planar import Hooke, EulerBernoulli
 from cardillo.model.frame import Frame
-from cardillo.model.bilateral_constraints.implicit import Spherical_joint2D, Rigid_connection2D, Spherical_joint, Rigid_connection
+from cardillo.model.bilateral_constraints.implicit import (
+    Spherical_joint2D,
+    Rigid_connection2D,
+    Spherical_joint,
+    Rigid_connection,
+)
 from cardillo.model import Model
-from cardillo.solver import Euler_backward, Moreau, Moreau_sym, Generalized_alpha_1, Scipy_ivp, Newton
+from cardillo.solver import (
+    Euler_backward,
+    Moreau,
+    Moreau_sym,
+    Generalized_alpha_1,
+    Scipy_ivp,
+    Newton,
+)
 from cardillo.model.line_force.line_force import Line_force
 from cardillo.model.force import Force
 from cardillo.discretization import uniform_knot_vector
@@ -18,6 +30,7 @@ import numpy as np
 
 statics = True
 # statics = False
+
 
 def B_spline_fitting():
     # physical properties of the rope
@@ -35,8 +48,8 @@ def B_spline_fitting():
     # discretization properties
     p = 2
     assert p >= 2
-    nQP = int(np.ceil((p + 1)**2 / 2))
-    print(f'nQP: {nQP}')
+    nQP = int(np.ceil((p + 1) ** 2 / 2))
+    print(f"nQP: {nQP}")
     nEl = 6
 
     # fit reference configuration
@@ -48,7 +61,7 @@ def B_spline_fitting():
     points1 = R * np.array([-np.cos(phi1), np.sin(phi1)]).T
     # ctrlpts1, knot_vector1 = approximate_curve(points1.tolist(), p, nEl=nEl)
     ctrlpts1 = fit_B_Spline(points1, p, nEl)
-    
+
     phi2 = np.linspace(phi_max, 2 * phi_max, num=nxi)
     points2 = R * np.array([-np.cos(phi2), np.sin(phi2)]).T
     # ctrlpts2, knot_vector2 = approximate_curve(points2.tolist(), p, nEl=nEl)
@@ -65,10 +78,14 @@ def B_spline_fitting():
     # exit()
 
     Q1 = ctrlpts1.T.reshape(-1)
-    beam1 = EulerBernoulli(A_rho0, material_model, p, nEl, nQP, Q=Q1, q0=Q1, u0=np.zeros_like(Q1))
+    beam1 = EulerBernoulli(
+        A_rho0, material_model, p, nEl, nQP, Q=Q1, q0=Q1, u0=np.zeros_like(Q1)
+    )
 
     Q2 = ctrlpts2.T.reshape(-1)
-    beam2 = EulerBernoulli(A_rho0, material_model, p, nEl, nQP, Q=Q2, q0=Q2, u0=np.zeros_like(Q2))
+    beam2 = EulerBernoulli(
+        A_rho0, material_model, p, nEl, nQP, Q=Q2, q0=Q2, u0=np.zeros_like(Q2)
+    )
 
     # joints
     r_OP0 = np.array([*ctrlpts1[0], 0])
@@ -129,7 +146,7 @@ def B_spline_fitting():
     fig, ax = plt.subplots()
     # ax.axis('equal')
     scale = 2.5 * R
-    ax.axis('equal')
+    ax.axis("equal")
     ax.set_xlim([-scale, scale])
     ax.set_ylim([-scale, scale])
 
@@ -144,10 +161,10 @@ def B_spline_fitting():
     t = t[::frac]
     q = q[::frac]
 
-    center_line0, = ax.plot([], [], '-k')
-    nodes0, = ax.plot([], [], '--ob')
-    center_line1, = ax.plot([], [], '-g')
-    nodes1, = ax.plot([], [], '--or')
+    (center_line0,) = ax.plot([], [], "-k")
+    (nodes0,) = ax.plot([], [], "--ob")
+    (center_line1,) = ax.plot([], [], "-g")
+    (nodes1,) = ax.plot([], [], "--or")
 
     def animate(i):
         x, y, z = beam1.centerline(q[i], n=50).T
@@ -162,16 +179,23 @@ def B_spline_fitting():
         x, y = q[i][beam2.qDOF].reshape(2, -1)
         nodes1.set_data(x, y)
 
-        return center_line0, center_line1, nodes0, nodes1, 
+        return (
+            center_line0,
+            center_line1,
+            nodes0,
+            nodes1,
+        )
 
     animate(1)
 
-    anim = animation.FuncAnimation(fig, animate, frames=frames, interval=interval, blit=False)
+    anim = animation.FuncAnimation(
+        fig, animate, frames=frames, interval=interval, blit=False
+    )
     plt.show()
 
-    
     # vtk export
-    post_processing([beam1, beam2], t, q, 'Arch', binary=True)
+    post_processing([beam1, beam2], t, q, "Arch", binary=True)
+
 
 def top():
     # solver parameter
@@ -216,8 +240,8 @@ def top():
     # discretization properties
     p = 2
     assert p >= 2
-    nQP = int(np.ceil((p + 1)**2 / 2))
-    print(f'nQP: {nQP}')
+    nQP = int(np.ceil((p + 1) ** 2 / 2))
+    print(f"nQP: {nQP}")
     nEl = 5
 
     # build reference configuration
@@ -225,7 +249,7 @@ def top():
     X0 = np.linspace(0, L, nNd)
     Xi = uniform_knot_vector(p, nEl)
     for i in range(nNd):
-        X0[i] = np.sum(Xi[i+1:i+p+1])
+        X0[i] = np.sum(Xi[i + 1 : i + p + 1])
     X0 = X0 * L / p
     Y0 = np.zeros_like(X0)
     Q = np.hstack((X0, Y0))
@@ -249,7 +273,7 @@ def top():
     joint_right = Rigid_connection2D(beam, frame_right, r_OB2, frame_ID1=(1,))
 
     # gravity beam
-    __g = np.array([0, - A_rho0 * 9.81, 0])
+    __g = np.array([0, -A_rho0 * 9.81, 0])
     if statics:
         f_g_beam = Line_force(lambda xi, t: t * __g, beam)
     else:
@@ -264,7 +288,7 @@ def top():
     RB = Rigid_body_quaternion(m, K_theta_S, q0=q0, u0=u0)
 
     # gravity rigid body
-    f_g_RB = Force(lambda t: np.array([0, - m * 9.81, 0]), RB)
+    f_g_RB = Force(lambda t: np.array([0, -m * 9.81, 0]), RB)
 
     # joint = Rigid_connection(beam, RB, r_OB2, frame_ID1=(1,))
     joint = Spherical_joint(beam, RB, r_OB2, frame_ID1=(1,))
@@ -304,7 +328,6 @@ def top():
         # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='BDF')
         # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='LSODA')
 
-
         # import cProfile, pstats
         # pr = cProfile.Profile()
         # pr.enable()
@@ -320,22 +343,21 @@ def top():
         q = sol.q
         # t, q, u, la_g, la_gamma = sol.unpack()
 
-
     # plt.plot(t, q[:, int(1.5 * nNd)])
     # plt.show()
     # exit()
 
     # animate configurations
     fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    
-    ax.set_xlabel('x [m]')
-    ax.set_ylabel('y [m]')
-    ax.set_zlabel('z [m]')
+    ax = fig.add_subplot(111, projection="3d")
+
+    ax.set_xlabel("x [m]")
+    ax.set_ylabel("y [m]")
+    ax.set_zlabel("z [m]")
     scale = L
     ax.set_xlim3d(left=0, right=L)
-    ax.set_ylim3d(bottom=-L/2, top=L/2)
-    ax.set_zlim3d(bottom=-L/2, top=L/2)
+    ax.set_ylim3d(bottom=-L / 2, top=L / 2)
+    ax.set_zlim3d(bottom=-L / 2, top=L / 2)
 
     # prepare data for animation
     if statics:
@@ -351,12 +373,12 @@ def top():
         frames = target_frames
         t = t[::frac]
         q = q[::frac]
-    
+
     x0, y0, z0 = beam.centerline(q[0]).T
-    center_line0, = ax.plot(x0, y0, z0, '-k')
+    (center_line0,) = ax.plot(x0, y0, z0, "-k")
 
     x1, y1, z1 = beam.centerline(q[-1]).T
-    center_line, = ax.plot(x1, y1, z1, '-b')
+    (center_line,) = ax.plot(x1, y1, z1, "-b")
 
     x_S, y_S, z_S = RB.r_OP(t, q[0][RB.qDOF])
     A_IK = RB.A_IK(t, q[0][RB.qDOF])
@@ -364,10 +386,10 @@ def top():
     d2 = A_IK[:, 1] * L / 4
     d3 = A_IK[:, 2] * L / 4
 
-    COM, = ax.plot([x_S], [y_S], [z_S], 'ok')
-    d1_, = ax.plot([x_S, x_S + d1[0]], [y_S, y_S + d1[1]], [z_S, z_S + d1[2]], '-r')
-    d2_, = ax.plot([x_S, x_S + d2[0]], [y_S, y_S + d2[1]], [z_S, z_S + d2[2]], '-g')
-    d3_, = ax.plot([x_S, x_S + d3[0]], [y_S, y_S + d3[1]], [z_S, z_S + d3[2]], '-b')
+    (COM,) = ax.plot([x_S], [y_S], [z_S], "ok")
+    (d1_,) = ax.plot([x_S, x_S + d1[0]], [y_S, y_S + d1[1]], [z_S, z_S + d1[2]], "-r")
+    (d2_,) = ax.plot([x_S, x_S + d2[0]], [y_S, y_S + d2[1]], [z_S, z_S + d2[2]], "-g")
+    (d3_,) = ax.plot([x_S, x_S + d3[0]], [y_S, y_S + d3[1]], [z_S, z_S + d3[2]], "-b")
 
     def update(t, q, center_line):
         x, y, z = beam.centerline(q).T
@@ -397,7 +419,9 @@ def top():
     def animate(i):
         update(t[i], q[i], center_line)
 
-    anim = animation.FuncAnimation(fig, animate, frames=frames, interval=interval, blit=False)
+    anim = animation.FuncAnimation(
+        fig, animate, frames=frames, interval=interval, blit=False
+    )
     plt.show()
 
 

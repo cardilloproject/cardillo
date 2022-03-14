@@ -11,6 +11,7 @@ from cardillo.discretization.B_spline import B_spline_basis3D
 from cardillo.math.algebra import det2D, inv3D, det3D, A_IK_basic_z, norm
 from cardillo.discretization.mesh2D import Mesh2D
 
+
 def strain_measures(F, G):
     # strain measures of pantographic sheet
     d1 = F[:, 0]
@@ -30,8 +31,7 @@ def strain_measures(F, G):
     rho1_2 = d1_2 @ e1
     rho2_1 = d2_1 @ e2
     rho2_2 = d2_2 @ e2
-    rho_s = np.array([[rho1_1, rho1_2],
-                        [rho2_1, rho2_2]])
+    rho_s = np.array([[rho1_1, rho1_2], [rho2_1, rho2_2]])
 
     d1_perp = np.array([-d1[1], d1[0]])
     d2_perp = np.array([-d2[1], d2[0]])
@@ -39,21 +39,33 @@ def strain_measures(F, G):
     theta1_2 = d1_2 @ d1_perp / rho1**2
     theta2_1 = d2_1 @ d2_perp / rho2**2
     theta2_2 = d2_2 @ d2_perp / rho2**2
-    theta_s = np.array([[theta1_1, theta1_2],
-                        [theta2_1, theta2_2]])
+    theta_s = np.array([[theta1_1, theta1_2], [theta2_1, theta2_2]])
 
     Gamma = asin(e2 @ e1)
 
     return rho, rho_s, Gamma, theta_s, e1, e2
 
-def strain_single_point(continuum, t, q, vxi, displ, comp_data_rho=None, comp_data_gamma=None):
+
+def strain_single_point(
+    continuum, t, q, vxi, displ, comp_data_rho=None, comp_data_gamma=None
+):
     # evaluate individual points
     mesh = continuum.mesh
     knot_vector_objs = mesh.knot_vector_objs
     el_xi, el_eta = tuple(knot_vector_objs[i].element_number(vxi[i]) for i in range(2))
     el = flat2D(el_xi, el_eta, mesh.nel_per_dim)
-    mesh_eval = Mesh2D(knot_vector_objs, mesh.nqp_per_dim, derivative_order=2, basis='B-spline', nq_n=2, vxi=vxi, elDOF=mesh.elDOF[el])
-    continuum_eval = Pantographic_sheet(None, continuum.mat, mesh_eval, continuum.Z, cDOF=continuum.cDOF, b=continuum.b)
+    mesh_eval = Mesh2D(
+        knot_vector_objs,
+        mesh.nqp_per_dim,
+        derivative_order=2,
+        basis="B-spline",
+        nq_n=2,
+        vxi=vxi,
+        elDOF=mesh.elDOF[el],
+    )
+    continuum_eval = Pantographic_sheet(
+        None, continuum.mat, mesh_eval, continuum.Z, cDOF=continuum.cDOF, b=continuum.b
+    )
 
     rho = np.zeros([len(t), 2])
     rho_s = np.zeros([len(t), 2, 2])
@@ -61,10 +73,17 @@ def strain_single_point(continuum, t, q, vxi, displ, comp_data_rho=None, comp_da
     theta_s = np.zeros([len(t), 2, 2])
 
     for i, (ti, qi) in enumerate(zip(t, q)):
-        rho[i], rho_s[i], Gamma[i], theta_s[i] = continuum_eval.post_processing_single_configuration(ti, qi, None, return_strain=True)
+        (
+            rho[i],
+            rho_s[i],
+            Gamma[i],
+            theta_s[i],
+        ) = continuum_eval.post_processing_single_configuration(
+            ti, qi, None, return_strain=True
+        )
     fig, ax = plt.subplots(2, 2)
-    ax[0, 0].plot(t * displ, (rho-1) * 100)
-    ax[0, 1].plot(t * displ, - Gamma * 180 / np.pi + 90)
+    ax[0, 0].plot(t * displ, (rho - 1) * 100)
+    ax[0, 1].plot(t * displ, -Gamma * 180 / np.pi + 90)
     ax[1, 0].plot(t * displ, rho_s.reshape(-1, 4))
     ax[1, 1].plot(t * displ, theta_s.reshape(-1, 4))
 
@@ -76,37 +95,52 @@ def strain_single_point(continuum, t, q, vxi, displ, comp_data_rho=None, comp_da
     ax[1, 1].set_xlabel("time")
 
     if comp_data_rho is not None:
-        ax[0, 0].plot(comp_data_rho[0], comp_data_rho[1], color='gray', linestyle='dotted')
+        ax[0, 0].plot(
+            comp_data_rho[0], comp_data_rho[1], color="gray", linestyle="dotted"
+        )
     if comp_data_gamma is not None:
-        ax[0, 1].plot(comp_data_gamma[0], comp_data_gamma[1], color='gray', linestyle='dotted')
+        ax[0, 1].plot(
+            comp_data_gamma[0], comp_data_gamma[1], color="gray", linestyle="dotted"
+        )
 
     plt.show()
+
 
 def verify_derivatives(mat):
     from numpy.random import rand
     from numpy import isclose
 
-    #TODO: use normalized parameters
-    # arbitrary parameters:    
-    rho = np.array([0.3,0.5])
-    rho_s = np.array([[0.3,0.5],[0.1,0.8]])
+    # TODO: use normalized parameters
+    # arbitrary parameters:
+    rho = np.array([0.3, 0.5])
+    rho_s = np.array([[0.3, 0.5], [0.1, 0.8]])
     Gamma = np.array([0.4])
-    theta_s = np.array([[0.1,0.6],[0.7,0.7]])
+    theta_s = np.array([[0.1, 0.6], [0.7, 0.7]])
 
-    W_rho_num_fun = lambda rho, rho_s, Gamma, theta_s: Numerical_derivative(lambda t, rho: mat.W(rho, rho_s, Gamma, theta_s), order=1)._x(0, rho)
+    W_rho_num_fun = lambda rho, rho_s, Gamma, theta_s: Numerical_derivative(
+        lambda t, rho: mat.W(rho, rho_s, Gamma, theta_s), order=1
+    )._x(0, rho)
 
-    W_rho_s_num_fun = lambda rho, rho_s, Gamma, theta_s: Numerical_derivative(lambda rho_s: mat.W(rho, rho_s, Gamma, theta_s), order=1)._X(rho_s)
+    W_rho_s_num_fun = lambda rho, rho_s, Gamma, theta_s: Numerical_derivative(
+        lambda rho_s: mat.W(rho, rho_s, Gamma, theta_s), order=1
+    )._X(rho_s)
 
-    W_Gamma_num_fun = lambda rho, rho_s, Gamma, theta_s: Numerical_derivative(lambda t, Gamma: mat.W(rho, rho_s, Gamma, theta_s), order=1)._x(0, Gamma)
+    W_Gamma_num_fun = lambda rho, rho_s, Gamma, theta_s: Numerical_derivative(
+        lambda t, Gamma: mat.W(rho, rho_s, Gamma, theta_s), order=1
+    )._x(0, Gamma)
 
-    W_theta_s_num_fun = lambda rho, rho_s, Gamma, theta_s: Numerical_derivative(lambda theta_s: mat.W(rho, rho_s, Gamma, theta_s), order=1)._X(theta_s, eps=1e-5) # poorly conditioned due to lacking normalization
+    W_theta_s_num_fun = lambda rho, rho_s, Gamma, theta_s: Numerical_derivative(
+        lambda theta_s: mat.W(rho, rho_s, Gamma, theta_s), order=1
+    )._X(
+        theta_s, eps=1e-5
+    )  # poorly conditioned due to lacking normalization
 
     first_deriv_dict = {
         "W_rho": W_rho_num_fun,
         "W_rho_s": W_rho_s_num_fun,
         "W_Gamma": W_Gamma_num_fun,
         "W_theta_s": W_theta_s_num_fun,
-        }
+    }
 
     for key, element in first_deriv_dict.items():
         try:
@@ -119,18 +153,23 @@ def verify_derivatives(mat):
                 print(f"INFO: error {key}: {error}")
         except AttributeError:
             print(f"INFO: {key} not defined for selected material.")
-        
 
     second_deriv_dict = {
         "W_rho_rho": (lambda rho: mat.W_rho(rho, rho_s, Gamma, theta_s), rho),
         "W_rho_rho_s": (lambda rho_s: mat.W_rho(rho, rho_s, Gamma, theta_s), rho_s),
-        "W_rho_theta_s": (lambda theta_s: mat.W_rho(rho, rho_s, Gamma, theta_s), theta_s),
+        "W_rho_theta_s": (
+            lambda theta_s: mat.W_rho(rho, rho_s, Gamma, theta_s),
+            theta_s,
+        ),
         "W_rho_s_rho": (lambda rho: mat.W_rho_s(rho, rho_s, Gamma, theta_s), rho),
         "W_rho_s_rho_s": (lambda rho_s: mat.W_rho_s(rho, rho_s, Gamma, theta_s), rho_s),
         "W_Gamma_Gamma": (lambda Gamma: mat.W_Gamma(rho, rho_s, Gamma, theta_s), Gamma),
         "W_theta_s_rho": (lambda rho: mat.W_theta_s(rho, rho_s, Gamma, theta_s), rho),
-        "W_theta_s_theta_s": (lambda theta_s: mat.W_theta_s(rho, rho_s, Gamma, theta_s), theta_s),
-        }
+        "W_theta_s_theta_s": (
+            lambda theta_s: mat.W_theta_s(rho, rho_s, Gamma, theta_s),
+            theta_s,
+        ),
+    }
 
     for key, element in second_deriv_dict.items():
         try:
@@ -144,8 +183,11 @@ def verify_derivatives(mat):
         except AttributeError:
             print(f"INFO: {key} not defined for selected material.")
 
-class Pantographic_sheet():
-    def __init__(self, density, mesh, Z, z0=None, v0=None, cDOF=[], b=None, fiber_angle=np.pi/4):
+
+class Pantographic_sheet:
+    def __init__(
+        self, density, mesh, Z, z0=None, v0=None, cDOF=[], b=None, fiber_angle=np.pi / 4
+    ):
         self.density = density
 
         # store generalized coordinates
@@ -174,7 +216,7 @@ class Pantographic_sheet():
         self.mesh = mesh
         self.nel = mesh.nel
         # self.nn = mesh.nn
-        self.nn_el = mesh.nn_el # number of nodes of an element
+        self.nn_el = mesh.nn_el  # number of nodes of an element
         self.nq_el = mesh.nq_el
         self.nqp = mesh.nqp
         self.elDOF = mesh.elDOF
@@ -196,7 +238,7 @@ class Pantographic_sheet():
         # second gradient
         N_XX = self.mesh.N_XX(Z, kappa0_xi_inv)
         nel, nqp, nn_el, _, _ = N_XX.shape
-        
+
         self.N_Theta = np.zeros_like(N_X)
         self.N_ThetaTheta = np.zeros_like(N_XX)
         for el in range(nel):
@@ -204,7 +246,6 @@ class Pantographic_sheet():
                 for a in range(nn_el):
                     self.N_Theta[el, i, a] = N_X[el, i, a] @ self.R.T
                     self.N_ThetaTheta[el, i, a] = self.R @ N_XX[el, i, a] @ self.R.T
-
 
     def assembler_callback(self):
         self.elfDOF = []
@@ -225,106 +266,127 @@ class Pantographic_sheet():
         z[self.fDOF] = q
         z[self.cDOF] = self.b(t)
         return z
-        
-    def post_processing_single_configuration(self, t, q, filename, binary=True, return_strain=False, project_to_reference=False):
-            # compute redundant generalized coordinates
-            z = self.z(t, q)
-            if project_to_reference == True:
-                z_geo = self.z(0, self.q0)
-            else:
-                z_geo = z
 
-            # generalized coordinates, connectivity and polynomial degree
-            cells, points, HigherOrderDegrees = self.mesh.vtk_mesh(z_geo)
+    def post_processing_single_configuration(
+        self,
+        t,
+        q,
+        filename,
+        binary=True,
+        return_strain=False,
+        project_to_reference=False,
+    ):
+        # compute redundant generalized coordinates
+        z = self.z(t, q)
+        if project_to_reference == True:
+            z_geo = self.z(0, self.q0)
+        else:
+            z_geo = z
 
-            # dictionary storing point data
-            point_data = {}
-            
-            # evaluate deformation gradient at quadrature points
-            F = np.zeros((self.mesh.nel, self.mesh.nqp, self.dim, self.dim))
-            G = np.zeros((self.mesh.nel, self.mesh.nqp, self.dim, self.dim, self.dim))
-            for el in range(self.mesh.nel):
-                ze = z[self.mesh.elDOF[el]]
-                for i in range(self.mesh.nqp):
-                    for a in range(self.mesh.nn_el):
-                        # first deformation gradient
-                        F[el, i] += np.outer(ze[self.mesh.nodalDOF[a]], self.N_Theta[el, i, a]) # Bonet 1997 (7.6b)
-                        G[el, i] += np.einsum('i,jk->ijk', ze[self.nodalDOF[a]], self.N_ThetaTheta[el, i, a]) 
+        # generalized coordinates, connectivity and polynomial degree
+        cells, points, HigherOrderDegrees = self.mesh.vtk_mesh(z_geo)
 
-            if return_strain == False:             
-                F_vtk = self.mesh.field_to_vtk(F)
-                G_vtk = self.mesh.field_to_vtk(G)
-                point_data.update({"F": F_vtk, "G": G_vtk})
+        # dictionary storing point data
+        point_data = {}
 
-                # field data vtk export
-                point_data_fields = {
-                    #TODO: make strain_measures function calls less redundant
-                    "C": lambda F, G: F.T @ F,
-                    "J": lambda F, G: np.array([self.determinant(F)]),
-                    "W": lambda F, G: self.W_(*strain_measures(F, G)[:4]),
-                    "rho": lambda F, G: strain_measures(F, G)[0],
-                    "rho_s": lambda F, G: strain_measures(F, G)[1].ravel(),
-                    "Gamma": lambda F, G:  np.array([strain_measures(F, G)[2]]),
-                    "theta_s": lambda F, G:  strain_measures(F, G)[3].ravel(), 
-                    "e1": lambda F, G: np.append(strain_measures(F, G)[4], 0),
-                    "e2": lambda F, G: np.append(strain_measures(F, G)[5], 0),
-                }
+        # evaluate deformation gradient at quadrature points
+        F = np.zeros((self.mesh.nel, self.mesh.nqp, self.dim, self.dim))
+        G = np.zeros((self.mesh.nel, self.mesh.nqp, self.dim, self.dim, self.dim))
+        for el in range(self.mesh.nel):
+            ze = z[self.mesh.elDOF[el]]
+            for i in range(self.mesh.nqp):
+                for a in range(self.mesh.nn_el):
+                    # first deformation gradient
+                    F[el, i] += np.outer(
+                        ze[self.mesh.nodalDOF[a]], self.N_Theta[el, i, a]
+                    )  # Bonet 1997 (7.6b)
+                    G[el, i] += np.einsum(
+                        "i,jk->ijk", ze[self.nodalDOF[a]], self.N_ThetaTheta[el, i, a]
+                    )
 
-                for name, fun in point_data_fields.items():
-                    try:
-                        tmp = fun(F_vtk[0].reshape(self.dim, self.dim), G_vtk[0].reshape(self.dim, self.dim, self.dim)).ravel()
-                        field = np.zeros((len(F_vtk), len(tmp)))
-                        for i, Fi in enumerate(F_vtk):
-                            Gi = G_vtk[i]
-                            field[i] = fun(Fi.reshape(self.dim, self.dim), Gi.reshape(self.dim, self.dim, self.dim)).ravel()
-                        point_data.update({name: field})
-                    except ValueError:
-                        print(f"A math domain error occured in evaluating {name}. No field data returned for this metric.")
-            
-                # write vtk mesh using meshio
-                meshio.write_points_cells(
-                    # os.path.splitext(os.path.basename(filename))[0] + '.vtu',
-                    filename.parent / (filename.stem + '.vtu'),
-                    points,
-                    cells,
-                    point_data=point_data,
-                    cell_data={"HigherOrderDegrees": HigherOrderDegrees},
-                    binary=binary
-                )
+        if return_strain == False:
+            F_vtk = self.mesh.field_to_vtk(F)
+            G_vtk = self.mesh.field_to_vtk(G)
+            point_data.update({"F": F_vtk, "G": G_vtk})
 
-            else:
-                return strain_measures(F[0, 0], G[0, 0])[:4]
-        
+            # field data vtk export
+            point_data_fields = {
+                # TODO: make strain_measures function calls less redundant
+                "C": lambda F, G: F.T @ F,
+                "J": lambda F, G: np.array([self.determinant(F)]),
+                "W": lambda F, G: self.W_(*strain_measures(F, G)[:4]),
+                "rho": lambda F, G: strain_measures(F, G)[0],
+                "rho_s": lambda F, G: strain_measures(F, G)[1].ravel(),
+                "Gamma": lambda F, G: np.array([strain_measures(F, G)[2]]),
+                "theta_s": lambda F, G: strain_measures(F, G)[3].ravel(),
+                "e1": lambda F, G: np.append(strain_measures(F, G)[4], 0),
+                "e2": lambda F, G: np.append(strain_measures(F, G)[5], 0),
+            }
+
+            for name, fun in point_data_fields.items():
+                try:
+                    tmp = fun(
+                        F_vtk[0].reshape(self.dim, self.dim),
+                        G_vtk[0].reshape(self.dim, self.dim, self.dim),
+                    ).ravel()
+                    field = np.zeros((len(F_vtk), len(tmp)))
+                    for i, Fi in enumerate(F_vtk):
+                        Gi = G_vtk[i]
+                        field[i] = fun(
+                            Fi.reshape(self.dim, self.dim),
+                            Gi.reshape(self.dim, self.dim, self.dim),
+                        ).ravel()
+                    point_data.update({name: field})
+                except ValueError:
+                    print(
+                        f"A math domain error occured in evaluating {name}. No field data returned for this metric."
+                    )
+
+            # write vtk mesh using meshio
+            meshio.write_points_cells(
+                # os.path.splitext(os.path.basename(filename))[0] + '.vtu',
+                filename.parent / (filename.stem + ".vtu"),
+                points,
+                cells,
+                point_data=point_data,
+                cell_data={"HigherOrderDegrees": HigherOrderDegrees},
+                binary=binary,
+            )
+
+        else:
+            return strain_measures(F[0, 0], G[0, 0])[:4]
+
     def post_processing(self, t, q, filename, binary=True, project_to_reference=False):
         # write paraview PVD file collecting time and all vtk files, see https://www.paraview.org/Wiki/ParaView/Data_formats#PVD_File_Format
         from xml.dom import minidom
-        
+
         root = minidom.Document()
-        
-        vkt_file = root.createElement('VTKFile')
-        vkt_file.setAttribute('type', 'Collection')
+
+        vkt_file = root.createElement("VTKFile")
+        vkt_file.setAttribute("type", "Collection")
         root.appendChild(vkt_file)
-        
-        collection = root.createElement('Collection')
+
+        collection = root.createElement("Collection")
         vkt_file.appendChild(collection)
 
         for i, (ti, qi) in enumerate(zip(t, q)):
             # filei = filename + f'{i}.vtu'
-            filei = filename.parent / (filename.stem + f'_{i}.vtu')
+            filei = filename.parent / (filename.stem + f"_{i}.vtu")
 
             # write time step and file name in pvd file
-            dataset = root.createElement('DataSet')
-            dataset.setAttribute('timestep', f'{ti:0.6f}')
-            dataset.setAttribute('file', filei.name)
+            dataset = root.createElement("DataSet")
+            dataset.setAttribute("timestep", f"{ti:0.6f}")
+            dataset.setAttribute("file", filei.name)
             collection.appendChild(dataset)
 
-            self.post_processing_single_configuration(ti, qi, filei, binary=True, project_to_reference=project_to_reference)
+            self.post_processing_single_configuration(
+                ti, qi, filei, binary=True, project_to_reference=project_to_reference
+            )
 
-        # write pvd file        
-        xml_str = root.toprettyxml(indent ="\t")          
-        with (filename.parent / (filename.stem + '.pvd')).open("w") as f:
+        # write pvd file
+        xml_str = root.toprettyxml(indent="\t")
+        with (filename.parent / (filename.stem + ".pvd")).open("w") as f:
             f.write(xml_str)
-
 
     #########################################
     # kinematic equation
@@ -376,7 +438,7 @@ class Pantographic_sheet():
         for i in range(srf_mesh.nqp):
             N = srf_mesh.N[el, i]
             w_J0 = self.srf_w_J0[srf_mesh.idx][el, i]
-            
+
             i_xi, i_eta = split2D(i, (srf_mesh.nqp_xi,))
             xi = srf_mesh.qp_xi[el_xi, i_xi]
             eta = srf_mesh.qp_eta[el_eta, i_eta]
@@ -393,9 +455,11 @@ class Pantographic_sheet():
 
         srf_mesh = self.mesh.surface_mesh[srf_idx]
         srf_zDOF = self.mesh.surface_qDOF[srf_idx].ravel()
-        
+
         for el in range(srf_mesh.nel):
-            f[srf_zDOF[srf_mesh.elDOF[el]]] += self.force_distr2D_el(force, t, el, srf_mesh)
+            f[srf_zDOF[srf_mesh.elDOF[el]]] += self.force_distr2D_el(
+                force, t, el, srf_mesh
+            )
         return f[self.fDOF]
 
     def force_distr2D_q(self, t, q, coo, force, srf_idx):
@@ -412,7 +476,7 @@ class Pantographic_sheet():
         for i in range(self.nqp):
             N = self.mesh.N[el, i]
             w_J0 = self.w_J0[el, i]
-            
+
             i_xi, i_eta, i_zeta = split3D(i, (self.mesh.nqp_xi, self.mesh.nqp_eta))
             xi = self.mesh.qp_xi[el_xi, i_xi]
             eta = self.mesh.qp_eta[el_eta, i_eta]
@@ -427,7 +491,7 @@ class Pantographic_sheet():
     def force_distr3D(self, t, q, force):
         z = self.z(t, q)
         f = np.zeros(self.nz)
-        
+
         for el in range(self.nel):
             f[self.elDOF[el]] += self.force_distr3D_el(force, t, el)
         return f[self.fDOF]
@@ -435,13 +499,14 @@ class Pantographic_sheet():
     def force_distr3D_q(self, t, q, coo, force):
         pass
 
+
 class Dummy_pantograph(Pantographic_sheet):
     def W(self, rho, rho_s, Gamma, theta_s):
         return 0
 
     def W_rho(self, rho, rho_s, Gamma, theta_s):
         return np.zeros((2,))
-    
+
     def W_rho_s(self, rho, rho_s, Gamma, theta_s):
         return np.zeros((2, 2))
 
@@ -475,9 +540,21 @@ class Dummy_pantograph(Pantographic_sheet):
     def W_theta_s_theta_s(self, rho, rho_s, Gamma, theta_s):
         return np.zeros((2, 2, 2, 2))
 
-
-    def __init__(self, density, material_param, mesh, Z, z0=None, v0=None, cDOF=[], b=None, fiber_angle=np.pi/4):
-        super().__init__(density, mesh, Z, z0=z0, v0=v0, cDOF=cDOF, b=b, fiber_angle=fiber_angle)
+    def __init__(
+        self,
+        density,
+        material_param,
+        mesh,
+        Z,
+        z0=None,
+        v0=None,
+        cDOF=[],
+        b=None,
+        fiber_angle=np.pi / 4,
+    ):
+        super().__init__(
+            density, mesh, Z, z0=z0, v0=v0, cDOF=cDOF, b=b, fiber_angle=fiber_angle
+        )
 
         self.material_param = material_param
         self.assembler_callback_W(self.W)
@@ -493,12 +570,14 @@ class Dummy_pantograph(Pantographic_sheet):
             # first deformation gradient
             F = np.zeros((self.dim, self.dim))
             for a in range(self.nn_el):
-                F += np.outer(ze[self.nodalDOF[a]], N_Theta[a]) # Bonet 1997 (7.5)
+                F += np.outer(ze[self.nodalDOF[a]], N_Theta[a])  # Bonet 1997 (7.5)
 
             # second deformation gradient
             G = np.zeros((self.dim, self.dim, self.dim))
             for a in range(self.nn_el):
-                G += np.einsum('i,jk->ijk', ze[self.nodalDOF[a]], N_ThetaTheta[a]) # TODO: reference to Evan's thesis
+                G += np.einsum(
+                    "i,jk->ijk", ze[self.nodalDOF[a]], N_ThetaTheta[a]
+                )  # TODO: reference to Evan's thesis
 
             # strain measures of pantographic sheet
             d1 = F[:, 0]
@@ -518,8 +597,7 @@ class Dummy_pantograph(Pantographic_sheet):
             rho1_2 = d1_2 @ e1
             rho2_1 = d2_1 @ e2
             rho2_2 = d2_2 @ e2
-            rho_s = np.array([[rho1_1, rho1_2],
-                              [rho2_1, rho2_2]])
+            rho_s = np.array([[rho1_1, rho1_2], [rho2_1, rho2_2]])
 
             d1_perp = np.array([-d1[1], d1[0]])
             d2_perp = np.array([-d2[1], d2[0]])
@@ -531,8 +609,7 @@ class Dummy_pantograph(Pantographic_sheet):
             theta1_2 = d1_2 @ d1_perp / rho1**2
             theta2_1 = d2_1 @ d2_perp / rho2**2
             theta2_2 = d2_2 @ d2_perp / rho2**2
-            theta_s = np.array([[theta1_1, theta1_2],
-                                [theta2_1, theta2_2]])
+            theta_s = np.array([[theta1_1, theta1_2], [theta2_1, theta2_2]])
 
             Gamma = asin(e2 @ e1)
 
@@ -545,13 +622,13 @@ class Dummy_pantograph(Pantographic_sheet):
             # precompute matrices
             G_rho1 = (np.eye(2) - np.outer(e1, e1)) / rho1
             G_rho2 = (np.eye(2) - np.outer(e2, e2)) / rho2
-            
+
             # internal forces
             for a in range(self.nn_el):
 
                 # delta rho_s
                 rho1_q = N_Theta[a, 0] * e1
-                rho2_q = N_Theta[a, 1] * e2   
+                rho2_q = N_Theta[a, 1] * e2
 
                 # delta rho_s_s (currently unused)
                 rho1_1_q = N_ThetaTheta[a, 0, 0] * e1 + N_Theta[a, 0] * G_rho1 @ d1_1
@@ -559,23 +636,44 @@ class Dummy_pantograph(Pantographic_sheet):
                 rho2_1_q = N_ThetaTheta[a, 1, 0] * e2 + N_Theta[a, 1] * G_rho2 @ d2_1
                 rho2_2_q = N_ThetaTheta[a, 1, 1] * e2 + N_Theta[a, 1] * G_rho2 @ d2_2
 
-                # delta Gamma 
-                Gamma_q = 1/(1-(e2 @ e1)**2)**0.5 * (
-                     (d1 * N_Theta[a, 1] + d2 * N_Theta[a, 0]) / (rho1 * rho2) 
-                    - (d1 @ d2) / (rho1 * rho2)**2 * (rho2 * rho1_q + rho1 * rho2_q)
+                # delta Gamma
+                Gamma_q = (
+                    1
+                    / (1 - (e2 @ e1) ** 2) ** 0.5
+                    * (
+                        (d1 * N_Theta[a, 1] + d2 * N_Theta[a, 0]) / (rho1 * rho2)
+                        - (d1 @ d2)
+                        / (rho1 * rho2) ** 2
+                        * (rho2 * rho1_q + rho1 * rho2_q)
                     )
+                )
 
-                theta1_1_q = (d1_1_perp * N_Theta[a, 0] + d1_perp * N_ThetaTheta[a, 0, 0]) / rho1**2 - (d1_1 @ d1_perp) / rho1**3 * 2 * rho1_q
-                theta1_2_q = (d1_2_perp * N_Theta[a, 0] + d1_perp * N_ThetaTheta[a, 0, 1]) / rho1**2 - (d1_2 @ d1_perp) / rho1**3 * 2 * rho1_q
-                theta2_1_q = (d2_1_perp * N_Theta[a, 1] + d2_perp * N_ThetaTheta[a, 1, 0]) / rho2**2 - (d2_1 @ d2_perp) / rho2**3 * 2 * rho2_q
-                theta2_2_q = (d2_2_perp * N_Theta[a, 1] + d2_perp * N_ThetaTheta[a, 1, 1]) / rho2**2 - (d2_2 @ d2_perp) / rho2**3 * 2 * rho2_q
+                theta1_1_q = (
+                    d1_1_perp * N_Theta[a, 0] + d1_perp * N_ThetaTheta[a, 0, 0]
+                ) / rho1**2 - (d1_1 @ d1_perp) / rho1**3 * 2 * rho1_q
+                theta1_2_q = (
+                    d1_2_perp * N_Theta[a, 0] + d1_perp * N_ThetaTheta[a, 0, 1]
+                ) / rho1**2 - (d1_2 @ d1_perp) / rho1**3 * 2 * rho1_q
+                theta2_1_q = (
+                    d2_1_perp * N_Theta[a, 1] + d2_perp * N_ThetaTheta[a, 1, 0]
+                ) / rho2**2 - (d2_1 @ d2_perp) / rho2**3 * 2 * rho2_q
+                theta2_2_q = (
+                    d2_2_perp * N_Theta[a, 1] + d2_perp * N_ThetaTheta[a, 1, 1]
+                ) / rho2**2 - (d2_2 @ d2_perp) / rho2**3 * 2 * rho2_q
 
-                f[self.nodalDOF[a]] -= (  
-                                        W_rho[0] * rho1_q + W_rho[1] * rho2_q
-                                        + W_rho_s[0, 0] * rho1_1_q + W_rho_s[0, 1] * rho1_2_q + W_rho_s[1, 0] * rho2_1_q + W_rho_s[1, 1] * rho2_2_q
-                                        + W_Gamma * Gamma_q
-                                        + W_theta_s[0, 0] * theta1_1_q + W_theta_s[0, 1] * theta1_2_q + W_theta_s[1, 0] * theta2_1_q + W_theta_s[1, 1] * theta2_2_q
-                                        ) * w_J0
+                f[self.nodalDOF[a]] -= (
+                    W_rho[0] * rho1_q
+                    + W_rho[1] * rho2_q
+                    + W_rho_s[0, 0] * rho1_1_q
+                    + W_rho_s[0, 1] * rho1_2_q
+                    + W_rho_s[1, 0] * rho2_1_q
+                    + W_rho_s[1, 1] * rho2_2_q
+                    + W_Gamma * Gamma_q
+                    + W_theta_s[0, 0] * theta1_1_q
+                    + W_theta_s[0, 1] * theta1_2_q
+                    + W_theta_s[1, 0] * theta2_1_q
+                    + W_theta_s[1, 1] * theta2_2_q
+                ) * w_J0
 
         return f
 
@@ -597,12 +695,14 @@ class Dummy_pantograph(Pantographic_sheet):
             # first deformation gradient
             F = np.zeros((self.dim, self.dim))
             for a in range(self.nn_el):
-                F += np.outer(ze[self.nodalDOF[a]], N_Theta[a]) # Bonet 1997 (7.5)
+                F += np.outer(ze[self.nodalDOF[a]], N_Theta[a])  # Bonet 1997 (7.5)
 
             # second deformation gradient
             G = np.zeros((self.dim, self.dim, self.dim))
             for a in range(self.nn_el):
-                G += np.einsum('i,jk->ijk', ze[self.nodalDOF[a]], N_ThetaTheta[a]) # TODO: reference to Evan's thesis
+                G += np.einsum(
+                    "i,jk->ijk", ze[self.nodalDOF[a]], N_ThetaTheta[a]
+                )  # TODO: reference to Evan's thesis
 
             # strain measures of pantographic sheet
             d1 = F[:, 0]
@@ -622,8 +722,7 @@ class Dummy_pantograph(Pantographic_sheet):
             rho1_2 = d1_2 @ e1
             rho2_1 = d2_1 @ e2
             rho2_2 = d2_2 @ e2
-            rho_s = np.array([[rho1_1, rho1_2],
-                              [rho2_1, rho2_2]])
+            rho_s = np.array([[rho1_1, rho1_2], [rho2_1, rho2_2]])
 
             d1_perp = np.array([-d1[1], d1[0]])
             d2_perp = np.array([-d2[1], d2[0]])
@@ -635,30 +734,107 @@ class Dummy_pantograph(Pantographic_sheet):
             theta1_2 = d1_2 @ d1_perp / rho1**2
             theta2_1 = d2_1 @ d2_perp / rho2**2
             theta2_2 = d2_2 @ d2_perp / rho2**2
-            theta_s = np.array([[theta1_1, theta1_2],
-                                [theta2_1, theta2_2]])
+            theta_s = np.array([[theta1_1, theta1_2], [theta2_1, theta2_2]])
 
             Gamma = asin(e2 @ e1)
 
             # precompute matrices
             G_rho1 = (np.eye(2) - np.outer(e1, e1)) / rho1
             G_rho2 = (np.eye(2) - np.outer(e2, e2)) / rho2
-            G_rho1_1 = (-G_rho1 @ np.outer(d1_1, e1) - np.dot(e1, d1_1) * G_rho1 - np.outer(e1, d1_1) @ G_rho1) / rho1
-            G_rho1_2 = (-G_rho1 @ np.outer(d1_2, e1) - np.dot(e1, d1_2) * G_rho1 - np.outer(e1, d1_2) @ G_rho1) / rho1
-            G_rho2_1 = (-G_rho2 @ np.outer(d2_1, e2) - np.dot(e2, d2_1) * G_rho2 - np.outer(e2, d2_1) @ G_rho2) / rho2
-            G_rho2_2 = (-G_rho2 @ np.outer(d2_2, e2) - np.dot(e2, d2_2) * G_rho2 - np.outer(e2, d2_2) @ G_rho2) / rho2
+            G_rho1_1 = (
+                -G_rho1 @ np.outer(d1_1, e1)
+                - np.dot(e1, d1_1) * G_rho1
+                - np.outer(e1, d1_1) @ G_rho1
+            ) / rho1
+            G_rho1_2 = (
+                -G_rho1 @ np.outer(d1_2, e1)
+                - np.dot(e1, d1_2) * G_rho1
+                - np.outer(e1, d1_2) @ G_rho1
+            ) / rho1
+            G_rho2_1 = (
+                -G_rho2 @ np.outer(d2_1, e2)
+                - np.dot(e2, d2_1) * G_rho2
+                - np.outer(e2, d2_1) @ G_rho2
+            ) / rho2
+            G_rho2_2 = (
+                -G_rho2 @ np.outer(d2_2, e2)
+                - np.dot(e2, d2_2) * G_rho2
+                - np.outer(e2, d2_2) @ G_rho2
+            ) / rho2
 
-            tmp = (1 - (e1 @ e2)**2)**0.5
-            G_Gamma11 = (e1 @ e2 * G_rho1 @ np.outer(e2, e2) @ G_rho1 / (1 - (e1 @ e2)**2) - (np.outer(e1, e2) + np.outer(e2, e1) + (np.eye(2) - 3 * np.outer(e1, e1)) * (e1 @ e2)) / rho1**2 ) / tmp
-            G_Gamma12 = (e1 @ e2 * G_rho1 @ np.outer(e2, e1) @ G_rho2 / (1 - (e1 @ e2)**2) + G_rho1 @ G_rho2) / tmp
-            G_Gamma21 = (e1 @ e2 * G_rho2 @ np.outer(e1, e2) @ G_rho1 / (1 - (e1 @ e2)**2) + G_rho2 @ G_rho1) / tmp
-            G_Gamma22 = (e1 @ e2 * G_rho2 @ np.outer(e1, e1) @ G_rho2 / (1 - (e1 @ e2)**2) - (np.outer(e1, e2) + np.outer(e2, e1) + (np.eye(2) - 3 * np.outer(e2, e2)) * (e1 @ e2)) / rho2**2 ) / tmp
-            G_theta11_1 = -2 * np.array([[0,-1],[1,0]]) @ (np.outer(d1, d1_1) + np.outer(d1_1, d1) + (np.eye(2) - 4 * np.outer(e1, e1)) * (d1_1 @ d1)) / rho1**4
-            G_theta22_2 = -2 * np.array([[0,-1],[1,0]]) @ (np.outer(d2, d2_2) + np.outer(d2_2, d2) + (np.eye(2) - 4 * np.outer(e2, e2)) * (d2_2 @ d2)) / rho2**4
-            G_theta11 = np.array([[0,-1],[1,0]]) @ (np.eye(2) - np.outer(e1, e1)) / rho1**2
-            G_theta22 = np.array([[0,-1],[1,0]]) @ (np.eye(2) - np.outer(e2, e2)) / rho2**2
-            G_theta12_1 = -2 * np.array([[0,-1],[1,0]]) @ (np.outer(d1, d1_2) + np.outer(d1_2, d1) + (np.eye(2) - 4 * np.outer(e1, e1)) * (d1_2 @ d1)) / rho1**4
-            G_theta21_2 = -2 * np.array([[0,-1],[1,0]]) @ (np.outer(d2, d2_1) + np.outer(d2_1, d2) + (np.eye(2) - 4 * np.outer(e2, e2)) * (d2_1 @ d2)) / rho2**4
+            tmp = (1 - (e1 @ e2) ** 2) ** 0.5
+            G_Gamma11 = (
+                e1 @ e2 * G_rho1 @ np.outer(e2, e2) @ G_rho1 / (1 - (e1 @ e2) ** 2)
+                - (
+                    np.outer(e1, e2)
+                    + np.outer(e2, e1)
+                    + (np.eye(2) - 3 * np.outer(e1, e1)) * (e1 @ e2)
+                )
+                / rho1**2
+            ) / tmp
+            G_Gamma12 = (
+                e1 @ e2 * G_rho1 @ np.outer(e2, e1) @ G_rho2 / (1 - (e1 @ e2) ** 2)
+                + G_rho1 @ G_rho2
+            ) / tmp
+            G_Gamma21 = (
+                e1 @ e2 * G_rho2 @ np.outer(e1, e2) @ G_rho1 / (1 - (e1 @ e2) ** 2)
+                + G_rho2 @ G_rho1
+            ) / tmp
+            G_Gamma22 = (
+                e1 @ e2 * G_rho2 @ np.outer(e1, e1) @ G_rho2 / (1 - (e1 @ e2) ** 2)
+                - (
+                    np.outer(e1, e2)
+                    + np.outer(e2, e1)
+                    + (np.eye(2) - 3 * np.outer(e2, e2)) * (e1 @ e2)
+                )
+                / rho2**2
+            ) / tmp
+            G_theta11_1 = (
+                -2
+                * np.array([[0, -1], [1, 0]])
+                @ (
+                    np.outer(d1, d1_1)
+                    + np.outer(d1_1, d1)
+                    + (np.eye(2) - 4 * np.outer(e1, e1)) * (d1_1 @ d1)
+                )
+                / rho1**4
+            )
+            G_theta22_2 = (
+                -2
+                * np.array([[0, -1], [1, 0]])
+                @ (
+                    np.outer(d2, d2_2)
+                    + np.outer(d2_2, d2)
+                    + (np.eye(2) - 4 * np.outer(e2, e2)) * (d2_2 @ d2)
+                )
+                / rho2**4
+            )
+            G_theta11 = (
+                np.array([[0, -1], [1, 0]]) @ (np.eye(2) - np.outer(e1, e1)) / rho1**2
+            )
+            G_theta22 = (
+                np.array([[0, -1], [1, 0]]) @ (np.eye(2) - np.outer(e2, e2)) / rho2**2
+            )
+            G_theta12_1 = (
+                -2
+                * np.array([[0, -1], [1, 0]])
+                @ (
+                    np.outer(d1, d1_2)
+                    + np.outer(d1_2, d1)
+                    + (np.eye(2) - 4 * np.outer(e1, e1)) * (d1_2 @ d1)
+                )
+                / rho1**4
+            )
+            G_theta21_2 = (
+                -2
+                * np.array([[0, -1], [1, 0]])
+                @ (
+                    np.outer(d2, d2_1)
+                    + np.outer(d2_1, d2)
+                    + (np.eye(2) - 4 * np.outer(e2, e2)) * (d2_1 @ d2)
+                )
+                / rho2**4
+            )
 
             # evaluate material model (-> derivatives w.r.t. strain measures)
             W_rho = self.W_rho(rho, rho_s, Gamma, theta_s)
@@ -673,7 +849,7 @@ class Dummy_pantograph(Pantographic_sheet):
             W_rho_s_rho = self.W_rho_s_rho(rho, rho_s, Gamma, theta_s)
             W_rho_s_rho_s = self.W_rho_s_rho_s(rho, rho_s, Gamma, theta_s)
             W_theta_s_rho = self.W_theta_s_rho(rho, rho_s, Gamma, theta_s)
-            
+
             rho1_q = np.zeros((self.nq_el))
             rho2_q = np.zeros((self.nq_el))
             rho1_1_q = np.zeros((self.nq_el))
@@ -691,26 +867,48 @@ class Dummy_pantograph(Pantographic_sheet):
 
                 # delta rho_s
                 rho1_q[ndDOFa] = N_Theta[a, 0] * e1
-                rho2_q[ndDOFa] = N_Theta[a, 1] * e2    
+                rho2_q[ndDOFa] = N_Theta[a, 1] * e2
 
                 # delta rho_s_s
-                rho1_1_q[ndDOFa] = N_ThetaTheta[a, 0, 0] * e1  +  N_Theta[a, 0] * G_rho1 @ d1_1
-                rho1_2_q[ndDOFa] = N_ThetaTheta[a, 0, 1] * e1  +  N_Theta[a, 0] * G_rho1 @ d1_2
-                rho2_1_q[ndDOFa] = N_ThetaTheta[a, 1, 0] * e2  +  N_Theta[a, 1] * G_rho2 @ d2_1
-                rho2_2_q[ndDOFa] = N_ThetaTheta[a, 1, 1] * e2  +  N_Theta[a, 1] * G_rho2 @ d2_2
+                rho1_1_q[ndDOFa] = (
+                    N_ThetaTheta[a, 0, 0] * e1 + N_Theta[a, 0] * G_rho1 @ d1_1
+                )
+                rho1_2_q[ndDOFa] = (
+                    N_ThetaTheta[a, 0, 1] * e1 + N_Theta[a, 0] * G_rho1 @ d1_2
+                )
+                rho2_1_q[ndDOFa] = (
+                    N_ThetaTheta[a, 1, 0] * e2 + N_Theta[a, 1] * G_rho2 @ d2_1
+                )
+                rho2_2_q[ndDOFa] = (
+                    N_ThetaTheta[a, 1, 1] * e2 + N_Theta[a, 1] * G_rho2 @ d2_2
+                )
 
-                # delta Gamma 
-                Gamma_q[ndDOFa] = 1/(1-(e2 @ e1)**2)**0.5 * (
-                     (d1 * N_Theta[a, 1] + d2 * N_Theta[a, 0]) / (rho1 * rho2) 
-                    - (d1 @ d2) / (rho1 * rho2)**2 * (rho2 * rho1_q[ndDOFa] + rho1 * rho2_q[ndDOFa])
+                # delta Gamma
+                Gamma_q[ndDOFa] = (
+                    1
+                    / (1 - (e2 @ e1) ** 2) ** 0.5
+                    * (
+                        (d1 * N_Theta[a, 1] + d2 * N_Theta[a, 0]) / (rho1 * rho2)
+                        - (d1 @ d2)
+                        / (rho1 * rho2) ** 2
+                        * (rho2 * rho1_q[ndDOFa] + rho1 * rho2_q[ndDOFa])
                     )
-                
+                )
+
                 # delta theta_s_s
-                theta1_1_q[ndDOFa] = (d1_1_perp * N_Theta[a, 0] + d1_perp * N_ThetaTheta[a, 0, 0]) / rho1**2 - (d1_1 @ d1_perp) / rho1**3 * 2 * rho1_q[ndDOFa]
-                theta1_2_q[ndDOFa] = (d1_2_perp * N_Theta[a, 0] + d1_perp * N_ThetaTheta[a, 0, 1]) / rho1**2 - (d1_2 @ d1_perp) / rho1**3 * 2 * rho1_q[ndDOFa]
-                theta2_1_q[ndDOFa] = (d2_1_perp * N_Theta[a, 1] + d2_perp * N_ThetaTheta[a, 1, 0]) / rho2**2 - (d2_1 @ d2_perp) / rho2**3 * 2 * rho2_q[ndDOFa]
-                theta2_2_q[ndDOFa] = (d2_2_perp * N_Theta[a, 1] + d2_perp * N_ThetaTheta[a, 1, 1]) / rho2**2 - (d2_2 @ d2_perp) / rho2**3 * 2 * rho2_q[ndDOFa]  
-                
+                theta1_1_q[ndDOFa] = (
+                    d1_1_perp * N_Theta[a, 0] + d1_perp * N_ThetaTheta[a, 0, 0]
+                ) / rho1**2 - (d1_1 @ d1_perp) / rho1**3 * 2 * rho1_q[ndDOFa]
+                theta1_2_q[ndDOFa] = (
+                    d1_2_perp * N_Theta[a, 0] + d1_perp * N_ThetaTheta[a, 0, 1]
+                ) / rho1**2 - (d1_2 @ d1_perp) / rho1**3 * 2 * rho1_q[ndDOFa]
+                theta2_1_q[ndDOFa] = (
+                    d2_1_perp * N_Theta[a, 1] + d2_perp * N_ThetaTheta[a, 1, 0]
+                ) / rho2**2 - (d2_1 @ d2_perp) / rho2**3 * 2 * rho2_q[ndDOFa]
+                theta2_2_q[ndDOFa] = (
+                    d2_2_perp * N_Theta[a, 1] + d2_perp * N_ThetaTheta[a, 1, 1]
+                ) / rho2**2 - (d2_2 @ d2_perp) / rho2**3 * 2 * rho2_q[ndDOFa]
+
             for a in range(self.nn_el):
                 ndDOFa = self.mesh.nodalDOF[a]
                 for b in range(self.nn_el):
@@ -719,32 +917,95 @@ class Dummy_pantograph(Pantographic_sheet):
                     rho1_qq = N_Theta[a, 0] * G_rho1 * N_Theta[b, 0]
                     rho2_qq = N_Theta[a, 1] * G_rho2 * N_Theta[b, 1]
 
-                    rho1_1_qq = N_ThetaTheta[a, 0, 0] * G_rho1 * N_Theta[b, 0] + N_Theta[a, 0] * G_rho1 * N_ThetaTheta[b, 0, 0] + N_Theta[a, 0] * G_rho1_1  * N_Theta[b, 0]
-                    rho1_2_qq = N_ThetaTheta[a, 0, 1] * G_rho1 * N_Theta[b, 0] + N_Theta[a, 0] * G_rho1 * N_ThetaTheta[b, 0, 1] + N_Theta[a, 0] * G_rho1_2  * N_Theta[b, 0]
-                    rho2_1_qq = N_ThetaTheta[a, 1, 0] * G_rho2 * N_Theta[b, 1] + N_Theta[a, 1] * G_rho2 * N_ThetaTheta[b, 1, 0] + N_Theta[a, 1] * G_rho2_1  * N_Theta[b, 1]
-                    rho2_2_qq = N_ThetaTheta[a, 1, 1] * G_rho2 * N_Theta[b, 1] + N_Theta[a, 1] * G_rho2 * N_ThetaTheta[b, 1, 1] + N_Theta[a, 1] * G_rho2_2  * N_Theta[b, 1]
+                    rho1_1_qq = (
+                        N_ThetaTheta[a, 0, 0] * G_rho1 * N_Theta[b, 0]
+                        + N_Theta[a, 0] * G_rho1 * N_ThetaTheta[b, 0, 0]
+                        + N_Theta[a, 0] * G_rho1_1 * N_Theta[b, 0]
+                    )
+                    rho1_2_qq = (
+                        N_ThetaTheta[a, 0, 1] * G_rho1 * N_Theta[b, 0]
+                        + N_Theta[a, 0] * G_rho1 * N_ThetaTheta[b, 0, 1]
+                        + N_Theta[a, 0] * G_rho1_2 * N_Theta[b, 0]
+                    )
+                    rho2_1_qq = (
+                        N_ThetaTheta[a, 1, 0] * G_rho2 * N_Theta[b, 1]
+                        + N_Theta[a, 1] * G_rho2 * N_ThetaTheta[b, 1, 0]
+                        + N_Theta[a, 1] * G_rho2_1 * N_Theta[b, 1]
+                    )
+                    rho2_2_qq = (
+                        N_ThetaTheta[a, 1, 1] * G_rho2 * N_Theta[b, 1]
+                        + N_Theta[a, 1] * G_rho2 * N_ThetaTheta[b, 1, 1]
+                        + N_Theta[a, 1] * G_rho2_2 * N_Theta[b, 1]
+                    )
 
-                    Gamma_qq = N_Theta[a, 0] * G_Gamma11 * N_Theta[b, 0] + N_Theta[a, 0] * G_Gamma12 * N_Theta[b, 1] + N_Theta[a, 1] * G_Gamma21 * N_Theta[b, 0] + N_Theta[a, 1] * G_Gamma22 * N_Theta[b, 1]
-                    
-                    theta1_1_qq = N_Theta[a, 0] * G_theta11_1 * N_Theta[b, 0] + N_ThetaTheta[a, 0, 0] * G_theta11 * N_Theta[b, 0] + N_Theta[a, 0] * G_theta11 * N_ThetaTheta[b, 0, 0]
-                    theta1_2_qq = N_Theta[a, 0] * G_theta12_1 * N_Theta[b, 0] + N_ThetaTheta[a, 0, 1] * G_theta11 * N_Theta[b, 0] + N_Theta[a, 0] * G_theta11 * N_ThetaTheta[b, 0, 1]
-                    theta2_1_qq = N_Theta[a, 1] * G_theta21_2 * N_Theta[b, 1] + N_ThetaTheta[a, 1, 0] * G_theta22 * N_Theta[b, 1] + N_Theta[a, 1] * G_theta22 * N_ThetaTheta[b, 1, 0]
-                    theta2_2_qq = N_Theta[a, 1] * G_theta22_2 * N_Theta[b, 1] + N_ThetaTheta[a, 1, 1] * G_theta22 * N_Theta[b, 1] + N_Theta[a, 1] * G_theta22 * N_ThetaTheta[b, 1, 1]
+                    Gamma_qq = (
+                        N_Theta[a, 0] * G_Gamma11 * N_Theta[b, 0]
+                        + N_Theta[a, 0] * G_Gamma12 * N_Theta[b, 1]
+                        + N_Theta[a, 1] * G_Gamma21 * N_Theta[b, 0]
+                        + N_Theta[a, 1] * G_Gamma22 * N_Theta[b, 1]
+                    )
+
+                    theta1_1_qq = (
+                        N_Theta[a, 0] * G_theta11_1 * N_Theta[b, 0]
+                        + N_ThetaTheta[a, 0, 0] * G_theta11 * N_Theta[b, 0]
+                        + N_Theta[a, 0] * G_theta11 * N_ThetaTheta[b, 0, 0]
+                    )
+                    theta1_2_qq = (
+                        N_Theta[a, 0] * G_theta12_1 * N_Theta[b, 0]
+                        + N_ThetaTheta[a, 0, 1] * G_theta11 * N_Theta[b, 0]
+                        + N_Theta[a, 0] * G_theta11 * N_ThetaTheta[b, 0, 1]
+                    )
+                    theta2_1_qq = (
+                        N_Theta[a, 1] * G_theta21_2 * N_Theta[b, 1]
+                        + N_ThetaTheta[a, 1, 0] * G_theta22 * N_Theta[b, 1]
+                        + N_Theta[a, 1] * G_theta22 * N_ThetaTheta[b, 1, 0]
+                    )
+                    theta2_2_qq = (
+                        N_Theta[a, 1] * G_theta22_2 * N_Theta[b, 1]
+                        + N_ThetaTheta[a, 1, 1] * G_theta22 * N_Theta[b, 1]
+                        + N_Theta[a, 1] * G_theta22 * N_ThetaTheta[b, 1, 1]
+                    )
 
                     Ke[np.ix_(ndDOFa, ndDOFb)] -= (
-                          W_rho[0] * rho1_qq + W_rho[1] * rho2_qq
-                        + W_rho_s[0, 0] * rho1_1_qq + W_rho_s[1, 1] * rho2_2_qq  # +...
+                        W_rho[0] * rho1_qq
+                        + W_rho[1] * rho2_qq
+                        + W_rho_s[0, 0] * rho1_1_qq
+                        + W_rho_s[1, 1] * rho2_2_qq  # +...
                         + W_Gamma * Gamma_qq
-                        + W_theta_s[0, 0] * theta1_1_qq + W_theta_s[1, 1] * theta2_2_qq + W_theta_s[0, 1] * theta1_2_qq + W_theta_s[1, 0] * theta2_1_qq
-                        + W_rho_rho[0, 0] * np.outer(rho1_q[ndDOFa], rho1_q[ndDOFb]) + W_rho_rho[1, 1] * np.outer(rho2_q[ndDOFa], rho2_q[ndDOFb]) + W_rho_rho[0, 1] * np.outer(rho1_q[ndDOFa], rho2_q[ndDOFb]) + W_rho_rho[1, 0] * np.outer(rho2_q[ndDOFa], rho1_q[ndDOFb])
-                        + W_theta_s_theta_s[0, 0, 0, 0] * np.outer(theta1_1_q[ndDOFa], theta1_1_q[ndDOFb]) + W_theta_s_theta_s[1, 1, 1, 1] * np.outer(theta2_2_q[ndDOFa], theta2_2_q[ndDOFb])  # +...
+                        + W_theta_s[0, 0] * theta1_1_qq
+                        + W_theta_s[1, 1] * theta2_2_qq
+                        + W_theta_s[0, 1] * theta1_2_qq
+                        + W_theta_s[1, 0] * theta2_1_qq
+                        + W_rho_rho[0, 0] * np.outer(rho1_q[ndDOFa], rho1_q[ndDOFb])
+                        + W_rho_rho[1, 1] * np.outer(rho2_q[ndDOFa], rho2_q[ndDOFb])
+                        + W_rho_rho[0, 1] * np.outer(rho1_q[ndDOFa], rho2_q[ndDOFb])
+                        + W_rho_rho[1, 0] * np.outer(rho2_q[ndDOFa], rho1_q[ndDOFb])
+                        + W_theta_s_theta_s[0, 0, 0, 0]
+                        * np.outer(theta1_1_q[ndDOFa], theta1_1_q[ndDOFb])
+                        + W_theta_s_theta_s[1, 1, 1, 1]
+                        * np.outer(theta2_2_q[ndDOFa], theta2_2_q[ndDOFb])  # +...
                         + W_Gamma_Gamma * np.outer(Gamma_q[ndDOFa], Gamma_q[ndDOFb])
-                        + W_rho_rho_s[0, 0, 0] * np.outer(rho1_q[ndDOFa], rho1_1_q[ndDOFb]) + W_rho_rho_s[1, 1, 1] * np.outer(rho2_q[ndDOFa], rho2_2_q[ndDOFb]) # +...
-                        + W_rho_theta_s[0, 0, 0] * np.outer(rho1_q[ndDOFa], theta1_1_q[ndDOFb]) + W_rho_theta_s[1, 1, 1] * np.outer(rho2_q[ndDOFa], theta2_2_q[ndDOFb])  # +...
-                        + W_rho_s_rho[0, 0, 0] * np.outer(rho1_1_q[ndDOFa], rho1_q[ndDOFb]) + W_rho_s_rho[1, 1, 1] * np.outer(rho2_2_q[ndDOFa], rho2_q[ndDOFb]) # +...
-                        + W_rho_s_rho_s[0, 0, 0, 0] * np.outer(rho1_1_q[ndDOFa], rho1_1_q[ndDOFb]) + W_rho_s_rho_s[1, 1, 1, 1] * np.outer(rho2_2_q[ndDOFa], rho2_2_q[ndDOFb]) # +...
-                        + W_theta_s_rho[0, 0, 0] * np.outer(theta1_1_q[ndDOFa], rho1_q[ndDOFb]) + W_theta_s_rho[1, 1, 1] * np.outer(theta2_2_q[ndDOFa], rho2_q[ndDOFb]) # +...
-                        ) * w_J0
+                        + W_rho_rho_s[0, 0, 0]
+                        * np.outer(rho1_q[ndDOFa], rho1_1_q[ndDOFb])
+                        + W_rho_rho_s[1, 1, 1]
+                        * np.outer(rho2_q[ndDOFa], rho2_2_q[ndDOFb])  # +...
+                        + W_rho_theta_s[0, 0, 0]
+                        * np.outer(rho1_q[ndDOFa], theta1_1_q[ndDOFb])
+                        + W_rho_theta_s[1, 1, 1]
+                        * np.outer(rho2_q[ndDOFa], theta2_2_q[ndDOFb])  # +...
+                        + W_rho_s_rho[0, 0, 0]
+                        * np.outer(rho1_1_q[ndDOFa], rho1_q[ndDOFb])
+                        + W_rho_s_rho[1, 1, 1]
+                        * np.outer(rho2_2_q[ndDOFa], rho2_q[ndDOFb])  # +...
+                        + W_rho_s_rho_s[0, 0, 0, 0]
+                        * np.outer(rho1_1_q[ndDOFa], rho1_1_q[ndDOFb])
+                        + W_rho_s_rho_s[1, 1, 1, 1]
+                        * np.outer(rho2_2_q[ndDOFa], rho2_2_q[ndDOFb])  # +...
+                        + W_theta_s_rho[0, 0, 0]
+                        * np.outer(theta1_1_q[ndDOFa], rho1_q[ndDOFb])
+                        + W_theta_s_rho[1, 1, 1]
+                        * np.outer(theta2_2_q[ndDOFa], rho2_q[ndDOFb])  # +...
+                    ) * w_J0
 
         return Ke
 
@@ -769,12 +1030,12 @@ def test_gradients():
 
     from cardillo.discretization.mesh2D import rectangle
     from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume
+
     # from cardillo.discretization.indexing import flat2D
     # from cardillo.model.continuum import Maurin2019
     # from cardillo.math.numerical_derivative import Numerical_derivative
-    # from cardillo.discretization.indexing import split2D 
+    # from cardillo.discretization.indexing import split2D
     # from cardillo.math.algebra import A_IK_basic_z
-
 
     QP_shape = (2, 2)
     degrees = (3, 3)
@@ -783,8 +1044,8 @@ def test_gradients():
     Xi = Knot_vector(degrees[0], element_shape[0])
     Eta = Knot_vector(degrees[1], element_shape[1])
     knot_vectors = (Xi, Eta)
-    
-    mesh = Mesh2D(knot_vectors, QP_shape, derivative_order=2, basis='B-spline', nq_n=2)
+
+    mesh = Mesh2D(knot_vectors, QP_shape, derivative_order=2, basis="B-spline", nq_n=2)
 
     # reference configuration is a cube
     alpha0 = np.pi / 2
@@ -804,7 +1065,7 @@ def test_gradients():
     mat = (0,)
 
     # 3D continuum
-    continuum = Dummy_pantograph(None, mat, mesh, Z, z0=Z, fiber_angle=np.pi/4)
+    continuum = Dummy_pantograph(None, mat, mesh, Z, z0=Z, fiber_angle=np.pi / 4)
 
     # fit quater circle configuration
     def kappa(vxi):
@@ -824,7 +1085,7 @@ def test_gradients():
     nxi, neta = 20, 20
     xi = np.linspace(0, 1, num=nxi)
     eta = np.linspace(0, 1, num=neta)
-    
+
     n2 = nxi * neta
     knots = np.zeros((n2, 2))
     Pw = np.zeros((n2, 2))
@@ -840,8 +1101,8 @@ def test_gradients():
     z = np.concatenate((x, y))
 
     # export current configuration and deformation gradient on quadrature points to paraview
-    foldername = pathlib.Path("output") / 'test'
-    filename =  foldername / 'test'
+    foldername = pathlib.Path("output") / "test"
+    filename = foldername / "test"
     foldername.mkdir(parents=True, exist_ok=True)
     continuum.post_processing(np.array([0]), z, filename)
 
@@ -857,8 +1118,12 @@ def test_gradients():
             i_xi, i_eta = split2D(i, mesh.nqp_per_dim)
             for a in range(mesh.nn_el):
                 # deformation gradients
-                F[el, i] += np.outer(ze[mesh.nodalDOF[a]], continuum.N_Theta[el, i, a]) # Bonet 1997 (7.6b)
-                G[el, i] += np.einsum('i,jk->ijk', ze[mesh.nodalDOF[a]], continuum.N_ThetaTheta[el, i, a]) 
+                F[el, i] += np.outer(
+                    ze[mesh.nodalDOF[a]], continuum.N_Theta[el, i, a]
+                )  # Bonet 1997 (7.6b)
+                G[el, i] += np.einsum(
+                    "i,jk->ijk", ze[mesh.nodalDOF[a]], continuum.N_ThetaTheta[el, i, a]
+                )
 
             vxi = np.array([mesh.qp_xi[el_xi, i_xi], mesh.qp_eta[el_eta, i_eta]])
             vX = kappa0(vxi)
@@ -867,6 +1132,7 @@ def test_gradients():
 
     print(f"error F: {np.linalg.norm(F-F_num)}")
     print(f"error G: {np.linalg.norm(G-G_num)}")
+
 
 # def test_variations():
 #     # compare analytical and numerical expressions for rho_q, Gamma_q and theta_s_q
@@ -913,7 +1179,7 @@ def test_gradients():
 #     nxi, neta = 20, 20
 #     xi = np.linspace(0, 1, num=nxi)
 #     eta = np.linspace(0, 1, num=neta)
-    
+
 #     n2 = nxi * neta
 #     knots = np.zeros((n2, 2))
 #     Pw = np.zeros((n2, 2))
@@ -928,7 +1194,7 @@ def test_gradients():
 #     x, y = fit_B_spline_volume(mesh, knots, Pw, qc, cDOF)
 #     z = np.concatenate((x, y))
 
-#     ze = z[mesh.elDOF[el]] 
+#     ze = z[mesh.elDOF[el]]
 
 #     N_Theta = continuum.N_Theta[el, i]
 #     N_ThetaTheta = continuum.N_ThetaTheta[el, i]
@@ -1074,9 +1340,9 @@ def test_gradients():
 #         rho1_q = N_Theta[a, 0] * e1
 #         rho2_q = N_Theta[a, 1] * e2
 
-#         # delta Gamma 
+#         # delta Gamma
 #         Gamma_q = 1/(1-(e2 @ e1)**2)**0.5 * (
-#                      (d1 * N_Theta[a, 1] + d2 * N_Theta[a, 0]) / (rho1 * rho2) 
+#                      (d1 * N_Theta[a, 1] + d2 * N_Theta[a, 0]) / (rho1 * rho2)
 #                     - (d1 @ d2) / (rho1 * rho2)**2 * (rho2 * rho1_q + rho1 * rho2_q)
 #                     )
 
@@ -1086,19 +1352,19 @@ def test_gradients():
 #         d2_1_q = N_ThetaTheta[a, 1, 0]
 #         d2_2_q = N_ThetaTheta[a, 1, 1]
 
-#         d1_perp_q = np.array([[0,-1],[1,0]]) * N_Theta[a, 0]  
+#         d1_perp_q = np.array([[0,-1],[1,0]]) * N_Theta[a, 0]
 #         d2_perp_q = np.array([[0,-1],[1,0]]) * N_Theta[a, 1]
 
 #         rho1_1_q = N_ThetaTheta[a, 0, 0] * e1  +  N_Theta[a, 0] * G_rho1 @ d1_1
 #         rho1_2_q = N_ThetaTheta[a, 0, 1] * e1  +  N_Theta[a, 0] * G_rho1 @ d1_2
 #         rho2_1_q = N_ThetaTheta[a, 1, 0] * e2  +  N_Theta[a, 1] * G_rho2 @ d2_1
 #         rho2_2_q = N_ThetaTheta[a, 1, 1] * e2  +  N_Theta[a, 1] * G_rho2 @ d2_2
-        
+
 #         theta1_1_q = (d1_1_perp * N_Theta[a, 0] + d1_perp * d1_1_q) / rho1**2 - (d1_1 @ d1_perp) / rho1**3 * 2 * rho1_q
 #         theta1_2_q = (d1_2_perp * N_Theta[a, 0] + d1_perp * d1_2_q) / rho1**2 - (d1_2 @ d1_perp) / rho1**3 * 2 * rho1_q
 #         theta2_1_q = (d2_1_perp * N_Theta[a, 1] + d2_perp * d2_1_q) / rho2**2 - (d2_1 @ d2_perp) / rho2**3 * 2 * rho2_q
 #         theta2_2_q = (d2_2_perp * N_Theta[a, 1] + d2_perp * d2_2_q) / rho2**2 - (d2_2 @ d2_perp) / rho2**3 * 2 * rho2_q
-        
+
 #         rho_q_an[:, mesh.nodalDOF[a]] += np.array([rho1_q, rho2_q])
 #         rho_s_q_an[:, :, mesh.nodalDOF[a]] += np.array([[rho1_1_q, rho1_2_q],
 #                                                      [rho2_1_q, rho2_2_q]])

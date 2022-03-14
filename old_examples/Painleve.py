@@ -11,10 +11,11 @@ import matplotlib.animation as animation
 from cardillo.model import Model
 from cardillo.solver import Moreau, Generalized_alpha_2, Generalized_alpha_3
 
-class Painleve_rod():
-    def __init__(self, mu=5/3, q0=None, u0=None):
+
+class Painleve_rod:
+    def __init__(self, mu=5 / 3, q0=None, u0=None):
         """Glocker1995, 5.3.4 Stoß ohne Kollision"""
-        
+
         self.m = 1
         self.s = 1
         self.J_S = self.m * self.s**2 / 3
@@ -36,7 +37,7 @@ class Painleve_rod():
         x0 = 0
         phi0 = 31 / 180 * pi
         # y0 = 0.515
-        y0 = sin(phi0) * self.s # 0.5150380749100542
+        y0 = sin(phi0) * self.s  # 0.5150380749100542
 
         x_dot0 = 30
         y_dot0 = 0
@@ -53,7 +54,7 @@ class Painleve_rod():
         self.nla_N = 1
         self.nla_T = 1
         # self.nla_T = 0
-    
+
     #####################
     # equations of motion
     #####################
@@ -61,7 +62,7 @@ class Painleve_rod():
         coo.extend_diag(np.array([self.m, self.m, self.J_S]), (self.uDOF, self.uDOF))
 
     def f_pot(self, t, q):
-        return np.array([0, - self.m * self.g, 0])
+        return np.array([0, -self.m * self.g, 0])
 
     #####################
     # kinematic equations
@@ -105,7 +106,7 @@ class Painleve_rod():
     def g_N_dot_u_dense(self, t, q):
         x, y, phi = q
         return np.array([0, 1, -self.s * cos(phi)])
-    
+
     def g_N_dot_u(self, t, q, coo):
         coo.extend(self.g_N_dot_u_dense(t, q), (self.la_NDOF, self.uDOF))
 
@@ -125,13 +126,17 @@ class Painleve_rod():
         x, y, phi = q
         x_dot, y_dot, phi_dot = u
         x_ddot, y_ddot, phi_ddot = u_dot
-        return np.array([y_ddot + self.s * sin(phi) * phi_dot**2 - self.s * cos(phi) * phi_ddot])
+        return np.array(
+            [y_ddot + self.s * sin(phi) * phi_dot**2 - self.s * cos(phi) * phi_ddot]
+        )
 
     def g_N_ddot_q(self, t, q, u, u_dot, coo):
         x, y, phi = q
         x_dot, y_dot, phi_dot = u
         x_ddot, y_ddot, phi_ddot = u_dot
-        dense = np.array([0, 0, self.s * cos(phi) * phi_dot**2 + self.s * sin(phi) * phi_ddot])
+        dense = np.array(
+            [0, 0, self.s * cos(phi) * phi_dot**2 + self.s * sin(phi) * phi_ddot]
+        )
         coo.extend(dense, (self.la_NDOF, self.qDOF))
 
     def g_N_ddot_u(self, t, q, u, u_dot, coo):
@@ -142,9 +147,7 @@ class Painleve_rod():
 
     def Wla_N_q(self, t, q, la_N, coo):
         x, y, phi = q
-        dense = la_N[0] * np.array([[0, 0, 0],
-                                    [0, 0, 0],
-                                    [0, 0, self.s * sin(phi)]])
+        dense = la_N[0] * np.array([[0, 0, 0], [0, 0, 0], [0, 0, self.s * sin(phi)]])
         coo.extend(dense, (self.uDOF, self.qDOF))
 
     #################
@@ -158,7 +161,7 @@ class Painleve_rod():
     def gamma_T_q_dense(self, t, q, u):
         x, y, phi = q
         x_dot, y_dot, phi_dot = u
-        return np.array([[0, 0, - self.s * cos(phi) * phi_dot]])
+        return np.array([[0, 0, -self.s * cos(phi) * phi_dot]])
 
     def gamma_T_q(self, t, q, u, coo):
         coo.extend(self.gamma_T_q_dense(t, q, u), (self.la_TDOF, self.qDOF))
@@ -175,39 +178,42 @@ class Painleve_rod():
 
     def Wla_T_q(self, t, q, la_T, coo):
         x, y, phi = q
-        dense = la_T[0] * np.array([[0, 0, 0],
-                                    [0, 0, 0],
-                                    [0, 0, -self.s * cos(phi)]])
+        dense = la_T[0] * np.array([[0, 0, 0], [0, 0, 0], [0, 0, -self.s * cos(phi)]])
         coo.extend(dense, (self.uDOF, self.qDOF))
 
     def gamma_T_dot(self, t, q, u, u_dot):
         x, y, phi = q
         x_dot, y_dot, phi_dot = u
         x_ddot, y_ddot, phi_ddot = u_dot
-        return np.array([x_ddot - self.s * cos(phi) * phi_dot**2 - self.s * sin(phi) * phi_ddot])
+        return np.array(
+            [x_ddot - self.s * cos(phi) * phi_dot**2 - self.s * sin(phi) * phi_ddot]
+        )
 
     def gamma_T_dot_q(self, t, q, u, u_dot, coo):
         x, y, phi = q
         x_dot, y_dot, phi_dot = u
         x_ddot, y_ddot, phi_ddot = u_dot
-        dense = np.array([[0, 0, self.s * sin(phi) * phi_dot**2 - self.s * cos(phi) * phi_ddot]])
+        dense = np.array(
+            [[0, 0, self.s * sin(phi) * phi_dot**2 - self.s * cos(phi) * phi_ddot]]
+        )
         coo.extend(dense, (self.la_TDOF, self.qDOF))
-        
+
     def gamma_T_dot_u(self, t, q, u, u_dot, coo):
         x, y, phi = q
         x_dot, y_dot, phi_dot = u
         x_ddot, y_ddot, phi_ddot = u_dot
-        dense = np.array([[0, 0, - 2 * self.s * cos(phi) * phi_dot]])
+        dense = np.array([[0, 0, -2 * self.s * cos(phi) * phi_dot]])
         coo.extend(dense, (self.la_TDOF, self.uDOF))
 
     def xi_T(self, t, q, u_pre, u_post):
         return self.gamma_T(t, q, u_post) + self.e_T * self.gamma_T(t, q, u_pre)
-    
+
     def xi_T_q(self, t, q, u_pre, u_post, coo):
         gamma_T_q_pre = self.gamma_T_q_dense(t, q, u_pre)
         gamma_T_q_post = self.gamma_T_q_dense(t, q, u_post)
         dense = gamma_T_q_post + self.e_T * gamma_T_q_pre
         coo.extend(dense, (self.la_TDOF, self.qDOF))
+
 
 if __name__ == "__main__":
     animate = True
@@ -224,7 +230,9 @@ if __name__ == "__main__":
     # solver = Moreau(model, t1, dt, fix_point_tol=1.0e-6)
     # solver = Moreau(model, t1, dt, prox_solver_method='newton')
     # solver = Generalized_alpha_2(model, t1, dt, numerical_jacobian=True, newton_tol=1.0e-10)
-    solver = Generalized_alpha_3(model, t1, dt, numerical_jacobian=False, newton_tol=1.0e-8, rho_inf=0.6)
+    solver = Generalized_alpha_3(
+        model, t1, dt, numerical_jacobian=False, newton_tol=1.0e-8, rho_inf=0.6
+    )
     sol = solver.solve()
     t = sol.t
     q = sol.q
@@ -234,36 +242,36 @@ if __name__ == "__main__":
 
     # positions
     fig, ax = plt.subplots(3, 3)
-    ax[0, 0].set_xlabel('t [s]')
-    ax[0, 0].set_ylabel('x [m]')
-    ax[0, 0].plot(t, q[:, 0], '-k')
-    ax[0, 0].plot([t_a, t_a], [min(q[:, 0]), max(q[:, 0])], '--k')
+    ax[0, 0].set_xlabel("t [s]")
+    ax[0, 0].set_ylabel("x [m]")
+    ax[0, 0].plot(t, q[:, 0], "-k")
+    ax[0, 0].plot([t_a, t_a], [min(q[:, 0]), max(q[:, 0])], "--k")
 
-    ax[0, 1].set_xlabel('t [s]')
-    ax[0, 1].set_ylabel('y [m]')
-    ax[0, 1].plot(t, q[:, 1], '-k')
-    ax[0, 1].plot([t_a, t_a], [min(q[:, 1]), max(q[:, 1])], '--k')
+    ax[0, 1].set_xlabel("t [s]")
+    ax[0, 1].set_ylabel("y [m]")
+    ax[0, 1].plot(t, q[:, 1], "-k")
+    ax[0, 1].plot([t_a, t_a], [min(q[:, 1]), max(q[:, 1])], "--k")
 
-    ax[0, 2].set_xlabel('t [s]')
-    ax[0, 2].set_ylabel('phi [rad]')
-    ax[0, 2].plot(t, q[:, 2], '-k')
-    ax[0, 2].plot([t_a, t_a], [min(q[:, 2]), max(q[:, 2])], '--k')
+    ax[0, 2].set_xlabel("t [s]")
+    ax[0, 2].set_ylabel("phi [rad]")
+    ax[0, 2].plot(t, q[:, 2], "-k")
+    ax[0, 2].plot([t_a, t_a], [min(q[:, 2]), max(q[:, 2])], "--k")
 
     # velocities
-    ax[1, 0].set_xlabel('t [s]')
-    ax[1, 0].set_ylabel('x_dot [m/s]')
-    ax[1, 0].plot(t, u[:, 0], '-k')
-    ax[1, 0].plot([t_a, t_a], [min(u[:, 0]), max(u[:, 0])], '--k')
+    ax[1, 0].set_xlabel("t [s]")
+    ax[1, 0].set_ylabel("x_dot [m/s]")
+    ax[1, 0].plot(t, u[:, 0], "-k")
+    ax[1, 0].plot([t_a, t_a], [min(u[:, 0]), max(u[:, 0])], "--k")
 
-    ax[1, 1].set_xlabel('t [s]')
-    ax[1, 1].set_ylabel('y_dot [m/s]')
-    ax[1, 1].plot(t, u[:, 1], '-k')
-    ax[1, 1].plot([t_a, t_a], [min(u[:, 1]), max(u[:, 1])], '--k')
+    ax[1, 1].set_xlabel("t [s]")
+    ax[1, 1].set_ylabel("y_dot [m/s]")
+    ax[1, 1].plot(t, u[:, 1], "-k")
+    ax[1, 1].plot([t_a, t_a], [min(u[:, 1]), max(u[:, 1])], "--k")
 
-    ax[1, 2].set_xlabel('t [s]')
-    ax[1, 2].set_ylabel('phi_dot [rad/s]')
-    ax[1, 2].plot(t, u[:, 2], '-k')
-    ax[1, 2].plot([t_a, t_a], [min(u[:, 2]), max(u[:, 2])], '--k')
+    ax[1, 2].set_xlabel("t [s]")
+    ax[1, 2].set_ylabel("phi_dot [rad/s]")
+    ax[1, 2].plot(t, u[:, 2], "-k")
+    ax[1, 2].plot([t_a, t_a], [min(u[:, 2]), max(u[:, 2])], "--k")
 
     # gaps
     nt = len(t)
@@ -276,33 +284,33 @@ if __name__ == "__main__":
         g_N_dot[i] = rod.g_N_dot(ti, q[i], u[i])
         gamma_T[i] = rod.gamma_T(ti, q[i], u[i])
 
-    ax[2, 0].set_xlabel('t [s]')
-    ax[2, 0].set_ylabel('g_N [m]')
-    ax[2, 0].plot(t, g_N, '-k')
-    ax[2, 0].plot([t_a, t_a], [min(g_N), max(g_N)], '--k')
+    ax[2, 0].set_xlabel("t [s]")
+    ax[2, 0].set_ylabel("g_N [m]")
+    ax[2, 0].plot(t, g_N, "-k")
+    ax[2, 0].plot([t_a, t_a], [min(g_N), max(g_N)], "--k")
 
-    ax[2, 1].set_xlabel('t [s]')
-    ax[2, 1].set_ylabel('g_N_dot [m/s]')
-    ax[2, 1].plot(t, g_N_dot, '-k')
-    ax[2, 1].plot([t_a, t_a], [min(g_N_dot), max(g_N_dot)], '--k')
+    ax[2, 1].set_xlabel("t [s]")
+    ax[2, 1].set_ylabel("g_N_dot [m/s]")
+    ax[2, 1].plot(t, g_N_dot, "-k")
+    ax[2, 1].plot([t_a, t_a], [min(g_N_dot), max(g_N_dot)], "--k")
 
-    ax[2, 2].set_xlabel('t [s]')
-    ax[2, 2].set_ylabel('gamma_T [m/s]')
-    ax[2, 2].plot(t, gamma_T, '-k')
-    ax[2, 2].plot([t_a, t_a], [min(gamma_T), max(gamma_T)], '--k')
+    ax[2, 2].set_xlabel("t [s]")
+    ax[2, 2].set_ylabel("gamma_T [m/s]")
+    ax[2, 2].plot(t, gamma_T, "-k")
+    ax[2, 2].plot([t_a, t_a], [min(gamma_T), max(gamma_T)], "--k")
 
     plt.show()
 
     if animate:
         fig_anim, ax_anim = plt.subplots()
-        
-        ax_anim.set_xlabel('x [m]')
-        ax_anim.set_ylabel('y [m]')
-        ax_anim.axis('equal')
+
+        ax_anim.set_xlabel("x [m]")
+        ax_anim.set_ylabel("y [m]")
+        ax_anim.axis("equal")
         l = 30
         ax_anim.set_xlim(-1, l - 1)
-        ax_anim.set_ylim(-l/2, l/2)
-        
+        ax_anim.set_ylim(-l / 2, l / 2)
+
         # prepare data for animation
         slowmotion = 2
         fps = 25
@@ -317,7 +325,7 @@ if __name__ == "__main__":
         t = t[::frac]
         q = q[::frac]
 
-        line, = ax_anim.plot([-1, l - 1], [0, 0], '-k')
+        (line,) = ax_anim.plot([-1, l - 1], [0, 0], "-k")
 
         def configuration_rod(q):
             x, y, phi = q
@@ -326,14 +334,16 @@ if __name__ == "__main__":
             y = np.array([y + s * sin(phi), y - s * sin(phi)])
             return x, y
 
-        line, = ax_anim.plot(*configuration_rod(rod.q0), '-r', linewidth=2)
+        (line,) = ax_anim.plot(*configuration_rod(rod.q0), "-r", linewidth=2)
 
         def animate(i):
             x, y = configuration_rod(q[i])
             line.set_data(x, y)
-            return line,
+            return (line,)
 
-        anim = animation.FuncAnimation(fig_anim, animate, frames=frames, interval=interval, blit=False)
+        anim = animation.FuncAnimation(
+            fig_anim, animate, frames=frames, interval=interval, blit=False
+        )
         plt.show()
 
         # writer = animation.writers['ffmpeg'](fps=fps, bitrate=1800)

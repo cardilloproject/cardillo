@@ -1,9 +1,19 @@
 from scipy.optimize.minpack import fixed_point
 from cardillo.model.rope import Hooke, Rope, Inextensible_Rope
 from cardillo.model.frame import Frame
-from cardillo.model.bilateral_constraints.implicit import Spherical_joint, Spherical_joint2D
+from cardillo.model.bilateral_constraints.implicit import (
+    Spherical_joint,
+    Spherical_joint2D,
+)
 from cardillo.model import Model
-from cardillo.solver import Euler_backward, Moreau, Moreau_sym, Generalized_alpha_1, Scipy_ivp, Newton
+from cardillo.solver import (
+    Euler_backward,
+    Moreau,
+    Moreau_sym,
+    Generalized_alpha_1,
+    Scipy_ivp,
+    Newton,
+)
 from cardillo.model.line_force.line_force import Line_force
 from cardillo.discretization import uniform_knot_vector
 from cardillo.math.algebra import A_IK_basic_z
@@ -18,7 +28,8 @@ import numpy as np
 # see https://en.wikipedia.org/wiki/Smoothstep#Generalization_to_higher-order_equations
 def smoothstep3(x, x_min=0, x_max=1):
     x = np.clip((x - x_min) / (x_max - x_min), 0, 1)
-    return -20 * x**7 + 70 * x**6 - 84*x**5 + 35 * x**4
+    return -20 * x**7 + 70 * x**6 - 84 * x**5 + 35 * x**4
+
 
 statics = True
 # statics = False
@@ -28,7 +39,7 @@ if __name__ == "__main__":
     t0 = 0
     t1 = 1
     dt = 5e-3
-    
+
     # physical properties of the rope
     dim = 3
     assert dim == 3
@@ -41,9 +52,9 @@ if __name__ == "__main__":
     B_splines = True
     # B_splines = False
     p = 2
-    nQP = int(np.ceil((p + 1)**2 / 2))
+    nQP = int(np.ceil((p + 1) ** 2 / 2))
     # nQP = 3
-    print(f'nQP: {nQP}')
+    print(f"nQP: {nQP}")
     nEl = 10
 
     # build reference configuration
@@ -57,11 +68,11 @@ if __name__ == "__main__":
     Xi = uniform_knot_vector(p, nEl)
     if B_splines:
         for i in range(nNd):
-            X0[i] = np.sum(Xi[i+1:i+p+1])
+            X0[i] = np.sum(Xi[i + 1 : i + p + 1])
         X0 = X0 * L / p
 
-    angle = np.pi / 4  
-    for i in range(0, len(X0)):  
+    angle = np.pi / 4
+    for i in range(0, len(X0)):
         X0[i], Y0[i], _ = A_IK_basic_z(angle) @ np.array([X0[i], Y0[i], 0])
 
     if dim == 2:
@@ -89,7 +100,9 @@ if __name__ == "__main__":
     # r_OB2_t = lambda t: 2 * t * c2 if t < t1 / 3 else np.zeros(3)
     # r_OB2_tt = lambda t: 2 * c2 if t < t1 / 3 else np.zeros(3)
     # frame1 = Frame(r_OP=r_OB2, r_OP_t=r_OB2_t, r_OP_tt=r_OB2_tt)
-    r_OB2 = lambda t: np.sqrt(2) / 2 * L * np.array([1, 1, 0]) #+ smoothstep3(t, x_min=0, x_max=t1/3) * np.array([0, -np.sqrt(2) / 2 * L, 0])
+    r_OB2 = (
+        lambda t: np.sqrt(2) / 2 * L * np.array([1, 1, 0])
+    )  # + smoothstep3(t, x_min=0, x_max=t1/3) * np.array([0, -np.sqrt(2) / 2 * L, 0])
     # r_OB2 = lambda t: np.sqrt(2) / 2 * L * np.array([1, 1, 0]) + smoothstep3(t, x_min=0, x_max=t1/3) * np.array([-np.sqrt(2) / 4 * L, 0, 0])
     frame1 = Frame(r_OP=r_OB2)
 
@@ -116,7 +129,20 @@ if __name__ == "__main__":
     alpha = 0
     beta = 0
 
-    rope_ = Rope(A_rho0, material_model, p, nEl, nQP, alpha=alpha, beta=beta, Q=Q, q0=q0, u0=u0, B_splines=B_splines, dim=dim)
+    rope_ = Rope(
+        A_rho0,
+        material_model,
+        p,
+        nEl,
+        nQP,
+        alpha=alpha,
+        beta=beta,
+        Q=Q,
+        q0=q0,
+        u0=u0,
+        B_splines=B_splines,
+        dim=dim,
+    )
     ropes = [rope_]
 
     # inextensible_rope = Inextensible_Rope(A_rho0, material_model, p, nEl, nQP, alpha=alpha, beta=beta, Q=Q, q0=q0, u0=u0, B_splines=B_splines, dim=dim)
@@ -129,26 +155,34 @@ if __name__ == "__main__":
         # left joint
         if dim == 2:
             # la_g0 = np.random.rand(3)*1.0e-6
-            la_g0 = np.ones(2)*1.0e-6
+            la_g0 = np.ones(2) * 1.0e-6
             # la_g0 = np.zeros(3)
-            joint_left = Spherical_joint2D(frame0, rope, r_OB1(0), frame_ID2=(0,), la_g0=la_g0)
+            joint_left = Spherical_joint2D(
+                frame0, rope, r_OB1(0), frame_ID2=(0,), la_g0=la_g0
+            )
         else:
             # la_g0 = np.random.rand(3)*1.0e-6
-            la_g0 = np.ones(3)*1.0e-6
+            la_g0 = np.ones(3) * 1.0e-6
             # la_g0 = np.zeros(3)
-            joint_left = Spherical_joint(frame0, rope, r_OB1(0), frame_ID2=(0,), la_g0=la_g0)
+            joint_left = Spherical_joint(
+                frame0, rope, r_OB1(0), frame_ID2=(0,), la_g0=la_g0
+            )
 
         # right joint
         if dim == 2:
-            joint_right = Spherical_joint2D(rope, frame1, r_OB2(0), frame_ID2=(1,), la_g0=la_g0)
+            joint_right = Spherical_joint2D(
+                rope, frame1, r_OB2(0), frame_ID2=(1,), la_g0=la_g0
+            )
         else:
             # la_g0 = np.random.rand(3)*1.0e-6
-            la_g0 = np.ones(3)*1.0e-6
+            la_g0 = np.ones(3) * 1.0e-6
             # la_g0 = np.zeros(3)
-            joint_right = Spherical_joint(rope, frame1, r_OB2(0), frame_ID1=(1,), la_g0=la_g0)
+            joint_right = Spherical_joint(
+                rope, frame1, r_OB2(0), frame_ID1=(1,), la_g0=la_g0
+            )
 
         # gravity
-        fg = np.array([0, - A_rho0 * 9.81, 0]) * 1.0e0
+        fg = np.array([0, -A_rho0 * 9.81, 0]) * 1.0e0
         if statics:
             # # f_g = Line_force(lambda xi, t: max(0, min(t, 0.5)) * 2 * fg, rope)
             # f_g = Line_force(lambda xi, t: (t - 0.5) * 2 * fg if t >= 0.5 else np.zeros(3), rope)
@@ -168,31 +202,33 @@ if __name__ == "__main__":
         model.assemble()
 
         if statics:
-            solver = Newton(model, n_load_steps=10, max_iter=30, numerical_jacobian=True, tol=1.0e-6)
+            solver = Newton(
+                model, n_load_steps=10, max_iter=30, numerical_jacobian=True, tol=1.0e-6
+            )
         else:
             # solver = Euler_backward(model, t1, dt, numerical_jacobian=False, debug=False, newton_tol=1.0e-6)
             # solver = Moreau(model, t1, dt, fix_point_tol=1.0e-6)
             # solver = Moreau_sym(model, t1, dt)
             # solver = Generalized_alpha_1(model, t1, dt=dt, variable_dt=True, t_eval=np.linspace(t0, t1, 100), rho_inf=0.75)
             # solver = Scipy_ivp(model, t1, dt, atol=1.e-1, method='RK23')
-            solver = Scipy_ivp(model, t1, dt, atol=1.e-1, method='RK45')
+            solver = Scipy_ivp(model, t1, dt, atol=1.0e-1, method="RK45")
             # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='DOP853')
             # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='Radau')
             # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='BDF')
             # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='LSODA')
-        sols.append( solver.solve() )
+        sols.append(solver.solve())
 
     fig, ax = plt.subplots()
-    ax.set_xlabel('x [m]')
-    ax.set_ylabel('y [m]')
-    ax.set_xlim([-1.5*L, 1.5*L])
-    ax.set_ylim([-1.5*L, 1.5*L])
-    ax.grid(linestyle='-', linewidth='0.5')
+    ax.set_xlabel("x [m]")
+    ax.set_ylabel("y [m]")
+    ax.set_xlim([-1.5 * L, 1.5 * L])
+    ax.set_ylim([-1.5 * L, 1.5 * L])
+    ax.grid(linestyle="-", linewidth="0.5")
     if statics:
         # raise RuntimeError('TODO!')
         x, y, _ = rope_.centerline(sols[0].q[-1]).T
-        ax.plot(x, y, '-k')
-        ax.plot(*sols[0].q[-1].reshape(3, -1)[:2], 'ok')
+        ax.plot(x, y, "-k")
+        ax.plot(*sols[0].q[-1].reshape(3, -1)[:2], "ok")
 
         # x, y, _ = inextensible_rope.centerline(sols[1].q[-1]).T
         # ax.plot(x, y, '--r')
@@ -213,11 +249,11 @@ if __name__ == "__main__":
         q0 = sols[0].q[::frac]
         # q1 = sols[1].q[::frac]
         q1 = q0
-        
-        center_line0, = ax.plot([], [], '-k')
-        nodes0, = ax.plot([], [], 'ok')
-        center_line1, = ax.plot([], [], '--r')
-        nodes1, = ax.plot([], [], 'xr')
+
+        (center_line0,) = ax.plot([], [], "-k")
+        (nodes0,) = ax.plot([], [], "ok")
+        (center_line1,) = ax.plot([], [], "--r")
+        (nodes1,) = ax.plot([], [], "xr")
 
         def animate(i):
             x, y, _ = rope_.centerline(q0[i], n=100).T
@@ -236,14 +272,15 @@ if __name__ == "__main__":
 
             return center_line0, center_line1, nodes0, nodes1
 
-        anim = animation.FuncAnimation(fig, animate, frames=frames, interval=interval, blit=False)
+        anim = animation.FuncAnimation(
+            fig, animate, frames=frames, interval=interval, blit=False
+        )
         plt.show()
-
 
     # # # animate configurations
     # # fig = plt.figure()
     # # ax = fig.add_subplot(111, projection='3d')
-    
+
     # # ax.set_xlabel('x [m]')
     # # ax.set_ylabel('y [m]')
     # # ax.set_zlabel('z [m]')
@@ -266,7 +303,7 @@ if __name__ == "__main__":
     # #     frames = target_frames
     # #     t = t[::frac]
     # #     q = q[::frac]
-    
+
     # # x0, y0, z0 = q0.reshape((3, -1))
     # # center_line0, = ax.plot(x0, y0, z0, '-ok')
 

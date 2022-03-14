@@ -5,16 +5,25 @@ from cardillo.model import Model
 from cardillo.math.algebra import A_IK_basic_z
 from cardillo.solver import Generalized_alpha_1, Scipy_ivp
 from cardillo.model.frame import Frame
-from cardillo.model.bilateral_constraints.implicit import Revolute_joint as Revolute_joint_implicit
-from cardillo.model.bilateral_constraints.explicit import Revolute_joint as Revolute_joint_explicit
+from cardillo.model.bilateral_constraints.implicit import (
+    Revolute_joint as Revolute_joint_implicit,
+)
+from cardillo.model.bilateral_constraints.explicit import (
+    Revolute_joint as Revolute_joint_explicit,
+)
 from cardillo.model.rigid_body import Rigid_body_euler, Rigid_body_rel_kinematics
-from cardillo.model.scalar_force_interactions.force_laws import Linear_spring, Linear_damper, Linear_spring_damper
+from cardillo.model.scalar_force_interactions.force_laws import (
+    Linear_spring,
+    Linear_damper,
+    Linear_spring_damper,
+)
 from cardillo.model.scalar_force_interactions import add_rotational_forcelaw
 from cardillo.model.force import K_Force
 from cardillo.model.moment import K_Moment
 
 implicit = True
 # implicit = False
+
 
 class Rigid_cylinder(Rigid_body_euler):
     def __init__(self, m, r, l, q0=None, u0=None):
@@ -23,6 +32,7 @@ class Rigid_cylinder(Rigid_body_euler):
         K_theta_S = np.diag(np.array([A, A, C]))
 
         super().__init__(m, K_theta_S, q0=q0, u0=u0)
+
 
 if __name__ == "__main__":
     m = 1
@@ -46,7 +56,9 @@ if __name__ == "__main__":
 
         Origin = Frame()
         spring = Linear_spring(k)
-        rot_spring = add_rotational_forcelaw(spring, Revolute_joint_implicit)(Origin, RB, np.zeros(3), np.eye(3))
+        rot_spring = add_rotational_forcelaw(spring, Revolute_joint_implicit)(
+            Origin, RB, np.zeros(3), np.eye(3)
+        )
         # damper = Linear_damper(d)
         # rot_damper = add_rotational_forcelaw(damper, Revolute_joint_implicit)(Origin, RB, np.zeros(3), np.eye(3))
 
@@ -59,8 +71,12 @@ if __name__ == "__main__":
         # damper = Linear_damper(d)
 
         damper = Linear_spring_damper(k, d)
-        rot_damper = add_rotational_forcelaw(damper, Revolute_joint_explicit)(np.zeros(3), np.eye(3), q0=np.array([alpha0]), u0=np.array([alpha_dot0]))
-        RB = Rigid_body_rel_kinematics(m, K_theta_S, rot_damper, Origin, A_IK0=A_IK_basic_z(alpha0))
+        rot_damper = add_rotational_forcelaw(damper, Revolute_joint_explicit)(
+            np.zeros(3), np.eye(3), q0=np.array([alpha0]), u0=np.array([alpha_dot0])
+        )
+        RB = Rigid_body_rel_kinematics(
+            m, K_theta_S, rot_damper, Origin, A_IK0=A_IK_basic_z(alpha0)
+        )
 
     F = K_Force(np.array([0, 0.2, 0]), RB, K_r_SP=np.array([r, 0, 0]))
     # M = K_Moment(np.array([0, 0, -0.04]), RB)
@@ -95,20 +111,17 @@ if __name__ == "__main__":
     if implicit:
         fig, ax = plt.subplots(1, 2)
 
-        ax[0].plot(t, q[:, 0], '-r', label='x')
-        ax[0].plot(t, q[:, 1], '-g', label='y')
-        ax[0].plot(t, q[:, 2], '-b', label='z')
+        ax[0].plot(t, q[:, 0], "-r", label="x")
+        ax[0].plot(t, q[:, 1], "-g", label="y")
+        ax[0].plot(t, q[:, 2], "-b", label="z")
         ax[0].legend()
 
-        ax[1].plot(t, q[:, 3], '-r', label='alpha')
-        ax[1].plot(t, q[:, 4], '-g', label='beta')
-        ax[1].plot(t, q[:, 5], '-b', label='gamma')
+        ax[1].plot(t, q[:, 3], "-r", label="alpha")
+        ax[1].plot(t, q[:, 4], "-g", label="beta")
+        ax[1].plot(t, q[:, 5], "-b", label="gamma")
         ax[1].legend()
     else:
-        plt.plot(t, q[:, 0], '-r', label='alpha')
+        plt.plot(t, q[:, 0], "-r", label="alpha")
         plt.legend()
 
     plt.show()
-
-    
-

@@ -1,6 +1,10 @@
 from cardillo.model.classical_beams.spatial import Hooke_quadratic
 from cardillo.model.classical_beams.spatial import TimoshenkoDirectorDirac
-from cardillo.model.classical_beams.spatial import TimoshenkoDirectorIntegral, EulerBernoulliDirectorIntegral, InextensibleEulerBernoulliDirectorIntegral
+from cardillo.model.classical_beams.spatial import (
+    TimoshenkoDirectorIntegral,
+    EulerBernoulliDirectorIntegral,
+    InextensibleEulerBernoulliDirectorIntegral,
+)
 from cardillo.model.classical_beams.spatial.director import straight_configuration
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints.implicit import Rigid_connection
@@ -40,20 +44,22 @@ if __name__ == "__main__":
     # discretization properties
     p = 3
     p_r = p
-    p_di = p # - 1
+    p_di = p  # - 1
     # nQP = int(np.ceil((p + 1)**2 / 2))
     nQP = p + 1
-    print(f'nQP: {nQP}')
+    print(f"nQP: {nQP}")
     nEl = 15
 
-    basis = 'B-spline'
+    basis = "B-spline"
     # basis = 'lagrange'
 
     # build reference configuration
     Q = straight_configuration(p_r, p_di, nEl, L, basis=basis)
     q0 = Q.copy()
     # beam = Timoshenko_director_dirac(material_model, A_rho0, B_rho0, C_rho0, p_r, p_di, nQP, nEl, Q=Q, q0=q0, basis=basis)
-    beam = TimoshenkoDirectorIntegral(material_model, A_rho0, B_rho0, C_rho0, p_r, p_di, nQP, nEl, Q=Q, basis=basis)
+    beam = TimoshenkoDirectorIntegral(
+        material_model, A_rho0, B_rho0, C_rho0, p_r, p_di, nQP, nEl, Q=Q, basis=basis
+    )
     # beam = Euler_Bernoulli_director_integral(material_model, A_rho0, B_rho0, C_rho0, p_r, p_di, nQP, nEl, Q=Q, basis=basis)
     # beam = Inextensible_Euler_Bernoulli_director_integral(material_model, A_rho0, B_rho0, C_rho0, p_r, p_di, nQP, nEl, Q=Q, basis=basis)
     # exit()
@@ -62,11 +68,11 @@ if __name__ == "__main__":
     joint_left = Rigid_connection(frame_left, beam, r_OB1, frame_ID2=(0,))
 
     # gravity beam
-    __g = np.array([0, 0, - A_rho0 * 9.81 * 1.0e-3])
+    __g = np.array([0, 0, -A_rho0 * 9.81 * 1.0e-3])
     f_g_beam = Line_force(lambda xi, t: t * __g, beam)
 
     # wrench at right end
-    M = lambda t: -np.array([1, 0, 1]) * t * 2 * np.pi * Fi[1] / L # * 0.25
+    M = lambda t: -np.array([1, 0, 1]) * t * 2 * np.pi * Fi[1] / L  # * 0.25
     moment = K_Moment(M, beam, (1,))
 
     # force at right end
@@ -83,14 +89,16 @@ if __name__ == "__main__":
     model.add(moment)
     model.assemble()
 
-    solver = Newton(model, n_load_steps=20, max_iter=20, tol=1.0e-8, numerical_jacobian=False)
+    solver = Newton(
+        model, n_load_steps=20, max_iter=20, tol=1.0e-8, numerical_jacobian=False
+    )
 
     sol = solver.solve()
     t = sol.t
     q = sol.q
 
     # vtk export
-    beam.post_processing(t, q, f'director_beam_{basis}')
+    beam.post_processing(t, q, f"director_beam_{basis}")
 
     # exit()
 
@@ -98,19 +106,19 @@ if __name__ == "__main__":
     # visualization
     ###############
     fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    
-    ax.set_xlabel('x [m]')
-    ax.set_ylabel('y [m]')
-    ax.set_zlabel('z [m]')
+    ax = fig.add_subplot(111, projection="3d")
+
+    ax.set_xlabel("x [m]")
+    ax.set_ylabel("y [m]")
+    ax.set_zlabel("z [m]")
     scale = 1.2 * L
     ax.set_xlim3d(left=-scale, right=scale)
     ax.set_ylim3d(bottom=-scale, top=scale)
     ax.set_zlim3d(bottom=-scale, top=scale)
 
-    beam.plot_centerline(ax, q[0], color='black')
+    beam.plot_centerline(ax, q[0], color="black")
     # beam.plot_frames(ax, q[0], n=4, length=0.5)
-    beam.plot_centerline(ax, q[-1], color='blue')
+    beam.plot_centerline(ax, q[-1], color="blue")
     beam.plot_frames(ax, q[-1], n=10, length=1)
 
     plt.show()
@@ -131,7 +139,7 @@ if __name__ == "__main__":
     #     Pd3 = qi[9*nn:12*nn].reshape(3, -1).T
     #     knot_vector = Knot_vector(beam.polynomial_degree, beam.nEl)
     #     # B_spline_curve2vtk(knot_vector, Pr, f'Bezier_curve{i}.vtu')
-        
+
     #     # create bezier patches
     #     Qw_r = decompose_B_spline_curve(knot_vector, Pr)
     #     Qw_d1 = decompose_B_spline_curve(knot_vector, Pd1)
@@ -146,7 +154,7 @@ if __name__ == "__main__":
     #     d3s = np.zeros((nbezier * degree1, dim))
 
     #     # mask rearrange point ordering in a single Bezier patch
-    #     mask = np.concatenate([[0], [degree1-1], np.arange(1, degree1-1)]) 
+    #     mask = np.concatenate([[0], [degree1-1], np.arange(1, degree1-1)])
 
     #     # iterate over all bezier patches and fill cell data and connectivities
     #     cells = []
@@ -187,7 +195,7 @@ if __name__ == "__main__":
     # # ###############
     # # fig = plt.figure()
     # # ax = fig.add_subplot(111, projection='3d')
-    
+
     # # ax.set_xlabel('x [m]')
     # # ax.set_ylabel('y [m]')
     # # ax.set_zlabel('z [m]')

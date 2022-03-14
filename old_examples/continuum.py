@@ -9,25 +9,37 @@ from cardillo.discretization.mesh3D import Mesh3D, cube
 from cardillo.discretization.mesh2D import Mesh2D, rectangle
 from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume
 from cardillo.discretization.indexing import flat3D, flat2D
-from cardillo.model.continuum import Ogden1997_compressible, Ogden1997_incompressible, First_gradient, Ogden1997_complete_2D_incompressible
+from cardillo.model.continuum import (
+    Ogden1997_compressible,
+    Ogden1997_incompressible,
+    First_gradient,
+    Ogden1997_complete_2D_incompressible,
+)
 from cardillo.solver import Newton, Euler_backward, Generalized_alpha_1
 from cardillo.model import Model
 from cardillo.math.algebra import A_IK_basic_z
 from cardillo.model.force_distr2D import Force_distr2D
 from cardillo.model.force_distr3D import Force_distr3D
-from cardillo.model.bilateral_constraints.implicit.incompressibility import Incompressibility
+from cardillo.model.bilateral_constraints.implicit.incompressibility import (
+    Incompressibility,
+)
+
 
 def save_solution(sol, filename):
     import pickle
-    with open(filename, mode='wb') as f:
+
+    with open(filename, mode="wb") as f:
         pickle.dump(sol, f)
+
 
 def test_cube():
 
     file_name = pathlib.Path(__file__).stem
-    file_path = pathlib.Path(__file__).parent / 'results' / f"{file_name}_cube" / file_name
+    file_path = (
+        pathlib.Path(__file__).parent / "results" / f"{file_name}_cube" / file_name
+    )
     file_path.parent.mkdir(parents=True, exist_ok=True)
-    export_path = file_path.parent / 'sol'
+    export_path = file_path.parent / "sol"
 
     TractionForce = False
     Gravity = False
@@ -44,8 +56,8 @@ def test_cube():
     Eta = Knot_vector(degrees[1], element_shape[1])
     Zeta = Knot_vector(degrees[2], element_shape[2])
     knot_vectors = (Xi, Eta, Zeta)
-    
-    mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=1, basis='B-spline', nq_n=3)
+
+    mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=1, basis="B-spline", nq_n=3)
 
     # reference configuration is a cube
     L = 1
@@ -55,8 +67,8 @@ def test_cube():
     Z = cube(cube_shape, mesh, Greville=False)
 
     # material model
-    mu1 = 0.3 # * 1e3
-    mu2 = 0.5 # * 1e3
+    mu1 = 0.3  # * 1e3
+    mu2 = 0.5  # * 1e3
 
     if Incompressible:
         mat = Ogden1997_incompressible(mu1)
@@ -64,7 +76,9 @@ def test_cube():
         Eta_la = Knot_vector(degrees[1] - 1, element_shape[1])
         Zeta_la = Knot_vector(degrees[2] - 1, element_shape[2])
         knot_vectors_la = (Xi_la, Eta_la, Zeta_la)
-        la_mesh = Mesh3D(knot_vectors_la, QP_shape, derivative_order=0, basis='B-spline', nq_n=1)
+        la_mesh = Mesh3D(
+            knot_vectors_la, QP_shape, derivative_order=0, basis="B-spline", nq_n=1
+        )
     else:
         mat = Ogden1997_compressible(mu1, mu2)
 
@@ -98,11 +112,9 @@ def test_cube():
         b_zeta = lambda t: Z[cDOF_zeta]
         b = lambda t: np.concatenate((b_xi(t), b_eta(t), b_zeta(t)))
 
-
     # 3D continuum
     continuum = First_gradient(density, mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
     # continuum = First_gradient(density, mat, mesh, Z)
-
 
     # build model
     model = Model()
@@ -117,9 +129,13 @@ def test_cube():
         # model.add(Force_distr2D(F, continuum, 1))
         # F = lambda t, xi, eta: t * np.array([0, -2.5e0, 0]) * (0.25 - (xi-0.5)**2) * (0.25 - (eta-0.5)**2)
         # model.add(Force_distr2D(F, continuum, 5))
-        F = lambda t, xi, eta: np.array([0, 0, -5e0]) * (0.25 - (xi-0.5)**2) * (0.25 - (eta-0.5)**2)
+        F = (
+            lambda t, xi, eta: np.array([0, 0, -5e0])
+            * (0.25 - (xi - 0.5) ** 2)
+            * (0.25 - (eta - 0.5) ** 2)
+        )
         model.add(Force_distr2D(F, continuum, 5))
-    
+
     if Gravity:
         if Statics:
             G = lambda t, xi, eta, zeta: t * np.array([0, 0, -9.81 * density])
@@ -133,10 +149,9 @@ def test_cube():
     # np.set_printoptions(precision=5, suppress=True)
     # print(M.toarray())
     # print(np.linalg.det(M.toarray()))
-    
 
     if Statics:
-    # static solver
+        # static solver
         n_load_steps = 10
         tol = 1.0e-5
         max_iter = 10
@@ -148,7 +163,6 @@ def test_cube():
         # solver = Generalized_alpha_1(model, t1, dt=dt, variable_dt=False, rho_inf=0.25)
         solver = Euler_backward(model, t1, dt)
 
-
     if save_sol:
         sol = solver.solve()
         # export solution object
@@ -156,7 +170,7 @@ def test_cube():
         #     os.makedirs(export_dir)
         save_solution(sol, str(export_path))
     else:
-        sol = pickle.load( open(str(export_path), 'rb') )
+        sol = pickle.load(open(str(export_path), "rb"))
 
     import matplotlib.pyplot as plt
 
@@ -192,9 +206,12 @@ def test_cube():
     # continuum.post_processing(sol.t, sol.q, filepath.parent / filepath.stem)
     continuum.post_processing(sol.t, sol.q, file_path)
 
-def test_cylinder():  
+
+def test_cylinder():
     file_name = pathlib.Path(__file__).stem
-    file_path = pathlib.Path(__file__).parent / 'results' / f"{file_name}_cylinder" / file_name
+    file_path = (
+        pathlib.Path(__file__).parent / "results" / f"{file_name}_cylinder" / file_name
+    )
     file_path.parent.mkdir(parents=True, exist_ok=True)
     # export_path = file_path.parent / 'sol'
 
@@ -207,9 +224,9 @@ def test_cylinder():
     Eta = Knot_vector(degrees[1], element_shape[1])
     Zeta = Knot_vector(degrees[2], element_shape[2])
     knot_vectors = (Xi, Eta, Zeta)
-    
-    mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=1, basis='B-spline', nq_n=3)
-    
+
+    mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=1, basis="B-spline", nq_n=3)
+
     def cylinder(xi, eta, zeta, R=1, H=3):
         xi_ = 2 * xi - 1
         eta_ = 2 * eta - 1
@@ -228,7 +245,7 @@ def test_cylinder():
     xi = np.linspace(0, 1, num=nxi)
     eta = np.linspace(0, 1, num=neta)
     zeta = np.linspace(0, 1, num=nzeta)
-    
+
     n3 = nxi * neta * nzeta
     knots = np.zeros((n3, 3))
     Pw = np.zeros((n3, 3))
@@ -244,7 +261,7 @@ def test_cylinder():
     X, Y, Z_ = fit_B_spline_volume(mesh, knots, Pw, qc, cDOF_)
     Z = np.concatenate((X, Y, Z_))
 
-    # material model    
+    # material model
     mu1 = 0.3
     mu2 = 0.5
     mat = Ogden1997_compressible(mu1, mu2)
@@ -265,7 +282,7 @@ def test_cylinder():
         th = t * np.array([0, 0, h])
         for DOF in cDOF2_xyz:
             out[DOF] = R @ Z[DOF] + th
-        
+
         return out[cDOF2]
 
     b = lambda t: np.concatenate((b1(t), b2(t)))
@@ -285,26 +302,30 @@ def test_cylinder():
     tol = 1.0e-5
     max_iter = 10
     solver = Newton(model, n_load_steps=n_load_steps, tol=tol, max_iter=max_iter)
-    
+
     import cProfile, pstats
+
     pr = cProfile.Profile()
     pr.enable()
     sol = solver.solve()
     pr.disable()
 
-    sortby = 'cumulative'
+    sortby = "cumulative"
     ps = pstats.Stats(pr).sort_stats(sortby)
-    ps.print_stats(0.1) # print only first 10% of the list
+    ps.print_stats(0.1)  # print only first 10% of the list
 
     # vtk export
     continuum.post_processing(sol.t, sol.q, file_path)
 
+
 def test_rectangle():
 
     file_name = pathlib.Path(__file__).stem
-    file_path = pathlib.Path(__file__).parent / 'results' / f"{file_name}_rectangle" / file_name
+    file_path = (
+        pathlib.Path(__file__).parent / "results" / f"{file_name}_rectangle" / file_name
+    )
     file_path.parent.mkdir(parents=True, exist_ok=True)
-    # export_path = file_path.parent / 'sol'  
+    # export_path = file_path.parent / 'sol'
 
     # build mesh
     degrees = (1, 1)
@@ -314,8 +335,8 @@ def test_rectangle():
     Xi = Knot_vector(degrees[0], element_shape[0])
     Eta = Knot_vector(degrees[1], element_shape[1])
     knot_vectors = (Xi, Eta)
-    
-    mesh = Mesh2D(knot_vectors, QP_shape, derivative_order=1, basis='B-spline', nq_n=2)
+
+    mesh = Mesh2D(knot_vectors, QP_shape, derivative_order=1, basis="B-spline", nq_n=2)
 
     # reference configuration is a cube
     L = 2
@@ -324,7 +345,7 @@ def test_rectangle():
     rectangle_shape = (L, B)
     Z = rectangle(rectangle_shape, mesh, Greville=True)
 
-    # material model    
+    # material model
     mu1 = 0.3
     mu2 = 0.5
     mat = Ogden1997_compressible(mu1, mu2, dim=2)
@@ -353,42 +374,41 @@ def test_rectangle():
     tol = 1.0e-6
     max_iter = 10
     solver = Newton(model, n_load_steps=n_load_steps, tol=tol, max_iter=max_iter)
-    
+
     sol = solver.solve()
 
     # # vtk export
     continuum.post_processing(sol.t, sol.q, file_path)
 
 
-
 def write_xml():
     # write paraview PVD file, see https://www.paraview.org/Wiki/ParaView/Data_formats#PVD_File_Format
     from xml.dom import minidom
-    
+
     root = minidom.Document()
-    
-    vkt_file = root.createElement('VTKFile')
-    vkt_file.setAttribute('type', 'Collection')
+
+    vkt_file = root.createElement("VTKFile")
+    vkt_file.setAttribute("type", "Collection")
     root.appendChild(vkt_file)
-    
-    collection = root.createElement('Collection')
+
+    collection = root.createElement("Collection")
     vkt_file.appendChild(collection)
 
     for i in range(10):
         ti = 0.1 * i
-        dataset = root.createElement('DataSet')
-        dataset.setAttribute('timestep', f'{ti:0.6f}')
+        dataset = root.createElement("DataSet")
+        dataset.setAttribute("timestep", f"{ti:0.6f}")
         # dataset.setAttribute('group', '')
         # dataset.setAttribute('part', '0')
-        dataset.setAttribute('file', f'continuum{i}.vtu')
+        dataset.setAttribute("file", f"continuum{i}.vtu")
         collection.appendChild(dataset)
- 
-    xml_str = root.toprettyxml(indent ="\t")   
+
+    xml_str = root.toprettyxml(indent="\t")
     save_path_file = "continuum.pvd"
     with open(save_path_file, "w") as f:
         f.write(xml_str)
 
-    
+
 if __name__ == "__main__":
     # test_cube()
     # test_cylinder()

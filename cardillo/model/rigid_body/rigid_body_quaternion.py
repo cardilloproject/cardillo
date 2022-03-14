@@ -1,7 +1,16 @@
 import numpy as np
-from cardillo.math import norm, cross3, ax2skew, quat2mat, quat2mat_p, quat2rot, quat2rot_p
+from cardillo.math import (
+    norm,
+    cross3,
+    ax2skew,
+    quat2mat,
+    quat2mat_p,
+    quat2rot,
+    quat2rot_p,
+)
 
-class Rigid_body_quaternion():
+
+class Rigid_body_quaternion:
     """Rigid body parametrized by center of mass in inertial system and unit quaternions for rotation.
 
     Parameters
@@ -20,6 +29,7 @@ class Rigid_body_quaternion():
     Nuetzi2016: https://www.research-collection.ethz.ch/handle/20.500.11850/117165 \\
     Schweizer2015: https://www.research-collection.ethz.ch/handle/20.500.11850/101867
     """
+
     def __init__(self, m, K_theta_S, q0=None, u0=None):
         self.m = m
         self.theta = K_theta_S
@@ -56,27 +66,28 @@ class Rigid_body_quaternion():
     def q_dot(self, t, q, u):
         p = q[3:]
         Q = quat2mat(p) / (2 * p @ p)
-        
+
         q_dot = np.zeros(self.nq)
         q_dot[:3] = u[:3]
         q_dot[3:] = Q[:, 1:] @ u[3:]
 
         return q_dot
-    
+
     def q_dot_q(self, t, q, u, coo):
         p = q[3:]
         p2 = p @ p
-        Q_p = quat2mat_p(p) / (2 * p2) \
-            - np.einsum('ij,k->ijk', quat2mat(p), p / (p2**2))
-            
+        Q_p = quat2mat_p(p) / (2 * p2) - np.einsum(
+            "ij,k->ijk", quat2mat(p), p / (p2**2)
+        )
+
         dense = np.zeros((self.nq, self.nq))
-        dense[3:, 3:] = np.einsum('ijk,j->ik', Q_p[:, 1:, :], u[3:])
+        dense[3:, 3:] = np.einsum("ijk,j->ik", Q_p[:, 1:, :], u[3:])
         coo.extend(dense, (self.qDOF, self.qDOF))
 
     def B(self, t, q, coo):
         p = q[3:]
         Q = quat2mat(p) / (2 * p @ p)
-        
+
         B = np.zeros((self.nq, self.nu))
         B[:3, :3] = np.eye(3)
         B[3:, 3:] = Q[:, 1:]
@@ -87,12 +98,15 @@ class Rigid_body_quaternion():
         p2 = p @ p
         Q = quat2mat(p) / (2 * p2)
         p_dot = Q[:, 1:] @ u[3:]
-        Q_p = quat2mat_p(p) / (2 * p2) \
-            - np.einsum('ij,k->ijk', quat2mat(p), p / (p2**2))
-        
+        Q_p = quat2mat_p(p) / (2 * p2) - np.einsum(
+            "ij,k->ijk", quat2mat(p), p / (p2**2)
+        )
+
         q_ddot = np.zeros(self.nq)
         q_ddot[:3] = u_dot[:3]
-        q_ddot[3:] = Q[:, 1:] @ u_dot[3:] + np.einsum('ijk,k,j->i', Q_p[:, 1:, :], p_dot, u[3:])
+        q_ddot[3:] = Q[:, 1:] @ u_dot[3:] + np.einsum(
+            "ijk,k,j->i", Q_p[:, 1:, :], p_dot, u[3:]
+        )
 
         return q_ddot
 
@@ -123,35 +137,41 @@ class Rigid_body_quaternion():
     def r_OP_q(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
         r_OP_q = np.zeros((3, self.nq))
         r_OP_q[:, :3] = np.eye(3)
-        r_OP_q[:, :] += np.einsum('ijk,j->ik', self.A_IK_q(t, q), K_r_SP)
+        r_OP_q[:, :] += np.einsum("ijk,j->ik", self.A_IK_q(t, q), K_r_SP)
         return r_OP_q
 
     def v_P(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
         return u[:3] + self.A_IK(t, q) @ cross3(u[3:], K_r_SP)
 
     def a_P(self, t, q, u, u_dot, frame_ID=None, K_r_SP=np.zeros(3)):
-        return u_dot[:3] + self.A_IK(t, q) @ (cross3(u_dot[3:], K_r_SP) + cross3(u[3:], cross3(u[3:], K_r_SP)))
-    
+        return u_dot[:3] + self.A_IK(t, q) @ (
+            cross3(u_dot[3:], K_r_SP) + cross3(u[3:], cross3(u[3:], K_r_SP))
+        )
+
     def kappa_P(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
         return self.A_IK(t, q) @ (cross3(u[3:], cross3(u[3:], K_r_SP)))
-    
+
     def kappa_P_q(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
-        return np.einsum('ijk,j->ik', self.A_IK_q(t, q), cross3(u[3:], cross3(u[3:], K_r_SP)) )
-    
+        return np.einsum(
+            "ijk,j->ik", self.A_IK_q(t, q), cross3(u[3:], cross3(u[3:], K_r_SP))
+        )
+
     def kappa_P_u(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
         kappa_P_u = np.zeros((3, self.nu))
-        kappa_P_u[:, 3:] = -self.A_IK(t, q) @ (ax2skew(cross3(u[3:], K_r_SP)) + ax2skew(u[3:]) @ ax2skew(K_r_SP))
+        kappa_P_u[:, 3:] = -self.A_IK(t, q) @ (
+            ax2skew(cross3(u[3:], K_r_SP)) + ax2skew(u[3:]) @ ax2skew(K_r_SP)
+        )
         return kappa_P_u
 
     def J_P(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
         J_P = np.zeros((3, self.nu))
         J_P[:, :3] = np.eye(3)
-        J_P[:, 3:] = - self.A_IK(t, q) @ ax2skew(K_r_SP)
+        J_P[:, 3:] = -self.A_IK(t, q) @ ax2skew(K_r_SP)
         return J_P
 
     def J_P_q(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
         J_P_q = np.zeros((3, self.nu, self.nq))
-        J_P_q[:, 3:, :] = np.einsum('ijk,jl->ilk', self.A_IK_q(t, q), -ax2skew(K_r_SP))
+        J_P_q[:, 3:, :] = np.einsum("ijk,jl->ilk", self.A_IK_q(t, q), -ax2skew(K_r_SP))
         return J_P_q
 
     def K_Omega(self, t, q, u, frame_ID=None):

@@ -1,7 +1,10 @@
 from cardillo.math.numerical_derivative import Numerical_derivative
 from cardillo.model.classical_beams.planar import Hooke, EulerBernoulli
 from cardillo.model.frame import Frame
-from cardillo.model.bilateral_constraints.implicit import Spherical_joint2D, Spherical_joint
+from cardillo.model.bilateral_constraints.implicit import (
+    Spherical_joint2D,
+    Spherical_joint,
+)
 from cardillo.model import Model
 from cardillo.solver import Generalized_alpha_1, Generalized_alpha_2
 from cardillo.model.line_force.line_force import Line_force
@@ -39,7 +42,7 @@ if __name__ == "__main__":
     A_rho0 = A * rho
 
     amplitude = 0
-    e = lambda t: amplitude * t - L/2
+    e = lambda t: amplitude * t - L / 2
     e_t = lambda t: amplitude
     e_tt = lambda t: 0
 
@@ -51,8 +54,8 @@ if __name__ == "__main__":
     # discretization properties
     p = 3
     assert p >= 2
-    nQP = int(np.ceil((p + 1)**2 / 2))
-    print(f'nQP: {nQP}')
+    nQP = int(np.ceil((p + 1) ** 2 / 2))
+    print(f"nQP: {nQP}")
     nEl = 5
 
     # build reference configuration
@@ -60,7 +63,7 @@ if __name__ == "__main__":
     X0 = np.linspace(0, L, nNd)
     Xi = uniform_knot_vector(p, nEl)
     for i in range(nNd):
-        X0[i] = np.sum(Xi[i+1:i+p+1])
+        X0[i] = np.sum(Xi[i + 1 : i + p + 1])
     X0 = X0 * L / p
     Y0 = np.zeros_like(X0)
     q0 = np.hstack((X0 + r_OB1(0)[0], Y0 + r_OB1(0)[1]))
@@ -88,7 +91,7 @@ if __name__ == "__main__":
     joint_right = Spherical_joint2D(beam, frame_right, r_OB2, frame_ID1=(1,))
 
     # gravity beam
-    __g = np.array([0, - A_rho0 * 9.81, 0])
+    __g = np.array([0, -A_rho0 * 9.81, 0])
     f_g_beam = Line_force(lambda xi, t: __g, beam)
 
     # rigid body
@@ -96,11 +99,11 @@ if __name__ == "__main__":
     PM = Point_mass(m, q0=r_OB2)
 
     # gravity rigid body
-    f_g_RB = Force(lambda t: np.array([0, - m * 9.81, 0]), PM)
+    f_g_RB = Force(lambda t: np.array([0, -m * 9.81, 0]), PM)
 
     # joint = Rigid_connection(beam, RB, r_OB2, frame_ID1=(1,))
     joint = Spherical_joint(beam, PM, r_OB2, frame_ID1=(1,))
-    
+
     alpha = np.pi / 4 * 0
     e1, e2, e3 = A_IK_basic_z(alpha)
     r_OP_frame = np.array([0, 0, 0])
@@ -111,8 +114,12 @@ if __name__ == "__main__":
     e_N = 0
     # plane = Sphere_to_plane(frame, PM, 0, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N)
     # plane = Sphere_to_plane2D(frame, PM, 0, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N)
-    contact0 = Sphere_to_plane2D(frame, beam, 0, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N, frame_ID=(0,))
-    contact1 = Sphere_to_plane2D(frame, beam, 0, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N, frame_ID=(1,))
+    contact0 = Sphere_to_plane2D(
+        frame, beam, 0, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N, frame_ID=(0,)
+    )
+    contact1 = Sphere_to_plane2D(
+        frame, beam, 0, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N, frame_ID=(1,)
+    )
 
     # assemble the model
     model = Model()
@@ -123,8 +130,10 @@ if __name__ == "__main__":
     model.add(contact0)
     model.add(contact1)
     model.assemble()
-    
-    solver = Generalized_alpha_2(model, t1, dt, rho_inf=0.5, newton_tol=1.0e-6, numerical_jacobian=False)
+
+    solver = Generalized_alpha_2(
+        model, t1, dt, rho_inf=0.5, newton_tol=1.0e-6, numerical_jacobian=False
+    )
     sol = solver.solve()
 
     t = sol.t
@@ -134,8 +143,8 @@ if __name__ == "__main__":
     # fig = plt.figure()
     # ax = fig.add_subplot(111, projection='3d')
     fig, ax = plt.subplots()
-    ax.axis('equal')
-    
+    ax.axis("equal")
+
     # ax.set_xlabel('x [m]')
     # ax.set_ylabel('y [m]')
     # ax.set_zlabel('z [m]')
@@ -154,11 +163,11 @@ if __name__ == "__main__":
     frames = target_frames
     t = t[::frac]
     q = q[::frac]
-    
-    ax.plot(np.array([- L, L]), np.ones(2) * r_OP_frame[1], '-k')
+
+    ax.plot(np.array([-L, L]), np.ones(2) * r_OP_frame[1], "-k")
 
     x1, y1, z1 = beam.centerline(q[-1]).T
-    center_line, = ax.plot(x1, y1, '-b')
+    (center_line,) = ax.plot(x1, y1, "-b")
     # x1, y1 = q[-1].reshape(2, -1)
     # nodes, = ax.plot(x1, y1, 'ro')
 
@@ -198,10 +207,12 @@ if __name__ == "__main__":
         # d3_.set_data(np.array([x_S, x_S + d3[0]]), np.array([y_S, y_S + d3[1]]))
         # d3_.set_3d_properties(np.array([z_S, z_S + d3[2]]))
 
-        return center_line, #nodes, #COM, #d1_, d2_, d3_
+        return (center_line,)  # nodes, #COM, #d1_, d2_, d3_
 
     def animate(i):
         update(t[i], q[i])
 
-    anim = animation.FuncAnimation(fig, animate, frames=frames, interval=interval, blit=False)
+    anim = animation.FuncAnimation(
+        fig, animate, frames=frames, interval=interval, blit=False
+    )
     plt.show()

@@ -18,18 +18,20 @@ from cardillo.model.force import Force
 from cardillo.model.contacts import Sphere_to_plane
 from cardillo.solver import Moreau, Generalized_alpha_2
 
+
 class Main_body(Rigid_body_euler):
     def __init__(self, q0=None, u0=None):
-        m = 14 # kg
-        theta = 0.32 # kg m^2
-        super().__init__(m, theta*np.eye(3), q0=q0, u0=u0)
+        m = 14  # kg
+        theta = 0.32  # kg m^2
+        super().__init__(m, theta * np.eye(3), q0=q0, u0=u0)
 
-        self.a = 0.6 # m
-        
+        self.a = 0.6  # m
+
     def boundary(self, t, q, n=100):
-        xi = np.linspace(-self.a/2, self.a/2, n, endpoint=True)
+        xi = np.linspace(-self.a / 2, self.a / 2, n, endpoint=True)
         K_r_SP = np.vstack([xi, np.zeros(n), np.zeros(n)])
         return np.repeat(self.r_OP(t, q), n).reshape(3, n) + self.A_IK(t, q) @ K_r_SP
+
 
 # class Main_body(Rigid_body2D):
 #     def __init__(self, q0=None, u0=None):
@@ -38,7 +40,7 @@ class Main_body(Rigid_body_euler):
 #         super().__init__(m, theta, q0=q0, u0=u0)
 
 #         self.a = 0.6 # m
-        
+
 #     def boundary(self, t, q, n=100):
 #         xi = np.linspace(-self.a/2, self.a/2, n, endpoint=True)
 #         K_r_SP = np.vstack([xi, np.zeros(n), np.zeros(n)])
@@ -84,7 +86,9 @@ if __name__ == "__main__":
     r_OBh = r_mb0 + A_IK_mb0 @ K_r_mbBh
     alpha_h0 = 30 / 180 * np.pi
     alpha_h_dot0 = 0
-    hip_h = add_rotational_forcelaw(Linear_spring_damper(k_hip, d_hip), Revolute_joint)(r_OBh, A_IK_mb0, q0=np.array([alpha_h0]), u0=np.array([alpha_h_dot0]))
+    hip_h = add_rotational_forcelaw(Linear_spring_damper(k_hip, d_hip), Revolute_joint)(
+        r_OBh, A_IK_mb0, q0=np.array([alpha_h0]), u0=np.array([alpha_h_dot0])
+    )
     A_ITh = A_IK_basic_z(phi0 + alpha_h0)
 
     # thigh
@@ -93,13 +97,17 @@ if __name__ == "__main__":
     r_Th = r_OBh - A_ITh @ K_r_ThBh
     m_Th = 0.7887
     K_theta_Th = 0.002207 * np.eye(3)
-    thigh_h = Rigid_body_rel_kinematics(m_Th, K_theta_Th, hip_h, main_body, r_OS0=r_Th, A_IK0=A_ITh)
+    thigh_h = Rigid_body_rel_kinematics(
+        m_Th, K_theta_Th, hip_h, main_body, r_OS0=r_Th, A_IK0=A_ITh
+    )
 
     # knee
     r_OCh = r_Th + A_ITh @ K_r_ThCh
     beta_h0 = -2 * alpha_h0
     beta_h_dot0 = 0
-    knee_h = add_rotational_forcelaw(Linear_spring_damper(k_knee, d_knee), Revolute_joint)(r_OCh, A_ITh, q0=np.array([beta_h0]), u0=np.array([beta_h_dot0]))
+    knee_h = add_rotational_forcelaw(
+        Linear_spring_damper(k_knee, d_knee), Revolute_joint
+    )(r_OCh, A_ITh, q0=np.array([beta_h0]), u0=np.array([beta_h_dot0]))
     A_ISh = A_IK_basic_z(phi0 + alpha_h0 + beta_h0)
 
     # shank
@@ -108,8 +116,10 @@ if __name__ == "__main__":
     r_Sh = r_OCh - A_ISh @ K_r_ShCh
     m_Sh = 0.569
     K_theta_Sh = 0.006518 * np.eye(3)
-    
-    shank_h = Rigid_body_rel_kinematics(m_Sh, K_theta_Sh, knee_h, thigh_h, r_OS0=r_Sh, A_IK0=A_ISh)
+
+    shank_h = Rigid_body_rel_kinematics(
+        m_Sh, K_theta_Sh, knee_h, thigh_h, r_OS0=r_Sh, A_IK0=A_ISh
+    )
 
     #################################################################
     # front leg
@@ -120,7 +130,9 @@ if __name__ == "__main__":
     r_OBf = r_mb0 + A_IK_mb0 @ K_r_mbBf
     alpha_f0 = -30 / 180 * np.pi
     alpha_f_dot0 = 0
-    hip_f = add_rotational_forcelaw(Linear_spring_damper(k_hip, d_hip), Revolute_joint)(r_OBf, A_IK_mb0, q0=np.array([alpha_f0]), u0=np.array([alpha_f_dot0]))
+    hip_f = add_rotational_forcelaw(Linear_spring_damper(k_hip, d_hip), Revolute_joint)(
+        r_OBf, A_IK_mb0, q0=np.array([alpha_f0]), u0=np.array([alpha_f_dot0])
+    )
     A_ITf = A_IK_basic_z(phi0 + alpha_f0)
 
     # thigh
@@ -129,13 +141,17 @@ if __name__ == "__main__":
     r_Tf = r_OBf - A_ITf @ K_r_ThBf
     m_Tf = 0.7887
     K_theta_Tf = 0.002207 * np.eye(3)
-    thigh_f = Rigid_body_rel_kinematics(m_Tf, K_theta_Tf, hip_f, main_body, r_OS0=r_Tf, A_IK0=A_ITf)
+    thigh_f = Rigid_body_rel_kinematics(
+        m_Tf, K_theta_Tf, hip_f, main_body, r_OS0=r_Tf, A_IK0=A_ITf
+    )
 
     # knee
     r_OCf = r_Tf + A_ITf @ K_r_ThCf
     beta_f0 = -2 * alpha_f0
     beta_f_dot0 = 0
-    knee_f = add_rotational_forcelaw(Linear_spring_damper(k_knee, d_knee), Revolute_joint)(r_OCf, A_ITf, q0=np.array([beta_f0]), u0=np.array([beta_f_dot0]))
+    knee_f = add_rotational_forcelaw(
+        Linear_spring_damper(k_knee, d_knee), Revolute_joint
+    )(r_OCf, A_ITf, q0=np.array([beta_f0]), u0=np.array([beta_f_dot0]))
     A_ISf = A_IK_basic_z(phi0 + alpha_f0 + beta_f0)
 
     # shank
@@ -144,23 +160,43 @@ if __name__ == "__main__":
     r_Sf = r_OCf - A_ISf @ K_r_ShCf
     m_Sf = 0.569
     K_theta_Sf = 0.006518 * np.eye(3)
-    
-    shank_f = Rigid_body_rel_kinematics(m_Sf, K_theta_Sf, knee_f, thigh_f, r_OS0=r_Sf, A_IK0=A_ISf)
+
+    shank_f = Rigid_body_rel_kinematics(
+        m_Sf, K_theta_Sf, knee_f, thigh_f, r_OS0=r_Sf, A_IK0=A_ISf
+    )
 
     #################################################################
     # ground
     #################################################################
     e1, e2, e3 = np.eye(3)
-    frame = Frame(A_IK=np.vstack( (e3, e1, e2) ).T )
+    frame = Frame(A_IK=np.vstack((e3, e1, e2)).T)
     mu = 0.5
     r_N = 0.2
     e_N = 0.0
 
     # contact_mb = Sphere_to_plane(frame, main_body, 0, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N)
     # contact_Th = Sphere_to_plane(frame, thigh_h, 0, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N, K_r_SP=K_r_ThCh)
-    contact_Sh = Sphere_to_plane(frame, shank_h, 0.0563/2, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N, K_r_SP=K_r_ShDh)
+    contact_Sh = Sphere_to_plane(
+        frame,
+        shank_h,
+        0.0563 / 2,
+        mu,
+        prox_r_N=r_N,
+        prox_r_T=r_N,
+        e_N=e_N,
+        K_r_SP=K_r_ShDh,
+    )
     # contact_Tf = Sphere_to_plane(frame, thigh_f, 0, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N, K_r_SP=K_r_ThCf)
-    contact_Sf = Sphere_to_plane(frame, shank_f, 0.0563/2, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N, K_r_SP=K_r_ShDf)
+    contact_Sf = Sphere_to_plane(
+        frame,
+        shank_f,
+        0.0563 / 2,
+        mu,
+        prox_r_N=r_N,
+        prox_r_T=r_N,
+        e_N=e_N,
+        K_r_SP=K_r_ShDf,
+    )
 
     model = Model()
     model.add(main_body)
@@ -211,10 +247,10 @@ if __name__ == "__main__":
         # animate configurations
         fig = plt.figure()
         ax = fig.add_subplot(111)
-        
-        ax.set_xlabel('x [m]')
-        ax.set_ylabel('y [m]')
-        ax.axis('equal')
+
+        ax.set_xlabel("x [m]")
+        ax.set_ylabel("y [m]")
+        ax.axis("equal")
         scale = 1.2
         ax.set_xlim(-scale, scale)
         ax.set_ylim(-scale, scale)
@@ -230,14 +266,14 @@ if __name__ == "__main__":
         t = t[::frac]
         q = q[::frac]
 
-        ground, = ax.plot([-100, 100], [0, 0], '-k')
+        (ground,) = ax.plot([-100, 100], [0, 0], "-k")
 
-        bdry_mb, = ax.plot([], [],  '-ok')
-        d1_mb, = ax.plot([], [], '-r')
-        d2_mb, = ax.plot([], [], '-g')
+        (bdry_mb,) = ax.plot([], [], "-ok")
+        (d1_mb,) = ax.plot([], [], "-r")
+        (d2_mb,) = ax.plot([], [], "-g")
 
-        bdry_Th, = ax.plot([], [],  '-ok')
-        bdry_Tf, = ax.plot([], [],  '-ok')
+        (bdry_Th,) = ax.plot([], [], "-ok")
+        (bdry_Tf,) = ax.plot([], [], "-ok")
 
         def update(t, q, *args):
             bdry_mb, d1_mb, d2_mb, bdry_Th, bdry_Tf = args
@@ -247,7 +283,7 @@ if __name__ == "__main__":
             A_IK = main_body.A_IK(t, q)
             d1 = A_IK[:, 0] * main_body.a / 4
             d2 = A_IK[:, 1] * main_body.a / 4
-            
+
             d1_mb.set_data([x_S, x_S + d1[0]], [y_S, y_S + d1[1]])
             d2_mb.set_data([x_S, x_S + d2[0]], [y_S, y_S + d2[1]])
 
@@ -266,7 +302,10 @@ if __name__ == "__main__":
 
             # xDCt, yDCt, _ = contact_h.r_OP(t, q[contact_h.qDOF])
 
-            bdry_Th.set_data([xBTh, xSTh, xCTh, xCSh, xSSh, xDSh], [yBTh, ySTh, yCTh, yCSh, ySSh, yDSh])
+            bdry_Th.set_data(
+                [xBTh, xSTh, xCTh, xCSh, xSSh, xDSh],
+                [yBTh, ySTh, yCTh, yCSh, ySSh, yDSh],
+            )
 
             # front leg
             xBTf, yBTf, _ = thigh_f.r_OP(t, q[thigh_f.qDOF], K_r_SP=K_r_ThBf)
@@ -279,12 +318,17 @@ if __name__ == "__main__":
 
             # xDCt, yDCt, _ = contact_f.r_OP(t, q[contact_f.qDOF])
 
-            bdry_Tf.set_data([xBTf, xSTf, xCTf, xCSf, xSSf, xDSf], [yBTf, ySTf, yCTf, yCSf, ySSf, yDSf])
+            bdry_Tf.set_data(
+                [xBTf, xSTf, xCTf, xCSf, xSSf, xDSf],
+                [yBTf, ySTf, yCTf, yCSf, ySSf, yDSf],
+            )
 
             return bdry_mb, d1_mb, d2_mb, bdry_Th, bdry_Tf
 
         def animate(i):
             update(t[i], q[i], bdry_mb, d1_mb, d2_mb, bdry_Th, bdry_Tf)
 
-        anim = animation.FuncAnimation(fig, animate, frames=frames, interval=interval, blit=False)
+        anim = animation.FuncAnimation(
+            fig, animate, frames=frames, interval=interval, blit=False
+        )
         plt.show()

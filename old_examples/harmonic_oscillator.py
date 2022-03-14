@@ -2,13 +2,24 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from cardillo.model import Model
-from cardillo.solver import Euler_forward, Euler_backward, Moreau, Moreau_sym, Generalized_alpha_1
+from cardillo.solver import (
+    Euler_forward,
+    Euler_backward,
+    Moreau,
+    Moreau_sym,
+    Generalized_alpha_1,
+)
 from cardillo.model.frame import Frame
 from cardillo.model.point_mass import Point_mass
 from cardillo.model.force import Force
 from cardillo.model.scalar_force_interactions.potential_force_laws import Linear_spring
-from cardillo.model.scalar_force_interactions.nonpotential_force_laws import Linear_damper
-from cardillo.model.scalar_force_interactions import Translational_f_pot, Translational_f_npot
+from cardillo.model.scalar_force_interactions.nonpotential_force_laws import (
+    Linear_damper,
+)
+from cardillo.model.scalar_force_interactions import (
+    Translational_f_pot,
+    Translational_f_npot,
+)
 
 if __name__ == "__main__":
     m = 1
@@ -31,7 +42,9 @@ if __name__ == "__main__":
 
     linear_damper = Linear_damper(d)
     damping_element = Translational_f_npot(linear_damper, frame, mass)
-    damping_element = Translational_f_npot(linear_damper, frame, mass, n=np.array([0, 0, 1]))
+    damping_element = Translational_f_npot(
+        linear_damper, frame, mass, n=np.array([0, 0, 1])
+    )
 
     model = Model()
     model.add(frame)
@@ -53,7 +66,7 @@ if __name__ == "__main__":
     t = sol.t
     q = sol.q
 
-    plt.plot(t, q[:, 0], '-r')
-    plt.plot(t, q[:, 1], '-g')
-    plt.plot(t, q[:, 2], '-b')
+    plt.plot(t, q[:, 0], "-r")
+    plt.plot(t, q[:, 1], "-g")
+    plt.plot(t, q[:, 2], "-b")
     plt.show()

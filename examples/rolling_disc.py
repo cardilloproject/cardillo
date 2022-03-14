@@ -149,7 +149,8 @@ def rolling_disc_DMS(rigid_body_case="Euler", constraint_case="velocity_K"):
     t0 = 0
     # t1 = 2 * np.pi / np.abs(alpha_dot0) * 0.1
     t1 = 2 * np.pi / np.abs(alpha_dot0) * 1.0
-    dt = 5e-3
+    dt = 5e-2
+    # dt = 5e-3
     rho_inf = 0.90
     # rho_inf = 1.0
     tol = 1.0e-8
@@ -209,35 +210,34 @@ def rolling_disc_DMS(rigid_body_case="Euler", constraint_case="velocity_K"):
     ax.grid()
     ax.legend()
 
+    # nonpenetrating contact point
+    ax = fig.add_subplot(2, 2, 2)
+    ax.plot(
+        t_genAlphaFirstOrderVelocity[:],
+        la_gamma_genAlphaFirstOrderVelocity[:, 0],
+        "-r",
+        label="la_gamma[0] - GenAlphaFirstOrderVeclotiy",
+    )
+    # ax.plot(t_genAlphaFirstOrderVelocityGGL[:], la_gamma_genAlphaFirstOrderVelocityGGL[:, 0], '--g', label="la_gamma[0] - GenAlphaFirstOrderVeclotiyGGL")
+    ax.set_xlabel("t")
+    ax.set_ylabel("la_gamma0")
+    ax.grid()
+    ax.legend()
+
+    # no lateral velocities 1
+    ax = fig.add_subplot(2, 2, 3)
+    ax.plot(
+        t_genAlphaFirstOrderVelocity[:],
+        la_gamma_genAlphaFirstOrderVelocity[:, 1],
+        "-r",
+        label="la_gamma[1] - GenAlphaFirstOrderVeclotiy",
+    )
+    # ax.plot(t_genAlphaFirstOrderVelocityGGL[:], la_gamma_genAlphaFirstOrderVelocityGGL[:, 1], '--g', label="la_gamma[1] - GenAlphaFirstOrderVeclotiyGGL")
+    ax.set_xlabel("t")
+    ax.set_ylabel("la_gamma1")
+    ax.grid()
+    ax.legend()
     if constraint_case == "velocity_K" or constraint_case == "velocity_I":
-        # nonpenetrating contact point
-        ax = fig.add_subplot(2, 2, 2)
-        ax.plot(
-            t_genAlphaFirstOrderVelocity[:],
-            la_gamma_genAlphaFirstOrderVelocity[:, 0],
-            "-r",
-            label="la_gamma[0] - GenAlphaFirstOrderVeclotiy",
-        )
-        # ax.plot(t_genAlphaFirstOrderVelocityGGL[:], la_gamma_genAlphaFirstOrderVelocityGGL[:, 0], '--g', label="la_gamma[0] - GenAlphaFirstOrderVeclotiyGGL")
-        ax.set_xlabel("t")
-        ax.set_ylabel("la_gamma0")
-        ax.grid()
-        ax.legend()
-
-        # no lateral velocities 1
-        ax = fig.add_subplot(2, 2, 3)
-        ax.plot(
-            t_genAlphaFirstOrderVelocity[:],
-            la_gamma_genAlphaFirstOrderVelocity[:, 1],
-            "-r",
-            label="la_gamma[1] - GenAlphaFirstOrderVeclotiy",
-        )
-        # ax.plot(t_genAlphaFirstOrderVelocityGGL[:], la_gamma_genAlphaFirstOrderVelocityGGL[:, 1], '--g', label="la_gamma[1] - GenAlphaFirstOrderVeclotiyGGL")
-        ax.set_xlabel("t")
-        ax.set_ylabel("la_gamma1")
-        ax.grid()
-        ax.legend()
-
         # no lateral velocities 2
         ax = fig.add_subplot(2, 2, 4)
         ax.plot(
@@ -253,7 +253,7 @@ def rolling_disc_DMS(rigid_body_case="Euler", constraint_case="velocity_K"):
         ax.legend()
     elif constraint_case == "g_gamma":
         # nonpenetrating contact point
-        ax = fig.add_subplot(2, 2, 2)
+        ax = fig.add_subplot(2, 2, 4)
         ax.plot(
             t_genAlphaFirstOrderVelocity[:],
             la_g_genAlphaFirstOrderVelocity[:, 0],
@@ -261,8 +261,8 @@ def rolling_disc_DMS(rigid_body_case="Euler", constraint_case="velocity_K"):
             label="la_g - GenAlphaFirstOrderVeclotiy",
         )
         # ax.plot(t_genAlphaFirstOrderVelocityGGL[:], la_g_genAlphaFirstOrderVelocityGGL[:, 0], '--g', label="la_g - GenAlphaFirstOrderVeclotiyGGL")
-        ax.set_xlabel("x")
-        ax.set_ylabel("y")
+        ax.set_xlabel("t")
+        ax.set_ylabel("la_g")
         ax.grid()
         ax.legend()
     else:

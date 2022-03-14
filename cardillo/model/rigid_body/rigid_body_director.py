@@ -4,7 +4,7 @@ from cardillo.math.numerical_derivative import Numerical_derivative
 from cardillo.math.algebra import ax2skew, ax2skew_a, cross3, skew2ax
 
 # TODO: enable construction with standard inertia tensor
-class Rigid_body_director():
+class Rigid_body_director:
     def __init__(self, V_rho, B_rho0, C_rho0, q0=None, u0=None, la0=None):
         self.nq = 12
         self.nu = 12
@@ -29,12 +29,12 @@ class Rigid_body_director():
         self.M_[:3, 3:6] = np.eye(3) * self.B_rho0[0]
         self.M_[:3, 6:9] = np.eye(3) * self.B_rho0[1]
         self.M_[:3, 9:12] = np.eye(3) * self.B_rho0[2]
-        
+
         self.M_[3:6, :3] = np.eye(3) * self.B_rho0[0]
         self.M_[3:6, 3:6] = np.eye(3) * self.C_rho0[0, 0]
         self.M_[3:6, 6:9] = np.eye(3) * self.C_rho0[0, 1]
         self.M_[3:6, 9:12] = np.eye(3) * self.C_rho0[0, 2]
-        
+
         self.M_[6:9, :3] = np.eye(3) * self.B_rho0[1]
         self.M_[6:9, 3:6] = np.eye(3) * self.C_rho0[1, 0]
         self.M_[6:9, 6:9] = np.eye(3) * self.C_rho0[1, 1]
@@ -96,7 +96,7 @@ class Rigid_body_director():
         g_dot[3] = d1_dot @ d2 + d1 @ d2_dot
         g_dot[4] = d1_dot @ d3 + d1 @ d3_dot
         g_dot[5] = d2_dot @ d3 + d2 @ d3_dot
-        
+
         return g_dot
 
     def g_dot_q(self, t, q, u, coo):
@@ -112,7 +112,7 @@ class Rigid_body_director():
         # g_dot[3] = d1_dot @ d2 + d1 @ d2_dot
         g_dot_q[3, 6:9] = d1_dot
         g_dot_q[3, 3:6] = d2_dot
-        
+
         # g_dot[4] = d1_dot @ d3 + d1 @ d3_dot
         g_dot_q[4, 9:12] = d1_dot
         g_dot_q[4, 3:6] = d3_dot
@@ -143,7 +143,7 @@ class Rigid_body_director():
         g_ddot[2] = 2 * (d3_ddot @ d3 + d3_dot @ d3_dot)
         g_ddot[3] = d1_ddot @ d2 + d1 @ d2_ddot + 2 * d1_dot @ d2_dot
         g_ddot[4] = d1_ddot @ d3 + d1 @ d3_ddot + 2 * d1_dot @ d3_dot
-        g_ddot[5] = d2_ddot @ d3 + d2 @ d3_ddot + 2 * d2_dot @ d3_dot    
+        g_ddot[5] = d2_ddot @ d3 + d2 @ d3_ddot + 2 * d2_dot @ d3_dot
         return g_ddot
 
     def g_ddot_q(self, t, q, u, u_dot, coo):
@@ -232,20 +232,20 @@ class Rigid_body_director():
         # return gap_q_num
 
         return gap_q
-    
+
     def g_qq_dense(self, t, q):
 
         gap_qq = np.zeros((self.nla_g, self.nq, self.nq))
         gap_qq[0, 3:6, 3:6] = 2 * np.eye(3)
         gap_qq[1, 6:9, 6:9] = 2 * np.eye(3)
         gap_qq[2, 9:12, 9:12] = 2 * np.eye(3)
-        
+
         gap_qq[3, 3:6, 6:9] = np.eye(3)
         gap_qq[3, 6:9, 3:6] = np.eye(3)
-        
+
         gap_qq[4, 3:6, 9:12] = np.eye(3)
         gap_qq[4, 9:12, 3:6] = np.eye(3)
-        
+
         gap_qq[5, 6:9, 9:12] = np.eye(3)
         gap_qq[5, 9:12, 6:9] = np.eye(3)
 
@@ -260,12 +260,12 @@ class Rigid_body_director():
 
     def g_q(self, t, q, coo):
         coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
-   
+
     def W_g(self, t, q, coo):
         coo.extend(self.g_q_dense(t, q).T, (self.uDOF, self.la_gDOF))
 
     def Wla_g_q(self, t, q, la_g, coo):
-        dense = np.einsum('ijk,i->jk', self.g_qq_dense(t, q), la_g)
+        dense = np.einsum("ijk,i->jk", self.g_qq_dense(t, q), la_g)
         coo.extend(dense, (self.uDOF, self.qDOF))
 
     #########################################
@@ -293,7 +293,7 @@ class Rigid_body_director():
     def r_OP_q(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
         r_OP_q = np.zeros((3, self.nq))
         r_OP_q[:, :3] = np.eye(3)
-        r_OP_q += np.einsum('ijk,j->ik', self.A_IK_q(t, q), K_r_SP)
+        r_OP_q += np.einsum("ijk,j->ik", self.A_IK_q(t, q), K_r_SP)
         return r_OP_q
 
     def r_OP_qq(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
@@ -335,7 +335,7 @@ class Rigid_body_director():
         return skew2ax(K_Omega_tilde)
 
     def K_J_R(self, t, q, frame_ID=None):
-        raise NotImplementedError('see director rigid body for implementation')
+        raise NotImplementedError("see director rigid body for implementation")
         A_IK = self.A_IK(t, q)
         K_J_R = np.zeros((3, self.nu))
         K_J_R[:, 3:6] = 0.5 * A_IK.T @ ax2skew(q[3:6])
@@ -344,16 +344,16 @@ class Rigid_body_director():
         return K_J_R
 
     def K_J_R_q(self, t, q, frame_ID=None):
-        raise NotImplementedError('see director rigid body for implementation')
+        raise NotImplementedError("see director rigid body for implementation")
         A_IK = self.A_IK(t, q)
         A_IK_q = self.A_IK_q(t, q)
         K_J_R_q = np.zeros((3, self.nu, self.nq))
-        tmp = 0.5 * np.einsum('ij,jkl->ikl', A_IK.T, ax2skew_a())
-        K_J_R_q[:, 3:6] = 0.5 * np.einsum('jil,jk->ikl', A_IK_q, ax2skew(q[3:6]))
+        tmp = 0.5 * np.einsum("ij,jkl->ikl", A_IK.T, ax2skew_a())
+        K_J_R_q[:, 3:6] = 0.5 * np.einsum("jil,jk->ikl", A_IK_q, ax2skew(q[3:6]))
         K_J_R_q[:, 3:6, 3:6] += tmp
-        K_J_R_q[:, 6:9] = 0.5 * np.einsum('jil,jk->ikl', A_IK_q, ax2skew(q[6:9]))
+        K_J_R_q[:, 6:9] = 0.5 * np.einsum("jil,jk->ikl", A_IK_q, ax2skew(q[6:9]))
         K_J_R_q[:, 6:9, 6:9] += tmp
-        K_J_R_q[:, 9:12] = 0.5 * np.einsum('jil,jk->ikl', A_IK_q, ax2skew(q[9:12]))
+        K_J_R_q[:, 9:12] = 0.5 * np.einsum("jil,jk->ikl", A_IK_q, ax2skew(q[9:12]))
         K_J_R_q[:, 9:12, 9:12] += tmp
         return K_J_R_q
 
@@ -369,7 +369,8 @@ class Rigid_body_director():
         K_Psi_tilde = A_IK_dot.T @ A_IK_dot + A_IK.T @ A_IK_ddot
         return skew2ax(K_Psi_tilde)
 
-class Rigid_body_director_angular_velocities():
+
+class Rigid_body_director_angular_velocities:
     def __init__(self, m, K_Theta_S, q0=None, u0=None, nka_c0=None):
         self.m = m
         self.theta = K_Theta_S
@@ -377,7 +378,7 @@ class Rigid_body_director_angular_velocities():
         self.nq = 12
         self.nu = 6
         self.nka_c = 6
-        
+
         self.M_ = np.zeros((self.nu, self.nu))
         self.M_[:3, :3] = m * np.eye(3)
         self.M_[3:, 3:] = self.theta
@@ -523,13 +524,13 @@ class Rigid_body_director_angular_velocities():
         gap_qq[0, 3:6, 3:6] = 2 * np.eye(3)
         gap_qq[1, 6:9, 6:9] = 2 * np.eye(3)
         gap_qq[2, 9:12, 9:12] = 2 * np.eye(3)
-        
+
         gap_qq[3, 3:6, 6:9] = np.eye(3)
         gap_qq[3, 6:9, 3:6] = np.eye(3)
-        
+
         gap_qq[4, 3:6, 9:12] = np.eye(3)
         gap_qq[4, 9:12, 3:6] = np.eye(3)
-        
+
         gap_qq[5, 6:9, 9:12] = np.eye(3)
         gap_qq[5, 9:12, 6:9] = np.eye(3)
 
@@ -546,7 +547,9 @@ class Rigid_body_director_angular_velocities():
         coo.extend(self.__c_q_dense(t, q), (self.ka_cDOF, self.qDOF))
 
     def ka_cc_qq(self, t, q, ka_c, coo):
-        dense = Numerical_derivative(lambda t, q: ka_c @ self.__c_qq_dense(t, q), order=2)._x(t, q)
+        dense = Numerical_derivative(
+            lambda t, q: ka_c @ self.__c_qq_dense(t, q), order=2
+        )._x(t, q)
         coo.extend(dense, (self.ka_cDOF, self.qDOF))
 
     #########################################
@@ -577,35 +580,41 @@ class Rigid_body_director_angular_velocities():
     def r_OP_q(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
         r_OP_q = np.zeros((3, self.nq))
         r_OP_q[:, :3] = np.eye(3)
-        r_OP_q[:, :] += np.einsum('ijk,j->ik', self.A_IK_q(t, q), K_r_SP)
+        r_OP_q[:, :] += np.einsum("ijk,j->ik", self.A_IK_q(t, q), K_r_SP)
         return r_OP_q
 
     def v_P(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
         return u[:3] + self.A_IK(t, q) @ cross3(u[3:], K_r_SP)
 
     def a_P(self, t, q, u, u_dot, frame_ID=None, K_r_SP=np.zeros(3)):
-        return u_dot[:3] + self.A_IK(t, q) @ (cross3(u_dot[3:], K_r_SP) + cross3(u[3:], cross3(u[3:], K_r_SP)))
-    
+        return u_dot[:3] + self.A_IK(t, q) @ (
+            cross3(u_dot[3:], K_r_SP) + cross3(u[3:], cross3(u[3:], K_r_SP))
+        )
+
     def kappa_P(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
         return self.A_IK(t, q) @ (cross3(u[3:], cross3(u[3:], K_r_SP)))
-    
+
     def kappa_P_q(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
-        return np.einsum('ijk,j->ik', self.A_IK_q(t, q), cross3(u[3:], cross3(u[3:], K_r_SP)) )
-    
+        return np.einsum(
+            "ijk,j->ik", self.A_IK_q(t, q), cross3(u[3:], cross3(u[3:], K_r_SP))
+        )
+
     def kappa_P_u(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
         kappa_P_u = np.zeros((3, self.nu))
-        kappa_P_u[:, 3:] = -self.A_IK(t, q) @ (ax2skew(cross3(u[3:], K_r_SP)) + ax2skew(u[3:]) @ ax2skew(K_r_SP))
+        kappa_P_u[:, 3:] = -self.A_IK(t, q) @ (
+            ax2skew(cross3(u[3:], K_r_SP)) + ax2skew(u[3:]) @ ax2skew(K_r_SP)
+        )
         return kappa_P_u
 
     def J_P(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
         J_P = np.zeros((3, self.nu))
         J_P[:, :3] = np.eye(3)
-        J_P[:, 3:] = - self.A_IK(t, q) @ ax2skew(K_r_SP)
+        J_P[:, 3:] = -self.A_IK(t, q) @ ax2skew(K_r_SP)
         return J_P
 
     def J_P_q(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
         J_P_q = np.zeros((3, self.nu, self.nq))
-        J_P_q[:, 3:, :] = np.einsum('ijk,jl->ilk', self.A_IK_q(t, q), -ax2skew(K_r_SP))
+        J_P_q[:, 3:, :] = np.einsum("ijk,jl->ilk", self.A_IK_q(t, q), -ax2skew(K_r_SP))
         return J_P_q
 
     def K_Omega(self, t, q, u, frame_ID=None):

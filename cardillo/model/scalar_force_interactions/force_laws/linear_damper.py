@@ -1,4 +1,4 @@
-class Linear_damper():
+class Linear_damper:
     def __init__(self, d):
         self.d = d
         self.g0 = 0

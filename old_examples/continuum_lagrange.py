@@ -6,21 +6,29 @@ from cardillo.discretization.lagrange import Node_vector, fit_lagrange_volume
 from cardillo.discretization.mesh3D import Mesh3D, cube
 from cardillo.discretization.mesh2D import Mesh2D, rectangle
 from cardillo.discretization.indexing import flat3D
-from cardillo.model.continuum import Ogden1997_compressible, First_gradient, Ogden1997_incompressible
+from cardillo.model.continuum import (
+    Ogden1997_compressible,
+    First_gradient,
+    Ogden1997_incompressible,
+)
 from cardillo.solver import Newton, Euler_backward
 from cardillo.model import Model
 from cardillo.math.algebra import A_IK_basic_z
 from cardillo.model.force_distr2D import Force_distr2D
 from cardillo.model.force_distr3D import Force_distr3D
-from cardillo.model.bilateral_constraints.implicit.incompressibility import Incompressibility
+from cardillo.model.bilateral_constraints.implicit.incompressibility import (
+    Incompressibility,
+)
 
 
 def test_cube():
 
     file_name = pathlib.Path(__file__).stem
-    file_path = pathlib.Path(__file__).parent / 'results' / f"{file_name}_cylinder" / file_name
+    file_path = (
+        pathlib.Path(__file__).parent / "results" / f"{file_name}_cylinder" / file_name
+    )
     file_path.parent.mkdir(parents=True, exist_ok=True)
-    export_path = file_path.parent / 'sol'
+    export_path = file_path.parent / "sol"
 
     TractionForce = True
     Gravity = False
@@ -47,8 +55,7 @@ def test_cube():
     Zeta = Node_vector(degrees[2], element_shape[2])
     knot_vectors = (Xi, Eta, Zeta)
 
-    mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=1, basis='lagrange',
-                nq_n=3)
+    mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=1, basis="lagrange", nq_n=3)
 
     # reference configuration is a cube
     L = 1
@@ -58,15 +65,17 @@ def test_cube():
     Z = cube(cube_shape, mesh, Fuzz=False)
 
     # material model
-    mu1 = 0.3 # * 1e3
-    mu2 = 0.5 # * 1e3
+    mu1 = 0.3  # * 1e3
+    mu2 = 0.5  # * 1e3
     if Incompressible:
         mat = Ogden1997_incompressible(mu1)
         Xi_la = Node_vector(degrees[0] - 1, element_shape[0])
         Eta_la = Node_vector(degrees[1] - 1, element_shape[1])
         Zeta_la = Node_vector(degrees[2] - 1, element_shape[2])
         knot_vectors_la = (Xi_la, Eta_la, Zeta_la)
-        la_mesh = Mesh3D(knot_vectors_la, QP_shape, derivative_order=0, basis='lagrange', nq_n=1)
+        la_mesh = Mesh3D(
+            knot_vectors_la, QP_shape, derivative_order=0, basis="lagrange", nq_n=1
+        )
     else:
         mat = Ogden1997_compressible(mu1, mu2)
 
@@ -98,17 +107,15 @@ def test_cube():
         cDOF_zeta2 = mesh.surface_qDOF[5][2]
         cDOF = np.concatenate((cDOF_xi, cDOF_eta, cDOF_zeta, cDOF_zeta2))
         Omega = 2 * np.pi
-        b_xi = lambda t: Z[cDOF_xi] #* np.sin(Omega * t)
+        b_xi = lambda t: Z[cDOF_xi]  # * np.sin(Omega * t)
         b_eta = lambda t: Z[cDOF_eta]
         b_zeta = lambda t: Z[cDOF_zeta]
         b_zeta2 = lambda t: Z[cDOF_zeta2] + 0.3 * t
         b = lambda t: np.concatenate((b_xi(t), b_eta(t), b_zeta(t), b_zeta2(t)))
 
-
     # 3D continuum
     continuum = First_gradient(density, mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
     # continuum = First_gradient(density, mat, mesh, Z)
-
 
     # build model
     model = Model()
@@ -126,7 +133,7 @@ def test_cube():
         # F = lambda t, xi, eta: np.array([0, 0, -5e0]) * (0.25 - (xi-0.5)**2) * (0.25 - (eta-0.5)**2)
         F = lambda t, xi, eta: np.array([0, 0, 0.2]) * t
         model.add(Force_distr2D(F, continuum, 5))
-    
+
     if Gravity:
         if Statics:
             G = lambda t, xi, eta, zeta: t * np.array([0, 0, -9.81 * density])
@@ -142,7 +149,7 @@ def test_cube():
     # print(np.linalg.det(M.toarray()))
 
     if Statics:
-    # static solver
+        # static solver
         n_load_steps = 10
         tol = 1.0e-5
         max_iter = 20
@@ -171,14 +178,17 @@ def test_cube():
     # vtk export
     continuum.post_processing(sol.t, sol.q, file_path)
 
-def test_cylinder():   
+
+def test_cylinder():
 
     # convergence problems for lagrange elements
 
     file_name = pathlib.Path(__file__).stem
-    file_path = pathlib.Path(__file__).parent / 'results' / f"{file_name}_cylinder" / file_name
+    file_path = (
+        pathlib.Path(__file__).parent / "results" / f"{file_name}_cylinder" / file_name
+    )
     file_path.parent.mkdir(parents=True, exist_ok=True)
-    export_path = file_path.parent / 'sol'
+    export_path = file_path.parent / "sol"
 
     # build mesh
     degrees = (3, 3, 3)
@@ -189,9 +199,9 @@ def test_cylinder():
     Eta = Node_vector(degrees[1], element_shape[1])
     Zeta = Node_vector(degrees[2], element_shape[2])
     knot_vectors = (Xi, Eta, Zeta)
-    
-    mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=1, basis='lagrange', nq_n=3)
-    
+
+    mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=1, basis="lagrange", nq_n=3)
+
     def cylinder(xi, eta, zeta, R=1, H=3):
         xi_ = 2 * xi - 1
         eta_ = 2 * eta - 1
@@ -210,7 +220,7 @@ def test_cylinder():
     xi = np.linspace(0, 1, num=nxi)
     eta = np.linspace(0, 1, num=neta)
     zeta = np.linspace(0, 1, num=nzeta)
-    
+
     n3 = nxi * neta * nzeta
     knots = np.zeros((n3, 3))
     Pw = np.zeros((n3, 3))
@@ -228,11 +238,11 @@ def test_cylinder():
 
     # check L2 projection
     fig = plt.figure()
-    ax = fig.gca(projection='3d')
-    ax.scatter(X,Y,Z_)
+    ax = fig.gca(projection="3d")
+    ax.scatter(X, Y, Z_)
     plt.show()
 
-    # material model    
+    # material model
     mu1 = 0.3
     mu2 = 0.5
     mat = Ogden1997_compressible(mu1, mu2)
@@ -243,7 +253,7 @@ def test_cylinder():
     cDOF = np.concatenate((cDOF1, cDOF2))
     b1 = lambda t: Z[cDOF1]
 
-    def b2(t, phi0=0.1*np.pi, h=0.25):
+    def b2(t, phi0=0.1 * np.pi, h=0.25):
         cDOF2_xyz = cDOF2.reshape(3, -1).T
         out = np.zeros_like(Z)
 
@@ -253,7 +263,7 @@ def test_cylinder():
         th = t * np.array([0, 0, h])
         for DOF in cDOF2_xyz:
             out[DOF] = R @ Z[DOF] + th
-        
+
         return out[cDOF2]
 
     b = lambda t: np.concatenate((b1(t), b2(t)))
@@ -273,26 +283,29 @@ def test_cylinder():
     tol = 1.0e-5
     max_iter = 10
     solver = Newton(model, n_load_steps=n_load_steps, tol=tol, max_iter=max_iter)
-    
-    #import cProfile, pstats
-    #pr = cProfile.Profile()
-    #pr.enable()
-    sol = solver.solve()
-    #pr.disable()
 
-    #sortby = 'cumulative'
-    #ps = pstats.Stats(pr).sort_stats(sortby)
-    #ps.print_stats(0.1) # print only first 10% of the list
+    # import cProfile, pstats
+    # pr = cProfile.Profile()
+    # pr.enable()
+    sol = solver.solve()
+    # pr.disable()
+
+    # sortby = 'cumulative'
+    # ps = pstats.Stats(pr).sort_stats(sortby)
+    # ps.print_stats(0.1) # print only first 10% of the list
 
     # vtk export
     continuum.post_processing(sol.t, sol.q, file_path)
 
+
 def test_rectangle():
 
     file_name = pathlib.Path(__file__).stem
-    file_path = pathlib.Path(__file__).parent / 'results' / f"{file_name}_cube" / file_name
+    file_path = (
+        pathlib.Path(__file__).parent / "results" / f"{file_name}_cube" / file_name
+    )
     file_path.parent.mkdir(parents=True, exist_ok=True)
-    export_path = file_path.parent / 'sol'
+    export_path = file_path.parent / "sol"
 
     # build mesh
     degrees = (1, 1)
@@ -302,8 +315,8 @@ def test_rectangle():
     Xi = Node_vector(degrees[0], element_shape[0])
     Eta = Node_vector(degrees[1], element_shape[1])
     knot_vectors = (Xi, Eta)
-    
-    mesh = Mesh2D(knot_vectors, QP_shape, derivative_order=1, basis='lagrange', nq_n=2)
+
+    mesh = Mesh2D(knot_vectors, QP_shape, derivative_order=1, basis="lagrange", nq_n=2)
 
     # reference configuration is a cube
     L = 2
@@ -312,7 +325,7 @@ def test_rectangle():
     rectangle_shape = (L, B)
     Z = rectangle(rectangle_shape, mesh, Greville=False)
 
-    # material model    
+    # material model
     mu1 = 0.3
     mu2 = 0.5
     mat = Ogden1997_compressible(mu1, mu2, dim=2)
@@ -328,8 +341,6 @@ def test_rectangle():
     # 3D continuum
     continuum = First_gradient(1, mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
 
-    
-
     # vtk export reference configuration
     # continuum.post_processing_single_configuration(0, Z, 'rectangleReferenceConfig.vtu')
 
@@ -338,13 +349,12 @@ def test_rectangle():
     model.add(continuum)
     model.assemble()
 
-
     # static solver
     n_load_steps = 30
     tol = 1.0e-5
     max_iter = 10
     solver = Newton(model, n_load_steps=n_load_steps, tol=tol, max_iter=max_iter)
-    
+
     # import cProfile, pstats
     # pr = cProfile.Profile()
     # pr.enable()
@@ -358,38 +368,39 @@ def test_rectangle():
     # # vtk export
     continuum.post_processing(sol.t, sol.q, file_path)
 
+
 def write_xml():
     # write paraview PVD file, see https://www.paraview.org/Wiki/ParaView/Data_formats#PVD_File_Format
     from xml.dom import minidom
-    
+
     root = minidom.Document()
-    
-    vkt_file = root.createElement('VTKFile')
-    vkt_file.setAttribute('type', 'Collection')
+
+    vkt_file = root.createElement("VTKFile")
+    vkt_file.setAttribute("type", "Collection")
     root.appendChild(vkt_file)
-    
-    collection = root.createElement('Collection')
+
+    collection = root.createElement("Collection")
     vkt_file.appendChild(collection)
 
     for i in range(10):
         ti = 0.1 * i
-        dataset = root.createElement('DataSet')
-        dataset.setAttribute('timestep', f'{ti:0.6f}')
+        dataset = root.createElement("DataSet")
+        dataset.setAttribute("timestep", f"{ti:0.6f}")
         # dataset.setAttribute('group', '')
         # dataset.setAttribute('part', '0')
-        dataset.setAttribute('file', f'continuum{i}.vtu')
+        dataset.setAttribute("file", f"continuum{i}.vtu")
         collection.appendChild(dataset)
 
-    
-    xml_str = root.toprettyxml(indent ="\t")  
-    
+    xml_str = root.toprettyxml(indent="\t")
+
     save_path_file = "continuum.pvd"
-    
+
     with open(save_path_file, "w") as f:
         f.write(xml_str)
+
 
 if __name__ == "__main__":
     # test_cube()
     # test_cylinder()
     test_rectangle()
-    # write_xml()   
+    # write_xml()

@@ -16,25 +16,27 @@ from cardillo.solver import Moreau, Moreau_sym, Generalized_alpha_2, Generalized
 
 # class Ball(Rigid_body2D):
 #     def __init__(self, m, r, q0=None, u0=None):
-#         theta = 2 / 5 * m * r**2 
+#         theta = 2 / 5 * m * r**2
 #         self.r = r
 #         super().__init__(m, theta, q0=q0, u0=u0)
-        
+
 #     def boundary(self, t, q, n=100):
 #         phi = np.linspace(0, 2 * np.pi, n, endpoint=True)
 #         K_r_SP = self.r * np.vstack([np.sin(phi), np.cos(phi), np.zeros(n)])
 #         return np.repeat(self.r_OP(t, q), n).reshape(3, n) + self.A_IK(t, q) @ K_r_SP
 
+
 class Ball(Rigid_body_euler):
     def __init__(self, m, r, q0=None, u0=None):
-        theta = 2 / 5 * m * r**2 
+        theta = 2 / 5 * m * r**2
         self.r = r
         super().__init__(m, theta * np.eye(3), q0=q0, u0=u0)
-        
+
     def boundary(self, t, q, n=100):
         phi = np.linspace(0, 2 * np.pi, n, endpoint=True)
         K_r_SP = self.r * np.vstack([np.sin(phi), np.cos(phi), np.zeros(n)])
         return np.repeat(self.r_OP(t, q), n).reshape(3, n) + self.A_IK(t, q) @ K_r_SP
+
 
 if __name__ == "__main__":
     animate = True
@@ -52,32 +54,36 @@ if __name__ == "__main__":
     vS0 = np.array([x_dot0, y_dot0, 0])
     # q0 = np.array([r_OS0[0], r_OS0[1], phi0])
     # u0 = np.array([vS0[0], vS0[1], phi_dot0])
-    q0 = np.concatenate([r_OS0, np.array( [phi0, 0, 0]) ])
-    u0 = np.concatenate([vS0, np.array( [0, 0, phi_dot0])])
+    q0 = np.concatenate([r_OS0, np.array([phi0, 0, 0])])
+    u0 = np.concatenate([vS0, np.array([0, 0, phi_dot0])])
     RB = Ball(m, r, q0, u0)
 
     e1, e2, e3 = np.eye(3)
-    frame = Frame(A_IK=np.vstack( (e3, e1, e2) ).T, r_OP=np.array([0, 0, 0]) )
+    frame = Frame(A_IK=np.vstack((e3, e1, e2)).T, r_OP=np.array([0, 0, 0]))
     mu = 0.2
     r_N = 0.1
     e_N = 0.5
-    plane = Sphere_to_plane(frame, RB, r, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N, e_T=0)
+    plane = Sphere_to_plane(
+        frame, RB, r, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N, e_T=0
+    )
 
-    alpha = pi/4
+    alpha = pi / 4
     e1, e2, e3 = A_IK_basic_z(alpha)
-    frame1 = Frame(A_IK=np.vstack( (e3, e1, e2) ).T )
+    frame1 = Frame(A_IK=np.vstack((e3, e1, e2)).T)
     mu = 0.2
     r_N = 0.2
     e_N = 1
     plane_left = Sphere_to_plane(frame1, RB, r, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N)
 
-    beta = -pi/4
+    beta = -pi / 4
     e1, e2, e3 = A_IK_basic_z(beta)
-    frame2 = Frame(A_IK=np.vstack( (e3, e1, e2) ).T )
+    frame2 = Frame(A_IK=np.vstack((e3, e1, e2)).T)
     mu = 0.1
     r_N = 0.2
     e_N = 1
-    plane_right = Sphere_to_plane(frame2, RB, r, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N)
+    plane_right = Sphere_to_plane(
+        frame2, RB, r, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N
+    )
 
     model = Model()
     model.add(RB)
@@ -108,7 +114,7 @@ if __name__ == "__main__":
     q_n = q = sol_n.q
     u_n = sol_n.u
     a_n = sol_n.a
-    la_N_n = sol_n.la_N 
+    la_N_n = sol_n.la_N
     la_T_n = sol_n.la_T
 
     P_N_n = sol_n.P_N
@@ -125,35 +131,35 @@ if __name__ == "__main__":
     P_T_fp = sol_fp.P_T
 
     fig, ax = plt.subplots(3, 1)
-    ax[0].set_title('x(t)')
-    ax[0].plot(t_fp, q_fp[:, 0], '-r', label='fixed_point')
-    ax[0].plot(t_n, q_n[:, 0], '--b', label='newton')
+    ax[0].set_title("x(t)")
+    ax[0].plot(t_fp, q_fp[:, 0], "-r", label="fixed_point")
+    ax[0].plot(t_n, q_n[:, 0], "--b", label="newton")
     ax[0].legend()
 
-    ax[1].set_title('u_x(t)')
-    ax[1].plot(t_fp, u_fp[:, 0], '-r', label='fixed_point')
-    ax[1].plot(t_n, u_n[:, 0], '--b', label='newton')
+    ax[1].set_title("u_x(t)")
+    ax[1].plot(t_fp, u_fp[:, 0], "-r", label="fixed_point")
+    ax[1].plot(t_n, u_n[:, 0], "--b", label="newton")
     ax[1].legend()
 
-    ax[2].set_title('a_x(t)')
-    ax[2].plot(t_fp, a_fp[:, 0], '-r', label='fixed_point')
-    ax[2].plot(t_n, a_n[:, 0], '--b', label='newton')
+    ax[2].set_title("a_x(t)")
+    ax[2].plot(t_fp, a_fp[:, 0], "-r", label="fixed_point")
+    ax[2].plot(t_n, a_n[:, 0], "--b", label="newton")
     ax[2].legend()
 
     fig, ax = plt.subplots(3, 1)
-    ax[0].set_title('y(t)')
-    ax[0].plot(t_fp, q_fp[:, 1], '-r', label='fixed_point')
-    ax[0].plot(t_n, q_n[:, 1], '--b', label='newton')
+    ax[0].set_title("y(t)")
+    ax[0].plot(t_fp, q_fp[:, 1], "-r", label="fixed_point")
+    ax[0].plot(t_n, q_n[:, 1], "--b", label="newton")
     ax[0].legend()
 
-    ax[1].set_title('u_y(t)')
-    ax[1].plot(t_fp, u_fp[:, 1], '-r', label='fixed_point')
-    ax[1].plot(t_n, u_n[:, 1], '--b', label='newton')
+    ax[1].set_title("u_y(t)")
+    ax[1].plot(t_fp, u_fp[:, 1], "-r", label="fixed_point")
+    ax[1].plot(t_n, u_n[:, 1], "--b", label="newton")
     ax[1].legend()
 
-    ax[2].set_title('a_y(t)')
-    ax[2].plot(t_fp, a_fp[:, 1], '-r', label='fixed_point')
-    ax[2].plot(t_n, a_n[:, 1], '--b', label='newton')
+    ax[2].set_title("a_y(t)")
+    ax[2].plot(t_fp, a_fp[:, 1], "-r", label="fixed_point")
+    ax[2].plot(t_n, a_n[:, 1], "--b", label="newton")
     ax[2].legend()
 
     # fig, ax = plt.subplots(3, 1)
@@ -208,25 +214,25 @@ if __name__ == "__main__":
 
     fig, ax = plt.subplots(3, 1)
 
-    ax[0].set_title('P_N(t)')
-    ax[0].plot(t_fp, P_N_fp[:, 0], '-r', label='fixed_point')
+    ax[0].set_title("P_N(t)")
+    ax[0].plot(t_fp, P_N_fp[:, 0], "-r", label="fixed_point")
     # ax[0].plot(t_n, sol_n.la_N[:, 0]*dt, '--b', label='newton_la_N')
     # ax[0].plot(t_n, sol_n.La_N[:, 0], '--g', label='newton_La_N')
-    ax[0].plot(t_n, P_N_n[:, 0], '--g', label='newton_P_N')
+    ax[0].plot(t_n, P_N_n[:, 0], "--g", label="newton_P_N")
     ax[0].legend()
 
-    ax[1].set_title('P_Tx(t)')
-    ax[1].plot(t_fp, P_T_fp[:, 0], '-r', label='fixed_point')
+    ax[1].set_title("P_Tx(t)")
+    ax[1].plot(t_fp, P_T_fp[:, 0], "-r", label="fixed_point")
     # ax[1].plot(t_n, sol_n.la_T[:, 0]*dt, '--b', label='newton_la_T')
     # ax[1].plot(t_n, sol_n.La_T[:, 0], '--g', label='newton_La_T')
-    ax[1].plot(t_n, P_T_n[:, 0], '--g', label='newton_P_N')
+    ax[1].plot(t_n, P_T_n[:, 0], "--g", label="newton_P_N")
     ax[1].legend()
 
-    ax[2].set_title('P_Ty(t)')
-    ax[2].plot(t_fp, P_T_fp[:, 1], '-r', label='fixed_point')
+    ax[2].set_title("P_Ty(t)")
+    ax[2].plot(t_fp, P_T_fp[:, 1], "-r", label="fixed_point")
     # ax[2].plot(t_n, sol_n.la_T[:, 1]*dt, '--b', label='newton_la_T')
     # ax[2].plot(t_n, sol_n.La_T[:, 1], '--g', label='newton_La_T')
-    ax[2].plot(t_n, P_T_n[:, 1], '--g', label='newton_P_N')
+    ax[2].plot(t_n, P_T_n[:, 1], "--g", label="newton_P_N")
     ax[2].legend()
 
     # ax[1].set_title('u_y(t)')
@@ -254,16 +260,15 @@ if __name__ == "__main__":
 
     if animate:
 
-           # animate configurations
+        # animate configurations
         fig = plt.figure()
         ax = fig.add_subplot(111)
-        
-        ax.set_xlabel('x [m]')
-        ax.set_ylabel('y [m]')
-        ax.axis('equal')
+
+        ax.set_xlabel("x [m]")
+        ax.set_ylabel("y [m]")
+        ax.axis("equal")
         ax.set_xlim(-2 * y0, 2 * y0)
         ax.set_ylim(-2 * y0, 2 * y0)
-        
 
         # prepare data for animation
         frames = len(t)
@@ -277,32 +282,32 @@ if __name__ == "__main__":
         q = q[::frac]
 
         # ax.plot([-2 * y0, 2 * y0], (y0-0.1)*np.array([1, 1]), '-k')
-        ax.plot([-2 * y0, 2 * y0], [0, 0], '-k')
+        ax.plot([-2 * y0, 2 * y0], [0, 0], "-k")
         # ax.plot([0, -y0 * np.cos(alpha)], [0, y0 * np.sin(alpha)], '-k')
         # ax.plot([0, y0 * np.cos(beta)], [0, - y0 * np.sin(beta)], '-k')
 
         def create(t, q):
             x_S, y_S, _ = RB.r_OP(t, q)
-            
+
             A_IK = RB.A_IK(t, q)
             d1 = A_IK[:, 0] * r
             d2 = A_IK[:, 1] * r
             # d3 = A_IK[:, 2] * r
 
-            COM, = ax.plot([x_S], [y_S], 'ok')
-            bdry, = ax.plot([], [],  '-k')
-            d1_, = ax.plot([x_S, x_S + d1[0]], [y_S, y_S + d1[1]], '-r')
-            d2_, = ax.plot([x_S, x_S + d2[0]], [y_S, y_S + d2[1]], '-g')
+            (COM,) = ax.plot([x_S], [y_S], "ok")
+            (bdry,) = ax.plot([], [], "-k")
+            (d1_,) = ax.plot([x_S, x_S + d1[0]], [y_S, y_S + d1[1]], "-r")
+            (d2_,) = ax.plot([x_S, x_S + d2[0]], [y_S, y_S + d2[1]], "-g")
             return COM, bdry, d1_, d2_
 
         COM, bdry, d1_, d2_ = create(0, q[0])
 
-        def update(t, q, COM, bdry,  d1_, d2_):
+        def update(t, q, COM, bdry, d1_, d2_):
 
             x_S, y_S, _ = RB.r_OP(t, q)
 
             x_bdry, y_bdry, _ = RB.boundary(t, q)
-            
+
             A_IK = RB.A_IK(t, q)
             d1 = A_IK[:, 0] * r
             d2 = A_IK[:, 1] * r
@@ -319,5 +324,7 @@ if __name__ == "__main__":
         def animate(i):
             update(t[i], q[i], COM, bdry, d1_, d2_)
 
-        anim = animation.FuncAnimation(fig, animate, frames=frames, interval=interval, blit=False)
+        anim = animation.FuncAnimation(
+            fig, animate, frames=frames, interval=interval, blit=False
+        )
         plt.show()

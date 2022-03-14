@@ -1094,17 +1094,14 @@ class GenAlphaFirstOrderVelocity:
         # gen alpha parameter
         #######################################################################
         self.rho_inf = rho_inf
-        # self.alpha_m = 0.5 * (3. - rho_inf) / (1. + rho_inf) # Jansen2000 (23)
-        # self.alpha_f = 1. / (1. + rho_inf) # Jansen2000 (23)
-        # self.gamma = 0.5 + self.alpha_m - self.alpha_f # Jansen2000 (17)
-
-        # self.alpha_m = (2. * rho_inf - 1.) / (rho_inf + 1.) # Arnold2007 (24)
-        # self.alpha_f = rho_inf / (rho_inf + 1.) # Arnold2007 (24)
-
         self.alpha_m = (3.0 * rho_inf - 1.0) / (2.0 * (rho_inf + 1.0))  # Harsch2022
         self.alpha_f = rho_inf / (rho_inf + 1.0)  # Harsch2022
-
         self.gamma = 0.5 + self.alpha_f - self.alpha_m  # Arnold2007 (24)
+        # self.q_q_dot = ???
+        # self.u_udot = ???
+        self.x_x_dot = (
+            self.dt * self.gamma * (1.0 - self.alpha_f) / (1.0 - self.alpha_m)
+        )
 
         #######################################################################
         # newton settings
@@ -1210,24 +1207,23 @@ class GenAlphaFirstOrderVelocity:
             W_gamma0 = self.model.W_gamma(t0, q0, scipy_matrix=csr_matrix)
             zeta_g0 = self.model.zeta_g(t0, q0, u0)
             zeta_gamma0 = self.model.zeta_gamma(t0, q0, u0)
-            A = bmat([
-                [M0, -W_g0, -W_gamma0],
-                [W_g0.T , None, None],
-                [W_gamma0.T, None, None]
-            ], format="csc")
-            b = np.concatenate([
-                h0,
-                -zeta_g0,
-                -zeta_gamma0
-            ])
+            A = bmat(
+                [
+                    [M0, -W_g0, -W_gamma0],
+                    [W_g0.T, None, None],
+                    [W_gamma0.T, None, None],
+                ],
+                format="csc",
+            )
+            b = np.concatenate([h0, -zeta_g0, -zeta_gamma0])
             u_dot_la_g_la_gamma = spsolve(A, b)
-            u_dot0 = u_dot_la_g_la_gamma[:self.nu]
-            la_g0 = u_dot_la_g_la_gamma[self.nu:self.nu + self.nla_g]
-            la_gamma0 = u_dot_la_g_la_gamma[self.nu + self.nla_g:]
+            u_dot0 = u_dot_la_g_la_gamma[: self.nu]
+            la_g0 = u_dot_la_g_la_gamma[self.nu : self.nu + self.nla_g]
+            la_gamma0 = u_dot_la_g_la_gamma[self.nu + self.nla_g :]
 
             y0 = np.concatenate((q0, u0))
             y_dot0 = np.concatenate((q_dot0, u_dot0))
-            v0 = y_dot0.copy() # TODO: Is there a better choice?
+            v0 = y_dot0.copy()  # TODO: Is there a better choice?
             x0 = self.pack(q_dot0, u_dot0, la_g0, la_gamma0)
 
             return t0, q0, u0, q_dot0, u_dot0, v0, la_g0, la_gamma0, x0, y0, y_dot0
@@ -1375,7 +1371,83 @@ class GenAlphaFirstOrderVelocity:
 
         yield R
 
-        raise RuntimeError("...")
+        #################################
+        # kinematic differential equation
+        #################################
+        # R[:nq] = q_dotk1 - self.model.q_dot(tk1, qk1, uk1)
+        Rq_q_dot = eye(self.nq) - self.model.q_dot_q(tk1, qk1, uk1) * self.x_x_dot
+        Rq_u_dot = self.model.B(tk1, qk1) * self.x_x_dot
+        Rq_la_g = None
+        Rq_la_gamma = None
+
+        #####################
+        # equations of motion
+        #####################
+        # R[nq : nq + nu] = (
+        #     self.model.M(tk1, qk1) @ u_dotk1
+        #     - self.model.h(tk1, qk1, uk1)
+        #     - self.model.W_g(tk1, qk1) @ la_gk1
+        #     - self.model.W_gamma(tk1, qk1) @ la_gammak1
+        # )
+        R_u_q_dot = (
+            self.model.Mu_q(tk1, qk1, u_dotk1)
+            - self.model.h_q(tk1, qk1, uk1)
+            - self.model.Wla_g_q(tk1, qk1, la_gk1)
+            - self.model.Wla_gamma_q(tk1, qk1, la_gammak1)
+        ) * self.x_x_dot
+        R_u_u_dot = (
+            self.model.M(tk1, qk1) - self.model.h_u(tk1, qk1, uk1) * self.x_x_dot
+        )
+        Ru_la_g = None
+        Ru_la_gamma = None
+
+        ###############################################################################################
+        # R[:nu] = Mk1 @ ak1 -( self.model.h(tk1, qk1, uk1) + W_gk1 @ la_gk1 + W_gammak1 @ la_gammak1 )
+        ###############################################################################################
+        Wla_g_q = self.model.Wla_g_q(tk1, qk1, la_gk1, scipy_matrix=csr_matrix)
+        Wla_gamma_q = self.model.Wla_gamma_q(
+            tk1, qk1, la_gammak1, scipy_matrix=csr_matrix
+        )
+        rhs_q = -(self.model.h_q(tk1, qk1, uk1) + Wla_g_q + Wla_gamma_q)
+        rhs_u = -self.model.h_u(tk1, qk1, uk1)
+        rhs_a = rhs_q @ self.q_a + rhs_u * self.u_a
+        Ma_a = (
+            self.model.Mu_q(tk1, qk1, ak1, scipy_matrix=csr_matrix) @ self.q_a + rhs_a
+        )
+
+        Ra_a = Mk1 + Ma_a
+        Ra_la_g = -W_gk1
+        Ra_la_g *= self.pre_cond
+        Ra_la_gamma = -W_gammak1
+
+        #########################################
+        # R[nu:nu+nla_g] = self.model.g(tk1, qk1)
+        #########################################
+        Rla_g_a = self.model.g_q(tk1, qk1) @ self.q_a
+        Rla_g_la_g = None
+        Rla_g_la_gamma = None
+
+        ##################################################################
+        # R[nu+nla_g:nu+nla_g+nla_gamma] = self.model.gamma(tk1, qk1, uk1)
+        ##################################################################
+        Rla_gamma_a = (
+            self.model.gamma_q(tk1, qk1, uk1) @ self.q_a
+            + self.model.gamma_u(tk1, qk1) * self.u_a
+        )
+        Rla_gamma_la_g = None
+        Rla_gamma_la_gamma = None
+
+        # sparse assemble global tangent matrix
+        R_x = bmat(
+            [
+                [Ra_a, Ra_la_g, Ra_la_gamma],
+                [Rla_g_a, Rla_g_la_g, Rla_g_la_gamma],
+                [Rla_gamma_a, Rla_gamma_la_g, Rla_gamma_la_gamma],
+            ],
+            format="csr",
+        )
+
+        yield R_x
 
     def __R(self, tk1, xk1):
         return next(self.__R_gen_analytic(tk1, xk1))

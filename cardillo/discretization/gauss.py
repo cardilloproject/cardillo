@@ -1,5 +1,6 @@
 import numpy as np
 
+
 def gauss(nGP, interval=np.array([-1, 1])):
     """Calculate the abscissae and weights of the nG Gauss-Legendre points on an interval [-1,1] and map them onto a given interval [a, b] using linear transformation rule.
 
@@ -20,9 +21,9 @@ def gauss(nGP, interval=np.array([-1, 1])):
 
     gp, wp = np.polynomial.legendre.leggauss(nGP)
 
-    # transfrom gauss points on new interval, 
+    # transfrom gauss points on new interval,
     # see https://de.wikipedia.org/wiki/Gau%C3%9F-Quadratur#Variablentransformation_bei_der_Gauß-Quadratur
-    gp = (interval[1] - interval[0] ) / 2 * gp + (interval[1] + interval[0] ) / 2
-    wp = (interval[1] - interval[0] ) / 2 * wp
+    gp = (interval[1] - interval[0]) / 2 * gp + (interval[1] + interval[0]) / 2
+    wp = (interval[1] - interval[0]) / 2 * wp
 
     return gp, wp

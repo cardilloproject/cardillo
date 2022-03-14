@@ -5,11 +5,11 @@
 # -- Project information -----------------------------------------------------
 
 project = "cardillo3"
-html_title = "cardillo: Solvers, algorithms and benchmark systems for nonsmooth dynamics"
-author = (
-    "Jonas Harsch, Giuseppe Capobianco, Simon Eugster"
+html_title = (
+    "cardillo: Solvers, algorithms and benchmark systems for nonsmooth dynamics"
 )
-copyright = "2022, "+ author
+author = "Jonas Harsch, Giuseppe Capobianco, Simon Eugster"
+copyright = "2022, " + author
 
 # The full version, including alpha/beta/rc tags
 release = "3.0.0"

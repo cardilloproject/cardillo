@@ -1,9 +1,11 @@
 from setuptools import setup, find_packages
 
 name = "cardillo"
-version = '3.0.0'
-author= 'Jonas Harsch, Giuseppe Capobianco, Simon Eugster'
-author_email ='harsch@inm.uni-stuttgart.de, giuseppe.capobianco@fau.de, eugster@inm.uni-stuttgart.de',
+version = "3.0.0"
+author = "Jonas Harsch, Giuseppe Capobianco, Simon Eugster"
+author_email = (
+    "harsch@inm.uni-stuttgart.de, giuseppe.capobianco@fau.de, eugster@inm.uni-stuttgart.de",
+)
 url = ""
 description = "Python package for spatial nonlinear beam theories."
 long_description = ""
@@ -22,8 +24,8 @@ setup(
         "matplotlib>=3.4.3",
         "black>=22.1.0",
         "tqdm>=4.62.3",
-        'meshio>=4.1.1', 
-        ],
+        "meshio>=4.1.1",
+    ],
     packages=find_packages(),
-    python_requires='>=3.8',
+    python_requires=">=3.8",
 )

@@ -2,7 +2,10 @@ from cardillo.model.classical_beams.spatial import Hooke_quadratic, Hooke
 from cardillo.model.classical_beams.spatial import TimoshenkoDirectorIntegral
 from cardillo.discretization.B_spline import fit_B_Spline
 from cardillo.model.frame import Frame
-from cardillo.model.bilateral_constraints.implicit import Rigid_connection, Linear_guidance_x
+from cardillo.model.bilateral_constraints.implicit import (
+    Rigid_connection,
+    Linear_guidance_x,
+)
 from cardillo.model import Model
 from cardillo.solver import Newton, Riks
 from cardillo.model.force import Force
@@ -14,8 +17,9 @@ import matplotlib.animation as animation
 import numpy as np
 from scipy.spatial.transform import Rotation
 
-def arc3D(t, R, plane='xz'):
-    orientation = 'xyz'
+
+def arc3D(t, R, plane="xz"):
+    orientation = "xyz"
     perm = []
     for i in plane:
         perm.append(orientation.find(i))
@@ -28,12 +32,13 @@ def arc3D(t, R, plane='xz'):
     pi2 = 2 * np.pi
     rc_phi = R * np.cos(pi2 * t)
     rs_phi = R * np.sin(pi2 * t)
-        
+
     P[:, perm] = np.array([-rc_phi, rs_phi]).T
     dP[:, perm] = np.array([pi2 * rs_phi, pi2 * rc_phi]).T
-    ddP[:, perm] = np.array([pi2**2 * rc_phi, -pi2**2 * rs_phi]).T
+    ddP[:, perm] = np.array([pi2**2 * rc_phi, -(pi2**2) * rs_phi]).T
 
     return P, dP, ddP
+
 
 Beam = TimoshenkoDirectorIntegral
 
@@ -52,41 +57,46 @@ if __name__ == "__main__":
     A = h * b
     I2 = b * h**3 / 12
     I3 = h * b**3 / 12
-    print(f'E / G: {E / G} (should be 2.6 due to Goto1992)')
-    print(f'h / b: {h / b} (should be 3 due to Goto1992)')
+    print(f"E / G: {E / G} (should be 2.6 due to Goto1992)")
+    print(f"h / b: {h / b} (should be 3 due to Goto1992)")
 
     # note this low torsional stiffness is required for this example!!!
-    f = lambda n: np.tanh((2 * n - 1) * np.pi * h / (2 * b)) / (2 * n - 1)**2
+    f = lambda n: np.tanh((2 * n - 1) * np.pi * h / (2 * b)) / (2 * n - 1) ** 2
     N = int(1.0e5)
-    I1_ = b**3 * h / 3 * (1 - 192 * b / (np.pi**5 * h) * np.array([f(n) for n in range(1, N)]).sum() ) # Goto1992 (19-d)
-    I1 = 9.753e-3 # Romero2004
-    print(f'I1: {I1}')
-    print(f'I2: {I2}')
-    print(f'I3: {I3}')
-    print(f'I1_: {I1_}')
+    I1_ = (
+        b**3
+        * h
+        / 3
+        * (1 - 192 * b / (np.pi**5 * h) * np.array([f(n) for n in range(1, N)]).sum())
+    )  # Goto1992 (19-d)
+    I1 = 9.753e-3  # Romero2004
+    print(f"I1: {I1}")
+    print(f"I2: {I2}")
+    print(f"I3: {I3}")
+    print(f"I1_: {I1_}")
 
     Ei = np.array([E * A, G * A, G * A])
     Fi = np.array([G * I1, E * I2, E * I3])
 
     # material_model = Hooke(Ei, Fi)
     material_model = Hooke_quadratic(Ei, Fi)
-    
+
     A_rho0 = 0.0
     B_rho0 = np.zeros(3)
     C_rho0 = np.zeros((3, 3))
 
     # beam fitting
-    R = 20 # Goto1992 & Smolenski1998
+    R = 20  # Goto1992 & Smolenski1998
     nxi = 500
-    print(f'R / h: {R / h} (should be 20 due to Goto1992)')
+    print(f"R / h: {R / h} (should be 20 due to Goto1992)")
 
     #################
     # external moment
     #################
-    M = Fi[1] / R # Smolenski1998 Fig.17 and Goto1992 Fig. 8 + (19-c) 
+    M = Fi[1] / R  # Smolenski1998 Fig.17 and Goto1992 Fig. 8 + (19-c)
     # M = 6.0e4               # Smolenski1998 Fig.17
     # M = 1.0e4               # Newton
-    print(f'M: {M}')
+    print(f"M: {M}")
     moment = lambda t: M * e2 * t
 
     ###########################
@@ -100,14 +110,14 @@ if __name__ == "__main__":
 
     p = 3
     nQP = p + 1
-    print(f'nQP: {nQP}')
-    nEl = 10 # p = 3 and nEl = 10 gets this example working!
+    print(f"nQP: {nQP}")
+    nEl = 10  # p = 3 and nEl = 10 gets this example working!
 
     #######################
     # fit first half circle
     #######################
     xi1 = np.linspace(0, 0.5, nxi)
-    P1, dP1, ddP1 = arc3D(xi1, R, plane='xy')
+    P1, dP1, ddP1 = arc3D(xi1, R, plane="xy")
     P1[:, 0] += R
     d1 = (dP1.T / np.linalg.norm(dP1, axis=-1)).T
     d2 = (ddP1.T / np.linalg.norm(ddP1, axis=-1)).T
@@ -116,13 +126,20 @@ if __name__ == "__main__":
     qd1_1 = fit_B_Spline(d1, p, nEl)
     qd2_1 = fit_B_Spline(d2, p, nEl)
     qd3_1 = fit_B_Spline(d3, p, nEl)
-    Q1 = np.concatenate((qr0_1.T.reshape(-1), qd1_1.T.reshape(-1), qd2_1.T.reshape(-1), qd3_1.T.reshape(-1)))
+    Q1 = np.concatenate(
+        (
+            qr0_1.T.reshape(-1),
+            qd1_1.T.reshape(-1),
+            qd2_1.T.reshape(-1),
+            qd3_1.T.reshape(-1),
+        )
+    )
 
     ########################
     # fit second half circle
     ########################
     xi1 = np.linspace(0.5, 1, nxi)
-    P1, dP1, ddP1 = arc3D(xi1, R, plane='xy')
+    P1, dP1, ddP1 = arc3D(xi1, R, plane="xy")
     P1[:, 0] += R
     d1 = (dP1.T / np.linalg.norm(dP1, axis=-1)).T
     d2 = (ddP1.T / np.linalg.norm(ddP1, axis=-1)).T
@@ -131,14 +148,21 @@ if __name__ == "__main__":
     qd1_2 = fit_B_Spline(d1, p, nEl)
     qd2_2 = fit_B_Spline(d2, p, nEl)
     qd3_2 = fit_B_Spline(d3, p, nEl)
-    Q2 = np.concatenate((qr0_2.T.reshape(-1), qd1_2.T.reshape(-1), qd2_2.T.reshape(-1), qd3_2.T.reshape(-1)))
+    Q2 = np.concatenate(
+        (
+            qr0_2.T.reshape(-1),
+            qd1_2.T.reshape(-1),
+            qd2_2.T.reshape(-1),
+            qd3_2.T.reshape(-1),
+        )
+    )
 
     # ###############
     # # debug fitting
     # ###############
     # fig = plt.figure()
     # ax = fig.add_subplot(111, projection='3d')
-    
+
     # ax.set_xlabel('x [m]')
     # ax.set_ylabel('y [m]')
     # ax.set_zlabel('z [m]')
@@ -163,8 +187,8 @@ if __name__ == "__main__":
     ########################################
     # junction at the origin and circle apex
     ########################################
-    r_OB1= np.zeros(3) # origin
-    r_OB2= np.array([R, 0, 0]) # apex
+    r_OB1 = np.zeros(3)  # origin
+    r_OB2 = np.array([R, 0, 0])  # apex
 
     # build the model
     model = Model()
@@ -209,7 +233,14 @@ if __name__ == "__main__":
     la_arc_span = [-0.05, 1]
     iter_goal = 4
     tol = 1.0e-5
-    sol = Riks(model, la_arc0=la_arc0, tol=tol, la_arc_span=la_arc_span, iter_goal=iter_goal, debug=0).solve()
+    sol = Riks(
+        model,
+        la_arc0=la_arc0,
+        tol=tol,
+        la_arc_span=la_arc_span,
+        iter_goal=iter_goal,
+        debug=0,
+    ).solve()
 
     # visualization
     t = sol.t
@@ -271,19 +302,19 @@ if __name__ == "__main__":
     # ax.plot(*beam2.nodes(q[-5]), '--ob')
 
     # plt.show()
-        
+
     ###########
     # animation
     ###########
     fig = plt.figure()
-    ax1 = fig.add_subplot(1, 3, 1, projection='3d')
+    ax1 = fig.add_subplot(1, 3, 1, projection="3d")
     scale = 1.2 * R
     ax1.set_xlim3d(left=-0.2 * scale, right=1.8 * scale)
     ax1.set_ylim3d(bottom=-scale, top=scale)
     ax1.set_zlim3d(bottom=-scale, top=scale)
-    ax1.set_xlabel('x [m]')
-    ax1.set_ylabel('y [m]')
-    ax1.set_zlabel('z [m]')
+    ax1.set_xlabel("x [m]")
+    ax1.set_ylabel("y [m]")
+    ax1.set_zlabel("z [m]")
 
     slowmotion = 3
     fps = 50
@@ -319,27 +350,29 @@ if __name__ == "__main__":
     for i, qi in enumerate(q):
         _, d1, d2, d3 = beam1.frames(qi, n=2)
         Ri = np.vstack((d1[:, -1], d2[:, -1], d3[:, -1])).T
-        alpha[i], beta[i], gamma[i] = Rotation.from_matrix(Ri).as_euler('zyx', degrees=True)
+        alpha[i], beta[i], gamma[i] = Rotation.from_matrix(Ri).as_euler(
+            "zyx", degrees=True
+        )
     # correct angle
     gamma = -(gamma - 180)
 
     # initial configuration
     n_points = 100
-    ax1.plot(*beam1.centerline(q[0], n=n_points), '-k')
-    ax1.plot(*beam2.centerline(q[0], n=n_points), '-k')
-    ax1.plot(*beam1.nodes(q[0]), '--ok')
-    ax1.plot(*beam2.nodes(q[0]), '--ok')
+    ax1.plot(*beam1.centerline(q[0], n=n_points), "-k")
+    ax1.plot(*beam2.centerline(q[0], n=n_points), "-k")
+    ax1.plot(*beam1.nodes(q[0]), "--ok")
+    ax1.plot(*beam2.nodes(q[0]), "--ok")
 
-    center_line1, = ax1.plot([], [], '-g')
-    center_line2, = ax1.plot([], [], '-b')
-    nodes1, = ax1.plot([], [], '--og')
-    nodes2, = ax1.plot([], [], '--ob')
+    (center_line1,) = ax1.plot([], [], "-g")
+    (center_line2,) = ax1.plot([], [], "-b")
+    (nodes1,) = ax1.plot([], [], "--og")
+    (nodes2,) = ax1.plot([], [], "--ob")
 
     # tip deflection
     ax2 = fig.add_subplot(1, 3, 2)
-    ax2.plot(dr[:, 0], M, '-k', label='u_x')
-    ax2.plot(dr[:, 1], M, '-.k', label='u_y')
-    ax2.plot(dr[:, 2], M, '--k', label='u_z')
+    ax2.plot(dr[:, 0], M, "-k", label="u_x")
+    ax2.plot(dr[:, 1], M, "-.k", label="u_y")
+    ax2.plot(dr[:, 2], M, "--k", label="u_z")
     ax2.grid()
     ax2.legend()
 
@@ -348,16 +381,16 @@ if __name__ == "__main__":
     # ax3.tick_params(axis='y', labelcolor='blue')
     # ax3.plot(alpha, M, '-b', label='alpha')
     # ax3.plot(beta, M, '-.b', label='beta')
-    ax3.plot(gamma, M, '--b', label='gamma')
-    nodes_gamma, = ax3.plot([], [], 'or')
+    ax3.plot(gamma, M, "--b", label="gamma")
+    (nodes_gamma,) = ax3.plot([], [], "or")
     ax3.grid()
     ax3.legend()
 
     # animate tip deflection
-    nodes_xyz, = ax1.plot([], [], [], 'or')
-    nodes_u_x, = ax2.plot([], [], 'or')
-    nodes_u_y, = ax2.plot([], [], 'or')
-    nodes_u_z, = ax2.plot([], [], 'or')
+    (nodes_xyz,) = ax1.plot([], [], [], "or")
+    (nodes_u_x,) = ax2.plot([], [], "or")
+    (nodes_u_y,) = ax2.plot([], [], "or")
+    (nodes_u_z,) = ax2.plot([], [], "or")
 
     def animate(i):
         qi = q[i].copy()
@@ -389,7 +422,19 @@ if __name__ == "__main__":
         # rotation angle
         nodes_gamma.set_data(gamma[i], M[i])
 
-        return center_line1, nodes1, center_line2, nodes2, nodes_xyz, nodes_u_x, nodes_u_y, nodes_u_z, nodes_gamma
+        return (
+            center_line1,
+            nodes1,
+            center_line2,
+            nodes2,
+            nodes_xyz,
+            nodes_u_x,
+            nodes_u_y,
+            nodes_u_z,
+            nodes_gamma,
+        )
 
-    anim = animation.FuncAnimation(fig, animate, frames=frames, interval=interval, blit=False)
+    anim = animation.FuncAnimation(
+        fig, animate, frames=frames, interval=interval, blit=False
+    )
     plt.show()

@@ -1,6 +1,7 @@
 import numpy as np
 
-class Point_mass():
+
+class Point_mass:
     def __init__(self, m, dim=3, q0=None, u0=None):
         self.m = m
         self.nq = dim
@@ -31,7 +32,7 @@ class Point_mass():
 
     def r_OP(self, t, q, frame_ID=None, K_r_SP=None):
         r = np.zeros(3)
-        r[:self.nq] = q
+        r[: self.nq] = q
         return r
 
     def r_OP_q(self, t, q, frame_ID=None, K_r_SP=None):
@@ -45,7 +46,7 @@ class Point_mass():
 
     def v_P(self, t, q, u, frame_ID=None, K_r_SP=None):
         v_P = np.zeros(3)
-        v_P[:self.nq] = u
+        v_P[: self.nq] = u
         return v_P
 
     def v_P_q(self, t, q, u, frame_ID=None, K_r_SP=None):
@@ -53,5 +54,5 @@ class Point_mass():
 
     def a_P(self, t, q, u, u_dot, frame_ID=None, K_r_SP=None):
         a_P = np.zeros(3)
-        a_P[:self.nq] = u_dot
+        a_P[: self.nq] = u_dot
         return a_P

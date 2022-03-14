@@ -3,27 +3,28 @@ from cardillo.utility.coo import Coo
 from scipy.sparse import coo_matrix
 
 properties = []
-properties.extend(['M', 'Mu_q'])
-properties.extend(['f_gyr', 'f_gyr_q', 'f_gyr_u'])
-properties.extend(['f_pot', 'f_pot_q'])
-properties.extend(['f_npot', 'f_npot_q', 'f_npot_u'])
-properties.extend(['f_scaled', 'f_scaled_q'])
+properties.extend(["M", "Mu_q"])
+properties.extend(["f_gyr", "f_gyr_q", "f_gyr_u"])
+properties.extend(["f_pot", "f_pot_q"])
+properties.extend(["f_npot", "f_npot_q", "f_npot_u"])
+properties.extend(["f_scaled", "f_scaled_q"])
 
-properties.extend(['q_dot', 'q_dot_q', 'B'])
+properties.extend(["q_dot", "q_dot_q", "B"])
 
-properties.extend(['g', 'g_q', 'g_t'])
-properties.extend(['gamma', 'gamma_q', 'gamma_u'])
+properties.extend(["g", "g_q", "g_t"])
+properties.extend(["gamma", "gamma_q", "gamma_u"])
 
-properties.extend(['g_N'])
+properties.extend(["g_N"])
 
-properties.extend(['gamma_F'])
+properties.extend(["gamma_F"])
 
-properties.extend(['assembler_callback', 'step_callback'])
+properties.extend(["assembler_callback", "step_callback"])
 
-properties.extend(['c'])
+properties.extend(["c"])
+
 
 class Model(object):
-    """Sparse model implementation which assembles all global objects without copying on body and element level. 
+    """Sparse model implementation which assembles all global objects without copying on body and element level.
 
     Notes
     -----
@@ -45,28 +46,27 @@ class Model(object):
         self.contributions = []
 
         for p in properties:
-            setattr(self, f'_{self.__class__.__name__}__{p}_contr', [])
-
+            setattr(self, f"_{self.__class__.__name__}__{p}_contr", [])
 
     def add(self, contr):
         if not contr in self.contributions:
             self.contributions.append(contr)
         else:
-            raise ValueError(f'contribution {str(contr)} already added')
+            raise ValueError(f"contribution {str(contr)} already added")
 
     def remove(self, contr):
         if contr in self.contributions:
             self.contributions.remove(contr)
         else:
-            raise ValueError(f'no contribution {str(contr)} to remove')
+            raise ValueError(f"no contribution {str(contr)} to remove")
 
     def pop(self, index):
         self.contributions.pop(index)
 
     def pre_iteration_update(self, t, q, u):
-        """ Update or precalculate any system variables before next solver iteration """
+        """Update or precalculate any system variables before next solver iteration"""
         for contr in self.contributions:
-            if callable(getattr(contr, 'pre_iteration_update', None)):
+            if callable(getattr(contr, "pre_iteration_update", None)):
                 contr.pre_iteration_update(t, q, u)
 
     def assemble(self):
@@ -100,41 +100,43 @@ class Model(object):
                 # if property is implemented as class function append to property contribution
                 # - p in contr.__class__.__dict__: has global class attribute p
                 # - callable(getattr(contr, p, None)): p is callable
-                if (hasattr(contr, p) and callable(getattr(contr, p)) ):
-                    getattr(self, f'_{self.__class__.__name__}__{p}_contr').append(contr)
+                if hasattr(contr, p) and callable(getattr(contr, p)):
+                    getattr(self, f"_{self.__class__.__name__}__{p}_contr").append(
+                        contr
+                    )
 
             # if contribution has position degrees of freedom address position coordinates
-            if hasattr(contr, 'nq'):
+            if hasattr(contr, "nq"):
                 contr.qDOF = np.arange(0, contr.nq) + self.nq
                 self.nq += contr.nq
                 q0.extend(contr.q0.tolist())
 
             # if contribution has velocity degrees of freedom address velocity coordinates
-            if hasattr(contr, 'nu'):
-                contr.uDOF = np.arange(0, contr.nu) + self.nu 
+            if hasattr(contr, "nu"):
+                contr.uDOF = np.arange(0, contr.nu) + self.nu
                 self.nu += contr.nu
                 u0.extend(contr.u0.tolist())
-            
+
             # if contribution has constraints on position level address constraint coordinates
-            if hasattr(contr, 'nla_g'):
+            if hasattr(contr, "nla_g"):
                 contr.la_gDOF = np.arange(0, contr.nla_g) + self.nla_g
                 self.nla_g += contr.nla_g
                 la_g0.extend(contr.la_g0.tolist())
-            
+
             # if contribution has constraints on velocity level address constraint coordinates
-            if hasattr(contr, 'nla_gamma'):
+            if hasattr(contr, "nla_gamma"):
                 contr.la_gammaDOF = np.arange(0, contr.nla_gamma) + self.nla_gamma
                 self.nla_gamma += contr.nla_gamma
                 la_gamma0.extend(contr.la_gamma0.tolist())
-            
+
             # if contribution has stabilization conditions for the kinematic equation
-            if hasattr(contr, 'nka_c'):
+            if hasattr(contr, "nka_c"):
                 contr.ka_cDOF = np.arange(0, contr.nka_c) + self.nka_c
                 self.nka_c += contr.nka_c
                 ka_c0.extend(contr.ka_c0.tolist())
 
             # if contribution has contacts address constraint coordinates
-            if hasattr(contr, 'nla_N'):
+            if hasattr(contr, "nla_N"):
                 # normal
                 contr.la_NDOF = np.arange(0, contr.nla_N) + self.nla_N
                 self.nla_N += contr.nla_N
@@ -149,11 +151,15 @@ class Model(object):
                 prox_r_F.extend(contr.prox_r_F.tolist())
                 mu.extend(contr.mu.tolist())
                 for i in range(contr.nla_N):
-                    NF_connectivity.append(contr.la_FDOF[np.array(contr.NF_connectivity[i], dtype=int)].tolist())
+                    NF_connectivity.append(
+                        contr.la_FDOF[
+                            np.array(contr.NF_connectivity[i], dtype=int)
+                        ].tolist()
+                    )
                     N_has_friction.append(True if contr.NF_connectivity[i] else False)
                     Ncontr_connectivity.append(n_laN_contr)
                 n_laN_contr += 1
-                
+
         self.q0 = np.array(q0)
         self.u0 = np.array(u0)
         self.la_g0 = np.array(la_g0)
@@ -201,14 +207,18 @@ class Model(object):
     def q_ddot(self, t, q, u, u_dot):
         q_ddot = np.zeros(self.nq)
         for contr in self.__q_dot_contr:
-            q_ddot[contr.qDOF] = contr.q_ddot(t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF])
+            q_ddot[contr.qDOF] = contr.q_ddot(
+                t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF]
+            )
         return q_ddot
 
     def step_callback(self, t, q, u):
         for contr in self.__step_callback_contr:
-            q[contr.qDOF], u[contr.uDOF] = contr.step_callback(t, q[contr.qDOF], u[contr.uDOF])
+            q[contr.qDOF], u[contr.uDOF] = contr.step_callback(
+                t, q[contr.qDOF], u[contr.uDOF]
+            )
         return q, u
-    
+
     #####################
     # equations of motion
     #####################
@@ -282,10 +292,16 @@ class Model(object):
         return self.f_pot(t, q) + self.f_npot(t, q, u) - self.f_gyr(t, q, u)
 
     def h_q(self, t, q, u, scipy_matrix=coo_matrix):
-        return self.f_pot_q(t, q, scipy_matrix=scipy_matrix) + self.f_npot_q(t, q, u, scipy_matrix=scipy_matrix) - self.f_gyr_q(t, q, u, scipy_matrix=scipy_matrix)
+        return (
+            self.f_pot_q(t, q, scipy_matrix=scipy_matrix)
+            + self.f_npot_q(t, q, u, scipy_matrix=scipy_matrix)
+            - self.f_gyr_q(t, q, u, scipy_matrix=scipy_matrix)
+        )
 
     def h_u(self, t, q, u, scipy_matrix=coo_matrix):
-        return self.f_npot_u(t, q, u, scipy_matrix=scipy_matrix) - self.f_gyr_u(t, q, u, scipy_matrix=scipy_matrix)
+        return self.f_npot_u(t, q, u, scipy_matrix=scipy_matrix) - self.f_gyr_u(
+            t, q, u, scipy_matrix=scipy_matrix
+        )
 
     # TODO: do this better!
     # scaled forces for arc-length solvers
@@ -358,9 +374,11 @@ class Model(object):
     def g_ddot(self, t, q, u, u_dot):
         g_ddot = np.zeros(self.nla_g)
         for contr in self.__g_contr:
-            g_ddot[contr.la_gDOF] = contr.g_ddot(t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF])
+            g_ddot[contr.la_gDOF] = contr.g_ddot(
+                t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF]
+            )
         return g_ddot
-    
+
     def g_ddot_q(self, t, q, u, u_dot, scipy_matrix=coo_matrix):
         coo = Coo((self.nla_g, self.nq))
         for contr in self.__g_contr:
@@ -391,7 +409,9 @@ class Model(object):
     def gamma_dot(self, t, q, u, u_dot):
         gamma_dot = np.zeros(self.nla_gamma)
         for contr in self.__gamma_contr:
-            gamma_dot[contr.la_gammaDOF] = contr.gamma_dot(t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF])
+            gamma_dot[contr.la_gammaDOF] = contr.gamma_dot(
+                t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF]
+            )
         return gamma_dot
 
     def zeta_gamma(self, t, q, u):
@@ -466,14 +486,18 @@ class Model(object):
     def g_N_ddot(self, t, q, u, a):
         g_N_ddot = np.zeros(self.nla_N)
         for contr in self.__g_N_contr:
-            g_N_ddot[contr.la_NDOF] = contr.g_N_ddot(t, q[contr.qDOF], u[contr.uDOF], a[contr.uDOF])
+            g_N_ddot[contr.la_NDOF] = contr.g_N_ddot(
+                t, q[contr.qDOF], u[contr.uDOF], a[contr.uDOF]
+            )
         return g_N_ddot
 
     def xi_N(self, t, q, u_pre, u_post):
         xi_N = np.zeros(self.nla_N)
         for contr in self.__g_N_contr:
             # xi_N[contr.la_NDOF] = contr.g_N_dot(t, q[contr.qDOF], u_post[contr.uDOF]) + contr.e_N * contr.g_N_dot(t, q[contr.qDOF], u_pre[contr.uDOF])
-            xi_N[contr.la_NDOF] = contr.xi_N(t, q[contr.qDOF], u_pre[contr.uDOF], u_post[contr.uDOF])
+            xi_N[contr.la_NDOF] = contr.xi_N(
+                t, q[contr.qDOF], u_pre[contr.uDOF], u_post[contr.uDOF]
+            )
         return xi_N
 
     def xi_N_q(self, t, q, u_pre, u_post, scipy_matrix=coo_matrix):
@@ -521,13 +545,19 @@ class Model(object):
     def gamma_F_dot(self, t, q, u, a):
         gamma_F_dot = np.zeros(self.nla_F)
         for contr in self.__gamma_F_contr:
-            gamma_F_dot[contr.la_FDOF] = contr.gamma_F_dot(t, q[contr.qDOF], u[contr.uDOF], a[contr.uDOF])
+            gamma_F_dot[contr.la_FDOF] = contr.gamma_F_dot(
+                t, q[contr.qDOF], u[contr.uDOF], a[contr.uDOF]
+            )
         return gamma_F_dot
 
     def xi_F(self, t, q, u_pre, u_post):
         xi_F = np.zeros(self.nla_F)
         for contr in self.__gamma_F_contr:
-            xi_F[contr.la_FDOF] = contr.gamma_F(t, q[contr.qDOF], u_post[contr.uDOF]) + self.e_F[contr.la_NDOF] * contr.gamma_F(t, q[contr.qDOF], u_pre[contr.uDOF])
+            xi_F[contr.la_FDOF] = contr.gamma_F(
+                t, q[contr.qDOF], u_post[contr.uDOF]
+            ) + self.e_F[contr.la_NDOF] * contr.gamma_F(
+                t, q[contr.qDOF], u_pre[contr.uDOF]
+            )
         return xi_F
 
     def xi_F_q(self, t, q, u_pre, u_post, scipy_matrix=coo_matrix):
@@ -547,7 +577,7 @@ class Model(object):
         for contr in self.__gamma_F_contr:
             contr.gamma_F_u(t, q[contr.qDOF], coo)
         return coo.tosparse(scipy_matrix)
-    
+
     def gamma_F_dot_q(self, t, q, u, u_dot, scipy_matrix=coo_matrix):
         coo = Coo((self.nla_F, self.nq))
         for contr in self.__gamma_F_contr:

@@ -7,8 +7,15 @@ import matplotlib.animation as animation
 
 
 from cardillo.model import Model
-from cardillo.model.classical_beams.planar import EulerBernoulli, Hooke, Inextensible_Euler_bernoulli
-from cardillo.model.bilateral_constraints.implicit import Rigid_connection2D, Linear_guidance_x_2D
+from cardillo.model.classical_beams.planar import (
+    EulerBernoulli,
+    Hooke,
+    Inextensible_Euler_bernoulli,
+)
+from cardillo.model.bilateral_constraints.implicit import (
+    Rigid_connection2D,
+    Linear_guidance_x_2D,
+)
 from cardillo.model.scalar_force_interactions.force_laws import Linear_spring
 from cardillo.model.scalar_force_interactions import add_rotational_forcelaw
 from cardillo.solver.Newton import Newton
@@ -20,7 +27,9 @@ from cardillo.utility.post_processing_vtk import post_processing
 from scipy.interpolate import interp1d
 
 from cardillo.discretization.B_spline import B_spline_basis1D
-class Junction():
+
+
+class Junction:
     def __init__(self, beam1, beam2, la_g0=None):
         # rigid connection between to consecutive beams. End of beam1 is connected to start of beam2.
         self.nla_g = 3
@@ -31,15 +40,18 @@ class Junction():
 
         self.frame_ID1 = (1,)
         self.frame_ID2 = (0,)
-       
-        N, N_xi = B_spline_basis1D(beam1.polynomial_degree, 1, beam1.knot_vector.data, 1).T
+
+        N, N_xi = B_spline_basis1D(
+            beam1.polynomial_degree, 1, beam1.knot_vector.data, 1
+        ).T
         self.beam1_N = self.stack_shapefunctions(N, beam1.nq_el)
         self.beam1_N_xi = self.stack_shapefunctions(N_xi, beam1.nq_el)
 
-        N, N_xi = B_spline_basis1D(beam2.polynomial_degree, 1, beam2.knot_vector.data, 0).T
+        N, N_xi = B_spline_basis1D(
+            beam2.polynomial_degree, 1, beam2.knot_vector.data, 0
+        ).T
         self.beam2_N = self.stack_shapefunctions(N, beam2.nq_el)
         self.beam2_N_xi_perp = self.stack_shapefunctions_perp(N_xi, beam2.nq_el)
-        
 
     def assembler_callback(self):
         qDOF1 = self.beam1.qDOF_P(self.frame_ID1)
@@ -48,7 +60,7 @@ class Junction():
         self.nq1 = nq1 = len(qDOF1)
         self.nq2 = len(qDOF2)
         self._nq = self.nq1 + self.nq2
-        
+
         uDOF1 = self.beam1.uDOF_P(self.frame_ID1)
         uDOF2 = self.beam2.uDOF_P(self.frame_ID2)
         self.uDOF = np.concatenate([self.beam1.uDOF[uDOF1], self.beam2.uDOF[uDOF2]])
@@ -65,12 +77,12 @@ class Junction():
         # normal vector beam 2
         n = self.beam2_N_xi_perp @ q[nq1:]
 
-        return np.concatenate([r_OP2 - r_OP1, [t @ n]]) 
-        
+        return np.concatenate([r_OP2 - r_OP1, [t @ n]])
+
     def g_q_dense(self, t, q):
         nq1 = self.nq1
         g_q = np.zeros((self.nla_g, self._nq))
-        g_q[:2, :nq1] = - self.beam1_N
+        g_q[:2, :nq1] = -self.beam1_N
         g_q[:2, nq1:] = self.beam2_N
 
         # tangent vector beam 1
@@ -98,8 +110,8 @@ class Junction():
         dense = np.zeros((self._nu, self._nq))
         dense[:nu1, nq1:] = la_g[2] * self.beam1_N_xi.T @ self.beam2_N_xi_perp
         dense[nu1:, :nq1] = la_g[2] * self.beam2_N_xi_perp.T @ self.beam1_N_xi
-        
-        coo.extend( dense, (self.uDOF, self.qDOF))
+
+        coo.extend(dense, (self.uDOF, self.qDOF))
 
     def stack_shapefunctions(self, N, nq_el):
         # return np.kron(np.eye(2), N)
@@ -117,7 +129,8 @@ class Junction():
         NN[1, :n2] = N
         return NN
 
-class Pivot_w_spring():
+
+class Pivot_w_spring:
     def __init__(self, beam1, frame_ID1, beam2, frame_ID2, force_law, la_g0=None):
         # pivot between to consecutive beams. End of beam1 is connected to start of beam2.
         self.nla_g = 2
@@ -130,13 +143,17 @@ class Pivot_w_spring():
         self.frame_ID2 = frame_ID2
 
         self.force_law = force_law
-       
-        N, N_xi = B_spline_basis1D(beam1.polynomial_degree, 1, beam1.knot_vector.data, frame_ID1[0]).T
+
+        N, N_xi = B_spline_basis1D(
+            beam1.polynomial_degree, 1, beam1.knot_vector.data, frame_ID1[0]
+        ).T
         self.beam1_N = self.stack_shapefunctions(N, beam1.nq_el)
         self.beam1_N_xi = self.stack_shapefunctions(N_xi, beam1.nq_el)
         self.beam1_N_xi_perp = self.stack_shapefunctions_perp(N_xi, beam1.nq_el)
 
-        N, N_xi = B_spline_basis1D(beam2.polynomial_degree, 1, beam2.knot_vector.data, frame_ID2[0]).T
+        N, N_xi = B_spline_basis1D(
+            beam2.polynomial_degree, 1, beam2.knot_vector.data, frame_ID2[0]
+        ).T
         self.beam2_N = self.stack_shapefunctions(N, beam2.nq_el)
         self.beam2_N_xi = self.stack_shapefunctions(N_xi, beam2.nq_el)
         self.beam2_N_xi_perp = self.stack_shapefunctions_perp(N_xi, beam2.nq_el)
@@ -148,7 +165,7 @@ class Pivot_w_spring():
         self.nq1 = nq1 = len(qDOF1)
         self.nq2 = len(qDOF2)
         self._nq = self.nq1 + self.nq2
-        
+
         uDOF1 = self.beam1.uDOF_P(self.frame_ID1)
         uDOF2 = self.beam2.uDOF_P(self.frame_ID2)
         self.uDOF = np.concatenate([self.beam1.uDOF[uDOF1], self.beam2.uDOF[uDOF2]])
@@ -161,7 +178,7 @@ class Pivot_w_spring():
 
         t0_beam1 = self.beam1_N_xi @ q0_beam1
         theta0_beam1 = atan2(t0_beam1[1], t0_beam1[0])
-        
+
         t0_beam2 = self.beam2_N_xi @ q0_beam2
         theta0_beam2 = atan2(t0_beam2[1], t0_beam2[0])
 
@@ -176,7 +193,7 @@ class Pivot_w_spring():
         r_OP1 = self.beam1_N @ q[:nq1]
         r_OP2 = self.beam2_N @ q[nq1:]
         return r_OP2 - r_OP1
-        
+
     def g_q_dense(self, t, q):
         return np.hstack([-self.beam1_N, self.beam2_N])
 
@@ -209,7 +226,7 @@ class Pivot_w_spring():
         return self.force_law.pot(t, self.__g(t, q))
 
     def f_pot(self, t, q):
-        return - self.g_spring_q(t, q) * self.force_law.pot_g(t, self.g_spring(t, q))
+        return -self.g_spring_q(t, q) * self.force_law.pot_g(t, self.g_spring(t, q))
 
     def g_spring(self, t, q):
         nq1 = self.nq1
@@ -226,7 +243,7 @@ class Pivot_w_spring():
         nq1 = self.nq1
         T1 = self.beam1_N_xi @ q[:nq1]
         T2 = self.beam2_N_xi @ q[nq1:]
-        
+
         g_q1 = (T1[0] * self.beam1_N_xi[1] - T1[1] * self.beam1_N_xi[0]) / (T1 @ T1)
         g_q2 = (T2[0] * self.beam2_N_xi[1] - T2[1] * self.beam2_N_xi[0]) / (T2 @ T2)
 
@@ -244,25 +261,56 @@ class Pivot_w_spring():
         T2 = self.beam2_N_xi @ q[nq1:]
 
         # angle stiffness
-        tmp1_1 = np.outer(self.beam1_N_xi[1], self.beam1_N_xi[0]) + np.outer(self.beam1_N_xi[0], self.beam1_N_xi[1])
-        tmp1_2 = np.outer(self.beam1_N_xi[0], self.beam1_N_xi[0]) - np.outer(self.beam1_N_xi[1], self.beam1_N_xi[1])
-        
-        tmp2_1 = np.outer(self.beam2_N_xi[1], self.beam2_N_xi[0]) + np.outer(self.beam2_N_xi[0], self.beam2_N_xi[1])
-        tmp2_2 = np.outer(self.beam2_N_xi[0], self.beam2_N_xi[0]) - np.outer(self.beam2_N_xi[1], self.beam2_N_xi[1])
+        tmp1_1 = np.outer(self.beam1_N_xi[1], self.beam1_N_xi[0]) + np.outer(
+            self.beam1_N_xi[0], self.beam1_N_xi[1]
+        )
+        tmp1_2 = np.outer(self.beam1_N_xi[0], self.beam1_N_xi[0]) - np.outer(
+            self.beam1_N_xi[1], self.beam1_N_xi[1]
+        )
+
+        tmp2_1 = np.outer(self.beam2_N_xi[1], self.beam2_N_xi[0]) + np.outer(
+            self.beam2_N_xi[0], self.beam2_N_xi[1]
+        )
+        tmp2_2 = np.outer(self.beam2_N_xi[0], self.beam2_N_xi[0]) - np.outer(
+            self.beam2_N_xi[1], self.beam2_N_xi[1]
+        )
 
         g_qq = np.zeros((self._nq, self._nq))
-        g_qq[:nq1, :nq1] =   ((T1[1]**2 - T1[0]**2) * tmp1_1 + 2 * T1[0] * T1[1] * tmp1_2) / (T1 @ T1)**2
-        g_qq[nq1:, nq1:] = - ((T2[1]**2 - T2[0]**2) * tmp2_1 + 2 * T2[0] * T2[1] * tmp2_2) / (T2 @ T2)**2
-   
+        g_qq[:nq1, :nq1] = (
+            (T1[1] ** 2 - T1[0] ** 2) * tmp1_1 + 2 * T1[0] * T1[1] * tmp1_2
+        ) / (T1 @ T1) ** 2
+        g_qq[nq1:, nq1:] = (
+            -((T2[1] ** 2 - T2[0] ** 2) * tmp2_1 + 2 * T2[0] * T2[1] * tmp2_2)
+            / (T2 @ T2) ** 2
+        )
+
         W = self.g_spring_q(t, q)
 
-        dense = - g_qq * self.force_law.pot_g(t, self.g_spring(t,q)) \
-            - self.force_law.pot_gg(t, self.g_spring(t,q)) * np.outer(W, W)
-                    
+        dense = -g_qq * self.force_law.pot_g(
+            t, self.g_spring(t, q)
+        ) - self.force_law.pot_gg(t, self.g_spring(t, q)) * np.outer(W, W)
+
         coo.extend(dense, (self.uDOF, self.qDOF))
 
-def create_pantograph(gamma, nRow, nCol, H, EA, EI, GI, A_rho0, p, nEl, nQP, r_OP_l, A_IK_l, r_OP_r, A_IK_r):
-    
+
+def create_pantograph(
+    gamma,
+    nRow,
+    nCol,
+    H,
+    EA,
+    EI,
+    GI,
+    A_rho0,
+    p,
+    nEl,
+    nQP,
+    r_OP_l,
+    A_IK_l,
+    r_OP_r,
+    A_IK_r,
+):
+
     assert p >= 2
     LBeam = H / (nRow * sin(gamma))
     L = nCol * LBeam * cos(gamma)
@@ -270,25 +318,25 @@ def create_pantograph(gamma, nRow, nCol, H, EA, EI, GI, A_rho0, p, nEl, nQP, r_O
     ###################################################
     # create reference configuration individual beams #
     ###################################################
-    
+
     # projections of beam length
     Lx = LBeam * cos(gamma)
     Ly = LBeam * sin(gamma)
     # upper left node
-    xUL = 0         
-    yUL = Ly*nRow
+    xUL = 0
+    yUL = Ly * nRow
     # build reference configuration beam family 1
     nNd = nEl + p
     X0 = np.linspace(0, LBeam, nNd)
     Xi = uniform_knot_vector(p, nEl)
     for i in range(nNd):
-        X0[i] = np.sum(Xi[i+1:i+p+1])
+        X0[i] = np.sum(Xi[i + 1 : i + p + 1])
     Y1 = -np.copy(X0) * Ly / p
     X1 = X0 * Lx / p
     # build reference configuration beam family 2
     X2 = np.copy(X1)
     Y2 = -np.copy(Y1)
-    
+
     #############
     # add beams #
     #############
@@ -308,20 +356,24 @@ def create_pantograph(gamma, nRow, nCol, H, EA, EI, GI, A_rho0, p, nEl, nQP, r_O
             Q = np.concatenate([X, Y])
             q0 = np.copy(Q)
             u0 = np.zeros_like(Q)
-            beams.append(EulerBernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
+            beams.append(
+                EulerBernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0)
+            )
             model.add(beams[ID])
             ID_mat[brow, bcol] = ID
             ID += 1
-            
+
             # beam 2
             Q = np.concatenate([X2 + X[-1], Y2 + Y[-1]])
             q0 = np.copy(Q)
             u0 = np.zeros_like(Q)
-            beams.append(EulerBernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
+            beams.append(
+                EulerBernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0)
+            )
             model.add(beams[ID])
             ID_mat[brow, bcol + 1] = ID
             ID += 1
-      
+
     for brow in range(1, nRow, 2):
         for bcol in range(0, nCol, 2):
             X = X2 + xUL + Lx * bcol
@@ -330,7 +382,9 @@ def create_pantograph(gamma, nRow, nCol, H, EA, EI, GI, A_rho0, p, nEl, nQP, r_O
             Q = np.concatenate([X, Y])
             q0 = np.copy(Q)
             u0 = np.zeros_like(Q)
-            beams.append(EulerBernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
+            beams.append(
+                EulerBernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0)
+            )
             model.add(beams[ID])
             ID_mat[brow, bcol] = ID
             ID += 1
@@ -338,7 +392,9 @@ def create_pantograph(gamma, nRow, nCol, H, EA, EI, GI, A_rho0, p, nEl, nQP, r_O
             Q = np.concatenate([X1 + X[-1], Y1 + Y[-1]])
             q0 = np.copy(Q)
             u0 = np.zeros_like(Q)
-            beams.append(EulerBernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0))
+            beams.append(
+                EulerBernoulli(A_rho0, material_model, p, nEl, nQP, Q, q0=Q, u0=u0)
+            )
             model.add(beams[ID])
             ID_mat[brow, bcol + 1] = ID
             ID += 1
@@ -349,7 +405,7 @@ def create_pantograph(gamma, nRow, nCol, H, EA, EI, GI, A_rho0, p, nEl, nQP, r_O
 
     frame_ID1 = (1,)
     frame_ID2 = (0,)
-            
+
     # odd colums
     for bcol in range(0, nCol, 2):
         for brow in range(0, nRow, 2):
@@ -379,7 +435,7 @@ def create_pantograph(gamma, nRow, nCol, H, EA, EI, GI, A_rho0, p, nEl, nQP, r_O
     ##########################################################
     # add pivots and torsional springs between beam families #
     ##########################################################
-    
+
     # internal pivots
     for brow in range(0, nRow, 2):
         for bcol in range(0, nCol - 1):
@@ -413,7 +469,6 @@ def create_pantograph(gamma, nRow, nCol, H, EA, EI, GI, A_rho0, p, nEl, nQP, r_O
         r_OB = beam1.r_OP(0, beam1.q0[beam1.qDOF_P(frame_ID1)], frame_ID1)
         spring = Linear_spring(GI)
         model.add(Pivot_w_spring(beam1, frame_ID1, beam2, frame_ID1, spring))
-    
 
     ###########################
     # add boundary conditions #
@@ -426,33 +481,65 @@ def create_pantograph(gamma, nRow, nCol, H, EA, EI, GI, A_rho0, p, nEl, nQP, r_O
         beam = beams[ID_mat[i, 0]]
         r_OB = beam.r_OP(0, beam.q0[beam.qDOF_P(frame_ID2)], frame_ID=frame_ID2)
         # model.add(Rigid_connection2D(frame_l, beam, r_OB, frame_ID2=frame_ID2))
-        model.add(Linear_guidance_x_2D(frame_l, beam, r_OB, np.array([[0, 1, 0], [1, 0, 0], [0, 0, 1]]), frame_ID2=frame_ID2))
+        model.add(
+            Linear_guidance_x_2D(
+                frame_l,
+                beam,
+                r_OB,
+                np.array([[0, 1, 0], [1, 0, 0], [0, 0, 1]]),
+                frame_ID2=frame_ID2,
+            )
+        )
 
-    i  = nRow - 1
+    i = nRow - 1
     beam = beams[ID_mat[i, 0]]
     r_OB = beam.r_OP(0, beam.q0[beam.qDOF_P(frame_ID2)], frame_ID=frame_ID2)
     # model.add(Rigid_connection2D(frame_l, beam, r_OB, frame_ID2=frame_ID2))
-    model.add(Linear_guidance_x_2D(frame_l, beam, r_OB, np.array([[0, 1, 0], [1, 0, 0], [0, 0, 1]]), frame_ID2=frame_ID2))    
+    model.add(
+        Linear_guidance_x_2D(
+            frame_l,
+            beam,
+            r_OB,
+            np.array([[0, 1, 0], [1, 0, 0], [0, 0, 1]]),
+            frame_ID2=frame_ID2,
+        )
+    )
 
     # clamping at the right hand side
-    frame_r = Frame(r_OP=r_OP_r, A_IK = A_IK_r)
+    frame_r = Frame(r_OP=r_OP_r, A_IK=A_IK_r)
     model.add(frame_r)
     for i in range(0, nRow, 2):
         beam = beams[ID_mat[i, -1]]
         r_OB = beam.r_OP(0, beam.q0[beam.qDOF_P(frame_ID1)], frame_ID=frame_ID1)
         # model.add(Rigid_connection2D(beam, frame_r, r_OB, frame_ID1=frame_ID1))
-        model.add(Linear_guidance_x_2D(beam, frame_r, r_OB, np.array([[0, 1, 0], [1, 0, 0], [0, 0, 1]]), frame_ID1=frame_ID1))
+        model.add(
+            Linear_guidance_x_2D(
+                beam,
+                frame_r,
+                r_OB,
+                np.array([[0, 1, 0], [1, 0, 0], [0, 0, 1]]),
+                frame_ID1=frame_ID1,
+            )
+        )
 
-    i  = nRow - 1
+    i = nRow - 1
     beam = beams[ID_mat[i, -1]]
     r_OB = beam.r_OP(0, beam.q0[beam.qDOF_P(frame_ID1)], frame_ID=frame_ID1)
     # model.add(Rigid_connection2D(beam, frame_r, r_OB, frame_ID1=frame_ID1))
-    model.add(Linear_guidance_x_2D(beam, frame_r, r_OB, np.array([[0, 1, 0], [1, 0, 0], [0, 0, 1]]), frame_ID1=frame_ID1))
+    model.add(
+        Linear_guidance_x_2D(
+            beam,
+            frame_r,
+            r_OB,
+            np.array([[0, 1, 0], [1, 0, 0], [0, 0, 1]]),
+            frame_ID1=frame_ID1,
+        )
+    )
 
     # # TODO: excitation individual fibers
     # exc_frames = []
     # ex_ID = 0
-    # for i in range(0, nRow, 2):        
+    # for i in range(0, nRow, 2):
     #     exc_frames.append(Frame(r_OP=r_OP_l[ceil(i / 2)], A_IK=A_IK_l))
     #     model.add(exc_frames[ex_ID])
     #     beam = beams[ID_mat[i, 0]]
@@ -475,6 +562,7 @@ def create_pantograph(gamma, nRow, nCol, H, EA, EI, GI, A_rho0, p, nEl, nQP, r_O
 
     return model, beams, ID_mat
 
+
 if __name__ == "__main__":
     # load_excitation = False
     dynamics = True
@@ -483,77 +571,82 @@ if __name__ == "__main__":
     position_displacement_diagram = True
     paraview_export = True
 
-###############################################################################################
+    ###############################################################################################
     # time simulation parameters
-    t1 = 10e-2                        # simulation time
-    dt = 4e-5                           # time step
-    rho_inf = 0.8                       # damping parameter generalized-alpha integrator
+    t1 = 10e-2  # simulation time
+    dt = 4e-5  # time step
+    rho_inf = 0.8  # damping parameter generalized-alpha integrator
 
     # geometric parameters
-    gamma = pi/4                        # angle between fiber families
-    nRow = 20                           # number of rows = 2 * number of fibers per height
-    nCol = 1200                        # number of columns = 2 * number of fibers per length
+    gamma = pi / 4  # angle between fiber families
+    nRow = 20  # number of rows = 2 * number of fibers per height
+    nCol = 1200  # number of columns = 2 * number of fibers per length
 
-    H = 0.07                            # height of pantographic sheet
-    LBeam = H / (nRow * sin(gamma))     # length of individual beam
-    L = nCol * LBeam * cos(gamma)       # length of pantographic sheet
+    H = 0.07  # height of pantographic sheet
+    LBeam = H / (nRow * sin(gamma))  # length of individual beam
+    L = nCol * LBeam * cos(gamma)  # length of pantographic sheet
 
     # beam finite element parameters
-    p = 3                               # polynomial degree
-    nQP = p + 2                         # number of quadrature points
-    nEl = 1                             # number of elements per beam
-    
-    # material prameters
-    Yb = 500e6                          # Young's modulus material
-    Gb = Yb / (2 * (1 + 0.4))           # Shear modulus material
-    a = 1.6e-3                          # height of beam cross section
-    b = 1e-3                            # width of beam cross section
-    rp = 0.45e-3                        # radius of pivots
-    hp = 1e-3                           # height of pivots
-    
-    EA = Yb * a * b                     # axial stiffness
-    EI = Yb * (a * b**3) / 12           # bending stiffness
-    GI = Gb * 0.5*(np.pi * rp**4) / hp  # shear stiffness
+    p = 3  # polynomial degree
+    nQP = p + 2  # number of quadrature points
+    nEl = 1  # number of elements per beam
 
-    A_rho0 = 930 * a * b                # density per unit length
+    # material prameters
+    Yb = 500e6  # Young's modulus material
+    Gb = Yb / (2 * (1 + 0.4))  # Shear modulus material
+    a = 1.6e-3  # height of beam cross section
+    b = 1e-3  # width of beam cross section
+    rp = 0.45e-3  # radius of pivots
+    hp = 1e-3  # height of pivots
+
+    EA = Yb * a * b  # axial stiffness
+    EI = Yb * (a * b**3) / 12  # bending stiffness
+    GI = Gb * 0.5 * (np.pi * rp**4) / hp  # shear stiffness
+
+    A_rho0 = 930 * a * b  # density per unit length
 
     # prepare data for storage, animation and paraview export
-    storage_compression_factor = 10 # store only every 10th time step
+    storage_compression_factor = 10  # store only every 10th time step
 
     # boundary conditions
     # Gaussian excitation
     displ = 0.5 * H
-    c1 = 0.010    # c1 = sqrt(2)*std
-    c2 = 0.033     # center of bell
+    c1 = 0.010  # c1 = sqrt(2)*std
+    c2 = 0.033  # center of bell
     c3 = 0.005
     # fcn = lambda t: displ * np.exp(-(t-c2)**2/c1**2)
     # fcn = lambda t: displ * np.exp(-(t-c2)**2/c1**2) - 0.8 * displ * np.exp(-(t-c2)**2/c3**2)
-    fcn = lambda t: displ * sin(t / (3*c1) * (2 * pi)) * np.exp(-(t-c2)**2/c1**2)
+    fcn = (
+        lambda t: displ
+        * sin(t / (3 * c1) * (2 * pi))
+        * np.exp(-((t - c2) ** 2) / c1**2)
+    )
 
     # generate directories
     # import the os module
     import os
+
     # detect the current working directory and print it
     working_path = os.getcwd()
     # print ("The current working directory is %s" % path)
 
     # define the name of the directory to be created
     # file name label
-    fn_label = f'c1_{int(c1*1e3)}e-3_displ_{int(displ*1e3)}e-3'
+    fn_label = f"c1_{int(c1*1e3)}e-3_displ_{int(displ*1e3)}e-3"
     # path = working_path + f'\\c1_{int(c1*1e3)}e-3\\' + fn_label
-    path = os.path.join(working_path, f'c1_{int(c1*1e3)}e-3', fn_label)
+    path = os.path.join(working_path, f"c1_{int(c1*1e3)}e-3", fn_label)
 
     try:
         os.makedirs(path)
     except OSError:
-        print ("Creation of the directory %s failed" % path)
+        print("Creation of the directory %s failed" % path)
     else:
-        print ("Successfully created the directory %s " % path)
+        print("Successfully created the directory %s " % path)
 
     # plot excitation function
     fig, ax = plt.subplots()
-    ax.set_xlabel('time t [s]')
-    ax.set_ylabel('displacement [m]')
+    ax.set_xlabel("time t [s]")
+    ax.set_ylabel("displacement [m]")
     x = np.linspace(0, t1, 1000)
     y = []
 
@@ -564,8 +657,8 @@ if __name__ == "__main__":
     ax.grid()
 
     # save excitation function
-    plt.savefig(os.path.join(path, f'excitation_' + fn_label + '.eps'), format='eps')
-    plt.savefig(os.path.join(path, f'excitation_' + fn_label + '.png'), format='png')
+    plt.savefig(os.path.join(path, f"excitation_" + fn_label + ".eps"), format="eps")
+    plt.savefig(os.path.join(path, f"excitation_" + fn_label + ".png"), format="png")
 
     plt.show()
 
@@ -581,7 +674,23 @@ if __name__ == "__main__":
     ######################################################################################
 
     # create pantograph
-    model, beams, ID_mat = create_pantograph(gamma, nRow, nCol, H, EA, EI, GI, A_rho0, p, nEl, nQP, r_OP_l, A_IK_l, r_OP_r, A_IK_r)
+    model, beams, ID_mat = create_pantograph(
+        gamma,
+        nRow,
+        nCol,
+        H,
+        EA,
+        EI,
+        GI,
+        A_rho0,
+        p,
+        nEl,
+        nQP,
+        r_OP_l,
+        A_IK_l,
+        r_OP_r,
+        A_IK_r,
+    )
 
     # create .vtu file for initial configuration
     # post_processing(beams, np.array([0]), model.q0.reshape(1, model.q0.shape[0]), 'Pantograph_initial_configuration', binary=True)
@@ -590,7 +699,9 @@ if __name__ == "__main__":
     if dynamics:
         solver = Generalized_alpha_index3_panto(model, t1, dt, rho_inf=rho_inf)
     else:
-        solver = Newton(model, n_load_steps=5, max_iter=50, tol=1.0e-10, numerical_jacobian=False)
+        solver = Newton(
+            model, n_load_steps=5, max_iter=50, tol=1.0e-10, numerical_jacobian=False
+        )
 
     # solve or load problem
     if solve_problem:
@@ -611,23 +722,30 @@ if __name__ == "__main__":
         del sol.la_g
 
         if dynamics == True:
-            save_solution(sol, os.path.join(path, 'pantographic_sheet_' + fn_label + '_'))
+            save_solution(
+                sol, os.path.join(path, "pantographic_sheet_" + fn_label + "_")
+            )
         else:
-            save_solution(sol, os.path.join(path, 'pantographic_sheet_' + fn_label + '_statics_'))
+            save_solution(
+                sol, os.path.join(path, "pantographic_sheet_" + fn_label + "_statics_")
+            )
     else:
         if dynamics == True:
-            sol = load_solution(os.path.join(path, 'pantographic_sheet_' + fn_label + '_'))
+            sol = load_solution(
+                os.path.join(path, "pantographic_sheet_" + fn_label + "_")
+            )
 
         else:
-            sol = load_solution(os.path.join(path, 'pantographic_sheet_' + fn_label + '_statics_'))
-
+            sol = load_solution(
+                os.path.join(path, "pantographic_sheet_" + fn_label + "_statics_")
+            )
 
     slow_motion_factor = 100
     animation_time = t1 * slow_motion_factor
     fps = 25
     frames = int(min(sol.q.shape[0], fps * animation_time))
     frac = int(sol.q.shape[0] / frames)
-    interval = animation_time * 1000 / frames # delay between frams in milliseconds
+    interval = animation_time * 1000 / frames  # delay between frams in milliseconds
 
     tt = sol.t[::frac]
     qq = sol.q[::frac]
@@ -649,9 +767,9 @@ if __name__ == "__main__":
             u_y = []
             beam = beams[ID_mat[i, cs_idx]]
 
-            pos_0 = beam.r_OP(0,sol.q[0, beam.qDOF[beam.qDOF_P((0,))]], (0,))
+            pos_0 = beam.r_OP(0, sol.q[0, beam.qDOF[beam.qDOF_P((0,))]], (0,))
             for k, t in enumerate(sol.t):
-                pos_t = beam.r_OP(t,sol.q[k, beam.qDOF[beam.qDOF_P((0,))]], (0,))
+                pos_t = beam.r_OP(t, sol.q[k, beam.qDOF[beam.qDOF_P((0,))]], (0,))
                 displacement = pos_t - pos_0 + pos_0[1]
                 u_x.append(displacement[0])
                 u_y.append(displacement[1])
@@ -664,35 +782,35 @@ if __name__ == "__main__":
             u_x_crosssection.extend([u_x])
             u_y_crosssection.extend([u_y])
 
-        i = nRow-1
+        i = nRow - 1
         u_x = []
         u_y = []
         beam = beams[ID_mat[i, cs_idx]]
-        pos_0 = beam.r_OP(0,sol.q[0, beam.qDOF[beam.qDOF_P((0,))]], (0,))
+        pos_0 = beam.r_OP(0, sol.q[0, beam.qDOF[beam.qDOF_P((0,))]], (0,))
         for k, t in enumerate(sol.t):
-            pos_t = beam.r_OP(t,sol.q[k, beam.qDOF[beam.qDOF_P((0,))]], (0,))
+            pos_t = beam.r_OP(t, sol.q[k, beam.qDOF[beam.qDOF_P((0,))]], (0,))
             displacement = pos_t - pos_0 + pos_0[1]
             u_x.append(displacement[0])
             u_y.append(displacement[1])
-            
+
         u_x_crosssection.extend([u_x])
         u_y_crosssection.extend([u_y])
 
         # post processing data
         fig2, ax2 = plt.subplots(2, 1)
-        fig2.suptitle(f'displacements at x={cs_idx/nCol}L', fontsize=16)
+        fig2.suptitle(f"displacements at x={cs_idx/nCol}L", fontsize=16)
 
         for i in range(len(u_x_crosssection)):
-            ax2[0].plot(sol.t, u_x_crosssection[i], label=f'Row {i}')
-            ax2[1].plot(sol.t, u_y_crosssection[i], label=f'Row {i}')
+            ax2[0].plot(sol.t, u_x_crosssection[i], label=f"Row {i}")
+            ax2[1].plot(sol.t, u_y_crosssection[i], label=f"Row {i}")
 
-        ax2[0].set_xlabel('time t [s]')
-        ax2[0].set_ylabel('displacement x-direction [m]')
+        ax2[0].set_xlabel("time t [s]")
+        ax2[0].set_ylabel("displacement x-direction [m]")
         ax2[0].grid()
         ax2[0].legend()
-        
-        ax2[1].set_xlabel('time t [s]')
-        ax2[1].set_ylabel('displacement y-direction [m]')
+
+        ax2[1].set_xlabel("time t [s]")
+        ax2[1].set_ylabel("displacement y-direction [m]")
         ax2[1].grid()
         ax2[1].legend()
 
@@ -710,13 +828,15 @@ if __name__ == "__main__":
         # for t in sol.t:
         #     y.append(fcn2(t))
 
-
         fig3, ax3 = plt.subplots()
-        ax3.set_xlabel('time t [s]')
-        ax3.set_ylabel('displacement [m]')
+        ax3.set_xlabel("time t [s]")
+        ax3.set_ylabel("displacement [m]")
 
-        fig3.suptitle(f'displacement in x-direction of centerline at x={cs_idx/nCol}L', fontsize=16)
-        ax3.plot(sol.t, u_x_centerline[0], label=f'num')
+        fig3.suptitle(
+            f"displacement in x-direction of centerline at x={cs_idx/nCol}L",
+            fontsize=16,
+        )
+        ax3.plot(sol.t, u_x_centerline[0], label=f"num")
         # ax3.plot(sol.t, y, label=f'moved excitation')
 
     # position-displacement diagramm centerline
@@ -725,7 +845,7 @@ if __name__ == "__main__":
         u_x_time = []
         u_y_time = []
         time = []
-        
+
         for t_idx, t in enumerate(tt):
             u_x = []
             u_y = []
@@ -733,82 +853,104 @@ if __name__ == "__main__":
 
             for i in range(0, nCol, 2):
                 beam = beams[ID_mat[10, i]]
-                pos_0 = beam.r_OP(0 , qq[0, beam.qDOF[beam.qDOF_P((0,))]], (0,))
-                pos_t = beam.r_OP(t , qq[t_idx, beam.qDOF[beam.qDOF_P((0,))]], (0,))
+                pos_0 = beam.r_OP(0, qq[0, beam.qDOF[beam.qDOF_P((0,))]], (0,))
+                pos_t = beam.r_OP(t, qq[t_idx, beam.qDOF[beam.qDOF_P((0,))]], (0,))
                 displacement = pos_t - pos_0
                 u_x.append(displacement[0])
                 u_y.append(displacement[1])
                 X_0.append(pos_0[0])
 
-            beam = beams[ID_mat[10, nCol-1]]
-            pos_0 = beam.r_OP(0 , qq[0, beam.qDOF[beam.qDOF_P((1,))]], (1,))
-            pos_t = beam.r_OP(t , qq[t_idx, beam.qDOF[beam.qDOF_P((1,))]], (1,))
+            beam = beams[ID_mat[10, nCol - 1]]
+            pos_0 = beam.r_OP(0, qq[0, beam.qDOF[beam.qDOF_P((1,))]], (1,))
+            pos_t = beam.r_OP(t, qq[t_idx, beam.qDOF[beam.qDOF_P((1,))]], (1,))
             displacement = pos_t - pos_0
             u_x.append(displacement[0])
             u_y.append(displacement[1])
             X_0.append(pos_0[0])
-            
+
             u_x_time.extend([u_x])
             u_y_time.extend([u_y])
             time.append(t)
 
-
         # animate configurations
         # Set up formatting for the movie files
-        Writer = animation.writers['ffmpeg']
+        Writer = animation.writers["ffmpeg"]
         writer = Writer(fps=fps, bitrate=1800)
 
         fig4, ax4 = plt.subplots()
-        fig4.suptitle(f'displacement in x-direction of centerline', fontsize=16)
+        fig4.suptitle(f"displacement in x-direction of centerline", fontsize=16)
 
         # ax.axis('equal')
         # scale = 2.5 * R
         # ax.axis('equal')
         ax4.set_xlim([0, L])
         ax4.set_ylim([-1.2 * displ, 1.2 * displ])
-        ax4.set_xlabel('position x [m]')
-        ax4.set_ylabel('displacement x-direction [m]')
+        ax4.set_xlabel("position x [m]")
+        ax4.set_ylabel("displacement x-direction [m]")
 
-        center_line, = ax4.plot([], [], '-k')
+        (center_line,) = ax4.plot([], [], "-k")
 
         def animate(i):
             center_line.set_data(X_0, u_x_time[i])
-            return center_line, 
+            return (center_line,)
 
-        anim = animation.FuncAnimation(fig4, animate, frames=frames, interval=interval, blit=False)
+        anim = animation.FuncAnimation(
+            fig4, animate, frames=frames, interval=interval, blit=False
+        )
 
-
-        anim.save(os.path.join(path, 'centerline_displacement_' + fn_label + '.mp4'), writer=writer)
+        anim.save(
+            os.path.join(path, "centerline_displacement_" + fn_label + ".mp4"),
+            writer=writer,
+        )
 
         # # post processing data
         # # fig5, ax5 = plt.subplots(2, 1)
         fig5, ax5 = plt.subplots()
-        fig5.suptitle(f'displacement in x-direction of centerline', fontsize=16)
+        fig5.suptitle(f"displacement in x-direction of centerline", fontsize=16)
 
         for i in range(0, len(time), 10):
-            ax5.plot(X_0, u_x_time[i], label=f'time {time[i]}')
+            ax5.plot(X_0, u_x_time[i], label=f"time {time[i]}")
             # ax5[0].plot(X_0, u_x_time[i], label=f'time {time[i]}')
             # ax5[1].plot(X_0, u_y_time[i], label=f'time {time[i]}')
 
-        ax5.set_xlabel('position x [m]')
-        ax5.set_ylabel('displacement x-direction [m]')
+        ax5.set_xlabel("position x [m]")
+        ax5.set_ylabel("displacement x-direction [m]")
         ax5.grid()
         # ax5[0].set_xlabel('position x [m]')
         # ax5[0].set_ylabel('displacement x-direction [m]')
         # ax5[0].grid()
-        
+
         # ax5[1].set_xlabel('position x [m]')
         # ax5[1].set_ylabel('displacement y-direction [m]')
         # ax5[1].grid()
 
-        plt.savefig(os.path.join(path, 'centerline_displacement_' + fn_label + '.eps'), format='eps')
-        plt.savefig(os.path.join(path, 'centerline_displacement_' + fn_label + '.png'), format='png')
+        plt.savefig(
+            os.path.join(path, "centerline_displacement_" + fn_label + ".eps"),
+            format="eps",
+        )
+        plt.savefig(
+            os.path.join(path, "centerline_displacement_" + fn_label + ".png"),
+            format="png",
+        )
 
     # plt.show()
 
     # post processing for paraview
     if paraview_export:
         if dynamics:
-            post_processing(beams, tt, qq, os.path.join(path, 'pantographic_sheet_' + fn_label + '_'), u = uu, binary=True)
+            post_processing(
+                beams,
+                tt,
+                qq,
+                os.path.join(path, "pantographic_sheet_" + fn_label + "_"),
+                u=uu,
+                binary=True,
+            )
         else:
-            post_processing(beams, tt, qq, os.path.join(path, 'pantographic_sheet_' + fn_label + '_statics_'), binary=True)
+            post_processing(
+                beams,
+                tt,
+                qq,
+                os.path.join(path, "pantographic_sheet_" + fn_label + "_statics_"),
+                binary=True,
+            )
