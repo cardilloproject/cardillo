@@ -173,10 +173,28 @@ class Rolling_condition_I_frame_g_gamma:
 
     def g_q_dense(self, t, q):
         # return Numerical_derivative(self.g)._x(t, q)
-        return approx_fprime(q, lambda q: self.g(t, q), method="2-point").reshape(self.nla_g, self.disc.nq)
+        return approx_fprime(q, lambda q: self.g(t, q), method="2-point").reshape(
+            self.nla_g, self.disc.nq
+        )
 
     def g_q(self, t, q, coo):
         coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
+
+    def g_dot_q(self, t, q, u, coo):
+        coo.extend(
+            approx_fprime(q, lambda q: self.g_dot(t, q, u), method="2-point").reshape(
+                self.nla_g, self.disc.nq
+            ),
+            (self.la_gDOF, self.qDOF),
+        )
+
+    def g_ddot_q(self, t, q, u, u_dot, coo):
+        coo.extend(
+            approx_fprime(
+                q, lambda q: self.g_ddot(t, q, u, u_dot), method="2-point"
+            ).reshape(self.nla_g, self.disc.nq),
+            (self.la_gDOF, self.qDOF),
+        )
 
     def W_g_dense(self, t, q):
         return self.disc.J_P(t, q, K_r_SP=self.disc.A_IK(t, q).T @ self.r_SA(t, q)).T[
@@ -206,6 +224,16 @@ class Rolling_condition_I_frame_g_gamma:
     def gamma_q(self, t, q, u, coo):
         dense = Numerical_derivative(self.gamma, order=2)._x(t, q, u)[:2]
         coo.extend(dense, (self.la_gammaDOF, self.qDOF))
+
+    # TODO:
+    def gamma_dot_q(self, t, q, u, u_dot, coo):
+        raise NotImplementedError("")
+        coo.extend(
+            approx_fprime(
+                q, lambda q: self.gamma_dot(t, q, u, u_dot), method="2-point"
+            ).reshape(self.nla_gamma, self.disc.nq),
+            (self.la_gammaDOF, self.qDOF),
+        )
 
     def gamma_u_dense(self, t, q):
         return self.disc.J_P(t, q, K_r_SP=self.disc.A_IK(t, q).T @ self.r_SA(t, q))[:2]

@@ -423,6 +423,12 @@ class Model(object):
             contr.gamma_q(t, q[contr.qDOF], u[contr.uDOF], coo)
         return coo.tosparse(scipy_matrix)
 
+    def gamma_dot_q(self, t, q, u, u_dot, scipy_matrix=coo_matrix):
+        coo = Coo((self.nla_gamma, self.nq))
+        for contr in self.__gamma_contr:
+            contr.gamma_dot_q(t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF], coo)
+        return coo.tosparse(scipy_matrix)
+
     def gamma_u(self, t, q, scipy_matrix=coo_matrix):
         coo = Coo((self.nla_gamma, self.nu))
         for contr in self.__gamma_contr:
