@@ -6,7 +6,7 @@ from cardillo.utility.coo import Coo
 from cardillo.discretization import uniform_knot_vector
 from cardillo.discretization.B_spline import Knot_vector
 from cardillo.math import (
-    e1,
+    e1, e2, e3,
     norm,
     cross3,
     smallest_rotation,
@@ -103,6 +103,13 @@ class Kirchhoff:
             np.arange(self.nq_n_phi * self.nn_phi).reshape(self.nq_n_phi, self.nn_phi).T
             + nq_r
         )
+
+        # A_RB for each quadrature point
+        self.A_RB = np.zeros((nEl, self.nQP, 3, 3))
+        for i in range(nEl):
+            for j in range(self.nQP):
+                self.A_RB[i, j] = np.eye(3)
+        self.A_RB_changed = np.zeros((nEl, self.nQP), dtype=bool)
 
         # build global elDOF connectivity matrix
         self.elDOF = np.zeros((nEl, self.nq_el), dtype=int)
@@ -376,21 +383,78 @@ class Kirchhoff:
                 return A, B, Kappa_i
 
             def kappa_C(e1, d1, phi, phi_xi, r_xixi, ji, J0i):
-                e_complement = cross3(-e1, d1) / norm(cross3(-e1, d1))
-                A_pi = rodriguez(e_complement * np.pi)
-                A = smallest_rotation(-e1, d1) @ A_pi
+                # # TODO: This does not lead to the same rotation!
+                # #       Can we fix it soemhow?
+                # e1xd1 = cross3(e1, d1)
+                # A1 = smallest_rotation(e1, e1xd1)
+                # A2 = smallest_rotation(e1xd1, d1)
+                # A = A2 @ A1
+
+                # fmt: off
+                A_IJ = np.array([
+                    [-1,  0, 0],
+                    [ 0, -1, 0],
+                    [ 0,  0, 1]
+                ], dtype=float)
+                # fmt: on
+
+                A_IB = smallest_rotation(e1, d1)
+                A_JR = smallest_rotation(-e1, d1)
+                if not self.A_RB_changed[el, i]:
+                    self.A_RB[el, i] = (A_IJ @ A_JR).T @ A_IB
+                    self.A_RB_changed[el, i] = True
+
+                A = A_IB
+                A_C = A_IJ @ A_JR @ self.A_RB[el, i]
+                A = A_C
+
                 B = rodriguez(d1 * phi)
                 R = B @ A
-                # print(f"B(d1 * phi) @ A(-e1, d1):\n{R}")
                 d1, d2, d3 = R.T
+
+                R_Kappa_i = np.array(
+                    [
+                        phi_xi / J0i
+                        + r_xixi
+                        @ cross3(d1, -e1)
+                        / (J0i * ji * (1 - d1 @ e1)),  # Mitterbach2020 (2.105)
+                        -(d3 @ r_xixi) / (J0i * ji),
+                        (d2 @ r_xixi) / (J0i * ji),
+                    ]
+                )
+
+                B_Kappa_i_C = self.A_RB[el, i].T @ R_Kappa_i
+                print(f"B_Kappa_C: {B_Kappa_i_C}")
+
+                B_Kappa_i = np.array(
+                    [
+                        phi_xi / J0i
+                        + r_xixi
+                        @ cross3(d1, e1)
+                        / (J0i * ji * (1 + d1 @ e1)),  # Mitterbach2020 (2.105)
+                        -(d3 @ r_xixi) / (J0i * ji),
+                        (d2 @ r_xixi) / (J0i * ji),
+                    ]
+                )
+                print(f"B_Kappa_i: {B_Kappa_i}")
+
+                B_Kappa_i = B_Kappa_i_C
+
+                # print(f"A:\n{A}")
+                # print(f"A_C:\n{A_C}")
+                # print(f"A.T @ A_C:\n{A.T @ A_C}")
+
+                # e1xd1_C = cross3(-e1, d1)
+                # e_complement = e1xd1_C / norm(e1xd1_C)
+                # A_pi = rodriguez(-np.pi * e_complement)
+                # A = smallest_rotation(-e1, d1) @ A_pi
+                # B = rodriguez(d1 * phi)
+                # R = B @ A
+                # d1, d2, d3 = R.T
 
                 # torsional and flexural strains
                 Kappa_i = np.array(
                     [
-                        # phi_xi / J0i
-                        # + r_xixi
-                        # @ cross3(d1, -e1)
-                        # / (J0i * ji * (1 - d1 @ e1)),  # Mitterbach2020 (2.105)
                         phi_xi / J0i
                         + r_xixi @ cross3(d1, -e1) / (J0i * ji * (1 - d1 @ e1)),
                         -(d3 @ r_xixi) / (J0i * ji),
@@ -398,7 +462,7 @@ class Kirchhoff:
                     ]
                 )
 
-                print(f"A_pi.T @ Kappa_i: {A_pi.T @ Kappa_i}")
+                # print(f"A_pi.T @ Kappa_i: {A_pi.T @ Kappa_i}")
 
                 return A, B, Kappa_i
 
@@ -406,15 +470,24 @@ class Kirchhoff:
                 A, B, Kappa_i = kappa(e1, d1, phi, phi_xi, r_xixi, ji, J0i)
             else:
                 A, B, Kappa_i = kappa(e1, d1, phi, phi_xi, r_xixi, ji, J0i)
-                print(f"A:\n{A}")
-                print(f"B:\n{B}")
+                # print(f"A:\n{A}")
+                # print(f"B:\n{B}")
                 print(f"Kappa_i:\n{Kappa_i}")
-                A, B, Kappa_i = kappa_C(e1, d1, phi, phi_xi, r_xixi, ji, J0i)
-                print(f"A:\n{A}")
-                print(f"B:\n{B}")
-                print(f"Kappa_i:\n{Kappa_i}")
+                A_C, B_C, Kappa_i_C = kappa_C(e1, d1, phi, phi_xi, r_xixi, ji, J0i)
+                # print(f"A_C:\n{A_C}")
+                # print(f"B_C:\n{B_C}")
+                print(f"Kappa_i_C:\n{Kappa_i_C}")
+
+                # ensure that both formulation yield in the exactly same rotations
+                # print(f"A.T @ A_C:\n{A.T @ A_C}")
+                # print(f"B.T @ B_C:\n{B.T @ B_C}")
+                assert np.allclose(A.T @ A_C, np.eye(3))
+                assert np.allclose(B.T @ B_C, np.eye(3))
+
+                # TODO: Compute curvature term from rodriguez(e_C * np.pi)
 
                 print(f"")
+                Kappa_i = Kappa_i_C
 
                 # phi_xi / J0i + r_xixi @ cross3(d1, -e1) / (J0i * ji * (1 - d1 @ e1))
 

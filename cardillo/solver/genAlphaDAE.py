@@ -1,4 +1,3 @@
-from contextlib import suppress
 import numpy as np
 from scipy.sparse.linalg import spsolve
 from scipy.sparse import csr_matrix, bmat, eye
@@ -1041,7 +1040,7 @@ class GenAlphaFirstOrderVelocity:
         error_function=lambda x: np.max(np.abs(x)),
         numerical_jacobian=False,
         DAE_index=3,
-        preconditioning=False,
+        preconditioning=True,
     ):
 
         self.model = model
@@ -1064,7 +1063,7 @@ class GenAlphaFirstOrderVelocity:
         self.alpha_m = (3.0 * rho_inf - 1.0) / (2.0 * (rho_inf + 1.0))  # Harsch2022
         self.alpha_f = rho_inf / (rho_inf + 1.0)  # Harsch2022
         self.gamma = 0.5 + self.alpha_f - self.alpha_m  # Arnold2007 (24)
-        self.x_x_dot = (
+        self.gamma_prime = (
             self.dt * self.gamma * (1.0 - self.alpha_f) / (1.0 - self.alpha_m)
         )
 
@@ -1095,7 +1094,11 @@ class GenAlphaFirstOrderVelocity:
         #################
         self.preconditioning = preconditioning
         if preconditioning:
-            raise RuntimeError("This is not working as expected!")
+            # raise RuntimeError("This is not working as expected!")
+            # TODO: Scaling of second equation by h and solving for h u_dot 
+            # comes from the fact that we know that u_dot are accelerations, 
+            # so for having consisten units this equations has to be scaled. 
+            # This might not be correct in the sense of a preconditioner.
             # fmt: off
             self.D_L = bmat([[eye(self.nq),         None,                 None,                     None],
                              [        None, eye(self.nu),                 None,                     None],
@@ -1104,8 +1107,8 @@ class GenAlphaFirstOrderVelocity:
 
             self.D_R = bmat([[eye(self.nq),         None,                 None,                     None],
                              [        None, eye(self.nu),                 None,                     None],
-                             [        None,         None, eye(self.nla_g) * dt,                     None],
-                             [        None,         None,                 None, eye(self.nla_gamma) * dt]])
+                             [        None,         None, eye(self.nla_g) / dt,                     None],
+                             [        None,         None,                 None, eye(self.nla_gamma) / dt]])
             # fmt: on
 
         #######################################################################
@@ -1365,8 +1368,8 @@ class GenAlphaFirstOrderVelocity:
         # kinematic differential equation
         # R[:nq] = q_dotk1 - self.model.q_dot(tk1, qk1, uk1)
         #################################
-        Rq_q_dot = eye(self.nq) - self.model.q_dot_q(tk1, qk1, uk1) * self.x_x_dot
-        Rq_u_dot = -Bk1 * self.x_x_dot
+        Rq_q_dot = eye(self.nq) - self.model.q_dot_q(tk1, qk1, uk1) * self.gamma_prime
+        Rq_u_dot = -Bk1 * self.gamma_prime
         Rq_la_g = None
         Rq_la_gamma = None
 
@@ -1384,8 +1387,8 @@ class GenAlphaFirstOrderVelocity:
             - self.model.h_q(tk1, qk1, uk1)
             - self.model.Wla_g_q(tk1, qk1, la_gk1)
             - self.model.Wla_gamma_q(tk1, qk1, la_gammak1)
-        ) * self.x_x_dot
-        Ru_u_dot = Mk1 - self.model.h_u(tk1, qk1, uk1) * self.x_x_dot
+        ) * self.gamma_prime
+        Ru_u_dot = Mk1 - self.model.h_u(tk1, qk1, uk1) * self.gamma_prime
         Ru_la_g = -W_gk1
         Ru_la_gamma = -W_gammak1
 
@@ -1406,23 +1409,23 @@ class GenAlphaFirstOrderVelocity:
         Rla_gamma_la_g = None
         Rla_gamma_la_gamma = None
         if self.DAE_index == 3:
-            Rla_g_q_dot = self.model.g_q(tk1, qk1) * self.x_x_dot
+            Rla_g_q_dot = self.model.g_q(tk1, qk1) * self.gamma_prime
             Rla_g_u_dot = None
-            Rla_gamma_q_dot = self.model.gamma_q(tk1, qk1, uk1) * self.x_x_dot
-            Rla_gamma_u_dot = self.model.gamma_u(tk1, qk1) * self.x_x_dot
+            Rla_gamma_q_dot = self.model.gamma_q(tk1, qk1, uk1) * self.gamma_prime
+            Rla_gamma_u_dot = self.model.gamma_u(tk1, qk1) * self.gamma_prime
         elif self.DAE_index == 2:
-            Rla_g_q_dot = self.model.g_dot_q(tk1, qk1, uk1) * self.x_x_dot
-            Rla_g_u_dot = W_gk1.T * self.x_x_dot
-            Rla_gamma_q_dot = self.model.gamma_q(tk1, qk1, uk1) * self.x_x_dot
-            Rla_gamma_u_dot = self.model.gamma_u(tk1, qk1) * self.x_x_dot
+            Rla_g_q_dot = self.model.g_dot_q(tk1, qk1, uk1) * self.gamma_prime
+            Rla_g_u_dot = W_gk1.T * self.gamma_prime
+            Rla_gamma_q_dot = self.model.gamma_q(tk1, qk1, uk1) * self.gamma_prime
+            Rla_gamma_u_dot = self.model.gamma_u(tk1, qk1) * self.gamma_prime
         elif self.DAE_index == 1:
             raise NotImplementedError("")
-            Rla_g_q_dot = self.model.g_ddot_q(tk1, qk1, uk1, u_dotk1) * self.x_x_dot
-            Rla_g_u_dot = W_gk1.T * self.x_x_dot
+            Rla_g_q_dot = self.model.g_ddot_q(tk1, qk1, uk1, u_dotk1) * self.gamma_prime
+            Rla_g_u_dot = W_gk1.T * self.gamma_prime
             Rla_gamma_q_dot = (
-                self.model.gamma_dot_q(tk1, qk1, uk1, u_dotk1) * self.x_x_dot
+                self.model.gamma_dot_q(tk1, qk1, uk1, u_dotk1) * self.gamma_prime
             )
-            Rla_gamma_u_dot = W_gammak1.T * self.x_x_dot
+            Rla_gamma_u_dot = W_gammak1.T * self.gamma_prime
 
         # sparse assemble global tangent matrix
         # fmt: off
@@ -1516,7 +1519,9 @@ class GenAlphaFirstOrderVelocity:
                     # TODO: It this efficient? Blas level 3 and blas level 2
                     #       operation shouldn't be that bad for sparse
                     #       matrices.
-                    dx = spsolve(self.D_L @ R_x @ self.D_R, self.D_L @ R, use_umfpack=True)
+                    dx = spsolve(
+                        self.D_L @ R_x @ self.D_R, self.D_L @ R, use_umfpack=True
+                    )
                     xk1 -= self.D_R @ dx
                     # dx = spsolve(R_x @ self.D_R, R, use_umfpack=True)
                     # xk1 -= self.D_R @ dx

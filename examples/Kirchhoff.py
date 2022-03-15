@@ -18,8 +18,8 @@ from cardillo.math import e1, e2, e3
 
 import numpy as np
 
-# case = "Cable"
-case = "Bernoulli"
+case = "Cable"
+# case = "Bernoulli"
 
 if __name__ == "__main__":
     # physical properties of the beam
@@ -121,9 +121,10 @@ if __name__ == "__main__":
     f_g_beam = DistributedForce1D(lambda t, xi: t * __g, beam)
 
     # moment at right end
-    # M = lambda t: -np.array([1, 0, 1]) * t * 2 * np.pi * Fi[1] / L * 0.5
+    M = lambda t: -np.array([1, 0, 1]) * t * 2 * np.pi * Fi[1] / L * 0.5
+    # M = lambda t: -np.array([0, 1, 1]) * t * 2 * np.pi * Fi[1] / L * 0.5
     # M = lambda t: e1 * t * 2 * np.pi * Fi[0] / L * 1.0
-    M = lambda t: e2 * t * 2 * np.pi * Fi[1] / L * 1.0
+    M = lambda t: e2 * t * 2 * np.pi * Fi[1] / L * 0.5
     # M = lambda t: e3 * t * 2 * np.pi * Fi[2] / L * 0.45
     moment = K_Moment(M, beam, (1,))
 
@@ -155,7 +156,7 @@ if __name__ == "__main__":
     solver = Newton(
         model,
         n_load_steps=10,
-        max_iter=20,
+        max_iter=30,
         atol=1.0e-8,
         numerical_jacobian=False,
         # numerical_jacobian=True,

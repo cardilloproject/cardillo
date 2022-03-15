@@ -4,7 +4,12 @@ import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
 
 from cardillo.model import Model
-from cardillo.solver import ScipyIVP, EulerBackward, GenAlphaFirstOrderVelocityGGL, GenAlphaFirstOrderVelocity
+from cardillo.solver import (
+    ScipyIVP,
+    EulerBackward,
+    GenAlphaFirstOrderVelocityGGL,
+    GenAlphaFirstOrderVelocity,
+)
 
 
 class MathematicalPendulumCartesian:
