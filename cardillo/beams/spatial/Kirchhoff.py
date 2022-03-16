@@ -7,8 +7,10 @@ from cardillo.discretization import uniform_knot_vector
 from cardillo.discretization.B_spline import Knot_vector
 from cardillo.math import (
     e1, e2, e3,
+    pi,
     norm,
     cross3,
+    ax2skew,
     smallest_rotation,
     rodriguez,
     rodriguez_inv,
@@ -18,8 +20,8 @@ from cardillo.math import (
 from cardillo.discretization.mesh1D import Mesh1D
 
 
-switching_beam = True
-# switching_beam = False
+# switching_beam = True
+switching_beam = False
 
 
 class Kirchhoff:
@@ -383,38 +385,92 @@ class Kirchhoff:
                 return A, B, Kappa_i
 
             def kappa_C(e1, d1, phi, phi_xi, r_xixi, ji, J0i):
-                # # TODO: This does not lead to the same rotation!
-                # #       Can we fix it soemhow?
-                # e1xd1 = cross3(e1, d1)
-                # A1 = smallest_rotation(e1, e1xd1)
-                # A2 = smallest_rotation(e1xd1, d1)
-                # A = A2 @ A1
+                if False:
+                    # with pi around e2
+                    A_pi = np.array([
+                        [-1, 0,  0],
+                        [ 0, 1,  0],
+                        [ 0, 0, -1]
+                    ])
+                    # fmt: on
 
-                # fmt: off
-                A_IJ = np.array([
-                    [-1,  0, 0],
-                    [ 0, -1, 0],
-                    [ 0,  0, 1]
-                ], dtype=float)
-                # fmt: on
+                    A_C = smallest_rotation(-e1, d1) @ A_pi
+                
+                    # additional rotation by phi around d1
+                    # B = rodriguez(d1 * phi)
+                    B_C = rodriguez(d1 * (2 * pi - phi))
+                    # B_C = rodriguez(-d1 * (2 * pi - phi))
+                    # B_C = rodriguez(-d1 * (pi - phi))
+                    # B_C = rodriguez(-d1 * (1 - 2 * pi / phi))
 
-                A_IB = smallest_rotation(e1, d1)
-                A_JR = smallest_rotation(-e1, d1)
-                if not self.A_RB_changed[el, i]:
-                    self.A_RB[el, i] = (A_IJ @ A_JR).T @ A_IB
-                    self.A_RB_changed[el, i] = True
+                    # final rotation and extraction of directors
+                    # R = B @ A
+                    R_C = B_C @ A_C
+                    # d1, d2, d3 = R.T
+                    # d1_C, d2_C, d3_C = R_C.T
 
-                A = A_IB
-                A_C = A_IJ @ A_JR @ self.A_RB[el, i]
-                A = A_C
+                    # A_rel = R @ R_C.T
 
+                    # print(f"A:\n{A}")
+                    # print(f"A_C:\n{A_C}")
+                    # print(f"R:\n{R}")
+                    # print(f"R_C:\n{R_C}")
+                    # # print(f"A.T @ A_C:\n{A.T @ A_C}")
+                    # # print(f"norm(A.T @ A_C): {np.max(np.abs(A.T @ A_C - np.eye(3)))}")
+                    # print(f"")
+
+                    # compute curvatures
+                    d1, d2, d3 = R_C.T
+                    Kappa_i = np.array(
+                        [
+                            -phi_xi / J0i
+                            + r_xixi
+                            @ cross3(d1, -e1)
+                            / (J0i * ji * (1 - d1 @ e1)),  # Mitterbach2020 (2.105)
+                            -(d3 @ r_xixi) / (J0i * ji),
+                            (d2 @ r_xixi) / (J0i * ji),
+                        ]
+                    )
+
+                # TODO: Test singular case:
+                # For this case rodriguez(-pi * n_C) yields identity but not a 
+                # rotation with pi around some axis!
+                d1 = -e1
+                d1 = -e1 + np.random.rand(3) * 1.0e-3
+
+                # smallest rotations
+                A = smallest_rotation(e1, d1)
+                e1xd1_C = cross3(-e1, d1)
+                n_C = e1xd1_C / norm(e1xd1_C)
+                A_pi = rodriguez(-pi * n_C)
+                A_C = smallest_rotation(-e1, d1) @ A_pi
+                
+                # additional rotation by phi around d1
                 B = rodriguez(d1 * phi)
-                R = B @ A
-                d1, d2, d3 = R.T
+                B_C = rodriguez(d1 * phi)
 
-                R_Kappa_i = np.array(
+                # composition of rotations
+                R = B @ A
+                R_C = B_C @ A_C
+
+                print(f"A:\n{A}")
+                print(f"A_C:\n{A_C}")
+                print(f"B:\n{B}")
+                print(f"B_C:\n{B_C}")
+                print(f"")
+                assert np.allclose(A.T @ A_C, np.eye(3))
+                assert np.allclose(B.T @ B_C, np.eye(3))
+
+                raise RuntimeError("This formulation has the same singularity!")
+
+                # extract directors
+                d1, d2, d3 = R_C.T
+
+                # compute curvatures
+                # TODO: A_pi curvature is missing for kappa_1 term!
+                Kappa_i = np.array(
                     [
-                        phi_xi / J0i
+                        -phi_xi / J0i
                         + r_xixi
                         @ cross3(d1, -e1)
                         / (J0i * ji * (1 - d1 @ e1)),  # Mitterbach2020 (2.105)
@@ -422,71 +478,31 @@ class Kirchhoff:
                         (d2 @ r_xixi) / (J0i * ji),
                     ]
                 )
+                
+                return A_C, B_C, Kappa_i
 
-                B_Kappa_i_C = self.A_RB[el, i].T @ R_Kappa_i
-                print(f"B_Kappa_C: {B_Kappa_i_C}")
-
-                B_Kappa_i = np.array(
-                    [
-                        phi_xi / J0i
-                        + r_xixi
-                        @ cross3(d1, e1)
-                        / (J0i * ji * (1 + d1 @ e1)),  # Mitterbach2020 (2.105)
-                        -(d3 @ r_xixi) / (J0i * ji),
-                        (d2 @ r_xixi) / (J0i * ji),
-                    ]
-                )
-                print(f"B_Kappa_i: {B_Kappa_i}")
-
-                B_Kappa_i = B_Kappa_i_C
-
-                # print(f"A:\n{A}")
-                # print(f"A_C:\n{A_C}")
-                # print(f"A.T @ A_C:\n{A.T @ A_C}")
-
-                # e1xd1_C = cross3(-e1, d1)
-                # e_complement = e1xd1_C / norm(e1xd1_C)
-                # A_pi = rodriguez(-np.pi * e_complement)
-                # A = smallest_rotation(-e1, d1) @ A_pi
-                # B = rodriguez(d1 * phi)
-                # R = B @ A
-                # d1, d2, d3 = R.T
-
-                # torsional and flexural strains
-                Kappa_i = np.array(
-                    [
-                        phi_xi / J0i
-                        + r_xixi @ cross3(d1, -e1) / (J0i * ji * (1 - d1 @ e1)),
-                        -(d3 @ r_xixi) / (J0i * ji),
-                        (d2 @ r_xixi) / (J0i * ji),
-                    ]
-                )
-
-                # print(f"A_pi.T @ Kappa_i: {A_pi.T @ Kappa_i}")
-
-                return A, B, Kappa_i
 
             if sign_cos >= 0:
                 A, B, Kappa_i = kappa(e1, d1, phi, phi_xi, r_xixi, ji, J0i)
             else:
-                A, B, Kappa_i = kappa(e1, d1, phi, phi_xi, r_xixi, ji, J0i)
-                # print(f"A:\n{A}")
-                # print(f"B:\n{B}")
-                print(f"Kappa_i:\n{Kappa_i}")
+                # A, B, Kappa_i = kappa(e1, d1, phi, phi_xi, r_xixi, ji, J0i)
+                # # print(f"A:\n{A}")
+                # # print(f"B:\n{B}")
+                # print(f"Kappa_i:\n{Kappa_i}")
                 A_C, B_C, Kappa_i_C = kappa_C(e1, d1, phi, phi_xi, r_xixi, ji, J0i)
-                # print(f"A_C:\n{A_C}")
-                # print(f"B_C:\n{B_C}")
-                print(f"Kappa_i_C:\n{Kappa_i_C}")
+                # # print(f"A_C:\n{A_C}")
+                # # print(f"B_C:\n{B_C}")
+                # print(f"Kappa_i_C:\n{Kappa_i_C}")
+                # print(f"")
 
-                # ensure that both formulation yield in the exactly same rotations
-                # print(f"A.T @ A_C:\n{A.T @ A_C}")
-                # print(f"B.T @ B_C:\n{B.T @ B_C}")
-                assert np.allclose(A.T @ A_C, np.eye(3))
-                assert np.allclose(B.T @ B_C, np.eye(3))
+                # # ensure that both formulation yield in the exactly same rotations
+                # # print(f"A.T @ A_C:\n{A.T @ A_C}")
+                # # print(f"B.T @ B_C:\n{B.T @ B_C}")
+                # assert np.allclose(A.T @ A_C, np.eye(3))
+                # assert np.allclose(B.T @ B_C, np.eye(3))
 
                 # TODO: Compute curvature term from rodriguez(e_C * np.pi)
-
-                print(f"")
+                # print(f"")
                 Kappa_i = Kappa_i_C
 
                 # phi_xi / J0i + r_xixi @ cross3(d1, -e1) / (J0i * ji * (1 - d1 @ e1))

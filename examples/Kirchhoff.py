@@ -14,14 +14,15 @@ from cardillo.forces import Force, K_Moment, DistributedForce1D
 from cardillo.model import Model
 from cardillo.solver import Newton
 from cardillo.contacts import Point2Plane
-from cardillo.math import e1, e2, e3
+from cardillo.math import e1, e2, e3, smoothstep2, A_IK_basic
 
 import numpy as np
+import matplotlib.pyplot as plt
 
-case = "Cable"
-# case = "Bernoulli"
+# case = "Cable"
+case = "Kirchhoff"
 
-if __name__ == "__main__":
+def tests():
     # physical properties of the beam
     A_rho0 = 1
     B_rho0 = np.zeros(3)
@@ -51,7 +52,7 @@ if __name__ == "__main__":
     # build reference configuration
     if case == "Cable":
         Q = Cable.straight_configuration(p_r, nEl, L)
-    elif case == "Bernoulli":
+    elif case == "Kirchhoff":
         Q = Kirchhoff.straight_configuration(p_r, p_phi, nEl, L)
     else:
         raise NotImplementedError("")
@@ -69,7 +70,7 @@ if __name__ == "__main__":
             Q=Q,
             q0=q0,
         )
-    elif case == "Bernoulli":
+    elif case == "Kirchhoff":
         beam = Kirchhoff(
             material_model,
             A_rho0,
@@ -108,7 +109,7 @@ if __name__ == "__main__":
     if case == "Cable":
         joint1 = RigidConnectionCable(frame1, beam, r_OB1, frame_ID2=(0,))
         joint2 = RigidConnectionCable(frame2, beam, r_OB2, frame_ID2=(1,))
-    elif case == "Bernoulli":
+    elif case == "Kirchhoff":
         joint1 = RigidConnection(frame1, beam, r_OB1, frame_ID2=(0,))
         joint2 = RigidConnection(frame2, beam, r_OB2, frame_ID2=(1,))
     else:
@@ -155,7 +156,7 @@ if __name__ == "__main__":
 
     solver = Newton(
         model,
-        n_load_steps=10,
+        n_load_steps=5,
         max_iter=30,
         atol=1.0e-8,
         numerical_jacobian=False,
@@ -171,3 +172,113 @@ if __name__ == "__main__":
     # animation
     ###########
     animate_beam(t, q, beam, L, show=True)
+
+
+def objectivity():
+    # physical properties of the beam
+    A_rho0 = 1
+    B_rho0 = np.zeros(3)
+    C_rho0 = np.eye(3)
+
+    L = 2 * np.pi
+    E1 = 1.0e0
+    Fi = np.ones(3) * 1.0e-1
+
+    material_model = ShearStiffQuadratic(E1, Fi)
+
+    # number of full rotations after deformation
+    n_circles = 1
+    frac_deformation = 1 / (n_circles + 1)
+    frac_rotation = 1 - frac_deformation
+    print(f"n_circles: {n_circles}")
+    print(f"frac_deformation: {frac_deformation}")
+    print(f"frac_rotation:     {frac_rotation}")
+
+    # junctions
+    r_OB0 = np.zeros(3)
+    phi = lambda t: n_circles * 2 * np.pi * smoothstep2(t, frac_deformation, 1.0)
+    A_IK0 = lambda t: A_IK_basic(phi(t)).x()
+    frame1 = Frame(r_OP=r_OB0, A_IK=A_IK0)
+    
+    # discretization properties
+    p = 2
+    p_r = p
+    p_phi = p
+    # nQP = int(np.ceil((p + 1)**2 / 2))
+    nQP = p + 1
+    print(f"nQP: {nQP}")
+    nEl = 1
+
+    # build reference configuration
+    Q = Kirchhoff.straight_configuration(p_r, p_phi, nEl, L)
+    q0 = Q.copy()
+
+    # build beam model
+    beam = Kirchhoff(
+        material_model,
+        A_rho0,
+        B_rho0,
+        C_rho0,
+        p_r,
+        p_phi,
+        nQP,
+        nEl,
+        Q=Q,
+        q0=q0,
+    )
+
+    # left and right joint
+    joint1 = RigidConnection(frame1, beam, r_OB0, frame_ID2=(0,))
+
+    # moment at right end that yields quater circle in t in [0, 0.5] and then 
+    # remains constant
+    M = lambda t: np.pi / 4 * smoothstep2(t, 0.0, frac_deformation) * e2 * Fi[1] / L
+    moment = K_Moment(M, beam, (1,))
+    
+    # assemble the model
+    model = Model()
+    model.add(beam)
+    model.add(frame1)
+    model.add(joint1)
+    model.add(moment)
+    model.assemble()
+
+    n_steps_per_rotation = 10
+
+    solver = Newton(
+        model,
+        n_load_steps=n_steps_per_rotation * (n_circles + 1),
+        max_iter=30,
+        atol=1.0e-8,
+        numerical_jacobian=False,
+        prox_r_N=1.0e-3,
+    )
+
+    sol = solver.solve()
+    t = sol.t
+    q = sol.q
+
+    ##################################
+    # TODO: Visualize potential energy
+    ##################################
+    E_pot = np.array([model.E_pot(ti, qi) for (ti, qi) in zip(t, q)])
+
+    fig, ax = plt.subplots(1, 2)
+
+    ax[0].plot(t, phi(t))
+    ax[0].set_xlabel("t")
+    ax[0].set_ylabel("phi")
+
+    ax[1].plot(t, E_pot)
+    ax[1].set_xlabel("t")
+    ax[1].set_ylabel("E_pot")
+
+    ###########
+    # animation
+    ###########
+    animate_beam(t, q, beam, L, show=True)
+
+
+if __name__ == "__main__":
+    # tests()
+    objectivity()
