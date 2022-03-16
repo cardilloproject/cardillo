@@ -187,7 +187,7 @@ def objectivity():
     material_model = ShearStiffQuadratic(E1, Fi)
 
     # number of full rotations after deformation
-    n_circles = 1
+    n_circles = 5
     frac_deformation = 1 / (n_circles + 1)
     frac_rotation = 1 - frac_deformation
     print(f"n_circles: {n_circles}")
@@ -232,7 +232,7 @@ def objectivity():
 
     # moment at right end that yields quater circle in t in [0, 0.5] and then 
     # remains constant
-    M = lambda t: np.pi / 4 * smoothstep2(t, 0.0, frac_deformation) * e2 * Fi[1] / L
+    M = lambda t: np.pi / 2 * smoothstep2(t, 0.0, frac_deformation) * e2 * Fi[1] / L
     moment = K_Moment(M, beam, (1,))
     
     # assemble the model
@@ -243,7 +243,7 @@ def objectivity():
     model.add(moment)
     model.assemble()
 
-    n_steps_per_rotation = 10
+    n_steps_per_rotation = 20
 
     solver = Newton(
         model,
