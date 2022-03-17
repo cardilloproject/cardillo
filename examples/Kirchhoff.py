@@ -14,7 +14,7 @@ from cardillo.forces import Force, K_Moment, DistributedForce1D
 from cardillo.model import Model
 from cardillo.solver import Newton
 from cardillo.contacts import Point2Plane
-from cardillo.math import e1, e2, e3, smoothstep2, A_IK_basic
+from cardillo.math import e1, e2, e3, sin, pi, smoothstep2, A_IK_basic
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -187,7 +187,7 @@ def objectivity():
     material_model = ShearStiffQuadratic(E1, Fi)
 
     # number of full rotations after deformation
-    n_circles = 5
+    n_circles = 2
     frac_deformation = 1 / (n_circles + 1)
     frac_rotation = 1 - frac_deformation
     print(f"n_circles: {n_circles}")
@@ -196,15 +196,22 @@ def objectivity():
 
     # junctions
     r_OB0 = np.zeros(3)
-    phi = lambda t: n_circles * 2 * np.pi * smoothstep2(t, frac_deformation, 1.0)
-    A_IK0 = lambda t: A_IK_basic(phi(t)).x()
+    phi = lambda t: n_circles * 2 * pi * smoothstep2(t, frac_deformation, 1.0)
+    phi2 = lambda t: pi / 4 * sin(2 * pi * t)
+    # A_IK0 = lambda t: A_IK_basic(phi(t)).x()
+    A_IK0 = lambda t: A_IK_basic(phi2(t)).z() @ A_IK_basic(phi2(t)).y() @ A_IK_basic(phi(t)).x()
     frame1 = Frame(r_OP=r_OB0, A_IK=A_IK0)
     
     # discretization properties
-    p = 2
+    p = 3
     p_r = p
-    p_phi = p
+    p_phi = p + 1
+    # p_phi = p + 1 # seems to cure the non-objectivity (for p = 2)
+    # p_phi = p + 2 # this truely fixes the objectivity problems (for p = 2)
+    # p_phi = p + 3 # seems to cure the non-objectivity (for p = 3)
+    # p_phi = p + 4 # this truely fixes the objectivity problems (for p = 3)
     # nQP = int(np.ceil((p + 1)**2 / 2))
+    # nQP = max(p_r, p_phi) + 1
     nQP = p + 1
     print(f"nQP: {nQP}")
     nEl = 1
@@ -243,13 +250,14 @@ def objectivity():
     model.add(moment)
     model.assemble()
 
-    n_steps_per_rotation = 20
+    n_steps_per_rotation = 30
 
     solver = Newton(
         model,
         n_load_steps=n_steps_per_rotation * (n_circles + 1),
+        # n_load_steps=2,
         max_iter=30,
-        atol=1.0e-8,
+        atol=1.0e-12,
         numerical_jacobian=False,
         prox_r_N=1.0e-3,
     )
@@ -262,16 +270,51 @@ def objectivity():
     # TODO: Visualize potential energy
     ##################################
     E_pot = np.array([model.E_pot(ti, qi) for (ti, qi) in zip(t, q)])
+    phis = phi(t)
 
-    fig, ax = plt.subplots(1, 2)
+    def alpha(t, q, frame_ID):
+        # local degrees of freedom of the beam
+        qBeam = q[beam.qDOF]
 
-    ax[0].plot(t, phi(t))
+        # identify element degrees of freedom
+        el = beam.element_number(frame_ID[0])
+        elDOF = beam.elDOF[el]
+        qe = qBeam[elDOF]
+
+        # evaluate basis functions and angle
+        N, _ = beam.basis_functions_phi(frame_ID[0])
+
+        # interpolate angle
+        return N @ qe[beam.phiDOF]
+
+    alpha0s = np.array([alpha(ti, qi, (0,)) for (ti, qi) in zip(t, q)])
+    alpha05s = np.array([alpha(ti, qi, (0.5,)) for (ti, qi) in zip(t, q)])
+    alpha1s = np.array([alpha(ti, qi, (1,)) for (ti, qi) in zip(t, q)])
+
+    fig, ax = plt.subplots(1, 3)
+
+    ax[0].plot(t, phis, label="phi")
+    ax[0].plot(t, alpha0s, label="alpha(xi=0)")
+    ax[0].plot(t, alpha05s, label="alpha(xi=0.5)")
+    ax[0].plot(t, alpha1s, label="alpha(xi=1)")
     ax[0].set_xlabel("t")
-    ax[0].set_ylabel("phi")
+    ax[0].set_ylabel("angles")
+    ax[0].grid()
+    ax[0].legend()
 
     ax[1].plot(t, E_pot)
     ax[1].set_xlabel("t")
     ax[1].set_ylabel("E_pot")
+    ax[1].grid()
+
+    idx = np.where(t > frac_deformation)[0]
+    ax[2].plot(t[idx], E_pot[idx])
+    ax[2].set_xlabel("t")
+    ax[2].set_ylabel("E_pot")
+    ax[2].grid()
+
+    plt.show()
+    exit()
 
     ###########
     # animation

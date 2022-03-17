@@ -524,114 +524,89 @@ class Kirchhoff:
         return f
 
     def f_pot_el(self, qe, el):
-        return -approx_fprime(qe, lambda qe: self.E_pot_el(qe, el), method="2-point")
+        # return -approx_fprime(qe, lambda qe: self.E_pot_el(qe, el), method="2-point")
+        
         fe = np.zeros(self.nq_el)
 
         # extract generalized coordinates for beam centerline and directors
         # in the current and reference configuration
         qe_r = qe[self.rDOF]
-        qe_d1 = qe[self.phiDOF]
-        qe_d2 = qe[self.d2DOF]
-        qe_d3 = qe[self.d3DOF]
+        qe_phi = qe[self.phiDOF]
 
         for i in range(self.nQP):
             # build matrix of shape function derivatives
-            NN_di_i = self.stack3di(self.N_phi[el, i])
             NN_r_xii = self.stack3r(self.N_r_xi[el, i])
-            NN_di_xii = self.stack3di(self.N_phi_xi[el, i])
+            NN_r_xixii = self.stack3r(self.N_r_xixi[el, i])
+            NN_phi_i = self.N_phi[el, i]
+            NN_phi_xii = self.N_phi_xi[el, i]
 
             # extract reference state variables
             J0i = self.J0[el, i]
-            Gamma0_i = self.lambda0[el, i]
             Kappa0_i = self.Kappa0[el, i]
-            qwi = self.qw[el, i]
 
             # Interpolate necessary quantities. The derivatives are evaluated w.r.t.
             # the parameter space \xi and thus need to be transformed later
             r_xi = NN_r_xii @ qe_r
+            r_xixi = NN_r_xixii @ qe_r
+            ji = norm(r_xi)
 
-            d1 = NN_di_i @ qe_d1
-            d1_xi = NN_di_xii @ qe_d1
+            phi = NN_phi_i @ qe_phi
+            phi_xi = NN_phi_xii @ qe_phi
 
-            d2 = NN_di_i @ qe_d2
-            d2_xi = NN_di_xii @ qe_d2
-
-            d3 = NN_di_i @ qe_d3
-            d3_xi = NN_di_xii @ qe_d3
-
-            # compute derivatives w.r.t. the arc lenght parameter s
-            r_s = r_xi / J0i
-
-            d1_s = d1_xi / J0i
-            d2_s = d2_xi / J0i
-            d3_s = d3_xi / J0i
+            # compute first director
+            d1 = r_xi / ji
 
             # build rotation matrices
-            R = np.vstack((d1, d2, d3)).T
+            A = smallest_rotation(e1, d1)
+            B = rodriguez(d1 * phi)
+            R = B @ A
+            d1, d2, d3 = R.T
+        
+            # compute curvatures
+            kappa_1 = phi_xi / J0i + r_xixi @ cross3(d1, e1) / ((J0i * ji) * (1 + d1 @ e1)) # Mitterbach2020 (2.83)
+            kappa_2 = -r_xixi @ d3 / (J0i * ji) # Mitterbach2020 (2.56)
+            kappa_3 =  r_xixi @ d2 / (J0i * ji) # Mitterbach2020 (2.56)
 
-            # axial and shear strains
-            Gamma_i = R.T @ r_s
-
-            #################################################################
-            # formulation of Harsch2020b
-            #################################################################
+            # axial strain
+            lambda_ = norm(r_xi) / J0i
 
             # torsional and flexural strains
-            Kappa_i = np.array(
-                [
-                    0.5 * (d3 @ d2_s - d2 @ d3_s),
-                    0.5 * (d1 @ d3_s - d3 @ d1_s),
-                    0.5 * (d2 @ d1_s - d1 @ d2_s),
-                ]
-            )
+            Kappa_i = np.array([kappa_1, kappa_2, kappa_3])
+            
+            # evaluate contact forces and couples
+            n_1 = self.material_model.n_1(lambda_, Kappa_i, Kappa0_i)
+            m_i = self.material_model.m_i(lambda_, Kappa_i, Kappa0_i)
 
-            # compute contact forces and couples from partial derivatives of the strain energy function w.r.t. strain measures
-            n1, n2, n3 = self.material_model.n_i(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
-            m1, m2, m3 = self.material_model.m_i(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
+            # variation of strain measures
+            delta_lambda_r = r_xi @ NN_r_xii / (J0i * ji) # Mitterbach (2.91)
 
-            # quadrature point contribution to element residual
-            fe[self.rDOF] -= NN_r_xii.T @ (n1 * d1 + n2 * d2 + n3 * d3) * qwi
-            fe[self.phiDOF] -= (
-                NN_di_i.T @ (r_xi * n1 + (m2 / 2 * d3_xi - m3 / 2 * d2_xi))
-                + NN_di_xii.T @ (m3 / 2 * d2 - m2 / 2 * d3)
-            ) * qwi
-            fe[self.d2DOF] -= (
-                NN_di_i.T @ (r_xi * n2 + (m3 / 2 * d1_xi - m1 / 2 * d3_xi))
-                + NN_di_xii.T @ (m1 / 2 * d3 - m3 / 2 * d1)
-            ) * qwi
-            fe[self.d3DOF] -= (
-                NN_di_i.T @ (r_xi * n3 + (m1 / 2 * d2_xi - m2 / 2 * d1_xi))
-                + NN_di_xii.T @ (m2 / 2 * d1 - m1 / 2 * d2)
-            ) * qwi
+            C3 = 1 / (J0i * ji**2 * (1 + d1 @ e1))
+            C4 = 1 / (J0i * ji**3 * (1 + d1 @ e1)**2)
+            delta_kappa_1_phi = NN_phi_xii / J0i # Mitterbach (2.99)
+            delta_kappa_1_r = (C3 * cross3(e1, r_xixi) \
+                                - 2 * C3 * (r_xixi @ cross3(r_xi, e1) / ji**2) * r_xi \
+                                - C4 * (r_xixi @ cross3(r_xi, e1)) * e1 \
+                                + C4 * (r_xixi @ cross3(r_xi, e1) * (d1 @ e1)) * d1
+                                ) @ NN_r_xii \
+                                + C3 * cross3(r_xi, e1) @ NN_r_xixii # Mitterbach (2.99)
 
-        #     #################################################################
-        #     # alternative formulation assuming orthogonality of the directors
-        #     #################################################################
+            delta_kappa_2_phi = (r_xixi @ d2 / (J0i * ji)) * NN_phi_i # Mitterbach (2.123)
+            delta_kappa_3_phi = (r_xixi @ d3 / (J0i * ji)) * NN_phi_i # Mitterbach (2.124)
 
-        #     # torsional and flexural strains
-        #     Kappa_i = np.array([d3 @ d2_s, \
-        #                         d1 @ d3_s, \
-        #                         d2 @ d1_s])
+            delta_kappa_2_r = ((r_xixi @ d3) / (J0i * ji**2) * d1 \
+                                + (r_xixi @ d1) / (J0i * ji**2) * d3 \
+                                + (r_xixi @ d2) / (J0i * ji**2 * (1 + d1 @ e1)) * cross3(d1, e1)
+                                ) @ NN_r_xii \
+                                - d3 @ NN_r_xixii / (J0i * ji) # Mitterbach (2.123)
 
-        #     # compute contact forces and couples from partial derivatives of the strain energy function w.r.t. strain measures
-        #     n_i = self.material_model.n_i(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
-        #     # n = n_i[0] * d1 + n_i[1] * d2 + n_i[2] * d3
-        #     # n = R @ n_i
-        #     m_i = self.material_model.m_i(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
-        #     # m = m_i[0] * d1 + m_i[1] * d2 + m_i[2] * d3
-        #     # m = R @ m_i
+            delta_kappa_3_r = (- (r_xixi @ d2) / (J0i * ji**2) * d1 \
+                                - (r_xixi @ d1) / (J0i * ji**2) * d2 \
+                                + (r_xixi @ d3) / (J0i * ji**2 * (1 + d1 @ e1)) * cross3(d1, e1)
+                                ) @ NN_r_xii \
+                                + d2 @ NN_r_xixii / (J0i * ji) # Mitterbach (2.124)
 
-        #     # new version
-        #     # quadrature point contribution to element residual
-        #     n1, n2, n3 = n_i
-        #     m1, m2, m3 = m_i
-        #     fe[self.rDOF] -=  NN_r_xii.T @ ( n1 * d1 + n2 * d2 + n3 * d3 ) * qwi # delta r'
-        #     fe[self.d1DOF] -= ( NN_di_i.T @ ( r_xi * n1 + m2 * d3_xi ) # delta d1 \
-        #                         + NN_di_xii.T @ ( m3 * d2 ) ) * qwi    # delta d1'
-        #     fe[self.d2DOF] -= ( NN_di_i.T @ ( r_xi * n2 + m3 * d1_xi ) # delta d2 \
-        #                         + NN_di_xii.T @ ( m1 * d3 ) ) * qwi    # delta d2'
-        #     fe[self.d3DOF] -= ( NN_di_i.T @ ( r_xi * n3 + m1 * d2_xi ) # delta d3 \
-        #                         + NN_di_xii.T @ ( m2 * d1 ) ) * qwi    # delta d3'
+            fe[self.rDOF] -= (n_1 * delta_lambda_r + m_i[0] * delta_kappa_1_r + m_i[1] * delta_kappa_2_r + m_i[2] * delta_kappa_3_r) * J0i * self.qw[el, i]
+            fe[self.phiDOF] -= (m_i[0] * delta_kappa_1_phi + m_i[1] * delta_kappa_2_phi + m_i[2] * delta_kappa_3_phi) * J0i * self.qw[el, i]
 
         return fe
 
