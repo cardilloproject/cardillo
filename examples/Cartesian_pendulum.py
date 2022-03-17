@@ -150,8 +150,7 @@ if __name__ == "__main__":
 
     # end time and numerical dissipation of generalized-alpha solver
     t1 = 1
-    # rho_inf = 0.85
-    rho_inf = 0.95
+    rho_inf = 0.85 # numerical damping is required to reduce oszillations of the Lagrange multipliers
 
     # log spaced time steps
     num = 5

@@ -1035,12 +1035,12 @@ class GenAlphaFirstOrderVelocity:
         t1,
         dt,
         rho_inf=1,
-        tol=1e-8,
+        tol=1e-10,
         max_iter=40,
         error_function=lambda x: np.max(np.abs(x)),
         numerical_jacobian=False,
         DAE_index=3,
-        preconditioning=True,
+        preconditioning=False,
     ):
 
         self.model = model
@@ -1105,10 +1105,18 @@ class GenAlphaFirstOrderVelocity:
                              [        None,         None, eye(self.nla_g) / dt,                     None],
                              [        None,         None,                 None, eye(self.nla_gamma) / dt]])
 
-            self.D_R = bmat([[eye(self.nq),         None,                 None,                     None],
+            # self.D_R = bmat([[eye(self.nq) / dt,         None,                 None,                     None],
+            #                  [        None, eye(self.nu),                 None,                     None],
+            #                  [        None,         None, eye(self.nla_g) / dt**2,                     None],
+            #                  [        None,         None,                 None, eye(self.nla_gamma) / dt**2]])
+            self.D_R = bmat([[eye(self.nq) * dt,         None,                 None,                     None],
                              [        None, eye(self.nu),                 None,                     None],
-                             [        None,         None, eye(self.nla_g) / dt,                     None],
-                             [        None,         None,                 None, eye(self.nla_gamma) / dt]])
+                             [        None,         None, eye(self.nla_g) * dt**2,                     None],
+                             [        None,         None,                 None, eye(self.nla_gamma) * dt**2]])
+            # self.D_R = bmat([[eye(self.nq),         None,                 None,                     None],
+            #                  [        None, eye(self.nu),                 None,                     None],
+            #                  [        None,         None, eye(self.nla_g) * dt,                     None],
+            #                  [        None,         None,                 None, eye(self.nla_gamma) * dt]])
             # fmt: on
 
         #######################################################################
@@ -1519,13 +1527,23 @@ class GenAlphaFirstOrderVelocity:
                     # TODO: It this efficient? Blas level 3 and blas level 2
                     #       operation shouldn't be that bad for sparse
                     #       matrices.
-                    dx = spsolve(
-                        self.D_L @ R_x @ self.D_R, self.D_L @ R, use_umfpack=True
-                    )
-                    xk1 -= self.D_R @ dx
-                    # dx = spsolve(R_x @ self.D_R, R, use_umfpack=True)
+
+                    # # left and right preconditioner
+                    # dx = spsolve(
+                    #     self.D_L @ R_x @ self.D_R, self.D_L @ R, use_umfpack=True
+                    # )
                     # xk1 -= self.D_R @ dx
+
+                    # right preconditioner
+                    dx = spsolve(R_x @ self.D_R, R, use_umfpack=True)
+                    xk1 -= self.D_R @ dx
+
+                    # # left preconditioner
                     # dx = spsolve(self.D_L @ R_x, self.D_L @ R, use_umfpack=True)
+                    # xk1 -= dx
+
+                    # # no preconditioner
+                    # dx = spsolve(R_x, R, use_umfpack=True)
                     # xk1 -= dx
                 else:
                     dx = spsolve(R_x, R, use_umfpack=True)

@@ -10,7 +10,7 @@ from cardillo.model.bilateral_constraints.implicit import SphericalJoint
 from cardillo.math.algebra import cross3, ax2skew
 from cardillo.math import approx_fprime
 from cardillo.model import Model
-from cardillo.solver import ScipyIVP, Moreau, EulerBackward
+from cardillo.solver import ScipyIVP, Moreau, EulerBackward, GenAlphaFirstOrderVelocity, GenAlphaFirstOrderVelocityGGL
 
 
 class HeavyTop2(RigidBodyEuler):
@@ -423,7 +423,7 @@ if __name__ == "__main__":
     num = 1
     # dts = np.logspace(-1, -num, num=num, endpoint=True)
     # dts = np.array([2.5e-3])
-    dts = np.array([1e-3])
+    dts = np.array([1e-4])
     dts_1 = dts
     dts_2 = dts**2
     print(f"dts: {dts}")
@@ -461,7 +461,8 @@ if __name__ == "__main__":
         # yet implemented solvers
         # sol_GenAlphaFirstOrderGGl = ScipyIVP(model, t1, dt).solve()
         # sol_GenAlphaFirstOrderGGl = Moreau(model, t1, dt).solve()
-        sol_GenAlphaFirstOrderGGl = EulerBackward(model, t1, dt).solve()
+        # sol_GenAlphaFirstOrderGGl = EulerBackward(model, t1, dt).solve()
+        sol_GenAlphaFirstOrderGGl = GenAlphaFirstOrderVelocity(model, t1, dt).solve()
 
         # solve with generalzed-alpha method positin implementation
         # sol_GenAlphaFirstOrderGGl = GenAlphaFirstOrderVelocityGGL(model, t1, dt, rho_inf=rho_inf).solve()
