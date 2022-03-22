@@ -316,7 +316,7 @@ def B_spline_basis3D(degrees, derivative_order, knot_vectors, knots):
 
 # fitting
 def fit_B_spline_curve(points, degree, nEl, fixFirst=True, fixLast=True):
-    r"""Fits a B-spline polynomial curve of degree p and with nEl elements to a 
+    r"""Fits a B-spline polynomial curve of degree p and with nEl elements to a
     spatial curve defined by a set of points P.
 
     Parameters
