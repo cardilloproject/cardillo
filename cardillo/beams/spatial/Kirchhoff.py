@@ -6,7 +6,9 @@ from cardillo.utility.coo import Coo
 from cardillo.discretization import uniform_knot_vector
 from cardillo.discretization.B_spline import Knot_vector
 from cardillo.math import (
-    e1, e2, e3,
+    e1,
+    e2,
+    e3,
     pi,
     norm,
     cross3,
@@ -16,7 +18,7 @@ from cardillo.math import (
     rodriguez_inv,
     approx_fprime,
     sign,
-    atan2
+    atan2,
 )
 from cardillo.discretization.mesh1D import Mesh1D
 
@@ -335,7 +337,7 @@ class Kirchhoff:
         qe_phi = qe[self.phiDOF]
 
         if objective:
-            # objective interpolation of strain measures requires the evaluation 
+            # objective interpolation of strain measures requires the evaluation
             # of the smalles rotation at the element boundaries
             # - left
             xi_l = self.knot_vector_r.element_data[el]
@@ -352,16 +354,16 @@ class Kirchhoff:
             # - relative smallest rotation between left and right element boundary
             A_lr = smallest_rotation(d1_l, d1_r)
 
-            # - compute the difference rotation angle between 
+            # - compute the difference rotation angle between
             #   (a) the pure smalles rotation of the right boundary and
-            #   (b) the concatenation between the pure smallest rotation of the 
-            #       left boundary and the relative smallest rotation between both 
+            #   (b) the concatenation between the pure smallest rotation of the
+            #       left boundary and the relative smallest rotation between both
             #       boundaries
             d1_r, d2_r, d3_r = A_r.T
             d1_lr, d2_lr, d3_lr = (A_lr @ A_l).T
 
             # Finally extract the scalar rotation angle between both formulations.
-            # This angle is later interpolated linearly which cures the loss of 
+            # This angle is later interpolated linearly which cures the loss of
             # objectivity.
             # TODO: Document this extraction!
             phi_lr = atan2(d3_lr @ d2_r, d2_lr @ d2_r)
@@ -429,15 +431,11 @@ class Kirchhoff:
                 def kappa_C(e1, d1, phi, phi_xi, r_xixi, ji, J0i):
                     if False:
                         # with pi around e2
-                        A_pi = np.array([
-                            [-1, 0,  0],
-                            [ 0, 1,  0],
-                            [ 0, 0, -1]
-                        ])
+                        A_pi = np.array([[-1, 0, 0], [0, 1, 0], [0, 0, -1]])
                         # fmt: on
 
                         A_C = smallest_rotation(-e1, d1) @ A_pi
-                    
+
                         # additional rotation by phi around d1
                         # B = rodriguez(d1 * phi)
                         B_C = rodriguez(d1 * (2 * pi - phi))
@@ -475,7 +473,7 @@ class Kirchhoff:
                         )
 
                     # TODO: Test singular case:
-                    # For this case rodriguez(-pi * n_C) yields identity but not a 
+                    # For this case rodriguez(-pi * n_C) yields identity but not a
                     # rotation with pi around some axis!
                     d1 = -e1
                     d1 = -e1 + np.random.rand(3) * 1.0e-3
@@ -486,7 +484,7 @@ class Kirchhoff:
                     n_C = e1xd1_C / norm(e1xd1_C)
                     A_pi = rodriguez(-pi * n_C)
                     A_C = smallest_rotation(-e1, d1) @ A_pi
-                    
+
                     # additional rotation by phi around d1
                     B = rodriguez(d1 * phi)
                     B_C = rodriguez(d1 * phi)
@@ -520,9 +518,8 @@ class Kirchhoff:
                             (d2 @ r_xixi) / (J0i * ji),
                         ]
                     )
-                    
-                    return A_C, B_C, Kappa_i
 
+                    return A_C, B_C, Kappa_i
 
                 if sign_cos >= 0:
                     A, B, Kappa_i = kappa(e1, d1, phi, phi_xi, r_xixi, ji, J0i)
@@ -589,16 +586,16 @@ class Kirchhoff:
                 #   and current material cooridante xi
                 A_lxi = smallest_rotation(d1_l, d1)
 
-                # compute composed rotation from left node and relative 
+                # compute composed rotation from left node and relative
                 # rotation introduced above
                 A = A_lxi @ A_l
                 d1_, d2_, d3_ = A.T
 
-                # # - compute the difference rotation angle between 
+                # # - compute the difference rotation angle between
                 # #   (a) the pure smalles rotation at materialpoint xi
-                # #   (b) the concatenation between the pure smallest rotation 
-                # #       of the left boundary and the relative smallest 
-                # #       rotation between the left boundary and the material 
+                # #   (b) the concatenation between the pure smallest rotation
+                # #       of the left boundary and the relative smallest
+                # #       rotation between the left boundary and the material
                 # #       point xi
                 # d1_, d2_, d3_ = A.T
                 # d1_lxi, d2_lxi, d3_lxi = (A_lxi @ A_l).T
@@ -621,7 +618,7 @@ class Kirchhoff:
                 #       * d1 = d1_, d1_l?
                 B = rodriguez(d1 * (phi + phi_rel))
             else:
-                # build smallest rotation at given quadrature point and exract 
+                # build smallest rotation at given quadrature point and exract
                 # respective directors
                 A = smallest_rotation(e1, d1)
 
@@ -663,7 +660,7 @@ class Kirchhoff:
 
     def f_pot_el(self, qe, el):
         return -approx_fprime(qe, lambda qe: self.E_pot_el(qe, el), method="2-point")
-        
+
         fe = np.zeros(self.nq_el)
 
         # extract generalized coordinates for beam centerline and directors
@@ -699,52 +696,81 @@ class Kirchhoff:
             B = rodriguez(d1 * phi)
             R = B @ A
             d1, d2, d3 = R.T
-        
+
             # compute curvatures
-            kappa_1 = phi_xi / J0i + r_xixi @ cross3(d1, e1) / ((J0i * ji) * (1 + d1 @ e1)) # Mitterbach2020 (2.83)
-            kappa_2 = -r_xixi @ d3 / (J0i * ji) # Mitterbach2020 (2.56)
-            kappa_3 =  r_xixi @ d2 / (J0i * ji) # Mitterbach2020 (2.56)
+            kappa_1 = phi_xi / J0i + r_xixi @ cross3(d1, e1) / (
+                (J0i * ji) * (1 + d1 @ e1)
+            )  # Mitterbach2020 (2.83)
+            kappa_2 = -r_xixi @ d3 / (J0i * ji)  # Mitterbach2020 (2.56)
+            kappa_3 = r_xixi @ d2 / (J0i * ji)  # Mitterbach2020 (2.56)
 
             # axial strain
             lambda_ = norm(r_xi) / J0i
 
             # torsional and flexural strains
             Kappa_i = np.array([kappa_1, kappa_2, kappa_3])
-            
+
             # evaluate contact forces and couples
             n_1 = self.material_model.n_1(lambda_, Kappa_i, Kappa0_i)
             m_i = self.material_model.m_i(lambda_, Kappa_i, Kappa0_i)
 
             # variation of strain measures
-            delta_lambda_r = r_xi @ NN_r_xii / (J0i * ji) # Mitterbach (2.91)
+            delta_lambda_r = r_xi @ NN_r_xii / (J0i * ji)  # Mitterbach (2.91)
 
             C3 = 1 / (J0i * ji**2 * (1 + d1 @ e1))
-            C4 = 1 / (J0i * ji**3 * (1 + d1 @ e1)**2)
-            delta_kappa_1_phi = NN_phi_xii / J0i # Mitterbach (2.99)
-            delta_kappa_1_r = (C3 * cross3(e1, r_xixi) \
-                                - 2 * C3 * (r_xixi @ cross3(r_xi, e1) / ji**2) * r_xi \
-                                - C4 * (r_xixi @ cross3(r_xi, e1)) * e1 \
-                                + C4 * (r_xixi @ cross3(r_xi, e1) * (d1 @ e1)) * d1
-                                ) @ NN_r_xii \
-                                + C3 * cross3(r_xi, e1) @ NN_r_xixii # Mitterbach (2.99)
+            C4 = 1 / (J0i * ji**3 * (1 + d1 @ e1) ** 2)
+            delta_kappa_1_phi = NN_phi_xii / J0i  # Mitterbach (2.99)
+            delta_kappa_1_r = (
+                C3 * cross3(e1, r_xixi)
+                - 2 * C3 * (r_xixi @ cross3(r_xi, e1) / ji**2) * r_xi
+                - C4 * (r_xixi @ cross3(r_xi, e1)) * e1
+                + C4 * (r_xixi @ cross3(r_xi, e1) * (d1 @ e1)) * d1
+            ) @ NN_r_xii + C3 * cross3(
+                r_xi, e1
+            ) @ NN_r_xixii  # Mitterbach (2.99)
 
-            delta_kappa_2_phi = (r_xixi @ d2 / (J0i * ji)) * NN_phi_i # Mitterbach (2.123)
-            delta_kappa_3_phi = (r_xixi @ d3 / (J0i * ji)) * NN_phi_i # Mitterbach (2.124)
+            delta_kappa_2_phi = (
+                r_xixi @ d2 / (J0i * ji)
+            ) * NN_phi_i  # Mitterbach (2.123)
+            delta_kappa_3_phi = (
+                r_xixi @ d3 / (J0i * ji)
+            ) * NN_phi_i  # Mitterbach (2.124)
 
-            delta_kappa_2_r = ((r_xixi @ d3) / (J0i * ji**2) * d1 \
-                                + (r_xixi @ d1) / (J0i * ji**2) * d3 \
-                                + (r_xixi @ d2) / (J0i * ji**2 * (1 + d1 @ e1)) * cross3(d1, e1)
-                                ) @ NN_r_xii \
-                                - d3 @ NN_r_xixii / (J0i * ji) # Mitterbach (2.123)
+            delta_kappa_2_r = (
+                (r_xixi @ d3) / (J0i * ji**2) * d1
+                + (r_xixi @ d1) / (J0i * ji**2) * d3
+                + (r_xixi @ d2) / (J0i * ji**2 * (1 + d1 @ e1)) * cross3(d1, e1)
+            ) @ NN_r_xii - d3 @ NN_r_xixii / (
+                J0i * ji
+            )  # Mitterbach (2.123)
 
-            delta_kappa_3_r = (- (r_xixi @ d2) / (J0i * ji**2) * d1 \
-                                - (r_xixi @ d1) / (J0i * ji**2) * d2 \
-                                + (r_xixi @ d3) / (J0i * ji**2 * (1 + d1 @ e1)) * cross3(d1, e1)
-                                ) @ NN_r_xii \
-                                + d2 @ NN_r_xixii / (J0i * ji) # Mitterbach (2.124)
+            delta_kappa_3_r = (
+                -(r_xixi @ d2) / (J0i * ji**2) * d1
+                - (r_xixi @ d1) / (J0i * ji**2) * d2
+                + (r_xixi @ d3) / (J0i * ji**2 * (1 + d1 @ e1)) * cross3(d1, e1)
+            ) @ NN_r_xii + d2 @ NN_r_xixii / (
+                J0i * ji
+            )  # Mitterbach (2.124)
 
-            fe[self.rDOF] -= (n_1 * delta_lambda_r + m_i[0] * delta_kappa_1_r + m_i[1] * delta_kappa_2_r + m_i[2] * delta_kappa_3_r) * J0i * self.qw[el, i]
-            fe[self.phiDOF] -= (m_i[0] * delta_kappa_1_phi + m_i[1] * delta_kappa_2_phi + m_i[2] * delta_kappa_3_phi) * J0i * self.qw[el, i]
+            fe[self.rDOF] -= (
+                (
+                    n_1 * delta_lambda_r
+                    + m_i[0] * delta_kappa_1_r
+                    + m_i[1] * delta_kappa_2_r
+                    + m_i[2] * delta_kappa_3_r
+                )
+                * J0i
+                * self.qw[el, i]
+            )
+            fe[self.phiDOF] -= (
+                (
+                    m_i[0] * delta_kappa_1_phi
+                    + m_i[1] * delta_kappa_2_phi
+                    + m_i[2] * delta_kappa_3_phi
+                )
+                * J0i
+                * self.qw[el, i]
+            )
 
         return fe
 

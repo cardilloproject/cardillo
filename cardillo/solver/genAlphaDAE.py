@@ -1095,9 +1095,9 @@ class GenAlphaFirstOrderVelocity:
         self.preconditioning = preconditioning
         if preconditioning:
             # raise RuntimeError("This is not working as expected!")
-            # TODO: Scaling of second equation by h and solving for h u_dot 
-            # comes from the fact that we know that u_dot are accelerations, 
-            # so for having consisten units this equations has to be scaled. 
+            # TODO: Scaling of second equation by h and solving for h u_dot
+            # comes from the fact that we know that u_dot are accelerations,
+            # so for having consisten units this equations has to be scaled.
             # This might not be correct in the sense of a preconditioner.
             # fmt: off
             self.D_L = bmat([[eye(self.nq),         None,                 None,                     None],

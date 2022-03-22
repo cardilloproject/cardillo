@@ -648,6 +648,7 @@ class Cable:
 
             K_Omega = cross3(d1, d1_dot)
         else:
+
             def Omega(e1, d1, r_xi_dot, ji):
                 # build rotation matrices
                 A = smallest_rotation(e1, d1)

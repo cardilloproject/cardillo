@@ -10,7 +10,13 @@ from cardillo.model.bilateral_constraints.implicit import SphericalJoint
 from cardillo.math.algebra import cross3, ax2skew
 from cardillo.math import approx_fprime
 from cardillo.model import Model
-from cardillo.solver import ScipyIVP, Moreau, EulerBackward, GenAlphaFirstOrderVelocity, GenAlphaFirstOrderVelocityGGL
+from cardillo.solver import (
+    ScipyIVP,
+    Moreau,
+    EulerBackward,
+    GenAlphaFirstOrderVelocity,
+    GenAlphaFirstOrderVelocityGGL,
+)
 
 
 class HeavyTop2(RigidBodyEuler):

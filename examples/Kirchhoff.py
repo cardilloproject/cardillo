@@ -22,6 +22,7 @@ import matplotlib.pyplot as plt
 # case = "Cable"
 case = "Kirchhoff"
 
+
 def tests():
     # physical properties of the beam
     A_rho0 = 1
@@ -199,10 +200,14 @@ def objectivity():
     phi = lambda t: n_circles * 2 * pi * smoothstep2(t, frac_deformation, 1.0)
     phi2 = lambda t: pi / 4 * sin(2 * pi * t)
     # A_IK0 = lambda t: A_IK_basic(phi(t)).x()
-    A_IK0 = lambda t: A_IK_basic(phi2(t)).z() @ A_IK_basic(phi2(t)).y() @ A_IK_basic(phi(t)).x()
+    A_IK0 = (
+        lambda t: A_IK_basic(phi2(t)).z()
+        @ A_IK_basic(phi2(t)).y()
+        @ A_IK_basic(phi(t)).x()
+    )
     # A_IK0 = lambda t: np.eye(3)
     frame1 = Frame(r_OP=r_OB0, A_IK=A_IK0)
-    
+
     # discretization properties
     p = 2
     p_r = p
@@ -215,7 +220,7 @@ def objectivity():
     # p_phi = p + 4 # this truely fixes the objectivity problems (for p = 3)
     # nQP = int(np.ceil((p + 1)**2 / 2))
     # nQP = max(p_r, p_phi) + 1
-    nQP = p + 1 # reduced integration cuures nonobjectivity for p=2
+    nQP = p + 1  # reduced integration cuures nonobjectivity for p=2
     # objective pairs:
     # - p=2, p_r=p, p_phi=p+1, nQP=p+1 # reduced integration cures nonobjectivity
     # - p=3, ???
@@ -243,15 +248,22 @@ def objectivity():
     # left and right joint
     joint1 = RigidConnection(frame1, beam, r_OB0, frame_ID2=(0,))
 
-    # moment at right end that yields quater circle for t in [0, frac_deforation] and then 
+    # moment at right end that yields quater circle for t in [0, frac_deforation] and then
     # remains constant
     # M = lambda t: 2 * np.pi * smoothstep2(t, 0.0, frac_deformation) * e1 * Fi[0] / L
     # M = lambda t: np.pi / 2 * smoothstep2(t, 0.0, frac_deformation) * e2 * Fi[1] / L
-    # momen at right end that yields a quater helix for t in [0, frac_deforation] and then 
+    # momen at right end that yields a quater helix for t in [0, frac_deforation] and then
     # remains constant
-    M = lambda t: np.pi / 2 * smoothstep2(t, 0.0, frac_deformation) * np.array([1, 0, 1]) * Fi[1] / L
+    M = (
+        lambda t: np.pi
+        / 2
+        * smoothstep2(t, 0.0, frac_deformation)
+        * np.array([1, 0, 1])
+        * Fi[1]
+        / L
+    )
     moment = K_Moment(M, beam, (1,))
-    
+
     # assemble the model
     model = Model()
     model.add(beam)
