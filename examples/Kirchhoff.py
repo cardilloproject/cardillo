@@ -187,7 +187,7 @@ def objectivity():
     material_model = ShearStiffQuadratic(E1, Fi)
 
     # number of full rotations after deformation
-    n_circles = 2
+    n_circles = 1
     frac_deformation = 1 / (n_circles + 1)
     frac_rotation = 1 - frac_deformation
     print(f"n_circles: {n_circles}")
@@ -200,21 +200,27 @@ def objectivity():
     phi2 = lambda t: pi / 4 * sin(2 * pi * t)
     # A_IK0 = lambda t: A_IK_basic(phi(t)).x()
     A_IK0 = lambda t: A_IK_basic(phi2(t)).z() @ A_IK_basic(phi2(t)).y() @ A_IK_basic(phi(t)).x()
+    # A_IK0 = lambda t: np.eye(3)
     frame1 = Frame(r_OP=r_OB0, A_IK=A_IK0)
     
     # discretization properties
-    p = 3
+    p = 2
     p_r = p
-    p_phi = p + 1
+    p_phi = p
+    # p_phi = p + 1
+    # p_phi = p + 2
     # p_phi = p + 1 # seems to cure the non-objectivity (for p = 2)
     # p_phi = p + 2 # this truely fixes the objectivity problems (for p = 2)
     # p_phi = p + 3 # seems to cure the non-objectivity (for p = 3)
     # p_phi = p + 4 # this truely fixes the objectivity problems (for p = 3)
     # nQP = int(np.ceil((p + 1)**2 / 2))
     # nQP = max(p_r, p_phi) + 1
-    nQP = p + 1
+    nQP = p + 1 # reduced integration cuures nonobjectivity for p=2
+    # objective pairs:
+    # - p=2, p_r=p, p_phi=p+1, nQP=p+1 # reduced integration cures nonobjectivity
+    # - p=3, ???
     print(f"nQP: {nQP}")
-    nEl = 1
+    nEl = 3
 
     # build reference configuration
     Q = Kirchhoff.straight_configuration(p_r, p_phi, nEl, L)
@@ -237,9 +243,13 @@ def objectivity():
     # left and right joint
     joint1 = RigidConnection(frame1, beam, r_OB0, frame_ID2=(0,))
 
-    # moment at right end that yields quater circle in t in [0, 0.5] and then 
+    # moment at right end that yields quater circle for t in [0, frac_deforation] and then 
     # remains constant
-    M = lambda t: np.pi / 2 * smoothstep2(t, 0.0, frac_deformation) * e2 * Fi[1] / L
+    # M = lambda t: 2 * np.pi * smoothstep2(t, 0.0, frac_deformation) * e1 * Fi[0] / L
+    # M = lambda t: np.pi / 2 * smoothstep2(t, 0.0, frac_deformation) * e2 * Fi[1] / L
+    # momen at right end that yields a quater helix for t in [0, frac_deforation] and then 
+    # remains constant
+    M = lambda t: np.pi / 2 * smoothstep2(t, 0.0, frac_deformation) * np.array([1, 0, 1]) * Fi[1] / L
     moment = K_Moment(M, beam, (1,))
     
     # assemble the model
@@ -250,16 +260,14 @@ def objectivity():
     model.add(moment)
     model.assemble()
 
+    # n_steps_per_rotation = 40
     n_steps_per_rotation = 30
 
     solver = Newton(
         model,
         n_load_steps=n_steps_per_rotation * (n_circles + 1),
-        # n_load_steps=2,
         max_iter=30,
-        atol=1.0e-12,
-        numerical_jacobian=False,
-        prox_r_N=1.0e-3,
+        atol=1.0e-8,
     )
 
     sol = solver.solve()
@@ -270,7 +278,7 @@ def objectivity():
     # TODO: Visualize potential energy
     ##################################
     E_pot = np.array([model.E_pot(ti, qi) for (ti, qi) in zip(t, q)])
-    phis = phi(t)
+    # phis = phi(t)
 
     def alpha(t, q, frame_ID):
         # local degrees of freedom of the beam
@@ -293,7 +301,7 @@ def objectivity():
 
     fig, ax = plt.subplots(1, 3)
 
-    ax[0].plot(t, phis, label="phi")
+    # ax[0].plot(t, phis, label="phi")
     ax[0].plot(t, alpha0s, label="alpha(xi=0)")
     ax[0].plot(t, alpha05s, label="alpha(xi=0.5)")
     ax[0].plot(t, alpha1s, label="alpha(xi=1)")
@@ -313,8 +321,24 @@ def objectivity():
     ax[2].set_ylabel("E_pot")
     ax[2].grid()
 
-    plt.show()
-    exit()
+    # visualize final centerline projected in all three planes
+    r_OPs = beam.centerline(q[-1])
+    fig, ax = plt.subplots(1, 3)
+    ax[0].plot(r_OPs[0, :], r_OPs[1, :], label="x-y")
+    ax[1].plot(r_OPs[1, :], r_OPs[2, :], label="y-z")
+    ax[2].plot(r_OPs[2, :], r_OPs[0, :], label="z-x")
+    ax[0].grid()
+    ax[0].legend()
+    ax[0].set_aspect(1)
+    ax[1].grid()
+    ax[1].legend()
+    ax[1].set_aspect(1)
+    ax[2].grid()
+    ax[2].legend()
+    ax[2].set_aspect(1)
+
+    # plt.show()
+    # exit()
 
     ###########
     # animation
