@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
 
-def animate_beam(t, q, beam, scale, scale_di=1, show=True):
+def animate_beam(t, q, beam, scale, scale_di=1, n_r=100, n_frames=10, show=True):
     fig, ax = plt.subplots(figsize=(8, 8), subplot_kw=dict(projection="3d"))
     ax.set_xlabel("x [m]")
     ax.set_ylabel("y [m]")
@@ -24,8 +24,7 @@ def animate_beam(t, q, beam, scale, scale_di=1, show=True):
 
     # animated objects
     (nodes,) = ax.plot(*beam.nodes(q[0]), "--ob")
-    (center_line,) = ax.plot(*beam.centerline(q[0]), "-k")
-    n_frames = 25
+    (center_line,) = ax.plot(*beam.centerline(q[0], n=n_r), "-k")
     r, d1, d2, d3 = beam.frames(q[0], n=n_frames)
     d1 *= scale_di
     d2 *= scale_di
@@ -42,7 +41,7 @@ def animate_beam(t, q, beam, scale, scale_di=1, show=True):
         nodes.set_3d_properties(z)
 
         # beam centerline
-        x, y, z = beam.centerline(q)
+        x, y, z = beam.centerline(q, n=n_r)
         center_line.set_data(x, y)
         center_line.set_3d_properties(z)
 
@@ -72,7 +71,7 @@ def animate_beam(t, q, beam, scale, scale_di=1, show=True):
     def animate(i):
         update(t[i], q[i])
 
-    anim = FuncAnimation(fig, animate, frames=frames, interval=interval * 2, blit=False)
+    anim = FuncAnimation(fig, animate, frames=frames, interval=interval, blit=False)
     if show:
         plt.show()
     return anim

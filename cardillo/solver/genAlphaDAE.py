@@ -1247,20 +1247,26 @@ class GenAlphaFirstOrderVelocity:
         gamma0 = model.gamma(self.tk, self.qk, self.uk)
         gamma_dot0 = model.gamma_dot(self.tk, self.qk, self.uk, self.u_dotk)
 
+        # TODO: These tolerances should be used defined. Maybe all these 
+        #       initial computations and checks should be moved to a 
+        #       SolverOptions object ore something similar?
+        rtol = 1.0e-5
+        atol = 1.0e-5
+
         assert np.allclose(
-            g0, np.zeros(self.nla_g)
+            g0, np.zeros(self.nla_g), rtol, atol
         ), "Initial conditions do not fulfill g0!"
         assert np.allclose(
-            g_dot0, np.zeros(self.nla_g)
+            g_dot0, np.zeros(self.nla_g), rtol, atol
         ), "Initial conditions do not fulfill g_dot0!"
         assert np.allclose(
-            g_ddot0, np.zeros(self.nla_g)
+            g_ddot0, np.zeros(self.nla_g), rtol, atol
         ), "Initial conditions do not fulfill g_ddot0!"
         assert np.allclose(
             gamma0, np.zeros(self.nla_gamma)
         ), "Initial conditions do not fulfill gamma0!"
         assert np.allclose(
-            gamma_dot0, np.zeros(self.nla_gamma)
+            gamma_dot0, np.zeros(self.nla_gamma), rtol, atol
         ), "Initial conditions do not fulfill gamma_dot0!"
 
     def update(self, y_dotk1, store=False):

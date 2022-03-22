@@ -14,12 +14,13 @@ from cardillo.solver import Newton, GenAlphaFirstOrderVelocity
 
 import numpy as np
 import os
+import matplotlib.pyplot as plt
 
 # c = 6.5e-3 # best eccentricity - n = 10
 c = 7.25e-3  # best eccentricity - n = 20
 
-statics = True
-# statics = False
+# statics = True
+statics = False
 
 # save = True
 save = False
@@ -212,11 +213,6 @@ if __name__ == "__main__":
     p_di = p  # TODO: Do we want p_di = p - 1 here?
     nQP = int(np.ceil((p**2 + 1) / 2)) + 1  # dynamics
     print(f"nQP: {nQP}")
-    # nEl = 4 # 1 turn
-    nEl = 16  # 2 turns
-    # nEl = 32 # 5 turns
-    # nEl = 64 # 10 turns
-    # nEl = 128 # 20 turns
 
     #############################
     # fit reference configuration
@@ -224,13 +220,29 @@ if __name__ == "__main__":
     coil_diameter = 32.0e-3  # 32mm
     coil_radius = coil_diameter / 2
     pitch_unloaded = 1.0e-3  # 1mm
-    # turns = 0.5
-    turns = 2
-    # turns = 5
+    # turns = 1
+    # turns = 2
+    turns = 5
     # turns = 10
-    # turns = 20 # used in the paper
-    nxi = 1000
-    # nxi = 10000 # used in the paper
+    # turns = 20  # used in the paper
+    # nxi = 1000
+    nxi = 10000 # used in the paper
+
+    #########################
+    # number of beam elements
+    #########################
+    # # nEl = 4 # 1 turn
+    # nEl = 16  # 2 turns
+    # # nEl = 32 # 5 turns
+    # # nEl = 64 # 10 turns
+    # # nEl = 128 # 20 turns
+
+    # chose the numbe rof elements that are required to describe a full spring turn
+    # nEl_turn = 4
+    nEl_turn = 6
+    # nEl_turn = 8
+
+    nEl = turns * nEl_turn
 
     # evaluate helixa at discrete points
     xi = np.linspace(0, turns, nxi)
@@ -309,17 +321,19 @@ if __name__ == "__main__":
     max_iter = 30
     atol = 1.0e-6
 
-    t1 = 1.0e-1
+    t1 = 5.0e-2
+    # t1 = 1
     # t1 = 5
     # t1 = 20 # used for the paper
     # dt = 5e-4 # used timestep for paper
-    dt = 1e-3  # largest possible timestep
+    # dt = 1e-3  # largest possible timestep for old gen alpha solver
+    dt = 5e-3
 
     model = Model()
 
     model.add(frame)
     model.add(beam)
-    model.add(f_g_beam)
+    # model.add(f_g_beam) # TODO: Enable this again?
     model.add(junction_frame_beam)
 
     model.add(bob)
@@ -332,52 +346,44 @@ if __name__ == "__main__":
         # n_load_steps = 2
         solver = Newton(model, n_load_steps=n_load_steps, max_iter=max_iter, atol=atol)
     else:
-        # # build algebraic degrees of freedom indices for multiple beams
-        # tmp = int(beam.nu / 4)
-        # uDOF_algebraic = beam.uDOF[tmp:2*tmp] # include whole beam dynamics
-        # # uDOF_algebraic = beam.uDOF[tmp:4*tmp] # exclude centerline beam dynamics
-        # # uDOF_algebraic = beam.uDOF # beam as static force element
-        # # uDOF_algebraic = None
-        # solver = Generalized_alpha_4_singular_index3(model, t1, dt, rho_inf=0.5, uDOF_algebraic=uDOF_algebraic, newton_tol=1.0e-6, numerical_jacobian=False)
-        # # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='RK23')
-        # # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='RK45')
-        # # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='DOP853')
-        # # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='Radau')
-        # # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='BDF')
-        # # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='LSODA')
-
-        # standard gen-alpha solver with correct initial acceleration
-        uDOF = np.arange(model.nu)
-        tmp = int(beam.nu / 4)
-        uDOF_algebraic = beam.uDOF[tmp : 2 * tmp]  # include whole beam dynamics
-        uDOF_dynamic = np.setdiff1d(uDOF, uDOF_algebraic)
-        t0 = model.t0
-        q0 = model.q0
-        u0 = model.u0
-        M0 = model.M(t0, q0).tocsr()[uDOF_dynamic[:, None], uDOF_dynamic]
-        rhs0 = (
-            model.h(t0, q0, u0)
-            + model.W_g(t0, q0) @ model.la_g0
-            + model.W_gamma(t0, q0) @ model.la_gamma0
-        )
-        a0 = np.zeros(model.nu)
-        # from scipy.sparse.linalg import spsolve
-        # a0[uDOF_dynamic] = spsolve(M0, rhs0[uDOF_dynamic]) # TODO: this can't be solved with two different polynomial degrees for r and d_i!?
-
         # TODO: Reduce rho_inf?
-        # TODO: Add u_dot0!
         solver = GenAlphaFirstOrderVelocity(model, t1, dt, rho_inf=0.5)
 
     sol = solver.solve()
     t = sol.t
     q = sol.q
 
+    ###############################################
+    # visualize deflection and angles of rigid body
+    ###############################################
+    r_OS = q[:, bob.qDOF[:3]]
+    angles = q[:, bob.qDOF[3:]]
+
+    fig, ax = plt.subplots()
+    # ax.plot(t, r_OS[:, 0], label="x")
+    # ax.plot(t, r_OS[:, 1], label="y")
+    ax.plot(t, r_OS[:, 2], label="z")
+    ax.set_xlabel("t [s]")
+    ax.set_ylabel("center of gravity [m]")
+    ax2=ax.twinx()
+    ax2.plot(t, angles[:, 0], label="alpha")
+    # ax2.plot(t, angles[:, 1], label="beta")
+    # ax2.plot(t, angles[:, 2], label="gamma")
+    ax2.set_ylabel("Cardan angles [-]")
+    ax.grid()
+    ax.legend()
+
     ###########
     # animation
     ###########
     scale = 5.0e-2
     scale_di = 1.0e-2
-    animate_beam(t, q, beam, scale, scale_di=scale_di, show=True)
+    n_r = 50 * turns
+    # n_frames = 8 * turns
+    n_frames = 2
+    animate_beam(
+        t, q, beam, scale, scale_di=scale_di, n_r=n_r, n_frames=n_frames, show=True
+    )
 
     exit()
 
