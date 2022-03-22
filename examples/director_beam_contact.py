@@ -2,7 +2,6 @@ from cardillo.beams.spatial.material_models import Simo1986
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints.implicit import RigidConnection
 from cardillo.beams import (
-    # straight_configuration_director_beam,
     animate_beam,
     TimoshenkoDirectorIntegral,
 )

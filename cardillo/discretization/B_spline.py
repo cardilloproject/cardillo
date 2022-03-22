@@ -3,23 +3,23 @@ import meshio
 from scipy.sparse.linalg import spsolve
 from cardillo.discretization.indexing import flat2D, flat3D, split2D, split3D
 
-# knot vector
-def uniform_knot_vector(degree, nEl, interval=[0, 1]):
-    return np.concatenate(
-        [
-            np.ones(degree) * interval[0],
-            np.linspace(interval[0], interval[1], nEl + 1),
-            np.ones(degree) * interval[1],
-        ]
-    )
 
+class KnotVector:
+    @staticmethod
+    def uniform(degree, nel, interval=[0, 1]):
+        return np.concatenate(
+            [
+                np.ones(degree) * interval[0],
+                np.linspace(interval[0], interval[1], nel + 1),
+                np.ones(degree) * interval[1],
+            ]
+        )
 
-class Knot_vector:
     def __init__(self, degree, nel, data=None):
         self.degree = degree
         self.nel = nel
         if data is None:
-            self.data = uniform_knot_vector(self.degree, self.nel)
+            self.data = KnotVector.uniform(degree, nel)
         else:
             self.data = data
 
@@ -315,8 +315,9 @@ def B_spline_basis3D(degrees, derivative_order, knot_vectors, knots):
 
 
 # fitting
-def fit_B_Spline(points, degree, nEl, fixFirst=True, fixLast=True):
-    r"""Fits a B-spline polynomial of degree p and with nEl elements to a spatial curve defined by a set of points P.
+def fit_B_spline_curve(points, degree, nEl, fixFirst=True, fixLast=True):
+    r"""Fits a B-spline polynomial curve of degree p and with nEl elements to a 
+    spatial curve defined by a set of points P.
 
     Parameters
     ----------
@@ -346,7 +347,7 @@ def fit_B_Spline(points, degree, nEl, fixFirst=True, fixLast=True):
 
     # linear spaced xi's for target curve points
     xi = np.linspace(0, 1, n_xi)
-    Xi = uniform_knot_vector(degree, nEl)
+    Xi = KnotVector.uniform(degree, nEl)
 
     # B-spline related things
     # - knot vector
@@ -926,10 +927,10 @@ def flat3D_vtk(Qw):
 def test_Knot_vector():
     degree = 2
     nel = 3
-    U = Knot_vector(degree, nel)
+    U = KnotVector(degree, nel)
     print(f"U.data: {U.data}")
 
-    U = Knot_vector(degree, nel, data=np.array([0, 0, 0, 0.25, 0.5, 0.5, 1, 1, 1]))
+    U = KnotVector(degree, nel, data=np.array([0, 0, 0, 0.25, 0.5, 0.5, 1, 1, 1]))
     print(f"U.data: {U.data}")
     print(f"U.element_data: {U.element_data}")
 
@@ -942,7 +943,7 @@ def test_Piegl_Fig5_18():
     degree = 3
     nel = 4
     data = np.array([0, 0, 0, 0, 1, 2, 3, 4, 4, 4, 4])
-    knot_vector = Knot_vector(degree, nel, data=data)
+    knot_vector = KnotVector(degree, nel, data=data)
 
     q = np.array(
         [[0, 0], [0.1, 1], [1, 1], [1.5, -0.1], [2.2, -0.1], [2.5, 0.8], [2.0, 1.3]]
@@ -977,8 +978,8 @@ def test_Piegl_Fig5_20():
     nels = (2, 2)
     data0 = np.array([0, 0, 0, 2 / 5, 1, 1, 1])
     data1 = np.array([0, 0, 0, 0, 3 / 5, 1, 1, 1, 1])
-    knot_vector0 = Knot_vector(degrees[0], nels[0], data=data0)
-    knot_vector1 = Knot_vector(degrees[1], nels[1], data=data1)
+    knot_vector0 = KnotVector(degrees[0], nels[0], data=data0)
+    knot_vector1 = KnotVector(degrees[1], nels[1], data=data1)
 
     # n = 200
     # xi_idx = 2
@@ -1041,8 +1042,8 @@ def test_Piegl_Fig5_20():
     Q = np.concatenate((X, Y, Z))
 
     # rearrange points
-    nn_xi = knot_vector0.nel + knot_vector0.degree
-    nn_eta = knot_vector1.nel + knot_vector1.degree
+    nn_xi = knot_vector0.nEl + knot_vector0.degree
+    nn_eta = knot_vector1.nEl + knot_vector1.degree
     nn = nn_xi * nn_eta
     Pw = np.zeros((nn_xi, nn_eta, 3))
     for j in range(nn):
@@ -1146,9 +1147,9 @@ def test_mesh3D_vtk_export():
     QP_shape = (3, 4, 2)
     element_shape = (1, 1, 1)
 
-    Xi = Knot_vector(degrees[0], element_shape[0])
-    Eta = Knot_vector(degrees[1], element_shape[1])
-    Zeta = Knot_vector(degrees[2], element_shape[2])
+    Xi = KnotVector(degrees[0], element_shape[0])
+    Eta = KnotVector(degrees[1], element_shape[1])
+    Zeta = KnotVector(degrees[2], element_shape[2])
     knot_vectors = (Xi, Eta, Zeta)
 
     from cardillo.discretization.mesh3D import Mesh3D, cube, scatter_Qs
@@ -1170,9 +1171,9 @@ def test_fit_B_spline_volume():
     element_shape = np.ones(3, dtype=int) * 5
     # element_shape = (10, 3, 3)
 
-    Xi = Knot_vector(degrees[0], element_shape[0])
-    Eta = Knot_vector(degrees[1], element_shape[1])
-    Zeta = Knot_vector(degrees[2], element_shape[2])
+    Xi = KnotVector(degrees[0], element_shape[0])
+    Eta = KnotVector(degrees[1], element_shape[1])
+    Zeta = KnotVector(degrees[2], element_shape[2])
     knot_vectors = (Xi, Eta, Zeta)
 
     from cardillo.discretization.mesh3D import Mesh3D

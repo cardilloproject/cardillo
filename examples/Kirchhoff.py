@@ -197,15 +197,15 @@ def objectivity():
 
     # junctions
     r_OB0 = np.zeros(3)
-    phi = lambda t: n_circles * 2 * pi * smoothstep2(t, frac_deformation, 1.0)
-    phi2 = lambda t: pi / 4 * sin(2 * pi * t)
-    # A_IK0 = lambda t: A_IK_basic(phi(t)).x()
-    A_IK0 = (
-        lambda t: A_IK_basic(phi2(t)).z()
-        @ A_IK_basic(phi2(t)).y()
-        @ A_IK_basic(phi(t)).x()
-    )
-    # A_IK0 = lambda t: np.eye(3)
+    # phi = lambda t: n_circles * 2 * pi * smoothstep2(t, frac_deformation, 1.0)
+    # phi2 = lambda t: pi / 4 * sin(2 * pi * t)
+    # # A_IK0 = lambda t: A_IK_basic(phi(t)).x()
+    # A_IK0 = (
+    #     lambda t: A_IK_basic(phi2(t)).z()
+    #     @ A_IK_basic(phi2(t)).y()
+    #     @ A_IK_basic(phi(t)).x()
+    # )
+    A_IK0 = lambda t: np.eye(3)
     frame1 = Frame(r_OP=r_OB0, A_IK=A_IK0)
 
     # discretization properties
@@ -225,7 +225,7 @@ def objectivity():
     # - p=2, p_r=p, p_phi=p+1, nQP=p+1 # reduced integration cures nonobjectivity
     # - p=3, ???
     print(f"nQP: {nQP}")
-    nEl = 3
+    nEl = 5
 
     # build reference configuration
     Q = Kirchhoff.straight_configuration(p_r, p_phi, nEl, L)
@@ -251,17 +251,17 @@ def objectivity():
     # moment at right end that yields quater circle for t in [0, frac_deforation] and then
     # remains constant
     # M = lambda t: 2 * np.pi * smoothstep2(t, 0.0, frac_deformation) * e1 * Fi[0] / L
-    # M = lambda t: np.pi / 2 * smoothstep2(t, 0.0, frac_deformation) * e2 * Fi[1] / L
+    M = lambda t: 2 * np.pi * smoothstep2(t, 0.0, frac_deformation) * e2 * Fi[1] / L
     # momen at right end that yields a quater helix for t in [0, frac_deforation] and then
     # remains constant
-    M = (
-        lambda t: np.pi
-        / 2
-        * smoothstep2(t, 0.0, frac_deformation)
-        * np.array([1, 0, 1])
-        * Fi[1]
-        / L
-    )
+    # M = (
+    #     lambda t: np.pi
+    #     / 2
+    #     * smoothstep2(t, 0.0, frac_deformation)
+    #     * np.array([1, 0, 1])
+    #     * Fi[1]
+    #     / L
+    # )
     moment = K_Moment(M, beam, (1,))
 
     # assemble the model

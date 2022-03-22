@@ -1,6 +1,6 @@
 from cardillo.model.classical_beams.spatial import Hooke_quadratic
 from cardillo.model.classical_beams.spatial import TimoshenkoDirectorIntegral
-from cardillo.discretization.B_spline import fit_B_Spline
+from cardillo.discretization.B_spline import fit_B_spline_curve
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints.implicit import Rigid_connection
 from cardillo.model import Model
@@ -249,10 +249,10 @@ if __name__ == "__main__":
     d3 = np.cross(d1, d2)
 
     # fit reference configuration
-    qr0 = fit_B_Spline(P, p, nEl)
-    qd1 = fit_B_Spline(d1, p, nEl)
-    qd2 = fit_B_Spline(d2, p, nEl)
-    qd3 = fit_B_Spline(d3, p, nEl)
+    qr0 = fit_B_spline_curve(P, p, nEl)
+    qd1 = fit_B_spline_curve(d1, p, nEl)
+    qd2 = fit_B_spline_curve(d2, p, nEl)
+    qd3 = fit_B_spline_curve(d3, p, nEl)
     Q = np.concatenate(
         (qr0.T.reshape(-1), qd1.T.reshape(-1), qd2.T.reshape(-1), qd3.T.reshape(-1))
     )

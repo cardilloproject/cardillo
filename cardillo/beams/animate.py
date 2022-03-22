@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
 
-def animate_beam(t, q, beam, scale, show=True):
+def animate_beam(t, q, beam, scale, scale_di=1, show=True):
     fig, ax = plt.subplots(figsize=(8, 8), subplot_kw=dict(projection="3d"))
     ax.set_xlabel("x [m]")
     ax.set_ylabel("y [m]")
@@ -27,6 +27,9 @@ def animate_beam(t, q, beam, scale, show=True):
     (center_line,) = ax.plot(*beam.centerline(q[0]), "-k")
     n_frames = 25
     r, d1, d2, d3 = beam.frames(q[0], n=n_frames)
+    d1 *= scale_di
+    d2 *= scale_di
+    d3 *= scale_di
     global d1s, d2s, d3s
     d1s = [ax.quiver(*r[:, i].T, *d1[:, i].T, color="red") for i in range(n_frames)]
     d2s = [ax.quiver(*r[:, i].T, *d2[:, i].T, color="green") for i in range(n_frames)]
@@ -55,6 +58,9 @@ def animate_beam(t, q, beam, scale, show=True):
             d3s[i].remove()
 
         r, d1, d2, d3 = beam.frames(q, n=n_frames)
+        d1 *= scale_di
+        d2 *= scale_di
+        d3 *= scale_di
         d1s = [ax.quiver(*r[:, i].T, *d1[:, i].T, color="red") for i in range(n_frames)]
         d2s = [
             ax.quiver(*r[:, i].T, *d2[:, i].T, color="green") for i in range(n_frames)

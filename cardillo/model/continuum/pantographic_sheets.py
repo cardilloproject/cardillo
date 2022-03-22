@@ -1029,7 +1029,7 @@ def test_gradients():
     # this test compares the deformation gradients F and G for the analytical and the discretized formulation of a deformed body
 
     from cardillo.discretization.mesh2D import rectangle
-    from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume
+    from cardillo.discretization.B_spline import KnotVector, fit_B_spline_volume
 
     # from cardillo.discretization.indexing import flat2D
     # from cardillo.model.continuum import Maurin2019
@@ -1041,8 +1041,8 @@ def test_gradients():
     degrees = (3, 3)
     element_shape = (5, 3)
 
-    Xi = Knot_vector(degrees[0], element_shape[0])
-    Eta = Knot_vector(degrees[1], element_shape[1])
+    Xi = KnotVector(degrees[0], element_shape[0])
+    Eta = KnotVector(degrees[1], element_shape[1])
     knot_vectors = (Xi, Eta)
 
     mesh = Mesh2D(knot_vectors, QP_shape, derivative_order=2, basis="B-spline", nq_n=2)

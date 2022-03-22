@@ -1,6 +1,6 @@
 from cardillo.model.classical_beams.spatial import Hooke_quadratic, Hooke
 from cardillo.model.classical_beams.spatial import TimoshenkoDirectorIntegral
-from cardillo.discretization.B_spline import fit_B_Spline
+from cardillo.discretization.B_spline import fit_B_spline_curve
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints.implicit import (
     Rigid_connection,
@@ -122,10 +122,10 @@ if __name__ == "__main__":
     d1 = (dP1.T / np.linalg.norm(dP1, axis=-1)).T
     d2 = (ddP1.T / np.linalg.norm(ddP1, axis=-1)).T
     d3 = np.cross(d1, d2)
-    qr0_1 = fit_B_Spline(P1, p, nEl)
-    qd1_1 = fit_B_Spline(d1, p, nEl)
-    qd2_1 = fit_B_Spline(d2, p, nEl)
-    qd3_1 = fit_B_Spline(d3, p, nEl)
+    qr0_1 = fit_B_spline_curve(P1, p, nEl)
+    qd1_1 = fit_B_spline_curve(d1, p, nEl)
+    qd2_1 = fit_B_spline_curve(d2, p, nEl)
+    qd3_1 = fit_B_spline_curve(d3, p, nEl)
     Q1 = np.concatenate(
         (
             qr0_1.T.reshape(-1),
@@ -144,10 +144,10 @@ if __name__ == "__main__":
     d1 = (dP1.T / np.linalg.norm(dP1, axis=-1)).T
     d2 = (ddP1.T / np.linalg.norm(ddP1, axis=-1)).T
     d3 = np.cross(d1, d2)
-    qr0_2 = fit_B_Spline(P1, p, nEl)
-    qd1_2 = fit_B_Spline(d1, p, nEl)
-    qd2_2 = fit_B_Spline(d2, p, nEl)
-    qd3_2 = fit_B_Spline(d3, p, nEl)
+    qr0_2 = fit_B_spline_curve(P1, p, nEl)
+    qd1_2 = fit_B_spline_curve(d1, p, nEl)
+    qd2_2 = fit_B_spline_curve(d2, p, nEl)
+    qd3_2 = fit_B_spline_curve(d3, p, nEl)
     Q2 = np.concatenate(
         (
             qr0_2.T.reshape(-1),

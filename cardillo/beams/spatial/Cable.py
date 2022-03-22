@@ -3,8 +3,7 @@ import meshio
 import os
 
 from cardillo.utility.coo import Coo
-from cardillo.discretization import uniform_knot_vector
-from cardillo.discretization.B_spline import Knot_vector
+from cardillo.discretization.B_spline import KnotVector
 from cardillo.math import (
     e1,
     norm,
@@ -54,7 +53,7 @@ class Cable:
         self.nQP = nQP  # number of quadrature points
         self.nEl = nEl  # number of elements
 
-        self.knot_vector = Knot_vector(polynomial_degree, nEl)
+        self.knot_vector = KnotVector(polynomial_degree, nEl)
         self.nn = nn = nEl + polynomial_degree  # number of nodes
 
         self.nn_el = nn_el = polynomial_degree + 1  # number of nodes per element
@@ -170,7 +169,7 @@ class Cable:
         Y = np.zeros(nn)
         Z = np.zeros(nn)
         if greville_abscissae:
-            kv = uniform_knot_vector(polynomial_degree, nEl)
+            kv = KnotVector.uniform(polynomial_degree, nEl)
             for i in range(nn):
                 X[i] = np.sum(kv[i + 1 : i + polynomial_degree + 1])
             X = X * L / polynomial_degree

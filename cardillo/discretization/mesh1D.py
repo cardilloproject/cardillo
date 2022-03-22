@@ -285,13 +285,13 @@ class Mesh1D:
 
 
 def test_point_qDOF():
-    from cardillo.discretization.B_spline import Knot_vector
+    from cardillo.discretization.B_spline import KnotVector
 
     polynomial_degree = 3
     quadrature_points = polynomial_degree + 1
     elements = 4
 
-    Xi = Knot_vector(polynomial_degree, elements)
+    Xi = KnotVector(polynomial_degree, elements)
 
     mesh = Mesh1D(Xi, quadrature_points, derivative_order=1, basis="B-spline", nq_n=2)
 

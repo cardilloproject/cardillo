@@ -6,7 +6,7 @@ import datetime
 import pathlib
 
 from cardillo.discretization.mesh2D import Mesh2D, rectangle
-from cardillo.discretization.B_spline import Knot_vector
+from cardillo.discretization.B_spline import KnotVector
 from cardillo.discretization.lagrange import Node_vector
 from cardillo.discretization.indexing import split2D
 from cardillo.model.continuum import (
@@ -78,8 +78,8 @@ def first_gradient_solve(
     QP_shape = (3, 3)
 
     if source == "Treolar":
-        Xi = Knot_vector(degrees[0], element_shape[0])
-        Eta = Knot_vector(degrees[1], element_shape[1])
+        Xi = KnotVector(degrees[0], element_shape[0])
+        Eta = KnotVector(degrees[1], element_shape[1])
         knot_vectors = (Xi, Eta)
 
         mesh = Mesh2D(
@@ -173,8 +173,8 @@ def pantographic_sheet_solve(
     degrees = (2, 3)
     QP_shape = (2, 3)
 
-    Xi = Knot_vector(degrees[0], element_shape[0])
-    Eta = Knot_vector(degrees[1], element_shape[1])
+    Xi = KnotVector(degrees[0], element_shape[0])
+    Eta = KnotVector(degrees[1], element_shape[1])
     knot_vectors = (Xi, Eta)
 
     mesh = Mesh2D(knot_vectors, QP_shape, derivative_order=2, basis="B-spline", nq_n=2)

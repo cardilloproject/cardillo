@@ -4,8 +4,7 @@ import meshio
 import os
 
 from cardillo.utility.coo import Coo
-from cardillo.discretization import uniform_knot_vector
-from cardillo.discretization.B_spline import Knot_vector
+from cardillo.discretization.B_spline import KnotVector
 from cardillo.discretization.lagrange import Node_vector
 from cardillo.math.algebra import norm, cross3, skew2ax, skew2ax_A
 from cardillo.math import approx_fprime
@@ -46,8 +45,8 @@ class TimoshenkoBeamDirector(metaclass=ABCMeta):
 
         self.basis = basis
         if basis == "B-spline":
-            self.knot_vector_r = Knot_vector(polynomial_degree_r, nEl)
-            self.knot_vector_di = Knot_vector(polynomial_degree_di, nEl)
+            self.knot_vector_r = KnotVector(polynomial_degree_r, nEl)
+            self.knot_vector_di = KnotVector(polynomial_degree_di, nEl)
             self.nn_r = nn_r = nEl + polynomial_degree_r  # number of nodes
             self.nn_di = nn_di = nEl + polynomial_degree_di  # number of nodes
         elif basis == "lagrange":
@@ -238,7 +237,7 @@ class TimoshenkoBeamDirector(metaclass=ABCMeta):
         Y = np.zeros(nn_r)
         Z = np.zeros(nn_r)
         if greville_abscissae and basis == "B-spline":
-            kv = uniform_knot_vector(polynomial_degree_r, nEl)
+            kv = KnotVector.uniform(polynomial_degree_r, nEl)
             for i in range(nn_r):
                 X[i] = np.sum(kv[i + 1 : i + polynomial_degree_r + 1])
             X = X * L / polynomial_degree_r
@@ -1425,8 +1424,8 @@ class TimoshenkoBeamDirector(metaclass=ABCMeta):
                 Pw[i, 0, k] = qr + A_IK @ point
 
         if self.basis == "B-spline":
-            knot_vector_eta = Knot_vector(polynomial_degree_eta, nEl_eta)
-            knot_vector_zeta = Knot_vector(polynomial_degree_zeta, nEl_zeta)
+            knot_vector_eta = KnotVector(polynomial_degree_eta, nEl_eta)
+            knot_vector_zeta = KnotVector(polynomial_degree_zeta, nEl_zeta)
         elif self.basis == "lagrange":
             knot_vector_eta = Node_vector(polynomial_degree_eta, nEl_eta)
             knot_vector_zeta = Node_vector(polynomial_degree_zeta, nEl_zeta)
@@ -1535,8 +1534,8 @@ class TimoshenkoBeamDirector(metaclass=ABCMeta):
                     Pw[i, j, k] = qr + A_IK @ np.array([0, aj, bk])
 
         if self.basis == "B-spline":
-            knot_vector_eta = Knot_vector(polynomial_degree_eta, nEl_eta)
-            knot_vector_zeta = Knot_vector(polynomial_degree_zeta, nEl_zeta)
+            knot_vector_eta = KnotVector(polynomial_degree_eta, nEl_eta)
+            knot_vector_zeta = KnotVector(polynomial_degree_zeta, nEl_zeta)
         elif self.basis == "lagrange":
             knot_vector_eta = Node_vector(polynomial_degree_eta, nEl_eta)
             knot_vector_zeta = Node_vector(polynomial_degree_zeta, nEl_zeta)
@@ -2054,7 +2053,7 @@ class TimoshenkoDirectorIntegral(TimoshenkoBeamDirector):
         self.nn_el_g = self.polynomial_degree_g + 1  # number of nodes per element
 
         if self.basis == "B-spline":
-            self.knot_vector_g = Knot_vector(self.polynomial_degree_g, self.nEl)
+            self.knot_vector_g = KnotVector(self.polynomial_degree_g, self.nEl)
             self.nn_g = self.nEl + self.polynomial_degree_g  # number of nodes
         elif self.basis == "lagrange":
             self.knot_vector_g = Node_vector(self.polynomial_degree_g, self.nEl)
@@ -2500,7 +2499,7 @@ class EulerBernoulliDirectorIntegral(TimoshenkoBeamDirector):
         self.nn_el_g = self.polynomial_degree_g + 1  # number of nodes per element
 
         if self.basis == "B-spline":
-            self.knot_vector_g = Knot_vector(self.polynomial_degree_g, self.nEl)
+            self.knot_vector_g = KnotVector(self.polynomial_degree_g, self.nEl)
             self.nn_g = self.nEl + self.polynomial_degree_g  # number of nodes
         elif self.basis == "lagrange":
             self.knot_vector_g = Node_vector(self.polynomial_degree_g, self.nEl)
@@ -2797,7 +2796,7 @@ class InextensibleEulerBernoulliDirectorIntegral(TimoshenkoBeamDirector):
         self.nn_el_g = self.polynomial_degree_g + 1  # number of nodes per element
 
         if self.basis == "B-spline":
-            self.knot_vector_g = Knot_vector(self.polynomial_degree_g, self.nEl)
+            self.knot_vector_g = KnotVector(self.polynomial_degree_g, self.nEl)
             self.nn_g = self.nEl + self.polynomial_degree_g  # number of nodes
         elif self.basis == "lagrange":
             self.knot_vector_g = Node_vector(self.polynomial_degree_g, self.nEl)

@@ -403,16 +403,16 @@ class First_gradient:
 
 def test_gradient():
     from cardillo.discretization.mesh3D import Mesh3D, cube
-    from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume
+    from cardillo.discretization.B_spline import KnotVector, fit_B_spline_volume
     from cardillo.discretization.indexing import flat3D
 
     QP_shape = (1, 1, 1)
     degrees = (3, 3, 1)
     element_shape = (10, 10, 1)
 
-    Xi = Knot_vector(degrees[0], element_shape[0])
-    Eta = Knot_vector(degrees[1], element_shape[1])
-    Zeta = Knot_vector(degrees[2], element_shape[2])
+    Xi = KnotVector(degrees[0], element_shape[0])
+    Eta = KnotVector(degrees[1], element_shape[1])
+    Zeta = KnotVector(degrees[2], element_shape[2])
     knot_vectors = (Xi, Eta, Zeta)
 
     mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=1, basis="B-spline", nq_n=3)
@@ -486,16 +486,16 @@ def test_gradient():
 
 def test_gradient_vtk_export():
     from cardillo.discretization.mesh3D import Mesh3D, cube
-    from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume
+    from cardillo.discretization.B_spline import KnotVector, fit_B_spline_volume
     from cardillo.discretization.indexing import flat3D
 
     QP_shape = (5, 5, 5)
     degrees = (3, 3, 1)
     element_shape = (5, 5, 1)
 
-    Xi = Knot_vector(degrees[0], element_shape[0])
-    Eta = Knot_vector(degrees[1], element_shape[1])
-    Zeta = Knot_vector(degrees[2], element_shape[2])
+    Xi = KnotVector(degrees[0], element_shape[0])
+    Eta = KnotVector(degrees[1], element_shape[1])
+    Zeta = KnotVector(degrees[2], element_shape[2])
     knot_vectors = (Xi, Eta, Zeta)
 
     mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=1, basis="B-spline", nq_n=3)
@@ -547,7 +547,7 @@ def test_gradient_vtk_export():
 
 def test_internal_forces():
     from cardillo.discretization.mesh3D import Mesh3D, cube
-    from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume
+    from cardillo.discretization.B_spline import KnotVector, fit_B_spline_volume
     from cardillo.discretization.indexing import flat3D
     from cardillo.model.continuum import Ogden1997_compressible
 
@@ -555,9 +555,9 @@ def test_internal_forces():
     degrees = (2, 2, 2)
     element_shape = (4, 4, 2)
 
-    Xi = Knot_vector(degrees[0], element_shape[0])
-    Eta = Knot_vector(degrees[1], element_shape[1])
-    Zeta = Knot_vector(degrees[2], element_shape[2])
+    Xi = KnotVector(degrees[0], element_shape[0])
+    Eta = KnotVector(degrees[1], element_shape[1])
+    Zeta = KnotVector(degrees[2], element_shape[2])
     knot_vectors = (Xi, Eta, Zeta)
 
     mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=1, basis="B-spline", nq_n=3)

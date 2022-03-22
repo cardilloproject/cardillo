@@ -18,7 +18,7 @@ from cardillo.solver import (
 from cardillo.model.line_force.line_force import Line_force
 from cardillo.model.force import Force
 from cardillo.discretization import uniform_knot_vector
-from cardillo.discretization.B_spline import fit_B_Spline
+from cardillo.discretization.B_spline import fit_B_spline_curve
 from cardillo.model.rigid_body import Rigid_body_quaternion
 from cardillo.model.force import Force
 from cardillo.utility.post_processing_vtk import post_processing
@@ -60,12 +60,12 @@ def B_spline_fitting():
     phi1 = np.linspace(0, phi_max, num=nxi)
     points1 = R * np.array([-np.cos(phi1), np.sin(phi1)]).T
     # ctrlpts1, knot_vector1 = approximate_curve(points1.tolist(), p, nEl=nEl)
-    ctrlpts1 = fit_B_Spline(points1, p, nEl)
+    ctrlpts1 = fit_B_spline_curve(points1, p, nEl)
 
     phi2 = np.linspace(phi_max, 2 * phi_max, num=nxi)
     points2 = R * np.array([-np.cos(phi2), np.sin(phi2)]).T
     # ctrlpts2, knot_vector2 = approximate_curve(points2.tolist(), p, nEl=nEl)
-    ctrlpts2 = fit_B_Spline(points2, p, nEl)
+    ctrlpts2 = fit_B_spline_curve(points2, p, nEl)
 
     # plt.plot(*points1.T, '-k', label='target curve')
     # plt.plot(*ctrlpts1.T, '--ob', label='B-spline control polygon')
