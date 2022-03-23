@@ -48,7 +48,7 @@ def tests():
     # nQP = int(np.ceil((p + 1)**2 / 2))
     nQP = p + 1
     print(f"nQP: {nQP}")
-    nEl = 5
+    nEl = 1
 
     # build reference configuration
     if case == "Cable":
@@ -96,6 +96,7 @@ def tests():
     # model.assemble()
 
     # t = 0
+    # # q = model.q0
     # q = np.random.rand(model.nq)
 
     # E_pot = model.E_pot(t, q)
@@ -123,10 +124,10 @@ def tests():
     f_g_beam = DistributedForce1D(lambda t, xi: t * __g, beam)
 
     # moment at right end
-    M = lambda t: -np.array([1, 0, 1]) * t * 2 * np.pi * Fi[1] / L * 0.5
+    # M = lambda t: -np.array([1, 0, 1]) * t * 2 * np.pi * Fi[1] / L * 0.5
     # M = lambda t: -np.array([0, 1, 1]) * t * 2 * np.pi * Fi[1] / L * 0.5
-    # M = lambda t: e1 * t * 2 * np.pi * Fi[0] / L * 1.0
-    M = lambda t: e2 * t * 2 * np.pi * Fi[1] / L * 0.5
+    # M = lambda t: e1 * t * 2 * np.pi * Fi[0] / L * 0.5
+    M = lambda t: e2 * t * 2 * np.pi * Fi[1] / L * 0.45
     # M = lambda t: e3 * t * 2 * np.pi * Fi[2] / L * 0.45
     moment = K_Moment(M, beam, (1,))
 
@@ -157,7 +158,7 @@ def tests():
 
     solver = Newton(
         model,
-        n_load_steps=5,
+        n_load_steps=20,
         max_iter=30,
         atol=1.0e-8,
         numerical_jacobian=False,
@@ -359,5 +360,5 @@ def objectivity():
 
 
 if __name__ == "__main__":
-    # tests()
-    objectivity()
+    tests()
+    # objectivity()

@@ -22,8 +22,8 @@ from cardillo.math import (
 from cardillo.discretization.mesh1D import Mesh1D
 
 
-switching_beam = True
-# switching_beam = False
+# switching_beam = True
+switching_beam = False
 
 # objective = True
 objective = False
