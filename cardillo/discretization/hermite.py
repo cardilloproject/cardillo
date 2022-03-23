@@ -110,89 +110,6 @@ def CubicHermiteBasis(x, derivative=1, knot_vector=None, interval=[-1, 1]):
         return N
 
 
-def __lagrange(x, degree, skip=[], interval=[-1, 1]):
-    """1D Lagrange shape functions, see https://en.wikipedia.org/wiki/Lagrange_polynomial#Definition.
-
-    Parameter
-    ---------
-    x : float
-        evaluation point
-    degree : int
-        polynomial degree
-    returns : ndarray, 1D
-        array containing the k = degree + 1 shape functions evaluated at x
-    """
-    k = degree + 1
-    xi = np.linspace(interval[0], interval[1], num=k)
-    l = np.ones(k)
-    for j in range(k):
-        for m in range(k):
-            if m == j or m in skip:
-                continue
-            l[j] *= (x - xi[m]) / (xi[j] - xi[m])
-
-    return l
-
-
-def __lagrange_x(x, degree, interval=[-1, 1]):
-    """First derivative of 1D Lagrange shape functions, see https://en.wikipedia.org/wiki/Lagrange_polynomial#Derivatives.
-
-    Parameter
-    ---------
-    x : float
-        evaluation point
-    degree : int
-        polynomial degree
-    returns : ndarray, 1D
-        array containing the first derivative of the k = degree + 1 shape functions evaluated at x
-    """
-    k = degree + 1
-    xi = np.linspace(interval[0], interval[1], num=k)
-    l_x = np.zeros(k)
-    for j in range(k):
-        for i in range(k):
-            if i == j:
-                continue
-            prod = 1
-            for m in range(k):
-                if m == i or m == j:
-                    continue
-                prod *= (x - xi[m]) / (xi[j] - xi[m])
-            l_x[j] += prod / (xi[j] - xi[i])
-
-    return l_x
-
-
-def __lagrange_x_r(x, degree, skip=[]):
-    """Recursive formular for first derivative of Lagrange shape functions."""
-    k = degree + 1
-    xi = np.linspace(-1, 1, num=k)
-    l_x = np.zeros(k)
-    for j in range(k):
-        for i in range(k):
-            if i == j or i in skip:
-                continue
-            l = __lagrange(x, degree, skip=[i] + skip)
-            l_x[j] += l[j] / (xi[j] - xi[i])
-
-    return l_x
-
-
-def __lagrange_xx_r(x, degree):
-    """Recursive formular for second derivative of Lagrange shape functions."""
-    k = degree + 1
-    xi = np.linspace(-1, 1, num=k)
-    l_xx = np.zeros(k)
-    for j in range(k):
-        for i in range(k):
-            if i == j:
-                continue
-            l_x = __lagrange_x_r(x, degree, skip=[i])
-            l_xx[j] += l_x[j] / (xi[j] - xi[i])
-
-    return l_xx
-
-
 class OrientedPoint:
     # def __init__(self, r, d, dim=3):
     #     self.r = r
@@ -313,50 +230,94 @@ class CubicHermiteBasis:
 
 
 if __name__ == "__main__":
-    # from scipy.interpolate import CubicHermiteSpline
-
     # define generalized coordinates of cubic hermite spline
+    from cardillo.math import e1, e2, e3
+
     r0 = np.zeros(3)
-    t0 = np.array([1, 0, 0])
+    t0 = e1
+    n0 = e2
     r1 = np.array([1, 1, 0]) / np.sqrt(2)
-    t1 = np.array([0, 1, 0])
+    t1 = e2
+    n1 = -e1
 
-    q0 = np.concatenate([r0, t0])
-    q1 = np.concatenate([r1, t1])
-    q = np.concatenate([q0, q1])
+    # q0 = np.concatenate([r0, t0])
+    # q1 = np.concatenate([r1, t1])
+    # q = np.concatenate([q0, q1])
 
-    p0 = CubicHermiteNode(np.arange(12), dim=3)
-    print(f"p0(q):\n{p0(q=q)}")
-    print(f"p0(r0, t0, r1, t1):\n{p0(r0, t0, r1, t1)}")
+    # p0 = CubicHermiteNode(np.arange(12), dim=3)
+    # print(f"p0(q):\n{p0(q=q)}")
+    # print(f"p0(r0, t0, r1, t1):\n{p0(r0, t0, r1, t1)}")
 
-    p0 = OrientedPoint(np.arange(6))
-    p1 = OrientedPoint(np.arange(6, 12))
+    # p0 = OrientedPoint(np.arange(6))
+    # p1 = OrientedPoint(np.arange(6, 12))
 
-    print(f"p0.paired():\n{p0.paired(q0)}")
-    print(f"p1.paired():\n{p1.paired(q1)}")
-    print(f"p0(q0):\n{p0(q0)}")
-    print(f"p1(q1):\n{p1(q1)}")
+    # print(f"p0.paired():\n{p0.paired(q0)}")
+    # print(f"p1.paired():\n{p1.paired(q1)}")
+    # print(f"p0(q0):\n{p0(q0)}")
+    # print(f"p1(q1):\n{p1(q1)}")
 
-    print(f"p0.stacked(): {p0.stacked(r0, t0)}")
-    print(f"p1.stacked(): {p1.stacked(r1, t1)}")
-    print(f"p0(r0, t0): {p0(r0, t0)}")
-    print(f"p1(r1, t1): {p1(r1, t1)}")
+    # print(f"p0.stacked(): {p0.stacked(r0, t0)}")
+    # print(f"p1.stacked(): {p1.stacked(r1, t1)}")
+    # print(f"p0(r0, t0): {p0(r0, t0)}")
+    # print(f"p1(r1, t1): {p1(r1, t1)}")
 
-    nel = 1
-    basis = CubicHermiteBasis(nel)
-    xis = np.linspace(0, 1, num=100)
-    N = basis.shape_functions(xis)
-    r = np.array([Ni @ q for Ni in N])
+    # nel = 1
+    # basis = CubicHermiteBasis(nel)
+    # xis = np.linspace(0, 1, num=10)
+    # N = basis.shape_functions(xis)
+    # r = np.array([Ni @ q for Ni in N])
 
-    r = basis(xis, q)
+    # r = basis(xis, q)
 
+    # case = "cubic"
+    case = "quintic"
+    from scipy.interpolate import BPoly
+
+    xi = np.array([0, 1])  # interval
+    if case == "cubic":
+        # function values and their derivatives
+        yi = np.zeros((2, 2, 3))
+        yi[0, 0] = r0
+        yi[0, 1] = t0
+        yi[1, 0] = r1
+        yi[1, 1] = t1
+    elif case == "quintic":
+        # function values and their derivatives
+        yi = np.zeros((2, 3, 3))
+        yi[0, 0] = r0
+        yi[0, 1] = t0
+        yi[0, 2] = n0
+        yi[1, 0] = r1
+        yi[1, 1] = t1
+        yi[1, 2] = n1
+    else:
+        raise RuntimeError(
+            "Wrong order chosen. Allowed orders are 'cubic' and 'quintic'."
+        )
+    r_poly = BPoly.from_derivatives(xi, yi, extrapolate=False)
+    r_xi_poly = r_poly.derivative(1)
+    r_xixi_poly = r_poly.derivative(2)
+    r_xixixi_poly = r_poly.derivative(3)
+
+    # evaluate basis
+    xis = np.linspace(0, 1, num=10)
+    r = np.array([r_poly(xi) for xi in xis])
+    r_xi = np.array([r_xi_poly(xi) for xi in xis])
+    r_xixi = np.array([r_xixi_poly(xi) for xi in xis])
+    r_xixixi = np.array([r_xixixi_poly(xi) for xi in xis])
+
+    # visualize spline
     import matplotlib.pyplot as plt
 
-    fig, ax = plt.subplots()
-    ax.plot(r[:, 0], r[:, 1])
-    ax.quiver(*r0[:2], *t0[:2])
-    ax.quiver(*r1[:2], *t1[:2])
-    ax.set_aspect(1)
+    fig, ax = plt.subplots(subplot_kw=dict(projection="3d"))
+    ax.plot(r[:, 0], r[:, 1], r[:, 2], "-k")
+    for i in range(len(r)):
+        ax.quiver3D(*r[i], *r_xi[i], color="r", length=0.1)
+        ax.quiver3D(*r[i], *r_xixi[i], color="g", length=0.1)
+        # ax.quiver3D(*r[i], *r_xixixi[i], color="b", length=0.1)
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    ax.set_zlim(0, 1)
     ax.grid()
     plt.show()
 
