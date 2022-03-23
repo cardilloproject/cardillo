@@ -46,33 +46,57 @@ class Mesh1D:
         # number of quadrature points
         self.nqp = nqp
 
-        # number of nodes influencing each element
-        self.nn_el = self.p + 1
-        self.nq_n = nq_n  # number of degrees of freedom per node
+        # TODO: Lagrange should be capitalized!
+        if basis == "lagrange" or "B-spline":
+            self.nn_el = self.p + 1  # number of nodes influencing each element
+            self.nq_n = nq_n  # number of degrees of freedom per node
+        elif basis == "Hermite":
+            self.nn_el = 2  # number of nodes influencing each element
+            self.nq_n = (
+                2 * nq_n
+            )  # number of degrees of freedom per node (2 * since we have the value and its derivative at the node)
+        else:
+            raise NotImplementedError("")
         self.nq_el = (
             self.nn_el * nq_n
         )  # total number of generalized coordinates per element
 
+        # TODO: Lagrange should be capitalized!
         if basis == "lagrange":
+            # total number of nodes
             self.nn = self.p * self.nel + 1
 
             # elDOF
-            self.elDOF = np.zeros((self.nel, self.nq_n * self.nn_el), dtype=int)
+            self.elDOF = np.zeros((self.nel, self.nq_el), dtype=int)
+            for el in range(self.nel):
+                for a in range(self.nn_el):
+                    elDOF_x = self.p * el + a # TODO: What is the correct value here?
+                    for d in range(self.nq_n):
+                        self.elDOF[el, a + self.nn_el * d] = elDOF_x + self.nn * d
+
+            self.vtk_cell_type = "VTK_LAGRANGE_CURVE"
+        elif basis == "Hermite":
+            # total number of nodes
+            self.nn = self.nel + 1
+
+            # elDOF
+            self.elDOF = np.zeros((self.nel, self.nq_el), dtype=int)
             for el in range(self.nel):
                 for a in range(self.nn_el):
                     elDOF_x = self.p * el + a
                     for d in range(self.nq_n):
                         self.elDOF[el, a + self.nn_el * d] = elDOF_x + self.nn * d
 
+            # TODO: Does VTK implement Hermite curves?
             self.vtk_cell_type = "VTK_LAGRANGE_CURVE"
 
         elif basis == "B-spline":
-            # number of total nodes
+            # total number of nodes
             self.nn = self.p + self.nel
 
             # construct selection matrix elDOF assigning to each element its DOFs of the displacement
             # q[elDOF[el]] is equivalent to q_e = C^e * q
-            self.elDOF = np.zeros((self.nel, self.nq_n * self.nn_el), dtype=int)
+            self.elDOF = np.zeros((self.nel, self.nq_el), dtype=int)
             for el in range(self.nel):
                 for a in range(self.nn_el):
                     elDOF_x = el + a

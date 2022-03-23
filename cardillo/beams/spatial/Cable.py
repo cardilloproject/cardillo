@@ -20,6 +20,9 @@ from cardillo.discretization.mesh1D import Mesh1D
 switching_beam = True
 # switching_beam = False
 
+# use_Hermite = True
+use_Hermite = False
+
 
 class Cable:
     def __init__(
@@ -53,7 +56,11 @@ class Cable:
         self.nQP = nQP  # number of quadrature points
         self.nEl = nEl  # number of elements
 
-        self.knot_vector = KnotVector(polynomial_degree, nEl)
+        if use_Hermite:
+            raise NotADirectoryError("")
+            self.knot_vector = HermiteKnotVector(polynomial_degree, nEl)
+        else:
+            self.knot_vector = KnotVector(polynomial_degree, nEl)
         self.nn = nn = nEl + polynomial_degree  # number of nodes
 
         self.nn_el = nn_el = polynomial_degree + 1  # number of nodes per element
@@ -61,11 +68,15 @@ class Cable:
         # number of degrees of freedom per node of the centerline
         self.nq_n = nq_n = 3
 
+        if use_Hermite:
+            self.basis = "Hermite"
+        else:
+            self.basis = "B-spline"
         self.mesh = Mesh1D(
-            self.knot_vector, nQP, derivative_order=2, basis="B-spline", nq_n=nq_n
+            self.knot_vector, nQP, derivative_order=2, basis=self.basis, nq_n=nq_n
         )
 
-        self.nq = nq = nn * nq_n  # total number of generalized coordinates
+        self.nq = nn * nq_n  # total number of generalized coordinates
         self.nu = self.nq
         self.nq_el = nn_el * nq_n  # total number of generalized coordinates per element
 
@@ -73,15 +84,15 @@ class Cable:
         self.elDOF = self.mesh.elDOF
         self.nodalDOF = np.arange(self.nq_n * self.nn).reshape(self.nq_n, self.nn).T
 
-        # A_RB for each quadrature point
-        self.A_RB = np.zeros((nEl, self.nQP, 3, 3))
-        for i in range(nEl):
-            for j in range(self.nQP):
-                self.A_RB[i, j] = np.eye(3)
-        self.A_RB_changed = np.zeros((nEl, self.nQP), dtype=bool)
+        # # A_RB for each quadrature point
+        # self.A_RB = np.zeros((nEl, self.nQP, 3, 3))
+        # for i in range(nEl):
+        #     for j in range(self.nQP):
+        #         self.A_RB[i, j] = np.eye(3)
+        # self.A_RB_changed = np.zeros((nEl, self.nQP), dtype=bool)
 
-        self.A_RB_bdry = np.eye(3)
-        self.A_RB_changed_bdry = False
+        # self.A_RB_bdry = np.eye(3)
+        # self.A_RB_changed_bdry = False
 
         # shape functions
         self.N_r = self.mesh.N  # shape functions

@@ -8,3 +8,4 @@ from .B_spline import (
     fit_B_spline_curve,
 )
 from .lagrange import Lagrange_basis
+from .Hermite import HermiteNodeVector
