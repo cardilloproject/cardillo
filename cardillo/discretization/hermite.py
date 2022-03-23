@@ -233,6 +233,22 @@ if __name__ == "__main__":
     # define generalized coordinates of cubic hermite spline
     from cardillo.math import e1, e2, e3, norm, cross3
 
+    # ######################
+    # # pathologic line case
+    # ######################
+    # r0 = np.array([0, 0.5, 0.5])
+    # t0 = e1
+    # n0 = e2
+    # b0 = cross3(t0, n0) / norm(cross3(t0, n0))
+    # r1 = np.array([1, 0.5, 0.5])
+    # t1 = e1
+    # n1 = e2
+    # # n1 = e3
+    # b1 = cross3(t1, n1) / norm(cross3(t1, n1))
+
+    ################
+    # curved 3D case
+    ################
     r0 = np.zeros(3)
     t0 = e1
     n0 = e2
@@ -240,9 +256,12 @@ if __name__ == "__main__":
     r1 = np.array([1, 1, 1]) / np.sqrt(3)
     t1 = e2
     # n1 = -e1
-    # n1 = -e3
-    n1 = e1
+    n1 = -e3
+    # n1 = e1
 
+    #######################
+    # TODO: Remove old code
+    #######################
     # q0 = np.concatenate([r0, t0])
     # q1 = np.concatenate([r1, t1])
     # q = np.concatenate([q0, q1])
@@ -273,7 +292,11 @@ if __name__ == "__main__":
     # r = basis(xis, q)
 
     # case = "cubic"
-    case = "quintic"
+    # case = "quintic"
+    # case = "septic"
+    # case = "mixed"
+    # case = "mixed2"
+    case = "test"
     from scipy.interpolate import BPoly
 
     xi = np.array([0, 1])  # interval
@@ -284,6 +307,12 @@ if __name__ == "__main__":
         yi[0, 1] = t0
         yi[1, 0] = r1
         yi[1, 1] = t1
+
+        # build spline objects
+        r_poly = BPoly.from_derivatives(xi, yi, extrapolate=False)
+        r_xi_poly = r_poly.derivative(1)
+        r_xixi_poly = r_poly.derivative(2)
+        r_xixixi_poly = r_poly.derivative(3)
     elif case == "quintic":
         # function values and their derivatives
         yi = np.zeros((2, 3, 3))
@@ -293,34 +322,263 @@ if __name__ == "__main__":
         yi[1, 0] = r1
         yi[1, 1] = t1
         yi[1, 2] = n1
+
+        # build spline objects
+        r_poly = BPoly.from_derivatives(xi, yi, extrapolate=False)
+        r_xi_poly = r_poly.derivative(1)
+        r_xixi_poly = r_poly.derivative(2)
+        r_xixixi_poly = r_poly.derivative(3)
+    elif case == "septic":
+        # function values and their derivatives
+        yi = np.zeros((2, 4, 3))
+        yi[0, 0] = r0
+        yi[0, 1] = t0
+        yi[0, 2] = n0
+        yi[0, 3] = b0
+        yi[1, 0] = r1
+        yi[1, 1] = t1
+        yi[1, 2] = n1
+        yi[1, 3] = b1
+
+        # build spline objects
+        r_poly = BPoly.from_derivatives(xi, yi, extrapolate=False)
+        r_xi_poly = r_poly.derivative(1)
+        r_xixi_poly = r_poly.derivative(2)
+        r_xixixi_poly = r_poly.derivative(3)
+    elif case == "mixed":
+        # function values and their derivatives for the centerline spline
+        yri = np.zeros((2, 3, 3))
+        yri[0, 0] = r0
+        yri[0, 1] = t0
+        yri[1, 0] = r1
+        yri[1, 1] = t1
+
+        # function values and their derivatives for the tangent spline
+        # yti = np.zeros((2, 2, 3))
+        # yti[0, 0] = t0
+        # yti[0, 1] = n0
+        # yti[1, 0] = t1
+        # yti[1, 1] = n1
+        yti = np.zeros((2, 1, 3))
+        yti[0, 0] = n0
+        yti[1, 0] = n1
+
+        # build spline objects
+        r_poly = BPoly.from_derivatives(xi, yri, extrapolate=False)
+        r_xi_poly = r_poly.derivative(1)
+        r_xixi_poly = r_poly.derivative(2)
+
+        t_poly = BPoly.from_derivatives(xi, yti, extrapolate=False)
+        t_xi_poly = t_poly.derivative(1)
+        t_xixi_poly = t_poly.derivative(2)
+    elif case == "mixed2":
+        # function values and their derivatives for the centerline spline
+        yri = np.zeros((2, 2, 3))
+        yri[0, 0] = r0
+        yri[0, 1] = t0
+        yri[1, 0] = r1
+        yri[1, 1] = t1
+        # yri = np.zeros((2, 3, 3))
+        # yri[0, 0] = r0
+        # yri[0, 1] = t0
+        # yri[0, 2] = n0
+        # yri[1, 0] = r1
+        # yri[1, 1] = t1
+        # yri[1, 2] = n1
+
+        # function values and their derivatives for the tangent spline
+        # yti = np.zeros((2, 3, 3))
+        # yti[0, 0] = t0
+        # yti[0, 1] = n0
+        # yti[0, 2] = b0
+        # yti[1, 0] = t1
+        # yti[1, 1] = n1
+        # yti[1, 2] = b1
+        yti = np.zeros((2, 2, 3))
+        yti[0, 0] = t0
+        yti[0, 1] = n0
+        yti[1, 0] = t1
+        yti[1, 1] = n1
+        # yti = np.zeros((2, 1, 3))
+        # yti[0, 0] = t0
+        # yti[1, 0] = t1
+
+        # function values and their derivatives for the normal spline
+        # yni = np.zeros((2, 2, 3))
+        # yni[0, 0] = n0
+        # yni[0, 1] = b0
+        # yni[1, 0] = n1
+        # yni[1, 1] = b1
+        yni = np.zeros((2, 1, 3))
+        yni[0, 0] = n0
+        yni[1, 0] = n1
+
+        # build spline objects
+        r_poly = BPoly.from_derivatives(xi, yri, extrapolate=False)
+        r_xi_poly = r_poly.derivative(1)
+        r_xixi_poly = r_poly.derivative(2)
+
+        t_poly = BPoly.from_derivatives(xi, yti, extrapolate=False)
+        t_xi_poly = t_poly.derivative(1)
+        t_xixi_poly = t_poly.derivative(2)
+
+        n_poly = BPoly.from_derivatives(xi, yni, extrapolate=False)
+        n_xi_poly = n_poly.derivative(1)
+        n_xixi_poly = n_poly.derivative(2)
+    elif case == "test":
+        # function values and their derivatives for the centerline spline
+        yri = np.zeros((2, 2, 3))
+        yri[0, 0] = r0
+        yri[0, 1] = t0
+        yri[1, 0] = r1
+        yri[1, 1] = t1
+        # yri = np.zeros((2, 3, 3))
+        # yri[0, 0] = r0
+        # yri[0, 1] = t0
+        # yri[0, 2] = n0
+        # yri[1, 0] = r1
+        # yri[1, 1] = t1
+        # yri[1, 2] = n1
+
+        # function values and their derivatives for the tangent spline
+        # yti = np.zeros((2, 3, 3))
+        # yti[0, 0] = t0
+        # yti[0, 1] = n0
+        # yti[0, 2] = b0
+        # yti[1, 0] = t1
+        # yti[1, 1] = n1
+        # yti[1, 2] = b1
+        # yti = np.zeros((2, 2, 3))
+        # yti[0, 0] = t0
+        # yti[0, 1] = n0
+        # yti[1, 0] = t1
+        # yti[1, 1] = n1
+        yti = np.zeros((2, 1, 3))
+        yti[0, 0] = t0
+        yti[1, 0] = t1
+
+        # # function values and their derivatives for the normal spline
+        # yni = np.zeros((2, 2, 3))
+        # yni[0, 0] = n0
+        # yni[0, 1] = b0
+        # yni[1, 0] = n1
+        # yni[1, 1] = b1
+        yni = np.zeros((2, 1, 3))
+        yni[0, 0] = n0
+        yni[1, 0] = n1
+
+        # build spline objects
+        r_poly = BPoly.from_derivatives(xi, yri, extrapolate=False)
+        r_xi_poly = r_poly.derivative(1)
+        r_xixi_poly = r_poly.derivative(2)
+
+        t_poly = BPoly.from_derivatives(xi, yti, extrapolate=False)
+        t_xi_poly = t_poly.derivative(1)
+        t_xixi_poly = t_poly.derivative(2)
+
+        n_poly = BPoly.from_derivatives(xi, yni, extrapolate=False)
+        n_xi_poly = n_poly.derivative(1)
+        n_xixi_poly = n_poly.derivative(2)
     else:
         raise RuntimeError(
             "Wrong order chosen. Allowed orders are 'cubic' and 'quintic'."
         )
-    r_poly = BPoly.from_derivatives(xi, yi, extrapolate=False)
-    r_xi_poly = r_poly.derivative(1)
-    r_xixi_poly = r_poly.derivative(2)
-    r_xixixi_poly = r_poly.derivative(3)
 
-    # evaluate basis
-    xis = np.linspace(0, 1, num=100)
+    # evaluation points
+    xis = np.linspace(0, 1, num=20)
+
+    # evaluate centerline basis
     r = np.array([r_poly(xi) for xi in xis])
-    r_xi = np.array([r_xi_poly(xi) for xi in xis])
-    r_xixi = np.array([r_xixi_poly(xi) for xi in xis])
-    r_xixixi = np.array([r_xixixi_poly(xi) for xi in xis])
 
-    d1 = np.array([r_xii / norm(r_xii) for r_xii in r_xi])
-    d2 = np.array([r_xixii / norm(r_xixii) for r_xixii in r_xixi])
-    d3 = np.array(
-        [cross3(d1i, d2i) / norm(cross3(d1i, d2i)) for (d1i, d2i) in zip(d1, d2)]
-    )
+    # evaluate tangent basis
+    if case == "mixed":
+        r_xi = np.array([r_xi_poly(xi) for xi in xis])
 
-    d1_05 = r_xi_poly(0.5) / norm(r_xi_poly(0.5))
-    d2_05 = r_xixi_poly(0.5) / norm(r_xixi_poly(0.5))
-    d3_05 = cross3(d1_05, d2_05) / norm(cross3(d1_05, d2_05))
-    print(f"d1(0.5) @ d2(0.5): {d1_05 @ d2_05}")
-    print(f"d1(0.5) @ d3(0.5): {d1_05 @ d3_05}")
-    print(f"d2(0.5) @ d3(0.5): {d2_05 @ d3_05}")
+        t = np.array([t_poly(xi) for xi in xis])
+        t_xi = np.array([t_xi_poly(xi) for xi in xis])
+        t_xixi = np.array([t_xixi_poly(xi) for xi in xis])
+
+        # first director from derivative of centerline spline
+        d1 = np.array([r_xii / norm(r_xii) for r_xii in r_xi])
+        # d1 = np.array([ti / norm(ti) for ti in r_xi])
+        # second director from derivative of tangent spline
+        d2 = np.array(
+            [ni / norm(ni) for ni in t]
+        )  # TODO: We abused the spline for the normal here!
+        # d2 = np.array([t_xii / norm(t_xii) for t_xii in t_xi])
+        # third director is computed via the cross product
+        t = np.array(
+            [cross3(d1i, d2i) / norm(cross3(d1i, d2i)) for (d1i, d2i) in zip(d1, d2)]
+        )
+    elif case == "mixed2":
+        # t = np.array([t_poly(xi) for xi in xis])
+        t = np.array([r_xi_poly(xi) for xi in xis])
+        n = np.array([n_poly(xi) for xi in xis])
+        # n = np.array([t_xi_poly(xi) for xi in xis])
+
+        # first director from derivative of centerline spline
+        d1 = np.array([ti / norm(ti) for ti in t])
+        # second director from derivative of tangent spline
+        d2 = np.array([ni / norm(ni) for ni in n])
+        # third director is computed via the cross product
+        t = np.array(
+            [cross3(d1i, d2i) / norm(cross3(d1i, d2i)) for (d1i, d2i) in zip(d1, d2)]
+        )
+    elif case == "test":
+        t = np.array([r_xi_poly(xi) for xi in xis])
+        # n = np.array([r_xixi_poly(xi) for xi in xis])
+
+        # t = np.array([t_poly(xi) for xi in xis])
+        # n = np.array([t_xi_poly(xi) for xi in xis])
+        # n = np.array([n_poly(xi) for xi in xis])
+
+        b = np.array([cross3(r_xi_poly(xi), n_poly(xi)) for xi in xis])
+        n = np.array([cross3(bi, ti) for (ti, bi) in zip(t, b)])
+
+        # first director from derivative of centerline spline
+        d1 = np.array([ti / norm(ti) for ti in t])
+        # second director from derivative of tangent spline
+        d2 = np.array([ni / norm(ni) for ni in n])
+        # third director is computed via the cross product
+        t = np.array(
+            [cross3(d1i, d2i) / norm(cross3(d1i, d2i)) for (d1i, d2i) in zip(d1, d2)]
+        )
+    else:
+        r_xi = np.array([r_xi_poly(xi) for xi in xis])
+        r_xixi = np.array([r_xixi_poly(xi) for xi in xis])
+
+        t = r_xi
+        b = np.array([cross3(r_xi_poly(xi), r_xixi_poly(xi)) for xi in xis])
+        n = np.array([cross3(bi, ti) for (ti, bi) in zip(t, b)])
+
+        # first director from derivative of centerline spline
+        d1 = np.array([ti / norm(ti) for ti in t])
+        # second director from derivative of tangent spline
+        d2 = np.array([ni / norm(ni) for ni in n])
+        # third director is computed via the cross product
+        t = np.array(
+            [cross3(d1i, d2i) / norm(cross3(d1i, d2i)) for (d1i, d2i) in zip(d1, d2)]
+        )
+
+        # d2 = np.array([r_xixii / norm(r_xixii) for r_xixii in r_xixi])
+        # d3 = np.array(
+        #     [cross3(d1i, d2i) / norm(cross3(d1i, d2i)) for (d1i, d2i) in zip(d1, d2)]
+        # )
+
+    # d1_05 = r_xi_poly(0.5) / norm(r_xi_poly(0.5))
+    # d2_05 = r_xixi_poly(0.5) / norm(r_xixi_poly(0.5))
+    # d3_05 = cross3(d1_05, d2_05) / norm(cross3(d1_05, d2_05))
+    # print(f"d1(0.5) @ d2(0.5): {d1_05 @ d2_05}")
+    # print(f"d1(0.5) @ d3(0.5): {d1_05 @ d3_05}")
+    # print(f"d2(0.5) @ d3(0.5): {d2_05 @ d3_05}")
+
+    # check orthogonality
+    for i in range(len(xis)):
+        d1d2 = d1[i] @ d2[i]
+        # d1d3 = d1[i] @ d3[i]
+        # d2d3 = d2[i] @ d3[i]
+        print(f"d1 @ d2: {d1d2}")
+        # assert np.allclose(d1d2, 0), ""
 
     # visualize spline
     import matplotlib.pyplot as plt
@@ -333,7 +591,7 @@ if __name__ == "__main__":
         # # ax.quiver3D(*r[i], *r_xixixi[i], color="b", length=0.1)
         ax.quiver3D(*r[i], *d1[i], color="r", length=0.1)
         ax.quiver3D(*r[i], *d2[i], color="g", length=0.1)
-        ax.quiver3D(*r[i], *d3[i], color="b", length=0.1)
+        ax.quiver3D(*r[i], *t[i], color="b", length=0.1)
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
     ax.set_zlim(0, 1)
