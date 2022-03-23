@@ -9,8 +9,9 @@ class HermiteNodeVector:
         self.degree = degree
         self.nel = nel
         if data is None:
-            self.data = HermiteNodeVector.uniform(degree, nel)
+            self.data = HermiteNodeVector.uniform(nel)
         else:
+            raise NotImplementedError("")
             # TODO: What happens here?
             self.data = np.zeros(self.nel + 1)
             for el in range(nel):
@@ -50,116 +51,6 @@ class HermiteNodeVector:
         assert len(self.element_data) == self.nel + 1
 
 
-def cubic_Hermite_basis_1D(
-    xi, derivative=1, node_vector=None, interval=[-1, 1], squeeze=False
-):
-    xi = np.atleast_1d(xi)
-
-    # return NN
-    if squeeze:
-        return Lagrange_basis(
-            p, xi, derivative=derivative, knot_vector=node_vector, interval=interval
-        ).squeeze()
-    else:
-        return Lagrange_basis(
-            p, xi, derivative=derivative, knot_vector=node_vector, interval=interval
-        )
-
-
-def CubicHermiteBasis(x, derivative=1, knot_vector=None, interval=[-1, 1]):
-    """Compute cubic hermite basis functions.
-
-    Parameters
-    ----------
-    x : ndarray, 1D
-        array containing the evaluation points of the polynomial
-    derivative : int
-        whether to compute the derivative of the shape function or not
-    returns : ndarray or (ndarray, ndarray)
-        2D array of shape (len(x), degree + 1) containing the k = degree + 1 shape functions evaluated at x and optional the array containing the corresponding first derivatives
-
-    """
-    if not hasattr(x, "__len__"):
-        x = [x]
-    nx = len(x)
-    N = np.zeros((derivative + 1, nx, degree + 1))
-    if knot_vector is not None:
-        for i, xi in enumerate(x):
-            el = knot_vector.element_number(xi)[0]
-            N[0, i] = __lagrange(xi, degree, interval=knot_vector.element_interval(el))
-        if derivative:
-            for i, xi in enumerate(x):
-                el = knot_vector.element_number(xi)[0]
-                N[1, i] = __lagrange_x(
-                    xi, degree, interval=knot_vector.element_interval(el)
-                )
-        return N
-    else:
-        for i, xi in enumerate(x):
-            N[0, i] = __lagrange(xi, degree, interval=interval)
-        if derivative:
-            for i, xi in enumerate(x):
-                N[1, i] = __lagrange_x(xi, degree, interval=interval)
-        return N
-
-
-class OrientedPoint:
-    # def __init__(self, r, d, dim=3):
-    #     self.r = r
-    #     self.d = d
-    def __init__(self, qDOF, dim=3):
-        self.qDOF = qDOF
-        self.dim = dim
-        # self.rDOF = np.arange(dim)
-        # self.dDOF = np.arange(3, 2 * dim)
-
-    def __call__(self, a, b=None):
-        # TODO: Descide for useful version!
-        if b is None:
-            return self.paired(a)
-        else:
-            return self.stacked(a, b)
-
-    def stacked(self, r, d):
-        """For given r and d, returns the concatenated generalized coordinates
-        q = np.concatenate([r, d]).
-        """
-        return np.concatenate([r, d])
-
-    def paired(self, q):
-        """For given generalized coordinates q, returns the stacked
-        array([r, d]).
-        """
-        return np.array([q[: self.dim], q[self.dim :]])
-        # return np.array([q[self.rDOF], q[self.dDOF]])
-
-
-class CubicHermiteNode:
-    def __init__(self, qDOF, dim=3):
-        self.qDOF = qDOF
-        self.dim = dim
-
-    def __call__(self, *args, q=None):
-        if q is None:
-            return self.stacked(*args)
-        else:
-            return self.paired(q)
-
-    def stacked(self, r0, t0, r1, t1):
-        """For given r0, t0 and r1, t1, returns the concatenated generalized coordinates
-        q = np.concatenate([r0, t0, r1, t1]).
-        """
-        return np.concatenate([r0, t0, r1, t1])
-
-    def paired(self, q):
-        """For given generalized coordinates q, returns the stacked
-        [r0, t0, r1, t1].
-        """
-        return q.reshape(4, self.dim)
-        # dim = self.dim
-        # return np.array([q[:dim], q[dim:2*dim]])
-        # return np.array([q[self.rDOF], q[self.dDOF]])
-
 class CubicHermiteBasis:
     def __init__(self, dim=3, window=[0, 1]):
         self.dim = dim
@@ -170,27 +61,16 @@ class CubicHermiteBasis:
         self.h10 = Polynomial([0, 0, 3, -2], domain=[0, 1], window=window)
         self.h11 = Polynomial([0, 0, -1, 1], domain=[0, 1], window=window)
 
-        # # their first and second derivatives
-        # self.h00_xi = self.h00.deriv(1)
-        # self.h01_xi = self.h01.deriv(1)
-        # self.h10_xi = self.h10.deriv(1)
-        # self.h11_xi = self.h11.deriv(1)
-
-        # self.h00_xixi = self.h00.deriv(2)
-        # self.h01_xixi = self.h01.deriv(2)
-        # self.h10_xixi = self.h10.deriv(2)
-        # self.h11_xixi = self.h11.deriv(2)
-
     def __call__(self, xis):
         xis = np.atleast_1d(xis)
         values = np.zeros((len(xis), self.dim, 4 * self.dim), dtype=float)
         for i, xii in enumerate(xis):
             values[i] = np.hstack(
                 [
-                    self.h00(xii) * np.eye(3),
-                    self.h01(xii) * np.eye(3),
-                    self.h10(xii) * np.eye(3),
-                    self.h11(xii) * np.eye(3),
+                    self.h00(xii) * np.eye(self.dim),
+                    self.h01(xii) * np.eye(self.dim),
+                    self.h10(xii) * np.eye(self.dim),
+                    self.h11(xii) * np.eye(self.dim),
                 ]
             )
         return values.squeeze()
@@ -201,113 +81,35 @@ class CubicHermiteBasis:
         for i, xii in enumerate(xis):
             values[i] = np.hstack(
                 [
-                    self.h00.deriv(n)(xii) * np.eye(3),
-                    self.h01.deriv(n)(xii) * np.eye(3),
-                    self.h10.deriv(n)(xii) * np.eye(3),
-                    self.h11.deriv(n)(xii) * np.eye(3),
+                    self.h00.deriv(n)(xii) * np.eye(self.dim),
+                    self.h01.deriv(n)(xii) * np.eye(self.dim),
+                    self.h10.deriv(n)(xii) * np.eye(self.dim),
+                    self.h11.deriv(n)(xii) * np.eye(self.dim),
                 ]
             )
         return values.squeeze()
 
-class HermiteBasis:
-    def __init__(self, nel, degree=3, dim=3, interval=[0, 1]):
-        assert degree == 3 or degree == 5, "degree has to be 3 or 5"
-        self.degree = degree
-        self.nel = nel
-        self.dim = dim
-        self.interval = interval
-        self.n_nodes = nel + 1
 
-        # self.__call__ = self.__call3 if degree == 3 else self.__call5
-        self.basis = self.__basis3 if degree == 3 else self.__basis5
-
-    @staticmethod 
-    def __basis3_impl(xi, interval=[0, 1]):
-        """Evaluate cubic hermite basis functions at xi on an arbitrary 
-        interval, see Wiki1.
-
-        The required coordinate transformation is described in Wiki2.
-        
-        References:
-        -----------
-        Wiki1: https://en.wikipedia.org/wiki/Cubic_Hermite_spline#Representations \\
-        Wiki2: https://en.wikipedia.org/wiki/Cubic_Hermite_spline#Interpolation_on_an_arbitrary_interval
-        """
-        # # compute coordinate transformation on arbitrary interval
-        # diff = (interval[1] - interval[0])
-        # t = (xi - interval[0]) / diff
-
-        # # compute basis functions on arbitrary interval
-        # t2 = t * t
-        # t3 = t2 * t
-        # h00 = 2 * t3 - 3 * t2 + 1
-        # h01 = (t3 - 2 * t2 + t) * diff
-        # h10 = -2 * t3 + 3 * t2
-        # h11 = (t3 - t2) * diff
-
-        # basis function, see https://en.wikipedia.org/wiki/Cubic_Hermite_spline#Representations
-        h00 = Polynomial([1, 0, -3, 2], domain=[0, 1], window=interval)
-        h01 = Polynomial([0, 1, -2, 1], domain=[0, 1], window=interval)
-        h10 = Polynomial([0, 0, 3, -2], domain=[0, 1], window=interval)
-        h11 = Polynomial([0, 0, -1, 1], domain=[0, 1], window=interval)
-
-        return np.array([h00, h01, h10, h11])
-
-    def __basis3(self, xis):
-        """Evaluate cubic hermite shape functions.
-
-        Note:
-        -----
-        This function assumes that the generalized coordiantes of each nodes
-        are ordered as:
-
-        \tqe = (r0, t0 r1, t1),
-
-        where r0, r1 denote the coordinates at the first and second nodes,
-        respectively. And further t0, t1 denote the respective derivatives
-        at the corresponding nodes.
-        """
-        xis = np.atleast_1d(xis)
-
-        basis = np.zeros((len(xis), self.dim, 4 * self.dim), dtype=float)
-        for i, xii in enumerate(xis):
-            h00, h01, h10, h11 = self.__basis3_impl(xii, interval=self.interval)
-
-            basis[i] = np.hstack(
-                [
-                    h00 * np.eye(3),
-                    h01 * np.eye(3),
-                    h10 * np.eye(3),
-                    h11 * np.eye(3),
-                ]
-            )
-
-        return basis.squeeze()
-
-    def __basis5(self, xis):
-        raise NotImplementedError("")
-
-    def __call3(self, xis, q):
-        xis = np.atleast_1d(xis)
-        value = np.zeros((len(xis), self.dim))
-        r0, t0, r1, t1 = q.reshape(4, self.dim)  # TODO: Is this the correct ordering?
-        for i, xii in enumerate(xis):
-            xii2 = xii * xii
-            xii3 = xii2 * xii
-            ar0 = 2 * xii3 - 3 * xii2 + 1.0
-            at0 = xii3 - 2 * xii2 + xii
-            ar1 = -2 * xii3 + 3 * xii2
-            at1 = xii3 - xii2
-
-            value[i] = ar0 * r0 + at0 * t0 + ar1 * r1 + at1 * t1
-
-        return value
-
-    def __call5(self, xis, q):
-        raise NotImplementedError("")
+def cubic_Hermite_basis_1D(xis, node_vector, dim=1, derivative=1, squeeze=True):
+    """Compute cubic Hermite basis functions for a given knot vector.
+    """
+    xis = np.atleast_1d(xis)
+    nxis = len(xis)
+    N = np.zeros((derivative + 1, nxis, dim, 4 * dim))
+    for i, xi in enumerate(xis):
+        el = node_vector.element_number(xi)[0]
+        basis = CubicHermiteBasis(dim, window=node_vector.element_interval(el))
+        N[0, i] = basis(xi)
+        if derivative:
+            for j in range(1, derivative + 1):
+                N[j, i] = basis.deriv(xi, n=j)
+    if squeeze:
+        return N.squeeze()
+    else:
+        return N
 
 
-if __name__ == "__main__":
+def basic_usage():
     # define generalized coordinates of cubic hermite spline
     from cardillo.math import e1, e2, e3, norm, cross3
 
@@ -363,359 +165,17 @@ if __name__ == "__main__":
         ax.quiver3D(*r[i], *r_xixi[i], color="g", length=0.1)
     ax.quiver3D(*r0, *t0, color="b")
     ax.quiver3D(*r1, *t1, color="b")
-    # ax.set_xlim(0, 1)
-    # ax.set_ylim(0, 1)
-    # ax.set_zlim(0, 1)
     ax.grid()
     plt.show()
 
 
-    exit()
+def knotvector_usage():
+    nel = 2
+    knot_vector = HermiteNodeVector(3, nel)
+    num = 10
+    xis = np.linspace(0, 1, num=num)
+    N, N_xi = cubic_Hermite_basis_1D(xis, knot_vector, dim=1)
 
-    #######################
-    # TODO: Remove old code
-    #######################
-    # q0 = np.concatenate([r0, t0])
-    # q1 = np.concatenate([r1, t1])
-    # q = np.concatenate([q0, q1])
-
-    # p0 = CubicHermiteNode(np.arange(12), dim=3)
-    # print(f"p0(q):\n{p0(q=q)}")
-    # print(f"p0(r0, t0, r1, t1):\n{p0(r0, t0, r1, t1)}")
-
-    # p0 = OrientedPoint(np.arange(6))
-    # p1 = OrientedPoint(np.arange(6, 12))
-
-    # print(f"p0.paired():\n{p0.paired(q0)}")
-    # print(f"p1.paired():\n{p1.paired(q1)}")
-    # print(f"p0(q0):\n{p0(q0)}")
-    # print(f"p1(q1):\n{p1(q1)}")
-
-    # print(f"p0.stacked(): {p0.stacked(r0, t0)}")
-    # print(f"p1.stacked(): {p1.stacked(r1, t1)}")
-    # print(f"p0(r0, t0): {p0(r0, t0)}")
-    # print(f"p1(r1, t1): {p1(r1, t1)}")
-
-    # nel = 1
-    # basis = CubicHermiteBasis(nel)
-    # xis = np.linspace(0, 1, num=10)
-    # N = basis.shape_functions(xis)
-    # r = np.array([Ni @ q for Ni in N])
-
-    # r = basis(xis, q)
-
-    case = "cubic"
-    # case = "quintic"
-    # case = "septic"
-    # case = "mixed"
-    # case = "mixed2"
-    # case = "test"
-    from scipy.interpolate import BPoly
-
-    xi = np.array([0, 1])  # interval
-    if case == "cubic":
-        hermite = HermiteBasis(1)
-        r_poly = lambda xi: hermite.basis(xi)
-
-        # N = hermite.basis(0)
-        q = np.concatenate([r0, t0, r1, t1])
-        # r = N @ q
-        r_poly = lambda xi: hermite.basis(xi) @ q
-        r = r_poly(0)
-
-        # function values and their derivatives
-        yi = np.zeros((2, 2, 3))
-        yi[0, 0] = r0
-        yi[0, 1] = t0
-        yi[1, 0] = r1
-        yi[1, 1] = t1
-
-        # build spline objects
-        r_poly = BPoly.from_derivatives(xi, yi, extrapolate=False)
-        r_xi_poly = r_poly.derivative(1)
-        r_xixi_poly = r_poly.derivative(2)
-        r_xixixi_poly = r_poly.derivative(3)
-    elif case == "quintic":
-        # function values and their derivatives
-        yi = np.zeros((2, 3, 3))
-        yi[0, 0] = r0
-        yi[0, 1] = t0
-        yi[0, 2] = n0
-        yi[1, 0] = r1
-        yi[1, 1] = t1
-        yi[1, 2] = n1
-
-        # build spline objects
-        r_poly = BPoly.from_derivatives(xi, yi, extrapolate=False)
-        r_xi_poly = r_poly.derivative(1)
-        r_xixi_poly = r_poly.derivative(2)
-        r_xixixi_poly = r_poly.derivative(3)
-    elif case == "septic":
-        # function values and their derivatives
-        yi = np.zeros((2, 4, 3))
-        yi[0, 0] = r0
-        yi[0, 1] = t0
-        yi[0, 2] = n0
-        yi[0, 3] = b0
-        yi[1, 0] = r1
-        yi[1, 1] = t1
-        yi[1, 2] = n1
-        yi[1, 3] = b1
-
-        # build spline objects
-        r_poly = BPoly.from_derivatives(xi, yi, extrapolate=False)
-        r_xi_poly = r_poly.derivative(1)
-        r_xixi_poly = r_poly.derivative(2)
-        r_xixixi_poly = r_poly.derivative(3)
-    elif case == "mixed":
-        # function values and their derivatives for the centerline spline
-        yri = np.zeros((2, 3, 3))
-        yri[0, 0] = r0
-        yri[0, 1] = t0
-        yri[1, 0] = r1
-        yri[1, 1] = t1
-
-        # function values and their derivatives for the tangent spline
-        # yti = np.zeros((2, 2, 3))
-        # yti[0, 0] = t0
-        # yti[0, 1] = n0
-        # yti[1, 0] = t1
-        # yti[1, 1] = n1
-        yti = np.zeros((2, 1, 3))
-        yti[0, 0] = n0
-        yti[1, 0] = n1
-
-        # build spline objects
-        r_poly = BPoly.from_derivatives(xi, yri, extrapolate=False)
-        r_xi_poly = r_poly.derivative(1)
-        r_xixi_poly = r_poly.derivative(2)
-
-        t_poly = BPoly.from_derivatives(xi, yti, extrapolate=False)
-        t_xi_poly = t_poly.derivative(1)
-        t_xixi_poly = t_poly.derivative(2)
-    elif case == "mixed2":
-        # function values and their derivatives for the centerline spline
-        yri = np.zeros((2, 2, 3))
-        yri[0, 0] = r0
-        yri[0, 1] = t0
-        yri[1, 0] = r1
-        yri[1, 1] = t1
-        # yri = np.zeros((2, 3, 3))
-        # yri[0, 0] = r0
-        # yri[0, 1] = t0
-        # yri[0, 2] = n0
-        # yri[1, 0] = r1
-        # yri[1, 1] = t1
-        # yri[1, 2] = n1
-
-        # function values and their derivatives for the tangent spline
-        # yti = np.zeros((2, 3, 3))
-        # yti[0, 0] = t0
-        # yti[0, 1] = n0
-        # yti[0, 2] = b0
-        # yti[1, 0] = t1
-        # yti[1, 1] = n1
-        # yti[1, 2] = b1
-        yti = np.zeros((2, 2, 3))
-        yti[0, 0] = t0
-        yti[0, 1] = n0
-        yti[1, 0] = t1
-        yti[1, 1] = n1
-        # yti = np.zeros((2, 1, 3))
-        # yti[0, 0] = t0
-        # yti[1, 0] = t1
-
-        # function values and their derivatives for the normal spline
-        # yni = np.zeros((2, 2, 3))
-        # yni[0, 0] = n0
-        # yni[0, 1] = b0
-        # yni[1, 0] = n1
-        # yni[1, 1] = b1
-        yni = np.zeros((2, 1, 3))
-        yni[0, 0] = n0
-        yni[1, 0] = n1
-
-        # build spline objects
-        r_poly = BPoly.from_derivatives(xi, yri, extrapolate=False)
-        r_xi_poly = r_poly.derivative(1)
-        r_xixi_poly = r_poly.derivative(2)
-
-        t_poly = BPoly.from_derivatives(xi, yti, extrapolate=False)
-        t_xi_poly = t_poly.derivative(1)
-        t_xixi_poly = t_poly.derivative(2)
-
-        n_poly = BPoly.from_derivatives(xi, yni, extrapolate=False)
-        n_xi_poly = n_poly.derivative(1)
-        n_xixi_poly = n_poly.derivative(2)
-    elif case == "test":
-        # function values and their derivatives for the centerline spline
-        yri = np.zeros((2, 2, 3))
-        yri[0, 0] = r0
-        yri[0, 1] = t0
-        yri[1, 0] = r1
-        yri[1, 1] = t1
-        # yri = np.zeros((2, 3, 3))
-        # yri[0, 0] = r0
-        # yri[0, 1] = t0
-        # yri[0, 2] = n0
-        # yri[1, 0] = r1
-        # yri[1, 1] = t1
-        # yri[1, 2] = n1
-
-        # function values and their derivatives for the tangent spline
-        # yti = np.zeros((2, 3, 3))
-        # yti[0, 0] = t0
-        # yti[0, 1] = n0
-        # yti[0, 2] = b0
-        # yti[1, 0] = t1
-        # yti[1, 1] = n1
-        # yti[1, 2] = b1
-        # yti = np.zeros((2, 2, 3))
-        # yti[0, 0] = t0
-        # yti[0, 1] = n0
-        # yti[1, 0] = t1
-        # yti[1, 1] = n1
-        yti = np.zeros((2, 1, 3))
-        yti[0, 0] = t0
-        yti[1, 0] = t1
-
-        # # function values and their derivatives for the normal spline
-        # yni = np.zeros((2, 2, 3))
-        # yni[0, 0] = n0
-        # yni[0, 1] = b0
-        # yni[1, 0] = n1
-        # yni[1, 1] = b1
-        yni = np.zeros((2, 1, 3))
-        yni[0, 0] = n0
-        yni[1, 0] = n1
-
-        # build spline objects
-        r_poly = BPoly.from_derivatives(xi, yri, extrapolate=False)
-        r_xi_poly = r_poly.derivative(1)
-        r_xixi_poly = r_poly.derivative(2)
-
-        t_poly = BPoly.from_derivatives(xi, yti, extrapolate=False)
-        t_xi_poly = t_poly.derivative(1)
-        t_xixi_poly = t_poly.derivative(2)
-
-        n_poly = BPoly.from_derivatives(xi, yni, extrapolate=False)
-        n_xi_poly = n_poly.derivative(1)
-        n_xixi_poly = n_poly.derivative(2)
-    else:
-        raise RuntimeError(
-            "Wrong order chosen. Allowed orders are 'cubic' and 'quintic'."
-        )
-
-    # evaluation points
-    xis = np.linspace(0, 1, num=20)
-
-    # evaluate centerline basis
-    r = np.array([r_poly(xi) for xi in xis])
-
-    # evaluate tangent basis
-    if case == "mixed":
-        r_xi = np.array([r_xi_poly(xi) for xi in xis])
-
-        t = np.array([t_poly(xi) for xi in xis])
-        t_xi = np.array([t_xi_poly(xi) for xi in xis])
-        t_xixi = np.array([t_xixi_poly(xi) for xi in xis])
-
-        # first director from derivative of centerline spline
-        d1 = np.array([r_xii / norm(r_xii) for r_xii in r_xi])
-        # d1 = np.array([ti / norm(ti) for ti in r_xi])
-        # second director from derivative of tangent spline
-        d2 = np.array(
-            [ni / norm(ni) for ni in t]
-        )  # TODO: We abused the spline for the normal here!
-        # d2 = np.array([t_xii / norm(t_xii) for t_xii in t_xi])
-        # third director is computed via the cross product
-        t = np.array(
-            [cross3(d1i, d2i) / norm(cross3(d1i, d2i)) for (d1i, d2i) in zip(d1, d2)]
-        )
-    elif case == "mixed2":
-        # t = np.array([t_poly(xi) for xi in xis])
-        t = np.array([r_xi_poly(xi) for xi in xis])
-        n = np.array([n_poly(xi) for xi in xis])
-        # n = np.array([t_xi_poly(xi) for xi in xis])
-
-        # first director from derivative of centerline spline
-        d1 = np.array([ti / norm(ti) for ti in t])
-        # second director from derivative of tangent spline
-        d2 = np.array([ni / norm(ni) for ni in n])
-        # third director is computed via the cross product
-        t = np.array(
-            [cross3(d1i, d2i) / norm(cross3(d1i, d2i)) for (d1i, d2i) in zip(d1, d2)]
-        )
-    elif case == "test":
-        t = np.array([r_xi_poly(xi) for xi in xis])
-        # n = np.array([r_xixi_poly(xi) for xi in xis])
-
-        # t = np.array([t_poly(xi) for xi in xis])
-        # n = np.array([t_xi_poly(xi) for xi in xis])
-        # n = np.array([n_poly(xi) for xi in xis])
-
-        b = np.array([cross3(r_xi_poly(xi), n_poly(xi)) for xi in xis])
-        n = np.array([cross3(bi, ti) for (ti, bi) in zip(t, b)])
-
-        # first director from derivative of centerline spline
-        d1 = np.array([ti / norm(ti) for ti in t])
-        # second director from derivative of tangent spline
-        d2 = np.array([ni / norm(ni) for ni in n])
-        # third director is computed via the cross product
-        t = np.array(
-            [cross3(d1i, d2i) / norm(cross3(d1i, d2i)) for (d1i, d2i) in zip(d1, d2)]
-        )
-    else:
-        r_xi = np.array([r_xi_poly(xi) for xi in xis])
-        r_xixi = np.array([r_xixi_poly(xi) for xi in xis])
-
-        t = r_xi
-        b = np.array([cross3(r_xi_poly(xi), r_xixi_poly(xi)) for xi in xis])
-        n = np.array([cross3(bi, ti) for (ti, bi) in zip(t, b)])
-
-        # first director from derivative of centerline spline
-        d1 = np.array([ti / norm(ti) for ti in t])
-        # second director from derivative of tangent spline
-        d2 = np.array([ni / norm(ni) for ni in n])
-        # third director is computed via the cross product
-        t = np.array(
-            [cross3(d1i, d2i) / norm(cross3(d1i, d2i)) for (d1i, d2i) in zip(d1, d2)]
-        )
-
-        # d2 = np.array([r_xixii / norm(r_xixii) for r_xixii in r_xixi])
-        # d3 = np.array(
-        #     [cross3(d1i, d2i) / norm(cross3(d1i, d2i)) for (d1i, d2i) in zip(d1, d2)]
-        # )
-
-    # d1_05 = r_xi_poly(0.5) / norm(r_xi_poly(0.5))
-    # d2_05 = r_xixi_poly(0.5) / norm(r_xixi_poly(0.5))
-    # d3_05 = cross3(d1_05, d2_05) / norm(cross3(d1_05, d2_05))
-    # print(f"d1(0.5) @ d2(0.5): {d1_05 @ d2_05}")
-    # print(f"d1(0.5) @ d3(0.5): {d1_05 @ d3_05}")
-    # print(f"d2(0.5) @ d3(0.5): {d2_05 @ d3_05}")
-
-    # check orthogonality
-    for i in range(len(xis)):
-        d1d2 = d1[i] @ d2[i]
-        # d1d3 = d1[i] @ d3[i]
-        # d2d3 = d2[i] @ d3[i]
-        print(f"d1 @ d2: {d1d2}")
-        # assert np.allclose(d1d2, 0), ""
-
-    # visualize spline
-    import matplotlib.pyplot as plt
-
-    fig, ax = plt.subplots(subplot_kw=dict(projection="3d"))
-    ax.plot(r[:, 0], r[:, 1], r[:, 2], "-k")
-    for i in range(len(r)):
-        # ax.quiver3D(*r[i], *r_xi[i], color="r", length=0.1)
-        # ax.quiver3D(*r[i], *r_xixi[i], color="g", length=0.1)
-        # # ax.quiver3D(*r[i], *r_xixixi[i], color="b", length=0.1)
-        ax.quiver3D(*r[i], *d1[i], color="r", length=0.1)
-        ax.quiver3D(*r[i], *d2[i], color="g", length=0.1)
-        ax.quiver3D(*r[i], *t[i], color="b", length=0.1)
-    ax.set_xlim(0, 1)
-    ax.set_ylim(0, 1)
-    ax.set_zlim(0, 1)
-    ax.grid()
-    plt.show()
+if __name__ == "__main__":
+    basic_usage()
+    # knotvector_usage()
