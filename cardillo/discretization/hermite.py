@@ -231,14 +231,17 @@ class CubicHermiteBasis:
 
 if __name__ == "__main__":
     # define generalized coordinates of cubic hermite spline
-    from cardillo.math import e1, e2, e3
+    from cardillo.math import e1, e2, e3, norm, cross3
 
     r0 = np.zeros(3)
     t0 = e1
     n0 = e2
-    r1 = np.array([1, 1, 0]) / np.sqrt(2)
+    # r1 = np.array([1, 1, 0]) / np.sqrt(2)
+    r1 = np.array([1, 1, 1]) / np.sqrt(3)
     t1 = e2
-    n1 = -e1
+    # n1 = -e1
+    # n1 = -e3
+    n1 = e1
 
     # q0 = np.concatenate([r0, t0])
     # q1 = np.concatenate([r1, t1])
@@ -300,11 +303,24 @@ if __name__ == "__main__":
     r_xixixi_poly = r_poly.derivative(3)
 
     # evaluate basis
-    xis = np.linspace(0, 1, num=10)
+    xis = np.linspace(0, 1, num=100)
     r = np.array([r_poly(xi) for xi in xis])
     r_xi = np.array([r_xi_poly(xi) for xi in xis])
     r_xixi = np.array([r_xixi_poly(xi) for xi in xis])
     r_xixixi = np.array([r_xixixi_poly(xi) for xi in xis])
+
+    d1 = np.array([r_xii / norm(r_xii) for r_xii in r_xi])
+    d2 = np.array([r_xixii / norm(r_xixii) for r_xixii in r_xixi])
+    d3 = np.array(
+        [cross3(d1i, d2i) / norm(cross3(d1i, d2i)) for (d1i, d2i) in zip(d1, d2)]
+    )
+
+    d1_05 = r_xi_poly(0.5) / norm(r_xi_poly(0.5))
+    d2_05 = r_xixi_poly(0.5) / norm(r_xixi_poly(0.5))
+    d3_05 = cross3(d1_05, d2_05) / norm(cross3(d1_05, d2_05))
+    print(f"d1(0.5) @ d2(0.5): {d1_05 @ d2_05}")
+    print(f"d1(0.5) @ d3(0.5): {d1_05 @ d3_05}")
+    print(f"d2(0.5) @ d3(0.5): {d2_05 @ d3_05}")
 
     # visualize spline
     import matplotlib.pyplot as plt
@@ -312,53 +328,14 @@ if __name__ == "__main__":
     fig, ax = plt.subplots(subplot_kw=dict(projection="3d"))
     ax.plot(r[:, 0], r[:, 1], r[:, 2], "-k")
     for i in range(len(r)):
-        ax.quiver3D(*r[i], *r_xi[i], color="r", length=0.1)
-        ax.quiver3D(*r[i], *r_xixi[i], color="g", length=0.1)
-        # ax.quiver3D(*r[i], *r_xixixi[i], color="b", length=0.1)
+        # ax.quiver3D(*r[i], *r_xi[i], color="r", length=0.1)
+        # ax.quiver3D(*r[i], *r_xixi[i], color="g", length=0.1)
+        # # ax.quiver3D(*r[i], *r_xixixi[i], color="b", length=0.1)
+        ax.quiver3D(*r[i], *d1[i], color="r", length=0.1)
+        ax.quiver3D(*r[i], *d2[i], color="g", length=0.1)
+        ax.quiver3D(*r[i], *d3[i], color="b", length=0.1)
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
     ax.set_zlim(0, 1)
     ax.grid()
     plt.show()
-
-    exit()
-
-    # collect generalized coordinates
-    rs = np.array([r0, r1])
-    ts = np.array([t0, t1])
-
-    def cubic_herimite_shapefunctions(xis, r0, t0, r1, t1, interval=[0, 1]):
-        xis2 = xis * xis
-        xis3 = xis2 * xis
-        ar0 = 2 * xis3 - 3 * xis2 + 1.0
-        at0 = xis3 - 2 * xis2 + xis
-        ar1 = -2 * xis3 + 3 * xis2
-        at1 = xis3 - xis2
-        return (
-            np.outer(ar0, r0)
-            + np.outer(at0, t0)
-            + np.outer(ar1, r1)
-            + np.outer(at1, t1)
-        )
-
-    # discretize parameter space
-    num = 100
-    xis = np.linspace(0, 1, num=num)
-
-    # evaluate spline
-    r = cubic_herimite_shapefunctions(xis, r0, t0, r1, t1)
-    # print(f"xis: {xis}")
-    # print(f"r(xis):\n{r}")
-
-    import matplotlib.pyplot as plt
-
-    fig, ax = plt.subplots()
-    ax.plot(r[:, 0], r[:, 1])
-    ax.quiver(*r0[:2], *t0[:2])
-    ax.quiver(*r1[:2], *t1[:2])
-    # ax.set_xlim(0, 2.5)
-    # ax.set_ylim(0, 2.5)
-    ax.set_aspect(1)
-    ax.grid()
-    plt.show()
-    # spline = CubicHermiteSpline(xis, rs, ts)
