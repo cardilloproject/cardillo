@@ -1,4 +1,5 @@
 import numpy as np
+from numpy.polynomial import Polynomial
 from scipy.interpolate import BPoly
 
 
@@ -159,6 +160,54 @@ class CubicHermiteNode:
         # return np.array([q[:dim], q[dim:2*dim]])
         # return np.array([q[self.rDOF], q[self.dDOF]])
 
+class CubicHermiteBasis:
+    def __init__(self, dim=3, window=[0, 1]):
+        self.dim = dim
+
+        # basis function, see https://en.wikipedia.org/wiki/Cubic_Hermite_spline#Representations
+        self.h00 = Polynomial([1, 0, -3, 2], domain=[0, 1], window=window)
+        self.h01 = Polynomial([0, 1, -2, 1], domain=[0, 1], window=window)
+        self.h10 = Polynomial([0, 0, 3, -2], domain=[0, 1], window=window)
+        self.h11 = Polynomial([0, 0, -1, 1], domain=[0, 1], window=window)
+
+        # # their first and second derivatives
+        # self.h00_xi = self.h00.deriv(1)
+        # self.h01_xi = self.h01.deriv(1)
+        # self.h10_xi = self.h10.deriv(1)
+        # self.h11_xi = self.h11.deriv(1)
+
+        # self.h00_xixi = self.h00.deriv(2)
+        # self.h01_xixi = self.h01.deriv(2)
+        # self.h10_xixi = self.h10.deriv(2)
+        # self.h11_xixi = self.h11.deriv(2)
+
+    def __call__(self, xis):
+        xis = np.atleast_1d(xis)
+        values = np.zeros((len(xis), self.dim, 4 * self.dim), dtype=float)
+        for i, xii in enumerate(xis):
+            values[i] = np.hstack(
+                [
+                    self.h00(xii) * np.eye(3),
+                    self.h01(xii) * np.eye(3),
+                    self.h10(xii) * np.eye(3),
+                    self.h11(xii) * np.eye(3),
+                ]
+            )
+        return values.squeeze()
+
+    def deriv(self, xis, n=1):
+        xis = np.atleast_1d(xis)
+        values = np.zeros((len(xis), self.dim, 4 * self.dim), dtype=float)
+        for i, xii in enumerate(xis):
+            values[i] = np.hstack(
+                [
+                    self.h00.deriv(n)(xii) * np.eye(3),
+                    self.h01.deriv(n)(xii) * np.eye(3),
+                    self.h10.deriv(n)(xii) * np.eye(3),
+                    self.h11.deriv(n)(xii) * np.eye(3),
+                ]
+            )
+        return values.squeeze()
 
 class HermiteBasis:
     def __init__(self, nel, degree=3, dim=3, interval=[0, 1]):
@@ -184,17 +233,23 @@ class HermiteBasis:
         Wiki1: https://en.wikipedia.org/wiki/Cubic_Hermite_spline#Representations \\
         Wiki2: https://en.wikipedia.org/wiki/Cubic_Hermite_spline#Interpolation_on_an_arbitrary_interval
         """
-        # compute coordinate transformation on arbitrary interval
-        diff = (interval[1] - interval[0])
-        t = (xi - interval[0]) / diff
+        # # compute coordinate transformation on arbitrary interval
+        # diff = (interval[1] - interval[0])
+        # t = (xi - interval[0]) / diff
 
-        # compute basis functions on arbitrary interval
-        t2 = t * t
-        t3 = t2 * t
-        h00 = 2 * t3 - 3 * t2 + 1
-        h01 = (t3 - 2 * t2 + t) * diff
-        h10 = -2 * t3 + 3 * t2
-        h11 = (t3 - t2) * diff
+        # # compute basis functions on arbitrary interval
+        # t2 = t * t
+        # t3 = t2 * t
+        # h00 = 2 * t3 - 3 * t2 + 1
+        # h01 = (t3 - 2 * t2 + t) * diff
+        # h10 = -2 * t3 + 3 * t2
+        # h11 = (t3 - t2) * diff
+
+        # basis function, see https://en.wikipedia.org/wiki/Cubic_Hermite_spline#Representations
+        h00 = Polynomial([1, 0, -3, 2], domain=[0, 1], window=interval)
+        h01 = Polynomial([0, 1, -2, 1], domain=[0, 1], window=interval)
+        h10 = Polynomial([0, 0, 3, -2], domain=[0, 1], window=interval)
+        h11 = Polynomial([0, 0, -1, 1], domain=[0, 1], window=interval)
 
         return np.array([h00, h01, h10, h11])
 
@@ -273,14 +328,49 @@ if __name__ == "__main__":
     # curved 3D case
     ################
     r0 = np.zeros(3)
-    t0 = e1
-    n0 = e2
-    # r1 = np.array([1, 1, 0]) / np.sqrt(2)
+    t0 = e1 * 1.5
     r1 = np.array([1, 1, 1]) / np.sqrt(3)
-    t1 = e2
-    # n1 = -e1
-    n1 = -e3
-    # n1 = e1
+    t1 = e2 * 0.5
+
+    ###############################
+    # build generalized coordinates
+    ###############################
+    q = np.concatenate([r0, t0, r1, t1])
+
+    #####################
+    # build Hermite basis
+    #####################
+    hermite = CubicHermiteBasis()
+    r_poly = lambda xi: hermite(xi) @ q
+    r_xi_poly = lambda xi: hermite.deriv(xi, n=1) @ q
+    r_xixi_poly = lambda xi: hermite.deriv(xi, n=2) @ q
+
+    ###############
+    # visualization
+    ###############
+    import matplotlib.pyplot as plt
+
+    num = 10
+    xis = np.linspace(0, 1, num=num)
+    r = r_poly(xis)
+    r_xi = r_xi_poly(xis)
+    r_xixi = r_xixi_poly(xis)
+
+    fig, ax = plt.subplots(subplot_kw=dict(projection="3d"))
+    ax.plot(r[:, 0], r[:, 1], r[:, 2], "-k")
+    for i in range(len(r)):
+        ax.quiver3D(*r[i], *r_xi[i], color="r", length=0.1)
+        ax.quiver3D(*r[i], *r_xixi[i], color="g", length=0.1)
+    ax.quiver3D(*r0, *t0, color="b")
+    ax.quiver3D(*r1, *t1, color="b")
+    # ax.set_xlim(0, 1)
+    # ax.set_ylim(0, 1)
+    # ax.set_zlim(0, 1)
+    ax.grid()
+    plt.show()
+
+
+    exit()
 
     #######################
     # TODO: Remove old code
