@@ -5,17 +5,13 @@ from cardillo.discretization.indexing import flat2D, flat3D, split2D, split3D
 import meshio
 
 
-def uniform_node_vector(degree, nEl, interval=[0, 1]):
-    return np.linspace(interval[0], interval[1], degree * nEl + 1)
-
-
 # data are only the corner nodes
 class Node_vector:
     def __init__(self, degree, nel, data=None):
         self.degree = degree
         self.nel = nel
         if data is None:
-            self.data = uniform_node_vector(self.degree, self.nel)
+            self.data = Node_vector.uniform(self.degree, self.nel)
         else:
             self.data = np.zeros(self.nel * self.degree + 1)
             for el in range(nel):
@@ -27,6 +23,10 @@ class Node_vector:
 
         self.element_data = self.data
         self.verify_data()
+
+    @staticmethod
+    def uniform(degree, nel, interval=[0, 1]):
+        return np.linspace(interval[0], interval[1], degree * nel + 1)
 
     def element_number(self, nodes):
         if not hasattr(nodes, "__len__"):

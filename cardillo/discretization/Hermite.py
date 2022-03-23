@@ -1,19 +1,17 @@
 import numpy as np
-from numpy.core.fromnumeric import squeeze
-from scipy.sparse.linalg import spsolve
-from cardillo.discretization.indexing import flat2D, flat3D, split2D, split3D
-import meshio
+from scipy.interpolate import BPoly
 
 
-# data are only the corner nodes
-class CubicHermiteNodeVector:
+class HermiteNodeVector:
     def __init__(self, degree, nel, data=None):
+        assert degree % 2 == 1, "degree must be odd"
         self.degree = degree
         self.nel = nel
         if data is None:
-            self.data = CubicHermiteNodeVector.uniform(degree, nel)
+            self.data = HermiteNodeVector.uniform(degree, nel)
         else:
-            self.data = np.zeros(self.nel * self.degree + 1)
+            # TODO: What happens here?
+            self.data = np.zeros(self.nel + 1)
             for el in range(nel):
                 for p in range(self.degree):
                     self.data[el * self.degree + p] = (
@@ -26,9 +24,6 @@ class CubicHermiteNodeVector:
 
     @staticmethod
     def uniform(nel, interval=[0, 1]):
-        """TODO: Is this the correct number of nodes?
-        I think yes, since we have two node elements for cubic hermite
-        shapefunctons."""
         return np.linspace(interval[0], interval[1], num=nel + 1)
 
     def element_number(self, nodes):
@@ -37,10 +32,7 @@ class CubicHermiteNodeVector:
 
         element = np.zeros(lenxi, dtype=int)
         for j in range(lenxi):
-            # TODO: Modulo degree should not be neccesary here!
-            element[j] = np.asarray(self.element_data <= nodes[j]).nonzero()[0][
-                -1
-            ]  # // (self.degree)
+            element[j] = np.asarray(self.element_data <= nodes[j]).nonzero()[0][-1]
             if nodes[j] == self.data[-1]:
                 element[j] -= 1
         return element
@@ -168,16 +160,79 @@ class CubicHermiteNode:
         # return np.array([q[self.rDOF], q[self.dDOF]])
 
 
-class CubicHermiteBasis:
-    """TODO: Write transformation for arbitrary interval."""
-
-    def __init__(self, nel, dim=3, interval=[0, 1]):
+class HermiteBasis:
+    def __init__(self, nel, degree=3, dim=3, interval=[0, 1]):
+        assert degree == 3 or degree == 5, "degree has to be 3 or 5"
+        self.degree = degree
         self.nel = nel
         self.dim = dim
         self.interval = interval
         self.n_nodes = nel + 1
 
-    def __call__(self, xis, q):
+        # self.__call__ = self.__call3 if degree == 3 else self.__call5
+        self.basis = self.__basis3 if degree == 3 else self.__basis5
+
+    @staticmethod 
+    def __basis3_impl(xi, interval=[0, 1]):
+        """Evaluate cubic hermite basis functions at xi on an arbitrary 
+        interval, see Wiki1.
+
+        The required coordinate transformation is described in Wiki2.
+        
+        References:
+        -----------
+        Wiki1: https://en.wikipedia.org/wiki/Cubic_Hermite_spline#Representations \\
+        Wiki2: https://en.wikipedia.org/wiki/Cubic_Hermite_spline#Interpolation_on_an_arbitrary_interval
+        """
+        # compute coordinate transformation on arbitrary interval
+        diff = (interval[1] - interval[0])
+        t = (xi - interval[0]) / diff
+
+        # compute basis functions on arbitrary interval
+        t2 = t * t
+        t3 = t2 * t
+        h00 = 2 * t3 - 3 * t2 + 1
+        h01 = (t3 - 2 * t2 + t) * diff
+        h10 = -2 * t3 + 3 * t2
+        h11 = (t3 - t2) * diff
+
+        return np.array([h00, h01, h10, h11])
+
+    def __basis3(self, xis):
+        """Evaluate cubic hermite shape functions.
+
+        Note:
+        -----
+        This function assumes that the generalized coordiantes of each nodes
+        are ordered as:
+
+        \tqe = (r0, t0 r1, t1),
+
+        where r0, r1 denote the coordinates at the first and second nodes,
+        respectively. And further t0, t1 denote the respective derivatives
+        at the corresponding nodes.
+        """
+        xis = np.atleast_1d(xis)
+
+        basis = np.zeros((len(xis), self.dim, 4 * self.dim), dtype=float)
+        for i, xii in enumerate(xis):
+            h00, h01, h10, h11 = self.__basis3_impl(xii, interval=self.interval)
+
+            basis[i] = np.hstack(
+                [
+                    h00 * np.eye(3),
+                    h01 * np.eye(3),
+                    h10 * np.eye(3),
+                    h11 * np.eye(3),
+                ]
+            )
+
+        return basis.squeeze()
+
+    def __basis5(self, xis):
+        raise NotImplementedError("")
+
+    def __call3(self, xis, q):
         xis = np.atleast_1d(xis)
         value = np.zeros((len(xis), self.dim))
         r0, t0, r1, t1 = q.reshape(4, self.dim)  # TODO: Is this the correct ordering?
@@ -193,40 +248,8 @@ class CubicHermiteBasis:
 
         return value
 
-    def shape_functions(self, xis):
-        """Evaluate cubic hermite shape functions.
-
-        Note:
-        -----
-        This function assumes that the generalized coordiantes of each nodes
-        are ordered as:
-
-        \tqe = (r0, t0 r1, t1),
-
-        where r0, r1 denote the coordinates at the first and second nodes,
-        respectively. And further t0, t1 denote the respective derivatives
-        at the corresponding nodes.
-        """
-        xis = np.atleast_1d(xis)
-        basis = np.zeros((len(xis), self.dim, 12), dtype=float)
-        for i, xii in enumerate(xis):
-            xii2 = xii * xii
-            xii3 = xii2 * xii
-            ar0 = 2 * xii3 - 3 * xii2 + 1.0
-            at0 = xii3 - 2 * xii2 + xii
-            ar1 = -2 * xii3 + 3 * xii2
-            at1 = xii3 - xii2
-
-            basis[i] = np.hstack(
-                [
-                    ar0 * np.eye(3),
-                    at0 * np.eye(3),
-                    ar1 * np.eye(3),
-                    at1 * np.eye(3),
-                ]
-            )
-
-        return basis
+    def __call5(self, xis, q):
+        raise NotImplementedError("")
 
 
 if __name__ == "__main__":
@@ -291,16 +314,25 @@ if __name__ == "__main__":
 
     # r = basis(xis, q)
 
-    # case = "cubic"
+    case = "cubic"
     # case = "quintic"
     # case = "septic"
     # case = "mixed"
     # case = "mixed2"
-    case = "test"
+    # case = "test"
     from scipy.interpolate import BPoly
 
     xi = np.array([0, 1])  # interval
     if case == "cubic":
+        hermite = HermiteBasis(1)
+        r_poly = lambda xi: hermite.basis(xi)
+
+        # N = hermite.basis(0)
+        q = np.concatenate([r0, t0, r1, t1])
+        # r = N @ q
+        r_poly = lambda xi: hermite.basis(xi) @ q
+        r = r_poly(0)
+
         # function values and their derivatives
         yi = np.zeros((2, 2, 3))
         yi[0, 0] = r0
