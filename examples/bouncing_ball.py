@@ -11,7 +11,7 @@ from cardillo.model.rigid_body import RigidBodyEuler
 from cardillo.model.frame import Frame
 from cardillo.forces import Force
 from cardillo.contacts import Sphere2Plane
-from cardillo.solver import Moreau
+from cardillo.solver import Moreau, MoreauGGL
 
 
 class Ball(RigidBodyEuler):
@@ -48,7 +48,8 @@ if __name__ == "__main__":
 
     e1, e2, e3 = np.eye(3)
     frame = Frame(A_IK=np.vstack((e3, e1, e2)).T, r_OP=np.array([0, 0, 0]))
-    mu = 0.2
+    mu = 0.0  # no friction
+    # mu = 0.2
     r_N = 0.1
     e_N = 0.5
     plane = Sphere2Plane(frame, RB, r, mu, prox_r_N=r_N, prox_r_F=r_N, e_N=e_N, e_F=0)
@@ -67,7 +68,8 @@ if __name__ == "__main__":
     e1, e2, e3 = A_IK_basic(beta).z()
     frame2 = Frame(A_IK=np.vstack((e3, e1, e2)).T)
     mu = 0.1
-    r_N = 0.2
+    # r_N = 0.2
+    r_N = 0.01
     e_N = 1
     plane_right = Sphere2Plane(frame2, RB, r, mu, prox_r_N=r_N, prox_r_F=r_N, e_N=e_N)
 
@@ -82,7 +84,7 @@ if __name__ == "__main__":
     model.assemble()
 
     t0 = 0
-    t1 = 2
+    t1 = 1.5
     dt = 5e-3
 
     # solver_fp = Moreau(model, t1, dt)
@@ -94,7 +96,8 @@ if __name__ == "__main__":
     # la_F_fp = sol_fp.la_F
 
     # solver_n = Generalized_alpha_3(model, t1, dt, rho_inf=1, numerical_jacobian=0)
-    solver_n = Moreau(model, t1, dt)
+    # solver_n = Moreau(model, t1, dt)
+    solver_n = MoreauGGL(model, t1, dt, max_iter=50, tol=1.0e-4)
     sol_n = solver_n.solve()
     # sol_n = sol_fp
     t_n = t = sol_n.t
@@ -103,11 +106,11 @@ if __name__ == "__main__":
     # a_n = sol_n.a
     # la_N_n = sol_n.la_N
     # la_F_n = sol_n.la_F
-    la_N_n = sol_n.P_N
-    la_F_n = sol_n.P_F
+    # la_N_n = sol_n.P_N
+    # la_F_n = sol_n.P_F
 
     P_N_n = sol_n.P_N
-    P_F_n = sol_n.P_F
+    # P_F_n = sol_n.P_F
 
     solver_fp = Moreau(model, t1, dt)
     sol_fp = solver_fp.solve()
@@ -210,19 +213,19 @@ if __name__ == "__main__":
     ax[0].plot(t_n, P_N_n[:, 0], "--g", label="newton_P_N")
     ax[0].legend()
 
-    ax[1].set_title("P_Fx(t)")
-    ax[1].plot(t_fp, P_F_fp[:, 0], "-r", label="fixed_point")
-    # ax[1].plot(t_n, sol_n.la_F[:, 0]*dt, '--b', label='newton_la_F')
-    # ax[1].plot(t_n, sol_n.La_F[:, 0], '--g', label='newton_La_F')
-    ax[1].plot(t_n, P_F_n[:, 0], "--g", label="newton_P_N")
-    ax[1].legend()
+    # ax[1].set_title("P_Fx(t)")
+    # ax[1].plot(t_fp, P_F_fp[:, 0], "-r", label="fixed_point")
+    # # ax[1].plot(t_n, sol_n.la_F[:, 0]*dt, '--b', label='newton_la_F')
+    # # ax[1].plot(t_n, sol_n.La_F[:, 0], '--g', label='newton_La_F')
+    # ax[1].plot(t_n, P_F_n[:, 0], "--g", label="newton_P_N")
+    # ax[1].legend()
 
-    ax[2].set_title("P_Fy(t)")
-    ax[2].plot(t_fp, P_F_fp[:, 1], "-r", label="fixed_point")
-    # ax[2].plot(t_n, sol_n.la_F[:, 1]*dt, '--b', label='newton_la_F')
-    # ax[2].plot(t_n, sol_n.La_F[:, 1], '--g', label='newton_La_F')
-    ax[2].plot(t_n, P_F_n[:, 1], "--g", label="newton_P_N")
-    ax[2].legend()
+    # ax[2].set_title("P_Fy(t)")
+    # ax[2].plot(t_fp, P_F_fp[:, 1], "-r", label="fixed_point")
+    # # ax[2].plot(t_n, sol_n.la_F[:, 1]*dt, '--b', label='newton_la_F')
+    # # ax[2].plot(t_n, sol_n.La_F[:, 1], '--g', label='newton_La_F')
+    # ax[2].plot(t_n, P_F_n[:, 1], "--g", label="newton_P_N")
+    # ax[2].legend()
 
     # ax[1].set_title('u_y(t)')
     # ax[1].plot(t_fp, u_fp[:, 1], '-r', label='fixed_point')

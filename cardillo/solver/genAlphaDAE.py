@@ -1247,8 +1247,8 @@ class GenAlphaFirstOrderVelocity:
         gamma0 = model.gamma(self.tk, self.qk, self.uk)
         gamma_dot0 = model.gamma_dot(self.tk, self.qk, self.uk, self.u_dotk)
 
-        # TODO: These tolerances should be used defined. Maybe all these 
-        #       initial computations and checks should be moved to a 
+        # TODO: These tolerances should be used defined. Maybe all these
+        #       initial computations and checks should be moved to a
         #       SolverOptions object ore something similar?
         rtol = 1.0e-5
         atol = 1.0e-5
