@@ -8,18 +8,14 @@
 
 ## Table of Contents
 
-- [PyNSD](#pynsd)
+- [Cardillo](#cardillo)
   - [Table of Contents](#table-of-contents)
   - [Requirements](#requirements)
   - [Installation](#installation)
   - [Documentation](#documentation)
-  - [Folder hierarchy](#folder-hierarchy)
-  - [Running a scenario](#running-a-scenario)
   - [Developing](#developing)
     - [Pre-requisites](#pre-requisites)
     - [Useful links](#useful-links)
-    - [Developing a new system](#developing-a-new-system)
-    - [Developing a new solver](#developing-a-new-solver)
 
 ## Requirements
 * Python 3.x (tested on Python 3.8 for Ubuntu 20.04.4 LTS)
