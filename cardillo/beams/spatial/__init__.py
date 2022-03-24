@@ -8,3 +8,4 @@ from .director import (
 from .Kirchhoff import Kirchhoff
 from .Cable import Cable
 from .CubicHermiteCable import CubicHermiteCable
+from .DirectorAxisAngle import DirectorAxisAngle

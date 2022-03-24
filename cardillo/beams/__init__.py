@@ -6,6 +6,7 @@ from .spatial import (
     Kirchhoff,
     Cable,
     CubicHermiteCable,
+    DirectorAxisAngle,
 )
 
 from .planar import (

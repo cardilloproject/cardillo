@@ -1,4 +1,4 @@
-from cardillo.beams.spatial.material_models import ShearStiffQuadratic
+from cardillo.beams.spatial.material_models import ShearStiffQuadratic, Simo1986
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints.implicit import (
     RigidConnection,
@@ -10,6 +10,7 @@ from cardillo.beams import (
     Cable,
     CubicHermiteCable,
     Kirchhoff,
+    DirectorAxisAngle
 )
 from cardillo.forces import Force, K_Moment, DistributedForce1D
 from cardillo.model import Model
@@ -21,8 +22,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # case = "Cable"
-case = "CubicHermiteCable"
+# case = "CubicHermiteCable"
 # case = "Kirchhoff"
+case = "DirectorAxisAngle"
 
 
 def tests():
@@ -33,9 +35,11 @@ def tests():
 
     L = 2 * np.pi
     E1 = 1.0e0
+    Ei = np.ones(3)
     Fi = np.ones(3) * 1.0e-1
 
-    material_model = ShearStiffQuadratic(E1, Fi)
+    material_model_Kirchhoff = ShearStiffQuadratic(E1, Fi)
+    material_model_Timoshenko = Simo1986(Ei, Fi)
 
     # junctions
     r_OB1 = np.zeros(3)
@@ -60,13 +64,15 @@ def tests():
         Q = CubicHermiteCable.straight_configuration(nEl, L)
     elif case == "Kirchhoff":
         Q = Kirchhoff.straight_configuration(p_r, p_phi, nEl, L)
+    elif case == "DirectorAxisAngle":
+        Q = DirectorAxisAngle.straight_configuration(p_r, p_phi, nEl, L)
     else:
         raise NotImplementedError("")
     q0 = Q.copy()
 
     if case == "Cable":
         beam = Cable(
-            material_model,
+            material_model_Kirchhoff,
             A_rho0,
             B_rho0,
             C_rho0,
@@ -78,7 +84,7 @@ def tests():
         )
     elif case == "CubicHermiteCable":
         beam = CubicHermiteCable(
-            material_model,
+            material_model_Kirchhoff,
             A_rho0,
             B_rho0,
             C_rho0,
@@ -90,7 +96,20 @@ def tests():
         )
     elif case == "Kirchhoff":
         beam = Kirchhoff(
-            material_model,
+            material_model_Kirchhoff,
+            A_rho0,
+            B_rho0,
+            C_rho0,
+            p_r,
+            p_phi,
+            nQP,
+            nEl,
+            Q=Q,
+            q0=q0,
+        )
+    elif case == "DirectorAxisAngle":
+        beam = DirectorAxisAngle(
+            material_model_Timoshenko,
             A_rho0,
             B_rho0,
             C_rho0,
@@ -113,14 +132,14 @@ def tests():
     # model.assemble()
 
     # t = 0
-    # # q = model.q0
-    # q = np.random.rand(model.nq)
+    # q = model.q0
+    # # q = np.random.rand(model.nq)
 
     # E_pot = model.E_pot(t, q)
     # print(f"E_pot: {E_pot}")
     # f_pot = model.f_pot(t, q)
     # print(f"f_pot:\n{f_pot}")
-    # # f_pot_q = model.f_pot_q(t, q)
+    # f_pot_q = model.f_pot_q(t, q)
     # # print(f"f_pot_q:\n{f_pot_q}")
     # exit()
 
@@ -128,7 +147,7 @@ def tests():
     if case == "Cable" or case == "CubicHermiteCable":
         joint1 = RigidConnectionCable(frame1, beam, r_OB1, frame_ID2=(0,))
         joint2 = RigidConnectionCable(frame2, beam, r_OB2, frame_ID2=(1,))
-    elif case == "Kirchhoff":
+    elif case == "Kirchhoff" or case == "DirectorAxisAngle":
         joint1 = RigidConnection(frame1, beam, r_OB1, frame_ID2=(0,))
         joint2 = RigidConnection(frame2, beam, r_OB2, frame_ID2=(1,))
     else:
