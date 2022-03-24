@@ -10,7 +10,7 @@ from cardillo.beams import (
     Cable,
     CubicHermiteCable,
     Kirchhoff,
-    DirectorAxisAngle
+    DirectorAxisAngle,
 )
 from cardillo.forces import Force, K_Moment, DistributedForce1D
 from cardillo.model import Model
@@ -36,7 +36,7 @@ def tests():
     L = 2 * np.pi
     E1 = 1.0e0
     Ei = np.ones(3)
-    Fi = np.ones(3) * 1.0e-1
+    Fi = np.ones(3)
 
     material_model_Kirchhoff = ShearStiffQuadratic(E1, Fi)
     material_model_Timoshenko = Simo1986(Ei, Fi)
@@ -48,14 +48,13 @@ def tests():
     frame2 = Frame(r_OP=r_OB2)
 
     # discretization properties
-    p = 3
+    p = 2
     p_r = p
-    p_phi = p
+    p_phi = p - 1  # TODO: p_phi = p_r - 1 seems to be a very good choice!
     # nQP = int(np.ceil((p + 1)**2 / 2))
     nQP = p + 1
-    # nQP = 10
     print(f"nQP: {nQP}")
-    nEl = 1
+    nEl = 20
 
     # build reference configuration
     if case == "Cable":
@@ -160,11 +159,11 @@ def tests():
     f_g_beam = DistributedForce1D(lambda t, xi: t * __g, beam)
 
     # moment at right end
-    # M = lambda t: -np.array([1, 0, 1]) * t * 2 * np.pi * Fi[1] / L * 0.5
+    M = lambda t: -np.array([1, 0, 1]) * t * 2 * np.pi * Fi[1] / L * 1.0
     # M = lambda t: -np.array([0, 1, 1]) * t * 2 * np.pi * Fi[1] / L * 0.5
-    # M = lambda t: e1 * t * 2 * np.pi * Fi[0] / L * 0.5
-    # M = lambda t: e2 * t * 2 * np.pi * Fi[1] / L * 0.45
-    M = lambda t: e3 * t * 2 * np.pi * Fi[2] / L * 0.45
+    # M = lambda t: e1 * t * 2 * np.pi * Fi[0] / L * 1.0
+    # M = lambda t: e2 * t * 2 * np.pi * Fi[1] / L * 0.75
+    # M = lambda t: e3 * t * 2 * np.pi * Fi[2] / L * 0.75
     moment = K_Moment(M, beam, (1,))
 
     # # force at right end
@@ -194,9 +193,9 @@ def tests():
 
     solver = Newton(
         model,
-        n_load_steps=20,
+        n_load_steps=10,
         max_iter=30,
-        atol=1.0e-4,
+        atol=1.0e-8,
         numerical_jacobian=False,
     )
 

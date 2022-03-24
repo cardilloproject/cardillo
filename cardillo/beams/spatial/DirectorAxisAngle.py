@@ -317,7 +317,7 @@ class DirectorAxisAngle:
         # Rodriguez' formular and extract the nodal directors. Further,
         # they are rearranged such that they can be interpolated using
         # vector valued shape function stacks.
-        psis = qe_psi.reshape(self.nnode_psi, -1, order="F")
+        psis = qe_psi.reshape(self.nnodes_element_psi, -1, order="F")
         Rs = np.array([rodriguez(psi) for psi in psis])
         qe_d1 = Rs[:, :, 0].reshape(-1, order="F")
         qe_d2 = Rs[:, :, 1].reshape(-1, order="F")
@@ -477,54 +477,56 @@ class DirectorAxisAngle:
             f[elDOF] += self.f_pot_el(q[elDOF], el)
         return f
 
+    # TODO: We have to implement the internal forces, otherwise Petrov-Galerkin
+    #       is not working and the K_J_R is wrong!
     def f_pot_el(self, qe, el):
-        return -approx_fprime(qe, lambda qe: self.E_pot_el(qe, el), method="3-point")
+        # return -approx_fprime(qe, lambda qe: self.E_pot_el(qe, el), method="2-point")
         fe = np.zeros(self.nq_element)
 
         # extract generalized coordinates for beam centerline and directors
         # in the current and reference configuration
         qe_r = qe[self.rDOF]
-        qe_d1 = qe[self.psiDOF]
-        qe_d2 = qe[self.d2DOF]
-        qe_d3 = qe[self.d3DOF]
+        qe_psi = qe[self.psiDOF]
+
+        # Extract nodal rotation vectors evaluate the rotation using
+        # Rodriguez' formular and extract the nodal directors. Further,
+        # they are rearranged such that they can be interpolated using
+        # vector valued shape function stacks.
+        qe_d1, qe_d2, qe_d3 = self.qe_psi2qe_di(qe_psi)
 
         for i in range(self.nquadrature):
-            # build matrix of shape function derivatives
-            NN_di_i = self.stack3psi(self.N_psi[el, i])
-            NN_r_xii = self.stack3r(self.N_r_xi[el, i])
-            NN_di_xii = self.stack3psi(self.N_psi_xi[el, i])
-
             # extract reference state variables
-            J0i = self.J[el, i]
+            qwi = self.qw[el, i]
+            Ji = self.J[el, i]
             Gamma0_i = self.Gamma0[el, i]
             Kappa0_i = self.Kappa0[el, i]
-            qwi = self.qw[el, i]
+
+            # build matrix of shape function derivatives
+            NN_r_xii = self.stack3r(self.N_r_xi[el, i])
+            NN_psi_i = self.stack3psi(self.N_psi[el, i])
+            NN_psi_xii = self.stack3psi(self.N_psi_xi[el, i])
 
             # Interpolate necessary quantities. The derivatives are evaluated w.r.t.
             # the parameter space \xi and thus need to be transformed later
             r_xi = NN_r_xii @ qe_r
 
-            d1 = NN_di_i @ qe_d1
-            d1_xi = NN_di_xii @ qe_d1
-
-            d2 = NN_di_i @ qe_d2
-            d2_xi = NN_di_xii @ qe_d2
-
-            d3 = NN_di_i @ qe_d3
-            d3_xi = NN_di_xii @ qe_d3
+            # interpolate these directors using the existing shae functions
+            # of the rotation vector
+            d1 = NN_psi_i @ qe_d1
+            d2 = NN_psi_i @ qe_d2
+            d3 = NN_psi_i @ qe_d3
+            d1_xi = NN_psi_xii @ qe_d1
+            d2_xi = NN_psi_xii @ qe_d2
+            d3_xi = NN_psi_xii @ qe_d3
 
             # compute derivatives w.r.t. the arc lenght parameter s
-            r_s = r_xi / J0i
-
-            d1_s = d1_xi / J0i
-            d2_s = d2_xi / J0i
-            d3_s = d3_xi / J0i
-
-            # build rotation matrices
-            R = np.vstack((d1, d2, d3)).T
+            r_s = r_xi / Ji
+            d1_s = d1_xi / Ji
+            d2_s = d2_xi / Ji
+            d3_s = d3_xi / Ji
 
             # axial and shear strains
-            Gamma_i = R.T @ r_s
+            Gamma_i = np.array([r_s @ d1, r_s @ d2, r_s @ d3])
 
             #################################################################
             # formulation of Harsch2020b
@@ -539,53 +541,19 @@ class DirectorAxisAngle:
                 ]
             )
 
-            # compute contact forces and couples from partial derivatives of the strain energy function w.r.t. strain measures
+            # compute contact forces and couples from partial derivatives of
+            # the strain energy function w.r.t. strain measures
             n1, n2, n3 = self.material_model.n_i(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
             m1, m2, m3 = self.material_model.m_i(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
 
+            # compute contact forces and couples in the current frame d_i
+            vn = n1 * d1 + n2 * d2 + n3 * d3
+            vm = m1 * d1 + m2 * d2 + m3 * d3
+
             # quadrature point contribution to element residual
-            fe[self.rDOF] -= NN_r_xii.T @ (n1 * d1 + n2 * d2 + n3 * d3) * qwi
-            fe[self.psiDOF] -= (
-                NN_di_i.T @ (r_xi * n1 + (m2 / 2 * d3_xi - m3 / 2 * d2_xi))
-                + NN_di_xii.T @ (m3 / 2 * d2 - m2 / 2 * d3)
-            ) * qwi
-            fe[self.d2DOF] -= (
-                NN_di_i.T @ (r_xi * n2 + (m3 / 2 * d1_xi - m1 / 2 * d3_xi))
-                + NN_di_xii.T @ (m1 / 2 * d3 - m3 / 2 * d1)
-            ) * qwi
-            fe[self.d3DOF] -= (
-                NN_di_i.T @ (r_xi * n3 + (m1 / 2 * d2_xi - m2 / 2 * d1_xi))
-                + NN_di_xii.T @ (m2 / 2 * d1 - m1 / 2 * d2)
-            ) * qwi
-
-        #     #################################################################
-        #     # alternative formulation assuming orthogonality of the directors
-        #     #################################################################
-
-        #     # torsional and flexural strains
-        #     Kappa_i = np.array([d3 @ d2_s, \
-        #                         d1 @ d3_s, \
-        #                         d2 @ d1_s])
-
-        #     # compute contact forces and couples from partial derivatives of the strain energy function w.r.t. strain measures
-        #     n_i = self.material_model.n_i(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
-        #     # n = n_i[0] * d1 + n_i[1] * d2 + n_i[2] * d3
-        #     # n = R @ n_i
-        #     m_i = self.material_model.m_i(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
-        #     # m = m_i[0] * d1 + m_i[1] * d2 + m_i[2] * d3
-        #     # m = R @ m_i
-
-        #     # new version
-        #     # quadrature point contribution to element residual
-        #     n1, n2, n3 = n_i
-        #     m1, m2, m3 = m_i
-        #     fe[self.rDOF] -=  NN_r_xii.T @ ( n1 * d1 + n2 * d2 + n3 * d3 ) * qwi # delta r'
-        #     fe[self.d1DOF] -= ( NN_di_i.T @ ( r_xi * n1 + m2 * d3_xi ) # delta d1 \
-        #                         + NN_di_xii.T @ ( m3 * d2 ) ) * qwi    # delta d1'
-        #     fe[self.d2DOF] -= ( NN_di_i.T @ ( r_xi * n2 + m3 * d1_xi ) # delta d2 \
-        #                         + NN_di_xii.T @ ( m1 * d3 ) ) * qwi    # delta d2'
-        #     fe[self.d3DOF] -= ( NN_di_i.T @ ( r_xi * n3 + m1 * d2_xi ) # delta d3 \
-        #                         + NN_di_xii.T @ ( m2 * d1 ) ) * qwi    # delta d3'
+            fe[self.rDOF] -= NN_r_xii.T @ vn * qwi
+            fe[self.psiDOF] -= NN_psi_i.T @ cross3(vn, r_xi) * qwi
+            fe[self.psiDOF] -= NN_psi_xii.T @ vm * qwi
 
         return fe
 
@@ -1058,9 +1026,11 @@ class DirectorAxisAngle:
     # kinematic equation
     #########################################
     def q_dot(self, t, q, u):
+        raise NotADirectoryError("")
         return u
 
     def B(self, t, q, coo):
+        raise NotADirectoryError("")
         coo.extend_diag(np.ones(self.nq), (self.qDOF, self.uDOF))
 
     def q_ddot(self, t, q, u, u_dot):
@@ -1069,17 +1039,8 @@ class DirectorAxisAngle:
     ####################################################
     # interactions with other bodies and the environment
     ####################################################
-    # TODO: optimized implementation for boundaries
     def elDOF_P(self, frame_ID):
         xi = frame_ID[0]
-        # if xi == 0:
-        #     return self.elDOF[0]
-        # elif xi == 1:
-        #     return self.elDOF[-1]
-        # else:
-        #     el = np.where(xi >= self.element_span)[0][-1]
-        #     return self.elDOF[el]
-        # el = np.where(xi >= self.element_span)[0][-1]
         el = self.element_number(xi)
         return self.elDOF[el]
 
@@ -1152,16 +1113,15 @@ class DirectorAxisAngle:
 
     # TODO
     def a_P(self, t, q, u, u_dot, frame_ID, K_r_SP=np.zeros(3)):
-        raise NotImplementedError("")
+        raise NotImplementedError("Not tested!")
         N, _ = self.basis_functions_r(frame_ID[0])
         NN = self.stack3r(N)
 
-        # K_Omega = self.K_Omega(t, q, u, frame_ID=frame_ID)
-        # K_Psi = self.K_Psi(t, q, u, u_dot, frame_ID=frame_ID)
-        # a_P1 = NN @ u_dot[self.rDOF] + self.A_IK(t, q, frame_ID=frame_ID) @ (cross3(K_Psi, K_r_SP) + cross3(K_Omega, cross3(K_Omega, K_r_SP)))
-        a_P2 = NN @ u_dot[self.rDOF] + self.A_IK(t, u_dot, frame_ID=frame_ID) @ K_r_SP
-        # print(a_P1 - a_P2)
-        return a_P2
+        K_Omega = self.K_Omega(t, q, u, frame_ID=frame_ID)
+        K_Psi = self.K_Psi(t, q, u, u_dot, frame_ID=frame_ID)
+        return NN @ u_dot[self.rDOF] + self.A_IK(t, q, frame_ID=frame_ID) @ (
+            cross3(K_Psi, K_r_SP) + cross3(K_Omega, cross3(K_Omega, K_r_SP))
+        )
 
     # TODO:
     def a_P_q(self, t, q, u, u_dot, frame_ID, K_r_SP=None):
@@ -1202,7 +1162,6 @@ class DirectorAxisAngle:
     ####################################################
     # body force
     ####################################################
-    # def body_force_el(self, force, t, el):
     def distributed_force1D_el(self, force, t, el):
         fe = np.zeros(self.nq_element)
         for i in range(self.nquadrature):
@@ -1216,7 +1175,6 @@ class DirectorAxisAngle:
     def distributed_force1D(self, t, q, force):
         f = np.zeros(self.nq)
         for el in range(self.nelement):
-            # f[self.elDOF[el]] += self.body_force_el(force, t, el)
             f[self.elDOF[el]] += self.distributed_force1D_el(force, t, el)
         return f
 
