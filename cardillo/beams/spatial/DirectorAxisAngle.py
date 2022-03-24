@@ -180,44 +180,50 @@ class DirectorAxisAngle:
             qe_r = qe[self.rDOF]
             qe_psi = qe[self.psiDOF]
 
-            # since we cannot extract the derivatives of nodal rotation vectors
-            # we compute their values on fixed xis's
-            # psi = np.array([])
-            # for no in range(self.nnode_psi):
-            psis = np.zeros((self.nnode_psi, 3))
-            # psi_xis = np.zeros((self.nnode_psi, 3))
-            Rs = np.zeros((self.nnode_psi, 3, 3))
-            # R_xis = np.zeros((self.nnode_psi, 3, 3))
-            for i, xii in enumerate(self.xi_el_psi(el)):
-                # TODO: Precompute these shape functions.
-                NN_psi_i = self.stack3psi(self.basis_functions_psi(xii)[0])
-                # NN_psi_xii = self.stack3psi(self.basis_functions_psi(xii)[1])
-                psi = NN_psi_i @ qe_psi
-                # psi_xi = NN_psi_xii @ qe_psi
-                psis[i] = psi
-                # psi_xis[i] = psi_xi
-                # TODO: Do we require psi_s here? This requires the evaluation
-                #       of J(xi) at the fixed xi values.
+            # Extract nodal rotation vectors evaluate the rotation using 
+            # Rodriguez' formular and extract the nodal directors. Further, 
+            # they are rearranged such that they can be interpolated using 
+            # vector valued shape function stacks.
+            qe_d1, qe_d2, qe_d3 = self.qe_psi2qe_di(qe_psi)
 
-                # evaluate rotation and extract directors
-                R = rodriguez(psi)
-                d1, d2, d3 = R.T
-                Rs[i] = R
-                # # TODO: This is not Kapp_i since 1 / J is missing!
-                # Kappa_i = tangent_map(psi) @ psi_xi
-                # d1_xi = cross3(Kappa_i, d1)
-                # d2_xi = cross3(Kappa_i, d2)
-                # d3_xi = cross3(Kappa_i, d3)
-                # R_xi = np.vstack((d1_xi, d2_xi, d3_xi)).T
-                # R_xis[i] = R_xi
+            # # since we cannot extract the derivatives of nodal rotation vectors
+            # # we compute their values on fixed xis's
+            # # psi = np.array([])
+            # # for no in range(self.nnode_psi):
+            # psis = np.zeros((self.nnode_psi, 3))
+            # # psi_xis = np.zeros((self.nnode_psi, 3))
+            # Rs = np.zeros((self.nnode_psi, 3, 3))
+            # # R_xis = np.zeros((self.nnode_psi, 3, 3))
+            # for i, xii in enumerate(self.xi_el_psi(el)):
+            #     # TODO: Precompute these shape functions.
+            #     NN_psi_i = self.stack3psi(self.basis_functions_psi(xii)[0])
+            #     # NN_psi_xii = self.stack3psi(self.basis_functions_psi(xii)[1])
+            #     psi = NN_psi_i @ qe_psi
+            #     # psi_xi = NN_psi_xii @ qe_psi
+            #     psis[i] = psi
+            #     # psi_xis[i] = psi_xi
+            #     # TODO: Do we require psi_s here? This requires the evaluation
+            #     #       of J(xi) at the fixed xi values.
 
-                # # TODO: Remove debugging prints.
-                # print(f"psi: {psi}")
-                # print(f"psi_xi: {psi_xi}")
-                # print(f"Kappa_i * J: {Kappa_i}")
-                # print(f"R:\n{R}")
-                # print(f"R_xi:\n{R_xi}")
-                # print(f"")
+            #     # evaluate rotation and extract directors
+            #     R = rodriguez(psi)
+            #     d1, d2, d3 = R.T
+            #     Rs[i] = R
+            #     # # TODO: This is not Kapp_i since 1 / J is missing!
+            #     # Kappa_i = tangent_map(psi) @ psi_xi
+            #     # d1_xi = cross3(Kappa_i, d1)
+            #     # d2_xi = cross3(Kappa_i, d2)
+            #     # d3_xi = cross3(Kappa_i, d3)
+            #     # R_xi = np.vstack((d1_xi, d2_xi, d3_xi)).T
+            #     # R_xis[i] = R_xi
+
+            #     # # TODO: Remove debugging prints.
+            #     # print(f"psi: {psi}")
+            #     # print(f"psi_xi: {psi_xi}")
+            #     # print(f"Kappa_i * J: {Kappa_i}")
+            #     # print(f"R:\n{R}")
+            #     # print(f"R_xi:\n{R_xi}")
+            #     # print(f"")
 
             for i in range(nquadrature):
                 # build matrix of shape function derivatives
@@ -230,11 +236,6 @@ class DirectorAxisAngle:
                 r_xi = NN_r_xii @ qe_r
                 Ji = ji = norm(r_xi)
                 self.J[el, i] = Ji
-
-                # build qe's for each director and their derivatives?
-                qe_d1 = Rs[:, :, 0].reshape(-1, order="F")  # TODO: Ordering?
-                qe_d2 = Rs[:, :, 1].reshape(-1, order="F")  # TODO: Ordering?
-                qe_d3 = Rs[:, :, 2].reshape(-1, order="F")  # TODO: Ordering?
 
                 # interpolate these directors using the existing shae functions
                 # of the rotation vector
@@ -310,6 +311,18 @@ class DirectorAxisAngle:
         #     psi0 = psi0 * L / polynomial_degree_psi
 
         return np.concatenate([x0, y0, z0, psi0])
+
+    def qe_psi2qe_di(self, qe_psi):
+        # Extract nodal rotation vectors evaluate the rotation using 
+        # Rodriguez' formular and extract the nodal directors. Further, 
+        # they are rearranged such that they can be interpolated using 
+        # vector valued shape function stacks.
+        psis = qe_psi.reshape(self.nnode_psi, -1, order="F")
+        Rs = np.array([rodriguez(psi) for psi in psis])
+        qe_d1 = Rs[:, :, 0].reshape(-1, order="F")
+        qe_d2 = Rs[:, :, 1].reshape(-1, order="F")
+        qe_d3 = Rs[:, :, 2].reshape(-1, order="F")
+        return qe_d1, qe_d2, qe_d3
 
     def element_number(self, xi):
         # note the elements coincide for both meshes!
@@ -400,19 +413,11 @@ class DirectorAxisAngle:
         qe_r = qe[self.rDOF]
         qe_psi = qe[self.psiDOF]
 
-        # since we cannot extract the derivatives of nodal rotation vectors
-        # we compute their values on fixed xis's
-        psis = np.zeros((self.nnode_psi, 3))
-        Rs = np.zeros((self.nnode_psi, 3, 3))
-        for i, xii in enumerate(self.xi_el_psi(el)):
-            NN_psi_i = self.stack3psi(self.basis_functions_psi(xii)[0])
-            psi = NN_psi_i @ qe_psi
-            psis[i] = psi
-
-            # evaluate rotation and extract directors
-            R = rodriguez(psi)
-            d1, d2, d3 = R.T
-            Rs[i] = R
+        # Extract nodal rotation vectors evaluate the rotation using 
+        # Rodriguez' formular and extract the nodal directors. Further, 
+        # they are rearranged such that they can be interpolated using 
+        # vector valued shape function stacks.
+        qe_d1, qe_d2, qe_d3 = self.qe_psi2qe_di(qe_psi)
 
         for i in range(self.nquadrature):
             # extract reference state variables
@@ -428,11 +433,6 @@ class DirectorAxisAngle:
             # Interpolate necessary quantities. The derivatives are evaluated w.r.t.
             # the parameter space \xi and thus need to be transformed later
             r_xi = NN_r_xii @ qe_r
-
-            # build qe's for each director and their derivatives?
-            qe_d1 = Rs[:, :, 0].reshape(-1, order="F")  # TODO: Ordering?
-            qe_d2 = Rs[:, :, 1].reshape(-1, order="F")  # TODO: Ordering?
-            qe_d3 = Rs[:, :, 2].reshape(-1, order="F")  # TODO: Ordering?
 
             # interpolate these directors using the existing shae functions
             # of the rotation vector
