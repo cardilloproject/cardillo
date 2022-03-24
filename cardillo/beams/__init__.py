@@ -5,6 +5,7 @@ from .spatial import (
     InextensibleEulerBernoulliDirectorIntegral,
     Kirchhoff,
     Cable,
+    CubicHermiteCable,
 )
 
 from .planar import (

@@ -40,7 +40,11 @@ class EulerBernoulli2D:
 
         # B-spline mesh object
         self.mesh = Mesh1D(
-            self.knot_vector, nQP, derivative_order=2, basis="B-spline", nq_n=self.nq_n
+            self.knot_vector,
+            nQP,
+            derivative_order=2,
+            basis="B-spline",
+            nq_node=self.nq_n,
         )
 
         # element connectivity matrix
@@ -651,14 +655,14 @@ class EulerBernoulli2D:
         point_data.update({"kappa0": kappa0_vtk})
 
         # evaluate strain measures at quadrature points
-        kappa = np.zeros((self.mesh.nel, self.mesh.nqp))
-        stretch = np.zeros((self.mesh.nel, self.mesh.nqp))
+        kappa = np.zeros((self.mesh.nelement, self.mesh.n_quadrature_points))
+        stretch = np.zeros((self.mesh.nelement, self.mesh.n_quadrature_points))
 
-        d1 = np.zeros((self.mesh.nel, self.mesh.nqp, 3))
-        d2 = np.zeros((self.mesh.nel, self.mesh.nqp, 3))
-        d3 = np.zeros((self.mesh.nel, self.mesh.nqp, 3))
+        d1 = np.zeros((self.mesh.nelement, self.mesh.n_quadrature_points, 3))
+        d2 = np.zeros((self.mesh.nelement, self.mesh.n_quadrature_points, 3))
+        d3 = np.zeros((self.mesh.nelement, self.mesh.n_quadrature_points, 3))
 
-        for el in range(self.mesh.nel):
+        for el in range(self.mesh.nelement):
             qe = q[self.elDOF[el]]
             N_xi, N_xixi, J0 = self.N_xi[el], self.N_xixi[el], self.J0[el]
 
@@ -747,7 +751,10 @@ class Inextensible_Euler_bernoulli(EulerBernoulli2D):
             self.polynomial_degree_g : -self.polynomial_degree_g
         ]
         self.mesh_g = Mesh1D(
-            self.knot_vector_g, self.nQP, derivative_order=0, nq_n=self.nq_n_g
+            self.knot_vector_g,
+            self.nQP,
+            derivative_order=0,
+            nq_node=self.nq_n_g,
         )
 
         self.elDOF_g = self.mesh_g.elDOF

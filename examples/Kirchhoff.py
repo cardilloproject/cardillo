@@ -8,6 +8,7 @@ from cardillo.model.bilateral_constraints.implicit import (
 from cardillo.beams import (
     animate_beam,
     Cable,
+    CubicHermiteCable,
     Kirchhoff,
 )
 from cardillo.forces import Force, K_Moment, DistributedForce1D
@@ -20,7 +21,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # case = "Cable"
-case = "Kirchhoff"
+case = "CubicHermiteCable"
+# case = "Kirchhoff"
 
 
 def tests():
@@ -47,12 +49,15 @@ def tests():
     p_phi = p
     # nQP = int(np.ceil((p + 1)**2 / 2))
     nQP = p + 1
+    # nQP = 10
     print(f"nQP: {nQP}")
     nEl = 1
 
     # build reference configuration
     if case == "Cable":
         Q = Cable.straight_configuration(p_r, nEl, L)
+    elif case == "CubicHermiteCable":
+        Q = CubicHermiteCable.straight_configuration(nEl, L)
     elif case == "Kirchhoff":
         Q = Kirchhoff.straight_configuration(p_r, p_phi, nEl, L)
     else:
@@ -61,6 +66,18 @@ def tests():
 
     if case == "Cable":
         beam = Cable(
+            material_model,
+            A_rho0,
+            B_rho0,
+            C_rho0,
+            p_r,
+            nQP,
+            nEl,
+            Q=Q,
+            q0=q0,
+        )
+    elif case == "CubicHermiteCable":
+        beam = CubicHermiteCable(
             material_model,
             A_rho0,
             B_rho0,
@@ -108,7 +125,7 @@ def tests():
     # exit()
 
     # left and right joint
-    if case == "Cable":
+    if case == "Cable" or case == "CubicHermiteCable":
         joint1 = RigidConnectionCable(frame1, beam, r_OB1, frame_ID2=(0,))
         joint2 = RigidConnectionCable(frame2, beam, r_OB2, frame_ID2=(1,))
     elif case == "Kirchhoff":
@@ -120,15 +137,15 @@ def tests():
     # joint2 = SphericalJoint(frame2, beam, r_OB2, frame_ID2=(1,))
 
     # gravity beam
-    __g = np.array([0, 0, -A_rho0 * 9.81 * 5.0e-3])
+    __g = np.array([0, 0, -A_rho0 * 9.81 * 1.0e-3])
     f_g_beam = DistributedForce1D(lambda t, xi: t * __g, beam)
 
     # moment at right end
     # M = lambda t: -np.array([1, 0, 1]) * t * 2 * np.pi * Fi[1] / L * 0.5
     # M = lambda t: -np.array([0, 1, 1]) * t * 2 * np.pi * Fi[1] / L * 0.5
     # M = lambda t: e1 * t * 2 * np.pi * Fi[0] / L * 0.5
-    M = lambda t: e2 * t * 2 * np.pi * Fi[1] / L * 0.45
-    # M = lambda t: e3 * t * 2 * np.pi * Fi[2] / L * 0.45
+    # M = lambda t: e2 * t * 2 * np.pi * Fi[1] / L * 0.45
+    M = lambda t: e3 * t * 2 * np.pi * Fi[2] / L * 0.05
     moment = K_Moment(M, beam, (1,))
 
     # # force at right end
@@ -160,10 +177,8 @@ def tests():
         model,
         n_load_steps=20,
         max_iter=30,
-        atol=1.0e-8,
+        atol=1.0e-4,
         numerical_jacobian=False,
-        # numerical_jacobian=True,
-        prox_r_N=1.0e-3,
     )
 
     sol = solver.solve()

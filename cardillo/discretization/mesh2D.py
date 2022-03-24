@@ -257,7 +257,7 @@ class Mesh2D:
             self.nqp_per_dim[1],
             derivative_order=self.derivative_order,
             basis=self.basis,
-            nq_n=self.nq_n,
+            nq_node=self.nq_n,
         )
 
         line23 = Mesh1D(
@@ -265,7 +265,7 @@ class Mesh2D:
             self.nqp_per_dim[0],
             derivative_order=self.derivative_order,
             basis=self.basis,
-            nq_n=self.nq_n,
+            nq_node=self.nq_n,
         )
 
         self.edge_mesh = (line01, line01, line23, line23)

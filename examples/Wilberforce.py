@@ -19,8 +19,8 @@ import matplotlib.pyplot as plt
 # c = 6.5e-3 # best eccentricity - n = 10
 c = 7.25e-3  # best eccentricity - n = 20
 
-# statics = True
-statics = False
+statics = True
+# statics = False
 
 # save = True
 save = False
@@ -220,13 +220,13 @@ if __name__ == "__main__":
     coil_diameter = 32.0e-3  # 32mm
     coil_radius = coil_diameter / 2
     pitch_unloaded = 1.0e-3  # 1mm
-    # turns = 1
+    turns = 1
     # turns = 2
-    turns = 5
+    # turns = 5
     # turns = 10
     # turns = 20  # used in the paper
     # nxi = 1000
-    nxi = 10000 # used in the paper
+    nxi = 10000  # used in the paper
 
     #########################
     # number of beam elements
@@ -362,11 +362,11 @@ if __name__ == "__main__":
     fig, ax = plt.subplots()
     # ax.plot(t, r_OS[:, 0], label="x")
     # ax.plot(t, r_OS[:, 1], label="y")
-    ax.plot(t, r_OS[:, 2], label="z")
+    ax.plot(t, r_OS[:, 2], "-b", label="z")
     ax.set_xlabel("t [s]")
     ax.set_ylabel("center of gravity [m]")
-    ax2=ax.twinx()
-    ax2.plot(t, angles[:, 0], label="alpha")
+    ax2 = ax.twinx()
+    ax2.plot(t, angles[:, 0], "-r", label="alpha")
     # ax2.plot(t, angles[:, 1], label="beta")
     # ax2.plot(t, angles[:, 2], label="gamma")
     ax2.set_ylabel("Cardan angles [-]")

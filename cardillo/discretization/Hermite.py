@@ -91,8 +91,7 @@ class CubicHermiteBasis:
 
 
 def cubic_Hermite_basis_1D(xis, node_vector, dim=1, derivative=1, squeeze=True):
-    """Compute cubic Hermite basis functions for a given knot vector.
-    """
+    """Compute cubic Hermite basis functions for a given knot vector."""
     xis = np.atleast_1d(xis)
     nxis = len(xis)
     N = np.zeros((derivative + 1, nxis, dim, 4 * dim))
@@ -176,6 +175,7 @@ def knotvector_usage():
     xis = np.linspace(0, 1, num=num)
     N, N_xi = cubic_Hermite_basis_1D(xis, knot_vector, dim=1)
 
+
 if __name__ == "__main__":
-    basic_usage()
-    # knotvector_usage()
+    # basic_usage()
+    knotvector_usage()

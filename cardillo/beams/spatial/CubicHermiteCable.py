@@ -3,28 +3,20 @@ import meshio
 import os
 
 from cardillo.utility.coo import Coo
-from cardillo.discretization.B_spline import KnotVector
+from cardillo.discretization.Hermite import HermiteNodeVector
 from cardillo.math import (
     e1,
     norm,
     cross3,
     skew2ax,
     smallest_rotation,
-    rodriguez,
     approx_fprime,
     sign,
 )
 from cardillo.discretization.mesh1D import Mesh1D
 
 
-switching_beam = True
-# switching_beam = False
-
-# use_Hermite = True
-use_Hermite = False
-
-
-class Cable:
+class CubicHermiteCable:
     def __init__(
         self,
         material_model,
@@ -32,12 +24,13 @@ class Cable:
         B_rho0,  # TODO
         C_rho0,  # TODO
         polynomial_degree,
-        nQP,
-        nEl,
+        nquadrature,
+        nelement,
         Q,
         q0=None,
         u0=None,
-        symmetric_formulation=False,
+        # symmetric_formulation=False,
+        symmetric_formulation=True,
     ):
         # assume symmetric cross section
         self.symmetric_formulation = symmetric_formulation
@@ -53,50 +46,36 @@ class Cable:
 
         # discretization parameters
         self.polynomial_degree_r = polynomial_degree  # polynomial degree
-        self.nQP = nQP  # number of quadrature points
-        self.nEl = nEl  # number of elements
+        self.nquadrature = nquadrature  # number of quadrature points
+        self.nelement = nelement  # number of elements
 
-        if use_Hermite:
-            raise NotADirectoryError("")
-            self.knot_vector = HermiteKnotVector(polynomial_degree, nEl)
-        else:
-            self.knot_vector = KnotVector(polynomial_degree, nEl)
-        self.nn = nn = nEl + polynomial_degree  # number of nodes
+        self.knot_vector = HermiteNodeVector(polynomial_degree, nelement)
+        self.nnodes = nnodes = nelement + 1  # number of nodes
 
-        self.nn_el = nn_el = polynomial_degree + 1  # number of nodes per element
+        self.nnodes_element = nnodes_element = 2  # number of nodes per element
 
         # number of degrees of freedom per node of the centerline
-        self.nq_n = nq_n = 3
+        self.nq_node = nq_node = 6
 
-        if use_Hermite:
-            self.basis = "Hermite"
-        else:
-            self.basis = "B-spline"
         self.mesh = Mesh1D(
             self.knot_vector,
-            nQP,
+            nquadrature,
+            nq_node,
             derivative_order=2,
-            basis=self.basis,
-            nq_node=nq_n,
+            basis="Hermite",
         )
 
-        self.nq = nn * nq_n  # total number of generalized coordinates
+        self.nq = nnodes * nq_node  # total number of generalized coordinates
         self.nu = self.nq
-        self.nq_el = nn_el * nq_n  # total number of generalized coordinates per element
+        self.nq_el = (
+            nnodes_element * nq_node
+        )  # total number of generalized coordinates per element
 
         # global connectivity matrix
         self.elDOF = self.mesh.elDOF
-        self.nodalDOF = np.arange(self.nq_n * self.nn).reshape(self.nq_n, self.nn).T
-
-        # # A_RB for each quadrature point
-        # self.A_RB = np.zeros((nEl, self.nQP, 3, 3))
-        # for i in range(nEl):
-        #     for j in range(self.nQP):
-        #         self.A_RB[i, j] = np.eye(3)
-        # self.A_RB_changed = np.zeros((nEl, self.nQP), dtype=bool)
-
-        # self.A_RB_bdry = np.eye(3)
-        # self.A_RB_changed_bdry = False
+        self.nodalDOF = (
+            np.arange(self.nq_node * self.nnodes).reshape(self.nq_node, self.nnodes).T
+        )
 
         # shape functions
         self.N_r = self.mesh.N  # shape functions
@@ -122,89 +101,90 @@ class Cable:
 
         # precompute values of the reference configuration in order to save computation time
         self.J0 = np.zeros(
-            (nEl, nQP)
+            (nelement, nquadrature)
         )  # stretch of the reference centerline, J in Harsch2020b (5)
         self.Kappa0 = np.zeros(
-            (nEl, nQP, 3)
+            (nelement, nquadrature, 3)
         )  # curvature of the reference configuration
 
-        for el in range(nEl):
+        for el in range(nelement):
             # precompute quantities of the reference configuration
-            Qe = self.Q[self.elDOF[el]]
+            qe = self.Q[self.elDOF[el]]
 
-            for i in range(nQP):
+            for i in range(nquadrature):
                 # build matrix of shape function derivatives
-                NN_r_xii = self.stack3(self.N_r_xi[el, i])
-                NN_r_xixii = self.stack3(self.N_r_xixi[el, i])
+                NN_r_xii = self.stack_Hermite(self.N_r_xi[el, i])
+                NN_r_xixii = self.stack_Hermite(self.N_r_xixi[el, i])
 
                 # Interpolate necessary quantities. The derivatives are evaluated w.r.t.
                 # the parameter space \xi and thus need to be transformed later
-                r0_xi = NN_r_xii @ Qe
-                r0_xixi = NN_r_xixii @ Qe
-                J0i = norm(r0_xi)
-                self.J0[el, i] = J0i
-
-                # compute derivatives w.r.t. the arc lenght parameter s
-                r0_s = r0_xi / J0i
+                r_xi = NN_r_xii @ qe
+                r_xixi = NN_r_xixii @ qe
+                ji = norm(r_xi)
+                self.J0[el, i] = ji
 
                 # first director
-                d1 = r0_s  # note: This is only valid for the reference configuration
+                d1 = r_xi / ji
 
                 # build rotation matrices
-                R0 = smallest_rotation(e1, d1)
-                d1, d2, d3 = R0.T
+                R = smallest_rotation(e1, d1)
+                d1, d2, d3 = R.T
+
+                # print(f"d1: {d1}")
+                # print(f"R:\n{R}")
+
+                # raise NotImplementedError(
+                #     "TODO: We have an error in the shape functions. A straight " +
+                #     "rod yields negative tangent vector values."
+                # )
 
                 # torsional and flexural strains
                 if self.symmetric_formulation:
                     # first directors derivative
-                    d1_s = (np.eye(3) - np.outer(d1, d1)) @ r0_xixi / (J0i * J0i)
+                    d1_s = (np.eye(3) - np.outer(d1, d1)) @ r_xixi / (ji * ji)
 
                     self.Kappa0[el, i] = cross3(d1, d1_s)
                 else:
                     self.Kappa0[el, i] = np.array(
                         [
                             0,  # no torsion for cable element
-                            -(d3 @ r0_xixi) / J0i**2,
-                            (d2 @ r0_xixi) / J0i**2,
+                            -(d3 @ r_xixi) / ji**2,
+                            (d2 @ r_xixi) / ji**2,
                         ]
                     )
 
     @staticmethod
     def straight_configuration(
-        polynomial_degree,
         nEl,
         L,
-        greville_abscissae=True,
         r_OP=np.zeros(3),
         A_IK=np.eye(3),
     ):
-        nn = polynomial_degree + nEl
+        # linear spaced points
+        nn = nEl + 1
+        xis = np.linspace(0, 1, num=nn)
 
-        X = np.linspace(0, L, num=nn)
-        Y = np.zeros(nn)
-        Z = np.zeros(nn)
-        if greville_abscissae:
-            kv = KnotVector.uniform(polynomial_degree, nEl)
-            for i in range(nn):
-                X[i] = np.sum(kv[i + 1 : i + polynomial_degree + 1])
-            X = X * L / polynomial_degree
+        q0 = np.zeros(6 * nn)
+        for i, xi in enumerate(xis):
+            r = r_OP + A_IK @ (xi * np.array([L, 0, 0]))
+            t = L * A_IK @ e1
+            q0[6 * i : 6 * (i + 1)] = np.concatenate([r, t])
 
-        r0 = np.vstack((X, Y, Z)).T
-        for i, r0i in enumerate(r0):
-            X[i], Y[i], Z[i] = r_OP + A_IK @ r0i
-
-        return np.concatenate([X, Y, Z])
+        return q0
 
     def element_number(self, xi):
         # note the elements coincide for both meshes!
         return self.knot_vector.element_number(xi)[0]
 
-    def stack3(self, N):
-        nn_el = self.nn_el
-        NN = np.zeros((3, self.nq_el))
-        NN[0, :nn_el] = N
-        NN[1, nn_el : 2 * nn_el] = N
-        NN[2, 2 * nn_el :] = N
+    def stack_Hermite(self, N):
+        NN = np.hstack(
+            [
+                N[0] * np.eye(3),
+                N[1] * np.eye(3),
+                N[2] * np.eye(3),
+                N[3] * np.eye(3),
+            ]
+        )
         return NN
 
     def assembler_callback(self):
@@ -213,45 +193,14 @@ class Cable:
     #########################################
     # equations of motion
     #########################################
+    # TODO!
     def M_el(self, el):
         Me = np.zeros((self.nq_el, self.nq_el))
-
-        # # TODO
-        # for i in range(self.nQP):
-        #     # build matrix of shape function derivatives
-        #     NN_r_i = self.stack3r(self.N_r[el, i])
-        #     NN_di_i = self.stack3di(self.N_phi[el, i])
-
-        #     # extract reference state variables
-        #     J0i = self.J0[el, i]
-        #     qwi = self.qw[el, i]
-        #     factor_rr = NN_r_i.T @ NN_r_i * J0i * qwi
-        #     factor_rdi = NN_r_i.T @ NN_di_i * J0i * qwi
-        #     factor_dir = NN_di_i.T @ NN_r_i * J0i * qwi
-        #     factor_didi = NN_di_i.T @ NN_di_i * J0i * qwi
-
-        #     # delta r * ddot r
-        #     Me[self.rDOF[:, None], self.rDOF] += self.A_rho0 * factor_rr
-        #     # delta r * ddot d2
-        #     Me[self.rDOF[:, None], self.d2DOF] += self.B_rho0[1] * factor_rdi
-        #     # delta r * ddot d3
-        #     Me[self.rDOF[:, None], self.d3DOF] += self.B_rho0[2] * factor_rdi
-
-        #     # delta d2 * ddot r
-        #     Me[self.d2DOF[:, None], self.rDOF] += self.B_rho0[1] * factor_dir
-        #     Me[self.d2DOF[:, None], self.d2DOF] += self.C_rho0[1, 1] * factor_didi
-        #     Me[self.d2DOF[:, None], self.d3DOF] += self.C_rho0[1, 2] * factor_didi
-
-        #     # delta d3 * ddot r
-        #     Me[self.d3DOF[:, None], self.rDOF] += self.B_rho0[2] * factor_dir
-        #     Me[self.d3DOF[:, None], self.d2DOF] += self.C_rho0[2, 1] * factor_didi
-        #     Me[self.d3DOF[:, None], self.d3DOF] += self.C_rho0[2, 2] * factor_didi
-
         return Me
 
     def __M_coo(self):
         self.__M = Coo((self.nu, self.nu))
-        for el in range(self.nEl):
+        for el in range(self.nelement):
             # extract element degrees of freedom
             elDOF = self.elDOF[el]
 
@@ -263,40 +212,38 @@ class Cable:
 
     def E_pot(self, t, q):
         E = 0
-        for el in range(self.nEl):
+        for el in range(self.nelement):
             elDOF = self.elDOF[el]
             E += self.E_pot_el(q[elDOF], el)
         return E
 
     def E_pot_el(self, qe, el):
         Ee = 0
-        for i in range(self.nQP):
-            # build matrix of shape function derivatives
-            NN_r_xii = self.stack3(self.N_r_xi[el, i])
-            NN_r_xixii = self.stack3(self.N_r_xixi[el, i])
-
+        for i in range(self.nquadrature):
             # extract reference state variables
             J0i = self.J0[el, i]
             Kappa0_i = self.Kappa0[el, i]
 
+            # build matrix of shape function derivatives
+            NN_r_xii = self.stack_Hermite(self.N_r_xi[el, i])
+            NN_r_xixii = self.stack_Hermite(self.N_r_xixi[el, i])
+
             # Interpolate necessary quantities. The derivatives are evaluated w.r.t.
-            # the parameter space \xi and thus need to be transformed later.
+            # the parameter space \xi and thus need to be transformed later
             r_xi = NN_r_xii @ qe
             r_xixi = NN_r_xixii @ qe
             ji = norm(r_xi)
+            self.J0[el, i] = ji
 
-            # axial stretch
-            lambda_ = ji / J0i
-
-            # compute first director
+            # first director
             d1 = r_xi / ji
 
-            if switching_beam:
-                # check sign of inner product
-                cos_theta = e1 @ d1
-                sign_cos = sign(cos_theta)
-            else:
-                sign_cos = 1.0
+            # build rotation matrices
+            R = smallest_rotation(e1, d1)
+            d1, d2, d3 = R.T
+
+            # print(f"\nd1: {d1}")
+            # print(f"R:\n{R}")
 
             # torsional and flexural strains
             if self.symmetric_formulation:
@@ -305,103 +252,16 @@ class Cable:
 
                 Kappa_i = cross3(d1, d1_s)
             else:
+                Kappa_i = np.array(
+                    [
+                        0,  # no torsion for cable element
+                        -(d3 @ r_xixi) / (ji * J0i),
+                        (d2 @ r_xixi) / (ji * J0i),
+                    ]
+                )
 
-                def kappa(e1, d1, r_xixi, ji, J0i):
-                    # build rotation matrices
-                    R = smallest_rotation(e1, d1)
-                    d1, d2, d3 = R.T
-
-                    return R, np.array(
-                        [
-                            0,  # no torsion for cable element
-                            -(d3 @ r_xixi) / (J0i * ji),
-                            (d2 @ r_xixi) / (J0i * ji),
-                        ]
-                    )
-
-                def kappa_C(e1, d1, r_xixi, ji, J0i):
-                    # # build rotation matrices
-                    # e_complement = cross3(-e1, d1) / norm(cross3(-e1, d1))
-                    # A_pi = rodriguez(e_complement * np.pi)
-                    # R = smallest_rotation(-e1, d1) @ A_pi
-                    # d1, d2, d3 = R.T
-
-                    # return R, np.array(
-                    #     [
-                    #         0,  # no torsion for cable element
-                    #         -(d3 @ r_xixi) / (J0i * ji),
-                    #         (d2 @ r_xixi) / (J0i * ji),
-                    #     ]
-                    # )
-
-                    # # curvature with singular parametrization
-                    # A_IB = smallest_rotation(e1, d1)
-                    # d1, d2, d3 = A_IB.T
-                    # Kappa = np.array(
-                    #     [
-                    #         0,
-                    #         -(d3 @ r_xixi) / (J0i * ji),
-                    #         (d2 @ r_xixi) / (J0i * ji),
-                    #     ]
-                    # )
-
-                    # fmt: off
-                    A_IJ = np.array([
-                        [-1,  0, 0],
-                        [ 0, -1, 0],
-                        [ 0,  0, 1]
-                    ], dtype=float)
-                    # fmt: on
-
-                    A_JR = smallest_rotation(-e1, d1)
-                    # if not self.A_RB_changed[el, i]:
-                    if True:
-                        A_IB = smallest_rotation(e1, d1)
-                        # self.A_RB[el, i] = (A_IJ @ A_JR).T @ A_IB
-                        self.A_RB[el, i] = A_JR.T @ A_IJ.T @ A_IB
-                        self.A_RB_changed[el, i] = True
-
-                    A_IB = A_IJ @ A_JR @ self.A_RB[el, i]
-                    d1, d2, d3 = A_IB.T
-
-                    Kappa_C = np.array(
-                        [
-                            0,
-                            -(d3 @ r_xixi) / (J0i * ji),
-                            (d2 @ r_xixi) / (J0i * ji),
-                        ]
-                    )
-
-                    # print(f"Kappa: {Kappa}")
-                    # print(f"Kappa_C: {Kappa_C}")
-
-                    return A_IB, Kappa_C
-
-                    # B_Kappa_i_C = self.A_RB[el, i].T @ R_Kappa_i
-                    # print(f"B_Kappa_C: {B_Kappa_i_C}")
-
-                    # B_Kappa_i = np.array(
-                    #     [
-                    #         0,
-                    #         -(d3 @ r_xixi) / (J0i * ji),
-                    #         (d2 @ r_xixi) / (J0i * ji),
-                    #     ]
-                    # )
-                    # print(f"B_Kappa_i: {B_Kappa_i}")
-                    # print(f"")
-
-                    # return A_IB, B_Kappa_i_C
-
-                if sign_cos >= 0:
-                    R, Kappa_i = kappa(e1, d1, r_xixi, ji, J0i)
-                else:
-                    # R, Kappa_i = kappa(e1, d1, r_xixi, ji, J0i)
-                    # print(f"R:\n{R}")
-                    # print(f"Kappa_i:\n{Kappa_i}")
-                    R, Kappa_i = kappa_C(e1, d1, r_xixi, ji, J0i)
-                    # print(f"R:\n{R}")
-                    # print(f"Kappa_i:\n{Kappa_i}")
-                    # print(f"")
+            # axial stretch
+            lambda_ = ji / J0i
 
             # evaluate strain energy function
             Ee += (
@@ -414,125 +274,16 @@ class Cable:
 
     def f_pot(self, t, q):
         f = np.zeros(self.nu)
-        for el in range(self.nEl):
+        for el in range(self.nelement):
             elDOF = self.elDOF[el]
             f[elDOF] += self.f_pot_el(q[elDOF], el)
         return f
 
     def f_pot_el(self, qe, el):
         return -approx_fprime(qe, lambda qe: self.E_pot_el(qe, el), method="3-point")
-        fe = np.zeros(self.nq_el)
-
-        # extract generalized coordinates for beam centerline and directors
-        # in the current and reference configuration
-        qe_r = qe
-        qe_d1 = qe[self.phiDOF]
-        qe_d2 = qe[self.d2DOF]
-        qe_d3 = qe[self.d3DOF]
-
-        for i in range(self.nQP):
-            # build matrix of shape function derivatives
-            NN_di_i = self.stack3di(self.N_phi[el, i])
-            NN_r_xii = self.stack3r(self.N_r_xi[el, i])
-            NN_di_xii = self.stack3di(self.N_phi_xi[el, i])
-
-            # extract reference state variables
-            J0i = self.J0[el, i]
-            Gamma0_i = self.lambda0[el, i]
-            Kappa0_i = self.Kappa0[el, i]
-            qwi = self.qw[el, i]
-
-            # Interpolate necessary quantities. The derivatives are evaluated w.r.t.
-            # the parameter space \xi and thus need to be transformed later
-            r_xi = NN_r_xii @ qe_r
-
-            d1 = NN_di_i @ qe_d1
-            d1_xi = NN_di_xii @ qe_d1
-
-            d2 = NN_di_i @ qe_d2
-            d2_xi = NN_di_xii @ qe_d2
-
-            d3 = NN_di_i @ qe_d3
-            d3_xi = NN_di_xii @ qe_d3
-
-            # compute derivatives w.r.t. the arc lenght parameter s
-            r_s = r_xi / J0i
-
-            d1_s = d1_xi / J0i
-            d2_s = d2_xi / J0i
-            d3_s = d3_xi / J0i
-
-            # build rotation matrices
-            R = np.vstack((d1, d2, d3)).T
-
-            # axial and shear strains
-            Gamma_i = R.T @ r_s
-
-            #################################################################
-            # formulation of Harsch2020b
-            #################################################################
-
-            # torsional and flexural strains
-            Kappa_i = np.array(
-                [
-                    0.5 * (d3 @ d2_s - d2 @ d3_s),
-                    0.5 * (d1 @ d3_s - d3 @ d1_s),
-                    0.5 * (d2 @ d1_s - d1 @ d2_s),
-                ]
-            )
-
-            # compute contact forces and couples from partial derivatives of the strain energy function w.r.t. strain measures
-            n1, n2, n3 = self.material_model.n_i(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
-            m1, m2, m3 = self.material_model.m_i(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
-
-            # quadrature point contribution to element residual
-            fe -= NN_r_xii.T @ (n1 * d1 + n2 * d2 + n3 * d3) * qwi
-            fe[self.phiDOF] -= (
-                NN_di_i.T @ (r_xi * n1 + (m2 / 2 * d3_xi - m3 / 2 * d2_xi))
-                + NN_di_xii.T @ (m3 / 2 * d2 - m2 / 2 * d3)
-            ) * qwi
-            fe[self.d2DOF] -= (
-                NN_di_i.T @ (r_xi * n2 + (m3 / 2 * d1_xi - m1 / 2 * d3_xi))
-                + NN_di_xii.T @ (m1 / 2 * d3 - m3 / 2 * d1)
-            ) * qwi
-            fe[self.d3DOF] -= (
-                NN_di_i.T @ (r_xi * n3 + (m1 / 2 * d2_xi - m2 / 2 * d1_xi))
-                + NN_di_xii.T @ (m2 / 2 * d1 - m1 / 2 * d2)
-            ) * qwi
-
-        #     #################################################################
-        #     # alternative formulation assuming orthogonality of the directors
-        #     #################################################################
-
-        #     # torsional and flexural strains
-        #     Kappa_i = np.array([d3 @ d2_s, \
-        #                         d1 @ d3_s, \
-        #                         d2 @ d1_s])
-
-        #     # compute contact forces and couples from partial derivatives of the strain energy function w.r.t. strain measures
-        #     n_i = self.material_model.n_i(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
-        #     # n = n_i[0] * d1 + n_i[1] * d2 + n_i[2] * d3
-        #     # n = R @ n_i
-        #     m_i = self.material_model.m_i(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
-        #     # m = m_i[0] * d1 + m_i[1] * d2 + m_i[2] * d3
-        #     # m = R @ m_i
-
-        #     # new version
-        #     # quadrature point contribution to element residual
-        #     n1, n2, n3 = n_i
-        #     m1, m2, m3 = m_i
-        #     fe -=  NN_r_xii.T @ ( n1 * d1 + n2 * d2 + n3 * d3 ) * qwi # delta r'
-        #     fe[self.d1DOF] -= ( NN_di_i.T @ ( r_xi * n1 + m2 * d3_xi ) # delta d1 \
-        #                         + NN_di_xii.T @ ( m3 * d2 ) ) * qwi    # delta d1'
-        #     fe[self.d2DOF] -= ( NN_di_i.T @ ( r_xi * n2 + m3 * d1_xi ) # delta d2 \
-        #                         + NN_di_xii.T @ ( m1 * d3 ) ) * qwi    # delta d2'
-        #     fe[self.d3DOF] -= ( NN_di_i.T @ ( r_xi * n3 + m1 * d2_xi ) # delta d3 \
-        #                         + NN_di_xii.T @ ( m2 * d1 ) ) * qwi    # delta d3'
-
-        return fe
 
     def f_pot_q(self, t, q, coo):
-        for el in range(self.nEl):
+        for el in range(self.nelement):
             elDOF = self.elDOF[el]
             Ke = self.f_pot_q_el(q[elDOF], el)
 
@@ -570,21 +321,21 @@ class Cable:
 
     def r_OP(self, t, q, frame_ID, K_r_SP=np.zeros(3)):
         N, _, _ = self.basis_functions(frame_ID[0])
-        NN = self.stack3(N)
-        return NN @ q  # + self.A_IK(t, q, frame_ID=frame_ID) @ K_r_SP
+        NN = self.stack_Hermite(N)
+        return NN @ q + self.A_IK(t, q, frame_ID=frame_ID) @ K_r_SP
 
     def r_OP_q(self, t, q, frame_ID, K_r_SP=np.zeros(3)):
         N, _, _ = self.basis_functions(frame_ID[0])
-        NN = self.stack3(N)
+        NN = self.stack_Hermite(N)
 
-        r_OP_q = NN  # + np.einsum(
-        #     "ijk,j->ik", self.A_IK_q(t, q, frame_ID=frame_ID), K_r_SP
-        # )
+        r_OP_q = NN + np.einsum(
+            "ijk,j->ik", self.A_IK_q(t, q, frame_ID=frame_ID), K_r_SP
+        )
         return r_OP_q
 
     def A_IK(self, t, q, frame_ID):
         _, N_xi, _ = self.basis_functions(frame_ID[0])
-        NN_xi = self.stack3(N_xi)
+        NN_xi = self.stack_Hermite(N_xi)
         r_xi = NN_xi @ q
 
         # compute first director
@@ -601,11 +352,11 @@ class Cable:
     # TODO
     def v_P(self, t, q, u, frame_ID, K_r_SP=np.zeros(3)):
         N, _, _ = self.basis_functions(frame_ID[0])
-        NN = self.stack3(N)
+        NN = self.stack_Hermite(N)
 
-        v_P = NN @ u  # + self.A_IK(t, q, frame_ID) @ cross3(
-        #     self.K_Omega(t, q, u, frame_ID=frame_ID), K_r_SP
-        # )
+        v_P = NN @ u + self.A_IK(t, q, frame_ID) @ cross3(
+            self.K_Omega(t, q, u, frame_ID=frame_ID), K_r_SP
+        )
         return v_P
 
     # TODO
@@ -629,7 +380,7 @@ class Cable:
     # TODO: optimized implementation for boundaries
     def a_P(self, t, q, u, u_dot, frame_ID, K_r_SP=np.zeros(3)):
         N, _ = self.basis_functions(frame_ID[0])
-        NN = self.stack3(N)
+        NN = self.stack_Hermite(N)
 
         K_Omega = self.K_Omega(t, q, u, frame_ID=frame_ID)
         K_Psi = self.K_Psi(t, q, u, u_dot, frame_ID=frame_ID)
@@ -648,7 +399,7 @@ class Cable:
     # in the I-frame?
     def K_Omega(self, t, q, u, frame_ID):
         _, N_xi, _ = self.basis_functions(frame_ID[0])
-        NN_xi = self.stack3(N_xi)
+        NN_xi = self.stack_Hermite(N_xi)
         r_xi = NN_xi @ q
         r_xi_dot = NN_xi @ u
 
@@ -662,63 +413,17 @@ class Cable:
 
             K_Omega = cross3(d1, d1_dot)
         else:
+            # build rotation matrices
+            A = smallest_rotation(e1, d1)
+            d1, d2, d3 = A.T
 
-            def Omega(e1, d1, r_xi_dot, ji):
-                # build rotation matrices
-                A = smallest_rotation(e1, d1)
-                d1, d2, d3 = A.T
-
-                K_Omega = np.array(
-                    [
-                        0,
-                        -(d3 @ r_xi_dot) / ji,
-                        (d2 @ r_xi_dot) / ji,
-                    ]
-                )
-
-                return A, K_Omega
-
-            def Omega_C(e1, d1, r_xi_dot, ji):
-                # fmt: off
-                A_IJ = np.array([
-                    [-1,  0, 0],
-                    [ 0, -1, 0],
-                    [ 0,  0, 1]
-                ], dtype=float)
-                # fmt: on
-
-                A_JR = smallest_rotation(-e1, d1)
-                # if not self.A_RB_changed_bdry:
-                if True:
-                    A_IB = smallest_rotation(e1, d1)
-                    # self.A_RB_bdry[el, i] = (A_IJ @ A_JR).T @ A_IB
-                    self.A_RB_bdry = A_JR.T @ A_IJ.T @ A_IB
-                    self.A_RB_changed_bdry = True
-
-                A_IB = A_IJ @ A_JR @ self.A_RB_bdry
-                d1, d2, d3 = A_IB.T
-
-                K_Omega = np.array(
-                    [
-                        0,
-                        -(d3 @ r_xi_dot) / ji,
-                        (d2 @ r_xi_dot) / ji,
-                    ]
-                )
-
-                return A_IB, K_Omega
-
-        if switching_beam:
-            # check sign of inner product
-            cos_theta = e1 @ d1
-            sign_cos = sign(cos_theta)
-        else:
-            sign_cos = 1.0
-
-        if sign_cos >= 0:
-            A, K_Omega = Omega(e1, d1, r_xi_dot, ji)
-        else:
-            A, K_Omega = Omega_C(e1, d1, r_xi_dot, ji)
+            K_Omega = np.array(
+                [
+                    0,
+                    -(d3 @ r_xi_dot) / ji,
+                    (d2 @ r_xi_dot) / ji,
+                ]
+            )
         return K_Omega
 
     # TODO:
@@ -762,14 +467,14 @@ class Cable:
     ####################################################
     def distributed_force1D_el(self, force, t, el):
         fe = np.zeros(self.nq_el)
-        for i in range(self.nQP):
-            NNi = self.stack3(self.N_r[el, i])
+        for i in range(self.nquadrature):
+            NNi = self.stack_Hermite(self.N_r[el, i])
             fe += NNi.T @ force(t, self.qp[el, i]) * self.J0[el, i] * self.qw[el, i]
         return fe
 
     def distributed_force1D(self, t, q, force):
         f = np.zeros(self.nq)
-        for el in range(self.nEl):
+        for el in range(self.nelement):
             f[self.elDOF[el]] += self.distributed_force1D_el(force, t, el)
         return f
 
@@ -780,8 +485,10 @@ class Cable:
     ####################################################
     # visualization
     ####################################################
+    # TODO: Correct returned nodes!
     def nodes(self, q):
-        return q[self.qDOF][: 3 * self.nn].reshape(3, -1)
+        # return q[self.qDOF][: 3 * self.nnodes].reshape(3, -1)
+        return np.array(np.array_split(q[self.qDOF], self.nnodes))[:, :3].T
 
     def centerline(self, q, n=100):
         q_body = q[self.qDOF]
