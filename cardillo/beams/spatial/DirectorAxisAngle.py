@@ -98,7 +98,7 @@ class DirectorAxisAngle:
         self.nq_psi = nq_psi = nnode_psi * nq_node_psi
         self.nq = nq_r + nq_psi  # total number of generalized coordinates
         self.nu = self.nq
-        self.nq_elelement = (
+        self.nq_element = (
             nnodes_element_r * nq_node_r + nnodes_element_psi * nq_node_psi
         )  # total number of generalized coordinates per element
         self.nq_el_r = nnodes_element_r * nq_node_r
@@ -120,7 +120,7 @@ class DirectorAxisAngle:
         )
 
         # build global elDOF connectivity matrix
-        self.elDOF = np.zeros((nelement, self.nq_elelement), dtype=int)
+        self.elDOF = np.zeros((nelement, self.nq_element), dtype=int)
         for el in range(nelement):
             self.elDOF[el, : self.nq_el_r] = self.elDOF_r[el]
             self.elDOF[el, self.nq_el_r :] = self.elDOF_psi[el]
@@ -180,9 +180,9 @@ class DirectorAxisAngle:
             qe_r = qe[self.rDOF]
             qe_psi = qe[self.psiDOF]
 
-            # Extract nodal rotation vectors evaluate the rotation using 
-            # Rodriguez' formular and extract the nodal directors. Further, 
-            # they are rearranged such that they can be interpolated using 
+            # Extract nodal rotation vectors evaluate the rotation using
+            # Rodriguez' formular and extract the nodal directors. Further,
+            # they are rearranged such that they can be interpolated using
             # vector valued shape function stacks.
             qe_d1, qe_d2, qe_d3 = self.qe_psi2qe_di(qe_psi)
 
@@ -313,9 +313,9 @@ class DirectorAxisAngle:
         return np.concatenate([x0, y0, z0, psi0])
 
     def qe_psi2qe_di(self, qe_psi):
-        # Extract nodal rotation vectors evaluate the rotation using 
-        # Rodriguez' formular and extract the nodal directors. Further, 
-        # they are rearranged such that they can be interpolated using 
+        # Extract nodal rotation vectors evaluate the rotation using
+        # Rodriguez' formular and extract the nodal directors. Further,
+        # they are rearranged such that they can be interpolated using
         # vector valued shape function stacks.
         psis = qe_psi.reshape(self.nnode_psi, -1, order="F")
         Rs = np.array([rodriguez(psi) for psi in psis])
@@ -352,7 +352,7 @@ class DirectorAxisAngle:
     #########################################
     # TODO:
     def M_el(self, el):
-        Me = np.zeros((self.nq_elelement, self.nq_elelement))
+        Me = np.zeros((self.nq_element, self.nq_element))
 
         # for i in range(self.nquadrature):
         #     # build matrix of shape function derivatives
@@ -413,9 +413,9 @@ class DirectorAxisAngle:
         qe_r = qe[self.rDOF]
         qe_psi = qe[self.psiDOF]
 
-        # Extract nodal rotation vectors evaluate the rotation using 
-        # Rodriguez' formular and extract the nodal directors. Further, 
-        # they are rearranged such that they can be interpolated using 
+        # Extract nodal rotation vectors evaluate the rotation using
+        # Rodriguez' formular and extract the nodal directors. Further,
+        # they are rearranged such that they can be interpolated using
         # vector valued shape function stacks.
         qe_d1, qe_d2, qe_d3 = self.qe_psi2qe_di(qe_psi)
 
@@ -479,7 +479,7 @@ class DirectorAxisAngle:
 
     def f_pot_el(self, qe, el):
         return -approx_fprime(qe, lambda qe: self.E_pot_el(qe, el), method="3-point")
-        fe = np.zeros(self.nq_elelement)
+        fe = np.zeros(self.nq_element)
 
         # extract generalized coordinates for beam centerline and directors
         # in the current and reference configuration
@@ -600,7 +600,7 @@ class DirectorAxisAngle:
     def f_pot_q_el(self, qe, el):
         return approx_fprime(qe, lambda qe: self.f_pot_el(qe, el), method="2-point")
 
-        Ke = np.zeros((self.nq_elelement, self.nq_elelement))
+        Ke = np.zeros((self.nq_element, self.nq_element))
 
         # extract generalized coordinates for beam centerline and directors
         # in the current and reference configuration
@@ -1089,127 +1089,70 @@ class DirectorAxisAngle:
     def uDOF_P(self, frame_ID):
         return self.elDOF_P(frame_ID)
 
-    # TODO: optimized implementation for boundaries
     def r_OP(self, t, q, frame_ID, K_r_SP=np.zeros(3)):
-        # xi = frame_ID[0]
-        # if xi == 0:
-        #     NN = self.N_bdry[0]
-        # elif xi == 1:
-        #     NN = self.N_bdry[-1]
-        # else:
-        #     N, _ = self.basis_functions(frame_ID[0])
-        #     NN = self.stack3r(N)
         N, _ = self.basis_functions_r(frame_ID[0])
         NN = self.stack3r(N)
         return NN @ q[self.rDOF] + self.A_IK(t, q, frame_ID=frame_ID) @ K_r_SP
 
-    # TODO: optimized implementation for boundaries
     def r_OP_q(self, t, q, frame_ID, K_r_SP=np.zeros(3)):
-        # xi = frame_ID[0]
-        # if xi == 0:
-        #     NN = self.N_bdry[0]
-        # elif xi == 1:
-        #     NN = self.N_bdry[-1]
-        # else:
-        #     N, _ = self.basis_functions(frame_ID[0])
-        #     NN = self.stack3r(N)
         N, _ = self.basis_functions_r(frame_ID[0])
         NN = self.stack3r(N)
 
-        r_OP_q = np.zeros((3, self.nq_elelement))
+        r_OP_q = np.zeros((3, self.nq_element))
         r_OP_q[:, self.rDOF] = NN
         r_OP_q += np.einsum("ijk,j->ik", self.A_IK_q(t, q, frame_ID=frame_ID), K_r_SP)
-
-        # tmp = np.einsum("ijk,j->ik", self.A_IK_q(t, q, frame_ID=frame_ID), K_r_SP)
-        # r_OP_q[:, self.d1DOF] = tmp[:, self.d1DOF]
-        # r_OP_q[:, self.d2DOF] = tmp[:, self.d2DOF]
-        # r_OP_q[:, self.d3DOF] = tmp[:, self.d3DOF]
         return r_OP_q
 
-        # r_OP_q_num = Numerical_derivative(lambda t, q: self.r_OP(t, q, frame_ID=frame_ID, K_r_SP=K_r_SP))._x(t, q)
-        # error = np.max(np.abs(r_OP_q_num - r_OP_q))
-        # print(f'error in r_OP_q: {error}')
-        # return r_OP_q_num
-
-    # TODO: optimized implementation for boundaries
     def A_IK(self, t, q, frame_ID):
-        # xi = frame_ID[0]
-        # if xi == 0:
-        #     NN = self.N_bdry[0]
-        # elif xi == 1:
-        #     NN = self.N_bdry[-1]
-        # else:
-        #     N, _ = self.basis_functions(frame_ID[0])
-        #     NN = self.stack3r(N)
         N, _ = self.basis_functions_psi(frame_ID[0])
         NN = self.stack3psi(N)
 
-        d1 = NN @ q[self.psiDOF]
-        d2 = NN @ q[self.d2DOF]
-        d3 = NN @ q[self.d3DOF]
+        # Compute nodal directors and interpoalte them using the given shape
+        # functions.
+        qe_d1, qe_d2, qe_d3 = self.qe_psi2qe_di(q[self.psiDOF])
+        d1 = NN @ qe_d1
+        d2 = NN @ qe_d2
+        d3 = NN @ qe_d3
         return np.vstack((d1, d2, d3)).T
 
-    # TODO: optimized implementation for boundaries
+    # TODO:
     def A_IK_q(self, t, q, frame_ID):
-        # xi = frame_ID[0]
-        # if xi == 0:
-        #     NN = self.N_bdry[0]
-        # elif xi == 1:
-        #     NN = self.N_bdry[-1]
-        # else:
-        #     N, _ = self.basis_functions(frame_ID[0])
-        #     NN = self.stack3r(N)
+        return approx_fprime(q, lambda q: self.A_IK(t, q, frame_ID))
         N, _ = self.basis_functions_psi(frame_ID[0])
         NN = self.stack3psi(N)
 
-        A_IK_q = np.zeros((3, 3, self.nq_elelement))
+        A_IK_q = np.zeros((3, 3, self.nq_element))
         A_IK_q[:, 0, self.psiDOF] = NN
         A_IK_q[:, 1, self.d2DOF] = NN
         A_IK_q[:, 2, self.d3DOF] = NN
         return A_IK_q
 
-        # A_IK_q_num =  Numerical_derivative(lambda t, q: self.A_IK(t, q, frame_ID=frame_ID))._x(t, q)
-        # error = np.linalg.norm(A_IK_q - A_IK_q_num)
-        # print(f'error in A_IK_q: {error}')
-        # return A_IK_q_num
-
-    # TODO: optimized implementation for boundaries
     def v_P(self, t, q, u, frame_ID, K_r_SP=np.zeros(3)):
-        # xi = frame_ID[0]
-        # if xi == 0:
-        #     NN = self.N_bdry[0]
-        # elif xi == 1:
-        #     NN = self.N_bdry[-1]
-        # else:
-        #     N, _ = self.basis_functions(frame_ID[0])
-        #     NN = self.stack3r(N)
         N, _ = self.basis_functions_r(frame_ID[0])
         NN = self.stack3r(N)
 
-        # v_P1 = NN @ u[self.rDOF] + self.A_IK(t, q, frame_ID) @ cross3(self.K_Omega(t, q, u, frame_ID=frame_ID), K_r_SP)
-        v_P2 = NN @ u[self.rDOF] + self.A_IK(t, u, frame_ID) @ K_r_SP
-        # print(v_P1 - v_P2)
-        return v_P2
+        v_P = NN @ u[self.rDOF] + self.A_IK(t, q, frame_ID) @ cross3(
+            self.K_Omega(t, q, u, frame_ID=frame_ID), K_r_SP
+        )
+        return v_P
 
+    # TODO:
     def v_P_q(self, t, q, u, frame_ID, K_r_SP=np.zeros(3)):
-        return np.zeros((3, self.nq_elelement))
+        raise NotImplementedError("")
 
+    # TODO:
     def J_P(self, t, q, frame_ID, K_r_SP=np.zeros(3)):
-        return self.r_OP_q(t, q, frame_ID=frame_ID, K_r_SP=K_r_SP)
+        return approx_fprime(
+            np.zeros(self.nq_element), lambda u: self.v_P(t, q, u, frame_ID, K_r_SP)
+        )
 
+    # TODO:
     def J_P_q(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
-        return np.zeros((3, self.nq_elelement, self.nq_elelement))
+        return approx_fprime(q, lambda q: self.J_P(t, q, frame_ID, K_r_SP))
 
-    # TODO: optimized implementation for boundaries
+    # TODO
     def a_P(self, t, q, u, u_dot, frame_ID, K_r_SP=np.zeros(3)):
-        # xi = frame_ID[0]
-        # if xi == 0:
-        #     NN = self.N_bdry[0]
-        # elif xi == 1:
-        #     NN = self.N_bdry[-1]
-        # else:
-        #     N, _ = self.basis_functions(frame_ID[0])
-        #     NN = self.stack3r(N)
+        raise NotImplementedError("")
         N, _ = self.basis_functions_r(frame_ID[0])
         NN = self.stack3r(N)
 
@@ -1220,146 +1163,48 @@ class DirectorAxisAngle:
         # print(a_P1 - a_P2)
         return a_P2
 
+    # TODO:
     def a_P_q(self, t, q, u, u_dot, frame_ID, K_r_SP=None):
-        return np.zeros((3, self.nq_elelement))
+        raise NotImplementedError("")
+        return np.zeros((3, self.nq_element))
 
+    # TODO:
     def a_P_u(self, t, q, u, u_dot, frame_ID, K_r_SP=None):
-        return np.zeros((3, self.nq_elelement))
+        raise NotImplementedError("")
+        return np.zeros((3, self.nq_element))
 
-    # TODO: optimized implementation for boundaries
     def K_Omega(self, t, q, u, frame_ID):
-        # xi = frame_ID[0]
-        # if xi == 0:
-        #     NN = self.N_bdry[0]
-        # elif xi == 1:
-        #     NN = self.N_bdry[-1]
-        # else:
-        #     N, _ = self.basis_functions(frame_ID[0])
-        #     NN = self.stack3r(N)
+        """Since we use Petrov-Galerkin method we only interpoalte the angular
+        velocity.
+        """
         N, _ = self.basis_functions_psi(frame_ID[0])
         NN = self.stack3psi(N)
+        return NN @ u[self.psiDOF]
 
-        d1 = NN @ q[self.psiDOF]
-        d2 = NN @ q[self.d2DOF]
-        d3 = NN @ q[self.d3DOF]
-        A_IK = np.vstack((d1, d2, d3)).T
-
-        d1_dot = NN @ u[self.psiDOF]
-        d2_dot = NN @ u[self.d2DOF]
-        d3_dot = NN @ u[self.d3DOF]
-        A_IK_dot = np.vstack((d1_dot, d2_dot, d3_dot)).T
-
-        K_Omega_tilde = A_IK.T @ A_IK_dot
-        return skew2ax(K_Omega_tilde)
-
-    # TODO: optimized implementation for boundaries
     def K_J_R(self, t, q, frame_ID):
-        # xi = frame_ID[0]
-        # if xi == 0:
-        #     NN = self.N_bdry[0]
-        # elif xi == 1:
-        #     NN = self.N_bdry[-1]
-        # else:
-        #     N, _ = self.basis_functions(frame_ID[0])
-        #     NN = self.stack3r(N)
         N, _ = self.basis_functions_psi(frame_ID[0])
         NN = self.stack3psi(N)
-
-        d1 = NN @ q[self.psiDOF]
-        d2 = NN @ q[self.d2DOF]
-        d3 = NN @ q[self.d3DOF]
-        A_IK = np.vstack((d1, d2, d3)).T
-
-        K_Omega_tilde_Omega_tilde = skew2ax_A()
-
-        K_J_R = np.zeros((3, self.nq_elelement))
-        K_J_R[:, self.psiDOF] = K_Omega_tilde_Omega_tilde[0] @ A_IK.T @ NN
-        K_J_R[:, self.d2DOF] = K_Omega_tilde_Omega_tilde[1] @ A_IK.T @ NN
-        K_J_R[:, self.d3DOF] = K_Omega_tilde_Omega_tilde[2] @ A_IK.T @ NN
+        K_J_R = np.zeros((3, self.nq_element))
+        K_J_R[:, self.psiDOF] = NN
         return K_J_R
 
-        # K_J_R_num = Numerical_derivative(lambda t, q, u: self.K_Omega(t, q, u, frame_ID=frame_ID), order=2)._y(t, q, np.zeros_like(q))
-        # diff = K_J_R_num - K_J_R
-        # diff_error = diff
-        # error = np.linalg.norm(diff_error)
-        # print(f'error K_J_R: {error}')
-        # return K_J_R_num
-
-    # TODO: optimized implementation for boundaries
     def K_J_R_q(self, t, q, frame_ID):
-        # xi = frame_ID[0]
-        # if xi == 0:
-        #     NN = self.N_bdry[0]
-        # elif xi == 1:
-        #     NN = self.N_bdry[-1]
-        # else:
-        #     N, _ = self.basis_functions(frame_ID[0])
-        #     NN = self.stack3r(N)
-        N, _ = self.basis_functions_psi(frame_ID[0])
-        NN = self.stack3psi(N)
+        return np.zeros((3, self.nq_element, self.nq_element))
 
-        A_IK_q = np.zeros((3, 3, self.nq_elelement))
-        A_IK_q[:, 0, self.psiDOF] = NN
-        A_IK_q[:, 1, self.d2DOF] = NN
-        A_IK_q[:, 2, self.d3DOF] = NN
-
-        K_Omega_tilde_Omega_tilde = skew2ax_A()
-        tmp = np.einsum("jil,jk->ikl", A_IK_q, NN)
-
-        K_J_R_q = np.zeros((3, self.nq_elelement, self.nq_elelement))
-        K_J_R_q[:, self.psiDOF] = np.einsum(
-            "ij,jkl->ikl", K_Omega_tilde_Omega_tilde[0], tmp
-        )
-        K_J_R_q[:, self.d2DOF] = np.einsum(
-            "ij,jkl->ikl", K_Omega_tilde_Omega_tilde[1], tmp
-        )
-        K_J_R_q[:, self.d3DOF] = np.einsum(
-            "ij,jkl->ikl", K_Omega_tilde_Omega_tilde[2], tmp
-        )
-        return K_J_R_q
-
-        # K_J_R_q_num = Numerical_derivative(lambda t, q: self.K_J_R(t, q, frame_ID))._x(t, q)
-        # error = np.max(np.abs(K_J_R_q_num - K_J_R_q))
-        # print(f'error K_J_R_q: {error}')
-        # return K_J_R_q_num
-
-    # TODO: optimized implementation for boundaries
     def K_Psi(self, t, q, u, u_dot, frame_ID):
-        # xi = frame_ID[0]
-        # if xi == 0:
-        #     NN = self.N_bdry[0]
-        # elif xi == 1:
-        #     NN = self.N_bdry[-1]
-        # else:
-        #     N, _ = self.basis_functions(frame_ID[0])
-        #     NN = self.stack3r(N)
+        """Since we use Petrov-Galerkin method we only interpoalte the time
+        derivative of the angular velocity.
+        """
         N, _ = self.basis_functions_psi(frame_ID[0])
         NN = self.stack3psi(N)
-
-        d1 = NN @ q[self.psiDOF]
-        d2 = NN @ q[self.d2DOF]
-        d3 = NN @ q[self.d3DOF]
-        A_IK = np.vstack((d1, d2, d3)).T
-
-        d1_dot = NN @ u[self.psiDOF]
-        d2_dot = NN @ u[self.d2DOF]
-        d3_dot = NN @ u[self.d3DOF]
-        A_IK_dot = np.vstack((d1_dot, d2_dot, d3_dot)).T
-
-        d1_ddot = NN @ u_dot[self.psiDOF]
-        d2_ddot = NN @ u_dot[self.d2DOF]
-        d3_ddot = NN @ u_dot[self.d3DOF]
-        A_IK_ddot = np.vstack((d1_ddot, d2_ddot, d3_ddot)).T
-
-        K_Psi_tilde = A_IK_dot.T @ A_IK_dot + A_IK.T @ A_IK_ddot
-        return skew2ax(K_Psi_tilde)
+        return NN @ u_dot[self.psiDOF]
 
     ####################################################
     # body force
     ####################################################
     # def body_force_el(self, force, t, el):
     def distributed_force1D_el(self, force, t, el):
-        fe = np.zeros(self.nq_elelement)
+        fe = np.zeros(self.nq_element)
         for i in range(self.nquadrature):
             NNi = self.stack3r(self.N_r[el, i])
             fe[self.rDOF] += (

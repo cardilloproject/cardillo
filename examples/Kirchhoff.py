@@ -132,14 +132,14 @@ def tests():
     # model.assemble()
 
     # t = 0
-    # q = model.q0
-    # # q = np.random.rand(model.nq)
+    # # q = model.q0
+    # q = np.random.rand(model.nq)
 
     # E_pot = model.E_pot(t, q)
     # print(f"E_pot: {E_pot}")
     # f_pot = model.f_pot(t, q)
     # print(f"f_pot:\n{f_pot}")
-    # f_pot_q = model.f_pot_q(t, q)
+    # # f_pot_q = model.f_pot_q(t, q)
     # # print(f"f_pot_q:\n{f_pot_q}")
     # exit()
 
@@ -164,7 +164,7 @@ def tests():
     # M = lambda t: -np.array([0, 1, 1]) * t * 2 * np.pi * Fi[1] / L * 0.5
     # M = lambda t: e1 * t * 2 * np.pi * Fi[0] / L * 0.5
     # M = lambda t: e2 * t * 2 * np.pi * Fi[1] / L * 0.45
-    M = lambda t: e3 * t * 2 * np.pi * Fi[2] / L * 0.05
+    M = lambda t: e3 * t * 2 * np.pi * Fi[2] / L * 0.45
     moment = K_Moment(M, beam, (1,))
 
     # # force at right end
