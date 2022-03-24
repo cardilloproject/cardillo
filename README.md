@@ -34,7 +34,7 @@ pip install .
 ```
 
 ## Documentation
-You can access the documentation via [the following link](https://jonasharsch.gitlab.io/cardillo3.
+You can access the documentation via [the following link](https://jonasharsch.gitlab.io/cardillo3).
  
 ## Developing
 
