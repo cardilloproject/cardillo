@@ -532,12 +532,26 @@ class DirectorAxisAngle:
             # formulation of Harsch2020b
             #################################################################
 
+            # # torsional and flexural strains
+            # Kappa_i = np.array(
+            #     [
+            #         0.5 * (d3 @ d2_s - d2 @ d3_s),
+            #         0.5 * (d1 @ d3_s - d3 @ d1_s),
+            #         0.5 * (d2 @ d1_s - d1 @ d2_s),
+            #     ]
+            # )
+
+            ###################################################
+            # formulation in skew coordinates, see Eugster2014c
+            ###################################################
+
             # torsional and flexural strains
+            d = d1 @ cross3(d2, d3)
             Kappa_i = np.array(
                 [
-                    0.5 * (d3 @ d2_s - d2 @ d3_s),
-                    0.5 * (d1 @ d3_s - d3 @ d1_s),
-                    0.5 * (d2 @ d1_s - d1 @ d2_s),
+                    0.5 * (d3 @ d2_s - d2 @ d3_s) / d,
+                    0.5 * (d1 @ d3_s - d3 @ d1_s) / d,
+                    0.5 * (d2 @ d1_s - d1 @ d2_s) / d,
                 ]
             )
 

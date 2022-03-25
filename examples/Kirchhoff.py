@@ -21,13 +21,229 @@ from cardillo.math import e1, e2, e3, sin, pi, smoothstep2, A_IK_basic
 import numpy as np
 import matplotlib.pyplot as plt
 
-# case = "Cable"
-# case = "CubicHermiteCable"
-# case = "Kirchhoff"
-case = "DirectorAxisAngle"
+# # case = "Cable"
+# # case = "CubicHermiteCable"
+# # case = "Kirchhoff"
+# case = "DirectorAxisAngle"
+
+# TODO: Make this an ABC class!
+class BeamCrossSection:
+    pass
+
+
+class CircularBeamCrossSection(BeamCrossSection):
+    def __init__(self, radius, line_density):
+        self.radius = radius
+
+        # density per line element
+        self.line_density = line_density  # TODO: Move to base class
+
+        # area of the cross section
+        self.area = pi * radius**2
+
+        # second moments of area, see
+        # https://en.wikipedia.org/wiki/List_of_second_moments_of_area
+        self.I2 = self.I3 = 0.25 * pi * radius**4
+        self.I1 = self.I2 + self.I3
+
+        # inertia properties used in director beam formulations
+        self.A_rho0 = self.line_density * self.area
+        self.B_rho0 = np.zeros(3)  # symmetric cross section
+        self.C_rho0 = self.line_density * np.diag(np.array([0, self.I3, self.I2]))
+
+        # TODO: Inertia properties for standard beam formulations.
+        # Note: These should coincide with the definition used for rigid bodies
+
+        # TODO
+        super().__init__()
+
+
+class RectangularBeamCrossSection(BeamCrossSection):
+    def __init__(self):
+        raise NotImplementedError("")
+        super().__init__()
+
+
+def quadratic_beam_material(E, G, cross_section, Beam):
+    A = cross_section.area
+    I1 = cross_section.I1
+    I2 = cross_section.I2
+    I3 = cross_section.I3
+    Ei = np.array([E * A, G * A, G * A])
+    Fi = np.array([E * I1, E * I3, E * I2])
+
+    from cardillo.beams.spatial.material_models import ShearStiffQuadratic, Simo1986
+
+    if Beam == Cable or Beam == CubicHermiteCable or Beam == Kirchhoff:
+        return ShearStiffQuadratic(Ei[0], Fi)
+    elif Beam == DirectorAxisAngle:
+        return Simo1986(Ei, Fi)
+    else:
+        raise NotImplementedError("")
+
+
+def beam_factory(
+    nelements,
+    polynomial_degree,
+    nquadrature_points,
+    shape_functions,
+    cross_section,
+    material_model,
+    Beam,
+    L,
+    r_OP=np.zeros(3),
+    A_IK=np.eye(3),
+):
+    ###############################
+    # build reference configuration
+    ###############################
+    if Beam == Cable:
+        Q = Cable.straight_configuration(
+            polynomial_degree, nelements, L, r_OP=r_OP, A_IK=A_IK
+        )
+    elif Beam == CubicHermiteCable:
+        Q = CubicHermiteCable.straight_configuration(
+            nelements, L, r_OP=r_OP, A_IK=A_IK
+        )
+    elif Beam == Kirchhoff:
+        p_r = polynomial_degree
+        p_phi = polynomial_degree
+        Q = Kirchhoff.straight_configuration(
+            p_r, p_phi, nelements, L, r_OP=r_OP, A_IK=A_IK
+        )
+    elif Beam == DirectorAxisAngle:
+        p_r = polynomial_degree
+        p_psi = p_r - 1
+        Q = DirectorAxisAngle.straight_configuration(
+            p_r, p_psi, nelements, L, r_OP=r_OP, A_IK=A_IK
+        )
+    else:
+        raise NotImplementedError("")
+
+    # Initial configuration coincides with reference configuration.
+    # Note: This might be adapted.
+    q0 = Q.copy()
+
+    # extract cross section properties.
+    # TODO: Maybe we should pass this to the beam model itself?
+    A_rho0 = cross_section.A_rho0
+    B_rho0 = cross_section.B_rho0
+    C_rho0 = cross_section.C_rho0
+
+    ##################
+    # build beam model
+    ##################
+    if Beam == Cable:
+        beam = Cable(
+            material_model,
+            A_rho0,
+            B_rho0,
+            C_rho0,
+            p_r,
+            nquadrature_points,
+            nelements,
+            Q=Q,
+            q0=q0,
+        )
+    elif Beam == CubicHermiteCable:
+        beam = CubicHermiteCable(
+            material_model,
+            A_rho0,
+            B_rho0,
+            C_rho0,
+            p_r,
+            nquadrature_points,
+            nelements,
+            Q=Q,
+            q0=q0,
+        )
+    elif Beam == Kirchhoff:
+        beam = Kirchhoff(
+            material_model,
+            A_rho0,
+            B_rho0,
+            C_rho0,
+            p_r,
+            p_phi,
+            nquadrature_points,
+            nelements,
+            Q=Q,
+            q0=q0,
+        )
+    elif Beam == DirectorAxisAngle:
+        # TODO: Inertia is wrong!
+        beam = DirectorAxisAngle(
+            material_model,
+            A_rho0,
+            B_rho0,
+            C_rho0,
+            p_r,
+            p_psi,
+            nquadrature_points,
+            nelements,
+            Q=Q,
+            q0=q0,
+        )
+    else:
+        raise NotImplementedError("")
+
+    return beam
 
 
 def tests():
+    # used beam model
+    # Beam = Cable
+    # Beam = CubicHermiteCable
+    # Beam = Kirchhoff
+    Beam = DirectorAxisAngle
+
+    # number of elements
+    nelements = 10
+
+    # used polynomial degree
+    polynomial_degree = 2
+
+    # number of quadrature points
+    # nquadrature_points = int(np.ceil((polynomial_degree + 1)**2 / 2))
+    nquadrature_points = polynomial_degree + 1
+
+    # used shape functions for discretization
+    shape_functions = "B-spline"
+
+    # used cross section
+    radius = 0.1
+    line_density = 1
+    cross_section = CircularBeamCrossSection(radius, line_density)
+
+    # Young's and shear modulus
+    E = 1
+    nu = 0.5
+    G = E / (2.0 * (1.0 + nu))
+
+    # build quadratic material model
+    material_model = quadratic_beam_material(E, G, cross_section, Beam)
+
+    # starting point and orientation of initial point, initial length
+    r_OP = np.zeros(3)
+    A_IK = np.eye(3)
+    L = 2 * pi
+
+    # build beam model
+    beam = beam_factory(
+        nelements,
+        polynomial_degree,
+        nquadrature_points,
+        shape_functions,
+        cross_section,
+        material_model,
+        Beam,
+        L,
+        r_OP=r_OP,
+        A_IK=A_IK,
+    )
+
+    exit()
+
     # physical properties of the beam
     A_rho0 = 1
     B_rho0 = np.zeros(3)
@@ -48,23 +264,25 @@ def tests():
     frame2 = Frame(r_OP=r_OB2)
 
     # discretization properties
-    p = 2
-    p_r = p
-    p_phi = p - 1  # TODO: p_phi = p_r - 1 seems to be a very good choice!
+    polynomial_degree = 2
+    p_r = polynomial_degree
+    p_phi = (
+        polynomial_degree - 1
+    )  # TODO: p_phi = p_r - 1 seems to be a very good choice!
     # nQP = int(np.ceil((p + 1)**2 / 2))
-    nQP = p + 1
-    print(f"nQP: {nQP}")
-    nEl = 20
+    nquadrature_points = polynomial_degree + 1
+    print(f"nQP: {nquadrature_points}")
+    nelements = 10
 
     # build reference configuration
     if case == "Cable":
-        Q = Cable.straight_configuration(p_r, nEl, L)
+        Q = Cable.straight_configuration(p_r, nelements, L)
     elif case == "CubicHermiteCable":
-        Q = CubicHermiteCable.straight_configuration(nEl, L)
+        Q = CubicHermiteCable.straight_configuration(nelements, L)
     elif case == "Kirchhoff":
-        Q = Kirchhoff.straight_configuration(p_r, p_phi, nEl, L)
+        Q = Kirchhoff.straight_configuration(p_r, p_phi, nelements, L)
     elif case == "DirectorAxisAngle":
-        Q = DirectorAxisAngle.straight_configuration(p_r, p_phi, nEl, L)
+        Q = DirectorAxisAngle.straight_configuration(p_r, p_phi, nelements, L)
     else:
         raise NotImplementedError("")
     q0 = Q.copy()
@@ -76,8 +294,8 @@ def tests():
             B_rho0,
             C_rho0,
             p_r,
-            nQP,
-            nEl,
+            nquadrature_points,
+            nelements,
             Q=Q,
             q0=q0,
         )
@@ -88,8 +306,8 @@ def tests():
             B_rho0,
             C_rho0,
             p_r,
-            nQP,
-            nEl,
+            nquadrature_points,
+            nelements,
             Q=Q,
             q0=q0,
         )
@@ -101,8 +319,8 @@ def tests():
             C_rho0,
             p_r,
             p_phi,
-            nQP,
-            nEl,
+            nquadrature_points,
+            nelements,
             Q=Q,
             q0=q0,
         )
@@ -114,8 +332,8 @@ def tests():
             C_rho0,
             p_r,
             p_phi,
-            nQP,
-            nEl,
+            nquadrature_points,
+            nelements,
             Q=Q,
             q0=q0,
         )
@@ -160,10 +378,9 @@ def tests():
 
     # moment at right end
     M = lambda t: -np.array([1, 0, 1]) * t * 2 * np.pi * Fi[1] / L * 1.0
-    # M = lambda t: -np.array([0, 1, 1]) * t * 2 * np.pi * Fi[1] / L * 0.5
     # M = lambda t: e1 * t * 2 * np.pi * Fi[0] / L * 1.0
-    # M = lambda t: e2 * t * 2 * np.pi * Fi[1] / L * 0.75
-    # M = lambda t: e3 * t * 2 * np.pi * Fi[2] / L * 0.75
+    # M = lambda t: e2 * t * 2 * np.pi * Fi[1] / L * 1.0
+    # M = lambda t: e3 * t * 2 * np.pi * Fi[2] / L * 1.0
     moment = K_Moment(M, beam, (1,))
 
     # # force at right end
