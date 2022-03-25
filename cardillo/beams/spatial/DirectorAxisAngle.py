@@ -532,28 +532,28 @@ class DirectorAxisAngle:
             # formulation of Harsch2020b
             #################################################################
 
-            # # torsional and flexural strains
-            # Kappa_i = np.array(
-            #     [
-            #         0.5 * (d3 @ d2_s - d2 @ d3_s),
-            #         0.5 * (d1 @ d3_s - d3 @ d1_s),
-            #         0.5 * (d2 @ d1_s - d1 @ d2_s),
-            #     ]
-            # )
+            # torsional and flexural strains
+            Kappa_i = np.array(
+                [
+                    0.5 * (d3 @ d2_s - d2 @ d3_s),
+                    0.5 * (d1 @ d3_s - d3 @ d1_s),
+                    0.5 * (d2 @ d1_s - d1 @ d2_s),
+                ]
+            )
 
             ###################################################
             # formulation in skew coordinates, see Eugster2014c
             ###################################################
 
-            # torsional and flexural strains
-            d = d1 @ cross3(d2, d3)
-            Kappa_i = np.array(
-                [
-                    0.5 * (d3 @ d2_s - d2 @ d3_s) / d,
-                    0.5 * (d1 @ d3_s - d3 @ d1_s) / d,
-                    0.5 * (d2 @ d1_s - d1 @ d2_s) / d,
-                ]
-            )
+            # # torsional and flexural strains
+            # d = d1 @ cross3(d2, d3)
+            # Kappa_i = np.array(
+            #     [
+            #         0.5 * (d3 @ d2_s - d2 @ d3_s) / d,
+            #         0.5 * (d1 @ d3_s - d3 @ d1_s) / d,
+            #         0.5 * (d2 @ d1_s - d1 @ d2_s) / d,
+            #     ]
+            # )
 
             # compute contact forces and couples from partial derivatives of
             # the strain energy function w.r.t. strain measures
@@ -561,13 +561,21 @@ class DirectorAxisAngle:
             m1, m2, m3 = self.material_model.m_i(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
 
             # compute contact forces and couples in the current frame d_i
-            vn = n1 * d1 + n2 * d2 + n3 * d3
-            vm = m1 * d1 + m2 * d2 + m3 * d3
+            # vn = n1 * d1 + n2 * d2 + n3 * d3
+            # vm = m1 * d1 + m2 * d2 + m3 * d3
+            K_n = np.array([n1, n2, n3])
+            K_m = np.array([m1, m2, m3])
+
+            # stack rotation
+            A_IK = np.vstack((d1, d2, d3)).T
 
             # quadrature point contribution to element residual
-            fe[self.rDOF] -= NN_r_xii.T @ vn * qwi
-            fe[self.psiDOF] -= NN_psi_i.T @ cross3(vn, r_xi) * qwi
-            fe[self.psiDOF] -= NN_psi_xii.T @ vm * qwi
+            # fe[self.rDOF] -= NN_r_xii.T @ vn * qwi
+            # fe[self.psiDOF] -= NN_psi_i.T @ cross3(vn, r_xi) * qwi
+            # fe[self.psiDOF] -= NN_psi_xii.T @ vm * qwi
+            fe[self.rDOF] -= NN_r_xii.T @ K_n * qwi
+            fe[self.psiDOF] -= NN_psi_i.T @ cross3(A_IK @ K_n, r_xi) * qwi
+            fe[self.psiDOF] -= NN_psi_xii.T @ K_m * qwi
 
         return fe
 
@@ -580,7 +588,7 @@ class DirectorAxisAngle:
             coo.extend(Ke, (self.uDOF[elDOF], self.qDOF[elDOF]))
 
     def f_pot_q_el(self, qe, el):
-        return approx_fprime(qe, lambda qe: self.f_pot_el(qe, el), method="2-point")
+        return approx_fprime(qe, lambda qe: self.f_pot_el(qe, el), method="3-point")
 
         Ke = np.zeros((self.nq_element, self.nq_element))
 
@@ -1156,6 +1164,9 @@ class DirectorAxisAngle:
         return NN @ u[self.psiDOF]
 
     def K_J_R(self, t, q, frame_ID):
+        # return approx_fprime(
+        #     np.zeros(self.nq_element), lambda u: self.K_Omega(t, q, u, frame_ID)
+        # )
         N, _ = self.basis_functions_psi(frame_ID[0])
         NN = self.stack3psi(N)
         K_J_R = np.zeros((3, self.nq_element))

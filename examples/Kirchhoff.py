@@ -15,16 +15,11 @@ from cardillo.beams import (
 from cardillo.forces import Force, K_Moment, DistributedForce1D
 from cardillo.model import Model
 from cardillo.solver import Newton
-from cardillo.contacts import Point2Plane
 from cardillo.math import e1, e2, e3, sin, pi, smoothstep2, A_IK_basic
 
 import numpy as np
 import matplotlib.pyplot as plt
 
-# # case = "Cable"
-# # case = "CubicHermiteCable"
-# # case = "Kirchhoff"
-# case = "DirectorAxisAngle"
 
 # TODO: Make this an ABC class!
 class BeamCrossSection:
@@ -70,7 +65,7 @@ def quadratic_beam_material(E, G, cross_section, Beam):
     I2 = cross_section.I2
     I3 = cross_section.I3
     Ei = np.array([E * A, G * A, G * A])
-    Fi = np.array([E * I1, E * I3, E * I2])
+    Fi = np.array([G * I1, E * I2, E * I3])
 
     from cardillo.beams.spatial.material_models import ShearStiffQuadratic, Simo1986
 
@@ -102,9 +97,7 @@ def beam_factory(
             polynomial_degree, nelements, L, r_OP=r_OP, A_IK=A_IK
         )
     elif Beam == CubicHermiteCable:
-        Q = CubicHermiteCable.straight_configuration(
-            nelements, L, r_OP=r_OP, A_IK=A_IK
-        )
+        Q = CubicHermiteCable.straight_configuration(nelements, L, r_OP=r_OP, A_IK=A_IK)
     elif Beam == Kirchhoff:
         p_r = polynomial_degree
         p_phi = polynomial_degree
@@ -113,9 +106,9 @@ def beam_factory(
         )
     elif Beam == DirectorAxisAngle:
         p_r = polynomial_degree
-        p_psi = p_r - 1
+        p_psi = p_r  # - 1
         Q = DirectorAxisAngle.straight_configuration(
-            p_r, p_psi, nelements, L, r_OP=r_OP, A_IK=A_IK
+            p_r, p_psi, nelements, L, r_OP=r_OP, A_IK=A_IK, basis=shape_functions
         )
     else:
         raise NotImplementedError("")
@@ -183,6 +176,7 @@ def beam_factory(
             nelements,
             Q=Q,
             q0=q0,
+            basis=shape_functions,
         )
     else:
         raise NotImplementedError("")
@@ -211,12 +205,12 @@ def tests():
     shape_functions = "B-spline"
 
     # used cross section
-    radius = 0.1
+    radius = 1
     line_density = 1
     cross_section = CircularBeamCrossSection(radius, line_density)
 
     # Young's and shear modulus
-    E = 1
+    E = 1.0
     nu = 0.5
     G = E / (2.0 * (1.0 + nu))
 
@@ -242,104 +236,6 @@ def tests():
         A_IK=A_IK,
     )
 
-    exit()
-
-    # physical properties of the beam
-    A_rho0 = 1
-    B_rho0 = np.zeros(3)
-    C_rho0 = np.eye(3)
-
-    L = 2 * np.pi
-    E1 = 1.0e0
-    Ei = np.ones(3)
-    Fi = np.ones(3)
-
-    material_model_Kirchhoff = ShearStiffQuadratic(E1, Fi)
-    material_model_Timoshenko = Simo1986(Ei, Fi)
-
-    # junctions
-    r_OB1 = np.zeros(3)
-    r_OB2 = np.array([L, 0, 0])
-    frame1 = Frame(r_OP=r_OB1)
-    frame2 = Frame(r_OP=r_OB2)
-
-    # discretization properties
-    polynomial_degree = 2
-    p_r = polynomial_degree
-    p_phi = (
-        polynomial_degree - 1
-    )  # TODO: p_phi = p_r - 1 seems to be a very good choice!
-    # nQP = int(np.ceil((p + 1)**2 / 2))
-    nquadrature_points = polynomial_degree + 1
-    print(f"nQP: {nquadrature_points}")
-    nelements = 10
-
-    # build reference configuration
-    if case == "Cable":
-        Q = Cable.straight_configuration(p_r, nelements, L)
-    elif case == "CubicHermiteCable":
-        Q = CubicHermiteCable.straight_configuration(nelements, L)
-    elif case == "Kirchhoff":
-        Q = Kirchhoff.straight_configuration(p_r, p_phi, nelements, L)
-    elif case == "DirectorAxisAngle":
-        Q = DirectorAxisAngle.straight_configuration(p_r, p_phi, nelements, L)
-    else:
-        raise NotImplementedError("")
-    q0 = Q.copy()
-
-    if case == "Cable":
-        beam = Cable(
-            material_model_Kirchhoff,
-            A_rho0,
-            B_rho0,
-            C_rho0,
-            p_r,
-            nquadrature_points,
-            nelements,
-            Q=Q,
-            q0=q0,
-        )
-    elif case == "CubicHermiteCable":
-        beam = CubicHermiteCable(
-            material_model_Kirchhoff,
-            A_rho0,
-            B_rho0,
-            C_rho0,
-            p_r,
-            nquadrature_points,
-            nelements,
-            Q=Q,
-            q0=q0,
-        )
-    elif case == "Kirchhoff":
-        beam = Kirchhoff(
-            material_model_Kirchhoff,
-            A_rho0,
-            B_rho0,
-            C_rho0,
-            p_r,
-            p_phi,
-            nquadrature_points,
-            nelements,
-            Q=Q,
-            q0=q0,
-        )
-    elif case == "DirectorAxisAngle":
-        beam = DirectorAxisAngle(
-            material_model_Timoshenko,
-            A_rho0,
-            B_rho0,
-            C_rho0,
-            p_r,
-            p_phi,
-            nquadrature_points,
-            nelements,
-            Q=Q,
-            q0=q0,
-        )
-    else:
-        raise NotImplementedError("")
-
     # ############################################
     # # dummy values for debugging internal forces
     # ############################################
@@ -360,49 +256,67 @@ def tests():
     # # print(f"f_pot_q:\n{f_pot_q}")
     # exit()
 
+    # number of full rotations after deformation
+    # TODO: Allow zero circles!
+    n_circles = 1
+    frac_deformation = 1 / (n_circles + 1)
+    frac_rotation = 1 - frac_deformation
+    print(f"n_circles: {n_circles}")
+    print(f"frac_deformation: {frac_deformation}")
+    print(f"frac_rotation:     {frac_rotation}")
+
+    # junctions
+    r_OB0 = np.zeros(3)
+    phi = lambda t: n_circles * 0.25 * 2 * pi * smoothstep2(t, frac_deformation, 1.0)
+    phi2 = lambda t: pi / 4 * sin(2 * pi * smoothstep2(t, frac_deformation, 1.0))
+    A_IK0 = lambda t: A_IK_basic(phi(t)).x()
+    # A_IK0 = (
+    #     lambda t: A_IK_basic(phi2(t)).z()
+    #     @ A_IK_basic(phi2(t)).y()
+    #     @ A_IK_basic(phi(t)).x()
+    # )
+    # A_IK0 = lambda t: np.eye(3)
+    frame1 = Frame(r_OP=r_OB0, A_IK=A_IK0)
+
     # left and right joint
-    if case == "Cable" or case == "CubicHermiteCable":
-        joint1 = RigidConnectionCable(frame1, beam, r_OB1, frame_ID2=(0,))
-        joint2 = RigidConnectionCable(frame2, beam, r_OB2, frame_ID2=(1,))
-    elif case == "Kirchhoff" or case == "DirectorAxisAngle":
-        joint1 = RigidConnection(frame1, beam, r_OB1, frame_ID2=(0,))
-        joint2 = RigidConnection(frame2, beam, r_OB2, frame_ID2=(1,))
+    if Beam == Cable or Beam == CubicHermiteCable:
+        joint1 = RigidConnectionCable(frame1, beam, r_OB0, frame_ID2=(0,))
+    elif Beam == Kirchhoff or Beam == DirectorAxisAngle:
+        joint1 = RigidConnection(frame1, beam, r_OB0, frame_ID2=(0,))
     else:
         raise NotImplementedError("")
     # joint1 = SphericalJoint(frame1, beam, r_OB1, frame_ID2=(0,))
-    # joint2 = SphericalJoint(frame2, beam, r_OB2, frame_ID2=(1,))
 
     # gravity beam
-    __g = np.array([0, 0, -A_rho0 * 9.81 * 1.0e-3])
-    f_g_beam = DistributedForce1D(lambda t, xi: t * __g, beam)
+    g = np.array([0, 0, -cross_section.A_rho0 * 9.81])
+    f_g_beam = DistributedForce1D(lambda t, xi: t * g, beam)
 
     # moment at right end
-    M = lambda t: -np.array([1, 0, 1]) * t * 2 * np.pi * Fi[1] / L * 1.0
-    # M = lambda t: e1 * t * 2 * np.pi * Fi[0] / L * 1.0
-    # M = lambda t: e2 * t * 2 * np.pi * Fi[1] / L * 1.0
-    # M = lambda t: e3 * t * 2 * np.pi * Fi[2] / L * 1.0
+    Fi = material_model.Fi
+    # M = lambda t: -np.array([1, 0, 1]) * smoothstep2(t, 0.0, frac_deformation) * 2 * np.pi * Fi[1] / L * 1.0
+    # M = lambda t: e1 * smoothstep2(t, 0.0, frac_deformation) * 2 * np.pi * Fi[0] / L * 1.0
+    M = (
+        lambda t: e2
+        * smoothstep2(t, 0.0, frac_deformation)
+        * 2
+        * np.pi
+        * Fi[1]
+        / L
+        * 1.0
+    )
+    # M = lambda t: e3 * smoothstep2(t, 0.0, frac_deformation) * 2 * np.pi * Fi[2] / L * 1.0
     moment = K_Moment(M, beam, (1,))
 
-    # # force at right end
-    # F = lambda t: np.array([0, 0, -1]) * t * 1.0e-2
-    # force = Force(F, beam, frame_ID=(1,))
-
-    # # add point to plane contact
-    # r_OP_contact = np.array([L, 0, -0.0 * L])
-    # frame_contact = Frame(r_OP=r_OP_contact)
-    # prox_r_N = 1.0e-3
-    # e_N = 0
-    # contact = Point2Plane(frame_contact, beam, prox_r_N, e_N, frame_ID=(1.0,))
+    # force at right end
+    F = lambda t: np.array([0, 0, -1]) * t * 1.0e-2
+    force = Force(F, beam, frame_ID=(1,))
 
     # assemble the model
     model = Model()
     model.add(beam)
     model.add(frame1)
     model.add(joint1)
-    # model.add(frame2)
-    # model.add(joint2)
     # model.add(f_g_beam)
-    # model.add(frame_contact)
     # model.add(contact)
     model.add(moment)
     # model.add(force)
@@ -410,7 +324,7 @@ def tests():
 
     solver = Newton(
         model,
-        n_load_steps=10,
+        n_load_steps=50,
         max_iter=30,
         atol=1.0e-8,
         numerical_jacobian=False,
