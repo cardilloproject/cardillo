@@ -267,8 +267,8 @@ def tests():
 
     # junctions
     r_OB0 = np.zeros(3)
-    phi = lambda t: n_circles * 0.25 * 2 * pi * smoothstep2(t, frac_deformation, 1.0)
-    phi2 = lambda t: pi / 4 * sin(2 * pi * smoothstep2(t, frac_deformation, 1.0))
+    phi = lambda t: n_circles * 2 * pi * smoothstep2(t, frac_deformation, 1.0)
+    # phi2 = lambda t: pi / 4 * sin(2 * pi * smoothstep2(t, frac_deformation, 1.0))
     A_IK0 = lambda t: A_IK_basic(phi(t)).x()
     # A_IK0 = (
     #     lambda t: A_IK_basic(phi2(t)).z()
@@ -295,15 +295,7 @@ def tests():
     Fi = material_model.Fi
     # M = lambda t: -np.array([1, 0, 1]) * smoothstep2(t, 0.0, frac_deformation) * 2 * np.pi * Fi[1] / L * 1.0
     # M = lambda t: e1 * smoothstep2(t, 0.0, frac_deformation) * 2 * np.pi * Fi[0] / L * 1.0
-    M = (
-        lambda t: e2
-        * smoothstep2(t, 0.0, frac_deformation)
-        * 2
-        * np.pi
-        * Fi[1]
-        / L
-        * 1.0
-    )
+    M = lambda t: e2 * smoothstep2(t, 0.0, frac_deformation) * 2 * np.pi * Fi[1] / L
     # M = lambda t: e3 * smoothstep2(t, 0.0, frac_deformation) * 2 * np.pi * Fi[2] / L * 1.0
     moment = K_Moment(M, beam, (1,))
 
@@ -324,7 +316,7 @@ def tests():
 
     solver = Newton(
         model,
-        n_load_steps=50,
+        n_load_steps=100,
         max_iter=30,
         atol=1.0e-8,
         numerical_jacobian=False,
@@ -416,7 +408,15 @@ def objectivity():
     # moment at right end that yields quater circle for t in [0, frac_deforation] and then
     # remains constant
     # M = lambda t: 2 * np.pi * smoothstep2(t, 0.0, frac_deformation) * e1 * Fi[0] / L
-    M = lambda t: 2 * np.pi * smoothstep2(t, 0.0, frac_deformation) * e2 * Fi[1] / L
+    M = (
+        lambda t: 0.75
+        * 2
+        * np.pi
+        * smoothstep2(t, 0.0, frac_deformation)
+        * e2
+        * Fi[1]
+        / L
+    )
     # momen at right end that yields a quater helix for t in [0, frac_deforation] and then
     # remains constant
     # M = (

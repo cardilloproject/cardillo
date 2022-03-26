@@ -569,13 +569,30 @@ class DirectorAxisAngle:
             # stack rotation
             A_IK = np.vstack((d1, d2, d3)).T
 
-            # quadrature point contribution to element residual
-            # fe[self.rDOF] -= NN_r_xii.T @ vn * qwi
-            # fe[self.psiDOF] -= NN_psi_i.T @ cross3(vn, r_xi) * qwi
-            # fe[self.psiDOF] -= NN_psi_xii.T @ vm * qwi
-            fe[self.rDOF] -= NN_r_xii.T @ K_n * qwi
-            fe[self.psiDOF] -= NN_psi_i.T @ cross3(A_IK @ K_n, r_xi) * qwi
-            fe[self.psiDOF] -= NN_psi_xii.T @ K_m * qwi
+            # # quadrature point contribution to element residual
+            # # fe[self.rDOF] -= NN_r_xii.T @ vn * qwi
+            # # fe[self.psiDOF] -= NN_psi_i.T @ cross3(vn, r_xi) * qwi
+            # # fe[self.psiDOF] -= NN_psi_xii.T @ vm * qwi
+            # fe[self.rDOF] -= NN_r_xii.T @ K_n * qwi
+            # fe[self.psiDOF] -= NN_psi_i.T @ cross3(A_IK @ K_n, r_xi) * qwi
+            # fe[self.psiDOF] -= NN_psi_xii.T @ K_m * qwi
+
+            # TODO: Check internval virtual work contributions!
+
+            # first delta Gamma part
+            fe[self.rDOF] += -NN_r_xii.T @ A_IK @ (K_n * qwi)
+
+            #####################
+            # K_delta_phi version
+            #####################
+            # - second delta Gamma part
+            fe[self.psiDOF] += NN_psi_i.T @ cross3(A_IK.T @ r_xi, K_n) * qwi
+
+            # - delta kappa part
+            fe[self.psiDOF] += -NN_psi_xii.T @ K_m * qwi
+            fe[self.psiDOF] += (
+                NN_psi_i.T @ cross3(Kappa_i, K_m) * Ji * qwi
+            )  # Euler term
 
         return fe
 
@@ -588,7 +605,7 @@ class DirectorAxisAngle:
             coo.extend(Ke, (self.uDOF[elDOF], self.qDOF[elDOF]))
 
     def f_pot_q_el(self, qe, el):
-        return approx_fprime(qe, lambda qe: self.f_pot_el(qe, el), method="3-point")
+        return approx_fprime(qe, lambda qe: self.f_pot_el(qe, el), method="2-point")
 
         Ke = np.zeros((self.nq_element, self.nq_element))
 
