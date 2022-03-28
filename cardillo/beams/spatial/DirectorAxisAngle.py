@@ -532,52 +532,43 @@ class DirectorAxisAngle:
             # formulation of Harsch2020b
             #################################################################
 
-            # torsional and flexural strains
-            Kappa_i = np.array(
-                [
-                    0.5 * (d3 @ d2_s - d2 @ d3_s),
-                    0.5 * (d1 @ d3_s - d3 @ d1_s),
-                    0.5 * (d2 @ d1_s - d1 @ d2_s),
-                ]
-            )
+            # # torsional and flexural strains
+            # Kappa_i = np.array(
+            #     [
+            #         0.5 * (d3 @ d2_s - d2 @ d3_s),
+            #         0.5 * (d1 @ d3_s - d3 @ d1_s),
+            #         0.5 * (d2 @ d1_s - d1 @ d2_s),
+            #     ]
+            # )
 
             ###################################################
             # formulation in skew coordinates, see Eugster2014c
             ###################################################
+            # TODO: Using this formulation a perfect circle is obtained.
+            # This is not the case without the 1/d term. A huge number
+            # of elements is required otherwise!
+            # TODO: We have to check if this is the only change invoved?
+            # I think the term involving the Kappa_i requires a factor d too!
+            # TODO: Investiage why rotation of left beam end is not working
+            # with this formulation.
 
-            # # torsional and flexural strains
-            # d = d1 @ cross3(d2, d3)
-            # Kappa_i = np.array(
-            #     [
-            #         0.5 * (d3 @ d2_s - d2 @ d3_s) / d,
-            #         0.5 * (d1 @ d3_s - d3 @ d1_s) / d,
-            #         0.5 * (d2 @ d1_s - d1 @ d2_s) / d,
-            #     ]
-            # )
+            # torsional and flexural strains
+            d = d1 @ cross3(d2, d3)
+            Kappa_i = np.array(
+                [
+                    0.5 * (d3 @ d2_s - d2 @ d3_s) / d,
+                    0.5 * (d1 @ d3_s - d3 @ d1_s) / d,
+                    0.5 * (d2 @ d1_s - d1 @ d2_s) / d,
+                ]
+            )
 
             # compute contact forces and couples from partial derivatives of
             # the strain energy function w.r.t. strain measures
-            n1, n2, n3 = self.material_model.n_i(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
-            m1, m2, m3 = self.material_model.m_i(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
-
-            # compute contact forces and couples in the current frame d_i
-            # vn = n1 * d1 + n2 * d2 + n3 * d3
-            # vm = m1 * d1 + m2 * d2 + m3 * d3
-            K_n = np.array([n1, n2, n3])
-            K_m = np.array([m1, m2, m3])
+            K_n = self.material_model.n_i(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
+            K_m = self.material_model.m_i(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
 
             # stack rotation
             A_IK = np.vstack((d1, d2, d3)).T
-
-            # # quadrature point contribution to element residual
-            # # fe[self.rDOF] -= NN_r_xii.T @ vn * qwi
-            # # fe[self.psiDOF] -= NN_psi_i.T @ cross3(vn, r_xi) * qwi
-            # # fe[self.psiDOF] -= NN_psi_xii.T @ vm * qwi
-            # fe[self.rDOF] -= NN_r_xii.T @ K_n * qwi
-            # fe[self.psiDOF] -= NN_psi_i.T @ cross3(A_IK @ K_n, r_xi) * qwi
-            # fe[self.psiDOF] -= NN_psi_xii.T @ K_m * qwi
-
-            # TODO: Check internval virtual work contributions!
 
             # first delta Gamma part
             fe[self.rDOF] += -NN_r_xii.T @ A_IK @ (K_n * qwi)
@@ -591,7 +582,11 @@ class DirectorAxisAngle:
             # - delta kappa part
             fe[self.psiDOF] += -NN_psi_xii.T @ K_m * qwi
             fe[self.psiDOF] += (
-                NN_psi_i.T @ cross3(Kappa_i, K_m) * Ji * qwi
+                NN_psi_i.T
+                @ cross3(Kappa_i, K_m)
+                * Ji
+                * qwi
+                # NN_psi_i.T @ cross3(Kappa_i, K_m) * Ji * d * qwi
             )  # Euler term
 
         return fe

@@ -267,14 +267,15 @@ def tests():
 
     # junctions
     r_OB0 = np.zeros(3)
-    phi = lambda t: n_circles * 2 * pi * smoothstep2(t, frac_deformation, 1.0)
+    phi = lambda t: n_circles * 2 * pi * smoothstep2(t, frac_deformation, 1.0) * 0.5
     # phi2 = lambda t: pi / 4 * sin(2 * pi * smoothstep2(t, frac_deformation, 1.0))
-    A_IK0 = lambda t: A_IK_basic(phi(t)).x()
-    # A_IK0 = (
-    #     lambda t: A_IK_basic(phi2(t)).z()
-    #     @ A_IK_basic(phi2(t)).y()
-    #     @ A_IK_basic(phi(t)).x()
-    # )
+    # A_IK0 = lambda t: A_IK_basic(phi(t)).x()
+    # A_IK0 = lambda t: A_IK_basic(phi(t)).z()
+    A_IK0 = (
+        lambda t: A_IK_basic(0.5 * phi(t)).z()
+        @ A_IK_basic(0.5 * phi(t)).y()
+        @ A_IK_basic(phi(t)).x()
+    )
     # A_IK0 = lambda t: np.eye(3)
     frame1 = Frame(r_OP=r_OB0, A_IK=A_IK0)
 
@@ -316,7 +317,7 @@ def tests():
 
     solver = Newton(
         model,
-        n_load_steps=100,
+        n_load_steps=50,
         max_iter=30,
         atol=1.0e-8,
         numerical_jacobian=False,
@@ -325,6 +326,40 @@ def tests():
     sol = solver.solve()
     t = sol.t
     q = sol.q
+
+    # ############################
+    # # Visualize potential energy
+    # ############################
+    # E_pot = np.array([model.E_pot(ti, qi) for (ti, qi) in zip(t, q)])
+
+    # fig, ax = plt.subplots(1, 2)
+
+    # ax[0].plot(t, E_pot)
+    # ax[0].set_xlabel("t")
+    # ax[0].set_ylabel("E_pot")
+    # ax[0].grid()
+
+    # idx = np.where(t > frac_deformation)[0]
+    # ax[1].plot(t[idx], E_pot[idx])
+    # ax[1].set_xlabel("t")
+    # ax[1].set_ylabel("E_pot")
+    # ax[1].grid()
+
+    # # visualize final centerline projected in all three planes
+    # r_OPs = beam.centerline(q[-1])
+    # fig, ax = plt.subplots(1, 3)
+    # ax[0].plot(r_OPs[0, :], r_OPs[1, :], label="x-y")
+    # ax[1].plot(r_OPs[1, :], r_OPs[2, :], label="y-z")
+    # ax[2].plot(r_OPs[2, :], r_OPs[0, :], label="z-x")
+    # ax[0].grid()
+    # ax[0].legend()
+    # ax[0].set_aspect(1)
+    # ax[1].grid()
+    # ax[1].legend()
+    # ax[1].set_aspect(1)
+    # ax[2].grid()
+    # ax[2].legend()
+    # ax[2].set_aspect(1)
 
     ###########
     # animation
