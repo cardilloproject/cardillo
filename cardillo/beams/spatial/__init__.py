@@ -1,3 +1,5 @@
+from .cross_section import CircularCrossSection, RectangularCrossSection
+
 from .director import (
     TimoshenkoDirectorDirac,
     TimoshenkoDirectorIntegral,
