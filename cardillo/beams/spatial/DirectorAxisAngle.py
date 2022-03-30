@@ -385,7 +385,7 @@ class DirectorAxisAngle:
         coo.extend_sparse(self.__M)
 
     def f_gyr_el(self, t, qe, ue, el):
-        fe = np.zeros(self.nu_el)
+        fe = np.zeros(self.nq_element)
 
         # extract generalized velocities of axis angle vector
         ue_psi = ue[self.psiDOF]
@@ -406,13 +406,14 @@ class DirectorAxisAngle:
 
         return fe
 
-    def f_gyr(self, t, q, u):
-        f = np.zeros(self.nu)
-        for el in range(self.nEl):
-            f[self.elDOF[el]] += self.f_gyr_el(
-                t, q[self.elDOF[el]], u[self.elDOF[el]], el
-            )
-        return f
+    # # TODO:
+    # def f_gyr(self, t, q, u):
+    #     f = np.zeros(self.nu)
+    #     for el in range(self.nelement):
+    #         f[self.elDOF[el]] += self.f_gyr_el(
+    #             t, q[self.elDOF[el]], u[self.elDOF[el]], el
+    #         )
+    #     return f
 
     # TODO: Implement and compare with numerical derivative on element level
     def f_gyr_u(self, t, q, u, coo):
@@ -552,14 +553,14 @@ class DirectorAxisAngle:
             # formulation of Harsch2020b
             #################################################################
 
-            # # torsional and flexural strains
-            # Kappa_i = np.array(
-            #     [
-            #         0.5 * (d3 @ d2_s - d2 @ d3_s),
-            #         0.5 * (d1 @ d3_s - d3 @ d1_s),
-            #         0.5 * (d2 @ d1_s - d1 @ d2_s),
-            #     ]
-            # )
+            # torsional and flexural strains
+            Kappa_i = np.array(
+                [
+                    0.5 * (d3 @ d2_s - d2 @ d3_s),
+                    0.5 * (d1 @ d3_s - d3 @ d1_s),
+                    0.5 * (d2 @ d1_s - d1 @ d2_s),
+                ]
+            )
 
             ###################################################
             # formulation in skew coordinates, see Eugster2014c
@@ -572,15 +573,15 @@ class DirectorAxisAngle:
             # TODO: Investiage why rotation of left beam end is not working
             # with this formulation.
 
-            # torsional and flexural strains
-            d = d1 @ cross3(d2, d3)
-            Kappa_i = np.array(
-                [
-                    0.5 * (d3 @ d2_s - d2 @ d3_s) / d,
-                    0.5 * (d1 @ d3_s - d3 @ d1_s) / d,
-                    0.5 * (d2 @ d1_s - d1 @ d2_s) / d,
-                ]
-            )
+            # # torsional and flexural strains
+            # d = d1 @ cross3(d2, d3)
+            # Kappa_i = np.array(
+            #     [
+            #         0.5 * (d3 @ d2_s - d2 @ d3_s) / d,
+            #         0.5 * (d1 @ d3_s - d3 @ d1_s) / d,
+            #         0.5 * (d2 @ d1_s - d1 @ d2_s) / d,
+            #     ]
+            # )
 
             # compute contact forces and couples from partial derivatives of
             # the strain energy function w.r.t. strain measures
