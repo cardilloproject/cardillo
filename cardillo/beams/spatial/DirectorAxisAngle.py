@@ -21,8 +21,7 @@ class DirectorAxisAngle:
         self,
         material_model,
         A_rho0,
-        B_rho0,
-        C_rho0,
+        I_rho0,
         polynomial_degree_r,
         polynomial_degree_psi,
         nquadrature,
@@ -35,10 +34,8 @@ class DirectorAxisAngle:
 
         # beam properties
         self.materialModel = material_model  # material model
-        # TODO: Adapt inertia properties.
         self.A_rho0 = A_rho0  # line density
-        self.B_rho0 = B_rho0  # first moment
-        self.C_rho0 = C_rho0  # second moment
+        self.I_rho0 = I_rho0  # second moment
 
         # material model
         self.material_model = material_model
@@ -350,39 +347,28 @@ class DirectorAxisAngle:
     #########################################
     # equations of motion
     #########################################
-    # TODO:
+    # TODO: Check correctness of this
     def M_el(self, el):
         Me = np.zeros((self.nq_element, self.nq_element))
 
-        # for i in range(self.nquadrature):
-        #     # build matrix of shape function derivatives
-        #     NN_r_i = self.stack3r(self.N_r[el, i])
-        #     NN_di_i = self.stack3psi(self.N_psi[el, i])
+        for i in range(self.nquadrature):
+            # extract reference state variables
+            qwi = self.qw[el, i]
+            Ji = self.J[el, i]
 
-        #     # extract reference state variables
-        #     J0i = self.J[el, i]
-        #     qwi = self.qw[el, i]
-        #     factor_rr = NN_r_i.T @ NN_r_i * J0i * qwi
-        #     factor_rdi = NN_r_i.T @ NN_di_i * J0i * qwi
-        #     factor_dir = NN_di_i.T @ NN_r_i * J0i * qwi
-        #     factor_didi = NN_di_i.T @ NN_di_i * J0i * qwi
+            # build matrix of shape functions
+            NN_r_i = self.stack3r(self.N_r[el, i])
+            NN_psi_i = self.stack3psi(self.N_psi[el, i])
 
-        #     # delta r * ddot r
-        #     Me[self.rDOF[:, None], self.rDOF] += self.A_rho0 * factor_rr
-        #     # delta r * ddot d2
-        #     Me[self.rDOF[:, None], self.d2DOF] += self.B_rho0[1] * factor_rdi
-        #     # delta r * ddot d3
-        #     Me[self.rDOF[:, None], self.d3DOF] += self.B_rho0[2] * factor_rdi
+            # delta_r A_rho0 r_ddot part
+            Me[self.rDOF[:, None], self.rDOF] += (
+                NN_r_i.T @ NN_r_i * self.A_rho0 * Ji * qwi
+            )
 
-        #     # delta d2 * ddot r
-        #     Me[self.d2DOF[:, None], self.rDOF] += self.B_rho0[1] * factor_dir
-        #     Me[self.d2DOF[:, None], self.d2DOF] += self.C_rho0[1, 1] * factor_didi
-        #     Me[self.d2DOF[:, None], self.d3DOF] += self.C_rho0[1, 2] * factor_didi
-
-        #     # delta d3 * ddot r
-        #     Me[self.d3DOF[:, None], self.rDOF] += self.B_rho0[2] * factor_dir
-        #     Me[self.d3DOF[:, None], self.d2DOF] += self.C_rho0[2, 1] * factor_didi
-        #     Me[self.d3DOF[:, None], self.d3DOF] += self.C_rho0[2, 2] * factor_didi
+            # first part delta_phi (I_rho0 omega_dot + omega_tilde I_rho0 omega)
+            Me[self.psiDOF[:, None], self.psiDOF] += (
+                NN_psi_i.T @ self.I_rho0 @ NN_psi_i * Ji * qwi
+            )
 
         return Me
 
@@ -397,6 +383,40 @@ class DirectorAxisAngle:
 
     def M(self, t, q, coo):
         coo.extend_sparse(self.__M)
+
+    def f_gyr_el(self, t, qe, ue, el):
+        fe = np.zeros(self.nu_el)
+
+        # extract generalized velocities of axis angle vector
+        ue_psi = ue[self.psiDOF]
+
+        for i in range(self.nquadrature):
+            # extract reference state variables
+            qwi = self.qw[el, i]
+            Ji = self.J[el, i]
+
+            # build matrix of shape function derivatives
+            NN_psi_i = self.stack3psi(self.N_psi[el, i])
+
+            # angular velocity
+            omega = NN_psi_i @ ue_psi
+            fe[self.psiDOF] += (
+                NN_psi_i.T @ cross3(omega, self.I_rho0 @ omega) * Ji * qwi
+            )
+
+        return fe
+
+    def f_gyr(self, t, q, u):
+        f = np.zeros(self.nu)
+        for el in range(self.nEl):
+            f[self.elDOF[el]] += self.f_gyr_el(
+                t, q[self.elDOF[el]], u[self.elDOF[el]], el
+            )
+        return f
+
+    # TODO: Implement and compare with numerical derivative on element level
+    def f_gyr_u(self, t, q, u, coo):
+        raise NotImplementedError
 
     def E_pot(self, t, q):
         E = 0

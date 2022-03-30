@@ -1,4 +1,10 @@
-from .cross_section import CircularCrossSection, RectangularCrossSection
+from .cross_section import (
+    CircularCrossSection,
+    RectangularCrossSection,
+    QuadraticCrossSection,
+)
+
+from .material_models import *
 
 from .director import (
     TimoshenkoDirectorDirac,

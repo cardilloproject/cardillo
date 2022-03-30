@@ -1,8 +1,7 @@
-from cardillo.beams.spatial.material_models import ShearStiffQuadratic, Simo1986
+from cardillo.beams.spatial import CircularCrossSection, ShearStiffQuadratic, Simo1986
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints.implicit import (
     RigidConnection,
-    SphericalJoint,
     RigidConnectionCable,
 )
 from cardillo.beams import (
@@ -21,53 +20,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-# TODO: Make this an ABC class!
-class BeamCrossSection:
-    pass
-
-
-class CircularBeamCrossSection(BeamCrossSection):
-    def __init__(self, radius, line_density):
-        self.radius = radius
-
-        # density per line element
-        self.line_density = line_density  # TODO: Move to base class
-
-        # area of the cross section
-        self.area = pi * radius**2
-
-        # second moments of area, see
-        # https://en.wikipedia.org/wiki/List_of_second_moments_of_area
-        self.I2 = self.I3 = 0.25 * pi * radius**4
-        self.I1 = self.I2 + self.I3
-
-        # inertia properties used in director beam formulations
-        self.A_rho0 = self.line_density * self.area
-        self.B_rho0 = np.zeros(3)  # symmetric cross section
-        self.C_rho0 = self.line_density * np.diag(np.array([0, self.I3, self.I2]))
-
-        # TODO: Inertia properties for standard beam formulations.
-        # Note: These should coincide with the definition used for rigid bodies
-
-        # TODO
-        super().__init__()
-
-
-class RectangularBeamCrossSection(BeamCrossSection):
-    def __init__(self):
-        raise NotImplementedError("")
-        super().__init__()
-
-
 def quadratic_beam_material(E, G, cross_section, Beam):
     A = cross_section.area
-    I1 = cross_section.I1
-    I2 = cross_section.I2
-    I3 = cross_section.I3
+    Ip, I2, I3 = np.diag(cross_section.second_moment)
     Ei = np.array([E * A, G * A, G * A])
-    Fi = np.array([G * I1, E * I2, E * I3])
-
-    from cardillo.beams.spatial.material_models import ShearStiffQuadratic, Simo1986
+    Fi = np.array([G * Ip, E * I2, E * I3])
 
     if Beam == Cable or Beam == CubicHermiteCable or Beam == Kirchhoff:
         return ShearStiffQuadratic(Ei[0], Fi)
@@ -117,11 +74,33 @@ def beam_factory(
     # Note: This might be adapted.
     q0 = Q.copy()
 
-    # extract cross section properties.
+    # extract cross section properties
     # TODO: Maybe we should pass this to the beam model itself?
-    A_rho0 = cross_section.A_rho0
-    B_rho0 = cross_section.B_rho0
-    C_rho0 = cross_section.C_rho0
+    area = cross_section.area
+    line_density = cross_section.line_density
+    first_moment = cross_section.first_moment
+    second_moment = cross_section.second_moment
+
+    # for constant line densities the required quantities are related to the
+    # zeroth, first and second moment of area, see Harsch2021 footnote 2.
+    # TODO: I think we made an error there since in the Wilberforce pendulum
+    # example we used
+    # C_rho0 = line_density * np.diag([0, I3, I2]).
+    # I think it should be C_rho0^ab = rho0 * I_ba?
+    # TODO: Compute again the relation between Binet inertia tensor and
+    # standard one.
+    A_rho0 = line_density * area
+    B_rho0 = line_density * first_moment
+    C_rho0 = line_density * second_moment
+    # TODO: I think this is Binet's inertia tensor!
+    C_rho0 = np.zeros((3, 3))
+    for a in range(1, 3):
+        for b in range(1, 3):
+            C_rho0[a, b] = line_density * second_moment[b, a]
+
+    # This is the standard second moment of area weighted by a constant line
+    # density
+    I_rho0 = line_density * second_moment
 
     ##################
     # build beam model
@@ -164,12 +143,10 @@ def beam_factory(
             q0=q0,
         )
     elif Beam == DirectorAxisAngle:
-        # TODO: Inertia is wrong!
         beam = DirectorAxisAngle(
             material_model,
             A_rho0,
-            B_rho0,
-            C_rho0,
+            I_rho0,
             p_r,
             p_psi,
             nquadrature_points,
@@ -207,7 +184,7 @@ def tests():
     # used cross section
     radius = 1
     line_density = 1
-    cross_section = CircularBeamCrossSection(radius, line_density)
+    cross_section = CircularCrossSection(line_density, radius)
 
     # Young's and shear modulus
     E = 1.0
@@ -286,10 +263,9 @@ def tests():
         joint1 = RigidConnection(frame1, beam, r_OB0, frame_ID2=(0,))
     else:
         raise NotImplementedError("")
-    # joint1 = SphericalJoint(frame1, beam, r_OB1, frame_ID2=(0,))
 
     # gravity beam
-    g = np.array([0, 0, -cross_section.A_rho0 * 9.81])
+    g = np.array([0, 0, -cross_section.area * cross_section.line_density * 9.81])
     f_g_beam = DistributedForce1D(lambda t, xi: t * g, beam)
 
     # moment at right end
