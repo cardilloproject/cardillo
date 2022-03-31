@@ -9,6 +9,7 @@ from cardillo.discretization.mesh1D import Mesh1D
 from cardillo.math import norm, cross3, skew2ax, skew2ax_A, approx_fprime
 from PyRod.math.rotations import (
     rodriguez,
+    rodriguez_der,
     rodriguez_inv,
     tangent_map,
     inverse_tangent_map,
@@ -309,6 +310,22 @@ class DirectorAxisAngle:
 
         return np.concatenate([x0, y0, z0, psi0])
 
+    # TODO: I think we should replace this by a function that computes the
+    # nodal rotation matrices. Later they are interpolated using the very
+    # same procedure bu we use some more efficient BLAS level 3 functions
+    # (matrx matrix multiplication) that should (at least in theory) be
+    # faster than the corresponding level 2 equivalents (matrix vector
+    # multiplications). The very same can be applied for their derivatives.
+    # The curvatures is computed by ax2skew(A_IK.T @ A_IK_s).
+    def nodal_rotations(self, qe_psi):
+        # Extract nodal rotation vectors evaluate the rotation using
+        # Rodriguez' formular and extract the nodal rotation.
+        # In addition, they are rearranged such that they can be interpolated
+        # using vector valued shape function stacks.
+        psis = qe_psi.reshape(self.nnodes_element_psi, -1, order="F")
+        Rs = np.array([rodriguez(psi) for psi in psis])
+        return Rs
+
     def qe_psi2qe_di(self, qe_psi):
         # Extract nodal rotation vectors evaluate the rotation using
         # Rodriguez' formular and extract the nodal directors. Further,
@@ -320,6 +337,20 @@ class DirectorAxisAngle:
         qe_d2 = Rs[:, :, 1].reshape(-1, order="F")
         qe_d3 = Rs[:, :, 2].reshape(-1, order="F")
         return qe_d1, qe_d2, qe_d3
+
+    def qe_di_qe_psi(self, qe_psi):
+        # Compute the derivative of the nonlinear mapping from nodal axial
+        # vectors to directors via Rodriguez' formular with respect to nodal
+        # axial vectors.
+        # This is required for computing the derivative of the internal forces
+        # with respect to the generalized coordinates.
+        psis = qe_psi.reshape(self.nnodes_element_psi, -1, order="F")
+        Rs_psi = np.array([rodriguez_der(psi) for psi in psis])
+        # Rs = np.array([rodriguez(psi) for psi in psis])
+        qe_d1 = Rs_psi[:, :, 0].reshape(-1, order="F")
+        qe_d2 = Rs_psi[:, :, 1].reshape(-1, order="F")
+        qe_d3 = Rs_psi[:, :, 2].reshape(-1, order="F")
+        # return qe_d1, qe_d2, qe_d3
 
     def element_number(self, xi):
         # note the elements coincide for both meshes!
@@ -623,432 +654,187 @@ class DirectorAxisAngle:
     def f_pot_q_el(self, qe, el):
         return approx_fprime(qe, lambda qe: self.f_pot_el(qe, el), method="2-point")
 
+    # Interpolation of nodal rotations
+    def f_pot_el_test(self, qe, el):
+        fe = np.zeros(self.nq_element)
         Ke = np.zeros((self.nq_element, self.nq_element))
 
         # extract generalized coordinates for beam centerline and directors
         # in the current and reference configuration
         qe_r = qe[self.rDOF]
-        qe_d1 = qe[self.psiDOF]
-        qe_d2 = qe[self.d2DOF]
-        qe_d3 = qe[self.d3DOF]
+        qe_psi = qe[self.psiDOF]
+
+        # # Extract nodal rotation vectors evaluate the rotation using
+        # # Rodriguez' formular and extract the nodal directors. Further,
+        # # they are rearranged such that they can be interpolated using
+        # # vector valued shape function stacks.
+        # qe_d1, qe_d2, qe_d3 = self.qe_psi2qe_di(qe_psi)
+
+        qe_r_nodes = qe_r.reshape(self.nnodes_element_psi, -1, order="F")
+        qe_psi_nodes = qe_psi.reshape(self.nnodes_element_psi, -1, order="F")
+        qe_R_nodes = np.array([rodriguez(psi) for psi in qe_psi_nodes])
+        qe_R_psi_nodes = np.array([rodriguez_der(psi) for psi in qe_psi_nodes])
 
         for i in range(self.nquadrature):
-            # build matrix of shape function derivatives
-            # NN_r_i = self.stack3r(self.N_r[el, i])
-            NN_di_i = self.stack3psi(self.N_psi[el, i])
-            NN_r_xii = self.stack3r(self.N_r_xi[el, i])
-            NN_di_xii = self.stack3psi(self.N_psi_xi[el, i])
-
-            # extract reference state variables
-            J0i = self.J[el, i]
+            # extract some variables
+            N_r_xi = self.N_r_xi[el, i]
+            N_psi = self.N_psi[el, i]
+            N_psi_xi = self.N_psi_xi[el, i]
+            qwi = self.qw[el, i]
+            Ji = self.J[el, i]
             Gamma0_i = self.Gamma0[el, i]
             Kappa0_i = self.Kappa0[el, i]
-            qwi = self.qw[el, i]
 
-            # Interpolate necessary quantities. The derivatives are evaluated w.r.t.
-            # the parameter space \xi and thus need to be transformed later
-            r_xi = NN_r_xii @ qe_r
+            # # build matrix of shape function derivatives
+            # NN_r_xii = self.stack3r(self.N_r_xi[el, i])
+            # NN_psi_i = self.stack3psi(self.N_psi[el, i])
+            # NN_psi_xii = self.stack3psi(self.N_psi_xi[el, i])
 
-            d1 = NN_di_i @ qe_d1
-            d1_xi = NN_di_xii @ qe_d1
-
-            d2 = NN_di_i @ qe_d2
-            d2_xi = NN_di_xii @ qe_d2
-
-            d3 = NN_di_i @ qe_d3
-            d3_xi = NN_di_xii @ qe_d3
+            # interpolate tangent vector, transformation matrix and its
+            # derivative with respect to parameter space
+            r_xi = np.einsum("i,ij", N_r_xi, qe_r_nodes)
+            A_IK = np.einsum("i,ijk", N_psi, qe_R_nodes)
+            A_IK_xi = np.einsum("i,ijk", N_psi_xi, qe_R_nodes)
 
             # compute derivatives w.r.t. the arc lenght parameter s
-            r_s = r_xi / J0i
+            r_s = r_xi / Ji
+            A_IK_s = A_IK_xi / Ji
 
-            d1_s = d1_xi / J0i
-            d2_s = d2_xi / J0i
-            d3_s = d3_xi / J0i
+            # derivative of transformation matrix w.r.t. to nodal generalized
+            # coordiantes of the axis angle vector
+            A_IK_psi_node = np.zeros((3, 3, 3, self.nnodes_element_psi))
+            A_IK_s_psi_node = np.zeros((3, 3, 3, self.nnodes_element_psi))
+            for i in range(self.nnodes_element_psi):
+                A_IK_psi_node[:, :, :, i] = N_psi[i] * qe_R_psi_nodes[i]
+                A_IK_s_psi_node[:, :, :, i] = (N_psi_xi[i] / Ji) * qe_R_psi_nodes[i]
+                # print(f"")
 
-            # build rotation matrices
-            R = np.vstack((d1, d2, d3)).T
+            # # A_IK_qe_psi = np.einsum("i,ijkl", N_psi, qe_R_psi_nodes)
+            # A_IK_psi_node = np.array([
+            #     N_psi[i] * qe_R_psi_nodes[i] for i in range(self.nnodes_element_psi)
+            # ])
+            # # A_IK_xi_qe_psi = np.einsum("i,ijkl", N_psi_xi, qe_R_psi_nodes)
+            # A_IK_s_psi_node = np.array([
+            #     (N_psi_xi[i] / Ji) * qe_R_psi_nodes[i] for i in range(self.nnodes_element_psi)
+            # ])
 
             # axial and shear strains
-            Gamma_i = R.T @ r_s
-
-            # derivative of axial and shear strains
-            Gamma_j_qr = R.T @ NN_r_xii / J0i
-            Gamma_1_qd1 = r_xi @ NN_di_i / J0i
-            Gamma_2_qd2 = r_xi @ NN_di_i / J0i
-            Gamma_3_qd3 = r_xi @ NN_di_i / J0i
-
-            #################################################################
-            # formulation of Harsch2020b
-            #################################################################
+            Gamma_i = A_IK.T @ r_s
+            Gamma_i_qe_r = np.einsum(
+                "ij,k", A_IK.T, N_r_xi
+            )  # .reshape(3, -1, order="F")
+            Gamma_i_qe_psi = np.einsum(
+                "ijkm,i", A_IK_psi_node, r_s
+            )  # .reshape(3, -1, order="F")
 
             # torsional and flexural strains
-            Kappa_i = np.array(
-                [
-                    0.5 * (d3 @ d2_s - d2 @ d3_s),
-                    0.5 * (d1 @ d3_s - d3 @ d1_s),
-                    0.5 * (d2 @ d1_s - d1 @ d2_s),
-                ]
-            )
+            Kappa_i = skew2ax(A_IK.T @ A_IK_s)
+            Kappa_i_qe_psi = np.einsum(
+                "ijk,jklm",
+                skew2ax_A(),
+                np.einsum("ij,iklm", A_IK, A_IK_s_psi_node)
+                + np.einsum("ijkm,il", A_IK_psi_node, A_IK_s),
+            )  # .reshape(3, -1, order="F")
 
-            # derivative of torsional and flexural strains
-            kappa_1_qe_d1 = np.zeros(3 * self.nnodes_element_psi)
-            kappa_1_qe_d2 = 0.5 * (d3 @ NN_di_xii - d3_xi @ NN_di_i) / J0i
-            kappa_1_qe_d3 = 0.5 * (d2_xi @ NN_di_i - d2 @ NN_di_xii) / J0i
+            # compute contact forces and couples from partial derivatives of
+            # the strain energy function w.r.t. strain measures
+            K_n = self.material_model.n_i(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
+            K_m = self.material_model.m_i(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
 
-            kappa_2_qe_d1 = 0.5 * (d3_xi @ NN_di_i - d3 @ NN_di_xii) / J0i
-            kappa_2_qe_d2 = np.zeros(3 * self.nnodes_element_psi)
-            kappa_2_qe_d3 = 0.5 * (d1 @ NN_di_xii - d1_xi @ NN_di_i) / J0i
-
-            kappa_3_qe_d1 = 0.5 * (d2 @ NN_di_xii - d2_xi @ NN_di_i) / J0i
-            kappa_3_qe_d2 = 0.5 * (d1_xi @ NN_di_i - d1 @ NN_di_xii) / J0i
-            kappa_3_qe_d3 = np.zeros(3 * self.nnodes_element_psi)
-
-            kappa_j_qe_d1 = np.vstack((kappa_1_qe_d1, kappa_2_qe_d1, kappa_3_qe_d1))
-            kappa_j_qe_d2 = np.vstack((kappa_1_qe_d2, kappa_2_qe_d2, kappa_3_qe_d2))
-            kappa_j_qe_d3 = np.vstack((kappa_1_qe_d3, kappa_2_qe_d3, kappa_3_qe_d3))
-
-            # compute contact forces and couples from partial derivatives of the strain energy function w.r.t. strain measures
-            n1, n2, n3 = self.material_model.n_i(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
-            n_i_Gamma_j = self.material_model.n_i_Gamma_j(
+            # compute derivatives of contact forces and couples with respect
+            # to their strain measures
+            K_n_i_Gamma_j = self.material_model.n_i_Gamma_j(
                 Gamma_i, Gamma0_i, Kappa_i, Kappa0_i
             )
-            n_i_Kappa_j = self.material_model.n_i_K_j(
+            K_n_i_K_j = self.material_model.n_i_K_j(
                 Gamma_i, Gamma0_i, Kappa_i, Kappa0_i
             )
-            n1_qr, n2_qr, n3_qr = n_i_Gamma_j @ Gamma_j_qr
-
-            n1_qd1, n2_qd1, n3_qd1 = (
-                np.outer(n_i_Gamma_j[0], Gamma_1_qd1) + n_i_Kappa_j @ kappa_j_qe_d1
-            )
-            n1_qd2, n2_qd2, n3_qd2 = (
-                np.outer(n_i_Gamma_j[1], Gamma_2_qd2) + n_i_Kappa_j @ kappa_j_qe_d2
-            )
-            n1_qd3, n2_qd3, n3_qd3 = (
-                np.outer(n_i_Gamma_j[2], Gamma_3_qd3) + n_i_Kappa_j @ kappa_j_qe_d3
-            )
-
-            m1, m2, m3 = self.material_model.m_i(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
-            m_i_Gamma_j = self.material_model.m_i_Gamma_j(
+            K_m_i_Gamma_j = self.material_model.m_i_Gamma_j(
                 Gamma_i, Gamma0_i, Kappa_i, Kappa0_i
             )
-            m_i_Kappa_j = self.material_model.m_i_K_j(
+            K_m_i_K_j = self.material_model.m_i_K_j(
                 Gamma_i, Gamma0_i, Kappa_i, Kappa0_i
             )
 
-            m1_qr, m2_qr, m3_qr = m_i_Gamma_j @ Gamma_j_qr
-            m1_qd1, m2_qd1, m3_qd1 = (
-                np.outer(m_i_Gamma_j[0], Gamma_1_qd1) + m_i_Kappa_j @ kappa_j_qe_d1
+            # chaing rule for derivative with respect to generalized coordinates
+            K_n_qe_r = K_n_i_Gamma_j @ Gamma_i_qe_r
+            K_n_qe_psi = K_n_i_Gamma_j @ Gamma_i_qe_psi + K_n_i_K_j @ Kappa_i_qe_psi
+            K_m_qe_r = K_m_i_Gamma_j @ Gamma_i_qe_r
+            K_m_qe_psi = K_m_i_Gamma_j @ Gamma_i_qe_psi + K_m_i_K_j @ Kappa_i_qe_psi
+
+            # first delta Gamma part
+            # Ke[self.rDOF] += -NN_r_xii.T @ A_IK @ (K_n * qwi)
+            fe[self.rDOF] += -np.outer(N_r_xi, A_IK @ (K_n * qwi)).reshape(
+                -1, order="F"
             )
-            m1_qd2, m2_qd2, m3_qd2 = (
-                np.outer(m_i_Gamma_j[1], Gamma_2_qd2) + m_i_Kappa_j @ kappa_j_qe_d2
+            # TODO: I think here we are stuck and need to assemble the nodal
+            # values like in the 3D fem code or fall back to the assembling of
+            # stacked shape functions for interpolation of vector quantities.
+            # Ke[self.rDOF[:, None], self.rDOF] += -np.outer(N_r_xi, A_IK @ (K_n_qe_r * qwi))
+
+            nodalDOF_r = np.arange(self.nq_node_r * self.nnodes_element_r).reshape(
+                self.nnodes_element_r, -1, order="F"
             )
-            m1_qd3, m2_qd3, m3_qd3 = (
-                np.outer(m_i_Gamma_j[2], Gamma_3_qd3) + m_i_Kappa_j @ kappa_j_qe_d3
-            )
+            nodalDOF_psi = np.arange(
+                self.nq_node_psi * self.nnodes_element_psi
+            ).reshape(self.nnodes_element_psi, -1, order="F")
 
-            Ke[self.rDOF[:, None], self.rDOF] -= (
-                NN_r_xii.T
-                @ (np.outer(d1, n1_qr) + np.outer(d2, n2_qr) + np.outer(d3, n3_qr))
-                * qwi
-            )
-            Ke[self.rDOF[:, None], self.psiDOF] -= (
-                NN_r_xii.T
-                @ (
-                    np.outer(d1, n1_qd1)
-                    + np.outer(d2, n2_qd1)
-                    + np.outer(d3, n3_qd1)
-                    + n1 * NN_di_i
-                )
-                * qwi
-            )
-            Ke[self.rDOF[:, None], self.d2DOF] -= (
-                NN_r_xii.T
-                @ (
-                    np.outer(d1, n1_qd2)
-                    + np.outer(d2, n2_qd2)
-                    + np.outer(d3, n3_qd2)
-                    + n2 * NN_di_i
-                )
-                * qwi
-            )
-            Ke[self.rDOF[:, None], self.d3DOF] -= (
-                NN_r_xii.T
-                @ (
-                    np.outer(d1, n1_qd3)
-                    + np.outer(d2, n2_qd3)
-                    + np.outer(d3, n3_qd3)
-                    + n3 * NN_di_i
-                )
-                * qwi
-            )
+            # first delta Gamma part
+            # fe[self.rDOF] += -NN_r_xii.T @ A_IK @ (K_n * qwi)
+            # fe[self.rDOF] += -np.outer(N_r_xi, A_IK @ (K_n * qwi)).reshape(-1, order="F")
+            for a in range(self.nnodes_element_r):
+                for b in range(self.nnodes_element_r):
+                    Ke[nodalDOF_r[a][:, np.newaxis], nodalDOF_r[b]] = (
+                        -N_r_xi[a] * A_IK @ (K_n_qe_r[:, :, b] * qwi)
+                    )
+                for b in range(self.nnodes_element_psi):
+                    Ke[nodalDOF_r[a][:, np.newaxis], nodalDOF_psi[b]] = -N_r_xi[
+                        a
+                    ] * np.einsum("ijk,i", A_IK_psi_node[:, :, :, b], K_n * qwi)
 
-            Ke[self.psiDOF[:, None], self.rDOF] -= (
-                NN_di_i.T
-                @ (
-                    np.outer(r_xi, n1_qr)
-                    + n1 * NN_r_xii
-                    + np.outer(0.5 * d3_xi, m2_qr)
-                    - np.outer(0.5 * d2_xi, m3_qr)
-                )
-                * qwi
-                + NN_di_xii.T
-                @ (np.outer(0.5 * d2, m3_qr) - np.outer(0.5 * d3, m2_qr))
-                * qwi
-            )
-            Ke[self.psiDOF[:, None], self.psiDOF] -= (
-                NN_di_i.T
-                @ (
-                    np.outer(r_xi, n1_qd1)
-                    + np.outer(0.5 * d3_xi, m2_qd1)
-                    - np.outer(0.5 * d2_xi, m3_qd1)
-                )
-                * qwi
-                + NN_di_xii.T
-                @ (np.outer(0.5 * d2, m3_qd1) - np.outer(0.5 * d3, m2_qd1))
-                * qwi
-            )
-            Ke[self.psiDOF[:, None], self.d2DOF] -= (
-                NN_di_i.T
-                @ (
-                    np.outer(r_xi, n1_qd2)
-                    + np.outer(0.5 * d3_xi, m2_qd2)
-                    - np.outer(0.5 * d2_xi, m3_qd2)
-                    - 0.5 * m3 * NN_di_xii
-                )
-                * qwi
-                + NN_di_xii.T
-                @ (
-                    np.outer(0.5 * d2, m3_qd2)
-                    + 0.5 * m3 * NN_di_i
-                    - np.outer(0.5 * d3, m2_qd2)
-                )
-                * qwi
-            )
-            Ke[self.psiDOF[:, None], self.d3DOF] -= (
-                NN_di_i.T
-                @ (
-                    np.outer(r_xi, n1_qd3)
-                    + np.outer(0.5 * d3_xi, m2_qd3)
-                    + 0.5 * m2 * NN_di_xii
-                    - np.outer(0.5 * d2_xi, m3_qd3)
-                )
-                * qwi
-                + NN_di_xii.T
-                @ (
-                    np.outer(0.5 * d2, m3_qd3)
-                    - np.outer(0.5 * d3, m2_qd3)
-                    - 0.5 * m2 * NN_di_i
-                )
-                * qwi
-            )
+            # second delta Gamma part
+            # fe[self.psiDOF] += NN_psi_i.T @ cross3(A_IK.T @ r_xi, K_n) * qwi
+            # fe[self.psiDOF] += np.outer(N_psi, cross3(A_IK.T @ r_xi, K_n) * qwi).reshape(-1, order="F")
+            for a in range(self.nnodes_element_psi):
+                for b in range(self.nnodes_element_r):
+                    Ke[nodalDOF_psi[a][:, np.newaxis], nodalDOF_r[b]] = (
+                        -N_psi[a] * A_IK @ (K_n_qe_r[:, :, b] * qwi)
+                    )
+                for b in range(self.nnodes_element_psi):
+                    pass
 
-            Ke[self.d2DOF[:, None], self.rDOF] -= (
-                NN_di_i.T
-                @ (
-                    np.outer(r_xi, n2_qr)
-                    + n2 * NN_r_xii
-                    + np.outer(0.5 * d1_xi, m3_qr)
-                    - np.outer(0.5 * d3_xi, m1_qr)
-                )
-                * qwi
-                + NN_di_xii.T
-                @ (np.outer(0.5 * d3, m1_qr) - np.outer(0.5 * d1, m3_qr))
-                * qwi
-            )
-            Ke[self.d2DOF[:, None], self.psiDOF] -= (
-                NN_di_i.T
-                @ (
-                    np.outer(r_xi, n2_qd1)
-                    + np.outer(0.5 * d1_xi, m3_qd1)
-                    + 0.5 * m3 * NN_di_xii
-                    - np.outer(0.5 * d3_xi, m1_qd1)
-                )
-                * qwi
-                + NN_di_xii.T
-                @ (
-                    np.outer(0.5 * d3, m1_qd1)
-                    - np.outer(0.5 * d1, m3_qd1)
-                    - 0.5 * m3 * NN_di_i
-                )
-                * qwi
-            )
-            Ke[self.d2DOF[:, None], self.d2DOF] -= (
-                NN_di_i.T
-                @ (
-                    np.outer(r_xi, n2_qd2)
-                    + np.outer(0.5 * d1_xi, m3_qd2)
-                    - np.outer(0.5 * d3_xi, m1_qd2)
-                )
-                * qwi
-                + NN_di_xii.T
-                @ (np.outer(0.5 * d3, m1_qd2) - np.outer(0.5 * d1, m3_qd2))
-                * qwi
-            )
-            Ke[self.d2DOF[:, None], self.d3DOF] -= (
-                NN_di_i.T
-                @ (
-                    np.outer(r_xi, n2_qd3)
-                    + np.outer(0.5 * d1_xi, m3_qd3)
-                    - np.outer(0.5 * d3_xi, m1_qd3)
-                    - 0.5 * m1 * NN_di_xii
-                )
-                * qwi
-                + NN_di_xii.T
-                @ (
-                    np.outer(0.5 * d3, m1_qd3)
-                    + 0.5 * m1 * NN_di_i
-                    - np.outer(0.5 * d1, m3_qd3)
-                )
-                * qwi
-            )
+            #####################
+            # K_delta_phi version
+            #####################
+            # - second delta Gamma part
+            # fe[self.psiDOF] += NN_psi_i.T @ cross3(A_IK.T @ r_xi, K_n) * qwi
+            fe[self.psiDOF] += np.outer(
+                N_psi, cross3(A_IK.T @ r_xi, K_n) * qwi
+            ).reshape(-1, order="F")
 
-            Ke[self.d3DOF[:, None], self.rDOF] -= (
-                NN_di_i.T
-                @ (
-                    np.outer(r_xi, n3_qr)
-                    + n3 * NN_r_xii
-                    + np.outer(0.5 * d2_xi, m1_qr)
-                    - np.outer(0.5 * d1_xi, m2_qr)
-                )
-                * qwi
-                + NN_di_xii.T
-                @ (np.outer(0.5 * d1, m2_qr) - np.outer(0.5 * d2, m1_qr))
-                * qwi
-            )
-            Ke[self.d3DOF[:, None], self.psiDOF] -= (
-                NN_di_i.T
-                @ (
-                    np.outer(r_xi, n3_qd1)
-                    + np.outer(0.5 * d2_xi, m1_qd1)
-                    - np.outer(0.5 * d1_xi, m2_qd1)
-                    - 0.5 * m2 * NN_di_xii
-                )
-                * qwi
-                + NN_di_xii.T
-                @ (
-                    np.outer(0.5 * d1, m2_qd1)
-                    + 0.5 * m2 * NN_di_i
-                    - np.outer(0.5 * d2, m1_qd1)
-                )
-                * qwi
-            )
-            Ke[self.d3DOF[:, None], self.d2DOF] -= (
-                NN_di_i.T
-                @ (
-                    np.outer(r_xi, n3_qd2)
-                    + np.outer(0.5 * d2_xi, m1_qd2)
-                    + 0.5 * m1 * NN_di_xii
-                    - np.outer(0.5 * d1_xi, m2_qd2)
-                )
-                * qwi
-                + NN_di_xii.T
-                @ (
-                    np.outer(0.5 * d1, m2_qd2)
-                    - np.outer(0.5 * d2, m1_qd2)
-                    - 0.5 * m1 * NN_di_i
-                )
-                * qwi
-            )
-            Ke[self.d3DOF[:, None], self.d3DOF] -= (
-                NN_di_i.T
-                @ (
-                    np.outer(r_xi, n3_qd3)
-                    + np.outer(0.5 * d2_xi, m1_qd3)
-                    - np.outer(0.5 * d1_xi, m2_qd3)
-                )
-                * qwi
-                + NN_di_xii.T
-                @ (np.outer(0.5 * d1, m2_qd3) - np.outer(0.5 * d2, m1_qd3))
-                * qwi
-            )
+            # - delta kappa part
+            # fe[self.psiDOF] += -NN_psi_xii.T @ K_m * qwi
+            fe[self.psiDOF] += -np.outer(N_psi_xi, K_m * qwi).reshape(-1, order="F")
+            # fe[self.psiDOF] += (
+            #     NN_psi_i.T
+            #     @ cross3(Kappa_i, K_m)
+            #     * Ji
+            #     * qwi
+            #     # NN_psi_i.T @ cross3(Kappa_i, K_m) * Ji * d * qwi
+            # )  # Euler term
+            fe[self.psiDOF] += np.outer(
+                N_psi_xi, cross3(Kappa_i, K_m) * Ji * qwi
+            ).reshape(-1, order="F")
 
-            # #################################################################
-            # # alternative formulation assuming orthogonality of the directors
-            # #################################################################
+        return fe
 
-            # # torsional and flexural strains
-            # Kappa_i = np.array([d3 @ d2_s, \
-            #                     d1 @ d3_s, \
-            #                     d2 @ d1_s])
+        # Ke_num = approx_fprime(qe, lambda qe: self.f_pot_el(qe, el), method="2-point")
+        # diff = Ke - Ke_num
+        # error = np.max(np.abs(diff))
+        # print(f'max error f_pot_q_el: {error}')
 
-            # # derivative of torsional and flexural strains
-            # kappa_1_qe_d1 = np.zeros(3 * self.nn_el_di)
-            # kappa_1_qe_d2 = d3 @ NN_di_xii / J0i
-            # kappa_1_qe_d3 = d2_s @ NN_di_i
-
-            # kappa_2_qe_d1 = d3_s @ NN_di_i
-            # kappa_2_qe_d2 = np.zeros(3 * self.nn_el_di)
-            # kappa_2_qe_d3 = d1 @ NN_di_xii / J0i
-
-            # kappa_3_qe_d1 = d2 @ NN_di_xii / J0i
-            # kappa_3_qe_d2 = d1_s @ NN_di_i
-            # kappa_3_qe_d3 = np.zeros(3 * self.nn_el_di)
-
-            # kappa_j_qe_d1 = np.vstack((kappa_1_qe_d1, kappa_2_qe_d1, kappa_3_qe_d1))
-            # kappa_j_qe_d2 = np.vstack((kappa_1_qe_d2, kappa_2_qe_d2, kappa_3_qe_d2))
-            # kappa_j_qe_d3 = np.vstack((kappa_1_qe_d3, kappa_2_qe_d3, kappa_3_qe_d3))
-
-            # # compute contact forces and couples from partial derivatives of the strain energy function w.r.t. strain measures
-            # n1, n2, n3 = self.material_model.n_i(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
-            # n_i_Gamma_i_j = self.material_model.n_i_Gamma_i_j(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
-            # n_i_Kappa_i_j = self.material_model.n_i_Kappa_i_j(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
-            # n1_qr, n2_qr, n3_qr = n_i_Gamma_i_j @ Gamma_j_qr
-
-            # n1_qd1, n2_qd1, n3_qd1 = np.outer(n_i_Gamma_i_j[0], Gamma_1_qd1) + n_i_Kappa_i_j @ kappa_j_qe_d1
-            # n1_qd2, n2_qd2, n3_qd2 = np.outer(n_i_Gamma_i_j[1], Gamma_2_qd2) + n_i_Kappa_i_j @ kappa_j_qe_d2
-            # n1_qd3, n2_qd3, n3_qd3 = np.outer(n_i_Gamma_i_j[2], Gamma_3_qd3) + n_i_Kappa_i_j @ kappa_j_qe_d3
-
-            # m1, m2, m3 = self.material_model.m_i(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
-            # m_i_Gamma_i_j = self.material_model.m_i_Gamma_i_j(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
-            # m_i_Kappa_i_j = self.material_model.m_i_Kappa_i_j(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
-
-            # m1_qr, m2_qr, m3_qr = m_i_Gamma_i_j @ Gamma_j_qr
-            # m1_qd1, m2_qd1, m3_qd1 = np.outer(m_i_Gamma_i_j[0], Gamma_1_qd1) + m_i_Kappa_i_j @ kappa_j_qe_d1
-            # m1_qd2, m2_qd2, m3_qd2 = np.outer(m_i_Gamma_i_j[1], Gamma_2_qd2) + m_i_Kappa_i_j @ kappa_j_qe_d2
-            # m1_qd3, m2_qd3, m3_qd3 = np.outer(m_i_Gamma_i_j[2], Gamma_3_qd3) + m_i_Kappa_i_j @ kappa_j_qe_d3
-
-            # # quadrature point contribution to element stiffness matrix
-
-            # # fe[self.rDOF] -=  NN_r_xii.T @ ( n1 * d1 + n2 * d2 + n3 * d3 ) * qwi # delta r'
-            # Ke[self.rDOF[:, None], self.rDOF] -= NN_r_xii.T @ (np.outer(d1, n1_qr) + np.outer(d2, n2_qr) + np.outer(d3, n3_qr)) * qwi
-            # Ke[self.rDOF[:, None], self.d1DOF] -= NN_r_xii.T @ (np.outer(d1, n1_qd1) + np.outer(d2, n2_qd1) + np.outer(d3, n3_qd1) + n1 * NN_di_i) * qwi
-            # Ke[self.rDOF[:, None], self.d2DOF] -= NN_r_xii.T @ (np.outer(d1, n1_qd2) + np.outer(d2, n2_qd2) + np.outer(d3, n3_qd2) + n2 * NN_di_i) * qwi
-            # Ke[self.rDOF[:, None], self.d3DOF] -= NN_r_xii.T @ (np.outer(d1, n1_qd3) + np.outer(d2, n2_qd3) + np.outer(d3, n3_qd3) + n3 * NN_di_i) * qwi
-
-            # # fe[self.d1DOF] -= ( NN_di_i.T @ ( r_xi * n1 + m2 * d3_xi ) # delta d1 \
-            # #                     + NN_di_xii.T @ ( m3 * d2 ) ) * qwi    # delta d1'
-            # Ke[self.d1DOF[:, None], self.rDOF] -= NN_di_i.T @ (np.outer(r_xi, n1_qr) + n1 * NN_r_xii + np.outer(d3_xi, m2_qr)) * qwi \
-            #                                       + NN_di_xii.T @ np.outer(d2, m3_qr) * qwi
-            # Ke[self.d1DOF[:, None], self.d1DOF] -= NN_di_i.T @ (np.outer(r_xi, n1_qd1) + np.outer(d3_xi, m2_qd1)) * qwi \
-            #                                        + NN_di_xii.T @ np.outer(d2, m3_qd1) * qwi
-            # Ke[self.d1DOF[:, None], self.d2DOF] -= NN_di_i.T @ (np.outer(r_xi, n1_qd2) + np.outer(d3_xi, m2_qd2)) * qwi \
-            #                                        + NN_di_xii.T @ (np.outer(d2, m3_qd2) + m3 * NN_di_i) * qwi
-            # Ke[self.d1DOF[:, None], self.d3DOF] -= NN_di_i.T @ (np.outer(r_xi, n1_qd3) + np.outer(d3_xi, m2_qd3) + m2 * NN_di_xii) * qwi \
-            #                                        + NN_di_xii.T @ np.outer(d2, m3_qd3) * qwi
-
-            # # fe[self.d2DOF] -= ( NN_di_i.T @ ( r_xi * n2 + m3 * d1_xi ) # delta d2 \
-            # #                     + NN_di_xii.T @ ( m1 * d3 ) ) * qwi    # delta d2'
-            # Ke[self.d2DOF[:, None], self.rDOF] -= NN_di_i.T @ (np.outer(r_xi, n2_qr) + n2 * NN_r_xii + np.outer(d1_xi, m3_qr)) * qwi \
-            #                                       + NN_di_xii.T @ np.outer(d3, m1_qr) * qwi
-            # Ke[self.d2DOF[:, None], self.d1DOF] -= NN_di_i.T @ (np.outer(r_xi, n2_qd1) + np.outer(d1_xi, m3_qd1) + m3 * NN_di_xii) * qwi \
-            #                                        + NN_di_xii.T @ np.outer(d3, m1_qd1) * qwi
-            # Ke[self.d2DOF[:, None], self.d2DOF] -= NN_di_i.T @ (np.outer(r_xi, n2_qd2) + np.outer(d1_xi, m3_qd2)) * qwi \
-            #                                        + NN_di_xii.T @ np.outer(d3, m1_qd2) * qwi
-            # Ke[self.d2DOF[:, None], self.d3DOF] -= NN_di_i.T @ (np.outer(r_xi, n2_qd3) + np.outer(d1_xi, m3_qd3)) * qwi \
-            #                                        + NN_di_xii.T @ (np.outer(d3, m1_qd3) + m1 * NN_di_i) * qwi
-
-            # # fe[self.d3DOF] -= ( NN_di_i.T @ ( r_xi * n3 + m1 * d2_xi ) # delta d3 \
-            # #                     + NN_di_xii.T @ ( m2 * d1 ) ) * qwi    # delta d3'
-            # Ke[self.d3DOF[:, None], self.rDOF] -= NN_di_i.T @ (np.outer(r_xi, n3_qr) + n3 * NN_r_xii + np.outer(d2_xi, m1_qr)) * qwi \
-            #                                       + NN_di_xii.T @ np.outer(d1, m2_qr) * qwi
-            # Ke[self.d3DOF[:, None], self.d1DOF] -= NN_di_i.T @ (np.outer(r_xi, n3_qd1) + np.outer(d2_xi, m1_qd1)) * qwi \
-            #                                        + NN_di_xii.T @ (np.outer(d1, m2_qd1) + m2 * NN_di_i) * qwi
-            # Ke[self.d3DOF[:, None], self.d2DOF] -= NN_di_i.T @ (np.outer(r_xi, n3_qd2) + np.outer(d2_xi, m1_qd2) + m1 * NN_di_xii) * qwi \
-            #                                        + NN_di_xii.T @ np.outer(d1, m2_qd2) * qwi
-            # Ke[self.d3DOF[:, None], self.d3DOF] -= NN_di_i.T @ (np.outer(r_xi, n3_qd3) + np.outer(d2_xi, m1_qd3)) * qwi \
-            #                                        + NN_di_xii.T @ np.outer(d1, m2_qd3) * qwi
-
-        return Ke
+        # # return Ke
+        # return Ke_num
 
         # Ke_num = Numerical_derivative(lambda t, qe: self.f_pot_el(qe, el), order=2)._x(0, qe)
         # diff = Ke_num - Ke
