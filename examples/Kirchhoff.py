@@ -13,7 +13,7 @@ from cardillo.beams import (
 )
 from cardillo.forces import Force, K_Moment, DistributedForce1D
 from cardillo.model import Model
-from cardillo.solver import Newton
+from cardillo.solver import Newton, ScipyIVP, GenAlphaFirstOrderVelocityGGL, GenAlphaFirstOrderVelocity
 from cardillo.math import e1, e2, e3, sin, pi, smoothstep2, A_IK_basic
 
 import numpy as np
@@ -93,6 +93,8 @@ def beam_factory(
     B_rho0 = line_density * first_moment
     C_rho0 = line_density * second_moment
     # TODO: I think this is Binet's inertia tensor!
+    # TODO: See Mäkinen2006, (24) on page 1022 for a clarification of the 
+    # classical inertia tensor
     C_rho0 = np.zeros((3, 3))
     for a in range(1, 3):
         for b in range(1, 3):
@@ -161,7 +163,8 @@ def beam_factory(
     return beam
 
 
-def run():
+def run(statics=True):
+# def run(statics=False):
     # used beam model
     # Beam = Cable
     # Beam = CubicHermiteCable
@@ -169,12 +172,14 @@ def run():
     Beam = DirectorAxisAngle
 
     # number of elements
+    # nelements = 3
     nelements = 10
     # nelements = 20
     # nelements = 50
 
     # used polynomial degree
-    polynomial_degree = 1
+    # polynomial_degree = 1
+    polynomial_degree = 3
 
     # number of quadrature points
     # nquadrature_points = int(np.ceil((polynomial_degree + 1)**2 / 2))
@@ -189,7 +194,7 @@ def run():
     cross_section = CircularCrossSection(line_density, radius)
 
     # Young's and shear modulus
-    E = 1.0
+    E = 1.0e3
     nu = 0.5
     G = E / (2.0 * (1.0 + nu))
 
@@ -248,7 +253,7 @@ def run():
     r_OB0 = np.zeros(3)
     phi = lambda t: n_circles * 2 * pi * smoothstep2(t, frac_deformation, 1.0) * 0.5
     # phi2 = lambda t: pi / 4 * sin(2 * pi * smoothstep2(t, frac_deformation, 1.0))
-    A_IK0 = lambda t: A_IK_basic(phi(t)).x()
+    # A_IK0 = lambda t: A_IK_basic(phi(t)).x()
     # TODO: Get this strange rotation working with a full circle
     # A_IK0 = lambda t: A_IK_basic(phi(t)).z()
     # A_IK0 = (
@@ -256,7 +261,7 @@ def run():
     #     @ A_IK_basic(0.5 * phi(t)).y()
     #     @ A_IK_basic(phi(t)).x()
     # )
-    # A_IK0 = lambda t: np.eye(3)
+    A_IK0 = lambda t: np.eye(3)
     frame1 = Frame(r_OP=r_OB0, A_IK=A_IK0)
 
     # left and right joint
@@ -269,7 +274,7 @@ def run():
 
     # gravity beam
     g = np.array([0, 0, -cross_section.area * cross_section.line_density * 9.81])
-    f_g_beam = DistributedForce1D(lambda t, xi: t * g, beam)
+    f_g_beam = DistributedForce1D(lambda t, xi: g, beam)
 
     # moment at right end
     Fi = material_model.Fi
@@ -288,20 +293,33 @@ def run():
     model.add(beam)
     model.add(frame1)
     model.add(joint1)
-    # model.add(f_g_beam)
-    # model.add(contact)
-    model.add(moment)
     # model.add(force)
+    if statics:
+        model.add(moment)
+    else:
+        model.add(f_g_beam)
     model.assemble()
 
-    solver = Newton(
-        model,
-        n_load_steps=200,
-        # n_load_steps=50,
-        max_iter=30,
-        atol=1.0e-8,
-        numerical_jacobian=False,
-    )
+    if statics:
+        solver = Newton(
+            model,
+            n_load_steps=200,
+            # n_load_steps=50,
+            max_iter=30,
+            atol=1.0e-8,
+            numerical_jacobian=False,
+        )
+    else:
+        t1 = 1.0
+        dt = 5.0e-2
+        method = "RK45"
+        rtol = 1.0e-6
+        atol = 1.0e-6
+        rho_inf = 0.5
+
+        # solver = ScipyIVP(model, t1, dt, method=method, rtol=rtol, atol=atol)
+        # solver = GenAlphaFirstOrderVelocityGGL(model, t1, dt, rho_inf=rho_inf, tol=atol, numerical_jacobian=True)
+        solver = GenAlphaFirstOrderVelocity(model, t1, dt, rho_inf=rho_inf, tol=atol, numerical_jacobian=False)
 
     sol = solver.solve()
     t = sol.t

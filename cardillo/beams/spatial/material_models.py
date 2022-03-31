@@ -18,27 +18,27 @@ class ShearStiffQuadratic:
         # and F3
         self.C_m = np.diag(self.Fi)
 
-    def potential(self, lambda_, K_i, K0_i):
-        dK = K_i - K0_i
+    def potential(self, lambda_, K_Kappa, K_Kappa0):
+        dK = K_Kappa - K_Kappa0
         return 0.5 * self.E1 * (lambda_ - 1) ** 2 + 0.5 * dK @ self.C_m @ dK
 
-    def n_1(self, lambda_, K_i, K0_i):
+    def n_1(self, lambda_, K_Kappa, K_Kappa0):
         return self.E1 * (lambda_ - 1)
 
-    def m_i(self, lambda_, K_i, K0_i):
-        dK = K_i - K0_i
+    def m_i(self, lambda_, K_Kappa, K_Kappa0):
+        dK = K_Kappa - K_Kappa0
         return self.C_m @ dK
 
-    def n_1_lambda(self, lambda_, K_i, K0_i):
+    def n_1_lambda(self, lambda_, K_Kappa, K_Kappa0):
         return self.E1
 
-    def n_1_K_j(self, lambda_, K_i, K0_i):
+    def n_1_K_j(self, lambda_, K_Kappa, K_Kappa0):
         return np.zeros(3)
 
-    def m_i_lambda(self, lambda_, K_i, K0_i):
+    def m_i_lambda(self, lambda_, K_Kappa, K_Kappa0):
         return np.zeros(3)
 
-    def m_i_K_j(self, lambda_, K_i, K0_i):
+    def m_i_K_j(self, lambda_, K_Kappa, K_Kappa0):
         return self.C_m
 
 
@@ -60,29 +60,29 @@ class Simo1986:
         self.C_n = np.diag(self.Ei)
         self.C_m = np.diag(self.Fi)
 
-    def potential(self, Gamma_i, Gamma0_i, K_i, K0_i):
-        dG = Gamma_i - Gamma0_i
-        dK = K_i - K0_i
+    def potential(self, K_Gamma, K_Gamma0, K_Kappa, K_Kappa0):
+        dG = K_Gamma - K_Gamma0
+        dK = K_Kappa - K_Kappa0
         return 0.5 * dG @ self.C_n @ dG + 0.5 * dK @ self.C_m @ dK
 
-    def n_i(self, Gamma_i, Gamma0_i, K_i, K0_i):
-        dG = Gamma_i - Gamma0_i
+    def K_n(self, K_Gamma, K_Gamma0, K_Kappa, K_Kappa0):
+        dG = K_Gamma - K_Gamma0
         return self.C_n @ dG
 
-    def m_i(self, Gamma_i, Gamma0_i, K_i, K0_i):
-        dK = K_i - K0_i
+    def K_m(self, K_Gamma, K_Gamma0, K_Kappa, K_Kappa0):
+        dK = K_Kappa - K_Kappa0
         return self.C_m @ dK
 
-    def n_i_Gamma_j(self, Gamma_i, Gamma0_i, K_i, K0_i):
+    def K_n_K_Gamma(self, K_Gamma, K_Gamma0, K_Kappa, K_Kappa0):
         return self.C_n
 
-    def n_i_K_j(self, Gamma_i, Gamma0_i, K_i, K0_i):
+    def K_n_K_Kappa(self, K_Gamma, K_Gamma0, K_Kappa, K_Kappa0):
         return np.zeros((3, 3))
 
-    def m_i_Gamma_j(self, Gamma_i, Gamma0_i, K_i, K0_i):
+    def K_m_K_Gamma(self, K_Gamma, K_Gamma0, K_Kappa, K_Kappa0):
         return np.zeros((3, 3))
 
-    def m_i_K_j(self, Gamma_i, Gamma0_i, K_i, K0_i):
+    def K_m_K_Kappa(self, K_Gamma, K_Gamma0, K_Kappa, K_Kappa0):
         return self.C_m
 
 
@@ -158,7 +158,7 @@ class Ogden:
         self.n_m = np.zeros(3)
         self.m_m = np.zeros(3)
 
-    def update_state(self, xi, t, Gamma_i, Gamma0_i, Kappa_i, Kappa0_i):
+    def update_state(self, xi, t, K_Gamma, K_Gamma0, Kappa_i, Kappa0_i):
         old_state = (xi == self.xi) and (t == self.t)
         if not old_state:
             # update already computed state
@@ -166,15 +166,15 @@ class Ogden:
             self.t = t
 
             # strain measures
-            nga = norm(Gamma_i)
-            nga0 = norm(Gamma0_i)
+            nga = norm(K_Gamma)
+            nga0 = norm(K_Gamma0)
             lambda_ = nga / nga0
-            lambda_Gamma_i = Gamma_i / (nga0 * nga)
-            Gamma_i_Gamma_j = np.outer(lambda_Gamma_i, lambda_Gamma_i)
-            lambda_Gamma_i_Gamma_j = (np.eye(3) - Gamma_i_Gamma_j / nga**2) / (
+            lambda_K_Gamma = K_Gamma / (nga0 * nga)
+            K_Gamma_Gamma_j = np.outer(lambda_K_Gamma, lambda_K_Gamma)
+            lambda_K_Gamma_Gamma_j = (np.eye(3) - K_Gamma_Gamma_j / nga**2) / (
                 nga * nga0
             )
-            dga = Gamma_i - Gamma0_i
+            dga = K_Gamma - K_Gamma0
             dka = Kappa_i - Kappa0_i
 
             # evaluate functions at material point xi
@@ -211,10 +211,10 @@ class Ogden:
                 + (0.5 * alpha + 1) / (lambda_ ** (0.5 * alpha + 2))
             )
 
-            self.n_m = W1_lambda * lambda_Gamma_i + self.Ei @ dga
+            self.n_m = W1_lambda * lambda_K_Gamma + self.Ei @ dga
             self.n_m_Gamma_j = (
-                W1_lambda2 * Gamma_i_Gamma_j
-                + W1_lambda * lambda_Gamma_i_Gamma_j
+                W1_lambda2 * K_Gamma_Gamma_j
+                + W1_lambda * lambda_K_Gamma_Gamma_j
                 + self.Ei
             )
 
@@ -222,28 +222,28 @@ class Ogden:
             self.m_m = self.Fi @ dka
             self.m_m_Kappa_j = self.Fi
 
-    def potential(self, xi, t, Gamma_i, Gamma0_i, Kappa_i, Kappa0_i):
-        self.update_state(xi, t, Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
+    def potential(self, xi, t, K_Gamma, K_Gamma0, Kappa_i, Kappa0_i):
+        self.update_state(xi, t, K_Gamma, K_Gamma0, Kappa_i, Kappa0_i)
         return self.U
 
-    def n_i(self, xi, t, Gamma_i, Gamma0_i, Kappa_i, Kappa0_i):
-        self.update_state(xi, t, Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
+    def K_n(self, xi, t, K_Gamma, K_Gamma0, Kappa_i, Kappa0_i):
+        self.update_state(xi, t, K_Gamma, K_Gamma0, Kappa_i, Kappa0_i)
         return self.n_m
 
-    def m_i(self, xi, t, Gamma_i, Gamma0_i, Kappa_i, Kappa0_i):
-        self.update_state(xi, t, Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
+    def K_m(self, xi, t, K_Gamma, K_Gamma0, Kappa_i, Kappa0_i):
+        self.update_state(xi, t, K_Gamma, K_Gamma0, Kappa_i, Kappa0_i)
         return self.m_m
 
-    def n_i_Gamma_i_j(self, xi, t, Gamma_i, Gamma0_i, Kappa_i, Kappa0_i):
-        self.update_state(xi, t, Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
+    def K_n_K_Gamma(self, xi, t, K_Gamma, K_Gamma0, Kappa_i, Kappa0_i):
+        self.update_state(xi, t, K_Gamma, K_Gamma0, Kappa_i, Kappa0_i)
         return self.n_m_Gamma_j
 
-    def n_i_Kappa_i_j(self, xi, t, Gamma_i, Gamma0_i, Kappa_i, Kappa0_i):
+    def K_n_K_Kappa(self, xi, t, K_Gamma, K_Gamma0, Kappa_i, Kappa0_i):
         return np.zeros((3, 3))
 
-    def m_i_Gamma_i_j(self, xi, t, Gamma_i, Gamma0_i, Kappa_i, Kappa0_i):
+    def K_m_K_Gamma(self, xi, t, K_Gamma, K_Gamma0, Kappa_i, Kappa0_i):
         return np.zeros((3, 3))
 
-    def m_i_Kappa_i_j(self, xi, t, Gamma_i, Gamma0_i, Kappa_i, Kappa0_i):
-        self.update_state(xi, t, Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
+    def K_m_K_Kappa(self, xi, t, K_Gamma, K_Gamma0, Kappa_i, Kappa0_i):
+        self.update_state(xi, t, K_Gamma, K_Gamma0, Kappa_i, Kappa0_i)
         return self.m_m_Kappa_j
