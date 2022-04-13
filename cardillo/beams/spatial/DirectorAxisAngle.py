@@ -292,6 +292,10 @@ class DirectorAxisAngle:
                     M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_r * (
                         self.N_r[el, i, node_a] * self.N_r[el, i, node_b]
                     )
+            # for node in range(self.nnodes_element_r):
+            #     nodalDOF = self.nodalDOF_element_r[node]
+            #     N_node = self.N_r[el, i, node]
+            #     M_el[nodalDOF[:, None], nodalDOF] += M_el_r * (N_node * N_node)
 
             # first part delta_phi (I_rho0 omega_dot + omega_tilde I_rho0 omega)
             M_el_psi = self.I_rho0 * Ji * qwi
@@ -1036,12 +1040,20 @@ class DirectorAxisAngle:
     # body force
     ####################################################
     def distributed_force1D_pot_el(self, force, t, qe, el):
-        raise NotImplementedError
         Ve = 0
         for i in range(self.nquadrature):
-            NNi = self.stack3r(self.N_r[el, i])
-            r = NNi @ qe[self.rDOF]
-            Ve += r @ force(t, self.qp[el, i]) * self.J[el, i] * self.qw[el, i]
+            # extract reference state variables
+            qwi = self.qw[el, i]
+            Ji = self.J[el, i]
+
+            # interpolate centerline position
+            r_C = np.zeros(3)
+            for node in range(self.nnodes_element_r):
+                r_C += self.N_r[el, i, node] * qe[self.nodalDOF_element_r[node]]
+
+            # compute potential value at given quadrature point
+            Ve += (r_C @ force(t, qwi)) * Ji * qwi
+
         return Ve
 
     def distributed_force1D_pot(self, t, q, force):
@@ -1052,13 +1064,19 @@ class DirectorAxisAngle:
         return V
 
     def distributed_force1D_el(self, force, t, el):
-        raise NotImplementedError
         fe = np.zeros(self.nq_element)
         for i in range(self.nquadrature):
-            NNi = self.stack3r(self.N_r[el, i])
-            fe[self.rDOF] += (
-                NNi.T @ force(t, self.qp[el, i]) * self.J[el, i] * self.qw[el, i]
-            )
+            # extract reference state variables
+            qwi = self.qw[el, i]
+            Ji = self.J[el, i]
+
+            # compute local force vector
+            fe_r = force(t, qwi) * Ji * qwi
+
+            # multiply local force vector with variation of centerline
+            for node in range(self.nnodes_element_r):
+                fe[self.nodalDOF_element_r[node]] += self.N_r[el, i, node] * fe_r
+
         return fe
 
     def distributed_force1D(self, t, q, force):
