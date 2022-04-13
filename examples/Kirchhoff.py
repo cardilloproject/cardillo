@@ -63,7 +63,7 @@ def beam_factory(
         )
     elif Beam == DirectorAxisAngle:
         p_r = polynomial_degree
-        p_psi = p_r  # - 1
+        p_psi = p_r
         Q = DirectorAxisAngle.straight_configuration(
             p_r, p_psi, nelements, L, r_OP=r_OP, A_IK=A_IK, basis=shape_functions
         )
@@ -172,14 +172,14 @@ def run(statics=True):
     Beam = DirectorAxisAngle
 
     # number of elements
-    # nelements = 3
+    # nelements = 5
     nelements = 10
     # nelements = 20
-    # nelements = 50
+    # nelements = 30
 
     # used polynomial degree
-    # polynomial_degree = 1
-    polynomial_degree = 3
+    polynomial_degree = 1
+    # polynomial_degree = 3
 
     # number of quadrature points
     # nquadrature_points = int(np.ceil((polynomial_degree + 1)**2 / 2))
@@ -256,12 +256,12 @@ def run(statics=True):
     # A_IK0 = lambda t: A_IK_basic(phi(t)).x()
     # TODO: Get this strange rotation working with a full circle
     # A_IK0 = lambda t: A_IK_basic(phi(t)).z()
-    # A_IK0 = (
-    #     lambda t: A_IK_basic(0.5 * phi(t)).z()
-    #     @ A_IK_basic(0.5 * phi(t)).y()
-    #     @ A_IK_basic(phi(t)).x()
-    # )
-    A_IK0 = lambda t: np.eye(3)
+    A_IK0 = (
+        lambda t: A_IK_basic(0.5 * phi(t)).z()
+        @ A_IK_basic(0.5 * phi(t)).y()
+        @ A_IK_basic(phi(t)).x()
+    )
+    # A_IK0 = lambda t: np.eye(3)
     frame1 = Frame(r_OP=r_OB0, A_IK=A_IK0)
 
     # left and right joint
@@ -278,9 +278,9 @@ def run(statics=True):
 
     # moment at right end
     Fi = material_model.Fi
-    # M = lambda t: -np.array([1, 0, 1]) * smoothstep2(t, 0.0, frac_deformation) * 2 * np.pi * Fi[1] / L * 1.0
+    M = lambda t: np.array([1, 1, 0]) * smoothstep2(t, 0.0, frac_deformation) * 2 * np.pi * Fi[1] / L
     # M = lambda t: e1 * smoothstep2(t, 0.0, frac_deformation) * 2 * np.pi * Fi[0] / L * 1.0
-    M = lambda t: e2 * smoothstep2(t, 0.0, frac_deformation) * 2 * np.pi * Fi[1] / L
+    # M = lambda t: e2 * smoothstep2(t, 0.0, frac_deformation) * 2 * np.pi * Fi[1] / L * 0.9
     # M = lambda t: e3 * smoothstep2(t, 0.0, frac_deformation) * 2 * np.pi * Fi[2] / L * 1.0
     moment = K_Moment(M, beam, (1,))
 

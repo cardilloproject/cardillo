@@ -228,10 +228,22 @@ def smallest_rotation(a0: np.ndarray, a: np.ndarray) -> np.ndarray:
     a0_bar = a0 / norm(a0)
     a_bar = a / norm(a)
     e = cross3(a0_bar, a_bar)
-    e_tilde = ax2skew(e)
-    return (
-        np.eye(3) + e_tilde + (e_tilde @ e_tilde) / (1 + a0_bar @ a_bar)
-    )  # Crisfield1996 (16.104)
+
+    # ########################
+    # # Crisfield1996 (16.104)
+    # ########################
+    # e_tilde = ax2skew(e)
+    # return np.eye(3) + e_tilde + (e_tilde @ e_tilde) / (1 + a0_bar @ a_bar)
+
+    ########################
+    # Crisfield1996 (16.105)
+    ########################
+    cos_psi = a0_bar @ a_bar
+    denom = 1 + cos_psi
+    if denom > 0:
+        return cos_psi * np.eye(3) + ax2skew(e) + np.outer(e, e) / denom
+    else:
+        return cos_psi * np.eye(3)
 
 
 ##########################################
@@ -279,3 +291,28 @@ def quat2rot_p(p):
 def axis_angle2quat(axis, angle):
     n = axis / norm(axis)
     return np.concatenate([[cos(angle / 2)], sin(angle / 2) * n])
+
+
+if __name__ == "__main__":
+    from cardillo.math import e1, e2, e3, pi, sin, cos
+
+    a0 = e1
+    a = np.random.rand(3)
+    a_fun = lambda t: cos(t) * e1 +  sin(t) * e2
+
+    num = 5
+    ts = np.linspace(0, 1.0 * pi, num=num)
+
+    as_ = np.array([a_fun(t) for t in ts])
+
+    Rs = np.array([
+        smallest_rotation(a0, a) for a in as_
+    ]).transpose(1, 2, 0)
+
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots(figsize=(8, 8), subplot_kw=dict(projection="3d"))
+    ax.quiver(*np.zeros((3, num)), *Rs[:, 0], color="red")
+    ax.quiver(*np.zeros((3, num)), *Rs[:, 1], color="green")
+    ax.quiver(*np.zeros((3, num)), *Rs[:, 2], color="blue")
+    plt.show()
