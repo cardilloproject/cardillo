@@ -68,8 +68,7 @@ def beam_factory(
         )
     elif Beam == DirectorAxisAngle:
         p_r = polynomial_degree
-        # p_psi = p_r
-        p_psi = p_r - 1
+        p_psi = p_r
         Q = DirectorAxisAngle.straight_configuration(
             p_r, p_psi, nelements, L, r_OP=r_OP, A_IK=A_IK, basis=shape_functions
         )
@@ -178,14 +177,16 @@ def run(statics=True):
     Beam = DirectorAxisAngle
 
     # number of elements
-    # nelements = 2
-    nelements = 10
+    # nelements = 1
+    nelements = 5
+    # nelements = 10
     # nelements = 20
     # nelements = 30
 
     # used polynomial degree
     # polynomial_degree = 1
     polynomial_degree = 2
+    # polynomial_degree = 3
 
     # number of quadrature points
     # nquadrature_points = int(np.ceil((polynomial_degree + 1)**2 / 2))
@@ -195,7 +196,9 @@ def run(statics=True):
     shape_functions = "B-spline"
 
     # used cross section
-    radius = 1
+    radius = 1.0e-0
+    # radius = 1.0e-1
+    # radius = 1.0e-3 # this yields no deformation due to locking!
     line_density = 1
     cross_section = CircularCrossSection(line_density, radius)
 
@@ -256,7 +259,8 @@ def run(statics=True):
     print(f"frac_rotation:     {frac_rotation}")
 
     # junctions
-    r_OB0 = np.zeros(3)
+    # r_OB0 = np.zeros(3)
+    r_OB0 = np.array([-1, 0.25, 3.14])
     phi = lambda t: n_circles * 2 * pi * smoothstep2(t, frac_deformation, 1.0) * 0.5
     # phi2 = lambda t: pi / 4 * sin(2 * pi * smoothstep2(t, frac_deformation, 1.0))
     # A_IK0 = lambda t: A_IK_basic(phi(t)).x()
