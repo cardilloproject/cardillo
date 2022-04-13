@@ -87,6 +87,12 @@ class RigidConnection:
         self.a_B1 = lambda t, q, u, u_dot: self.subsystem1.a_P(
             t, q[:nq1], u[:nu1], u_dot[:nu1], frame_ID=self.frame_ID1, K_r_SP=K1_r_S1B
         )
+        self.a_B1_q1 = lambda t, q, u, u_dot: self.subsystem1.a_P_q(
+            t, q[:nq1], u[:nu1], u_dot[:nu1], frame_ID=self.frame_ID1, K_r_SP=K1_r_S1B
+        )
+        self.a_B1_u1 = lambda t, q, u, u_dot: self.subsystem1.a_P_u(
+            t, q[:nq1], u[:nu1], u_dot[:nu1], frame_ID=self.frame_ID1, K_r_SP=K1_r_S1B
+        )
         self.J_B1 = lambda t, q: self.subsystem1.J_P(
             t, q[:nq1], frame_ID=self.frame_ID1, K_r_SP=K1_r_S1B
         )
@@ -117,6 +123,20 @@ class RigidConnection:
         self.Psi1 = lambda t, q, u, u_dot: self.subsystem1.A_IK(
             t, q[:nq1], self.frame_ID1
         ) @ self.subsystem1.K_Psi(t, q[:nq1], u[:nu1], u_dot[:nu1], self.frame_ID1)
+        self.Psi1_q1 = lambda t, q, u, u_dot: np.einsum(
+            "ijk,j->ik",
+            self.subsystem1.A_IK_q(t, q[:nq1], frame_ID=self.frame_ID1),
+            self.subsystem1.K_Psi(t, q[:nq1], u[:nu1], u_dot[:nu1], self.frame_ID1),
+        ) + np.einsum(
+            "ij,jk->ik",
+            self.subsystem1.A_IK(t, q[:nq1], frame_ID=self.frame_ID1),
+            self.subsystem1.K_Psi_q(t, q[:nq1], u[:nu1], u_dot[:nu1], self.frame_ID1),
+        )
+        self.Psi1_u1 = lambda t, q, u, u_dot: np.einsum(
+            "ij,jk->ik",
+            self.subsystem1.A_IK(t, q[:nq1], frame_ID=self.frame_ID1),
+            self.subsystem1.K_Psi_u(t, q[:nq1], u[:nu1], u_dot[:nu1], self.frame_ID1),
+        )
         self.J_R1 = lambda t, q: self.subsystem1.A_IK(
             t, q[:nq1], frame_ID=self.frame_ID1
         ) @ self.subsystem1.K_J_R(t, q[:nq1], frame_ID=self.frame_ID1)
@@ -144,6 +164,12 @@ class RigidConnection:
             t, q[nq1:], u[nu1:], frame_ID=self.frame_ID2, K_r_SP=K2_r_S2B
         )
         self.a_B2 = lambda t, q, u, u_dot: self.subsystem2.a_P(
+            t, q[nq1:], u[nu1:], u_dot[nu1:], frame_ID=self.frame_ID2, K_r_SP=K2_r_S2B
+        )
+        self.a_B2_q2 = lambda t, q, u, u_dot: self.subsystem2.a_P_q(
+            t, q[nq1:], u[nu1:], u_dot[nu1:], frame_ID=self.frame_ID2, K_r_SP=K2_r_S2B
+        )
+        self.a_B2_u2 = lambda t, q, u, u_dot: self.subsystem2.a_P_u(
             t, q[nq1:], u[nu1:], u_dot[nu1:], frame_ID=self.frame_ID2, K_r_SP=K2_r_S2B
         )
         self.J_B2 = lambda t, q: self.subsystem2.J_P(
@@ -176,6 +202,20 @@ class RigidConnection:
         self.Psi2 = lambda t, q, u, u_dot: self.subsystem2.A_IK(
             t, q[nq1:], self.frame_ID2
         ) @ self.subsystem2.K_Psi(t, q[nq1:], u[nu1:], u_dot[nu1:], self.frame_ID2)
+        self.Psi2_q2 = lambda t, q, u, u_dot: np.einsum(
+            "ijk,j->ik",
+            self.subsystem2.A_IK_q(t, q[nq1:], frame_ID=self.frame_ID2),
+            self.subsystem2.K_Psi(t, q[nq1:], u[nu1:], u_dot[nu1:], self.frame_ID2),
+        ) + np.einsum(
+            "ij,jk->ik",
+            self.subsystem2.A_IK(t, q[nq1:], frame_ID=self.frame_ID2),
+            self.subsystem2.K_Psi_q(t, q[nq1:], u[nu1:], u_dot[nu1:], self.frame_ID2),
+        )
+        self.Psi2_u2 = lambda t, q, u, u_dot: np.einsum(
+            "ij,jk->ik",
+            self.subsystem2.A_IK(t, q[nq1:], frame_ID=self.frame_ID2),
+            self.subsystem2.K_Psi_u(t, q[nq1:], u[nu1:], u_dot[nu1:], self.frame_ID2),
+        )
         self.J_R2 = lambda t, q: self.subsystem2.A_IK(
             t, q[nq1:], frame_ID=self.frame_ID2
         ) @ self.subsystem2.K_J_R(t, q[nq1:], frame_ID=self.frame_ID2)
@@ -311,36 +351,216 @@ class RigidConnection:
 
         # g_dot[3] = cross3(ex1, ey2) @ Omega21
         g_ddot[3] = (
-            cross3(cross3(Omega1, ex1), ey2) @ Omega21
-            + cross3(ex1, cross3(Omega2, ey2)) @ Omega21
-            + cross3(ex1, ey2) @ Psi21
-        )
+            cross3(cross3(Omega1, ex1), ey2) + cross3(ex1, cross3(Omega2, ey2))
+        ) @ Omega21 + cross3(ex1, ey2) @ Psi21
 
         # g_dot[4] = cross3(ey1, ez2) @ Omega21
         g_ddot[4] = (
-            cross3(cross3(Omega1, ey1), ez2) @ Omega21
-            + cross3(ey1, cross3(Omega2, ez2)) @ Omega21
-            + cross3(ey1, ez2) @ Psi21
-        )
+            cross3(cross3(Omega1, ey1), ez2) + cross3(ey1, cross3(Omega2, ez2))
+        ) @ Omega21 + cross3(ey1, ez2) @ Psi21
 
         # g_dot[5] = cross3(ez1, ex2) @ Omega21
         g_ddot[5] = (
-            cross3(cross3(Omega1, ez1), ex2) @ Omega21
-            + cross3(ez1, cross3(Omega2, ex2)) @ Omega21
-            + cross3(ez1, ex2) @ Psi21
-        )
+            cross3(cross3(Omega1, ez1), ex2) + cross3(ez1, cross3(Omega2, ex2))
+        ) @ Omega21 + cross3(ez1, ex2) @ Psi21
 
         return g_ddot
 
-    # TODO: Analytical derivative!
-    def g_ddot_q(self, t, q, u, u_dot, coo):
-        dense = approx_fprime(q, lambda q: self.g_ddot(t, q, u, u_dot))
-        coo.extend(dense, (self.la_gDOF, self.qDOF))
+    def g_ddot_q_dense(self, t, q, u, u_dot):
+        print(RuntimeWarning("RigidConnection.g_ddot_q_dense is not tested yet!"))
+        nq1 = self.nq1
+        g_ddot_q = np.zeros((self.nla_g, self._nq))
 
-    # TODO: Analytical derivative!
+        # position
+        g_ddot_q[:3, :nq1] = -self.a_B1_q1(t, q, u, u_dot)
+        g_ddot_q[:3, nq1:] = self.a_B2_q2(t, q, u, u_dot)
+
+        # orientations
+        ex1, ey1, ez1 = self.A_IB1(t, q).T
+        ex2, ey2, ez2 = self.A_IB2(t, q).T
+
+        A_IB1_q1 = self.A_IB1_q1(t, q)
+        ex1_q1 = A_IB1_q1[:, 0]
+        ey1_q1 = A_IB1_q1[:, 1]
+        ez1_q1 = A_IB1_q1[:, 2]
+        A_IB2_q2 = self.A_IB2_q2(t, q)
+        ex2_q2 = A_IB2_q2[:, 0]
+        ey2_q2 = A_IB2_q2[:, 1]
+        ez2_q2 = A_IB2_q2[:, 2]
+
+        Omega1 = self.Omega1(t, q, u)
+        Omega2 = self.Omega2(t, q, u)
+        Omega21 = Omega1 - Omega2
+        Omega1_q1 = self.Omega1_q1(t, q, u)
+        Omega2_q2 = self.Omega2_q2(t, q, u)
+
+        Psi21 = self.Psi1(t, q, u, u_dot) - self.Psi2(t, q, u, u_dot)
+        Psi1_q1 = self.Psi1_q1(t, q, u, u_dot)
+        Psi2_q2 = self.Psi2_q2(t, q, u, u_dot)
+
+        ex1_ey2 = cross3(ex1, ey2)
+        Omega1_ex1 = cross3(Omega1, ex1)
+        Omega2_ey2 = cross3(Omega2, ey2)
+        tmp = cross3(Omega1_ex1, ey2) - cross3(Omega2_ey2, ex1)
+        g_ddot_q[3, :nq1] = (
+            -Omega21
+            @ (
+                ax2skew(ey2) @ (ax2skew(Omega1) @ ex1_q1 - ax2skew(ex1) @ Omega1_q1)
+                + ax2skew(Omega2_ey2) @ ex1_q1
+            )
+            + tmp @ Omega1_q1
+            + ex1_ey2 @ Psi1_q1
+            - Psi21 @ ax2skew(ey2) @ ex1_q1
+        )
+        g_ddot_q[3, nq1:] = (
+            Omega21
+            @ (
+                ax2skew(ex1) @ (ax2skew(Omega2) @ ey2_q2 - ax2skew(ey2) @ Omega2_q2)
+                + ax2skew(Omega1_ex1) @ ey2_q2
+            )
+            - tmp @ Omega2_q2
+            - ex1_ey2 @ Psi2_q2
+            + Psi21 @ ax2skew(ex1) @ ey2_q2
+        )
+
+        ey1_ez2 = cross3(ey1, ez2)
+        Omega1_ey1 = cross3(Omega1, ey1)
+        Omega2_ez2 = cross3(Omega2, ez2)
+        tmp = cross3(Omega1_ey1, ez2) - cross3(Omega2_ez2, ey1)
+        g_ddot_q[4, :nq1] = (
+            -Omega21
+            @ (
+                ax2skew(ez2) @ (ax2skew(Omega1) @ ey1_q1 - ax2skew(ey1) @ Omega1_q1)
+                + ax2skew(Omega2_ez2) @ ey1_q1
+            )
+            + tmp @ Omega1_q1
+            + ey1_ez2 @ Psi1_q1
+            - Psi21 @ ax2skew(ez2) @ ey1_q1
+        )
+        g_ddot_q[4, nq1:] = (
+            Omega21
+            @ (
+                ax2skew(ey1) @ (ax2skew(Omega2) @ ez2_q2 - ax2skew(ez2) @ Omega2_q2)
+                + ax2skew(Omega1_ey1) @ ez2_q2
+            )
+            - tmp @ Omega2_q2
+            - ey1_ez2 @ Psi2_q2
+            + Psi21 @ ax2skew(ey1) @ ez2_q2
+        )
+
+        ez1_ex2 = cross3(ez1, ex2)
+        Omega1_ez1 = cross3(Omega1, ez1)
+        Omega2_ex2 = cross3(Omega2, ex2)
+        tmp = cross3(Omega1_ez1, ex2) - cross3(Omega2_ex2, ez1)
+        g_ddot_q[5, :nq1] = (
+            -Omega21
+            @ (
+                ax2skew(ex2) @ (ax2skew(Omega1) @ ez1_q1 - ax2skew(ez1) @ Omega1_q1)
+                + ax2skew(Omega2_ex2) @ ez1_q1
+            )
+            + tmp @ Omega1_q1
+            + ez1_ex2 @ Psi1_q1
+            - Psi21 @ ax2skew(ex2) @ ez1_q1
+        )
+        g_ddot_q[5, nq1:] = (
+            Omega21
+            @ (
+                ax2skew(ez1) @ (ax2skew(Omega2) @ ex2_q2 - ax2skew(ex2) @ Omega2_q2)
+                + ax2skew(Omega1_ez1) @ ex2_q2
+            )
+            - tmp @ Omega2_q2
+            - ez1_ex2 @ Psi2_q2
+            + Psi21 @ ax2skew(ez1) @ ex2_q2
+        )
+
+        return g_ddot_q
+
+        # g_ddot_q_num = approx_fprime(
+        #     q, lambda q: self.g_ddot(t, q, u, u_dot), method="3-point"
+        # )
+        # diff = g_ddot_q_num - g_ddot_q
+        # error = np.linalg.norm(diff)
+        # # error = np.linalg.norm(diff[:3])
+        # # error = np.linalg.norm(diff[3])
+        # # error = np.linalg.norm(diff[4])
+        # # error = np.linalg.norm(diff[5])
+        # print(f"error g_ddot_q: {error}")
+        # return g_ddot_q_num
+
+    def g_ddot_q(self, t, q, u, u_dot, coo):
+        coo.extend(self.g_ddot_q_dense(t, q, u, u_dot), (self.la_gDOF, self.qDOF))
+
+    def g_ddot_u_dense(self, t, q, u, u_dot):
+        print(RuntimeWarning("RigidConnection.g_ddot_u_dense is not tested yet!"))
+        nu1 = self.nu1
+        g_ddot_u = np.zeros((self.nla_g, self._nq))
+
+        # position
+        g_ddot_u[:3, :nu1] = -self.a_B1_u1(t, q, u, u_dot)
+        g_ddot_u[:3, nu1:] = self.a_B2_u2(t, q, u, u_dot)
+
+        # orientations
+        ex1, ey1, ez1 = self.A_IB1(t, q).T
+        ex2, ey2, ez2 = self.A_IB2(t, q).T
+
+        Omega1 = self.Omega1(t, q, u)
+        Omega2 = self.Omega2(t, q, u)
+        Omega21 = Omega1 - Omega2
+        J_R1 = self.J_R1(t, q)
+        J_R2 = self.J_R2(t, q)
+
+        Psi1_u1 = self.Psi1_u1(t, q, u, u_dot)
+        Psi2_u2 = self.Psi2_u2(t, q, u, u_dot)
+
+        ex1_ey2 = cross3(ex1, ey2)
+        Omega1_ex1 = cross3(Omega1, ex1)
+        Omega2_ey2 = cross3(Omega2, ey2)
+        tmp = (
+            cross3(Omega1_ex1, ey2)
+            - cross3(Omega2_ey2, ex1)
+            + Omega21 @ ax2skew(ex1) @ ax2skew(ey2)
+        )
+        g_ddot_u[3, :nu1] = +tmp @ J_R1 + ex1_ey2 @ Psi1_u1
+        g_ddot_u[3, nu1:] = -tmp @ J_R2 - ex1_ey2 @ Psi2_u2
+
+        ey1_ez2 = cross3(ey1, ez2)
+        Omega1_ey1 = cross3(Omega1, ey1)
+        Omega2_ez2 = cross3(Omega2, ez2)
+        tmp = (
+            cross3(Omega1_ey1, ez2)
+            - cross3(Omega2_ez2, ey1)
+            + Omega21 @ ax2skew(ey1) @ ax2skew(ez2)
+        )
+        g_ddot_u[4, :nu1] = +tmp @ J_R1 + ey1_ez2 @ Psi1_u1
+        g_ddot_u[4, nu1:] = -tmp @ J_R2 - ey1_ez2 @ Psi2_u2
+
+        ez1_ex2 = cross3(ez1, ex2)
+        Omega1_ez1 = cross3(Omega1, ez1)
+        Omega2_ex2 = cross3(Omega2, ex2)
+        tmp = (
+            cross3(Omega1_ez1, ex2)
+            - cross3(Omega2_ex2, ez1)
+            + Omega21 @ ax2skew(ez1) @ ax2skew(ex2)
+        )
+        g_ddot_u[5, :nu1] = +tmp @ J_R1 + ez1_ex2 @ Psi1_u1
+        g_ddot_u[5, nu1:] = -tmp @ J_R2 - ez1_ex2 @ Psi2_u2
+
+        return g_ddot_u
+
+        # g_ddot_u_num = approx_fprime(
+        #     u, lambda u: self.g_ddot(t, q, u, u_dot), method="3-point"
+        # )
+        # diff = g_ddot_u_num - g_ddot_u
+        # error = np.linalg.norm(diff)
+        # # error = np.linalg.norm(diff[:3])
+        # # error = np.linalg.norm(diff[3])
+        # # error = np.linalg.norm(diff[4])
+        # # error = np.linalg.norm(diff[5])
+        # print(f"error g_ddot_u: {error}")
+        # return g_ddot_u_num
+
     def g_ddot_u(self, t, q, u, u_dot, coo):
-        dense = approx_fprime(u, lambda u: self.g_ddot(t, q, u, u_dot))
-        coo.extend(dense, (self.la_gDOF, self.uDOF))
+        coo.extend(self.g_ddot_u_dense(t, q, u, u_dot), (self.la_gDOF, self.uDOF))
 
     def g_q(self, t, q, coo):
         coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
