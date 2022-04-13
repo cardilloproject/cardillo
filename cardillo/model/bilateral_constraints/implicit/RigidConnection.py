@@ -75,10 +75,13 @@ class RigidConnection:
         self.r_OB1 = lambda t, q: self.subsystem1.r_OP(
             t, q[:nq1], frame_ID=self.frame_ID1, K_r_SP=K1_r_S1B
         )
-        self.r_OB1_q = lambda t, q: self.subsystem1.r_OP_q(
+        self.r_OB1_q1 = lambda t, q: self.subsystem1.r_OP_q(
             t, q[:nq1], frame_ID=self.frame_ID1, K_r_SP=K1_r_S1B
         )
         self.v_B1 = lambda t, q, u: self.subsystem1.v_P(
+            t, q[:nq1], u[:nu1], frame_ID=self.frame_ID1, K_r_SP=K1_r_S1B
+        )
+        self.v_B1_q1 = lambda t, q, u: self.subsystem1.v_P_q(
             t, q[:nq1], u[:nu1], frame_ID=self.frame_ID1, K_r_SP=K1_r_S1B
         )
         self.a_B1 = lambda t, q, u, u_dot: self.subsystem1.a_P(
@@ -87,14 +90,14 @@ class RigidConnection:
         self.J_B1 = lambda t, q: self.subsystem1.J_P(
             t, q[:nq1], frame_ID=self.frame_ID1, K_r_SP=K1_r_S1B
         )
-        self.J_B1_q = lambda t, q: self.subsystem1.J_P_q(
+        self.J_B1_q1 = lambda t, q: self.subsystem1.J_P_q(
             t, q[:nq1], frame_ID=self.frame_ID1, K_r_SP=K1_r_S1B
         )
         self.A_IB1 = (
             lambda t, q: self.subsystem1.A_IK(t, q[:nq1], frame_ID=self.frame_ID1)
             @ A_K1B
         )
-        self.A_IB1_q = lambda t, q: np.einsum(
+        self.A_IB1_q1 = lambda t, q: np.einsum(
             "ijl,jk->ikl",
             self.subsystem1.A_IK_q(t, q[:nq1], frame_ID=self.frame_ID1),
             A_K1B,
@@ -102,13 +105,22 @@ class RigidConnection:
         self.Omega1 = lambda t, q, u: self.subsystem1.A_IK(
             t, q[:nq1], self.frame_ID1
         ) @ self.subsystem1.K_Omega(t, q[:nq1], u[:nu1], self.frame_ID1)
+        self.Omega1_q1 = lambda t, q, u: np.einsum(
+            "ijk,j->ik",
+            self.subsystem1.A_IK_q(t, q[:nq1], frame_ID=self.frame_ID1),
+            self.subsystem1.K_Omega(t, q[:nq1], u[:nu1], self.frame_ID1),
+        ) + np.einsum(
+            "ij,jk->ik",
+            self.subsystem1.A_IK(t, q[:nq1], frame_ID=self.frame_ID1),
+            self.subsystem1.K_Omega_q(t, q[:nq1], u[:nu1], self.frame_ID1),
+        )
         self.Psi1 = lambda t, q, u, u_dot: self.subsystem1.A_IK(
             t, q[:nq1], self.frame_ID1
         ) @ self.subsystem1.K_Psi(t, q[:nq1], u[:nu1], u_dot[:nu1], self.frame_ID1)
         self.J_R1 = lambda t, q: self.subsystem1.A_IK(
             t, q[:nq1], frame_ID=self.frame_ID1
         ) @ self.subsystem1.K_J_R(t, q[:nq1], frame_ID=self.frame_ID1)
-        self.J_R1_q = lambda t, q: np.einsum(
+        self.J_R1_q1 = lambda t, q: np.einsum(
             "ijl,jk->ikl",
             self.subsystem1.A_IK_q(t, q[:nq1], frame_ID=self.frame_ID1),
             self.subsystem1.K_J_R(t, q[:nq1], frame_ID=self.frame_ID1),
@@ -122,10 +134,13 @@ class RigidConnection:
         self.r_OB2 = lambda t, q: self.subsystem2.r_OP(
             t, q[nq1:], frame_ID=self.frame_ID2, K_r_SP=K2_r_S2B
         )
-        self.r_OB2_q = lambda t, q: self.subsystem2.r_OP_q(
+        self.r_OB2_q2 = lambda t, q: self.subsystem2.r_OP_q(
             t, q[nq1:], frame_ID=self.frame_ID2, K_r_SP=K2_r_S2B
         )
         self.v_B2 = lambda t, q, u: self.subsystem2.v_P(
+            t, q[nq1:], u[nu1:], frame_ID=self.frame_ID2, K_r_SP=K2_r_S2B
+        )
+        self.v_B2_q2 = lambda t, q, u: self.subsystem2.v_P_q(
             t, q[nq1:], u[nu1:], frame_ID=self.frame_ID2, K_r_SP=K2_r_S2B
         )
         self.a_B2 = lambda t, q, u, u_dot: self.subsystem2.a_P(
@@ -134,14 +149,14 @@ class RigidConnection:
         self.J_B2 = lambda t, q: self.subsystem2.J_P(
             t, q[nq1:], frame_ID=self.frame_ID2, K_r_SP=K2_r_S2B
         )
-        self.J_B2_q = lambda t, q: self.subsystem2.J_P_q(
+        self.J_B2_q2 = lambda t, q: self.subsystem2.J_P_q(
             t, q[nq1:], frame_ID=self.frame_ID2, K_r_SP=K2_r_S2B
         )
         self.A_IB2 = (
             lambda t, q: self.subsystem2.A_IK(t, q[nq1:], frame_ID=self.frame_ID2)
             @ A_K2B
         )
-        self.A_IB2_q = lambda t, q: np.einsum(
+        self.A_IB2_q2 = lambda t, q: np.einsum(
             "ijl,jk->ikl",
             self.subsystem2.A_IK_q(t, q[nq1:], frame_ID=self.frame_ID2),
             A_K2B,
@@ -149,13 +164,22 @@ class RigidConnection:
         self.Omega2 = lambda t, q, u: self.subsystem2.A_IK(
             t, q[nq1:], self.frame_ID2
         ) @ self.subsystem2.K_Omega(t, q[nq1:], u[nu1:], self.frame_ID2)
+        self.Omega2_q2 = lambda t, q, u: np.einsum(
+            "ijk,j->ik",
+            self.subsystem2.A_IK_q(t, q[nq1:], frame_ID=self.frame_ID2),
+            self.subsystem2.K_Omega(t, q[nq1:], u[nu1:], self.frame_ID2),
+        ) + np.einsum(
+            "ij,jk->ik",
+            self.subsystem2.A_IK(t, q[nq1:], frame_ID=self.frame_ID2),
+            self.subsystem2.K_Omega_q(t, q[nq1:], u[nu1:], self.frame_ID2),
+        )
         self.Psi2 = lambda t, q, u, u_dot: self.subsystem2.A_IK(
             t, q[nq1:], self.frame_ID2
         ) @ self.subsystem2.K_Psi(t, q[nq1:], u[nu1:], u_dot[nu1:], self.frame_ID2)
         self.J_R2 = lambda t, q: self.subsystem2.A_IK(
             t, q[nq1:], frame_ID=self.frame_ID2
         ) @ self.subsystem2.K_J_R(t, q[nq1:], frame_ID=self.frame_ID2)
-        self.J_R2_q = lambda t, q: np.einsum(
+        self.J_R2_q2 = lambda t, q: np.einsum(
             "ijl,jk->ikl",
             self.subsystem2.A_IK_q(t, q[nq1:], frame_ID=self.frame_ID2),
             self.subsystem2.K_J_R(t, q[nq1:], frame_ID=self.frame_ID2),
@@ -175,20 +199,20 @@ class RigidConnection:
     def g_q_dense(self, t, q):
         nq1 = self.nq1
         g_q = np.zeros((self.nla_g, self._nq))
-        g_q[:3, :nq1] = -self.r_OB1_q(t, q)
-        g_q[:3, nq1:] = self.r_OB2_q(t, q)
+        g_q[:3, :nq1] = -self.r_OB1_q1(t, q)
+        g_q[:3, nq1:] = self.r_OB2_q2(t, q)
 
         ex1, ey1, ez1 = self.A_IB1(t, q).T
         ex2, ey2, ez2 = self.A_IB2(t, q).T
 
-        A_IB1_q = self.A_IB1_q(t, q)
-        ex1_q = A_IB1_q[:, 0]
-        ey1_q = A_IB1_q[:, 1]
-        ez1_q = A_IB1_q[:, 2]
-        A_IB2_q = self.A_IB2_q(t, q)
-        ex2_q = A_IB2_q[:, 0]
-        ey2_q = A_IB2_q[:, 1]
-        ez2_q = A_IB2_q[:, 2]
+        A_IB1_q1 = self.A_IB1_q1(t, q)
+        ex1_q = A_IB1_q1[:, 0]
+        ey1_q = A_IB1_q1[:, 1]
+        ez1_q = A_IB1_q1[:, 2]
+        A_IB2_q2 = self.A_IB2_q2(t, q)
+        ex2_q = A_IB2_q2[:, 0]
+        ey2_q = A_IB2_q2[:, 1]
+        ez2_q = A_IB2_q2[:, 2]
 
         g_q[3, :nq1] = ey2 @ ex1_q
         g_q[3, nq1:] = ex1 @ ey2_q
@@ -220,10 +244,53 @@ class RigidConnection:
         g_dot[5] = cross3(ez1, ex2) @ Omega21
         return g_dot
 
-    # TODO: Analytical derivative!
+    def g_dot_q_dense(self, t, q, u):
+        nq1 = self.nq1
+        g_dot_q = np.zeros((self.nla_g, self._nq))
+
+        # position
+        g_dot_q[:3, :nq1] = -self.v_B1_q1(t, q, u)
+        g_dot_q[:3, nq1:] = self.v_B2_q2(t, q, u)
+
+        # orientations
+        ex1, ey1, ez1 = self.A_IB1(t, q).T
+        ex2, ey2, ez2 = self.A_IB2(t, q).T
+
+        A_IB1_q1 = self.A_IB1_q1(t, q)
+        ex1_q1 = A_IB1_q1[:, 0]
+        ey1_q1 = A_IB1_q1[:, 1]
+        ez1_q1 = A_IB1_q1[:, 2]
+        A_IB2_q2 = self.A_IB2_q2(t, q)
+        ex2_q2 = A_IB2_q2[:, 0]
+        ey2_q2 = A_IB2_q2[:, 1]
+        ez2_q2 = A_IB2_q2[:, 2]
+
+        Omega21 = self.Omega1(t, q, u) - self.Omega2(t, q, u)
+        Omega1_q1 = self.Omega1_q1(t, q, u)
+        Omega2_q2 = self.Omega2_q2(t, q, u)
+
+        ex1_ey2 = cross3(ex1, ey2)
+        g_dot_q[3, :nq1] = ex1_ey2 @ Omega1_q1 - Omega21 @ ax2skew(ey2) @ ex1_q1
+        g_dot_q[3, nq1:] = -ex1_ey2 @ Omega2_q2 + Omega21 @ ax2skew(ex1) @ ey2_q2
+
+        ey1_ez2 = cross3(ey1, ez2)
+        g_dot_q[4, :nq1] = ey1_ez2 @ Omega1_q1 - Omega21 @ ax2skew(ez2) @ ey1_q1
+        g_dot_q[4, nq1:] = -ey1_ez2 @ Omega2_q2 + Omega21 @ ax2skew(ey1) @ ez2_q2
+
+        ez1_ex2 = cross3(ez1, ex2)
+        g_dot_q[5, :nq1] = ez1_ex2 @ Omega1_q1 - Omega21 @ ax2skew(ex2) @ ez1_q1
+        g_dot_q[5, nq1:] = -ez1_ex2 @ Omega2_q2 + Omega21 @ ax2skew(ez1) @ ex2_q2
+
+        return g_dot_q
+
+        # g_dot_q_num = approx_fprime(q, lambda q: self.g_dot(t, q, u), method="3-point")
+        # diff = g_dot_q_num - g_dot_q
+        # error = np.linalg.norm(diff)
+        # print(f"error g_dot_q: {error}")
+        # return g_dot_q_num
+
     def g_dot_q(self, t, q, u, coo):
-        dense = approx_fprime(q, lambda q: self.g_dot(t, q, u))
-        coo.extend(dense, (self.la_gDOF, self.qDOF))
+        coo.extend(self.g_dot_q_dense(t, q, u), (self.la_gDOF, self.qDOF))
 
     def g_dot_u(self, t, q, coo):
         coo.extend(self.W_g_dense(t, q).T, (self.la_gDOF, self.uDOF))
@@ -314,26 +381,26 @@ class RigidConnection:
         dense = np.zeros((self._nu, self._nq))
 
         # position
-        J_B1_q = self.J_B1_q(t, q)
-        J_B2_q = self.J_B2_q(t, q)
+        J_B1_q = self.J_B1_q1(t, q)
+        J_B2_q = self.J_B2_q2(t, q)
         dense[:nu1, :nq1] += np.einsum("i,ijk->jk", -la_g[:3], J_B1_q)
         dense[nu1:, nq1:] += np.einsum("i,ijk->jk", la_g[:3], J_B2_q)
 
         # angular velocity
         ex1, ey1, ez1 = self.A_IB1(t, q).T
         ex2, ey2, ez2 = self.A_IB2(t, q).T
-        A_IB1_q = self.A_IB1_q(t, q)
-        ex1_q = A_IB1_q[:, 0]
-        ey1_q = A_IB1_q[:, 1]
-        ez1_q = A_IB1_q[:, 2]
-        A_IB2_q = self.A_IB2_q(t, q)
-        ex2_q = A_IB2_q[:, 0]
-        ey2_q = A_IB2_q[:, 1]
-        ez2_q = A_IB2_q[:, 2]
+        A_IB1_q1 = self.A_IB1_q1(t, q)
+        ex1_q = A_IB1_q1[:, 0]
+        ey1_q = A_IB1_q1[:, 1]
+        ez1_q = A_IB1_q1[:, 2]
+        A_IB2_q2 = self.A_IB2_q2(t, q)
+        ex2_q = A_IB2_q2[:, 0]
+        ey2_q = A_IB2_q2[:, 1]
+        ez2_q = A_IB2_q2[:, 2]
         J_R1 = self.J_R1(t, q)
         J_R2 = self.J_R2(t, q)
-        J_R1_q = self.J_R1_q(t, q)
-        J_R2_q = self.J_R2_q(t, q)
+        J_R1_q = self.J_R1_q1(t, q)
+        J_R2_q = self.J_R2_q2(t, q)
 
         # W_g[:nu1, 3] la_g[3]= cross3(ex1, ey2) @ J_R1 * la_g[3]
         # W_g[nu1:, 3] la_g[3]= - cross3(ex1, ey2) @ J_R2 * la_g[3]
@@ -430,17 +497,17 @@ class RigidConnectionCable(RigidConnection):
         # return approx_fprime(q, lambda q: self.g(t, q))
         nq1 = self.nq1
         g_q = np.zeros((self.nla_g, self._nq))
-        g_q[:3, :nq1] = -self.r_OB1_q(t, q)
-        g_q[:3, nq1:] = self.r_OB2_q(t, q)
+        g_q[:3, :nq1] = -self.r_OB1_q1(t, q)
+        g_q[:3, nq1:] = self.r_OB2_q2(t, q)
 
         ex1, _, _ = self.A_IB1(t, q).T
         _, ey2, ez2 = self.A_IB2(t, q).T
 
-        A_IB1_q = self.A_IB1_q(t, q)
-        ex1_q = A_IB1_q[:, 0]
-        A_IB2_q = self.A_IB2_q(t, q)
-        ey2_q = A_IB2_q[:, 1]
-        ez2_q = A_IB2_q[:, 2]
+        A_IB1_q1 = self.A_IB1_q1(t, q)
+        ex1_q = A_IB1_q1[:, 0]
+        A_IB2_q2 = self.A_IB2_q2(t, q)
+        ey2_q = A_IB1_q1[:, 1]
+        ez2_q = A_IB1_q1[:, 2]
 
         # return np.concatenate([r_OB2 - r_OB1, [ex1 @ ey2, ex1 @ ez2]])
         g_q[3, :nq1] = ey2 @ ex1_q
@@ -545,23 +612,23 @@ class RigidConnectionCable(RigidConnection):
         dense = np.zeros((self._nu, self._nq))
 
         # position
-        J_B1_q = self.J_B1_q(t, q)
-        J_B2_q = self.J_B2_q(t, q)
+        J_B1_q = self.J_B1_q1(t, q)
+        J_B2_q = self.J_B2_q2(t, q)
         dense[:nu1, :nq1] += np.einsum("i,ijk->jk", -la_g[:3], J_B1_q)
         dense[nu1:, nq1:] += np.einsum("i,ijk->jk", la_g[:3], J_B2_q)
 
         # angular velocity
         ex1, _, _ = self.A_IB1(t, q).T
         _, ey2, ez2 = self.A_IB2(t, q).T
-        A_IB1_q = self.A_IB1_q(t, q)
-        ex1_q = A_IB1_q[:, 0]
-        A_IB2_q = self.A_IB2_q(t, q)
-        ey2_q = A_IB2_q[:, 1]
-        ez2_q = A_IB2_q[:, 2]
+        A_IB1_q1 = self.A_IB1_q1(t, q)
+        ex1_q = A_IB1_q1[:, 0]
+        A_IB2_q2 = self.A_IB2_q2(t, q)
+        ey2_q = A_IB2_q2[:, 1]
+        ez2_q = A_IB2_q2[:, 2]
         J_R1 = self.J_R1(t, q)
         J_R2 = self.J_R2(t, q)
-        J_R1_q = self.J_R1_q(t, q)
-        J_R2_q = self.J_R2_q(t, q)
+        J_R1_q = self.J_R1_q1(t, q)
+        J_R2_q = self.J_R2_q2(t, q)
 
         # W_g[:nu1, 3] la_g[3] = cross3(ex1, ey2) @ J_R1 * la_g[3]
         # W_g[nu1:, 3] la_g[3] = - cross3(ex1, ey2) @ J_R2 * la_g[3]
