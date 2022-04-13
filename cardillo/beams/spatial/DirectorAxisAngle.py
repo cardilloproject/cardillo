@@ -869,7 +869,7 @@ class DirectorAxisAngle:
             r_OC += N[node] * q[self.nodalDOF_element_r[node]]
 
         # rigid body formular
-        return r_OC + self.A_IK(t, q, frame_ID=frame_ID) @ K_r_SP
+        return r_OC + self.A_IK(t, q, frame_ID) @ K_r_SP
 
     def r_OP_q(self, t, q, frame_ID, K_r_SP=np.zeros(3)):
         # compute centerline derivative
@@ -879,7 +879,7 @@ class DirectorAxisAngle:
             r_OP_q[:, self.nodalDOF_element_r[node]] += N[node] * np.eye(3)
 
         # derivative of rigid body formular
-        r_OP_q += np.einsum("ijk,j->ik", self.A_IK_q(t, q, frame_ID=frame_ID), K_r_SP)
+        r_OP_q += np.einsum("ijk,j->ik", self.A_IK_q(t, q, frame_ID), K_r_SP)
         return r_OP_q
 
         # r_OP_q_num = approx_fprime(q, lambda q: self.r_OP(t, q, frame_ID, K_r_SP), method="3-point")
@@ -920,12 +920,14 @@ class DirectorAxisAngle:
 
         # rigid body formular
         return v_C + self.A_IK(t, q, frame_ID) @ cross3(
-            self.K_Omega(t, q, u, frame_ID=frame_ID), K_r_SP
+            self.K_Omega(t, q, u, frame_ID), K_r_SP
         )
 
     def v_P_q(self, t, q, u, frame_ID, K_r_SP=np.zeros(3)):
         K_Omega = self.K_Omega(t, q, u, frame_ID)
-        return np.einsum("ijk,j->ik", self.A_IK_q(t, q), cross3(K_Omega, K_r_SP))
+        return np.einsum(
+            "ijk,j->ik", self.A_IK_q(t, q, frame_ID), cross3(K_Omega, K_r_SP)
+        )
 
     def J_P(self, t, q, frame_ID, K_r_SP=np.zeros(3)):
         # evaluate required nodal shape functions
@@ -955,7 +957,7 @@ class DirectorAxisAngle:
         # print(f"error J_P: {error}")
         # return J_P_num
 
-    def J_P_q(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
+    def J_P_q(self, t, q, frame_ID, K_r_SP=np.zeros(3)):
         # evaluate required nodal shape functions
         N_psi, _ = self.basis_functions_psi(frame_ID[0])
 
@@ -990,21 +992,48 @@ class DirectorAxisAngle:
             a_C += N[node] * u_dot[self.nodalDOF_element_r[node]]
 
         # rigid body formular
-        K_Omega = self.K_Omega(t, q, u, frame_ID=frame_ID)
-        K_Psi = self.K_Psi(t, q, u, u_dot, frame_ID=frame_ID)
-        return a_C + self.A_IK(t, q, frame_ID=frame_ID) @ (
+        K_Omega = self.K_Omega(t, q, u, frame_ID)
+        K_Psi = self.K_Psi(t, q, u, u_dot, frame_ID)
+        return a_C + self.A_IK(t, q, frame_ID) @ (
             cross3(K_Psi, K_r_SP) + cross3(K_Omega, cross3(K_Omega, K_r_SP))
         )
 
-    # TODO:
     def a_P_q(self, t, q, u, u_dot, frame_ID, K_r_SP=None):
-        raise NotImplementedError("")
-        return np.zeros((3, self.nq_element))
+        print(RuntimeWarning("DirectorAxisAngle.a_P_q was never tested!"))
 
-    # TODO:
+        K_Omega = self.K_Omega(t, q, u, frame_ID)
+        K_Psi = self.K_Psi(t, q, u, u_dot, frame_ID)
+        a_P_q = np.einsum(
+            "ijk,j->ik",
+            self.A_IK_q(t, q, frame_ID),
+            cross3(K_Psi, K_r_SP) + cross3(K_Omega, cross3(K_Omega, K_r_SP)),
+        )
+
+        a_P_q_num = approx_fprime(
+            q, lambda q: self.a_P(t, q, u, u_dot, frame_ID, K_r_SP), method="3-point"
+        )
+        diff = a_P_q_num - a_P_q
+        error = np.linalg.norm(diff)
+        print(f"error a_P_q: {error}")
+        return a_P_q_num
+
     def a_P_u(self, t, q, u, u_dot, frame_ID, K_r_SP=None):
-        raise NotImplementedError("")
-        return np.zeros((3, self.nq_element))
+        print(RuntimeWarning("DirectorAxisAngle.a_P_u was never tested!"))
+
+        K_Omega = self.K_Omega(t, q, u, frame_ID)
+        a_P_u = np.zeros((3, self.nq_element))
+        a_P_u[:, self.psiDOF] = -self.A_IK(t, q) @ (
+            ax2skew(cross3(K_Omega, K_r_SP)) + ax2skew(K_Omega) @ ax2skew(K_r_SP)
+        )
+        # return a_P_u
+
+        a_P_u_num = approx_fprime(
+            u, lambda u: self.a_P(t, q, u, u_dot, frame_ID, K_r_SP), method="3-point"
+        )
+        diff = a_P_u_num - a_P_u
+        error = np.linalg.norm(diff)
+        print(f"error a_P_u: {error}")
+        return a_P_u_num
 
     def K_Omega(self, t, q, u, frame_ID):
         """Since we use Petrov-Galerkin method we only interpoalte the nodal
@@ -1015,6 +1044,9 @@ class DirectorAxisAngle:
         for node in range(self.nnodes_element_psi):
             K_Omega += N[node] * u[self.nodalDOF_element_psi[node]]
         return K_Omega
+
+    def K_Omega_q(self, t, q, u, frame_ID):
+        return np.zeros((3, self.nq_element))
 
     def K_J_R(self, t, q, frame_ID):
         N, _ = self.basis_functions_psi(frame_ID[0])
