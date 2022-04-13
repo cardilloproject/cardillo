@@ -71,7 +71,9 @@ def animate_beam(t, q, beam, scale, scale_di=1, n_r=100, n_frames=10, show=True)
     def animate(i):
         update(t[i], q[i])
 
-    anim = FuncAnimation(fig, animate, frames=frames, interval=interval, blit=False)
+    anim = FuncAnimation(
+        fig, animate, frames=target_frames, interval=interval, blit=False
+    )
     if show:
         plt.show()
     return anim
