@@ -999,8 +999,6 @@ class DirectorAxisAngle:
         )
 
     def a_P_q(self, t, q, u, u_dot, frame_ID, K_r_SP=None):
-        print(RuntimeWarning("DirectorAxisAngle.a_P_q was never tested!"))
-
         K_Omega = self.K_Omega(t, q, u, frame_ID)
         K_Psi = self.K_Psi(t, q, u, u_dot, frame_ID)
         a_P_q = np.einsum(
@@ -1008,32 +1006,36 @@ class DirectorAxisAngle:
             self.A_IK_q(t, q, frame_ID),
             cross3(K_Psi, K_r_SP) + cross3(K_Omega, cross3(K_Omega, K_r_SP)),
         )
+        return a_P_q
 
-        a_P_q_num = approx_fprime(
-            q, lambda q: self.a_P(t, q, u, u_dot, frame_ID, K_r_SP), method="3-point"
-        )
-        diff = a_P_q_num - a_P_q
-        error = np.linalg.norm(diff)
-        print(f"error a_P_q: {error}")
-        return a_P_q_num
+        # a_P_q_num = approx_fprime(
+        #     q, lambda q: self.a_P(t, q, u, u_dot, frame_ID, K_r_SP), method="3-point"
+        # )
+        # diff = a_P_q_num - a_P_q
+        # error = np.linalg.norm(diff)
+        # print(f"error a_P_q: {error}")
+        # return a_P_q_num
 
     def a_P_u(self, t, q, u, u_dot, frame_ID, K_r_SP=None):
-        print(RuntimeWarning("DirectorAxisAngle.a_P_u was never tested!"))
-
         K_Omega = self.K_Omega(t, q, u, frame_ID)
-        a_P_u = np.zeros((3, self.nq_element))
-        a_P_u[:, self.psiDOF] = -self.A_IK(t, q) @ (
+        local = -self.A_IK(t, q, frame_ID) @ (
             ax2skew(cross3(K_Omega, K_r_SP)) + ax2skew(K_Omega) @ ax2skew(K_r_SP)
         )
-        # return a_P_u
 
-        a_P_u_num = approx_fprime(
-            u, lambda u: self.a_P(t, q, u, u_dot, frame_ID, K_r_SP), method="3-point"
-        )
-        diff = a_P_u_num - a_P_u
-        error = np.linalg.norm(diff)
-        print(f"error a_P_u: {error}")
-        return a_P_u_num
+        N, _ = self.basis_functions_psi(frame_ID[0])
+        a_P_u = np.zeros((3, self.nq_element))
+        for node in range(self.nnodes_element_r):
+            a_P_u[:, self.nodalDOF_element_psi[node]] += N[node] * local
+
+        return a_P_u
+
+        # a_P_u_num = approx_fprime(
+        #     u, lambda u: self.a_P(t, q, u, u_dot, frame_ID, K_r_SP), method="3-point"
+        # )
+        # diff = a_P_u_num - a_P_u
+        # error = np.linalg.norm(diff)
+        # print(f"error a_P_u: {error}")
+        # return a_P_u_num
 
     def K_Omega(self, t, q, u, frame_ID):
         """Since we use Petrov-Galerkin method we only interpoalte the nodal
@@ -1067,6 +1069,12 @@ class DirectorAxisAngle:
         for node in range(self.nnodes_element_psi):
             K_Psi += N[node] * u_dot[self.nodalDOF_element_psi[node]]
         return K_Psi
+
+    def K_Psi_q(self, t, q, u, u_dot, frame_ID):
+        return np.zeros((3, self.nq_element))
+
+    def K_Psi_u(self, t, q, u, u_dot, frame_ID):
+        return np.zeros((3, self.nq_element))
 
     ####################################################
     # body force
