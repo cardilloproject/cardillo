@@ -628,14 +628,6 @@ class DirectorAxisAngle:
             ###################################################
             # formulation in skew coordinates, see Eugster2014c
             ###################################################
-            # TODO: Using this formulation a perfect circle is obtained.
-            # This is not the case without the 1/d term. A huge number
-            # of elements is required otherwise!
-            # TODO: We have to check if this is the only change invoved?
-            # I think the term involving the K_Kappa requires a factor d too!
-            # TODO: Investiage why rotation of left beam end is not working
-            # with this formulation.
-
             # torsional and flexural strains
             d = d1 @ cross3(d2, d3)
             K_Kappa = np.array(
@@ -666,10 +658,6 @@ class DirectorAxisAngle:
             # - delta kappa part
             fe[self.psiDOF] += -NN_psi_xii.T @ K_m * qwi
             fe[self.psiDOF] += (
-                # NN_psi_i.T
-                # @ cross3(K_Kappa, K_m)
-                # * Ji
-                # * qwi
                 NN_psi_i.T @ cross3(K_Kappa, K_m) * Ji * d * qwi
             )  # Euler term
 

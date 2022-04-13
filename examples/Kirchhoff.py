@@ -178,8 +178,8 @@ def run(statics=True):
     # nelements = 30
 
     # used polynomial degree
-    polynomial_degree = 1
-    # polynomial_degree = 3
+    # polynomial_degree = 1
+    polynomial_degree = 2
 
     # number of quadrature points
     # nquadrature_points = int(np.ceil((polynomial_degree + 1)**2 / 2))
@@ -278,10 +278,10 @@ def run(statics=True):
 
     # moment at right end
     Fi = material_model.Fi
-    M = lambda t: np.array([1, 1, 0]) * smoothstep2(t, 0.0, frac_deformation) * 2 * np.pi * Fi[1] / L
+    # M = lambda t: np.array([1, 1, 0]) * smoothstep2(t, 0.0, frac_deformation) * 2 * np.pi * Fi[1] / L
     # M = lambda t: e1 * smoothstep2(t, 0.0, frac_deformation) * 2 * np.pi * Fi[0] / L * 1.0
-    # M = lambda t: e2 * smoothstep2(t, 0.0, frac_deformation) * 2 * np.pi * Fi[1] / L * 0.9
-    # M = lambda t: e3 * smoothstep2(t, 0.0, frac_deformation) * 2 * np.pi * Fi[2] / L * 1.0
+    # M = lambda t: e2 * smoothstep2(t, 0.0, frac_deformation) * 2 * np.pi * Fi[1] / L * 0.75
+    M = lambda t: e3 * smoothstep2(t, 0.0, frac_deformation) * 2 * np.pi * Fi[2] / L * 0.75
     moment = K_Moment(M, beam, (1,))
 
     # force at right end
@@ -303,8 +303,8 @@ def run(statics=True):
     if statics:
         solver = Newton(
             model,
-            n_load_steps=200,
-            # n_load_steps=50,
+            n_load_steps=50,
+            # n_load_steps=200,
             max_iter=30,
             atol=1.0e-8,
             numerical_jacobian=False,
