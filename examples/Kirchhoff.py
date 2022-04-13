@@ -168,8 +168,8 @@ def beam_factory(
     return beam
 
 
-def run(statics=True):
-    # def run(statics=False):
+# def run(statics=True):
+def run(statics=False):
     # used beam model
     # Beam = Cable
     # Beam = CubicHermiteCable
@@ -259,19 +259,26 @@ def run(statics=True):
     print(f"frac_rotation:     {frac_rotation}")
 
     # junctions
-    # r_OB0 = np.zeros(3)
-    r_OB0 = np.array([-1, 0.25, 3.14])
-    phi = lambda t: n_circles * 2 * pi * smoothstep2(t, frac_deformation, 1.0) * 0.5
-    # phi2 = lambda t: pi / 4 * sin(2 * pi * smoothstep2(t, frac_deformation, 1.0))
-    # A_IK0 = lambda t: A_IK_basic(phi(t)).x()
-    # TODO: Get this strange rotation working with a full circle
-    # A_IK0 = lambda t: A_IK_basic(phi(t)).z()
-    A_IK0 = (
-        lambda t: A_IK_basic(0.5 * phi(t)).z()
-        @ A_IK_basic(0.5 * phi(t)).y()
-        @ A_IK_basic(phi(t)).x()
-    )
-    # A_IK0 = lambda t: np.eye(3)
+    r_OB0 = np.zeros(3)
+    # r_OB0 = np.array([-1, 0.25, 3.14])
+    if statics:
+        phi = lambda t: n_circles * 2 * pi * smoothstep2(t, frac_deformation, 1.0) * 0.5
+        # phi2 = lambda t: pi / 4 * sin(2 * pi * smoothstep2(t, frac_deformation, 1.0))
+        # A_IK0 = lambda t: A_IK_basic(phi(t)).x()
+        # TODO: Get this strange rotation working with a full circle
+        # A_IK0 = lambda t: A_IK_basic(phi(t)).z()
+        A_IK0 = (
+            lambda t: A_IK_basic(0.5 * phi(t)).z()
+            @ A_IK_basic(0.5 * phi(t)).y()
+            @ A_IK_basic(phi(t)).x()
+        )
+        # A_IK0 = lambda t: np.eye(3)
+    else:
+        # phi = lambda t: smoothstep2(t, 0, 0.1) * sin(0.3 * pi * t) * pi / 4
+        phi = lambda t: smoothstep2(t, 0, 0.1) * sin(0.6 * pi * t) * pi / 4
+        A_IK0 = lambda t: A_IK_basic(phi(t)).z()
+        # A_IK0 = lambda t: np.eye(3)
+
     frame1 = Frame(r_OP=r_OB0, A_IK=A_IK0)
 
     # left and right joint
@@ -315,8 +322,8 @@ def run(statics=True):
     # model.add(force)
     if statics:
         model.add(moment)
-    else:
-        model.add(f_g_beam)
+    # else:
+    #     model.add(f_g_beam)
     model.assemble()
 
     if statics:
@@ -329,8 +336,10 @@ def run(statics=True):
             numerical_jacobian=False,
         )
     else:
-        t1 = 1.0
+        # t1 = 5.0
+        t1 = 10.0
         dt = 5.0e-2
+        # dt = 2.5e-2
         method = "RK45"
         rtol = 1.0e-6
         atol = 1.0e-6
