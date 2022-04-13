@@ -75,14 +75,14 @@ class TimoshenkoBeamDirector(metaclass=ABCMeta):
             nQP,
             derivative_order=1,
             basis=basis,
-            nq_node=nq_n_r,
+            dim=nq_n_r,
         )
         self.mesh_di = Mesh1D(
             self.knot_vector_di,
             nQP,
             derivative_order=1,
             basis=basis,
-            nq_node=nq_n_di,
+            dim=nq_n_di,
         )
 
         self.nq_r = nq_r = nn_r * nq_n_r
@@ -1679,12 +1679,12 @@ class TimoshenkoBeamDirector(metaclass=ABCMeta):
         # evaluate fields at quadrature points that have to be projected onto the centerline mesh:
         # - strain measures Gamma & Kappa
         # - directors d1, d2, d3
-        Gamma = np.zeros((self.mesh_r.nelement, self.mesh_r.n_quadrature_points, 3))
-        Kappa = np.zeros((self.mesh_r.nelement, self.mesh_r.n_quadrature_points, 3))
+        Gamma = np.zeros((self.mesh_r.nelement, self.mesh_r.nquadrature, 3))
+        Kappa = np.zeros((self.mesh_r.nelement, self.mesh_r.nquadrature, 3))
         if not same_shape_functions:
-            d1s = np.zeros((self.mesh_r.nelement, self.mesh_r.n_quadrature_points, 3))
-            d2s = np.zeros((self.mesh_r.nelement, self.mesh_r.n_quadrature_points, 3))
-            d3s = np.zeros((self.mesh_r.nelement, self.mesh_r.n_quadrature_points, 3))
+            d1s = np.zeros((self.mesh_r.nelement, self.mesh_r.nquadrature, 3))
+            d2s = np.zeros((self.mesh_r.nelement, self.mesh_r.nquadrature, 3))
+            d3s = np.zeros((self.mesh_r.nelement, self.mesh_r.nquadrature, 3))
         for el in range(self.nEl):
             qe = q[self.elDOF[el]]
 
@@ -1834,12 +1834,12 @@ class TimoshenkoBeamDirector(metaclass=ABCMeta):
         # evaluate fields at quadrature points that have to be projected onto the centerline mesh:
         # - strain measures Gamma & Kappa
         # - directors d1, d2, d3
-        Gamma = np.zeros((self.mesh_r.nelement, self.mesh_r.n_quadrature_points, 3))
-        Kappa = np.zeros((self.mesh_r.nelement, self.mesh_r.n_quadrature_points, 3))
+        Gamma = np.zeros((self.mesh_r.nelement, self.mesh_r.nquadrature, 3))
+        Kappa = np.zeros((self.mesh_r.nelement, self.mesh_r.nquadrature, 3))
         if not same_shape_functions:
-            d1s = np.zeros((self.mesh_r.nelement, self.mesh_r.n_quadrature_points, 3))
-            d2s = np.zeros((self.mesh_r.nelement, self.mesh_r.n_quadrature_points, 3))
-            d3s = np.zeros((self.mesh_r.nelement, self.mesh_r.n_quadrature_points, 3))
+            d1s = np.zeros((self.mesh_r.nelement, self.mesh_r.nquadrature, 3))
+            d2s = np.zeros((self.mesh_r.nelement, self.mesh_r.nquadrature, 3))
+            d3s = np.zeros((self.mesh_r.nelement, self.mesh_r.nquadrature, 3))
         for el in range(self.nEl):
             qe = q[self.elDOF[el]]
 
@@ -2079,7 +2079,7 @@ class TimoshenkoDirectorIntegral(TimoshenkoBeamDirector):
             self.knot_vector_g,
             self.nQP,
             derivative_order=0,
-            nq_node=self.nq_n_g,
+            dim=self.nq_n_g,
             basis=self.basis,
         )
         self.elDOF_g = self.mesh_g.elDOF
@@ -2525,7 +2525,7 @@ class EulerBernoulliDirectorIntegral(TimoshenkoBeamDirector):
             self.knot_vector_g,
             self.nQP,
             derivative_order=0,
-            nq_node=self.nq_n_g,
+            dim=self.nq_n_g,
             basis=self.basis,
         )
         self.elDOF_g = self.mesh_g.elDOF
@@ -2822,7 +2822,7 @@ class InextensibleEulerBernoulliDirectorIntegral(TimoshenkoBeamDirector):
             self.knot_vector_g,
             self.nQP,
             derivative_order=0,
-            nq_node=self.nq_n_g,
+            dim=self.nq_n_g,
             basis=self.basis,
         )
         self.elDOF_g = self.mesh_g.elDOF

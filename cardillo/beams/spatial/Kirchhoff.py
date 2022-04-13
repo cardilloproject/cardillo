@@ -81,14 +81,14 @@ class Kirchhoff:
             nQP,
             derivative_order=2,
             basis="B-spline",
-            nq_node=nq_n_r,
+            dim=nq_n_r,
         )
         self.mesh_phi = Mesh1D(
             self.knot_vector_phi,
             nQP,
             derivative_order=1,
             basis="B-spline",
-            nq_node=nq_n_phi,
+            dim=nq_n_phi,
         )
 
         self.nq_r = nq_r = nn_r * nq_n_r

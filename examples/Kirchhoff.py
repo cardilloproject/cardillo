@@ -13,7 +13,12 @@ from cardillo.beams import (
 )
 from cardillo.forces import Force, K_Moment, DistributedForce1D
 from cardillo.model import Model
-from cardillo.solver import Newton, ScipyIVP, GenAlphaFirstOrderVelocityGGL, GenAlphaFirstOrderVelocity
+from cardillo.solver import (
+    Newton,
+    ScipyIVP,
+    GenAlphaFirstOrderVelocityGGL,
+    GenAlphaFirstOrderVelocity,
+)
 from cardillo.math import e1, e2, e3, sin, pi, smoothstep2, A_IK_basic
 
 import numpy as np
@@ -63,7 +68,8 @@ def beam_factory(
         )
     elif Beam == DirectorAxisAngle:
         p_r = polynomial_degree
-        p_psi = p_r
+        # p_psi = p_r
+        p_psi = p_r - 1
         Q = DirectorAxisAngle.straight_configuration(
             p_r, p_psi, nelements, L, r_OP=r_OP, A_IK=A_IK, basis=shape_functions
         )
@@ -93,7 +99,7 @@ def beam_factory(
     B_rho0 = line_density * first_moment
     C_rho0 = line_density * second_moment
     # TODO: I think this is Binet's inertia tensor!
-    # TODO: See Mäkinen2006, (24) on page 1022 for a clarification of the 
+    # TODO: See Mäkinen2006, (24) on page 1022 for a clarification of the
     # classical inertia tensor
     C_rho0 = np.zeros((3, 3))
     for a in range(1, 3):
@@ -164,7 +170,7 @@ def beam_factory(
 
 
 def run(statics=True):
-# def run(statics=False):
+    # def run(statics=False):
     # used beam model
     # Beam = Cable
     # Beam = CubicHermiteCable
@@ -172,7 +178,7 @@ def run(statics=True):
     Beam = DirectorAxisAngle
 
     # number of elements
-    # nelements = 5
+    # nelements = 2
     nelements = 10
     # nelements = 20
     # nelements = 30
@@ -281,7 +287,16 @@ def run(statics=True):
     # M = lambda t: np.array([1, 1, 0]) * smoothstep2(t, 0.0, frac_deformation) * 2 * np.pi * Fi[1] / L
     # M = lambda t: e1 * smoothstep2(t, 0.0, frac_deformation) * 2 * np.pi * Fi[0] / L * 1.0
     # M = lambda t: e2 * smoothstep2(t, 0.0, frac_deformation) * 2 * np.pi * Fi[1] / L * 0.75
-    M = lambda t: e3 * smoothstep2(t, 0.0, frac_deformation) * 2 * np.pi * Fi[2] / L * 0.75
+    M = (
+        lambda t: e3
+        * smoothstep2(t, 0.0, frac_deformation)
+        * 2
+        * np.pi
+        * Fi[2]
+        / L
+        * 0.5
+        # * 0.75
+    )
     moment = K_Moment(M, beam, (1,))
 
     # force at right end
@@ -319,7 +334,9 @@ def run(statics=True):
 
         # solver = ScipyIVP(model, t1, dt, method=method, rtol=rtol, atol=atol)
         # solver = GenAlphaFirstOrderVelocityGGL(model, t1, dt, rho_inf=rho_inf, tol=atol, numerical_jacobian=True)
-        solver = GenAlphaFirstOrderVelocity(model, t1, dt, rho_inf=rho_inf, tol=atol, numerical_jacobian=False)
+        solver = GenAlphaFirstOrderVelocity(
+            model, t1, dt, rho_inf=rho_inf, tol=atol, numerical_jacobian=False
+        )
 
     sol = solver.solve()
     t = sol.t

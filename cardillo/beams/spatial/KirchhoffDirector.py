@@ -54,9 +54,13 @@ class KirchhoffDirector:
         self.knot_vector_r = KnotVector(polynomial_degree_r, nelement)
         self.knot_vector_alpha = KnotVector(polynomial_degree_alpha, nelement)
         self.nnode_r = nnode_r = nelement + polynomial_degree_r  # number of nodes
-        self.nnode_alpha = nnode_alpha = nelement + polynomial_degree_alpha  # number of nodes
+        self.nnode_alpha = nnode_alpha = (
+            nelement + polynomial_degree_alpha
+        )  # number of nodes
 
-        self.nnodes_element_r = nnodes_element_r = polynomial_degree_r + 1  # number of nodes per element
+        self.nnodes_element_r = nnodes_element_r = (
+            polynomial_degree_r + 1
+        )  # number of nodes per element
         self.nnodes_element_alpha = nnodes_element_alpha = (
             polynomial_degree_alpha + 1
         )  # number of nodes per element
@@ -72,14 +76,14 @@ class KirchhoffDirector:
             nquadrature,
             derivative_order=2,
             basis="B-spline",
-            nq_node=nq_node_r,
+            dim=nq_node_r,
         )
         self.mesh_alpha = Mesh1D(
             self.knot_vector_alpha,
             nquadrature,
             derivative_order=1,
             basis="B-spline",
-            nq_node=nq_node_alpha,
+            dim=nq_node_alpha,
         )
 
         self.nq_r = nq_r = nnode_r * nq_node_r
@@ -98,10 +102,14 @@ class KirchhoffDirector:
             self.mesh_alpha.elDOF + nq_r
         )  # offset of first field (centerline r)
         self.nodalDOF_r = (
-            np.arange(self.nq_node_r * self.nnode_r).reshape(self.nq_node_r, self.nnode_r).T
+            np.arange(self.nq_node_r * self.nnode_r)
+            .reshape(self.nq_node_r, self.nnode_r)
+            .T
         )
         self.nodalDOF_phi = (
-            np.arange(self.nq_node_alpha * self.nnode_alpha).reshape(self.nq_node_alpha, self.nnode_alpha).T
+            np.arange(self.nq_node_alpha * self.nnode_alpha)
+            .reshape(self.nq_node_alpha, self.nnode_alpha)
+            .T
             + nq_r
         )
 
@@ -197,9 +205,9 @@ class KirchhoffDirector:
                     ]
                 )
 
-    # TODO: The axis angle vector depends on the first director and the 
-    # additional rotation angle alpha. For non-interpolatory shape functions 
-    # we have to use some arbitrary but fixed points in the parameter space 
+    # TODO: The axis angle vector depends on the first director and the
+    # additional rotation angle alpha. For non-interpolatory shape functions
+    # we have to use some arbitrary but fixed points in the parameter space
     # and use the corresponding values of the tangent vector there as the nodal
     # values that are required for the axis angle formulation.
     def qe_psi2qe_di(self, qe_r, qe_alpha):

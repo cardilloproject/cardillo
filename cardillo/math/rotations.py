@@ -298,16 +298,14 @@ if __name__ == "__main__":
 
     a0 = e1
     a = np.random.rand(3)
-    a_fun = lambda t: cos(t) * e1 +  sin(t) * e2
+    a_fun = lambda t: cos(t) * e1 + sin(t) * e2
 
     num = 5
     ts = np.linspace(0, 1.0 * pi, num=num)
 
     as_ = np.array([a_fun(t) for t in ts])
 
-    Rs = np.array([
-        smallest_rotation(a0, a) for a in as_
-    ]).transpose(1, 2, 0)
+    Rs = np.array([smallest_rotation(a0, a) for a in as_]).transpose(1, 2, 0)
 
     import matplotlib.pyplot as plt
 
