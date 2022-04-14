@@ -6,11 +6,14 @@ e2 = np.array([0, 1, 0])
 e3 = np.array([0, 0, 1])
 
 
-def ei(i):
+def ei(i: int) -> np.ndarray:
+    """Retuns the i-th Cartesian basis vector.
+    With i=0: e1, i=1: e2, i=2: e3, i=3: e1, etc."""
     return np.roll(e1, i)
 
 
-def sign(x):
+def sign(x: float) -> float:
+    """Sign of x."""
     return copysign(1.0, x)
 
 
