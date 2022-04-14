@@ -553,123 +553,117 @@ class DirectorAxisAngle:
     def f_pot_q_el(self, qe, el):
         return approx_fprime(qe, lambda qe: self.f_pot_el(qe, el), method="2-point")
 
-        Ke = np.zeros((self.nq_element, self.nq_element))
-
-        # extract generalized coordinates for beam centerline and directors
-        # in the current and reference configuration
-        qe_r = qe[self.rDOF]
-        qe_psi = qe[self.psiDOF]
-
-        # Extract nodal values for centerline and rotation vector. Further the
-        # corresponding nodal rotation is evaluated using Rodriguez' formular.
-        qe_r_nodes = qe_r.reshape(self.nnodes_element_psi, -1, order="F")
-        qe_psi_nodes = qe_psi.reshape(self.nnodes_element_psi, -1, order="F")
-        qe_R_nodes = np.array([rodriguez(psi) for psi in qe_psi_nodes])
-        qe_R_psi_nodes = np.array([rodriguez_der(psi) for psi in qe_psi_nodes])
+        f_pot_q_el = np.zeros((self.nq_element, self.nq_element))
 
         for i in range(self.nquadrature):
-            # extract some already known variables
-            N_r_xi = self.N_r_xi[el, i]
-            N_psi = self.N_psi[el, i]
-            N_psi_xi = self.N_psi_xi[el, i]
-            qw = self.qw[el, i]
-            J = self.J[el, i]
+            # extract reference state variables
+            qwi = self.qw[el, i]
+            Ji = self.J[el, i]
             K_Gamma0 = self.K_Gamma0[el, i]
             K_Kappa0 = self.K_Kappa0[el, i]
 
-            # interpolate tangent vector, transformation matrix and its
-            # derivative with respect to parameter space
-            r_xi = np.einsum("i,ij", N_r_xi, qe_r_nodes)
-            A_IK = np.einsum("i,ijk", N_psi, qe_R_nodes)
-            A_IK_xi = np.einsum("i,ijk", N_psi_xi, qe_R_nodes)
+            # interpolate tangent vector
+            r_xi = np.zeros(3)
+            for node in range(self.nnodes_element_r):
+                r_xi += self.N_r_xi[el, i, node] * qe[self.nodalDOF_element_r[node]]
 
-            # compute derivatives w.r.t. the arc lenght parameter s
-            r_s = r_xi / J
-            A_IK_s = A_IK_xi / J
+            # interpolate rotation and its derivative w.r.t. parameter space
+            A_IK = np.zeros((3, 3))
+            A_IK_xi = np.zeros((3, 3))
+            for node in range(self.nnodes_element_psi):
+                psi_node = qe[self.nodalDOF_element_psi[node]]
+                A_IK_node = rodriguez(psi_node)
+                A_IK += self.N_psi[el, i, node] * A_IK_node
+                A_IK_xi += self.N_psi_xi[el, i, node] * A_IK_node
 
-            # # derivative of transformation matrix with respect to nodal
-            # # generalized coordiantes of the axis angle vector
-            # A_IK_psi_node = np.zeros((3, 3, 3, self.nnodes_element_psi))
-            # A_IK_s_psi_node = np.zeros((3, 3, 3, self.nnodes_element_psi))
-            # for a in range(self.nnodes_element_psi):
-            #     A_IK_psi_node[:, :, :, a] = N_psi[a] * qe_R_psi_nodes[a]
-            #     A_IK_s_psi_node[:, :, :, a] = (N_psi_xi[a] / J) * qe_R_psi_nodes[a]
+            # extract directors and their derivatives with respect to
+            # parameter space
+            d1, d2, d3 = A_IK.T
+            d1_xi, d2_xi, d3_xi = A_IK_xi.T
 
-            # def A_IK_fun(qe_psi):
-            #     qe_psi_nodes = qe_psi.reshape(self.nnodes_element_psi, -1, order="F")
-            #     qe_R_nodes = np.array([rodriguez(psi) for psi in qe_psi_nodes])
-            #     return np.einsum("i,ijk", N_psi, qe_R_nodes)
-
-            # def A_IK_s_fun(qe_psi):
-            #     qe_psi_nodes = qe_psi.reshape(self.nnodes_element_psi, -1, order="F")
-            #     qe_R_nodes = np.array([rodriguez(psi) for psi in qe_psi_nodes])
-            #     return np.einsum("i,ijk", N_psi_xi / J, qe_R_nodes)
-
-            # # TODO: Replace these numerical derivatives!
-            # A_IK_qe_psi = approx_fprime(qe_psi, A_IK_fun)
-            # A_IK_s_qe_psi = approx_fprime(qe_psi, A_IK_s_fun)
-
-            A_IK_qe_psi = (
-                np.array(
-                    [
-                        N_psi[k] * rodriguez_der(psi)
-                        for k, psi in enumerate(qe_psi_nodes)
-                    ]
-                )
-                .transpose(1, 2, 3, 0)
-                .reshape(3, 3, -1, order="C")
-            )
-            # diff = A_IK_qe_psi - A_IK_qe_psi2
-            # error = np.linalg.norm(diff)
-            # print(f"error A_IK_qe_psi: {error}")
-
-            A_IK_s_qe_psi = (
-                np.array(
-                    [
-                        (N_psi_xi[k] / J) * rodriguez_der(psi)
-                        for k, psi in enumerate(qe_psi_nodes)
-                    ]
-                )
-                .transpose(1, 2, 3, 0)
-                .reshape(3, 3, -1, order="C")
-            )
-            # diff = A_IK_s_qe_psi - A_IK_s_qe_psi2
-            # error = np.linalg.norm(diff)
-            # print(f"error A_IK_s_qe_psi: {error}")
+            # compute derivatives with respect to arc length parameter
+            r_s = r_xi / Ji
 
             # axial and shear strains
             K_Gamma = A_IK.T @ r_s
-            # K_Gamma_qe_r = np.einsum(
-            #     "ij,k", A_IK.T, N_r_xi / J
-            # )
-            K_Gamma_qe_r = np.einsum("ij,k", A_IK.T, N_r_xi / J).reshape(
-                3, -1, order="C"
-            )  # C ordering is correct here!
-            # K_Gamma_qe_psi = np.einsum(
-            #     "ijkm,i", A_IK_psi_node, r_s
-            # )
-            K_Gamma_qe_psi = np.einsum("ijk,i", A_IK_qe_psi, r_s)
 
-            # torsional and flexural strains
-            K_Kappa = skew2ax(A_IK.T @ A_IK_s)
-            # K_Kappa_qe_psi = np.einsum(
-            #     "ijk,jklm",
-            #     skew2ax_A(),
-            #     np.einsum("ij,iklm", A_IK, A_IK_s_psi_node)
-            #     + np.einsum("ijkm,il", A_IK_psi_node, A_IK_s),
-            # )
-            # K_Kappa_qe_psi = np.einsum(
-            #     "ijk,jklm",
-            #     skew2ax_A(),
-            #     np.einsum("ij,iklm", A_IK, A_IK_s_psi_node)
-            #     + np.einsum("ijlm,ik", A_IK_psi_node, A_IK_s),
-            # )
-            K_Kappa_qe_psi = np.einsum(
-                "ijk,jkl",
-                skew2ax_A(),
-                np.einsum("ij,ikl", A_IK, A_IK_s_qe_psi)
-                + np.einsum("ijl,ik", A_IK_qe_psi, A_IK_s),
+            # torsional and flexural strains + derivatives
+            # (formulation in skew coordinates, # see Eugster2014c)
+            K_Kappa_bar = np.array(
+                [
+                    0.5 * (d3 @ d2_xi - d2 @ d3_xi),
+                    0.5 * (d1 @ d3_xi - d3 @ d1_xi),
+                    0.5 * (d2 @ d1_xi - d1 @ d2_xi),
+                ]
             )
+
+            d = d1 @ cross3(d2, d3)
+            dd = 1 / (d * Ji)
+            K_Kappa = dd * K_Kappa_bar
+
+            ################################
+            # derivatives of strain measures
+            ################################
+            # first K_Gamma derivative w.r.t. qe_r
+            K_Gamma_qe = np.zeros((3, self.nq_element))
+            for node in range(self.nnodes_element_r):
+                K_Gamma_qe[:, self.nodalDOF_element_r[node]] += (
+                    A_IK.T * self.N_r_xi[el, i, node] / Ji
+                )
+
+            # Derivative of d = d1 @ cross3(d2, d3) w.r.t. qe_psi,
+            # first part of K_Kappa derivative w.r.t. qe_psi and
+            # second part of K_Gamma derivative w.r.t. qe_psi.
+            d_qe = np.zeros(self.nq_element)
+            K_Kappa_bar_qe = np.zeros((3, self.nq_element))
+
+            tmp1 = d1 @ ax2skew(d2)
+            tmp2 = -d1 @ ax2skew(d3)
+            tmp3 = cross3(d2, d3)
+            for node in range(self.nnodes_element_psi):
+                nodalDOF = self.nodalDOF_element_psi[node]
+
+                # nodal derivative of rodriguez formular
+                A_IK_psi_node = rodriguez_der(qe[nodalDOF])
+
+                # nodal shape functions
+                N_psi = self.N_psi[el, i, node]
+                N_psi_xi = self.N_psi_xi[el, i, node]
+
+                # K_Gamma part
+                K_Gamma_qe[:, nodalDOF] += N_psi * np.einsum(
+                    "jik,j->ik", A_IK_psi_node, r_s
+                )
+
+                # d parts
+                d_qe[nodalDOF] += N_psi * tmp1 @ A_IK_psi_node[:, 0]
+                d_qe[nodalDOF] += N_psi * tmp2 @ A_IK_psi_node[:, 1]
+                d_qe[nodalDOF] += N_psi * tmp3 @ A_IK_psi_node[:, 2]
+
+                # kappa parts
+                K_Kappa_bar_qe[0, nodalDOF] += 0.5 * (
+                    N_psi_xi * d3 @ A_IK_psi_node[:, 1]
+                    + N_psi * d2_xi @ A_IK_psi_node[:, 2]
+                    - N_psi_xi * d2 @ A_IK_psi_node[:, 2]
+                    - N_psi * d3_xi @ A_IK_psi_node[:, 1]
+                )
+
+                K_Kappa_bar_qe[1, nodalDOF] += 0.5 * (
+                    N_psi_xi * d1 @ A_IK_psi_node[:, 2]
+                    + N_psi * d3_xi @ A_IK_psi_node[:, 0]
+                    - N_psi_xi * d3 @ A_IK_psi_node[:, 0]
+                    - N_psi * d1_xi @ A_IK_psi_node[:, 2]
+                )
+
+                K_Kappa_bar_qe[2, nodalDOF] += 0.5 * (
+                    N_psi_xi * d2 @ A_IK_psi_node[:, 0]
+                    + N_psi * d1_xi @ A_IK_psi_node[:, 1]
+                    - N_psi_xi * d1 @ A_IK_psi_node[:, 1]
+                    - N_psi * d2_xi @ A_IK_psi_node[:, 0]
+                )
+
+            # derivative of K_Kappa
+            K_Kappa_qe = dd * K_Kappa_bar_qe - np.outer(K_Kappa, d_qe) / d
 
             # compute contact forces and couples from partial derivatives of
             # the strain energy function w.r.t. strain measures
@@ -692,122 +686,73 @@ class DirectorAxisAngle:
             )
 
             # chaing rule for derivative with respect to generalized coordinates
-            K_n_qe_r = K_n_K_Gamma @ K_Gamma_qe_r
-            K_n_qe_psi = K_n_K_Gamma @ K_Gamma_qe_psi + K_n_K_Kappa @ K_Kappa_qe_psi
-            K_m_qe_r = K_m_K_Gamma @ K_Gamma_qe_r
-            K_m_qe_psi = K_m_K_Gamma @ K_Gamma_qe_psi + K_m_K_Kappa @ K_Kappa_qe_psi
+            K_n_qe = K_n_K_Gamma @ K_Gamma_qe + K_n_K_Kappa @ K_Kappa_qe
+            K_m_qe = K_m_K_Gamma @ K_Gamma_qe + K_m_K_Kappa @ K_Kappa_qe
 
-            ########################
-            # first delta Gamma part
-            ########################
-            # for a in range(self.nnodes_element_r):
-            #     fe[self.nodalDOF_element_r[a]] -= N_r_xi[a] * A_IK @ (K_n * qw)
-            for a in range(self.nnodes_element_r):
-                Ke[self.nodalDOF_element_r[a][:, None], self.rDOF] -= (
-                    N_r_xi[a] * A_IK @ K_n_qe_r * qw
-                )
-                Ke[self.nodalDOF_element_r[a][:, None], self.psiDOF] -= (
-                    N_r_xi[a]
-                    * (A_IK @ K_n_qe_psi + np.einsum("ijk,j", A_IK_qe_psi, K_n))
-                    * qw
-                )
-                # for b in range(self.nnodes_element_r):
-                #     Ke[self.nodalDOF_element_r[a][:, None], self.nodalDOF_element_r[b]] -= N_r_xi[a] * A_IK @ K_n_qe_r[:, :, b] * qw
-                # for b in range(self.nnodes_element_psi):
-                #     Ke[self.nodalDOF_element_r[a][:, None], self.nodalDOF_element_psi[b]] -= N_r_xi[a] * (
-                #         A_IK @ K_n_qe_psi[:, :, b] + np.einsum("ijk,j", A_IK_psi_node[:, :, :, b], K_n)
-                #     ) * qw
+            # - first delta Gamma part
+            for node_a in range(self.nnodes_element_r):
+                nodalDOF_a = self.nodalDOF_element_r[node_a]
+                N_r_xi = self.N_r_xi[el, i, node_a]
 
-            #########################
-            # second delta Gamma part
-            #########################
-            # for a in range(self.nnodes_element_psi):
-            #     fe[self.nodalDOF_element_psi[a]] += N_psi[a] * cross3(A_IK.T @ r_xi, K_n) * qw
-            for a in range(self.nnodes_element_psi):
-                Ke[self.nodalDOF_element_psi[a][:, None], self.rDOF] += (
-                    N_psi[a]
-                    * (
-                        ax2skew(A_IK.T @ r_xi) @ K_n_qe_r
-                        - ax2skew(K_n)
-                        @ np.einsum("ij,k", A_IK.T, N_r_xi).reshape(3, -1, order="C")
+                f_pot_q_el[nodalDOF_a] -= N_r_xi * A_IK @ K_n_qe
+                for node_b in range(self.nnodes_element_psi):
+                    nodalDOF_b = self.nodalDOF_element_psi[node_b]
+                    f_pot_q_el[nodalDOF_a[:, None], nodalDOF_b] -= (
+                        N_r_xi
+                        * np.einsum("ijk,j->ik", rodriguez_der(qe[nodalDOF_b]), K_n)
+                        * qwi
                     )
-                    * qw
-                )
 
-                Ke[self.nodalDOF_element_psi[a][:, None], self.psiDOF] += (
-                    N_psi[a]
+            for node_a in range(self.nnodes_element_psi):
+                nodalDOF_a = self.nodalDOF_element_psi[node_a]
+
+                N_psi = self.N_psi[el, i, node_a]
+                N_psi_xi = self.N_psi_xi[el, i, node_a]
+
+                # - second delta Gamma part (1)
+                f_pot_q_el[nodalDOF_a] += N_psi * ax2skew(A_IK.T @ r_xi) @ K_n_qe * qwi
+
+                # - delta kappa part and Euler term
+                f_pot_q_el[nodalDOF_a] -= (
+                    N_psi_xi
                     * (
-                        ax2skew(A_IK.T @ r_xi) @ K_n_qe_psi
-                        - ax2skew(K_n) @ np.einsum("ijk,i", A_IK_qe_psi, r_xi)
+                        (np.eye(3) - ax2skew(K_Kappa_bar)) @ K_m_qe
+                        + ax2skew(K_m) @ K_Kappa_qe
                     )
-                    * qw
+                    * qwi
                 )
-                # for b in range(self.nnodes_element_r):
-                #     Ke[self.nodalDOF_element_psi[a][:, None], self.nodalDOF_element_r[b]] += N_psi[a] * (
-                #         ax2skew(A_IK.T @ r_xi) @ K_n_qe_r[:, :, b]
-                #         - ax2skew(K_n) @ A_IK.T * N_r_xi[b]
-                #     ) * qw
-                # for b in range(self.nnodes_element_psi):
-                #     Ke[self.nodalDOF_element_psi[a][:, None], self.nodalDOF_element_psi[b]] += N_psi[a] * (
-                #         ax2skew(A_IK.T @ r_xi) @ K_n_qe_psi[:, :, b]
-                #         - ax2skew(K_n) @ np.einsum("ijk,i", A_IK_psi_node[:, :, :, b], r_xi)
-                #     ) * qw
 
-            ##################
-            # delta kappa part
-            ##################
-            # for a in range(self.nnodes_element_psi):
-            #     fe[self.nodalDOF_element_psi[a]] -= N_psi_xi[a] * K_m * qw
-            for a in range(self.nnodes_element_psi):
-                Ke[self.nodalDOF_element_psi[a][:, None], self.rDOF] -= (
-                    N_psi_xi[a] * K_m_qe_r * qw
-                )
-                Ke[self.nodalDOF_element_psi[a][:, None], self.psiDOF] -= (
-                    N_psi_xi[a] * K_m_qe_psi * qw
-                )
-                # for b in range(self.nnodes_element_r):
-                #     Ke[self.nodalDOF_element_psi[a][:, None], self.nodalDOF_element_r[b]] -= N_psi_xi[a] * K_m_qe_r[:, :, b] * qw
-                # for b in range(self.nnodes_element_psi):
-                #     Ke[self.nodalDOF_element_psi[a][:, None], self.nodalDOF_element_psi[b]] -= N_psi_xi[a] * K_m_qe_psi[:, :, b] * qw
+                for node_b in range(self.nnodes_element_psi):
+                    nodalDOF_b = self.nodalDOF_element_psi[node_b]
 
-            ###############################
-            # delta kappa part (Euler term)
-            ###############################
-            # for a in range(self.nnodes_element_psi):
-            #     fe[self.nodalDOF_element_psi[a]] += N_psi[a] * cross3(K_Kappa, K_m) * J * qw
-            for a in range(self.nnodes_element_psi):
-                Ke[self.nodalDOF_element_psi[a][:, None], self.rDOF] += (
-                    N_psi[a] * (ax2skew(K_Kappa) @ K_m_qe_r) * J * qw
-                )
-                Ke[self.nodalDOF_element_psi[a][:, None], self.psiDOF] += (
-                    N_psi[a]
-                    * (ax2skew(K_Kappa) @ K_m_qe_psi - ax2skew(K_m) @ K_Kappa_qe_psi)
-                    * J
-                    * qw
-                )
-                # for b in range(self.nnodes_element_r):
-                #     Ke[self.nodalDOF_element_psi[a][:, None], self.nodalDOF_element_r[b]] += N_psi[a] * (
-                #         ax2skew(K_Kappa) @ K_m_qe_r[:, :, b]
-                #     ) * qw
-                # for b in range(self.nnodes_element_psi):
-                #     Ke[self.nodalDOF_element_psi[a][:, None], self.nodalDOF_element_psi[b]] += N_psi[a] * (
-                #         ax2skew(K_Kappa) @ K_m_qe_psi[:, :, b] - ax2skew(K_m) @ K_Kappa_qe_psi[:, :, b]
-                #     ) * qw
+                    # nodal derivative of rodriguez formular
+                    A_IK_psi_node = rodriguez_der(qe[nodalDOF_b])
 
-        return Ke
+                    # - second delta Gamma part (2)
+                    f_pot_q_el[nodalDOF_a[:, None], nodalDOF_b] -= (
+                        N_psi
+                        * ax2skew(K_n)
+                        @ np.einsum("jik,j->ik", A_IK_psi_node, r_xi)
+                        * qwi
+                    )
 
-        Ke_num = approx_fprime(qe, lambda qe: self.f_pot_el(qe, el), method="3-point")
-        # Ke_num = approx_fprime(qe, lambda qe: self.f_pot_el_test(qe, el), method="3-point")
-        diff = Ke - Ke_num
+        # return f_pot_q_el
+
+        f_pot_q_el_num = approx_fprime(
+            qe, lambda qe: self.f_pot_el(qe, el), method="3-point"
+        )
+        diff = f_pot_q_el_num - f_pot_q_el
         error = np.max(np.abs(diff))
+        # error = np.max(np.abs(diff[self.rDOF[:, None], self.rDOF]))
         print(f"max error f_pot_q_el: {error}")
+        print(f"")
 
         # print(f'diff[self.rDOF[:, None], self.rDOF]: {np.max(np.abs(diff[self.rDOF[:, None], self.rDOF]))}')
         # print(f'diff[self.rDOF[:, None], self.psiDOF]: {np.max(np.abs(diff[self.rDOF[:, None], self.psiDOF]))}')
         # print(f'diff[self.psiDOF[:, None], self.rDOF]: {np.max(np.abs(diff[self.psiDOF[:, None], self.rDOF]))}')
         # print(f'diff[self.psiDOF[:, None], self.psiDOF]: {np.max(np.abs(diff[self.psiDOF[:, None], self.psiDOF]))}')
 
-        return Ke_num
+        return f_pot_q_el_num
 
     #########################################
     # kinematic equation
