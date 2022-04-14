@@ -789,8 +789,27 @@ class DirectorAxisAngle:
             )
 
     def q_ddot(self, t, q, u, u_dot):
-        raise NotImplementedError
-        return u_dot
+        # centerline part
+        q_ddot = u_dot
+
+        # correct axis angle vector part
+        for node in range(self.nnode_psi):
+            nodalDOF_psi = self.nodalDOF_psi[node]
+
+            psi = q[nodalDOF_psi]
+            omega = u[nodalDOF_psi]
+            omega_dot = u_dot[nodalDOF_psi]
+
+            T_inv = inverse_tangent_map(psi)
+            psi_dot = T_inv @ omega
+
+            T_dot = tangent_map_s(psi, psi_dot)
+            Tinv_dot = -T_inv @ T_dot @ T_inv
+            psi_ddot = T_inv @ omega_dot + Tinv_dot @ omega
+
+            q_ddot[nodalDOF_psi] = psi_ddot
+
+        return q_ddot
 
     ####################################################
     # interactions with other bodies and the environment
