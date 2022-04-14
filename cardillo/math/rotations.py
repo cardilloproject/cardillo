@@ -159,9 +159,14 @@ def inverse_tangent_map(psi: np.ndarray) -> np.ndarray:
 
 
 def tangent_map_s(psi: np.ndarray, psi_s: np.ndarray) -> np.ndarray:
-    """Derivative of tangent map w.r.t. arc length coordinate s, see Ibrahimbegović1995 (71)."""
-    # TODO: adapt documentation to the style from above!
+    """Derivative of tangent map w.r.t. arc length coordinate s, see
+    Ibrahimbegović1995 (71). Actually in Ibrahimbegovic1995 (28) T_s^{T}
+    is shown!
 
+    References
+    ----------
+    Ibrahimbegovic1995: https://doi.org/10.1002/nme.1620382107
+    """
     angle = norm(psi)
     if angle > 0:
         sa = sin(angle)
@@ -181,7 +186,7 @@ def tangent_map_s(psi: np.ndarray, psi_s: np.ndarray) -> np.ndarray:
             + c5 * np.outer(psi, psi_s)
         ).T  #  transpose of Ibrahimbegović1995 (71)
     else:
-        return np.zeros((3, 3))  # TODO: is this correct?
+        return np.zeros((3, 3))  # Cardona1988 after (46)
 
 
 def spurrier(R: np.ndarray) -> np.ndarray:

@@ -18,6 +18,7 @@ from cardillo.solver import (
     ScipyIVP,
     GenAlphaFirstOrderVelocityGGL,
     GenAlphaFirstOrderVelocity,
+    GenAlphaDAEAcc,
 )
 from cardillo.math import e1, e2, e3, sin, pi, smoothstep2, A_IK_basic
 
@@ -347,9 +348,10 @@ def run(statics=False):
 
         # solver = ScipyIVP(model, t1, dt, method=method, rtol=rtol, atol=atol)
         # solver = GenAlphaFirstOrderVelocityGGL(model, t1, dt, rho_inf=rho_inf, tol=atol, numerical_jacobian=True)
-        solver = GenAlphaFirstOrderVelocity(
-            model, t1, dt, rho_inf=rho_inf, tol=atol, numerical_jacobian=False
-        )
+        # solver = GenAlphaFirstOrderVelocity(
+        #     model, t1, dt, rho_inf=rho_inf, tol=atol, numerical_jacobian=False
+        # )
+        solver = GenAlphaDAEAcc(model, t1, dt, rho_inf=rho_inf, newton_tol=atol)
 
     sol = solver.solve()
     t = sol.t
