@@ -6,6 +6,10 @@ e2 = np.array([0, 1, 0])
 e3 = np.array([0, 0, 1])
 
 
+def ei(i):
+    return np.roll(e1, i)
+
+
 def sign(x):
     return copysign(1.0, x)
 

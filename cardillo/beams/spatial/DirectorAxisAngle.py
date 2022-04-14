@@ -7,7 +7,7 @@ from cardillo.discretization.B_spline import KnotVector
 from cardillo.discretization.lagrange import Node_vector
 from cardillo.discretization.mesh1D import Mesh1D
 from cardillo.math import norm, cross3, skew2ax, skew2ax_A, ax2skew, approx_fprime
-from PyRod.math.rotations import (
+from cardillo.math import (
     rodriguez,
     rodriguez_der,
     rodriguez_inv,

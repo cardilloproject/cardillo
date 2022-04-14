@@ -1,6 +1,6 @@
 import numpy as np
 from math import sin, cos, tan, sqrt, atan2
-from PyRod.math import norm, cross3, ax2skew, ax2skew_a
+from cardillo.math import norm, cross3, ax2skew, ax2skew_a, ei
 
 
 class A_IK_basic:
@@ -79,6 +79,36 @@ def rodriguez(psi: np.ndarray) -> np.ndarray:
         )
     else:
         return np.eye(3)
+
+
+def rodriguez_der(psi: np.ndarray) -> np.ndarray:
+    """Derivative of the axis-angle rotation, see Crisfield1999 above (4.1). 
+    Derivations and final results are given in 
+
+    References
+    ----------
+    Crisfield1999: https://doi.org/10.1098/rspa.1999.0352 \\
+    Gallego2015: https://doi.org/10.1007/s10851-014-0528-x
+    """
+    angle = norm(psi)
+
+    # Gallego2015 (9)
+    R_psi = np.zeros((3, 3, 3))
+    if angle > 0:
+        R = rodriguez(psi)
+        eye_R = np.eye(3) - R
+        psi_tilde = ax2skew(psi)
+        angle2 = angle * angle
+        for i in range(3):
+            R_psi[:, :, i] = (
+                (psi[i] * psi_tilde + ax2skew(cross3(psi, eye_R[:, i]))) @ R / angle2
+            )
+    else:
+        # Derivative at the identity, see Gallego2015 Section 3.3
+        for i in range(3):
+            R_psi[:, :, i] = ax2skew(ei(i))
+
+    return R_psi
 
 
 def tangent_map(psi: np.ndarray) -> np.ndarray:
