@@ -411,7 +411,7 @@ def run_contact():
     Beam = DirectorAxisAngle
 
     # number of elements
-    nelements = 5
+    nelements = 10
 
     # used polynomial degree
     polynomial_degree = 2
@@ -491,7 +491,7 @@ def run_contact():
     f_g_beam1 = DistributedForce1D(lambda t, xi: g, beam1)
 
     # contact between both beams
-    eps_contact = 1.0e3
+    eps_contact = 1.0e4
     line2line = Line2Line(eps_contact, radius, radius, beam0, beam1)
 
     # assemble the model
@@ -508,8 +508,15 @@ def run_contact():
     model.assemble()
 
     # dynamic solver
-    t1 = 1.0
-    dt = 1.0e-2
+    t1 = 1.5
+    tol = 1.0e-6
+
+    # solver = ScipyIVP(model, t1, dt, rtol=tol, atol=tol)
+
+    # dt = 1.0e-2
+    # solver = GenAlphaFirstOrderVelocity(model, t1, dt, rho_inf=0.5, tol=tol)
+
+    dt = 2.5e-3
     solver = Moreau(model, t1, dt)
 
     sol = solver.solve()

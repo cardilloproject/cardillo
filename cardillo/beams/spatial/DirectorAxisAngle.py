@@ -833,6 +833,14 @@ class DirectorAxisAngle:
             r_OC += N[node] * q[self.nodalDOF_element_r[node]]
         return r_OC
 
+    def r_OC_q(self, t, q, frame_ID):
+        # compute centerline position
+        N, _, _ = self.basis_functions_r(frame_ID[0])
+        r_OC_q = np.zeros((3, self.nq_element))
+        for node in range(self.nnodes_element_r):
+            r_OC_q[:, self.nodalDOF_element_r[node]] += N[node] * np.eye(3)
+        return r_OC_q
+
     def r_OC_xi(self, t, q, frame_ID):
         # compute centerline position
         _, N_xi, _ = self.basis_functions_r(frame_ID[0])
