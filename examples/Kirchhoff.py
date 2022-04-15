@@ -1,3 +1,4 @@
+from cardillo.math import e1, e2, e3, sin, pi, smoothstep2, A_IK_basic
 from cardillo.beams.spatial import CircularCrossSection, ShearStiffQuadratic, Simo1986
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints.implicit import (
@@ -12,6 +13,7 @@ from cardillo.beams import (
     DirectorAxisAngle,
 )
 from cardillo.forces import Force, K_Moment, DistributedForce1D
+from cardillo.contacts import Line2Line
 from cardillo.model import Model
 from cardillo.solver import (
     Newton,
@@ -21,7 +23,6 @@ from cardillo.solver import (
     GenAlphaDAEAcc,
     Moreau,
 )
-from cardillo.math import e1, e2, e3, sin, pi, smoothstep2, A_IK_basic
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -438,11 +439,12 @@ def run_contact():
     material_model = quadratic_beam_material(E, G, cross_section, Beam)
 
     # starting point and orientation of initial point, initial length
+    L = 2 * pi
     r_OP0 = np.zeros(3)
     A_IK0 = np.eye(3)
-    r_OP1 = np.array([0, 0, 3 * radius])
     A_IK1 = A_IK_basic(pi / 3).z()
-    L = 2 * pi
+    center = np.array([L / 2, 0, 3 * radius])
+    r_OP1 = center - A_IK1 @ np.array([L / 2, 0, 0])
 
     # build beam model
     beam0 = beam_factory(
@@ -488,6 +490,10 @@ def run_contact():
     f_g_beam0 = DistributedForce1D(lambda t, xi: g, beam0)
     f_g_beam1 = DistributedForce1D(lambda t, xi: g, beam1)
 
+    # contact between both beams
+    eps_contact = 1.0e3
+    line2line = Line2Line(eps_contact, radius, radius, beam0, beam1)
+
     # assemble the model
     model = Model()
     model.add(beam0)
@@ -498,6 +504,7 @@ def run_contact():
     model.add(joint0)
     model.add(frame1)
     model.add(joint1)
+    model.add(line2line)
     model.assemble()
 
     # dynamic solver
@@ -509,33 +516,33 @@ def run_contact():
     t = sol.t
     q = sol.q
 
-    ############################
-    # Visualize potential energy
-    ############################
-    E_pot = np.array([model.E_pot(ti, qi) for (ti, qi) in zip(t, q)])
+    # ############################
+    # # Visualize potential energy
+    # ############################
+    # E_pot = np.array([model.E_pot(ti, qi) for (ti, qi) in zip(t, q)])
 
-    fig, ax = plt.subplots()
+    # fig, ax = plt.subplots()
 
-    ax.plot(t, E_pot)
-    ax.set_xlabel("t")
-    ax.set_ylabel("E_pot")
-    ax.grid()
+    # ax.plot(t, E_pot)
+    # ax.set_xlabel("t")
+    # ax.set_ylabel("E_pot")
+    # ax.grid()
 
-    # visualize final centerline projected in all three planes
-    r_OPs = beam0.centerline(q[-1])
-    fig, ax = plt.subplots(1, 3)
-    ax[0].plot(r_OPs[0, :], r_OPs[1, :], label="x-y")
-    ax[1].plot(r_OPs[1, :], r_OPs[2, :], label="y-z")
-    ax[2].plot(r_OPs[2, :], r_OPs[0, :], label="z-x")
-    ax[0].grid()
-    ax[0].legend()
-    ax[0].set_aspect(1)
-    ax[1].grid()
-    ax[1].legend()
-    ax[1].set_aspect(1)
-    ax[2].grid()
-    ax[2].legend()
-    ax[2].set_aspect(1)
+    # # visualize final centerline projected in all three planes
+    # r_OPs = beam0.centerline(q[-1])
+    # fig, ax = plt.subplots(1, 3)
+    # ax[0].plot(r_OPs[0, :], r_OPs[1, :], label="x-y")
+    # ax[1].plot(r_OPs[1, :], r_OPs[2, :], label="y-z")
+    # ax[2].plot(r_OPs[2, :], r_OPs[0, :], label="z-x")
+    # ax[0].grid()
+    # ax[0].legend()
+    # ax[0].set_aspect(1)
+    # ax[1].grid()
+    # ax[1].legend()
+    # ax[1].set_aspect(1)
+    # ax[2].grid()
+    # ax[2].legend()
+    # ax[2].set_aspect(1)
 
     ###########
     # animation

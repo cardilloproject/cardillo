@@ -80,7 +80,7 @@ class DirectorAxisAngle:
         self.mesh_r = Mesh1D(
             self.knot_vector_r,
             nquadrature,
-            derivative_order=1,
+            derivative_order=2,
             basis=basis,
             dim=nq_node_r,
         )
@@ -825,9 +825,50 @@ class DirectorAxisAngle:
     def uDOF_P(self, frame_ID):
         return self.elDOF_P(frame_ID)
 
+    def r_OC(self, t, q, frame_ID):
+        # compute centerline position
+        N, _, _ = self.basis_functions_r(frame_ID[0])
+        r_OC = np.zeros(3)
+        for node in range(self.nnodes_element_r):
+            r_OC += N[node] * q[self.nodalDOF_element_r[node]]
+        return r_OC
+
+    def r_OC_xi(self, t, q, frame_ID):
+        # compute centerline position
+        _, N_xi, _ = self.basis_functions_r(frame_ID[0])
+        r_OC_xi = np.zeros(3)
+        for node in range(self.nnodes_element_r):
+            r_OC_xi += N_xi[node] * q[self.nodalDOF_element_r[node]]
+        return r_OC_xi
+
+    def r_OC_xixi(self, t, q, frame_ID):
+        # compute centerline position
+        _, _, N_xixi = self.basis_functions_r(frame_ID[0])
+        r_OC_xixi = np.zeros(3)
+        for node in range(self.nnodes_element_r):
+            r_OC_xixi += N_xixi[node] * q[self.nodalDOF_element_r[node]]
+        return r_OC_xixi
+
+    def J_C(self, t, q, frame_ID):
+        # evaluate required nodal shape functions
+        N, _, _ = self.basis_functions_r(frame_ID[0])
+
+        # interpolate centerline and axis angle contributions
+        J_C = np.zeros((3, self.nq_element))
+        for node in range(self.nnodes_element_r):
+            J_C[:, self.nodalDOF_element_r[node]] += N[node] * np.eye(3)
+
+        return J_C
+
+    def J_C_q(self, t, q, frame_ID):
+        return np.zeros((3, self.nq_element, self.nq_element))
+
+    ###################
+    # r_OP contribution
+    ###################
     def r_OP(self, t, q, frame_ID, K_r_SP=np.zeros(3)):
         # compute centerline position
-        N, _ = self.basis_functions_r(frame_ID[0])
+        N, _, _ = self.basis_functions_r(frame_ID[0])
         r_OC = np.zeros(3)
         for node in range(self.nnodes_element_r):
             r_OC += N[node] * q[self.nodalDOF_element_r[node]]
@@ -837,7 +878,7 @@ class DirectorAxisAngle:
 
     def r_OP_q(self, t, q, frame_ID, K_r_SP=np.zeros(3)):
         # compute centerline derivative
-        N, _ = self.basis_functions_r(frame_ID[0])
+        N, _, _ = self.basis_functions_r(frame_ID[0])
         r_OP_q = np.zeros((3, self.nq_element))
         for node in range(self.nnodes_element_r):
             r_OP_q[:, self.nodalDOF_element_r[node]] += N[node] * np.eye(3)
@@ -877,7 +918,7 @@ class DirectorAxisAngle:
 
     def v_P(self, t, q, u, frame_ID, K_r_SP=np.zeros(3)):
         # compute centerline velocity
-        N, _ = self.basis_functions_r(frame_ID[0])
+        N, _, _ = self.basis_functions_r(frame_ID[0])
         v_C = np.zeros(3)
         for node in range(self.nnodes_element_r):
             v_C += N[node] * u[self.nodalDOF_element_r[node]]
@@ -895,7 +936,7 @@ class DirectorAxisAngle:
 
     def J_P(self, t, q, frame_ID, K_r_SP=np.zeros(3)):
         # evaluate required nodal shape functions
-        N_r, _ = self.basis_functions_r(frame_ID[0])
+        N_r, _, _ = self.basis_functions_r(frame_ID[0])
         N_psi, _ = self.basis_functions_psi(frame_ID[0])
 
         # transformation matrix
@@ -950,7 +991,7 @@ class DirectorAxisAngle:
 
     def a_P(self, t, q, u, u_dot, frame_ID, K_r_SP=np.zeros(3)):
         # compute centerline acceleration
-        N, _ = self.basis_functions_r(frame_ID[0])
+        N, _, _ = self.basis_functions_r(frame_ID[0])
         a_C = np.zeros(3)
         for node in range(self.nnodes_element_r):
             a_C += N[node] * u_dot[self.nodalDOF_element_r[node]]
