@@ -19,6 +19,7 @@ from cardillo.solver import (
     GenAlphaFirstOrderVelocityGGL,
     GenAlphaFirstOrderVelocity,
     GenAlphaDAEAcc,
+    Moreau,
 )
 from cardillo.math import e1, e2, e3, sin, pi, smoothstep2, A_IK_basic
 
@@ -277,7 +278,12 @@ def run(statics=False):
     else:
         # phi = lambda t: smoothstep2(t, 0, 0.1) * sin(0.3 * pi * t) * pi / 4
         phi = lambda t: smoothstep2(t, 0, 0.1) * sin(0.6 * pi * t) * pi / 4
-        A_IK0 = lambda t: A_IK_basic(phi(t)).z()
+        # A_IK0 = lambda t: A_IK_basic(phi(t)).z()
+        A_IK0 = (
+            lambda t: A_IK_basic(0.5 * phi(t)).z()
+            @ A_IK_basic(0.5 * phi(t)).y()
+            @ A_IK_basic(phi(t)).x()
+        )
         # A_IK0 = lambda t: np.eye(3)
 
     frame1 = Frame(r_OP=r_OB0, A_IK=A_IK0)
@@ -351,7 +357,9 @@ def run(statics=False):
         # solver = GenAlphaFirstOrderVelocity(
         #     model, t1, dt, rho_inf=rho_inf, tol=atol, numerical_jacobian=False
         # )
-        solver = GenAlphaDAEAcc(model, t1, dt, rho_inf=rho_inf, newton_tol=atol)
+        # solver = GenAlphaDAEAcc(model, t1, dt, rho_inf=rho_inf, newton_tol=atol)
+        dt = 1.0e-2
+        solver = Moreau(model, t1, dt)
 
     sol = solver.solve()
     t = sol.t
@@ -397,5 +405,144 @@ def run(statics=False):
     animate_beam(t, q, beam, L, show=True)
 
 
+def run_contact():
+    # used beam model
+    Beam = DirectorAxisAngle
+
+    # number of elements
+    nelements = 5
+
+    # used polynomial degree
+    polynomial_degree = 2
+
+    # number of quadrature points
+    # nquadrature_points = int(np.ceil((polynomial_degree + 1)**2 / 2))
+    nquadrature_points = polynomial_degree + 1
+
+    # used shape functions for discretization
+    shape_functions = "B-spline"
+
+    # used cross section
+    radius = 1.0
+    # radius = 1.0e-1
+    # radius = 1.0e-3 # this yields no deformation due to locking!
+    line_density = 1
+    cross_section = CircularCrossSection(line_density, radius)
+
+    # Young's and shear modulus
+    E = 1.0e3
+    nu = 0.5
+    G = E / (2.0 * (1.0 + nu))
+
+    # build quadratic material model
+    material_model = quadratic_beam_material(E, G, cross_section, Beam)
+
+    # starting point and orientation of initial point, initial length
+    r_OP0 = np.zeros(3)
+    A_IK0 = np.eye(3)
+    r_OP1 = np.array([0, 0, 3 * radius])
+    A_IK1 = A_IK_basic(pi / 3).z()
+    L = 2 * pi
+
+    # build beam model
+    beam0 = beam_factory(
+        nelements,
+        polynomial_degree,
+        nquadrature_points,
+        shape_functions,
+        cross_section,
+        material_model,
+        Beam,
+        L,
+        r_OP=r_OP0,
+        A_IK=A_IK0,
+    )
+
+    beam1 = beam_factory(
+        nelements,
+        polynomial_degree,
+        nquadrature_points,
+        shape_functions,
+        cross_section,
+        material_model,
+        Beam,
+        L,
+        r_OP=r_OP1,
+        A_IK=A_IK1,
+    )
+
+    # frames for the junctions
+    r_OB0 = np.zeros(3)
+    A_IK0 = np.eye(3)
+    r_OB1 = np.array([L, 0, 0])
+    A_IK1 = np.eye(3)
+    frame0 = Frame(r_OP=r_OB0, A_IK=A_IK0)
+    frame1 = Frame(r_OP=r_OB1, A_IK=A_IK1)
+
+    # left and right joint
+    joint0 = RigidConnection(frame0, beam0, r_OB0, frame_ID2=(0,))
+    joint1 = RigidConnection(frame1, beam0, r_OB1, frame_ID2=(1,))
+
+    # gravity beam
+    g = np.array([0, 0, -cross_section.area * cross_section.line_density * 9.81])
+    f_g_beam0 = DistributedForce1D(lambda t, xi: g, beam0)
+    f_g_beam1 = DistributedForce1D(lambda t, xi: g, beam1)
+
+    # assemble the model
+    model = Model()
+    model.add(beam0)
+    model.add(beam1)
+    model.add(f_g_beam0)
+    model.add(f_g_beam1)
+    model.add(frame0)
+    model.add(joint0)
+    model.add(frame1)
+    model.add(joint1)
+    model.assemble()
+
+    # dynamic solver
+    t1 = 1.0
+    dt = 1.0e-2
+    solver = Moreau(model, t1, dt)
+
+    sol = solver.solve()
+    t = sol.t
+    q = sol.q
+
+    ############################
+    # Visualize potential energy
+    ############################
+    E_pot = np.array([model.E_pot(ti, qi) for (ti, qi) in zip(t, q)])
+
+    fig, ax = plt.subplots()
+
+    ax.plot(t, E_pot)
+    ax.set_xlabel("t")
+    ax.set_ylabel("E_pot")
+    ax.grid()
+
+    # visualize final centerline projected in all three planes
+    r_OPs = beam0.centerline(q[-1])
+    fig, ax = plt.subplots(1, 3)
+    ax[0].plot(r_OPs[0, :], r_OPs[1, :], label="x-y")
+    ax[1].plot(r_OPs[1, :], r_OPs[2, :], label="y-z")
+    ax[2].plot(r_OPs[2, :], r_OPs[0, :], label="z-x")
+    ax[0].grid()
+    ax[0].legend()
+    ax[0].set_aspect(1)
+    ax[1].grid()
+    ax[1].legend()
+    ax[1].set_aspect(1)
+    ax[2].grid()
+    ax[2].legend()
+    ax[2].set_aspect(1)
+
+    ###########
+    # animation
+    ###########
+    animate_beam(t, q, [beam0, beam1], L, show=True)
+
+
 if __name__ == "__main__":
-    run()
+    # run()
+    run_contact()

@@ -1,8 +1,9 @@
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
+import numpy as np
 
 
-def animate_beam(t, q, beam, scale, scale_di=1, n_r=100, n_frames=10, show=True):
+def animate_beam(t, q, beams, scale, scale_di=1, n_r=100, n_frames=10, show=True):
     fig, ax = plt.subplots(figsize=(8, 8), subplot_kw=dict(projection="3d"))
     ax.set_xlabel("x [m]")
     ax.set_ylabel("y [m]")
@@ -23,50 +24,71 @@ def animate_beam(t, q, beam, scale, scale_di=1, n_r=100, n_frames=10, show=True)
     q = q[::frac]
 
     # animated objects
-    (nodes,) = ax.plot(*beam.nodes(q[0]), "--ob")
-    (center_line,) = ax.plot(*beam.centerline(q[0], n=n_r), "-k")
-    r, d1, d2, d3 = beam.frames(q[0], n=n_frames)
-    d1 *= scale_di
-    d2 *= scale_di
-    d3 *= scale_di
-    global d1s, d2s, d3s
-    d1s = [ax.quiver(*r[:, i].T, *d1[:, i].T, color="red") for i in range(n_frames)]
-    d2s = [ax.quiver(*r[:, i].T, *d2[:, i].T, color="green") for i in range(n_frames)]
-    d3s = [ax.quiver(*r[:, i].T, *d3[:, i].T, color="blue") for i in range(n_frames)]
-
-    def update(t, q):
+    nodes = []
+    center_lines = []
+    d1s = []
+    d2s = []
+    d3s = []
+    for beam in beams:
         # beam nodes
-        x, y, z = beam.nodes(q)
-        nodes.set_data(x, y)
-        nodes.set_3d_properties(z)
+        nodes.extend(ax.plot(*beam.nodes(q[0]), "--ob"))
 
         # beam centerline
-        x, y, z = beam.centerline(q, n=n_r)
-        center_line.set_data(x, y)
-        center_line.set_3d_properties(z)
+        center_lines.extend(ax.plot(*beam.centerline(q[0], n=n_r), "-k"))
 
-        # animate directors
-        global d1s, d2s, d3s
-        # # TODO: why is this not working?
-        # map(lambda d1: d1.remove(), d1s)
-        # map(lambda d2: d2.remove(), d2s)
-        # map(lambda d3: d3.remove(), d3s)
-        for i in range(n_frames):
-            d1s[i].remove()
-            d2s[i].remove()
-            d3s[i].remove()
-
-        r, d1, d2, d3 = beam.frames(q, n=n_frames)
+        # beam frames
+        r, d1, d2, d3 = beam.frames(q[0], n=n_frames)
         d1 *= scale_di
         d2 *= scale_di
         d3 *= scale_di
-        d1s = [ax.quiver(*r[:, i].T, *d1[:, i].T, color="red") for i in range(n_frames)]
-        d2s = [
-            ax.quiver(*r[:, i].T, *d2[:, i].T, color="green") for i in range(n_frames)
-        ]
-        d3s = [
-            ax.quiver(*r[:, i].T, *d3[:, i].T, color="blue") for i in range(n_frames)
-        ]
+        d1s.append(
+            [
+                ax.plot(*np.vstack((r[:, i], r[:, i] + d1[:, i])).T, "-r")[0]
+                for i in range(n_frames)
+            ]
+        )
+        d2s.append(
+            [
+                ax.plot(*np.vstack((r[:, i], r[:, i] + d2[:, i])).T, "-g")[0]
+                for i in range(n_frames)
+            ]
+        )
+        d3s.append(
+            [
+                ax.plot(*np.vstack((r[:, i], r[:, i] + d3[:, i])).T, "-b")[0]
+                for i in range(n_frames)
+            ]
+        )
+
+    def update(t, q):
+        for i, beam in enumerate(beams):
+            # beam nodes
+            x, y, z = beam.nodes(q)
+            nodes[i].set_data(x, y)
+            nodes[i].set_3d_properties(z)
+
+            # beam centerline
+            x, y, z = beam.centerline(q, n=n_r)
+            center_lines[i].set_data(x, y)
+            center_lines[i].set_3d_properties(z)
+
+            # beam frames
+            r, d1, d2, d3 = beam.frames(q, n=n_frames)
+            d1 *= scale_di
+            d2 *= scale_di
+            d3 *= scale_di
+            for j in range(n_frames):
+                x, y, z = np.vstack((r[:, j], r[:, j] + d1[:, j])).T
+                d1s[i][j].set_data(x, y)
+                d1s[i][j].set_3d_properties(z)
+
+                x, y, z = np.vstack((r[:, j], r[:, j] + d2[:, j])).T
+                d2s[i][j].set_data(x, y)
+                d2s[i][j].set_3d_properties(z)
+
+                x, y, z = np.vstack((r[:, j], r[:, j] + d3[:, j])).T
+                d3s[i][j].set_data(x, y)
+                d3s[i][j].set_3d_properties(z)
 
     def animate(i):
         update(t[i], q[i])
