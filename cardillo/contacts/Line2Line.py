@@ -9,19 +9,17 @@ class ContactPotential:
     def __init__(self, k):
         self.k = k
 
-    @staticmethod
-    def Macaulay(x):
-        """Macaulay brackets, see https://en.wikipedia.org/wiki/Macaulay_brackets."""
-        return min(0, x)
-
     def potential(self, g):
-        return 0.5 * self.k * ContactPotential.Macaulay(g) ** 2
+        return 0.5 * self.k * min(0, g) ** 2
 
     def potential_g(self, g):
-        return self.k * ContactPotential.Macaulay(g)
+        return self.k * min(0, g)
 
     def potential_gg(self, g):
-        return self.k
+        if g <= 0:
+            return self.k
+        else:
+            return 0.0
 
 
 class Line2Line:
