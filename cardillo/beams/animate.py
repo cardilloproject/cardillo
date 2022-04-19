@@ -98,4 +98,4 @@ def animate_beam(t, q, beams, scale, scale_di=1, n_r=100, n_frames=10, show=True
     )
     if show:
         plt.show()
-    return anim
+    return fig, ax, anim

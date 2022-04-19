@@ -26,6 +26,7 @@ from cardillo.solver import (
 
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
 
 
 def quadratic_beam_material(E, G, cross_section, Beam):
@@ -197,6 +198,8 @@ def run(statics=False):
 
     # used shape functions for discretization
     shape_functions = "B-spline"
+    # shape_functions = "Lagrange"
+    shape_functions = "Hermite"
 
     # used cross section
     radius = 1.0e-0
@@ -403,7 +406,130 @@ def run(statics=False):
     ###########
     # animation
     ###########
-    animate_beam(t, q, beam, L, show=True)
+    animate_beam(t, q, [beam], L, show=True)
+
+
+def animate_beam_with_contacts(
+    t, q, beams, line2line, scale, scale_di=1, n_r=100, n_frames=10, show=True
+):
+    fig, ax = plt.subplots(figsize=(8, 8), subplot_kw=dict(projection="3d"))
+    ax.set_xlabel("x [m]")
+    ax.set_ylabel("y [m]")
+    ax.set_zlabel("z [m]")
+
+    ax.set_xlim3d(left=-scale, right=scale)
+    ax.set_ylim3d(bottom=-scale, top=scale)
+    ax.set_zlim3d(bottom=-scale, top=scale)
+
+    # prepare data for animation
+    frames = len(q) - 1
+    target_frames = min(frames, 100)
+    frac = max(1, int(frames / target_frames))
+    animation_time = 1
+    interval = animation_time * 1000 / target_frames
+
+    t = t[::frac]
+    q = q[::frac]
+
+    # animated objects
+    nodes = []
+    center_lines = []
+    d1s = []
+    d2s = []
+    d3s = []
+    nodes_cpp = []
+
+    # initialize beams
+    for beam in beams:
+        # beam nodes
+        nodes.extend(ax.plot(*beam.nodes(q[0]), "--ob"))
+
+        # beam centerline
+        center_lines.extend(ax.plot(*beam.centerline(q[0], n=n_r), "-k"))
+
+        # beam frames
+        r, d1, d2, d3 = beam.frames(q[0], n=n_frames)
+        d1 *= scale_di
+        d2 *= scale_di
+        d3 *= scale_di
+        d1s.append(
+            [
+                ax.plot(*np.vstack((r[:, i], r[:, i] + d1[:, i])).T, "-r")[0]
+                for i in range(n_frames)
+            ]
+        )
+        d2s.append(
+            [
+                ax.plot(*np.vstack((r[:, i], r[:, i] + d2[:, i])).T, "-g")[0]
+                for i in range(n_frames)
+            ]
+        )
+        d3s.append(
+            [
+                ax.plot(*np.vstack((r[:, i], r[:, i] + d3[:, i])).T, "-b")[0]
+                for i in range(n_frames)
+            ]
+        )
+
+    # initialize closest points
+    for _ in range(line2line.n_contact_points):
+        nodes_cpp.append(ax.plot([], [], [], "--or")[0])
+
+    def update(t, q):
+        # update beams
+        for i, beam in enumerate(beams):
+            # beam nodes
+            x, y, z = beam.nodes(q)
+            nodes[i].set_data(x, y)
+            nodes[i].set_3d_properties(z)
+
+            # beam centerline
+            if i == 0:
+                x, y, z = beam.cover(q, line2line.R1)
+            else:
+                x, y, z = beam.cover(q, line2line.R2)
+            # x, y, z = beam.centerline(q, n=n_r)
+            center_lines[i].set_data(x, y)
+            center_lines[i].set_3d_properties(z)
+
+            # beam frames
+            r, d1, d2, d3 = beam.frames(q, n=n_frames)
+            d1 *= scale_di
+            d2 *= scale_di
+            d3 *= scale_di
+            for j in range(n_frames):
+                x, y, z = np.vstack((r[:, j], r[:, j] + d1[:, j])).T
+                d1s[i][j].set_data(x, y)
+                d1s[i][j].set_3d_properties(z)
+
+                x, y, z = np.vstack((r[:, j], r[:, j] + d2[:, j])).T
+                d2s[i][j].set_data(x, y)
+                d2s[i][j].set_3d_properties(z)
+
+                x, y, z = np.vstack((r[:, j], r[:, j] + d3[:, j])).T
+                d3s[i][j].set_data(x, y)
+                d3s[i][j].set_3d_properties(z)
+
+        # update closest point
+        points, active_contacts = line2line.contact_points(t, q)
+        for i, p in enumerate(points):
+            x, y, z = p
+            nodes_cpp[i].set_data(x, y)
+            nodes_cpp[i].set_3d_properties(z)
+            if active_contacts[i]:
+                nodes_cpp[i].set_color("red")
+            else:
+                nodes_cpp[i].set_color("blue")
+
+    def animate(i):
+        update(t[i], q[i])
+
+    anim = FuncAnimation(
+        fig, animate, frames=target_frames, interval=interval, blit=False
+    )
+    if show:
+        plt.show()
+    return fig, ax, anim
 
 
 def run_contact():
@@ -508,9 +634,11 @@ def run_contact():
     model.assemble()
 
     # dynamic solver
+    # t1 = 0.1
     t1 = 1.5
     tol = 1.0e-6
 
+    # dt = 1.0e-3
     # solver = ScipyIVP(model, t1, dt, rtol=tol, atol=tol)
 
     # dt = 1.0e-2
@@ -554,9 +682,12 @@ def run_contact():
     ###########
     # animation
     ###########
-    animate_beam(t, q, [beam0, beam1], L, show=True)
+    # fig, ax, anima = animate_beam(t, q, [beam0, beam1], L, show=True)
+    fig, ax, anima = animate_beam_with_contacts(
+        t, q, [beam0, beam1], line2line, L, show=True
+    )
 
 
 if __name__ == "__main__":
-    # run()
-    run_contact()
+    run()
+    # run_contact()

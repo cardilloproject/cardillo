@@ -732,80 +732,81 @@ class Line2Line:
         dense_num = approx_fprime(q, lambda q: self.f_pot(t, q))
         coo.extend(dense_num, (self.uDOF, self.qDOF))
 
-    # ###############
-    # # visualization
-    # ###############
-    # # TODO: new visualization for all quadrature points!
-    # def contact_points(self, t, q):
-    #     points = np.zeros((self.n_contact_points, 3, 2))
-    #     active_contacts = np.zeros(self.n_contact_points, dtype=bool)
+    ###############
+    # visualization
+    ###############
+    # TODO: new visualization for all quadrature points!
+    def contact_points(self, t, q):
+        points = np.zeros((self.n_contact_points, 3, 2))
+        active_contacts = np.zeros(self.n_contact_points, dtype=bool)
 
-    #     q_subsystems = q[self.qDOF]
+        q_subsystems = q[self.qDOF]
 
-    #     subsystem1 = self.subsystem1
-    #     for el in range(subsystem1.nEl):
-    #         for i in range(subsystem1.nQP):
-    #             # material point on subsystem 1 (slave)
-    #             xi = subsystem1.qp[el, i]
+        subsystem1 = self.subsystem1
+        for el in range(subsystem1.nelement):
+            for i in range(subsystem1.nquadrature):
+                # material point on subsystem 1 (slave)
+                xi = subsystem1.qp[el, i]
 
-    #             # # closest point on subsystem 2 (master)
-    #             # eta = self.closest_points(t, q_subsystems, xi)
+                # closest point on subsystem 2 (master)
+                eta = self.closest_points(t, q_subsystems, xi)
 
-    #             # # position vector of subsystem 1 (slave)
-    #             # r1 = self.r1(t, q, xi)
+                # position vector of subsystem 1 (slave)
+                r1 = self.r1(t, q, xi)
 
-    #             # # position vector of subsystem 2 (master)
-    #             # r2 = self.r2(t, q, eta)
+                # position vector of subsystem 2 (master)
+                r2 = self.r2(t, q, eta)
 
-    #             # # gap function, Meier2016c (37)
-    #             # g = norm(r1 - r2) - self.R1(xi, 0) - self.R2(eta, 0)
+                # gap function, Meier2016c (37)
+                # g = norm(r1 - r2) - self.R1(xi, 0) - self.R2(eta, 0)
+                g = norm(r1 - r2) - self.R1 - self.R2
 
-    #             ########################
-    #             # complex closest points
-    #             ########################
-    #             eta, alpha, beta = self.closest_points_minimize_d2_boundary(
-    #                 t, q_subsystems, xi
-    #             )
+                # ########################
+                # # complex closest points
+                # ########################
+                # eta, alpha, beta = self.closest_points_minimize_d2_boundary(
+                #     t, q_subsystems, xi
+                # )
 
-    #             # position and tangant vector of subsystem 1
-    #             # smallest rotation in order to get an orthogonal frame
-    #             r1 = self.r1(t, q, xi)
-    #             r1_xi = self.r1_xi(t, q, xi)
-    #             R1 = rodriguez_B(e1, r1_xi)
-    #             x1_b = r1 + self.R1(xi, alpha) * (
-    #                 cos(alpha) * R1 @ e2 + sin(alpha) * R1 @ e3
-    #             )
-    #             # x1_b = r1 + self.R1 * (cos(alpha) * R1 @ e2 + sin(alpha) * R1 @ e3)
+                # # position and tangant vector of subsystem 1
+                # # smallest rotation in order to get an orthogonal frame
+                # r1 = self.r1(t, q, xi)
+                # r1_xi = self.r1_xi(t, q, xi)
+                # R1 = rodriguez_B(e1, r1_xi)
+                # x1_b = r1 + self.R1(xi, alpha) * (
+                #     cos(alpha) * R1 @ e2 + sin(alpha) * R1 @ e3
+                # )
+                # # x1_b = r1 + self.R1 * (cos(alpha) * R1 @ e2 + sin(alpha) * R1 @ e3)
 
-    #             # position and tangant vector of subsystem 2
-    #             # smallest rotation in order to get an orthogonal frame
-    #             r2 = self.r2(t, q, eta)
-    #             r2_eta = self.r2_eta(t, q, eta)
-    #             R2 = rodriguez_B(e1, r2_eta)
-    #             # x2_b = r2 + self.R2 * (cos(beta) * R2 @ e2 + sin(beta) * R2 @ e3)
-    #             x2_b = r2 + self.R2(eta, beta) * (
-    #                 cos(beta) * R2 @ e2 + sin(beta) * R2 @ e3
-    #             )
+                # # position and tangant vector of subsystem 2
+                # # smallest rotation in order to get an orthogonal frame
+                # r2 = self.r2(t, q, eta)
+                # r2_eta = self.r2_eta(t, q, eta)
+                # R2 = rodriguez_B(e1, r2_eta)
+                # # x2_b = r2 + self.R2 * (cos(beta) * R2 @ e2 + sin(beta) * R2 @ e3)
+                # x2_b = r2 + self.R2(eta, beta) * (
+                #     cos(beta) * R2 @ e2 + sin(beta) * R2 @ e3
+                # )
 
-    #             # gap function
-    #             g = norm(x1_b - x2_b) - (self.R1(xi, alpha) + self.R2(eta, beta)) * 0.1
+                # # gap function
+                # g = norm(x1_b - x2_b) - (self.R1(xi, alpha) + self.R2(eta, beta)) * 0.1
 
-    #             ########################
-    #             ########################
+                ########################
+                ########################
 
-    #             # linear index
-    #             idx = el * subsystem1.nQP + i
+                # linear index
+                idx = el * subsystem1.nquadrature + i
 
-    #             # store active or inactive contact
-    #             active_contacts[idx] = g <= 0
+                # store active or inactive contact
+                active_contacts[idx] = g <= 0
 
-    #             # # # store all points
-    #             # points[idx, 0] = np.array([r1[0], r2[0]])
-    #             # points[idx, 1] = np.array([r1[1], r2[1]])
-    #             # points[idx, 2] = np.array([r1[2], r2[2]])
+                # store all points
+                points[idx, 0] = np.array([r1[0], r2[0]])
+                points[idx, 1] = np.array([r1[1], r2[1]])
+                points[idx, 2] = np.array([r1[2], r2[2]])
 
-    #             points[idx, 0] = np.array([x1_b[0], x2_b[0]])
-    #             points[idx, 1] = np.array([x1_b[1], x2_b[1]])
-    #             points[idx, 2] = np.array([x1_b[2], x2_b[2]])
+                # points[idx, 0] = np.array([x1_b[0], x2_b[0]])
+                # points[idx, 1] = np.array([x1_b[1], x2_b[1]])
+                # points[idx, 2] = np.array([x1_b[2], x2_b[2]])
 
-    #     return points, active_contacts
+        return points, active_contacts

@@ -1,10 +1,12 @@
 import numpy as np
 import meshio
 import os
+from math import sin, cos
 
 from cardillo.utility.coo import Coo
 from cardillo.discretization.B_spline import KnotVector
 from cardillo.discretization.lagrange import Node_vector
+from cardillo.discretization.Hermite import HermiteNodeVector
 from cardillo.discretization.mesh1D import Mesh1D
 from cardillo.math import norm, cross3, skew2ax, skew2ax_A, ax2skew, approx_fprime
 from cardillo.math import (
@@ -14,6 +16,9 @@ from cardillo.math import (
     tangent_map,
     inverse_tangent_map,
     tangent_map_s,
+    e1,
+    e2,
+    e3,
 )
 
 
@@ -57,7 +62,7 @@ class DirectorAxisAngle:
             self.nnode_psi = nnode_psi = (
                 nelement + polynomial_degree_psi
             )  # number of nodes
-        elif basis == "lagrange":
+        elif basis == "Lagrange":
             self.knot_vector_r = Node_vector(polynomial_degree_r, nelement)
             self.knot_vector_psi = Node_vector(polynomial_degree_psi, nelement)
             self.nnode_r = nnode_r = (
@@ -66,16 +71,34 @@ class DirectorAxisAngle:
             self.nnode_psi = nnode_psi = (
                 nelement * polynomial_degree_psi + 1
             )  # number of nodes
+        elif basis == "Hermite":
+            # Note: This implements a cubic Hermite spline for the centerline
+            #       together with a linear Lagrange axis angle vector field
+            #       for the superimposed rotation w.r.t. the smallest rotation.
+            polynomial_degree_r = 3
+            polynomial_degree_psi = 1
+            self.knot_vector_r = HermiteNodeVector(polynomial_degree_r, nelement)
+            self.knot_vector_psi = Node_vector(polynomial_degree_psi, nelement)
+            self.nnode_r = nnode_r = nelement + 1  # number of nodes
+            self.nnode_psi = nnode_psi = nelement + 1  # number of nodes
         else:
             raise RuntimeError(f'wrong basis: "{basis}" was chosen')
 
         # number of nodes per element
-        self.nnodes_element_r = nnodes_element_r = polynomial_degree_r + 1
-        self.nnodes_element_psi = nnodes_element_psi = polynomial_degree_psi + 1
+        if (basis == "B-spline") or (basis == "Lagrange"):
+            self.nnodes_element_r = nnodes_element_r = polynomial_degree_r + 1
+            self.nnodes_element_psi = nnodes_element_psi = polynomial_degree_psi + 1
+        elif basis == "Hermite":
+            self.nnodes_element_r = nnodes_element_r = 2
+            self.nnodes_element_psi = nnodes_element_psi = polynomial_degree_psi + 1
 
         # number of degrees of freedom per node
-        self.nq_node_r = nq_node_r = 3
-        self.nq_node_psi = nq_node_psi = 3
+        if (basis == "B-spline") or (basis == "Lagrange"):
+            self.nq_node_r = nq_node_r = 3
+            self.nq_node_psi = nq_node_psi = 3
+        elif basis == "Hermite":
+            self.nq_node_r = nq_node_r = 6
+            self.nq_node_psi = nq_node_psi = 3
 
         self.mesh_r = Mesh1D(
             self.knot_vector_r,
@@ -111,8 +134,8 @@ class DirectorAxisAngle:
         self.nodalDOF_psi = self.mesh_psi.nodalDOF + nq_r
 
         # nodal connectivity on element level
-        self.nodalDOF_element_r = self.mesh_r.nodalDOF_element_
-        self.nodalDOF_element_psi = self.mesh_psi.nodalDOF_element_ + self.nq_el_r
+        self.nodalDOF_element_r = self.mesh_r.nodalDOF_element
+        self.nodalDOF_element_psi = self.mesh_psi.nodalDOF_element + self.nq_el_r
 
         # build global elDOF connectivity matrix
         self.elDOF = np.zeros((nelement, self.nq_element), dtype=int)
@@ -225,7 +248,7 @@ class DirectorAxisAngle:
     def straight_configuration(
         polynomial_degree_r,
         polynomial_degree_psi,
-        nEl,
+        nelement,
         L,
         greville_abscissae=True,
         r_OP=np.zeros(3),
@@ -233,26 +256,42 @@ class DirectorAxisAngle:
         basis="B-spline",
     ):
         if basis == "B-spline":
-            nn_r = polynomial_degree_r + nEl
-            nn_psi = polynomial_degree_psi + nEl
+            nn_r = polynomial_degree_r + nelement
+            nn_psi = polynomial_degree_psi + nelement
         elif basis == "Lagrange":
-            nn_r = polynomial_degree_r * nEl + 1
-            nn_psi = polynomial_degree_psi * nEl + 1
+            nn_r = polynomial_degree_r * nelement + 1
+            nn_psi = polynomial_degree_psi * nelement + 1
+        elif basis == "Hermite":
+            polynomial_degree_r = 3
+            polynomial_degree_psi = 1
+            nn_r = nelement + 1
+            nn_psi = nelement + 1
         else:
             raise RuntimeError(f'wrong basis: "{basis}" was chosen')
 
-        x0 = np.linspace(0, L, num=nn_r)
-        y0 = np.zeros(nn_r)
-        z0 = np.zeros(nn_r)
-        if greville_abscissae and basis == "B-spline":
-            kv = KnotVector.uniform(polynomial_degree_r, nEl)
-            for i in range(nn_r):
-                x0[i] = np.sum(kv[i + 1 : i + polynomial_degree_r + 1])
-            x0 = x0 * L / polynomial_degree_r
+        if (basis == "B-spline") or (basis == "Lagrange"):
+            x0 = np.linspace(0, L, num=nn_r)
+            y0 = np.zeros(nn_r)
+            z0 = np.zeros(nn_r)
+            if greville_abscissae and basis == "B-spline":
+                kv = KnotVector.uniform(polynomial_degree_r, nelement)
+                for i in range(nn_r):
+                    x0[i] = np.sum(kv[i + 1 : i + polynomial_degree_r + 1])
+                x0 = x0 * L / polynomial_degree_r
 
-        r0 = np.vstack((x0, y0, z0))
-        for i in range(nn_r):
-            r0[:, i] = r_OP + A_IK @ r0[:, i]
+            r0 = np.vstack((x0, y0, z0))
+            for i in range(nn_r):
+                r0[:, i] = r_OP + A_IK @ r0[:, i]
+
+        elif basis == "Hermite":
+            xis = np.linspace(0, 1, num=nn_r)
+
+            r0 = np.zeros((6, nn_r))
+            t0 = A_IK @ (L * e1)
+            for i, xi in enumerate(xis):
+                ri = r_OP + xi * t0
+                r0[:3, i] = ri
+                r0[3:, i] = t0
 
         # reshape generalized coordinates to nodal ordering
         q_r = r0.reshape(-1, order="F")
@@ -427,7 +466,8 @@ class DirectorAxisAngle:
             d3_s = d3_xi / Ji
 
             # axial and shear strains
-            K_Gamma = np.array([r_s @ d1, r_s @ d2, r_s @ d3])
+            K_Gamma = A_IK.T @ r_s
+            # K_Gamma = np.array([r_s @ d1, r_s @ d2, r_s @ d3])
 
             # torsional and flexural strains (formulation in skew coordinates,
             # see Eugster2014c)
@@ -1175,6 +1215,40 @@ class DirectorAxisAngle:
             d3.extend([d3i])
 
         return np.array(r).T, np.array(d1).T, np.array(d2).T, np.array(d3).T
+
+    def cover(self, q, radius, n_xi=20, n_alpha=100):
+        q_body = q[self.qDOF]
+        points = []
+        for xi in np.linspace(0, 1, num=n_xi):
+            frame_ID = (xi,)
+            elDOF = self.elDOF_P(frame_ID)
+            qe = q_body[elDOF]
+
+            # point on the centerline and tangent vector
+            r = self.r_OC(0, qe, (xi,))
+
+            # evaluate directors
+            A_IK = self.A_IK(0, qe, frame_ID=(xi,))
+            _, d2, d3 = A_IK.T
+
+            # start with point on centerline
+            points.append(r)
+
+            # compute points on circular cross section
+            x0 = None  # initial point is required twice
+            for alpha in np.linspace(0, 2 * np.pi, num=n_alpha):
+                x = r + radius * cos(alpha) * d2 + radius * sin(alpha) * d3
+                points.append(x)
+                if x0 is None:
+                    x0 = x
+
+            # end with first point on cross section
+            points.append(x0)
+
+            # end with point on centerline
+            points.append(r)
+
+        return np.array(points).T
 
     def plot_centerline(self, ax, q, n=100, color="black"):
         ax.plot(*self.nodes(q), linestyle="dashed", marker="o", color=color)

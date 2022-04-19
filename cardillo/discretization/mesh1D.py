@@ -47,28 +47,28 @@ class Mesh1D:
         self.nquadrature = nquadrature
 
         if basis == "Lagrange" or basis == "B-spline":
-            self.nnodes_per_element_ = (
+            self.nnodes_per_element = (
                 self.degree + 1
             )  # number of nodes influencing each element
             self.dim = dim  # number of degrees of freedom per node
             self.nbasis_element = (
-                self.nnodes_per_element_
+                self.nnodes_per_element
             )  # number of basis function per element
         elif basis == "Hermite":
-            self.nnodes_per_element_ = 2  # number of nodes influencing each element
+            self.nnodes_per_element = 2  # number of nodes influencing each element
             self.dim = dim  # number of degrees of freedom per node
             # this assumes to be the sum of values and derivatives
             self.nbasis_element = 4  # number of basis function per element
         else:
             raise NotImplementedError("")
-        self.nq_per_element_ = (
-            self.nnodes_per_element_ * dim
+        self.nq_per_element = (
+            self.nnodes_per_element * dim
         )  # total number of generalized coordinates per element
 
         # Boolean connectivity matrix for element polynomial_degrees of
         # freedom. This is used to extract the element degrees of freedom via
         # q[elDOF[el]] = q_e = C^e * q.
-        self.elDOF = np.zeros((self.nelement, self.nq_per_element_), dtype=int)
+        self.elDOF = np.zeros((self.nelement, self.nq_per_element), dtype=int)
 
         if basis == "Lagrange":
             raise NotImplementedError("Adapt according to new ordering of q!")
@@ -85,7 +85,8 @@ class Mesh1D:
 
             self.vtk_cell_type = "VTK_LAGRANGE_CURVE"
         elif basis == "Hermite":
-            raise NotImplementedError("Adapt according to new ordering of q!")
+            # raise NotImplementedError("Adapt according to new ordering of q!")
+
             # total number of nodes
             self.nnodes = self.nelement + 1
 
@@ -100,7 +101,7 @@ class Mesh1D:
             # total number of nodes
             self.nnodes = self.degree + self.nelement
 
-            elDOF_el = np.arange(self.nq_per_element_)
+            elDOF_el = np.arange(self.nq_per_element)
             for el in range(self.nelement):
                 self.elDOF[el] = elDOF_el + el * dim
 
@@ -116,8 +117,8 @@ class Mesh1D:
         # Boolean connectivity matrix for nodal polynomial_degrees of freedom
         # inside each element. This is only required if multiple fields are
         # discretized. It is used as qe[nodalDOF_element_[a]] = q_e^a = C^a * q_e
-        self.nodalDOF_element_ = np.arange(self.nq_per_element_).reshape(
-            self.nnodes_per_element_, dim
+        self.nodalDOF_element = np.arange(self.nq_per_element).reshape(
+            self.nnodes_per_element, dim
         )
 
         # transform quadrature points on element intervals
@@ -228,9 +229,9 @@ class Mesh1D:
                     N_xi = self.N_xi[el, i]
 
                     kappa0_xi = np.zeros((self.dim, self.dim))
-                    for a in range(self.nnodes_per_element_):
+                    for a in range(self.nnodes_per_element):
                         kappa0_xi += (
-                            Qe[self.nodalDOF_element_[a]] * N_xi[a]
+                            Qe[self.nodalDOF_element[a]] * N_xi[a]
                         )  # Bonet 1997 (7.6b)
 
                     w_J0[el, i] = np.linalg.norm(kappa0_xi)
@@ -242,11 +243,11 @@ class Mesh1D:
         if not hasattr(self, "A"):
             A = Coo((self.nnodes, self.nnodes))
             for el in range(self.nelement):
-                elDOF_el = self.elDOF[el, : self.nnodes_per_element_]
-                Ae = np.zeros((self.nnodes_per_element_, self.nnodes_per_element_))
+                elDOF_el = self.elDOF[el, : self.nnodes_per_element]
+                Ae = np.zeros((self.nnodes_per_element, self.nnodes_per_element))
                 Nel = self.N[el]
-                for a in range(self.nnodes_per_element_):
-                    for b in range(self.nnodes_per_element_):
+                for a in range(self.nnodes_per_element):
+                    for b in range(self.nnodes_per_element):
                         for i in range(self.nquadrature):
                             Ae[a, b] += Nel[i, a] * Nel[i, b]
                 A.extend(Ae, (elDOF_el, elDOF_el))
@@ -258,10 +259,10 @@ class Mesh1D:
 
         b = np.zeros((self.nnodes, dim))
         for el in range(self.nelement):
-            elDOF_el = self.elDOF[el, : self.nnodes_per_element_]
-            be = np.zeros((self.nnodes_per_element_, dim))
+            elDOF_el = self.elDOF[el, : self.nnodes_per_element]
+            be = np.zeros((self.nnodes_per_element, dim))
             Nel = self.N[el]
-            for a in range(self.nnodes_per_element_):
+            for a in range(self.nnodes_per_element):
                 for i in range(nqp):
                     be[a] += Nel[i, a] * field[el, i].reshape(-1)
             b[elDOF_el] += be
@@ -289,8 +290,8 @@ class Mesh1D:
             # rearrange q's from solver to Piegl's 3D ordering
             Qw = np.zeros((self.nelement, self.degree + 1, dim))
             for el in range(self.nelement):
-                for a in range(self.nnodes_per_element_):
-                    Qw[el, a] = q[self.elDOF[el][self.nodalDOF_element_[a][0]]]
+                for a in range(self.nnodes_per_element):
+                    Qw[el, a] = q[self.elDOF[el][self.nodalDOF_element[a][0]]]
 
         nbezier_xi, p1, dim = Qw.shape
 
@@ -316,8 +317,8 @@ class Mesh1D:
             # rearrange q's from solver to Piegl's 1D ordering
             Qw = np.zeros((self.nelement, self.degree + 1, self.dim))
             for el in range(self.nelement):
-                for a in range(self.nnodes_per_element_):
-                    Qw[el, a] = q[self.elDOF[el][self.nodalDOF_element_[a]]]
+                for a in range(self.nnodes_per_element):
+                    Qw[el, a] = q[self.elDOF[el][self.nodalDOF_element[a]]]
 
         nbezier_xi, p1, dim = Qw.shape
 
