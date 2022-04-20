@@ -56,9 +56,7 @@ class Mesh1D:
             )  # number of basis function per element
         elif basis == "Hermite":
             self.nnodes_per_element = 4
-            # self.nnodes_per_element = 2  # number of nodes influencing each element
             self.dim = dim  # number of degrees of freedom per node
-            # this assumes to be the sum of values and derivatives
             self.nbasis_element = 4  # number of basis function per element
         else:
             raise NotImplementedError("")

@@ -1,6 +1,5 @@
 import numpy as np
 from numpy.polynomial import Polynomial
-from scipy.interpolate import BPoly
 
 
 class HermiteNodeVector:
@@ -108,21 +107,16 @@ def cubic_Hermite_basis_1D(xis, node_vector, derivative=1, squeeze=True):
 
 
 def basic_usage():
-    # define generalized coordinates of cubic hermite spline
-    from cardillo.math import e1, e2, e3, norm, cross3
+    from cardillo.math import e1, e2
 
     # ######################
     # # pathologic line case
     # ######################
+    # L = 2 * np.pi
     # r0 = np.array([0, 0.5, 0.5])
-    # t0 = e1
-    # n0 = e2
-    # b0 = cross3(t0, n0) / norm(cross3(t0, n0))
-    # r1 = np.array([1, 0.5, 0.5])
-    # t1 = e1
-    # n1 = e2
-    # # n1 = e3
-    # b1 = cross3(t1, n1) / norm(cross3(t1, n1))
+    # t0 = L * e1
+    # r1 = np.array([L, 0.5, 0.5])
+    # t1 = L * e1
 
     ################
     # curved 3D case
@@ -141,61 +135,6 @@ def basic_usage():
     # build Hermite basis
     #####################
     hermite = CubicHermiteBasis()
-    r_poly = lambda xi: hermite(xi) @ q
-    r_xi_poly = lambda xi: hermite.deriv(xi, n=1) @ q
-    r_xixi_poly = lambda xi: hermite.deriv(xi, n=2) @ q
-
-    ###############
-    # visualization
-    ###############
-    import matplotlib.pyplot as plt
-
-    num = 10
-    xis = np.linspace(0, 1, num=num)
-    r = r_poly(xis)
-    r_xi = r_xi_poly(xis)
-    r_xixi = r_xixi_poly(xis)
-
-    fig, ax = plt.subplots(subplot_kw=dict(projection="3d"))
-    ax.plot(r[:, 0], r[:, 1], r[:, 2], "-k")
-    for i in range(len(r)):
-        ax.quiver3D(*r[i], *r_xi[i], color="r", length=0.1)
-        ax.quiver3D(*r[i], *r_xixi[i], color="g", length=0.1)
-    ax.quiver3D(*r0, *t0, color="b")
-    ax.quiver3D(*r1, *t1, color="b")
-    ax.grid()
-    plt.show()
-
-
-def basic_usage2():
-    from cardillo.math import e1
-
-    ######################
-    # pathologic line case
-    ######################
-    L = 2 * np.pi
-    r0 = np.array([0, 0.5, 0.5])
-    t0 = L * e1
-    r1 = np.array([L, 0.5, 0.5])
-    t1 = L * e1
-
-    # ################
-    # # curved 3D case
-    # ################
-    # r0 = np.zeros(3)
-    # t0 = e1 * 1.5
-    # r1 = np.array([1, 1, 1]) / np.sqrt(3)
-    # t1 = e2 * 0.5
-
-    ###############################
-    # build generalized coordinates
-    ###############################
-    q = np.concatenate([r0, t0, r1, t1])
-
-    #####################
-    # build Hermite basis
-    #####################
-    hermite = CubicHermiteBasis(dim=1)
 
     def r_poly(xi):
         q_nodes = q.reshape(4, -1, order="C")
@@ -307,7 +246,6 @@ def poly_test():
 
 
 if __name__ == "__main__":
-    # basic_usage()
-    # basic_usage2()
-    knotvector_usage()
+    basic_usage()
+    # knotvector_usage()
     # poly_test()
