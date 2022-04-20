@@ -182,8 +182,8 @@ def run(statics=True):
 
     # number of elements
     # nelements = 1
-    nelements = 3
-    # nelements = 10
+    # nelements = 3
+    nelements = 10
     # nelements = 20
     # nelements = 30
 
@@ -202,8 +202,15 @@ def run(statics=True):
     shape_functions = "Hermite"
 
     # used cross section
-    radius = 1.0e-0
+    # slenderness = 1
+    # slenderness = 1.0e1
+    # slenderness = 1.0e2
+    # slenderness = 1.0e3
+    slenderness = 1.0e4
+    radius = 1
+    # radius = 1.0e-0
     # radius = 1.0e-1
+    # radius = 5.0e-2
     # radius = 1.0e-3 # this yields no deformation due to locking!
     line_density = 1
     cross_section = CircularCrossSection(line_density, radius)
@@ -219,7 +226,8 @@ def run(statics=True):
     # starting point and orientation of initial point, initial length
     r_OP = np.zeros(3)
     A_IK = np.eye(3)
-    L = 2 * pi
+    # L = 2 * pi
+    L = radius * slenderness
 
     # build beam model
     beam = beam_factory(
@@ -276,17 +284,17 @@ def run(statics=True):
     r_OB0 = np.zeros(3)
     # r_OB0 = np.array([-1, 0.25, 3.14])
     if statics:
-        phi = lambda t: n_circles * 2 * pi * smoothstep2(t, frac_deformation, 1.0) * 0.5
-        # phi2 = lambda t: pi / 4 * sin(2 * pi * smoothstep2(t, frac_deformation, 1.0))
-        # A_IK0 = lambda t: A_IK_basic(phi(t)).x()
-        # TODO: Get this strange rotation working with a full circle
-        # A_IK0 = lambda t: A_IK_basic(phi(t)).z()
-        A_IK0 = (
-            lambda t: A_IK_basic(0.5 * phi(t)).z()
-            @ A_IK_basic(0.5 * phi(t)).y()
-            @ A_IK_basic(phi(t)).x()
-        )
-        # A_IK0 = lambda t: np.eye(3)
+        # phi = lambda t: n_circles * 2 * pi * smoothstep2(t, frac_deformation, 1.0) * 0.5
+        # # phi2 = lambda t: pi / 4 * sin(2 * pi * smoothstep2(t, frac_deformation, 1.0))
+        # # A_IK0 = lambda t: A_IK_basic(phi(t)).x()
+        # # TODO: Get this strange rotation working with a full circle
+        # # A_IK0 = lambda t: A_IK_basic(phi(t)).z()
+        # A_IK0 = (
+        #     lambda t: A_IK_basic(0.5 * phi(t)).z()
+        #     @ A_IK_basic(0.5 * phi(t)).y()
+        #     @ A_IK_basic(phi(t)).x()
+        # )
+        A_IK0 = lambda t: np.eye(3)
     else:
         # phi = lambda t: smoothstep2(t, 0, 0.1) * sin(0.3 * pi * t) * pi / 4
         phi = lambda t: smoothstep2(t, 0, 0.1) * sin(0.6 * pi * t) * pi / 4
@@ -351,7 +359,8 @@ def run(statics=True):
             n_load_steps=50,
             # n_load_steps=200,
             max_iter=30,
-            atol=1.0e-8,
+            # atol=1.0e-8,
+            atol=1.0e-4,
             numerical_jacobian=False,
         )
     else:
@@ -374,8 +383,9 @@ def run(statics=True):
         solver = Moreau(model, t1, dt)
 
     sol = solver.solve()
-    t = sol.t
     q = sol.q
+    n = len(q)
+    t = sol.t[:n]
 
     ############################
     # Visualize potential energy

@@ -100,6 +100,7 @@ class Mesh1D:
                 self.elDOF[el] = elDOF_node + el * 2 * self.dim
 
             # TODO: Does VTK implement Hermite curves?
+            # TODO: We should convert the Hermite spline into Bezier cells.
             self.vtk_cell_type = "VTK_LAGRANGE_CURVE"
         elif basis == "B-spline":
             # total number of nodes
