@@ -7,7 +7,7 @@ from cardillo.discretization.B_spline import (
 )
 from cardillo.discretization.lagrange import lagrange_basis1D
 from cardillo.discretization.Hermite import cubic_Hermite_basis_1D
-from cardillo.discretization.gauss import gauss
+from cardillo.discretization.gauss import gauss, lobatto
 from cardillo.utility.coo import Coo
 
 
@@ -37,6 +37,7 @@ class Mesh1D:
         dim,
         derivative_order=1,
         basis="B-spline",
+        quadrature="Gauss",
     ):
         self.basis = basis
         self.nelement = knot_vector.nel
@@ -45,6 +46,14 @@ class Mesh1D:
         self.degree = self.knot_vector.degree
         self.derivative_order = derivative_order
         self.nquadrature = nquadrature
+        if quadrature == "Gauss":
+            self.quadrature = gauss
+        elif quadrature == "Lobatto":
+            self.quadrature = lobatto
+        else:
+            raise NotImplementedError(
+                "Quadrature method '{quadrature}' is not implemented!"
+            )
 
         if basis == "Lagrange" or basis == "B-spline":
             self.nnodes_per_element = (
@@ -169,7 +178,7 @@ class Mesh1D:
 
         for el in range(self.nelement):
             Xi_element_interval = self.knot_vector.element_interval(el)
-            self.qp[el], self.wp[el] = gauss(
+            self.qp[el], self.wp[el] = self.quadrature(
                 self.nquadrature, interval=Xi_element_interval
             )
 

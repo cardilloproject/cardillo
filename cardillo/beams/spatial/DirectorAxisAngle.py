@@ -20,8 +20,8 @@ from cardillo.math import (
     smallest_rotation,
 )
 
-relative_orientation = True
-# relative_orientation = False
+# relative_orientation = True
+relative_orientation = False
 
 
 class DirectorAxisAngle:
@@ -286,7 +286,10 @@ class DirectorAxisAngle:
             polynomial_degree_r = 3
             polynomial_degree_psi = 1
             nn_r = nelement + 1
-            nn_psi = nelement + 1
+            # TODO:
+            # nn_psi = nelement + 1 # linear
+            # nn_psi = polynomial_degree_psi * nelement + 1 # Lagrange
+            nn_psi = polynomial_degree_psi + nelement  # B-spline
         else:
             raise RuntimeError(f'wrong basis: "{basis}" was chosen')
 
@@ -481,19 +484,6 @@ class DirectorAxisAngle:
                 psi1 = qe[self.nodalDOF_element_psi[1]]
                 A_BK0 = rodriguez(psi0)
                 A_BK1 = rodriguez(psi1)
-
-                # # linear interpolate A_IB and A_BK
-                # A_IB = self.N_psi[el, i, 0] * A_IB0 + self.N_psi[el, i, 1] * A_IB1
-                # A_BK = self.N_psi[el, i, 0] * A_BK0 + self.N_psi[el, i, 1] * A_BK1
-                # A_IB_xi = (
-                #     self.N_psi_xi[el, i, 0] * A_IB0 + self.N_psi_xi[el, i, 1] * A_IB1
-                # )
-                # A_BK_xi = (
-                #     self.N_psi_xi[el, i, 0] * A_BK0 + self.N_psi_xi[el, i, 1] * A_BK1
-                # )
-
-                # A_IK = A_IB @ A_BK
-                # A_IK_xi = A_IB @ A_BK_xi + A_IB_xi @ A_IB
 
                 # linear interpolate combined rotation and its derivative
                 A_IK0 = A_IB0 @ A_BK0
@@ -1050,15 +1040,8 @@ class DirectorAxisAngle:
             A_BK0 = rodriguez(psi0)
             A_BK1 = rodriguez(psi1)
 
-            # # linear interpolate A_IB and A_BK
-            # A_IB = N[0] * A_IB0 + N[1] * A_IB1
-            # A_BK = N[0] * A_BK0 + N[1] * A_BK1
-            # A_IK = A_IB @ A_BK
-
-            # linear interpolate combined rotation and its derivative
-            A_IK0 = A_IB0 @ A_BK0
-            A_IK1 = A_IB1 @ A_BK1
-            A_IK = N[0] * A_IK0 + N[1] * A_IK1
+            # linear interpolate combined rotation
+            A_IK = N[0] * (A_IB0 @ A_BK0) + N[1] * (A_IB1 @ A_BK1)
         else:
             # interpolate nodal rotation matrices
             A_IK = np.zeros((3, 3))
