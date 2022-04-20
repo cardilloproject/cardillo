@@ -17,8 +17,6 @@ from cardillo.math import (
     inverse_tangent_map,
     tangent_map_s,
     e1,
-    e2,
-    e3,
 )
 
 
@@ -58,19 +56,9 @@ class DirectorAxisAngle:
         if basis == "B-spline":
             self.knot_vector_r = KnotVector(polynomial_degree_r, nelement)
             self.knot_vector_psi = KnotVector(polynomial_degree_psi, nelement)
-            self.nnode_r = nnode_r = nelement + polynomial_degree_r  # number of nodes
-            self.nnode_psi = nnode_psi = (
-                nelement + polynomial_degree_psi
-            )  # number of nodes
         elif basis == "Lagrange":
             self.knot_vector_r = Node_vector(polynomial_degree_r, nelement)
             self.knot_vector_psi = Node_vector(polynomial_degree_psi, nelement)
-            self.nnode_r = nnode_r = (
-                nelement * polynomial_degree_r + 1
-            )  # number of nodes
-            self.nnode_psi = nnode_psi = (
-                nelement * polynomial_degree_psi + 1
-            )  # number of nodes
         elif basis == "Hermite":
             # Note: This implements a cubic Hermite spline for the centerline
             #       together with a linear Lagrange axis angle vector field
@@ -78,27 +66,15 @@ class DirectorAxisAngle:
             polynomial_degree_r = 3
             polynomial_degree_psi = 1
             self.knot_vector_r = HermiteNodeVector(polynomial_degree_r, nelement)
-            self.knot_vector_psi = Node_vector(polynomial_degree_psi, nelement)
-            self.nnode_r = nnode_r = nelement + 1  # number of nodes
-            self.nnode_psi = nnode_psi = nelement + 1  # number of nodes
+            # TODO: Enbale Lagrange shape functions again if ready.
+            # self.knot_vector_psi = Node_vector(polynomial_degree_psi, nelement)
+            self.knot_vector_psi = KnotVector(polynomial_degree_psi, nelement)
         else:
             raise RuntimeError(f'wrong basis: "{basis}" was chosen')
 
-        # number of nodes per element
-        if (basis == "B-spline") or (basis == "Lagrange"):
-            self.nnodes_element_r = nnodes_element_r = polynomial_degree_r + 1
-            self.nnodes_element_psi = nnodes_element_psi = polynomial_degree_psi + 1
-        elif basis == "Hermite":
-            self.nnodes_element_r = nnodes_element_r = 2
-            self.nnodes_element_psi = nnodes_element_psi = polynomial_degree_psi + 1
-
         # number of degrees of freedom per node
-        if (basis == "B-spline") or (basis == "Lagrange"):
-            self.nq_node_r = nq_node_r = 3
-            self.nq_node_psi = nq_node_psi = 3
-        elif basis == "Hermite":
-            self.nq_node_r = nq_node_r = 6
-            self.nq_node_psi = nq_node_psi = 3
+        self.nq_node_r = nq_node_r = 3
+        self.nq_node_psi = nq_node_psi = 3
 
         self.mesh_r = Mesh1D(
             self.knot_vector_r,
@@ -107,6 +83,11 @@ class DirectorAxisAngle:
             basis=basis,
             dim=nq_node_r,
         )
+        # TODO: This is ugly!
+        if basis == "Hermite":
+            # TODO: Enable Lagrange again if ready.
+            # basis = "Lagrange"
+            basis = "B-spline"
         self.mesh_psi = Mesh1D(
             self.knot_vector_psi,
             nquadrature,
@@ -115,40 +96,49 @@ class DirectorAxisAngle:
             dim=nq_node_psi,
         )
 
-        self.nq_r = nq_r = nnode_r * nq_node_r
-        self.nq_psi = nq_psi = nnode_psi * nq_node_psi
-        self.nq = nq_r + nq_psi  # total number of generalized coordinates
-        self.nu = self.nq
-        self.nq_element = (
-            nnodes_element_r * nq_node_r + nnodes_element_psi * nq_node_psi
-        )  # total number of generalized coordinates per element
-        self.nq_el_r = nnodes_element_r * nq_node_r
-        self.nq_el_psi = nnodes_element_psi * nq_node_psi
+        # toal number of nodes
+        self.nnode_r = self.mesh_r.nnodes
+        self.nnode_psi = self.mesh_psi.nnodes
+
+        # number of nodes per element
+        self.nnodes_element_r = self.mesh_r.nnodes_per_element
+        self.nnodes_element_psi = self.mesh_psi.nnodes_per_element
+
+        # total number of generalized coordinates
+        self.nq_r = self.mesh_r.nq
+        self.nq_psi = self.mesh_psi.nq
+        self.nq = self.nq_r + self.nq_psi  # total number of generalized coordinates
+        self.nu = self.nq  # total number of generalized velocities
+
+        # number of generalized coordiantes per element
+        self.nq_element_r = self.mesh_r.nq_per_element
+        self.nq_element_psi = self.mesh_psi.nq_per_element
+        self.nq_element = self.nu_element = self.nq_element_r + self.nq_element_psi
 
         # global element connectivity
         self.elDOF_r = self.mesh_r.elDOF
-        self.elDOF_psi = self.mesh_psi.elDOF + nq_r
+        self.elDOF_psi = self.mesh_psi.elDOF + self.nq_r
 
         # global nodal
         self.nodalDOF_r = self.mesh_r.nodalDOF
-        self.nodalDOF_psi = self.mesh_psi.nodalDOF + nq_r
+        self.nodalDOF_psi = self.mesh_psi.nodalDOF + self.nq_r
 
         # nodal connectivity on element level
         self.nodalDOF_element_r = self.mesh_r.nodalDOF_element
-        self.nodalDOF_element_psi = self.mesh_psi.nodalDOF_element + self.nq_el_r
+        self.nodalDOF_element_psi = self.mesh_psi.nodalDOF_element + self.nq_element_r
 
         # build global elDOF connectivity matrix
         self.elDOF = np.zeros((nelement, self.nq_element), dtype=int)
         for el in range(nelement):
-            self.elDOF[el, : self.nq_el_r] = self.elDOF_r[el]
-            self.elDOF[el, self.nq_el_r :] = self.elDOF_psi[el]
+            self.elDOF[el, : self.nq_element_r] = self.elDOF_r[el]
+            self.elDOF[el, self.nq_element_r :] = self.elDOF_psi[el]
 
-        # degrees of freedom on element level
-        self.rDOF = np.arange(0, nq_node_r * nnodes_element_r)
-        self.psiDOF = (
-            np.arange(0, nq_node_psi * nnodes_element_psi)
-            + nq_node_r * nnodes_element_r
-        )
+        # # degrees of freedom on element level
+        # self.rDOF = np.arange(0, nq_node_r * nnodes_element_r)
+        # self.psiDOF = (
+        #     np.arange(0, nq_node_psi * nnodes_element_psi)
+        #     + nq_node_r * nnodes_element_r
+        # )
 
         # shape functions and their first derivatives
         self.N_r = self.mesh_r.N
@@ -197,9 +187,14 @@ class DirectorAxisAngle:
 
             for i in range(nquadrature):
                 # interpolate tangent vector
+                # TODO: This is not the tangent vector we want for a given
+                # straight reference confguration! We expect
+                # r_xi = np.array([L, 0, 0])!
                 r_xi = np.zeros(3)
                 for node in range(self.nnodes_element_r):
                     r_xi += self.N_r_xi[el, i, node] * qe[self.nodalDOF_element_r[node]]
+
+                print(f"r_xi: {r_xi}")
 
                 # length of reference tangential vector
                 Ji = norm(r_xi)
@@ -287,7 +282,9 @@ class DirectorAxisAngle:
             xis = np.linspace(0, 1, num=nn_r)
 
             r0 = np.zeros((6, nn_r))
+            # TODO:
             t0 = A_IK @ (L * e1)
+            # t0 = A_IK @ e1
             for i, xi in enumerate(xis):
                 ri = r_OP + xi * t0
                 r0[:3, i] = ri
@@ -444,6 +441,8 @@ class DirectorAxisAngle:
             r_xi = np.zeros(3)
             for node in range(self.nnodes_element_r):
                 r_xi += self.N_r_xi[el, i, node] * qe[self.nodalDOF_element_r[node]]
+
+            # print(f"r_xi: {r_xi}")
 
             # interpolate rotation and its derivative w.r.t. parameter space
             A_IK = np.zeros((3, 3))
@@ -1186,7 +1185,16 @@ class DirectorAxisAngle:
     ####################################################
     def nodes(self, q):
         q_body = q[self.qDOF]
-        return np.array([q_body[nodalDOF] for nodalDOF in self.nodalDOF_r]).T
+        if self.basis == "Hermite":
+            r = np.zeros((3, int(self.nnode_r / 2)))
+            idx = 0
+            for node, nodalDOF in enumerate(self.nodalDOF_r):
+                if node % 2 == 0:
+                    r[:, idx] = q_body[nodalDOF]
+                    idx += 1
+            return r
+        else:
+            return np.array([q_body[nodalDOF] for nodalDOF in self.nodalDOF_r]).T
 
     def centerline(self, q, n=100):
         q_body = q[self.qDOF]

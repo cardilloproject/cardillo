@@ -55,7 +55,8 @@ class Mesh1D:
                 self.nnodes_per_element
             )  # number of basis function per element
         elif basis == "Hermite":
-            self.nnodes_per_element = 2  # number of nodes influencing each element
+            self.nnodes_per_element = 4
+            # self.nnodes_per_element = 2  # number of nodes influencing each element
             self.dim = dim  # number of degrees of freedom per node
             # this assumes to be the sum of values and derivatives
             self.nbasis_element = 4  # number of basis function per element
@@ -75,6 +76,11 @@ class Mesh1D:
             # total number of nodes
             self.nnodes = self.degree * self.nelement + 1
 
+            # # TODO: Move on here!
+            # elDOF_el = np.arange(self.nq_per_element)
+            # for el in range(self.nelement):
+            #     self.elDOF[el] = elDOF_el + el * dim
+
             # for el in range(self.nelement):
             #     for no in range(self.nnodes_per_element_):
             #         elDOF_x = self.degree * el + no
@@ -88,12 +94,12 @@ class Mesh1D:
             # raise NotImplementedError("Adapt according to new ordering of q!")
 
             # total number of nodes
-            self.nnodes = self.nelement + 1
+            self.nnodes = 2 * (self.nelement + 1)
 
             # ordering for a single node (needs to be shifted for each elements)
-            elDOF_node = np.arange(2 * self.dim)
+            elDOF_node = np.arange(self.nbasis_element * self.dim)
             for el in range(self.nelement):
-                self.elDOF[el] = elDOF_node + el * self.dim
+                self.elDOF[el] = elDOF_node + el * 2 * self.dim
 
             # TODO: Does VTK implement Hermite curves?
             self.vtk_cell_type = "VTK_LAGRANGE_CURVE"
@@ -144,9 +150,7 @@ class Mesh1D:
                 self.degree, xis, self.derivative_order, self.knot_vector
             )
         elif self.basis == "Hermite":
-            return cubic_Hermite_basis_1D(
-                xis, self.knot_vector, 1, self.derivative_order
-            )
+            return cubic_Hermite_basis_1D(xis, self.knot_vector, self.derivative_order)
 
     def eval_basis(self, xi):
         if self.basis == "B-spline":
@@ -158,9 +162,7 @@ class Mesh1D:
                 self.degree, xi, self.derivative_order, self.knot_vector, squeeze=True
             )
         elif self.basis == "Hermite":
-            return cubic_Hermite_basis_1D(
-                xi, self.knot_vector, 1, self.derivative_order
-            )
+            return cubic_Hermite_basis_1D(xi, self.knot_vector, self.derivative_order)
 
     def quadrature_points(self):
         self.qp = np.zeros((self.nelement, self.nquadrature))

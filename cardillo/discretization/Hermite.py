@@ -52,60 +52,59 @@ class HermiteNodeVector:
 
 
 class CubicHermiteBasis:
-    def __init__(self, dim=3, window=[0, 1]):
-        self.dim = dim
-
-        # basis function, see https://en.wikipedia.org/wiki/Cubic_Hermite_spline#Representations
-        self.h00 = Polynomial([1, 0, -3, 2], domain=[0, 1], window=window)
-        self.h01 = Polynomial([0, 1, -2, 1], domain=[0, 1], window=window)
-        self.h10 = Polynomial([0, 0, 3, -2], domain=[0, 1], window=window)
-        self.h11 = Polynomial([0, 0, -1, 1], domain=[0, 1], window=window)
+    def __init__(self, interval=[0, 1]):
+        # Cubic Hermite basis function on [0, 1], see
+        # https://en.wikipedia.org/wiki/Cubic_Hermite_spline#Representations.
+        # Note: We have to perform a change of coordinates as described in
+        # https://en.wikipedia.org/wiki/Cubic_Hermite_spline#Interpolation_on_an_arbitrary_interval.
+        # But be aware that numpy's Polynomial class changes only the domain,
+        # but does not scale the tangents so we have to do this manually!
+        interval_length = interval[1] - interval[0]
+        self.h00 = Polynomial([1, 0, -3, 2], domain=interval, window=[0, 1])
+        self.h01 = interval_length * Polynomial(
+            [0, 1, -2, 1], domain=interval, window=[0, 1]
+        )
+        self.h10 = Polynomial([0, 0, 3, -2], domain=interval, window=[0, 1])
+        self.h11 = interval_length * Polynomial(
+            [0, 0, -1, 1], domain=interval, window=[0, 1]
+        )
 
     def __call__(self, xis):
         xis = np.atleast_1d(xis)
-        values = np.zeros((len(xis), self.dim, 4 * self.dim), dtype=float)
+        values = np.zeros((len(xis), 4), dtype=float)
         for i, xii in enumerate(xis):
-            values[i] = np.hstack(
-                [
-                    self.h00(xii) * np.eye(self.dim),
-                    self.h01(xii) * np.eye(self.dim),
-                    self.h10(xii) * np.eye(self.dim),
-                    self.h11(xii) * np.eye(self.dim),
-                ]
-            )
-        return values.squeeze()
+            values[i, 0] = self.h00(xii)
+            values[i, 1] = self.h01(xii)
+            values[i, 2] = self.h10(xii)
+            values[i, 3] = self.h11(xii)
+        return values
 
     def deriv(self, xis, n=1):
         xis = np.atleast_1d(xis)
-        values = np.zeros((len(xis), self.dim, 4 * self.dim), dtype=float)
+        values = np.zeros((len(xis), 4), dtype=float)
         for i, xii in enumerate(xis):
-            values[i] = np.hstack(
-                [
-                    self.h00.deriv(n)(xii) * np.eye(self.dim),
-                    self.h01.deriv(n)(xii) * np.eye(self.dim),
-                    self.h10.deriv(n)(xii) * np.eye(self.dim),
-                    self.h11.deriv(n)(xii) * np.eye(self.dim),
-                ]
-            )
-        return values.squeeze()
+            values[i, 0] = self.h00.deriv(n)(xii)
+            values[i, 1] = self.h01.deriv(n)(xii)
+            values[i, 2] = self.h10.deriv(n)(xii)
+            values[i, 3] = self.h11.deriv(n)(xii)
+        return values
 
 
-def cubic_Hermite_basis_1D(xis, node_vector, dim=1, derivative=1, squeeze=True):
+def cubic_Hermite_basis_1D(xis, node_vector, derivative=1, squeeze=True):
     """Compute cubic Hermite basis functions for a given knot vector."""
     xis = np.atleast_1d(xis)
     nxis = len(xis)
-    N = np.zeros((derivative + 1, nxis, dim, 4 * dim))
+    N = np.zeros((derivative + 1, nxis, 4))
     for i, xi in enumerate(xis):
         el = node_vector.element_number(xi)[0]
-        basis = CubicHermiteBasis(dim, window=node_vector.element_interval(el))
+        basis = CubicHermiteBasis(interval=node_vector.element_interval(el))
         N[0, i] = basis(xi)
         if derivative:
             for j in range(1, derivative + 1):
                 N[j, i] = basis.deriv(xi, n=j)
     if squeeze:
-        return N.squeeze()
-    else:
-        return N
+        N = N.squeeze()
+    return N
 
 
 def basic_usage():
@@ -169,29 +168,24 @@ def basic_usage():
 
 
 def basic_usage2():
-    # define generalized coordinates of cubic hermite spline
-    from cardillo.math import e1, e2, e3, norm, cross3
+    from cardillo.math import e1
 
-    # ######################
-    # # pathologic line case
-    # ######################
-    # r0 = np.array([0, 0.5, 0.5])
-    # t0 = e1
-    # n0 = e2
-    # b0 = cross3(t0, n0) / norm(cross3(t0, n0))
-    # r1 = np.array([1, 0.5, 0.5])
-    # t1 = e1
-    # n1 = e2
-    # # n1 = e3
-    # b1 = cross3(t1, n1) / norm(cross3(t1, n1))
+    ######################
+    # pathologic line case
+    ######################
+    L = 2 * np.pi
+    r0 = np.array([0, 0.5, 0.5])
+    t0 = L * e1
+    r1 = np.array([L, 0.5, 0.5])
+    t1 = L * e1
 
-    ################
-    # curved 3D case
-    ################
-    r0 = np.zeros(3)
-    t0 = e1 * 1.5
-    r1 = np.array([1, 1, 1]) / np.sqrt(3)
-    t1 = e2 * 0.5
+    # ################
+    # # curved 3D case
+    # ################
+    # r0 = np.zeros(3)
+    # t0 = e1 * 1.5
+    # r1 = np.array([1, 1, 1]) / np.sqrt(3)
+    # t1 = e2 * 0.5
 
     ###############################
     # build generalized coordinates
@@ -215,20 +209,20 @@ def basic_usage2():
     def r_xi_poly(xi):
         q_nodes = q.reshape(4, -1, order="C")
         N_xi = hermite.deriv(xi, n=1)
-        r = np.zeros((len(xi), 3))
+        r_xi = np.zeros((len(xi), 3))
         for i in range(len(xi)):
             for j in range(4):
-                r[i] += N_xi[i, j] * q_nodes[j]
-        return r
+                r_xi[i] += N_xi[i, j] * q_nodes[j]
+        return r_xi
 
     def r_xixi_poly(xi):
         q_nodes = q.reshape(4, -1, order="C")
         N_xixi = hermite.deriv(xi, n=2)
-        r = np.zeros((len(xi), 3))
+        r_xixi = np.zeros((len(xi), 3))
         for i in range(len(xi)):
             for j in range(4):
-                r[i] += N_xixi[i, j] * q_nodes[j]
-        return r
+                r_xixi[i] += N_xixi[i, j] * q_nodes[j]
+        return r_xixi
 
     ###############
     # visualization
@@ -240,6 +234,9 @@ def basic_usage2():
     r = r_poly(xis)
     r_xi = r_xi_poly(xis)
     r_xixi = r_xixi_poly(xis)
+
+    print(f"r:\n{r}")
+    print(f"r_xi:\n{r_xi}")
 
     fig, ax = plt.subplots(subplot_kw=dict(projection="3d"))
     ax.plot(r[:, 0], r[:, 1], r[:, 2], "-k")
@@ -253,14 +250,64 @@ def basic_usage2():
 
 
 def knotvector_usage():
-    nel = 2
-    knot_vector = HermiteNodeVector(3, nel)
-    num = 10
+    from cardillo.beams import DirectorAxisAngle
+
+    polynomial_degree = 3
+    nelement = 2
+    L = 2 * np.pi
+    q0 = DirectorAxisAngle.straight_configuration(
+        polynomial_degree, 1, nelement, L, basis="Hermite"
+    )[: (nelement + 1) * 6]
+
+    # build node vector for Hermite basis
+    knot_vector = HermiteNodeVector(polynomial_degree, nelement)
+
+    # evaluate basis functions
+    num = 4
     xis = np.linspace(0, 1, num=num)
-    N, N_xi = cubic_Hermite_basis_1D(xis, knot_vector, dim=1)
+    N, N_xi = cubic_Hermite_basis_1D(xis, knot_vector)
+
+    r = np.zeros((num, 3))
+    r_xi = np.zeros((num, 3))
+    q0_nodal = q0.reshape(-1, 3, order="C")
+    # for el in range(nelement):
+    for i, xi in enumerate(xis):
+        el = knot_vector.element_number(xi)[0]
+        print(f"xi: {xi}")
+        print(f"el: {el}")
+        for node in range(4):
+            print(f"node: {node}")
+
+            idx = 2 * el + node
+            q_node = q0_nodal[idx]
+            print(f"q_node: {q_node}")
+
+            print(f"N: {N[i, node]}")
+            print(f"N_xi: {N_xi[i, node]}")
+
+            r[i] += N[i, node] * q_node
+            r_xi[i] += N_xi[i, node] * q_node
+
+    print(f"r:\n{r}")
+    print(f"r_xi:\n{r_xi}")
+
+
+def poly_test():
+    # domain = [0, 1]
+    # window = [1, 2]
+    domain = [1, 2]
+    window = [0, 1]
+    p0 = Polynomial([1, -1], domain=domain, window=window)
+    p1 = Polynomial([0, 1], domain=domain, window=window)
+    num = 5
+    xis = np.linspace(0, 1, num=num)
+    print(f"xis: {xis}")
+    print(f"p0(xi): {p0(xis)}")
+    print(f"p1(xi): {p1(xis)}")
 
 
 if __name__ == "__main__":
     # basic_usage()
-    basic_usage2()
-    # knotvector_usage()
+    # basic_usage2()
+    knotvector_usage()
+    # poly_test()

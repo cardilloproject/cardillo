@@ -172,8 +172,8 @@ def beam_factory(
     return beam
 
 
-# def run(statics=True):
-def run(statics=False):
+def run(statics=True):
+    # def run(statics=False):
     # used beam model
     # Beam = Cable
     # Beam = CubicHermiteCable
@@ -182,7 +182,7 @@ def run(statics=False):
 
     # number of elements
     # nelements = 1
-    nelements = 5
+    nelements = 3
     # nelements = 10
     # nelements = 20
     # nelements = 30
@@ -197,7 +197,7 @@ def run(statics=False):
     nquadrature_points = polynomial_degree + 1
 
     # used shape functions for discretization
-    shape_functions = "B-spline"
+    # shape_functions = "B-spline"
     # shape_functions = "Lagrange"
     shape_functions = "Hermite"
 
@@ -244,8 +244,8 @@ def run(statics=False):
     # model.assemble()
 
     # t = 0
-    # # q = model.q0
-    # q = np.random.rand(model.nq)
+    # q = model.q0
+    # # q = np.random.rand(model.nq)
 
     # E_pot = model.E_pot(t, q)
     # print(f"E_pot: {E_pot}")
@@ -253,6 +253,14 @@ def run(statics=False):
     # print(f"f_pot:\n{f_pot}")
     # # f_pot_q = model.f_pot_q(t, q)
     # # print(f"f_pot_q:\n{f_pot_q}")
+
+    # xis = np.linspace(0, 1, num=10)
+    # for xi in xis:
+    #     r_OC = beam.r_OC(t, q, frame_ID=(xi,))
+    #     print(f"r_OC({xi}): {r_OC}")
+    # for xi in xis:
+    #     r_OC_xi = beam.r_OC_xi(t, q, frame_ID=(xi,))
+    #     print(f"r_OC_xi({xi}): {r_OC_xi}")
     # exit()
 
     # number of full rotations after deformation
@@ -316,7 +324,7 @@ def run(statics=False):
         * np.pi
         * Fi[2]
         / L
-        * 0.5
+        * 0.25
         # * 0.75
     )
     moment = K_Moment(M, beam, (1,))
