@@ -182,8 +182,8 @@ def run(statics=True):
 
     # number of elements
     # nelements = 1
-    # nelements = 3
-    nelements = 10
+    nelements = 5
+    # nelements = 10
     # nelements = 20
     # nelements = 30
 
@@ -203,10 +203,10 @@ def run(statics=True):
 
     # used cross section
     # slenderness = 1
-    # slenderness = 1.0e1
+    slenderness = 1.0e1
     # slenderness = 1.0e2
     # slenderness = 1.0e3
-    slenderness = 1.0e4
+    # slenderness = 1.0e4
     radius = 1
     # radius = 1.0e-0
     # radius = 1.0e-1
@@ -284,17 +284,17 @@ def run(statics=True):
     r_OB0 = np.zeros(3)
     # r_OB0 = np.array([-1, 0.25, 3.14])
     if statics:
-        # phi = lambda t: n_circles * 2 * pi * smoothstep2(t, frac_deformation, 1.0) * 0.5
-        # # phi2 = lambda t: pi / 4 * sin(2 * pi * smoothstep2(t, frac_deformation, 1.0))
-        # # A_IK0 = lambda t: A_IK_basic(phi(t)).x()
-        # # TODO: Get this strange rotation working with a full circle
-        # # A_IK0 = lambda t: A_IK_basic(phi(t)).z()
-        # A_IK0 = (
-        #     lambda t: A_IK_basic(0.5 * phi(t)).z()
-        #     @ A_IK_basic(0.5 * phi(t)).y()
-        #     @ A_IK_basic(phi(t)).x()
-        # )
-        A_IK0 = lambda t: np.eye(3)
+        phi = lambda t: n_circles * 2 * pi * smoothstep2(t, frac_deformation, 1.0) * 0.5
+        # phi2 = lambda t: pi / 4 * sin(2 * pi * smoothstep2(t, frac_deformation, 1.0))
+        # A_IK0 = lambda t: A_IK_basic(phi(t)).x()
+        # TODO: Get this strange rotation working with a full circle
+        # A_IK0 = lambda t: A_IK_basic(phi(t)).z()
+        A_IK0 = (
+            lambda t: A_IK_basic(0.5 * phi(t)).z()
+            @ A_IK_basic(0.5 * phi(t)).y()
+            @ A_IK_basic(phi(t)).x()
+        )
+        # A_IK0 = lambda t: np.eye(3)
     else:
         # phi = lambda t: smoothstep2(t, 0, 0.1) * sin(0.3 * pi * t) * pi / 4
         phi = lambda t: smoothstep2(t, 0, 0.1) * sin(0.6 * pi * t) * pi / 4
@@ -332,7 +332,9 @@ def run(statics=True):
         * np.pi
         * Fi[2]
         / L
+        # * 0.1
         * 0.25
+        # * 0.5
         # * 0.75
     )
     moment = K_Moment(M, beam, (1,))

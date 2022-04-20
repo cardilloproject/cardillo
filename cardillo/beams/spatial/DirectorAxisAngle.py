@@ -203,15 +203,36 @@ class DirectorAxisAngle:
                 # length of reference tangential vector
                 Ji = norm(r_xi)
 
-                # TODO: Implement relative rotation case here!
-                # interpolate rotation and its derivative w.r.t. parameter space
-                A_IK = np.zeros((3, 3))
-                A_IK_xi = np.zeros((3, 3))
-                for node in range(self.nnodes_element_psi):
-                    psi_node = qe[self.nodalDOF_element_psi[node]]
-                    A_IK_node = rodriguez(psi_node)
-                    A_IK += self.N_psi[el, i, node] * A_IK_node
-                    A_IK_xi += self.N_psi_xi[el, i, node] * A_IK_node
+                if relative_orientation and self.basis == "Hermite":
+                    # compute nodal smallest rotations
+                    r0 = qe[self.nodalDOF_element_r[1]]
+                    r1 = qe[self.nodalDOF_element_r[3]]
+                    A_IB0 = smallest_rotation(e1, r0)
+                    A_IB1 = smallest_rotation(e1, r1)
+
+                    # compute nodal relative rotations using Rodriguez' formular
+                    psi0 = qe[self.nodalDOF_element_psi[0]]
+                    psi1 = qe[self.nodalDOF_element_psi[1]]
+                    A_BK0 = rodriguez(psi0)
+                    A_BK1 = rodriguez(psi1)
+
+                    # linear interpolate combined rotation and its derivative
+                    A_IK0 = A_IB0 @ A_BK0
+                    A_IK1 = A_IB1 @ A_BK1
+                    A_IK = self.N_psi[el, i, 0] * A_IK0 + self.N_psi[el, i, 1] * A_IK1
+                    A_IK_xi = (
+                        self.N_psi_xi[el, i, 0] * A_IK0
+                        + self.N_psi_xi[el, i, 1] * A_IK1
+                    )
+                else:
+                    # interpolate rotation and its derivative w.r.t. parameter space
+                    A_IK = np.zeros((3, 3))
+                    A_IK_xi = np.zeros((3, 3))
+                    for node in range(self.nnodes_element_psi):
+                        psi_node = qe[self.nodalDOF_element_psi[node]]
+                        A_IK_node = rodriguez(psi_node)
+                        A_IK += self.N_psi[el, i, node] * A_IK_node
+                        A_IK_xi += self.N_psi_xi[el, i, node] * A_IK_node
 
                 # extract directors and their derivatives with respect to
                 # parameter space
@@ -448,16 +469,48 @@ class DirectorAxisAngle:
             for node in range(self.nnodes_element_r):
                 r_xi += self.N_r_xi[el, i, node] * qe[self.nodalDOF_element_r[node]]
 
-            # print(f"r_xi: {r_xi}")
+            if relative_orientation and self.basis == "Hermite":
+                # compute nodal smallest rotations
+                r0 = qe[self.nodalDOF_element_r[1]]
+                r1 = qe[self.nodalDOF_element_r[3]]
+                A_IB0 = smallest_rotation(e1, r0)
+                A_IB1 = smallest_rotation(e1, r1)
 
-            # interpolate rotation and its derivative w.r.t. parameter space
-            A_IK = np.zeros((3, 3))
-            A_IK_xi = np.zeros((3, 3))
-            for node in range(self.nnodes_element_psi):
-                psi_node = qe[self.nodalDOF_element_psi[node]]
-                A_IK_node = rodriguez(psi_node)
-                A_IK += self.N_psi[el, i, node] * A_IK_node
-                A_IK_xi += self.N_psi_xi[el, i, node] * A_IK_node
+                # compute nodal relative rotations using Rodriguez' formular
+                psi0 = qe[self.nodalDOF_element_psi[0]]
+                psi1 = qe[self.nodalDOF_element_psi[1]]
+                A_BK0 = rodriguez(psi0)
+                A_BK1 = rodriguez(psi1)
+
+                # # linear interpolate A_IB and A_BK
+                # A_IB = self.N_psi[el, i, 0] * A_IB0 + self.N_psi[el, i, 1] * A_IB1
+                # A_BK = self.N_psi[el, i, 0] * A_BK0 + self.N_psi[el, i, 1] * A_BK1
+                # A_IB_xi = (
+                #     self.N_psi_xi[el, i, 0] * A_IB0 + self.N_psi_xi[el, i, 1] * A_IB1
+                # )
+                # A_BK_xi = (
+                #     self.N_psi_xi[el, i, 0] * A_BK0 + self.N_psi_xi[el, i, 1] * A_BK1
+                # )
+
+                # A_IK = A_IB @ A_BK
+                # A_IK_xi = A_IB @ A_BK_xi + A_IB_xi @ A_IB
+
+                # linear interpolate combined rotation and its derivative
+                A_IK0 = A_IB0 @ A_BK0
+                A_IK1 = A_IB1 @ A_BK1
+                A_IK = self.N_psi[el, i, 0] * A_IK0 + self.N_psi[el, i, 1] * A_IK1
+                A_IK_xi = (
+                    self.N_psi_xi[el, i, 0] * A_IK0 + self.N_psi_xi[el, i, 1] * A_IK1
+                )
+            else:
+                # interpolate rotation and its derivative w.r.t. parameter space
+                A_IK = np.zeros((3, 3))
+                A_IK_xi = np.zeros((3, 3))
+                for node in range(self.nnodes_element_psi):
+                    psi_node = qe[self.nodalDOF_element_psi[node]]
+                    A_IK_node = rodriguez(psi_node)
+                    A_IK += self.N_psi[el, i, node] * A_IK_node
+                    A_IK_xi += self.N_psi_xi[el, i, node] * A_IK_node
 
             # extract directors and their derivatives with respect to
             # parameter space
@@ -530,10 +583,22 @@ class DirectorAxisAngle:
                 A_BK0 = rodriguez(psi0)
                 A_BK1 = rodriguez(psi1)
 
-                A_IK0 = A_IB0 @ A_BK0
-                A_IK1 = A_IB1 @ A_BK1
+                # # linear interpolate A_IB and A_BK
+                # A_IB = self.N_psi[el, i, 0] * A_IB0 + self.N_psi[el, i, 1] * A_IB1
+                # A_BK = self.N_psi[el, i, 0] * A_BK0 + self.N_psi[el, i, 1] * A_BK1
+                # A_IB_xi = (
+                #     self.N_psi_xi[el, i, 0] * A_IB0 + self.N_psi_xi[el, i, 1] * A_IB1
+                # )
+                # A_BK_xi = (
+                #     self.N_psi_xi[el, i, 0] * A_BK0 + self.N_psi_xi[el, i, 1] * A_BK1
+                # )
+
+                # A_IK = A_IB @ A_BK
+                # A_IK_xi = A_IB @ A_BK_xi + A_IB_xi @ A_IB
 
                 # linear interpolate combined rotation and its derivative
+                A_IK0 = A_IB0 @ A_BK0
+                A_IK1 = A_IB1 @ A_BK1
                 A_IK = self.N_psi[el, i, 0] * A_IK0 + self.N_psi[el, i, 1] * A_IK1
                 A_IK_xi = (
                     self.N_psi_xi[el, i, 0] * A_IK0 + self.N_psi_xi[el, i, 1] * A_IK1
@@ -985,10 +1050,14 @@ class DirectorAxisAngle:
             A_BK0 = rodriguez(psi0)
             A_BK1 = rodriguez(psi1)
 
-            A_IK0 = A_IB0 @ A_BK0
-            A_IK1 = A_IB1 @ A_BK1
+            # # linear interpolate A_IB and A_BK
+            # A_IB = N[0] * A_IB0 + N[1] * A_IB1
+            # A_BK = N[0] * A_BK0 + N[1] * A_BK1
+            # A_IK = A_IB @ A_BK
 
             # linear interpolate combined rotation and its derivative
+            A_IK0 = A_IB0 @ A_BK0
+            A_IK1 = A_IB1 @ A_BK1
             A_IK = N[0] * A_IK0 + N[1] * A_IK1
         else:
             # interpolate nodal rotation matrices
