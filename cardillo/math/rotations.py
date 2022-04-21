@@ -286,15 +286,15 @@ class Rotor:
 
     @staticmethod
     def fromVector(v: np.ndarray):
-        return Rotor(data=np.array([0, v]))
+        return Rotor(np.array([0, v]))
 
     @staticmethod
     def from2Vectors(u: np.ndarray, v: np.ndarray):
-        return Rotor(data=np.array([1.0 + u @ v, *cross3(u, v)]))
+        return Rotor(np.array([1.0 + u @ v, *cross3(u, v)]))
 
     @staticmethod
     def fromComponents(a: float, b: np.ndarray):
-        return Rotor(data=np.array([a, *b]))
+        return Rotor(np.array([a, *b]))
 
     def __init__(self, data=None) -> None:
         if data is None:
@@ -346,28 +346,16 @@ class Rotor:
         res = Rotor()
         res.a = self * other
         res.b = self ^ other
-        # res.a = self.a * other.a - self.b @ other.b
-        # res.b[0] = (
-        #     self.b[0] * other.a + self.a * other.b[0]
-        #     + self.b[2] * other.b[1] - self.b[1] * other.b[2]
-        # )
-        # res.b[1] = (
-        #     self.b[1] * other.a + self.a * other.b[1]
-        #     - self.b[2] * other.b[0] + self.b[0] * other.b[2]
-        # )
-        # res.b[2] = (
-        #     self.b[2] * other.a + self.a * other.b[2]
-        #     + self.b[1] * other.b[0] - self.b[0] * other.b[1]
-        # )
         return res
 
     def __invert__(self):
         """Reverse rotor."""
-        return Rotor.fromComponents(a=self.a, b=-self.b)
+        return Rotor.fromComponents(self.a, -self.b)
 
     def rotate(self, r):
+        """Rotate a vector or another rotor."""
         if isinstance(r, Rotor):
-            return (self @ r) @ ~self
+            return self @ r @ ~self
         else:
             return self @ Rotor.fromVector(r) @ ~self
 
