@@ -306,9 +306,13 @@ def basic_usage_quintic():
     r0 = np.zeros(3)
     t0 = e1
     n0 = e2
+    # n0 = e1
+    # n0 = np.zeros(3)
     r1 = L * e1
     t1 = e1
     n1 = e2
+    # n1 = e1
+    # n1 = np.zeros(3)
 
     # ################
     # # curved 3D case
