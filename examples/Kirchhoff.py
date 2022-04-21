@@ -181,8 +181,8 @@ def run(statics=True):
     Beam = DirectorAxisAngle
 
     # number of elements
-    nelements = 1
-    # nelements = 2
+    # nelements = 1
+    nelements = 2
     # nelements = 4
     # nelements = 8
     # nelements = 16
@@ -365,7 +365,8 @@ def run(statics=True):
             # n_load_steps=200,
             max_iter=30,
             # atol=1.0e-5,
-            atol=1.0e-6,
+            # atol=1.0e-6,
+            atol=1.0e-10,
             numerical_jacobian=False,
         )
     else:
