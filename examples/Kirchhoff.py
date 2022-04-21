@@ -1,3 +1,4 @@
+from cProfile import label
 from cardillo.math import e1, e2, e3, sin, pi, smoothstep2, A_IK_basic
 from cardillo.beams.spatial import CircularCrossSection, ShearStiffQuadratic, Simo1986
 from cardillo.model.frame import Frame
@@ -181,8 +182,8 @@ def run(statics=True):
     Beam = DirectorAxisAngle
 
     # number of elements
-    # nelements = 1
-    nelements = 2
+    nelements = 1
+    # nelements = 2
     # nelements = 4
     # nelements = 8
     # nelements = 16
@@ -194,10 +195,12 @@ def run(statics=True):
     # polynomial_degree = 2
     polynomial_degree = 3
     # polynomial_degree = 5
+    # polynomial_degree = 6
 
     # number of quadrature points
     # nquadrature_points = int(np.ceil((polynomial_degree + 1)**2 / 2))
-    nquadrature_points = polynomial_degree + 1
+    # nquadrature_points = polynomial_degree + 1
+    nquadrature_points = polynomial_degree
 
     # used shape functions for discretization
     # shape_functions = "B-spline"
@@ -206,10 +209,10 @@ def run(statics=True):
 
     # used cross section
     # slenderness = 1
-    slenderness = 1.0e1
+    # slenderness = 1.0e1
     # slenderness = 1.0e2
     # slenderness = 1.0e3
-    # slenderness = 1.0e4
+    slenderness = 1.0e4
     radius = 1
     # radius = 1.0e-0
     # radius = 1.0e-1
@@ -287,17 +290,17 @@ def run(statics=True):
     r_OB0 = np.zeros(3)
     # r_OB0 = np.array([-1, 0.25, 3.14])
     if statics:
-        phi = lambda t: n_circles * 2 * pi * smoothstep2(t, frac_deformation, 1.0) * 0.5
-        # phi2 = lambda t: pi / 4 * sin(2 * pi * smoothstep2(t, frac_deformation, 1.0))
-        # A_IK0 = lambda t: A_IK_basic(phi(t)).x()
-        # TODO: Get this strange rotation working with a full circle
-        # A_IK0 = lambda t: A_IK_basic(phi(t)).z()
-        A_IK0 = (
-            lambda t: A_IK_basic(0.5 * phi(t)).z()
-            @ A_IK_basic(0.5 * phi(t)).y()
-            @ A_IK_basic(phi(t)).x()
-        )
-        # A_IK0 = lambda t: np.eye(3)
+        # phi = lambda t: n_circles * 2 * pi * smoothstep2(t, frac_deformation, 1.0) * 0.5
+        # # phi2 = lambda t: pi / 4 * sin(2 * pi * smoothstep2(t, frac_deformation, 1.0))
+        # # A_IK0 = lambda t: A_IK_basic(phi(t)).x()
+        # # TODO: Get this strange rotation working with a full circle
+        # # A_IK0 = lambda t: A_IK_basic(phi(t)).z()
+        # A_IK0 = (
+        #     lambda t: A_IK_basic(0.5 * phi(t)).z()
+        #     @ A_IK_basic(0.5 * phi(t)).y()
+        #     @ A_IK_basic(phi(t)).x()
+        # )
+        A_IK0 = lambda t: np.eye(3)
     else:
         # phi = lambda t: smoothstep2(t, 0, 0.1) * sin(0.3 * pi * t) * pi / 4
         phi = lambda t: smoothstep2(t, 0, 0.1) * sin(0.6 * pi * t) * pi / 4
@@ -365,8 +368,9 @@ def run(statics=True):
             # n_load_steps=200,
             max_iter=30,
             # atol=1.0e-5,
-            # atol=1.0e-6,
-            atol=1.0e-10,
+            atol=1.0e-6,
+            # atol=1.0e-8,
+            # atol=1.0e-10,
             numerical_jacobian=False,
         )
     else:
@@ -390,8 +394,52 @@ def run(statics=True):
 
     sol = solver.solve()
     q = sol.q
-    n = len(q)
-    t = sol.t[:n]
+    nt = len(q)
+    t = sol.t[:nt]
+
+    if nelements == 1:
+        # visualize nodal rotation vectors
+        fig, ax = plt.subplots()
+
+        psi0 = q[:, beam.qDOF[beam.nodalDOF_psi[0]]]
+        psi1 = q[:, beam.qDOF[beam.nodalDOF_psi[1]]]
+
+        ax.plot(t, np.linalg.norm(psi0, axis=1), "-r", label="||psi0||")
+        ax.plot(t, np.linalg.norm(psi1, axis=1), "--b", label="||psi1||")
+
+        ax.set_xlabel("t")
+        ax.set_ylabel("nodal rotation vectors")
+        ax.grid()
+        ax.legend()
+
+        # visualize norm of tangent vector
+        # fig, ax = plt.subplots(figsize=(8, 8), subplot_kw=dict(projection="3d"))
+        # ax.set_xlabel("t")
+        # ax.set_ylabel("xi")
+        # ax.set_zlabel("j(xi, t)")
+        fig, ax = plt.subplots()
+
+        nxi = 100
+        xis = np.linspace(0, 1, num=nxi)
+
+        abs_r_xi = np.zeros(nxi)
+        abs_r0_xi = np.zeros(nxi)
+        for i in range(nxi):
+            frame_ID = (xis[i],)
+            elDOF = beam.elDOF_P(frame_ID)
+            qe = q[-1, beam.qDOF][elDOF]
+            abs_r_xi[i] = np.linalg.norm(beam.r_OC_xi(t[-1], qe, frame_ID))
+            q0e = q[0, beam.qDOF][elDOF]
+            abs_r0_xi[i] = np.linalg.norm(beam.r_OC_xi(t[0], q0e, frame_ID))
+        ax.plot(xis, abs_r_xi, "-r", label="||r_xi||")
+        ax.plot(xis, abs_r0_xi, "--b", label="||r0_xi||")
+        ax.set_xlabel("xi")
+        ax.set_ylabel("||r_xi||")
+        ax.grid()
+        ax.legend()
+
+    # plt.show()
+    # exit()
 
     ############################
     # Visualize potential energy
