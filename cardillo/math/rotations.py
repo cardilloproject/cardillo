@@ -281,6 +281,104 @@ def smallest_rotation(a0: np.ndarray, a: np.ndarray) -> np.ndarray:
         return cos_psi * np.eye(3)
 
 
+class Rotor:
+    """Rotor from geometric algebra, see https://marctenbosch.com/quaternions/#h_0."""
+
+    @staticmethod
+    def fromVector(v: np.ndarray):
+        return Rotor(data=np.array([0, v]))
+
+    @staticmethod
+    def from2Vectors(u: np.ndarray, v: np.ndarray):
+        return Rotor(data=np.array([1.0 + u @ v, *cross3(u, v)]))
+
+    @staticmethod
+    def fromComponents(a: float, b: np.ndarray):
+        return Rotor(data=np.array([a, *b]))
+
+    def __init__(self, data=None) -> None:
+        if data is None:
+            self.__data = np.array([1, 0, 0, 0], dtype=float)
+        else:
+            # ensure float ndarray data
+            self.__data = np.asarray(data, dtype=float)
+
+            # normalize rotor
+            l = norm(self.__data)
+            if l > 0:
+                self.__data /= l
+
+    def __call__(self):
+        return self.__data
+
+    @property
+    def a(self) -> float:
+        return self.__data[0]
+
+    @a.setter
+    def a(self, value: float):
+        self.__data[0] = value
+
+    @property
+    def b(self) -> np.ndarray:
+        return self.__data[1:]
+
+    @b.setter
+    def b(self, value: np.ndarray):
+        self.__data[1:] = value
+
+    def __str__(self):
+        return f"{self.a} + " + f"{self.b}"
+
+    def __repr__(self):
+        return f'Rotor("{self.__str__}")'
+
+    def __mul__(self, other) -> float:
+        """Inner product."""
+        return self() @ other()
+
+    def __xor__(self, other) -> np.ndarray:
+        """Outer product."""
+        return cross3(self.b, other.b)
+
+    def __matmul__(self, other):
+        """Geometric product."""
+        res = Rotor()
+        res.a = self * other
+        res.b = self ^ other
+        # res.a = self.a * other.a - self.b @ other.b
+        # res.b[0] = (
+        #     self.b[0] * other.a + self.a * other.b[0]
+        #     + self.b[2] * other.b[1] - self.b[1] * other.b[2]
+        # )
+        # res.b[1] = (
+        #     self.b[1] * other.a + self.a * other.b[1]
+        #     - self.b[2] * other.b[0] + self.b[0] * other.b[2]
+        # )
+        # res.b[2] = (
+        #     self.b[2] * other.a + self.a * other.b[2]
+        #     + self.b[1] * other.b[0] - self.b[0] * other.b[1]
+        # )
+        return res
+
+    def __invert__(self):
+        """Reverse rotor."""
+        return Rotor.fromComponents(a=self.a, b=-self.b)
+
+    def rotate(self, r):
+        if isinstance(r, Rotor):
+            return (self @ r) @ ~self
+        else:
+            return self @ Rotor.fromVector(r) @ ~self
+
+    # TODO: Is this correct?
+    def toMatrix(self) -> np.ndarray:
+        """Compute rotation matrix defined by rotor."""
+        a = self.a
+        b_tilde = ax2skew(self.b)
+        return np.eye(3) + 2 * (b_tilde @ b_tilde + a * b_tilde)
+
+
 ##########################################
 # TODO: Refactor these and add references!
 ##########################################
@@ -328,7 +426,7 @@ def axis_angle2quat(axis, angle):
     return np.concatenate([[cos(angle / 2)], sin(angle / 2) * n])
 
 
-if __name__ == "__main__":
+def test_smallest_rotation():
     from cardillo.math import e1, e2, e3, pi, sin, cos
 
     a0 = e1
@@ -349,3 +447,26 @@ if __name__ == "__main__":
     ax.quiver(*np.zeros((3, num)), *Rs[:, 1], color="green")
     ax.quiver(*np.zeros((3, num)), *Rs[:, 2], color="blue")
     plt.show()
+
+
+def test_rotor():
+    from cardillo.math import e1, e2, e3
+
+    r1 = Rotor.from2Vectors(e1, e2)
+    # r1 = Rotor.from2Vectors(e1, e3)
+    r2 = Rotor()
+    # r2 = Rotor(u=e1, v=e1)
+    print(f"r1: {r1}")
+    print(f"r2: {r2}")
+
+    print(f"r1 * r2: {r1 * r2}")
+    print(f"r1 ^ r2: {r1 ^ r2}")
+    print(f"r1 @ r2: {r1 @ r2}")
+    print(f"r1.rotate(r2): {r1.rotate(r2)}")
+    print(f"r1.toMatrix():\n{r1.toMatrix()}")
+    print(f"r2.toMatrix():\n{r2.toMatrix()}")
+
+
+if __name__ == "__main__":
+    # test_smallest_rotation()
+    test_rotor()
