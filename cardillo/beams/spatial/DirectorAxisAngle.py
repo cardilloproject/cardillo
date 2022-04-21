@@ -20,11 +20,11 @@ from cardillo.math import (
     smallest_rotation,
 )
 
-relative_orientation = True
-# relative_orientation = False
+# relative_orientation = True
+relative_orientation = False
 
-director_interpolation = True
-# director_interpolation = False
+# director_interpolation = True
+director_interpolation = False
 
 
 class DirectorAxisAngle:
@@ -150,7 +150,6 @@ class DirectorAxisAngle:
         # shape functions and their first derivatives
         self.N_r = self.mesh_r.N
         self.N_r_xi = self.mesh_r.N_xi
-        self.N_r_xixi = self.mesh_r.N_xixi
         self.N_psi = self.mesh_psi.N
         self.N_psi_xi = self.mesh_psi.N_xi
 
@@ -512,162 +511,6 @@ class DirectorAxisAngle:
             if relative_orientation and self.basis == "Hermite":
                 if director_interpolation:
                     # compute nodal smallest rotations
-                    r0 = qe[self.nodalDOF_element_r[1]]
-                    r1 = qe[self.nodalDOF_element_r[3]]
-                    A_IB0 = smallest_rotation(e1, r0)
-                    A_IB1 = smallest_rotation(e1, r1)
-
-                    # compute nodal relative rotations using Rodriguez' formular
-                    psi0 = qe[self.nodalDOF_element_psi[0]]
-                    psi1 = qe[self.nodalDOF_element_psi[1]]
-                    A_BK0 = rodriguez(psi0)
-                    A_BK1 = rodriguez(psi1)
-
-                    # linear interpolate combined rotation and its derivative
-                    A_IK0 = A_IB0 @ A_BK0
-                    A_IK1 = A_IB1 @ A_BK1
-                    A_IK = self.N_psi[el, i, 0] * A_IK0 + self.N_psi[el, i, 1] * A_IK1
-                    A_IK_xi = (
-                        self.N_psi_xi[el, i, 0] * A_IK0
-                        + self.N_psi_xi[el, i, 1] * A_IK1
-                    )
-                else:
-                    # def A_IK_local(xi):
-                    #     # evaluate shape functions
-                    #     _, N_r_xi, _ = self.basis_functions_r(xi)
-                    #     N_psi, _ = self.basis_functions_psi(xi)
-
-                    #     # interpolate tangent vector
-                    #     r_xi = np.zeros(3)
-                    #     for node in range(self.nnodes_element_r):
-                    #         r_xi += N_r_xi[node] * qe[self.nodalDOF_element_r[node]]
-
-                    #     # interpolate rotation vector
-                    #     psi = np.zeros(3)
-                    #     for node in range(self.nnodes_element_psi):
-                    #         psi += N_psi[node] * qe[self.nodalDOF_element_psi[node]]
-
-                    #     # evaluate reference rotation using smallest rotation formular
-                    #     A_IB = smallest_rotation(e1, r_xi)
-
-                    #     # evaluate superimposed rotation using Rodriguez formular
-                    #     A_BK = rodriguez(psi)
-
-                    #     # final rotation
-                    #     A_IK = A_IB @ A_BK
-                    #     return A_IK
-
-                    def A_IK_local(xi):
-                        # compute nodal smallest rotations
-                        t0 = qe[self.nodalDOF_element_r[1]]
-                        t1 = qe[self.nodalDOF_element_r[3]]
-                        A_IB0 = smallest_rotation(e1, t0)
-                        A_IB1 = smallest_rotation(e1, t1)
-
-                        # compute nodal relative rotations using Rodriguez' formular
-                        psi0 = qe[self.nodalDOF_element_psi[0]]
-                        psi1 = qe[self.nodalDOF_element_psi[1]]
-                        A_BK0 = rodriguez(psi0)
-                        A_BK1 = rodriguez(psi1)
-
-                        # compute combined rotation
-                        A_IK0 = A_IB0 @ A_BK0
-                        A_IK1 = A_IB1 @ A_BK1
-
-                        # reference rotation, cf. Crisfield1999 (5.8)
-                        # A_IR = A_IK0 # left frame as reference
-                        A_IR = A_IK0 @ rodriguez(
-                            0.5 * rodriguez_inv(A_IK0.T @ A_IK1)
-                        )  # midway frame as reference
-
-                        # compute relative rotation from reference triad to left
-                        # and right nodal triads
-                        A_RK0 = A_IR.T @ A_IK0
-                        A_RK1 = A_IR.T @ A_IK1
-
-                        # compute corresponding axial vectors
-                        psi_RK0 = rodriguez_inv(A_RK0)
-                        psi_RK1 = rodriguez_inv(A_RK1)
-
-                        # relative interpolation of local rotation vectors
-                        N_psi, _ = self.basis_functions_psi(xi)
-                        psi_rel = N_psi[0] * psi_RK0 + N_psi[1] * psi_RK1
-
-                        # objective rotation
-                        A_IK = A_IR @ rodriguez(psi_rel)
-
-                        return A_IK
-
-                    qwi = self.qw[el, i]
-                    A_IK = A_IK_local(qwi)
-                    A_IK_xi = approx_fprime(qwi, A_IK_local, method="3-point")
-            else:
-                # interpolate rotation and its derivative w.r.t. parameter space
-                A_IK = np.zeros((3, 3))
-                A_IK_xi = np.zeros((3, 3))
-                for node in range(self.nnodes_element_psi):
-                    psi_node = qe[self.nodalDOF_element_psi[node]]
-                    A_IK_node = rodriguez(psi_node)
-                    A_IK += self.N_psi[el, i, node] * A_IK_node
-                    A_IK_xi += self.N_psi_xi[el, i, node] * A_IK_node
-
-            # extract directors and their derivatives with respect to
-            # parameter space
-            d1, d2, d3 = A_IK.T
-            d1_xi, d2_xi, d3_xi = A_IK_xi.T
-
-            # axial and shear strains
-            K_Gamma = A_IK.T @ (r_xi / Ji)
-
-            # torsional and flexural strains (formulation in skew coordinates,
-            # see Eugster2014c)
-            K_Kappa_bar = np.array(
-                [
-                    0.5 * (d3 @ d2_xi - d2 @ d3_xi),
-                    0.5 * (d1 @ d3_xi - d3 @ d1_xi),
-                    0.5 * (d2 @ d1_xi - d1 @ d2_xi),
-                ]
-            )
-            d = d1 @ cross3(d2, d3)
-            dd = 1 / (d * Ji)
-            K_Kappa = dd * K_Kappa_bar
-
-            # evaluate strain energy function
-            E_pot_el += (
-                self.material_model.potential(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
-                * Ji
-                * qwi
-            )
-
-        return E_pot_el
-
-    def f_pot(self, t, q):
-        f_pot = np.zeros(self.nu)
-        for el in range(self.nelement):
-            elDOF = self.elDOF[el]
-            f_pot[elDOF] += self.f_pot_el(q[elDOF], el)
-        return f_pot
-
-    def f_pot_el(self, qe, el):
-        f_pot_el = np.zeros(self.nq_element)
-
-        for i in range(self.nquadrature):
-            # extract reference state variables
-            qwi = self.qw[el, i]
-            Ji = self.J[el, i]
-            K_Gamma0 = self.K_Gamma0[el, i]
-            K_Kappa0 = self.K_Kappa0[el, i]
-
-            # interpolate tangent vector
-            r_xi = np.zeros(3)
-            r_xixi = np.zeros(3)
-            for node in range(self.nnodes_element_r):
-                r_xi += self.N_r_xi[el, i, node] * qe[self.nodalDOF_element_r[node]]
-                r_xixi += self.N_r_xixi[el, i, node] * qe[self.nodalDOF_element_r[node]]
-
-            if relative_orientation and self.basis == "Hermite":
-                if director_interpolation:
-                    # compute nodal smallest rotations
                     t0 = qe[self.nodalDOF_element_r[1]]
                     t1 = qe[self.nodalDOF_element_r[3]]
                     A_IB0 = smallest_rotation(e1, t0)
@@ -686,6 +529,17 @@ class DirectorAxisAngle:
                     A_IK_xi = (
                         self.N_psi_xi[el, i, 0] * A_IK0
                         + self.N_psi_xi[el, i, 1] * A_IK1
+                    )
+
+                    # torsional and flexural strains (formulation in skew coordinates,
+                    # see Eugster2014c)
+                    d1_xi, d2_xi, d3_xi = A_IK_xi.T
+                    K_Kappa_bar = np.array(
+                        [
+                            0.5 * (d3 @ d2_xi - d2 @ d3_xi),
+                            0.5 * (d1 @ d3_xi - d3 @ d1_xi),
+                            0.5 * (d2 @ d1_xi - d1 @ d2_xi),
+                        ]
                     )
                 else:
                     # def A_IK_local(xi):
@@ -845,6 +699,17 @@ class DirectorAxisAngle:
 
                     A_IK = A_IK_local(qwi)
                     A_IK_xi = approx_fprime(qwi, A_IK_local, method="3-point")
+
+                    # torsional and flexural strains (formulation in skew coordinates,
+                    # see Eugster2014c)
+                    d1_xi, d2_xi, d3_xi = A_IK_xi.T
+                    K_Kappa_bar = np.array(
+                        [
+                            0.5 * (d3 @ d2_xi - d2 @ d3_xi),
+                            0.5 * (d1 @ d3_xi - d3 @ d1_xi),
+                            0.5 * (d2 @ d1_xi - d1 @ d2_xi),
+                        ]
+                    )
 
                     # # #######################################################
                     # # # part 1: objective interpolation of smallest rotation,
@@ -1018,33 +883,534 @@ class DirectorAxisAngle:
                     # )
 
             else:
-                # interpolate rotation and its derivative w.r.t. parameter space
-                A_IK = np.zeros((3, 3))
-                A_IK_xi = np.zeros((3, 3))
-                for node in range(self.nnodes_element_psi):
-                    psi_node = qe[self.nodalDOF_element_psi[node]]
-                    A_IK_node = rodriguez(psi_node)
-                    A_IK += self.N_psi[el, i, node] * A_IK_node
-                    A_IK_xi += self.N_psi_xi[el, i, node] * A_IK_node
+                if director_interpolation:
+                    # interpolate rotation and its derivative w.r.t. parameter space
+                    A_IK = np.zeros((3, 3))
+                    A_IK_xi = np.zeros((3, 3))
+                    for node in range(self.nnodes_element_psi):
+                        psi_node = qe[self.nodalDOF_element_psi[node]]
+                        A_IK_node = rodriguez(psi_node)
+                        A_IK += self.N_psi[el, i, node] * A_IK_node
+                        A_IK_xi += self.N_psi_xi[el, i, node] * A_IK_node
 
-            # extract directors and their derivatives with respect to
-            # parameter space
-            d1, d2, d3 = A_IK.T
-            d1_xi, d2_xi, d3_xi = A_IK_xi.T
+                    # torsional and flexural strains (formulation in skew coordinates,
+                    # see Eugster2014c)
+                    d1_xi, d2_xi, d3_xi = A_IK_xi.T
+                    K_Kappa_bar = np.array(
+                        [
+                            0.5 * (d3 @ d2_xi - d2 @ d3_xi),
+                            0.5 * (d1 @ d3_xi - d3 @ d1_xi),
+                            0.5 * (d2 @ d1_xi - d1 @ d2_xi),
+                        ]
+                    )
+
+                else:
+                    # reference rotation, cf. Crisfield1999 (5.8)
+                    # for convenience we use the most left nodal rotation
+                    # TODO: We can generalize this to a midway reference as done by Crisfield1999
+                    A_IR = rodriguez(qe[self.nodalDOF_element_psi[0]])
+
+                    # relative interpolation of local rotation vectors
+                    psi_rel = np.zeros(3)
+                    psi_rel_xi = np.zeros(3)
+                    for node in range(self.nnodes_element_psi):
+                        # nodal axis angle vector
+                        psi_node = qe[self.nodalDOF_element_psi[node]]
+
+                        # nodal rotation
+                        A_IK_node = rodriguez(psi_node)
+
+                        # relative rotation of each node and corresponding
+                        # rotation vector
+                        A_RK_node = A_IR.T @ A_IK_node
+                        psi_RK_node = rodriguez_inv(A_RK_node)
+
+                        # add wheighted contribution of local rotation
+                        psi_rel += self.N_psi[el, i, node] * psi_RK_node
+                        psi_rel_xi += self.N_psi_xi[el, i, node] * psi_RK_node
+
+                    # objective rotation
+                    A_IK = A_IR @ rodriguez(psi_rel)
+
+                    # curvature
+                    T = tangent_map(psi_rel)
+                    K_Kappa_bar = T @ psi_rel_xi
 
             # axial and shear strains
             K_Gamma = A_IK.T @ (r_xi / Ji)
 
             # torsional and flexural strains (formulation in skew coordinates,
             # see Eugster2014c)
-            K_Kappa_bar = np.array(
-                [
-                    0.5 * (d3 @ d2_xi - d2 @ d3_xi),
-                    0.5 * (d1 @ d3_xi - d3 @ d1_xi),
-                    0.5 * (d2 @ d1_xi - d1 @ d2_xi),
-                ]
+            d1, d2, d3 = A_IK.T
+            d = d1 @ cross3(d2, d3)
+            dd = 1 / (d * Ji)
+            K_Kappa = dd * K_Kappa_bar
+
+            # evaluate strain energy function
+            E_pot_el += (
+                self.material_model.potential(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
+                * Ji
+                * qwi
             )
-            # K_Kappa_bar = skew2ax(A_IK.T @ A_IK_xi)
+
+        return E_pot_el
+
+    def f_pot(self, t, q):
+        f_pot = np.zeros(self.nu)
+        for el in range(self.nelement):
+            elDOF = self.elDOF[el]
+            f_pot[elDOF] += self.f_pot_el(q[elDOF], el)
+        return f_pot
+
+    def f_pot_el(self, qe, el):
+        f_pot_el = np.zeros(self.nq_element)
+
+        for i in range(self.nquadrature):
+            # extract reference state variables
+            qwi = self.qw[el, i]
+            Ji = self.J[el, i]
+            K_Gamma0 = self.K_Gamma0[el, i]
+            K_Kappa0 = self.K_Kappa0[el, i]
+
+            # interpolate tangent vector
+            r_xi = np.zeros(3)
+            for node in range(self.nnodes_element_r):
+                r_xi += self.N_r_xi[el, i, node] * qe[self.nodalDOF_element_r[node]]
+
+            if relative_orientation and self.basis == "Hermite":
+                if director_interpolation:
+                    # compute nodal smallest rotations
+                    t0 = qe[self.nodalDOF_element_r[1]]
+                    t1 = qe[self.nodalDOF_element_r[3]]
+                    A_IB0 = smallest_rotation(e1, t0)
+                    A_IB1 = smallest_rotation(e1, t1)
+
+                    # compute nodal relative rotations using Rodriguez' formular
+                    psi0 = qe[self.nodalDOF_element_psi[0]]
+                    psi1 = qe[self.nodalDOF_element_psi[1]]
+                    A_BK0 = rodriguez(psi0)
+                    A_BK1 = rodriguez(psi1)
+
+                    # linear interpolate combined rotation and its derivative
+                    A_IK0 = A_IB0 @ A_BK0
+                    A_IK1 = A_IB1 @ A_BK1
+                    A_IK = self.N_psi[el, i, 0] * A_IK0 + self.N_psi[el, i, 1] * A_IK1
+                    A_IK_xi = (
+                        self.N_psi_xi[el, i, 0] * A_IK0
+                        + self.N_psi_xi[el, i, 1] * A_IK1
+                    )
+
+                    # torsional and flexural strains (formulation in skew coordinates,
+                    # see Eugster2014c)
+                    d1_xi, d2_xi, d3_xi = A_IK_xi.T
+                    K_Kappa_bar = np.array(
+                        [
+                            0.5 * (d3 @ d2_xi - d2 @ d3_xi),
+                            0.5 * (d1 @ d3_xi - d3 @ d1_xi),
+                            0.5 * (d2 @ d1_xi - d1 @ d2_xi),
+                        ]
+                    )
+                else:
+                    # def A_IK_local(xi):
+                    #     # evaluate shape functions
+                    #     _, N_r_xi, _ = self.basis_functions_r(xi)
+                    #     N_psi, _ = self.basis_functions_psi(xi)
+
+                    #     # interpolate tangent vector
+                    #     r_xi = np.zeros(3)
+                    #     for node in range(self.nnodes_element_r):
+                    #         r_xi += N_r_xi[node] * qe[self.nodalDOF_element_r[node]]
+
+                    #     # interpolate rotation vector
+                    #     psi = np.zeros(3)
+                    #     for node in range(self.nnodes_element_psi):
+                    #         psi += N_psi[node] * qe[self.nodalDOF_element_psi[node]]
+
+                    #     # evaluate reference rotation using smallest rotation formular
+                    #     A_IB = smallest_rotation(e1, r_xi)
+
+                    #     # evaluate superimposed rotation using Rodriguez formular
+                    #     A_BK = rodriguez(psi)
+
+                    #     # final rotation
+                    #     A_IK = A_IB @ A_BK
+                    #     return A_IK
+
+                    def A_IK_local(xi):
+                        # compute nodal smallest rotations
+                        t0 = qe[self.nodalDOF_element_r[1]]
+                        t1 = qe[self.nodalDOF_element_r[3]]
+                        A_IB0 = smallest_rotation(e1, t0)
+                        A_IB1 = smallest_rotation(e1, t1)
+
+                        # compute nodal relative rotations using Rodriguez' formular
+                        psi0 = qe[self.nodalDOF_element_psi[0]]
+                        psi1 = qe[self.nodalDOF_element_psi[1]]
+                        A_BK0 = rodriguez(psi0)
+                        A_BK1 = rodriguez(psi1)
+
+                        # compute combined rotation
+                        A_IK0 = A_IB0 @ A_BK0
+                        A_IK1 = A_IB1 @ A_BK1
+
+                        # reference rotation, cf. Crisfield1999 (5.8)
+                        # A_IR = A_IK0 # left frame as reference
+                        A_IR = A_IK0 @ rodriguez(
+                            0.5 * rodriguez_inv(A_IK0.T @ A_IK1)
+                        )  # midway frame as reference
+
+                        # compute relative rotation from reference triad to left
+                        # and right nodal triads
+                        A_RK0 = A_IR.T @ A_IK0
+                        A_RK1 = A_IR.T @ A_IK1
+
+                        # compute corresponding axial vectors
+                        psi_RK0 = rodriguez_inv(A_RK0)
+                        psi_RK1 = rodriguez_inv(A_RK1)
+
+                        # relative interpolation of local rotation vectors
+                        N_psi, _ = self.basis_functions_psi(xi)
+                        psi_rel = N_psi[0] * psi_RK0 + N_psi[1] * psi_RK1
+
+                        # objective rotation
+                        A_IK = A_IR @ rodriguez(psi_rel)
+
+                        return A_IK
+
+                    # def A_IK_local(xi):
+                    #     N_psi, _ = self.basis_functions_psi(xi)
+
+                    #     #######################################################
+                    #     # part 1: objective interpolation of smallest rotation,
+                    #     # cf. Meier2014 Section 3.5.2
+                    #     #######################################################
+
+                    #     # compute nodal smallest rotations
+                    #     t0 = qe[self.nodalDOF_element_r[1]]
+                    #     t1 = qe[self.nodalDOF_element_r[3]]
+                    #     A_IB0 = smallest_rotation(e1, t0)
+                    #     A_IB1 = smallest_rotation(e1, t1)
+
+                    #     # compute reference rotation
+                    #     # Note: We use the left nodal smallest rotation here for
+                    #     # simplicity, but we should generalized this according to
+                    #     # Crisfields procedure with an intermediate reference
+                    #     # A_IR = A_IB0  # left frame as reference
+                    #     A_IR = A_IB0 @ rodriguez(
+                    #         0.5 * rodriguez_inv(A_IB0.T @ A_IB1)
+                    #     )  # midway frame as reference
+
+                    #     # # tangent vector of reference triad
+                    #     # t_R = A_IR @ e1
+
+                    #     # # compute smallest rotation from reference triad to left
+                    #     # # and right nodal triads
+                    #     # A_RB0 = smallest_rotation(t_R, t0)
+                    #     # A_RB1 = smallest_rotation(t_R, t1)
+
+                    #     # compute relative rotation from reference triad to left
+                    #     # and right nodal triads
+                    #     A_RB0 = A_IR.T @ A_IB0
+                    #     A_RB1 = A_IR.T @ A_IB1
+
+                    #     # compute corresponding axial vectors
+                    #     psi_RB0 = rodriguez_inv(A_RB0)
+                    #     psi_RB1 = rodriguez_inv(A_RB1)
+
+                    #     # linear interpolation of local rotation vectors
+                    #     psi_rel = (
+                    #         N_psi[0] * psi_RB0 + N_psi[1] * psi_RB1
+                    #     )
+
+                    #     # objective rotation and directors
+                    #     A_IB = A_IR @ rodriguez(psi_rel)
+
+                    #     #######################################################
+                    #     # part 2: objective interpolation of relative rotation
+                    #     # vector, cf. Crisfield1999 (5.7) and (5.8)
+                    #     #######################################################
+
+                    #     # compute nodal relative rotations using Rodriguez' formular
+                    #     psi0 = qe[self.nodalDOF_element_psi[0]]
+                    #     psi1 = qe[self.nodalDOF_element_psi[1]]
+                    #     A_BK0 = rodriguez(psi0)
+                    #     A_BK1 = rodriguez(psi1)
+
+                    #     # reference rotation, cf. Crisfield1999 (5.8)
+                    #     # A_BR = A_BK0 # left frame as reference
+                    #     A_BR = A_BK0 @ rodriguez(
+                    #         0.5 * rodriguez_inv(A_BK0.T @ A_BK1)
+                    #     )  # midway frame as reference
+
+                    #     # compute relative rotation from reference triad to left
+                    #     # and right nodal triads
+                    #     A_RK0 = A_BR.T @ A_BK0
+                    #     A_RK1 = A_BR.T @ A_BK1
+
+                    #     # compute corresponding axial vectors
+                    #     psi_RK0 = rodriguez_inv(A_RK0)
+                    #     psi_RK1 = rodriguez_inv(A_RK1)
+
+                    #     # relative interpolation of local rotation vectors
+                    #     psi_rel = (
+                    #         N_psi[0] * psi_RK0 + N_psi[1] * psi_RK1
+                    #     )
+
+                    #     # objective rotation
+                    #     A_BK = A_BR @ rodriguez(psi_rel)
+
+                    #     ###############################################
+                    #     # part 3: combine both rotations and curvatures
+                    #     ###############################################
+                    #     A_IK = A_IB @ A_BK
+
+                    #     return A_IK
+
+                    A_IK = A_IK_local(qwi)
+                    A_IK_xi = approx_fprime(qwi, A_IK_local, method="3-point")
+
+                    # torsional and flexural strains (formulation in skew coordinates,
+                    # see Eugster2014c)
+                    d1_xi, d2_xi, d3_xi = A_IK_xi.T
+                    K_Kappa_bar = np.array(
+                        [
+                            0.5 * (d3 @ d2_xi - d2 @ d3_xi),
+                            0.5 * (d1 @ d3_xi - d3 @ d1_xi),
+                            0.5 * (d2 @ d1_xi - d1 @ d2_xi),
+                        ]
+                    )
+
+                    # # #######################################################
+                    # # # part 1: objective interpolation of smallest rotation,
+                    # # # cf. Meier2014 Section 3.5.2
+                    # # #######################################################
+
+                    # # # compute nodal smallest rotations
+                    # # t0 = qe[self.nodalDOF_element_r[1]]
+                    # # t1 = qe[self.nodalDOF_element_r[3]]
+                    # # A_IB0 = smallest_rotation(e1, t0)
+                    # # A_IB1 = smallest_rotation(e1, t1)
+
+                    # # # compute reference rotation
+                    # # # Note: We use the left nodal smallest rotation here for
+                    # # # simplicity, but we should generalized this according to
+                    # # # Crisfields procedure with an intermediate reference
+                    # # A_IR = A_IB0  # left frame as reference
+                    # # # A_IR = A_IB0 @ rodriguez(
+                    # # #     0.5 * rodriguez_inv(A_IB0.T @ A_IB1)
+                    # # # )  # midway frame as reference
+
+                    # # # tangent vector of reference triad
+                    # # t_R = A_IR @ e1
+
+                    # # # compute smallest rotation from reference triad to left
+                    # # # and right nodal triads
+                    # # A_RB0 = smallest_rotation(t_R, t0)
+                    # # A_RB1 = smallest_rotation(t_R, t1)
+
+                    # # # compute corresponding axial vectors
+                    # # psi_RB0 = rodriguez_inv(A_RB0)
+                    # # psi_RB1 = rodriguez_inv(A_RB1)
+
+                    # # # linear interpolation of local rotation vectors
+                    # # psi_rel = (
+                    # #     self.N_psi[el, i, 0] * psi_RB0 + self.N_psi[el, i, 1] * psi_RB1
+                    # # )
+                    # # psi_rel_xi = (
+                    # #     self.N_psi_xi[el, i, 0] * psi_RB0
+                    # #     + self.N_psi_xi[el, i, 1] * psi_RB1
+                    # # )
+
+                    # # # objective rotation and directors
+                    # # A_IB = A_IR @ rodriguez(psi_rel)
+
+                    # # # curvature of smallest rotation
+                    # # T = tangent_map(psi_rel)
+                    # # K_Kappa_bar_SR = T @ psi_rel_xi
+
+                    # # #######################################################
+                    # # # part 2: objective interpolation of relative rotation
+                    # # # vector, cf. Crisfield1999 (5.7) and (5.8)
+                    # # #######################################################
+
+                    # # # compute nodal relative rotations using Rodriguez' formular
+                    # # psi0 = qe[self.nodalDOF_element_psi[0]]
+                    # # psi1 = qe[self.nodalDOF_element_psi[1]]
+                    # # A_BK0 = rodriguez(psi0)
+                    # # A_BK1 = rodriguez(psi1)
+
+                    # # # reference rotation, cf. Crisfield1999 (5.8)
+                    # # # A_BR = A_BK0 # left frame as reference
+                    # # A_BR = A_BK0 @ rodriguez(
+                    # #     0.5 * rodriguez_inv(A_BK0.T @ A_BK1)
+                    # # )  # midway frame as reference
+
+                    # # # compute relative rotation from reference triad to left
+                    # # # and right nodal triads
+                    # # A_RK0 = A_BR.T @ A_BK0
+                    # # A_RK1 = A_BR.T @ A_BK1
+
+                    # # # compute corresponding axial vectors
+                    # # psi_RK0 = rodriguez_inv(A_RK0)
+                    # # psi_RK1 = rodriguez_inv(A_RK1)
+
+                    # # # relative interpolation of local rotation vectors
+                    # # psi_rel = (
+                    # #     self.N_psi[el, i, 0] * psi_RK0 + self.N_psi[el, i, 1] * psi_RK1
+                    # # )
+                    # # psi_rel_xi = (
+                    # #     self.N_psi_xi[el, i, 0] * psi_RK0
+                    # #     + self.N_psi_xi[el, i, 1] * psi_RK1
+                    # # )
+
+                    # # # objective rotation
+                    # # A_BK = A_BR @ rodriguez(psi_rel)
+
+                    # # # curvature of axis angle part
+                    # # T = tangent_map(psi_rel)
+                    # # K_Kappa_bar_psi = T @ psi_rel_xi
+
+                    # # ###############################################
+                    # # # part 3: combine both rotations and curvatures
+                    # # ###############################################
+                    # # A_IK = A_IB @ A_BK
+                    # # K_Kappa_bar = K_Kappa_bar_SR + K_Kappa_bar_psi
+
+                    # # # extract directors
+                    # # d1, d2, d3 = A_IK.T
+
+                    # # # change of directors
+                    # # d1_xi = cross3(K_Kappa_bar, d1)
+                    # # d2_xi = cross3(K_Kappa_bar, d2)
+                    # # d3_xi = cross3(K_Kappa_bar, d3)
+                    # # A_IK_xi = np.vstack((d1_xi, d2_xi, d3_xi)).T
+
+                    # ########################################################
+                    # # TODO: Why is this not the same as using numerical
+                    # # derivatives?
+                    # # relative interpolation of local rotations for combined
+                    # # rotations
+                    # ########################################################
+
+                    # # compute nodal smallest rotations
+                    # t0 = qe[self.nodalDOF_element_r[1]]
+                    # t1 = qe[self.nodalDOF_element_r[3]]
+                    # A_IB0 = smallest_rotation(e1, t0)
+                    # A_IB1 = smallest_rotation(e1, t1)
+
+                    # # compute nodal relative rotations using Rodriguez' formular
+                    # psi0 = qe[self.nodalDOF_element_psi[0]]
+                    # psi1 = qe[self.nodalDOF_element_psi[1]]
+                    # A_BK0 = rodriguez(psi0)
+                    # A_BK1 = rodriguez(psi1)
+
+                    # # compute combined rotation
+                    # A_IK0 = A_IB0 @ A_BK0
+                    # A_IK1 = A_IB1 @ A_BK1
+
+                    # # reference rotation, cf. Crisfield1999 (5.8)
+                    # # A_IR = A_IK0 # left frame as reference
+                    # A_IR = A_IK0 @ rodriguez(
+                    #     0.5 * rodriguez_inv(A_IK0.T @ A_IK1)
+                    # )  # midway frame as reference
+
+                    # # compute relative rotation from reference triad to left
+                    # # and right nodal triads
+                    # A_RK0 = A_IR.T @ A_IK0
+                    # A_RK1 = A_IR.T @ A_IK1
+
+                    # # compute corresponding axial vectors
+                    # psi_RK0 = rodriguez_inv(A_RK0)
+                    # psi_RK1 = rodriguez_inv(A_RK1)
+
+                    # # relative interpolation of local rotation vectors
+                    # psi_rel = self.N_psi[el, i, 0] * psi_RK0 + self.N_psi[el, i, 1] * psi_RK1
+                    # psi_rel_xi = self.N_psi_xi[el, i, 0] * psi_RK0 + self.N_psi_xi[el, i, 1] * psi_RK1
+
+                    # # objective rotation
+                    # A_IK = A_IR @ rodriguez(psi_rel)
+
+                    # # # curvature
+                    # # T = tangent_map(psi_rel)
+                    # # K_Kappa_bar = T @ psi_rel_xi
+
+                    # # # extract directors
+                    # # d1, d2, d3 = A_IK.T
+
+                    # # # change of directors
+                    # # d1_xi = cross3(K_Kappa_bar, d1)
+                    # # d2_xi = cross3(K_Kappa_bar, d2)
+                    # # d3_xi = cross3(K_Kappa_bar, d3)
+                    # # A_IK_xi = np.vstack((d1_xi, d2_xi, d3_xi)).T
+
+                    # # derivative of objective rotation
+                    # A_IK_xi = np.einsum(
+                    #     "ij,jkl,l->jk",
+                    #     A_IR,
+                    #     rodriguez_der(psi_rel),
+                    #     psi_rel_xi
+                    # )
+
+            else:
+                if director_interpolation:
+                    # interpolate rotation and its derivative w.r.t. parameter space
+                    A_IK = np.zeros((3, 3))
+                    A_IK_xi = np.zeros((3, 3))
+                    for node in range(self.nnodes_element_psi):
+                        psi_node = qe[self.nodalDOF_element_psi[node]]
+                        A_IK_node = rodriguez(psi_node)
+                        A_IK += self.N_psi[el, i, node] * A_IK_node
+                        A_IK_xi += self.N_psi_xi[el, i, node] * A_IK_node
+
+                    # torsional and flexural strains (formulation in skew coordinates,
+                    # see Eugster2014c)
+                    d1_xi, d2_xi, d3_xi = A_IK_xi.T
+                    K_Kappa_bar = np.array(
+                        [
+                            0.5 * (d3 @ d2_xi - d2 @ d3_xi),
+                            0.5 * (d1 @ d3_xi - d3 @ d1_xi),
+                            0.5 * (d2 @ d1_xi - d1 @ d2_xi),
+                        ]
+                    )
+
+                else:
+                    # reference rotation, cf. Crisfield1999 (5.8)
+                    # for convenience we use the most left nodal rotation
+                    # TODO: We can generalize this to a midway reference as done by Crisfield1999
+                    A_IR = rodriguez(qe[self.nodalDOF_element_psi[0]])
+
+                    # relative interpolation of local rotation vectors
+                    psi_rel = np.zeros(3)
+                    psi_rel_xi = np.zeros(3)
+                    for node in range(self.nnodes_element_psi):
+                        # nodal axis angle vector
+                        psi_node = qe[self.nodalDOF_element_psi[node]]
+
+                        # nodal rotation
+                        A_IK_node = rodriguez(psi_node)
+
+                        # relative rotation of each node and corresponding
+                        # rotation vector
+                        A_RK_node = A_IR.T @ A_IK_node
+                        psi_RK_node = rodriguez_inv(A_RK_node)
+
+                        # add wheighted contribution of local rotation
+                        psi_rel += self.N_psi[el, i, node] * psi_RK_node
+                        psi_rel_xi += self.N_psi_xi[el, i, node] * psi_RK_node
+
+                    # objective rotation
+                    A_IK = A_IR @ rodriguez(psi_rel)
+
+                    # curvature
+                    T = tangent_map(psi_rel)
+                    K_Kappa_bar = T @ psi_rel_xi
+
+            # axial and shear strains
+            K_Gamma = A_IK.T @ (r_xi / Ji)
+
+            # torsional and flexural strains (formulation in skew coordinates,
+            # see Eugster2014c)
+            d1, d2, d3 = A_IK.T
             d = d1 @ cross3(d2, d3)
             dd = 1 / (d * Ji)
             K_Kappa = dd * K_Kappa_bar
@@ -1568,10 +1934,37 @@ class DirectorAxisAngle:
                 # # objective rotation
                 # A_IK = A_IR @ rodriguez(psi_rel)
         else:
-            # interpolate nodal rotation matrices
-            A_IK = np.zeros((3, 3))
-            for node in range(self.nnodes_element_psi):
-                A_IK += N[node] * rodriguez(q[self.nodalDOF_element_psi[node]])
+            if director_interpolation:
+                # interpolate nodal rotation matrices
+                A_IK = np.zeros((3, 3))
+                for node in range(self.nnodes_element_psi):
+                    A_IK += N[node] * rodriguez(q[self.nodalDOF_element_psi[node]])
+            else:
+                # reference rotation, cf. Crisfield1999 (5.8)
+                # for convenience we use the most left nodal rotation
+                # TODO: We can generalize this to a midway reference as done by Crisfield1999
+                A_IR = rodriguez(q[self.nodalDOF_element_psi[0]])
+
+                # relative interpolation of local rotation vectors
+                psi_rel = np.zeros(3)
+                for node in range(self.nnodes_element_psi):
+                    # nodal axis angle vector
+                    psi_node = q[self.nodalDOF_element_psi[node]]
+
+                    # nodal rotation
+                    A_IK_node = rodriguez(psi_node)
+
+                    # relative rotation of each node and corresponding
+                    # rotation vector
+                    A_RK_node = A_IR.T @ A_IK_node
+                    psi_RK_node = rodriguez_inv(A_RK_node)
+
+                    # add wheighted contribution of local rotation
+                    psi_rel += N[node] * psi_RK_node
+
+                # objective rotation
+                A_IK = A_IR @ rodriguez(psi_rel)
+
         return A_IK
 
     def A_IK_q(self, t, q, frame_ID):
