@@ -181,9 +181,9 @@ def run(statics=True):
     Beam = DirectorAxisAngle
 
     # number of elements
-    # nelements = 1
+    nelements = 1
     # nelements = 2
-    nelements = 4
+    # nelements = 4
     # nelements = 8
     # nelements = 16
     # nelements = 32
@@ -193,6 +193,7 @@ def run(statics=True):
     # polynomial_degree = 1
     # polynomial_degree = 2
     polynomial_degree = 3
+    # polynomial_degree = 5
 
     # number of quadrature points
     # nquadrature_points = int(np.ceil((polynomial_degree + 1)**2 / 2))
