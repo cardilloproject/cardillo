@@ -17,11 +17,13 @@ from cardillo.math import (
     inverse_tangent_map,
     tangent_map_s,
     e1,
+    e2,
+    e3,
     smallest_rotation,
 )
 
-# relative_orientation = True
-relative_orientation = False
+relative_orientation = True
+# relative_orientation = False
 
 # director_interpolation = True
 director_interpolation = False
@@ -648,6 +650,112 @@ class DirectorAxisAngle:
 
             # axial and shear strains
             K_Gamma = A_IK.T @ (r_xi / Ji)
+
+            # # alternative strain measures using relative deformations of the
+            # # cross section
+            # if relative_orientation and (self.basis == "Hermite"):
+            #     if director_interpolation:
+            #         raise NotImplementedError("")
+            #     else:
+            #         # extract nodal tangent vectors and compute corresponding
+            #         # smallest rotations
+            #         t0 = qe[self.nodalDOF_element_r[1]]
+            #         t1 = qe[self.nodalDOF_element_r[3]]
+            #         A_IB0 = smallest_rotation(e1, t0)
+            #         A_IB1 = smallest_rotation(e1, t1)
+
+            #         # Define a reference rotation for this element, cf.
+            #         # Crisfield1999 (5.8).
+            #         # Note: We use the midway rotation for a two node element.
+            #         A_IR = A_IB0 @ rodriguez(0.5 * rodriguez_inv(A_IB0.T @ A_IB1))
+
+            #         # compute relative rotation from reference triad to left
+            #         # and right nodal triads
+            #         A_RB0 = A_IR.T @ A_IB0
+            #         A_RB1 = A_IR.T @ A_IB1
+
+            #         # compute corresponding axial vectors
+            #         psi_RB0 = rodriguez_inv(A_RB0)
+            #         psi_RB1 = rodriguez_inv(A_RB1)
+
+            #         # (objective) relative interpolation of the local rotation
+            #         # vector and its derivatives, see Crisfield1999 (5.7) and (5.8)
+            #         psi_rel = self.N_psi[el, i, 0] * psi_RB0 + self.N_psi[el, i, 1] * psi_RB1
+            #         psi_rel_xi = (
+            #             self.N_psi_xi[el, i, 0] * psi_RB0 + self.N_psi_xi[el, i, 1] * psi_RB1
+            #         )
+
+            #         # the final objective rotation is given by the application
+            #         # of the reference rotation onto the relative rotation
+            #         A_IB = A_IR @ rodriguez(psi_rel)
+
+            #         # objective curvature
+            #         # Note: Since we are only using the relative rotation
+            #         # vector for evaluating T, for reasonable discretizations
+            #         # there should never be a problem with the singularity of T.
+            #         T = tangent_map(psi_rel)
+            #         K_Kappa_bar_r = T @ psi_rel_xi
+
+            #         # compute nodal relative rotations by application of
+            #         # Rodriguez' formular on nodal local rotation vectors
+            #         psi0 = qe[self.nodalDOF_element_psi[0]]
+            #         psi1 = qe[self.nodalDOF_element_psi[1]]
+            #         A_BK0 = rodriguez(psi0)
+            #         A_BK1 = rodriguez(psi1)
+
+            #         # Define a reference rotation for this element, cf.
+            #         # Crisfield1999 (5.8).
+            #         # Note: We use the midway rotation for a two node element.
+            #         A_BR = A_BK0 @ rodriguez(0.5 * rodriguez_inv(A_BK0.T @ A_BK1))
+
+            #         # compute relative rotation from reference triad to left
+            #         # and right nodal triads
+            #         A_RK0 = A_BR.T @ A_BK0
+            #         A_RK1 = A_BR.T @ A_BK1
+
+            #         # compute corresponding axial vectors
+            #         psi_RK0 = rodriguez_inv(A_RK0)
+            #         psi_RK1 = rodriguez_inv(A_RK1)
+
+            #         # (objective) relative interpolation of the local rotation
+            #         # vector and its derivatives, see Crisfield1999 (5.7) and (5.8)
+            #         psi_rel = self.N_psi[el, i, 0] * psi_RK0 + self.N_psi[el, i, 1] * psi_RK1
+            #         psi_rel_xi = (
+            #             self.N_psi_xi[el, i, 0] * psi_RK0 + self.N_psi_xi[el, i, 1] * psi_RK1
+            #         )
+
+            #         # the final objective rotation is given by the application
+            #         # of the reference rotation onto the relative rotation
+            #         A_BK = A_BR @ rodriguez(psi_rel)
+
+            #         # objective curvature
+            #         # Note: Since we are only using the relative rotation
+            #         # vector for evaluating T, for reasonable discretizations
+            #         # there should never be a problem with the singularity of T.
+            #         T = tangent_map(psi_rel)
+            #         K_Kappa_bar_psi = T @ psi_rel_xi
+
+            #         # final rotation
+            #         A_IK = A_IB @ A_BK
+
+            #         # final curvature
+            #         K_Kappa_bar = K_Kappa_bar_r + K_Kappa_bar_psi
+
+            #         # # stretch and elongation
+            #         # stretch = norm(r_xi) / Ji
+            #         # # elongation = stretch - 1.
+
+            #         # # relative shear strains
+            #         # K_Gamma_1 = A_BK[:, 0] @ (stretch * e1)
+            #         # K_Gamma_2 = A_BK[:, 1] @ (stretch * e1)
+            #         # K_Gamma_3 = A_BK[:, 2] @ (stretch * e1)
+            #         # K_Gamma = np.array([
+            #         #     K_Gamma_1,
+            #         #     K_Gamma_2,
+            #         #     K_Gamma_3,
+            #         # ])
+            #         # K_Gamma = A_BK.T @ (stretch * e1)
+            #         K_Gamma = A_IK.T @ r_xi / Ji
 
             # torsional and flexural strains (formulation in skew coordinates,
             # see Eugster2014c)
