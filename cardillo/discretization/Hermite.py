@@ -3,23 +3,11 @@ from numpy.polynomial import Polynomial
 
 
 class HermiteNodeVector:
-    def __init__(self, degree, nel, data=None):
+    def __init__(self, degree, nel, interval=[0, 1]):
         assert degree % 2 == 1, "degree must be odd"
         self.degree = degree
         self.nel = nel
-        if data is None:
-            self.data = HermiteNodeVector.uniform(nel)
-        else:
-            raise NotImplementedError("")
-            # TODO: What happens here?
-            self.data = np.zeros(self.nel + 1)
-            for el in range(nel):
-                for p in range(self.degree):
-                    self.data[el * self.degree + p] = (
-                        data[el] + p * (data[el + 1] - data[el]) / self.degree
-                    )
-            self.data[-1] = data[-1]
-
+        self.data = HermiteNodeVector.uniform(nel, interval=interval)
         self.element_data = self.data
         self.verify_data()
 

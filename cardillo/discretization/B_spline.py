@@ -15,11 +15,11 @@ class KnotVector:
             ]
         )
 
-    def __init__(self, degree, nel, data=None):
+    def __init__(self, degree, nel, data=None, interval=[0, 1]):
         self.degree = degree
         self.nel = nel
         if data is None:
-            self.data = KnotVector.uniform(degree, nel)
+            self.data = KnotVector.uniform(degree, nel, interval)
         else:
             self.data = data
 
@@ -27,15 +27,19 @@ class KnotVector:
         self.verify_data()
 
     def element_number(self, knots):
-        if not hasattr(knots, "__len__"):
-            knots = [knots]
+        knots = np.atleast_1d(knots)
+
         lenxi = len(knots)
 
         element = np.zeros(lenxi, dtype=int)
         for j in range(lenxi):
-            element[j] = np.where(self.element_data <= knots[j])[0][-1]
-            if knots[j] == self.data[-1]:
-                element[j] -= 1
+            # check for out of ranges
+            if knots[j] <= self.element_data[0]:
+                element[j] = 0
+            elif knots[j] >= self.element_data[-1]:
+                element[j] = self.nel - 1
+            else:
+                element[j] = np.where(self.element_data <= knots[j])[0][-1]
         return element
 
     def element_interval(self, el):
@@ -66,16 +70,18 @@ def find_knotspan(degree, knot_vector, knots):
     ----------
     Piegl1997 - ALGORITHM A2.1, p.68: http://read.pudn.com/downloads713/ebook/2859558/The%20NURBS%20Book%202nd.pdf
     """
-
-    if not hasattr(knots, "__len__"):
-        knots = [knots]
+    knots = np.atleast_1d(knots)
     lenxi = len(knots)
 
     span = np.zeros(lenxi, dtype=int)
     for j in range(lenxi):
-        span[j] = np.where(knot_vector <= knots[j])[0][-1]
-        if knots[j] == knot_vector[-1]:
-            span[j] += -degree - 1
+        # check for out of ranges
+        if knots[j] <= knot_vector[0]:
+            span[j] = degree
+        elif knots[j] >= knot_vector[-1]:
+            span[j] = len(knot_vector) - degree - 2
+        else:
+            span[j] = np.where(knot_vector <= knots[j])[0][-1]
     return span
 
 
