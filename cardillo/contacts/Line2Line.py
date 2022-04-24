@@ -1,6 +1,6 @@
 from math import sin, cos, sqrt
 import numpy as np
-from cardillo.math import approx_fprime, norm, A_IK_basic, cross3, e1, e2, e3
+from cardillo.math import approx_fprime, norm, e1, e2, e3
 from scipy.optimize import fsolve
 from scipy.optimize import minimize
 
@@ -211,17 +211,17 @@ class Line2Line:
 
         # second gradient of squared distance function
         distance2_etaeta = np.array([[-delta_r @ r2_etaeta + r2_eta @ r2_eta]])
-        # return distance2_etaeta
+        return distance2_etaeta
 
-        distance2_etaeta_num = approx_fprime(
-            eta, lambda eta: self.distance2_eta(t, q, xi, eta)
-        )
+        # distance2_etaeta_num = np.array([[approx_fprime(
+        #     eta, lambda eta: self.distance2_eta(t, q, xi, eta)
+        # )]])
 
-        diff = distance2_etaeta - distance2_etaeta_num
-        error = np.linalg.norm(diff)
-        print(f"diff:\n{diff}")
-        print(f"error distance2_etaeta_num: {error}")
-        return distance2_etaeta_num
+        # diff = distance2_etaeta - distance2_etaeta_num
+        # error = np.linalg.norm(diff)
+        # print(f"diff:\n{diff}")
+        # print(f"error distance2_etaeta_num: {error}")
+        # return distance2_etaeta_num
 
     def closest_points_minimize_d(self, t, q, xi):
         # optimization options
@@ -342,7 +342,7 @@ class Line2Line:
         return res.x
 
     def closest_points_prox_gradient_d2(
-        self, t, q, xi, max_iter=500, tol=1.0e-6, prox_r=1.0e-3, debug=False
+        self, t, q, xi, max_iter=50, tol=1.0e-6, prox_r=1.0e-3, debug=False
     ):
         """Optimize gradient of squared distance using a semi smooth Newton
         method with the inequality constraint 0 <= eta <= 1.
@@ -412,9 +412,6 @@ class Line2Line:
             # gradient
             grad_g = self.distance2_eta(t, q, xi, eta)
 
-            # # extended gradient reformulated using prox function
-            # p = eta - prox_R_ab(eta - prox_r * grad_g[0])
-
             # distinguish all three cases of the prox equation above
             prox_arg = eta - prox_r * grad_g[0]
             if prox_arg <= 0:
@@ -424,21 +421,25 @@ class Line2Line:
             else:
                 p = grad_g[0]
 
-            # # merit function defined in Chapter 9.4, on p. 871 of
-            # # Facchinei2003b
-            # r = eta
-            # s = grad_g[0]
-            # # p = phi(r, s)
-            # p = phi(r, 1.0e-2 * s)
-            # # p = phi_smooth(r, s)
-            # # p = phi_smooth(r, 1.0e-2 * s)
-
             # return vector of merit function
             return np.array([p])
 
-        # TODO:
+        # TODO: Implement distance2_etaeta
         def hessian_fun(p):
-            return np.array([[approx_fprime(p, lambda p: grad_fun(p))]])
+            # extract unknown value
+            eta = p[0]
+
+            # gradient
+            grad_g = self.distance2_eta(t, q, xi, eta)
+
+            # distinguish all three cases of the prox equation above
+            prox_arg = eta - prox_r * grad_g[0]
+            if prox_arg <= 0:
+                return np.ones((1, 1))
+            elif prox_arg >= 1:
+                return np.ones((1, 1))
+            else:
+                return self.distance2_etaeta(t, q, xi, eta)
 
         # initial error
         p = np.array([self.eta_c])
@@ -451,13 +452,13 @@ class Line2Line:
                 # perform Newton step
                 hess = hessian_fun(p)
                 try:
-                    delta_p = -np.linalg.solve(hess, grad)
+                    delta_p = np.linalg.solve(hess, grad)
                 except np.linalg.LinAlgError as err:
                     print(f"np.linalg.LinAlgError: {err}; we return p as it is")
                     return p
 
                 # standard update
-                p += delta_p
+                p -= delta_p
 
                 # # Projection onto unit interval,
                 # # see http://web.mit.edu/people/dimitrib/ProjectedNewton.pdf.
@@ -484,6 +485,44 @@ class Line2Line:
             # raise RuntimeError('Internal Newton method is not converged.')
             print(f"   => not converged with p: {p}; error: {error:1.3e}")
             return p
+
+    def closest_points_prox_gradient_d2_fixed_point(
+        self, t, q, xi, max_iter=500, tol=1.0e-8, prox_r=2.0e-2, debug=False
+    ):
+        # initial value for eta
+        etai = self.eta_c
+
+        # proximal point for C = [0, 1]
+        def prox_01(x):
+            return max(0.0, min(1.0, x))
+
+        # start fixed point iteration
+        etai1 = etai
+        for i in range(max_iter):
+            # evaluate new gradient
+            grad_g = self.distance2_eta(t, q, xi, etai)
+
+            # fixed point update for eta
+            etai1 = prox_01(etai - prox_r * grad_g[0])
+
+            # check for convergence
+            error = abs(etai1 - etai)
+            if error < tol:
+                break
+            else:
+                etai = etai1
+
+        if i == max_iter - 1:
+            print(
+                f"fixed-point iteration not converged after {max_iter} iterations with error: {error}"
+            )
+        else:
+            if debug:
+                print(
+                    f"fixed-point iteration converged after {i + 1} iterations with error: {error}"
+                )
+
+        return np.array([etai1])
 
     def distance2_boundary(self, t, q, xi, p):
         # extract vector p
@@ -590,8 +629,9 @@ class Line2Line:
         return res.x
 
     # def closest_points(self, t, q, xi, method='minimize d'):
-    def closest_points(self, t, q, xi, method="minimize d2"):
-        # def closest_points(self, t, q, xi, method="gradient d2 prox"):
+    # def closest_points(self, t, q, xi, method="minimize d2"):
+    def closest_points(self, t, q, xi, method="gradient d2 prox"):
+        # def closest_points(self, t, q, xi, method="gradient d2 prox fixed-point"):
         # def closest_points(self, t, q, xi, method='minimize d2 boundary'):
         if method == "minimize d":
             return self.closest_points_minimize_d(t, q, xi)
@@ -599,6 +639,8 @@ class Line2Line:
             return self.closest_points_minimize_d2(t, q, xi)
         elif method == "gradient d2 prox":
             return self.closest_points_prox_gradient_d2(t, q, xi)
+        elif method == "gradient d2 prox fixed-point":
+            return self.closest_points_prox_gradient_d2_fixed_point(t, q, xi)
         elif method == "minimize d2 boundary":
             return self.closest_points_minimize_d2_boundary(t, q, xi)
         else:
