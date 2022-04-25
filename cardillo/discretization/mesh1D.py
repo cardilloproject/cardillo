@@ -37,7 +37,8 @@ class Mesh1D:
         dim,
         derivative_order=1,
         basis="B-spline",
-        quadrature="Gauss",
+        # quadrature="Gauss",
+        quadrature="Lobatto",
     ):
         self.basis = basis
         self.nelement = knot_vector.nel
@@ -49,6 +50,7 @@ class Mesh1D:
         if quadrature == "Gauss":
             self.quadrature = gauss
         elif quadrature == "Lobatto":
+            print(f"Lobatto quadrature points are used!")
             self.quadrature = lobatto
         else:
             raise NotImplementedError(

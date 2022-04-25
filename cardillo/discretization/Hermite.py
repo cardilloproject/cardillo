@@ -47,6 +47,8 @@ class CubicHermiteBasis:
         # But be aware that numpy's Polynomial class changes only the domain,
         # but does not scale the tangents so we have to do this manually!
         interval_length = interval[1] - interval[0]
+
+        # cubic Hermite shape functions on [0, 1]
         self.h00 = Polynomial([1, 0, -3, 2], domain=interval, window=[0, 1])
         self.h01 = interval_length * Polynomial(
             [0, 1, -2, 1], domain=interval, window=[0, 1]
@@ -55,6 +57,20 @@ class CubicHermiteBasis:
         self.h11 = interval_length * Polynomial(
             [0, 0, -1, 1], domain=interval, window=[0, 1]
         )
+
+        # # cubic Hermite shape functions on [-1, 1], see Meier2014 (61)
+        # self.h00 = (
+        #     0.25 * Polynomial([2, 1], domain=interval) * Polynomial([1, -1], domain=interval)**2
+        # ).convert(domain=interval)
+        # self.h01 = (
+        #     interval_length * 0.125 * Polynomial([1, 1], domain=interval) * Polynomial([1, -1], domain=interval)**2
+        # ).convert(domain=interval)
+        # self.h10 = (
+        #     0.25 * Polynomial([2, -1], domain=interval) * Polynomial([1, 1], domain=interval)**2
+        # ).convert(domain=interval)
+        # self.h11 = (
+        #     -interval_length * 0.125 * Polynomial([1, -1], domain=interval) * Polynomial([1, 1], domain=interval)**2
+        # )
 
     def __call__(self, xis):
         xis = np.atleast_1d(xis)

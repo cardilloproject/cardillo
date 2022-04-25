@@ -22,11 +22,14 @@ from cardillo.math import (
     smallest_rotation,
 )
 
-relative_orientation = True
-# relative_orientation = False
+# relative_orientation = True
+relative_orientation = False
 
 # director_interpolation = True
 director_interpolation = False
+
+# integral_curve_psi = True
+integral_curve_psi = False
 
 
 class DirectorAxisAngle:
@@ -45,6 +48,8 @@ class DirectorAxisAngle:
         basis="B-spline",
     ):
         # chose implementation of strain measures and related quantities
+        # print("eval_absolute_local is hard coded!")
+        # self.eval = self.eval_absolute_local
         if relative_orientation and (basis == "Hermite"):
             if director_interpolation:
                 self.eval = self.eval_relative_director
@@ -84,11 +89,15 @@ class DirectorAxisAngle:
             #       together with a linear Lagrange axis angle vector field
             #       for the superimposed rotation w.r.t. the smallest rotation.
             polynomial_degree_r = 3
-            polynomial_degree_psi = 1
             self.knot_vector_r = HermiteNodeVector(polynomial_degree_r, nelement)
-            # TODO: Enbale Lagrange shape functions again if ready.
-            # self.knot_vector_psi = Node_vector(polynomial_degree_psi, nelement)
-            self.knot_vector_psi = KnotVector(polynomial_degree_psi, nelement)
+            if integral_curve_psi:
+                self.polynomial_degree_psi = polynomial_degree_psi = 3
+                self.knot_vector_r = HermiteNodeVector(polynomial_degree_r, nelement)
+            else:
+                self.polynomial_degree_psi = polynomial_degree_psi = 1
+                # TODO: Enbale Lagrange shape functions again if ready.
+                # self.knot_vector_psi = Node_vector(polynomial_degree_psi, nelement)
+                self.knot_vector_psi = KnotVector(polynomial_degree_psi, nelement)
         else:
             raise RuntimeError(f'wrong basis: "{basis}" was chosen')
 
@@ -105,9 +114,18 @@ class DirectorAxisAngle:
         )
         # TODO: This is ugly!
         if basis == "Hermite":
-            # TODO: Enable Lagrange again if ready.
-            # basis = "Lagrange"
-            basis = "B-spline"
+            if integral_curve_psi:
+                self.mesh_psi = Mesh1D(
+                    self.knot_vector_psi,
+                    nquadrature,
+                    derivative_order=1,
+                    basis=basis,
+                    dim=nq_node_psi,
+                )
+            else:
+                # TODO: Enable Lagrange again if ready.
+                # basis = "Lagrange"
+                basis = "B-spline"
         self.mesh_psi = Mesh1D(
             self.knot_vector_psi,
             nquadrature,
@@ -248,12 +266,15 @@ class DirectorAxisAngle:
             nn_psi = polynomial_degree_psi * nelement + 1
         elif basis == "Hermite":
             polynomial_degree_r = 3
-            polynomial_degree_psi = 1
             nn_r = nelement + 1
-            # TODO:
-            # nn_psi = nelement + 1 # linear
-            # nn_psi = polynomial_degree_psi * nelement + 1 # Lagrange
-            nn_psi = polynomial_degree_psi + nelement  # B-spline
+            if integral_curve_psi:
+                polynomial_degree_psi = 3
+                nn_psi = nelement + 1  # cubic Hermite
+            else:
+                polynomial_degree_psi = 1
+                # TODO:
+                nn_psi = polynomial_degree_psi + nelement  # B-spline
+                # nn_psi = polynomial_degree_psi * nelement + 1 # Lagrange
         else:
             raise RuntimeError(f'wrong basis: "{basis}" was chosen')
 
@@ -273,11 +294,8 @@ class DirectorAxisAngle:
 
         elif basis == "Hermite":
             xis = np.linspace(0, 1, num=nn_r)
-
             r0 = np.zeros((6, nn_r))
-            # TODO:
             t0 = A_IK @ (L * e1)
-            # t0 = A_IK @ e1
             for i, xi in enumerate(xis):
                 ri = r_OP + xi * t0
                 r0[:3, i] = ri
@@ -289,8 +307,18 @@ class DirectorAxisAngle:
         # TODO: Relative interpolation case!
         # we have to extract the rotation vector from the given rotation matrix
         # and set its value for each node
-        psi = rodriguez_inv(A_IK)
-        q_psi = np.tile(psi, nn_psi)
+        if integral_curve_psi:
+            xis = np.linspace(0, 1, num=nn_r)
+            psi = rodriguez_inv(A_IK)
+            intergal_psi0 = np.zeros((6, nn_r))
+            for i, xi in enumerate(xis):
+                integral_psii = xi * t0
+                intergal_psi0[:3, i] = integral_psii
+                intergal_psi0[3:, i] = psi
+            q_psi = intergal_psi0.reshape(-1, order="F")
+        else:
+            psi = rodriguez_inv(A_IK)
+            q_psi = np.tile(psi, nn_psi)
 
         return np.concatenate([q_r, q_psi])
 
@@ -305,6 +333,9 @@ class DirectorAxisAngle:
     # equations of motion
     #########################################
     def M_el(self, el):
+        # if relative_orientation:
+        #     raise NotImplementedError
+
         M_el = np.zeros((self.nq_element, self.nq_element))
 
         for i in range(self.nquadrature):
@@ -352,6 +383,9 @@ class DirectorAxisAngle:
         coo.extend_sparse(self.__M)
 
     def f_gyr_el(self, t, qe, ue, el):
+        # if relative_orientation:
+        #     raise NotImplementedError
+
         f_gyr_el = np.zeros(self.nq_element)
 
         for i in range(self.nquadrature):
@@ -589,6 +623,55 @@ class DirectorAxisAngle:
 
         return r_xi, A_IK, K_Kappa_bar
 
+    def eval_absolute_local_arbitrary(self, qe, xi):
+        # evaluate shape functions
+        _, N_r_xi, __ = self.basis_functions_r(xi)
+        N_psi, N_psi_xi = self.basis_functions_psi(xi)
+
+        # interpolate tangent vector
+        r_xi = np.zeros(3)
+        for node in range(self.nnodes_element_r):
+            r_xi += N_r_xi[node] * qe[self.nodalDOF_element_r[node]]
+
+        # reference rotation, see. Crisfield1999 (5.8)
+        # A_IR = rodriguez(qe[self.nodalDOF_element_psi[0]])
+        node_I = int(0.5 * (self.nnodes_element_psi + 1)) - 1
+        node_J = int(0.5 * (self.nnodes_element_psi + 2)) - 1
+        c = 0.5
+        A_0I = rodriguez(qe[self.nodalDOF_element_psi[node_I]])
+        A_0J = rodriguez(qe[self.nodalDOF_element_psi[node_J]])
+        A_IJ = A_0I.T @ A_0J  # Crisfield1999 (5.8)
+        phi_IJ = rodriguez_inv(A_IJ)
+        A_IR = A_0I @ rodriguez(c * phi_IJ)
+
+        # relative interpolation of local rotation vectors
+        psi_rel = np.zeros(3)
+        psi_rel_xi = np.zeros(3)
+        for node in range(self.nnodes_element_psi):
+            # nodal axis angle vector
+            psi_node = qe[self.nodalDOF_element_psi[node]]
+
+            # nodal rotation
+            A_IK_node = rodriguez(psi_node)
+
+            # relative rotation of each node and corresponding
+            # rotation vector
+            A_RK_node = A_IR.T @ A_IK_node
+            psi_RK_node = rodriguez_inv(A_RK_node)
+
+            # add wheighted contribution of local rotation
+            psi_rel += N_psi[node] * psi_RK_node
+            psi_rel_xi += N_psi_xi[node] * psi_RK_node
+
+        # objective rotation
+        A_IK = A_IR @ rodriguez(psi_rel)
+
+        # curvature
+        T = tangent_map(psi_rel)
+        K_Kappa_bar = T @ psi_rel_xi
+
+        return r_xi, A_IK, K_Kappa_bar
+
     def E_pot(self, t, q):
         E_pot = 0
         for el in range(self.nelement):
@@ -638,124 +721,38 @@ class DirectorAxisAngle:
     def f_pot_el(self, qe, el):
         f_pot_el = np.zeros(self.nq_element)
 
+        # # TODO: Move this to __init__
+        # # full integration of curvature terms
+        # from cardillo.discretization.gauss import gauss
+        # nquadrature = self.polynomial_degree_r + 1
+        # self.qp = np.zeros((self.nelement, nquadrature))
+        # self.wp = np.zeros((self.nelement, nquadrature))
+
+        # for el in range(self.nelement):
+        #     Xi_element_interval = self.mesh_r.knot_vector.element_interval(el)
+        #     self.qp[el], self.wp[el] = gauss(
+        #         nquadrature, interval=Xi_element_interval
+        #     )
+
         for i in range(self.nquadrature):
             # extract reference state variables
             qwi = self.qw[el, i]
             Ji = self.J[el, i]
             K_Gamma0 = self.K_Gamma0[el, i]
             K_Kappa0 = self.K_Kappa0[el, i]
+            # qpi = self.qp[el, i]
+            # qe0 = self.Q[self.elDOF[el]]
+            # r_xi0, A_IK0, K_Kappa_bar0 = self.eval_absolute_local_arbitrary(qe0, qpi)
+            # Ji = norm(r_xi0)
+            # K_Gamma0 = A_IK0.T @ r_xi0 / Ji
+            # K_Kappa0 = K_Kappa_bar0 / Ji
 
             # evaluate strain measures and other quantities depending on chosen formulation
             r_xi, A_IK, K_Kappa_bar = self.eval(qe, el, i)
+            # r_xi, A_IK, K_Kappa_bar = self.eval_absolute_local_arbitrary(qe, self.qp[el, i])
 
             # axial and shear strains
             K_Gamma = A_IK.T @ (r_xi / Ji)
-
-            # # alternative strain measures using relative deformations of the
-            # # cross section
-            # if relative_orientation and (self.basis == "Hermite"):
-            #     if director_interpolation:
-            #         raise NotImplementedError("")
-            #     else:
-            #         # extract nodal tangent vectors and compute corresponding
-            #         # smallest rotations
-            #         t0 = qe[self.nodalDOF_element_r[1]]
-            #         t1 = qe[self.nodalDOF_element_r[3]]
-            #         A_IB0 = smallest_rotation(e1, t0)
-            #         A_IB1 = smallest_rotation(e1, t1)
-
-            #         # Define a reference rotation for this element, cf.
-            #         # Crisfield1999 (5.8).
-            #         # Note: We use the midway rotation for a two node element.
-            #         A_IR = A_IB0 @ rodriguez(0.5 * rodriguez_inv(A_IB0.T @ A_IB1))
-
-            #         # compute relative rotation from reference triad to left
-            #         # and right nodal triads
-            #         A_RB0 = A_IR.T @ A_IB0
-            #         A_RB1 = A_IR.T @ A_IB1
-
-            #         # compute corresponding axial vectors
-            #         psi_RB0 = rodriguez_inv(A_RB0)
-            #         psi_RB1 = rodriguez_inv(A_RB1)
-
-            #         # (objective) relative interpolation of the local rotation
-            #         # vector and its derivatives, see Crisfield1999 (5.7) and (5.8)
-            #         psi_rel = self.N_psi[el, i, 0] * psi_RB0 + self.N_psi[el, i, 1] * psi_RB1
-            #         psi_rel_xi = (
-            #             self.N_psi_xi[el, i, 0] * psi_RB0 + self.N_psi_xi[el, i, 1] * psi_RB1
-            #         )
-
-            #         # the final objective rotation is given by the application
-            #         # of the reference rotation onto the relative rotation
-            #         A_IB = A_IR @ rodriguez(psi_rel)
-
-            #         # objective curvature
-            #         # Note: Since we are only using the relative rotation
-            #         # vector for evaluating T, for reasonable discretizations
-            #         # there should never be a problem with the singularity of T.
-            #         T = tangent_map(psi_rel)
-            #         K_Kappa_bar_r = T @ psi_rel_xi
-
-            #         # compute nodal relative rotations by application of
-            #         # Rodriguez' formular on nodal local rotation vectors
-            #         psi0 = qe[self.nodalDOF_element_psi[0]]
-            #         psi1 = qe[self.nodalDOF_element_psi[1]]
-            #         A_BK0 = rodriguez(psi0)
-            #         A_BK1 = rodriguez(psi1)
-
-            #         # Define a reference rotation for this element, cf.
-            #         # Crisfield1999 (5.8).
-            #         # Note: We use the midway rotation for a two node element.
-            #         A_BR = A_BK0 @ rodriguez(0.5 * rodriguez_inv(A_BK0.T @ A_BK1))
-
-            #         # compute relative rotation from reference triad to left
-            #         # and right nodal triads
-            #         A_RK0 = A_BR.T @ A_BK0
-            #         A_RK1 = A_BR.T @ A_BK1
-
-            #         # compute corresponding axial vectors
-            #         psi_RK0 = rodriguez_inv(A_RK0)
-            #         psi_RK1 = rodriguez_inv(A_RK1)
-
-            #         # (objective) relative interpolation of the local rotation
-            #         # vector and its derivatives, see Crisfield1999 (5.7) and (5.8)
-            #         psi_rel = self.N_psi[el, i, 0] * psi_RK0 + self.N_psi[el, i, 1] * psi_RK1
-            #         psi_rel_xi = (
-            #             self.N_psi_xi[el, i, 0] * psi_RK0 + self.N_psi_xi[el, i, 1] * psi_RK1
-            #         )
-
-            #         # the final objective rotation is given by the application
-            #         # of the reference rotation onto the relative rotation
-            #         A_BK = A_BR @ rodriguez(psi_rel)
-
-            #         # objective curvature
-            #         # Note: Since we are only using the relative rotation
-            #         # vector for evaluating T, for reasonable discretizations
-            #         # there should never be a problem with the singularity of T.
-            #         T = tangent_map(psi_rel)
-            #         K_Kappa_bar_psi = T @ psi_rel_xi
-
-            #         # final rotation
-            #         A_IK = A_IB @ A_BK
-
-            #         # final curvature
-            #         K_Kappa_bar = K_Kappa_bar_r + K_Kappa_bar_psi
-
-            #         # # stretch and elongation
-            #         # stretch = norm(r_xi) / Ji
-            #         # # elongation = stretch - 1.
-
-            #         # # relative shear strains
-            #         # K_Gamma_1 = A_BK[:, 0] @ (stretch * e1)
-            #         # K_Gamma_2 = A_BK[:, 1] @ (stretch * e1)
-            #         # K_Gamma_3 = A_BK[:, 2] @ (stretch * e1)
-            #         # K_Gamma = np.array([
-            #         #     K_Gamma_1,
-            #         #     K_Gamma_2,
-            #         #     K_Gamma_3,
-            #         # ])
-            #         # K_Gamma = A_BK.T @ (stretch * e1)
-            #         K_Gamma = A_IK.T @ r_xi / Ji
 
             # torsional and flexural strains (formulation in skew coordinates,
             # see Eugster2014c)
@@ -789,6 +786,104 @@ class DirectorAxisAngle:
                 f_pot_el[self.nodalDOF_element_psi[node]] += (
                     self.N_psi[el, i, node] * cross3(K_Kappa_bar, K_m) * qwi
                 )  # Euler term
+
+        # # TODO: Move this to __init__
+        # # reduced integration of shear and axial terms
+        # nquadrature = self.polynomial_degree_r #- 1
+        # self.qp = np.zeros((self.nelement, nquadrature))
+        # self.wp = np.zeros((self.nelement, nquadrature))
+
+        # for el in range(self.nelement):
+        #     Xi_element_interval = self.mesh_r.knot_vector.element_interval(el)
+        #     self.qp[el], self.wp[el] = gauss(
+        #         nquadrature, interval=Xi_element_interval
+        #     )
+
+        # for i in range(self.nquadrature):
+        #     # extract reference state variables
+        #     qwi = self.qw[el, i]
+        #     # Ji = self.J[el, i]
+        #     # K_Gamma0 = self.K_Gamma0[el, i]
+        #     # K_Kappa0 = self.K_Kappa0[el, i]
+        #     qpi = self.qp[el, i]
+        #     qe0 = self.Q[self.elDOF[el]]
+        #     r_xi0, A_IK0, K_Kappa_bar0 = self.eval_absolute_local_arbitrary(qe0, qpi)
+        #     Ji = norm(r_xi0)
+        #     K_Gamma0 = A_IK0.T @ r_xi0 / Ji
+        #     K_Kappa0 = K_Kappa_bar0 / Ji
+
+        #     # evaluate strain measures and other quantities depending on chosen formulation
+        #     # r_xi, A_IK, K_Kappa_bar = self.eval(qe, el, i)
+        #     r_xi, A_IK, K_Kappa_bar = self.eval_absolute_local_arbitrary(qe, self.qp[el, i])
+
+        #     # axial and shear strains
+        #     K_Gamma = A_IK.T @ (r_xi / Ji)
+
+        #     # torsional and flexural strains (formulation in skew coordinates,
+        #     # see Eugster2014c)
+        #     d1, d2, d3 = A_IK.T
+        #     d = d1 @ cross3(d2, d3)
+        #     dd = 1 / (d * Ji)
+        #     K_Kappa = dd * K_Kappa_bar
+
+        #     # compute contact forces and couples from partial derivatives of
+        #     # the strain energy function w.r.t. strain measures
+        #     K_n = self.material_model.K_n(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
+
+        #     # - first delta Gamma part
+        #     for node in range(self.nnodes_element_r):
+        #         f_pot_el[self.nodalDOF_element_r[node]] -= (
+        #             self.N_r_xi[el, i, node] * A_IK @ K_n * qwi
+        #         )
+
+        #     # - second delta Gamma part
+        #     for node in range(self.nnodes_element_psi):
+        #         f_pot_el[self.nodalDOF_element_psi[node]] += (
+        #             self.N_psi[el, i, node] * cross3(A_IK.T @ r_xi, K_n) * qwi
+        #         )
+
+        # # reinterpolate first delta Gamma part in order so cure locking
+        # element_interval = self.knot_vector_r.element_interval(el)
+        # for i, xi in enumerate(np.linspace(element_interval[0], element_interval[1], num=self.polynomial_degree_r)):
+        #     # extract reference state variables
+        #     qwi = self.qw[el, i]
+
+        #     # evaluate strain measures and other quantities depending on chosen formulation
+        #     qe0 = self.Q[self.elDOF[el]]
+        #     r_xi0, A_IK0, K_Kappa_bar0 = self.eval_absolute_local_arbitrary(qe0, xi)
+        #     Ji = norm(r_xi0)
+        #     K_Gamma0 = A_IK0.T @ r_xi0 / Ji
+        #     K_Kappa0 = K_Kappa_bar0 / Ji
+
+        #     r_xi, A_IK, K_Kappa_bar = self.eval_absolute_local_arbitrary(qe, xi)
+
+        #     # axial and shear strains
+        #     K_Gamma = A_IK.T @ (r_xi / Ji)
+
+        #     # torsional and flexural strains (formulation in skew coordinates,
+        #     # see Eugster2014c)
+        #     d1, d2, d3 = A_IK.T
+        #     d = d1 @ cross3(d2, d3)
+        #     dd = 1 / (d * Ji)
+        #     K_Kappa = dd * K_Kappa_bar
+
+        #     # compute contact forces and couples from partial derivatives of
+        #     # the strain energy function w.r.t. strain measures
+        #     K_n = self.material_model.K_n(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
+
+        #     # - first delta Gamma part
+        #     _, N_r_xi, _ = self.basis_functions_r(xi)
+        #     for node in range(self.nnodes_element_r):
+        #         f_pot_el[self.nodalDOF_element_r[node]] -= (
+        #             N_r_xi[node] * A_IK @ K_n * qwi
+        #         )
+
+        #     # - second delta Gamma part
+        #     N_psi, _ = self.basis_functions_psi(xi)
+        #     for node in range(self.nnodes_element_psi):
+        #         f_pot_el[self.nodalDOF_element_psi[node]] += (
+        #             N_psi[node] * cross3(A_IK.T @ r_xi, K_n) * qwi
+        #         )
 
         return f_pot_el
 
