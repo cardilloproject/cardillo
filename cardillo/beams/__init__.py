@@ -7,6 +7,7 @@ from .spatial import (
     Cable,
     CubicHermiteCable,
     DirectorAxisAngle,
+    TimoshenkoQuaternion,
 )
 
 from .planar import (

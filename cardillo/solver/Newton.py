@@ -25,7 +25,8 @@ class Newton:
     def __init__(
         self,
         model,
-        cDOF=np.array([], dtype=int),
+        cDOF_q=np.array([], dtype=int),
+        cDOF_u=np.array([], dtype=int),
         b=lambda t: np.array([]),
         n_load_steps=1,
         load_steps=None,
@@ -41,14 +42,22 @@ class Newton:
         self.model = model
 
         # handle constraint degrees of freedoms
-        z0 = model.q0.copy()
-        self.nz = len(z0)
-        nc = len(cDOF)
-        self.nq = self.nz - nc
-        self.cDOF = cDOF
-        self.zDOF = np.arange(self.nz)
-        self.fDOF = np.setdiff1d(self.zDOF, cDOF)
-        q0 = z0[self.fDOF]
+        z0_q = model.q0.copy()
+        z0_u = model.u0.copy()
+        self.nz_q = len(z0_q)
+        self.nz_u = len(z0_u)
+        nc_q = len(cDOF_q)
+        nc_u = len(cDOF_u)
+        self.nq = self.nz_q - nc_q
+        self.nu = self.nz_u - nc_u
+        self.cDOF_q = cDOF_q
+        self.cDOF_u = cDOF_u
+        self.zDOF_q = np.arange(self.nz_q)
+        self.zDOF_u = np.arange(self.nz_u)
+        self.fDOF_q = np.setdiff1d(self.zDOF_q, cDOF_q)
+        self.fDOF_u = np.setdiff1d(self.zDOF_u, cDOF_u)
+        q0 = z0_q[self.fDOF_q]
+        u0 = z0_u[self.fDOF_u]
 
         # print(f"zDOF: {self.zDOF}")
         # print(f"cDOF: {cDOF}")
@@ -70,12 +79,12 @@ class Newton:
 
         # dimensions
         self.nt = len(self.load_steps)
-        # self.nu = self.model.nu
-        # TODO: How do we define the cDOF/ fDOF for the u's?
         self.nu = self.model.nu
         self.nla_g = self.model.nla_g
+        self.nla_S = self.model.nla_S
         self.nla_N = self.model.nla_N
         self.nx = self.nq + self.nla_g + self.nla_N
+        self.nf = self.nu + self.nla_g + self.nla_S + self.nla_N
 
         # memory allocation
         self.x = np.zeros((self.nt, self.nx))
@@ -96,15 +105,17 @@ class Newton:
             self.__eval__ = self.__eval__analytic
 
     def z(self, t, q):
-        z = np.zeros(self.nz)
-        z[self.fDOF] = q
-        z[self.cDOF] = self.b(t)
+        z = np.zeros(self.nz_q)
+        z[self.fDOF_q] = q
+        z[self.cDOF_q] = self.b(t)
         return z
 
     def __eval__analytic(self, t, x):
         nq = self.nq
         nu = self.nu
         nla_g = self.nla_g
+        nla_S = self.nla_S
+
         q = x[:nq]
         la_g = x[nq : nq + nla_g]
         la_N = x[nq + nla_g :]
@@ -114,30 +125,32 @@ class Newton:
 
         # evaluate quantites that are required for computing the residual and
         # the jacobian
-        W_g = self.model.W_g(t, z, scipy_matrix=csr_matrix)[self.fDOF]
-        W_N = self.model.W_N(t, z, scipy_matrix=csr_matrix)[self.fDOF]
+        W_g = self.model.W_g(t, z, scipy_matrix=csr_matrix)[self.fDOF_u]
+        W_N = self.model.W_N(t, z, scipy_matrix=csr_matrix)[self.fDOF_u]
         g_N = self.model.g_N(t, z)
 
-        R = np.zeros(self.nx)
-        R[:nu] = self.model.h(t, z, self.u)[self.fDOF] + W_g @ la_g + W_N @ la_N
+        R = np.zeros(self.nf)
+        R[:nu] = self.model.h(t, z, self.u)[self.fDOF_u] + W_g @ la_g + W_N @ la_N
         R[nu : nu + nla_g] = self.model.g(t, z)
-        R[nq + nla_g :] = np.minimum(la_N, g_N)
+        R[nu + nla_g : nu + nla_g + nla_S] = self.model.g_S(t, q)
+        R[nu + nla_g + nla_S :] = np.minimum(la_N, g_N)
 
         yield R
 
         # evaluate additionally required quantites for computing the jacobian
         K = (
             self.model.h_q(t, z, self.u, scipy_matrix=csr_matrix)[
-                self.fDOF[:, None], self.fDOF
+                self.fDOF_u[:, None], self.fDOF_q
             ]
             + self.model.Wla_g_q(t, z, la_g, scipy_matrix=csr_matrix)[
-                self.fDOF[:, None], self.fDOF
+                self.fDOF_u[:, None], self.fDOF_q
             ]
         )
-        g_q = self.model.g_q(t, z, scipy_matrix=csr_matrix)[:, self.fDOF]
+        g_q = self.model.g_q(t, z, scipy_matrix=csr_matrix)[:, self.fDOF_q]
+        g_S_q = self.model.g_S_q(t, z, scipy_matrix=csr_matrix)[:, self.fDOF_q]
         # note: csr_matrix is best for row slicing, see
         # (https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csr_matrix.html#scipy.sparse.csr_matrix)
-        g_N_q = self.model.g_N_q(t, z, scipy_matrix=csr_matrix)[:, self.fDOF]
+        g_N_q = self.model.g_N_q(t, z, scipy_matrix=csr_matrix)[:, self.fDOF_q]
 
         Rla_N_q = lil_matrix((self.nla_N, self.nq))
         Rla_N_la_N = lil_matrix((self.nla_N, self.nla_N))
@@ -151,6 +164,7 @@ class Newton:
         # TODO: What is more efficient: Using csr or csc format?
         yield bmat([[  K,     W_g,         W_N], 
                     [g_q,     None,       None],
+                    [g_S_q,   None,       None],
                     [Rla_N_q, None, Rla_N_la_N]], format="csr")
         # fmt: on
 

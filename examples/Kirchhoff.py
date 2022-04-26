@@ -11,6 +11,7 @@ from cardillo.beams import (
     CubicHermiteCable,
     Kirchhoff,
     DirectorAxisAngle,
+    TimoshenkoQuaternion,
 )
 from cardillo.forces import Force, K_Moment, DistributedForce1D
 from cardillo.contacts import Line2Line
@@ -37,7 +38,7 @@ def quadratic_beam_material(E, G, cross_section, Beam):
 
     if Beam == Cable or Beam == CubicHermiteCable or Beam == Kirchhoff:
         return ShearStiffQuadratic(Ei[0], Fi)
-    elif Beam == DirectorAxisAngle:
+    elif Beam == DirectorAxisAngle or Beam == TimoshenkoQuaternion:
         return Simo1986(Ei, Fi)
     else:
         raise NotImplementedError("")
@@ -76,6 +77,13 @@ def beam_factory(
         p_psi = p_r - 1
         # p_psi = 1
         Q = DirectorAxisAngle.straight_configuration(
+            p_r, p_psi, nelements, L, r_OP=r_OP, A_IK=A_IK, basis=shape_functions
+        )
+    elif Beam == TimoshenkoQuaternion:
+        p_r = polynomial_degree
+        # p_psi = p_r
+        p_psi = p_r - 1
+        Q = TimoshenkoQuaternion.straight_configuration(
             p_r, p_psi, nelements, L, r_OP=r_OP, A_IK=A_IK, basis=shape_functions
         )
     else:
@@ -168,23 +176,37 @@ def beam_factory(
             q0=q0,
             basis=shape_functions,
         )
+    elif Beam == TimoshenkoQuaternion:
+        beam = TimoshenkoQuaternion(
+            material_model,
+            A_rho0,
+            I_rho0,
+            p_r,
+            p_psi,
+            nquadrature_points,
+            nelements,
+            Q=Q,
+            q0=q0,
+            basis=shape_functions,
+        )
     else:
         raise NotImplementedError("")
 
     return beam
 
 
-def run(statics=True):
-    # def run(statics=False):
+# def run(statics=True):
+def run(statics=False):
     # used beam model
     # Beam = Cable
     # Beam = CubicHermiteCable
     # Beam = Kirchhoff
-    Beam = DirectorAxisAngle
+    # Beam = DirectorAxisAngle
+    Beam = TimoshenkoQuaternion
 
     # number of elements
-    # nelements = 1
-    nelements = 2
+    nelements = 1
+    # nelements = 2
     # nelements = 4
     # nelements = 8
     # nelements = 16
@@ -202,8 +224,9 @@ def run(statics=True):
     # TODO: We have to distinguish between integration of the mass matrix,
     #       gyroscopic forces and potential forces!
     # nquadrature_points = int(np.ceil((polynomial_degree + 1)**2 / 2))
+    nquadrature_points = polynomial_degree + 2
     # nquadrature_points = polynomial_degree + 1
-    nquadrature_points = polynomial_degree
+    # nquadrature_points = polynomial_degree  # cures locking but has to be modified for mass matrix
 
     # working combinations
     # - Bspline shape functions: "Absolute rotation vector with Crisfield's  relative interpolation":
@@ -220,9 +243,9 @@ def run(statics=True):
 
     # used cross section
     # slenderness = 1
-    # slenderness = 1.0e1
+    slenderness = 1.0e1
     # slenderness = 1.0e2
-    slenderness = 1.0e3
+    # slenderness = 1.0e3
     # slenderness = 1.0e4
     radius = 1
     # radius = 1.0e-0
@@ -233,7 +256,8 @@ def run(statics=True):
     cross_section = CircularCrossSection(line_density, radius)
 
     # Young's and shear modulus
-    E = 1.0e0
+    # E = 1.0e0
+    E = 1.0e3
     nu = 0.5
     G = E / (2.0 * (1.0 + nu))
 
@@ -279,6 +303,8 @@ def run(statics=True):
     # print(f"f_pot:\n{f_pot}")
     # # f_pot_q = model.f_pot_q(t, q)
     # # print(f"f_pot_q:\n{f_pot_q}")
+
+    # exit()
 
     # xis = np.linspace(0, 1, num=10)
     # for xi in xis:
@@ -329,7 +355,7 @@ def run(statics=True):
     # left and right joint
     if Beam == Cable or Beam == CubicHermiteCable:
         joint1 = RigidConnectionCable(frame1, beam, r_OB0, frame_ID2=(0,))
-    elif Beam == Kirchhoff or Beam == DirectorAxisAngle:
+    elif Beam == Kirchhoff or Beam == DirectorAxisAngle or Beam == TimoshenkoQuaternion:
         joint1 = RigidConnection(frame1, beam, r_OB0, frame_ID2=(0,))
     else:
         raise NotImplementedError("")
@@ -377,8 +403,8 @@ def run(statics=True):
         solver = Newton(
             model,
             # n_load_steps=10,
-            # n_load_steps=50,
-            n_load_steps=100,
+            n_load_steps=50,
+            # n_load_steps=100,
             # n_load_steps=500,
             max_iter=30,
             # atol=1.0e-4,
@@ -436,7 +462,7 @@ def run(statics=True):
     abs_r0_xi = np.zeros(nxi)
     for i in range(nxi):
         frame_ID = (xis[i],)
-        elDOF = beam.elDOF_P(frame_ID)
+        elDOF = beam.qDOF_P(frame_ID)
         qe = q[-1, beam.qDOF][elDOF]
         abs_r_xi[i] = np.linalg.norm(beam.r_OC_xi(t[-1], qe, frame_ID))
         q0e = q[0, beam.qDOF][elDOF]

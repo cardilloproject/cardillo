@@ -44,7 +44,7 @@ class EulerBernoulli2D:
             nQP,
             derivative_order=2,
             basis="B-spline",
-            dim=self.nq_n,
+            dim_q=self.nq_n,
         )
 
         # element connectivity matrix
@@ -754,7 +754,7 @@ class Inextensible_Euler_bernoulli(EulerBernoulli2D):
             self.knot_vector_g,
             self.nQP,
             derivative_order=0,
-            dim=self.nq_n_g,
+            dim_q=self.nq_n_g,
         )
 
         self.elDOF_g = self.mesh_g.elDOF

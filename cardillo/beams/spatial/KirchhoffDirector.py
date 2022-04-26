@@ -76,14 +76,14 @@ class KirchhoffDirector:
             nquadrature,
             derivative_order=2,
             basis="B-spline",
-            dim=nq_node_r,
+            dim_q=nq_node_r,
         )
         self.mesh_alpha = Mesh1D(
             self.knot_vector_alpha,
             nquadrature,
             derivative_order=1,
             basis="B-spline",
-            dim=nq_node_alpha,
+            dim_q=nq_node_alpha,
         )
 
         self.nq_r = nq_r = nnode_r * nq_node_r

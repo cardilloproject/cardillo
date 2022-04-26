@@ -1,3 +1,4 @@
+from __future__ import annotations
 import numpy as np
 from math import sin, cos, tan, sqrt, atan2
 from cardillo.math import norm, cross3, ax2skew, ax2skew_a, ei
@@ -285,6 +286,14 @@ class Rotor:
     """Rotor from geometric algebra, see https://marctenbosch.com/quaternions/#h_0."""
 
     @staticmethod
+    def fromMatrix(A: np.ndarray):
+        return Rotor(spurrier(A))
+
+    @staticmethod
+    def fromRotor(R: Rotor):
+        return Rotor(R.data().copy())
+
+    @staticmethod
     def fromVector(v: np.ndarray):
         return Rotor(np.array([0, v]))
 
@@ -333,7 +342,11 @@ class Rotor:
     def __repr__(self):
         return f'Rotor("{self.__str__}")'
 
-    def __mul__(self, other) -> float:
+    def __mul__(self, scalar: float) -> Rotor:
+        """Scalar product."""
+        return Rotor(self() * scalar)
+
+    def __matmul__(self, other) -> Rotor:
         """Inner product."""
         return self() @ other()
 
@@ -341,18 +354,18 @@ class Rotor:
         """Outer product."""
         return cross3(self.b, other.b)
 
-    def __matmul__(self, other):
+    def __mod__(self, other) -> Rotor:
         """Geometric product."""
         res = Rotor()
         res.a = self * other
         res.b = self ^ other
         return res
 
-    def __invert__(self):
+    def __invert__(self) -> Rotor:
         """Reverse rotor."""
         return Rotor.fromComponents(self.a, -self.b)
 
-    def rotate(self, r):
+    def rotate(self, r) -> Rotor:
         """Rotate a vector or another rotor."""
         if isinstance(r, Rotor):
             return self @ r @ ~self

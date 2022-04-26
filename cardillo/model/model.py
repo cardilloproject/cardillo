@@ -20,7 +20,7 @@ properties.extend(["gamma_F"])
 
 properties.extend(["assembler_callback", "step_callback"])
 
-properties.extend(["c"])
+properties.extend(["g_S"])
 
 
 class Model(object):
@@ -37,9 +37,9 @@ class Model(object):
         self.t0 = t0
         self.nq = 0
         self.nu = 0
-        self.nka_c = 0
         self.nla_g = 0
         self.nla_gamma = 0
+        self.nla_S = 0
         self.nla_N = 0
         self.nla_F = 0
 
@@ -74,14 +74,14 @@ class Model(object):
         self.nu = 0
         self.nla_g = 0
         self.nla_gamma = 0
-        self.nka_c = 0
+        self.nla_S = 0
         self.nla_N = 0
         self.nla_F = 0
         q0 = []
         u0 = []
         la_g0 = []
         la_gamma0 = []
-        ka_c0 = []
+        la_S0 = []
         la_N0 = []
         la_F0 = []
         e_N = []
@@ -130,10 +130,10 @@ class Model(object):
                 la_gamma0.extend(contr.la_gamma0.tolist())
 
             # if contribution has stabilization conditions for the kinematic equation
-            if hasattr(contr, "nka_c"):
-                contr.ka_cDOF = np.arange(0, contr.nka_c) + self.nka_c
-                self.nka_c += contr.nka_c
-                ka_c0.extend(contr.ka_c0.tolist())
+            if hasattr(contr, "nla_S"):
+                contr.la_SDOF = np.arange(0, contr.nla_S) + self.nla_S
+                self.nla_S += contr.nla_S
+                la_S0.extend(contr.la_S0.tolist())
 
             # if contribution has contacts address constraint coordinates
             if hasattr(contr, "nla_N"):
@@ -164,7 +164,7 @@ class Model(object):
         self.u0 = np.array(u0)
         self.la_g0 = np.array(la_g0)
         self.la_gamma0 = np.array(la_gamma0)
-        self.ka_c0 = np.array(ka_c0)
+        self.la_S0 = np.array(la_S0)
         self.la_N0 = np.array(la_N0)
         self.la_F0 = np.array(la_F0)
         self.NF_connectivity = NF_connectivity
@@ -450,17 +450,21 @@ class Model(object):
     #####################################################
     # stabilization conditions for the kinematic equation
     #####################################################
-    def c(self, t, q):
-        c = np.zeros(self.nka_c)
-        for contr in self.__c_contr:
-            c[contr.ka_cDOF] = contr.c(t, q[contr.qDOF])
-        return c
+    def g_S(self, t, q):
+        g_S = np.zeros(self.nla_S)
+        for contr in self.__g_S_contr:
+            g_S[contr.la_SDOF] = contr.g_S(t, q[contr.qDOF])
+        return g_S
 
-    def c_q(self, t, q, scipy_matrix=coo_matrix):
-        coo = Coo((self.nka_c, self.nq))
-        for contr in self.__c_contr:
-            contr.c_q(t, q[contr.qDOF], coo)
+    def g_S_q(self, t, q, scipy_matrix=coo_matrix):
+        coo = Coo((self.nla_S, self.nq))
+        for contr in self.__g_S_contr:
+            contr.g_S_q(t, q[contr.qDOF], coo)
         return coo.tosparse(scipy_matrix)
+
+    # TODO: Do we need them for stabilization of kinematic equation?
+    # def W_S
+    # def W_la_S_q
 
     #################
     # normal contacts

@@ -77,7 +77,7 @@ class Cable:
             nQP,
             derivative_order=2,
             basis=self.basis,
-            dim=nq_n,
+            dim_q=nq_n,
         )
 
         self.nq = nn * nq_n  # total number of generalized coordinates

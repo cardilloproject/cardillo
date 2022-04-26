@@ -75,14 +75,14 @@ class TimoshenkoBeamDirector(metaclass=ABCMeta):
             nQP,
             derivative_order=1,
             basis=basis,
-            dim=nq_n_r,
+            dim_q=nq_n_r,
         )
         self.mesh_di = Mesh1D(
             self.knot_vector_di,
             nQP,
             derivative_order=1,
             basis=basis,
-            dim=nq_n_di,
+            dim_q=nq_n_di,
         )
 
         self.nq_r = nq_r = nn_r * nq_n_r
@@ -2079,7 +2079,7 @@ class TimoshenkoDirectorIntegral(TimoshenkoBeamDirector):
             self.knot_vector_g,
             self.nQP,
             derivative_order=0,
-            dim=self.nq_n_g,
+            dim_q=self.nq_n_g,
             basis=self.basis,
         )
         self.elDOF_g = self.mesh_g.elDOF
@@ -2525,7 +2525,7 @@ class EulerBernoulliDirectorIntegral(TimoshenkoBeamDirector):
             self.knot_vector_g,
             self.nQP,
             derivative_order=0,
-            dim=self.nq_n_g,
+            dim_q=self.nq_n_g,
             basis=self.basis,
         )
         self.elDOF_g = self.mesh_g.elDOF
@@ -2822,7 +2822,7 @@ class InextensibleEulerBernoulliDirectorIntegral(TimoshenkoBeamDirector):
             self.knot_vector_g,
             self.nQP,
             derivative_order=0,
-            dim=self.nq_n_g,
+            dim_q=self.nq_n_g,
             basis=self.basis,
         )
         self.elDOF_g = self.mesh_g.elDOF

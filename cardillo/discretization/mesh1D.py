@@ -34,11 +34,12 @@ class Mesh1D:
         self,
         knot_vector,
         nquadrature,
-        dim,
+        dim_q,
         derivative_order=1,
         basis="B-spline",
-        # quadrature="Gauss",
-        quadrature="Lobatto",
+        quadrature="Gauss",
+        # quadrature="Lobatto",
+        dim_u=None,
     ):
         self.basis = basis
         self.nelement = knot_vector.nel
@@ -50,35 +51,43 @@ class Mesh1D:
         if quadrature == "Gauss":
             self.quadrature = gauss
         elif quadrature == "Lobatto":
-            print(f"Lobatto quadrature points are used!")
             self.quadrature = lobatto
         else:
             raise NotImplementedError(
-                "Quadrature method '{quadrature}' is not implemented!"
+                f"Quadrature method '{quadrature}' is not implemented!"
             )
+
+        # we might have different meshes for q and u, e.g. quaternions for
+        # describing spatial rotations
+        if dim_u is None:
+            self.dim_u = dim_u = dim_q
 
         if basis == "Lagrange" or basis == "B-spline":
             self.nnodes_per_element = (
                 self.degree + 1
             )  # number of nodes influencing each element
-            self.dim = dim  # number of degrees of freedom per node
+            self.dim_q = dim_q  # number of degrees of freedom per node
             self.nbasis_element = (
                 self.nnodes_per_element
             )  # number of basis function per element
         elif basis == "Hermite":
             self.nnodes_per_element = 4
-            self.dim = dim  # number of degrees of freedom per node
+            self.dim_q = dim_q  # number of degrees of freedom per node
             self.nbasis_element = 4  # number of basis function per element
         else:
             raise NotImplementedError("")
         self.nq_per_element = (
-            self.nnodes_per_element * dim
+            self.nnodes_per_element * dim_q
         )  # total number of generalized coordinates per element
+        self.nu_per_element = (
+            self.nnodes_per_element * dim_u
+        )  # total number of generalized velocities per element
 
         # Boolean connectivity matrix for element polynomial_degrees of
         # freedom. This is used to extract the element degrees of freedom via
         # q[elDOF[el]] = q_e = C^e * q.
         self.elDOF = np.zeros((self.nelement, self.nq_per_element), dtype=int)
+        self.elDOF_u = np.zeros((self.nelement, self.nu_per_element), dtype=int)
 
         if basis == "Lagrange":
             raise NotImplementedError("Adapt according to new ordering of q!")
@@ -106,9 +115,11 @@ class Mesh1D:
             self.nnodes = 2 * (self.nelement + 1)
 
             # ordering for a single node (needs to be shifted for each elements)
-            elDOF_node = np.arange(self.nbasis_element * self.dim)
+            elDOF_node = np.arange(self.nbasis_element * self.dim_q)
+            elDOF_node_u = np.arange(self.nbasis_element * self.dim_u)
             for el in range(self.nelement):
-                self.elDOF[el] = elDOF_node + el * 2 * self.dim
+                self.elDOF[el] = elDOF_node + el * 2 * self.dim_q
+                self.elDOF_u[el] = elDOF_node_u + el * 2 * self.dim_u
 
             # TODO: Does VTK implement Hermite curves?
             # TODO: We should convert the Hermite spline into Bezier cells.
@@ -118,23 +129,30 @@ class Mesh1D:
             self.nnodes = self.degree + self.nelement
 
             elDOF_el = np.arange(self.nq_per_element)
+            elDOF_el_u = np.arange(self.nu_per_element)
             for el in range(self.nelement):
-                self.elDOF[el] = elDOF_el + el * dim
+                self.elDOF[el] = elDOF_el + el * dim_q
+                self.elDOF_u[el] = elDOF_el_u + el * dim_u
 
             self.vtk_cell_type = "VTK_BEZIER_CURVE"
 
         # todal number of degrees of freedoms
-        self.nq = self.nnodes * dim
+        self.nq = self.nnodes * dim_q
+        self.nu = self.nnodes * dim_u
 
         # construct tthe Boolean selection amtrix that choses the coordinates
         # of an individual node via q[nodalDOF[a]] = C^a * q
-        self.nodalDOF = np.arange(self.nq).reshape(self.nnodes, dim)
+        self.nodalDOF = np.arange(self.nq).reshape(self.nnodes, dim_q)
+        self.nodalDOF_u = np.arange(self.nu).reshape(self.nnodes, dim_u)
 
         # Boolean connectivity matrix for nodal polynomial_degrees of freedom
         # inside each element. This is only required if multiple fields are
         # discretized. It is used as qe[nodalDOF_element_[a]] = q_e^a = C^a * q_e
         self.nodalDOF_element = np.arange(self.nq_per_element).reshape(
-            self.nnodes_per_element, dim
+            self.nnodes_per_element, dim_q
+        )
+        self.nodalDOF_element_u = np.arange(self.nu_per_element).reshape(
+            self.nnodes_per_element, dim_u
         )
 
         # transform quadrature points on element intervals
@@ -215,8 +233,8 @@ class Mesh1D:
 
             DOF_x = np.array(end_points)
             nn_edge = len(end_points)
-            DOF = np.zeros((self.dim, nn_edge), dtype=int)
-            for i in range(self.dim):
+            DOF = np.zeros((self.dim_q, nn_edge), dtype=int)
+            for i in range(self.dim_q):
                 DOF[i] = DOF_x + i * self.nnodes
 
             return DOF
@@ -232,7 +250,7 @@ class Mesh1D:
 
     def reference_mappings(self, Q):
         """Compute inverse gradient from the reference configuration to the parameter space and scale quadrature points by its determinant. See Bonet 1997 (7.6a,b)"""
-        if self.dim == 3:
+        if self.dim_q == 3:
             w_J0 = np.zeros((self.nelement, self.nquadrature))
             for el in range(self.nelement):
                 Qe = Q[self.elDOF[el]]
@@ -240,7 +258,7 @@ class Mesh1D:
                 for i in range(self.nquadrature):
                     N_xi = self.N_xi[el, i]
 
-                    kappa0_xi = np.zeros((self.dim, self.dim))
+                    kappa0_xi = np.zeros((self.dim_q, self.dim_q))
                     for a in range(self.nnodes_per_element):
                         kappa0_xi += (
                             Qe[self.nodalDOF_element[a]] * N_xi[a]
@@ -320,14 +338,14 @@ class Mesh1D:
     def vtk_mesh(self, q):
         if self.basis == "B-spline":
             # rearrange q's from solver to Piegl's 1D ordering
-            Pw = q.reshape(-1, self.dim, order="F")
+            Pw = q.reshape(-1, self.dim_q, order="F")
 
             # decompose B-spline mesh in Bezier patches
             Qw = decompose_B_spline_curve(self.knot_vector, Pw)
 
         elif self.basis == "Lagrange":
             # rearrange q's from solver to Piegl's 1D ordering
-            Qw = np.zeros((self.nelement, self.degree + 1, self.dim))
+            Qw = np.zeros((self.nelement, self.degree + 1, self.dim_q))
             for el in range(self.nelement):
                 for a in range(self.nnodes_per_element):
                     Qw[el, a] = q[self.elDOF[el][self.nodalDOF_element[a]]]
@@ -359,7 +377,7 @@ def test_point_qDOF():
 
     Xi = KnotVector(polynomial_degree, elements)
 
-    mesh = Mesh1D(Xi, quadrature_points, derivative_order=1, basis="B-spline", dim=2)
+    mesh = Mesh1D(Xi, quadrature_points, derivative_order=1, basis="B-spline", dim_q=2)
 
     Q = line2D(5, mesh, Greville=True, Fuzz=0)
 
