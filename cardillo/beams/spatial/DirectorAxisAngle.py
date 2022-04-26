@@ -20,6 +20,7 @@ from cardillo.math import (
     e2,
     e3,
     smallest_rotation,
+    pi,
 )
 
 # relative_orientation = True
@@ -1155,6 +1156,30 @@ class DirectorAxisAngle:
             q_ddot[nodalDOF_psi] = psi_ddot
 
         return q_ddot
+
+    # change between rotation vector nad its complement in order to circumvent
+    # singularities of the rtotation vector
+    @staticmethod
+    def psi_C(psi):
+        angle = norm(psi)
+        if angle < pi:
+            return psi
+        else:
+            # Ibrahimbegovic1995 after (62)
+            print(f"complement rotation vector is used")
+            n = int((angle + pi) / (2 * pi))
+            # n = 1
+            if angle > 0:
+                e = psi / angle
+            else:
+                e = psi.copy()
+            return psi - 2 * n * pi * e
+
+    def step_callback(self, t, q, u):
+        for node in range(self.nnode_psi):
+            psi_node = q[self.nodalDOF_psi[node]]
+            q[self.nodalDOF_psi[node]] = DirectorAxisAngle.psi_C(psi_node)
+        return q, u
 
     ####################################################
     # interactions with other bodies and the environment

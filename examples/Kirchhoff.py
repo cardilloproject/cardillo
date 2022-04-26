@@ -196,13 +196,13 @@ def beam_factory(
 
 
 def run(statics=True):
-# def run(statics=False):
+    # def run(statics=False):
     # used beam model
     # Beam = Cable
     # Beam = CubicHermiteCable
     # Beam = Kirchhoff
-    # Beam = DirectorAxisAngle
-    Beam = TimoshenkoQuaternion
+    Beam = DirectorAxisAngle
+    # Beam = TimoshenkoQuaternion
 
     # number of elements
     # nelements = 1
@@ -224,9 +224,11 @@ def run(statics=True):
     # TODO: We have to distinguish between integration of the mass matrix,
     #       gyroscopic forces and potential forces!
     # nquadrature_points = int(np.ceil((polynomial_degree + 1)**2 / 2))
-    nquadrature_points = polynomial_degree + 2
+    # nquadrature_points = polynomial_degree + 2
     # nquadrature_points = polynomial_degree + 1
-    # nquadrature_points = polynomial_degree  # cures locking but has to be modified for mass matrix
+    nquadrature_points = (
+        polynomial_degree  # cures locking but has to be modified for mass matrix
+    )
 
     # working combinations
     # - Bspline shape functions: "Absolute rotation vector with Crisfield's  relative interpolation":
@@ -328,7 +330,9 @@ def run(statics=True):
     r_OB0 = np.zeros(3)
     # r_OB0 = np.array([-1, 0.25, 3.14])
     if statics:
-        phi = lambda t: n_circles * 2 * pi * smoothstep2(t, frac_deformation, 1.0) #* 0.5
+        phi = (
+            lambda t: n_circles * 2 * pi * smoothstep2(t, frac_deformation, 1.0)
+        )  # * 0.5
         # phi2 = lambda t: pi / 4 * sin(2 * pi * smoothstep2(t, frac_deformation, 1.0))
         # A_IK0 = lambda t: A_IK_basic(phi(t)).x()
         # TODO: Get this strange rotation working with a full circle

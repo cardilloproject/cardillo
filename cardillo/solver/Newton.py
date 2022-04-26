@@ -268,8 +268,19 @@ class Newton:
                     la_N=self.x[: i + 1, self.nq + self.nla_g :],
                 )
 
-            # store solution as new initial guess
+            # step callback and warm start for next step
             if i < self.nt - 1:
+                # solver step callback
+                # self.model.step_callback(self.load_steps[i], )
+                ti = self.load_steps[i]
+                qi = self.x[i, : self.nq]
+                zi = self.z(ti, qi)
+                ui = self.u
+
+                zi, ui = self.model.step_callback(ti, zi, ui)
+                self.x[i, : self.nq] = zi[self.fDOF_q]
+
+                # store solution as new initial guess
                 self.x[i + 1] = self.x[i]
 
         # return solution object
