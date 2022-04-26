@@ -195,8 +195,8 @@ def beam_factory(
     return beam
 
 
-# def run(statics=True):
-def run(statics=False):
+def run(statics=True):
+# def run(statics=False):
     # used beam model
     # Beam = Cable
     # Beam = CubicHermiteCable
@@ -205,8 +205,8 @@ def run(statics=False):
     Beam = TimoshenkoQuaternion
 
     # number of elements
-    nelements = 1
-    # nelements = 2
+    # nelements = 1
+    nelements = 2
     # nelements = 4
     # nelements = 8
     # nelements = 16
@@ -237,9 +237,9 @@ def run(statics=False):
     #   nelements = 1,2,4; slenderness = 1.0e3
 
     # used shape functions for discretization
-    # shape_functions = "B-spline"
+    shape_functions = "B-spline"
     # shape_functions = "Lagrange"
-    shape_functions = "Hermite"
+    # shape_functions = "Hermite"
 
     # used cross section
     # slenderness = 1
@@ -317,7 +317,7 @@ def run(statics=False):
 
     # number of full rotations after deformation
     # TODO: Allow zero circles!
-    n_circles = 1
+    n_circles = 2
     frac_deformation = 1 / (n_circles + 1)
     frac_rotation = 1 - frac_deformation
     print(f"n_circles: {n_circles}")
@@ -328,17 +328,17 @@ def run(statics=False):
     r_OB0 = np.zeros(3)
     # r_OB0 = np.array([-1, 0.25, 3.14])
     if statics:
-        # phi = lambda t: n_circles * 2 * pi * smoothstep2(t, frac_deformation, 1.0) * 0.5
-        # # phi2 = lambda t: pi / 4 * sin(2 * pi * smoothstep2(t, frac_deformation, 1.0))
-        # # A_IK0 = lambda t: A_IK_basic(phi(t)).x()
-        # # TODO: Get this strange rotation working with a full circle
-        # # A_IK0 = lambda t: A_IK_basic(phi(t)).z()
+        phi = lambda t: n_circles * 2 * pi * smoothstep2(t, frac_deformation, 1.0) #* 0.5
+        # phi2 = lambda t: pi / 4 * sin(2 * pi * smoothstep2(t, frac_deformation, 1.0))
+        # A_IK0 = lambda t: A_IK_basic(phi(t)).x()
+        # TODO: Get this strange rotation working with a full circle
+        A_IK0 = lambda t: A_IK_basic(phi(t)).z()
         # A_IK0 = (
         #     lambda t: A_IK_basic(0.5 * phi(t)).z()
         #     @ A_IK_basic(0.5 * phi(t)).y()
         #     @ A_IK_basic(phi(t)).x()
         # )
-        A_IK0 = lambda t: np.eye(3)
+        # A_IK0 = lambda t: np.eye(3)
     else:
         # phi = lambda t: smoothstep2(t, 0, 0.1) * sin(0.3 * pi * t) * pi / 4
         phi = lambda t: smoothstep2(t, 0, 0.1) * sin(0.6 * pi * t) * pi / 4
@@ -403,8 +403,8 @@ def run(statics=False):
         solver = Newton(
             model,
             # n_load_steps=10,
-            n_load_steps=50,
-            # n_load_steps=100,
+            # n_load_steps=50,
+            n_load_steps=100,
             # n_load_steps=500,
             max_iter=30,
             # atol=1.0e-4,
