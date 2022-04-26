@@ -4,10 +4,11 @@ from math import pi, sin, cos, sqrt
 
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
+from cardillo.math.rotations import rodriguez_inv
 
 from cardillo.model import Model
-from cardillo.model.rigid_body import RigidBodyEuler
-from cardillo.math import axis_angle2quat
+from cardillo.model.rigid_body import RigidBodyEuler, RigidBodyAxisAngle
+from cardillo.math import A_IK_basic
 from cardillo.model.rolling_disc import (
     Rolling_condition,
     Rolling_condition_I_frame,
@@ -29,7 +30,7 @@ def rolling_disc_DMS(rigid_body_case="Euler", constraint_case="velocity_K"):
     ==========
     Lesaux2005: https://doi.org/10.1007/s00332-004-0655-4
     """
-    assert rigid_body_case == "Euler"
+    assert rigid_body_case == "Euler" or rigid_body_case == "AxisAngle"
     ############
     # parameters
     ############
@@ -101,26 +102,33 @@ def rolling_disc_DMS(rigid_body_case="Euler", constraint_case="velocity_K"):
                 np.repeat(self.r_OP(t, q), n).reshape(3, n) + self.A_IK(t, q) @ K_r_SP
             )
 
-    # class DiscQuaternion(Rigid_body_quaternion):
-    #     def __init__(self, m, r, q0=None, u0=None):
-    #         A = 1 / 4 * m * r**2
-    #         C = 1 / 2 * m * r**2
-    #         K_theta_S = np.diag(np.array([A, C, A]))
+    class DiscAxisAngle(RigidBodyAxisAngle):
+        def __init__(self, m, r, q0=None, u0=None):
+            A = 1 / 4 * m * r**2
+            C = 1 / 2 * m * r**2
+            K_theta_S = np.diag(np.array([A, C, A]))
 
-    #         self.r = r
+            self.r = r
 
-    #         super().__init__(m, K_theta_S, q0=q0, u0=u0)
+            super().__init__(m, K_theta_S, q0=q0, u0=u0)
 
-    #     def boundary(self, t, q, n=100):
-    #         phi = np.linspace(0, 2 * np.pi, n, endpoint=True)
-    #         K_r_SP = self.r * np.vstack([np.sin(phi), np.zeros(n), np.cos(phi)])
-    #         return np.repeat(self.r_OP(t, q), n).reshape(3, n) + self.A_IK(t, q) @ K_r_SP
+        def boundary(self, t, q, n=100):
+            phi = np.linspace(0, 2 * np.pi, n, endpoint=True)
+            K_r_SP = self.r * np.vstack([np.sin(phi), np.zeros(n), np.cos(phi)])
+            return (
+                np.repeat(self.r_OP(t, q), n).reshape(3, n) + self.A_IK(t, q) @ K_r_SP
+            )
 
     # initial conditions
+    A_IK0 = A_IK_basic(alpha0).z() @ A_IK_basic(beta0).x() @ A_IK_basic(gamma0).y()
     u0 = np.concatenate((v_S0, K_Omega0))
     if rigid_body_case == "Euler":
         q0 = np.array((x0, y0, z0, alpha0, beta0, gamma0))
         disc = DiscEuler(m, r, q0, u0)
+    elif rigid_body_case == "AxisAngle":
+        psi0 = rodriguez_inv(A_IK0)
+        q0 = np.array([x0, y0, z0, *psi0])
+        disc = DiscAxisAngle(m, r, q0, u0)
     # elif rigid_body_case == "Quaternion":
     #     p0 = axis_angle2quat(np.array([1, 0, 0]), beta0)
     #     q0 = np.array((x0, y0, z0, *p0))
@@ -149,8 +157,8 @@ def rolling_disc_DMS(rigid_body_case="Euler", constraint_case="velocity_K"):
     t0 = 0
     # t1 = 2 * np.pi / np.abs(alpha_dot0) * 0.1
     t1 = 2 * np.pi / np.abs(alpha_dot0) * 1.0
-    dt = 5e-2
-    # dt = 5e-3
+    # dt = 5e-2
+    dt = 5e-3
     rho_inf = 0.90
     # rho_inf = 1.0
     tol = 1.0e-8
@@ -390,7 +398,7 @@ def rolling_disc_DMS(rigid_body_case="Euler", constraint_case="velocity_K"):
 
 
 if __name__ == "__main__":
-    rolling_disc_DMS(rigid_body_case="Euler", constraint_case="g_gamma")
+    # rolling_disc_DMS(rigid_body_case="Euler", constraint_case="g_gamma")
     # rolling_disc_DMS(rigid_body_case="Euler", constraint_case="velocity_I")
     # rolling_disc_DMS(rigid_body_case="Euler", constraint_case="velocity_K")
-    # rolling_disc_DMS(case="Quaternion")
+    rolling_disc_DMS(rigid_body_case="AxisAngle")
