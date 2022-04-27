@@ -12,6 +12,7 @@ from cardillo.beams import (
     Kirchhoff,
     DirectorAxisAngle,
     TimoshenkoQuaternion,
+    TimoshenkoAxisAngle,
 )
 from cardillo.forces import Force, K_Moment, DistributedForce1D
 from cardillo.contacts import Line2Line
@@ -38,7 +39,11 @@ def quadratic_beam_material(E, G, cross_section, Beam):
 
     if Beam == Cable or Beam == CubicHermiteCable or Beam == Kirchhoff:
         return ShearStiffQuadratic(Ei[0], Fi)
-    elif Beam == DirectorAxisAngle or Beam == TimoshenkoQuaternion:
+    elif (
+        Beam == DirectorAxisAngle
+        or Beam == TimoshenkoAxisAngle
+        or Beam == TimoshenkoQuaternion
+    ):
         return Simo1986(Ei, Fi)
     else:
         raise NotImplementedError("")
@@ -75,6 +80,12 @@ def beam_factory(
         p_psi = p_r - 1
         # p_psi = 1
         Q = DirectorAxisAngle.straight_configuration(
+            p_r, p_psi, nelements, L, r_OP=r_OP, A_IK=A_IK, basis=shape_functions
+        )
+    elif Beam == TimoshenkoAxisAngle:
+        p_r = polynomial_degree
+        p_psi = p_r - 1
+        Q = TimoshenkoAxisAngle.straight_configuration(
             p_r, p_psi, nelements, L, r_OP=r_OP, A_IK=A_IK, basis=shape_functions
         )
     elif Beam == TimoshenkoQuaternion:
@@ -173,6 +184,19 @@ def beam_factory(
             q0=q0,
             basis=shape_functions,
         )
+    elif Beam == TimoshenkoAxisAngle:
+        beam = TimoshenkoAxisAngle(
+            material_model,
+            A_rho0,
+            I_rho0,
+            p_r,
+            p_psi,
+            nquadrature_points,
+            nelements,
+            Q=Q,
+            q0=q0,
+            basis=shape_functions,
+        )
     elif Beam == TimoshenkoQuaternion:
         beam = TimoshenkoQuaternion(
             material_model,
@@ -197,9 +221,10 @@ def run(statics=True):
     # used beam model
     # Beam = Cable
     # Beam = CubicHermiteCable
-    Beam = Kirchhoff
+    # Beam = Kirchhoff
     # Beam = DirectorAxisAngle
     # Beam = TimoshenkoQuaternion
+    Beam = TimoshenkoAxisAngle
 
     # number of elements
     # nelements = 1
@@ -236,9 +261,9 @@ def run(statics=True):
     #   nelements = 1,2,4; slenderness = 1.0e3
 
     # used shape functions for discretization
-    shape_functions = "B-spline"
+    # shape_functions = "B-spline"
     # shape_functions = "Lagrange"
-    # shape_functions = "Hermite"
+    shape_functions = "Hermite"
 
     # used cross section
     # slenderness = 1
@@ -327,19 +352,19 @@ def run(statics=True):
     r_OB0 = np.zeros(3)
     # r_OB0 = np.array([-1, 0.25, 3.14])
     if statics:
-        # phi = (
-        #     lambda t: n_circles * 2 * pi * smoothstep2(t, frac_deformation, 1.0)
-        # )  # * 0.5
-        # # phi2 = lambda t: pi / 4 * sin(2 * pi * smoothstep2(t, frac_deformation, 1.0))
-        # # A_IK0 = lambda t: A_IK_basic(phi(t)).x()
-        # # TODO: Get this strange rotation working with a full circle
-        # A_IK0 = lambda t: A_IK_basic(phi(t)).z()
-        # # A_IK0 = (
-        # #     lambda t: A_IK_basic(0.5 * phi(t)).z()
-        # #     @ A_IK_basic(0.5 * phi(t)).y()
-        # #     @ A_IK_basic(phi(t)).x()
-        # # )
-        A_IK0 = lambda t: np.eye(3)
+        phi = (
+            lambda t: n_circles * 2 * pi * smoothstep2(t, frac_deformation, 1.0)
+        )  # * 0.5
+        # phi2 = lambda t: pi / 4 * sin(2 * pi * smoothstep2(t, frac_deformation, 1.0))
+        # A_IK0 = lambda t: A_IK_basic(phi(t)).x()
+        # TODO: Get this strange rotation working with a full circle
+        A_IK0 = lambda t: A_IK_basic(phi(t)).z()
+        # A_IK0 = (
+        #     lambda t: A_IK_basic(0.5 * phi(t)).z()
+        #     @ A_IK_basic(0.5 * phi(t)).y()
+        #     @ A_IK_basic(phi(t)).x()
+        # )
+        # A_IK0 = lambda t: np.eye(3)
     else:
         # phi = lambda t: smoothstep2(t, 0, 0.1) * sin(0.3 * pi * t) * pi / 4
         phi = lambda t: smoothstep2(t, 0, 0.1) * sin(0.6 * pi * t) * pi / 4
@@ -356,7 +381,12 @@ def run(statics=True):
     # left and right joint
     if Beam == Cable or Beam == CubicHermiteCable:
         joint1 = RigidConnectionCable(frame1, beam, r_OB0, frame_ID2=(0,))
-    elif Beam == Kirchhoff or Beam == DirectorAxisAngle or Beam == TimoshenkoQuaternion:
+    elif (
+        Beam == Kirchhoff
+        or Beam == DirectorAxisAngle
+        or Beam == TimoshenkoAxisAngle
+        or Beam == TimoshenkoQuaternion
+    ):
         joint1 = RigidConnection(frame1, beam, r_OB0, frame_ID2=(0,))
     else:
         raise NotImplementedError("")

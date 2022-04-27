@@ -204,20 +204,6 @@ class DirectorAxisAngle:
         # curvature of the reference configuration
         self.K_Kappa0 = np.zeros((nelement, nquadrature, 3))
 
-        # # fix evaluation points of rotation vectors for each element since we
-        # # want to evaluate their derivatives but do not have them on fixed
-        # # conrtol nodes
-        # knotvector_psi_data = self.knot_vector_psi.element_data
-        # self.xi_el_psi = lambda el: np.linspace(
-        #     knotvector_psi_data[el],
-        #     knotvector_psi_data[el + 1],
-        #     num=self.nnodes_element_psi,
-        # )
-
-        # print(
-        #     f"Reference strains are not computed in analogy to the strain measures used in f_pot_el!"
-        # )
-
         for el in range(nelement):
             qe = self.Q[self.elDOF[el]]
 
@@ -1158,7 +1144,7 @@ class DirectorAxisAngle:
         return q_ddot
 
     # change between rotation vector nad its complement in order to circumvent
-    # singularities of the rtotation vector
+    # singularities of the rotation vector
     @staticmethod
     def psi_C(psi):
         angle = norm(psi)
@@ -1168,7 +1154,6 @@ class DirectorAxisAngle:
             # Ibrahimbegovic1995 after (62)
             print(f"complement rotation vector is used")
             n = int((angle + pi) / (2 * pi))
-            # n = 1
             if angle > 0:
                 e = psi / angle
             else:
