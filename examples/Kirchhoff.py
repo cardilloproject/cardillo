@@ -68,9 +68,7 @@ def beam_factory(
     elif Beam == Kirchhoff:
         p_r = polynomial_degree
         p_phi = polynomial_degree
-        Q = Kirchhoff.straight_configuration(
-            p_r, p_phi, nelements, L, r_OP=r_OP, A_IK=A_IK
-        )
+        Q = Kirchhoff.straight_configuration(nelements, L, r_OP=r_OP, A_IK=A_IK)
     elif Beam == DirectorAxisAngle:
         p_r = polynomial_degree
         # p_psi = p_r
@@ -154,7 +152,6 @@ def beam_factory(
         beam = Kirchhoff(
             material_model,
             A_rho0,
-            B_rho0,
             C_rho0,
             p_r,
             p_phi,
@@ -200,8 +197,8 @@ def run(statics=True):
     # used beam model
     # Beam = Cable
     # Beam = CubicHermiteCable
-    # Beam = Kirchhoff
-    Beam = DirectorAxisAngle
+    Beam = Kirchhoff
+    # Beam = DirectorAxisAngle
     # Beam = TimoshenkoQuaternion
 
     # number of elements
@@ -225,10 +222,10 @@ def run(statics=True):
     #       gyroscopic forces and potential forces!
     # nquadrature_points = int(np.ceil((polynomial_degree + 1)**2 / 2))
     # nquadrature_points = polynomial_degree + 2
-    # nquadrature_points = polynomial_degree + 1
-    nquadrature_points = (
-        polynomial_degree  # cures locking but has to be modified for mass matrix
-    )
+    nquadrature_points = polynomial_degree + 1
+    # nquadrature_points = (
+    #     polynomial_degree  # cures locking but has to be modified for mass matrix
+    # )
 
     # working combinations
     # - Bspline shape functions: "Absolute rotation vector with Crisfield's  relative interpolation":
@@ -265,7 +262,7 @@ def run(statics=True):
 
     # build quadratic material model
     material_model = quadratic_beam_material(E, G, cross_section, Beam)
-    print(f"Ei: {material_model.Ei}")
+    # print(f"Ei: {material_model.Ei}")
     print(f"Fi: {material_model.Fi}")
 
     # starting point and orientation of initial point, initial length
@@ -330,19 +327,19 @@ def run(statics=True):
     r_OB0 = np.zeros(3)
     # r_OB0 = np.array([-1, 0.25, 3.14])
     if statics:
-        phi = (
-            lambda t: n_circles * 2 * pi * smoothstep2(t, frac_deformation, 1.0)
-        )  # * 0.5
-        # phi2 = lambda t: pi / 4 * sin(2 * pi * smoothstep2(t, frac_deformation, 1.0))
-        # A_IK0 = lambda t: A_IK_basic(phi(t)).x()
-        # TODO: Get this strange rotation working with a full circle
-        A_IK0 = lambda t: A_IK_basic(phi(t)).z()
-        # A_IK0 = (
-        #     lambda t: A_IK_basic(0.5 * phi(t)).z()
-        #     @ A_IK_basic(0.5 * phi(t)).y()
-        #     @ A_IK_basic(phi(t)).x()
-        # )
-        # A_IK0 = lambda t: np.eye(3)
+        # phi = (
+        #     lambda t: n_circles * 2 * pi * smoothstep2(t, frac_deformation, 1.0)
+        # )  # * 0.5
+        # # phi2 = lambda t: pi / 4 * sin(2 * pi * smoothstep2(t, frac_deformation, 1.0))
+        # # A_IK0 = lambda t: A_IK_basic(phi(t)).x()
+        # # TODO: Get this strange rotation working with a full circle
+        # A_IK0 = lambda t: A_IK_basic(phi(t)).z()
+        # # A_IK0 = (
+        # #     lambda t: A_IK_basic(0.5 * phi(t)).z()
+        # #     @ A_IK_basic(0.5 * phi(t)).y()
+        # #     @ A_IK_basic(phi(t)).x()
+        # # )
+        A_IK0 = lambda t: np.eye(3)
     else:
         # phi = lambda t: smoothstep2(t, 0, 0.1) * sin(0.3 * pi * t) * pi / 4
         phi = lambda t: smoothstep2(t, 0, 0.1) * sin(0.6 * pi * t) * pi / 4
@@ -374,8 +371,8 @@ def run(statics=True):
     # M = lambda t: e1 * smoothstep2(t, 0.0, frac_deformation) * 2 * np.pi * Fi[0] / L * 1.0
     # M = lambda t: e2 * smoothstep2(t, 0.0, frac_deformation) * 2 * np.pi * Fi[1] / L * 0.75
     M = (
-        # lambda t: (e3 * Fi[2])
-        lambda t: (e1 * Fi[0] + e3 * Fi[2])
+        lambda t: (e3 * Fi[2])
+        # lambda t: (e1 * Fi[0] + e3 * Fi[2])
         * smoothstep2(t, 0.0, frac_deformation)
         * 2
         * np.pi
