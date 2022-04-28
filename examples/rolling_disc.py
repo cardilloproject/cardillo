@@ -19,6 +19,7 @@ from cardillo.solver import (
     GenAlphaFirstOrderVelocityGGL,
     GenAlphaFirstOrderVelocity,
     GenAlphaDAEAcc,
+    GenAlphaFirstOrder,
 )
 
 
@@ -157,15 +158,19 @@ def rolling_disc_DMS(rigid_body_case="Euler", constraint_case="velocity_K"):
     t0 = 0
     # t1 = 2 * np.pi / np.abs(alpha_dot0) * 0.1
     t1 = 2 * np.pi / np.abs(alpha_dot0) * 1.0
-    # dt = 5e-2
+    # dt = 1e-2
     dt = 5e-3
     rho_inf = 0.90
     # rho_inf = 1.0
     tol = 1.0e-8
-    # sol_genAlphaFirstOrderVelocity = GenAlphaFirstOrderVelocityGGL(model, t1, dt, rho_inf=rho_inf, tol=tol).solve()
-    sol_genAlphaFirstOrderVelocity = GenAlphaFirstOrderVelocity(
+
+    sol_genAlphaFirstOrderVelocity = GenAlphaFirstOrder(
         model, t1, dt, rho_inf=rho_inf, tol=tol
     ).solve()
+    # sol_genAlphaFirstOrderVelocity = GenAlphaFirstOrderVelocityGGL(model, t1, dt, rho_inf=rho_inf, tol=tol).solve()
+    # sol_genAlphaFirstOrderVelocity = GenAlphaFirstOrderVelocity(
+    #     model, t1, dt, rho_inf=rho_inf, tol=tol
+    # ).solve()
     # sol_genAlphaFirstOrderVelocity = GenAlphaDAEAcc(model, t1, dt, rho_inf=rho_inf, newton_tol=tol).solve()
     # sol_genAlphaFirstOrderVelocity = Generalized_alpha_3(model, t1, dt, rho_inf=rho_inf, newton_tol=tol, numerical_jacobian=True).solve()
     # solver = GenAlphaFirstOrder(model, t1, dt, tol=1.0e-10, rho_inf=1.0)
