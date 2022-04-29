@@ -32,16 +32,14 @@ class GenAlphaFirstOrder:
         tol=1e-10,
         max_iter=40,
         error_function=lambda x: np.max(np.abs(x)),
-        # numerical_jacobian=False,
-        numerical_jacobian=True,
-        DAE_index=2,
+        numerical_jacobian=False,
+        # numerical_jacobian=True,
+        DAE_index=3,
         preconditioning=False,
-        # unknowns="velocities",
-        unknowns="positions",
+        # unknowns="positions",
+        unknowns="velocities",
         # unknowns="auxiliary",
-        GGL=0,
-        # GGL=1,
-        # GGL=2,
+        GGL=False,
     ):
 
         self.model = model
@@ -49,9 +47,6 @@ class GenAlphaFirstOrder:
         self.DAE_index = DAE_index
         self.unknowns = unknowns
         self.GGL = GGL
-        assert GGL >= 0 and GGL <= 2, "GGL hast to be in [0, 2]!"
-        if GGL > 1:
-            raise NotImplementedError("GGL = 2 is not implemented yet!")
 
         #######################################################################
         # integration time
@@ -66,12 +61,14 @@ class GenAlphaFirstOrder:
         # gen alpha parameter
         #######################################################################
         self.rho_inf = rho_inf
-        self.alpha_m = (3.0 * rho_inf - 1.0) / (2.0 * (rho_inf + 1.0))  # Harsch2022
-        self.alpha_f = rho_inf / (rho_inf + 1.0)  # Harsch2022
-        self.gamma = 0.5 + self.alpha_f - self.alpha_m  # Arnold2007 (24)
-        self.gamma_prime = (
-            self.dt * self.gamma * (1.0 - self.alpha_f) / (1.0 - self.alpha_m)
-        )
+        self.alpha_m = (3.0 * rho_inf - 1.0) / (2.0 * (rho_inf + 1.0))
+        self.alpha_f = rho_inf / (rho_inf + 1.0)
+        self.gamma = 0.5 + self.alpha_f - self.alpha_m
+
+        self.gamma_prime = dt * self.gamma
+        self.alpha_prime = (1.0 - self.alpha_m) / (1.0 - self.alpha_f)
+        # self.eta = self.gamma_prime / self.alpha_prime
+        self.eta = self.alpha_prime / self.gamma_prime
 
         #######################################################################
         # newton settings
@@ -159,55 +156,29 @@ class GenAlphaFirstOrder:
             la_g0 = u_dot_la_g_la_gamma[self.nu : self.nu + self.nla_g]
             la_gamma0 = u_dot_la_g_la_gamma[self.nu + self.nla_g :]
 
+            x0 = np.concatenate((q0, u0))
+            x_dot0 = np.concatenate((q_dot0, u_dot0))
+            y0 = x_dot0.copy()  # TODO: Use perturbed values foun din Arnold2015
             if self.unknowns == "positions":
-                if self.GGL == 0:
-                    x0 = np.concatenate((q0, u0))
-                    x_dot0 = np.concatenate((q_dot0, u_dot0))
-                    s0 = self.pack(q0, u0, la_g0, la_gamma0)
-                elif self.GGL == 1:
+                if self.GGL:
                     mu_g0 = np.zeros(self.nla_g)
-                    x0 = np.concatenate((q0, u0))
-                    x_dot0 = np.concatenate((q_dot0, u_dot0))
-                    s0 = self.pack(q0, u0, la_g0, la_gamma0, mu_g0)
-                elif self.GGL == 2:
-                    v0 = q_dot0  # velocity of generalized coordinates
-                    a0 = u_dot0  # acceleration
-                    v_dot0 = self.model.q_ddot(t0, q0, u0, u_dot0)
-                    mu_g0 = np.zeros(self.nla_g)
-                    kappa_g0 = np.zeros(self.nla_g)
-                    kappa_gamma0 = np.zeros(self.nla_gamma)
-                    x0 = np.concatenate((v0, q0, u0))
-                    x_dot0 = np.concatenate((v_dot0, q_dot0, u_dot0))
-                    s0 = self.pack(
-                        v0, q0, u0, la_g0, la_gamma0, mu_g0, kappa_g0, kappa_gamma0
-                    )
+                    s0 = self.pack(x0, la_g0, la_gamma0, mu_g0)
+                else:
+                    s0 = self.pack(x0, la_g0, la_gamma0)
             elif self.unknowns == "velocities":
-                if self.GGL == 0:
-                    x0 = np.concatenate((q0, u0))
-                    x_dot0 = np.concatenate((q_dot0, u_dot0))
-                    s0 = self.pack(q_dot0, u_dot0, la_g0, la_gamma0)
-                elif self.GGL == 1:
+                if self.GGL:
                     mu_g0 = np.zeros(self.nla_g)
-                    x0 = np.concatenate((q0, u0))
-                    x_dot0 = np.concatenate((q_dot0, u_dot0))
-                    s0 = self.pack(q_dot0, u_dot0, la_g0, la_gamma0)
+                    s0 = self.pack(x_dot0, la_g0, la_gamma0, mu_g0)
                 else:
-                    raise NotImplementedError
+                    s0 = self.pack(x_dot0, la_g0, la_gamma0)
             elif self.unknowns == "auxiliary":
-                if self.GGL == 0:
-                    x0 = np.concatenate((q0, u0))
-                    x_dot0 = np.concatenate((q_dot0, u_dot0))
-                    s0 = self.pack(q_dot0, u_dot0, la_g0, la_gamma0)
-                elif self.GGL == 1:
+                if self.GGL:
                     mu_g0 = np.zeros(self.nla_g)
-                    x0 = np.concatenate((q0, u0))
-                    x_dot0 = np.concatenate((q_dot0, u_dot0))
-                    s0 = self.pack(q_dot0, u_dot0, la_g0, la_gamma0)
+                    s0 = self.pack(y0, la_g0, la_gamma0, mu_g0)
                 else:
-                    raise NotImplementedError
+                    s0 = self.pack(y0, la_g0, la_gamma0)
             else:
                 raise RuntimeError("Wrong set of unknowns chosen!")
-            y0 = x_dot0.copy()  # TODO: Is there a better choice?
 
             self.tk = t0
             self.qk = q0
@@ -216,14 +187,8 @@ class GenAlphaFirstOrder:
             self.u_dotk = u_dot0
             self.la_gk = la_g0
             self.la_gammak = la_gamma0
-            if self.GGL == 1:
+            if self.GGL:
                 self.mu_gk = mu_g0
-            if self.GGL == 2:
-                self.mu_gk = mu_g0
-                self.kappa_gk = kappa_g0
-                self.kappa_gammak = kappa_gamma0
-                self.vk = v0
-                self.ak = a0
             self.xk = x0
             self.x_dotk = x_dot0
             self.yk = y0
@@ -300,18 +265,10 @@ class GenAlphaFirstOrder:
             self.yk = yk1.copy()
 
         # extract generaliezd coordinates and velocities
-        if self.GGL == 0 or self.GGL == 1:
-            qk1 = xk1[:nq]
-            uk1 = xk1[nq : nq + nu]
-            q_dotk1 = x_dotk1[:nq]
-            u_dotk1 = x_dotk1[nq : nq + nu]
-        if self.GGL == 2:
-            # vk1 = xk1[:nq]
-            qk1 = xk1[nq : 2 * nq]
-            uk1 = xk1[2 * nq : 2 * nq + nu]
-            # v_dotk1 = xk1[:nq]
-            q_dotk1 = xk1[nq : 2 * nq]
-            u_dotk1 = xk1[2 * nq : 2 * nq + nu]
+        qk1 = xk1[:nq]
+        uk1 = xk1[nq : nq + nu]
+        q_dotk1 = x_dotk1[:nq]
+        u_dotk1 = x_dotk1[nq : nq + nu]
         return qk1, uk1, q_dotk1, u_dotk1
 
     def pack(self, *args):
@@ -324,29 +281,19 @@ class GenAlphaFirstOrder:
         nla_g = self.nla_g
         nla_gamma = self.nla_gamma
 
-        if self.GGL == 0:
+        if self.GGL:
             q = s[:nq]
-            u = s[nq : nq + nu]
-            la_g = s[nq + nu : nq + nu + nla_g]
-            la_gamma = s[nq + nu + nla_g : nq + nu + nla_g + nla_gamma]
-            return q, u, la_g, la_gamma
-        elif self.GGL == 1:
-            q = s[:nq]
-            u = s[nq : nq + nu]
-            la_g = s[nq + nu : nq + nu + nla_g]
-            la_gamma = s[nq + nu + nla_g : nq + nu + nla_g + nla_gamma]
-            mu_g = s[nq + nu + nla_g + nla_gamma : nq + nu + 2 * nla_g + nla_gamma]
-            return q, u, la_g, la_gamma, mu_g
-        elif self.GGL == 2:
-            v = s[:nq]
-            q = s[nq : 2 * nq]
-            u = s[2 * nq : 2 * nq + nu]
-            la_g = s[nx : nx + nla_g]
+            u = s[nq:nx]
+            la_g = s[nx : nq + nu + nla_g]
             la_gamma = s[nx + nla_g : nx + nla_g + nla_gamma]
-            mu_g = s[nx + nla_g + nla_gamma : nx + 2 * nla_g + nla_gamma]
-            kappa_g = s[nx + 2 * nla_g + nla_gamma : nx + 3 * nla_g + nla_gamma]
-            kappa_gamma = s[nx + 3 * nla_g + nla_gamma : nx + 3 * nla_g + 2 * nla_gamma]
-            return v, q, u, la_g, la_gamma, mu_g, kappa_g, kappa_gamma
+            mu_g = s[nx + nla_g + nla_gamma :]
+            return q, u, la_g, la_gamma, mu_g
+        else:
+            q = s[:nq]
+            u = s[nq:nx]
+            la_g = s[nx : nx + nla_g]
+            la_gamma = s[nx + nla_g :]
+            return q, u, la_g, la_gamma
 
     def __R_gen_num(self, tk1, sk1):
         yield self.__R(tk1, sk1)
@@ -354,7 +301,6 @@ class GenAlphaFirstOrder:
 
     def __R_gen_analytic(self, tk1, sk1):
         nq = self.nq
-        nu = self.nu
         nx = self.nx
         nla_g = self.nla_g
         nla_gamma = self.nla_gamma
@@ -362,15 +308,8 @@ class GenAlphaFirstOrder:
         # extract Lagrange multipliers
         la_gk1 = sk1[nx : nx + nla_g]
         la_gammak1 = sk1[nx + nla_g : nx + nla_g + nla_gamma]
-        if self.GGL == 1:
-            mu_gk1 = sk1[nx + nla_g + nla_gamma : nx + 2 * nla_g + nla_gamma]
-        if self.GGL == 2:
-            vk1 = sk1[:nq]
-            mu_gk1 = sk1[nx + nla_g + nla_gamma : nx + 2 * nla_g + nla_gamma]
-            kappa_gk1 = sk1[nx + 2 * nla_g + nla_gamma : nx + 3 * nla_g + nla_gamma]
-            kappa_gammak1 = sk1[
-                nx + 2 * nla_g + nla_gamma : nx + 2 * nla_g + 2 * nla_gamma
-            ]
+        if self.GGL:
+            mu_gk1 = sk1[nx + nla_g + nla_gamma :]
 
         # update dependent variables
         qk1, uk1, q_dotk1, u_dotk1 = self.update(sk1, store=False)
@@ -379,26 +318,33 @@ class GenAlphaFirstOrder:
         Mk1 = self.model.M(tk1, qk1, scipy_matrix=csr_matrix)
         W_gk1 = self.model.W_g(tk1, qk1, scipy_matrix=csr_matrix)
         W_gammak1 = self.model.W_gamma(tk1, qk1, scipy_matrix=csr_matrix)
-        Bk1 = self.model.B(tk1, qk1, scipy_matrix=csr_matrix)
 
         ###################
         # evaluate residual
         ###################
         R = np.zeros(self.ns)
 
-        if self.GGL == 0:
-            # kinematic differential equation
-            R[:nq] = q_dotk1 - self.model.q_dot(tk1, qk1, uk1)
+        # kinematic differential equation
+        # TODO: Use Bk1
+        R[:nq] = q_dotk1 - self.model.q_dot(tk1, qk1, uk1)
+        if self.GGL:
+            g_q = self.model.g_q(tk1, qk1)
+            R[:nq] -= g_q.T @ mu_gk1
 
-            # equations of motion
-            R[nq : nq + nu] = (
-                Mk1 @ u_dotk1
-                - self.model.h(tk1, qk1, uk1)
-                - W_gk1 @ la_gk1
-                - W_gammak1 @ la_gammak1
-            )
+        # equations of motion
+        R[nq:nx] = (
+            Mk1 @ u_dotk1
+            - self.model.h(tk1, qk1, uk1)
+            - W_gk1 @ la_gk1
+            - W_gammak1 @ la_gammak1
+        )
 
-            # bilateral cosntraints
+        # bilateral constraints
+        if self.GGL:
+            R[nx : nx + nla_g] = self.model.g_dot(tk1, qk1, uk1)
+            R[nx + nla_g : nx + nla_g + nla_gamma] = self.model.gamma(tk1, qk1, uk1)
+            R[nx + nla_g + nla_gamma :] = self.model.g(tk1, qk1)
+        else:
             if self.DAE_index == 3:
                 R[nx : nx + nla_g] = self.model.g(tk1, qk1)
                 R[nx + nla_g :] = self.model.gamma(tk1, qk1, uk1)
@@ -409,145 +355,171 @@ class GenAlphaFirstOrder:
                 R[nx : nx + nla_g] = self.model.g_ddot(tk1, qk1, uk1, u_dotk1)
                 R[nx + nla_g :] = self.model.gamma_dot(tk1, qk1, uk1, u_dotk1)
 
-        elif self.GGL == 1:
-            # kinematic differential equation
-            R[:nq] = (
-                q_dotk1
-                - self.model.q_dot(tk1, qk1, uk1)
-                - self.model.g_q(tk1, qk1).T @ mu_gk1
-            )
-
-            # equations of motion
-            R[nq : nq + nu] = (
-                Mk1 @ u_dotk1
-                - self.model.h(tk1, qk1, uk1)
-                - W_gk1 @ la_gk1
-                - W_gammak1 @ la_gammak1
-            )
-
-            # bilateral cosntraints and stabilization
-            R[nq + nu : nq + nu + nla_g] = self.model.g_dot(tk1, qk1, uk1)
-            R[nq + nu + nla_g : nq + nu + nla_g + nla_gamma] = self.model.gamma(
-                tk1, qk1, uk1
-            )
-            R[
-                nq + nu + nla_g + nla_gamma : nq + nu + 2 * nla_g + nla_gamma
-            ] = self.model.g(tk1, qk1)
-
-        elif self.GGL == 2:
-            # stabilization of generalized coordiante derivatives
-            g_q = self.model.g_q(tk1, qk1)
-            gamma_q = self.model.gamma_q(tk1, qk1, uk1)
-            R[:nq] = vk1 - q_dotk1 - g_q.T @ kappa_gk1 - gamma_q.T @ kappa_gammak1
-
-            # kinematic differential equation
-            R[nq : 2 * nq] = vk1 - self.model.q_dot(tk1, qk1, uk1) - g_q.T @ mu_gk1
-
-            # equations of motion
-            R[2 * nq : nx] = (
-                Mk1 @ u_dotk1
-                - self.model.h(tk1, qk1, uk1)
-                - W_gk1 @ la_gk1
-                - W_gammak1 @ la_gammak1
-            )
-
-            # bilateral cosntraints and stabilization
-            # TODO: Move on here!
-            R[nx : nx + nla_g] = self.model.g_ddot(tk1, qk1, uk1, u_dotk1)
-            R[nx + nla_g : nx + nla_g + nla_gamma] = self.model.gamma_dot(
-                tk1, qk1, uk1, u_dotk1
-            )
-            R[nx + nla_g + nla_gamma : nx + 2 * nla_g + nla_gamma] = self.model.g(
-                tk1, qk1
-            )
-            R[
-                nx + 2 * nla_g + nla_gamma : nx + 3 * nla_g + nla_gamma
-            ] = self.model.g_dot(tk1, qk1, uk1)
-            R[
-                nx + 3 * nla_g + nla_gamma : nx + 3 * nla_g + 2 * nla_gamma
-            ] = self.model.gamma(tk1, qk1, uk1)
-
         yield R
 
-        raise NotImplementedError(
-            "Analytical Jacobian is not implemented for all three different cases!"
-        )
+        # ###############################################################################
+        # # kinematic differential equation
+        # # R[:nq] = q_dotk1 - self.model.q_dot(tk1, qk1, uk1)
+        # # if self.GGL:
+        # #     R[:nq] -= g_q.T @ mu_gk1
+        # ###############################################################################
+        # eye_nq = eye(self.nq)
+        # q_dot_q = self.model.q_dot_q(tk1, qk1, uk1)
+        # Rq_q_dot = eye(self.nq) -  * self.gamma_prime
+        # Rq_u_dot = -Bk1 * self.gamma_prime
+        # Rq_la_g = None
+        # Rq_la_gamma = None
+        # if self.GGL:
+        #     Rq_mu_g = -g_q.T
 
-        #################################
-        # kinematic differential equation
-        # R[:nq] = q_dotk1 - self.model.q_dot(tk1, qk1, uk1)
-        #################################
-        Rq_q_dot = eye(self.nq) - self.model.q_dot_q(tk1, qk1, uk1) * self.gamma_prime
-        Rq_u_dot = -Bk1 * self.gamma_prime
-        Rq_la_g = None
-        Rq_la_gamma = None
+        # ###############################################################################
+        # # equations of motion
+        # # R[nq : nq + nu] = (
+        # #     self.model.M(tk1, qk1) @ u_dotk1
+        # #     - self.model.h(tk1, qk1, uk1)
+        # #     - self.model.W_g(tk1, qk1) @ la_gk1
+        # #     - self.model.W_gamma(tk1, qk1) @ la_gammak1
+        # # )
+        # ###############################################################################
+        # Ru_q_dot = (
+        #     self.model.Mu_q(tk1, qk1, u_dotk1)
+        #     - self.model.h_q(tk1, qk1, uk1)
+        #     - self.model.Wla_g_q(tk1, qk1, la_gk1)
+        #     - self.model.Wla_gamma_q(tk1, qk1, la_gammak1)
+        # ) * self.gamma_prime
+        # Ru_u_dot = Mk1 - self.model.h_u(tk1, qk1, uk1) * self.gamma_prime
+        # Ru_la_g = -W_gk1
+        # Ru_la_gamma = -W_gammak1
+        # Ru_mu_g = None
 
-        #####################
-        # equations of motion
-        # R[nq : nq + nu] = (
-        #     self.model.M(tk1, qk1) @ u_dotk1
-        #     - self.model.h(tk1, qk1, uk1)
-        #     - self.model.W_g(tk1, qk1) @ la_gk1
-        #     - self.model.W_gamma(tk1, qk1) @ la_gammak1
-        # )
-        #####################
-        Ru_q_dot = (
+        # ###############################################################################
+        # # if self.GGL:
+        # #     R[nx : nx + nla_g] = self.model.g_dot(tk1, qk1, uk1)
+        # #     R[nx + nla_g : nx + nla_g + nla_gamma] = self.model.gamma(tk1, qk1, uk1)
+        # #     R[nx + nla_g + nla_gamma :] = self.model.g(tk1, qk1)
+        # # else:
+        # #     if self.DAE_index == 3:
+        # #         R[nx : nx + nla_g] = self.model.g(tk1, qk1)
+        # #         R[nx + nla_g :] = self.model.gamma(tk1, qk1, uk1)
+        # #     elif self.DAE_index == 2:
+        # #         R[nx : nx + nla_g] = self.model.g_dot(tk1, qk1, uk1)
+        # #         R[nx + nla_g :] = self.model.gamma(tk1, qk1, uk1)
+        # #     elif self.DAE_index == 1:
+        # #         R[nx : nx + nla_g] = self.model.g_ddot(tk1, qk1, uk1, u_dotk1)
+        # #         R[nx + nla_g :] = self.model.gamma_dot(tk1, qk1, uk1, u_dotk1)
+        # ###############################################################################
+        # Rla_g_la_g = None
+        # Rla_g_la_gamma = None
+        # Rla_g_mu_g = None
+
+        # Rla_gamma_la_g = None
+        # Rla_gamma_la_gamma = None
+        # Rla_gamma_mu_g = None
+
+        # Rmu_g_la_g = None
+        # Rmu_g_la_gamma = None
+        # Rmu_g_mu_g = None
+
+        # if self.GGL:
+        #     #     R[nx : nx + nla_g] = self.model.g_dot(tk1, qk1, uk1)
+        #     #     R[nx + nla_g : nx + nla_g + nla_gamma] = self.model.gamma(tk1, qk1, uk1)
+        #     #     R[nx + nla_g + nla_gamma :] = self.model.g(tk1, qk1)
+
+        #     # TODO: Handle chaing rules for all three formulations!
+        #     Rla_g_dot_q = self.model.g_dot_q(tk1, qk1, uk1) * self.gamma_prime
+        #     Rla_g_dot_u_dot = W_gk1.T * self.gamma_prime
+
+        #     Rla_gamma_q = self.model.gamma_q(tk1, qk1, uk1) * self.gamma_prime
+        #     Rla_gamma_u_dot = W_gk1.T * self.gamma_prime
+        # else:
+        #     if self.DAE_index == 3:
+        #         Rla_g_q_dot = self.model.g_q(tk1, qk1) * self.gamma_prime
+        #         Rla_g_u_dot = None
+        #         Rla_gamma_q_dot = self.model.gamma_q(tk1, qk1, uk1) * self.gamma_prime
+        #         Rla_gamma_u_dot = self.model.gamma_u(tk1, qk1) * self.gamma_prime
+        #     elif self.DAE_index == 2:
+        #         Rla_g_q_dot = self.model.g_dot_q(tk1, qk1, uk1) * self.gamma_prime
+        #         Rla_g_u_dot = W_gk1.T * self.gamma_prime
+        #         Rla_gamma_q_dot = self.model.gamma_q(tk1, qk1, uk1) * self.gamma_prime
+        #         Rla_gamma_u_dot = self.model.gamma_u(tk1, qk1) * self.gamma_prime
+        #     elif self.DAE_index == 1:
+        #         raise NotImplementedError("")
+        #         Rla_g_q_dot = self.model.g_ddot_q(tk1, qk1, uk1, u_dotk1) * self.gamma_prime
+        #         Rla_g_u_dot = W_gk1.T * self.gamma_prime
+        #         Rla_gamma_q_dot = (
+        #             self.model.gamma_dot_q(tk1, qk1, uk1, u_dotk1) * self.gamma_prime
+        #         )
+        #         Rla_gamma_u_dot = W_gammak1.T * self.gamma_prime
+
+        # build contributions for jacobian matrix
+        eye_nq = eye(self.nq)
+        A = self.model.q_dot_q(tk1, qk1, uk1)
+        Bk1 = self.model.B(tk1, qk1, scipy_matrix=csr_matrix)
+        K = (
             self.model.Mu_q(tk1, qk1, u_dotk1)
             - self.model.h_q(tk1, qk1, uk1)
             - self.model.Wla_g_q(tk1, qk1, la_gk1)
             - self.model.Wla_gamma_q(tk1, qk1, la_gammak1)
-        ) * self.gamma_prime
-        Ru_u_dot = Mk1 - self.model.h_u(tk1, qk1, uk1) * self.gamma_prime
-        Ru_la_g = -W_gk1
-        Ru_la_gamma = -W_gammak1
-
-        #########################################
-        # bilateral constraints
-        # if self.DAE_index == 3:
-        #     R[nq + nu : nq + nu + nla_g] = self.model.g(tk1, qk1)
-        #     R[nq + nu + nla_g :] = self.model.gamma(tk1, qk1, uk1)
-        # elif self.DAE_index == 2:
-        #     R[nq + nu : nq + nu + nla_g] = self.model.g_dot(tk1, qk1, uk1)
-        #     R[nq + nu + nla_g :] = self.model.gamma(tk1, qk1, uk1)
-        # elif self.DAE_index == 1:
-        #     R[nq + nu : nq + nu + nla_g] = self.model.g_ddot(tk1, qk1, uk1, u_dotk1)
-        #     R[nq + nu + nla_g :] = self.model.gamma_dot(tk1, qk1, uk1, u_dotk1)
-        #########################################
-        Rla_g_la_g = None
-        Rla_g_la_gamma = None
-        Rla_gamma_la_g = None
-        Rla_gamma_la_gamma = None
-        if self.DAE_index == 3:
-            Rla_g_q_dot = self.model.g_q(tk1, qk1) * self.gamma_prime
-            Rla_g_u_dot = None
-            Rla_gamma_q_dot = self.model.gamma_q(tk1, qk1, uk1) * self.gamma_prime
-            Rla_gamma_u_dot = self.model.gamma_u(tk1, qk1) * self.gamma_prime
-        elif self.DAE_index == 2:
-            Rla_g_q_dot = self.model.g_dot_q(tk1, qk1, uk1) * self.gamma_prime
-            Rla_g_u_dot = W_gk1.T * self.gamma_prime
-            Rla_gamma_q_dot = self.model.gamma_q(tk1, qk1, uk1) * self.gamma_prime
-            Rla_gamma_u_dot = self.model.gamma_u(tk1, qk1) * self.gamma_prime
-        elif self.DAE_index == 1:
-            raise NotImplementedError("")
-            Rla_g_q_dot = self.model.g_ddot_q(tk1, qk1, uk1, u_dotk1) * self.gamma_prime
-            Rla_g_u_dot = W_gk1.T * self.gamma_prime
-            Rla_gamma_q_dot = (
-                self.model.gamma_dot_q(tk1, qk1, uk1, u_dotk1) * self.gamma_prime
-            )
-            Rla_gamma_u_dot = W_gammak1.T * self.gamma_prime
+        )
+        h_u = self.model.h_u(tk1, qk1, uk1)
+        g_q = self.model.g_q(tk1, qk1)
+        gamma_q = self.model.gamma_q(tk1, qk1, uk1)
 
         # sparse assemble global tangent matrix
-        # fmt: off
-        R_x = bmat(
-            [
-                [       Rq_q_dot,        Rq_u_dot,        Rq_la_g,        Rq_la_gamma],
-                [       Ru_q_dot,        Ru_u_dot,        Ru_la_g,        Ru_la_gamma],
-                [    Rla_g_q_dot,     Rla_g_u_dot,     Rla_g_la_g,     Rla_g_la_gamma],
-                [Rla_gamma_q_dot, Rla_gamma_u_dot, Rla_gamma_la_g, Rla_gamma_la_gamma],
-            ],
-            format="csr",
-        )
-        # fmt: on
+        gap = self.gamma_prime
+        alp = self.alpha_prime
+        eta = self.eta
+        eta_inv = 1.0 / eta
+        if self.GGL:
+            raise NotImplementedError
+        else:
+            if self.unknowns == "positions":
+                if self.DAE_index == 3:
+                    # fmt: off
+                    R_x = bmat(
+                        [
+                            [eta * eye_nq - A,                    -Bk1,   None,       None],
+                            [               K, eta * Mk1 - h_u, -W_gk1, -W_gammak1],
+                            [             g_q,                    None,   None,       None],
+                            [         gamma_q,             W_gammak1.T,   None,       None],
+                        ],
+                        format="csr",
+                    )
+                    # fmt: on
+                elif self.DAE_index == 2:
+                    raise NotImplementedError
+                elif self.DAE_index == 1:
+                    raise NotImplementedError
+            elif self.unknowns == "velocities":
+                if self.DAE_index == 3:
+                    # fmt: off
+                    R_x = bmat(
+                        [
+                            [eye_nq - eta_inv * A,        -eta_inv * Bk1,   None,       None],
+                            [         eta_inv * K,   Mk1 - eta_inv * h_u, -W_gk1, -W_gammak1],
+                            [       eta_inv * g_q,                  None,   None,       None],
+                            [   eta_inv * gamma_q, eta_inv * W_gammak1.T,   None,       None],
+                        ],
+                        format="csr",
+                    )
+                    # fmt: on
+                else:
+                    raise NotImplementedError
+            elif self.unknowns == "auxiliary":
+                if self.DAE_index == 3:
+                    # fmt: off
+                    R_x = bmat(
+                        [
+                            [alp * eye_nq - gap * A,            -gap * Bk1,   None,       None],
+                            [               gap * K, alp * Mk1 - gap * h_u, -W_gk1, -W_gammak1],
+                            [             gap * g_q,                  None,   None,       None],
+                            [         gap * gamma_q,     gap * W_gammak1.T,   None,       None],
+                        ],
+                        format="csr",
+                    )
+                    # fmt: on
+                else:
+                    raise NotImplementedError
 
         if False:
             np.set_printoptions(4, suppress=True)
@@ -1403,26 +1375,13 @@ class GenAlphaFirstOrderVelocityGGL:
         # gen alpha parameter
         #######################################################################
         self.rho_inf = rho_inf
-        # self.alpha_m = 0.5 * (3. - rho_inf) / (1. + rho_inf) # Jansen2000 (23)
-        # self.alpha_f = 1. / (1. + rho_inf) # Jansen2000 (23)
-        # self.gamma = 0.5 + self.alpha_m - self.alpha_f # Jansen2000 (17)
+        self.alpha_m = (3.0 * rho_inf - 1.0) / (2.0 * (rho_inf + 1.0))
+        self.alpha_f = rho_inf / (rho_inf + 1.0)
+        self.gamma = 0.5 + self.alpha_f - self.alpha_m
 
-        # self.alpha_m = (2. * rho_inf - 1.) / (rho_inf + 1.) # Arnold2007 (24)
-        # self.alpha_f = rho_inf / (rho_inf + 1.) # Arnold2007 (24)
-
-        self.alpha_m = (3.0 * rho_inf - 1.0) / (2.0 * (rho_inf + 1.0))  # Harsch2022
-        self.alpha_f = rho_inf / (rho_inf + 1.0)  # Harsch2022
-
-        # # third order criterion of Giuseppe
-        # # 2.0 * self.alpha_f**2 - self.alpha_f + 1.0 / 6.0 - (2.0 * self.alpha_f - 1.0) * self.alpha_m = 0
-        # self.alpha_m = (2.0 * self.alpha_f**2 - self.alpha_f + 1.0 / 6.0) / (2.0 * self.alpha_f - 1.0)
-        # # from scipy.optimize import fsolve
-        # # func = lambda alpha_f: 2.0 * alpha_f**2 - alpha_f + 1.0 / 6.0 - (2.0 * alpha_f - 1.0) * self.alpha_m
-        # # self.alpha_f = fsolve(func, x0=[0.45])[0]
-
-        self.gamma = 0.5 + self.alpha_f - self.alpha_m  # Arnold2007 (24)
-
-        self.gamma_prime = dt * self.gamma * (1.0 - self.alpha_f) / (1.0 - self.alpha_m)
+        self.gamma_prime = dt * self.gamma
+        self.alpha_prime = (1.0 - self.alpha_m) / (1.0 - self.alpha_f)
+        self.eta = self.gamma_prime / self.alpha_prime
 
         #######################################################################
         # newton settings
