@@ -7,6 +7,9 @@ from cardillo.math import approx_fprime
 from cardillo.solver import Solution
 from cardillo.math import prox_Rn0, prox_sphere
 
+# GGL2 = True
+GGL2 = False
+
 
 class GenAlphaFirstOrder:
     """Generalized alpha solver for first order ODE's.
@@ -30,8 +33,8 @@ class GenAlphaFirstOrder:
         tol=1e-10,
         max_iter=40,
         error_function=lambda x: np.max(np.abs(x)),
-        # numerical_jacobian=False,
-        numerical_jacobian=True,
+        numerical_jacobian=False,
+        # numerical_jacobian=True,
         DAE_index=3,
         preconditioning=False,
         # unknowns="positions",
@@ -82,17 +85,13 @@ class GenAlphaFirstOrder:
         self.nu = model.nu
         self.nla_g = model.nla_g
         self.nla_gamma = model.nla_gamma
-        if GGL == 0:
+        self.nx = self.ny = self.nq + self.nu  # dimension of the state space
+        self.ns = self.nx + self.nla_g + self.nla_gamma  # vector of unknowns
+        if GGL:
+            self.ns += self.nla_g
+        if GGL2:
             self.nx = self.ny = self.nq + self.nu  # dimension of the state space
-            self.ns = self.nx + self.nla_g + self.nla_gamma  # vector of unknowns
-        elif GGL == 1:
-            self.nx = self.ny = self.nq + self.nu  # dimension of the state space
-            self.ns = self.nx + 2 * self.nla_g + self.nla_gamma  # vector of unknowns
-        elif GGL == 2:
-            self.nx = self.ny = 2 * self.nq + self.nu  # dimension of the state space
-            self.ns = (
-                self.nx + 3 * self.nla_g + 2 * self.nla_gamma
-            )  # vector of unknowns
+            self.ns += 2 * self.nla_g + self.nla_gamma + self.nu
 
         if numerical_jacobian:
             self.__R_gen = self.__R_gen_num
@@ -158,19 +157,43 @@ class GenAlphaFirstOrder:
             x_dot0 = np.concatenate((q_dot0, u_dot0))
             y0 = x_dot0.copy()  # TODO: Use perturbed values foun din Arnold2015
             if self.unknowns == "positions":
-                if self.GGL:
+                if GGL2:
+                    a0 = u_dot0.copy()
+                    mu_g0 = np.zeros(self.nla_g)
+                    kappa_g0 = np.zeros(self.nla_g)
+                    kappa_gamma0 = np.zeros(self.nla_gamma)
+                    s0 = self.pack(
+                        x0, la_g0, la_gamma0, mu_g0, kappa_g0, kappa_gamma0, a0
+                    )
+                elif self.GGL:
                     mu_g0 = np.zeros(self.nla_g)
                     s0 = self.pack(x0, la_g0, la_gamma0, mu_g0)
                 else:
                     s0 = self.pack(x0, la_g0, la_gamma0)
             elif self.unknowns == "velocities":
-                if self.GGL:
+                if GGL2:
+                    a0 = u_dot0.copy()
+                    mu_g0 = np.zeros(self.nla_g)
+                    kappa_g0 = np.zeros(self.nla_g)
+                    kappa_gamma0 = np.zeros(self.nla_gamma)
+                    s0 = self.pack(
+                        x_dot0, la_g0, la_gamma0, mu_g0, kappa_g0, kappa_gamma0, a0
+                    )
+                elif self.GGL:
                     mu_g0 = np.zeros(self.nla_g)
                     s0 = self.pack(x_dot0, la_g0, la_gamma0, mu_g0)
                 else:
                     s0 = self.pack(x_dot0, la_g0, la_gamma0)
             elif self.unknowns == "auxiliary":
-                if self.GGL:
+                if GGL2:
+                    a0 = u_dot0.copy()
+                    mu_g0 = np.zeros(self.nla_g)
+                    kappa_g0 = np.zeros(self.nla_g)
+                    kappa_gamma0 = np.zeros(self.nla_gamma)
+                    s0 = self.pack(
+                        y0, la_g0, la_gamma0, mu_g0, kappa_g0, kappa_gamma0, a0
+                    )
+                elif self.GGL:
                     mu_g0 = np.zeros(self.nla_g)
                     s0 = self.pack(y0, la_g0, la_gamma0, mu_g0)
                 else:
@@ -279,19 +302,30 @@ class GenAlphaFirstOrder:
         nla_g = self.nla_g
         nla_gamma = self.nla_gamma
 
-        if self.GGL:
+        if GGL2:
             q = s[:nq]
             u = s[nq:nx]
             la_g = s[nx : nq + nu + nla_g]
             la_gamma = s[nx + nla_g : nx + nla_g + nla_gamma]
-            mu_g = s[nx + nla_g + nla_gamma :]
-            return q, u, la_g, la_gamma, mu_g
+            mu_g = s[nx + nla_g + nla_gamma : nx + 2 * nla_g + nla_gamma]
+            kappa_g = s[nx + 2 * nla_g + nla_gamma : nx + 3 * nla_g + nla_gamma]
+            kappa_gamma = s[nx + 3 * nla_g + nla_gamma : nx + 3 * nla_g + 2 * nla_gamma]
+            a = s[nx + 3 * nla_g + 2 * nla_gamma :]
+            return q, u, la_g, la_gamma, mu_g, kappa_g, kappa_gamma, a
         else:
-            q = s[:nq]
-            u = s[nq:nx]
-            la_g = s[nx : nx + nla_g]
-            la_gamma = s[nx + nla_g :]
-            return q, u, la_g, la_gamma
+            if self.GGL:
+                q = s[:nq]
+                u = s[nq:nx]
+                la_g = s[nx : nq + nu + nla_g]
+                la_gamma = s[nx + nla_g : nx + nla_g + nla_gamma]
+                mu_g = s[nx + nla_g + nla_gamma :]
+                return q, u, la_g, la_gamma, mu_g
+            else:
+                q = s[:nq]
+                u = s[nq:nx]
+                la_g = s[nx : nx + nla_g]
+                la_gamma = s[nx + nla_g :]
+                return q, u, la_g, la_gamma
 
     def __R_gen_num(self, tk1, sk1):
         yield self.__R(tk1, sk1)
@@ -303,11 +337,22 @@ class GenAlphaFirstOrder:
         nla_g = self.nla_g
         nla_gamma = self.nla_gamma
 
-        # extract Lagrange multipliers
-        la_gk1 = sk1[nx : nx + nla_g]
-        la_gammak1 = sk1[nx + nla_g : nx + nla_g + nla_gamma]
-        if self.GGL:
-            mu_gk1 = sk1[nx + nla_g + nla_gamma :]
+        # extract Lagrange multiplier
+        if GGL2:
+            (
+                _,
+                _,
+                la_gk1,
+                la_gammak1,
+                mu_gk1,
+                kappa_gk1,
+                kappa_gammak1,
+                ak1,
+            ) = self.unpack(sk1)
+        elif self.GGL:
+            _, _, la_gk1, la_gammak1, mu_gk1 = self.unpack(sk1)
+        else:
+            _, _, la_gk1, la_gammak1 = self.unpack(sk1)
 
         # update dependent variables
         qk1, uk1, q_dotk1, u_dotk1 = self.update(sk1, store=False)
@@ -325,35 +370,68 @@ class GenAlphaFirstOrder:
         # kinematic differential equation
         # TODO: Use Bk1
         R[:nq] = q_dotk1 - self.model.q_dot(tk1, qk1, uk1)
-        if self.GGL:
+        if GGL2 or self.GGL:
             g_qk1 = self.model.g_q(tk1, qk1)
             R[:nq] -= g_qk1.T @ mu_gk1
 
         # equations of motion
-        R[nq:nx] = (
-            Mk1 @ u_dotk1
-            - self.model.h(tk1, qk1, uk1)
-            - W_gk1 @ la_gk1
-            - W_gammak1 @ la_gammak1
-        )
+        if GGL2:
+            R[nq:nx] = (
+                # Mk1 @ ak1
+                Mk1 @ u_dotk1  # This works, but why?
+                - self.model.h(tk1, qk1, uk1)
+                - W_gk1 @ la_gk1
+                - W_gammak1 @ la_gammak1
+            )
+        else:
+            R[nq:nx] = (
+                Mk1 @ u_dotk1
+                - self.model.h(tk1, qk1, uk1)
+                - W_gk1 @ la_gk1
+                - W_gammak1 @ la_gammak1
+            )
 
         # bilateral constraints
-        if self.GGL:
-            R[nx : nx + nla_g] = self.model.g_dot(tk1, qk1, uk1)
-            R[nx + nla_g : nx + nla_g + nla_gamma] = self.model.gamma(tk1, qk1, uk1)
-            R[nx + nla_g + nla_gamma :] = self.model.g(tk1, qk1)
+        if GGL2:
+            R[nx : nx + nla_g] = self.model.g_ddot(tk1, qk1, uk1, ak1)
+            R[nx + nla_g : nx + nla_g + nla_gamma] = self.model.gamma_dot(
+                tk1, qk1, uk1, ak1
+            )
+
+            R[nx + nla_g + nla_gamma : nx + 2 * nla_g + nla_gamma] = self.model.g_dot(
+                tk1, qk1, uk1
+            )
+            R[nx + 2 * nla_g + nla_gamma : nx + 3 * nla_g + nla_gamma] = self.model.g(
+                tk1, qk1
+            )
+
+            R[
+                nx + 3 * nla_g + nla_gamma : nx + 3 * nla_g + 2 * nla_gamma
+            ] = self.model.gamma(tk1, qk1, uk1)
+
+            R[nx + 3 * nla_g + 2 * nla_gamma :] = (
+                ak1 - u_dotk1 - W_gk1 @ kappa_gk1 - W_gammak1 @ kappa_gammak1
+            )
         else:
-            if self.DAE_index == 3:
-                R[nx : nx + nla_g] = self.model.g(tk1, qk1)
-                R[nx + nla_g :] = self.model.gamma(tk1, qk1, uk1)
-            elif self.DAE_index == 2:
+            if self.GGL:
                 R[nx : nx + nla_g] = self.model.g_dot(tk1, qk1, uk1)
-                R[nx + nla_g :] = self.model.gamma(tk1, qk1, uk1)
-            elif self.DAE_index == 1:
-                R[nx : nx + nla_g] = self.model.g_ddot(tk1, qk1, uk1, u_dotk1)
-                R[nx + nla_g :] = self.model.gamma_dot(tk1, qk1, uk1, u_dotk1)
+                R[nx + nla_g : nx + nla_g + nla_gamma] = self.model.gamma(tk1, qk1, uk1)
+                R[nx + nla_g + nla_gamma :] = self.model.g(tk1, qk1)
+            else:
+                if self.DAE_index == 3:
+                    R[nx : nx + nla_g] = self.model.g(tk1, qk1)
+                    R[nx + nla_g :] = self.model.gamma(tk1, qk1, uk1)
+                elif self.DAE_index == 2:
+                    R[nx : nx + nla_g] = self.model.g_dot(tk1, qk1, uk1)
+                    R[nx + nla_g :] = self.model.gamma(tk1, qk1, uk1)
+                elif self.DAE_index == 1:
+                    R[nx : nx + nla_g] = self.model.g_ddot(tk1, qk1, uk1, u_dotk1)
+                    R[nx + nla_g :] = self.model.gamma_dot(tk1, qk1, uk1, u_dotk1)
 
         yield R
+
+        if GGL2:
+            raise NotImplementedError
 
         ###################
         # evaluate jacobian
@@ -581,11 +659,7 @@ class GenAlphaFirstOrder:
             qk1, uk1 = self.model.step_callback(tk1, qk1, uk1)
 
             # extract Lagrange multipliers
-            if self.GGL == 0:
-                _, _, la_gk1, la_gammak1 = self.unpack(sk1)
-            elif self.GGL == 1:
-                _, _, la_gk1, la_gammak1, mu_gk1 = self.unpack(sk1)
-            elif self.GGL == 2:
+            if GGL2:
                 (
                     _,
                     _,
@@ -594,9 +668,13 @@ class GenAlphaFirstOrder:
                     mu_gk1,
                     kappa_gk1,
                     kappa_gammak1,
-                    vk1,
                     ak1,
                 ) = self.unpack(sk1)
+            else:
+                if self.GGL:
+                    _, _, la_gk1, la_gammak1, mu_gk1 = self.unpack(sk1)
+                else:
+                    _, _, la_gk1, la_gammak1 = self.unpack(sk1)
 
             # store soltuion fields
             t.append(tk1)
