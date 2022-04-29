@@ -403,7 +403,7 @@ def rolling_disc_DMS(rigid_body_case="Euler", constraint_case="velocity_K"):
 
 
 if __name__ == "__main__":
-    # rolling_disc_DMS(rigid_body_case="Euler", constraint_case="g_gamma")
+    rolling_disc_DMS(rigid_body_case="Euler", constraint_case="g_gamma")
     # rolling_disc_DMS(rigid_body_case="Euler", constraint_case="velocity_I")
     # rolling_disc_DMS(rigid_body_case="Euler", constraint_case="velocity_K")
-    rolling_disc_DMS(rigid_body_case="AxisAngle")
+    # rolling_disc_DMS(rigid_body_case="AxisAngle")
