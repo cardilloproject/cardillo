@@ -13,8 +13,6 @@ class GenAlphaFirstOrder:
     
     To-Do:
     -----
-    * Add GGL stabilization for constraints on position level in kinematic 
-      differential equation in order to solve an index 2 DAE system 
     * Think about preconditioning according to Arnold2008 and Bottasso2008?
 
     References
@@ -32,14 +30,15 @@ class GenAlphaFirstOrder:
         tol=1e-10,
         max_iter=40,
         error_function=lambda x: np.max(np.abs(x)),
-        numerical_jacobian=False,
-        # numerical_jacobian=True,
+        # numerical_jacobian=False,
+        numerical_jacobian=True,
         DAE_index=3,
         preconditioning=False,
         # unknowns="positions",
         unknowns="velocities",
         # unknowns="auxiliary",
-        GGL=False,
+        # GGL=False,
+        GGL=True,
     ):
 
         self.model = model
@@ -67,7 +66,6 @@ class GenAlphaFirstOrder:
 
         self.gamma_prime = dt * self.gamma
         self.alpha_prime = (1.0 - self.alpha_m) / (1.0 - self.alpha_f)
-        # self.eta = self.gamma_prime / self.alpha_prime
         self.eta = self.alpha_prime / self.gamma_prime
 
         #######################################################################
@@ -297,7 +295,7 @@ class GenAlphaFirstOrder:
 
     def __R_gen_num(self, tk1, sk1):
         yield self.__R(tk1, sk1)
-        yield csr_matrix(self.__R_x_num(tk1, sk1))
+        yield csr_matrix(self.__J_num(tk1, sk1))
 
     def __R_gen_analytic(self, tk1, sk1):
         nq = self.nq
@@ -328,8 +326,8 @@ class GenAlphaFirstOrder:
         # TODO: Use Bk1
         R[:nq] = q_dotk1 - self.model.q_dot(tk1, qk1, uk1)
         if self.GGL:
-            g_q = self.model.g_q(tk1, qk1)
-            R[:nq] -= g_q.T @ mu_gk1
+            g_qk1 = self.model.g_q(tk1, qk1)
+            R[:nq] -= g_qk1.T @ mu_gk1
 
         # equations of motion
         R[nq:nx] = (
@@ -369,13 +367,57 @@ class GenAlphaFirstOrder:
             - self.model.Wla_g_q(tk1, qk1, la_gk1)
             - self.model.Wla_gamma_q(tk1, qk1, la_gammak1)
         )
-        h_u = self.model.h_u(tk1, qk1, uk1)
-        g_q = self.model.g_q(tk1, qk1)
-        gamma_q = self.model.gamma_q(tk1, qk1, uk1)
+        h_uk1 = self.model.h_u(tk1, qk1, uk1)
+        g_qk1 = self.model.g_q(tk1, qk1)
+        gamma_qk1 = self.model.gamma_q(tk1, qk1, uk1)
 
         # sparse assemble global tangent matrix
         if self.GGL:
-            raise NotImplementedError
+            g_dot_qk1 = self.model.g_dot_q(tk1, qk1, uk1)
+            C = A + self.model.g_q_T_mu_g(tk1, qk1, mu_gk1)
+            if self.unknowns == "positions":
+                eta = self.eta
+                # fmt: off
+                J = bmat(
+                    [
+                        [eta * eye_nq - C,              -Bk1,   None,       None, -g_qk1.T],
+                        [               K, eta * Mk1 - h_uk1, -W_gk1, -W_gammak1,     None],
+                        [       g_dot_qk1,           W_gk1.T,   None,       None,     None],
+                        [       gamma_qk1,       W_gammak1.T,   None,       None,     None],
+                        [           g_qk1,              None,   None,       None,     None],
+                    ],
+                    format="csr",
+                )
+                # fmt: on
+            elif self.unknowns == "velocities":
+                etap = 1.0 / self.eta
+                # fmt: off
+                J = bmat(
+                    [
+                        [eye_nq - etap * C,        -etap * Bk1,   None,       None, -g_qk1.T],
+                        [         etap * K, Mk1 - etap * h_uk1, -W_gk1, -W_gammak1,     None],
+                        [ etap * g_dot_qk1,     etap * W_gk1.T,   None,       None,     None],
+                        [ etap * gamma_qk1, etap * W_gammak1.T,   None,       None,     None],
+                        [     etap * g_qk1,               None,   None,       None,     None],
+                    ],
+                    format="csr",
+                )
+                # fmt: on
+            elif self.unknowns == "auxiliary":
+                gap = self.gamma_prime
+                alp = self.alpha_prime
+                # fmt: off
+                J = bmat(
+                    [
+                        [alp * eye_nq - gap * C,              -gap * Bk1,   None,       None, -g_qk1.T],
+                        [               gap * K, alp * Mk1 - gap * h_uk1, -W_gk1, -W_gammak1,     None],
+                        [       gap * g_dot_qk1,           gap * W_gk1.T,   None,       None,     None],
+                        [       gap * gamma_qk1,       gap * W_gammak1.T,   None,       None,     None],
+                        [           gap * g_qk1,                    None,   None,       None,     None],
+                    ],
+                    format="csr",
+                )
+                # fmt: on
         else:
             if self.unknowns == "positions":
                 eta = self.eta
@@ -383,10 +425,10 @@ class GenAlphaFirstOrder:
                     # fmt: off
                     J = bmat(
                         [
-                            [eta * eye_nq - A,                    -Bk1,   None,       None],
-                            [               K, eta * Mk1 - h_u, -W_gk1, -W_gammak1],
-                            [             g_q,                    None,   None,       None],
-                            [         gamma_q,             W_gammak1.T,   None,       None],
+                            [eta * eye_nq - A,              -Bk1,   None,       None],
+                            [               K, eta * Mk1 - h_uk1, -W_gk1, -W_gammak1],
+                            [           g_qk1,              None,   None,       None],
+                            [       gamma_qk1,       W_gammak1.T,   None,       None],
                         ],
                         format="csr",
                     )
@@ -396,15 +438,15 @@ class GenAlphaFirstOrder:
                 elif self.DAE_index == 1:
                     raise NotImplementedError
             elif self.unknowns == "velocities":
-                eta_inv = 1.0 / self.eta
+                etap = 1.0 / self.eta
                 if self.DAE_index == 3:
                     # fmt: off
                     J = bmat(
                         [
-                            [eye_nq - eta_inv * A,        -eta_inv * Bk1,   None,       None],
-                            [         eta_inv * K,   Mk1 - eta_inv * h_u, -W_gk1, -W_gammak1],
-                            [       eta_inv * g_q,                  None,   None,       None],
-                            [   eta_inv * gamma_q, eta_inv * W_gammak1.T,   None,       None],
+                            [eye_nq - etap * A,        -etap * Bk1,   None,       None],
+                            [         etap * K, Mk1 - etap * h_uk1, -W_gk1, -W_gammak1],
+                            [     etap * g_qk1,               None,   None,       None],
+                            [ etap * gamma_qk1, etap * W_gammak1.T,   None,       None],
                         ],
                         format="csr",
                     )
@@ -418,10 +460,10 @@ class GenAlphaFirstOrder:
                     # fmt: off
                     J = bmat(
                         [
-                            [alp * eye_nq - gap * A,            -gap * Bk1,   None,       None],
-                            [               gap * K, alp * Mk1 - gap * h_u, -W_gk1, -W_gammak1],
-                            [             gap * g_q,                  None,   None,       None],
-                            [         gap * gamma_q,     gap * W_gammak1.T,   None,       None],
+                            [alp * eye_nq - gap * A,              -gap * Bk1,   None,       None],
+                            [               gap * K, alp * Mk1 - gap * h_uk1, -W_gk1, -W_gammak1],
+                            [           gap * g_qk1,                    None,   None,       None],
+                            [       gap * gamma_qk1,       gap * W_gammak1.T,   None,       None],
                         ],
                         format="csr",
                     )
@@ -429,14 +471,20 @@ class GenAlphaFirstOrder:
                 else:
                     raise NotImplementedError
 
+        # # TODO: Keep this for debugging!
+        # J_num = self.__J_num(tk1, sk1)
+        # diff = (J - J_num).toarray()
+        # error = np.linalg.norm(diff)
+        # print(f"error J: {error}")
+
         yield J
 
-    def __R(self, tk1, xk1):
-        return next(self.__R_gen_analytic(tk1, xk1))
+    def __R(self, tk1, sk1):
+        return next(self.__R_gen_analytic(tk1, sk1))
 
-    def __R_x_num(self, tk1, xk1):
+    def __J_num(self, tk1, sk1):
         return csr_matrix(
-            approx_fprime(xk1, lambda x: self.__R(tk1, x), method="2-point")
+            approx_fprime(sk1, lambda x: self.__R(tk1, x), method="2-point")
         )
 
     def step(self, tk1, sk1):

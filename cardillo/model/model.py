@@ -338,6 +338,12 @@ class Model(object):
             contr.g_q(t, q[contr.qDOF], coo)
         return coo.tosparse(scipy_matrix)
 
+    def g_q_T_mu_g(self, t, q, mu_g, scipy_matrix=coo_matrix):
+        coo = Coo((self.nu, self.nq))
+        for contr in self.__g_contr:
+            contr.g_q_T_mu_g(t, q[contr.qDOF], mu_g[contr.la_gDOF], coo)
+        return coo.tosparse(scipy_matrix)
+
     def W_g(self, t, q, scipy_matrix=coo_matrix):
         coo = Coo((self.nu, self.nla_g))
         for contr in self.__g_contr:

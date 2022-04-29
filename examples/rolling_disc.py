@@ -158,8 +158,9 @@ def rolling_disc_DMS(rigid_body_case="Euler", constraint_case="velocity_K"):
     t0 = 0
     # t1 = 2 * np.pi / np.abs(alpha_dot0) * 0.1
     t1 = 2 * np.pi / np.abs(alpha_dot0) * 1.0
-    # dt = 1e-2
-    dt = 5e-3
+    dt = 1e-1
+    # dt = 5e-2
+    # dt = 5e-3
     rho_inf = 0.90
     # rho_inf = 1.0
     tol = 1.0e-8

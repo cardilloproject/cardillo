@@ -177,6 +177,15 @@ class Rolling_condition_I_frame_g_gamma:
             self.nla_g, self.disc.nq
         )
 
+    def g_qq_dense(self, t, q):
+        return approx_fprime(
+            q, lambda q: self.g_q_dense(t, q), method="3-point"
+        ).reshape(self.nla_g, self.disc.nq, self.disc.nq)
+
+    def g_q_T_mu_g(self, t, q, mu_g, coo):
+        dense = np.einsum("ijk,i", self.g_qq_dense(t, q), mu_g)
+        coo.extend(dense, (self.qDOF, self.qDOF))
+
     def g_q(self, t, q, coo):
         coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
 
