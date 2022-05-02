@@ -7,8 +7,8 @@ from cardillo.math import approx_fprime
 from cardillo.solver import Solution
 from cardillo.math import prox_Rn0, prox_sphere
 
-# GGL2 = True
-GGL2 = False
+GGL2 = True
+# GGL2 = False
 
 
 class GenAlphaFirstOrder:
@@ -33,8 +33,8 @@ class GenAlphaFirstOrder:
         tol=1e-10,
         max_iter=40,
         error_function=lambda x: np.max(np.abs(x)),
-        numerical_jacobian=False,
-        # numerical_jacobian=True,
+        # numerical_jacobian=False,
+        numerical_jacobian=True,
         DAE_index=3,
         preconditioning=False,
         # unknowns="positions",
@@ -87,11 +87,10 @@ class GenAlphaFirstOrder:
         self.nla_gamma = model.nla_gamma
         self.nx = self.ny = self.nq + self.nu  # dimension of the state space
         self.ns = self.nx + self.nla_g + self.nla_gamma  # vector of unknowns
-        if GGL:
-            self.ns += self.nla_g
         if GGL2:
-            self.nx = self.ny = self.nq + self.nu  # dimension of the state space
             self.ns += 2 * self.nla_g + self.nla_gamma + self.nu
+        elif GGL:
+            self.ns += self.nla_g
 
         if numerical_jacobian:
             self.__R_gen = self.__R_gen_num
