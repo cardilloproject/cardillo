@@ -9,6 +9,7 @@ from cardillo.solver import (
     EulerBackward,
     GenAlphaFirstOrderVelocityGGL,
     GenAlphaFirstOrderVelocity,
+    GenAlphaFirstOrderGGL2_V3,
 )
 
 
@@ -153,7 +154,7 @@ if __name__ == "__main__":
     rho_inf = 0.85  # numerical damping is required to reduce oszillations of the Lagrange multipliers
 
     # log spaced time steps
-    num = 5
+    num = 2
     dts = np.logspace(-1, -num, num=num, endpoint=True)
     dts_1 = dts
     dts_2 = dts**2
@@ -191,9 +192,12 @@ if __name__ == "__main__":
 
         # solve with generalzed-alpha method positin implementation
         # sol_ThetaNewton = GenAlphaFirstOrderPosition(model, t1, dt, rho_inf=rho_inf).solve()
-        sol_GenAlphaFirstOrderGGl = GenAlphaFirstOrderVelocity(
+        sol_GenAlphaFirstOrderGGl = GenAlphaFirstOrderGGL2_V3(
             model, t1, dt, rho_inf=rho_inf
         ).solve()
+        # sol_GenAlphaFirstOrderGGl = GenAlphaFirstOrderVelocity(
+        #     model, t1, dt, rho_inf=rho_inf
+        # ).solve()
         # sol_GenAlphaFirstOrderGGl = GenAlphaFirstOrderVelocityGGL(
         #     model, t1, dt, rho_inf=rho_inf
         # ).solve()
