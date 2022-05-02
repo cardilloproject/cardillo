@@ -1166,6 +1166,11 @@ class GenAlphaFirstOrderGGL2_V3:
 
         self.model = model
         self.unknowns = unknowns
+        assert unknowns in [
+            "positions",
+            "velocities",
+            "auxiliary",
+        ], f'wrong set of unknowns "{unknowns}" chosen!'
 
         #######################################################################
         # integration time
@@ -1202,7 +1207,8 @@ class GenAlphaFirstOrderGGL2_V3:
         self.nu = model.nu
         self.nla_g = model.nla_g
         self.nla_gamma = model.nla_gamma
-        self.nx = self.ny = self.nq + self.nu  # dimension of the state space
+        # self.nx = self.ny = self.nq + self.nu  # dimension of the state space
+        self.nx = self.nq + self.nu  # dimension of the state space
         self.ns = self.nx + self.nla_g + self.nla_gamma  # vector of unknowns
         self.ns += 2 * self.nla_g + self.nla_gamma + self.nu  # GGL2 parts
 
@@ -1239,26 +1245,18 @@ class GenAlphaFirstOrderGGL2_V3:
             x0 = np.concatenate((q0, u0))
             x_dot0 = np.concatenate((q_dot0, u_dot0))
             y0 = x_dot0.copy()  # TODO: Use perturbed values foun din Arnold2015
-            a0 = np.zeros(self.nu)  # accelerations
+            a0 = u_dot0.copy()  # stabilized accelerations
+            mu_g0 = np.zeros(self.nla_g)
+            kappa_g0 = np.zeros(self.nla_g)
+            kappa_gamma0 = np.zeros(self.nla_gamma)
             if self.unknowns == "positions":
-                mu_g0 = np.zeros(self.nla_g)
-                kappa_g0 = np.zeros(self.nla_g)
-                kappa_gamma0 = np.zeros(self.nla_gamma)
                 s0 = self.pack(x0, la_g0, la_gamma0, mu_g0, kappa_g0, kappa_gamma0, a0)
             elif self.unknowns == "velocities":
-                mu_g0 = np.zeros(self.nla_g)
-                kappa_g0 = np.zeros(self.nla_g)
-                kappa_gamma0 = np.zeros(self.nla_gamma)
                 s0 = self.pack(
                     x_dot0, la_g0, la_gamma0, mu_g0, kappa_g0, kappa_gamma0, a0
                 )
             elif self.unknowns == "auxiliary":
-                mu_g0 = np.zeros(self.nla_g)
-                kappa_g0 = np.zeros(self.nla_g)
-                kappa_gamma0 = np.zeros(self.nla_gamma)
                 s0 = self.pack(y0, la_g0, la_gamma0, mu_g0, kappa_g0, kappa_gamma0, a0)
-            else:
-                raise RuntimeError("Wrong set of unknowns chosen!")
 
             self.tk = t0
             self.qk = q0
@@ -1314,7 +1312,6 @@ class GenAlphaFirstOrderGGL2_V3:
         nq = self.nq
         nu = self.nu
         nx = self.nx
-        ny = self.ny
 
         # constants
         dt = self.dt
@@ -1323,19 +1320,19 @@ class GenAlphaFirstOrderGGL2_V3:
         alpha_m = self.alpha_m
 
         if self.unknowns == "positions":
-            xk1 = sk1[:ny]
+            xk1 = sk1[:nx]
             yk1 = (xk1 - self.xk) / (dt * gamma) - ((1.0 - gamma) / gamma) * self.yk
             x_dotk1 = (
                 alpha_m * self.yk + (1.0 - alpha_m) * yk1 - alpha_f * self.x_dotk
             ) / (1.0 - alpha_f)
         elif self.unknowns == "velocities":
-            x_dotk1 = sk1[:ny]
+            x_dotk1 = sk1[:nx]
             yk1 = (
                 alpha_f * self.x_dotk + (1.0 - alpha_f) * x_dotk1 - alpha_m * self.yk
             ) / (1.0 - alpha_m)
             xk1 = self.xk + dt * ((1.0 - gamma) * self.yk + gamma * yk1)
         elif self.unknowns == "auxiliary":
-            yk1 = sk1[:ny]
+            yk1 = sk1[:nx]
             xk1 = self.xk + dt * ((1.0 - gamma) * self.yk + gamma * yk1)
             x_dotk1 = (
                 alpha_m * self.yk + (1.0 - alpha_m) * yk1 - alpha_f * self.x_dotk
