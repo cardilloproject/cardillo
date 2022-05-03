@@ -10,13 +10,7 @@ from cardillo.model.bilateral_constraints.implicit import SphericalJoint
 from cardillo.math.algebra import cross3, ax2skew
 from cardillo.math import approx_fprime
 from cardillo.model import Model
-from cardillo.solver import (
-    ScipyIVP,
-    Moreau,
-    EulerBackward,
-    GenAlphaFirstOrderVelocity,
-    GenAlphaFirstOrderVelocityGGL,
-)
+from cardillo.solver import ScipyIVP, Moreau, EulerBackward, GenAlphaFirstOrder
 
 
 class HeavyTop2(RigidBodyEuler):
@@ -87,13 +81,6 @@ class HeavyTop:
     def A_IK_q(self, t, q, frame_ID=None):
         return approx_fprime(q, lambda q: self.A_IK(t, q, frame_ID), method="3-point")
 
-    # def A_IK_q(self, t, q, frame_ID=None):
-    #     A_IK_q = np.zeros((3, 3, self.nq))
-    #     A_IK_q[:, :, 3] = self.dA_I1(q) @ self.A_12(q) @ self.A_2K(q)
-    #     A_IK_q[:, :, 4] = self.A_I1(q) @ self.dA_12(q) @ self.A_2K(q)
-    #     A_IK_q[:, :, 5] = self.A_I1(q) @ self.A_12(q) @ self.dA_2K(q)
-    #     return A_IK_q
-
     def r_OP(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
         return q[:3] + self.A_IK(t, q) @ K_r_SP
 
@@ -124,21 +111,6 @@ class HeavyTop:
     def a_P_u(self, t, q, u, u_dot, frame_ID=None, K_r_SP=np.zeros(3)):
         return self.kappa_P_u(t, q, u, frame_ID=frame_ID, K_r_SP=K_r_SP)
 
-    def kappa_P(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
-        return self.A_IK(t, q) @ (cross3(u[3:], cross3(u[3:], K_r_SP)))
-
-    def kappa_P_q(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
-        return np.einsum(
-            "ijk,j->ik", self.A_IK_q(t, q), cross3(u[3:], cross3(u[3:], K_r_SP))
-        )
-
-    def kappa_P_u(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
-        kappa_P_u = np.zeros((3, self.nu))
-        kappa_P_u[:, 3:] = -self.A_IK(t, q) @ (
-            ax2skew(cross3(u[3:], K_r_SP)) + ax2skew(u[3:]) @ ax2skew(K_r_SP)
-        )
-        return kappa_P_u
-
     def J_P(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
         J_P = np.zeros((3, self.nu))
         J_P[:, :3] = np.eye(3)
@@ -158,15 +130,6 @@ class HeavyTop:
 
     def K_Psi(self, t, q, u, u_dot, frame_ID=None):
         return u_dot[3:]
-
-    def K_kappa_R(self, t, q, u, frame_ID=None):
-        return np.zeros(3)
-
-    def K_kappa_R_q(self, t, q, u, frame_ID=None):
-        return np.zeros((3, self.nq))
-
-    def K_kappa_R_u(self, t, q, u, frame_ID=None):
-        return np.zeros((3, self.nu))
 
     def K_J_R(self, t, q, frame_ID=None):
         J_R = np.zeros((3, self.nu))
@@ -288,11 +251,25 @@ class HeavyTop:
         W = self.W_g_dense(t, q)
         M = self.M_dense(t, q)
         G = W.T @ np.linalg.solve(M, W)
-        # G = W.T @ np.linalg.inv(M) @ W
         zeta = self.g_ddot(t, q, u, np.zeros_like(u))
         h = self.f_pot(t, q) - self.f_gyr(t, q, u)
         mu = zeta + W.T @ np.linalg.solve(M, h)
         return np.linalg.solve(G, -mu)
+
+    def postprocessing(self, t, y):
+        angles = y[:3]
+        omegas = y[3:]
+        q_ = np.array([0, 0, 0, *angles])
+        K_r_SP = np.array([0, 0, self.l])
+
+        r_OS = self.r_OP(t, q_, K_r_SP=K_r_SP)
+        v_S = self.A_IK(t, q_) @ cross3(omegas, K_r_SP)
+
+        q = np.array([*r_OS, *angles])
+        u = np.array([*v_S, *omegas])
+        la_g = top1.la_g(t, q, u)
+
+        return q, u, la_g
 
     #########################
     # minimal ode formulation
@@ -307,7 +284,7 @@ class HeavyTop:
 
         # h vector
         _, beta, gamma = q
-        sb, cb = sin(beta), cos(beta)
+        sb, _ = sin(beta), cos(beta)
         sg, cg = sin(gamma), cos(gamma)
         omega_x, omega_y, omega_z = u
         m, l, g, A, B = self.m, self.l, self.grav, self.A, self.B_
@@ -403,15 +380,15 @@ if __name__ == "__main__":
     model.add(top1)
     model.assemble()
 
-    # 2. reuse existing RigidBodyEuler and SphericalJoint
-    top2 = HeavyTop2(A, B, grav, q0, u0)
-    frame = Frame()
-    spherical_joint = SphericalJoint(frame, top2, np.zeros(3))
-    model = Model()
-    model.add(top2)
-    model.add(frame)
-    model.add(spherical_joint)
-    model.assemble()
+    # # 2. reuse existing RigidBodyEuler and SphericalJoint
+    # frame = Frame()
+    # top2 = HeavyTop2(A, B, grav, q0, u0)
+    # spherical_joint = SphericalJoint(frame, top2, np.zeros(3))
+    # model = Model()
+    # model.add(top2)
+    # model.add(frame)
+    # model.add(spherical_joint)
+    # model.assemble()
 
     # end time and numerical dissipation of generalized-alpha solver
     # t1 = 5
@@ -420,64 +397,31 @@ if __name__ == "__main__":
     # t1 = 1
     t1 = 0.1
     # t1 = 0.01
-    # rho_inf = 0.0
-    # rho_inf = 0.3
     rho_inf = 0.9
-    # rho_inf = 1.0
 
     # log spaced time steps
-    num = 1
+    num = 3
     # dts = np.logspace(-1, -num, num=num, endpoint=True)
-    # dts = np.array([2.5e-3])
-    dts = np.array([1e-4])
+    dts = np.logspace(-2, -num, num=num - 1, endpoint=True)
+    # # dts = np.array([1e-2])
+    # # dts = np.array([5e-3])
+    # dts = np.array([1e-3])
+    # # dts = np.array([1e-4])
+    # dts = np.array([1e-2, 1e-3, 1e-4])
     dts_1 = dts
     dts_2 = dts**2
     print(f"dts: {dts}")
 
-    # TODO: Compare error with theta method
-    q_errors = np.inf * np.ones((4, 6, len(dts)), dtype=float)
-    u_errors = np.inf * np.ones((4, 6, len(dts)), dtype=float)
-    la_g_errors = np.inf * np.ones((4, 6, len(dts)), dtype=float)
+    # error results
+    q_errors = np.inf * np.ones(len(dts), dtype=float)
+    u_errors = np.inf * np.ones(len(dts), dtype=float)
+    la_g_errors = np.inf * np.ones(len(dts), dtype=float)
 
     for i, dt in enumerate(dts):
         print(f"i: {i}, dt: {dt:1.1e}")
 
-        # # solve with theta-method
-        # # sol_ThetaNewton = ThetaNewton(model, t1, dt).solve()
-        # sol_ThetaNewton = MoreauTheta(model, t1, dt).solve()
-        # t_ThetaNewton = sol_ThetaNewton.t
-        # q_ThetaNewton = sol_ThetaNewton.q
-        # u_ThetaNewton = sol_ThetaNewton.u
-        # la_g_ThetaNewton = sol_ThetaNewton.la_g
-
-        # # solve with first order generalized-alpha method
-        # sol_GenAlphaFirstOrder = GenAlphaFirstOrderVelocity(model, t1, dt, rho_inf=rho_inf).solve()
-        # t_GenAlphaFirstOrder = sol_GenAlphaFirstOrder.t
-        # q_GenAlphaFirstOrder = sol_GenAlphaFirstOrder.q
-        # u_GenAlphaFirstOrder = sol_GenAlphaFirstOrder.u
-        # la_g_GenAlphaFirstOrder = sol_GenAlphaFirstOrder.la_g
-
-        # # solve with second order generalized-alpha method velocity implementation
-        # sol_GenAlphaSecondOrder = GenAlphaDAEAcc(model, t1, dt, rho_inf=rho_inf).solve()
-        # t_GenAlphaSecondOrder = sol_GenAlphaSecondOrder.t
-        # q_GenAlphaSecondOrder = sol_GenAlphaSecondOrder.q
-        # u_GenAlphaSecondOrder = sol_GenAlphaSecondOrder.u
-        # la_g_GenAlphaSecondOrder = sol_GenAlphaSecondOrder.la_g
-
-        # yet implemented solvers
-        # sol_GenAlphaFirstOrderGGl = ScipyIVP(model, t1, dt).solve()
-        # sol_GenAlphaFirstOrderGGl = Moreau(model, t1, dt).solve()
-        # sol_GenAlphaFirstOrderGGl = EulerBackward(model, t1, dt).solve()
-        sol_GenAlphaFirstOrderGGl = GenAlphaFirstOrderVelocity(model, t1, dt).solve()
-
-        # solve with generalzed-alpha method positin implementation
-        # sol_GenAlphaFirstOrderGGl = GenAlphaFirstOrderVelocityGGL(model, t1, dt, rho_inf=rho_inf).solve()
-        # sol_GenAlphaFirstOrderGGl = GenAlphaFirstOrderVelocity(model, t1, dt, rho_inf=rho_inf).solve()
-        # sol_GenAlphaFirstOrderGGl = GenAlphaFirstOrderPosition(model, t1, dt, rho_inf=rho_inf).solve()
-        # sol_GenAlphaFirstOrderGGl = GenAlphaDAEAcc(model, t1, dt, rho_inf=rho_inf).solve()
-        # sol_GenAlphaFirstOrderGGl = Scipy_ivp(model, t1, dt).solve()
-        # sol_GenAlphaFirstOrderGGl = ThetaNewton(model, t1, dt).solve()
-        # sol_GenAlphaFirstOrderGGl = Euler_backward(model, t1, dt).solve()
+        # new generalized alpha solver
+        sol_GenAlphaFirstOrderGGl = GenAlphaFirstOrder(model, t1, dt).solve()
         t_GenAlphaFirstOrderGGl = sol_GenAlphaFirstOrderGGl.t
         q_GenAlphaFirstOrderGGl = sol_GenAlphaFirstOrderGGl.q
         u_GenAlphaFirstOrderGGl = sol_GenAlphaFirstOrderGGl.u
@@ -488,81 +432,31 @@ if __name__ == "__main__":
         y0 = np.concatenate([phi0, K_Omega0])
         t_eval = np.linspace(0, t1, num=len(t_GenAlphaFirstOrderGGl))
         method = "RK45"
-        # method = "DOP853"
-        # method = "BDF"
         sol_RK45 = solve_ivp(
             top1, t_span, y0, method=method, t_eval=t_eval, atol=1.0e-12, rtol=1.0e-12
         )
         t_RK45 = sol_RK45.t
         y_RK45 = sol_RK45.y
-        # TODO: Compute Lagrange multipliers
-        # q_RK45 = cartesian_coordinates(phi_RK45).T
-        # u_RK45 = cartesian_coordinates_dot(phi_RK45, omega_RK45).T
-        # la_g_RK4 = np.array([la_g_analytic(t, phi, omega) for (t, phi, omega) in zip(t_RK45, phi_RK45, omega_RK45)])
 
-    #     # compute errors
-    #     # x_y_errors[0, i] = np.linalg.norm(q_GenAlphaFirstOrder - q_RK45)
-    #     # x_y_errors[1, i] = np.linalg.norm(q_GenAlphaSecondOrder - q_RK45)
-    #     q_errors[2, i] = np.linalg.norm(q_GenAlphaFirstOrderGGl - q_RK45)
-    #     # x_y_errors[3, i] = np.linalg.norm(q_ThetaNewton - q_RK45)
-    #     # x_dot_y_dot_errors[0, i] = np.linalg.norm(u_GenAlphaFirstOrder - u_RK45)
-    #     # x_dot_y_dot_errors[1, i] = np.linalg.norm(u_GenAlphaSecondOrder - u_RK45)
-    #     u_errors[2, i] = np.linalg.norm(u_GenAlphaFirstOrderGGl - u_RK45)
-    #     # x_dot_y_dot_errors[3, i] = np.linalg.norm(u_ThetaNewton - u_RK45)
-    #     # la_g_errors[0, i] = np.linalg.norm(la_g_GenAlphaFirstOrder - la_g_RK4)
-    #     # la_g_errors[1, i] = np.linalg.norm(la_g_GenAlphaSecondOrder - la_g_RK4)
-    #     la_g_errors[2, i] = np.linalg.norm(la_g_GenAlphaFirstOrderGGl - la_g_RK4)
-    #     # la_g_errors[3, i] = np.linalg.norm(la_g_ThetaNewton - la_g_RK4)
+        # postprocessing of RK45 solution
+        nt = len(t_RK45)
+        q_RK45 = np.zeros((nt, 6))
+        u_RK45 = np.zeros((nt, 6))
+        la_g_RK45 = np.zeros((nt, 3))
+        for j, (tj, yj) in enumerate(zip(t_RK45, y_RK45.T)):
+            q_RK45[j], u_RK45[j], la_g_RK45[j] = top1.postprocessing(tj, yj)
+        r_OS_RK45 = q_RK45[:, :3]
+        v_S_RK45 = u_RK45[:, :3]
 
-    # # names = ["GenAlphaFirstOrder", "GenAlphaSecondOrder", "GenAlphaFirstOrderGGl", "Theta"]
-    # # ts = [t_GenAlphaFirstOrder, t_GenAlphaSecondOrder, t_GenAlphaFirstOrderGGl, t_ThetaNewton]
-    # # qs = [q_GenAlphaFirstOrder, q_GenAlphaSecondOrder, q_GenAlphaFirstOrderGGl, q_ThetaNewton]
-    # # us = [u_GenAlphaFirstOrder, u_GenAlphaSecondOrder, u_GenAlphaFirstOrderGGl, u_ThetaNewton]
-    # # la_gs = [la_g_GenAlphaFirstOrder, la_g_GenAlphaSecondOrder, la_g_GenAlphaFirstOrderGGl, la_g_ThetaNewton]
-    # names = ["GenAlphaFirstOrderGGl"]
-    # ts = [t_GenAlphaFirstOrderGGl]
-    # qs = [q_GenAlphaFirstOrderGGl]
-    # us = [u_GenAlphaFirstOrderGGl]
-    # la_gs = [la_g_GenAlphaFirstOrderGGl]
-    # for i, name in enumerate(names):
-    #     filename = "sol_" + name + "_cartesian_pendulum_.txt"
-    #     # export_data = np.hstack((t_GenAlphaFirstOrderGGl[:, np.newaxis], q_GenAlphaFirstOrderGGl, u_GenAlphaFirstOrderGGl, la_g_GenAlphaFirstOrderGGl))
-    #     export_data = np.hstack((ts[i][:, np.newaxis], qs[i], us[i], la_gs[i]))
-    #     header = "t, x, y, x_dot, y_dot, la_g"
-    #     np.savetxt(filename, export_data, delimiter=", ", header=header, comments="")
+        # compute errors
+        q_errors[i] = np.linalg.norm(q_RK45 - q_GenAlphaFirstOrderGGl)
+        u_errors[i] = np.linalg.norm(u_RK45 - u_GenAlphaFirstOrderGGl)
+        la_g_errors[i] = np.linalg.norm(la_g_RK45 - la_g_GenAlphaFirstOrderGGl)
 
-    #     filename = "error_" + name + "_cartesian_pendulum_.txt"
-    #     header = "dt, dt2, error_xy, error_xy_dot, error_la_g"
-    #     export_data = np.vstack((dts, dts_2, q_errors[i], u_errors[i], la_g_errors[i])).T
-    #     np.savetxt(filename, export_data, delimiter=", ", header=header, comments="")
-
+    ###################
     # visualize results
+    ###################
     fig = plt.figure(figsize=plt.figaspect(0.5))
-
-    # postprocessing of RK45 solution
-    def postporcessing(t, y):
-        r_OS = []
-        v_S = []
-        la_g = []
-        for i, (ti, yi) in enumerate(zip(t, y)):
-            angles = yi[:3]
-            omegas = yi[3:]
-            r_OSi = top1.r_OP(
-                t, np.array([0, 0, 0, *angles]), K_r_SP=np.array([0, 0, l])
-            )
-            r_OS.append(r_OSi)
-
-            A_IK = HeavyTop.A_IK(ti, [0, 0, 0, *angles])
-            v_Si = A_IK @ cross3(omegas, np.array([0, 0, l]))
-            # v_Si = top.v_P(ti, [0, 0, 0, *angles], [0, 0, 0, *omegas], K_r_SP=np.array([0, 0, l]))
-            v_S.append(v_Si)
-
-            qi = np.concatenate((r_OSi, angles))
-            ui = np.concatenate((v_Si, omegas))
-            la_g.append(top1.la_g(ti, qi, ui))
-        return np.array(r_OS), np.array(v_S), np.array(la_g)
-
-    r_OS_RK45, v_S_RK45, la_g_RK45 = postporcessing(t_RK45, y_RK45.T)
 
     # center of mass
     ax = fig.add_subplot(2, 3, 1)
@@ -713,81 +607,16 @@ if __name__ == "__main__":
     ax.grid()
     ax.legend()
 
-    plt.show()
-    exit()
-
-    # generalized velocities
-    # ax[0, 1].plot(t_GenAlphaFirstOrder, u_GenAlphaFirstOrder[:, 0], 'xb', label="x_dot - GenAlphaFirstOrder")
-    # ax[0, 1].plot(t_GenAlphaFirstOrder, u_GenAlphaFirstOrder[:, 1], 'ob', label="y_dot - GenAlphaFirstOrder")
-    # ax[0, 1].plot(t_GenAlphaSecondOrder, u_GenAlphaSecondOrder[:, 0], 'xr', label="x_dot - GenAlphaSecondOrder")
-    # ax[0, 1].plot(t_GenAlphaSecondOrder, u_GenAlphaSecondOrder[:, 1], 'or', label="y_dot - GenAlphaSecondOrder")
-    ax[0, 1].plot(
-        t_GenAlphaFirstOrderGGl,
-        u_GenAlphaFirstOrderGGl[:, 0],
-        "xg",
-        label="x_dot - GenAlphaFirstOrderGGl",
-    )
-    ax[0, 1].plot(
-        t_GenAlphaFirstOrderGGl,
-        u_GenAlphaFirstOrderGGl[:, 1],
-        "og",
-        label="y_dot - GenAlphaFirstOrderGGl",
-    )
-    # ax[0, 1].plot(t_ThetaNewton, u_ThetaNewton[:, 0], 'xm', label="x_dot - Theta")
-    # ax[0, 1].plot(t_ThetaNewton, u_ThetaNewton[:, 1], 'om', label="y_dot - Theta")
-    ax[0, 1].plot(t_RK45, u_RK45[:, 0], "-k", label="x_dot - RK45")
-    ax[0, 1].plot(t_RK45, u_RK45[:, 1], "--k", label="y_dot - RK45")
-    ax[0, 1].grid()
-    ax[0, 1].legend()
-
-    # Lagrange multipliers
-    # ax[0, 2].plot(t_GenAlphaFirstOrder, la_g_GenAlphaFirstOrder[:, 0], 'ob', label="la_g - GenAlphaFirstOrder")
-    # ax[0, 2].plot(t_GenAlphaSecondOrder, la_g_GenAlphaSecondOrder[:, 0], 'xr', label="la_g - GenAlphaSecondOrder")
-    ax[0, 2].plot(
-        t_GenAlphaFirstOrderGGl,
-        la_g_GenAlphaFirstOrderGGl[:, 0],
-        "sg",
-        label="la_g - GenAlphaFirstOrderGGl",
-    )
-    # ax[0, 2].plot(t_ThetaNewton, la_g_ThetaNewton[:, 0], 'sm', label="la_g - Theta")
-    ax[0, 2].plot(t_RK45, la_g_RK4, "-k", label="la_g - RK45")
-    ax[0, 2].grid()
-    ax[0, 2].legend()
-
-    # (x,y) - errors
-    # ax[1, 0].loglog(dts, x_y_errors[0], '-b', label="(x,y) - error - GenAlphaFirstOrder")
-    # ax[1, 0].loglog(dts, x_y_errors[1], '--r', label="(x,y) - error - GenAlphaSecondOrder")
-    ax[1, 0].loglog(
-        dts, q_errors[2], "-.g", label="(x,y) - error - GenAlphaFirstOrderGGl"
-    )
-    # ax[1, 0].loglog(dts, x_y_errors[3], '--m', label="(x,y) - error - Theta")
-    ax[1, 0].loglog(dts, dts_1, "-k", label="dt")
-    ax[1, 0].loglog(dts, dts_2, "--k", label="dt^2")
-    ax[1, 0].grid()
-    ax[1, 0].legend()
-
-    # (x_dot,y_dot) - errors
-    # ax[1, 1].loglog(dts, x_dot_y_dot_errors[0], '-b', label="(x_dot,y_dot) - error - GenAlphaFirstOrder")
-    # ax[1, 1].loglog(dts, x_dot_y_dot_errors[1], '--r', label="(x_dot,y_dot) - error - GenAlphaSecondOrder")
-    ax[1, 1].loglog(
-        dts, u_errors[2], "-.g", label="(x_dot,y_dot) - error - GenAlphaFirstOrderGGl"
-    )
-    # ax[1, 1].loglog(dts, x_dot_y_dot_errors[3], '--m', label="(x_dot,y_dot) - error - Theta")
-    ax[1, 1].loglog(dts, dts_1, "-k", label="dt")
-    ax[1, 1].loglog(dts, dts_2, "--k", label="dt^2")
-    ax[1, 1].grid()
-    ax[1, 1].legend()
-
-    # TODO: la_g - errors
-    # ax[1, 2].loglog(dts, la_g_errors[0], '-b', label="la_g - error - GenAlphaFirstOrder")
-    # ax[1, 2].loglog(dts, la_g_errors[1], '--r', label="la_g - error - GenAlphaSecondOrder")
-    ax[1, 2].loglog(
-        dts, la_g_errors[2], "-.g", label="la_g - error - GenAlphaFirstOrderGGl"
-    )
-    # ax[1, 2].loglog(dts, la_g_errors[3], '-.m', label="la_g - error - Theta")
-    ax[1, 2].loglog(dts, dts_1, "-k", label="dt")
-    ax[1, 2].loglog(dts, dts_2, "--k", label="dt^2")
-    ax[1, 2].grid()
-    ax[1, 2].legend()
+    ##################
+    # visualize errors
+    ##################
+    fig, ax = plt.subplots()
+    ax.loglog(dts, q_errors, "-.r", label="q - error - GenAlphaFirstOrder")
+    ax.loglog(dts, u_errors, "-.g", label="u - error - GenAlphaFirstOrder")
+    ax.loglog(dts, la_g_errors, "-.b", label="la_g - error - GenAlphaFirstOrder")
+    ax.loglog(dts, dts_1, "-k", label="dt")
+    ax.loglog(dts, dts_2, "--k", label="dt^2")
+    ax.grid()
+    ax.legend()
 
     plt.show()

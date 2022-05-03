@@ -7,8 +7,7 @@ from cardillo.model import Model
 from cardillo.solver import (
     ScipyIVP,
     EulerBackward,
-    GenAlphaFirstOrderVelocityGGL,
-    GenAlphaFirstOrderVelocity,
+    GenAlphaFirstOrder,
     GenAlphaFirstOrderGGL2_V3,
 )
 
@@ -192,12 +191,12 @@ if __name__ == "__main__":
 
         # solve with generalzed-alpha method positin implementation
         # sol_ThetaNewton = GenAlphaFirstOrderPosition(model, t1, dt, rho_inf=rho_inf).solve()
-        sol_GenAlphaFirstOrderGGl = GenAlphaFirstOrderGGL2_V3(
-            model, t1, dt, rho_inf=rho_inf
-        ).solve()
-        # sol_GenAlphaFirstOrderGGl = GenAlphaFirstOrderVelocity(
+        # sol_GenAlphaFirstOrderGGl = GenAlphaFirstOrderGGL2_V3(
         #     model, t1, dt, rho_inf=rho_inf
         # ).solve()
+        sol_GenAlphaFirstOrderGGl = GenAlphaFirstOrder(
+            model, t1, dt, rho_inf=rho_inf
+        ).solve()
         # sol_GenAlphaFirstOrderGGl = GenAlphaFirstOrderVelocityGGL(
         #     model, t1, dt, rho_inf=rho_inf
         # ).solve()

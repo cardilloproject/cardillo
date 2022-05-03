@@ -1399,6 +1399,7 @@ class GenAlphaFirstOrderGGL2_V3:
         # evaluate repeated used quantities
         Mk1 = self.model.M(tk1, qk1, scipy_matrix=csr_matrix)
         W_gk1 = self.model.W_g(tk1, qk1, scipy_matrix=csr_matrix)
+        g_qk1 = self.model.g_q(tk1, qk1)
         W_gammak1 = self.model.W_gamma(tk1, qk1, scipy_matrix=csr_matrix)
 
         ###################
@@ -1411,7 +1412,6 @@ class GenAlphaFirstOrderGGL2_V3:
         ####################################
 
         # kinematic differential equation
-        g_qk1 = self.model.g_q(tk1, qk1)
         R[:nq] = q_dotk1 - self.model.q_dot(tk1, qk1, uk1) - g_qk1.T @ mu_gk1
 
         # equations of motion
@@ -1637,8 +1637,8 @@ class GenAlphaFirstOrder:
         # unknowns="positions",
         unknowns="velocities",
         # unknowns="auxiliary",
-        GGL=False,
-        # GGL=True,
+        # GGL=False,
+        GGL=True,
     ):
 
         self.model = model
