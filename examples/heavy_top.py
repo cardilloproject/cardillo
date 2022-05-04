@@ -2,15 +2,13 @@ import numpy as np
 from math import sin, cos, pi
 import matplotlib.pyplot as plt
 
-from scipy.integrate import solve_ivp
-
 from cardillo.model.frame.frame import Frame
 from cardillo.model.rigid_body import RigidBodyEuler
 from cardillo.model.bilateral_constraints.implicit import SphericalJoint
 from cardillo.math.algebra import cross3, ax2skew
 from cardillo.math import approx_fprime
 from cardillo.model import Model
-from cardillo.solver import GenAlphaFirstOrder, GenAlphaFirstOrderGGL2_V3
+from cardillo.solver import GenAlphaFirstOrder
 
 
 class HeavyTop2(RigidBodyEuler):
@@ -395,14 +393,17 @@ if __name__ == "__main__":
     # t1 = 1
     t1 = 0.1  # this is used for investigating the transient bahavior
     rho_inf = 0.9
+    tol_ref = 1.0e-12
+    tol = 1.0e-8
 
     # log spaced time steps
     # num = 3
     # dts = np.logspace(-1, -num, num=num, endpoint=True)
     # dts = np.logspace(-2, -num, num=num - 1, endpoint=True)
-    dts = np.array([1.0e-2])
+    # dts = np.array([1.0e-2])
     # dts = np.array([1e-2, 1.0e-3])
-    # dts = np.array([1e-2, 1e-3, 1e-4])
+    dts = np.array([1e-2, 1e-3, 1e-4])
+    # dts = np.array([1e-2, 5e-3, 1e-3, 5e-4, 1e-4]) # used by Arnold2015, p. 29
     dts_1 = dts
     dts_2 = dts**2
     print(f"dts: {dts}")
@@ -414,20 +415,19 @@ if __name__ == "__main__":
 
     # compute reference solution as described in Arnold2015 Section 3.3
     print(f"compute reference solution:")
-    # dt_ref = 2.5e-5 # see Arnold2015 p. 174/ Arnodl2015b p. 14
+    dt_ref = 2.5e-5 # see Arnold2015 p. 174/ Arnodl2015b p. 14
     # dt_ref = 1.0e-4
-    dt_ref = 1.0e-3
-    # reference = GenAlphaFirstOrder(model, t1, dt_ref, rho_inf=rho_inf, unknowns="auxiliary", GGL=True).solve()
-    reference = GenAlphaFirstOrderGGL2_V3(
-        model, t1, dt_ref, rho_inf=rho_inf, unknowns="auxiliary"
+    # dt_ref = 1.0e-3
+    reference = GenAlphaFirstOrder(
+        model, t1, dt_ref, rho_inf=rho_inf, tol=tol_ref, unknowns="auxiliary", GGL=True
     ).solve()
     t_ref = reference.t
     q_ref = reference.q
     u_ref = reference.u
     la_g_ref = reference.la_g
 
-    plot_state = True
-    # plot_state = False
+    # plot_state = True
+    plot_state = False
     if plot_state:
         ###################
         # visualize results
@@ -488,8 +488,6 @@ if __name__ == "__main__":
 
         plt.show()
 
-    exit()
-
     def errors(sol):
         t = sol.t
         q = sol.q
@@ -506,50 +504,54 @@ if __name__ == "__main__":
         diff_la_g = la_g - la_g_ref[idx]
 
         # relative error
-        q_error = np.linalg.norm(diff_q) / np.linalg.norm(q)
-        u_error = np.linalg.norm(diff_u) / np.linalg.norm(u)
-        la_g_error = np.linalg.norm(diff_la_g) / np.linalg.norm(la_g)
+        # TODO: What error do we chose?
+        # q_error = np.linalg.norm(diff_q) / np.linalg.norm(q)
+        # u_error = np.linalg.norm(diff_u) / np.linalg.norm(u)
+        # la_g_error = np.linalg.norm(diff_la_g) / np.linalg.norm(la_g)
+        q_error = np.max(np.abs(diff_q))
+        u_error = np.max(np.abs(diff_u))
+        la_g_error = np.max(np.abs(diff_la_g))
 
         return q_error, u_error, la_g_error
 
     for i, dt in enumerate(dts):
         print(f"i: {i}, dt: {dt:1.1e}")
 
-        # # position formulation
-        # sol = GenAlphaFirstOrder(
-        #     model, t1, dt, rho_inf=rho_inf, unknowns="positions"
-        # ).solve()
-        # q_errors[0, i], u_errors[0, i], la_g_errors[0, i] = errors(sol)
+        # position formulation
+        sol = GenAlphaFirstOrder(
+            model, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="positions"
+        ).solve()
+        q_errors[0, i], u_errors[0, i], la_g_errors[0, i] = errors(sol)
 
-        # # velocity formulation
-        # sol = GenAlphaFirstOrder(
-        #     model, t1, dt, rho_inf=rho_inf, unknowns="velocities"
-        # ).solve()
-        # q_errors[1, i], u_errors[1, i], la_g_errors[1, i] = errors(sol)
+        # velocity formulation
+        sol = GenAlphaFirstOrder(
+            model, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="velocities"
+        ).solve()
+        q_errors[1, i], u_errors[1, i], la_g_errors[1, i] = errors(sol)
 
-        # # auxiliary formulation
-        # sol = GenAlphaFirstOrder(
-        #     model, t1, dt, rho_inf=rho_inf, unknowns="auxiliary"
-        # ).solve()
-        # q_errors[2, i], u_errors[2, i], la_g_errors[2, i] = errors(sol)
+        # auxiliary formulation
+        sol = GenAlphaFirstOrder(
+            model, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="auxiliary"
+        ).solve()
+        q_errors[2, i], u_errors[2, i], la_g_errors[2, i] = errors(sol)
 
-        # # GGL formulation - positions
-        # sol = GenAlphaFirstOrder(
-        #     model, t1, dt, rho_inf=rho_inf, unknowns="positions", GGL=True
-        # ).solve()
-        # q_errors[3, i], u_errors[3, i], la_g_errors[3, i] = errors(sol)
+        # GGL formulation - positions
+        sol = GenAlphaFirstOrder(
+            model, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="positions", GGL=True
+        ).solve()
+        q_errors[3, i], u_errors[3, i], la_g_errors[3, i] = errors(sol)
 
-        # # GGL formulation - velocityies
-        # sol = GenAlphaFirstOrder(
-        #     model, t1, dt, rho_inf=rho_inf, unknowns="velocities", GGL=True
-        # ).solve()
-        # q_errors[4, i], u_errors[4, i], la_g_errors[4, i] = errors(sol)
+        # GGL formulation - velocityies
+        sol = GenAlphaFirstOrder(
+            model, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="velocities", GGL=True
+        ).solve()
+        q_errors[4, i], u_errors[4, i], la_g_errors[4, i] = errors(sol)
 
-        # # GGL formulation - auxiliary
-        # sol = GenAlphaFirstOrder(
-        #     model, t1, dt, rho_inf=rho_inf, unknowns="auxiliary", GGL=True
-        # ).solve()
-        # q_errors[5, i], u_errors[5, i], la_g_errors[5, i] = errors(sol)
+        # GGL formulation - auxiliary
+        sol = GenAlphaFirstOrder(
+            model, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="auxiliary", GGL=True
+        ).solve()
+        q_errors[5, i], u_errors[5, i], la_g_errors[5, i] = errors(sol)
 
     ##################
     # visualize errors
