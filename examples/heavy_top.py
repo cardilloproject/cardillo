@@ -10,7 +10,7 @@ from cardillo.model.bilateral_constraints.implicit import SphericalJoint
 from cardillo.math.algebra import cross3, ax2skew
 from cardillo.math import approx_fprime
 from cardillo.model import Model
-from cardillo.solver import ScipyIVP, Moreau, EulerBackward, GenAlphaFirstOrder
+from cardillo.solver import GenAlphaFirstOrder, GenAlphaFirstOrderGGL2_V3
 
 
 class HeavyTop2(RigidBodyEuler):
@@ -302,21 +302,21 @@ class HeavyTop:
 
 
 if __name__ == "__main__":
-    ###################
-    # system parameters
-    ###################
-    m = 0.1
-    l = 0.2
-    grav = 9.81
-    r = 0.1
-    A = 1 / 2 * m * r**2
-    B = 1 / 4 * m * r**2
-    alpha0 = 0
-    beta0 = pi / 2
-    gamma0 = 0
-    omega_x0 = 0
-    omega_y0 = 0
-    omega_z0 = 2 * pi * 50
+    # ###################
+    # # system parameters
+    # ###################
+    # m = 0.1
+    # l = 0.2
+    # grav = 9.81
+    # r = 0.1
+    # A = 1 / 2 * m * r**2
+    # B = 1 / 4 * m * r**2
+    # alpha0 = 0
+    # beta0 = pi / 2
+    # gamma0 = 0
+    # omega_x0 = 0
+    # omega_y0 = 0
+    # omega_z0 = 2 * pi * 50
 
     # #####################
     # # Geradin2000, p 103.
@@ -333,22 +333,23 @@ if __name__ == "__main__":
     # omega_y0 = 0
     # omega_z0 = 2 * pi * 50
 
-    # #####################
-    # # Arnold2015, p 174.
-    # #####################
-    # m = 15
-    # A = 0.234375
-    # B = 0.46875
-    # l = 1.0
-    # grav = 9.81
-    # alpha0 = 0
-    # beta0 = pi / 2
-    # gamma0 = 0
-    # omega_x0 = 0
-    # omega_x0 = 4.61538
-    # omega_y0 = 0
-    # # omega_z0 = 150
-    # omega_z0 = 300
+    ########################################
+    # Arnold2015, p. 174/ Arnold2015b, p. 13
+    ########################################
+    m = 15
+    A = 0.234375
+    B = 0.46875
+    l = 1.0
+    grav = 9.81
+    alpha0 = 0
+    beta0 = pi / 2
+    gamma0 = 0
+
+    omega_x0 = 0
+    # omega_y0 = 0 # Arnodl2015 p. 174
+    omega_y0 = -4.61538  # Arnold2015b p. 13
+    omega_z0 = 150
+    # omega_z0 *= ??? #  this yields a precession movement
 
     #############################
     # initial position and angles
@@ -368,11 +369,6 @@ if __name__ == "__main__":
     K_Omega0 = np.array([omega_x0, omega_y0, omega_z0])
     v_S0 = A_IK0 @ cross3(K_Omega0, K_r_OS0)
     u0 = np.concatenate((v_S0, K_Omega0))
-
-    ###########################
-    # initial constraint forces
-    # TODO: g_ddot is not zero for this initial state!
-    ###########################
 
     # 1. hand written version
     top1 = HeavyTop(m, l, A, B, grav, r_OQ, q0, u0)
@@ -395,228 +391,229 @@ if __name__ == "__main__":
     # t1 = 5 / 4
     # t1 = 5 / 8
     # t1 = 1
-    t1 = 0.1
-    # t1 = 0.01
+    # t1 = 0.25
+    # t1 = 1
+    t1 = 0.1  # this is used for investigating the transient bahavior
     rho_inf = 0.9
 
     # log spaced time steps
-    num = 3
+    # num = 3
     # dts = np.logspace(-1, -num, num=num, endpoint=True)
-    dts = np.logspace(-2, -num, num=num - 1, endpoint=True)
-    # # dts = np.array([1e-2])
-    # # dts = np.array([5e-3])
-    # dts = np.array([1e-3])
-    # # dts = np.array([1e-4])
+    # dts = np.logspace(-2, -num, num=num - 1, endpoint=True)
+    dts = np.array([1.0e-2])
+    # dts = np.array([1e-2, 1.0e-3])
     # dts = np.array([1e-2, 1e-3, 1e-4])
     dts_1 = dts
     dts_2 = dts**2
     print(f"dts: {dts}")
 
-    # error results
-    q_errors = np.inf * np.ones(len(dts), dtype=float)
-    u_errors = np.inf * np.ones(len(dts), dtype=float)
-    la_g_errors = np.inf * np.ones(len(dts), dtype=float)
+    # errors for all 6 possible solvers
+    q_errors = np.inf * np.ones((6, len(dts)), dtype=float)
+    u_errors = np.inf * np.ones((6, len(dts)), dtype=float)
+    la_g_errors = np.inf * np.ones((6, len(dts)), dtype=float)
+
+    # compute reference solution as described in Arnold2015 Section 3.3
+    print(f"compute reference solution:")
+    # dt_ref = 2.5e-5 # see Arnold2015 p. 174/ Arnodl2015b p. 14
+    # dt_ref = 1.0e-4
+    dt_ref = 1.0e-3
+    # reference = GenAlphaFirstOrder(model, t1, dt_ref, rho_inf=rho_inf, unknowns="auxiliary", GGL=True).solve()
+    reference = GenAlphaFirstOrderGGL2_V3(
+        model, t1, dt_ref, rho_inf=rho_inf, unknowns="auxiliary"
+    ).solve()
+    t_ref = reference.t
+    q_ref = reference.q
+    u_ref = reference.u
+    la_g_ref = reference.la_g
+
+    plot_state = True
+    # plot_state = False
+    if plot_state:
+        ###################
+        # visualize results
+        ###################
+        fig = plt.figure(figsize=plt.figaspect(0.5))
+
+        # center of mass
+        ax = fig.add_subplot(2, 3, 1)
+        ax.plot(t_ref, q_ref[:, 0], "-r", label="x")
+        ax.plot(t_ref, q_ref[:, 1], "-g", label="y")
+        ax.plot(t_ref, q_ref[:, 2], "-b", label="z")
+        ax.grid()
+        ax.legend()
+
+        # alpha, beta, gamma
+        ax = fig.add_subplot(2, 3, 2)
+        ax.plot(t_ref, q_ref[:, 3], "-r", label="alpha")
+        ax.plot(t_ref, q_ref[:, 4], "-g", label="beta")
+        ax.plot(t_ref, q_ref[:, 5], "-b", label="gamm")
+        ax.grid()
+        ax.legend()
+
+        # x-y-z trajectory
+        ax = fig.add_subplot(2, 3, 3, projection="3d")
+        ax.plot3D(
+            q_ref[:, 0],
+            q_ref[:, 1],
+            q_ref[:, 2],
+            "-r",
+            label="x-y-z trajectory",
+        )
+        ax.grid()
+        ax.legend()
+
+        # x_dot, y_dot, z_dot
+        ax = fig.add_subplot(2, 3, 4)
+        ax.plot(t_ref, u_ref[:, 0], "-r", label="x_dot")
+        ax.plot(t_ref, u_ref[:, 1], "-g", label="y_dot")
+        ax.plot(t_ref, u_ref[:, 2], "-b", label="z_dot")
+        ax.grid()
+        ax.legend()
+
+        # omega_x, omega_y, omega_z
+        ax = fig.add_subplot(2, 3, 5)
+        ax.plot(t_ref, u_ref[:, 3], "-r", label="omega_x")
+        ax.plot(t_ref, u_ref[:, 4], "-g", label="omega_y")
+        ax.plot(t_ref, u_ref[:, 5], "-b", label="omega_z")
+        ax.grid()
+        ax.legend()
+
+        # la_g
+        ax = fig.add_subplot(2, 3, 6)
+        ax.plot(t_ref, la_g_ref[:, 0], "-r", label="la_g0")
+        ax.plot(t_ref, la_g_ref[:, 1], "-g", label="la_g1")
+        ax.plot(t_ref, la_g_ref[:, 2], "-b", label="la_g2")
+        ax.grid()
+        ax.legend()
+
+        plt.show()
+
+    exit()
+
+    def errors(sol):
+        t = sol.t
+        q = sol.q
+        u = sol.u
+        la_g = sol.la_g
+
+        # compute difference between computed solution and reference solution
+        # for identical time instants
+        idx = np.where(np.abs(t[:, None] - t_ref) < 1.0e-8)[1]
+
+        # differences
+        diff_q = q - q_ref[idx]
+        diff_u = u - u_ref[idx]
+        diff_la_g = la_g - la_g_ref[idx]
+
+        # relative error
+        q_error = np.linalg.norm(diff_q) / np.linalg.norm(q)
+        u_error = np.linalg.norm(diff_u) / np.linalg.norm(u)
+        la_g_error = np.linalg.norm(diff_la_g) / np.linalg.norm(la_g)
+
+        return q_error, u_error, la_g_error
 
     for i, dt in enumerate(dts):
         print(f"i: {i}, dt: {dt:1.1e}")
 
-        # new generalized alpha solver
-        sol_GenAlphaFirstOrderGGl = GenAlphaFirstOrder(model, t1, dt).solve()
-        t_GenAlphaFirstOrderGGl = sol_GenAlphaFirstOrderGGl.t
-        q_GenAlphaFirstOrderGGl = sol_GenAlphaFirstOrderGGl.q
-        u_GenAlphaFirstOrderGGl = sol_GenAlphaFirstOrderGGl.u
-        la_g_GenAlphaFirstOrderGGl = sol_GenAlphaFirstOrderGGl.la_g
+        # # position formulation
+        # sol = GenAlphaFirstOrder(
+        #     model, t1, dt, rho_inf=rho_inf, unknowns="positions"
+        # ).solve()
+        # q_errors[0, i], u_errors[0, i], la_g_errors[0, i] = errors(sol)
 
-        # compute true solution using Runge-Kutta 4(5) method of the ODE formulation
-        t_span = np.array([0, t1])
-        y0 = np.concatenate([phi0, K_Omega0])
-        t_eval = np.linspace(0, t1, num=len(t_GenAlphaFirstOrderGGl))
-        method = "RK45"
-        sol_RK45 = solve_ivp(
-            top1, t_span, y0, method=method, t_eval=t_eval, atol=1.0e-12, rtol=1.0e-12
-        )
-        t_RK45 = sol_RK45.t
-        y_RK45 = sol_RK45.y
+        # # velocity formulation
+        # sol = GenAlphaFirstOrder(
+        #     model, t1, dt, rho_inf=rho_inf, unknowns="velocities"
+        # ).solve()
+        # q_errors[1, i], u_errors[1, i], la_g_errors[1, i] = errors(sol)
 
-        # postprocessing of RK45 solution
-        nt = len(t_RK45)
-        q_RK45 = np.zeros((nt, 6))
-        u_RK45 = np.zeros((nt, 6))
-        la_g_RK45 = np.zeros((nt, 3))
-        for j, (tj, yj) in enumerate(zip(t_RK45, y_RK45.T)):
-            q_RK45[j], u_RK45[j], la_g_RK45[j] = top1.postprocessing(tj, yj)
-        r_OS_RK45 = q_RK45[:, :3]
-        v_S_RK45 = u_RK45[:, :3]
+        # # auxiliary formulation
+        # sol = GenAlphaFirstOrder(
+        #     model, t1, dt, rho_inf=rho_inf, unknowns="auxiliary"
+        # ).solve()
+        # q_errors[2, i], u_errors[2, i], la_g_errors[2, i] = errors(sol)
 
-        # compute errors
-        q_errors[i] = np.linalg.norm(q_RK45 - q_GenAlphaFirstOrderGGl)
-        u_errors[i] = np.linalg.norm(u_RK45 - u_GenAlphaFirstOrderGGl)
-        la_g_errors[i] = np.linalg.norm(la_g_RK45 - la_g_GenAlphaFirstOrderGGl)
+        # # GGL formulation - positions
+        # sol = GenAlphaFirstOrder(
+        #     model, t1, dt, rho_inf=rho_inf, unknowns="positions", GGL=True
+        # ).solve()
+        # q_errors[3, i], u_errors[3, i], la_g_errors[3, i] = errors(sol)
 
-    ###################
-    # visualize results
-    ###################
-    fig = plt.figure(figsize=plt.figaspect(0.5))
+        # # GGL formulation - velocityies
+        # sol = GenAlphaFirstOrder(
+        #     model, t1, dt, rho_inf=rho_inf, unknowns="velocities", GGL=True
+        # ).solve()
+        # q_errors[4, i], u_errors[4, i], la_g_errors[4, i] = errors(sol)
 
-    # center of mass
-    ax = fig.add_subplot(2, 3, 1)
-    ax.plot(
-        t_GenAlphaFirstOrderGGl,
-        q_GenAlphaFirstOrderGGl[:, 0],
-        "-r",
-        label="x - GenAlphaFirstOrderGGl",
-    )
-    ax.plot(
-        t_GenAlphaFirstOrderGGl,
-        q_GenAlphaFirstOrderGGl[:, 1],
-        "-g",
-        label="y - GenAlphaFirstOrderGGl",
-    )
-    ax.plot(
-        t_GenAlphaFirstOrderGGl,
-        q_GenAlphaFirstOrderGGl[:, 2],
-        "-b",
-        label="z - GenAlphaFirstOrderGGl",
-    )
-    ax.plot(t_RK45, r_OS_RK45[:, 0], "--r", label="x - RK45")
-    ax.plot(t_RK45, r_OS_RK45[:, 1], "--g", label="y - RK45")
-    ax.plot(t_RK45, r_OS_RK45[:, 2], "--b", label="z - RK45")
-    ax.grid()
-    ax.legend()
-
-    # alpha, beta, gamma
-    ax = fig.add_subplot(2, 3, 2)
-    ax.plot(
-        t_GenAlphaFirstOrderGGl,
-        q_GenAlphaFirstOrderGGl[:, 3],
-        "-r",
-        label="alpha - GenAlphaFirstOrderGGl",
-    )
-    ax.plot(
-        t_GenAlphaFirstOrderGGl,
-        q_GenAlphaFirstOrderGGl[:, 4],
-        "-g",
-        label="beta - GenAlphaFirstOrderGGl",
-    )
-    ax.plot(
-        t_GenAlphaFirstOrderGGl,
-        q_GenAlphaFirstOrderGGl[:, 5],
-        "-b",
-        label="gamm - GenAlphaFirstOrderGGl",
-    )
-    ax.plot(t_RK45, y_RK45[0, :], "--r", label="alpha - RK45")
-    ax.plot(t_RK45, y_RK45[1, :], "--g", label="beta - RK45")
-    ax.plot(t_RK45, y_RK45[2, :], "--b", label="gamm - RK45")
-    ax.grid()
-    ax.legend()
-
-    # x-y-z trajectory
-    ax = fig.add_subplot(2, 3, 3, projection="3d")
-    ax.plot3D(
-        q_GenAlphaFirstOrderGGl[:, 0],
-        q_GenAlphaFirstOrderGGl[:, 1],
-        q_GenAlphaFirstOrderGGl[:, 2],
-        "-b",
-        label="x-y-z trajectory - GenAlphaFirstOrderGGl",
-    )
-    ax.plot3D(
-        r_OS_RK45[:, 0],
-        r_OS_RK45[:, 1],
-        r_OS_RK45[:, 2],
-        "--r",
-        label="x-y-z trajectory - RK45",
-    )
-    ax.grid()
-    ax.legend()
-
-    # x_dot, y_dot, z_dot
-    ax = fig.add_subplot(2, 3, 4)
-    ax.plot(
-        t_GenAlphaFirstOrderGGl,
-        u_GenAlphaFirstOrderGGl[:, 0],
-        "-r",
-        label="x_dot - GenAlphaFirstOrderGGl",
-    )
-    ax.plot(
-        t_GenAlphaFirstOrderGGl,
-        u_GenAlphaFirstOrderGGl[:, 1],
-        "-g",
-        label="y_dot - GenAlphaFirstOrderGGl",
-    )
-    ax.plot(
-        t_GenAlphaFirstOrderGGl,
-        u_GenAlphaFirstOrderGGl[:, 2],
-        "-b",
-        label="z_dot - GenAlphaFirstOrderGGl",
-    )
-    ax.plot(t_RK45, v_S_RK45[:, 0], "--r", label="x_dot - RK45")
-    ax.plot(t_RK45, v_S_RK45[:, 1], "--g", label="y_dot - RK45")
-    ax.plot(t_RK45, v_S_RK45[:, 2], "--b", label="z_dot - RK45")
-    ax.grid()
-    ax.legend()
-
-    # omega_x, omega_y, omega_z
-    ax = fig.add_subplot(2, 3, 5)
-    ax.plot(
-        t_GenAlphaFirstOrderGGl,
-        u_GenAlphaFirstOrderGGl[:, 3],
-        "-r",
-        label="omega_x - GenAlphaFirstOrderGGl",
-    )
-    ax.plot(
-        t_GenAlphaFirstOrderGGl,
-        u_GenAlphaFirstOrderGGl[:, 4],
-        "-g",
-        label="omega_y - GenAlphaFirstOrderGGl",
-    )
-    ax.plot(
-        t_GenAlphaFirstOrderGGl,
-        u_GenAlphaFirstOrderGGl[:, 5],
-        "-b",
-        label="omega_z - GenAlphaFirstOrderGGl",
-    )
-    ax.plot(t_RK45, y_RK45[3, :], "--r", label="omega_x - RK45")
-    ax.plot(t_RK45, y_RK45[4, :], "--g", label="omega_y - RK45")
-    ax.plot(t_RK45, y_RK45[5, :], "--b", label="omega_z - RK45")
-    ax.grid()
-    ax.legend()
-
-    # la_g
-    ax = fig.add_subplot(2, 3, 6)
-    ax.plot(
-        t_GenAlphaFirstOrderGGl,
-        la_g_GenAlphaFirstOrderGGl[:, 0],
-        "-r",
-        label="la_g0 - GenAlphaFirstOrderGGl",
-    )
-    ax.plot(
-        t_GenAlphaFirstOrderGGl,
-        la_g_GenAlphaFirstOrderGGl[:, 1],
-        "-g",
-        label="la_g1 - GenAlphaFirstOrderGGl",
-    )
-    ax.plot(
-        t_GenAlphaFirstOrderGGl,
-        la_g_GenAlphaFirstOrderGGl[:, 2],
-        "-b",
-        label="la_g2 - GenAlphaFirstOrderGGl",
-    )
-    ax.plot(t_RK45, la_g_RK45[:, 0], "--r", label="la_g0 - RK45")
-    ax.plot(t_RK45, la_g_RK45[:, 1], "--g", label="la_g1 - RK45")
-    ax.plot(t_RK45, la_g_RK45[:, 2], "--b", label="la_g2 - RK45")
-    ax.grid()
-    ax.legend()
+        # # GGL formulation - auxiliary
+        # sol = GenAlphaFirstOrder(
+        #     model, t1, dt, rho_inf=rho_inf, unknowns="auxiliary", GGL=True
+        # ).solve()
+        # q_errors[5, i], u_errors[5, i], la_g_errors[5, i] = errors(sol)
 
     ##################
     # visualize errors
     ##################
-    fig, ax = plt.subplots()
-    ax.loglog(dts, q_errors, "-.r", label="q - error - GenAlphaFirstOrder")
-    ax.loglog(dts, u_errors, "-.g", label="u - error - GenAlphaFirstOrder")
-    ax.loglog(dts, la_g_errors, "-.b", label="la_g - error - GenAlphaFirstOrder")
-    ax.loglog(dts, dts_1, "-k", label="dt")
-    ax.loglog(dts, dts_2, "--k", label="dt^2")
-    ax.grid()
-    ax.legend()
+    fig, ax = plt.subplots(2, 3)
+
+    # errors position formulation
+    ax[0, 0].loglog(dts, q_errors[0], "-.r", label="q")
+    ax[0, 0].loglog(dts, u_errors[0], "-.g", label="u")
+    ax[0, 0].loglog(dts, la_g_errors[0], "-.b", label="la_g")
+    ax[0, 0].loglog(dts, dts_1, "-k", label="dt")
+    ax[0, 0].loglog(dts, dts_2, "--k", label="dt^2")
+    ax[0, 0].set_title("position formulation")
+    ax[0, 0].grid()
+    ax[0, 0].legend()
+
+    # errors velocity formulation
+    ax[0, 1].loglog(dts, q_errors[1], "-.r", label="q")
+    ax[0, 1].loglog(dts, u_errors[1], "-.g", label="u")
+    ax[0, 1].loglog(dts, la_g_errors[1], "-.b", label="la_g")
+    ax[0, 1].loglog(dts, dts_1, "-k", label="dt")
+    ax[0, 1].loglog(dts, dts_2, "--k", label="dt^2")
+    ax[0, 1].set_title("velocity formulation")
+    ax[0, 1].grid()
+    ax[0, 1].legend()
+
+    # errors auxiliary formulation
+    ax[0, 2].loglog(dts, q_errors[2], "-.r", label="q")
+    ax[0, 2].loglog(dts, u_errors[2], "-.g", label="u")
+    ax[0, 2].loglog(dts, la_g_errors[2], "-.b", label="la_g")
+    ax[0, 2].loglog(dts, dts_1, "-k", label="dt")
+    ax[0, 2].loglog(dts, dts_2, "--k", label="dt^2")
+    ax[0, 2].set_title("auxiliary formulation")
+    ax[0, 2].grid()
+    ax[0, 2].legend()
+
+    # errors position formulation
+    ax[1, 0].loglog(dts, q_errors[3], "-.r", label="q")
+    ax[1, 0].loglog(dts, u_errors[3], "-.g", label="u")
+    ax[1, 0].loglog(dts, la_g_errors[3], "-.b", label="la_g")
+    ax[1, 0].loglog(dts, dts_1, "-k", label="dt")
+    ax[1, 0].loglog(dts, dts_2, "--k", label="dt^2")
+    ax[1, 0].set_title("position formulation GGL")
+    ax[1, 0].grid()
+    ax[1, 0].legend()
+
+    # errors velocity formulation
+    ax[1, 1].loglog(dts, q_errors[4], "-.r", label="q")
+    ax[1, 1].loglog(dts, u_errors[4], "-.g", label="u")
+    ax[1, 1].loglog(dts, la_g_errors[4], "-.b", label="la_g")
+    ax[1, 1].loglog(dts, dts_1, "-k", label="dt")
+    ax[1, 1].loglog(dts, dts_2, "--k", label="dt^2")
+    ax[1, 1].set_title("velocity formulation GGL")
+    ax[1, 1].grid()
+    ax[1, 1].legend()
+
+    # errors auxiliary formulation
+    ax[1, 2].loglog(dts, dts_1, "-k", label="dt")
+    ax[1, 2].loglog(dts, dts_2, "--k", label="dt^2")
+    ax[1, 2].loglog(dts, q_errors[5], "-.r", label="q")
+    ax[1, 2].loglog(dts, u_errors[5], "-.g", label="u")
+    ax[1, 2].loglog(dts, la_g_errors[5], "-.b", label="la_g")
+    ax[1, 2].set_title("auxiliary formulation GGL")
+    ax[1, 2].grid()
+    ax[1, 2].legend()
 
     plt.show()

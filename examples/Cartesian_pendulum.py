@@ -179,40 +179,40 @@ if __name__ == "__main__":
         print(f"i: {i}, dt: {dt:1.1e}")
 
         # position formulation
-        sol_pos = GenAlphaFirstOrder(
+        sol = GenAlphaFirstOrder(
             model, t1, dt, rho_inf=rho_inf, unknowns="positions"
         ).solve()
-        q_errors[0, i], u_errors[0, i], la_g_errors[0, i] = errors(sol_pos)
+        q_errors[0, i], u_errors[0, i], la_g_errors[0, i] = errors(sol)
 
         # velocity formulation
-        sol_vel = GenAlphaFirstOrder(
+        sol = GenAlphaFirstOrder(
             model, t1, dt, rho_inf=rho_inf, unknowns="velocities"
         ).solve()
-        q_errors[1, i], u_errors[1, i], la_g_errors[1, i] = errors(sol_vel)
+        q_errors[1, i], u_errors[1, i], la_g_errors[1, i] = errors(sol)
 
         # auxiliary formulation
-        sol_aux = GenAlphaFirstOrder(
+        sol = GenAlphaFirstOrder(
             model, t1, dt, rho_inf=rho_inf, unknowns="auxiliary"
         ).solve()
-        q_errors[2, i], u_errors[2, i], la_g_errors[2, i] = errors(sol_aux)
+        q_errors[2, i], u_errors[2, i], la_g_errors[2, i] = errors(sol)
 
         # GGL formulation - positions
-        sol_pos_GGL = GenAlphaFirstOrder(
+        sol = GenAlphaFirstOrder(
             model, t1, dt, rho_inf=rho_inf, unknowns="positions", GGL=True
         ).solve()
-        q_errors[3, i], u_errors[3, i], la_g_errors[3, i] = errors(sol_pos_GGL)
+        q_errors[3, i], u_errors[3, i], la_g_errors[3, i] = errors(sol)
 
         # GGL formulation - velocityies
-        sol_vel_GGL = GenAlphaFirstOrder(
+        sol = GenAlphaFirstOrder(
             model, t1, dt, rho_inf=rho_inf, unknowns="velocities", GGL=True
         ).solve()
-        q_errors[4, i], u_errors[4, i], la_g_errors[4, i] = errors(sol_vel_GGL)
+        q_errors[4, i], u_errors[4, i], la_g_errors[4, i] = errors(sol)
 
         # GGL formulation - auxiliary
-        sol_aux_GGL = GenAlphaFirstOrder(
+        sol = GenAlphaFirstOrder(
             model, t1, dt, rho_inf=rho_inf, unknowns="auxiliary", GGL=True
         ).solve()
-        q_errors[5, i], u_errors[5, i], la_g_errors[5, i] = errors(sol_aux_GGL)
+        q_errors[5, i], u_errors[5, i], la_g_errors[5, i] = errors(sol)
 
     # # names = ["GenAlphaFirstOrder", "GenAlphaSecondOrder", "GenAlphaFirstOrderGGl", "Theta"]
     # # ts = [t_GenAlphaFirstOrder, t_GenAlphaSecondOrder, t_GenAlphaFirstOrderGGl, t_ThetaNewton]
@@ -240,10 +240,10 @@ if __name__ == "__main__":
     plot_state = False
     if plot_state:
         # use GGL results for visualization
-        t = sol_aux_GGL.t
-        q = sol_aux_GGL.q
-        u = sol_aux_GGL.u
-        la_g = sol_aux_GGL.la_g
+        t = sol.t
+        q = sol.q
+        u = sol.u
+        la_g = sol.la_g
 
         ######################
         # visualize q, u, la_g
