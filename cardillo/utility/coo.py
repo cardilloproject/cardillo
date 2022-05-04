@@ -4,8 +4,9 @@ from numpy import repeat, tile
 from numpy import append
 
 
-class Coo(object):
-    """Small container storing the sparse matrix shape and three lists for accumulating the entries for row, column and data [1]_.
+class Coo:
+    """Small container storing the sparse matrix shape and three lists for
+    accumulating the entries for row, column and data Wiki/COO.
 
     Parameters
     ----------
@@ -14,7 +15,7 @@ class Coo(object):
 
     References
     ----------
-    .. [1] https://en.wikipedia.org/wiki/Sparse_matrix#Coordinate_list_(COO)
+    Wiki/COO: https://en.wikipedia.org/wiki/Sparse_matrix#Coordinate_list_(COO)
     """
 
     def __init__(self, shape):
@@ -39,57 +40,36 @@ class Coo(object):
                 "input argument shape cannot be interpreted as correct shape"
             )
 
-        # initialice empty lists for row, columns and data
+        # initialize empty lists for row, columns and data
         self.row = []
         self.col = []
         self.data = []
 
     def extend(self, matrix, DOF):
-        """Extend container with data given in `matrix` and indices stored in the tuple `DOF` containing two arrays.
-
-        Parameters
-        ----------
-        matrix: numpy.ndarray, 2D
-            dense matrix which has to be stored
-        DOF : tuple, 2D
-            tuple defining the global row and column indices of the dense matrix
+        """Extend COO matrix with data given by `matrix` and indices stored
+        in the tuple `DOF` containing two arrays (row indices and column
+        indices).
         """
-        # # TODO: row and column indices can be calculated in the assembler (see old sparse assembler)
-        # self.data.extend( matrix.ravel(order='C').tolist() )
-        # self.row.extend( repeat(DOF[0], DOF[1].size).tolist() )
-        # self.col.extend( tile(DOF[1], DOF[0].size).tolist() )
-
-        # do not assemble zero elements
         array = matrix.ravel(order="C")
-        nnz_mask = array.nonzero()[0]
         row = repeat(DOF[0], DOF[1].size)
         col = tile(DOF[1], DOF[0].size)
+
+        # do not assemble zero elements
+        nnz_mask = array.nonzero()[0]
         self.data.extend(array[nnz_mask].tolist())
         self.row.extend(row[nnz_mask].tolist())
         self.col.extend(col[nnz_mask].tolist())
 
     def extend_diag(self, array, DOF):
-        """Extend container with diagonal matrix (diagonal elements stored in the input `array` and indices stored in the `DOF` array).
-
-        Parameters
-        ----------
-        matrix: numpy.ndarray, 2D
-            dense matrix which has to be stored
-        DOF : tuple, 2D
-            tuple defining the global row and column indices of the dense matrix
+        """Extend COO matrix with diagonal matrix (diagonal elements stored
+        in the input `array` and indices stored in the `DOF` array).
         """
         self.data.extend(array.tolist())
         self.row.extend(DOF[0].tolist())
         self.col.extend(DOF[1].tolist())
 
     def extend_sparse(self, coo):
-        """Extend container with sparse matrix defined by three lists `data`, `row` and `col`.
-
-        Parameters
-        ----------
-        coo: Coo
-            Coo container
-        """
+        """Extend COO matrix with other COO matrix."""
         self.data.extend(coo.data)
         self.row.extend(coo.row)
         self.col.extend(coo.col)
