@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.sparse.linalg import spsolve
-from scipy.sparse import csr_matrix, bmat, eye
+from scipy.sparse import csr_matrix, bmat, eye, block_diag
 from tqdm import tqdm
 
 from cardillo.math import approx_fprime
@@ -1423,22 +1423,24 @@ class GenAlphaFirstOrderGGL2_V3:
         )
 
         # bilateral constraints on acceleration level
+        # (corresponds to constraint forces la_gk1, la_gammak1)
         R[nx : nx + nla_g] = self.model.g_ddot(tk1, qk1, uk1, ak1)
         R[nx + nla_g : nx + nla_g + nla_gamma] = self.model.gamma_dot(
             tk1, qk1, uk1, ak1
         )
 
+        # bilateral constraints on position level
+        # (correspsonds to position correction mu_g)
+        R[nx + nla_g + nla_gamma : nx + 2 * nla_g + nla_gamma] = self.model.g(tk1, qk1)
+
         # bilateral constraints on velocity level
-        R[nx + nla_g + nla_gamma : nx + 2 * nla_g + nla_gamma] = self.model.g_dot(
+        # (correspsonds to velocity correction kappa_gk1)
+        R[nx + 2 * nla_g + nla_gamma : nx + 3 * nla_g + nla_gamma] = self.model.g_dot(
             tk1, qk1, uk1
         )
 
-        # bilateral constraints on position level
-        R[nx + 2 * nla_g + nla_gamma : nx + 3 * nla_g + nla_gamma] = self.model.g(
-            tk1, qk1
-        )
-
-        # bilateral constraints on velocity level (gamma)
+        # bilateral constraints on velocity level
+        # (gamma; correspsonds to velocity correction kappa_gammak1)
         R[
             nx + 3 * nla_g + nla_gamma : nx + 3 * nla_g + 2 * nla_gamma
         ] = self.model.gamma(tk1, qk1, uk1)
@@ -1452,41 +1454,45 @@ class GenAlphaFirstOrderGGL2_V3:
         # # version with relative acceleration
         # ####################################
 
-        # # kinematic differential equation
-        # g_qk1 = self.model.g_q(tk1, qk1)
-        # R[:nq] = q_dotk1 - self.model.q_dot(tk1, qk1, uk1) - g_qk1.T @ mu_gk1
+        # kinematic differential equation
+        g_qk1 = self.model.g_q(tk1, qk1)
+        R[:nq] = q_dotk1 - self.model.q_dot(tk1, qk1, uk1) - g_qk1.T @ mu_gk1
 
-        # # equations of motion
-        # R[nq:nx] = (
-        #     Mk1 @ (u_dotk1 + ak1)
-        #     - self.model.h(tk1, qk1, uk1)
-        #     - W_gk1 @ la_gk1
-        #     - W_gammak1 @ la_gammak1
-        # )
+        # equations of motion
+        R[nq:nx] = (
+            Mk1 @ (u_dotk1 + ak1)
+            - self.model.h(tk1, qk1, uk1)
+            - W_gk1 @ la_gk1
+            - W_gammak1 @ la_gammak1
+        )
 
-        # # bilateral constraints on acceleration level
-        # R[nx : nx + nla_g] = self.model.g_ddot(tk1, qk1, uk1, u_dotk1 + ak1)
-        # R[nx + nla_g : nx + nla_g + nla_gamma] = self.model.gamma_dot(
-        #     tk1, qk1, uk1, u_dotk1 + ak1
-        # )
+        # bilateral constraints on acceleration level
+        # (corresponds to constraint forces la_gk1, la_gammak1)
+        R[nx : nx + nla_g] = self.model.g_ddot(tk1, qk1, uk1, u_dotk1 + ak1)
+        R[nx + nla_g : nx + nla_g + nla_gamma] = self.model.gamma_dot(
+            tk1, qk1, uk1, u_dotk1 + ak1
+        )
 
-        # # bilateral constraints on velocity level
-        # R[nx + nla_g + nla_gamma : nx + 2 * nla_g + nla_gamma] = self.model.g_dot(
-        #     tk1, qk1, uk1
-        # )
+        # bilateral constraints on position level
+        # (correspsonds to position correction mu_g)
+        R[nx + nla_g + nla_gamma : nx + 2 * nla_g + nla_gamma] = self.model.g(tk1, qk1)
 
-        # # bilateral constraints on position level
-        # R[nx + 2 * nla_g + nla_gamma : nx + 3 * nla_g + nla_gamma] = self.model.g(
-        #     tk1, qk1
-        # )
+        # bilateral constraints on velocity level
+        # (correspsonds to velocity correction kappa_gk1)
+        R[nx + 2 * nla_g + nla_gamma : nx + 3 * nla_g + nla_gamma] = self.model.g_dot(
+            tk1, qk1, uk1
+        )
 
-        # # bilateral constraints on velocity level (gamma)
-        # R[
-        #     nx + 3 * nla_g + nla_gamma : nx + 3 * nla_g + 2 * nla_gamma
-        # ] = self.model.gamma(tk1, qk1, uk1)
+        # bilateral constraints on velocity level
+        # (gamma; correspsonds to velocity correction kappa_gammak1)
+        R[
+            nx + 3 * nla_g + nla_gamma : nx + 3 * nla_g + 2 * nla_gamma
+        ] = self.model.gamma(tk1, qk1, uk1)
 
-        # # stabilization on velocity level
-        # R[nx + 3 * nla_g + 2 * nla_gamma :] = Mk1 @ ak1 - W_gk1 @ kappa_gk1 - W_gammak1 @ kappa_gammak1
+        # stabilization on velocity level
+        R[nx + 3 * nla_g + 2 * nla_gamma :] = (
+            Mk1 @ ak1 - W_gk1 @ kappa_gk1 - W_gammak1 @ kappa_gammak1
+        )
 
         yield R
 
@@ -1633,6 +1639,7 @@ class GenAlphaFirstOrder:
         # numerical_jacobian=False,
         numerical_jacobian=True,
         DAE_index=3,
+        # preconditioning=True,
         preconditioning=False,
         # unknowns="positions",
         unknowns="velocities",
@@ -1699,29 +1706,37 @@ class GenAlphaFirstOrder:
         #################
         self.preconditioning = preconditioning
         if preconditioning:
-            raise RuntimeError("This is not working as expected!")
+            # raise RuntimeError("This is not working as expected!")
+
             # TODO: Scaling of second equation by h and solving for h u_dot
             # comes from the fact that we know that u_dot are accelerations,
             # so for having consisten units this equations has to be scaled.
             # This might not be correct in the sense of a preconditioner.
             # fmt: off
-            self.D_L = bmat([[eye(self.nq),         None,                 None,                     None],
-                             [        None, eye(self.nu),                 None,                     None],
-                             [        None,         None, eye(self.nla_g) / dt,                     None],
-                             [        None,         None,                 None, eye(self.nla_gamma) / dt]])
-
-            # self.D_R = bmat([[eye(self.nq) / dt,         None,                 None,                     None],
-            #                  [        None, eye(self.nu),                 None,                     None],
-            #                  [        None,         None, eye(self.nla_g) / dt**2,                     None],
-            #                  [        None,         None,                 None, eye(self.nla_gamma) / dt**2]])
-            self.D_R = bmat([[eye(self.nq) * dt,         None,                 None,                     None],
-                             [        None, eye(self.nu),                 None,                     None],
-                             [        None,         None, eye(self.nla_g) * dt**2,                     None],
-                             [        None,         None,                 None, eye(self.nla_gamma) * dt**2]])
-            # self.D_R = bmat([[eye(self.nq),         None,                 None,                     None],
-            #                  [        None, eye(self.nu),                 None,                     None],
-            #                  [        None,         None, eye(self.nla_g) * dt,                     None],
-            #                  [        None,         None,                 None, eye(self.nla_gamma) * dt]])
+            if unknowns == "positions":
+                eta = self.eta
+                self.D_L = block_diag([
+                    eye(self.nq) * eta,
+                    eye(self.nu) * eta,
+                    eye(self.nla_g),
+                    eye(self.nla_gamma),
+                ], format="csr")
+                self.D_R = block_diag([
+                    eye(self.nq),
+                    eye(self.nu),
+                    eye(self.nla_g) / eta,
+                    eye(self.nla_gamma) / eta,
+                ], format="csr")
+                # self.D_L = bmat([[eye(self.nq) * eta,               None,            None,                 None],
+                #                  [              None, eye(self.nu) * eta,            None,                 None],
+                #                  [              None,               None, eye(self.nla_g),                 None],
+                #                  [              None,               None,            None, eye(self.nla_gamma)]])
+                # self.D_R = bmat([[eye(self.nq),         None,                  None,                     None],
+                #                  [        None, eye(self.nu),                  None,                     None],
+                #                  [        None,         None,  eye(self.nla_g) / dt,                     None],
+                #                  [        None,         None,                  None, eye(self.nla_gamma) / dt]])
+            else:
+                raise NotImplementedError
             # fmt: on
 
         def initial_values(t0, q0, u0):
@@ -2171,38 +2186,37 @@ class GenAlphaFirstOrder:
         if not converged:
             while j < self.max_iter:
                 # jacobian
-                R_x = next(R_gen)
+                J = next(R_gen)
 
                 # Newton update
                 j += 1
                 if self.preconditioning:
                     # raise NotImplementedError("Not correct yet!")
-                    # TODO: It this efficient? Blas level 3 and blas level 2
+                    # TODO: Is this efficient? Blas level 3 and blas level 2
                     #       operation shouldn't be that bad for sparse
                     #       matrices.
 
-                    # # left and right preconditioner
-                    # dx = spsolve(
-                    #     self.D_L @ R_x @ self.D_R, self.D_L @ R, use_umfpack=True
-                    # )
-                    # xk1 -= self.D_R @ dx
-
-                    # right preconditioner
-                    ds = spsolve(R_x @ self.D_R, R, use_umfpack=True)
+                    # left and right preconditioner
+                    ds = spsolve(
+                        self.D_L @ J @ self.D_R, self.D_L @ R, use_umfpack=True
+                    )
                     sk1 -= self.D_R @ ds
 
+                    # # right preconditioner
+                    # ds = spsolve(J @ self.D_R, R, use_umfpack=True)
+                    # sk1 -= self.D_R @ ds
+
                     # # left preconditioner
-                    # dx = spsolve(self.D_L @ R_x, self.D_L @ R, use_umfpack=True)
-                    # xk1 -= dx
+                    # ds = spsolve(self.D_L @ J, self.D_L @ R, use_umfpack=True)
+                    # sk1 -= ds
 
                     # # no preconditioner
-                    # dx = spsolve(R_x, R, use_umfpack=True)
-                    # xk1 -= dx
+                    # ds = spsolve(J, R, use_umfpack=True)
+                    # sk1 -= ds
                 else:
-                    ds = spsolve(R_x, R, use_umfpack=True)
+                    ds = spsolve(J, R, use_umfpack=True)
                     sk1 -= ds
-                # ds = spsolve(R_x, R, use_umfpack=True)
-                # sk1 -= ds
+
                 R_gen = self.__R_gen(tk1, sk1)
                 R = next(R_gen)
 

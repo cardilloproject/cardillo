@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from pydantic import EnumError
 
 from scipy.integrate import solve_ivp
 
@@ -149,96 +150,141 @@ if __name__ == "__main__":
     model.assemble()
 
     # end time and numerical dissipation of generalized-alpha solver
-    t1 = 1
+    # t1 = 0.1
+    t1 = 1.0
     rho_inf = 0.85  # numerical damping is required to reduce oszillations of the Lagrange multipliers
 
     # log spaced time steps
-    num = 2
-    dts = np.logspace(-1, -num, num=num, endpoint=True)
+    num = 3
+    # num = 4 # num = 4 yields problems with Lagrange multipliers
+    # dts = np.logspace(-1, -num, num=num, endpoint=True)
+    dts = np.array([1.0e-1, 1.0e-2, 1.0e-3, 1.0e-4])
     dts_1 = dts
     dts_2 = dts**2
     print(f"dts: {dts}")
 
-    # TODO: Compare error with theta method
-    x_y_errors = np.inf * np.ones((4, len(dts)), dtype=float)
-    x_dot_y_dot_errors = np.inf * np.ones((4, len(dts)), dtype=float)
-    la_g_errors = np.inf * np.ones((4, len(dts)), dtype=float)
+    # errors for all 6 possible solvers
+    q_errors = np.inf * np.ones((6, len(dts)), dtype=float)
+    u_errors = np.inf * np.ones((6, len(dts)), dtype=float)
+    la_g_errors = np.inf * np.ones((6, len(dts)), dtype=float)
+
+    # compute reference solution as described in Arnold2015 Section 3.3
+    print(f"compute reference solution:")
+    dt_ref = 1.0e-5
+    # dt_ref = 1.0e-4
+    reference = GenAlphaFirstOrder(model, t1, dt_ref, rho_inf=rho_inf).solve()
+    t_ref = reference.t
+    q_ref = reference.q
+    u_ref = reference.u
+    la_g_ref = reference.la_g
+
+    def errors(sol):
+        t = sol.t
+        q = sol.q
+        u = sol.u
+        la_g = sol.la_g
+
+        # compute difference between computed solution and reference solution
+        # for identical time instants
+        idx = np.where(np.abs(t[:, None] - t_ref) < 1.0e-8)[1]
+
+        # differences
+        diff_q = q - q_ref[idx]
+        diff_u = u - u_ref[idx]
+        diff_la_g = la_g - la_g_ref[idx]
+
+        # relative error
+        q_error = np.linalg.norm(diff_q) / np.linalg.norm(q)
+        u_error = np.linalg.norm(diff_u) / np.linalg.norm(u)
+        la_g_error = np.linalg.norm(diff_la_g) / np.linalg.norm(la_g)
+
+        return q_error, u_error, la_g_error
 
     for i, dt in enumerate(dts):
         print(f"i: {i}, dt: {dt:1.1e}")
 
-        # # solve with theta-method
-        # # sol_ThetaNewton = ThetaNewton(model, t1, dt).solve()
-        # sol_ThetaNewton = MoreauTheta(model, t1, dt).solve()
-        # t_ThetaNewton = sol_ThetaNewton.t
-        # q_ThetaNewton = sol_ThetaNewton.q
-        # u_ThetaNewton = sol_ThetaNewton.u
-        # la_g_ThetaNewton = sol_ThetaNewton.la_g
-
-        # # solve with first order generalized-alpha method
-        # sol_GenAlphaFirstOrder = GenAlphaFirstOrderVelocity(model, t1, dt, rho_inf=rho_inf).solve()
-        # t_GenAlphaFirstOrder = sol_GenAlphaFirstOrder.t
-        # q_GenAlphaFirstOrder = sol_GenAlphaFirstOrder.q
-        # u_GenAlphaFirstOrder = sol_GenAlphaFirstOrder.u
-        # la_g_GenAlphaFirstOrder = sol_GenAlphaFirstOrder.la_g
-
-        # # solve with second order generalized-alpha method velocity implementation
-        # sol_GenAlphaSecondOrder = GenAlphaDAEAcc(model, t1, dt, rho_inf=rho_inf).solve()
-        # t_GenAlphaSecondOrder = sol_GenAlphaSecondOrder.t
-        # q_GenAlphaSecondOrder = sol_GenAlphaSecondOrder.q
-        # u_GenAlphaSecondOrder = sol_GenAlphaSecondOrder.u
-        # la_g_GenAlphaSecondOrder = sol_GenAlphaSecondOrder.la_g
-
-        # solve with generalzed-alpha method positin implementation
-        # sol_ThetaNewton = GenAlphaFirstOrderPosition(model, t1, dt, rho_inf=rho_inf).solve()
-        # sol_GenAlphaFirstOrderGGl = GenAlphaFirstOrderGGL2_V3(
-        #     model, t1, dt, rho_inf=rho_inf
-        # ).solve()
-        sol_GenAlphaFirstOrderGGl = GenAlphaFirstOrder(
-            model, t1, dt, rho_inf=rho_inf
+        # position formulation
+        sol_pos = GenAlphaFirstOrder(
+            model, t1, dt, rho_inf=rho_inf, unknowns="positions"
         ).solve()
-        # sol_GenAlphaFirstOrderGGl = GenAlphaFirstOrderVelocityGGL(
+        q_errors[0, i], u_errors[0, i], la_g_errors[0, i] = errors(sol_pos)
+
+        # velocity formulation
+        sol_vel = GenAlphaFirstOrder(
+            model, t1, dt, rho_inf=rho_inf, unknowns="velocities"
+        ).solve()
+        q_errors[1, i], u_errors[1, i], la_g_errors[1, i] = errors(sol_vel)
+
+        # auxiliary formulation
+        sol_aux = GenAlphaFirstOrder(
+            model, t1, dt, rho_inf=rho_inf, unknowns="auxiliary"
+        ).solve()
+        q_errors[2, i], u_errors[2, i], la_g_errors[2, i] = errors(sol_aux)
+
+        # GGL formulation - positions
+        sol_pos_GGL = GenAlphaFirstOrder(
+            model, t1, dt, rho_inf=rho_inf, unknowns="positions", GGL=True
+        ).solve()
+        q_errors[3, i], u_errors[3, i], la_g_errors[3, i] = errors(sol_pos_GGL)
+
+        # GGL formulation - velocityies
+        sol_vel_GGL = GenAlphaFirstOrder(
+            model, t1, dt, rho_inf=rho_inf, unknowns="velocities", GGL=True
+        ).solve()
+        q_errors[4, i], u_errors[4, i], la_g_errors[4, i] = errors(sol_vel_GGL)
+
+        # GGL formulation - auxiliary
+        sol_aux_GGL = GenAlphaFirstOrder(
+            model, t1, dt, rho_inf=rho_inf, unknowns="auxiliary", GGL=True
+        ).solve()
+        q_errors[5, i], u_errors[5, i], la_g_errors[5, i] = errors(sol_aux_GGL)
+
+        # # solve with generalzed-alpha method positin implementation
+        # # sol_GenAlphaFirstOrderGGl = GenAlphaFirstOrderGGL2_V3(
+        # #     model, t1, dt, rho_inf=rho_inf
+        # # ).solve()
+        # sol_GenAlphaFirstOrderGGl = GenAlphaFirstOrder(
         #     model, t1, dt, rho_inf=rho_inf
         # ).solve()
-        # sol_GenAlphaFirstOrderGGl = ScipyIVP(model, t1, dt, method="RK45", atol=1.0e-10, rtol=1.0e-10).solve()
-        # sol_GenAlphaFirstOrderGGl = EulerBackward(model, t1, dt, atol=1.0e-12).solve()
-        t_GenAlphaFirstOrderGGl = sol_GenAlphaFirstOrderGGl.t
-        q_GenAlphaFirstOrderGGl = sol_GenAlphaFirstOrderGGl.q
-        u_GenAlphaFirstOrderGGl = sol_GenAlphaFirstOrderGGl.u
-        la_g_GenAlphaFirstOrderGGl = sol_GenAlphaFirstOrderGGl.la_g
+        # t = sol_GenAlphaFirstOrderGGl.t
+        # q = sol_GenAlphaFirstOrderGGl.q
+        # u = sol_GenAlphaFirstOrderGGl.u
+        # la_g = sol_GenAlphaFirstOrderGGl.la_g
 
-        # compute true solution using Runge-Kutta 4(5) method of the ODE formulation
-        t_span = np.array([0, t1])
-        y0 = np.array([phi0, phi_dot0])
-        t_eval = np.linspace(0, t1, num=len(t_GenAlphaFirstOrderGGl))
-        sol_RK45 = solve_ivp(
-            eqm, t_span, y0, method="RK45", t_eval=t_eval, atol=1.0e-12, rtol=1.0e-12
-        )
-        t_RK45 = sol_RK45.t
-        phi_RK45 = sol_RK45.y[0, :]
-        omega_RK45 = sol_RK45.y[1, :]
-        q_RK45 = cartesian_coordinates(phi_RK45).T
-        u_RK45 = cartesian_coordinates_dot(phi_RK45, omega_RK45).T
-        la_g_RK4 = np.array(
-            [
-                la_g_analytic(t, phi, omega)
-                for (t, phi, omega) in zip(t_RK45, phi_RK45, omega_RK45)
-            ]
-        )
+        # # compute difference between computed solution and reference solution
+        # # for identical time instants
+        # idx = np.where(np.abs(t[:, None] - t_ref) < 1.0e-12)[1]
+        # diff_t = t - t_ref[idx]
+        # diff_q = q - q_ref[idx]
+        # diff_u = u - u_ref[idx]
+        # diff_la_g = la_g - la_g_ref[idx]
+        # q_errors[i] = np.linalg.norm(diff_q) / np.linalg.norm(q)
+        # u_errors[i] = np.linalg.norm(diff_u) / np.linalg.norm(u)
+        # la_g_errors[i] = np.linalg.norm(diff_la_g) / np.linalg.norm(la_g)
 
-        # compute errors
-        # x_y_errors[0, i] = np.linalg.norm(q_GenAlphaFirstOrder - q_RK45)
-        # x_y_errors[1, i] = np.linalg.norm(q_GenAlphaSecondOrder - q_RK45)
-        x_y_errors[2, i] = np.linalg.norm(q_GenAlphaFirstOrderGGl - q_RK45)
-        # x_y_errors[3, i] = np.linalg.norm(q_ThetaNewton - q_RK45)
-        # x_dot_y_dot_errors[0, i] = np.linalg.norm(u_GenAlphaFirstOrder - u_RK45)
-        # x_dot_y_dot_errors[1, i] = np.linalg.norm(u_GenAlphaSecondOrder - u_RK45)
-        x_dot_y_dot_errors[2, i] = np.linalg.norm(u_GenAlphaFirstOrderGGl - u_RK45)
-        # x_dot_y_dot_errors[3, i] = np.linalg.norm(u_ThetaNewton - u_RK45)
-        # la_g_errors[0, i] = np.linalg.norm(la_g_GenAlphaFirstOrder - la_g_RK4)
-        # la_g_errors[1, i] = np.linalg.norm(la_g_GenAlphaSecondOrder - la_g_RK4)
-        la_g_errors[2, i] = np.linalg.norm(la_g_GenAlphaFirstOrderGGl - la_g_RK4)
-        # la_g_errors[3, i] = np.linalg.norm(la_g_ThetaNewton - la_g_RK4)
+        # # compute true solution using Runge-Kutta 4(5) method of the ODE formulation
+        # t_span = np.array([0, t1])
+        # y0 = np.array([phi0, phi_dot0])
+        # t_eval = np.linspace(0, t1, num=len(t))
+        # sol_RK45 = solve_ivp(
+        #     eqm, t_span, y0, method="RK45", t_eval=t_eval, atol=1.0e-12, rtol=1.0e-12
+        # )
+        # t_RK45 = sol_RK45.t
+        # phi_RK45 = sol_RK45.y[0, :]
+        # omega_RK45 = sol_RK45.y[1, :]
+        # q_RK45 = cartesian_coordinates(phi_RK45).T
+        # u_RK45 = cartesian_coordinates_dot(phi_RK45, omega_RK45).T
+        # la_g_RK4 = np.array(
+        #     [
+        #         la_g_analytic(t, phi, omega)
+        #         for (t, phi, omega) in zip(t_RK45, phi_RK45, omega_RK45)
+        #     ]
+        # )
+
+        # # compute errors
+        # x_y_errors[2, i] = np.linalg.norm(q - q_RK45)
+        # x_dot_y_dot_errors[2, i] = np.linalg.norm(u - u_RK45)
+        # la_g_errors[2, i] = np.linalg.norm(la_g - la_g_RK4)
 
     # # names = ["GenAlphaFirstOrder", "GenAlphaSecondOrder", "GenAlphaFirstOrderGGl", "Theta"]
     # # ts = [t_GenAlphaFirstOrder, t_GenAlphaSecondOrder, t_GenAlphaFirstOrderGGl, t_ThetaNewton]
@@ -262,75 +308,138 @@ if __name__ == "__main__":
     #     export_data = np.vstack((dts, dts_2, x_y_errors[i], x_dot_y_dot_errors[i], la_g_errors[i])).T
     #     np.savetxt(filename, export_data, delimiter=", ", header=header, comments="")
 
-    # visualize results
-    fig, ax = plt.subplots(2, 3)
+    # use GGL results for visualization
+    t = sol_aux_GGL.t
+    q = sol_aux_GGL.q
+    u = sol_aux_GGL.u
+    la_g = sol_aux_GGL.la_g
+
+    ######################
+    # visualize q, u, la_g
+    ######################
+    fig, ax = plt.subplots(1, 3)
 
     # generalized coordinates
-    # ax[0, 0].plot(t_GenAlphaFirstOrder, q_GenAlphaFirstOrder[:, 0], 'xb', label="x - GenAlphaFirstOrder")
-    # ax[0, 0].plot(t_GenAlphaFirstOrder, q_GenAlphaFirstOrder[:, 1], 'ob', label="y - GenAlphaFirstOrder")
-    # ax[0, 0].plot(t_GenAlphaSecondOrder, q_GenAlphaSecondOrder[:, 0], 'xr', label="x - GenAlphaSecondOrder")
-    # ax[0, 0].plot(t_GenAlphaSecondOrder, q_GenAlphaSecondOrder[:, 1], 'or', label="y - GenAlphaSecondOrder")
-    ax[0, 0].plot(
-        t_GenAlphaFirstOrderGGl,
-        q_GenAlphaFirstOrderGGl[:, 0],
+    ax[0].plot(
+        t,
+        q[:, 0],
         "xg",
-        label="x - GenAlphaFirstOrderGGl",
+        label="x - GGL auxiliary",
     )
-    ax[0, 0].plot(
-        t_GenAlphaFirstOrderGGl,
-        q_GenAlphaFirstOrderGGl[:, 1],
+    ax[0].plot(
+        t,
+        q[:, 1],
         "og",
-        label="y - GenAlphaFirstOrderGGl",
+        label="y - GGL auxiliary",
     )
-    # ax[0, 0].plot(t_ThetaNewton, q_ThetaNewton[:, 0], 'xm', label="x - Theta")
-    # ax[0, 0].plot(t_ThetaNewton, q_ThetaNewton[:, 1], 'om', label="y - Theta")
-    ax[0, 0].plot(t_RK45, q_RK45[:, 0], "-k", label="x - RK45")
-    ax[0, 0].plot(t_RK45, q_RK45[:, 1], "--k", label="y - RK45")
+    ax[0].plot(t_ref, q_ref[:, 0], "-k", label="x - ref")
+    ax[0].plot(t_ref, q_ref[:, 1], "--k", label="y - ref")
+    # ax[0].plot(t_RK45, q_RK45[:, 0], "-k", label="x - RK45")
+    # ax[0].plot(t_RK45, q_RK45[:, 1], "--k", label="y - RK45")
+    ax[0].grid()
+    ax[0].legend()
+
+    # generalized velocities
+    ax[1].plot(
+        t,
+        u[:, 0],
+        "xg",
+        label="x_dot - GGL auxiliary",
+    )
+    ax[1].plot(
+        t,
+        u[:, 1],
+        "og",
+        label="y_dot - GGL auxiliary",
+    )
+    # ax[1].plot(t_RK45, u_RK45[:, 0], "-k", label="x_dot - RK45")
+    # ax[1].plot(t_RK45, u_RK45[:, 1], "--k", label="y_dot - RK45")
+    ax[1].plot(t_ref, u_ref[:, 0], "-k", label="x_dot - ref")
+    ax[1].plot(t_ref, u_ref[:, 1], "--k", label="y_dot - ref")
+    ax[1].grid()
+    ax[1].legend()
+
+    # Lagrange multipliers
+    ax[2].plot(
+        t,
+        la_g[:, 0],
+        "sg",
+        label="la_g - GGL auxiliary",
+    )
+    # ax[2].plot(t_RK45, la_g_RK4, "-k", label="la_g - RK45")
+    ax[2].plot(t_ref, la_g_ref[:, 0], "-k", label="la_g - ref")
+    ax[2].grid()
+    ax[2].legend()
+
+    ##################
+    # visualize errors
+    ##################
+    fig, ax = plt.subplots(2, 3)
+
+    # errors position formulation
+    ax[0, 0].loglog(dts, q_errors[0], "-.r", label="q")
+    ax[0, 0].loglog(dts, u_errors[0], "-.g", label="u")
+    ax[0, 0].loglog(dts, la_g_errors[0], "-.b", label="la_g")
+    ax[0, 0].loglog(dts, dts_1, "-k", label="dt")
+    ax[0, 0].loglog(dts, dts_2, "--k", label="dt^2")
+    ax[0, 0].set_title("position formulation")
     ax[0, 0].grid()
     ax[0, 0].legend()
 
-    # generalized velocities
-    # ax[0, 1].plot(t_GenAlphaFirstOrder, u_GenAlphaFirstOrder[:, 0], 'xb', label="x_dot - GenAlphaFirstOrder")
-    # ax[0, 1].plot(t_GenAlphaFirstOrder, u_GenAlphaFirstOrder[:, 1], 'ob', label="y_dot - GenAlphaFirstOrder")
-    # ax[0, 1].plot(t_GenAlphaSecondOrder, u_GenAlphaSecondOrder[:, 0], 'xr', label="x_dot - GenAlphaSecondOrder")
-    # ax[0, 1].plot(t_GenAlphaSecondOrder, u_GenAlphaSecondOrder[:, 1], 'or', label="y_dot - GenAlphaSecondOrder")
-    ax[0, 1].plot(
-        t_GenAlphaFirstOrderGGl,
-        u_GenAlphaFirstOrderGGl[:, 0],
-        "xg",
-        label="x_dot - GenAlphaFirstOrderGGl",
-    )
-    ax[0, 1].plot(
-        t_GenAlphaFirstOrderGGl,
-        u_GenAlphaFirstOrderGGl[:, 1],
-        "og",
-        label="y_dot - GenAlphaFirstOrderGGl",
-    )
-    # ax[0, 1].plot(t_ThetaNewton, u_ThetaNewton[:, 0], 'xm', label="x_dot - Theta")
-    # ax[0, 1].plot(t_ThetaNewton, u_ThetaNewton[:, 1], 'om', label="y_dot - Theta")
-    ax[0, 1].plot(t_RK45, u_RK45[:, 0], "-k", label="x_dot - RK45")
-    ax[0, 1].plot(t_RK45, u_RK45[:, 1], "--k", label="y_dot - RK45")
+    # errors velocity formulation
+    ax[0, 1].loglog(dts, q_errors[1], "-.r", label="q")
+    ax[0, 1].loglog(dts, u_errors[1], "-.g", label="u")
+    ax[0, 1].loglog(dts, la_g_errors[1], "-.b", label="la_g")
+    ax[0, 1].loglog(dts, dts_1, "-k", label="dt")
+    ax[0, 1].loglog(dts, dts_2, "--k", label="dt^2")
+    ax[0, 1].set_title("velocity formulation")
     ax[0, 1].grid()
     ax[0, 1].legend()
 
-    # Lagrange multipliers
-    # ax[0, 2].plot(t_GenAlphaFirstOrder, la_g_GenAlphaFirstOrder[:, 0], 'ob', label="la_g - GenAlphaFirstOrder")
-    # ax[0, 2].plot(t_GenAlphaSecondOrder, la_g_GenAlphaSecondOrder[:, 0], 'xr', label="la_g - GenAlphaSecondOrder")
-    # ax[0, 2].plot(t_GenAlphaFirstOrderGGl, la_g_GenAlphaFirstOrderGGl[:, 0], 'sg', label="la_g - GenAlphaFirstOrderGGl")
-    ax[0, 2].plot(
-        t_GenAlphaFirstOrderGGl,
-        la_g_GenAlphaFirstOrderGGl[:, 0],
-        "sg",
-        label="la_g - GenAlphaFirstOrderGGl",
-    )
-    # ax[0, 2].plot(t_ThetaNewton, la_g_ThetaNewton[:, 0], 'sm', label="la_g - Theta")
-    ax[0, 2].plot(t_RK45, la_g_RK4, "-k", label="la_g - RK45")
+    # errors auxiliary formulation
+    ax[0, 2].loglog(dts, q_errors[2], "-.r", label="q")
+    ax[0, 2].loglog(dts, u_errors[2], "-.g", label="u")
+    ax[0, 2].loglog(dts, la_g_errors[2], "-.b", label="la_g")
+    ax[0, 2].loglog(dts, dts_1, "-k", label="dt")
+    ax[0, 2].loglog(dts, dts_2, "--k", label="dt^2")
+    ax[0, 2].set_title("auxiliary formulation")
     ax[0, 2].grid()
     ax[0, 2].legend()
 
+    # errors position formulation
+    ax[1, 0].loglog(dts, q_errors[3], "-.r", label="q")
+    ax[1, 0].loglog(dts, u_errors[3], "-.g", label="u")
+    ax[1, 0].loglog(dts, la_g_errors[3], "-.b", label="la_g")
+    ax[1, 0].loglog(dts, dts_1, "-k", label="dt")
+    ax[1, 0].loglog(dts, dts_2, "--k", label="dt^2")
+    ax[1, 0].set_title("position formulation GGL")
+    ax[1, 0].grid()
+    ax[1, 0].legend()
+
+    # errors velocity formulation
+    ax[1, 1].loglog(dts, q_errors[4], "-.r", label="q")
+    ax[1, 1].loglog(dts, u_errors[4], "-.g", label="u")
+    ax[1, 1].loglog(dts, la_g_errors[4], "-.b", label="la_g")
+    ax[1, 1].loglog(dts, dts_1, "-k", label="dt")
+    ax[1, 1].loglog(dts, dts_2, "--k", label="dt^2")
+    ax[1, 1].set_title("velocity formulation GGL")
+    ax[1, 1].grid()
+    ax[1, 1].legend()
+
+    # errors auxiliary formulation
+    ax[1, 2].loglog(dts, q_errors[5], "-.r", label="q")
+    ax[1, 2].loglog(dts, u_errors[5], "-.g", label="u")
+    ax[1, 2].loglog(dts, la_g_errors[5], "-.b", label="la_g")
+    ax[1, 2].loglog(dts, dts_1, "-k", label="dt")
+    ax[1, 2].loglog(dts, dts_2, "--k", label="dt^2")
+    ax[1, 2].set_title("auxiliary formulation GGL")
+    ax[1, 2].grid()
+    ax[1, 2].legend()
+
+    plt.show()
+    exit()
+
     # (x,y) - errors
-    # ax[1, 0].loglog(dts, x_y_errors[0], '-b', label="(x,y) - error - GenAlphaFirstOrder")
-    # ax[1, 0].loglog(dts, x_y_errors[1], '--r', label="(x,y) - error - GenAlphaSecondOrder")
     ax[1, 0].loglog(
         dts, x_y_errors[2], "-.g", label="(x,y) - error - GenAlphaFirstOrderGGl"
     )
