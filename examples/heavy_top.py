@@ -401,8 +401,9 @@ if __name__ == "__main__":
     # dts = np.logspace(-1, -num, num=num, endpoint=True)
     # dts = np.logspace(-2, -num, num=num - 1, endpoint=True)
     # dts = np.array([1.0e-2])
-    # dts = np.array([1e-2, 1.0e-3])
-    dts = np.array([1e-2, 1e-3, 1e-4])
+    dts = np.array([5e-2, 1e-2])
+    # dts = np.array([5e-2, 1e-2, 1.0e-3])
+    # dts = np.array([1e-2, 1e-3, 1e-4])
     # dts = np.array([1e-2, 5e-3, 1e-3, 5e-4, 1e-4]) # used by Arnold2015, p. 29
     dts_1 = dts
     dts_2 = dts**2
@@ -415,11 +416,12 @@ if __name__ == "__main__":
 
     # compute reference solution as described in Arnold2015 Section 3.3
     print(f"compute reference solution:")
-    dt_ref = 2.5e-5 # see Arnold2015 p. 174/ Arnodl2015b p. 14
+    # dt_ref = 1.0e-5
+    # dt_ref = 2.5e-5 # see Arnold2015 p. 174/ Arnodl2015b p. 14
     # dt_ref = 1.0e-4
-    # dt_ref = 1.0e-3
+    dt_ref = 1.0e-3
     reference = GenAlphaFirstOrder(
-        model, t1, dt_ref, rho_inf=rho_inf, tol=tol_ref, unknowns="auxiliary", GGL=True
+        model, t1, dt_ref, rho_inf=rho_inf, tol=tol_ref, unknowns="velocities", GGL=True
     ).solve()
     t_ref = reference.t
     q_ref = reference.q
@@ -503,35 +505,52 @@ if __name__ == "__main__":
         diff_u = u - u_ref[idx]
         diff_la_g = la_g - la_g_ref[idx]
 
-        # relative error
         # TODO: What error do we chose?
+        # # relative error
         # q_error = np.linalg.norm(diff_q) / np.linalg.norm(q)
         # u_error = np.linalg.norm(diff_u) / np.linalg.norm(u)
         # la_g_error = np.linalg.norm(diff_la_g) / np.linalg.norm(la_g)
-        q_error = np.max(np.abs(diff_q))
-        u_error = np.max(np.abs(diff_u))
-        la_g_error = np.max(np.abs(diff_la_g))
+
+        # # max abs difference
+        # q_error = np.max(np.abs(diff_q))
+        # u_error = np.max(np.abs(diff_u))
+        # la_g_error = np.max(np.abs(diff_la_g))
+
+        # max relative error
+        q_error = np.max(np.linalg.norm(diff_q, axis=0) / np.linalg.norm(q, axis=0))
+        u_error = np.max(np.linalg.norm(diff_u, axis=0) / np.linalg.norm(u, axis=0))
+        la_g_error = np.max(
+            np.linalg.norm(diff_la_g, axis=0) / np.linalg.norm(la_g, axis=0)
+        )
 
         return q_error, u_error, la_g_error
+
+    # # generate files for error export that only contain the header
+    # header = "dt, dt2, pos, vel, aux, pos_GGL, vel_GGL, aux_GGL"
+    # header = np.array([["dt", "dt2", "pos", "vel", "aux", "pos_GGL", "vel_GGL", "aux_GGL"]])
+    # data = np.empty((0, 0))
+    # np.savetxt("error_heavy_top_q.txt", data, delimiter=", ", header=header, comments="")
+    # np.savetxt("error_heavy_top_u.txt", export_data, delimiter=", ", header=header, comments="")
+    # np.savetxt("error_heavy_top_la_g.txt", export_data, delimiter=", ", header=header, comments="")
 
     for i, dt in enumerate(dts):
         print(f"i: {i}, dt: {dt:1.1e}")
 
         # position formulation
         sol = GenAlphaFirstOrder(
-            model, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="positions"
+            model, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="positions", GGL=False
         ).solve()
         q_errors[0, i], u_errors[0, i], la_g_errors[0, i] = errors(sol)
 
         # velocity formulation
         sol = GenAlphaFirstOrder(
-            model, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="velocities"
+            model, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="velocities", GGL=False
         ).solve()
         q_errors[1, i], u_errors[1, i], la_g_errors[1, i] = errors(sol)
 
         # auxiliary formulation
         sol = GenAlphaFirstOrder(
-            model, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="auxiliary"
+            model, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="auxiliary", GGL=False
         ).solve()
         q_errors[2, i], u_errors[2, i], la_g_errors[2, i] = errors(sol)
 
@@ -552,6 +571,71 @@ if __name__ == "__main__":
             model, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="auxiliary", GGL=True
         ).solve()
         q_errors[5, i], u_errors[5, i], la_g_errors[5, i] = errors(sol)
+
+        #############################
+        # export errors and dt, dt**2
+        #############################
+        if i == 0:
+            header = "dt, dt2, pos, vel, aux, pos_GGL, vel_GGL, aux_GGL"
+            export_data = np.array([[dt, dt**2, *q_errors[:, i]]])
+            np.savetxt(
+                "error_heavy_top_q.txt",
+                export_data,
+                delimiter=", ",
+                header=header,
+                comments="",
+            )
+        else:
+            with open("error_heavy_top_q.txt", "ab") as f:
+                # f.write(b"\n")
+                export_data = np.array([[dt, dt**2, *q_errors[:, i]]])
+                np.savetxt(f, export_data, delimiter=", ", comments="")
+
+    #############################
+    # export errors and dt, dt**2
+    #############################
+    header = "dt, dt2, pos, vel, aux, pos_GGL, vel_GGL, aux_GGL"
+
+    export_data = np.vstack((dts, dts_2, *q_errors)).T
+    np.savetxt(
+        "error_heavy_top_q.txt", export_data, delimiter=", ", header=header, comments=""
+    )
+
+    export_data = np.vstack((dts, dts_2, *u_errors)).T
+    np.savetxt(
+        "error_heavy_top_u.txt", export_data, delimiter=", ", header=header, comments=""
+    )
+
+    export_data = np.vstack((dts, dts_2, *la_g_errors)).T
+    np.savetxt(
+        "error_heavy_top_la_g.txt",
+        export_data,
+        delimiter=", ",
+        header=header,
+        comments="",
+    )
+
+    # # names = ["GenAlphaFirstOrder", "GenAlphaSecondOrder", "GenAlphaFirstOrderGGl", "Theta"]
+    # # ts = [t_GenAlphaFirstOrder, t_GenAlphaSecondOrder, t_GenAlphaFirstOrderGGl, t_ThetaNewton]
+    # # qs = [q_GenAlphaFirstOrder, q_GenAlphaSecondOrder, q_GenAlphaFirstOrderGGl, q_ThetaNewton]
+    # # us = [u_GenAlphaFirstOrder, u_GenAlphaSecondOrder, u_GenAlphaFirstOrderGGl, u_ThetaNewton]
+    # # la_gs = [la_g_GenAlphaFirstOrder, la_g_GenAlphaSecondOrder, la_g_GenAlphaFirstOrderGGl, la_g_ThetaNewton]
+    # names = ["pos", "vel", "aux", "pos-GGL", "vel-GGL", "aux-GGL"]
+    # ts = [t_GenAlphaFirstOrderGGl]
+    # qs = [q_GenAlphaFirstOrderGGl]
+    # us = [u_GenAlphaFirstOrderGGl]
+    # la_gs = [la_g_GenAlphaFirstOrderGGl]
+    # for i, name in enumerate(names):
+    #     filename = "sol_" + name + "_cartesian_pendulum_.txt"
+    #     # export_data = np.hstack((t_GenAlphaFirstOrderGGl[:, np.newaxis], q_GenAlphaFirstOrderGGl, u_GenAlphaFirstOrderGGl, la_g_GenAlphaFirstOrderGGl))
+    #     export_data = np.hstack((ts[i][:, np.newaxis], qs[i], us[i], la_gs[i]))
+    #     header = "t, x, y, x_dot, y_dot, la_g"
+    #     np.savetxt(filename, export_data, delimiter=", ", header=header, comments="")
+
+    #     filename = "error_" + name + "_cartesian_pendulum_.txt"
+    #     header = "dt, dt2, error_xy, error_xy_dot, error_la_g"
+    #     export_data = np.vstack((dts, dts_2, x_y_errors[i], x_dot_y_dot_errors[i], la_g_errors[i])).T
+    #     np.savetxt(filename, export_data, delimiter=", ", header=header, comments="")
 
     ##################
     # visualize errors
