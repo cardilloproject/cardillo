@@ -8,7 +8,7 @@ from cardillo.model.bilateral_constraints.implicit import SphericalJoint
 from cardillo.math.algebra import cross3, ax2skew
 from cardillo.math import approx_fprime
 from cardillo.model import Model
-from cardillo.solver import GenAlphaFirstOrder
+from cardillo.solver import GenAlphaFirstOrder, GenAlphaFirstOrderGGL2_V3
 
 
 class HeavyTop2(RigidBodyEuler):
@@ -299,91 +299,323 @@ class HeavyTop:
         return np.concatenate([self.Q(t, q) @ u, M_inv @ h])
 
 
-if __name__ == "__main__":
-    # ###################
-    # # system parameters
-    # ###################
-    # m = 0.1
-    # l = 0.2
-    # grav = 9.81
-    # r = 0.1
-    # A = 1 / 2 * m * r**2
-    # B = 1 / 4 * m * r**2
-    # alpha0 = 0
-    # beta0 = pi / 2
-    # gamma0 = 0
-    # omega_x0 = 0
-    # omega_y0 = 0
-    # omega_z0 = 2 * pi * 50
+# ###################
+# # system parameters
+# ###################
+# m = 0.1
+# l = 0.2
+# grav = 9.81
+# r = 0.1
+# A = 1 / 2 * m * r**2
+# B = 1 / 4 * m * r**2
+# alpha0 = 0
+# beta0 = pi / 2
+# gamma0 = 0
+# omega_x0 = 0
+# omega_y0 = 0
+# omega_z0 = 2 * pi * 50
 
-    # #####################
-    # # Geradin2000, p 103.
-    # #####################
-    # m = 5
-    # A = 0.8
-    # B = 1.8
-    # l = 1.3
-    # grav = 9.81
-    # alpha0 = 0
-    # beta0 = pi / 9
-    # gamma0 = 0
-    # omega_x0 = 0
-    # omega_y0 = 0
-    # omega_z0 = 2 * pi * 50
+# #####################
+# # Geradin2000, p 103.
+# #####################
+# m = 5
+# A = 0.8
+# B = 1.8
+# l = 1.3
+# grav = 9.81
+# alpha0 = 0
+# beta0 = pi / 9
+# gamma0 = 0
+# omega_x0 = 0
+# omega_y0 = 0
+# omega_z0 = 2 * pi * 50
 
-    ########################################
-    # Arnold2015, p. 174/ Arnold2015b, p. 13
-    ########################################
-    m = 15
-    A = 0.234375
-    B = 0.46875
-    l = 1.0
-    grav = 9.81
-    alpha0 = 0
-    beta0 = pi / 2
-    gamma0 = 0
+########################################
+# Arnold2015, p. 174/ Arnold2015b, p. 13
+########################################
+m = 15
+A = 0.234375
+B = 0.46875
+l = 1.0
+grav = 9.81
+alpha0 = 0
+beta0 = pi / 2
+gamma0 = 0
 
-    omega_x0 = 0
-    # omega_y0 = 0 # Arnodl2015 p. 174
-    omega_y0 = -4.61538  # Arnold2015b p. 13
-    omega_z0 = 150
-    # omega_z0 *= ??? #  this yields a precession movement
+omega_x0 = 0
+# omega_y0 = 0 # Arnodl2015 p. 174
+omega_y0 = -4.61538  # Arnold2015b p. 13
+omega_z0 = 150
 
-    #############################
-    # initial position and angles
-    #############################
-    phi0 = np.array([alpha0, beta0, gamma0])
+#############################
+# initial position and angles
+#############################
+phi0 = np.array([alpha0, beta0, gamma0])
 
-    r_OQ = np.zeros(3)
-    K_r_OS0 = np.array([0, 0, l])
-    A_IK0 = HeavyTop.A_IK(0, [0, 0, 0, alpha0, beta0, gamma0])
-    r_OS0 = A_IK0 @ K_r_OS0
+r_OQ = np.zeros(3)
+K_r_OS0 = np.array([0, 0, l])
+A_IK0 = HeavyTop.A_IK(0, [0, 0, 0, alpha0, beta0, gamma0])
+r_OS0 = A_IK0 @ K_r_OS0
 
-    q0 = np.concatenate((r_OS0, phi0))
+q0 = np.concatenate((r_OS0, phi0))
 
-    ####################
-    # initial velocities
-    ####################
-    K_Omega0 = np.array([omega_x0, omega_y0, omega_z0])
-    v_S0 = A_IK0 @ cross3(K_Omega0, K_r_OS0)
-    u0 = np.concatenate((v_S0, K_Omega0))
+####################
+# initial velocities
+####################
+K_Omega0 = np.array([omega_x0, omega_y0, omega_z0])
+v_S0 = A_IK0 @ cross3(K_Omega0, K_r_OS0)
+u0 = np.concatenate((v_S0, K_Omega0))
 
-    # 1. hand written version
-    top1 = HeavyTop(m, l, A, B, grav, r_OQ, q0, u0)
-    model = Model()
-    model.add(top1)
-    model.assemble()
+# 1. hand written version
+top1 = HeavyTop(m, l, A, B, grav, r_OQ, q0, u0)
+model = Model()
+model.add(top1)
+model.assemble()
 
-    # # 2. reuse existing RigidBodyEuler and SphericalJoint
-    # frame = Frame()
-    # top2 = HeavyTop2(A, B, grav, q0, u0)
-    # spherical_joint = SphericalJoint(frame, top2, np.zeros(3))
-    # model = Model()
-    # model.add(top2)
-    # model.add(frame)
-    # model.add(spherical_joint)
-    # model.assemble()
+# # 2. reuse existing RigidBodyEuler and SphericalJoint
+# frame = Frame()
+# top2 = HeavyTop2(A, B, grav, q0, u0)
+# spherical_joint = SphericalJoint(frame, top2, np.zeros(3))
+# model = Model()
+# model.add(top2)
+# model.add(frame)
+# model.add(spherical_joint)
+# model.assemble()
 
+
+def transient():
+    t1 = 0.1
+    tol = 1.0e-8
+    h = 1.0e-3
+
+    def export_la_g(sol, name):
+        header = "t, la_g0, la_g1, la_g2"
+        t = sol.t
+        la_g = sol.la_g
+        export_data = np.vstack([t, *la_g.T]).T
+        np.savetxt(
+            name,
+            export_data,
+            delimiter=", ",
+            header=header,
+            comments="",
+        )
+
+    # solve index 3 problem with rho_inf = 0.9
+    sol_9 = GenAlphaFirstOrder(
+        model, t1, h, rho_inf=0.9, tol=tol, unknowns="velocities", GGL=False
+    ).solve()
+    export_la_g(sol_9, "la_g_9.txt")
+
+    # solve index 3 problem with rho_inf = 0.6
+    sol_6 = GenAlphaFirstOrder(
+        model, t1, h, rho_inf=0.6, tol=tol, unknowns="velocities", GGL=False
+    ).solve()
+    export_la_g(sol_6, "la_g_6.txt")
+
+    # solve GGL with rho_inf = 0.9
+    sol_9_GGL = GenAlphaFirstOrder(
+        model, t1, h, rho_inf=0.9, tol=tol, unknowns="velocities", GGL=True
+    ).solve()
+    export_la_g(sol_9_GGL, "la_g_9_GGL.txt")
+
+    # solve GGL with rho_inf = 0.6
+    sol_6_GGL = GenAlphaFirstOrder(
+        model, t1, h, rho_inf=0.6, tol=tol, unknowns="velocities", GGL=True
+    ).solve()
+    export_la_g(sol_6_GGL, "la_g_6_GGL.txt")
+
+    # solve GGL with rho_inf = 0.9
+    sol_9_GGL2 = GenAlphaFirstOrderGGL2_V3(
+        model, t1, h, rho_inf=0.9, tol=tol, unknowns="velocities"
+    ).solve()
+    export_la_g(sol_9_GGL2, "la_g_9_GGL2.txt")
+
+    # solve GGL with rho_inf = 0.6
+    sol_6_GGL2 = GenAlphaFirstOrderGGL2_V3(
+        model, t1, h, rho_inf=0.6, tol=tol, unknowns="velocities"
+    ).solve()
+    export_la_g(sol_6_GGL2, "la_g_6_GGL2.txt")
+
+    ###################
+    # visualize results
+    ###################
+    fig = plt.figure(figsize=plt.figaspect(1))
+
+    # index 3
+    ax = fig.add_subplot(3, 3, 1)
+    ax.plot(sol_6.t, sol_6.la_g[:, 0], "-k", label="la_g0_6")
+    ax.plot(sol_9.t, sol_9.la_g[:, 0], "--k", label="la_g0_9")
+    ax.grid()
+    ax.legend()
+
+    ax = fig.add_subplot(3, 3, 4)
+    ax.plot(sol_6.t, sol_6.la_g[:, 1], "-k", label="la_g1_6")
+    ax.plot(sol_9.t, sol_9.la_g[:, 1], "--k", label="la_g1_9")
+    ax.grid()
+    ax.legend()
+
+    ax = fig.add_subplot(3, 3, 7)
+    ax.plot(sol_6.t, sol_6.la_g[:, 2], "-k", label="la_g2_6")
+    ax.plot(sol_9.t, sol_9.la_g[:, 2], "--k", label="la_g2_9")
+    ax.grid()
+    ax.legend()
+
+    # index 2
+    ax = fig.add_subplot(3, 3, 2)
+    ax.plot(sol_6_GGL.t, sol_6_GGL.la_g[:, 0], "-k", label="la_g0_6_GGL")
+    ax.plot(sol_9_GGL.t, sol_9_GGL.la_g[:, 0], "--k", label="la_g0_9_GGL")
+    ax.grid()
+    ax.legend()
+
+    ax = fig.add_subplot(3, 3, 5)
+    ax.plot(sol_6_GGL.t, sol_6_GGL.la_g[:, 1], "-k", label="la_g1_6_GGL")
+    ax.plot(sol_9_GGL.t, sol_9_GGL.la_g[:, 1], "--k", label="la_g1_9_GGL")
+    ax.grid()
+    ax.legend()
+
+    ax = fig.add_subplot(3, 3, 8)
+    ax.plot(sol_6_GGL.t, sol_6_GGL.la_g[:, 2], "-k", label="la_g2_6_GGL")
+    ax.plot(sol_9_GGL.t, sol_9_GGL.la_g[:, 2], "--k", label="la_g2_9_GGL")
+    ax.grid()
+    ax.legend()
+
+    # index 1
+    ax = fig.add_subplot(3, 3, 3)
+    ax.plot(sol_6_GGL2.t, sol_6_GGL2.la_g[:, 0], "-k", label="la_g0_6_GGL2")
+    ax.plot(sol_9_GGL2.t, sol_9_GGL2.la_g[:, 0], "--k", label="la_g0_9_GGL2")
+    ax.grid()
+    ax.legend()
+
+    ax = fig.add_subplot(3, 3, 6)
+    ax.plot(sol_6_GGL2.t, sol_6_GGL2.la_g[:, 1], "-k", label="la_g1_6_GGL2")
+    ax.plot(sol_9_GGL2.t, sol_9_GGL2.la_g[:, 1], "--k", label="la_g1_9_GGL2")
+    ax.grid()
+    ax.legend()
+
+    ax = fig.add_subplot(3, 3, 9)
+    ax.plot(sol_6_GGL2.t, sol_6_GGL2.la_g[:, 2], "-k", label="la_g2_6_GGL2")
+    ax.plot(sol_9_GGL2.t, sol_9_GGL2.la_g[:, 2], "--k", label="la_g2_9_GGL2")
+    ax.grid()
+    ax.legend()
+
+    plt.show()
+
+
+def gaps():
+    t1 = 0.1
+    tol = 1.0e-8
+    h = 1.0e-3
+
+    def export_gaps(sol, name):
+        header = "t, g, g_dot, g_ddot"
+        t = sol.t
+        q = sol.q
+        u = sol.u
+        try:
+            u_dot = sol.a  # GGL2 solver
+        except:
+            u_dot = sol.u_dot  # other solvers
+
+        g = np.array([np.linalg.norm(model.g(ti, qi)) for ti, qi in zip(t, q)])
+
+        g_dot = np.array(
+            [np.linalg.norm(model.g_dot(ti, qi, ui)) for ti, qi, ui in zip(t, q, u)]
+        )
+
+        g_ddot = np.array(
+            [
+                np.linalg.norm(model.g_ddot(ti, qi, ui, u_doti))
+                for ti, qi, ui, u_doti in zip(t, q, u, u_dot)
+            ]
+        )
+
+        export_data = np.vstack([t, g, g_dot, g_ddot]).T
+        np.savetxt(
+            name,
+            export_data,
+            delimiter=", ",
+            header=header,
+            comments="",
+        )
+
+        return g, g_dot, g_ddot
+
+    # solve index 3 problem with rho_inf = 0.9
+    sol_9 = GenAlphaFirstOrder(
+        model, t1, h, rho_inf=0.9, tol=tol, unknowns="velocities", GGL=False
+    ).solve()
+    g_9, g_dot_9, g_ddot_9 = export_gaps(sol_9, "g_9.txt")
+
+    # solve GGL with rho_inf = 0.9
+    sol_9_GGL = GenAlphaFirstOrder(
+        model, t1, h, rho_inf=0.9, tol=tol, unknowns="velocities", GGL=True
+    ).solve()
+    g_9_GGL, g_dot_9_GGL, g_ddot_9_GGL = export_gaps(sol_9_GGL, "g_9_GGL.txt")
+
+    # solve GGL2 with rho_inf = 0.9
+    sol_9_GGL2 = GenAlphaFirstOrderGGL2_V3(
+        model, t1, h, rho_inf=0.9, tol=tol, unknowns="velocities"
+    ).solve()
+    g_9_GGL2, g_dot_9_GGL2, g_ddot_9_GGL2 = export_gaps(sol_9_GGL2, "g_9_GGL2.txt")
+
+    ###################
+    # visualize results
+    ###################
+    fig = plt.figure(figsize=plt.figaspect(1))
+
+    # index 3
+    ax = fig.add_subplot(3, 3, 1)
+    ax.plot(sol_9.t, g_9, "-k", label="||g_9||")
+    ax.grid()
+    ax.legend()
+
+    ax = fig.add_subplot(3, 3, 4)
+    ax.plot(sol_9.t, g_dot_9, "-k", label="||g_dot_9||")
+    ax.grid()
+    ax.legend()
+
+    ax = fig.add_subplot(3, 3, 7)
+    ax.plot(sol_9.t, g_ddot_9, "-k", label="||g_ddot_9||")
+    ax.grid()
+    ax.legend()
+
+    # index 2
+    ax = fig.add_subplot(3, 3, 2)
+    ax.plot(sol_9_GGL.t, g_9_GGL, "-k", label="||g_9_GGL||")
+    ax.grid()
+    ax.legend()
+
+    ax = fig.add_subplot(3, 3, 5)
+    ax.plot(sol_9_GGL.t, g_dot_9_GGL, "-k", label="||g_dot_9_GGL||")
+    ax.grid()
+    ax.legend()
+
+    ax = fig.add_subplot(3, 3, 8)
+    ax.plot(sol_9_GGL.t, g_ddot_9_GGL, "-k", label="||g_ddot_9_GGL||")
+    ax.grid()
+    ax.legend()
+
+    # index 1
+    ax = fig.add_subplot(3, 3, 3)
+    ax.plot(sol_9_GGL2.t, g_9_GGL2, "-k", label="||g_9_GGL2||")
+    ax.grid()
+    ax.legend()
+
+    ax = fig.add_subplot(3, 3, 6)
+    ax.plot(sol_9_GGL2.t, g_dot_9_GGL2, "-k", label="||g_dot_9_GGL2||")
+    ax.grid()
+    ax.legend()
+
+    ax = fig.add_subplot(3, 3, 9)
+    ax.plot(sol_9_GGL2.t, g_ddot_9_GGL2, "-k", label="||g_ddot_9_GGL2||")
+    ax.grid()
+    ax.legend()
+
+    plt.show()
+
+
+def convergence():
     # end time and numerical dissipation of generalized-alpha solver
     # t1 = 5
     # t1 = 5 / 4
@@ -391,7 +623,7 @@ if __name__ == "__main__":
     # t1 = 1
     # t1 = 0.25
     # t1 = 1
-    t1 = 0.1  # this is used for investigating the transient bahavior
+    t1 = 0.1  # this is used for investigating the transient behavior
     rho_inf = 0.9
     tol_ref = 1.0e-12
     tol = 1.0e-8
@@ -703,3 +935,9 @@ if __name__ == "__main__":
     ax[1, 2].legend()
 
     plt.show()
+
+
+if __name__ == "__main__":
+    transient()
+    # gaps()
+    # convergence()

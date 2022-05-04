@@ -1207,7 +1207,6 @@ class GenAlphaFirstOrderGGL2_V3:
         self.nu = model.nu
         self.nla_g = model.nla_g
         self.nla_gamma = model.nla_gamma
-        # self.nx = self.ny = self.nq + self.nu  # dimension of the state space
         self.nx = self.nq + self.nu  # dimension of the state space
         self.ns = self.nx + self.nla_g + self.nla_gamma  # vector of unknowns
         self.ns += 2 * self.nla_g + self.nla_gamma + self.nu  # GGL2 parts
@@ -1454,45 +1453,45 @@ class GenAlphaFirstOrderGGL2_V3:
         # # version with relative acceleration
         # ####################################
 
-        # kinematic differential equation
-        g_qk1 = self.model.g_q(tk1, qk1)
-        R[:nq] = q_dotk1 - self.model.q_dot(tk1, qk1, uk1) - g_qk1.T @ mu_gk1
+        # # kinematic differential equation
+        # g_qk1 = self.model.g_q(tk1, qk1)
+        # R[:nq] = q_dotk1 - self.model.q_dot(tk1, qk1, uk1) - g_qk1.T @ mu_gk1
 
-        # equations of motion
-        R[nq:nx] = (
-            Mk1 @ (u_dotk1 + ak1)
-            - self.model.h(tk1, qk1, uk1)
-            - W_gk1 @ la_gk1
-            - W_gammak1 @ la_gammak1
-        )
+        # # equations of motion
+        # R[nq:nx] = (
+        #     Mk1 @ (u_dotk1 + ak1)
+        #     - self.model.h(tk1, qk1, uk1)
+        #     - W_gk1 @ la_gk1
+        #     - W_gammak1 @ la_gammak1
+        # )
 
-        # bilateral constraints on acceleration level
-        # (corresponds to constraint forces la_gk1, la_gammak1)
-        R[nx : nx + nla_g] = self.model.g_ddot(tk1, qk1, uk1, u_dotk1 + ak1)
-        R[nx + nla_g : nx + nla_g + nla_gamma] = self.model.gamma_dot(
-            tk1, qk1, uk1, u_dotk1 + ak1
-        )
+        # # bilateral constraints on acceleration level
+        # # (corresponds to constraint forces la_gk1, la_gammak1)
+        # R[nx : nx + nla_g] = self.model.g_ddot(tk1, qk1, uk1, u_dotk1 + ak1)
+        # R[nx + nla_g : nx + nla_g + nla_gamma] = self.model.gamma_dot(
+        #     tk1, qk1, uk1, u_dotk1 + ak1
+        # )
 
-        # bilateral constraints on position level
-        # (correspsonds to position correction mu_g)
-        R[nx + nla_g + nla_gamma : nx + 2 * nla_g + nla_gamma] = self.model.g(tk1, qk1)
+        # # bilateral constraints on position level
+        # # (correspsonds to position correction mu_g)
+        # R[nx + nla_g + nla_gamma : nx + 2 * nla_g + nla_gamma] = self.model.g(tk1, qk1)
 
-        # bilateral constraints on velocity level
-        # (correspsonds to velocity correction kappa_gk1)
-        R[nx + 2 * nla_g + nla_gamma : nx + 3 * nla_g + nla_gamma] = self.model.g_dot(
-            tk1, qk1, uk1
-        )
+        # # bilateral constraints on velocity level
+        # # (correspsonds to velocity correction kappa_gk1)
+        # R[nx + 2 * nla_g + nla_gamma : nx + 3 * nla_g + nla_gamma] = self.model.g_dot(
+        #     tk1, qk1, uk1
+        # )
 
-        # bilateral constraints on velocity level
-        # (gamma; correspsonds to velocity correction kappa_gammak1)
-        R[
-            nx + 3 * nla_g + nla_gamma : nx + 3 * nla_g + 2 * nla_gamma
-        ] = self.model.gamma(tk1, qk1, uk1)
+        # # bilateral constraints on velocity level
+        # # (gamma; correspsonds to velocity correction kappa_gammak1)
+        # R[
+        #     nx + 3 * nla_g + nla_gamma : nx + 3 * nla_g + 2 * nla_gamma
+        # ] = self.model.gamma(tk1, qk1, uk1)
 
-        # stabilization on velocity level
-        R[nx + 3 * nla_g + 2 * nla_gamma :] = (
-            Mk1 @ ak1 - W_gk1 @ kappa_gk1 - W_gammak1 @ kappa_gammak1
-        )
+        # # stabilization on velocity level
+        # R[nx + 3 * nla_g + 2 * nla_gamma :] = (
+        #     Mk1 @ ak1 - W_gk1 @ kappa_gk1 - W_gammak1 @ kappa_gammak1
+        # )
 
         yield R
 
@@ -1644,14 +1643,19 @@ class GenAlphaFirstOrder:
         # unknowns="positions",
         unknowns="velocities",
         # unknowns="auxiliary",
-        # GGL=False,
-        GGL=True,
+        GGL=False,
+        # GGL=True,
     ):
 
         self.model = model
         assert DAE_index >= 1 and DAE_index <= 3, "DAE_index hast to be in [1, 3]!"
         self.DAE_index = DAE_index
         self.unknowns = unknowns
+        assert unknowns in [
+            "positions",
+            "velocities",
+            "auxiliary",
+        ], f'wrong set of unknowns "{unknowns}" chosen!'
         self.GGL = GGL
 
         #######################################################################
