@@ -1,60 +1,69 @@
 from __future__ import annotations
 import numpy as np
-from cardillo.math import ax2skew
+from math import sin, cos, sqrt
+from cardillo.math import (
+    ax2skew,
+    rodriguez,
+    rodriguez_inv,
+    tangent_map,
+    inverse_tangent_map,
+)
 
 
 class se3:
     @staticmethod
     def fromso3R3(h_U: np.ndarray, h_Om: np.ndarray) -> se3:
-        assert h_U.shape == (3,), "h_U has to be an array of length 3"
-        assert h_Om.shape == (3,), "h_Om has to be an array of length 3"
-        return se3(np.concatenate((h_U, h_Om)))
+        assert h_U.shape == (3,), "h_U has to be an array of shape (3,)"
+        assert h_Om.shape == (3,), "h_Om has to be an array of shape (3,)"
+        return se3(h_U, h_Om)
 
     @staticmethod
     def fromR6(h: np.ndarray) -> se3:
-        assert h.shape == (6,), "h has to be an array of length 6"
-        return se3(h)
+        assert h.shape == (6,), "h has to be an array of shape (6,)"
+        return se3(h[:3], h[3:])
 
     @staticmethod
-    def fromse3(h: se3) -> se3:
-        return se3.fromso3R3(h.h_U, h.h_Om)
+    def fromse3(other: se3) -> se3:
+        return se3(other.h_U, other.h_Om)
 
-    def __init__(self, h=None) -> None:
-        if h is None:
-            self.__h = np.zeros(6, dtype=float)
+    def __init__(self, h_U=None, h_Om=None) -> None:
+        if h_U is None:
+            self.__h_U = np.zeros(3, dtype=float)
         else:
-            # ensure float ndarray data
-            assert h.shape == (6,), "h has to be an array of length 6"
-            self.__h = np.asarray(h, dtype=float)
+            assert h_U.shape == (3,), "h_U has to be an array of shape (3,)"
+            self.__h_U = np.asarray(h_U, dtype=float)
+
+        if h_Om is None:
+            self.__h_Om = np.zeros(3, dtype=float)
+        else:
+            assert h_Om.shape == (3,), "h_Om has to be an array of shape (3,)"
+            self.__h_Om = np.asarray(h_Om, dtype=float)
 
     @property
     def h_U(self) -> np.ndarray:
-        return self.__h[:3]
+        return self.__h_U
 
     @h_U.setter
     def h_U(self, value: np.ndarray):
-        assert value.shape == (3,), "value has to be an array of length 3"
-        self.__h[:3] = value
+        assert value.shape == (3,), "value has to be an array of shape (3,)"
+        self.__h_U = value
 
     @property
     def h_Om(self) -> np.ndarray:
-        return self.__h[3:]
+        return self.__h_Om
 
     @h_Om.setter
     def h_Om(self, value: np.ndarray):
-        assert value.shape == (3,), "value has to be an array of length 3"
-        self.__h[3:] = value
+        assert value.shape == (3,), "value has to be an array of shape (3,)"
+        self.__h_Om = value
 
     def __call__(self) -> np.ndarray:
         return self.__h
 
     def __str__(self) -> str:
-        return f"h_U: {self.h_U}, h_OM: {self.h_Om}"
+        return f"h_U: {self.h_U}; h_OM: {self.h_Om}"
 
-    def __repr__(self) -> str:
-        return f'se3("{self.__str__}")'
-
-    def tilde(self) -> np.ndarray:
+    def __invert__(self) -> np.ndarray:
         tilde = np.zeros((4, 4), dtype=float)
         tilde[:3, :3] = ax2skew(self.h_Om)
         tilde[:3, 3] = self.h_U
@@ -72,20 +81,183 @@ class se3:
         check[3:, 3:] = ax2skew(self.h_U)
         return check
 
+    def exp(self):
+        out = np.zeros((4, 4), dtype=float)
+        omega = so3(self.h_Om)
+        out[:3, :3] = omega.exp()
+        out[:3, 3] = omega.T() @ self.h_U
+        out[3, 3] = 1.0
+        return out
+
+    @staticmethod
+    def T_UOm(a, b):
+        # abs_a = norm(a)
+        b2 = b @ b
+        abs_b = sqrt(b2)
+        # abs_b = norm(b)
+        alpha = sin(abs_b) / abs_b
+        beta = 2 * (1.0 - cos(abs_b)) / (abs_b**2)
+
+        a_tilde = ax2skew(a)
+        b_tilde = ax2skew(b)
+        ab = a_tilde @ b_tilde + b_tilde @ a_tilde
+
+        return (
+            -0.5 * beta * a_tilde
+            + (1.0 - alpha) * ab / b2
+            + (b @ a)
+            * (
+                (beta - alpha) * b_tilde
+                + (0.5 * beta - 3.0 * ((1.0 - alpha) / b2) * b_tilde @ b_tilde)
+            )
+            / b2
+        )
+
+    def T(self):
+        out = np.zeros((6, 6), dtype=float)
+        out[:3, :3] = out[3:, 3:] = so3(self.h_Om).T()
+        out[:3, 3:] = self.T_UOm(self.h_U, self.h_Om)
+        return out
+
+
+class so3:
+    def __init__(self, omega=None) -> None:
+        if omega is None:
+            self.__omega = np.zeros(3, dtype=float)
+        else:
+            assert omega.shape == (3,), "omega has to be an array of shape (3,)"
+            self.__omega = np.asarray(omega, dtype=float)
+
+    def __call__(self) -> np.ndarray:
+        return self.__omega
+
+    def __str__(self) -> str:
+        return f"{self()}"
+
+    def __invert__(self) -> np.ndarray:
+        """Tilde operation"""
+        return ax2skew(self())
+
+    def exp(self) -> np.ndarray:
+        """Exponential function. This is computed using Rodriguez formular."""
+        return rodriguez(self())
+
+    def T(self) -> np.ndarray:
+        return tangent_map(self())
+
+    def T_inv(self) -> np.ndarray:
+        return inverse_tangent_map(self())
+
+
+class SO3:
+    def __init__(self, R=None) -> None:
+        if R is None:
+            self.__R = np.eye(3, dtype=float)
+        else:
+            assert R.shape == (3, 3), "R has to be an array of shape (3, 3)"
+            self.__R = np.asarray(R, dtype=float)
+
+    def __call__(self) -> np.ndarray:
+        return self.__R
+
+    def __str__(self) -> str:
+        return f"{self()}"
+
+    def __invert__(self) -> SO3:
+        return SO3(self().T)
+
+    @property
+    def T(self) -> np.ndarray:
+        return self().T
+
+    def log(self):
+        return rodriguez_inv(self())
+
+
+class SE3:
+    def __init__(self, R=None, r=None) -> None:
+        if R is None:
+            self.__R = np.eye(3, dtype=float)
+        else:
+            assert R.shape == (3, 3), "R has to be an array of shape (3, 3)"
+            self.__R = np.asarray(R, dtype=float)
+
+        if r is None:
+            self.__r = np.zeros(3, dtype=float)
+        else:
+            assert r.shape == (3,), "r has to be an array of shape (3,)"
+            self.__r = np.asarray(r, dtype=float)
+
+    @property
+    def R(self) -> np.ndarray:
+        return self.__R
+
+    @R.setter
+    def R(self, value: np.ndarray):
+        assert value.shape == (3, 3), "value has to be an array of shape (3, 3)"
+        self.__R = value
+
+    @property
+    def r(self) -> np.ndarray:
+        return self.__r
+
+    @r.setter
+    def r(self, value: np.ndarray):
+        assert value.shape == (3,), "value has to be an array of shape (3,)"
+        self.__r = value
+
+    def __call__(self):
+        H = np.zeros((4, 4), dtype=float)
+        H[:3, :3] = self.R
+        H[:3, 3] = self.r
+        H[3, 3] = 1.0
+        return H
+
+    def __str__(self) -> str:
+        return f"{self()}"
+
+    def __invert__(self) -> SE3:
+        return SE3(self.R.T, -self.R.T @ self.r)
+
+    def log(self) -> np.ndarray:
+        omega = SO3(self.R).log()
+        T_inv_T = so3(omega).T_inv().T
+        out = np.zeros((4, 4), dtype=float)
+        out[:3, :3] = ax2skew(omega)
+        out[:3, 3] = T_inv_T @ self.r
+        return r
+
 
 if __name__ == "__main__":
-    h_U = np.array([-1, 0, 1])
-    h_Om = np.array([1, 2, 3])
+    # ###########
+    # # se3 tests
+    # ###########
+    # h_U = np.array([-1, 0, 1])
+    # h_Om = np.array([1, 2, 3])
 
-    # h = se3(h_U, h_Om)
-    h = se3.fromso3R3(h_U, h_Om)
-    h = se3.fromR6(np.concatenate((h_U, h_Om)))
-    h = se3.fromse3(h)
+    # # h = se3(h_U, h_Om)
+    # h = se3.fromso3R3(h_U, h_Om)
+    # h = se3.fromR6(np.concatenate((h_U, h_Om)))
+    # h = se3.fromse3(h)
 
-    h_tilde = h.tilde()
-    h_wedge = h.wedge()
-    h_check = h.check()
-    print(f"h: {h}")
-    print(f"h_tilde:\n{h_tilde}")
-    print(f"h_wedge:\n{h_wedge}")
-    print(f"h_check:\n{h_check}")
+    # h_tilde = h.tilde()
+    # h_wedge = h.wedge()
+    # h_check = h.check()
+    # print(f"h: {h}")
+    # print(f"h_tilde:\n{h_tilde}")
+    # print(f"h_wedge:\n{h_wedge}")
+    # print(f"h_check:\n{h_check}")
+
+    ###########
+    # SO3 tests
+    ###########
+    from cardillo.math import A_IK_basic
+
+    R = A_IK_basic(np.pi / 4).x()
+    r = np.array([1, 2, 3])
+    H = SE3(R, r)
+    # H = SE3()
+    H_inv = ~H
+
+    print(f"H:\n{H}")
+    print(f"H_inv:\n{H_inv}")
