@@ -247,8 +247,8 @@ def run(statics=True):
     Beam = TimoshenkoAxisAngleSE3
 
     # number of elements
-    # nelements = 1
-    nelements = 2
+    nelements = 1
+    # nelements = 2
     # nelements = 4
     # nelements = 8
     # nelements = 16
@@ -498,6 +498,32 @@ def run(statics=True):
     ax.set_ylabel("nodal rotation vectors")
     ax.grid()
     ax.legend()
+
+    ################################
+    # visualize norm strain measures
+    ################################
+    fig, ax = plt.subplots(1, 2)
+
+    nxi = 1000
+    xis = np.linspace(0, 1, num=nxi)
+
+    K_Gamma = np.zeros((3, nxi))
+    K_Kappa = np.zeros((3, nxi))
+    for i in range(nxi):
+        frame_ID = (xis[i],)
+        elDOF = beam.qDOF_P(frame_ID)
+        qe = q[-1, beam.qDOF][elDOF]
+        _, _, K_Gamma[:, i], K_Kappa[:, i] = beam.eval(qe, xis[i])
+    ax[0].plot(xis, K_Gamma[0], "-r", label="K_Gamma0")
+    ax[0].plot(xis, K_Gamma[1], "-g", label="K_Gamma1")
+    ax[0].plot(xis, K_Gamma[2], "-b", label="K_Gamma2")
+    ax[0].grid()
+    ax[0].legend()
+    ax[1].plot(xis, K_Kappa[0], "-r", label="K_Kappa0")
+    ax[1].plot(xis, K_Kappa[1], "-g", label="K_Kappa1")
+    ax[1].plot(xis, K_Kappa[2], "-b", label="K_Kappa2")
+    ax[1].grid()
+    ax[1].legend()
 
     # ########################################################
     # # visualize norm of tangent vector and quadrature points

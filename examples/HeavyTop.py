@@ -631,14 +631,18 @@ def convergence():
     tol = 1.0e-8
 
     # compute step sizes with powers of 2
-    dt_ref = 1.0e-5
+    # dt_ref = 1.0e-5
+    dt_ref = 2.5e-5
     dts = (2.0 ** np.arange(9, 3, -1)) * dt_ref
 
-    # end time
-    # t1 = (2. ** 14) * dt_ref # this is 0.16384
-    # t1 = (2. ** 13) * dt_ref # this is 0.8192
-    # t1 = (2. ** 7) * dt_ref
-    t1 = (2.0**17) * dt_ref  # this is 1.31072 s; TODO: Use this later!
+    # # end time
+    # # t1 = (2. ** 14) * dt_ref # this is 0.16384
+    # # t1 = (2. ** 13) * dt_ref # this is 0.8192
+    # # t1 = (2. ** 7) * dt_ref
+    # t1 = (2.0**17) * dt_ref  # this is 1.31072 s; TODO: Use this later!
+
+    t1 = (2.0**15) * dt_ref  # this yields 0.8192 for dt_ref = 2.5e-5
+    # t1 = (2.0**16) * dt_ref # this yields 1.6384 for dt_ref = 2.5e-5
 
     # # TODO: Only for debugging!
     # dt_ref = 5e-4

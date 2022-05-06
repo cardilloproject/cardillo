@@ -9,6 +9,7 @@ from .spatial import (
     DirectorAxisAngle,
     TimoshenkoQuaternion,
     TimoshenkoAxisAngle,
+    TimoshenkoAxisAngleSE3,
 )
 
 from .planar import (

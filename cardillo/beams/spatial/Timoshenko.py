@@ -40,8 +40,8 @@ class TimoshenkoAxisAngleSE3:
         q0=None,
         u0=None,
         basis="B-spline",
-        # use_K_r=True,
-        use_K_r=False,
+        use_K_r=True,
+        # use_K_r=False,
     ):
         # use K_r instead of I_r
         self.use_K_r = use_K_r
@@ -183,8 +183,8 @@ class TimoshenkoAxisAngleSE3:
             qe = self.Q[self.elDOF[el]]
 
             for i in range(nquadrature):
-                # evaluate strain measures and other quantities depending on chosen formulation
-                _, _, K_Gamma_bar, K_Kappa_bar = self.eval_qp(qe, el, i)
+                # evaluate strain measures
+                _, _, K_Gamma_bar, K_Kappa_bar = self.eval(qe, self.qp[el, i])
 
                 # length of reference tangential vector
                 # TODO: Is this correct?
@@ -278,47 +278,19 @@ class TimoshenkoAxisAngleSE3:
         A_OI = rodriguez(qe[self.nodalDOF_element_psi[self.node_A]])
         A_OJ = rodriguez(qe[self.nodalDOF_element_psi[self.node_B]])
 
-        # nodal SE(3) objects
-        H_I = SE3(A_OI, r_OI)
-        H_J = SE3(A_OJ, r_OJ)
+        return SE3(A_OI, r_OI)
+        # return SE3(A_OJ, r_OJ)
 
-        # midway SE3 and se3 objects
-        H_IJ = (~H_I) @ H_J
-        h_IJ = SE3.fromSE3(H_IJ).log()
+        # # nodal SE(3) objects
+        # H_I = SE3(A_OI, r_OI)
+        # H_J = SE3(A_OJ, r_OJ)
 
-        # reference SE3 object
-        return SE3.fromH(H_I() @ se3.fromR6(0.5 * h_IJ).exp())
+        # # midway SE3 and se3 objects
+        # H_IJ = (~H_I) @ H_J
+        # h_IJ = SE3.fromSE3(H_IJ).log()
 
-    def relative_interpolation_qp(
-        self, H_IR: np.ndarray, qe: np.ndarray, el: int, qp: int
-    ):
-        """Interpolation function for relative rotation vectors proposed by
-        Crisfield1999 (5.7) and (5.8)."""
-        # relative interpolation of local se(3) objects
-        h_rel = np.zeros(6)
-        h_rel_xi = np.zeros(6)
-
-        # TODO: We have to unify DOF's for r and psi again. They can't be
-        # different for the SE(3) formulation!
-        for node in range(self.nnodes_element_psi):
-            # nodal centerline
-            r_IK_node = qe[self.nodalDOF_element_r[node]]
-
-            # nodal rotation
-            A_IK_node = rodriguez(qe[self.nodalDOF_element_psi[node]])
-
-            # nodal SE(3) object
-            H_IK_node = SE3(A_IK_node, r_IK_node)
-
-            # relative SE3 and se3 objects
-            H_RK = (~H_IR) @ H_IK_node
-            omega_RK_node = SE3.fromSE3(H_RK).log()
-
-            # add wheighted contribution of local rotation
-            h_rel += self.N_psi[el, qp, node] * omega_RK_node
-            h_rel_xi += self.N_psi_xi[el, qp, node] * omega_RK_node
-
-        return h_rel, h_rel_xi
+        # # reference SE3 object
+        # return SE3.fromH(H_I() @ se3.fromR6(0.5 * h_IJ).exp())
 
     def relative_interpolation(self, H_IR: np.ndarray, qe: np.ndarray, xi: float):
         """Interpolation function for relative rotation vectors proposed by
@@ -354,32 +326,6 @@ class TimoshenkoAxisAngleSE3:
 
         return h_rel, h_rel_xi
 
-    def eval_qp(self, qe, el, qp):
-        # reference SE(3) object
-        H_IR = self.reference_rotation(qe)
-
-        # relative interpolation of se(3) nodes
-        h_rel, h_rel_xi = self.relative_interpolation_qp(H_IR, qe, el, qp)
-
-        # objective SE(3) and se(3) objects
-        H_IK = H_IR() @ se3.fromR6(h_rel).exp()
-
-        # objective strains
-        T = se3.fromR6(h_rel).T()
-        strains = T @ h_rel_xi
-
-        # extract centerline and transformation
-        A_IK = H_IK[:3, :3]
-        r = H_IK[:3, 3]
-        # K_r = H_IK[:3, 3]
-        # r = A_IK @ K_r
-
-        # extract strains
-        K_Gamma_bar = strains[:3]
-        K_Kappa_bar = strains[3:]
-
-        return r, A_IK, K_Gamma_bar, K_Kappa_bar
-
     def eval(self, qe, xi):
         # reference SE(3) object
         H_IR = self.reference_rotation(qe)
@@ -399,6 +345,13 @@ class TimoshenkoAxisAngleSE3:
         r = H_IK[:3, 3]
         # K_r = H_IK[:3, 3]
         # r = A_IK @ K_r
+
+        # A_IR = H_IR()[:3, :3]
+        # A_RK = rodriguez(h_rel[:3])
+        # A_IK = A_IR @ A_RK
+        # r_OR = H_IR()[:3, 3]
+        # R_r_RK = h_rel[3:]
+        # r = r_OR + A_IR @ R_r_RK
 
         # extract strains
         K_Gamma_bar = strains[:3]
@@ -540,7 +493,7 @@ class TimoshenkoAxisAngleSE3:
             K_Kappa0 = self.K_Kappa0[el, i]
 
             # objective interpolation
-            r, A_IK, K_Gamma_bar, K_Kappa_bar = self.eval_qp(qe, el, i)
+            _, _, K_Gamma_bar, K_Kappa_bar = self.eval(qe, self.qp[el, i])
 
             # axial and shear strains
             K_Gamma = K_Gamma_bar / Ji
@@ -575,7 +528,7 @@ class TimoshenkoAxisAngleSE3:
             K_Kappa0 = self.K_Kappa0[el, i]
 
             # objective interpolation
-            r, A_IK, K_Gamma_bar, K_Kappa_bar = self.eval_qp(qe, el, i)
+            _, A_IK, K_Gamma_bar, K_Kappa_bar = self.eval(qe, self.qp[el, i])
 
             # TODO: Is this correct?
             K_r_xi = K_Gamma_bar
