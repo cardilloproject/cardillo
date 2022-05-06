@@ -8,116 +8,7 @@ from cardillo.math import (
     tangent_map,
     inverse_tangent_map,
 )
-
-
-class se3:
-    @staticmethod
-    def fromso3R3(h_U: np.ndarray, h_Om: np.ndarray) -> se3:
-        assert h_U.shape == (3,), "h_U has to be an array of shape (3,)"
-        assert h_Om.shape == (3,), "h_Om has to be an array of shape (3,)"
-        return se3(h_U, h_Om)
-
-    @staticmethod
-    def fromR6(h: np.ndarray) -> se3:
-        assert h.shape == (6,), "h has to be an array of shape (6,)"
-        return se3(h[:3], h[3:])
-
-    @staticmethod
-    def fromse3(other: se3) -> se3:
-        return se3(other.h_U, other.h_Om)
-
-    def __init__(self, h_U=None, h_Om=None) -> None:
-        if h_U is None:
-            self.__h_U = np.zeros(3, dtype=float)
-        else:
-            assert h_U.shape == (3,), "h_U has to be an array of shape (3,)"
-            self.__h_U = np.asarray(h_U, dtype=float)
-
-        if h_Om is None:
-            self.__h_Om = np.zeros(3, dtype=float)
-        else:
-            assert h_Om.shape == (3,), "h_Om has to be an array of shape (3,)"
-            self.__h_Om = np.asarray(h_Om, dtype=float)
-
-    @property
-    def h_U(self) -> np.ndarray:
-        return self.__h_U
-
-    @h_U.setter
-    def h_U(self, value: np.ndarray):
-        assert value.shape == (3,), "value has to be an array of shape (3,)"
-        self.__h_U = value
-
-    @property
-    def h_Om(self) -> np.ndarray:
-        return self.__h_Om
-
-    @h_Om.setter
-    def h_Om(self, value: np.ndarray):
-        assert value.shape == (3,), "value has to be an array of shape (3,)"
-        self.__h_Om = value
-
-    def __call__(self) -> np.ndarray:
-        return self.__h
-
-    def __str__(self) -> str:
-        return f"h_U: {self.h_U}; h_OM: {self.h_Om}"
-
-    def __invert__(self) -> np.ndarray:
-        tilde = np.zeros((4, 4), dtype=float)
-        tilde[:3, :3] = ax2skew(self.h_Om)
-        tilde[:3, 3] = self.h_U
-        return tilde
-
-    def wedge(self) -> np.ndarray:
-        wedge = np.zeros((6, 6), dtype=float)
-        wedge[:3, :3] = wedge[3:, 3:] = ax2skew(self.h_Om)
-        wedge[:3, 3:] = ax2skew(self.h_U)
-        return wedge
-
-    def check(self) -> np.ndarray:
-        check = np.zeros((6, 6), dtype=float)
-        check[3:, :3] = check[:3, 3:] = ax2skew(self.h_Om)
-        check[3:, 3:] = ax2skew(self.h_U)
-        return check
-
-    def exp(self):
-        out = np.zeros((4, 4), dtype=float)
-        omega = so3(self.h_Om)
-        out[:3, :3] = omega.exp()
-        out[:3, 3] = omega.T() @ self.h_U
-        out[3, 3] = 1.0
-        return out
-
-    @staticmethod
-    def T_UOm(a, b):
-        # abs_a = norm(a)
-        b2 = b @ b
-        abs_b = sqrt(b2)
-        # abs_b = norm(b)
-        alpha = sin(abs_b) / abs_b
-        beta = 2 * (1.0 - cos(abs_b)) / (abs_b**2)
-
-        a_tilde = ax2skew(a)
-        b_tilde = ax2skew(b)
-        ab = a_tilde @ b_tilde + b_tilde @ a_tilde
-
-        return (
-            -0.5 * beta * a_tilde
-            + (1.0 - alpha) * ab / b2
-            + (b @ a)
-            * (
-                (beta - alpha) * b_tilde
-                + (0.5 * beta - 3.0 * ((1.0 - alpha) / b2) * b_tilde @ b_tilde)
-            )
-            / b2
-        )
-
-    def T(self):
-        out = np.zeros((6, 6), dtype=float)
-        out[:3, :3] = out[3:, 3:] = so3(self.h_Om).T()
-        out[:3, 3:] = self.T_UOm(self.h_U, self.h_Om)
-        return out
+from cardillo.math.algebra import skew2ax
 
 
 class so3:
@@ -174,7 +65,128 @@ class SO3:
         return rodriguez_inv(self())
 
 
+class se3:
+    @staticmethod
+    def fromso3R3(h_U: np.ndarray, h_Om: np.ndarray) -> se3:
+        assert h_U.shape == (3,), "h_U has to be an array of shape (3,)"
+        assert h_Om.shape == (3,), "h_Om has to be an array of shape (3,)"
+        return se3(h_U, h_Om)
+
+    @staticmethod
+    def fromR6(h: np.ndarray) -> se3:
+        assert h.shape == (6,), "h has to be an array of shape (6,)"
+        return se3(h[:3], h[3:])
+
+    @staticmethod
+    def fromse3(other: se3) -> se3:
+        return se3(other.h_U, other.h_Om)
+
+    def __init__(self, h_U=None, h_Om=None) -> None:
+        if h_U is None:
+            self.__h_U = np.zeros(3, dtype=float)
+        else:
+            assert h_U.shape == (3,), "h_U has to be an array of shape (3,)"
+            self.__h_U = np.asarray(h_U, dtype=float)
+
+        if h_Om is None:
+            self.__h_Om = np.zeros(3, dtype=float)
+        else:
+            assert h_Om.shape == (3,), "h_Om has to be an array of shape (3,)"
+            self.__h_Om = np.asarray(h_Om, dtype=float)
+
+    @property
+    def h_U(self) -> np.ndarray:
+        return self.__h_U
+
+    @h_U.setter
+    def h_U(self, value: np.ndarray):
+        assert value.shape == (3,), "value has to be an array of shape (3,)"
+        self.__h_U = value
+
+    @property
+    def h_Om(self) -> np.ndarray:
+        return self.__h_Om
+
+    @h_Om.setter
+    def h_Om(self, value: np.ndarray):
+        assert value.shape == (3,), "value has to be an array of shape (3,)"
+        self.__h_Om = value
+
+    def __call__(self) -> np.ndarray:
+        return np.concatenate((self.h_U, self.h_Om))
+
+    def __str__(self) -> str:
+        return f"h_U: {self.h_U}; h_OM: {self.h_Om}"
+
+    def __invert__(self) -> np.ndarray:
+        tilde = np.zeros((4, 4), dtype=float)
+        tilde[:3, :3] = ax2skew(self.h_Om)
+        tilde[:3, 3] = self.h_U
+        return tilde
+
+    def wedge(self) -> np.ndarray:
+        wedge = np.zeros((6, 6), dtype=float)
+        wedge[:3, :3] = wedge[3:, 3:] = ax2skew(self.h_Om)
+        wedge[:3, 3:] = ax2skew(self.h_U)
+        return wedge
+
+    def check(self) -> np.ndarray:
+        check = np.zeros((6, 6), dtype=float)
+        check[3:, :3] = check[:3, 3:] = ax2skew(self.h_Om)
+        check[3:, 3:] = ax2skew(self.h_U)
+        return check
+
+    def exp(self):
+        out = np.zeros((4, 4), dtype=float)
+        omega = so3(self.h_Om)
+        out[:3, :3] = omega.exp()
+        out[:3, 3] = omega.T() @ self.h_U
+        out[3, 3] = 1.0
+        return out
+
+    @staticmethod
+    def T_UOm(a, b):
+        a_tilde = ax2skew(a)
+
+        b2 = b @ b
+        if b2 > 0:
+            abs_b = sqrt(b2)
+            alpha = sin(abs_b) / abs_b
+            beta = 2 * (1.0 - cos(abs_b)) / (abs_b**2)
+
+            b_tilde = ax2skew(b)
+            ab = a_tilde @ b_tilde + b_tilde @ a_tilde
+
+            return (
+                -0.5 * beta * a_tilde
+                + (1.0 - alpha) * ab / b2
+                + (b @ a)
+                * (
+                    (beta - alpha) * b_tilde
+                    + (0.5 * beta - 3.0 * ((1.0 - alpha) / b2) * b_tilde @ b_tilde)
+                )
+                / b2
+            )
+        else:
+            return -0.5 * a_tilde
+
+    def T(self):
+        out = np.zeros((6, 6), dtype=float)
+        out[:3, :3] = out[3:, 3:] = so3(self.h_Om).T()
+        out[:3, 3:] = self.T_UOm(self.h_U, self.h_Om)
+        return out
+
+
 class SE3:
+    @staticmethod
+    def fromSE3(other: SE3) -> SE3:
+        return SE3(other.R, other.r)
+
+    @staticmethod
+    def fromH(H: np.ndarray) -> SE3:
+        assert H.shape == (4, 4), "H has to be an array of shape (3, 3)"
+        return SE3(H[:3, :3], H[:3, 3])
+
     def __init__(self, R=None, r=None) -> None:
         if R is None:
             self.__R = np.eye(3, dtype=float)
@@ -219,13 +231,14 @@ class SE3:
     def __invert__(self) -> SE3:
         return SE3(self.R.T, -self.R.T @ self.r)
 
+    def __matmul__(self, other) -> SE3:
+        """Inner product."""
+        return SE3.fromH(self() @ other())
+
     def log(self) -> np.ndarray:
-        omega = SO3(self.R).log()
-        T_inv_T = so3(omega).T_inv().T
-        out = np.zeros((4, 4), dtype=float)
-        out[:3, :3] = ax2skew(omega)
-        out[:3, 3] = T_inv_T @ self.r
-        return r
+        h_Om = SO3(self.R).log()
+        h_U = so3(h_Om).T_inv().T @ self.r
+        return np.concatenate((h_U, h_Om))
 
 
 if __name__ == "__main__":

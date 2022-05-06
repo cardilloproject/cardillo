@@ -220,8 +220,11 @@ class HeavyTop:
     def g_dot(self, t, q, u):
         return self.v_P(t, q, u, K_r_SP=self.K_r_SQ)
 
+    def g_dot_q(self, t, q, u, coo):
+        coo.extend(self.v_P_q(t, q, u, K_r_SP=self.K_r_SQ), (self.la_gDOF, self.qDOF))
+
     def g_dot_u(self, t, q, coo):
-        coo.extend(self.J_P(t, q, K_r_SP=self.K_r_SQ), (self.la_gDOF, self.qDOF))
+        coo.extend(self.J_P(t, q, K_r_SP=self.K_r_SQ), (self.la_gDOF, self.uDOF))
 
     def g_ddot(self, t, q, u, u_dot):
         return self.a_P(t, q, u, u_dot, K_r_SP=self.K_r_SQ)
@@ -231,6 +234,13 @@ class HeavyTop:
 
     def g_q(self, t, q, coo):
         coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
+
+    # TODO:
+    def g_q_T_mu_g(self, t, q, mu_g, coo):
+        dense = approx_fprime(
+            q, lambda q: mu_g @ self.g_q_dense(t, q), method="2-point"
+        )
+        coo.extend(dense, (self.uDOF, self.qDOF))
 
     def W_g_dense(self, t, q):
         return self.J_P(t, q, K_r_SP=self.K_r_SQ).T
@@ -616,42 +626,39 @@ def gaps():
 
 
 def convergence():
-    # end time and numerical dissipation of generalized-alpha solver
-    # t1 = 5
-    # t1 = 5 / 4
-    # t1 = 5 / 8
-    # t1 = 1
-    # t1 = 0.25
-    # t1 = 1
-    t1 = 0.1  # this is used for investigating the transient behavior
     rho_inf = 0.9
-    tol_ref = 1.0e-12
+    tol_ref = 1.0e-8
     tol = 1.0e-8
 
-    # log spaced time steps
-    # num = 3
-    # dts = np.logspace(-1, -num, num=num, endpoint=True)
-    # dts = np.logspace(-2, -num, num=num - 1, endpoint=True)
-    # dts = np.array([1.0e-2])
-    dts = np.array([5e-2, 1e-2])
-    # dts = np.array([5e-2, 1e-2, 1.0e-3])
-    # dts = np.array([1e-2, 1e-3, 1e-4])
-    # dts = np.array([1e-2, 5e-3, 1e-3, 5e-4, 1e-4]) # used by Arnold2015, p. 29
+    # compute step sizes with powers of 2
+    dt_ref = 1.0e-5
+    dts = (2.0 ** np.arange(9, 3, -1)) * dt_ref
+
+    # end time
+    # t1 = (2. ** 14) * dt_ref # this is 0.16384
+    # t1 = (2. ** 13) * dt_ref # this is 0.8192
+    # t1 = (2. ** 7) * dt_ref
+    t1 = (2.0**17) * dt_ref  # this is 1.31072 s; TODO: Use this later!
+
+    # # TODO: Only for debugging!
+    # dt_ref = 5e-4
+    # dts = np.array([1.0e-3])
+    # t1 = (2.0**11) * dt_ref
+
     dts_1 = dts
     dts_2 = dts**2
     print(f"dts: {dts}")
 
     # errors for all 6 possible solvers
-    q_errors = np.inf * np.ones((6, len(dts)), dtype=float)
-    u_errors = np.inf * np.ones((6, len(dts)), dtype=float)
-    la_g_errors = np.inf * np.ones((6, len(dts)), dtype=float)
+    q_errors_transient = np.inf * np.ones((6, len(dts)), dtype=float)
+    u_errors_transient = np.inf * np.ones((6, len(dts)), dtype=float)
+    la_g_errors_transient = np.inf * np.ones((6, len(dts)), dtype=float)
+    q_errors_longterm = np.inf * np.ones((6, len(dts)), dtype=float)
+    u_errors_longterm = np.inf * np.ones((6, len(dts)), dtype=float)
+    la_g_errors_longterm = np.inf * np.ones((6, len(dts)), dtype=float)
 
     # compute reference solution as described in Arnold2015 Section 3.3
     print(f"compute reference solution:")
-    # dt_ref = 1.0e-5
-    # dt_ref = 2.5e-5 # see Arnold2015 p. 174/ Arnodl2015b p. 14
-    # dt_ref = 1.0e-4
-    dt_ref = 1.0e-3
     reference = GenAlphaFirstOrder(
         model, t1, dt_ref, rho_inf=rho_inf, tol=tol_ref, unknowns="velocities", GGL=True
     ).solve()
@@ -728,42 +735,72 @@ def convergence():
         u = sol.u
         la_g = sol.la_g
 
+        # distinguish between transient and long term time steps
+        t_idx_transient = np.where(t <= 0.1)[0]
+        t_idx_longterm = np.where(t >= 0.5)[0]
+
         # compute difference between computed solution and reference solution
         # for identical time instants
-        idx = np.where(np.abs(t[:, None] - t_ref) < 1.0e-8)[1]
+        # idx = np.where(np.abs(t[:, None] - t_ref) < 1.0e-8)[1]
+        t_ref_idx_transient = np.where(
+            np.abs(t[t_idx_transient, None] - t_ref) < 1.0e-8
+        )[1]
+        t_ref_idx_longterm = np.where(np.abs(t[t_idx_longterm, None] - t_ref) < 1.0e-8)[
+            1
+        ]
 
         # differences
-        diff_q = q - q_ref[idx]
-        diff_u = u - u_ref[idx]
-        diff_la_g = la_g - la_g_ref[idx]
+        # diff_q = q - q_ref[idx]
+        # diff_u = u - u_ref[idx]
+        # diff_la_g = la_g - la_g_ref[idx]
 
-        # TODO: What error do we chose?
-        # # relative error
-        # q_error = np.linalg.norm(diff_q) / np.linalg.norm(q)
-        # u_error = np.linalg.norm(diff_u) / np.linalg.norm(u)
-        # la_g_error = np.linalg.norm(diff_la_g) / np.linalg.norm(la_g)
+        q_transient = q[t_idx_transient]
+        u_transient = u[t_idx_transient]
+        la_g_transient = la_g[t_idx_transient]
+        diff_transient_q = q_transient - q_ref[t_ref_idx_transient]
+        diff_transient_u = u_transient - u_ref[t_ref_idx_transient]
+        diff_transient_la_g = la_g_transient - la_g_ref[t_ref_idx_transient]
 
-        # # max abs difference
-        # q_error = np.max(np.abs(diff_q))
-        # u_error = np.max(np.abs(diff_u))
-        # la_g_error = np.max(np.abs(diff_la_g))
+        q_longterm = q[t_idx_longterm]
+        u_longterm = u[t_idx_longterm]
+        la_g_longterm = la_g[t_idx_longterm]
+        diff_longterm_q = q_longterm - q_ref[t_ref_idx_longterm]
+        diff_longterm_u = u_longterm - u_ref[t_ref_idx_longterm]
+        diff_longterm_la_g = la_g_longterm - la_g_ref[t_ref_idx_longterm]
 
         # max relative error
-        q_error = np.max(np.linalg.norm(diff_q, axis=0) / np.linalg.norm(q, axis=0))
-        u_error = np.max(np.linalg.norm(diff_u, axis=0) / np.linalg.norm(u, axis=0))
-        la_g_error = np.max(
-            np.linalg.norm(diff_la_g, axis=0) / np.linalg.norm(la_g, axis=0)
+        q_error_transient = np.max(
+            np.linalg.norm(diff_transient_q, axis=1)
+            / np.linalg.norm(q_transient, axis=1)
+        )
+        u_error_transient = np.max(
+            np.linalg.norm(diff_transient_u, axis=1)
+            / np.linalg.norm(u_transient, axis=1)
+        )
+        la_g_error_transient = np.max(
+            np.linalg.norm(diff_transient_la_g, axis=1)
+            / np.linalg.norm(la_g_transient, axis=1)
+        )
+        q_error_longterm = np.max(
+            np.linalg.norm(diff_longterm_q, axis=1) / np.linalg.norm(q_longterm, axis=1)
+        )
+        u_error_longterm = np.max(
+            np.linalg.norm(diff_longterm_u, axis=1) / np.linalg.norm(u_longterm, axis=1)
+        )
+        la_g_error_longterm = np.max(
+            np.linalg.norm(diff_longterm_la_g, axis=1)
+            / np.linalg.norm(la_g_longterm, axis=1)
         )
 
-        return q_error, u_error, la_g_error
-
-    # # generate files for error export that only contain the header
-    # header = "dt, dt2, pos, vel, aux, pos_GGL, vel_GGL, aux_GGL"
-    # header = np.array([["dt", "dt2", "pos", "vel", "aux", "pos_GGL", "vel_GGL", "aux_GGL"]])
-    # data = np.empty((0, 0))
-    # np.savetxt("error_heavy_top_q.txt", data, delimiter=", ", header=header, comments="")
-    # np.savetxt("error_heavy_top_u.txt", export_data, delimiter=", ", header=header, comments="")
-    # np.savetxt("error_heavy_top_la_g.txt", export_data, delimiter=", ", header=header, comments="")
+        # return q_error, u_error, la_g_error
+        return (
+            q_error_transient,
+            u_error_transient,
+            la_g_error_transient,
+            q_error_longterm,
+            u_error_longterm,
+            la_g_error_longterm,
+        )
 
     for i, dt in enumerate(dts):
         print(f"i: {i}, dt: {dt:1.1e}")
@@ -772,154 +809,213 @@ def convergence():
         sol = GenAlphaFirstOrder(
             model, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="positions", GGL=False
         ).solve()
-        q_errors[0, i], u_errors[0, i], la_g_errors[0, i] = errors(sol)
+        (
+            q_errors_transient[0, i],
+            u_errors_transient[0, i],
+            la_g_errors_transient[0, i],
+            q_errors_longterm[0, i],
+            u_errors_longterm[0, i],
+            la_g_errors_longterm[0, i],
+        ) = errors(sol)
 
         # velocity formulation
         sol = GenAlphaFirstOrder(
             model, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="velocities", GGL=False
         ).solve()
-        q_errors[1, i], u_errors[1, i], la_g_errors[1, i] = errors(sol)
+        (
+            q_errors_transient[1, i],
+            u_errors_transient[1, i],
+            la_g_errors_transient[1, i],
+            q_errors_longterm[1, i],
+            u_errors_longterm[1, i],
+            la_g_errors_longterm[1, i],
+        ) = errors(sol)
 
         # auxiliary formulation
         sol = GenAlphaFirstOrder(
             model, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="auxiliary", GGL=False
         ).solve()
-        q_errors[2, i], u_errors[2, i], la_g_errors[2, i] = errors(sol)
+        (
+            q_errors_transient[2, i],
+            u_errors_transient[2, i],
+            la_g_errors_transient[2, i],
+            q_errors_longterm[2, i],
+            u_errors_longterm[2, i],
+            la_g_errors_longterm[2, i],
+        ) = errors(sol)
 
         # GGL formulation - positions
         sol = GenAlphaFirstOrder(
             model, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="positions", GGL=True
         ).solve()
-        q_errors[3, i], u_errors[3, i], la_g_errors[3, i] = errors(sol)
+        (
+            q_errors_transient[3, i],
+            u_errors_transient[3, i],
+            la_g_errors_transient[3, i],
+            q_errors_longterm[3, i],
+            u_errors_longterm[3, i],
+            la_g_errors_longterm[3, i],
+        ) = errors(sol)
 
         # GGL formulation - velocityies
         sol = GenAlphaFirstOrder(
             model, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="velocities", GGL=True
         ).solve()
-        q_errors[4, i], u_errors[4, i], la_g_errors[4, i] = errors(sol)
+        (
+            q_errors_transient[4, i],
+            u_errors_transient[4, i],
+            la_g_errors_transient[4, i],
+            q_errors_longterm[4, i],
+            u_errors_longterm[4, i],
+            la_g_errors_longterm[4, i],
+        ) = errors(sol)
 
         # GGL formulation - auxiliary
         sol = GenAlphaFirstOrder(
             model, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="auxiliary", GGL=True
         ).solve()
-        q_errors[5, i], u_errors[5, i], la_g_errors[5, i] = errors(sol)
+        (
+            q_errors_transient[5, i],
+            u_errors_transient[5, i],
+            la_g_errors_transient[5, i],
+            q_errors_longterm[5, i],
+            u_errors_longterm[5, i],
+            la_g_errors_longterm[5, i],
+        ) = errors(sol)
 
-        #############################
-        # export errors and dt, dt**2
-        #############################
-        if i == 0:
-            header = "dt, dt2, pos, vel, aux, pos_GGL, vel_GGL, aux_GGL"
-            export_data = np.array([[dt, dt**2, *q_errors[:, i]]])
-            np.savetxt(
-                "error_heavy_top_q.txt",
-                export_data,
-                delimiter=", ",
-                header=header,
-                comments="",
-            )
-        else:
-            with open("error_heavy_top_q.txt", "ab") as f:
-                # f.write(b"\n")
-                export_data = np.array([[dt, dt**2, *q_errors[:, i]]])
-                np.savetxt(f, export_data, delimiter=", ", comments="")
+        # #############################
+        # # export errors and dt, dt**2
+        # #############################
+        # if i == 0:
+        #     header = "dt, dt2, pos, vel, aux, pos_GGL, vel_GGL, aux_GGL"
+        #     export_data = np.array([[dt, dt**2, *q_errors_transient[:, i]]])
+        #     np.savetxt(
+        #         "transient_error_heavy_top_q.txt",
+        #         export_data,
+        #         delimiter=", ",
+        #         header=header,
+        #         comments="",
+        #     )
+        # else:
+        #     with open("transient_error_heavy_top_q.txt", "ab") as f:
+        #         # f.write(b"\n")
+        #         export_data = np.array([[dt, dt**2, *q_errors_transient[:, i]]])
+        #         np.savetxt(f, export_data, delimiter=", ", comments="")
 
     #############################
     # export errors and dt, dt**2
     #############################
     header = "dt, dt2, pos, vel, aux, pos_GGL, vel_GGL, aux_GGL"
 
-    export_data = np.vstack((dts, dts_2, *q_errors)).T
+    # transient errors
+    export_data = np.vstack((dts, dts_2, *q_errors_transient)).T
     np.savetxt(
-        "error_heavy_top_q.txt", export_data, delimiter=", ", header=header, comments=""
-    )
-
-    export_data = np.vstack((dts, dts_2, *u_errors)).T
-    np.savetxt(
-        "error_heavy_top_u.txt", export_data, delimiter=", ", header=header, comments=""
-    )
-
-    export_data = np.vstack((dts, dts_2, *la_g_errors)).T
-    np.savetxt(
-        "error_heavy_top_la_g.txt",
+        "transient_error_heavy_top_q.txt",
         export_data,
         delimiter=", ",
         header=header,
         comments="",
     )
 
-    # # names = ["GenAlphaFirstOrder", "GenAlphaSecondOrder", "GenAlphaFirstOrderGGl", "Theta"]
-    # # ts = [t_GenAlphaFirstOrder, t_GenAlphaSecondOrder, t_GenAlphaFirstOrderGGl, t_ThetaNewton]
-    # # qs = [q_GenAlphaFirstOrder, q_GenAlphaSecondOrder, q_GenAlphaFirstOrderGGl, q_ThetaNewton]
-    # # us = [u_GenAlphaFirstOrder, u_GenAlphaSecondOrder, u_GenAlphaFirstOrderGGl, u_ThetaNewton]
-    # # la_gs = [la_g_GenAlphaFirstOrder, la_g_GenAlphaSecondOrder, la_g_GenAlphaFirstOrderGGl, la_g_ThetaNewton]
-    # names = ["pos", "vel", "aux", "pos-GGL", "vel-GGL", "aux-GGL"]
-    # ts = [t_GenAlphaFirstOrderGGl]
-    # qs = [q_GenAlphaFirstOrderGGl]
-    # us = [u_GenAlphaFirstOrderGGl]
-    # la_gs = [la_g_GenAlphaFirstOrderGGl]
-    # for i, name in enumerate(names):
-    #     filename = "sol_" + name + "_cartesian_pendulum_.txt"
-    #     # export_data = np.hstack((t_GenAlphaFirstOrderGGl[:, np.newaxis], q_GenAlphaFirstOrderGGl, u_GenAlphaFirstOrderGGl, la_g_GenAlphaFirstOrderGGl))
-    #     export_data = np.hstack((ts[i][:, np.newaxis], qs[i], us[i], la_gs[i]))
-    #     header = "t, x, y, x_dot, y_dot, la_g"
-    #     np.savetxt(filename, export_data, delimiter=", ", header=header, comments="")
+    export_data = np.vstack((dts, dts_2, *u_errors_transient)).T
+    np.savetxt(
+        "transient_error_heavy_top_u.txt",
+        export_data,
+        delimiter=", ",
+        header=header,
+        comments="",
+    )
 
-    #     filename = "error_" + name + "_cartesian_pendulum_.txt"
-    #     header = "dt, dt2, error_xy, error_xy_dot, error_la_g"
-    #     export_data = np.vstack((dts, dts_2, x_y_errors[i], x_dot_y_dot_errors[i], la_g_errors[i])).T
-    #     np.savetxt(filename, export_data, delimiter=", ", header=header, comments="")
+    export_data = np.vstack((dts, dts_2, *la_g_errors_transient)).T
+    np.savetxt(
+        "transient_error_heavy_top_la_g.txt",
+        export_data,
+        delimiter=", ",
+        header=header,
+        comments="",
+    )
+
+    # longterm errors
+    export_data = np.vstack((dts, dts_2, *q_errors_longterm)).T
+    np.savetxt(
+        "longterm_error_heavy_top_q.txt",
+        export_data,
+        delimiter=", ",
+        header=header,
+        comments="",
+    )
+
+    export_data = np.vstack((dts, dts_2, *u_errors_longterm)).T
+    np.savetxt(
+        "longterm_error_heavy_top_u.txt",
+        export_data,
+        delimiter=", ",
+        header=header,
+        comments="",
+    )
+
+    export_data = np.vstack((dts, dts_2, *la_g_errors_longterm)).T
+    np.savetxt(
+        "longterm_error_heavy_top_la_g.txt",
+        export_data,
+        delimiter=", ",
+        header=header,
+        comments="",
+    )
 
     ##################
     # visualize errors
     ##################
+
+    # transient errors
     fig, ax = plt.subplots(2, 3)
 
     # errors position formulation
-    ax[0, 0].loglog(dts, q_errors[0], "-.r", label="q")
-    ax[0, 0].loglog(dts, u_errors[0], "-.g", label="u")
-    ax[0, 0].loglog(dts, la_g_errors[0], "-.b", label="la_g")
     ax[0, 0].loglog(dts, dts_1, "-k", label="dt")
     ax[0, 0].loglog(dts, dts_2, "--k", label="dt^2")
+    ax[0, 0].loglog(dts, q_errors_transient[0], "-.ro", label="q")
+    ax[0, 0].loglog(dts, u_errors_transient[0], "-.go", label="u")
+    ax[0, 0].loglog(dts, la_g_errors_transient[0], "-.bo", label="la_g")
     ax[0, 0].set_title("position formulation")
     ax[0, 0].grid()
     ax[0, 0].legend()
 
     # errors velocity formulation
-    ax[0, 1].loglog(dts, q_errors[1], "-.r", label="q")
-    ax[0, 1].loglog(dts, u_errors[1], "-.g", label="u")
-    ax[0, 1].loglog(dts, la_g_errors[1], "-.b", label="la_g")
     ax[0, 1].loglog(dts, dts_1, "-k", label="dt")
     ax[0, 1].loglog(dts, dts_2, "--k", label="dt^2")
+    ax[0, 1].loglog(dts, q_errors_transient[1], "-.ro", label="q")
+    ax[0, 1].loglog(dts, u_errors_transient[1], "-.go", label="u")
+    ax[0, 1].loglog(dts, la_g_errors_transient[1], "-.bo", label="la_g")
     ax[0, 1].set_title("velocity formulation")
     ax[0, 1].grid()
     ax[0, 1].legend()
 
     # errors auxiliary formulation
-    ax[0, 2].loglog(dts, q_errors[2], "-.r", label="q")
-    ax[0, 2].loglog(dts, u_errors[2], "-.g", label="u")
-    ax[0, 2].loglog(dts, la_g_errors[2], "-.b", label="la_g")
     ax[0, 2].loglog(dts, dts_1, "-k", label="dt")
     ax[0, 2].loglog(dts, dts_2, "--k", label="dt^2")
+    ax[0, 2].loglog(dts, q_errors_transient[2], "-.ro", label="q")
+    ax[0, 2].loglog(dts, u_errors_transient[2], "-.go", label="u")
+    ax[0, 2].loglog(dts, la_g_errors_transient[2], "-.bo", label="la_g")
     ax[0, 2].set_title("auxiliary formulation")
     ax[0, 2].grid()
     ax[0, 2].legend()
 
     # errors position formulation
-    ax[1, 0].loglog(dts, q_errors[3], "-.r", label="q")
-    ax[1, 0].loglog(dts, u_errors[3], "-.g", label="u")
-    ax[1, 0].loglog(dts, la_g_errors[3], "-.b", label="la_g")
     ax[1, 0].loglog(dts, dts_1, "-k", label="dt")
     ax[1, 0].loglog(dts, dts_2, "--k", label="dt^2")
+    ax[1, 0].loglog(dts, q_errors_transient[3], "-.ro", label="q")
+    ax[1, 0].loglog(dts, u_errors_transient[3], "-.go", label="u")
+    ax[1, 0].loglog(dts, la_g_errors_transient[3], "-.bo", label="la_g")
     ax[1, 0].set_title("position formulation GGL")
     ax[1, 0].grid()
     ax[1, 0].legend()
 
     # errors velocity formulation
-    ax[1, 1].loglog(dts, q_errors[4], "-.r", label="q")
-    ax[1, 1].loglog(dts, u_errors[4], "-.g", label="u")
-    ax[1, 1].loglog(dts, la_g_errors[4], "-.b", label="la_g")
     ax[1, 1].loglog(dts, dts_1, "-k", label="dt")
     ax[1, 1].loglog(dts, dts_2, "--k", label="dt^2")
+    ax[1, 1].loglog(dts, q_errors_transient[4], "-.ro", label="q")
+    ax[1, 1].loglog(dts, u_errors_transient[4], "-.go", label="u")
+    ax[1, 1].loglog(dts, la_g_errors_transient[4], "-.bo", label="la_g")
     ax[1, 1].set_title("velocity formulation GGL")
     ax[1, 1].grid()
     ax[1, 1].legend()
@@ -927,9 +1023,72 @@ def convergence():
     # errors auxiliary formulation
     ax[1, 2].loglog(dts, dts_1, "-k", label="dt")
     ax[1, 2].loglog(dts, dts_2, "--k", label="dt^2")
-    ax[1, 2].loglog(dts, q_errors[5], "-.r", label="q")
-    ax[1, 2].loglog(dts, u_errors[5], "-.g", label="u")
-    ax[1, 2].loglog(dts, la_g_errors[5], "-.b", label="la_g")
+    ax[1, 2].loglog(dts, q_errors_transient[5], "-.ro", label="q")
+    ax[1, 2].loglog(dts, u_errors_transient[5], "-.go", label="u")
+    ax[1, 2].loglog(dts, la_g_errors_transient[5], "-.bo", label="la_g")
+    ax[1, 2].set_title("auxiliary formulation GGL")
+    ax[1, 2].grid()
+    ax[1, 2].legend()
+
+    # longterm errors
+    fig, ax = plt.subplots(2, 3)
+
+    # errors position formulation
+    ax[0, 0].loglog(dts, dts_1, "-k", label="dt")
+    ax[0, 0].loglog(dts, dts_2, "--k", label="dt^2")
+    ax[0, 0].loglog(dts, q_errors_longterm[0], "-.ro", label="q")
+    ax[0, 0].loglog(dts, u_errors_longterm[0], "-.go", label="u")
+    ax[0, 0].loglog(dts, la_g_errors_longterm[0], "-.bo", label="la_g")
+    ax[0, 0].set_title("position formulation")
+    ax[0, 0].grid()
+    ax[0, 0].legend()
+
+    # errors velocity formulation
+    ax[0, 1].loglog(dts, dts_1, "-k", label="dt")
+    ax[0, 1].loglog(dts, dts_2, "--k", label="dt^2")
+    ax[0, 1].loglog(dts, q_errors_longterm[1], "-.ro", label="q")
+    ax[0, 1].loglog(dts, u_errors_longterm[1], "-.go", label="u")
+    ax[0, 1].loglog(dts, la_g_errors_longterm[1], "-.bo", label="la_g")
+    ax[0, 1].set_title("velocity formulation")
+    ax[0, 1].grid()
+    ax[0, 1].legend()
+
+    # errors auxiliary formulation
+    ax[0, 2].loglog(dts, dts_1, "-k", label="dt")
+    ax[0, 2].loglog(dts, dts_2, "--k", label="dt^2")
+    ax[0, 2].loglog(dts, q_errors_longterm[2], "-.ro", label="q")
+    ax[0, 2].loglog(dts, u_errors_longterm[2], "-.go", label="u")
+    ax[0, 2].loglog(dts, la_g_errors_longterm[2], "-.bo", label="la_g")
+    ax[0, 2].set_title("auxiliary formulation")
+    ax[0, 2].grid()
+    ax[0, 2].legend()
+
+    # errors position formulation
+    ax[1, 0].loglog(dts, dts_1, "-k", label="dt")
+    ax[1, 0].loglog(dts, dts_2, "--k", label="dt^2")
+    ax[1, 0].loglog(dts, q_errors_longterm[3], "-.ro", label="q")
+    ax[1, 0].loglog(dts, u_errors_longterm[3], "-.go", label="u")
+    ax[1, 0].loglog(dts, la_g_errors_longterm[3], "-.bo", label="la_g")
+    ax[1, 0].set_title("position formulation GGL")
+    ax[1, 0].grid()
+    ax[1, 0].legend()
+
+    # errors velocity formulation
+    ax[1, 1].loglog(dts, dts_1, "-k", label="dt")
+    ax[1, 1].loglog(dts, dts_2, "--k", label="dt^2")
+    ax[1, 1].loglog(dts, q_errors_longterm[4], "-.ro", label="q")
+    ax[1, 1].loglog(dts, u_errors_longterm[4], "-.go", label="u")
+    ax[1, 1].loglog(dts, la_g_errors_longterm[4], "-.bo", label="la_g")
+    ax[1, 1].set_title("velocity formulation GGL")
+    ax[1, 1].grid()
+    ax[1, 1].legend()
+
+    # errors auxiliary formulation
+    ax[1, 2].loglog(dts, dts_1, "-k", label="dt")
+    ax[1, 2].loglog(dts, dts_2, "--k", label="dt^2")
+    ax[1, 2].loglog(dts, q_errors_longterm[5], "-.ro", label="q")
+    ax[1, 2].loglog(dts, u_errors_longterm[5], "-.go", label="u")
+    ax[1, 2].loglog(dts, la_g_errors_longterm[5], "-.bo", label="la_g")
     ax[1, 2].set_title("auxiliary formulation GGL")
     ax[1, 2].grid()
     ax[1, 2].legend()
@@ -938,6 +1097,6 @@ def convergence():
 
 
 if __name__ == "__main__":
-    transient()
+    # transient()
     # gaps()
-    # convergence()
+    convergence()
