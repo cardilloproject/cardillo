@@ -256,8 +256,8 @@ def run(statics=True):
     # nelements = 64
 
     # used polynomial degree
-    # polynomial_degree = 1
-    polynomial_degree = 2
+    polynomial_degree = 1
+    # polynomial_degree = 2
     # polynomial_degree = 3
     # polynomial_degree = 5
     # polynomial_degree = 6
@@ -266,8 +266,8 @@ def run(statics=True):
     # TODO: We have to distinguish between integration of the mass matrix,
     #       gyroscopic forces and potential forces!
     # nquadrature_points = int(np.ceil((polynomial_degree + 1)**2 / 2))
-    # nquadrature_points = polynomial_degree + 2
-    nquadrature_points = polynomial_degree + 1
+    nquadrature_points = polynomial_degree + 2
+    # nquadrature_points = polynomial_degree + 1 # this seems not to be sufficent for p > 1
     # nquadrature_points = (
     #     polynomial_degree  # cures locking but has to be modified for mass matrix
     # )
@@ -457,6 +457,7 @@ def run(statics=True):
             # n_load_steps=10,
             # n_load_steps=50,
             n_load_steps=100,
+            # n_load_steps=200,
             # n_load_steps=500,
             max_iter=30,
             # atol=1.0e-4,
