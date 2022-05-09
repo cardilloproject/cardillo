@@ -15,8 +15,12 @@ def animate_beam(t, q, beams, scale, scale_di=1, n_r=100, n_frames=10, show=True
 
     # prepare data for animation
     frames = len(q) - 1
-    target_frames = min(frames, 100)
-    frac = max(1, int(frames / target_frames))
+    if frames > 0:
+        target_frames = min(frames, 100)
+        frac = max(1, int(frames / target_frames))
+    else:
+        target_frames = 1
+        frac = 1
     animation_time = 1
     interval = animation_time * 1000 / target_frames
 

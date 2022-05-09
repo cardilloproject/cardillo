@@ -253,12 +253,16 @@ class TimoshenkoAxisAngleSE3:
 
         # reshape generalized coordinates to nodal ordering
         q_r = r0.reshape(-1, order="F")
+        # q_r[:3] = np.zeros(3)
+        # q_r[3:6] = L * np.sqrt(2) / 2. * np.array([1, 1, 0], dtype=float)
 
         # TODO: Relative interpolation case!
         # we have to extract the rotation vector from the given rotation matrix
         # and set its value for each node
         psi = rodriguez_inv(A_IK)
         q_psi = np.tile(psi, nn_psi)
+        # q_psi[:3] = np.zeros(3)
+        # q_psi[3:6] = np.pi / 4. * np.array([0, 0, 1], dtype=float)
 
         return np.concatenate([q_r, q_psi])
 
