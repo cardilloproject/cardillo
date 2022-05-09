@@ -30,7 +30,6 @@ from cardillo.solver import (
 
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
 
 
 def quadratic_beam_material(E, G, cross_section, Beam):

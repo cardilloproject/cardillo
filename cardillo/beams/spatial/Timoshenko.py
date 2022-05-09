@@ -1,7 +1,7 @@
 import numpy as np
 import meshio
 import os
-from math import sin, cos
+from math import sin, cos, sqrt
 
 from cardillo.utility.coo import Coo
 from cardillo.discretization.B_spline import KnotVector
@@ -24,6 +24,113 @@ from cardillo.math import (
 )
 
 from cardillo.math.SE3 import SE3, se3
+
+
+def SE3(R, r):
+    H = np.zeros((4, 4), dtype=float)
+    H[:3, :3] = R
+    H[:3, 3] = r
+    H[3, 3] = 1.0
+    return H
+
+
+def SE3inv(H):
+    R = H[:3, :3]
+    r = H[:3, 3]
+    return SE3(R.T, -R.T @ r)  # Sonneville2013 (12)
+
+
+def SE3log(H):
+    """See Murray1994 Example A.14."""
+    R = H[:3, :3]
+    r = H[:3, 3]
+
+    # log SO(3)
+    psi = rodriguez_inv(R)
+
+    # inverse tangent map
+    psi2 = psi @ psi
+    A_inv = np.eye(3, dtype=float)
+    if psi2 > 0:
+        abs_psi = sqrt(psi2)
+        psi_tilde = ax2skew(psi)
+        A_inv += (
+            -0.5 * psi_tilde
+            + (2.0 * sin(abs_psi) - abs_psi * (1.0 + cos(abs_psi)))
+            / (2.0 * psi2 * sin(abs_psi))
+            * psi_tilde
+            @ psi_tilde
+        )
+        # A_inv = inverse_tangent_map(psi).T # Sonneville2013 (A.15)
+
+    h = np.concatenate((A_inv @ r, psi))
+    return h
+
+
+def se3exp(h):
+    """See Murray1994 Example A.12."""
+    r = h[:3]
+    psi = h[3:]
+    psi2 = psi @ psi
+
+    H = np.eye(4, dtype=float)
+    if psi2 > 0:
+        # exp SO(3)
+        H[:3, :3] = rodriguez(psi)
+
+        # tangent map
+        abs_psi = sqrt(psi2)
+        psi_tilde = ax2skew(psi)
+        A = (
+            np.eye(3, dtype=float)
+            + (1.0 - cos(abs_psi)) / psi2 * psi_tilde
+            + (abs_psi - sin(abs_psi)) / (abs_psi * psi2) * psi_tilde @ psi_tilde
+        )
+        # A = tangent_map(psi).T # Sonneville2013 (A.10)
+
+        H[:3, 3] = A @ r
+    else:
+        H[:3, 3] = r
+
+    return H
+
+
+def T_UOm(a, b):
+    """Position part of the tangent map in se(3), see Sonnville2013 (A.12)."""
+    a_tilde = ax2skew(a)
+
+    b2 = b @ b
+    if b2 > 0:
+        abs_b = sqrt(b2)
+        alpha = sin(abs_b) / abs_b
+        beta = 2.0 * (1.0 - cos(abs_b)) / b2
+
+        b_tilde = ax2skew(b)
+        ab = a_tilde @ b_tilde + b_tilde @ a_tilde
+
+        return (
+            -0.5 * beta * a_tilde
+            + (1.0 - alpha) * ab / b2
+            + (b @ a)
+            * (
+                (beta - alpha) * b_tilde
+                + (0.5 * beta - 3.0 * ((1.0 - alpha) / b2) * b_tilde @ b_tilde)
+            )
+            / b2
+        )
+    else:
+        return -0.5 * a_tilde
+
+
+def se3tangent_map(h):
+    """Tangent map in se(3), see Sonnville2013 (A.11)."""
+    r = h[:3]
+    psi = h[3:]
+
+    T = np.zeros((6, 6), dtype=float)
+    T[:3, :3] = T[3:, 3:] = tangent_map(psi)
+    T[:3, 3:] = T_UOm(r, psi)
+    return T
 
 
 class TimoshenkoAxisAngleSE3:
@@ -270,31 +377,40 @@ class TimoshenkoAxisAngleSE3:
         # note the elements coincide for both meshes!
         return self.knot_vector_r.element_number(xi)[0]
 
-    def reference_rotation(self, qe: np.ndarray):
+    def reference_rotation(self, qe: np.ndarray, case="left"):
+        # def reference_rotation(self, qe: np.ndarray, case="right"):
+        # def reference_rotation(self, qe: np.ndarray, case="midway"):
         """Reference rotation for SE(3) object in analogy to the proposed
-        formulation by Crisfield1999 (5.8)."""
+        formulation by Crisfield1999 (5.8).
 
-        # nodal centerline
-        r_OI = qe[self.nodalDOF_element_r[self.node_A]]
-        r_OJ = qe[self.nodalDOF_element_r[self.node_B]]
+        Three cases are implemented: 'left', 'right', and 'midway'.
+        """
 
-        # nodal rotations
-        A_OI = rodriguez(qe[self.nodalDOF_element_psi[self.node_A]])
-        A_OJ = rodriguez(qe[self.nodalDOF_element_psi[self.node_B]])
+        if case == "left":
+            r_IA = qe[self.nodalDOF_element_r[0]]
+            A_IA = rodriguez(qe[self.nodalDOF_element_psi[0]])
+            return SE3(A_IA, r_IA)
+        elif case == "right":
+            r_IB = qe[self.nodalDOF_element_r[0]]
+            A_IB = rodriguez(qe[self.nodalDOF_element_psi[0]])
+            return SE3(A_IB, r_IB)
+        elif case == "midway":
+            # nodal centerline
+            r_IA = qe[self.nodalDOF_element_r[self.node_A]]
+            r_IB = qe[self.nodalDOF_element_r[self.node_B]]
 
-        return SE3(A_OI, r_OI)
-        # return SE3(A_OJ, r_OJ)
+            # nodal rotations
+            A_IA = rodriguez(qe[self.nodalDOF_element_psi[self.node_A]])
+            A_IB = rodriguez(qe[self.nodalDOF_element_psi[self.node_B]])
 
-        # # nodal SE(3) objects
-        # H_I = SE3(A_OI, r_OI)
-        # H_J = SE3(A_OJ, r_OJ)
+            # nodal SE(3) objects
+            H_IA = SE3(A_IA, r_IA)
+            H_IB = SE3(A_IB, r_IB)
 
-        # # midway SE3 and se3 objects
-        # H_IJ = (~H_I) @ H_J
-        # h_IJ = SE3.fromSE3(H_IJ).log()
-
-        # # reference SE3 object
-        # return SE3.fromH(H_I() @ se3.fromR6(0.5 * h_IJ).exp())
+            # midway SE(3) object
+            return H_IA @ se3exp(0.5 * SE3log(SE3inv(H_IA) @ H_IB))
+        else:
+            raise RuntimeError("Unsupported case chosen.")
 
     def relative_interpolation(self, H_IR: np.ndarray, qe: np.ndarray, xi: float):
         """Interpolation function for relative rotation vectors proposed by
@@ -308,6 +424,9 @@ class TimoshenkoAxisAngleSE3:
         h_rel = np.zeros(6)
         h_rel_xi = np.zeros(6)
 
+        # evaluate inverse reference SE(3) object
+        H_RI = SE3inv(H_IR)
+
         # TODO: We have to unify DOF's for r and psi again. They can't be
         # different for the SE(3) formulation!
         for node in range(self.nnodes_element_psi):
@@ -320,13 +439,13 @@ class TimoshenkoAxisAngleSE3:
             # nodal SE(3) object
             H_IK_node = SE3(A_IK_node, r_IK_node)
 
-            # relative SE3 and se3 objects
-            H_RK = (~H_IR) @ H_IK_node
-            omega_RK_node = SE3.fromSE3(H_RK).log()
+            # relative SE(3)/ se(3) objects
+            H_RK = H_RI @ H_IK_node
+            h_RK = SE3log(H_RK)
 
-            # add wheighted contribution of local rotation
-            h_rel += N[node] * omega_RK_node
-            h_rel_xi += N_xi[node] * omega_RK_node
+            # add wheighted contribution of local se(3) object
+            h_rel += N[node] * h_RK
+            h_rel_xi += N_xi[node] * h_RK
 
         return h_rel, h_rel_xi
 
@@ -337,25 +456,16 @@ class TimoshenkoAxisAngleSE3:
         # relative interpolation of se(3) nodes
         h_rel, h_rel_xi = self.relative_interpolation(H_IR, qe, xi)
 
-        # objective SE(3) and se(3) objects
-        H_IK = H_IR() @ se3.fromR6(h_rel).exp()
+        # composition of reference rotation and relative one
+        H_IK = H_IR @ se3exp(h_rel)
 
         # objective strains
-        T = se3.fromR6(h_rel).T()
+        T = se3tangent_map(h_rel)
         strains = T @ h_rel_xi
 
         # extract centerline and transformation
         A_IK = H_IK[:3, :3]
         r = H_IK[:3, 3]
-        # K_r = H_IK[:3, 3]
-        # r = A_IK @ K_r
-
-        # A_IR = H_IR()[:3, :3]
-        # A_RK = rodriguez(h_rel[:3])
-        # A_IK = A_IR @ A_RK
-        # r_OR = H_IR()[:3, 3]
-        # R_r_RK = h_rel[3:]
-        # r = r_OR + A_IR @ R_r_RK
 
         # extract strains
         K_Gamma_bar = strains[:3]
