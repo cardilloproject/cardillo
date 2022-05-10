@@ -736,7 +736,13 @@ def locking():
 
 
 def SE3_interpolation():
-    from cardillo.beams.spatial.Timoshenko import SE3, SE3inv, SE3log, se3exp
+    from cardillo.beams.spatial.Timoshenko import (
+        SE3,
+        SE3inv,
+        SE3log,
+        se3exp,
+        se3tangent_map,
+    )
 
     # def reference_rotation(r_IA, r_IB, A_IA, A_IB, case="left"):
     # def reference_rotation(r_IA, r_IB, A_IA, A_IB, case="right"):
@@ -778,9 +784,8 @@ def SE3_interpolation():
 
         H_nodes = [H_IA, H_IB]
         h_rel = np.zeros(6, dtype=float)
+        h_rel_xi = np.zeros(6, dtype=float)
         for node in range(2):
-            # print(f"node: {node}")
-
             # current SE(3) object
             H_IK = H_nodes[node]
 
@@ -791,54 +796,62 @@ def SE3_interpolation():
             # relative interpolation of se(3) using linear shape functions
             if node == 0:
                 h_rel += (1.0 - xi) * h_RK
+                h_rel_xi += -h_RK
             else:
                 h_rel += xi * h_RK
+                h_rel_xi += h_RK
+
+        # # composition of reference rotation and relative one
+        # H_IK = H_IR @ se3exp(h_rel)
+
+        # # extract centerline and transformation matrix
+        # A_IK = H_IK[:3, :3]
+        # r_OP = H_IK[:3, 3]
 
         # composition of reference rotation and relative one
         H_IK = H_IR @ se3exp(h_rel)
 
-        # extract centerline and transformation matrix
+        # objective strains
+        T = se3tangent_map(h_rel)
+        strains = T @ h_rel_xi
+
+        # extract centerline and transformation
         A_IK = H_IK[:3, :3]
         r_OP = H_IK[:3, 3]
 
-        return r_OP, A_IK
+        # extract strains
+        K_Gamma_bar = strains[:3]  # this is K_r_xi
+        K_Kappa_bar = strains[3:]
 
-        # # extract se(3) object
-        # h_IK = SE3log(H_IK)
-        # return h_IK, H_IK
+        return r_OP, A_IK, K_Gamma_bar, K_Kappa_bar
 
+    # orgin and zero rotatin vector
     r_OA = np.zeros(3, dtype=float)
-    r_OB = np.sqrt(2.0) / 2.0 * np.array([1, 1, 0], dtype=float)
-
     psi_A = np.zeros(3, dtype=float)
-    psi_B = np.pi / 2.0 * np.array([0, 0, 1], dtype=float)
 
-    num = 10
+    # # quater circle
+    # r_OB = np.sqrt(2.0) / 2.0 * np.array([1, 1, 0], dtype=float)
+    # psi_B = np.pi / 2.0 * np.array([0, 0, 1], dtype=float)
+
+    # half circle
+    r_OB = np.array([0, 1, 0], dtype=float)
+    psi_B = np.pi * np.array([0, 0, 1], dtype=float)
+
+    num = 20
     xis = np.linspace(0, 1, num=num)
 
-    # h = np.zeros((num, 6), dtype=float)
-    # H = np.zeros((num, 4, 4), dtype=float)
     r_OP = np.zeros((3, num), dtype=float)
     A_IK = np.zeros((num, 3, 3), dtype=float)
+    K_Gamma_bar = np.zeros((3, num), dtype=float)
+    K_Kappa_bar = np.zeros((3, num), dtype=float)
     for i, xi in enumerate(xis):
-        r_OP[:, i], A_IK[i] = interp1(r_OA, r_OB, psi_A, psi_B, xi)
+        r_OP[:, i], A_IK[i], K_Gamma_bar[:, i], K_Kappa_bar[:, i] = interp1(
+            r_OA, r_OB, psi_A, psi_B, xi
+        )
 
-    # # centerline
-    # r_OP = h[:, :3].T
-
-    # # rotation vector
-    # psi = h[:, 3:].T
-
-    # # directors
-    # A_IK = H[:, :3, :3].T
-    # # A_IK = np.array([
-    # #     rodriguez(psii) for psii in psi
-    # # ])
-    # d1, d2, d3 = A_IK.transpose(1, 0, 2)
-    # d1, d2, d3 = A_IK.transpose(1, 2, 0)
     d1 = np.array([A_IKi[:, 0] for A_IKi in A_IK]).T
     d2 = np.array([A_IKi[:, 1] for A_IKi in A_IK]).T
-    d3 = np.array([A_IKi[:, 2] for A_IKi in A_IK]).T
+    # d3 = np.array([A_IKi[:, 2] for A_IKi in A_IK]).T
 
     fig, ax = plt.subplots()
     ax.plot(r_OP[0], r_OP[1], "-k")
