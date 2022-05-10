@@ -94,7 +94,7 @@ def se3exp(h):
     return H
 
 
-def T_UOm(a, b):
+def T_UOm_p(a, b):
     """Position part of the tangent map in se(3), see Sonnville2013 (A.12)."""
     a_tilde = ax2skew(a)
 
@@ -128,7 +128,44 @@ def se3tangent_map(h):
 
     T = np.zeros((6, 6), dtype=float)
     T[:3, :3] = T[3:, 3:] = tangent_map(psi)
-    T[:3, 3:] = T_UOm(r, psi)
+    T[:3, 3:] = T_UOm_p(r, psi)
+    return T
+
+
+def T_UOm_m(a, b):
+    """Position part of the inverse tangent map in se(3), see Sonnville2013 (A.14)."""
+    a_tilde = ax2skew(a)
+
+    b2 = b @ b
+    if b2 > 0:
+        abs_b = sqrt(b2)
+        alpha = sin(abs_b) / abs_b
+        beta = 2.0 * (1.0 - cos(abs_b)) / b2
+
+        b_tilde = ax2skew(b)
+        ab = a_tilde @ b_tilde + b_tilde @ a_tilde
+
+        return (
+            0.5 * a_tilde
+            + (beta - alpha) / (beta * b2) * ab
+            + (1.0 + alpha - 2.0 * beta)
+            / (beta * b2 * b2)
+            * (b @ a)
+            * b_tilde
+            @ b_tilde
+        )
+    else:
+        return 0.5 * a_tilde
+
+
+def se3inverse_tangent_map(h):
+    """Inverse tangent map in se(3), see Sonnville2013 (A.13)."""
+    r = h[:3]
+    psi = h[3:]
+
+    T = np.zeros((6, 6), dtype=float)
+    T[:3, :3] = T[3:, 3:] = inverse_tangent_map(psi)
+    T[:3, 3:] = T_UOm_m(r, psi)
     return T
 
 
@@ -146,8 +183,8 @@ class TimoshenkoAxisAngleSE3:
         q0=None,
         u0=None,
         basis="B-spline",
-        use_K_r=True,
-        # use_K_r=False,
+        # use_K_r=True,
+        use_K_r=False,
     ):
         # use K_r instead of I_r
         self.use_K_r = use_K_r
@@ -345,9 +382,9 @@ class TimoshenkoAxisAngleSE3:
         # note the elements coincide for both meshes!
         return self.knot_vector_r.element_number(xi)[0]
 
-    def reference_rotation(self, qe: np.ndarray, case="left"):
-        # def reference_rotation(self, qe: np.ndarray, case="right"):
-        # def reference_rotation(self, qe: np.ndarray, case="midway"):
+    # def reference_rotation(self, qe: np.ndarray, case="left"):
+    # def reference_rotation(self, qe: np.ndarray, case="right"):
+    def reference_rotation(self, qe: np.ndarray, case="midway"):
         """Reference rotation for SE(3) object in analogy to the proposed
         formulation by Crisfield1999 (5.8).
 
@@ -426,13 +463,8 @@ class TimoshenkoAxisAngleSE3:
 
         # composition of reference rotation and relative one
         H_IK = H_IR @ se3exp(h_rel)
-        # H_IK_xi = H_IK @ se3exp(h_rel_xi) # chain rule is missing!
 
         # objective strains
-        # strains_tilde = SE3inv(H_IK) @ H_IK_xi
-        # strains2 = np.zeros(6, dtype=float)
-        # strains2[:3] = strains_tilde[:3, 3]
-        # strains2[3:] = skew2ax(strains_tilde[:3, :3])
         T = se3tangent_map(h_rel)
         strains = T @ h_rel_xi
 
@@ -618,7 +650,7 @@ class TimoshenkoAxisAngleSE3:
             r_OP, A_IK, K_Gamma_bar, K_Kappa_bar = self.eval(qe, self.qp[el, i])
 
             # centerline and tangent
-            K_r_OP = A_IK.T @ r_OP
+            # K_r_OP = A_IK.T @ r_OP
             K_r_xi = K_Gamma_bar
 
             # axial and shear strains
@@ -632,15 +664,34 @@ class TimoshenkoAxisAngleSE3:
             K_n = self.material_model.K_n(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
             K_m = self.material_model.K_m(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
 
+            # # reference SE(3) object
+            # H_IR = self.reference_rotation(qe)
+
+            # # relative interpolation of se(3) nodes
+            # h_rel, _ = self.relative_interpolation(H_IR, qe, self.qp[el, i])
+
+            # T_inv = se3inverse_tangent_map(h_rel)
+            # K_f = np.concatenate((K_n, K_m))
+            # K_F = T_inv @ K_f
+
+            # for node in range(self.nnodes_element_r):
+            #     f_pot_el[self.nodalDOF_element_r[node]] -= (
+            #         self.N_r[el, i, node] * K_F[:3] * qwi
+            #     )
+
+            # for node in range(self.nnodes_element_psi):
+            #     f_pot_el[self.nodalDOF_element_psi[node]] -= (
+            #         self.N_psi[el, i, node] * K_F[3:] * qwi
+            #     )
+
             # - first delta Gamma part
             if self.use_K_r:
                 for node in range(self.nnodes_element_r):
                     f_pot_el[self.nodalDOF_element_r[node]] -= (
                         self.N_r_xi[el, i, node] * K_n * qwi
                     )
-                for node in range(self.nnodes_element_psi):
                     f_pot_el[self.nodalDOF_element_r[node]] += (
-                        self.N_psi[el, i, node] * cross3(K_Kappa_bar, K_n) * qwi
+                        self.N_r[el, i, node] * cross3(K_Kappa_bar, K_n) * qwi
                     )  # Euler term
             else:
                 for node in range(self.nnodes_element_r):

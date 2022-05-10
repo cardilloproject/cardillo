@@ -493,8 +493,9 @@ def locking():
     Beam = TimoshenkoAxisAngleSE3
 
     # number of elements
-    nelements = 1
+    # nelements = 1
     # nelements = 2
+    nelements = 3
     # nelements = 4
     # nelements = 8
     # nelements = 16
@@ -521,11 +522,11 @@ def locking():
 
     # beam length
     # L = 1.0e3 # Meier2015
-    L = 1
+    L = 10
 
     # used cross section
-    slenderness = 1
-    # slenderness = 1.0e1
+    # slenderness = 1
+    slenderness = 1.0e1
     # slenderness = 1.0e2
     # slenderness = 1.0e3
     # slenderness = 1.0e4
@@ -555,7 +556,7 @@ def locking():
     # starting point and orientation of initial point, initial length
     r_OP = np.zeros(3)
     A_IK = np.eye(3)
-    L = radius * slenderness
+    # L = radius * slenderness
 
     # build beam model
     beam = beam_factory(
@@ -582,20 +583,22 @@ def locking():
     # moment at right end
     Fi = material_model.Fi
     M = (
-        lambda t: (e1 * Fi[0])
-        # lambda t: (e2 * Fi[1])
+        # lambda t: (e1 * Fi[0])
+        lambda t: (e2 * Fi[1])
         # lambda t: (e3 * Fi[2])
         # lambda t: (e1 * Fi[0] + e3 * Fi[2]) * 1.0e-1
+        # lambda t: (e2 * Fi[1] + e3 * Fi[2])
         * smoothstep2(t, 0.0, 1)
         * 2
         * np.pi
         / L
-        * 0.25
+        # * 0.25
     )
     moment = K_Moment(M, beam, (1,))
 
     # external force at the right end
     force = Force(lambda t: -t * e3, beam, frame_ID=(1,), K_r_SP=e2)
+    # force = Force(lambda t: -t * e3, beam, frame_ID=(0.5,), K_r_SP=e2)
 
     # assemble the model
     model = Model()
@@ -733,70 +736,30 @@ def locking():
 
 
 def SE3_interpolation():
-    def SE3(R, r):
-        H = np.zeros((4, 4), dtype=float)
-        H[:3, :3] = R
-        H[:3, 3] = r
-        H[3, 3] = 1.0
-        return H
+    from cardillo.beams.spatial.Timoshenko import SE3, SE3inv, SE3log, se3exp
 
-    def SE3inv(H):
-        R = H[:3, :3]
-        r = H[:3, 3]
-        return SE3(R.T, -R.T @ r)  # Sonneville2013 (12)
+    # def reference_rotation(r_IA, r_IB, A_IA, A_IB, case="left"):
+    # def reference_rotation(r_IA, r_IB, A_IA, A_IB, case="right"):
+    def reference_rotation(r_IA, r_IB, A_IA, A_IB, case="midway"):
+        """Reference rotation for SE(3) object in analogy to the proposed
+        formulation by Crisfield1999 (5.8).
 
-    def SE3log(H):
-        """See Murray1994 Example A.14."""
-        R = H[:3, :3]
-        r = H[:3, 3]
+        Three cases are implemented: 'midway', 'left'  and 'right'.
+        """
 
-        # log SO(3)
-        psi = rodriguez_inv(R)
+        if case == "midway":
+            # nodal SE(3) objects
+            H_IA = SE3(A_IA, r_IA)
+            H_IB = SE3(A_IB, r_IB)
 
-        # inverse tangent map
-        psi2 = psi @ psi
-        A_inv = np.eye(3, dtype=float)
-        if psi2 > 0:
-            abs_psi = sqrt(psi2)
-            psi_tilde = ax2skew(psi)
-            A_inv += (
-                -0.5 * psi_tilde
-                + (2.0 * sin(abs_psi) - abs_psi * (1.0 + cos(abs_psi)))
-                / (2.0 * psi2 * sin(abs_psi))
-                * psi_tilde
-                @ psi_tilde
-            )
-            # A_inv = inverse_tangent_map(psi).T # Sonneville2013 (A.15)
-
-        h = np.concatenate((A_inv @ r, psi))
-        return h
-
-    def se3exp(h):
-        """See Murray1994 Example A.12."""
-        r = h[:3]
-        psi = h[3:]
-        psi2 = psi @ psi
-
-        H = np.eye(4, dtype=float)
-        if psi2 > 0:
-            # exp SO(3)
-            H[:3, :3] = rodriguez(psi)
-
-            # tangent map
-            abs_psi = sqrt(psi2)
-            psi_tilde = ax2skew(psi)
-            A = (
-                np.eye(3, dtype=float)
-                + (1.0 - cos(abs_psi)) / psi2 * psi_tilde
-                + (abs_psi - sin(abs_psi)) / (abs_psi * psi2) * psi_tilde @ psi_tilde
-            )
-            # A = tangent_map(psi).T # Sonneville2013 (A.10)
-
-            H[:3, 3] = A @ r
+            # midway SE(3) object
+            return H_IA @ se3exp(0.5 * SE3log(SE3inv(H_IA) @ H_IB))
+        elif case == "left":
+            return SE3(A_IA, r_IA)
+        elif case == "right":
+            return SE3(A_IB, r_IB)
         else:
-            H[:3, 3] = r
-
-        return H
+            raise RuntimeError("Unsupported case chosen.")
 
     def interp1(r_OA, r_OB, psi_A, psi_B, xi):
         # evaluate rodriguez formular for both nodes
@@ -807,30 +770,17 @@ def SE3_interpolation():
         H_IA = SE3(A_IA, r_OA)
         H_IB = SE3(A_IB, r_OB)
 
-        # invert H_IA
-        H_AI = SE3(A_IA.T, -A_IA.T @ r_OA)
-        H_BI = SE3(A_IB.T, -A_IB.T @ r_OB)
-        assert np.allclose(H_IA @ H_AI, np.eye(4, dtype=float))
-        assert np.allclose(H_IB @ H_BI, np.eye(4, dtype=float))
-
-        ########################
         # reference SE(3) object
-        ########################
-        # (a): left node
-        H_IR = H_IA
-
-        # (b): right node
-        H_IR = H_IB
-
-        # (c): midway node
-        H_IR = H_IA @ se3exp(0.5 * SE3log(SE3inv(H_IA) @ H_IB))
+        H_IR = reference_rotation(r_OA, r_OB, A_IA, A_IB)
 
         # evaluate inverse reference SE(3) object
         H_RI = SE3inv(H_IR)
 
         H_nodes = [H_IA, H_IB]
-        h_rel = np.zeros(6)
+        h_rel = np.zeros(6, dtype=float)
         for node in range(2):
+            # print(f"node: {node}")
+
             # current SE(3) object
             H_IK = H_nodes[node]
 
@@ -847,36 +797,48 @@ def SE3_interpolation():
         # composition of reference rotation and relative one
         H_IK = H_IR @ se3exp(h_rel)
 
-        # extract se(3) object
-        h_IK = SE3log(H_IK)
-        return h_IK, H_IK
+        # extract centerline and transformation matrix
+        A_IK = H_IK[:3, :3]
+        r_OP = H_IK[:3, 3]
+
+        return r_OP, A_IK
+
+        # # extract se(3) object
+        # h_IK = SE3log(H_IK)
+        # return h_IK, H_IK
 
     r_OA = np.zeros(3, dtype=float)
     r_OB = np.sqrt(2.0) / 2.0 * np.array([1, 1, 0], dtype=float)
 
     psi_A = np.zeros(3, dtype=float)
-    psi_B = np.pi / 4.0 * np.array([0, 0, 1], dtype=float)
+    psi_B = np.pi / 2.0 * np.array([0, 0, 1], dtype=float)
 
     num = 10
     xis = np.linspace(0, 1, num=num)
 
-    h = np.zeros((num, 6))
-    H = np.zeros((num, 4, 4))
+    # h = np.zeros((num, 6), dtype=float)
+    # H = np.zeros((num, 4, 4), dtype=float)
+    r_OP = np.zeros((3, num), dtype=float)
+    A_IK = np.zeros((num, 3, 3), dtype=float)
     for i, xi in enumerate(xis):
-        h[i], H[i] = interp1(r_OA, r_OB, psi_A, psi_B, xi)
+        r_OP[:, i], A_IK[i] = interp1(r_OA, r_OB, psi_A, psi_B, xi)
 
-    # centerline
-    r_OP = h[:, :3].T
+    # # centerline
+    # r_OP = h[:, :3].T
 
-    # rotation vector
-    psi = h[:, 3:].T
+    # # rotation vector
+    # psi = h[:, 3:].T
 
-    # directors
-    A_IK = H[:, :3, :3].T
-    # A_IK = np.array([
-    #     rodriguez(psii) for psii in psi
-    # ])
-    d1, d2, d3 = A_IK
+    # # directors
+    # A_IK = H[:, :3, :3].T
+    # # A_IK = np.array([
+    # #     rodriguez(psii) for psii in psi
+    # # ])
+    # d1, d2, d3 = A_IK.transpose(1, 0, 2)
+    # d1, d2, d3 = A_IK.transpose(1, 2, 0)
+    d1 = np.array([A_IKi[:, 0] for A_IKi in A_IK]).T
+    d2 = np.array([A_IKi[:, 1] for A_IKi in A_IK]).T
+    d3 = np.array([A_IKi[:, 2] for A_IKi in A_IK]).T
 
     fig, ax = plt.subplots()
     ax.plot(r_OP[0], r_OP[1], "-k")
@@ -889,5 +851,5 @@ def SE3_interpolation():
 
 if __name__ == "__main__":
     # run(statics=True)
-    locking()
-    # SE3_interpolation()
+    # locking()
+    SE3_interpolation()
