@@ -2,6 +2,7 @@ import numpy as np
 import meshio
 import os
 from math import sin, cos, sqrt
+from cardillo.math.algebra import skew2ax
 
 from cardillo.utility.coo import Coo
 from cardillo.discretization.B_spline import KnotVector
@@ -24,27 +25,27 @@ from cardillo.math import (
 )
 
 
-def SE3(R, r):
+def SE3(A_IK, r_OP):
     H = np.zeros((4, 4), dtype=float)
-    H[:3, :3] = R
-    H[:3, 3] = r
+    H[:3, :3] = A_IK
+    H[:3, 3] = r_OP
     H[3, 3] = 1.0
     return H
 
 
 def SE3inv(H):
-    R = H[:3, :3]
-    r = H[:3, 3]
-    return SE3(R.T, -R.T @ r)  # Sonneville2013 (12)
+    A_IK = H[:3, :3]
+    r_OP = H[:3, 3]
+    return SE3(A_IK.T, -A_IK.T @ r_OP)  # Sonneville2013 (12)
 
 
 def SE3log(H):
     """See Murray1994 Example A.14."""
-    R = H[:3, :3]
-    r = H[:3, 3]
+    A_IK = H[:3, :3]
+    r_OP = H[:3, 3]
 
     # log SO(3)
-    psi = rodriguez_inv(R)
+    psi = rodriguez_inv(A_IK)
 
     # inverse tangent map
     psi2 = psi @ psi
@@ -61,13 +62,13 @@ def SE3log(H):
         )
         # A_inv = inverse_tangent_map(psi).T # Sonneville2013 (A.15)
 
-    h = np.concatenate((A_inv @ r, psi))
+    h = np.concatenate((A_inv @ r_OP, psi))
     return h
 
 
 def se3exp(h):
     """See Murray1994 Example A.12."""
-    r = h[:3]
+    r_OP = h[:3]
     psi = h[3:]
     psi2 = psi @ psi
 
@@ -86,9 +87,9 @@ def se3exp(h):
         )
         # A = tangent_map(psi).T # Sonneville2013 (A.10)
 
-        H[:3, 3] = A @ r
+        H[:3, 3] = A @ r_OP
     else:
-        H[:3, 3] = r
+        H[:3, 3] = r_OP
 
     return H
 
@@ -145,8 +146,8 @@ class TimoshenkoAxisAngleSE3:
         q0=None,
         u0=None,
         basis="B-spline",
-        # use_K_r=True,
-        use_K_r=False,
+        use_K_r=True,
+        # use_K_r=False,
     ):
         # use K_r instead of I_r
         self.use_K_r = use_K_r
@@ -181,7 +182,7 @@ class TimoshenkoAxisAngleSE3:
         self.nq_node_r = nq_node_r = 3
         self.nq_node_psi = nq_node_psi = 3
 
-        # Boolean array that detects if the complement rotaton vector has to 
+        # Boolean array that detects if the complement rotaton vector has to
         # be used on each node.
         self.use_complement = np.zeros(self.nq_node_psi, dtype=bool)
 
@@ -250,7 +251,7 @@ class TimoshenkoAxisAngleSE3:
         # reference generalized coordinates, initial coordinates and initial velocities
         self.Q = Q
         self.q0 = Q.copy() if q0 is None else q0
-        self.u0 = np.zeros(self.nu) if u0 is None else u0
+        self.u0 = np.zeros(self.nu, dtype=float) if u0 is None else u0
 
         # evaluate shape functions at specific xi
         self.basis_functions_r = self.mesh_r.eval_basis
@@ -259,7 +260,9 @@ class TimoshenkoAxisAngleSE3:
         # reference generalized coordinates, initial coordinates and initial velocities
         self.Q = Q  # reference configuration
         self.q0 = Q.copy() if q0 is None else q0  # initial configuration
-        self.u0 = np.zeros(self.nu) if u0 is None else u0  # initial velocities
+        self.u0 = (
+            np.zeros(self.nu, dtype=float) if u0 is None else u0
+        )  # initial velocities
 
         # reference rotation for relative rotation proposed by Crisfield1999 (5.8)
         self.node_A = int(0.5 * (self.nnodes_element_psi + 1)) - 1
@@ -267,11 +270,11 @@ class TimoshenkoAxisAngleSE3:
 
         # precompute values of the reference configuration in order to save computation time
         # J in Harsch2020b (5)
-        self.J = np.zeros((nelement, nquadrature))
+        self.J = np.zeros((nelement, nquadrature), dtype=float)
         # dilatation and shear strains of the reference configuration
-        self.K_Gamma0 = np.zeros((nelement, nquadrature, 3))
+        self.K_Gamma0 = np.zeros((nelement, nquadrature, 3), dtype=float)
         # curvature of the reference configuration
-        self.K_Kappa0 = np.zeros((nelement, nquadrature, 3))
+        self.K_Kappa0 = np.zeros((nelement, nquadrature, 3), dtype=float)
 
         for el in range(nelement):
             qe = self.Q[self.elDOF[el]]
@@ -302,8 +305,8 @@ class TimoshenkoAxisAngleSE3:
         nelement,
         L,
         greville_abscissae=True,
-        r_OP=np.zeros(3),
-        A_IK=np.eye(3),
+        r_OP=np.zeros(3, dtype=float),
+        A_IK=np.eye(3, dtype=float),
         basis="B-spline",
     ):
         if basis == "B-spline":
@@ -316,8 +319,8 @@ class TimoshenkoAxisAngleSE3:
             raise RuntimeError(f'wrong basis: "{basis}" was chosen')
 
         x0 = np.linspace(0, L, num=nn_r)
-        y0 = np.zeros(nn_r)
-        z0 = np.zeros(nn_r)
+        y0 = np.zeros(nn_r, dtype=float)
+        z0 = np.zeros(nn_r, dtype=float)
         if greville_abscissae and basis == "B-spline":
             kv = KnotVector.uniform(polynomial_degree_r, nelement)
             for i in range(nn_r):
@@ -342,9 +345,9 @@ class TimoshenkoAxisAngleSE3:
         # note the elements coincide for both meshes!
         return self.knot_vector_r.element_number(xi)[0]
 
-    # def reference_rotation(self, qe: np.ndarray, case="left"):
-    # def reference_rotation(self, qe: np.ndarray, case="right"):
-    def reference_rotation(self, qe: np.ndarray, case="midway"):
+    def reference_rotation(self, qe: np.ndarray, case="left"):
+        # def reference_rotation(self, qe: np.ndarray, case="right"):
+        # def reference_rotation(self, qe: np.ndarray, case="midway"):
         """Reference rotation for SE(3) object in analogy to the proposed
         formulation by Crisfield1999 (5.8).
 
@@ -386,8 +389,8 @@ class TimoshenkoAxisAngleSE3:
         # N, _ = self.basis_functions_psi(xi)
 
         # relative interpolation of local se(3) objects
-        h_rel = np.zeros(6)
-        h_rel_xi = np.zeros(6)
+        h_rel = np.zeros(6, dtype=float)
+        h_rel_xi = np.zeros(6, dtype=float)
 
         # evaluate inverse reference SE(3) object
         H_RI = SE3inv(H_IR)
@@ -423,20 +426,25 @@ class TimoshenkoAxisAngleSE3:
 
         # composition of reference rotation and relative one
         H_IK = H_IR @ se3exp(h_rel)
+        # H_IK_xi = H_IK @ se3exp(h_rel_xi) # chain rule is missing!
 
         # objective strains
+        # strains_tilde = SE3inv(H_IK) @ H_IK_xi
+        # strains2 = np.zeros(6, dtype=float)
+        # strains2[:3] = strains_tilde[:3, 3]
+        # strains2[3:] = skew2ax(strains_tilde[:3, :3])
         T = se3tangent_map(h_rel)
         strains = T @ h_rel_xi
 
         # extract centerline and transformation
         A_IK = H_IK[:3, :3]
-        r = H_IK[:3, 3]
+        r_OP = H_IK[:3, 3]
 
         # extract strains
-        K_Gamma_bar = strains[:3]
+        K_Gamma_bar = strains[:3]  # this is K_r_xi
         K_Kappa_bar = strains[3:]
 
-        return r, A_IK, K_Gamma_bar, K_Kappa_bar
+        return r_OP, A_IK, K_Gamma_bar, K_Kappa_bar
 
     def assembler_callback(self):
         self.__M_coo()
@@ -445,7 +453,7 @@ class TimoshenkoAxisAngleSE3:
     # equations of motion
     #########################################
     def M_el(self, el):
-        M_el = np.zeros((self.nq_element, self.nq_element))
+        M_el = np.zeros((self.nq_element, self.nq_element), dtype=float)
 
         for i in range(self.nquadrature):
             # extract reference state variables
@@ -492,11 +500,11 @@ class TimoshenkoAxisAngleSE3:
         coo.extend_sparse(self.__M)
 
     def f_gyr_el(self, t, qe, ue, el):
-        f_gyr_el = np.zeros(self.nq_element)
+        f_gyr_el = np.zeros(self.nq_element, dtype=float)
 
         for i in range(self.nquadrature):
             # interpoalte angular velocity
-            K_Omega = np.zeros(3)
+            K_Omega = np.zeros(3, dtype=float)
             for node in range(self.nnodes_element_psi):
                 K_Omega += self.N_psi[el, i, node] * ue[self.nodalDOF_element_psi[node]]
 
@@ -514,7 +522,7 @@ class TimoshenkoAxisAngleSE3:
         return f_gyr_el
 
     def f_gyr(self, t, q, u):
-        f_gyr = np.zeros(self.nu)
+        f_gyr = np.zeros(self.nu, dtype=float)
         for el in range(self.nelement):
             f_gyr[self.elDOF[el]] += self.f_gyr_el(
                 t, q[self.elDOF[el]], u[self.elDOF[el]], el
@@ -522,11 +530,11 @@ class TimoshenkoAxisAngleSE3:
         return f_gyr
 
     def f_gyr_u_el(self, t, qe, ue, el):
-        f_gyr_u_el = np.zeros((self.nq_element, self.nq_element))
+        f_gyr_u_el = np.zeros((self.nq_element, self.nq_element), dtype=float)
 
         for i in range(self.nquadrature):
             # interpoalte angular velocity
-            K_Omega = np.zeros(3)
+            K_Omega = np.zeros(3, dtype=float)
             for node in range(self.nnodes_element_psi):
                 K_Omega += self.N_psi[el, i, node] * ue[self.nodalDOF_element_psi[node]]
 
@@ -590,14 +598,14 @@ class TimoshenkoAxisAngleSE3:
         return E_pot_el
 
     def f_pot(self, t, q):
-        f_pot = np.zeros(self.nu)
+        f_pot = np.zeros(self.nu, dtype=float)
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             f_pot[elDOF] += self.f_pot_el(q[elDOF], el)
         return f_pot
 
     def f_pot_el(self, qe, el):
-        f_pot_el = np.zeros(self.nq_element)
+        f_pot_el = np.zeros(self.nq_element, dtype=float)
 
         for i in range(self.nquadrature):
             # extract reference state variables
@@ -607,9 +615,10 @@ class TimoshenkoAxisAngleSE3:
             K_Kappa0 = self.K_Kappa0[el, i]
 
             # objective interpolation
-            r, A_IK, K_Gamma_bar, K_Kappa_bar = self.eval(qe, self.qp[el, i])
+            r_OP, A_IK, K_Gamma_bar, K_Kappa_bar = self.eval(qe, self.qp[el, i])
 
-            # TODO: Is this correct?
+            # centerline and tangent
+            K_r_OP = A_IK.T @ r_OP
             K_r_xi = K_Gamma_bar
 
             # axial and shear strains
@@ -627,29 +636,29 @@ class TimoshenkoAxisAngleSE3:
             if self.use_K_r:
                 for node in range(self.nnodes_element_r):
                     f_pot_el[self.nodalDOF_element_r[node]] -= (
-                        self.N_r_xi[el, i, node]
-                        * A_IK
-                        @ K_n
-                        * qwi
+                        self.N_r_xi[el, i, node] * K_n * qwi
                     )
                 for node in range(self.nnodes_element_psi):
                     f_pot_el[self.nodalDOF_element_r[node]] += (
                         self.N_psi[el, i, node] * cross3(K_Kappa_bar, K_n) * qwi
-                    ) # Euler term
+                    )  # Euler term
             else:
                 for node in range(self.nnodes_element_r):
                     f_pot_el[self.nodalDOF_element_r[node]] -= (
                         self.N_r_xi[el, i, node] * A_IK @ K_n * qwi
                     )
 
-            # # TODO:
-            # # - second delta Gamma part
-            # for node in range(self.nnodes_element_psi):
-            #     f_pot_el[self.nodalDOF_element_psi[node]] -= (
-            #         self.N_psi[el, i, node] * ax2skew(K_n) @ (
-            #             K_r_xi + cross3(K_Kappa_bar, A_IK.T @ r)
-            #         ) * qwi
-            #     )
+                # - second delta Gamma part
+                for node in range(self.nnodes_element_psi):
+                    f_pot_el[self.nodalDOF_element_psi[node]] += (
+                        self.N_psi[el, i, node]
+                        * (
+                            cross3(K_r_xi, K_n)
+                            # cross3(K_r_xi + cross3(K_Kappa, A_IK.T @ r_OP), K_n)
+                            # cross3(K_r_xi, K_n) + K_Kappa_bar * (K_n @ K_r_OP) - K_r_OP * (K_n @ K_Kappa_bar)
+                        )
+                        * qwi
+                    )
 
             # - delta kappa part
             for node in range(self.nnodes_element_psi):
@@ -659,7 +668,6 @@ class TimoshenkoAxisAngleSE3:
                 f_pot_el[self.nodalDOF_element_psi[node]] += (
                     self.N_psi[el, i, node] * cross3(K_Kappa_bar, K_m) * qwi
                 )  # Euler term
-
 
         return f_pot_el
 
@@ -783,7 +791,7 @@ class TimoshenkoAxisAngleSE3:
     # def r_OC(self, t, q, frame_ID):
     #     # compute centerline position
     #     N, _, _ = self.basis_functions_r(frame_ID[0])
-    #     r_OC = np.zeros(3)
+    #     r_OC = np.zeros, dtype=float)
     #     for node in range(self.nnodes_element_r):
     #         r_OC += N[node] * q[self.nodalDOF_element_r[node]]
     #     return r_OC
@@ -791,7 +799,7 @@ class TimoshenkoAxisAngleSE3:
     # def r_OC_q(self, t, q, frame_ID):
     #     # compute centerline position
     #     N, _, _ = self.basis_functions_r(frame_ID[0])
-    #     r_OC_q = np.zeros((3, self.nq_element))
+    #     r_OC_q = np.zeros((3, self.nq_element), dtype=float)
     #     for node in range(self.nnodes_element_r):
     #         r_OC_q[:, self.nodalDOF_element_r[node]] += N[node] * np.eye(3)
     #     return r_OC_q
@@ -799,7 +807,7 @@ class TimoshenkoAxisAngleSE3:
     # def r_OC_xi(self, t, q, frame_ID):
     #     # compute centerline position
     #     _, N_xi, _ = self.basis_functions_r(frame_ID[0])
-    #     r_OC_xi = np.zeros(3)
+    #     r_OC_xi = np.zeros(3, dtype=float)
     #     for node in range(self.nnodes_element_r):
     #         r_OC_xi += N_xi[node] * q[self.nodalDOF_element_r[node]]
     #     return r_OC_xi
@@ -807,7 +815,7 @@ class TimoshenkoAxisAngleSE3:
     # def r_OC_xixi(self, t, q, frame_ID):
     #     # compute centerline position
     #     _, _, N_xixi = self.basis_functions_r(frame_ID[0])
-    #     r_OC_xixi = np.zeros(3)
+    #     r_OC_xixi = np.zeros(3, dtype=float)
     #     for node in range(self.nnodes_element_r):
     #         r_OC_xixi += N_xixi[node] * q[self.nodalDOF_element_r[node]]
     #     return r_OC_xixi
@@ -817,24 +825,24 @@ class TimoshenkoAxisAngleSE3:
     #     N, _, _ = self.basis_functions_r(frame_ID[0])
 
     #     # interpolate centerline and axis angle contributions
-    #     J_C = np.zeros((3, self.nq_element))
+    #     J_C = np.zeros((3, self.nq_element), dtype=float)
     #     for node in range(self.nnodes_element_r):
     #         J_C[:, self.nodalDOF_element_r[node]] += N[node] * np.eye(3)
 
     #     return J_C
 
     # def J_C_q(self, t, q, frame_ID):
-    #     return np.zeros((3, self.nq_element, self.nq_element))
+    #     return np.zeros((3, self.nq_element, self.nq_element), dtype=float)
 
     ###################
     # r_OP contribution
     ###################
-    def r_OP(self, t, q, frame_ID, K_r_SP=np.zeros(3)):
+    def r_OP(self, t, q, frame_ID, K_r_SP=np.zeros(3), dtype=float):
         r, A_IK, _, _ = self.eval(q, frame_ID[0])
         return r + A_IK @ K_r_SP
 
     # TODO:
-    def r_OP_q(self, t, q, frame_ID, K_r_SP=np.zeros(3)):
+    def r_OP_q(self, t, q, frame_ID, K_r_SP=np.zeros(3), dtype=float):
         r_OP_q_num = approx_fprime(
             q, lambda q: self.r_OP(t, q, frame_ID, K_r_SP), method="3-point"
         )
@@ -851,14 +859,14 @@ class TimoshenkoAxisAngleSE3:
         )
         return A_IK_q_num
 
-    def v_P(self, t, q, u, frame_ID, K_r_SP=np.zeros(3)):
+    def v_P(self, t, q, u, frame_ID, K_r_SP=np.zeros(3), dtype=float):
         _, A_IK, _, _ = self.eval(q, frame_ID[0])
 
         # compute centerline and angular velocity
         if self.use_K_r:
             N, _, _ = self.basis_functions_r(frame_ID[0])
-            K_v_C = np.zeros(3)
-            K_Omega = np.zeros(3)
+            K_v_C = np.zeros(3, dtype=float)
+            K_Omega = np.zeros(3, dtype=float)
             for node in range(self.nnodes_element_r):
                 K_v_C += N[node] * u[self.nodalDOF_element_r[node]]
                 K_Omega += N[node] * u[self.nodalDOF_element_psi[node]]
@@ -866,8 +874,8 @@ class TimoshenkoAxisAngleSE3:
             return A_IK @ (K_v_C + cross3(K_Omega, K_r_SP))
         else:
             N, _, _ = self.basis_functions_r(frame_ID[0])
-            v_C = np.zeros(3)
-            K_Omega = np.zeros(3)
+            v_C = np.zeros(3, dtype=float)
+            K_Omega = np.zeros(3, dtype=float)
             for node in range(self.nnodes_element_r):
                 v_C += N[node] * u[self.nodalDOF_element_r[node]]
                 K_Omega += N[node] * u[self.nodalDOF_element_psi[node]]
@@ -875,16 +883,15 @@ class TimoshenkoAxisAngleSE3:
             return v_C + A_IK @ cross3(K_Omega, K_r_SP)
 
     # TODO:
-    def v_P_q(self, t, q, u, frame_ID, K_r_SP=np.zeros(3)):
+    def v_P_q(self, t, q, u, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
         v_P_q_num = approx_fprime(
             q, lambda q: self.v_P(t, q, u, frame_ID, K_r_SP), method="3-point"
         )
         return v_P_q_num
 
-    def J_P(self, t, q, frame_ID, K_r_SP=np.zeros(3)):
+    def J_P(self, t, q, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
         # evaluate required nodal shape functions
-        N_r, _, _ = self.basis_functions_r(frame_ID[0])
-        N_psi, _ = self.basis_functions_psi(frame_ID[0])
+        N, _, _ = self.basis_functions_r(frame_ID[0])
 
         # transformation matrix
         _, A_IK, _, _ = self.eval(q, frame_ID[0])
@@ -893,19 +900,21 @@ class TimoshenkoAxisAngleSE3:
         K_r_SP_tilde = ax2skew(K_r_SP)
 
         # interpolate centerline and axis angle contributions
-        J_P = np.zeros((3, self.nq_element))
+        J_P = np.zeros((3, self.nq_element), dtype=float)
         for node in range(self.nnodes_element_r):
             if self.use_K_r:
-                J_P[:, self.nodalDOF_element_r[node]] += N_r[node] * A_IK
+                J_P[:, self.nodalDOF_element_r[node]] += N[node] * A_IK
             else:
-                J_P[:, self.nodalDOF_element_r[node]] += N_r[node] * np.eye(3)
+                J_P[:, self.nodalDOF_element_r[node]] += N[node] * np.eye(
+                    3, dtype=float
+                )
         for node in range(self.nnodes_element_psi):
-            J_P[:, self.nodalDOF_element_psi[node]] -= N_psi[node] * A_IK @ K_r_SP_tilde
+            J_P[:, self.nodalDOF_element_psi[node]] -= N[node] * A_IK @ K_r_SP_tilde
 
         return J_P
 
         # J_P_num = approx_fprime(
-        #     np.zeros(self.nq_element), lambda u: self.v_P(t, q, u, frame_ID, K_r_SP)
+        #     np.zeros(self.nq_element, dtype=float), lambda u: self.v_P(t, q, u, frame_ID, K_r_SP)
         # )
         # diff = J_P_num - J_P
         # error = np.linalg.norm(diff)
@@ -913,7 +922,7 @@ class TimoshenkoAxisAngleSE3:
         # return J_P_num
 
     # TODO:
-    def J_P_q(self, t, q, frame_ID, K_r_SP=np.zeros(3)):
+    def J_P_q(self, t, q, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
         # # evaluate required nodal shape functions
         # N_psi, _ = self.basis_functions_psi(frame_ID[0])
 
@@ -922,7 +931,7 @@ class TimoshenkoAxisAngleSE3:
 
         # # interpolate axis angle contributions since centerline contributon is
         # # zero
-        # J_P_q = np.zeros((3, self.nq_element, self.nq_element))
+        # J_P_q = np.zeros((3, self.nq_element, self.nq_element), dtype=float)
         # for node in range(self.nnodes_element_psi):
         #     nodalDOF = self.nodalDOF_element_psi[node]
         #     A_IK_q = rodriguez_der(q[nodalDOF])
@@ -940,11 +949,11 @@ class TimoshenkoAxisAngleSE3:
         # print(f"error J_P_q: {error}")
         return J_P_q_num
 
-    def a_P(self, t, q, u, u_dot, frame_ID, K_r_SP=np.zeros(3)):
+    def a_P(self, t, q, u, u_dot, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
         raise NotImplementedError
         # compute centerline acceleration
         N, _, _ = self.basis_functions_r(frame_ID[0])
-        a_C = np.zeros(3)
+        a_C = np.zeros(3, dtype=float)
         for node in range(self.nnodes_element_r):
             a_C += N[node] * u_dot[self.nodalDOF_element_r[node]]
 
@@ -982,7 +991,7 @@ class TimoshenkoAxisAngleSE3:
         )
 
         N, _ = self.basis_functions_psi(frame_ID[0])
-        a_P_u = np.zeros((3, self.nq_element))
+        a_P_u = np.zeros((3, self.nq_element), dtype=float)
         for node in range(self.nnodes_element_r):
             a_P_u[:, self.nodalDOF_element_psi[node]] += N[node] * local
 
@@ -1001,39 +1010,47 @@ class TimoshenkoAxisAngleSE3:
         angular velocities in the K-frame.
         """
         N, _ = self.basis_functions_psi(frame_ID[0])
-        K_Omega = np.zeros(3)
+        K_Omega = np.zeros(3, dtype=float)
         for node in range(self.nnodes_element_psi):
             K_Omega += N[node] * u[self.nodalDOF_element_psi[node]]
         return K_Omega
 
     def K_Omega_q(self, t, q, u, frame_ID):
-        return np.zeros((3, self.nq_element))
+        return np.zeros((3, self.nq_element), dtype=float)
 
     def K_J_R(self, t, q, frame_ID):
         N, _ = self.basis_functions_psi(frame_ID[0])
-        K_J_R = np.zeros((3, self.nq_element))
+        K_J_R = np.zeros((3, self.nq_element), dtype=float)
         for node in range(self.nnodes_element_psi):
             K_J_R[:, self.nodalDOF_element_psi[node]] += N[node] * np.eye(3)
         return K_J_R
 
+        # K_J_R_num = approx_fprime(
+        #     np.zeros(self.nu_element, dtype=float), lambda u: self.K_Omega(t, q, u, frame_ID), method="3-point"
+        # )
+        # diff = K_J_R - K_J_R_num
+        # error = np.linalg.norm(diff)
+        # print(f"error K_J_R: {error}")
+        # return K_J_R_num
+
     def K_J_R_q(self, t, q, frame_ID):
-        return np.zeros((3, self.nq_element, self.nq_element))
+        return np.zeros((3, self.nq_element, self.nq_element), dtype=float)
 
     def K_Psi(self, t, q, u, u_dot, frame_ID):
         """Since we use Petrov-Galerkin method we only interpoalte the nodal
         time derivative of the angular velocities in the K-frame.
         """
         N, _ = self.basis_functions_psi(frame_ID[0])
-        K_Psi = np.zeros(3)
+        K_Psi = np.zeros(3, dtype=float)
         for node in range(self.nnodes_element_psi):
             K_Psi += N[node] * u_dot[self.nodalDOF_element_psi[node]]
         return K_Psi
 
     def K_Psi_q(self, t, q, u, u_dot, frame_ID):
-        return np.zeros((3, self.nq_element))
+        return np.zeros((3, self.nq_element), dtype=float)
 
     def K_Psi_u(self, t, q, u, u_dot, frame_ID):
-        return np.zeros((3, self.nq_element))
+        return np.zeros((3, self.nq_element), dtype=float)
 
     ####################################################
     # body force
@@ -1047,7 +1064,7 @@ class TimoshenkoAxisAngleSE3:
             Ji = self.J[el, i]
 
             # interpolate centerline position
-            r_C = np.zeros(3)
+            r_C = np.zeros(3, dtype=float)
             for node in range(self.nnodes_element_r):
                 r_C += self.N_r[el, i, node] * qe[self.nodalDOF_element_r[node]]
 
@@ -1066,7 +1083,7 @@ class TimoshenkoAxisAngleSE3:
 
     def distributed_force1D_el(self, force, t, el):
         raise NotImplementedError
-        fe = np.zeros(self.nq_element)
+        fe = np.zeros(self.nq_element, dtype=float)
         for i in range(self.nquadrature):
             # extract reference state variables
             qwi = self.qw[el, i]
@@ -1083,7 +1100,7 @@ class TimoshenkoAxisAngleSE3:
 
     def distributed_force1D(self, t, q, force):
         raise NotImplementedError
-        f = np.zeros(self.nq)
+        f = np.zeros(self.nq, dtype=float)
         for el in range(self.nelement):
             f[self.elDOF[el]] += self.distributed_force1D_el(force, t, el)
         return f
@@ -1214,7 +1231,7 @@ class TimoshenkoAxisAngleSE3:
             )
         )
 
-        Pw = np.zeros((nn_xi, nn_eta, nn_zeta, 3))
+        Pw = np.zeros((nn_xi, nn_eta, nn_zeta, 3), dtype=float)
         for i in range(self.nnode_r):
             qr = q[self.nodalDOF_r[i]]
             q_di = q[self.nodalDOF_psi[i]]
@@ -1247,7 +1264,7 @@ class TimoshenkoAxisAngleSE3:
         # build vtk mesh
         n_patches = nbezier_xi * nbezier_eta * nbezier_zeta
         patch_size = p1 * q1 * r1
-        points = np.zeros((n_patches * patch_size, dim))
+        points = np.zeros((n_patches * patch_size, dim), dtype=float)
         cells = []
         HigherOrderDegrees = []
         RationalWeights = []
@@ -1324,7 +1341,7 @@ class TimoshenkoAxisAngleSE3:
         as_ = np.linspace(-a / 2, a / 2, num=nn_eta, endpoint=True)
         bs_ = np.linspace(-b / 2, b / 2, num=nn_eta, endpoint=True)
 
-        Pw = np.zeros((nn_xi, nn_eta, nn_zeta, 3))
+        Pw = np.zeros((nn_xi, nn_eta, nn_zeta, 3), dtype=float)
         for i in range(self.nnode_r):
             qr = q[self.nodalDOF_r[i]]
             q_di = q[self.nodalDOF_psi[i]]
@@ -1357,7 +1374,7 @@ class TimoshenkoAxisAngleSE3:
         # build vtk mesh
         n_patches = nbezier_xi * nbezier_eta * nbezier_zeta
         patch_size = p1 * q1 * r1
-        points = np.zeros((n_patches * patch_size, dim))
+        points = np.zeros((n_patches * patch_size, dim), dtype=float)
         cells = []
         HigherOrderDegrees = []
         RationalWeights = []
@@ -1474,12 +1491,22 @@ class TimoshenkoAxisAngleSE3:
         # evaluate fields at quadrature points that have to be projected onto the centerline mesh:
         # - strain measures Gamma & Kappa
         # - directors d1, d2, d3
-        Gamma = np.zeros((self.mesh_r.nelement, self.mesh_r.nquadrature, 3))
-        Kappa = np.zeros((self.mesh_r.nelement, self.mesh_r.nquadrature, 3))
+        Gamma = np.zeros(
+            (self.mesh_r.nelement, self.mesh_r.nquadrature, 3), dtype=float
+        )
+        Kappa = np.zeros(
+            (self.mesh_r.nelement, self.mesh_r.nquadrature, 3), dtype=float
+        )
         if not same_shape_functions:
-            d1s = np.zeros((self.mesh_r.nelement, self.mesh_r.nquadrature, 3))
-            d2s = np.zeros((self.mesh_r.nelement, self.mesh_r.nquadrature, 3))
-            d3s = np.zeros((self.mesh_r.nelement, self.mesh_r.nquadrature, 3))
+            d1s = np.zeros(
+                (self.mesh_r.nelement, self.mesh_r.nquadrature, 3), dtype=float
+            )
+            d2s = np.zeros(
+                (self.mesh_r.nelement, self.mesh_r.nquadrature, 3), dtype=float
+            )
+            d3s = np.zeros(
+                (self.mesh_r.nelement, self.mesh_r.nquadrature, 3), dtype=float
+            )
         for el in range(self.nelement):
             qe = q[self.elDOF[el]]
 
@@ -1573,7 +1600,7 @@ class TimoshenkoAxisAngleSE3:
             tmp = fun(Gamma_vtk[0], Gamma0_vtk[0], Kappa_vtk[0], Kappa0_vtk[0]).reshape(
                 -1
             )
-            field = np.zeros((len(Gamma_vtk), len(tmp)))
+            field = np.zeros((len(Gamma_vtk), len(tmp)), dtype=float)
             for i, (K_Gamma, K_Gamma0, K_Kappa, K_Kappa0) in enumerate(
                 zip(Gamma_vtk, Gamma0_vtk, Kappa_vtk, Kappa0_vtk)
             ):
@@ -1631,12 +1658,22 @@ class TimoshenkoAxisAngleSE3:
         # evaluate fields at quadrature points that have to be projected onto the centerline mesh:
         # - strain measures Gamma & Kappa
         # - directors d1, d2, d3
-        Gamma = np.zeros((self.mesh_r.nelement, self.mesh_r.nquadrature, 3))
-        Kappa = np.zeros((self.mesh_r.nelement, self.mesh_r.nquadrature, 3))
+        Gamma = np.zeros(
+            (self.mesh_r.nelement, self.mesh_r.nquadrature, 3), dtype=float
+        )
+        Kappa = np.zeros(
+            (self.mesh_r.nelement, self.mesh_r.nquadrature, 3), dtype=float
+        )
         if not same_shape_functions:
-            d1s = np.zeros((self.mesh_r.nelement, self.mesh_r.nquadrature, 3))
-            d2s = np.zeros((self.mesh_r.nelement, self.mesh_r.nquadrature, 3))
-            d3s = np.zeros((self.mesh_r.nelement, self.mesh_r.nquadrature, 3))
+            d1s = np.zeros(
+                (self.mesh_r.nelement, self.mesh_r.nquadrature, 3), dtype=float
+            )
+            d2s = np.zeros(
+                (self.mesh_r.nelement, self.mesh_r.nquadrature, 3), dtype=float
+            )
+            d3s = np.zeros(
+                (self.mesh_r.nelement, self.mesh_r.nquadrature, 3), dtype=float
+            )
         for el in range(self.nelement):
             qe = q[self.elDOF[el]]
 
@@ -1730,7 +1767,7 @@ class TimoshenkoAxisAngleSE3:
             tmp = fun(Gamma_vtk[0], Gamma0_vtk[0], Kappa_vtk[0], Kappa0_vtk[0]).reshape(
                 -1
             )
-            field = np.zeros((len(Gamma_vtk), len(tmp)))
+            field = np.zeros((len(Gamma_vtk), len(tmp)), dtype=float)
             for i, (K_Gamma, K_Gamma0, K_Kappa, K_Kappa0) in enumerate(
                 zip(Gamma_vtk, Gamma0_vtk, Kappa_vtk, Kappa0_vtk)
             ):

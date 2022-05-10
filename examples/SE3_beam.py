@@ -594,19 +594,23 @@ def locking():
     )
     moment = K_Moment(M, beam, (1,))
 
+    # external force at the right end
+    force = Force(lambda t: -t * e3, beam, frame_ID=(1,), K_r_SP=e2)
+
     # assemble the model
     model = Model()
     model.add(beam)
     model.add(frame1)
     model.add(joint1)
     model.add(moment)
+    # model.add(force)
     model.assemble()
 
     solver = Newton(
         model,
         # n_load_steps=10,
-        # n_load_steps=50,
-        n_load_steps=100,
+        n_load_steps=50,
+        # n_load_steps=100,
         # n_load_steps=500,
         max_iter=30,
         # atol=1.0e-4,
