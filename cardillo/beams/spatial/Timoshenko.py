@@ -117,18 +117,32 @@ def T_UOm_p(a, b):
         b_tilde = ax2skew(b)
         ab = a_tilde @ b_tilde + b_tilde @ a_tilde
 
+        # Sonneville2014 (A.12)
         return (
             -0.5 * beta * a_tilde
             + (1.0 - alpha) * ab / b2
             + (b @ a)
             * (
                 (beta - alpha) * b_tilde
-                + (0.5 * beta - 3.0 * ((1.0 - alpha) / b2) * b_tilde @ b_tilde)
+                + (0.5 * beta - 3.0 * (1.0 - alpha) / b2) * b_tilde @ b_tilde
             )
             / b2
         )
+
+        # # Park2005 (21)
+        # return (
+        #     0.5 * beta * a_tilde
+        #     + (1. - alpha) * ab / b2
+        #     + (b @ a)
+        #     * (
+        #         (alpha - beta) * b_tilde
+        #         + (0.5 * beta - 3. * ((1. - alpha) / b2)) * b_tilde @ b_tilde
+        #     )
+        #     / b2
+        # )
     else:
-        return -0.5 * a_tilde
+        return -0.5 * a_tilde  # Soneville2014
+        # return 0.5 * a_tilde # Park2005
 
 
 def se3tangent_map(h):
@@ -194,8 +208,8 @@ class TimoshenkoAxisAngleSE3:
         q0=None,
         u0=None,
         basis="B-spline",
-        use_K_r=True,
-        # use_K_r=False,
+        # use_K_r=True,
+        use_K_r=False,
     ):
         # use K_r instead of I_r
         self.use_K_r = use_K_r
@@ -393,9 +407,9 @@ class TimoshenkoAxisAngleSE3:
         # note the elements coincide for both meshes!
         return self.knot_vector_r.element_number(xi)[0]
 
-    def reference_rotation(self, qe: np.ndarray, case="left"):
-        # def reference_rotation(self, qe: np.ndarray, case="right"):
-        # def reference_rotation(self, qe: np.ndarray, case="midway"):
+    # def reference_rotation(self, qe: np.ndarray, case="left"):
+    # def reference_rotation(self, qe: np.ndarray, case="right"):
+    def reference_rotation(self, qe: np.ndarray, case="midway"):
         """Reference rotation for SE(3) object in analogy to the proposed
         formulation by Crisfield1999 (5.8).
 
@@ -488,15 +502,27 @@ class TimoshenkoAxisAngleSE3:
 
         # R_r_xi = h_rel_xi[:3]
         # R_omega_xi = h_rel_xi[3:]
-        # H_RK_xi = SE3(ax2skew(R_omega_xi), R_r_xi)
+        # H_RK_xi = np.zeros((4, 4,), dtype=float)
+        # H_RK_xi[:3, :3] = ax2skew(R_omega_xi)
+        # H_RK_xi[:3, 3] = R_r_xi
 
         # strains_tilde = SE3inv(H_RK) @ H_RK_xi
-        # strains = SE3log(strains_tilde)
+        # # strains_tilde = H_RK_xi @ SE3inv(H_RK)
+        # # strains = np.concatenate((strains_tilde[:3, 3], skew2ax(strains_tilde[:3, :3])))
+        # # # # strains2 = SE3log(strains_tilde)
+        # strains2 = np.concatenate((strains_tilde[:3, 3], skew2ax(strains_tilde[:3, :3])))
+        # strains = strains2
+        # # strains = h_rel_xi
 
-        #################################################################
-        # This alternative formulation works for pure bending experiments
-        #################################################################
-        strains = h_rel_xi
+        # diff = strains - strains2
+        # error = np.linalg.norm(diff)
+        # print(f"error strains: {error}")
+        # print(f"error strains: {diff}")
+
+        # #################################################################
+        # # This alternative formulation works for pure bending experiments
+        # #################################################################
+        # strains = h_rel_xi
 
         # extract centerline and transformation
         A_IK = H_IK[:3, :3]
@@ -694,64 +720,62 @@ class TimoshenkoAxisAngleSE3:
             K_n = self.material_model.K_n(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
             K_m = self.material_model.K_m(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
 
-            # reference SE(3) object
-            H_IR = self.reference_rotation(qe)
+            # ##################################
+            # # strange virtual work formulation
+            # ##################################
 
-            # relative interpolation of se(3) nodes
-            h_rel, _ = self.relative_interpolation(H_IR, qe, self.qp[el, i])
+            # # reference SE(3) object
+            # H_IR = self.reference_rotation(qe)
 
-            T_inv = se3inverse_tangent_map(h_rel)
-            K_f = np.concatenate((K_n, K_m))
-            K_F = T_inv @ K_f
+            # # relative interpolation of se(3) nodes
+            # h_rel, _ = self.relative_interpolation(H_IR, qe, self.qp[el, i])
 
-            for node in range(self.nnodes_element_r):
-                f_pot_el[self.nodalDOF_element_r[node]] -= (
-                    self.N_r_xi[el, i, node] * K_F[:3] * qwi
-                )
+            # T_inv = se3inverse_tangent_map(h_rel)
+            # K_f = np.concatenate((K_n, K_m))
+            # K_F = T_inv @ K_f
 
-            for node in range(self.nnodes_element_psi):
-                f_pot_el[self.nodalDOF_element_psi[node]] -= (
-                    self.N_psi_xi[el, i, node] * K_F[3:] * qwi
-                )
+            # for node in range(self.nnodes_element_r):
+            #     f_pot_el[self.nodalDOF_element_r[node]] -= (
+            #         self.N_r_xi[el, i, node] * K_F[:3] * qwi
+            #     )
 
-            # #######################
-            # # Original formulation!
-            # #######################
-            # # - first delta Gamma part
-            # if self.use_K_r:
-            #     for node in range(self.nnodes_element_r):
-            #         f_pot_el[self.nodalDOF_element_r[node]] -= (
-            #             self.N_r_xi[el, i, node] * K_n * qwi
-            #         )
-            #         f_pot_el[self.nodalDOF_element_r[node]] += (
-            #             self.N_r[el, i, node] * cross3(K_Kappa_bar, K_n) * qwi
-            #         )  # Euler term
-            # else:
-            #     for node in range(self.nnodes_element_r):
-            #         f_pot_el[self.nodalDOF_element_r[node]] -= (
-            #             self.N_r_xi[el, i, node] * A_IK @ K_n * qwi
-            #         )
-
-            #     # - second delta Gamma part
-            #     for node in range(self.nnodes_element_psi):
-            #         f_pot_el[self.nodalDOF_element_psi[node]] += (
-            #             self.N_psi[el, i, node]
-            #             * (
-            #                 cross3(K_r_xi, K_n)
-            #                 # cross3(K_r_xi + cross3(K_Kappa, A_IK.T @ r_OP), K_n)
-            #                 # cross3(K_r_xi, K_n) + K_Kappa_bar * (K_n @ K_r_OP) - K_r_OP * (K_n @ K_Kappa_bar)
-            #             )
-            #             * qwi
-            #         )
-
-            # # - delta kappa part
             # for node in range(self.nnodes_element_psi):
             #     f_pot_el[self.nodalDOF_element_psi[node]] -= (
-            #         self.N_psi_xi[el, i, node] * K_m * qwi
+            #         self.N_psi_xi[el, i, node] * K_F[3:] * qwi
             #     )
-            #     f_pot_el[self.nodalDOF_element_psi[node]] += (
-            #         self.N_psi[el, i, node] * cross3(K_Kappa_bar, K_m) * qwi
-            #     )  # Euler term
+
+            #######################
+            # Original formulation!
+            #######################
+            # - first delta Gamma part
+            if self.use_K_r:
+                for node in range(self.nnodes_element_r):
+                    f_pot_el[self.nodalDOF_element_r[node]] -= (
+                        self.N_r_xi[el, i, node] * K_n * qwi
+                    )
+                    f_pot_el[self.nodalDOF_element_r[node]] += (
+                        self.N_r[el, i, node] * cross3(K_Kappa_bar, K_n) * qwi
+                    )  # Euler term
+            else:
+                for node in range(self.nnodes_element_r):
+                    f_pot_el[self.nodalDOF_element_r[node]] -= (
+                        self.N_r_xi[el, i, node] * A_IK @ K_n * qwi
+                    )
+
+                # - second delta Gamma part
+                for node in range(self.nnodes_element_psi):
+                    f_pot_el[self.nodalDOF_element_psi[node]] += (
+                        self.N_psi[el, i, node] * cross3(K_r_xi, K_n) * qwi
+                    )
+
+            # - delta kappa part
+            for node in range(self.nnodes_element_psi):
+                f_pot_el[self.nodalDOF_element_psi[node]] -= (
+                    self.N_psi_xi[el, i, node] * K_m * qwi
+                )
+                f_pot_el[self.nodalDOF_element_psi[node]] += (
+                    self.N_psi[el, i, node] * cross3(K_Kappa_bar, K_m) * qwi
+                )  # Euler term
 
         return f_pot_el
 
@@ -1004,7 +1028,6 @@ class TimoshenkoAxisAngleSE3:
         # print(f"error J_P: {error}")
         # return J_P_num
 
-    # TODO:
     def J_P_q(self, t, q, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
         # evaluate required nodal shape functions
         N_psi, _ = self.basis_functions_psi(frame_ID[0])

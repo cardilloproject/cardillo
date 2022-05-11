@@ -490,8 +490,8 @@ def locking():
 
     # number of elements
     # nelements = 1
-    nelements = 2
-    # nelements = 3
+    # nelements = 2
+    nelements = 3
     # nelements = 4
     # nelements = 8
     # nelements = 16
@@ -580,22 +580,22 @@ def locking():
     # moment at right end
     Fi = material_model.Fi
     M = (
-        lambda t: (e1 * Fi[0])
+        # lambda t: (e1 * Fi[0])
         # lambda t: (e2 * Fi[1])
         # lambda t: (e3 * Fi[2])
-        # lambda t: (e1 * Fi[0] + e3 * Fi[2])
+        lambda t: (e1 * Fi[0] + e3 * Fi[2])
         # lambda t: (e2 * Fi[1] + e3 * Fi[2])
         * smoothstep2(t, 0.0, 1)
         * 2
         * np.pi
         / L
-        * 0.25
+        # * 0.25
         # * 0.5
     )
     moment = K_Moment(M, beam, (1,))
 
     # external force at the right end
-    # force = Force(lambda t: 1.0e0 * t * (e1 + e2 + e3), beam, frame_ID=(1,))
+    # force = Force(lambda t: 1.0e-3 * t * (e1 + e2 + e3), beam, frame_ID=(1,))
     force = Force(lambda t: -t * e3, beam, frame_ID=(1,), K_r_SP=e2)
     # force = Force(lambda t: -1.0e-3 * t * e3, beam, frame_ID=(0.5,), K_r_SP=e2)
 
@@ -604,8 +604,8 @@ def locking():
     model.add(beam)
     model.add(frame1)
     model.add(joint1)
-    model.add(moment)
-    # model.add(force)
+    # model.add(moment)
+    model.add(force)
     model.assemble()
 
     solver = Newton(
