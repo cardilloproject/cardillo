@@ -114,14 +114,14 @@ def rodriguez_der(psi: np.ndarray) -> np.ndarray:
 
 def tangent_map(psi: np.ndarray) -> np.ndarray:
     """Tangent map, see Crisfield1999 (4.2). Different forms are found in 
-    Cardona1988 (38) and Ibrahimbegovic1995 (14b). Actually in Ibrahimbegovic1995 (28) 
-    T^T is shown!
+    Cardona1988 (38), Ibrahimbegovic1995 (14b) and Barfoot2014 (98). Actually in Ibrahimbegovic1995 and Barfoot2014 T^T is shown!
 
     References
     ----------
     Crisfield1999: https://doi.org/10.1098/rspa.1999.0352 \\
     Cardona1988: https://doi.org/10.1002/nme.1620261105 \\
-    Ibrahimbegovic1995: https://doi.org/10.1002/nme.1620382107
+    Ibrahimbegovic1995: https://doi.org/10.1002/nme.1620382107 \\
+    Barfoot2014: https://doi.org/10.1109/TRO.2014.2298059
     """
     angle = norm(psi)
     if angle > 0:
@@ -138,13 +138,14 @@ def tangent_map(psi: np.ndarray) -> np.ndarray:
 
 
 def inverse_tangent_map(psi: np.ndarray) -> np.ndarray:
-    """Inverse tangent map, see Cardona1988 (45) and Ibrahimbegovic1995 (28).
-    Actually in Ibrahimbegovic1995 (28) T^{-T} is shown!
+    """Inverse tangent map, see Cardona1988 (45), Ibrahimbegovic1995 (28) and Barfoot2014 (99).
+    Actually in Ibrahimbegovic1995 and Barfoot2014 T^{-T} is shown!
 
     References
     ----------
     Cardona1988: https://doi.org/10.1002/nme.1620261105 \\
-    Ibrahimbegovic1995: https://doi.org/10.1002/nme.1620382107
+    Ibrahimbegovic1995: https://doi.org/10.1002/nme.1620382107 \\
+    Barfoot2014: https://doi.org/10.1109/TRO.2014.2298059
     """
     angle = norm(psi)
     if angle > 0:

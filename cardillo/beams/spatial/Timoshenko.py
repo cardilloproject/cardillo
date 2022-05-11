@@ -40,56 +40,66 @@ def SE3inv(H):
 
 
 def SE3log(H):
-    """See Murray1994 Example A.14."""
+    """See Murray1994 Example A.14 and Sonneville2014 (A.15)."""
     A_IK = H[:3, :3]
     r_OP = H[:3, 3]
 
-    # log SO(3)
+    # # log SO(3)
+    # psi = rodriguez_inv(A_IK)
+
+    # # inverse tangent map
+    # psi2 = psi @ psi
+    # A_inv = np.eye(3, dtype=float)
+    # if psi2 > 0:
+    #     abs_psi = sqrt(psi2)
+    #     psi_tilde = ax2skew(psi)
+    #     A_inv += (
+    #         -0.5 * psi_tilde
+    #         + (2.0 * sin(abs_psi) - abs_psi * (1.0 + cos(abs_psi)))
+    #         / (2.0 * psi2 * sin(abs_psi))
+    #         * psi_tilde
+    #         @ psi_tilde
+    #     )
+    #     # A_inv = inverse_tangent_map(psi).T # Sonneville2013 (A.15)
+
+    # h = np.concatenate((A_inv @ r_OP, psi))
+
+    # Sonneville2013 (A.15)
     psi = rodriguez_inv(A_IK)
+    h = np.concatenate((inverse_tangent_map(psi).T @ r_OP, psi))
 
-    # inverse tangent map
-    psi2 = psi @ psi
-    A_inv = np.eye(3, dtype=float)
-    if psi2 > 0:
-        abs_psi = sqrt(psi2)
-        psi_tilde = ax2skew(psi)
-        A_inv += (
-            -0.5 * psi_tilde
-            + (2.0 * sin(abs_psi) - abs_psi * (1.0 + cos(abs_psi)))
-            / (2.0 * psi2 * sin(abs_psi))
-            * psi_tilde
-            @ psi_tilde
-        )
-        # A_inv = inverse_tangent_map(psi).T # Sonneville2013 (A.15)
-
-    h = np.concatenate((A_inv @ r_OP, psi))
     return h
 
 
 def se3exp(h):
-    """See Murray1994 Example A.12."""
+    """See Murray1994 Example A.12 and Sonneville2014 (A.10)."""
     r_OP = h[:3]
     psi = h[3:]
-    psi2 = psi @ psi
 
+    # H = np.eye(4, dtype=float)
+    # psi2 = psi @ psi
+    # if psi2 > 0:
+    #     # exp SO(3)
+    #     H[:3, :3] = rodriguez(psi)
+
+    #     # tangent map
+    #     abs_psi = sqrt(psi2)
+    #     psi_tilde = ax2skew(psi)
+    #     A = (
+    #         np.eye(3, dtype=float)
+    #         + (1.0 - cos(abs_psi)) / psi2 * psi_tilde
+    #         + (abs_psi - sin(abs_psi)) / (abs_psi * psi2) * psi_tilde @ psi_tilde
+    #     )
+    #     # A = tangent_map(psi).T # Sonneville2013 (A.10)
+
+    #     H[:3, 3] = A @ r_OP
+    # else:
+    #     H[:3, 3] = r_OP
+
+    # Sonneville2013 (A.10)
     H = np.eye(4, dtype=float)
-    if psi2 > 0:
-        # exp SO(3)
-        H[:3, :3] = rodriguez(psi)
-
-        # tangent map
-        abs_psi = sqrt(psi2)
-        psi_tilde = ax2skew(psi)
-        A = (
-            np.eye(3, dtype=float)
-            + (1.0 - cos(abs_psi)) / psi2 * psi_tilde
-            + (abs_psi - sin(abs_psi)) / (abs_psi * psi2) * psi_tilde @ psi_tilde
-        )
-        # A = tangent_map(psi).T # Sonneville2013 (A.10)
-
-        H[:3, 3] = A @ r_OP
-    else:
-        H[:3, 3] = r_OP
+    H[:3, :3] = rodriguez(psi)
+    H[:3, 3] = tangent_map(psi).T @ r_OP
 
     return H
 
@@ -166,6 +176,7 @@ def se3inverse_tangent_map(h):
     T = np.zeros((6, 6), dtype=float)
     T[:3, :3] = T[3:, 3:] = inverse_tangent_map(psi)
     T[:3, 3:] = T_UOm_m(r, psi)
+    # T[:3, 3:] = T_UOm_p(r, psi)
     return T
 
 
@@ -183,8 +194,8 @@ class TimoshenkoAxisAngleSE3:
         q0=None,
         u0=None,
         basis="B-spline",
-        # use_K_r=True,
-        use_K_r=False,
+        use_K_r=True,
+        # use_K_r=False,
     ):
         # use K_r instead of I_r
         self.use_K_r = use_K_r
@@ -382,9 +393,9 @@ class TimoshenkoAxisAngleSE3:
         # note the elements coincide for both meshes!
         return self.knot_vector_r.element_number(xi)[0]
 
-    # def reference_rotation(self, qe: np.ndarray, case="left"):
-    # def reference_rotation(self, qe: np.ndarray, case="right"):
-    def reference_rotation(self, qe: np.ndarray, case="midway"):
+    def reference_rotation(self, qe: np.ndarray, case="left"):
+        # def reference_rotation(self, qe: np.ndarray, case="right"):
+        # def reference_rotation(self, qe: np.ndarray, case="midway"):
         """Reference rotation for SE(3) object in analogy to the proposed
         formulation by Crisfield1999 (5.8).
 
@@ -471,6 +482,19 @@ class TimoshenkoAxisAngleSE3:
         # extract centerline and transformation
         A_IK = H_IK[:3, :3]
         r_OP = H_IK[:3, 3]
+
+        # # alternative computation of strain measures
+        # H_RK = se3exp(h_rel)
+
+        # R_r_xi = h_rel_xi[:3]
+        # R_omega_xi = h_rel_xi[3:]
+        # H_RK_xi = SE3(ax2skew(R_omega_xi), R_r_xi)
+
+        # strains_tilde = SE3inv(H_RK) @ H_RK_xi
+        # strains = SE3log(strains_tilde)
+
+        # # This alternative formulation works for pure bending experiments
+        # strains = h_rel_xi
 
         # extract strains
         K_Gamma_bar = strains[:3]  # this is K_r_xi
@@ -792,28 +816,28 @@ class TimoshenkoAxisAngleSE3:
 
         return q_ddot
 
-    # # change between rotation vector and its complement in order to circumvent
-    # # singularities of the rotation vector
-    # @staticmethod
-    # def psi_C(psi):
-    #     angle = norm(psi)
-    #     if angle < pi:
-    #         return psi
-    #     else:
-    #         # Ibrahimbegovic1995 after (62)
-    #         print(f"complement rotation vector is used")
-    #         n = int((angle + pi) / (2 * pi))
-    #         if angle > 0:
-    #             e = psi / angle
-    #         else:
-    #             e = psi.copy()
-    #         return psi - 2 * n * pi * e
+    # change between rotation vector and its complement in order to circumvent
+    # singularities of the rotation vector
+    @staticmethod
+    def psi_C(psi):
+        angle = norm(psi)
+        if angle < pi:
+            return psi
+        else:
+            # Ibrahimbegovic1995 after (62)
+            print(f"complement rotation vector is used")
+            n = int((angle + pi) / (2 * pi))
+            if angle > 0:
+                e = psi / angle
+            else:
+                e = psi.copy()
+            return psi - 2 * n * pi * e
 
-    # def step_callback(self, t, q, u):
-    #     for node in range(self.nnode_psi):
-    #         psi_node = q[self.nodalDOF_psi[node]]
-    #         q[self.nodalDOF_psi[node]] = TimoshenkoAxisAngle.psi_C(psi_node)
-    #     return q, u
+    def step_callback(self, t, q, u):
+        for node in range(self.nnode_psi):
+            psi_node = q[self.nodalDOF_psi[node]]
+            q[self.nodalDOF_psi[node]] = TimoshenkoAxisAngle.psi_C(psi_node)
+        return q, u
 
     # # TODO: Do we have to count the number of complement rotations?
     # # I think so, since otherwise the next singularity occurs at 4pi, etc.

@@ -1,7 +1,7 @@
 from cardillo.math import e1, e2, e3, sqrt, sin, cos, pi, smoothstep2, A_IK_basic
 from cardillo.beams.spatial import CircularCrossSection, ShearStiffQuadratic, Simo1986
 from cardillo.math.SE3 import SE3, se3
-from cardillo.math.algebra import ax2skew
+from cardillo.math.algebra import ax2skew, skew2ax
 from cardillo.math.rotations import (
     inverse_tangent_map,
     rodriguez,
@@ -9,17 +9,13 @@ from cardillo.math.rotations import (
     tangent_map,
 )
 from cardillo.model.frame import Frame
-from cardillo.model.bilateral_constraints.implicit import (
-    RigidConnection,
-    RigidConnectionCable,
-)
+from cardillo.model.bilateral_constraints.implicit import RigidConnection
 from cardillo.beams import (
     animate_beam,
     TimoshenkoAxisAngle,
     TimoshenkoAxisAngleSE3,
 )
 from cardillo.forces import Force, K_Moment, DistributedForce1D
-from cardillo.contacts import Line2Line
 from cardillo.model import Model
 from cardillo.solver import (
     Newton,
@@ -494,8 +490,8 @@ def locking():
 
     # number of elements
     # nelements = 1
-    # nelements = 2
-    nelements = 3
+    nelements = 2
+    # nelements = 3
     # nelements = 4
     # nelements = 8
     # nelements = 16
@@ -522,7 +518,8 @@ def locking():
 
     # beam length
     # L = 1.0e3 # Meier2015
-    L = 10
+    L = 5
+    # L = 10
 
     # used cross section
     # slenderness = 1
@@ -583,22 +580,24 @@ def locking():
     # moment at right end
     Fi = material_model.Fi
     M = (
-        # lambda t: (e1 * Fi[0])
-        lambda t: (e2 * Fi[1])
+        lambda t: (e1 * Fi[0])
+        # lambda t: (e2 * Fi[1])
         # lambda t: (e3 * Fi[2])
-        # lambda t: (e1 * Fi[0] + e3 * Fi[2]) * 1.0e-1
+        # lambda t: (e1 * Fi[0] + e3 * Fi[2])
         # lambda t: (e2 * Fi[1] + e3 * Fi[2])
         * smoothstep2(t, 0.0, 1)
         * 2
         * np.pi
         / L
-        # * 0.25
+        * 0.25
+        # * 0.5
     )
     moment = K_Moment(M, beam, (1,))
 
     # external force at the right end
+    # force = Force(lambda t: 1.0e0 * t * (e1 + e2 + e3), beam, frame_ID=(1,))
     force = Force(lambda t: -t * e3, beam, frame_ID=(1,), K_r_SP=e2)
-    # force = Force(lambda t: -t * e3, beam, frame_ID=(0.5,), K_r_SP=e2)
+    # force = Force(lambda t: -1.0e-3 * t * e3, beam, frame_ID=(0.5,), K_r_SP=e2)
 
     # assemble the model
     model = Model()
@@ -801,15 +800,18 @@ def SE3_interpolation():
                 h_rel += xi * h_RK
                 h_rel_xi += h_RK
 
-        # # composition of reference rotation and relative one
-        # H_IK = H_IR @ se3exp(h_rel)
-
-        # # extract centerline and transformation matrix
-        # A_IK = H_IK[:3, :3]
-        # r_OP = H_IK[:3, 3]
-
         # composition of reference rotation and relative one
         H_IK = H_IR @ se3exp(h_rel)
+
+        # alternative computation of strain measures
+        H_RK = se3exp(h_rel)
+
+        R_r_xi = h_rel_xi[:3]
+        R_omega_xi = h_rel_xi[3:]
+        H_RK_xi = SE3(ax2skew(R_omega_xi), R_r_xi)
+
+        strains_tilde = SE3inv(H_RK) @ H_RK_xi
+        strains2 = SE3log(strains_tilde)
 
         # objective strains
         T = se3tangent_map(h_rel)
@@ -829,13 +831,13 @@ def SE3_interpolation():
     r_OA = np.zeros(3, dtype=float)
     psi_A = np.zeros(3, dtype=float)
 
-    # # quater circle
-    # r_OB = np.sqrt(2.0) / 2.0 * np.array([1, 1, 0], dtype=float)
-    # psi_B = np.pi / 2.0 * np.array([0, 0, 1], dtype=float)
+    # quater circle
+    r_OB = np.sqrt(2.0) / 2.0 * np.array([1, 1, 0], dtype=float)
+    psi_B = np.pi / 2.0 * np.array([0, 0, 1], dtype=float)
 
-    # half circle
-    r_OB = np.array([0, 1, 0], dtype=float)
-    psi_B = np.pi * np.array([0, 0, 1], dtype=float)
+    # # half circle
+    # r_OB = np.array([0, 1, 0], dtype=float)
+    # psi_B = np.pi * np.array([0, 0, 1], dtype=float)
 
     num = 20
     xis = np.linspace(0, 1, num=num)
@@ -853,16 +855,46 @@ def SE3_interpolation():
     d2 = np.array([A_IKi[:, 1] for A_IKi in A_IK]).T
     # d3 = np.array([A_IKi[:, 2] for A_IKi in A_IK]).T
 
-    fig, ax = plt.subplots()
-    ax.plot(r_OP[0], r_OP[1], "-k")
-    ax.quiver(*r_OP[:2], *d1[:2], color="red")
-    ax.quiver(*r_OP[:2], *d2[:2], color="green")
-    ax.axis("equal")
-    ax.grid(True)
+    fig, ax = plt.subplots(1, 3)
+
+    # centerline and directors
+    ax[0].plot(r_OP[0], r_OP[1], "-k")
+    ax[0].quiver(*r_OP[:2], *d1[:2], color="red")
+    ax[0].quiver(*r_OP[:2], *d2[:2], color="green")
+    ax[0].axis("equal")
+    ax[0].grid(True)
+
+    # axial and shear strains
+    # ax[1].quiver(*r_OP[:2], *K_Gamma_bar[:2], color="red")
+    ax[1].plot(xis, K_Gamma_bar[0], "-r", label="K_Gamma_bar0")
+    ax[1].plot(xis, K_Gamma_bar[1], "--g", label="K_Gamma_bar1")
+    ax[1].plot(xis, K_Gamma_bar[2], "-.b", label="K_Gamma_bar2")
+    ax[1].axis("equal")
+    ax[1].grid(True)
+    ax[1].legend()
+
+    # atorsion and curvatures
+    # ax[1].quiver(*r_OP[:2], *K_Kappa_bar[:2], color="red")
+    ax[2].plot(xis, K_Kappa_bar[0], "-r", label="K_Kappa_bar0")
+    ax[2].plot(xis, K_Kappa_bar[1], "--g", label="K_Kappa_bar1")
+    ax[2].plot(xis, K_Kappa_bar[2], "-.b", label="K_Kappa_bar2")
+    ax[2].axis("equal")
+    ax[2].grid(True)
+    ax[2].legend()
+
+    r = sqrt(2.0) / 2.0
+    print(f"2 * pi * r: {2 * pi * r}")
+
+    print(f"2 * pi * r / 4: {2 * pi * r / 4.}")
+    print(f"K_Gamma_bar0: {K_Gamma_bar[0]}")
+
+    print(f"curvature = 1 / r: {1. / r}")
+    print(f"K_Kappa_bar2: {K_Kappa_bar[2]}")
+
     plt.show()
 
 
 if __name__ == "__main__":
     # run(statics=True)
-    # locking()
-    SE3_interpolation()
+    locking()
+    # SE3_interpolation()
