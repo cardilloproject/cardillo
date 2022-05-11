@@ -16,7 +16,7 @@ from cardillo.math.algebra import (
 from scipy.integrate import solve_ivp
 
 from cardillo.model import Model
-from cardillo.model.point_mass import Point_mass
+from cardillo.model.point_mass import PointMass
 from cardillo.model.bilateral_constraints.implicit import Rod
 from cardillo.model.frame import Frame
 from cardillo.model.force import Force
@@ -143,7 +143,7 @@ def comparison_mathematical_pendulum3D(
         t0, np.array([alpha0, beta0]), np.array([alpha_dot0, beta_dot0])
     )
 
-    PM = Point_mass(m, q0=r_OS0[:dim], u0=v_S0[:dim], dim=dim)
+    PM = PointMass(m, q0=r_OS0[:dim], u0=v_S0[:dim], dim=dim)
 
     origin = Frame(r_OP, r_OP_t=v_P, r_OP_tt=a_P)
     joint = Rod(origin, PM)

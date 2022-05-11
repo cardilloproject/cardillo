@@ -7,7 +7,7 @@ import matplotlib.animation as animation
 
 from cardillo.model import Model
 from cardillo.model.pendulum_variable_length import Pendulum_variable_length
-from cardillo.model.point_mass import Point_mass
+from cardillo.model.point_mass import PointMass
 from cardillo.model.bilateral_constraints.implicit import Rod
 from cardillo.model.force import Force
 from cardillo.solver import Euler_backward, Scipy_ivp
@@ -32,7 +32,7 @@ def double_pendulum():
     pendulum = Pendulum_variable_length(m, l, l_t, Fg, q0=q0, u0=u0)
     model.add(pendulum)
 
-    pm = Point_mass(m, 2, np.array([2 * L, 0]), np.array([0, 0]))
+    pm = PointMass(m, 2, np.array([2 * L, 0]), np.array([0, 0]))
     model.add(pm)
 
     gravity_force = Force(Fg, pm)

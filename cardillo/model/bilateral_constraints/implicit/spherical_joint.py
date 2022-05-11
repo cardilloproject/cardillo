@@ -195,7 +195,7 @@ class SphericalJoint:
         coo.extend(dense, (self.uDOF, self.qDOF))
 
 
-class Spherical_joint2D(SphericalJoint):
+class SphericalJoint2D(SphericalJoint):
     def __init__(
         self,
         subsystem1,
@@ -228,8 +228,8 @@ class Spherical_joint2D(SphericalJoint):
     def g_dot_q(self, t, q, u, coo):
         nq1 = self.nq1
         dense = np.zeros((self.nla_g, self._nq))
-        dense[:, :nq1] = -self.v_P1_q(t, q, u)[:2]
-        dense[:, nq1:] = self.v_P2_q(t, q, u)[:2]
+        dense[:, :nq1] = -self.v_B1_q(t, q, u)[:2]
+        dense[:, nq1:] = self.v_B2_q(t, q, u)[:2]
         coo.extend(dense, (self.la_gDOF, self.qDOF))
 
     def g_dot_u(self, t, q, coo):
@@ -241,17 +241,15 @@ class Spherical_joint2D(SphericalJoint):
     def g_ddot_q(self, t, q, u, u_dot, coo):
         nq1 = self.nq1
         dense = np.zeros((self.nla_g, self._nq))
-        dense[:, :nq1] = -self.a_P1_q(t, q, u, u_dot)[:2]
-        dense[:, nq1:] = self.a_P2_q(t, q, u, u_dot)[:2]
+        dense[:, :nq1] = -self.a_B1_q(t, q, u, u_dot)[:2]
+        dense[:, nq1:] = self.a_B2_q(t, q, u, u_dot)[:2]
         coo.extend(dense, (self.la_gDOF, self.qDOF))
-        # dense_num = Numerical_derivative(lambda t, q: self.g_ddot(t, q, u, u_dot), order=2)._x(t, q)
-        # coo.extend(dense_num, (self.la_gDOF, self.qDOF))
 
     def g_ddot_u(self, t, q, u, u_dot, coo):
         nu1 = self.nu1
         dense = np.zeros((self.nla_g, self._nq))
-        dense[:, :nu1] = -self.a_P1_u(t, q, u, u_dot)[:2]
-        dense[:, nu1:] = self.a_P2_u(t, q, u, u_dot)[:2]
+        dense[:, :nu1] = -self.a_B1_u(t, q, u, u_dot)[:2]
+        dense[:, nu1:] = self.a_B2_u(t, q, u, u_dot)[:2]
         coo.extend(dense, (self.la_gDOF, self.uDOF))
 
     def g_q(self, t, q, coo):
@@ -259,11 +257,11 @@ class Spherical_joint2D(SphericalJoint):
 
     def W_g_dense(self, t, q):
         nu1 = self.nu1
-        J_P1 = self.J_P1(t, q)
-        J_P2 = self.J_P2(t, q)
+        J_B1 = self.J_B1(t, q)
+        J_B2 = self.J_B2(t, q)
         W_g = np.zeros((self._nu, self.nla_g))
-        W_g[:nu1, :] = -J_P1[:2].T
-        W_g[nu1:, :] = J_P2[:2].T
+        W_g[:nu1, :] = -J_B1[:2].T
+        W_g[nu1:, :] = J_B2[:2].T
         return W_g
 
     def W_g(self, t, q, coo):
@@ -272,12 +270,12 @@ class Spherical_joint2D(SphericalJoint):
     def Wla_g_q(self, t, q, la_g, coo):
         nq1 = self.nq1
         nu1 = self.nu1
-        J_P1_q = self.J_P1_q(t, q)
-        J_P2_q = self.J_P2_q(t, q)
+        J_B1_q = self.J_B1_q(t, q)
+        J_B2_q = self.J_B2_q(t, q)
 
         # dense blocks
         dense = np.zeros((self._nu, self._nq))
-        dense[:nu1, :nq1] = np.einsum("i,ijk->jk", -la_g, J_P1_q[:2])
-        dense[nu1:, nq1:] = np.einsum("i,ijk->jk", la_g, J_P2_q[:2])
+        dense[:nu1, :nq1] = np.einsum("i,ijk->jk", -la_g, J_B1_q[:2])
+        dense[nu1:, nq1:] = np.einsum("i,ijk->jk", la_g, J_B2_q[:2])
 
         coo.extend(dense, (self.uDOF, self.qDOF))

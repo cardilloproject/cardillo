@@ -1,7 +1,7 @@
 import numpy as np
 
 
-class Point_mass:
+class PointMass:
     def __init__(self, m, dim=3, q0=None, u0=None):
         self.m = m
         self.nq = dim

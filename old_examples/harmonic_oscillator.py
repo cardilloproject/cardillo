@@ -10,7 +10,7 @@ from cardillo.solver import (
     Generalized_alpha_1,
 )
 from cardillo.model.frame import Frame
-from cardillo.model.point_mass import Point_mass
+from cardillo.model.point_mass import PointMass
 from cardillo.model.force import Force
 from cardillo.model.scalar_force_interactions.potential_force_laws import Linear_spring
 from cardillo.model.scalar_force_interactions.nonpotential_force_laws import (
@@ -31,7 +31,7 @@ if __name__ == "__main__":
     frame = Frame()
 
     q0 = np.array([0, 0, -l0])
-    mass = Point_mass(m, q0=q0, u0=np.zeros(3))
+    mass = PointMass(m, q0=q0, u0=np.zeros(3))
 
     f_g = Force(lambda t: np.array([0, 0, -m * g]), mass)
 

@@ -1,5 +1,5 @@
 # from .rod import Rod
-from .spherical_joint import SphericalJoint  # , Spherical_joint2D
+from .spherical_joint import SphericalJoint, SphericalJoint2D
 from .RigidConnection import (
     RigidConnection,
     RigidConnectionCable,
