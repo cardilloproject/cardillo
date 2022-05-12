@@ -746,6 +746,7 @@ class TimoshenkoAxisAngleSE3:
             # Original formulation!
             #######################
             if self.use_K_r:
+                raise NotImplementedError
                 # - first delta Gamma part
                 for node in range(self.nnodes_element_r):
                     f_pot_el[self.nodalDOF_element_r[node]] -= (
@@ -780,14 +781,14 @@ class TimoshenkoAxisAngleSE3:
                     f_pot_el[self.nodalDOF_element_psi[node]] += (
                         self.N_psi[el, i, node] * cross3(K_r_xi, K_n) * qwi
                     )
-                    f_pot_el[self.nodalDOF_element_psi[node]] -= (
-                        # self.N_psi[el, i, node] * cross3(K_r_xi, K_n) * qwi
-                        # - self.N_psi[el, i, node] * ax2skew(K_n) @ K_r_xi * qwi
-                        -self.N_psi[el, i, node]
-                        * ax2skew(K_n)
-                        @ cross3(K_Kappa_bar, K_r_OP)
-                        * qwi
-                    )  # Euler term
+                    # f_pot_el[self.nodalDOF_element_psi[node]] -= (
+                    #     # self.N_psi[el, i, node] * cross3(K_r_xi, K_n) * qwi
+                    #     # - self.N_psi[el, i, node] * ax2skew(K_n) @ K_r_xi * qwi
+                    #     -self.N_psi[el, i, node]
+                    #     * ax2skew(K_n)
+                    #     @ cross3(K_Kappa_bar, K_r_OP)
+                    #     * qwi
+                    # )  # Euler term
 
             # - delta kappa part
             for node in range(self.nnodes_element_psi):

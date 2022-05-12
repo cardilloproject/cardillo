@@ -499,8 +499,8 @@ def locking():
     # nelements = 64
 
     # used polynomial degree
-    # polynomial_degree = 1
-    polynomial_degree = 2
+    polynomial_degree = 1
+    # polynomial_degree = 2
     # polynomial_degree = 3
     # polynomial_degree = 5
     # polynomial_degree = 6
@@ -581,9 +581,9 @@ def locking():
     Fi = material_model.Fi
     M = (
         # lambda t: (e1 * Fi[0])
-        lambda t: (e2 * Fi[1])
+        # lambda t: (e2 * Fi[1])
         # lambda t: (e3 * Fi[2])
-        # lambda t: (e1 * Fi[0] + e3 * Fi[2])
+        lambda t: (e1 * Fi[0] + e3 * Fi[2])
         # lambda t: (e2 * Fi[1] + e3 * Fi[2])
         * smoothstep2(t, 0.0, 1)
         * 2
@@ -596,9 +596,9 @@ def locking():
 
     # external force at the right end
     # force = Force(lambda t: 2.5e-3 * t * (e1 + e2 + e3), beam, frame_ID=(1,), K_r_SP=5 * e2)
-    # # force = Force(lambda t: -1.0e-3 * t * e3, beam, frame_ID=(1,), K_r_SP=5 * e2)
+    force = Force(lambda t: -1.0e-3 * t * e3, beam, frame_ID=(1,), K_r_SP=5 * e2)
     # # force = Force(lambda t: -1.0e-3 * t * e3, beam, frame_ID=(0.5,), K_r_SP=e2)
-    force = Force(lambda t: -4.0e-3 * t * e2, beam, frame_ID=(1,))
+    # force = Force(lambda t: -4.0e-3 * t * e2, beam, frame_ID=(1,))
 
     # assemble the model
     model = Model()
@@ -606,14 +606,14 @@ def locking():
     model.add(frame1)
     model.add(joint1)
     model.add(moment)
-    model.add(force)
+    # model.add(force)
     model.assemble()
 
     solver = Newton(
         model,
         # n_load_steps=10,
-        # n_load_steps=50,
-        n_load_steps=100,
+        n_load_steps=50,
+        # n_load_steps=100,
         # n_load_steps=500,
         max_iter=30,
         # atol=1.0e-4,
