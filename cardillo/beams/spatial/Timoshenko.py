@@ -39,38 +39,6 @@ def SE3inv(H):
     return SE3(A_IK.T, -A_IK.T @ r_OP)  # Sonneville2013 (12)
 
 
-def SE3log(H):
-    """See Murray1994 Example A.14 and Sonneville2014 (A.15)."""
-    A_IK = H[:3, :3]
-    r_OP = H[:3, 3]
-
-    # # log SO(3)
-    # psi = rodriguez_inv(A_IK)
-
-    # # inverse tangent map
-    # psi2 = psi @ psi
-    # A_inv = np.eye(3, dtype=float)
-    # if psi2 > 0:
-    #     abs_psi = sqrt(psi2)
-    #     psi_tilde = ax2skew(psi)
-    #     A_inv += (
-    #         -0.5 * psi_tilde
-    #         + (2.0 * sin(abs_psi) - abs_psi * (1.0 + cos(abs_psi)))
-    #         / (2.0 * psi2 * sin(abs_psi))
-    #         * psi_tilde
-    #         @ psi_tilde
-    #     )
-    #     # A_inv = inverse_tangent_map(psi).T # Sonneville2013 (A.15)
-
-    # h = np.concatenate((A_inv @ r_OP, psi))
-
-    # Sonneville2013 (A.15)
-    psi = rodriguez_inv(A_IK)
-    h = np.concatenate((inverse_tangent_map(psi).T @ r_OP, psi))
-
-    return h
-
-
 def se3exp(h):
     """See Murray1994 Example A.12 and Sonneville2014 (A.10)."""
     r_OP = h[:3]
@@ -104,6 +72,38 @@ def se3exp(h):
     return H
 
 
+def SE3log(H):
+    """See Murray1994 Example A.14 and Sonneville2014 (A.15)."""
+    A_IK = H[:3, :3]
+    r_OP = H[:3, 3]
+
+    # # log SO(3)
+    # psi = rodriguez_inv(A_IK)
+
+    # # inverse tangent map
+    # psi2 = psi @ psi
+    # A_inv = np.eye(3, dtype=float)
+    # if psi2 > 0:
+    #     abs_psi = sqrt(psi2)
+    #     psi_tilde = ax2skew(psi)
+    #     A_inv += (
+    #         -0.5 * psi_tilde
+    #         + (2.0 * sin(abs_psi) - abs_psi * (1.0 + cos(abs_psi)))
+    #         / (2.0 * psi2 * sin(abs_psi))
+    #         * psi_tilde
+    #         @ psi_tilde
+    #     )
+    #     # A_inv = inverse_tangent_map(psi).T # Sonneville2013 (A.15)
+
+    # h = np.concatenate((A_inv @ r_OP, psi))
+
+    # Sonneville2013 (A.15)
+    psi = rodriguez_inv(A_IK)
+    h = np.concatenate((inverse_tangent_map(psi).T @ r_OP, psi))
+
+    return h
+
+
 def T_UOm_p(a, b):
     """Position part of the tangent map in se(3), see Sonnville2013 (A.12)."""
     a_tilde = ax2skew(a)
@@ -121,12 +121,11 @@ def T_UOm_p(a, b):
         return (
             -0.5 * beta * a_tilde
             + (1.0 - alpha) * ab / b2
-            + (b @ a)
+            + ((b @ a) / b2)
             * (
                 (beta - alpha) * b_tilde
                 + (0.5 * beta - 3.0 * (1.0 - alpha) / b2) * b_tilde @ b_tilde
             )
-            / b2
         )
 
         # # Park2005 (21)
@@ -190,7 +189,6 @@ def se3inverse_tangent_map(h):
     T = np.zeros((6, 6), dtype=float)
     T[:3, :3] = T[3:, 3:] = inverse_tangent_map(psi)
     T[:3, 3:] = T_UOm_m(r, psi)
-    # T[:3, 3:] = T_UOm_p(r, psi)
     return T
 
 
@@ -706,7 +704,7 @@ class TimoshenkoAxisAngleSE3:
             r_OP, A_IK, K_Gamma_bar, K_Kappa_bar = self.eval(qe, self.qp[el, i])
 
             # centerline and tangent
-            # K_r_OP = A_IK.T @ r_OP
+            K_r_OP = A_IK.T @ r_OP
             K_r_xi = K_Gamma_bar
 
             # axial and shear strains
@@ -747,8 +745,8 @@ class TimoshenkoAxisAngleSE3:
             #######################
             # Original formulation!
             #######################
-            # - first delta Gamma part
             if self.use_K_r:
+                # - first delta Gamma part
                 for node in range(self.nnodes_element_r):
                     f_pot_el[self.nodalDOF_element_r[node]] -= (
                         self.N_r_xi[el, i, node] * K_n * qwi
@@ -756,7 +754,22 @@ class TimoshenkoAxisAngleSE3:
                     f_pot_el[self.nodalDOF_element_r[node]] += (
                         self.N_r[el, i, node] * cross3(K_Kappa_bar, K_n) * qwi
                     )  # Euler term
+
+                # - second delta Gamma part
+                for node in range(self.nnodes_element_psi):
+                    f_pot_el[self.nodalDOF_element_psi[node]] += (
+                        self.N_psi[el, i, node] * cross3(K_r_xi, K_n) * qwi
+                    )
+                    f_pot_el[self.nodalDOF_element_psi[node]] += (
+                        # self.N_psi[el, i, node] * cross3(K_r_xi, K_n) * qwi
+                        # - self.N_psi[el, i, node] * ax2skew(K_n) @ K_r_xi * qwi
+                        -self.N_psi[el, i, node]
+                        * ax2skew(K_n)
+                        @ cross3(K_Kappa_bar, K_r_OP)
+                        * qwi
+                    )  # Euler term
             else:
+                # - first delta Gamma part
                 for node in range(self.nnodes_element_r):
                     f_pot_el[self.nodalDOF_element_r[node]] -= (
                         self.N_r_xi[el, i, node] * A_IK @ K_n * qwi
@@ -767,6 +780,14 @@ class TimoshenkoAxisAngleSE3:
                     f_pot_el[self.nodalDOF_element_psi[node]] += (
                         self.N_psi[el, i, node] * cross3(K_r_xi, K_n) * qwi
                     )
+                    f_pot_el[self.nodalDOF_element_psi[node]] -= (
+                        # self.N_psi[el, i, node] * cross3(K_r_xi, K_n) * qwi
+                        # - self.N_psi[el, i, node] * ax2skew(K_n) @ K_r_xi * qwi
+                        -self.N_psi[el, i, node]
+                        * ax2skew(K_n)
+                        @ cross3(K_Kappa_bar, K_r_OP)
+                        * qwi
+                    )  # Euler term
 
             # - delta kappa part
             for node in range(self.nnodes_element_psi):
