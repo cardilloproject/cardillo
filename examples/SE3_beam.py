@@ -508,9 +508,12 @@ def locking():
     # number of quadrature points
     # TODO: We have to distinguish between integration of the mass matrix,
     #       gyroscopic forces and potential forces!
-    nquadrature_points = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
+    # nquadrature_points = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
     # nquadrature_points = polynomial_degree + 2
     # nquadrature_points = polynomial_degree + 1 # this seems not to be sufficent for p > 1
+    nquadrature_points = (
+        polynomial_degree  # this works for p = 1 and homogeneous deformations!
+    )
 
     # used shape functions for discretization
     shape_functions = "B-spline"
@@ -895,7 +898,193 @@ def SE3_interpolation():
     plt.show()
 
 
+def HelixIbrahimbegovic1997():
+    """Beam bent to a helical form - Section 5.2 of Ibrahimbegovic1997.
+
+    References
+    ==========
+    Ibrahimbegovic1997: https://doi.org/10.1016/S0045-7825(97)00059-5
+    """
+    # Beam = TimoshenkoAxisAngle
+    Beam = TimoshenkoAxisAngleSE3
+
+    # fraction of 10 full rotations and the out of plane force
+    # a corresponding fraction of 100 elements is chosen
+    # fraction = 0.1 # 1 full rotations
+    # fraction = 0.2 # 2 full rotations
+    fraction = 0.4  # 2 full rotations
+
+    # number of elements
+    # nelements_max = 100
+    nelements_max = 30
+    nelements = max(3, int(fraction * nelements_max))  # this was used for 10 circles
+    print(f"nelemen: {nelements}")
+
+    # used polynomial degree
+    polynomial_degree = 1
+    # polynomial_degree = 2
+    # polynomial_degree = 3
+    # polynomial_degree = 5
+    # polynomial_degree = 6
+
+    # number of quadrature points
+    # TODO: We have to distinguish between integration of the mass matrix,
+    #       gyroscopic forces and potential forces!
+    nquadrature_points = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
+    # nquadrature_points = polynomial_degree + 2
+    # nquadrature_points = polynomial_degree + 1 # this seems not to be sufficent for p > 1
+    # nquadrature_points = polynomial_degree # this works for p = 1 and homogeneous deformations!
+
+    # used shape functions for discretization
+    shape_functions = "B-spline"
+    # shape_functions = "Lagrange"
+
+    # beam parameters found in Section 5.1 Ibrahimbegovic1997
+    L = 10
+    EA = GA = 1.0e4
+    GJ = EI = 1.0e2
+
+    # build quadratic material model
+    Ei = np.array([EA, GA, GA], dtype=float)
+    Fi = np.array([GJ, EI, EI], dtype=float)
+    material_model = Simo1986(Ei, Fi)
+
+    # Note: This is never used in statics!
+    line_density = 1.0
+    radius = 1.0
+    cross_section = CircularCrossSection(line_density, radius)
+
+    # starting point and orientation of initial point, initial length
+    r_OP = np.zeros(3, dtype=float)
+    A_IK = np.eye(3, dtype=float)
+
+    # build beam model
+    beam = beam_factory(
+        nelements,
+        polynomial_degree,
+        nquadrature_points,
+        shape_functions,
+        cross_section,
+        material_model,
+        Beam,
+        L,
+        r_OP=r_OP,
+        A_IK=A_IK,
+    )
+
+    # junctions
+    r_OB0 = np.zeros(3)
+    A_IK0 = lambda t: np.eye(3)
+    frame1 = Frame(r_OP=r_OB0, A_IK=A_IK0)
+
+    # left and right joint
+    joint1 = RigidConnection(frame1, beam, r_OB0, frame_ID2=(0,))
+
+    # moment at right end
+    Fi = material_model.Fi
+    M = lambda t: (
+        e3
+        * 20
+        * np.pi
+        * Fi[2]
+        / L  # 10 full rotations
+        * smoothstep2(t, 0.0, 1.0)
+        * fraction
+    )
+    moment = K_Moment(M, beam, (1,))
+
+    # external force at the right end
+    F = lambda t: (50 * e3 * smoothstep2(t, 0.0, 1.0) * fraction)
+    force = Force(F, beam, frame_ID=(1,))
+
+    # assemble the model
+    model = Model()
+    model.add(beam)
+    model.add(frame1)
+    model.add(joint1)
+    model.add(moment)
+    model.add(force)
+    model.assemble()
+
+    n_load_steps = int(25 * 10 * fraction)
+
+    solver = Newton(
+        model,
+        n_load_steps=n_load_steps,
+        # n_load_steps=100,
+        max_iter=30,
+        atol=1.0e-6,
+        # atol=1.0e-8,
+        # atol=1.0e-10,
+        numerical_jacobian=False,
+    )
+    sol = solver.solve()
+    q = sol.q
+    nt = len(q)
+    t = sol.t[:nt]
+
+    # visualize nodal rotation vectors
+    fig, ax = plt.subplots()
+
+    for i, nodalDOF_psi in enumerate(beam.nodalDOF_psi):
+        psi = q[:, beam.qDOF[nodalDOF_psi]]
+        ax.plot(t, np.linalg.norm(psi, axis=1), label=f"||psi{i}||")
+
+    ax.set_xlabel("t")
+    ax.set_ylabel("nodal rotation vectors")
+    ax.grid()
+    ax.legend()
+
+    ################################
+    # visualize norm strain measures
+    ################################
+    fig, ax = plt.subplots(1, 2)
+
+    nxi = 1000
+    xis = np.linspace(0, 1, num=nxi)
+
+    K_Gamma = np.zeros((3, nxi))
+    K_Kappa = np.zeros((3, nxi))
+    for i in range(nxi):
+        frame_ID = (xis[i],)
+        elDOF = beam.qDOF_P(frame_ID)
+        qe = q[-1, beam.qDOF][elDOF]
+        _, _, K_Gamma[:, i], K_Kappa[:, i] = beam.eval(qe, xis[i])
+    ax[0].plot(xis, K_Gamma[0], "-r", label="K_Gamma0")
+    ax[0].plot(xis, K_Gamma[1], "-g", label="K_Gamma1")
+    ax[0].plot(xis, K_Gamma[2], "-b", label="K_Gamma2")
+    ax[0].grid()
+    ax[0].legend()
+    ax[1].plot(xis, K_Kappa[0], "-r", label="K_Kappa0")
+    ax[1].plot(xis, K_Kappa[1], "-g", label="K_Kappa1")
+    ax[1].plot(xis, K_Kappa[2], "-b", label="K_Kappa2")
+    ax[1].grid()
+    ax[1].legend()
+
+    ############################
+    # Visualize tip displacement
+    ############################
+    elDOF = beam.qDOF[beam.elDOF[-1]]
+    r_OP = np.array([beam.r_OP(ti, qi[elDOF], (1,)) for (ti, qi) in zip(t, q)])
+
+    fig, ax = plt.subplots()
+
+    ax.plot(t, r_OP[:, 0], "-k", label="x")
+    ax.plot(t, r_OP[:, 1], "--k", label="y")
+    ax.plot(t, r_OP[:, 2], "-.k", label="z")
+    ax.set_xlabel("t")
+    ax.set_ylabel("tip displacement")
+    ax.grid()
+    ax.legend()
+
+    ###########
+    # animation
+    ###########
+    animate_beam(t, q, [beam], L, show=True)
+
+
 if __name__ == "__main__":
     # run(statics=True)
-    locking()
+    # locking()
     # SE3_interpolation()
+    HelixIbrahimbegovic1997()
