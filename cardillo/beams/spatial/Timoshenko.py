@@ -1173,7 +1173,6 @@ class TimoshenkoAxisAngleSE3:
     # body force
     ####################################################
     def distributed_force1D_pot_el(self, force, t, qe, el):
-        raise NotImplementedError
         Ve = 0
         for i in range(self.nquadrature):
             # extract reference state variables
@@ -1191,7 +1190,6 @@ class TimoshenkoAxisAngleSE3:
         return Ve
 
     def distributed_force1D_pot(self, t, q, force):
-        raise NotImplementedError
         V = 0
         for el in range(self.nelement):
             qe = q[self.elDOF[el]]
@@ -1199,7 +1197,6 @@ class TimoshenkoAxisAngleSE3:
         return V
 
     def distributed_force1D_el(self, force, t, el):
-        raise NotImplementedError
         fe = np.zeros(self.nq_element, dtype=float)
         for i in range(self.nquadrature):
             # extract reference state variables
@@ -1216,14 +1213,12 @@ class TimoshenkoAxisAngleSE3:
         return fe
 
     def distributed_force1D(self, t, q, force):
-        raise NotImplementedError
         f = np.zeros(self.nq, dtype=float)
         for el in range(self.nelement):
             f[self.elDOF[el]] += self.distributed_force1D_el(force, t, el)
         return f
 
     def distributed_force1D_q(self, t, q, coo, force):
-        raise NotImplementedError
         pass
 
     ####################################################

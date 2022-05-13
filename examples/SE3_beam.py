@@ -16,7 +16,7 @@ from cardillo.beams import (
     TimoshenkoAxisAngleSE3,
     TimoshenkoDirectorDirac,
 )
-from cardillo.forces import Force, K_Moment, Moment
+from cardillo.forces import Force, K_Moment, Moment, DistributedForce1D
 from cardillo.model import Model
 from cardillo.solver import (
     Newton,
@@ -54,7 +54,7 @@ def beam_factory(
     ###############################
     if Beam == TimoshenkoAxisAngle:
         p_r = polynomial_degree
-        p_psi = p_r - 1
+        p_psi = max(1, p_r - 1)
         Q = TimoshenkoAxisAngle.straight_configuration(
             p_r, p_psi, nelements, L, r_OP=r_OP, A_IK=A_IK, basis=shape_functions
         )
@@ -161,8 +161,8 @@ def run(statics):
     Beam = TimoshenkoAxisAngleSE3
 
     # number of elements
-    nelements = 1
-    # nelements = 2
+    # nelements = 1
+    nelements = 2
     # nelements = 4
     # nelements = 8
     # nelements = 16
@@ -183,23 +183,15 @@ def run(statics):
     # nquadrature_points = polynomial_degree + 2
     # nquadrature_points = polynomial_degree + 1 # this seems not to be sufficent for p > 1
 
-    # working combinations
-    # - Bspline shape functions: "Absolute rotation vector with Crisfield's  relative interpolation":
-    #   p = 2,3,5; p_r = p; p_psi = p - 1, nquadrature = p (Gauss-Legendre),
-    #   nelements = 1,2,4; slenderness = 1.0e3
-    # - cubic Hermite shape functions: "Absolute rotation vector with Crisfield's  relative interpolation":
-    #   p_r = 3; p_psi = 1, nquadrature = 3 (Gauss-Lobatto),
-    #   nelements = 1,2,4; slenderness = 1.0e3
-
     # used shape functions for discretization
     shape_functions = "B-spline"
     # shape_functions = "Lagrange"
 
     # used cross section
     # slenderness = 1
-    # slenderness = 1.0e1
+    slenderness = 1.0e1
     # slenderness = 1.0e2
-    slenderness = 1.0e3
+    # slenderness = 1.0e3
     # slenderness = 1.0e4
     radius = 1
     # radius = 1.0e-0
@@ -312,8 +304,13 @@ def run(statics):
     joint1 = RigidConnection(frame1, beam, r_OB0, frame_ID2=(0,))
 
     # gravity beam
-    g = np.array([0, 0, -cross_section.area * cross_section.line_density * 9.81])
-    f_g_beam = DistributedForce1D(lambda t, xi: g, beam)
+    g = np.array(
+        [0, 0, -cross_section.area * cross_section.line_density * 9.81 * 1.0e-1]
+    )
+    if statics:
+        f_g_beam = DistributedForce1D(lambda t, xi: t * g, beam)
+    else:
+        f_g_beam = DistributedForce1D(lambda t, xi: g, beam)
 
     # moment at right end
     Fi = material_model.Fi
@@ -346,8 +343,9 @@ def run(statics):
     # model.add(force)
     if statics:
         model.add(moment)
-    # else:
-    #     model.add(f_g_beam)
+        # model.add(f_g_beam)
+    else:
+        model.add(f_g_beam)
     model.assemble()
 
     # t = np.array([0])
@@ -390,44 +388,47 @@ def run(statics):
     nt = len(q)
     t = sol.t[:nt]
 
-    # if nelements == 1:
-    # visualize nodal rotation vectors
-    fig, ax = plt.subplots()
+    if Beam == TimoshenkoAxisAngle or Beam == TimoshenkoAxisAngleSE3:
+        ##################################
+        # visualize nodal rotation vectors
+        ##################################
+        fig, ax = plt.subplots()
 
-    for i, nodalDOF_psi in enumerate(beam.nodalDOF_di):
-        psi = q[:, beam.qDOF[nodalDOF_psi]]
-        ax.plot(t, np.linalg.norm(psi, axis=1), label=f"||psi{i}||")
+        for i, nodalDOF_psi in enumerate(beam.nodalDOF_psi):
+            psi = q[:, beam.qDOF[nodalDOF_psi]]
+            ax.plot(t, np.linalg.norm(psi, axis=1), label=f"||psi{i}||")
 
-    ax.set_xlabel("t")
-    ax.set_ylabel("nodal rotation vectors")
-    ax.grid()
-    ax.legend()
+        ax.set_xlabel("t")
+        ax.set_ylabel("nodal rotation vectors")
+        ax.grid()
+        ax.legend()
 
-    ################################
-    # visualize norm strain measures
-    ################################
-    fig, ax = plt.subplots(1, 2)
+    if Beam == TimoshenkoAxisAngleSE3:
+        ################################
+        # visualize norm strain measures
+        ################################
+        fig, ax = plt.subplots(1, 2)
 
-    nxi = 1000
-    xis = np.linspace(0, 1, num=nxi)
+        nxi = 1000
+        xis = np.linspace(0, 1, num=nxi)
 
-    K_Gamma = np.zeros((3, nxi))
-    K_Kappa = np.zeros((3, nxi))
-    for i in range(nxi):
-        frame_ID = (xis[i],)
-        elDOF = beam.qDOF_P(frame_ID)
-        qe = q[-1, beam.qDOF][elDOF]
-        _, _, K_Gamma[:, i], K_Kappa[:, i] = beam.eval(qe, xis[i])
-    ax[0].plot(xis, K_Gamma[0], "-r", label="K_Gamma0")
-    ax[0].plot(xis, K_Gamma[1], "-g", label="K_Gamma1")
-    ax[0].plot(xis, K_Gamma[2], "-b", label="K_Gamma2")
-    ax[0].grid()
-    ax[0].legend()
-    ax[1].plot(xis, K_Kappa[0], "-r", label="K_Kappa0")
-    ax[1].plot(xis, K_Kappa[1], "-g", label="K_Kappa1")
-    ax[1].plot(xis, K_Kappa[2], "-b", label="K_Kappa2")
-    ax[1].grid()
-    ax[1].legend()
+        K_Gamma = np.zeros((3, nxi))
+        K_Kappa = np.zeros((3, nxi))
+        for i in range(nxi):
+            frame_ID = (xis[i],)
+            elDOF = beam.qDOF_P(frame_ID)
+            qe = q[-1, beam.qDOF][elDOF]
+            _, _, K_Gamma[:, i], K_Kappa[:, i] = beam.eval(qe, xis[i])
+        ax[0].plot(xis, K_Gamma[0], "-r", label="K_Gamma0")
+        ax[0].plot(xis, K_Gamma[1], "-g", label="K_Gamma1")
+        ax[0].plot(xis, K_Gamma[2], "-b", label="K_Gamma2")
+        ax[0].grid()
+        ax[0].legend()
+        ax[1].plot(xis, K_Kappa[0], "-r", label="K_Kappa0")
+        ax[1].plot(xis, K_Kappa[1], "-g", label="K_Kappa1")
+        ax[1].plot(xis, K_Kappa[2], "-b", label="K_Kappa2")
+        ax[1].grid()
+        ax[1].legend()
 
     # ########################################################
     # # visualize norm of tangent vector and quadrature points
@@ -654,7 +655,7 @@ def locking():
     # visualize nodal rotation vectors
     fig, ax = plt.subplots()
 
-    for i, nodalDOF_psi in enumerate(beam.nodalDOF_di):
+    for i, nodalDOF_psi in enumerate(beam.nodalDOF_psi):
         psi = q[:, beam.qDOF[nodalDOF_psi]]
         ax.plot(t, np.linalg.norm(psi, axis=1), label=f"||psi{i}||")
 
@@ -1123,6 +1124,7 @@ def HelixIbrahimbegovic1997():
 
 if __name__ == "__main__":
     # run(statics=True)
+    run(statics=False)
     # locking()
     # SE3_interpolation()
-    HelixIbrahimbegovic1997()
+    # HelixIbrahimbegovic1997()
