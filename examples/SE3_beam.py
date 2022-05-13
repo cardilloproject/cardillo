@@ -953,9 +953,11 @@ def HelixIbrahimbegovic1997():
     # number of quadrature points
     # TODO: We have to distinguish between integration of the mass matrix,
     #       gyroscopic forces and potential forces!
-    nquadrature_points = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
+    # nquadrature_points = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
     # nquadrature_points = polynomial_degree + 2
-    # nquadrature_points = polynomial_degree + 1 # this seems not to be sufficent for p > 1
+    nquadrature_points = (
+        polynomial_degree + 1
+    )  # this seems not to be sufficent for p > 1
     # nquadrature_points = polynomial_degree # this works for p = 1 and homogeneous deformations!
 
     # used shape functions for discretization
@@ -1026,7 +1028,7 @@ def HelixIbrahimbegovic1997():
     model.add(frame1)
     model.add(joint1)
     model.add(moment)
-    model.add(force)
+    # model.add(force)
     model.assemble()
 
     # n_load_steps = int(25 * 10 * fraction)
