@@ -66,7 +66,7 @@ def beam_factory(
         )
     elif Beam == TimoshenkoDirectorDirac:
         p_r = polynomial_degree
-        p_psi = polynomial_degree
+        p_psi = max(1, polynomial_degree - 1)
         Q = TimoshenkoDirectorDirac.straight_configuration(
             p_r, p_psi, nelements, L, r_OP=r_OP, A_IK=A_IK, basis=shape_functions
         )
@@ -940,12 +940,12 @@ def HelixIbrahimbegovic1997():
     # nelements_max = 100
     nelements_max = 30
     nelements = max(3, int(fraction * nelements_max))  # this was used for 10 circles
-    nelements = 10
+    nelements = 25
     print(f"nelemen: {nelements}")
 
     # used polynomial degree
-    # polynomial_degree = 1
-    polynomial_degree = 2
+    polynomial_degree = 1
+    # polynomial_degree = 2
     # polynomial_degree = 3
     # polynomial_degree = 5
     # polynomial_degree = 6
@@ -966,8 +966,10 @@ def HelixIbrahimbegovic1997():
 
     # beam parameters found in Section 5.1 Ibrahimbegovic1997
     L = 10
-    EA = GA = 1.0e4
-    GJ = EI = 1.0e2
+    # EA = GA = 1.0e4
+    # GJ = EI = 1.0e2
+    EA = GA = 1.0e3
+    GJ = EI = 1.0e3
 
     # build quadratic material model
     Ei = np.array([EA, GA, GA], dtype=float)
@@ -1008,10 +1010,14 @@ def HelixIbrahimbegovic1997():
     # moment at right end
     Fi = material_model.Fi
     M = lambda t: (
-        e3
+        # e3
+        # * 20
+        # * np.pi
+        # * Fi[2]
+        e1
         * 20
         * np.pi
-        * Fi[2]
+        * Fi[0]
         / L  # 10 full rotations
         * smoothstep2(t, 0.0, 1.0)
         * fraction

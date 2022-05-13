@@ -428,15 +428,15 @@ class TimoshenkoBeamDirector(metaclass=ABCMeta):
                     np.concatenate((fe_d1, fe_d2, fe_d3)) * qwi
                 )
 
-        # return fe
+        return fe
 
-        fe_num = approx_fprime(qe, lambda qe: self.E_pot_el(qe, el), method="3-point")
-        diff = fe - fe_num
-        # error = np.linalg.norm(diff)
-        # error = np.linalg.norm(diff[:self.nq_element_r])
-        error = np.linalg.norm(diff[self.nq_element_r :])
-        print(f"error f_pot_el: {error}")
-        return fe_num
+        # fe_num = approx_fprime(qe, lambda qe: self.E_pot_el(qe, el), method="3-point")
+        # diff = fe - fe_num
+        # # error = np.linalg.norm(diff)
+        # # error = np.linalg.norm(diff[:self.nq_element_r])
+        # error = np.linalg.norm(diff[self.nq_element_r :])
+        # print(f"error f_pot_el: {error}")
+        # return fe_num
 
     def f_pot_q(self, t, q, coo):
         for el in range(self.nelement):
@@ -952,7 +952,6 @@ class TimoshenkoBeamDirector(metaclass=ABCMeta):
         # rigid body formular
         return r_OC + self.A_IK(t, q, frame_ID) @ K_r_SP
 
-    # TODO:
     def r_OP_q(self, t, q, frame_ID, K_r_SP=np.zeros(3)):
         # compute centerline derivative
         N, _ = self.basis_functions_r(frame_ID[0])
@@ -977,24 +976,24 @@ class TimoshenkoBeamDirector(metaclass=ABCMeta):
         return A_IK.reshape(3, 3)
 
     def A_IK_q(self, t, q, frame_ID):
-        eye3 = np.eye(3, dtype=float)
-        N_di, _ = self.basis_functions_di(frame_ID[0])
-        A_IK_q = np.zeros((9, self.nq_element), dtype=float)
-        for node in range(self.nnodes_element_di):
-            nodalDOF = self.nodalDOF_element_di[node]
-            A_IK_q[:3, nodalDOF[:3]] += N_di[node] * eye3
-            A_IK_q[3:6, nodalDOF[3:6]] += N_di[node] * eye3
-            A_IK_q[6:9, nodalDOF[6:]] += N_di[node] * eye3
+        # eye3 = np.eye(3, dtype=float)
+        # N_di, _ = self.basis_functions_di(frame_ID[0])
+        # A_IK_q = np.zeros((9, self.nq_element), dtype=float)
+        # for node in range(self.nnodes_element_di):
+        #     nodalDOF = self.nodalDOF_element_di[node]
+        #     A_IK_q[:3, nodalDOF[:3]] += N_di[node] * eye3
+        #     A_IK_q[3:6, nodalDOF[3:6]] += N_di[node] * eye3
+        #     A_IK_q[6:9, nodalDOF[6:]] += N_di[node] * eye3
 
-        A_IK_q = A_IK_q.reshape(3, 3, -1)
-        return A_IK_q
+        # A_IK_q = A_IK_q.reshape(3, 3, -1)
+        # return A_IK_q
 
-        # A_IK_q_num = approx_fprime(
-        #     q, lambda q: self.A_IK(t, q, frame_ID=frame_ID), method="3-point"
-        # )
+        A_IK_q_num = approx_fprime(
+            q, lambda q: self.A_IK(t, q, frame_ID=frame_ID), method="3-point"
+        )
         # error = np.linalg.norm(A_IK_q - A_IK_q_num)
         # print(f"error in A_IK_q: {error}")
-        # return A_IK_q_num
+        return A_IK_q_num
 
     # TODO: optimized implementation for boundaries
     def v_P(self, t, q, u, frame_ID, K_r_SP=np.zeros(3)):
