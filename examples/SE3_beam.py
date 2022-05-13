@@ -14,6 +14,7 @@ from cardillo.beams import (
     animate_beam,
     TimoshenkoAxisAngle,
     TimoshenkoAxisAngleSE3,
+    TimoshenkoDirectorDirac,
 )
 from cardillo.forces import Force, K_Moment, DistributedForce1D
 from cardillo.model import Model
@@ -61,6 +62,12 @@ def beam_factory(
         p_r = polynomial_degree
         p_psi = polynomial_degree
         Q = TimoshenkoAxisAngleSE3.straight_configuration(
+            p_r, p_psi, nelements, L, r_OP=r_OP, A_IK=A_IK, basis=shape_functions
+        )
+    elif Beam == TimoshenkoDirectorDirac:
+        p_r = polynomial_degree
+        p_psi = polynomial_degree
+        Q = TimoshenkoDirectorDirac.straight_configuration(
             p_r, p_psi, nelements, L, r_OP=r_OP, A_IK=A_IK, basis=shape_functions
         )
     else:
@@ -120,6 +127,20 @@ def beam_factory(
         beam = TimoshenkoAxisAngleSE3(
             material_model,
             A_rho0,
+            I_rho0,
+            p_r,
+            p_psi,
+            nquadrature_points,
+            nelements,
+            Q=Q,
+            q0=q0,
+            basis=shape_functions,
+        )
+    elif Beam == TimoshenkoDirectorDirac:
+        beam = TimoshenkoDirectorDirac(
+            material_model,
+            A_rho0,
+            B_rho0,
             I_rho0,
             p_r,
             p_psi,
@@ -373,7 +394,7 @@ def run(statics):
     # visualize nodal rotation vectors
     fig, ax = plt.subplots()
 
-    for i, nodalDOF_psi in enumerate(beam.nodalDOF_psi):
+    for i, nodalDOF_psi in enumerate(beam.nodalDOF_di):
         psi = q[:, beam.qDOF[nodalDOF_psi]]
         ax.plot(t, np.linalg.norm(psi, axis=1), label=f"||psi{i}||")
 
@@ -633,7 +654,7 @@ def locking():
     # visualize nodal rotation vectors
     fig, ax = plt.subplots()
 
-    for i, nodalDOF_psi in enumerate(beam.nodalDOF_psi):
+    for i, nodalDOF_psi in enumerate(beam.nodalDOF_di):
         psi = q[:, beam.qDOF[nodalDOF_psi]]
         ax.plot(t, np.linalg.norm(psi, axis=1), label=f"||psi{i}||")
 
@@ -906,23 +927,25 @@ def HelixIbrahimbegovic1997():
     Ibrahimbegovic1997: https://doi.org/10.1016/S0045-7825(97)00059-5
     """
     # Beam = TimoshenkoAxisAngle
-    Beam = TimoshenkoAxisAngleSE3
+    # Beam = TimoshenkoAxisAngleSE3
+    Beam = TimoshenkoDirectorDirac
 
     # fraction of 10 full rotations and the out of plane force
     # a corresponding fraction of 100 elements is chosen
-    # fraction = 0.1 # 1 full rotations
+    fraction = 0.1  # 1 full rotations
     # fraction = 0.2 # 2 full rotations
-    fraction = 0.4  # 2 full rotations
+    # fraction = 0.4  # 2 full rotations
 
     # number of elements
     # nelements_max = 100
     nelements_max = 30
     nelements = max(3, int(fraction * nelements_max))  # this was used for 10 circles
+    nelements = 10
     print(f"nelemen: {nelements}")
 
     # used polynomial degree
-    polynomial_degree = 1
-    # polynomial_degree = 2
+    # polynomial_degree = 1
+    polynomial_degree = 2
     # polynomial_degree = 3
     # polynomial_degree = 5
     # polynomial_degree = 6
@@ -1006,7 +1029,9 @@ def HelixIbrahimbegovic1997():
     model.add(force)
     model.assemble()
 
-    n_load_steps = int(25 * 10 * fraction)
+    # n_load_steps = int(25 * 10 * fraction)
+    n_load_steps = int(50 * 10 * fraction)
+    # n_load_steps = int(100 * 10 * fraction)
 
     solver = Newton(
         model,
@@ -1026,7 +1051,7 @@ def HelixIbrahimbegovic1997():
     # visualize nodal rotation vectors
     fig, ax = plt.subplots()
 
-    for i, nodalDOF_psi in enumerate(beam.nodalDOF_psi):
+    for i, nodalDOF_psi in enumerate(beam.nodalDOF_di):
         psi = q[:, beam.qDOF[nodalDOF_psi]]
         ax.plot(t, np.linalg.norm(psi, axis=1), label=f"||psi{i}||")
 
@@ -1035,31 +1060,31 @@ def HelixIbrahimbegovic1997():
     ax.grid()
     ax.legend()
 
-    ################################
-    # visualize norm strain measures
-    ################################
-    fig, ax = plt.subplots(1, 2)
+    # ################################
+    # # visualize norm strain measures
+    # ################################
+    # fig, ax = plt.subplots(1, 2)
 
-    nxi = 1000
-    xis = np.linspace(0, 1, num=nxi)
+    # nxi = 1000
+    # xis = np.linspace(0, 1, num=nxi)
 
-    K_Gamma = np.zeros((3, nxi))
-    K_Kappa = np.zeros((3, nxi))
-    for i in range(nxi):
-        frame_ID = (xis[i],)
-        elDOF = beam.qDOF_P(frame_ID)
-        qe = q[-1, beam.qDOF][elDOF]
-        _, _, K_Gamma[:, i], K_Kappa[:, i] = beam.eval(qe, xis[i])
-    ax[0].plot(xis, K_Gamma[0], "-r", label="K_Gamma0")
-    ax[0].plot(xis, K_Gamma[1], "-g", label="K_Gamma1")
-    ax[0].plot(xis, K_Gamma[2], "-b", label="K_Gamma2")
-    ax[0].grid()
-    ax[0].legend()
-    ax[1].plot(xis, K_Kappa[0], "-r", label="K_Kappa0")
-    ax[1].plot(xis, K_Kappa[1], "-g", label="K_Kappa1")
-    ax[1].plot(xis, K_Kappa[2], "-b", label="K_Kappa2")
-    ax[1].grid()
-    ax[1].legend()
+    # K_Gamma = np.zeros((3, nxi))
+    # K_Kappa = np.zeros((3, nxi))
+    # for i in range(nxi):
+    #     frame_ID = (xis[i],)
+    #     elDOF = beam.qDOF_P(frame_ID)
+    #     qe = q[-1, beam.qDOF][elDOF]
+    #     _, _, K_Gamma[:, i], K_Kappa[:, i] = beam.eval(qe, xis[i])
+    # ax[0].plot(xis, K_Gamma[0], "-r", label="K_Gamma0")
+    # ax[0].plot(xis, K_Gamma[1], "-g", label="K_Gamma1")
+    # ax[0].plot(xis, K_Gamma[2], "-b", label="K_Gamma2")
+    # ax[0].grid()
+    # ax[0].legend()
+    # ax[1].plot(xis, K_Kappa[0], "-r", label="K_Kappa0")
+    # ax[1].plot(xis, K_Kappa[1], "-g", label="K_Kappa1")
+    # ax[1].plot(xis, K_Kappa[2], "-b", label="K_Kappa2")
+    # ax[1].grid()
+    # ax[1].legend()
 
     ############################
     # Visualize tip displacement
