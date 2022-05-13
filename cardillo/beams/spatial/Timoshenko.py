@@ -433,7 +433,7 @@ class TimoshenkoAxisAngleSE3:
         elif case == "left":
             r_I0 = qe[self.nodalDOF_element_r[0]]
             A_I0 = rodriguez(qe[self.nodalDOF_element_psi[0]])
-            return SE3(A_IA, r_I0)
+            return SE3(A_I0, r_I0)
         elif case == "right":
             r_I1 = qe[self.nodalDOF_element_r[-1]]
             A_I1 = rodriguez(qe[self.nodalDOF_element_psi[-1]])

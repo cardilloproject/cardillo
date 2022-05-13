@@ -16,7 +16,7 @@ from cardillo.beams import (
     TimoshenkoAxisAngleSE3,
     TimoshenkoDirectorDirac,
 )
-from cardillo.forces import Force, K_Moment, DistributedForce1D
+from cardillo.forces import Force, K_Moment, Moment
 from cardillo.model import Model
 from cardillo.solver import (
     Newton,
@@ -927,20 +927,22 @@ def HelixIbrahimbegovic1997():
     Ibrahimbegovic1997: https://doi.org/10.1016/S0045-7825(97)00059-5
     """
     # Beam = TimoshenkoAxisAngle
-    # Beam = TimoshenkoAxisAngleSE3
-    Beam = TimoshenkoDirectorDirac
+    Beam = TimoshenkoAxisAngleSE3
+    # Beam = TimoshenkoDirectorDirac
 
     # fraction of 10 full rotations and the out of plane force
     # a corresponding fraction of 100 elements is chosen
-    fraction = 0.1  # 1 full rotations
-    # fraction = 0.2 # 2 full rotations
-    # fraction = 0.4  # 2 full rotations
+    # fraction = 0.1  # 1 full rotations
+    fraction = 0.21  # 2 full rotations
+    # fraction = 0.4  # 4 full rotations
+    # fraction = 1  # 10 full rotations
 
     # number of elements
-    # nelements_max = 100
     nelements_max = 30
-    nelements = max(3, int(fraction * nelements_max))  # this was used for 10 circles
-    nelements = 25
+    # nelements_max = 50
+    # nelements_max = 100 # Ibrahimbegovic1997
+    nelements = max(3, int(fraction * nelements_max))
+    # nelements = 25
     print(f"nelemen: {nelements}")
 
     # used polynomial degree
@@ -953,11 +955,11 @@ def HelixIbrahimbegovic1997():
     # number of quadrature points
     # TODO: We have to distinguish between integration of the mass matrix,
     #       gyroscopic forces and potential forces!
-    # nquadrature_points = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
+    nquadrature_points = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
     # nquadrature_points = polynomial_degree + 2
-    nquadrature_points = (
-        polynomial_degree + 1
-    )  # this seems not to be sufficent for p > 1
+    # nquadrature_points = (
+    #     polynomial_degree + 1
+    # )  # this seems not to be sufficent for p > 1
     # nquadrature_points = polynomial_degree # this works for p = 1 and homogeneous deformations!
 
     # used shape functions for discretization
@@ -966,10 +968,8 @@ def HelixIbrahimbegovic1997():
 
     # beam parameters found in Section 5.1 Ibrahimbegovic1997
     L = 10
-    # EA = GA = 1.0e4
-    # GJ = EI = 1.0e2
-    EA = GA = 1.0e3
-    GJ = EI = 1.0e3
+    EA = GA = 1.0e4
+    GJ = EI = 1.0e2
 
     # build quadratic material model
     Ei = np.array([EA, GA, GA], dtype=float)
@@ -1010,22 +1010,24 @@ def HelixIbrahimbegovic1997():
     # moment at right end
     Fi = material_model.Fi
     M = lambda t: (
-        # e3
-        # * 20
-        # * np.pi
-        # * Fi[2]
-        e1
-        * 20
+        e3
+        * 10  # 10 full rotations
+        * 2
         * np.pi
-        * Fi[0]
-        / L  # 10 full rotations
-        * smoothstep2(t, 0.0, 1.0)
+        * Fi[2]
+        / L
+        # * smoothstep2(t, 0.0, 1.0)
+        * t
         * fraction
     )
-    moment = K_Moment(M, beam, (1,))
+    # moment = K_Moment(M, beam, (1,))
+    moment = Moment(M, beam, (1,))
 
     # external force at the right end
-    F = lambda t: (50 * e3 * smoothstep2(t, 0.0, 1.0) * fraction)
+    F_max = 25 * 0
+    # F_max = 50 # Ibrahimbegovic1997
+    # F = lambda t: (F_max * e3 * smoothstep2(t, 0.0, 1.0) * fraction)
+    F = lambda t: F_max * e3 * t * fraction
     force = Force(F, beam, frame_ID=(1,))
 
     # assemble the model
@@ -1034,7 +1036,7 @@ def HelixIbrahimbegovic1997():
     model.add(frame1)
     model.add(joint1)
     model.add(moment)
-    # model.add(force)
+    model.add(force)
     model.assemble()
 
     # n_load_steps = int(25 * 10 * fraction)
@@ -1043,8 +1045,8 @@ def HelixIbrahimbegovic1997():
 
     solver = Newton(
         model,
-        n_load_steps=n_load_steps,
-        # n_load_steps=100,
+        # n_load_steps=n_load_steps,
+        n_load_steps=50,
         max_iter=30,
         atol=1.0e-6,
         # atol=1.0e-8,
@@ -1056,43 +1058,46 @@ def HelixIbrahimbegovic1997():
     nt = len(q)
     t = sol.t[:nt]
 
-    # visualize nodal rotation vectors
-    fig, ax = plt.subplots()
+    if Beam == TimoshenkoAxisAngle or Beam == TimoshenkoAxisAngleSE3:
+        ##################################
+        # visualize nodal rotation vectors
+        ##################################
+        fig, ax = plt.subplots()
 
-    for i, nodalDOF_psi in enumerate(beam.nodalDOF_di):
-        psi = q[:, beam.qDOF[nodalDOF_psi]]
-        ax.plot(t, np.linalg.norm(psi, axis=1), label=f"||psi{i}||")
+        for i, nodalDOF_psi in enumerate(beam.nodalDOF_psi):
+            psi = q[:, beam.qDOF[nodalDOF_psi]]
+            ax.plot(t, np.linalg.norm(psi, axis=1), label=f"||psi{i}||")
 
-    ax.set_xlabel("t")
-    ax.set_ylabel("nodal rotation vectors")
-    ax.grid()
-    ax.legend()
+        ax.set_xlabel("t")
+        ax.set_ylabel("nodal rotation vectors")
+        ax.grid()
+        ax.legend()
 
-    # ################################
-    # # visualize norm strain measures
-    # ################################
-    # fig, ax = plt.subplots(1, 2)
+        ################################
+        # visualize norm strain measures
+        ################################
+        fig, ax = plt.subplots(1, 2)
 
-    # nxi = 1000
-    # xis = np.linspace(0, 1, num=nxi)
+        nxi = 1000
+        xis = np.linspace(0, 1, num=nxi)
 
-    # K_Gamma = np.zeros((3, nxi))
-    # K_Kappa = np.zeros((3, nxi))
-    # for i in range(nxi):
-    #     frame_ID = (xis[i],)
-    #     elDOF = beam.qDOF_P(frame_ID)
-    #     qe = q[-1, beam.qDOF][elDOF]
-    #     _, _, K_Gamma[:, i], K_Kappa[:, i] = beam.eval(qe, xis[i])
-    # ax[0].plot(xis, K_Gamma[0], "-r", label="K_Gamma0")
-    # ax[0].plot(xis, K_Gamma[1], "-g", label="K_Gamma1")
-    # ax[0].plot(xis, K_Gamma[2], "-b", label="K_Gamma2")
-    # ax[0].grid()
-    # ax[0].legend()
-    # ax[1].plot(xis, K_Kappa[0], "-r", label="K_Kappa0")
-    # ax[1].plot(xis, K_Kappa[1], "-g", label="K_Kappa1")
-    # ax[1].plot(xis, K_Kappa[2], "-b", label="K_Kappa2")
-    # ax[1].grid()
-    # ax[1].legend()
+        K_Gamma = np.zeros((3, nxi))
+        K_Kappa = np.zeros((3, nxi))
+        for i in range(nxi):
+            frame_ID = (xis[i],)
+            elDOF = beam.qDOF_P(frame_ID)
+            qe = q[-1, beam.qDOF][elDOF]
+            _, _, K_Gamma[:, i], K_Kappa[:, i] = beam.eval(qe, xis[i])
+        ax[0].plot(xis, K_Gamma[0], "-r", label="K_Gamma0")
+        ax[0].plot(xis, K_Gamma[1], "-g", label="K_Gamma1")
+        ax[0].plot(xis, K_Gamma[2], "-b", label="K_Gamma2")
+        ax[0].grid()
+        ax[0].legend()
+        ax[1].plot(xis, K_Kappa[0], "-r", label="K_Kappa0")
+        ax[1].plot(xis, K_Kappa[1], "-g", label="K_Kappa1")
+        ax[1].plot(xis, K_Kappa[2], "-b", label="K_Kappa2")
+        ax[1].grid()
+        ax[1].legend()
 
     ############################
     # Visualize tip displacement
