@@ -924,7 +924,7 @@ def SE3_interpolation():
     plt.show()
 
 
-def HelixIbrahimbegovic1997():
+def HelixIbrahimbegovic1997(export=True):
     """Beam bent to a helical form - Section 5.2 of Ibrahimbegovic1997.
 
     References
@@ -932,19 +932,22 @@ def HelixIbrahimbegovic1997():
     Ibrahimbegovic1997: https://doi.org/10.1016/S0045-7825(97)00059-5
     """
     # Beam = TimoshenkoAxisAngle
-    Beam = TimoshenkoAxisAngleSE3
+    # Beam = TimoshenkoAxisAngleSE3
     # Beam = TimoshenkoDirectorDirac
+    Beam = TimoshenkoQuarternionSE3
 
     # fraction of 10 full rotations and the out of plane force
     # a corresponding fraction of 100 elements is chosen
+    # fraction = 0.05  # 1 full rotations
     # fraction = 0.1  # 1 full rotations
-    fraction = 0.21  # 2 full rotations
-    # fraction = 0.4  # 4 full rotations
+    # fraction = 0.20  # 2 full rotations
+    fraction = 0.4  # 4 full rotations
+    # fraction = 0.5  # 5 full rotations
     # fraction = 1  # 10 full rotations
 
     # number of elements
-    # nelements_max = 30
-    nelements_max = 50
+    nelements_max = 30
+    # nelements_max = 50
     # nelements_max = 100 # Ibrahimbegovic1997
     nelements = max(3, int(fraction * nelements_max))
     # nelements = 25
@@ -1021,7 +1024,6 @@ def HelixIbrahimbegovic1997():
         * np.pi
         * Fi[2]
         / L
-        # * smoothstep2(t, 0.0, 1.0)
         * t
         * fraction
     )
@@ -1029,9 +1031,7 @@ def HelixIbrahimbegovic1997():
     moment = Moment(M, beam, (1,))
 
     # external force at the right end
-    # F_max = 25 * 0
     F_max = 50  # Ibrahimbegovic1997
-    # F = lambda t: (F_max * e3 * smoothstep2(t, 0.0, 1.0) * fraction)
     F = lambda t: F_max * e3 * t * fraction
     force = Force(F, beam, frame_ID=(1,))
 
@@ -1044,14 +1044,13 @@ def HelixIbrahimbegovic1997():
     model.add(force)
     model.assemble()
 
-    # n_load_steps = int(25 * 10 * fraction)
-    # n_load_steps = int(50 * 10 * fraction)
-    n_load_steps = int(200 * 10 * fraction)
+    # n_load_steps = int(20 * 10 * fraction)
+    # n_load_steps = int(100 * 10 * fraction)
+    n_load_steps = int(200 * 10 * fraction) # works for fraction = 0.5
 
     solver = Newton(
         model,
-        # n_load_steps=n_load_steps,
-        n_load_steps=20,
+        n_load_steps=n_load_steps,
         max_iter=30,
         atol=1.0e-6,
         # atol=1.0e-8,
@@ -1062,6 +1061,46 @@ def HelixIbrahimbegovic1997():
     q = sol.q
     nt = len(q)
     t = sol.t[:nt]
+
+    #########################
+    # export tip displacement
+    #########################
+    if export:
+        header = "t, x, y, z"
+        r_OC_L = np.array([
+            beam.r_OP(ti, qi[beam.qDOF], frame_ID=(1,)) for (ti, qi) in zip(t, q)
+        ])
+        export_data = np.vstack([t, *r_OC_L.T]).T
+        np.savetxt(
+            "results/tip_displacement_helix.txt",
+            export_data,
+            delimiter=", ",
+            header=header,
+            comments="",
+        )
+
+    ###################
+    # export centerline
+    ###################
+    if export:
+        # nframes = 13
+        nframes = 17
+        nxi = 100
+        idxs = np.linspace(0, nt - 1, num=nframes, dtype=int)
+        for i, idx in enumerate(idxs):
+            ti = t[idx]
+            qi = q[idx]
+            r_OPs = beam.centerline(qi)
+
+            header = "x, y, z"
+            np.savetxt(
+                # f"results/centerline_t{ti:3.5}.txt",
+                f"results/centerline{i}.txt",
+                r_OPs.T,
+                delimiter=", ",
+                header=header,
+                comments="",
+            )
 
     if Beam == TimoshenkoAxisAngle or Beam == TimoshenkoAxisAngleSE3:
         ##################################
@@ -1412,9 +1451,9 @@ def HeavyTopMaekinen2006():
 
 
 if __name__ == "__main__":
-    run(statics=True)
+    # run(statics=True)
     # run(statics=False)
     # locking()
     # SE3_interpolation()
-    # HelixIbrahimbegovic1997()
+    HelixIbrahimbegovic1997()
     # HeavyTopMaekinen2006()
