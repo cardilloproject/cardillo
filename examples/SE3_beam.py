@@ -1093,8 +1093,8 @@ def HelixIbrahimbegovic1997():
 
 
 if __name__ == "__main__":
-    # run(statics=True)
-    run(statics=False)
+    run(statics=True)
+    # run(statics=False)
     # locking()
     # SE3_interpolation()
     # HelixIbrahimbegovic1997()

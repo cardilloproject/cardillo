@@ -206,12 +206,7 @@ class TimoshenkoAxisAngleSE3:
         q0=None,
         u0=None,
         basis="B-spline",
-        # use_K_r=True,
-        use_K_r=False,
     ):
-        # use K_r instead of I_r
-        self.use_K_r = use_K_r
-
         # beam properties
         self.materialModel = material_model  # material model
         self.A_rho0 = A_rho0  # line density
@@ -711,11 +706,7 @@ class TimoshenkoAxisAngleSE3:
             K_Kappa0 = self.K_Kappa0[el, i]
 
             # objective interpolation
-            r_OP, A_IK, K_Gamma_bar, K_Kappa_bar = self.eval(qe, self.qp[el, i])
-
-            # centerline and tangent
-            K_r_OP = A_IK.T @ r_OP
-            K_r_xi = K_Gamma_bar
+            _, A_IK, K_Gamma_bar, K_Kappa_bar = self.eval(qe, self.qp[el, i])
 
             # axial and shear strains
             K_Gamma = K_Gamma_bar / Ji
@@ -728,62 +719,27 @@ class TimoshenkoAxisAngleSE3:
             K_n = self.material_model.K_n(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
             K_m = self.material_model.K_m(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
 
-            #######################
-            # Original formulation!
-            #######################
-            if self.use_K_r:
-                for node in range(self.nnodes_element_r):
-                    f_pot_el[self.nodalDOF_element_r[node]] -= (
-                        self.N_r_xi[el, i, node] * K_n * qwi
-                    )
-                    f_pot_el[self.nodalDOF_element_r[node]] += (
-                        self.N_r[el, i, node] * cross3(K_Kappa_bar, K_n) * qwi
-                    )  # Euler term
+            ############################
+            # virtual work contributions
+            ############################
+            # - first delta Gamma part
+            for node in range(self.nnodes_element_r):
+                f_pot_el[self.nodalDOF_element_r[node]] -= (
+                    self.N_r_xi[el, i, node] * A_IK @ K_n * qwi
+                )
 
-                # for node in range(self.nnodes_element_psi):
-                #     f_pot_el[self.nodalDOF_element_psi[node]] += (
-                #         self.N_psi[el, i, node] * cross3(K_Kappa_bar, K_n) * qwi
-                #     )
-
-                # old one
-                # f_pot_el[self.nodalDOF_element_psi[node]] += (
-                #     self.N_psi[el, i, node] * cross3(K_r_xi, K_n) * qwi
-                # )
-                # f_pot_el[self.nodalDOF_element_psi[node]] += (
-                #     # self.N_psi[el, i, node] * cross3(K_r_xi, K_n) * qwi
-                #     # - self.N_psi[el, i, node] * ax2skew(K_n) @ K_r_xi * qwi
-                #     -self.N_psi[el, i, node]
-                #     * ax2skew(K_n)
-                #     @ cross3(K_Kappa_bar, K_r_OP)
-                #     * qwi
-                # )  # Euler term
-            else:
-                # - first delta Gamma part
-                for node in range(self.nnodes_element_r):
-                    f_pot_el[self.nodalDOF_element_r[node]] -= (
-                        self.N_r_xi[el, i, node] * A_IK @ K_n * qwi
-                    )
-
-                # - second delta Gamma part
-                for node in range(self.nnodes_element_psi):
-                    f_pot_el[self.nodalDOF_element_psi[node]] += (
-                        self.N_psi[el, i, node] * cross3(K_r_xi, K_n) * qwi
-                    )
-
-                    # f_pot_el[self.nodalDOF_element_psi[node]] -= (
-                    #     # self.N_psi[el, i, node] * cross3(K_r_xi, K_n) * qwi
-                    #     # - self.N_psi[el, i, node] * ax2skew(K_n) @ K_r_xi * qwi
-                    #     -self.N_psi[el, i, node]
-                    #     * ax2skew(K_n)
-                    #     @ cross3(K_Kappa_bar, K_r_OP)
-                    #     * qwi
-                    # )  # Euler term
-
-            # - delta kappa part
             for node in range(self.nnodes_element_psi):
+                # - second delta Gamma part
+                f_pot_el[self.nodalDOF_element_psi[node]] += (
+                    self.N_psi[el, i, node] * cross3(K_Gamma_bar, K_n) * qwi
+                )
+
+                # - first delta kappa part
                 f_pot_el[self.nodalDOF_element_psi[node]] -= (
                     self.N_psi_xi[el, i, node] * K_m * qwi
                 )
+
+                # second delta kappa part
                 f_pot_el[self.nodalDOF_element_psi[node]] += (
                     self.N_psi[el, i, node] * cross3(K_Kappa_bar, K_m) * qwi
                 )  # Euler term
@@ -940,17 +896,12 @@ class TimoshenkoAxisAngleSE3:
         for node in range(self.nnodes_element_psi):
             K_Omega += N[node] * u[self.nodalDOF_element_psi[node]]
 
-        # compute centerline velocity depending on chosen formulation
-        if self.use_K_r:
-            K_v_C = np.zeros(3, dtype=float)
-            for node in range(self.nnodes_element_r):
-                K_v_C += N[node] * u[self.nodalDOF_element_r[node]]
-            return A_IK @ (K_v_C + cross3(K_Omega, K_r_SP))
-        else:
-            v_C = np.zeros(3, dtype=float)
-            for node in range(self.nnodes_element_r):
-                v_C += N[node] * u[self.nodalDOF_element_r[node]]
-            return v_C + A_IK @ cross3(K_Omega, K_r_SP)
+        # compute centerline velocity
+        v_C = np.zeros(3, dtype=float)
+        for node in range(self.nnodes_element_r):
+            v_C += N[node] * u[self.nodalDOF_element_r[node]]
+
+        return v_C + A_IK @ cross3(K_Omega, K_r_SP)
 
     # TODO:
     def v_P_q(self, t, q, u, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
@@ -972,12 +923,7 @@ class TimoshenkoAxisAngleSE3:
         # interpolate centerline and axis angle contributions
         J_P = np.zeros((3, self.nq_element), dtype=float)
         for node in range(self.nnodes_element_r):
-            if self.use_K_r:
-                J_P[:, self.nodalDOF_element_r[node]] += N[node] * A_IK
-            else:
-                J_P[:, self.nodalDOF_element_r[node]] += N[node] * np.eye(
-                    3, dtype=float
-                )
+            J_P[:, self.nodalDOF_element_r[node]] += N[node] * np.eye(3, dtype=float)
         for node in range(self.nnodes_element_psi):
             J_P[:, self.nodalDOF_element_psi[node]] -= N[node] * A_IK @ K_r_SP_tilde
 
@@ -1006,10 +952,6 @@ class TimoshenkoAxisAngleSE3:
             nodalDOF_r = self.nodalDOF_element_r[node]
             nodalDOF_psi = self.nodalDOF_element_psi[node]
             A_IK_q = rodriguez_der(q[nodalDOF_psi])
-
-            # centerline part
-            if self.use_K_r:
-                J_P_q[:, nodalDOF_r[:, None], nodalDOF_psi] += N_psi[node] * A_IK_q
 
             # virtual rotation part
             J_P_q[:, nodalDOF_psi[:, None], nodalDOF_psi] -= N_psi[node] * np.einsum(
