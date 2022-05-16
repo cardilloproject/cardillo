@@ -891,12 +891,12 @@ class TimoshenkoAxisAngleSE3:
         N, _, _ = self.basis_functions_r(frame_ID[0])
         _, A_IK, _, _ = self.eval(q, frame_ID[0])
 
-        # compute angular velocity in K-frame
+        # angular velocity in K-frame
         K_Omega = np.zeros(3, dtype=float)
         for node in range(self.nnodes_element_psi):
             K_Omega += N[node] * u[self.nodalDOF_element_psi[node]]
 
-        # compute centerline velocity
+        # centerline velocity
         v_C = np.zeros(3, dtype=float)
         for node in range(self.nnodes_element_r):
             v_C += N[node] * u[self.nodalDOF_element_r[node]]
@@ -949,7 +949,6 @@ class TimoshenkoAxisAngleSE3:
         # zero
         J_P_q = np.zeros((3, self.nq_element, self.nq_element), dtype=float)
         for node in range(self.nnodes_element_psi):
-            nodalDOF_r = self.nodalDOF_element_r[node]
             nodalDOF_psi = self.nodalDOF_element_psi[node]
             A_IK_q = rodriguez_der(q[nodalDOF_psi])
 
@@ -969,22 +968,25 @@ class TimoshenkoAxisAngleSE3:
         # return J_P_q_num
 
     def a_P(self, t, q, u, u_dot, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
-        raise NotImplementedError
-        # compute centerline acceleration
         N, _, _ = self.basis_functions_r(frame_ID[0])
+        _, A_IK, _, _ = self.eval(q, frame_ID[0])
+
+        # centerline acceleration
         a_C = np.zeros(3, dtype=float)
         for node in range(self.nnodes_element_r):
             a_C += N[node] * u_dot[self.nodalDOF_element_r[node]]
 
-        # rigid body formular
+        # angular velocity and acceleration in K-frame
         K_Omega = self.K_Omega(t, q, u, frame_ID)
         K_Psi = self.K_Psi(t, q, u, u_dot, frame_ID)
-        return a_C + self.A_IK(t, q, frame_ID) @ (
+
+        # rigid body formular
+        return a_C + A_IK @ (
             cross3(K_Psi, K_r_SP) + cross3(K_Omega, cross3(K_Omega, K_r_SP))
         )
 
+    # TODO:
     def a_P_q(self, t, q, u, u_dot, frame_ID, K_r_SP=None):
-        raise NotImplementedError
         K_Omega = self.K_Omega(t, q, u, frame_ID)
         K_Psi = self.K_Psi(t, q, u, u_dot, frame_ID)
         a_P_q = np.einsum(
@@ -992,18 +994,18 @@ class TimoshenkoAxisAngleSE3:
             self.A_IK_q(t, q, frame_ID),
             cross3(K_Psi, K_r_SP) + cross3(K_Omega, cross3(K_Omega, K_r_SP)),
         )
-        return a_P_q
+        # return a_P_q
 
-        # a_P_q_num = approx_fprime(
-        #     q, lambda q: self.a_P(t, q, u, u_dot, frame_ID, K_r_SP), method="3-point"
-        # )
-        # diff = a_P_q_num - a_P_q
-        # error = np.linalg.norm(diff)
-        # print(f"error a_P_q: {error}")
-        # return a_P_q_num
+        a_P_q_num = approx_fprime(
+            q, lambda q: self.a_P(t, q, u, u_dot, frame_ID, K_r_SP), method="3-point"
+        )
+        diff = a_P_q_num - a_P_q
+        error = np.linalg.norm(diff)
+        print(f"error a_P_q: {error}")
+        return a_P_q_num
 
+    # TODO:
     def a_P_u(self, t, q, u, u_dot, frame_ID, K_r_SP=None):
-        raise NotImplementedError
         K_Omega = self.K_Omega(t, q, u, frame_ID)
         local = -self.A_IK(t, q, frame_ID) @ (
             ax2skew(cross3(K_Omega, K_r_SP)) + ax2skew(K_Omega) @ ax2skew(K_r_SP)
@@ -1014,15 +1016,15 @@ class TimoshenkoAxisAngleSE3:
         for node in range(self.nnodes_element_r):
             a_P_u[:, self.nodalDOF_element_psi[node]] += N[node] * local
 
-        return a_P_u
+        # return a_P_u
 
-        # a_P_u_num = approx_fprime(
-        #     u, lambda u: self.a_P(t, q, u, u_dot, frame_ID, K_r_SP), method="3-point"
-        # )
-        # diff = a_P_u_num - a_P_u
-        # error = np.linalg.norm(diff)
-        # print(f"error a_P_u: {error}")
-        # return a_P_u_num
+        a_P_u_num = approx_fprime(
+            u, lambda u: self.a_P(t, q, u, u_dot, frame_ID, K_r_SP), method="3-point"
+        )
+        diff = a_P_u_num - a_P_u
+        error = np.linalg.norm(diff)
+        print(f"error a_P_u: {error}")
+        return a_P_u_num
 
     def K_Omega(self, t, q, u, frame_ID):
         """Since we use Petrov-Galerkin method we only interpoalte the nodal

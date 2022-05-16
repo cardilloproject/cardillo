@@ -258,8 +258,8 @@ def run(statics):
         )
         # A_IK0 = lambda t: np.eye(3)
     else:
-        # phi = lambda t: smoothstep2(t, 0, 0.1) * sin(0.3 * pi * t) * pi / 4
-        phi = lambda t: smoothstep2(t, 0, 0.1) * sin(0.6 * pi * t) * pi / 4
+        phi = lambda t: smoothstep2(t, 0, 0.1) * sin(0.3 * pi * t) * pi / 4
+        # phi = lambda t: smoothstep2(t, 0, 0.1) * sin(0.6 * pi * t) * pi / 4
         # A_IK0 = lambda t: A_IK_basic(phi(t)).z()
         A_IK0 = (
             lambda t: A_IK_basic(0.5 * phi(t)).z()
@@ -338,8 +338,8 @@ def run(statics):
             numerical_jacobian=False,
         )
     else:
-        t1 = 1.0
-        # t1 = 10.0
+        # t1 = 1.0
+        t1 = 10.0
         dt = 5.0e-2
         # dt = 2.5e-2
         method = "RK45"
@@ -347,7 +347,9 @@ def run(statics):
         atol = 1.0e-6
         rho_inf = 0.5
 
-        # solver = ScipyIVP(model, t1, dt, method=method, rtol=rtol, atol=atol) # this is no good idea for Runge-Kutta solvers
+        # solver = ScipyIVP(
+        #     model, t1, dt, method=method, rtol=rtol, atol=atol
+        # )  # this is no good idea for complement rotation vectors!
         solver = GenAlphaFirstOrder(model, t1, dt, rho_inf=rho_inf, tol=atol)
         # solver = GenAlphaDAEAcc(model, t1, dt, rho_inf=rho_inf, newton_tol=atol)
         # dt = 5.0e-3
@@ -1093,8 +1095,8 @@ def HelixIbrahimbegovic1997():
 
 
 if __name__ == "__main__":
-    run(statics=True)
-    # run(statics=False)
+    # run(statics=True)
+    run(statics=False)
     # locking()
     # SE3_interpolation()
     # HelixIbrahimbegovic1997()
