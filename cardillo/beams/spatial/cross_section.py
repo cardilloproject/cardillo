@@ -26,6 +26,14 @@ class CrossSection:
         return self._second_moment
 
 
+class UserDefinedCrossSection(CrossSection):
+    def __init__(self, line_density, area, first_moment, second_moment):
+        self._line_density = line_density
+        self._area = area
+        self._first_moment = first_moment
+        self._second_moment = second_moment
+
+
 class CircularCrossSection(CrossSection):
     def __init__(self, line_density, radius):
         self._line_density = line_density

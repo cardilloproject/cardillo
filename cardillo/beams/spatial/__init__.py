@@ -1,4 +1,5 @@
 from .cross_section import (
+    UserDefinedCrossSection,
     CircularCrossSection,
     RectangularCrossSection,
     QuadraticCrossSection,
