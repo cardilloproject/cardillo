@@ -704,7 +704,6 @@ class TimoshenkoQuarternionSE3:
     #########################################
     # gyroscopic forces
     #########################################
-
     def f_gyr_el(self, t, qe, ue, el):
         f_gyr_el = np.zeros(self.nu_element)
 
@@ -1201,7 +1200,7 @@ class TimoshenkoQuarternionSE3:
         return V
 
     def distributed_force1D_el(self, force, t, el):
-        fe = np.zeros(self.nq_element, dtype=float)
+        fe = np.zeros(self.nu_element, dtype=float)
         for i in range(self.nquadrature):
             # extract reference state variables
             qwi = self.qw[el, i]
@@ -1217,9 +1216,9 @@ class TimoshenkoQuarternionSE3:
         return fe
 
     def distributed_force1D(self, t, q, force):
-        f = np.zeros(self.nq, dtype=float)
+        f = np.zeros(self.nu, dtype=float)
         for el in range(self.nelement):
-            f[self.elDOF[el]] += self.distributed_force1D_el(force, t, el)
+            f[self.elDOF_u[el]] += self.distributed_force1D_el(force, t, el)
         return f
 
     def distributed_force1D_q(self, t, q, coo, force):
