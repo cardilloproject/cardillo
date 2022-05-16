@@ -806,8 +806,6 @@ class TimoshenkoAxisAngleSE3:
     # kinematic equation
     #########################################
     def q_dot(self, t, q, u):
-        # raise NotImplementedError
-
         # centerline part
         q_dot = u
 
@@ -908,52 +906,6 @@ class TimoshenkoAxisAngleSE3:
     def uDOF_P(self, frame_ID):
         return self.elDOF_P(frame_ID)
 
-    # def r_OC(self, t, q, frame_ID):
-    #     # compute centerline position
-    #     N, _, _ = self.basis_functions_r(frame_ID[0])
-    #     r_OC = np.zeros, dtype=float)
-    #     for node in range(self.nnodes_element_r):
-    #         r_OC += N[node] * q[self.nodalDOF_element_r[node]]
-    #     return r_OC
-
-    # def r_OC_q(self, t, q, frame_ID):
-    #     # compute centerline position
-    #     N, _, _ = self.basis_functions_r(frame_ID[0])
-    #     r_OC_q = np.zeros((3, self.nq_element), dtype=float)
-    #     for node in range(self.nnodes_element_r):
-    #         r_OC_q[:, self.nodalDOF_element_r[node]] += N[node] * np.eye(3)
-    #     return r_OC_q
-
-    # def r_OC_xi(self, t, q, frame_ID):
-    #     # compute centerline position
-    #     _, N_xi, _ = self.basis_functions_r(frame_ID[0])
-    #     r_OC_xi = np.zeros(3, dtype=float)
-    #     for node in range(self.nnodes_element_r):
-    #         r_OC_xi += N_xi[node] * q[self.nodalDOF_element_r[node]]
-    #     return r_OC_xi
-
-    # def r_OC_xixi(self, t, q, frame_ID):
-    #     # compute centerline position
-    #     _, _, N_xixi = self.basis_functions_r(frame_ID[0])
-    #     r_OC_xixi = np.zeros(3, dtype=float)
-    #     for node in range(self.nnodes_element_r):
-    #         r_OC_xixi += N_xixi[node] * q[self.nodalDOF_element_r[node]]
-    #     return r_OC_xixi
-
-    # def J_C(self, t, q, frame_ID):
-    #     # evaluate required nodal shape functions
-    #     N, _, _ = self.basis_functions_r(frame_ID[0])
-
-    #     # interpolate centerline and axis angle contributions
-    #     J_C = np.zeros((3, self.nq_element), dtype=float)
-    #     for node in range(self.nnodes_element_r):
-    #         J_C[:, self.nodalDOF_element_r[node]] += N[node] * np.eye(3)
-
-    #     return J_C
-
-    # def J_C_q(self, t, q, frame_ID):
-    #     return np.zeros((3, self.nq_element, self.nq_element), dtype=float)
-
     ###################
     # r_OP contribution
     ###################
@@ -961,7 +913,7 @@ class TimoshenkoAxisAngleSE3:
         r, A_IK, _, _ = self.eval(q, frame_ID[0])
         return r + A_IK @ K_r_SP
 
-    # TODO:
+    # TODO: Derivative of rigid body formular and underlying SE(3) interpolation.
     def r_OP_q(self, t, q, frame_ID, K_r_SP=np.zeros(3), dtype=float):
         r_OP_q_num = approx_fprime(
             q, lambda q: self.r_OP(t, q, frame_ID, K_r_SP), method="3-point"
