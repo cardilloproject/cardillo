@@ -20,6 +20,7 @@ from cardillo.beams import (
     TimoshenkoAxisAngle,
     TimoshenkoAxisAngleSE3,
     TimoshenkoDirectorDirac,
+    TimoshenkoQuarternionSE3,
 )
 from cardillo.forces import Force, K_Moment, Moment, DistributedForce1D
 from cardillo.model import Model
@@ -79,6 +80,12 @@ def beam_factory(
         p_r = polynomial_degree
         p_psi = max(1, polynomial_degree - 1)
         Q = TimoshenkoDirectorDirac.straight_configuration(
+            p_r, p_psi, nelements, L, r_OP=r_OP0, A_IK=A_IK0, basis=shape_functions
+        )
+    elif Beam == TimoshenkoQuarternionSE3:
+        p_r = polynomial_degree
+        p_psi = polynomial_degree
+        Q = TimoshenkoQuarternionSE3.straight_configuration(
             p_r, p_psi, nelements, L, r_OP=r_OP0, A_IK=A_IK0, basis=shape_functions
         )
     else:
@@ -161,6 +168,19 @@ def beam_factory(
             q0=q0,
             basis=shape_functions,
         )
+    elif Beam == TimoshenkoQuarternionSE3:
+        beam = TimoshenkoQuarternionSE3(
+            material_model,
+            A_rho0,
+            I_rho0,
+            p_r,
+            p_psi,
+            nquadrature_points,
+            nelements,
+            Q=Q,
+            q0=q0,
+            basis=shape_functions,
+        )
     else:
         raise NotImplementedError("")
 
@@ -169,7 +189,8 @@ def beam_factory(
 
 def run(statics):
     # Beam = TimoshenkoAxisAngle
-    Beam = TimoshenkoAxisAngleSE3
+    # Beam = TimoshenkoAxisAngleSE3
+    Beam = TimoshenkoQuarternionSE3
 
     # number of elements
     # nelements = 1
@@ -1391,8 +1412,8 @@ def HeavyTopMaekinen2006():
 
 
 if __name__ == "__main__":
-    # run(statics=True)
-    run(statics=False)
+    run(statics=True)
+    # run(statics=False)
     # locking()
     # SE3_interpolation()
     # HelixIbrahimbegovic1997()

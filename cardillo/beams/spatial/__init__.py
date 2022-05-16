@@ -22,4 +22,5 @@ from .Timoshenko import (
     TimoshenkoAxisAngle,
     TimoshenkoQuaternion,
     TimoshenkoAxisAngleSE3,
+    TimoshenkoQuarternionSE3,
 )

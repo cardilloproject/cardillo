@@ -10,6 +10,7 @@ from .spatial import (
     TimoshenkoQuaternion,
     TimoshenkoAxisAngle,
     TimoshenkoAxisAngleSE3,
+    TimoshenkoQuarternionSE3,
 )
 
 from .planar import (
