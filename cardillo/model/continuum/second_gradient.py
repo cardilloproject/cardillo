@@ -65,15 +65,15 @@ class Second_gradient():
                     self.srf_w_J0.append(self.mesh.surface_mesh[i].reference_mappings(Z[self.mesh.surface_qDOF[i].ravel()]))
            
             self.N_XX = self.mesh.N_XX(Z, self.kappa0_xi_inv)
-        # For 1D Continua
-        else:
-            self.w_J0 = self.mesh.reference_mappings(Z)
-            for el in range(self.nel):
-                for i in range(self.nqp):
-                    for a in range(self.nn_el):
-                        kappa0_xixi = 
-                    self.N_X[el, i] = mesh.N_xi[el, i] / self.w_J0[el, i]
-                    self.N_XX[el, i] = mesh.n_xixi[el ,i] - self.N_X[el ,i] * 
+        # # For 1D Continua
+        # else:
+        #     self.w_J0 = self.mesh.reference_mappings(Z)
+        #     for el in range(self.nel):
+        #         for i in range(self.nqp):
+        #             for a in range(self.nn_el):
+        #                 kappa0_xixi = 
+        #             self.N_X[el, i] = mesh.N_xi[el, i] / self.w_J0[el, i]
+        #             self.N_XX[el, i] = mesh.n_xixi[el ,i] - self.N_X[el ,i] * 
 
         
 

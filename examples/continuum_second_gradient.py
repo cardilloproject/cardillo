@@ -25,7 +25,7 @@ def save_solution(sol, filename):
 def test_cube():
 
     file_name = pathlib.Path(__file__).stem
-    file_path = pathlib.Path(__file__).parent / 'results' / f"{file_name}_cube_1x1x2" / file_name
+    file_path = pathlib.Path(__file__).parent / 'results' / f"{file_name}_cube_2x2x6_ext" / file_name
     file_path.parent.mkdir(parents=True, exist_ok=True)
     export_path = file_path.parent / 'sol'
 
@@ -39,8 +39,8 @@ def test_cube():
 
     # build mesh
     degrees = (3, 3, 3)
-    QP_shape = (2, 2, 2)
-    element_shape = (1, 1, 1)
+    QP_shape = (3, 3, 3)
+    element_shape = (2, 2, 6)
 
     Xi = Knot_vector(degrees[0], element_shape[0])
     Eta = Knot_vector(degrees[1], element_shape[1])
@@ -49,15 +49,17 @@ def test_cube():
     
     mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=2, basis='B-spline', nq_n=3)
 
+
+
     # material model
-    l = 70.0
+    l = 70.0  # in mm
     L = 3 * l
-    a = 1.0
-    b = 1.0
-    Yb = 0.5
+    a = 1.0  # in mm
+    b = 1.0  # in mm
+    Yb = 50.0  # in GPa
     Gb = Yb / (2 + 0.8)
-    rp = 0.45
-    hp = 1.5
+    rp = 0.45 # in mm
+    hp = 1.5 # in mm
     Jn = a**3*b/12
     Jg = a*b**3/12
     Jt = 0.196*a**3*b
@@ -70,9 +72,8 @@ def test_cube():
     Kp = Gb*np.pi*rp**4/2/hp/p**2
     Ks = Kp
     Kc = Ks
-    ns = 6
-    H = (ns*2-1)*hp+2*ns*a
-    nsH = ns/H
+    # H = L/3
+    nsH = nf/l
     # nsH = 1
 
     # reference configuration is a cube
@@ -103,7 +104,7 @@ def test_cube():
                 cDOF134 = np.concatenate((cDOF1, cDOF3, cDOF4,))
                 cDOF = np.concatenate((cDOF134, cDOF2))
                 b1 = lambda t: Z[cDOF134]
-                b2 = lambda t: Z[cDOF2] + t * 100.0*0
+                b2 = lambda t: Z[cDOF2] + t * 50.0
                 b = lambda t: np.concatenate((b1(t), b2(t)))
             if torsion:
                 cDOF1 = mesh.surface_qDOF[4].ravel()
