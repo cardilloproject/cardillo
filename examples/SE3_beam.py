@@ -231,39 +231,9 @@ def run(statics):
         A_IK=A_IK,
     )
 
-    # ############################################
-    # # dummy values for debugging internal forces
-    # ############################################
-    # # assemble the model
-    # model = Model()
-    # model.add(beam)
-    # model.assemble()
-
-    # t = 0
-    # q = model.q0
-    # # q = np.random.rand(model.nq)
-
-    # E_pot = model.E_pot(t, q)
-    # print(f"E_pot: {E_pot}")
-    # f_pot = model.f_pot(t, q)
-    # print(f"f_pot:\n{f_pot}")
-    # # f_pot_q = model.f_pot_q(t, q)
-    # # print(f"f_pot_q:\n{f_pot_q}")
-
-    # exit()
-
-    # xis = np.linspace(0, 1, num=10)
-    # for xi in xis:
-    #     r_OC = beam.r_OC(t, q, frame_ID=(xi,))
-    #     print(f"r_OC({xi}): {r_OC}")
-    # for xi in xis:
-    #     r_OC_xi = beam.r_OC_xi(t, q, frame_ID=(xi,))
-    #     print(f"r_OC_xi({xi}): {r_OC_xi}")
-    # exit()
-
     # number of full rotations after deformation
     # TODO: Allow zero circles!
-    n_circles = 2
+    n_circles = 1
     frac_deformation = 1 / (n_circles + 1)
     frac_rotation = 1 - frac_deformation
     print(f"n_circles: {n_circles}")
@@ -274,19 +244,19 @@ def run(statics):
     r_OB0 = np.zeros(3)
     # r_OB0 = np.array([-1, 0.25, 3.14])
     if statics:
-        # phi = (
-        #     lambda t: n_circles * 2 * pi * smoothstep2(t, frac_deformation, 1.0)
-        # )  # * 0.5
-        # # phi2 = lambda t: pi / 4 * sin(2 * pi * smoothstep2(t, frac_deformation, 1.0))
-        # # A_IK0 = lambda t: A_IK_basic(phi(t)).x()
-        # # TODO: Get this strange rotation working with a full circle
+        phi = (
+            lambda t: n_circles * 2 * pi * smoothstep2(t, frac_deformation, 1.0)
+        )  # * 0.5
+        # phi2 = lambda t: pi / 4 * sin(2 * pi * smoothstep2(t, frac_deformation, 1.0))
+        # A_IK0 = lambda t: A_IK_basic(phi(t)).x()
+        # TODO: Get this strange rotation working with a full circle
         # A_IK0 = lambda t: A_IK_basic(phi(t)).z()
-        # # A_IK0 = (
-        # #     lambda t: A_IK_basic(0.5 * phi(t)).z()
-        # #     @ A_IK_basic(0.5 * phi(t)).y()
-        # #     @ A_IK_basic(phi(t)).x()
-        # # )
-        A_IK0 = lambda t: np.eye(3)
+        A_IK0 = (
+            lambda t: A_IK_basic(0.5 * phi(t)).z()
+            @ A_IK_basic(0.5 * phi(t)).y()
+            @ A_IK_basic(phi(t)).x()
+        )
+        # A_IK0 = lambda t: np.eye(3)
     else:
         # phi = lambda t: smoothstep2(t, 0, 0.1) * sin(0.3 * pi * t) * pi / 4
         phi = lambda t: smoothstep2(t, 0, 0.1) * sin(0.6 * pi * t) * pi / 4
@@ -939,8 +909,8 @@ def HelixIbrahimbegovic1997():
     # fraction = 1  # 10 full rotations
 
     # number of elements
-    nelements_max = 30
-    # nelements_max = 50
+    # nelements_max = 30
+    nelements_max = 50
     # nelements_max = 100 # Ibrahimbegovic1997
     nelements = max(3, int(fraction * nelements_max))
     # nelements = 25
@@ -1025,8 +995,8 @@ def HelixIbrahimbegovic1997():
     moment = Moment(M, beam, (1,))
 
     # external force at the right end
-    F_max = 25 * 0
-    # F_max = 50 # Ibrahimbegovic1997
+    # F_max = 25 * 0
+    F_max = 50  # Ibrahimbegovic1997
     # F = lambda t: (F_max * e3 * smoothstep2(t, 0.0, 1.0) * fraction)
     F = lambda t: F_max * e3 * t * fraction
     force = Force(F, beam, frame_ID=(1,))
@@ -1041,13 +1011,13 @@ def HelixIbrahimbegovic1997():
     model.assemble()
 
     # n_load_steps = int(25 * 10 * fraction)
-    n_load_steps = int(50 * 10 * fraction)
-    # n_load_steps = int(100 * 10 * fraction)
+    # n_load_steps = int(50 * 10 * fraction)
+    n_load_steps = int(200 * 10 * fraction)
 
     solver = Newton(
         model,
         # n_load_steps=n_load_steps,
-        n_load_steps=50,
+        n_load_steps=20,
         max_iter=30,
         atol=1.0e-6,
         # atol=1.0e-8,
@@ -1123,8 +1093,8 @@ def HelixIbrahimbegovic1997():
 
 
 if __name__ == "__main__":
-    # run(statics=True)
-    run(statics=False)
+    run(statics=True)
+    # run(statics=False)
     # locking()
     # SE3_interpolation()
     # HelixIbrahimbegovic1997()
