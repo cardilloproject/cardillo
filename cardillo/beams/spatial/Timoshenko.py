@@ -651,7 +651,7 @@ class TimoshenkoQuarternionSE3:
     # mass matrix
     #########################################
     def M_el(self, el):
-        M_el = np.zeros((self.nu_element, self.nu_element))
+        M_el = np.zeros((self.nu_element, self.nu_element), dtype=float)
 
         for i in range(self.nquadrature):
             # extract reference state variables
@@ -660,7 +660,7 @@ class TimoshenkoQuarternionSE3:
 
             # delta_r A_rho0 r_ddot part
             # TODO: Can this be simplified with a single nodal loop?
-            M_el_r = np.eye(3) * self.A_rho0 * Ji * qwi
+            M_el_r = np.eye(3, dtype=float) * self.A_rho0 * Ji * qwi
             for node_a in range(self.nnodes_element_r):
                 nodalDOF_a = self.nodalDOF_element_r[node_a]
                 for node_b in range(self.nnodes_element_r):
@@ -705,7 +705,7 @@ class TimoshenkoQuarternionSE3:
 
         for i in range(self.nquadrature):
             # interpoalte angular velocity
-            K_Omega = np.zeros(3)
+            K_Omega = np.zeros(3, dtype=float)
             for node in range(self.nnodes_element_psi):
                 K_Omega += (
                     self.N_psi[el, i, node] * ue[self.nodalDOF_element_u_psi[node]]

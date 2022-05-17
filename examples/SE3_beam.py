@@ -1221,7 +1221,8 @@ def HeavyTopMaekinen2006():
     Beam = TimoshenkoQuarternionSE3
 
     # number of elements
-    nelements = 3
+    # nelements = 3
+    nelements = 1
 
     # used polynomial degree
     polynomial_degree = 1
@@ -1231,7 +1232,8 @@ def HeavyTopMaekinen2006():
     #       gyroscopic forces and potential forces!
     nquadrature_points = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
     # nquadrature_points = polynomial_degree + 2
-    # nquadrature_points = polynomial_degree + 1 # this seems not to be sufficent for p > 1
+    # nquadrature_points = polynomial_degree + 1
+    # nquadrature_points = polynomial_degree
 
     # used shape functions for discretization
     shape_functions = "B-spline"
@@ -1248,18 +1250,19 @@ def HeavyTopMaekinen2006():
 
     # cross section and inertia
     K_Theta = np.diag([1.0, 0.5, 0.5])
+    # K_Theta = np.diag([1.0, 10, 0.5])
     A_rho0 = 13.5
     # r = sqrt(2 / 13.5)
-    cross_section = UserDefinedCrossSection(A_rho0, A_rho0, np.zeros(3), K_Theta)
+    cross_section = UserDefinedCrossSection(A_rho0, A_rho0, np.zeros(3, dtype=float), K_Theta)
 
     # gravity
-    # TODO
+    # TODO: Why not 20 as used by Simo1991 and for the rigid body?
     mg = 40
 
     # starting point and orientation of initial point, initial length
     r_OP0 = np.zeros(3, dtype=float)
-    A_IK0 = rodriguez(0.3 * e1) @ rodriguez(-pi / 2 * e2)
-    # A_IK0 = np.eye(3, dtype=float)
+    # A_IK0 = rodriguez(0.3 * e1) @ rodriguez(-pi / 2 * e2)
+    A_IK0 = np.eye(3, dtype=float)
     K_omega_IK0 = 50 * e1
 
     # build beam model
@@ -1283,9 +1286,12 @@ def HeavyTopMaekinen2006():
     frame = Frame(r_OP=r_OB0, A_IK=A_IK0)
     joint = SphericalJoint(frame, beam, r_OB0, frame_ID2=(0,))
 
-    # gravity beam
-    g = np.array(-cross_section.line_density * 9.81 * e3, dtype=float)
-    f_g_beam = DistributedForce1D(lambda t, xi: g, beam)
+    # # gravity beam
+    # g = np.array(-cross_section.line_density * 9.81 * e3, dtype=float)
+    # f_g_beam = DistributedForce1D(lambda t, xi: g, beam)
+
+    # gravity as point force
+    f_g_beam = Force(-mg * e3, beam, frame_ID=(0.5,))
 
     # assemble the model
     model = Model()
@@ -1295,9 +1301,10 @@ def HeavyTopMaekinen2006():
     model.add(f_g_beam)
     model.assemble()
 
-    t1 = 1.5  # used by Maekinen2006
+    # t1 = 1.5  # used by Maekinen2006
+    t1 = 10  # used by Simo1991
     # t1 = 15 # this yields a quarter circle
-    # t1 = 0.1
+    # t1 = 5
     dt = 1.0e-2
     # dt = 2.5e-2
     # method = "RK45"
@@ -1329,6 +1336,7 @@ def HeavyTopMaekinen2006():
 
     Euler = np.array(
         [
+            # Rotation.from_matrix(A_IK0.T @ A_IKi).as_euler("xyz", degrees=False) for A_IKi in A_IK
             Rotation.from_matrix(A_IKi).as_euler("xyz", degrees=False) for A_IKi in A_IK
         ]  # Cardan angles
         # [Rotation.from_matrix(A_IKi).as_euler("zxz", degrees=False) for A_IKi in A_IK] # Euler angles
