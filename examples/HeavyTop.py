@@ -343,13 +343,14 @@ class HeavyTop:
 ########################################
 # Arnold2015, p. 174/ Arnold2015b, p. 13
 ########################################
-m = 15
+m = 15.0
 A = 0.234375
 B = 0.46875
 l = 1.0
 grav = 9.81
 alpha0 = 0
 beta0 = pi / 2
+# beta0 = pi / 9
 gamma0 = 0
 
 omega_x0 = 0
@@ -391,6 +392,89 @@ model.assemble()
 # model.add(frame)
 # model.add(spherical_joint)
 # model.assemble()
+
+
+def state():
+    rho_inf = 0.9
+    tol = 1.0e-8
+    t1 = 1
+    # t1 = 0.1
+    dt = 1.0e-3
+
+    sol = GenAlphaFirstOrder(
+        model,
+        t1,
+        dt,
+        rho_inf=rho_inf,
+        tol=tol,
+        unknowns="velocities",
+        GGL=False,
+        numerical_jacobian=False,
+    ).solve()
+
+    t = sol.t
+    q = sol.q
+    u = sol.u
+    la_g = sol.la_g
+
+    ###################
+    # visualize results
+    ###################
+    fig = plt.figure(figsize=plt.figaspect(0.5))
+
+    # center of mass
+    ax = fig.add_subplot(2, 3, 1)
+    ax.plot(t, q[:, 0], "-r", label="x")
+    ax.plot(t, q[:, 1], "-g", label="y")
+    ax.plot(t, q[:, 2], "-b", label="z")
+    ax.grid()
+    ax.legend()
+
+    # alpha, beta, gamma
+    ax = fig.add_subplot(2, 3, 2)
+    ax.plot(t, q[:, 3], "-r", label="alpha")
+    ax.plot(t, q[:, 4], "-g", label="beta")
+    ax.plot(t, q[:, 5], "-b", label="gamm")
+    ax.grid()
+    ax.legend()
+
+    # x-y-z trajectory
+    ax = fig.add_subplot(2, 3, 3, projection="3d")
+    ax.plot3D(
+        q[:, 0],
+        q[:, 1],
+        q[:, 2],
+        "-r",
+        label="x-y-z trajectory",
+    )
+    ax.grid()
+    ax.legend()
+
+    # x_dot, y_dot, z_dot
+    ax = fig.add_subplot(2, 3, 4)
+    ax.plot(t, u[:, 0], "-r", label="x_dot")
+    ax.plot(t, u[:, 1], "-g", label="y_dot")
+    ax.plot(t, u[:, 2], "-b", label="z_dot")
+    ax.grid()
+    ax.legend()
+
+    # omega_x, omega_y, omega_z
+    ax = fig.add_subplot(2, 3, 5)
+    ax.plot(t, u[:, 3], "-r", label="omega_x")
+    ax.plot(t, u[:, 4], "-g", label="omega_y")
+    ax.plot(t, u[:, 5], "-b", label="omega_z")
+    ax.grid()
+    ax.legend()
+
+    # la_g
+    ax = fig.add_subplot(2, 3, 6)
+    ax.plot(t, la_g[:, 0], "-r", label="la_g0")
+    ax.plot(t, la_g[:, 1], "-g", label="la_g1")
+    ax.plot(t, la_g[:, 2], "-b", label="la_g2")
+    ax.grid()
+    ax.legend()
+
+    plt.show()
 
 
 def transient():
@@ -522,10 +606,11 @@ def gaps():
         t = sol.t
         q = sol.q
         u = sol.u
-        try:
-            u_dot = sol.a  # GGL2 solver
-        except:
-            u_dot = sol.u_dot  # other solvers
+        # try:
+        #     u_dot = sol.a  # GGL2 solver
+        # except:
+        #     u_dot = sol.u_dot  # other solvers
+        u_dot = sol.u_dot  # other solvers
 
         g = np.array([np.linalg.norm(model.g(ti, qi)) for ti, qi in zip(t, q)])
 
@@ -551,17 +636,17 @@ def gaps():
 
         return g, g_dot, g_ddot
 
-    # solve index 3 problem with rho_inf = 0.9
-    sol_9 = GenAlphaFirstOrder(
-        model, t1, h, rho_inf=0.9, tol=tol, unknowns="velocities", GGL=False
-    ).solve()
-    g_9, g_dot_9, g_ddot_9 = export_gaps(sol_9, "g_9.txt")
+    # # solve index 3 problem with rho_inf = 0.9
+    # sol_9 = GenAlphaFirstOrder(
+    #     model, t1, h, rho_inf=0.9, tol=tol, unknowns="velocities", GGL=False
+    # ).solve()
+    # g_9, g_dot_9, g_ddot_9 = export_gaps(sol_9, "g_9.txt")
 
-    # solve GGL with rho_inf = 0.9
-    sol_9_GGL = GenAlphaFirstOrder(
-        model, t1, h, rho_inf=0.9, tol=tol, unknowns="velocities", GGL=True
-    ).solve()
-    g_9_GGL, g_dot_9_GGL, g_ddot_9_GGL = export_gaps(sol_9_GGL, "g_9_GGL.txt")
+    # # solve GGL with rho_inf = 0.9
+    # sol_9_GGL = GenAlphaFirstOrder(
+    #     model, t1, h, rho_inf=0.9, tol=tol, unknowns="velocities", GGL=True
+    # ).solve()
+    # g_9_GGL, g_dot_9_GGL, g_ddot_9_GGL = export_gaps(sol_9_GGL, "g_9_GGL.txt")
 
     # solve GGL2 with rho_inf = 0.9
     sol_9_GGL2 = GenAlphaFirstOrderGGL2_V3(
@@ -574,37 +659,37 @@ def gaps():
     ###################
     fig = plt.figure(figsize=plt.figaspect(1))
 
-    # index 3
-    ax = fig.add_subplot(3, 3, 1)
-    ax.plot(sol_9.t, g_9, "-k", label="||g_9||")
-    ax.grid()
-    ax.legend()
+    # # index 3
+    # ax = fig.add_subplot(3, 3, 1)
+    # ax.plot(sol_9.t, g_9, "-k", label="||g_9||")
+    # ax.grid()
+    # ax.legend()
 
-    ax = fig.add_subplot(3, 3, 4)
-    ax.plot(sol_9.t, g_dot_9, "-k", label="||g_dot_9||")
-    ax.grid()
-    ax.legend()
+    # ax = fig.add_subplot(3, 3, 4)
+    # ax.plot(sol_9.t, g_dot_9, "-k", label="||g_dot_9||")
+    # ax.grid()
+    # ax.legend()
 
-    ax = fig.add_subplot(3, 3, 7)
-    ax.plot(sol_9.t, g_ddot_9, "-k", label="||g_ddot_9||")
-    ax.grid()
-    ax.legend()
+    # ax = fig.add_subplot(3, 3, 7)
+    # ax.plot(sol_9.t, g_ddot_9, "-k", label="||g_ddot_9||")
+    # ax.grid()
+    # ax.legend()
 
-    # index 2
-    ax = fig.add_subplot(3, 3, 2)
-    ax.plot(sol_9_GGL.t, g_9_GGL, "-k", label="||g_9_GGL||")
-    ax.grid()
-    ax.legend()
+    # # index 2
+    # ax = fig.add_subplot(3, 3, 2)
+    # ax.plot(sol_9_GGL.t, g_9_GGL, "-k", label="||g_9_GGL||")
+    # ax.grid()
+    # ax.legend()
 
-    ax = fig.add_subplot(3, 3, 5)
-    ax.plot(sol_9_GGL.t, g_dot_9_GGL, "-k", label="||g_dot_9_GGL||")
-    ax.grid()
-    ax.legend()
+    # ax = fig.add_subplot(3, 3, 5)
+    # ax.plot(sol_9_GGL.t, g_dot_9_GGL, "-k", label="||g_dot_9_GGL||")
+    # ax.grid()
+    # ax.legend()
 
-    ax = fig.add_subplot(3, 3, 8)
-    ax.plot(sol_9_GGL.t, g_ddot_9_GGL, "-k", label="||g_ddot_9_GGL||")
-    ax.grid()
-    ax.legend()
+    # ax = fig.add_subplot(3, 3, 8)
+    # ax.plot(sol_9_GGL.t, g_ddot_9_GGL, "-k", label="||g_ddot_9_GGL||")
+    # ax.grid()
+    # ax.legend()
 
     # index 1
     ax = fig.add_subplot(3, 3, 3)
@@ -633,7 +718,8 @@ def convergence():
     # compute step sizes with powers of 2
     # dt_ref = 1.0e-5
     dt_ref = 2.5e-5
-    dts = (2.0 ** np.arange(9, 3, -1)) * dt_ref
+    # dts = (2.0 ** np.arange(9, 3, -1)) * dt_ref
+    dts = (2.0 ** np.arange(8, 2, -1)) * dt_ref
 
     # # end time
     # # t1 = (2. ** 14) * dt_ref # this is 0.16384
@@ -643,6 +729,7 @@ def convergence():
 
     t1 = (2.0**15) * dt_ref  # this yields 0.8192 for dt_ref = 2.5e-5
     # t1 = (2.0**16) * dt_ref # this yields 1.6384 for dt_ref = 2.5e-5
+    dt_ref *= 16
 
     # # TODO: Only for debugging!
     # dt_ref = 5e-4
@@ -809,18 +896,18 @@ def convergence():
     for i, dt in enumerate(dts):
         print(f"i: {i}, dt: {dt:1.1e}")
 
-        # position formulation
-        sol = GenAlphaFirstOrder(
-            model, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="positions", GGL=False
-        ).solve()
-        (
-            q_errors_transient[0, i],
-            u_errors_transient[0, i],
-            la_g_errors_transient[0, i],
-            q_errors_longterm[0, i],
-            u_errors_longterm[0, i],
-            la_g_errors_longterm[0, i],
-        ) = errors(sol)
+        # # position formulation
+        # sol = GenAlphaFirstOrder(
+        #     model, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="positions", GGL=False
+        # ).solve()
+        # (
+        #     q_errors_transient[0, i],
+        #     u_errors_transient[0, i],
+        #     la_g_errors_transient[0, i],
+        #     q_errors_longterm[0, i],
+        #     u_errors_longterm[0, i],
+        #     la_g_errors_longterm[0, i],
+        # ) = errors(sol)
 
         # velocity formulation
         sol = GenAlphaFirstOrder(
@@ -835,31 +922,31 @@ def convergence():
             la_g_errors_longterm[1, i],
         ) = errors(sol)
 
-        # auxiliary formulation
-        sol = GenAlphaFirstOrder(
-            model, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="auxiliary", GGL=False
-        ).solve()
-        (
-            q_errors_transient[2, i],
-            u_errors_transient[2, i],
-            la_g_errors_transient[2, i],
-            q_errors_longterm[2, i],
-            u_errors_longterm[2, i],
-            la_g_errors_longterm[2, i],
-        ) = errors(sol)
+        # # auxiliary formulation
+        # sol = GenAlphaFirstOrder(
+        #     model, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="auxiliary", GGL=False
+        # ).solve()
+        # (
+        #     q_errors_transient[2, i],
+        #     u_errors_transient[2, i],
+        #     la_g_errors_transient[2, i],
+        #     q_errors_longterm[2, i],
+        #     u_errors_longterm[2, i],
+        #     la_g_errors_longterm[2, i],
+        # ) = errors(sol)
 
-        # GGL formulation - positions
-        sol = GenAlphaFirstOrder(
-            model, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="positions", GGL=True
-        ).solve()
-        (
-            q_errors_transient[3, i],
-            u_errors_transient[3, i],
-            la_g_errors_transient[3, i],
-            q_errors_longterm[3, i],
-            u_errors_longterm[3, i],
-            la_g_errors_longterm[3, i],
-        ) = errors(sol)
+        # # GGL formulation - positions
+        # sol = GenAlphaFirstOrder(
+        #     model, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="positions", GGL=True
+        # ).solve()
+        # (
+        #     q_errors_transient[3, i],
+        #     u_errors_transient[3, i],
+        #     la_g_errors_transient[3, i],
+        #     q_errors_longterm[3, i],
+        #     u_errors_longterm[3, i],
+        #     la_g_errors_longterm[3, i],
+        # ) = errors(sol)
 
         # GGL formulation - velocityies
         sol = GenAlphaFirstOrder(
@@ -874,18 +961,18 @@ def convergence():
             la_g_errors_longterm[4, i],
         ) = errors(sol)
 
-        # GGL formulation - auxiliary
-        sol = GenAlphaFirstOrder(
-            model, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="auxiliary", GGL=True
-        ).solve()
-        (
-            q_errors_transient[5, i],
-            u_errors_transient[5, i],
-            la_g_errors_transient[5, i],
-            q_errors_longterm[5, i],
-            u_errors_longterm[5, i],
-            la_g_errors_longterm[5, i],
-        ) = errors(sol)
+        # # GGL formulation - auxiliary
+        # sol = GenAlphaFirstOrder(
+        #     model, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="auxiliary", GGL=True
+        # ).solve()
+        # (
+        #     q_errors_transient[5, i],
+        #     u_errors_transient[5, i],
+        #     la_g_errors_transient[5, i],
+        #     q_errors_longterm[5, i],
+        #     u_errors_longterm[5, i],
+        #     la_g_errors_longterm[5, i],
+        # ) = errors(sol)
 
         # #############################
         # # export errors and dt, dt**2
@@ -1101,6 +1188,7 @@ def convergence():
 
 
 if __name__ == "__main__":
+    # state()
     # transient()
-    # gaps()
-    convergence()
+    gaps()
+    # convergence()

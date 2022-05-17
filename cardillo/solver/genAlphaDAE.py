@@ -1392,6 +1392,9 @@ class GenAlphaFirstOrderGGL2_V3:
             ak1,
         ) = self.unpack(sk1)
 
+        # Note: ak1 takes the role of u_s here!
+        u_sk1 = ak1
+
         # update dependent variables
         qk1, uk1, q_dotk1, u_dotk1 = self.update(sk1, store=False)
 
@@ -1411,21 +1414,32 @@ class GenAlphaFirstOrderGGL2_V3:
         ####################################
 
         # kinematic differential equation
-        R[:nq] = q_dotk1 - self.model.q_dot(tk1, qk1, uk1) - g_qk1.T @ mu_gk1
+        # R[:nq] = q_dotk1 - self.model.q_dot(tk1, qk1, uk1) - g_qk1.T @ mu_gk1
+        R[:nq] = q_dotk1 - self.model.q_dot(tk1, qk1, uk1 + u_sk1) - g_qk1.T @ mu_gk1
 
         # equations of motion
+        # R[nq:nx] = (
+        #     Mk1 @ ak1
+        #     - self.model.h(tk1, qk1, uk1)
+        #     - W_gk1 @ la_gk1
+        #     - W_gammak1 @ la_gammak1
+        # )
         R[nq:nx] = (
-            Mk1 @ ak1
-            - self.model.h(tk1, qk1, uk1)
+            Mk1 @ u_dotk1
+            - self.model.h(tk1, qk1, uk1 + u_sk1)
             - W_gk1 @ la_gk1
             - W_gammak1 @ la_gammak1
         )
 
         # bilateral constraints on acceleration level
         # (corresponds to constraint forces la_gk1, la_gammak1)
-        R[nx : nx + nla_g] = self.model.g_ddot(tk1, qk1, uk1, ak1)
+        # R[nx : nx + nla_g] = self.model.g_ddot(tk1, qk1, uk1, ak1)
+        # R[nx + nla_g : nx + nla_g + nla_gamma] = self.model.gamma_dot(
+        #     tk1, qk1, uk1, ak1
+        # )
+        R[nx : nx + nla_g] = self.model.g_ddot(tk1, qk1, uk1 + u_sk1, u_dotk1)
         R[nx + nla_g : nx + nla_g + nla_gamma] = self.model.gamma_dot(
-            tk1, qk1, uk1, ak1
+            tk1, qk1, uk1 + u_sk1, u_dotk1
         )
 
         # bilateral constraints on position level
@@ -1434,19 +1448,29 @@ class GenAlphaFirstOrderGGL2_V3:
 
         # bilateral constraints on velocity level
         # (correspsonds to velocity correction kappa_gk1)
+        # R[nx + 2 * nla_g + nla_gamma : nx + 3 * nla_g + nla_gamma] = self.model.g_dot(
+        #     tk1, qk1, uk1
+        # )
         R[nx + 2 * nla_g + nla_gamma : nx + 3 * nla_g + nla_gamma] = self.model.g_dot(
-            tk1, qk1, uk1
+            tk1, qk1, uk1 + u_sk1
         )
 
         # bilateral constraints on velocity level
-        # (gamma; correspsonds to velocity correction kappa_gammak1)
+        # (gamma; corresponds to velocity correction kappa_gammak1)
+        # R[
+        #     nx + 3 * nla_g + nla_gamma : nx + 3 * nla_g + 2 * nla_gamma
+        # ] = self.model.gamma(tk1, qk1, uk1)
         R[
             nx + 3 * nla_g + nla_gamma : nx + 3 * nla_g + 2 * nla_gamma
-        ] = self.model.gamma(tk1, qk1, uk1)
+        ] = self.model.gamma(tk1, qk1, uk1 + u_sk1)
 
         # stabilization on velocity level
+        # R[nx + 3 * nla_g + 2 * nla_gamma :] = (
+        #     Mk1 @ (ak1 - u_dotk1) - W_gk1 @ kappa_gk1 - W_gammak1 @ kappa_gammak1
+        # )
+        # Note: ak1 takes the role of u_s here!
         R[nx + 3 * nla_g + 2 * nla_gamma :] = (
-            Mk1 @ (ak1 - u_dotk1) - W_gk1 @ kappa_gk1 - W_gammak1 @ kappa_gammak1
+            Mk1 @ ak1 - W_gk1 @ kappa_gk1 - W_gammak1 @ kappa_gammak1
         )
 
         # ####################################
@@ -1535,7 +1559,8 @@ class GenAlphaFirstOrderGGL2_V3:
         # lists storing output variables
         t = [self.tk]
         q = [self.qk]
-        u = [self.uk]
+        # u = [self.uk]
+        u = [self.uk + self.ak]
         q_dot = [self.q_dotk]
         u_dot = [self.u_dotk]
         la_g = [self.la_gk]
@@ -1583,7 +1608,8 @@ class GenAlphaFirstOrderGGL2_V3:
             # store soltuion fields
             t.append(tk1)
             q.append(qk1)
-            u.append(uk1)
+            # u.append(uk1)
+            u.append(uk1 + ak1)
             q_dot.append(q_dotk1)
             u_dot.append(u_dotk1)
             la_g.append(la_gk1)
