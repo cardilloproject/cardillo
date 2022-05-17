@@ -72,10 +72,6 @@ def beam_factory(
     elif Beam == TimoshenkoAxisAngleSE3:
         p_r = polynomial_degree
         p_psi = polynomial_degree
-        # Q = TimoshenkoAxisAngleSE3.straight_configuration(
-        #     p_r, p_psi, nelements, L, r_OP=r_OP0, A_IK=A_IK0, basis=shape_functions
-        # )
-        # TODO: Implement computation of initial velocities!
         Q, u0 = TimoshenkoAxisAngleSE3.initial_configuration(
             p_r,
             p_psi,
@@ -96,8 +92,19 @@ def beam_factory(
     elif Beam == TimoshenkoQuarternionSE3:
         p_r = polynomial_degree
         p_psi = polynomial_degree
-        Q = TimoshenkoQuarternionSE3.straight_configuration(
-            p_r, p_psi, nelements, L, r_OP=r_OP0, A_IK=A_IK0, basis=shape_functions
+        # Q = TimoshenkoQuarternionSE3.straight_configuration(
+        #     p_r, p_psi, nelements, L, r_OP=r_OP0, A_IK=A_IK0, basis=shape_functions
+        # )
+        Q, u0 = TimoshenkoQuarternionSE3.initial_configuration(
+            p_r,
+            p_psi,
+            nelements,
+            L,
+            r_OP0=r_OP0,
+            A_IK0=A_IK0,
+            v_P0=v_P0,
+            K_omega_IK0=K_omega_IK0,
+            basis=shape_functions,
         )
     else:
         raise NotImplementedError("")
@@ -953,7 +960,7 @@ def HelixIbrahimbegovic1997(export=True):
 
     # fraction of 10 full rotations and the out of plane force
     # a corresponding fraction of 100 elements is chosen
-    # fraction = 0.05  # 1 full rotations
+    # # fraction = 0.05
     # fraction = 0.1  # 1 full rotations
     # fraction = 0.20  # 2 full rotations
     # fraction = 0.4  # 4 full rotations
@@ -1071,8 +1078,10 @@ def HelixIbrahimbegovic1997(export=True):
     #########################
     if export:
         header = "t, x, y, z"
+        frame_ID = (1,)
+        elDOF = beam.qDOF_P(frame_ID)
         r_OC_L = np.array(
-            [beam.r_OP(ti, qi[beam.qDOF], frame_ID=(1,)) for (ti, qi) in zip(t, q)]
+            [beam.r_OP(ti, qi[elDOF], frame_ID) for (ti, qi) in zip(t, q)]
         )
         export_data = np.vstack([t, *r_OC_L.T]).T
         np.savetxt(
@@ -1087,12 +1096,13 @@ def HelixIbrahimbegovic1997(export=True):
     # export centerline
     ###################
     if export:
-        nframes = 17
+        # nframes = 17
+        nframes = 37
         idxs = np.linspace(0, nt - 1, num=nframes, dtype=int)
         for i, idx in enumerate(idxs):
             ti = t[idx]
             qi = q[idx]
-            r_OPs = beam.centerline(qi)
+            r_OPs = beam.centerline(qi, n=500)
 
             header = "x, y, z"
             np.savetxt(
@@ -1207,7 +1217,8 @@ def HelixIbrahimbegovic1997(export=True):
 
 def HeavyTopMaekinen2006():
     # Beam = TimoshenkoAxisAngle
-    Beam = TimoshenkoAxisAngleSE3
+    # Beam = TimoshenkoAxisAngleSE3
+    Beam = TimoshenkoQuarternionSE3
 
     # number of elements
     nelements = 3
@@ -1284,14 +1295,15 @@ def HeavyTopMaekinen2006():
     model.add(f_g_beam)
     model.assemble()
 
-    t1 = 1.5
-    # t1 = 0.25
-    # t1 = 0.01
-    dt = 5.0e-3
+    t1 = 1.5  # used by Maekinen2006
+    # t1 = 15 # this yields a quarter circle
+    # t1 = 0.1
+    dt = 1.0e-2
     # dt = 2.5e-2
-    method = "RK45"
-    rtol = 1.0e-6
-    atol = 1.0e-6
+    # method = "RK45"
+    method = "RK23"  # performs better (stiff beam example?)
+    rtol = 1.0e-5
+    atol = 1.0e-5
     rho_inf = 0.5
 
     solver = ScipyIVP(
@@ -1316,26 +1328,53 @@ def HeavyTopMaekinen2006():
     from scipy.spatial.transform import Rotation
 
     Euler = np.array(
-        [Rotation.from_matrix(A_IKi).as_euler("zxz", degrees=False) for A_IKi in A_IK]
+        [
+            Rotation.from_matrix(A_IKi).as_euler("xyz", degrees=False) for A_IKi in A_IK
+        ]  # Cardan angles
+        # [Rotation.from_matrix(A_IKi).as_euler("zxz", degrees=False) for A_IKi in A_IK] # Euler angles
     )
 
-    fig, ax = plt.subplots(1, 2)
+    fig = plt.figure(figsize=(10, 8))
 
-    ax[0].plot(t, r_OP[:, 0], "-k", label="x")
-    ax[0].plot(t, r_OP[:, 1], "--k", label="y")
-    ax[0].plot(t, r_OP[:, 2], "-.k", label="z")
-    ax[0].set_xlabel("t")
-    ax[0].set_ylabel("tip displacement")
-    ax[0].grid()
-    ax[0].legend()
+    # 3D tracjectory of tip displacement
+    ax = fig.add_subplot(2, 3, 1, projection="3d")
+    ax.set_title("3D tip trajectory")
+    ax.plot(*r_OP.T, "-k")
+    ax.set_xlabel("x [-]")
+    ax.set_ylabel("y [-]")
+    ax.set_zlabel("z [-]")
+    ax.grid()
 
-    ax[1].plot(t, Euler[:, 0], "-k", label="alpha")
-    ax[1].plot(t, Euler[:, 1], "--k", label="beta")
-    ax[1].plot(t, Euler[:, 2], "-.k", label="gamma")
-    ax[1].set_xlabel("t")
-    ax[1].set_ylabel("Euler angles")
-    ax[1].grid()
-    ax[1].legend()
+    # tip displacement
+    ax = fig.add_subplot(2, 3, 3)
+    ax.set_title("tip displacement (components)")
+    ax.plot(t, r_OP[:, 0], "-k", label="x")
+    ax.plot(t, r_OP[:, 1], "--k", label="y")
+    ax.plot(t, r_OP[:, 2], "-.k", label="z")
+    ax.set_xlabel("t")
+    ax.grid()
+    ax.legend()
+
+    # Euler angles
+    ax = fig.add_subplot(2, 3, 4)
+    ax.plot(t, Euler[:, 0], "-b")
+    ax.set_xlabel("t")
+    ax.set_ylabel("alpha")
+    ax.grid()
+
+    ax = fig.add_subplot(2, 3, 5)
+    ax.plot(t, Euler[:, 1], "-b")
+    ax.set_xlabel("t")
+    ax.set_ylabel("beta")
+    ax.grid()
+
+    ax = fig.add_subplot(2, 3, 6)
+    ax.plot(t, Euler[:, 2], "-b")
+    ax.set_xlabel("t")
+    ax.set_ylabel("gamma")
+    ax.grid()
+
+    fig.tight_layout()
 
     ###########
     # animation
