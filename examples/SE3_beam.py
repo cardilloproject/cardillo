@@ -6,7 +6,7 @@ from cardillo.beams.spatial import (
     Simo1986,
 )
 from cardillo.math.SE3 import SE3, se3
-from cardillo.math.algebra import ax2skew, skew2ax
+from cardillo.math.algebra import ax2skew, skew2ax, norm
 from cardillo.math.rotations import (
     inverse_tangent_map,
     rodriguez,
@@ -14,7 +14,10 @@ from cardillo.math.rotations import (
     tangent_map,
 )
 from cardillo.model.frame import Frame
-from cardillo.model.bilateral_constraints.implicit import RigidConnection
+from cardillo.model.bilateral_constraints.implicit import (
+    RigidConnection,
+    SphericalJoint,
+)
 from cardillo.beams import (
     animate_beam,
     TimoshenkoAxisAngle,
@@ -69,13 +72,21 @@ def beam_factory(
     elif Beam == TimoshenkoAxisAngleSE3:
         p_r = polynomial_degree
         p_psi = polynomial_degree
-        Q = TimoshenkoAxisAngleSE3.straight_configuration(
-            p_r, p_psi, nelements, L, r_OP=r_OP0, A_IK=A_IK0, basis=shape_functions
-        )
-        # # TODO: Implement computation of initial velocities!
-        # Q, u0 = TimoshenkoAxisAngleSE3.initial_configuration(
-        #     p_r, p_psi, nelements, L, r_OP0=r_OP0, A_IK0=A_IK0, v_P0=v_P0, K_omega_IK0=K_omega_IK0, basis=shape_functions
+        # Q = TimoshenkoAxisAngleSE3.straight_configuration(
+        #     p_r, p_psi, nelements, L, r_OP=r_OP0, A_IK=A_IK0, basis=shape_functions
         # )
+        # TODO: Implement computation of initial velocities!
+        Q, u0 = TimoshenkoAxisAngleSE3.initial_configuration(
+            p_r,
+            p_psi,
+            nelements,
+            L,
+            r_OP0=r_OP0,
+            A_IK0=A_IK0,
+            v_P0=v_P0,
+            K_omega_IK0=K_omega_IK0,
+            basis=shape_functions,
+        )
     elif Beam == TimoshenkoDirectorDirac:
         p_r = polynomial_degree
         p_psi = max(1, polynomial_degree - 1)
@@ -139,6 +150,7 @@ def beam_factory(
             nelements,
             Q=Q,
             q0=q0,
+            u0=u0,
             basis=shape_functions,
         )
     elif Beam == TimoshenkoAxisAngleSE3:
@@ -152,6 +164,7 @@ def beam_factory(
             nelements,
             Q=Q,
             q0=q0,
+            u0=u0,
             basis=shape_functions,
         )
     elif Beam == TimoshenkoDirectorDirac:
@@ -166,6 +179,7 @@ def beam_factory(
             nelements,
             Q=Q,
             q0=q0,
+            u0=u0,
             basis=shape_functions,
         )
     elif Beam == TimoshenkoQuarternionSE3:
@@ -179,6 +193,7 @@ def beam_factory(
             nelements,
             Q=Q,
             q0=q0,
+            u0=u0,
             basis=shape_functions,
         )
     else:
@@ -941,9 +956,9 @@ def HelixIbrahimbegovic1997(export=True):
     # fraction = 0.05  # 1 full rotations
     # fraction = 0.1  # 1 full rotations
     # fraction = 0.20  # 2 full rotations
-    fraction = 0.4  # 4 full rotations
+    # fraction = 0.4  # 4 full rotations
     # fraction = 0.5  # 5 full rotations
-    # fraction = 1  # 10 full rotations
+    fraction = 1  # 10 full rotations
 
     # number of elements
     nelements_max = 30
@@ -1017,16 +1032,7 @@ def HelixIbrahimbegovic1997(export=True):
 
     # moment at right end
     Fi = material_model.Fi
-    M = lambda t: (
-        e3
-        * 10  # 10 full rotations
-        * 2
-        * np.pi
-        * Fi[2]
-        / L
-        * t
-        * fraction
-    )
+    M = lambda t: (e3 * 10 * 2 * np.pi * Fi[2] / L * t * fraction)  # 10 full rotations
     # moment = K_Moment(M, beam, (1,))
     moment = Moment(M, beam, (1,))
 
@@ -1046,15 +1052,13 @@ def HelixIbrahimbegovic1997(export=True):
 
     # n_load_steps = int(20 * 10 * fraction)
     # n_load_steps = int(100 * 10 * fraction)
-    n_load_steps = int(200 * 10 * fraction) # works for fraction = 0.5
+    n_load_steps = int(200 * 10 * fraction)  # works for fraction = 0.5
 
     solver = Newton(
         model,
         n_load_steps=n_load_steps,
         max_iter=30,
-        atol=1.0e-6,
-        # atol=1.0e-8,
-        # atol=1.0e-10,
+        atol=1.0e-8,
         numerical_jacobian=False,
     )
     sol = solver.solve()
@@ -1067,9 +1071,9 @@ def HelixIbrahimbegovic1997(export=True):
     #########################
     if export:
         header = "t, x, y, z"
-        r_OC_L = np.array([
-            beam.r_OP(ti, qi[beam.qDOF], frame_ID=(1,)) for (ti, qi) in zip(t, q)
-        ])
+        r_OC_L = np.array(
+            [beam.r_OP(ti, qi[beam.qDOF], frame_ID=(1,)) for (ti, qi) in zip(t, q)]
+        )
         export_data = np.vstack([t, *r_OC_L.T]).T
         np.savetxt(
             "results/tip_displacement_helix.txt",
@@ -1083,9 +1087,7 @@ def HelixIbrahimbegovic1997(export=True):
     # export centerline
     ###################
     if export:
-        # nframes = 13
         nframes = 17
-        nxi = 100
         idxs = np.linspace(0, nt - 1, num=nframes, dtype=int)
         for i, idx in enumerate(idxs):
             ti = t[idx]
@@ -1094,13 +1096,51 @@ def HelixIbrahimbegovic1997(export=True):
 
             header = "x, y, z"
             np.savetxt(
-                # f"results/centerline_t{ti:3.5}.txt",
                 f"results/centerline{i}.txt",
                 r_OPs.T,
                 delimiter=", ",
                 header=header,
                 comments="",
             )
+
+    ########################
+    # export strain measures
+    ########################
+    if export:
+        nxi = 200
+        xis = np.linspace(0.0, 1.0, num=nxi, dtype=float)
+
+        K_Gamma = np.zeros((3, nxi), dtype=float)
+        K_Kappa = np.zeros((3, nxi), dtype=float)
+        for i, xi in enumerate(xis):
+            elDOF = beam.qDOF_P((xi,))
+
+            _, _, K_Gamma_bar, K_Kappa_bar = beam.eval(q[0, beam.qDOF[elDOF]], xi)
+            J = norm(K_Gamma_bar)
+
+            _, _, K_Gamma_bar, K_Kappa_bar = beam.eval(q[-1, beam.qDOF[elDOF]], xi)
+            K_Gamma[:, i] = K_Gamma_bar / J
+            K_Kappa[:, i] = K_Kappa_bar / J
+
+        header = "xi, K_Gamma0, K_Gamma1, K_Gamma2"
+        export_data = np.c_[xis, K_Gamma.T]
+        np.savetxt(
+            f"results/K_Gamma.txt",
+            export_data,
+            delimiter=", ",
+            header=header,
+            comments="",
+        )
+
+        header = "xi, K_Kappa0, K_Kappa1, K_Kappa2"
+        export_data = np.c_[xis, K_Kappa.T]
+        np.savetxt(
+            f"results/K_Kappa.txt",
+            export_data,
+            delimiter=", ",
+            header=header,
+            comments="",
+        )
 
     if Beam == TimoshenkoAxisAngle or Beam == TimoshenkoAxisAngleSE3:
         ##################################
@@ -1170,7 +1210,7 @@ def HeavyTopMaekinen2006():
     Beam = TimoshenkoAxisAngleSE3
 
     # number of elements
-    nelements = 2
+    nelements = 3
 
     # used polynomial degree
     polynomial_degree = 1
@@ -1185,7 +1225,7 @@ def HeavyTopMaekinen2006():
     # used shape functions for discretization
     shape_functions = "B-spline"
 
-    # beam parameters found in Section 4.3. Fast symmetrical top - Mäkinen2006
+    # beam parameters found in Section 4.3. Fast symmetrical top - Maekinen2006
     L = 1
     EA = GA = 1.0e6
     GJ = EI = 1.0e3
@@ -1206,9 +1246,9 @@ def HeavyTopMaekinen2006():
     mg = 40
 
     # starting point and orientation of initial point, initial length
-    r_OP0 = np.zeros(3)
-    psi0 = 3.3 * e2
-    A_IK0 = rodriguez(psi0)
+    r_OP0 = np.zeros(3, dtype=float)
+    A_IK0 = rodriguez(0.3 * e1) @ rodriguez(-pi / 2 * e2)
+    # A_IK0 = np.eye(3, dtype=float)
     K_omega_IK0 = 50 * e1
 
     # build beam model
@@ -1223,226 +1263,79 @@ def HeavyTopMaekinen2006():
         L,
         r_OP0=r_OP0,
         A_IK0=A_IK0,
+        v_P0=np.zeros(3, dtype=float),
+        K_omega_IK0=K_omega_IK0,
     )
 
-    # number of full rotations after deformation
-    # TODO: Allow zero circles!
-    n_circles = 1
-    frac_deformation = 1 / (n_circles + 1)
-    frac_rotation = 1 - frac_deformation
-    print(f"n_circles: {n_circles}")
-    print(f"frac_deformation: {frac_deformation}")
-    print(f"frac_rotation:     {frac_rotation}")
-
-    exit()
-
-    # junctions
-    r_OB0 = np.zeros(3)
-    A_IK0 = lambda t: np.eye(3)
-
-    frame1 = Frame(r_OP=r_OB0, A_IK=A_IK0)
-
-    # left and right joint
-    joint1 = RigidConnection(frame1, beam, r_OB0, frame_ID2=(0,))
+    # junction
+    r_OB0 = np.zeros(3, dtype=float)
+    frame = Frame(r_OP=r_OB0, A_IK=A_IK0)
+    joint = SphericalJoint(frame, beam, r_OB0, frame_ID2=(0,))
 
     # gravity beam
-    g = np.array(
-        [0, 0, -cross_section.area * cross_section.line_density * 9.81 * 1.0e-1]
-    )
-    if statics:
-        f_g_beam = DistributedForce1D(lambda t, xi: t * g, beam)
-    else:
-        f_g_beam = DistributedForce1D(lambda t, xi: g, beam)
-
-    # moment at right end
-    Fi = material_model.Fi
-    # M = lambda t: np.array([1, 1, 0]) * smoothstep2(t, 0.0, frac_deformation) * 2 * np.pi * Fi[1] / L
-    # M = lambda t: e1 * smoothstep2(t, 0.0, frac_deformation) * 2 * np.pi * Fi[0] / L * 1.0
-    # M = lambda t: e2 * smoothstep2(t, 0.0, frac_deformation) * 2 * np.pi * Fi[1] / L * 0.75
-    M = (
-        lambda t: (e3 * Fi[2])
-        # lambda t: (e1 * Fi[0] + e3 * Fi[2])
-        * smoothstep2(t, 0.0, frac_deformation)
-        * 2
-        * np.pi
-        / L
-        # * 0.1
-        * 0.25
-        # * 0.5
-        # * 0.75
-    )
-    moment = K_Moment(M, beam, (1,))
-
-    # force at right end
-    F = lambda t: np.array([0, 0, -1]) * t * 1.0e-2
-    force = Force(F, beam, frame_ID=(1,))
+    g = np.array(-cross_section.line_density * 9.81 * e3, dtype=float)
+    f_g_beam = DistributedForce1D(lambda t, xi: g, beam)
 
     # assemble the model
     model = Model()
     model.add(beam)
-    model.add(frame1)
-    model.add(joint1)
-    # model.add(force)
-    if statics:
-        model.add(moment)
-        # model.add(f_g_beam)
-    else:
-        model.add(f_g_beam)
+    model.add(frame)
+    model.add(joint)
+    model.add(f_g_beam)
     model.assemble()
 
-    # t = np.array([0])
-    # q = np.array([model.q0])
-    # animate_beam(t, q, [beam], scale=L)
-    # exit()
+    t1 = 1.5
+    # t1 = 0.25
+    # t1 = 0.01
+    dt = 5.0e-3
+    # dt = 2.5e-2
+    method = "RK45"
+    rtol = 1.0e-6
+    atol = 1.0e-6
+    rho_inf = 0.5
 
-    if statics:
-        solver = Newton(
-            model,
-            # n_load_steps=10,
-            # n_load_steps=50,
-            n_load_steps=100,
-            # n_load_steps=500,
-            max_iter=30,
-            # atol=1.0e-4,
-            atol=1.0e-6,
-            # atol=1.0e-8,
-            # atol=1.0e-10,
-            numerical_jacobian=False,
-        )
-    else:
-        # t1 = 1.0
-        t1 = 10.0
-        dt = 5.0e-2
-        # dt = 2.5e-2
-        method = "RK45"
-        rtol = 1.0e-6
-        atol = 1.0e-6
-        rho_inf = 0.5
-
-        # solver = ScipyIVP(
-        #     model, t1, dt, method=method, rtol=rtol, atol=atol
-        # )  # this is no good idea for complement rotation vectors!
-        solver = GenAlphaFirstOrder(model, t1, dt, rho_inf=rho_inf, tol=atol)
-        # solver = GenAlphaDAEAcc(model, t1, dt, rho_inf=rho_inf, newton_tol=atol)
-        # dt = 5.0e-3
-        # solver = Moreau(model, t1, dt)
+    solver = ScipyIVP(
+        model, t1, dt, method=method, rtol=rtol, atol=atol
+    )  # this is no good idea for complement rotation vectors!
+    # solver = GenAlphaFirstOrder(model, t1, dt, rho_inf=rho_inf, tol=atol)
+    # solver = GenAlphaDAEAcc(model, t1, dt, rho_inf=rho_inf, newton_tol=atol)
+    # dt = 5.0e-3
+    # solver = Moreau(model, t1, dt)
 
     sol = solver.solve()
     q = sol.q
     nt = len(q)
     t = sol.t[:nt]
 
-    if Beam == TimoshenkoAxisAngle or Beam == TimoshenkoAxisAngleSE3:
-        ##################################
-        # visualize nodal rotation vectors
-        ##################################
-        fig, ax = plt.subplots()
-
-        for i, nodalDOF_psi in enumerate(beam.nodalDOF_psi):
-            psi = q[:, beam.qDOF[nodalDOF_psi]]
-            ax.plot(t, np.linalg.norm(psi, axis=1), label=f"||psi{i}||")
-
-        ax.set_xlabel("t")
-        ax.set_ylabel("nodal rotation vectors")
-        ax.grid()
-        ax.legend()
-
-    if Beam == TimoshenkoAxisAngleSE3:
-        ################################
-        # visualize norm strain measures
-        ################################
-        fig, ax = plt.subplots(1, 2)
-
-        nxi = 1000
-        xis = np.linspace(0, 1, num=nxi)
-
-        K_Gamma = np.zeros((3, nxi))
-        K_Kappa = np.zeros((3, nxi))
-        for i in range(nxi):
-            frame_ID = (xis[i],)
-            elDOF = beam.qDOF_P(frame_ID)
-            qe = q[-1, beam.qDOF][elDOF]
-            _, _, K_Gamma[:, i], K_Kappa[:, i] = beam.eval(qe, xis[i])
-        ax[0].plot(xis, K_Gamma[0], "-r", label="K_Gamma0")
-        ax[0].plot(xis, K_Gamma[1], "-g", label="K_Gamma1")
-        ax[0].plot(xis, K_Gamma[2], "-b", label="K_Gamma2")
-        ax[0].grid()
-        ax[0].legend()
-        ax[1].plot(xis, K_Kappa[0], "-r", label="K_Kappa0")
-        ax[1].plot(xis, K_Kappa[1], "-g", label="K_Kappa1")
-        ax[1].plot(xis, K_Kappa[2], "-b", label="K_Kappa2")
-        ax[1].grid()
-        ax[1].legend()
-
-    # ########################################################
-    # # visualize norm of tangent vector and quadrature points
-    # ########################################################
-    # fig, ax = plt.subplots()
-
-    # nxi = 1000
-    # xis = np.linspace(0, 1, num=nxi)
-
-    # abs_r_xi = np.zeros(nxi)
-    # abs_r0_xi = np.zeros(nxi)
-    # for i in range(nxi):
-    #     frame_ID = (xis[i],)
-    #     elDOF = beam.qDOF_P(frame_ID)
-    #     qe = q[-1, beam.qDOF][elDOF]
-    #     abs_r_xi[i] = np.linalg.norm(beam.r_OC_xi(t[-1], qe, frame_ID))
-    #     q0e = q[0, beam.qDOF][elDOF]
-    #     abs_r0_xi[i] = np.linalg.norm(beam.r_OC_xi(t[0], q0e, frame_ID))
-    # ax.plot(xis, abs_r_xi, "-r", label="||r_xi||")
-    # ax.plot(xis, abs_r0_xi, "--b", label="||r0_xi||")
-    # ax.set_xlabel("xi")
-    # ax.set_ylabel("||r_xi||")
-    # ax.grid()
-    # ax.legend()
-
-    # # compute quadrature points
-    # for el in range(beam.nelement):
-    #     elDOF = beam.elDOF[el]
-    #     q0e = q[0, beam.qDOF][elDOF]
-    #     for i in range(beam.nquadrature):
-    #         xi = beam.qp[el, i]
-    #         abs_r0_xi = np.linalg.norm(beam.r_OC_xi(t[0], q0e, (xi,)))
-    #         ax.plot(xi, abs_r0_xi, "xr")
-
-    # plt.show()
-    # exit()
-
     ############################
-    # Visualize potential energy
+    # Visualize tip displacement
     ############################
-    E_pot = np.array([model.E_pot(ti, qi) for (ti, qi) in zip(t, q)])
+    elDOF = beam.qDOF[beam.elDOF[-1]]
+    r_OP = np.array([beam.r_OP(ti, qi[elDOF], (1,)) for (ti, qi) in zip(t, q)])
+    A_IK = np.array([beam.A_IK(ti, qi[elDOF], (1,)) for (ti, qi) in zip(t, q)])
+    from scipy.spatial.transform import Rotation
+
+    Euler = np.array(
+        [Rotation.from_matrix(A_IKi).as_euler("zxz", degrees=False) for A_IKi in A_IK]
+    )
 
     fig, ax = plt.subplots(1, 2)
 
-    ax[0].plot(t, E_pot)
+    ax[0].plot(t, r_OP[:, 0], "-k", label="x")
+    ax[0].plot(t, r_OP[:, 1], "--k", label="y")
+    ax[0].plot(t, r_OP[:, 2], "-.k", label="z")
     ax[0].set_xlabel("t")
-    ax[0].set_ylabel("E_pot")
-    ax[0].grid()
-
-    idx = np.where(t > frac_deformation)[0]
-    ax[1].plot(t[idx], E_pot[idx])
-    ax[1].set_xlabel("t")
-    ax[1].set_ylabel("E_pot")
-    ax[1].grid()
-
-    # visualize final centerline projected in all three planes
-    r_OPs = beam.centerline(q[-1])
-    fig, ax = plt.subplots(1, 3)
-    ax[0].plot(r_OPs[0, :], r_OPs[1, :], label="x-y")
-    ax[1].plot(r_OPs[1, :], r_OPs[2, :], label="y-z")
-    ax[2].plot(r_OPs[2, :], r_OPs[0, :], label="z-x")
+    ax[0].set_ylabel("tip displacement")
     ax[0].grid()
     ax[0].legend()
-    ax[0].set_aspect(1)
+
+    ax[1].plot(t, Euler[:, 0], "-k", label="alpha")
+    ax[1].plot(t, Euler[:, 1], "--k", label="beta")
+    ax[1].plot(t, Euler[:, 2], "-.k", label="gamma")
+    ax[1].set_xlabel("t")
+    ax[1].set_ylabel("Euler angles")
     ax[1].grid()
     ax[1].legend()
-    ax[1].set_aspect(1)
-    ax[2].grid()
-    ax[2].legend()
-    ax[2].set_aspect(1)
 
     ###########
     # animation
@@ -1455,5 +1348,5 @@ if __name__ == "__main__":
     # run(statics=False)
     # locking()
     # SE3_interpolation()
-    HelixIbrahimbegovic1997()
-    # HeavyTopMaekinen2006()
+    # HelixIbrahimbegovic1997()
+    HeavyTopMaekinen2006()

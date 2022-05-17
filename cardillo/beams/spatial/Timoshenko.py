@@ -1555,17 +1555,19 @@ class TimoshenkoAxisAngleSE3:
         psi_dot = inverse_tangent_map(psi) @ K_omega_IK0
 
         # centerline velocities
-        v_C0 = np.zeros_like(r_OC0)
+        v_C0 = np.zeros_like(r_OC0, dtype=float)
         for i in range(nn_r):
-            v_C0[:, i] = v_P0 + A_IK0 @ cross3(K_omega_IK0, r_OC0[:, i] - r_OC0[:, 0])
+            # v_C0[:, i] = v_P0 + A_IK0 @ cross3(K_omega_IK0, r_OC0[:, i] - r_OC0[:, 0])
+            v_C0[:, i] = v_P0 + cross3(A_IK0 @ K_omega_IK0, (r_OC0[:, i] - r_OC0[:, 0]))
 
         # reshape generalized coordinates to nodal ordering
         q_r = r_OC0.reshape(-1, order="F")
-        q_dot_r = v_C0.reshape(-1, order="F")
+        u_r = v_C0.reshape(-1, order="F")
         q_psi = np.tile(psi, nn_psi)
-        q_dot_psi = np.tile(psi_dot, nn_psi)
+        # u_psi = np.tile(psi_dot, nn_psi)
+        u_psi = np.tile(K_omega_IK0, nn_psi)
 
-        return np.concatenate([q_r, q_psi]), np.concatenate([q_dot_r, q_dot_psi])
+        return np.concatenate([q_r, q_psi]), np.concatenate([u_r, u_psi])
 
     def element_number(self, xi):
         # note the elements coincide for both meshes!
