@@ -21,7 +21,7 @@ def post_processing(subsystem, t, q, filename, u=None, binary=True):
         u = np.zeros_like(q)
 
     for i, (ti, qi, ui) in enumerate(zip(t, q, u)):
-        filei = filename + f'{i}.vtu'
+        filei = filename.parent / (filename.stem + f'_{i}.vtu')
 
         # write time step and file name in pvd file
         dataset = root.createElement('DataSet')
@@ -58,7 +58,7 @@ def post_processing(subsystem, t, q, filename, u=None, binary=True):
 
         # write vtk mesh using meshio
         meshio.write_points_cells(
-            filei,   
+            filei.parent / (filename.stem + '.vtu'),   
             # os.path.splitext(os.path.basename(filei))[0] + '.vtu',
             geom_points, # only export centerline as geometry here!
             cells,

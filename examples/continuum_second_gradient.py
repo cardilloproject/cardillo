@@ -32,7 +32,6 @@ def test_cube():
     TractionForce = False
     Gravity = False
     Statics = True
-    Incompressible = False
     save_sol = True
     torsion = False
     tension = True
@@ -63,7 +62,7 @@ def test_cube():
     Jn = a**3*b/12
     Jg = a*b**3/12
     Jt = 0.196*a**3*b
-    nf = 10
+    nf = 6
     p = l/np.sqrt(2)/nf
     Ke = Yb*a*b/p
     Kg = Yb*Jg/p
@@ -151,9 +150,9 @@ def test_cube():
     model = Model()
     model.add(continuum)
 
-    if Incompressible:
-        incompressibility = Incompressibility(continuum, la_mesh)
-        model.add(incompressibility)
+    # if Incompressible:
+    #     incompressibility = Incompressibility(continuum, la_mesh)
+    #     model.add(incompressibility)
 
     if TractionForce:
         # F = lambda t, xi, eta: t * np.array([-2.5e0, 0, 0]) * (0.25 - (xi-0.5)**2) * (0.25 - (eta-0.5)**2)
@@ -210,7 +209,7 @@ def test_cube():
     else:
         sol = pickle.load( open(str(export_path), 'rb') )
 
-    import matplotlib.pyplot as plt
+    # import matplotlib.pyplot as plt
 
     # fig = plt.figure()
     # ax = fig.gca(projection='3d')
