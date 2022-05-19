@@ -426,9 +426,9 @@ class Panto_grid():
         #         pivot.body[0], frame_middle, r_OB, A_IK_z))
 
 
-l = 70.0
+l = 70.0 * 3
 # Beam dimensions and parameter
-L = l/np.sqrt(2)/10.
+L = l/np.sqrt(2)/6.
 r = 0.5
 E_Y = 50
 a = 1.
@@ -453,8 +453,8 @@ material_model = Hooke_quadratic(Ei, Fi)
 
 # pivot length
 piv_h = 1.5 # mm
-rigid_pivot = False
-cross = True
+rigid_pivot = True
+cross = False
 
 # discretization
 basis = 'B-spline'
@@ -470,16 +470,16 @@ nEl = 2
 dynamic = False
 
 #  create unit cells
-ncells_x = 2
-ncells_y = 6
-ncells_z = 2
+ncells_x = 4
+ncells_y = 4
+ncells_z = 12
 
 # boundary condittions
-bc_dir = 'y'
-r_OB_top0 = (ncells_y) * np.sqrt(2) * L/2 * np.array([0.0, 1.0, 0.0])
+bc_dir = 'z'
+r_OB_top0 = 3 * l * np.array([0.0, 0.0, 1.0])
 
 
-def r_OP_top(t): return r_OB_top0 + r_OB_top0 * t * 0.1
+def r_OP_top(t): return r_OB_top0 + t * 30.0 * np.array([0.0, 0.0, 1.0])
 
 
 def r_OP_middle(t): return r_OB_top0 * .5 + np.sqrt(2) * \
@@ -574,13 +574,6 @@ else:
     sol = solver.solve()
     t = sol.t
     q = sol.q
-
-# elif readonly:
-    # t = np.loadtxt('t.txt')
-    # q = np.loadtxt('q.txt')
-    # post_processing(
-    #     beams_all, t, q,
-    #     'pantobox_joints_rig_piv_test_' + str(ncells_x) + '_' + str(ncells_y) + '_' + str(ncells_z) + '_' + basis, binary=True)
 
 
 # vtk export

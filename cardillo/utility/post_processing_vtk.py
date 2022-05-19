@@ -26,7 +26,7 @@ def post_processing(subsystem, t, q, filename, u=None, binary=True):
         # write time step and file name in pvd file
         dataset = root.createElement('DataSet')
         dataset.setAttribute('timestep', f'{ti:0.6f}')
-        dataset.setAttribute('file', filei)
+        dataset.setAttribute('file', filei.name)
         collection.appendChild(dataset)
 
         geom_points = np.array([]).reshape(0, 3)
@@ -58,7 +58,7 @@ def post_processing(subsystem, t, q, filename, u=None, binary=True):
 
         # write vtk mesh using meshio
         meshio.write_points_cells(
-            filei.parent / (filename.stem + '.vtu'),   
+            filei,   
             # os.path.splitext(os.path.basename(filei))[0] + '.vtu',
             geom_points, # only export centerline as geometry here!
             cells,
@@ -68,6 +68,6 @@ def post_processing(subsystem, t, q, filename, u=None, binary=True):
         )
 
     # write pvd file        
-    xml_str = root.toprettyxml(indent ="\t")          
-    with open(filename + '.pvd', "w") as f:
-        f.write(xml_str)
+    xml_str = root.toprettyxml(indent="\t")          
+    with (filename.parent / (filename.stem + '.pvd')).open("w") as f:
+            f.write(xml_str)

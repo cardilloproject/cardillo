@@ -15,26 +15,94 @@ from cardillo.model import Model
 from cardillo.math.algebra import A_IK_basic_z
 from cardillo.model.force_distr2D import Force_distr2D
 from cardillo.model.force_distr3D import Force_distr3D
-from cardillo.model.bilateral_constraints.implicit.incompressibility import Incompressibility
+# from cardillo.model.bilateral_constraints.implicit.incompressibility import Incompressibility
+
 
 def save_solution(sol, filename):
     import pickle
     with open(filename, mode='wb') as f:
         pickle.dump(sol, f)
 
+
+def boundary_conditions_cube(cube_shape, mesh, Z, fix=[4], fix_derivatives=False, bc=[5],
+                             tests=['tension'], Statics=True,
+                             TractionForce=False):
+        #    6-------7
+        #   /|      /|   |z /y
+        #  / |     / |   | /
+        # 4--|----5  |   |/---x
+        # |  2----|--3
+        # | /     | /
+        # 0-------1
+        #
+        # surface0 = [0, 2, 4, 6] => left, x = 0
+        # surface1 = [1, 3, 5, 7] => right, x = x_max
+        # surface2 = [0, 1, 4, 5] => front, y = 0
+        # surface3 = [2, 3, 6, 7] => back, y = y_max
+        # surface4 = [0, 1, 2, 3] => bottom, z = 0
+        # surface5 = [4, 5, 6, 7] => top, z = z_max
+    Lx, Ly, Lz = cube_shape
+    if Statics:
+            if TractionForce:
+                # cDOF = mesh.surface_qDOF[0].reshape(-1)
+                cDOF = mesh.surface_qDOF[2].reshape(-1)
+                # cDOF = mesh.surface_qDOF[4].reshape(-1)
+                b = lambda t: Z[cDOF]
+            else:
+                if 'tension' in tests:
+                    cDOF1 = mesh.surface_qDOF[fix[0]].ravel()
+                    cDOF3 = mesh.surface_qDOF[bc[0]][0]
+                    cDOF4 = mesh.surface_qDOF[bc[0]][1]
+                    cDOF2 = mesh.surface_qDOF[bc[0]][2]
+                    cDOF134 = np.concatenate((cDOF1, cDOF3, cDOF4,))
+                    cDOF = np.concatenate((cDOF134, cDOF2))
+                    b1 = lambda t: Z[cDOF134]
+                    b2 = lambda t: Z[cDOF2] + t * 30.0
+                    b = lambda t: np.concatenate((b1(t), b2(t)))
+                if fix_derivatives:
+                    pass
+                if 'torsion' in tests:
+                    cDOF1 = mesh.surface_qDOF[4].ravel()
+                    cDOF3 = mesh.surface_qDOF[5][0]
+                    cDOF4 = mesh.surface_qDOF[5][1]
+                    cDOF2 = mesh.surface_qDOF[5].ravel()
+                    cDOF = np.concatenate((cDOF1, cDOF2))
+
+                    def bt(t, phi0=0.5*np.pi, h=100):
+                        cDOF2_xyz = cDOF2.reshape(3, -1).T
+                        out = np.zeros_like(Z)
+
+                        phi = t * phi0
+                        R = A_IK_basic_z(phi)
+
+                        th = t * np.array([0, 0, h])
+                        for DOF in cDOF2_xyz:
+                            out[DOF] = R @ (Z[DOF] - [Lx/2, Ly/2, 0]
+                                            ) + th + [Lx/2, Ly/2, 0]
+
+                        return out[cDOF2]
+
+                    b1 = lambda t: Z[cDOF1]
+                    b = lambda t: np.concatenate((b1(t), bt(t)))
+                # cDOF = mesh.surface_qDOF[4].ravel()
+                # b = lambda t: Z[cDOF]
+        # else:
+        #     cDOF_xi = mesh.surface_qDOF[4][0]
+        #     cDOF_eta = mesh.surface_qDOF[4][1]
+        #     cDOF_zeta = mesh.surface_qDOF[4][2]
+        #     cDOF = np.concatenate((cDOF_xi, cDOF_eta, cDOF_zeta))
+        #     Omega = 2 * np.pi
+        #     b_xi = lambda t: Z[cDOF_xi] + 0.1 * np.sin(Omega * t)
+        #     b_eta = lambda t: Z[cDOF_eta]
+        #     b_zeta = lambda t: Z[cDOF_zeta]
+        #     b = lambda t: np.concatenate((b_xi(t), b_eta(t), b_zeta(t)))
+
+    return cDOF, b
+
 def test_cube():
 
-    file_name = pathlib.Path(__file__).stem
-    file_path = pathlib.Path(__file__).parent / 'results' / f"{file_name}_cube_2x2x6_ext" / file_name
-    file_path.parent.mkdir(parents=True, exist_ok=True)
-    export_path = file_path.parent / 'sol'
-
-    TractionForce = False
-    Gravity = False
-    Statics = True
     save_sol = True
-    torsion = False
-    tension = True
+    Statics = True
 
     # build mesh
     degrees = (3, 3, 3)
@@ -48,98 +116,38 @@ def test_cube():
     
     mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=2, basis='B-spline', nq_n=3)
 
-
-
-    # material model
-    l = 70.0  # in mm
-    L = 3 * l
-    a = 1.0  # in mm
-    b = 1.0  # in mm
+    # material parameters
+    Lx = 70 # Block length in x direction in mm
+    Ly = 70 # Block length in y direction in mm
+    Lz = 210 # Block length in x direction in mm
+    a = 1.0  # Beam thickness in d2 direction in mm
+    b = 1.0  # Beam thickness in d3 direction in mm
     Yb = 50.0  # in GPa
     Gb = Yb / (2 + 0.8)
-    rp = 0.45 # in mm
-    hp = 1.5 # in mm
-    Jn = a**3*b/12
-    Jg = a*b**3/12
-    Jt = 0.196*a**3*b
-    nf = 1
-    p = l/np.sqrt(2)/nf
-    Ke = Yb*a*b/p
-    Kg = Yb*Jg/p
-    Kn = Yb*Jn/p
-    Kt = Gb*Jt/p
-    Kp = Gb*np.pi*rp**4/2/hp/p**2
-    Ks = Kp
-    Kc = Ks
-    # H = L/3
-    nsH = nf/l
-    # nsH = 1
+    rp = 0.45 # pivot radius in mm
+    hp = 1.5 # pivot length in mm
+    Jn = a**3*b/12 # second moment of are I_d2
+    Jg = a*b**3/12 # second moment of area I_d3
+    Jt = 0.196*a**3*b # torsional moment of area I_d1
+    nf = 1 # number of unit cells in x-direction
+    p = Lx/np.sqrt(2)/nf # distance between pivots along a beam
+    Ke = Yb*a*b/p**2 * np.sqrt(2)  # extensional stiffness
+    Kg = Yb*Jg/p**2 * np.sqrt(2) # geodesic bending stiffness
+    Kn = Yb*Jn/p**2 * np.sqrt(2) # normal bending stiffness
+    Kt = Gb*Jt/p**2 * np.sqrt(2) # torsional stiffness
+    Kp = Gb*np.pi*rp**4/2/hp / (p*np.sqrt(2))
+    Ks = Kp * 0.5
+    Kc = Gb*np.pi*rp**4/2/hp / (p*np.sqrt(2))
 
     # reference configuration is a cube
-    W = L/3
-    B = L/3
-    H = L
-    cube_shape = (W, B, H)
+    cube_shape = (Lx, Ly, Lz)
     Z = cube(cube_shape, mesh, Greville=False)
 
-    mat = Pantobox_beam_network(Ke*nsH, Ks*nsH, Kg*nsH, Kn*nsH, Kt*nsH, Kc*nsH)
+    mat = Pantobox_beam_network(Ke, Ks, Kg, Kn, Kt, Kc)
 
     density = 1.0e-3
-
-    if Statics:
-        # boundary conditions
-        if TractionForce:
-            # cDOF = mesh.surface_qDOF[0].reshape(-1)
-            cDOF = mesh.surface_qDOF[2].reshape(-1)
-            # cDOF = mesh.surface_qDOF[4].reshape(-1)
-            b = lambda t: Z[cDOF]
-
-        else:
-            if tension:
-                cDOF1 = mesh.surface_qDOF[4].ravel()
-                cDOF3 = mesh.surface_qDOF[5][0]
-                cDOF4 = mesh.surface_qDOF[5][1]
-                cDOF2 = mesh.surface_qDOF[5][2]
-                cDOF134 = np.concatenate((cDOF1, cDOF3, cDOF4,))
-                cDOF = np.concatenate((cDOF134, cDOF2))
-                b1 = lambda t: Z[cDOF134]
-                b2 = lambda t: Z[cDOF2] + t * 30.0
-                b = lambda t: np.concatenate((b1(t), b2(t)))
-            if torsion:
-                cDOF1 = mesh.surface_qDOF[4].ravel()
-                cDOF3 = mesh.surface_qDOF[5][0]
-                cDOF4 = mesh.surface_qDOF[5][1]
-                cDOF2 = mesh.surface_qDOF[5].ravel()
-                cDOF = np.concatenate((cDOF1, cDOF2))
-
-                def bt(t, phi0=0.5*np.pi, h=100):
-                    cDOF2_xyz = cDOF2.reshape(3, -1).T
-                    out = np.zeros_like(Z)
-
-                    phi = t * phi0
-                    R = A_IK_basic_z(phi)
-
-                    th = t * np.array([0, 0, h])
-                    for DOF in cDOF2_xyz:
-                        out[DOF] = R @ (Z[DOF] - [W/2, B/2, 0]) + th + [W/2, B/2, 0]
-                    
-                    return out[cDOF2]
-
-                b1 = lambda t: Z[cDOF1]
-                b = lambda t: np.concatenate((b1(t), bt(t)))
-            # cDOF = mesh.surface_qDOF[4].ravel()
-            # b = lambda t: Z[cDOF]
-    else:
-        cDOF_xi = mesh.surface_qDOF[4][0]
-        cDOF_eta = mesh.surface_qDOF[4][1]
-        cDOF_zeta = mesh.surface_qDOF[4][2]
-        cDOF = np.concatenate((cDOF_xi, cDOF_eta, cDOF_zeta))
-        Omega = 2 * np.pi
-        b_xi = lambda t: Z[cDOF_xi] + 0.1 * np.sin(Omega * t)
-        b_eta = lambda t: Z[cDOF_eta]
-        b_zeta = lambda t: Z[cDOF_zeta]
-        b = lambda t: np.concatenate((b_xi(t), b_eta(t), b_zeta(t)))
-
+    tests=['tension', 'torsion']
+    cDOF, b = boundary_conditions_cube(cube_shape, mesh, Z, tests=tests)
 
     # 3D continuum
     continuum = Second_gradient(density, mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
@@ -154,20 +162,20 @@ def test_cube():
     #     incompressibility = Incompressibility(continuum, la_mesh)
     #     model.add(incompressibility)
 
-    if TractionForce:
-        # F = lambda t, xi, eta: t * np.array([-2.5e0, 0, 0]) * (0.25 - (xi-0.5)**2) * (0.25 - (eta-0.5)**2)
-        # model.add(Force_distr2D(F, continuum, 1))
-        # F = lambda t, xi, eta: t * np.array([0, -2.5e0, 0]) * (0.25 - (xi-0.5)**2) * (0.25 - (eta-0.5)**2)
-        # model.add(Force_distr2D(F, continuum, 5))
-        F = lambda t, xi, eta: np.array([0, 0, -5e0]) * (0.25 - (xi-0.5)**2) * (0.25 - (eta-0.5)**2)
-        model.add(Force_distr2D(F, continuum, 5))
+    # if TractionForce:
+    #     # F = lambda t, xi, eta: t * np.array([-2.5e0, 0, 0]) * (0.25 - (xi-0.5)**2) * (0.25 - (eta-0.5)**2)
+    #     # model.add(Force_distr2D(F, continuum, 1))
+    #     # F = lambda t, xi, eta: t * np.array([0, -2.5e0, 0]) * (0.25 - (xi-0.5)**2) * (0.25 - (eta-0.5)**2)
+    #     # model.add(Force_distr2D(F, continuum, 5))
+    #     F = lambda t, xi, eta: np.array([0, 0, -5e0]) * (0.25 - (xi-0.5)**2) * (0.25 - (eta-0.5)**2)
+    #     model.add(Force_distr2D(F, continuum, 5))
     
-    if Gravity:
-        if Statics:
-            G = lambda t, xi, eta, zeta: t * np.array([0, 0, -9.81 * density])
-        else:
-            G = lambda t, xi, eta, zeta: np.array([0, 0, -9.81 * density])
-        model.add(Force_distr3D(G, continuum))
+    # if Gravity:
+    #     if Statics:
+    #         G = lambda t, xi, eta, zeta: t * np.array([0, 0, -9.81 * density])
+    #     else:
+    #         G = lambda t, xi, eta, zeta: np.array([0, 0, -9.81 * density])
+    #     model.add(Force_distr3D(G, continuum))
 
     model.assemble()
 
@@ -191,56 +199,21 @@ def test_cube():
         solver = Euler_backward(model, t1, dt)
 
 
-    if save_sol:
+    file_name = pathlib.Path(__file__).stem
+    file_path = pathlib.Path(__file__).parent / 'results' / str(f"{file_name}_cube_" + '_'.join(tests)) / file_name
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    export_path = file_path.parent / 'sol'
 
+    if save_sol:
         # import cProfile, pstats
         # pr = cProfile.Profile()
         # pr.enable()
         sol = solver.solve()
-        # pr.disable()
 
-        # sortby = 'cumulative'
-        # ps = pstats.Stats(pr).sort_stats(sortby)
-        # ps.print_stats(0.1) # print only first 10% of the list
-            # export solution object
-            # if not os.path.exists(export_dir):
-            #     os.makedirs(export_dir)
         save_solution(sol, str(export_path))
-    else:
+    elif load_sol:
         sol = pickle.load( open(str(export_path), 'rb') )
 
-    # import matplotlib.pyplot as plt
-
-    # fig = plt.figure()
-    # ax = fig.gca(projection='3d')
-    # ax.scatter(*model.contributions[0].z(sol.t[-1], sol.q[-1]).reshape(3,-1))
-    # z = model.contributions[0].z(sol.t[-1], sol.q[-1])
-    # model.contributions[0].F_qp(z)
-    # F = model.contributions[0].F
-    # J = list(map(np.linalg.det, F.reshape(-1,3,3)))
-    # plt.figure()
-    # plt.plot(np.array(J))
-
-    # z_y = z[mesh.nn:2*mesh.nn:mesh.nn_xi*mesh.nn_eta]
-
-    # plt.figure()
-    # from scipy.interpolate import BSpline
-    # Spline = BSpline(Zeta.data, z_y, 2)
-
-    # xx = np.linspace(0,1,20)
-
-    # plt.plot(xx,Spline(xx))
-
-    # plt.show()
-    # import cProfile, pstats
-    # pr = cProfile.Profile()
-    # pr.enable()
-    # sol = solver.solve()
-    # pr.disable()
-
-    # vtk export
-    # continuum.post_processing(sol.t, sol.q, 'cube_splines_incomp')
-    # continuum.post_processing(sol.t, sol.q, filepath.parent / filepath.stem)
     continuum.post_processing(sol.t, sol.q, file_path, binary=True)
 
 def test_cylinder():  

@@ -318,7 +318,7 @@ class Second_gradient():
             bbP_F = self.mat.bbP_F(F_eli, G_eli)
             bbP_G = self.mat.bbP_G(F_eli, G_eli)
             P_q = np.einsum('klmn,mnj->klj', P_F, F_q) + np.einsum('klmnj,mnjo->klo', P_G, G_q)
-            bbP_q = np.einsum('klomn,mnj->kloj', bbP_F, F_q) +  np.einsum('klomnp,mnpj->kloj', bbP_G, G_q)
+            bbP_q = np.einsum('klomn,mnj->kloj', bbP_F, F_q) + np.einsum('klomnp,mnpj->kloj', bbP_G, G_q)
 
             # internal element stiffness matrix
             for a in range(self.nn_el):
