@@ -1351,7 +1351,7 @@ def HeavyTop(case="Maekinen2006"):
 
         # initial angular velocity and orientation
         # Omega = 2 * pi * 100
-        Omega = 2 * pi * 50
+        Omega = 2 * pi * 25
         # Omega = 2 * pi * 10
         K_omega_IK0 = Omega * e1
         # A_IK0 = np.eye(3, dtype=float)
