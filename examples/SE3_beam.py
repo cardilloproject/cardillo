@@ -1214,7 +1214,7 @@ def HelixIbrahimbegovic1997(export=True):
     animate_beam(t, q, [beam], L, show=True)
 
 
-def HeavyTopMaekinen2006(case="Maekinen2006"):
+def HeavyTop(case="Maekinen2006"):
     class RigidHeavyTopODE:
         def __init__(self, m, r, l, g):
             self.m = m
@@ -1230,22 +1230,22 @@ def HeavyTopMaekinen2006(case="Maekinen2006"):
             )
             self.K_Theta_P_inv = inv3D(self.K_Theta_P)
 
-        # def A_IK(self, t, q):
-        #     A_IB = A_IK_basic(q[0]).z()
-        #     A_BC = A_IK_basic(-q[1]).y()
-        #     A_CK = A_IK_basic(q[2]).x()
-        #     return A_IB @ A_BC @ A_CK
-
         def A_IK(self, t, q):
             alpha, beta, gamma = q
             # z, y, x
-            A_IB = A_IK_basic(alpha).z()
-            A_BC = A_IK_basic(beta).y()
-            A_CK = A_IK_basic(gamma).x()
-            return A_IB @ A_BC @ A_CK
-            # sa, ca = sin(alpha), cos(alpha)
-            # sb, cb = sin(beta), cos(beta)
-            # sg, cg = sin(gamma), cos(gamma)
+            # A_IB = A_IK_basic(alpha).z()
+            # A_BC = A_IK_basic(beta).y()
+            # A_CK = A_IK_basic(gamma).x()
+            # return A_IB @ A_BC @ A_CK
+            sa, ca = sin(alpha), cos(alpha)
+            sb, cb = sin(beta), cos(beta)
+            sg, cg = sin(gamma), cos(gamma)
+            # fmt: off
+            return np.array([
+                [ca * cb, ca * sb  *sg - sa * cg, ca * sb * cg + sa * sg],
+                [sa * cb, sa * sb * sg + ca * cg, sa * sb * cg - ca * sg],
+                [    -sb,                cb * sg,                cb * cg],
+            ])
             # fmt: on
 
         def r_OP(self, t, q, K_r_SP=np.zeros(3, dtype=float)):
@@ -1255,7 +1255,6 @@ def HeavyTopMaekinen2006(case="Maekinen2006"):
 
         def __call__(self, t, x):
             dx = np.zeros(6, dtype=float)
-            alpha, beta, gamma, omega_x, omega_y, omega_z = x
             alpha, beta, gamma = x[:3]
             K_Omega = x[3:]
 
@@ -1268,30 +1267,14 @@ def HeavyTopMaekinen2006(case="Maekinen2006"):
             sb, cb = sin(beta), cos(beta)
             sg, cg = sin(gamma), cos(gamma)
 
-            # Q = np.array(
-            #     [
-            #         [     sb,   0, 1],
-            #         [cb * sg, -cg, 0],
-            #         [cb * cg,  sg, 0],
-            #     ], dtype=float
-            # )
-            # M = np.diag(np.array([A, B + m * l**2, B + m * l**2], dtype=float))
-            # h = np.array(
-            #     [
-            #         0,
-            #         (B + m * l**2 - A) * omega_x * omega_z
-            #         + m * g * l * cb * cg,
-            #         -(B + m * l**2 - A) * omega_x * omega_y
-            #         - m * g * l * cb * sg,
-            #     ], dtype=float
-            # )
-            # dx[:3] = inv3D(Q) @ x[3:]
-            # dx[3:] = inv3D(M) @ h
-
             # z, y, x
-            Q = np.array(
-                [[-sb, 0.0, 1.0], [cb * sg, cg, 0.0], [cb * cg, -sg, 0.0]], dtype=float
-            )
+            # fmt: off
+            Q = np.array([
+                [    -sb, 0.0, 1.0], 
+                [cb * sg,  cg, 0.0], 
+                [cb * cg, -sg, 0.0]
+            ], dtype=float)
+            # fmt: on
 
             f_gyr = cross3(K_Omega, self.K_Theta_P @ K_Omega)
             K_J_S = -ax2skew(self.K_r_PS)
@@ -1327,10 +1310,12 @@ def HeavyTopMaekinen2006(case="Maekinen2006"):
     shape_functions = "B-spline"
 
     # beam parameters found in Section 4.3. Fast symmetrical top - Maekinen2006
-    EA = GA = 1.0e6
-    # GJ = EI = 1.0e6 # really stiff beam
-    GJ = EI = 1.0e3  # stiff beam
-    # GJ = EI = 1.0e1 # soft beam
+    # # stiff beam
+    # EA = GA = 1.0e4
+    # GJ = EI = 1.0e3
+    # soft beam
+    EA = GA = 1.0e2
+    GJ = EI = 1.0e-1
 
     # build quadratic material model
     Ei = np.array([EA, GA, GA], dtype=float)
@@ -1411,6 +1396,7 @@ def HeavyTopMaekinen2006(case="Maekinen2006"):
             -cross_section.area * cross_section.density * 9.81 * e3, dtype=float
         )
         f_g_beam = DistributedForce1D(lambda t, xi: vg, beam)
+        # f_g_beam = Force(-l * cross_section.area * cross_section.density * e3, beam, frame_ID=(0.5,))
 
     # assemble the model
     model = Model()
@@ -1427,10 +1413,8 @@ def HeavyTopMaekinen2006(case="Maekinen2006"):
     else:
         # t1 = 0.05
         # t1 = 0.1
+        # t1 = 0.5
         t1 = 2
-        # t1 = 10
-        # t1 = 6.25 # approximately a quarter circle
-        # t1 = 25 # approximately a full circle
 
     dt = 1.0e-3
     rtol = 1.0e-5
@@ -1738,5 +1722,5 @@ if __name__ == "__main__":
     # SE3_interpolation()
     # HelixIbrahimbegovic1997()
     # HeavyTopMaekinen2006(case="Maekinen2006")
-    HeavyTopMaekinen2006(case="Other")
+    HeavyTop(case="Other")
     # Dschanibekow()
