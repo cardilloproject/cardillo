@@ -2,16 +2,18 @@ from cardillo.math import e1, e2, e3, sqrt, sin, cos, pi, smoothstep2, A_IK_basi
 from cardillo.beams.spatial import (
     UserDefinedCrossSection,
     CircularCrossSection,
+    RectangularCrossSection,
     ShearStiffQuadratic,
     Simo1986,
 )
 from cardillo.math.SE3 import SE3, se3
-from cardillo.math.algebra import ax2skew, skew2ax, norm
+from cardillo.math.algebra import ax2skew, skew2ax, norm, inv3D, cross3
 from cardillo.math.rotations import (
     inverse_tangent_map,
     rodriguez,
     rodriguez_inv,
     tangent_map,
+    A_IK_basic,
 )
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints.implicit import (
@@ -57,7 +59,8 @@ def beam_factory(
     L,
     r_OP0=np.zeros(3, dtype=float),
     A_IK0=np.eye(3, dtype=float),
-    v_P0=np.zeros(3, dtype=float),
+    v_Q0=np.zeros(3, dtype=float),
+    xi_Q=0.0,
     K_omega_IK0=np.zeros(3, dtype=float),
 ):
     ###############################
@@ -79,7 +82,7 @@ def beam_factory(
             L,
             r_OP0=r_OP0,
             A_IK0=A_IK0,
-            v_P0=v_P0,
+            v_P0=v_Q0,
             K_omega_IK0=K_omega_IK0,
             basis=shape_functions,
         )
@@ -92,9 +95,6 @@ def beam_factory(
     elif Beam == TimoshenkoQuarternionSE3:
         p_r = polynomial_degree
         p_psi = polynomial_degree
-        # Q = TimoshenkoQuarternionSE3.straight_configuration(
-        #     p_r, p_psi, nelements, L, r_OP=r_OP0, A_IK=A_IK0, basis=shape_functions
-        # )
         Q, u0 = TimoshenkoQuarternionSE3.initial_configuration(
             p_r,
             p_psi,
@@ -102,7 +102,8 @@ def beam_factory(
             L,
             r_OP0=r_OP0,
             A_IK0=A_IK0,
-            v_P0=v_P0,
+            v_Q0=v_Q0,
+            xi_Q=xi_Q,
             K_omega_IK0=K_omega_IK0,
             basis=shape_functions,
         )
@@ -116,7 +117,7 @@ def beam_factory(
     # extract cross section properties
     # TODO: Maybe we should pass this to the beam model itself?
     area = cross_section.area
-    line_density = cross_section.line_density
+    density = cross_section.density
     first_moment = cross_section.first_moment
     second_moment = cross_section.second_moment
 
@@ -128,20 +129,20 @@ def beam_factory(
     # I think it should be C_rho0^ab = rho0 * I_ba?
     # TODO: Compute again the relation between Binet inertia tensor and
     # standard one.
-    A_rho0 = line_density * area
-    B_rho0 = line_density * first_moment
-    C_rho0 = line_density * second_moment
+    A_rho0 = density * area
+    B_rho0 = density * first_moment
+    C_rho0 = density * second_moment
     # TODO: I think this is Binet's inertia tensor!
     # TODO: See Mäkinen2006, (24) on page 1022 for a clarification of the
     # classical inertia tensor
     C_rho0 = np.zeros((3, 3))
     for a in range(1, 3):
         for b in range(1, 3):
-            C_rho0[a, b] = line_density * second_moment[b, a]
+            C_rho0[a, b] = density * second_moment[b, a]
 
     # This is the standard second moment of area weighted by a constant line
     # density
-    I_rho0 = line_density * second_moment
+    I_rho0 = density * second_moment
 
     ##################
     # build beam model
@@ -328,9 +329,7 @@ def run(statics):
     joint1 = RigidConnection(frame1, beam, r_OB0, frame_ID2=(0,))
 
     # gravity beam
-    g = np.array(
-        [0, 0, -cross_section.area * cross_section.line_density * 9.81 * 1.0e-1]
-    )
+    g = np.array([0, 0, -cross_section.area * cross_section.density * 9.81 * 1.0e-1])
     if statics:
         f_g_beam = DistributedForce1D(lambda t, xi: t * g, beam)
     else:
@@ -1215,14 +1214,103 @@ def HelixIbrahimbegovic1997(export=True):
     animate_beam(t, q, [beam], L, show=True)
 
 
-def HeavyTopMaekinen2006():
+def HeavyTopMaekinen2006(case="Maekinen2006"):
+    class RigidHeavyTopODE:
+        def __init__(self, m, r, l, g):
+            self.m = m
+            self.r = r
+            self.l = l
+            self.g = g
+            self.K_r_PS = np.array([l / 2, 0, 0], dtype=float)
+            self.A = (1.0 / 2.0) * m * r**2
+            self.B = (1.0 / 4.0) * m * r**2 + (1.0 / 12.0) * m * l**2
+            self.K_Theta_S = np.diag([self.A, self.B, self.B])
+            self.K_Theta_P = (
+                self.K_Theta_S + m * ax2skew(self.K_r_PS) @ ax2skew(self.K_r_PS).T
+            )
+            self.K_Theta_P_inv = inv3D(self.K_Theta_P)
+
+        # def A_IK(self, t, q):
+        #     A_IB = A_IK_basic(q[0]).z()
+        #     A_BC = A_IK_basic(-q[1]).y()
+        #     A_CK = A_IK_basic(q[2]).x()
+        #     return A_IB @ A_BC @ A_CK
+
+        def A_IK(self, t, q):
+            alpha, beta, gamma = q
+            # z, y, x
+            A_IB = A_IK_basic(alpha).z()
+            A_BC = A_IK_basic(beta).y()
+            A_CK = A_IK_basic(gamma).x()
+            return A_IB @ A_BC @ A_CK
+            # sa, ca = sin(alpha), cos(alpha)
+            # sb, cb = sin(beta), cos(beta)
+            # sg, cg = sin(gamma), cos(gamma)
+            # fmt: on
+
+        def r_OP(self, t, q, K_r_SP=np.zeros(3, dtype=float)):
+            A_IK = self.A_IK(t, q)
+            r_OS = A_IK @ self.K_r_PS
+            return r_OS + A_IK @ K_r_SP
+
+        def __call__(self, t, x):
+            dx = np.zeros(6, dtype=float)
+            alpha, beta, gamma, omega_x, omega_y, omega_z = x
+            alpha, beta, gamma = x[:3]
+            K_Omega = x[3:]
+
+            m = self.m
+            l = self.l
+            g = self.g
+            A = self.A
+            B = self.B
+
+            sb, cb = sin(beta), cos(beta)
+            sg, cg = sin(gamma), cos(gamma)
+
+            # Q = np.array(
+            #     [
+            #         [     sb,   0, 1],
+            #         [cb * sg, -cg, 0],
+            #         [cb * cg,  sg, 0],
+            #     ], dtype=float
+            # )
+            # M = np.diag(np.array([A, B + m * l**2, B + m * l**2], dtype=float))
+            # h = np.array(
+            #     [
+            #         0,
+            #         (B + m * l**2 - A) * omega_x * omega_z
+            #         + m * g * l * cb * cg,
+            #         -(B + m * l**2 - A) * omega_x * omega_y
+            #         - m * g * l * cb * sg,
+            #     ], dtype=float
+            # )
+            # dx[:3] = inv3D(Q) @ x[3:]
+            # dx[3:] = inv3D(M) @ h
+
+            # z, y, x
+            Q = np.array(
+                [[-sb, 0.0, 1.0], [cb * sg, cg, 0.0], [cb * cg, -sg, 0.0]], dtype=float
+            )
+
+            f_gyr = cross3(K_Omega, self.K_Theta_P @ K_Omega)
+            K_J_S = -ax2skew(self.K_r_PS)
+            I_J_S = self.A_IK(t, x[:3]) @ K_J_S
+            f_pot = I_J_S.T @ (-self.m * self.g * e3)
+            h = f_pot - f_gyr
+
+            dx[:3] = inv3D(Q) @ x[3:]
+            dx[3:] = self.K_Theta_P_inv @ h
+
+            return dx
+
     # Beam = TimoshenkoAxisAngle
     # Beam = TimoshenkoAxisAngleSE3
     Beam = TimoshenkoQuarternionSE3
 
     # number of elements
-    # nelements = 3
-    nelements = 1
+    nelements = 3
+    # nelements = 1
 
     # used polynomial degree
     polynomial_degree = 1
@@ -1239,9 +1327,10 @@ def HeavyTopMaekinen2006():
     shape_functions = "B-spline"
 
     # beam parameters found in Section 4.3. Fast symmetrical top - Maekinen2006
-    L = 1
     EA = GA = 1.0e6
-    GJ = EI = 1.0e3
+    # GJ = EI = 1.0e6 # really stiff beam
+    GJ = EI = 1.0e3  # stiff beam
+    # GJ = EI = 1.0e1 # soft beam
 
     # build quadratic material model
     Ei = np.array([EA, GA, GA], dtype=float)
@@ -1249,21 +1338,45 @@ def HeavyTopMaekinen2006():
     material_model = Simo1986(Ei, Fi)
 
     # cross section and inertia
-    K_Theta = np.diag([1.0, 0.5, 0.5])
-    # K_Theta = np.diag([1.0, 10, 0.5])
-    A_rho0 = 13.5
-    # r = sqrt(2 / 13.5)
-    cross_section = UserDefinedCrossSection(A_rho0, A_rho0, np.zeros(3, dtype=float), K_Theta)
+    if case == "Maekinen2006":
+        l = 1
+        K_Theta = np.diag([1.0, 0.5, 0.5])
+        A_rho0 = 13.5
+        cross_section = UserDefinedCrossSection(
+            A_rho0, A_rho0, np.zeros(3, dtype=float), K_Theta
+        )
+    else:
+        # K_Theta = np.diag([1.0, 0.5, 0.5])
+        # A_rho0 = 13.5
+        # cross_section = UserDefinedCrossSection(
+        #     A_rho0, A_rho0, np.zeros(3, dtype=float), K_Theta
+        # )
+        # l = 1.
+        # r = 0.1
+        # rho = 1.
+        # m = 0.1
+        m = 1
+        l = 0.2
+        # l = 0.25
+        g = 9.81
+        r = 0.1
+        V = l * pi * r**2
+        rho = m / V
+        cross_section = CircularCrossSection(rho, r)
 
-    # gravity
-    # TODO: Why not 20 as used by Simo1991 and for the rigid body?
-    mg = 40
+        # initial angular velocity and orientation
+        # Omega = 2 * pi * 100
+        Omega = 2 * pi * 50
+        # Omega = 2 * pi * 10
+        K_omega_IK0 = Omega * e1
+        # A_IK0 = np.eye(3, dtype=float)
+        A_IK0 = rodriguez(-pi / 10 * e2)
+        from scipy.spatial.transform import Rotation
 
-    # starting point and orientation of initial point, initial length
+        angles0 = Rotation.from_matrix(A_IK0).as_euler("zyx")
+
+    # starting point
     r_OP0 = np.zeros(3, dtype=float)
-    # A_IK0 = rodriguez(0.3 * e1) @ rodriguez(-pi / 2 * e2)
-    A_IK0 = np.eye(3, dtype=float)
-    K_omega_IK0 = 50 * e1
 
     # build beam model
     beam = beam_factory(
@@ -1274,10 +1387,10 @@ def HeavyTopMaekinen2006():
         cross_section,
         material_model,
         Beam,
-        L,
+        l,
         r_OP0=r_OP0,
         A_IK0=A_IK0,
-        v_P0=np.zeros(3, dtype=float),
+        v_Q0=np.zeros(3, dtype=float),
         K_omega_IK0=K_omega_IK0,
     )
 
@@ -1286,12 +1399,18 @@ def HeavyTopMaekinen2006():
     frame = Frame(r_OP=r_OB0, A_IK=A_IK0)
     joint = SphericalJoint(frame, beam, r_OB0, frame_ID2=(0,))
 
-    # # gravity beam
-    # g = np.array(-cross_section.line_density * 9.81 * e3, dtype=float)
-    # f_g_beam = DistributedForce1D(lambda t, xi: g, beam)
+    if case == "Maekinen2006":
+        # TODO: Why not 20 as used by Simo1991 and for the rigid body?
+        mg = 40
 
-    # gravity as point force
-    f_g_beam = Force(-mg * e3, beam, frame_ID=(0.5,))
+        # gravity as point force
+        f_g_beam = Force(-mg * e3, beam, frame_ID=(0.5,))
+    else:
+        # gravity beam
+        vg = np.array(
+            -cross_section.area * cross_section.density * 9.81 * e3, dtype=float
+        )
+        f_g_beam = DistributedForce1D(lambda t, xi: vg, beam)
 
     # assemble the model
     model = Model()
@@ -1301,12 +1420,233 @@ def HeavyTopMaekinen2006():
     model.add(f_g_beam)
     model.assemble()
 
-    # t1 = 1.5  # used by Maekinen2006
-    t1 = 10  # used by Simo1991
-    # t1 = 15 # this yields a quarter circle
+    t0 = 0.0
+    if case == "Maekinen2006":
+        t1 = 1.5  # used by Maekinen2006
+        t1 = 10  # used by Simo1991
+    else:
+        # t1 = 0.05
+        # t1 = 0.1
+        t1 = 2
+        # t1 = 10
+        # t1 = 6.25 # approximately a quarter circle
+        # t1 = 25 # approximately a full circle
+
+    dt = 1.0e-3
+    rtol = 1.0e-5
+    atol = 1.0e-5
+
+    # compute reference solution using Euler top equations
+    heavy_top = RigidHeavyTopODE(m, r, l, g)
+    x0 = np.concatenate((angles0, K_omega_IK0))
+    from scipy.integrate import solve_ivp
+
+    ref = solve_ivp(
+        heavy_top,
+        [0.0, t1],
+        x0,
+        method="RK45",
+        t_eval=np.arange(t0, t1 + dt, dt),
+        rtol=rtol,
+        atol=atol,
+    )
+    t_ref = ref.t
+    angles_ref = ref.y[:3].T
+    r_OP_ref = np.array(
+        [
+            heavy_top.r_OP(ti, qi, K_r_SP=np.array([l / 2, 0, 0]))
+            for (ti, qi) in zip(t_ref, angles_ref)
+        ]
+    )
+
+    # fig = plt.figure(figsize=(10, 8))
+
+    # ax = fig.add_subplot(1, 2, 1)
+    # ax.plot(t_ref, angles_ref[:, 0], "-r", label="alpha")
+    # ax.plot(t_ref, angles_ref[:, 1], "-g", label="beta")
+    # ax.plot(t_ref, angles_ref[:, 2], "-b", label="gamma")
+
+    # ax = fig.add_subplot(1, 2, 2, projection="3d")
+    # ax.plot(r_OP_ref[:, 0], r_OP_ref[:, 1], r_OP_ref[:, 2], "-b")
+
+    # plt.show()
+    # exit()
+
+    solver = ScipyIVP(model, t1, dt, method="RK23", rtol=rtol, atol=atol)
+
+    sol = solver.solve()
+    q = sol.q
+    nt = len(q)
+    t = sol.t[:nt]
+
+    ############################
+    # Visualize tip displacement
+    ############################
+    elDOF = beam.qDOF[beam.elDOF[-1]]
+    r_OP = np.array([beam.r_OP(ti, qi[elDOF], (1,)) for (ti, qi) in zip(t, q)])
+    # A_IK = np.array([beam.A_IK(ti, qi[elDOF], (1,)) for (ti, qi) in zip(t, q)])
+    # from scipy.spatial.transform import Rotation
+
+    # Euler = np.array(
+    #     [
+    #         # Rotation.from_matrix(A_IK0.T @ A_IKi).as_euler("xyz", degrees=False) for A_IKi in A_IK
+    #         Rotation.from_matrix(A_IKi).as_euler("xyz", degrees=False)
+    #         for A_IKi in A_IK
+    #     ]  # Cardan angles
+    #     # [Rotation.from_matrix(A_IKi).as_euler("zxz", degrees=False) for A_IKi in A_IK] # Euler angles
+    # )
+
+    fig = plt.figure(figsize=(10, 8))
+
+    # 3D tracjectory of tip displacement
+    ax = fig.add_subplot(1, 2, 1, projection="3d")
+    ax.set_title("3D tip trajectory")
+    ax.plot(*r_OP_ref.T, "-k", label="rigid body")
+    ax.plot(*r_OP.T, "--b", label="beam")
+    ax.set_xlabel("x [-]")
+    ax.set_ylabel("y [-]")
+    ax.set_zlabel("z [-]")
+    ax.grid()
+    ax.legend()
+
+    # tip displacement
+    ax = fig.add_subplot(1, 2, 2)
+    ax.set_title("tip displacement (components)")
+    ax.plot(t, r_OP_ref[:, 0], "-r", label="x_ref")
+    ax.plot(t, r_OP_ref[:, 1], "-g", label="y_ref")
+    ax.plot(t, r_OP_ref[:, 2], "-b", label="z_ref")
+    ax.plot(t, r_OP[:, 0], "--r", label="x_beam")
+    ax.plot(t, r_OP[:, 1], "--g", label="y_beam")
+    ax.plot(t, r_OP[:, 2], "--b", label="z_beam")
+    ax.set_xlabel("t")
+    ax.grid()
+    ax.legend()
+
+    # # Euler angles
+    # ax = fig.add_subplot(2, 3, 4)
+    # ax.plot(t, Euler[:, 0], "-b")
+    # ax.set_xlabel("t")
+    # ax.set_ylabel("alpha")
+    # ax.grid()
+
+    # ax = fig.add_subplot(2, 3, 5)
+    # ax.plot(t, Euler[:, 1], "-b")
+    # ax.set_xlabel("t")
+    # ax.set_ylabel("beta")
+    # ax.grid()
+
+    # ax = fig.add_subplot(2, 3, 6)
+    # ax.plot(t, Euler[:, 2], "-b")
+    # ax.set_xlabel("t")
+    # ax.set_ylabel("gamma")
+    # ax.grid()
+
+    fig.tight_layout()
+
+    ###########
+    # animation
+    ###########
+    animate_beam(t, q, [beam], l, show=True)
+
+
+def Dschanibekow():
+    # Beam = TimoshenkoAxisAngle
+    # Beam = TimoshenkoAxisAngleSE3
+    Beam = TimoshenkoQuarternionSE3
+
+    # number of elements
+    nelements = 2
+    # nelements = 1
+
+    # used polynomial degree
+    polynomial_degree = 1
+
+    # number of quadrature points
+    # TODO: We have to distinguish between integration of the mass matrix,
+    #       gyroscopic forces and potential forces!
+    nquadrature_points = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
+    # nquadrature_points = polynomial_degree + 2
+    # nquadrature_points = polynomial_degree + 1
+    # nquadrature_points = polynomial_degree
+
+    # used shape functions for discretization
+    shape_functions = "B-spline"
+
+    # beam parameters found in Section 4.3. Fast symmetrical top - Maekinen2006
+    # TODO: We have to find good values for this. Maybe the stiff and soft
+    #       values used by Maekinen2006?
+    EA = GA = 1.0e6
+    GJ = EI = 1.0e3
+
+    # build quadratic material model
+    Ei = np.array([EA, GA, GA], dtype=float)
+    Fi = np.array([GJ, EI, EI], dtype=float)
+    material_model = Simo1986(Ei, Fi)
+
+    # cross section and inertia
+    # K_Theta = np.diag([1.0, 0.5, 0.5])
+    # A_rho0 = 13.5
+    # # r = sqrt(2 / 13.5)
+    # cross_section = UserDefinedCrossSection(
+    #     A_rho0, A_rho0, np.zeros(3, dtype=float), K_Theta
+    # )
+    line_density = 1
+    # This set works with K_omega_IK0 = 100 * e2 and t1 = 2
+    # l = 2
+    # w = 1.5
+    # h = 1
+    # This set works with K_omega_IK0 = 50 * e1 and t1 = 2
+    l = 1.5
+    w = 2
+    h = 1
+    cross_section = RectangularCrossSection(line_density, w, h)
+
+    m = line_density * l * w * h
+    Theta_xx = (m / 12.0) * (w**2 + h**2)
+    Theta_yy = (m / 12.0) * (l**2 + h**2)
+    Theta_zz = (m / 12.0) * (l**2 + w**2)
+    print(f"Theta_xx: {Theta_xx}")
+    print(f"Theta_yy: {Theta_yy}")
+    print(f"Theta_zz: {Theta_zz}")
+
+    # exit()
+
+    # starting point and orientation of initial point, initial length
+    r_OP0 = np.zeros(3, dtype=float)
+    A_IK0 = rodriguez(-pi / 2 * e2)
+    # A_IK0 = rodriguez(0.3 * e1) @ rodriguez(-pi / 2 * e2)
+    # A_IK0 = rodriguez(-pi / 10 * e2) # TODO: Find a good initial pertubation!
+    # A_IK0 = rodriguez(pi / 20 * e1) # TODO: Find a good initial pertubation!
+    # A_IK0 = np.eye(3, dtype=float)
+    K_omega_IK0 = 50 * e1
+    # K_omega_IK0 = 10 * e2 #+ 1. * e1
+    # K_omega_IK0 = 100 * e2 #+ 1. * e1
+
+    # build beam model
+    beam = beam_factory(
+        nelements,
+        polynomial_degree,
+        nquadrature_points,
+        shape_functions,
+        cross_section,
+        material_model,
+        Beam,
+        l,
+        r_OP0=r_OP0,
+        A_IK0=A_IK0,
+        v_Q0=np.zeros(3, dtype=float),
+        xi_Q=0.5,
+        K_omega_IK0=K_omega_IK0,
+    )
+
+    # assemble the model
+    model = Model()
+    model.add(beam)
+    model.assemble()
+
+    t1 = 2
     # t1 = 5
     dt = 1.0e-2
-    # dt = 2.5e-2
     # method = "RK45"
     method = "RK23"  # performs better (stiff beam example?)
     rtol = 1.0e-5
@@ -1337,7 +1677,8 @@ def HeavyTopMaekinen2006():
     Euler = np.array(
         [
             # Rotation.from_matrix(A_IK0.T @ A_IKi).as_euler("xyz", degrees=False) for A_IKi in A_IK
-            Rotation.from_matrix(A_IKi).as_euler("xyz", degrees=False) for A_IKi in A_IK
+            Rotation.from_matrix(A_IKi).as_euler("xyz", degrees=False)
+            for A_IKi in A_IK
         ]  # Cardan angles
         # [Rotation.from_matrix(A_IKi).as_euler("zxz", degrees=False) for A_IKi in A_IK] # Euler angles
     )
@@ -1387,7 +1728,7 @@ def HeavyTopMaekinen2006():
     ###########
     # animation
     ###########
-    animate_beam(t, q, [beam], L, show=True)
+    animate_beam(t, q, [beam], l, show=True)
 
 
 if __name__ == "__main__":
@@ -1396,4 +1737,6 @@ if __name__ == "__main__":
     # locking()
     # SE3_interpolation()
     # HelixIbrahimbegovic1997()
-    HeavyTopMaekinen2006()
+    # HeavyTopMaekinen2006(case="Maekinen2006")
+    HeavyTopMaekinen2006(case="Other")
+    # Dschanibekow()

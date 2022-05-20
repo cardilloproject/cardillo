@@ -413,7 +413,7 @@ def run(statics=True):
         raise NotImplementedError("")
 
     # gravity beam
-    g = np.array([0, 0, -cross_section.area * cross_section.line_density * 9.81])
+    g = np.array([0, 0, -cross_section.area * cross_section.density * 9.81])
     f_g_beam = DistributedForce1D(lambda t, xi: g, beam)
 
     # moment at right end
@@ -805,7 +805,7 @@ def run_contact():
     joint1 = RigidConnection(frame1, beam0, r_OB1, frame_ID2=(1,))
 
     # gravity beam
-    g = np.array([0, 0, -cross_section.area * cross_section.line_density * 9.81])
+    g = np.array([0, 0, -cross_section.area * cross_section.density * 9.81])
     f_g_beam0 = DistributedForce1D(lambda t, xi: g, beam0)
     f_g_beam1 = DistributedForce1D(lambda t, xi: g, beam1)
 

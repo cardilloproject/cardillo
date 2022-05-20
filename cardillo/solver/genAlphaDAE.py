@@ -1244,7 +1244,8 @@ class GenAlphaFirstOrderGGL2_V3:
             x0 = np.concatenate((q0, u0))
             x_dot0 = np.concatenate((q_dot0, u_dot0))
             y0 = x_dot0.copy()  # TODO: Use perturbed values foun din Arnold2015
-            a0 = u_dot0.copy()  # stabilized accelerations
+            # a0 = u_dot0.copy()  # stabilized accelerations
+            a0 = np.zeros_like(u_dot0)  # u_S
             mu_g0 = np.zeros(self.nla_g)
             kappa_g0 = np.zeros(self.nla_g)
             kappa_gamma0 = np.zeros(self.nla_gamma)

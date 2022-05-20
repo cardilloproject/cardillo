@@ -424,7 +424,8 @@ class TimoshenkoQuarternionSE3:
         greville_abscissae=True,
         r_OP0=np.zeros(3, dtype=float),
         A_IK0=np.eye(3, dtype=float),
-        v_P0=np.zeros(3, dtype=float),
+        v_Q0=np.zeros(3, dtype=float),
+        xi_Q=0.0,
         K_omega_IK0=np.zeros(3, dtype=float),
         basis="B-spline",
     ):
@@ -459,9 +460,11 @@ class TimoshenkoQuarternionSE3:
         q_psi = np.tile(psi, nn_psi)
 
         # centerline velocities
+        r_OQ = r_OC0[:, 0] + xi_Q * (r_OC0[:, -1] - r_OC0[:, 0])
         v_C0 = np.zeros_like(r_OC0, dtype=float)
         for i in range(nn_r):
-            v_C0[:, i] = v_P0 + cross3(A_IK0 @ K_omega_IK0, (r_OC0[:, i] - r_OC0[:, 0]))
+            # v_C0[:, i] = v_Q0 + cross3(A_IK0 @ K_omega_IK0, (r_OC0[:, i] - r_OC0[:, 0]))
+            v_C0[:, i] = v_Q0 + cross3(A_IK0 @ K_omega_IK0, (r_OC0[:, i] - r_OQ))
 
         # reshape generalized coordinates to nodal ordering
         q_r = r_OC0.reshape(-1, order="F")

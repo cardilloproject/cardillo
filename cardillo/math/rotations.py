@@ -114,7 +114,8 @@ def rodriguez_der(psi: np.ndarray) -> np.ndarray:
 
 def tangent_map(psi: np.ndarray) -> np.ndarray:
     """Tangent map, see Crisfield1999 (4.2). Different forms are found in 
-    Cardona1988 (38), Ibrahimbegovic1995 (14b) and Barfoot2014 (98). Actually in Ibrahimbegovic1995 and Barfoot2014 T^T is shown!
+    Cardona1988 (38), Ibrahimbegovic1995 (14b) and Barfoot2014 (98). Actually 
+    in Ibrahimbegovic1995 and Barfoot2014 T^T is shown!
 
     References
     ----------

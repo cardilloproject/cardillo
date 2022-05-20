@@ -6,9 +6,9 @@ class CrossSection:
     # TODO: Is this a property of the cross section? Or should we move it to
     # the beam class?
     @property
-    def line_density(self):
-        """Line density of the cross section."""
-        return self._line_density
+    def density(self):
+        """Density of the material."""
+        return self._density
 
     @property
     def area(self):
@@ -27,16 +27,16 @@ class CrossSection:
 
 
 class UserDefinedCrossSection(CrossSection):
-    def __init__(self, line_density, area, first_moment, second_moment):
-        self._line_density = line_density
+    def __init__(self, density, area, first_moment, second_moment):
+        self._density = density
         self._area = area
         self._first_moment = first_moment
         self._second_moment = second_moment
 
 
 class CircularCrossSection(CrossSection):
-    def __init__(self, line_density, radius):
-        self._line_density = line_density
+    def __init__(self, density, radius):
+        self._density = density
         self._radius = radius
         self._area = pi * radius**2
         # see https://de.wikipedia.org/wiki/Fl%C3%A4chenmoment
@@ -54,13 +54,13 @@ class RectangularCrossSection(CrossSection):
     * height defindenoteses the dimension in d3-direction
     """
 
-    def __init__(self, line_density, width, height):
-        self._line_density = line_density
+    def __init__(self, density, width, height):
+        self._density = density
         self._width = width
         self._height = height
         self._area = width * height
         # see https://de.wikipedia.org/wiki/Fl%C3%A4chenmoment
-        self._first_moment = np.zeros(3)
+        self._first_moment = np.zeros(3, dtype=float)
         # https://en.wikipedia.org/wiki/List_of_second_moments_of_area
         self._second_moment = (
             np.diag(
@@ -70,10 +70,10 @@ class RectangularCrossSection(CrossSection):
                     width**3 * height,
                 ]
             )
-            / 12
+            / 12.0
         )
 
 
 class QuadraticCrossSection(RectangularCrossSection):
-    def __init__(self, line_density, width):
-        super().__init__(line_density, width, width)
+    def __init__(self, density, width):
+        super().__init__(density, width, width)
