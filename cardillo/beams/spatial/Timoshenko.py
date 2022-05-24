@@ -604,6 +604,12 @@ class TimoshenkoQuarternionSE3:
         assert self.polynomial_degree_r == 1
         strains = h_rel_xi
 
+        # strains_gen = se3tangent_map(h_rel) @ h_rel_xi
+        # diff = strains - strains_gen
+        # error = np.linalg.norm(diff)
+        # if error > 1.0e-8:
+        #     print(f"error strain measures: {error}")
+
         # extract centerline and transformation
         A_IK = H_IK[:3, :3]
         r_OP = H_IK[:3, 3]
@@ -939,8 +945,8 @@ class TimoshenkoQuarternionSE3:
 
             psi = q[nodalDOF_q_psi]
             psi2 = psi @ psi
-            Q = quat2mat(psi) / (2 * psi2)
-            Q_p = quat2mat_p(psi) / (2 * psi2) - np.einsum(
+            Q = quat2mat(psi) / (2.0 * psi2)
+            Q_p = quat2mat_p(psi) / (2.0 * psi2) - np.einsum(
                 "ij,k->ijk", quat2mat(psi), psi / (psi2**2)
             )
 
@@ -970,12 +976,12 @@ class TimoshenkoQuarternionSE3:
     ###################
     # r_OP contribution
     ###################
-    def r_OP(self, t, q, frame_ID, K_r_SP=np.zeros(3), dtype=float):
+    def r_OP(self, t, q, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
         r, A_IK, _, _ = self.eval(q, frame_ID[0])
         return r + A_IK @ K_r_SP
 
     # TODO: Derivative of rigid body formular and underlying SE(3) interpolation.
-    def r_OP_q(self, t, q, frame_ID, K_r_SP=np.zeros(3), dtype=float):
+    def r_OP_q(self, t, q, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
         r_OP_q_num = approx_fprime(
             q, lambda q: self.r_OP(t, q, frame_ID, K_r_SP), method="3-point"
         )
@@ -992,7 +998,7 @@ class TimoshenkoQuarternionSE3:
         )
         return A_IK_q_num
 
-    def v_P(self, t, q, u, frame_ID, K_r_SP=np.zeros(3), dtype=float):
+    def v_P(self, t, q, u, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
         N, _, _ = self.basis_functions_r(frame_ID[0])
         _, A_IK, _, _ = self.eval(q, frame_ID[0])
 

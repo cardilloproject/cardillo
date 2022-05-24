@@ -961,10 +961,10 @@ def HelixIbrahimbegovic1997(export=True):
     # a corresponding fraction of 100 elements is chosen
     # # fraction = 0.05
     # fraction = 0.1  # 1 full rotations
-    # fraction = 0.20  # 2 full rotations
+    fraction = 0.20  # 2 full rotations
     # fraction = 0.4  # 4 full rotations
     # fraction = 0.5  # 5 full rotations
-    fraction = 1  # 10 full rotations
+    # fraction = 1  # 10 full rotations
 
     # number of elements
     nelements_max = 30
@@ -1058,7 +1058,7 @@ def HelixIbrahimbegovic1997(export=True):
 
     # n_load_steps = int(20 * 10 * fraction)
     # n_load_steps = int(100 * 10 * fraction)
-    n_load_steps = int(200 * 10 * fraction)  # works for fraction = 0.5
+    n_load_steps = int(200 * 10 * fraction)  # works for all cases
 
     solver = Newton(
         model,
@@ -1311,8 +1311,10 @@ def HeavyTop(case="Maekinen2006"):
 
     # beam parameters found in Section 4.3. Fast symmetrical top - Maekinen2006
     # # stiff beam
+    # # EA = GA = 1.0e5
+    # # GJ = EI = 1.0e2
     # EA = GA = 1.0e4
-    # GJ = EI = 1.0e3
+    # GJ = EI = 1.0e1
     # soft beam
     EA = GA = 1.0e2
     GJ = EI = 1.0e-1
@@ -1350,12 +1352,12 @@ def HeavyTop(case="Maekinen2006"):
         cross_section = CircularCrossSection(rho, r)
 
         # initial angular velocity and orientation
-        # Omega = 2 * pi * 100
-        Omega = 2 * pi * 25
-        # Omega = 2 * pi * 10
-        K_omega_IK0 = Omega * e1
-        # A_IK0 = np.eye(3, dtype=float)
-        A_IK0 = rodriguez(-pi / 10 * e2)
+        omega_x = 2 * pi * 25
+        A = (1.0 / 2.0) * m * r**2
+        omega_pr = m * g * (l / 2) / (A * omega_x)
+        K_omega_IK0 = omega_x * e1 + omega_pr * e3
+        A_IK0 = np.eye(3, dtype=float)
+        # A_IK0 = rodriguez(-pi / 10 * e2)
         from scipy.spatial.transform import Rotation
 
         angles0 = Rotation.from_matrix(A_IK0).as_euler("zyx")
@@ -1413,8 +1415,8 @@ def HeavyTop(case="Maekinen2006"):
     else:
         # t1 = 0.05
         # t1 = 0.1
-        # t1 = 0.5
-        t1 = 2
+        # t1 = 0.25
+        t1 = 1
 
     dt = 1.0e-3
     rtol = 1.0e-5
