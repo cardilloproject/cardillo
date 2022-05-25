@@ -9,10 +9,10 @@ from cardillo.discretization.mesh3D import Mesh3D, cube
 from cardillo.discretization.mesh2D import Mesh2D, rectangle
 from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume
 from cardillo.discretization.indexing import flat3D, flat2D
-from cardillo.model.continuum import Second_gradient, Pantobox_beam_network
+from cardillo.model.continuum import Second_gradient, Pantobox_beam_network, Pantosheet_beam_network
 from cardillo.solver import Newton, Euler_backward, Generalized_alpha_1
 from cardillo.model import Model
-from cardillo.math.algebra import A_IK_basic_z
+from cardillo.math.algebra import A_IK_basic_z, A_IK_basic_x
 from cardillo.model.force_distr2D import Force_distr2D
 from cardillo.model.force_distr3D import Force_distr3D
 from cardillo.model.bilateral_constraints.implicit.incompressibility import Incompressibility
@@ -69,7 +69,7 @@ def test_cube():
     Kn = Yb*Jn/p
     Kt = Gb*Jt/p
     Kp = Gb*np.pi*rp**4/2/hp/p**2
-    Ks = Kp
+    Ks = Kp * 0
     Kc = Ks
     # H = L/3
     nsH = nf/l
@@ -350,7 +350,7 @@ def test_cylinder():
     # vtk export
     continuum.post_processing(sol.t, sol.q, file_path)
 
-def test_rectangle():
+def test_embedded_rectangle():
 
     file_name = pathlib.Path(__file__).stem
     file_path = pathlib.Path(__file__).parent / 'results' / f"{file_name}_rectangle" / file_name
@@ -358,38 +358,70 @@ def test_rectangle():
     # export_path = file_path.parent / 'sol'  
 
     # build mesh
-    degrees = (1, 1)
+    degrees = (3, 3)
     QP_shape = (3, 3)
-    element_shape = (4, 8)
+    element_shape = (4, 2)
 
     Xi = Knot_vector(degrees[0], element_shape[0])
     Eta = Knot_vector(degrees[1], element_shape[1])
     knot_vectors = (Xi, Eta)
     
-    mesh = Mesh2D(knot_vectors, QP_shape, derivative_order=1, basis='B-spline', nq_n=2)
+    mesh = Mesh2D(knot_vectors, QP_shape, derivative_order=2, basis='B-spline', nq_n=3)
 
-    # reference configuration is a cube
-    L = 2
-    B = 4
+    # material parameters
+    Lx = 210.  # Block length in x direction in mm
+    Ly = 70.  # Block length in y direction in mm
+    a = 1.0  # Beam thickness in d2 direction in mm
+    b = 1.0  # Beam thickness in d3 direction in mm
+    Yb = 50.0  # in GPa
+    Gb = Yb / (2 + 0.8)
+    rp = 0.45  # pivot radius in mm
+    hp = 1.5  # pivot length in mm
+    Jn = a**3*b/12  # second moment of are I_d2
+    Jg = a*b**3/12  # second moment of area I_d3
+    Jt = 0.196*a**3*b  # torsional moment of area I_d1
+    nf = 2  # number of unit cells in x-direction
+    p = Lx/np.sqrt(2)/nf  # distance between pivots along a beam
+    Ke = Yb*a*b/p**2 * np.sqrt(2)  # extensional stiffness
+    Kg = Yb*Jg/p**2 * np.sqrt(2)  # geodesic bending stiffness
+    Kn = Yb*Jn/p**2 * np.sqrt(2)  # normal bending stiffness
+    Kt = Gb*Jt/p**2 * np.sqrt(2)  # torsional stiffness
+    Kp = Gb*np.pi*rp**4/2/hp / (p**2*np.sqrt(2))
+    Ks = Kp
 
-    rectangle_shape = (L, B)
+    rectangle_shape = (Lx, Ly)
     Z = rectangle(rectangle_shape, mesh, Greville=True)
 
     # material model    
-    mu1 = 0.3
-    mu2 = 0.5
-    mat = Ogden1997_compressible(mu1, mu2, dim=2)
+    mat = Pantosheet_beam_network(Ke, Ks, Kg, Kn, Kt)
+
 
     # boundary conditions
-    cDOF1 = mesh.edge_qDOF[0].reshape(-1)
-    cDOF2 = mesh.edge_qDOF[1][1]
-    cDOF = np.concatenate((cDOF1, cDOF2))
+    cDOF1 = mesh.edge_qDOF[0].ravel()
+    cDOF3 = mesh.edge_qDOF[1].ravel()
+    cDOF = np.concatenate((cDOF1, cDOF3))
     b1 = lambda t: Z[cDOF1]
-    b2 = lambda t: Z[cDOF2] + t * 4
-    b = lambda t: np.concatenate((b1(t), b2(t)))
+   # b2 = lambda t: Z[cDOF3] + t * 10
+    #b = lambda t: np.concatenate((b1(t), b2(t)))
+
+    # torsion
+    def bt(t, phi0=0.5*np.pi, h=-20):
+        cDOF2_xyz = cDOF3.reshape(3, -1).T
+        out = np.zeros_like(Z)
+
+        phi = t * phi0
+        R = A_IK_basic_x(phi)
+
+        th = t * np.array([1, 0, 0]) * h
+        for DOF in cDOF2_xyz:
+            out[DOF] = R @ (Z[DOF] - [0, Ly/2, 0]) + th + [0, Ly/2, 0]
+        
+        return out[cDOF3]
+
+    b = lambda t: np.concatenate((b1(t), bt(t)))
 
     # 3D continuum
-    continuum = First_gradient(1, mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
+    continuum = Second_gradient(1, mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
 
     # vtk export reference configuration
     # continuum.post_processing_single_configuration(0, Z, 'rectangleReferenceConfig.vtu')
@@ -400,8 +432,8 @@ def test_rectangle():
     model.assemble()
 
     # static solver
-    n_load_steps = 30
-    tol = 1.0e-6
+    n_load_steps = 10
+    tol = 1.0e-5
     max_iter = 10
     solver = Newton(model, n_load_steps=n_load_steps, tol=tol, max_iter=max_iter)
     
@@ -409,8 +441,6 @@ def test_rectangle():
 
     # # vtk export
     continuum.post_processing(sol.t, sol.q, file_path)
-
-
 
 def write_xml():
     # write paraview PVD file, see https://www.paraview.org/Wiki/ParaView/Data_formats#PVD_File_Format
@@ -441,7 +471,7 @@ def write_xml():
 
     
 if __name__ == "__main__":
-    test_cube()
+    # test_cube()
     # test_cylinder()
-    # test_rectangle()
+    test_embedded_rectangle()
     # write_xml()

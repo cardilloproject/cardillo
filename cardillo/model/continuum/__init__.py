@@ -4,4 +4,4 @@ from .pantographic_sheets import Pantographic_sheet, strain_single_point, strain
 from .pantographic_lattice import Pantographic_lattice
 from .bipantographic_lattice import Bipantographic_lattice
 from .second_gradient import Second_gradient
-from .second_gradient_material import Pantobox_beam_network
+from .second_gradient_material import Pantobox_beam_network, Pantosheet_beam_network

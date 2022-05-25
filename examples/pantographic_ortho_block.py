@@ -15,6 +15,7 @@ from cardillo.model import Model
 from cardillo.math.algebra import A_IK_basic_z
 from cardillo.model.force_distr2D import Force_distr2D
 from cardillo.model.force_distr3D import Force_distr3D
+from cardillo.model.bilateral_constraints.implicit import Displacement_constraint
 # from cardillo.model.bilateral_constraints.implicit.incompressibility import Incompressibility
 
 
@@ -50,14 +51,14 @@ def boundary_conditions_cube(cube_shape, mesh, Z, fix=[4], fix_derivatives=False
                 b = lambda t: Z[cDOF]
             else:
                 if 'tension' in tests:
-                    cDOF1 = mesh.surface_qDOF[fix[0]].ravel()
+                    cDOF1 = mesh.surface_qDOF[4][0:2].ravel()
                     cDOF3 = mesh.surface_qDOF[bc[0]][0]
                     cDOF4 = mesh.surface_qDOF[bc[0]][1]
                     cDOF2 = mesh.surface_qDOF[bc[0]][2]
                     cDOF134 = np.concatenate((cDOF1, cDOF3, cDOF4,))
                     cDOF = np.concatenate((cDOF134, cDOF2))
                     b1 = lambda t: Z[cDOF134]
-                    b2 = lambda t: Z[cDOF2] + t * 30.0
+                    b2 = lambda t: Z[cDOF2] + t * 10.0
                     b = lambda t: np.concatenate((b1(t), b2(t)))
                 if fix_derivatives:
                     pass
@@ -68,7 +69,7 @@ def boundary_conditions_cube(cube_shape, mesh, Z, fix=[4], fix_derivatives=False
                     cDOF2 = mesh.surface_qDOF[5].ravel()
                     cDOF = np.concatenate((cDOF1, cDOF2))
 
-                    def bt(t, phi0=0.5*np.pi, h=100):
+                    def bt(t, phi0=0.5*np.pi, h=40):
                         cDOF2_xyz = cDOF2.reshape(3, -1).T
                         out = np.zeros_like(Z)
 
@@ -80,10 +81,23 @@ def boundary_conditions_cube(cube_shape, mesh, Z, fix=[4], fix_derivatives=False
                             out[DOF] = R @ (Z[DOF] - [Lx/2, Ly/2, 0]
                                             ) + th + [Lx/2, Ly/2, 0]
 
-                        return out[cDOF2]
+                    return out[cDOF2]
 
                     b1 = lambda t: Z[cDOF1]
                     b = lambda t: np.concatenate((b1(t), bt(t)))
+
+                if 'shear' in tests:
+                    cDOF1 = mesh.surface_qDOF[4].ravel()
+                    cDOF2 = mesh.surface_qDOF[5][1]
+                    cDOF3 = mesh.surface_qDOF[5][2]
+                    cDOF4 = mesh.surface_qDOF[5][0]
+                    cDOF123 = np.concatenate((cDOF1, cDOF2, cDOF3))
+                    cDOF = np.concatenate((cDOF123, cDOF4))
+
+                    b1 = lambda t: Z[cDOF123]
+                    bs = lambda t: Z[cDOF4] + t * 60
+                    b = lambda t: np.concatenate((b1(t), bs(t)))
+
                 # cDOF = mesh.surface_qDOF[4].ravel()
                 # b = lambda t: Z[cDOF]
         # else:
@@ -107,7 +121,7 @@ def test_cube():
     # build mesh
     degrees = (3, 3, 3)
     QP_shape = (3, 3, 3)
-    element_shape = (2, 2, 6)
+    element_shape = (2, 2, 4)
 
     Xi = Knot_vector(degrees[0], element_shape[0])
     Eta = Knot_vector(degrees[1], element_shape[1])
@@ -117,27 +131,27 @@ def test_cube():
     mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=2, basis='B-spline', nq_n=3)
 
     # material parameters
-    Lx = 70 # Block length in x direction in mm
-    Ly = 70 # Block length in y direction in mm
-    Lz = 210 # Block length in x direction in mm
+    Lx = 70.  # Block length in x direction in mm
+    Ly = 70.  # Block length in y direction in mm
+    Lz = 210.  # Block length in x direction in mm
     a = 1.0  # Beam thickness in d2 direction in mm
     b = 1.0  # Beam thickness in d3 direction in mm
     Yb = 50.0  # in GPa
     Gb = Yb / (2 + 0.8)
-    rp = 0.45 # pivot radius in mm
-    hp = 1.5 # pivot length in mm
-    Jn = a**3*b/12 # second moment of are I_d2
-    Jg = a*b**3/12 # second moment of area I_d3
-    Jt = 0.196*a**3*b # torsional moment of area I_d1
-    nf = 1 # number of unit cells in x-direction
-    p = Lx/np.sqrt(2)/nf # distance between pivots along a beam
+    rp = 0.45  # pivot radius in mm
+    hp = 1.5  # pivot length in mm
+    Jn = a**3*b/12  # second moment of are I_d2
+    Jg = a*b**3/12  # second moment of area I_d3
+    Jt = 0.196*a**3*b  # torsional moment of area I_d1
+    nf = 2  # number of unit cells in x-direction
+    p = Lx/np.sqrt(2)/nf  # distance between pivots along a beam
     Ke = Yb*a*b/p**2 * np.sqrt(2)  # extensional stiffness
-    Kg = Yb*Jg/p**2 * np.sqrt(2) # geodesic bending stiffness
-    Kn = Yb*Jn/p**2 * np.sqrt(2) # normal bending stiffness
-    Kt = Gb*Jt/p**2 * np.sqrt(2) # torsional stiffness
-    Kp = Gb*np.pi*rp**4/2/hp / (p*np.sqrt(2))
-    Ks = Kp * 0.5
-    Kc = Gb*np.pi*rp**4/2/hp / (p*np.sqrt(2))
+    Kg = Yb*Jg/p**2 * np.sqrt(2)  # geodesic bending stiffness
+    Kn = Yb*Jn/p**2 * np.sqrt(2)  # normal bending stiffness
+    Kt = Gb*Jt/p**2 * np.sqrt(2)  # torsional stiffness
+    Kp = Gb*np.pi*rp**4/2/hp / (p**2*np.sqrt(2))
+    Ks = Kp * 0
+    Kc = Gb*np.pi*rp**4/2/hp / (p**2*np.sqrt(2)) * 0
 
     # reference configuration is a cube
     cube_shape = (Lx, Ly, Lz)
@@ -146,17 +160,20 @@ def test_cube():
     mat = Pantobox_beam_network(Ke, Ks, Kg, Kn, Kt, Kc)
 
     density = 1.0e-3
-    tests=['tension', 'torsion']
+    tests = ['tension','constraint_test']
     cDOF, b = boundary_conditions_cube(cube_shape, mesh, Z, tests=tests)
 
     # 3D continuum
     continuum = Second_gradient(density, mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
-    # continuum = First_gradient(density, mat, mesh, Z)
 
+    # Gradient contstraint
+    la_mesh = Mesh2D((Xi, Eta), (3, 3), derivative_order=0, nq_n=1)
+    gradient_constraint = Displacement_constraint(continuum, la_mesh, srf_id=4, x=2)
 
     # build model
     model = Model()
     model.add(continuum)
+    model.add(gradient_constraint)
 
     # if Incompressible:
     #     incompressibility = Incompressibility(continuum, la_mesh)
@@ -187,8 +204,8 @@ def test_cube():
 
     if Statics:
     # static solver
-        n_load_steps = 20
-        tol = 1.0e-5
+        n_load_steps = 10
+        tol = 1.0e-6
         max_iter = 10
         solver = Newton(model, n_load_steps=n_load_steps, tol=tol, max_iter=max_iter)
 

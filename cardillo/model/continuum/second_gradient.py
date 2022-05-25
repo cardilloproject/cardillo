@@ -59,10 +59,10 @@ class Second_gradient():
         # for each Gauss point, compute kappa0^-1, N_X and w_J0 = w * det(kappa0^-1)
         if self.nq_n > 1:
             self.kappa0_xi_inv, self.N_X, self.w_J0 = self.mesh.reference_mappings(Z)
-            if self.dim == 3:
-                self.srf_w_J0 = []
-                for i in range(6):
-                    self.srf_w_J0.append(self.mesh.surface_mesh[i].reference_mappings(Z[self.mesh.surface_qDOF[i].ravel()]))
+            # if self.dim == 3:
+            #     self.srf_w_J0 = []
+            #     for i in range(6):
+            #         self.srf_w_J0.append(self.mesh.surface_mesh[i].reference_mappings(Z[self.mesh.surface_qDOF[i].ravel()]))
            
             self.N_XX = self.mesh.N_XX(Z, self.kappa0_xi_inv)
         # # For 1D Continua
@@ -126,6 +126,7 @@ class Second_gradient():
                 # "C": lambda F: F.T @ F,
                 "J": lambda F, G: np.array([self.determinant(F)]),
                 "P": lambda F, G: self.mat.P(F, G),
+                "bbP": lambda F, G: self.mat.bbP(F, G),
                 # "S": lambda F: self.mat.S(F),
                 "W": lambda F, G: self.mat.W(F, G),
                 "We": lambda F, G: self.mat.We(F, G),

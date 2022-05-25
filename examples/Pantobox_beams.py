@@ -31,10 +31,6 @@ from cardillo.model.bilateral_constraints.implicit import (
 )
 from collections import defaultdict
 
-file_name = pathlib.Path(__file__).stem
-file_path = pathlib.Path(__file__).parent / 'results' / f"{file_name}" / file_name
-file_path.parent.mkdir(parents=True, exist_ok=True)
-export_path = file_path.parent / 'sol'
 
 A_IK0 = np.eye(3)
 A_IK1 = A_IK_basic_z(np.pi / 4)
@@ -454,7 +450,7 @@ material_model = Hooke_quadratic(Ei, Fi)
 # pivot length
 piv_h = 1.5 # mm
 rigid_pivot = True
-cross = False
+cross = True
 
 # discretization
 basis = 'B-spline'
@@ -478,9 +474,13 @@ ncells_z = 12
 bc_dir = 'z'
 r_OB_top0 = 3 * l * np.array([0.0, 0.0, 1.0])
 
-
-def r_OP_top(t): return r_OB_top0 + t * 30.0 * np.array([0.0, 0.0, 1.0])
-
+tests = ['tension']
+if 'tension' in tests:
+    def r_OP_top(t): return r_OB_top0 + t * 30.0 * np.array([0.0, 0.0, 1.0])
+    A_IK_top = np.eye(3)
+if 'torsion' in tests:
+    # def r_OP_top(t): return r_OB_top0 + t * 30.0 * np.array([0.0, 0.0, 1.0])
+    def A_IK_top(t): return A_IK_basic_z(t * np.pi/4)
 
 def r_OP_middle(t): return r_OB_top0 * .5 + np.sqrt(2) * \
     L/2 * np.array([0.0, 0.0, 1.0]) * t  # * 0.5 * 5e-1
@@ -489,7 +489,7 @@ def r_OP_middle(t): return r_OB_top0 * .5 + np.sqrt(2) * \
 # frames
 frame_bottom = Frame(np.zeros(3))
 # frame_middle = Frame(r_OP=r_OP_middle)
-frame_top = Frame(r_OP=r_OP_top)
+frame_top = Frame(r_OP=r_OP_top, A_IK=A_IK_top)
 
 # make Pantobox
 n_yxz = ncells_x, ncells_y, ncells_z
@@ -575,6 +575,10 @@ else:
     t = sol.t
     q = sol.q
 
+file_name = pathlib.Path(__file__).stem
+file_path = pathlib.Path(__file__).parent / 'results' / str(f"{file_name}" + '_'.join(tests))  / file_name
+file_path.parent.mkdir(parents=True, exist_ok=True)
+export_path = file_path.parent / 'sol'
 
 # vtk export
 post_processing(

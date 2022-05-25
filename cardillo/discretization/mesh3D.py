@@ -277,6 +277,8 @@ class Mesh3D():
             select_surface(nn_2=[self.nn_zeta - 1]),
         )
 
+        #self.surface_elDOF = (self.surface.reshape)
+
         surface01 = Mesh2D(self.knot_vector_objs[1:3], self.nqp_per_dim[1:3],
                            derivative_order=self.derivative_order,
                            basis=self.basis, nq_n=self.nq_n)

@@ -2,7 +2,7 @@ import numpy as np
 from scipy.sparse.linalg import spsolve
 from cardillo.discretization.B_spline import B_spline_basis2D, q_to_Pw_2D, decompose_B_spline_surface, flat2D_vtk
 from cardillo.discretization.lagrange import lagrange_basis2D
-from cardillo.math.algebra import inverse2D, determinant2D, norm3, cross3
+from cardillo.math.algebra import inverse2D, determinant2D, norm3, cross3, inverse3D
 from cardillo.discretization.indexing import flat2D, split2D
 from cardillo.discretization.mesh1D import Mesh1D
 from cardillo.discretization.gauss import gauss
@@ -29,6 +29,10 @@ def rectangle(shape, mesh, Greville=False, Fuzz=None):
     if Fuzz is not None:
         Xs += np.random.rand(len(Xs)) * L * Fuzz
         Ys += np.random.rand(len(Ys)) * B * Fuzz
+
+    if mesh.nq_n == 3:
+        Zs = np.zeros_like(Xs)
+        return np.concatenate((Xs, Ys, Zs))
 
     # build generalized coordinates
     return np.concatenate((Xs, Ys))
@@ -316,6 +320,9 @@ class Mesh2D():
         # surface Jacobian for embedded surfaces
         else:
             w_J0 = np.zeros((self.nel, self.nqp))
+            kappa0_xi_inv = np.zeros((self.nel, self.nqp, self.nq_n, self.nq_n))
+            N_X = np.zeros((self.nel, self.nqp, self.nn_el, self.nq_n))
+
             for el in range(self.nel):
                 Qe = Q[self.elDOF[el]]
 
@@ -325,11 +332,16 @@ class Mesh2D():
                     kappa0_xi = np.zeros((self.nq_n, 2))
                     for a in range(self.nn_el):
                         kappa0_xi += np.outer(Qe[self.nodalDOF[a]], N_xi[a]) # Bonet 1997 (7.6b)
-
                     # Ciarlet2005 Theorem 2.3-1 (a) and Schulte2020 below (5)
                     w_J0[el, i] = (norm3(cross3(kappa0_xi[:, 0], kappa0_xi[:, 1]))
                                    * self.wp[el, i])
-            
+                    # compute N_X
+                    #kappa0_xi = np.c_[kappa0_xi, cross3(kappa0_xi[:, 0], kappa0_xi[:, 1]) / w_J0[el, i]]
+                    #kappa0_xi_inv[el, i] = inverse3D(kappa0_xi)
+
+                    # for a in range(self.nn_el):
+                    #     N_X[el, i, a] = np.append(N_xi[a], 0) @ kappa0_xi_inv[el, i]
+
             return w_J0
                         
     def N_XX(self, Q, kappa0_xi_inv):
@@ -339,11 +351,12 @@ class Mesh2D():
             Qe = Q[self.elDOF[el]]
 
             for i in range(self.nqp):
-                N_xi = self.N_xi[el, i]
-                N_xixi = self.N_xixi[el, i]
+                N_xi = np.pad(self.N_xi[el, i],(0,1))
+                N_xixi = np.zeros((self.nn_el,self.nq_n, self.nq_n))
+                N_xixi[:,:2,:2] = self.N_xixi[el, i]
                 kappa0_xi_inv_el_i = kappa0_xi_inv[el, i]
                 
-                kappa0_xixi = np.zeros((self.nq_n, 2, 2))
+                kappa0_xixi = np.zeros((self.nq_n, self.nq_n, self.nq_n))
                 for a in range(self.nn_el):
                     kappa0_xixi += np.einsum('i,jk->ijk', Qe[self.nodalDOF[a]], N_xixi[a])
 

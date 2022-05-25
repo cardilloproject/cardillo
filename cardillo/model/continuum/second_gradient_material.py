@@ -7,8 +7,245 @@ from cardillo.math.numerical_derivative import Numerical_derivative
 num_order = 2
 
 
+class Pantosheet_beam_network():
+    """Giorgio et al 2017 Surface embedded in 3D space
+    """
+
+    def __init__(self, Ke, Ks, Kg, Kn, Kt, dim=2, numerical_derivative=True):
+        # Beam stiffnesses
+        self.Ke = Ke
+        self.Ks = Ks
+        self.Kg = Kg
+        self.Kn = Kn
+        self.Kt = Kt
+        # Fiber directions in reference configuration TODO: make it choosable
+        self.D1 = np.array([1, 1, 0]) / np.sqrt(2)
+        self.D2 = np.array([-1, 1, 0]) / np.sqrt(2)
+        self.D = np.array([self.D1, self.D2])
+        self.I2 = np.eye(2)
+       # self.lc3 = np.array([[[LeviCivita3(i, j, k) for k in range(3)]
+       #                     for j in range(3)] for i in range(3)])
+        if numerical_derivative:
+            self.P_F = self.P_F_num
+            self.P_G = self.P_G_num
+            self.bbP_F = self.bbP_F_num
+            self.bbP_G = self.bbP_G_num
+
+    def P(self, F, G):
+        """Piola-Lagrange stress tensor
+        """
+        # P_num = Numerical_derivative(lambda F: self.W(F, G), order=num_order)._X(F)
+        # Parameters
+        # Layer a
+        d1 = F @ self.D1
+        d2 = F @ self.D2
+        rho1 = norm3(d1)
+        rho2 = norm3(d2)
+        e1 = d1 / rho1
+        e2 = d2 / rho2
+        e1xe2 = cross3(e1, e2)
+        cosga = norm3(e1xe2)
+        singa = e1 @ e2
+        tanga = singa / cosga
+        na = e1xe2 / cosga
+        m1 = cross3(na, e1)
+        m2 = cross3(na, e2)
+        c1 = np.einsum('ijk,j,k->i', G, self.D1, self.D1) / rho1
+        c2 = np.einsum('ijk,j,k->i', G, self.D2, self.D2) / rho2
+        g1 = np.einsum('ijk,j,k->i', G, self.D2, self.D1) / rho2
+        g2 = np.einsum('ijk,j,k->i', G, self.D1, self.D2) / rho1
+
+        kg1 = na @ c1
+        kg2 = na @ c2
+        kn1 = - m1 @ c1
+        kn2 = - m2 @ c2
+        tau1 = - na @ (g1 - singa * c1) / cosga
+        tau2 = - na @ (g2 - singa * c2) / cosga
+
+        # Elongation
+        Pe = self.Ke * ((rho1-1) * np.outer(e1, self.D1) +
+                        (rho2-1) * np.outer(e2, self.D2))
+
+        # Shear
+        PsaD1 = m1 / rho1
+        PsaD2 = -m2 / rho2
+
+        Psa = self.Ks * \
+            np.arcsin(singa) * (np.outer(PsaD1, self.D1) +
+                                np.outer(PsaD2, self.D2))
+
+        # PcD1 = (singc * tanga * m1 + cross3(e1,
+        #         cross3(cross3(e2, nb), e1)) / cosga) / rho1
+        # PcD2 = (-singc * tanga * m2 - cross3(e2,
+        #         cross3(cross3(e1, nb), e2)) / cosga) / rho2
+
+        # # Pc = self.Kc * np.arcsin(singc) / cosgc * \
+        #     (np.outer(PcD1, self.D1) + np.outer(PcD2, self.D2))
+
+        # Normal curvature
+        Pn1D1 = ((kn1 * tanga + e1 @ c1) * m1
+                 + tanga * cross3(e1, cross3(c1, e1)) - kn1 * e1) / rho1
+        Pn1D2 = ((-kn1 * singa - cosga * e1 @ c1) * m2
+                 - cross3(e2, cross3(c1, e2))) / (rho2 * cosga)
+
+        Pn2D1 = ((kn2 * singa - cosga * e2 @ c2) * m1
+                 + cross3(e1, cross3(c2, e1))) / (cosga * rho1)
+        Pn2D2 = ((- kn2 * tanga + e2 @ c2) * m2
+                 - tanga * cross3(e2, cross3(c2, e2)) - kn2 * e2) / rho2
+
+        Pn = self.Kn * ((np.outer(kn1*Pn1D1 + kn2*Pn2D1, self.D1)
+                        + np.outer(kn1*Pn1D2 + kn2*Pn2D2, self.D2)))
+
+        # Geodesic curvature
+        Pg1D1 = (kg1 * singa * m1 + cross3(e1, cross3(cross3(e2, c1), e1))
+                 - cosga * kg1 * e1) / (rho1 * cosga)
+        Pg1D2 = (- kg1 * singa * m2 - cross3(e2,
+                                             cross3(cross3(e1, c1), e2))) / (rho2 * cosga)
+
+        Pg2D1 = (kg2 * singa * m1 + cross3(e1,
+                                           cross3(cross3(e2, c2), e1))) / (rho1 * cosga)
+        Pg2D2 = (- kg2 * singa * m2 - cross3(e2, cross3(cross3(e1, c2), e2))
+                 - cosga * kg2 * e2) / (rho2 * cosga)
+
+        Pg = self.Kg * ((np.outer(kg1*Pg1D1 + kg2*Pg2D1, self.D1)
+                         + np.outer(kg1*Pg1D2 + kg2*Pg2D2, self.D2)))
+
+        # Torsion
+        Pt1D1 = ((2 * tau1 * singa + kg1 * cosga) * m1 - kg1 * singa * e1
+                 - cross3(e1, cross3(cross3(e2, g1 - singa*c1), e1)) / cosga) / (rho1 * cosga)
+        Pt1D2 = ((-2 * tau1 * singa - kg1 * cosga) * m2 + (g1@na) * e2
+                 + cross3(e2, cross3(cross3(e1, g1-singa*c1), e2)) / cosga) / (rho2 * cosga)
+
+        Pt2D1 = ((2 * tau2 * singa + kg2 * cosga) * m1 + (g2@na) * e1
+                 - cross3(e1, cross3(cross3(e2, g2 - singa*c2), e1)) / cosga) / (rho1 * cosga)
+        Pt2D2 = ((-2 * tau2 * singa - kg2 * cosga) * m2 - kg2 * singa * e2
+                 + cross3(e2, cross3(cross3(e1, g2-singa*c2), e2)) / cosga) / (rho2 * cosga)
+
+        Pt = self.Kt * (np.outer(tau1*Pt1D1 + tau2*Pt2D1, self.D1)
+                        + np.outer(tau1*Pt1D2 + tau2*Pt2D2, self.D2))
+
+        return Pe + Psa + Pn + Pg + Pt
+
+    def bbP(self, F, G):
+        """Piola-Lagrange double stress tensor
+        """
+        d1 = F @ self.D1
+        d2 = F @ self.D2
+        rho1 = norm3(d1)
+        rho2 = norm3(d2)
+        e1 = d1 / rho1
+        e2 = d2 / rho2
+        e1xe2 = cross3(e1, e2)
+        cosga = norm3(e1xe2)
+        singa = e1 @ e2
+        tanga = singa / cosga
+        na = e1xe2 / cosga
+        m1 = cross3(na, e1)
+        m2 = cross3(na, e2)
+        c1 = np.einsum('ijk,j,k->i', G, self.D1, self.D1) / rho1
+        c2 = np.einsum('ijk,j,k->i', G, self.D2, self.D2) / rho2
+        g1 = np.einsum('ijk,j,k->i', G, self.D2, self.D1) / rho2
+        g2 = np.einsum('ijk,j,k->i', G, self.D1, self.D2) / rho1
+
+        kg1 = na @ c1
+        kg2 = na @ c2
+        kn1 = - m1 @ c1
+        kn2 = - m2 @ c2
+        tau1 = - na @ (g1 - singa * c1) / cosga
+        tau2 = - na @ (g2 - singa * c2) / cosga
+
+        # bbP_num = Numerical_derivative(lambda G: self.W(F, G), order=num_order)._X(G)
+        # normal
+
+        # geodesic
+        bbPg1 = self.Kg * kg1 / rho1 * \
+            np.einsum('i,j,k->ijk', na, self.D1, self.D1)
+        bbPg2 = self.Kg * kg2 / rho2 * \
+            np.einsum('i,j,k->ijk', na, self.D2, self.D2)
+
+        bbPg = bbPg1 + bbPg2
+
+        # normal
+        bbPn1 = - self.Kn * kn1 / rho1 * \
+            np.einsum('i,j,k->ijk', m1, self.D1, self.D1)
+        bbPn2 = - self.Kn * kn2 / rho2 * \
+            np.einsum('i,j,k->ijk', m2, self.D2, self.D2)
+
+        bbPn = bbPn1 + bbPn2
+
+        # torsion
+        bbPt1 = self.Kt * tau1 * (tanga * np.einsum('i,j,k->ijk', na, self.D1, self.D1) / rho1
+                                  - np.einsum('i,j,k->ijk', na, self.D2, self.D1) / (rho2 * cosga))
+        bbPt2 = self.Kt * tau2 * (tanga * np.einsum('i,j,k->ijk', na, self.D2, self.D2) / rho2
+                                  - np.einsum('i,j,k->ijk', na, self.D1, self.D2) / (rho1 * cosga))
+
+        bbPt = bbPt1 + bbPt2
+
+        return bbPn + bbPg + bbPt
+
+    # numerical derivatives
+    # def P_num(self, F, G, W=W):
+    #     P_num = Numerical_derivative(lambda F: W(F, G), order=2)._X(F)
+    #     return P_num
+
+    # def bbP_num(self, F, G, W=W):
+    #     bbP_num = Numerical_derivative(lambda G: W(F, G), order=2)._X(G)
+    #     return bbP_num
+
+    def P_F_num(self, F, G):
+        P_F_num = Numerical_derivative(lambda F: self.P(F, G), order=2)._X(F)
+        return P_F_num
+
+    def P_G_num(self, F, G):
+        P_G_num = Numerical_derivative(lambda G: self.P(F, G), order=2)._X(G)
+        return P_G_num
+
+    def bbP_F_num(self, F, G):
+        bbP_F_num = Numerical_derivative(
+            lambda F: self.bbP(F, G), order=num_order)._X(F)
+        return bbP_F_num
+
+    def bbP_G_num(self, F, G):
+        bbP_G_num = Numerical_derivative(
+            lambda G: self.bbP(F, G), order=num_order)._X(G)
+        return bbP_G_num
+
+    def W(self, F, G):
+        # strain energy density
+        # Layer a
+        d1 = F @ self.D1
+        d2 = F @ self.D2
+        rho1 = norm3(d1)
+        rho2 = norm3(d2)
+        e1 = d1 / rho1
+        e2 = d2 / rho2
+        e1xe2 = cross3(e1, e2)
+        cosga = norm3(e1xe2)
+        singa = e1 @ e2
+        na = e1xe2 / cosga
+        m1 = cross3(na, e1)
+        m2 = cross3(na, e2)
+        c1 = np.einsum('ijk,j,k->i', G, self.D1, self.D1) / \
+            rho1  # same as G@D1@D1 speed is similar
+        c2 = np.einsum('ijk,j,k->i', G, self.D2, self.D2) / rho2
+        g1 = np.einsum('ijk,j,k->i', G, self.D2, self.D1) / rho2
+        g2 = np.einsum('ijk,j,k->i', G, self.D1, self.D2) / rho1
+
+        tau1 = - na @ (g1 - singa * c1) / cosga
+        tau2 = - na @ (g2 - singa * c2) / cosga
+
+        # complete energy
+        W = .5 * self.Ke * ((rho1-1)**2 + (rho2-1)**2) \
+            + .5 * self.Kg * ((na@c1)**2 + (na@c2)**2) \
+            + .5 * self.Kn * ((-m1@c1)**2 + (-m2@c2)**2) \
+            + .5 * self.Kt * (tau1**2 + tau2**2) \
+            + .5 * self.Ks * (np.arcsin(singa)**2)
+
+        return W
+
+
 class Pantobox_beam_network():
-    """Based on Giorgio 2017 extended to 4 fibers
+    """Based on Giorgio et al 2017 extended to 4 fibers
     """
 
     def __init__(self, Ke, Ks, Kg, Kn, Kt, Kc, dim=3):
@@ -106,13 +343,13 @@ class Pantobox_beam_network():
                                 np.outer(PsbD4, self.D4))
 
         PcD1 = (singc * tanga * m1 + cross3(e1,
-                cross3(cross3(e2, nb), e1)) / cosga) / rho1
+                                            cross3(cross3(e2, nb), e1)) / cosga) / rho1
         PcD2 = (-singc * tanga * m2 - cross3(e2,
-                cross3(cross3(e1, nb), e2)) / cosga) / rho2
+                                             cross3(cross3(e1, nb), e2)) / cosga) / rho2
         PcD3 = (singc * tangb * m3 + cross3(e3,
-                cross3(cross3(e4, na), e3)) / cosgb) / rho3
+                                            cross3(cross3(e4, na), e3)) / cosgb) / rho3
         PcD4 = (-singc * tangb * m4 - cross3(e4,
-                cross3(cross3(e3, na), e4)) / cosgb) / rho4
+                                             cross3(cross3(e3, na), e4)) / cosgb) / rho4
         Pc = self.Kc * np.arcsin(singc) / cosgc * (np.outer(PcD1, self.D1) + np.outer(PcD2, self.D2)
                                                    + np.outer(PcD3, self.D3) + np.outer(PcD4, self.D4))
 
@@ -138,7 +375,7 @@ class Pantobox_beam_network():
                  - tangb * cross3(e4, cross3(c4, e4)) - kn4 * e4) / rho4
 
         Pn = self.Kn * ((np.outer(kn1*Pn1D1 + kn2*Pn2D1, self.D1)
-                        + np.outer(kn1*Pn1D2 + kn2*Pn2D2, self.D2))
+                         + np.outer(kn1*Pn1D2 + kn2*Pn2D2, self.D2))
                         + np.outer(kn3*Pn3D3 + kn4*Pn4D3, self.D3)) \
             + np.outer(kn3*Pn3D4 + kn4*Pn4D4, self.D4)
 
@@ -146,25 +383,25 @@ class Pantobox_beam_network():
         Pg1D1 = (kg1 * singa * m1 + cross3(e1, cross3(cross3(e2, c1), e1))
                  - cosga * kg1 * e1) / (rho1 * cosga)
         Pg1D2 = (- kg1 * singa * m2 - cross3(e2,
-                 cross3(cross3(e1, c1), e2))) / (rho2 * cosga)
+                                             cross3(cross3(e1, c1), e2))) / (rho2 * cosga)
 
         Pg2D1 = (kg2 * singa * m1 + cross3(e1,
-                 cross3(cross3(e2, c2), e1))) / (rho1 * cosga)
+                                           cross3(cross3(e2, c2), e1))) / (rho1 * cosga)
         Pg2D2 = (- kg2 * singa * m2 - cross3(e2, cross3(cross3(e1, c2), e2))
                  - cosga * kg2 * e2) / (rho2 * cosga)
 
         Pg3D3 = (kg3 * singb * m3 + cross3(e3, cross3(cross3(e4, c3), e3))
                  - cosgb * kg3 * e3) / (rho3 * cosgb)
         Pg3D4 = (- kg3 * singb * m4 - cross3(e4,
-                 cross3(cross3(e3, c3), e4))) / (rho4 * cosgb)
+                                             cross3(cross3(e3, c3), e4))) / (rho4 * cosgb)
 
         Pg4D3 = (kg4 * singb * m3 + cross3(e3,
-                 cross3(cross3(e4, c4), e3))) / (rho3 * cosgb)
+                                           cross3(cross3(e4, c4), e3))) / (rho3 * cosgb)
         Pg4D4 = (- kg4 * singb * m4 - cross3(e4, cross3(cross3(e3, c4), e4))
                  - cosgb * kg4 * e4) / (rho4 * cosgb)
 
         Pg = self.Kg * ((np.outer(kg1*Pg1D1 + kg2*Pg2D1, self.D1)
-                        + np.outer(kg1*Pg1D2 + kg2*Pg2D2, self.D2))
+                         + np.outer(kg1*Pg1D2 + kg2*Pg2D2, self.D2))
                         + np.outer(kg3*Pg3D3 + kg4*Pg4D3, self.D3)) \
             + np.outer(kg3*Pg3D4 + kg4*Pg4D4, self.D4)
 
@@ -195,7 +432,7 @@ class Pantobox_beam_network():
                         + np.outer(tau3*Pt3D4 + tau4*Pt4D4, self.D4))
 
         return Pe + Psa + Psb + Pc + Pn + Pg + Pt
-   
+
     def P_F(self, F, G):
         # Layer a
         d1 = F @ self.D1
@@ -242,7 +479,7 @@ class Pantobox_beam_network():
         tau4 = - nb @ (g4 - singb * c4) / cosgb
 
         singc = na @ nb
-        cosgc = norm3(cross3(na,nb))
+        cosgc = norm3(cross3(na, nb))
         tangc = singc / cosgc
 
         rho1_F = np.outer(e1, self.D1)
@@ -394,31 +631,36 @@ class Pantobox_beam_network():
             - np.einsum('i,jlm,k->ijklm', g4, e3_F, self.D3 / rho3)
 
         # Elongation
-        Pe1_F =  np.einsum('i,j,k,l->ijkl', self.Ke * e1, self.D1, e1, self.D1) \
-            +  np.einsum('i,jkl->jikl', self.Ke *self.D1 * (rho1-1), e1_F) 
-        Pe2_F =  np.einsum('i,j,k,l->ijkl', self.Ke *e2, self.D2, e2, self.D2) \
-            +  np.einsum('i,jkl->jikl', self.Ke *self.D2* (rho2-1), e2_F)
-        Pe3_F =  np.einsum('i,j,k,l->ijkl', self.Ke *e3, self.D3, e3, self.D3) \
-            +  np.einsum('i,jkl->jikl', self.Ke *self.D3* (rho3-1), e3_F)
-        Pe4_F =  np.einsum('i,j,k,l->ijkl', self.Ke * e4, self.D4, e4, self.D4) \
-            +  np.einsum('i,jkl->jikl',self.Ke * self.D4* (rho4-1), e4_F)
-
+        Pe1_F = np.einsum('i,j,k,l->ijkl', self.Ke * e1, self.D1, e1, self.D1) \
+            + np.einsum('i,jkl->jikl', self.Ke * self.D1 * (rho1-1), e1_F)
+        Pe2_F = np.einsum('i,j,k,l->ijkl', self.Ke * e2, self.D2, e2, self.D2) \
+            + np.einsum('i,jkl->jikl', self.Ke * self.D2 * (rho2-1), e2_F)
+        Pe3_F = np.einsum('i,j,k,l->ijkl', self.Ke * e3, self.D3, e3, self.D3) \
+            + np.einsum('i,jkl->jikl', self.Ke * self.D3 * (rho3-1), e3_F)
+        Pe4_F = np.einsum('i,j,k,l->ijkl', self.Ke * e4, self.D4, e4, self.D4) \
+            + np.einsum('i,jkl->jikl', self.Ke * self.D4 * (rho4-1), e4_F)
 
         Pe_F = Pe1_F + Pe2_F + Pe3_F + Pe4_F
 
         # shear
-        Psa_F = self.Ks * np.arcsin(singa) * ga_F_F + np.einsum('jA,kB->jAkB', self.Ks * ga_F, ga_F)
-        Psb_F = self.Ks * np.arcsin(singb) * gb_F_F + np.einsum('jA,kB->jAkB', self.Ks * gb_F, gb_F)
-       
-        gc_F = np.einsum('i,ijk->jk', na / cosgc, nb_F) + np.einsum('i,ijk->jk', nb / cosgc, na_F)
+        Psa_F = self.Ks * np.arcsin(singa) * ga_F_F + \
+            np.einsum('jA,kB->jAkB',
+                      self.Ks * ga_F, ga_F)
+        Psb_F = self.Ks * np.arcsin(singb) * gb_F_F + \
+            np.einsum('jA,kB->jAkB',
+                      self.Ks * gb_F, gb_F)
+
+        gc_F = np.einsum('i,ijk->jk', na / cosgc, nb_F) + \
+            np.einsum('i,ijk->jk', nb / cosgc, na_F)
         gc_F_F = np.einsum('i,ijAkB->jAkB', nb / cosgc, na_F_F) \
-                + np.einsum('i,ijAkB->jAkB', na / cosgc, nb_F_F) \
-                    + np.einsum('ijA,ikB->jAkB', na_F / cosgc, nb_F) \
-                        + np.einsum('ijA,ikB->jAkB', nb_F / cosgc, na_F) \
-                            + np.einsum('i,ijA,kB->jAkB', na * tangc / cosgc, nb_F, gc_F) \
-                            + np.einsum('i,ijA,kB->jAkB', nb * tangc / cosgc, na_F, gc_F) \
-       
-        Pc_F =  self.Kc * np.arcsin(singc) * gc_F_F + np.einsum('jA,kB->jAkB', self.Ks * gc_F, gc_F)
+            + np.einsum('i,ijAkB->jAkB', na / cosgc, nb_F_F) \
+            + np.einsum('ijA,ikB->jAkB', na_F / cosgc, nb_F) \
+            + np.einsum('ijA,ikB->jAkB', nb_F / cosgc, na_F) \
+            + np.einsum('i,ijA,kB->jAkB', na * tangc / cosgc, nb_F, gc_F) \
+            + np.einsum('i,ijA,kB->jAkB', nb * tangc / cosgc, na_F, gc_F) \
+
+        Pc_F = self.Kc * np.arcsin(singc) * gc_F_F + \
+            np.einsum('jA,kB->jAkB', self.Ks * gc_F, gc_F)
 
         # normal bending
         Pn1_F = self.Kn * (np.einsum('jk,lm->jklm',
@@ -496,7 +738,7 @@ class Pantobox_beam_network():
             np.einsum('i,ijk->jk', tangb * nb, c4_F)
 
         tau1_F_F = ga_F_F * (tau1 * tanga + na @ c1) \
-            + np.einsum('jA,kB->jAkB', ga_F, tau1_F * tanga + (tau1 / cosga**2) * ga_F \
+            + np.einsum('jA,kB->jAkB', ga_F, tau1_F * tanga + (tau1 / cosga**2) * ga_F
                         + np.einsum('ikB,i->kB', na_F, c1) + np.einsum('ikB,i->kB', c1_F, na)) \
             + np.einsum('ijAkB,i->jAkB', - na_F_F, g1 / cosga - tanga * c1) \
             + np.einsum('ijA,i,kB->jAkB', - na_F, (g1 * (tanga / cosga) - c1 / cosga**2), ga_F) \
@@ -505,7 +747,7 @@ class Pantobox_beam_network():
             + np.einsum('i,ijA,kB->jAkB', - na, g1_F * (tanga / cosga) - c1_F / cosga**2, ga_F) \
             + np.einsum('i,ijAkB->jAkB', - na, g1_F_F / cosga - tanga * c1_F_F)
         tau2_F_F = ga_F_F * (tau2 * tanga + na @ c2) \
-            + np.einsum('jA,kB->jAkB', ga_F, tau2_F * tanga + (tau2 / cosga**2) * ga_F \
+            + np.einsum('jA,kB->jAkB', ga_F, tau2_F * tanga + (tau2 / cosga**2) * ga_F
                         + np.einsum('ikB,i->kB', na_F, c2) + np.einsum('ikB,i->kB', c2_F, na)) \
             + np.einsum('ijAkB,i->jAkB', - na_F_F, g2 / cosga - tanga * c2) \
             + np.einsum('ijA,i,kB->jAkB', - na_F, (g2 * (tanga / cosga) - c2 / cosga**2), ga_F) \
@@ -514,7 +756,7 @@ class Pantobox_beam_network():
             + np.einsum('i,ijA,kB->jAkB', - na, g2_F * (tanga / cosga) - c2_F / cosga**2, ga_F) \
             + np.einsum('i,ijAkB->jAkB', - na, g2_F_F / cosga - tanga * c2_F_F)
         tau3_F_F = gb_F_F * (tau3 * tangb + nb @ c3) \
-            + np.einsum('jA,kB->jAkB', gb_F, tau3_F * tangb + (tau3 / cosgb**2) * gb_F \
+            + np.einsum('jA,kB->jAkB', gb_F, tau3_F * tangb + (tau3 / cosgb**2) * gb_F
                         + np.einsum('ikB,i->kB', nb_F, c3) + np.einsum('ikB,i->kB', c3_F, nb)) \
             + np.einsum('ijAkB,i->jAkB', - nb_F_F, g3 / cosgb - tangb * c3) \
             + np.einsum('ijA,i,kB->jAkB', - nb_F, (g3 * (tangb / cosgb) - c3 / cosgb**2), gb_F) \
@@ -523,7 +765,7 @@ class Pantobox_beam_network():
             + np.einsum('i,ijA,kB->jAkB', - nb, g3_F * (tangb / cosgb) - c3_F / cosgb**2, gb_F) \
             + np.einsum('i,ijAkB->jAkB', - nb, g3_F_F / cosgb - tangb * c3_F_F)
         tau4_F_F = gb_F_F * (tau4 * tangb + nb @ c4) \
-            + np.einsum('jA,kB->jAkB', gb_F, tau4_F * tangb + (tau4 / cosgb**2) * gb_F \
+            + np.einsum('jA,kB->jAkB', gb_F, tau4_F * tangb + (tau4 / cosgb**2) * gb_F
                         + np.einsum('ikB,i->kB', nb_F, c4) + np.einsum('ikB,i->kB', c4_F, nb)) \
             + np.einsum('ijAkB,i->jAkB', - nb_F_F, g4 / cosgb - tangb * c4) \
             + np.einsum('ijA,i,kB->jAkB', - nb_F, (g4 * (tangb / cosgb) - c4 / cosgb**2), gb_F) \
@@ -537,7 +779,7 @@ class Pantobox_beam_network():
         Pt2_F = np.einsum('iA,kB->iAkB', self.Kt * tau2_F,
                           tau2_F) + self.Kt * tau2 * tau2_F_F
         Pt3_F = np.einsum('iA,kB->iAkB', self.Kt * tau3_F,
-                          tau3_F) + self.Kt * tau3 * tau3_F_F       
+                          tau3_F) + self.Kt * tau3 * tau3_F_F
         Pt4_F = np.einsum('iA,kB->iAkB', self.Kt * tau4_F,
                           tau4_F) + self.Kt * tau4 * tau4_F_F
 
@@ -923,10 +1165,10 @@ class Pantobox_beam_network():
         nb = e3xe4 / cosgb
         m3 = cross3(nb, e3)
         m4 = cross3(nb, e4)
-        c3 = np.einsum('ijk,j,k->i', G, self.D3, self.D3) / rho3 
-        c4 = np.einsum('ijk,j,k->i', G, self.D4, self.D4) / rho4 
-        g3 = np.einsum('ijk,j,k->i', G, self.D4, self.D3) / rho4 
-        g4 = np.einsum('ijk,j,k->i', G, self.D3, self.D4) / rho3 
+        c3 = np.einsum('ijk,j,k->i', G, self.D3, self.D3) / rho3
+        c4 = np.einsum('ijk,j,k->i', G, self.D4, self.D4) / rho4
+        g3 = np.einsum('ijk,j,k->i', G, self.D4, self.D3) / rho4
+        g4 = np.einsum('ijk,j,k->i', G, self.D3, self.D4) / rho3
 
         rho1_F = np.outer(e1, self.D1)
         rho2_F = np.outer(e2, self.D2)
@@ -934,18 +1176,18 @@ class Pantobox_beam_network():
         rho4_F = np.outer(e4, self.D4)
 
         e1_F = np.einsum('ij,k->ijk', self.I3, self.D1) / rho1  \
-            - np.einsum('i,j,k->ijk', e1,  e1, self.D1) / rho1 
+            - np.einsum('i,j,k->ijk', e1,  e1, self.D1) / rho1
         e2_F = np.einsum('ij,k->ijk', self.I3, self.D2) / rho2  \
-            - np.einsum('i,j,k->ijk', e2,  e2, self.D2) / rho2 
+            - np.einsum('i,j,k->ijk', e2,  e2, self.D2) / rho2
         e3_F = np.einsum('ij,k->ijk', self.I3, self.D3) / rho3  \
-            - np.einsum('i,j,k->ijk', e3,  e3, self.D3) / rho3 
+            - np.einsum('i,j,k->ijk', e3,  e3, self.D3) / rho3
         e4_F = np.einsum('ij,k->ijk', self.I3, self.D4) / rho4  \
-            - np.einsum('i,j,k->ijk', e4,  e4, self.D4) / rho4 
+            - np.einsum('i,j,k->ijk', e4,  e4, self.D4) / rho4
 
         e_F = e1_F, e2_F, e3_F, e4_F
 
-        ga_F = np.outer(m1, self.D1 / rho1)  - \
-            np.outer(m2, self.D2 / rho2) 
+        ga_F = np.outer(m1, self.D1 / rho1) - \
+            np.outer(m2, self.D2 / rho2)
 
         gb_F = np.outer(m3, self.D3) / rho3 - \
             np.outer(m4, self.D4) / rho4
@@ -2430,10 +2672,11 @@ def speed_test():
     # t1 = time.time()
     # for i in range(100000):
     #     # np.outer(np.array([1,2, 3]), np.array([4, 5, 6]) / 10)
-    #     np.einsum('i,j,k->ijk',np.array([4.1, 5.2, 6.3]),np.array([4.4, 5.5, 6.6]),np.array([4.7, 5.8, 6.9])/ 10.7) 
+    #     np.einsum('i,j,k->ijk',np.array([4.1, 5.2, 6.3]),np.array([4.4, 5.5, 6.6]),np.array([4.7, 5.8, 6.9])/ 10.7)
     # t2 = time.time()
 
     # print(t1-t0, t2-t1)
+
 
 if __name__ == "__main__":
    #  verify_derivatives()
