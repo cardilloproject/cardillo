@@ -27,6 +27,9 @@ eggs/
 *.npy
 *.npz
 
+# exported data
+*.txt
+
 # videos
 *.mp4
 *.avi
