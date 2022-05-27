@@ -565,8 +565,8 @@ def locking():
     # see Meier2015 above (58)
     # triplet = (1.0e1, 1.0e-7, 25)
     # triplet = (1.0e2, 1.0e-9, 50)
-    # triplet = (1.0e3, 1.0e-10, 100)
-    triplet = (1.0e4, 1.0e-13, 200)
+    triplet = (1.0e3, 1.0e-10, 100)
+    # triplet = (1.0e4, 1.0e-13, 200)
 
     # pair = (1.0e4, 1.0e-10)
     slenderness, atol, n_load_steps = triplet
@@ -635,8 +635,8 @@ def locking():
     # assemble the model
     model = Model()
     model.add(beam)
-    model.add(frame1)
-    model.add(joint1)
+    # model.add(frame1)
+    # model.add(joint1)
     model.add(moment)
     model.assemble()
 
@@ -656,6 +656,7 @@ def locking():
             [np.arange(3, dtype=int), np.arange(3, dtype=int) + beam.nq_r]
         )
         cDOF_u = cDOF_q
+        cDOF_S = np.array([], dtype=int)
         b = lambda t: np.concatenate(
             [np.zeros(3, dtype=float), np.zeros(3, dtype=float)]
         )
@@ -666,24 +667,22 @@ def locking():
         cDOF_u = np.concatenate(
             [np.arange(3, dtype=int), np.arange(3, dtype=int) + beam.nu_r]
         )
+        cDOF_S = np.array([0], dtype=int)
         b = lambda t: np.concatenate(
             [np.zeros(3, dtype=float), np.array([1, 0, 0, 0], dtype=float)]
         )
-        # cDOF_q = np.arange(0, 7, dtype=int)
-        # cDOF_u = np.arange(0, 6, dtype=int)
-        # b = lambda t: np.array([
-        #     0, 0, 0, 1, 0, 0, 0
-        # ], dtype=float)
     else:
         cDOF_q = np.array([], dtype=int)
         cDOF_u = np.array([], dtype=int)
+        cDOF_S = np.array([], dtype=int)
         b = lambda t: np.array([], dtype=float)
 
     solver = Newton(
         model,
-        # cDOF_q=cDOF_q,
-        # cDOF_u=cDOF_u,
-        # b=b,
+        cDOF_q=cDOF_q,
+        cDOF_u=cDOF_u,
+        cDOF_S=cDOF_S,
+        b=b,
         n_load_steps=n_load_steps,
         max_iter=50,
         atol=atol,
@@ -1737,9 +1736,9 @@ def Dschanibekow():
 if __name__ == "__main__":
     # run(statics=True)
     # run(statics=False)
-    # locking()
+    locking()
     # SE3_interpolation()
     # HelixIbrahimbegovic1997()
     # HeavyTopMaekinen2006(case="Maekinen2006")
-    HeavyTop(case="Other")
+    # HeavyTop(case="Other")
     # Dschanibekow()

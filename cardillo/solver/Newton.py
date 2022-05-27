@@ -60,6 +60,7 @@ class Newton:
         model,
         cDOF_q=np.array([], dtype=int),
         cDOF_u=np.array([], dtype=int),
+        cDOF_S=np.array([], dtype=int),
         b=lambda t: np.array([], dtype=float),
         n_load_steps=1,
         load_steps=None,
@@ -80,12 +81,16 @@ class Newton:
         z0_u = model.u0.copy()
         self.nz_q = len(z0_q)
         self.nz_u = len(z0_u)
+        self.nz_S = model.nla_S
         self.cDOF_q = cDOF_q
         self.cDOF_u = cDOF_u
+        self.cDOF_S = cDOF_S
         self.zDOF_q = np.arange(self.nz_q)
         self.zDOF_u = np.arange(self.nz_u)
+        self.zDOF_S = np.arange(self.nz_S)
         self.fDOF_q = np.setdiff1d(self.zDOF_q, cDOF_q)
         self.fDOF_u = np.setdiff1d(self.zDOF_u, cDOF_u)
+        self.fDOF_S = np.setdiff1d(self.zDOF_S, cDOF_S)
         q0 = z0_q[self.fDOF_q]
         u0 = z0_u[self.fDOF_u]
 
@@ -110,10 +115,12 @@ class Newton:
         self.nt = len(self.load_steps)
         nc_q = len(cDOF_q)
         nc_u = len(cDOF_u)
+        nc_S = len(cDOF_S)
         self.nq = self.nz_q - nc_q
         self.nu = self.nz_u - nc_u
         self.nla_g = self.model.nla_g
-        self.nla_S = self.model.nla_S
+        # self.nla_S = self.model.nla_S
+        self.nla_S = self.nz_S - nc_S
         self.nla_N = self.model.nla_N
         self.nx = self.nq + self.nla_g + self.nla_N
         self.nf = self.nu + self.nla_g + self.nla_S + self.nla_N
@@ -172,7 +179,7 @@ class Newton:
         R = np.zeros(self.nf)
         R[:nu] = self.model.h(t, z, self.u)[self.fDOF_u] + W_g @ la_g + W_N @ la_N
         R[nu : nu + nla_g] = self.model.g(t, z)
-        R[nu + nla_g : nu + nla_g + nla_S] = self.model.g_S(t, z)
+        R[nu + nla_g : nu + nla_g + nla_S] = self.model.g_S(t, z)[self.fDOF_S]
         R[nu + nla_g + nla_S :] = np.minimum(la_N, g_N)
 
         yield R
@@ -187,7 +194,9 @@ class Newton:
             ]
         )
         g_q = self.model.g_q(t, z, scipy_matrix=csr_matrix)[:, self.fDOF_q]
-        g_S_q = self.model.g_S_q(t, z, scipy_matrix=csr_matrix)[:, self.fDOF_q]
+        g_S_q = self.model.g_S_q(t, z, scipy_matrix=csr_matrix)[
+            self.fDOF_S[:, None], self.fDOF_q
+        ]
         # note: csr_matrix is best for row slicing, see
         # (https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csr_matrix.html#scipy.sparse.csr_matrix)
         g_N_q = self.model.g_N_q(t, z, scipy_matrix=csr_matrix)[:, self.fDOF_q]
