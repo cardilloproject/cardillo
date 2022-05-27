@@ -387,9 +387,14 @@ class Rotor:
 ##########################################
 def quat2mat(p):
     p0, p1, p2, p3 = p
-    return np.array(
-        [[p0, -p1, -p2, -p3], [p1, p0, -p3, p2], [p2, p3, p0, -p1], [p3, -p2, p1, p0]]
+    # fmt: off
+    return np.array([
+        [p0, -p1, -p2, -p3], 
+        [p1,  p0, -p3,  p2], 
+        [p2,  p3,  p0, -p1], 
+        [p3, -p2,  p1,  p0]]
     )
+    # fmt: on
 
 
 def quat2mat_p(p):

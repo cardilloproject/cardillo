@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.sparse.linalg import spsolve
-from scipy.sparse import bmat, csr_matrix, csc_matrix
+from scipy.sparse import bmat, csc_matrix
 from scipy.integrate import solve_ivp
 from tqdm import tqdm
 

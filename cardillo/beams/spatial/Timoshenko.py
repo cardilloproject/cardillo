@@ -23,6 +23,7 @@ from cardillo.math import (
     quat2rot,
     quat2mat,
     quat2mat_p,
+    ax2skew_a,
     pi,
 )
 
@@ -194,6 +195,20 @@ def se3inverse_tangent_map(h):
     return T
 
 
+def Q_quat(P):
+    p0 = P[0]
+    p = P[1:]
+    return np.vstack((-p.T, p0 * np.eye(3, dtype=float) + ax2skew(p)))
+
+
+def Q_quat_P(p):
+    Q_p = np.zeros((4, 3, 4), dtype=float)
+    Q_p[1:, :, 0] = np.eye(3, dtype=float)
+    Q_p[0, :, 1:] = -np.eye(3)
+    Q_p[1:, :, 1:] = ax2skew_a()
+    return Q_p
+
+
 class TimoshenkoQuarternionSE3:
     def __init__(
         self,
@@ -275,6 +290,7 @@ class TimoshenkoQuarternionSE3:
         self.nu_psi = self.mesh_psi.nu
         self.nu = self.nu_r + self.nu_psi  # total number of generalized velocities
         self.nla_S = self.mesh_psi.nnodes  # total number of Lagrange mutipliers
+        # self.nla_g = self.mesh_psi.nnodes  # total number of Lagrange mutipliers
 
         # number of generalized coordiantes per element
         self.nq_element_r = self.mesh_r.nq_per_element
@@ -328,6 +344,7 @@ class TimoshenkoQuarternionSE3:
         self.q0 = Q.copy() if q0 is None else q0
         self.u0 = np.zeros(self.nu) if u0 is None else u0
         self.la_S0 = np.zeros(self.nla_S)
+        # self.la_g0 = np.zeros(self.nla_g)
 
         # evaluate shape functions at specific xi
         self.basis_functions_r = self.mesh_r.eval_basis
@@ -638,7 +655,7 @@ class TimoshenkoQuarternionSE3:
             nodalDOF = self.nodalDOF_psi[node]
             psi_node = q[nodalDOF]
             coo.extend(
-                np.array([2 * psi_node]), (self.la_SDOF[node], self.qDOF[nodalDOF])
+                np.array([2.0 * psi_node]), (self.la_SDOF[node], self.qDOF[nodalDOF])
             )
 
     # normalization of the nodal quaternions length
@@ -648,13 +665,46 @@ class TimoshenkoQuarternionSE3:
             q[self.nodalDOF_psi[node]] = psi_node / norm(psi_node)
         return q, u
 
-    # # Note: Those are never used since they vanish during projection of the
-    # # virtual work
-    # def W_S(self, t, q, coo):
-    #     pass
+    # # TODO: This is no solution when we are using minimal vecloties!
+    # def g(self, t, q):
+    #     g = np.zeros(self.nla_g)
+    #     for node in range(self.nnode_psi):
+    #         psi_node = q[self.nodalDOF_psi[node]]
+    #         g[node] = psi_node @ psi_node - 1.0
+    #     return g
 
-    # def Wla_S_q(self, t, q, la_S, coo):
-    #     pass
+    # def g_q(self, t, q, coo):
+    #     for node in range(self.nnode_psi):
+    #         nodalDOF = self.nodalDOF_psi[node]
+    #         psi_node = q[nodalDOF]
+    #         coo.extend(
+    #             np.array([2 * psi_node]), (self.la_gDOF[node], self.qDOF[nodalDOF])
+    #         )
+
+    # def W_g_node(self, P):
+    #     Q = Q_quat(P)
+    #     return (P.T @ Q).T / (P @ P)
+
+    # def W_g(self, t, q, coo):
+    #     for node in range(self.nnode_psi):
+    #         nodalDOF_q = self.nodalDOF_psi[node]
+    #         nodalDOF_u = self.nodalDOF_u_psi[node]
+    #         coo.extend(
+    #             self.W_g_node(q[nodalDOF_q]), (self.uDOF[nodalDOF_u], self.la_gDOF[node])
+    #         )
+
+    # # TODO:
+    # def Wla_g_q(self, t, q, la_g, coo):
+    #     for node in range(self.nnode_psi):
+    #         nodalDOF_q = self.nodalDOF_psi[node]
+    #         nodalDOF_u = self.nodalDOF_u_psi[node]
+
+    #         dense = approx_fprime(q[nodalDOF_q],
+    #             lambda q: self.W_g_node(q) * la_g[node]
+    #         )
+    #         coo.extend(
+    #             dense, (self.uDOF[nodalDOF_u], self.qDOF[nodalDOF_q])
+    #         )
 
     #########################################
     # mass matrix
@@ -905,8 +955,8 @@ class TimoshenkoQuarternionSE3:
 
             psi = q[nodalDOF_q_psi]
             omega = u[nodalDOF_u_psi]
-            Q = quat2mat(psi) / (2.0 * psi @ psi)
-            psi_dot = Q[:, 1:] @ omega
+            Q = Q_quat(psi) / (2.0 * psi @ psi)
+            psi_dot = Q @ omega
             q_dot[nodalDOF_q_psi] = psi_dot
 
         return q_dot
@@ -921,17 +971,15 @@ class TimoshenkoQuarternionSE3:
         for node in range(self.nnode_psi):
             nodalDOF_q_psi = self.nodalDOF_psi[node]
             nodalDOF_u_psi = self.nodalDOF_u_psi[node]
-
             psi = q[nodalDOF_q_psi]
-            Q = quat2mat(psi) / (2.0 * psi @ psi)
-
+            Q = Q_quat(psi) / (2.0 * psi @ psi)
             coo.extend(
-                Q[:, 1:],
+                Q,
                 (self.qDOF[nodalDOF_q_psi], self.uDOF[nodalDOF_u_psi]),
             )
 
     def q_ddot(self, t, q, u, u_dot):
-        q_ddot = np.zeros(self.nq)
+        q_ddot = np.zeros(self.nq, dtype=float)
 
         # centerline part
         q_ddot[: self.nq_r] = u_dot[: self.nu_r]
@@ -944,18 +992,20 @@ class TimoshenkoQuarternionSE3:
             nodalDOF_u_psi = self.nodalDOF_u_psi[node]
 
             psi = q[nodalDOF_q_psi]
-            psi2 = psi @ psi
-            Q = quat2mat(psi) / (2.0 * psi2)
-            Q_p = quat2mat_p(psi) / (2.0 * psi2) - np.einsum(
-                "ij,k->ijk", quat2mat(psi), psi / (psi2**2)
-            )
-
             omega = u[nodalDOF_u_psi]
             omega_dot = u_dot[nodalDOF_u_psi]
-            psi_dot = Q[:, 1:] @ omega
 
-            q_ddot[nodalDOF_q_psi] = Q[:, 1:] @ omega_dot + np.einsum(
-                "ijk,k,j->i", Q_p[:, 1:, :], psi_dot, u[3:]
+            psi2 = psi @ psi
+
+            Q = Q_quat(psi) / (2.0 * psi2)
+            Q_p = Q_quat_P(psi) / (2.0 * psi2) - np.einsum(
+                "ij,k->ijk", Q, psi / (psi2**2)
+            )
+
+            psi_dot = Q @ omega
+
+            q_ddot[nodalDOF_q_psi] = Q @ omega_dot + np.einsum(
+                "ijk,k,j->i", Q_p, psi_dot, omega
             )
 
         return q_ddot

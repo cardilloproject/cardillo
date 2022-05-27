@@ -7,6 +7,39 @@ from scipy.sparse import csr_matrix, bmat, lil_matrix
 from tqdm import tqdm
 
 
+def scaled_tolerance(yk, yk1, atol, rtol):
+    """Scaled tolerance defined in Hairer1993 p. 167 (4.10).
+
+    References
+    ----------
+    Hairer1993: https://doi.org/10.1007/978-3-540-78862-1
+    """
+    return atol + rtol * np.maximum(np.abs(yk), np.abs(yk1))
+
+
+def is_converged(Rk1, yk, yk1, atol, rtol):
+    """Check if error measure defined in Hairer1993 p. 167 (4.10) is satisfied.
+
+    References
+    ----------
+    Hairer1993: https://doi.org/10.1007/978-3-540-78862-1
+    """
+    # compute scaled tolerances
+    sc = scaled_tolerance(yk, yk1, atol, rtol)
+
+    # check element wise convergence
+    abs_Rk1 = np.abs(Rk1)
+    error = abs_Rk1 - sc
+    converged = np.all(error <= 0)
+
+    # find maximum error and the corresponding tolerance
+    idx_abs_Rk1 = np.argmax(error)
+    max_error = abs_Rk1[idx_abs_Rk1]
+    max_sc = sc[idx_abs_Rk1]
+
+    return converged, max_error, max_sc
+
+
 class Newton:
     """Force and displacement controlled Newton-Raphson method. This solver
     is used to find a static solution for a mechanical system. External forces
@@ -27,15 +60,16 @@ class Newton:
         model,
         cDOF_q=np.array([], dtype=int),
         cDOF_u=np.array([], dtype=int),
-        b=lambda t: np.array([]),
+        b=lambda t: np.array([], dtype=float),
         n_load_steps=1,
         load_steps=None,
         atol=1e-8,
+        rtol=1e-6,
         max_iter=50,
         prox_r_N=1.0e-2,
         numerical_jacobian=False,
         verbose=True,
-        newton_error_function=lambda x: np.max(np.abs(x)),
+        # newton_error_function=lambda x: np.max(np.abs(x)),
         numdiff_method="2-point",
         numdiff_eps=1.0e-6,
     ):
@@ -46,10 +80,6 @@ class Newton:
         z0_u = model.u0.copy()
         self.nz_q = len(z0_q)
         self.nz_u = len(z0_u)
-        nc_q = len(cDOF_q)
-        nc_u = len(cDOF_u)
-        self.nq = self.nz_q - nc_q
-        self.nu = self.nz_u - nc_u
         self.cDOF_q = cDOF_q
         self.cDOF_u = cDOF_u
         self.zDOF_q = np.arange(self.nz_q)
@@ -69,7 +99,6 @@ class Newton:
             self.b = lambda t: b
 
         self.max_iter = max_iter
-        self.atol = atol
         self.prox_r_N = prox_r_N
 
         if load_steps is None:
@@ -77,27 +106,38 @@ class Newton:
         else:
             self.load_steps = np.array(load_steps)
 
-        # dimensions
+        # other dimensions
         self.nt = len(self.load_steps)
-        self.nu = self.model.nu
+        nc_q = len(cDOF_q)
+        nc_u = len(cDOF_u)
+        self.nq = self.nz_q - nc_q
+        self.nu = self.nz_u - nc_u
         self.nla_g = self.model.nla_g
         self.nla_S = self.model.nla_S
         self.nla_N = self.model.nla_N
         self.nx = self.nq + self.nla_g + self.nla_N
         self.nf = self.nu + self.nla_g + self.nla_S + self.nla_N
 
+        # build atol, rtol vectors if scalars are given
+        self.atol = np.atleast_1d(atol)
+        self.rtol = np.atleast_1d(rtol)
+        if len(self.atol) == 1:
+            self.atol = np.ones(self.nf, dtype=float) * atol
+        if len(self.rtol) == 1:
+            self.rtol = np.ones(self.nf, dtype=float) * rtol
+        assert len(self.atol) == self.nf
+        assert len(self.rtol) == self.nf
+
         # memory allocation
         self.x = np.zeros((self.nt, self.nx))
 
         # initial conditions
         self.x[0] = np.concatenate((q0, self.model.la_g0, self.model.la_N0))
-        self.u = np.zeros(self.nu)  # zero velocities as system is static
+        self.u = np.zeros(self.nz_u)  # zero velocities as system is static
 
         self.numdiff_method = numdiff_method
         self.numdiff_eps = numdiff_eps
-
         self.verbose = verbose
-        self.newton_error_function = newton_error_function
 
         if numerical_jacobian:
             self.__eval__ = self.__eval__num
@@ -132,7 +172,7 @@ class Newton:
         R = np.zeros(self.nf)
         R[:nu] = self.model.h(t, z, self.u)[self.fDOF_u] + W_g @ la_g + W_N @ la_N
         R[nu : nu + nla_g] = self.model.g(t, z)
-        R[nu + nla_g : nu + nla_g + nla_S] = self.model.g_S(t, q)
+        R[nu + nla_g : nu + nla_g + nla_S] = self.model.g_S(t, z)
         R[nu + nla_g + nla_S :] = np.minimum(la_N, g_N)
 
         yield R
@@ -202,9 +242,13 @@ class Newton:
             #                                 self.u)
             generator = self.__eval__(self.load_steps[i], self.x[i])
             R = next(generator)
-            # R = self.residual(self.load_steps[i], self.x[i])
-            error = self.newton_error_function(R)
-            converged = error < self.atol
+
+            error = np.linalg.norm(R)
+            converged = error < self.atol[0]
+            # if i > 0:
+            #     converged, error, sc = is_converged(R, self.x[i - 1], self.x[i], self.atol, self.rtol)
+            # else:
+            #     converged, error, sc = is_converged(R, self.x[i], self.x[i], self.atol, self.rtol)
 
             # reset counter and print inital status
             k = 0
@@ -212,7 +256,9 @@ class Newton:
                 pbar.set_description(
                     f" force iter {i+1:>{len_t}d}/{self.nt};"
                     f" Newton steps {k:>{len_maxIter}d}/{self.max_iter};"
-                    f" error {error:.4e}/{self.atol:.2e}"
+                    f" error {error:.4e}/{self.atol[0]:.2e}"
+                    # f" error {error:.4e}/{sc:.2e}"
+                    # f" error {error:.4e}/{self.atol:.2e}"
                 )
 
             # perform netwon step if necessary
@@ -231,8 +277,13 @@ class Newton:
                     # self.model.pre_iteration_update(self.load_steps[i], self.x[i, :self.nq], self.u)
                     generator = self.__eval__(self.load_steps[i], self.x[i])
                     R = next(generator)
-                    error = self.newton_error_function(R)
-                    converged = error < self.atol
+
+                    error = np.linalg.norm(R)
+                    converged = error < self.atol[0]
+                    # if i > 0:
+                    #     converged, error, sc = is_converged(R, self.x[i - 1], self.x[i], self.atol, self.rtol)
+                    # else:
+                    #     converged, error, sc = is_converged(R, self.x[i], self.x[i], self.atol, self.rtol)
 
                     # update counter and print status
                     k += 1
@@ -240,7 +291,9 @@ class Newton:
                         pbar.set_description(
                             f" force iter {i+1:>{len_t}d}/{self.nt};"
                             f" Newton steps {k:>{len_maxIter}d}/{self.max_iter};"
-                            f" error {error:.4e}/{self.atol:.2e}"
+                            f" error {error:.4e}/{self.atol[0]:.2e}"
+                            # f" error {error:.4e}/{sc:.2e}"
+                            # f" error {error:.4e}/{self.atol:.2e}"
                         )
 
                     # check convergence

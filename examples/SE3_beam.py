@@ -3,6 +3,7 @@ from cardillo.beams.spatial import (
     UserDefinedCrossSection,
     CircularCrossSection,
     RectangularCrossSection,
+    QuadraticCrossSection,
     ShearStiffQuadratic,
     Simo1986,
 )
@@ -532,68 +533,55 @@ def run(statics):
 
 
 def locking():
+    """This example examines shear and membrande locking as done in Meier2015.
+
+    References:
+    ===========
+    Meier2015: https://doi.org/10.1016/j.cma.2015.02.029
+    """
     # Beam = TimoshenkoAxisAngle
-    Beam = TimoshenkoAxisAngleSE3
+    # Beam = TimoshenkoAxisAngleSE3
+    Beam = TimoshenkoQuarternionSE3
 
     # number of elements
-    # nelements = 1
-    # nelements = 2
     nelements = 3
-    # nelements = 4
-    # nelements = 8
-    # nelements = 16
-    # nelements = 32
-    # nelements = 64
 
     # used polynomial degree
     polynomial_degree = 1
-    # polynomial_degree = 2
-    # polynomial_degree = 3
-    # polynomial_degree = 5
-    # polynomial_degree = 6
 
     # number of quadrature points
-    # TODO: We have to distinguish between integration of the mass matrix,
-    #       gyroscopic forces and potential forces!
-    # nquadrature_points = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
-    # nquadrature_points = polynomial_degree + 2
-    # nquadrature_points = polynomial_degree + 1 # this seems not to be sufficent for p > 1
-    nquadrature_points = (
-        polynomial_degree  # this works for p = 1 and homogeneous deformations!
-    )
+    nquadrature_points = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
+    print(f"nquadrature_points: {nquadrature_points}")
 
     # used shape functions for discretization
     shape_functions = "B-spline"
     # shape_functions = "Lagrange"
 
-    # beam length
-    # L = 1.0e3 # Meier2015
-    L = 5
-    # L = 10
+    # beam length, see Meier2015  above (58)
+    L = 1.0e3
+    # L = 1.0e4
+
+    # selnderness (ratio L / r) and convergence tolerance,
+    # see Meier2015 above (58)
+    # triplet = (1.0e1, 1.0e-7, 25)
+    # triplet = (1.0e2, 1.0e-9, 50)
+    # triplet = (1.0e3, 1.0e-10, 100)
+    triplet = (1.0e4, 1.0e-13, 200)
+
+    # pair = (1.0e4, 1.0e-10)
+    slenderness, atol, n_load_steps = triplet
+    n_load_steps = 50
 
     # used cross section
-    # slenderness = 1
-    slenderness = 1.0e1
-    # slenderness = 1.0e2
-    # slenderness = 1.0e3
-    # slenderness = 1.0e4
-    radius = 1
-    # radius = 1.0e-0
-    # radius = 1.0e-1
-    # radius = 5.0e-2
-    # radius = 1.0e-3 # this yields no deformation due to locking!
+    width = L / slenderness
+
+    # cross section
     line_density = 1
-
-    radius = L / slenderness  # Meier2015
-
-    cross_section = CircularCrossSection(line_density, radius)
+    cross_section = QuadraticCrossSection(line_density, width)
 
     # Young's and shear modulus
     E = 1.0  # Meier2015
     G = 0.5  # Meier2015
-    # # E = 1.0e1
-    # nu = 0.5
-    # G = E / (2.0 * (1.0 + nu))
 
     # build quadratic material model
     material_model = quadratic_beam_material(E, G, cross_section, Beam)
@@ -603,7 +591,6 @@ def locking():
     # starting point and orientation of initial point, initial length
     r_OP = np.zeros(3)
     A_IK = np.eye(3)
-    # L = radius * slenderness
 
     # build beam model
     beam = beam_factory(
@@ -621,7 +608,7 @@ def locking():
 
     # junctions
     r_OB0 = np.zeros(3)
-    A_IK0 = lambda t: np.eye(3)
+    A_IK0 = np.eye(3)
     frame1 = Frame(r_OP=r_OB0, A_IK=A_IK0)
 
     # left and right joint
@@ -632,10 +619,11 @@ def locking():
     M = (
         # lambda t: (e1 * Fi[0])
         # lambda t: (e2 * Fi[1])
-        # lambda t: (e3 * Fi[2])
-        lambda t: (e1 * Fi[0] + e3 * Fi[2])
+        lambda t: (e3 * Fi[2])
+        # lambda t: (e1 * Fi[0] + e3 * Fi[2])
         # lambda t: (e2 * Fi[1] + e3 * Fi[2])
-        * smoothstep2(t, 0.0, 1)
+        # * smoothstep2(t, 0.0, 1)
+        * t
         * 2
         * np.pi
         / L
@@ -644,33 +632,62 @@ def locking():
     )
     moment = K_Moment(M, beam, (1,))
 
-    # external force at the right end
-    # force = Force(lambda t: 2.5e-3 * t * (e1 + e2 + e3), beam, frame_ID=(1,), K_r_SP=5 * e2)
-    force = Force(lambda t: -1.0e-3 * t * e3, beam, frame_ID=(1,), K_r_SP=5 * e2)
-    # # force = Force(lambda t: -1.0e-3 * t * e3, beam, frame_ID=(0.5,), K_r_SP=e2)
-    # force = Force(lambda t: -4.0e-3 * t * e2, beam, frame_ID=(1,))
-
     # assemble the model
     model = Model()
     model.add(beam)
     model.add(frame1)
     model.add(joint1)
     model.add(moment)
-    # model.add(force)
     model.assemble()
+
+    # build different tolerances for static equilibrium and constraint forces
+    # atol_u = np.ones(model.nu, dtype=float) * atol
+    # atol_la_g = np.ones(model.nla_g, dtype=float) * 1.0e-10
+    # atol_la_S = np.ones(model.nla_S, dtype=float) * 1.0e-10
+    # atol = np.concatenate((atol_u, atol_la_g, atol_la_S))
+    # # rtol = atol * 1e2
+    rtol = 0
+
+    # define constraint degrees of freedom
+    # TODO: In order to get this working for the quternion beam we have to add
+    #       cDOF_la_S and for completeness also cDOF_la_g and cDOF_la_N.
+    if Beam == TimoshenkoAxisAngleSE3:
+        cDOF_q = np.concatenate(
+            [np.arange(3, dtype=int), np.arange(3, dtype=int) + beam.nq_r]
+        )
+        cDOF_u = cDOF_q
+        b = lambda t: np.concatenate(
+            [np.zeros(3, dtype=float), np.zeros(3, dtype=float)]
+        )
+    elif Beam == TimoshenkoQuarternionSE3:
+        cDOF_q = np.concatenate(
+            [np.arange(3, dtype=int), np.arange(4, dtype=int) + beam.nq_r]
+        )
+        cDOF_u = np.concatenate(
+            [np.arange(3, dtype=int), np.arange(3, dtype=int) + beam.nu_r]
+        )
+        b = lambda t: np.concatenate(
+            [np.zeros(3, dtype=float), np.array([1, 0, 0, 0], dtype=float)]
+        )
+        # cDOF_q = np.arange(0, 7, dtype=int)
+        # cDOF_u = np.arange(0, 6, dtype=int)
+        # b = lambda t: np.array([
+        #     0, 0, 0, 1, 0, 0, 0
+        # ], dtype=float)
+    else:
+        cDOF_q = np.array([], dtype=int)
+        cDOF_u = np.array([], dtype=int)
+        b = lambda t: np.array([], dtype=float)
 
     solver = Newton(
         model,
-        # n_load_steps=10,
-        n_load_steps=50,
-        # n_load_steps=100,
-        # n_load_steps=500,
-        max_iter=30,
-        # atol=1.0e-4,
-        atol=1.0e-6,
-        # atol=1.0e-8,
-        # atol=1.0e-10,
-        numerical_jacobian=False,
+        # cDOF_q=cDOF_q,
+        # cDOF_u=cDOF_u,
+        # b=b,
+        n_load_steps=n_load_steps,
+        max_iter=50,
+        atol=atol,
+        rtol=rtol,
     )
     sol = solver.solve()
     q = sol.q
@@ -1310,14 +1327,14 @@ def HeavyTop(case="Maekinen2006"):
     shape_functions = "B-spline"
 
     # beam parameters found in Section 4.3. Fast symmetrical top - Maekinen2006
-    # # stiff beam
-    # # EA = GA = 1.0e5
-    # # GJ = EI = 1.0e2
-    # EA = GA = 1.0e4
-    # GJ = EI = 1.0e1
-    # soft beam
-    EA = GA = 1.0e2
-    GJ = EI = 1.0e-1
+    # stiff beam
+    EA = GA = 1.0e4
+    GJ = EI = 1.0e1
+    # # soft beam
+    # # EA = GA = 1.0e2
+    # # GJ = EI = 1.0e-1
+    # EA = GA = 2.5e1
+    # GJ = EI = 1.0e-1
 
     # build quadratic material model
     Ei = np.array([EA, GA, GA], dtype=float)
@@ -1413,12 +1430,12 @@ def HeavyTop(case="Maekinen2006"):
         t1 = 1.5  # used by Maekinen2006
         t1 = 10  # used by Simo1991
     else:
-        # t1 = 0.05
-        # t1 = 0.1
-        # t1 = 0.25
-        t1 = 1
+        t1 = 2.0 * pi / omega_pr
+        t1 *= 0.125
 
-    dt = 1.0e-3
+    # nt = np.ceil(t1 / 1.0e-3)
+    dt = t1 * 1.0e-3
+    # dt = 1.0e-3
     rtol = 1.0e-5
     atol = 1.0e-5
 
