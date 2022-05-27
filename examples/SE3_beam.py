@@ -37,6 +37,8 @@ from cardillo.solver import (
     Moreau,
 )
 
+from cardillo.solver.Fsolve import Fsolve
+
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -563,14 +565,14 @@ def locking():
 
     # selnderness (ratio L / r) and convergence tolerance,
     # see Meier2015 above (58)
-    # triplet = (1.0e1, 1.0e-7, 25)
+    triplet = (1.0e1, 1.0e-7, 25)
     # triplet = (1.0e2, 1.0e-9, 50)
-    triplet = (1.0e3, 1.0e-10, 100)
+    # triplet = (1.0e3, 1.0e-10, 100)
     # triplet = (1.0e4, 1.0e-13, 200)
 
     # pair = (1.0e4, 1.0e-10)
     slenderness, atol, n_load_steps = triplet
-    n_load_steps = 50
+    # n_load_steps = 25
 
     # used cross section
     width = L / slenderness
@@ -635,8 +637,8 @@ def locking():
     # assemble the model
     model = Model()
     model.add(beam)
-    # model.add(frame1)
-    # model.add(joint1)
+    model.add(frame1)
+    model.add(joint1)
     model.add(moment)
     model.assemble()
 
@@ -676,6 +678,10 @@ def locking():
         cDOF_u = np.array([], dtype=int)
         cDOF_S = np.array([], dtype=int)
         b = lambda t: np.array([], dtype=float)
+    cDOF_q = np.array([], dtype=int)
+    cDOF_u = np.array([], dtype=int)
+    cDOF_S = np.array([], dtype=int)
+    b = lambda t: np.array([], dtype=float)
 
     solver = Newton(
         model,
@@ -688,6 +694,8 @@ def locking():
         atol=atol,
         rtol=rtol,
     )
+    # solver = Fsolve(model, n_load_steps=n_load_steps, atol=atol, rtol=rtol)
+
     sol = solver.solve()
     q = sol.q
     nt = len(q)

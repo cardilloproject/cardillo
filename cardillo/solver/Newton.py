@@ -252,12 +252,16 @@ class Newton:
             generator = self.__eval__(self.load_steps[i], self.x[i])
             R = next(generator)
 
-            error = np.linalg.norm(R)
-            converged = error < self.atol[0]
-            # if i > 0:
-            #     converged, error, sc = is_converged(R, self.x[i - 1], self.x[i], self.atol, self.rtol)
-            # else:
-            #     converged, error, sc = is_converged(R, self.x[i], self.x[i], self.atol, self.rtol)
+            # error = np.linalg.norm(R)
+            # converged = error < self.atol[0]
+            if i > 0:
+                converged, error, sc = is_converged(
+                    R, self.x[i - 1], self.x[i], self.atol, self.rtol
+                )
+            else:
+                converged, error, sc = is_converged(
+                    R, self.x[i], self.x[i], self.atol, self.rtol
+                )
 
             # reset counter and print inital status
             k = 0
@@ -265,8 +269,8 @@ class Newton:
                 pbar.set_description(
                     f" force iter {i+1:>{len_t}d}/{self.nt};"
                     f" Newton steps {k:>{len_maxIter}d}/{self.max_iter};"
-                    f" error {error:.4e}/{self.atol[0]:.2e}"
-                    # f" error {error:.4e}/{sc:.2e}"
+                    # f" error {error:.4e}/{self.atol[0]:.2e}"
+                    f" error {error:.4e}/{sc:.2e}"
                     # f" error {error:.4e}/{self.atol:.2e}"
                 )
 
@@ -287,12 +291,16 @@ class Newton:
                     generator = self.__eval__(self.load_steps[i], self.x[i])
                     R = next(generator)
 
-                    error = np.linalg.norm(R)
-                    converged = error < self.atol[0]
-                    # if i > 0:
-                    #     converged, error, sc = is_converged(R, self.x[i - 1], self.x[i], self.atol, self.rtol)
-                    # else:
-                    #     converged, error, sc = is_converged(R, self.x[i], self.x[i], self.atol, self.rtol)
+                    # error = np.linalg.norm(R)
+                    # converged = error < self.atol[0]
+                    if i > 0:
+                        converged, error, sc = is_converged(
+                            R, self.x[i - 1], self.x[i], self.atol, self.rtol
+                        )
+                    else:
+                        converged, error, sc = is_converged(
+                            R, self.x[i], self.x[i], self.atol, self.rtol
+                        )
 
                     # update counter and print status
                     k += 1
@@ -300,8 +308,8 @@ class Newton:
                         pbar.set_description(
                             f" force iter {i+1:>{len_t}d}/{self.nt};"
                             f" Newton steps {k:>{len_maxIter}d}/{self.max_iter};"
-                            f" error {error:.4e}/{self.atol[0]:.2e}"
-                            # f" error {error:.4e}/{sc:.2e}"
+                            # f" error {error:.4e}/{self.atol[0]:.2e}"
+                            f" error {error:.4e}/{sc:.2e}"
                             # f" error {error:.4e}/{self.atol:.2e}"
                         )
 
