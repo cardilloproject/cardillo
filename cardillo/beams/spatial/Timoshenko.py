@@ -25,6 +25,7 @@ from cardillo.math import (
     quat2mat_p,
     ax2skew_a,
     pi,
+    inv3D,
 )
 
 
@@ -658,12 +659,21 @@ class TimoshenkoQuarternionSE3:
                 np.array([2.0 * psi_node]), (self.la_SDOF[node], self.qDOF[nodalDOF])
             )
 
-    # normalization of the nodal quaternions length
-    def step_callback(self, t, q, u):
-        for node in range(self.nnode_psi):
-            psi_node = q[self.nodalDOF_psi[node]]
-            q[self.nodalDOF_psi[node]] = psi_node / norm(psi_node)
-        return q, u
+    ######################################################
+    # nodal Euler-Bernoulli constraints (two node element)
+    ######################################################
+    # # TODO: Depending on the reference element a different kind of constant 
+    # #       strain value is obtained.
+    # def g(self, t, q):
+    #     g = np.zeros(self.nla_g)
+    #     for node in range(self.nnode_psi):
+    #         # psi_node = q[self.nodalDOF_psi[node]]
+    #         # g[node] = psi_node @ psi_node - 1.0
+
+    #         # objective interpolation
+    #         _, _, K_Gamma_bar, K_Kappa_bar = self.eval(qe, self.qp[el, i])
+
+    #     return g
 
     # # TODO: This is no solution when we are using minimal vecloties!
     # def g(self, t, q):
@@ -940,6 +950,13 @@ class TimoshenkoQuarternionSE3:
     #########################################
     # kinematic equation
     #########################################
+    # normalization of the nodal quaternions length
+    def step_callback(self, t, q, u):
+        for node in range(self.nnode_psi):
+            psi_node = q[self.nodalDOF_psi[node]]
+            q[self.nodalDOF_psi[node]] = psi_node / norm(psi_node)
+        return q, u
+
     def q_dot(self, t, q, u):
         q_dot = np.zeros(self.nq)
 
@@ -958,6 +975,9 @@ class TimoshenkoQuarternionSE3:
             Q = Q_quat(psi) / (2.0 * psi @ psi)
             psi_dot = Q @ omega
             q_dot[nodalDOF_q_psi] = psi_dot
+
+            # c = 1.0e-2
+            # q_dot[nodalDOF_q_psi] = psi_dot + 0.5 * c * (1. - psi @ psi) * psi
 
         return q_dot
 
@@ -1639,8 +1659,14 @@ class TimoshenkoAxisAngleSE3:
             r_IB = qe[self.nodalDOF_element_r[self.node_B]]
 
             # nodal rotations
-            A_IA = rodriguez(qe[self.nodalDOF_element_psi[self.node_A]])
-            A_IB = rodriguez(qe[self.nodalDOF_element_psi[self.node_B]])
+            psi_A = qe[self.nodalDOF_element_psi[self.node_A]]
+            psi_B = qe[self.nodalDOF_element_psi[self.node_B]]
+            # psi_A = TimoshenkoAxisAngleSE3.psi_C(psi_A)
+            # psi_B = TimoshenkoAxisAngleSE3.psi_C(psi_B)
+            A_IA = rodriguez(psi_A)
+            A_IB = rodriguez(psi_B)
+            # A_IA = rodriguez(qe[self.nodalDOF_element_psi[self.node_A]])
+            # A_IB = rodriguez(qe[self.nodalDOF_element_psi[self.node_B]])
 
             # nodal SE(3) objects
             H_IA = SE3(A_IA, r_IA)
@@ -1650,11 +1676,15 @@ class TimoshenkoAxisAngleSE3:
             return H_IA @ se3exp(0.5 * SE3log(SE3inv(H_IA) @ H_IB))
         elif case == "left":
             r_I0 = qe[self.nodalDOF_element_r[0]]
-            A_I0 = rodriguez(qe[self.nodalDOF_element_psi[0]])
+            psi_0 = qe[self.nodalDOF_element_psi[0]]
+            # psi_0 = TimoshenkoAxisAngleSE3.psi_C(psi_0)
+            A_I0 = rodriguez(psi_0)
             return SE3(A_I0, r_I0)
         elif case == "right":
             r_I1 = qe[self.nodalDOF_element_r[-1]]
-            A_I1 = rodriguez(qe[self.nodalDOF_element_psi[-1]])
+            psi_1 = qe[self.nodalDOF_element_psi[-1]]
+            # psi_1 = TimoshenkoAxisAngleSE3.psi_C(psi_1)
+            A_I1 = rodriguez(psi_1)
             return SE3(A_I1, r_I1)
         else:
             raise RuntimeError("Unsupported case chosen.")
@@ -1689,7 +1719,10 @@ class TimoshenkoAxisAngleSE3:
             r_IK_node = qe[self.nodalDOF_element_r[node]]
 
             # nodal rotation
-            A_IK_node = rodriguez(qe[self.nodalDOF_element_psi[node]])
+            # A_IK_node = rodriguez(qe[self.nodalDOF_element_psi[node]])
+            psi_node = qe[self.nodalDOF_element_psi[node]]
+            # psi_node = TimoshenkoAxisAngleSE3.psi_C(psi_node)
+            A_IK_node = rodriguez(psi_node)
 
             # nodal SE(3) object
             H_IK_node = SE3(A_IK_node, r_IK_node)
@@ -1991,11 +2024,49 @@ class TimoshenkoAxisAngleSE3:
         # correct axis angle vector part
         for node in range(self.nnode_psi):
             nodalDOF_psi = self.nodalDOF_psi[node]
-
             psi = q[nodalDOF_psi]
-            omega = u[nodalDOF_psi]
-            psi_dot = inverse_tangent_map(psi) @ omega
+            # psi = TimoshenkoAxisAngleSE3.psi_C(psi)
+            K_omega_IK = u[nodalDOF_psi]
+
+            #####################################################
+            # original version without complement rotation vector
+            #####################################################
+            psi_dot = inverse_tangent_map(psi) @ K_omega_IK
             q_dot[nodalDOF_psi] = psi_dot
+
+            # #######################################################
+            # # version with complement rotation vector, see 
+            # # Ibrahimbegovic1995 after (62)
+            # #######################################################
+            # angle = norm(psi)
+            # if angle > 0:
+            #     n = int((angle + pi) / (2 * pi)) # number of complements
+            #     frac = n * 2. * pi / angle
+            #     angle_C = (1. - frac)
+            #     psi_C = angle_C * psi
+            #     e = psi / angle
+            #     B = angle_C * np.eye(3, dtype=float) + frac * np.outer(e, e)
+            #     # psi_C_dot = B @ inverse_tangent_map(psi_C) @ K_omega_IK
+            #     # # psi_C_dot = angle / (angle - n * 2. * pi) * inverse_tangent_map(psi_C) @ K_omega_IK
+
+            # else:
+            # #     psi_C = np.zeros(3, dtype=float)
+            # #     psi_C_dot = inverse_tangent_map(psi_C) @ K_omega_IK
+            #     B = np.eye(3, dtype=float)
+
+            # # q_dot[nodalDOF_psi] = psi_C_dot
+
+            # psi = q[nodalDOF_psi]
+            # psi_C = TimoshenkoAxisAngleSE3.psi_C(q[nodalDOF_psi])
+            # T_psi = tangent_map(psi)
+            # T_psi_C = tangent_map(psi_C)
+            # Tinv_psi = inverse_tangent_map(psi)
+            # Tinv_psi_C = inverse_tangent_map(psi_C)
+
+            # q_dot[nodalDOF_psi] = Tinv_psi @ T_psi_C @ B @ Tinv_psi_C @ K_omega_IK
+            
+            # # error = np.linalg.norm(T_psi - T_psi_C)
+            # # print(f"error tangent maps: {error}")
 
         return q_dot
 
@@ -2010,6 +2081,7 @@ class TimoshenkoAxisAngleSE3:
             nodalDOF_psi = self.nodalDOF_psi[node]
 
             psi = q[nodalDOF_psi]
+            # psi = TimoshenkoAxisAngleSE3.psi_C(psi)
             coo.extend(
                 inverse_tangent_map(psi),
                 (self.qDOF[nodalDOF_psi], self.uDOF[nodalDOF_psi]),
@@ -2024,6 +2096,7 @@ class TimoshenkoAxisAngleSE3:
             nodalDOF_psi = self.nodalDOF_psi[node]
 
             psi = q[nodalDOF_psi]
+            # psi = TimoshenkoAxisAngleSE3.psi_C(psi)
             omega = u[nodalDOF_psi]
             omega_dot = u_dot[nodalDOF_psi]
 
@@ -2047,18 +2120,16 @@ class TimoshenkoAxisAngleSE3:
             return psi
         else:
             # Ibrahimbegovic1995 after (62)
-            print(f"complement rotation vector is used")
-            n = int((angle + pi) / (2 * pi))
-            if angle > 0:
-                e = psi / angle
-            else:
-                e = psi.copy()
-            return psi - 2 * n * pi * e
+            # print(f"complement rotation vector is used")
+            # n = int((angle + pi) / (2 * pi)) # number of complements
+            # psi_C = (1. - n * 2. * pi / angle) * psi
+            psi_C = (1. - 2. * pi / angle) * psi
+            return psi_C
 
     def step_callback(self, t, q, u):
         for node in range(self.nnode_psi):
-            psi_node = q[self.nodalDOF_psi[node]]
-            q[self.nodalDOF_psi[node]] = TimoshenkoAxisAngle.psi_C(psi_node)
+            psi = q[self.nodalDOF_psi[node]]
+            q[self.nodalDOF_psi[node]] = TimoshenkoAxisAngleSE3.psi_C(psi)
         return q, u
 
     # # TODO: Do we have to count the number of complement rotations?
@@ -2165,20 +2236,16 @@ class TimoshenkoAxisAngleSE3:
         # evaluate required nodal shape functions
         N_psi, _ = self.basis_functions_psi(frame_ID[0])
 
-        # skew symmetric matrix of K_r_SP
         K_r_SP_tilde = ax2skew(K_r_SP)
+        A_IK_q = self.A_IK_q(t, q, frame_ID)
+        prod = np.einsum("ijl,jk", A_IK_q, K_r_SP_tilde)
 
         # interpolate axis angle contributions since centerline contributon is
         # zero
         J_P_q = np.zeros((3, self.nq_element, self.nq_element), dtype=float)
         for node in range(self.nnodes_element_psi):
             nodalDOF_psi = self.nodalDOF_element_psi[node]
-            A_IK_q = rodriguez_der(q[nodalDOF_psi])
-
-            # virtual rotation part
-            J_P_q[:, nodalDOF_psi[:, None], nodalDOF_psi] -= N_psi[node] * np.einsum(
-                "ijl,jk", A_IK_q, K_r_SP_tilde
-            )
+            J_P_q[:, nodalDOF_psi] -= N_psi[node] * prod
 
         return J_P_q
 

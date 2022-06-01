@@ -122,9 +122,10 @@ class ScipyIVP:
         nt = len(t)
         q = sol.y[: self.nq, :].T
         u = sol.y[self.nq :, :].T
-        la_g = np.zeros((nt, self.nla_g))
-        la_gamma = np.zeros((nt, self.nla_gamma))
-        for i, (ti, qi, ui) in enumerate(zip(t, q, u)):
-            la_g[i], la_gamma[i] = self.la_g_la_gamma(ti, qi, ui)
+        # la_g = np.zeros((nt, self.nla_g))
+        # la_gamma = np.zeros((nt, self.nla_gamma))
+        # for i, (ti, qi, ui) in enumerate(zip(t, q, u)):
+        #     la_g[i], la_gamma[i] = self.la_g_la_gamma(ti, qi, ui)
 
-        return Solution(t=t, q=q, u=u, la_g=la_g, la_gamma=la_gamma)
+        # return Solution(t=t, q=q, u=u, la_g=la_g, la_gamma=la_gamma)
+        return Solution(t=t, q=q, u=u)

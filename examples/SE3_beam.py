@@ -542,8 +542,8 @@ def locking():
     Meier2015: https://doi.org/10.1016/j.cma.2015.02.029
     """
     # Beam = TimoshenkoAxisAngle
-    # Beam = TimoshenkoAxisAngleSE3
-    Beam = TimoshenkoQuarternionSE3
+    Beam = TimoshenkoAxisAngleSE3
+    # Beam = TimoshenkoQuarternionSE3
 
     # number of elements
     nelements = 3
@@ -561,18 +561,18 @@ def locking():
 
     # beam length, see Meier2015  above (58)
     L = 1.0e3
-    # L = 1.0e4
 
     # selnderness (ratio L / r) and convergence tolerance,
     # see Meier2015 above (58)
-    triplet = (1.0e1, 1.0e-7, 25)
+    # triplet = (1.0e1, 1.0e-7, 25)
     # triplet = (1.0e2, 1.0e-9, 50)
     # triplet = (1.0e3, 1.0e-10, 100)
     # triplet = (1.0e4, 1.0e-13, 200)
+    triplet = (1.0e5, 1.0e-13, 200)
 
-    # pair = (1.0e4, 1.0e-10)
     slenderness, atol, n_load_steps = triplet
-    # n_load_steps = 25
+    n_load_steps = 25 # full cirlce
+    # n_load_steps = 200 # helix?
 
     # used cross section
     width = L / slenderness
@@ -644,15 +644,15 @@ def locking():
 
     # build different tolerances for static equilibrium and constraint forces
     # atol_u = np.ones(model.nu, dtype=float) * atol
-    # atol_la_g = np.ones(model.nla_g, dtype=float) * 1.0e-10
-    # atol_la_S = np.ones(model.nla_S, dtype=float) * 1.0e-10
+    # atol_la_g = np.ones(model.nla_g, dtype=float) * 1.0e-12
+    # atol_la_S = np.ones(model.nla_S, dtype=float) * 1.0e-12
     # atol = np.concatenate((atol_u, atol_la_g, atol_la_S))
-    # # rtol = atol * 1e2
+    # atol = 1.0e-10
+    # rtol = atol * 1e2
     rtol = 0
+    # rtol = 1.0e-8
 
     # define constraint degrees of freedom
-    # TODO: In order to get this working for the quternion beam we have to add
-    #       cDOF_la_S and for completeness also cDOF_la_g and cDOF_la_N.
     if Beam == TimoshenkoAxisAngleSE3:
         cDOF_q = np.concatenate(
             [np.arange(3, dtype=int), np.arange(3, dtype=int) + beam.nq_r]
@@ -690,7 +690,7 @@ def locking():
         cDOF_S=cDOF_S,
         b=b,
         n_load_steps=n_load_steps,
-        max_iter=50,
+        max_iter=100,
         atol=atol,
         rtol=rtol,
     )
@@ -701,12 +701,16 @@ def locking():
     nt = len(q)
     t = sol.t[:nt]
 
+
+    ##################################
     # visualize nodal rotation vectors
+    ##################################
     fig, ax = plt.subplots()
 
-    for i, nodalDOF_psi in enumerate(beam.nodalDOF_psi):
-        psi = q[:, beam.qDOF[nodalDOF_psi]]
-        ax.plot(t, np.linalg.norm(psi, axis=1), label=f"||psi{i}||")
+    # visualize tip rotation vector
+    psi1 = q[:, beam.qDOF[beam.nodalDOF_psi[-1]]]
+    for i, psi in enumerate(psi1.T):
+        ax.plot(t, psi, label=f"psi1_{i}")
 
     ax.set_xlabel("t")
     ax.set_ylabel("nodal rotation vectors")
@@ -1312,12 +1316,12 @@ def HeavyTop(case="Maekinen2006"):
             return dx
 
     # Beam = TimoshenkoAxisAngle
-    # Beam = TimoshenkoAxisAngleSE3
-    Beam = TimoshenkoQuarternionSE3
+    Beam = TimoshenkoAxisAngleSE3
+    # Beam = TimoshenkoQuarternionSE3
 
     # number of elements
-    nelements = 3
-    # nelements = 1
+    # nelements = 3
+    nelements = 1
 
     # used polynomial degree
     polynomial_degree = 1
@@ -1438,13 +1442,17 @@ def HeavyTop(case="Maekinen2006"):
         t1 = 10  # used by Simo1991
     else:
         t1 = 2.0 * pi / omega_pr
-        t1 *= 0.125
+        # t1 *= 0.25
+        # t1 *= 0.125
+        t1 *= 0.075
+        # t1 = 0.05
+        # t1 = 0.1
 
     # nt = np.ceil(t1 / 1.0e-3)
     dt = t1 * 1.0e-3
-    # dt = 1.0e-3
-    rtol = 1.0e-5
-    atol = 1.0e-5
+    # dt = 1.0e-4
+    rtol = 1.0e-6
+    atol = 1.0e-6
 
     # compute reference solution using Euler top equations
     heavy_top = RigidHeavyTopODE(m, r, l, g)
@@ -1483,11 +1491,35 @@ def HeavyTop(case="Maekinen2006"):
     # exit()
 
     solver = ScipyIVP(model, t1, dt, method="RK23", rtol=rtol, atol=atol)
+    # solver = ScipyIVP(model, t1, dt, method="RK45", rtol=rtol, atol=atol)
+    # solver = Moreau(model, t1, dt)
 
     sol = solver.solve()
     q = sol.q
     nt = len(q)
     t = sol.t[:nt]
+
+    ##################################
+    # visualize nodal rotation vectors
+    ##################################
+    fig, ax = plt.subplots()
+
+    # for i, nodalDOF_psi in enumerate(beam.nodalDOF_psi):
+    #     psi = q[:, beam.qDOF[nodalDOF_psi]]
+    #     ax.plot(t, np.linalg.norm(psi, axis=1), label=f"||psi{i}||")
+
+    # visualize tip rotation vector
+    psi1 = q[:, beam.qDOF[beam.nodalDOF_psi[-1]]]
+    for i, psi in enumerate(psi1.T):
+        ax.plot(t, psi, label=f"psi1_{i}")
+
+    ax.set_xlabel("t")
+    ax.set_ylabel("nodal rotation vectors")
+    ax.grid()
+    ax.legend()
+
+    # plt.show()
+    # exit()
 
     ############################
     # Visualize tip displacement
@@ -1521,16 +1553,24 @@ def HeavyTop(case="Maekinen2006"):
 
     # tip displacement
     ax = fig.add_subplot(1, 2, 2)
+
     ax.set_title("tip displacement (components)")
+
     ax.plot(t, r_OP_ref[:, 0], "-r", label="x_ref")
     ax.plot(t, r_OP_ref[:, 1], "-g", label="y_ref")
-    ax.plot(t, r_OP_ref[:, 2], "-b", label="z_ref")
     ax.plot(t, r_OP[:, 0], "--r", label="x_beam")
     ax.plot(t, r_OP[:, 1], "--g", label="y_beam")
-    ax.plot(t, r_OP[:, 2], "--b", label="z_beam")
     ax.set_xlabel("t")
+    ax.set_ylabel("x, y")
     ax.grid()
     ax.legend()
+
+    ax2 = ax.twinx()
+    ax2.plot(t, r_OP_ref[:, 2], "-b", label="z_ref")
+    ax2.plot(t, r_OP[:, 2], "--b", label="z_beam")
+    ax2.set_ylabel("z")
+    ax2.grid()
+    ax2.legend()
 
     # # Euler angles
     # ax = fig.add_subplot(2, 3, 4)
@@ -1744,9 +1784,9 @@ def Dschanibekow():
 if __name__ == "__main__":
     # run(statics=True)
     # run(statics=False)
-    locking()
+    # locking()
     # SE3_interpolation()
     # HelixIbrahimbegovic1997()
     # HeavyTopMaekinen2006(case="Maekinen2006")
-    # HeavyTop(case="Other")
+    HeavyTop(case="Other")
     # Dschanibekow()
