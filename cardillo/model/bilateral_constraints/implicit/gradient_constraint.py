@@ -146,7 +146,7 @@ class Rigid_connection():
         return g
 # TODO: Only constraint on gradient (possible on dirichlet boundary?)
 class Gradient_constraint():
-        def __init__(self, subsystem, la_mesh, srf_id=0, x=0):
+    def __init__(self, subsystem, la_mesh, srf_id=0, x=0):
         self.subsystem = subsystem
         self.srf_mesh = subsystem.mesh.surface_mesh[srf_id]
         self.la_mesh = la_mesh
