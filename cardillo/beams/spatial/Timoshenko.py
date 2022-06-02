@@ -662,7 +662,7 @@ class TimoshenkoQuarternionSE3:
     ######################################################
     # nodal Euler-Bernoulli constraints (two node element)
     ######################################################
-    # # TODO: Depending on the reference element a different kind of constant 
+    # # TODO: Depending on the reference element a different kind of constant
     # #       strain value is obtained.
     # def g(self, t, q):
     #     g = np.zeros(self.nla_g)
@@ -2035,7 +2035,7 @@ class TimoshenkoAxisAngleSE3:
             q_dot[nodalDOF_psi] = psi_dot
 
             # #######################################################
-            # # version with complement rotation vector, see 
+            # # version with complement rotation vector, see
             # # Ibrahimbegovic1995 after (62)
             # #######################################################
             # angle = norm(psi)
@@ -2064,7 +2064,7 @@ class TimoshenkoAxisAngleSE3:
             # Tinv_psi_C = inverse_tangent_map(psi_C)
 
             # q_dot[nodalDOF_psi] = Tinv_psi @ T_psi_C @ B @ Tinv_psi_C @ K_omega_IK
-            
+
             # # error = np.linalg.norm(T_psi - T_psi_C)
             # # print(f"error tangent maps: {error}")
 
@@ -2123,7 +2123,7 @@ class TimoshenkoAxisAngleSE3:
             # print(f"complement rotation vector is used")
             # n = int((angle + pi) / (2 * pi)) # number of complements
             # psi_C = (1. - n * 2. * pi / angle) * psi
-            psi_C = (1. - 2. * pi / angle) * psi
+            psi_C = (1.0 - 2.0 * pi / angle) * psi
             return psi_C
 
     def step_callback(self, t, q, u):

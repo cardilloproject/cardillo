@@ -571,7 +571,7 @@ def locking():
     triplet = (1.0e5, 1.0e-13, 200)
 
     slenderness, atol, n_load_steps = triplet
-    n_load_steps = 25 # full cirlce
+    n_load_steps = 25  # full cirlce
     # n_load_steps = 200 # helix?
 
     # used cross section
@@ -700,7 +700,6 @@ def locking():
     q = sol.q
     nt = len(q)
     t = sol.t[:nt]
-
 
     ##################################
     # visualize nodal rotation vectors
