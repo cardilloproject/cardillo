@@ -1,5 +1,6 @@
 from .RigidBodyEuler import RigidBodyEuler
-from .rigid_body_axis_angle import RigidBodyAxisAngle
+from .RigidBodyAxisAngle import RigidBodyAxisAngle
+from .RigidBodyQuaternion import RigidBodyQuaternion
 
 # TODO:
 # from .rigid_body_quaternion import Rigid_body_quaternion

@@ -169,6 +169,13 @@ class SphericalJoint:
     def g_q(self, t, q, coo):
         coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
 
+    # TODO:
+    def g_q_T_mu_g(self, t, q, mu_g, coo):
+        dense = approx_fprime(
+            q, lambda q: self.g_q_dense(t, q).T @ mu_g, method="2-point"
+        )
+        coo.extend(dense, (self.qDOF, self.qDOF))
+
     def W_g_dense(self, t, q):
         nu1 = self.nu1
         J_P1 = self.J_B1(t, q)

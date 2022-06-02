@@ -10,19 +10,9 @@ from cardillo.math import (
 )
 
 
-class Rigid_body_quaternion:
-    """Rigid body parametrized by center of mass in inertial system and unit quaternions for rotation.
-
-    Parameters
-    ----------
-    m : float
-        mass
-    K_theta_S : ndarray
-        inertia tensor in body-fixed frame
-    q0 : ndarray, optional
-        initial position coordinates
-    u0 : ndarray, optional
-        initial velocity coordinates
+class RigidBodyQuaternion:
+    """Rigid body parametrized by center of mass in inertial system and unit 
+    quaternions for rotation.
 
     References
     ----------
@@ -142,6 +132,9 @@ class Rigid_body_quaternion:
 
     def v_P(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
         return u[:3] + self.A_IK(t, q) @ cross3(u[3:], K_r_SP)
+
+    def v_P_q(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
+        return np.einsum("ijk,j->ik", self.A_IK_q(t, q), cross3(u[3:], K_r_SP))
 
     def a_P(self, t, q, u, u_dot, frame_ID=None, K_r_SP=np.zeros(3)):
         return u_dot[:3] + self.A_IK(t, q) @ (

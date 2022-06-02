@@ -1,24 +1,75 @@
 import numpy as np
 from math import sin, cos, pi
 import matplotlib.pyplot as plt
+from cardillo.math.rotations import A_IK_basic, rodriguez_inv, spurrier
 
 from cardillo.model.frame.frame import Frame
-from cardillo.model.rigid_body import RigidBodyEuler
+from cardillo.model.rigid_body import (
+    RigidBodyEuler,
+    RigidBodyAxisAngle,
+    RigidBodyQuaternion,
+)
 from cardillo.model.bilateral_constraints.implicit import SphericalJoint
 from cardillo.math.algebra import cross3, ax2skew
 from cardillo.math import approx_fprime
 from cardillo.model import Model
 from cardillo.solver import GenAlphaFirstOrder, GenAlphaFirstOrderGGL2_V3
 
+# case = "Euler"
+# case = "Euler_self"
+# case = "AxisAngle"
+case = "Quaternion"
 
-class HeavyTop2(RigidBodyEuler):
+
+class HeavyTopQuaternion(RigidBodyQuaternion):
     def __init__(self, A, B, grav, q0=None, u0=None):
         self.grav = grav
         self.r_OQ = r_OQ
 
         # initialize rigid body
         self.K_Theta_S = np.diag([A, A, B])
-        RigidBodyEuler.__init__(self, m, self.K_Theta_S, axis="zxz", q0=q0, u0=u0)
+        RigidBodyQuaternion.__init__(self, m, self.K_Theta_S, q0=q0, u0=u0)
+
+        # gravity
+        self.f_g = np.array([0, 0, -self.m * self.grav])
+
+    def f_pot(self, t, q):
+        return self.f_g @ self.J_P(t, q)
+
+    def f_pot_q(self, t, q, coo):
+        dense = np.einsum("i,ijk->jk", self.f_g, self.J_P_q(t, q))
+        coo.extend(dense, (self.uDOF, self.qDOF))
+
+
+class HeavyTopAxisAngle(RigidBodyAxisAngle):
+    def __init__(self, A, B, grav, q0=None, u0=None):
+        self.grav = grav
+        self.r_OQ = r_OQ
+
+        # initialize rigid body
+        self.K_Theta_S = np.diag([A, A, B])
+        RigidBodyAxisAngle.__init__(self, m, self.K_Theta_S, q0=q0, u0=u0)
+
+        # gravity
+        self.f_g = np.array([0, 0, -self.m * self.grav])
+
+    def f_pot(self, t, q):
+        return self.f_g @ self.J_P(t, q)
+
+    def f_pot_q(self, t, q, coo):
+        dense = np.einsum("i,ijk->jk", self.f_g, self.J_P_q(t, q))
+        coo.extend(dense, (self.uDOF, self.qDOF))
+
+
+class HeavyTopEuler(RigidBodyEuler):
+    def __init__(self, A, B, grav, q0=None, u0=None):
+        self.grav = grav
+        self.r_OQ = r_OQ
+
+        # initialize rigid body
+        self.K_Theta_S = np.diag([A, A, B])
+        # RigidBodyEuler.__init__(self, m, self.K_Theta_S, axis="zxz", q0=q0, u0=u0)
+        RigidBodyEuler.__init__(self, m, self.K_Theta_S, axis="zyx", q0=q0, u0=u0)
 
         # gravity
         self.f_g = np.array([0, 0, -self.m * self.grav])
@@ -368,7 +419,14 @@ K_r_OS0 = np.array([0, 0, l])
 A_IK0 = HeavyTop.A_IK(0, [0, 0, 0, alpha0, beta0, gamma0])
 r_OS0 = A_IK0 @ K_r_OS0
 
-q0 = np.concatenate((r_OS0, phi0))
+if case == "Euler" or case == "Euler_self":
+    q0 = np.concatenate((r_OS0, phi0))
+elif case == "AxisAngle":
+    q0 = np.concatenate((r_OS0, rodriguez_inv(A_IK0)))
+elif case == "Quaternion":
+    q0 = np.concatenate((r_OS0, spurrier(A_IK0)))
+else:
+    raise NotImplementedError
 
 ####################
 # initial velocities
@@ -378,20 +436,27 @@ v_S0 = A_IK0 @ cross3(K_Omega0, K_r_OS0)
 u0 = np.concatenate((v_S0, K_Omega0))
 
 # 1. hand written version
-top1 = HeavyTop(m, l, A, B, grav, r_OQ, q0, u0)
-model = Model()
-model.add(top1)
-model.assemble()
+if case == "Euler_self":
+    top1 = HeavyTop(m, l, A, B, grav, r_OQ, q0, u0)
+    model = Model()
+    model.add(top1)
+    model.assemble()
+else:
+    # 2. reuse existing RigidBodyEuler and SphericalJoint
+    frame = Frame()
+    if case == "Euler":
+        top2 = HeavyTopEuler(A, B, grav, q0, u0)
+    elif case == "AxisAngle":
+        top2 = HeavyTopAxisAngle(A, B, grav, q0, u0)
+    elif case == "Quaternion":
+        top2 = HeavyTopQuaternion(A, B, grav, q0, u0)
 
-# # 2. reuse existing RigidBodyEuler and SphericalJoint
-# frame = Frame()
-# top2 = HeavyTop2(A, B, grav, q0, u0)
-# spherical_joint = SphericalJoint(frame, top2, np.zeros(3))
-# model = Model()
-# model.add(top2)
-# model.add(frame)
-# model.add(spherical_joint)
-# model.assemble()
+    spherical_joint = SphericalJoint(frame, top2, np.zeros(3))
+    model = Model()
+    model.add(top2)
+    model.add(frame)
+    model.add(spherical_joint)
+    model.assemble()
 
 
 def state():
@@ -1189,6 +1254,6 @@ def convergence():
 
 if __name__ == "__main__":
     # state()
-    # transient()
-    gaps()
+    transient()
+    # gaps()
     # convergence()
