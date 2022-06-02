@@ -1,6 +1,7 @@
 import numpy as np
 from math import sin, cos, pi
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 from cardillo.math.rotations import A_IK_basic, rodriguez_inv, spurrier
 
 from cardillo.model.frame.frame import Frame
@@ -326,7 +327,7 @@ class HeavyTop:
 
         q = np.array([*r_OS, *angles])
         u = np.array([*v_S, *omegas])
-        la_g = top1.la_g(t, q, u)
+        la_g = top.la_g(t, q, u)
 
         return q, u, la_g
 
@@ -399,9 +400,8 @@ A = 0.234375
 B = 0.46875
 l = 1.0
 grav = 9.81
-alpha0 = 0
+alpha0 = pi
 beta0 = pi / 2
-# beta0 = pi / 9
 gamma0 = 0
 
 omega_x0 = 0
@@ -437,26 +437,107 @@ u0 = np.concatenate((v_S0, K_Omega0))
 
 # 1. hand written version
 if case == "Euler_self":
-    top1 = HeavyTop(m, l, A, B, grav, r_OQ, q0, u0)
+    top = HeavyTop(m, l, A, B, grav, r_OQ, q0, u0)
     model = Model()
-    model.add(top1)
+    model.add(top)
     model.assemble()
 else:
     # 2. reuse existing RigidBodyEuler and SphericalJoint
     frame = Frame()
     if case == "Euler":
-        top2 = HeavyTopEuler(A, B, grav, q0, u0)
+        top = HeavyTopEuler(A, B, grav, q0, u0)
     elif case == "AxisAngle":
-        top2 = HeavyTopAxisAngle(A, B, grav, q0, u0)
+        top = HeavyTopAxisAngle(A, B, grav, q0, u0)
     elif case == "Quaternion":
-        top2 = HeavyTopQuaternion(A, B, grav, q0, u0)
+        top = HeavyTopQuaternion(A, B, grav, q0, u0)
 
-    spherical_joint = SphericalJoint(frame, top2, np.zeros(3))
+    spherical_joint = SphericalJoint(frame, top, np.zeros(3))
     model = Model()
-    model.add(top2)
+    model.add(top)
     model.add(frame)
     model.add(spherical_joint)
     model.assemble()
+
+
+def show_animation(top, t, q, scale=1, show=False):
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection="3d")
+
+    ax.set_xlabel("x [m]")
+    ax.set_ylabel("y [m]")
+    ax.set_zlabel("z [m]")
+    ax.set_xlim3d(left=-scale, right=scale)
+    ax.set_ylim3d(bottom=-scale, top=scale)
+    ax.set_zlim3d(bottom=-scale, top=scale)
+
+    slowmotion = 1
+    fps = 200
+    t0 = t[0]
+    t1 = t[-1]
+    animation_time = slowmotion * t1
+    target_frames = int(fps * animation_time)
+    frac = max(1, int(len(t) / target_frames))
+    if frac == 1:
+        target_frames = len(t)
+    interval = 1000 / fps
+
+    frames = target_frames
+    t = t[::frac]
+    q = q[::frac]
+
+    def create(t, q):
+        x_S, y_S, z_S = top.r_OP(t, q)
+
+        A_IK = top.A_IK(t, q)
+        d1, d2, d3 = A_IK.T
+
+        (COM,) = ax.plot([0.0, x_S], [0.0, y_S], [0.0, z_S], "-ok")
+        (d1_,) = ax.plot(
+            [x_S, x_S + d1[0]], [y_S, y_S + d1[1]], [z_S, z_S + d1[2]], "-r"
+        )
+        (d2_,) = ax.plot(
+            [x_S, x_S + d2[0]], [y_S, y_S + d2[1]], [z_S, z_S + d2[2]], "-g"
+        )
+        (d3_,) = ax.plot(
+            [x_S, x_S + d3[0]], [y_S, y_S + d3[1]], [z_S, z_S + d3[2]], "-b"
+        )
+
+        return COM, d1_, d2_, d3_
+
+    COM, d1_, d2_, d3_ = create(t0, q[0])
+
+    def update(t, q, COM, d1_, d2_, d3_):
+        x_S, y_S, z_S = top.r_OP(t, q)
+
+        A_IK = top.A_IK(t, q)
+        d1, d2, d3 = A_IK.T
+
+        COM.set_data(np.array([0.0, x_S]), np.array([0.0, y_S]))
+        COM.set_3d_properties(np.array([0.0, z_S]))
+
+        d1_.set_data(np.array([x_S, x_S + d1[0]]), np.array([y_S, y_S + d1[1]]))
+        d1_.set_3d_properties(np.array([z_S, z_S + d1[2]]))
+
+        d2_.set_data(np.array([x_S, x_S + d2[0]]), np.array([y_S, y_S + d2[1]]))
+        d2_.set_3d_properties(np.array([z_S, z_S + d2[2]]))
+
+        d3_.set_data(np.array([x_S, x_S + d3[0]]), np.array([y_S, y_S + d3[1]]))
+        d3_.set_3d_properties(np.array([z_S, z_S + d3[2]]))
+
+        return COM, d1_, d2_, d3_
+
+    def animate(i):
+        update(t[i], q[i], COM, d1_, d2_, d3_)
+
+    anim = animation.FuncAnimation(
+        fig, animate, frames=frames, interval=interval, blit=False
+    )
+
+    if show:
+        plt.show()
+
+    return anim
 
 
 def state():
@@ -538,6 +619,8 @@ def state():
     ax.plot(t, la_g[:, 2], "-b", label="la_g2")
     ax.grid()
     ax.legend()
+
+    anim = show_animation(top, t, q)
 
     plt.show()
 
@@ -701,17 +784,17 @@ def gaps():
 
         return g, g_dot, g_ddot
 
-    # # solve index 3 problem with rho_inf = 0.9
-    # sol_9 = GenAlphaFirstOrder(
-    #     model, t1, h, rho_inf=0.9, tol=tol, unknowns="velocities", GGL=False
-    # ).solve()
-    # g_9, g_dot_9, g_ddot_9 = export_gaps(sol_9, "g_9.txt")
+    # solve index 3 problem with rho_inf = 0.9
+    sol_9 = GenAlphaFirstOrder(
+        model, t1, h, rho_inf=0.9, tol=tol, unknowns="velocities", GGL=False
+    ).solve()
+    g_9, g_dot_9, g_ddot_9 = export_gaps(sol_9, "g_9.txt")
 
-    # # solve GGL with rho_inf = 0.9
-    # sol_9_GGL = GenAlphaFirstOrder(
-    #     model, t1, h, rho_inf=0.9, tol=tol, unknowns="velocities", GGL=True
-    # ).solve()
-    # g_9_GGL, g_dot_9_GGL, g_ddot_9_GGL = export_gaps(sol_9_GGL, "g_9_GGL.txt")
+    # solve GGL with rho_inf = 0.9
+    sol_9_GGL = GenAlphaFirstOrder(
+        model, t1, h, rho_inf=0.9, tol=tol, unknowns="velocities", GGL=True
+    ).solve()
+    g_9_GGL, g_dot_9_GGL, g_ddot_9_GGL = export_gaps(sol_9_GGL, "g_9_GGL.txt")
 
     # solve GGL2 with rho_inf = 0.9
     sol_9_GGL2 = GenAlphaFirstOrderGGL2_V3(
@@ -724,37 +807,37 @@ def gaps():
     ###################
     fig = plt.figure(figsize=plt.figaspect(1))
 
-    # # index 3
-    # ax = fig.add_subplot(3, 3, 1)
-    # ax.plot(sol_9.t, g_9, "-k", label="||g_9||")
-    # ax.grid()
-    # ax.legend()
+    # index 3
+    ax = fig.add_subplot(3, 3, 1)
+    ax.plot(sol_9.t, g_9, "-k", label="||g_9||")
+    ax.grid()
+    ax.legend()
 
-    # ax = fig.add_subplot(3, 3, 4)
-    # ax.plot(sol_9.t, g_dot_9, "-k", label="||g_dot_9||")
-    # ax.grid()
-    # ax.legend()
+    ax = fig.add_subplot(3, 3, 4)
+    ax.plot(sol_9.t, g_dot_9, "-k", label="||g_dot_9||")
+    ax.grid()
+    ax.legend()
 
-    # ax = fig.add_subplot(3, 3, 7)
-    # ax.plot(sol_9.t, g_ddot_9, "-k", label="||g_ddot_9||")
-    # ax.grid()
-    # ax.legend()
+    ax = fig.add_subplot(3, 3, 7)
+    ax.plot(sol_9.t, g_ddot_9, "-k", label="||g_ddot_9||")
+    ax.grid()
+    ax.legend()
 
-    # # index 2
-    # ax = fig.add_subplot(3, 3, 2)
-    # ax.plot(sol_9_GGL.t, g_9_GGL, "-k", label="||g_9_GGL||")
-    # ax.grid()
-    # ax.legend()
+    # index 2
+    ax = fig.add_subplot(3, 3, 2)
+    ax.plot(sol_9_GGL.t, g_9_GGL, "-k", label="||g_9_GGL||")
+    ax.grid()
+    ax.legend()
 
-    # ax = fig.add_subplot(3, 3, 5)
-    # ax.plot(sol_9_GGL.t, g_dot_9_GGL, "-k", label="||g_dot_9_GGL||")
-    # ax.grid()
-    # ax.legend()
+    ax = fig.add_subplot(3, 3, 5)
+    ax.plot(sol_9_GGL.t, g_dot_9_GGL, "-k", label="||g_dot_9_GGL||")
+    ax.grid()
+    ax.legend()
 
-    # ax = fig.add_subplot(3, 3, 8)
-    # ax.plot(sol_9_GGL.t, g_ddot_9_GGL, "-k", label="||g_ddot_9_GGL||")
-    # ax.grid()
-    # ax.legend()
+    ax = fig.add_subplot(3, 3, 8)
+    ax.plot(sol_9_GGL.t, g_ddot_9_GGL, "-k", label="||g_ddot_9_GGL||")
+    ax.grid()
+    ax.legend()
 
     # index 1
     ax = fig.add_subplot(3, 3, 3)
@@ -781,20 +864,13 @@ def convergence():
     tol = 1.0e-8
 
     # compute step sizes with powers of 2
-    # dt_ref = 1.0e-5
-    dt_ref = 2.5e-5
-    # dts = (2.0 ** np.arange(9, 3, -1)) * dt_ref
-    dts = (2.0 ** np.arange(8, 2, -1)) * dt_ref
+    dt_ref = 2.5e-5  # Arnold2015b
+    dts = (2.0 ** np.arange(8, 1, -1)) * dt_ref  # [6.4e-3, 3.2e-3, ..., 2e-4, 1e-4]
+    # dts = (2.0 ** np.arange(8, 5, -1)) * dt_ref  # [6.4e-3, 3.2e-3, 1.6e-3]
 
-    # # end time
-    # # t1 = (2. ** 14) * dt_ref # this is 0.16384
-    # # t1 = (2. ** 13) * dt_ref # this is 0.8192
-    # # t1 = (2. ** 7) * dt_ref
-    # t1 = (2.0**17) * dt_ref  # this is 1.31072 s; TODO: Use this later!
-
+    # end time (note this has to be > 0.5, otherwise long term error throws ans error)
     t1 = (2.0**15) * dt_ref  # this yields 0.8192 for dt_ref = 2.5e-5
     # t1 = (2.0**16) * dt_ref # this yields 1.6384 for dt_ref = 2.5e-5
-    dt_ref *= 16
 
     # # TODO: Only for debugging!
     # dt_ref = 5e-4
@@ -1122,138 +1198,183 @@ def convergence():
     ##################
     # visualize errors
     ##################
+    fig, ax = plt.subplots(2, 2)
 
-    # transient errors
-    fig, ax = plt.subplots(2, 3)
-
-    # errors position formulation
+    ax[0, 0].set_title("velocity formulation (transient)")
     ax[0, 0].loglog(dts, dts_1, "-k", label="dt")
     ax[0, 0].loglog(dts, dts_2, "--k", label="dt^2")
-    ax[0, 0].loglog(dts, q_errors_transient[0], "-.ro", label="q")
-    ax[0, 0].loglog(dts, u_errors_transient[0], "-.go", label="u")
-    ax[0, 0].loglog(dts, la_g_errors_transient[0], "-.bo", label="la_g")
-    ax[0, 0].set_title("position formulation")
+    ax[0, 0].loglog(dts, q_errors_transient[1], "-.ro", label="q")
+    ax[0, 0].loglog(dts, u_errors_transient[1], "-.go", label="u")
+    ax[0, 0].loglog(dts, la_g_errors_transient[1], "-.bo", label="la_g")
     ax[0, 0].grid()
     ax[0, 0].legend()
 
-    # errors velocity formulation
-    ax[0, 1].loglog(dts, dts_1, "-k", label="dt")
-    ax[0, 1].loglog(dts, dts_2, "--k", label="dt^2")
-    ax[0, 1].loglog(dts, q_errors_transient[1], "-.ro", label="q")
-    ax[0, 1].loglog(dts, u_errors_transient[1], "-.go", label="u")
-    ax[0, 1].loglog(dts, la_g_errors_transient[1], "-.bo", label="la_g")
-    ax[0, 1].set_title("velocity formulation")
-    ax[0, 1].grid()
-    ax[0, 1].legend()
-
-    # errors auxiliary formulation
-    ax[0, 2].loglog(dts, dts_1, "-k", label="dt")
-    ax[0, 2].loglog(dts, dts_2, "--k", label="dt^2")
-    ax[0, 2].loglog(dts, q_errors_transient[2], "-.ro", label="q")
-    ax[0, 2].loglog(dts, u_errors_transient[2], "-.go", label="u")
-    ax[0, 2].loglog(dts, la_g_errors_transient[2], "-.bo", label="la_g")
-    ax[0, 2].set_title("auxiliary formulation")
-    ax[0, 2].grid()
-    ax[0, 2].legend()
-
-    # errors position formulation
+    ax[1, 0].set_title("velocity formulation GGL (transient)")
     ax[1, 0].loglog(dts, dts_1, "-k", label="dt")
     ax[1, 0].loglog(dts, dts_2, "--k", label="dt^2")
-    ax[1, 0].loglog(dts, q_errors_transient[3], "-.ro", label="q")
-    ax[1, 0].loglog(dts, u_errors_transient[3], "-.go", label="u")
-    ax[1, 0].loglog(dts, la_g_errors_transient[3], "-.bo", label="la_g")
-    ax[1, 0].set_title("position formulation GGL")
+    ax[1, 0].loglog(dts, q_errors_transient[4], "-.ro", label="q")
+    ax[1, 0].loglog(dts, u_errors_transient[4], "-.go", label="u")
+    ax[1, 0].loglog(dts, la_g_errors_transient[4], "-.bo", label="la_g")
     ax[1, 0].grid()
     ax[1, 0].legend()
 
-    # errors velocity formulation
-    ax[1, 1].loglog(dts, dts_1, "-k", label="dt")
-    ax[1, 1].loglog(dts, dts_2, "--k", label="dt^2")
-    ax[1, 1].loglog(dts, q_errors_transient[4], "-.ro", label="q")
-    ax[1, 1].loglog(dts, u_errors_transient[4], "-.go", label="u")
-    ax[1, 1].loglog(dts, la_g_errors_transient[4], "-.bo", label="la_g")
-    ax[1, 1].set_title("velocity formulation GGL")
-    ax[1, 1].grid()
-    ax[1, 1].legend()
-
-    # errors auxiliary formulation
-    ax[1, 2].loglog(dts, dts_1, "-k", label="dt")
-    ax[1, 2].loglog(dts, dts_2, "--k", label="dt^2")
-    ax[1, 2].loglog(dts, q_errors_transient[5], "-.ro", label="q")
-    ax[1, 2].loglog(dts, u_errors_transient[5], "-.go", label="u")
-    ax[1, 2].loglog(dts, la_g_errors_transient[5], "-.bo", label="la_g")
-    ax[1, 2].set_title("auxiliary formulation GGL")
-    ax[1, 2].grid()
-    ax[1, 2].legend()
-
-    # longterm errors
-    fig, ax = plt.subplots(2, 3)
-
-    # errors position formulation
-    ax[0, 0].loglog(dts, dts_1, "-k", label="dt")
-    ax[0, 0].loglog(dts, dts_2, "--k", label="dt^2")
-    ax[0, 0].loglog(dts, q_errors_longterm[0], "-.ro", label="q")
-    ax[0, 0].loglog(dts, u_errors_longterm[0], "-.go", label="u")
-    ax[0, 0].loglog(dts, la_g_errors_longterm[0], "-.bo", label="la_g")
-    ax[0, 0].set_title("position formulation")
-    ax[0, 0].grid()
-    ax[0, 0].legend()
-
-    # errors velocity formulation
+    ax[0, 1].set_title("velocity formulation (long term)")
     ax[0, 1].loglog(dts, dts_1, "-k", label="dt")
     ax[0, 1].loglog(dts, dts_2, "--k", label="dt^2")
     ax[0, 1].loglog(dts, q_errors_longterm[1], "-.ro", label="q")
     ax[0, 1].loglog(dts, u_errors_longterm[1], "-.go", label="u")
     ax[0, 1].loglog(dts, la_g_errors_longterm[1], "-.bo", label="la_g")
-    ax[0, 1].set_title("velocity formulation")
     ax[0, 1].grid()
     ax[0, 1].legend()
 
-    # errors auxiliary formulation
-    ax[0, 2].loglog(dts, dts_1, "-k", label="dt")
-    ax[0, 2].loglog(dts, dts_2, "--k", label="dt^2")
-    ax[0, 2].loglog(dts, q_errors_longterm[2], "-.ro", label="q")
-    ax[0, 2].loglog(dts, u_errors_longterm[2], "-.go", label="u")
-    ax[0, 2].loglog(dts, la_g_errors_longterm[2], "-.bo", label="la_g")
-    ax[0, 2].set_title("auxiliary formulation")
-    ax[0, 2].grid()
-    ax[0, 2].legend()
-
-    # errors position formulation
-    ax[1, 0].loglog(dts, dts_1, "-k", label="dt")
-    ax[1, 0].loglog(dts, dts_2, "--k", label="dt^2")
-    ax[1, 0].loglog(dts, q_errors_longterm[3], "-.ro", label="q")
-    ax[1, 0].loglog(dts, u_errors_longterm[3], "-.go", label="u")
-    ax[1, 0].loglog(dts, la_g_errors_longterm[3], "-.bo", label="la_g")
-    ax[1, 0].set_title("position formulation GGL")
-    ax[1, 0].grid()
-    ax[1, 0].legend()
-
-    # errors velocity formulation
+    ax[1, 1].set_title("velocity formulation GGL (long term)")
     ax[1, 1].loglog(dts, dts_1, "-k", label="dt")
     ax[1, 1].loglog(dts, dts_2, "--k", label="dt^2")
     ax[1, 1].loglog(dts, q_errors_longterm[4], "-.ro", label="q")
     ax[1, 1].loglog(dts, u_errors_longterm[4], "-.go", label="u")
     ax[1, 1].loglog(dts, la_g_errors_longterm[4], "-.bo", label="la_g")
-    ax[1, 1].set_title("velocity formulation GGL")
     ax[1, 1].grid()
     ax[1, 1].legend()
 
-    # errors auxiliary formulation
-    ax[1, 2].loglog(dts, dts_1, "-k", label="dt")
-    ax[1, 2].loglog(dts, dts_2, "--k", label="dt^2")
-    ax[1, 2].loglog(dts, q_errors_longterm[5], "-.ro", label="q")
-    ax[1, 2].loglog(dts, u_errors_longterm[5], "-.go", label="u")
-    ax[1, 2].loglog(dts, la_g_errors_longterm[5], "-.bo", label="la_g")
-    ax[1, 2].set_title("auxiliary formulation GGL")
-    ax[1, 2].grid()
-    ax[1, 2].legend()
-
     plt.show()
+
+    # #################
+    # # transient errors
+    # #################
+    # fig, ax = plt.subplots(2, 3)
+    # fig.suptitle("Transient phase", fontsize=16)
+
+    # # errors position formulation
+    # ax[0, 0].loglog(dts, dts_1, "-k", label="dt")
+    # ax[0, 0].loglog(dts, dts_2, "--k", label="dt^2")
+    # ax[0, 0].loglog(dts, q_errors_transient[0], "-.ro", label="q")
+    # ax[0, 0].loglog(dts, u_errors_transient[0], "-.go", label="u")
+    # ax[0, 0].loglog(dts, la_g_errors_transient[0], "-.bo", label="la_g")
+    # ax[0, 0].set_title("position formulation")
+    # ax[0, 0].grid()
+    # ax[0, 0].legend()
+
+    # # errors velocity formulation
+    # ax[0, 1].loglog(dts, dts_1, "-k", label="dt")
+    # ax[0, 1].loglog(dts, dts_2, "--k", label="dt^2")
+    # ax[0, 1].loglog(dts, q_errors_transient[1], "-.ro", label="q")
+    # ax[0, 1].loglog(dts, u_errors_transient[1], "-.go", label="u")
+    # ax[0, 1].loglog(dts, la_g_errors_transient[1], "-.bo", label="la_g")
+    # ax[0, 1].set_title("velocity formulation")
+    # ax[0, 1].grid()
+    # ax[0, 1].legend()
+
+    # # errors auxiliary formulation
+    # ax[0, 2].loglog(dts, dts_1, "-k", label="dt")
+    # ax[0, 2].loglog(dts, dts_2, "--k", label="dt^2")
+    # ax[0, 2].loglog(dts, q_errors_transient[2], "-.ro", label="q")
+    # ax[0, 2].loglog(dts, u_errors_transient[2], "-.go", label="u")
+    # ax[0, 2].loglog(dts, la_g_errors_transient[2], "-.bo", label="la_g")
+    # ax[0, 2].set_title("auxiliary formulation")
+    # ax[0, 2].grid()
+    # ax[0, 2].legend()
+
+    # # errors position formulation
+    # ax[1, 0].loglog(dts, dts_1, "-k", label="dt")
+    # ax[1, 0].loglog(dts, dts_2, "--k", label="dt^2")
+    # ax[1, 0].loglog(dts, q_errors_transient[3], "-.ro", label="q")
+    # ax[1, 0].loglog(dts, u_errors_transient[3], "-.go", label="u")
+    # ax[1, 0].loglog(dts, la_g_errors_transient[3], "-.bo", label="la_g")
+    # ax[1, 0].set_title("position formulation GGL")
+    # ax[1, 0].grid()
+    # ax[1, 0].legend()
+
+    # # errors velocity formulation
+    # ax[1, 1].loglog(dts, dts_1, "-k", label="dt")
+    # ax[1, 1].loglog(dts, dts_2, "--k", label="dt^2")
+    # ax[1, 1].loglog(dts, q_errors_transient[4], "-.ro", label="q")
+    # ax[1, 1].loglog(dts, u_errors_transient[4], "-.go", label="u")
+    # ax[1, 1].loglog(dts, la_g_errors_transient[4], "-.bo", label="la_g")
+    # ax[1, 1].set_title("velocity formulation GGL")
+    # ax[1, 1].grid()
+    # ax[1, 1].legend()
+
+    # # errors auxiliary formulation
+    # ax[1, 2].loglog(dts, dts_1, "-k", label="dt")
+    # ax[1, 2].loglog(dts, dts_2, "--k", label="dt^2")
+    # ax[1, 2].loglog(dts, q_errors_transient[5], "-.ro", label="q")
+    # ax[1, 2].loglog(dts, u_errors_transient[5], "-.go", label="u")
+    # ax[1, 2].loglog(dts, la_g_errors_transient[5], "-.bo", label="la_g")
+    # ax[1, 2].set_title("auxiliary formulation GGL")
+    # ax[1, 2].grid()
+    # ax[1, 2].legend()
+
+    # #################
+    # # longterm errors
+    # #################
+    # fig, ax = plt.subplots(2, 3)
+    # fig.suptitle("Long term phase", fontsize=16)
+
+    # # errors position formulation
+    # ax[0, 0].loglog(dts, dts_1, "-k", label="dt")
+    # ax[0, 0].loglog(dts, dts_2, "--k", label="dt^2")
+    # ax[0, 0].loglog(dts, q_errors_longterm[0], "-.ro", label="q")
+    # ax[0, 0].loglog(dts, u_errors_longterm[0], "-.go", label="u")
+    # ax[0, 0].loglog(dts, la_g_errors_longterm[0], "-.bo", label="la_g")
+    # ax[0, 0].set_title("position formulation")
+    # ax[0, 0].grid()
+    # ax[0, 0].legend()
+
+    # # errors velocity formulation
+    # ax[0, 1].loglog(dts, dts_1, "-k", label="dt")
+    # ax[0, 1].loglog(dts, dts_2, "--k", label="dt^2")
+    # ax[0, 1].loglog(dts, q_errors_longterm[1], "-.ro", label="q")
+    # ax[0, 1].loglog(dts, u_errors_longterm[1], "-.go", label="u")
+    # ax[0, 1].loglog(dts, la_g_errors_longterm[1], "-.bo", label="la_g")
+    # ax[0, 1].set_title("velocity formulation")
+    # ax[0, 1].grid()
+    # ax[0, 1].legend()
+
+    # # errors auxiliary formulation
+    # ax[0, 2].loglog(dts, dts_1, "-k", label="dt")
+    # ax[0, 2].loglog(dts, dts_2, "--k", label="dt^2")
+    # ax[0, 2].loglog(dts, q_errors_longterm[2], "-.ro", label="q")
+    # ax[0, 2].loglog(dts, u_errors_longterm[2], "-.go", label="u")
+    # ax[0, 2].loglog(dts, la_g_errors_longterm[2], "-.bo", label="la_g")
+    # ax[0, 2].set_title("auxiliary formulation")
+    # ax[0, 2].grid()
+    # ax[0, 2].legend()
+
+    # # errors position formulation
+    # ax[1, 0].loglog(dts, dts_1, "-k", label="dt")
+    # ax[1, 0].loglog(dts, dts_2, "--k", label="dt^2")
+    # ax[1, 0].loglog(dts, q_errors_longterm[3], "-.ro", label="q")
+    # ax[1, 0].loglog(dts, u_errors_longterm[3], "-.go", label="u")
+    # ax[1, 0].loglog(dts, la_g_errors_longterm[3], "-.bo", label="la_g")
+    # ax[1, 0].set_title("position formulation GGL")
+    # ax[1, 0].grid()
+    # ax[1, 0].legend()
+
+    # # errors velocity formulation
+    # ax[1, 1].loglog(dts, dts_1, "-k", label="dt")
+    # ax[1, 1].loglog(dts, dts_2, "--k", label="dt^2")
+    # ax[1, 1].loglog(dts, q_errors_longterm[4], "-.ro", label="q")
+    # ax[1, 1].loglog(dts, u_errors_longterm[4], "-.go", label="u")
+    # ax[1, 1].loglog(dts, la_g_errors_longterm[4], "-.bo", label="la_g")
+    # ax[1, 1].set_title("velocity formulation GGL")
+    # ax[1, 1].grid()
+    # ax[1, 1].legend()
+
+    # # errors auxiliary formulation
+    # ax[1, 2].loglog(dts, dts_1, "-k", label="dt")
+    # ax[1, 2].loglog(dts, dts_2, "--k", label="dt^2")
+    # ax[1, 2].loglog(dts, q_errors_longterm[5], "-.ro", label="q")
+    # ax[1, 2].loglog(dts, u_errors_longterm[5], "-.go", label="u")
+    # ax[1, 2].loglog(dts, la_g_errors_longterm[5], "-.bo", label="la_g")
+    # ax[1, 2].set_title("auxiliary formulation GGL")
+    # ax[1, 2].grid()
+    # ax[1, 2].legend()
+
+    # plt.show()
 
 
 if __name__ == "__main__":
-    # state()
-    transient()
+    state()
+    # transient()
     # gaps()
     # convergence()
