@@ -314,7 +314,7 @@ class Panto_grid():
                     # if [nx, ny, nz][bc_i] in [0, n_xyz[bc_i]]:
                     #    continue
                     pivot = self.pivot_grid[nx, ny, nz]
-                    if pivot and ([nx, ny, nz][bc_i] not in [0, n_xyz[bc_i]]):
+                    if pivot:# and ([nx, ny, nz][bc_i] not in [0, n_xyz[bc_i]]):
                         r_OBp = np.sqrt(
                             2) * L/2 * np.array([nx, ny, nz])
                         pivot['pivot'] = Pivot(r_OBp, rigid=rigid_pivot)
@@ -385,8 +385,8 @@ class Panto_grid():
                     #     bc_pivots['middle'].append(
                     #         self.pivot_grid[(nx, ny, 1)]['pivot'])
 
-        # self.bc = []
-        # rigid connection between beams and frame
+       # self.bc = []
+       # rigid connection between beams and frame
         # for _, beam_bottom in bc_beams['bottom']:
         #     beam = beam_bottom['beam'].beam
         #     r_OB_bottom = beam.r_OP(0, beam.q0[beam.qDOF_P(
@@ -400,6 +400,8 @@ class Panto_grid():
         #     beam = beam_top['beam'].beam
         #     r_OB_top = beam.r_OP(
         #         0, beam.q0[beam.qDOF_P(beam_top['f_ID'])], beam_top['f_ID'])
+        #     rigid_top = Rigid_connection(
+        #         beam, frame_top, r_OB_top, beam_top['f_ID'])
         #     rigid_top = Rigid_connection(
         #         beam, frame_top, r_OB_top, beam_top['f_ID'])
 
@@ -416,7 +418,7 @@ class Panto_grid():
                 # self.bc.append(Single_position_all_angles(
                 #     pivot.body[0], frame_top, r_OB, A_IK_x))
                 self.bc.append(Single_position_y(
-                    pivot.body[0], frame_top, r_OB, A_IK_z))
+                    pivot.body[0], frame_top, r_OB, A_IK_y))
 
         for i, pivot in enumerate(bc_pivots['bottom']):
             r_OB = pivot.r_OB
@@ -425,13 +427,13 @@ class Panto_grid():
                     pivot.body[0], frame_bottom, r_OB))
             else:
                 self.bc.append(Single_position_y(
-                    pivot.body[0], frame_bottom, r_OB, A_IK_z))
-                self.bc.append(Single_position_all_angles(
-                    pivot.body[0], frame_bottom, r_OB, A_IK_x))
-                self.bc.append(Linear_guidance_xyz(
-                    pivot.body[0], frame_bottom, r_OB, A_IK_x))
-                self.bc.append(Rigid_connection(
-                    pivot.body[0], frame_bottom, r_OB))
+                    pivot.body[0], frame_bottom, r_OB, A_IK_y))
+                # self.bc.append(Single_position_all_angles(
+                #     pivot.body[0], frame_bottom, r_OB, A_IK_x))
+                # self.bc.append(Linear_guidance_xyz(
+                #     pivot.body[0], frame_bottom, r_OB, A_IK_x))
+                # self.bc.append(Rigid_connection(
+                #     pivot.body[0], frame_bottom, r_OB))
 
         # for pivot in bc_pivots['middle']:
         #     r_OB = pivot.r_OB

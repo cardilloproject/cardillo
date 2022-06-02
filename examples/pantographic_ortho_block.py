@@ -52,16 +52,20 @@ def boundary_conditions_cube(cube_shape, mesh, Z, fix=[4], fix_derivatives=False
             else:
                 if 'tension' in tests:
                     cDOF1 = mesh.surface_qDOF[4].ravel()
+                    # cDOF1 = mesh.surface_qDOF[4][0]
+                    cDOF1 = mesh.surface_qDOF[4].T[0]
+                    cDOFxy = mesh.surface_qDOF[4][2]
+                    cDOF1 = np.unique(np.concatenate((cDOF1, cDOFxy)))
                     cDOF3 = mesh.surface_qDOF[bc[0]][0]
                     cDOF4 = mesh.surface_qDOF[bc[0]][1]
                     cDOF2 = mesh.surface_qDOF[bc[0]][2]
-                    cDOF134 = np.concatenate((cDOF1, cDOF3, cDOF4,))
+                    cDOF134 = np.concatenate((cDOF1, cDOF3, cDOF4))
                     cDOF = np.concatenate((cDOF134, cDOF2))
-                    b1 = lambda t: Z[cDOF134]
+                    cDOF = np.concatenate((cDOF1, cDOF2))
+                    b1 = lambda t: Z[cDOF1]
                     b2 = lambda t: Z[cDOF2] + t * 30.0
-                    # b = lambda t: np.concatenate((b1(t), b2(t)))
-                    cDOF = cDOF2
-                    b = lambda t: b2(t)
+                    b = lambda t: np.concatenate((b1(t), b2(t)))
+                    # b = lambda t: b2(t)
                 if fix_derivatives:
                     pass
                 if 'torsion' in tests:
