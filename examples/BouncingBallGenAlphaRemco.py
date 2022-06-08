@@ -1,14 +1,65 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from cardillo.math import approx_fprime
-from cardillo.solver import Solution
+import pickle
 
 
-def prox_R0p(x):
+class Solution:
+    """Class to store solver outputs."""
+
+    def __init__(self, **kwargs):
+        self.__dict__.update(**kwargs)
+
+    def save(self, filename):
+        with open(filename, mode="wb") as f:
+            pickle.dump(sol, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+
+def approx_fprime(x0, f, eps=1.0e-6, method="2-point"):
+    """Approximate derivatives using finite differences."""
+    x0 = np.atleast_1d(x0)
+    f0 = np.atleast_1d(f(x0))
+
+    # reshape possible mutidimensional arguments to 1D arrays and wrap f
+    # accordingly
+    x_shape = x0.shape
+    xx = x0.reshape(-1)
+    ff = lambda x: f(x.reshape(x_shape))
+    m = len(xx)
+
+    f_shape = f0.shape
+    grad = np.empty(f_shape + (m,))
+
+    h = np.diag(eps * np.ones_like(x0))
+    for i in range(m):
+        if method == "2-point":
+            x = x0 + h[i]
+            dx = x[i] - x0[i]  # Recompute dx as exactly representable number.
+            df = ff(x) - f0
+        elif method == "3-point":
+            x1 = x0 + h[i]
+            x2 = x0 - h[i]
+            dx = x2[i] - x1[i]  # Recompute dx as exactly representable number.
+            df = ff(x2) - ff(x1)
+        elif method == "cs":
+            f1 = ff(x0 + h[i] * 1.0j)
+            df = f1.imag
+            dx = h[i]
+        else:
+            raise RuntimeError('method "{method}" is not implemented!')
+
+        grad[..., i] = df / dx
+
+    return np.squeeze(grad.reshape(f_shape + x_shape))
+
+
+def prox_R0np(x):
+    """Proximal point to the set R_0^{n+}."""
     return np.maximum(x, 0)
 
 
 class BouncingBall:
+    """Class defining the bouncing ball system."""
+
     def __init__(self, m, gravity, radius, e_N, prox_r, q0, u0):
         self.m = m
         self.gravity = gravity
@@ -20,7 +71,7 @@ class BouncingBall:
         self.u0 = u0
 
     def M(self, t, q):
-        return self.m * np.eye(1, dtype=float)
+        return np.array([[self.m]], dtype=float)
 
     def h(self, t, q, u):
         return np.array([-self.m * self.gravity], dtype=float)
@@ -38,10 +89,13 @@ class BouncingBall:
         return u_post + self.e_N * u_pre
 
     def W_N(self, t, q):
-        return np.ones(1, dtype=float)
+        # return np.ones(1, dtype=float)
+        return np.array([[1.0]], dtype=float)
 
 
 class GenAlpha:
+    """Generalized alpha solver for one dimensional bouncing ball example."""
+
     def __init__(self, t0, t1, dt, model, max_iter=20, atol=1.0e-8):
         self.t0 = t0
         self.t1 = t1
@@ -65,6 +119,8 @@ class GenAlpha:
         lak = np.zeros(1, dtype=float)
         Lak = np.zeros(1, dtype=float)
         kappak = np.zeros(1, dtype=float)
+
+        # initial vector of unknowns
         self.xk = np.concatenate(
             [
                 ak,
@@ -76,7 +132,7 @@ class GenAlpha:
             ]
         )
 
-        # initialize active contact sets since we assume to start with no contact!
+        # initialize inactive contact sets since we assume to start with no contact!
         self.Ak1 = np.zeros(1, dtype=bool)
         self.Bk1 = np.zeros(1, dtype=bool)
         self.Ck1 = np.zeros(1, dtype=bool)
@@ -145,9 +201,6 @@ class GenAlpha:
             self.Ak1 = prox_arg_position <= 0
             self.Bk1 = self.Ak1 * (prox_arg_velocity <= 0)
             self.Ck1 = self.Bk1 * (prox_arg_acceleration <= 0)
-            # self.Ak1 = g_Nk1 <= 0
-            # self.Bk1 = self.Ak1 * (xi_Nk1 <= 0)
-            # self.Ck1 = self.Bk1 * (g_N_ddotk1 <= 0)
 
         # complementarity on position level
         # R[3] = g_Nk1 - prox_R0p(prox_arg_position)
@@ -155,6 +208,7 @@ class GenAlpha:
             R[3] = g_Nk1
         else:
             R[3] = kappa_hatk1
+            # R[3] = kappak1
 
         # complementarity on velocity level
         # if self.Ak1:
@@ -189,7 +243,6 @@ class GenAlpha:
         P = []
         kappa = []
         kappa_hat = []
-
         u = []
         q = []
         La = []
@@ -200,8 +253,9 @@ class GenAlpha:
         for k, tk1 in enumerate(t):
             print(f"k: {k}; tk1: {tk1:2.3f}")
 
+            # initial residual and error; update active contact set during each
+            # redidual computation
             R = self.residual(tk1, xk1, update_index_set=True)
-            # error = np.linalg.norm(R)
             error = np.max(np.abs(R))
 
             i = 0
@@ -221,12 +275,19 @@ class GenAlpha:
                 q.append(qk1)
                 La.append(Lak1)
             else:
+                # Newton-Raphson loop
                 for i in range(self.max_iter):
+                    # compute Jacobian matrix with same index set
                     J = self.Jacobian(tk1, xk1)
+
+                    # compute updated state
                     xk1 -= np.linalg.solve(J, R)
+
+                    # new residual and error; update active contact set during
+                    # each redidual computation
                     R = self.residual(tk1, xk1, update_index_set=True)
-                    # error = np.linalg.norm(R)
                     error = np.max(np.abs(R))
+
                     if error < self.atol:
                         ak1, Uk1, Qk1, kappak1, Lak1, lak1 = self.unpack(xk1)
                         qk1, uk1, Pk1, kappa_hatk1 = self.update(xk1)
@@ -297,7 +358,7 @@ if __name__ == "__main__":
     # create solver and solve the nonsmooth problem
     t0 = 0
     t1 = 1.5
-    dt = 1.0e-3
+    dt = 1.0e-2
     sol = GenAlpha(t0, t1, dt, ball).solve()
 
     fig, ax = plt.subplots(3, 3)
