@@ -1,7 +1,7 @@
 from __future__ import annotations
 import numpy as np
-from math import sin, cos, tan, sqrt, atan2
-from cardillo.math import norm, cross3, ax2skew, ax2skew_a, ei
+from math import sin, cos, tan, sqrt, atan2, acos
+from cardillo.math import norm, cross3, skew2ax, ax2skew, ax2skew_a, ei
 
 
 class A_IK_basic:
@@ -248,7 +248,15 @@ def quat2axis_angle(Q: np.ndarray) -> np.ndarray:
 
 
 def rodriguez_inv(R: np.ndarray) -> np.ndarray:
+    # trace = R[0, 0] + R[1, 1] + R[2, 2]
+    # psi = acos(0.5 * (trace - 1.))
+    # if psi > 0:
+    #     return skew2ax(0.5 * psi / sin(psi) * (R - R.T))
+    # else:
+    #     return np.zeros(3, dtype=float)
+
     return quat2axis_angle(spurrier(R))
+
     # # alternative formulation using scipy's Rotation module
     # from scipy.spatial.transform import Rotation
     # return Rotation.from_matrix(R).as_rotvec()

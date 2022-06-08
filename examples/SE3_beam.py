@@ -556,8 +556,8 @@ def locking():
     print(f"nquadrature_points: {nquadrature_points}")
 
     # used shape functions for discretization
-    shape_functions = "B-spline"
-    # shape_functions = "Lagrange"
+    # shape_functions = "B-spline"
+    shape_functions = "Lagrange"
 
     # beam length, see Meier2015  above (58)
     L = 1.0e3
@@ -1783,9 +1783,9 @@ def Dschanibekow():
 if __name__ == "__main__":
     # run(statics=True)
     # run(statics=False)
-    # locking()
+    locking()
     # SE3_interpolation()
     # HelixIbrahimbegovic1997()
     # HeavyTopMaekinen2006(case="Maekinen2006")
-    HeavyTop(case="Other")
+    # HeavyTop(case="Other")
     # Dschanibekow()

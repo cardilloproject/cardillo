@@ -98,7 +98,9 @@ class Mesh1D:
             elDOF_el_u = np.arange(self.nu_per_element)
             for el in range(self.nelement):
                 self.elDOF[el] = elDOF_el + el * (self.nnodes_per_element - 1) * dim_q
-                self.elDOF_u[el] = elDOF_el_u + el * (self.nnodes_per_element - 1) * dim_u
+                self.elDOF_u[el] = (
+                    elDOF_el_u + el * (self.nnodes_per_element - 1) * dim_u
+                )
 
             self.vtk_cell_type = "VTK_LAGRANGE_CURVE"
         elif basis == "Hermite":

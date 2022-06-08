@@ -693,9 +693,9 @@ class TimoshenkoQuarternionSE3:
                 psi += self.N_psi[el, i, node] * qe[self.nodalDOF_element_psi[node]]
 
             # compute interpolated constraint equation
-            g_S_i = (psi @ psi - 1.)
+            g_S_i = psi @ psi - 1.0
 
-            # span constraint equation using same shape functions as for 
+            # span constraint equation using same shape functions as for
             # quaternion interpolation
             for node in range(self.nnodes_element_la):
                 nodalDOF_la = self.nodalDOF_element_la[node]
@@ -716,15 +716,21 @@ class TimoshenkoQuarternionSE3:
                 psi += self.N_psi[el, i, node_a] * qe[self.nodalDOF_element_psi[node_a]]
 
             # compute interpolated constraint equation
-            g_S_q_i = np.array([2. * psi], dtype=float)
+            g_S_q_i = np.array([2.0 * psi], dtype=float)
 
-            # span constraint equation using same shape functions as for 
+            # span constraint equation using same shape functions as for
             # quaternion interpolation
             for node_a in range(self.nnodes_element_la):
                 nodalDOF_la = self.nodalDOF_element_la[node_a]
                 for node_b in range(self.nnodes_element_psi):
                     nodalDOF_psi = self.nodalDOF_element_psi[node_b]
-                    g_S_q_el[nodalDOF_la[:, None], nodalDOF_psi] += self.mesh_la.N[el, i, node_a] * g_S_q_i * self.N_psi[el, i, node_b] * Ji * qwi
+                    g_S_q_el[nodalDOF_la[:, None], nodalDOF_psi] += (
+                        self.mesh_la.N[el, i, node_a]
+                        * g_S_q_i
+                        * self.N_psi[el, i, node_b]
+                        * Ji
+                        * qwi
+                    )
 
         return g_S_q_el
 
