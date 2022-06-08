@@ -245,9 +245,11 @@ class TimoshenkoQuarternionSE3:
         if basis == "B-spline":
             self.knot_vector_r = KnotVector(polynomial_degree_r, nelement)
             self.knot_vector_psi = KnotVector(polynomial_degree_psi, nelement)
+            self.knot_vector_la = KnotVector(polynomial_degree_r, nelement)
         elif basis == "Lagrange":
             self.knot_vector_r = Node_vector(polynomial_degree_r, nelement)
             self.knot_vector_psi = Node_vector(polynomial_degree_psi, nelement)
+            self.knot_vector_la = Node_vector(polynomial_degree_r, nelement)
         else:
             raise RuntimeError(f'wrong basis: "{basis}" was chosen')
 
@@ -255,6 +257,7 @@ class TimoshenkoQuarternionSE3:
         self.nq_node_r = nq_node_r = 3
         self.nq_node_psi = nq_node_psi = 4
         self.nu_node_psi = nu_node_psi = 3
+        self.nq_node_la = nq_node_la = 1
 
         # centerline mesh
         self.mesh_r = Mesh1D(
@@ -275,13 +278,24 @@ class TimoshenkoQuarternionSE3:
             dim_u=nu_node_psi,
         )
 
+        # Lagrange multiplier mesh
+        self.mesh_la = Mesh1D(
+            self.knot_vector_la,
+            nquadrature,
+            derivative_order=1,
+            basis=basis,
+            dim_q=nq_node_la,
+        )
+
         # toal number of nodes
         self.nnode_r = self.mesh_r.nnodes
         self.nnode_psi = self.mesh_psi.nnodes
+        self.nnode_la = self.mesh_la.nnodes
 
         # number of nodes per element
         self.nnodes_element_r = self.mesh_r.nnodes_per_element
         self.nnodes_element_psi = self.mesh_psi.nnodes_per_element
+        self.nnodes_element_la = self.mesh_la.nnodes_per_element
 
         # total number of generalized coordinates
         self.nq_r = self.mesh_r.nq
@@ -290,12 +304,13 @@ class TimoshenkoQuarternionSE3:
         self.nu_r = self.mesh_r.nu
         self.nu_psi = self.mesh_psi.nu
         self.nu = self.nu_r + self.nu_psi  # total number of generalized velocities
+        # self.nla_S = self.mesh_psi.nnodes  # total number of Lagrange mutipliers
         self.nla_S = self.mesh_psi.nnodes  # total number of Lagrange mutipliers
-        # self.nla_g = self.mesh_psi.nnodes  # total number of Lagrange mutipliers
 
         # number of generalized coordiantes per element
         self.nq_element_r = self.mesh_r.nq_per_element
         self.nq_element_psi = self.mesh_psi.nq_per_element
+        self.nq_element_la = self.mesh_la.nq_per_element
         self.nq_element = self.nq_element_r + self.nq_element_psi
         self.nu_element_r = self.mesh_r.nu_per_element
         self.nu_element_psi = self.mesh_psi.nu_per_element
@@ -320,6 +335,7 @@ class TimoshenkoQuarternionSE3:
         self.nodalDOF_element_u_psi = (
             self.mesh_psi.nodalDOF_element_u + self.nu_element_r
         )
+        self.nodalDOF_element_la = self.mesh_la.nodalDOF_element
 
         # build global elDOF connectivity matrix
         self.elDOF = np.zeros((nelement, self.nq_element), dtype=int)
@@ -644,20 +660,92 @@ class TimoshenkoQuarternionSE3:
     #############################################
     # bilateral constraints for quaternion length
     #############################################
+    # ##############################
+    # # nodal constraint formulation
+    # ##############################
+    # def g_S(self, t, q):
+    #     g_S = np.zeros(self.nla_S)
+    #     for node in range(self.nnode_psi):
+    #         psi_node = q[self.nodalDOF_psi[node]]
+    #         g_S[node] = psi_node @ psi_node - 1.0
+
+    # def g_S_q(self, t, q, coo):
+    #     for node in range(self.nnode_psi):
+    #         nodalDOF = self.nodalDOF_psi[node]
+    #         psi_node = q[nodalDOF]
+    #         coo.extend(
+    #             np.array([2.0 * psi_node]), (self.la_SDOF[node], self.qDOF[nodalDOF])
+    #         )
+
+    #################################
+    # integral constraint formulation
+    #################################
+    def g_S_el(self, qe, el):
+        g_S_el = np.zeros(self.nq_element_la, dtype=float)
+
+        for i in range(self.nquadrature):
+            Ji = self.J[el, i]
+            qwi = self.qw[el, i]
+
+            # interpolate quaternion
+            psi = np.zeros(4, dtype=float)
+            for node in range(self.nnodes_element_psi):
+                psi += self.N_psi[el, i, node] * qe[self.nodalDOF_element_psi[node]]
+
+            # compute interpolated constraint equation
+            g_S_i = (psi @ psi - 1.)
+
+            # span constraint equation using same shape functions as for 
+            # quaternion interpolation
+            for node in range(self.nnodes_element_la):
+                nodalDOF_la = self.nodalDOF_element_la[node]
+                g_S_el[nodalDOF_la] += self.mesh_la.N[el, i, node] * g_S_i * Ji * qwi
+
+        return g_S_el
+
+    def g_S_q_el(self, qe, el):
+        g_S_q_el = np.zeros((self.nq_element_la, self.nq_element), dtype=float)
+
+        for i in range(self.nquadrature):
+            Ji = self.J[el, i]
+            qwi = self.qw[el, i]
+
+            # interpolate quaternion
+            psi = np.zeros(4, dtype=float)
+            for node_a in range(self.nnodes_element_psi):
+                psi += self.N_psi[el, i, node_a] * qe[self.nodalDOF_element_psi[node_a]]
+
+            # compute interpolated constraint equation
+            g_S_q_i = np.array([2. * psi], dtype=float)
+
+            # span constraint equation using same shape functions as for 
+            # quaternion interpolation
+            for node_a in range(self.nnodes_element_la):
+                nodalDOF_la = self.nodalDOF_element_la[node_a]
+                for node_b in range(self.nnodes_element_psi):
+                    nodalDOF_psi = self.nodalDOF_element_psi[node_b]
+                    g_S_q_el[nodalDOF_la[:, None], nodalDOF_psi] += self.mesh_la.N[el, i, node_a] * g_S_q_i * self.N_psi[el, i, node_b] * Ji * qwi
+
+        return g_S_q_el
+
+        # g_S_q_el_num =  approx_fprime(qe, lambda qe: self.g_S_el(qe, el), method="3-point")
+        # diff = g_S_q_el - g_S_q_el_num
+        # error = np.linalg.norm(diff)
+        # print(f"error g_s_q_el: {error}")
+        # return g_S_q_el_num
+
     def g_S(self, t, q):
         g_S = np.zeros(self.nla_S)
-        for node in range(self.nnode_psi):
-            psi_node = q[self.nodalDOF_psi[node]]
-            g_S[node] = psi_node @ psi_node - 1.0
+        for el in range(self.nelement):
+            g_S[self.mesh_la.elDOF[el]] += self.g_S_el(q[self.elDOF[el]], el)
         return g_S
 
     def g_S_q(self, t, q, coo):
-        for node in range(self.nnode_psi):
-            nodalDOF = self.nodalDOF_psi[node]
-            psi_node = q[nodalDOF]
-            coo.extend(
-                np.array([2.0 * psi_node]), (self.la_SDOF[node], self.qDOF[nodalDOF])
-            )
+        for el in range(self.nelement):
+            elDOF = self.elDOF[el]
+            elDOF_la = self.mesh_la.elDOF[el]
+            g_q = self.g_S_q_el(q[elDOF], el)
+            coo.extend(g_q, (self.la_SDOF[elDOF_la], self.qDOF[elDOF]))
 
     ######################################################
     # nodal Euler-Bernoulli constraints (two node element)
@@ -1692,18 +1780,18 @@ class TimoshenkoAxisAngleSE3:
     def relative_interpolation(self, H_IR: np.ndarray, qe: np.ndarray, xi: float):
         """Interpolation function for relative rotation vectors proposed by
         Crisfield1999 (5.7) and (5.8)."""
-        # evaluate shape functions
-        # TODO: They have to coincide for r and psi!
-        N, N_xi, _ = self.basis_functions_r(xi)
+        # # evaluate shape functions
+        # # TODO: They have to coincide for r and psi!
+        # N, N_xi, _ = self.basis_functions_r(xi)
 
-        # # hard coded linear shape functions
-        # assert self.polynomial_degree_r == 1 and self.polynomial_degree_psi == 1
-        # el = self.element_number(xi)
-        # xi0, xi1 = self.knot_vector_r.element_interval(el)
-        # linv = 1.0 / (xi1 - xi0)
-        # diff = (xi - xi0) * linv
-        # N = np.array([1.0 - diff, diff])
-        # N_xi = np.array([-linv, linv])
+        # hard coded linear shape functions
+        assert self.polynomial_degree_r == 1 and self.polynomial_degree_psi == 1
+        el = self.element_number(xi)
+        xi0, xi1 = self.knot_vector_r.element_interval(el)
+        linv = 1.0 / (xi1 - xi0)
+        diff = (xi - xi0) * linv
+        N = np.array([1.0 - diff, diff])
+        N_xi = np.array([-linv, linv])
 
         # relative interpolation of local se(3) objects
         h_rel = np.zeros(6, dtype=float)
@@ -1747,11 +1835,11 @@ class TimoshenkoAxisAngleSE3:
         # composition of reference rotation and relative one
         H_IK = H_IR @ se3exp(h_rel)
 
-        ###################
-        # objective strains
-        ###################
-        T = se3tangent_map(h_rel)
-        strains = T @ h_rel_xi
+        # ###################
+        # # objective strains
+        # ###################
+        # T = se3tangent_map(h_rel)
+        # strains = T @ h_rel_xi
 
         # ############################################
         # # alternative computation of strain measures
@@ -1777,11 +1865,11 @@ class TimoshenkoAxisAngleSE3:
         # # print(f"error strains: {error}")
         # # print(f"error strains: {diff}")
 
-        # #################################################################
-        # # This alternative formulation works for pure bending experiments
-        # #################################################################
-        # assert self.polynomial_degree_r == 1
-        # strains = h_rel_xi
+        #################################################################
+        # This alternative formulation works for pure bending experiments
+        #################################################################
+        assert self.polynomial_degree_r == 1
+        strains = h_rel_xi
 
         # extract centerline and transformation
         A_IK = H_IK[:3, :3]
