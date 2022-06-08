@@ -90,22 +90,15 @@ class Mesh1D:
         self.elDOF_u = np.zeros((self.nelement, self.nu_per_element), dtype=int)
 
         if basis == "Lagrange":
-            raise NotImplementedError("Adapt according to new ordering of q!")
+            # raise NotImplementedError("Adapt according to new ordering of q!")
             # total number of nodes
             self.nnodes = self.degree * self.nelement + 1
 
-            # # TODO: Move on here!
-            # elDOF_el = np.arange(self.nq_per_element)
-            # for el in range(self.nelement):
-            #     self.elDOF[el] = elDOF_el + el * dim
-
-            # for el in range(self.nelement):
-            #     for no in range(self.nnodes_per_element_):
-            #         elDOF_x = self.degree * el + no
-            #         for dof in range(self.dim):
-            #             self.elDOF[el, no + self.nnodes_per_element_ * dof] = (
-            #                 elDOF_x + self.nnodes * dof
-            #             )
+            elDOF_el = np.arange(self.nq_per_element)
+            elDOF_el_u = np.arange(self.nu_per_element)
+            for el in range(self.nelement):
+                self.elDOF[el] = elDOF_el + el * (self.nnodes_per_element - 1) * dim_q
+                self.elDOF_u[el] = elDOF_el_u + el * (self.nnodes_per_element - 1) * dim_u
 
             self.vtk_cell_type = "VTK_LAGRANGE_CURVE"
         elif basis == "Hermite":
