@@ -1,4 +1,4 @@
-from cardillo.model.rigid_body import rigid_body_quaternion
+from cardillo.model.rigid_body import RigidBodyQuaternion
 import numpy as np
 from scipy.integrate import solve_ivp
 from math import cos, sin, sqrt, tan

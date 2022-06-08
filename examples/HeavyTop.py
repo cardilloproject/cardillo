@@ -563,6 +563,19 @@ def state():
     u = sol.u
     la_g = sol.la_g
 
+    def export_q(sol, name):
+        header = "t, x, y, z, al, be, ga"
+        export_data = np.vstack([sol.t, *sol.q.T]).T
+        np.savetxt(
+            name,
+            export_data,
+            delimiter=", ",
+            header=header,
+            comments="",
+        )
+
+    export_q(sol, "trajectory.txt")
+
     ###################
     # visualize results
     ###################
@@ -667,22 +680,45 @@ def transient():
     ).solve()
     export_la_g(sol_6_GGL, "la_g_6_GGL.txt")
 
-    # solve GGL with rho_inf = 0.9
-    sol_9_GGL2 = GenAlphaFirstOrderGGL2_V3(
-        model, t1, h, rho_inf=0.9, tol=tol, unknowns="velocities"
-    ).solve()
-    export_la_g(sol_9_GGL2, "la_g_9_GGL2.txt")
+    # # solve GGL with rho_inf = 0.9
+    # sol_9_GGL2 = GenAlphaFirstOrderGGL2_V3(
+    #     model, t1, h, rho_inf=0.9, tol=tol, unknowns="velocities"
+    # ).solve()
+    # export_la_g(sol_9_GGL2, "la_g_9_GGL2.txt")
 
-    # solve GGL with rho_inf = 0.6
-    sol_6_GGL2 = GenAlphaFirstOrderGGL2_V3(
-        model, t1, h, rho_inf=0.6, tol=tol, unknowns="velocities"
-    ).solve()
-    export_la_g(sol_6_GGL2, "la_g_6_GGL2.txt")
+    # # solve GGL with rho_inf = 0.6
+    # sol_6_GGL2 = GenAlphaFirstOrderGGL2_V3(
+    #     model, t1, h, rho_inf=0.6, tol=tol, unknowns="velocities"
+    # ).solve()
+    # export_la_g(sol_6_GGL2, "la_g_6_GGL2.txt")
 
     ###################
     # visualize results
     ###################
     fig = plt.figure(figsize=plt.figaspect(1))
+
+    ax = fig.add_subplot(1, 3, 1)
+    ax.plot(sol_6.t, sol_6.la_g[:, 0], "-r", label="la_g0_6")
+    ax.plot(sol_6.t, sol_6.la_g[:, 1], "-g", label="la_g1_6")
+    ax.plot(sol_6.t, sol_6.la_g[:, 2], "-b", label="la_g2_6")
+    ax.plot(sol_9.t, sol_9.la_g[:, 0], "--r", label="la_g0_9")
+    ax.plot(sol_9.t, sol_9.la_g[:, 1], "--g", label="la_g1_9")
+    ax.plot(sol_9.t, sol_9.la_g[:, 2], "--b", label="la_g2_9")
+    ax.grid()
+    ax.legend()
+
+    ax = fig.add_subplot(1, 2, 2)
+    ax.plot(sol_6_GGL.t, sol_6_GGL.la_g[:, 0], "-r", label="la_g0_6_GGL")
+    ax.plot(sol_6_GGL.t, sol_6_GGL.la_g[:, 1], "-g", label="la_g1_6_GGL")
+    ax.plot(sol_6_GGL.t, sol_6_GGL.la_g[:, 2], "-b", label="la_g2_6_GGL")
+    ax.plot(sol_9_GGL.t, sol_9_GGL.la_g[:, 0], "--r", label="la_g0_9_GGL")
+    ax.plot(sol_9_GGL.t, sol_9_GGL.la_g[:, 1], "--g", label="la_g1_9_GGL")
+    ax.plot(sol_9_GGL.t, sol_9_GGL.la_g[:, 2], "--b", label="la_g2_9_GGL")
+    ax.grid()
+    ax.legend()
+
+    plt.show()
+    exit()
 
     # index 3
     ax = fig.add_subplot(3, 3, 1)

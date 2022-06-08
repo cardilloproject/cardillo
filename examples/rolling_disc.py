@@ -16,13 +16,13 @@ from cardillo.model.rolling_disc import (
 )
 from cardillo.forces import Force
 from cardillo.solver import (
-    GenAlphaFirstOrderVelocityGGL,
-    GenAlphaFirstOrderVelocity,
-    GenAlphaDAEAcc,
+    # GenAlphaFirstOrderVelocityGGL,
+    # GenAlphaFirstOrderVelocity,
+    # GenAlphaDAEAcc,
     GenAlphaFirstOrder,
-    GenAlphaFirstOrderGGL2_V1,
-    GenAlphaFirstOrderGGL2_V2,
-    GenAlphaFirstOrderGGL2_V3,
+    # GenAlphaFirstOrderGGL2_V1,
+    # GenAlphaFirstOrderGGL2_V2,
+    # GenAlphaFirstOrderGGL2_V3,
 )
 
 
@@ -162,19 +162,22 @@ def rolling_disc_DMS(rigid_body_case="Euler", constraint_case="velocity_K"):
     # t1 = 2 * np.pi / np.abs(alpha_dot0) * 0.25
     t1 = 2 * np.pi / np.abs(alpha_dot0) * 1.0
     # dt = 1e-1
-    dt = 5e-2
-    # dt = 5e-3
+    # dt = 5e-2
+    # dt = 1e-2
+    dt = 5e-3
+    # dt = 1e-3
     # dt = 1e-4 # required for second order gen alpha solver
     rho_inf = 0.90
     # rho_inf = 1.0
     tol = 1.0e-8
 
-    sol_genAlphaFirstOrderVelocity = GenAlphaFirstOrderGGL2_V3(
-        model, t1, dt, rho_inf=rho_inf, tol=tol
-    ).solve()
     # sol_genAlphaFirstOrderVelocity = GenAlphaFirstOrder(
     #     model, t1, dt, rho_inf=rho_inf, tol=tol
     # ).solve()
+    sol_genAlphaFirstOrderVelocity = GenAlphaFirstOrder(
+        model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=True
+    ).solve()
+
     # sol_genAlphaFirstOrderVelocity = GenAlphaFirstOrderVelocityGGL(model, t1, dt, rho_inf=rho_inf, tol=tol).solve()
     # sol_genAlphaFirstOrderVelocity = GenAlphaFirstOrderVelocity(
     #     model, t1, dt, rho_inf=rho_inf, tol=tol
@@ -209,10 +212,10 @@ def rolling_disc_DMS(rigid_body_case="Euler", constraint_case="velocity_K"):
     u_dot = sol_genAlphaFirstOrderVelocity.u_dot
     la_g = sol_genAlphaFirstOrderVelocity.la_g
     la_gamma = sol_genAlphaFirstOrderVelocity.la_gamma
-    mu_g = sol_genAlphaFirstOrderVelocity.mu_g
-    kappa_g = sol_genAlphaFirstOrderVelocity.kappa_g
-    kappa_gamma = sol_genAlphaFirstOrderVelocity.kappa_gamma
-    a = sol_genAlphaFirstOrderVelocity.a
+    # mu_g = sol_genAlphaFirstOrderVelocity.mu_g
+    # kappa_g = sol_genAlphaFirstOrderVelocity.kappa_g
+    # kappa_gamma = sol_genAlphaFirstOrderVelocity.kappa_gamma
+    # a = sol_genAlphaFirstOrderVelocity.a
 
     ###############
     # visualization
@@ -221,27 +224,28 @@ def rolling_disc_DMS(rigid_body_case="Euler", constraint_case="velocity_K"):
 
     # a vs u_dot
     ax = fig.add_subplot(2, 2, 1)
-    for j in range(a.shape[1]):
+    for j in range(u_dot.shape[1]):
+        # for j in range(a.shape[1]):
         ax.plot(t, u_dot[:, j], "-", label=f"u_dot{j}")
-        ax.plot(t, a[:, j], "--", label=f"a{j}")
+        # ax.plot(t, a[:, j], "--", label=f"a{j}")
     ax.grid()
     ax.legend()
 
-    # mu_g
-    ax = fig.add_subplot(2, 2, 2)
-    for j in range(mu_g.shape[1]):
-        ax.plot(t, mu_g[:, j], "-", label=f"mu_g{j}")
-    ax.grid()
-    ax.legend()
+    # # mu_g
+    # ax = fig.add_subplot(2, 2, 2)
+    # for j in range(mu_g.shape[1]):
+    #     ax.plot(t, mu_g[:, j], "-", label=f"mu_g{j}")
+    # ax.grid()
+    # ax.legend()
 
-    # kappa_g, kappa_gamma
-    ax = fig.add_subplot(2, 2, 3)
-    for j in range(kappa_g.shape[1]):
-        ax.plot(t, kappa_g[:, j], "-", label=f"kappa_g{j}")
-    for j in range(kappa_gamma.shape[1]):
-        ax.plot(t, kappa_gamma[:, j], "-", label=f"kappa_gamma{j}")
-    ax.grid()
-    ax.legend()
+    # # kappa_g, kappa_gamma
+    # ax = fig.add_subplot(2, 2, 3)
+    # for j in range(kappa_g.shape[1]):
+    #     ax.plot(t, kappa_g[:, j], "-", label=f"kappa_g{j}")
+    # for j in range(kappa_gamma.shape[1]):
+    #     ax.plot(t, kappa_gamma[:, j], "-", label=f"kappa_gamma{j}")
+    # ax.grid()
+    # ax.legend()
 
     # plt.show()
     # exit()
