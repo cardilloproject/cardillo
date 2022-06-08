@@ -1693,17 +1693,17 @@ class TimoshenkoAxisAngleSE3:
         """Interpolation function for relative rotation vectors proposed by
         Crisfield1999 (5.7) and (5.8)."""
         # evaluate shape functions
-        # TODO: They have to coincide!
-        # N, N_xi, _ = self.basis_functions_r(xi)
+        # TODO: They have to coincide for r and psi!
+        N, N_xi, _ = self.basis_functions_r(xi)
 
-        # hard coded linear shape functions
-        assert self.polynomial_degree_r == 1 and self.polynomial_degree_psi == 1
-        el = self.element_number(xi)
-        xi0, xi1 = self.knot_vector_r.element_interval(el)
-        linv = 1.0 / (xi1 - xi0)
-        diff = (xi - xi0) * linv
-        N = np.array([1.0 - diff, diff])
-        N_xi = np.array([-linv, linv])
+        # # hard coded linear shape functions
+        # assert self.polynomial_degree_r == 1 and self.polynomial_degree_psi == 1
+        # el = self.element_number(xi)
+        # xi0, xi1 = self.knot_vector_r.element_interval(el)
+        # linv = 1.0 / (xi1 - xi0)
+        # diff = (xi - xi0) * linv
+        # N = np.array([1.0 - diff, diff])
+        # N_xi = np.array([-linv, linv])
 
         # relative interpolation of local se(3) objects
         h_rel = np.zeros(6, dtype=float)
@@ -1747,11 +1747,11 @@ class TimoshenkoAxisAngleSE3:
         # composition of reference rotation and relative one
         H_IK = H_IR @ se3exp(h_rel)
 
-        # ###################
-        # # objective strains
-        # ###################
-        # T = se3tangent_map(h_rel)
-        # strains = T @ h_rel_xi
+        ###################
+        # objective strains
+        ###################
+        T = se3tangent_map(h_rel)
+        strains = T @ h_rel_xi
 
         # ############################################
         # # alternative computation of strain measures
@@ -1777,11 +1777,11 @@ class TimoshenkoAxisAngleSE3:
         # # print(f"error strains: {error}")
         # # print(f"error strains: {diff}")
 
-        #################################################################
-        # This alternative formulation works for pure bending experiments
-        #################################################################
-        assert self.polynomial_degree_r == 1
-        strains = h_rel_xi
+        # #################################################################
+        # # This alternative formulation works for pure bending experiments
+        # #################################################################
+        # assert self.polynomial_degree_r == 1
+        # strains = h_rel_xi
 
         # extract centerline and transformation
         A_IK = H_IK[:3, :3]
