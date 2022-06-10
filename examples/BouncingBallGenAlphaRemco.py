@@ -156,9 +156,13 @@ class GenAlpha:
         """Compute dependent variables."""
         ak1, Uk1, Qk1, kappak1, Lak1, lak1 = self.unpack(xk1)
         uk1 = self.uk + self.dt * ak1 + Uk1
-        qk1 = self.qk + self.dt * self.uk + 0.5 * self.dt2 * ak1 + Qk1
+        # qk1 = self.qk + self.dt * self.uk + 0.5 * self.dt2 * ak1 + Qk1
+        qk1 = (
+            self.qk + self.dt * self.uk + 0.5 * self.dt2 * ak1 + Qk1 + self.dt * Uk1
+        )  # TODO: Is this more straight forward?
         Pk1 = Lak1 + self.dt * lak1
         kappa_hatk1 = kappak1 + 0.5 * self.dt2 * lak1
+        # kappa_hatk1 = kappak1 + self.dt * Lak1 + 0.5 * self.dt2 * lak1 # TODO: Giuseppe?
         return qk1, uk1, Pk1, kappa_hatk1
 
     def residual(self, tk1, xk1, update_index_set=False):
@@ -192,12 +196,20 @@ class GenAlpha:
 
         # impact equation
         R[1] = Mk1 @ Uk1 - W_Nk1 @ Lak1
+        # R[1] = Mk1 @ Uk1 - W_Nk1 @ Pk1
 
         # position correction
-        R[2] = Mk1 @ Qk1 - W_Nk1 @ kappak1
+        # R[2] = Mk1 @ Qk1 - W_Nk1 @ kappak1
+        R[2] = (
+            Mk1 @ (Qk1 + self.dt * Uk1) - W_Nk1 @ kappak1
+        )  # TODO: Only use this together with modified update above!
+        # R[2] = Mk1 @ (Qk1 + self.dt * Uk1) - W_Nk1 @ kappa_hatk1
 
-        prox_arg_position = g_Nk1 - self.model.prox_r * kappa_hatk1
+        # prox_arg_position = g_Nk1 - self.model.prox_r * kappa_hatk1
         # prox_arg_position = g_Nk1 - self.model.prox_r * kappak1
+        prox_arg_position = g_Nk1 - self.model.prox_r * (
+            kappak1 + self.dt * Lak1 + 0.5 * self.dt2 * lak1
+        )
         prox_arg_velocity = xi_Nk1 - self.model.prox_r * Pk1
         prox_arg_acceleration = g_N_ddotk1 - self.model.prox_r * lak1
         if update_index_set:
@@ -206,12 +218,13 @@ class GenAlpha:
             self.Ck1 = self.Bk1 * (prox_arg_acceleration <= 0)
 
         # complementarity on position level
-        # R[3] = g_Nk1 - prox_R0p(prox_arg_position)
+        # R[3] = g_Nk1 - prox_R0np(prox_arg_position)
         if self.Ak1:
             R[3] = g_Nk1
         else:
-            R[3] = kappa_hatk1
-            # R[3] = kappak1
+            # R[3] = kappa_hatk1
+            R[3] = kappak1
+            # R[3] = kappak1 + self.dt * Lak1 + 0.5 * self.dt2 * lak1
 
         # complementarity on velocity level
         # if self.Ak1:
@@ -221,7 +234,9 @@ class GenAlpha:
         if self.Bk1:
             R[4] = xi_Nk1
         else:
-            R[4] = Pk1
+            # R[4] = Pk1
+            # R[4] = Lak1 + self.dt * lak1
+            R[4] = Lak1  # + self.dt * lak1
 
         # complementarity on acceleration level
         # if self.Bk1:
@@ -347,6 +362,261 @@ class GenAlpha:
 
 
 class GenAlpha2:
+    """Generalized alpha solver for one dimensional bouncing ball example."""
+
+    def __init__(self, t0, t1, dt, model, max_iter=20, atol=1.0e-8):
+        self.t0 = t0
+        self.t1 = t1
+        self.dt = dt
+        self.dt2 = dt**2
+        self.model = model
+        self.max_iter = max_iter
+        self.atol = atol
+
+        self.qk = model.q0
+        self.uk = model.u0
+
+        # solve for initial accelerations
+        Mk = model.M(self.t0, self.qk)
+        hk = model.h(self.t0, self.qk, self.uk)
+        ak = np.linalg.solve(Mk, hk)
+
+        # set all other quantities to zero since we assume to start with no contact!
+        Uk = np.zeros(1, dtype=float)
+        Qk = np.zeros(1, dtype=float)
+        lak = np.zeros(1, dtype=float)
+        Lak = np.zeros(1, dtype=float)
+        kappak = np.zeros(1, dtype=float)
+
+        # initial vector of unknowns
+        self.xk = np.concatenate(
+            [
+                ak,
+                Uk,
+                Qk,
+                kappak,
+                Lak,
+                lak,
+            ]
+        )
+
+        # initialize inactive contact sets since we assume to start with no contact!
+        self.Ak1 = np.zeros(1, dtype=bool)
+        self.Bk1 = np.zeros(1, dtype=bool)
+        self.Ck1 = np.zeros(1, dtype=bool)
+
+    def unpack(self, xk1):
+        """Unpack vector of unknowns."""
+        ak1, Uk1, Qk1, kappak1, Lak1, lak1 = xk1
+        return (
+            np.atleast_1d(ak1),
+            np.atleast_1d(Uk1),
+            np.atleast_1d(Qk1),
+            np.atleast_1d(kappak1),
+            np.atleast_1d(Lak1),
+            np.atleast_1d(lak1),
+        )
+
+    def update(self, xk1):
+        """Compute dependent variables."""
+        ak1, Uk1, Qk1, kappak1, Lak1, lak1 = self.unpack(xk1)
+        uk1 = self.uk + self.dt * ak1 + Uk1
+        qk1 = self.qk + self.dt * self.uk + 0.5 * self.dt2 * ak1 + Qk1 + self.dt * Uk1
+        # uk1 = self.uk + self.dt * ak1 + self.dt * Uk1
+        # qk1 = self.qk + self.dt * self.uk + 0.5 * self.dt2 * ak1 + self.dt * Qk1 + 0.5 * self.dt2 * Uk1
+        Pk1 = Lak1 + self.dt * lak1
+        kappa_hatk1 = kappak1 + self.dt * Lak1 + 0.5 * self.dt2 * lak1
+        return qk1, uk1, Pk1, kappa_hatk1
+
+    def residual(self, tk1, xk1, update_index_set=False):
+        ###########################
+        # unpack vector of unknowns
+        ###########################
+        ak1, Uk1, Qk1, kappak1, Lak1, lak1 = self.unpack(xk1)
+
+        #############################
+        # compute dependent variables
+        #############################
+        qk1, uk1, Pk1, kappa_hatk1 = self.update(xk1)
+
+        ##############################
+        # evaluate required quantities
+        ##############################
+        Mk1 = self.model.M(tk1, qk1)
+        hk1 = self.model.h(tk1, qk1, uk1)
+        g_Nk1 = self.model.g_N(tk1, qk1)
+        g_N_ddotk1 = self.model.g_N_ddot(tk1, qk1, uk1, ak1)
+        xi_Nk1 = self.model.xi_N(tk1, qk1, self.uk, uk1)
+        W_Nk1 = self.model.W_N(tk1, qk1)
+
+        #########################
+        # compute residual vector
+        #########################
+        R = np.empty(6, dtype=float)
+
+        # equations of motion
+        R[0] = Mk1 @ ak1 - hk1 - W_Nk1 @ lak1
+
+        # impact equation
+        R[1] = Mk1 @ Uk1 - W_Nk1 @ Lak1
+
+        # position correction
+        R[2] = Mk1 @ Qk1 - W_Nk1 @ kappak1
+
+        prox_arg_position = g_Nk1 - self.model.prox_r * kappa_hatk1
+        prox_arg_velocity = xi_Nk1 - self.model.prox_r * Pk1
+        prox_arg_acceleration = g_N_ddotk1 - self.model.prox_r * lak1
+        # prox_arg_position = g_Nk1 - self.model.prox_r * kappak1
+        # prox_arg_velocity = xi_Nk1 - self.model.prox_r * Lak1
+        # prox_arg_acceleration = g_N_ddotk1 - self.model.prox_r * lak1
+        if update_index_set:
+            self.Ak1 = prox_arg_position <= 0
+            self.Bk1 = self.Ak1 * (prox_arg_velocity <= 0)
+            self.Ck1 = self.Bk1 * (prox_arg_acceleration <= 0)
+
+        # complementarity on position level
+        R[3] = g_Nk1 - prox_R0np(prox_arg_position)
+        # if self.Ak1:
+        #     R[3] = g_Nk1
+        # else:
+        #     R[3] = kappak1
+        #     # R[3] = kappa_hatk1
+
+        # complementarity on velocity level
+        if self.Ak1:
+            R[4] = xi_Nk1 - prox_R0np(prox_arg_velocity)
+        else:
+            R[4] = Pk1
+            # R[4] = Lak1
+        # if self.Bk1:
+        #     R[4] = xi_Nk1
+        # else:
+        #     R[4] = Lak1
+
+        # complementarity on acceleration level
+        if self.Bk1:
+            R[5] = g_N_ddotk1 - prox_R0np(prox_arg_acceleration)
+        else:
+            R[5] = lak1
+        # if self.Ck1:
+        #     R[5] = g_N_ddotk1
+        # else:
+        #     R[5] = lak1
+
+        return R
+
+    def Jacobian(self, tk1, xk1):
+        return approx_fprime(xk1, lambda x: self.residual(tk1, x), method="2-point")
+
+    def solve(self):
+        a = []
+        Q = []
+        U = []
+        la = []
+        P = []
+        kappa = []
+        kappa_hat = []
+        u = []
+        q = []
+        La = []
+
+        t = np.arange(self.t0, self.t1 + self.dt, self.dt)
+        xk1 = self.xk.copy()
+
+        for k, tk1 in enumerate(t):
+            print(f"k: {k}; tk1: {tk1:2.3f}")
+
+            # initial residual and error; update active contact set during each
+            # redidual computation
+            R = self.residual(tk1, xk1, update_index_set=True)
+            error = np.max(np.abs(R))
+
+            i = 0
+            if error < self.atol:
+                ak1, Uk1, Qk1, kappak1, Lak1, lak1 = self.unpack(xk1)
+                qk1, uk1, Pk1, kappa_hatk1 = self.update(xk1)
+                self.qk = qk1.copy()
+                self.uk = uk1.copy()
+                a.append(ak1)
+                U.append(Uk1)
+                Q.append(Qk1)
+                la.append(lak1)
+                P.append(Pk1)
+                kappa.append(kappak1)
+                kappa_hat.append(kappa_hatk1)
+                u.append(uk1)
+                q.append(qk1)
+                La.append(Lak1)
+            else:
+                # Newton-Raphson loop
+                for i in range(self.max_iter):
+                    # compute Jacobian matrix with same index set
+                    J = self.Jacobian(tk1, xk1)
+
+                    # compute updated state
+                    xk1 -= np.linalg.solve(J, R)
+
+                    # new residual and error; update active contact set during
+                    # each redidual computation
+                    R = self.residual(tk1, xk1, update_index_set=True)
+                    error = np.max(np.abs(R))
+
+                    if error < self.atol:
+                        ak1, Uk1, Qk1, kappak1, Lak1, lak1 = self.unpack(xk1)
+                        qk1, uk1, Pk1, kappa_hatk1 = self.update(xk1)
+                        self.qk = qk1.copy()
+                        self.uk = uk1.copy()
+                        a.append(ak1)
+                        U.append(Uk1)
+                        Q.append(Qk1)
+                        la.append(lak1)
+                        P.append(Pk1)
+                        kappa.append(kappak1)
+                        kappa_hat.append(kappa_hatk1)
+                        u.append(uk1)
+                        q.append(qk1)
+                        La.append(Lak1)
+                        break
+            if i >= self.max_iter - 1:
+                print(
+                    f"Newton-Raphson not converged after {i+1} steps with error {error:2.4f}"
+                )
+                n = len(q)
+                return Solution(
+                    t=t[:n],
+                    a=np.array(a),
+                    U=np.array(U),
+                    Q=np.array(Q),
+                    la=np.array(la),
+                    P=np.array(P),
+                    kappa=np.array(kappa),
+                    kappa_hat=np.array(kappa_hat),
+                    u=np.array(u),
+                    q=np.array(q),
+                    La=np.array(La),
+                )
+            else:
+                print(
+                    f"Newton-Raphson converged after {i+1} steps with error {error:2.4f}"
+                )
+
+        n = len(q)
+        return Solution(
+            t=t[:n],
+            a=np.array(a),
+            U=np.array(U),
+            Q=np.array(Q),
+            la=np.array(la),
+            P=np.array(P),
+            kappa=np.array(kappa),
+            kappa_hat=np.array(kappa_hat),
+            u=np.array(u),
+            q=np.array(q),
+            La=np.array(La),
+        )
+
+
+class GenAlpha3:
     """Generalized alpha solver for one dimensional bouncing ball example."""
 
     def __init__(self, t0, t1, dt, model, max_iter=20, atol=1.0e-8):
@@ -613,8 +883,9 @@ if __name__ == "__main__":
     t0 = 0
     t1 = 1.5
     dt = 1.0e-2
-    sol = GenAlpha(t0, t1, dt, ball).solve()
-    # sol = GenAlpha2(t0, t1, dt, ball).solve()
+    # sol = GenAlpha(t0, t1, dt, ball).solve()
+    sol = GenAlpha2(t0, t1, dt, ball).solve()
+    # sol = GenAlpha3(t0, t1, dt, ball).solve()
 
     fig, ax = plt.subplots(3, 3)
 
