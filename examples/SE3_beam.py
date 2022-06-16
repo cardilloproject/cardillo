@@ -534,7 +534,9 @@ def run(statics):
     animate_beam(t, q, [beam], L, show=True)
 
 
-def locking():
+# def locking(case="quater_circle"):
+# def locking(case="full_circle"):
+def locking(case="helix"):
     """This example examines shear and membrande locking as done in Meier2015.
 
     References:
@@ -545,8 +547,49 @@ def locking():
     Beam = TimoshenkoAxisAngleSE3
     # Beam = TimoshenkoQuarternionSE3
 
-    # number of elements
-    nelements = 3
+    if case == "quater_circle":
+        # number of elements
+        nelements = 1
+
+        # L = 1.0e3
+        # # (slenderness, atol, n_load_steps
+        # # triplet = (1.0e1, 1.0e-7, 2)
+        # # triplet = (1.0e2, 1.0e-9, 2) #, 50)
+        # # triplet = (1.0e3, 1.0e-10, 2) #, 100) # this is working with quaternions
+        # triplet = (1.0e4, 1.0e-13, 2) #, 200)
+        # # triplet = (1.0e5, 1.0e-14, 2) #, 200)
+
+        L = 1.0e4
+        # (slenderness, atol, n_load_steps
+        # triplet = (1.0e1, 1.0e-6, 2)
+        # triplet = (1.0e2, 1.0e-8, 2)
+        # triplet = (1.0e3, 1.0e-9, 2)
+        triplet = (
+            1.0e4,
+            1.0e-12,
+            2,
+        )  # this can't be sovle using the quaternion implementation
+        # triplet = (1.0e5, 1.0e-12, 4)
+
+    elif case == "full_circle":
+        # number of elements
+        nelements = 1
+        raise NotImplementedError
+    elif case == "helix":
+        # number of elements
+        nelements = 3
+
+        # (slenderness, atol, n_load_steps
+        # triplet = (1.0e1, 1.0e-6, 50)
+        # triplet = (1.0e2, 1.0e-9, 2) #, 50)
+        triplet = (1.0e3, 1.0e-10, 2)  # , 100) # this is working with quaternions
+        # triplet = (1.0e4, 1.0e-13, 2) #, 200)
+        # triplet = (1.0e5, 1.0e-14, 2) #, 200)
+    else:
+        raise NotImplementedError
+
+    slenderness, atol, n_load_steps = triplet
+    n_load_steps = 5
 
     # used polynomial degree
     polynomial_degree = 1
@@ -558,21 +601,6 @@ def locking():
     # used shape functions for discretization
     # shape_functions = "B-spline"
     shape_functions = "Lagrange"
-
-    # beam length, see Meier2015  above (58)
-    L = 1.0e3
-
-    # selnderness (ratio L / r) and convergence tolerance,
-    # see Meier2015 above (58)
-    # triplet = (1.0e1, 1.0e-7, 25)
-    # triplet = (1.0e2, 1.0e-9, 50)
-    # triplet = (1.0e3, 1.0e-10, 100)
-    # triplet = (1.0e4, 1.0e-13, 200)
-    triplet = (1.0e5, 1.0e-13, 200)
-
-    slenderness, atol, n_load_steps = triplet
-    n_load_steps = 25  # full cirlce
-    # n_load_steps = 200 # helix?
 
     # used cross section
     width = L / slenderness
@@ -589,6 +617,8 @@ def locking():
     material_model = quadratic_beam_material(E, G, cross_section, Beam)
     print(f"Ei: {material_model.Ei}")
     print(f"Fi: {material_model.Fi}")
+
+    # exit()
 
     # starting point and orientation of initial point, initial length
     r_OP = np.zeros(3)
@@ -618,21 +648,18 @@ def locking():
 
     # moment at right end
     Fi = material_model.Fi
-    M = (
-        # lambda t: (e1 * Fi[0])
-        # lambda t: (e2 * Fi[1])
-        lambda t: (e3 * Fi[2])
-        # lambda t: (e1 * Fi[0] + e3 * Fi[2])
-        # lambda t: (e2 * Fi[1] + e3 * Fi[2])
-        # * smoothstep2(t, 0.0, 1)
-        * t
-        * 2
-        * np.pi
-        / L
-        # * 0.25
-        # * 0.5
-    )
+    if case == "quater_circle":
+        M = lambda t: (e3 * Fi[2]) * t * 2 * np.pi / L * 0.25
+    elif case == "full_circle":
+        M = lambda t: (e3 * Fi[2]) * t * 2 * np.pi / L
+        raise NotImplementedError
+    elif case == "helix":
+        M = lambda t: (e1 * Fi[0] + e3 * Fi[2]) * t * 2 * np.pi / L
     moment = K_Moment(M, beam, (1,))
+
+    if case == "quater_circle":
+        f = lambda t: t * 1e-4 * Fi[1] / L * e3
+        force = Force(f, beam, frame_ID=(1,))
 
     # assemble the model
     model = Model()
@@ -640,6 +667,8 @@ def locking():
     model.add(frame1)
     model.add(joint1)
     model.add(moment)
+    if case == "quater_circle":
+        model.add(force)
     model.assemble()
 
     # build different tolerances for static equilibrium and constraint forces
@@ -987,36 +1016,25 @@ def HelixIbrahimbegovic1997(export=True):
     # fraction of 10 full rotations and the out of plane force
     # a corresponding fraction of 100 elements is chosen
     # # fraction = 0.05
-    # fraction = 0.1  # 1 full rotations
-    fraction = 0.20  # 2 full rotations
+    fraction = 0.1  # 1 full rotations
+    # fraction = 0.20  # 2 full rotations
     # fraction = 0.4  # 4 full rotations
     # fraction = 0.5  # 5 full rotations
     # fraction = 1  # 10 full rotations
 
     # number of elements
     nelements_max = 30
-    # nelements_max = 50
     # nelements_max = 100 # Ibrahimbegovic1997
     nelements = max(3, int(fraction * nelements_max))
-    # nelements = 25
     print(f"nelemen: {nelements}")
 
     # used polynomial degree
     polynomial_degree = 1
-    # polynomial_degree = 2
-    # polynomial_degree = 3
-    # polynomial_degree = 5
-    # polynomial_degree = 6
 
     # number of quadrature points
     # TODO: We have to distinguish between integration of the mass matrix,
     #       gyroscopic forces and potential forces!
     nquadrature_points = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
-    # nquadrature_points = polynomial_degree + 2
-    # nquadrature_points = (
-    #     polynomial_degree + 1
-    # )  # this seems not to be sufficent for p > 1
-    # nquadrature_points = polynomial_degree # this works for p = 1 and homogeneous deformations!
 
     # used shape functions for discretization
     shape_functions = "B-spline"
@@ -1241,7 +1259,7 @@ def HelixIbrahimbegovic1997(export=True):
     animate_beam(t, q, [beam], L, show=True)
 
 
-def HeavyTop(case="Maekinen2006"):
+def HeavyTop():
     class RigidHeavyTopODE:
         def __init__(self, m, r, l, g):
             self.m = m
@@ -1334,92 +1352,76 @@ def HeavyTop(case="Maekinen2006"):
     # nquadrature_points = polynomial_degree
 
     # used shape functions for discretization
-    shape_functions = "B-spline"
-
-    # beam parameters found in Section 4.3. Fast symmetrical top - Maekinen2006
-    # stiff beam
-    EA = GA = 1.0e4
-    GJ = EI = 1.0e1
-    # # soft beam
-    # # EA = GA = 1.0e2
-    # # GJ = EI = 1.0e-1
-    # EA = GA = 2.5e1
-    # GJ = EI = 1.0e-1
-
-    # build quadratic material model
-    Ei = np.array([EA, GA, GA], dtype=float)
-    Fi = np.array([GJ, EI, EI], dtype=float)
-    material_model = Simo1986(Ei, Fi)
+    # shape_functions = "B-spline"
+    shape_functions = "Lagrange"
 
     # cross section and inertia
-    if case == "Maekinen2006":
-        l = 1
-        K_Theta = np.diag([1.0, 0.5, 0.5])
-        A_rho0 = 13.5
-        cross_section = UserDefinedCrossSection(
-            A_rho0, A_rho0, np.zeros(3, dtype=float), K_Theta
-        )
-    else:
-        # K_Theta = np.diag([1.0, 0.5, 0.5])
-        # A_rho0 = 13.5
-        # cross_section = UserDefinedCrossSection(
-        #     A_rho0, A_rho0, np.zeros(3, dtype=float), K_Theta
-        # )
-        # l = 1.
-        # r = 0.1
-        # rho = 1.
-        # m = 0.1
-        m = 1
-        l = 0.2
-        # l = 0.25
-        g = 9.81
-        r = 0.1
-        V = l * pi * r**2
-        rho = m / V
-        cross_section = CircularCrossSection(rho, r)
+    m = 1
+    l = 0.2
+    g = 9.81
+    r = 0.1
+    V = l * pi * r**2
+    rho = m / V
+    cross_section = CircularCrossSection(rho, r)
 
-        # initial angular velocity and orientation
-        omega_x = 2 * pi * 25
-        A = (1.0 / 2.0) * m * r**2
-        omega_pr = m * g * (l / 2) / (A * omega_x)
-        K_omega_IK0 = omega_x * e1 + omega_pr * e3
-        A_IK0 = np.eye(3, dtype=float)
-        # A_IK0 = rodriguez(-pi / 10 * e2)
-        from scipy.spatial.transform import Rotation
+    # initial angular velocity and orientation
+    omega_x = 2 * pi * 25
+    A = (1.0 / 2.0) * m * r**2
+    omega_pr = m * g * (l / 2) / (A * omega_x)
+    K_omega_IK0 = omega_x * e1 + omega_pr * e3
+    A_IK0 = np.eye(3, dtype=float)
+    # A_IK0 = rodriguez(-pi / 10 * e2)
+    from scipy.spatial.transform import Rotation
 
-        angles0 = Rotation.from_matrix(A_IK0).as_euler("zyx")
+    angles0 = Rotation.from_matrix(A_IK0).as_euler("zyx")
 
     # starting point
     r_OP0 = np.zeros(3, dtype=float)
 
-    # build beam model
-    beam = beam_factory(
-        nelements,
-        polynomial_degree,
-        nquadrature_points,
-        shape_functions,
-        cross_section,
-        material_model,
-        Beam,
-        l,
-        r_OP0=r_OP0,
-        A_IK0=A_IK0,
-        v_Q0=np.zeros(3, dtype=float),
-        K_omega_IK0=K_omega_IK0,
-    )
+    ###################
+    # solver parameters
+    ###################
+    t0 = 0.0
+    t1 = 2.0 * pi / omega_pr
+    t1 *= 0.25
+    # t1 *= 0.125
+    # t1 *= 0.075
+    # t1 = 0.01
+    # t1 = 0.1
 
-    # junction
-    r_OB0 = np.zeros(3, dtype=float)
-    frame = Frame(r_OP=r_OB0, A_IK=A_IK0)
-    joint = SphericalJoint(frame, beam, r_OB0, frame_ID2=(0,))
+    # nt = np.ceil(t1 / 1.0e-3)
+    dt = t1 * 1.0e-3
+    # dt = 1.0e-4
+    rtol = 1.0e-6
+    atol = 1.0e-6
 
-    if case == "Maekinen2006":
-        # TODO: Why not 20 as used by Simo1991 and for the rigid body?
-        mg = 40
+    def solve(EA, GA, GJ, EI):
+        # build quadratic material model
+        Ei = np.array([EA, GA, GA], dtype=float)
+        Fi = np.array([GJ, EI, EI], dtype=float)
+        material_model = Simo1986(Ei, Fi)
 
-        # gravity as point force
-        f_g_beam = Force(-mg * e3, beam, frame_ID=(0.5,))
-    else:
+        # build beam model
+        beam = beam_factory(
+            nelements,
+            polynomial_degree,
+            nquadrature_points,
+            shape_functions,
+            cross_section,
+            material_model,
+            Beam,
+            l,
+            r_OP0=r_OP0,
+            A_IK0=A_IK0,
+            v_Q0=np.zeros(3, dtype=float),
+            K_omega_IK0=K_omega_IK0,
+        )
+
+        # junction
+        r_OB0 = np.zeros(3, dtype=float)
+        frame = Frame(r_OP=r_OB0, A_IK=A_IK0)
+        joint = SphericalJoint(frame, beam, r_OB0, frame_ID2=(0,))
+
         # gravity beam
         vg = np.array(
             -cross_section.area * cross_section.density * 9.81 * e3, dtype=float
@@ -1427,31 +1429,17 @@ def HeavyTop(case="Maekinen2006"):
         f_g_beam = DistributedForce1D(lambda t, xi: vg, beam)
         # f_g_beam = Force(-l * cross_section.area * cross_section.density * e3, beam, frame_ID=(0.5,))
 
-    # assemble the model
-    model = Model()
-    model.add(beam)
-    model.add(frame)
-    model.add(joint)
-    model.add(f_g_beam)
-    model.assemble()
+        # assemble the model
+        model = Model()
+        model.add(beam)
+        model.add(frame)
+        model.add(joint)
+        model.add(f_g_beam)
+        model.assemble()
 
-    t0 = 0.0
-    if case == "Maekinen2006":
-        t1 = 1.5  # used by Maekinen2006
-        t1 = 10  # used by Simo1991
-    else:
-        t1 = 2.0 * pi / omega_pr
-        # t1 *= 0.25
-        # t1 *= 0.125
-        t1 *= 0.075
-        # t1 = 0.05
-        # t1 = 0.1
+        sol = ScipyIVP(model, t1, dt, method="RK23", rtol=rtol, atol=atol).solve()
 
-    # nt = np.ceil(t1 / 1.0e-3)
-    dt = t1 * 1.0e-3
-    # dt = 1.0e-4
-    rtol = 1.0e-6
-    atol = 1.0e-6
+        return beam, sol
 
     # compute reference solution using Euler top equations
     heavy_top = RigidHeavyTopODE(m, r, l, g)
@@ -1476,126 +1464,117 @@ def HeavyTop(case="Maekinen2006"):
         ]
     )
 
-    # fig = plt.figure(figsize=(10, 8))
+    # beam parameters found in Section 4.3. Fast symmetrical top - Maekinen2006
+    # stiff beam
+    EA_stiff = GA_stiff = 1.0e4
+    GJ_stiff = EI_stiff = 1.0e1
 
-    # ax = fig.add_subplot(1, 2, 1)
-    # ax.plot(t_ref, angles_ref[:, 0], "-r", label="alpha")
-    # ax.plot(t_ref, angles_ref[:, 1], "-g", label="beta")
-    # ax.plot(t_ref, angles_ref[:, 2], "-b", label="gamma")
+    # soft beam
+    EA_soft = GA_soft = 1.0e2
+    GJ_soft = EI_soft = 1.0e-1
+    # EA_soft = GA_soft = 2.5e1
+    # GJ_soft = EI_soft = 1.0e-1
 
-    # ax = fig.add_subplot(1, 2, 2, projection="3d")
-    # ax.plot(r_OP_ref[:, 0], r_OP_ref[:, 1], r_OP_ref[:, 2], "-b")
+    beam_stiff, sol_soft = solve(EA_soft, GA_soft, GJ_soft, EI_soft)
+    beam_soft, sol_stiff = solve(EA_stiff, GA_stiff, GJ_stiff, EI_stiff)
 
-    # plt.show()
-    # exit()
+    q_stiff = sol_stiff.q
+    q_soft = sol_soft.q
+    nt = len(q_stiff)
+    t = sol_stiff.t[:nt]
 
-    solver = ScipyIVP(model, t1, dt, method="RK23", rtol=rtol, atol=atol)
-    # solver = ScipyIVP(model, t1, dt, method="RK45", rtol=rtol, atol=atol)
-    # solver = Moreau(model, t1, dt)
-
-    sol = solver.solve()
-    q = sol.q
-    nt = len(q)
-    t = sol.t[:nt]
-
-    ##################################
-    # visualize nodal rotation vectors
-    ##################################
-    fig, ax = plt.subplots()
-
-    # for i, nodalDOF_psi in enumerate(beam.nodalDOF_psi):
-    #     psi = q[:, beam.qDOF[nodalDOF_psi]]
-    #     ax.plot(t, np.linalg.norm(psi, axis=1), label=f"||psi{i}||")
-
-    # visualize tip rotation vector
-    psi1 = q[:, beam.qDOF[beam.nodalDOF_psi[-1]]]
-    for i, psi in enumerate(psi1.T):
-        ax.plot(t, psi, label=f"psi1_{i}")
-
-    ax.set_xlabel("t")
-    ax.set_ylabel("nodal rotation vectors")
-    ax.grid()
-    ax.legend()
-
-    # plt.show()
-    # exit()
-
-    ############################
-    # Visualize tip displacement
-    ############################
-    elDOF = beam.qDOF[beam.elDOF[-1]]
-    r_OP = np.array([beam.r_OP(ti, qi[elDOF], (1,)) for (ti, qi) in zip(t, q)])
-    # A_IK = np.array([beam.A_IK(ti, qi[elDOF], (1,)) for (ti, qi) in zip(t, q)])
-    # from scipy.spatial.transform import Rotation
-
-    # Euler = np.array(
-    #     [
-    #         # Rotation.from_matrix(A_IK0.T @ A_IKi).as_euler("xyz", degrees=False) for A_IKi in A_IK
-    #         Rotation.from_matrix(A_IKi).as_euler("xyz", degrees=False)
-    #         for A_IKi in A_IK
-    #     ]  # Cardan angles
-    #     # [Rotation.from_matrix(A_IKi).as_euler("zxz", degrees=False) for A_IKi in A_IK] # Euler angles
+    # #######################
+    # # export tip deflection
+    # #######################
+    # header = "t, x, y, z"
+    # frame_ID = (1,)
+    # elDOF = beam.qDOF_P(frame_ID)
+    # r_OC_L = np.array(
+    #     [beam.r_OP(ti, qi[elDOF], frame_ID) for (ti, qi) in zip(t, q)]
+    # )
+    # export_data = np.vstack([t, *r_OC_L.T]).T
+    # np.savetxt(
+    #     "results/tip_displacement_helix.txt",
+    #     export_data,
+    #     delimiter=", ",
+    #     header=header,
+    #     comments="",
     # )
 
-    fig = plt.figure(figsize=(10, 8))
+    if True:
+        # ###############################
+        # # visualize tip rotation vector
+        # ###############################
+        # fig, ax = plt.subplots()
 
-    # 3D tracjectory of tip displacement
-    ax = fig.add_subplot(1, 2, 1, projection="3d")
-    ax.set_title("3D tip trajectory")
-    ax.plot(*r_OP_ref.T, "-k", label="rigid body")
-    ax.plot(*r_OP.T, "--b", label="beam")
-    ax.set_xlabel("x [-]")
-    ax.set_ylabel("y [-]")
-    ax.set_zlabel("z [-]")
-    ax.grid()
-    ax.legend()
+        # psi1 = q[:, beam.qDOF[beam.nodalDOF_psi[-1]]]
+        # for i, psi in enumerate(psi1.T):
+        #     ax.plot(t, psi, label=f"psi1_{i}")
 
-    # tip displacement
-    ax = fig.add_subplot(1, 2, 2)
+        # ax.set_xlabel("t")
+        # ax.set_ylabel("nodal rotation vectors")
+        # ax.grid()
+        # ax.legend()
 
-    ax.set_title("tip displacement (components)")
+        ############################
+        # Visualize tip displacement
+        ############################
+        elDOF = beam_stiff.qDOF[beam_stiff.elDOF[-1]]
+        r_OP_stiff = np.array(
+            [beam_stiff.r_OP(ti, qi[elDOF], (1,)) for (ti, qi) in zip(t, q_stiff)]
+        )
+        r_OP_soft = np.array(
+            [beam_soft.r_OP(ti, qi[elDOF], (1,)) for (ti, qi) in zip(t, q_soft)]
+        )
+        # r_OP_stiff = q_stiff[:, -6:-3]
+        # r_OP_soft = q_soft[:, -6:-3]
 
-    ax.plot(t, r_OP_ref[:, 0], "-r", label="x_ref")
-    ax.plot(t, r_OP_ref[:, 1], "-g", label="y_ref")
-    ax.plot(t, r_OP[:, 0], "--r", label="x_beam")
-    ax.plot(t, r_OP[:, 1], "--g", label="y_beam")
-    ax.set_xlabel("t")
-    ax.set_ylabel("x, y")
-    ax.grid()
-    ax.legend()
+        fig = plt.figure(figsize=(10, 8))
 
-    ax2 = ax.twinx()
-    ax2.plot(t, r_OP_ref[:, 2], "-b", label="z_ref")
-    ax2.plot(t, r_OP[:, 2], "--b", label="z_beam")
-    ax2.set_ylabel("z")
-    ax2.grid()
-    ax2.legend()
+        # 3D tracjectory of tip displacement
+        ax = fig.add_subplot(1, 2, 1, projection="3d")
+        ax.set_title("3D tip trajectory")
+        ax.plot(*r_OP_ref.T, "-k", label="rigid body")
+        ax.plot(*r_OP_stiff.T, "--b", label="stiff beam")
+        ax.plot(*r_OP_soft.T, "--r", label="soft beam")
+        ax.set_xlabel("x [-]")
+        ax.set_ylabel("y [-]")
+        ax.set_zlabel("z [-]")
+        ax.grid()
+        ax.legend()
 
-    # # Euler angles
-    # ax = fig.add_subplot(2, 3, 4)
-    # ax.plot(t, Euler[:, 0], "-b")
-    # ax.set_xlabel("t")
-    # ax.set_ylabel("alpha")
-    # ax.grid()
+        # tip displacement
+        ax = fig.add_subplot(1, 2, 2)
 
-    # ax = fig.add_subplot(2, 3, 5)
-    # ax.plot(t, Euler[:, 1], "-b")
-    # ax.set_xlabel("t")
-    # ax.set_ylabel("beta")
-    # ax.grid()
+        ax.set_title("tip displacement (components)")
 
-    # ax = fig.add_subplot(2, 3, 6)
-    # ax.plot(t, Euler[:, 2], "-b")
-    # ax.set_xlabel("t")
-    # ax.set_ylabel("gamma")
-    # ax.grid()
+        ax.plot(t, r_OP_ref[:, 0], "-k", label="x_ref")
+        ax.plot(t, r_OP_ref[:, 1], "-k", label="y_ref")
+        ax.plot(t, r_OP_stiff[:, 0], "--r", label="x stiff")
+        ax.plot(t, r_OP_stiff[:, 1], "--r", label="y stiff")
+        ax.plot(t, r_OP_soft[:, 0], "--b", label="x soft")
+        ax.plot(t, r_OP_soft[:, 1], "--b", label="y soft")
+        ax.set_xlabel("t")
+        ax.set_ylabel("x, y")
+        ax.grid()
+        ax.legend()
 
-    fig.tight_layout()
+        ax2 = ax.twinx()
+        ax2.plot(t, r_OP_ref[:, 2], "-k", label="z_ref")
+        ax2.plot(t, r_OP_stiff[:, 2], "--r", label="z stiff")
+        ax2.plot(t, r_OP_soft[:, 2], "--b", label="z soft")
+        ax2.set_ylabel("z")
+        ax2.grid()
+        ax2.legend()
 
-    ###########
-    # animation
-    ###########
-    animate_beam(t, q, [beam], l, show=True)
+        fig.tight_layout()
+
+        plt.show()
+
+        # ###########
+        # # animation
+        # ###########
+        # animate_beam(t, q, [beam], l, show=True)
 
 
 def Dschanibekow():
@@ -1702,9 +1681,7 @@ def Dschanibekow():
     atol = 1.0e-5
     rho_inf = 0.5
 
-    solver = ScipyIVP(
-        model, t1, dt, method=method, rtol=rtol, atol=atol
-    )  # this is no good idea for complement rotation vectors!
+    solver = ScipyIVP(model, t1, dt, method=method, rtol=rtol, atol=atol)
     # solver = GenAlphaFirstOrder(model, t1, dt, rho_inf=rho_inf, tol=atol)
     # solver = GenAlphaDAEAcc(model, t1, dt, rho_inf=rho_inf, newton_tol=atol)
     # dt = 5.0e-3
@@ -1780,12 +1757,761 @@ def Dschanibekow():
     animate_beam(t, q, [beam], l, show=True)
 
 
+def distributed_force():
+    """This example examines the applicability of line force loads that should
+    lead to non constant shear strains!
+    """
+    # Beam = TimoshenkoAxisAngle
+    Beam = TimoshenkoAxisAngleSE3
+    # Beam = TimoshenkoQuarternionSE3
+
+    # number of elements
+    nelements = 6
+
+    # total beam length
+    L = 1.0e3
+    # L = 1.0e4
+
+    # (slenderness, atol, n_load_steps
+    triplet = (1.0e1, 1.0e-6, 10)
+    # triplet = (1.0e2, 1.0e-8, 2)
+    # triplet = (1.0e3, 1.0e-9, 2)
+    # triplet = (1.0e4, 1.0e-12, 2) # this can't be sovle using the quaternion implementation
+    # triplet = (1.0e5, 1.0e-12, 4)
+
+    slenderness, atol, n_load_steps = triplet
+
+    # used polynomial degree
+    polynomial_degree = 1
+
+    # number of quadrature points
+    nquadrature_points = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
+    print(f"nquadrature_points: {nquadrature_points}")
+
+    # used shape functions for discretization
+    # shape_functions = "B-spline"
+    shape_functions = "Lagrange"
+
+    # used cross section
+    width = L / slenderness
+
+    # cross section
+    line_density = 1
+    cross_section = QuadraticCrossSection(line_density, width)
+
+    # Young's and shear modulus
+    E = 1.0  # Meier2015
+    G = 0.5  # Meier2015
+
+    # build quadratic material model
+    material_model = quadratic_beam_material(E, G, cross_section, Beam)
+    print(f"Ei: {material_model.Ei}")
+    print(f"Fi: {material_model.Fi}")
+
+    # starting point and orientation of initial point, initial length
+    r_OP = np.zeros(3)
+    A_IK = np.eye(3)
+
+    # build beam model
+    beam = beam_factory(
+        nelements,
+        polynomial_degree,
+        nquadrature_points,
+        shape_functions,
+        cross_section,
+        material_model,
+        Beam,
+        L,
+        r_OP0=r_OP,
+        A_IK0=A_IK,
+    )
+
+    # junctions
+    r_OB0 = np.zeros(3)
+    A_IK0 = np.eye(3)
+    frame1 = Frame(r_OP=r_OB0, A_IK=A_IK0)
+
+    # left and right joint
+    joint1 = RigidConnection(frame1, beam, r_OB0, frame_ID2=(0,))
+
+    b = lambda t, xi: -t * e3 * 1.0e-1
+    force = DistributedForce1D(b, beam)
+
+    # assemble the model
+    model = Model()
+    model.add(beam)
+    model.add(frame1)
+    model.add(joint1)
+    model.add(force)
+    model.assemble()
+
+    # build different tolerances for static equilibrium and constraint forces
+    # atol_u = np.ones(model.nu, dtype=float) * atol
+    # atol_la_g = np.ones(model.nla_g, dtype=float) * 1.0e-12
+    # atol_la_S = np.ones(model.nla_S, dtype=float) * 1.0e-12
+    # atol = np.concatenate((atol_u, atol_la_g, atol_la_S))
+    # atol = 1.0e-10
+    # rtol = atol * 1e2
+    rtol = 0
+    # rtol = 1.0e-8
+
+    # define constraint degrees of freedom
+    if Beam == TimoshenkoAxisAngleSE3:
+        cDOF_q = np.concatenate(
+            [np.arange(3, dtype=int), np.arange(3, dtype=int) + beam.nq_r]
+        )
+        cDOF_u = cDOF_q
+        cDOF_S = np.array([], dtype=int)
+        b = lambda t: np.concatenate(
+            [np.zeros(3, dtype=float), np.zeros(3, dtype=float)]
+        )
+    elif Beam == TimoshenkoQuarternionSE3:
+        cDOF_q = np.concatenate(
+            [np.arange(3, dtype=int), np.arange(4, dtype=int) + beam.nq_r]
+        )
+        cDOF_u = np.concatenate(
+            [np.arange(3, dtype=int), np.arange(3, dtype=int) + beam.nu_r]
+        )
+        cDOF_S = np.array([0], dtype=int)
+        b = lambda t: np.concatenate(
+            [np.zeros(3, dtype=float), np.array([1, 0, 0, 0], dtype=float)]
+        )
+    else:
+        cDOF_q = np.array([], dtype=int)
+        cDOF_u = np.array([], dtype=int)
+        cDOF_S = np.array([], dtype=int)
+        b = lambda t: np.array([], dtype=float)
+    cDOF_q = np.array([], dtype=int)
+    cDOF_u = np.array([], dtype=int)
+    cDOF_S = np.array([], dtype=int)
+    b = lambda t: np.array([], dtype=float)
+
+    solver = Newton(
+        model,
+        cDOF_q=cDOF_q,
+        cDOF_u=cDOF_u,
+        cDOF_S=cDOF_S,
+        b=b,
+        n_load_steps=n_load_steps,
+        max_iter=100,
+        atol=atol,
+        rtol=rtol,
+    )
+    # solver = Fsolve(model, n_load_steps=n_load_steps, atol=atol, rtol=rtol)
+
+    sol = solver.solve()
+    q = sol.q
+    nt = len(q)
+    t = sol.t[:nt]
+
+    ##################################
+    # visualize nodal rotation vectors
+    ##################################
+    fig, ax = plt.subplots()
+
+    # visualize tip rotation vector
+    psi1 = q[:, beam.qDOF[beam.nodalDOF_psi[-1]]]
+    for i, psi in enumerate(psi1.T):
+        ax.plot(t, psi, label=f"psi1_{i}")
+
+    ax.set_xlabel("t")
+    ax.set_ylabel("nodal rotation vectors")
+    ax.grid()
+    ax.legend()
+
+    ################################
+    # visualize norm strain measures
+    ################################
+    nxi = 1000
+    xis = np.linspace(0, 1, num=nxi)
+
+    K_Gamma = np.zeros((3, nxi))
+    K_Kappa = np.zeros((3, nxi))
+    for i in range(nxi):
+        frame_ID = (xis[i],)
+        elDOF = beam.qDOF_P(frame_ID)
+        qe = q[-1, beam.qDOF][elDOF]
+        _, _, K_Gamma[:, i], K_Kappa[:, i] = beam.eval(qe, xis[i])
+
+    fig, ax = plt.subplots(2, 3)
+
+    for i in range(3):
+        ax[0, i].set_title(f"K_Gamma{i}")
+        ax[0, i].plot(xis, K_Gamma[i], "-k", label=f"K_Gamma{i}")
+        ax[0, i].grid()
+
+        ax[1, i].set_title(f"K_Kappa{i}")
+        ax[1, i].plot(xis, K_Kappa[i], "-k", label=f"K_Kappa{i}")
+        ax[1, i].grid()
+
+    # ax[0].plot(xis, K_Gamma[1], "-g", label="K_Gamma1")
+    # ax[0].plot(xis, K_Gamma[2], "-b", label="K_Gamma2")
+    # ax[0].grid()
+    # ax[0].legend()
+    # ax[1].plot(xis, K_Kappa[0], "-r", label="K_Kappa0")
+    # ax[1].plot(xis, K_Kappa[1], "-g", label="K_Kappa1")
+    # ax[1].plot(xis, K_Kappa[2], "-b", label="K_Kappa2")
+    # ax[1].grid()
+    # ax[1].legend()
+
+    # fig = plt.figure()
+
+    # ax1 = fig.add_subplot(1, 2, 1)
+    # ax1.set_title("axial and shear strains")
+    # ax1.plot(xis, K_Gamma[0], "-b", label="K_Gamma0")
+    # ax1.grid()
+
+    # ax2 = ax1.twinx()
+    # ax2.plot(xis, K_Gamma[1], "-k", label="K_Gamma1")
+    # ax1.plot(xis, K_Gamma[2], "--k", label="K_Gamma2")
+
+    # ax3 = ax1.twinx()
+    # ax3.plot(xis, K_Gamma[2], "-.b", label="K_Gamma2")
+
+    fig.tight_layout()
+
+    # ############################
+    # # Visualize potential energy
+    # ############################
+    # E_pot = np.array([model.E_pot(ti, qi) for (ti, qi) in zip(t, q)])
+
+    # fig, ax = plt.subplots(1, 2)
+
+    # ax[0].plot(t, E_pot)
+    # ax[0].set_xlabel("t")
+    # ax[0].set_ylabel("E_pot")
+    # ax[0].grid()
+
+    # # visualize final centerline projected in all three planes
+    # r_OPs = beam.centerline(q[-1])
+    # fig, ax = plt.subplots(1, 3)
+    # ax[0].plot(r_OPs[0, :], r_OPs[1, :], label="x-y")
+    # ax[1].plot(r_OPs[1, :], r_OPs[2, :], label="y-z")
+    # ax[2].plot(r_OPs[2, :], r_OPs[0, :], label="z-x")
+    # ax[0].grid()
+    # ax[0].legend()
+    # ax[0].set_aspect(1)
+    # ax[1].grid()
+    # ax[1].legend()
+    # ax[1].set_aspect(1)
+    # ax[2].grid()
+    # ax[2].legend()
+    # ax[2].set_aspect(1)
+
+    ###########
+    # animation
+    ###########
+    animate_beam(t, q, [beam], L, show=True)
+
+
+def objectivity_quater_circle():
+    """This example examines shear and membrande locking as done in Meier2015.
+
+    References:
+    ===========
+    Meier2015: https://doi.org/10.1016/j.cma.2015.02.029
+    """
+    # Beam = TimoshenkoAxisAngle
+    Beam = TimoshenkoAxisAngleSE3
+    # Beam = TimoshenkoQuarternionSE3
+
+    # number of elements
+    # nelements = 1
+    # nelements = 16
+    nelements = 32
+    nelements = 64
+
+    # L = 1.0e3
+    # # (slenderness, atol, n_load_steps
+    # # triplet = (1.0e1, 1.0e-7, 2)
+    # # triplet = (1.0e2, 1.0e-9, 2) #, 50)
+    # # triplet = (1.0e3, 1.0e-10, 2) #, 100) # this is working with quaternions
+    # triplet = (1.0e4, 1.0e-13, 2) #, 200)
+    # # triplet = (1.0e5, 1.0e-14, 2) #, 200)
+
+    L = 1.0e4
+    # (slenderness, atol, n_load_steps
+    # triplet = (1.0e1, 1.0e-7, 2)
+    # triplet = (1.0e2, 1.0e-8, 2)
+    # triplet = (1.0e3, 1.0e-9, 2)
+    # triplet = (1.0e4, 1.0e-10, 2) # this can't be sovle using the quaternion implementation
+    # triplet = (1.0e5, 1.0e-11, 4)
+
+    # convergence for 64 elements
+    # TODO: Maybe use L = 1.0e3 here since the slenderness = 1.0e1 solution
+    # differs from the other ones?
+    triplet = (1.0e1, 1.0e-5, 5)
+    triplet = (1.0e2, 1.0e-7, 5)
+    triplet = (1.0e3, 1.0e-9, 5)
+    triplet = (1.0e4, 1.0e-11, 5)
+    triplet = (1.0e5, 1.0e-12, 5)
+
+    slenderness, atol, n_load_steps = triplet
+    rtol = 0
+    # n_load_steps = 4
+
+    # used polynomial degree
+    polynomial_degree = 1
+
+    # number of quadrature points
+    nquadrature_points = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
+    print(f"nquadrature_points: {nquadrature_points}")
+
+    # used shape functions for discretization
+    # shape_functions = "B-spline"
+    shape_functions = "Lagrange"
+
+    # used cross section
+    width = L / slenderness
+
+    # cross section
+    line_density = 1
+    cross_section = QuadraticCrossSection(line_density, width)
+
+    # Young's and shear modulus
+    E = 1.0  # Meier2015
+    G = 0.5  # Meier2015
+
+    # build quadratic material model
+    material_model = quadratic_beam_material(E, G, cross_section, Beam)
+    print(f"Ei: {material_model.Ei}")
+    print(f"Fi: {material_model.Fi}")
+
+    # exit()
+
+    # starting point and orientation of initial point, initial length
+    r_OP = np.zeros(3, dtype=float)
+    A_IK = np.eye(3, dtype=float)
+
+    # build beam model
+    beam = beam_factory(
+        nelements,
+        polynomial_degree,
+        nquadrature_points,
+        shape_functions,
+        cross_section,
+        material_model,
+        Beam,
+        L,
+        r_OP0=r_OP,
+        A_IK0=A_IK,
+    )
+
+    # junctions
+    r_OB0 = np.zeros(3)
+    A_IK0 = np.eye(3)
+    frame1 = Frame(r_OP=r_OB0, A_IK=A_IK0)
+
+    # left and right joint
+    joint1 = RigidConnection(frame1, beam, r_OB0, frame_ID2=(0,))
+
+    # moment at the beam's tip
+    Fi = material_model.Fi
+    M = lambda t: (e3 * Fi[2]) * t * 2 * np.pi / L * 0.25
+    moment = K_Moment(M, beam, (1,))
+
+    # force at the beam's tip
+    f = lambda t: t * 1e-4 * Fi[2] / L * e3
+    force = Force(f, beam, frame_ID=(1,))
+
+    # assemble the model
+    model = Model()
+    model.add(beam)
+    model.add(frame1)
+    model.add(joint1)
+    model.add(moment)
+    model.add(force)
+    model.assemble()
+
+    solver = Newton(
+        model,
+        n_load_steps=n_load_steps,
+        max_iter=100,
+        atol=atol,
+        rtol=rtol,
+    )
+
+    sol = solver.solve()
+    q = sol.q
+    nt = len(q)
+    t = sol.t[:nt]
+
+    # compute tip displacement
+    r_OP = beam.r_OP(t[-1], q[-1][beam.elDOF[-1]], frame_ID=(1,))
+    print(f"r_OP(1): {r_OP}")
+    # print(f"r_OP(1) * slenderness: {r_OP * slenderness}")
+    # print(f"r_OP(1) / slenderness: {r_OP / slenderness}")
+    # print(f"r_OP(1) / Fi: {r_OP / Fi}")
+
+    ##################################
+    # visualize nodal rotation vectors
+    ##################################
+    fig, ax = plt.subplots()
+
+    # visualize tip rotation vector
+    psi1 = q[:, beam.qDOF[beam.nodalDOF_psi[-1]]]
+    for i, psi in enumerate(psi1.T):
+        ax.plot(t, psi, label=f"psi1_{i}")
+
+    ax.set_xlabel("t")
+    ax.set_ylabel("nodal rotation vectors")
+    ax.grid()
+    ax.legend()
+
+    ################################
+    # visualize norm strain measures
+    ################################
+    fig, ax = plt.subplots(1, 2)
+
+    nxi = 1000
+    xis = np.linspace(0, 1, num=nxi)
+
+    K_Gamma = np.zeros((3, nxi))
+    K_Kappa = np.zeros((3, nxi))
+    for i in range(nxi):
+        frame_ID = (xis[i],)
+        elDOF = beam.qDOF_P(frame_ID)
+        qe = q[-1, beam.qDOF][elDOF]
+        _, _, K_Gamma[:, i], K_Kappa[:, i] = beam.eval(qe, xis[i])
+    ax[0].plot(xis, K_Gamma[0], "-r", label="K_Gamma0")
+    ax[0].plot(xis, K_Gamma[1], "-g", label="K_Gamma1")
+    ax[0].plot(xis, K_Gamma[2], "-b", label="K_Gamma2")
+    ax[0].grid()
+    ax[0].legend()
+    ax[1].plot(xis, K_Kappa[0], "-r", label="K_Kappa0")
+    ax[1].plot(xis, K_Kappa[1], "-g", label="K_Kappa1")
+    ax[1].plot(xis, K_Kappa[2], "-b", label="K_Kappa2")
+    ax[1].grid()
+    ax[1].legend()
+
+    # ########################################################
+    # # visualize norm of tangent vector and quadrature points
+    # ########################################################
+    # fig, ax = plt.subplots()
+
+    # nxi = 1000
+    # xis = np.linspace(0, 1, num=nxi)
+
+    # abs_r_xi = np.zeros(nxi)
+    # abs_r0_xi = np.zeros(nxi)
+    # for i in range(nxi):
+    #     frame_ID = (xis[i],)
+    #     elDOF = beam.qDOF_P(frame_ID)
+    #     qe = q[-1, beam.qDOF][elDOF]
+    #     abs_r_xi[i] = np.linalg.norm(beam.r_OC_xi(t[-1], qe, frame_ID))
+    #     q0e = q[0, beam.qDOF][elDOF]
+    #     abs_r0_xi[i] = np.linalg.norm(beam.r_OC_xi(t[0], q0e, frame_ID))
+    # ax.plot(xis, abs_r_xi, "-r", label="||r_xi||")
+    # ax.plot(xis, abs_r0_xi, "--b", label="||r0_xi||")
+    # ax.set_xlabel("xi")
+    # ax.set_ylabel("||r_xi||")
+    # ax.grid()
+    # ax.legend()
+
+    # # compute quadrature points
+    # for el in range(beam.nelement):
+    #     elDOF = beam.elDOF[el]
+    #     q0e = q[0, beam.qDOF][elDOF]
+    #     for i in range(beam.nquadrature):
+    #         xi = beam.qp[el, i]
+    #         abs_r0_xi = np.linalg.norm(beam.r_OC_xi(t[0], q0e, (xi,)))
+    #         ax.plot(xi, abs_r0_xi, "xr")
+
+    # plt.show()
+    # exit()
+
+    ############################
+    # Visualize potential energy
+    ############################
+    E_pot = np.array([model.E_pot(ti, qi) for (ti, qi) in zip(t, q)])
+
+    fig, ax = plt.subplots(1, 2)
+
+    ax[0].plot(t, E_pot)
+    ax[0].set_xlabel("t")
+    ax[0].set_ylabel("E_pot")
+    ax[0].grid()
+
+    # visualize final centerline projected in all three planes
+    r_OPs = beam.centerline(q[-1])
+    fig, ax = plt.subplots(1, 3)
+    ax[0].plot(r_OPs[0, :], r_OPs[1, :], label="x-y")
+    ax[1].plot(r_OPs[1, :], r_OPs[2, :], label="y-z")
+    ax[2].plot(r_OPs[2, :], r_OPs[0, :], label="z-x")
+    ax[0].grid()
+    ax[0].legend()
+    ax[0].set_aspect(1)
+    ax[1].grid()
+    ax[1].legend()
+    ax[1].set_aspect(1)
+    ax[2].grid()
+    ax[2].legend()
+    ax[2].set_aspect(1)
+
+    ###########
+    # animation
+    ###########
+    animate_beam(t, q, [beam], L, show=True)
+
+
+def convergence_quater_circle():
+    """This example examines shear and membrande locking as done in Meier2015.
+
+    References:
+    ===========
+    Meier2015: https://doi.org/10.1016/j.cma.2015.02.029
+    """
+    # Beam = TimoshenkoAxisAngle
+    Beam = TimoshenkoAxisAngleSE3
+    # Beam = TimoshenkoQuarternionSE3
+
+    # number of elements
+    # nelements = 1
+    # nelements = 16
+    nelements = 32
+    nelements = 64
+
+    # L = 1.0e3
+    # # (slenderness, atol, n_load_steps
+    # # triplet = (1.0e1, 1.0e-7, 2)
+    # # triplet = (1.0e2, 1.0e-9, 2) #, 50)
+    # # triplet = (1.0e3, 1.0e-10, 2) #, 100) # this is working with quaternions
+    # triplet = (1.0e4, 1.0e-13, 2) #, 200)
+    # # triplet = (1.0e5, 1.0e-14, 2) #, 200)
+
+    L = 1.0e4
+    # (slenderness, atol, n_load_steps
+    # triplet = (1.0e1, 1.0e-7, 2)
+    # triplet = (1.0e2, 1.0e-8, 2)
+    # triplet = (1.0e3, 1.0e-9, 2)
+    # triplet = (1.0e4, 1.0e-10, 2) # this can't be sovle using the quaternion implementation
+    # triplet = (1.0e5, 1.0e-11, 4)
+
+    # convergence for 64 elements
+    # TODO: Maybe use L = 1.0e3 here since the slenderness = 1.0e1 solution
+    # differs from the other ones?
+    triplet = (1.0e1, 1.0e-5, 5)
+    triplet = (1.0e2, 1.0e-7, 5)
+    triplet = (1.0e3, 1.0e-9, 5)
+    triplet = (1.0e4, 1.0e-11, 5)
+    triplet = (1.0e5, 1.0e-12, 5)
+
+    slenderness, atol, n_load_steps = triplet
+    rtol = 0
+    # n_load_steps = 4
+
+    # used polynomial degree
+    polynomial_degree = 1
+
+    # number of quadrature points
+    nquadrature_points = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
+    print(f"nquadrature_points: {nquadrature_points}")
+
+    # used shape functions for discretization
+    # shape_functions = "B-spline"
+    shape_functions = "Lagrange"
+
+    # used cross section
+    width = L / slenderness
+
+    # cross section
+    line_density = 1
+    cross_section = QuadraticCrossSection(line_density, width)
+
+    # Young's and shear modulus
+    E = 1.0  # Meier2015
+    G = 0.5  # Meier2015
+
+    # build quadratic material model
+    material_model = quadratic_beam_material(E, G, cross_section, Beam)
+    print(f"Ei: {material_model.Ei}")
+    print(f"Fi: {material_model.Fi}")
+
+    # exit()
+
+    # starting point and orientation of initial point, initial length
+    r_OP = np.zeros(3, dtype=float)
+    A_IK = np.eye(3, dtype=float)
+
+    # build beam model
+    beam = beam_factory(
+        nelements,
+        polynomial_degree,
+        nquadrature_points,
+        shape_functions,
+        cross_section,
+        material_model,
+        Beam,
+        L,
+        r_OP0=r_OP,
+        A_IK0=A_IK,
+    )
+
+    # junctions
+    r_OB0 = np.zeros(3)
+    A_IK0 = np.eye(3)
+    frame1 = Frame(r_OP=r_OB0, A_IK=A_IK0)
+
+    # left and right joint
+    joint1 = RigidConnection(frame1, beam, r_OB0, frame_ID2=(0,))
+
+    # moment at the beam's tip
+    Fi = material_model.Fi
+    M = lambda t: (e3 * Fi[2]) * t * 2 * np.pi / L * 0.25
+    moment = K_Moment(M, beam, (1,))
+
+    # force at the beam's tip
+    f = lambda t: t * 1e-4 * Fi[2] / L * e3
+    force = Force(f, beam, frame_ID=(1,))
+
+    # assemble the model
+    model = Model()
+    model.add(beam)
+    model.add(frame1)
+    model.add(joint1)
+    model.add(moment)
+    model.add(force)
+    model.assemble()
+
+    solver = Newton(
+        model,
+        n_load_steps=n_load_steps,
+        max_iter=100,
+        atol=atol,
+        rtol=rtol,
+    )
+
+    sol = solver.solve()
+    q = sol.q
+    nt = len(q)
+    t = sol.t[:nt]
+
+    # compute tip displacement
+    r_OP = beam.r_OP(t[-1], q[-1][beam.elDOF[-1]], frame_ID=(1,))
+    print(f"r_OP(1): {r_OP}")
+    # print(f"r_OP(1) * slenderness: {r_OP * slenderness}")
+    # print(f"r_OP(1) / slenderness: {r_OP / slenderness}")
+    # print(f"r_OP(1) / Fi: {r_OP / Fi}")
+
+    ##################################
+    # visualize nodal rotation vectors
+    ##################################
+    fig, ax = plt.subplots()
+
+    # visualize tip rotation vector
+    psi1 = q[:, beam.qDOF[beam.nodalDOF_psi[-1]]]
+    for i, psi in enumerate(psi1.T):
+        ax.plot(t, psi, label=f"psi1_{i}")
+
+    ax.set_xlabel("t")
+    ax.set_ylabel("nodal rotation vectors")
+    ax.grid()
+    ax.legend()
+
+    ################################
+    # visualize norm strain measures
+    ################################
+    fig, ax = plt.subplots(1, 2)
+
+    nxi = 1000
+    xis = np.linspace(0, 1, num=nxi)
+
+    K_Gamma = np.zeros((3, nxi))
+    K_Kappa = np.zeros((3, nxi))
+    for i in range(nxi):
+        frame_ID = (xis[i],)
+        elDOF = beam.qDOF_P(frame_ID)
+        qe = q[-1, beam.qDOF][elDOF]
+        _, _, K_Gamma[:, i], K_Kappa[:, i] = beam.eval(qe, xis[i])
+    ax[0].plot(xis, K_Gamma[0], "-r", label="K_Gamma0")
+    ax[0].plot(xis, K_Gamma[1], "-g", label="K_Gamma1")
+    ax[0].plot(xis, K_Gamma[2], "-b", label="K_Gamma2")
+    ax[0].grid()
+    ax[0].legend()
+    ax[1].plot(xis, K_Kappa[0], "-r", label="K_Kappa0")
+    ax[1].plot(xis, K_Kappa[1], "-g", label="K_Kappa1")
+    ax[1].plot(xis, K_Kappa[2], "-b", label="K_Kappa2")
+    ax[1].grid()
+    ax[1].legend()
+
+    # ########################################################
+    # # visualize norm of tangent vector and quadrature points
+    # ########################################################
+    # fig, ax = plt.subplots()
+
+    # nxi = 1000
+    # xis = np.linspace(0, 1, num=nxi)
+
+    # abs_r_xi = np.zeros(nxi)
+    # abs_r0_xi = np.zeros(nxi)
+    # for i in range(nxi):
+    #     frame_ID = (xis[i],)
+    #     elDOF = beam.qDOF_P(frame_ID)
+    #     qe = q[-1, beam.qDOF][elDOF]
+    #     abs_r_xi[i] = np.linalg.norm(beam.r_OC_xi(t[-1], qe, frame_ID))
+    #     q0e = q[0, beam.qDOF][elDOF]
+    #     abs_r0_xi[i] = np.linalg.norm(beam.r_OC_xi(t[0], q0e, frame_ID))
+    # ax.plot(xis, abs_r_xi, "-r", label="||r_xi||")
+    # ax.plot(xis, abs_r0_xi, "--b", label="||r0_xi||")
+    # ax.set_xlabel("xi")
+    # ax.set_ylabel("||r_xi||")
+    # ax.grid()
+    # ax.legend()
+
+    # # compute quadrature points
+    # for el in range(beam.nelement):
+    #     elDOF = beam.elDOF[el]
+    #     q0e = q[0, beam.qDOF][elDOF]
+    #     for i in range(beam.nquadrature):
+    #         xi = beam.qp[el, i]
+    #         abs_r0_xi = np.linalg.norm(beam.r_OC_xi(t[0], q0e, (xi,)))
+    #         ax.plot(xi, abs_r0_xi, "xr")
+
+    # plt.show()
+    # exit()
+
+    ############################
+    # Visualize potential energy
+    ############################
+    E_pot = np.array([model.E_pot(ti, qi) for (ti, qi) in zip(t, q)])
+
+    fig, ax = plt.subplots(1, 2)
+
+    ax[0].plot(t, E_pot)
+    ax[0].set_xlabel("t")
+    ax[0].set_ylabel("E_pot")
+    ax[0].grid()
+
+    # visualize final centerline projected in all three planes
+    r_OPs = beam.centerline(q[-1])
+    fig, ax = plt.subplots(1, 3)
+    ax[0].plot(r_OPs[0, :], r_OPs[1, :], label="x-y")
+    ax[1].plot(r_OPs[1, :], r_OPs[2, :], label="y-z")
+    ax[2].plot(r_OPs[2, :], r_OPs[0, :], label="z-x")
+    ax[0].grid()
+    ax[0].legend()
+    ax[0].set_aspect(1)
+    ax[1].grid()
+    ax[1].legend()
+    ax[1].set_aspect(1)
+    ax[2].grid()
+    ax[2].legend()
+    ax[2].set_aspect(1)
+
+    ###########
+    # animation
+    ###########
+    animate_beam(t, q, [beam], L, show=True)
+
+
 if __name__ == "__main__":
     # run(statics=True)
     # run(statics=False)
-    locking()
+    # locking(case="quater_circle")
+    # locking(case="helix")
     # SE3_interpolation()
     # HelixIbrahimbegovic1997()
-    # HeavyTopMaekinen2006(case="Maekinen2006")
-    # HeavyTop(case="Other")
+    # HeavyTop()
     # Dschanibekow()
+    # distributed_force()
+    objectivity_quater_circle()

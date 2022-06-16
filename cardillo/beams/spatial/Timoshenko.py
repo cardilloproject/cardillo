@@ -250,6 +250,7 @@ class TimoshenkoQuarternionSE3:
             self.knot_vector_r = Node_vector(polynomial_degree_r, nelement)
             self.knot_vector_psi = Node_vector(polynomial_degree_psi, nelement)
             self.knot_vector_la = Node_vector(polynomial_degree_r, nelement)
+            # self.knot_vector_la = Node_vector(0, nelement)
         else:
             raise RuntimeError(f'wrong basis: "{basis}" was chosen')
 
@@ -305,7 +306,7 @@ class TimoshenkoQuarternionSE3:
         self.nu_psi = self.mesh_psi.nu
         self.nu = self.nu_r + self.nu_psi  # total number of generalized velocities
         # self.nla_S = self.mesh_psi.nnodes  # total number of Lagrange mutipliers
-        self.nla_S = self.mesh_psi.nnodes  # total number of Lagrange mutipliers
+        self.nla_S = self.mesh_la.nnodes  # total number of Lagrange mutipliers
 
         # number of generalized coordiantes per element
         self.nq_element_r = self.mesh_r.nq_per_element
@@ -1871,9 +1872,9 @@ class TimoshenkoAxisAngleSE3:
         # # print(f"error strains: {error}")
         # # print(f"error strains: {diff}")
 
-        #################################################################
-        # This alternative formulation works for pure bending experiments
-        #################################################################
+        # #################################################################
+        # # This alternative formulation works for pure bending experiments
+        # #################################################################
         assert self.polynomial_degree_r == 1
         strains = h_rel_xi
 
