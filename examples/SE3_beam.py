@@ -28,7 +28,7 @@ from cardillo.beams import (
     TimoshenkoDirectorDirac,
     TimoshenkoQuarternionSE3,
 )
-from cardillo.forces import Force, K_Moment, Moment, DistributedForce1D
+from cardillo.forces import Force, K_Force, K_Moment, Moment, DistributedForce1D
 from cardillo.model import Model
 from cardillo.solver import (
     Newton,
@@ -161,7 +161,7 @@ def beam_factory(
             nelements,
             Q=Q,
             q0=q0,
-            u0=u0,
+            # u0=u0,
             basis=shape_functions,
         )
     elif Beam == TimoshenkoAxisAngleSE3:
@@ -1356,19 +1356,44 @@ def HeavyTop():
     shape_functions = "Lagrange"
 
     # cross section and inertia
-    m = 1
-    l = 0.2
+    # m = 1
     g = 9.81
+    # # TODO: Working values
+    # l = 0.2
+    # r = 0.1
+    # omega_x = 2 * pi * 100
+
+    # # new values
+    # l = 1.0
+    # r = 0.1
+    # omega_x = 2 * pi * 200
+    # new values
+    # l = 0.5
+    # # r = 0.1
+    # r = 0.05
+    # l = 0.05
+    # r = 0.01
+
+    ######################
+    # nice locking results
+    ######################
+    l = 0.5
     r = 0.1
+    omega_x = 2 * pi * 50
+    E_stiff = 210e6 # steel (stiff beam)
+    E_soft = E_stiff * 1.0e-2 # soft beam
+
     V = l * pi * r**2
-    rho = m / V
+    rho = 8000 # steel [kg/m^3]
+    m = rho * V
+    print(f"total mass: {m}")
     cross_section = CircularCrossSection(rho, r)
 
     # initial angular velocity and orientation
-    omega_x = 2 * pi * 25
-    A = (1.0 / 2.0) * m * r**2
-    omega_pr = m * g * (l / 2) / (A * omega_x)
-    K_omega_IK0 = omega_x * e1 + omega_pr * e3
+    A = 0.5 * m * r**2
+    omega_pr = m * g * (0.5 * l) / (A * omega_x)
+    K_omega_IK0 = omega_x * e1 + omega_pr * e3 # perfect precession motion
+    # K_omega_IK0 = omega_x * e1
     A_IK0 = np.eye(3, dtype=float)
     # A_IK0 = rodriguez(-pi / 10 * e2)
     from scipy.spatial.transform import Rotation
@@ -1383,22 +1408,27 @@ def HeavyTop():
     ###################
     t0 = 0.0
     t1 = 2.0 * pi / omega_pr
+    # t1 *= 0.5
     t1 *= 0.25
     # t1 *= 0.125
     # t1 *= 0.075
-    # t1 = 0.01
-    # t1 = 0.1
 
     # nt = np.ceil(t1 / 1.0e-3)
+    # dt = t1 * 1.0e-2
     dt = t1 * 1.0e-3
-    # dt = 1.0e-4
     rtol = 1.0e-6
     atol = 1.0e-6
 
-    def solve(EA, GA, GJ, EI):
-        # build quadratic material model
-        Ei = np.array([EA, GA, GA], dtype=float)
-        Fi = np.array([GJ, EI, EI], dtype=float)
+    t_eval = np.arange(t0, t1 + dt, dt)
+
+    def solve(E):
+        nu = 1. / 3.
+        G = E / (2. * (1. + nu))
+
+        A = cross_section.area
+        Ip, I2, I3 = np.diag(cross_section.second_moment)
+        Ei = np.array([E * A, G * A, G * A])
+        Fi = np.array([G * Ip, E * I2, E * I3])
         material_model = Simo1986(Ei, Fi)
 
         # build beam model
@@ -1427,7 +1457,6 @@ def HeavyTop():
             -cross_section.area * cross_section.density * 9.81 * e3, dtype=float
         )
         f_g_beam = DistributedForce1D(lambda t, xi: vg, beam)
-        # f_g_beam = Force(-l * cross_section.area * cross_section.density * e3, beam, frame_ID=(0.5,))
 
         # assemble the model
         model = Model()
@@ -1437,7 +1466,9 @@ def HeavyTop():
         model.add(f_g_beam)
         model.assemble()
 
+        # TODO: Is RK45 also working for the final result?
         sol = ScipyIVP(model, t1, dt, method="RK23", rtol=rtol, atol=atol).solve()
+        # sol = ScipyIVP(model, t1, dt, method="RK45", rtol=rtol, atol=atol).solve()
 
         return beam, sol
 
@@ -1448,10 +1479,10 @@ def HeavyTop():
 
     ref = solve_ivp(
         heavy_top,
-        [0.0, t1],
+        (t_eval[0], t_eval[-1]),
         x0,
         method="RK45",
-        t_eval=np.arange(t0, t1 + dt, dt),
+        t_eval=t_eval,
         rtol=rtol,
         atol=atol,
     )
@@ -1464,42 +1495,38 @@ def HeavyTop():
         ]
     )
 
-    # beam parameters found in Section 4.3. Fast symmetrical top - Maekinen2006
-    # stiff beam
-    EA_stiff = GA_stiff = 1.0e4
-    GJ_stiff = EI_stiff = 1.0e1
+    # # debug rigid top solution
+    # fig = plt.figure()
+    # ax = fig.add_subplot(1, 1, 1, projection='3d')
+    # ax.plot(*r_OP_ref.T)
+    # plt.show()
+    # exit()
 
-    # soft beam
-    EA_soft = GA_soft = 1.0e2
-    GJ_soft = EI_soft = 1.0e-1
-    # EA_soft = GA_soft = 2.5e1
+    # # beam parameters found in Section 4.3. Fast symmetrical top - Maekinen2006
+    # # stiff beam
+    # # EA_stiff = GA_stiff = 1.0e4
+    # # GJ_stiff = EI_stiff = 1.0e1
+    # EA_stiff = GA_stiff = 1.0e4
+    # GJ_stiff = EI_stiff = 1.0e4
+
+    # # soft beam
+    # EA_soft = GA_soft = 1.0e2
     # GJ_soft = EI_soft = 1.0e-1
 
-    beam_stiff, sol_soft = solve(EA_soft, GA_soft, GJ_soft, EI_soft)
-    beam_soft, sol_stiff = solve(EA_stiff, GA_stiff, GJ_stiff, EI_stiff)
+    # solve stiff and soft beam problem
+    # beam_stiff, sol_stiff = solve(EA_stiff, GA_stiff, GJ_stiff, EI_stiff)
+    # beam_soft, sol_soft = solve(EA_soft, GA_soft, GJ_soft, EI_soft)
+
+    # beam_stiff, sol_stiff = solve(E_stiff)
+    # beam_soft, sol_soft = solve(E_soft)
+    beam_stiff, sol_stiff = solve(E_soft)
 
     q_stiff = sol_stiff.q
-    q_soft = sol_soft.q
     nt = len(q_stiff)
     t = sol_stiff.t[:nt]
-
-    # #######################
-    # # export tip deflection
-    # #######################
-    # header = "t, x, y, z"
-    # frame_ID = (1,)
-    # elDOF = beam.qDOF_P(frame_ID)
-    # r_OC_L = np.array(
-    #     [beam.r_OP(ti, qi[elDOF], frame_ID) for (ti, qi) in zip(t, q)]
-    # )
-    # export_data = np.vstack([t, *r_OC_L.T]).T
-    # np.savetxt(
-    #     "results/tip_displacement_helix.txt",
-    #     export_data,
-    #     delimiter=", ",
-    #     header=header,
-    #     comments="",
-    # )
+    # q_soft = sol_soft.q
+    # nt = len(q_soft)
+    # t = sol_soft.t[:nt]
 
     if True:
         # ###############################
@@ -1523,11 +1550,10 @@ def HeavyTop():
         r_OP_stiff = np.array(
             [beam_stiff.r_OP(ti, qi[elDOF], (1,)) for (ti, qi) in zip(t, q_stiff)]
         )
-        r_OP_soft = np.array(
-            [beam_soft.r_OP(ti, qi[elDOF], (1,)) for (ti, qi) in zip(t, q_soft)]
-        )
-        # r_OP_stiff = q_stiff[:, -6:-3]
-        # r_OP_soft = q_soft[:, -6:-3]
+        # elDOF = beam_soft.qDOF[beam_soft.elDOF[-1]]
+        # r_OP_soft = np.array(
+        #     [beam_soft.r_OP(ti, qi[elDOF], (1,)) for (ti, qi) in zip(t, q_soft)]
+        # )
 
         fig = plt.figure(figsize=(10, 8))
 
@@ -1535,8 +1561,8 @@ def HeavyTop():
         ax = fig.add_subplot(1, 2, 1, projection="3d")
         ax.set_title("3D tip trajectory")
         ax.plot(*r_OP_ref.T, "-k", label="rigid body")
-        ax.plot(*r_OP_stiff.T, "--b", label="stiff beam")
-        ax.plot(*r_OP_soft.T, "--r", label="soft beam")
+        ax.plot(*r_OP_stiff.T, "--r", label="stiff beam")
+        # ax.plot(*r_OP_soft.T, "--b", label="soft beam")
         ax.set_xlabel("x [-]")
         ax.set_ylabel("y [-]")
         ax.set_zlabel("z [-]")
@@ -1550,22 +1576,25 @@ def HeavyTop():
 
         ax.plot(t, r_OP_ref[:, 0], "-k", label="x_ref")
         ax.plot(t, r_OP_ref[:, 1], "-k", label="y_ref")
+        ax.plot(t, r_OP_ref[:, 2], "-k", label="z_ref")
         ax.plot(t, r_OP_stiff[:, 0], "--r", label="x stiff")
         ax.plot(t, r_OP_stiff[:, 1], "--r", label="y stiff")
-        ax.plot(t, r_OP_soft[:, 0], "--b", label="x soft")
-        ax.plot(t, r_OP_soft[:, 1], "--b", label="y soft")
+        ax.plot(t, r_OP_stiff[:, 2], "--r", label="z stiff")
+        # ax.plot(t, r_OP_soft[:, 0], "--b", label="x soft")
+        # ax.plot(t, r_OP_soft[:, 1], "--b", label="y soft")
+        # ax.plot(t, r_OP_soft[:, 2], "--b", label="z soft")
         ax.set_xlabel("t")
         ax.set_ylabel("x, y")
         ax.grid()
         ax.legend()
 
-        ax2 = ax.twinx()
-        ax2.plot(t, r_OP_ref[:, 2], "-k", label="z_ref")
-        ax2.plot(t, r_OP_stiff[:, 2], "--r", label="z stiff")
-        ax2.plot(t, r_OP_soft[:, 2], "--b", label="z soft")
-        ax2.set_ylabel("z")
-        ax2.grid()
-        ax2.legend()
+        # ax2 = ax.twinx()
+        # ax2.plot(t, r_OP_ref[:, 2], "-k", label="z_ref")
+        # ax2.plot(t, r_OP_stiff[:, 2], "--r", label="z stiff")
+        # ax2.plot(t, r_OP_soft[:, 2], "--b", label="z soft")
+        # ax2.set_ylabel("z")
+        # ax2.grid()
+        # ax2.legend()
 
         fig.tight_layout()
 
@@ -1575,6 +1604,41 @@ def HeavyTop():
         # # animation
         # ###########
         # animate_beam(t, q, [beam], l, show=True)
+
+    exit()
+
+    #######################
+    # export tip deflection
+    #######################
+    # rigid body
+    header = "t, x, y, z"
+    export_data = np.vstack([t_ref, *r_OP_ref.T]).T
+    np.savetxt(
+        "results/HeavyTopRigidBody.txt",
+        export_data,
+        delimiter=", ",
+        header=header,
+        comments="",
+    )
+
+    # beam's
+    frame_ID = (1,)
+    elDOF = beam_stiff.qDOF_P(frame_ID)
+    r_OC_L_soft = np.array(
+        [beam_soft.r_OP(ti, qi[elDOF], frame_ID) for (ti, qi) in zip(t, q_soft)]
+    )
+    r_OC_L_stiff = np.array(
+        [beam_stiff.r_OP(ti, qi[elDOF], frame_ID) for (ti, qi) in zip(t, q_stiff)]
+    )
+    header = "t, x_stiff, y_stiff, z_stiff, x_soft, y_soft, z_soft"
+    export_data = np.vstack([t, *r_OC_L_stiff.T, *r_OC_L_soft.T]).T
+    np.savetxt(
+        "results/HeavyTopBeam.txt",
+        export_data,
+        delimiter=", ",
+        header=header,
+        comments="",
+    )
 
 
 def Dschanibekow():
@@ -2016,10 +2080,12 @@ def objectivity_quater_circle():
     # Beam = TimoshenkoQuarternionSE3
 
     # number of elements
-    # nelements = 1
+    nelements = 1
+    # nelements = 4
+    # nelements = 8
     # nelements = 16
-    nelements = 32
-    nelements = 64
+    # nelements = 32
+    # nelements = 64
 
     # L = 1.0e3
     # # (slenderness, atol, n_load_steps
@@ -2040,18 +2106,21 @@ def objectivity_quater_circle():
     # convergence for 64 elements
     # TODO: Maybe use L = 1.0e3 here since the slenderness = 1.0e1 solution
     # differs from the other ones?
-    triplet = (1.0e1, 1.0e-5, 5)
-    triplet = (1.0e2, 1.0e-7, 5)
-    triplet = (1.0e3, 1.0e-9, 5)
-    triplet = (1.0e4, 1.0e-11, 5)
-    triplet = (1.0e5, 1.0e-12, 5)
+    triplet = (1.0e1, 1.0e-5, 30)
+    # triplet = (1.0e2, 1.0e-7, 5)
+    # triplet = (1.0e3, 1.0e-9, 5)
+    # triplet = (1.0e4, 1.0e-11, 5)
+    # triplet = (1.0e5, 1.0e-12, 5)
 
     slenderness, atol, n_load_steps = triplet
     rtol = 0
-    # n_load_steps = 4
+    n = 10 # number of full rotations
+    t_star = 0.1 # fraction of deformation pseudo time
+    n_load_steps = 100
 
     # used polynomial degree
     polynomial_degree = 1
+    # polynomial_degree = 3
 
     # number of quadrature points
     nquadrature_points = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
@@ -2077,11 +2146,18 @@ def objectivity_quater_circle():
     print(f"Ei: {material_model.Ei}")
     print(f"Fi: {material_model.Fi}")
 
-    # exit()
-
     # starting point and orientation of initial point, initial length
-    r_OP = np.zeros(3, dtype=float)
-    A_IK = np.eye(3, dtype=float)
+    r_OB0 = np.zeros(3, dtype=float)
+    def A_IK0(t):
+        # if t <= t_star:
+        #     return np.eye(3, dtype=float)
+        # else:
+        #     frac = 0.1
+        #     # phi = frac * 2. * pi * (1. - 1. / t_star) * (t - t_star)
+        #     phi = np.heaviside(t - t_star, 1.) * (t - t_star) * frac * 2. * pi #* (1. - 1. / t_star)
+        #     return A_IK_basic(phi).x() #@ A_IK_basic(phi).y()
+        phi = n * np.heaviside(t - t_star, 1.) * (t - t_star) / (1. - t_star) * 2. * pi #* (1. - 1. / t_star)
+        return A_IK_basic(phi).x() #@ A_IK_basic(phi).y()
 
     # build beam model
     beam = beam_factory(
@@ -2093,13 +2169,11 @@ def objectivity_quater_circle():
         material_model,
         Beam,
         L,
-        r_OP0=r_OP,
-        A_IK0=A_IK,
+        r_OP0=r_OB0,
+        A_IK0=A_IK0(0),
     )
 
     # junctions
-    r_OB0 = np.zeros(3)
-    A_IK0 = np.eye(3)
     frame1 = Frame(r_OP=r_OB0, A_IK=A_IK0)
 
     # left and right joint
@@ -2107,12 +2181,22 @@ def objectivity_quater_circle():
 
     # moment at the beam's tip
     Fi = material_model.Fi
-    M = lambda t: (e3 * Fi[2]) * t * 2 * np.pi / L * 0.25
+    def M(t):
+        M_max = (e3 * Fi[2]) * 2 * np.pi / L * 0.25
+        if t <= t_star:
+            return t / t_star * M_max
+        else:
+            return M_max
     moment = K_Moment(M, beam, (1,))
 
     # force at the beam's tip
-    f = lambda t: t * 1e-4 * Fi[2] / L * e3
-    force = Force(f, beam, frame_ID=(1,))
+    def f(t):
+        f_max = 1e-4 * Fi[2] / L * e3
+        if t <= t_star:
+            return t / t_star * f_max
+        else:
+            return f_max
+    force = K_Force(f, beam, frame_ID=(1,))
 
     # assemble the model
     model = Model()
@@ -2120,7 +2204,7 @@ def objectivity_quater_circle():
     model.add(frame1)
     model.add(joint1)
     model.add(moment)
-    model.add(force)
+    # model.add(force)
     model.assemble()
 
     solver = Newton(
@@ -2137,8 +2221,8 @@ def objectivity_quater_circle():
     t = sol.t[:nt]
 
     # compute tip displacement
-    r_OP = beam.r_OP(t[-1], q[-1][beam.elDOF[-1]], frame_ID=(1,))
-    print(f"r_OP(1): {r_OP}")
+    r_OB0 = beam.r_OP(t[-1], q[-1][beam.elDOF[-1]], frame_ID=(1,))
+    print(f"r_OP(1): {r_OB0}")
     # print(f"r_OP(1) * slenderness: {r_OP * slenderness}")
     # print(f"r_OP(1) / slenderness: {r_OP / slenderness}")
     # print(f"r_OP(1) / Fi: {r_OP / Fi}")
@@ -2158,67 +2242,31 @@ def objectivity_quater_circle():
     ax.grid()
     ax.legend()
 
-    ################################
-    # visualize norm strain measures
-    ################################
-    fig, ax = plt.subplots(1, 2)
-
-    nxi = 1000
-    xis = np.linspace(0, 1, num=nxi)
-
-    K_Gamma = np.zeros((3, nxi))
-    K_Kappa = np.zeros((3, nxi))
-    for i in range(nxi):
-        frame_ID = (xis[i],)
-        elDOF = beam.qDOF_P(frame_ID)
-        qe = q[-1, beam.qDOF][elDOF]
-        _, _, K_Gamma[:, i], K_Kappa[:, i] = beam.eval(qe, xis[i])
-    ax[0].plot(xis, K_Gamma[0], "-r", label="K_Gamma0")
-    ax[0].plot(xis, K_Gamma[1], "-g", label="K_Gamma1")
-    ax[0].plot(xis, K_Gamma[2], "-b", label="K_Gamma2")
-    ax[0].grid()
-    ax[0].legend()
-    ax[1].plot(xis, K_Kappa[0], "-r", label="K_Kappa0")
-    ax[1].plot(xis, K_Kappa[1], "-g", label="K_Kappa1")
-    ax[1].plot(xis, K_Kappa[2], "-b", label="K_Kappa2")
-    ax[1].grid()
-    ax[1].legend()
-
-    # ########################################################
-    # # visualize norm of tangent vector and quadrature points
-    # ########################################################
-    # fig, ax = plt.subplots()
+    # ################################
+    # # visualize norm strain measures
+    # ################################
+    # fig, ax = plt.subplots(1, 2)
 
     # nxi = 1000
     # xis = np.linspace(0, 1, num=nxi)
 
-    # abs_r_xi = np.zeros(nxi)
-    # abs_r0_xi = np.zeros(nxi)
+    # K_Gamma = np.zeros((3, nxi))
+    # K_Kappa = np.zeros((3, nxi))
     # for i in range(nxi):
     #     frame_ID = (xis[i],)
     #     elDOF = beam.qDOF_P(frame_ID)
     #     qe = q[-1, beam.qDOF][elDOF]
-    #     abs_r_xi[i] = np.linalg.norm(beam.r_OC_xi(t[-1], qe, frame_ID))
-    #     q0e = q[0, beam.qDOF][elDOF]
-    #     abs_r0_xi[i] = np.linalg.norm(beam.r_OC_xi(t[0], q0e, frame_ID))
-    # ax.plot(xis, abs_r_xi, "-r", label="||r_xi||")
-    # ax.plot(xis, abs_r0_xi, "--b", label="||r0_xi||")
-    # ax.set_xlabel("xi")
-    # ax.set_ylabel("||r_xi||")
-    # ax.grid()
-    # ax.legend()
-
-    # # compute quadrature points
-    # for el in range(beam.nelement):
-    #     elDOF = beam.elDOF[el]
-    #     q0e = q[0, beam.qDOF][elDOF]
-    #     for i in range(beam.nquadrature):
-    #         xi = beam.qp[el, i]
-    #         abs_r0_xi = np.linalg.norm(beam.r_OC_xi(t[0], q0e, (xi,)))
-    #         ax.plot(xi, abs_r0_xi, "xr")
-
-    # plt.show()
-    # exit()
+    #     _, _, K_Gamma[:, i], K_Kappa[:, i] = beam.eval(qe, xis[i])
+    # ax[0].plot(xis, K_Gamma[0], "-r", label="K_Gamma0")
+    # ax[0].plot(xis, K_Gamma[1], "-g", label="K_Gamma1")
+    # ax[0].plot(xis, K_Gamma[2], "-b", label="K_Gamma2")
+    # ax[0].grid()
+    # ax[0].legend()
+    # ax[1].plot(xis, K_Kappa[0], "-r", label="K_Kappa0")
+    # ax[1].plot(xis, K_Kappa[1], "-g", label="K_Kappa1")
+    # ax[1].plot(xis, K_Kappa[2], "-b", label="K_Kappa2")
+    # ax[1].grid()
+    # ax[1].legend()
 
     ############################
     # Visualize potential energy
@@ -2232,7 +2280,15 @@ def objectivity_quater_circle():
     ax[0].set_ylabel("E_pot")
     ax[0].grid()
 
-    # visualize final centerline projected in all three planes
+    idx = np.where(t > t_star)[0]
+    ax[1].plot(t[idx], E_pot[idx])
+    ax[1].set_xlabel("t")
+    ax[1].set_ylabel("E_pot")
+    ax[1].grid()
+
+    ########################################
+    # visualize final centerline projections
+    ########################################
     r_OPs = beam.centerline(q[-1])
     fig, ax = plt.subplots(1, 3)
     ax[0].plot(r_OPs[0, :], r_OPs[1, :], label="x-y")
@@ -2511,7 +2567,7 @@ if __name__ == "__main__":
     # locking(case="helix")
     # SE3_interpolation()
     # HelixIbrahimbegovic1997()
-    # HeavyTop()
+    HeavyTop()
     # Dschanibekow()
     # distributed_force()
-    objectivity_quater_circle()
+    # objectivity_quater_circle()
