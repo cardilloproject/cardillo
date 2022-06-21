@@ -1337,54 +1337,42 @@ def HeavyTop():
     # Beam = TimoshenkoQuarternionSE3
 
     # number of elements
-    # nelements = 3
     nelements = 1
 
     # used polynomial degree
     polynomial_degree = 1
 
     # number of quadrature points
-    # TODO: We have to distinguish between integration of the mass matrix,
-    #       gyroscopic forces and potential forces!
     nquadrature_points = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
-    # nquadrature_points = polynomial_degree + 2
-    # nquadrature_points = polynomial_degree + 1
-    # nquadrature_points = polynomial_degree
+    print(f"number of quadratur epoints: {nquadrature_points}")
 
     # used shape functions for discretization
-    # shape_functions = "B-spline"
     shape_functions = "Lagrange"
-
-    # cross section and inertia
-    # m = 1
-    g = 9.81
-    # # TODO: Working values
-    # l = 0.2
-    # r = 0.1
-    # omega_x = 2 * pi * 100
-
-    # # new values
-    # l = 1.0
-    # r = 0.1
-    # omega_x = 2 * pi * 200
-    # new values
-    # l = 0.5
-    # # r = 0.1
-    # r = 0.05
-    # l = 0.05
-    # r = 0.01
 
     ######################
     # nice locking results
     ######################
+    g = 9.81
     l = 0.5
     r = 0.1
     omega_x = 2 * pi * 50
     E_stiff = 210e6 # steel (stiff beam)
     E_soft = E_stiff * 1.0e-2 # soft beam
-
-    V = l * pi * r**2
     rho = 8000 # steel [kg/m^3]
+
+    # ####################
+    # # more beam like top
+    # ####################
+    # g = 9.81
+    # l = 1.0
+    # r = 0.1
+    # omega_x = 400 * pi
+    # E_stiff = 210e6 # steel [N/m^2] (stiff beam)
+    # E_soft = E_stiff * 5.0e-3 # soft beam
+    # rho = 8000 # steel [kg/m^3]
+
+    # tip volume and mass
+    V = l * pi * r**2
     m = rho * V
     print(f"total mass: {m}")
     cross_section = CircularCrossSection(rho, r)
@@ -1393,7 +1381,6 @@ def HeavyTop():
     A = 0.5 * m * r**2
     omega_pr = m * g * (0.5 * l) / (A * omega_x)
     K_omega_IK0 = omega_x * e1 + omega_pr * e3 # perfect precession motion
-    # K_omega_IK0 = omega_x * e1
     A_IK0 = np.eye(3, dtype=float)
     # A_IK0 = rodriguez(-pi / 10 * e2)
     from scipy.spatial.transform import Rotation
@@ -1416,6 +1403,7 @@ def HeavyTop():
     # nt = np.ceil(t1 / 1.0e-3)
     # dt = t1 * 1.0e-2
     dt = t1 * 1.0e-3
+    # TODO: Better use rtol=atol=1.0e-8 for final paper results!
     rtol = 1.0e-6
     atol = 1.0e-6
 
@@ -1454,7 +1442,7 @@ def HeavyTop():
 
         # gravity beam
         vg = np.array(
-            -cross_section.area * cross_section.density * 9.81 * e3, dtype=float
+            -cross_section.area * cross_section.density * g * e3, dtype=float
         )
         f_g_beam = DistributedForce1D(lambda t, xi: vg, beam)
 
@@ -1502,31 +1490,16 @@ def HeavyTop():
     # plt.show()
     # exit()
 
-    # # beam parameters found in Section 4.3. Fast symmetrical top - Maekinen2006
-    # # stiff beam
-    # # EA_stiff = GA_stiff = 1.0e4
-    # # GJ_stiff = EI_stiff = 1.0e1
-    # EA_stiff = GA_stiff = 1.0e4
-    # GJ_stiff = EI_stiff = 1.0e4
-
-    # # soft beam
-    # EA_soft = GA_soft = 1.0e2
-    # GJ_soft = EI_soft = 1.0e-1
-
-    # solve stiff and soft beam problem
-    # beam_stiff, sol_stiff = solve(EA_stiff, GA_stiff, GJ_stiff, EI_stiff)
-    # beam_soft, sol_soft = solve(EA_soft, GA_soft, GJ_soft, EI_soft)
-
+    # sove for beam solutions
     # beam_stiff, sol_stiff = solve(E_stiff)
-    # beam_soft, sol_soft = solve(E_soft)
-    beam_stiff, sol_stiff = solve(E_soft)
+    beam_soft, sol_soft = solve(E_soft)
 
-    q_stiff = sol_stiff.q
-    nt = len(q_stiff)
-    t = sol_stiff.t[:nt]
-    # q_soft = sol_soft.q
-    # nt = len(q_soft)
-    # t = sol_soft.t[:nt]
+    # q_stiff = sol_stiff.q
+    # nt = len(q_stiff)
+    # t = sol_stiff.t[:nt]
+    q_soft = sol_soft.q
+    nt = len(q_soft)
+    t = sol_soft.t[:nt]
 
     if True:
         # ###############################
@@ -1546,14 +1519,14 @@ def HeavyTop():
         ############################
         # Visualize tip displacement
         ############################
-        elDOF = beam_stiff.qDOF[beam_stiff.elDOF[-1]]
-        r_OP_stiff = np.array(
-            [beam_stiff.r_OP(ti, qi[elDOF], (1,)) for (ti, qi) in zip(t, q_stiff)]
-        )
-        # elDOF = beam_soft.qDOF[beam_soft.elDOF[-1]]
-        # r_OP_soft = np.array(
-        #     [beam_soft.r_OP(ti, qi[elDOF], (1,)) for (ti, qi) in zip(t, q_soft)]
+        # elDOF = beam_stiff.qDOF[beam_stiff.elDOF[-1]]
+        # r_OP_stiff = np.array(
+        #     [beam_stiff.r_OP(ti, qi[elDOF], (1,)) for (ti, qi) in zip(t, q_stiff)]
         # )
+        elDOF = beam_soft.qDOF[beam_soft.elDOF[-1]]
+        r_OP_soft = np.array(
+            [beam_soft.r_OP(ti, qi[elDOF], (1,)) for (ti, qi) in zip(t, q_soft)]
+        )
 
         fig = plt.figure(figsize=(10, 8))
 
@@ -1561,8 +1534,8 @@ def HeavyTop():
         ax = fig.add_subplot(1, 2, 1, projection="3d")
         ax.set_title("3D tip trajectory")
         ax.plot(*r_OP_ref.T, "-k", label="rigid body")
-        ax.plot(*r_OP_stiff.T, "--r", label="stiff beam")
-        # ax.plot(*r_OP_soft.T, "--b", label="soft beam")
+        # ax.plot(*r_OP_stiff.T, "--r", label="stiff beam")
+        ax.plot(*r_OP_soft.T, "--b", label="soft beam")
         ax.set_xlabel("x [-]")
         ax.set_ylabel("y [-]")
         ax.set_zlabel("z [-]")
@@ -1577,12 +1550,12 @@ def HeavyTop():
         ax.plot(t, r_OP_ref[:, 0], "-k", label="x_ref")
         ax.plot(t, r_OP_ref[:, 1], "-k", label="y_ref")
         ax.plot(t, r_OP_ref[:, 2], "-k", label="z_ref")
-        ax.plot(t, r_OP_stiff[:, 0], "--r", label="x stiff")
-        ax.plot(t, r_OP_stiff[:, 1], "--r", label="y stiff")
-        ax.plot(t, r_OP_stiff[:, 2], "--r", label="z stiff")
-        # ax.plot(t, r_OP_soft[:, 0], "--b", label="x soft")
-        # ax.plot(t, r_OP_soft[:, 1], "--b", label="y soft")
-        # ax.plot(t, r_OP_soft[:, 2], "--b", label="z soft")
+        # ax.plot(t, r_OP_stiff[:, 0], "--r", label="x stiff")
+        # ax.plot(t, r_OP_stiff[:, 1], "--r", label="y stiff")
+        # ax.plot(t, r_OP_stiff[:, 2], "--r", label="z stiff")
+        ax.plot(t, r_OP_soft[:, 0], "--b", label="x soft")
+        ax.plot(t, r_OP_soft[:, 1], "--b", label="y soft")
+        ax.plot(t, r_OP_soft[:, 2], "--b", label="z soft")
         ax.set_xlabel("t")
         ax.set_ylabel("x, y")
         ax.grid()
