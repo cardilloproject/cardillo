@@ -14,7 +14,11 @@ from cardillo.model.bilateral_constraints.implicit import SphericalJoint
 from cardillo.math.algebra import cross3, ax2skew
 from cardillo.math import approx_fprime
 from cardillo.model import Model
-from cardillo.solver import GenAlphaFirstOrder, GenAlphaFirstOrderGGL2_V3
+from cardillo.solver import (
+    GenAlphaFirstOrder,
+    GenAlphaFirstOrderGGL2_V3,
+    HalfExplicitEulerFixedPoint,
+)
 
 # case = "Euler"
 # case = "Euler_self"
@@ -547,16 +551,18 @@ def state():
     # t1 = 0.1
     dt = 1.0e-3
 
-    sol = GenAlphaFirstOrder(
-        model,
-        t1,
-        dt,
-        rho_inf=rho_inf,
-        tol=tol,
-        unknowns="velocities",
-        GGL=False,
-        numerical_jacobian=False,
-    ).solve()
+    # sol = GenAlphaFirstOrder(
+    #     model,
+    #     t1,
+    #     dt,
+    #     rho_inf=rho_inf,
+    #     tol=tol,
+    #     unknowns="velocities",
+    #     GGL=False,
+    #     numerical_jacobian=False,
+    # ).solve()
+
+    sol = HalfExplicitEulerFixedPoint(model, t1, dt, atol=tol).solve()
 
     t = sol.t
     q = sol.q

@@ -1358,12 +1358,12 @@ def HeavyTop():
     l = 0.5
     r = 0.1
     omega_x = 2 * pi * 50
-    E_stiff = 210e6 # steel (stiff beam)
+    E_stiff = 210e6  # steel (stiff beam)
     # E_soft = E_stiff * 1.0e-2 # soft beam
     # E_soft = E_stiff * 5.0e-3 # soft beam # looks good but maybe even softer
     # E_soft = E_stiff * 2.0e-3 # soft beam
-    E_soft = E_stiff * 1.0e-3 # soft beam
-    rho = 8000 # steel [kg/m^3]
+    E_soft = E_stiff * 1.0e-3  # soft beam
+    rho = 8000  # steel [kg/m^3]
 
     # ####################
     # # more beam like top
@@ -1386,7 +1386,7 @@ def HeavyTop():
     A = 0.5 * m * r**2
     # omega_pr = m * g * (0.5 * l) / (A * omega_x)
     omega_pr = g * l / (r**2 * omega_x)
-    K_omega_IK0 = omega_x * e1 + omega_pr * e3 # perfect precession motion
+    K_omega_IK0 = omega_x * e1 + omega_pr * e3  # perfect precession motion
     A_IK0 = np.eye(3, dtype=float)
     # A_IK0 = rodriguez(-pi / 10 * e2)
     from scipy.spatial.transform import Rotation
@@ -1405,7 +1405,7 @@ def HeavyTop():
     # t1 *= 0.25
     # t1 *= 0.125
     # t1 *= 0.075
-    # t1 *= 0.001
+    t1 *= 0.01
 
     # nt = np.ceil(t1 / 1.0e-3)
     # dt = t1 * 1.0e-2
@@ -1416,8 +1416,8 @@ def HeavyTop():
     t_eval = np.arange(t0, t1 + dt, dt)
 
     def solve(E):
-        nu = 1. / 3.
-        G = E / (2. * (1. + nu)) # TODO: Use G = E * 3/4 in paper?
+        nu = 1.0 / 3.0
+        G = E / (2.0 * (1.0 + nu))  # TODO: Use G = E * 3/4 in paper?
 
         A = cross_section.area
         Ip, I2, I3 = np.diag(cross_section.second_moment)
@@ -1447,9 +1447,7 @@ def HeavyTop():
         joint = SphericalJoint(frame, beam, r_OB0, frame_ID2=(0,))
 
         # gravity beam
-        vg = np.array(
-            -cross_section.area * cross_section.density * g * e3, dtype=float
-        )
+        vg = np.array(-cross_section.area * cross_section.density * g * e3, dtype=float)
         f_g_beam = DistributedForce1D(lambda t, xi: vg, beam)
 
         # assemble the model
@@ -2092,8 +2090,8 @@ def objectivity_quater_circle():
 
     slenderness, atol, n_load_steps = triplet
     rtol = 0
-    n = 10 # number of full rotations
-    t_star = 0.1 # fraction of deformation pseudo time
+    n = 10  # number of full rotations
+    t_star = 0.1  # fraction of deformation pseudo time
     n_load_steps = 100
 
     # used polynomial degree
@@ -2126,6 +2124,7 @@ def objectivity_quater_circle():
 
     # starting point and orientation of initial point, initial length
     r_OB0 = np.zeros(3, dtype=float)
+
     def A_IK0(t):
         # if t <= t_star:
         #     return np.eye(3, dtype=float)
@@ -2134,8 +2133,10 @@ def objectivity_quater_circle():
         #     # phi = frac * 2. * pi * (1. - 1. / t_star) * (t - t_star)
         #     phi = np.heaviside(t - t_star, 1.) * (t - t_star) * frac * 2. * pi #* (1. - 1. / t_star)
         #     return A_IK_basic(phi).x() #@ A_IK_basic(phi).y()
-        phi = n * np.heaviside(t - t_star, 1.) * (t - t_star) / (1. - t_star) * 2. * pi #* (1. - 1. / t_star)
-        return A_IK_basic(phi).x() #@ A_IK_basic(phi).y()
+        phi = (
+            n * np.heaviside(t - t_star, 1.0) * (t - t_star) / (1.0 - t_star) * 2.0 * pi
+        )  # * (1. - 1. / t_star)
+        return A_IK_basic(phi).x()  # @ A_IK_basic(phi).y()
 
     # build beam model
     beam = beam_factory(
@@ -2159,12 +2160,14 @@ def objectivity_quater_circle():
 
     # moment at the beam's tip
     Fi = material_model.Fi
+
     def M(t):
         M_max = (e3 * Fi[2]) * 2 * np.pi / L * 0.25
         if t <= t_star:
             return t / t_star * M_max
         else:
             return M_max
+
     moment = K_Moment(M, beam, (1,))
 
     # force at the beam's tip
@@ -2174,6 +2177,7 @@ def objectivity_quater_circle():
             return t / t_star * f_max
         else:
             return f_max
+
     force = K_Force(f, beam, frame_ID=(1,))
 
     # assemble the model

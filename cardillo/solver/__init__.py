@@ -6,6 +6,7 @@ from .ScipyIVP import ScipyIVP
 from .Moreau import Moreau
 from .MoreauGGL import MoreauGGL
 from .EulerBackward import EulerBackward
+from .HalfExplicit import HalfExplicitEulerFixedPoint
 
 # TODO: gen alpha solvers
 from .genAlphaDAE import *
