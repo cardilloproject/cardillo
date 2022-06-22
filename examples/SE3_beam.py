@@ -145,7 +145,8 @@ def beam_factory(
 
     # This is the standard second moment of area weighted by a constant line
     # density
-    I_rho0 = density * second_moment
+    K_S_rho0 = density * first_moment
+    K_I_rho0 = density * second_moment
 
     ##################
     # build beam model
@@ -154,7 +155,7 @@ def beam_factory(
         beam = TimoshenkoAxisAngle(
             material_model,
             A_rho0,
-            I_rho0,
+            K_I_rho0,
             p_r,
             p_psi,
             nquadrature_points,
@@ -168,7 +169,8 @@ def beam_factory(
         beam = TimoshenkoAxisAngleSE3(
             material_model,
             A_rho0,
-            I_rho0,
+            K_S_rho0,
+            K_I_rho0,
             p_r,
             p_psi,
             nquadrature_points,
@@ -183,7 +185,7 @@ def beam_factory(
             material_model,
             A_rho0,
             B_rho0,
-            I_rho0,
+            K_I_rho0,
             p_r,
             p_psi,
             nquadrature_points,
@@ -197,7 +199,7 @@ def beam_factory(
         beam = TimoshenkoQuarternionSE3(
             material_model,
             A_rho0,
-            I_rho0,
+            K_I_rho0,
             p_r,
             p_psi,
             nquadrature_points,
@@ -1344,7 +1346,7 @@ def HeavyTop():
 
     # number of quadrature points
     nquadrature_points = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
-    print(f"number of quadratur epoints: {nquadrature_points}")
+    print(f"number of quadrature points: {nquadrature_points}")
 
     # used shape functions for discretization
     shape_functions = "Lagrange"
@@ -1357,7 +1359,10 @@ def HeavyTop():
     r = 0.1
     omega_x = 2 * pi * 50
     E_stiff = 210e6 # steel (stiff beam)
-    E_soft = E_stiff * 1.0e-2 # soft beam
+    # E_soft = E_stiff * 1.0e-2 # soft beam
+    # E_soft = E_stiff * 5.0e-3 # soft beam # looks good but maybe even softer
+    # E_soft = E_stiff * 2.0e-3 # soft beam
+    E_soft = E_stiff * 1.0e-3 # soft beam
     rho = 8000 # steel [kg/m^3]
 
     # ####################
@@ -1379,7 +1384,8 @@ def HeavyTop():
 
     # initial angular velocity and orientation
     A = 0.5 * m * r**2
-    omega_pr = m * g * (0.5 * l) / (A * omega_x)
+    # omega_pr = m * g * (0.5 * l) / (A * omega_x)
+    omega_pr = g * l / (r**2 * omega_x)
     K_omega_IK0 = omega_x * e1 + omega_pr * e3 # perfect precession motion
     A_IK0 = np.eye(3, dtype=float)
     # A_IK0 = rodriguez(-pi / 10 * e2)
@@ -1396,22 +1402,22 @@ def HeavyTop():
     t0 = 0.0
     t1 = 2.0 * pi / omega_pr
     # t1 *= 0.5
-    t1 *= 0.25
+    # t1 *= 0.25
     # t1 *= 0.125
     # t1 *= 0.075
+    # t1 *= 0.001
 
     # nt = np.ceil(t1 / 1.0e-3)
     # dt = t1 * 1.0e-2
     dt = t1 * 1.0e-3
-    # TODO: Better use rtol=atol=1.0e-8 for final paper results!
-    rtol = 1.0e-6
-    atol = 1.0e-6
+    rtol = 1.0e-8
+    atol = 1.0e-8
 
     t_eval = np.arange(t0, t1 + dt, dt)
 
     def solve(E):
         nu = 1. / 3.
-        G = E / (2. * (1. + nu))
+        G = E / (2. * (1. + nu)) # TODO: Use G = E * 3/4 in paper?
 
         A = cross_section.area
         Ip, I2, I3 = np.diag(cross_section.second_moment)
@@ -1454,7 +1460,6 @@ def HeavyTop():
         model.add(f_g_beam)
         model.assemble()
 
-        # TODO: Is RK45 also working for the final result?
         sol = ScipyIVP(model, t1, dt, method="RK23", rtol=rtol, atol=atol).solve()
         # sol = ScipyIVP(model, t1, dt, method="RK45", rtol=rtol, atol=atol).solve()
 
@@ -1491,12 +1496,12 @@ def HeavyTop():
     # exit()
 
     # sove for beam solutions
-    # beam_stiff, sol_stiff = solve(E_stiff)
+    beam_stiff, sol_stiff = solve(E_stiff)
     beam_soft, sol_soft = solve(E_soft)
 
-    # q_stiff = sol_stiff.q
-    # nt = len(q_stiff)
-    # t = sol_stiff.t[:nt]
+    q_stiff = sol_stiff.q
+    nt = len(q_stiff)
+    t = sol_stiff.t[:nt]
     q_soft = sol_soft.q
     nt = len(q_soft)
     t = sol_soft.t[:nt]
@@ -1519,10 +1524,10 @@ def HeavyTop():
         ############################
         # Visualize tip displacement
         ############################
-        # elDOF = beam_stiff.qDOF[beam_stiff.elDOF[-1]]
-        # r_OP_stiff = np.array(
-        #     [beam_stiff.r_OP(ti, qi[elDOF], (1,)) for (ti, qi) in zip(t, q_stiff)]
-        # )
+        elDOF = beam_stiff.qDOF[beam_stiff.elDOF[-1]]
+        r_OP_stiff = np.array(
+            [beam_stiff.r_OP(ti, qi[elDOF], (1,)) for (ti, qi) in zip(t, q_stiff)]
+        )
         elDOF = beam_soft.qDOF[beam_soft.elDOF[-1]]
         r_OP_soft = np.array(
             [beam_soft.r_OP(ti, qi[elDOF], (1,)) for (ti, qi) in zip(t, q_soft)]
@@ -1534,7 +1539,7 @@ def HeavyTop():
         ax = fig.add_subplot(1, 2, 1, projection="3d")
         ax.set_title("3D tip trajectory")
         ax.plot(*r_OP_ref.T, "-k", label="rigid body")
-        # ax.plot(*r_OP_stiff.T, "--r", label="stiff beam")
+        ax.plot(*r_OP_stiff.T, "--r", label="stiff beam")
         ax.plot(*r_OP_soft.T, "--b", label="soft beam")
         ax.set_xlabel("x [-]")
         ax.set_ylabel("y [-]")
@@ -1550,9 +1555,9 @@ def HeavyTop():
         ax.plot(t, r_OP_ref[:, 0], "-k", label="x_ref")
         ax.plot(t, r_OP_ref[:, 1], "-k", label="y_ref")
         ax.plot(t, r_OP_ref[:, 2], "-k", label="z_ref")
-        # ax.plot(t, r_OP_stiff[:, 0], "--r", label="x stiff")
-        # ax.plot(t, r_OP_stiff[:, 1], "--r", label="y stiff")
-        # ax.plot(t, r_OP_stiff[:, 2], "--r", label="z stiff")
+        ax.plot(t, r_OP_stiff[:, 0], "--r", label="x stiff")
+        ax.plot(t, r_OP_stiff[:, 1], "--r", label="y stiff")
+        ax.plot(t, r_OP_stiff[:, 2], "--r", label="z stiff")
         ax.plot(t, r_OP_soft[:, 0], "--b", label="x soft")
         ax.plot(t, r_OP_soft[:, 1], "--b", label="y soft")
         ax.plot(t, r_OP_soft[:, 2], "--b", label="z soft")
@@ -1578,7 +1583,7 @@ def HeavyTop():
         # ###########
         # animate_beam(t, q, [beam], l, show=True)
 
-    exit()
+    # exit()
 
     #######################
     # export tip deflection
