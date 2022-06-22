@@ -1479,8 +1479,8 @@ class TimoshenkoAxisAngleSE3:
         self,
         material_model,
         A_rho0,
-        S_rho0,
-        I_rho0,
+        K_S_rho0,
+        K_I_rho0,
         polynomial_degree_r,
         polynomial_degree_psi,
         nquadrature,
@@ -1493,8 +1493,13 @@ class TimoshenkoAxisAngleSE3:
         # beam properties
         self.materialModel = material_model  # material model
         self.A_rho0 = A_rho0  # line density
-        self.K_S_rho0 = S_rho0  # first moment of area
-        self.K_I_rho0 = I_rho0  # second moment of area
+        self.K_S_rho0 = K_S_rho0  # first moment of area
+        self.K_I_rho0 = K_I_rho0  # second moment of area
+
+        if np.allclose(K_S_rho0, np.zeros_like(K_S_rho0)):
+            self.constant_mass_matrix = True
+        else:
+            self.constant_mass_matrix = False            
 
         # material model
         self.material_model = material_model
@@ -1520,10 +1525,6 @@ class TimoshenkoAxisAngleSE3:
         # number of degrees of freedom per node
         self.nq_node_r = nq_node_r = 3
         self.nq_node_psi = nq_node_psi = 3
-
-        # # Boolean array that detects if the complement rotaton vector has to
-        # # be used on each node.
-        # self.use_complement = np.zeros(self.nq_node_psi, dtype=bool)
 
         # build mesh objects
         self.mesh_r = Mesh1D(
@@ -1741,16 +1742,21 @@ class TimoshenkoAxisAngleSE3:
         # note the elements coincide for both meshes!
         return self.knot_vector_r.element_number(xi)[0]
 
-    # def reference_rotation(self, qe: np.ndarray, case="left"):
+    def reference_rotation(self, qe: np.ndarray, case="left"):
     # def reference_rotation(self, qe: np.ndarray, case="right"):
-    def reference_rotation(self, qe: np.ndarray, case="midway"):
+    # def reference_rotation(self, qe: np.ndarray, case="midway"):
         """Reference rotation for SE(3) object in analogy to the proposed
         formulation by Crisfield1999 (5.8).
 
         Three cases are implemented: 'midway', 'left'  and 'right'.
         """
 
-        if case == "midway":
+        if case == "left":
+            r_I0 = qe[self.nodalDOF_element_r[0]]
+            psi_0 = qe[self.nodalDOF_element_psi[0]]
+            A_I0 = rodriguez(psi_0)
+            return SE3(A_I0, r_I0)
+        elif case == "midway":
             # nodal centerline
             r_IA = qe[self.nodalDOF_element_r[self.node_A]]
             r_IB = qe[self.nodalDOF_element_r[self.node_B]]
@@ -1758,12 +1764,8 @@ class TimoshenkoAxisAngleSE3:
             # nodal rotations
             psi_A = qe[self.nodalDOF_element_psi[self.node_A]]
             psi_B = qe[self.nodalDOF_element_psi[self.node_B]]
-            # psi_A = TimoshenkoAxisAngleSE3.psi_C(psi_A)
-            # psi_B = TimoshenkoAxisAngleSE3.psi_C(psi_B)
             A_IA = rodriguez(psi_A)
             A_IB = rodriguez(psi_B)
-            # A_IA = rodriguez(qe[self.nodalDOF_element_psi[self.node_A]])
-            # A_IB = rodriguez(qe[self.nodalDOF_element_psi[self.node_B]])
 
             # nodal SE(3) objects
             H_IA = SE3(A_IA, r_IA)
@@ -1771,16 +1773,9 @@ class TimoshenkoAxisAngleSE3:
 
             # midway SE(3) object
             return H_IA @ se3exp(0.5 * SE3log(SE3inv(H_IA) @ H_IB))
-        elif case == "left":
-            r_I0 = qe[self.nodalDOF_element_r[0]]
-            psi_0 = qe[self.nodalDOF_element_psi[0]]
-            # psi_0 = TimoshenkoAxisAngleSE3.psi_C(psi_0)
-            A_I0 = rodriguez(psi_0)
-            return SE3(A_I0, r_I0)
         elif case == "right":
             r_I1 = qe[self.nodalDOF_element_r[-1]]
             psi_1 = qe[self.nodalDOF_element_psi[-1]]
-            # psi_1 = TimoshenkoAxisAngleSE3.psi_C(psi_1)
             A_I1 = rodriguez(psi_1)
             return SE3(A_I1, r_I1)
         else:
@@ -1890,12 +1885,43 @@ class TimoshenkoAxisAngleSE3:
 
         return r_OP, A_IK, K_Gamma_bar, K_Kappa_bar
 
-    # def assembler_callback(self):
-    #     self.__M_coo()
+    def assembler_callback(self):
+        if self.constant_mass_matrix:
+            self.__M_coo()
 
     #########################################
     # equations of motion
     #########################################
+    def M_el_constant(self, el):
+        M_el = np.zeros((self.nq_element, self.nq_element), dtype=float)
+
+        for i in range(self.nquadrature):
+            # extract reference state variables
+            qwi = self.qw[el, i]
+            Ji = self.J[el, i]
+
+            # delta_r A_rho0 r_ddot part
+            M_el_r_r = np.eye(3) * self.A_rho0 * Ji * qwi
+            for node_a in range(self.nnodes_element_r):
+                nodalDOF_a = self.nodalDOF_element_r[node_a]
+                for node_b in range(self.nnodes_element_r):
+                    nodalDOF_b = self.nodalDOF_element_r[node_b]
+                    M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_r_r * (
+                        self.N_r[el, i, node_a] * self.N_r[el, i, node_b]
+                    )
+
+            # first part delta_phi (I_rho0 omega_dot + omega_tilde I_rho0 omega)
+            M_el_psi_psi = self.K_I_rho0 * Ji * qwi
+            for node_a in range(self.nnodes_element_psi):
+                nodalDOF_a = self.nodalDOF_element_psi[node_a]
+                for node_b in range(self.nnodes_element_psi):
+                    nodalDOF_b = self.nodalDOF_element_psi[node_b]
+                    M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_psi_psi * (
+                        self.N_psi[el, i, node_a] * self.N_psi[el, i, node_b]
+                    )
+
+        return M_el
+
     def M_el(self, qe, el):
         M_el = np.zeros((self.nq_element, self.nq_element), dtype=float)
 
@@ -1905,44 +1931,44 @@ class TimoshenkoAxisAngleSE3:
             Ji = self.J[el, i]
 
             # delta_r A_rho0 r_ddot part
-            M_el_rr = np.eye(3) * self.A_rho0 * Ji * qwi
+            M_el_r_r = np.eye(3) * self.A_rho0 * Ji * qwi
             for node_a in range(self.nnodes_element_r):
                 nodalDOF_a = self.nodalDOF_element_r[node_a]
                 for node_b in range(self.nnodes_element_r):
                     nodalDOF_b = self.nodalDOF_element_r[node_b]
-                    M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_rr * (
+                    M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_r_r * (
                         self.N_r[el, i, node_a] * self.N_r[el, i, node_b]
                     )
 
             # first part delta_phi (I_rho0 omega_dot + omega_tilde I_rho0 omega)
-            M_el_psipsi = self.K_I_rho0 * Ji * qwi
+            M_el_psi_psi = self.K_I_rho0 * Ji * qwi
             for node_a in range(self.nnodes_element_psi):
                 nodalDOF_a = self.nodalDOF_element_psi[node_a]
                 for node_b in range(self.nnodes_element_psi):
                     nodalDOF_b = self.nodalDOF_element_psi[node_b]
-                    M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_psipsi * (
+                    M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_psi_psi * (
                         self.N_psi[el, i, node_a] * self.N_psi[el, i, node_b]
                     )
 
-            # TODO: For non symmetric cross sections there are also other parts 
-            #       involved in the mass matrix. These parts are configuration 
-            #       dependent and lead to configuration dependent mass matrix.
+            # For non symmetric cross sections there are also other parts 
+            # involved in the mass matrix. These parts are configuration 
+            # dependent and lead to configuration dependent mass matrix.
             _, A_IK, _, _ = self.eval(qe, self.qp[el, i])
-            M_el_rpsi = A_IK @ self.K_S_rho0 * Ji * qwi
-            M_el_psir = A_IK @ self.K_S_rho0 * Ji * qwi
+            M_el_r_psi = A_IK @ self.K_S_rho0 * Ji * qwi
+            M_el_psi_r = A_IK @ self.K_S_rho0 * Ji * qwi
 
             for node_a in range(self.nnodes_element_r):
                 nodalDOF_a = self.nodalDOF_element_r[node_a]
                 for node_b in range(self.nnodes_element_psi):
                     nodalDOF_b = self.nodalDOF_element_psi[node_b]
-                    M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_rpsi * (
+                    M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_r_psi * (
                         self.N_r[el, i, node_a] * self.N_psi[el, i, node_b]
                     )
             for node_a in range(self.nnodes_element_psi):
                 nodalDOF_a = self.nodalDOF_element_psi[node_a]
                 for node_b in range(self.nnodes_element_r):
                     nodalDOF_b = self.nodalDOF_element_r[node_b]
-                    M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_psir * (
+                    M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_psi_r * (
                         self.N_psi[el, i, node_a] * self.N_r[el, i, node_b]
                     )
 
@@ -1955,17 +1981,19 @@ class TimoshenkoAxisAngleSE3:
             elDOF = self.elDOF[el]
 
             # sparse assemble element mass matrix
-            self.__M.extend(self.M_el(el), (self.uDOF[elDOF], self.uDOF[elDOF]))
+            self.__M.extend(self.M_el_constant(el), (self.uDOF[elDOF], self.uDOF[elDOF]))
 
+    # TODO: Compute derivative of mass matrix for non constant mass matrix case!
     def M(self, t, q, coo):
-        # coo.extend_sparse(self.__M)
+        if self.constant_mass_matrix:
+            coo.extend_sparse(self.__M)
+        else:
+            for el in range(self.nelement):
+                # extract element degrees of freedom
+                elDOF = self.elDOF[el]
 
-        for el in range(self.nelement):
-            # extract element degrees of freedom
-            elDOF = self.elDOF[el]
-
-            # sparse assemble element mass matrix
-            coo.extend(self.M_el(q[elDOF], el), (self.uDOF[elDOF], self.uDOF[elDOF]))
+                # sparse assemble element mass matrix
+                coo.extend(self.M_el(q[elDOF], el), (self.uDOF[elDOF], self.uDOF[elDOF]))
 
     def f_gyr_el(self, t, qe, ue, el):
         f_gyr_el = np.zeros(self.nq_element, dtype=float)
