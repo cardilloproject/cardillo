@@ -1479,6 +1479,7 @@ class TimoshenkoAxisAngleSE3:
         self,
         material_model,
         A_rho0,
+        S_rho0,
         I_rho0,
         polynomial_degree_r,
         polynomial_degree_psi,
@@ -1492,7 +1493,8 @@ class TimoshenkoAxisAngleSE3:
         # beam properties
         self.materialModel = material_model  # material model
         self.A_rho0 = A_rho0  # line density
-        self.I_rho0 = I_rho0  # second moment
+        self.K_S_rho0 = S_rho0  # first moment of area
+        self.K_I_rho0 = I_rho0  # second moment of area
 
         # material model
         self.material_model = material_model
@@ -1888,13 +1890,13 @@ class TimoshenkoAxisAngleSE3:
 
         return r_OP, A_IK, K_Gamma_bar, K_Kappa_bar
 
-    def assembler_callback(self):
-        self.__M_coo()
+    # def assembler_callback(self):
+    #     self.__M_coo()
 
     #########################################
     # equations of motion
     #########################################
-    def M_el(self, el):
+    def M_el(self, qe, el):
         M_el = np.zeros((self.nq_element, self.nq_element), dtype=float)
 
         for i in range(self.nquadrature):
@@ -1903,28 +1905,45 @@ class TimoshenkoAxisAngleSE3:
             Ji = self.J[el, i]
 
             # delta_r A_rho0 r_ddot part
-            # TODO: Can this be simplified with a single nodal loop?
-            M_el_r = np.eye(3) * self.A_rho0 * Ji * qwi
+            M_el_rr = np.eye(3) * self.A_rho0 * Ji * qwi
             for node_a in range(self.nnodes_element_r):
                 nodalDOF_a = self.nodalDOF_element_r[node_a]
                 for node_b in range(self.nnodes_element_r):
                     nodalDOF_b = self.nodalDOF_element_r[node_b]
-                    M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_r * (
+                    M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_rr * (
                         self.N_r[el, i, node_a] * self.N_r[el, i, node_b]
                     )
-            # for node in range(self.nnodes_element_r):
-            #     nodalDOF = self.nodalDOF_element_r[node]
-            #     N_node = self.N_r[el, i, node]
-            #     M_el[nodalDOF[:, None], nodalDOF] += M_el_r * (N_node * N_node)
 
             # first part delta_phi (I_rho0 omega_dot + omega_tilde I_rho0 omega)
-            M_el_psi = self.I_rho0 * Ji * qwi
+            M_el_psipsi = self.K_I_rho0 * Ji * qwi
             for node_a in range(self.nnodes_element_psi):
                 nodalDOF_a = self.nodalDOF_element_psi[node_a]
                 for node_b in range(self.nnodes_element_psi):
                     nodalDOF_b = self.nodalDOF_element_psi[node_b]
-                    M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_psi * (
+                    M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_psipsi * (
                         self.N_psi[el, i, node_a] * self.N_psi[el, i, node_b]
+                    )
+
+            # TODO: For non symmetric cross sections there are also other parts 
+            #       involved in the mass matrix. These parts are configuration 
+            #       dependent and lead to configuration dependent mass matrix.
+            _, A_IK, _, _ = self.eval(qe, self.qp[el, i])
+            M_el_rpsi = A_IK @ self.K_S_rho0 * Ji * qwi
+            M_el_psir = A_IK @ self.K_S_rho0 * Ji * qwi
+
+            for node_a in range(self.nnodes_element_r):
+                nodalDOF_a = self.nodalDOF_element_r[node_a]
+                for node_b in range(self.nnodes_element_psi):
+                    nodalDOF_b = self.nodalDOF_element_psi[node_b]
+                    M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_rpsi * (
+                        self.N_r[el, i, node_a] * self.N_psi[el, i, node_b]
+                    )
+            for node_a in range(self.nnodes_element_psi):
+                nodalDOF_a = self.nodalDOF_element_psi[node_a]
+                for node_b in range(self.nnodes_element_r):
+                    nodalDOF_b = self.nodalDOF_element_r[node_b]
+                    M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_psir * (
+                        self.N_psi[el, i, node_a] * self.N_r[el, i, node_b]
                     )
 
         return M_el
@@ -1939,7 +1958,14 @@ class TimoshenkoAxisAngleSE3:
             self.__M.extend(self.M_el(el), (self.uDOF[elDOF], self.uDOF[elDOF]))
 
     def M(self, t, q, coo):
-        coo.extend_sparse(self.__M)
+        # coo.extend_sparse(self.__M)
+
+        for el in range(self.nelement):
+            # extract element degrees of freedom
+            elDOF = self.elDOF[el]
+
+            # sparse assemble element mass matrix
+            coo.extend(self.M_el(q[elDOF], el), (self.uDOF[elDOF], self.uDOF[elDOF]))
 
     def f_gyr_el(self, t, qe, ue, el):
         f_gyr_el = np.zeros(self.nq_element, dtype=float)
@@ -1952,7 +1978,7 @@ class TimoshenkoAxisAngleSE3:
 
             # vector of gyroscopic forces
             f_gyr_el_psi = (
-                cross3(K_Omega, self.I_rho0 @ K_Omega) * self.J[el, i] * self.qw[el, i]
+                cross3(K_Omega, self.K_I_rho0 @ K_Omega) * self.J[el, i] * self.qw[el, i]
             )
 
             # multiply vector of gyroscopic forces with nodal virtual rotations
@@ -1982,7 +2008,7 @@ class TimoshenkoAxisAngleSE3:
 
             # derivative of vector of gyroscopic forces
             f_gyr_u_el_psi = (
-                ((ax2skew(K_Omega) @ self.I_rho0 - ax2skew(self.I_rho0 @ K_Omega)))
+                ((ax2skew(K_Omega) @ self.K_I_rho0 - ax2skew(self.K_I_rho0 @ K_Omega)))
                 * self.J[el, i]
                 * self.qw[el, i]
             )
@@ -3194,6 +3220,8 @@ class TimoshenkoAxisAngle:
         q0=None,
         u0=None,
         basis="B-spline",
+        # objetive=True,
+        objetive=False,
     ):
         # beam properties
         self.materialModel = material_model  # material model
@@ -3254,6 +3282,8 @@ class TimoshenkoAxisAngle:
             basis=basis,
             dim_q=nq_node_psi,
         )
+
+        self.objetive = objetive
 
         # toal number of nodes
         self.nnode_r = self.mesh_r.nnodes
@@ -3575,18 +3605,34 @@ class TimoshenkoAxisAngle:
         for node in range(self.nnodes_element_r):
             r_xi += self.N_r_xi[el, qp, node] * qe[self.nodalDOF_element_r[node]]
 
-        # reference rotation, see. Crisfield1999 (5.8)
-        A_IR = self.reference_rotation(qe)
+        if self.objetive:
+            # reference rotation, see. Crisfield1999 (5.8)
+            A_IR = self.reference_rotation(qe)
 
-        # relative interpolation of the rotation vector and it first derivative
-        psi_rel, psi_rel_xi = self.relative_interpolation(A_IR, qe, el, qp)
+            # relative interpolation of the rotation vector and it first derivative
+            psi_rel, psi_rel_xi = self.relative_interpolation(A_IR, qe, el, qp)
 
-        # objective rotation
-        A_IK = A_IR @ rodriguez(psi_rel)
+            # objective rotation
+            A_IK = A_IR @ rodriguez(psi_rel)
 
-        # objective curvature
-        T = tangent_map(psi_rel)
-        K_Kappa_bar = T @ psi_rel_xi
+            # objective curvature
+            T = tangent_map(psi_rel)
+            K_Kappa_bar = T @ psi_rel_xi
+        else:
+
+            # interpolate total rotation vector
+            psi = np.zeros(3)
+            psi_xi = np.zeros(3)
+            for node in range(self.nnodes_element_psi):
+                psi += self.N_psi[el, qp, node] * qe[self.nodalDOF_element_psi[node]]
+                psi_xi += self.N_psi_xi[el, qp, node] * qe[self.nodalDOF_element_psi[node]]
+
+            # curvature
+            T = tangent_map(psi)
+            K_Kappa_bar = T @ psi_xi
+
+            # rotation
+            A_IK = rodriguez(psi)
 
         return r_xi, A_IK, K_Kappa_bar
 
@@ -3646,7 +3692,8 @@ class TimoshenkoAxisAngle:
             r_xi, A_IK, K_Kappa_bar = self.eval(qe, el, i)
 
             # axial and shear strains
-            K_Gamma = A_IK.T @ (r_xi / Ji)
+            K_Gamma_bar = A_IK.T @ r_xi
+            K_Gamma = K_Gamma_bar / Ji
 
             # torsional and flexural strains
             K_Kappa = K_Kappa_bar / Ji
@@ -3656,23 +3703,48 @@ class TimoshenkoAxisAngle:
             K_n = self.material_model.K_n(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
             K_m = self.material_model.K_m(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
 
+            # # - first delta Gamma part
+            # for node in range(self.nnodes_element_r):
+            #     f_pot_el[self.nodalDOF_element_r[node]] -= (
+            #         self.N_r_xi[el, i, node] * A_IK @ K_n * qwi
+            #     )
+
+            # # - second delta Gamma part
+            # for node in range(self.nnodes_element_psi):
+            #     f_pot_el[self.nodalDOF_element_psi[node]] += (
+            #         self.N_psi[el, i, node] * cross3(A_IK.T @ r_xi, K_n) * qwi
+            #     )
+
+            # # - delta kappa part
+            # for node in range(self.nnodes_element_psi):
+            #     f_pot_el[self.nodalDOF_element_psi[node]] -= (
+            #         self.N_psi_xi[el, i, node] * K_m * qwi
+            #     )
+            #     f_pot_el[self.nodalDOF_element_psi[node]] += (
+            #         self.N_psi[el, i, node] * cross3(K_Kappa_bar, K_m) * qwi
+            #     )  # Euler term
+
+            ############################
+            # virtual work contributions
+            ############################
             # - first delta Gamma part
             for node in range(self.nnodes_element_r):
                 f_pot_el[self.nodalDOF_element_r[node]] -= (
                     self.N_r_xi[el, i, node] * A_IK @ K_n * qwi
                 )
 
-            # - second delta Gamma part
             for node in range(self.nnodes_element_psi):
+                # - second delta Gamma part
                 f_pot_el[self.nodalDOF_element_psi[node]] += (
-                    self.N_psi[el, i, node] * cross3(A_IK.T @ r_xi, K_n) * qwi
+                    self.N_psi[el, i, node] * cross3(K_Gamma_bar, K_n) * qwi
                 )
 
-            # - delta kappa part
-            for node in range(self.nnodes_element_psi):
+                # - first delta kappa part
                 f_pot_el[self.nodalDOF_element_psi[node]] -= (
                     self.N_psi_xi[el, i, node] * K_m * qwi
                 )
+
+                # second delta kappa part
                 f_pot_el[self.nodalDOF_element_psi[node]] += (
                     self.N_psi[el, i, node] * cross3(K_Kappa_bar, K_m) * qwi
                 )  # Euler term
