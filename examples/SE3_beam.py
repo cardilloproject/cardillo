@@ -1,3 +1,4 @@
+from distutils.log import error
 from cardillo.math import e1, e2, e3, sqrt, sin, cos, pi, smoothstep2, A_IK_basic
 from cardillo.beams.spatial import (
     UserDefinedCrossSection,
@@ -563,15 +564,13 @@ def locking(case="helix"):
 
         L = 1.0e4
         # (slenderness, atol, n_load_steps
+        # fmt: off
         # triplet = (1.0e1, 1.0e-6, 2)
-        # triplet = (1.0e2, 1.0e-8, 2)
+        triplet = (1.0e2, 1.0e-8, 2)
         # triplet = (1.0e3, 1.0e-9, 2)
-        triplet = (
-            1.0e4,
-            1.0e-12,
-            2,
-        )  # this can't be sovle using the quaternion implementation
+        # triplet = (1.0e4, 1.0e-12, 2)  # this can't be sovle using the quaternion implementation
         # triplet = (1.0e5, 1.0e-12, 4)
+        # fmt: on
 
     elif case == "full_circle":
         # number of elements
@@ -583,8 +582,8 @@ def locking(case="helix"):
 
         # (slenderness, atol, n_load_steps
         # triplet = (1.0e1, 1.0e-6, 50)
-        # triplet = (1.0e2, 1.0e-9, 2) #, 50)
-        triplet = (1.0e3, 1.0e-10, 2)  # , 100) # this is working with quaternions
+        triplet = (1.0e2, 1.0e-9, 2)  # , 50)
+        # triplet = (1.0e3, 1.0e-10, 2)  # , 100) # this is working with quaternions
         # triplet = (1.0e4, 1.0e-13, 2) #, 200)
         # triplet = (1.0e5, 1.0e-14, 2) #, 200)
     else:
@@ -594,7 +593,8 @@ def locking(case="helix"):
     n_load_steps = 5
 
     # used polynomial degree
-    polynomial_degree = 1
+    # polynomial_degree = 1
+    polynomial_degree = 2
 
     # number of quadrature points
     nquadrature_points = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
@@ -2092,18 +2092,19 @@ def objectivity_quater_circle():
     rtol = 0
     n = 10  # number of full rotations
     t_star = 0.1  # fraction of deformation pseudo time
-    n_load_steps = 100
+    # t_star = 0.05  # fraction of deformation pseudo time
+    # n_load_steps = 100
+    # n_load_steps = 200
+    n_load_steps = 500
 
     # used polynomial degree
     polynomial_degree = 1
-    # polynomial_degree = 3
 
     # number of quadrature points
     nquadrature_points = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
     print(f"nquadrature_points: {nquadrature_points}")
 
     # used shape functions for discretization
-    # shape_functions = "B-spline"
     shape_functions = "Lagrange"
 
     # used cross section
@@ -2126,16 +2127,10 @@ def objectivity_quater_circle():
     r_OB0 = np.zeros(3, dtype=float)
 
     def A_IK0(t):
-        # if t <= t_star:
-        #     return np.eye(3, dtype=float)
-        # else:
-        #     frac = 0.1
-        #     # phi = frac * 2. * pi * (1. - 1. / t_star) * (t - t_star)
-        #     phi = np.heaviside(t - t_star, 1.) * (t - t_star) * frac * 2. * pi #* (1. - 1. / t_star)
-        #     return A_IK_basic(phi).x() #@ A_IK_basic(phi).y()
+        # return np.eye(3)
         phi = (
             n * np.heaviside(t - t_star, 1.0) * (t - t_star) / (1.0 - t_star) * 2.0 * pi
-        )  # * (1. - 1. / t_star)
+        )
         return A_IK_basic(phi).x()  # @ A_IK_basic(phi).y()
 
     # build beam model
@@ -2186,7 +2181,7 @@ def objectivity_quater_circle():
     model.add(frame1)
     model.add(joint1)
     model.add(moment)
-    # model.add(force)
+    model.add(force)
     model.assemble()
 
     solver = Newton(
@@ -2286,6 +2281,46 @@ def objectivity_quater_circle():
     ax[2].legend()
     ax[2].set_aspect(1)
 
+    ####################
+    # export enery plots
+    ####################
+
+    # potential energy
+    header = "t, E_pot"
+    # export_data = np.vstack([t, E_pot]).T
+    export_data = np.vstack([np.arange(len(t)), E_pot]).T
+    np.savetxt(
+        "results/ObjectivityEpot_full.txt",
+        export_data,
+        delimiter=", ",
+        header=header,
+        comments="",
+    )
+
+    # header = "t, E_pot"
+    # export_data = np.vstack([t[idx], E_pot[idx]]).T
+    # np.savetxt(
+    #     "results/ObjectivityEpot_rotation.txt",
+    #     export_data,
+    #     delimiter=", ",
+    #     header=header,
+    #     comments="",
+    # )
+
+    # rotation vector
+    header = "t, psi0, psi1, psi2, abs_psi"
+    # export_data = np.vstack([t, *psi1.T, np.linalg.norm(psi1, axis=1)]).T
+    export_data = np.vstack(
+        [np.arange(len(t)), *psi1.T, np.linalg.norm(psi1, axis=1)]
+    ).T
+    np.savetxt(
+        "results/ObjectivityRotationVector.txt",
+        export_data,
+        delimiter=", ",
+        header=header,
+        comments="",
+    )
+
     ###########
     # animation
     ###########
@@ -2303,152 +2338,154 @@ def convergence_quater_circle():
     Beam = TimoshenkoAxisAngleSE3
     # Beam = TimoshenkoQuarternionSE3
 
-    # number of elements
-    # nelements = 1
-    # nelements = 16
-    nelements = 32
-    nelements = 64
-
-    # L = 1.0e3
-    # # (slenderness, atol, n_load_steps
-    # # triplet = (1.0e1, 1.0e-7, 2)
-    # # triplet = (1.0e2, 1.0e-9, 2) #, 50)
-    # # triplet = (1.0e3, 1.0e-10, 2) #, 100) # this is working with quaternions
-    # triplet = (1.0e4, 1.0e-13, 2) #, 200)
-    # # triplet = (1.0e5, 1.0e-14, 2) #, 200)
-
+    ############
+    # parameters
+    ############
     L = 1.0e4
-    # (slenderness, atol, n_load_steps
-    # triplet = (1.0e1, 1.0e-7, 2)
-    # triplet = (1.0e2, 1.0e-8, 2)
-    # triplet = (1.0e3, 1.0e-9, 2)
-    # triplet = (1.0e4, 1.0e-10, 2) # this can't be sovle using the quaternion implementation
-    # triplet = (1.0e5, 1.0e-11, 4)
+    slenderness = 1.0e3
 
-    # convergence for 64 elements
-    # TODO: Maybe use L = 1.0e3 here since the slenderness = 1.0e1 solution
-    # differs from the other ones?
-    triplet = (1.0e1, 1.0e-5, 5)
-    triplet = (1.0e2, 1.0e-7, 5)
-    triplet = (1.0e3, 1.0e-9, 5)
-    triplet = (1.0e4, 1.0e-11, 5)
-    triplet = (1.0e5, 1.0e-12, 5)
-
-    slenderness, atol, n_load_steps = triplet
-    rtol = 0
-    # n_load_steps = 4
-
-    # used polynomial degree
-    polynomial_degree = 1
-
-    # number of quadrature points
-    nquadrature_points = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
-    print(f"nquadrature_points: {nquadrature_points}")
-
-    # used shape functions for discretization
-    # shape_functions = "B-spline"
-    shape_functions = "Lagrange"
-
-    # used cross section
     width = L / slenderness
-
-    # cross section
     line_density = 1
     cross_section = QuadraticCrossSection(line_density, width)
 
-    # Young's and shear modulus
-    E = 1.0  # Meier2015
-    G = 0.5  # Meier2015
+    E = 1.0
+    G = 0.5
 
-    # build quadratic material model
     material_model = quadratic_beam_material(E, G, cross_section, Beam)
     print(f"Ei: {material_model.Ei}")
     print(f"Fi: {material_model.Fi}")
 
-    # exit()
+    atol = 1.0e-9
+    rtol = 0
+    n_load_steps = 10
+
+    shape_functions = "Lagrange"
+    polynomial_degree = 1
+    nquadrature_points = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
+    print(f"nquadrature_points: {nquadrature_points}")
+
+    # used parameters for the paper
+    nelements_list = np.array([1, 2, 4], dtype=int)
+    nelements_ref = 8
+    # nelements_list = np.array([1, 2, 4, 8, 16, 32, 64], dtype=int)
+    # nelements_ref = 256
 
     # starting point and orientation of initial point, initial length
     r_OP = np.zeros(3, dtype=float)
     A_IK = np.eye(3, dtype=float)
 
-    # build beam model
-    beam = beam_factory(
-        nelements,
-        polynomial_degree,
-        nquadrature_points,
-        shape_functions,
-        cross_section,
-        material_model,
-        Beam,
-        L,
-        r_OP0=r_OP,
-        A_IK0=A_IK,
+    def solve(nelements):
+
+        # build beam model
+        beam = beam_factory(
+            nelements,
+            polynomial_degree,
+            nquadrature_points,
+            shape_functions,
+            cross_section,
+            material_model,
+            Beam,
+            L,
+            r_OP0=r_OP,
+            A_IK0=A_IK,
+        )
+
+        # junctions
+        r_OB0 = np.zeros(3)
+        A_IK0 = np.eye(3)
+        frame1 = Frame(r_OP=r_OB0, A_IK=A_IK0)
+
+        # left and right joint
+        joint1 = RigidConnection(frame1, beam, r_OB0, frame_ID2=(0,))
+
+        # moment at the beam's tip
+        Fi = material_model.Fi
+        M = lambda t: (e3 * Fi[2]) * t * 2 * np.pi / L * 0.25
+        moment = K_Moment(M, beam, (1,))
+
+        # force at the beam's tip
+        f = lambda t: t * 1e-4 * Fi[2] / L * e3
+        force = Force(f, beam, frame_ID=(1,))
+
+        # assemble the model
+        model = Model()
+        model.add(beam)
+        model.add(frame1)
+        model.add(joint1)
+        model.add(moment)
+        model.add(force)
+        model.assemble()
+
+        solver = Newton(
+            model,
+            n_load_steps=n_load_steps,
+            max_iter=100,
+            atol=atol,
+            rtol=rtol,
+        )
+
+        sol = solver.solve()
+
+        return beam, sol
+
+    beam_ref, sol_ref = solve(nelements_ref)
+
+    # sample centerline deflection of reference solution
+    num = 100
+    xis = np.linspace(0, 1, num=num)
+    r_OP_ref = beam_ref.centerline(sol_ref.q[-1], n=num)
+    A_IK_ref = np.array(beam_ref.frames(sol_ref.q[-1], n=num)[1:])
+
+    position_errors = []
+    rotation_errors = []
+    for nelements in nelements_list:
+        beam, sol = solve(nelements)
+
+        # centerline errors
+        r_OPi = beam.centerline(sol.q[-1], n=num)
+        diff = r_OPi - r_OP_ref
+        error = sqrt(sum([d @ d for d in diff])) / num
+        position_errors.append(error)
+
+        # rotation errors
+        A_IKi = np.array(beam.frames(sol.q[-1], n=num)[1:])
+        diff = []
+        for i in range(num):
+            diff.append(rodriguez_inv(A_IKi[:, :, i].T @ A_IK_ref[:, :, i]))
+        diff = np.array(diff)
+        error = sqrt(sum([d @ d for d in diff]))
+        rotation_errors.append(error)
+
+    position_errors = np.array(position_errors)
+    print(f"position_errors: {position_errors}")
+    rotation_errors = np.array(rotation_errors)
+    print(f"rotation_errors: {rotation_errors}")
+
+    # export errors
+    header = "nelements, position_error, rotation_errors"
+    export_data = np.vstack([nelements_list, position_errors, rotation_errors]).T
+    np.savetxt(
+        "results/QuarterCircleConvergence.txt",
+        export_data,
+        delimiter=", ",
+        header=header,
+        comments="",
     )
 
-    # junctions
-    r_OB0 = np.zeros(3)
-    A_IK0 = np.eye(3)
-    frame1 = Frame(r_OP=r_OB0, A_IK=A_IK0)
-
-    # left and right joint
-    joint1 = RigidConnection(frame1, beam, r_OB0, frame_ID2=(0,))
-
-    # moment at the beam's tip
-    Fi = material_model.Fi
-    M = lambda t: (e3 * Fi[2]) * t * 2 * np.pi / L * 0.25
-    moment = K_Moment(M, beam, (1,))
-
-    # force at the beam's tip
-    f = lambda t: t * 1e-4 * Fi[2] / L * e3
-    force = Force(f, beam, frame_ID=(1,))
-
-    # assemble the model
-    model = Model()
-    model.add(beam)
-    model.add(frame1)
-    model.add(joint1)
-    model.add(moment)
-    model.add(force)
-    model.assemble()
-
-    solver = Newton(
-        model,
-        n_load_steps=n_load_steps,
-        max_iter=100,
-        atol=atol,
-        rtol=rtol,
-    )
-
-    sol = solver.solve()
-    q = sol.q
-    nt = len(q)
-    t = sol.t[:nt]
-
-    # compute tip displacement
-    r_OP = beam.r_OP(t[-1], q[-1][beam.elDOF[-1]], frame_ID=(1,))
-    print(f"r_OP(1): {r_OP}")
-    # print(f"r_OP(1) * slenderness: {r_OP * slenderness}")
-    # print(f"r_OP(1) / slenderness: {r_OP / slenderness}")
-    # print(f"r_OP(1) / Fi: {r_OP / Fi}")
-
-    ##################################
-    # visualize nodal rotation vectors
-    ##################################
+    ##########################
+    # plot rate of convergence
+    ##########################
     fig, ax = plt.subplots()
-
-    # visualize tip rotation vector
-    psi1 = q[:, beam.qDOF[beam.nodalDOF_psi[-1]]]
-    for i, psi in enumerate(psi1.T):
-        ax.plot(t, psi, label=f"psi1_{i}")
-
-    ax.set_xlabel("t")
-    ax.set_ylabel("nodal rotation vectors")
+    ax.loglog(nelements_list, position_errors, "-ok", label="e_r^100")
+    ax.loglog(nelements_list, rotation_errors, "-sk", label="e_psi^100")
+    ax.loglog(nelements_list, 90 / nelements_list, "--k", label="~1 / n_el")
+    ax.loglog(nelements_list, 90 / nelements_list**2, "-.k", label="~1 / n_el^2")
     ax.grid()
     ax.legend()
 
-    ################################
-    # visualize norm strain measures
-    ################################
+    ###########################################
+    # strain measures of the reference solution
+    ###########################################
     fig, ax = plt.subplots(1, 2)
 
     nxi = 1000
@@ -2458,9 +2495,20 @@ def convergence_quater_circle():
     K_Kappa = np.zeros((3, nxi))
     for i in range(nxi):
         frame_ID = (xis[i],)
-        elDOF = beam.qDOF_P(frame_ID)
-        qe = q[-1, beam.qDOF][elDOF]
-        _, _, K_Gamma[:, i], K_Kappa[:, i] = beam.eval(qe, xis[i])
+        elDOF = beam_ref.qDOF_P(frame_ID)
+        qe = sol_ref.q[-1, beam_ref.qDOF][elDOF]
+        _, _, K_Gamma[:, i], K_Kappa[:, i] = beam_ref.eval(qe, xis[i])
+
+    header = "xi, K_Gamma1, K_Gamma2, K_Gamma3, K_Kappa1, K_Kappa2, K_Kappa3"
+    export_data = np.vstack([xis, *K_Gamma, *K_Kappa]).T
+    np.savetxt(
+        "results/QuarterCircleConvergenceStrainMeasures.txt",
+        export_data,
+        delimiter=", ",
+        header=header,
+        comments="",
+    )
+
     ax[0].plot(xis, K_Gamma[0], "-r", label="K_Gamma0")
     ax[0].plot(xis, K_Gamma[1], "-g", label="K_Gamma1")
     ax[0].plot(xis, K_Gamma[2], "-b", label="K_Gamma2")
@@ -2472,74 +2520,7 @@ def convergence_quater_circle():
     ax[1].grid()
     ax[1].legend()
 
-    # ########################################################
-    # # visualize norm of tangent vector and quadrature points
-    # ########################################################
-    # fig, ax = plt.subplots()
-
-    # nxi = 1000
-    # xis = np.linspace(0, 1, num=nxi)
-
-    # abs_r_xi = np.zeros(nxi)
-    # abs_r0_xi = np.zeros(nxi)
-    # for i in range(nxi):
-    #     frame_ID = (xis[i],)
-    #     elDOF = beam.qDOF_P(frame_ID)
-    #     qe = q[-1, beam.qDOF][elDOF]
-    #     abs_r_xi[i] = np.linalg.norm(beam.r_OC_xi(t[-1], qe, frame_ID))
-    #     q0e = q[0, beam.qDOF][elDOF]
-    #     abs_r0_xi[i] = np.linalg.norm(beam.r_OC_xi(t[0], q0e, frame_ID))
-    # ax.plot(xis, abs_r_xi, "-r", label="||r_xi||")
-    # ax.plot(xis, abs_r0_xi, "--b", label="||r0_xi||")
-    # ax.set_xlabel("xi")
-    # ax.set_ylabel("||r_xi||")
-    # ax.grid()
-    # ax.legend()
-
-    # # compute quadrature points
-    # for el in range(beam.nelement):
-    #     elDOF = beam.elDOF[el]
-    #     q0e = q[0, beam.qDOF][elDOF]
-    #     for i in range(beam.nquadrature):
-    #         xi = beam.qp[el, i]
-    #         abs_r0_xi = np.linalg.norm(beam.r_OC_xi(t[0], q0e, (xi,)))
-    #         ax.plot(xi, abs_r0_xi, "xr")
-
-    # plt.show()
-    # exit()
-
-    ############################
-    # Visualize potential energy
-    ############################
-    E_pot = np.array([model.E_pot(ti, qi) for (ti, qi) in zip(t, q)])
-
-    fig, ax = plt.subplots(1, 2)
-
-    ax[0].plot(t, E_pot)
-    ax[0].set_xlabel("t")
-    ax[0].set_ylabel("E_pot")
-    ax[0].grid()
-
-    # visualize final centerline projected in all three planes
-    r_OPs = beam.centerline(q[-1])
-    fig, ax = plt.subplots(1, 3)
-    ax[0].plot(r_OPs[0, :], r_OPs[1, :], label="x-y")
-    ax[1].plot(r_OPs[1, :], r_OPs[2, :], label="y-z")
-    ax[2].plot(r_OPs[2, :], r_OPs[0, :], label="z-x")
-    ax[0].grid()
-    ax[0].legend()
-    ax[0].set_aspect(1)
-    ax[1].grid()
-    ax[1].legend()
-    ax[1].set_aspect(1)
-    ax[2].grid()
-    ax[2].legend()
-    ax[2].set_aspect(1)
-
-    ###########
-    # animation
-    ###########
-    animate_beam(t, q, [beam], L, show=True)
+    plt.show()
 
 
 if __name__ == "__main__":
@@ -2549,7 +2530,8 @@ if __name__ == "__main__":
     # locking(case="helix")
     # SE3_interpolation()
     # HelixIbrahimbegovic1997()
-    HeavyTop()
+    # HeavyTop()
     # Dschanibekow()
     # distributed_force()
     # objectivity_quater_circle()
+    convergence_quater_circle()

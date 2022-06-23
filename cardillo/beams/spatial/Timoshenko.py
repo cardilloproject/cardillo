@@ -1499,7 +1499,7 @@ class TimoshenkoAxisAngleSE3:
         if np.allclose(K_S_rho0, np.zeros_like(K_S_rho0)):
             self.constant_mass_matrix = True
         else:
-            self.constant_mass_matrix = False            
+            self.constant_mass_matrix = False
 
         # material model
         self.material_model = material_model
@@ -1743,8 +1743,8 @@ class TimoshenkoAxisAngleSE3:
         return self.knot_vector_r.element_number(xi)[0]
 
     def reference_rotation(self, qe: np.ndarray, case="left"):
-    # def reference_rotation(self, qe: np.ndarray, case="right"):
-    # def reference_rotation(self, qe: np.ndarray, case="midway"):
+        # def reference_rotation(self, qe: np.ndarray, case="right"):
+        # def reference_rotation(self, qe: np.ndarray, case="midway"):
         """Reference rotation for SE(3) object in analogy to the proposed
         formulation by Crisfield1999 (5.8).
 
@@ -1784,18 +1784,18 @@ class TimoshenkoAxisAngleSE3:
     def relative_interpolation(self, H_IR: np.ndarray, qe: np.ndarray, xi: float):
         """Interpolation function for relative rotation vectors proposed by
         Crisfield1999 (5.7) and (5.8)."""
-        # # evaluate shape functions
-        # # TODO: They have to coincide for r and psi!
-        # N, N_xi, _ = self.basis_functions_r(xi)
+        # evaluate shape functions
+        # TODO: They have to coincide for r and psi!
+        N, N_xi, _ = self.basis_functions_r(xi)
 
-        # hard coded linear shape functions
-        assert self.polynomial_degree_r == 1 and self.polynomial_degree_psi == 1
-        el = self.element_number(xi)
-        xi0, xi1 = self.knot_vector_r.element_interval(el)
-        linv = 1.0 / (xi1 - xi0)
-        diff = (xi - xi0) * linv
-        N = np.array([1.0 - diff, diff])
-        N_xi = np.array([-linv, linv])
+        # # hard coded linear shape functions
+        # assert self.polynomial_degree_r == 1 and self.polynomial_degree_psi == 1
+        # el = self.element_number(xi)
+        # xi0, xi1 = self.knot_vector_r.element_interval(el)
+        # linv = 1.0 / (xi1 - xi0)
+        # diff = (xi - xi0) * linv
+        # N = np.array([1.0 - diff, diff])
+        # N_xi = np.array([-linv, linv])
 
         # relative interpolation of local se(3) objects
         h_rel = np.zeros(6, dtype=float)
@@ -1839,11 +1839,11 @@ class TimoshenkoAxisAngleSE3:
         # composition of reference rotation and relative one
         H_IK = H_IR @ se3exp(h_rel)
 
-        # ###################
-        # # objective strains
-        # ###################
-        # T = se3tangent_map(h_rel)
-        # strains = T @ h_rel_xi
+        ###################
+        # objective strains
+        ###################
+        T = se3tangent_map(h_rel)
+        strains = T @ h_rel_xi
 
         # ############################################
         # # alternative computation of strain measures
@@ -1872,8 +1872,8 @@ class TimoshenkoAxisAngleSE3:
         # #################################################################
         # # This alternative formulation works for pure bending experiments
         # #################################################################
-        assert self.polynomial_degree_r == 1
-        strains = h_rel_xi
+        # assert self.polynomial_degree_r == 1
+        # strains = h_rel_xi
 
         # extract centerline and transformation
         A_IK = H_IK[:3, :3]
@@ -1950,8 +1950,8 @@ class TimoshenkoAxisAngleSE3:
                         self.N_psi[el, i, node_a] * self.N_psi[el, i, node_b]
                     )
 
-            # For non symmetric cross sections there are also other parts 
-            # involved in the mass matrix. These parts are configuration 
+            # For non symmetric cross sections there are also other parts
+            # involved in the mass matrix. These parts are configuration
             # dependent and lead to configuration dependent mass matrix.
             _, A_IK, _, _ = self.eval(qe, self.qp[el, i])
             M_el_r_psi = A_IK @ self.K_S_rho0 * Ji * qwi
@@ -1981,7 +1981,9 @@ class TimoshenkoAxisAngleSE3:
             elDOF = self.elDOF[el]
 
             # sparse assemble element mass matrix
-            self.__M.extend(self.M_el_constant(el), (self.uDOF[elDOF], self.uDOF[elDOF]))
+            self.__M.extend(
+                self.M_el_constant(el), (self.uDOF[elDOF], self.uDOF[elDOF])
+            )
 
     # TODO: Compute derivative of mass matrix for non constant mass matrix case!
     def M(self, t, q, coo):
@@ -1993,7 +1995,9 @@ class TimoshenkoAxisAngleSE3:
                 elDOF = self.elDOF[el]
 
                 # sparse assemble element mass matrix
-                coo.extend(self.M_el(q[elDOF], el), (self.uDOF[elDOF], self.uDOF[elDOF]))
+                coo.extend(
+                    self.M_el(q[elDOF], el), (self.uDOF[elDOF], self.uDOF[elDOF])
+                )
 
     def f_gyr_el(self, t, qe, ue, el):
         f_gyr_el = np.zeros(self.nq_element, dtype=float)
@@ -2006,7 +2010,9 @@ class TimoshenkoAxisAngleSE3:
 
             # vector of gyroscopic forces
             f_gyr_el_psi = (
-                cross3(K_Omega, self.K_I_rho0 @ K_Omega) * self.J[el, i] * self.qw[el, i]
+                cross3(K_Omega, self.K_I_rho0 @ K_Omega)
+                * self.J[el, i]
+                * self.qw[el, i]
             )
 
             # multiply vector of gyroscopic forces with nodal virtual rotations
@@ -2578,8 +2584,8 @@ class TimoshenkoAxisAngleSE3:
         r = []
         for xi in np.linspace(0, 1, n):
             frame_ID = (xi,)
-            qp = q_body[self.qDOF_P(frame_ID)]
-            r.append(self.r_OP(1, qp, frame_ID))
+            qe = q_body[self.qDOF_P(frame_ID)]
+            r.append(self.r_OP(1, qe, frame_ID))
         return np.array(r).T
 
     def frames(self, q, n=10):
@@ -3653,7 +3659,9 @@ class TimoshenkoAxisAngle:
             psi_xi = np.zeros(3)
             for node in range(self.nnodes_element_psi):
                 psi += self.N_psi[el, qp, node] * qe[self.nodalDOF_element_psi[node]]
-                psi_xi += self.N_psi_xi[el, qp, node] * qe[self.nodalDOF_element_psi[node]]
+                psi_xi += (
+                    self.N_psi_xi[el, qp, node] * qe[self.nodalDOF_element_psi[node]]
+                )
 
             # curvature
             T = tangent_map(psi)
