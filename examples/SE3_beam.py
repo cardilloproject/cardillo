@@ -1011,18 +1011,18 @@ def HelixIbrahimbegovic1997(export=True):
     Ibrahimbegovic1997: https://doi.org/10.1016/S0045-7825(97)00059-5
     """
     # Beam = TimoshenkoAxisAngle
-    # Beam = TimoshenkoAxisAngleSE3
+    Beam = TimoshenkoAxisAngleSE3
     # Beam = TimoshenkoDirectorDirac
-    Beam = TimoshenkoQuarternionSE3
+    # Beam = TimoshenkoQuarternionSE3
 
     # fraction of 10 full rotations and the out of plane force
     # a corresponding fraction of 100 elements is chosen
     # # fraction = 0.05
-    fraction = 0.1  # 1 full rotations
+    # fraction = 0.1  # 1 full rotations
     # fraction = 0.20  # 2 full rotations
     # fraction = 0.4  # 4 full rotations
     # fraction = 0.5  # 5 full rotations
-    # fraction = 1  # 10 full rotations
+    fraction = 1  # 10 full rotations
 
     # number of elements
     nelements_max = 30
@@ -1129,7 +1129,8 @@ def HelixIbrahimbegovic1997(export=True):
         r_OC_L = np.array(
             [beam.r_OP(ti, qi[elDOF], frame_ID) for (ti, qi) in zip(t, q)]
         )
-        export_data = np.vstack([t, *r_OC_L.T]).T
+        # export_data = np.vstack([t, *r_OC_L.T]).T
+        export_data = np.vstack([np.arange(nt), *r_OC_L.T]).T
         np.savetxt(
             "results/tip_displacement_helix.txt",
             export_data,
@@ -2365,10 +2366,10 @@ def convergence_quater_circle():
     print(f"nquadrature_points: {nquadrature_points}")
 
     # used parameters for the paper
-    nelements_list = np.array([1, 2, 4], dtype=int)
-    nelements_ref = 8
-    # nelements_list = np.array([1, 2, 4, 8, 16, 32, 64], dtype=int)
-    # nelements_ref = 256
+    # nelements_list = np.array([1, 2, 4], dtype=int)
+    # nelements_ref = 8
+    nelements_list = np.array([1, 2, 4, 8, 16, 32, 64], dtype=int)
+    nelements_ref = 256
 
     # starting point and orientation of initial point, initial length
     r_OP = np.zeros(3, dtype=float)
