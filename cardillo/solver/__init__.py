@@ -13,5 +13,6 @@ from .genAlphaDAE import *
 
 # static solvers
 from .Newton import Newton
+from .Riks import Riks
 
 # TODO: riks solver

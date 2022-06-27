@@ -219,8 +219,8 @@ class Riks:
             if i > 1:
                 # secand predictor for all but the first newton iteration
                 dx = self.xk - self.x0
-                # xk1 += dx # original version
-                xk1[:-1] += dx[:-1]  # TODO: Is this good?
+                xk1 += dx  # original version
+                # xk1[:-1] += dx[:-1]  # TODO: Is this good?
 
                 # ###################################
                 # # prediction of Feng (see Neto1998)

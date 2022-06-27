@@ -2681,7 +2681,8 @@ def Noor1981():
     animate_beam(t, q, [beam0, beam1], radius, show=True)
 
 
-def BucklingRightHingedFrame():
+def BucklingRightHingedFrame(follower=False):
+    # def BucklingRightHingedFrame(follower=True):
     """Buckling of a hinged right-angle frame under both fixed and follower point load - Simo1985.
 
     References:
@@ -2689,7 +2690,7 @@ def BucklingRightHingedFrame():
     Simo1985: https://doi.org/10.1016/0045-7825(86)90079-4
     """
     # elements per beam
-    nelement_per_beam = 3
+    nelement_per_beam = 2
 
     # used polynomial degree
     polynomial_degree = 1
@@ -2700,10 +2701,17 @@ def BucklingRightHingedFrame():
     # used shape functions for discretization
     shape_functions = "Lagrange"
 
-    # beam parameters found in Section 5.1 Ibrahimbegovic1997
-    L = 10
-    EA = GA = 1.0e4
-    GJ = EI = 1.0e2
+    # beam parameters found in Harsch2020
+    L = 120
+    E = 7.2e6
+    nu = 0.3
+    G = E / (2.0 * (1.0 + nu))
+    A = 6
+    I = 2
+    EA = E * A
+    GA = G * A
+    GJ = G * 2 * I
+    EI = E * I
 
     # build quadratic material model
     Ei = np.array([EA, GA, GA], dtype=float)
@@ -2718,18 +2726,9 @@ def BucklingRightHingedFrame():
     K_S_rho0 = line_density * cross_section.first_moment
     K_I_rho0 = line_density * cross_section.second_moment
 
-    # length of th eframe
-    L = 2
-
     ############################
     # first beam (0, 0) - (0, L)
     ############################
-    # r_OP0 = np.array([0, 0, 0], dtype=float)
-    # r_OP1 = np.array([0, L, 0], dtype=float)
-    # psi0 = pi / 2 * e3
-    # psi1 = pi / 2 * e3
-    # q0 = np.concatenate((r_OP0, r_OP1, psi0, psi1))
-
     r_OP0 = np.zeros(3, dtype=float)
     A_IK0 = rodriguez(pi / 2 * e3)
     q0 = TimoshenkoAxisAngleSE3.straight_configuration(
@@ -2758,15 +2757,9 @@ def BucklingRightHingedFrame():
     frame0 = Frame(r_OP=r_OP0)
     joint0 = SphericalJoint(frame0, beam0, r_OP0, frame_ID1=(0,))
 
-    ##################################
-    # second quadrant (0, L) - (L, L)
-    ##################################
-    # r_OP0 = np.array([0, L, 0], dtype=float)
-    # r_OP1 = np.array([L, L, 0], dtype=float)
-    # psi0 = np.zeros(3, dtype=float)
-    # psi1 = np.zeros(3, dtype=float)
-    # q0 = np.concatenate((r_OP0, r_OP1, psi0, psi1))
-
+    #############################
+    # second beam (0, L) - (L, L)
+    #############################
     r_OP0 = np.array([0, L, 0], dtype=float)
     A_IK0 = np.eye(3, dtype=float)
     q0 = TimoshenkoAxisAngleSE3.straight_configuration(
@@ -2801,10 +2794,13 @@ def BucklingRightHingedFrame():
     joint2 = RigidConnection(beam0, beam1, frame_ID1=(1,), frame_ID2=(0,))
 
     # external force at the apex
-    # F_max = -5e3
-    F_max = -1e3
+    # F_max = -4e4  # Harsch2020
+    F_max = -8e4  # Harsch2020
     F = lambda t: F_max * e2 * t
-    force = Force(F, beam1, frame_ID=(1 / 3,))
+    if follower:
+        force = K_Force(F, beam1, frame_ID=(0.2,))
+    else:
+        force = Force(F, beam1, frame_ID=(0.2,))
 
     # assemble the model
     model = Model()
@@ -2830,10 +2826,10 @@ def BucklingRightHingedFrame():
 
     solver = Riks(
         model,
-        tol=1.0e-8,
+        tol=1.0e-6,
         max_newton_iter=30,
-        # la_arc0=1.0e-1,
-        la_arc0=1.0e-1,
+        la_arc0=1.0e-1,  # works for constant force
+        # la_arc0=5.0e-3, # not working for follower force yet
         la_arc_span=[-0.5, 1],
         scale_exponent=None,
     )
