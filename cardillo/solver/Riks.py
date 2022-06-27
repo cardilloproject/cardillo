@@ -2,7 +2,7 @@ import numpy as np
 from scipy.sparse.linalg import spsolve
 from scipy.sparse import bmat
 from cardillo.solver import Solution
-from cardillo.math.numerical_derivative import Numerical_derivative
+from cardillo.math import approx_fprime, sign
 
 # TODO: automatic increment cutting: Crisfield1991 section 9.5.1
 # TODO: read Crisfield1996 section 21 Branch switching and further advanced solution procedures
@@ -12,23 +12,26 @@ from cardillo.math.numerical_derivative import Numerical_derivative
 
 
 class Riks:
-    r"""Linear arc-length solver close to Riks method as dervied in Crisfield1991 section 9.3.2
-    p.273. A variable arc-length is chosen as shown by Crisfield1981 or Crisfield 1983. For the
-    first predictor a tangent predictor is used. For all other predictors a simple secant predictor
-    is used. This enables the solver to 'run forward' instead of 'doubling back on its track'.
+    """Linear arc-length solver close to Riks method as dervied in Crisfield1991 
+    section 9.3.2 p.273. A variable arc-length is chosen as shown by 
+    Crisfield1981 or Crisfield 1983. For the first predictor a tangent predictor 
+    is used. For all other predictors a simple secant predictor is used. This 
+    enables the solver to 'run forward' instead of 'doubling back on its track'.
 
     References
     ----------
-    - Wempner1971: https://doi.org/10.1016/0020-7683(71)90038-2
-    - Riks1972: https://doi.org/10.1115/1.3422829
-    - Riks1979: https://doi.org/10.1016/0020-7683(79)90081-7
-    - Crsfield1981: https://doi.org/10.1016/0045-7949(81)90108-5
-    - Crisfield1991: http://freeit.free.fr/Finite%20Element/Crisfield%20M.A.%20Vol.1.%20Non-Linear%20Finite%20Element%20Analysis%20of%20Solids%20and%20Structures..%20Essentials%20(Wiley,19.pdf
-    - Crisfield1996: http://inis.jinr.ru/sl/M_Mathematics/MN_Numerical%20methods/MNf_Finite%20elements/Crisfield%20M.A.%20Vol.2.%20Non-linear%20Finite%20Element%20Analysis%20of%20Solids%20and%20Structures..%20Advanced%20Topics%20(Wiley,1996)(ISBN%20047195649X)(509s).pdf
+    - Wempner1971: https://doi.org/10.1016/0020-7683(71)90038-2 \\
+    - Riks1972: https://doi.org/10.1115/1.3422829 \\
+    - Riks1979: https://doi.org/10.1016/0020-7683(79)90081-7 \\
+    - Crsfield1981: https://doi.org/10.1016/0045-7949(81)90108-5 \\
+    - Crisfield1991: http://freeit.free.fr/Finite%20Element/Crisfield%20M.A.%20Vol.1.%20Non-Linear%20Finite%20Element%20Analysis%20of%20Solids%20and%20Structures..%20Essentials%20(Wiley,19.pdf \\
+    - Crisfield1996: http://inis.jinr.ru/sl/M_Mathematics/MN_Numerical%20methods/MNf_Finite%20elements/Crisfield%20M.A.%20Vol.2.%20Non-linear%20Finite%20Element%20Analysis%20of%20Solids%20and%20Structures..%20Advanced%20Topics%20(Wiley,1996)(ISBN%20047195649X)(509s).pdf \\
+    - Neto 1999: https://doi.org/10.1016/S0045-7825(99)00042-0
     """
 
     def a(self, x):
-        """The most simple arc length equation restricting the change of all generalized coordinates w.r.t. the last converged Newton step."""
+        """The most simple arc length equation restricting the change of all
+        generalized coordinates w.r.t. the last converged Newton step."""
         nq = self.nq
         dq = x[:nq] - self.xk[:nq]
         return dq @ dq
@@ -38,30 +41,20 @@ class Riks:
         dq = x[:nq] - self.xk[:nq]
         return 2 * dq, np.zeros(self.nla), 0
 
-    def R(self, t, x):
+    def R(self, x):
         return next(self.gen_analytic(x))
 
     def gen_numeric(self, x):
-        yield self.R(0, x)
-        yield Numerical_derivative(self.R, order=2)._x(0, x)
+        yield self.R(x)
+        yield approx_fprime(x, self.R, method="2-point")
 
     def gen_analytic(self, x):
-        # extract generalized coordinates and lagrange multipliers
+        # extract generalized coordinates and Lagrange multipliers
         nq = self.nq
         nla = self.nla
         q = x[:nq]
         la = x[nq : nq + nla]
         la_arc = x[nq + nla]
-
-        # # compute total external force (evaluated at t=1) which are scaled by lambda
-        # f_arc = self.model.f_scaled(1, q)
-
-        # # compute all other force contributions (evaluated at t=0)
-        # h = self.model.h(0, q, self.u0)
-        # # TODO: this should also be split into constraints that are scaled
-        # #       -> displacement controlled arc-length method
-        # g = self.model.g(0, q)
-        # W_g = self.model.W_g(0, q)
 
         # evaluate all functions with t = la_arc -> model does not change!
         # - this requires the external force that should be scaled to be of the form
@@ -80,15 +73,6 @@ class Riks:
         R[nq + nla] = self.a(x) - self.ds**2
 
         yield R
-
-        # # compute gradient of total external force (evaluated at t=1) which are scaled by lambda
-        # f_arc_q = self.model.f_scaled_q(1, q)
-
-        # # compute required quantities for the gradient of R (evaluated at t=0)
-        # h_q = self.model.h_q(0, q, self.u0)
-        # Wla_g_q = self.model.Wla_g_q(0, q, la)
-        # g_q = self.model.g_q(0, q)
-        # Rq_q = h_q + Wla_g_q + la_arc * f_arc_q
 
         # evaluate all functions with t = la_arc -> model does not change!
         # - this requires the external force that should be scaled to be of the form
@@ -235,7 +219,28 @@ class Riks:
             if i > 1:
                 # secand predictor for all but the first newton iteration
                 dx = self.xk - self.x0
-                xk1 += dx
+                # xk1 += dx # original version
+                xk1[:-1] += dx[:-1]  # TODO: Is this good?
+
+                # ###################################
+                # # prediction of Feng (see Neto1998)
+                # ##################################
+                # # secant predictor
+                # Dx = self.xk - self.x0
+
+                # # tangent predictor
+                # # gen = self.gen(xk1)
+                # # R = next(gen)
+                # R_x = next(gen)
+                # dx = spsolve(R_x, R)
+
+                # inner = dx @ Dx
+                # sign_inner = sign(inner)
+
+                # # update with correspinding sign
+                # xk1[:-1] += sign_inner * Dx[:-1]
+                # # xk1[:-1] -= sign_inner * dx[:-1]
+
             else:
                 # TODO:
                 # find out why it is essential to solve for the generalized coordinates

@@ -36,6 +36,7 @@ from cardillo.solver import (
     ScipyIVP,
     GenAlphaFirstOrder,
     Moreau,
+    Riks,
 )
 
 from cardillo.solver.Fsolve import Fsolve
@@ -2524,6 +2525,330 @@ def convergence_quater_circle():
     plt.show()
 
 
+def Noor1981():
+    """Large deflections of a clamped semicircular arch found in Noor1981 and Simo1985.
+
+    References:
+    ===========
+    Noor1981:  https://doi.org/10.1002/nme.1620170409 \\
+    Simo1985: https://doi.org/10.1016/0045-7825(86)90079-4
+    """
+    # Beam = TimoshenkoAxisAngle
+    Beam = TimoshenkoAxisAngleSE3
+    # Beam = TimoshenkoDirectorDirac
+    # Beam = TimoshenkoQuarternionSE3
+
+    # 1 elements per beam - 4 beams for the circle
+    nelements = 1
+
+    # used polynomial degree
+    polynomial_degree = 1
+
+    # number of quadrature points
+    nquadrature_points = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
+
+    # used shape functions for discretization
+    shape_functions = "Lagrange"
+
+    # beam parameters found in Section 5.1 Ibrahimbegovic1997
+    L = 10
+    EA = GA = 1.0e4
+    GJ = EI = 1.0e2
+
+    # build quadratic material model
+    Ei = np.array([EA, GA, GA], dtype=float)
+    Fi = np.array([GJ, EI, EI], dtype=float)
+    material_model = Simo1986(Ei, Fi)
+
+    # Note: This is never used in statics!
+    line_density = 1.0
+    radius = 1.0
+    cross_section = CircularCrossSection(line_density, radius)
+    A_rho0 = line_density * cross_section.area
+    K_S_rho0 = line_density * cross_section.first_moment
+    K_I_rho0 = line_density * cross_section.second_moment
+
+    # radius of the circle
+    R = 1
+
+    ################################
+    # first quadrant (R, 0) - (radius, R)
+    ################################
+    r_OP0 = np.array([radius, 0, 0], dtype=float)
+    r_OP1 = np.array([0, radius, 0], dtype=float)
+    # r_OP1 = np.array([0, 0, 0], dtype=float)
+    psi0 = pi / 2 * e3
+    # psi0 = pi * e3
+    psi1 = pi * e3
+    q0 = np.concatenate((r_OP0, r_OP1, psi0, psi1))
+
+    beam0 = TimoshenkoAxisAngleSE3(
+        material_model,
+        A_rho0,
+        K_S_rho0,
+        K_I_rho0,
+        polynomial_degree,
+        polynomial_degree,
+        nquadrature_points,
+        nelements,
+        q0,
+        basis=shape_functions,
+    )
+
+    frame0 = Frame(r_OP=r_OP0)
+    joint0 = RigidConnection(frame0, beam0, frame_ID1=(0,))
+    # joint0 = SphericalJoint(frame0, beam0, r_OP0, frame_ID1=(0,))
+
+    ##################################
+    # second quadrant (0, R) - (-R, 0)
+    ##################################
+    r_OP0 = np.array([0, radius, 0], dtype=float)
+    # r_OP0 = np.array([0, 0, 0], dtype=float)
+    r_OP1 = np.array([-radius, 0, 0], dtype=float)
+    psi0 = pi * e3
+    # psi1 = pi * e3
+    psi1 = 3 / 2 * pi * e3
+    q0 = np.concatenate((r_OP0, r_OP1, psi0, psi1))
+
+    beam1 = TimoshenkoAxisAngleSE3(
+        material_model,
+        A_rho0,
+        K_S_rho0,
+        K_I_rho0,
+        polynomial_degree,
+        polynomial_degree,
+        nquadrature_points,
+        nelements,
+        q0,
+    )
+
+    frame1 = Frame(r_OP=r_OP1)
+    # joint1 = RigidConnection(frame1, beam1, frame_ID2=(1,))
+    joint1 = SphericalJoint(frame1, beam1, r_OP1, frame_ID2=(1,))
+
+    #####################################
+    # rigid connection between both beams
+    #####################################
+    joint2 = RigidConnection(beam0, beam1, frame_ID1=(1,), frame_ID2=(0,))
+
+    # external force at the apex
+    F_max = -3e3
+    F = lambda t: F_max * e2 * t
+    # force = Force(F, beam0, frame_ID=(1,)
+    force = Force(F, beam1, frame_ID=(0,))
+
+    # assemble the model
+    model = Model()
+    model.add(beam0)
+    model.add(frame0)
+    model.add(joint0)
+    model.add(beam1)
+    model.add(frame1)
+    model.add(joint1)
+    model.add(joint2)
+    model.add(force)
+    model.assemble()
+
+    # n_load_steps = 2
+    n_load_steps = 20
+
+    # solver = Newton(
+    #     model,
+    #     n_load_steps=n_load_steps,
+    #     max_iter=30,
+    #     atol=1.0e-7,
+    #     numerical_jacobian=False,
+    # )
+    solver = Riks(
+        model,
+        tol=1.0e-8,
+        max_newton_iter=30,
+        iter_goal=3,
+        # la_arc0=5.0e-3,
+        la_arc0=1.0e-3,
+        la_arc_span=[-0.5, 1],
+        scale_exponent=None,
+    )
+
+    sol = solver.solve()
+    q = sol.q
+    nt = len(q)
+    t = sol.t[:nt]
+
+    ###########
+    # animation
+    ###########
+    animate_beam(t, q, [beam0, beam1], radius, show=True)
+
+
+def BucklingRightHingedFrame():
+    """Buckling of a hinged right-angle frame under both fixed and follower point load - Simo1985.
+
+    References:
+    ===========
+    Simo1985: https://doi.org/10.1016/0045-7825(86)90079-4
+    """
+    # elements per beam
+    nelement_per_beam = 3
+
+    # used polynomial degree
+    polynomial_degree = 1
+
+    # number of quadrature points
+    nquadrature_points = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
+
+    # used shape functions for discretization
+    shape_functions = "Lagrange"
+
+    # beam parameters found in Section 5.1 Ibrahimbegovic1997
+    L = 10
+    EA = GA = 1.0e4
+    GJ = EI = 1.0e2
+
+    # build quadratic material model
+    Ei = np.array([EA, GA, GA], dtype=float)
+    Fi = np.array([GJ, EI, EI], dtype=float)
+    material_model = Simo1986(Ei, Fi)
+
+    # Note: This is never used in statics!
+    line_density = 1.0
+    radius = 1.0
+    cross_section = CircularCrossSection(line_density, radius)
+    A_rho0 = line_density * cross_section.area
+    K_S_rho0 = line_density * cross_section.first_moment
+    K_I_rho0 = line_density * cross_section.second_moment
+
+    # length of th eframe
+    L = 2
+
+    ############################
+    # first beam (0, 0) - (0, L)
+    ############################
+    # r_OP0 = np.array([0, 0, 0], dtype=float)
+    # r_OP1 = np.array([0, L, 0], dtype=float)
+    # psi0 = pi / 2 * e3
+    # psi1 = pi / 2 * e3
+    # q0 = np.concatenate((r_OP0, r_OP1, psi0, psi1))
+
+    r_OP0 = np.zeros(3, dtype=float)
+    A_IK0 = rodriguez(pi / 2 * e3)
+    q0 = TimoshenkoAxisAngleSE3.straight_configuration(
+        polynomial_degree,
+        polynomial_degree,
+        nelement_per_beam,
+        L,
+        r_OP=r_OP0,
+        A_IK=A_IK0,
+        basis=shape_functions,
+    )
+
+    beam0 = TimoshenkoAxisAngleSE3(
+        material_model,
+        A_rho0,
+        K_S_rho0,
+        K_I_rho0,
+        polynomial_degree,
+        polynomial_degree,
+        nquadrature_points,
+        nelement_per_beam,
+        q0,
+        basis=shape_functions,
+    )
+
+    frame0 = Frame(r_OP=r_OP0)
+    joint0 = SphericalJoint(frame0, beam0, r_OP0, frame_ID1=(0,))
+
+    ##################################
+    # second quadrant (0, L) - (L, L)
+    ##################################
+    # r_OP0 = np.array([0, L, 0], dtype=float)
+    # r_OP1 = np.array([L, L, 0], dtype=float)
+    # psi0 = np.zeros(3, dtype=float)
+    # psi1 = np.zeros(3, dtype=float)
+    # q0 = np.concatenate((r_OP0, r_OP1, psi0, psi1))
+
+    r_OP0 = np.array([0, L, 0], dtype=float)
+    A_IK0 = np.eye(3, dtype=float)
+    q0 = TimoshenkoAxisAngleSE3.straight_configuration(
+        polynomial_degree,
+        polynomial_degree,
+        nelement_per_beam,
+        L,
+        r_OP=r_OP0,
+        A_IK=A_IK0,
+        basis=shape_functions,
+    )
+
+    beam1 = TimoshenkoAxisAngleSE3(
+        material_model,
+        A_rho0,
+        K_S_rho0,
+        K_I_rho0,
+        polynomial_degree,
+        polynomial_degree,
+        nquadrature_points,
+        nelement_per_beam,
+        q0,
+    )
+
+    r_OP1 = np.array([L, L, 0], dtype=float)
+    frame1 = Frame(r_OP=r_OP1)
+    joint1 = SphericalJoint(frame1, beam1, r_OP1, frame_ID2=(1,))
+
+    #####################################
+    # rigid connection between both beams
+    #####################################
+    joint2 = RigidConnection(beam0, beam1, frame_ID1=(1,), frame_ID2=(0,))
+
+    # external force at the apex
+    # F_max = -5e3
+    F_max = -1e3
+    F = lambda t: F_max * e2 * t
+    force = Force(F, beam1, frame_ID=(1 / 3,))
+
+    # assemble the model
+    model = Model()
+    model.add(beam0)
+    model.add(frame0)
+    model.add(joint0)
+    model.add(beam1)
+    model.add(frame1)
+    model.add(joint1)
+    model.add(joint2)
+    model.add(force)
+    model.assemble()
+
+    # # n_load_steps = 2
+    # n_load_steps = 10
+    # solver = Newton(
+    #     model,
+    #     n_load_steps=n_load_steps,
+    #     max_iter=30,
+    #     atol=1.0e-7,
+    #     numerical_jacobian=False,
+    # )
+
+    solver = Riks(
+        model,
+        tol=1.0e-8,
+        max_newton_iter=30,
+        # la_arc0=1.0e-1,
+        la_arc0=1.0e-1,
+        la_arc_span=[-0.5, 1],
+        scale_exponent=None,
+    )
+
+    sol = solver.solve()
+    q = sol.q
+    nt = len(q)
+    t = sol.t[:nt]
+
+    ###########
+    # animation
+    ###########
+    animate_beam(t, q, [beam0, beam1], L, show=True)
+
+
 if __name__ == "__main__":
     # run(statics=True)
     # run(statics=False)
@@ -2535,4 +2860,6 @@ if __name__ == "__main__":
     # Dschanibekow()
     # distributed_force()
     # objectivity_quater_circle()
-    convergence_quater_circle()
+    # convergence_quater_circle()
+    # Noor1981()
+    BucklingRightHingedFrame()
