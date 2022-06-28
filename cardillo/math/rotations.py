@@ -192,7 +192,7 @@ def tangent_map_s(psi: np.ndarray, psi_s: np.ndarray) -> np.ndarray:
         return np.zeros((3, 3))  # Cardona1988 after (46)
 
 
-def spurrier(R: np.ndarray) -> np.ndarray:
+def Spurrier(R: np.ndarray) -> np.ndarray:
     """
     Spurrier's algorithm to extract the unit quaternion from a given rotation
     matrix, see Spurrier19978, Simo1986 Table 12 and Crisfield1997 Section 16.10.
@@ -255,7 +255,7 @@ def rodriguez_inv(R: np.ndarray) -> np.ndarray:
     # else:
     #     return np.zeros(3, dtype=float)
 
-    return quat2axis_angle(spurrier(R))
+    return quat2axis_angle(Spurrier(R))
 
     # # alternative formulation using scipy's Rotation module
     # from scipy.spatial.transform import Rotation
@@ -297,7 +297,7 @@ class Rotor:
 
     @staticmethod
     def fromMatrix(A: np.ndarray):
-        return Rotor(spurrier(A))
+        return Rotor(Spurrier(A))
 
     @staticmethod
     def fromRotor(R: Rotor):

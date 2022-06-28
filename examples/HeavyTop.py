@@ -2,7 +2,7 @@ import numpy as np
 from math import sin, cos, pi
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-from cardillo.math.rotations import A_IK_basic, rodriguez_inv, spurrier
+from cardillo.math.rotations import A_IK_basic, rodriguez_inv, Spurrier
 
 from cardillo.model.frame.frame import Frame
 from cardillo.model.rigid_body import (
@@ -428,7 +428,7 @@ if case == "Euler" or case == "Euler_self":
 elif case == "AxisAngle":
     q0 = np.concatenate((r_OS0, rodriguez_inv(A_IK0)))
 elif case == "Quaternion":
-    q0 = np.concatenate((r_OS0, spurrier(A_IK0)))
+    q0 = np.concatenate((r_OS0, Spurrier(A_IK0)))
 else:
     raise NotImplementedError
 

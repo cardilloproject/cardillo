@@ -4,10 +4,11 @@ from scipy.sparse import bmat
 from cardillo.solver import Solution
 from cardillo.math import approx_fprime, sign
 
+# TODO: Understand predictor of Feng mentioned in Neto1999.
+
 # TODO: automatic increment cutting: Crisfield1991 section 9.5.1
 # TODO: read Crisfield1996 section 21 Branch switching and further advanced solution procedures
 # TODO: implement line searcher technique mention in Crisfield1991 and Crisfield1996
-
 # TODO: implement dense output
 
 
@@ -26,7 +27,7 @@ class Riks:
     - Crsfield1981: https://doi.org/10.1016/0045-7949(81)90108-5 \\
     - Crisfield1991: http://freeit.free.fr/Finite%20Element/Crisfield%20M.A.%20Vol.1.%20Non-Linear%20Finite%20Element%20Analysis%20of%20Solids%20and%20Structures..%20Essentials%20(Wiley,19.pdf \\
     - Crisfield1996: http://inis.jinr.ru/sl/M_Mathematics/MN_Numerical%20methods/MNf_Finite%20elements/Crisfield%20M.A.%20Vol.2.%20Non-linear%20Finite%20Element%20Analysis%20of%20Solids%20and%20Structures..%20Advanced%20Topics%20(Wiley,1996)(ISBN%20047195649X)(509s).pdf \\
-    - Neto 1999: https://doi.org/10.1016/S0045-7825(99)00042-0
+    - Neto1999: https://doi.org/10.1016/S0045-7825(99)00042-0
     """
 
     def a(self, x):
@@ -219,8 +220,7 @@ class Riks:
             if i > 1:
                 # secand predictor for all but the first newton iteration
                 dx = self.xk - self.x0
-                xk1 += dx  # original version
-                # xk1[:-1] += dx[:-1]  # TODO: Is this good?
+                xk1 += dx
 
                 # ###################################
                 # # prediction of Feng (see Neto1998)

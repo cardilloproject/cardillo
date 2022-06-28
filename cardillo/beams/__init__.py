@@ -11,6 +11,8 @@ from .spatial import (
     TimoshenkoAxisAngle,
     TimoshenkoAxisAngleSE3,
     TimoshenkoQuarternionSE3,
+    BernoulliAxisAngleSE3,
+    TimoshenkoAxisAngleSE3TwoNode,
 )
 
 from .planar import (

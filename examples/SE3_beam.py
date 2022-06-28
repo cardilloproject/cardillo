@@ -28,6 +28,8 @@ from cardillo.beams import (
     TimoshenkoAxisAngleSE3,
     TimoshenkoDirectorDirac,
     TimoshenkoQuarternionSE3,
+    BernoulliAxisAngleSE3,
+    TimoshenkoAxisAngleSE3TwoNode,
 )
 from cardillo.forces import Force, K_Force, K_Moment, Moment, DistributedForce1D
 from cardillo.model import Model
@@ -109,6 +111,20 @@ def beam_factory(
             A_IK0=A_IK0,
             v_Q0=v_Q0,
             xi_Q=xi_Q,
+            K_omega_IK0=K_omega_IK0,
+            basis=shape_functions,
+        )
+    elif Beam == BernoulliAxisAngleSE3:
+        p_r = polynomial_degree
+        p_psi = polynomial_degree
+        Q, u0 = BernoulliAxisAngleSE3.initial_configuration(
+            p_r,
+            p_psi,
+            nelements,
+            L,
+            r_OP0=r_OP0,
+            A_IK0=A_IK0,
+            v_P0=v_Q0,
             K_omega_IK0=K_omega_IK0,
             basis=shape_functions,
         )
@@ -201,6 +217,21 @@ def beam_factory(
         beam = TimoshenkoQuarternionSE3(
             material_model,
             A_rho0,
+            K_I_rho0,
+            p_r,
+            p_psi,
+            nquadrature_points,
+            nelements,
+            Q=Q,
+            q0=q0,
+            u0=u0,
+            basis=shape_functions,
+        )
+    elif Beam == BernoulliAxisAngleSE3:
+        beam = BernoulliAxisAngleSE3(
+            material_model,
+            A_rho0,
+            K_S_rho0,
             K_I_rho0,
             p_r,
             p_psi,
@@ -548,8 +579,9 @@ def locking(case="helix"):
     Meier2015: https://doi.org/10.1016/j.cma.2015.02.029
     """
     # Beam = TimoshenkoAxisAngle
-    Beam = TimoshenkoAxisAngleSE3
+    # Beam = TimoshenkoAxisAngleSE3
     # Beam = TimoshenkoQuarternionSE3
+    Beam = BernoulliAxisAngleSE3
 
     if case == "quater_circle":
         # number of elements
@@ -567,8 +599,8 @@ def locking(case="helix"):
         # (slenderness, atol, n_load_steps
         # fmt: off
         # triplet = (1.0e1, 1.0e-6, 2)
-        triplet = (1.0e2, 1.0e-8, 2)
-        # triplet = (1.0e3, 1.0e-9, 2)
+        # triplet = (1.0e2, 1.0e-8, 2)
+        triplet = (1.0e3, 1.0e-9, 2)
         # triplet = (1.0e4, 1.0e-12, 2)  # this can't be sovle using the quaternion implementation
         # triplet = (1.0e5, 1.0e-12, 4)
         # fmt: on
@@ -593,9 +625,13 @@ def locking(case="helix"):
     slenderness, atol, n_load_steps = triplet
     n_load_steps = 5
 
+    # TODO: Remove this!
+    L = 1.0e1
+    slenderness, atol, n_load_steps = (1.0e1, 1.0e-6, 10)
+
     # used polynomial degree
-    # polynomial_degree = 1
-    polynomial_degree = 2
+    polynomial_degree = 1
+    # polynomial_degree = 2
 
     # number of quadrature points
     nquadrature_points = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
@@ -2731,27 +2767,41 @@ def BucklingRightHingedFrame(follower=False):
     ############################
     r_OP0 = np.zeros(3, dtype=float)
     A_IK0 = rodriguez(pi / 2 * e3)
-    q0 = TimoshenkoAxisAngleSE3.straight_configuration(
-        polynomial_degree,
-        polynomial_degree,
+    # q0 = TimoshenkoAxisAngleSE3.straight_configuration(
+    #     polynomial_degree,
+    #     polynomial_degree,
+    #     nelement_per_beam,
+    #     L,
+    #     r_OP=r_OP0,
+    #     A_IK=A_IK0,
+    #     basis=shape_functions,
+    # )
+    q0 = TimoshenkoAxisAngleSE3TwoNode.straight_configuration(
         nelement_per_beam,
         L,
         r_OP=r_OP0,
         A_IK=A_IK0,
-        basis=shape_functions,
     )
 
-    beam0 = TimoshenkoAxisAngleSE3(
+    # beam0 = TimoshenkoAxisAngleSE3(
+    #     material_model,
+    #     A_rho0,
+    #     K_S_rho0,
+    #     K_I_rho0,
+    #     polynomial_degree,
+    #     polynomial_degree,
+    #     nquadrature_points,
+    #     nelement_per_beam,
+    #     q0,
+    #     basis=shape_functions,
+    # )
+    beam0 = TimoshenkoAxisAngleSE3TwoNode(
         material_model,
         A_rho0,
         K_S_rho0,
         K_I_rho0,
-        polynomial_degree,
-        polynomial_degree,
-        nquadrature_points,
         nelement_per_beam,
         q0,
-        basis=shape_functions,
     )
 
     frame0 = Frame(r_OP=r_OP0)
@@ -2762,24 +2812,39 @@ def BucklingRightHingedFrame(follower=False):
     #############################
     r_OP0 = np.array([0, L, 0], dtype=float)
     A_IK0 = np.eye(3, dtype=float)
-    q0 = TimoshenkoAxisAngleSE3.straight_configuration(
-        polynomial_degree,
-        polynomial_degree,
+    # q0 = TimoshenkoAxisAngleSE3.straight_configuration(
+    #     polynomial_degree,
+    #     polynomial_degree,
+    #     nelement_per_beam,
+    #     L,
+    #     r_OP=r_OP0,
+    #     A_IK=A_IK0,
+    #     basis=shape_functions,
+    # )
+    q0 = TimoshenkoAxisAngleSE3TwoNode.straight_configuration(
         nelement_per_beam,
         L,
         r_OP=r_OP0,
         A_IK=A_IK0,
-        basis=shape_functions,
     )
 
-    beam1 = TimoshenkoAxisAngleSE3(
+    # beam1 = TimoshenkoAxisAngleSE3(
+    #     material_model,
+    #     A_rho0,
+    #     K_S_rho0,
+    #     K_I_rho0,
+    #     polynomial_degree,
+    #     polynomial_degree,
+    #     nquadrature_points,
+    #     nelement_per_beam,
+    #     q0,
+    #     basis=shape_functions,
+    # )
+    beam1 = TimoshenkoAxisAngleSE3TwoNode(
         material_model,
         A_rho0,
         K_S_rho0,
         K_I_rho0,
-        polynomial_degree,
-        polynomial_degree,
-        nquadrature_points,
         nelement_per_beam,
         q0,
     )
@@ -2845,6 +2910,127 @@ def BucklingRightHingedFrame(follower=False):
     animate_beam(t, q, [beam0, beam1], L, show=True)
 
 
+def Bernoulli():
+    # Beam = TimoshenkoAxisAngleSE3
+    Beam = BernoulliAxisAngleSE3
+
+    nelements = 3
+    L = 1.0e3
+    # slenderness, atol, n_load_steps = (1.0e1, 1.0e-6, 10)
+    slenderness, atol, n_load_steps = (1.0e2, 1.0e-6, 20)
+
+    # used polynomial degree
+    polynomial_degree = 1
+
+    # number of quadrature points
+    nquadrature_points = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
+
+    # used shape functions for discretization
+    shape_functions = "Lagrange"
+
+    # used cross section
+    width = L / slenderness
+
+    # cross section
+    line_density = 1
+    cross_section = QuadraticCrossSection(line_density, width)
+
+    # Young's and shear modulus
+    E = 1.0  # Meier2015
+    # G = 0.5  # Meier2015
+    # G = 1.0e-3
+    G = 1.0e-2
+
+    # build quadratic material model
+    material_model = quadratic_beam_material(E, G, cross_section, Beam)
+    print(f"Ei: {material_model.Ei}")
+    print(f"Fi: {material_model.Fi}")
+
+    # starting point and orientation of initial point, initial length
+    r_OP = np.zeros(3)
+    A_IK = np.eye(3)
+
+    # build beam model
+    beam = beam_factory(
+        nelements,
+        polynomial_degree,
+        nquadrature_points,
+        shape_functions,
+        cross_section,
+        material_model,
+        Beam,
+        L,
+        r_OP0=r_OP,
+        A_IK0=A_IK,
+    )
+
+    # junctions
+    r_OB0 = np.zeros(3)
+    A_IK0 = np.eye(3)
+    frame1 = Frame(r_OP=r_OB0, A_IK=A_IK0)
+
+    # left and right joint
+    joint1 = RigidConnection(frame1, beam, r_OB0, frame_ID2=(0,))
+
+    # force at the right end
+    Ei = material_model.Ei
+    Fi = material_model.Fi
+    # f = lambda t: t * 1e-3 * Fi[1] / L * e3
+    f = lambda t: t * 5e1 * Ei[1] / L * e2
+    force = Force(f, beam, frame_ID=(1,))
+
+    # assemble the model
+    model = Model()
+    model.add(beam)
+    model.add(frame1)
+    model.add(joint1)
+    model.add(force)
+    model.assemble()
+
+    solver = Newton(
+        model,
+        n_load_steps=n_load_steps,
+        max_iter=100,
+        atol=atol,
+    )
+
+    sol = solver.solve()
+    q = sol.q
+    nt = len(q)
+    t = sol.t[:nt]
+
+    ###########################
+    # visualize strain measures
+    ###########################
+    fig, ax = plt.subplots(1, 2)
+
+    nxi = 1000
+    xis = np.linspace(0, 1, num=nxi)
+
+    K_Gamma = np.zeros((3, nxi))
+    K_Kappa = np.zeros((3, nxi))
+    for i in range(nxi):
+        frame_ID = (xis[i],)
+        elDOF = beam.qDOF_P(frame_ID)
+        qe = q[-1, beam.qDOF][elDOF]
+        _, _, K_Gamma[:, i], K_Kappa[:, i] = beam.eval(qe, xis[i])
+    ax[0].plot(xis, K_Gamma[0], "-r", label="K_Gamma0")
+    ax[0].plot(xis, K_Gamma[1], "-g", label="K_Gamma1")
+    ax[0].plot(xis, K_Gamma[2], "-b", label="K_Gamma2")
+    ax[0].grid()
+    ax[0].legend()
+    ax[1].plot(xis, K_Kappa[0], "-r", label="K_Kappa0")
+    ax[1].plot(xis, K_Kappa[1], "-g", label="K_Kappa1")
+    ax[1].plot(xis, K_Kappa[2], "-b", label="K_Kappa2")
+    ax[1].grid()
+    ax[1].legend()
+
+    ###########
+    # animation
+    ###########
+    animate_beam(t, q, [beam], L, show=True)
+
+
 if __name__ == "__main__":
     # run(statics=True)
     # run(statics=False)
@@ -2859,3 +3045,4 @@ if __name__ == "__main__":
     # convergence_quater_circle()
     # Noor1981()
     BucklingRightHingedFrame()
+    # Bernoulli()

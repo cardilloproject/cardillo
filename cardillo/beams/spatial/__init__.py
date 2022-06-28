@@ -23,4 +23,6 @@ from .Timoshenko import (
     TimoshenkoQuaternion,
     TimoshenkoAxisAngleSE3,
     TimoshenkoQuarternionSE3,
+    BernoulliAxisAngleSE3,
 )
+from .SE3 import TimoshenkoAxisAngleSE3TwoNode
