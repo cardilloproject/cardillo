@@ -36,6 +36,7 @@ def SE3inv(H: np.ndarray) -> np.ndarray:
 def Exp_SO3(psi: np.ndarray) -> np.ndarray:
     angle = norm(psi)
     if angle > 0:
+        # Park2005 (12)
         sa = sin(angle)
         ca = cos(angle)
         alpha = sa / angle
@@ -44,6 +45,16 @@ def Exp_SO3(psi: np.ndarray) -> np.ndarray:
         return (
             np.eye(3, dtype=float) + alpha * psi_tilde + beta2 * psi_tilde @ psi_tilde
         )
+
+        # # Barfoot2014 (97)
+        # sa = sin(angle)
+        # ca = cos(angle)
+        # n = psi / angle
+        # return (
+        #     ca * np.eye(3, dtype=float)
+        #     + sa * ax2skew(n)
+        #     + (1.0 - ca) * np.outer(n, n)
+        # )
     else:
         return np.eye(3, dtype=float)
 
@@ -65,6 +76,7 @@ def Log_SO3(A: np.ndarray) -> np.ndarray:
 def T_SO3(psi: np.ndarray) -> np.ndarray:
     angle = norm(psi)
     if angle > 0:
+        # Park2005 (19), actually its the transposed!
         sa = sin(angle)
         ca = cos(angle)
         psi_tilde = ax2skew(psi)
@@ -76,6 +88,17 @@ def T_SO3(psi: np.ndarray) -> np.ndarray:
             - beta2 * psi_tilde
             + ((1.0 - alpha) / angle2) * psi_tilde @ psi_tilde
         )
+
+        # # Barfoot2014 (98), actually its the transposed!
+        # sa = sin(angle)
+        # ca = cos(angle)
+        # sinc = sa / angle
+        # n = psi / angle
+        # return (
+        #     sinc * np.eye(3, dtype=float)
+        #     - ((1.0 - ca) / angle) * ax2skew(n)
+        #     + (1.0 - sinc) * np.outer(n, n)
+        # )
     else:
         return np.eye(3, dtype=float)
 
@@ -83,65 +106,24 @@ def T_SO3(psi: np.ndarray) -> np.ndarray:
 def T_SO3_inv(psi: np.ndarray) -> np.ndarray:
     angle = norm(psi)
     if angle > 0:
-        # sa = sin(angle)
-        # ca = cos(angle)
+        # Park2005 (19), actually its the transposed!
         psi_tilde = ax2skew(psi)
-        # alpha = sa / angle
-        # angle2 = angle * angle
-        # beta = 2. * (1. - ca) / angle2
-        # gamma = alpha / beta
         gamma = 0.5 * angle / (tan(0.5 * angle))
-        # n = psi / angle
-        # n_tilde = ax2skew(n)
         return (
             np.eye(3, dtype=float)
             + 0.5 * psi_tilde
             + ((1.0 - gamma) / (angle * angle)) * psi_tilde @ psi_tilde
-            # + (1. - gamma) * n_tilde @ n_tilde
         )
 
-        # TODO: Why is this implementation important? Maybe we have to study the limits of the other formulations. What is Müller2021 writing?
-        # ta = tan(angle / 2.)
-        # return (
-        #     (angle / (2. * ta)) * np.eye(3, dtype=float)
-        #     + 0.5 * ax2skew(psi)
-        #     + (1. - (angle / 2.) / ta) * np.outer(psi / angle, psi / angle)
-        # )
-
-        # # Park2005
-        # cot = 1. / tan(angle / 2.)
-        # return (
-        #     np.eye(3, dtype=float)
-        #     + 0.5 * psi_tilde
-        #     - (0.5 * cot / angle - 1. / angle2) * psi_tilde @ psi_tilde
-        # )
-
-        # # Barefoot2014
-        # cot = 1. / tan(angle / 2.)
-        # return (
-        #     (angle / 2.) * cot * np.eye(3, dtype=float)
-        #     + 0.5 * psi_tilde
-        #     # - (1. - (angle / 2.) * cot) * np.outer(psi / angle, psi / angle)
-        #     - (angle - (angle / 2.) * cot) * np.outer(psi, psi)
-        # )
-
-        # # Mueller2021
+        # # Barfoot2014 (98), actually its the transposed!
+        # angle2 = 0.5 * angle
+        # cot = 1.0 / tan(angle2)
         # n = psi / angle
-        # n_tilde = ax2skew(n)
-        # # return (
-        # #     np.eye(3, dtype=float)
-        # #     + 0.5 * psi_tilde
-        # #     + (1. - alpha / beta) * n_tilde @ n_tilde
-        # # )
-        # cot = 1. / tan(angle / 2.)
         # return (
-        #     np.eye(3, dtype=float)
-        #     + 0.5 * psi_tilde
-        #     # + (1. - 0.5 * angle * cot) * n_tilde @ n_tilde
-        #     + ((1. - 0.5 * angle * cot) / angle2) * psi_tilde @ psi_tilde
-        #     # + (1. / angle2 - 0.5 * cot / angle) * psi_tilde @ psi_tilde
+        #     angle2 * cot * np.eye(3, dtype=float)
+        #     + angle2 * ax2skew(n)
+        #     + (1.0 - angle2 * cot) * np.outer(n, n)
         # )
-
     else:
         return np.eye(3, dtype=float)
 

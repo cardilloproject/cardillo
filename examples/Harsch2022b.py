@@ -303,10 +303,10 @@ def HeavyTop():
     t0 = 0.0
     t1 = 2.0 * pi / omega_pr
     # t1 *= 0.5
-    t1 *= 0.25
+    # t1 *= 0.25
     # t1 *= 0.125
     # t1 *= 0.075
-    # t1 *= 0.01
+    t1 *= 0.01
 
     # nt = np.ceil(t1 / 1.0e-3)
     # dt = t1 * 1.0e-2
@@ -2775,6 +2775,7 @@ def HeavyTop():
 if __name__ == "__main__":
     # BucklingRightHingedFrame()
     HeavyTop()
+
     # run(statics=True)
     # run(statics=False)
     # locking(case="quater_circle")
