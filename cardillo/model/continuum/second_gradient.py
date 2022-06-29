@@ -9,7 +9,7 @@ from cardillo.discretization.B_spline import B_spline_basis3D
 from cardillo.math.algebra import determinant2D, inverse3D, determinant3D
 
 
-class Second_gradient():
+class Second_gradient:
     def __init__(self, density, material, mesh, Z, z0=None, v0=None, cDOF=[], b=None):
         self.density = density
         self.mat = material
@@ -40,7 +40,7 @@ class Second_gradient():
         self.mesh = mesh
         self.nel = mesh.nel
         self.nn = mesh.nn
-        self.nn_el = mesh.nn_el # number of nodes of an element
+        self.nn_el = mesh.nn_el  # number of nodes of an element
         self.nq_el = mesh.nq_el
         self.nqp = mesh.nqp
         self.elDOF = mesh.elDOF
@@ -63,7 +63,7 @@ class Second_gradient():
             #     self.srf_w_J0 = []
             #     for i in range(6):
             #         self.srf_w_J0.append(self.mesh.surface_mesh[i].reference_mappings(Z[self.mesh.surface_qDOF[i].ravel()]))
-           
+
             self.N_XX = self.mesh.N_XX(Z, self.kappa0_xi_inv)
         # # For 1D Continua
         # else:
@@ -71,11 +71,9 @@ class Second_gradient():
         #     for el in range(self.nel):
         #         for i in range(self.nqp):
         #             for a in range(self.nn_el):
-        #                 kappa0_xixi = 
+        #                 kappa0_xixi =
         #             self.N_X[el, i] = mesh.N_xi[el, i] / self.w_J0[el, i]
-        #             self.N_XX[el, i] = mesh.n_xixi[el ,i] - self.N_X[el ,i] * 
-
-        
+        #             self.N_XX[el, i] = mesh.n_xixi[el ,i] - self.N_X[el ,i] *
 
     def assembler_callback(self):
         self.elfDOF = []
@@ -93,8 +91,10 @@ class Second_gradient():
         z[self.fDOF] = q
         z[self.cDOF] = self.b(t)
         return z
-        
-    def post_processing_single_configuration(self, t, q, filename, binary=True, return_strain=False):
+
+    def post_processing_single_configuration(
+        self, t, q, filename, binary=True, return_strain=False
+    ):
         # compute redundant generalized coordinates
         z = self.z(t, q)
 
@@ -103,16 +103,28 @@ class Second_gradient():
 
         # dictionary storing point data
         point_data = {}
-        
+
         # evaluate deformation gradient at quadrature points
         F = np.zeros((self.mesh.nel, self.mesh.nqp, self.mesh.nq_n, self.mesh.nq_n))
-        G = np.zeros((self.mesh.nel, self.mesh.nqp, self.mesh.nq_n, self.mesh.nq_n, self.mesh.nq_n))
+        G = np.zeros(
+            (
+                self.mesh.nel,
+                self.mesh.nqp,
+                self.mesh.nq_n,
+                self.mesh.nq_n,
+                self.mesh.nq_n,
+            )
+        )
         for el in range(self.mesh.nel):
             ze = z[self.mesh.elDOF[el]]
             for i in range(self.mesh.nqp):
                 for a in range(self.mesh.nn_el):
-                    F[el, i] += np.outer(ze[self.mesh.nodalDOF[a]], self.N_X[el, i, a]) # Bonet 1997 (7.6b)
-                    G[el, i] += np.einsum('i,jk->ijk', ze[self.nodalDOF[a]], self.N_XX[el, i, a])
+                    F[el, i] += np.outer(
+                        ze[self.mesh.nodalDOF[a]], self.N_X[el, i, a]
+                    )  # Bonet 1997 (7.6b)
+                    G[el, i] += np.einsum(
+                        "i,jk->ijk", ze[self.nodalDOF[a]], self.N_XX[el, i, a]
+                    )
 
         if return_strain == False:
 
@@ -138,79 +150,143 @@ class Second_gradient():
             }
 
             for name, fun in point_data_fields.items():
-                tmp = fun(F_vtk[0].reshape(self.dim, self.dim), G_vtk[0].reshape(self.dim, self.dim, self.dim)).ravel()
+                tmp = fun(
+                    F_vtk[0].reshape(self.dim, self.dim),
+                    G_vtk[0].reshape(self.dim, self.dim, self.dim),
+                ).ravel()
                 field = np.zeros((len(F_vtk), len(tmp)))
                 for i, Fi in enumerate(F_vtk):
-                    field[i] = fun(Fi.reshape(self.dim, self.dim), G_vtk[i].reshape(self.dim, self.dim, self.dim)).ravel()
+                    field[i] = fun(
+                        Fi.reshape(self.dim, self.dim),
+                        G_vtk[i].reshape(self.dim, self.dim, self.dim),
+                    ).ravel()
                 point_data.update({name: field})
-        
+
             # write vtk mesh using meshio
             meshio.write_points_cells(
-                filename.parent / (filename.stem + '.vtu'),
+                filename.parent / (filename.stem + ".vtu"),
                 points,
                 cells,
                 point_data=point_data,
                 cell_data={"HigherOrderDegrees": HigherOrderDegrees},
-                binary=binary
+                binary=binary,
             )
-        
+
         else:
             return F[0, 0]
-        
+
     def post_processing(self, t, q, filename, binary=True, project_to_reference=False):
         # write paraview PVD file collecting time and all vtk files, see https://www.paraview.org/Wiki/ParaView/Data_formats#PVD_File_Format
         from xml.dom import minidom
-     
+
         root = minidom.Document()
-        
-        vkt_file = root.createElement('VTKFile')
-        vkt_file.setAttribute('type', 'Collection')
+
+        vkt_file = root.createElement("VTKFile")
+        vkt_file.setAttribute("type", "Collection")
         root.appendChild(vkt_file)
-        
-        collection = root.createElement('Collection')
+
+        collection = root.createElement("Collection")
         vkt_file.appendChild(collection)
 
         for i, (ti, qi) in enumerate(zip(t, q)):
-            filei = filename.parent / (filename.stem + f'_{i}.vtu')
+            filei = filename.parent / (filename.stem + f"_{i}.vtu")
 
             # write time step and file name in pvd file
-            dataset = root.createElement('DataSet')
-            dataset.setAttribute('timestep', f'{ti:0.6f}')
-            dataset.setAttribute('file', filei.name)
+            dataset = root.createElement("DataSet")
+            dataset.setAttribute("timestep", f"{ti:0.6f}")
+            dataset.setAttribute("file", filei.name)
             collection.appendChild(dataset)
 
             if project_to_reference == True:
                 raise NotImplementedError
             self.post_processing_single_configuration(ti, qi, filei, binary=binary)
 
-        # write pvd file        
-        xml_str = root.toprettyxml(indent ="\t")          
-        with (filename.parent / (filename.stem + '.pvd')).open("w") as f:
+        # write pvd file
+        xml_str = root.toprettyxml(indent="\t")
+        with (filename.parent / (filename.stem + ".pvd")).open("w") as f:
             f.write(xml_str)
 
+    def post_processing_la(
+        self, t, la_mesh, la, q_la, filename, binary=True, project_to_reference=False
+    ):
+        # write paraview PVD file collecting time and all vtk files, see https://www.paraview.org/Wiki/ParaView/Data_formats#PVD_File_Format
+        from xml.dom import minidom
+
+        root = minidom.Document()
+
+        vkt_file = root.createElement("VTKFile")
+        vkt_file.setAttribute("type", "Collection")
+        root.appendChild(vkt_file)
+
+        collection = root.createElement("Collection")
+        vkt_file.appendChild(collection)
+
+        for i, (ti, lai, q_lai) in enumerate(zip(t, la, q_la)):
+            filei = filename.parent / (filename.stem + f"la_{i}.vtu")
+
+            # write time step and file name in pvd file
+            dataset = root.createElement("DataSet")
+            dataset.setAttribute("timestep", f"{ti:0.6f}")
+            dataset.setAttribute("file", filei.name)
+            collection.appendChild(dataset)
+
+            if project_to_reference == True:
+                raise NotImplementedError
+            self.post_processing_la_single_configuration(
+                ti, la_mesh, lai, q_lai, filei, binary=binary
+            )
+
+        # write pvd file
+        xml_str = root.toprettyxml(indent="\t")
+        with (filename.parent / (filename.stem + "_la.pvd")).open("w") as f:
+            f.write(xml_str)
+
+    def post_processing_la_single_configuration(
+        self, t, la_mesh, la, la_q, filename, binary=True
+    ):
+
+        # generalized coordinates, connectivity and polynomial degree
+        cells, points, HigherOrderDegrees = la_mesh.vtk_mesh(la_q, dim=self.nq_n)
+
+        # dictionary storing point data
+        point_data = {}
+
+        _, la_vtk, _ = la_mesh.vtk_mesh(la, dim=la_mesh.nq_n)
+        point_data.update({"la": la_vtk})
+
+        # write vtk mesh using meshio
+        meshio.write_points_cells(
+            filename.parent / (filename.stem + ".vtu"),
+            points,
+            cells,
+            point_data=point_data,
+            cell_data={"HigherOrderDegrees": HigherOrderDegrees},
+            binary=binary,
+        )
+
     def F_qp(self, q):
-        """ Compute deformation gradient at quadrature points """
+        """Compute deformation gradient at quadrature points"""
         F = np.zeros((self.nel, self.nqp, self.dim, self.dim))
         for el in range(self.nel):
             qel = q[self.elDOF[el]]
             for i in range(self.nqp):
                 for a in range(self.nn_el):
                     F[el, i] += np.outer(qel[self.nodalDOF[a]], self.N_X[el, i, a])
-
         self.F = F
 
-
     def G_qp(self, q):
-        """ Compute gradient of deformation gradient at quadrature points """
+        """Compute gradient of deformation gradient at quadrature points"""
         G = np.zeros((self.nel, self.nqp, self.dim, self.dim, self.dim))
         for el in range(self.nel):
             qel = q[self.elDOF[el]]
             for i in range(self.nqp):
                 for a in range(self.nn_el):
-                    G[el, i] += np.einsum('i,jk->ijk', qel[self.nodalDOF[a]], self.N_XX[el, i, a])
+                    G[el, i] += np.einsum(
+                        "i,jk->ijk", qel[self.nodalDOF[a]], self.N_XX[el, i, a]
+                    )
         self.G = G
 
-    def pre_iteration_update(self,t, q, u):
+    def pre_iteration_update(self, t, q, u):
         self.F_qp(self.z(t, q))
         self.G_qp(self.z(t, q))
 
@@ -278,7 +354,9 @@ class Second_gradient():
             # internal forces
             for a in range(self.nn_el):
                 # TODO: reference
-                f[self.nodalDOF[a]] -= (P @ N_X[a] + np.einsum('ijk,jk->i', bbP, N_XX[a])) * w_J0
+                f[self.nodalDOF[a]] -= (
+                    P @ N_X[a] + np.einsum("ijk,jk->i", bbP, N_XX[a])
+                ) * w_J0
 
         return f
 
@@ -304,8 +382,8 @@ class Second_gradient():
             G_q = np.zeros((self.dim, self.dim, self.dim, self.nq_el))
             for a in range(self.nn_el):
                 # F += np.outer(ze[self.nodalDOF[a]], N_X[a]) # Bonet 1997 (7.5)
-                F_q[:, :, self.nodalDOF[a]] += np.einsum('ik,j->ijk', I3, N_X[a])
-                G_q[:, :, :, self.nodalDOF[a]] += np.einsum('il,jk->ijkl', I3, N_XX[a])
+                F_q[:, :, self.nodalDOF[a]] += np.einsum("ik,j->ijk", I3, N_X[a])
+                G_q[:, :, :, self.nodalDOF[a]] += np.einsum("il,jk->ijkl", I3, N_XX[a])
 
             # differentiate first Piola-Kirchhoff deformation tensor w.r.t. generalized coordinates
             # S = self.mat.S(F_eli)
@@ -318,13 +396,18 @@ class Second_gradient():
             P_G = self.mat.P_G(F_eli, G_eli)
             bbP_F = self.mat.bbP_F(F_eli, G_eli)
             bbP_G = self.mat.bbP_G(F_eli, G_eli)
-            P_q = np.einsum('klmn,mnj->klj', P_F, F_q) + np.einsum('klmnj,mnjo->klo', P_G, G_q)
-            bbP_q = np.einsum('klomn,mnj->kloj', bbP_F, F_q) + np.einsum('klomnp,mnpj->kloj', bbP_G, G_q)
+            P_q = np.einsum("klmn,mnj->klj", P_F, F_q) + np.einsum(
+                "klmnj,mnjo->klo", P_G, G_q
+            )
+            bbP_q = np.einsum("klomn,mnj->kloj", bbP_F, F_q) + np.einsum(
+                "klomnp,mnpj->kloj", bbP_G, G_q
+            )
 
             # internal element stiffness matrix
             for a in range(self.nn_el):
-                Ke[self.nodalDOF[a]] += np.einsum('ijk,j->ik', P_q, -N_X[a] * w_J0)  \
-                                        + np.einsum('ijkl,jk->il', bbP_q, -N_XX[a] * w_J0) 
+                Ke[self.nodalDOF[a]] += np.einsum(
+                    "ijk,j->ik", P_q, -N_X[a] * w_J0
+                ) + np.einsum("ijkl,jk->il", bbP_q, -N_XX[a] * w_J0)
 
         return Ke
 
@@ -348,26 +431,41 @@ class Second_gradient():
             coo.extend(Ke[elfDOF[:, None], elfDOF], (eluDOF, elqDOF))
 
     ####################################################
-    # TODO: line forces
+    # TODO: test line forces
     ####################################################
-    # def force_distr1D_el(self, force, t, el, srf_mesh):
-    #     fe = np.zeros(srf_mesh.nq_el)
+    def force_distr1D_el(self, force, t, el, edge_mesh, edge_w_J0el):
+        fe = np.zeros(edge_mesh.nq_el)
 
-    #     el_xi, el_eta = split2D(el, (srf_mesh.nel_xi,))
+        for i in range(edge_mesh.nqp):
+            N = edge_mesh.N[el, i]
+            # w_J0 = self.edge_w_J0[edge_mesh.idx][el, i] # Where to create?
 
-    #     for i in range(srf_mesh.nqp):
-    #         N = srf_mesh.N[el, i]
-    #         w_J0 = self.srf_w_J0[srf_mesh.idx][el, i]
-            
-    #         i_xi, i_eta = split2D(i, (srf_mesh.nqp_xi,))
-    #         xi = srf_mesh.qp_xi[el_xi, i_xi]
-    #         eta = srf_mesh.qp_eta[el_eta, i_eta]
+            xi = edge_mesh.qp[el, i]
 
-    #         # internal forces
-    #         for a in range(srf_mesh.nn_el):
-    #             fe[srf_mesh.nodalDOF[a]] += force(t, xi, eta) * N[a] * w_J0
+            # internal forces
+            for a in range(edge_mesh.nn_el):
+                fe[edge_mesh.nodalDOF[a]] += force(t, xi) * N[a] * edge_w_J0el[i]
 
-    #     return fe
+        return fe
+
+    def force_distr1D(self, t, q, force, edge_idx, edge_qDOF, edge_w_J0):
+        z = self.z(t, q)
+        f = np.zeros(self.nz)
+
+        srf_idx = edge_idx // 4
+        srf_edge_idx = edge_idx % 4
+
+        edge_mesh = self.mesh.surface_mesh[srf_idx].edge_mesh[srf_edge_idx]
+
+        for el in range(edge_mesh.nel):
+            f[edge_qDOF[edge_mesh.elDOF[el]]] += self.force_distr1D_el(
+                force, t, el, edge_mesh, edge_w_J0[el]
+            )
+        return f[self.fDOF]
+
+    def force_distr1D_q(self, t, q, coo, force, edge_idx, edge_w_J0):
+        pass
+
     ####################################################
     # surface forces and double forces
     ####################################################
@@ -379,7 +477,7 @@ class Second_gradient():
         for i in range(srf_mesh.nqp):
             N = srf_mesh.N[el, i]
             w_J0 = self.srf_w_J0[srf_mesh.idx][el, i]
-            
+
             i_xi, i_eta = split2D(i, (srf_mesh.nqp_xi,))
             xi = srf_mesh.qp_xi[el_xi, i_xi]
             eta = srf_mesh.qp_eta[el_eta, i_eta]
@@ -396,15 +494,56 @@ class Second_gradient():
 
         srf_mesh = self.mesh.surface_mesh[srf_idx]
         srf_zDOF = self.mesh.surface_qDOF[srf_idx].ravel()
-        
+
         for el in range(srf_mesh.nel):
-            f[srf_zDOF[srf_mesh.elDOF[el]]] += self.force_distr2D_el(force, t, el, srf_mesh)
+            f[srf_zDOF[srf_mesh.elDOF[el]]] += self.force_distr2D_el(
+                force, t, el, srf_mesh
+            )
         return f[self.fDOF]
 
     def force_distr2D_q(self, t, q, coo, force, srf_idx):
         pass
 
-    def double_force_distr2D(self, t, q, coo, dforce, srf_idx):
+    def doubleforce_distr2D_el(self, dforce, t, el, srf_mesh, srf_w_J0el, srf_Norm, Nb_Xel):
+        fe = np.zeros(self.mesh.nq_el)
+
+        el_xi, el_eta = split2D(el, (srf_mesh.nel_xi,))
+
+        for i in range(srf_mesh.nqp):
+            Nb_Xeli = Nb_Xel[i]
+            
+            i_xi, i_eta = split2D(i, (srf_mesh.nqp_xi,))
+            xi = srf_mesh.qp_xi[el_xi, i_xi]
+            eta = srf_mesh.qp_eta[el_eta, i_eta]
+
+            for a in range(self.mesh.nn_el):
+                fe[self.mesh.nodalDOF[a]] += dforce(t, xi, eta) * Nb_Xeli[a, srf_Norm] * srf_w_J0el[i]
+
+            # internal forces
+            # for a_tilde in range(srf_mesh.nn_el):
+            #     fe[srf_mesh.nodalDOF[a_tilde]] += dfi * srf_w_J0el[i]
+
+        return fe
+
+    def doubleforce_distr2D(self, t, q, dforce, srf_idx, srf_w_J0, Nb_X):
+        z = self.z(t, q)
+        f = np.zeros(self.nz)
+
+        srf_Norm = srf_idx // 2
+
+        srf_mesh = self.mesh.surface_mesh[srf_idx]
+        srf_zDOF = self.mesh.surface_qDOF[srf_idx].ravel()
+
+        for el in range(srf_mesh.nel):
+            elDOF_el = self.mesh.elDOF[self.mesh.bc_el[srf_idx][el]]
+            f[elDOF_el] += self.doubleforce_distr2D_el(
+                dforce, t, el, srf_mesh, srf_w_J0[el], srf_Norm, Nb_X[el]
+            )
+        return f[self.fDOF]
+
+    def doubleforce_distr2D_q(self,
+            t, q, coo, doubleforce_distr2D, srf_idx, srf_w_J0
+        ):
         pass
 
     ####################################################
@@ -418,7 +557,7 @@ class Second_gradient():
         for i in range(self.nqp):
             N = self.mesh.N[el, i]
             w_J0 = self.w_J0[el, i]
-            
+
             i_xi, i_eta, i_zeta = split3D(i, (self.mesh.nqp_xi, self.mesh.nqp_eta))
             xi = self.mesh.qp_xi[el_xi, i_xi]
             eta = self.mesh.qp_eta[el_eta, i_eta]
@@ -433,15 +572,13 @@ class Second_gradient():
     def force_distr3D(self, t, q, force):
         z = self.z(t, q)
         f = np.zeros(self.nz)
-        
+
         for el in range(self.nel):
             f[self.elDOF[el]] += self.force_distr3D_el(force, t, el)
         return f[self.fDOF]
 
     def force_distr3D_q(self, t, q, coo, force):
         pass
-
-
 
 
 def test_gradient():
@@ -457,10 +594,10 @@ def test_gradient():
     Eta = Knot_vector(degrees[1], element_shape[1])
     Zeta = Knot_vector(degrees[2], element_shape[2])
     knot_vectors = (Xi, Eta, Zeta)
-    
-    mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=1, basis='B-spline', nq_n=3)
 
-    def bending(xi, eta, zeta, phi0=np.pi/2, R=1, B=1, H=1):
+    mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=1, basis="B-spline", nq_n=3)
+
+    def bending(xi, eta, zeta, phi0=np.pi / 2, R=1, B=1, H=1):
         phi = (1 - xi) * phi0
         x = (R + B * eta) * np.cos(phi)
         y = (R + B * eta) * np.sin(phi)
@@ -473,7 +610,7 @@ def test_gradient():
     zeta = np.linspace(0, 1, num=nzeta)
 
     phi0, R, B, H = np.pi / 2, 1, 1, 1
-    
+
     n3 = nxi * neta * nzeta
     knots = np.zeros((n3, 3))
     Pw = np.zeros((n3, 3))
@@ -493,7 +630,7 @@ def test_gradient():
     Q = cube(cube_shape, mesh, Greville=True)
     q0 = np.concatenate((x, y, z))
     continuum = First_gradient(None, mesh, Q, z0=q0)
-    
+
     # import matplotlib.pyplot as plt
     # fig = plt.figure()
     # ax = fig.add_subplot(111, projection='3d')
@@ -506,24 +643,27 @@ def test_gradient():
     # knots = np.array([[0.125, 0.35, 0.85]])
     knots = np.random.rand(3).reshape(1, 3)
     F_num = continuum.F(knots, q0)
-    print(f'F_num({knots[0]}):\n{F_num[0]}')
+    print(f"F_num({knots[0]}):\n{F_num[0]}")
 
     def F(xi, eta, zeta, phi0, R, B, L):
         r = phi0 * (R + B * eta) / L
         phi = (1 - xi) * phi0
-        F = np.array([
-            [r * np.sin(phi),  np.cos(phi), 0],
-            [-r * np.cos(phi), np.sin(phi), 0],
-            [0,                          0, 1],
-        ])
+        F = np.array(
+            [
+                [r * np.sin(phi), np.cos(phi), 0],
+                [-r * np.cos(phi), np.sin(phi), 0],
+                [0, 0, 1],
+            ]
+        )
         return F
 
     F_an = F(*knots[0], phi0, R, B, L)
-    print(f'F({knots[0]}):\n{F_an}')
+    print(f"F({knots[0]}):\n{F_an}")
 
     error = np.linalg.norm(F_num[0] - F_an)
-    print(f'error: {error}')
-    
+    print(f"error: {error}")
+
+
 def test_gradient_vtk_export():
     from cardillo.discretization.mesh3D import Mesh3D, cube
     from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume
@@ -537,8 +677,8 @@ def test_gradient_vtk_export():
     Eta = Knot_vector(degrees[1], element_shape[1])
     Zeta = Knot_vector(degrees[2], element_shape[2])
     knot_vectors = (Xi, Eta, Zeta)
-    
-    mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=1, basis='B-spline', nq_n=3)
+
+    mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=1, basis="B-spline", nq_n=3)
 
     # reference configuration is a cube
     phi0 = np.pi / 2
@@ -565,7 +705,7 @@ def test_gradient_vtk_export():
     xi = np.linspace(0, 1, num=nxi)
     eta = np.linspace(0, 1, num=neta)
     zeta = np.linspace(0, 1, num=nzeta)
-    
+
     n3 = nxi * neta * nzeta
     knots = np.zeros((n3, 3))
     Pw = np.zeros((n3, 3))
@@ -575,14 +715,15 @@ def test_gradient_vtk_export():
                 idx = flat3D(i, j, k, (nxi, neta, nzeta))
                 knots[idx] = xii, etai, zetai
                 Pw[idx] = bending(xii, etai, zetai, phi0=phi0, R=R, B=B, H=H)
-    
+
     cDOF = np.array([], dtype=int)
     qc = np.array([], dtype=float).reshape((0, 3))
     x, y, z = fit_B_spline_volume(mesh, knots, Pw, qc, cDOF)
     q = np.concatenate((x, y, z))
 
     # export current configuration and deformation gradient on quadrature points to paraview
-    continuum.post_processing(q, 'test.vtu')
+    continuum.post_processing(q, "test.vtu")
+
 
 def test_internal_forces():
     from cardillo.discretization.mesh3D import Mesh3D, cube
@@ -598,8 +739,8 @@ def test_internal_forces():
     Eta = Knot_vector(degrees[1], element_shape[1])
     Zeta = Knot_vector(degrees[2], element_shape[2])
     knot_vectors = (Xi, Eta, Zeta)
-    
-    mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=1, basis='B-spline', nq_n=3)
+
+    mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=1, basis="B-spline", nq_n=3)
 
     # reference configuration is a cube
     phi0 = np.pi / 2
@@ -611,7 +752,7 @@ def test_internal_forces():
     cube_shape = (L, B, H)
     Z = cube(cube_shape, mesh, Greville=True)
 
-    # material model    
+    # material model
     mu1 = 0.3
     mu2 = 0.5
     mat = Ogden1997_compressible(mu1, mu2)
@@ -629,25 +770,27 @@ def test_internal_forces():
     continuum = First_gradient(mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
 
     from cardillo.model import Model
+
     model = Model()
     model.add(continuum)
     model.assemble()
-    
+
     # evaluate internal forces in reference configuration
     Q = Z[continuum.fDOF]
     # f_pot = continuum.f_pot(0, Q)
     f_pot = model.f_pot(0, Q)
     # print(f'f_pot:\n{f_pot}')
-    print(f'f_pot.shape: {f_pot.shape}')
-    print(f'len(cDOF): {len(cDOF)}')
-    print(f'len(b(0)): {len(b(0))}')
+    print(f"f_pot.shape: {f_pot.shape}")
+    print(f"len(cDOF): {len(cDOF)}")
+    print(f"len(b(0)): {len(b(0))}")
 
     f_pot_q = model.f_pot_q(0, Q)
     # print(f'f_pot_q:\n{f_pot_q.toarray()}')
-    print(f'f_pot_q.shape:\n{f_pot_q.toarray().shape}')
+    print(f"f_pot_q.shape:\n{f_pot_q.toarray().shape}")
 
     # export current configuration and deformation gradient on quadrature points to paraview
-    continuum.post_processing(0.137, Q, 'test.vtu')
+    continuum.post_processing(0.137, Q, "test.vtu")
+
 
 if __name__ == "__main__":
     # test_gradient()

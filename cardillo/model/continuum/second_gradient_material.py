@@ -496,7 +496,7 @@ class Pantobox_beam_network():
         e4_F = np.einsum('ij,k->ijk', self.I3, self.D4) / rho4 \
             - np.einsum('i,j,k->ijk', e4,  e4, self.D4) / rho4
 
-        e_F = e1_F, e2_F, e3_F, e4_F
+        # e_F = e1_F, e2_F, e3_F, e4_F
 
         rho1_F_F = np.einsum('ijk,l->iljk', e1_F, self.D1)
         rho2_F_F = np.einsum('ijk,l->iljk', e2_F, self.D2)

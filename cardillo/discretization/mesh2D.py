@@ -240,6 +240,9 @@ class Mesh2D():
 
         self.edge_mesh = (line01, line01, line23, line23)
 
+        for i in range(4):
+            self.edge_mesh[i].idx = i
+
     # TODO: handle derivatives, check usage of function
     def interpolate(self, knots, q, derivative_order=0):
         n = len(knots)
@@ -439,18 +442,20 @@ class Mesh2D():
 
         return point_data
         
-    def vtk_mesh(self, q):
+    def vtk_mesh(self, q, dim=2):
         if self.basis == 'B-spline':
             # rearrange q's from solver to Piegl's 2D ordering
-            Pw = q_to_Pw_2D(self.knot_vector_objs, q, dim=self.nq_n)
-            
+#            Pw = q_to_Pw_2D(self.knot_vector_objs, q, dim=self.nq_n)
+            Pw = q_to_Pw_2D(self.knot_vector_objs, q, dim=dim)  
+
+
             # decompose B-spline mesh in Bezier patches       
             Qw = decompose_B_spline_surface(self.knot_vector_objs, Pw)
         
         elif self.basis == 'lagrange':
             # rearrange q's from solver to Piegl's 3D ordering
             Qw = np.zeros((self.nel_xi, self.nel_eta, self.p+1,
-                           self.q+1, self.nq_n))
+                           self.q+1, dim))
             for el in range(self.nel):
                 el_xi, el_eta = split2D(el, self.element_shape)
                 for a in range(self.nn_el):
