@@ -1502,7 +1502,7 @@ class TimoshenkoQuarternionSE3:
         ax.quiver(*r, *d3, color="blue", length=length)
 
 
-class TimoshenkoAxisAngleSE3:
+class TimoshenkoAxisAngleSE3Old:
     def __init__(
         self,
         material_model,
@@ -3274,7 +3274,7 @@ class TimoshenkoAxisAngleSE3:
         return points_r, point_data, cells_r, HigherOrderDegrees_r
 
 
-class BernoulliAxisAngleSE3(TimoshenkoAxisAngleSE3):
+class BernoulliAxisAngleSE3(TimoshenkoAxisAngleSE3Old):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 

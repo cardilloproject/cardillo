@@ -21,8 +21,8 @@ from .DirectorAxisAngle import DirectorAxisAngle
 from .Timoshenko import (
     TimoshenkoAxisAngle,
     TimoshenkoQuaternion,
-    TimoshenkoAxisAngleSE3,
     TimoshenkoQuarternionSE3,
-    BernoulliAxisAngleSE3,
+    # TimoshenkoAxisAngleSE3,
+    # BernoulliAxisAngleSE3,
 )
-from .SE3 import TimoshenkoAxisAngleSE3TwoNode
+from .SE3 import TimoshenkoAxisAngleSE3

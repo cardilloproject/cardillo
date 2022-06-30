@@ -1,7 +1,7 @@
 import numpy as np
 import meshio
 import os
-from math import acos, sin, cos, tan
+from math import sqrt, acos, sin, cos, tan
 
 from cardillo.utility.coo import Coo
 from cardillo.discretization.lagrange import Node_vector
@@ -149,9 +149,45 @@ def Log_SE3(H: np.ndarray) -> np.ndarray:
     return h
 
 
-class TimoshenkoAxisAngleSE3TwoNode:
+def U(a, b):
+    a_tilde = ax2skew(a)
+
+    b2 = b @ b
+    if b2 > 0:
+        abs_b = sqrt(b2)
+        alpha = sin(abs_b) / abs_b
+        beta = 2.0 * (1.0 - cos(abs_b)) / b2
+
+        b_tilde = ax2skew(b)
+
+        # Sonneville2014 (A.12); how is this related to Park2005 (20) and (21)?
+        return (
+            -0.5 * beta * a_tilde
+            + (1.0 - alpha) * (a_tilde @ b_tilde + b_tilde @ a_tilde) / b2
+            + ((b @ a) / b2)
+            * (
+                (beta - alpha) * b_tilde
+                + (0.5 * beta - 3.0 * (1.0 - alpha) / b2) * b_tilde @ b_tilde
+            )
+        )
+    else:
+        return -0.5 * a_tilde  # Soneville2014
+
+
+def T_SE3(h):
+    r = h[:3]
+    psi = h[3:]
+
+    T = np.zeros((6, 6), dtype=float)
+    T[:3, :3] = T[3:, 3:] = T_SO3(psi)
+    T[:3, 3:] = U(r, psi)
+    return T
+
+
+class TimoshenkoAxisAngleSE3:
     def __init__(
         self,
+        polynomial_degree,
         material_model,
         A_rho0,
         K_S_rho0,
@@ -175,9 +211,16 @@ class TimoshenkoAxisAngleSE3TwoNode:
         # material model
         self.material_model = material_model
 
+        if polynomial_degree == 1:
+            self.eval = self.__eval_two_node
+        else:
+            self.eval = self.__eval_generic
+
         # discretization parameters
-        self.polynomial_degree = 1  # polynomial degree
-        self.nquadrature = nquadrature = 2  # number of quadrature points
+        self.polynomial_degree = polynomial_degree
+        # self.polynomial_degree = 1  # polynomial degree
+        # self.nquadrature = nquadrature = 2  # number of quadrature points
+        self.nquadrature = nquadrature = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
         self.nelement = nelement  # number of elements
 
         self.knot_vector = Node_vector(self.polynomial_degree, nelement)
@@ -279,13 +322,16 @@ class TimoshenkoAxisAngleSE3TwoNode:
 
     @staticmethod
     def straight_configuration(
+        polynomial_degree,
         nelement,
         L,
         r_OP=np.zeros(3, dtype=float),
         A_IK=np.eye(3, dtype=float),
     ):
-        nn_r = nelement + 1
-        nn_psi = nelement + 1
+        # nn_r = nelement + 1
+        # nn_psi = nelement + 1
+        nn_r = polynomial_degree * nelement + 1
+        nn_psi = polynomial_degree * nelement + 1
 
         x0 = np.linspace(0, L, num=nn_r)
         y0 = np.zeros(nn_r, dtype=float)
@@ -307,6 +353,7 @@ class TimoshenkoAxisAngleSE3TwoNode:
 
     @staticmethod
     def initial_configuration(
+        polynomial_degree,
         nelement,
         L,
         r_OP0=np.zeros(3, dtype=float),
@@ -314,8 +361,10 @@ class TimoshenkoAxisAngleSE3TwoNode:
         v_P0=np.zeros(3, dtype=float),
         K_omega_IK0=np.zeros(3, dtype=float),
     ):
-        nn_r = nelement + 1
-        nn_psi = nelement + 1
+        # nn_r = nelement + 1
+        # nn_psi = nelement + 1
+        nn_r = polynomial_degree * nelement + 1
+        nn_psi = polynomial_degree * nelement + 1
 
         x0 = np.linspace(0, L, num=nn_r)
         y0 = np.zeros(nn_r, dtype=float)
@@ -348,22 +397,22 @@ class TimoshenkoAxisAngleSE3TwoNode:
     def element_number(self, xi):
         return self.knot_vector.element_number(xi)[0]
 
-    def Lagrange2(self, xi):
-        # find element number containing xi
-        el = self.element_number(xi)
+    # def Lagrange2(self, xi):
+    #     # find element number containing xi
+    #     el = self.element_number(xi)
 
-        # get element interval
-        xi0, xi1 = self.knot_vector.element_interval(el)
+    #     # get element interval
+    #     xi0, xi1 = self.knot_vector.element_interval(el)
 
-        # evaluate linear Lagrange shape functions
-        linv = 1.0 / (xi1 - xi0)
-        diff = (xi - xi0) * linv
-        N = np.array([1.0 - diff, diff])
-        N_xi = np.array([-linv, linv])
+    #     # evaluate linear Lagrange shape functions
+    #     linv = 1.0 / (xi1 - xi0)
+    #     diff = (xi - xi0) * linv
+    #     N = np.array([1.0 - diff, diff])
+    #     N_xi = np.array([-linv, linv])
 
-        return N, N_xi
+    #     return N, N_xi
 
-    def eval(self, qe, xi):
+    def __eval_two_node(self, qe, xi):
         # extract nodal positions and rotation vectors
         r_OP0 = qe[self.nodalDOF_element_r[0]]
         r_OP1 = qe[self.nodalDOF_element_r[1]]
@@ -382,26 +431,19 @@ class TimoshenkoAxisAngleSE3TwoNode:
         H_K0K1 = SE3inv(H_IK0) @ H_IK1
         h_K0K1 = Log_SE3(H_K0K1)
 
-        # # find element number containing xi
-        # el = self.element_number(xi)
+        # find element number containing xi
+        el = self.element_number(xi)
 
-        # # get element interval
-        # xi0, xi1 = self.knot_vector.element_interval(el)
+        # get element interval
+        xi0, xi1 = self.knot_vector.element_interval(el)
 
-        # # second linear Lagrange shape function
-        # N1_xi = 1. / (xi1 - xi0)
-        # N1 = (xi - xi0) * N1_xi
-
-        # # relative interpolation of local se(3) objects
-        # h_rel = N1 * h_K0K1
-        # h_rel_xi = N1_xi * h_K0K1
-
-        # evaluate linear Lagrange shape functions
-        N, N_xi = self.Lagrange2(xi)
+        # second linear Lagrange shape function
+        N1_xi = 1. / (xi1 - xi0)
+        N1 = (xi - xi0) * N1_xi
 
         # relative interpolation of local se(3) objects
-        h_rel = N[1] * h_K0K1
-        h_rel_xi = N_xi[1] * h_K0K1
+        h_rel = N1 * h_K0K1
+        h_rel_xi = N1_xi * h_K0K1
 
         # composition of reference and local SE(3) objects
         H_IK = H_IK0 @ Exp_SE3(h_rel)
@@ -413,6 +455,59 @@ class TimoshenkoAxisAngleSE3TwoNode:
         # extract strains
         K_Gamma_bar = h_rel_xi[:3]
         K_Kappa_bar = h_rel_xi[3:]
+
+        return r_OP, A_IK, K_Gamma_bar, K_Kappa_bar
+
+    def __eval_generic(self, qe, xi):
+        # extract nodal positions and rotation vectors of first node (reference)
+        r_OP0 = qe[self.nodalDOF_element_r[0]]
+        psi0 = qe[self.nodalDOF_element_psi[0]]
+
+        # evaluate nodal rotation matrices
+        A_IK0 = Exp_SO3(psi0)
+
+        # evaluate inverse reference SE(3) object
+        H_IR = SE3(A_IK0, r_OP0)
+        H_IR_inv = SE3inv(H_IR)
+
+        # evaluate shape functions
+        N, N_xi = self.basis_functions(xi)
+
+        # relative interpolation of local se(3) objects
+        h_rel = np.zeros(6, dtype=float)
+        h_rel_xi = np.zeros(6, dtype=float)
+
+        for node in range(self.nnodes_element):
+            # nodal centerline
+            r_IK_node = qe[self.nodalDOF_element_r[node]]
+
+            # nodal rotation
+            A_IK_node = Exp_SO3(qe[self.nodalDOF_element_psi[node]])
+
+            # nodal SE(3) object
+            H_IK_node = SE3(A_IK_node, r_IK_node)
+
+            # relative SE(3)/ se(3) objects
+            H_RK = H_IR_inv @ H_IK_node
+            h_RK = Log_SE3(H_RK)
+
+            # add wheighted contribution of local se(3) object
+            h_rel += N[node] * h_RK
+            h_rel_xi += N_xi[node] * h_RK
+
+        # composition of reference and local SE(3) objects
+        H_IK = H_IR @ Exp_SE3(h_rel)
+
+        # extract centerline and transformation matrix
+        A_IK = H_IK[:3, :3]
+        r_OP = H_IK[:3, 3]
+
+        # strain measures
+        strains = T_SE3(h_rel) @ h_rel_xi
+
+        # extract strains
+        K_Gamma_bar = strains[:3]
+        K_Kappa_bar = strains[3:]
 
         return r_OP, A_IK, K_Gamma_bar, K_Kappa_bar
 
@@ -656,6 +751,14 @@ class TimoshenkoAxisAngleSE3TwoNode:
             #     method="3-point"
             # )
 
+            # psi = qe[self.nodalDOF_element_psi[0]]
+            # e1 = np.array([1, 0, 0], dtype=float)
+            # h = lambda psi: Exp_SO3(psi) @ e1
+            # h = lambda A: A @ e1
+            # H = lambda A: 
+            # h_ = h(psi)
+            # h_psi_num = approx_fprime(psi, h, method="3-point")
+
             # axial and shear strains
             K_Gamma = K_Gamma_bar / Ji
 
@@ -780,7 +883,7 @@ class TimoshenkoAxisAngleSE3TwoNode:
     def step_callback(self, t, q, u):
         for node in range(self.nnode):
             psi = q[self.nodalDOF_psi[node]]
-            q[self.nodalDOF_psi[node]] = TimoshenkoAxisAngleSE3TwoNode.psi_C(psi)
+            q[self.nodalDOF_psi[node]] = TimoshenkoAxisAngleSE3.psi_C(psi)
         return q, u
 
     ####################################################

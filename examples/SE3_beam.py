@@ -29,7 +29,7 @@ from cardillo.beams import (
     TimoshenkoDirectorDirac,
     TimoshenkoQuarternionSE3,
     BernoulliAxisAngleSE3,
-    TimoshenkoAxisAngleSE3TwoNode,
+    TimoshenkoAxisAngleSE3,
 )
 from cardillo.forces import Force, K_Force, K_Moment, Moment, DistributedForce1D
 from cardillo.model import Model
@@ -2776,7 +2776,7 @@ def BucklingRightHingedFrame(follower=False):
     #     A_IK=A_IK0,
     #     basis=shape_functions,
     # )
-    q0 = TimoshenkoAxisAngleSE3TwoNode.straight_configuration(
+    q0 = TimoshenkoAxisAngleSE3.straight_configuration(
         nelement_per_beam,
         L,
         r_OP=r_OP0,
@@ -2795,7 +2795,7 @@ def BucklingRightHingedFrame(follower=False):
     #     q0,
     #     basis=shape_functions,
     # )
-    beam0 = TimoshenkoAxisAngleSE3TwoNode(
+    beam0 = TimoshenkoAxisAngleSE3(
         material_model,
         A_rho0,
         K_S_rho0,
@@ -2821,7 +2821,7 @@ def BucklingRightHingedFrame(follower=False):
     #     A_IK=A_IK0,
     #     basis=shape_functions,
     # )
-    q0 = TimoshenkoAxisAngleSE3TwoNode.straight_configuration(
+    q0 = TimoshenkoAxisAngleSE3.straight_configuration(
         nelement_per_beam,
         L,
         r_OP=r_OP0,
@@ -2840,7 +2840,7 @@ def BucklingRightHingedFrame(follower=False):
     #     q0,
     #     basis=shape_functions,
     # )
-    beam1 = TimoshenkoAxisAngleSE3TwoNode(
+    beam1 = TimoshenkoAxisAngleSE3(
         material_model,
         A_rho0,
         K_S_rho0,
@@ -3042,7 +3042,7 @@ if __name__ == "__main__":
     # Dschanibekow()
     # distributed_force()
     # objectivity_quater_circle()
-    # convergence_quater_circle()
+    convergence_quater_circle()
     # Noor1981()
-    BucklingRightHingedFrame()
+    # BucklingRightHingedFrame()
     # Bernoulli()
