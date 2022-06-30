@@ -318,191 +318,197 @@ def objectivity_quater_circle():
     animate_beam(t, q, [beam], L, show=True)
 
 
-# def BucklingRightHingedFrame(follower=False):
-def BucklingRightHingedFrame(follower=True):
-    """Buckling of a hinged right-angle frame under both fixed and follower
-    point load - Simo1985.
+def convergence_quater_circle():
+    """This example examines shear and membrande locking as done in Meier2015.
 
     References:
     ===========
-    Simo1985: https://doi.org/10.1016/0045-7825(86)90079-4
+    Meier2015: https://doi.org/10.1016/j.cma.2015.02.029
     """
+    # Young's and shear modulus
+    E = 1.0  # Meier2015
+    G = 0.5  # Meier2015
+    nelements = 1
     polynomial_degree = 1
+    rtol = 0
+    n_load_steps = 10
 
-    # elements per beam
-    # nelement_per_beam = 2
-    nelement_per_beam = 5
-    # nelement_per_beam = 10
+    L = 1.0e4
+    slenderness = 1.0e3
+    atol = 1.0e-9
 
-    # beam parameters found in Harsch2020
-    L = 120
-    E = 7.2e6
-    nu = 0.3
-    G = E / (2.0 * (1.0 + nu))
-    A = 6
-    I = 2
-    EA = E * A
-    GA = G * A
-    GJ = G * 2 * I
-    EI = E * I
+    # used cross section
+    width = L / slenderness
 
-    # build quadratic material model
-    Ei = np.array([EA, GA, GA], dtype=float)
-    Fi = np.array([GJ, EI, EI], dtype=float)
-    material_model = Simo1986(Ei, Fi)
-
-    # Note: This is never used in statics!
-    line_density = 1.0
-    radius = 1.0
-    cross_section = CircularCrossSection(line_density, radius)
+    # cross section and quadratic beam material
+    line_density = 1
+    cross_section = QuadraticCrossSection(line_density, width)
     A_rho0 = line_density * cross_section.area
     K_S_rho0 = line_density * cross_section.first_moment
     K_I_rho0 = line_density * cross_section.second_moment
+    A = cross_section.area
+    Ip, I2, I3 = np.diag(cross_section.second_moment)
+    Ei = np.array([E * A, G * A, G * A])
+    Fi = np.array([G * Ip, E * I2, E * I3])
+    material_model = Simo1986(Ei, Fi)
 
-    ############################
-    # first beam (0, 0) - (0, L)
-    ############################
+    # used parameters for the paper
+    nelements_list = np.array([1, 2, 4], dtype=int)
+    nelements_ref = 8
+    # nelements_list = np.array([1, 2, 4, 8, 16, 32, 64], dtype=int)
+    # nelements_ref = 256
+
+    # starting point and orientation of initial point, initial length
     r_OP0 = np.zeros(3, dtype=float)
-    A_IK0 = rodriguez(pi / 2 * e3)
-    q0 = TimoshenkoAxisAngleSE3.straight_configuration(
-        polynomial_degree,
-        nelement_per_beam,
-        L,
-        r_OP=r_OP0,
-        A_IK=A_IK0,
-    )
-    beam0 = TimoshenkoAxisAngleSE3(
-        polynomial_degree,
-        material_model,
-        A_rho0,
-        K_S_rho0,
-        K_I_rho0,
-        nelement_per_beam,
-        q0,
-    )
-    # q0 = TimoshenkoAxisAngle.straight_configuration(
-    #     polynomial_degree,
-    #     polynomial_degree,
-    #     nelement_per_beam,
-    #     L,
-    #     r_OP=r_OP0,
-    #     A_IK=A_IK0,
-    # )
-    # beam0 = TimoshenkoAxisAngle(
-    #     material_model,
-    #     A_rho0,
-    #     K_I_rho0,
-    #     polynomial_degree,
-    #     polynomial_degree,
-    #     int(np.ceil((polynomial_degree + 1) ** 2 / 2)),
-    #     nelement_per_beam,
-    #     q0,
-    # )
-
-    frame0 = Frame(r_OP=r_OP0)
-    joint0 = SphericalJoint(frame0, beam0, r_OP0, frame_ID1=(0,))
-
-    #############################
-    # second beam (0, L) - (L, L)
-    #############################
-    r_OP0 = np.array([0, L, 0], dtype=float)
     A_IK0 = np.eye(3, dtype=float)
-    q0 = TimoshenkoAxisAngleSE3.straight_configuration(
-        polynomial_degree,
-        nelement_per_beam,
-        L,
-        r_OP=r_OP0,
-        A_IK=A_IK0,
+
+    def solve(nelements):
+        q0 = TimoshenkoAxisAngleSE3.straight_configuration(
+            polynomial_degree,
+            nelements,
+            L,
+            r_OP=r_OP0,
+            A_IK=A_IK0,
+        )
+        beam = TimoshenkoAxisAngleSE3(
+            polynomial_degree,
+            material_model,
+            A_rho0,
+            K_S_rho0,
+            K_I_rho0,
+            nelements,
+            q0,
+        )
+
+        # junctions
+        frame1 = Frame(r_OP=r_OP0, A_IK=A_IK0)
+
+        # left and right joint
+        joint1 = RigidConnection(frame1, beam, frame_ID2=(0,))
+
+        # moment at the beam's tip
+        Fi = material_model.Fi
+        M = lambda t: (e3 * Fi[2]) * t * 2 * np.pi / L * 0.25
+        moment = K_Moment(M, beam, (1,))
+
+        # force at the beam's tip
+        f = lambda t: t * 1e-4 * Fi[2] / L * e3
+        force = Force(f, beam, frame_ID=(1,))
+
+        # assemble the model
+        model = Model()
+        model.add(beam)
+        model.add(frame1)
+        model.add(joint1)
+        model.add(moment)
+        model.add(force)
+        model.assemble()
+
+        solver = Newton(
+            model,
+            n_load_steps=n_load_steps,
+            max_iter=100,
+            atol=atol,
+            rtol=rtol,
+        )
+
+        sol = solver.solve()
+
+        return beam, sol
+
+    beam_ref, sol_ref = solve(nelements_ref)
+
+    # sample centerline deflection of reference solution
+    num = 100
+    xis = np.linspace(0, 1, num=num)
+    r_OP_ref = beam_ref.centerline(sol_ref.q[-1], n=num)
+    A_IK_ref = np.array(beam_ref.frames(sol_ref.q[-1], n=num)[1:])
+
+    position_errors = []
+    rotation_errors = []
+    for nelements in nelements_list:
+        beam, sol = solve(nelements)
+
+        # centerline errors
+        r_OPi = beam.centerline(sol.q[-1], n=num)
+        diff = r_OPi - r_OP_ref
+        error = sqrt(sum([d @ d for d in diff])) / num
+        position_errors.append(error)
+
+        # rotation errors
+        A_IKi = np.array(beam.frames(sol.q[-1], n=num)[1:])
+        diff = []
+        for i in range(num):
+            diff.append(rodriguez_inv(A_IKi[:, :, i].T @ A_IK_ref[:, :, i]))
+        diff = np.array(diff)
+        error = sqrt(sum([d @ d for d in diff]))
+        rotation_errors.append(error)
+
+    position_errors = np.array(position_errors)
+    print(f"position_errors: {position_errors}")
+    rotation_errors = np.array(rotation_errors)
+    print(f"rotation_errors: {rotation_errors}")
+
+    # export errors
+    header = "nelements, position_error, rotation_errors"
+    export_data = np.vstack([nelements_list, position_errors, rotation_errors]).T
+    np.savetxt(
+        "results/QuarterCircleConvergence.txt",
+        export_data,
+        delimiter=", ",
+        header=header,
+        comments="",
     )
-    beam1 = TimoshenkoAxisAngleSE3(
-        polynomial_degree,
-        material_model,
-        A_rho0,
-        K_S_rho0,
-        K_I_rho0,
-        nelement_per_beam,
-        q0,
-    )
-    # q0 = TimoshenkoAxisAngle.straight_configuration(
-    #     polynomial_degree,
-    #     polynomial_degree,
-    #     nelement_per_beam,
-    #     L,
-    #     r_OP=r_OP0,
-    #     A_IK=A_IK0,
-    # )
-    # beam1 = TimoshenkoAxisAngle(
-    #     material_model,
-    #     A_rho0,
-    #     K_I_rho0,
-    #     polynomial_degree,
-    #     polynomial_degree,
-    #     int(np.ceil((polynomial_degree + 1) ** 2 / 2)),
-    #     nelement_per_beam,
-    #     q0,
-    # )
 
-    r_OP1 = np.array([L, L, 0], dtype=float)
-    frame1 = Frame(r_OP=r_OP1)
-    joint1 = SphericalJoint(frame1, beam1, r_OP1, frame_ID2=(1,))
+    ##########################
+    # plot rate of convergence
+    ##########################
+    fig, ax = plt.subplots()
+    ax.loglog(nelements_list, position_errors, "-ok", label="e_r^100")
+    ax.loglog(nelements_list, rotation_errors, "-sk", label="e_psi^100")
+    ax.loglog(nelements_list, 90 / nelements_list, "--k", label="~1 / n_el")
+    ax.loglog(nelements_list, 90 / nelements_list**2, "-.k", label="~1 / n_el^2")
+    ax.grid()
+    ax.legend()
 
-    #####################################
-    # rigid connection between both beams
-    #####################################
-    joint2 = RigidConnection(beam0, beam1, frame_ID1=(1,), frame_ID2=(0,))
+    ###########################################
+    # strain measures of the reference solution
+    ###########################################
+    fig, ax = plt.subplots(1, 2)
 
-    # external force at the apex
-    # F_max = -4e4  # Harsch2020
-    F_max = -8e4  # Harsch2020
-    F = lambda t: F_max * e2 * t
-    if follower:
-        force = K_Force(F, beam1, frame_ID=(0.2,))
-    else:
-        force = Force(F, beam1, frame_ID=(0.2,))
+    nxi = 1000
+    xis = np.linspace(0, 1, num=nxi)
 
-    # assemble the model
-    model = Model()
-    model.add(beam0)
-    model.add(frame0)
-    model.add(joint0)
-    model.add(beam1)
-    model.add(frame1)
-    model.add(joint1)
-    model.add(joint2)
-    model.add(force)
-    model.assemble()
+    K_Gamma = np.zeros((3, nxi))
+    K_Kappa = np.zeros((3, nxi))
+    for i in range(nxi):
+        frame_ID = (xis[i],)
+        elDOF = beam_ref.qDOF_P(frame_ID)
+        qe = sol_ref.q[-1, beam_ref.qDOF][elDOF]
+        _, _, K_Gamma[:, i], K_Kappa[:, i] = beam_ref.eval(qe, xis[i])
 
-    # # n_load_steps = 2
-    # n_load_steps = 20
-    # solver = Newton(
-    #     model,
-    #     n_load_steps=n_load_steps,
-    #     max_iter=30,
-    #     atol=1.0e-6,
-    #     numerical_jacobian=False,
-    # )
-
-    solver = Riks(
-        model,
-        tol=1.0e-6,
-        max_newton_iter=30,
-        # la_arc0=1.0e-1,  # works for constant force
-        # la_arc0=5.0e-2,  # works for constant force
-        # la_arc0=1.0e-2,  # works for constant force
-        la_arc0=5.0e-3,  # not working for follower force yet
-        la_arc_span=[-0.5, 1],
-        scale_exponent=None,
+    header = "xi, K_Gamma1, K_Gamma2, K_Gamma3, K_Kappa1, K_Kappa2, K_Kappa3"
+    export_data = np.vstack([xis, *K_Gamma, *K_Kappa]).T
+    np.savetxt(
+        "results/QuarterCircleConvergenceStrainMeasures.txt",
+        export_data,
+        delimiter=", ",
+        header=header,
+        comments="",
     )
 
-    sol = solver.solve()
-    q = sol.q
-    nt = len(q)
-    t = sol.t[:nt]
+    ax[0].plot(xis, K_Gamma[0], "-r", label="K_Gamma0")
+    ax[0].plot(xis, K_Gamma[1], "-g", label="K_Gamma1")
+    ax[0].plot(xis, K_Gamma[2], "-b", label="K_Gamma2")
+    ax[0].grid()
+    ax[0].legend()
+    ax[1].plot(xis, K_Kappa[0], "-r", label="K_Kappa0")
+    ax[1].plot(xis, K_Kappa[1], "-g", label="K_Kappa1")
+    ax[1].plot(xis, K_Kappa[2], "-b", label="K_Kappa2")
+    ax[1].grid()
+    ax[1].legend()
 
-    ###########
-    # animation
-    ###########
-    animate_beam(t, q, [beam0, beam1], L, show=True)
+    plt.show()
 
 
 def HeavyTop():
@@ -837,11 +843,199 @@ def HeavyTop():
     )
 
 
+# def BucklingRightHingedFrame(follower=False):
+def BucklingRightHingedFrame(follower=True):
+    """Buckling of a hinged right-angle frame under both fixed and follower
+    point load - Simo1985.
+
+    References:
+    ===========
+    Simo1985: https://doi.org/10.1016/0045-7825(86)90079-4
+    """
+    polynomial_degree = 1
+
+    # elements per beam
+    # nelement_per_beam = 2
+    nelement_per_beam = 5
+    # nelement_per_beam = 10
+
+    # beam parameters found in Harsch2020
+    L = 120
+    E = 7.2e6
+    nu = 0.3
+    G = E / (2.0 * (1.0 + nu))
+    A = 6
+    I = 2
+    EA = E * A
+    GA = G * A
+    GJ = G * 2 * I
+    EI = E * I
+
+    # build quadratic material model
+    Ei = np.array([EA, GA, GA], dtype=float)
+    Fi = np.array([GJ, EI, EI], dtype=float)
+    material_model = Simo1986(Ei, Fi)
+
+    # Note: This is never used in statics!
+    line_density = 1.0
+    radius = 1.0
+    cross_section = CircularCrossSection(line_density, radius)
+    A_rho0 = line_density * cross_section.area
+    K_S_rho0 = line_density * cross_section.first_moment
+    K_I_rho0 = line_density * cross_section.second_moment
+
+    ############################
+    # first beam (0, 0) - (0, L)
+    ############################
+    r_OP0 = np.zeros(3, dtype=float)
+    A_IK0 = rodriguez(pi / 2 * e3)
+    q0 = TimoshenkoAxisAngleSE3.straight_configuration(
+        polynomial_degree,
+        nelement_per_beam,
+        L,
+        r_OP=r_OP0,
+        A_IK=A_IK0,
+    )
+    beam0 = TimoshenkoAxisAngleSE3(
+        polynomial_degree,
+        material_model,
+        A_rho0,
+        K_S_rho0,
+        K_I_rho0,
+        nelement_per_beam,
+        q0,
+    )
+    # q0 = TimoshenkoAxisAngle.straight_configuration(
+    #     polynomial_degree,
+    #     polynomial_degree,
+    #     nelement_per_beam,
+    #     L,
+    #     r_OP=r_OP0,
+    #     A_IK=A_IK0,
+    # )
+    # beam0 = TimoshenkoAxisAngle(
+    #     material_model,
+    #     A_rho0,
+    #     K_I_rho0,
+    #     polynomial_degree,
+    #     polynomial_degree,
+    #     int(np.ceil((polynomial_degree + 1) ** 2 / 2)),
+    #     nelement_per_beam,
+    #     q0,
+    # )
+
+    frame0 = Frame(r_OP=r_OP0)
+    joint0 = SphericalJoint(frame0, beam0, r_OP0, frame_ID1=(0,))
+
+    #############################
+    # second beam (0, L) - (L, L)
+    #############################
+    r_OP0 = np.array([0, L, 0], dtype=float)
+    A_IK0 = np.eye(3, dtype=float)
+    q0 = TimoshenkoAxisAngleSE3.straight_configuration(
+        polynomial_degree,
+        nelement_per_beam,
+        L,
+        r_OP=r_OP0,
+        A_IK=A_IK0,
+    )
+    beam1 = TimoshenkoAxisAngleSE3(
+        polynomial_degree,
+        material_model,
+        A_rho0,
+        K_S_rho0,
+        K_I_rho0,
+        nelement_per_beam,
+        q0,
+    )
+    # q0 = TimoshenkoAxisAngle.straight_configuration(
+    #     polynomial_degree,
+    #     polynomial_degree,
+    #     nelement_per_beam,
+    #     L,
+    #     r_OP=r_OP0,
+    #     A_IK=A_IK0,
+    # )
+    # beam1 = TimoshenkoAxisAngle(
+    #     material_model,
+    #     A_rho0,
+    #     K_I_rho0,
+    #     polynomial_degree,
+    #     polynomial_degree,
+    #     int(np.ceil((polynomial_degree + 1) ** 2 / 2)),
+    #     nelement_per_beam,
+    #     q0,
+    # )
+
+    r_OP1 = np.array([L, L, 0], dtype=float)
+    frame1 = Frame(r_OP=r_OP1)
+    joint1 = SphericalJoint(frame1, beam1, r_OP1, frame_ID2=(1,))
+
+    #####################################
+    # rigid connection between both beams
+    #####################################
+    joint2 = RigidConnection(beam0, beam1, frame_ID1=(1,), frame_ID2=(0,))
+
+    # external force at the apex
+    # F_max = -4e4  # Harsch2020
+    F_max = -8e4  # Harsch2020
+    F = lambda t: F_max * e2 * t
+    if follower:
+        force = K_Force(F, beam1, frame_ID=(0.2,))
+    else:
+        force = Force(F, beam1, frame_ID=(0.2,))
+
+    # assemble the model
+    model = Model()
+    model.add(beam0)
+    model.add(frame0)
+    model.add(joint0)
+    model.add(beam1)
+    model.add(frame1)
+    model.add(joint1)
+    model.add(joint2)
+    model.add(force)
+    model.assemble()
+
+    # # n_load_steps = 2
+    # n_load_steps = 20
+    # solver = Newton(
+    #     model,
+    #     n_load_steps=n_load_steps,
+    #     max_iter=30,
+    #     atol=1.0e-6,
+    #     numerical_jacobian=False,
+    # )
+
+    solver = Riks(
+        model,
+        tol=1.0e-6,
+        max_newton_iter=30,
+        # la_arc0=1.0e-1,  # works for constant force
+        # la_arc0=5.0e-2,  # works for constant force
+        # la_arc0=1.0e-2,  # works for constant force
+        la_arc0=5.0e-3,  # not working for follower force yet
+        la_arc_span=[-0.5, 1],
+        scale_exponent=None,
+    )
+
+    sol = solver.solve()
+    q = sol.q
+    nt = len(q)
+    t = sol.t[:nt]
+
+    ###########
+    # animation
+    ###########
+    animate_beam(t, q, [beam0, beam1], L, show=True)
+
+
 if __name__ == "__main__":
     # locking_quater_circle()
-    objectivity_quater_circle()
-    # BucklingRightHingedFrame()
+    # objectivity_quater_circle()
+    convergence_quater_circle()
     # HeavyTop()
+    # BucklingRightHingedFrame()
 
     # run(statics=True)
     # run(statics=False)
