@@ -16,6 +16,7 @@ from cardillo.math import (
     tangent_map_s,
     Spurrier,
     quat2axis_angle,
+    ei,
 )
 
 
@@ -59,6 +60,36 @@ def Exp_SO3(psi: np.ndarray) -> np.ndarray:
         return np.eye(3, dtype=float)
 
 
+def Exp_SO3_psi(psi: np.ndarray) -> np.ndarray:
+    """Derivative of the axis-angle rotation found in Crisfield1999 above (4.1). 
+    Derivations and final results are given in Gallego2015 (9).
+
+    References
+    ----------
+    Crisfield1999: https://doi.org/10.1098/rspa.1999.0352 \\
+    Gallego2015: https://doi.org/10.1007/s10851-014-0528-x
+    """
+    angle = norm(psi)
+
+    # Gallego2015 (9)
+    A_psi = np.zeros((3, 3, 3), dtype=float)
+    if angle > 0:
+        A = Exp_SO3(psi)
+        eye_A = np.eye(3) - A
+        psi_tilde = ax2skew(psi)
+        angle2 = angle * angle
+        for i in range(3):
+            A_psi[:, :, i] = (
+                (psi[i] * psi_tilde + ax2skew(cross3(psi, eye_A[:, i]))) @ A / angle2
+            )
+    else:
+        # Derivative at the identity, see Gallego2015 Section 3.3
+        for i in range(3):
+            A_psi[:, :, i] = ax2skew(ei(i))
+
+    return A_psi
+
+
 def Log_SO3(A: np.ndarray) -> np.ndarray:
     # # straightforward version
     # trace = A[0, 0] + A[1, 1] + A[2, 2]
@@ -71,6 +102,43 @@ def Log_SO3(A: np.ndarray) -> np.ndarray:
 
     # better version using Spurrier's algorithm
     return quat2axis_angle(Spurrier(A))
+
+
+def Log_SO3_A(A: np.ndarray) -> np.ndarray:
+    """Derivative of the SO(3) Log map. See Blanco2010 (10.11)
+
+    References:
+    ===========
+    Claraco2010: https://doi.org/10.48550/arXiv.2103.15980
+    """
+    psi_A = np.zeros((3, 3, 3), dtype=float)
+
+    # compute corresponding rotation vector
+    psi = Log_SO3(A)
+
+    angle = norm(psi)
+    if angle > 0:
+        sa = sin(angle)
+        ca = cos(angle)
+        # ca = 0.5 * (A[0, 0] + A[1, 1]+ A[2, 2] - 1.0)
+        # sa = sqrt(1.0 - ca**2)
+
+        a = skew2ax(A - A.T) * (angle * ca - sa) / (4.0 * sa**3)
+        # a = (angle * ca - sa) / (4.0 * sa**3) * np.array([
+        #     A[2, 1] - A[1, 2],
+        #     A[0, 2] - A[2, 0],
+        #     A[0, 1] - A[1, 0]
+        # ])
+        b = angle / (2.0 * sa)
+        for i in range(3):
+            psi_A[i] = ax2skew(b * ei(i))
+            psi_A[i, :, i] += a
+    else:
+        # TODO: Maybe it is a permutation of this or the transpose/ minus this!
+        for i in range(3):
+            psi_A[i] = 0.5 * ax2skew(ei(i))
+
+    return psi_A
 
 
 def T_SO3(psi: np.ndarray) -> np.ndarray:
@@ -438,7 +506,7 @@ class TimoshenkoAxisAngleSE3:
         xi0, xi1 = self.knot_vector.element_interval(el)
 
         # second linear Lagrange shape function
-        N1_xi = 1. / (xi1 - xi0)
+        N1_xi = 1.0 / (xi1 - xi0)
         N1 = (xi - xi0) * N1_xi
 
         # relative interpolation of local se(3) objects
@@ -751,13 +819,71 @@ class TimoshenkoAxisAngleSE3:
             #     method="3-point"
             # )
 
-            # psi = qe[self.nodalDOF_element_psi[0]]
-            # e1 = np.array([1, 0, 0], dtype=float)
-            # h = lambda psi: Exp_SO3(psi) @ e1
-            # h = lambda A: A @ e1
-            # H = lambda A: 
-            # h_ = h(psi)
-            # h_psi_num = approx_fprime(psi, h, method="3-point")
+            # f = lambda x: Log_SO3(Exp_SO3(x))
+            # # x = np.random.rand(3)
+            # x = 0.1 * np.random.rand(3)
+            # f_x_num = approx_fprime(x, f, method="3-point") # that's the identity by definition!
+            # f_x = T_SO3_inv(x)
+            # diff = f_x - f_x_num
+            # error = np.linalg.norm(diff)
+            # print(f"error: {error}")
+
+            psi = 0.1 * np.random.rand(3)
+            A = Exp_SO3(psi)
+            # A = np.eye(3, dtype=float)
+            psi_A = Log_SO3_A(A)
+            # psi_A_num = approx_fprime(A, Log_SO3, method="2-point")
+            psi_A_num = approx_fprime(A, Log_SO3, method="3-point")
+            # psi_A_num = approx_fprime(
+            #     A.reshape(-1),
+            #     lambda a: Log_SO3(a.reshape(3, 3)),
+            #     method="3-point"
+            # ).reshape(3, 3, 3)
+            diff = psi_A - psi_A_num
+            error = np.linalg.norm(diff)
+            print(f"error: {error}")
+            A_psi = Exp_SO3_psi(psi)
+
+            #################################
+            # 1. derivative Rodriguez formula
+            #################################
+            # psi = np.zeros(3)
+            psi = np.random.rand(3)
+            A_psi = Exp_SO3_psi(psi)
+            A_psi_num = approx_fprime(psi, Exp_SO3, method="3-point")
+            diff = A_psi - A_psi_num
+            error = np.linalg.norm(diff)
+            print(f"error Exp_SO3_psi: {error}")
+
+            ###########################
+            # 2. derivative Log formula
+            ###########################
+            # psi = np.zeros(3)
+            psi = np.random.rand(3)
+            A = Exp_SO3(psi)
+            psi_A = Log_SO3_A(A)
+            # TODO: I think this check is bad since variations via finite
+            # differences in A are not correct rotations anymore
+            psi_A_num = approx_fprime(A, Log_SO3, method="3-point")
+            diff = psi_A - psi_A_num
+            error = np.linalg.norm(diff)
+            print(f"error Log_SO3_A: {error}")
+
+            #######################################################
+            # 3. another try for the derivative of the log function
+            #######################################################
+            # psi = np.zeros(3)
+            psi = np.random.rand(3)
+            # TODO: This has to be the identity!
+            # eye = np.einsum("ijk,jkl->il", Log_SO3_A(Exp_SO3(psi)), Exp_SO3_psi(psi))
+            eye = np.einsum(
+                "ijk,jkl->il",
+                approx_fprime(Exp_SO3(psi), Log_SO3, method="3-point"),
+                Exp_SO3_psi(psi),
+            )  # this yields the identity, so it is a valid check!!!
+            diff = eye - np.eye(3, dtype=float)
+            error = np.linalg.norm(diff)
+            print(f"error Log_SO3_A: {error}")
 
             # axial and shear strains
             K_Gamma = K_Gamma_bar / Ji

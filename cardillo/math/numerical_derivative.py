@@ -17,19 +17,19 @@ def approx_fprime(x0, f, eps=1.0e-6, method="2-point"):
     f_shape = f0.shape
     grad = np.empty(f_shape + (m,))
 
-    h = np.diag(eps * np.ones_like(x0))
+    h = np.diag(eps * np.ones(m))
     for i in range(m):
         if method == "2-point":
-            x = x0 + h[i]
-            dx = x[i] - x0[i]  # Recompute dx as exactly representable number.
+            x = xx + h[i]
+            dx = x[i] - xx[i]  # recompute dx as exactly representable number
             df = ff(x) - f0
         elif method == "3-point":
-            x1 = x0 + h[i]
-            x2 = x0 - h[i]
-            dx = x2[i] - x1[i]  # Recompute dx as exactly representable number.
+            x1 = xx + h[i]
+            x2 = xx - h[i]
+            dx = x2[i] - x1[i]  # recompute dx as exactly representable number
             df = ff(x2) - ff(x1)
         elif method == "cs":
-            f1 = ff(x0 + h[i] * 1.0j)
+            f1 = ff(xx + h[i] * 1.0j)
             df = f1.imag
             dx = h[i]
         else:
