@@ -1,7 +1,7 @@
 import numpy as np
 import meshio
 import os
-from math import sqrt, acos, sin, cos, tan
+from math import sqrt, acos, sin, cos, tan, isclose
 
 from cardillo.utility.coo import Coo
 from cardillo.discretization.lagrange import Node_vector
@@ -17,6 +17,11 @@ from cardillo.math import (
     Spurrier,
     quat2axis_angle,
     ei,
+    e1,
+    e2,
+    e3,
+    skew2ax_A,
+    trace3,
 )
 
 
@@ -36,7 +41,10 @@ def SE3inv(H: np.ndarray) -> np.ndarray:
 
 def Exp_SO3(psi: np.ndarray) -> np.ndarray:
     angle = norm(psi)
-    if angle > 0:
+    if isclose(angle, 0.0):
+        # first order approximation
+        return np.eye(3, dtype=float) + ax2skew(psi)
+    else:
         # Park2005 (12)
         sa = sin(angle)
         ca = cos(angle)
@@ -56,8 +64,6 @@ def Exp_SO3(psi: np.ndarray) -> np.ndarray:
         #     + sa * ax2skew(n)
         #     + (1.0 - ca) * np.outer(n, n)
         # )
-    else:
-        return np.eye(3, dtype=float)
 
 
 def Exp_SO3_psi(psi: np.ndarray) -> np.ndarray:
@@ -73,7 +79,11 @@ def Exp_SO3_psi(psi: np.ndarray) -> np.ndarray:
 
     # Gallego2015 (9)
     A_psi = np.zeros((3, 3, 3), dtype=float)
-    if angle > 0:
+    if isclose(angle, 0.0):
+        # Derivative at the identity, see Gallego2015 Section 3.3
+        for i in range(3):
+            A_psi[:, :, i] = ax2skew(ei(i))
+    else:
         A = Exp_SO3(psi)
         eye_A = np.eye(3) - A
         psi_tilde = ax2skew(psi)
@@ -82,26 +92,30 @@ def Exp_SO3_psi(psi: np.ndarray) -> np.ndarray:
             A_psi[:, :, i] = (
                 (psi[i] * psi_tilde + ax2skew(cross3(psi, eye_A[:, i]))) @ A / angle2
             )
-    else:
-        # Derivative at the identity, see Gallego2015 Section 3.3
-        for i in range(3):
-            A_psi[:, :, i] = ax2skew(ei(i))
 
     return A_psi
 
 
 def Log_SO3(A: np.ndarray) -> np.ndarray:
-    # # straightforward version
-    # trace = A[0, 0] + A[1, 1] + A[2, 2]
-    # angle = acos(0.5 * (trace - 1.))
-    # if angle > 0:
-    #     psi_tilde = angle / (2. * sin(angle)) * (A - A.T)
-    # else:
-    #     psi_tilde = 0.5 * (A - A.T)
-    # return skew2ax(psi_tilde)
+    # straightforward version
+    ca = 0.5 * (trace3(A) - 1.0)
+    ca = max(-1, min(ca, 1))  # clip arg to range of arccos
+    angle = acos(ca)
 
-    # better version using Spurrier's algorithm
-    return quat2axis_angle(Spurrier(A))
+    # fmt: off
+    psi = 0.5 * np.array([
+        A[2, 1] - A[1, 2],
+        A[0, 2] - A[2, 0],
+        A[1, 0] - A[0, 1]
+    ], dtype=A.dtype)
+    # fmt: on
+
+    if not isclose(angle, 0.0):
+        psi *= angle / sin(angle)
+    return psi
+
+    # # better version using Spurrier's algorithm
+    # return quat2axis_angle(Spurrier(A))
 
 
 def Log_SO3_A(A: np.ndarray) -> np.ndarray:
@@ -111,32 +125,59 @@ def Log_SO3_A(A: np.ndarray) -> np.ndarray:
     ===========
     Claraco2010: https://doi.org/10.48550/arXiv.2103.15980
     """
+    ca = 0.5 * (trace3(A) - 1.0)
+    ca = max(-1, min(ca, 1))  # clip arg to range of arcos
+    angle = acos(ca)
+
     psi_A = np.zeros((3, 3, 3), dtype=float)
-
-    # compute corresponding rotation vector
-    psi = Log_SO3(A)
-
-    angle = norm(psi)
-    if angle > 0:
+    if not isclose(angle, 0.0):
         sa = sin(angle)
-        ca = cos(angle)
-        # ca = 0.5 * (A[0, 0] + A[1, 1]+ A[2, 2] - 1.0)
-        # sa = sqrt(1.0 - ca**2)
 
-        a = skew2ax(A - A.T) * (angle * ca - sa) / (4.0 * sa**3)
-        # a = (angle * ca - sa) / (4.0 * sa**3) * np.array([
-        #     A[2, 1] - A[1, 2],
-        #     A[0, 2] - A[2, 0],
-        #     A[0, 1] - A[1, 0]
-        # ])
-        b = angle / (2.0 * sa)
-        for i in range(3):
-            psi_A[i] = ax2skew(b * ei(i))
-            psi_A[i, :, i] += a
+        # a = skew2ax(A - A.T) * (angle * ca - sa) / (4.0 * sa**3)
+        # fmt: off
+        a = (angle * ca - sa) / (4.0 * sa**3) *  np.array([
+            A[2, 1] - A[1, 2],
+            A[0, 2] - A[2, 0],
+            A[1, 0] - A[0, 1]
+        ], dtype=A.dtype)
+        # fmt: on
+        b = 0.5 * angle / sa
+
+        # for i in range(3):
+        #     psi_A[:, i, i] = a
+
+        # psi_A[0, 0, 0] = a[0]
+        # psi_A[1, 0, 0] = a[1]
+        # psi_A[2, 0, 0] = a[2]
+
+        # psi_A[0, 1, 1] = a[0]
+        # psi_A[1, 1, 1] = a[1]
+        # psi_A[2, 1, 1] = a[2]
+
+        # psi_A[0, 2, 2] = a[0]
+        # psi_A[1, 2, 2] = a[1]
+        # psi_A[2, 2, 2] = a[2]
+
+        psi_A[0, 0, 0] = psi_A[0, 1, 1] = psi_A[0, 2, 2] = a[0]
+        psi_A[1, 0, 0] = psi_A[1, 1, 1] = psi_A[1, 2, 2] = a[1]
+        psi_A[2, 0, 0] = psi_A[2, 1, 1] = psi_A[2, 2, 2] = a[2]
+
+        # psi_A[0, 2, 1] = b
+        # psi_A[0, 1, 2] = -b
+        # psi_A[1, 0, 2] = b
+        # psi_A[1, 2, 0] = -b
+        # psi_A[2, 1, 0] = b
+        # psi_A[2, 0, 1] = -b
+        psi_A[0, 2, 1] = psi_A[1, 0, 2] = psi_A[2, 1, 0] = b
+        psi_A[0, 1, 2] = psi_A[1, 2, 0] = psi_A[2, 0, 1] = -b
+        # for i in range(3):
+        #     psi_A[i] += b * ax2skew(ei(i))
+        # psi_A += angle / sa * skew2ax_A()
     else:
-        # TODO: Maybe it is a permutation of this or the transpose/ minus this!
-        for i in range(3):
-            psi_A[i] = 0.5 * ax2skew(ei(i))
+        psi_A[0, 2, 1] = psi_A[1, 0, 2] = psi_A[2, 1, 0] = 0.5
+        psi_A[0, 1, 2] = psi_A[1, 2, 0] = psi_A[2, 0, 1] = -0.5
+        # for i in range(3):
+        #     psi_A[i] = 0.5 * ax2skew(ei(i))
 
     return psi_A
 
@@ -813,77 +854,66 @@ class TimoshenkoAxisAngleSE3:
             # objective interpolation
             _, A_IK, K_Gamma_bar, K_Kappa_bar = self.eval(qe, self.qp[el, i])
 
-            # A_IK_q_num = approx_fprime(
-            #     qe,
-            #     lambda qe: self.eval(qe, self.qp[el, i])[1],
-            #     method="3-point"
-            # )
+            ###################
+            # TODO: Derivatives
+            ###################
 
-            # f = lambda x: Log_SO3(Exp_SO3(x))
-            # # x = np.random.rand(3)
-            # x = 0.1 * np.random.rand(3)
-            # f_x_num = approx_fprime(x, f, method="3-point") # that's the identity by definition!
-            # f_x = T_SO3_inv(x)
-            # diff = f_x - f_x_num
+            # psi = 0.1 * np.random.rand(3)
+            # A = Exp_SO3(psi)
+            # # A = np.eye(3, dtype=float)
+            # psi_A = Log_SO3_A(A)
+            # # psi_A_num = approx_fprime(A, Log_SO3, method="2-point")
+            # psi_A_num = approx_fprime(A, Log_SO3, method="3-point")
+            # # psi_A_num = approx_fprime(
+            # #     A.reshape(-1),
+            # #     lambda a: Log_SO3(a.reshape(3, 3)),
+            # #     method="3-point"
+            # # ).reshape(3, 3, 3)
+            # diff = psi_A - psi_A_num
             # error = np.linalg.norm(diff)
             # print(f"error: {error}")
+            # A_psi = Exp_SO3_psi(psi)
 
-            psi = 0.1 * np.random.rand(3)
-            A = Exp_SO3(psi)
-            # A = np.eye(3, dtype=float)
-            psi_A = Log_SO3_A(A)
-            # psi_A_num = approx_fprime(A, Log_SO3, method="2-point")
-            psi_A_num = approx_fprime(A, Log_SO3, method="3-point")
-            # psi_A_num = approx_fprime(
-            #     A.reshape(-1),
-            #     lambda a: Log_SO3(a.reshape(3, 3)),
-            #     method="3-point"
-            # ).reshape(3, 3, 3)
-            diff = psi_A - psi_A_num
-            error = np.linalg.norm(diff)
-            print(f"error: {error}")
-            A_psi = Exp_SO3_psi(psi)
+            # #################################
+            # # 1. derivative Rodriguez formula
+            # #################################
+            # # psi = np.zeros(3)
+            # psi = np.random.rand(3)
+            # A_psi = Exp_SO3_psi(psi)
+            # A_psi_num = approx_fprime(psi, Exp_SO3, method="3-point")
+            # diff = A_psi - A_psi_num
+            # error = np.linalg.norm(diff)
+            # print(f"error Exp_SO3_psi: {error}")
 
-            #################################
-            # 1. derivative Rodriguez formula
-            #################################
-            # psi = np.zeros(3)
-            psi = np.random.rand(3)
-            A_psi = Exp_SO3_psi(psi)
-            A_psi_num = approx_fprime(psi, Exp_SO3, method="3-point")
-            diff = A_psi - A_psi_num
-            error = np.linalg.norm(diff)
-            print(f"error Exp_SO3_psi: {error}")
+            # ###########################
+            # # 2. derivative Log formula
+            # ###########################
+            # # psi = np.zeros(3)
+            # psi = np.random.rand(3)
+            # A = Exp_SO3(psi)
+            # psi_A = Log_SO3_A(A)
+            # # TODO: I think this check is bad since variations via finite
+            # # differences in A are not correct rotations anymore
+            # psi_A_num = approx_fprime(A, Log_SO3, method="3-point")
+            # diff = psi_A - psi_A_num
+            # error = np.linalg.norm(diff)
+            # print(f"error Log_SO3_A: {error}")
 
-            ###########################
-            # 2. derivative Log formula
-            ###########################
-            # psi = np.zeros(3)
-            psi = np.random.rand(3)
-            A = Exp_SO3(psi)
-            psi_A = Log_SO3_A(A)
-            # TODO: I think this check is bad since variations via finite
-            # differences in A are not correct rotations anymore
-            psi_A_num = approx_fprime(A, Log_SO3, method="3-point")
-            diff = psi_A - psi_A_num
-            error = np.linalg.norm(diff)
-            print(f"error Log_SO3_A: {error}")
-
-            #######################################################
-            # 3. another try for the derivative of the log function
-            #######################################################
-            # psi = np.zeros(3)
-            psi = np.random.rand(3)
-            # TODO: This has to be the identity!
+            # #######################################################
+            # # 3. another try for the derivative of the log function
+            # #######################################################
+            # # psi = np.zeros(3)
+            # psi = np.random.rand(3)
+            # # TODO: This has to be the identity!
             # eye = np.einsum("ijk,jkl->il", Log_SO3_A(Exp_SO3(psi)), Exp_SO3_psi(psi))
-            eye = np.einsum(
-                "ijk,jkl->il",
-                approx_fprime(Exp_SO3(psi), Log_SO3, method="3-point"),
-                Exp_SO3_psi(psi),
-            )  # this yields the identity, so it is a valid check!!!
-            diff = eye - np.eye(3, dtype=float)
-            error = np.linalg.norm(diff)
-            print(f"error Log_SO3_A: {error}")
+            # # eye = np.einsum(
+            # #     "ijk,jkl->il",
+            # #     approx_fprime(Exp_SO3(psi), Log_SO3, method="3-point"),
+            # #     Exp_SO3_psi(psi),
+            # # )  # this yields the identity, so it is a valid check!!!
+            # diff = eye - np.eye(3, dtype=float)
+            # error = np.linalg.norm(diff)
+            # print(f'error np.einsum("ijk,jkl->il", Log_SO3_A(Exp_SO3(psi)), Exp_SO3_psi(psi)) - eye(3): {error}')
 
             # axial and shear strains
             K_Gamma = K_Gamma_bar / Ji

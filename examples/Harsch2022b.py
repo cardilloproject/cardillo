@@ -1082,7 +1082,7 @@ def HeavyTop():
 
 
 def BucklingRightHingedFrame(follower=False):
-# def BucklingRightHingedFrame(follower=True):
+    # def BucklingRightHingedFrame(follower=True):
     """Buckling of a hinged right-angle frame under both fixed and follower
     point load - Simo1985.
 
@@ -1272,6 +1272,6 @@ if __name__ == "__main__":
     # locking_quater_circle()
     # objectivity_quater_circle()
     # convergence_quater_circle()
-    # HelixIbrahimbegovic1997()
+    HelixIbrahimbegovic1997()
     # HeavyTop()
-    BucklingRightHingedFrame()
+    # BucklingRightHingedFrame()
