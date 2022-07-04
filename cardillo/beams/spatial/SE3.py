@@ -22,6 +22,8 @@ from cardillo.math import (
     e3,
     skew2ax_A,
     trace3,
+    ax2skew_a,
+    LeviCivita,
 )
 
 
@@ -45,15 +47,30 @@ def Exp_SO3(psi: np.ndarray) -> np.ndarray:
         # first order approximation
         return np.eye(3, dtype=float) + ax2skew(psi)
     else:
-        # Park2005 (12)
+        # # Park2005 (12)
+        # sa = sin(angle)
+        # ca = cos(angle)
+        # alpha = sa / angle
+        # beta2 = (1.0 - ca) / (angle * angle)
+        # psi_tilde = ax2skew(psi)
+        # return (
+        #     np.eye(3, dtype=float) + alpha * psi_tilde + beta2 * psi_tilde @ psi_tilde
+        # )
+
+        # TODO: only for debugging the derivative!
         sa = sin(angle)
         ca = cos(angle)
-        alpha = sa / angle
-        beta2 = (1.0 - ca) / (angle * angle)
         psi_tilde = ax2skew(psi)
-        return (
-            np.eye(3, dtype=float) + alpha * psi_tilde + beta2 * psi_tilde @ psi_tilde
-        )
+        A = ca * np.eye(3, dtype=float)
+        B = sa / angle * psi_tilde
+        C = (1.0 - ca) / (angle * angle) * np.outer(psi, psi)
+        D = (1.0 - ca) / (angle * angle) * psi_tilde @ psi_tilde
+        # return A
+        # return B
+        # return C
+        # return A + B + C
+        # return D
+        return B + D
 
         # # Barfoot2014 (97)
         # sa = sin(angle)
@@ -77,21 +94,80 @@ def Exp_SO3_psi(psi: np.ndarray) -> np.ndarray:
     """
     angle = norm(psi)
 
-    # Gallego2015 (9)
+    # # Gallego2015 (9)
+    # A_psi = np.zeros((3, 3, 3), dtype=float)
+    # if isclose(angle, 0.0):
+    #     # Derivative at the identity, see Gallego2015 Section 3.3
+    #     for i in range(3):
+    #         A_psi[:, :, i] = ax2skew(ei(i))
+    # else:
+    #     A = Exp_SO3(psi)
+    #     eye_A = np.eye(3) - A
+    #     psi_tilde = ax2skew(psi)
+    #     angle2 = angle * angle
+    #     for i in range(3):
+    #         A_psi[:, :, i] = (
+    #             (psi[i] * psi_tilde + ax2skew(cross3(psi, eye_A[:, i]))) @ A / angle2
+    #         )
+
+    #
+    sa = sin(angle)
+    ca = cos(angle)
+    alpha = sa / angle
+    angle2 = angle * angle
+    angle3 = angle2 * angle
+    beta2 = (1.0 - ca) / angle2
+    a1 = ca / angle2 - sa / (angle2 * angle)
+    a2 = (alpha - 2 * beta2) / angle2
+
+    psi_tilde = ax2skew(psi)
+    psi_tilde2 = psi_tilde @ psi_tilde
+
     A_psi = np.zeros((3, 3, 3), dtype=float)
-    if isclose(angle, 0.0):
-        # Derivative at the identity, see Gallego2015 Section 3.3
-        for i in range(3):
-            A_psi[:, :, i] = ax2skew(ei(i))
-    else:
-        A = Exp_SO3(psi)
-        eye_A = np.eye(3) - A
-        psi_tilde = ax2skew(psi)
-        angle2 = angle * angle
-        for i in range(3):
-            A_psi[:, :, i] = (
-                (psi[i] * psi_tilde + ax2skew(cross3(psi, eye_A[:, i]))) @ A / angle2
-            )
+
+    # # A part
+    # for i in range(3):
+    #     A_psi[i, i, :] = -alpha * psi
+
+    # B part I
+    for i in range(3):
+        for j in range(3):
+            for k in range(3):
+                # A_psi[i, j, k] = psi_tilde[i, j] * psi[k] * a1
+                A_psi[i, j, k] += psi_tilde[i, j] * psi[k] * (ca / angle2 - sa / angle3)
+
+    # B part II
+    # A_psi += alpha * ax2skew_a()
+    A_psi[0, 2, 1] += alpha
+    A_psi[1, 0, 2] += alpha
+    A_psi[2, 1, 0] += alpha
+    A_psi[0, 1, 2] -= alpha
+    A_psi[2, 0, 1] -= alpha
+    A_psi[1, 2, 0] -= alpha
+
+    # # C part I
+    # for i in range(3):
+    #     for j in range(3):
+    #         for k in range(3):
+    #             A_psi[i, j, k] += psi[i] * psi[j] * psi[k] * a2
+
+    # # C part I
+    # for i in range(3):
+    #     A_psi[i, :, i] += beta2 * psi
+    #     A_psi[:, i, i] += beta2 * psi
+
+    # D part
+    for i in range(3):
+        for j in range(3):
+            for k in range(3):
+                A_psi[i, j, k] += (
+                    psi_tilde2[i, j] * psi[k] * (alpha - 2 * beta2) / angle2
+                )
+                for l in range(3):
+                    A_psi[i, j, k] += beta2 * (
+                        LeviCivita(i, k, l) * psi_tilde[l, j]
+                        + psi_tilde[i, l] * LeviCivita(l, k, j)
+                    )
 
     return A_psi
 
@@ -874,16 +950,17 @@ class TimoshenkoAxisAngleSE3:
             # print(f"error: {error}")
             # A_psi = Exp_SO3_psi(psi)
 
-            # #################################
-            # # 1. derivative Rodriguez formula
-            # #################################
-            # # psi = np.zeros(3)
-            # psi = np.random.rand(3)
-            # A_psi = Exp_SO3_psi(psi)
-            # A_psi_num = approx_fprime(psi, Exp_SO3, method="3-point")
-            # diff = A_psi - A_psi_num
-            # error = np.linalg.norm(diff)
-            # print(f"error Exp_SO3_psi: {error}")
+            #################################
+            # 1. derivative Rodriguez formula
+            #################################
+            # psi = np.zeros(3)
+            psi = np.random.rand(3)
+            A_psi = Exp_SO3_psi(psi)
+            A_psi_num = approx_fprime(psi, Exp_SO3, method="3-point")
+            diff = A_psi - A_psi_num
+            error = np.linalg.norm(diff)
+            print(f"error Exp_SO3_psi: {error}")
+            print(f"")
 
             # ###########################
             # # 2. derivative Log formula
