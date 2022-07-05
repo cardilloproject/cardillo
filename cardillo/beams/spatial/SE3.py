@@ -111,15 +111,13 @@ def Exp_SO3_psi(psi: np.ndarray) -> np.ndarray:
     #         )
 
     A_psi = np.zeros((3, 3, 3), dtype=float)
-    if angle > 0.0:
+    # if angle > 0.0:
+    if not isclose(angle, 0.0):
         sa = sin(angle)
         ca = cos(angle)
         alpha = sa / angle
         angle2 = angle * angle
-        angle3 = angle2 * angle
         beta = 2.0 * (1.0 - ca) / angle2
-        # a1 = ca / angle2 - sa / (angle2 * angle)
-        # a2 = (alpha - beta) / angle2
 
         psi_tilde = ax2skew(psi)
         psi_tilde2 = psi_tilde @ psi_tilde
@@ -197,8 +195,8 @@ def Log_SO3(A: np.ndarray) -> np.ndarray:
     ], dtype=A.dtype)
     # fmt: on
 
-    # if not isclose(angle, 0.0):
-    if angle > 0.0:
+    if not isclose(angle, 0.0):
+        # if angle > 0.0:
         psi *= angle / sin(angle)
     return psi
 
@@ -218,8 +216,8 @@ def Log_SO3_A(A: np.ndarray) -> np.ndarray:
     angle = acos(ca)
 
     psi_A = np.zeros((3, 3, 3), dtype=float)
-    # if not isclose(angle, 0.0):
-    if angle > 0.0:
+    if not isclose(angle, 0.0):
+        # if angle > 0.0:
         sa = sin(angle)
 
         # a = skew2ax(A - A.T) * (angle * ca - sa) / (4.0 * sa**3)
@@ -338,6 +336,36 @@ def Exp_SE3(h: np.ndarray) -> np.ndarray:
     return H
 
 
+def Exp_SE3_h(h: np.ndarray) -> np.ndarray:
+    return approx_fprime(h, Exp_SE3, method="3-point")
+
+
+def Exp_SE3_inv_h(h: np.ndarray) -> np.ndarray:
+    H_IK = Exp_SE3(h)
+    H_IK_h = Exp_SE3_h(h)
+    A_IK = H_IK[:3, :3]
+    r_OP = H_IK[:3, 3]
+    A_IK_h = H_IK_h[:3, :3]
+    r_OP_h = H_IK_h[:3, 3]
+
+    H_IK_inv_h = np.zeros((4, 4, 6), dtype=float)
+    H_IK_inv_h[:3, :3] = A_IK_h.transpose(1, 0, 2)
+    H_IK_inv_h[:3, 3] = -np.einsum("jik,j->ik", A_IK_h, r_OP) - np.einsum(
+        "ji,jk->ik", A_IK, r_OP_h
+    )
+    return H_IK_inv_h
+
+    # H_IK_inv_h_num = approx_fprime(
+    #     h,
+    #     lambda h: SE3inv(Exp_SE3(h)),
+    #     method="3-point"
+    # )
+    # diff = H_IK_inv_h - H_IK_inv_h_num
+    # error = np.linalg.norm(diff)
+    # print(f"error H_IK0_inv_h: {error}")
+    # return H_IK_inv_h_num
+
+
 def Log_SE3(H: np.ndarray) -> np.ndarray:
     A = H[:3, :3]
     r = H[:3, 3]
@@ -345,6 +373,10 @@ def Log_SE3(H: np.ndarray) -> np.ndarray:
     psi = Log_SO3(A)
     h = np.concatenate((T_SO3_inv(psi).T @ r, psi))
     return h
+
+
+def Log_SE3_H(H: np.ndarray) -> np.ndarray:
+    return approx_fprime(H, Log_SE3, method="3-point")
 
 
 def U(a, b):
@@ -708,6 +740,107 @@ class TimoshenkoAxisAngleSE3:
         K_Kappa_bar = strains[3:]
 
         return r_OP, A_IK, K_Gamma_bar, K_Kappa_bar
+
+    def __d_eval_generic(self, qe, xi):
+        nodalDOF_element = lambda node: np.concatenate(
+            (self.nodalDOF_element_r[node], self.nodalDOF_element_psi[node])
+        )
+
+        # compute nodal rotations
+        H_IKs = np.array(
+            [
+                SE3(
+                    Exp_SO3(qe[self.nodalDOF_element_psi[node]]),
+                    qe[self.nodalDOF_element_r[node]],
+                )
+                for node in range(self.nnodes_element)
+            ]
+        )
+        H_IK_hs = np.array(
+            [
+                Exp_SE3_h(qe[nodalDOF_element(node)])
+                for node in range(self.nnodes_element)
+            ]
+        )
+
+        # # compute inverse of derivative of SE(3) derivative of first node
+        # # TODO: Check this using a numerical derivative!
+        # H_IK0_inv_h = np.zeros((4, 4, 6), dtype=float)
+        # H_IK0_inv_h[:3, :3] = H_IK_hs[0, :3, :3].transpose(1, 0, 2)
+        # H_IK0_inv_h[:3, 3] = -np.einsum(
+        #     "jik,j->ik",
+        #     H_IK_hs[0, :3, :3],
+        #     H_IKs[0, :3, 3]
+        # ) - np.einsum(
+        #     "ji,jk->ik",
+        #     H_IKs[0, :3, :3],
+        #     H_IK_hs[0, :3, 3]
+        # )
+        # diff = H_IK0_inv_h - Exp_SE3_inv_h(qe[nodalDOF_element(0)])
+        # error = np.linalg.norm(diff)
+        # print(f"error H_IK0_inv_h: {error}")
+        H_IK0_inv_h = Exp_SE3_inv_h(qe[nodalDOF_element(0)])
+
+        # compute relative rotations and the corresponding rotation vectors
+        H_IK0_inv = SE3inv(H_IKs[0])
+        H_K0Ki = np.array(
+            [H_IK0_inv @ H_IKs[node] for node in range(self.nnodes_element)]
+        )
+        h_K0Ki = np.array(
+            [Log_SE3(H_K0Ki[node]) for node in range(self.nnodes_element)]
+        )
+
+        # evaluate shape functions
+        N, N_xi = self.basis_functions(xi)
+
+        # relative interpolation of local rotation vector
+        h_K0K = np.sum(
+            [N[node] * h_K0Ki[node] for node in range(self.nnodes_element)], axis=0
+        )
+        h_K0K_xi = np.sum(
+            [N_xi[node] * h_K0Ki[node] for node in range(self.nnodes_element)], axis=0
+        )
+
+        # evaluate rotation and its derivative at interpolated position
+        H_K0K = Exp_SE3(h_K0K)
+        H_K0K_h = Exp_SE3_h(h_K0K)
+
+        H_IK_q = np.zeros((4, 4, self.nq_element), dtype=float)
+
+        # first node contribution part I
+        H_IK_q[:, :, nodalDOF_element(0)] = np.einsum("ilk,lj->ijk", H_IK_hs[0], H_K0K)
+
+        Tmp1 = np.einsum("il,ljm->ijm", H_IKs[0], H_K0K_h)
+
+        for node in range(self.nnodes_element):
+            Tmp2 = np.einsum("ijm,mno->ijno", Tmp1, N[node] * Log_SE3_H(H_K0Ki[node]))
+
+            H_IK_q[:, :, nodalDOF_element(0)] += np.einsum(
+                "ijno,npk,po",
+                Tmp2,
+                H_IK0_inv_h,
+                H_IKs[node],
+            )
+            H_IK_q[:, :, nodalDOF_element(node)] += np.einsum(
+                "ijno,np,pok", Tmp2, SE3inv(H_IKs[0]), H_IK_hs[node]
+            )
+
+        # extract centerline and transformation matrix
+        A_IK_q = H_IK_q[:3, :3]
+        r_OP_q = H_IK_q[:3, 3]
+
+        return r_OP_q, A_IK_q
+
+        # TODO: Derivatives of strain measures.
+
+        # # strain measures
+        # strains = T_SE3(h_rel) @ h_rel_xi
+
+        # # extract strains
+        # K_Gamma_bar = strains[:3]
+        # K_Kappa_bar = strains[3:]
+
+        # return r_OP_q, A_IK_q, K_Gamma_bar, K_Kappa_bar
 
     def assembler_callback(self):
         if self.constant_mass_matrix:
@@ -1152,12 +1285,22 @@ class TimoshenkoAxisAngleSE3:
         r, A_IK, _, _ = self.eval(q, frame_ID[0])
         return r + A_IK @ K_r_SP
 
-    # TODO: Derivative of rigid body formular and underlying SE(3) interpolation.
     def r_OP_q(self, t, q, frame_ID, K_r_SP=np.zeros(3), dtype=float):
-        r_OP_q_num = approx_fprime(
-            q, lambda q: self.r_OP(t, q, frame_ID, K_r_SP), method="3-point"
-        )
-        return r_OP_q_num
+        r_q, A_IK_q = self.__d_eval_generic(q, frame_ID[0])
+        r_OP_q = r_q + np.einsum("ijk,j->ik", A_IK_q, K_r_SP)
+        return r_OP_q
+
+        # r_OP_q_num = approx_fprime(
+        #     q, lambda q: self.r_OP(t, q, frame_ID, K_r_SP), method="3-point"
+        # )
+        # diff = r_OP_q - r_OP_q_num
+        # error = np.linalg.norm(diff)
+        # np.set_printoptions(3, suppress=True)
+        # if error > 1.0e-10:
+        #     print(f"r_OP_q:\n{r_OP_q}")
+        #     print(f"r_OP_q_num:\n{r_OP_q_num}")
+        #     print(f"error r_OP_q: {error}")
+        # return r_OP_q_num
 
     def A_IK(self, t, q, frame_ID):
         _, A_IK, _, _ = self.eval(q, frame_ID[0])
@@ -1165,58 +1308,60 @@ class TimoshenkoAxisAngleSE3:
 
     # TODO:
     def A_IK_q(self, t, q, frame_ID):
-        # compute nodal rotations
-        A_IKs = np.array(
-            [
-                Exp_SO3(q[self.nodalDOF_element_psi[node]])
-                for node in range(self.nnodes_element)
-            ]
-        )
-        A_IK_psis = np.array(
-            [
-                Exp_SO3_psi(q[self.nodalDOF_element_psi[node]])
-                for node in range(self.nnodes_element)
-            ]
-        )
+        r_OP_q, A_IK_q = self.__d_eval_generic(q, frame_ID[0])
 
-        # compute relative rotations and the corresponding rotation vectors
-        A_IK_rel = np.array(
-            [A_IKs[0].T @ A_IKs[node] for node in range(self.nnodes_element)]
-        )
-        psi_rels = np.array(
-            [Log_SO3(A_IK_rel[node]) for node in range(self.nnodes_element)]
-        )
+        # # compute nodal rotations
+        # A_IKs = np.array(
+        #     [
+        #         Exp_SO3(q[self.nodalDOF_element_psi[node]])
+        #         for node in range(self.nnodes_element)
+        #     ]
+        # )
+        # A_IK_psis = np.array(
+        #     [
+        #         Exp_SO3_psi(q[self.nodalDOF_element_psi[node]])
+        #         for node in range(self.nnodes_element)
+        #     ]
+        # )
 
-        # evaluate shape functions
-        N, _ = self.basis_functions(frame_ID[0])
+        # # compute relative rotations and the corresponding rotation vectors
+        # A_IK_rel = np.array(
+        #     [A_IKs[0].T @ A_IKs[node] for node in range(self.nnodes_element)]
+        # )
+        # psi_rels = np.array(
+        #     [Log_SO3(A_IK_rel[node]) for node in range(self.nnodes_element)]
+        # )
 
-        # relative interpolation of local rotation vector
-        psi_rel = np.sum(
-            [N[node] * psi_rels[node] for node in range(self.nnodes_element)], axis=0
-        )
+        # # evaluate shape functions
+        # N, _ = self.basis_functions(frame_ID[0])
 
-        # evaluate rotation and its derivative at interpolated position
-        A_K0K = Exp_SO3(psi_rel)
-        A_K0K_psi = Exp_SO3_psi(psi_rel)
+        # # relative interpolation of local rotation vector
+        # psi_rel = np.sum(
+        #     [N[node] * psi_rels[node] for node in range(self.nnodes_element)], axis=0
+        # )
 
-        A_IK_q = np.zeros((3, 3, self.nq_element), dtype=float)
+        # # evaluate rotation and its derivative at interpolated position
+        # A_K0K = Exp_SO3(psi_rel)
+        # A_K0K_psi = Exp_SO3_psi(psi_rel)
 
-        # first node contribution part I
-        A_IK_q[:, :, self.nodalDOF_element_psi[0]] = np.einsum(
-            "ilk,lj->ijk", A_IK_psis[0], A_K0K
-        )
+        # A_IK_q = np.zeros((3, 3, self.nq_element), dtype=float)
 
-        Tmp1 = np.einsum("il,ljm->ijm", A_IKs[0], A_K0K_psi)
+        # # first node contribution part I
+        # A_IK_q[:, :, self.nodalDOF_element_psi[0]] = np.einsum(
+        #     "ilk,lj->ijk", A_IK_psis[0], A_K0K
+        # )
 
-        for node in range(self.nnodes_element):
-            Tmp2 = np.einsum("ijm,mno->ijno", Tmp1, N[node] * Log_SO3_A(A_IK_rel[node]))
+        # Tmp1 = np.einsum("il,ljm->ijm", A_IKs[0], A_K0K_psi)
 
-            A_IK_q[:, :, self.nodalDOF_element_psi[0]] += np.einsum(
-                "ijno,pnk,po", Tmp2, A_IK_psis[0], A_IKs[node]
-            )
-            A_IK_q[:, :, self.nodalDOF_element_psi[node]] += np.einsum(
-                "ijno,pn,pok", Tmp2, A_IKs[0], A_IK_psis[node]
-            )
+        # for node in range(self.nnodes_element):
+        #     Tmp2 = np.einsum("ijm,mno->ijno", Tmp1, N[node] * Log_SO3_A(A_IK_rel[node]))
+
+        #     A_IK_q[:, :, self.nodalDOF_element_psi[0]] += np.einsum(
+        #         "ijno,pnk,po", Tmp2, A_IK_psis[0], A_IKs[node]
+        #     )
+        #     A_IK_q[:, :, self.nodalDOF_element_psi[node]] += np.einsum(
+        #         "ijno,pn,pok", Tmp2, A_IKs[0], A_IK_psis[node]
+        #     )
 
         return A_IK_q
 
@@ -1226,7 +1371,7 @@ class TimoshenkoAxisAngleSE3:
         # diff = A_IK_q - A_IK_q_num
         # error = np.linalg.norm(diff)
         # np.set_printoptions(4, suppress=True)
-        # if error > 1.0e-5:
+        # if error > 1.0e-10:
         #     # print(f'A_IK_q\n:{A_IK_q}')
         #     # print(f'A_IK_q_num\n:{A_IK_q_num}')
         #     print(f'error A_IK_q: {error}')
