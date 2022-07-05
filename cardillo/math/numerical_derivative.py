@@ -4,6 +4,15 @@ import numpy as np
 # TODO:
 # * Can we implement second derivatives as done for _tt below?
 def approx_fprime(x0, f, eps=1.0e-6, method="2-point"):
+    """Inspired by scipy's approx_derivative method but extended to
+    multidimensional function values and arguments.
+
+    References:
+    ===========
+    scipy: https://github.com/scipy/scipy/blob/4cf21e753cf937d1c6c2d2a0e372fbc1dbbeea81/scipy/optimize/_numdiff.py#L275."""
+    if method not in ["2-point", "3-point", "cs"]:
+        raise ValueError(f"Unknown method '{method}'.")
+
     x0 = np.atleast_1d(x0)
     f0 = np.atleast_1d(f(x0))
 
