@@ -271,10 +271,14 @@ def Log_SO3_A(A: np.ndarray) -> np.ndarray:
 
 def T_SO3(psi: np.ndarray) -> np.ndarray:
     angle = norm(psi)
-    if angle > 0:
+    # if angle > 0:
+    if angle > 1.0e-6:
+        # if not isclose(angle, 0.0):
         # Park2005 (19), actually its the transposed!
-        sa = sin(angle)
-        ca = cos(angle)
+        # sa = sin(angle)
+        # ca = cos(angle)
+        sa = np.sin(angle)
+        ca = np.cos(angle)
         psi_tilde = ax2skew(psi)
         alpha = sa / angle
         angle2 = angle * angle
@@ -284,6 +288,10 @@ def T_SO3(psi: np.ndarray) -> np.ndarray:
             - beta2 * psi_tilde
             + ((1.0 - alpha) / angle2) * psi_tilde @ psi_tilde
         )
+        # A = np.eye(3, dtype=float)
+        # B = -beta2 * psi_tilde
+        # C = ((1.0 - alpha) / angle2) * psi_tilde @ psi_tilde
+        # return A + B + C
 
         # # Barfoot2014 (98), actually its the transposed!
         # sa = sin(angle)
@@ -296,7 +304,68 @@ def T_SO3(psi: np.ndarray) -> np.ndarray:
         #     + (1.0 - sinc) * np.outer(n, n)
         # )
     else:
-        return np.eye(3, dtype=float)
+        return np.eye(3, dtype=float) - 0.5 * ax2skew(psi)
+
+
+def T_SO3_psi(psi: np.ndarray) -> np.ndarray:
+    __T_SO3_psi = np.zeros((3, 3, 3), dtype=float)
+
+    angle = norm(psi)
+    # if angle > 0:
+    if angle > 1.0e-6:
+        # if not isclose(angle, 0.0):
+        sa = sin(angle)
+        ca = cos(angle)
+        alpha = sa / angle
+        angle2 = angle * angle
+        angle4 = angle2 * angle2
+        beta2 = (1.0 - ca) / angle2
+
+        psi_tilde = ax2skew(psi)
+        psi_tilde2 = psi_tilde @ psi_tilde
+
+        # part B
+        for i in range(3):
+            for j in range(3):
+                for k in range(3):
+                    __T_SO3_psi[i, j, k] += LeviCivita(i, j, k) * beta2
+                    __T_SO3_psi[i, j, k] += (
+                        psi_tilde[i, j] * psi[k] * (2.0 * beta2 - alpha) / angle2
+                    )
+
+        # part C
+        for i in range(3):
+            for j in range(3):
+                for k in range(3):
+                    __T_SO3_psi[i, j, k] += (
+                        psi_tilde2[i, j] * psi[k] * (3 * alpha - 2 - ca) / angle4
+                    )
+                    for l in range(3):
+                        __T_SO3_psi[i, j, k] += (
+                            (1.0 - alpha)
+                            / angle2
+                            * (
+                                LeviCivita(k, l, i) * psi_tilde[l, j]
+                                + psi_tilde[l, i] * LeviCivita(k, l, j)
+                            )
+                        )
+    else:
+        for i in range(3):
+            for j in range(3):
+                for k in range(3):
+                    __T_SO3_psi[i, j, k] += LeviCivita(i, j, k) * 0.5
+
+    # return __T_SO3_psi
+
+    # __T_SO3_psi_num = approx_fprime(psi, T_SO3, method="2-point")
+    # __T_SO3_psi_num = approx_fprime(psi, T_SO3, method="3-point", eps=1.0e-5)
+    __T_SO3_psi_num = approx_fprime(psi, T_SO3, method="cs", eps=1.0e-10)
+    diff = __T_SO3_psi - __T_SO3_psi_num
+    error = np.linalg.norm(diff)
+    if error > 1.0e-6:
+        print(f"error T_SO3_psi: {error}")
+        print(f"")
+    return __T_SO3_psi_num
 
 
 def T_SO3_inv(psi: np.ndarray) -> np.ndarray:
@@ -337,6 +406,9 @@ def Exp_SE3(h: np.ndarray) -> np.ndarray:
 
 
 def Exp_SE3_h(h: np.ndarray) -> np.ndarray:
+    r = h[:3]
+    psi = h[3:]
+    __T_SO3_psi = T_SO3_psi(psi)
     return approx_fprime(h, Exp_SE3, method="3-point")
 
 
@@ -1309,60 +1381,6 @@ class TimoshenkoAxisAngleSE3:
     # TODO:
     def A_IK_q(self, t, q, frame_ID):
         r_OP_q, A_IK_q = self.__d_eval_generic(q, frame_ID[0])
-
-        # # compute nodal rotations
-        # A_IKs = np.array(
-        #     [
-        #         Exp_SO3(q[self.nodalDOF_element_psi[node]])
-        #         for node in range(self.nnodes_element)
-        #     ]
-        # )
-        # A_IK_psis = np.array(
-        #     [
-        #         Exp_SO3_psi(q[self.nodalDOF_element_psi[node]])
-        #         for node in range(self.nnodes_element)
-        #     ]
-        # )
-
-        # # compute relative rotations and the corresponding rotation vectors
-        # A_IK_rel = np.array(
-        #     [A_IKs[0].T @ A_IKs[node] for node in range(self.nnodes_element)]
-        # )
-        # psi_rels = np.array(
-        #     [Log_SO3(A_IK_rel[node]) for node in range(self.nnodes_element)]
-        # )
-
-        # # evaluate shape functions
-        # N, _ = self.basis_functions(frame_ID[0])
-
-        # # relative interpolation of local rotation vector
-        # psi_rel = np.sum(
-        #     [N[node] * psi_rels[node] for node in range(self.nnodes_element)], axis=0
-        # )
-
-        # # evaluate rotation and its derivative at interpolated position
-        # A_K0K = Exp_SO3(psi_rel)
-        # A_K0K_psi = Exp_SO3_psi(psi_rel)
-
-        # A_IK_q = np.zeros((3, 3, self.nq_element), dtype=float)
-
-        # # first node contribution part I
-        # A_IK_q[:, :, self.nodalDOF_element_psi[0]] = np.einsum(
-        #     "ilk,lj->ijk", A_IK_psis[0], A_K0K
-        # )
-
-        # Tmp1 = np.einsum("il,ljm->ijm", A_IKs[0], A_K0K_psi)
-
-        # for node in range(self.nnodes_element):
-        #     Tmp2 = np.einsum("ijm,mno->ijno", Tmp1, N[node] * Log_SO3_A(A_IK_rel[node]))
-
-        #     A_IK_q[:, :, self.nodalDOF_element_psi[0]] += np.einsum(
-        #         "ijno,pnk,po", Tmp2, A_IK_psis[0], A_IKs[node]
-        #     )
-        #     A_IK_q[:, :, self.nodalDOF_element_psi[node]] += np.einsum(
-        #         "ijno,pn,pok", Tmp2, A_IKs[0], A_IK_psis[node]
-        #     )
-
         return A_IK_q
 
         # A_IK_q_num = approx_fprime(

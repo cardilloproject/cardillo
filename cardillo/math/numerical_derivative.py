@@ -29,9 +29,10 @@ def approx_fprime(x0, f, eps=1.0e-6, method="2-point"):
             dx = x2[i] - x1[i]  # recompute dx as exactly representable number
             df = ff(x2) - ff(x1)
         elif method == "cs":
-            f1 = ff(xx + h[i] * 1.0j)
+            x1 = xx + h[i] * 1.0j
+            f1 = ff(x1)
             df = f1.imag
-            dx = h[i]
+            dx = (x1[i] - xx[i]).imag
         else:
             raise RuntimeError('method "{method}" is not implemented!')
 

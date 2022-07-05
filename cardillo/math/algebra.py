@@ -19,7 +19,7 @@ def sign(x: float) -> float:
 
 def norm(a: np.ndarray) -> float:
     """Euclidean norm of an array of arbitrary length."""
-    return sqrt(a @ a)
+    return np.sqrt(a @ a)
 
 
 def LeviCivita(i: int, j: int, k: int) -> int:
