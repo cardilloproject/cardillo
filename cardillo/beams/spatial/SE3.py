@@ -468,9 +468,9 @@ def U(a, b):
 
     b2 = b @ b
     if b2 > 0:
-        abs_b = sqrt(b2)
-        alpha = sin(abs_b) / abs_b
-        beta = 2.0 * (1.0 - cos(abs_b)) / b2
+        abs_b = np.sqrt(b2)
+        alpha = np.sin(abs_b) / abs_b
+        beta = 2.0 * (1.0 - np.cos(abs_b)) / b2
 
         b_tilde = ax2skew(b)
 
@@ -488,11 +488,11 @@ def U(a, b):
         return -0.5 * a_tilde  # Soneville2014
 
 
-def T_SE3(h):
+def T_SE3(h: np.ndarray) -> np.ndarray:
     r = h[:3]
     psi = h[3:]
 
-    T = np.zeros((6, 6), dtype=float)
+    T = np.zeros((6, 6), dtype=h.dtype)
     T[:3, :3] = T[3:, 3:] = T_SO3(psi)
     T[:3, 3:] = U(r, psi)
     return T
@@ -525,10 +525,10 @@ class TimoshenkoAxisAngleSE3:
         # material model
         self.material_model = material_model
 
-        if polynomial_degree == 1:
-            self.eval = self.__eval_two_node
-        else:
-            self.eval = self.__eval_generic
+        # if polynomial_degree == 1:
+        #     self.eval = self.__eval_two_node
+        # else:
+        self.eval = self.__eval_generic
 
         # discretization parameters
         self.polynomial_degree = polynomial_degree
@@ -717,38 +717,86 @@ class TimoshenkoAxisAngleSE3:
     def element_number(self, xi):
         return self.knot_vector.element_number(xi)[0]
 
-    # def Lagrange2(self, xi):
-    #     # find element number containing xi
-    #     el = self.element_number(xi)
+    def Lagrange2(self, xi):
+        # find element number containing xi
+        el = self.element_number(xi)
 
-    #     # get element interval
-    #     xi0, xi1 = self.knot_vector.element_interval(el)
+        # get element interval
+        xi0, xi1 = self.knot_vector.element_interval(el)
 
-    #     # evaluate linear Lagrange shape functions
-    #     linv = 1.0 / (xi1 - xi0)
-    #     diff = (xi - xi0) * linv
-    #     N = np.array([1.0 - diff, diff])
-    #     N_xi = np.array([-linv, linv])
+        # evaluate linear Lagrange shape functions
+        linv = 1.0 / (xi1 - xi0)
+        diff = (xi - xi0) * linv
+        N = np.array([1.0 - diff, diff])
+        N_xi = np.array([-linv, linv])
 
-    #     return N, N_xi
+        return N, N_xi
 
     def __eval_two_node(self, qe, xi):
-        # extract nodal positions and rotation vectors
-        r_OP0 = qe[self.nodalDOF_element_r[0]]
-        r_OP1 = qe[self.nodalDOF_element_r[1]]
-        psi0 = qe[self.nodalDOF_element_psi[0]]
-        psi1 = qe[self.nodalDOF_element_psi[1]]
+        # # extract nodal positions and rotation vectors
+        # r_OP0 = qe[self.nodalDOF_element_r[0]]
+        # r_OP1 = qe[self.nodalDOF_element_r[1]]
+        # psi0 = qe[self.nodalDOF_element_psi[0]]
+        # psi1 = qe[self.nodalDOF_element_psi[1]]
 
-        # evaluate nodal rotation matrices
-        A_IK0 = Exp_SO3(psi0)
-        A_IK1 = Exp_SO3(psi1)
+        # # evaluate nodal rotation matrices
+        # A_IK0 = Exp_SO3(psi0)
+        # A_IK1 = Exp_SO3(psi1)
+
+        # # nodal SE(3) objects
+        # H_IK0 = SE3(A_IK0, r_OP0)
+        # H_IK1 = SE3(A_IK1, r_OP1)
+
+        # # compute relative SE(3)/ se(3) objects
+        # H_K0K1 = SE3inv(H_IK0) @ H_IK1
+        # h_K0K1 = Log_SE3(H_K0K1)
+
+        # # find element number containing xi
+        # el = self.element_number(xi)
+
+        # # get element interval
+        # xi0, xi1 = self.knot_vector.element_interval(el)
+
+        # # second linear Lagrange shape function
+        # N1_xi = 1.0 / (xi1 - xi0)
+        # N1 = (xi - xi0) * N1_xi
+
+        # # relative interpolation of local se(3) objects
+        # h_rel = N1 * h_K0K1
+        # h_rel_xi = N1_xi * h_K0K1
+
+        # # composition of reference and local SE(3) objects
+        # H_IK = H_IK0 @ Exp_SE3(h_rel)
+
+        # # extract centerline and transformation matrix
+        # A_IK = H_IK[:3, :3]
+        # r_OP = H_IK[:3, 3]
+
+        # # extract strains
+        # K_Gamma_bar = h_rel_xi[:3]
+        # K_Kappa_bar = h_rel_xi[3:]
+
+        # extract nodal screws
+        nodalDOF0 = np.concatenate(
+            (self.nodalDOF_element_r[0], self.nodalDOF_element_psi[0])
+        )
+        nodalDOF1 = np.concatenate(
+            (self.nodalDOF_element_r[1], self.nodalDOF_element_psi[1])
+        )
+        h0 = qe[nodalDOF0]
+        h1 = qe[nodalDOF1]
 
         # nodal SE(3) objects
-        H_IK0 = SE3(A_IK0, r_OP0)
-        H_IK1 = SE3(A_IK1, r_OP1)
+        H_IK0 = Exp_SE3(h0)
+        H_IK1 = Exp_SE3(h1)
 
-        # compute relative SE(3)/ se(3) objects
-        H_K0K1 = SE3inv(H_IK0) @ H_IK1
+        # inverse transformation of first node
+        H_IK0_inv = SE3inv(H_IK0)
+
+        # compute relative transformation
+        H_K0K1 = H_IK0_inv @ H_IK1
+
+        # compute relative screw
         h_K0K1 = Log_SE3(H_K0K1)
 
         # find element number containing xi
@@ -758,23 +806,27 @@ class TimoshenkoAxisAngleSE3:
         xi0, xi1 = self.knot_vector.element_interval(el)
 
         # second linear Lagrange shape function
-        N1_xi = 1.0 / (xi1 - xi0)
-        N1 = (xi - xi0) * N1_xi
+        N, N_xi = self.Lagrange2(xi)
+        # N1_xi = 1.0 / (xi1 - xi0)
+        # N1 = (xi - xi0) * N1_xi
+        N1 = N[1]
+        N1_xi = N_xi[1]
 
         # relative interpolation of local se(3) objects
-        h_rel = N1 * h_K0K1
-        h_rel_xi = N1_xi * h_K0K1
+        h_local = N1 * h_K0K1
+        h_local_xi = N1_xi * h_K0K1
 
-        # composition of reference and local SE(3) objects
-        H_IK = H_IK0 @ Exp_SE3(h_rel)
+        # composition of reference and local transformation
+        H_local = Exp_SE3(h_local)
+        H_IK = H_IK0 @ H_local
 
         # extract centerline and transformation matrix
         A_IK = H_IK[:3, :3]
         r_OP = H_IK[:3, 3]
 
         # extract strains
-        K_Gamma_bar = h_rel_xi[:3]
-        K_Kappa_bar = h_rel_xi[3:]
+        K_Gamma_bar = h_local_xi[:3]
+        K_Kappa_bar = h_local_xi[3:]
 
         return r_OP, A_IK, K_Gamma_bar, K_Kappa_bar
 
@@ -797,10 +849,11 @@ class TimoshenkoAxisAngleSE3:
 
         # inverse transformation of first node
         H_IK0_inv = SE3inv(H_IK0)
+        H_IK0_inv_h0 = Exp_SE3_inv_h(h0)
 
         # compute relative transformation
         H_K0K1 = H_IK0_inv @ H_IK1
-        H_K0K1_h0 = np.einsum("ilk,lj->ijk", Exp_SE3_inv_h(h0), H_IK1)
+        H_K0K1_h0 = np.einsum("ilk,lj->ijk", H_IK0_inv_h0, H_IK1)
         H_K0K1_h1 = np.einsum("il,ljk->ijk", H_IK0_inv, H_IK1_h1)
 
         # compute relative screw
@@ -885,8 +938,8 @@ class TimoshenkoAxisAngleSE3:
         N, N_xi = self.basis_functions(xi)
 
         # relative interpolation of local se(3) objects
-        h_rel = np.zeros(6, dtype=float)
-        h_rel_xi = np.zeros(6, dtype=float)
+        h_rel = np.zeros(6, dtype=qe.dtype)
+        h_rel_xi = np.zeros(6, dtype=qe.dtype)
 
         for node in range(self.nnodes_element):
             # nodal centerline
@@ -1565,13 +1618,13 @@ class TimoshenkoAxisAngleSE3:
         r_OP_q_num = approx_fprime(
             q, lambda q: self.r_OP(t, q, frame_ID, K_r_SP), eps=1.0e-10, method="cs"
         )
-        diff = r_OP_q - r_OP_q_num
-        error = np.linalg.norm(diff)
-        np.set_printoptions(3, suppress=True)
-        if error > 1.0e-10:
-            print(f"r_OP_q:\n{r_OP_q}")
-            print(f"r_OP_q_num:\n{r_OP_q_num}")
-            print(f"error r_OP_q: {error}")
+        # diff = r_OP_q - r_OP_q_num
+        # error = np.linalg.norm(diff)
+        # np.set_printoptions(3, suppress=True)
+        # # if error > 1.0e-10:
+        # #     print(f"r_OP_q:\n{r_OP_q}")
+        # #     print(f"r_OP_q_num:\n{r_OP_q_num}")
+        # print(f"error r_OP_q: {error}")
         return r_OP_q_num
 
     def A_IK(self, t, q, frame_ID):
