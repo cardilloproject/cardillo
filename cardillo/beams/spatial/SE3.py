@@ -238,10 +238,11 @@ def T_SO3(psi: np.ndarray) -> np.ndarray:
         #     + (1.0 - sinc) * np.outer(n, n)
         # )
     else:
+        # first order approximation
         return np.eye(3, dtype=float) - 0.5 * ax2skew(psi)
 
 
-def T_SO3_psi(psi: np.ndarray) -> np.ndarray:
+def T_SO3_inv_psi(psi: np.ndarray) -> np.ndarray:
     T_SO3_psi = np.zeros((3, 3, 3), dtype=float)
 
     angle = norm(psi)
@@ -278,8 +279,8 @@ def T_SO3_psi(psi: np.ndarray) -> np.ndarray:
                     T_SO3_psi[i, j, k] += psi_tilde2[i, j] * psi[k] * c_psik
                     for l in range(3):
                         T_SO3_psi[i, j, k] += c * (
-                            LeviCivita(k, l, i) * psi_tilde[l, j]
-                            + psi_tilde[l, i] * LeviCivita(k, l, j)
+                            LeviCivita(i, k, l) * psi_tilde[l, j]
+                            + psi_tilde[i, l] * LeviCivita(l, k, j)
                         )
     else:
         ####################
@@ -300,9 +301,9 @@ def T_SO3_psi(psi: np.ndarray) -> np.ndarray:
 
 def T_SO3_inv(psi: np.ndarray) -> np.ndarray:
     angle = norm(psi)
+    psi_tilde = ax2skew(psi)
     if angle > angle_singular:
         # Park2005 (19), actually its the transposed!
-        psi_tilde = ax2skew(psi)
         gamma = 0.5 * angle / (np.tan(0.5 * angle))
         return (
             np.eye(3, dtype=float)
@@ -320,13 +321,52 @@ def T_SO3_inv(psi: np.ndarray) -> np.ndarray:
         #     + (1.0 - angle2 * cot) * np.outer(n, n)
         # )
     else:
-        return np.eye(3, dtype=float)
+        # first order approximation
+        return np.eye(3, dtype=float) + 0.5 * psi_tilde
 
 
-# TODO: Analytical derivative!
 def T_SO3_inv_psi(psi: np.ndarray) -> np.ndarray:
-    __T_SO3_inv_psi_num = approx_fprime(psi, T_SO3_inv, eps=1.0e-10, method="cs")
-    return __T_SO3_inv_psi_num
+    T_SO3_inv_psi = np.zeros((3, 3, 3), dtype=float)
+
+    #################
+    # 0.5 * psi_tilde
+    #################
+    T_SO3_inv_psi[0, 1, 2] = T_SO3_inv_psi[1, 2, 0] = T_SO3_inv_psi[2, 0, 1] = -0.5
+    T_SO3_inv_psi[0, 2, 1] = T_SO3_inv_psi[1, 0, 2] = T_SO3_inv_psi[2, 1, 0] = 0.5
+
+    angle = norm(psi)
+    if angle > angle_singular:
+        psi_tilde = ax2skew(psi)
+        psi_tilde2 = psi_tilde @ psi_tilde
+        cot = 1.0 / np.tan(0.5 * angle)
+        gamma = 0.5 * angle * cot
+        angle2 = angle * angle
+        c = (1.0 - gamma) / angle2
+        c_psi_k = (
+            -2.0 * c / angle2
+            - cot / (2.0 * angle2 * angle)
+            + 1.0 / (4.0 * angle2 * np.sin(0.5 * angle) ** 2)
+        )
+
+        ###########################################################
+        # ((1.0 - gamma) / (angle * angle)) * psi_tilde @ psi_tilde
+        ###########################################################
+        for i in range(3):
+            for j in range(3):
+                for k in range(3):
+                    T_SO3_inv_psi[i, j, k] += psi_tilde2[i, j] * psi[k] * c_psi_k
+                    for l in range(3):
+                        T_SO3_inv_psi[i, j, k] += c * (
+                            LeviCivita(i, k, l) * psi_tilde[l, j]
+                            + psi_tilde[i, l] * LeviCivita(l, k, j)
+                        )
+
+    T_SO3_inv_psi_num = approx_fprime(psi, T_SO3_inv, eps=1.0e-10, method="cs")
+    diff = T_SO3_inv_psi - T_SO3_inv_psi_num
+    error = np.linalg.norm(diff)
+    if error > 1.0e-8:
+        print(f"error T_SO3_inv_psi: {error}")
+    return T_SO3_inv_psi_num
 
 
 def Exp_SE3(h: np.ndarray) -> np.ndarray:
@@ -353,7 +393,7 @@ def Exp_SE3_h(h: np.ndarray) -> np.ndarray:
 
     H_h = np.zeros((4, 4, 6), dtype=h.dtype)
     H_h[:3, :3, 3:] = Exp_SO3_psi(psi)
-    H_h[:3, 3, 3:] = np.einsum("k,kij->ij", r, T_SO3_psi(psi))
+    H_h[:3, 3, 3:] = np.einsum("k,kij->ij", r, T_SO3_inv_psi(psi))
     H_h[:3, 3, :3] = T_SO3(psi).T
     return H_h
 
