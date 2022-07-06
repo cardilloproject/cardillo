@@ -353,10 +353,10 @@ def convergence_quater_circle():
     material_model = Simo1986(Ei, Fi)
 
     # used parameters for the paper
-    nelements_list = np.array([1, 2, 4], dtype=int)
-    nelements_ref = 8
-    # nelements_list = np.array([1, 2, 4, 8, 16, 32, 64], dtype=int)
-    # nelements_ref = 256
+    # nelements_list = np.array([1, 2, 4], dtype=int)
+    # nelements_ref = 8
+    nelements_list = np.array([1, 2, 4, 8, 16, 32, 64], dtype=int)
+    nelements_ref = 256
 
     # starting point and orientation of initial point, initial length
     r_OP0 = np.zeros(3, dtype=float)
@@ -822,7 +822,7 @@ def HeavyTop():
 
             return dx
 
-    # number of elements
+    polynomial_degree = 1
     nelements = 1
 
     ######################
@@ -867,7 +867,7 @@ def HeavyTop():
     # t1 *= 0.25
     # t1 *= 0.125
     # t1 *= 0.075
-    t1 *= 0.01
+    # t1 *= 0.01
 
     # nt = np.ceil(t1 / 1.0e-3)
     # dt = t1 * 1.0e-2
@@ -888,6 +888,7 @@ def HeavyTop():
         material_model = Simo1986(Ei, Fi)
 
         q0, u0 = TimoshenkoAxisAngleSE3.initial_configuration(
+            polynomial_degree,
             nelements,
             l,
             r_OP0=r_OP0,
@@ -896,6 +897,7 @@ def HeavyTop():
             K_omega_IK0=K_omega_IK0,
         )
         beam = TimoshenkoAxisAngleSE3(
+            polynomial_degree,
             material_model,
             A_rho0,
             K_S_rho0,
@@ -922,8 +924,9 @@ def HeavyTop():
         model.add(f_g_beam)
         model.assemble()
 
-        sol = ScipyIVP(model, t1, dt, method="RK23", rtol=rtol, atol=atol).solve()
-        # sol = ScipyIVP(model, t1, dt, method="RK45", rtol=rtol, atol=atol).solve()
+        # TODO: Use RK45!!!
+        # sol = ScipyIVP(model, t1, dt, method="RK23", rtol=rtol, atol=atol).solve()
+        sol = ScipyIVP(model, t1, dt, method="RK45", rtol=rtol, atol=atol).solve()
 
         return beam, sol
 
@@ -1081,8 +1084,8 @@ def HeavyTop():
     )
 
 
-def BucklingRightHingedFrame(follower=False):
-    # def BucklingRightHingedFrame(follower=True):
+# def BucklingRightHingedFrame(follower=False):
+def BucklingRightHingedFrame(follower=True):
     """Buckling of a hinged right-angle frame under both fixed and follower
     point load - Simo1985.
 
@@ -1249,10 +1252,9 @@ def BucklingRightHingedFrame(follower=False):
         model,
         tol=1.0e-6,
         max_newton_iter=30,
-        la_arc0=1.0e-1,  # works for constant force
-        # la_arc0=5.0e-2,  # works for constant force
-        # la_arc0=1.0e-2,  # works for constant force
-        # la_arc0=5.0e-3,  # not working for follower force yet
+        # la_arc0=1.0e-1,  # fast but not working until the end
+        la_arc0=5.0e-2,  # works for constant force and 5 elements
+        # la_arc0=1.0e-3,  # works for follower force and 5 elements
         la_arc_span=[-0.5, 1],
         scale_exponent=None,
     )
@@ -1272,6 +1274,6 @@ if __name__ == "__main__":
     # locking_quater_circle()
     # objectivity_quater_circle()
     # convergence_quater_circle()
-    HelixIbrahimbegovic1997()
+    # HelixIbrahimbegovic1997()
     # HeavyTop()
-    # BucklingRightHingedFrame()
+    BucklingRightHingedFrame()

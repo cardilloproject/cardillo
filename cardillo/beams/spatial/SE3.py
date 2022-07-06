@@ -290,14 +290,14 @@ def T_SO3_psi(psi: np.ndarray) -> np.ndarray:
         T_SO3_psi[0, 1, 2] = T_SO3_psi[1, 2, 0] = T_SO3_psi[2, 0, 1] = 0.5
         T_SO3_psi[0, 2, 1] = T_SO3_psi[1, 0, 2] = T_SO3_psi[2, 1, 0] = -0.5
 
-    # return T_SO3_psi
+    return T_SO3_psi
 
-    T_SO3_psi_num = approx_fprime(psi, T_SO3, method="cs", eps=1.0e-10)
-    diff = T_SO3_psi - T_SO3_psi_num
-    error = np.linalg.norm(diff)
-    if error > 1.0e-8:
-        print(f"error T_SO3_psi: {error}")
-    return T_SO3_psi_num
+    # T_SO3_psi_num = approx_fprime(psi, T_SO3, method="cs", eps=1.0e-10)
+    # diff = T_SO3_psi - T_SO3_psi_num
+    # error = np.linalg.norm(diff)
+    # if error > 1.0e-8:
+    #     print(f"error T_SO3_psi: {error}")
+    # return T_SO3_psi_num
 
 
 def T_SO3_inv(psi: np.ndarray) -> np.ndarray:
@@ -1651,6 +1651,9 @@ class TimoshenkoAxisAngleSE3:
 
     # TODO:
     def v_P_q(self, t, q, u, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
+        raise RuntimeError(
+            "Implement this derivative since it requires known parts only!"
+        )
         v_P_q_num = approx_fprime(
             q, lambda q: self.v_P(t, q, u, frame_ID, K_r_SP), method="3-point"
         )
