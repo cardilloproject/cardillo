@@ -130,8 +130,8 @@ def Exp_SO3_psi(psi: np.ndarray) -> np.ndarray:
                             0.5
                             * beta
                             * (
-                                LeviCivita(i, k, l) * psi_tilde[l, j]
-                                + psi_tilde[i, l] * LeviCivita(l, k, j)
+                                LeviCivita(k, l, i) * psi_tilde[l, j]
+                                + psi_tilde[l, i] * LeviCivita(k, l, j)
                             )
                         )
     else:
@@ -146,7 +146,8 @@ def Exp_SO3_psi(psi: np.ndarray) -> np.ndarray:
     # A_psi_num = approx_fprime(psi, Exp_SO3, method="cs", eps=1.0e-10)
     # diff = A_psi - A_psi_num
     # error = np.linalg.norm(diff)
-    # print(f"error Exp_SO3_psi: {error}")
+    # if error > 1.0e-10:
+    #     print(f"error Exp_SO3_psi: {error}")
     # return A_psi_num
 
 
@@ -185,7 +186,7 @@ def Log_SO3_A(A: np.ndarray) -> np.ndarray:
         b = 0.5 * angle / sa
 
         # fmt: off
-        a = (angle * ca - sa) / (4.0 * sa**3) *  np.array([
+        a = (angle * ca - sa) / (4.0 * sa**3) * np.array([
             A[2, 1] - A[1, 2],
             A[0, 2] - A[2, 0],
             A[1, 0] - A[0, 1]
@@ -242,7 +243,7 @@ def T_SO3(psi: np.ndarray) -> np.ndarray:
         return np.eye(3, dtype=float) - 0.5 * ax2skew(psi)
 
 
-def T_SO3_inv_psi(psi: np.ndarray) -> np.ndarray:
+def T_SO3_psi(psi: np.ndarray) -> np.ndarray:
     T_SO3_psi = np.zeros((3, 3, 3), dtype=float)
 
     angle = norm(psi)
@@ -255,7 +256,7 @@ def T_SO3_inv_psi(psi: np.ndarray) -> np.ndarray:
         beta2 = (1.0 - ca) / angle2
         beta2_psik = (2.0 * beta2 - alpha) / angle2
         c = (1.0 - alpha) / angle2
-        c_psik = (3 * alpha - 2 - ca) / angle4
+        c_psik = (3.0 * alpha - 2.0 - ca) / angle4
 
         psi_tilde = ax2skew(psi)
         psi_tilde2 = psi_tilde @ psi_tilde
@@ -279,8 +280,8 @@ def T_SO3_inv_psi(psi: np.ndarray) -> np.ndarray:
                     T_SO3_psi[i, j, k] += psi_tilde2[i, j] * psi[k] * c_psik
                     for l in range(3):
                         T_SO3_psi[i, j, k] += c * (
-                            LeviCivita(i, k, l) * psi_tilde[l, j]
-                            + psi_tilde[i, l] * LeviCivita(l, k, j)
+                            LeviCivita(k, l, i) * psi_tilde[l, j]
+                            + psi_tilde[l, i] * LeviCivita(k, l, j)
                         )
     else:
         ####################
@@ -289,14 +290,14 @@ def T_SO3_inv_psi(psi: np.ndarray) -> np.ndarray:
         T_SO3_psi[0, 1, 2] = T_SO3_psi[1, 2, 0] = T_SO3_psi[2, 0, 1] = 0.5
         T_SO3_psi[0, 2, 1] = T_SO3_psi[1, 0, 2] = T_SO3_psi[2, 1, 0] = -0.5
 
-    return T_SO3_psi
+    # return T_SO3_psi
 
-    # T_SO3_psi_num = approx_fprime(psi, T_SO3, method="cs", eps=1.0e-10)
-    # diff = T_SO3_psi - T_SO3_psi_num
-    # error = np.linalg.norm(diff)
-    # if error > 1.0e-8:
-    #     print(f"error T_SO3_psi: {error}")
-    # return T_SO3_psi_num
+    T_SO3_psi_num = approx_fprime(psi, T_SO3, method="cs", eps=1.0e-10)
+    diff = T_SO3_psi - T_SO3_psi_num
+    error = np.linalg.norm(diff)
+    if error > 1.0e-8:
+        print(f"error T_SO3_psi: {error}")
+    return T_SO3_psi_num
 
 
 def T_SO3_inv(psi: np.ndarray) -> np.ndarray:
@@ -342,11 +343,14 @@ def T_SO3_inv_psi(psi: np.ndarray) -> np.ndarray:
         gamma = 0.5 * angle * cot
         angle2 = angle * angle
         c = (1.0 - gamma) / angle2
+        # c_psi_k = (
+        #     -2.0 * c / angle2
+        #     - cot / (2.0 * angle2 * angle)
+        #     + 1.0 / (4.0 * angle2 * np.sin(0.5 * angle) ** 2)
+        # )
         c_psi_k = (
-            -2.0 * c / angle2
-            - cot / (2.0 * angle2 * angle)
-            + 1.0 / (4.0 * angle2 * np.sin(0.5 * angle) ** 2)
-        )
+            1.0 / (4.0 * np.sin(0.5 * angle) ** 2) - cot / (2.0 * angle) - 2.0 * c
+        ) / angle2
 
         ###########################################################
         # ((1.0 - gamma) / (angle * angle)) * psi_tilde @ psi_tilde
@@ -361,12 +365,14 @@ def T_SO3_inv_psi(psi: np.ndarray) -> np.ndarray:
                             + psi_tilde[i, l] * LeviCivita(l, k, j)
                         )
 
-    T_SO3_inv_psi_num = approx_fprime(psi, T_SO3_inv, eps=1.0e-10, method="cs")
-    diff = T_SO3_inv_psi - T_SO3_inv_psi_num
-    error = np.linalg.norm(diff)
-    if error > 1.0e-8:
-        print(f"error T_SO3_inv_psi: {error}")
-    return T_SO3_inv_psi_num
+    return T_SO3_inv_psi
+
+    # T_SO3_inv_psi_num = approx_fprime(psi, T_SO3_inv, eps=1.0e-10, method="cs")
+    # diff = T_SO3_inv_psi - T_SO3_inv_psi_num
+    # error = np.linalg.norm(diff)
+    # if error > 1.0e-10:
+    #     print(f"error T_SO3_inv_psi: {error}")
+    # return T_SO3_inv_psi_num
 
 
 def Exp_SE3(h: np.ndarray) -> np.ndarray:
@@ -385,22 +391,17 @@ def Exp_SE3_h(h: np.ndarray) -> np.ndarray:
     r = h[:3]
     psi = h[3:]
 
-    # # TODO: Remove these test functions here!
-    # __Exp_SO3_psi = Exp_SO3_psi(psi)
-    # __Log_SO3_A = Log_SO3_A(Exp_SO3(psi))
-    # __T_SO3_psi = T_SO3_psi(psi)
-    # __T_SO3_inv_psi = T_SO3_inv_psi(psi)
-
     H_h = np.zeros((4, 4, 6), dtype=h.dtype)
     H_h[:3, :3, 3:] = Exp_SO3_psi(psi)
-    H_h[:3, 3, 3:] = np.einsum("k,kij->ij", r, T_SO3_inv_psi(psi))
+    H_h[:3, 3, 3:] = np.einsum("k,kij->ij", r, T_SO3_psi(psi))
     H_h[:3, 3, :3] = T_SO3(psi).T
     return H_h
 
     # H_h_num =  approx_fprime(h, Exp_SE3, method="cs", eps=1.0e-10)
     # diff = H_h - H_h_num
     # error = np.linalg.norm(diff)
-    # print(f"error Exp_SE3_h: {error}")
+    # if error > 1.0e-10:
+    #     print(f"error Exp_SE3_h: {error}")
     # return H_h_num
 
 
@@ -414,9 +415,7 @@ def Exp_SE3_inv_h(h: np.ndarray) -> np.ndarray:
 
     H_IK_inv_h = np.zeros((4, 4, 6), dtype=float)
     H_IK_inv_h[:3, :3] = A_IK_h.transpose(1, 0, 2)
-    H_IK_inv_h[:3, 3] = -np.einsum("jik,j->ik", A_IK_h, r_OP) - np.einsum(
-        "ji,jk->ik", A_IK, r_OP_h
-    )
+    H_IK_inv_h[:3, 3] = -np.einsum("k,kij->ij", r_OP, A_IK_h) - A_IK.T @ r_OP_h
     return H_IK_inv_h
 
     # # H_IK_inv_h_num = approx_fprime(
@@ -432,7 +431,8 @@ def Exp_SE3_inv_h(h: np.ndarray) -> np.ndarray:
     # )
     # diff = H_IK_inv_h - H_IK_inv_h_num
     # error = np.linalg.norm(diff)
-    # print(f"error H_IK0_inv_h: {error}")
+    # if error > 1.0e-10:
+    #     print(f"error H_IK0_inv_h: {error}")
     # return H_IK_inv_h_num
 
 
@@ -458,7 +458,8 @@ def Log_SE3_H(H: np.ndarray) -> np.ndarray:
     # h_H_num = approx_fprime(H, Log_SE3, method="cs", eps=1.0e-10)
     # diff = h_H - h_H_num
     # error = np.linalg.norm(diff)
-    # print(f"error Log_SE3_H: {error}")
+    # if error > 1.0e-10:
+    #     print(f"error Log_SE3_H: {error}")
     # return h_H_num
 
 
@@ -841,21 +842,21 @@ class TimoshenkoAxisAngleSE3:
         A_IK = H_IK[:3, :3]
         r_OP = H_IK[:3, 3]
         A_IK_qe = np.zeros((3, 3, self.nq_element), dtype=float)
-        A_IK_qe[:, :, self.nodalDOF_element[0]] = H_IK_h0[:3, :3]
-        A_IK_qe[:, :, self.nodalDOF_element[1]] = H_IK_h1[:3, :3]
+        A_IK_qe[:, :, nodalDOF0] = H_IK_h0[:3, :3]
+        A_IK_qe[:, :, nodalDOF1] = H_IK_h1[:3, :3]
         r_OP_qe = np.zeros((3, self.nq_element), dtype=float)
-        r_OP_qe[:, self.nodalDOF_element[0]] = H_IK_h0[:3, 3]
-        r_OP_qe[:, self.nodalDOF_element[1]] = H_IK_h1[:3, 3]
+        r_OP_qe[:, nodalDOF0] = H_IK_h0[:3, 3]
+        r_OP_qe[:, nodalDOF1] = H_IK_h1[:3, 3]
 
         # extract strains
         K_Gamma_bar = h_local_xi[:3]
         K_Kappa_bar = h_local_xi[3:]
         K_Gamma_bar_qe = np.zeros((3, self.nq_element), dtype=float)
-        K_Gamma_bar_qe[:, self.nodalDOF_element[0]] = h_local_xi_h0[:3]
-        K_Gamma_bar_qe[:, self.nodalDOF_element[1]] = h_local_xi_h1[:3]
+        K_Gamma_bar_qe[:, nodalDOF0] = h_local_xi_h0[:3]
+        K_Gamma_bar_qe[:, nodalDOF1] = h_local_xi_h1[:3]
         K_Kappa_bar_qe = np.zeros((3, self.nq_element), dtype=float)
-        K_Kappa_bar_qe[:, self.nodalDOF_element[0]] = h_local_xi_h0[3:]
-        K_Kappa_bar_qe[:, self.nodalDOF_element[1]] = h_local_xi_h1[3:]
+        K_Kappa_bar_qe[:, nodalDOF0] = h_local_xi_h0[3:]
+        K_Kappa_bar_qe[:, nodalDOF1] = h_local_xi_h1[3:]
 
         return (
             r_OP,
@@ -1547,21 +1548,30 @@ class TimoshenkoAxisAngleSE3:
 
     # TODO!
     def r_OP_q(self, t, q, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
-        r_q, A_IK_q = self.__d_eval_generic(q, frame_ID[0])
-        # r_OP, A_IK, K_Gamma_bar, K_Kappa_bar, r_q, A_IK_q, K_Gamma_bar_q, K_Kappa_bar_q = self.__d_eval_two_node(q, frame_ID[0])
+        # r_q, A_IK_q = self.__d_eval_generic(q, frame_ID[0])
+        (
+            r_OP,
+            A_IK,
+            K_Gamma_bar,
+            K_Kappa_bar,
+            r_q,
+            A_IK_q,
+            K_Gamma_bar_q,
+            K_Kappa_bar_q,
+        ) = self.__d_eval_two_node(q, frame_ID[0])
         r_OP_q = r_q + np.einsum("ijk,j->ik", A_IK_q, K_r_SP)
         # return r_OP_q
 
         r_OP_q_num = approx_fprime(
             q, lambda q: self.r_OP(t, q, frame_ID, K_r_SP), eps=1.0e-10, method="cs"
         )
-        # diff = r_OP_q - r_OP_q_num
-        # error = np.linalg.norm(diff)
-        # np.set_printoptions(3, suppress=True)
-        # if error > 1.0e-10:
-        #     print(f"r_OP_q:\n{r_OP_q}")
-        #     print(f"r_OP_q_num:\n{r_OP_q_num}")
-        #     print(f"error r_OP_q: {error}")
+        diff = r_OP_q - r_OP_q_num
+        error = np.linalg.norm(diff)
+        np.set_printoptions(3, suppress=True)
+        if error > 1.0e-10:
+            print(f"r_OP_q:\n{r_OP_q}")
+            print(f"r_OP_q_num:\n{r_OP_q_num}")
+            print(f"error r_OP_q: {error}")
         return r_OP_q_num
 
     def A_IK(self, t, q, frame_ID):
@@ -1587,10 +1597,7 @@ class TimoshenkoAxisAngleSE3:
         # )
         # diff = A_IK_q - A_IK_q_num
         # error = np.linalg.norm(diff)
-        # np.set_printoptions(4, suppress=True)
         # if error > 1.0e-10:
-        #     # print(f'A_IK_q\n:{A_IK_q}')
-        #     # print(f'A_IK_q_num\n:{A_IK_q_num}')
         #     print(f'error A_IK_q: {error}')
         # return A_IK_q_num
 
