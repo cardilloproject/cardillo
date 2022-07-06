@@ -59,31 +59,6 @@ def Exp_SO3(psi: np.ndarray) -> np.ndarray:
         return (
             np.eye(3, dtype=float) + alpha * psi_tilde + beta2 * psi_tilde @ psi_tilde
         )
-
-        # # TODO: only for debugging the derivative!
-        # sa = sin(angle)
-        # ca = cos(angle)
-        # psi_tilde = ax2skew(psi)
-        # A = ca * np.eye(3, dtype=float)
-        # B = sa / angle * psi_tilde
-        # C = (1.0 - ca) / (angle * angle) * np.outer(psi, psi)
-        # D = (1.0 - ca) / (angle * angle) * psi_tilde @ psi_tilde
-        # # return A
-        # # return B
-        # # return C
-        # # return A + B + C
-        # # return D
-        # return np.eye(3, dtype=float) + B + D
-
-        # # Barfoot2014 (97)
-        # sa = sin(angle)
-        # ca = cos(angle)
-        # n = psi / angle
-        # return (
-        #     ca * np.eye(3, dtype=float)
-        #     + sa * ax2skew(n)
-        #     + (1.0 - ca) * np.outer(n, n)
-        # )
     else:
         # first order approximation
         return np.eye(3, dtype=float) + ax2skew(psi)
@@ -118,28 +93,28 @@ def Exp_SO3_psi(psi: np.ndarray) -> np.ndarray:
 
     A_psi = np.zeros((3, 3, 3), dtype=float)
     if angle > angle_singular:
+        angle2 = angle * angle
         sa = np.sin(angle)
         ca = np.cos(angle)
         alpha = sa / angle
-        angle2 = angle * angle
+        alpha_psik = (ca - alpha) / angle2
         beta = 2.0 * (1.0 - ca) / angle2
+        beta2_psik = (alpha - beta) / angle2
 
         psi_tilde = ax2skew(psi)
         psi_tilde2 = psi_tilde @ psi_tilde
 
-        # # A part
-        # for i in range(3):
-        #     A_psi[i, i, :] = -alpha * psi
-
-        # B part I
+        ############################
+        # alpha * psi_tilde (part I)
+        ############################
         for i in range(3):
             for j in range(3):
                 for k in range(3):
-                    # A_psi[i, j, k] = psi_tilde[i, j] * psi[k] * a1
-                    A_psi[i, j, k] += psi_tilde[i, j] * psi[k] * (ca - alpha) / angle2
+                    A_psi[i, j, k] += psi_tilde[i, j] * psi[k] * alpha_psik
 
-        # B part II
-        # A_psi += alpha * ax2skew_a()
+        #############################
+        # alpha * psi_tilde (part II)
+        #############################
         A_psi[0, 2, 1] += alpha
         A_psi[1, 0, 2] += alpha
         A_psi[2, 1, 0] += alpha
@@ -147,24 +122,13 @@ def Exp_SO3_psi(psi: np.ndarray) -> np.ndarray:
         A_psi[2, 0, 1] -= alpha
         A_psi[1, 2, 0] -= alpha
 
-        # # C part I
-        # for i in range(3):
-        #     for j in range(3):
-        #         for k in range(3):
-        #             A_psi[i, j, k] += psi[i] * psi[j] * psi[k] * a2
-
-        # # C part I
-        # for i in range(3):
-        #     A_psi[i, :, i] += beta2 * psi
-        #     A_psi[:, i, i] += beta2 * psi
-
-        # D part
+        ###############################
+        # beta2 * psi_tilde @ psi_tilde
+        ###############################
         for i in range(3):
             for j in range(3):
                 for k in range(3):
-                    A_psi[i, j, k] += (
-                        psi_tilde2[i, j] * psi[k] * (alpha - beta) / angle2
-                    )
+                    A_psi[i, j, k] += psi_tilde2[i, j] * psi[k] * beta2_psik
                     for l in range(3):
                         A_psi[i, j, k] += (
                             0.5
