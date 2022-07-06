@@ -1,6 +1,4 @@
 import numpy as np
-import meshio
-import os
 
 from cardillo.utility.coo import Coo
 from cardillo.discretization.lagrange import Node_vector

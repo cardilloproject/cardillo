@@ -1084,8 +1084,8 @@ def HeavyTop():
     )
 
 
-# def BucklingRightHingedFrame(follower=False):
-def BucklingRightHingedFrame(follower=True):
+def BucklingRightHingedFrame(follower=False):
+    # def BucklingRightHingedFrame(follower=True):
     """Buckling of a hinged right-angle frame under both fixed and follower
     point load - Simo1985.
 
