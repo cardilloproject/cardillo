@@ -107,20 +107,16 @@ def Exp_SO3_psi(psi: np.ndarray) -> np.ndarray:
         ############################
         # alpha * psi_tilde (part I)
         ############################
-        for i in range(3):
-            for j in range(3):
-                for k in range(3):
-                    A_psi[i, j, k] += psi_tilde[i, j] * psi[k] * alpha_psik
+        A_psi[0, 2, 1] = A_psi[1, 0, 2] = A_psi[2, 1, 0] = alpha
+        A_psi[0, 1, 2] = A_psi[1, 2, 0] = A_psi[2, 0, 1] = -alpha
 
         #############################
         # alpha * psi_tilde (part II)
         #############################
-        A_psi[0, 2, 1] += alpha
-        A_psi[1, 0, 2] += alpha
-        A_psi[2, 1, 0] += alpha
-        A_psi[0, 1, 2] -= alpha
-        A_psi[2, 0, 1] -= alpha
-        A_psi[1, 2, 0] -= alpha
+        for i in range(3):
+            for j in range(3):
+                for k in range(3):
+                    A_psi[i, j, k] += psi_tilde[i, j] * psi[k] * alpha_psik
 
         ###############################
         # beta2 * psi_tilde @ psi_tilde
@@ -142,12 +138,8 @@ def Exp_SO3_psi(psi: np.ndarray) -> np.ndarray:
         ###################
         # alpha * psi_tilde
         ###################
-        A_psi[0, 2, 1] += 1.0
-        A_psi[1, 0, 2] += 1.0
-        A_psi[2, 1, 0] += 1.0
-        A_psi[0, 1, 2] -= 1.0
-        A_psi[2, 0, 1] -= 1.0
-        A_psi[1, 2, 0] -= 1.0
+        A_psi[0, 2, 1] = A_psi[1, 0, 2] = A_psi[2, 1, 0] = 1.0
+        A_psi[0, 1, 2] = A_psi[1, 2, 0] = A_psi[2, 0, 1] = -1.0
 
     return A_psi
 
@@ -159,28 +151,21 @@ def Exp_SO3_psi(psi: np.ndarray) -> np.ndarray:
 
 
 def Log_SO3(A: np.ndarray) -> np.ndarray:
-    # straightforward version
     ca = 0.5 * (trace3(A) - 1.0)
-    ca = np.clip(ca, -1, 1)
+    ca = np.clip(ca, -1, 1)  # clip to [-1, 1] for arccos!
     angle = np.arccos(ca)
 
     # fmt: off
-    if angle > angle_singular:
-        return 0.5 * (angle / np.sin(angle)) * np.array([
-            A[2, 1] - A[1, 2],
-            A[0, 2] - A[2, 0],
-            A[1, 0] - A[0, 1]
-        ], dtype=A.dtype)
-    else:
-        return 0.5 * np.array([
-            A[2, 1] - A[1, 2],
-            A[0, 2] - A[2, 0],
-            A[1, 0] - A[0, 1]
-        ], dtype=A.dtype)
+    psi = 0.5 * np.array([
+        A[2, 1] - A[1, 2],
+        A[0, 2] - A[2, 0],
+        A[1, 0] - A[0, 1]
+    ], dtype=A.dtype)
     # fmt: on
 
-    # # better version using Spurrier's algorithm
-    # return quat2axis_angle(Spurrier(A))
+    if angle > angle_singular:
+        psi *= angle / np.sin(angle)
+    return psi
 
 
 def Log_SO3_A(A: np.ndarray) -> np.ndarray:
@@ -191,7 +176,7 @@ def Log_SO3_A(A: np.ndarray) -> np.ndarray:
     Claraco2010: https://doi.org/10.48550/arXiv.2103.15980
     """
     ca = 0.5 * (trace3(A) - 1.0)
-    ca = np.clip(ca, -1, 1)
+    ca = np.clip(ca, -1, 1)  # clip to [-1, 1] for arccos!
     angle = np.arccos(ca)
 
     psi_A = np.zeros((3, 3, 3), dtype=float)
@@ -275,7 +260,9 @@ def T_SO3_psi(psi: np.ndarray) -> np.ndarray:
         psi_tilde = ax2skew(psi)
         psi_tilde2 = psi_tilde @ psi_tilde
 
-        # part B
+        ####################
+        # -beta2 * psi_tilde
+        ####################
         for i in range(3):
             for j in range(3):
                 for k in range(3):
@@ -284,7 +271,9 @@ def T_SO3_psi(psi: np.ndarray) -> np.ndarray:
                         psi_tilde[i, j] * psi[k] * (2.0 * beta2 - alpha) / angle2
                     )
 
-        # part C
+        ##################################################
+        # ((1.0 - alpha) / angle2) * psi_tilde @ psi_tilde
+        ##################################################
         for i in range(3):
             for j in range(3):
                 for k in range(3):
