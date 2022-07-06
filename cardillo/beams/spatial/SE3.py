@@ -405,6 +405,7 @@ def Exp_SE3_h(h: np.ndarray) -> np.ndarray:
     # return H_h_num
 
 
+# TODO: I think this is not required!
 def Exp_SE3_inv_h(h: np.ndarray) -> np.ndarray:
     H_IK = Exp_SE3(h)
     H_IK_h = Exp_SE3_h(h)
@@ -1334,67 +1335,6 @@ class TimoshenkoAxisAngleSE3:
             # objective interpolation
             _, A_IK, K_Gamma_bar, K_Kappa_bar = self.eval(qe, self.qp[el, i])
 
-            ###################
-            # TODO: Derivatives
-            ###################
-
-            # psi = 0.1 * np.random.rand(3)
-            # A = Exp_SO3(psi)
-            # # A = np.eye(3, dtype=float)
-            # psi_A = Log_SO3_A(A)
-            # # psi_A_num = approx_fprime(A, Log_SO3, method="2-point")
-            # psi_A_num = approx_fprime(A, Log_SO3, method="3-point")
-            # # psi_A_num = approx_fprime(
-            # #     A.reshape(-1),
-            # #     lambda a: Log_SO3(a.reshape(3, 3)),
-            # #     method="3-point"
-            # # ).reshape(3, 3, 3)
-            # diff = psi_A - psi_A_num
-            # error = np.linalg.norm(diff)
-            # print(f"error: {error}")
-            # A_psi = Exp_SO3_psi(psi)
-
-            # #################################
-            # # 1. derivative Rodriguez formula
-            # #################################
-            # # psi = np.zeros(3)
-            # psi = np.random.rand(3)
-            # A_psi = Exp_SO3_psi(psi)
-            # A_psi_num = approx_fprime(psi, Exp_SO3, method="3-point")
-            # diff = A_psi - A_psi_num
-            # error = np.linalg.norm(diff)
-            # print(f"error Exp_SO3_psi: {error}")
-
-            # ###########################
-            # # 2. derivative Log formula
-            # ###########################
-            # # psi = np.zeros(3)
-            # psi = np.random.rand(3)
-            # A = Exp_SO3(psi)
-            # psi_A = Log_SO3_A(A)
-            # # TODO: I think this check is bad since variations via finite
-            # # differences in A are not correct rotations anymore
-            # psi_A_num = approx_fprime(A, Log_SO3, method="3-point")
-            # diff = psi_A - psi_A_num
-            # error = np.linalg.norm(diff)
-            # print(f"error Log_SO3_A: {error}")
-
-            # #######################################################
-            # # 3. another try for the derivative of the log function
-            # #######################################################
-            # # psi = np.zeros(3)
-            # psi = np.random.rand(3)
-            # # TODO: This has to be the identity!
-            # eye = np.einsum("ijk,jkl->il", Log_SO3_A(Exp_SO3(psi)), Exp_SO3_psi(psi))
-            # # eye = np.einsum(
-            # #     "ijk,jkl->il",
-            # #     approx_fprime(Exp_SO3(psi), Log_SO3, method="3-point"),
-            # #     Exp_SO3_psi(psi),
-            # # )  # this yields the identity, so it is a valid check!!!
-            # diff = eye - np.eye(3, dtype=float)
-            # error = np.linalg.norm(diff)
-            # print(f'error np.einsum("ijk,jkl->il", Log_SO3_A(Exp_SO3(psi)), Exp_SO3_psi(psi)) - eye(3): {error}')
-
             # axial and shear strains
             K_Gamma = K_Gamma_bar / Ji
 
@@ -1443,7 +1383,7 @@ class TimoshenkoAxisAngleSE3:
 
     def f_pot_q_el(self, qe, el):
         # return approx_fprime(qe, lambda qe: self.f_pot_el(qe, el), eps=1.0e-10, method="cs")
-        return approx_fprime(qe, lambda qe: self.f_pot_el(qe, el), method="3-point")
+        # # return approx_fprime(qe, lambda qe: self.f_pot_el(qe, el), method="3-point")
 
         f_pot_q_el = np.zeros((self.nq_element, self.nq_element), dtype=float)
 
@@ -1483,6 +1423,8 @@ class TimoshenkoAxisAngleSE3:
             K_n_K_Kappa = self.material_model.K_n_K_Kappa(
                 K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
             )
+            K_n_qe = K_n_K_Gamma @ K_Gamma_qe + K_n_K_Kappa @ K_Kappa_qe
+
             K_m = self.material_model.K_m(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
             K_m_K_Gamma = self.material_model.K_m_K_Gamma(
                 K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
@@ -1490,40 +1432,54 @@ class TimoshenkoAxisAngleSE3:
             K_m_K_Kappa = self.material_model.K_m_K_Kappa(
                 K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
             )
+            K_m_qe = K_m_K_Gamma @ K_Gamma_qe + K_m_K_Kappa @ K_Kappa_qe
 
-            # ############################
-            # # virtual work contributions
-            # ############################
-            # # - first delta Gamma part
-            # for node in range(self.nnodes_element):
-            #     f_pot_q_el
-            #     f_pot_el[self.nodalDOF_element_r[node]] -= (
-            #         self.N_xi[el, i, node] * A_IK @ K_n * qwi
-            #     )
+            # compute derivatives with respect to generalized coordinates of
+            # the element
 
-            # for node in range(self.nnodes_element):
-            #     # - second delta Gamma part
-            #     f_pot_el[self.nodalDOF_element_psi[node]] += (
-            #         self.N[el, i, node] * cross3(K_Gamma_bar, K_n) * qwi
-            #     )
+            ############################
+            # virtual work contributions
+            ############################
+            # - first delta Gamma part
+            for node in range(self.nnodes_element):
+                f_pot_q_el[self.nodalDOF_element_r[node], :] -= (
+                    self.N_xi[el, i, node]
+                    * qwi
+                    * (np.einsum("ikj,k->ij", A_IK_qe, K_n) + A_IK @ K_n_qe)
+                )
 
-            #     # - first delta kappa part
-            #     f_pot_el[self.nodalDOF_element_psi[node]] -= (
-            #         self.N_xi[el, i, node] * K_m * qwi
-            #     )
+            for node in range(self.nnodes_element):
+                # - second delta Gamma part
+                f_pot_q_el[self.nodalDOF_element_psi[node], :] += (
+                    self.N[el, i, node]
+                    * qwi
+                    * (ax2skew(K_Gamma_bar) @ K_n_qe - ax2skew(K_n) @ K_Gamma_bar_qe)
+                )
 
-            #     # second delta kappa part
-            #     f_pot_el[self.nodalDOF_element_psi[node]] += (
-            #         self.N[el, i, node] * cross3(K_Kappa_bar, K_m) * qwi
-            #     )  # Euler term
+                # - first delta kappa part
+                f_pot_q_el[self.nodalDOF_element_psi[node], :] -= (
+                    self.N_xi[el, i, node] * qwi * K_m_qe
+                )
 
-        f_pot_q_el_num = approx_fprime(
-            qe, lambda qe: self.f_pot_el(qe, el), eps=1.0e-10, method="cs"
-        )
-        diff = f_pot_q_el - f_pot_q_el_num
-        error = np.linalg.norm(diff)
-        print(f"error f_pot_q_el: {error}")
-        return f_pot_q_el_num
+                # - second delta kappa part
+                f_pot_q_el[self.nodalDOF_element_psi[node], :] += (
+                    self.N[el, i, node]
+                    * qwi
+                    * (ax2skew(K_Kappa_bar) @ K_m_qe - ax2skew(K_m) @ K_Kappa_bar_qe)
+                )
+
+        return f_pot_q_el
+
+        # f_pot_q_el_num = approx_fprime(
+        #     qe, lambda qe: self.f_pot_el(qe, el), eps=1.0e-10, method="cs"
+        # )
+        # # f_pot_q_el_num = approx_fprime(
+        # #     qe, lambda qe: self.f_pot_el(qe, el), eps=5.0e-6, method="2-point"
+        # # )
+        # diff = f_pot_q_el - f_pot_q_el_num
+        # error = np.linalg.norm(diff)
+        # print(f"error f_pot_q_el: {error}")
+        # return f_pot_q_el_num
 
     #########################################
     # kinematic equation
