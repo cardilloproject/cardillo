@@ -139,7 +139,9 @@ def Exp_SO3_psi(psi: np.ndarray) -> np.ndarray:
                             )
                         )
     else:
-        # B part II
+        ###################
+        # alpha * psi_tilde
+        ###################
         A_psi[0, 2, 1] += 1.0
         A_psi[1, 0, 2] += 1.0
         A_psi[2, 1, 0] += 1.0
@@ -147,13 +149,13 @@ def Exp_SO3_psi(psi: np.ndarray) -> np.ndarray:
         A_psi[2, 0, 1] -= 1.0
         A_psi[1, 2, 0] -= 1.0
 
-    # return A_psi
+    return A_psi
 
-    A_psi_num = approx_fprime(psi, Exp_SO3, method="cs", eps=1.0e-10)
-    diff = A_psi - A_psi_num
-    error = np.linalg.norm(diff)
-    print(f"error Exp_SO3_psi: {error}")
-    return A_psi_num
+    # A_psi_num = approx_fprime(psi, Exp_SO3, method="cs", eps=1.0e-10)
+    # diff = A_psi - A_psi_num
+    # error = np.linalg.norm(diff)
+    # print(f"error Exp_SO3_psi: {error}")
+    # return A_psi_num
 
 
 def Log_SO3(A: np.ndarray) -> np.ndarray:
@@ -195,8 +197,8 @@ def Log_SO3_A(A: np.ndarray) -> np.ndarray:
     psi_A = np.zeros((3, 3, 3), dtype=float)
     if angle > angle_singular:
         sa = np.sin(angle)
+        b = 0.5 * angle / sa
 
-        # a = skew2ax(A - A.T) * (angle * ca - sa) / (4.0 * sa**3)
         # fmt: off
         a = (angle * ca - sa) / (4.0 * sa**3) *  np.array([
             A[2, 1] - A[1, 2],
@@ -204,43 +206,16 @@ def Log_SO3_A(A: np.ndarray) -> np.ndarray:
             A[1, 0] - A[0, 1]
         ], dtype=A.dtype)
         # fmt: on
-        b = 0.5 * angle / sa
-
-        # for i in range(3):
-        #     psi_A[:, i, i] = a
-
-        # psi_A[0, 0, 0] = a[0]
-        # psi_A[1, 0, 0] = a[1]
-        # psi_A[2, 0, 0] = a[2]
-
-        # psi_A[0, 1, 1] = a[0]
-        # psi_A[1, 1, 1] = a[1]
-        # psi_A[2, 1, 1] = a[2]
-
-        # psi_A[0, 2, 2] = a[0]
-        # psi_A[1, 2, 2] = a[1]
-        # psi_A[2, 2, 2] = a[2]
 
         psi_A[0, 0, 0] = psi_A[0, 1, 1] = psi_A[0, 2, 2] = a[0]
         psi_A[1, 0, 0] = psi_A[1, 1, 1] = psi_A[1, 2, 2] = a[1]
         psi_A[2, 0, 0] = psi_A[2, 1, 1] = psi_A[2, 2, 2] = a[2]
 
-        # psi_A[0, 2, 1] = b
-        # psi_A[0, 1, 2] = -b
-        # psi_A[1, 0, 2] = b
-        # psi_A[1, 2, 0] = -b
-        # psi_A[2, 1, 0] = b
-        # psi_A[2, 0, 1] = -b
         psi_A[0, 2, 1] = psi_A[1, 0, 2] = psi_A[2, 1, 0] = b
         psi_A[0, 1, 2] = psi_A[1, 2, 0] = psi_A[2, 0, 1] = -b
-        # for i in range(3):
-        #     psi_A[i] += b * ax2skew(ei(i))
-        # psi_A += angle / sa * skew2ax_A()
     else:
         psi_A[0, 2, 1] = psi_A[1, 0, 2] = psi_A[2, 1, 0] = 0.5
         psi_A[0, 1, 2] = psi_A[1, 2, 0] = psi_A[2, 0, 1] = -0.5
-        # for i in range(3):
-        #     psi_A[i] = 0.5 * ax2skew(ei(i))
 
     return psi_A
 
