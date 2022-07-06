@@ -1,7 +1,6 @@
 import numpy as np
 import meshio
 import os
-from math import sqrt, acos, sin, cos, tan, isclose
 
 from cardillo.utility.coo import Coo
 from cardillo.discretization.lagrange import Node_vector
@@ -11,25 +10,20 @@ from cardillo.math import (
     norm,
     cross3,
     ax2skew,
-    skew2ax,
     approx_fprime,
     tangent_map_s,
-    Spurrier,
-    quat2axis_angle,
-    ei,
-    e1,
-    e2,
-    e3,
-    skew2ax_A,
     trace3,
-    ax2skew_a,
     LeviCivita,
 )
 
-# TODO:
-# * identify best singular angle
-# * identify all highe rorder approximations that are not singular,
-#   see https://github.com/strasdat/Sophus/blob/master/sophus/so3.hpp
+# usefull links:
+# * https://github.com/utiasSTARS/liegroups/blob/master/liegroups/numpy/so3.py
+# * https://github.com/utiasSTARS/liegroups/blob/master/liegroups/numpy/se3.py
+# * https://github.com/strasdat/Sophus/blob/master/sophus/so3.hpp
+# * https://github.com/strasdat/Sophus/blob/master/sophus/se3.hpp
+
+# for smaller angles we use first order approximations of the equations since
+# most of the SO(3) and SE(3) equations get singular for psi -> 0.
 angle_singular = 1.0e-6
 
 
@@ -229,8 +223,8 @@ def T_SO3(psi: np.ndarray) -> np.ndarray:
         )
 
         # # Barfoot2014 (98), actually its the transposed!
-        # sa = sin(angle)
-        # ca = cos(angle)
+        # sa = np.sin(angle)
+        # ca = np.cos(angle)
         # sinc = sa / angle
         # n = psi / angle
         # return (
@@ -1928,7 +1922,7 @@ class TimoshenkoAxisAngleSE3:
             # compute points on circular cross section
             x0 = None  # initial point is required twice
             for alpha in np.linspace(0, 2 * np.pi, num=n_alpha):
-                x = r + radius * cos(alpha) * d2 + radius * sin(alpha) * d3
+                x = r + radius * np.cos(alpha) * d2 + radius * np.sin(alpha) * d3
                 points.append(x)
                 if x0 is None:
                     x0 = x
