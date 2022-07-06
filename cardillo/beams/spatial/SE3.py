@@ -226,10 +226,6 @@ def T_SO3(psi: np.ndarray) -> np.ndarray:
             - beta2 * psi_tilde
             + ((1.0 - alpha) / angle2) * psi_tilde @ psi_tilde
         )
-        # A = np.eye(3, dtype=float)
-        # B = -beta2 * psi_tilde
-        # C = ((1.0 - alpha) / angle2) * psi_tilde @ psi_tilde
-        # return A + B + C
 
         # # Barfoot2014 (98), actually its the transposed!
         # sa = sin(angle)
@@ -246,7 +242,7 @@ def T_SO3(psi: np.ndarray) -> np.ndarray:
 
 
 def T_SO3_psi(psi: np.ndarray) -> np.ndarray:
-    __T_SO3_psi = np.zeros((3, 3, 3), dtype=float)
+    T_SO3_psi = np.zeros((3, 3, 3), dtype=float)
 
     angle = norm(psi)
     if angle > angle_singular:
@@ -256,6 +252,9 @@ def T_SO3_psi(psi: np.ndarray) -> np.ndarray:
         angle2 = angle * angle
         angle4 = angle2 * angle2
         beta2 = (1.0 - ca) / angle2
+        beta2_psik = (2.0 * beta2 - alpha) / angle2
+        c = (1.0 - alpha) / angle2
+        c_psik = (3 * alpha - 2 - ca) / angle4
 
         psi_tilde = ax2skew(psi)
         psi_tilde2 = psi_tilde @ psi_tilde
@@ -263,13 +262,12 @@ def T_SO3_psi(psi: np.ndarray) -> np.ndarray:
         ####################
         # -beta2 * psi_tilde
         ####################
+        T_SO3_psi[0, 1, 2] = T_SO3_psi[1, 2, 0] = T_SO3_psi[2, 0, 1] = beta2
+        T_SO3_psi[0, 2, 1] = T_SO3_psi[1, 0, 2] = T_SO3_psi[2, 1, 0] = -beta2
         for i in range(3):
             for j in range(3):
                 for k in range(3):
-                    __T_SO3_psi[i, j, k] += LeviCivita(i, j, k) * beta2
-                    __T_SO3_psi[i, j, k] += (
-                        psi_tilde[i, j] * psi[k] * (2.0 * beta2 - alpha) / angle2
-                    )
+                    T_SO3_psi[i, j, k] += psi_tilde[i, j] * psi[k] * beta2_psik
 
         ##################################################
         # ((1.0 - alpha) / angle2) * psi_tilde @ psi_tilde
@@ -277,33 +275,27 @@ def T_SO3_psi(psi: np.ndarray) -> np.ndarray:
         for i in range(3):
             for j in range(3):
                 for k in range(3):
-                    __T_SO3_psi[i, j, k] += (
-                        psi_tilde2[i, j] * psi[k] * (3 * alpha - 2 - ca) / angle4
-                    )
+                    T_SO3_psi[i, j, k] += psi_tilde2[i, j] * psi[k] * c_psik
                     for l in range(3):
-                        __T_SO3_psi[i, j, k] += (
-                            (1.0 - alpha)
-                            / angle2
-                            * (
-                                LeviCivita(k, l, i) * psi_tilde[l, j]
-                                + psi_tilde[l, i] * LeviCivita(k, l, j)
-                            )
+                        T_SO3_psi[i, j, k] += c * (
+                            LeviCivita(k, l, i) * psi_tilde[l, j]
+                            + psi_tilde[l, i] * LeviCivita(k, l, j)
                         )
     else:
-        for i in range(3):
-            for j in range(3):
-                for k in range(3):
-                    __T_SO3_psi[i, j, k] += LeviCivita(i, j, k) * 0.5
+        ####################
+        # -beta2 * psi_tilde
+        ####################
+        T_SO3_psi[0, 1, 2] = T_SO3_psi[1, 2, 0] = T_SO3_psi[2, 0, 1] = 0.5
+        T_SO3_psi[0, 2, 1] = T_SO3_psi[1, 0, 2] = T_SO3_psi[2, 1, 0] = -0.5
 
-    return __T_SO3_psi
+    return T_SO3_psi
 
-    # __T_SO3_psi_num = approx_fprime(psi, T_SO3, method="cs", eps=1.0e-10)
-    # diff = __T_SO3_psi - __T_SO3_psi_num
+    # T_SO3_psi_num = approx_fprime(psi, T_SO3, method="cs", eps=1.0e-10)
+    # diff = T_SO3_psi - T_SO3_psi_num
     # error = np.linalg.norm(diff)
-    # if error > 1.0e-6:
+    # if error > 1.0e-8:
     #     print(f"error T_SO3_psi: {error}")
-    #     print(f"")
-    # return __T_SO3_psi_num
+    # return T_SO3_psi_num
 
 
 def T_SO3_inv(psi: np.ndarray) -> np.ndarray:
@@ -1523,13 +1515,13 @@ class TimoshenkoAxisAngleSE3:
         r_OP_q_num = approx_fprime(
             q, lambda q: self.r_OP(t, q, frame_ID, K_r_SP), eps=1.0e-10, method="cs"
         )
-        diff = r_OP_q - r_OP_q_num
-        error = np.linalg.norm(diff)
-        np.set_printoptions(3, suppress=True)
-        if error > 1.0e-10:
-            print(f"r_OP_q:\n{r_OP_q}")
-            print(f"r_OP_q_num:\n{r_OP_q_num}")
-            print(f"error r_OP_q: {error}")
+        # diff = r_OP_q - r_OP_q_num
+        # error = np.linalg.norm(diff)
+        # np.set_printoptions(3, suppress=True)
+        # if error > 1.0e-10:
+        #     print(f"r_OP_q:\n{r_OP_q}")
+        #     print(f"r_OP_q_num:\n{r_OP_q_num}")
+        #     print(f"error r_OP_q: {error}")
         return r_OP_q_num
 
     def A_IK(self, t, q, frame_ID):
