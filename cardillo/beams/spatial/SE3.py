@@ -776,6 +776,9 @@ class TimoshenkoAxisAngleSE3:
         # K_Gamma_bar = h_rel_xi[:3]
         # K_Kappa_bar = h_rel_xi[3:]
 
+        # if isclose(xi, 1.0):
+        #     print(f"")
+
         # extract nodal screws
         nodalDOF0 = np.concatenate(
             (self.nodalDOF_element_r[0], self.nodalDOF_element_psi[0])
@@ -784,11 +787,15 @@ class TimoshenkoAxisAngleSE3:
             (self.nodalDOF_element_r[1], self.nodalDOF_element_psi[1])
         )
         h0 = qe[nodalDOF0]
+        r_OP0 = h0[:3]
+        psi0 = h0[3:]
         h1 = qe[nodalDOF1]
+        r_OP1 = h1[:3]
+        psi1 = h1[3:]
 
-        # nodal SE(3) objects
-        H_IK0 = Exp_SE3(h0)
-        H_IK1 = Exp_SE3(h1)
+        # nodal transformations
+        H_IK0 = SE3(Exp_SO3(psi0), r_OP0)
+        H_IK1 = SE3(Exp_SO3(psi1), r_OP1)
 
         # inverse transformation of first node
         H_IK0_inv = SE3inv(H_IK0)
@@ -806,11 +813,12 @@ class TimoshenkoAxisAngleSE3:
         xi0, xi1 = self.knot_vector.element_interval(el)
 
         # second linear Lagrange shape function
-        N, N_xi = self.Lagrange2(xi)
-        # N1_xi = 1.0 / (xi1 - xi0)
-        # N1 = (xi - xi0) * N1_xi
-        N1 = N[1]
-        N1_xi = N_xi[1]
+        # N, N_xi = self.basis_functions(xi)
+        # N, N_xi = self.Lagrange2(xi)
+        # N1 = N[1]
+        # N1_xi = N_xi[1]
+        N1_xi = 1.0 / (xi1 - xi0)
+        N1 = (xi - xi0) * N1_xi
 
         # relative interpolation of local se(3) objects
         h_local = N1 * h_K0K1
@@ -839,17 +847,33 @@ class TimoshenkoAxisAngleSE3:
             (self.nodalDOF_element_r[1], self.nodalDOF_element_psi[1])
         )
         h0 = qe[nodalDOF0]
+        r_OP0 = h0[:3]
+        psi0 = h0[3:]
         h1 = qe[nodalDOF1]
+        r_OP1 = h1[:3]
+        psi1 = h1[3:]
 
-        # nodal SE(3) objects
-        H_IK0 = Exp_SE3(h0)
-        H_IK1 = Exp_SE3(h1)
-        H_IK0_h0 = Exp_SE3_h(h0)
-        H_IK1_h1 = Exp_SE3_h(h1)
+        # nodal transformations
+        A_IK0 = Exp_SO3(psi0)
+        A_IK1 = Exp_SO3(psi1)
+        H_IK0 = SE3(A_IK0, r_OP0)
+        H_IK1 = SE3(A_IK1, r_OP1)
+        A_IK0_psi0 = Exp_SO3_psi(psi0)
+        A_IK1_psi1 = Exp_SO3_psi(psi1)
+
+        H_IK0_h0 = np.zeros((4, 4, 6), dtype=float)
+        H_IK0_h0[:3, :3, 3:] = A_IK0_psi0
+        H_IK0_h0[:3, 3, :3] = np.eye(3, dtype=float)
+        H_IK1_h1 = np.zeros((4, 4, 6), dtype=float)
+        H_IK1_h1[:3, :3, 3:] = A_IK1_psi1
+        H_IK1_h1[:3, 3, :3] = np.eye(3, dtype=float)
 
         # inverse transformation of first node
         H_IK0_inv = SE3inv(H_IK0)
-        H_IK0_inv_h0 = Exp_SE3_inv_h(h0)
+        H_IK0_inv_h0 = np.zeros((4, 4, 6), dtype=float)
+        H_IK0_inv_h0[:3, :3, 3:] = A_IK0_psi0.transpose(1, 0, 2)
+        H_IK0_inv_h0[:3, 3, 3:] = -np.einsum("k,kij->ij", r_OP0, A_IK0_psi0)
+        H_IK0_inv_h0[:3, 3, :3] = -A_IK0.T
 
         # compute relative transformation
         H_K0K1 = H_IK0_inv @ H_IK1
@@ -1596,10 +1620,9 @@ class TimoshenkoAxisAngleSE3:
     # r_OP contribution
     ###################
     def r_OP(self, t, q, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
-        r, A_IK, _, _ = self.eval(q, frame_ID[0])
+        r, A_IK, _, _ = self.__eval_two_node(q, frame_ID[0])
         return r + A_IK @ K_r_SP
 
-    # TODO!
     def r_OP_q(self, t, q, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
         # r_q, A_IK_q = self.__d_eval_generic(q, frame_ID[0])
         (
@@ -1613,19 +1636,19 @@ class TimoshenkoAxisAngleSE3:
             K_Kappa_bar_q,
         ) = self.__d_eval_two_node(q, frame_ID[0])
         r_OP_q = r_q + np.einsum("ijk,j->ik", A_IK_q, K_r_SP)
-        # return r_OP_q
+        return r_OP_q
 
-        r_OP_q_num = approx_fprime(
-            q, lambda q: self.r_OP(t, q, frame_ID, K_r_SP), eps=1.0e-10, method="cs"
-        )
+        # r_OP_q_num = approx_fprime(
+        #     q, lambda q: self.r_OP(t, q, frame_ID, K_r_SP), eps=1.0e-10, method="cs"
+        # )
         # diff = r_OP_q - r_OP_q_num
         # error = np.linalg.norm(diff)
         # np.set_printoptions(3, suppress=True)
-        # # if error > 1.0e-10:
-        # #     print(f"r_OP_q:\n{r_OP_q}")
-        # #     print(f"r_OP_q_num:\n{r_OP_q_num}")
-        # print(f"error r_OP_q: {error}")
-        return r_OP_q_num
+        # if error > 1.0e-10:
+        #     print(f"r_OP_q:\n{r_OP_q}")
+        #     print(f"r_OP_q_num:\n{r_OP_q_num}")
+        #     print(f"error r_OP_q: {error}")
+        # return r_OP_q_num
 
     def A_IK(self, t, q, frame_ID):
         _, A_IK, _, _ = self.eval(q, frame_ID[0])
@@ -1650,8 +1673,8 @@ class TimoshenkoAxisAngleSE3:
         # )
         # diff = A_IK_q - A_IK_q_num
         # error = np.linalg.norm(diff)
-        # if error > 1.0e-10:
-        #     print(f'error A_IK_q: {error}')
+        # # if error > 1.0e-10:
+        # print(f'error A_IK_q: {error}')
         # return A_IK_q_num
 
     def v_P(self, t, q, u, frame_ID, K_r_SP=np.zeros(3), dtype=float):
