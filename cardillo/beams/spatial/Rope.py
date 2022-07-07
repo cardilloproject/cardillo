@@ -222,9 +222,7 @@ class Rope:
             # unit tangent vector
             e = r_xi / ji
 
-            ############################
-            # virtual work contributions
-            ############################
+            # assemble internal forces
             for node in range(self.nnodes_element):
                 f_pot_el[self.nodalDOF_element[node]] -= (
                     self.N_xi[el, i, node] * e * n * qwi
@@ -240,11 +238,60 @@ class Rope:
             # sparse assemble element internal stiffness matrix
             coo.extend(f_pot_q_el, (self.uDOF[elDOF], self.qDOF[elDOF]))
 
-    # TODO:
     def f_pot_q_el(self, qe, el):
-        return approx_fprime(
-            qe, lambda qe: self.f_pot_el(qe, el), eps=1.0e-10, method="cs"
-        )
+        f_pot_q_el = np.zeros((self.nu_element, self.nq_element), dtype=float)
+
+        for i in range(self.nquadrature):
+            # extract reference state variables
+            qwi = self.qw[el, i]
+            Ji = self.J[el, i]
+
+            # interpolate tangent vector
+            r_xi = np.zeros(3, dtype=qe.dtype)
+            r_xi_qe = np.zeros((3, self.nq_element), dtype=qe.dtype)
+            for node_A in range(self.nnodes_element):
+                r_xi += self.N_xi[el, i, node_A] * qe[self.nodalDOF_element[node_A]]
+                r_xi_qe[:, self.nodalDOF_element[node_A]] += self.N_xi[
+                    el, i, node_A
+                ] * np.eye(3, dtype=qe.dtype)
+
+            # length of the current tangent vector
+            ji = norm(r_xi)
+
+            # axial strain
+            la = ji / Ji
+            la0 = 1.0
+
+            # compute contact forces and couples from partial derivatives of
+            # the strain energy function w.r.t. strain measures
+            n = self.material_model.pot_g(la, la0)
+            n_la = self.material_model.pot_gg(la, la0)
+
+            # unit tangent vector
+            e = r_xi / ji
+
+            # assemble internal stiffness
+            Ke = (
+                (
+                    (n / ji) * np.eye(3, dtype=float)
+                    + (n_la / Ji - n / ji) * np.outer(e, e)
+                )
+                @ r_xi_qe
+                * qwi
+            )
+            for node_A in range(self.nnodes_element):
+                f_pot_q_el[self.nodalDOF_element[node_A]] -= (
+                    self.N_xi[el, i, node_A] * Ke
+                )
+        return f_pot_q_el
+
+        # f_pot_q_el_num = approx_fprime(
+        #     qe, lambda qe: self.f_pot_el(qe, el), eps=1.0e-10, method="cs"
+        # )
+        # diff = f_pot_q_el - f_pot_q_el_num
+        # error = np.linalg.norm(diff)
+        # print(f"error f_pot_q_el: {error}")
+        # return f_pot_q_el_num
 
     #########################################
     # kinematic equation
