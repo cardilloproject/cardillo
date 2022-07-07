@@ -402,6 +402,16 @@ class Rope:
     def a_P_u(self, t, q, u, u_dot, frame_ID, K_r_SP=None):
         return np.zeros((3, self.nu_element), dtype=float)
 
+    def r_xi(self, t, q, frame_ID):
+        # evaluate shape functions
+        _, N_xi = self.basis_functions(frame_ID[0])
+
+        # interpolate tangent vector
+        r_xi = np.zeros(3, dtype=q.dtype)
+        for node in range(self.nnodes_element):
+            r_xi += N_xi[node] * q[self.nodalDOF_element[node]]
+        return r_xi
+
     ####################################################
     # body force
     ####################################################
@@ -474,12 +484,25 @@ class Rope:
         ax.plot(*self.nodes(q), linestyle="dashed", marker="o", color=color)
         ax.plot(*self.centerline(q, n=n), linestyle="solid", color=color)
 
+    def stretch(self, q, n=100):
+        q_body = q[self.qDOF]
+        la = []
+        for xi in np.linspace(0, 1, n):
+            frame_ID = (xi,)
+            qe = q_body[self.qDOF_P(frame_ID)]
+            Qe = self.Q[self.qDOF_P(frame_ID)]
+            r_xi = self.r_xi(1, qe, frame_ID)
+            r0_xi = self.r_xi(1, Qe, frame_ID)
+            la.append(norm(r_xi) / norm(r0_xi))
+        return np.array(la).T
+
 
 class RopeInternalFluid(Rope):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        self.pressure = lambda t: t * 2.0e1
+        # super().__init__(*args, **kwargs)
+        # self.pressure = kwargs.get("pressure")
+        super().__init__(*args[1:], **kwargs)
+        self.pressure = args[0]
 
     def f_npot(self, t, q, u):
         f = np.zeros(self.nu, dtype=q.dtype)
