@@ -4,10 +4,7 @@ from cardillo.utility.coo import Coo
 from cardillo.discretization.lagrange import Node_vector
 from cardillo.discretization.mesh1D import Mesh1D
 from cardillo.math import (
-    # pi,
     norm,
-    # cross3,
-    # ax2skew,
     approx_fprime,
 )
 
@@ -243,6 +240,7 @@ class Rope:
             # sparse assemble element internal stiffness matrix
             coo.extend(f_pot_q_el, (self.uDOF[elDOF], self.qDOF[elDOF]))
 
+    # TODO:
     def f_pot_q_el(self, qe, el):
         return approx_fprime(
             qe, lambda qe: self.f_pot_el(qe, el), eps=1.0e-10, method="cs"
@@ -296,16 +294,6 @@ class Rope:
         for node in range(self.nnodes_element):
             r_OP_q[:, self.nodalDOF_element[node]] += N[node] * np.eye(3, dtype=float)
         return r_OP_q
-
-        # r_OP_q_num = approx_fprime(
-        #     q, lambda q: self.r_OP(t, q, frame_ID, K_r_SP), eps=1.0e-10, method="cs"
-        # )
-        # diff = r_OP_q - r_OP_q_num
-        # error = np.linalg.norm(diff)
-        # np.set_printoptions(3, suppress=True)
-        # # if error > 1.0e-10:
-        # print(f"error r_OP_q: {error}")
-        # return r_OP_q_num
 
     def v_P(self, t, q, u, frame_ID, K_r_SP=None):
         # evaluate shape functions

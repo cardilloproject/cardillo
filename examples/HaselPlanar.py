@@ -13,14 +13,12 @@ from cardillo.solver import (
 from cardillo.math import e1, e2, e3
 
 import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
 
 
 if __name__ == "__main__":
     # statics or dynamics?
-    # statics = True
-    statics = False
+    statics = True
+    # statics = False
 
     # solver parameter
     if statics:
