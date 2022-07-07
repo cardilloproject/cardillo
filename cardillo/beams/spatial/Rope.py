@@ -137,6 +137,24 @@ class Rope:
 
         return q
 
+    @staticmethod
+    def quarter_circle_configuration(
+        polynomial_degree,
+        nelement,
+        R,
+    ):
+        nn = polynomial_degree * nelement + 1
+
+        r0 = np.zeros((3, nn), dtype=float)
+        for i in range(nn):
+            phi_i = i * np.pi / (2 * (nn - 1))
+            r0[0, i] = R * np.sin(phi_i)
+            r0[1, i] = R * np.cos(phi_i)
+
+        # reshape generalized coordinates to nodal ordering
+        q = r0.reshape(-1, order="F")
+        return q
+
     def element_number(self, xi):
         return self.knot_vector.element_number(xi)[0]
 
@@ -455,3 +473,136 @@ class Rope:
     def plot_centerline(self, ax, q, n=100, color="black"):
         ax.plot(*self.nodes(q), linestyle="dashed", marker="o", color=color)
         ax.plot(*self.centerline(q, n=n), linestyle="solid", color=color)
+
+
+class RopeInternalFluid(Rope):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.pressure = lambda t: t * 2.0e1
+
+    def f_npot(self, t, q, u):
+        f = np.zeros(self.nu, dtype=q.dtype)
+        for el in range(self.nelement):
+            elDOF = self.elDOF[el]
+            f[elDOF] += self.f_npot_el(t, q[elDOF], u[elDOF], el)
+        return f
+
+    def f_npot_el(self, t, qe, ue, el):
+        pressure = self.pressure(t)
+
+        f_el = np.zeros(self.nu_element, dtype=qe.dtype)
+        for i in range(self.nquadrature):
+            # extract reference state variables
+            qwi = self.qw[el, i]
+
+            # interpolate tangent vector
+            r_xi = np.zeros(3, dtype=qe.dtype)
+            for node in range(self.nnodes_element):
+                r_xi += self.N_xi[el, i, node] * qe[self.nodalDOF_element[node]]
+
+            # counterclockwise rotated tangent vector
+            r_xi_perp = np.array([-r_xi[1], r_xi[0], 0.0], dtype=qe.dtype)
+
+            # assemble
+            for node in range(self.nnodes_element):
+                f_el[self.nodalDOF_element[node]] += (
+                    self.N[el, i, node] * pressure * r_xi_perp * qwi
+                )
+        return f_el
+
+    def f_npot_q(self, t, q, u, coo):
+        for el in range(self.nelement):
+            elDOF = self.elDOF[el]
+            f_npot_q_el = self.f_npot_q_el(t, q[elDOF], u[elDOF], el)
+
+            # sparse assemble element internal stiffness matrix
+            coo.extend(f_npot_q_el, (self.uDOF[elDOF], self.qDOF[elDOF]))
+
+    def f_npot_q_el(self, t, qe, ue, el):
+        f_npot_q_el_num = approx_fprime(
+            qe, lambda qe: self.f_npot_el(t, qe, ue, el), eps=1.0e-10, method="cs"
+        )
+        # diff = f_pot_q_el - f_npot_q_el_num
+        # error = np.linalg.norm(diff)
+        # print(f"error f_pot_q_el: {error}")
+        return f_npot_q_el_num
+
+    def f_pot_el(self, qe, el):
+        # rope part of the internal forces
+        f_pot_el = super().f_pot_el(qe, el)
+        return f_pot_el
+
+    # def f_pot_q_el(self, qe, el):
+    #     f_pot_q_el_num = approx_fprime(
+    #         qe, lambda qe: self.f_pot_el(qe, el), eps=1.0e-10, method="cs"
+    #     )
+    #     # diff = f_pot_q_el - f_pot_q_el_num
+    #     # error = np.linalg.norm(diff)
+    #     # print(f"error f_pot_q_el: {error}")
+    #     return f_pot_q_el_num
+
+
+# class InternalFluidRope:
+#     def __init__(self, k_f, rope) -> None:
+#         self.potential = QuadraticPotential(k_f)
+#         self.rope = rope
+
+#     def assembler_callback(self):
+#         self.qDOF = self.rope.qDOF
+#         self.uDOF = self.rope.uDOF
+#         self.__nq = self.rope.nq
+#         self.__nu = self.rope.nu
+
+#     def E_pot(self, t, q):
+#         raise NotImplementedError
+
+#     def f_pot(self, t, q):
+#         f_pot = np.zeros(self.__nu, dtype=q.dtype)
+#         for el in range(self.rope.nelement):
+#             elDOF = self.elDOF[el]
+#             f_pot[elDOF] += self.f_pot_el(q[elDOF], el)
+#         return f_pot
+
+#     def f_pot_el(self, qe, el):
+#         f_pot_el = np.zeros(self.nq_element, dtype=qe.dtype)
+
+#         for i in range(self.nquadrature):
+#             # extract reference state variables
+#             qwi = self.qw[el, i]
+#             Ji = self.J[el, i]
+
+#             # interpolate tangent vector
+#             r_xi = np.zeros(3, dtype=qe.dtype)
+#             for node in range(self.nnodes_element):
+#                 r_xi += self.N_xi[el, i, node] * qe[self.nodalDOF_element[node]]
+
+#             # length of the current tangent vector
+#             ji = norm(r_xi)
+
+#             # axial strain
+#             la = ji / Ji
+#             la0 = 1.0
+
+#             # compute contact forces and couples from partial derivatives of
+#             # the strain energy function w.r.t. strain measures
+#             n = self.material_model.pot_g(la, la0)
+
+#             # unit tangent vector
+#             e = r_xi / ji
+
+#             # assemble internal forces
+#             for node in range(self.nnodes_element):
+#                 f_pot_el[self.nodalDOF_element[node]] -= (
+#                     self.N_xi[el, i, node] * e * n * qwi
+#                 )
+
+#         return f_pot_el
+
+#     def f_pot_q(self, t, q, coo):
+#         dense = approx_fprime(
+#             q,
+#             lambda q: self.f_pot(t, q),
+#             method="cs"
+#         )
+#         coo.extend(dense, (self.uDOF, self.qDOF))
