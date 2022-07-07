@@ -75,7 +75,7 @@ model.assemble()
 def transient():
     t1 = 10
     tol = 1.0e-8
-    h = 1.0e-1
+    h = 1.0e-2
 
     def export_la_g(sol, name):
         header = "t, la_g0, la_g1, la_g2"

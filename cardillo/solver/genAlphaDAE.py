@@ -1875,8 +1875,11 @@ class GenAlphaFirstOrder:
             Delta_alpha = self.alpha_m - self.alpha_f  # Arnold2015b (41)
 
             t0_plus = t0 + s * dt
-            q0_plus = q0 + s * dt * q_dot0
             u0_plus = u0 + s * dt * u_dot0
+            q0_plus = q0 + s * dt * q_dot0
+            q0_plus = q0 + self.model.q_dot(
+                t0, q0, u0_plus + s**2 * dt**2 * u_dot0 / 2
+            )
             (
                 q_dot0_plus,
                 u_dot0_plus,
@@ -1888,15 +1891,16 @@ class GenAlphaFirstOrder:
             )
             y0_plus = np.concatenate((q_dot0_plus, u_dot0_plus))
 
-            t_minus = t0 - s * dt
-            q_minus = q0 - s * dt * q_dot0
-            u_minus = u0 - s * dt * u_dot0
+            t0_minus = t0 - s * dt
+            u0_minus = u0 - s * dt * u_dot0
+            q0_minus = q0 - s * dt * q_dot0
+            # q0_minus = q0 + self.model.q_dot(t0, q0, u0_minus - s**2 * dt**2 * u_dot0 / 2)
             (
                 q_dot0_minus,
                 u_dot0_minus,
                 la_g0_minus,
                 la_gamma0_minus,
-            ) = consistent_initial_values(t_minus, q_minus, u_minus)
+            ) = consistent_initial_values(t0_minus, q0_minus, u0_minus)
             y0_minus = np.concatenate((q_dot0_minus, u_dot0_minus))
 
             y0 = x_dot0 + Delta_alpha * dt * (y0_plus - y0_minus) / (2.0 * s * dt)
