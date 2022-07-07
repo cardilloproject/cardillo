@@ -13,10 +13,11 @@ from .spatial import (
     TimoshenkoQuarternionSE3,
     # BernoulliAxisAngleSE3,
     TimoshenkoAxisAngleSE3,
+    Rope,
 )
 
 from .planar import (
     EulerBernoulli2D,
 )
 
-from .animate import animate_beam
+from .animate import animate_beam, animate_rope

@@ -26,3 +26,5 @@ from .Timoshenko import (
     # BernoulliAxisAngleSE3,
 )
 from .SE3 import TimoshenkoAxisAngleSE3
+
+from .Rope import Rope
