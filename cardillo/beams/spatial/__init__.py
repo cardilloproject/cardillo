@@ -27,4 +27,4 @@ from .Timoshenko import (
 )
 from .SE3 import TimoshenkoAxisAngleSE3
 
-from .Rope import Rope, RopeInternalFluid
+from .Rope import Rope, InflatedRope, RopeInternalFluid

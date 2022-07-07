@@ -14,6 +14,7 @@ from .spatial import (
     # BernoulliAxisAngleSE3,
     TimoshenkoAxisAngleSE3,
     Rope,
+    InflatedRope,
     RopeInternalFluid,
 )
 
