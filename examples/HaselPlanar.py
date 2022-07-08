@@ -465,7 +465,7 @@ def inflated_circular_segment():
     if statics:
         atol = 1.0e-8
         rtol = 0.0
-        n_load_steps = 50
+        n_load_steps = 10
         max_iter = 40
     else:
         atol = 1.0e-6
@@ -476,10 +476,10 @@ def inflated_circular_segment():
         # method = "RK23"
 
     # discretization properties
-    nelements = 5
-    # polynomial_degree = 1
+    nelements = 10
+    # polynomial_degree = 2
     # basis = "Lagrange"
-    polynomial_degree = 3
+    polynomial_degree = 2
     basis = "B-spline"
     # polynomial_degree = 3
     # basis = "Hermite"
@@ -489,11 +489,11 @@ def inflated_circular_segment():
     R = 1
     # phi = np.pi / 6
     phi = np.pi / 4
-    k_e = 1.0e4
-    k_a = 1.0e4
-    # k_e = 1.0e6
-    # k_a = 1.0e6
-    A_rho0_inertia = 1.0e0
+    # k_e = 1.0e4
+    # k_a = 1.0e4
+    k_e = 1.0e6
+    k_a = 1.0e6
+    A_rho0_inertia = 1.0e2
     if statics:
         A_rho0_gravity = 5.0e1
     else:
@@ -509,7 +509,7 @@ def inflated_circular_segment():
     )
 
     # hydrostatic pressure
-    rho_g = 1.0e1
+    rho_g = 1.0e0
     h0 = Q.reshape(-1, 3)[0][0]
 
     # Manipulate initial configuration in order to overcome singular initial
@@ -527,9 +527,21 @@ def inflated_circular_segment():
         q0 = Q.copy()
 
     # build rope class
-    rope = RopeHydrostaticPressure(
+    # rope = RopeHydrostaticPressure(
+    #     rho_g,
+    #     h0,
+    #     k_e,
+    #     polynomial_degree,
+    #     A_rho0_inertia,
+    #     nelements,
+    #     Q,
+    #     q0=q0,
+    #     basis=basis,
+    # )
+    rope = RopeInternalFluid(
         rho_g,
         h0,
+        k_a,
         k_e,
         polynomial_degree,
         A_rho0_inertia,
@@ -538,9 +550,6 @@ def inflated_circular_segment():
         q0=q0,
         basis=basis,
     )
-    # rope = RopeInternalFluid(
-    #     k_a, k_e, polynomial_degree, A_rho0_inertia, nelements, Q, q0=q0, basis=basis
-    # )
 
     # left joint
     r_OP0 = Q.reshape(-1, 3)[0]
@@ -652,6 +661,12 @@ def inflated_circular_segment():
     l = 2 * pi * r
     L = 2 * pi * R
     print(f"l / L: {l / L}")
+
+    # initial vs. current area
+    A = rope.area(q[0])
+    a = rope.area(q[-1])
+    print(f"A: {A}")
+    print(f"a: {a}")
 
     # stretch of the final configuration
     n = 100

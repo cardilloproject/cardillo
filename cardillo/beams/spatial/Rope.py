@@ -59,7 +59,9 @@ class Rope:
 
         # discretization parameters
         self.polynomial_degree = polynomial_degree
-        self.nquadrature = nquadrature = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
+        self.nquadrature = nquadrature = (
+            int(np.ceil((polynomial_degree + 1) ** 2 / 2)) * 2
+        )
         self.nelement = nelement  # number of elements
 
         # chose basis
@@ -667,10 +669,11 @@ class InflatedRope(Rope):
 
 class RopeInternalFluid(Rope):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args[1:], **kwargs)
-        k_a = args[0]
-        self.k_a = k_a
-        self.potential = QuadraticPotential(k_a)
+        super().__init__(*args[3:], **kwargs)
+        self.rho_g_fluid = args[0]
+        self.h0 = args[1]
+        self.k_a = args[2]
+        self.potential = QuadraticPotential(self.k_a)
         self.A = self.area(self.Q)
 
     def area(self, q):
@@ -720,12 +723,19 @@ class RopeInternalFluid(Rope):
                     r += self.N[el, i, node] * qe[self.nodalDOF_element[node]]
                     r_xi += self.N_xi[el, i, node] * qe[self.nodalDOF_element[node]]
 
+                # height of the current position
+                h = r @ e1
+                hydrostatic_pressure = t * self.rho_g_fluid * (h - self.h0)
+
                 # counterclockwise rotated tangent vector
                 r_perp = np.array([-r[1], r[0], 0.0], dtype=qe.dtype)
                 r_xi_perp = np.array([-r_xi[1], r_xi[0], 0.0], dtype=qe.dtype)
 
                 # assemble
                 for node in range(self.nnodes_element):
+                    f_el[self.nodalDOF_element[node]] += (
+                        self.N[el, i, node] * hydrostatic_pressure * r_xi_perp * qwi
+                    )
                     f_el[self.nodalDOF_element[node]] -= (
                         0.5 * self.N[el, i, node] * pressure_fluid * r_xi_perp * qwi
                     )
