@@ -16,6 +16,7 @@ from .spatial import (
     Rope,
     InflatedRope,
     RopeInternalFluid,
+    RopeHydrostaticPressure,
 )
 
 from .planar import (

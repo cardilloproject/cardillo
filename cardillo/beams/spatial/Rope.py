@@ -2,10 +2,13 @@ import numpy as np
 
 from cardillo.utility.coo import Coo
 from cardillo.discretization.lagrange import Node_vector
+from cardillo.discretization.B_spline import KnotVector
+from cardillo.discretization.Hermite import HermiteNodeVector
 from cardillo.discretization.mesh1D import Mesh1D
 from cardillo.math import (
     norm,
     approx_fprime,
+    e1,
 )
 
 
@@ -23,6 +26,20 @@ class QuadraticPotential:
         return self.k
 
 
+class NonlinearPotential:
+    def __init__(self, k):
+        self.k = k
+
+    def pot(self, g, g0):
+        raise NotImplementedError
+
+    def pot_g(self, g, g0):
+        return (self.k / 3.0) * (g - 1.0 / g**2)
+
+    def pot_gg(self, g, g0):
+        return (self.k / 3.0) * (1.0 + 2.0 / g**3)
+
+
 class Rope:
     def __init__(
         self,
@@ -33,9 +50,11 @@ class Rope:
         Q,
         q0=None,
         u0=None,
+        basis="Lagrange",
     ):
         # beam properties
-        self.material_model = QuadraticPotential(k_e)  # material model
+        self.material_model = QuadraticPotential(k_e)
+        # self.material_model = NonlinearPotential(k_e)
         self.A_rho0 = A_rho0  # line density
 
         # discretization parameters
@@ -43,15 +62,24 @@ class Rope:
         self.nquadrature = nquadrature = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
         self.nelement = nelement  # number of elements
 
-        # TODO: Generalize for arbitrary shape functions
-        self.knot_vector = Node_vector(self.polynomial_degree, nelement)
+        # chose basis
+        self.basis = basis
+        if basis == "Lagrange":
+            self.knot_vector = Node_vector(polynomial_degree, nelement)
+        elif basis == "B-spline":
+            self.knot_vector = KnotVector(polynomial_degree, nelement)
+        elif basis == "Hermite":
+            assert polynomial_degree == 3, "only cubic Hermite splines are implemented!"
+            self.knot_vector = HermiteNodeVector(polynomial_degree, nelement)
+        else:
+            raise RuntimeError(f'wrong basis: "{basis}" was chosen')
 
         # build mesh object
         self.mesh = Mesh1D(
             self.knot_vector,
             nquadrature,
             derivative_order=1,
-            basis="Lagrange",
+            basis=basis,
             dim_q=3,
         )
 
@@ -116,21 +144,46 @@ class Rope:
 
     @staticmethod
     def straight_configuration(
+        basis,
         polynomial_degree,
         nelement,
         L,
         r_OP=np.zeros(3, dtype=float),
         A_IK=np.eye(3, dtype=float),
     ):
-        nn = polynomial_degree * nelement + 1
+        if basis == "Lagrange":
+            nn = polynomial_degree * nelement + 1
+        elif basis == "B-spline":
+            nn = polynomial_degree + nelement
+        elif basis == "Hermite":
+            assert polynomial_degree == 3, "only cubic Hermite splines are implemented!"
+            nn = nelement + 1
+        else:
+            raise RuntimeError(f'wrong basis: "{basis}" was chosen')
 
-        x0 = np.linspace(0, L, num=nn)
-        y0 = np.zeros(nn, dtype=float)
-        z0 = np.zeros(nn, dtype=float)
+        if basis in ["Lagrange", "B-spline"]:
+            x0 = np.linspace(0, L, num=nn)
+            y0 = np.zeros(nn)
+            z0 = np.zeros(nn)
+            # build Greville abscissae for B-spline basis
+            if basis == "B-spline":
+                kv = KnotVector.uniform(polynomial_degree, nelement)
+                for i in range(nn):
+                    x0[i] = np.sum(kv[i + 1 : i + polynomial_degree + 1])
+                x0 = x0 * L / polynomial_degree
 
-        r0 = np.vstack((x0, y0, z0))
-        for i in range(nn):
-            r0[:, i] = r_OP + A_IK @ r0[:, i]
+            r0 = np.vstack((x0, y0, z0))
+            for i in range(nn):
+                r0[:, i] = r_OP + A_IK @ r0[:, i]
+
+        elif basis == "Hermite":
+            xis = np.linspace(0, 1, num=nn)
+            r0 = np.zeros((6, nn))
+            t0 = A_IK @ (L * e1)
+            for i, xi in enumerate(xis):
+                ri = r_OP + xi * t0
+                r0[:3, i] = ri
+                r0[3:, i] = t0
 
         # reshape generalized coordinates to nodal ordering
         q = r0.reshape(-1, order="F")
@@ -139,11 +192,21 @@ class Rope:
 
     @staticmethod
     def quarter_circle_configuration(
+        basis,
         polynomial_degree,
         nelement,
         R,
     ):
-        nn = polynomial_degree * nelement + 1
+        if basis == "Lagrange":
+            nn = polynomial_degree * nelement + 1
+        elif basis == "B-spline":
+            print(f"quarter_circle_configuration is not correct for B-spline basis!")
+            nn = polynomial_degree + nelement
+        # elif basis == "Hermite":
+        #     assert polynomial_degree == 3, "only cubic Hermite splines are implemented!"
+        #     nn = nelement + 1
+        else:
+            raise RuntimeError(f'wrong basis: "{basis}" was chosen')
 
         r0 = np.zeros((3, nn), dtype=float)
         for i in range(nn):
@@ -157,12 +220,22 @@ class Rope:
 
     @staticmethod
     def circular_segment_configuration(
+        basis,
         polynomial_degree,
         nelement,
         R,
         phi,
     ):
-        nn = polynomial_degree * nelement + 1
+        if basis == "Lagrange":
+            nn = polynomial_degree * nelement + 1
+        elif basis == "B-spline":
+            print(f"circular_segment_configuration is not correct for B-spline basis!")
+            nn = polynomial_degree + nelement
+        # elif basis == "Hermite":
+        #     assert polynomial_degree == 3, "only cubic Hermite splines are implemented!"
+        #     nn = nelement + 1
+        else:
+            raise RuntimeError(f'wrong basis: "{basis}" was chosen')
 
         r0 = np.zeros((3, nn), dtype=float)
         for i in range(nn):
@@ -671,3 +744,82 @@ class RopeInternalFluid(Rope):
             # q, lambda q: self.f_npot(t, q, u), eps=1.0e-6, method="3-point"
         )
         coo.extend(dense, (self.uDOF, self.qDOF))
+
+
+class RopeHydrostaticPressure(Rope):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args[2:], **kwargs)
+        self.rho_g_fluid = args[0]
+        self.h0 = args[1]
+
+    def area(self, q):
+        a = np.zeros(1, dtype=q.dtype)[0]
+        for el in range(self.nelement):
+            qe = q[self.elDOF[el]]
+
+            for i in range(self.nquadrature):
+                # extract reference state variables
+                qwi = self.qw[el, i]
+
+                # interpolate tangent vector
+                r = np.zeros(3, dtype=qe.dtype)
+                r_xi = np.zeros(3, dtype=qe.dtype)
+                for node in range(self.nnodes_element):
+                    r += self.N[el, i, node] * qe[self.nodalDOF_element[node]]
+                    r_xi += self.N_xi[el, i, node] * qe[self.nodalDOF_element[node]]
+
+                # counterclockwise rotated tangent vector
+                r_xi_perp = np.array([-r_xi[1], r_xi[0], 0.0], dtype=qe.dtype)
+
+                # integrate area
+                a += 0.5 * r @ r_xi_perp * qwi
+        return a
+
+    def f_npot(self, t, q, u):
+        f = np.zeros(self.nu, dtype=q.dtype)
+        for el in range(self.nelement):
+            elDOF = self.elDOF[el]
+            f[elDOF] += self.f_npot_el(t, q[elDOF], u[elDOF], el)
+        return f
+
+    def f_npot_el(self, t, qe, ue, el):
+        f_el = np.zeros(self.nu_element, dtype=qe.dtype)
+        for i in range(self.nquadrature):
+            # extract reference state variables
+            qwi = self.qw[el, i]
+
+            # interpolate tangent vector
+            r = np.zeros(3, dtype=qe.dtype)
+            r_xi = np.zeros(3, dtype=qe.dtype)
+            for node in range(self.nnodes_element):
+                r += self.N[el, i, node] * qe[self.nodalDOF_element[node]]
+                r_xi += self.N_xi[el, i, node] * qe[self.nodalDOF_element[node]]
+
+            # height of the current position
+            h = r @ e1
+            pressure = t * self.rho_g_fluid * (h - self.h0)
+            # pressure = self.rho_g_fluid * h
+
+            # counterclockwise rotated tangent vector
+            r_xi_perp = np.array([-r_xi[1], r_xi[0], 0.0], dtype=qe.dtype)
+
+            # assemble
+            for node in range(self.nnodes_element):
+                f_el[self.nodalDOF_element[node]] += (
+                    self.N[el, i, node] * pressure * r_xi_perp * qwi
+                )
+        return f_el
+
+    def f_npot_q(self, t, q, u, coo):
+        for el in range(self.nelement):
+            elDOF = self.elDOF[el]
+            f_npot_q_el = self.f_npot_q_el(t, q[elDOF], u[elDOF], el)
+
+            # sparse assemble element internal stiffness matrix
+            coo.extend(f_npot_q_el, (self.uDOF[elDOF], self.qDOF[elDOF]))
+
+    def f_npot_q_el(self, t, qe, ue, el):
+        f_npot_q_el_num = approx_fprime(
+            qe, lambda qe: self.f_npot_el(t, qe, ue, el), eps=1.0e-10, method="cs"
+        )
+        return f_npot_q_el_num
