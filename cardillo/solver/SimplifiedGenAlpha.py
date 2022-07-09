@@ -444,7 +444,7 @@ class SimplifiedGeneralizedAlpha:
         )
 
 
-class SimplifiedGeneralizedAlpha2:
+class SimplifiedGeneralizedAlphaFirstOrder:
     """Simplified generalized-alpha solver for mechanical systems with frictional contact."""
 
     def __init__(

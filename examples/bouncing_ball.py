@@ -13,7 +13,7 @@ from cardillo.forces import Force
 from cardillo.contacts import Sphere2Plane
 from cardillo.solver import (
     Moreau,
-    SimplifiedGeneralizedAlpha2,
+    SimplifiedGeneralizedAlphaFirstOrder,
 )
 
 
@@ -89,7 +89,7 @@ if __name__ == "__main__":
     # dt = 5e-3
     # dt = 1e-3
 
-    sol_g = SimplifiedGeneralizedAlpha2(model, t1, dt, atol=1.0e-8).solve()
+    sol_g = SimplifiedGeneralizedAlphaFirstOrder(model, t1, dt, atol=1.0e-8).solve()
     t_g = t = sol_g.t
     q_g = q = sol_g.q
     u_g = sol_g.u

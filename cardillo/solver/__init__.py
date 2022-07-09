@@ -7,7 +7,10 @@ from .Moreau import Moreau
 from .MoreauGGL import MoreauGGL
 from .EulerBackward import EulerBackward
 from .HalfExplicit import HalfExplicitEulerFixedPoint
-from .SimplifiedGenAlpha import SimplifiedGeneralizedAlpha, SimplifiedGeneralizedAlpha2
+from .SimplifiedGenAlpha import (
+    SimplifiedGeneralizedAlpha,
+    SimplifiedGeneralizedAlphaFirstOrder,
+)
 
 # TODO: gen alpha solvers
 from .genAlphaDAE import *
