@@ -11,7 +11,10 @@ from cardillo.model.rigid_body import RigidBodyEuler
 from cardillo.model.frame import Frame
 from cardillo.forces import Force
 from cardillo.contacts import Sphere2Plane
-from cardillo.solver import Moreau, MoreauGGL
+from cardillo.solver import (
+    Moreau,
+    SimplifiedGeneralizedAlpha2,
+)
 
 
 class Ball(RigidBodyEuler):
@@ -40,16 +43,14 @@ if __name__ == "__main__":
     phi_dot0 = 50
     r_OS0 = np.array([x0, y0, 0])
     vS0 = np.array([x_dot0, y_dot0, 0])
-    # q0 = np.array([r_OS0[0], r_OS0[1], phi0])
-    # u0 = np.array([vS0[0], vS0[1], phi_dot0])
     q0 = np.concatenate([r_OS0, np.array([phi0, 0, 0])])
     u0 = np.concatenate([vS0, np.array([0, 0, phi_dot0])])
     RB = Ball(m, r, q0, u0)
 
     e1, e2, e3 = np.eye(3)
     frame = Frame(A_IK=np.vstack((e3, e1, e2)).T, r_OP=np.array([0, 0, 0]))
-    mu = 0.0  # no friction
-    # mu = 0.2
+    # mu = 0.0  # no friction
+    mu = 0.2
     r_N = 0.1
     e_N = 0.5
     plane = Sphere2Plane(frame, RB, r, mu, prox_r_N=r_N, prox_r_F=r_N, e_N=e_N, e_F=0)
@@ -76,41 +77,29 @@ if __name__ == "__main__":
     model = Model()
     model.add(RB)
     model.add(Force(lambda t: np.array([0, -g * m, 0]), RB))
-    # model.add(plane)
-    # model.add(plane_left)
     model.add(plane)
     # model.add(plane_right)
     # model.add(plane_left)
     model.assemble()
 
     t0 = 0
-    t1 = 1.5
-    dt = 5e-3
+    t1 = 2
+    dt = 5e-2
+    # dt = 1e-2
+    # dt = 5e-3
+    # dt = 1e-3
 
-    # solver_fp = Moreau(model, t1, dt)
-    # sol_fp = solver_fp.solve()
-    # t_fp = sol_fp.t
-    # q_fp = sol_fp.q
-    # u_fp = sol_fp.u
-    # la_N_fp = sol_fp.la_N
-    # la_F_fp = sol_fp.la_F
-
-    # solver_n = Generalized_alpha_3(model, t1, dt, rho_inf=1, numerical_jacobian=0)
-    # solver_n = Moreau(model, t1, dt)
-    solver_n = MoreauGGL(model, t1, dt, max_iter=50, tol=1.0e-4)
-    sol_n = solver_n.solve()
-    # sol_n = sol_fp
-    t_n = t = sol_n.t
-    q_n = q = sol_n.q
-    u_n = sol_n.u
-    # a_n = sol_n.a
-    # la_N_n = sol_n.la_N
-    # la_F_n = sol_n.la_F
-    # la_N_n = sol_n.P_N
-    # la_F_n = sol_n.P_F
-
-    P_N_n = sol_n.P_N
-    # P_F_n = sol_n.P_F
+    sol_g = SimplifiedGeneralizedAlpha2(model, t1, dt, atol=1.0e-8).solve()
+    t_g = t = sol_g.t
+    q_g = q = sol_g.q
+    u_g = sol_g.u
+    a_g = sol_g.a
+    la_N_g = sol_g.la_N
+    la_F_g = sol_g.la_F
+    La_N_g = sol_g.La_N
+    La_F_g = sol_g.La_F
+    P_N_g = sol_g.P_N
+    P_F_g = sol_g.P_F
 
     solver_fp = Moreau(model, t1, dt)
     sol_fp = solver_fp.solve()
@@ -124,129 +113,82 @@ if __name__ == "__main__":
 
     fig, ax = plt.subplots(3, 1)
     ax[0].set_title("x(t)")
-    ax[0].plot(t_fp, q_fp[:, 0], "-r", label="fixed_point")
-    ax[0].plot(t_n, q_n[:, 0], "--b", label="newton")
+    ax[0].plot(t_fp, q_fp[:, 0], "-r", label="Moreau")
+    ax[0].plot(t_g, q_g[:, 0], "--b", label="GenAlpha")
     ax[0].legend()
 
     ax[1].set_title("u_x(t)")
-    ax[1].plot(t_fp, u_fp[:, 0], "-r", label="fixed_point")
-    ax[1].plot(t_n, u_n[:, 0], "--b", label="newton")
+    ax[1].plot(t_fp, u_fp[:, 0], "-r", label="Moreau")
+    ax[1].plot(t_g, u_g[:, 0], "--b", label="GenAlpha")
     ax[1].legend()
 
-    # ax[2].set_title('a_x(t)')
-    # ax[2].plot(t_fp, a_fp[:, 0], '-r', label='fixed_point')
-    # ax[2].plot(t_n, a_n[:, 0], '--b', label='newton')
-    # ax[2].legend()
+    ax[2].set_title("a_x(t)")
+    ax[2].plot(t_fp, a_fp[:, 0], "-r", label="Moreau")
+    ax[2].plot(t_g, a_g[:, 0], "--b", label="GenAlpha")
+    ax[2].legend()
+
+    plt.tight_layout()
 
     fig, ax = plt.subplots(3, 1)
     ax[0].set_title("y(t)")
-    ax[0].plot(t_fp, q_fp[:, 1], "-r", label="fixed_point")
-    ax[0].plot(t_n, q_n[:, 1], "--b", label="newton")
+    ax[0].plot(t_fp, q_fp[:, 1], "-r", label="Moreau")
+    ax[0].plot(t_g, q_g[:, 1], "--b", label="GenAlpha")
     ax[0].legend()
 
     ax[1].set_title("u_y(t)")
-    ax[1].plot(t_fp, u_fp[:, 1], "-r", label="fixed_point")
-    ax[1].plot(t_n, u_n[:, 1], "--b", label="newton")
+    ax[1].plot(t_fp, u_fp[:, 1], "-r", label="Moreau")
+    ax[1].plot(t_g, u_g[:, 1], "--b", label="GenAlpha")
     ax[1].legend()
 
-    # ax[2].set_title('a_y(t)')
-    # ax[2].plot(t_fp, a_fp[:, 1], '-r', label='fixed_point')
-    # ax[2].plot(t_n, a_n[:, 1], '--b', label='newton')
-    # ax[2].legend()
+    ax[2].set_title("a_y(t)")
+    ax[2].plot(t_fp, a_fp[:, 1], "-r", label="Moreau")
+    ax[2].plot(t_g, a_g[:, 1], "--b", label="GenAlpha")
+    ax[2].legend()
 
-    # fig, ax = plt.subplots(3, 1)
-    # ax[0].set_title('phi(t)')
-    # ax[0].plot(t_fp, q_fp[:, 3], '-r', label='fixed_point')
-    # ax[0].plot(t_n, q_n[:, 3], '--b', label='newton')
-    # ax[0].legend()
+    plt.tight_layout()
 
-    # ax[1].set_title('u_phi(t)')
-    # ax[1].plot(t_fp, u_fp[:, -1], '-r', label='fixed_point')
-    # ax[1].plot(t_n, u_n[:, -1], '--b', label='newton')
-    # ax[1].legend()
+    fig, ax = plt.subplots(3, 1)
+    ax[0].set_title("phi(t)")
+    ax[0].plot(t_fp, q_fp[:, 3], "-r", label="Moreau")
+    ax[0].plot(t_g, q_g[:, 3], "--b", label="GenAlpha")
+    ax[0].legend()
 
-    # ax[2].set_title('a_phi(t)')
-    # ax[2].plot(t_fp, a_fp[:, -1], '-r', label='fixed_point')
-    # ax[2].plot(t_n, a_n[:, -1], '--b', label='newton')
-    # ax[2].legend()
+    ax[1].set_title("u_phi(t)")
+    ax[1].plot(t_fp, u_fp[:, -1], "-r", label="Moreau")
+    ax[1].plot(t_g, u_g[:, -1], "--b", label="GenAlpha")
+    ax[1].legend()
 
-    # fig, ax = plt.subplots(3, 1)
+    ax[2].set_title("a_phi(t)")
+    ax[2].plot(t_fp, a_fp[:, -1], "-r", label="Moreau")
+    ax[2].plot(t_g, a_g[:, -1], "--b", label="GenAlpha")
+    ax[2].legend()
 
-    # ax[0].set_title('x(t)')
-    # ax[0].plot(t_fp, q_fp[:, 0], '-r', label='fixed_point')
-    # ax[0].plot(t_n, q_n[:, 0], '--b', label='newton')
-    # ax[0].legend()
-
-    # ax[1].set_title('y(t)')
-    # ax[1].plot(t_fp, q_fp[:, 1], '-r', label='fixed_point')
-    # ax[1].plot(t_n, q_n[:, 1], '--b', label='newton')
-    # ax[1].legend()
-
-    # ax[2].set_title('phi(t)')
-    # ax[2].plot(t_fp, q_fp[:, 3], '-r', label='fixed_point')
-    # ax[2].plot(t_n, q_n[:, 3], '--b', label='newton')
-    # ax[2].legend()
-
-    # fig, ax = plt.subplots(3, 1)
-
-    # ax[0].set_title('u_x(t)')
-    # ax[0].plot(t_fp, u_fp[:, 0], '-r', label='fixed_point')
-    # ax[0].plot(t_n, u_n[:, 0], '--b', label='newton')
-    # ax[0].legend()
-
-    # ax[1].set_title('u_y(t)')
-    # ax[1].plot(t_fp, u_fp[:, 1], '-r', label='fixed_point')
-    # ax[1].plot(t_n, u_n[:, 1], '--b', label='newton')
-    # ax[1].legend()
-
-    # ax[2].set_title('u_phi(t)')
-    # ax[2].plot(t_fp, u_fp[:, 3], '-r', label='fixed_point')
-    # ax[2].plot(t_n, u_n[:, 3], '--b', label='newton')
-    # ax[2].legend()
+    plt.tight_layout()
 
     fig, ax = plt.subplots(3, 1)
 
     ax[0].set_title("P_N(t)")
-    ax[0].plot(t_fp, P_N_fp[:, 0], "-r", label="fixed_point")
-    # ax[0].plot(t_n, sol_n.la_N[:, 0]*dt, '--b', label='newton_la_N')
-    # ax[0].plot(t_n, sol_n.La_N[:, 0], '--g', label='newton_La_N')
-    ax[0].plot(t_n, P_N_n[:, 0], "--g", label="newton_P_N")
+    ax[0].plot(t_fp, P_N_fp[:, 0], "-r", label="Moreau")
+    ax[0].plot(t_g, la_N_g[:, 0], "--b", label="GenAlpha_la_N")
+    ax[0].plot(t_g, La_N_g[:, 0], "--g", label="GenAlpha_La_N")
+    ax[0].plot(t_g, P_N_g[:, 0], "--k", label="GenAlpha_P_N")
     ax[0].legend()
 
-    # ax[1].set_title("P_Fx(t)")
-    # ax[1].plot(t_fp, P_F_fp[:, 0], "-r", label="fixed_point")
-    # # ax[1].plot(t_n, sol_n.la_F[:, 0]*dt, '--b', label='newton_la_F')
-    # # ax[1].plot(t_n, sol_n.La_F[:, 0], '--g', label='newton_La_F')
-    # ax[1].plot(t_n, P_F_n[:, 0], "--g", label="newton_P_N")
-    # ax[1].legend()
+    ax[1].set_title("P_Fx(t)")
+    ax[1].plot(t_fp, P_F_fp[:, 0], "-r", label="Moreau")
+    ax[1].plot(t_g, la_F_g[:, 0], "--b", label="GenAlpha_la_F")
+    ax[1].plot(t_g, La_F_g[:, 0], "--g", label="GenAlpha_La_F")
+    ax[1].plot(t_g, P_F_g[:, 0], "--k", label="GenAlpha_P_N")
+    ax[1].legend()
 
-    # ax[2].set_title("P_Fy(t)")
-    # ax[2].plot(t_fp, P_F_fp[:, 1], "-r", label="fixed_point")
-    # # ax[2].plot(t_n, sol_n.la_F[:, 1]*dt, '--b', label='newton_la_F')
-    # # ax[2].plot(t_n, sol_n.La_F[:, 1], '--g', label='newton_La_F')
-    # ax[2].plot(t_n, P_F_n[:, 1], "--g", label="newton_P_N")
-    # ax[2].legend()
+    ax[2].set_title("P_Fy(t)")
+    ax[2].plot(t_fp, P_F_fp[:, 1], "-r", label="Moreau")
+    ax[2].plot(t_g, la_F_g[:, 1], "--b", label="GenAlpha_la_F")
+    ax[2].plot(t_g, La_F_g[:, 1], "--g", label="GenAlpha_La_F")
+    ax[2].plot(t_g, P_F_g[:, 1], "--k", label="GenAlpha_P_N")
+    ax[2].legend()
 
-    # ax[1].set_title('u_y(t)')
-    # ax[1].plot(t_fp, u_fp[:, 1], '-r', label='fixed_point')
-    # ax[1].plot(t_n, u_n[:, 1], '--b',  label='newton')
-    # ax[1].legend()
-
-    # fig, ax = plt.subplots(3, 1)
-    # ax[0].set_title('positions')
-    # ax[0].plot(t, q[:, 0], '-r', label='x(t)')
-    # ax[0].plot(t, q[:, 1], '-b', label='y(t)')
-    # ax[0].legend()
-
-    # ax[1].set_title('velocities')
-    # ax[1].plot(t, u[:, 0], '-r', label='x_dot(t)')
-    # ax[1].plot(t, u[:, 1], '-b', label='y_dot(t)')
-    # ax[1].legend()
-
-    # ax[2].set_title('contact forces')
-    # ax[2].plot(t, la_N[:, 0], '-r', label='P_N_left(t)')
-    # ax[2].plot(t, la_N[:, -1], '-b', label='P_N_right(t)')
-    # ax[2].legend()
+    plt.tight_layout()
 
     plt.show()
 
@@ -274,7 +216,11 @@ if __name__ == "__main__":
         q = q[::frac]
 
         # ax.plot([-2 * y0, 2 * y0], (y0-0.1)*np.array([1, 1]), '-k')
+
+        # horizontal plane
         ax.plot([-2 * y0, 2 * y0], [0, 0], "-k")
+
+        # # inclined planes
         # ax.plot([0, -y0 * np.cos(alpha)], [0, y0 * np.sin(alpha)], '-k')
         # ax.plot([0, y0 * np.cos(beta)], [0, - y0 * np.sin(beta)], '-k')
 
@@ -319,4 +265,5 @@ if __name__ == "__main__":
         anim = animation.FuncAnimation(
             fig, animate, frames=frames, interval=interval, blit=False
         )
+
         plt.show()

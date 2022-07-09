@@ -1,6 +1,5 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import pickle
 
 
 class Solution:
@@ -8,10 +7,6 @@ class Solution:
 
     def __init__(self, **kwargs):
         self.__dict__.update(**kwargs)
-
-    def save(self, filename):
-        with open(filename, mode="wb") as f:
-            pickle.dump(sol, f, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 def approx_fprime(x0, f, eps=1.0e-6, method="2-point"):
@@ -422,8 +417,7 @@ class GenAlpha2:
         ak1, Uk1, Qk1, kappak1, Lak1, lak1 = self.unpack(xk1)
         uk1 = self.uk + self.dt * ak1 + Uk1
         qk1 = self.qk + self.dt * self.uk + 0.5 * self.dt2 * ak1 + Qk1 + self.dt * Uk1
-        # uk1 = self.uk + self.dt * ak1 + self.dt * Uk1
-        # qk1 = self.qk + self.dt * self.uk + 0.5 * self.dt2 * ak1 + self.dt * Qk1 + 0.5 * self.dt2 * Uk1
+        # qk1 = self.qk + self.dt * self.uk + 0.5 * self.dt2 * ak1 + Qk1
         Pk1 = Lak1 + self.dt * lak1
         kappa_hatk1 = kappak1 + self.dt * Lak1 + 0.5 * self.dt2 * lak1
         return qk1, uk1, Pk1, kappa_hatk1
@@ -461,7 +455,8 @@ class GenAlpha2:
         R[1] = Mk1 @ Uk1 - W_Nk1 @ Lak1
 
         # position correction
-        R[2] = Mk1 @ Qk1 - W_Nk1 @ kappak1
+        # R[2] = Mk1 @ Qk1 - W_Nk1 @ kappak1
+        R[2] = Mk1 @ (Qk1 + dt * Uk1) - W_Nk1 @ kappak1
 
         prox_arg_position = g_Nk1 - self.model.prox_r * kappa_hatk1
         prox_arg_velocity = xi_Nk1 - self.model.prox_r * Pk1
