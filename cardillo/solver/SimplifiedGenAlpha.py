@@ -491,6 +491,9 @@ class SimplifiedGeneralizedAlphaFirstOrder:
         self.Qk = np.zeros(self.nu)
         self.Uk = np.zeros(self.nu)
 
+        # compute initial velocity of generalized coordinates
+        self.q_dotk = self.model.q_dot(t0, model.q0, model.u0)
+
         # solve for initial accelerations
         self.ak = spsolve(
             model.M(t0, model.q0, scipy_matrix=csr_matrix),
@@ -499,14 +502,12 @@ class SimplifiedGeneralizedAlphaFirstOrder:
             + self.model.W_F(t0, model.q0) @ self.model.la_F0,
         )
 
-        self.q_dotk = self.model.q_dot(t0, model.q0, model.u0)
-
         self.xk = np.concatenate(
             (
-                self.ak,
-                self.Uk,
                 self.q_dotk,
                 self.Qk,
+                self.ak,
+                self.Uk,
                 self.kappa_Nk,
                 self.La_Nk,
                 self.la_Nk,
@@ -529,36 +530,33 @@ class SimplifiedGeneralizedAlphaFirstOrder:
         nla_F = self.nla_F
         nR_s = self.nR_s
 
-        a = x[:nu]
-        U = x[nu : 2 * nu]
-        q_dot = x[2 * nu : 2 * nu + nq]
-        Q = x[2 * nu + nq : 2 * nu + 2 * nq]
+        q_dot = x[:nq]
+        Q = x[nq : 2 * nq]
+        a = x[2 * nq : 2 * nq + nu]
+        U = x[2 * nq + nu : 2 * nq + 2 * nu]
         kappa_N = x[nR_s : nR_s + nla_N]
         La_N = x[nR_s + nla_N : nR_s + 2 * nla_N]
         la_N = x[nR_s + 2 * nla_N : nR_s + 3 * nla_N]
         La_F = x[nR_s + 3 * nla_N : nR_s + 3 * nla_N + nla_F]
         la_F = x[nR_s + 3 * nla_N + nla_F : nR_s + 3 * nla_N + 2 * nla_F]
 
-        return a, U, q_dot, Q, kappa_N, La_N, la_N, La_F, la_F
+        return q_dot, Q, a, U, kappa_N, La_N, la_N, La_F, la_F
 
     def update(self, xk1):
         dt = self.dt
         dt2 = dt * dt
 
-        ak1, Uk1, q_dotk1, Qk1, kappa_Nk1, La_Nk1, la_Nk1, La_Fk1, la_Fk1 = self.unpack(
+        q_dotk1, Qk1, ak1, Uk1, kappa_Nk1, La_Nk1, la_Nk1, La_Fk1, la_Fk1 = self.unpack(
             xk1
         )
 
-        uk1 = self.uk + dt * ak1 + Uk1
-        # qk1 = self.qk + dt * self.uk + 0.5 * dt2 * ak1 + Qk1 + dt * Uk1
-        # qk1 = self.qk + dt * self.uk + 0.5 * dt2 * ak1 + dt * Uk1
-        # qk1 = self.qk + dt * self.uk + dt * Uk1
+        # update generalized coordinates and generalized velocities
         qk1 = self.qk + dt * q_dotk1 + Qk1
-        # TODO: A possible solution would look like this:
-        # qk1 = self.qk + dt * q_dotk1 + Qk1
-        # thus we have the unknowns q_dotk1 and Qk1 similar to ak1 and Uk1!
+        uk1 = self.uk + dt * ak1 + Uk1
+
+        # integrated contact contributions
         P_Nk1 = La_Nk1 + dt * la_Nk1
-        kappa_hat_Nk1 = kappa_Nk1 + dt * La_Nk1 + 0.5 * dt2 * la_Nk1
+        kappa_hat_Nk1 = kappa_Nk1 + dt * La_Nk1  # + 0.5 * dt2 * la_Nk1
         P_Fk1 = La_Fk1 + dt * la_Fk1
 
         return qk1, uk1, P_Nk1, kappa_hat_Nk1, P_Fk1
@@ -570,7 +568,7 @@ class SimplifiedGeneralizedAlphaFirstOrder:
         ###########################
         # unpack vector of unknowns
         ###########################
-        ak1, Uk1, q_dotk1, Qk1, kappak1, La_Nk1, la_Nk1, La_Fk1, la_Fk1 = self.unpack(
+        q_dotk1, Qk1, ak1, Uk1, kappak1, La_Nk1, la_Nk1, La_Fk1, la_Fk1 = self.unpack(
             xk1
         )
 
@@ -613,24 +611,24 @@ class SimplifiedGeneralizedAlphaFirstOrder:
         nR_s = self.nR_s
         R = np.empty(self.nR, dtype=xk1.dtype)
 
-        # equations of motion
-        R[:nu] = Mk1 @ ak1 - hk1 - W_Nk1 @ la_Nk1 - W_Fk1 @ la_Fk1
-
-        # impact equation
-        R[nu : 2 * nu] = Mk1 @ Uk1 - W_Nk1 @ La_Nk1 - W_Fk1 @ La_Fk1
-
         # kinematic equation
-        # R[2 * nu : 2 * nu + nq] = q_dotk1 - self.model.q_dot(tk1, qk1, uk1)
-        R[2 * nu : 2 * nu + nq] = q_dotk1 - self.model.q_dot(
+        # R[: nq] = q_dotk1 - self.model.q_dot(tk1, qk1, uk1)
+        R[:nq] = q_dotk1 - self.model.q_dot(
             tk1, qk1, self.uk + dt * ak1
-        )  # This is the solution!
+        )  # This is the solution: Only use the smooth part of the velocity!
 
         # position correction
-        # R[2 * nu : 3 * nu] = Mk1 @ Qk1 - W_Nk1 @ kappak1 - 0.5 * dt * W_Fk1 @ La_Fk1
-        # R[2 * nu : 3 * nu] = q_dotk1 - self.model.q_dot(tk1, qk1, uk1) - g_N_qk1.T @ kappak1 - 0.5 * dt * gamma_F_qk1.T @ La_Fk1
-        R[2 * nu + nq : 2 * nu + 2 * nq] = (
-            Qk1 - g_N_qk1.T @ kappak1 - 0.5 * dt * gamma_F_qk1.T @ La_Fk1
+        R[nq : 2 * nq] = (
+            # Qk1 - g_N_qk1.T @ kappak1 - 0.5 * dt * gamma_F_qk1.T @ La_Fk1
+            Qk1
+            - g_N_qk1.T @ kappak1  # TODO: Do we need the coupling with La_Fk1?
         )
+
+        # equations of motion
+        R[2 * nq : 2 * nq + nu] = Mk1 @ ak1 - hk1 - W_Nk1 @ la_Nk1 - W_Fk1 @ la_Fk1
+
+        # impact equation
+        R[2 * nq + nu : 2 * nq + 2 * nu] = Mk1 @ Uk1 - W_Nk1 @ La_Nk1 - W_Fk1 @ La_Fk1
 
         prox_N_arg_position = g_Nk1 - self.model.prox_r_N * kappa_hat_Nk1
         prox_N_arg_velocity = xi_Nk1 - self.model.prox_r_N * P_Nk1
@@ -762,6 +760,7 @@ class SimplifiedGeneralizedAlphaFirstOrder:
 
     def solve(self):
         q = []
+        q_dot = []
         u = []
         a = []
         Q = []
@@ -779,10 +778,10 @@ class SimplifiedGeneralizedAlphaFirstOrder:
 
         def write_solution(xk1):
             (
-                ak1,
-                Uk1,
                 q_dotk1,
                 Qk1,
+                ak1,
+                Uk1,
                 kappa_Nk1,
                 La_Nk1,
                 la_Nk1,
@@ -795,6 +794,7 @@ class SimplifiedGeneralizedAlphaFirstOrder:
             self.uk = uk1.copy()
 
             q.append(qk1.copy())
+            q_dot.append(q_dotk1.copy())
             u.append(uk1.copy())
             a.append(ak1.copy())
             Q.append(Qk1.copy())
@@ -861,6 +861,7 @@ class SimplifiedGeneralizedAlphaFirstOrder:
                 return Solution(
                     t=t[:n],
                     q=np.array(q),
+                    q_dot=np.array(q_dot),
                     u=np.array(u),
                     a=np.array(a),
                     Q=np.array(Q),
@@ -886,6 +887,7 @@ class SimplifiedGeneralizedAlphaFirstOrder:
         return Solution(
             t=t[:n],
             q=np.array(q),
+            q_dot=np.array(q_dot),
             u=np.array(u),
             a=np.array(a),
             Q=np.array(Q),
