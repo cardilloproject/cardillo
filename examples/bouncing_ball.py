@@ -85,9 +85,10 @@ if __name__ == "__main__":
     t0 = 0
     t1 = 2
     # dt = 5e-2
-    # dt = 1e-2
+    dt = 1e-2
     # dt = 5e-3
-    dt = 1e-3
+    # TODO: Are convergence problems from finite differences or a problem of the solver?
+    # dt = 1e-3
 
     sol_g = SimplifiedGeneralizedAlphaFirstOrder(model, t1, dt, atol=1.0e-8).solve()
     t_g = t = sol_g.t

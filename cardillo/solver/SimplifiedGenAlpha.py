@@ -556,7 +556,7 @@ class SimplifiedGeneralizedAlphaFirstOrder:
 
         # integrated contact contributions
         P_Nk1 = La_Nk1 + dt * la_Nk1
-        kappa_hat_Nk1 = kappa_Nk1 + dt * La_Nk1  # + 0.5 * dt2 * la_Nk1
+        kappa_hat_Nk1 = kappa_Nk1 + dt * La_Nk1 + 0.5 * dt2 * la_Nk1
         P_Fk1 = La_Fk1 + dt * la_Fk1
 
         return qk1, uk1, P_Nk1, kappa_hat_Nk1, P_Fk1
@@ -568,7 +568,7 @@ class SimplifiedGeneralizedAlphaFirstOrder:
         ###########################
         # unpack vector of unknowns
         ###########################
-        q_dotk1, Qk1, ak1, Uk1, kappak1, La_Nk1, la_Nk1, La_Fk1, la_Fk1 = self.unpack(
+        q_dotk1, Qk1, ak1, Uk1, kappa_Nk1, La_Nk1, la_Nk1, La_Fk1, la_Fk1 = self.unpack(
             xk1
         )
 
@@ -612,16 +612,19 @@ class SimplifiedGeneralizedAlphaFirstOrder:
         R = np.empty(self.nR, dtype=xk1.dtype)
 
         # kinematic equation
+        # TODO: Why do we have to use the smooth velocity here?
+        # This is similar to the case of an implicit Moreau scheme, where the
+        # contact detecten is not allowed to be implicitely depending on qk1?
         # R[: nq] = q_dotk1 - self.model.q_dot(tk1, qk1, uk1)
-        R[:nq] = q_dotk1 - self.model.q_dot(
-            tk1, qk1, self.uk + dt * ak1
-        )  # This is the solution: Only use the smooth part of the velocity!
+        # This is the solution: Only use the smooth part of the velocity!
+        R[:nq] = q_dotk1 - self.model.q_dot(tk1, qk1, self.uk + dt * ak1)
 
         # position correction
         R[nq : 2 * nq] = (
-            # Qk1 - g_N_qk1.T @ kappak1 - 0.5 * dt * gamma_F_qk1.T @ La_Fk1
+            # TODO: Do we need the coupling with La_Fk1?
+            # Qk1 - g_N_qk1.T @ kappa_Nk1 - 0.5 * dt * gamma_F_qk1.T @ La_Fk1
             Qk1
-            - g_N_qk1.T @ kappak1  # TODO: Do we need the coupling with La_Fk1?
+            - g_N_qk1.T @ kappa_Nk1
         )
 
         # equations of motion
@@ -633,6 +636,10 @@ class SimplifiedGeneralizedAlphaFirstOrder:
         prox_N_arg_position = g_Nk1 - self.model.prox_r_N * kappa_hat_Nk1
         prox_N_arg_velocity = xi_Nk1 - self.model.prox_r_N * P_Nk1
         prox_N_arg_acceleration = g_N_ddotk1 - self.model.prox_r_N * la_Nk1
+        # TODO: Why is this a bad choice?
+        # prox_N_arg_position = g_Nk1 - self.model.prox_r_N * kappa_Nk1
+        # prox_N_arg_velocity = xi_Nk1 - self.model.prox_r_N * La_Nk1
+        # prox_N_arg_acceleration = g_N_ddotk1 - self.model.prox_r_N * la_Nk1
         if update_index_set:
             self.Ak1 = prox_N_arg_position <= 0
             self.Bk1 = self.Ak1 * (prox_N_arg_velocity <= 0)
@@ -662,7 +669,7 @@ class SimplifiedGeneralizedAlphaFirstOrder:
         _Ak1_ind = np.where(~Ak1)[0]
         R[nR_s + Ak1_ind] = g_Nk1[Ak1]
         R[nR_s + _Ak1_ind] = kappa_hat_Nk1[~Ak1]
-        # R[nR_s : nR_s + nla_N] = g_Nk1 - prox_Rn0(prox_arg_position)
+        # R[nR_s : nR_s + nla_N] = g_Nk1 - prox_Rn0(prox_N_arg_position)
 
         ###################################
         # complementarity on velocity level
@@ -674,10 +681,10 @@ class SimplifiedGeneralizedAlphaFirstOrder:
         R[nR_s + nla_N + _Bk1_ind] = P_Nk1[~Bk1]
 
         # R[nR_s + nla_N : nR_s + 2 * nla_N] = np.select(
-        #     self.Ak1, xi_Nk1 - prox_Rn0(prox_arg_velocity), Pk1
+        #     self.Ak1, xi_Nk1 - prox_Rn0(prox_N_arg_velocity), P_Nk1
         # )
 
-        # R[nR_s + nla_N + Ak1_ind] = (xi_Nk1 - prox_Rn0(prox_arg_velocity))[Ak1]
+        # R[nR_s + nla_N + Ak1_ind] = (xi_Nk1 - prox_Rn0(prox_N_arg_velocity))[Ak1]
         # R[nR_s + nla_N + _Ak1_ind] = Pk1[~Ak1]
 
         #######################################
@@ -690,7 +697,7 @@ class SimplifiedGeneralizedAlphaFirstOrder:
         R[nR_s + 2 * nla_N + _Ck1_ind] = la_Nk1[~Ck1]
 
         # R[nR_s + 2 * nla_N : nR_s + 3 * nla_N] = np.select(
-        #     self.Bk1, g_N_ddotk1 - prox_Rn0(prox_arg_acceleration), lak1
+        #     self.Bk1, g_N_ddotk1 - prox_Rn0(prox_N_arg_acceleration), la_Nk1
         # )
 
         # R[nR_s + 2 * nla_N + Bk1_ind] = (g_N_ddotk1 - prox_Rn0(prox_arg_acceleration))[Bk1]
@@ -754,8 +761,6 @@ class SimplifiedGeneralizedAlphaFirstOrder:
     def Jacobian(self, tk1, xk1):
         return csr_matrix(
             approx_fprime(xk1, lambda x: self.residual(tk1, x), method="2-point")
-            # approx_fprime(xk1, lambda x: self.residual(tk1, x), method="3-point")
-            # return approx_fprime(xk1, lambda x: self.residual(tk1, x), method="cs")
         )
 
     def solve(self):
@@ -814,14 +819,9 @@ class SimplifiedGeneralizedAlphaFirstOrder:
         write_solution(xk1)
 
         t = np.arange(self.t0, self.t1 + self.dt, self.dt)
-        # pbar = tqdm(t)
         pbar = tqdm(t[:-1])
-
-        # for k, tk1 in enumerate(t):
-        k = 0
-        for tk1 in pbar:
-            k += 1
-            # print(f"k: {k}; tk1: {tk1:2.3f}")
+        # for tk1 in pbar:
+        for k, tk1 in enumerate(pbar):
 
             # initial residual and error; update active contact set during each
             # redidual computation
@@ -876,9 +876,6 @@ class SimplifiedGeneralizedAlphaFirstOrder:
                     P_F=np.array(P_F),
                 )
             else:
-                # print(
-                #     f"Newton-Raphson converged after {j+1} steps with error {error:2.4f}"
-                # )
                 pbar.set_description(
                     f"t: {tk1:0.2e}s < {self.t1:0.2e}s; {j}/{self.max_iter} iterations; error: {error:0.2e}"
                 )
