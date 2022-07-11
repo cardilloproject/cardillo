@@ -5,7 +5,7 @@ from tqdm import tqdm
 
 from cardillo.math import approx_fprime
 from cardillo.solver import Solution
-from cardillo.math import prox_Rn0, prox_sphere
+from cardillo.math import prox_R0_np, prox_sphere
 
 # GGL2 = True
 GGL2 = False

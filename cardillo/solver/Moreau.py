@@ -4,7 +4,7 @@ from scipy.sparse.linalg import splu
 from tqdm import tqdm
 
 from cardillo.solver import Solution
-from cardillo.math import prox_Rn0, prox_sphere
+from cardillo.math import prox_R0_np, prox_sphere
 
 
 class Moreau:
@@ -194,7 +194,7 @@ class Moreau:
             for j in range(self.fix_point_max_iter):
 
                 # fixed-point update normal direction
-                P_Nk1_i1[I_N] = prox_Rn0(
+                P_Nk1_i1[I_N] = prox_R0_np(
                     P_Nk1_i[I_N]
                     - prox_r_N[I_N] * self.model.xi_N(tk1, qk1, uk, uk1)[I_N]
                 )

@@ -7,7 +7,7 @@ from scipy.sparse.linalg import spsolve
 from scipy.sparse import coo_matrix, csc_matrix, identity, bmat, diags
 from tqdm import tqdm
 
-from cardillo.math.prox import prox_Rn0, prox_circle
+from cardillo.math.prox import prox_R0_np, prox_circle
 from cardillo.math import Numerical_derivative
 
 # from cardillo.utility.coo import Coo

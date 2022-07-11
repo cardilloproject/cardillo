@@ -4,7 +4,7 @@ from scipy.sparse import csr_matrix, bmat, eye
 from tqdm import tqdm
 
 from cardillo.solver import Solution
-from cardillo.math import prox_Rn0, prox_sphere, approx_fprime
+from cardillo.math import prox_R0_nm, prox_R0_np, prox_sphere, approx_fprime
 
 # use_midpoint = True
 use_midpoint = False
@@ -98,20 +98,6 @@ class MoreauGGL:
         # TODO: Add stabelized bilateral constraints
         self.xk = np.concatenate((self.qk, self.uk, self.P_Nk, self.mu_Nk))
 
-    def pack(self, q, u, P_N, mu_N):
-        nq = self.nq
-        nu = self.nu
-        nla_N = self.nla_N
-
-        x = np.zeros(self.nx)
-
-        x[:nq] = q
-        x[nq : nq + nu] = u
-        x[nq + nu : nq + nu + nla_N] = P_N
-        x[nq + nu + nla_N :] = mu_N
-
-        return x
-
     def unpack(self, x):
         nq = self.nq
         nu = self.nu
@@ -132,7 +118,7 @@ class MoreauGGL:
             )
         )
 
-    def R(self, tk1, xk1, update_index_set=False):
+    def R(self, tk1, xk1, update_index_set=False, primal_form=True):
         nq = self.nq
         nu = self.nu
         nla_N = self.nla_N
@@ -140,6 +126,10 @@ class MoreauGGL:
         # extract all variables from xk and xk1
         qk, uk, P_Nk, mu_Nk = self.unpack(self.xk)
         qk1, uk1, P_Nk1, mu_Nk1 = self.unpack(xk1)
+
+        # compute integrated mu as done in gen alpha
+        mu_hat_Nk1 = mu_Nk1 + self.dt * P_Nk1
+        # mu_hat_Nk1 = mu_Nk1 + P_Nk1
 
         if use_midpoint:
             q_M = 0.5 * (qk1 + qk)
@@ -190,76 +180,95 @@ class MoreauGGL:
             )
 
             # Mixed Signorini on velcity level and impact law
-            R[nq + nu + I_N_ind] = P_Nk1[I_N] - prox_Rn0(
+            R[nq + nu + I_N_ind] = P_Nk1[I_N] - prox_R0_np(
                 P_Nk1[I_N] - self.model.prox_r_N[I_N] * xi_Nk1[I_N]
             )
             R[nq + nu + _I_N_ind] = P_Nk1[_I_N]
 
             # position stabilization
-            R[nq + nu + nla_N :] = mu_Nk1 - prox_Rn0(
+            R[nq + nu + nla_N :] = mu_Nk1 - prox_R0_np(
                 mu_Nk1 - self.model.prox_r_N * g_Nk1
             )
 
         else:
-            if tk1 > 1.21 and update_index_set:
-                tmp = 0
-                # print(f"")
-
             # evaluate repeatedly used quantities
             Mk1 = self.model.M(tk1, qk1)
             W_Nk1 = self.model.W_N(tk1, qk1, scipy_matrix=csr_matrix)
+            g_N_qk1 = self.model.g_N_q(tk1, qk1, scipy_matrix=csr_matrix)
             g_Nk1 = self.model.g_N(tk1, qk1)
-            # g_Nk1 = self.model.g_N(tk1, 0.5 * (qk + qk1))
-            # g_Nk1 = self.model.g_N(tk1, qk + 0.5 * self.dt * self.model.q_dot(self.tk, qk1, uk1))
             xi_Nk1 = self.model.xi_N(tk1, qk1, uk, uk1)
 
+            ###################
             # update index sets
+            ###################
+            primal_form = True
+            # primal_form = False
+            if primal_form:
+                prox_N_arg_position = g_Nk1 - self.model.prox_r_N * mu_hat_Nk1
+                prox_N_arg_velocity = xi_Nk1 - self.model.prox_r_N * P_Nk1
+            else:
+                prox_N_arg_position = -mu_hat_Nk1 + self.model.prox_r_N * g_Nk1
+                prox_N_arg_velocity = -P_Nk1 + self.model.prox_r_N * xi_Nk1
             if update_index_set:
-                self.I_N = (
-                    # mu_Nk1 - self.model.prox_r_N * g_Nk1 >= 0
-                    # mu_Nk1 - self.model.prox_r_N * g_Nk1 > 0
-                    # self.model.g_N(self.tk, qk) <= 0
-                    g_Nk1
-                    <= 0
-                )  # TODO: Should we use <= here?
+                self.A_N = prox_N_arg_position <= 0
+                self.B_N = self.A_N * (prox_N_arg_velocity <= 0)
 
-            # if tk1 > 1.21:
-            #     self.I_N = np.array([True])
+            A_N = self.A_N
+            _A_N = ~A_N
+            A_N_ind = np.where(A_N)[0]
+            _A_N_ind = np.where(_A_N)[0]
 
-            # active contact set
-            I_N = self.I_N
-            _I_N = ~I_N
-            I_N_ind = np.where(I_N)[0]
-            _I_N_ind = np.where(_I_N)[0]
+            B_N = self.B_N
+            _B_N = ~B_N
+            B_N_ind = np.where(B_N)[0]
+            _B_N_ind = np.where(_B_N)[0]
 
             ###################
             # evaluate residual
             ###################
             R = np.zeros(self.nx)
 
+            #################################
             # kinematic differential equation
+            #################################
             R[:nq] = (
                 qk1
                 - qk
                 - self.dt * self.model.q_dot(tk1, qk1, uk1)
-                + self.model.B(tk1, qk1) @ W_Nk1 @ mu_Nk1
+                + g_N_qk1.T @ mu_Nk1
             )
 
+            #####################
             # equations of motion
+            #####################
             R[nq : nq + nu] = (
                 Mk1 @ (uk1 - uk) - self.dt * self.model.h(tk1, qk1, uk1) - W_Nk1 @ P_Nk1
             )
 
+            #################################################
             # Mixed Signorini on velcity level and impact law
-            # R[nq + nu + I_N_ind] = P_Nk1[I_N] - prox_Rn0(
-            #     P_Nk1[I_N] - self.model.prox_r_N[I_N] * xi_Nk1[I_N]
-            # )
-            R[nq + nu + I_N_ind] = np.minimum(P_Nk1[I_N], xi_Nk1[I_N])
-            R[nq + nu + _I_N_ind] = P_Nk1[_I_N]
+            #################################################
+            # if primal_form:
+            #     # TODO: Why is this the prox on the positive real numbers?
+            #     R[nq + nu + A_N_ind] = xi_Nk1 - prox_R0_np(prox_N_arg_velocity)
+            # else:
+            #     R[nq + nu + A_N_ind] = -P_Nk1 - prox_R0_nm(prox_N_arg_velocity)
+            # R[nq + nu + _A_N_ind] = P_Nk1[_A_N]
 
+            R[nq + nu + B_N_ind] = xi_Nk1[B_N]
+            R[nq + nu + _B_N_ind] = P_Nk1[_B_N]
+
+            ########################
             # position stabilization
-            # R[nq + nu + nla_N :] = mu_Nk1 - prox_Rn0(mu_Nk1 - self.model.prox_r_N * g_Nk1)
-            R[nq + nu + nla_N :] = np.minimum(mu_Nk1, g_Nk1)
+            ########################
+            # if primal_form:
+            #     # TODO: Why is this the prox on the positive real numbers?
+            #     R[nq + nu + nla_N :] = g_Nk1 - prox_R0_np(prox_N_arg_position)
+            # else:
+            #     R[nq + nu + nla_N :] = -mu_hat_Nk1 - prox_R0_nm(prox_N_arg_position)
+
+            R[nq + nu + nla_N + A_N_ind] = g_Nk1[A_N]
+            R[nq + nu + nla_N + _A_N_ind] = mu_hat_Nk1[_A_N]
 
         return R
 
@@ -297,6 +306,83 @@ class MoreauGGL:
 
         return converged, j, error, xk1
 
+    # def step_fixed_point(self, tk1, xk1):
+    #     def R_s(tk1, yk1):
+    #         nq = self.nq
+    #         nu = self.nu
+
+    #         qk1 = yk1[:nq]
+    #         uk1 = yk1[nq:nq + nu]
+
+    #         # evaluate repeatedly used quantities
+    #         Mk1 = self.model.M(tk1, qk1)
+    #         W_Nk1 = self.model.W_N(tk1, qk1, scipy_matrix=csr_matrix)
+    #         g_Nk1 = self.model.g_N(tk1, qk1)
+    #         # g_Nk1 = self.model.g_N(tk1, 0.5 * (qk + qk1))
+    #         # g_Nk1 = self.model.g_N(tk1, qk + 0.5 * self.dt * self.model.q_dot(self.tk, qk1, uk1))
+    #         xi_Nk1 = self.model.xi_N(tk1, qk1, uk, uk1)
+
+    #         R = np.zeros(nq + nu)
+
+    #         # kinematic differential equation
+    #         R[:nq] = (
+    #             qk1
+    #             - qk
+    #             - self.dt * self.model.q_dot(tk1, qk1, uk1)
+    #             + self.model.B(tk1, qk1) @ W_Nk1 @ mu_Nk1
+    #         )
+
+    #         # equations of motion
+    #         R[nq : nq + nu] = (
+    #             Mk1 @ (uk1 - uk) - self.dt * self.model.h(tk1, qk1, uk1) - W_Nk1 @ P_Nk1
+    #         )
+
+    #     nq = self.nq
+    #     nu = self.nu
+    #     nla_N = self.nla_N
+
+    #     # extract all variables from xk and xk1
+    #     qk, uk, P_Nk, mu_Nk = self.unpack(self.xk)
+    #     qk1, uk1, P_Nk1, mu_Nk1 = self.unpack(xk1)
+
+    #     # initial residual and error
+    #     R_gen = self.R_gen(tk1, xk1)
+    #     R = next(R_gen)
+    #     R_s = R[:nq + nu]
+
+    #     # identify active contacts
+    #     g_Nk1 = self.model.q_N(tk1, qk1)
+
+    #     error = self.error_function(R)
+    #     converged = error < self.tol
+    #     j = 0
+    #     if not converged:
+    #         while j < self.max_iter:
+    #             # jacobian
+    #             R_x = next(R_gen)
+
+    #             # Newton update
+    #             j += 1
+    #             dx = spsolve(R_x, R, use_umfpack=True)
+    #             xk1 -= dx
+    #             R_gen = self.R_gen(tk1, xk1)
+    #             R = next(R_gen)
+
+    #             # if tk1 > 1.19:
+    #             # # if tk1 > 1.21:
+    #             #     print(f"xk: {self.xk}")
+    #             #     print(f"xk1: {xk1}")
+    #             #     print(f"R: {R}")
+    #             #     print(f"I_N: {self.I_N}")
+    #             #     print(f"")
+
+    #             error = self.error_function(R)
+    #             converged = error < self.tol
+    #             if converged:
+    #                 break
+
+    #     return converged, j, error, xk1
+
     def solve(self):
         # lists storing output variables
         t = [self.tk]
@@ -314,6 +400,21 @@ class MoreauGGL:
             tk1 = self.tk + self.dt
             xk1 = self.xk.copy()  # This copy is mandatory since we modify xk1
             # in the step function
+
+            # # perform Euler forward
+            # tk = self.tk
+            # dt = self.dt
+            # nq = self.nq
+            # nu = self.nu
+            # nla_N = self.nla_N
+            # qk = self.xk[:nq]
+            # uk = self.xk[nq:nq + nu]
+            # xk1[:nq] = qk + dt * self.model.q_dot(tk, qk, uk)
+            # Mk = self.model.M(tk, qk)
+            # hk = self.model.h(tk, qk, uk)
+            # f_N = self.model.W_N(tk, qk) @ xk1[nq + nu : nq + nu + nla_N]
+            # xk1[nq:nq + nu] = self.xk[:nq] + dt * spsolve(Mk, hk + f_N)
+
             converged, n_iter, error, xk1 = self.step(tk1, xk1)
             qk1, uk1, P_Nk1, mu_Nk1 = self.unpack(xk1)
 

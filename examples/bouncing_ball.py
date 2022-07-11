@@ -13,6 +13,7 @@ from cardillo.forces import Force
 from cardillo.contacts import Sphere2Plane
 from cardillo.solver import (
     Moreau,
+    MoreauGGL,
     SimplifiedGeneralizedAlphaFirstOrder,
 )
 
@@ -49,9 +50,10 @@ if __name__ == "__main__":
 
     e1, e2, e3 = np.eye(3)
     frame = Frame(A_IK=np.vstack((e3, e1, e2)).T, r_OP=np.array([0, 0, 0]))
-    # mu = 0.0  # no friction
-    mu = 0.2
-    r_N = 0.1
+    mu = 0.0  # no friction
+    # mu = 0.2
+    # r_N = 0.1
+    r_N = 0.5
     e_N = 0.5
     plane = Sphere2Plane(frame, RB, r, mu, prox_r_N=r_N, prox_r_F=r_N, e_N=e_N, e_F=0)
 
@@ -90,6 +92,17 @@ if __name__ == "__main__":
     # TODO: Are convergence problems from finite differences or a problem of the solver?
     # dt = 1e-3
 
+    # solver_fp = Moreau(model, t1, dt)
+    solver_fp = MoreauGGL(model, t1, dt)
+    sol_fp = solver_fp.solve()
+    t_fp = sol_fp.t
+    q_fp = sol_fp.q
+    u_fp = sol_fp.u
+    a_fp = np.zeros_like(u_fp)
+    a_fp[1:] = (u_fp[1:] - u_fp[:-1]) / dt
+    P_N_fp = sol_fp.P_N
+    # P_F_fp = sol_fp.P_F
+
     sol_g = SimplifiedGeneralizedAlphaFirstOrder(model, t1, dt, atol=1.0e-8).solve()
     t_g = t = sol_g.t
     q_g = q = sol_g.q
@@ -101,16 +114,7 @@ if __name__ == "__main__":
     La_F_g = sol_g.La_F
     P_N_g = sol_g.P_N
     P_F_g = sol_g.P_F
-
-    solver_fp = Moreau(model, t1, dt)
-    sol_fp = solver_fp.solve()
-    t_fp = sol_fp.t
-    q_fp = sol_fp.q
-    u_fp = sol_fp.u
-    a_fp = np.zeros_like(u_fp)
-    a_fp[1:] = (u_fp[1:] - u_fp[:-1]) / dt
-    P_N_fp = sol_fp.P_N
-    P_F_fp = sol_fp.P_F
+    P_F_fp = sol_g.P_F  # TODO: Remove this!
 
     fig, ax = plt.subplots(3, 1)
     ax[0].set_title("x(t)")
@@ -175,19 +179,19 @@ if __name__ == "__main__":
     ax[0].plot(t_g, P_N_g[:, 0], "--k", label="GenAlpha_P_N")
     ax[0].legend()
 
-    ax[1].set_title("P_Fx(t)")
-    ax[1].plot(t_fp, P_F_fp[:, 0], "-r", label="Moreau")
-    ax[1].plot(t_g, la_F_g[:, 0], "--b", label="GenAlpha_la_F")
-    ax[1].plot(t_g, La_F_g[:, 0], "--g", label="GenAlpha_La_F")
-    ax[1].plot(t_g, P_F_g[:, 0], "--k", label="GenAlpha_P_N")
-    ax[1].legend()
+    # ax[1].set_title("P_Fx(t)")
+    # ax[1].plot(t_fp, P_F_fp[:, 0], "-r", label="Moreau")
+    # ax[1].plot(t_g, la_F_g[:, 0], "--b", label="GenAlpha_la_F")
+    # ax[1].plot(t_g, La_F_g[:, 0], "--g", label="GenAlpha_La_F")
+    # ax[1].plot(t_g, P_F_g[:, 0], "--k", label="GenAlpha_P_N")
+    # ax[1].legend()
 
-    ax[2].set_title("P_Fy(t)")
-    ax[2].plot(t_fp, P_F_fp[:, 1], "-r", label="Moreau")
-    ax[2].plot(t_g, la_F_g[:, 1], "--b", label="GenAlpha_la_F")
-    ax[2].plot(t_g, La_F_g[:, 1], "--g", label="GenAlpha_La_F")
-    ax[2].plot(t_g, P_F_g[:, 1], "--k", label="GenAlpha_P_N")
-    ax[2].legend()
+    # ax[2].set_title("P_Fy(t)")
+    # ax[2].plot(t_fp, P_F_fp[:, 1], "-r", label="Moreau")
+    # ax[2].plot(t_g, la_F_g[:, 1], "--b", label="GenAlpha_la_F")
+    # ax[2].plot(t_g, La_F_g[:, 1], "--g", label="GenAlpha_La_F")
+    # ax[2].plot(t_g, P_F_g[:, 1], "--k", label="GenAlpha_P_N")
+    # ax[2].legend()
 
     plt.tight_layout()
 
