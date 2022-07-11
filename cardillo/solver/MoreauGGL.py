@@ -4,7 +4,7 @@ from scipy.sparse import csr_matrix, bmat, eye
 from tqdm import tqdm
 
 from cardillo.solver import Solution
-from cardillo.math import prox_R0_nm, prox_R0_np, prox_sphere, approx_fprime
+from cardillo.math import norm, prox_R0_nm, prox_R0_np, prox_sphere, approx_fprime
 
 # use_midpoint = True
 use_midpoint = False
@@ -57,7 +57,9 @@ class MoreauGGL:
         self.nq = model.nq
         self.nu = model.nu
         self.nla_N = model.nla_N
-        self.nx = self.nq + self.nu + 2 * self.nla_N
+        self.nla_F = model.nla_F
+        self.nx_s = self.nq + self.nu
+        self.nx = self.nx_s + 2 * self.nla_N + self.nla_F
 
         #######################################################################
         # consistent initial conditions
@@ -67,15 +69,16 @@ class MoreauGGL:
         self.uk = model.u0
         self.P_Nk = dt * model.la_N0
         self.mu_Nk = np.zeros_like(self.P_Nk)
-        # TODO: We have to solve for initial contact forces as well and
-        # identify activ eindex sets?
+        self.P_Fk = dt * model.la_F0
 
         # initial velocites
         self.q_dotk = self.model.q_dot(self.tk, self.qk, self.uk)
+
         M0 = self.model.M(self.tk, self.qk, scipy_matrix=csr_matrix)
         h0 = self.model.h(self.tk, self.qk, self.uk)
         W_N0 = self.model.W_N(self.tk, self.qk, scipy_matrix=csr_matrix)
-        self.u_dotk = spsolve(M0, h0 + W_N0 @ self.P_Nk)
+        W_F0 = self.model.W_F(self.tk, self.qk, scipy_matrix=csr_matrix)
+        self.u_dotk = spsolve(M0, h0 + W_N0 @ self.P_Nk + W_F0 @ self.P_Fk)
 
         # # check if initial conditions satisfy constraints on position, velocity
         # # and acceleration level
@@ -95,20 +98,29 @@ class MoreauGGL:
         # starting values for generalized state vector, its derivatives and
         # auxiliary velocities
         #######################################################################
-        # TODO: Add stabelized bilateral constraints
-        self.xk = np.concatenate((self.qk, self.uk, self.P_Nk, self.mu_Nk))
+        self.xk = np.concatenate((self.qk, self.uk, self.P_Nk, self.mu_Nk, self.P_Fk))
+
+        # initialize index sets
+        self.A_N = np.zeros(self.nla_N, dtype=bool)
+        self.B_N = np.zeros(self.nla_N, dtype=bool)
+        # self.Ck1 = np.zeros(self.nla_N, dtype=bool)
+        self.D_st = np.zeros(self.nla_N, dtype=bool)
+        # self.Ek1_st = np.zeros(self.nla_N, dtype=bool)
 
     def unpack(self, x):
         nq = self.nq
         nu = self.nu
+        nx_s = self.nx_s
         nla_N = self.nla_N
+        nla_F = self.nla_F
 
         q = x[:nq]
         u = x[nq : nq + nu]
-        P_N = x[nq + nu : nq + nu + nla_N]
-        mu_N = x[nq + nu + nla_N :]
+        P_N = x[nx_s : nx_s + nla_N]
+        mu_N = x[nx_s + nla_N : nx_s + 2 * nla_N]
+        P_F = x[nx_s + 2 * nla_N : nx_s + 2 * nla_N + nla_F]
 
-        return q, u, P_N, mu_N
+        return q, u, P_N, mu_N, P_F
 
     def R_gen(self, tk1, xk1):
         yield self.R(tk1, xk1, update_index_set=True)
@@ -118,18 +130,22 @@ class MoreauGGL:
             )
         )
 
-    def R(self, tk1, xk1, update_index_set=False, primal_form=True):
+    def R(self, tk1, xk1, update_index_set=False, primal_form=False):
         nq = self.nq
         nu = self.nu
+        nx_s = self.nx_s
         nla_N = self.nla_N
+        nla_F = self.nla_F
+        dt = self.dt
+        mu = self.model.mu
 
         # extract all variables from xk and xk1
-        qk, uk, P_Nk, mu_Nk = self.unpack(self.xk)
-        qk1, uk1, P_Nk1, mu_Nk1 = self.unpack(xk1)
+        qk, uk, P_Nk, mu_Nk, P_Fk = self.unpack(self.xk)
+        qk1, uk1, P_Nk1, mu_Nk1, P_Fk1 = self.unpack(xk1)
 
         # compute integrated mu as done in gen alpha
-        mu_hat_Nk1 = mu_Nk1 + self.dt * P_Nk1
-        # mu_hat_Nk1 = mu_Nk1 + P_Nk1
+        # mu_hat_Nk1 = mu_Nk1 # TODO: This is not working!
+        mu_hat_Nk1 = mu_Nk1 + self.dt * P_Nk1  # TODO: This is the key ingredient!
 
         if use_midpoint:
             q_M = 0.5 * (qk1 + qk)
@@ -191,12 +207,31 @@ class MoreauGGL:
             )
 
         else:
+
+            # update kinematic quantities (trivial for Euler backward!)
+            q_dotk1 = (qk1 - qk) / dt
+            u_dotk1 = (uk1 - uk) / dt
+
+            # # TODO: Investigate theta method
+            # theta = 0.5
+            # q_dotk1 = (theta * qk + (1.0 - theta) * qk1 - qk) / dt
+            # u_dotk1 = (theta * uk + (1.0 - theta) * uk1 - uk) / dt
+
+            # mu_Nk1 = theta * mu_Nk + (1.0 - theta) * mu_Nk1
+            # mu_hat_Nk = mu_Nk + self.dt * P_Nk # TODO: This is the key ingredient!
+            # mu_hat_Nk1 = theta * mu_hat_Nk + (1.0 - theta) * mu_hat_Nk1
+            # P_Nk1 = theta * P_Nk + (1.0 - theta) * P_Nk1
+            # P_Fk1 = theta * P_Fk + (1.0 - theta) * P_Fk1
+
             # evaluate repeatedly used quantities
             Mk1 = self.model.M(tk1, qk1)
             W_Nk1 = self.model.W_N(tk1, qk1, scipy_matrix=csr_matrix)
+            W_Fk1 = self.model.W_F(tk1, qk1, scipy_matrix=csr_matrix)
             g_N_qk1 = self.model.g_N_q(tk1, qk1, scipy_matrix=csr_matrix)
+            gamma_F_qk1 = self.model.gamma_F_q(tk1, qk1, uk1, scipy_matrix=csr_matrix)
             g_Nk1 = self.model.g_N(tk1, qk1)
             xi_Nk1 = self.model.xi_N(tk1, qk1, uk, uk1)
+            xi_Fk1 = self.model.xi_F(tk1, qk1, uk, uk1)
 
             ###################
             # update index sets
@@ -210,8 +245,19 @@ class MoreauGGL:
                 prox_N_arg_position = -mu_hat_Nk1 + self.model.prox_r_N * g_Nk1
                 prox_N_arg_velocity = -P_Nk1 + self.model.prox_r_N * xi_Nk1
             if update_index_set:
+                # normal contact sets
                 self.A_N = prox_N_arg_position <= 0
                 self.B_N = self.A_N * (prox_N_arg_velocity <= 0)
+
+                # frictional contact sets
+                for i_N, i_F in enumerate(self.model.NF_connectivity):
+                    i_F = np.array(i_F)
+                    if len(i_F) > 0:
+                        # eqn. (139):
+                        self.D_st[i_N] = self.A_N[i_N] and (
+                            norm(self.model.prox_r_F[i_N] * xi_Fk1[i_F] - P_Fk1[i_F])
+                            <= mu[i_N] * P_Nk1[i_N]
+                        )
 
             A_N = self.A_N
             _A_N = ~A_N
@@ -231,18 +277,31 @@ class MoreauGGL:
             #################################
             # kinematic differential equation
             #################################
+            # R[:nq] = (
+            #     qk1
+            #     - qk
+            #     - dt * self.model.q_dot(tk1, qk1, uk1)
+            #     - g_N_qk1.T @ mu_Nk1
+            #     - gamma_F_qk1.T @ (dt * P_Fk) # TODO: Not necessary but consistent
+            # )
             R[:nq] = (
-                qk1
-                - qk
-                - self.dt * self.model.q_dot(tk1, qk1, uk1)
-                + g_N_qk1.T @ mu_Nk1
+                q_dotk1
+                - self.model.q_dot(tk1, qk1, uk1)
+                - g_N_qk1.T @ mu_Nk1 / dt
+                - gamma_F_qk1.T @ (dt * P_Fk)  # TODO: Not necessary but consistent
             )
 
             #####################
             # equations of motion
             #####################
+            # R[nq : nq + nu] = (
+            #     Mk1 @ (uk1 - uk) - dt * self.model.h(tk1, qk1, uk1) - W_Nk1 @ P_Nk1 - W_Fk1 @ P_Fk1
+            # )
             R[nq : nq + nu] = (
-                Mk1 @ (uk1 - uk) - self.dt * self.model.h(tk1, qk1, uk1) - W_Nk1 @ P_Nk1
+                Mk1 @ u_dotk1
+                - self.model.h(tk1, qk1, uk1)
+                - W_Nk1 @ (P_Nk1 / dt)
+                - W_Fk1 @ (P_Fk1 / dt)
             )
 
             #################################################
@@ -255,8 +314,8 @@ class MoreauGGL:
             #     R[nq + nu + A_N_ind] = -P_Nk1 - prox_R0_nm(prox_N_arg_velocity)
             # R[nq + nu + _A_N_ind] = P_Nk1[_A_N]
 
-            R[nq + nu + B_N_ind] = xi_Nk1[B_N]
-            R[nq + nu + _B_N_ind] = P_Nk1[_B_N]
+            R[nx_s + B_N_ind] = xi_Nk1[B_N]
+            R[nx_s + _B_N_ind] = P_Nk1[_B_N]
 
             ########################
             # position stabilization
@@ -267,8 +326,44 @@ class MoreauGGL:
             # else:
             #     R[nq + nu + nla_N :] = -mu_hat_Nk1 - prox_R0_nm(prox_N_arg_position)
 
-            R[nq + nu + nla_N + A_N_ind] = g_Nk1[A_N]
-            R[nq + nu + nla_N + _A_N_ind] = mu_hat_Nk1[_A_N]
+            R[nx_s + nla_N + A_N_ind] = g_Nk1[A_N]
+            R[nx_s + nla_N + _A_N_ind] = mu_hat_Nk1[_A_N]
+
+        ##########
+        # friction
+        ##########
+        D_st = self.D_st
+
+        # # TODO: No friction case can be implemented like this:
+        # R[nx_s + 2 * nla_N :] = P_Fk1
+
+        for i_N, i_F in enumerate(self.model.NF_connectivity):
+            i_F = np.array(i_F)
+            if len(i_F) > 0:
+                if A_N[i_N]:
+
+                    # if primal_form:
+                    #     raise NotImplementedError
+                    #     R[nx_s + 2 * nla_N + i_F] = xi_Fk1[i_F] - prox_sphere(xi_Fk1[i_F] - self.model.prox_r_F[i_N] * P_Fk1[i_F], mu[i_N] * P_Nk1[i_N])
+                    # else:
+                    #     raise NotImplementedError
+                    #     R[nx_s + 2 * nla_N + i_F] = -P_Fk1[i_F] - prox_sphere(-P_Fk1[i_F] + self.model.prox_r_F[i_N] * xi_Fk1[i_F], mu[i_N] * P_Nk1[i_N])
+
+                    if D_st[i_N]:
+                        # eqn. (138a)
+                        R[nx_s + 2 * nla_N + i_F] = xi_Fk1[i_F]
+                    else:
+                        # eqn. (138b)
+                        norm_xi_Fi1 = norm(xi_Fk1[i_F])
+                        xi_Fk1_normalized = xi_Fk1.copy()
+                        if norm_xi_Fi1 > 0:
+                            xi_Fk1_normalized /= norm_xi_Fi1
+                        R[nx_s + 2 * nla_N + i_F] = (
+                            P_Fk1[i_F] + mu[i_N] * P_Nk1[i_N] * xi_Fk1_normalized[i_F]
+                        )
+                else:
+                    # eqn. (138c)
+                    R[nx_s + 2 * nla_N + i_F] = P_Fk1[i_F]
 
         return R
 
@@ -291,14 +386,6 @@ class MoreauGGL:
                 R_gen = self.R_gen(tk1, xk1)
                 R = next(R_gen)
 
-                # if tk1 > 1.19:
-                # # if tk1 > 1.21:
-                #     print(f"xk: {self.xk}")
-                #     print(f"xk1: {xk1}")
-                #     print(f"R: {R}")
-                #     print(f"I_N: {self.I_N}")
-                #     print(f"")
-
                 error = self.error_function(R)
                 converged = error < self.tol
                 if converged:
@@ -306,6 +393,7 @@ class MoreauGGL:
 
         return converged, j, error, xk1
 
+    # TODO: Step fixed point!
     # def step_fixed_point(self, tk1, xk1):
     #     def R_s(tk1, yk1):
     #         nq = self.nq
@@ -416,7 +504,7 @@ class MoreauGGL:
             # xk1[nq:nq + nu] = self.xk[:nq] + dt * spsolve(Mk, hk + f_N)
 
             converged, n_iter, error, xk1 = self.step(tk1, xk1)
-            qk1, uk1, P_Nk1, mu_Nk1 = self.unpack(xk1)
+            qk1, uk1, P_Nk1, mu_Nk1, P_Fk1 = self.unpack(xk1)
 
             # update progress bar and check convergence
             pbar.set_description(

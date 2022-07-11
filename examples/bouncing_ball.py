@@ -50,8 +50,8 @@ if __name__ == "__main__":
 
     e1, e2, e3 = np.eye(3)
     frame = Frame(A_IK=np.vstack((e3, e1, e2)).T, r_OP=np.array([0, 0, 0]))
-    mu = 0.0  # no friction
-    # mu = 0.2
+    # mu = 0.0  # no friction
+    mu = 0.2
     # r_N = 0.1
     r_N = 0.5
     e_N = 0.5
