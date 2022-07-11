@@ -86,6 +86,7 @@ if __name__ == "__main__":
 
     t0 = 0
     t1 = 2
+    # dt = 1e-1
     # dt = 5e-2
     dt = 1e-2
     # dt = 5e-3
@@ -95,8 +96,8 @@ if __name__ == "__main__":
     # solver_fp = Moreau(model, t1, dt)
     solver_fp = MoreauGGL(model, t1, dt)
     sol_fp = solver_fp.solve()
-    t_fp = sol_fp.t
-    q_fp = sol_fp.q
+    t_fp = t = sol_fp.t
+    q_fp = q = sol_fp.q
     u_fp = sol_fp.u
     a_fp = np.zeros_like(u_fp)
     a_fp[1:] = (u_fp[1:] - u_fp[:-1]) / dt
@@ -104,8 +105,10 @@ if __name__ == "__main__":
     # P_F_fp = sol_fp.P_F
 
     sol_g = SimplifiedGeneralizedAlphaFirstOrder(model, t1, dt, atol=1.0e-8).solve()
-    t_g = t = sol_g.t
-    q_g = q = sol_g.q
+    # t_g = t = sol_g.t
+    # q_g = q = sol_g.q
+    t_g = sol_g.t
+    q_g = sol_g.q
     u_g = sol_g.u
     a_g = sol_g.a
     la_N_g = sol_g.la_N

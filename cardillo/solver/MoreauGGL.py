@@ -6,8 +6,8 @@ from tqdm import tqdm
 from cardillo.solver import Solution
 from cardillo.math import norm, prox_R0_nm, prox_R0_np, prox_sphere, approx_fprime
 
-# use_midpoint = True
-use_midpoint = False
+use_position_formulation = True
+# use_position_formulation = False
 
 
 class MoreauGGL:
@@ -98,8 +98,14 @@ class MoreauGGL:
         # starting values for generalized state vector, its derivatives and
         # auxiliary velocities
         #######################################################################
-        self.xk = np.concatenate((self.qk, self.uk, self.P_Nk, self.mu_Nk, self.P_Fk))
-        # self.xk = np.concatenate((self.q_dotk, self.u_dotk, self.P_Nk, self.mu_Nk, self.P_Fk))
+        if use_position_formulation:
+            self.xk = np.concatenate(
+                (self.qk, self.uk, self.P_Nk, self.mu_Nk, self.P_Fk)
+            )
+        else:
+            self.xk = np.concatenate(
+                (self.q_dotk, self.u_dotk, self.P_Nk, self.mu_Nk, self.P_Fk)
+            )
 
         # initialize index sets
         self.A_N = np.zeros(self.nla_N, dtype=bool)
@@ -123,14 +129,39 @@ class MoreauGGL:
 
         return q, u, P_N, mu_N, P_F
 
-    # def update(self, xk1):
-    #     q_dotk, u_dotk, P_Nk, mu_Nk, P_Fk = self.unpack(self.xk)
-    #     q_dotk1, u_dotk1, P_Nk1, mu_Nk1, P_Fk1 = self.unpack(xk1)
+    def update_position_formulation(self, xk1):
+        dt = self.dt
+        qk1, uk1, P_Nk1, mu_Nk1, P_Fk1 = self.unpack(xk1)
+        q_dotk1 = (qk1 - self.qk) / dt
+        u_dotk1 = (uk1 - self.uk) / dt
+        return q_dotk1, u_dotk1
 
-    #     dt = self.dt
-    #     qk1 = self.qk + dt * q_dotk1
-    #     uk1 = self.uk + dt * u_dotk1
-    #     return qk1, uk1
+    def update_velocity_formulation(self, xk1):
+        dt = self.dt
+
+        q_dotk1, u_dotk1, P_Nk1, mu_Nk1, P_Fk1 = self.unpack(xk1)
+        qk1 = self.qk + dt * q_dotk1
+        uk1 = self.uk + dt * u_dotk1
+
+        # # Newmark method
+        # # TODO: Higher order interpolation schemes are not working when we are
+        # # mixing Signorini's law and the impact equation. The explanation might
+        # # be that we also interpoalte the velcity jump which detroys the impact
+        # # law! Thus, we have to distinguish between small and capital lambdas,
+        # # i.e., percistent and impulsive contat forces.
+        # # beta = 0.5
+        # beta = 0.9
+        # # beta = 1.0
+        # q_dot_bar = (1.0 - beta) * self.q_dotk + beta * q_dotk1
+        # u_dot_bar = (1.0 - beta) * self.u_dotk + beta * u_dotk1
+        # # P_N_bar = (1.0 - beta) * self.P_Nk + beta * P_Nk1
+        # # mu_N_bar = (1.0 - beta) * self.mu_Nk + beta * mu_Nk1
+        # # P_F_bar = (1.0 - beta) * self.P_Fk + beta * P_Fk1
+        # qk1 = self.qk + dt * q_dot_bar
+        # uk1 = self.uk + dt * u_dot_bar
+
+        return qk1, uk1
+        # return qk1, uk1, P_N_bar, mu_N_bar, P_F_bar
 
     def R_gen(self, tk1, xk1):
         yield self.R(tk1, xk1, update_index_set=True)
@@ -145,32 +176,22 @@ class MoreauGGL:
         nu = self.nu
         nx_s = self.nx_s
         nla_N = self.nla_N
-        nla_F = self.nla_F
         dt = self.dt
         mu = self.model.mu
 
         # extract all variables from xk and xk1
-        qk, uk, P_Nk, mu_Nk, P_Fk = self.unpack(self.xk)
-        qk1, uk1, P_Nk1, mu_Nk1, P_Fk1 = self.unpack(xk1)
+        if use_position_formulation:
+            qk1, uk1, P_Nk1, mu_Nk1, P_Fk1 = self.unpack(xk1)
+            q_dotk1, u_dotk1 = self.update_position_formulation(xk1)
+        else:
+            q_dotk1, u_dotk1, P_Nk1, mu_Nk1, P_Fk1 = self.unpack(xk1)
+            qk1, uk1 = self.update_velocity_formulation(xk1)
+            # qk1, uk1, P_N_bar, mu_N_bar, P_F_bar = self.update_velocity_formulation(xk1)
+            # P_Nk1, mu_Nk1, P_Fk1 = P_N_bar, mu_N_bar, P_F_bar
 
         # compute integrated mu as done in gen alpha
         # mu_hat_Nk1 = mu_Nk1 # TODO: This is not working!
         mu_hat_Nk1 = mu_Nk1 + self.dt * P_Nk1  # TODO: This is the key ingredient!
-
-        # update kinematic quantities (trivial for Euler backward!)
-        q_dotk1 = (qk1 - qk) / dt
-        u_dotk1 = (uk1 - uk) / dt
-
-        # # TODO: Investigate theta method
-        # theta = 0.5
-        # q_dotk1 = (theta * qk + (1.0 - theta) * qk1 - qk) / dt
-        # u_dotk1 = (theta * uk + (1.0 - theta) * uk1 - uk) / dt
-
-        # mu_Nk1 = theta * mu_Nk + (1.0 - theta) * mu_Nk1
-        # mu_hat_Nk = mu_Nk + self.dt * P_Nk # TODO: This is the key ingredient!
-        # mu_hat_Nk1 = theta * mu_hat_Nk + (1.0 - theta) * mu_hat_Nk1
-        # P_Nk1 = theta * P_Nk + (1.0 - theta) * P_Nk1
-        # P_Fk1 = theta * P_Fk + (1.0 - theta) * P_Fk1
 
         # evaluate repeatedly used quantities
         Mk1 = self.model.M(tk1, qk1)
@@ -179,8 +200,8 @@ class MoreauGGL:
         g_N_qk1 = self.model.g_N_q(tk1, qk1, scipy_matrix=csr_matrix)
         gamma_F_qk1 = self.model.gamma_F_q(tk1, qk1, uk1, scipy_matrix=csr_matrix)
         g_Nk1 = self.model.g_N(tk1, qk1)
-        xi_Nk1 = self.model.xi_N(tk1, qk1, uk, uk1)
-        xi_Fk1 = self.model.xi_F(tk1, qk1, uk, uk1)
+        xi_Nk1 = self.model.xi_N(tk1, qk1, self.uk, uk1)
+        xi_Fk1 = self.model.xi_F(tk1, qk1, self.uk, uk1)
 
         ###################
         # update index sets
@@ -342,84 +363,6 @@ class MoreauGGL:
 
         return converged, j, error, xk1
 
-    # TODO: Step fixed point!
-    # def step_fixed_point(self, tk1, xk1):
-    #     def R_s(tk1, yk1):
-    #         nq = self.nq
-    #         nu = self.nu
-
-    #         qk1 = yk1[:nq]
-    #         uk1 = yk1[nq:nq + nu]
-
-    #         # evaluate repeatedly used quantities
-    #         Mk1 = self.model.M(tk1, qk1)
-    #         W_Nk1 = self.model.W_N(tk1, qk1, scipy_matrix=csr_matrix)
-    #         g_Nk1 = self.model.g_N(tk1, qk1)
-    #         # g_Nk1 = self.model.g_N(tk1, 0.5 * (qk + qk1))
-    #         # g_Nk1 = self.model.g_N(tk1, qk + 0.5 * self.dt * self.model.q_dot(self.tk, qk1, uk1))
-    #         xi_Nk1 = self.model.xi_N(tk1, qk1, uk, uk1)
-
-    #         R = np.zeros(nq + nu)
-
-    #         # kinematic differential equation
-    #         R[:nq] = (
-    #             qk1
-    #             - qk
-    #             - self.dt * self.model.q_dot(tk1, qk1, uk1)
-    #             + self.model.B(tk1, qk1) @ W_Nk1 @ mu_Nk1
-    #         )
-
-    #         # equations of motion
-    #         R[nq : nq + nu] = (
-    #             Mk1 @ (uk1 - uk) - self.dt * self.model.h(tk1, qk1, uk1) - W_Nk1 @ P_Nk1
-    #         )
-
-    #     nq = self.nq
-    #     nu = self.nu
-    #     nla_N = self.nla_N
-
-    #     # extract all variables from xk and xk1
-    #     qk, uk, P_Nk, mu_Nk = self.unpack(self.xk)
-    #     qk1, uk1, P_Nk1, mu_Nk1 = self.unpack(xk1)
-
-    #     # initial residual and error
-    #     R_gen = self.R_gen(tk1, xk1)
-    #     R = next(R_gen)
-    #     R_s = R[:nq + nu]
-
-    #     # identify active contacts
-    #     g_Nk1 = self.model.q_N(tk1, qk1)
-
-    #     error = self.error_function(R)
-    #     converged = error < self.tol
-    #     j = 0
-    #     if not converged:
-    #         while j < self.max_iter:
-    #             # jacobian
-    #             R_x = next(R_gen)
-
-    #             # Newton update
-    #             j += 1
-    #             dx = spsolve(R_x, R, use_umfpack=True)
-    #             xk1 -= dx
-    #             R_gen = self.R_gen(tk1, xk1)
-    #             R = next(R_gen)
-
-    #             # if tk1 > 1.19:
-    #             # # if tk1 > 1.21:
-    #             #     print(f"xk: {self.xk}")
-    #             #     print(f"xk1: {xk1}")
-    #             #     print(f"R: {R}")
-    #             #     print(f"I_N: {self.I_N}")
-    #             #     print(f"")
-
-    #             error = self.error_function(R)
-    #             converged = error < self.tol
-    #             if converged:
-    #                 break
-
-    #     return converged, j, error, xk1
-
     def solve(self):
         # lists storing output variables
         t = [self.tk]
@@ -438,22 +381,7 @@ class MoreauGGL:
             xk1 = self.xk.copy()  # This copy is mandatory since we modify xk1
             # in the step function
 
-            # # perform Euler forward
-            # tk = self.tk
-            # dt = self.dt
-            # nq = self.nq
-            # nu = self.nu
-            # nla_N = self.nla_N
-            # qk = self.xk[:nq]
-            # uk = self.xk[nq:nq + nu]
-            # xk1[:nq] = qk + dt * self.model.q_dot(tk, qk, uk)
-            # Mk = self.model.M(tk, qk)
-            # hk = self.model.h(tk, qk, uk)
-            # f_N = self.model.W_N(tk, qk) @ xk1[nq + nu : nq + nu + nla_N]
-            # xk1[nq:nq + nu] = self.xk[:nq] + dt * spsolve(Mk, hk + f_N)
-
             converged, n_iter, error, xk1 = self.step(tk1, xk1)
-            qk1, uk1, P_Nk1, mu_Nk1, P_Fk1 = self.unpack(xk1)
 
             # update progress bar and check convergence
             pbar.set_description(
@@ -464,8 +392,26 @@ class MoreauGGL:
                     f"internal Newton-Raphson method not converged after {n_iter} steps with error: {error:.5e}"
                 )
 
+            # extract all variables from xk and xk1
+            if use_position_formulation:
+                qk1, uk1, P_Nk1, mu_Nk1, P_Fk1 = self.unpack(xk1)
+                q_dotk1, u_dotk1 = self.update_position_formulation(xk1)
+            else:
+                q_dotk1, u_dotk1, P_Nk1, mu_Nk1, P_Fk1 = self.unpack(xk1)
+                qk1, uk1 = self.update_velocity_formulation(xk1)
+                # qk1, uk1, P_N_bar, mu_N_bar, P_F_bar = self.update_velocity_formulation(xk1)
+
             # modify converged quantities
             qk1, uk1 = self.model.step_callback(tk1, qk1, uk1)
+
+            # update converged and updated quantities of previous time step
+            self.qk = qk1.copy()
+            self.uk = uk1.copy()
+            self.q_dotk = q_dotk1.copy()
+            self.u_dotk = u_dotk1.copy()
+            # self.P_Nk = P_Nk1.copy()
+            # self.mu_Nk = mu_Nk1.copy()
+            # self.P_Fk = P_Fk1.copy()
 
             # store soltuion fields
             t.append(tk1)
