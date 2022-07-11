@@ -99,6 +99,7 @@ class MoreauGGL:
         # auxiliary velocities
         #######################################################################
         self.xk = np.concatenate((self.qk, self.uk, self.P_Nk, self.mu_Nk, self.P_Fk))
+        # self.xk = np.concatenate((self.q_dotk, self.u_dotk, self.P_Nk, self.mu_Nk, self.P_Fk))
 
         # initialize index sets
         self.A_N = np.zeros(self.nla_N, dtype=bool)
@@ -121,6 +122,15 @@ class MoreauGGL:
         P_F = x[nx_s + 2 * nla_N : nx_s + 2 * nla_N + nla_F]
 
         return q, u, P_N, mu_N, P_F
+
+    # def update(self, xk1):
+    #     q_dotk, u_dotk, P_Nk, mu_Nk, P_Fk = self.unpack(self.xk)
+    #     q_dotk1, u_dotk1, P_Nk1, mu_Nk1, P_Fk1 = self.unpack(xk1)
+
+    #     dt = self.dt
+    #     qk1 = self.qk + dt * q_dotk1
+    #     uk1 = self.uk + dt * u_dotk1
+    #     return qk1, uk1
 
     def R_gen(self, tk1, xk1):
         yield self.R(tk1, xk1, update_index_set=True)
@@ -147,187 +157,126 @@ class MoreauGGL:
         # mu_hat_Nk1 = mu_Nk1 # TODO: This is not working!
         mu_hat_Nk1 = mu_Nk1 + self.dt * P_Nk1  # TODO: This is the key ingredient!
 
-        if use_midpoint:
-            q_M = 0.5 * (qk1 + qk)
-            u_M = 0.5 * (uk1 + uk)
+        # update kinematic quantities (trivial for Euler backward!)
+        q_dotk1 = (qk1 - qk) / dt
+        u_dotk1 = (uk1 - uk) / dt
 
-            M_M = self.model.M(tk1, q_M)
-            W_N_M = self.model.W_N(tk1, q_M, scipy_matrix=csr_matrix)
-            g_N_M = self.model.g_N(tk1, q_M)
-            # g_Nk = self.model.g_N(tk1, qk)
-            # g_Nk1 = self.model.g_N(tk1, qk1)
-            # xi_N_M = self.model.xi_N(tk1, q_M, uk, uk1)
-            g_Nk1 = self.model.g_N(tk1, qk1)
-            xi_Nk1 = self.model.xi_N(tk1, qk1, uk, uk1)
+        # # TODO: Investigate theta method
+        # theta = 0.5
+        # q_dotk1 = (theta * qk + (1.0 - theta) * qk1 - qk) / dt
+        # u_dotk1 = (theta * uk + (1.0 - theta) * uk1 - uk) / dt
 
-            # update index sets
-            # TODO: Which index set?
-            if update_index_set:
-                self.I_N = (
-                    # mu_Nk1 - self.model.prox_r_N * g_Nk >= 0
-                    # mu_Nk1 - self.model.prox_r_N * g_Nk1 >= 0
-                    mu_Nk1 - self.model.prox_r_N * g_N_M
-                    >= 0
-                )
+        # mu_Nk1 = theta * mu_Nk + (1.0 - theta) * mu_Nk1
+        # mu_hat_Nk = mu_Nk + self.dt * P_Nk # TODO: This is the key ingredient!
+        # mu_hat_Nk1 = theta * mu_hat_Nk + (1.0 - theta) * mu_hat_Nk1
+        # P_Nk1 = theta * P_Nk + (1.0 - theta) * P_Nk1
+        # P_Fk1 = theta * P_Fk + (1.0 - theta) * P_Fk1
 
-            # active contact set
-            I_N = self.I_N
-            _I_N = ~I_N
-            I_N_ind = np.where(I_N)[0]
-            _I_N_ind = np.where(_I_N)[0]
+        # evaluate repeatedly used quantities
+        Mk1 = self.model.M(tk1, qk1)
+        W_Nk1 = self.model.W_N(tk1, qk1, scipy_matrix=csr_matrix)
+        W_Fk1 = self.model.W_F(tk1, qk1, scipy_matrix=csr_matrix)
+        g_N_qk1 = self.model.g_N_q(tk1, qk1, scipy_matrix=csr_matrix)
+        gamma_F_qk1 = self.model.gamma_F_q(tk1, qk1, uk1, scipy_matrix=csr_matrix)
+        g_Nk1 = self.model.g_N(tk1, qk1)
+        xi_Nk1 = self.model.xi_N(tk1, qk1, uk, uk1)
+        xi_Fk1 = self.model.xi_F(tk1, qk1, uk, uk1)
 
-            ###################
-            # evaluate residual
-            ###################
-            R = np.zeros(self.nx)
-
-            # kinematic differential equation
-            R[:nq] = (
-                qk1
-                - qk
-                # TODO: Schindler uses weighted sum of kinematic equation?
-                - self.dt * self.model.q_dot(tk1, q_M, u_M)
-                + self.model.B(tk1, q_M) @ W_N_M @ mu_Nk1
-            )
-
-            # equations of motion
-            R[nq : nq + nu] = (
-                M_M @ (uk1 - uk) - self.dt * self.model.h(tk1, q_M, u_M) - W_N_M @ P_Nk1
-            )
-
-            # Mixed Signorini on velcity level and impact law
-            R[nq + nu + I_N_ind] = P_Nk1[I_N] - prox_R0_np(
-                P_Nk1[I_N] - self.model.prox_r_N[I_N] * xi_Nk1[I_N]
-            )
-            R[nq + nu + _I_N_ind] = P_Nk1[_I_N]
-
-            # position stabilization
-            R[nq + nu + nla_N :] = mu_Nk1 - prox_R0_np(
-                mu_Nk1 - self.model.prox_r_N * g_Nk1
-            )
-
+        ###################
+        # update index sets
+        ###################
+        primal_form = True
+        # primal_form = False
+        if primal_form:
+            prox_N_arg_position = g_Nk1 - self.model.prox_r_N * mu_hat_Nk1
+            prox_N_arg_velocity = xi_Nk1 - self.model.prox_r_N * P_Nk1
         else:
+            prox_N_arg_position = -mu_hat_Nk1 + self.model.prox_r_N * g_Nk1
+            prox_N_arg_velocity = -P_Nk1 + self.model.prox_r_N * xi_Nk1
+        if update_index_set:
+            # normal contact sets
+            self.A_N = prox_N_arg_position <= 0
+            self.B_N = self.A_N * (prox_N_arg_velocity <= 0)
 
-            # update kinematic quantities (trivial for Euler backward!)
-            q_dotk1 = (qk1 - qk) / dt
-            u_dotk1 = (uk1 - uk) / dt
+            # frictional contact sets
+            for i_N, i_F in enumerate(self.model.NF_connectivity):
+                i_F = np.array(i_F)
+                if len(i_F) > 0:
+                    # eqn. (139):
+                    self.D_st[i_N] = self.A_N[i_N] and (
+                        norm(self.model.prox_r_F[i_N] * xi_Fk1[i_F] - P_Fk1[i_F])
+                        <= mu[i_N] * P_Nk1[i_N]
+                    )
 
-            # # TODO: Investigate theta method
-            # theta = 0.5
-            # q_dotk1 = (theta * qk + (1.0 - theta) * qk1 - qk) / dt
-            # u_dotk1 = (theta * uk + (1.0 - theta) * uk1 - uk) / dt
+        A_N = self.A_N
+        _A_N = ~A_N
+        A_N_ind = np.where(A_N)[0]
+        _A_N_ind = np.where(_A_N)[0]
 
-            # mu_Nk1 = theta * mu_Nk + (1.0 - theta) * mu_Nk1
-            # mu_hat_Nk = mu_Nk + self.dt * P_Nk # TODO: This is the key ingredient!
-            # mu_hat_Nk1 = theta * mu_hat_Nk + (1.0 - theta) * mu_hat_Nk1
-            # P_Nk1 = theta * P_Nk + (1.0 - theta) * P_Nk1
-            # P_Fk1 = theta * P_Fk + (1.0 - theta) * P_Fk1
+        B_N = self.B_N
+        _B_N = ~B_N
+        B_N_ind = np.where(B_N)[0]
+        _B_N_ind = np.where(_B_N)[0]
 
-            # evaluate repeatedly used quantities
-            Mk1 = self.model.M(tk1, qk1)
-            W_Nk1 = self.model.W_N(tk1, qk1, scipy_matrix=csr_matrix)
-            W_Fk1 = self.model.W_F(tk1, qk1, scipy_matrix=csr_matrix)
-            g_N_qk1 = self.model.g_N_q(tk1, qk1, scipy_matrix=csr_matrix)
-            gamma_F_qk1 = self.model.gamma_F_q(tk1, qk1, uk1, scipy_matrix=csr_matrix)
-            g_Nk1 = self.model.g_N(tk1, qk1)
-            xi_Nk1 = self.model.xi_N(tk1, qk1, uk, uk1)
-            xi_Fk1 = self.model.xi_F(tk1, qk1, uk, uk1)
+        ###################
+        # evaluate residual
+        ###################
+        R = np.zeros(self.nx)
 
-            ###################
-            # update index sets
-            ###################
-            primal_form = True
-            # primal_form = False
-            if primal_form:
-                prox_N_arg_position = g_Nk1 - self.model.prox_r_N * mu_hat_Nk1
-                prox_N_arg_velocity = xi_Nk1 - self.model.prox_r_N * P_Nk1
-            else:
-                prox_N_arg_position = -mu_hat_Nk1 + self.model.prox_r_N * g_Nk1
-                prox_N_arg_velocity = -P_Nk1 + self.model.prox_r_N * xi_Nk1
-            if update_index_set:
-                # normal contact sets
-                self.A_N = prox_N_arg_position <= 0
-                self.B_N = self.A_N * (prox_N_arg_velocity <= 0)
+        #################################
+        # kinematic differential equation
+        #################################
+        # R[:nq] = (
+        #     qk1
+        #     - qk
+        #     - dt * self.model.q_dot(tk1, qk1, uk1)
+        #     - g_N_qk1.T @ mu_Nk1
+        #     - gamma_F_qk1.T @ (dt * P_Fk) # TODO: Not necessary but consistent
+        # )
+        R[:nq] = (
+            q_dotk1
+            - self.model.q_dot(tk1, qk1, uk1)
+            - g_N_qk1.T @ mu_Nk1 / dt
+            - gamma_F_qk1.T @ P_Fk1  # TODO: Not necessary but consistent
+        )
 
-                # frictional contact sets
-                for i_N, i_F in enumerate(self.model.NF_connectivity):
-                    i_F = np.array(i_F)
-                    if len(i_F) > 0:
-                        # eqn. (139):
-                        self.D_st[i_N] = self.A_N[i_N] and (
-                            norm(self.model.prox_r_F[i_N] * xi_Fk1[i_F] - P_Fk1[i_F])
-                            <= mu[i_N] * P_Nk1[i_N]
-                        )
+        #####################
+        # equations of motion
+        #####################
+        # R[nq : nq + nu] = (
+        #     Mk1 @ (uk1 - uk) - dt * self.model.h(tk1, qk1, uk1) - W_Nk1 @ P_Nk1 - W_Fk1 @ P_Fk1
+        # )
+        R[nq : nq + nu] = (
+            Mk1 @ u_dotk1
+            - self.model.h(tk1, qk1, uk1)
+            - W_Nk1 @ (P_Nk1 / dt)
+            - W_Fk1 @ (P_Fk1 / dt)
+        )
 
-            A_N = self.A_N
-            _A_N = ~A_N
-            A_N_ind = np.where(A_N)[0]
-            _A_N_ind = np.where(_A_N)[0]
+        #################################################
+        # Mixed Signorini on velcity level and impact law
+        #################################################
+        # if primal_form:
+        #     # TODO: Why is this the prox on the positive real numbers?
+        #     R[nq + nu + A_N_ind] = xi_Nk1 - prox_R0_np(prox_N_arg_velocity)
+        # else:
+        #     R[nq + nu + A_N_ind] = -P_Nk1 - prox_R0_nm(prox_N_arg_velocity)
+        # R[nq + nu + _A_N_ind] = P_Nk1[_A_N]
 
-            B_N = self.B_N
-            _B_N = ~B_N
-            B_N_ind = np.where(B_N)[0]
-            _B_N_ind = np.where(_B_N)[0]
+        R[nx_s + B_N_ind] = xi_Nk1[B_N]
+        R[nx_s + _B_N_ind] = P_Nk1[_B_N]
 
-            ###################
-            # evaluate residual
-            ###################
-            R = np.zeros(self.nx)
+        ########################
+        # position stabilization
+        ########################
+        # if primal_form:
+        #     # TODO: Why is this the prox on the positive real numbers?
+        #     R[nq + nu + nla_N :] = g_Nk1 - prox_R0_np(prox_N_arg_position)
+        # else:
+        #     R[nq + nu + nla_N :] = -mu_hat_Nk1 - prox_R0_nm(prox_N_arg_position)
 
-            #################################
-            # kinematic differential equation
-            #################################
-            # R[:nq] = (
-            #     qk1
-            #     - qk
-            #     - dt * self.model.q_dot(tk1, qk1, uk1)
-            #     - g_N_qk1.T @ mu_Nk1
-            #     - gamma_F_qk1.T @ (dt * P_Fk) # TODO: Not necessary but consistent
-            # )
-            R[:nq] = (
-                q_dotk1
-                - self.model.q_dot(tk1, qk1, uk1)
-                - g_N_qk1.T @ mu_Nk1 / dt
-                - gamma_F_qk1.T @ (dt * P_Fk)  # TODO: Not necessary but consistent
-            )
-
-            #####################
-            # equations of motion
-            #####################
-            # R[nq : nq + nu] = (
-            #     Mk1 @ (uk1 - uk) - dt * self.model.h(tk1, qk1, uk1) - W_Nk1 @ P_Nk1 - W_Fk1 @ P_Fk1
-            # )
-            R[nq : nq + nu] = (
-                Mk1 @ u_dotk1
-                - self.model.h(tk1, qk1, uk1)
-                - W_Nk1 @ (P_Nk1 / dt)
-                - W_Fk1 @ (P_Fk1 / dt)
-            )
-
-            #################################################
-            # Mixed Signorini on velcity level and impact law
-            #################################################
-            # if primal_form:
-            #     # TODO: Why is this the prox on the positive real numbers?
-            #     R[nq + nu + A_N_ind] = xi_Nk1 - prox_R0_np(prox_N_arg_velocity)
-            # else:
-            #     R[nq + nu + A_N_ind] = -P_Nk1 - prox_R0_nm(prox_N_arg_velocity)
-            # R[nq + nu + _A_N_ind] = P_Nk1[_A_N]
-
-            R[nx_s + B_N_ind] = xi_Nk1[B_N]
-            R[nx_s + _B_N_ind] = P_Nk1[_B_N]
-
-            ########################
-            # position stabilization
-            ########################
-            # if primal_form:
-            #     # TODO: Why is this the prox on the positive real numbers?
-            #     R[nq + nu + nla_N :] = g_Nk1 - prox_R0_np(prox_N_arg_position)
-            # else:
-            #     R[nq + nu + nla_N :] = -mu_hat_Nk1 - prox_R0_nm(prox_N_arg_position)
-
-            R[nx_s + nla_N + A_N_ind] = g_Nk1[A_N]
-            R[nx_s + nla_N + _A_N_ind] = mu_hat_Nk1[_A_N]
+        R[nx_s + nla_N + A_N_ind] = g_Nk1[A_N]
+        R[nx_s + nla_N + _A_N_ind] = mu_hat_Nk1[_A_N]
 
         ##########
         # friction
