@@ -190,8 +190,8 @@ class MoreauGGL:
             # P_Nk1, mu_Nk1, P_Fk1 = P_N_bar, mu_N_bar, P_F_bar
 
         # compute integrated mu as done in gen alpha
-        # mu_hat_Nk1 = mu_Nk1 # TODO: This is not working!
-        mu_hat_Nk1 = mu_Nk1 + self.dt * P_Nk1  # TODO: This is the key ingredient!
+        mu_hat_Nk1 = mu_Nk1  # TODO: This is not working!
+        # mu_hat_Nk1 = mu_Nk1 + self.dt * P_Nk1  # TODO: This is the key ingredient!
 
         # evaluate repeatedly used quantities
         Mk1 = self.model.M(tk1, qk1)
@@ -254,11 +254,21 @@ class MoreauGGL:
         #     - g_N_qk1.T @ mu_Nk1
         #     - gamma_F_qk1.T @ (dt * P_Fk) # TODO: Not necessary but consistent
         # )
+        # R[:nq] = (
+        #     q_dotk1
+        #     - self.model.q_dot(tk1, qk1, uk1)
+        #     - g_N_qk1.T @ mu_Nk1 / dt
+        #     - gamma_F_qk1.T @ P_Fk1  # TODO: Not necessary but consistent
+        # )
+
+        u_dot_s_k1 = spsolve(Mk1, self.model.h(tk1, qk1, uk1))
+        u_sk1 = self.uk + dt * u_dot_s_k1
         R[:nq] = (
             q_dotk1
-            - self.model.q_dot(tk1, qk1, uk1)
-            - g_N_qk1.T @ mu_Nk1 / dt
-            - gamma_F_qk1.T @ P_Fk1  # TODO: Not necessary but consistent
+            - self.model.q_dot(tk1, qk1, u_sk1)
+            - g_N_qk1.T @ mu_Nk1
+            # - g_N_qk1.T @ mu_Nk1 / dt
+            # - gamma_F_qk1.T @ P_Fk1  # TODO: Not necessary but consistent
         )
 
         #####################

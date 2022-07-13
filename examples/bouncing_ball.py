@@ -98,6 +98,8 @@ if __name__ == "__main__":
     sol_fp = solver_fp.solve()
     t_fp = t = sol_fp.t
     q_fp = q = sol_fp.q
+    # t_fp = sol_fp.t
+    # q_fp = sol_fp.q
     u_fp = sol_fp.u
     a_fp = np.zeros_like(u_fp)
     a_fp[1:] = (u_fp[1:] - u_fp[:-1]) / dt
