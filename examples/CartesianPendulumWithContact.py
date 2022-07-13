@@ -171,8 +171,8 @@ if __name__ == "__main__":
     # t1 = 1
     t1 = 10
     # dt = 5.0e-2
-    # dt = 1.0e-2
-    dt = 5.0e-3
+    dt = 1.0e-2
+    # dt = 5.0e-3
 
     # solve with GGL stabilized Moreau scheme
     theta = 0.5

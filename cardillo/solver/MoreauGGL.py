@@ -11,6 +11,9 @@ use_position_formulation = True
 
 
 # TODO: Bilateral constraints on velocity level
+# TODO: Since bilateral constraints on position level should not be
+# influenced by the velocity jumps we might be able to add them on
+# position level only!
 class MoreauGGL:
     """Moreau's midpoint rule with GGL stabilization for unilateral contacts, 
     see Schoeder2013 and Schindler2015 section 15.2.
@@ -290,16 +293,10 @@ class MoreauGGL:
             # - g_N_qk1.T @ mu_Nk1 / dt
             # - gamma_F_qk1.T @ P_Fk1  # TODO: Not necessary but consistent
         )
-        # TODO: Since bilateral constraints on position level should not be
-        # influenced by the velocity jumps we might be able to add them on
-        # position level only!
 
         #####################
         # equations of motion
         #####################
-        # R[nq : nq + nu] = (
-        #     Mk1 @ (uk1 - uk) - dt * self.model.h(tk1, qk1, uk1) - W_Nk1 @ P_Nk1 - W_Fk1 @ P_Fk1
-        # )
         R[nq : nq + nu] = (
             Mk1 @ u_dotk1
             - self.model.h(tk1, qk1, uk1)
