@@ -71,8 +71,8 @@ class Moreau:
         b = np.concatenate([h0, -zeta_g0, -zeta_gamma0])
         u_dot_la_g_la_gamma = splu(A).solve(b)
         self.u_dotk = u_dot_la_g_la_gamma[: self.nu]
-        self.la_gk = u_dot_la_g_la_gamma[self.nu : self.nu + self.nla_g]
-        self.la_gammak = u_dot_la_g_la_gamma[self.nu + self.nla_g :]
+        self.P_gk = u_dot_la_g_la_gamma[self.nu : self.nu + self.nla_g]
+        self.P_gammak = u_dot_la_g_la_gamma[self.nu + self.nla_g :]
 
         # check if initial conditions satisfy constraints on position, velocity
         # and acceleration level
@@ -144,13 +144,13 @@ class Moreau:
             I_F = np.array([], dtype=int)
 
         # solve for new velocities and bilateral constraint forces
-        # M (uk1 - uk) - dt (h + W_g la_g + W_gamma la_gamma + W_gN la_N + W_gT la_T) = 0
+        # M (uk1 - uk) - dt h + W_g P_g + W_gamma P_gamma + W_gN P_N + W_gT P_T = 0
         # W_g.T @ uk1 + chi_g = 0
         # W_gamma.T @ uk1 + chi_gamma = 0
         # fmt: off
-        A = bmat([[        M, -dt * W_g, -dt * W_gamma], \
-                  [    W_g.T,      None,          None], \
-                  [W_gamma.T,      None,          None]], format="csc")
+        A = bmat([[        M, -W_g, -W_gamma], \
+                  [    W_g.T, None,     None], \
+                  [W_gamma.T, None,     None]], format="csc")
         # fmt: on
 
         # perform LU decomposition only once since matrix A is constant in
@@ -173,8 +173,8 @@ class Moreau:
         # x = lu_solve((lu, piv), b)
         x = lu.solve(b)
         uk1 = x[: self.nu]
-        la_gk1 = x[self.nu : self.nu + self.nla_g]
-        la_gammak1 = x[self.nu + self.nla_g :]
+        P_gk1 = x[self.nu : self.nu + self.nla_g]
+        P_gammak1 = x[self.nu + self.nla_g :]
 
         P_Nk1 = np.zeros(self.nla_N)
         P_Fk1 = np.zeros(self.nla_F)
@@ -223,8 +223,8 @@ class Moreau:
                 # solve for new velocities and Lagrange multipliers of bilateral constraints
                 x = lu.solve(b)
                 uk1 = x[: self.nu]
-                la_gk1 = x[self.nu : self.nu + self.nla_g]
-                la_gammak1 = x[self.nu + self.nla_g :]
+                P_gk1 = x[self.nu : self.nu + self.nla_g]
+                P_gammak1 = x[self.nu + self.nla_g :]
 
                 # check for convergence
                 error = self.fix_point_error_function(uk1 - uk_fixed_point)
@@ -237,14 +237,14 @@ class Moreau:
                 P_Nk1_i = P_Nk1_i1.copy()
                 P_Fk1_i = P_Fk1_i1.copy()
 
-        return (converged, j, error), tk1, qk1, uk1, la_gk1, la_gammak1, P_Nk1, P_Fk1
+        return (converged, j, error), tk1, qk1, uk1, P_gk1, P_gammak1, P_Nk1, P_Fk1
 
     def solve(self):
         # lists storing output variables
         q = [self.qk]
         u = [self.uk]
-        la_g = [self.la_gk]
-        la_gamma = [self.la_gammak]
+        P_g = [self.P_gk]
+        P_gamma = [self.P_gammak]
         P_N = [self.P_Nk]
         P_F = [self.P_Fk]
 
@@ -255,8 +255,8 @@ class Moreau:
                 tk1,
                 qk1,
                 uk1,
-                la_gk1,
-                la_gammak1,
+                P_gk1,
+                P_gammak1,
                 P_Nk1,
                 P_Fk1,
             ) = self.step()
@@ -272,8 +272,8 @@ class Moreau:
 
             q.append(qk1)
             u.append(uk1)
-            la_g.append(la_gk1)
-            la_gamma.append(la_gammak1)
+            P_g.append(P_gk1)
+            P_gamma.append(P_gammak1)
             P_N.append(P_Nk1)
             P_F.append(P_Fk1)
 
@@ -282,18 +282,18 @@ class Moreau:
                 self.tk,
                 self.qk,
                 self.uk,
-                self.la_gk,
-                self.la_gammak,
+                self.P_gk,
+                self.P_gammak,
                 self.P_Nk,
                 self.P_Fk,
-            ) = (tk1, qk1, uk1, la_gk1, la_gammak1, P_Nk1, P_Fk1)
+            ) = (tk1, qk1, uk1, P_gk1, P_gammak1, P_Nk1, P_Fk1)
 
         return Solution(
             t=np.array(self.t),
             q=np.array(q),
             u=np.array(u),
-            la_g=np.array(la_g),
-            la_gamma=np.array(la_gamma),
+            P_g=np.array(P_g),
+            P_gamma=np.array(P_gamma),
             P_N=np.array(P_N),
             P_F=np.array(P_F),
         )
