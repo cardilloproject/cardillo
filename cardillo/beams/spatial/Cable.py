@@ -24,28 +24,61 @@ class QuadraticMaterial:
         self.k_b = k_b  # bending stiffness
         self.C_b = np.diag([k_b, k_b, k_b])
 
-    def potential(self, la, la0, kappa, kappa0):
+    def potential(self, t, xi, la, la0, kappa, kappa0):
         dK = kappa - kappa0
         return 0.5 * self.k_e * (la - la0) ** 2 + 0.5 * dK @ self.C_b @ dK
 
-    def n(self, la, la0, kappa, kappa0):
+    def n(self, t, xi, la, la0, kappa, kappa0):
         return self.k_e * (la - la0)
 
-    def m(self, la, la0, kappa, kappa0):
+    def m(self, t, xi, la, la0, kappa, kappa0):
         dK = kappa - kappa0
         return self.C_b @ dK
 
-    def n_lambda(self, la, la0, kappa, kappa0):
+    def n_lambda(self, t, xi, la, la0, kappa, kappa0):
         return self.k_e
 
-    def n_kappa(self, la, la0, kappa, kappa0):
+    def n_kappa(self, t, xi, la, la0, kappa, kappa0):
         return np.zeros(3, dtype=float)
 
-    def m_lambda(self, la, la0, kappa, kappa0):
+    def m_lambda(self, t, xi, la, la0, kappa, kappa0):
         return np.zeros(3, dtype=float)
 
-    def m_kappa(self, la, la0, kappa, kappa0):
+    def m_kappa(self, t, xi, la, la0, kappa, kappa0):
         return self.C_b
+
+
+class QuadraticMaterialDegraded:
+    def __init__(self, k_e, k_b):
+        self.k_e = k_e  # axial stiffness
+        self.k_b = k_b  # bending stiffness
+        self.C_b = np.diag([k_b, k_b, k_b])
+
+    def potential(self, t, xi, la, la0, kappa, kappa0):
+        f = 1.0 - t
+        dK = kappa - kappa0
+        return 0.5 * self.k_e * (la - la0) ** 2 + f * 0.5 * dK @ self.C_b @ dK
+
+    def n(self, t, xi, la, la0, kappa, kappa0):
+        return self.k_e * (la - la0)
+
+    def m(self, t, xi, la, la0, kappa, kappa0):
+        f = 1.0 - t
+        dK = kappa - kappa0
+        return f * self.C_b @ dK
+
+    def n_lambda(self, t, xi, la, la0, kappa, kappa0):
+        return self.k_e
+
+    def n_kappa(self, t, xi, la, la0, kappa, kappa0):
+        return np.zeros(3, dtype=float)
+
+    def m_lambda(self, t, xi, la, la0, kappa, kappa0):
+        return np.zeros(3, dtype=float)
+
+    def m_kappa(self, t, xi, la, la0, kappa, kappa0):
+        f = 1.0 - t
+        return f * self.C_b
 
 
 class Cable:
@@ -71,9 +104,8 @@ class Cable:
 
         # chose basis
         self.basis = basis
-        if basis == "Lagrange":
-            self.knot_vector = Node_vector(polynomial_degree, nelement)
-        elif basis == "B-spline":
+        if basis == "B-spline":
+            assert polynomial_degree >= 2, "use at least quadratic B-splines"
             self.knot_vector = KnotVector(polynomial_degree, nelement)
         elif basis == "Hermite":
             assert polynomial_degree == 3, "only cubic Hermite splines are implemented!"
@@ -163,51 +195,6 @@ class Cable:
                 # self.kappa0[el, i] = cross3(d1, d1_s)
                 self.kappa0[el, i] = cross3(d1, r_xixi) / (ji * ji)
 
-    # @staticmethod
-    # def straight_configuration(
-    #     basis,
-    #     polynomial_degree,
-    #     nelement,
-    #     L,
-    #     r_OP=np.zeros(3, dtype=float),
-    #     A_IK=np.eye(3, dtype=float),
-    # ):
-    #     if basis == "B-spline":
-    #         nn = polynomial_degree + nelement
-    #     elif basis == "Hermite":
-    #         assert polynomial_degree == 3, "only cubic Hermite splines are implemented!"
-    #         nn = nelement + 1
-    #     else:
-    #         raise RuntimeError(f'wrong basis: "{basis}" was chosen')
-
-    #     if basis == "B-spline":
-    #         x0 = np.linspace(0, L, num=nn)
-    #         y0 = np.zeros(nn)
-    #         z0 = np.zeros(nn)
-    #         # build Greville abscissae for B-spline basis
-    #         kv = KnotVector.uniform(polynomial_degree, nelement)
-    #         for i in range(nn):
-    #             x0[i] = np.sum(kv[i + 1 : i + polynomial_degree + 1])
-    #         x0 = x0 * L / polynomial_degree
-
-    #         r0 = np.vstack((x0, y0, z0))
-    #         for i in range(nn):
-    #             r0[:, i] = r_OP + A_IK @ r0[:, i]
-
-    #     elif basis == "Hermite":
-    #         xis = np.linspace(0, 1, num=nn)
-    #         r0 = np.zeros((6, nn))
-    #         t0 = A_IK @ (L * e1)
-    #         for i, xi in enumerate(xis):
-    #             ri = r_OP + xi * t0
-    #             r0[:3, i] = ri
-    #             r0[3:, i] = t0
-
-    #     # reshape generalized coordinates to nodal ordering
-    #     q = r0.reshape(-1, order="F")
-
-    #     return q
-
     @staticmethod
     def straight_configuration(
         basis,
@@ -217,9 +204,7 @@ class Cable:
         r_OP=np.zeros(3, dtype=float),
         A_IK=np.eye(3, dtype=float),
     ):
-        if basis == "Lagrange":
-            nn = polynomial_degree * nelement + 1
-        elif basis == "B-spline":
+        if basis == "B-spline":
             nn = polynomial_degree + nelement
         elif basis == "Hermite":
             assert polynomial_degree == 3, "only cubic Hermite splines are implemented!"
@@ -227,16 +212,15 @@ class Cable:
         else:
             raise RuntimeError(f'wrong basis: "{basis}" was chosen')
 
-        if basis in ["Lagrange", "B-spline"]:
+        if basis == "B-spline":
             x0 = np.linspace(0, L, num=nn)
             y0 = np.zeros(nn)
             z0 = np.zeros(nn)
             # build Greville abscissae for B-spline basis
-            if basis == "B-spline":
-                kv = KnotVector.uniform(polynomial_degree, nelement)
-                for i in range(nn):
-                    x0[i] = np.sum(kv[i + 1 : i + polynomial_degree + 1])
-                x0 = x0 * L / polynomial_degree
+            kv = KnotVector.uniform(polynomial_degree, nelement)
+            for i in range(nn):
+                x0[i] = np.sum(kv[i + 1 : i + polynomial_degree + 1])
+            x0 = x0 * L / polynomial_degree
 
             r0 = np.vstack((x0, y0, z0))
             for i in range(nn):
@@ -345,14 +329,15 @@ class Cable:
         f = np.zeros(self.nu)
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
-            f[elDOF] += self.f_pot_el(q[elDOF], el)
+            f[elDOF] += self.f_pot_el(t, q[elDOF], el)
         return f
 
-    def f_pot_el(self, qe, el):
+    def f_pot_el(self, t, qe, el):
         f_pot_el = np.zeros(self.nq_element, dtype=qe.dtype)
 
         for i in range(self.nquadrature):
             # extract reference state variables
+            xi = self.qp[el, i]
             qwi = self.qw[el, i]
             Ji = self.J[el, i]
             kappa0 = self.kappa0[el, i]
@@ -381,8 +366,8 @@ class Cable:
 
             # compute contact forces and couples from partial derivatives of
             # the strain energy function w.r.t. strain measures
-            n = self.material_model.n(la, la0, kappa, kappa0)
-            m = self.material_model.m(la, la0, kappa, kappa0)
+            n = self.material_model.n(t, xi, la, la0, kappa, kappa0)
+            m = self.material_model.m(t, xi, la, la0, kappa, kappa0)
 
             # assemble internal forces
             for node in range(self.nnodes_element):
@@ -417,12 +402,12 @@ class Cable:
     def f_pot_q(self, t, q, coo):
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
-            f_pot_q_el = self.f_pot_q_el(q[elDOF], el)
+            f_pot_q_el = self.f_pot_q_el(t, q[elDOF], el)
 
             # sparse assemble element internal stiffness matrix
             coo.extend(f_pot_q_el, (self.uDOF[elDOF], self.qDOF[elDOF]))
 
-    def f_pot_q_el(self, qe, el):
+    def f_pot_q_el(self, t, qe, el):
         # f_pot_q_el = np.zeros((self.nu_element, self.nq_element), dtype=float)
 
         # for i in range(self.nquadrature):
@@ -470,16 +455,12 @@ class Cable:
         # return f_pot_q_el
 
         f_pot_q_el_num = approx_fprime(
-            qe, lambda qe: self.f_pot_el(qe, el), eps=1.0e-6, method="2-point"
+            qe, lambda qe: self.f_pot_el(t, qe, el), eps=1.0e-6, method="2-point"
         )
         # diff = f_pot_q_el - f_pot_q_el_num
         # error = np.linalg.norm(diff)
         # print(f"error f_pot_q_el: {error}")
         return f_pot_q_el_num
-
-    #########################################
-    # kinematic equation
-    #########################################
 
     #########################################
     # kinematic equation

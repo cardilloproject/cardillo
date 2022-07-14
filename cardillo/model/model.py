@@ -18,7 +18,7 @@ properties.extend(["g_N"])
 
 properties.extend(["gamma_F"])
 
-properties.extend(["assembler_callback", "step_callback"])
+properties.extend(["assembler_callback", "pre_iteration_update", "step_callback"])
 
 properties.extend(["g_S"])
 
@@ -63,11 +63,11 @@ class Model(object):
     def pop(self, index):
         self.contributions.pop(index)
 
-    def pre_iteration_update(self, t, q, u):
-        """Update or precalculate any system variables before next solver iteration"""
-        for contr in self.contributions:
-            if callable(getattr(contr, "pre_iteration_update", None)):
-                contr.pre_iteration_update(t, q, u)
+    # def pre_iteration_update(self, t, q, u):
+    #     """Update or precalculate any system variables before next solver iteration"""
+    #     for contr in self.contributions:
+    #         if callable(getattr(contr, "pre_iteration_update", None)):
+    #             contr.pre_iteration_update(t, q, u)
 
     def assemble(self):
         self.nq = 0
@@ -211,6 +211,13 @@ class Model(object):
                 t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF]
             )
         return q_ddot
+
+    def pre_iteration_update(self, t, q, u):
+        for contr in self.__pre_iteration_update_contr:
+            q[contr.qDOF], u[contr.uDOF] = contr.pre_iteration_update(
+                t, q[contr.qDOF], u[contr.uDOF]
+            )
+        return q, u
 
     def step_callback(self, t, q, u):
         for contr in self.__step_callback_contr:

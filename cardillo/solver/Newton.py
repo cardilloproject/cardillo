@@ -245,10 +245,15 @@ class Newton:
             pbar = range(0, self.nt)
         for i in pbar:
 
+            # ti = self.load_steps[i]
+            # qi = self.x[i, : self.nq]
+            # zi = self.z(ti, qi)
+            # ui = self.u
+            # zi, ui = self.model.pre_iteration_update(ti, zi, ui)
+            # # qi = zi[self.fDOF_q]
+            # # self.x[i, : self.nq] = qi
+
             # compute initial residual
-            # self.model.pre_iteration_update(self.load_steps[i],
-            #                                 self.x[i, :self.nq],
-            #                                 self.u)
             generator = self.__eval__(self.load_steps[i], self.x[i])
             R = next(generator)
 
@@ -344,7 +349,6 @@ class Newton:
             # step callback and warm start for next step
             if i < self.nt - 1:
                 # solver step callback
-                # self.model.step_callback(self.load_steps[i], )
                 ti = self.load_steps[i]
                 qi = self.x[i, : self.nq]
                 zi = self.z(ti, qi)
