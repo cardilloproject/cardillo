@@ -27,6 +27,80 @@ import matplotlib.pyplot as plt
 ##############
 # Hasel models
 ##############
+def make_inflated(Rope):
+    class InflatedRope(Rope):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args[1:], **kwargs)
+            self.pressure = args[0]
+
+        def area(self, q):
+            a = np.zeros(1, dtype=q.dtype)[0]
+            for el in range(self.nelement):
+                qe = q[self.elDOF[el]]
+
+                for i in range(self.nquadrature):
+                    # extract reference state variables
+                    qwi = self.qw[el, i]
+
+                    # interpolate tangent vector
+                    r = np.zeros(3, dtype=qe.dtype)
+                    r_xi = np.zeros(3, dtype=qe.dtype)
+                    for node in range(self.nnodes_element):
+                        r += self.N[el, i, node] * qe[self.nodalDOF_element[node]]
+                        r_xi += self.N_xi[el, i, node] * qe[self.nodalDOF_element[node]]
+
+                    # counterclockwise rotated tangent vector
+                    r_xi_perp = np.array([-r_xi[1], r_xi[0], 0.0], dtype=qe.dtype)
+
+                    # integrate area
+                    a += 0.5 * r @ r_xi_perp * qwi
+            return a
+
+        def f_npot(self, t, q, u):
+            f = np.zeros(self.nu, dtype=q.dtype)
+            for el in range(self.nelement):
+                elDOF = self.elDOF[el]
+                f[elDOF] += self.f_npot_el(t, q[elDOF], u[elDOF], el)
+            return f
+
+        def f_npot_el(self, t, qe, ue, el):
+            pressure = self.pressure(t)
+
+            f_el = np.zeros(self.nu_element, dtype=qe.dtype)
+            for i in range(self.nquadrature):
+                # extract reference state variables
+                qwi = self.qw[el, i]
+
+                # interpolate tangent vector
+                r_xi = np.zeros(3, dtype=qe.dtype)
+                for node in range(self.nnodes_element):
+                    r_xi += self.N_xi[el, i, node] * qe[self.nodalDOF_element[node]]
+
+                # counterclockwise rotated tangent vector
+                r_xi_perp = np.array([-r_xi[1], r_xi[0], 0.0], dtype=qe.dtype)
+
+                # assemble
+                for node in range(self.nnodes_element):
+                    f_el[self.nodalDOF_element[node]] += (
+                        self.N[el, i, node] * pressure * r_xi_perp * qwi
+                    )
+            return f_el
+
+        def f_npot_q(self, t, q, u, coo):
+            for el in range(self.nelement):
+                elDOF = self.elDOF[el]
+                f_npot_q_el = self.f_npot_q_el(t, q[elDOF], u[elDOF], el)
+
+                # sparse assemble element internal stiffness matrix
+                coo.extend(f_npot_q_el, (self.uDOF[elDOF], self.qDOF[elDOF]))
+
+        def f_npot_q_el(self, t, qe, ue, el):
+            f_npot_q_el_num = approx_fprime(
+                qe, lambda qe: self.f_npot_el(t, qe, ue, el), eps=1.0e-10, method="cs"
+            )
+            return f_npot_q_el_num
+
+    return InflatedRope
 
 
 class InflatedRope(Rope):
@@ -950,7 +1024,130 @@ def inflated_circular_segment():
     animate_rope(t, q, [rope], R, show=True)
 
 
-def cable_straight():
+# def cable_straight():
+#     # statics or dynamics?
+#     statics = True
+#     # statics = False
+
+#     # solver parameter
+#     if statics:
+#         atol = 1.0e-8
+#         rtol = 0.0
+#         n_load_steps = 10
+#         max_iter = 20
+#     else:
+#         atol = 1.0e-8
+#         rtol = 1.0e-6
+#         t1 = 1
+#         dt = 1.0e-2
+#         method = "RK45"
+
+#     # discretization properties
+#     nelements = 3
+#     polynomial_degree = 3
+#     basis = "B-spline"
+#     # polynomial_degree = 3
+#     # basis = "Hermite"
+
+#     # rope parameters
+#     g = 9.81
+#     L = 3.14
+#     k_e = 1.0e2
+#     k_b = 1.0e0
+#     A_rho0 = 1.0e0
+
+#     # starting point and corresponding orientation
+#     r_OP0 = np.zeros(3, dtype=float)
+#     A_IK0 = np.eye(3, dtype=float)
+
+#     # end point
+#     r_OP1 = L * e1
+
+#     # straight initial configuration
+#     Q = Cable.straight_configuration(
+#         basis,
+#         polynomial_degree,
+#         nelements,
+#         L,
+#         r_OP=r_OP0,
+#         A_IK=A_IK0,
+#     )
+
+#     # # Manipulate initial configuration in order to overcome singular initial
+#     # # configuration. Do not change first and last node, otherwise constraints
+#     # # are violated!
+#     # eps = 1.0e-5
+#     # q0 = Q.copy().reshape(-1, 3)
+#     # nn = len(q0)
+#     # for i in range(1, nn - 1):
+#     #     q0[i, :2] += eps * 0.5 * (2.0 * np.random.rand(2) - 1)
+#     # q0 = q0.reshape(-1)
+
+#     materia_model = QuadraticMaterial(k_e, k_b)
+
+#     # build rope class
+#     rope = Cable(
+#         materia_model,
+#         A_rho0,
+#         polynomial_degree,
+#         nelements,
+#         Q,
+#         basis=basis,
+#     )
+
+#     # left joint
+#     frame1 = Frame(r_OP=r_OP0, A_IK=A_IK0)
+#     joint1 = SphericalJoint(frame1, rope, r_OP0, frame_ID2=(0,))
+
+#     # left joint
+#     frame2 = Frame(r_OP=r_OP1, A_IK=A_IK0)
+#     joint2 = SphericalJoint(frame2, rope, r_OP1, frame_ID2=(1,))
+
+#     __fg = -A_rho0 * g * e2 * 1.0e1
+#     if statics:
+#         fg = lambda t, xi: t * __fg
+#     else:
+#         fg = lambda t, xi: __fg
+#     gravity = DistributedForce1D(fg, rope)
+
+#     # assemble the model
+#     model = Model()
+#     model.add(rope)
+#     model.add(frame1)
+#     model.add(joint1)
+#     model.add(frame2)
+#     model.add(joint2)
+#     model.add(gravity)
+#     model.assemble()
+
+#     if statics:
+#         solver = Newton(
+#             model,
+#             n_load_steps=n_load_steps,
+#             max_iter=max_iter,
+#             atol=atol,
+#             rtol=rtol,
+#         )
+#     else:
+#         solver = ScipyIVP(
+#             model,
+#             t1,
+#             dt,
+#             method=method,
+#             rtol=rtol,
+#             atol=atol,
+#         )
+
+#     sol = solver.solve()
+#     q = sol.q
+#     nt = len(q)
+#     t = sol.t[:nt]
+
+#     animate_rope(t, q, [rope], L, show=True)
+
+
+def cable_straight(case="rope"):
+    # def cable_straight(case="cable"):
     # statics or dynamics?
     statics = True
     # statics = False
@@ -970,8 +1167,10 @@ def cable_straight():
 
     # discretization properties
     nelements = 3
-    polynomial_degree = 3
-    basis = "B-spline"
+    polynomial_degree = 1
+    basis = "Lagrange"
+    # polynomial_degree = 3
+    # basis = "B-spline"
     # polynomial_degree = 3
     # basis = "Hermite"
 
@@ -979,7 +1178,7 @@ def cable_straight():
     g = 9.81
     L = 3.14
     k_e = 1.0e2
-    k_b = 1.0e1
+    k_b = 0.0  # 1.0e0 * 0
     A_rho0 = 1.0e0
 
     # starting point and corresponding orientation
@@ -989,8 +1188,13 @@ def cable_straight():
     # end point
     r_OP1 = L * e1
 
+    if case == "rope":
+        ElementType = Rope
+    else:
+        ElementType = Cable
+
     # straight initial configuration
-    Q = Cable.straight_configuration(
+    Q = ElementType.straight_configuration(
         basis,
         polynomial_degree,
         nelements,
@@ -999,27 +1203,38 @@ def cable_straight():
         A_IK=A_IK0,
     )
 
-    # # Manipulate initial configuration in order to overcome singular initial
-    # # configuration. Do not change first and last node, otherwise constraints
-    # # are violated!
-    # eps = 1.0e-5
-    # q0 = Q.copy().reshape(-1, 3)
-    # nn = len(q0)
-    # for i in range(1, nn - 1):
-    #     q0[i, :2] += eps * 0.5 * (2.0 * np.random.rand(2) - 1)
-    # q0 = q0.reshape(-1)
+    # build cable class
+    if case == "rope":
+        # Manipulate initial configuration in order to overcome singular initial
+        # configuration. Do not change first and last node, otherwise constraints
+        # are violated!
+        eps = 1.0e-4
+        q0 = Q.copy().reshape(-1, 3)
+        nn = len(q0)
+        for i in range(1, nn - 1):
+            q0[i, :2] += eps * 0.5 * (2.0 * np.random.rand(2) - 1)
+        q0 = q0.reshape(-1)
 
-    materia_model = QuadraticMaterial(k_e, k_b)
-
-    # build rope class
-    rope = Cable(
-        materia_model,
-        A_rho0,
-        polynomial_degree,
-        nelements,
-        Q,
-        basis=basis,
-    )
+        materia_model = QuadraticPotential(k_e)
+        rope = ElementType(
+            materia_model,
+            A_rho0,
+            polynomial_degree,
+            nelements,
+            Q,
+            q0=q0,
+            basis=basis,
+        )
+    else:
+        materia_model = QuadraticMaterial(k_e, k_b)
+        rope = ElementType(
+            materia_model,
+            A_rho0,
+            polynomial_degree,
+            nelements,
+            Q,
+            basis=basis,
+        )
 
     # left joint
     frame1 = Frame(r_OP=r_OP0, A_IK=A_IK0)
@@ -1072,9 +1287,147 @@ def cable_straight():
     animate_rope(t, q, [rope], L, show=True)
 
 
+def cable_straight_inflated(case="rope"):
+    # def cable_straight_inflated(case="cable"):
+    # statics or dynamics?
+    statics = True
+    # statics = False
+
+    # solver parameter
+    if statics:
+        atol = 1.0e-8
+        rtol = 0.0
+        n_load_steps = 10
+        max_iter = 20
+    else:
+        atol = 1.0e-8
+        rtol = 1.0e-6
+        t1 = 1
+        dt = 1.0e-2
+        method = "RK45"
+
+    # discretization properties
+    nelements = 3
+    # polynomial_degree = 1
+    # basis = "Lagrange"
+    polynomial_degree = 3
+    basis = "B-spline"
+    # polynomial_degree = 3
+    # basis = "Hermite"
+
+    # rope parameters
+    L = 3.14
+    k_e = 1.0e2
+    k_b = 0.0  # 1.0e0 * 0
+    A_rho0 = 1.0e0
+
+    # starting point and corresponding orientation
+    r_OP0 = np.zeros(3, dtype=float)
+    A_IK0 = np.eye(3, dtype=float)
+
+    # end point
+    r_OP1 = L * e1
+
+    if case == "rope":
+        InflatedCable = make_inflated(Rope)
+    else:
+        InflatedCable = make_inflated(Cable)
+
+    # straight initial configuration
+    Q = InflatedCable.straight_configuration(
+        basis,
+        polynomial_degree,
+        nelements,
+        L,
+        r_OP=r_OP0,
+        A_IK=A_IK0,
+    )
+
+    # internal pressure function
+    pressure = lambda t: t * 2.0e1
+
+    # build cable class
+    if case == "rope":
+        # Manipulate initial configuration in order to overcome singular initial
+        # configuration. Do not change first and last node, otherwise constraints
+        # are violated!
+        eps = 1.0e-4
+        q0 = Q.copy().reshape(-1, 3)
+        nn = len(q0)
+        for i in range(1, nn - 1):
+            q0[i, :2] += eps * 0.5 * (2.0 * np.random.rand(2) - 1)
+        q0 = q0.reshape(-1)
+
+        materia_model = QuadraticPotential(k_e)
+        rope = InflatedCable(
+            pressure,
+            materia_model,
+            A_rho0,
+            polynomial_degree,
+            nelements,
+            Q,
+            q0=q0,
+            basis=basis,
+        )
+    else:
+        materia_model = QuadraticMaterial(k_e, k_b)
+        rope = InflatedCable(
+            pressure,
+            materia_model,
+            A_rho0,
+            polynomial_degree,
+            nelements,
+            Q,
+            basis=basis,
+        )
+
+    # left joint
+    frame1 = Frame(r_OP=r_OP0, A_IK=A_IK0)
+    joint1 = SphericalJoint(frame1, rope, r_OP0, frame_ID2=(0,))
+
+    # left joint
+    frame2 = Frame(r_OP=r_OP1, A_IK=A_IK0)
+    joint2 = SphericalJoint(frame2, rope, r_OP1, frame_ID2=(1,))
+
+    # assemble the model
+    model = Model()
+    model.add(rope)
+    model.add(frame1)
+    model.add(joint1)
+    model.add(frame2)
+    model.add(joint2)
+    model.assemble()
+
+    if statics:
+        solver = Newton(
+            model,
+            n_load_steps=n_load_steps,
+            max_iter=max_iter,
+            atol=atol,
+            rtol=rtol,
+        )
+    else:
+        solver = ScipyIVP(
+            model,
+            t1,
+            dt,
+            method=method,
+            rtol=rtol,
+            atol=atol,
+        )
+
+    sol = solver.solve()
+    q = sol.q
+    nt = len(q)
+    t = sol.t[:nt]
+
+    animate_rope(t, q, [rope], L, show=True)
+
+
 if __name__ == "__main__":
     # inflated_straight()
     # inflated_quarter_circle()
     # inflated_quarter_circle_external_force()
     # inflated_circular_segment()
     cable_straight()
+    # cable_straight_inflated()

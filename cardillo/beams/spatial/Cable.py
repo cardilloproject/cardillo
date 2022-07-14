@@ -2,6 +2,7 @@ import numpy as np
 from cardillo.math.algebra import ax2skew
 
 from cardillo.utility.coo import Coo
+from cardillo.discretization.lagrange import Node_vector
 from cardillo.discretization.B_spline import KnotVector
 from cardillo.discretization.Hermite import HermiteNodeVector
 from cardillo.math import (
@@ -70,7 +71,9 @@ class Cable:
 
         # chose basis
         self.basis = basis
-        if basis == "B-spline":
+        if basis == "Lagrange":
+            self.knot_vector = Node_vector(polynomial_degree, nelement)
+        elif basis == "B-spline":
             self.knot_vector = KnotVector(polynomial_degree, nelement)
         elif basis == "Hermite":
             assert polynomial_degree == 3, "only cubic Hermite splines are implemented!"
@@ -160,6 +163,51 @@ class Cable:
                 # self.kappa0[el, i] = cross3(d1, d1_s)
                 self.kappa0[el, i] = cross3(d1, r_xixi) / (ji * ji)
 
+    # @staticmethod
+    # def straight_configuration(
+    #     basis,
+    #     polynomial_degree,
+    #     nelement,
+    #     L,
+    #     r_OP=np.zeros(3, dtype=float),
+    #     A_IK=np.eye(3, dtype=float),
+    # ):
+    #     if basis == "B-spline":
+    #         nn = polynomial_degree + nelement
+    #     elif basis == "Hermite":
+    #         assert polynomial_degree == 3, "only cubic Hermite splines are implemented!"
+    #         nn = nelement + 1
+    #     else:
+    #         raise RuntimeError(f'wrong basis: "{basis}" was chosen')
+
+    #     if basis == "B-spline":
+    #         x0 = np.linspace(0, L, num=nn)
+    #         y0 = np.zeros(nn)
+    #         z0 = np.zeros(nn)
+    #         # build Greville abscissae for B-spline basis
+    #         kv = KnotVector.uniform(polynomial_degree, nelement)
+    #         for i in range(nn):
+    #             x0[i] = np.sum(kv[i + 1 : i + polynomial_degree + 1])
+    #         x0 = x0 * L / polynomial_degree
+
+    #         r0 = np.vstack((x0, y0, z0))
+    #         for i in range(nn):
+    #             r0[:, i] = r_OP + A_IK @ r0[:, i]
+
+    #     elif basis == "Hermite":
+    #         xis = np.linspace(0, 1, num=nn)
+    #         r0 = np.zeros((6, nn))
+    #         t0 = A_IK @ (L * e1)
+    #         for i, xi in enumerate(xis):
+    #             ri = r_OP + xi * t0
+    #             r0[:3, i] = ri
+    #             r0[3:, i] = t0
+
+    #     # reshape generalized coordinates to nodal ordering
+    #     q = r0.reshape(-1, order="F")
+
+    #     return q
+
     @staticmethod
     def straight_configuration(
         basis,
@@ -169,7 +217,9 @@ class Cable:
         r_OP=np.zeros(3, dtype=float),
         A_IK=np.eye(3, dtype=float),
     ):
-        if basis == "B-spline":
+        if basis == "Lagrange":
+            nn = polynomial_degree * nelement + 1
+        elif basis == "B-spline":
             nn = polynomial_degree + nelement
         elif basis == "Hermite":
             assert polynomial_degree == 3, "only cubic Hermite splines are implemented!"
@@ -177,15 +227,16 @@ class Cable:
         else:
             raise RuntimeError(f'wrong basis: "{basis}" was chosen')
 
-        if basis == "B-spline":
+        if basis in ["Lagrange", "B-spline"]:
             x0 = np.linspace(0, L, num=nn)
             y0 = np.zeros(nn)
             z0 = np.zeros(nn)
             # build Greville abscissae for B-spline basis
-            kv = KnotVector.uniform(polynomial_degree, nelement)
-            for i in range(nn):
-                x0[i] = np.sum(kv[i + 1 : i + polynomial_degree + 1])
-            x0 = x0 * L / polynomial_degree
+            if basis == "B-spline":
+                kv = KnotVector.uniform(polynomial_degree, nelement)
+                for i in range(nn):
+                    x0[i] = np.sum(kv[i + 1 : i + polynomial_degree + 1])
+                x0 = x0 * L / polynomial_degree
 
             r0 = np.vstack((x0, y0, z0))
             for i in range(nn):

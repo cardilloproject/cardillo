@@ -16,8 +16,8 @@ class Rope:
     def __init__(
         self,
         material_model,
-        polynomial_degree,
         A_rho0,
+        polynomial_degree,
         nelement,
         Q,
         q0=None,
