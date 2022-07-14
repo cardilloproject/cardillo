@@ -5,11 +5,10 @@ from cardillo.model.bilateral_constraints.implicit import (
 )
 from cardillo.beams import (
     Rope,
-    InflatedRope,
-    RopeInternalFluid,
-    RopeHydrostaticPressure,
     animate_rope,
 )
+from cardillo.model.scalar_force_interactions import QuadraticPotential
+from cardillo.model.point_mass import PointMass
 from cardillo.forces import DistributedForce1D, Force
 from cardillo.model import Model
 from cardillo.solver import (
@@ -18,10 +17,260 @@ from cardillo.solver import (
     Riks,
     GenAlphaFirstOrder,
 )
-from cardillo.math import pi, e1, e2, e3, rodriguez
+from cardillo.math import pi, e1, e2, e3, rodriguez, approx_fprime
 
 import numpy as np
 import matplotlib.pyplot as plt
+
+##############
+# Hasel models
+##############
+
+
+class InflatedRope(Rope):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args[1:], **kwargs)
+        self.pressure = args[0]
+
+    def area(self, q):
+        a = np.zeros(1, dtype=q.dtype)[0]
+        for el in range(self.nelement):
+            qe = q[self.elDOF[el]]
+
+            for i in range(self.nquadrature):
+                # extract reference state variables
+                qwi = self.qw[el, i]
+
+                # interpolate tangent vector
+                r = np.zeros(3, dtype=qe.dtype)
+                r_xi = np.zeros(3, dtype=qe.dtype)
+                for node in range(self.nnodes_element):
+                    r += self.N[el, i, node] * qe[self.nodalDOF_element[node]]
+                    r_xi += self.N_xi[el, i, node] * qe[self.nodalDOF_element[node]]
+
+                # counterclockwise rotated tangent vector
+                r_xi_perp = np.array([-r_xi[1], r_xi[0], 0.0], dtype=qe.dtype)
+
+                # integrate area
+                a += 0.5 * r @ r_xi_perp * qwi
+        return a
+
+    def f_npot(self, t, q, u):
+        f = np.zeros(self.nu, dtype=q.dtype)
+        for el in range(self.nelement):
+            elDOF = self.elDOF[el]
+            f[elDOF] += self.f_npot_el(t, q[elDOF], u[elDOF], el)
+        return f
+
+    def f_npot_el(self, t, qe, ue, el):
+        pressure = self.pressure(t)
+
+        f_el = np.zeros(self.nu_element, dtype=qe.dtype)
+        for i in range(self.nquadrature):
+            # extract reference state variables
+            qwi = self.qw[el, i]
+
+            # interpolate tangent vector
+            r_xi = np.zeros(3, dtype=qe.dtype)
+            for node in range(self.nnodes_element):
+                r_xi += self.N_xi[el, i, node] * qe[self.nodalDOF_element[node]]
+
+            # counterclockwise rotated tangent vector
+            r_xi_perp = np.array([-r_xi[1], r_xi[0], 0.0], dtype=qe.dtype)
+
+            # assemble
+            for node in range(self.nnodes_element):
+                f_el[self.nodalDOF_element[node]] += (
+                    self.N[el, i, node] * pressure * r_xi_perp * qwi
+                )
+        return f_el
+
+    def f_npot_q(self, t, q, u, coo):
+        for el in range(self.nelement):
+            elDOF = self.elDOF[el]
+            f_npot_q_el = self.f_npot_q_el(t, q[elDOF], u[elDOF], el)
+
+            # sparse assemble element internal stiffness matrix
+            coo.extend(f_npot_q_el, (self.uDOF[elDOF], self.qDOF[elDOF]))
+
+    def f_npot_q_el(self, t, qe, ue, el):
+        f_npot_q_el_num = approx_fprime(
+            qe, lambda qe: self.f_npot_el(t, qe, ue, el), eps=1.0e-10, method="cs"
+        )
+        return f_npot_q_el_num
+
+
+class RopeInternalFluid(Rope):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args[3:], **kwargs)
+        self.rho_g_fluid = args[0]
+        self.h0 = args[1]
+        self.k_a = args[2]
+        self.potential = QuadraticPotential(self.k_a)
+        self.A = self.area(self.Q)
+
+    def area(self, q):
+        a = np.zeros(1, dtype=q.dtype)[0]
+        for el in range(self.nelement):
+            qe = q[self.elDOF[el]]
+
+            for i in range(self.nquadrature):
+                # extract reference state variables
+                qwi = self.qw[el, i]
+
+                # interpolate tangent vector
+                r = np.zeros(3, dtype=qe.dtype)
+                r_xi = np.zeros(3, dtype=qe.dtype)
+                for node in range(self.nnodes_element):
+                    r += self.N[el, i, node] * qe[self.nodalDOF_element[node]]
+                    r_xi += self.N_xi[el, i, node] * qe[self.nodalDOF_element[node]]
+
+                # counterclockwise rotated tangent vector
+                r_xi_perp = np.array([-r_xi[1], r_xi[0], 0.0], dtype=qe.dtype)
+
+                # integrate area
+                a += 0.5 * (r @ r_xi_perp) * qwi
+                # a += 0.5 * max(0, r @ r_xi_perp) * qwi
+        return a
+
+    def f_npot(self, t, q, u):
+        # integrate current area
+        a = self.area(q)
+        pressure_fluid = self.potential.pot_g(a, self.A)
+
+        # internal forces of fluid
+        f = np.zeros(self.nu, dtype=q.dtype)
+        for el in range(self.nelement):
+            elDOF = self.elDOF[el]
+            qe = q[elDOF]
+
+            f_el = np.zeros(self.nu_element, dtype=qe.dtype)
+            for i in range(self.nquadrature):
+                # extract reference state variables
+                qwi = self.qw[el, i]
+
+                # interpolate tangent vector
+                r = np.zeros(3, dtype=qe.dtype)
+                r_xi = np.zeros(3, dtype=qe.dtype)
+                for node in range(self.nnodes_element):
+                    r += self.N[el, i, node] * qe[self.nodalDOF_element[node]]
+                    r_xi += self.N_xi[el, i, node] * qe[self.nodalDOF_element[node]]
+
+                # height of the current position
+                h = r @ e1
+                hydrostatic_pressure = t * self.rho_g_fluid * (h - self.h0)
+
+                # counterclockwise rotated tangent vector
+                r_perp = np.array([-r[1], r[0], 0.0], dtype=qe.dtype)
+                r_xi_perp = np.array([-r_xi[1], r_xi[0], 0.0], dtype=qe.dtype)
+
+                # assemble
+                for node in range(self.nnodes_element):
+                    f_el[self.nodalDOF_element[node]] += (
+                        self.N[el, i, node] * hydrostatic_pressure * r_xi_perp * qwi
+                    )
+                    f_el[self.nodalDOF_element[node]] -= (
+                        0.5 * self.N[el, i, node] * pressure_fluid * r_xi_perp * qwi
+                    )
+                    f_el[self.nodalDOF_element[node]] += (
+                        0.5 * self.N_xi[el, i, node] * pressure_fluid * r_perp * qwi
+                    )
+            f[elDOF] += f_el
+        return f
+
+    def f_npot_q(self, t, q, u, coo):
+        dense = approx_fprime(
+            q,
+            lambda q: self.f_npot(t, q, u),
+            eps=1.0e-10,
+            method="cs"
+            # q, lambda q: self.f_npot(t, q, u), eps=1.0e-6, method="3-point"
+        )
+        coo.extend(dense, (self.uDOF, self.qDOF))
+
+
+class RopeHydrostaticPressure(Rope):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args[2:], **kwargs)
+        self.rho_g_fluid = args[0]
+        self.h0 = args[1]
+
+    def area(self, q):
+        a = np.zeros(1, dtype=q.dtype)[0]
+        for el in range(self.nelement):
+            qe = q[self.elDOF[el]]
+
+            for i in range(self.nquadrature):
+                # extract reference state variables
+                qwi = self.qw[el, i]
+
+                # interpolate tangent vector
+                r = np.zeros(3, dtype=qe.dtype)
+                r_xi = np.zeros(3, dtype=qe.dtype)
+                for node in range(self.nnodes_element):
+                    r += self.N[el, i, node] * qe[self.nodalDOF_element[node]]
+                    r_xi += self.N_xi[el, i, node] * qe[self.nodalDOF_element[node]]
+
+                # counterclockwise rotated tangent vector
+                r_xi_perp = np.array([-r_xi[1], r_xi[0], 0.0], dtype=qe.dtype)
+
+                # integrate area
+                a += 0.5 * r @ r_xi_perp * qwi
+        return a
+
+    def f_npot(self, t, q, u):
+        f = np.zeros(self.nu, dtype=q.dtype)
+        for el in range(self.nelement):
+            elDOF = self.elDOF[el]
+            f[elDOF] += self.f_npot_el(t, q[elDOF], u[elDOF], el)
+        return f
+
+    def f_npot_el(self, t, qe, ue, el):
+        f_el = np.zeros(self.nu_element, dtype=qe.dtype)
+        for i in range(self.nquadrature):
+            # extract reference state variables
+            qwi = self.qw[el, i]
+
+            # interpolate tangent vector
+            r = np.zeros(3, dtype=qe.dtype)
+            r_xi = np.zeros(3, dtype=qe.dtype)
+            for node in range(self.nnodes_element):
+                r += self.N[el, i, node] * qe[self.nodalDOF_element[node]]
+                r_xi += self.N_xi[el, i, node] * qe[self.nodalDOF_element[node]]
+
+            # height of the current position
+            h = r @ e1
+            pressure = t * self.rho_g_fluid * (h - self.h0)
+            # pressure = self.rho_g_fluid * h
+
+            # counterclockwise rotated tangent vector
+            r_xi_perp = np.array([-r_xi[1], r_xi[0], 0.0], dtype=qe.dtype)
+
+            # assemble
+            for node in range(self.nnodes_element):
+                f_el[self.nodalDOF_element[node]] += (
+                    self.N[el, i, node] * pressure * r_xi_perp * qwi
+                )
+        return f_el
+
+    def f_npot_q(self, t, q, u, coo):
+        for el in range(self.nelement):
+            elDOF = self.elDOF[el]
+            f_npot_q_el = self.f_npot_q_el(t, q[elDOF], u[elDOF], el)
+
+            # sparse assemble element internal stiffness matrix
+            coo.extend(f_npot_q_el, (self.uDOF[elDOF], self.qDOF[elDOF]))
+
+    def f_npot_q_el(self, t, qe, ue, el):
+        f_npot_q_el_num = approx_fprime(
+            qe, lambda qe: self.f_npot_el(t, qe, ue, el), eps=1.0e-10, method="cs"
+        )
+        return f_npot_q_el_num
+
+
+###########
+# run files
+###########
 
 
 def inflated_straight():
@@ -526,11 +775,13 @@ def inflated_circular_segment():
     else:
         q0 = Q.copy()
 
+    material_model = QuadraticPotential(k_e)
+
     # build rope class
     # rope = RopeHydrostaticPressure(
     #     rho_g,
     #     h0,
-    #     k_e,
+    #     material_model,
     #     polynomial_degree,
     #     A_rho0_inertia,
     #     nelements,
@@ -542,7 +793,7 @@ def inflated_circular_segment():
         rho_g,
         h0,
         k_a,
-        k_e,
+        material_model,
         polynomial_degree,
         A_rho0_inertia,
         nelements,
@@ -598,12 +849,26 @@ def inflated_circular_segment():
 
     gravity = DistributedForce1D(fg, rope)
 
-    __f = 1.0e1 * e1
+    # __f = 1.0e1 * e1
+    # if statics:
+    #     f = lambda t: t * __f
+    # else:
+    #     f = lambda t: __f
+    # force = Force(f, rope, frame_ID=(1,))
+
+    # point mass
+    m = 1
+    pm = PointMass(m, q0=r_OP1)
+
+    # gravity of point mass
     if statics:
-        f = lambda t: t * __f
+        f = lambda t: t * e1 * m * 9.81
     else:
-        f = lambda t: __f
-    force = Force(f, rope, frame_ID=(1,))
+        f = lambda t: e1 * m * 9.81
+    force = Force(f, pm)
+
+    # connect point mass with rope end
+    joint2 = SphericalJoint(rope, pm, r_OP1, frame_ID1=(1,))
 
     # assemble the model
     model = Model()
@@ -615,7 +880,9 @@ def inflated_circular_segment():
     # model.add(frame2)
     # model.add(joint2)
     # model.add(gravity)
-    # model.add(force)
+    model.add(pm)
+    model.add(force)
+    model.add(joint2)
     model.assemble()
 
     if statics:
