@@ -240,6 +240,34 @@ class Cable:
 
         return q
 
+    @staticmethod
+    def circular_segment_configuration(
+        basis,
+        polynomial_degree,
+        nelement,
+        R,
+        phi,
+    ):
+        if basis == "B-spline":
+            print(f"circular_segment_configuration is not correct for B-spline basis!")
+            nn = polynomial_degree + nelement
+        # elif basis == "Hermite":
+        #     assert polynomial_degree == 3, "only cubic Hermite splines are implemented!"
+        #     nn = nelement + 1
+        else:
+            raise RuntimeError(f'wrong basis: "{basis}" was chosen')
+
+        r0 = np.zeros((3, nn), dtype=float)
+        for i in range(nn):
+            xi = i / (nn - 1)
+            phi_i = phi * (2 * xi - 1)
+            r0[0, i] = R * np.sin(phi_i)
+            r0[1, i] = R * np.cos(phi_i) - R * np.cos(phi)
+
+        # reshape generalized coordinates to nodal ordering
+        q = r0.reshape(-1, order="F")
+        return q
+
     def element_number(self, xi):
         # note the elements coincide for both meshes!
         return self.knot_vector.element_number(xi)[0]
@@ -455,7 +483,7 @@ class Cable:
         # return f_pot_q_el
 
         f_pot_q_el_num = approx_fprime(
-            qe, lambda qe: self.f_pot_el(t, qe, el), eps=1.0e-6, method="2-point"
+            qe, lambda qe: self.f_pot_el(t, qe, el), eps=1.0e-10, method="cs"
         )
         # diff = f_pot_q_el - f_pot_q_el_num
         # error = np.linalg.norm(diff)
