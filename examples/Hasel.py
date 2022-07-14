@@ -106,11 +106,12 @@ def add_inflated(Rope):
 def add_internal_fluid(Rope):
     class RopeInternalFluid(Rope):
         def __init__(self, *args, **kwargs):
-            super().__init__(*args[3:], **kwargs)
+            super().__init__(*args[4:], **kwargs)
             self.rho_g_fluid = args[0]
             self.h0 = args[1]
             self.k_a = args[2]
-            self.potential = QuadraticPotential(self.k_a)
+            self.k_c = args[3]
+            self.potential_a = QuadraticPotential(self.k_a)
             self.A = self.area(self.Q)
 
         def area(self, q):
@@ -140,9 +141,8 @@ def add_internal_fluid(Rope):
         def f_npot(self, t, q, u):
             # integrate current area
             a = self.area(q)
-            pressure_fluid = self.potential.pot_g(a, self.A)
+            pressure_fluid = self.potential_a.pot_g(a, self.A)
 
-            # internal forces of fluid
             f = np.zeros(self.nu, dtype=q.dtype)
             for el in range(self.nelement):
                 elDOF = self.elDOF[el]
@@ -168,18 +168,38 @@ def add_internal_fluid(Rope):
                     r_perp = np.array([-r[1], r[0], 0.0], dtype=qe.dtype)
                     r_xi_perp = np.array([-r_xi[1], r_xi[0], 0.0], dtype=qe.dtype)
 
+                    # contact plane normal
+                    n = e2
+
+                    # contact distance
+                    g = n @ r
+
+                    # contact force
+                    # f_c = self.k_c * np.minimum(np.zeros(1, dtype=q.dtype)[0], g) * normal
+                    f_c = self.k_c * np.minimum(0, g) * n
+
                     # assemble
                     for node in range(self.nnodes_element):
+                        # hydrostatic pressure
                         f_el[self.nodalDOF_element[node]] += (
                             self.N[el, i, node] * hydrostatic_pressure * r_xi_perp * qwi
                         )
+
+                        # nearly incompressibility of the fluid
                         f_el[self.nodalDOF_element[node]] -= (
                             0.5 * self.N[el, i, node] * pressure_fluid * r_xi_perp * qwi
                         )
                         f_el[self.nodalDOF_element[node]] += (
                             0.5 * self.N_xi[el, i, node] * pressure_fluid * r_perp * qwi
                         )
+
+                        # regularized contact with the e1-e3 plane
+                        f_el[self.nodalDOF_element[node]] -= (
+                            self.N[el, i, node] * f_c * qwi
+                        )
+
                 f[elDOF] += f_el
+
             return f
 
         def f_npot_q(self, t, q, u, coo):
@@ -1398,8 +1418,8 @@ def cable_straight_inflated(case="rope"):
 # def cable_inflated_circular_segment(case="rope"):
 def cable_inflated_circular_segment(case="cable"):
     # statics or dynamics?
-    # statics = True
-    statics = False
+    statics = True
+    # statics = False
 
     # solver parameter
     if statics:
@@ -1416,6 +1436,8 @@ def cable_inflated_circular_segment(case="cable"):
 
     # discretization properties
     nelements = 10
+    # nelements = 20
+    # nelements = 40
     # polynomial_degree = 1
     # basis = "Lagrange"
     polynomial_degree = 3
@@ -1431,9 +1453,11 @@ def cable_inflated_circular_segment(case="cable"):
     k_e = 1.0e4
     k_b = 1.0e0
     k_a = 1.0e4
+    k_c = 1.0e6
     A_rho0_inertia = 1.0e2
     if statics:
-        A_rho0_gravity = 5.0e1
+        # A_rho0_gravity = 5.0e1
+        A_rho0_gravity = 1.0e2
     else:
         A_rho0_gravity = 5.0e1
 
@@ -1472,6 +1496,7 @@ def cable_inflated_circular_segment(case="cable"):
             rho_g,
             h0,
             k_a,
+            k_c,
             materia_model,
             A_rho0_inertia,
             polynomial_degree,
@@ -1487,6 +1512,7 @@ def cable_inflated_circular_segment(case="cable"):
             rho_g,
             h0,
             k_a,
+            k_c,
             materia_model,
             A_rho0_inertia,
             polynomial_degree,
