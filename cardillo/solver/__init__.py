@@ -9,7 +9,7 @@ from .EulerBackward import EulerBackward
 from .HalfExplicit import HalfExplicitEulerFixedPoint
 from .SimplifiedGenAlpha import (
     SimplifiedGeneralizedAlpha,
-    SimplifiedGeneralizedAlphaFirstOrder,
+    NonsmoothNewmarkFirstOrder,
 )
 
 # TODO: gen alpha solvers

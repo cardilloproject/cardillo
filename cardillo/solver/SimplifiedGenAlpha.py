@@ -454,7 +454,7 @@ gamma = 0.5
 beta = 0.25
 
 
-class SimplifiedGeneralizedAlphaFirstOrder:
+class NonsmoothNewmarkFirstOrder:
     """Simplified generalized-alpha solver for mechanical systems in first
     order form with unilateral frictional contact."""
 

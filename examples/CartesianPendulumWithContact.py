@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
 
 from cardillo.model import Model
-from cardillo.solver import Moreau, MoreauGGL, SimplifiedGeneralizedAlphaFirstOrder
+from cardillo.solver import Moreau, MoreauGGL, NonsmoothNewmarkFirstOrder
 from cardillo.math.algebra import e1
 
 
@@ -181,7 +181,7 @@ if __name__ == "__main__":
     theta = 0.5
     theta = 0.4
     # sol_Theta = MoreauGGL(model, t1, dt).solve()
-    sol_Theta = SimplifiedGeneralizedAlphaFirstOrder(model, t1, dt).solve()
+    sol_Theta = NonsmoothNewmarkFirstOrder(model, t1, dt).solve()
     t_Theta = sol_Theta.t
     q_Theta = sol_Theta.q
     u_Theta = sol_Theta.u

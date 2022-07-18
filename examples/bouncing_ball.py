@@ -14,7 +14,7 @@ from cardillo.contacts import Sphere2Plane
 from cardillo.solver import (
     Moreau,
     MoreauGGL,
-    SimplifiedGeneralizedAlphaFirstOrder,
+    NonsmoothNewmarkFirstOrder,
 )
 
 
@@ -93,7 +93,7 @@ if __name__ == "__main__":
     # TODO: Are convergence problems from finite differences or a problem of the solver?
     # dt = 1e-3
 
-    sol_g = SimplifiedGeneralizedAlphaFirstOrder(model, t1, dt, atol=1.0e-8).solve()
+    sol_g = NonsmoothNewmarkFirstOrder(model, t1, dt, atol=1.0e-8).solve()
     # t_g = t = sol_g.t
     # q_g = q = sol_g.q
     t_g = sol_g.t
