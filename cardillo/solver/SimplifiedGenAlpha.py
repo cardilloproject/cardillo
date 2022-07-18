@@ -444,8 +444,19 @@ class SimplifiedGeneralizedAlpha:
         )
 
 
+# # TODO: Add theta method
+# theta = 0.5
+
+# TODO: Add Newmark method (https://de.wikipedia.org/wiki/Newmark-beta-Verfahren#Herleitung).
+# This gives us a ways to perform the double integrals (similar to gen alpha
+# but without these ugly bar quantites)
+gamma = 0.5
+beta = 0.25
+
+
 class SimplifiedGeneralizedAlphaFirstOrder:
-    """Simplified generalized-alpha solver for mechanical systems with frictional contact."""
+    """Simplified generalized-alpha solver for mechanical systems in first
+    order form with unilateral frictional contact."""
 
     def __init__(
         self,
@@ -582,17 +593,34 @@ class SimplifiedGeneralizedAlphaFirstOrder:
         ) = self.unpack(xk1)
 
         # update generalized coordinates and generalized velocities
-        qk1 = self.qk + dt * q_dotk1 + Qk1
-        uk1 = self.uk + dt * ak1 + Uk1
+        # qk1 = self.qk + dt * q_dotk1 + Qk1
+        # uk1 = self.uk + dt * ak1 + Uk1
+        qk1 = self.qk + (1.0 - gamma) * dt * self.q_dotk + gamma * dt * q_dotk1 + Qk1
+        uk1 = self.uk + (1.0 - gamma) * dt * self.ak + gamma * dt * ak1 + Uk1
 
         # integrated bilateral constraint contributions
-        P_gk1 = La_gk1 + dt * la_gk1
-        kappa_hat_gk1 = kappa_gk1 + dt * La_gk1 + 0.5 * dt2 * la_gk1
+        # P_gk1 = La_gk1 + dt * la_gk1
+        # kappa_hat_gk1 = kappa_gk1 + dt * La_gk1 + 0.5 * dt2 * la_gk1 # TODO: Do we need this?
+        P_gk1 = La_gk1 + (1.0 - gamma) * dt * self.la_gk + gamma * dt * la_gk1
+        kappa_hat_gk1 = (
+            kappa_gk1
+            + (1.0 - gamma) * dt * self.La_gk
+            + gamma * dt * La_gk1
+            + 0.5 * dt2 * la_gk1  # TODO: How do we want to approximate that integral?
+        )
 
         # integrated contact contributions
-        P_Nk1 = La_Nk1 + dt * la_Nk1
-        kappa_hat_Nk1 = kappa_Nk1 + dt * La_Nk1 + 0.5 * dt2 * la_Nk1
-        P_Fk1 = La_Fk1 + dt * la_Fk1
+        # P_Nk1 = La_Nk1 + dt * la_Nk1
+        # kappa_hat_Nk1 = kappa_Nk1 + dt * La_Nk1 + 0.5 * dt2 * la_Nk1
+        # P_Fk1 = La_Fk1 + dt * la_Fk1
+        P_Nk1 = La_Nk1 + (1.0 - gamma) * dt * self.la_Nk + gamma * dt * la_Nk1
+        kappa_hat_Nk1 = (
+            kappa_Nk1
+            + (1.0 - gamma) * dt * self.La_Nk
+            + gamma * dt * La_Nk1
+            + 0.5 * dt2 * la_Nk1  # TODO: How do we want to approximate that integral?
+        )
+        P_Fk1 = La_Fk1 + (1.0 - gamma) * dt * self.la_Fk + gamma * dt * la_Fk1
 
         return qk1, uk1, P_gk1, kappa_hat_gk1, P_Nk1, kappa_hat_Nk1, P_Fk1
 
@@ -665,7 +693,14 @@ class SimplifiedGeneralizedAlphaFirstOrder:
         nR_s = self.nR_s
         R = np.empty(self.nR, dtype=xk1.dtype)
 
+        # TODO: Can we merge the smooth kinematic equation and the position
+        # correction as done for the implicit Euler sheme? By that we would
+        # have the same number of unknowns as the previous method but we can
+        # deal with arbitrary kinematic equations implicitely.
+
+        ####################
         # kinematic equation
+        ####################
         # TODO: Why do we have to use the smooth velocity here?
         # This is similar to the case of an implicit Moreau scheme, where the
         # contact detecten is not allowed to be implicitely depending on qk1?
@@ -673,32 +708,45 @@ class SimplifiedGeneralizedAlphaFirstOrder:
             tk1, qk1, uk1
         )  # TODO: Why is this working now?
         # This is the solution: Only use the smooth part of the velocity!
-        # R[:nq] = q_dotk1 - self.model.q_dot(tk1, qk1, self.uk + dt * ak1)
+        # TODO: Why is this required if we do not use the integrated quantity
+        # P_Nk1 = ... + 0.5 * dt2 * la_Nk1 in the update of P_Nk1
+        # # R[:nq] = q_dotk1 - self.model.q_dot(tk1, qk1, self.uk + dt * ak1)
+        # R[:nq] = q_dotk1 - self.model.q_dot(tk1, qk1, self.uk + (1.0 - theta) * dt * self.ak + theta * dt * ak1)
 
+        #####################
         # position correction
+        #####################
         R[nq : 2 * nq] = (
-            # TODO: Do we need the coupling with La_Fk1?
-            # Qk1 - g_N_qk1.T @ kappa_Nk1 - 0.5 * dt * gamma_F_qk1.T @ La_Fk1
             Qk1
             - g_qk1.T @ kappa_gk1
             - g_N_qk1.T @ kappa_Nk1
+            # - 0.5 * dt * gamma_F_qk1.T @ La_Fk1 # TODO: Do we need the coupling with La_Fk1?
         )
 
-        # equations of motion
+        ####################
+        # equation of motion
+        ####################
         R[2 * nq : 2 * nq + nu] = (
             Mk1 @ ak1 - hk1 - W_gk1 @ la_gk1 - W_Nk1 @ la_Nk1 - W_Fk1 @ la_Fk1
         )
 
+        #################
         # impact equation
+        #################
         R[2 * nq + nu : 2 * nq + 2 * nu] = (
             Mk1 @ Uk1 - W_gk1 @ La_gk1 - W_Nk1 @ La_Nk1 - W_Fk1 @ La_Fk1
         )
 
+        ################################################
         # bilteral constraints on all kinematical levels
+        ################################################
         R[2 * nq + 2 * nu : 2 * nq + 2 * nu + nla_g] = g_ddotk1
         R[2 * nq + 2 * nu + nla_g : 2 * nq + 2 * nu + 2 * nla_g] = g_dotk1
         R[2 * nq + 2 * nu + 2 * nla_g : 2 * nq + 2 * nu + 3 * nla_g] = gk1
 
+        #######################
+        # unilateral index sets
+        #######################
         prox_N_arg_position = g_Nk1 - self.model.prox_r_N * kappa_hat_Nk1
         prox_N_arg_velocity = xi_Nk1 - self.model.prox_r_N * P_Nk1
         prox_N_arg_acceleration = g_N_ddotk1 - self.model.prox_r_N * la_Nk1
@@ -872,6 +920,16 @@ class SimplifiedGeneralizedAlphaFirstOrder:
 
             self.qk = qk1.copy()
             self.uk = uk1.copy()
+            self.q_dotk = q_dotk1.copy()
+            self.ak = ak1.copy()
+
+            self.la_gk = la_gk1.copy()
+            self.la_Nk = la_Nk1.copy()
+            self.la_Fk = la_Fk1.copy()
+
+            self.La_gk = La_gk1.copy()
+            self.La_Nk = La_Nk1.copy()
+            self.La_Fk = La_Fk1.copy()
 
             q.append(qk1.copy())
             q_dot.append(q_dotk1.copy())
