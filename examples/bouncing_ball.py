@@ -93,19 +93,6 @@ if __name__ == "__main__":
     # TODO: Are convergence problems from finite differences or a problem of the solver?
     # dt = 1e-3
 
-    # solver_fp = Moreau(model, t1, dt)
-    solver_fp = MoreauGGL(model, t1, dt)
-    sol_fp = solver_fp.solve()
-    t_fp = t = sol_fp.t
-    q_fp = q = sol_fp.q
-    # t_fp = sol_fp.t
-    # q_fp = sol_fp.q
-    u_fp = sol_fp.u
-    a_fp = np.zeros_like(u_fp)
-    a_fp[1:] = (u_fp[1:] - u_fp[:-1]) / dt
-    P_N_fp = sol_fp.P_N
-    # P_F_fp = sol_fp.P_F
-
     sol_g = SimplifiedGeneralizedAlphaFirstOrder(model, t1, dt, atol=1.0e-8).solve()
     # t_g = t = sol_g.t
     # q_g = q = sol_g.q
@@ -119,7 +106,19 @@ if __name__ == "__main__":
     La_F_g = sol_g.La_F
     P_N_g = sol_g.P_N
     P_F_g = sol_g.P_F
-    P_F_fp = sol_g.P_F  # TODO: Remove this!
+
+    # solver_fp = Moreau(model, t1, dt)
+    solver_fp = MoreauGGL(model, t1, dt)
+    sol_fp = solver_fp.solve()
+    t_fp = t = sol_fp.t
+    q_fp = q = sol_fp.q
+    # t_fp = sol_fp.t
+    # q_fp = sol_fp.q
+    u_fp = sol_fp.u
+    a_fp = np.zeros_like(u_fp)
+    a_fp[1:] = (u_fp[1:] - u_fp[:-1]) / dt
+    P_N_fp = sol_fp.P_N
+    P_F_fp = sol_fp.P_F
 
     fig, ax = plt.subplots(3, 1)
     ax[0].set_title("x(t)")
