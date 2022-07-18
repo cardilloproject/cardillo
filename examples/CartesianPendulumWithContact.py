@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
 
 from cardillo.model import Model
-from cardillo.solver import Moreau, MoreauGGL
+from cardillo.solver import Moreau, MoreauGGL, SimplifiedGeneralizedAlphaFirstOrder
 from cardillo.math.algebra import e1
 
 
@@ -140,6 +140,9 @@ class MathematicalPendulumCartesianContact:
     def g_N_dot(self, t, q, u):
         return e1[:2] @ u
 
+    def g_N_ddot(self, t, q, u, a):
+        return e1[:2] @ a
+
     def W_N_dense(self, t, q):
         return e1[:2, np.newaxis]
 
@@ -177,7 +180,8 @@ if __name__ == "__main__":
     # solve with GGL stabilized Moreau scheme
     theta = 0.5
     theta = 0.4
-    sol_Theta = MoreauGGL(model, t1, dt).solve()
+    # sol_Theta = MoreauGGL(model, t1, dt).solve()
+    sol_Theta = SimplifiedGeneralizedAlphaFirstOrder(model, t1, dt).solve()
     t_Theta = sol_Theta.t
     q_Theta = sol_Theta.q
     u_Theta = sol_Theta.u

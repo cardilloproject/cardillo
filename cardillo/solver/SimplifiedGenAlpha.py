@@ -471,25 +471,33 @@ class SimplifiedGeneralizedAlphaFirstOrder:
         # dimensions (nq = number of coordinates q, etc.)
         self.nq = model.nq
         self.nu = model.nu
+        self.nla_g = model.nla_g
         self.nla_N = model.nla_N
         self.nla_F = model.nla_F
 
         # eqn. (127): dimensions of residual
-        self.nR_s = 2 * self.nq + 2 * self.nu
+        self.nR_s = 2 * self.nq + 2 * self.nu + 3 * self.nla_g
         self.nR_c = 3 * self.nla_N + 2 * self.nla_F
         self.nR = self.nR_s + self.nR_c
 
         # set initial conditions
         self.tk = t0
+
         self.qk = model.q0
         self.uk = model.u0
+        self.Qk = np.zeros(self.nq)
+        self.Uk = np.zeros(self.nu)
+
+        self.kappa_gk = np.zeros_like(model.la_g0)
+        self.la_gk = model.la_g0
+        self.La_gk = np.zeros_like(model.la_g0)
+
         self.kappa_Nk = np.zeros_like(model.la_N0)
         self.la_Nk = model.la_N0
         self.La_Nk = np.zeros_like(model.la_N0)
+
         self.la_Fk = model.la_F0
         self.La_Fk = np.zeros_like(model.la_F0)
-        self.Qk = np.zeros(self.nu)
-        self.Uk = np.zeros(self.nu)
 
         # compute initial velocity of generalized coordinates
         self.q_dotk = self.model.q_dot(t0, model.q0, model.u0)
@@ -498,6 +506,7 @@ class SimplifiedGeneralizedAlphaFirstOrder:
         self.ak = spsolve(
             model.M(t0, model.q0, scipy_matrix=csr_matrix),
             self.model.h(t0, model.q0, model.u0)
+            + self.model.W_g(t0, model.q0) @ self.model.la_g0
             + self.model.W_N(t0, model.q0) @ self.model.la_N0
             + self.model.W_F(t0, model.q0) @ self.model.la_F0,
         )
@@ -508,6 +517,9 @@ class SimplifiedGeneralizedAlphaFirstOrder:
                 self.Qk,
                 self.ak,
                 self.Uk,
+                self.kappa_gk,
+                self.La_gk,
+                self.la_gk,
                 self.kappa_Nk,
                 self.La_Nk,
                 self.la_Nk,
@@ -526,40 +538,63 @@ class SimplifiedGeneralizedAlphaFirstOrder:
     def unpack(self, x):
         nq = self.nq
         nu = self.nu
+        nla_g = self.nla_g
         nla_N = self.nla_N
         nla_F = self.nla_F
         nR_s = self.nR_s
 
         q_dot = x[:nq]
         Q = x[nq : 2 * nq]
+
         a = x[2 * nq : 2 * nq + nu]
         U = x[2 * nq + nu : 2 * nq + 2 * nu]
+
+        kappa_g = x[2 * nq + 2 * nu : 2 * nq + 2 * nu + nla_g]
+        La_g = x[2 * nq + 2 * nu + nla_g : 2 * nq + 2 * nu + 2 * nla_g]
+        la_g = x[2 * nq + 2 * nu + 2 * nla_g : 2 * nq + 2 * nu + 3 * nla_g]
+
         kappa_N = x[nR_s : nR_s + nla_N]
         La_N = x[nR_s + nla_N : nR_s + 2 * nla_N]
         la_N = x[nR_s + 2 * nla_N : nR_s + 3 * nla_N]
+
         La_F = x[nR_s + 3 * nla_N : nR_s + 3 * nla_N + nla_F]
         la_F = x[nR_s + 3 * nla_N + nla_F : nR_s + 3 * nla_N + 2 * nla_F]
 
-        return q_dot, Q, a, U, kappa_N, La_N, la_N, La_F, la_F
+        return q_dot, Q, a, U, kappa_g, La_g, la_g, kappa_N, La_N, la_N, La_F, la_F
 
     def update(self, xk1):
         dt = self.dt
         dt2 = dt * dt
 
-        q_dotk1, Qk1, ak1, Uk1, kappa_Nk1, La_Nk1, la_Nk1, La_Fk1, la_Fk1 = self.unpack(
-            xk1
-        )
+        (
+            q_dotk1,
+            Qk1,
+            ak1,
+            Uk1,
+            kappa_gk1,
+            La_gk1,
+            la_gk1,
+            kappa_Nk1,
+            La_Nk1,
+            la_Nk1,
+            La_Fk1,
+            la_Fk1,
+        ) = self.unpack(xk1)
 
         # update generalized coordinates and generalized velocities
         qk1 = self.qk + dt * q_dotk1 + Qk1
         uk1 = self.uk + dt * ak1 + Uk1
+
+        # integrated bilateral constraint contributions
+        P_gk1 = La_gk1 + dt * la_gk1
+        kappa_hat_gk1 = kappa_gk1 + dt * La_gk1 + 0.5 * dt2 * la_gk1
 
         # integrated contact contributions
         P_Nk1 = La_Nk1 + dt * la_Nk1
         kappa_hat_Nk1 = kappa_Nk1 + dt * La_Nk1 + 0.5 * dt2 * la_Nk1
         P_Fk1 = La_Fk1 + dt * la_Fk1
 
-        return qk1, uk1, P_Nk1, kappa_hat_Nk1, P_Fk1
+        return qk1, uk1, P_gk1, kappa_hat_gk1, P_Nk1, kappa_hat_Nk1, P_Fk1
 
     def residual(self, tk1, xk1, update_index_set=False):
         mu = self.model.mu
@@ -568,14 +603,25 @@ class SimplifiedGeneralizedAlphaFirstOrder:
         ###########################
         # unpack vector of unknowns
         ###########################
-        q_dotk1, Qk1, ak1, Uk1, kappa_Nk1, La_Nk1, la_Nk1, La_Fk1, la_Fk1 = self.unpack(
-            xk1
-        )
+        (
+            q_dotk1,
+            Qk1,
+            ak1,
+            Uk1,
+            kappa_gk1,
+            La_gk1,
+            la_gk1,
+            kappa_Nk1,
+            La_Nk1,
+            la_Nk1,
+            La_Fk1,
+            la_Fk1,
+        ) = self.unpack(xk1)
 
         #############################
         # compute dependent variables
         #############################
-        qk1, uk1, P_Nk1, kappa_hat_Nk1, P_Fk1 = self.update(xk1)
+        qk1, uk1, P_gk1, kappa_hat_gk1, P_Nk1, kappa_hat_Nk1, P_Fk1 = self.update(xk1)
 
         ##############################
         # evaluate required quantities
@@ -587,10 +633,17 @@ class SimplifiedGeneralizedAlphaFirstOrder:
         hk1 = self.model.h(tk1, qk1, uk1)
 
         # generalized force directions
+        W_gk1 = self.model.W_g(tk1, qk1)
         W_Nk1 = self.model.W_N(tk1, qk1)
         W_Fk1 = self.model.W_F(tk1, qk1)
+        g_qk1 = self.model.g_q(tk1, qk1)
         g_N_qk1 = self.model.g_N_q(tk1, qk1)
         gamma_F_qk1 = self.model.gamma_F_q(tk1, qk1, uk1)
+
+        # kinematic quantities of bilateral constraints
+        gk1 = self.model.g(tk1, qk1)
+        g_dotk1 = self.model.g_dot(tk1, qk1, uk1)
+        g_ddotk1 = self.model.g_ddot(tk1, qk1, uk1, ak1)
 
         # kinematic quantities of normal contacts
         g_Nk1 = self.model.g_N(tk1, qk1)
@@ -607,6 +660,7 @@ class SimplifiedGeneralizedAlphaFirstOrder:
         #########################
         nq = self.nq
         nu = self.nu
+        nla_g = self.nla_g
         nla_N = self.nla_N
         nR_s = self.nR_s
         R = np.empty(self.nR, dtype=xk1.dtype)
@@ -626,14 +680,24 @@ class SimplifiedGeneralizedAlphaFirstOrder:
             # TODO: Do we need the coupling with La_Fk1?
             # Qk1 - g_N_qk1.T @ kappa_Nk1 - 0.5 * dt * gamma_F_qk1.T @ La_Fk1
             Qk1
+            - g_qk1.T @ kappa_gk1
             - g_N_qk1.T @ kappa_Nk1
         )
 
         # equations of motion
-        R[2 * nq : 2 * nq + nu] = Mk1 @ ak1 - hk1 - W_Nk1 @ la_Nk1 - W_Fk1 @ la_Fk1
+        R[2 * nq : 2 * nq + nu] = (
+            Mk1 @ ak1 - hk1 - W_gk1 @ la_gk1 - W_Nk1 @ la_Nk1 - W_Fk1 @ la_Fk1
+        )
 
         # impact equation
-        R[2 * nq + nu : 2 * nq + 2 * nu] = Mk1 @ Uk1 - W_Nk1 @ La_Nk1 - W_Fk1 @ La_Fk1
+        R[2 * nq + nu : 2 * nq + 2 * nu] = (
+            Mk1 @ Uk1 - W_gk1 @ La_gk1 - W_Nk1 @ La_Nk1 - W_Fk1 @ La_Fk1
+        )
+
+        # bilteral constraints on all kinematical levels
+        R[2 * nq + 2 * nu : 2 * nq + 2 * nu + nla_g] = g_ddotk1
+        R[2 * nq + 2 * nu + nla_g : 2 * nq + 2 * nu + 2 * nla_g] = g_dotk1
+        R[2 * nq + 2 * nu + 2 * nla_g : 2 * nq + 2 * nu + 3 * nla_g] = gk1
 
         prox_N_arg_position = g_Nk1 - self.model.prox_r_N * kappa_hat_Nk1
         prox_N_arg_velocity = xi_Nk1 - self.model.prox_r_N * P_Nk1
@@ -773,6 +837,10 @@ class SimplifiedGeneralizedAlphaFirstOrder:
         Q = []
         U = []
 
+        la_g = []
+        La_g = []
+        P_g = []
+
         la_N = []
         La_N = []
         P_N = []
@@ -789,13 +857,18 @@ class SimplifiedGeneralizedAlphaFirstOrder:
                 Qk1,
                 ak1,
                 Uk1,
+                kappa_gk1,
+                La_gk1,
+                la_gk1,
                 kappa_Nk1,
                 La_Nk1,
                 la_Nk1,
                 La_Fk1,
                 la_Fk1,
             ) = self.unpack(xk1)
-            qk1, uk1, P_Nk1, kappa_hat_Nk1, P_Fk1 = self.update(xk1)
+            qk1, uk1, P_gk1, kappa_hat_gk1, P_Nk1, kappa_hat_Nk1, P_Fk1 = self.update(
+                xk1
+            )
 
             self.qk = qk1.copy()
             self.uk = uk1.copy()
@@ -806,6 +879,12 @@ class SimplifiedGeneralizedAlphaFirstOrder:
             a.append(ak1.copy())
             Q.append(Qk1.copy())
             U.append(Uk1.copy())
+
+            la_g.append(la_gk1.copy())
+            La_g.append(La_gk1.copy())
+            P_g.append(P_gk1.copy())
+            # kappa_g.append(kappa_gk1.copy())
+            # kappa_hat_g.append(kappa_hat_gk1.copy())
 
             la_N.append(la_Nk1.copy())
             La_N.append(La_Nk1.copy())
@@ -868,6 +947,9 @@ class SimplifiedGeneralizedAlphaFirstOrder:
                     a=np.array(a),
                     Q=np.array(Q),
                     U=np.array(U),
+                    la_g=np.array(la_g),
+                    La_g=np.array(La_g),
+                    P_g=np.array(P_g),
                     la_N=np.array(la_N),
                     La_N=np.array(La_N),
                     P_N=np.array(P_N),
@@ -891,6 +973,9 @@ class SimplifiedGeneralizedAlphaFirstOrder:
             a=np.array(a),
             Q=np.array(Q),
             U=np.array(U),
+            la_g=np.array(la_g),
+            La_g=np.array(La_g),
+            P_g=np.array(P_g),
             la_N=np.array(la_N),
             La_N=np.array(La_N),
             P_N=np.array(P_N),
@@ -900,4 +985,3 @@ class SimplifiedGeneralizedAlphaFirstOrder:
             La_F=np.array(La_F),
             P_F=np.array(P_F),
         )
-
