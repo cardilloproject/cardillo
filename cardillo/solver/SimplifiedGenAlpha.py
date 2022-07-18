@@ -602,11 +602,18 @@ class SimplifiedGeneralizedAlphaFirstOrder:
         # P_gk1 = La_gk1 + dt * la_gk1
         # kappa_hat_gk1 = kappa_gk1 + dt * La_gk1 + 0.5 * dt2 * la_gk1 # TODO: Do we need this?
         P_gk1 = La_gk1 + (1.0 - gamma) * dt * self.la_gk + gamma * dt * la_gk1
+        # kappa_hat_gk1 = (
+        #     kappa_gk1
+        #     + (1.0 - gamma) * dt * self.La_gk
+        #     + gamma * dt * La_gk1
+        #     + 0.5 * dt2 * la_gk1  # TODO: How do we want to approximate that integral?
+        # )
         kappa_hat_gk1 = (
             kappa_gk1
             + (1.0 - gamma) * dt * self.La_gk
             + gamma * dt * La_gk1
-            + 0.5 * dt2 * la_gk1  # TODO: How do we want to approximate that integral?
+            + dt2 * (0.5 - beta) * self.la_gk
+            + dt2 * beta * la_gk1
         )
 
         # integrated contact contributions
@@ -618,7 +625,8 @@ class SimplifiedGeneralizedAlphaFirstOrder:
             kappa_Nk1
             + (1.0 - gamma) * dt * self.La_Nk
             + gamma * dt * La_Nk1
-            + 0.5 * dt2 * la_Nk1  # TODO: How do we want to approximate that integral?
+            + dt2 * (0.5 - beta) * self.la_Nk
+            + dt2 * beta * la_Nk1
         )
         P_Fk1 = La_Fk1 + (1.0 - gamma) * dt * self.la_Fk + gamma * dt * la_Fk1
 
@@ -711,7 +719,7 @@ class SimplifiedGeneralizedAlphaFirstOrder:
         # TODO: Why is this required if we do not use the integrated quantity
         # P_Nk1 = ... + 0.5 * dt2 * la_Nk1 in the update of P_Nk1
         # # R[:nq] = q_dotk1 - self.model.q_dot(tk1, qk1, self.uk + dt * ak1)
-        # R[:nq] = q_dotk1 - self.model.q_dot(tk1, qk1, self.uk + (1.0 - theta) * dt * self.ak + theta * dt * ak1)
+        # R[:nq] = q_dotk1 - self.model.q_dot(tk1, qk1, self.uk + (1.0 - gamma) * dt * self.ak + gamma * dt * ak1)
 
         #####################
         # position correction
