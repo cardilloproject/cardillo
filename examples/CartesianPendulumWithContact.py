@@ -4,7 +4,14 @@ import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
 
 from cardillo.model import Model
-from cardillo.solver import Moreau, MoreauGGL, NonsmoothNewmarkFirstOrder
+from cardillo.solver import (
+    Moreau,
+    MoreauGGL,
+    NonsmoothNewmarkFirstOrder,
+    NonsmoothGeneralizedAlpha,
+)
+
+# from cardillo.solver.generalized_alpha.generalized_alpha_3 import Generalized_alpha_3
 from cardillo.math.algebra import e1
 
 
@@ -185,15 +192,17 @@ if __name__ == "__main__":
     t_Theta = sol_Theta.t
     q_Theta = sol_Theta.q
     u_Theta = sol_Theta.u
-    P_g_Theta = sol_Theta.P_g
+    # P_g_Theta = sol_Theta.P_g
+    P_g_Theta = sol_Theta.la_g
     P_N_Theta = sol_Theta.P_N
 
     # solve with classical Moreau scheme
-    sol_Moreau = Moreau(model, t1, dt).solve()
+    # sol_Moreau = Moreau(model, t1, dt).solve()
+    sol_Moreau = NonsmoothGeneralizedAlpha(model, t1, dt).solve()
     t_Moreau = sol_Moreau.t
     q_Moreau = sol_Moreau.q
     u_Moreau = sol_Moreau.u
-    P_g_Moreau = sol_Moreau.P_g
+    # P_g_Moreau = sol_Moreau.P_g
     P_N_Moreau = sol_Moreau.P_N
 
     # visualize results
@@ -216,7 +225,7 @@ if __name__ == "__main__":
     ax[0, 1].legend()
 
     # bilateral constraints
-    ax[1, 0].plot(t_Moreau, P_g_Moreau[:, 0], "-xb", label="P_g - Moreau")
+    # ax[1, 0].plot(t_Moreau, P_g_Moreau[:, 0], "-xb", label="P_g - Moreau")
     ax[1, 0].plot(t_Theta, P_g_Theta[:, 0], "-xr", label="P_g - MoreauGGL")
     ax[1, 0].grid()
     ax[1, 0].legend()

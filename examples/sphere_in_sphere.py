@@ -1,20 +1,22 @@
 import numpy as np
-from math import cos, sin, pi
 
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-
-from cardillo.math.algebra import cross3, A_IK_basic_z
+from cardillo.math import numerical_derivative
 
 from cardillo.model import Model
-from cardillo.model.rigid_body import Rigid_body_euler
+from cardillo.model.rigid_body import RigidBodyEuler
 from cardillo.model.frame import Frame
-from cardillo.model.force import Force
-from cardillo.model.contacts import Sphere_in_sphere
-from cardillo.solver import Moreau, Generalized_alpha_2
+from cardillo.forces import Force
+from cardillo.contacts import SphereInSphere
+from cardillo.solver import (
+    Moreau,
+    NonsmoothNewmarkFirstOrder,
+    NonsmoothGeneralizedAlpha,
+)
 
 
-class Ball(Rigid_body_euler):
+class Ball(RigidBodyEuler):
     def __init__(self, m, r, q0=None, u0=None):
         theta = 2 / 5 * m * r**2
         self.r = r
@@ -52,8 +54,8 @@ if __name__ == "__main__":
     mu = 0.1
     r_N = 0.3
     e_N = 0
-    sphere = Sphere_in_sphere(
-        frame, R, RB, r, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N, e_T=0
+    sphere = SphereInSphere(
+        frame, R, RB, r, mu, prox_r_N=r_N, prox_r_F=r_N, e_N=e_N, e_F=0
     )
 
     model = Model()
@@ -63,10 +65,12 @@ if __name__ == "__main__":
     model.assemble()
 
     t0 = 0
-    t1 = 1
+    t1 = 0.6
+    # t1 = 1
     dt = 1e-2
 
-    solver_n = Generalized_alpha_2(model, t1, dt, gamma=0.5)
+    # solver_n = NonsmoothGeneralizedAlpha(model, t1, dt)
+    solver_n = NonsmoothNewmarkFirstOrder(model, t1, dt)
     sol_n = solver_n.solve()
     # sol_n = sol_fp
     t_n = sol_n.t
@@ -74,11 +78,12 @@ if __name__ == "__main__":
     u_n = sol_n.u
     a_n = sol_n.a
     la_N_n = sol_n.la_N
-    la_T_n = sol_n.la_T
+    la_F_n = sol_n.la_F
 
     P_N_n = sol_n.P_N
-    P_T_n = sol_n.P_T
+    P_F_n = sol_n.P_F
 
+    # solver_fp = NonsmoothNewmarkFirstOrder(model, t1, dt)
     solver_fp = Moreau(model, t1, dt)
     sol_fp = solver_fp.solve()
     t_fp = sol_fp.t
@@ -87,7 +92,7 @@ if __name__ == "__main__":
     a_fp = np.zeros_like(u_fp)
     a_fp[1:] = (u_fp[1:] - u_fp[:-1]) / dt
     P_N_fp = sol_fp.P_N
-    P_T_fp = sol_fp.P_T
+    P_F_fp = sol_fp.P_F
 
     fig, ax = plt.subplots(3, 1)
     ax[0].set_title("x(t)")
@@ -146,18 +151,18 @@ if __name__ == "__main__":
     ax[0].plot(t_n, P_N_n[:, 0], "--g", label="newton_P_N")
     ax[0].legend()
 
-    ax[1].set_title("P_Tx(t)")
-    ax[1].plot(t_fp, P_T_fp[:, 0], "-r", label="fixed_point")
+    ax[1].set_title("P_Fx(t)")
+    ax[1].plot(t_fp, P_F_fp[:, 0], "-r", label="fixed_point")
     # ax[1].plot(t_n, sol_n.la_T[:, 0]*dt, '--b', label='newton_la_T')
     # ax[1].plot(t_n, sol_n.La_T[:, 0], '--g', label='newton_La_T')
-    ax[1].plot(t_n, P_T_n[:, 0], "--g", label="newton_P_N")
+    ax[1].plot(t_n, P_F_n[:, 0], "--g", label="newton_P_N")
     ax[1].legend()
 
-    ax[2].set_title("P_Ty(t)")
-    ax[2].plot(t_fp, P_T_fp[:, 1], "-r", label="fixed_point")
+    ax[2].set_title("P_Fy(t)")
+    ax[2].plot(t_fp, P_F_fp[:, 1], "-r", label="fixed_point")
     # ax[2].plot(t_n, sol_n.la_T[:, 1]*dt, '--b', label='newton_la_T')
     # ax[2].plot(t_n, sol_n.La_T[:, 1], '--g', label='newton_La_T')
-    ax[2].plot(t_n, P_T_n[:, 1], "--g", label="newton_P_N")
+    ax[2].plot(t_n, P_F_n[:, 1], "--g", label="newton_P_N")
     ax[2].legend()
 
     plt.show()

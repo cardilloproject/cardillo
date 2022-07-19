@@ -15,7 +15,10 @@ from cardillo.solver import (
     Moreau,
     MoreauGGL,
     NonsmoothNewmarkFirstOrder,
+    NonsmoothGeneralizedAlpha,
 )
+
+# from cardillo.solver.generalized_alpha.generalized_alpha_3 import Generalized_alpha_3
 
 
 class Ball(RigidBodyEuler):
@@ -107,8 +110,10 @@ if __name__ == "__main__":
     P_N_g = sol_g.P_N
     P_F_g = sol_g.P_F
 
+    # solver_fp = Generalized_alpha_3(model, t1, dt, numerical_jacobian=True)
+    solver_fp = NonsmoothGeneralizedAlpha(model, t1, dt)
     # solver_fp = Moreau(model, t1, dt)
-    solver_fp = MoreauGGL(model, t1, dt)
+    # solver_fp = MoreauGGL(model, t1, dt)
     sol_fp = solver_fp.solve()
     t_fp = t = sol_fp.t
     q_fp = q = sol_fp.q

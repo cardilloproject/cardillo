@@ -14,6 +14,7 @@ from .SimplifiedGenAlpha import (
 
 # TODO: gen alpha solvers
 from .genAlphaDAE import *
+from .NonsmoothGeneralizedAlpha import NonsmoothGeneralizedAlpha
 
 # static solvers
 from .Newton import Newton

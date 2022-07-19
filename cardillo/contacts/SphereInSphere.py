@@ -1,6 +1,6 @@
 import numpy as np
 from cardillo.math.algebra import cross3, norm, e3, ax2skew
-from cardillo.math.numerical_derivative import Numerical_derivative
+from cardillo.math.numerical_derivative import Numerical_derivative, approx_fprime
 
 
 class SphereInSphere:
@@ -12,36 +12,34 @@ class SphereInSphere:
         r,
         mu,
         prox_r_N,
-        prox_r_T,
+        prox_r_F,
         e_N=None,
-        e_T=None,
+        e_F=None,
         frame_ID=np.zeros(3),
         K_r_SP=np.zeros(3),
         la_N0=None,
-        la_T0=None,
+        la_F0=None,
     ):
-
-        raise NotImplementedError("Refactor me!")
         self.frame = frame
         self.R = R
         self.subsystem = subsystem
         self.r = r
         self.mu = np.array([mu])
         self.prox_r_N = np.array([prox_r_N])
-        self.prox_r_T = np.array([prox_r_T])
+        self.prox_r_F = np.array([prox_r_F])
 
         self.nla_N = 1
 
         if mu == 0:
-            self.nla_T = 0
-            self.NT_connectivity = [[]]
+            self.nla_F = 0
+            self.NF_connectivity = [[]]
         else:
-            self.nla_T = 2 * self.nla_N
-            self.NT_connectivity = [[0, 1]]
-            self.gamma_T = self.__gamma_T
+            self.nla_F = 2 * self.nla_N
+            self.NF_connectivity = [[0, 1]]
+            self.gamma_F = self.__gamma_F
 
         self.e_N = np.zeros(self.nla_N) if e_N is None else np.array([e_N])
-        self.e_T = np.zeros(self.nla_N) if e_T is None else np.array([e_T])
+        self.e_F = np.zeros(self.nla_F) if e_F is None else np.array([e_F])
         self.frame_ID = frame_ID
 
         self.r_OQ = lambda t: self.frame.r_OP(t)
@@ -51,7 +49,7 @@ class SphereInSphere:
         self.K_r_SP = K_r_SP
 
         self.la_N0 = np.zeros(self.nla_N) if la_N0 is None else la_N0
-        self.la_T0 = np.zeros(self.nla_T) if la_T0 is None else la_T0
+        self.la_F0 = np.zeros(self.nla_F) if la_F0 is None else la_F0
 
         self.is_assembled = False
 
@@ -102,6 +100,11 @@ class SphereInSphere:
     def g_N(self, t, q):
         return np.array([self.R - self.r - norm(self.r_OP(t, q) - self.r_OQ(t))])
 
+    def g_N_q(self, t, q, coo):
+        coo.extend(
+            approx_fprime(q, lambda q: self.g_N(t, q)), (self.la_NDOF, self.qDOF)
+        )
+
     def g_N_dot(self, t, q, u):
         return np.array([self.n(t, q) @ (self.v_P(t, q, u) - self.v_Q(t))])
 
@@ -131,7 +134,7 @@ class SphereInSphere:
         # print(f'error: {error}')
         coo.extend(dense, (self.uDOF, self.qDOF))
 
-    def __gamma_T(self, t, q, u):
+    def __gamma_F(self, t, q, u):
         t1t2 = np.zeros((2, 3))
         n = self.n(t, q)
         t1t2[0] = e3
@@ -139,14 +142,20 @@ class SphereInSphere:
         v_C = self.v_P(t, q, u) + self.r * cross3(n, self.Omega(t, q, u))
         return t1t2 @ (v_C - self.v_Q(t))
 
-    def gamma_T_dot(self, t, q, u, u_dot):
+    def gamma_F_q(self, t, q, u, coo):
+        coo.extend(
+            approx_fprime(q, lambda q: self.__gamma_F(t, q, u)),
+            (self.la_FDOF, self.qDOF),
+        )
+
+    def gamma_F_dot(self, t, q, u, u_dot):
         # TODO: t1t2_dot(t)
         # return self.t1t2(t) @ (self.a_P(t, q, u, u_dot) - self.a_Q(t))
-        gamma_T_q = Numerical_derivative(self.gamma_T, order=2)._x(t, q, u)
-        gamma_T_u = self.gamma_T_u_dense(t, q)
+        gamma_T_q = Numerical_derivative(self.gamma_F, order=2)._x(t, q, u)
+        gamma_T_u = self.gamma_F_u_dense(t, q)
         return gamma_T_q @ self.subsystem.q_dot(t, q, u) + gamma_T_u @ u_dot
 
-    def gamma_T_u_dense(self, t, q):
+    def gamma_F_u_dense(self, t, q):
         t1t2 = np.zeros((2, 3))
         n = self.n(t, q)
         t1t2[0] = e3
@@ -154,17 +163,17 @@ class SphereInSphere:
         J_C = self.J_P(t, q) + self.r * ax2skew(n) @ self.J_R(t, q)
         return t1t2 @ J_C
 
-    def W_T(self, t, q, coo):
-        coo.extend(self.gamma_T_u_dense(t, q).T, (self.uDOF, self.la_TDOF))
+    def W_F(self, t, q, coo):
+        coo.extend(self.gamma_F_u_dense(t, q).T, (self.uDOF, self.la_FDOF))
 
-    def Wla_T_q(self, t, q, la_T, coo):
+    def Wla_F_q(self, t, q, la_T, coo):
         # J_C_q = self.J_P_q(t, q) + self.r * np.einsum('ij,jkl->ikl', ax2skew(self.n(t)), self.J_R_q(t, q))
         # dense = np.einsum('i,ij,jkl->kl', la_T, self.t1t2(t), J_C_q)
         # coo.extend(dense, (self.uDOF, self.qDOF))
         dense_num = np.einsum(
             "i,ijk->jk",
             la_T,
-            Numerical_derivative(self.gamma_T_u_dense, order=2)._x(t, q),
+            Numerical_derivative(self.gamma_F_u_dense, order=2)._x(t, q),
         )
         # error = np.linalg.norm(dense - dense_num)
         # print(f'error: {error}')
@@ -173,5 +182,5 @@ class SphereInSphere:
     def xi_N(self, t, q, u_pre, u_post):
         return self.g_N_dot(t, q, u_post) + self.e_N * self.g_N_dot(t, q, u_pre)
 
-    def xi_T(self, t, q, u_pre, u_post):
-        return self.gamma_T(t, q, u_post) + self.e_T * self.gamma_T(t, q, u_pre)
+    def xi_F(self, t, q, u_pre, u_post):
+        return self.gamma_F(t, q, u_post) + self.e_F * self.gamma_F(t, q, u_pre)

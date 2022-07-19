@@ -447,8 +447,10 @@ class SimplifiedGeneralizedAlpha:
 # TODO: Add Newmark method (https://de.wikipedia.org/wiki/Newmark-beta-Verfahren#Herleitung).
 # This gives us a ways to perform the double integrals (similar to gen alpha
 # but without these ugly bar quantites)
-gamma = 0.5
-beta = 0.25
+gamma = 1.0 / 2.0
+beta = 1.0 / 6.0
+# gamma = 1.0
+# beta = 0.5
 
 
 class NonsmoothNewmarkFirstOrderTest:
@@ -1134,18 +1136,8 @@ class NonsmoothNewmarkFirstOrder:
         # uk1 = self.uk + dt * ak1 + Uk1
         qk1 = self.qk + (1.0 - gamma) * dt * self.q_dotk + gamma * dt * q_dotk1 + Qk1
         uk1 = self.uk + (1.0 - gamma) * dt * self.ak + gamma * dt * ak1 + Uk1
-
-        # integrated bilateral constraint contributions
-        # P_gk1 = La_gk1 + dt * la_gk1
-        # kappa_hat_gk1 = kappa_gk1 + dt * La_gk1 + 0.5 * dt2 * la_gk1 # TODO: Do we need this?
-        P_gk1 = La_gk1 + (1.0 - gamma) * dt * self.la_gk + gamma * dt * la_gk1
-        kappa_hat_gk1 = (
-            kappa_gk1
-            + (1.0 - gamma) * dt * self.La_gk
-            + gamma * dt * La_gk1
-            + dt2 * (0.5 - beta) * self.la_gk
-            + dt2 * beta * la_gk1
-        )
+        # qk1_tmp = self.qk + (1.0 - gamma) * dt * self.q_dotk + gamma * dt * q_dotk1 + Qk1
+        # qk1 = qk1_tmp + 0.5 * dt2 * self.model.q_ddot(self.tk, qk1_tmp, uk1, ak1)
 
         # integrated contact contributions
         # P_Nk1 = La_Nk1 + dt * la_Nk1
@@ -1159,9 +1151,10 @@ class NonsmoothNewmarkFirstOrder:
             + dt2 * (0.5 - beta) * self.la_Nk
             + dt2 * beta * la_Nk1
         )
+
         P_Fk1 = La_Fk1 + (1.0 - gamma) * dt * self.la_Fk + gamma * dt * la_Fk1
 
-        return qk1, uk1, P_gk1, kappa_hat_gk1, P_Nk1, kappa_hat_Nk1, P_Fk1
+        return qk1, uk1, P_Nk1, kappa_hat_Nk1, P_Fk1
 
     def residual(self, tk1, xk1, update_index_set=False):
         mu = self.model.mu
@@ -1188,7 +1181,7 @@ class NonsmoothNewmarkFirstOrder:
         #############################
         # compute dependent variables
         #############################
-        qk1, uk1, P_gk1, kappa_hat_gk1, P_Nk1, kappa_hat_Nk1, P_Fk1 = self.update(xk1)
+        qk1, uk1, P_Nk1, kappa_hat_Nk1, P_Fk1 = self.update(xk1)
 
         ##############################
         # evaluate required quantities
@@ -1205,7 +1198,7 @@ class NonsmoothNewmarkFirstOrder:
         W_Fk1 = self.model.W_F(tk1, qk1)
         g_qk1 = self.model.g_q(tk1, qk1)
         g_N_qk1 = self.model.g_N_q(tk1, qk1)
-        # gamma_F_qk1 = self.model.gamma_F_q(tk1, qk1, uk1)
+        gamma_F_qk1 = self.model.gamma_F_q(tk1, qk1, uk1)
 
         # kinematic quantities of bilateral constraints
         gk1 = self.model.g(tk1, qk1)
@@ -1214,13 +1207,13 @@ class NonsmoothNewmarkFirstOrder:
 
         # kinematic quantities of normal contacts
         g_Nk1 = self.model.g_N(tk1, qk1)
-        g_N_ddotk1 = self.model.g_N_ddot(tk1, qk1, uk1, ak1)
         xi_Nk1 = self.model.xi_N(tk1, qk1, self.uk, uk1)
+        g_N_ddotk1 = self.model.g_N_ddot(tk1, qk1, uk1, ak1)
 
         # kinematic quantities of frictional contacts
         gamma_Fk1 = self.model.gamma_F(tk1, qk1, uk1)
-        gamma_F_dotk1 = self.model.gamma_F_dot(tk1, qk1, uk1, ak1)
         xi_Fk1 = self.model.xi_F(tk1, qk1, self.uk, uk1)
+        gamma_F_dotk1 = self.model.gamma_F_dot(tk1, qk1, uk1, ak1)
 
         #########################
         # compute residual vector
@@ -1243,9 +1236,12 @@ class NonsmoothNewmarkFirstOrder:
         # TODO: Why do we have to use the smooth velocity here?
         # This is similar to the case of an implicit Moreau scheme, where the
         # contact detecten is not allowed to be implicitely depending on qk1?
+        # R[:nq] = q_dotk1 - self.model.q_dot(
+        #     tk1, qk1, uk1
+        # )  # TODO: Why is this working now?
         R[:nq] = q_dotk1 - self.model.q_dot(
-            tk1, qk1, uk1
-        )  # TODO: Why is this working now?
+            tk1, qk1, uk1 - Uk1
+        )  # - 0.5 * dt * self.model.q_ddot(tk1, qk1, uk1 - Uk1, ak1)
         # This is the solution: Only use the smooth part of the velocity!
         # TODO: Why is this required if we do not use the integrated quantity
         # P_Nk1 = ... + 0.5 * dt2 * la_Nk1 in the update of P_Nk1
@@ -1259,6 +1255,11 @@ class NonsmoothNewmarkFirstOrder:
             Qk1
             - g_qk1.T @ kappa_gk1
             - g_N_qk1.T @ kappa_Nk1
+            - 0.5 * dt * gamma_F_qk1.T @ La_Fk1
+            # - g_qk1.T @ kappa_hat_gk1
+            # - g_N_qk1.T @ kappa_hat_Nk1
+            # - (1.0 - gamma) * dt * self.model.gamma_F_q(self.tk, self.qk, self.uk).T @ self.La_Fk
+            # - gamma * dt * gamma_F_qk1.T @ La_Fk1
             # - 0.5 * dt * gamma_F_qk1.T @ La_Fk1 # TODO: Do we need the coupling with La_Fk1?
         )
 
@@ -1279,9 +1280,9 @@ class NonsmoothNewmarkFirstOrder:
         ################################################
         # bilteral constraints on all kinematical levels
         ################################################
-        R[2 * nq + 2 * nu : 2 * nq + 2 * nu + nla_g] = g_ddotk1
+        R[2 * nq + 2 * nu : 2 * nq + 2 * nu + nla_g] = gk1
         R[2 * nq + 2 * nu + nla_g : 2 * nq + 2 * nu + 2 * nla_g] = g_dotk1
-        R[2 * nq + 2 * nu + 2 * nla_g : 2 * nq + 2 * nu + 3 * nla_g] = gk1
+        R[2 * nq + 2 * nu + 2 * nla_g : 2 * nq + 2 * nu + 3 * nla_g] = g_ddotk1
 
         #######################
         # unilateral index sets
@@ -1322,7 +1323,7 @@ class NonsmoothNewmarkFirstOrder:
         _Ak1_ind = np.where(~Ak1)[0]
         R[nR_s + Ak1_ind] = g_Nk1[Ak1]
         R[nR_s + _Ak1_ind] = kappa_hat_Nk1[~Ak1]
-        # R[nR_s : nR_s + nla_N] = g_Nk1 - prox_Rn0(prox_N_arg_position)
+        # R[nR_s : nR_s + nla_N] = g_Nk1 - prox_R0_np(prox_N_arg_position)
 
         ###################################
         # complementarity on velocity level
@@ -1426,7 +1427,6 @@ class NonsmoothNewmarkFirstOrder:
 
         la_g = []
         La_g = []
-        P_g = []
 
         la_N = []
         La_N = []
@@ -1453,9 +1453,7 @@ class NonsmoothNewmarkFirstOrder:
                 La_Fk1,
                 la_Fk1,
             ) = self.unpack(xk1)
-            qk1, uk1, P_gk1, kappa_hat_gk1, P_Nk1, kappa_hat_Nk1, P_Fk1 = self.update(
-                xk1
-            )
+            qk1, uk1, P_Nk1, kappa_hat_Nk1, P_Fk1 = self.update(xk1)
 
             self.qk = qk1.copy()
             self.uk = uk1.copy()
@@ -1479,7 +1477,6 @@ class NonsmoothNewmarkFirstOrder:
 
             la_g.append(la_gk1.copy())
             La_g.append(La_gk1.copy())
-            P_g.append(P_gk1.copy())
             # kappa_g.append(kappa_gk1.copy())
             # kappa_hat_g.append(kappa_hat_gk1.copy())
 
@@ -1498,8 +1495,11 @@ class NonsmoothNewmarkFirstOrder:
 
         t = np.arange(self.t0, self.t1 + self.dt, self.dt)
         pbar = tqdm(t[:-1])
-        # for tk1 in pbar:
         for k, tk1 in enumerate(pbar):
+            # # TODO: Use Euler forward as predictor?
+            # qk1 = self.qk + self.dt * self.model.q_dot(tk1, self.qk, self.uk)
+            # # uk1 = self.uk + self.dt * spsolve(...)
+            # xk1[:self.nq] = qk1
 
             # initial residual and error; update active contact set during each
             # redidual computation
@@ -1546,7 +1546,6 @@ class NonsmoothNewmarkFirstOrder:
                     U=np.array(U),
                     la_g=np.array(la_g),
                     La_g=np.array(La_g),
-                    P_g=np.array(P_g),
                     la_N=np.array(la_N),
                     La_N=np.array(La_N),
                     P_N=np.array(P_N),
@@ -1572,7 +1571,6 @@ class NonsmoothNewmarkFirstOrder:
             U=np.array(U),
             la_g=np.array(la_g),
             La_g=np.array(La_g),
-            P_g=np.array(P_g),
             la_N=np.array(la_N),
             La_N=np.array(La_N),
             P_N=np.array(P_N),

@@ -1,15 +1,18 @@
 from cardillo.math.numerical_derivative import Numerical_derivative
 import numpy as np
-from math import cos, sin, pi
-
-# import matplotlib
-# matplotlib.use("Agg")
+from math import cos, sin
 
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
 from cardillo.model import Model
-from cardillo.solver import Moreau, Generalized_alpha_2, Generalized_alpha_3
+from cardillo.solver import (
+    Moreau,
+    NonsmoothNewmarkFirstOrder,
+    NonsmoothGeneralizedAlpha,
+    MoreauGGL,
+)
+from cardillo.solver.MoreauGGL import MoreauGGLInvertM
 
 
 class Slider_crank:
@@ -18,8 +21,6 @@ class Slider_crank:
         self.nq = 3
         self.nu = 3
         self.nla_N = 4
-        # self.nla_T = 0
-        # # self.nla_T = 4
 
         # geometric characteristics
         self.l1 = 0.1530
@@ -43,25 +44,24 @@ class Slider_crank:
 
         # contact parameters
         self.e_N = 0.4 * np.ones(4)
-        self.e_T = np.zeros(4)
+        self.e_F = np.zeros(4)
         mu = 0.01
         # mu = 0
         self.mu = mu * np.ones(4)
+        # r = 0.1
         # r = 0.01
         # r = 0.001
         r = 0.0005
         self.prox_r_N = r * np.ones(4)
-        self.prox_r_T = r * np.ones(4)
-        # self.NT_connectivity = [[], [], [], []]
-        # self.NT_connectivity = [[0], [1], [2], [3]]
+        self.prox_r_F = r * np.ones(4)
 
         if mu == 0:
-            self.nla_T = 0
-            self.NT_connectivity = [[], [], [], []]
+            self.nla_F = 0
+            self.NF_connectivity = [[], [], [], []]
         else:
-            self.nla_T = 4
-            self.NT_connectivity = [[0], [1], [2], [3]]
-            self.gamma_T = self.__gamma_T
+            self.nla_F = 4
+            self.NF_connectivity = [[0], [1], [2], [3]]
+            self.gamma_F = self.__gamma_F
 
         # initial conditions
         theta10 = 0
@@ -76,7 +76,7 @@ class Slider_crank:
         self.q0 = np.array([theta10, theta20, theta30]) if q0 is None else q0
         self.u0 = np.array([omega10, omega20, omega30]) if u0 is None else u0
         self.la_N0 = np.zeros(self.nla_N)
-        self.la_T0 = np.zeros(self.nla_T)
+        self.la_F0 = np.zeros(self.nla_F)
 
     def contour_crank(self, q):
         theta1, _, _ = q
@@ -439,7 +439,7 @@ class Slider_crank:
     #################
     # tanget contacts
     #################
-    def __gamma_T(self, t, q, u):
+    def __gamma_F(self, t, q, u):
         theta1, theta2, theta3 = q
         omega1, omega2, omega3 = u
         gamma_1 = (
@@ -468,27 +468,27 @@ class Slider_crank:
         )
         return np.array([gamma_1, gamma_2, gamma_3, gamma_4])
 
-    def gamma_T_q_dense(self, t, q, u):
-        return Numerical_derivative(self.__gamma_T, order=2)._x(t, q, u)
+    def gamma_F_q_dense(self, t, q, u):
+        return Numerical_derivative(self.__gamma_F, order=2)._x(t, q, u)
 
-    def gamma_T_q(self, t, q, u, coo):
-        coo.extend(self.gamma_T_q_dense(t, q, u), (self.la_TDOF, self.qDOF))
+    def gamma_F_q(self, t, q, u, coo):
+        coo.extend(self.gamma_F_q_dense(t, q, u), (self.la_FDOF, self.qDOF))
 
-    def gamma_T_u_dense(self, t, q):
-        return Numerical_derivative(self.__gamma_T, order=2)._y(t, q, np.zeros(self.nu))
+    def gamma_F_u_dense(self, t, q):
+        return Numerical_derivative(self.__gamma_F, order=2)._y(t, q, np.zeros(self.nu))
 
-    def gamma_T_u(self, t, q, coo):
-        coo.extend(self.gamma_T_u_dense(t, q), (self.la_TDOF, self.uDOF))
+    def gamma_F_u(self, t, q, coo):
+        coo.extend(self.gamma_F_u_dense(t, q), (self.la_FDOF, self.uDOF))
 
-    def W_T(self, t, q, coo):
-        coo.extend(self.gamma_T_u_dense(t, q).T, (self.uDOF, self.la_TDOF))
+    def W_F(self, t, q, coo):
+        coo.extend(self.gamma_F_u_dense(t, q).T, (self.uDOF, self.la_FDOF))
 
-    def Wla_T_q(self, t, q, la_T, coo):
-        Wla_T = lambda t, q: self.gamma_T_u_dense(t, q).T @ la_T
+    def Wla_F_q(self, t, q, la_T, coo):
+        Wla_T = lambda t, q: self.gamma_F_u_dense(t, q).T @ la_T
         dense = Numerical_derivative(Wla_T, order=2)._x(t, q)
         coo.extend(dense, (self.uDOF, self.qDOF))
 
-    def gamma_T_dot(self, t, q, u, u_dot):
+    def gamma_F_dot(self, t, q, u, u_dot):
         theta1, theta2, theta3 = q
         omega1, omega2, omega3 = u
         omega1_dot, omega2_dot, omega3_dot = u_dot
@@ -534,26 +534,26 @@ class Slider_crank:
         )
         return np.array([gamma_1_dot, gamma_2_dot, gamma_3_dot, gamma_4_dot])
 
-    def gamma_T_dot_q(self, t, q, u, u_dot, coo):
+    def gamma_F_dot_q(self, t, q, u, u_dot, coo):
         dense = Numerical_derivative(
-            lambda t, q, u: self.gamma_T_dot(t, q, u, u_dot), order=2
+            lambda t, q, u: self.gamma_F_dot(t, q, u, u_dot), order=2
         )._x(t, q, u)
-        coo.extend(dense, (self.la_TDOF, self.qDOF))
+        coo.extend(dense, (self.la_FDOF, self.qDOF))
 
-    def gamma_T_dot_u(self, t, q, u, u_dot, coo):
+    def gamma_F_dot_u(self, t, q, u, u_dot, coo):
         dense = Numerical_derivative(
-            lambda t, q, u: self.gamma_T_dot(t, q, u, u_dot), order=2
+            lambda t, q, u: self.gamma_F_dot(t, q, u, u_dot), order=2
         )._y(t, q, u)
-        coo.extend(dense, (self.la_TDOF, self.uDOF))
+        coo.extend(dense, (self.la_FDOF, self.uDOF))
 
-    def xi_T(self, t, q, u_pre, u_post):
-        return self.gamma_T(t, q, u_post) + self.e_T * self.gamma_T(t, q, u_pre)
+    def xi_F(self, t, q, u_pre, u_post):
+        return self.gamma_F(t, q, u_post) + self.e_F * self.gamma_F(t, q, u_pre)
 
-    def xi_T_q(self, t, q, u_pre, u_post, coo):
-        gamma_T_q_pre = self.gamma_T_q_dense(t, q, u_pre)
-        gamma_T_q_post = self.gamma_T_q_dense(t, q, u_post)
-        dense = gamma_T_q_post + np.diag(self.e_T) @ gamma_T_q_pre
-        coo.extend(dense, (self.la_TDOF, self.qDOF))
+    def xi_F_q(self, t, q, u_pre, u_post, coo):
+        gamma_T_q_pre = self.gamma_F_q_dense(t, q, u_pre)
+        gamma_T_q_post = self.gamma_F_q_dense(t, q, u_post)
+        dense = gamma_T_q_post + np.diag(self.e_F) @ gamma_T_q_pre
+        coo.extend(dense, (self.la_FDOF, self.qDOF))
 
 
 if __name__ == "__main__":
@@ -566,14 +566,19 @@ if __name__ == "__main__":
     model.assemble()
 
     t1 = 0.5
-    dt = 5e-4
+    # dt = 1e-5
+    # dt = 1e-4
+    # dt = 2.5e-4
+    # dt = 5e-4
+    dt = 1e-3
+    # dt = 5e-3
 
+    # TODO: This example seems to be broken!
     # solver = Moreau(model, t1, dt, fix_point_max_iter=5000)
-    # solver = Generalized_alpha_2(model, t1, dt, numerical_jacobian=True, newton_tol=1.0e-8)
-    # solver = Generalized_alpha_3(model, t1, dt, numerical_jacobian=True, newton_tol=1.0e-6)
-    solver = Generalized_alpha_3(
-        model, t1, dt, numerical_jacobian=False, newton_tol=1.0e-8
-    )
+    # solver = MoreauGGL(model, t1, dt)
+    # solver = MoreauGGLInvertM(model, t1, dt)
+    solver = NonsmoothNewmarkFirstOrder(model, t1, dt, atol=1.0e-6)
+    # solver = NonsmoothGeneralizedAlpha(model, t1, dt, newton_tol=1.0e-6)
     sol = solver.solve()
     t = sol.t
     q = sol.q
