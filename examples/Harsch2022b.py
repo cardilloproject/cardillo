@@ -364,12 +364,12 @@ def convergence_quarter_circle():
     Fi = np.array([G * Ip, E * I2, E * I3])
     material_model = Simo1986(Ei, Fi)
 
-    # # dummy parameters for testing setup
-    # nelements_list = np.array([1, 2, 4], dtype=int)
-    # nelements_ref = 8
-    # used parameters for the paper
-    nelements_list = np.array([1, 2, 4, 8, 16, 32, 64], dtype=int)
-    nelements_ref = 256
+    # dummy parameters for testing setup
+    nelements_list = np.array([1, 2, 4], dtype=int)
+    nelements_ref = 8
+    # # used parameters for the paper
+    # nelements_list = np.array([1, 2, 4, 8, 16, 32, 64], dtype=int)
+    # nelements_ref = 256
 
     # starting point and orientation of initial point, initial length
     r_OP0 = np.zeros(3, dtype=float)
@@ -1403,22 +1403,6 @@ def Bathe1979():
             nelements,
             q0,
         )
-        # q0 = TimoshenkoAxisAngle.straight_configuration(
-        #     polynomial_degree,
-        #     polynomial_degree,
-        #     nelements,
-        #     L,
-        # )
-        # beam = TimoshenkoAxisAngle(
-        #     material_model,
-        #     A_rho0,
-        #     K_I_rho0,
-        #     polynomial_degree,
-        #     polynomial_degree,
-        #     polynomial_degree + 1,
-        #     nelements,
-        #     q0,
-        # )
 
         # junctions
         frame1 = Frame(r_OP=r_OP0, A_IK=A_IK0)
@@ -1436,10 +1420,10 @@ def Bathe1979():
         model.add(beam)
         model.add(frame1)
         model.add(joint1)
-        model.add(moment)
+        # model.add(moment)
         model.assemble()
 
-        n_load_steps = 10
+        n_load_steps = 20
 
         solver = Newton(
             model,
@@ -1478,17 +1462,6 @@ def Bathe1979():
         q0,
         q0,
     )
-    # beam = TimoshenkoAxisAngle(
-    #     material_model,
-    #     A_rho0,
-    #     K_I_rho0,
-    #     polynomial_degree,
-    #     polynomial_degree,
-    #     polynomial_degree + 1,
-    #     nelements,
-    #     q0,
-    #     q0,
-    # )
 
     # junctions
     frame1 = Frame(r_OP=r_OP0, A_IK=A_IK0)
@@ -1498,7 +1471,9 @@ def Bathe1979():
 
     # external force at the right end
     F_max = 600
-    F = lambda t: F_max * e3 * t
+    # F = lambda t: F_max * e3 * t
+    # F = lambda t: 1.0e6 * e1 * t
+    F = lambda t: 1.0e3 * e2 * t
     force = Force(F, beam, frame_ID=(1,))
 
     # assemble the model
@@ -1529,9 +1504,70 @@ def Bathe1979():
     r_OP = beam.r_OP(1, sol.q[-1, beam.qDOF][beam.elDOF[-1]], frame_ID=(1,))
     print(f"r_OP(xi=1): {r_OP}")
 
-    #################
-    # strain measures
-    #################
+    # #################
+    # # strain measures
+    # #################
+    # nxi = 100
+    # xis = np.linspace(0, 1, num=nxi)
+
+    # K_Gamma_bar = np.zeros((3, nxi))
+    # K_Kappa_bar = np.zeros((3, nxi))
+    # K_Gamma = np.zeros((3, nxi))
+    # K_Kappa = np.zeros((3, nxi))
+    # K_n = np.zeros((3, nxi))
+    # K_m = np.zeros((3, nxi))
+    # for i in range(nxi):
+    #     frame_ID = (xis[i],)
+    #     elDOF = beam.qDOF_P(frame_ID)
+
+    #     # length of reference tangent vector
+    #     Qe = beam.Q[elDOF]
+    #     _, _, K_Gamma_bar0, K_Kappa_bar0 = beam.eval(Qe, xis[i])
+    #     J = norm(K_Gamma_bar0)
+
+    #     # current strain measures
+    #     qe = sol.q[-1, beam.qDOF][elDOF]
+    #     _, _, K_Gamma_bar_i, K_Kappa_bar_i = beam.eval(qe, xis[i])
+
+    #     K_Gamma_bar[:, i] = K_Gamma_bar_i
+    #     K_Kappa_bar[:, i] = K_Kappa_bar_i
+    #     K_Gamma[:, i] = K_Gamma_bar_i / J
+    #     K_Kappa[:, i] = K_Kappa_bar_i / J
+    #     K_n[:, i] = material_model.K_n(
+    #         K_Gamma_bar_i / J, K_Gamma_bar0 / J, K_Kappa_bar_i / J, K_Kappa_bar0 / J
+    #     )
+    #     K_m[:, i] = material_model.K_m(
+    #         K_Gamma_bar_i / J, K_Gamma_bar0 / J, K_Kappa_bar_i / J, K_Kappa_bar0 / J
+    #     )
+
+    # fig, ax = plt.subplots(2, 2)
+    # ax[0, 0].plot(xis, K_Gamma[0], label="K_Gamma0")
+    # ax[0, 0].plot(xis, K_Gamma[1], label="K_Gamma1")
+    # ax[0, 0].plot(xis, K_Gamma[2], label="K_Gamma2")
+    # ax[0, 0].grid()
+    # ax[0, 0].legend()
+
+    # ax[0, 1].plot(xis, K_Kappa[0], label="K_Kappa0")
+    # ax[0, 1].plot(xis, K_Kappa[1], label="K_Kappa1")
+    # ax[0, 1].plot(xis, K_Kappa[2], label="K_Kappa2")
+    # ax[0, 1].grid()
+    # ax[0, 1].legend()
+
+    # ax[1, 0].plot(xis, K_n[0], label="K_n0")
+    # ax[1, 0].plot(xis, K_n[1], label="K_n1")
+    # ax[1, 0].plot(xis, K_n[2], label="K_n2")
+    # ax[1, 0].grid()
+    # ax[1, 0].legend()
+
+    # ax[1, 1].plot(xis, K_m[0], label="K_m0")
+    # ax[1, 1].plot(xis, K_m[1], label="K_m1")
+    # ax[1, 1].plot(xis, K_m[2], label="K_m2")
+    # ax[1, 1].grid()
+    # ax[1, 1].legend()
+
+    ###########################################
+    # strain measures of the reference solution
+    ###########################################
     nxi = 100
     xis = np.linspace(0, 1, num=nxi)
 
@@ -1541,6 +1577,8 @@ def Bathe1979():
     K_Kappa = np.zeros((3, nxi))
     K_n = np.zeros((3, nxi))
     K_m = np.zeros((3, nxi))
+    I_n = np.zeros((3, nxi))
+    I_m = np.zeros((3, nxi))
     for i in range(nxi):
         frame_ID = (xis[i],)
         elDOF = beam.qDOF_P(frame_ID)
@@ -1552,7 +1590,7 @@ def Bathe1979():
 
         # current strain measures
         qe = sol.q[-1, beam.qDOF][elDOF]
-        _, _, K_Gamma_bar_i, K_Kappa_bar_i = beam.eval(qe, xis[i])
+        _, A_IK_i, K_Gamma_bar_i, K_Kappa_bar_i = beam.eval(qe, xis[i])
 
         K_Gamma_bar[:, i] = K_Gamma_bar_i
         K_Kappa_bar[:, i] = K_Kappa_bar_i
@@ -1564,31 +1602,45 @@ def Bathe1979():
         K_m[:, i] = material_model.K_m(
             K_Gamma_bar_i / J, K_Gamma_bar0 / J, K_Kappa_bar_i / J, K_Kappa_bar0 / J
         )
+        I_n[:, i] = A_IK_i @ K_n[:, i]
+        I_m[:, i] = A_IK_i @ K_m[:, i]
 
-    fig, ax = plt.subplots(2, 2)
-    ax[0, 0].plot(xis, K_Gamma[0], label="K_Gamma0")
-    ax[0, 0].plot(xis, K_Gamma[1], label="K_Gamma1")
-    ax[0, 0].plot(xis, K_Gamma[2], label="K_Gamma2")
+    fig, ax = plt.subplots(3, 2)
+    ax[0, 0].step(xis, K_Gamma[0] - 1.0, label="K_Gamma0 - 1.0")
+    ax[0, 0].step(xis, K_Gamma[1], label="K_Gamma1")
+    ax[0, 0].step(xis, K_Gamma[2], label="K_Gamma2")
     ax[0, 0].grid()
     ax[0, 0].legend()
 
-    ax[0, 1].plot(xis, K_Kappa[0], label="K_Kappa0")
-    ax[0, 1].plot(xis, K_Kappa[1], label="K_Kappa1")
-    ax[0, 1].plot(xis, K_Kappa[2], label="K_Kappa2")
+    ax[0, 1].step(xis, K_Kappa[0], label="K_Kappa0")
+    ax[0, 1].step(xis, K_Kappa[1], label="K_Kappa1")
+    ax[0, 1].step(xis, K_Kappa[2], label="K_Kappa2")
     ax[0, 1].grid()
     ax[0, 1].legend()
 
-    ax[1, 0].plot(xis, K_n[0], label="K_n0")
-    ax[1, 0].plot(xis, K_n[1], label="K_n1")
-    ax[1, 0].plot(xis, K_n[2], label="K_n2")
+    ax[1, 0].step(xis, K_n[0], label="K_n0")
+    ax[1, 0].step(xis, K_n[1], label="K_n1")
+    ax[1, 0].step(xis, K_n[2], label="K_n2")
     ax[1, 0].grid()
     ax[1, 0].legend()
 
-    ax[1, 1].plot(xis, K_m[0], label="K_m0")
-    ax[1, 1].plot(xis, K_m[1], label="K_m1")
-    ax[1, 1].plot(xis, K_m[2], label="K_m2")
+    ax[1, 1].step(xis, K_m[0], label="K_m0")
+    ax[1, 1].step(xis, K_m[1], label="K_m1")
+    ax[1, 1].step(xis, K_m[2], label="K_m2")
     ax[1, 1].grid()
     ax[1, 1].legend()
+
+    ax[2, 0].step(xis, I_n[0], label="I_n0")
+    ax[2, 0].step(xis, I_n[1], label="I_n1")
+    ax[2, 0].step(xis, I_n[2], label="I_n2")
+    ax[2, 0].grid()
+    ax[2, 0].legend()
+
+    ax[2, 1].step(xis, I_m[0], label="I_m0")
+    ax[2, 1].step(xis, I_m[1], label="I_m1")
+    ax[2, 1].step(xis, I_m[2], label="I_m2")
+    ax[2, 1].grid()
+    ax[2, 1].legend()
 
     ###########
     # animation
@@ -1600,8 +1652,8 @@ def Bathe1979():
 if __name__ == "__main__":
     # locking_quarter_circle()
     # objectivity_quarter_circle()
-    convergence_quarter_circle()
+    # convergence_quarter_circle()
     # HelixIbrahimbegovic1997()
     # HeavyTop()
     # BucklingRightHingedFrame()
-    # Bathe1979()
+    Bathe1979()
