@@ -3424,8 +3424,8 @@ class TimoshenkoAxisAngle:
         q0=None,
         u0=None,
         basis="B-spline",
-        # objetive=True,
-        objetive=False,
+        objetive=True,
+        # objetive=False,
     ):
         # beam properties
         self.materialModel = material_model  # material model
@@ -3575,7 +3575,9 @@ class TimoshenkoAxisAngle:
                 Ji = norm(r_xi)
 
                 # evaluate strain measures and other quantities depending on chosen formulation
-                r_xi, A_IK, K_Kappa_bar = self.eval(qe, el, i)
+                # r_xi, A_IK, K_Kappa_bar = self.eval(qe, el, i)
+                qpi = self.qp[el, i]
+                r_xi, A_IK, K_Kappa_bar = self.eval(qe, el, qpi)
 
                 # axial and shear strains
                 K_Gamma = A_IK.T @ (r_xi / Ji)
@@ -3661,8 +3663,11 @@ class TimoshenkoAxisAngle:
         phi_IJ = rodriguez_inv(A_IJ)
         return A_0I @ rodriguez(0.5 * phi_IJ)
 
+    # def relative_interpolation(
+    #     self, A_IR: np.ndarray, qe: np.ndarray, el: int, qp: int
+    # ):
     def relative_interpolation(
-        self, A_IR: np.ndarray, qe: np.ndarray, el: int, qp: int
+        self, A_IR: np.ndarray, qe: np.ndarray, N_psi: np.ndarray, N_psi_xi: np.ndarray
     ):
         """Interpolation function for relative rotation vectors proposed by
         Crisfield1999 (5.7) and (5.8)."""
@@ -3682,8 +3687,10 @@ class TimoshenkoAxisAngle:
             psi_RK_node = rodriguez_inv(A_RK_node)
 
             # add wheighted contribution of local rotation
-            psi_rel += self.N_psi[el, qp, node] * psi_RK_node
-            psi_rel_xi += self.N_psi_xi[el, qp, node] * psi_RK_node
+            # psi_rel += self.N_psi[el, qp, node] * psi_RK_node
+            # psi_rel_xi += self.N_psi_xi[el, qp, node] * psi_RK_node
+            psi_rel += N_psi[node] * psi_RK_node
+            psi_rel_xi += N_psi_xi[node] * psi_RK_node
 
         return psi_rel, psi_rel_xi
 
@@ -3803,18 +3810,25 @@ class TimoshenkoAxisAngle:
             f_gyr_u_el = self.f_gyr_u_el(t, q[elDOF], u[elDOF], el)
             coo.extend(f_gyr_u_el, (self.uDOF[elDOF], self.uDOF[elDOF]))
 
-    def eval(self, qe, el, qp):
+    # def eval(self, qe, el, qp):
+    def eval(self, qe, el, xi):
+        # evaluate shape functions
+        N_r, N_r_xi, _ = self.basis_functions_r(xi)
+        N_psi, N_psi_xi = self.basis_functions_psi(xi)
+
         # interpolate tangent vector
         r_xi = np.zeros(3)
         for node in range(self.nnodes_element_r):
-            r_xi += self.N_r_xi[el, qp, node] * qe[self.nodalDOF_element_r[node]]
+            # r_xi += self.N_r_xi[el, qp, node] * qe[self.nodalDOF_element_r[node]]
+            r_xi += N_r_xi[node] * qe[self.nodalDOF_element_r[node]]
 
         if self.objetive:
             # reference rotation, see. Crisfield1999 (5.8)
             A_IR = self.reference_rotation(qe)
 
             # relative interpolation of the rotation vector and it first derivative
-            psi_rel, psi_rel_xi = self.relative_interpolation(A_IR, qe, el, qp)
+            # psi_rel, psi_rel_xi = self.relative_interpolation(A_IR, qe, el, qp)
+            psi_rel, psi_rel_xi = self.relative_interpolation(A_IR, qe, N_psi, N_psi_xi)
 
             # objective rotation
             A_IK = A_IR @ rodriguez(psi_rel)
@@ -3823,6 +3837,7 @@ class TimoshenkoAxisAngle:
             T = tangent_map(psi_rel)
             K_Kappa_bar = T @ psi_rel_xi
         else:
+            raise NotImplementedError
 
             # interpolate total rotation vector
             psi = np.zeros(3)
@@ -3854,13 +3869,15 @@ class TimoshenkoAxisAngle:
 
         for i in range(self.nquadrature):
             # extract reference state variables
+            qpi = self.qp[el, i]
             qwi = self.qw[el, i]
             Ji = self.J[el, i]
             K_Gamma0 = self.K_Gamma0[el, i]
             K_Kappa0 = self.K_Kappa0[el, i]
 
             # evaluate strain measures and other quantities depending on chosen formulation
-            r_xi, A_IK, K_Kappa_bar = self.eval(qe, el, i)
+            r_xi, A_IK, K_Kappa_bar = self.eval(qe, el, qpi)
+            # r_xi, A_IK, K_Kappa_bar = self.eval(qe, el, i)
 
             # axial and shear strains
             K_Gamma = A_IK.T @ (r_xi / Ji)
@@ -3889,13 +3906,15 @@ class TimoshenkoAxisAngle:
 
         for i in range(self.nquadrature):
             # extract reference state variables
+            qpi = self.qp[el, i]
             qwi = self.qw[el, i]
             Ji = self.J[el, i]
             K_Gamma0 = self.K_Gamma0[el, i]
             K_Kappa0 = self.K_Kappa0[el, i]
 
             # evaluate strain measures and other quantities depending on chosen formulation
-            r_xi, A_IK, K_Kappa_bar = self.eval(qe, el, i)
+            # r_xi, A_IK, K_Kappa_bar = self.eval(qe, el, i)
+            r_xi, A_IK, K_Kappa_bar = self.eval(qe, el, qpi)
 
             # axial and shear strains
             K_Gamma_bar = A_IK.T @ r_xi
@@ -5460,7 +5479,8 @@ class TimoshenkoQuaternion:
                 Ji = norm(r_xi)
 
                 # evaluate strain measures and other quantities depending on chosen formulation
-                r_xi, A_IK, K_Kappa_bar = self.eval(qe, el, i)
+                qpi = self.qp[el, i]
+                r_xi, A_IK, K_Kappa_bar = self.eval(qe, el, qpi)
 
                 # axial and shear strains
                 K_Gamma = A_IK.T @ (r_xi / Ji)

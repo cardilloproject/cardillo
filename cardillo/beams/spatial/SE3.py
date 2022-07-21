@@ -673,6 +673,53 @@ class TimoshenkoAxisAngleSE3:
 
         return np.concatenate([q_r, q_psi]), np.concatenate([u_r, u_psi])
 
+    @staticmethod
+    def circular_segment_configuration(
+        polynomial_degree,
+        nelement,
+        radius,
+        max_angle,
+        r_OP0=np.zeros(3, dtype=float),
+        A_IK0=np.eye(3, dtype=float),
+    ):
+        nn = polynomial_degree * nelement + 1
+
+        # rotation of reference frame
+        e_x0, e_y0, e_z0 = A_IK0.T
+
+        r_OPs = np.zeros((3, nn), dtype=float)
+        psis = np.zeros((3, nn), dtype=float)
+        for i in range(nn):
+            xi = i / (nn - 1)
+            phi_i = max_angle * xi
+            sph = np.sin(phi_i)
+            cph = np.cos(phi_i)
+
+            # centerline position
+            r_OP = r_OP0 + radius * cph * e_x0 + radius * sph * e_y0
+
+            # compute orientation
+            e_x = -sph * e_x0 + cph * e_y0
+            e_y = -cph * e_x0 - sph * e_y0
+            e_z = e_z0
+            A_IK = np.vstack((e_x, e_y, e_z)).T
+
+            # compute SE(3) object
+            H_IK = SE3(A_IK, r_OP)
+            h_IK = Log_SE3(H_IK)
+
+            r_OPs[:, i] = h_IK[:3]
+            psis[:, i] = h_IK[3:]
+
+            # r_OPs[:, i] = r_OP
+            # psis[:, i] = Log_SO3(A_IK)
+
+        # reshape generalized coordinates to nodal ordering
+        q_r = r_OPs.reshape(-1, order="F")
+        q_psi = psis.reshape(-1, order="F")
+
+        return np.concatenate([q_r, q_psi])
+
     def element_number(self, xi):
         return self.knot_vector.element_number(xi)[0]
 
@@ -713,6 +760,10 @@ class TimoshenkoAxisAngleSE3:
         # second linear Lagrange shape function
         N1_xi = 1.0 / (xi1 - xi0)
         N1 = (xi - xi0) * N1_xi
+
+        N, N_xi = self.basis_functions(xi)
+        N1 = N[1]
+        N1_xi = N_xi[1]
 
         # relative interpolation of local se(3) objects
         h_local = N1 * h_K0K1
@@ -1473,13 +1524,13 @@ class TimoshenkoAxisAngleSE3:
         # r_OP_q_num = approx_fprime(
         #     q, lambda q: self.r_OP(t, q, frame_ID, K_r_SP), eps=1.0e-10, method="cs"
         # )
-        # diff = r_OP_q - r_OP_q_num
-        # error = np.linalg.norm(diff)
-        # np.set_printoptions(3, suppress=True)
-        # if error > 1.0e-10:
-        #     print(f"r_OP_q:\n{r_OP_q}")
-        #     print(f"r_OP_q_num:\n{r_OP_q_num}")
-        #     print(f"error r_OP_q: {error}")
+        # # diff = r_OP_q - r_OP_q_num
+        # # error = np.linalg.norm(diff)
+        # # np.set_printoptions(3, suppress=True)
+        # # if error > 1.0e-10:
+        # #     print(f"r_OP_q:\n{r_OP_q}")
+        # #     print(f"r_OP_q_num:\n{r_OP_q_num}")
+        # #     print(f"error r_OP_q: {error}")
         # return r_OP_q_num
 
     def A_IK(self, t, q, frame_ID):
@@ -1502,10 +1553,10 @@ class TimoshenkoAxisAngleSE3:
         # A_IK_q_num = approx_fprime(
         #     q, lambda q: self.A_IK(t, q, frame_ID), eps=1.0e-10, method="cs"
         # )
-        # diff = A_IK_q - A_IK_q_num
-        # error = np.linalg.norm(diff)
-        # # if error > 1.0e-10:
-        # print(f'error A_IK_q: {error}')
+        # # diff = A_IK_q - A_IK_q_num
+        # # error = np.linalg.norm(diff)
+        # # # if error > 1.0e-10:
+        # # print(f'error A_IK_q: {error}')
         # return A_IK_q_num
 
     def v_P(self, t, q, u, frame_ID, K_r_SP=np.zeros(3), dtype=float):
