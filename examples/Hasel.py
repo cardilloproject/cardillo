@@ -17,7 +17,7 @@ from cardillo.solver import (
     Newton,
     ScipyIVP,
     Riks,
-    GenAlphaFirstOrder,
+    GeneralizedAlphaFirstOrder,
 )
 from cardillo.math import pi, e1, e2, e3, rodriguez, approx_fprime, norm
 
@@ -175,7 +175,6 @@ def add_internal_fluid(Rope):
                     g = n @ r
 
                     # contact force
-                    # f_c = self.k_c * np.minimum(np.zeros(1, dtype=q.dtype)[0], g) * normal
                     f_c = self.k_c * np.minimum(0, g) * n
 
                     # assemble
@@ -1098,7 +1097,7 @@ def inflated_circular_segment():
         #     rtol=rtol,
         #     atol=atol,
         # )
-        solver = GenAlphaFirstOrder(
+        solver = GeneralizedAlphaFirstOrder(
             model,
             t1,
             dt,
@@ -1415,11 +1414,11 @@ def cable_straight_inflated(case="rope"):
     animate_rope(t, q, [rope], L, show=True)
 
 
-# def cable_inflated_circular_segment(case="rope"):
-def cable_inflated_circular_segment(case="cable"):
+def cable_inflated_circular_segment(case="rope"):
+    # def cable_inflated_circular_segment(case="cable"):
     # statics or dynamics?
-    statics = True
-    # statics = False
+    # statics = True
+    statics = False
 
     # solver parameter
     if statics:
@@ -1440,7 +1439,7 @@ def cable_inflated_circular_segment(case="cable"):
     # nelements = 40
     # polynomial_degree = 1
     # basis = "Lagrange"
-    polynomial_degree = 3
+    polynomial_degree = 2
     basis = "B-spline"
     # polynomial_degree = 3
     # basis = "Hermite"
@@ -1456,7 +1455,6 @@ def cable_inflated_circular_segment(case="cable"):
     k_c = 1.0e6
     A_rho0_inertia = 1.0e2
     if statics:
-        # A_rho0_gravity = 5.0e1
         A_rho0_gravity = 1.0e2
     else:
         A_rho0_gravity = 5.0e1
@@ -1568,8 +1566,8 @@ def cable_inflated_circular_segment(case="cable"):
 
     else:
 
-        def fg(t, xi, xi_star=0.3):
-            if xi <= xi_star:
+        def fg(t, xi, xi_star=0.3, t_star=0.5):
+            if xi <= xi_star and t <= t_star:
                 return -A_rho0_gravity * g * e2
             else:
                 return np.zeros(3, dtype=float)
@@ -1629,21 +1627,21 @@ def cable_inflated_circular_segment(case="cable"):
         #     la_arc_span=[-1, 1],
         # )
     else:
-        # solver = ScipyIVP(
-        #     model,
-        #     t1,
-        #     dt,
-        #     method=method,
-        #     rtol=rtol,
-        #     atol=atol,
-        # )
-        solver = GenAlphaFirstOrder(
+        solver = ScipyIVP(
             model,
             t1,
             dt,
-            rho_inf=0.5,
-            tol=atol,
+            method=method,
+            rtol=rtol,
+            atol=atol,
         )
+        # solver = GenAlphaFirstOrder(
+        #     model,
+        #     t1,
+        #     dt,
+        #     rho_inf=0.5,
+        #     tol=atol,
+        # )
 
     sol = solver.solve()
     q = sol.q

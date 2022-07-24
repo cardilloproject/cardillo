@@ -4,25 +4,23 @@ from math import pi, sin, cos, sqrt
 
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-from cardillo.math.rotations import rodriguez_inv
 
 from cardillo.model import Model
-from cardillo.model.rigid_body import RigidBodyEuler, RigidBodyAxisAngle
-from cardillo.math import A_IK_basic
-from cardillo.model.rolling_disc import (
-    Rolling_condition,
-    Rolling_condition_I_frame,
-    Rolling_condition_I_frame_g_gamma,
+
+# from cardillo.model.rigid_body import Rigid_body_euler, Rigid_body_quaternion
+from cardillo.model.rigid_body import RigidBodyEuler, RigidBodyQuaternion
+from cardillo.math import axis_angle2quat
+from cardillo.model.bilateral_constraints.implicit import (
+    RollingCondition,
+    RollingCondition_I_Frame,
+    RollingCondition_I_Frame_g_gamma,
 )
 from cardillo.forces import Force
 from cardillo.solver import (
-    # GenAlphaFirstOrderVelocityGGL,
-    # GenAlphaFirstOrderVelocity,
-    # GenAlphaDAEAcc,
     GeneralizedAlphaFirstOrder,
-    # GenAlphaFirstOrderGGL2_V1,
-    # GenAlphaFirstOrderGGL2_V2,
-    # GenAlphaFirstOrderGGL2_V3,
+    ScipyIVP,
+    GeneralizedAlphaSecondOrder,
+    NonsmoothGeneralizedAlpha,
 )
 
 
@@ -34,7 +32,6 @@ def rolling_disc_DMS(rigid_body_case="Euler", constraint_case="velocity_K"):
     ==========
     Lesaux2005: https://doi.org/10.1007/s00332-004-0655-4
     """
-    assert rigid_body_case == "Euler" or rigid_body_case == "AxisAngle"
     ############
     # parameters
     ############
@@ -106,7 +103,7 @@ def rolling_disc_DMS(rigid_body_case="Euler", constraint_case="velocity_K"):
                 np.repeat(self.r_OP(t, q), n).reshape(3, n) + self.A_IK(t, q) @ K_r_SP
             )
 
-    class DiscAxisAngle(RigidBodyAxisAngle):
+    class DiscQuaternion(RigidBodyQuaternion):
         def __init__(self, m, r, q0=None, u0=None):
             A = 1 / 4 * m * r**2
             C = 1 / 2 * m * r**2
@@ -124,30 +121,25 @@ def rolling_disc_DMS(rigid_body_case="Euler", constraint_case="velocity_K"):
             )
 
     # initial conditions
-    A_IK0 = A_IK_basic(alpha0).z() @ A_IK_basic(beta0).x() @ A_IK_basic(gamma0).y()
     u0 = np.concatenate((v_S0, K_Omega0))
     if rigid_body_case == "Euler":
         q0 = np.array((x0, y0, z0, alpha0, beta0, gamma0))
         disc = DiscEuler(m, r, q0, u0)
-    elif rigid_body_case == "AxisAngle":
-        psi0 = rodriguez_inv(A_IK0)
-        q0 = np.array([x0, y0, z0, *psi0])
-        disc = DiscAxisAngle(m, r, q0, u0)
-    # elif rigid_body_case == "Quaternion":
-    #     p0 = axis_angle2quat(np.array([1, 0, 0]), beta0)
-    #     q0 = np.array((x0, y0, z0, *p0))
-    #     disc = DiscQuaternion(m, r, q0, u0)
+    elif rigid_body_case == "Quaternion":
+        p0 = axis_angle2quat(np.array([1, 0, 0]), beta0)
+        q0 = np.array((x0, y0, z0, *p0))
+        disc = DiscQuaternion(m, r, q0, u0)
     else:
         raise NotImplementedError("Wrong case chosen!")
 
     # build model
     if constraint_case == "velocity_K":
-        rolling = Rolling_condition(disc)
+        rolling = RollingCondition(disc)
     elif constraint_case == "velocity_I":
-        rolling = Rolling_condition_I_frame(disc)
-    elif constraint_case == "g_gamma":
+        rolling = RollingCondition_I_Frame(disc)
+    elif constraint_case == "position":
         # TODO: We have to implement g_dot, g_ddot and gamma_dot!
-        rolling = Rolling_condition_I_frame_g_gamma(disc)
+        rolling = RollingCondition_I_Frame_g_gamma(disc)
     else:
         raise NotImplementedError("")
     f_g = Force(lambda t: np.array([0, 0, -m * g]), disc)
@@ -159,43 +151,18 @@ def rolling_disc_DMS(rigid_body_case="Euler", constraint_case="velocity_K"):
     model.assemble()
 
     t0 = 0
-    # t1 = 2 * np.pi / np.abs(alpha_dot0) * 0.25
+    # t1 = 2 * np.pi / np.abs(alpha_dot0) * 0.1
     t1 = 2 * np.pi / np.abs(alpha_dot0) * 1.0
-    # dt = 1e-1
+    dt = 2.5e-2
     # dt = 5e-2
-    # dt = 1e-2
-    dt = 5e-3
-    # dt = 1e-3
-    # dt = 1e-4 # required for second order gen alpha solver
-    rho_inf = 0.90
+    rho_inf = 0.95
     # rho_inf = 1.0
     tol = 1.0e-8
+    # sol_A = GeneralizedAlphaFirstOrder(model, t1, dt, rho_inf=rho_inf, tol=tol).solve()
+    # sol_A = GeneralizedAlphaFirstOrder(model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=True).solve()
+    sol_A = GeneralizedAlphaSecondOrder(model, t1, dt, rho_inf=rho_inf).solve()
+    # sol_A = NonsmoothGeneralizedAlpha(model, t1, dt, rho_inf=rho_inf, newton_tol=tol).solve()
 
-    # sol_genAlphaFirstOrderVelocity = GenAlphaFirstOrder(
-    #     model, t1, dt, rho_inf=rho_inf, tol=tol
-    # ).solve()
-    sol_genAlphaFirstOrderVelocity = GeneralizedAlphaFirstOrder(
-        model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=True
-    ).solve()
-
-    # sol_genAlphaFirstOrderVelocity = GenAlphaFirstOrderVelocityGGL(model, t1, dt, rho_inf=rho_inf, tol=tol).solve()
-    # sol_genAlphaFirstOrderVelocity = GenAlphaFirstOrderVelocity(
-    #     model, t1, dt, rho_inf=rho_inf, tol=tol
-    # ).solve()
-    # sol_genAlphaFirstOrderVelocity = GenAlphaDAEAcc(model, t1, dt, rho_inf=rho_inf, newton_tol=tol).solve()
-    # sol_genAlphaFirstOrderVelocity = Generalized_alpha_3(model, t1, dt, rho_inf=rho_inf, newton_tol=tol, numerical_jacobian=True).solve()
-
-    # solver = GenAlphaFirstOrder(model, t1, dt, tol=1.0e-10, rho_inf=1.0)
-    # solver = Euler_backward(model, t1, dt, numerical_jacobian=False, debug=False)
-    # solver = Moreau_sym(model, t1, dt)
-    # solver = Generalized_alpha_1(model, t1, variable_dt=True, rtol=0, atol=1.0e-2)
-    # solver = Generalized_alpha_1(model, t1, dt=dt, variable_dt=False)
-    # solver = Generalized_alpha_2(model, t1, dt)
-    # solver = Generalized_alpha_3(model, t1, dt, numerical_jacobian=True)
-    # solver = Generalized_alpha_3(model, t1, dt, numerical_jacobian=False)
-    # solver = Generalized_alpha_4_index3(model, t1, dt)
-    # solver = Generalized_alpha_4_index1(model, t1, dt, numerical_jacobian=False)
-    # solver = Generalized_alpha_5(model, t1, dt, numerical_jacobian=False)
     # solver = Moreau(model, t1, dt)
     # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='RK23')
     # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='RK45')
@@ -205,59 +172,26 @@ def rolling_disc_DMS(rigid_body_case="Euler", constraint_case="velocity_K"):
     # solver = Scipy_ivp(model, t1, dt, atol=1.e-6, method='LSODA')
     # sol = solver.solve()
 
-    t = sol_genAlphaFirstOrderVelocity.t
-    q = sol_genAlphaFirstOrderVelocity.q
-    u = sol_genAlphaFirstOrderVelocity.u
-    q_dot = sol_genAlphaFirstOrderVelocity.q_dot
-    u_dot = sol_genAlphaFirstOrderVelocity.u_dot
-    la_g = sol_genAlphaFirstOrderVelocity.la_g
-    la_gamma = sol_genAlphaFirstOrderVelocity.la_gamma
-    # mu_g = sol_genAlphaFirstOrderVelocity.mu_g
-    # kappa_g = sol_genAlphaFirstOrderVelocity.kappa_g
-    # kappa_gamma = sol_genAlphaFirstOrderVelocity.kappa_gamma
-    # a = sol_genAlphaFirstOrderVelocity.a
+    t_A = sol_A.t
+    q_A = sol_A.q
+    la_g_A = sol_A.la_g
+    la_gamma_A = sol_A.la_gamma
+    # t_genAlphaFirstOrderVelocityGGL = sol_genAlphaFirstOrderVelocityGGL.t
+    # q_genAlphaFirstOrderVelocityGGL = sol_genAlphaFirstOrderVelocityGGL.q
+    # la_g_genAlphaFirstOrderVelocityGGL = sol_genAlphaFirstOrderVelocityGGL.la_g
+    # la_gamma_genAlphaFirstOrderVelocityGGL = sol_genAlphaFirstOrderVelocityGGL.la_gamma
 
     ###############
     # visualization
     ###############
     fig = plt.figure(figsize=plt.figaspect(0.5))
 
-    # a vs u_dot
-    ax = fig.add_subplot(2, 2, 1)
-    for j in range(u_dot.shape[1]):
-        # for j in range(a.shape[1]):
-        ax.plot(t, u_dot[:, j], "-", label=f"u_dot{j}")
-        # ax.plot(t, a[:, j], "--", label=f"a{j}")
-    ax.grid()
-    ax.legend()
-
-    # # mu_g
-    # ax = fig.add_subplot(2, 2, 2)
-    # for j in range(mu_g.shape[1]):
-    #     ax.plot(t, mu_g[:, j], "-", label=f"mu_g{j}")
-    # ax.grid()
-    # ax.legend()
-
-    # # kappa_g, kappa_gamma
-    # ax = fig.add_subplot(2, 2, 3)
-    # for j in range(kappa_g.shape[1]):
-    #     ax.plot(t, kappa_g[:, j], "-", label=f"kappa_g{j}")
-    # for j in range(kappa_gamma.shape[1]):
-    #     ax.plot(t, kappa_gamma[:, j], "-", label=f"kappa_gamma{j}")
-    # ax.grid()
-    # ax.legend()
-
-    # plt.show()
-    # exit()
-
-    fig = plt.figure(figsize=plt.figaspect(0.5))
-
     # trajectory center of mass
     ax = fig.add_subplot(2, 2, 1, projection="3d")
     ax.plot(
-        q[:, 0],
-        q[:, 1],
-        q[:, 2],
+        q_A[:, 0],
+        q_A[:, 1],
+        q_A[:, 2],
         "-r",
         label="x-y-z - GenAlphaFirstOrderVeclotiy",
     )
@@ -268,39 +202,40 @@ def rolling_disc_DMS(rigid_body_case="Euler", constraint_case="velocity_K"):
     ax.grid()
     ax.legend()
 
-    # nonpenetrating contact point
-    ax = fig.add_subplot(2, 2, 2)
-    ax.plot(
-        t[:],
-        la_gamma[:, 0],
-        "-r",
-        label="la_gamma[0] - GenAlphaFirstOrderVeclotiy",
-    )
-    # ax.plot(t_genAlphaFirstOrderVelocityGGL[:], la_gamma_genAlphaFirstOrderVelocityGGL[:, 0], '--g', label="la_gamma[0] - GenAlphaFirstOrderVeclotiyGGL")
-    ax.set_xlabel("t")
-    ax.set_ylabel("la_gamma0")
-    ax.grid()
-    ax.legend()
-
-    # no lateral velocities 1
-    ax = fig.add_subplot(2, 2, 3)
-    ax.plot(
-        t[:],
-        la_gamma[:, 1],
-        "-r",
-        label="la_gamma[1] - GenAlphaFirstOrderVeclotiy",
-    )
-    # ax.plot(t_genAlphaFirstOrderVelocityGGL[:], la_gamma_genAlphaFirstOrderVelocityGGL[:, 1], '--g', label="la_gamma[1] - GenAlphaFirstOrderVeclotiyGGL")
-    ax.set_xlabel("t")
-    ax.set_ylabel("la_gamma1")
-    ax.grid()
-    ax.legend()
     if constraint_case == "velocity_K" or constraint_case == "velocity_I":
+        # nonpenetrating contact point
+        ax = fig.add_subplot(2, 2, 2)
+        ax.plot(
+            t_A[:],
+            la_gamma_A[:, 0],
+            "-r",
+            label="la_gamma[0] - GenAlphaFirstOrderVeclotiy",
+        )
+        # ax.plot(t_genAlphaFirstOrderVelocityGGL[:], la_gamma_genAlphaFirstOrderVelocityGGL[:, 0], '--g', label="la_gamma[0] - GenAlphaFirstOrderVeclotiyGGL")
+        ax.set_xlabel("t")
+        ax.set_ylabel("la_gamma0")
+        ax.grid()
+        ax.legend()
+
+        # no lateral velocities 1
+        ax = fig.add_subplot(2, 2, 3)
+        ax.plot(
+            t_A[:],
+            la_gamma_A[:, 1],
+            "-r",
+            label="la_gamma[1] - GenAlphaFirstOrderVeclotiy",
+        )
+        # ax.plot(t_genAlphaFirstOrderVelocityGGL[:], la_gamma_genAlphaFirstOrderVelocityGGL[:, 1], '--g', label="la_gamma[1] - GenAlphaFirstOrderVeclotiyGGL")
+        ax.set_xlabel("t")
+        ax.set_ylabel("la_gamma1")
+        ax.grid()
+        ax.legend()
+
         # no lateral velocities 2
         ax = fig.add_subplot(2, 2, 4)
         ax.plot(
-            t[:],
-            la_gamma[:, 2],
+            t_A[:],
+            la_gamma_A[:, 2],
             "-r",
             label="la_gamma[2] - GenAlphaFirstOrderVeclotiy",
         )
@@ -309,18 +244,39 @@ def rolling_disc_DMS(rigid_body_case="Euler", constraint_case="velocity_K"):
         ax.set_ylabel("la_gamma2")
         ax.grid()
         ax.legend()
-    elif constraint_case == "g_gamma":
+    elif constraint_case == "position":
         # nonpenetrating contact point
+        ax = fig.add_subplot(2, 2, 2)
+        ax.plot(t_A[:], la_g_A[:, 0], "-r", label="la_g - GenAlphaFirstOrderVeclotiy")
+        # ax.plot(t_genAlphaFirstOrderVelocityGGL[:], la_g_genAlphaFirstOrderVelocityGGL[:, 0], '--g', label="la_g - GenAlphaFirstOrderVeclotiyGGL")
+        ax.set_xlabel("x")
+        ax.set_ylabel("y")
+        ax.grid()
+        ax.legend()
+
+        # no lateral velocities 1
+        ax = fig.add_subplot(2, 2, 3)
+        ax.plot(
+            t_A[:],
+            la_gamma_A[:, 0],
+            "-r",
+            label="la_gamma[0] - GenAlphaFirstOrderVeclotiy",
+        )
+        ax.set_xlabel("t")
+        ax.set_ylabel("la_gamma1")
+        ax.grid()
+        ax.legend()
+
+        # no lateral velocities 2
         ax = fig.add_subplot(2, 2, 4)
         ax.plot(
-            t[:],
-            la_g[:, 0],
+            t_A[:],
+            la_gamma_A[:, 1],
             "-r",
-            label="la_g - GenAlphaFirstOrderVeclotiy",
+            label="la_gamma[1] - GenAlphaFirstOrderVeclotiy",
         )
-        # ax.plot(t_genAlphaFirstOrderVelocityGGL[:], la_g_genAlphaFirstOrderVelocityGGL[:, 0], '--g', label="la_g - GenAlphaFirstOrderVeclotiyGGL")
         ax.set_xlabel("t")
-        ax.set_ylabel("la_g")
+        ax.set_ylabel("la_gamma2")
         ax.grid()
         ax.legend()
     else:
@@ -331,8 +287,8 @@ def rolling_disc_DMS(rigid_body_case="Euler", constraint_case="velocity_K"):
     ########################
     # animate configurations
     ########################
-    t = t
-    q = q
+    t = t_A
+    q = q_A
     # t = t_genAlphaFirstOrderVelocityGGL
     # q = q_genAlphaFirstOrderVelocityGGL
 
@@ -448,7 +404,6 @@ def rolling_disc_DMS(rigid_body_case="Euler", constraint_case="velocity_K"):
 
 
 if __name__ == "__main__":
-    rolling_disc_DMS(rigid_body_case="Euler", constraint_case="g_gamma")
-    # rolling_disc_DMS(rigid_body_case="Euler", constraint_case="velocity_I")
-    # rolling_disc_DMS(rigid_body_case="Euler", constraint_case="velocity_K")
-    # rolling_disc_DMS(rigid_body_case="AxisAngle", constraint_case="g_gamma")
+    # rolling_disc_DMS(rigid_body_case="Quaternion", constraint_case="velocity_K")
+    # rolling_disc_DMS(rigid_body_case="Quaternion", constraint_case="velocity_I")
+    rolling_disc_DMS(rigid_body_case="Quaternion", constraint_case="position")

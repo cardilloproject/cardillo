@@ -15,7 +15,7 @@ from cardillo.math.algebra import cross3, ax2skew
 from cardillo.math import approx_fprime
 from cardillo.model import Model
 from cardillo.solver import (
-    GenAlphaFirstOrder,
+    GeneralizedAlphaFirstOrder,
     GenAlphaFirstOrderGGL2_V3,
     HalfExplicitEulerFixedPoint,
 )
@@ -663,25 +663,25 @@ def transient():
         )
 
     # solve index 3 problem with rho_inf = 0.9
-    sol_9 = GenAlphaFirstOrder(
+    sol_9 = GeneralizedAlphaFirstOrder(
         model, t1, h, rho_inf=0.9, tol=tol, unknowns="velocities", GGL=False
     ).solve()
     export_la_g(sol_9, "la_g_9.txt")
 
     # solve index 3 problem with rho_inf = 0.6
-    sol_6 = GenAlphaFirstOrder(
+    sol_6 = GeneralizedAlphaFirstOrder(
         model, t1, h, rho_inf=0.6, tol=tol, unknowns="velocities", GGL=False
     ).solve()
     export_la_g(sol_6, "la_g_6.txt")
 
     # solve GGL with rho_inf = 0.9
-    sol_9_GGL = GenAlphaFirstOrder(
+    sol_9_GGL = GeneralizedAlphaFirstOrder(
         model, t1, h, rho_inf=0.9, tol=tol, unknowns="velocities", GGL=True
     ).solve()
     export_la_g(sol_9_GGL, "la_g_9_GGL.txt")
 
     # solve GGL with rho_inf = 0.6
-    sol_6_GGL = GenAlphaFirstOrder(
+    sol_6_GGL = GeneralizedAlphaFirstOrder(
         model, t1, h, rho_inf=0.6, tol=tol, unknowns="velocities", GGL=True
     ).solve()
     export_la_g(sol_6_GGL, "la_g_6_GGL.txt")
@@ -827,13 +827,13 @@ def gaps():
         return g, g_dot, g_ddot
 
     # solve index 3 problem with rho_inf = 0.9
-    sol_9 = GenAlphaFirstOrder(
+    sol_9 = GeneralizedAlphaFirstOrder(
         model, t1, h, rho_inf=0.9, tol=tol, unknowns="velocities", GGL=False
     ).solve()
     g_9, g_dot_9, g_ddot_9 = export_gaps(sol_9, "g_9.txt")
 
     # solve GGL with rho_inf = 0.9
-    sol_9_GGL = GenAlphaFirstOrder(
+    sol_9_GGL = GeneralizedAlphaFirstOrder(
         model, t1, h, rho_inf=0.9, tol=tol, unknowns="velocities", GGL=True
     ).solve()
     g_9_GGL, g_dot_9_GGL, g_ddot_9_GGL = export_gaps(sol_9_GGL, "g_9_GGL.txt")
@@ -933,7 +933,7 @@ def convergence():
 
     # compute reference solution as described in Arnold2015 Section 3.3
     print(f"compute reference solution:")
-    reference = GenAlphaFirstOrder(
+    reference = GeneralizedAlphaFirstOrder(
         model, t1, dt_ref, rho_inf=rho_inf, tol=tol_ref, unknowns="velocities", GGL=True
     ).solve()
     t_ref = reference.t
@@ -1093,7 +1093,7 @@ def convergence():
         # ) = errors(sol)
 
         # velocity formulation
-        sol = GenAlphaFirstOrder(
+        sol = GeneralizedAlphaFirstOrder(
             model, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="velocities", GGL=False
         ).solve()
         (
@@ -1132,7 +1132,7 @@ def convergence():
         # ) = errors(sol)
 
         # GGL formulation - velocityies
-        sol = GenAlphaFirstOrder(
+        sol = GeneralizedAlphaFirstOrder(
             model, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="velocities", GGL=True
         ).solve()
         (

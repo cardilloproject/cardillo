@@ -1420,7 +1420,7 @@ def Bathe1979():
         model.add(beam)
         model.add(frame1)
         model.add(joint1)
-        # model.add(moment)
+        model.add(moment)
         model.assemble()
 
         n_load_steps = 20
@@ -1471,9 +1471,7 @@ def Bathe1979():
 
     # external force at the right end
     F_max = 600
-    # F = lambda t: F_max * e3 * t
-    # F = lambda t: 1.0e6 * e1 * t
-    F = lambda t: 1.0e3 * e2 * t
+    F = lambda t: F_max * e3 * t
     force = Force(F, beam, frame_ID=(1,))
 
     # assemble the model
@@ -1484,7 +1482,9 @@ def Bathe1979():
     model.add(force)
     model.assemble()
 
-    n_load_steps = 10
+    n_load_steps = 4  # works for I_delta_r_P version
+    # n_load_steps = 10 # works for I_delta_r_P version
+    # n_load_steps = 65 # works for K_delta_r_P version
 
     solver = Newton(
         model,

@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 
 from cardillo.model import Model
 from cardillo.solver import (
-    GenAlphaFirstOrder,
+    GeneralizedAlphaFirstOrder,
     GenAlphaFirstOrderGGL2_V3,
 )
 
@@ -147,7 +147,7 @@ if __name__ == "__main__":
     print(f"compute reference solution:")
     dt_ref = 1.0e-5
     # dt_ref = 1.0e-3
-    reference = GenAlphaFirstOrder(model, t1, dt_ref, rho_inf=rho_inf).solve()
+    reference = GeneralizedAlphaFirstOrder(model, t1, dt_ref, rho_inf=rho_inf).solve()
     t_ref = reference.t
     q_ref = reference.q
     u_ref = reference.u
@@ -179,37 +179,37 @@ if __name__ == "__main__":
         print(f"i: {i}, dt: {dt:1.1e}")
 
         # position formulation
-        sol = GenAlphaFirstOrder(
+        sol = GeneralizedAlphaFirstOrder(
             model, t1, dt, rho_inf=rho_inf, unknowns="positions"
         ).solve()
         q_errors[0, i], u_errors[0, i], la_g_errors[0, i] = errors(sol)
 
         # velocity formulation
-        sol = GenAlphaFirstOrder(
+        sol = GeneralizedAlphaFirstOrder(
             model, t1, dt, rho_inf=rho_inf, unknowns="velocities"
         ).solve()
         q_errors[1, i], u_errors[1, i], la_g_errors[1, i] = errors(sol)
 
         # auxiliary formulation
-        sol = GenAlphaFirstOrder(
+        sol = GeneralizedAlphaFirstOrder(
             model, t1, dt, rho_inf=rho_inf, unknowns="auxiliary"
         ).solve()
         q_errors[2, i], u_errors[2, i], la_g_errors[2, i] = errors(sol)
 
         # GGL formulation - positions
-        sol = GenAlphaFirstOrder(
+        sol = GeneralizedAlphaFirstOrder(
             model, t1, dt, rho_inf=rho_inf, unknowns="positions", GGL=True
         ).solve()
         q_errors[3, i], u_errors[3, i], la_g_errors[3, i] = errors(sol)
 
         # GGL formulation - velocityies
-        sol = GenAlphaFirstOrder(
+        sol = GeneralizedAlphaFirstOrder(
             model, t1, dt, rho_inf=rho_inf, unknowns="velocities", GGL=True
         ).solve()
         q_errors[4, i], u_errors[4, i], la_g_errors[4, i] = errors(sol)
 
         # GGL formulation - auxiliary
-        sol = GenAlphaFirstOrder(
+        sol = GeneralizedAlphaFirstOrder(
             model, t1, dt, rho_inf=rho_inf, unknowns="auxiliary", GGL=True
         ).solve()
         q_errors[5, i], u_errors[5, i], la_g_errors[5, i] = errors(sol)

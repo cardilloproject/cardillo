@@ -1894,8 +1894,7 @@ class TimoshenkoAxisAngleSE3_K_delta_r_P:
         ax.quiver(*r, *d3, color="blue", length=length)
 
 
-class TimoshenkoAxisAngleSE3:
-    # class TimoshenkoAxisAngleSE3_I_delta_r_P:
+class TimoshenkoAxisAngleSE3_I_delta_r_P:
     def __init__(
         self,
         polynomial_degree,
@@ -3313,3 +3312,7 @@ class TimoshenkoAxisAngleSE3:
         ax.quiver(*r, *d1, color="red", length=length)
         ax.quiver(*r, *d2, color="green", length=length)
         ax.quiver(*r, *d3, color="blue", length=length)
+
+
+TimoshenkoAxisAngleSE3 = TimoshenkoAxisAngleSE3_I_delta_r_P
+# TimoshenkoAxisAngleSE3 = TimoshenkoAxisAngleSE3_K_delta_r_P

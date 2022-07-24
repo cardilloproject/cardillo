@@ -21,7 +21,7 @@ from cardillo.model import Model
 from cardillo.solver import (
     Newton,
     ScipyIVP,
-    GenAlphaFirstOrder,
+    GeneralizedAlphaFirstOrder,
     Moreau,
 )
 
@@ -477,7 +477,7 @@ def run(statics=True):
         rho_inf = 0.5
 
         # solver = ScipyIVP(model, t1, dt, method=method, rtol=rtol, atol=atol) # this is no good idea for Runge-Kutta solvers
-        solver = GenAlphaFirstOrder(model, t1, dt, rho_inf=rho_inf, tol=atol)
+        solver = GeneralizedAlphaFirstOrder(model, t1, dt, rho_inf=rho_inf, tol=atol)
         # solver = GenAlphaDAEAcc(model, t1, dt, rho_inf=rho_inf, newton_tol=atol)
         # dt = 5.0e-3
         # solver = Moreau(model, t1, dt)

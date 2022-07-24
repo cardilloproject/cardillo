@@ -8,7 +8,7 @@ from cardillo.model.bilateral_constraints.implicit import SphericalJoint
 from cardillo.math.algebra import cross3, ax2skew
 from cardillo.math import approx_fprime
 from cardillo.model import Model
-from cardillo.solver import GenAlphaFirstOrder, GenAlphaFirstOrderGGL2_V3
+from cardillo.solver import GeneralizedAlphaFirstOrder, GenAlphaFirstOrderGGL2_V3
 
 
 class MathematicalPendulum:
@@ -91,7 +91,7 @@ def transient():
         )
 
     # solve index 3 problem with rho_inf = 0.9
-    sol_9 = GenAlphaFirstOrder(
+    sol_9 = GeneralizedAlphaFirstOrder(
         model, t1, h, rho_inf=0.6, tol=tol, unknowns="velocities", GGL=False
     ).solve()
     # export_la_g(sol_9, "la_g_9.txt")
@@ -238,13 +238,13 @@ def gaps():
         return g, g_dot, g_ddot
 
     # solve index 3 problem with rho_inf = 0.9
-    sol_9 = GenAlphaFirstOrder(
+    sol_9 = GeneralizedAlphaFirstOrder(
         model, t1, h, rho_inf=0.9, tol=tol, unknowns="velocities", GGL=False
     ).solve()
     g_9, g_dot_9, g_ddot_9 = export_gaps(sol_9, "g_9.txt")
 
     # solve GGL with rho_inf = 0.9
-    sol_9_GGL = GenAlphaFirstOrder(
+    sol_9_GGL = GeneralizedAlphaFirstOrder(
         model, t1, h, rho_inf=0.9, tol=tol, unknowns="velocities", GGL=True
     ).solve()
     g_9_GGL, g_dot_9_GGL, g_ddot_9_GGL = export_gaps(sol_9_GGL, "g_9_GGL.txt")
@@ -348,7 +348,7 @@ def convergence():
     # dt_ref = 2.5e-5 # see Arnold2015 p. 174/ Arnodl2015b p. 14
     # dt_ref = 1.0e-4
     dt_ref = 1.0e-3
-    reference = GenAlphaFirstOrder(
+    reference = GeneralizedAlphaFirstOrder(
         model, t1, dt_ref, rho_inf=rho_inf, tol=tol_ref, unknowns="velocities", GGL=True
     ).solve()
     t_ref = reference.t
@@ -465,37 +465,37 @@ def convergence():
         print(f"i: {i}, dt: {dt:1.1e}")
 
         # position formulation
-        sol = GenAlphaFirstOrder(
+        sol = GeneralizedAlphaFirstOrder(
             model, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="positions", GGL=False
         ).solve()
         q_errors[0, i], u_errors[0, i], la_g_errors[0, i] = errors(sol)
 
         # velocity formulation
-        sol = GenAlphaFirstOrder(
+        sol = GeneralizedAlphaFirstOrder(
             model, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="velocities", GGL=False
         ).solve()
         q_errors[1, i], u_errors[1, i], la_g_errors[1, i] = errors(sol)
 
         # auxiliary formulation
-        sol = GenAlphaFirstOrder(
+        sol = GeneralizedAlphaFirstOrder(
             model, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="auxiliary", GGL=False
         ).solve()
         q_errors[2, i], u_errors[2, i], la_g_errors[2, i] = errors(sol)
 
         # GGL formulation - positions
-        sol = GenAlphaFirstOrder(
+        sol = GeneralizedAlphaFirstOrder(
             model, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="positions", GGL=True
         ).solve()
         q_errors[3, i], u_errors[3, i], la_g_errors[3, i] = errors(sol)
 
         # GGL formulation - velocityies
-        sol = GenAlphaFirstOrder(
+        sol = GeneralizedAlphaFirstOrder(
             model, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="velocities", GGL=True
         ).solve()
         q_errors[4, i], u_errors[4, i], la_g_errors[4, i] = errors(sol)
 
         # GGL formulation - auxiliary
-        sol = GenAlphaFirstOrder(
+        sol = GeneralizedAlphaFirstOrder(
             model, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="auxiliary", GGL=True
         ).solve()
         q_errors[5, i], u_errors[5, i], la_g_errors[5, i] = errors(sol)
