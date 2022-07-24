@@ -2398,8 +2398,8 @@ class GeneralizedAlphaSecondOrder:
 
         # eqn. (72): parameters
         self.rho_inf = rho_inf
-        self.alpha_m = (2 * rho_inf - 1) / (rho_inf + 1)
-        self.alpha_f = rho_inf / (rho_inf + 1)
+        self.alpha_m = (2.0 * rho_inf - 1.0) / (rho_inf + 1.0)
+        self.alpha_f = rho_inf / (rho_inf + 1.0)
         self.gamma = 0.5 + self.alpha_f - self.alpha_m
         self.beta = 0.25 * (0.5 + self.gamma) ** 2
 
@@ -2469,7 +2469,7 @@ class GeneralizedAlphaSecondOrder:
         uk1 = self.uk + dt * ((1.0 - gamma) * self.a_bark + gamma * a_bark1)
 
         # eqn. (125): generalized position update formula
-        a_beta = (1.0 - 2.0 * beta) * self.a_bark + 2 * self.beta * a_bark1
+        a_beta = (1.0 - 2.0 * beta) * self.a_bark + 2.0 * beta * a_bark1
         qk1 = (
             self.qk
             + dt * self.model.q_dot(self.tk, self.qk, self.uk)
