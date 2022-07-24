@@ -18,6 +18,7 @@ from cardillo.solver import (
     GeneralizedAlphaFirstOrder,
     GenAlphaFirstOrderGGL2_V3,
     HalfExplicitEulerFixedPoint,
+    GeneralizedAlphaSecondOrder,
 )
 
 # case = "Euler"
@@ -551,18 +552,22 @@ def state():
     # t1 = 0.1
     dt = 1.0e-3
 
-    # sol = GenAlphaFirstOrder(
-    #     model,
-    #     t1,
-    #     dt,
-    #     rho_inf=rho_inf,
-    #     tol=tol,
-    #     unknowns="velocities",
-    #     GGL=False,
-    #     numerical_jacobian=False,
-    # ).solve()
+    sol = GeneralizedAlphaFirstOrder(
+        model,
+        t1,
+        dt,
+        rho_inf=rho_inf,
+        tol=tol,
+        unknowns="velocities",
+        GGL=False,
+        numerical_jacobian=False,
+    ).solve()
 
-    sol = HalfExplicitEulerFixedPoint(model, t1, dt, atol=tol).solve()
+    # sol = HalfExplicitEulerFixedPoint(model, t1, dt, atol=tol).solve()
+
+    # sol = GeneralizedAlphaSecondOrder(
+    #     model, t1, dt, rho_inf=rho_inf, tol=tol
+    # ).solve()
 
     t = sol.t
     q = sol.q

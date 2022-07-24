@@ -8,7 +8,11 @@ from cardillo.model.bilateral_constraints.implicit import SphericalJoint
 from cardillo.math.algebra import cross3, ax2skew
 from cardillo.math import approx_fprime
 from cardillo.model import Model
-from cardillo.solver import GeneralizedAlphaFirstOrder, GenAlphaFirstOrderGGL2_V3
+from cardillo.solver import (
+    GeneralizedAlphaFirstOrder,
+    GenAlphaFirstOrderGGL2_V3,
+    GeneralizedAlphaSecondOrder,
+)
 
 
 class MathematicalPendulum:
@@ -36,6 +40,9 @@ class MathematicalPendulum:
 
     def q_dot(self, t, q, u):
         return self.B_dense(q) @ u
+
+    def q_ddot(self, t, q, u, u_dot):
+        return self.B_dense(q) @ u_dot - q * (u @ u)
 
     def q_dot_q(self, t, q, u, coo):
         dense = np.array([[0, -1], [1, 0]], dtype=float) * u[0]
@@ -634,6 +641,6 @@ def convergence():
 
 
 if __name__ == "__main__":
-    transient()
-    # gaps()
+    # transient()
+    gaps()
     # convergence()
