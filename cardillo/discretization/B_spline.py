@@ -4,6 +4,9 @@ from scipy.sparse.linalg import spsolve
 from cardillo.discretization.indexing import flat2D, flat3D, split2D, split3D
 
 
+# TODO: Try to implement recursive basis functions using numpy.Polynomial, see lagrange and Hermite.
+
+
 class KnotVector:
     @staticmethod
     def uniform(degree, nel, interval=[0, 1]):
