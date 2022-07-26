@@ -18,6 +18,7 @@ from .Kirchhoff import Kirchhoff
 from .Cable import Cable
 from .CubicHermiteCable import CubicHermiteCable
 from .DirectorAxisAngle import DirectorAxisAngle
+from .DirectorAxisAngleOld import DirectorAxisAngleOld
 from .Timoshenko import (
     TimoshenkoAxisAngle,
     TimoshenkoQuaternion,

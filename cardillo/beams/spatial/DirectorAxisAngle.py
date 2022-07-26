@@ -1,36 +1,163 @@
 import numpy as np
-import meshio
-import os
-from math import sin, cos
+from regex import D
+from cardillo.math.algebra import skew2ax
 
 from cardillo.utility.coo import Coo
-from cardillo.discretization.B_spline import KnotVector
 from cardillo.discretization.lagrange import Node_vector
-from cardillo.discretization.Hermite import HermiteNodeVector
 from cardillo.discretization.mesh1D import Mesh1D
-from cardillo.math import norm, cross3, skew2ax, skew2ax_A, ax2skew, approx_fprime
 from cardillo.math import (
-    rodriguez,
-    rodriguez_der,
-    rodriguez_inv,
-    tangent_map,
-    inverse_tangent_map,
-    tangent_map_s,
-    e1,
-    e2,
-    e3,
-    smallest_rotation,
     pi,
+    norm,
+    cross3,
+    ax2skew,
+    approx_fprime,
+    tangent_map_s,
+    trace3,
+    LeviCivita,
+    det3D,
 )
 
-# relative_orientation = True
-relative_orientation = False
+# for smaller angles we use first order approximations of the equations since
+# most of the SO(3) and SE(3) equations get singular for psi -> 0.
+angle_singular = 1.0e-6
 
-# director_interpolation = True
-director_interpolation = False
 
-# integral_curve_psi = True
-integral_curve_psi = False
+def Exp_SO3(psi: np.ndarray) -> np.ndarray:
+    angle = norm(psi)
+    if angle > angle_singular:
+        # Park2005 (12)
+        sa = np.sin(angle)
+        ca = np.cos(angle)
+        alpha = sa / angle
+        beta2 = (1.0 - ca) / (angle * angle)
+        psi_tilde = ax2skew(psi)
+        return (
+            np.eye(3, dtype=float) + alpha * psi_tilde + beta2 * psi_tilde @ psi_tilde
+        )
+    else:
+        # first order approximation
+        return np.eye(3, dtype=float) + ax2skew(psi)
+
+
+def Exp_SO3_psi(psi: np.ndarray) -> np.ndarray:
+    """Derivative of the axis-angle rotation found in Crisfield1999 above (4.1). 
+    Derivations and final results are given in Gallego2015 (9).
+
+    References
+    ----------
+    Crisfield1999: https://doi.org/10.1098/rspa.1999.0352 \\
+    Gallego2015: https://doi.org/10.1007/s10851-014-0528-x
+    """
+    angle = norm(psi)
+
+    # # Gallego2015 (9)
+    # A_psi = np.zeros((3, 3, 3), dtype=float)
+    # if isclose(angle, 0.0):
+    #     # Derivative at the identity, see Gallego2015 Section 3.3
+    #     for i in range(3):
+    #         A_psi[:, :, i] = ax2skew(ei(i))
+    # else:
+    #     A = Exp_SO3(psi)
+    #     eye_A = np.eye(3) - A
+    #     psi_tilde = ax2skew(psi)
+    #     angle2 = angle * angle
+    #     for i in range(3):
+    #         A_psi[:, :, i] = (
+    #             (psi[i] * psi_tilde + ax2skew(cross3(psi, eye_A[:, i]))) @ A / angle2
+    #         )
+
+    A_psi = np.zeros((3, 3, 3), dtype=float)
+    if angle > angle_singular:
+        angle2 = angle * angle
+        sa = np.sin(angle)
+        ca = np.cos(angle)
+        alpha = sa / angle
+        alpha_psik = (ca - alpha) / angle2
+        beta = 2.0 * (1.0 - ca) / angle2
+        beta2_psik = (alpha - beta) / angle2
+
+        psi_tilde = ax2skew(psi)
+        psi_tilde2 = psi_tilde @ psi_tilde
+
+        ############################
+        # alpha * psi_tilde (part I)
+        ############################
+        A_psi[0, 2, 1] = A_psi[1, 0, 2] = A_psi[2, 1, 0] = alpha
+        A_psi[0, 1, 2] = A_psi[1, 2, 0] = A_psi[2, 0, 1] = -alpha
+
+        #############################
+        # alpha * psi_tilde (part II)
+        #############################
+        for i in range(3):
+            for j in range(3):
+                for k in range(3):
+                    A_psi[i, j, k] += psi_tilde[i, j] * psi[k] * alpha_psik
+
+        ###############################
+        # beta2 * psi_tilde @ psi_tilde
+        ###############################
+        for i in range(3):
+            for j in range(3):
+                for k in range(3):
+                    A_psi[i, j, k] += psi_tilde2[i, j] * psi[k] * beta2_psik
+                    for l in range(3):
+                        A_psi[i, j, k] += (
+                            0.5
+                            * beta
+                            * (
+                                LeviCivita(k, l, i) * psi_tilde[l, j]
+                                + psi_tilde[l, i] * LeviCivita(k, l, j)
+                            )
+                        )
+    else:
+        ###################
+        # alpha * psi_tilde
+        ###################
+        A_psi[0, 2, 1] = A_psi[1, 0, 2] = A_psi[2, 1, 0] = 1.0
+        A_psi[0, 1, 2] = A_psi[1, 2, 0] = A_psi[2, 0, 1] = -1.0
+
+    return A_psi
+
+    # A_psi_num = approx_fprime(psi, Exp_SO3, method="cs", eps=1.0e-10)
+    # diff = A_psi - A_psi_num
+    # error = np.linalg.norm(diff)
+    # if error > 1.0e-10:
+    #     print(f"error Exp_SO3_psi: {error}")
+    # return A_psi_num
+
+
+def Log_SO3(A: np.ndarray) -> np.ndarray:
+    ca = 0.5 * (trace3(A) - 1.0)
+    ca = np.clip(ca, -1, 1)  # clip to [-1, 1] for arccos!
+    angle = np.arccos(ca)
+
+    # fmt: off
+    psi = 0.5 * np.array([
+        A[2, 1] - A[1, 2],
+        A[0, 2] - A[2, 0],
+        A[1, 0] - A[0, 1]
+    ], dtype=A.dtype)
+    # fmt: on
+
+    if angle > angle_singular:
+        psi *= angle / np.sin(angle)
+    return psi
+
+
+def T_SO3_inv(psi: np.ndarray) -> np.ndarray:
+    angle = norm(psi)
+    psi_tilde = ax2skew(psi)
+    if angle > angle_singular:
+        # Park2005 (19), actually its the transposed!
+        gamma = 0.5 * angle / (np.tan(0.5 * angle))
+        return (
+            np.eye(3, dtype=float)
+            + 0.5 * psi_tilde
+            + ((1.0 - gamma) / (angle * angle)) * psi_tilde @ psi_tilde
+        )
+    else:
+        # first order approximation
+        return np.eye(3, dtype=float) + 0.5 * psi_tilde
 
 
 class DirectorAxisAngle:
@@ -38,133 +165,74 @@ class DirectorAxisAngle:
         self,
         material_model,
         A_rho0,
-        I_rho0,
-        polynomial_degree_r,
-        polynomial_degree_psi,
-        nquadrature,
+        K_S_rho0,
+        K_I_rho0,
+        polynomial_degree,
         nelement,
         Q,
         q0=None,
         u0=None,
-        basis="B-spline",
     ):
-        # chose implementation of strain measures and related quantities
-        # print("eval_absolute_local is hard coded!")
-        # self.eval = self.eval_absolute_local
-        if relative_orientation and (basis == "Hermite"):
-            if director_interpolation:
-                self.eval = self.eval_relative_director
-            else:
-                self.eval = self.eval_relative_local
-        else:
-            if director_interpolation:
-                self.eval = self.eval_absolute_director
-            else:
-                self.eval = self.eval_absolute_local
-
         # beam properties
-        self.materialModel = material_model  # material model
-        self.A_rho0 = A_rho0  # line density
-        self.I_rho0 = I_rho0  # second moment
-
-        # material model
-        self.material_model = material_model
+        self.material_model = material_model  # material model
+        self.A_rho0 = A_rho0
+        self.K_S_rho0 = K_S_rho0
+        self.K_I_rho0 = K_I_rho0
 
         # discretization parameters
-        self.polynomial_degree_r = polynomial_degree_r  # polynomial degree centerline
-        self.polynomial_degree_psi = (
-            polynomial_degree_psi  # polynomial degree axis angle
-        )
-        self.nquadrature = nquadrature  # number of quadrature points
-        self.nelement = nelement  # number of elements
+        self.polynomial_degree = polynomial_degree
+        assert polynomial_degree == 1, "we assume linear Lagrange elements!"
+        # self.nquadrature = nquadrature = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
+        self.nquadrature = nquadrature = 1
+        self.nelement = nelement
 
-        self.basis = basis
-        if basis == "B-spline":
-            self.knot_vector_r = KnotVector(polynomial_degree_r, nelement)
-            self.knot_vector_psi = KnotVector(polynomial_degree_psi, nelement)
-        elif basis == "Lagrange":
-            self.knot_vector_r = Node_vector(polynomial_degree_r, nelement)
-            self.knot_vector_psi = Node_vector(polynomial_degree_psi, nelement)
-        elif basis == "Hermite":
-            # Note: This implements a cubic Hermite spline for the centerline
-            #       together with a linear Lagrange axis angle vector field
-            #       for the superimposed rotation w.r.t. the smallest rotation.
-            polynomial_degree_r = 3
-            self.knot_vector_r = HermiteNodeVector(polynomial_degree_r, nelement)
-            if integral_curve_psi:
-                self.polynomial_degree_psi = polynomial_degree_psi = 3
-                self.knot_vector_r = HermiteNodeVector(polynomial_degree_r, nelement)
-            else:
-                self.polynomial_degree_psi = polynomial_degree_psi = 1
-                # TODO: Enbale Lagrange shape functions again if ready.
-                # self.knot_vector_psi = Node_vector(polynomial_degree_psi, nelement)
-                self.knot_vector_psi = KnotVector(polynomial_degree_psi, nelement)
-        else:
-            raise RuntimeError(f'wrong basis: "{basis}" was chosen')
+        self.node_vector = Node_vector(self.polynomial_degree, nelement)
 
-        # number of degrees of freedom per node
-        self.nq_node_r = nq_node_r = 3
-        self.nq_node_psi = nq_node_psi = 3
-
-        self.mesh_r = Mesh1D(
-            self.knot_vector_r,
+        # build mesh object
+        self.mesh = Mesh1D(
+            self.node_vector,
             nquadrature,
-            derivative_order=2,
-            basis=basis,
-            dim_q=nq_node_r,
-        )
-        # TODO: This is ugly!
-        if basis == "Hermite":
-            if integral_curve_psi:
-                self.mesh_psi = Mesh1D(
-                    self.knot_vector_psi,
-                    nquadrature,
-                    derivative_order=1,
-                    basis=basis,
-                    dim_q=nq_node_psi,
-                )
-            else:
-                # TODO: Enable Lagrange again if ready.
-                # basis = "Lagrange"
-                basis = "B-spline"
-        self.mesh_psi = Mesh1D(
-            self.knot_vector_psi,
-            nquadrature,
+            dim_q=3,
             derivative_order=1,
-            basis=basis,
-            dim_q=nq_node_psi,
+            basis="Lagrange",
+            quadrature="Gauss",
         )
 
-        # toal number of nodes
-        self.nnode_r = self.mesh_r.nnodes
-        self.nnode_psi = self.mesh_psi.nnodes
+        # total number of nodes
+        self.nnode = self.mesh.nnodes
 
         # number of nodes per element
-        self.nnodes_element_r = self.mesh_r.nnodes_per_element
-        self.nnodes_element_psi = self.mesh_psi.nnodes_per_element
+        self.nnodes_element = self.mesh.nnodes_per_element
 
-        # total number of generalized coordinates
-        self.nq_r = self.mesh_r.nq
-        self.nq_psi = self.mesh_psi.nq
-        self.nq = self.nq_r + self.nq_psi  # total number of generalized coordinates
-        self.nu = self.nq  # total number of generalized velocities
+        # total number of generalized coordinates and velocities
+        self.nq_r = self.nu_r = self.mesh.nq
+        self.nq_psi = self.nu_psi = self.mesh.nq
+        self.nq = self.nu = self.nq_r + self.nq_psi
 
-        # number of generalized coordiantes per element
-        self.nq_element_r = self.mesh_r.nq_per_element
-        self.nq_element_psi = self.mesh_psi.nq_per_element
+        # number of generalized coordiantes and velocities per element
+        self.nq_element_r = self.nu_element_r = self.mesh.nq_per_element
+        self.nq_element_psi = self.nu_element_psi = self.mesh.nq_per_element
         self.nq_element = self.nu_element = self.nq_element_r + self.nq_element_psi
 
         # global element connectivity
-        self.elDOF_r = self.mesh_r.elDOF
-        self.elDOF_psi = self.mesh_psi.elDOF + self.nq_r
+        self.elDOF_r = self.mesh.elDOF
+        self.elDOF_psi = self.mesh.elDOF + self.nq_r
+        # qe = q[elDOF[e]] "q^e = C_e,q q"
 
         # global nodal
-        self.nodalDOF_r = self.mesh_r.nodalDOF
-        self.nodalDOF_psi = self.mesh_psi.nodalDOF + self.nq_r
+        self.nodalDOF_r = self.mesh.nodalDOF
+        self.nodalDOF_psi = self.mesh.nodalDOF + self.nq_r
 
         # nodal connectivity on element level
-        self.nodalDOF_element_r = self.mesh_r.nodalDOF_element
-        self.nodalDOF_element_psi = self.mesh_psi.nodalDOF_element + self.nq_element_r
+        self.nodalDOF_element_r = self.mesh.nodalDOF_element
+        self.nodalDOF_element_psi = self.mesh.nodalDOF_element + self.nq_element_r
+        # r_OP_i^e = C_r,i^e * C_e,q q = C_r,i^e * q^e
+        # r_OPi = qe[nodelDOF_element_r[i]]
+
+        self.nodalDOF_element = np.zeros((self.nnodes_element, 6), dtype=int)
+        for node in range(self.nnodes_element):
+            self.nodalDOF_element[node, :3] = self.nodalDOF_element_r[node]
+            self.nodalDOF_element[node, 3:] = self.nodalDOF_element_psi[node]
 
         # build global elDOF connectivity matrix
         self.elDOF = np.zeros((nelement, self.nq_element), dtype=int)
@@ -173,157 +241,129 @@ class DirectorAxisAngle:
             self.elDOF[el, self.nq_element_r :] = self.elDOF_psi[el]
 
         # shape functions and their first derivatives
-        self.N_r = self.mesh_r.N
-        self.N_r_xi = self.mesh_r.N_xi
-        self.N_psi = self.mesh_psi.N
-        self.N_psi_xi = self.mesh_psi.N_xi
+        self.N = self.mesh.N
+        self.N_xi = self.mesh.N_xi
 
         # quadrature points
-        self.qp = self.mesh_r.qp  # quadrature points
-        self.qw = self.mesh_r.wp  # quadrature weights
+        self.qp = self.mesh.qp  # quadrature points
+        self.qw = self.mesh.wp  # quadrature weights
 
         # reference generalized coordinates, initial coordinates and initial velocities
         self.Q = Q
         self.q0 = Q.copy() if q0 is None else q0
-        self.u0 = np.zeros(self.nu) if u0 is None else u0
+        self.u0 = np.zeros(self.nu, dtype=float) if u0 is None else u0
 
         # evaluate shape functions at specific xi
-        self.basis_functions_r = self.mesh_r.eval_basis
-        self.basis_functions_psi = self.mesh_psi.eval_basis
+        self.basis_functions = self.mesh.eval_basis
 
         # reference generalized coordinates, initial coordinates and initial velocities
         self.Q = Q  # reference configuration
         self.q0 = Q.copy() if q0 is None else q0  # initial configuration
-        self.u0 = np.zeros(self.nu) if u0 is None else u0  # initial velocities
+        self.u0 = (
+            np.zeros(self.nu, dtype=float) if u0 is None else u0
+        )  # initial velocities
 
         # precompute values of the reference configuration in order to save computation time
         # J in Harsch2020b (5)
-        self.J = np.zeros((nelement, nquadrature))
+        self.J = np.zeros((nelement, nquadrature), dtype=float)
         # dilatation and shear strains of the reference configuration
-        self.K_Gamma0 = np.zeros((nelement, nquadrature, 3))
+        self.K_Gamma0 = np.zeros((nelement, nquadrature, 3), dtype=float)
         # curvature of the reference configuration
-        self.K_Kappa0 = np.zeros((nelement, nquadrature, 3))
+        self.K_Kappa0 = np.zeros((nelement, nquadrature, 3), dtype=float)
 
         for el in range(nelement):
             qe = self.Q[self.elDOF[el]]
 
+            # psis = np.array([
+            #     qe[self.nodalDOF_element_psi[node]] for node in range(self.nnodes_element)
+            # ])
+            # A_IKs = np.array([
+            #     Exp_SO3(psi) for psi in psis
+            # ])
+            A_IKs = np.array(
+                [
+                    Exp_SO3(qe[self.nodalDOF_element_psi[node]])
+                    for node in range(self.nnodes_element)
+                ]
+            )
+
             for i in range(nquadrature):
-                # interpolate tangent vector
-                r_xi = np.zeros(3)
-                for node in range(self.nnodes_element_r):
-                    r_xi += self.N_r_xi[el, i, node] * qe[self.nodalDOF_element_r[node]]
+                # interpolate tangent vector, transformation matrix and its derivative
+                r_OP = np.zeros(3, dtype=float)
+                r_OP_xi = np.zeros(3, dtype=float)
+                A_IK = np.zeros((3, 3), dtype=float)
+                A_IK_xi = np.zeros((3, 3), dtype=float)
+                for node in range(self.nnodes_element):
+                    r_OP += self.N[el, i, node] * qe[self.nodalDOF_element_r[node]]
+                    r_OP_xi += (
+                        self.N_xi[el, i, node] * qe[self.nodalDOF_element_r[node]]
+                    )
+                    A_IK += self.N[el, i, node] * A_IKs[node]
+                    A_IK_xi += self.N_xi[el, i, node] * A_IKs[node]
 
                 # length of reference tangential vector
-                Ji = norm(r_xi)
-
-                # evaluate strain measures and other quantities depending on chosen formulation
-                r_xi, A_IK, K_Kappa_bar = self.eval(qe, el, i)
+                J = norm(r_OP_xi)
 
                 # axial and shear strains
-                K_Gamma = A_IK.T @ (r_xi / Ji)
+                K_Gamma_bar = A_IK.T @ r_OP_xi
+                K_Gamma = K_Gamma_bar / J
 
-                # torsional and flexural strains (formulation in skew coordinates,
-                # see Eugster2014c)
-                d1, d2, d3 = A_IK.T
-                d = d1 @ cross3(d2, d3)
-                dd = 1 / (d * Ji)
-                K_Kappa = dd * K_Kappa_bar
+                # torsional and flexural strains
+                K_Kappa_bar_tilde = A_IK.T @ A_IK_xi
+                K_Kappa_bar = skew2ax(K_Kappa_bar_tilde)
+                K_Kappa = K_Kappa_bar / J
 
                 # safe precomputed quantities for later
-                self.J[el, i] = Ji
+                self.J[el, i] = J
                 self.K_Gamma0[el, i] = K_Gamma
                 self.K_Kappa0[el, i] = K_Kappa
 
     @staticmethod
     def straight_configuration(
-        polynomial_degree_r,
-        polynomial_degree_psi,
+        polynomial_degree,
         nelement,
         L,
-        greville_abscissae=True,
-        r_OP=np.zeros(3),
-        A_IK=np.eye(3),
-        basis="B-spline",
+        r_OP=np.zeros(3, dtype=float),
+        A_IK=np.eye(3, dtype=float),
     ):
-        if basis == "B-spline":
-            nn_r = polynomial_degree_r + nelement
-            nn_psi = polynomial_degree_psi + nelement
-        elif basis == "Lagrange":
-            nn_r = polynomial_degree_r * nelement + 1
-            nn_psi = polynomial_degree_psi * nelement + 1
-        elif basis == "Hermite":
-            polynomial_degree_r = 3
-            nn_r = nelement + 1
-            if integral_curve_psi:
-                polynomial_degree_psi = 3
-                nn_psi = nelement + 1  # cubic Hermite
-            else:
-                polynomial_degree_psi = 1
-                # TODO:
-                nn_psi = polynomial_degree_psi + nelement  # B-spline
-                # nn_psi = polynomial_degree_psi * nelement + 1 # Lagrange
-        else:
-            raise RuntimeError(f'wrong basis: "{basis}" was chosen')
+        nn_r = polynomial_degree * nelement + 1
+        nn_psi = polynomial_degree * nelement + 1
 
-        if (basis == "B-spline") or (basis == "Lagrange"):
-            x0 = np.linspace(0, L, num=nn_r)
-            y0 = np.zeros(nn_r)
-            z0 = np.zeros(nn_r)
-            if greville_abscissae and basis == "B-spline":
-                kv = KnotVector.uniform(polynomial_degree_r, nelement)
-                for i in range(nn_r):
-                    x0[i] = np.sum(kv[i + 1 : i + polynomial_degree_r + 1])
-                x0 = x0 * L / polynomial_degree_r
+        x0 = np.linspace(0, L, num=nn_r)
+        y0 = np.zeros(nn_r, dtype=float)
+        z0 = np.zeros(nn_r, dtype=float)
 
-            r0 = np.vstack((x0, y0, z0))
-            for i in range(nn_r):
-                r0[:, i] = r_OP + A_IK @ r0[:, i]
-
-        elif basis == "Hermite":
-            xis = np.linspace(0, 1, num=nn_r)
-            r0 = np.zeros((6, nn_r))
-            t0 = A_IK @ (L * e1)
-            for i, xi in enumerate(xis):
-                ri = r_OP + xi * t0
-                r0[:3, i] = ri
-                r0[3:, i] = t0
+        r0 = np.vstack((x0, y0, z0))
+        for i in range(nn_r):
+            r0[:, i] = r_OP + A_IK @ r0[:, i]
 
         # reshape generalized coordinates to nodal ordering
         q_r = r0.reshape(-1, order="F")
 
-        # TODO: Relative interpolation case!
         # we have to extract the rotation vector from the given rotation matrix
         # and set its value for each node
-        if integral_curve_psi:
-            xis = np.linspace(0, 1, num=nn_r)
-            psi = rodriguez_inv(A_IK)
-            intergal_psi0 = np.zeros((6, nn_r))
-            for i, xi in enumerate(xis):
-                integral_psii = xi * t0
-                intergal_psi0[:3, i] = integral_psii
-                intergal_psi0[3:, i] = psi
-            q_psi = intergal_psi0.reshape(-1, order="F")
-        else:
-            psi = rodriguez_inv(A_IK)
-            q_psi = np.tile(psi, nn_psi)
+        psi = Log_SO3(A_IK)
+        q_psi = np.tile(psi, nn_psi)
 
         return np.concatenate([q_r, q_psi])
 
     def element_number(self, xi):
-        # note the elements coincide for both meshes!
-        return self.knot_vector_r.element_number(xi)[0]
-
-    def assembler_callback(self):
-        self.__M_coo()
+        return self.node_vector.element_number(xi)[0]
 
     #########################################
     # equations of motion
     #########################################
-    def M_el(self, el):
-        # if relative_orientation:
-        #     raise NotImplementedError
+    def M(self, t, q, coo):
+        for el in range(self.nelement):
+            # extract element degrees of freedom
+            elDOF = self.elDOF[el]
 
-        M_el = np.zeros((self.nq_element, self.nq_element))
+            # sparse assemble element mass matrix
+            coo.extend(self.M_el(q[elDOF], el), (self.uDOF[elDOF], self.uDOF[elDOF]))
+
+    # TODO:
+    def M_el(self, qe, el):
+        M_el = np.zeros((self.nq_element, self.nq_element), dtype=float)
 
         for i in range(self.nquadrature):
             # extract reference state variables
@@ -331,333 +371,122 @@ class DirectorAxisAngle:
             Ji = self.J[el, i]
 
             # delta_r A_rho0 r_ddot part
-            # TODO: Can this be simplified with a single nodal loop?
-            M_el_r = np.eye(3) * self.A_rho0 * Ji * qwi
-            for node_a in range(self.nnodes_element_r):
+            M_el_r_r = np.eye(3, dtype=float) * self.A_rho0 * Ji * qwi
+            for node_a in range(self.nnodes_element):
                 nodalDOF_a = self.nodalDOF_element_r[node_a]
-                for node_b in range(self.nnodes_element_r):
+                for node_b in range(self.nnodes_element):
                     nodalDOF_b = self.nodalDOF_element_r[node_b]
-                    M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_r * (
-                        self.N_r[el, i, node_a] * self.N_r[el, i, node_b]
+                    M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_r_r * (
+                        self.N[el, i, node_a] * self.N[el, i, node_b]
                     )
-            # for node in range(self.nnodes_element_r):
-            #     nodalDOF = self.nodalDOF_element_r[node]
-            #     N_node = self.N_r[el, i, node]
-            #     M_el[nodalDOF[:, None], nodalDOF] += M_el_r * (N_node * N_node)
 
             # first part delta_phi (I_rho0 omega_dot + omega_tilde I_rho0 omega)
-            M_el_psi = self.I_rho0 * Ji * qwi
-            for node_a in range(self.nnodes_element_psi):
+            M_el_psi_psi = self.K_I_rho0 * Ji * qwi
+            for node_a in range(self.nnodes_element):
                 nodalDOF_a = self.nodalDOF_element_psi[node_a]
-                for node_b in range(self.nnodes_element_psi):
+                for node_b in range(self.nnodes_element):
                     nodalDOF_b = self.nodalDOF_element_psi[node_b]
-                    M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_psi * (
-                        self.N_psi[el, i, node_a] * self.N_psi[el, i, node_b]
+                    M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_psi_psi * (
+                        self.N[el, i, node_a] * self.N[el, i, node_b]
                     )
+
+            # # For non symmetric cross sections there are also other parts
+            # # involved in the mass matrix. These parts are configuration
+            # # dependent and lead to configuration dependent mass matrix.
+            # _, A_IK, _, _ = self.eval(qe, self.qp[el, i])
+            # M_el_r_psi = A_IK @ self.K_S_rho0 * Ji * qwi
+            # M_el_psi_r = A_IK @ self.K_S_rho0 * Ji * qwi
+
+            # for node_a in range(self.nnodes_element):
+            #     nodalDOF_a = self.nodalDOF_element_r[node_a]
+            #     for node_b in range(self.nnodes_element):
+            #         nodalDOF_b = self.nodalDOF_element_psi[node_b]
+            #         M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_r_psi * (
+            #             self.N[el, i, node_a] * self.N[el, i, node_b]
+            #         )
+            # for node_a in range(self.nnodes_element):
+            #     nodalDOF_a = self.nodalDOF_element_psi[node_a]
+            #     for node_b in range(self.nnodes_element):
+            #         nodalDOF_b = self.nodalDOF_element_r[node_b]
+            #         M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_psi_r * (
+            #             self.N[el, i, node_a] * self.N[el, i, node_b]
+            #         )
 
         return M_el
 
-    def __M_coo(self):
-        self.__M = Coo((self.nu, self.nu))
-        for el in range(self.nelement):
-            # extract element degrees of freedom
-            elDOF = self.elDOF[el]
+    if False:
+        # TODO:
+        def f_gyr_el(self, t, qe, ue, el):
+            f_gyr_el = np.zeros(self.nq_element, dtype=float)
 
-            # sparse assemble element mass matrix
-            self.__M.extend(self.M_el(el), (self.uDOF[elDOF], self.uDOF[elDOF]))
+            # for i in range(self.nquadrature):
+            #     # interpoalte angular velocity
+            #     K_Omega = np.zeros(3, dtype=float)
+            #     for node in range(self.nnodes_element):
+            #         K_Omega += self.N[el, i, node] * ue[self.nodalDOF_element_psi[node]]
 
-    def M(self, t, q, coo):
-        coo.extend_sparse(self.__M)
+            #     # vector of gyroscopic forces
+            #     f_gyr_el_psi = (
+            #         cross3(K_Omega, self.K_I_rho0 @ K_Omega)
+            #         * self.J[el, i]
+            #         * self.qw[el, i]
+            #     )
 
-    def f_gyr_el(self, t, qe, ue, el):
-        # if relative_orientation:
-        #     raise NotImplementedError
+            #     # multiply vector of gyroscopic forces with nodal virtual rotations
+            #     for node in range(self.nnodes_element):
+            #         f_gyr_el[self.nodalDOF_element_psi[node]] += (
+            #             self.N[el, i, node] * f_gyr_el_psi
+            #         )
 
-        f_gyr_el = np.zeros(self.nq_element)
+            return f_gyr_el
 
-        for i in range(self.nquadrature):
-            # interpoalte angular velocity
-            K_Omega = np.zeros(3)
-            for node in range(self.nnodes_element_psi):
-                K_Omega += self.N_psi[el, i, node] * ue[self.nodalDOF_element_psi[node]]
+        def f_gyr(self, t, q, u):
+            f_gyr = np.zeros(self.nu, dtype=float)
+            for el in range(self.nelement):
+                f_gyr[self.elDOF[el]] += self.f_gyr_el(
+                    t, q[self.elDOF[el]], u[self.elDOF[el]], el
+                )
+            return f_gyr
 
-            # vector of gyroscopic forces
-            f_gyr_el_psi = (
-                cross3(K_Omega, self.I_rho0 @ K_Omega) * self.J[el, i] * self.qw[el, i]
-            )
+        def f_gyr_u_el(self, t, qe, ue, el):
+            f_gyr_u_el = np.zeros((self.nq_element, self.nq_element), dtype=float)
 
-            # multiply vector of gyroscopic forces with nodal virtual rotations
-            for node in range(self.nnodes_element_psi):
-                f_gyr_el[self.nodalDOF_element_psi[node]] += (
-                    self.N_psi[el, i, node] * f_gyr_el_psi
+            for i in range(self.nquadrature):
+                # interpoalte angular velocity
+                K_Omega = np.zeros(3, dtype=float)
+                for node in range(self.nnodes_element):
+                    K_Omega += self.N[el, i, node] * ue[self.nodalDOF_element_psi[node]]
+
+                # derivative of vector of gyroscopic forces
+                f_gyr_u_el_psi = (
+                    (
+                        (
+                            ax2skew(K_Omega) @ self.K_I_rho0
+                            - ax2skew(self.K_I_rho0 @ K_Omega)
+                        )
+                    )
+                    * self.J[el, i]
+                    * self.qw[el, i]
                 )
 
-        return f_gyr_el
+                # multiply derivative of gyroscopic force vector with nodal virtual rotations
+                for node_a in range(self.nnodes_element):
+                    nodalDOF_a = self.nodalDOF_element_psi[node_a]
+                    for node_b in range(self.nnodes_element):
+                        nodalDOF_b = self.nodalDOF_element_psi[node_b]
+                        f_gyr_u_el[
+                            nodalDOF_a[:, None], nodalDOF_b
+                        ] += f_gyr_u_el_psi * (
+                            self.N[el, i, node_a] * self.N[el, i, node_b]
+                        )
 
-    def f_gyr(self, t, q, u):
-        f_gyr = np.zeros(self.nu)
-        for el in range(self.nelement):
-            f_gyr[self.elDOF[el]] += self.f_gyr_el(
-                t, q[self.elDOF[el]], u[self.elDOF[el]], el
-            )
-        return f_gyr
+            return f_gyr_u_el
 
-    def f_gyr_u_el(self, t, qe, ue, el):
-        f_gyr_u_el = np.zeros((self.nq_element, self.nq_element))
-
-        for i in range(self.nquadrature):
-            # interpoalte angular velocity
-            K_Omega = np.zeros(3)
-            for node in range(self.nnodes_element_psi):
-                K_Omega += self.N_psi[el, i, node] * ue[self.nodalDOF_element_psi[node]]
-
-            # derivative of vector of gyroscopic forces
-            f_gyr_u_el_psi = (
-                ((ax2skew(K_Omega) @ self.I_rho0 - ax2skew(self.I_rho0 @ K_Omega)))
-                * self.J[el, i]
-                * self.qw[el, i]
-            )
-
-            # multiply derivative of gyroscopic force vector with nodal virtual rotations
-            for node_a in range(self.nnodes_element_psi):
-                nodalDOF_a = self.nodalDOF_element_psi[node_a]
-                for node_b in range(self.nnodes_element_psi):
-                    nodalDOF_b = self.nodalDOF_element_psi[node_b]
-                    f_gyr_u_el[nodalDOF_a[:, None], nodalDOF_b] += f_gyr_u_el_psi * (
-                        self.N_psi[el, i, node_a] * self.N_psi[el, i, node_b]
-                    )
-
-        return f_gyr_u_el
-
-    def f_gyr_u(self, t, q, u, coo):
-        for el in range(self.nelement):
-            elDOF = self.elDOF[el]
-            f_gyr_u_el = self.f_gyr_u_el(t, q[elDOF], u[elDOF], el)
-            coo.extend(f_gyr_u_el, (self.uDOF[elDOF], self.uDOF[elDOF]))
-
-    def eval_absolute_director(self, qe, el, qp):
-        # interpolate tangent vector
-        r_xi = np.zeros(3)
-        for node in range(self.nnodes_element_r):
-            r_xi += self.N_r_xi[el, qp, node] * qe[self.nodalDOF_element_r[node]]
-
-        # interpolate rotation and its derivative w.r.t. parameter space
-        A_IK = np.zeros((3, 3))
-        A_IK_xi = np.zeros((3, 3))
-        for node in range(self.nnodes_element_psi):
-            psi_node = qe[self.nodalDOF_element_psi[node]]
-            A_IK_node = rodriguez(psi_node)
-            A_IK += self.N_psi[el, qp, node] * A_IK_node
-            A_IK_xi += self.N_psi_xi[el, qp, node] * A_IK_node
-
-        # torsional and flexural strains (formulation in skew coordinates,
-        # see Eugster2014c)
-        d1, d2, d3 = A_IK.T
-        d1_xi, d2_xi, d3_xi = A_IK_xi.T
-        K_Kappa_bar = np.array(
-            [
-                0.5 * (d3 @ d2_xi - d2 @ d3_xi),
-                0.5 * (d1 @ d3_xi - d3 @ d1_xi),
-                0.5 * (d2 @ d1_xi - d1 @ d2_xi),
-            ]
-        )
-
-        return r_xi, A_IK, K_Kappa_bar
-
-    def eval_absolute_local(self, qe, el, qp):
-        # interpolate tangent vector
-        r_xi = np.zeros(3)
-        for node in range(self.nnodes_element_r):
-            r_xi += self.N_r_xi[el, qp, node] * qe[self.nodalDOF_element_r[node]]
-
-        # reference rotation, see. Crisfield1999 (5.8)
-        # A_IR = rodriguez(qe[self.nodalDOF_element_psi[0]])
-        node_I = int(0.5 * (self.nnodes_element_psi + 1)) - 1
-        node_J = int(0.5 * (self.nnodes_element_psi + 2)) - 1
-        c = 0.5
-        A_0I = rodriguez(qe[self.nodalDOF_element_psi[node_I]])
-        A_0J = rodriguez(qe[self.nodalDOF_element_psi[node_J]])
-        A_IJ = A_0I.T @ A_0J  # Crisfield1999 (5.8)
-        phi_IJ = rodriguez_inv(A_IJ)
-        A_IR = A_0I @ rodriguez(c * phi_IJ)
-
-        # relative interpolation of local rotation vectors
-        psi_rel = np.zeros(3)
-        psi_rel_xi = np.zeros(3)
-        for node in range(self.nnodes_element_psi):
-            # nodal axis angle vector
-            psi_node = qe[self.nodalDOF_element_psi[node]]
-
-            # nodal rotation
-            A_IK_node = rodriguez(psi_node)
-
-            # relative rotation of each node and corresponding
-            # rotation vector
-            A_RK_node = A_IR.T @ A_IK_node
-            psi_RK_node = rodriguez_inv(A_RK_node)
-
-            # add wheighted contribution of local rotation
-            psi_rel += self.N_psi[el, qp, node] * psi_RK_node
-            psi_rel_xi += self.N_psi_xi[el, qp, node] * psi_RK_node
-
-        # objective rotation
-        A_IK = A_IR @ rodriguez(psi_rel)
-
-        # curvature
-        T = tangent_map(psi_rel)
-        K_Kappa_bar = T @ psi_rel_xi
-
-        return r_xi, A_IK, K_Kappa_bar
-
-    def eval_relative_director(self, qe, el, qp):
-        # interpolate tangent vector
-        r_xi = np.zeros(3)
-        for node in range(self.nnodes_element_r):
-            r_xi += self.N_r_xi[el, qp, node] * qe[self.nodalDOF_element_r[node]]
-
-        # compute nodal smallest rotations
-        t0 = qe[self.nodalDOF_element_r[1]]
-        t1 = qe[self.nodalDOF_element_r[3]]
-        A_IB0 = smallest_rotation(e1, t0)
-        A_IB1 = smallest_rotation(e1, t1)
-
-        # compute nodal relative rotations using Rodriguez' formular
-        psi0 = qe[self.nodalDOF_element_psi[0]]
-        psi1 = qe[self.nodalDOF_element_psi[1]]
-        A_BK0 = rodriguez(psi0)
-        A_BK1 = rodriguez(psi1)
-
-        # linear interpolate combined rotation and its derivative
-        A_IK0 = A_IB0 @ A_BK0
-        A_IK1 = A_IB1 @ A_BK1
-        A_IK = self.N_psi[el, qp, 0] * A_IK0 + self.N_psi[el, qp, 1] * A_IK1
-        A_IK_xi = self.N_psi_xi[el, qp, 0] * A_IK0 + self.N_psi_xi[el, qp, 1] * A_IK1
-
-        # torsional and flexural strains (formulation in skew coordinates,
-        # see Eugster2014c)
-        d1, d2, d3 = A_IK.T
-        d1_xi, d2_xi, d3_xi = A_IK_xi.T
-        K_Kappa_bar = np.array(
-            [
-                0.5 * (d3 @ d2_xi - d2 @ d3_xi),
-                0.5 * (d1 @ d3_xi - d3 @ d1_xi),
-                0.5 * (d2 @ d1_xi - d1 @ d2_xi),
-            ]
-        )
-
-        return r_xi, A_IK, K_Kappa_bar
-
-    def eval_relative_local(self, qe, el, qp):
-        # interpolate tangent vector
-        r_xi = np.zeros(3)
-        for node in range(self.nnodes_element_r):
-            r_xi += self.N_r_xi[el, qp, node] * qe[self.nodalDOF_element_r[node]]
-
-        ########################################################
-        # relative interpolation of local rotations for combined
-        # rotations, see Crisfield1999 (5.7) and (5.8)
-        ########################################################
-
-        # extract nodal tangent vectors and compute corresponding
-        # smallest rotations
-        t0 = qe[self.nodalDOF_element_r[1]]
-        t1 = qe[self.nodalDOF_element_r[3]]
-        A_IB0 = smallest_rotation(e1, t0)
-        A_IB1 = smallest_rotation(e1, t1)
-
-        # compute nodal relative rotations by application of
-        # Rodriguez' formular on nodal local rotation vectors
-        psi0 = qe[self.nodalDOF_element_psi[0]]
-        psi1 = qe[self.nodalDOF_element_psi[1]]
-        A_BK0 = rodriguez(psi0)
-        A_BK1 = rodriguez(psi1)
-
-        # compute successive rotation for both nodes
-        A_IK0 = A_IB0 @ A_BK0
-        A_IK1 = A_IB1 @ A_BK1
-
-        # Define a reference rotation for this element, cf.
-        # Crisfield1999 (5.8).
-        # Note: We use the midway rotation for a two node element.
-        A_IR = A_IK0 @ rodriguez(0.5 * rodriguez_inv(A_IK0.T @ A_IK1))
-
-        # compute relative rotation from reference triad to left
-        # and right nodal triads
-        A_RK0 = A_IR.T @ A_IK0
-        A_RK1 = A_IR.T @ A_IK1
-
-        # compute corresponding axial vectors
-        psi_RK0 = rodriguez_inv(A_RK0)
-        psi_RK1 = rodriguez_inv(A_RK1)
-
-        # (objective) relative interpolation of the local rotation
-        # vector and its derivatives, see Crisfield1999 (5.7) and (5.8)
-        psi_rel = self.N_psi[el, qp, 0] * psi_RK0 + self.N_psi[el, qp, 1] * psi_RK1
-        psi_rel_xi = (
-            self.N_psi_xi[el, qp, 0] * psi_RK0 + self.N_psi_xi[el, qp, 1] * psi_RK1
-        )
-
-        # the final objective rotation is given by the application
-        # of the reference rotation onto the relative rotation
-        A_IK = A_IR @ rodriguez(psi_rel)
-
-        # objective curvature
-        # Note: Since we are only using the relative rotation
-        # vector for evaluating T, for reasonable discretizations
-        # there should never be a problem with the singularity of T.
-        T = tangent_map(psi_rel)
-        K_Kappa_bar = T @ psi_rel_xi
-
-        return r_xi, A_IK, K_Kappa_bar
-
-    def eval_absolute_local_arbitrary(self, qe, xi):
-        # evaluate shape functions
-        _, N_r_xi, __ = self.basis_functions_r(xi)
-        N_psi, N_psi_xi = self.basis_functions_psi(xi)
-
-        # interpolate tangent vector
-        r_xi = np.zeros(3)
-        for node in range(self.nnodes_element_r):
-            r_xi += N_r_xi[node] * qe[self.nodalDOF_element_r[node]]
-
-        # reference rotation, see. Crisfield1999 (5.8)
-        # A_IR = rodriguez(qe[self.nodalDOF_element_psi[0]])
-        node_I = int(0.5 * (self.nnodes_element_psi + 1)) - 1
-        node_J = int(0.5 * (self.nnodes_element_psi + 2)) - 1
-        c = 0.5
-        A_0I = rodriguez(qe[self.nodalDOF_element_psi[node_I]])
-        A_0J = rodriguez(qe[self.nodalDOF_element_psi[node_J]])
-        A_IJ = A_0I.T @ A_0J  # Crisfield1999 (5.8)
-        phi_IJ = rodriguez_inv(A_IJ)
-        A_IR = A_0I @ rodriguez(c * phi_IJ)
-
-        # relative interpolation of local rotation vectors
-        psi_rel = np.zeros(3)
-        psi_rel_xi = np.zeros(3)
-        for node in range(self.nnodes_element_psi):
-            # nodal axis angle vector
-            psi_node = qe[self.nodalDOF_element_psi[node]]
-
-            # nodal rotation
-            A_IK_node = rodriguez(psi_node)
-
-            # relative rotation of each node and corresponding
-            # rotation vector
-            A_RK_node = A_IR.T @ A_IK_node
-            psi_RK_node = rodriguez_inv(A_RK_node)
-
-            # add wheighted contribution of local rotation
-            psi_rel += N_psi[node] * psi_RK_node
-            psi_rel_xi += N_psi_xi[node] * psi_RK_node
-
-        # objective rotation
-        A_IK = A_IR @ rodriguez(psi_rel)
-
-        # curvature
-        T = tangent_map(psi_rel)
-        K_Kappa_bar = T @ psi_rel_xi
-
-        return r_xi, A_IK, K_Kappa_bar
+        def f_gyr_u(self, t, q, u, coo):
+            for el in range(self.nelement):
+                elDOF = self.elDOF[el]
+                f_gyr_u_el = self.f_gyr_u_el(t, q[elDOF], u[elDOF], el)
+                coo.extend(f_gyr_u_el, (self.uDOF[elDOF], self.uDOF[elDOF]))
 
     def E_pot(self, t, q):
         E_pot = 0
@@ -667,210 +496,110 @@ class DirectorAxisAngle:
         return E_pot
 
     def E_pot_el(self, qe, el):
-        E_pot_el = 0
+        E_pot_el = 0.0
+
+        A_IKs = np.array(
+            [
+                Exp_SO3(qe[self.nodalDOF_element_psi[node]])
+                for node in range(self.nnodes_element)
+            ]
+        )
 
         for i in range(self.nquadrature):
             # extract reference state variables
             qwi = self.qw[el, i]
-            Ji = self.J[el, i]
+            J = self.J[el, i]
             K_Gamma0 = self.K_Gamma0[el, i]
             K_Kappa0 = self.K_Kappa0[el, i]
 
-            # evaluate strain measures and other quantities depending on chosen formulation
-            r_xi, A_IK, K_Kappa_bar = self.eval(qe, el, i)
+            # interpolate tangent vector, transformation matrix and its derivative
+            r_OP_xi = np.zeros(3, dtype=float)
+            A_IK = np.zeros((3, 3), dtype=float)
+            A_IK_xi = np.zeros((3, 3), dtype=float)
+            for node in range(self.nnodes_element):
+                r_OP_xi += self.N_xi[el, i, node] * qe[self.nodalDOF_element_r[node]]
+                A_IK += self.N[el, i, node] * A_IKs[node]
+                A_IK_xi += self.N_xi[el, i, node] * A_IKs[node]
 
             # axial and shear strains
-            K_Gamma = A_IK.T @ (r_xi / Ji)
+            K_Gamma_bar = A_IK.T @ r_OP_xi
+            K_Gamma = K_Gamma_bar / J
 
-            # torsional and flexural strains (formulation in skew coordinates,
-            # see Eugster2014c)
-            d1, d2, d3 = A_IK.T
-            d = d1 @ cross3(d2, d3)
-            dd = 1 / (d * Ji)
-            K_Kappa = dd * K_Kappa_bar
+            # torsional and flexural strains
+            K_Kappa_bar_tilde = A_IK.T @ A_IK_xi
+            K_Kappa_bar = skew2ax(K_Kappa_bar_tilde)
+            K_Kappa = K_Kappa_bar / J
 
             # evaluate strain energy function
             E_pot_el += (
                 self.material_model.potential(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
-                * Ji
+                * J
                 * qwi
             )
 
         return E_pot_el
 
     def f_pot(self, t, q):
-        f_pot = np.zeros(self.nu)
+        f_pot = np.zeros(self.nu, dtype=q.dtype)
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             f_pot[elDOF] += self.f_pot_el(q[elDOF], el)
         return f_pot
 
     def f_pot_el(self, qe, el):
-        f_pot_el = np.zeros(self.nq_element)
-
-        # # TODO: Move this to __init__
-        # # full integration of curvature terms
-        # from cardillo.discretization.gauss import gauss
-        # nquadrature = self.polynomial_degree_r + 1
-        # self.qp = np.zeros((self.nelement, nquadrature))
-        # self.wp = np.zeros((self.nelement, nquadrature))
-
-        # for el in range(self.nelement):
-        #     Xi_element_interval = self.mesh_r.knot_vector.element_interval(el)
-        #     self.qp[el], self.wp[el] = gauss(
-        #         nquadrature, interval=Xi_element_interval
-        #     )
+        f_pot_el = np.zeros(self.nq_element, dtype=qe.dtype)
 
         for i in range(self.nquadrature):
             # extract reference state variables
             qwi = self.qw[el, i]
-            Ji = self.J[el, i]
+            J = self.J[el, i]
             K_Gamma0 = self.K_Gamma0[el, i]
             K_Kappa0 = self.K_Kappa0[el, i]
-            # qpi = self.qp[el, i]
-            # qe0 = self.Q[self.elDOF[el]]
-            # r_xi0, A_IK0, K_Kappa_bar0 = self.eval_absolute_local_arbitrary(qe0, qpi)
-            # Ji = norm(r_xi0)
-            # K_Gamma0 = A_IK0.T @ r_xi0 / Ji
-            # K_Kappa0 = K_Kappa_bar0 / Ji
 
-            # evaluate strain measures and other quantities depending on chosen formulation
-            r_xi, A_IK, K_Kappa_bar = self.eval(qe, el, i)
-            # r_xi, A_IK, K_Kappa_bar = self.eval_absolute_local_arbitrary(qe, self.qp[el, i])
+            # interpolate tangent vector, transformation matrix and its derivative
+            r_OP_xi = np.zeros(3, dtype=qe.dtype)
+            A_IK = np.zeros((3, 3), dtype=qe.dtype)
+            A_IK_xi = np.zeros((3, 3), dtype=qe.dtype)
+            for node in range(self.nnodes_element):
+                r_OP_xi += self.N_xi[el, i, node] * qe[self.nodalDOF_element_r[node]]
+                A_IK_node = Exp_SO3(qe[self.nodalDOF_element_psi[node]])
+                A_IK += self.N[el, i, node] * A_IK_node
+                A_IK_xi += self.N_xi[el, i, node] * A_IK_node
 
             # axial and shear strains
-            K_Gamma = A_IK.T @ (r_xi / Ji)
+            K_Gamma_bar = A_IK.T @ r_OP_xi
+            K_Gamma = K_Gamma_bar / J
 
-            # torsional and flexural strains (formulation in skew coordinates,
-            # see Eugster2014c)
-            d1, d2, d3 = A_IK.T
-            d = d1 @ cross3(d2, d3)
-            dd = 1 / (d * Ji)
-            K_Kappa = dd * K_Kappa_bar
+            # torsional and flexural strains
+            # d1, d2, d3 = A_IK.T
+            # half_d = 1.0
+            half_d = det3D(A_IK)
+            K_Kappa_bar_tilde = (A_IK.T @ A_IK_xi) / half_d
+            K_Kappa_bar = skew2ax(K_Kappa_bar_tilde)
+            K_Kappa = K_Kappa_bar / J
 
             # compute contact forces and couples from partial derivatives of
             # the strain energy function w.r.t. strain measures
             K_n = self.material_model.K_n(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
             K_m = self.material_model.K_m(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
 
-            # - first delta Gamma part
-            for node in range(self.nnodes_element_r):
+            ############################
+            # virtual work contributions
+            ############################
+            for node in range(self.nnodes_element):
                 f_pot_el[self.nodalDOF_element_r[node]] -= (
-                    self.N_r_xi[el, i, node] * A_IK @ K_n * qwi
+                    self.N_xi[el, i, node] * A_IK @ K_n * qwi
                 )
 
-            # - second delta Gamma part
-            for node in range(self.nnodes_element_psi):
-                f_pot_el[self.nodalDOF_element_psi[node]] += (
-                    self.N_psi[el, i, node] * cross3(A_IK.T @ r_xi, K_n) * qwi
-                )
-
-            # - delta kappa part
-            for node in range(self.nnodes_element_psi):
                 f_pot_el[self.nodalDOF_element_psi[node]] -= (
-                    self.N_psi_xi[el, i, node] * K_m * qwi
+                    self.N_xi[el, i, node] * K_m * qwi
                 )
+
                 f_pot_el[self.nodalDOF_element_psi[node]] += (
-                    self.N_psi[el, i, node] * cross3(K_Kappa_bar, K_m) * qwi
-                )  # Euler term
-
-        # # TODO: Move this to __init__
-        # # reduced integration of shear and axial terms
-        # nquadrature = self.polynomial_degree_r #- 1
-        # self.qp = np.zeros((self.nelement, nquadrature))
-        # self.wp = np.zeros((self.nelement, nquadrature))
-
-        # for el in range(self.nelement):
-        #     Xi_element_interval = self.mesh_r.knot_vector.element_interval(el)
-        #     self.qp[el], self.wp[el] = gauss(
-        #         nquadrature, interval=Xi_element_interval
-        #     )
-
-        # for i in range(self.nquadrature):
-        #     # extract reference state variables
-        #     qwi = self.qw[el, i]
-        #     # Ji = self.J[el, i]
-        #     # K_Gamma0 = self.K_Gamma0[el, i]
-        #     # K_Kappa0 = self.K_Kappa0[el, i]
-        #     qpi = self.qp[el, i]
-        #     qe0 = self.Q[self.elDOF[el]]
-        #     r_xi0, A_IK0, K_Kappa_bar0 = self.eval_absolute_local_arbitrary(qe0, qpi)
-        #     Ji = norm(r_xi0)
-        #     K_Gamma0 = A_IK0.T @ r_xi0 / Ji
-        #     K_Kappa0 = K_Kappa_bar0 / Ji
-
-        #     # evaluate strain measures and other quantities depending on chosen formulation
-        #     # r_xi, A_IK, K_Kappa_bar = self.eval(qe, el, i)
-        #     r_xi, A_IK, K_Kappa_bar = self.eval_absolute_local_arbitrary(qe, self.qp[el, i])
-
-        #     # axial and shear strains
-        #     K_Gamma = A_IK.T @ (r_xi / Ji)
-
-        #     # torsional and flexural strains (formulation in skew coordinates,
-        #     # see Eugster2014c)
-        #     d1, d2, d3 = A_IK.T
-        #     d = d1 @ cross3(d2, d3)
-        #     dd = 1 / (d * Ji)
-        #     K_Kappa = dd * K_Kappa_bar
-
-        #     # compute contact forces and couples from partial derivatives of
-        #     # the strain energy function w.r.t. strain measures
-        #     K_n = self.material_model.K_n(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
-
-        #     # - first delta Gamma part
-        #     for node in range(self.nnodes_element_r):
-        #         f_pot_el[self.nodalDOF_element_r[node]] -= (
-        #             self.N_r_xi[el, i, node] * A_IK @ K_n * qwi
-        #         )
-
-        #     # - second delta Gamma part
-        #     for node in range(self.nnodes_element_psi):
-        #         f_pot_el[self.nodalDOF_element_psi[node]] += (
-        #             self.N_psi[el, i, node] * cross3(A_IK.T @ r_xi, K_n) * qwi
-        #         )
-
-        # # reinterpolate first delta Gamma part in order so cure locking
-        # element_interval = self.knot_vector_r.element_interval(el)
-        # for i, xi in enumerate(np.linspace(element_interval[0], element_interval[1], num=self.polynomial_degree_r)):
-        #     # extract reference state variables
-        #     qwi = self.qw[el, i]
-
-        #     # evaluate strain measures and other quantities depending on chosen formulation
-        #     qe0 = self.Q[self.elDOF[el]]
-        #     r_xi0, A_IK0, K_Kappa_bar0 = self.eval_absolute_local_arbitrary(qe0, xi)
-        #     Ji = norm(r_xi0)
-        #     K_Gamma0 = A_IK0.T @ r_xi0 / Ji
-        #     K_Kappa0 = K_Kappa_bar0 / Ji
-
-        #     r_xi, A_IK, K_Kappa_bar = self.eval_absolute_local_arbitrary(qe, xi)
-
-        #     # axial and shear strains
-        #     K_Gamma = A_IK.T @ (r_xi / Ji)
-
-        #     # torsional and flexural strains (formulation in skew coordinates,
-        #     # see Eugster2014c)
-        #     d1, d2, d3 = A_IK.T
-        #     d = d1 @ cross3(d2, d3)
-        #     dd = 1 / (d * Ji)
-        #     K_Kappa = dd * K_Kappa_bar
-
-        #     # compute contact forces and couples from partial derivatives of
-        #     # the strain energy function w.r.t. strain measures
-        #     K_n = self.material_model.K_n(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
-
-        #     # - first delta Gamma part
-        #     _, N_r_xi, _ = self.basis_functions_r(xi)
-        #     for node in range(self.nnodes_element_r):
-        #         f_pot_el[self.nodalDOF_element_r[node]] -= (
-        #             N_r_xi[node] * A_IK @ K_n * qwi
-        #         )
-
-        #     # - second delta Gamma part
-        #     N_psi, _ = self.basis_functions_psi(xi)
-        #     for node in range(self.nnodes_element_psi):
-        #         f_pot_el[self.nodalDOF_element_psi[node]] += (
-        #             N_psi[node] * cross3(A_IK.T @ r_xi, K_n) * qwi
-        #         )
+                    self.N[el, i, node]
+                    * (cross3(K_Gamma_bar, K_n) + cross3(K_Kappa_bar, K_m))
+                    * qwi
+                )
 
         return f_pot_el
 
@@ -883,207 +612,15 @@ class DirectorAxisAngle:
             coo.extend(f_pot_q_el, (self.uDOF[elDOF], self.qDOF[elDOF]))
 
     def f_pot_q_el(self, qe, el):
-        return approx_fprime(qe, lambda qe: self.f_pot_el(qe, el), method="2-point")
-
-        f_pot_q_el = np.zeros((self.nq_element, self.nq_element))
-
-        for i in range(self.nquadrature):
-            # extract reference state variables
-            qwi = self.qw[el, i]
-            Ji = self.J[el, i]
-            K_Gamma0 = self.K_Gamma0[el, i]
-            K_Kappa0 = self.K_Kappa0[el, i]
-
-            # interpolate tangent vector
-            r_xi = np.zeros(3)
-            for node in range(self.nnodes_element_r):
-                r_xi += self.N_r_xi[el, i, node] * qe[self.nodalDOF_element_r[node]]
-
-            # interpolate rotation and its derivative w.r.t. parameter space
-            A_IK = np.zeros((3, 3))
-            A_IK_xi = np.zeros((3, 3))
-            for node in range(self.nnodes_element_psi):
-                psi_node = qe[self.nodalDOF_element_psi[node]]
-                A_IK_node = rodriguez(psi_node)
-                A_IK += self.N_psi[el, i, node] * A_IK_node
-                A_IK_xi += self.N_psi_xi[el, i, node] * A_IK_node
-
-            # extract directors and their derivatives with respect to
-            # parameter space
-            d1, d2, d3 = A_IK.T
-            d1_xi, d2_xi, d3_xi = A_IK_xi.T
-
-            # compute derivatives with respect to arc length parameter
-            r_s = r_xi / Ji
-
-            # axial and shear strains
-            K_Gamma = A_IK.T @ r_s
-
-            # torsional and flexural strains + derivatives
-            # (formulation in skew coordinates, # see Eugster2014c)
-            K_Kappa_bar = np.array(
-                [
-                    0.5 * (d3 @ d2_xi - d2 @ d3_xi),
-                    0.5 * (d1 @ d3_xi - d3 @ d1_xi),
-                    0.5 * (d2 @ d1_xi - d1 @ d2_xi),
-                ]
-            )
-
-            d = d1 @ cross3(d2, d3)
-            dd = 1 / (d * Ji)
-            K_Kappa = dd * K_Kappa_bar
-
-            ################################
-            # derivatives of strain measures
-            ################################
-            # first K_Gamma derivative w.r.t. qe_r
-            K_Gamma_qe = np.zeros((3, self.nq_element))
-            for node in range(self.nnodes_element_r):
-                K_Gamma_qe[:, self.nodalDOF_element_r[node]] += (
-                    A_IK.T * self.N_r_xi[el, i, node] / Ji
-                )
-
-            # Derivative of d = d1 @ cross3(d2, d3) w.r.t. qe_psi,
-            # first part of K_Kappa derivative w.r.t. qe_psi and
-            # second part of K_Gamma derivative w.r.t. qe_psi.
-            d_qe = np.zeros(self.nq_element)
-            K_Kappa_bar_qe = np.zeros((3, self.nq_element))
-
-            tmp1 = d1 @ ax2skew(d2)
-            tmp2 = -d1 @ ax2skew(d3)
-            tmp3 = cross3(d2, d3)
-            for node in range(self.nnodes_element_psi):
-                nodalDOF = self.nodalDOF_element_psi[node]
-
-                # nodal derivative of rodriguez formular
-                A_IK_psi_node = rodriguez_der(qe[nodalDOF])
-
-                # nodal shape functions
-                N_psi = self.N_psi[el, i, node]
-                N_psi_xi = self.N_psi_xi[el, i, node]
-
-                # K_Gamma part
-                K_Gamma_qe[:, nodalDOF] += N_psi * np.einsum(
-                    "jik,j->ik", A_IK_psi_node, r_s
-                )
-
-                # d parts
-                d_qe[nodalDOF] += N_psi * tmp1 @ A_IK_psi_node[:, 0]
-                d_qe[nodalDOF] += N_psi * tmp2 @ A_IK_psi_node[:, 1]
-                d_qe[nodalDOF] += N_psi * tmp3 @ A_IK_psi_node[:, 2]
-
-                # kappa parts
-                K_Kappa_bar_qe[0, nodalDOF] += 0.5 * (
-                    N_psi_xi * d3 @ A_IK_psi_node[:, 1]
-                    + N_psi * d2_xi @ A_IK_psi_node[:, 2]
-                    - N_psi_xi * d2 @ A_IK_psi_node[:, 2]
-                    - N_psi * d3_xi @ A_IK_psi_node[:, 1]
-                )
-
-                K_Kappa_bar_qe[1, nodalDOF] += 0.5 * (
-                    N_psi_xi * d1 @ A_IK_psi_node[:, 2]
-                    + N_psi * d3_xi @ A_IK_psi_node[:, 0]
-                    - N_psi_xi * d3 @ A_IK_psi_node[:, 0]
-                    - N_psi * d1_xi @ A_IK_psi_node[:, 2]
-                )
-
-                K_Kappa_bar_qe[2, nodalDOF] += 0.5 * (
-                    N_psi_xi * d2 @ A_IK_psi_node[:, 0]
-                    + N_psi * d1_xi @ A_IK_psi_node[:, 1]
-                    - N_psi_xi * d1 @ A_IK_psi_node[:, 1]
-                    - N_psi * d2_xi @ A_IK_psi_node[:, 0]
-                )
-
-            # derivative of K_Kappa
-            K_Kappa_qe = dd * K_Kappa_bar_qe - np.outer(K_Kappa, d_qe) / d
-
-            # compute contact forces and couples from partial derivatives of
-            # the strain energy function w.r.t. strain measures
-            K_n = self.material_model.K_n(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
-            K_m = self.material_model.K_m(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
-
-            # compute derivatives of contact forces and couples with respect
-            # to their strain measures
-            K_n_K_Gamma = self.material_model.K_n_K_Gamma(
-                K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
-            )
-            K_n_K_Kappa = self.material_model.K_n_K_Kappa(
-                K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
-            )
-            K_m_K_Gamma = self.material_model.K_m_K_Gamma(
-                K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
-            )
-            K_m_K_Kappa = self.material_model.K_m_K_Kappa(
-                K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
-            )
-
-            # chaing rule for derivative with respect to generalized coordinates
-            K_n_qe = K_n_K_Gamma @ K_Gamma_qe + K_n_K_Kappa @ K_Kappa_qe
-            K_m_qe = K_m_K_Gamma @ K_Gamma_qe + K_m_K_Kappa @ K_Kappa_qe
-
-            # - first delta Gamma part
-            for node_a in range(self.nnodes_element_r):
-                nodalDOF_a = self.nodalDOF_element_r[node_a]
-                N_r_xi = self.N_r_xi[el, i, node_a]
-
-                f_pot_q_el[nodalDOF_a] -= N_r_xi * A_IK @ K_n_qe
-                for node_b in range(self.nnodes_element_psi):
-                    nodalDOF_b = self.nodalDOF_element_psi[node_b]
-                    f_pot_q_el[nodalDOF_a[:, None], nodalDOF_b] -= (
-                        N_r_xi
-                        * np.einsum("ijk,j->ik", rodriguez_der(qe[nodalDOF_b]), K_n)
-                        * qwi
-                    )
-
-            for node_a in range(self.nnodes_element_psi):
-                nodalDOF_a = self.nodalDOF_element_psi[node_a]
-
-                N_psi = self.N_psi[el, i, node_a]
-                N_psi_xi = self.N_psi_xi[el, i, node_a]
-
-                # - second delta Gamma part (1)
-                f_pot_q_el[nodalDOF_a] += N_psi * ax2skew(A_IK.T @ r_xi) @ K_n_qe * qwi
-
-                # - delta kappa part and Euler term
-                f_pot_q_el[nodalDOF_a] -= (
-                    N_psi_xi
-                    * (
-                        (np.eye(3) - ax2skew(K_Kappa_bar)) @ K_m_qe
-                        + ax2skew(K_m) @ K_Kappa_qe
-                    )
-                    * qwi
-                )
-
-                for node_b in range(self.nnodes_element_psi):
-                    nodalDOF_b = self.nodalDOF_element_psi[node_b]
-
-                    # nodal derivative of rodriguez formular
-                    A_IK_psi_node = rodriguez_der(qe[nodalDOF_b])
-
-                    # - second delta Gamma part (2)
-                    f_pot_q_el[nodalDOF_a[:, None], nodalDOF_b] -= (
-                        N_psi
-                        * ax2skew(K_n)
-                        @ np.einsum("jik,j->ik", A_IK_psi_node, r_xi)
-                        * qwi
-                    )
-
-        # return f_pot_q_el
-
         f_pot_q_el_num = approx_fprime(
-            qe, lambda qe: self.f_pot_el(qe, el), method="3-point"
+            qe, lambda qe: self.f_pot_el(qe, el), eps=1.0e-10, method="cs"
         )
-        diff = f_pot_q_el_num - f_pot_q_el
-        error = np.max(np.abs(diff))
-        # error = np.max(np.abs(diff[self.rDOF[:, None], self.rDOF]))
-        print(f"max error f_pot_q_el: {error}")
-        print(f"")
-
-        # print(f'diff[self.rDOF[:, None], self.rDOF]: {np.max(np.abs(diff[self.rDOF[:, None], self.rDOF]))}')
-        # print(f'diff[self.rDOF[:, None], self.psiDOF]: {np.max(np.abs(diff[self.rDOF[:, None], self.psiDOF]))}')
-        # print(f'diff[self.psiDOF[:, None], self.rDOF]: {np.max(np.abs(diff[self.psiDOF[:, None], self.rDOF]))}')
-        # print(f'diff[self.psiDOF[:, None], self.psiDOF]: {np.max(np.abs(diff[self.psiDOF[:, None], self.psiDOF]))}')
-
+        # f_pot_q_el_num = approx_fprime(
+        #     qe, lambda qe: self.f_pot_el(qe, el), eps=5.0e-6, method="2-point"
+        # )
+        # diff = f_pot_q_el - f_pot_q_el_num
+        # error = np.linalg.norm(diff)
+        # print(f"error f_pot_q_el: {error}")
         return f_pot_q_el_num
 
     #########################################
@@ -1094,12 +631,12 @@ class DirectorAxisAngle:
         q_dot = u
 
         # correct axis angle vector part
-        for node in range(self.nnode_psi):
+        for node in range(self.nnode):
             nodalDOF_psi = self.nodalDOF_psi[node]
-
             psi = q[nodalDOF_psi]
-            omega = u[nodalDOF_psi]
-            psi_dot = inverse_tangent_map(psi) @ omega
+            K_omega_IK = u[nodalDOF_psi]
+
+            psi_dot = T_SO3_inv(psi) @ K_omega_IK
             q_dot[nodalDOF_psi] = psi_dot
 
         return q_dot
@@ -1111,39 +648,41 @@ class DirectorAxisAngle:
         )
 
         # axis angle vector part
-        for node in range(self.nnode_psi):
+        for node in range(self.nnode):
             nodalDOF_psi = self.nodalDOF_psi[node]
 
             psi = q[nodalDOF_psi]
             coo.extend(
-                inverse_tangent_map(psi),
+                T_SO3_inv(psi),
                 (self.qDOF[nodalDOF_psi], self.uDOF[nodalDOF_psi]),
             )
 
-    def q_ddot(self, t, q, u, u_dot):
-        # centerline part
-        q_ddot = u_dot
+        def q_ddot(self, t, q, u, u_dot):
+            raise RuntimeError("Not tested!")
+            # centerline part
+            q_ddot = u_dot
 
-        # correct axis angle vector part
-        for node in range(self.nnode_psi):
-            nodalDOF_psi = self.nodalDOF_psi[node]
+            # correct axis angle vector part
+            for node in range(self.nnode):
+                nodalDOF_psi = self.nodalDOF_psi[node]
 
-            psi = q[nodalDOF_psi]
-            omega = u[nodalDOF_psi]
-            omega_dot = u_dot[nodalDOF_psi]
+                psi = q[nodalDOF_psi]
+                omega = u[nodalDOF_psi]
+                omega_dot = u_dot[nodalDOF_psi]
 
-            T_inv = inverse_tangent_map(psi)
-            psi_dot = T_inv @ omega
+                T_inv = T_SO3_inv(psi)
+                psi_dot = T_inv @ omega
 
-            T_dot = tangent_map_s(psi, psi_dot)
-            Tinv_dot = -T_inv @ T_dot @ T_inv
-            psi_ddot = T_inv @ omega_dot + Tinv_dot @ omega
+                # TODO:
+                T_dot = tangent_map_s(psi, psi_dot)
+                Tinv_dot = -T_inv @ T_dot @ T_inv
+                psi_ddot = T_inv @ omega_dot + Tinv_dot @ omega
 
-            q_ddot[nodalDOF_psi] = psi_ddot
+                q_ddot[nodalDOF_psi] = psi_ddot
 
-        return q_ddot
+            return q_ddot
 
-    # change between rotation vector nad its complement in order to circumvent
+    # change between rotation vector and its complement in order to circumvent
     # singularities of the rotation vector
     @staticmethod
     def psi_C(psi):
@@ -1152,18 +691,13 @@ class DirectorAxisAngle:
             return psi
         else:
             # Ibrahimbegovic1995 after (62)
-            print(f"complement rotation vector is used")
-            n = int((angle + pi) / (2 * pi))
-            if angle > 0:
-                e = psi / angle
-            else:
-                e = psi.copy()
-            return psi - 2 * n * pi * e
+            psi_C = (1.0 - 2.0 * pi / angle) * psi
+            return psi_C
 
     def step_callback(self, t, q, u):
-        for node in range(self.nnode_psi):
-            psi_node = q[self.nodalDOF_psi[node]]
-            q[self.nodalDOF_psi[node]] = DirectorAxisAngle.psi_C(psi_node)
+        for node in range(self.nnode):
+            psi = q[self.nodalDOF_psi[node]]
+            q[self.nodalDOF_psi[node]] = TimoshenkoAxisAngleSE3.psi_C(psi)
         return q, u
 
     ####################################################
@@ -1180,345 +714,140 @@ class DirectorAxisAngle:
     def uDOF_P(self, frame_ID):
         return self.elDOF_P(frame_ID)
 
-    def r_OC(self, t, q, frame_ID):
-        # compute centerline position
-        N, _, _ = self.basis_functions_r(frame_ID[0])
-        r_OC = np.zeros(3)
-        for node in range(self.nnodes_element_r):
-            r_OC += N[node] * q[self.nodalDOF_element_r[node]]
-        return r_OC
-
-    def r_OC_q(self, t, q, frame_ID):
-        # compute centerline position
-        N, _, _ = self.basis_functions_r(frame_ID[0])
-        r_OC_q = np.zeros((3, self.nq_element))
-        for node in range(self.nnodes_element_r):
-            r_OC_q[:, self.nodalDOF_element_r[node]] += N[node] * np.eye(3)
-        return r_OC_q
-
-    def r_OC_xi(self, t, q, frame_ID):
-        # compute centerline position
-        _, N_xi, _ = self.basis_functions_r(frame_ID[0])
-        r_OC_xi = np.zeros(3)
-        for node in range(self.nnodes_element_r):
-            r_OC_xi += N_xi[node] * q[self.nodalDOF_element_r[node]]
-        return r_OC_xi
-
-    def r_OC_xixi(self, t, q, frame_ID):
-        # compute centerline position
-        _, _, N_xixi = self.basis_functions_r(frame_ID[0])
-        r_OC_xixi = np.zeros(3)
-        for node in range(self.nnodes_element_r):
-            r_OC_xixi += N_xixi[node] * q[self.nodalDOF_element_r[node]]
-        return r_OC_xixi
-
-    def J_C(self, t, q, frame_ID):
-        # evaluate required nodal shape functions
-        N, _, _ = self.basis_functions_r(frame_ID[0])
-
-        # interpolate centerline and axis angle contributions
-        J_C = np.zeros((3, self.nq_element))
-        for node in range(self.nnodes_element_r):
-            J_C[:, self.nodalDOF_element_r[node]] += N[node] * np.eye(3)
-
-        return J_C
-
-    def J_C_q(self, t, q, frame_ID):
-        return np.zeros((3, self.nq_element, self.nq_element))
-
     ###################
     # r_OP contribution
     ###################
-    def r_OP(self, t, q, frame_ID, K_r_SP=np.zeros(3)):
-        # compute centerline position
-        N, _, _ = self.basis_functions_r(frame_ID[0])
-        r_OC = np.zeros(3)
-        for node in range(self.nnodes_element_r):
-            r_OC += N[node] * q[self.nodalDOF_element_r[node]]
+    def r_OP(self, t, q, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
+        # evaluate shape functions
+        N, _ = self.basis_functions(frame_ID[0])
 
-        # rigid body formular
-        return r_OC + self.A_IK(t, q, frame_ID) @ K_r_SP
+        # interpolate centerline position and orientation
+        r = np.zeros(3, dtype=q.dtype)
+        A_IK = np.zeros((3, 3), dtype=q.dtype)
+        for node in range(self.nnodes_element):
+            r += N[node] * q[self.nodalDOF_element_r[node]]
+            A_IK += N[node] * Exp_SO3(q[self.nodalDOF_element_psi[node]])
 
-    def r_OP_q(self, t, q, frame_ID, K_r_SP=np.zeros(3)):
-        # compute centerline derivative
-        N, _, _ = self.basis_functions_r(frame_ID[0])
-        r_OP_q = np.zeros((3, self.nq_element))
-        for node in range(self.nnodes_element_r):
-            r_OP_q[:, self.nodalDOF_element_r[node]] += N[node] * np.eye(3)
+        return r + A_IK @ K_r_SP
 
-        # derivative of rigid body formular
-        r_OP_q += np.einsum("ijk,j->ik", self.A_IK_q(t, q, frame_ID), K_r_SP)
-        return r_OP_q
-
-        # r_OP_q_num = approx_fprime(q, lambda q: self.r_OP(t, q, frame_ID, K_r_SP), method="3-point")
-        # diff = r_OP_q_num - r_OP_q
-        # error = np.linalg.norm(diff)
-        # print(f"error r_OP_q: {error}")
-        # return r_OP_q_num
+    def r_OP_q(self, t, q, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
+        r_OP_q_num = approx_fprime(
+            q, lambda q: self.r_OP(t, q, frame_ID, K_r_SP), eps=1.0e-10, method="cs"
+        )
+        return r_OP_q_num
 
     def A_IK(self, t, q, frame_ID):
-        N, _ = self.basis_functions_psi(frame_ID[0])
+        # evaluate shape functions
+        N, _ = self.basis_functions(frame_ID[0])
 
-        if relative_orientation and self.basis == "Hermite":
-            if director_interpolation:
-                # compute nodal smallest rotations
-                r0 = q[self.nodalDOF_element_r[1]]
-                r1 = q[self.nodalDOF_element_r[3]]
-                A_IB0 = smallest_rotation(e1, r0)
-                A_IB1 = smallest_rotation(e1, r1)
-
-                # compute nodal relative rotations using Rodriguez' formular
-                psi0 = q[self.nodalDOF_element_psi[0]]
-                psi1 = q[self.nodalDOF_element_psi[1]]
-                A_BK0 = rodriguez(psi0)
-                A_BK1 = rodriguez(psi1)
-
-                # linear interpolate combined rotation
-                A_IK = N[0] * (A_IB0 @ A_BK0) + N[1] * (A_IB1 @ A_BK1)
-            else:
-                # # def A_IK_local(xi):
-                # #     # evaluate shape functions
-                # #     _, N_r_xi, _ = self.basis_functions_r(xi)
-                # #     N_psi, _ = self.basis_functions_psi(xi)
-
-                # #     # interpolate tangent vector
-                # #     r_xi = np.zeros(3)
-                # #     for node in range(self.nnodes_element_r):
-                # #         r_xi += N_r_xi[node] * q[self.nodalDOF_element_r[node]]
-
-                # #     # interpolate rotation vector
-                # #     psi = np.zeros(3)
-                # #     for node in range(self.nnodes_element_psi):
-                # #         psi += N_psi[node] * q[self.nodalDOF_element_psi[node]]
-
-                # #     # evaluate reference rotation using smallest rotation formular
-                # #     A_IB = smallest_rotation(e1, r_xi)
-
-                # #     # evaluate superimposed rotation using Rodriguez formular
-                # #     A_BK = rodriguez(psi)
-
-                # #     # final rotation
-                # #     A_IK = A_IB @ A_BK
-                # #     return A_IK
-
-                # def A_IK_local(xi):
-                #     # compute nodal smallest rotations
-                #     t0 = q[self.nodalDOF_element_r[1]]
-                #     t1 = q[self.nodalDOF_element_r[3]]
-                #     A_IB0 = smallest_rotation(e1, t0)
-                #     A_IB1 = smallest_rotation(e1, t1)
-
-                #     # compute nodal relative rotations using Rodriguez' formular
-                #     psi0 = q[self.nodalDOF_element_psi[0]]
-                #     psi1 = q[self.nodalDOF_element_psi[1]]
-                #     A_BK0 = rodriguez(psi0)
-                #     A_BK1 = rodriguez(psi1)
-
-                #     # compute combined rotation
-                #     A_IK0 = A_IB0 @ A_BK0
-                #     A_IK1 = A_IB1 @ A_BK1
-
-                #     # reference rotation, cf. Crisfield1999 (5.8)
-                #     # A_IR = A_IK0 # left frame as reference
-                #     A_IR = A_IK0 @ rodriguez(
-                #         0.5 * rodriguez_inv(A_IK0.T @ A_IK1)
-                #     )  # midway frame as reference
-
-                #     # compute relative rotation from reference triad to left
-                #     # and right nodal triads
-                #     A_RK0 = A_IR.T @ A_IK0
-                #     A_RK1 = A_IR.T @ A_IK1
-
-                #     # compute corresponding axial vectors
-                #     psi_RK0 = rodriguez_inv(A_RK0)
-                #     psi_RK1 = rodriguez_inv(A_RK1)
-
-                #     # relative interpolation of local rotation vectors
-                #     N_psi, _ = self.basis_functions_psi(xi)
-                #     psi_rel = N_psi[0] * psi_RK0 + N_psi[1] * psi_RK1
-
-                #     # objective rotation
-                #     A_IK = A_IR @ rodriguez(psi_rel)
-
-                #     return A_IK
-
-                # A_IK = A_IK_local(frame_ID[0])
-
-                # compute nodal smallest rotations
-                t0 = q[self.nodalDOF_element_r[1]]
-                t1 = q[self.nodalDOF_element_r[3]]
-                A_IB0 = smallest_rotation(e1, t0)
-                A_IB1 = smallest_rotation(e1, t1)
-
-                # compute nodal relative rotations using Rodriguez' formular
-                psi0 = q[self.nodalDOF_element_psi[0]]
-                psi1 = q[self.nodalDOF_element_psi[1]]
-                A_BK0 = rodriguez(psi0)
-                A_BK1 = rodriguez(psi1)
-
-                # compute combined rotation
-                A_IK0 = A_IB0 @ A_BK0
-                A_IK1 = A_IB1 @ A_BK1
-
-                # reference rotation, cf. Crisfield1999 (5.8)
-                # A_IR = A_IK0 # left frame as reference
-                A_IR = A_IK0 @ rodriguez(
-                    0.5 * rodriguez_inv(A_IK0.T @ A_IK1)
-                )  # midway frame as reference
-
-                # compute relative rotation from reference triad to left
-                # and right nodal triads
-                A_RK0 = A_IR.T @ A_IK0
-                A_RK1 = A_IR.T @ A_IK1
-
-                # compute corresponding axial vectors
-                psi_RK0 = rodriguez_inv(A_RK0)
-                psi_RK1 = rodriguez_inv(A_RK1)
-
-                # relative interpolation of local rotation vectors
-                psi_rel = N[0] * psi_RK0 + N[1] * psi_RK1
-
-                # objective rotation
-                A_IK = A_IR @ rodriguez(psi_rel)
-        else:
-            if director_interpolation:
-                # interpolate nodal rotation matrices
-                A_IK = np.zeros((3, 3))
-                for node in range(self.nnodes_element_psi):
-                    A_IK += N[node] * rodriguez(q[self.nodalDOF_element_psi[node]])
-            else:
-                # reference rotation, cf. Crisfield1999 (5.8)
-                # for convenience we use the most left nodal rotation
-                # TODO: We can generalize this to a midway reference as done by Crisfield1999
-                A_IR = rodriguez(q[self.nodalDOF_element_psi[0]])
-
-                # relative interpolation of local rotation vectors
-                psi_rel = np.zeros(3)
-                for node in range(self.nnodes_element_psi):
-                    # nodal axis angle vector
-                    psi_node = q[self.nodalDOF_element_psi[node]]
-
-                    # nodal rotation
-                    A_IK_node = rodriguez(psi_node)
-
-                    # relative rotation of each node and corresponding
-                    # rotation vector
-                    A_RK_node = A_IR.T @ A_IK_node
-                    psi_RK_node = rodriguez_inv(A_RK_node)
-
-                    # add wheighted contribution of local rotation
-                    psi_rel += N[node] * psi_RK_node
-
-                # objective rotation
-                A_IK = A_IR @ rodriguez(psi_rel)
+        # interpolate orientation
+        A_IK = np.zeros((3, 3), dtype=q.dtype)
+        for node in range(self.nnodes_element):
+            A_IK += N[node] * Exp_SO3(q[self.nodalDOF_element_psi[node]])
 
         return A_IK
 
     def A_IK_q(self, t, q, frame_ID):
-        # # interpolate nodal derivative of the rotation matrix
-        # N, _ = self.basis_functions_psi(frame_ID[0])
-        # A_IK_q = np.zeros((3, 3, self.nq_element))
-        # for node in range(self.nnodes_element_psi):
-        #     nodalDOF_psi = self.nodalDOF_element_psi[node]
-        #     A_IK_q[:, :, nodalDOF_psi] += N[node] * rodriguez_der(q[nodalDOF_psi])
-        # return A_IK_q
-
         A_IK_q_num = approx_fprime(
-            q, lambda q: self.A_IK(t, q, frame_ID), method="3-point"
+            q, lambda q: self.A_IK(t, q, frame_ID), eps=1.0e-10, method="cs"
         )
-        # diff = A_IK_q - A_IK_q_num
-        # error = np.linalg.norm(diff)
-        # print(f"error A_IK_q: {error}")
         return A_IK_q_num
 
-    def v_P(self, t, q, u, frame_ID, K_r_SP=np.zeros(3)):
-        # compute centerline velocity
-        N, _, _ = self.basis_functions_r(frame_ID[0])
-        v_C = np.zeros(3)
-        for node in range(self.nnodes_element_r):
-            v_C += N[node] * u[self.nodalDOF_element_r[node]]
+    def v_P(self, t, q, u, frame_ID, K_r_SP=np.zeros(3), dtype=float):
+        N, _ = self.basis_functions(frame_ID[0])
 
-        # rigid body formular
-        return v_C + self.A_IK(t, q, frame_ID) @ cross3(
-            self.K_Omega(t, q, u, frame_ID), K_r_SP
+        # interpolate orientation
+        A_IK = np.zeros((3, 3), dtype=q.dtype)
+        for node in range(self.nnodes_element):
+            A_IK += N[node] * Exp_SO3(q[self.nodalDOF_element_psi[node]])
+
+        # angular velocity in K-frame
+        K_Omega = np.zeros(3, dtype=float)
+        for node in range(self.nnodes_element):
+            K_Omega += N[node] * u[self.nodalDOF_element_psi[node]]
+
+        # centerline velocity
+        v = np.zeros(3, dtype=float)
+        for node in range(self.nnodes_element):
+            v += N[node] * u[self.nodalDOF_element_r[node]]
+
+        return v + A_IK @ cross3(K_Omega, K_r_SP)
+
+    # TODO:
+    def v_P_q(self, t, q, u, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
+        raise RuntimeError(
+            "Implement this derivative since it requires known parts only!"
         )
-
-    def v_P_q(self, t, q, u, frame_ID, K_r_SP=np.zeros(3)):
-        K_Omega = self.K_Omega(t, q, u, frame_ID)
-        return np.einsum(
-            "ijk,j->ik", self.A_IK_q(t, q, frame_ID), cross3(K_Omega, K_r_SP)
+        v_P_q_num = approx_fprime(
+            q, lambda q: self.v_P(t, q, u, frame_ID, K_r_SP), method="3-point"
         )
+        return v_P_q_num
 
-    def J_P(self, t, q, frame_ID, K_r_SP=np.zeros(3)):
+    def J_P(self, t, q, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
         # evaluate required nodal shape functions
-        N_r, _, _ = self.basis_functions_r(frame_ID[0])
-        N_psi, _ = self.basis_functions_psi(frame_ID[0])
+        N, _ = self.basis_functions(frame_ID[0])
 
-        # transformation matrix
-        A_IK = self.A_IK(t, q, frame_ID)
+        # interpolate orientation
+        A_IK = np.zeros((3, 3), dtype=q.dtype)
+        for node in range(self.nnodes_element):
+            A_IK += N[node] * Exp_SO3(q[self.nodalDOF_element_psi[node]])
 
         # skew symmetric matrix of K_r_SP
         K_r_SP_tilde = ax2skew(K_r_SP)
 
         # interpolate centerline and axis angle contributions
-        J_P = np.zeros((3, self.nq_element))
-        for node in range(self.nnodes_element_r):
-            J_P[:, self.nodalDOF_element_r[node]] += N_r[node] * np.eye(3)
-        for node in range(self.nnodes_element_psi):
-            J_P[:, self.nodalDOF_element_psi[node]] -= N_psi[node] * A_IK @ K_r_SP_tilde
+        J_P = np.zeros((3, self.nq_element), dtype=float)
+        for node in range(self.nnodes_element):
+            J_P[:, self.nodalDOF_element_r[node]] += N[node] * np.eye(3, dtype=q.dtype)
+        for node in range(self.nnodes_element):
+            J_P[:, self.nodalDOF_element_psi[node]] -= N[node] * A_IK @ K_r_SP_tilde
 
         return J_P
 
         # J_P_num = approx_fprime(
-        #     np.zeros(self.nq_element), lambda u: self.v_P(t, q, u, frame_ID, K_r_SP)
+        #     np.zeros(self.nq_element, dtype=float),
+        #     lambda u: self.v_P(t, q, u, frame_ID, K_r_SP),
         # )
         # diff = J_P_num - J_P
         # error = np.linalg.norm(diff)
         # print(f"error J_P: {error}")
         # return J_P_num
 
-    def J_P_q(self, t, q, frame_ID, K_r_SP=np.zeros(3)):
-        # evaluate required nodal shape functions
-        N_psi, _ = self.basis_functions_psi(frame_ID[0])
-
-        # skew symmetric matrix of K_r_SP
-        K_r_SP_tilde = ax2skew(K_r_SP)
-
-        # interpolate axis angle contributions since centerline contributon is
-        # zero
-        J_P_q = np.zeros((3, self.nq_element, self.nq_element))
-        for node in range(self.nnodes_element_psi):
-            nodalDOF = self.nodalDOF_element_psi[node]
-            A_IK_q = rodriguez_der(q[nodalDOF])
-            J_P_q[:, nodalDOF[:, None], nodalDOF] -= N_psi[node] * np.einsum(
-                "ijl,jk", A_IK_q, K_r_SP_tilde
-            )
-
-        return J_P_q
-
-        # J_P_q_num = approx_fprime(
-        #     q, lambda q: self.J_P(t, q, frame_ID, K_r_SP), method="3-point"
-        # )
+    # TODO:
+    def J_P_q(self, t, q, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
+        J_P_q_num = approx_fprime(
+            q, lambda q: self.J_P(t, q, frame_ID, K_r_SP), method="3-point"
+        )
         # diff = J_P_q_num - J_P_q
         # error = np.linalg.norm(diff)
         # print(f"error J_P_q: {error}")
-        # return J_P_q_num
+        return J_P_q_num
 
-    def a_P(self, t, q, u, u_dot, frame_ID, K_r_SP=np.zeros(3)):
-        # compute centerline acceleration
-        N, _, _ = self.basis_functions_r(frame_ID[0])
-        a_C = np.zeros(3)
-        for node in range(self.nnodes_element_r):
-            a_C += N[node] * u_dot[self.nodalDOF_element_r[node]]
+    def a_P(self, t, q, u, u_dot, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
+        N, _ = self.basis_functions(frame_ID[0])
 
-        # rigid body formular
+        # interpolate orientation
+        A_IK = np.zeros((3, 3), dtype=q.dtype)
+        for node in range(self.nnodes_element):
+            A_IK += N[node] * Exp_SO3(q[self.nodalDOF_element_psi[node]])
+
+        # centerline acceleration
+        a = np.zeros(3, dtype=float)
+        for node in range(self.nnodes_element):
+            a += N[node] * u_dot[self.nodalDOF_element_r[node]]
+
+        # angular velocity and acceleration in K-frame
         K_Omega = self.K_Omega(t, q, u, frame_ID)
         K_Psi = self.K_Psi(t, q, u, u_dot, frame_ID)
-        return a_C + self.A_IK(t, q, frame_ID) @ (
+
+        # rigid body formular
+        return a + A_IK @ (
             cross3(K_Psi, K_r_SP) + cross3(K_Omega, cross3(K_Omega, K_r_SP))
         )
 
+    # TODO:
     def a_P_q(self, t, q, u, u_dot, frame_ID, K_r_SP=None):
+        raise NotImplementedError
         K_Omega = self.K_Omega(t, q, u, frame_ID)
         K_Psi = self.K_Psi(t, q, u, u_dot, frame_ID)
         a_P_q = np.einsum(
@@ -1526,80 +855,85 @@ class DirectorAxisAngle:
             self.A_IK_q(t, q, frame_ID),
             cross3(K_Psi, K_r_SP) + cross3(K_Omega, cross3(K_Omega, K_r_SP)),
         )
-        return a_P_q
+        # return a_P_q
 
-        # a_P_q_num = approx_fprime(
-        #     q, lambda q: self.a_P(t, q, u, u_dot, frame_ID, K_r_SP), method="3-point"
-        # )
-        # diff = a_P_q_num - a_P_q
-        # error = np.linalg.norm(diff)
-        # print(f"error a_P_q: {error}")
-        # return a_P_q_num
+        a_P_q_num = approx_fprime(
+            q, lambda q: self.a_P(t, q, u, u_dot, frame_ID, K_r_SP), method="3-point"
+        )
+        diff = a_P_q_num - a_P_q
+        error = np.linalg.norm(diff)
+        print(f"error a_P_q: {error}")
+        return a_P_q_num
 
+    # TODO:
     def a_P_u(self, t, q, u, u_dot, frame_ID, K_r_SP=None):
+        raise NotImplementedError
         K_Omega = self.K_Omega(t, q, u, frame_ID)
         local = -self.A_IK(t, q, frame_ID) @ (
             ax2skew(cross3(K_Omega, K_r_SP)) + ax2skew(K_Omega) @ ax2skew(K_r_SP)
         )
 
-        N, _ = self.basis_functions_psi(frame_ID[0])
-        a_P_u = np.zeros((3, self.nq_element))
-        for node in range(self.nnodes_element_r):
+        N, _ = self.basis_functions(frame_ID[0])
+        a_P_u = np.zeros((3, self.nq_element), dtype=float)
+        for node in range(self.nnodes_element):
             a_P_u[:, self.nodalDOF_element_psi[node]] += N[node] * local
 
-        return a_P_u
+        # return a_P_u
 
-        # a_P_u_num = approx_fprime(
-        #     u, lambda u: self.a_P(t, q, u, u_dot, frame_ID, K_r_SP), method="3-point"
-        # )
-        # diff = a_P_u_num - a_P_u
-        # error = np.linalg.norm(diff)
-        # print(f"error a_P_u: {error}")
-        # return a_P_u_num
+        a_P_u_num = approx_fprime(
+            u, lambda u: self.a_P(t, q, u, u_dot, frame_ID, K_r_SP), method="3-point"
+        )
+        diff = a_P_u_num - a_P_u
+        error = np.linalg.norm(diff)
+        print(f"error a_P_u: {error}")
+        return a_P_u_num
 
     def K_Omega(self, t, q, u, frame_ID):
         """Since we use Petrov-Galerkin method we only interpoalte the nodal
         angular velocities in the K-frame.
         """
-        N, _ = self.basis_functions_psi(frame_ID[0])
-        K_Omega = np.zeros(3)
-        for node in range(self.nnodes_element_psi):
+        N, _ = self.basis_functions(frame_ID[0])
+        K_Omega = np.zeros(3, dtype=float)
+        for node in range(self.nnodes_element):
             K_Omega += N[node] * u[self.nodalDOF_element_psi[node]]
         return K_Omega
 
     def K_Omega_q(self, t, q, u, frame_ID):
-        return np.zeros((3, self.nq_element))
+        return np.zeros((3, self.nq_element), dtype=float)
 
     def K_J_R(self, t, q, frame_ID):
-        N, _ = self.basis_functions_psi(frame_ID[0])
-        K_J_R = np.zeros((3, self.nq_element))
-        for node in range(self.nnodes_element_psi):
-            K_J_R[:, self.nodalDOF_element_psi[node]] += N[node] * np.eye(3)
+        N, _ = self.basis_functions(frame_ID[0])
+        K_J_R = np.zeros((3, self.nq_element), dtype=float)
+        for node in range(self.nnodes_element):
+            K_J_R[:, self.nodalDOF_element_psi[node]] += N[node] * np.eye(
+                3, dtype=float
+            )
         return K_J_R
 
     def K_J_R_q(self, t, q, frame_ID):
-        return np.zeros((3, self.nq_element, self.nq_element))
+        return np.zeros((3, self.nq_element, self.nq_element), dtype=float)
 
     def K_Psi(self, t, q, u, u_dot, frame_ID):
         """Since we use Petrov-Galerkin method we only interpoalte the nodal
         time derivative of the angular velocities in the K-frame.
         """
-        N, _ = self.basis_functions_psi(frame_ID[0])
-        K_Psi = np.zeros(3)
-        for node in range(self.nnodes_element_psi):
+        N, _ = self.basis_functions(frame_ID[0])
+        K_Psi = np.zeros(3, dtype=float)
+        for node in range(self.nnodes_element):
             K_Psi += N[node] * u_dot[self.nodalDOF_element_psi[node]]
         return K_Psi
 
     def K_Psi_q(self, t, q, u, u_dot, frame_ID):
-        return np.zeros((3, self.nq_element))
+        return np.zeros((3, self.nq_element), dtype=float)
 
     def K_Psi_u(self, t, q, u, u_dot, frame_ID):
-        return np.zeros((3, self.nq_element))
+        return np.zeros((3, self.nq_element), dtype=float)
 
     ####################################################
     # body force
     ####################################################
     def distributed_force1D_pot_el(self, force, t, qe, el):
+        raise NotImplementedError
         Ve = 0
         for i in range(self.nquadrature):
             # extract reference state variables
@@ -1607,9 +941,9 @@ class DirectorAxisAngle:
             Ji = self.J[el, i]
 
             # interpolate centerline position
-            r_C = np.zeros(3)
-            for node in range(self.nnodes_element_r):
-                r_C += self.N_r[el, i, node] * qe[self.nodalDOF_element_r[node]]
+            r_C = np.zeros(3, dtype=float)
+            for node in range(self.nnodes_element):
+                r_C += self.N[el, i, node] * qe[self.nodalDOF_element_r[node]]
 
             # compute potential value at given quadrature point
             Ve += (r_C @ force(t, qwi)) * Ji * qwi
@@ -1617,6 +951,7 @@ class DirectorAxisAngle:
         return Ve
 
     def distributed_force1D_pot(self, t, q, force):
+        raise NotImplementedError
         V = 0
         for el in range(self.nelement):
             qe = q[self.elDOF[el]]
@@ -1624,7 +959,8 @@ class DirectorAxisAngle:
         return V
 
     def distributed_force1D_el(self, force, t, el):
-        fe = np.zeros(self.nq_element)
+        raise NotImplementedError
+        fe = np.zeros(self.nq_element, dtype=float)
         for i in range(self.nquadrature):
             # extract reference state variables
             qwi = self.qw[el, i]
@@ -1634,18 +970,20 @@ class DirectorAxisAngle:
             fe_r = force(t, qwi) * Ji * qwi
 
             # multiply local force vector with variation of centerline
-            for node in range(self.nnodes_element_r):
-                fe[self.nodalDOF_element_r[node]] += self.N_r[el, i, node] * fe_r
+            for node in range(self.nnodes_element):
+                fe[self.nodalDOF_element_r[node]] += self.N[el, i, node] * fe_r
 
         return fe
 
     def distributed_force1D(self, t, q, force):
-        f = np.zeros(self.nq)
+        raise NotImplementedError
+        f = np.zeros(self.nq, dtype=float)
         for el in range(self.nelement):
             f[self.elDOF[el]] += self.distributed_force1D_el(force, t, el)
         return f
 
     def distributed_force1D_q(self, t, q, coo, force):
+        raise NotImplementedError
         pass
 
     ####################################################
@@ -1653,24 +991,15 @@ class DirectorAxisAngle:
     ####################################################
     def nodes(self, q):
         q_body = q[self.qDOF]
-        if self.basis == "Hermite":
-            r = np.zeros((3, int(self.nnode_r / 2)))
-            idx = 0
-            for node, nodalDOF in enumerate(self.nodalDOF_r):
-                if node % 2 == 0:
-                    r[:, idx] = q_body[nodalDOF]
-                    idx += 1
-            return r
-        else:
-            return np.array([q_body[nodalDOF] for nodalDOF in self.nodalDOF_r]).T
+        return np.array([q_body[nodalDOF] for nodalDOF in self.nodalDOF_r]).T
 
     def centerline(self, q, n=100):
         q_body = q[self.qDOF]
         r = []
         for xi in np.linspace(0, 1, n):
             frame_ID = (xi,)
-            qp = q_body[self.qDOF_P(frame_ID)]
-            r.append(self.r_OP(1, qp, frame_ID))
+            qe = q_body[self.qDOF_P(frame_ID)]
+            r.append(self.r_OP(1, qe, frame_ID))
         return np.array(r).T
 
     def frames(self, q, n=10):
@@ -1713,7 +1042,7 @@ class DirectorAxisAngle:
             # compute points on circular cross section
             x0 = None  # initial point is required twice
             for alpha in np.linspace(0, 2 * np.pi, num=n_alpha):
-                x = r + radius * cos(alpha) * d2 + radius * sin(alpha) * d3
+                x = r + radius * np.cos(alpha) * d2 + radius * np.sin(alpha) * d3
                 points.append(x)
                 if x0 is None:
                     x0 = x
@@ -1736,570 +1065,1426 @@ class DirectorAxisAngle:
         ax.quiver(*r, *d2, color="green", length=length)
         ax.quiver(*r, *d3, color="blue", length=length)
 
-    ############
-    # vtk export
-    ############
-    def post_processing_vtk_volume_circle(self, t, q, filename, R, binary=False):
-        # This is mandatory, otherwise we cannot construct the 3D continuum without L2 projection!
-        assert (
-            self.polynomial_degree_r == self.polynomial_degree_psi
-        ), "Not implemented for mixed polynomial degrees"
 
-        # rearrange generalized coordinates from solver ordering to Piegl's Pw 3D array
-        nn_xi = self.nelement + self.polynomial_degree_r
-        nEl_eta = 1
-        nEl_zeta = 4
-        # see Cotrell2009 Section 2.4.2
-        # TODO: Maybe eta and zeta have to be interchanged
-        polynomial_degree_eta = 1
-        polynomial_degree_zeta = 2
-        nn_eta = nEl_eta + polynomial_degree_eta
-        nn_zeta = nEl_zeta + polynomial_degree_zeta
+class TimoshenkoAxisAngleSE3_I_delta_r_P:
+    def __init__(
+        self,
+        polynomial_degree,
+        material_model,
+        A_rho0,
+        K_S_rho0,
+        K_I_rho0,
+        nelement,
+        Q,
+        q0=None,
+        u0=None,
+    ):
+        # beam properties
+        self.materialModel = material_model  # material model
+        self.A_rho0 = A_rho0  # line density
+        self.K_S_rho0 = K_S_rho0  # first moment of area
+        self.K_I_rho0 = K_I_rho0  # second moment of area
 
-        # # TODO: We do the hard coded case for rectangular cross section here, but this has to be extended to the circular cross section case too!
-        # as_ = np.linspace(-a/2, a/2, num=nn_eta, endpoint=True)
-        # bs_ = np.linspace(-b/2, b/2, num=nn_eta, endpoint=True)
-
-        circle_points = (
-            0.5
-            * R
-            * np.array(
-                [
-                    [1, 0, 0],
-                    [1, 1, 0],
-                    [0, 1, 0],
-                    [-1, 1, 0],
-                    [-1, 0, 0],
-                    [-1, -1, 0],
-                    [0, -1, 0],
-                    [1, -1, 0],
-                    [1, 0, 0],
-                ],
-                dtype=float,
-            )
-        )
-
-        Pw = np.zeros((nn_xi, nn_eta, nn_zeta, 3))
-        for i in range(self.nnode_r):
-            qr = q[self.nodalDOF_r[i]]
-            q_di = q[self.nodalDOF_psi[i]]
-            A_IK = q_di.reshape(3, 3, order="F")  # TODO: Check this!
-
-            for k, point in enumerate(circle_points):
-                # Note: eta index is always 0!
-                Pw[i, 0, k] = qr + A_IK @ point
-
-        if self.basis == "B-spline":
-            knot_vector_eta = KnotVector(polynomial_degree_eta, nEl_eta)
-            knot_vector_zeta = KnotVector(polynomial_degree_zeta, nEl_zeta)
-        elif self.basis == "lagrange":
-            knot_vector_eta = Node_vector(polynomial_degree_eta, nEl_eta)
-            knot_vector_zeta = Node_vector(polynomial_degree_zeta, nEl_zeta)
-        knot_vector_objs = [self.knot_vector_r, knot_vector_eta, knot_vector_zeta]
-        degrees = (
-            self.polynomial_degree_r,
-            polynomial_degree_eta,
-            polynomial_degree_zeta,
-        )
-
-        # Build Bezier patches from B-spline control points
-        from cardillo.discretization.B_spline import decompose_B_spline_volume
-
-        Qw = decompose_B_spline_volume(knot_vector_objs, Pw)
-
-        nbezier_xi, nbezier_eta, nbezier_zeta, p1, q1, r1, dim = Qw.shape
-
-        # build vtk mesh
-        n_patches = nbezier_xi * nbezier_eta * nbezier_zeta
-        patch_size = p1 * q1 * r1
-        points = np.zeros((n_patches * patch_size, dim))
-        cells = []
-        HigherOrderDegrees = []
-        RationalWeights = []
-        vtk_cell_type = "VTK_BEZIER_HEXAHEDRON"
-        from PyPanto.miscellaneous.indexing import flat3D, rearange_vtk3D
-
-        for i in range(nbezier_xi):
-            for j in range(nbezier_eta):
-                for k in range(nbezier_zeta):
-                    idx = flat3D(i, j, k, (nbezier_xi, nbezier_eta))
-                    point_range = np.arange(idx * patch_size, (idx + 1) * patch_size)
-                    points[point_range] = rearange_vtk3D(Qw[i, j, k])
-
-                    cells.append((vtk_cell_type, point_range[None]))
-                    HigherOrderDegrees.append(np.array(degrees, dtype=float)[None])
-                    weight = np.sqrt(2) / 2
-                    # tmp = np.array([np.sqrt(2) / 2, 1.0])
-                    # RationalWeights.append(np.tile(tmp, 8)[None])
-                    weights_vertices = weight * np.ones(8)
-                    weights_edges = np.ones(4 * nn_xi)
-                    weights_faces = np.ones(2)
-                    weights_volume = np.ones(nn_xi - 2)
-                    weights = np.concatenate(
-                        (weights_edges, weights_vertices, weights_faces, weights_volume)
-                    )
-                    # weights = np.array([weight, weight, weight, weight,
-                    #                     1.0,    1.0,    1.0,    1.0,
-                    #                     0.0,    0.0,    0.0,    0.0 ])
-                    weights = np.ones_like(point_range)
-                    RationalWeights.append(weights[None])
-
-        # RationalWeights = np.ones(len(points))
-        RationalWeights = 2 * (np.random.rand(len(points)) + 1)
-
-        # write vtk mesh using meshio
-        meshio.write_points_cells(
-            # filename.parent / (filename.stem + '.vtu'),
-            filename,
-            points,
-            cells,
-            point_data={
-                "RationalWeights": RationalWeights,
-            },
-            cell_data={"HigherOrderDegrees": HigherOrderDegrees},
-            binary=binary,
-        )
-
-    def post_processing_vtk_volume(self, t, q, filename, circular=True, binary=False):
-        # This is mandatory, otherwise we cannot construct the 3D continuum without L2 projection!
-        assert (
-            self.polynomial_degree_r == self.polynomial_degree_psi
-        ), "Not implemented for mixed polynomial degrees"
-
-        # rearrange generalized coordinates from solver ordering to Piegl's Pw 3D array
-        nn_xi = self.nelement + self.polynomial_degree_r
-        nEl_eta = 1
-        nEl_zeta = 1
-        if circular:
-            polynomial_degree_eta = 2
-            polynomial_degree_zeta = 2
+        if np.allclose(K_S_rho0, np.zeros_like(K_S_rho0)):
+            self.constant_mass_matrix = True
         else:
-            polynomial_degree_eta = 1
-            polynomial_degree_zeta = 1
-        nn_eta = nEl_eta + polynomial_degree_eta
-        nn_zeta = nEl_zeta + polynomial_degree_zeta
+            self.constant_mass_matrix = False
 
-        # TODO: We do the hard coded case for rectangular cross section here, but this has to be extended to the circular cross section case too!
-        if circular:
-            r = 0.2
-            a = b = r
+        # material model
+        self.material_model = material_model
+
+        if polynomial_degree == 1:
+            self.eval = self.__eval_two_node
+            self.d_eval = self.__d_eval_two_node
         else:
-            a = 0.2
-            b = 0.1
-        as_ = np.linspace(-a / 2, a / 2, num=nn_eta, endpoint=True)
-        bs_ = np.linspace(-b / 2, b / 2, num=nn_eta, endpoint=True)
+            self.eval = self.__eval_generic
+            self.d_eval = self.__d_eval_generic
 
-        Pw = np.zeros((nn_xi, nn_eta, nn_zeta, 3))
-        for i in range(self.nnode_r):
-            qr = q[self.nodalDOF_r[i]]
-            q_di = q[self.nodalDOF_psi[i]]
-            A_IK = q_di.reshape(3, 3, order="F")  # TODO: Check this!
+        # discretization parameters
+        self.polynomial_degree = polynomial_degree
+        self.nquadrature = nquadrature = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
+        self.nelement = nelement  # number of elements
 
-            for j, aj in enumerate(as_):
-                for k, bk in enumerate(bs_):
-                    Pw[i, j, k] = qr + A_IK @ np.array([0, aj, bk])
+        self.knot_vector = Node_vector(self.polynomial_degree, nelement)
 
-        if self.basis == "B-spline":
-            knot_vector_eta = KnotVector(polynomial_degree_eta, nEl_eta)
-            knot_vector_zeta = KnotVector(polynomial_degree_zeta, nEl_zeta)
-        elif self.basis == "lagrange":
-            knot_vector_eta = Node_vector(polynomial_degree_eta, nEl_eta)
-            knot_vector_zeta = Node_vector(polynomial_degree_zeta, nEl_zeta)
-        knot_vector_objs = [self.knot_vector_r, knot_vector_eta, knot_vector_zeta]
-        degrees = (
-            self.polynomial_degree_r,
-            polynomial_degree_eta,
-            polynomial_degree_zeta,
+        # build mesh object
+        self.mesh = Mesh1D(
+            self.knot_vector,
+            nquadrature,
+            derivative_order=1,
+            basis="Lagrange",
+            dim_q=3,
         )
 
-        # Build Bezier patches from B-spline control points
-        from cardillo.discretization.B_spline import decompose_B_spline_volume
+        # total number of nodes
+        self.nnode = self.mesh.nnodes
 
-        Qw = decompose_B_spline_volume(knot_vector_objs, Pw)
+        # number of nodes per element
+        self.nnodes_element = self.mesh.nnodes_per_element
 
-        nbezier_xi, nbezier_eta, nbezier_zeta, p1, q1, r1, dim = Qw.shape
+        # total number of generalized coordinates and velocities
+        self.nq_r = self.nu_r = self.mesh.nq
+        self.nq_psi = self.nu_psi = self.mesh.nq
+        self.nq = self.nu = self.nq_r + self.nq_psi
 
-        # build vtk mesh
-        n_patches = nbezier_xi * nbezier_eta * nbezier_zeta
-        patch_size = p1 * q1 * r1
-        points = np.zeros((n_patches * patch_size, dim))
-        cells = []
-        HigherOrderDegrees = []
-        RationalWeights = []
-        vtk_cell_type = "VTK_BEZIER_HEXAHEDRON"
-        from PyPanto.miscellaneous.indexing import flat3D, rearange_vtk3D
+        # number of generalized coordiantes and velocities per element
+        self.nq_element_r = self.nu_element_r = self.mesh.nq_per_element
+        self.nq_element_psi = self.nu_element_psi = self.mesh.nq_per_element
+        self.nq_element = self.nu_element = self.nq_element_r + self.nq_element_psi
 
-        for i in range(nbezier_xi):
-            for j in range(nbezier_eta):
-                for k in range(nbezier_zeta):
-                    idx = flat3D(i, j, k, (nbezier_xi, nbezier_eta))
-                    point_range = np.arange(idx * patch_size, (idx + 1) * patch_size)
-                    points[point_range] = rearange_vtk3D(Qw[i, j, k])
+        # global element connectivity
+        self.elDOF_r = self.mesh.elDOF
+        self.elDOF_psi = self.mesh.elDOF + self.nq_r
 
-                    cells.append((vtk_cell_type, point_range[None]))
-                    HigherOrderDegrees.append(np.array(degrees, dtype=float)[None])
-                    weight = np.sqrt(2) / 2
-                    # tmp = np.array([np.sqrt(2) / 2, 1.0])
-                    # RationalWeights.append(np.tile(tmp, 8)[None])
-                    weights_vertices = weight * np.ones(8)
-                    weights_edges = np.ones(4 * nn_xi)
-                    weights_faces = np.ones(2)
-                    weights_volume = np.ones(nn_xi - 2)
-                    weights = np.concatenate(
-                        (weights_edges, weights_vertices, weights_faces, weights_volume)
-                    )
-                    # weights = np.array([weight, weight, weight, weight,
-                    #                     1.0,    1.0,    1.0,    1.0,
-                    #                     0.0,    0.0,    0.0,    0.0 ])
-                    weights = np.ones_like(point_range)
-                    RationalWeights.append(weights[None])
+        # global nodal
+        self.nodalDOF_r = self.mesh.nodalDOF
+        self.nodalDOF_psi = self.mesh.nodalDOF + self.nq_r
 
-        # RationalWeights = np.ones(len(points))
-        RationalWeights = 2 * (np.random.rand(len(points)) + 1)
+        # nodal connectivity on element level
+        self.nodalDOF_element_r = self.mesh.nodalDOF_element
+        self.nodalDOF_element_psi = self.mesh.nodalDOF_element + self.nq_element_r
 
-        # write vtk mesh using meshio
-        meshio.write_points_cells(
-            # filename.parent / (filename.stem + '.vtu'),
-            filename,
-            points,
-            cells,
-            point_data={
-                "RationalWeights": RationalWeights,
-            },
-            cell_data={"HigherOrderDegrees": HigherOrderDegrees},
-            binary=binary,
-        )
+        # TODO: Check if this is valid!
+        self.nodalDOF_element = np.zeros((self.nnodes_element, 6), dtype=int)
+        for node in range(self.nnodes_element):
+            self.nodalDOF_element[node, :3] = self.nodalDOF_element_r[node]
+            self.nodalDOF_element[node, 3:] = self.nodalDOF_element_psi[node]
 
-    def post_processing(self, t, q, filename, binary=True):
-        # write paraview PVD file collecting time and all vtk files, see https://www.paraview.org/Wiki/ParaView/Data_formats#PVD_File_Format
-        from xml.dom import minidom
+        # build global elDOF connectivity matrix
+        self.elDOF = np.zeros((nelement, self.nq_element), dtype=int)
+        for el in range(nelement):
+            self.elDOF[el, : self.nq_element_r] = self.elDOF_r[el]
+            self.elDOF[el, self.nq_element_r :] = self.elDOF_psi[el]
 
-        root = minidom.Document()
+        # shape functions and their first derivatives
+        self.N = self.mesh.N
+        self.N_xi = self.mesh.N_xi
 
-        vkt_file = root.createElement("VTKFile")
-        vkt_file.setAttribute("type", "Collection")
-        root.appendChild(vkt_file)
+        # quadrature points
+        self.qp = self.mesh.qp  # quadrature points
+        self.qw = self.mesh.wp  # quadrature weights
 
-        collection = root.createElement("Collection")
-        vkt_file.appendChild(collection)
+        # reference generalized coordinates, initial coordinates and initial velocities
+        self.Q = Q
+        self.q0 = Q.copy() if q0 is None else q0
+        self.u0 = np.zeros(self.nu, dtype=float) if u0 is None else u0
 
-        for i, (ti, qi) in enumerate(zip(t, q)):
-            filei = filename + f"{i}.vtu"
+        # evaluate shape functions at specific xi
+        self.basis_functions = self.mesh.eval_basis
 
-            # write time step and file name in pvd file
-            dataset = root.createElement("DataSet")
-            dataset.setAttribute("timestep", f"{ti:0.6f}")
-            dataset.setAttribute("file", filei)
-            collection.appendChild(dataset)
+        # reference generalized coordinates, initial coordinates and initial velocities
+        self.Q = Q  # reference configuration
+        self.q0 = Q.copy() if q0 is None else q0  # initial configuration
+        self.u0 = (
+            np.zeros(self.nu, dtype=float) if u0 is None else u0
+        )  # initial velocities
 
-            self.post_processing_single_configuration(ti, qi, filei, binary=binary)
+        # precompute values of the reference configuration in order to save computation time
+        # J in Harsch2020b (5)
+        self.J = np.zeros((nelement, nquadrature), dtype=float)
+        # dilatation and shear strains of the reference configuration
+        self.K_Gamma0 = np.zeros((nelement, nquadrature, 3), dtype=float)
+        # curvature of the reference configuration
+        self.K_Kappa0 = np.zeros((nelement, nquadrature, 3), dtype=float)
 
-        # write pvd file
-        xml_str = root.toprettyxml(indent="\t")
-        with open(filename + ".pvd", "w") as f:
-            f.write(xml_str)
+        for el in range(nelement):
+            qe = self.Q[self.elDOF[el]]
 
-    def post_processing_single_configuration(self, t, q, filename, binary=True):
-        # centerline and connectivity
-        cells_r, points_r, HigherOrderDegrees_r = self.mesh_r.vtk_mesh(q[: self.nq_r])
+            for i in range(nquadrature):
+                # evaluate strain measures
+                _, _, K_Gamma_bar, K_Kappa_bar = self.eval(qe, self.qp[el, i])
 
-        # if the centerline and the directors are interpolated with the same
-        # polynomial degree we can use the values on the nodes and decompose the B-spline
-        # into multiple Bezier patches, otherwise the directors have to be interpolated
-        # onto the nodes of the centerline by a so-called L2-projection, see below
-        same_shape_functions = False
-        if self.polynomial_degree_r == self.polynomial_degree_psi:
-            same_shape_functions = True
-
-        if same_shape_functions:
-            _, points_di, _ = self.mesh_psi.vtk_mesh(q[self.nq_r :])
-
-            # fill dictionary storing point data with directors
-            point_data = {
-                "d1": points_di[:, 0:3],
-                "d2": points_di[:, 3:6],
-                "d3": points_di[:, 6:9],
-            }
-
-        else:
-            point_data = {}
-
-        # export existing values on quadrature points using L2 projection
-        J0_vtk = self.mesh_r.field_to_vtk(
-            self.J.reshape(self.nelement, self.nquadrature, 1)
-        )
-        point_data.update({"J0": J0_vtk})
-
-        Gamma0_vtk = self.mesh_r.field_to_vtk(self.K_Gamma0)
-        point_data.update({"Gamma0": Gamma0_vtk})
-
-        Kappa0_vtk = self.mesh_r.field_to_vtk(self.K_Kappa0)
-        point_data.update({"Kappa0": Kappa0_vtk})
-
-        # evaluate fields at quadrature points that have to be projected onto the centerline mesh:
-        # - strain measures Gamma & Kappa
-        # - directors d1, d2, d3
-        Gamma = np.zeros((self.mesh_r.nelement, self.mesh_r.nquadrature, 3))
-        Kappa = np.zeros((self.mesh_r.nelement, self.mesh_r.nquadrature, 3))
-        if not same_shape_functions:
-            d1s = np.zeros((self.mesh_r.nelement, self.mesh_r.nquadrature, 3))
-            d2s = np.zeros((self.mesh_r.nelement, self.mesh_r.nquadrature, 3))
-            d3s = np.zeros((self.mesh_r.nelement, self.mesh_r.nquadrature, 3))
-        for el in range(self.nelement):
-            qe = q[self.elDOF[el]]
-
-            # extract generalized coordinates for beam centerline and directors
-            # in the current and reference configuration
-            qe_r = qe[self.rDOF]
-            qe_d1 = qe[self.psiDOF]
-            qe_d2 = qe[self.d2DOF]
-            qe_d3 = qe[self.d3DOF]
-
-            for i in range(self.nquadrature):
-                # build matrix of shape function derivatives
-                NN_di_i = self.stack3psi(self.N_psi[el, i])
-                NN_r_xii = self.stack3r(self.N_r_xi[el, i])
-                NN_di_xii = self.stack3psi(self.N_psi_xi[el, i])
-
-                # extract reference state variables
-                J0i = self.J[el, i]
-                K_Gamma0 = self.K_Gamma0[el, i]
-                K_Kappa0 = self.K_Kappa0[el, i]
-
-                # Interpolate necessary quantities. The derivatives are evaluated w.r.t.
-                # the parameter space \xi and thus need to be transformed later
-                r_xi = NN_r_xii @ qe_r
-
-                d1 = NN_di_i @ qe_d1
-                d1_xi = NN_di_xii @ qe_d1
-
-                d2 = NN_di_i @ qe_d2
-                d2_xi = NN_di_xii @ qe_d2
-
-                d3 = NN_di_i @ qe_d3
-                d3_xi = NN_di_xii @ qe_d3
-
-                # compute derivatives w.r.t. the arc lenght parameter s
-                r_s = r_xi / J0i
-
-                d1_s = d1_xi / J0i
-                d2_s = d2_xi / J0i
-                d3_s = d3_xi / J0i
-
-                # build rotation matrices
-                if not same_shape_functions:
-                    d1s[el, i] = d1
-                    d2s[el, i] = d2
-                    d3s[el, i] = d3
-                R = np.vstack((d1, d2, d3)).T
+                # length of reference tangential vector
+                Ji = norm(K_Gamma_bar)
 
                 # axial and shear strains
-                Gamma[el, i] = R.T @ r_s
+                K_Gamma = K_Gamma_bar / Ji
 
                 # torsional and flexural strains
-                Kappa[el, i] = np.array(
-                    [
-                        0.5 * (d3 @ d2_s - d2 @ d3_s),
-                        0.5 * (d1 @ d3_s - d3 @ d1_s),
-                        0.5 * (d2 @ d1_s - d1 @ d2_s),
-                    ]
+                K_Kappa = K_Kappa_bar / Ji
+
+                # safe precomputed quantities for later
+                self.J[el, i] = Ji
+                self.K_Gamma0[el, i] = K_Gamma
+                self.K_Kappa0[el, i] = K_Kappa
+
+    @staticmethod
+    def straight_configuration(
+        polynomial_degree,
+        nelement,
+        L,
+        r_OP=np.zeros(3, dtype=float),
+        A_IK=np.eye(3, dtype=float),
+    ):
+        nn_r = polynomial_degree * nelement + 1
+        nn_psi = polynomial_degree * nelement + 1
+
+        x0 = np.linspace(0, L, num=nn_r)
+        y0 = np.zeros(nn_r, dtype=float)
+        z0 = np.zeros(nn_r, dtype=float)
+
+        r0 = np.vstack((x0, y0, z0))
+        for i in range(nn_r):
+            r0[:, i] = r_OP + A_IK @ r0[:, i]
+
+        # reshape generalized coordinates to nodal ordering
+        q_r = r0.reshape(-1, order="F")
+
+        # we have to extract the rotation vector from the given rotation matrix
+        # and set its value for each node
+        psi = Log_SO3(A_IK)
+        q_psi = np.tile(psi, nn_psi)
+
+        return np.concatenate([q_r, q_psi])
+
+    @staticmethod
+    def initial_configuration(
+        polynomial_degree,
+        nelement,
+        L,
+        r_OP0=np.zeros(3, dtype=float),
+        A_IK0=np.eye(3, dtype=float),
+        v_P0=np.zeros(3, dtype=float),
+        K_omega_IK0=np.zeros(3, dtype=float),
+    ):
+        # nn_r = nelement + 1
+        # nn_psi = nelement + 1
+        nn_r = polynomial_degree * nelement + 1
+        nn_psi = polynomial_degree * nelement + 1
+
+        x0 = np.linspace(0, L, num=nn_r)
+        y0 = np.zeros(nn_r, dtype=float)
+        z0 = np.zeros(nn_r, dtype=float)
+
+        r_OC0 = np.vstack((x0, y0, z0))
+        for i in range(nn_r):
+            r_OC0[:, i] = r_OP0 + A_IK0 @ r_OC0[:, i]
+
+        # reshape generalized coordinates to nodal ordering
+        q_r = r_OC0.reshape(-1, order="F")
+
+        # we have to extract the rotation vector from the given rotation matrix
+        # and set its value for each node
+        psi = Log_SO3(A_IK0)
+
+        # centerline velocities
+        v_C0 = np.zeros_like(r_OC0, dtype=float)
+        for i in range(nn_r):
+            v_C0[:, i] = v_P0 + cross3(A_IK0 @ K_omega_IK0, (r_OC0[:, i] - r_OC0[:, 0]))
+
+        # reshape generalized coordinates to nodal ordering
+        q_r = r_OC0.reshape(-1, order="F")
+        u_r = v_C0.reshape(-1, order="F")
+        q_psi = np.tile(psi, nn_psi)
+        u_psi = np.tile(K_omega_IK0, nn_psi)
+
+        return np.concatenate([q_r, q_psi]), np.concatenate([u_r, u_psi])
+
+    @staticmethod
+    def circular_segment_configuration(
+        polynomial_degree,
+        nelement,
+        radius,
+        max_angle,
+        r_OP0=np.zeros(3, dtype=float),
+        A_IK0=np.eye(3, dtype=float),
+    ):
+        nn = polynomial_degree * nelement + 1
+
+        # rotation of reference frame
+        e_x0, e_y0, e_z0 = A_IK0.T
+
+        r_OPs = np.zeros((3, nn), dtype=float)
+        psis = np.zeros((3, nn), dtype=float)
+        for i in range(nn):
+            xi = i / (nn - 1)
+            phi_i = max_angle * xi
+            sph = np.sin(phi_i)
+            cph = np.cos(phi_i)
+
+            # centerline position
+            r_OP = r_OP0 + radius * cph * e_x0 + radius * sph * e_y0
+
+            # compute orientation
+            e_x = -sph * e_x0 + cph * e_y0
+            e_y = -cph * e_x0 - sph * e_y0
+            e_z = e_z0
+            A_IK = np.vstack((e_x, e_y, e_z)).T
+
+            # compute SE(3) object
+            H_IK = SE3(A_IK, r_OP)
+            h_IK = Log_SE3(H_IK)
+
+            r_OPs[:, i] = h_IK[:3]
+            psis[:, i] = h_IK[3:]
+
+            # r_OPs[:, i] = r_OP
+            # psis[:, i] = Log_SO3(A_IK)
+
+        # reshape generalized coordinates to nodal ordering
+        q_r = r_OPs.reshape(-1, order="F")
+        q_psi = psis.reshape(-1, order="F")
+
+        return np.concatenate([q_r, q_psi])
+
+    def element_number(self, xi):
+        return self.knot_vector.element_number(xi)[0]
+
+    def __eval_two_node(self, qe, xi):
+        # extract nodal screws
+        nodalDOF0 = np.concatenate(
+            (self.nodalDOF_element_r[0], self.nodalDOF_element_psi[0])
+        )
+        nodalDOF1 = np.concatenate(
+            (self.nodalDOF_element_r[1], self.nodalDOF_element_psi[1])
+        )
+        h0 = qe[nodalDOF0]
+        r_OP0 = h0[:3]
+        psi0 = h0[3:]
+        h1 = qe[nodalDOF1]
+        r_OP1 = h1[:3]
+        psi1 = h1[3:]
+
+        # nodal transformations
+        H_IK0 = SE3(Exp_SO3(psi0), r_OP0)
+        H_IK1 = SE3(Exp_SO3(psi1), r_OP1)
+
+        # inverse transformation of first node
+        H_IK0_inv = SE3inv(H_IK0)
+
+        # compute relative transformation
+        H_K0K1 = H_IK0_inv @ H_IK1
+
+        # compute relative screw
+        h_K0K1 = Log_SE3(H_K0K1)
+
+        # find element number containing xi
+        el = self.element_number(xi)
+
+        # get element interval
+        xi0, xi1 = self.knot_vector.element_interval(el)
+
+        # second linear Lagrange shape function
+        N1_xi = 1.0 / (xi1 - xi0)
+        N1 = (xi - xi0) * N1_xi
+
+        N, N_xi = self.basis_functions(xi)
+        N1 = N[1]
+        N1_xi = N_xi[1]
+
+        # relative interpolation of local se(3) objects
+        h_local = N1 * h_K0K1
+        h_local_xi = N1_xi * h_K0K1
+
+        # composition of reference and local transformation
+        H_local = Exp_SE3(h_local)
+        H_IK = H_IK0 @ H_local
+
+        # extract centerline and transformation matrix
+        A_IK = H_IK[:3, :3]
+        r_OP = H_IK[:3, 3]
+
+        # extract strains
+        K_Gamma_bar = h_local_xi[:3]
+        K_Kappa_bar = h_local_xi[3:]
+
+        return r_OP, A_IK, K_Gamma_bar, K_Kappa_bar
+
+    def __d_eval_two_node(self, qe, xi):
+        raise NotImplementedError
+        # extract nodal screws
+        nodalDOF0 = np.concatenate(
+            (self.nodalDOF_element_r[0], self.nodalDOF_element_psi[0])
+        )
+        nodalDOF1 = np.concatenate(
+            (self.nodalDOF_element_r[1], self.nodalDOF_element_psi[1])
+        )
+        h0 = qe[nodalDOF0]
+        r_OP0 = h0[:3]
+        psi0 = h0[3:]
+        h1 = qe[nodalDOF1]
+        r_OP1 = h1[:3]
+        psi1 = h1[3:]
+
+        # nodal transformations
+        A_IK0 = Exp_SO3(psi0)
+        A_IK1 = Exp_SO3(psi1)
+        H_IK0 = SE3(A_IK0, r_OP0)
+        H_IK1 = SE3(A_IK1, r_OP1)
+        A_IK0_psi0 = Exp_SO3_psi(psi0)
+        A_IK1_psi1 = Exp_SO3_psi(psi1)
+
+        H_IK0_h0 = np.zeros((4, 4, 6), dtype=float)
+        H_IK0_h0[:3, :3, 3:] = A_IK0_psi0
+        H_IK0_h0[:3, 3, :3] = np.eye(3, dtype=float)
+        H_IK1_h1 = np.zeros((4, 4, 6), dtype=float)
+        H_IK1_h1[:3, :3, 3:] = A_IK1_psi1
+        H_IK1_h1[:3, 3, :3] = np.eye(3, dtype=float)
+
+        # inverse transformation of first node
+        H_IK0_inv = SE3inv(H_IK0)
+        H_IK0_inv_h0 = np.zeros((4, 4, 6), dtype=float)
+        H_IK0_inv_h0[:3, :3, 3:] = A_IK0_psi0.transpose(1, 0, 2)
+        H_IK0_inv_h0[:3, 3, 3:] = -np.einsum("k,kij->ij", r_OP0, A_IK0_psi0)
+        H_IK0_inv_h0[:3, 3, :3] = -A_IK0.T
+
+        # compute relative transformation
+        H_K0K1 = H_IK0_inv @ H_IK1
+        H_K0K1_h0 = np.einsum("ilk,lj->ijk", H_IK0_inv_h0, H_IK1)
+        H_K0K1_h1 = np.einsum("il,ljk->ijk", H_IK0_inv, H_IK1_h1)
+
+        # compute relative screw
+        h_K0K1 = Log_SE3(H_K0K1)
+        h_K0K1_HK0K1 = Log_SE3_H(H_K0K1)
+        h_K0K1_h0 = np.einsum("ikl,klj->ij", h_K0K1_HK0K1, H_K0K1_h0)
+        h_K0K1_h1 = np.einsum("ikl,klj->ij", h_K0K1_HK0K1, H_K0K1_h1)
+
+        # find element number containing xi
+        el = self.element_number(xi)
+
+        # get element interval
+        xi0, xi1 = self.knot_vector.element_interval(el)
+
+        # second linear Lagrange shape function
+        N1_xi = 1.0 / (xi1 - xi0)
+        N1 = (xi - xi0) * N1_xi
+
+        # relative interpolation of local se(3) objects
+        h_local = N1 * h_K0K1
+        h_local_xi = N1_xi * h_K0K1
+        h_local_h0 = N1 * h_K0K1_h0
+        h_local_h1 = N1 * h_K0K1_h1
+        h_local_xi_h0 = N1_xi * h_K0K1_h0
+        h_local_xi_h1 = N1_xi * h_K0K1_h1
+
+        # composition of reference and local transformation
+        H_local = Exp_SE3(h_local)
+        H_local_h = Exp_SE3_h(h_local)
+        H_local_h0 = np.einsum("ijl,lk->ijk", H_local_h, h_local_h0)
+        H_local_h1 = np.einsum("ijl,lk->ijk", H_local_h, h_local_h1)
+        H_IK = H_IK0 @ H_local
+        H_IK_h0 = np.einsum("ilk,lj", H_IK0_h0, H_local) + np.einsum(
+            "il,ljk->ijk", H_IK0, H_local_h0
+        )
+        H_IK_h1 = np.einsum("il,ljk->ijk", H_IK0, H_local_h1)
+
+        # extract centerline and transformation matrix
+        A_IK = H_IK[:3, :3]
+        r_OP = H_IK[:3, 3]
+        A_IK_qe = np.zeros((3, 3, self.nq_element), dtype=float)
+        A_IK_qe[:, :, nodalDOF0] = H_IK_h0[:3, :3]
+        A_IK_qe[:, :, nodalDOF1] = H_IK_h1[:3, :3]
+        r_OP_qe = np.zeros((3, self.nq_element), dtype=float)
+        r_OP_qe[:, nodalDOF0] = H_IK_h0[:3, 3]
+        r_OP_qe[:, nodalDOF1] = H_IK_h1[:3, 3]
+
+        # extract strains
+        K_Gamma_bar = h_local_xi[:3]
+        K_Kappa_bar = h_local_xi[3:]
+        K_Gamma_bar_qe = np.zeros((3, self.nq_element), dtype=float)
+        K_Gamma_bar_qe[:, nodalDOF0] = h_local_xi_h0[:3]
+        K_Gamma_bar_qe[:, nodalDOF1] = h_local_xi_h1[:3]
+        K_Kappa_bar_qe = np.zeros((3, self.nq_element), dtype=float)
+        K_Kappa_bar_qe[:, nodalDOF0] = h_local_xi_h0[3:]
+        K_Kappa_bar_qe[:, nodalDOF1] = h_local_xi_h1[3:]
+
+        return (
+            r_OP,
+            A_IK,
+            K_Gamma_bar,
+            K_Kappa_bar,
+            r_OP_qe,
+            A_IK_qe,
+            K_Gamma_bar_qe,
+            K_Kappa_bar_qe,
+        )
+
+    def __eval_generic(self, qe, xi):
+        # extract nodal positions and rotation vectors of first node (reference)
+        r_OP0 = qe[self.nodalDOF_element_r[0]]
+        psi0 = qe[self.nodalDOF_element_psi[0]]
+
+        # evaluate nodal rotation matrix
+        A_IK0 = Exp_SO3(psi0)
+
+        # evaluate inverse reference SE(3) object
+        H_IR = SE3(A_IK0, r_OP0)
+        H_IR_inv = SE3inv(H_IR)
+
+        # evaluate shape functions
+        N, N_xi = self.basis_functions(xi)
+
+        # relative interpolation of local se(3) objects
+        h_rel = np.zeros(6, dtype=qe.dtype)
+        h_rel_xi = np.zeros(6, dtype=qe.dtype)
+
+        for node in range(self.nnodes_element):
+            # nodal centerline
+            r_IK_node = qe[self.nodalDOF_element_r[node]]
+
+            # nodal rotation
+            A_IK_node = Exp_SO3(qe[self.nodalDOF_element_psi[node]])
+
+            # nodal SE(3) object
+            H_IK_node = SE3(A_IK_node, r_IK_node)
+
+            # relative SE(3)/ se(3) objects
+            H_RK = H_IR_inv @ H_IK_node
+            h_RK = Log_SE3(H_RK)
+
+            # add wheighted contribution of local se(3) object
+            h_rel += N[node] * h_RK
+            h_rel_xi += N_xi[node] * h_RK
+
+        # composition of reference and local SE(3) objects
+        H_IK = H_IR @ Exp_SE3(h_rel)
+
+        # extract centerline and transformation matrix
+        A_IK = H_IK[:3, :3]
+        r_OP = H_IK[:3, 3]
+
+        # strain measures
+        strains = T_SE3(h_rel) @ h_rel_xi
+
+        # extract strains
+        K_Gamma_bar = strains[:3]
+        K_Kappa_bar = strains[3:]
+
+        return r_OP, A_IK, K_Gamma_bar, K_Kappa_bar
+
+    def __d_eval_generic(self, qe, xi):
+        raise NotImplementedError
+        nodalDOF_element = lambda node: np.concatenate(
+            (self.nodalDOF_element_r[node], self.nodalDOF_element_psi[node])
+        )
+
+        # compute nodal rotations
+        H_IKs = np.array(
+            [
+                SE3(
+                    Exp_SO3(qe[self.nodalDOF_element_psi[node]]),
+                    qe[self.nodalDOF_element_r[node]],
+                )
+                for node in range(self.nnodes_element)
+            ]
+        )
+        H_IK_hs = np.array(
+            [
+                Exp_SE3_h(qe[nodalDOF_element(node)])
+                for node in range(self.nnodes_element)
+            ]
+        )
+
+        # # compute inverse of derivative of SE(3) derivative of first node
+        # # TODO: Check this using a numerical derivative!
+        # H_IK0_inv_h = np.zeros((4, 4, 6), dtype=float)
+        # H_IK0_inv_h[:3, :3] = H_IK_hs[0, :3, :3].transpose(1, 0, 2)
+        # H_IK0_inv_h[:3, 3] = -np.einsum(
+        #     "jik,j->ik",
+        #     H_IK_hs[0, :3, :3],
+        #     H_IKs[0, :3, 3]
+        # ) - np.einsum(
+        #     "ji,jk->ik",
+        #     H_IKs[0, :3, :3],
+        #     H_IK_hs[0, :3, 3]
+        # )
+        # diff = H_IK0_inv_h - Exp_SE3_inv_h(qe[nodalDOF_element(0)])
+        # error = np.linalg.norm(diff)
+        # print(f"error H_IK0_inv_h: {error}")
+        H_IK0_inv_h = Exp_SE3_inv_h(qe[nodalDOF_element(0)])
+
+        # compute relative rotations and the corresponding rotation vectors
+        H_IK0_inv = SE3inv(H_IKs[0])
+        H_K0Ki = np.array(
+            [H_IK0_inv @ H_IKs[node] for node in range(self.nnodes_element)]
+        )
+        h_K0Ki = np.array(
+            [Log_SE3(H_K0Ki[node]) for node in range(self.nnodes_element)]
+        )
+
+        # evaluate shape functions
+        N, N_xi = self.basis_functions(xi)
+
+        # relative interpolation of local rotation vector
+        h_K0K = np.sum(
+            [N[node] * h_K0Ki[node] for node in range(self.nnodes_element)], axis=0
+        )
+        h_K0K_xi = np.sum(
+            [N_xi[node] * h_K0Ki[node] for node in range(self.nnodes_element)], axis=0
+        )
+
+        # evaluate rotation and its derivative at interpolated position
+        H_K0K = Exp_SE3(h_K0K)
+        H_K0K_h = Exp_SE3_h(h_K0K)
+
+        H_IK_q = np.zeros((4, 4, self.nq_element), dtype=float)
+
+        # first node contribution part I
+        H_IK_q[:, :, nodalDOF_element(0)] = np.einsum("ilk,lj->ijk", H_IK_hs[0], H_K0K)
+
+        Tmp1 = np.einsum("il,ljm->ijm", H_IKs[0], H_K0K_h)
+
+        for node in range(self.nnodes_element):
+            Tmp2 = np.einsum("ijm,mno->ijno", Tmp1, N[node] * Log_SE3_H(H_K0Ki[node]))
+
+            H_IK_q[:, :, nodalDOF_element(0)] += np.einsum(
+                "ijno,npk,po",
+                Tmp2,
+                H_IK0_inv_h,
+                H_IKs[node],
+            )
+            H_IK_q[:, :, nodalDOF_element(node)] += np.einsum(
+                "ijno,np,pok", Tmp2, SE3inv(H_IKs[0]), H_IK_hs[node]
+            )
+
+        # extract centerline and transformation matrix
+        A_IK_q = H_IK_q[:3, :3]
+        r_OP_q = H_IK_q[:3, 3]
+
+        return r_OP_q, A_IK_q
+
+    def assembler_callback(self):
+        if self.constant_mass_matrix:
+            self.__M_coo()
+
+    #########################################
+    # equations of motion
+    #########################################
+    def M_el_constant(self, el):
+        M_el = np.zeros((self.nq_element, self.nq_element), dtype=float)
+
+        for i in range(self.nquadrature):
+            # extract reference state variables
+            qwi = self.qw[el, i]
+            Ji = self.J[el, i]
+
+            # delta_r A_rho0 r_ddot part
+            M_el_r_r = np.eye(3) * self.A_rho0 * Ji * qwi
+            for node_a in range(self.nnodes_element):
+                nodalDOF_a = self.nodalDOF_element_r[node_a]
+                for node_b in range(self.nnodes_element):
+                    nodalDOF_b = self.nodalDOF_element_r[node_b]
+                    M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_r_r * (
+                        self.N[el, i, node_a] * self.N[el, i, node_b]
+                    )
+
+            # first part delta_phi (I_rho0 omega_dot + omega_tilde I_rho0 omega)
+            M_el_psi_psi = self.K_I_rho0 * Ji * qwi
+            for node_a in range(self.nnodes_element):
+                nodalDOF_a = self.nodalDOF_element_psi[node_a]
+                for node_b in range(self.nnodes_element):
+                    nodalDOF_b = self.nodalDOF_element_psi[node_b]
+                    M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_psi_psi * (
+                        self.N[el, i, node_a] * self.N[el, i, node_b]
+                    )
+
+        return M_el
+
+    def M_el(self, qe, el):
+        M_el = np.zeros((self.nq_element, self.nq_element), dtype=float)
+
+        for i in range(self.nquadrature):
+            # extract reference state variables
+            qwi = self.qw[el, i]
+            Ji = self.J[el, i]
+
+            # delta_r A_rho0 r_ddot part
+            M_el_r_r = np.eye(3) * self.A_rho0 * Ji * qwi
+            for node_a in range(self.nnodes_element):
+                nodalDOF_a = self.nodalDOF_element_r[node_a]
+                for node_b in range(self.nnodes_element):
+                    nodalDOF_b = self.nodalDOF_element_r[node_b]
+                    M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_r_r * (
+                        self.N[el, i, node_a] * self.N[el, i, node_b]
+                    )
+
+            # first part delta_phi (I_rho0 omega_dot + omega_tilde I_rho0 omega)
+            M_el_psi_psi = self.K_I_rho0 * Ji * qwi
+            for node_a in range(self.nnodes_element):
+                nodalDOF_a = self.nodalDOF_element_psi[node_a]
+                for node_b in range(self.nnodes_element):
+                    nodalDOF_b = self.nodalDOF_element_psi[node_b]
+                    M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_psi_psi * (
+                        self.N[el, i, node_a] * self.N[el, i, node_b]
+                    )
+
+            # For non symmetric cross sections there are also other parts
+            # involved in the mass matrix. These parts are configuration
+            # dependent and lead to configuration dependent mass matrix.
+            _, A_IK, _, _ = self.eval(qe, self.qp[el, i])
+            M_el_r_psi = A_IK @ self.K_S_rho0 * Ji * qwi
+            M_el_psi_r = A_IK @ self.K_S_rho0 * Ji * qwi
+
+            for node_a in range(self.nnodes_element):
+                nodalDOF_a = self.nodalDOF_element_r[node_a]
+                for node_b in range(self.nnodes_element):
+                    nodalDOF_b = self.nodalDOF_element_psi[node_b]
+                    M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_r_psi * (
+                        self.N[el, i, node_a] * self.N[el, i, node_b]
+                    )
+            for node_a in range(self.nnodes_element):
+                nodalDOF_a = self.nodalDOF_element_psi[node_a]
+                for node_b in range(self.nnodes_element):
+                    nodalDOF_b = self.nodalDOF_element_r[node_b]
+                    M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_psi_r * (
+                        self.N[el, i, node_a] * self.N[el, i, node_b]
+                    )
+
+        return M_el
+
+    def __M_coo(self):
+        self.__M = Coo((self.nu, self.nu))
+        for el in range(self.nelement):
+            # extract element degrees of freedom
+            elDOF = self.elDOF[el]
+
+            # sparse assemble element mass matrix
+            self.__M.extend(
+                self.M_el_constant(el), (self.uDOF[elDOF], self.uDOF[elDOF])
+            )
+
+    # TODO: Compute derivative of mass matrix for non constant mass matrix case!
+    def M(self, t, q, coo):
+        if self.constant_mass_matrix:
+            coo.extend_sparse(self.__M)
+        else:
+            for el in range(self.nelement):
+                # extract element degrees of freedom
+                elDOF = self.elDOF[el]
+
+                # sparse assemble element mass matrix
+                coo.extend(
+                    self.M_el(q[elDOF], el), (self.uDOF[elDOF], self.uDOF[elDOF])
                 )
 
-        # L2 projection of strain measures
-        Gamma_vtk = self.mesh_r.field_to_vtk(Gamma)
-        point_data.update({"Gamma": Gamma_vtk})
+    def f_gyr_el(self, t, qe, ue, el):
+        f_gyr_el = np.zeros(self.nq_element, dtype=float)
 
-        Kappa_vtk = self.mesh_r.field_to_vtk(Kappa)
-        point_data.update({"Kappa": Kappa_vtk})
+        for i in range(self.nquadrature):
+            # interpoalte angular velocity
+            K_Omega = np.zeros(3, dtype=float)
+            for node in range(self.nnodes_element):
+                K_Omega += self.N[el, i, node] * ue[self.nodalDOF_element_psi[node]]
 
-        # L2 projection of directors
-        if not same_shape_functions:
-            d1_vtk = self.mesh_r.field_to_vtk(d1s)
-            point_data.update({"d1": d1_vtk})
-            d2_vtk = self.mesh_r.field_to_vtk(d2s)
-            point_data.update({"d2": d2_vtk})
-            d3_vtk = self.mesh_r.field_to_vtk(d3s)
-            point_data.update({"d3": d3_vtk})
-
-        # fields depending on strain measures and other previously computed quantities
-        point_data_fields = {
-            "W": lambda Gamma, Gamma0, Kappa, Kappa0: np.array(
-                [self.material_model.potential(Gamma, Gamma0, Kappa, Kappa0)]
-            ),
-            "n_i": lambda Gamma, Gamma0, Kappa, Kappa0: self.material_model.n_i(
-                Gamma, Gamma0, Kappa, Kappa0
-            ),
-            "m_i": lambda Gamma, Gamma0, Kappa, Kappa0: self.material_model.m_i(
-                Gamma, Gamma0, Kappa, Kappa0
-            ),
-        }
-
-        for name, fun in point_data_fields.items():
-            tmp = fun(Gamma_vtk[0], Gamma0_vtk[0], Kappa_vtk[0], Kappa0_vtk[0]).reshape(
-                -1
+            # vector of gyroscopic forces
+            f_gyr_el_psi = (
+                cross3(K_Omega, self.K_I_rho0 @ K_Omega)
+                * self.J[el, i]
+                * self.qw[el, i]
             )
-            field = np.zeros((len(Gamma_vtk), len(tmp)))
-            for i, (K_Gamma, K_Gamma0, K_Kappa, K_Kappa0) in enumerate(
-                zip(Gamma_vtk, Gamma0_vtk, Kappa_vtk, Kappa0_vtk)
-            ):
-                field[i] = fun(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0).reshape(-1)
-            point_data.update({name: field})
 
-        # write vtk mesh using meshio
-        meshio.write_points_cells(
-            os.path.splitext(os.path.basename(filename))[0] + ".vtu",
-            points_r,  # only export centerline as geometry here!
-            cells_r,
-            point_data=point_data,
-            cell_data={"HigherOrderDegrees": HigherOrderDegrees_r},
-            binary=binary,
+            # multiply vector of gyroscopic forces with nodal virtual rotations
+            for node in range(self.nnodes_element):
+                f_gyr_el[self.nodalDOF_element_psi[node]] += (
+                    self.N[el, i, node] * f_gyr_el_psi
+                )
+
+        return f_gyr_el
+
+    def f_gyr(self, t, q, u):
+        f_gyr = np.zeros(self.nu, dtype=float)
+        for el in range(self.nelement):
+            f_gyr[self.elDOF[el]] += self.f_gyr_el(
+                t, q[self.elDOF[el]], u[self.elDOF[el]], el
+            )
+        return f_gyr
+
+    def f_gyr_u_el(self, t, qe, ue, el):
+        f_gyr_u_el = np.zeros((self.nq_element, self.nq_element), dtype=float)
+
+        for i in range(self.nquadrature):
+            # interpoalte angular velocity
+            K_Omega = np.zeros(3, dtype=float)
+            for node in range(self.nnodes_element):
+                K_Omega += self.N[el, i, node] * ue[self.nodalDOF_element_psi[node]]
+
+            # derivative of vector of gyroscopic forces
+            f_gyr_u_el_psi = (
+                ((ax2skew(K_Omega) @ self.K_I_rho0 - ax2skew(self.K_I_rho0 @ K_Omega)))
+                * self.J[el, i]
+                * self.qw[el, i]
+            )
+
+            # multiply derivative of gyroscopic force vector with nodal virtual rotations
+            for node_a in range(self.nnodes_element):
+                nodalDOF_a = self.nodalDOF_element_psi[node_a]
+                for node_b in range(self.nnodes_element):
+                    nodalDOF_b = self.nodalDOF_element_psi[node_b]
+                    f_gyr_u_el[nodalDOF_a[:, None], nodalDOF_b] += f_gyr_u_el_psi * (
+                        self.N[el, i, node_a] * self.N[el, i, node_b]
+                    )
+
+        return f_gyr_u_el
+
+    def f_gyr_u(self, t, q, u, coo):
+        for el in range(self.nelement):
+            elDOF = self.elDOF[el]
+            f_gyr_u_el = self.f_gyr_u_el(t, q[elDOF], u[elDOF], el)
+            coo.extend(f_gyr_u_el, (self.uDOF[elDOF], self.uDOF[elDOF]))
+
+    def E_pot(self, t, q):
+        E_pot = 0
+        for el in range(self.nelement):
+            elDOF = self.elDOF[el]
+            E_pot += self.E_pot_el(q[elDOF], el)
+        return E_pot
+
+    def E_pot_el(self, qe, el):
+        E_pot_el = 0
+
+        for i in range(self.nquadrature):
+            # extract reference state variables
+            qwi = self.qw[el, i]
+            Ji = self.J[el, i]
+            K_Gamma0 = self.K_Gamma0[el, i]
+            K_Kappa0 = self.K_Kappa0[el, i]
+
+            # objective interpolation
+            _, _, K_Gamma_bar, K_Kappa_bar = self.eval(qe, self.qp[el, i])
+
+            # axial and shear strains
+            K_Gamma = K_Gamma_bar / Ji
+
+            # torsional and flexural strains
+            K_Kappa = K_Kappa_bar / Ji
+
+            # evaluate strain energy function
+            E_pot_el += (
+                self.material_model.potential(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
+                * Ji
+                * qwi
+            )
+
+        return E_pot_el
+
+    def f_pot(self, t, q):
+        f_pot = np.zeros(self.nu, dtype=q.dtype)
+        for el in range(self.nelement):
+            elDOF = self.elDOF[el]
+            f_pot[elDOF] += self.f_pot_el(q[elDOF], el)
+        return f_pot
+
+    def f_pot_el(self, qe, el):
+        f_pot_el = np.zeros(self.nq_element, dtype=qe.dtype)
+
+        for i in range(self.nquadrature):
+            # extract reference state variables
+            qwi = self.qw[el, i]
+            Ji = self.J[el, i]
+            K_Gamma0 = self.K_Gamma0[el, i]
+            K_Kappa0 = self.K_Kappa0[el, i]
+
+            # objective interpolation
+            _, A_IK, K_Gamma_bar, K_Kappa_bar = self.eval(qe, self.qp[el, i])
+
+            # axial and shear strains
+            K_Gamma = K_Gamma_bar / Ji
+
+            # torsional and flexural strains
+            K_Kappa = K_Kappa_bar / Ji
+
+            # compute contact forces and couples from partial derivatives of
+            # the strain energy function w.r.t. strain measures
+            K_n = self.material_model.K_n(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
+            K_m = self.material_model.K_m(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
+
+            ############################
+            # virtual work contributions
+            ############################
+            # - first delta Gamma part
+            for node in range(self.nnodes_element):
+                f_pot_el[self.nodalDOF_element_r[node]] -= (
+                    self.N_xi[el, i, node] * A_IK @ K_n * qwi
+                )
+
+            for node in range(self.nnodes_element):
+                # - second delta Gamma part
+                f_pot_el[self.nodalDOF_element_psi[node]] += (
+                    self.N[el, i, node] * cross3(K_Gamma_bar, K_n) * qwi
+                )
+
+                # - first delta kappa part
+                f_pot_el[self.nodalDOF_element_psi[node]] -= (
+                    self.N_xi[el, i, node] * K_m * qwi
+                )
+
+                # second delta kappa part
+                f_pot_el[self.nodalDOF_element_psi[node]] += (
+                    self.N[el, i, node] * cross3(K_Kappa_bar, K_m) * qwi
+                )  # Euler term
+
+        return f_pot_el
+
+    def f_pot_q(self, t, q, coo):
+        for el in range(self.nelement):
+            elDOF = self.elDOF[el]
+            f_pot_q_el = self.f_pot_q_el(q[elDOF], el)
+
+            # sparse assemble element internal stiffness matrix
+            coo.extend(f_pot_q_el, (self.uDOF[elDOF], self.qDOF[elDOF]))
+
+    def f_pot_q_el(self, qe, el):
+        f_pot_q_el = np.zeros((self.nq_element, self.nq_element), dtype=float)
+
+        # for i in range(self.nquadrature):
+        #     # extract reference state variables
+        #     qwi = self.qw[el, i]
+        #     Ji = self.J[el, i]
+        #     K_Gamma0 = self.K_Gamma0[el, i]
+        #     K_Kappa0 = self.K_Kappa0[el, i]
+
+        #     # objective interpolation
+        #     (
+        #         r_OP,
+        #         A_IK,
+        #         K_Gamma_bar,
+        #         K_Kappa_bar,
+        #         r_OP_qe,
+        #         A_IK_qe,
+        #         K_Gamma_bar_qe,
+        #         K_Kappa_bar_qe,
+        #     ) = self.d_eval(qe, self.qp[el, i])
+
+        #     # axial and shear strains
+        #     K_Gamma = K_Gamma_bar / Ji
+        #     K_Gamma_qe = K_Gamma_bar_qe / Ji
+
+        #     # torsional and flexural strains
+        #     K_Kappa = K_Kappa_bar / Ji
+        #     K_Kappa_qe = K_Kappa_bar_qe / Ji
+
+        #     # compute contact forces and couples from partial derivatives of
+        #     # the strain energy function w.r.t. strain measures
+        #     K_n = self.material_model.K_n(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
+        #     K_n_K_Gamma = self.material_model.K_n_K_Gamma(
+        #         K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
+        #     )
+        #     K_n_K_Kappa = self.material_model.K_n_K_Kappa(
+        #         K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
+        #     )
+        #     K_n_qe = K_n_K_Gamma @ K_Gamma_qe + K_n_K_Kappa @ K_Kappa_qe
+
+        #     K_m = self.material_model.K_m(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
+        #     K_m_K_Gamma = self.material_model.K_m_K_Gamma(
+        #         K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
+        #     )
+        #     K_m_K_Kappa = self.material_model.K_m_K_Kappa(
+        #         K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
+        #     )
+        #     K_m_qe = K_m_K_Gamma @ K_Gamma_qe + K_m_K_Kappa @ K_Kappa_qe
+
+        #     ############################
+        #     # virtual work contributions
+        #     ############################
+        #     # - first delta Gamma part
+        #     for node in range(self.nnodes_element):
+        #         f_pot_q_el[self.nodalDOF_element_r[node], :] -= (
+        #             self.N_xi[el, i, node]
+        #             * qwi
+        #             * (np.einsum("ikj,k->ij", A_IK_qe, K_n) + A_IK @ K_n_qe)
+        #         )
+
+        #     for node in range(self.nnodes_element):
+        #         # - second delta Gamma part
+        #         f_pot_q_el[self.nodalDOF_element_psi[node], :] += (
+        #             self.N[el, i, node]
+        #             * qwi
+        #             * (ax2skew(K_Gamma_bar) @ K_n_qe - ax2skew(K_n) @ K_Gamma_bar_qe)
+        #         )
+
+        #         # - first delta kappa part
+        #         f_pot_q_el[self.nodalDOF_element_psi[node], :] -= (
+        #             self.N_xi[el, i, node] * qwi * K_m_qe
+        #         )
+
+        #         # - second delta kappa part
+        #         f_pot_q_el[self.nodalDOF_element_psi[node], :] += (
+        #             self.N[el, i, node]
+        #             * qwi
+        #             * (ax2skew(K_Kappa_bar) @ K_m_qe - ax2skew(K_m) @ K_Kappa_bar_qe)
+        #         )
+
+        # return f_pot_q_el
+
+        f_pot_q_el_num = approx_fprime(
+            qe, lambda qe: self.f_pot_el(qe, el), eps=1.0e-10, method="cs"
+        )
+        # # f_pot_q_el_num = approx_fprime(
+        # #     qe, lambda qe: self.f_pot_el(qe, el), eps=5.0e-6, method="2-point"
+        # # )
+        # diff = f_pot_q_el - f_pot_q_el_num
+        # error = np.linalg.norm(diff)
+        # print(f"error f_pot_q_el: {error}")
+        return f_pot_q_el_num
+
+    #########################################
+    # kinematic equation
+    #########################################
+    def q_dot(self, t, q, u):
+        # centerline part
+        q_dot = u
+
+        # correct axis angle vector part
+        for node in range(self.nnode):
+            nodalDOF_psi = self.nodalDOF_psi[node]
+            psi = q[nodalDOF_psi]
+            K_omega_IK = u[nodalDOF_psi]
+
+            psi_dot = T_SO3_inv(psi) @ K_omega_IK
+            q_dot[nodalDOF_psi] = psi_dot
+
+        return q_dot
+
+    def B(self, t, q, coo):
+        # trivial kinematic equation for centerline
+        coo.extend_diag(
+            np.ones(self.nq_r), (self.qDOF[: self.nq_r], self.uDOF[: self.nq_r])
         )
 
-    def post_processing_subsystem(self, t, q, u, binary=True):
-        # centerline and connectivity
-        cells_r, points_r, HigherOrderDegrees_r = self.mesh_r.vtk_mesh(q[: self.nq_r])
+        # axis angle vector part
+        for node in range(self.nnode):
+            nodalDOF_psi = self.nodalDOF_psi[node]
 
-        # if the centerline and the directors are interpolated with the same
-        # polynomial degree we can use the values on the nodes and decompose the B-spline
-        # into multiple Bezier patches, otherwise the directors have to be interpolated
-        # onto the nodes of the centerline by a so-called L2-projection, see below
-        same_shape_functions = False
-        if self.polynomial_degree_r == self.polynomial_degree_psi:
-            same_shape_functions = True
+            psi = q[nodalDOF_psi]
+            coo.extend(
+                T_SO3_inv(psi),
+                (self.qDOF[nodalDOF_psi], self.uDOF[nodalDOF_psi]),
+            )
 
-        if same_shape_functions:
-            _, points_di, _ = self.mesh_psi.vtk_mesh(q[self.nq_r :])
+    def q_ddot(self, t, q, u, u_dot):
+        raise RuntimeError("Not tested!")
+        # centerline part
+        q_ddot = u_dot
 
-            # fill dictionary storing point data with directors
-            point_data = {
-                "u_r": points_r - points_r[0],
-                "d1": points_di[:, 0:3],
-                "d2": points_di[:, 3:6],
-                "d3": points_di[:, 6:9],
-            }
+        # correct axis angle vector part
+        for node in range(self.nnode):
+            nodalDOF_psi = self.nodalDOF_psi[node]
 
+            psi = q[nodalDOF_psi]
+            omega = u[nodalDOF_psi]
+            omega_dot = u_dot[nodalDOF_psi]
+
+            T_inv = T_SO3_inv(psi)
+            psi_dot = T_inv @ omega
+
+            # TODO:
+            T_dot = tangent_map_s(psi, psi_dot)
+            Tinv_dot = -T_inv @ T_dot @ T_inv
+            psi_ddot = T_inv @ omega_dot + Tinv_dot @ omega
+
+            q_ddot[nodalDOF_psi] = psi_ddot
+
+        return q_ddot
+
+    # change between rotation vector and its complement in order to circumvent
+    # singularities of the rotation vector
+    @staticmethod
+    def psi_C(psi):
+        angle = norm(psi)
+        if angle < pi:
+            return psi
         else:
-            point_data = {}
+            # Ibrahimbegovic1995 after (62)
+            psi_C = (1.0 - 2.0 * pi / angle) * psi
+            return psi_C
 
-        # export existing values on quadrature points using L2 projection
-        J0_vtk = self.mesh_r.field_to_vtk(
-            self.J.reshape(self.nelement, self.nquadrature, 1)
+    def step_callback(self, t, q, u):
+        for node in range(self.nnode):
+            psi = q[self.nodalDOF_psi[node]]
+            q[self.nodalDOF_psi[node]] = TimoshenkoAxisAngleSE3.psi_C(psi)
+        return q, u
+
+    ####################################################
+    # interactions with other bodies and the environment
+    ####################################################
+    def elDOF_P(self, frame_ID):
+        xi = frame_ID[0]
+        el = self.element_number(xi)
+        return self.elDOF[el]
+
+    def qDOF_P(self, frame_ID):
+        return self.elDOF_P(frame_ID)
+
+    def uDOF_P(self, frame_ID):
+        return self.elDOF_P(frame_ID)
+
+    ###################
+    # r_OP contribution
+    ###################
+    def r_OP(self, t, q, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
+        r, A_IK, _, _ = self.__eval_two_node(q, frame_ID[0])
+        return r + A_IK @ K_r_SP
+
+    def r_OP_q(self, t, q, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
+        # (
+        #     r_OP,
+        #     A_IK,
+        #     K_Gamma_bar,
+        #     K_Kappa_bar,
+        #     r_q,
+        #     A_IK_q,
+        #     K_Gamma_bar_q,
+        #     K_Kappa_bar_q,
+        # ) = self.d_eval(q, frame_ID[0])
+        # r_OP_q = r_q + np.einsum("ijk,j->ik", A_IK_q, K_r_SP)
+        # return r_OP_q
+
+        r_OP_q_num = approx_fprime(
+            q, lambda q: self.r_OP(t, q, frame_ID, K_r_SP), eps=1.0e-10, method="cs"
         )
-        point_data.update({"J0": J0_vtk})
+        # diff = r_OP_q - r_OP_q_num
+        # error = np.linalg.norm(diff)
+        # np.set_printoptions(3, suppress=True)
+        # if error > 1.0e-10:
+        #     print(f"r_OP_q:\n{r_OP_q}")
+        #     print(f"r_OP_q_num:\n{r_OP_q_num}")
+        #     print(f"error r_OP_q: {error}")
+        return r_OP_q_num
 
-        Gamma0_vtk = self.mesh_r.field_to_vtk(self.K_Gamma0)
-        point_data.update({"Gamma0": Gamma0_vtk})
+    def A_IK(self, t, q, frame_ID):
+        _, A_IK, _, _ = self.eval(q, frame_ID[0])
+        return A_IK
 
-        Kappa0_vtk = self.mesh_r.field_to_vtk(self.K_Kappa0)
-        point_data.update({"Kappa0": Kappa0_vtk})
+    def A_IK_q(self, t, q, frame_ID):
+        # (
+        #     r_OP,
+        #     A_IK,
+        #     K_Gamma_bar,
+        #     K_Kappa_bar,
+        #     r_OP_q,
+        #     A_IK_q,
+        #     K_Gamma_bar_q,
+        #     K_Kappa_bar_q,
+        # ) = self.d_eval(q, frame_ID[0])
+        # return A_IK_q
 
-        # evaluate fields at quadrature points that have to be projected onto the centerline mesh:
-        # - strain measures Gamma & Kappa
-        # - directors d1, d2, d3
-        Gamma = np.zeros((self.mesh_r.nelement, self.mesh_r.nquadrature, 3))
-        Kappa = np.zeros((self.mesh_r.nelement, self.mesh_r.nquadrature, 3))
-        if not same_shape_functions:
-            d1s = np.zeros((self.mesh_r.nelement, self.mesh_r.nquadrature, 3))
-            d2s = np.zeros((self.mesh_r.nelement, self.mesh_r.nquadrature, 3))
-            d3s = np.zeros((self.mesh_r.nelement, self.mesh_r.nquadrature, 3))
+        A_IK_q_num = approx_fprime(
+            q, lambda q: self.A_IK(t, q, frame_ID), eps=1.0e-10, method="cs"
+        )
+        # diff = A_IK_q - A_IK_q_num
+        # error = np.linalg.norm(diff)
+        # # if error > 1.0e-10:
+        # print(f'error A_IK_q: {error}')
+        return A_IK_q_num
+
+    def v_P(self, t, q, u, frame_ID, K_r_SP=np.zeros(3), dtype=float):
+        N, _ = self.basis_functions(frame_ID[0])
+        _, A_IK, _, _ = self.eval(q, frame_ID[0])
+
+        # angular velocity in K-frame
+        K_Omega = np.zeros(3, dtype=float)
+        for node in range(self.nnodes_element):
+            K_Omega += N[node] * u[self.nodalDOF_element_psi[node]]
+
+        # centerline velocity
+        v_C = np.zeros(3, dtype=float)
+        for node in range(self.nnodes_element):
+            v_C += N[node] * u[self.nodalDOF_element_r[node]]
+
+        return v_C + A_IK @ cross3(K_Omega, K_r_SP)
+
+    # TODO:
+    def v_P_q(self, t, q, u, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
+        raise RuntimeError(
+            "Implement this derivative since it requires known parts only!"
+        )
+        v_P_q_num = approx_fprime(
+            q, lambda q: self.v_P(t, q, u, frame_ID, K_r_SP), method="3-point"
+        )
+        return v_P_q_num
+
+    def J_P(self, t, q, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
+        # evaluate required nodal shape functions
+        N, _ = self.basis_functions(frame_ID[0])
+
+        # transformation matrix
+        _, A_IK, _, _ = self.eval(q, frame_ID[0])
+
+        # skew symmetric matrix of K_r_SP
+        K_r_SP_tilde = ax2skew(K_r_SP)
+
+        # interpolate centerline and axis angle contributions
+        J_P = np.zeros((3, self.nq_element), dtype=float)
+        for node in range(self.nnodes_element):
+            J_P[:, self.nodalDOF_element_r[node]] += N[node] * np.eye(3, dtype=float)
+        for node in range(self.nnodes_element):
+            J_P[:, self.nodalDOF_element_psi[node]] -= N[node] * A_IK @ K_r_SP_tilde
+
+        return J_P
+
+        # J_P_num = approx_fprime(
+        #     np.zeros(self.nq_element, dtype=float),
+        #     lambda u: self.v_P(t, q, u, frame_ID, K_r_SP),
+        # )
+        # diff = J_P_num - J_P
+        # error = np.linalg.norm(diff)
+        # print(f"error J_P: {error}")
+        # return J_P_num
+
+    def J_P_q(self, t, q, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
+        # evaluate required nodal shape functions
+        N, _ = self.basis_functions(frame_ID[0])
+
+        K_r_SP_tilde = ax2skew(K_r_SP)
+        A_IK_q = self.A_IK_q(t, q, frame_ID)
+        prod = np.einsum("ijl,jk", A_IK_q, K_r_SP_tilde)
+
+        # interpolate axis angle contributions since centerline contributon is
+        # zero
+        J_P_q = np.zeros((3, self.nq_element, self.nq_element), dtype=float)
+        for node in range(self.nnodes_element):
+            nodalDOF_psi = self.nodalDOF_element_psi[node]
+            J_P_q[:, nodalDOF_psi] -= N[node] * prod
+
+        return J_P_q
+
+        # J_P_q_num = approx_fprime(
+        #     q, lambda q: self.J_P(t, q, frame_ID, K_r_SP), method="3-point"
+        # )
+        # diff = J_P_q_num - J_P_q
+        # error = np.linalg.norm(diff)
+        # print(f"error J_P_q: {error}")
+        # return J_P_q_num
+
+    def a_P(self, t, q, u, u_dot, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
+        N, _ = self.basis_functions(frame_ID[0])
+        _, A_IK, _, _ = self.eval(q, frame_ID[0])
+
+        # centerline acceleration
+        a_C = np.zeros(3, dtype=float)
+        for node in range(self.nnodes_element):
+            a_C += N[node] * u_dot[self.nodalDOF_element_r[node]]
+
+        # angular velocity and acceleration in K-frame
+        K_Omega = self.K_Omega(t, q, u, frame_ID)
+        K_Psi = self.K_Psi(t, q, u, u_dot, frame_ID)
+
+        # rigid body formular
+        return a_C + A_IK @ (
+            cross3(K_Psi, K_r_SP) + cross3(K_Omega, cross3(K_Omega, K_r_SP))
+        )
+
+    # TODO:
+    def a_P_q(self, t, q, u, u_dot, frame_ID, K_r_SP=None):
+        K_Omega = self.K_Omega(t, q, u, frame_ID)
+        K_Psi = self.K_Psi(t, q, u, u_dot, frame_ID)
+        a_P_q = np.einsum(
+            "ijk,j->ik",
+            self.A_IK_q(t, q, frame_ID),
+            cross3(K_Psi, K_r_SP) + cross3(K_Omega, cross3(K_Omega, K_r_SP)),
+        )
+        # return a_P_q
+
+        a_P_q_num = approx_fprime(
+            q, lambda q: self.a_P(t, q, u, u_dot, frame_ID, K_r_SP), method="3-point"
+        )
+        diff = a_P_q_num - a_P_q
+        error = np.linalg.norm(diff)
+        print(f"error a_P_q: {error}")
+        return a_P_q_num
+
+    # TODO:
+    def a_P_u(self, t, q, u, u_dot, frame_ID, K_r_SP=None):
+        K_Omega = self.K_Omega(t, q, u, frame_ID)
+        local = -self.A_IK(t, q, frame_ID) @ (
+            ax2skew(cross3(K_Omega, K_r_SP)) + ax2skew(K_Omega) @ ax2skew(K_r_SP)
+        )
+
+        N, _ = self.basis_functions(frame_ID[0])
+        a_P_u = np.zeros((3, self.nq_element), dtype=float)
+        for node in range(self.nnodes_element):
+            a_P_u[:, self.nodalDOF_element_psi[node]] += N[node] * local
+
+        # return a_P_u
+
+        a_P_u_num = approx_fprime(
+            u, lambda u: self.a_P(t, q, u, u_dot, frame_ID, K_r_SP), method="3-point"
+        )
+        diff = a_P_u_num - a_P_u
+        error = np.linalg.norm(diff)
+        print(f"error a_P_u: {error}")
+        return a_P_u_num
+
+    def K_Omega(self, t, q, u, frame_ID):
+        """Since we use Petrov-Galerkin method we only interpoalte the nodal
+        angular velocities in the K-frame.
+        """
+        N, _ = self.basis_functions(frame_ID[0])
+        K_Omega = np.zeros(3, dtype=float)
+        for node in range(self.nnodes_element):
+            K_Omega += N[node] * u[self.nodalDOF_element_psi[node]]
+        return K_Omega
+
+    def K_Omega_q(self, t, q, u, frame_ID):
+        return np.zeros((3, self.nq_element), dtype=float)
+
+    def K_J_R(self, t, q, frame_ID):
+        N, _ = self.basis_functions(frame_ID[0])
+        K_J_R = np.zeros((3, self.nq_element), dtype=float)
+        for node in range(self.nnodes_element):
+            K_J_R[:, self.nodalDOF_element_psi[node]] += N[node] * np.eye(3)
+        return K_J_R
+
+        # K_J_R_num = approx_fprime(
+        #     np.zeros(self.nu_element, dtype=float),
+        #     lambda u: self.K_Omega(t, q, u, frame_ID),
+        #     method="3-point",
+        # )
+        # diff = K_J_R - K_J_R_num
+        # error = np.linalg.norm(diff)
+        # print(f"error K_J_R: {error}")
+        # return K_J_R_num
+
+    def K_J_R_q(self, t, q, frame_ID):
+        return np.zeros((3, self.nq_element, self.nq_element), dtype=float)
+
+    def K_Psi(self, t, q, u, u_dot, frame_ID):
+        """Since we use Petrov-Galerkin method we only interpoalte the nodal
+        time derivative of the angular velocities in the K-frame.
+        """
+        N, _ = self.basis_functions(frame_ID[0])
+        K_Psi = np.zeros(3, dtype=float)
+        for node in range(self.nnodes_element):
+            K_Psi += N[node] * u_dot[self.nodalDOF_element_psi[node]]
+        return K_Psi
+
+    def K_Psi_q(self, t, q, u, u_dot, frame_ID):
+        return np.zeros((3, self.nq_element), dtype=float)
+
+    def K_Psi_u(self, t, q, u, u_dot, frame_ID):
+        return np.zeros((3, self.nq_element), dtype=float)
+
+    ####################################################
+    # body force
+    ####################################################
+    def distributed_force1D_pot_el(self, force, t, qe, el):
+        Ve = 0
+        for i in range(self.nquadrature):
+            # extract reference state variables
+            qwi = self.qw[el, i]
+            Ji = self.J[el, i]
+
+            # interpolate centerline position
+            r_C = np.zeros(3, dtype=float)
+            for node in range(self.nnodes_element):
+                r_C += self.N[el, i, node] * qe[self.nodalDOF_element_r[node]]
+
+            # compute potential value at given quadrature point
+            Ve += (r_C @ force(t, qwi)) * Ji * qwi
+
+        return Ve
+
+    def distributed_force1D_pot(self, t, q, force):
+        V = 0
         for el in range(self.nelement):
             qe = q[self.elDOF[el]]
+            V += self.distributed_force1D_pot_el(force, t, qe, el)
+        return V
 
-            # extract generalized coordinates for beam centerline and directors
-            # in the current and reference configuration
-            qe_r = qe[self.rDOF]
-            qe_d1 = qe[self.psiDOF]
-            qe_d2 = qe[self.d2DOF]
-            qe_d3 = qe[self.d3DOF]
+    def distributed_force1D_el(self, force, t, el):
+        fe = np.zeros(self.nq_element, dtype=float)
+        for i in range(self.nquadrature):
+            # extract reference state variables
+            qwi = self.qw[el, i]
+            Ji = self.J[el, i]
 
-            for i in range(self.nquadrature):
-                # build matrix of shape function derivatives
-                NN_di_i = self.stack3psi(self.N_psi[el, i])
-                NN_r_xii = self.stack3r(self.N_r_xi[el, i])
-                NN_di_xii = self.stack3psi(self.N_psi_xi[el, i])
+            # compute local force vector
+            fe_r = force(t, qwi) * Ji * qwi
 
-                # extract reference state variables
-                J0i = self.J[el, i]
-                K_Gamma0 = self.K_Gamma0[el, i]
-                K_Kappa0 = self.K_Kappa0[el, i]
+            # multiply local force vector with variation of centerline
+            for node in range(self.nnodes_element):
+                fe[self.nodalDOF_element_r[node]] += self.N[el, i, node] * fe_r
 
-                # Interpolate necessary quantities. The derivatives are evaluated w.r.t.
-                # the parameter space \xi and thus need to be transformed later
-                r_xi = NN_r_xii @ qe_r
+        return fe
 
-                d1 = NN_di_i @ qe_d1
-                d1_xi = NN_di_xii @ qe_d1
+    def distributed_force1D(self, t, q, force):
+        f = np.zeros(self.nq, dtype=float)
+        for el in range(self.nelement):
+            f[self.elDOF[el]] += self.distributed_force1D_el(force, t, el)
+        return f
 
-                d2 = NN_di_i @ qe_d2
-                d2_xi = NN_di_xii @ qe_d2
+    def distributed_force1D_q(self, t, q, coo, force):
+        pass
 
-                d3 = NN_di_i @ qe_d3
-                d3_xi = NN_di_xii @ qe_d3
+    ####################################################
+    # visualization
+    ####################################################
+    def nodes(self, q):
+        q_body = q[self.qDOF]
+        return np.array([q_body[nodalDOF] for nodalDOF in self.nodalDOF_r]).T
 
-                # compute derivatives w.r.t. the arc lenght parameter s
-                r_s = r_xi / J0i
+    def centerline(self, q, n=100):
+        q_body = q[self.qDOF]
+        r = []
+        for xi in np.linspace(0, 1, n):
+            frame_ID = (xi,)
+            qe = q_body[self.qDOF_P(frame_ID)]
+            r.append(self.r_OP(1, qe, frame_ID))
+        return np.array(r).T
 
-                d1_s = d1_xi / J0i
-                d2_s = d2_xi / J0i
-                d3_s = d3_xi / J0i
+    def frames(self, q, n=10):
+        q_body = q[self.qDOF]
+        r = []
+        d1 = []
+        d2 = []
+        d3 = []
 
-                # build rotation matrices
-                if not same_shape_functions:
-                    d1s[el, i] = d1
-                    d2s[el, i] = d2
-                    d3s[el, i] = d3
-                R = np.vstack((d1, d2, d3)).T
+        for xi in np.linspace(0, 1, n):
+            frame_ID = (xi,)
+            qp = q_body[self.qDOF_P(frame_ID)]
+            r.append(self.r_OP(1, qp, frame_ID))
 
-                # axial and shear strains
-                Gamma[el, i] = R.T @ r_s
+            d1i, d2i, d3i = self.A_IK(1, qp, frame_ID).T
+            d1.extend([d1i])
+            d2.extend([d2i])
+            d3.extend([d3i])
 
-                # torsional and flexural strains
-                Kappa[el, i] = np.array(
-                    [
-                        0.5 * (d3 @ d2_s - d2 @ d3_s),
-                        0.5 * (d1 @ d3_s - d3 @ d1_s),
-                        0.5 * (d2 @ d1_s - d1 @ d2_s),
-                    ]
-                )
+        return np.array(r).T, np.array(d1).T, np.array(d2).T, np.array(d3).T
 
-        # L2 projection of strain measures
-        Gamma_vtk = self.mesh_r.field_to_vtk(Gamma)
-        point_data.update({"Gamma": Gamma_vtk})
+    def cover(self, q, radius, n_xi=20, n_alpha=100):
+        q_body = q[self.qDOF]
+        points = []
+        for xi in np.linspace(0, 1, num=n_xi):
+            frame_ID = (xi,)
+            elDOF = self.elDOF_P(frame_ID)
+            qe = q_body[elDOF]
 
-        Kappa_vtk = self.mesh_r.field_to_vtk(Kappa)
-        point_data.update({"Kappa": Kappa_vtk})
+            # point on the centerline and tangent vector
+            r = self.r_OC(0, qe, (xi,))
 
-        # L2 projection of directors
-        if not same_shape_functions:
-            d1_vtk = self.mesh_r.field_to_vtk(d1s)
-            point_data.update({"d1": d1_vtk})
-            d2_vtk = self.mesh_r.field_to_vtk(d2s)
-            point_data.update({"d2": d2_vtk})
-            d3_vtk = self.mesh_r.field_to_vtk(d3s)
-            point_data.update({"d3": d3_vtk})
+            # evaluate directors
+            A_IK = self.A_IK(0, qe, frame_ID=(xi,))
+            _, d2, d3 = A_IK.T
 
-        # fields depending on strain measures and other previously computed quantities
-        point_data_fields = {
-            "W": lambda Gamma, Gamma0, Kappa, Kappa0: np.array(
-                [self.material_model.potential(Gamma, Gamma0, Kappa, Kappa0)]
-            ),
-            "n_i": lambda Gamma, Gamma0, Kappa, Kappa0: self.material_model.n_i(
-                Gamma, Gamma0, Kappa, Kappa0
-            ),
-            "m_i": lambda Gamma, Gamma0, Kappa, Kappa0: self.material_model.m_i(
-                Gamma, Gamma0, Kappa, Kappa0
-            ),
-        }
+            # start with point on centerline
+            points.append(r)
 
-        for name, fun in point_data_fields.items():
-            tmp = fun(Gamma_vtk[0], Gamma0_vtk[0], Kappa_vtk[0], Kappa0_vtk[0]).reshape(
-                -1
-            )
-            field = np.zeros((len(Gamma_vtk), len(tmp)))
-            for i, (K_Gamma, K_Gamma0, K_Kappa, K_Kappa0) in enumerate(
-                zip(Gamma_vtk, Gamma0_vtk, Kappa_vtk, Kappa0_vtk)
-            ):
-                field[i] = fun(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0).reshape(-1)
-            point_data.update({name: field})
+            # compute points on circular cross section
+            x0 = None  # initial point is required twice
+            for alpha in np.linspace(0, 2 * np.pi, num=n_alpha):
+                x = r + radius * np.cos(alpha) * d2 + radius * np.sin(alpha) * d3
+                points.append(x)
+                if x0 is None:
+                    x0 = x
 
-        return points_r, point_data, cells_r, HigherOrderDegrees_r
+            # end with first point on cross section
+            points.append(x0)
+
+            # end with point on centerline
+            points.append(r)
+
+        return np.array(points).T
+
+    def plot_centerline(self, ax, q, n=100, color="black"):
+        ax.plot(*self.nodes(q), linestyle="dashed", marker="o", color=color)
+        ax.plot(*self.centerline(q, n=n), linestyle="solid", color=color)
+
+    def plot_frames(self, ax, q, n=10, length=1):
+        r, d1, d2, d3 = self.frames(q, n=n)
+        ax.quiver(*r, *d1, color="red", length=length)
+        ax.quiver(*r, *d2, color="green", length=length)
+        ax.quiver(*r, *d3, color="blue", length=length)
+
+
+TimoshenkoAxisAngleSE3 = TimoshenkoAxisAngleSE3_I_delta_r_P
+# TimoshenkoAxisAngleSE3 = TimoshenkoAxisAngleSE3_K_delta_r_P

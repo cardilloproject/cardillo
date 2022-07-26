@@ -77,10 +77,10 @@ class Simo1986:
         return self.C_n
 
     def K_n_K_Kappa(self, K_Gamma, K_Gamma0, K_Kappa, K_Kappa0):
-        return np.zeros((3, 3))
+        return np.zeros((3, 3), dtype=float)
 
     def K_m_K_Gamma(self, K_Gamma, K_Gamma0, K_Kappa, K_Kappa0):
-        return np.zeros((3, 3))
+        return np.zeros((3, 3), dtype=float)
 
     def K_m_K_Kappa(self, K_Gamma, K_Gamma0, K_Kappa, K_Kappa0):
         return self.C_m

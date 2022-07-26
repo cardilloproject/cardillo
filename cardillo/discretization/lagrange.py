@@ -68,18 +68,18 @@ class LagrangeBasis:
         self.degree = degree
 
         # compute equally spaced points on [0, 1]
-        xis = np.linspace(0, 1, num=degree + 1)
+        nus = np.linspace(0, 1, num=degree + 1)
 
         # recursively construct Lagrange shape functions on [0, 1] and map
         # them on interval
-        self.hi = np.ones(degree + 1, dtype=object)
+        self.li = np.ones(degree + 1, dtype=object)
         for i in range(degree + 1):
-            self.hi[i] = Polynomial([1.0], domain=interval, window=[0, 1])
+            self.li[i] = Polynomial([1.0], domain=interval, window=[0, 1])
             for j in range(degree + 1):
                 if i != j:
-                    diff = xis[i] - xis[j]
-                    self.hi[i] *= Polynomial(
-                        [-xis[j] / diff, 1.0 / diff], domain=interval, window=[0, 1]
+                    diff = nus[i] - nus[j]
+                    self.li[i] *= Polynomial(
+                        [-nus[j] / diff, 1.0 / diff], domain=interval, window=[0, 1]
                     )
 
     def __call__(self, xis):
@@ -87,7 +87,7 @@ class LagrangeBasis:
         values = np.zeros((len(xis), self.degree + 1), dtype=float)
         for i, xii in enumerate(xis):
             for j in range(self.degree + 1):
-                values[i, j] = self.hi[j](xii)
+                values[i, j] = self.li[j](xii)
         return values
 
     def deriv(self, xis, n=1):
@@ -95,7 +95,7 @@ class LagrangeBasis:
         values = np.zeros((len(xis), self.degree + 1), dtype=float)
         for i, xii in enumerate(xis):
             for j in range(self.degree + 1):
-                values[i, j] = self.hi[j].deriv(n)(xii)
+                values[i, j] = self.li[j].deriv(n)(xii)
         return values
 
 
