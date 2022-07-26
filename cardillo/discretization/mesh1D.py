@@ -169,6 +169,9 @@ class Mesh1D:
                 squeeze=False,
             )
         elif self.basis == "Lagrange":
+            # return lagrange_basis1D(
+            #     self.degree, xis, self.derivative_order, self.knot_vector
+            # )
             return lagrange_basis1D(
                 self.degree, xis, self.derivative_order, self.knot_vector
             )

@@ -1298,10 +1298,10 @@ def cable_straight_inflated(case="rope"):
 
     # discretization properties
     nelements = 3
-    # polynomial_degree = 1
-    # basis = "Lagrange"
-    polynomial_degree = 3
-    basis = "B-spline"
+    polynomial_degree = 1
+    basis = "Lagrange"
+    # polynomial_degree = 3
+    # basis = "B-spline"
     # polynomial_degree = 3
     # basis = "Hermite"
 
@@ -1679,5 +1679,5 @@ if __name__ == "__main__":
     # inflated_quarter_circle_external_force()
     # inflated_circular_segment()
     # cable_straight()
-    # cable_straight_inflated()
-    cable_inflated_circular_segment()
+    cable_straight_inflated()
+    # cable_inflated_circular_segment()

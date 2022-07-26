@@ -1,5 +1,6 @@
+from math import prod
 import numpy as np
-from numpy.core.fromnumeric import squeeze
+from numpy.polynomial import Polynomial
 from scipy.sparse.linalg import spsolve
 from cardillo.discretization.indexing import flat2D, flat3D, split2D, split3D
 import meshio
@@ -56,7 +57,66 @@ class Node_vector:
         assert len(self.element_data) == self.nel * self.degree + 1
 
 
-def lagrange_basis1D(
+class LagrangeBasis:
+    """Lagrange basis function on [interval[0], interval[1]], see Wiki.
+
+    References:
+    -----------
+    Wiki: https://en.wikipedia.org/wiki/Lagrange_polynomial#Definition"""
+
+    def __init__(self, degree, interval=[0, 1]):
+        self.degree = degree
+
+        # compute equally spaced points on [0, 1]
+        xis = np.linspace(0, 1, num=degree + 1)
+
+        # recursively construct Lagrange shape functions on [0, 1] and map
+        # them on interval
+        self.hi = np.ones(degree + 1, dtype=object)
+        for i in range(degree + 1):
+            self.hi[i] = Polynomial([1.0], domain=interval, window=[0, 1])
+            for j in range(degree + 1):
+                if i != j:
+                    diff = xis[i] - xis[j]
+                    self.hi[i] *= Polynomial(
+                        [-xis[j] / diff, 1.0 / diff], domain=interval, window=[0, 1]
+                    )
+
+    def __call__(self, xis):
+        xis = np.atleast_1d(xis)
+        values = np.zeros((len(xis), self.degree + 1), dtype=float)
+        for i, xii in enumerate(xis):
+            for j in range(self.degree + 1):
+                values[i, j] = self.hi[j](xii)
+        return values
+
+    def deriv(self, xis, n=1):
+        xis = np.atleast_1d(xis)
+        values = np.zeros((len(xis), self.degree + 1), dtype=float)
+        for i, xii in enumerate(xis):
+            for j in range(self.degree + 1):
+                values[i, j] = self.hi[j].deriv(n)(xii)
+        return values
+
+
+def lagrange_basis1D(degree, xis, derivative, node_vector, squeeze=True):
+    """Compute Lagrange basis functions for a given node vector."""
+    xis = np.atleast_1d(xis)
+    nxis = len(xis)
+    N = np.zeros((derivative + 1, nxis, degree + 1))
+    for i, xi in enumerate(xis):
+        el = node_vector.element_number(xi)[0]
+        basis = LagrangeBasis(degree, interval=node_vector.element_interval(el))
+        N[0, i] = basis(xi)
+        if derivative:
+            for j in range(1, derivative + 1):
+                N[j, i] = basis.deriv(xi, n=j)
+    if squeeze:
+        N = N.squeeze()
+    return N
+
+
+def lagrange_basis1D_old(
     degree, xi, derivative=1, knot_vector=None, interval=[-1, 1], squeeze=False
 ):
     p = degree
