@@ -1,6 +1,4 @@
 import numpy as np
-from regex import D
-from cardillo.math.algebra import skew2ax
 
 from cardillo.utility.coo import Coo
 from cardillo.discretization.lagrange import Node_vector
@@ -181,9 +179,9 @@ class DirectorAxisAngle:
 
         # discretization parameters
         self.polynomial_degree = polynomial_degree
-        assert polynomial_degree == 1, "we assume linear Lagrange elements!"
+        # assert polynomial_degree == 1, "we assume linear Lagrange elements!"
         # self.nquadrature = nquadrature = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
-        self.nquadrature = nquadrature = 1
+        self.nquadrature = nquadrature = polynomial_degree
         self.nelement = nelement
 
         self.node_vector = Node_vector(self.polynomial_degree, nelement)
@@ -289,17 +287,17 @@ class DirectorAxisAngle:
 
             for i in range(nquadrature):
                 # interpolate tangent vector, transformation matrix and its derivative
-                r_OP = np.zeros(3, dtype=float)
                 r_OP_xi = np.zeros(3, dtype=float)
                 A_IK = np.zeros((3, 3), dtype=float)
                 A_IK_xi = np.zeros((3, 3), dtype=float)
                 for node in range(self.nnodes_element):
-                    r_OP += self.N[el, i, node] * qe[self.nodalDOF_element_r[node]]
                     r_OP_xi += (
                         self.N_xi[el, i, node] * qe[self.nodalDOF_element_r[node]]
                     )
-                    A_IK += self.N[el, i, node] * A_IKs[node]
-                    A_IK_xi += self.N_xi[el, i, node] * A_IKs[node]
+
+                    A_IK_node = Exp_SO3(qe[self.nodalDOF_element_psi[node]])
+                    A_IK += self.N[el, i, node] * A_IK_node
+                    A_IK_xi += self.N_xi[el, i, node] * A_IK_node
 
                 # length of reference tangential vector
                 J = norm(r_OP_xi)
@@ -309,8 +307,19 @@ class DirectorAxisAngle:
                 K_Gamma = K_Gamma_bar / J
 
                 # torsional and flexural strains
-                K_Kappa_bar_tilde = A_IK.T @ A_IK_xi
-                K_Kappa_bar = skew2ax(K_Kappa_bar_tilde)
+                d1, d2, d3 = A_IK.T
+                d1_xi, d2_xi, d3_xi = A_IK_xi.T
+                half_d = d1 @ cross3(d2, d3)
+                K_Kappa_bar = (
+                    np.array(
+                        [
+                            0.5 * (d3 @ d2_xi - d2 @ d3_xi),
+                            0.5 * (d1 @ d3_xi - d3 @ d1_xi),
+                            0.5 * (d2 @ d1_xi - d1 @ d2_xi),
+                        ]
+                    )
+                    / half_d
+                )
                 K_Kappa = K_Kappa_bar / J
 
                 # safe precomputed quantities for later
@@ -361,7 +370,7 @@ class DirectorAxisAngle:
             # sparse assemble element mass matrix
             coo.extend(self.M_el(q[elDOF], el), (self.uDOF[elDOF], self.uDOF[elDOF]))
 
-    # TODO:
+    # TODO: Add diagoanl parts
     def M_el(self, qe, el):
         M_el = np.zeros((self.nq_element, self.nq_element), dtype=float)
 
@@ -498,13 +507,6 @@ class DirectorAxisAngle:
     def E_pot_el(self, qe, el):
         E_pot_el = 0.0
 
-        A_IKs = np.array(
-            [
-                Exp_SO3(qe[self.nodalDOF_element_psi[node]])
-                for node in range(self.nnodes_element)
-            ]
-        )
-
         for i in range(self.nquadrature):
             # extract reference state variables
             qwi = self.qw[el, i]
@@ -518,16 +520,29 @@ class DirectorAxisAngle:
             A_IK_xi = np.zeros((3, 3), dtype=float)
             for node in range(self.nnodes_element):
                 r_OP_xi += self.N_xi[el, i, node] * qe[self.nodalDOF_element_r[node]]
-                A_IK += self.N[el, i, node] * A_IKs[node]
-                A_IK_xi += self.N_xi[el, i, node] * A_IKs[node]
+
+                A_IK_node = Exp_SO3(qe[self.nodalDOF_element_psi[node]])
+                A_IK += self.N[el, i, node] * A_IK_node
+                A_IK_xi += self.N_xi[el, i, node] * A_IK_node
 
             # axial and shear strains
             K_Gamma_bar = A_IK.T @ r_OP_xi
             K_Gamma = K_Gamma_bar / J
 
             # torsional and flexural strains
-            K_Kappa_bar_tilde = A_IK.T @ A_IK_xi
-            K_Kappa_bar = skew2ax(K_Kappa_bar_tilde)
+            d1, d2, d3 = A_IK.T
+            d1_xi, d2_xi, d3_xi = A_IK_xi.T
+            half_d = d1 @ cross3(d2, d3)
+            K_Kappa_bar = (
+                np.array(
+                    [
+                        0.5 * (d3 @ d2_xi - d2 @ d3_xi),
+                        0.5 * (d1 @ d3_xi - d3 @ d1_xi),
+                        0.5 * (d2 @ d1_xi - d1 @ d2_xi),
+                    ]
+                )
+                / half_d
+            )
             K_Kappa = K_Kappa_bar / J
 
             # evaluate strain energy function
@@ -571,11 +586,19 @@ class DirectorAxisAngle:
             K_Gamma = K_Gamma_bar / J
 
             # torsional and flexural strains
-            # d1, d2, d3 = A_IK.T
-            # half_d = 1.0
-            half_d = det3D(A_IK)
-            K_Kappa_bar_tilde = (A_IK.T @ A_IK_xi) / half_d
-            K_Kappa_bar = skew2ax(K_Kappa_bar_tilde)
+            d1, d2, d3 = A_IK.T
+            d1_xi, d2_xi, d3_xi = A_IK_xi.T
+            half_d = d1 @ cross3(d2, d3)
+            K_Kappa_bar = (
+                np.array(
+                    [
+                        0.5 * (d3 @ d2_xi - d2 @ d3_xi),
+                        0.5 * (d1 @ d3_xi - d3 @ d1_xi),
+                        0.5 * (d2 @ d1_xi - d1 @ d2_xi),
+                    ]
+                )
+                / half_d
+            )
             K_Kappa = K_Kappa_bar / J
 
             # compute contact forces and couples from partial derivatives of
@@ -612,16 +635,137 @@ class DirectorAxisAngle:
             coo.extend(f_pot_q_el, (self.uDOF[elDOF], self.qDOF[elDOF]))
 
     def f_pot_q_el(self, qe, el):
-        f_pot_q_el_num = approx_fprime(
-            qe, lambda qe: self.f_pot_el(qe, el), eps=1.0e-10, method="cs"
-        )
+        f_pot_q_el = np.zeros((self.nq_element, self.nq_element), dtype=float)
+
+        for i in range(self.nquadrature):
+            # extract reference state variables
+            qwi = self.qw[el, i]
+            J = self.J[el, i]
+            K_Gamma0 = self.K_Gamma0[el, i]
+            K_Kappa0 = self.K_Kappa0[el, i]
+
+            # interpolate tangent vector, transformation matrix and its derivative
+            r_OP_xi = np.zeros(3, dtype=qe.dtype)
+            r_OP_xi_qe = np.zeros((3, self.nq_element), dtype=qe.dtype)
+            A_IK = np.zeros((3, 3), dtype=qe.dtype)
+            A_IK_xi = np.zeros((3, 3), dtype=qe.dtype)
+            A_IK_qe = np.zeros((3, 3, self.nq_element), dtype=qe.dtype)
+            A_IK_xi_qe = np.zeros((3, 3, self.nq_element), dtype=qe.dtype)
+            for node in range(self.nnodes_element):
+                nodalDOF_r = self.nodalDOF_element_r[node]
+                r_OP_xi += self.N_xi[el, i, node] * qe[nodalDOF_r]
+                r_OP_xi_qe[:, nodalDOF_r] += self.N_xi[el, i, node] * np.eye(
+                    3, dtype=float
+                )
+
+                nodalDOF_psi = self.nodalDOF_element_psi[node]
+                psi_node = qe[nodalDOF_psi]
+                A_IK_node = Exp_SO3(psi_node)
+                A_IK_q_node = Exp_SO3_psi(psi_node)
+
+                A_IK += self.N[el, i, node] * A_IK_node
+                A_IK_xi += self.N_xi[el, i, node] * A_IK_node
+                A_IK_qe[:, :, nodalDOF_psi] += self.N[el, i, node] * A_IK_q_node
+                A_IK_xi_qe[:, :, nodalDOF_psi] += self.N_xi[el, i, node] * A_IK_q_node
+
+            # extract directors
+            d1, d2, d3 = A_IK.T
+            d1_xi, d2_xi, d3_xi = A_IK_xi.T
+            d1_qe, d2_qe, d3_qe = A_IK_qe.transpose(1, 0, 2)
+            d1_xi_qe, d2_xi_qe, d3_xi_qe = A_IK_xi_qe.transpose(1, 0, 2)
+
+            # axial and shear strains
+            K_Gamma_bar = A_IK.T @ r_OP_xi
+            K_Gamma = K_Gamma_bar / J
+            K_Gamma_bar_qe = np.einsum("k,kij", r_OP_xi, A_IK_qe) + A_IK.T @ r_OP_xi_qe
+            K_Gamma_qe = K_Gamma_bar_qe / J
+
+            # torsional and flexural strains
+            half_d = d1 @ cross3(d2, d3)
+            half_d_qe = (
+                cross3(d2, d3) @ d1_qe + cross3(d3, d1) @ d2_qe + cross3(d1, d2) @ d3_qe
+            )
+            K_Kappa_bar = (
+                np.array(
+                    [
+                        0.5 * (d3 @ d2_xi - d2 @ d3_xi),
+                        0.5 * (d1 @ d3_xi - d3 @ d1_xi),
+                        0.5 * (d2 @ d1_xi - d1 @ d2_xi),
+                    ]
+                )
+                / half_d
+            )
+            K_Kappa_bar_qe = np.array(
+                [
+                    0.5
+                    * (d3 @ d2_xi_qe + d2_xi @ d3_qe - d2 @ d3_xi_qe - d3_xi @ d2_qe),
+                    0.5
+                    * (d1 @ d3_xi_qe + d3_xi @ d1_qe - d3 @ d1_xi_qe - d1_xi @ d3_qe),
+                    0.5
+                    * (d2 @ d1_xi_qe + d1_xi @ d2_qe - d1 @ d2_xi_qe - d2_xi @ d1_qe),
+                ]
+            ) / half_d - np.outer(K_Kappa_bar / half_d, half_d_qe)
+            K_Kappa = K_Kappa_bar / J
+            K_Kappa_qe = K_Kappa_bar_qe / J
+
+            # compute contact forces and couples from partial derivatives of
+            # the strain energy function w.r.t. strain measures
+            K_n = self.material_model.K_n(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
+            K_n_K_Gamma = self.material_model.K_n_K_Gamma(
+                K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
+            )
+            K_n_K_Kappa = self.material_model.K_n_K_Kappa(
+                K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
+            )
+            K_n_qe = K_n_K_Gamma @ K_Gamma_qe + K_n_K_Kappa @ K_Kappa_qe
+
+            K_m = self.material_model.K_m(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
+            K_m_K_Gamma = self.material_model.K_m_K_Gamma(
+                K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
+            )
+            K_m_K_Kappa = self.material_model.K_m_K_Kappa(
+                K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
+            )
+            K_m_qe = K_m_K_Gamma @ K_Gamma_qe + K_m_K_Kappa @ K_Kappa_qe
+
+            ############################
+            # virtual work contributions
+            ############################
+            for node in range(self.nnodes_element):
+                f_pot_q_el[self.nodalDOF_element_r[node], :] -= (
+                    self.N_xi[el, i, node]
+                    * qwi
+                    * (np.einsum("ikj,k->ij", A_IK_qe, K_n) + A_IK @ K_n_qe)
+                )
+
+                f_pot_q_el[self.nodalDOF_element_psi[node], :] += (
+                    self.N[el, i, node]
+                    * qwi
+                    * (ax2skew(K_Gamma_bar) @ K_n_qe - ax2skew(K_n) @ K_Gamma_bar_qe)
+                )
+
+                f_pot_q_el[self.nodalDOF_element_psi[node], :] -= (
+                    self.N_xi[el, i, node] * qwi * K_m_qe
+                )
+
+                f_pot_q_el[self.nodalDOF_element_psi[node], :] += (
+                    self.N[el, i, node]
+                    * qwi
+                    * (ax2skew(K_Kappa_bar) @ K_m_qe - ax2skew(K_m) @ K_Kappa_bar_qe)
+                )
+
+        return f_pot_q_el
+
         # f_pot_q_el_num = approx_fprime(
-        #     qe, lambda qe: self.f_pot_el(qe, el), eps=5.0e-6, method="2-point"
+        #     qe, lambda qe: self.f_pot_el(qe, el), eps=1.0e-10, method="cs"
         # )
+        # # f_pot_q_el_num = approx_fprime(
+        # #     qe, lambda qe: self.f_pot_el(qe, el), eps=5.0e-6, method="2-point"
+        # # )
         # diff = f_pot_q_el - f_pot_q_el_num
         # error = np.linalg.norm(diff)
         # print(f"error f_pot_q_el: {error}")
-        return f_pot_q_el_num
+        # return f_pot_q_el_num
 
     #########################################
     # kinematic equation
