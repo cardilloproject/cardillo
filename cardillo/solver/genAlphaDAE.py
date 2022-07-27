@@ -2385,6 +2385,8 @@ class GeneralizedAlphaSecondOrder:
         error_function=lambda x: np.max(np.abs(x)),
         # numerical_jacobian=False,
         numerical_jacobian=True,
+        # preconditioning=True,
+        preconditioning=False,
     ):
 
         self.model = model
@@ -2425,7 +2427,7 @@ class GeneralizedAlphaSecondOrder:
         self.la_gammak = model.la_gamma0
 
         # solve for initial accelerations
-        self.ak = spsolve(
+        self.u_dotk = spsolve(
             model.M(t0, model.q0, scipy_matrix=csr_matrix),
             self.model.h(t0, model.q0, model.u0)
             + self.model.W_g(t0, model.q0) @ model.la_g0
@@ -2433,10 +2435,10 @@ class GeneralizedAlphaSecondOrder:
         )
 
         # initialize auxilary variables
-        self.a_bark = self.ak.copy()
+        self.u_dot_bark = self.u_dotk.copy()
 
         # initial state
-        self.xk = np.concatenate((self.ak, self.la_gk, self.la_gammak))
+        self.xk = np.concatenate((self.u_dotk, self.la_gk, self.la_gammak))
 
         # TODO: Check if constraints are satisfied on all kinematic levels!
 
@@ -2444,6 +2446,57 @@ class GeneralizedAlphaSecondOrder:
             self.__R_gen = self.__R_gen_num
         else:
             self.__R_gen = self.__R_gen_analytic
+
+        # check if initial conditions satisfy constraints on position, velocity
+        # and acceleration level
+        g0 = model.g(self.tk, self.qk)
+        g_dot0 = model.g_dot(self.tk, self.qk, self.uk)
+        g_ddot0 = model.g_ddot(self.tk, self.qk, self.uk, self.u_dotk)
+        gamma0 = model.gamma(self.tk, self.qk, self.uk)
+        gamma_dot0 = model.gamma_dot(self.tk, self.qk, self.uk, self.u_dotk)
+
+        # TODO:
+        # # TODO: These tolerances should be used defined. Maybe all these
+        # #       initial computations and checks should be moved to a
+        # #       SolverOptions object ore something similar?
+        # rtol = 1.0e-5
+        # atol = 1.0e-5
+
+        # assert np.allclose(
+        #     g0, np.zeros(self.nla_g), rtol, atol
+        # ), "Initial conditions do not fulfill g0!"
+        # assert np.allclose(
+        #     g_dot0, np.zeros(self.nla_g), rtol, atol
+        # ), "Initial conditions do not fulfill g_dot0!"
+        # assert np.allclose(
+        #     g_ddot0, np.zeros(self.nla_g), rtol, atol
+        # ), "Initial conditions do not fulfill g_ddot0!"
+        # assert np.allclose(
+        #     gamma0, np.zeros(self.nla_gamma)
+        # ), "Initial conditions do not fulfill gamma0!"
+        # assert np.allclose(
+        #     gamma_dot0, np.zeros(self.nla_gamma), rtol, atol
+        # ), "Initial conditions do not fulfill gamma_dot0!"
+
+        self.preconditioning = preconditioning
+        if preconditioning:
+            eta = self.beta * dt * dt
+            self.D_L = block_diag(
+                [
+                    eye(self.nu) * eta,
+                    eye(self.nla_g),
+                    eye(self.nla_gamma),
+                ],
+                format="csr",
+            )
+            self.D_R = block_diag(
+                [
+                    eye(self.nu),
+                    eye(self.nla_g) / eta,
+                    eye(self.nla_gamma) / eta,
+                ],
+                format="csr",
+            )
 
     def update(self, xk1, store=False):
         """Update dependent variables."""
@@ -2458,29 +2511,31 @@ class GeneralizedAlphaSecondOrder:
         beta = self.beta
 
         # extract accelerations
-        ak1 = xk1[:nu]
+        u_dotk1 = xk1[:nu]
 
         # eqn. (71): compute auxiliary acceleration variables
-        a_bark1 = (
-            alpha_f * self.ak + (1.0 - alpha_f) * ak1 - alpha_m * self.a_bark
+        u_dot_bark1 = (
+            alpha_f * self.u_dotk
+            + (1.0 - alpha_f) * u_dotk1
+            - alpha_m * self.u_dot_bark
         ) / (1.0 - alpha_m)
 
         # eqn. (73): velocity update formula
-        uk1 = self.uk + dt * ((1.0 - gamma) * self.a_bark + gamma * a_bark1)
+        uk1 = self.uk + dt * ((1.0 - gamma) * self.u_dot_bark + gamma * u_dot_bark1)
 
         # eqn. (125): generalized position update formula
-        a_beta = (1.0 - 2.0 * beta) * self.a_bark + 2.0 * beta * a_bark1
+        u_dot_beta = (1.0 - 2.0 * beta) * self.u_dot_bark + 2.0 * beta * u_dot_bark1
         qk1 = (
             self.qk
             + dt * self.model.q_dot(self.tk, self.qk, self.uk)
-            + 0.5 * dt2 * self.model.q_ddot(self.tk, self.qk, self.uk, a_beta)
+            + 0.5 * dt2 * self.model.q_ddot(self.tk, self.qk, self.uk, u_dot_beta)
         )
 
         if store:
-            self.ak = ak1
+            self.u_dotk = u_dotk1
             self.uk = uk1
             self.qk = qk1
-            self.a_bark = a_bark1
+            self.u_dot_bark = u_dot_bark1
 
         return qk1, uk1
 
@@ -2505,7 +2560,7 @@ class GeneralizedAlphaSecondOrder:
         nla_g = self.nla_g
 
         # extract vector of nknowns
-        ak1, la_gk1, la_gammak1 = self.unpack(xk1)
+        u_dotk1, la_gk1, la_gammak1 = self.unpack(xk1)
 
         # update dependent variables
         qk1, uk1 = self.update(xk1, store=False)
@@ -2522,7 +2577,7 @@ class GeneralizedAlphaSecondOrder:
 
         # equations of motion
         R[:nu] = (
-            Mk1 @ ak1
+            Mk1 @ u_dotk1
             - self.model.h(tk1, qk1, uk1)
             - W_gk1 @ la_gk1
             - W_gammak1 @ la_gammak1
@@ -2539,9 +2594,6 @@ class GeneralizedAlphaSecondOrder:
         ###################
         # evaluate jacobian
         ###################
-        eye_nq = eye(self.nq)
-        A = self.model.q_dot_q(tk1, qk1, uk1)
-        Bk1 = self.model.B(tk1, qk1, scipy_matrix=csr_matrix)
         K = (
             self.model.Mu_q(tk1, qk1, u_dotk1)
             - self.model.h_q(tk1, qk1, uk1)
@@ -2553,110 +2605,26 @@ class GeneralizedAlphaSecondOrder:
         gamma_qk1 = self.model.gamma_q(tk1, qk1, uk1)
 
         # sparse assemble global tangent matrix
-        if self.GGL:
-            g_dot_qk1 = self.model.g_dot_q(tk1, qk1, uk1)
-            C = A + self.model.g_q_T_mu_g(tk1, qk1, mu_gk1)
-            if self.unknowns == "positions":
-                eta = self.eta
-                # fmt: off
-                J = bmat(
-                    [
-                        [eta * eye_nq - C,              -Bk1,   None,       None, -g_qk1.T],
-                        [               K, eta * Mk1 - h_uk1, -W_gk1, -W_gammak1,     None],
-                        [       g_dot_qk1,           W_gk1.T,   None,       None,     None],
-                        [       gamma_qk1,       W_gammak1.T,   None,       None,     None],
-                        [           g_qk1,              None,   None,       None,     None],
-                    ],
-                    format="csr",
-                )
-                # fmt: on
-            elif self.unknowns == "velocities":
-                etap = 1.0 / self.eta
-                # fmt: off
-                J = bmat(
-                    [
-                        [eye_nq - etap * C,        -etap * Bk1,   None,       None, -g_qk1.T],
-                        [         etap * K, Mk1 - etap * h_uk1, -W_gk1, -W_gammak1,     None],
-                        [ etap * g_dot_qk1,     etap * W_gk1.T,   None,       None,     None],
-                        [ etap * gamma_qk1, etap * W_gammak1.T,   None,       None,     None],
-                        [     etap * g_qk1,               None,   None,       None,     None],
-                    ],
-                    format="csr",
-                )
-                # fmt: on
-            elif self.unknowns == "auxiliary":
-                gap = self.gamma_prime
-                alp = self.alpha_prime
-                # fmt: off
-                J = bmat(
-                    [
-                        [alp * eye_nq - gap * C,              -gap * Bk1,   None,       None, -g_qk1.T],
-                        [               gap * K, alp * Mk1 - gap * h_uk1, -W_gk1, -W_gammak1,     None],
-                        [       gap * g_dot_qk1,           gap * W_gk1.T,   None,       None,     None],
-                        [       gap * gamma_qk1,       gap * W_gammak1.T,   None,       None,     None],
-                        [           gap * g_qk1,                    None,   None,       None,     None],
-                    ],
-                    format="csr",
-                )
-                # fmt: on
-        else:
-            if self.unknowns == "positions":
-                eta = self.eta
-                if self.DAE_index == 3:
-                    # fmt: off
-                    J = bmat(
-                        [
-                            [eta * eye_nq - A,              -Bk1,   None,       None],
-                            [               K, eta * Mk1 - h_uk1, -W_gk1, -W_gammak1],
-                            [           g_qk1,              None,   None,       None],
-                            [       gamma_qk1,       W_gammak1.T,   None,       None],
-                        ],
-                        format="csr",
-                    )
-                    # fmt: on
-                elif self.DAE_index == 2:
-                    raise NotImplementedError
-                elif self.DAE_index == 1:
-                    raise NotImplementedError
-            elif self.unknowns == "velocities":
-                etap = 1.0 / self.eta
-                if self.DAE_index == 3:
-                    # fmt: off
-                    J = bmat(
-                        [
-                            [eye_nq - etap * A,        -etap * Bk1,   None,       None],
-                            [         etap * K, Mk1 - etap * h_uk1, -W_gk1, -W_gammak1],
-                            [     etap * g_qk1,               None,   None,       None],
-                            [ etap * gamma_qk1, etap * W_gammak1.T,   None,       None],
-                        ],
-                        format="csr",
-                    )
-                    # fmt: on
-                else:
-                    raise NotImplementedError
-            elif self.unknowns == "auxiliary":
-                gap = self.gamma_prime
-                alp = self.alpha_prime
-                if self.DAE_index == 3:
-                    # fmt: off
-                    J = bmat(
-                        [
-                            [alp * eye_nq - gap * A,              -gap * Bk1,   None,       None],
-                            [               gap * K, alp * Mk1 - gap * h_uk1, -W_gk1, -W_gammak1],
-                            [           gap * g_qk1,                    None,   None,       None],
-                            [       gap * gamma_qk1,       gap * W_gammak1.T,   None,       None],
-                        ],
-                        format="csr",
-                    )
-                    # fmt: on
-                else:
-                    raise NotImplementedError
+        uk1_ak1 = self.dt * self.gamma
+        qk1_ak1 = self.dt**2 * self.beta * self.model.B(self.tk, self.qk)
+        g_ak1 = g_qk1 @ qk1_ak1
+        gamma_ak1 = W_gammak1.T * uk1_ak1 + gamma_qk1 @ qk1_ak1
+        # fmt: off
+        J = bmat(
+            [
+                [Mk1 + K @ qk1_ak1 - h_uk1 * uk1_ak1, -W_gk1, -W_gammak1],
+                [                g_ak1,   None,       None],
+                [            gamma_ak1,   None,       None],
+            ],
+            format="csr",
+        )
+        # fmt: on
 
-        # # TODO: Keep this for debugging!
-        # J_num = self.__J_num(tk1, sk1)
-        # diff = (J - J_num).toarray()
-        # error = np.linalg.norm(diff)
-        # print(f"error J: {error}")
+        # TODO: Keep this for debugging!
+        J_num = self.__J_num(tk1, xk1)
+        diff = (J - J_num).toarray()
+        error = np.linalg.norm(diff)
+        print(f"error J: {error}")
 
         yield J
 
@@ -2665,7 +2633,11 @@ class GeneralizedAlphaSecondOrder:
 
     def __J_num(self, tk1, xk1):
         return csr_matrix(
-            approx_fprime(xk1, lambda x: self.__R(tk1, x), method="2-point")
+            approx_fprime(
+                xk1, lambda x: self.__R(tk1, x), method="2-point", eps=1 - 0e-4
+            )
+            # approx_fprime(xk1, lambda x: self.__R(tk1, x), method="2-point")
+            # approx_fprime(xk1, lambda x: self.__R(tk1, x), method="3-point")
         )
 
     def step(self, tk1, xk1):
@@ -2682,8 +2654,23 @@ class GeneralizedAlphaSecondOrder:
 
                 # Newton update
                 j += 1
-                dx = spsolve(J, R, use_umfpack=True)
-                xk1 -= dx
+                if self.preconditioning:
+                    # left and right preconditioner
+                    dx = spsolve(
+                        self.D_L @ J @ self.D_R, self.D_L @ R, use_umfpack=True
+                    )
+                    xk1 -= self.D_R @ dx
+
+                    # # right preconditioner
+                    # ds = spsolve(J @ self.D_R, R, use_umfpack=True)
+                    # sk1 -= self.D_R @ ds
+
+                    # # left preconditioner
+                    # ds = spsolve(self.D_L @ J, self.D_L @ R, use_umfpack=True)
+                    # sk1 -= ds
+                else:
+                    dx = spsolve(J, R, use_umfpack=True)
+                    xk1 -= dx
 
                 R_gen = self.__R_gen(tk1, xk1)
                 R = next(R_gen)
@@ -2700,7 +2687,7 @@ class GeneralizedAlphaSecondOrder:
         t = [self.tk]
         q = [self.qk]
         u = [self.uk]
-        u_dot = [self.ak]
+        u_dot = [self.u_dotk]
         la_g = [self.la_gk]
         la_gamma = [self.la_gammak]
 
