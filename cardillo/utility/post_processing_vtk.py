@@ -1,6 +1,7 @@
 import numpy as np
 import meshio
 import os
+import pickle
 
 
 def post_processing(subsystem, t, q, filename, u=None, binary=True):
@@ -16,6 +17,8 @@ def post_processing(subsystem, t, q, filename, u=None, binary=True):
 
     collection = root.createElement('Collection')
     vkt_file.appendChild(collection)
+
+    nodes = {}
 
     if u is None:
         u = np.zeros_like(q)
@@ -33,10 +36,12 @@ def post_processing(subsystem, t, q, filename, u=None, binary=True):
         cells = []
         HigherOrderDegrees = []
         point_data = {}
+        field_data = {}
         offset = 0
+        nodes_ti = []
 
         for subsystemi in subsystem:
-            geom_pointsi, point_datai, cellsi, HigherOrderDegreesi = subsystemi.post_processing_subsystem(
+            geom_pointsi, point_datai, cellsi, field_datai, HigherOrderDegreesi = subsystemi.post_processing_subsystem(
                 ti, qi[subsystemi.qDOF], ui[subsystemi.uDOF], binary=binary)
 
             geom_points = np.append(geom_points, geom_pointsi, axis=0)
@@ -57,6 +62,21 @@ def post_processing(subsystem, t, q, filename, u=None, binary=True):
                 else:
                     point_data.update({key: point_datai[key]})
 
+            # update field data
+            field_data = {k: field_data.get(k, 0) + field_datai.get(k,0) for k in set(field_datai)}
+
+            # update nodal positions
+            nodes_ti.extend(subsystemi.nodes(qi).T)
+        nodes.update({i: nodes_ti})
+
+        # write field data
+        with open(filei.parent / f'field_data_{i}', mode="wb") as f:
+            pickle.dump(field_data, f)
+
+    # write nodal positions
+    with open(filename.parent / 'nodes', mode="wb") as f:
+        pickle.dump(nodes, f)
+
         # write vtk mesh using meshio
         meshio.write_points_cells(
             filei.parent / (filei.stem + '.vtu'),
@@ -65,6 +85,7 @@ def post_processing(subsystem, t, q, filename, u=None, binary=True):
             cells,
             point_data=point_data,
             cell_data={"HigherOrderDegrees": HigherOrderDegrees},
+            field_data=field_data,
             binary=binary
         )
 

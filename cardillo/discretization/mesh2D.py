@@ -339,13 +339,13 @@ class Mesh2D():
                     w_J0[el, i] = (norm3(cross3(kappa0_xi[:, 0], kappa0_xi[:, 1]))
                                    * self.wp[el, i])
                     # compute N_X
-                    #kappa0_xi = np.c_[kappa0_xi, cross3(kappa0_xi[:, 0], kappa0_xi[:, 1]) / w_J0[el, i]]
-                    #kappa0_xi_inv[el, i] = inverse3D(kappa0_xi)
+                    kappa0_xi = np.c_[kappa0_xi, cross3(kappa0_xi[:, 0], kappa0_xi[:, 1]) / w_J0[el, i]]
+                    kappa0_xi_inv[el, i] = inverse3D(kappa0_xi)
 
-                    # for a in range(self.nn_el):
-                    #     N_X[el, i, a] = np.append(N_xi[a], 0) @ kappa0_xi_inv[el, i]
+                    for a in range(self.nn_el):
+                        N_X[el, i, a] = np.append(N_xi[a], 0) @ kappa0_xi_inv[el, i]
 
-            return w_J0
+            return kappa0_xi_inv, N_X, w_J0
                         
     def N_XX(self, Q, kappa0_xi_inv):
         assert self.derivative_order == 2
@@ -443,6 +443,7 @@ class Mesh2D():
         return point_data
         
     def vtk_mesh(self, q, dim=2):
+        dim = self.nq_n
         if self.basis == 'B-spline':
             # rearrange q's from solver to Piegl's 2D ordering
 #            Pw = q_to_Pw_2D(self.knot_vector_objs, q, dim=self.nq_n)

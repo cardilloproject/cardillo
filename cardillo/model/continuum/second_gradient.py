@@ -92,177 +92,7 @@ class Second_gradient:
         z[self.cDOF] = self.b(t)
         return z
 
-    def post_processing_single_configuration(
-        self, t, q, filename, binary=True, return_strain=False
-    ):
-        # compute redundant generalized coordinates
-        z = self.z(t, q)
 
-        # generalized coordinates, connectivity and polynomial degree
-        cells, points, HigherOrderDegrees = self.mesh.vtk_mesh(z)
-
-        # dictionary storing point data
-        point_data = {}
-
-        # evaluate deformation gradient at quadrature points
-        F = np.zeros((self.mesh.nel, self.mesh.nqp, self.mesh.nq_n, self.mesh.nq_n))
-        G = np.zeros(
-            (
-                self.mesh.nel,
-                self.mesh.nqp,
-                self.mesh.nq_n,
-                self.mesh.nq_n,
-                self.mesh.nq_n,
-            )
-        )
-        for el in range(self.mesh.nel):
-            ze = z[self.mesh.elDOF[el]]
-            for i in range(self.mesh.nqp):
-                for a in range(self.mesh.nn_el):
-                    F[el, i] += np.outer(
-                        ze[self.mesh.nodalDOF[a]], self.N_X[el, i, a]
-                    )  # Bonet 1997 (7.6b)
-                    G[el, i] += np.einsum(
-                        "i,jk->ijk", ze[self.nodalDOF[a]], self.N_XX[el, i, a]
-                    )
-
-        if return_strain == False:
-
-            F_vtk = self.mesh.field_to_vtk(F)
-            G_vtk = self.mesh.field_to_vtk(G)
-            point_data.update({"F": F_vtk, "G": G_vtk})
-
-            # field data vtk export
-            # TODO: get export field from material
-            point_data_fields = {
-                # "C": lambda F: F.T @ F,
-                "J": lambda F, G: np.array([self.determinant(F)]),
-                "P": lambda F, G: self.mat.P(F, G),
-                "bbP": lambda F, G: self.mat.bbP(F, G),
-                # "S": lambda F: self.mat.S(F),
-                "W": lambda F, G: self.mat.W(F, G),
-                "We": lambda F, G: self.mat.We(F, G),
-                "Ws": lambda F, G: self.mat.Ws(F, G),
-                "Wc": lambda F, G: self.mat.Wc(F, G),
-                "Wg": lambda F, G: self.mat.Wg(F, G),
-                "Wn": lambda F, G: self.mat.Wn(F, G),
-                "Wt": lambda F, G: self.mat.Wt(F, G),
-            }
-
-            for name, fun in point_data_fields.items():
-                tmp = fun(
-                    F_vtk[0].reshape(self.dim, self.dim),
-                    G_vtk[0].reshape(self.dim, self.dim, self.dim),
-                ).ravel()
-                field = np.zeros((len(F_vtk), len(tmp)))
-                for i, Fi in enumerate(F_vtk):
-                    field[i] = fun(
-                        Fi.reshape(self.dim, self.dim),
-                        G_vtk[i].reshape(self.dim, self.dim, self.dim),
-                    ).ravel()
-                point_data.update({name: field})
-
-            # write vtk mesh using meshio
-            meshio.write_points_cells(
-                filename.parent / (filename.stem + ".vtu"),
-                points,
-                cells,
-                point_data=point_data,
-                cell_data={"HigherOrderDegrees": HigherOrderDegrees},
-                binary=binary,
-            )
-
-        else:
-            return F[0, 0]
-
-    def post_processing(self, t, q, filename, binary=True, project_to_reference=False):
-        # write paraview PVD file collecting time and all vtk files, see https://www.paraview.org/Wiki/ParaView/Data_formats#PVD_File_Format
-        from xml.dom import minidom
-
-        root = minidom.Document()
-
-        vkt_file = root.createElement("VTKFile")
-        vkt_file.setAttribute("type", "Collection")
-        root.appendChild(vkt_file)
-
-        collection = root.createElement("Collection")
-        vkt_file.appendChild(collection)
-
-        for i, (ti, qi) in enumerate(zip(t, q)):
-            filei = filename.parent / (filename.stem + f"_{i}.vtu")
-
-            # write time step and file name in pvd file
-            dataset = root.createElement("DataSet")
-            dataset.setAttribute("timestep", f"{ti:0.6f}")
-            dataset.setAttribute("file", filei.name)
-            collection.appendChild(dataset)
-
-            if project_to_reference == True:
-                raise NotImplementedError
-            self.post_processing_single_configuration(ti, qi, filei, binary=binary)
-
-        # write pvd file
-        xml_str = root.toprettyxml(indent="\t")
-        with (filename.parent / (filename.stem + ".pvd")).open("w") as f:
-            f.write(xml_str)
-
-    def post_processing_la(
-        self, t, la_mesh, la, q_la, filename, binary=True, project_to_reference=False
-    ):
-        # write paraview PVD file collecting time and all vtk files, see https://www.paraview.org/Wiki/ParaView/Data_formats#PVD_File_Format
-        from xml.dom import minidom
-
-        root = minidom.Document()
-
-        vkt_file = root.createElement("VTKFile")
-        vkt_file.setAttribute("type", "Collection")
-        root.appendChild(vkt_file)
-
-        collection = root.createElement("Collection")
-        vkt_file.appendChild(collection)
-
-        for i, (ti, lai, q_lai) in enumerate(zip(t, la, q_la)):
-            filei = filename.parent / (filename.stem + f"la_{i}.vtu")
-
-            # write time step and file name in pvd file
-            dataset = root.createElement("DataSet")
-            dataset.setAttribute("timestep", f"{ti:0.6f}")
-            dataset.setAttribute("file", filei.name)
-            collection.appendChild(dataset)
-
-            if project_to_reference == True:
-                raise NotImplementedError
-            self.post_processing_la_single_configuration(
-                ti, la_mesh, lai, q_lai, filei, binary=binary
-            )
-
-        # write pvd file
-        xml_str = root.toprettyxml(indent="\t")
-        with (filename.parent / (filename.stem + "_la.pvd")).open("w") as f:
-            f.write(xml_str)
-
-    def post_processing_la_single_configuration(
-        self, t, la_mesh, la, la_q, filename, binary=True
-    ):
-
-        # generalized coordinates, connectivity and polynomial degree
-        cells, points, HigherOrderDegrees = la_mesh.vtk_mesh(la_q, dim=self.nq_n)
-
-        # dictionary storing point data
-        point_data = {}
-
-        _, la_vtk, _ = la_mesh.vtk_mesh(la, dim=la_mesh.nq_n)
-        point_data.update({"la": la_vtk})
-
-        # write vtk mesh using meshio
-        meshio.write_points_cells(
-            filename.parent / (filename.stem + ".vtu"),
-            points,
-            cells,
-            point_data=point_data,
-            cell_data={"HigherOrderDegrees": HigherOrderDegrees},
-            binary=binary,
-        )
 
     def F_qp(self, q):
         """Compute deformation gradient at quadrature points"""
@@ -469,14 +299,14 @@ class Second_gradient:
     ####################################################
     # surface forces and double forces
     ####################################################
-    def force_distr2D_el(self, force, t, el, srf_mesh):
+    def force_distr2D_el(self, force, t, el, srf_mesh, srf_w_J0el):
         fe = np.zeros(srf_mesh.nq_el)
 
         el_xi, el_eta = split2D(el, (srf_mesh.nel_xi,))
 
         for i in range(srf_mesh.nqp):
-            N = srf_mesh.N[el, i]
-            w_J0 = self.srf_w_J0[srf_mesh.idx][el, i]
+            Neli = srf_mesh.N[el, i]
+            srf_w_J0eli = srf_w_J0el[i]
 
             i_xi, i_eta = split2D(i, (srf_mesh.nqp_xi,))
             xi = srf_mesh.qp_xi[el_xi, i_xi]
@@ -484,11 +314,11 @@ class Second_gradient:
 
             # internal forces
             for a in range(srf_mesh.nn_el):
-                fe[srf_mesh.nodalDOF[a]] += force(t, xi, eta) * N[a] * w_J0
+                fe[srf_mesh.nodalDOF[a]] += force(t, xi, eta) * Neli[a] * srf_w_J0eli
 
         return fe
 
-    def force_distr2D(self, t, q, force, srf_idx):
+    def force_distr2D(self, t, q, force, srf_idx, srf_w_J0):
         z = self.z(t, q)
         f = np.zeros(self.nz)
 
@@ -497,7 +327,7 @@ class Second_gradient:
 
         for el in range(srf_mesh.nel):
             f[srf_zDOF[srf_mesh.elDOF[el]]] += self.force_distr2D_el(
-                force, t, el, srf_mesh
+                force, t, el, srf_mesh, srf_w_J0[el]
             )
         return f[self.fDOF]
 
@@ -579,6 +409,214 @@ class Second_gradient:
 
     def force_distr3D_q(self, t, q, coo, force):
         pass
+
+
+    def post_processing_single_configuration(
+        self, t, q, filename, binary=True, return_strain=False
+        ):
+        # compute redundant generalized coordinates
+        z = self.z(t, q)
+
+        # generalized coordinates, connectivity and polynomial degree
+        cells, points, HigherOrderDegrees = self.mesh.vtk_mesh(z)
+
+        # dictionary storing point data
+        point_data = {}
+
+        # evaluate deformation gradient at quadrature points
+        F = np.zeros((self.mesh.nel, self.mesh.nqp, self.mesh.nq_n, self.mesh.nq_n))
+        G = np.zeros(
+            (
+                self.mesh.nel,
+                self.mesh.nqp,
+                self.mesh.nq_n,
+                self.mesh.nq_n,
+                self.mesh.nq_n,
+            )
+        )
+        We = np.zeros((self.mesh.nel, self.nqp))
+        for el in range(self.mesh.nel):
+            ze = z[self.mesh.elDOF[el]]
+            for i in range(self.mesh.nqp):
+                for a in range(self.mesh.nn_el):
+                    F[el, i] += np.outer(
+                        ze[self.mesh.nodalDOF[a]], self.N_X[el, i, a]
+                    )  # Bonet 1997 (7.6b)
+                    G[el, i] += np.einsum(
+                        "i,jk->ijk", ze[self.nodalDOF[a]], self.N_XX[el, i, a]
+                    )
+                We[el, i] = self.mat.We(F[el,i], G[el,i])
+
+        if return_strain == False:
+
+            F_vtk = self.mesh.field_to_vtk(F)
+            G_vtk = self.mesh.field_to_vtk(G)
+            point_data.update({"F": F_vtk, "G": G_vtk})
+
+            # field data vtk export
+            # TODO: get export field from material
+            point_data_fields = {
+                # "C": lambda F: F.T @ F,
+                "J": lambda F, G: np.array([self.determinant(F)]),
+                "P": lambda F, G: self.mat.P(F, G),
+                "bbP": lambda F, G: self.mat.bbP(F, G),
+                # "S": lambda F: self.mat.S(F),
+                "W": lambda F, G: self.mat.W(F, G),
+                "We": lambda F, G: self.mat.We(F, G),
+                "Ws": lambda F, G: self.mat.Ws(F, G),
+                "Wc": lambda F, G: self.mat.Wc(F, G),
+                "Wg": lambda F, G: self.mat.Wg(F, G),
+                "Wn": lambda F, G: self.mat.Wn(F, G),
+                "Wt": lambda F, G: self.mat.Wt(F, G),
+                "rho": lambda F, G: self.mat.rho(F, G),
+                "ga": lambda F, G: self.mat.ga(F, G),
+                "tau": lambda F, G: self.mat.tau(F, G),
+            }
+
+            for name, fun in point_data_fields.items():
+                tmp = fun(
+                    F_vtk[0].reshape(self.dim, self.dim),
+                    G_vtk[0].reshape(self.dim, self.dim, self.dim),
+                ).ravel()
+                field = np.zeros((len(F_vtk), len(tmp)))
+                for i, Fi in enumerate(F_vtk):
+                    field[i] = fun(
+                        Fi.reshape(self.dim, self.dim),
+                        G_vtk[i].reshape(self.dim, self.dim, self.dim),
+                    ).ravel()
+                point_data.update({name: field})
+
+            # Global Values as Field Data
+            field_data = {
+            "W_tot": self.integrate(self.mat.W, F, G),   
+            "We_tot": self.integrate(self.mat.We, F, G),
+            "Ws_tot": self.integrate(self.mat.Ws, F, G),
+            "Wn_tot": self.integrate(self.mat.Wn, F, G),
+            "Wg_tot": self.integrate(self.mat.Wg, F, G),
+            "Wt_tot": self.integrate(self.mat.Wt, F, G),
+            "Wc_tot": self.integrate(self.mat.Wc, F, G),
+            }
+            # write field data
+            import pickle
+            with open(filename.parent / str('field_data_' + str.split(filename.stem,'_')[-1]), mode="wb") as f:
+                pickle.dump(field_data, f)
+            print(field_data)
+            # write vtk mesh using meshio
+            meshio.write_points_cells(
+                filename.parent / (filename.stem + ".vtu"),
+                points,
+                cells,
+                point_data=point_data,
+                cell_data={"HigherOrderDegrees": HigherOrderDegrees},
+                field_data=field_data,
+                binary=binary,
+            )
+
+        else:
+            return F[0, 0]
+
+    def post_processing(self, t, q, filename, binary=True, project_to_reference=False):
+        # write paraview PVD file collecting time and all vtk files, see https://www.paraview.org/Wiki/ParaView/Data_formats#PVD_File_Format
+        from xml.dom import minidom
+
+        root = minidom.Document()
+
+        vkt_file = root.createElement("VTKFile")
+        vkt_file.setAttribute("type", "Collection")
+        root.appendChild(vkt_file)
+
+        collection = root.createElement("Collection")
+        vkt_file.appendChild(collection)
+
+        for i, (ti, qi) in enumerate(zip(t, q)):
+            filei = filename.parent / (filename.stem + f"_{i}.vtu")
+
+            # write time step and file name in pvd file
+            dataset = root.createElement("DataSet")
+            dataset.setAttribute("timestep", f"{ti:0.6f}")
+            dataset.setAttribute("file", filei.name)
+            collection.appendChild(dataset)
+
+            if project_to_reference == True:
+                raise NotImplementedError
+            self.post_processing_single_configuration(ti, qi, filei, binary=binary)
+
+        # write pvd file
+        xml_str = root.toprettyxml(indent="\t")
+        with (filename.parent / (filename.stem + ".pvd")).open("w") as f:
+            f.write(xml_str)
+
+    def post_processing_la(
+        self, t, la_mesh, la, q_la, filename, binary=True, project_to_reference=False
+    ):
+        # write paraview PVD file collecting time and all vtk files, see https://www.paraview.org/Wiki/ParaView/Data_formats#PVD_File_Format
+        from xml.dom import minidom
+
+        root = minidom.Document()
+
+        vkt_file = root.createElement("VTKFile")
+        vkt_file.setAttribute("type", "Collection")
+        root.appendChild(vkt_file)
+
+        collection = root.createElement("Collection")
+        vkt_file.appendChild(collection)
+
+        for i, (ti, lai, q_lai) in enumerate(zip(t, la, q_la)):
+            filei = filename.parent / (filename.stem + f"la_{i}.vtu")
+
+            # write time step and file name in pvd file
+            dataset = root.createElement("DataSet")
+            dataset.setAttribute("timestep", f"{ti:0.6f}")
+            dataset.setAttribute("file", filei.name)
+            collection.appendChild(dataset)
+
+            if project_to_reference == True:
+                raise NotImplementedError
+            self.post_processing_la_single_configuration(
+                ti, la_mesh, lai, q_lai, filei, binary=binary
+            )
+
+        # write pvd file
+        xml_str = root.toprettyxml(indent="\t")
+        with (filename.parent / (filename.stem + "_la.pvd")).open("w") as f:
+            f.write(xml_str)
+
+    def post_processing_la_single_configuration(
+        self, t, la_mesh, la, la_q, filename, binary=True
+    ):
+
+        # generalized coordinates, connectivity and polynomial degree
+        cells, points, HigherOrderDegrees = la_mesh.vtk_mesh(la_q, dim=self.nq_n)
+
+        # dictionary storing point data
+        point_data = {}
+
+        _, la_vtk, _ = la_mesh.vtk_mesh(la, dim=la_mesh.nq_n)
+        point_data.update({"la": la_vtk})
+
+        # write vtk mesh using meshio
+        meshio.write_points_cells(
+            filename.parent / (filename.stem + ".vtu"),
+            points,
+            cells,
+            point_data=point_data,
+            cell_data={"HigherOrderDegrees": HigherOrderDegrees},
+            binary=binary,
+        )
+
+    def integrate(self, var, F, G):
+        # integrates variable over domain
+        Var = 0.
+        for el in range(self.nel):
+            for i in range(self.nqp):
+                vari = var(F[el, i], G[el, i])
+                # Neli = self.N[el, i]
+                w_J0eli = self.w_J0[el, i]
+                # for a in range(self.nq_n):
+                Var += vari * w_J0eli
+
+        return np.array([[Var]])
+
 
 
 def test_gradient():

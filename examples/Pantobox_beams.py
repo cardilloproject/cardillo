@@ -23,6 +23,7 @@ from cardillo.model.bilateral_constraints.implicit import (
     Rigid_connection,
     Revolute_joint,
     Linear_guidance_xyz,
+    Linear_guidance_x,
     Spherical_joint,
     Rod,
     Single_position_y,
@@ -111,13 +112,15 @@ class Panto_beam():
 
 
 class Pivot():
-    def __init__(self, r_OB, rigid=True, p_type='rigid', nEl_p=2):
+    def __init__(self, r_OB, rigid=True, p_type='rigid', nEl_p=2, floppy2=True):
         self.r_OB = r_OB
         self.r_OB1 = r_OB + A_IK_z[:, 0] * piv_h/2
         self.r_OB2 = r_OB - A_IK_z[:, 0] * piv_h/2
 
         self.r_OB3 = r_OB - A_IK_x[:, 0] * piv_h/2
         self.r_OB4 = r_OB + A_IK_x[:, 0] * piv_h/2
+
+        self.is_rigid = rigid
 
         if rigid:
             self.V = 2 * np.pi * r**2 * piv_h
@@ -132,7 +135,7 @@ class Pivot():
                 self.rigid = []
 
             else:
-                self.body = np.empty(5, object)
+                self.body = np.empty(6, object)
                 q0 = np.concatenate((r_OB, np.zeros(3)))
 
                 q01 = np.concatenate((self.r_OB1, np.zeros(3)))
@@ -143,6 +146,7 @@ class Pivot():
                 In = 2/5 * self.m/5 * r ** 2
                 self.theta = np.diag([In, In, In])
                 self.body[0] = Rigid_body_euler(self.m/5, self.theta, q0=q0)
+                self.body[5] = Rigid_body_euler(self.m/5, self.theta, q0=q0)
 
                 self.body[1] = Rigid_body_euler(
                     self.m/5, self.theta, axis='zxy', q0=q01)
@@ -155,17 +159,30 @@ class Pivot():
 
                 self.f_ID = [np.zeros(3) for i in range(4)]
 
-                self.rigid1 = Rigid_connection(
-                    self.body[0], self.body[1], self.r_OB1)
-                self.rigid2 = Rigid_connection(
-                    self.body[0], self.body[2], self.r_OB2)
-                self.rigid3 = Rigid_connection(
-                    self.body[0], self.body[3], self.r_OB3)
-                self.rigid4 = Rigid_connection(
-                    self.body[0], self.body[4], self.r_OB4)
+                if floppy2:
+                    self.rigid1 = Rigid_connection(
+                        self.body[0], self.body[1], self.r_OB1)
+                    self.rigid2 = Rigid_connection(
+                        self.body[0], self.body[2], self.r_OB2)
+                    self.rigid3 = Rigid_connection(
+                        self.body[5], self.body[3], self.r_OB3)
+                    self.rigid4 = Rigid_connection(
+                        self.body[5], self.body[4], self.r_OB4)
+                    self.rigid5 = Revolute_joint(self.body[0], self.body[5], r_OB, A_IK_z)
+                    # self.rigid5 = Spherical_joint(self.body[0], self.body[5], r_OB)
+                else:
+                    self.rigid1 = Rigid_connection(
+                        self.body[0], self.body[1], self.r_OB1)
+                    self.rigid2 = Rigid_connection(
+                        self.body[0], self.body[2], self.r_OB2)
+                    self.rigid3 = Rigid_connection(
+                        self.body[5], self.body[3], self.r_OB3)
+                    self.rigid4 = Rigid_connection(
+                        self.body[5], self.body[4], self.r_OB4)
+                    self.rigid5 = Rigid_connection(self.body[0], self.body[5], r_OB)
 
                 self.rigid = [self.rigid1, self.rigid2,
-                              self.rigid3, self.rigid4]
+                              self.rigid3, self.rigid4, self.rigid5]
 
         else:
             Q1 = straight_configuration(
@@ -333,7 +350,7 @@ class Panto_grid():
                                 r_OB = beam.r_OP(
                                     0, beam.q0[beam.qDOF_P(f_ID)], f_ID)
 
-                                if [nx, ny, nz][bc_i] in [0, n_xyz[bc_i]] and i == -1:
+                                if [nx, ny, nz][bc_i] in [0, n_xyz[bc_i]]: #and i == -1:
                                     # if bc_it == 0:
                                     #     frame = frame_bottom
                                     # else:
@@ -387,53 +404,67 @@ class Panto_grid():
 
        # self.bc = []
        # rigid connection between beams and frame
-        # for _, beam_bottom in bc_beams['bottom']:
-        #     beam = beam_bottom['beam'].beam
-        #     r_OB_bottom = beam.r_OP(0, beam.q0[beam.qDOF_P(
-        #         beam_bottom['f_ID'])], beam_bottom['f_ID'])
-        #     rigid_bottom = Rigid_connection(
-        #         beam, frame_bottom, r_OB_bottom, beam_bottom['f_ID'])
+        if not self.pivot_grid[bc_top]['pivot'].is_rigid:
+            for _, beam_bottom in bc_beams['bottom']:
+                beam = beam_bottom['beam'].beam
+                r_OB_bottom = beam.r_OP(0, beam.q0[beam.qDOF_P(
+                    beam_bottom['f_ID'])], beam_bottom['f_ID'])
+                rigid_bottom = Rigid_connection(
+                    beam, frame_bottom, r_OB_bottom, beam_bottom['f_ID'])
 
-        #     self.bc.append(rigid_bottom)
+                self.bc.append(rigid_bottom)
 
-        # for _, beam_top in bc_beams['top']:
-        #     beam = beam_top['beam'].beam
-        #     r_OB_top = beam.r_OP(
-        #         0, beam.q0[beam.qDOF_P(beam_top['f_ID'])], beam_top['f_ID'])
-        #     rigid_top = Rigid_connection(
-        #         beam, frame_top, r_OB_top, beam_top['f_ID'])
-        #     rigid_top = Rigid_connection(
-        #         beam, frame_top, r_OB_top, beam_top['f_ID'])
+            for _, beam_top in bc_beams['top']:
+                beam = beam_top['beam'].beam
+                r_OB_top = beam.r_OP(
+                    0, beam.q0[beam.qDOF_P(beam_top['f_ID'])], beam_top['f_ID'])
+                rigid_top = Rigid_connection(
+                    beam, frame_top, r_OB_top, beam_top['f_ID'])
+                rigid_top = Rigid_connection(
+                    beam, frame_top, r_OB_top, beam_top['f_ID'])
 
-        #     self.bc.append(rigid_top)
+                self.bc.append(rigid_top)
 
         # Rigid connection between pivots and frame
-        for i, pivot in enumerate(bc_pivots['top']):
-            r_OB = pivot.r_OB
-            if i == -1:
-                self.bc.append(Rigid_connection(
-                    pivot.body[0], frame_top, r_OB))
-            else:
-                # self.bc.append(Rigid_connection(pivot.body[0], frame_top, r_OB))
-                # self.bc.append(Single_position_all_angles(
-                #     pivot.body[0], frame_top, r_OB, A_IK_x))
-                self.bc.append(Single_position_y(
-                    pivot.body[0], frame_top, r_OB, A_IK_y))
+       # if rigid:
+        else:
+            for i, pivot in enumerate(bc_pivots['top']):
+                r_OB = pivot.r_OB
+                if i == -1:
+                    self.bc.append(Rigid_connection(
+                        pivot.body[0], frame_top, r_OB))
+                else:
+                    connection = Rigid_connection(pivot.body[0], frame_top2, r_OB)
+                    # self.bc.append(Rigid_connection(pivot.body[5], frame_top2, r_OB))
+                    # self.bc.append(Single_position_all_angles(
+                    #     pivot.body[0], frame_top, r_OB, A_IK_x))
+                    #self.bc.append(Single_position_y(
+                    #    pivot.body[0], frame_top, r_OB, A_IK_y))
+                    # self.bc.append(Linear_guidance_x(pivot.body[0], frame_top2, r_OB, A_IK_z))
+                    # connection = Spherical_joint(pivot.body[0], frame_top2, r_OB)
+                
+                self.bc.append(connection)
 
-        for i, pivot in enumerate(bc_pivots['bottom']):
-            r_OB = pivot.r_OB
-            if i == 0:
-                self.bc.append(Rigid_connection(
-                    pivot.body[0], frame_bottom, r_OB))
-            else:
-                self.bc.append(Single_position_y(
-                    pivot.body[0], frame_bottom, r_OB, A_IK_y))
-                # self.bc.append(Single_position_all_angles(
-                #     pivot.body[0], frame_bottom, r_OB, A_IK_x))
-                # self.bc.append(Linear_guidance_xyz(
-                #     pivot.body[0], frame_bottom, r_OB, A_IK_x))
-                # self.bc.append(Rigid_connection(
-                #     pivot.body[0], frame_bottom, r_OB))
+            for i, pivot in enumerate(bc_pivots['bottom']):
+                r_OB = pivot.r_OB
+                if i == -1:
+                    self.bc.append(Rigid_connection(
+                        pivot.body[0], frame_bottom, r_OB))
+                    # self.bc.append(Rigid_connection(
+                    #     pivot.body[5], frame_bottom, r_OB))
+                else:
+                    #self.bc.append(Single_position_y(
+                    #    pivot.body[0], frame_bottom, r_OB, A_IK_y))
+                    # self.bc.append(Single_position_all_angles(
+                    #     pivot.body[0], frame_bottom, r_OB, A_IK_x))
+                    # self.bc.append(Linear_guidance_xyz(
+                    #     pivot.body[0], frame_bottom, r_OB, A_IK_x))
+                    connection = Rigid_connection(
+                         pivot.body[0], frame_bottom, r_OB)
+                    # self.bc.append(Rigid_connection(
+                    #     pivot.body[5], frame_bottom, r_OB))
+                    # connection = Spherical_joint(pivot.body[0], frame_bottom, r_OB)
+                self.bc.append(connection)  
 
         # for pivot in bc_pivots['middle']:
         #     r_OB = pivot.r_OB
@@ -442,25 +473,34 @@ class Panto_grid():
         #         pivot.body[0], frame_middle, r_OB, A_IK_z))
 
 
-l = 70.0 * 3
+#  create unit cells
+ncells_x = 4
+ncells_y = 4
+ncells_z = 12
+ncells = (ncells_x, ncells_y, ncells_z)
+
+u_l = 1. #1e-3
+u_Pa = 1. #1e9
+l = 70.0 * 3 * u_l  # length in mm
 # Beam dimensions and parameter
-L = l/np.sqrt(2)/6.
-r = 0.5
-E_Y = 50
-a = 1.
-b = 1.
+L = l/np.sqrt(2)/ncells_z*2.  # beam length between pivots
+r = 0.45 * u_l  #  pivot radius in mm
+E_Y = 50. * u_Pa  # Young's Modulus in GPa
+a = L/5 # 1. * u_l  # Beam cross section length 1 in mm
+b = L/5 # 1. * u_l  # Beam cross section length 2 in mm
 G = E_Y / (2 + 0.8)
-I_1 = 2.25*a**4  # for square cross-section
-I_2 = a**3*b/12
+I_1 = 2.25*(a/2)**4  # torsional moment for square cross-section
+I_2 = a**3*b/12  # Bending moments
 I_3 = a*b**3/12
 # I_i = np.pi * r**4 * np.array([1/2, 1/4, 1/4])
+I_P = I_1 + I_2
 A = a*b
 Ei = np.array([E_Y, G, G]) * A
 Fi = np.array([G*I_1, E_Y*I_2, E_Y*I_3])
 
 
 # Beam parameters
-rho = 2.7e-3
+rho = 2.7e-1
 A_rho0 = rho * A
 B_rho0 = np.zeros(3)
 C_rho0 = np.array([[0, 0, 0], [0, I_3, 0], [0, 0, I_2]]) * rho
@@ -468,53 +508,68 @@ C_rho0 = np.array([[0, 0, 0], [0, I_3, 0], [0, 0, I_2]]) * rho
 material_model = Hooke_quadratic(Ei, Fi)
 
 # pivot length
-piv_h = 1.5  # mm
+piv_h = 1.5 * u_l * 0# mm
 rigid_pivot = True
 cross = False
 
 # discretization
 basis = 'B-spline'
 # basis = 'lagrange'
-greville = True
+greville = False
 p = 3
-q = 3
+q = 2
 nQP = p + 1
 # nQP = int(np.ceil((p**2 + 1) / 2)) + 1
-nEl = 2
+nEl = 3
 
 # dynamic solver?
 dynamic = False
 
-save_sol = True
+save_sol = False
 load_sol = True
 
-#  create unit cells
-ncells_x = 4
-ncells_y = 4
-ncells_z = 12
-ncells = (ncells_x, ncells_y, ncells_z)
+model = Model()
 
 # boundary condittions
 bc_dir = 'z'
 r_OB_top0 = l / 3 * np.array([0.5, 0.5, 3.0])
 
-tests = ['tension', str(l), 'floppy']
+# tests = ['tension', str(l),"fixed_boundary","I_1"]
+tests = ['torsion', str(l),"fixed_boundary"]
 if 'tension' in tests:
-    def r_OP_top(t): return r_OB_top0 + t * 30.0 * np.array([0.0, 0.0, 1.0])
+    def r_OP_top(t): return r_OB_top0 + t * 50.0 * np.array([0.0, 0.0, 1.0]) * u_l
     A_IK_top = np.eye(3)
+    frame_top2 = Frame(r_OP_top)
+    model.add(frame_top2)
+
 if 'torsion' in tests:
-    # def r_OP_top(t): return r_OB_top0 + t * 30.0 * np.array([0.0, 0.0, 1.0])
+    def r_OP_top(t): return r_OB_top0  # + t * 30.0 * np.array([0.0, 0.0, 1.0])
     def A_IK_top(t): return A_IK_basic_z(t * np.pi/4)
+    frame_top2 = Frame(r_OP_top, A_IK=A_IK_top)
+    model.add(frame_top2)
 
 
 def r_OP_middle(t): return r_OB_top0 * .5 + np.sqrt(2) * \
     L/2 * np.array([0.0, 0.0, 1.0]) * t  # * 0.5 * 5e-1
 
-
 # frames
 frame_bottom = Frame(np.zeros(3))
 # frame_middle = Frame(r_OP=r_OP_middle)
-frame_top = Frame(r_OP=r_OP_top, A_IK=A_IK_top)
+
+
+
+
+if 'force' in tests:
+    def force(t): return 0.05 * t * np.array([0.,0.,1.])
+    frame_top2 = Rigid_body_euler(1, np.eye(3))
+    frame_top = Frame(r_OB_top0)
+    z_only = Linear_guidance_x(frame_top, frame_top2, r_OB_top0, A_IK_z)
+    # rigid_frame_body = Rigid_connection(frame_top, frame_top2, r_OB_top0)
+    T_Force = Force(force, frame_top2)
+    model.add(frame_top2)
+    model.add(T_Force)
+    model.add(z_only)
+    # model.add(rigid_frame_body)
 
 # make Pantobox
 n_yxz = ncells_x, ncells_y, ncells_z
@@ -523,10 +578,10 @@ grid = Panto_grid((n_yxz))
 
 # assemble
 beams_all = []
-model = Model()
+
 model.add(frame_bottom)
 # model.add(frame_middle)
-model.add(frame_top)
+# model.add(frame_top)
 for beam in grid.beams:
     model.add(beam)
     beams_all.append(beam)
@@ -575,7 +630,7 @@ if dynamic:
     t0 = 0
     t1 = 0.1
     dt = 0.005
-    max_iter = 20
+    max_iter = 10
     tol = 1e-5
     rho_inf = 0.0
     # a0 = np.zeros(model.nu)
@@ -594,7 +649,7 @@ if dynamic:
     q = sol.q
 
 else:
-    solver = Newton(model, n_load_steps=20, max_iter=20, tol=1e-5)
+    solver = Newton(model, n_load_steps=10, max_iter=20, tol=1e-6)
 
     #sol = solver.solve()
     # t = sol.t
@@ -603,7 +658,7 @@ else:
 
 file_name = pathlib.Path(__file__).stem
 file_path = pathlib.Path(__file__).parent / 'results' / str(
-    f"{file_name}_" + '_'.join(tests) + '_' + 'x'.join([str(v) for v in ncells])) / file_name
+    f"{file_name}_" + '_'.join(tests) + '_' + 'x'.join([str(v) for v in ncells]) + '_'.join(tests)) / file_name
 file_path.parent.mkdir(parents=True, exist_ok=True)
 export_path = file_path.parent / 'sol'
 
@@ -619,6 +674,7 @@ if save_sol:
 elif load_sol:
     import pickle
     sol = pickle.load(open(str(export_path), 'rb'))
+
 
 # vtk export
 post_processing(

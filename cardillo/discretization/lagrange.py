@@ -103,7 +103,7 @@ def lagrange_basis2D(degrees, xis, derivative=1, knot_vectors=None, interval=[-1
                 NN[1, i, a] = Nxi[1, ik, a_xi] * Neta[0, il, a_eta] 
                 NN[2, i, a] = Nxi[0, ik, a_xi] * Neta[1, il, a_eta] 
                 if derivative > 1:
-                    raise NotImplementedError('...')
+                    # raise NotImplementedError('...')
                     NN[3, i, a] = Nxi[2, ik, a_xi] * Neta[0, il, a_eta]
                     NN[4, i, a] = Nxi[1, ik, a_xi] * Neta[1, il, a_eta]
                     NN[5, i, a] = NN[4, i, a]
@@ -153,7 +153,7 @@ def lagrange_basis3D(degrees, xis, derivative=1, knot_vectors=None, interval=[-1
                 NN[2, i, a] = Nxi[0, ik, a_xi] * Neta[1, il, a_eta] * Nzeta[0, im, a_zeta]
                 NN[3, i, a] = Nxi[0, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[1, im, a_zeta]
                 if derivative > 1:
-                    raise NotImplementedError('...')
+                    # raise NotImplementedError('...')
                     NN[4 , i, a] = Nxi[2, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[0, im, a_zeta]
                     NN[5 , i, a] = Nxi[1, ik, a_xi] * Neta[1, il, a_eta] * Nzeta[0, im, a_zeta]
                     NN[6 , i, a] = Nxi[1, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[1, im, a_zeta]
@@ -161,7 +161,7 @@ def lagrange_basis3D(degrees, xis, derivative=1, knot_vectors=None, interval=[-1
                     NN[8 , i, a] = Nxi[0, ik, a_xi] * Neta[2, il, a_eta] * Nzeta[0, im, a_zeta]
                     NN[9 , i, a] = Nxi[0, ik, a_xi] * Neta[1, il, a_eta] * Nzeta[1, im, a_zeta]
                     NN[10, i, a] = NN[6, i, a]
-                    NN[11, i, a] = NN[7, i, a]
+                    NN[11, i, a] = NN[9, i, a]
                     NN[12, i, a] = Nxi[0, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[2, im, a_zeta]
 
     return NN

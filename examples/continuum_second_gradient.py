@@ -352,15 +352,10 @@ def test_cylinder():
 
 def test_embedded_rectangle():
 
-    file_name = pathlib.Path(__file__).stem
-    file_path = pathlib.Path(__file__).parent / 'results' / f"{file_name}_rectangle" / file_name
-    file_path.parent.mkdir(parents=True, exist_ok=True)
-    # export_path = file_path.parent / 'sol'  
-
     # build mesh
     degrees = (3, 3)
     QP_shape = (3, 3)
-    element_shape = (4, 2)
+    element_shape = (3, 3)
 
     Xi = Knot_vector(degrees[0], element_shape[0])
     Eta = Knot_vector(degrees[1], element_shape[1])
@@ -369,40 +364,50 @@ def test_embedded_rectangle():
     mesh = Mesh2D(knot_vectors, QP_shape, derivative_order=2, basis='B-spline', nq_n=3)
 
     # material parameters
-    Lx = 210.  # Block length in x direction in mm
-    Ly = 70.  # Block length in y direction in mm
-    a = 1.0  # Beam thickness in d2 direction in mm
-    b = 1.0  # Beam thickness in d3 direction in mm
-    Yb = 50.0  # in GPa
+     # material parameters
+    u_l =  1. # 1e-3
+    u_Pa = 1. # 1e9
+    Lx = 70.0 * u_l  # Block length in x direction in mm
+    Ly = 210.0 * u_l # Block length in x direction in mm
+    a = 1.0 * u_l # Beam thickness in d2 direction in mm
+    b = 1.0 * u_l # Beam thickness in d3 direction in mm
+    Yb = 50. * u_Pa # in GPa
     Gb = Yb / (2 + 0.8)
-    rp = 0.45  # pivot radius in mm
-    hp = 1.5  # pivot length in mm
-    Jn = a**3*b/12  # second moment of are I_d2
-    Jg = a*b**3/12  # second moment of area I_d3
-    Jt = 0.196*a**3*b  # torsional moment of area I_d1
-    nf = 2  # number of unit cells in x-direction
-    p = Lx/np.sqrt(2)/nf  # distance between pivots along a beam
-    Ke = Yb*a*b/p**2 * np.sqrt(2)  # extensional stiffness
-    Kg = Yb*Jg/p**2 * np.sqrt(2)  # geodesic bending stiffness
-    Kn = Yb*Jn/p**2 * np.sqrt(2)  # normal bending stiffness
-    Kt = Gb*Jt/p**2 * np.sqrt(2)  # torsional stiffness
-    Kp = Gb*np.pi*rp**4/2/hp / (p**2*np.sqrt(2))
-    Ks = Kp
+    rp = 0.45 * u_l # pivot radius in mm
+    hp = 1.5 * u_l # pivot length in mm
+    Jn = a**3 * b / 12  # second moment of are I_d2
+    Jg = a * b**3 / 12  # second moment of area I_d3
+    Jt = 2.25*a**4 # torsional moment of area I_d1
+    nx = 2  # number of unit cells in x-direction
+    p = Lx / np.sqrt(2) / nx  # distance between pivots along a beam
+    Ke = Yb * a * b / p # extensional stiffness
+    # Ke = Yb * a * b / (np.sqrt(2)*p**2) 
+    Kg = Yb * Jg / p # geodesic bending stiffness
+    #  Kg = Yb * Jg / (np.sqrt(2)*p**2) 
+    Kn = Yb * Jn / p # normal bending stiffness
+    # Kn = Yb * Jn / (np.sqrt(2)*p**2) 
+    Kt = Gb * Jt / p  # torsional stiffness
+    # Kt = Gb * Jt / (np.sqrt(2)*p**2) 
+    Kp = Gb * np.pi * rp**4 / 2 / hp / p**2
+    Ks = Kp #* 0
 
     rectangle_shape = (Lx, Ly)
-    Z = rectangle(rectangle_shape, mesh, Greville=True)
+    Z = rectangle(rectangle_shape, mesh, Greville=False)
 
     # material model    
-    mat = Pantosheet_beam_network(Ke, Ks, Kg, Kn, Kt)
+    # mat = Pantosheet_beam_network(Ke, Ks, Kg, Kn, Kt)
+    mat = Pantosheet_beam_network(Ke, Ks, 0, 0, 0)
 
-
+    tests = ['x'.join([str(v) for v in element_shape]),"tension","z","first_grad","mm_GPa","direct_bc"]
     # boundary conditions
-    cDOF1 = mesh.edge_qDOF[0].ravel()
-    cDOF3 = mesh.edge_qDOF[1].ravel()
-    cDOF = np.concatenate((cDOF1, cDOF3))
+    cDOF1 = mesh.edge_qDOF[2].ravel()
+    cDOF2 = mesh.edge_qDOF[3][::2].ravel()
+    cDOF3 = mesh.edge_qDOF[3][1]
+    cDOF = np.concatenate((cDOF1, cDOF2, cDOF3))
     b1 = lambda t: Z[cDOF1]
-   # b2 = lambda t: Z[cDOF3] + t * 10
-    #b = lambda t: np.concatenate((b1(t), b2(t)))
+    b2 = lambda t: Z[cDOF2]
+    b3 = lambda t: Z[cDOF3] + t * 50
+    b = lambda t: np.concatenate((b1(t), b2(t), b3(t)))
 
     # torsion
     def bt(t, phi0=0.5*np.pi, h=-20):
@@ -418,7 +423,7 @@ def test_embedded_rectangle():
         
         return out[cDOF3]
 
-    b = lambda t: np.concatenate((b1(t), bt(t)))
+    # b = lambda t: np.concatenate((b1(t), bt(t)))
 
     # 3D continuum
     continuum = Second_gradient(1, mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
@@ -433,11 +438,23 @@ def test_embedded_rectangle():
 
     # static solver
     n_load_steps = 10
-    tol = 1.0e-5
-    max_iter = 10
+    tol = 1.0e-8
+    max_iter = 20
     solver = Newton(model, n_load_steps=n_load_steps, tol=tol, max_iter=max_iter)
     
     sol = solver.solve()
+
+    file_name = pathlib.Path(__file__).stem
+    file_path = (
+        pathlib.Path(__file__).parent
+        / "results"
+        / str(f"{file_name}_rectangle_" + "_".join(tests) + "_nx=" + str(nx))
+        / file_name
+    )
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    export_path = file_path.parent / "sol"
+
+    file_path_la = file_path
 
     # # vtk export
     continuum.post_processing(sol.t, sol.q, file_path)

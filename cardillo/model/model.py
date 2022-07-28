@@ -68,7 +68,7 @@ class Model(object):
         """ Update or precalculate any system variables before next solver iteration """
         for contr in self.contributions:
             if callable(getattr(contr, 'pre_iteration_update', None)):
-                contr.pre_iteration_update(t, q, u)
+                contr.pre_iteration_update(t, q[contr.qDOF], u)
 
     def assemble(self):
         self.nq = 0

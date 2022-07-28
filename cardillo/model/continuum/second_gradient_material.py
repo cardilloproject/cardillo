@@ -5,7 +5,7 @@ from cardillo.math.algebra import determinant2D, determinant3D, inverse3D, norm,
 from cardillo.math.numerical_derivative import Numerical_derivative
 
 num_order = 2
-
+G0 = np.zeros((3,3,3))
 
 class Pantosheet_beam_network():
     """Giorgio et al 2017 Surface embedded in 3D space
@@ -243,12 +243,44 @@ class Pantosheet_beam_network():
 
         return W
 
+    def We(self, F, G=G0):
+
+        d1 = F @ self.D1
+        d2 = F @ self.D2
+        rho1 = norm(d1)
+        rho2 = norm(d2)
+
+        We = .5 * self.Ke * ((rho1-1)**2 + (rho2-1)**2)
+        return We
+
+    def Ws(self, F, G=G0):
+        # layer a
+        d1 = F @ self.D1
+        d2 = F @ self.D2
+        rho1 = norm3(d1)
+        rho2 = norm3(d2)
+        e1 = d1 / rho1
+        e2 = d2 / rho2
+        singa = e1 @ e2
+
+        Wsa = .5 * self.Ks * np.arcsin(singa)**2
+        return Wsa
+
 
 class Pantobox_beam_network():
     """Based on Giorgio et al 2017 extended to 4 fibers
     """
 
-    def __init__(self, Ke, Ks, Kg, Kn, Kt, Kc, dim=3):
+    def __init__(self, Ke, Ks, Kg, Kn, Kt, Kc, dim=3, numerical_derivative=False, first_grad=False):
+        # numerical derivatives
+        if numerical_derivative:
+            self.P = self.P_num
+            self.P_F = self.P_F_num
+            self.P_G = self.P_G_num
+            self.bbP = self.bbP_num
+            self.bbP_F = self.bbP_F_num
+            self.bbP_G = self.bbP_G_num
+
         # Beam stiffnesses
         self.Ke = Ke
         self.Ks = Ks
@@ -266,7 +298,7 @@ class Pantobox_beam_network():
         self.lc3 = np.array([[[LeviCivita3(i, j, k) for k in range(3)]
                             for j in range(3)] for i in range(3)])
 
-    def P(self, F, G):
+    def P(self, F, G=G0):
         """Piola-Lagrange stress tensor
         """
         # P_num = Numerical_derivative(lambda F: self.W(F, G), order=num_order)._X(F)
@@ -324,7 +356,7 @@ class Pantobox_beam_network():
         tau4 = - nb @ (g4 - singb * c4) / cosgb
 
         singc = na @ nb
-        cosgc = norm(cross3(na, nb))
+        cosgc = norm3(cross3(na, nb))
 
         # Elongation
         Pe = self.Ke * ((rho1-1) * np.outer(e1, self.D1) + (rho2-1) * np.outer(e2, self.D2)
@@ -376,8 +408,8 @@ class Pantobox_beam_network():
 
         Pn = self.Kn * ((np.outer(kn1*Pn1D1 + kn2*Pn2D1, self.D1)
                          + np.outer(kn1*Pn1D2 + kn2*Pn2D2, self.D2))
-                        + np.outer(kn3*Pn3D3 + kn4*Pn4D3, self.D3)) \
-            + np.outer(kn3*Pn3D4 + kn4*Pn4D4, self.D4)
+                        + np.outer(kn3*Pn3D3 + kn4*Pn4D3, self.D3) \
+            + np.outer(kn3*Pn3D4 + kn4*Pn4D4, self.D4))
 
         # Geodesic curvature
         Pg1D1 = (kg1 * singa * m1 + cross3(e1, cross3(cross3(e2, c1), e1))
@@ -402,8 +434,8 @@ class Pantobox_beam_network():
 
         Pg = self.Kg * ((np.outer(kg1*Pg1D1 + kg2*Pg2D1, self.D1)
                          + np.outer(kg1*Pg1D2 + kg2*Pg2D2, self.D2))
-                        + np.outer(kg3*Pg3D3 + kg4*Pg4D3, self.D3)) \
-            + np.outer(kg3*Pg3D4 + kg4*Pg4D4, self.D4)
+                        + np.outer(kg3*Pg3D3 + kg4*Pg4D3, self.D3) \
+            + np.outer(kg3*Pg3D4 + kg4*Pg4D4, self.D4))
 
         # Torsion
         Pt1D1 = ((2 * tau1 * singa + kg1 * cosga) * m1 - kg1 * singa * e1
@@ -433,7 +465,7 @@ class Pantobox_beam_network():
 
         return Pe + Psa + Psb + Pc + Pn + Pg + Pt
 
-    def P_F(self, F, G):
+    def P_F(self, F, G=G0):
         # Layer a
         d1 = F @ self.D1
         d2 = F @ self.D2
@@ -643,12 +675,12 @@ class Pantobox_beam_network():
         Pe_F = Pe1_F + Pe2_F + Pe3_F + Pe4_F
 
         # shear
-        Psa_F = self.Ks * np.arcsin(singa) * ga_F_F + \
+        Psa_F = self.Ks * (np.arcsin(singa) * ga_F_F + \
             np.einsum('jA,kB->jAkB',
-                      self.Ks * ga_F, ga_F)
-        Psb_F = self.Ks * np.arcsin(singb) * gb_F_F + \
+                      ga_F, ga_F))
+        Psb_F = self.Ks * (np.arcsin(singb) * gb_F_F + \
             np.einsum('jA,kB->jAkB',
-                      self.Ks * gb_F, gb_F)
+                      gb_F, gb_F))
 
         gc_F = np.einsum('i,ijk->jk', na / cosgc, nb_F) + \
             np.einsum('i,ijk->jk', nb / cosgc, na_F)
@@ -659,8 +691,8 @@ class Pantobox_beam_network():
             + np.einsum('i,ijA,kB->jAkB', na * tangc / cosgc, nb_F, gc_F) \
             + np.einsum('i,ijA,kB->jAkB', nb * tangc / cosgc, na_F, gc_F) \
 
-        Pc_F = self.Kc * np.arcsin(singc) * gc_F_F + \
-            np.einsum('jA,kB->jAkB', self.Ks * gc_F, gc_F)
+        Pc_F = self.Kc * (np.arcsin(singc) * gc_F_F + \
+            np.einsum('jA,kB->jAkB',  gc_F, gc_F))
 
         # normal bending
         Pn1_F = self.Kn * (np.einsum('jk,lm->jklm',
@@ -796,7 +828,7 @@ class Pantobox_beam_network():
 
         return Pe_F + Psa_F + Psb_F + Pc_F + Pg_F + Pn_F + Pt_F
 
-    def P_G(self, F, G):
+    def P_G(self, F, G=G0):
 
         # layer a
         d1 = F @ self.D1
@@ -1439,7 +1471,7 @@ class Pantobox_beam_network():
         rho_F_F = np.einsum('ijk,l->iljk', self.e_F(F, G, al), self.D[al])
         return rho_F_F
 
-    def ef(self, F, G, al):
+    def e1(self, F, G):
         d1 = F @ self.D1
         d2 = F @ self.D2
         rho1 = norm3(d1)
@@ -1447,7 +1479,7 @@ class Pantobox_beam_network():
         e1 = d1 / rho1
         e2 = d2 / rho2
 
-        return e2
+        return e1
 
     def e_F(self, F, G):
         """ derivative of tangent vectors w.r.t. to F
@@ -2002,8 +2034,8 @@ class Pantobox_beam_network():
 
         return Pe + Ps + Pn + Pg + Pt + Pc
 
-    # separated deformation fields for export
-    def W(self, F, G):
+    # Fields for export
+    def W(self, F, G=G0):
         # strain energy density
         # Layer a
         d1 = F @ self.D1
@@ -2060,25 +2092,25 @@ class Pantobox_beam_network():
 
         return W
 
-    def We(self, F, G):
+    def We(self, F, G=G0):
 
         d1 = F @ self.D1
         d2 = F @ self.D2
-        rho1 = norm3(d1)
-        rho2 = norm3(d2)
+        rho1 = norm(d1)
+        rho2 = norm(d2)
         # e1 = d1 / rho1
         # e2 = d2 / rho2
         d3 = F @ self.D3
         d4 = F @ self.D4
-        rho3 = norm3(d3)
-        rho4 = norm3(d4)
+        rho3 = norm(d3)
+        rho4 = norm(d4)
         # e3 = d3 / rho3
         # e4 = d4 / rho4
         We = .5 * self.Ke * ((rho1-1)**2 + (rho2-1)**2 +
                              (rho3-1)**2 + (rho4-1)**2)
-        return np.array(We)
+        return We
 
-    def Pe(self, F, G):
+    def Pe(self, F, G=G0):
 
         d1 = F @ self.D1
         d2 = F @ self.D2
@@ -2093,14 +2125,14 @@ class Pantobox_beam_network():
         e3 = d3 / rho3
         e4 = d4 / rho4
 
-        Pe1 = self.Ke * (rho1-1) * np.outer(e1, self.D1)
+        # Pe1 = self.Ke * (rho1-1) * np.outer(e1, self.D1)
 
         Pe = self.Ke * ((rho1-1) * np.outer(e1, self.D1) + (rho2-1) * np.outer(e2, self.D2)
                         + (rho3-1) * np.outer(e3, self.D3) + (rho4-1) * np.outer(e4, self.D4))
 
         return Pe
 
-    def Wn(self, F, G):
+    def Wn(self, F, G=G0):
         d1 = F @ self.D1
         d2 = F @ self.D2
         rho1 = norm3(d1)
@@ -2137,7 +2169,7 @@ class Pantobox_beam_network():
 
         return Wn1 + Wn2 + Wn3 + Wn4
 
-    def Pn(self, F, G):
+    def Pn(self, F, G=G0):
 
         d1 = F @ self.D1
         d2 = F @ self.D2
@@ -2209,8 +2241,8 @@ class Pantobox_beam_network():
 
         Pn = self.Kn * ((np.outer(kn1*Pn1D1 + kn2*Pn2D1, self.D1)
                          + np.outer(kn1*Pn1D2 + kn2*Pn2D2, self.D2))
-                        + np.outer(kn3*Pn3D3 + kn4*Pn4D3, self.D3)) \
-            + np.outer(kn3*Pn3D4 + kn4*Pn4D4, self.D4)
+                        + np.outer(kn3*Pn3D3 + kn4*Pn4D3, self.D3) \
+            + np.outer(kn3*Pn3D4 + kn4*Pn4D4, self.D4))
 
         # num = Numerical_derivative(\
         # lambda G: self.c_F(F, G), order=2)._X(G)
@@ -2219,7 +2251,7 @@ class Pantobox_beam_network():
 
         return Pn
 
-    def Wg(self, F, G):
+    def Wg(self, F, G=G0):
         # geodesic curvature energy density
         # layer a
         d1 = F @ self.D1
@@ -2261,7 +2293,7 @@ class Pantobox_beam_network():
 
         return Wg1 + Wg2 + Wg3 + Wg4
 
-    def Pg(self, F, G):
+    def Pg(self, F, G=G0):
         # geodesic curvature part of First Piola-Lagrange stress tensor
 
         # layer a
@@ -2336,8 +2368,8 @@ class Pantobox_beam_network():
 
         return Pg1 + Pg2 + Pg3 + Pg4
 
-    def Wt(self, F, G):
-        # torisonl energy density
+    def Wt(self, F, G=G0):
+        # torisonal energy density
         # layer a
         d1 = F @ self.D1
         d2 = F @ self.D2
@@ -2383,7 +2415,7 @@ class Pantobox_beam_network():
 
         return Wt1 + Wt2 + Wt3 + Wt4
 
-    def Pt(self, F, G):
+    def Pt(self, F, G=G0):
         d1 = F @ self.D1
         d2 = F @ self.D2
         rho1 = norm3(d1)
@@ -2462,7 +2494,7 @@ class Pantobox_beam_network():
 
         return Pt1 + Pt2 + Pt3 + Pt4
 
-    def Ws(self, F, G):
+    def Ws(self, F, G=G0):
         # layer a
         d1 = F @ self.D1
         d2 = F @ self.D2
@@ -2489,7 +2521,7 @@ class Pantobox_beam_network():
         Wsb = .5 * self.Ks * np.arcsin(singb)**2
         return Wsa + Wsb
 
-    def Ps(self, F, G):
+    def Ps(self, F, G=G0):
         # layer a
         d1 = F @ self.D1
         d2 = F @ self.D2
@@ -2533,7 +2565,7 @@ class Pantobox_beam_network():
 
         return Psa + Psb
 
-    def Wc(self, F, G):
+    def Wc(self, F, G=G0):
         d1 = F @ self.D1
         d2 = F @ self.D2
         rho1 = norm3(d1)
@@ -2563,7 +2595,7 @@ class Pantobox_beam_network():
 
         return Wc
 
-    def Pc(self, F, G):
+    def Pc(self, F, G=G0):
         d1 = F @ self.D1
         d2 = F @ self.D2
         rho1 = norm3(d1)
@@ -2608,21 +2640,94 @@ class Pantobox_beam_network():
 
         return Pc
 
+    def rho(self, F, G=G0):
+        d1 = F @ self.D1
+        d2 = F @ self.D2
+        rho1 = norm(d1)
+        rho2 = norm(d2)
+        d3 = F @ self.D3
+        d4 = F @ self.D4
+        rho3 = norm(d3)
+        rho4 = norm(d4)
+
+        return np.array([rho1, rho2, rho3, rho4])
+
+    def ga(self, F, G=G0):
+        d1 = F @ self.D1
+        d2 = F @ self.D2
+        rho1 = norm3(d1)
+        rho2 = norm3(d2)
+        e1 = d1 / rho1
+        e2 = d2 / rho2
+        singa = e1 @ e2
+
+        # Layer b
+        d3 = F @ self.D3
+        d4 = F @ self.D4
+        rho3 = norm3(d3)
+        rho4 = norm3(d4)
+        e3 = d3 / rho3
+        e4 = d4 / rho4
+        singb = e3 @ e4
+
+        return np.array([np.arcsin(singa), np.arcsin(singb)])
+
+    def tau(self, F, G=G0):
+        # layer a
+        d1 = F @ self.D1
+        d2 = F @ self.D2
+        rho1 = norm3(d1)
+        rho2 = norm3(d2)
+        e1 = d1 / rho1
+        e2 = d2 / rho2
+        e1xe2 = cross3(e1, e2)
+        cosga = norm3(e1xe2)
+        singa = e1 @ e2
+        na = e1xe2 / cosga
+        c1 = np.einsum('ijk,j,k->i', G, self.D1, self.D1) / \
+            rho1  # same as G@D1@D1 speed is similar
+        c2 = np.einsum('ijk,j,k->i', G, self.D2, self.D2) / rho2
+        g1 = np.einsum('ijk,j,k->i', G, self.D2, self.D1) / rho2
+        g2 = np.einsum('ijk,j,k->i', G, self.D1, self.D2) / rho1
+
+        # layer b
+        d3 = F @ self.D3
+        d4 = F @ self.D4
+        rho3 = norm3(d3)
+        rho4 = norm3(d4)
+        e3 = d3 / rho3
+        e4 = d4 / rho4
+        e3xe4 = cross3(e3, e4)
+        cosgb = norm3(e3xe4)
+        singb = e3 @ e4
+        nb = e3xe4 / cosgb
+        c3 = np.einsum('ijk,j,k->i', G, self.D3, self.D3) / rho3
+        c4 = np.einsum('ijk,j,k->i', G, self.D4, self.D4) / rho4
+        g3 = np.einsum('ijk,j,k->i', G, self.D4, self.D3) / rho4
+        g4 = np.einsum('ijk,j,k->i', G, self.D3, self.D4) / rho3
+
+        tau1 = - na @ (g1 - singa * c1) / cosga
+        tau2 = - na @ (g2 - singa * c2) / cosga
+        tau3 = - nb @ (g3 - singb * c3) / cosgb
+        tau4 = - nb @ (g4 - singb * c4) / cosgb
+
+        return np.array([tau1, tau2, tau3, tau4])   
+
     # numerical derivatives
     def P_num(self, F, G, W=W):
         P_num = Numerical_derivative(lambda F: W(F, G), order=2)._X(F)
         return P_num
 
     def bbP_num(self, F, G, W=W):
-        bbP_num = Numerical_derivative(lambda G: W(F, G), order=2)._X(G)
+        bbP_num = Numerical_derivative(lambda G: self.W(F, G), order=2)._X(G)
         return bbP_num
 
-    def P_F_num(self, F, G):
-        P_F_num = Numerical_derivative(lambda F: self.P(F, G), order=2)._X(F)
+    def P_F_num(self, F, G, P=P):
+        P_F_num = Numerical_derivative(lambda F: P(F, G), order=2)._X(F)
         return P_F_num
 
-    def P_G_num(self, F, G):
-        P_G_num = Numerical_derivative(lambda G: self.P(F, G), order=2)._X(G)
+    def P_G_num(self, F, G, P=P):
+        P_G_num = Numerical_derivative(lambda G: P(F, G), order=2)._X(G)
         return P_G_num
 
     def bbP_F_num(self, F, G):
@@ -2633,23 +2738,29 @@ class Pantobox_beam_network():
     def bbP_G_num(self, F, G):
         bbP_G_num = Numerical_derivative(
             lambda G: self.bbP(F, G), order=num_order)._X(G)
-        # bbP_G_num = np.zeros((3,3,3,3,3,3))
         return bbP_G_num
 
+    def scalar_F_num(self, F, G, var):
+        return Numerical_derivative(lambda F: var(F, G), order=num_order)._X(F)
 
 def verify_derivatives():
-    mat = Pantobox_beam_network(1, 1, 1, 1, 1, 1)
+    K = np.random.rand(6)*50
+    KE, KS, KG, KN, KT, KC = K
+    mat = Pantobox_beam_network(KE*0, KS*0, KG*0, KN*0, KT, KC*0, numerical_derivative=False)
     F = np.random.rand(3, 3)
     G = np.random.rand(3, 3, 3)
-    mat.P_F_alt(F, G)
+    # mat.P_F_alt(F, G)
     # mat.var(F, G)
     # Pe = mat.Pe(F, G)
     # Pe_num = mat.Pe_num(F, G)
-    P1 = mat.P_F_alt(F, G)
-    P1_num = mat.P_F_num(F, G, P=mat.P)
+    # P1 = mat.P_F(F, G)
+    # P1_num = mat.P_F_num(F, G, P=mat.P)
+    P1 = mat.bbP_G(F, G)
+    P1_num = mat.bbP_G_num(F, G)
     error = np.linalg.norm(P1 - P1_num)
-    print("%s\n\n%s" % (P1[0, 0], P1_num[0, 0]))
-    # print(P1 - P1_num)
+    # print("%s\n\n%s" % (P1[0, 0], P1_num[0, 0]))
+    # print(P1)
+    # print(P1_num)
     print("%s" % error)
 
 
@@ -2679,5 +2790,5 @@ def speed_test():
 
 
 if __name__ == "__main__":
-   #  verify_derivatives()
-    speed_test()
+    verify_derivatives()
+    # speed_test()

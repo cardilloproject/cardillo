@@ -185,10 +185,10 @@ class Mesh3D:
         self.surfaces()
 
         # store shape function values on boundary quadrature points
-        self.shape_functions_boundary()
+        # self.shape_functions_boundary()
 
         # store array with mesh element number on boundaries
-        self.boundary_elements()
+        # self.boundary_elements()
 
     def basis3D(self, degrees, derivative_order, knot_vectors, knots):
         if self.basis == "B-spline":
@@ -531,7 +531,7 @@ class Mesh3D:
                 N_xi = self.N_xi[el, i]
                 N_xixi = self.N_xixi[el, i]
                 kappa0_xi_inv_el_i = kappa0_xi_inv[el, i]
-
+                kappa0_xi_eli = inverse3D(kappa0_xi_inv_el_i)
                 kappa0_xixi = np.zeros((self.nq_n, 3, 3))
                 for a in range(self.nn_el):
                     kappa0_xixi += np.einsum(
@@ -547,7 +547,7 @@ class Mesh3D:
                                 "i,ijk->jk", N_xi[a] @ kappa0_xi_inv_el_i, kappa0_xixi
                             )
                         )
-                        @ kappa0_xi_inv_el_i
+                        @ kappa0_xi_inv_el_i  # or kappa0_xi_inv_eli?
                     )  # Maurin2019 (28) modified
         return N_XX
 

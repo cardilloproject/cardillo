@@ -37,15 +37,15 @@ def test_cube():
 
     # build mesh
     degrees = (3, 3, 3)
-    QP_shape = (2, 2, 2)
-    element_shape = (1, 1, 1)
+    QP_shape = (3, 3, 3)
+    element_shape = (2, 2, 2)
 
     Xi = Knot_vector(degrees[0], element_shape[0])
     Eta = Knot_vector(degrees[1], element_shape[1])
     Zeta = Knot_vector(degrees[2], element_shape[2])
     knot_vectors = (Xi, Eta, Zeta)
     
-    mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=1, basis='B-spline', nq_n=3)
+    mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=2, basis='B-spline', nq_n=3)
 
     # reference configuration is a cube
     L = 1
@@ -83,7 +83,7 @@ def test_cube():
             cDOF2 = mesh.surface_qDOF[5][2]
             cDOF = np.concatenate((cDOF1, cDOF2))
             b1 = lambda t: Z[cDOF1]
-            b2 = lambda t: Z[cDOF2] + t * 0.1
+            b2 = lambda t: Z[cDOF2] + t * 1.
             b = lambda t: np.concatenate((b1(t), b2(t)))
             # cDOF = mesh.surface_qDOF[4].ravel()
             # b = lambda t: Z[cDOF]
@@ -302,14 +302,14 @@ def test_cylinder():
 def test_rectangle():
 
     file_name = pathlib.Path(__file__).stem
-    file_path = pathlib.Path(__file__).parent / 'results' / f"{file_name}_rectangle" / file_name
+    file_path = pathlib.Path(__file__).parent / 'results' / f"{file_name}_rectangle_2" / file_name
     file_path.parent.mkdir(parents=True, exist_ok=True)
     # export_path = file_path.parent / 'sol'  
 
     # build mesh
     degrees = (3, 3)
-    QP_shape = (2, 2)
-    element_shape = (2, 2)
+    QP_shape = (3, 3)
+    element_shape = (4, 4)
 
     Xi = Knot_vector(degrees[0], element_shape[0])
     Eta = Knot_vector(degrees[1], element_shape[1])
@@ -318,8 +318,8 @@ def test_rectangle():
     mesh = Mesh2D(knot_vectors, QP_shape, derivative_order=1, basis='B-spline', nq_n=2)
 
     # reference configuration is a cube
-    L = 2
-    B = 4
+    L = 4
+    B = 2
 
     rectangle_shape = (L, B)
     Z = rectangle(rectangle_shape, mesh, Greville=True)
@@ -331,10 +331,10 @@ def test_rectangle():
 
     # boundary conditions
     cDOF1 = mesh.edge_qDOF[0].reshape(-1)
-    cDOF2 = mesh.edge_qDOF[1][1]
+    cDOF2 = mesh.edge_qDOF[1][0]
     cDOF = np.concatenate((cDOF1, cDOF2))
-    b1 = lambda t: Z[cDOF1]
-    b2 = lambda t: Z[cDOF2] + t * 4
+    b1 = lambda t: Z[cDOF1] 
+    b2 = lambda t: Z[cDOF2] + t * 1
     b = lambda t: np.concatenate((b1(t), b2(t)))
 
     # 3D continuum
@@ -349,7 +349,7 @@ def test_rectangle():
     model.assemble()
 
     # static solver
-    n_load_steps = 30
+    n_load_steps = 10
     tol = 1.0e-6
     max_iter = 10
     solver = Newton(model, n_load_steps=n_load_steps, tol=tol, max_iter=max_iter)
@@ -390,7 +390,7 @@ def write_xml():
 
     
 if __name__ == "__main__":
-    # test_cube()
+    test_cube()
     # test_cylinder()
-    test_rectangle()
+    # test_rectangle()
     # write_xml()

@@ -1349,8 +1349,37 @@ class Timoshenko_beam_director(metaclass=ABCMeta):
                 field[i] = fun(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i).reshape(-1)
             point_data.update({name: field})
 
-        return points_r, point_data, cells_r, HigherOrderDegrees_r
-        
+        # total energy values
+        Kappa_t = np.copy(Kappa)
+        Kappa_t[:,:,1:] = 0.
+        Kappa_g = np.copy(Kappa)
+        Kappa_g[:,:,::2] = 0.
+        Kappa_n = np.copy(Kappa)
+        Kappa_n[:,:,:2] = 0.
+        field_data = {
+            "W_tot":  self.integrate(self.material_model.potential, Gamma, self.Gamma0, Kappa, self.Kappa0),
+            "We_tot": self.integrate(self.material_model.potential, Gamma, self.Gamma0, self.Kappa0, self.Kappa0),
+            "Wt_tot": self.integrate(self.material_model.potential, self.Gamma0, self.Gamma0, Kappa_t, self.Kappa0),
+            "Wn_tot": self.integrate(self.material_model.potential, self.Gamma0, self.Gamma0, Kappa_n, self.Kappa0),
+            "Wg_tot": self.integrate(self.material_model.potential, self.Gamma0, self.Gamma0, Kappa_g, self.Kappa0),
+        }
+        #  print(field_data)
+        return points_r, point_data, cells_r, field_data, HigherOrderDegrees_r
+
+    def integrate(self, var, Gamma, Gamma0, Kappa, Kappa0):
+        # integrates variable over domain
+        Var = 0.
+        for el in range(self.nEl):
+            for i in range(self.nQP):
+                vari = var(Gamma[el,i], Gamma0[el,i], Kappa[el,i], Kappa0[el,i])
+                # Neli = self.N[el, i]
+                J0eli = self.J0[el, i]
+                qweli = self.qw[el, i]
+                # for a in range(self.nq_n):
+                Var += vari * J0eli * qweli
+
+        return np.array([[Var]])
+
 ####################################################
 # straight initial configuration
 ####################################################

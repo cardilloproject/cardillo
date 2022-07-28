@@ -11,7 +11,7 @@ class Displacement_constraint:
         self.x = x
         self.srf_id = srf_id
         if not callable(disp):
-            self.dq = lambda t: disp
+            self.dq = lambda t, q: disp
         else:
             self.dq = disp
         # self._X = _X
@@ -19,8 +19,8 @@ class Displacement_constraint:
     def assembler_callback(self):
         self.qDOF = self.subsystem.qDOF
         self.srf_qDOF = self.subsystem.mesh.surface_qDOF[self.srf_id].ravel()
-        self.fDOF = self.subsystem.fDOF
-        self.srf_fDOF = np.intersect1d(self.srf_qDOF, self.fDOF)
+        # self.fDOF = self.subsystem.fDOF
+        # self.srf_fDOF = np.intersect1d(self.srf_qDOF, self.fDOF)
         self.Q_srf = self.subsystem.Z[self.srf_qDOF]
         self.nz_srf = len(self.Q_srf)
         self.srf_elDOF_global = self.srf_qDOF[self.srf_mesh.elDOF]
@@ -38,7 +38,7 @@ class Displacement_constraint:
             for a in range(self.srf_mesh.nn_el):
                 dqi += N_eli[a] * (
                     qe[self.x * self.srf_mesh.nn_el + a]
-                    - Qe[self.x * self.srf_mesh.nn_el + a] - self.dq(t)
+                    - Qe[self.x * self.srf_mesh.nn_el + a] - self.dq(t,qe)
                 )
             for a_tilde in range(self.la_mesh.nn_el):
                 ge[a_tilde] += N_la_eli[a_tilde] * dqi * w_J0

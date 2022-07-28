@@ -107,7 +107,7 @@ class First_gradient():
                 "C": lambda F: F.T @ F,
                 "J": lambda F: np.array([self.determinant(F)]),
                 "P": lambda F: self.mat.P(F),
-                "S": lambda F: self.mat.S(F),
+                # "S": lambda F: self.mat.S(F),
                 "W": lambda F: self.mat.W(F),
             }
 
@@ -117,7 +117,13 @@ class First_gradient():
                 for i, Fi in enumerate(F_vtk):
                     field[i] = fun(Fi.reshape(self.dim, self.dim)).reshape(-1)
                 point_data.update({name: field})
-        
+
+           # Global Values as Field Data
+            field_data = {
+            "W_tot": self.integrate(self.mat.W, F)
+            }
+            print(field_data)  
+
             # write vtk mesh using meshio
             meshio.write_points_cells(
                 filename.parent / (filename.stem + '.vtu'),
@@ -161,6 +167,19 @@ class First_gradient():
         xml_str = root.toprettyxml(indent ="\t")          
         with (filename.parent / (filename.stem + '.pvd')).open("w") as f:
             f.write(xml_str)
+
+    def integrate(self, var, F):
+        # integrates variable over domain
+        Var = 0.
+        for el in range(self.nel):
+            for i in range(self.nqp):
+                vari = var(F[el, i])
+                # Neli = self.N[el, i]
+                w_J0eli = self.w_J0[el, i]
+                # for a in range(self.nq_n):
+                Var += vari * w_J0eli
+
+        return np.array([[Var]])
 
     def F_qp(self, q):
         """ Compute deformation gradient at quadrature points """
@@ -292,9 +311,10 @@ class First_gradient():
                 F_q[:, :, self.nodalDOF[a]] += np.einsum('ik,j->ijk', I3, N_X[a])
 
             # differentiate first Piola-Kirchhoff deformation tensor w.r.t. generalized coordinates
-            S = self.mat.S(F_eli)
-            S_F = self.mat.S_F(F_eli)
-            P_F  = np.einsum('ik,lj->ijkl', I3, S)  + np.einsum('in,njkl->ijkl', F_eli, S_F)
+            # S = self.mat.S(F_eli)
+            # S_F = self.mat.S_F(F_eli)
+            # P_F  = np.einsum('ik,lj->ijkl', I3, S)  + np.einsum('in,njkl->ijkl', F_eli, S_F)
+            P_F = self.mat.P_F(F_eli)
             P_q = np.einsum('klmn,mnj->klj', P_F, F_q)
 
             # internal element stiffness matrix
