@@ -66,16 +66,13 @@ def post_processing(subsystem, t, q, filename, u=None, binary=True):
             field_data = {k: field_data.get(k, 0) + field_datai.get(k,0) for k in set(field_datai)}
 
             # update nodal positions
-            nodes_ti.extend(subsystemi.nodes(qi).T)
+            nodes_ti.extend(subsystemi.centerline(qi, 5).T)
         nodes.update({i: nodes_ti})
 
         # write field data
         with open(filei.parent / f'field_data_{i}', mode="wb") as f:
             pickle.dump(field_data, f)
 
-    # write nodal positions
-    with open(filename.parent / 'nodes', mode="wb") as f:
-        pickle.dump(nodes, f)
 
         # write vtk mesh using meshio
         meshio.write_points_cells(
@@ -88,6 +85,10 @@ def post_processing(subsystem, t, q, filename, u=None, binary=True):
             field_data=field_data,
             binary=binary
         )
+
+    # write nodal positions
+    with open(filename.parent / 'nodes', mode="wb") as f:
+        pickle.dump(nodes, f)
 
     # write pvd file
     xml_str = root.toprettyxml(indent="\t")
