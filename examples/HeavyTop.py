@@ -913,8 +913,8 @@ def convergence():
     # compute step sizes with powers of 2
     # TODO: Why is it impossible to solve this small time step with the second order method?
     dt_ref = 2.5e-5  # Arnold2015b
-    # dts = (2.0 ** np.arange(8, 1, -1)) * dt_ref  # [6.4e-3, 3.2e-3, ..., 2e-4, 1e-4]
-    dts = (2.0 ** np.arange(8, 5, -1)) * dt_ref  # [6.4e-3, 3.2e-3, 1.6e-3]
+    dts = (2.0 ** np.arange(8, 1, -1)) * dt_ref  # [6.4e-3, 3.2e-3, ..., 2e-4, 1e-4]
+    # dts = (2.0 ** np.arange(8, 5, -1)) * dt_ref  # [6.4e-3, 3.2e-3, 1.6e-3]
 
     # end time (note this has to be > 0.5, otherwise long term error throws ans error)
     t1 = (2.0**15) * dt_ref  # this yields 0.8192 for dt_ref = 2.5e-5
@@ -927,7 +927,9 @@ def convergence():
 
     dts_1 = dts
     dts_2 = dts**2
+    print(f"t1: {t1}")
     print(f"dts: {dts}")
+    # exit()
 
     # errors for all 6 possible solvers
     q_errors_transient = np.inf * np.ones((6, len(dts)), dtype=float)
@@ -939,12 +941,12 @@ def convergence():
 
     # compute reference solution as described in Arnold2015 Section 3.3
     print(f"compute reference solution:")
-    # reference = GeneralizedAlphaFirstOrder(
-    #     model, t1, dt_ref, rho_inf=rho_inf, tol=tol_ref, unknowns="velocities", GGL=True
-    # ).solve()
-    reference = GeneralizedAlphaSecondOrder(
-        model, t1, dt_ref, rho_inf=rho_inf, tol=tol_ref
+    reference = GeneralizedAlphaFirstOrder(
+        model, t1, dt_ref, rho_inf=rho_inf, tol=tol_ref, unknowns="velocities", GGL=True
     ).solve()
+    # reference = GeneralizedAlphaSecondOrder(
+    #     model, t1, dt_ref, rho_inf=rho_inf, tol=tol_ref
+    # ).solve()
     t_ref = reference.t
     q_ref = reference.q
     u_ref = reference.u

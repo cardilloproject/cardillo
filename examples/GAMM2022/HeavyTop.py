@@ -16,15 +16,8 @@ from cardillo.math import approx_fprime
 from cardillo.model import Model
 from cardillo.solver import (
     GeneralizedAlphaFirstOrder,
-    GenAlphaFirstOrderGGL2_V3,
-    HalfExplicitEulerFixedPoint,
     GeneralizedAlphaSecondOrder,
 )
-
-# case = "Euler"
-# case = "Euler_self"
-# case = "AxisAngle"
-case = "Quaternion"
 
 
 class HeavyTopQuaternion(RigidBodyQuaternion):
@@ -46,356 +39,6 @@ class HeavyTopQuaternion(RigidBodyQuaternion):
         dense = np.einsum("i,ijk->jk", self.f_g, self.J_P_q(t, q))
         coo.extend(dense, (self.uDOF, self.qDOF))
 
-
-class HeavyTopAxisAngle(RigidBodyAxisAngle):
-    def __init__(self, A, B, grav, q0=None, u0=None):
-        self.grav = grav
-        self.r_OQ = r_OQ
-
-        # initialize rigid body
-        self.K_Theta_S = np.diag([A, A, B])
-        RigidBodyAxisAngle.__init__(self, m, self.K_Theta_S, q0=q0, u0=u0)
-
-        # gravity
-        self.f_g = np.array([0, 0, -self.m * self.grav])
-
-    def f_pot(self, t, q):
-        return self.f_g @ self.J_P(t, q)
-
-    def f_pot_q(self, t, q, coo):
-        dense = np.einsum("i,ijk->jk", self.f_g, self.J_P_q(t, q))
-        coo.extend(dense, (self.uDOF, self.qDOF))
-
-
-class HeavyTopEuler(RigidBodyEuler):
-    def __init__(self, A, B, grav, q0=None, u0=None):
-        self.grav = grav
-        self.r_OQ = r_OQ
-
-        # initialize rigid body
-        self.K_Theta_S = np.diag([A, A, B])
-        # RigidBodyEuler.__init__(self, m, self.K_Theta_S, axis="zxz", q0=q0, u0=u0)
-        RigidBodyEuler.__init__(self, m, self.K_Theta_S, axis="zyx", q0=q0, u0=u0)
-
-        # gravity
-        self.f_g = np.array([0, 0, -self.m * self.grav])
-
-    def f_pot(self, t, q):
-        return self.f_g @ self.J_P(t, q)
-
-    def f_pot_q(self, t, q, coo):
-        dense = np.einsum("i,ijk->jk", self.f_g, self.J_P_q(t, q))
-        coo.extend(dense, (self.uDOF, self.qDOF))
-
-
-class HeavyTop:
-    def __init__(self, m, l, A, B, grav, r_OQ, q0=None, u0=None, la_g0=None):
-        self.m = m
-        self.l = l
-        self.A = A
-        self.B_ = B
-        self.grav = grav
-        self.r_OQ = r_OQ
-
-        self.K_Theta_S = np.diag([A, A, B])
-        self.f_g = np.array([0, 0, -m * grav])
-
-        self.nq = 6
-        self.nu = 6
-        self.nla_g = 3
-        self.q0 = np.zeros(self.nq) if q0 is None else q0
-        self.u0 = np.zeros(self.nu) if u0 is None else u0
-        self.la_g0 = np.zeros(self.nla_g) if la_g0 is None else la_g0
-
-    def assembler_callback(self):
-        t0 = self.t0
-        # compute K_r_SQ for initial configuration
-        self.K_r_SQ = self.A_IK(t0, q0).T @ (self.r_OQ - self.r_OP(t0, q0))
-
-    def qDOF_P(self, frame_ID=None):
-        return np.arange(self.nq)
-
-    def uDOF_P(self, frame_ID=None):
-        return np.arange(self.nu)
-
-    @staticmethod
-    def A_IK(t, q, frame_ID=None):
-        alpha, beta, gamma = q[3:]
-        sa, ca = sin(alpha), cos(alpha)
-        sb, cb = sin(beta), cos(beta)
-        sg, cg = sin(gamma), cos(gamma)
-        # fmt: off
-        return np.array([
-            [ca * cg - sa * cb * sg, - ca * sg - sa * cb * cg, sa * sb],
-            [sa * cg + ca * cb * sg, -sa * sg + ca * cb * cg, -ca * sb],
-            [sb * sg, sb * cg, cb]
-        ])
-        # fmt: on
-
-    # TODO!
-    def A_IK_q(self, t, q, frame_ID=None):
-        return approx_fprime(q, lambda q: self.A_IK(t, q, frame_ID), method="3-point")
-
-    def r_OP(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
-        return q[:3] + self.A_IK(t, q) @ K_r_SP
-
-    def r_OP_q(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
-        r_OP_q = np.zeros((3, self.nq))
-        r_OP_q[:, :3] = np.eye(3)
-        r_OP_q[:, :] += np.einsum("ijk,j->ik", self.A_IK_q(t, q), K_r_SP)
-        return r_OP_q
-
-    def v_P(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
-        return u[:3] + self.A_IK(t, q) @ cross3(u[3:], K_r_SP)
-
-    def v_P_q(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
-        return np.einsum("ijk,j->ik", self.A_IK_q(t, q), cross3(u[3:], K_r_SP))
-
-    def a_P(self, t, q, u, u_dot, frame_ID=None, K_r_SP=np.zeros(3)):
-        return u_dot[:3] + self.A_IK(t, q) @ (
-            cross3(u_dot[3:], K_r_SP) + cross3(u[3:], cross3(u[3:], K_r_SP))
-        )
-
-    def a_P_q(self, t, q, u, u_dot, frame_ID=None, K_r_SP=np.zeros(3)):
-        return np.einsum(
-            "ijk,j->ik",
-            self.A_IK_q(t, q),
-            cross3(u_dot[3:], K_r_SP) + cross3(u[3:], cross3(u[3:], K_r_SP)),
-        )
-
-    def a_P_u(self, t, q, u, u_dot, frame_ID=None, K_r_SP=np.zeros(3)):
-        return self.kappa_P_u(t, q, u, frame_ID=frame_ID, K_r_SP=K_r_SP)
-
-    def J_P(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
-        J_P = np.zeros((3, self.nu))
-        J_P[:, :3] = np.eye(3)
-        J_P[:, 3:] = -self.A_IK(t, q) @ ax2skew(K_r_SP)
-        return J_P
-
-    def J_P_q(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
-        J_P_q = np.zeros((3, self.nu, self.nq))
-        J_P_q[:, 3:, :] = np.einsum("ijk,jl->ilk", self.A_IK_q(t, q), -ax2skew(K_r_SP))
-        return J_P_q
-
-    def K_Omega(self, t, q, u, frame_ID=None):
-        return u[3:]
-
-    def K_Omega_q(self, t, q, u, frame_ID=None):
-        return np.zeros((3, self.nq))
-
-    def K_Psi(self, t, q, u, u_dot, frame_ID=None):
-        return u_dot[3:]
-
-    def K_J_R(self, t, q, frame_ID=None):
-        J_R = np.zeros((3, self.nu))
-        J_R[:, 3:] = np.eye(3)
-        return J_R
-
-    def K_J_R_q(self, t, q, frame_ID=None):
-        return np.zeros((3, self.nu, self.nq))
-
-    #################################
-    # kinematic differential equation
-    #################################
-    def Q(self, t, q_angles):
-        _, beta, gamma = q_angles
-        sb, cb = sin(beta), cos(beta)
-        sg, cg = sin(gamma), cos(gamma)
-        # fmt: off
-        return np.array([
-            [sg, cg, 0],
-            [sb * cg, -sb * sg, 0],
-            [-cb * sg, -cb * cg, sb]
-        ]) / sb
-        # fmt: on
-
-    def q_dot(self, t, q, u):
-        q_dot = np.zeros(self.nq)
-        q_dot[:3] = u[:3]
-        q_dot[3:] = self.Q(t, q[3:]) @ u[3:]
-        return q_dot
-
-    # TODO!
-    def q_ddot(self, t, q, u, u_dot):
-        q_ddot = np.zeros(self.nq)
-        q_ddot[:3] = u_dot[:3]
-        q_ddot[3:] = self.Q(t, q[3:]) @ u_dot[3:]
-        q_dot_q = approx_fprime(q, lambda q: self.q_dot(t, q, u), method="3-point")
-        q_ddot += q_dot_q @ self.q_dot(t, q, u)
-        return q_ddot
-
-    # TODO!
-    def q_dot_q(self, t, q, u, coo):
-        dense = approx_fprime(q, lambda q: self.q_dot(t, q, u), method="3-point")
-        coo.extend(dense, (self.qDOF, self.qDOF))
-
-    def B(self, t, q, coo):
-        B = np.zeros((self.nq, self.nu))
-        B[:3, :3] = np.eye(3)
-        B[3:, 3:] = self.Q(t, q[3:])
-        coo.extend(B, (self.qDOF, self.uDOF))
-
-    ##################
-    # potential forces
-    ##################
-    def f_pot(self, t, q):
-        return self.f_g @ self.J_P(t, q)
-
-    def f_pot_q(self, t, q, coo):
-        dense = np.einsum("i,ijk->jk", self.f_g, self.J_P_q(t, q))
-        coo.extend(dense, (self.uDOF, self.qDOF))
-
-    ################
-    # inertia forces
-    ################
-    def M_dense(self, t, q):
-        return np.diag([self.m, self.m, self.m, self.A, self.A, self.B_])
-
-    def M(self, t, q, coo):
-        coo.extend(self.M_dense(t, q), (self.uDOF, self.uDOF))
-
-    def f_gyr(self, t, q, u):
-        K_Omega = u[3:]
-        f = np.zeros(self.nu)
-        f[3:] = cross3(K_Omega, self.K_Theta_S @ K_Omega)
-        return f
-
-    def f_gyr_u(self, t, q, u, coo):
-        K_Omega = u[3:]
-        dense = np.zeros((self.nu, self.nu))
-        dense[3:, 3:] = ax2skew(K_Omega) @ self.K_Theta_S - ax2skew(
-            self.K_Theta_S @ K_Omega
-        )
-        coo.extend(dense, (self.uDOF, self.uDOF))
-
-    #######################
-    # bilateral constraints
-    #######################
-    def g(self, t, q):
-        return self.r_OP(t, q, K_r_SP=self.K_r_SQ) - self.r_OQ
-
-    def g_dot(self, t, q, u):
-        return self.v_P(t, q, u, K_r_SP=self.K_r_SQ)
-
-    def g_dot_q(self, t, q, u, coo):
-        coo.extend(self.v_P_q(t, q, u, K_r_SP=self.K_r_SQ), (self.la_gDOF, self.qDOF))
-
-    def g_dot_u(self, t, q, coo):
-        coo.extend(self.J_P(t, q, K_r_SP=self.K_r_SQ), (self.la_gDOF, self.uDOF))
-
-    def g_ddot(self, t, q, u, u_dot):
-        return self.a_P(t, q, u, u_dot, K_r_SP=self.K_r_SQ)
-
-    def g_q_dense(self, t, q):
-        return self.r_OP_q(t, q, K_r_SP=self.K_r_SQ)
-
-    def g_q(self, t, q, coo):
-        coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
-
-    # TODO:
-    def g_q_T_mu_g(self, t, q, mu_g, coo):
-        dense = approx_fprime(
-            q, lambda q: mu_g @ self.g_q_dense(t, q), method="2-point"
-        )
-        coo.extend(dense, (self.uDOF, self.qDOF))
-
-    def W_g_dense(self, t, q):
-        return self.J_P(t, q, K_r_SP=self.K_r_SQ).T
-
-    def W_g(self, t, q, coo):
-        coo.extend(self.W_g_dense(t, q), (self.uDOF, self.la_gDOF))
-
-    def Wla_g_q(self, t, q, la_g, coo):
-        dense = np.einsum("ijk,i->jk", self.J_P_q(t, q, K_r_SP=self.K_r_SQ), la_g)
-        coo.extend(dense, (self.uDOF, self.qDOF))
-
-    ############################################
-    # Identify Lagrange multipliers a posteriori
-    ############################################
-    def la_g(self, t, q, u):
-        W = self.W_g_dense(t, q)
-        M = self.M_dense(t, q)
-        G = W.T @ np.linalg.solve(M, W)
-        zeta = self.g_ddot(t, q, u, np.zeros_like(u))
-        h = self.f_pot(t, q) - self.f_gyr(t, q, u)
-        mu = zeta + W.T @ np.linalg.solve(M, h)
-        return np.linalg.solve(G, -mu)
-
-    def postprocessing(self, t, y):
-        angles = y[:3]
-        omegas = y[3:]
-        q_ = np.array([0, 0, 0, *angles])
-        K_r_SP = np.array([0, 0, self.l])
-
-        r_OS = self.r_OP(t, q_, K_r_SP=K_r_SP)
-        v_S = self.A_IK(t, q_) @ cross3(omegas, K_r_SP)
-
-        q = np.array([*r_OS, *angles])
-        u = np.array([*v_S, *omegas])
-        la_g = top.la_g(t, q, u)
-
-        return q, u, la_g
-
-    #########################
-    # minimal ode formulation
-    #########################
-    def __call__(self, t, x):
-        q = x[:3]
-        u = x[3:]
-
-        # mass matrix
-        A_ = self.A + self.m * self.l**2
-        M_inv = np.diag([1 / A_, 1 / A_, 1 / self.B_])
-
-        # h vector
-        _, beta, gamma = q
-        sb, _ = sin(beta), cos(beta)
-        sg, cg = sin(gamma), cos(gamma)
-        omega_x, omega_y, omega_z = u
-        m, l, g, A, B = self.m, self.l, self.grav, self.A, self.B_
-        Theta1 = A
-        Theta2 = A
-        Theta3 = B
-        h = np.array(
-            [
-                (m * l**2 + Theta2 - Theta3) * omega_y * omega_z,
-                (-m * l**2 + Theta3 - Theta1) * omega_x * omega_z,
-                (Theta1 - Theta2) * omega_x * omega_y,
-            ]
-        ) + m * g * l * np.array([sb * cg, -sb * sg, 0])
-        return np.concatenate([self.Q(t, q) @ u, M_inv @ h])
-
-
-# ###################
-# # system parameters
-# ###################
-# m = 0.1
-# l = 0.2
-# grav = 9.81
-# r = 0.1
-# A = 1 / 2 * m * r**2
-# B = 1 / 4 * m * r**2
-# alpha0 = 0
-# beta0 = pi / 2
-# gamma0 = 0
-# omega_x0 = 0
-# omega_y0 = 0
-# omega_z0 = 2 * pi * 50
-
-# #####################
-# # Geradin2000, p 103.
-# #####################
-# m = 5
-# A = 0.8
-# B = 1.8
-# l = 1.3
-# grav = 9.81
-# alpha0 = 0
-# beta0 = pi / 9
-# gamma0 = 0
-# omega_x0 = 0
-# omega_y0 = 0
-# omega_z0 = 2 * pi * 50
 
 ########################################
 # Arnold2015, p. 174/ Arnold2015b, p. 13
@@ -419,19 +62,25 @@ omega_z0 = 150
 #############################
 phi0 = np.array([alpha0, beta0, gamma0])
 
+
+def A_IK(alpha, beta, gamma):
+    sa, ca = sin(alpha), cos(alpha)
+    sb, cb = sin(beta), cos(beta)
+    sg, cg = sin(gamma), cos(gamma)
+    # fmt: off
+    return np.array([
+        [ca * cg - sa * cb * sg, - ca * sg - sa * cb * cg, sa * sb],
+        [sa * cg + ca * cb * sg, -sa * sg + ca * cb * cg, -ca * sb],
+        [sb * sg, sb * cg, cb]
+    ])
+    # fmt: on
+
+
 r_OQ = np.zeros(3)
 K_r_OS0 = np.array([0, 0, l])
-A_IK0 = HeavyTop.A_IK(0, [0, 0, 0, alpha0, beta0, gamma0])
+A_IK0 = A_IK(alpha0, beta0, gamma0)
 r_OS0 = A_IK0 @ K_r_OS0
-
-if case == "Euler" or case == "Euler_self":
-    q0 = np.concatenate((r_OS0, phi0))
-elif case == "AxisAngle":
-    q0 = np.concatenate((r_OS0, rodriguez_inv(A_IK0)))
-elif case == "Quaternion":
-    q0 = np.concatenate((r_OS0, Spurrier(A_IK0)))
-else:
-    raise NotImplementedError
+q0 = np.concatenate((r_OS0, Spurrier(A_IK0)))
 
 ####################
 # initial velocities
@@ -440,28 +89,17 @@ K_Omega0 = np.array([omega_x0, omega_y0, omega_z0])
 v_S0 = A_IK0 @ cross3(K_Omega0, K_r_OS0)
 u0 = np.concatenate((v_S0, K_Omega0))
 
-# 1. hand written version
-if case == "Euler_self":
-    top = HeavyTop(m, l, A, B, grav, r_OQ, q0, u0)
-    model = Model()
-    model.add(top)
-    model.assemble()
-else:
-    # 2. reuse existing RigidBodyEuler and SphericalJoint
-    frame = Frame()
-    if case == "Euler":
-        top = HeavyTopEuler(A, B, grav, q0, u0)
-    elif case == "AxisAngle":
-        top = HeavyTopAxisAngle(A, B, grav, q0, u0)
-    elif case == "Quaternion":
-        top = HeavyTopQuaternion(A, B, grav, q0, u0)
-
-    spherical_joint = SphericalJoint(frame, top, np.zeros(3))
-    model = Model()
-    model.add(top)
-    model.add(frame)
-    model.add(spherical_joint)
-    model.assemble()
+#################
+# build the model
+#################
+top = HeavyTopQuaternion(A, B, grav, q0, u0)
+frame = Frame()
+spherical_joint = SphericalJoint(frame, top, np.zeros(3, dtype=float))
+model = Model()
+model.add(top)
+model.add(frame)
+model.add(spherical_joint)
+model.assemble()
 
 
 def show_animation(top, t, q, scale=1, show=False):
@@ -575,8 +213,8 @@ def state():
     la_g = sol.la_g
 
     def export_q(sol, name):
-        header = "t, x, y, z, al, be, ga"
-        export_data = np.vstack([sol.t, *sol.q.T]).T
+        header = "t, x, y, z, al, be, ga, la_g, la_ga0, la_ga1"
+        export_data = np.vstack([sol.t, *sol.q.T, *sol.la_g.T, *sol.la_ga.T]).T
         np.savetxt(
             name,
             export_data,
@@ -911,26 +549,22 @@ def convergence():
     tol = 1.0e-8
 
     # compute step sizes with powers of 2
-    # TODO: Why is it impossible to solve this small time step with the second order method?
-    # dt_ref = 2.5e-5  # Arnold2015b
-    # dt_ref = 5e-4  # working for second order version
-    dt_ref = 1e-4  # working for second order version
-    # dts = (2.0 ** np.arange(8, 1, -1)) * dt_ref  # [6.4e-3, 3.2e-3, ..., 2e-4, 1e-4]
-    dts = (2.0 ** np.arange(8, 5, -1)) * dt_ref  # [6.4e-3, 3.2e-3, 1.6e-3]
+    dt_ref = 2.5e-5  # Arnold2015b
+    dts = (2.0 ** np.arange(7, 1, -1)) * dt_ref  # [3.2e-3, ..., 2e-4, 1e-4]
     # dts = (2.0 ** np.arange(7, 4, -1)) * dt_ref  # [3.2e-3, 1.6e-3, 8e-4]
 
     # end time (note this has to be > 0.5, otherwise long term error throws ans error)
     # t1 = (2.0**9) * dt_ref  # this yields 0.256 for dt_ref = 5e-4
     # t1 = (2.0**10) * dt_ref  # this yields 0.512 for dt_ref = 5e-4
     # t1 = (2.0**11) * dt_ref  # this yields 0.2048 for dt_ref = 1e-4
-    t1 = (2.0**13) * dt_ref  # this yields 0.8192 for dt_ref = 1e-4
-    # t1 = (2.0**15) * dt_ref  # this yields 0.8192 for dt_ref = 2.5e-5
+    # t1 = (2.0**13) * dt_ref  # this yields 0.8192 for dt_ref = 1e-4
+    t1 = (2.0**15) * dt_ref  # this yields 0.8192 for dt_ref = 2.5e-5
     # # t1 = (2.0**16) * dt_ref # this yields 1.6384 for dt_ref = 2.5e-5
 
-    # # TODO: Only for debugging!
-    # dt_ref = 5e-4
-    # dts = np.array([1.0e-3])
-    # t1 = (2.0**11) * dt_ref
+    # TODO: Only for debugging!
+    dt_ref = 2.5e-3
+    dts = np.array([5.0e-3])
+    t1 = (2.0**8) * dt_ref
 
     dts_1 = dts
     dts_2 = dts**2
@@ -947,23 +581,45 @@ def convergence():
     u_errors_longterm = np.inf * np.ones((3, len(dts)), dtype=float)
     la_g_errors_longterm = np.inf * np.ones((3, len(dts)), dtype=float)
 
+    dt_ref = 2.5e-3
+    t1 = 1
+
+    ###################################################################
     # compute reference solution as described in Arnold2015 Section 3.3
-    print(f"compute reference solution:")
-    reference1 = GeneralizedAlphaFirstOrder(
+    ###################################################################
+    # print(f"compute reference solution with first order method:")
+    # reference1 = GeneralizedAlphaFirstOrder(
+    #     model, t1, dt_ref, rho_inf=rho_inf, tol=tol_ref, unknowns="velocities", GGL=False
+    # ).solve()
+
+    print(f"compute reference solution with first order method + GGL:")
+    reference1_GGL = GeneralizedAlphaFirstOrder(
         model, t1, dt_ref, rho_inf=rho_inf, tol=tol_ref, unknowns="velocities", GGL=True
     ).solve()
 
-    reference2 = GeneralizedAlphaSecondOrder(
-        model, t1, dt_ref, rho_inf=rho_inf, tol=tol_ref
-    ).solve()
+    # print(f"compute reference solution with second order method:")
+    # reference2 = GeneralizedAlphaSecondOrder(
+    #     model, t1, dt_ref, rho_inf=rho_inf, tol=tol_ref, GGL=False
+    # ).solve()
 
-    # plot_state = True
-    plot_state = False
+    # print(f"compute reference solution with second order method + GGL:")
+    # reference2_GGL = GeneralizedAlphaSecondOrder(
+    #     model, t1, dt_ref, rho_inf=rho_inf, tol=tol_ref, GGL=True
+    # ).solve()
+
+    print(f"done")
+
+    plot_state = True
+    # plot_state = False
     if plot_state:
-        t_ref = reference1.t
-        q_ref = reference1.q
-        u_ref = reference1.u
-        la_g_ref = reference1.la_g
+        # reference = reference1
+        reference = reference1_GGL
+        # reference = reference2
+        # reference = reference2_GGL
+        t_ref = reference.t
+        q_ref = reference.q
+        u_ref = reference.u
+        la_g_ref = reference.la_g
 
         ###################
         # visualize results
@@ -1023,6 +679,8 @@ def convergence():
         ax.legend()
 
         plt.show()
+
+    exit()
 
     def errors(sol, sol_ref, t_transient=0.1, t_longterm=0.5):
         t = sol.t
@@ -1137,68 +795,68 @@ def convergence():
             q_errors_longterm[2, i],
             u_errors_longterm[2, i],
             la_g_errors_longterm[2, i],
-        ) = errors(sol, reference1)
+        ) = errors(sol, reference1_GGL)
 
-    # #############################
-    # # export errors and dt, dt**2
-    # #############################
-    # header = "dt, dt2, pos, vel, aux, pos_GGL, vel_GGL, aux_GGL"
+    #############################
+    # export errors and dt, dt**2
+    #############################
+    header = "dt, dt2, 2nd, 1st, 1st_GGL"
 
-    # # transient errors
-    # export_data = np.vstack((dts, dts_2, *q_errors_transient)).T
-    # np.savetxt(
-    #     "transient_error_heavy_top_q.txt",
-    #     export_data,
-    #     delimiter=", ",
-    #     header=header,
-    #     comments="",
-    # )
+    # transient errors
+    export_data = np.vstack((dts, dts_2, *q_errors_transient)).T
+    np.savetxt(
+        "transient_error_heavy_top_q.txt",
+        export_data,
+        delimiter=", ",
+        header=header,
+        comments="",
+    )
 
-    # export_data = np.vstack((dts, dts_2, *u_errors_transient)).T
-    # np.savetxt(
-    #     "transient_error_heavy_top_u.txt",
-    #     export_data,
-    #     delimiter=", ",
-    #     header=header,
-    #     comments="",
-    # )
+    export_data = np.vstack((dts, dts_2, *u_errors_transient)).T
+    np.savetxt(
+        "transient_error_heavy_top_u.txt",
+        export_data,
+        delimiter=", ",
+        header=header,
+        comments="",
+    )
 
-    # export_data = np.vstack((dts, dts_2, *la_g_errors_transient)).T
-    # np.savetxt(
-    #     "transient_error_heavy_top_la_g.txt",
-    #     export_data,
-    #     delimiter=", ",
-    #     header=header,
-    #     comments="",
-    # )
+    export_data = np.vstack((dts, dts_2, *la_g_errors_transient)).T
+    np.savetxt(
+        "transient_error_heavy_top_la_g.txt",
+        export_data,
+        delimiter=", ",
+        header=header,
+        comments="",
+    )
 
-    # # longterm errors
-    # export_data = np.vstack((dts, dts_2, *q_errors_longterm)).T
-    # np.savetxt(
-    #     "longterm_error_heavy_top_q.txt",
-    #     export_data,
-    #     delimiter=", ",
-    #     header=header,
-    #     comments="",
-    # )
+    # longterm errors
+    export_data = np.vstack((dts, dts_2, *q_errors_longterm)).T
+    np.savetxt(
+        "longterm_error_heavy_top_q.txt",
+        export_data,
+        delimiter=", ",
+        header=header,
+        comments="",
+    )
 
-    # export_data = np.vstack((dts, dts_2, *u_errors_longterm)).T
-    # np.savetxt(
-    #     "longterm_error_heavy_top_u.txt",
-    #     export_data,
-    #     delimiter=", ",
-    #     header=header,
-    #     comments="",
-    # )
+    export_data = np.vstack((dts, dts_2, *u_errors_longterm)).T
+    np.savetxt(
+        "longterm_error_heavy_top_u.txt",
+        export_data,
+        delimiter=", ",
+        header=header,
+        comments="",
+    )
 
-    # export_data = np.vstack((dts, dts_2, *la_g_errors_longterm)).T
-    # np.savetxt(
-    #     "longterm_error_heavy_top_la_g.txt",
-    #     export_data,
-    #     delimiter=", ",
-    #     header=header,
-    #     comments="",
-    # )
+    export_data = np.vstack((dts, dts_2, *la_g_errors_longterm)).T
+    np.savetxt(
+        "longterm_error_heavy_top_la_g.txt",
+        export_data,
+        delimiter=", ",
+        header=header,
+        comments="",
+    )
 
     ##################
     # visualize errors
@@ -1260,140 +918,6 @@ def convergence():
     ax[2, 1].legend()
 
     plt.show()
-
-    # #################
-    # # transient errors
-    # #################
-    # fig, ax = plt.subplots(2, 3)
-    # fig.suptitle("Transient phase", fontsize=16)
-
-    # # errors position formulation
-    # ax[0, 0].loglog(dts, dts_1, "-k", label="dt")
-    # ax[0, 0].loglog(dts, dts_2, "--k", label="dt^2")
-    # ax[0, 0].loglog(dts, q_errors_transient[0], "-.ro", label="q")
-    # ax[0, 0].loglog(dts, u_errors_transient[0], "-.go", label="u")
-    # ax[0, 0].loglog(dts, la_g_errors_transient[0], "-.bo", label="la_g")
-    # ax[0, 0].set_title("position formulation")
-    # ax[0, 0].grid()
-    # ax[0, 0].legend()
-
-    # # errors velocity formulation
-    # ax[0, 1].loglog(dts, dts_1, "-k", label="dt")
-    # ax[0, 1].loglog(dts, dts_2, "--k", label="dt^2")
-    # ax[0, 1].loglog(dts, q_errors_transient[1], "-.ro", label="q")
-    # ax[0, 1].loglog(dts, u_errors_transient[1], "-.go", label="u")
-    # ax[0, 1].loglog(dts, la_g_errors_transient[1], "-.bo", label="la_g")
-    # ax[0, 1].set_title("velocity formulation")
-    # ax[0, 1].grid()
-    # ax[0, 1].legend()
-
-    # # errors auxiliary formulation
-    # ax[0, 2].loglog(dts, dts_1, "-k", label="dt")
-    # ax[0, 2].loglog(dts, dts_2, "--k", label="dt^2")
-    # ax[0, 2].loglog(dts, q_errors_transient[2], "-.ro", label="q")
-    # ax[0, 2].loglog(dts, u_errors_transient[2], "-.go", label="u")
-    # ax[0, 2].loglog(dts, la_g_errors_transient[2], "-.bo", label="la_g")
-    # ax[0, 2].set_title("auxiliary formulation")
-    # ax[0, 2].grid()
-    # ax[0, 2].legend()
-
-    # # errors position formulation
-    # ax[1, 0].loglog(dts, dts_1, "-k", label="dt")
-    # ax[1, 0].loglog(dts, dts_2, "--k", label="dt^2")
-    # ax[1, 0].loglog(dts, q_errors_transient[3], "-.ro", label="q")
-    # ax[1, 0].loglog(dts, u_errors_transient[3], "-.go", label="u")
-    # ax[1, 0].loglog(dts, la_g_errors_transient[3], "-.bo", label="la_g")
-    # ax[1, 0].set_title("position formulation GGL")
-    # ax[1, 0].grid()
-    # ax[1, 0].legend()
-
-    # # errors velocity formulation
-    # ax[1, 1].loglog(dts, dts_1, "-k", label="dt")
-    # ax[1, 1].loglog(dts, dts_2, "--k", label="dt^2")
-    # ax[1, 1].loglog(dts, q_errors_transient[4], "-.ro", label="q")
-    # ax[1, 1].loglog(dts, u_errors_transient[4], "-.go", label="u")
-    # ax[1, 1].loglog(dts, la_g_errors_transient[4], "-.bo", label="la_g")
-    # ax[1, 1].set_title("velocity formulation GGL")
-    # ax[1, 1].grid()
-    # ax[1, 1].legend()
-
-    # # errors auxiliary formulation
-    # ax[1, 2].loglog(dts, dts_1, "-k", label="dt")
-    # ax[1, 2].loglog(dts, dts_2, "--k", label="dt^2")
-    # ax[1, 2].loglog(dts, q_errors_transient[5], "-.ro", label="q")
-    # ax[1, 2].loglog(dts, u_errors_transient[5], "-.go", label="u")
-    # ax[1, 2].loglog(dts, la_g_errors_transient[5], "-.bo", label="la_g")
-    # ax[1, 2].set_title("auxiliary formulation GGL")
-    # ax[1, 2].grid()
-    # ax[1, 2].legend()
-
-    # #################
-    # # longterm errors
-    # #################
-    # fig, ax = plt.subplots(2, 3)
-    # fig.suptitle("Long term phase", fontsize=16)
-
-    # # errors position formulation
-    # ax[0, 0].loglog(dts, dts_1, "-k", label="dt")
-    # ax[0, 0].loglog(dts, dts_2, "--k", label="dt^2")
-    # ax[0, 0].loglog(dts, q_errors_longterm[0], "-.ro", label="q")
-    # ax[0, 0].loglog(dts, u_errors_longterm[0], "-.go", label="u")
-    # ax[0, 0].loglog(dts, la_g_errors_longterm[0], "-.bo", label="la_g")
-    # ax[0, 0].set_title("position formulation")
-    # ax[0, 0].grid()
-    # ax[0, 0].legend()
-
-    # # errors velocity formulation
-    # ax[0, 1].loglog(dts, dts_1, "-k", label="dt")
-    # ax[0, 1].loglog(dts, dts_2, "--k", label="dt^2")
-    # ax[0, 1].loglog(dts, q_errors_longterm[1], "-.ro", label="q")
-    # ax[0, 1].loglog(dts, u_errors_longterm[1], "-.go", label="u")
-    # ax[0, 1].loglog(dts, la_g_errors_longterm[1], "-.bo", label="la_g")
-    # ax[0, 1].set_title("velocity formulation")
-    # ax[0, 1].grid()
-    # ax[0, 1].legend()
-
-    # # errors auxiliary formulation
-    # ax[0, 2].loglog(dts, dts_1, "-k", label="dt")
-    # ax[0, 2].loglog(dts, dts_2, "--k", label="dt^2")
-    # ax[0, 2].loglog(dts, q_errors_longterm[2], "-.ro", label="q")
-    # ax[0, 2].loglog(dts, u_errors_longterm[2], "-.go", label="u")
-    # ax[0, 2].loglog(dts, la_g_errors_longterm[2], "-.bo", label="la_g")
-    # ax[0, 2].set_title("auxiliary formulation")
-    # ax[0, 2].grid()
-    # ax[0, 2].legend()
-
-    # # errors position formulation
-    # ax[1, 0].loglog(dts, dts_1, "-k", label="dt")
-    # ax[1, 0].loglog(dts, dts_2, "--k", label="dt^2")
-    # ax[1, 0].loglog(dts, q_errors_longterm[3], "-.ro", label="q")
-    # ax[1, 0].loglog(dts, u_errors_longterm[3], "-.go", label="u")
-    # ax[1, 0].loglog(dts, la_g_errors_longterm[3], "-.bo", label="la_g")
-    # ax[1, 0].set_title("position formulation GGL")
-    # ax[1, 0].grid()
-    # ax[1, 0].legend()
-
-    # # errors velocity formulation
-    # ax[1, 1].loglog(dts, dts_1, "-k", label="dt")
-    # ax[1, 1].loglog(dts, dts_2, "--k", label="dt^2")
-    # ax[1, 1].loglog(dts, q_errors_longterm[4], "-.ro", label="q")
-    # ax[1, 1].loglog(dts, u_errors_longterm[4], "-.go", label="u")
-    # ax[1, 1].loglog(dts, la_g_errors_longterm[4], "-.bo", label="la_g")
-    # ax[1, 1].set_title("velocity formulation GGL")
-    # ax[1, 1].grid()
-    # ax[1, 1].legend()
-
-    # # errors auxiliary formulation
-    # ax[1, 2].loglog(dts, dts_1, "-k", label="dt")
-    # ax[1, 2].loglog(dts, dts_2, "--k", label="dt^2")
-    # ax[1, 2].loglog(dts, q_errors_longterm[5], "-.ro", label="q")
-    # ax[1, 2].loglog(dts, u_errors_longterm[5], "-.go", label="u")
-    # ax[1, 2].loglog(dts, la_g_errors_longterm[5], "-.bo", label="la_g")
-    # ax[1, 2].set_title("auxiliary formulation GGL")
-    # ax[1, 2].grid()
-    # ax[1, 2].legend()
-
-    # plt.show()
 
 
 if __name__ == "__main__":

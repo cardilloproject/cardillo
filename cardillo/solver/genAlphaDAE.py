@@ -1728,7 +1728,7 @@ class GeneralizedAlphaFirstOrder:
         self.nla_gamma = model.nla_gamma
         self.nx = self.ny = self.nq + self.nu  # dimension of the state space
         self.ns = self.nx + self.nla_g + self.nla_gamma  # vector of unknowns
-        if GGL:
+        if self.GGL:
             self.ns += self.nla_g
 
         if numerical_jacobian:
@@ -2387,9 +2387,11 @@ class GeneralizedAlphaSecondOrder:
         numerical_jacobian=True,
         # preconditioning=True,
         preconditioning=False,
+        GGL=False,
     ):
 
         self.model = model
+        self.GGL = GGL
 
         # initial time, final time, time step
         self.t0 = t0 = model.t0
@@ -2416,8 +2418,10 @@ class GeneralizedAlphaSecondOrder:
         self.nla_g = model.nla_g
         self.nla_gamma = model.nla_gamma
 
-        # eqn. (127): dimensions of residual
+        # dimensions of residual
         self.nR = self.nu + self.nla_g + self.nla_gamma
+        if self.GGL:
+            self.nR += self.nla_g
 
         # set initial conditions
         self.tk = t0
@@ -2425,6 +2429,8 @@ class GeneralizedAlphaSecondOrder:
         self.uk = model.u0
         self.la_gk = model.la_g0
         self.la_gammak = model.la_gamma0
+        if self.GGL:
+            self.mu_gk = np.zeros_like(model.la_g0)
 
         # solve for initial accelerations
         self.u_dotk = spsolve(
@@ -2438,7 +2444,12 @@ class GeneralizedAlphaSecondOrder:
         self.u_dot_bark = self.u_dotk.copy()
 
         # initial state
-        self.xk = np.concatenate((self.u_dotk, self.la_gk, self.la_gammak))
+        if self.GGL:
+            self.xk = np.concatenate(
+                (self.u_dotk, self.la_gk, self.la_gammak, self.mu_gk)
+            )
+        else:
+            self.xk = np.concatenate((self.u_dotk, self.la_gk, self.la_gammak))
 
         # TODO: Check if constraints are satisfied on all kinematic levels!
 
@@ -2501,6 +2512,7 @@ class GeneralizedAlphaSecondOrder:
     def update(self, xk1, store=False):
         """Update dependent variables."""
         nu = self.nu
+        nla_g = self.nla_g
 
         # constants
         dt = self.dt
@@ -2530,6 +2542,9 @@ class GeneralizedAlphaSecondOrder:
             + dt * self.model.q_dot(self.tk, self.qk, self.uk)
             + 0.5 * dt2 * self.model.q_ddot(self.tk, self.qk, self.uk, u_dot_beta)
         )
+        if self.GGL:
+            mu_gk1 = xk1[-nla_g:]
+            qk1 += self.model.g_q(self.tk, self.qk).T @ mu_gk1
 
         if store:
             self.u_dotk = u_dotk1
@@ -2545,11 +2560,16 @@ class GeneralizedAlphaSecondOrder:
     def unpack(self, x):
         nu = self.nu
         nla_g = self.nla_g
+        nla_gamma = self.nla_gamma
 
         a = x[:nu]
         la_g = x[nu : nu + nla_g]
-        la_gamma = x[nu + nla_g :]
-        return a, la_g, la_gamma
+        la_gamma = x[nu + nla_g : nu + nla_g + nla_gamma]
+        if self.GGL:
+            mu_g = x[nu + nla_g + nla_gamma :]
+            return a, la_g, la_gamma, mu_g
+        else:
+            return a, la_g, la_gamma
 
     def __R_gen_num(self, tk1, sk1):
         yield self.__R(tk1, sk1)
@@ -2558,9 +2578,13 @@ class GeneralizedAlphaSecondOrder:
     def __R_gen_analytic(self, tk1, xk1):
         nu = self.nu
         nla_g = self.nla_g
+        nla_gamma = self.nla_gamma
 
         # extract vector of nknowns
-        u_dotk1, la_gk1, la_gammak1 = self.unpack(xk1)
+        if self.GGL:
+            u_dotk1, la_gk1, la_gammak1, mu_gk1 = self.unpack(xk1)
+        else:
+            u_dotk1, la_gk1, la_gammak1 = self.unpack(xk1)
 
         # update dependent variables
         qk1, uk1 = self.update(xk1, store=False)
@@ -2585,7 +2609,9 @@ class GeneralizedAlphaSecondOrder:
 
         # bilateral constraints
         R[nu : nu + nla_g] = self.model.g(tk1, qk1)
-        R[nu + nla_g :] = self.model.gamma(tk1, qk1, uk1)
+        R[nu + nla_g : nu + nla_g + nla_gamma] = self.model.gamma(tk1, qk1, uk1)
+        if self.GGL:
+            R[nu + nla_g + nla_gamma :] = self.model.g_dot(tk1, qk1, uk1)
 
         yield R
 
@@ -2605,8 +2631,11 @@ class GeneralizedAlphaSecondOrder:
         gamma_qk1 = self.model.gamma_q(tk1, qk1, uk1)
 
         # sparse assemble global tangent matrix
-        uk1_ak1 = self.dt * self.gamma
-        qk1_ak1 = self.dt**2 * self.beta * self.model.B(self.tk, self.qk)
+        a_bark1_ak1 = (1.0 - self.alpha_f) / (1.0 - self.alpha_m)
+        uk1_a_bark1 = self.dt * self.gamma
+        uk1_ak1 = uk1_a_bark1 * a_bark1_ak1
+        qk1_a_bark1 = self.dt**2 * self.beta * self.model.B(self.tk, self.qk)
+        qk1_ak1 = qk1_a_bark1 * a_bark1_ak1
         g_ak1 = g_qk1 @ qk1_ak1
         gamma_ak1 = W_gammak1.T * uk1_ak1 + gamma_qk1 @ qk1_ak1
         # fmt: off
@@ -2620,11 +2649,11 @@ class GeneralizedAlphaSecondOrder:
         )
         # fmt: on
 
-        # TODO: Keep this for debugging!
-        J_num = self.__J_num(tk1, xk1)
-        diff = (J - J_num).toarray()
-        error = np.linalg.norm(diff)
-        print(f"error J: {error}")
+        # # TODO: Keep this for debugging!
+        # J_num = self.__J_num(tk1, xk1)
+        # diff = (J - J_num).toarray()
+        # error = np.linalg.norm(diff)
+        # print(f"error J: {error}")
 
         yield J
 
@@ -2634,7 +2663,11 @@ class GeneralizedAlphaSecondOrder:
     def __J_num(self, tk1, xk1):
         return csr_matrix(
             approx_fprime(
-                xk1, lambda x: self.__R(tk1, x), method="2-point", eps=1 - 0e-4
+                # xk1, lambda x: self.__R(tk1, x), method="2-point", eps=1.0e-4
+                xk1,
+                lambda x: self.__R(tk1, x),
+                method="2-point",
+                eps=1.0e-5,
             )
             # approx_fprime(xk1, lambda x: self.__R(tk1, x), method="2-point")
             # approx_fprime(xk1, lambda x: self.__R(tk1, x), method="3-point")
@@ -2709,7 +2742,10 @@ class GeneralizedAlphaSecondOrder:
                 )
 
             # update dependent variables
-            ak1, la_gk1, la_gammak1 = self.unpack(xk1)
+            if self.GGL:
+                ak1, la_gk1, la_gammak1, mu_gk1 = self.unpack(xk1)
+            else:
+                ak1, la_gk1, la_gammak1 = self.unpack(xk1)
             qk1, uk1 = self.update(xk1, store=True)
 
             # modify converged quantities

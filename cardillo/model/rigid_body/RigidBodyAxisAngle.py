@@ -22,7 +22,7 @@ class RigidBodyAxisAngle:
         angle = norm(psi)
         # Ibrahimbegovic1995 after (62)
         if angle > pi:
-            print(f"complement rotation vector is used")
+            # print(f"complement rotation vector is used")
             n = int((angle + pi) / (2 * pi))
             # n = 1
             if angle > 0:
