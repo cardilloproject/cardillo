@@ -18,6 +18,7 @@ from cardillo.solver import (
     ScipyIVP,
     Riks,
     GeneralizedAlphaFirstOrder,
+    GeneralizedAlphaSecondOrder,
 )
 from cardillo.math import pi, e1, e2, e3, rodriguez, approx_fprime, norm
 
@@ -1097,7 +1098,14 @@ def inflated_circular_segment():
         #     rtol=rtol,
         #     atol=atol,
         # )
-        solver = GeneralizedAlphaFirstOrder(
+        # solver = GeneralizedAlphaFirstOrder(
+        #     model,
+        #     t1,
+        #     dt,
+        #     rho_inf=0.5,
+        #     tol=atol,
+        # )
+        solver = GeneralizedAlphaSecondOrder(
             model,
             t1,
             dt,
@@ -1298,7 +1306,7 @@ def cable_straight_inflated(case="rope"):
 
     # discretization properties
     nelements = 3
-    polynomial_degree = 1
+    polynomial_degree = 2
     basis = "Lagrange"
     # polynomial_degree = 3
     # basis = "B-spline"
@@ -1627,14 +1635,14 @@ def cable_inflated_circular_segment(case="rope"):
         #     la_arc_span=[-1, 1],
         # )
     else:
-        solver = ScipyIVP(
-            model,
-            t1,
-            dt,
-            method=method,
-            rtol=rtol,
-            atol=atol,
-        )
+        # solver = ScipyIVP(
+        #     model,
+        #     t1,
+        #     dt,
+        #     method=method,
+        #     rtol=rtol,
+        #     atol=atol,
+        # )
         # solver = GenAlphaFirstOrder(
         #     model,
         #     t1,
@@ -1642,6 +1650,13 @@ def cable_inflated_circular_segment(case="rope"):
         #     rho_inf=0.5,
         #     tol=atol,
         # )
+        solver = GeneralizedAlphaSecondOrder(
+            model,
+            t1,
+            dt,
+            rho_inf=0.5,
+            tol=atol,
+        )
 
     sol = solver.solve()
     q = sol.q
@@ -1679,5 +1694,5 @@ if __name__ == "__main__":
     # inflated_quarter_circle_external_force()
     # inflated_circular_segment()
     # cable_straight()
-    cable_straight_inflated()
-    # cable_inflated_circular_segment()
+    # cable_straight_inflated()
+    cable_inflated_circular_segment()

@@ -13,7 +13,7 @@ class RollingCondition:
         self.qDOF = self.subsystem.qDOF[self.subsystem.qDOF_P()]
         self.uDOF = self.subsystem.qDOF[self.subsystem.uDOF_P()]
 
-    def r_SA(self, t, q):
+    def r_SC(self, t, q):
         e_K_y = self.subsystem.A_IK(t, q)[:, 1]
         g_K_x = cross3(e_K_y, np.array([0, 0, 1]))
         e_K_x = g_K_x / norm(g_K_x)
@@ -32,7 +32,7 @@ class RollingCondition:
 
     def gamma(self, t, q, u):
         return self.subsystem.v_P(
-            t, q, u, K_r_SP=self.subsystem.A_IK(t, q).T @ self.r_SA(t, q)
+            t, q, u, K_r_SP=self.subsystem.A_IK(t, q).T @ self.r_SC(t, q)
         )
 
     def gamma_dot(self, t, q, u, u_dot):
@@ -47,7 +47,7 @@ class RollingCondition:
 
     def gamma_u_dense(self, t, q):
         return self.subsystem.J_P(
-            t, q, K_r_SP=self.subsystem.A_IK(t, q).T @ self.r_SA(t, q)
+            t, q, K_r_SP=self.subsystem.A_IK(t, q).T @ self.r_SC(t, q)
         )
 
         # gamma_u_dense = self.subsystem.J_P(t, q, K_r_SP=self.subsystem.A_IK(t, q).T @ self.r_SA(t, q))

@@ -10,6 +10,7 @@ from cardillo.model.rigid_body import RigidBodyQuaternion
 from cardillo.math import axis_angle2quat
 from cardillo.model.bilateral_constraints.implicit import (
     RollingCondition_g_I_Frame_gamma,
+    RollingCondition,
 )
 from cardillo.forces import Force
 from cardillo.solver import (
@@ -31,9 +32,17 @@ def rolling_disc_DMS():
     ############
     g = 9.81  # gravity
     m = 0.3048  # disc mass
-    # r = 3.75e-2 # disc radius
-    r = 0.05  # disc radius
-    R = 0.5  # radius of of the circular motion
+
+    # disc radius
+    # r = 3.75e-2
+    r = 0.05  # used for GAMM
+    # r = 0.5
+
+    # radius of of the circular motion
+    # R = 0.5
+    R = 10 * r  # used for GAMM
+    # R = 5 * r
+    # R = 2 * r
 
     # inertia of the disc, Lesaux2005 before (5.3)
     A = B = 0.25 * m * r**2
@@ -45,15 +54,16 @@ def rolling_disc_DMS():
     ####################
     # initial conditions
     ####################
-    x0_Lesaux = 0  # Lesaux2005 before (5.8)
-    y0_Lesaux = R  # Lesaux2005 (5.8)
-    x_dot0_Lesaux = 0  # Lesaux2005 before (5.8)
-    y_dot0_Lesaux = 0  # Lesaux2005 (5.8)
+    # x0_Lesaux = 0  # Lesaux2005 before (5.8)
+    # y0_Lesaux = R  # Lesaux2005 (5.8)
+    # x_dot0_Lesaux = 0  # Lesaux2005 before (5.8)
+    # y_dot0_Lesaux = 0  # Lesaux2005 (5.8)
 
-    alpha0 = 0
+    # alpha0 = 0
     beta0 = 5 * np.pi / 180  # initial inlination angle (0 < beta0 < pi/2)
+    # beta0 = 15 * np.pi / 180  # initial inlination angle (0 < beta0 < pi/2)
     # Lesaux2005 before (5.8)
-    gamma0 = 0
+    # gamma0 = 0
 
     # center of mass, see DMS (22)
     # x0 = x0_Lesaux
@@ -61,7 +71,6 @@ def rolling_disc_DMS():
     x0 = 0
     y0 = R - r * sin(beta0)
     z0 = r * cos(beta0)
-    r_S0 = np.array([x0, y0, z0])
 
     # initial angles
     beta_dot0 = 0  # Lesaux1005 before (5.10)
@@ -105,6 +114,7 @@ def rolling_disc_DMS():
 
     # build model
     rolling = RollingCondition_g_I_Frame_gamma(disc)
+    # rolling = RollingCondition(disc)
     f_g = Force(lambda t: np.array([0, 0, -m * g]), disc)
 
     model = Model()
@@ -116,16 +126,16 @@ def rolling_disc_DMS():
     t0 = 0
     # t1 = 2 * np.pi / np.abs(alpha_dot0) * 0.1
     t1 = 2 * np.pi / np.abs(alpha_dot0) * 1.0
-    dt = 2.5e-2
-    # dt = 5e-2
-    rho_inf = 0.95
-    # rho_inf = 1.0
-    tol = 1.0e-8
+    # dt = 5e-3
+    dt = 2.5e-2  # used for GAMM with R = 10 * r
+    # dt = 1e-2
+    rho_inf = 0.95  # used for GAMM
+    tol = 1.0e-8  # used for GAMM
     # sol_A = GeneralizedAlphaFirstOrder(model, t1, dt, rho_inf=rho_inf, tol=tol).solve()
-    sol_A = GeneralizedAlphaFirstOrder(
-        model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=True
-    ).solve()
-    # sol_A = GeneralizedAlphaSecondOrder(model, t1, dt, rho_inf=rho_inf, tol=tol).solve()
+    # sol_A = GeneralizedAlphaFirstOrder(
+    #     model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=True
+    # ).solve()
+    sol_A = GeneralizedAlphaSecondOrder(model, t1, dt, rho_inf=rho_inf, tol=tol).solve()
     # sol_A = GeneralizedAlphaSecondOrder(model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=True).solve()
 
     t_A = sol_A.t
@@ -140,120 +150,122 @@ def rolling_disc_DMS():
     ########
     # export
     ########
-    def export_q(sol, name):
-        header = "t, x, y, z, p0, p1, p2, p3, la_g, la_ga0, la_ga1"
-        export_data = np.vstack([sol.t, *sol.q.T, *sol.la_g.T, *sol.la_gamma.T]).T
-        np.savetxt(
-            name,
-            export_data,
-            delimiter=", ",
-            header=header,
-            comments="",
+    if True:
+
+        def export_q(sol, name):
+            header = "t, x, y, z, p0, p1, p2, p3, la_g, la_ga0, la_ga1"
+            export_data = np.vstack([sol.t, *sol.q.T, *sol.la_g.T, *sol.la_gamma.T]).T
+            np.savetxt(
+                name,
+                export_data,
+                delimiter=", ",
+                header=header,
+                comments="",
+            )
+
+        export_q(sol_A, "examples/GAMM2022/RollingDiscTrajectory.txt")
+
+        def export_gaps(sol, name):
+            header = "t, g, g_dot, g_ddot, ga, ga_dot"
+            t = sol.t
+            q = sol.q
+            u = sol.u
+            u_dot = sol.u_dot
+
+            g = np.array([np.linalg.norm(model.g(ti, qi)) for ti, qi in zip(t, q)])
+
+            g_dot = np.array(
+                [np.linalg.norm(model.g_dot(ti, qi, ui)) for ti, qi, ui in zip(t, q, u)]
+            )
+
+            g_ddot = np.array(
+                [
+                    np.linalg.norm(model.g_ddot(ti, qi, ui, u_doti))
+                    for ti, qi, ui, u_doti in zip(t, q, u, u_dot)
+                ]
+            )
+
+            gamma = np.array(
+                [np.linalg.norm(model.gamma(ti, qi, ui)) for ti, qi, ui in zip(t, q, u)]
+            )
+
+            gamma_dot = np.array(
+                [
+                    np.linalg.norm(model.gamma_dot(ti, qi, ui, u_doti))
+                    for ti, qi, ui, u_doti in zip(t, q, u, u_dot)
+                ]
+            )
+
+            export_data = np.vstack([t, g, g_dot, g_ddot, gamma, gamma_dot]).T
+            np.savetxt(
+                name,
+                export_data,
+                delimiter=", ",
+                header=header,
+                comments="",
+            )
+
+            return g, g_dot, g_ddot
+
+        export_gaps(sol_A, "examples/GAMM2022/RollingDiscGaps.txt")
+
+        # exit()
+
+        ###############
+        # visualization
+        ###############
+        fig = plt.figure(figsize=plt.figaspect(0.5))
+
+        # trajectory center of mass
+        ax = fig.add_subplot(2, 2, 1, projection="3d")
+        ax.plot(
+            q_A[:, 0],
+            q_A[:, 1],
+            q_A[:, 2],
+            "-r",
+            label="x-y-z - GenAlphaFirstOrderVeclotiy",
         )
+        # ax.plot(q_genAlphaFirstOrderVelocityGGL[:, 0], q_genAlphaFirstOrderVelocityGGL[:, 1], q_genAlphaFirstOrderVelocityGGL[:, 2], '--g', label="x-y-z - GenAlphaFirstOrderVeclotiyGGl")
+        ax.set_xlabel("x")
+        ax.set_ylabel("y")
+        ax.set_zlabel("z")
+        ax.grid()
+        ax.legend()
 
-    export_q(sol_A, "examples/GAMM2022/RollingDiscTrajectory.txt")
+        # nonpenetrating contact point
+        ax = fig.add_subplot(2, 2, 2)
+        ax.plot(t_A[:], la_g_A[:, 0], "-r", label="la_g - GenAlphaFirstOrderVeclotiy")
+        # ax.plot(t_genAlphaFirstOrderVelocityGGL[:], la_g_genAlphaFirstOrderVelocityGGL[:, 0], '--g', label="la_g - GenAlphaFirstOrderVeclotiyGGL")
+        ax.set_xlabel("x")
+        ax.set_ylabel("y")
+        ax.grid()
+        ax.legend()
 
-    def export_gaps(sol, name):
-        header = "t, g, g_dot, g_ddot, ga, ga_dot"
-        t = sol.t
-        q = sol.q
-        u = sol.u
-        u_dot = sol.u_dot
-
-        g = np.array([np.linalg.norm(model.g(ti, qi)) for ti, qi in zip(t, q)])
-
-        g_dot = np.array(
-            [np.linalg.norm(model.g_dot(ti, qi, ui)) for ti, qi, ui in zip(t, q, u)]
+        # no lateral velocities 1
+        ax = fig.add_subplot(2, 2, 3)
+        ax.plot(
+            t_A[:],
+            la_gamma_A[:, 0],
+            "-r",
+            label="la_gamma[0] - GenAlphaFirstOrderVeclotiy",
         )
+        ax.set_xlabel("t")
+        ax.set_ylabel("la_gamma1")
+        ax.grid()
+        ax.legend()
 
-        g_ddot = np.array(
-            [
-                np.linalg.norm(model.g_ddot(ti, qi, ui, u_doti))
-                for ti, qi, ui, u_doti in zip(t, q, u, u_dot)
-            ]
+        # no lateral velocities 2
+        ax = fig.add_subplot(2, 2, 4)
+        ax.plot(
+            t_A[:],
+            la_gamma_A[:, 1],
+            "-r",
+            label="la_gamma[1] - GenAlphaFirstOrderVeclotiy",
         )
-
-        gamma = np.array(
-            [np.linalg.norm(model.gamma(ti, qi, ui)) for ti, qi, ui in zip(t, q, u)]
-        )
-
-        gamma_dot = np.array(
-            [
-                np.linalg.norm(model.gamma_dot(ti, qi, ui, u_doti))
-                for ti, qi, ui, u_doti in zip(t, q, u, u_dot)
-            ]
-        )
-
-        export_data = np.vstack([t, g, g_dot, g_ddot, gamma, gamma_dot]).T
-        np.savetxt(
-            name,
-            export_data,
-            delimiter=", ",
-            header=header,
-            comments="",
-        )
-
-        return g, g_dot, g_ddot
-
-    export_gaps(sol_A, "examples/GAMM2022/RollingDiscGaps.txt")
-
-    # exit()
-
-    ###############
-    # visualization
-    ###############
-    fig = plt.figure(figsize=plt.figaspect(0.5))
-
-    # trajectory center of mass
-    ax = fig.add_subplot(2, 2, 1, projection="3d")
-    ax.plot(
-        q_A[:, 0],
-        q_A[:, 1],
-        q_A[:, 2],
-        "-r",
-        label="x-y-z - GenAlphaFirstOrderVeclotiy",
-    )
-    # ax.plot(q_genAlphaFirstOrderVelocityGGL[:, 0], q_genAlphaFirstOrderVelocityGGL[:, 1], q_genAlphaFirstOrderVelocityGGL[:, 2], '--g', label="x-y-z - GenAlphaFirstOrderVeclotiyGGl")
-    ax.set_xlabel("x")
-    ax.set_ylabel("y")
-    ax.set_zlabel("z")
-    ax.grid()
-    ax.legend()
-
-    # nonpenetrating contact point
-    ax = fig.add_subplot(2, 2, 2)
-    ax.plot(t_A[:], la_g_A[:, 0], "-r", label="la_g - GenAlphaFirstOrderVeclotiy")
-    # ax.plot(t_genAlphaFirstOrderVelocityGGL[:], la_g_genAlphaFirstOrderVelocityGGL[:, 0], '--g', label="la_g - GenAlphaFirstOrderVeclotiyGGL")
-    ax.set_xlabel("x")
-    ax.set_ylabel("y")
-    ax.grid()
-    ax.legend()
-
-    # no lateral velocities 1
-    ax = fig.add_subplot(2, 2, 3)
-    ax.plot(
-        t_A[:],
-        la_gamma_A[:, 0],
-        "-r",
-        label="la_gamma[0] - GenAlphaFirstOrderVeclotiy",
-    )
-    ax.set_xlabel("t")
-    ax.set_ylabel("la_gamma1")
-    ax.grid()
-    ax.legend()
-
-    # no lateral velocities 2
-    ax = fig.add_subplot(2, 2, 4)
-    ax.plot(
-        t_A[:],
-        la_gamma_A[:, 1],
-        "-r",
-        label="la_gamma[1] - GenAlphaFirstOrderVeclotiy",
-    )
-    ax.set_xlabel("t")
-    ax.set_ylabel("la_gamma2")
-    ax.grid()
-    ax.legend()
+        ax.set_xlabel("t")
+        ax.set_ylabel("la_gamma2")
+        ax.grid()
+        ax.legend()
 
     ########################
     # animate configurations

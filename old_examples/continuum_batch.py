@@ -7,7 +7,7 @@ import pathlib
 
 from cardillo.discretization.mesh2D import Mesh2D, rectangle
 from cardillo.discretization.B_spline import KnotVector
-from cardillo.discretization.lagrange import Node_vector
+from cardillo.discretization.lagrange import NodeVector
 from cardillo.discretization.indexing import split2D
 from cardillo.model.continuum import (
     Ogden1997_compressible,
@@ -102,8 +102,8 @@ def first_gradient_solve(
         mat = Ogden1997_complete_2D_incompressible(mu, al)
 
     if source == "Treolar_lagrange":
-        Xi = Node_vector(degrees[0], element_shape[0])
-        Eta = Node_vector(degrees[1], element_shape[1])
+        Xi = NodeVector(degrees[0], element_shape[0])
+        Eta = NodeVector(degrees[1], element_shape[1])
         knot_vectors = (Xi, Eta)
 
         mesh = Mesh2D(

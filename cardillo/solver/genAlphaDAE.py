@@ -1947,8 +1947,8 @@ class GeneralizedAlphaFirstOrder:
             self.sk = s0
 
         # compute consistent initial conditions
-        # initial_values(t0, model.q0, model.u0)
-        initial_values_Martin(t0, model.q0, model.u0)
+        initial_values(t0, model.q0, model.u0)
+        # initial_values_Martin(t0, model.q0, model.u0)
 
         # check if initial conditions satisfy constraints on position, velocity
         # and acceleration level
@@ -2432,13 +2432,29 @@ class GeneralizedAlphaSecondOrder:
         if self.GGL:
             self.mu_gk = np.zeros_like(model.la_g0)
 
-        # solve for initial accelerations
-        self.u_dotk = spsolve(
-            model.M(t0, model.q0, scipy_matrix=csr_matrix),
-            self.model.h(t0, model.q0, model.u0)
-            + self.model.W_g(t0, model.q0) @ model.la_g0
-            + self.model.W_gamma(t0, model.q0) @ model.la_gamma0,
+        # initial velocites
+        self.q_dotk = self.model.q_dot(t0, model.q0, model.u0)
+
+        # solve for consistent initial accelerations and Lagrange mutlipliers
+        M0 = self.model.M(t0, model.q0, scipy_matrix=csr_matrix)
+        h0 = self.model.h(t0, model.q0, model.u0)
+        W_g0 = self.model.W_g(t0, model.q0, scipy_matrix=csr_matrix)
+        W_gamma0 = self.model.W_gamma(t0, model.q0, scipy_matrix=csr_matrix)
+        zeta_g0 = self.model.zeta_g(t0, model.q0, model.u0)
+        zeta_gamma0 = self.model.zeta_gamma(t0, model.q0, model.u0)
+        A = bmat(
+            [
+                [M0, -W_g0, -W_gamma0],
+                [W_g0.T, None, None],
+                [W_gamma0.T, None, None],
+            ],
+            format="csc",
         )
+        b = np.concatenate([h0, -zeta_g0, -zeta_gamma0])
+        u_dot_la_g_la_gamma = spsolve(A, b)
+        self.u_dotk = u_dot_la_g_la_gamma[: self.nu]
+        self.la_gk = u_dot_la_g_la_gamma[self.nu : self.nu + self.nla_g]
+        self.la_gammak = u_dot_la_g_la_gamma[self.nu + self.nla_g :]
 
         # initialize auxilary variables
         self.u_dot_bark = self.u_dotk.copy()
