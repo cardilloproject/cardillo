@@ -5,7 +5,7 @@ from math import sin, cos
 
 from cardillo.utility.coo import Coo
 from cardillo.discretization.B_spline import KnotVector
-from cardillo.discretization.lagrange import Node_vector
+from cardillo.discretization.lagrange import NodeVector
 from cardillo.discretization.Hermite import HermiteNodeVector
 from cardillo.discretization.mesh1D import Mesh1D
 from cardillo.math import norm, cross3, skew2ax, skew2ax_A, ax2skew, approx_fprime
@@ -83,8 +83,8 @@ class DirectorAxisAngleOld:
             self.knot_vector_r = KnotVector(polynomial_degree_r, nelement)
             self.knot_vector_psi = KnotVector(polynomial_degree_psi, nelement)
         elif basis == "Lagrange":
-            self.knot_vector_r = Node_vector(polynomial_degree_r, nelement)
-            self.knot_vector_psi = Node_vector(polynomial_degree_psi, nelement)
+            self.knot_vector_r = NodeVector(polynomial_degree_r, nelement)
+            self.knot_vector_psi = NodeVector(polynomial_degree_psi, nelement)
         elif basis == "Hermite":
             # Note: This implements a cubic Hermite spline for the centerline
             #       together with a linear Lagrange axis angle vector field
@@ -1793,8 +1793,8 @@ class DirectorAxisAngleOld:
             knot_vector_eta = KnotVector(polynomial_degree_eta, nEl_eta)
             knot_vector_zeta = KnotVector(polynomial_degree_zeta, nEl_zeta)
         elif self.basis == "lagrange":
-            knot_vector_eta = Node_vector(polynomial_degree_eta, nEl_eta)
-            knot_vector_zeta = Node_vector(polynomial_degree_zeta, nEl_zeta)
+            knot_vector_eta = NodeVector(polynomial_degree_eta, nEl_eta)
+            knot_vector_zeta = NodeVector(polynomial_degree_zeta, nEl_zeta)
         knot_vector_objs = [self.knot_vector_r, knot_vector_eta, knot_vector_zeta]
         degrees = (
             self.polynomial_degree_r,
@@ -1903,8 +1903,8 @@ class DirectorAxisAngleOld:
             knot_vector_eta = KnotVector(polynomial_degree_eta, nEl_eta)
             knot_vector_zeta = KnotVector(polynomial_degree_zeta, nEl_zeta)
         elif self.basis == "lagrange":
-            knot_vector_eta = Node_vector(polynomial_degree_eta, nEl_eta)
-            knot_vector_zeta = Node_vector(polynomial_degree_zeta, nEl_zeta)
+            knot_vector_eta = NodeVector(polynomial_degree_eta, nEl_eta)
+            knot_vector_zeta = NodeVector(polynomial_degree_zeta, nEl_zeta)
         knot_vector_objs = [self.knot_vector_r, knot_vector_eta, knot_vector_zeta]
         degrees = (
             self.polynomial_degree_r,

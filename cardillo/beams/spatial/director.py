@@ -5,7 +5,7 @@ import os
 
 from cardillo.utility.coo import Coo
 from cardillo.discretization.B_spline import KnotVector
-from cardillo.discretization.lagrange import Node_vector
+from cardillo.discretization.lagrange import NodeVector
 from cardillo.math.algebra import norm, cross3, skew2ax, skew2ax_A
 from cardillo.math import approx_fprime
 from cardillo.discretization.mesh1D import Mesh1D
@@ -47,8 +47,8 @@ class TimoshenkoBeamDirector(metaclass=ABCMeta):
             self.knot_vector_r = KnotVector(polynomial_degree_r, nelement)
             self.knot_vector_di = KnotVector(polynomial_degree_di, nelement)
         elif basis == "Lagrange":
-            self.knot_vector_r = Node_vector(polynomial_degree_r, nelement)
-            self.knot_vector_di = Node_vector(polynomial_degree_di, nelement)
+            self.knot_vector_r = NodeVector(polynomial_degree_r, nelement)
+            self.knot_vector_di = NodeVector(polynomial_degree_di, nelement)
         else:
             raise RuntimeError(f'wrong basis: "{basis}" was chosen')
 
@@ -1326,8 +1326,8 @@ class TimoshenkoBeamDirector(metaclass=ABCMeta):
             knot_vector_eta = KnotVector(polynomial_degree_eta, nEl_eta)
             knot_vector_zeta = KnotVector(polynomial_degree_zeta, nEl_zeta)
         elif self.basis == "lagrange":
-            knot_vector_eta = Node_vector(polynomial_degree_eta, nEl_eta)
-            knot_vector_zeta = Node_vector(polynomial_degree_zeta, nEl_zeta)
+            knot_vector_eta = NodeVector(polynomial_degree_eta, nEl_eta)
+            knot_vector_zeta = NodeVector(polynomial_degree_zeta, nEl_zeta)
         knot_vector_objs = [self.knot_vector_r, knot_vector_eta, knot_vector_zeta]
         degrees = (
             self.polynomial_degree_r,
@@ -1436,8 +1436,8 @@ class TimoshenkoBeamDirector(metaclass=ABCMeta):
             knot_vector_eta = KnotVector(polynomial_degree_eta, nEl_eta)
             knot_vector_zeta = KnotVector(polynomial_degree_zeta, nEl_zeta)
         elif self.basis == "lagrange":
-            knot_vector_eta = Node_vector(polynomial_degree_eta, nEl_eta)
-            knot_vector_zeta = Node_vector(polynomial_degree_zeta, nEl_zeta)
+            knot_vector_eta = NodeVector(polynomial_degree_eta, nEl_eta)
+            knot_vector_zeta = NodeVector(polynomial_degree_zeta, nEl_zeta)
         knot_vector_objs = [self.knot_vector_r, knot_vector_eta, knot_vector_zeta]
         degrees = (
             self.polynomial_degree_r,
@@ -1977,7 +1977,7 @@ class TimoshenkoDirectorIntegral(TimoshenkoBeamDirector):
             self.knot_vector_g = KnotVector(self.polynomial_degree_g, self.nelement)
             self.nn_g = self.nelement + self.polynomial_degree_g  # number of nodes
         elif self.basis == "lagrange":
-            self.knot_vector_g = Node_vector(self.polynomial_degree_g, self.nelement)
+            self.knot_vector_g = NodeVector(self.polynomial_degree_g, self.nelement)
             self.nn_g = self.nelement * self.polynomial_degree_g + 1  # number of nodes
 
         self.nq_n_g = 6  # number of degrees of freedom per node
@@ -2423,7 +2423,7 @@ class EulerBernoulliDirectorIntegral(TimoshenkoBeamDirector):
             self.knot_vector_g = KnotVector(self.polynomial_degree_g, self.nelement)
             self.nn_g = self.nelement + self.polynomial_degree_g  # number of nodes
         elif self.basis == "lagrange":
-            self.knot_vector_g = Node_vector(self.polynomial_degree_g, self.nelement)
+            self.knot_vector_g = NodeVector(self.polynomial_degree_g, self.nelement)
             self.nn_g = self.nelement * self.polynomial_degree_g + 1  # number of nodes
 
         self.nq_n_g = 8  # number of degrees of freedom per node
@@ -2720,7 +2720,7 @@ class InextensibleEulerBernoulliDirectorIntegral(TimoshenkoBeamDirector):
             self.knot_vector_g = KnotVector(self.polynomial_degree_g, self.nelement)
             self.nn_g = self.nelement + self.polynomial_degree_g  # number of nodes
         elif self.basis == "lagrange":
-            self.knot_vector_g = Node_vector(self.polynomial_degree_g, self.nelement)
+            self.knot_vector_g = NodeVector(self.polynomial_degree_g, self.nelement)
             self.nn_g = self.nelement * self.polynomial_degree_g + 1  # number of nodes
 
         self.nq_n_g = 9  # number of degrees of freedom per node

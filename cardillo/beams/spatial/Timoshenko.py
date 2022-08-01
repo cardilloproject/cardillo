@@ -6,7 +6,7 @@ from cardillo.math.algebra import skew2ax
 
 from cardillo.utility.coo import Coo
 from cardillo.discretization.B_spline import KnotVector
-from cardillo.discretization.lagrange import Node_vector
+from cardillo.discretization.lagrange import NodeVector
 from cardillo.discretization.Hermite import HermiteNodeVector
 from cardillo.discretization.mesh1D import Mesh1D
 from cardillo.math import norm, cross3, ax2skew, approx_fprime
@@ -275,9 +275,9 @@ class TimoshenkoQuarternionSE3:
             self.knot_vector_psi = KnotVector(polynomial_degree_psi, nelement)
             self.knot_vector_la = KnotVector(polynomial_degree_r, nelement)
         elif basis == "Lagrange":
-            self.knot_vector_r = Node_vector(polynomial_degree_r, nelement)
-            self.knot_vector_psi = Node_vector(polynomial_degree_psi, nelement)
-            self.knot_vector_la = Node_vector(polynomial_degree_r, nelement)
+            self.knot_vector_r = NodeVector(polynomial_degree_r, nelement)
+            self.knot_vector_psi = NodeVector(polynomial_degree_psi, nelement)
+            self.knot_vector_la = NodeVector(polynomial_degree_r, nelement)
             # self.knot_vector_la = Node_vector(0, nelement)
         else:
             raise RuntimeError(f'wrong basis: "{basis}" was chosen')
@@ -1545,8 +1545,8 @@ class TimoshenkoAxisAngleSE3Old:
             self.knot_vector_r = KnotVector(polynomial_degree_r, nelement)
             self.knot_vector_psi = KnotVector(polynomial_degree_psi, nelement)
         elif basis == "Lagrange":
-            self.knot_vector_r = Node_vector(polynomial_degree_r, nelement)
-            self.knot_vector_psi = Node_vector(polynomial_degree_psi, nelement)
+            self.knot_vector_r = NodeVector(polynomial_degree_r, nelement)
+            self.knot_vector_psi = NodeVector(polynomial_degree_psi, nelement)
         else:
             raise RuntimeError(f'wrong basis: "{basis}" was chosen')
 
@@ -2742,8 +2742,8 @@ class TimoshenkoAxisAngleSE3Old:
             knot_vector_eta = KnotVector(polynomial_degree_eta, nEl_eta)
             knot_vector_zeta = KnotVector(polynomial_degree_zeta, nEl_zeta)
         elif self.basis == "lagrange":
-            knot_vector_eta = Node_vector(polynomial_degree_eta, nEl_eta)
-            knot_vector_zeta = Node_vector(polynomial_degree_zeta, nEl_zeta)
+            knot_vector_eta = NodeVector(polynomial_degree_eta, nEl_eta)
+            knot_vector_zeta = NodeVector(polynomial_degree_zeta, nEl_zeta)
         knot_vector_objs = [self.knot_vector_r, knot_vector_eta, knot_vector_zeta]
         degrees = (
             self.polynomial_degree_r,
@@ -2852,8 +2852,8 @@ class TimoshenkoAxisAngleSE3Old:
             knot_vector_eta = KnotVector(polynomial_degree_eta, nEl_eta)
             knot_vector_zeta = KnotVector(polynomial_degree_zeta, nEl_zeta)
         elif self.basis == "lagrange":
-            knot_vector_eta = Node_vector(polynomial_degree_eta, nEl_eta)
-            knot_vector_zeta = Node_vector(polynomial_degree_zeta, nEl_zeta)
+            knot_vector_eta = NodeVector(polynomial_degree_eta, nEl_eta)
+            knot_vector_zeta = NodeVector(polynomial_degree_zeta, nEl_zeta)
         knot_vector_objs = [self.knot_vector_r, knot_vector_eta, knot_vector_zeta]
         degrees = (
             self.polynomial_degree_r,
@@ -3286,7 +3286,7 @@ class BernoulliAxisAngleSE3(TimoshenkoAxisAngleSE3Old):
             self.knot_vector_la = KnotVector(self.polynomial_degree_g, self.nelement)
             self.nn_g = self.nelement + self.polynomial_degree_g  # number of nodes
         elif self.basis == "Lagrange":
-            self.knot_vector_la = Node_vector(self.polynomial_degree_g, self.nelement)
+            self.knot_vector_la = NodeVector(self.polynomial_degree_g, self.nelement)
             # self.nn_g = self.nelement * self.polynomial_degree_g + 1  # number of nodes
             self.nn_g = self.nelement  # number of nodes
         else:
@@ -3448,8 +3448,8 @@ class TimoshenkoAxisAngle:
             self.knot_vector_r = KnotVector(polynomial_degree_r, nelement)
             self.knot_vector_psi = KnotVector(polynomial_degree_psi, nelement)
         elif basis == "Lagrange":
-            self.knot_vector_r = Node_vector(polynomial_degree_r, nelement)
-            self.knot_vector_psi = Node_vector(polynomial_degree_psi, nelement)
+            self.knot_vector_r = NodeVector(polynomial_degree_r, nelement)
+            self.knot_vector_psi = NodeVector(polynomial_degree_psi, nelement)
         elif basis == "Hermite":
             # Note: This implements a cubic Hermite spline for the centerline
             #       together with a linear Lagrange axis angle vector field
@@ -4767,8 +4767,8 @@ class TimoshenkoAxisAngle:
             knot_vector_eta = KnotVector(polynomial_degree_eta, nEl_eta)
             knot_vector_zeta = KnotVector(polynomial_degree_zeta, nEl_zeta)
         elif self.basis == "lagrange":
-            knot_vector_eta = Node_vector(polynomial_degree_eta, nEl_eta)
-            knot_vector_zeta = Node_vector(polynomial_degree_zeta, nEl_zeta)
+            knot_vector_eta = NodeVector(polynomial_degree_eta, nEl_eta)
+            knot_vector_zeta = NodeVector(polynomial_degree_zeta, nEl_zeta)
         knot_vector_objs = [self.knot_vector_r, knot_vector_eta, knot_vector_zeta]
         degrees = (
             self.polynomial_degree_r,
@@ -4877,8 +4877,8 @@ class TimoshenkoAxisAngle:
             knot_vector_eta = KnotVector(polynomial_degree_eta, nEl_eta)
             knot_vector_zeta = KnotVector(polynomial_degree_zeta, nEl_zeta)
         elif self.basis == "lagrange":
-            knot_vector_eta = Node_vector(polynomial_degree_eta, nEl_eta)
-            knot_vector_zeta = Node_vector(polynomial_degree_zeta, nEl_zeta)
+            knot_vector_eta = NodeVector(polynomial_degree_eta, nEl_eta)
+            knot_vector_zeta = NodeVector(polynomial_degree_zeta, nEl_zeta)
         knot_vector_objs = [self.knot_vector_r, knot_vector_eta, knot_vector_zeta]
         degrees = (
             self.polynomial_degree_r,
@@ -5316,8 +5316,8 @@ class TimoshenkoQuaternion:
             self.knot_vector_r = KnotVector(polynomial_degree_r, nelement)
             self.knot_vector_psi = KnotVector(polynomial_degree_psi, nelement)
         elif basis == "Lagrange":
-            self.knot_vector_r = Node_vector(polynomial_degree_r, nelement)
-            self.knot_vector_psi = Node_vector(polynomial_degree_psi, nelement)
+            self.knot_vector_r = NodeVector(polynomial_degree_r, nelement)
+            self.knot_vector_psi = NodeVector(polynomial_degree_psi, nelement)
         elif basis == "Hermite":
             # Note: This implements a cubic Hermite spline for the centerline
             #       together with a linear Lagrange axis angle vector field
@@ -6658,8 +6658,8 @@ class TimoshenkoQuaternion:
             knot_vector_eta = KnotVector(polynomial_degree_eta, nEl_eta)
             knot_vector_zeta = KnotVector(polynomial_degree_zeta, nEl_zeta)
         elif self.basis == "lagrange":
-            knot_vector_eta = Node_vector(polynomial_degree_eta, nEl_eta)
-            knot_vector_zeta = Node_vector(polynomial_degree_zeta, nEl_zeta)
+            knot_vector_eta = NodeVector(polynomial_degree_eta, nEl_eta)
+            knot_vector_zeta = NodeVector(polynomial_degree_zeta, nEl_zeta)
         knot_vector_objs = [self.knot_vector_r, knot_vector_eta, knot_vector_zeta]
         degrees = (
             self.polynomial_degree_r,
@@ -6768,8 +6768,8 @@ class TimoshenkoQuaternion:
             knot_vector_eta = KnotVector(polynomial_degree_eta, nEl_eta)
             knot_vector_zeta = KnotVector(polynomial_degree_zeta, nEl_zeta)
         elif self.basis == "lagrange":
-            knot_vector_eta = Node_vector(polynomial_degree_eta, nEl_eta)
-            knot_vector_zeta = Node_vector(polynomial_degree_zeta, nEl_zeta)
+            knot_vector_eta = NodeVector(polynomial_degree_eta, nEl_eta)
+            knot_vector_zeta = NodeVector(polynomial_degree_zeta, nEl_zeta)
         knot_vector_objs = [self.knot_vector_r, knot_vector_eta, knot_vector_zeta]
         degrees = (
             self.polynomial_degree_r,

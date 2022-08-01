@@ -6,7 +6,7 @@ from cardillo.math.rotations import smallest_rotation
 
 from cardillo.utility.coo import Coo
 from cardillo.discretization.B_spline import KnotVector
-from cardillo.discretization.lagrange import Node_vector
+from cardillo.discretization.lagrange import NodeVector
 from cardillo.discretization.Hermite import HermiteNodeVector
 from cardillo.discretization.mesh1D import Mesh1D
 from cardillo.math import norm, cross3, ax2skew, approx_fprime
@@ -1437,8 +1437,8 @@ class Kirchhoff:
             knot_vector_eta = KnotVector(polynomial_degree_eta, nEl_eta)
             knot_vector_zeta = KnotVector(polynomial_degree_zeta, nEl_zeta)
         elif self.basis == "lagrange":
-            knot_vector_eta = Node_vector(polynomial_degree_eta, nEl_eta)
-            knot_vector_zeta = Node_vector(polynomial_degree_zeta, nEl_zeta)
+            knot_vector_eta = NodeVector(polynomial_degree_eta, nEl_eta)
+            knot_vector_zeta = NodeVector(polynomial_degree_zeta, nEl_zeta)
         knot_vector_objs = [self.knot_vector_r, knot_vector_eta, knot_vector_zeta]
         degrees = (
             self.polynomial_degree_r,
@@ -1547,8 +1547,8 @@ class Kirchhoff:
             knot_vector_eta = KnotVector(polynomial_degree_eta, nEl_eta)
             knot_vector_zeta = KnotVector(polynomial_degree_zeta, nEl_zeta)
         elif self.basis == "lagrange":
-            knot_vector_eta = Node_vector(polynomial_degree_eta, nEl_eta)
-            knot_vector_zeta = Node_vector(polynomial_degree_zeta, nEl_zeta)
+            knot_vector_eta = NodeVector(polynomial_degree_eta, nEl_eta)
+            knot_vector_zeta = NodeVector(polynomial_degree_zeta, nEl_zeta)
         knot_vector_objs = [self.knot_vector_r, knot_vector_eta, knot_vector_zeta]
         degrees = (
             self.polynomial_degree_r,

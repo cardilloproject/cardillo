@@ -566,15 +566,15 @@ class Mesh3D:
 
 
 def test_surface_qDOF():
-    from cardillo.discretization.lagrange import Node_vector
+    from cardillo.discretization.lagrange import NodeVector
 
     degrees = (3, 3, 3)
     QP_shape = (2, 2, 2)
     element_shape = (2, 2, 2)
 
-    Xi = Node_vector(degrees[0], element_shape[0])
-    Eta = Node_vector(degrees[1], element_shape[1])
-    Zeta = Node_vector(degrees[2], element_shape[2])
+    Xi = NodeVector(degrees[0], element_shape[0])
+    Eta = NodeVector(degrees[1], element_shape[1])
+    Zeta = NodeVector(degrees[2], element_shape[2])
     knot_vectors = (Xi, Eta, Zeta)
 
     # from cardillo.discretization.mesh import Mesh, cube, scatter_Qs

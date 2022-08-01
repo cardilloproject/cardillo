@@ -1,7 +1,7 @@
 import numpy as np
 
 from cardillo.utility.coo import Coo
-from cardillo.discretization.lagrange import Node_vector
+from cardillo.discretization.lagrange import NodeVector
 from cardillo.discretization.B_spline import KnotVector
 from cardillo.discretization.Hermite import HermiteNodeVector
 from cardillo.discretization.mesh1D import Mesh1D
@@ -38,7 +38,7 @@ class Rope:
         # chose basis
         self.basis = basis
         if basis == "Lagrange":
-            self.knot_vector = Node_vector(polynomial_degree, nelement)
+            self.knot_vector = NodeVector(polynomial_degree, nelement)
         elif basis == "B-spline":
             self.knot_vector = KnotVector(polynomial_degree, nelement)
         elif basis == "Hermite":

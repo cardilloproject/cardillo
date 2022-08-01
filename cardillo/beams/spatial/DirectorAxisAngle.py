@@ -1,7 +1,7 @@
 import numpy as np
 
 from cardillo.utility.coo import Coo
-from cardillo.discretization.lagrange import Node_vector
+from cardillo.discretization.lagrange import NodeVector, lagrange_basis1D
 from cardillo.discretization.mesh1D import Mesh1D
 from cardillo.math import (
     pi,
@@ -184,7 +184,7 @@ class DirectorAxisAngle:
         self.nquadrature = nquadrature = polynomial_degree
         self.nelement = nelement
 
-        self.node_vector = Node_vector(self.polynomial_degree, nelement)
+        self.node_vector = NodeVector(self.polynomial_degree, nelement)
 
         # build mesh object
         self.mesh = Mesh1D(
@@ -396,6 +396,91 @@ class DirectorAxisAngle:
         u_psi = np.tile(K_omega_IK0, nn_psi)
 
         return np.concatenate([q_r, q_psi]), np.concatenate([u_r, u_psi])
+
+    @staticmethod
+    def fit_orientation(
+        A_IKs,
+        polynomial_degree,
+        nelement,
+    ):
+        # number of sample points
+        n_samples = len(A_IKs)
+
+        # linear spaced xi's for target curve points
+        xis = np.linspace(0, 1, n_samples)
+        node_vector = NodeVector(polynomial_degree, nelement)
+
+        # build mesh object
+        mesh = Mesh1D(
+            node_vector,
+            1,
+            dim_q=3,
+            derivative_order=0,
+            basis="Lagrange",
+            quadrature="Gauss",
+        )
+
+        # build initial vector of orientations
+        nq = mesh.nnodes * 3
+        q0 = np.zeros(nq, dtype=float)
+
+        # find indices in xis that fit best with node vectors xi's
+        # xi_idx = np.where(
+        #     np.abs(node_vector.data[:, None] - xis) < 1.0e-5
+        # )[1]
+
+        # xi_idx = np.where(
+        #     node_vector.data[:, None] > xis
+        # )[1]
+        # np.asarray(node_vector.data <= xis).nonzero()[0][-1]
+
+        xi_idx = np.array(
+            [np.where(xis >= node_vector.data[i])[0][0] for i in range(mesh.nnodes)]
+        )
+
+        # warm start for optimization
+        q0 = np.array([Log_SO3(A_IKs[idx]) for idx in xi_idx]).reshape(-1)
+
+        def cost_function(q):
+            K = 0.0
+            for i, xii in enumerate(xis):
+                # find element number and extract elemt degrees of freedom
+                el = node_vector.element_number(xii)[0]
+                elDOF = mesh.elDOF[el]
+                qe = q[elDOF]
+
+                # evaluate shape functions
+                N = mesh.eval_basis(xii)
+
+                # interpoalte rotations
+                A_IK = np.zeros((3, 3), dtype=float)
+                for node in range(mesh.nnodes_per_element):
+                    A_IK += N[node] * Exp_SO3(qe[mesh.nodalDOF_element[node]])
+
+                # compute relative rotation vector
+                psi_rel = Log_SO3(A_IKs[i].T @ A_IK)
+
+                # compute quadratic cost function
+                K += psi_rel @ psi_rel
+
+            return K
+
+        from scipy.optimize import minimize
+
+        # method = 'nelder-mead' # gradient free; best suited method!
+        method = "SLSQP"
+        res = minimize(
+            cost_function,
+            q0,
+            method=method,
+            tol=1.0e-3,
+            options={
+                "maxiter": 1000,
+                "disp": True,
+            },
+        )
+
+        return res.x
 
     def element_number(self, xi):
         return self.node_vector.element_number(xi)[0]
@@ -839,7 +924,6 @@ class DirectorAxisAngle:
             )
 
     def q_ddot(self, t, q, u, u_dot):
-        raise RuntimeError("Not tested!")
         # centerline part
         q_ddot = u_dot
 
@@ -848,16 +932,25 @@ class DirectorAxisAngle:
             nodalDOF_psi = self.nodalDOF_psi[node]
 
             psi = q[nodalDOF_psi]
-            omega = u[nodalDOF_psi]
-            omega_dot = u_dot[nodalDOF_psi]
+            K_omega_IK = u[nodalDOF_psi]
+            K_omega_IK_dot = u_dot[nodalDOF_psi]
 
             T_inv = T_SO3_inv(psi)
-            psi_dot = T_inv @ omega
+            psi_dot = T_inv @ K_omega_IK
 
             # TODO:
             T_dot = tangent_map_s(psi, psi_dot)
             Tinv_dot = -T_inv @ T_dot @ T_inv
-            psi_ddot = T_inv @ omega_dot + Tinv_dot @ omega
+            psi_ddot = T_inv @ K_omega_IK_dot + Tinv_dot @ K_omega_IK
+
+            # psi_ddot = (
+            #     T_inv @ K_omega_IK_dot
+            #     + np.einsum("ijk,j,k",
+            #         approx_fprime(psi, T_SO3_inv, eps=1.0e-10, method="cs"),
+            #         K_omega_IK,
+            #         psi_dot
+            #     )
+            # )
 
             q_ddot[nodalDOF_psi] = psi_ddot
 

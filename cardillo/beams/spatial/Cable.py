@@ -2,7 +2,7 @@ import numpy as np
 from cardillo.math.algebra import ax2skew
 
 from cardillo.utility.coo import Coo
-from cardillo.discretization.lagrange import Node_vector
+from cardillo.discretization.lagrange import NodeVector
 from cardillo.discretization.B_spline import KnotVector
 from cardillo.discretization.Hermite import HermiteNodeVector
 from cardillo.math import (
