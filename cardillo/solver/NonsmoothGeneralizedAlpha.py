@@ -21,8 +21,8 @@ from scipy.sparse import csc_matrix
 from scipy.sparse.linalg import spsolve
 from tqdm import tqdm
 
-from PyNSD.solvers.approx_fprime import approx_fprime
-from PyNSD.solvers.Solution import Solution
+from cardillo.math import approx_fprime
+from cardillo.solver import Solution
 
 # eqn. (25): proximal point function to the set of negative numbers including zero
 def prox_Rn0(x):
