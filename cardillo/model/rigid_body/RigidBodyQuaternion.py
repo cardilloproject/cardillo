@@ -22,21 +22,28 @@ class RigidBodyQuaternion:
 
     def __init__(self, m, K_theta_S, q0=None, u0=None):
         self.m = m
-        self.theta = K_theta_S
+        self.K_Theta_S = K_theta_S
 
         self.nq = 7
         self.nu = 6
+        self.nla_S = 1
         self.q0 = np.array([0, 0, 0, 1, 0, 0, 0]) if q0 is None else q0
-        self.u0 = np.zeros(self.nu) if u0 is None else u0
+        self.u0 = np.zeros(self.nu, dtype=float) if u0 is None else u0
+        self.la_S0 = np.zeros(self.nla_S, dtype=float)
 
         self.M_ = np.zeros((self.nu, self.nu))
-        self.M_[:3, :3] = m * np.eye(3)
-        self.M_[3:, 3:] = self.theta
+        self.M_[:3, :3] = m * np.eye(3, dtype=float)
+        self.M_[3:, 3:] = self.K_Theta_S
 
-        self.is_assembled = False
+    def g_S(self, t, q):
+        P = q[3:]
+        return np.array([P @ P - 1.0], dtype=float)
 
-    def assembler_callback(self):
-        self.is_assembled = True
+    def g_S_q(self, t, q, coo):
+        P = q[3:]
+        dense = np.zeros((1, 7), dtype=float)
+        dense[0, 3:] = 2.0 * P
+        coo.extend(dense, (self.la_SDOF, self.qDOF))
 
     def M(self, t, q, coo):
         coo.extend(self.M_, (self.uDOF, self.uDOF))
@@ -44,13 +51,15 @@ class RigidBodyQuaternion:
     def f_gyr(self, t, q, u):
         omega = u[3:]
         f = np.zeros(self.nu)
-        f[3:] = cross3(omega, self.theta @ omega)
+        f[3:] = cross3(omega, self.K_Theta_S @ omega)
         return f
 
     def f_gyr_u(self, t, q, u, coo):
         omega = u[3:]
         dense = np.zeros((self.nu, self.nu))
-        dense[3:, 3:] = ax2skew(omega) @ self.theta - ax2skew(self.theta @ omega)
+        dense[3:, 3:] = ax2skew(omega) @ self.K_Theta_S - ax2skew(
+            self.K_Theta_S @ omega
+        )
         coo.extend(dense, (self.uDOF, self.uDOF))
 
     def q_dot(self, t, q, u):
@@ -78,8 +87,8 @@ class RigidBodyQuaternion:
         p = q[3:]
         Q = quat2mat(p) / (2 * p @ p)
 
-        B = np.zeros((self.nq, self.nu))
-        B[:3, :3] = np.eye(3)
+        B = np.zeros((self.nq, self.nu), dtype=float)
+        B[:3, :3] = np.eye(3, dtype=float)
         B[3:, 3:] = Q[:, 1:]
         coo.extend(B, (self.qDOF, self.uDOF))
 
@@ -92,7 +101,7 @@ class RigidBodyQuaternion:
             "ij,k->ijk", quat2mat(p), p / (p2**2)
         )
 
-        q_ddot = np.zeros(self.nq)
+        q_ddot = np.zeros(self.nq, dtype=float)
         q_ddot[:3] = u_dot[:3]
         q_ddot[3:] = Q[:, 1:] @ u_dot[3:] + np.einsum(
             "ijk,k,j->i", Q_p[:, 1:, :], p_dot, u[3:]
@@ -114,55 +123,55 @@ class RigidBodyQuaternion:
         return quat2rot(q[3:])
 
     def A_IK_q(self, t, q, frame_ID=None):
-        A_IK_q = np.zeros((3, 3, self.nq))
+        A_IK_q = np.zeros((3, 3, self.nq), dtype=float)
         A_IK_q[:, :, 3:] = quat2rot_p(q[3:])
         return A_IK_q
 
-    def r_OP(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
+    def r_OP(self, t, q, frame_ID=None, K_r_SP=np.zeros(3, dtype=float)):
         return q[:3] + self.A_IK(t, q) @ K_r_SP
 
-    def r_OP_t(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
+    def r_OP_t(self, t, q, frame_ID=None, K_r_SP=np.zeros(3, dtype=float)):
         return np.zeros(3)
 
-    def r_OP_q(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
+    def r_OP_q(self, t, q, frame_ID=None, K_r_SP=np.zeros(3, dtype=float)):
         r_OP_q = np.zeros((3, self.nq))
         r_OP_q[:, :3] = np.eye(3)
         r_OP_q[:, :] += np.einsum("ijk,j->ik", self.A_IK_q(t, q), K_r_SP)
         return r_OP_q
 
-    def v_P(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
+    def v_P(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3, dtype=float)):
         return u[:3] + self.A_IK(t, q) @ cross3(u[3:], K_r_SP)
 
-    def v_P_q(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
+    def v_P_q(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3, dtype=float)):
         return np.einsum("ijk,j->ik", self.A_IK_q(t, q), cross3(u[3:], K_r_SP))
 
-    def a_P(self, t, q, u, u_dot, frame_ID=None, K_r_SP=np.zeros(3)):
+    def a_P(self, t, q, u, u_dot, frame_ID=None, K_r_SP=np.zeros(3, dtype=float)):
         return u_dot[:3] + self.A_IK(t, q) @ (
             cross3(u_dot[3:], K_r_SP) + cross3(u[3:], cross3(u[3:], K_r_SP))
         )
 
-    def kappa_P(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
+    def kappa_P(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3, dtype=float)):
         return self.A_IK(t, q) @ (cross3(u[3:], cross3(u[3:], K_r_SP)))
 
-    def kappa_P_q(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
+    def kappa_P_q(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3, dtype=float)):
         return np.einsum(
             "ijk,j->ik", self.A_IK_q(t, q), cross3(u[3:], cross3(u[3:], K_r_SP))
         )
 
-    def kappa_P_u(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
+    def kappa_P_u(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3, dtype=float)):
         kappa_P_u = np.zeros((3, self.nu))
         kappa_P_u[:, 3:] = -self.A_IK(t, q) @ (
             ax2skew(cross3(u[3:], K_r_SP)) + ax2skew(u[3:]) @ ax2skew(K_r_SP)
         )
         return kappa_P_u
 
-    def J_P(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
+    def J_P(self, t, q, frame_ID=None, K_r_SP=np.zeros(3, dtype=float)):
         J_P = np.zeros((3, self.nu))
         J_P[:, :3] = np.eye(3)
         J_P[:, 3:] = -self.A_IK(t, q) @ ax2skew(K_r_SP)
         return J_P
 
-    def J_P_q(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
+    def J_P_q(self, t, q, frame_ID=None, K_r_SP=np.zeros(3, dtype=float)):
         J_P_q = np.zeros((3, self.nu, self.nq))
         J_P_q[:, 3:, :] = np.einsum("ijk,jl->ilk", self.A_IK_q(t, q), -ax2skew(K_r_SP))
         return J_P_q
@@ -171,24 +180,24 @@ class RigidBodyQuaternion:
         return u[3:]
 
     def K_Omega_q(self, t, q, u, frame_ID=None):
-        return np.zeros((3, self.nq))
+        return np.zeros((3, self.nq), dtype=float)
 
     def K_Psi(self, t, q, u, u_dot, frame_ID=None):
         return u_dot[3:]
 
     def K_kappa_R(self, t, q, u, frame_ID=None):
-        return np.zeros(3)
+        return np.zeros(3, dtype=float)
 
     def K_kappa_R_q(self, t, q, u, frame_ID=None):
-        return np.zeros((3, self.nq))
+        return np.zeros((3, self.nq), dtype=float)
 
     def K_kappa_R_u(self, t, q, u, frame_ID=None):
-        return np.zeros((3, self.nu))
+        return np.zeros((3, self.nu), dtype=float)
 
     def K_J_R(self, t, q, frame_ID=None):
-        J_R = np.zeros((3, self.nu))
+        J_R = np.zeros((3, self.nu), dtype=float)
         J_R[:, 3:] = np.eye(3)
         return J_R
 
     def K_J_R_q(self, t, q, frame_ID=None):
-        return np.zeros((3, self.nu, self.nq))
+        return np.zeros((3, self.nu, self.nq), dtype=float)

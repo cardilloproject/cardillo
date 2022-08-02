@@ -691,6 +691,12 @@ def convergence():
         t_ref = sol_ref.t
         q_ref = sol_ref.q
         u_ref = sol_ref.u
+        # t = t_genAlphaFirstOrderVelocityGGL
+        # q = q_genAlphaFirstOrderVelocityGGL
+        # t = t_genAlphaFirstOrderVelocityGGL
+        # q = q_genAlphaFirstOrderVelocityGGL
+        # t = t_genAlphaFirstOrderVelocityGGL
+        # q = q_genAlphaFirstOrderVelocityGGL
         la_g_ref = sol_ref.la_g
 
         # distinguish between transient and long term time steps

@@ -60,11 +60,32 @@ class RigidBodyEuler:
     def Q(self, q):
         A_K2 = self.A_2K(q).T
         A_K1 = A_K2 @ self.A_12(q).T
-        H_ = np.zeros((3, 3))
-        H_[:, 0] = A_K1 @ self.e1
-        H_[:, 1] = A_K2 @ self.e2
-        H_[:, 2] = self.e3
-        return inv3D(H_)
+        H = np.zeros((3, 3))
+        H[:, 0] = A_K1 @ self.e1
+        H[:, 1] = A_K2 @ self.e2
+        H[:, 2] = self.e3
+        return inv3D(H)
+
+    def Q_q(self, q):
+        A_K2 = self.A_2K(q).T
+        A_K1 = A_K2 @ self.A_12(q).T
+
+        # TODO:
+        A_K1_q = 0
+        A_K2_q = 0
+
+        H = np.zeros((3, 3), dtype=float)
+        H[:, 0] = A_K1 @ self.e1
+        H[:, 1] = A_K2 @ self.e2
+        H[:, 2] = self.e3
+
+        H_q = np.zeros((3, 3, self.nq), dtype=float)
+        H_q[:, 0] = np.einsum("ikj,k", A_K1_q, self.e1)
+        H_q[:, 1] = np.einsum("ikj,k", A_K2_q, self.e1)
+
+        Hinv = inv3D(H)
+
+        return np.einsum("il,lmk,mj->ijk", -Hinv, H_q, Hinv)
 
     def q_ddot(self, t, q, u, u_dot):
         q_ddot = np.zeros(self.nq)

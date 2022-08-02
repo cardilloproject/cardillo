@@ -19,7 +19,104 @@ from cardillo.solver import (
 )
 
 
-def rolling_disc_DMS():
+############
+# parameters
+############
+g = 9.81  # gravity
+m = 0.3048  # disc mass
+
+# disc radius
+# r = 3.75e-2
+r = 0.05  # used for GAMM
+# r = 0.5
+
+# radius of of the circular motion
+# R = 0.5
+R = 10 * r  # used for GAMM
+# R = 5 * r
+# R = 2 * r
+
+# inertia of the disc, Lesaux2005 before (5.3)
+A = B = 0.25 * m * r**2
+C = 0.5 * m * r**2
+
+# ratio between disc radius and radius of rolling
+rho = r / R  # Lesaux2005 (5.10)
+
+####################
+# initial conditions
+####################
+# x0_Lesaux = 0  # Lesaux2005 before (5.8)
+# y0_Lesaux = R  # Lesaux2005 (5.8)
+# x_dot0_Lesaux = 0  # Lesaux2005 before (5.8)
+# y_dot0_Lesaux = 0  # Lesaux2005 (5.8)
+
+# alpha0 = 0
+beta0 = 5 * np.pi / 180  # initial inlination angle (0 < beta0 < pi/2)
+# beta0 = 15 * np.pi / 180  # initial inlination angle (0 < beta0 < pi/2)
+# Lesaux2005 before (5.8)
+# gamma0 = 0
+
+# center of mass, see DMS (22)
+# x0 = x0_Lesaux
+# y0 = y0_Lesaux - r * sin(beta0)
+x0 = 0
+y0 = R - r * sin(beta0)
+z0 = r * cos(beta0)
+
+# initial angles
+beta_dot0 = 0  # Lesaux1005 before (5.10)
+gamma_dot0_pow2 = (
+    4 * (g / r) * sin(beta0) / ((6 - 5 * rho * sin(beta0)) * rho * cos(beta0))
+)
+gamma_dot0 = sqrt(gamma_dot0_pow2)  # Lesaux2005 (5.12)
+alpha_dot0 = -rho * gamma_dot0  # Lesaux2005 (5.11)
+
+# angular velocity, see DMS after (22)
+K_Omega0 = np.array(
+    [beta_dot0, alpha_dot0 * sin(beta0) + gamma_dot0, alpha_dot0 * cos(beta0)]
+)
+
+# center of mass velocity
+# TODO: Derive these equations!
+v_S0 = np.array([-R * alpha_dot0 + r * alpha_dot0 * sin(beta0), 0, 0])
+
+# initial conditions
+u0 = np.concatenate((v_S0, K_Omega0))
+p0 = axis_angle2quat(np.array([1, 0, 0]), beta0)
+q0 = np.array((x0, y0, z0, *p0))
+
+
+class DiscQuaternion(RigidBodyQuaternion):
+    def __init__(self, m, r, q0=None, u0=None):
+        A = 1 / 4 * m * r**2
+        C = 1 / 2 * m * r**2
+        K_theta_S = np.diag(np.array([A, C, A]))
+
+        self.r = r
+
+        super().__init__(m, K_theta_S, q0=q0, u0=u0)
+
+    def boundary(self, t, q, n=100):
+        phi = np.linspace(0, 2 * np.pi, n, endpoint=True)
+        K_r_SP = self.r * np.vstack([np.sin(phi), np.zeros(n), np.cos(phi)])
+        return np.repeat(self.r_OP(t, q), n).reshape(3, n) + self.A_IK(t, q) @ K_r_SP
+
+
+# create the model
+disc = DiscQuaternion(m, r, q0, u0)
+rolling = RollingCondition_g_I_Frame_gamma(disc)
+# rolling = RollingCondition(disc)
+f_g = Force(lambda t: np.array([0, 0, -m * g]), disc)
+
+model = Model()
+model.add(disc)
+model.add(rolling)
+model.add(f_g)
+model.assemble()
+
+
+def state():
     """Analytical analysis of the roolling motion of a disc, see Lesaux2005
     Section 5 and 6 and DMS exercise 5.12 (g).
 
@@ -27,125 +124,26 @@ def rolling_disc_DMS():
     ==========
     Lesaux2005: https://doi.org/10.1007/s00332-004-0655-4
     """
-    ############
-    # parameters
-    ############
-    g = 9.81  # gravity
-    m = 0.3048  # disc mass
-
-    # disc radius
-    # r = 3.75e-2
-    r = 0.05  # used for GAMM
-    # r = 0.5
-
-    # radius of of the circular motion
-    # R = 0.5
-    R = 10 * r  # used for GAMM
-    # R = 5 * r
-    # R = 2 * r
-
-    # inertia of the disc, Lesaux2005 before (5.3)
-    A = B = 0.25 * m * r**2
-    C = 0.5 * m * r**2
-
-    # ratio between disc radius and radius of rolling
-    rho = r / R  # Lesaux2005 (5.10)
-
-    ####################
-    # initial conditions
-    ####################
-    # x0_Lesaux = 0  # Lesaux2005 before (5.8)
-    # y0_Lesaux = R  # Lesaux2005 (5.8)
-    # x_dot0_Lesaux = 0  # Lesaux2005 before (5.8)
-    # y_dot0_Lesaux = 0  # Lesaux2005 (5.8)
-
-    # alpha0 = 0
-    beta0 = 5 * np.pi / 180  # initial inlination angle (0 < beta0 < pi/2)
-    # beta0 = 15 * np.pi / 180  # initial inlination angle (0 < beta0 < pi/2)
-    # Lesaux2005 before (5.8)
-    # gamma0 = 0
-
-    # center of mass, see DMS (22)
-    # x0 = x0_Lesaux
-    # y0 = y0_Lesaux - r * sin(beta0)
-    x0 = 0
-    y0 = R - r * sin(beta0)
-    z0 = r * cos(beta0)
-
-    # initial angles
-    beta_dot0 = 0  # Lesaux1005 before (5.10)
-    gamma_dot0_pow2 = (
-        4 * (g / r) * sin(beta0) / ((6 - 5 * rho * sin(beta0)) * rho * cos(beta0))
-    )
-    gamma_dot0 = sqrt(gamma_dot0_pow2)  # Lesaux2005 (5.12)
-    alpha_dot0 = -rho * gamma_dot0  # Lesaux2005 (5.11)
-
-    # angular velocity, see DMS after (22)
-    K_Omega0 = np.array(
-        [beta_dot0, alpha_dot0 * sin(beta0) + gamma_dot0, alpha_dot0 * cos(beta0)]
-    )
-
-    # center of mass velocity
-    # TODO: Derive these equations!
-    v_S0 = np.array([-R * alpha_dot0 + r * alpha_dot0 * sin(beta0), 0, 0])
-
-    class DiscQuaternion(RigidBodyQuaternion):
-        def __init__(self, m, r, q0=None, u0=None):
-            A = 1 / 4 * m * r**2
-            C = 1 / 2 * m * r**2
-            K_theta_S = np.diag(np.array([A, C, A]))
-
-            self.r = r
-
-            super().__init__(m, K_theta_S, q0=q0, u0=u0)
-
-        def boundary(self, t, q, n=100):
-            phi = np.linspace(0, 2 * np.pi, n, endpoint=True)
-            K_r_SP = self.r * np.vstack([np.sin(phi), np.zeros(n), np.cos(phi)])
-            return (
-                np.repeat(self.r_OP(t, q), n).reshape(3, n) + self.A_IK(t, q) @ K_r_SP
-            )
-
-    # initial conditions
-    u0 = np.concatenate((v_S0, K_Omega0))
-    p0 = axis_angle2quat(np.array([1, 0, 0]), beta0)
-    q0 = np.array((x0, y0, z0, *p0))
-    disc = DiscQuaternion(m, r, q0, u0)
-
-    # build model
-    rolling = RollingCondition_g_I_Frame_gamma(disc)
-    # rolling = RollingCondition(disc)
-    f_g = Force(lambda t: np.array([0, 0, -m * g]), disc)
-
-    model = Model()
-    model.add(disc)
-    model.add(rolling)
-    model.add(f_g)
-    model.assemble()
-
     t0 = 0
     # t1 = 2 * np.pi / np.abs(alpha_dot0) * 0.1
     t1 = 2 * np.pi / np.abs(alpha_dot0) * 1.0
     # dt = 5e-3
     dt = 2.5e-2  # used for GAMM with R = 10 * r
     # dt = 1e-2
-    rho_inf = 0.95  # used for GAMM
+    # rho_inf = 0.95  # previously used for GAMM
+    rho_inf = 0.85  # used for GAMM
     tol = 1.0e-8  # used for GAMM
-    # sol_A = GeneralizedAlphaFirstOrder(model, t1, dt, rho_inf=rho_inf, tol=tol).solve()
-    # sol_A = GeneralizedAlphaFirstOrder(
+    # sol = GeneralizedAlphaFirstOrder(model, t1, dt, rho_inf=rho_inf, tol=tol).solve()
+    # sol = GeneralizedAlphaFirstOrder(
     #     model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=True
     # ).solve()
-    sol_A = GeneralizedAlphaSecondOrder(model, t1, dt, rho_inf=rho_inf, tol=tol).solve()
-    # sol_A = GeneralizedAlphaSecondOrder(model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=True).solve()
+    sol = GeneralizedAlphaSecondOrder(model, t1, dt, rho_inf=rho_inf, tol=tol).solve()
+    # sol = GeneralizedAlphaSecondOrder(model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=True).solve()
 
-    t_A = sol_A.t
-    q_A = sol_A.q
-    la_g_A = sol_A.la_g
-    la_gamma_A = sol_A.la_gamma
-    # t_genAlphaFirstOrderVelocityGGL = sol_genAlphaFirstOrderVelocityGGL.t
-    # q_genAlphaFirstOrderVelocityGGL = sol_genAlphaFirstOrderVelocityGGL.q
-    # la_g_genAlphaFirstOrderVelocityGGL = sol_genAlphaFirstOrderVelocityGGL.la_g
-    # la_gamma_genAlphaFirstOrderVelocityGGL = sol_genAlphaFirstOrderVelocityGGL.la_gamma
+    t_A = sol.t
+    q_A = sol.q
+    la_g_A = sol.la_g
+    la_gamma_A = sol.la_gamma
 
     ########
     # export
@@ -163,7 +161,7 @@ def rolling_disc_DMS():
                 comments="",
             )
 
-        export_q(sol_A, "examples/GAMM2022/RollingDiscTrajectory.txt")
+        export_q(sol, "examples/GAMM2022/RollingDiscTrajectory.txt")
 
         def export_gaps(sol, name):
             header = "t, g, g_dot, g_ddot, ga, ga_dot"
@@ -207,7 +205,7 @@ def rolling_disc_DMS():
 
             return g, g_dot, g_ddot
 
-        export_gaps(sol_A, "examples/GAMM2022/RollingDiscGaps.txt")
+        export_gaps(sol, "examples/GAMM2022/RollingDiscGaps.txt")
 
         # exit()
 
@@ -272,8 +270,6 @@ def rolling_disc_DMS():
     ########################
     t = t_A
     q = q_A
-    # t = t_genAlphaFirstOrderVelocityGGL
-    # q = q_genAlphaFirstOrderVelocityGGL
 
     fig = plt.figure()
     ax = fig.add_subplot(111, projection="3d")
@@ -287,10 +283,6 @@ def rolling_disc_DMS():
     ax.set_zlim3d(bottom=0, top=2 * scale)
 
     from collections import deque
-
-    x_trace = deque([])
-    y_trace = deque([])
-    z_trace = deque([])
 
     slowmotion = 1
     fps = 200
@@ -386,5 +378,506 @@ def rolling_disc_DMS():
     plt.show()
 
 
+def convergence():
+    rho_inf = 0.85
+    tol_ref = 1.0e-8
+    tol = 1.0e-8
+
+    #####################################
+    # compute step sizes with powers of 2
+    #####################################
+    dt_ref = 6.4e-3
+    dts = (2.0 ** np.arange(3, 0, -1)) * dt_ref  # [5.12e-2, ..., 1.28e-2]
+    t1 = (2.0**9) * dt_ref  # 3.2768s
+
+    # dt_ref = 1.6e-3
+    # dts = (2.0 ** np.arange(4, 0, -1)) * dt_ref  # [5.2e-2, ..., 8e-4]
+    # # t1 = (2.0**12) * dt_ref
+    # t1 = (2.0**8) * dt_ref
+
+    # dt_ref = 8e-4
+    # dts = (2.0 ** np.arange(8, 2, -1)) * dt_ref  # [5.2e-2, ..., 8e-4]
+    # t1 = (2.0**12) * dt_ref
+
+    # dt_ref = 1e-4
+    # dts = (2.0 ** np.arange(8, 2, -1)) * dt_ref  # [5.2e-2, ..., 8e-4]
+    # t1 = (2.0**16) * dt_ref
+
+    # dt_ref = 5e-5
+    # dts = (2.0 ** np.arange(8, 0, -1)) * dt_ref  # [5.2e-2, ..., 8e-4]
+
+    # dt_ref = 2.5e-5  # Arnold2015b
+    # dts = (2.0 ** np.arange(9, 1, -1)) * dt_ref  # [5.2e-2, ..., 8e-4]
+
+    # end time (note this has to be > 4, otherwise long term error throws ans error)
+    # t1 = (2.0**17) * dt_ref  # results in 6.5536s for dt_ref = 5e-5
+    # t1 = (2.0**18) * dt_ref # results in 6.5536s for dt_ref = 2.5e-5
+
+    # # TODO: Only for debugging!
+    # dt_ref = 2.5e-3
+    # dts = np.array([5.0e-3])
+    # t1 = (2.0**8) * dt_ref
+
+    dts_1 = dts
+    dts_2 = dts**2
+
+    print(f"t1: {t1}")
+    print(f"dts: {dts}")
+    # exit()
+
+    # errors for possible solvers
+    q_errors_transient = np.inf * np.ones((3, len(dts)), dtype=float)
+    u_errors_transient = np.inf * np.ones((3, len(dts)), dtype=float)
+    la_g_errors_transient = np.inf * np.ones((3, len(dts)), dtype=float)
+    la_gamma_errors_transient = np.inf * np.ones((3, len(dts)), dtype=float)
+    q_errors_longterm = np.inf * np.ones((3, len(dts)), dtype=float)
+    u_errors_longterm = np.inf * np.ones((3, len(dts)), dtype=float)
+    la_g_errors_longterm = np.inf * np.ones((3, len(dts)), dtype=float)
+    la_gamma_errors_longterm = np.inf * np.ones((3, len(dts)), dtype=float)
+
+    #####################
+    # create export files
+    #####################
+    file_transient_q = "examples/GAMM2022/TransientErrorRollingDisc_q.txt"
+    file_transient_u = "examples/GAMM2022/TransientErrorRollingDisc_u.txt"
+    file_transient_la_g = "examples/GAMM2022/TransientErrorRollingDisc_la_g.txt"
+    file_transient_la_gamma = "examples/GAMM2022/TransientErrorRollingDisc_la_gamma.txt"
+    file_longterm_q = "examples/GAMM2022/LongtermErrorRollingDisc_q.txt"
+    file_longterm_u = "examples/GAMM2022/LongtermErrorRollingDisc_u.txt"
+    file_longterm_la_g = "examples/GAMM2022/LongtermErrorRollingDisc_la_g.txt"
+    file_longterm_la_gamma = "examples/GAMM2022/LongtermErrorRollingDisc_la_gamma.txt"
+    header = "2nd, 1st, 1st_GGL"
+
+    def create(name):
+        with open(name, "w") as file:
+            file.write(header)
+        with open(name, "ab") as file:
+            file.write(b"\n")
+
+    def append(name, data):
+        with open(name, "ab") as file:
+            np.savetxt(
+                file,
+                data,
+                delimiter=", ",
+                comments="",
+            )
+
+    np.savetxt(
+        "examples/GAMM2022/RollingDisc_dts.txt",
+        np.vstack((dts_1, dts_2)).T,
+        delimiter=", ",
+        comments="",
+        header="dt, dt2",
+    )
+
+    create(file_transient_q)
+    create(file_transient_u)
+    create(file_transient_la_g)
+    create(file_transient_la_gamma)
+    create(file_longterm_q)
+    create(file_longterm_u)
+    create(file_longterm_la_g)
+    create(file_longterm_la_gamma)
+
+    ###################################################################
+    # compute reference solution as described in Arnold2015 Section 3.3
+    ###################################################################
+    print(f"compute reference solution with second order method:")
+    reference2 = GeneralizedAlphaSecondOrder(
+        model, t1, dt_ref, rho_inf=rho_inf, tol=tol_ref, GGL=False
+    ).solve()
+
+    # print(f"compute reference solution with second order method + GGL:")
+    # reference2_GGL = GeneralizedAlphaSecondOrder(
+    #     model, t1, dt_ref, rho_inf=rho_inf, tol=tol_ref, GGL=True
+    # ).solve()
+
+    print(f"compute reference solution with first order method:")
+    reference1 = GeneralizedAlphaFirstOrder(
+        model,
+        t1,
+        dt_ref,
+        rho_inf=rho_inf,
+        tol=tol_ref,
+        unknowns="velocities",
+        GGL=False,
+    ).solve()
+
+    print(f"compute reference solution with first order method + GGL:")
+    reference1_GGL = GeneralizedAlphaFirstOrder(
+        model, t1, dt_ref, rho_inf=rho_inf, tol=tol_ref, unknowns="velocities", GGL=True
+    ).solve()
+
+    print(f"done")
+
+    # plot_state = True
+    plot_state = False
+    # TODO:
+    if plot_state:
+        # reference = reference1
+        reference = reference1_GGL
+        # reference = reference2
+        # reference = reference2_GGL
+        t_ref = reference.t
+        q_ref = reference.q
+        u_ref = reference.u
+        la_g_ref = reference.la_g
+
+        ###################
+        # visualize results
+        ###################
+        fig = plt.figure(figsize=plt.figaspect(0.5))
+
+        # center of mass
+        ax = fig.add_subplot(2, 3, 1)
+        ax.plot(t_ref, q_ref[:, 0], "-r", label="x")
+        ax.plot(t_ref, q_ref[:, 1], "-g", label="y")
+        ax.plot(t_ref, q_ref[:, 2], "-b", label="z")
+        ax.grid()
+        ax.legend()
+
+        # alpha, beta, gamma
+        ax = fig.add_subplot(2, 3, 2)
+        ax.plot(t_ref, q_ref[:, 3], "-r", label="alpha")
+        ax.plot(t_ref, q_ref[:, 4], "-g", label="beta")
+        ax.plot(t_ref, q_ref[:, 5], "-b", label="gamm")
+        ax.grid()
+        ax.legend()
+
+        # x-y-z trajectory
+        ax = fig.add_subplot(2, 3, 3, projection="3d")
+        ax.plot3D(
+            q_ref[:, 0],
+            q_ref[:, 1],
+            q_ref[:, 2],
+            "-r",
+            label="x-y-z trajectory",
+        )
+        ax.grid()
+        ax.legend()
+
+        # x_dot, y_dot, z_dot
+        ax = fig.add_subplot(2, 3, 4)
+        ax.plot(t_ref, u_ref[:, 0], "-r", label="x_dot")
+        ax.plot(t_ref, u_ref[:, 1], "-g", label="y_dot")
+        ax.plot(t_ref, u_ref[:, 2], "-b", label="z_dot")
+        ax.grid()
+        ax.legend()
+
+        # omega_x, omega_y, omega_z
+        ax = fig.add_subplot(2, 3, 5)
+        ax.plot(t_ref, u_ref[:, 3], "-r", label="omega_x")
+        ax.plot(t_ref, u_ref[:, 4], "-g", label="omega_y")
+        ax.plot(t_ref, u_ref[:, 5], "-b", label="omega_z")
+        ax.grid()
+        ax.legend()
+
+        # la_g
+        ax = fig.add_subplot(2, 3, 6)
+        ax.plot(t_ref, la_g_ref[:, 0], "-r", label="la_g0")
+        ax.plot(t_ref, la_g_ref[:, 1], "-g", label="la_g1")
+        ax.plot(t_ref, la_g_ref[:, 2], "-b", label="la_g2")
+        ax.grid()
+        ax.legend()
+
+        plt.show()
+
+    # def errors(sol, sol_ref, t_transient=2, t_longterm=4):
+    def errors(sol, sol_ref, t_transient=2, t_longterm=2):
+        t = sol.t
+        q = sol.q
+        u = sol.u
+        la_g = sol.la_g
+        la_gamma = sol.la_gamma
+
+        t_ref = sol_ref.t
+        q_ref = sol_ref.q
+        u_ref = sol_ref.u
+        la_g_ref = sol_ref.la_g
+        la_gamma_ref = sol_ref.la_gamma
+
+        # distinguish between transient and long term time steps
+        t_idx_transient = np.where(t <= t_transient)[0]
+        t_idx_longterm = np.where(t >= t_longterm)[0]
+
+        # compute difference between computed solution and reference solution
+        # for identical time instants
+        t_ref_idx_transient = np.where(
+            np.abs(t[t_idx_transient, None] - t_ref) < 1.0e-8
+        )[1]
+        t_ref_idx_longterm = np.where(np.abs(t[t_idx_longterm, None] - t_ref) < 1.0e-8)[
+            1
+        ]
+
+        # differences
+        q_transient = q[t_idx_transient]
+        u_transient = u[t_idx_transient]
+        la_g_transient = la_g[t_idx_transient]
+        la_gamma_transient = la_gamma[t_idx_transient]
+        diff_transient_q = q_transient - q_ref[t_ref_idx_transient]
+        diff_transient_u = u_transient - u_ref[t_ref_idx_transient]
+        diff_transient_la_g = la_g_transient - la_g_ref[t_ref_idx_transient]
+        diff_transient_la_gamma = la_gamma_transient - la_gamma_ref[t_ref_idx_transient]
+
+        q_longterm = q[t_idx_longterm]
+        u_longterm = u[t_idx_longterm]
+        la_g_longterm = la_g[t_idx_longterm]
+        la_gamma_longterm = la_gamma[t_idx_longterm]
+        diff_longterm_q = q_longterm - q_ref[t_ref_idx_longterm]
+        diff_longterm_u = u_longterm - u_ref[t_ref_idx_longterm]
+        diff_longterm_la_g = la_g_longterm - la_g_ref[t_ref_idx_longterm]
+        diff_longterm_la_gamma = la_gamma_longterm - la_gamma_ref[t_ref_idx_longterm]
+
+        # max relative error
+        q_error_transient = np.max(
+            np.linalg.norm(diff_transient_q, axis=1)
+            / np.linalg.norm(q_transient, axis=1)
+        )
+        u_error_transient = np.max(
+            np.linalg.norm(diff_transient_u, axis=1)
+            / np.linalg.norm(u_transient, axis=1)
+        )
+        la_g_error_transient = np.max(
+            np.linalg.norm(diff_transient_la_g, axis=1)
+            / np.linalg.norm(la_g_transient, axis=1)
+        )
+        la_gamma_error_transient = np.max(
+            np.linalg.norm(diff_transient_la_gamma, axis=1)
+            / np.linalg.norm(la_gamma_transient, axis=1)
+        )
+
+        q_error_longterm = np.max(
+            np.linalg.norm(diff_longterm_q, axis=1) / np.linalg.norm(q_longterm, axis=1)
+        )
+        u_error_longterm = np.max(
+            np.linalg.norm(diff_longterm_u, axis=1) / np.linalg.norm(u_longterm, axis=1)
+        )
+        la_g_error_longterm = np.max(
+            np.linalg.norm(diff_longterm_la_g, axis=1)
+            / np.linalg.norm(la_g_longterm, axis=1)
+        )
+        la_gamma_error_longterm = np.max(
+            np.linalg.norm(diff_longterm_la_gamma, axis=1)
+            / np.linalg.norm(la_gamma_longterm, axis=1)
+        )
+
+        return (
+            q_error_transient,
+            u_error_transient,
+            la_g_error_transient,
+            la_gamma_error_transient,
+            q_error_longterm,
+            u_error_longterm,
+            la_g_error_longterm,
+            la_gamma_error_longterm,
+        )
+
+    for i, dt in enumerate(dts):
+        print(f"i: {i}, dt: {dt:1.1e}")
+
+        # generalized alpha for mechanical systems in second order form
+        sol = GeneralizedAlphaSecondOrder(
+            model, t1, dt, rho_inf=rho_inf, tol=tol
+        ).solve()
+        (
+            q_errors_transient[0, i],
+            u_errors_transient[0, i],
+            la_g_errors_transient[0, i],
+            la_gamma_errors_transient[0, i],
+            q_errors_longterm[0, i],
+            u_errors_longterm[0, i],
+            la_g_errors_longterm[0, i],
+            la_gamma_errors_longterm[0, i],
+        ) = errors(sol, reference2)
+
+        # generalized alpha for mechanical systems in first order form (velocity formulation)
+        sol = GeneralizedAlphaFirstOrder(
+            model, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="velocities", GGL=False
+        ).solve()
+        (
+            q_errors_transient[1, i],
+            u_errors_transient[1, i],
+            la_g_errors_transient[1, i],
+            la_gamma_errors_transient[1, i],
+            q_errors_longterm[1, i],
+            u_errors_longterm[1, i],
+            la_g_errors_longterm[1, i],
+            la_gamma_errors_longterm[1, i],
+        ) = errors(sol, reference1)
+
+        # generalized alpha for mechanical systems in first order form (velocity formulation - GGL)
+        sol = GeneralizedAlphaFirstOrder(
+            model, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="velocities", GGL=True
+        ).solve()
+        (
+            q_errors_transient[2, i],
+            u_errors_transient[2, i],
+            la_g_errors_transient[2, i],
+            la_gamma_errors_transient[2, i],
+            q_errors_longterm[2, i],
+            u_errors_longterm[2, i],
+            la_g_errors_longterm[2, i],
+            la_gamma_errors_longterm[2, i],
+        ) = errors(sol, reference1_GGL)
+
+        data = np.array([[dts_1[i], dts_2[i], *q_errors_transient[:, i]]])
+        append(file_transient_q, np.atleast_2d(q_errors_transient[:, i]))
+        append(file_transient_u, np.atleast_2d(u_errors_transient[:, i]))
+        append(file_transient_la_g, np.atleast_2d(la_g_errors_transient[:, i]))
+        append(file_transient_la_gamma, np.atleast_2d(la_gamma_errors_transient[:, i]))
+        append(file_longterm_q, np.atleast_2d(q_errors_longterm[:, i]))
+        append(file_longterm_u, np.atleast_2d(u_errors_longterm[:, i]))
+        append(file_longterm_la_g, np.atleast_2d(la_g_errors_longterm[:, i]))
+        append(file_longterm_la_gamma, np.atleast_2d(la_gamma_errors_longterm[:, i]))
+
+    # #############################
+    # # export errors and dt, dt**2
+    # #############################
+    # header = "dt, dt2, 2nd, 1st, 1st_GGL"
+
+    # # transient errors
+    # export_data = np.vstack((dts, dts_2, *q_errors_transient)).T
+    # np.savetxt(
+    #     "examples/GAMM2022/TransientErrorRollingDisc_q.txt",
+    #     export_data,
+    #     delimiter=", ",
+    #     header=header,
+    #     comments="",
+    # )
+
+    # export_data = np.vstack((dts, dts_2, *u_errors_transient)).T
+    # np.savetxt(
+    #     "examples/GAMM2022/TransientErrorRollingDisc_u.txt",
+    #     export_data,
+    #     delimiter=", ",
+    #     header=header,
+    #     comments="",
+    # )
+
+    # export_data = np.vstack((dts, dts_2, *la_g_errors_transient)).T
+    # np.savetxt(
+    #     "examples/GAMM2022/TransientErrorRollingDisc_la_g.txt",
+    #     export_data,
+    #     delimiter=", ",
+    #     header=header,
+    #     comments="",
+    # )
+
+    # export_data = np.vstack((dts, dts_2, *la_gamma_errors_transient)).T
+    # np.savetxt(
+    #     "examples/GAMM2022/TransientErrorRollingDisc_la_gamma.txt",
+    #     export_data,
+    #     delimiter=", ",
+    #     header=header,
+    #     comments="",
+    # )
+
+    # # longterm errors
+    # export_data = np.vstack((dts, dts_2, *q_errors_longterm)).T
+    # np.savetxt(
+    #     "examples/GAMM2022/LongtermErrorRollingDisc_q.txt",
+    #     export_data,
+    #     delimiter=", ",
+    #     header=header,
+    #     comments="",
+    # )
+
+    # export_data = np.vstack((dts, dts_2, *u_errors_longterm)).T
+    # np.savetxt(
+    #     "examples/GAMM2022/LongtermErrorRollingDisc_u.txt",
+    #     export_data,
+    #     delimiter=", ",
+    #     header=header,
+    #     comments="",
+    # )
+
+    # export_data = np.vstack((dts, dts_2, *la_g_errors_longterm)).T
+    # np.savetxt(
+    #     "examples/GAMM2022/LongtermErrorRollingDisc_la_g.txt",
+    #     export_data,
+    #     delimiter=", ",
+    #     header=header,
+    #     comments="",
+    # )
+
+    # export_data = np.vstack((dts, dts_2, *la_gamma_errors_longterm)).T
+    # np.savetxt(
+    #     "examples/GAMM2022/LongtermErrorRollingDisc_la_gamma.txt",
+    #     export_data,
+    #     delimiter=", ",
+    #     header=header,
+    #     comments="",
+    # )
+
+    ##################
+    # visualize errors
+    ##################
+    fig, ax = plt.subplots(3, 2)
+
+    ax[0, 0].set_title("transient: gen alpha 2nd order")
+    ax[0, 0].loglog(dts, dts_1, "-k", label="dt")
+    ax[0, 0].loglog(dts, dts_2, "--k", label="dt^2")
+    ax[0, 0].loglog(dts, q_errors_transient[0], "-.ro", label="q")
+    ax[0, 0].loglog(dts, u_errors_transient[0], "-.go", label="u")
+    ax[0, 0].loglog(dts, la_g_errors_transient[0], "-.bo", label="la_g")
+    ax[0, 0].loglog(dts, la_gamma_errors_transient[0], "-.ko", label="la_ga")
+    ax[0, 0].grid()
+    ax[0, 0].legend()
+
+    ax[1, 0].set_title("transient: gen alpha 1st order (velocity form.)")
+    ax[1, 0].loglog(dts, dts_1, "-k", label="dt")
+    ax[1, 0].loglog(dts, dts_2, "--k", label="dt^2")
+    ax[1, 0].loglog(dts, q_errors_transient[1], "-.ro", label="q")
+    ax[1, 0].loglog(dts, u_errors_transient[1], "-.go", label="u")
+    ax[1, 0].loglog(dts, la_g_errors_transient[1], "-.bo", label="la_g")
+    ax[1, 0].loglog(dts, la_gamma_errors_transient[1], "-.ko", label="la_ga")
+    ax[1, 0].grid()
+    ax[1, 0].legend()
+
+    ax[2, 0].set_title("transient: gen alpha 1st order (velocity form. + GGL)")
+    ax[2, 0].loglog(dts, dts_1, "-k", label="dt")
+    ax[2, 0].loglog(dts, dts_2, "--k", label="dt^2")
+    ax[2, 0].loglog(dts, q_errors_transient[2], "-.ro", label="q")
+    ax[2, 0].loglog(dts, u_errors_transient[2], "-.go", label="u")
+    ax[2, 0].loglog(dts, la_g_errors_transient[2], "-.bo", label="la_g")
+    ax[2, 0].loglog(dts, la_gamma_errors_transient[2], "-.ko", label="la_ga")
+    ax[2, 0].grid()
+    ax[2, 0].legend()
+
+    ax[0, 1].set_title("long term: gen alpha 2nd order")
+    ax[0, 1].loglog(dts, dts_1, "-k", label="dt")
+    ax[0, 1].loglog(dts, dts_2, "--k", label="dt^2")
+    ax[0, 1].loglog(dts, q_errors_longterm[0], "-.ro", label="q")
+    ax[0, 1].loglog(dts, u_errors_longterm[0], "-.go", label="u")
+    ax[0, 1].loglog(dts, la_g_errors_longterm[0], "-.bo", label="la_g")
+    ax[0, 1].loglog(dts, la_gamma_errors_longterm[0], "-.ko", label="la_ga")
+    ax[0, 1].grid()
+    ax[0, 1].legend()
+
+    ax[1, 1].set_title("long term: gen alpha 1st order (velocity form.)")
+    ax[1, 1].loglog(dts, dts_1, "-k", label="dt")
+    ax[1, 1].loglog(dts, dts_2, "--k", label="dt^2")
+    ax[1, 1].loglog(dts, q_errors_longterm[1], "-.ro", label="q")
+    ax[1, 1].loglog(dts, u_errors_longterm[1], "-.go", label="u")
+    ax[1, 1].loglog(dts, la_g_errors_longterm[1], "-.bo", label="la_g")
+    ax[1, 1].loglog(dts, la_gamma_errors_longterm[1], "-.ko", label="la_ga")
+    ax[1, 1].grid()
+    ax[1, 1].legend()
+
+    ax[2, 1].set_title("long term: gen alpha 1st order (velocity form. + GGL)")
+    ax[2, 1].loglog(dts, dts_1, "-k", label="dt")
+    ax[2, 1].loglog(dts, dts_2, "--k", label="dt^2")
+    ax[2, 1].loglog(dts, q_errors_longterm[2], "-.ro", label="q")
+    ax[2, 1].loglog(dts, u_errors_longterm[2], "-.go", label="u")
+    ax[2, 1].loglog(dts, la_g_errors_longterm[2], "-.bo", label="la_g")
+    ax[2, 1].loglog(dts, la_gamma_errors_longterm[2], "-.ko", label="la_ga")
+    ax[2, 1].grid()
+    ax[2, 1].legend()
+
+    plt.show()
+
+
 if __name__ == "__main__":
-    rolling_disc_DMS()
+    # state()
+    convergence()

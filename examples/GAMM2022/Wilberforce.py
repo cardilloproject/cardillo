@@ -1,12 +1,14 @@
 from cardillo.beams.spatial.material_models import Simo1986
 from cardillo.beams.spatial.cross_section import CircularCrossSection
+from cardillo.discretization import fit_B_spline_curve
 from cardillo.beams.spatial.DirectorAxisAngle import DirectorAxisAngle
 from cardillo.model.frame import Frame
 from cardillo.math import ax2skew, e3
-from cardillo.model.rigid_body import RigidBodyEuler
+from cardillo.model.rigid_body import RigidBodyEuler, RigidBodyQuaternion
 from cardillo.model.bilateral_constraints.implicit import RigidConnection
 from cardillo.beams import (
     animate_beam,
+    TimoshenkoDirectorDirac,
     TimoshenkoDirectorIntegral,
 )
 from cardillo.forces import Force, DistributedForce1D
@@ -22,11 +24,15 @@ import numpy as np
 import os
 import matplotlib.pyplot as plt
 
-# c = 6.5e-3 # best eccentricity - n = 10
-c = 7.25e-3  # best eccentricity - n = 20
+# c = 4.5e-3 # best eccentricity - n = 2
+c = 6.5e-3  # best eccentricity - n = 10
+# c = 7.25e-3  # best eccentricity - n = 20
 
 # statics = True
 statics = False
+
+axis_angle = True
+# axis_angle = False
 
 # save = True
 save = False
@@ -199,16 +205,16 @@ if __name__ == "__main__":
     G = 81.5e9  # Pa
 
     Ei = np.array([E * A, G * A, G * A])
-    Fi = np.array([E * Ip, E * I3, E * I2])
+    # Fi = np.array([E * Ip, E * I3, E * I2]) # TODO: why?
+    Fi = np.array([E * Ip, E * I2, E * I3])
     material_model = Simo1986(Ei, Fi)
 
-    # A_rho0 = rho * A
-    # B_rho0 = np.zeros(3)  # symmetric cross section!
-    # C_rho0 = rho * np.diag(np.array([0, I3, I2]))
     cross_section = CircularCrossSection(rho, wire_radius)
     A_rho0 = rho * cross_section.area
     K_S_rho0 = rho * cross_section.first_moment
     K_I_rho0 = rho * cross_section.second_moment
+    B_rho0 = np.zeros(3, dtype=float)  # symmetric cross section!
+    C_rho0 = rho * np.diag(np.array([0, I3, I2]))
 
     ##########
     # gravity
@@ -232,15 +238,15 @@ if __name__ == "__main__":
     coil_diameter = 32.0e-3  # 32mm
     coil_radius = coil_diameter / 2
     pitch_unloaded = 1.0e-3  # 1mm
-    turns = 1
+    # turns = 1
     # turns = 2
     # turns = 5
-    # turns = 10
+    turns = 10
     # turns = 20
 
     # nxi = 10
-    nxi = 100
-    # nxi = 1000
+    # nxi = 100
+    nxi = 1000
     # nxi = 10000  # used in the paper
 
     #########################
@@ -255,7 +261,9 @@ if __name__ == "__main__":
     # chose the number of elements that are required to describe a full spring turn
     # nEl_turn = 4
     # nEl_turn = 6
-    nEl_turn = 8
+    # nEl_turn = 8
+    nEl_turn = 10
+    # nEl_turn = 12
 
     nEl = turns * nEl_turn
     print(f"nEl: {nEl}")
@@ -276,25 +284,48 @@ if __name__ == "__main__":
     d3 = np.cross(d1, d2)
 
     # optimize rotation vector
-    A_IK = np.array(
-        [np.vstack((d1i, d2i, d3i)).T for (d1i, d2i, d3i) in zip(d1, d2, d3)]
-    )
-    # TODO:
-    # q0_psi = DirectorAxisAngle.fit_orientation(A_IK, p, nEl)
-    q0_psi = np.zeros_like(q0_r)
+    if axis_angle:
+        A_IK = np.array(
+            [np.vstack((d1i, d2i, d3i)).T for (d1i, d2i, d3i) in zip(d1, d2, d3)]
+        )
+        # TODO:
+        # q0_psi = DirectorAxisAngle.fit_orientation(A_IK, p, nEl)
+        q0_psi = np.zeros_like(q0_r)
 
-    # reference configuration
-    Q = np.concatenate((q0_r, q0_psi))
+        # reference configuration
+        Q = np.concatenate((q0_r, q0_psi))
+    else:
+        raise NotImplementedError
+        qr0 = fit_B_spline_curve(P, p_r, nEl)
+        qd1 = fit_B_spline_curve(d1, p_di, nEl)
+        qd2 = fit_B_spline_curve(d2, p_di, nEl)
+        qd3 = fit_B_spline_curve(d3, p_di, nEl)
+        # Q = np.concatenate(
+        #     (qr0.T.reshape(-1), qd1.T.reshape(-1), qd2.T.reshape(-1), qd3.T.reshape(-1))
+        # )
+        Q = np.concatenate((qr0, qd1, qd2, qd3))
 
     ############
     # beam model
     ############
-    # beam = TimoshenkoDirectorIntegral(
-    #     material_model, A_rho0, B_rho0, C_rho0, p_r, p_di, nQP, nEl, q0=Q, Q=Q
-    # )
-    beam = DirectorAxisAngle(
-        material_model, A_rho0, K_S_rho0, K_I_rho0, p, nEl, Q, q0=Q
-    )
+    if axis_angle:
+        beam = DirectorAxisAngle(
+            material_model, A_rho0, K_S_rho0, K_I_rho0, p, nEl, Q, q0=Q
+        )
+    else:
+        beam = TimoshenkoDirectorDirac(
+            # beam = TimoshenkoDirectorIntegral(
+            material_model,
+            A_rho0,
+            B_rho0,
+            C_rho0,
+            p_r,
+            p_di,
+            nQP,
+            nEl,
+            q0=Q,
+            Q=Q,
+        )
 
     ##############
     # gravity beam
@@ -309,13 +340,28 @@ if __name__ == "__main__":
     ############
     R = 18e-3  # radius of the main cylinder
     h = 50e-3  # height of the main cylinder
-    m, Theta = Wilberforce_bob(R, h, debug=True)
-    q0 = np.zeros(6)
+    m, K_Theta = Wilberforce_bob(R, h, debug=True)
+
+    # ############
+    # # Euler case
+    # ############
+    # q0 = np.zeros(6, dtype=float)
+    # q0[2] = (
+    #     -h / 2 + wire_radius
+    # )  # center of mass is shifted (wire starts out of the top cylinder surface)
+    # u0 = np.zeros(6, dtype=float)
+    # bob = RigidBodyEuler(m, K_Theta, q0=q0, u0=u0)
+
+    #################
+    # quaternion case
+    #################
+    q0 = np.zeros(7, dtype=float)
     q0[2] = (
         -h / 2 + wire_radius
     )  # center of mass is shifted (wire starts out of the top cylinder surface)
-    u0 = np.zeros(6)
-    bob = RigidBodyEuler(m, Theta, q0=q0, u0=u0)
+    q0[3] = 1.0  # initial unit quaternion
+    u0 = np.zeros(6, dtype=float)
+    bob = RigidBodyQuaternion(m, K_Theta, q0=q0, u0=u0)
 
     ####################
     # gravity rigid body
@@ -328,10 +374,7 @@ if __name__ == "__main__":
     ##############################
     # junction at upper spring end
     ##############################
-    A_IK1 = np.vstack(
-        (d1[-1], d2[-1], d3[-1])
-    ).T  # TODO: Is this necessary for the new formulation?
-    frame = Frame(r_OP=P[-1], A_IK=A_IK1)
+    frame = Frame()
     junction_frame_beam = RigidConnection(frame, beam, frame_ID2=(1,))
 
     ###############################
@@ -346,14 +389,16 @@ if __name__ == "__main__":
     max_iter = 30
     atol = 1.0e-6
 
-    # t1 = 5.0e-2
-    t1 = 1
-    # t1 = 5
+    # t1 = 5.0e-1
+    # t1 = 1.5
+    # t1 = 2.5
+    t1 = 5
     # t1 = 20 # used for the paper
-    # dt = 5e-4 # used timestep for paper
-    # dt = 1e-3  # largest possible timestep for old gen alpha solver
-    dt = 5e-3
-    # dt = 2.5e-3
+    # dt = 1e-4 # used timestep for paper Harsch2021
+    # dt = 5e-4 # used timestep for paper Harsch2021
+    # dt = 1e-3  # no convergence at ~1.5s with first order gen alpha an possibly not with second order one
+    dt = 5e-3  # works for turns=10, nEl_turn=8, p=1, nqp=p+1
+    # dt = 1e-2 # no convergence with first order scheme at 1.61s (Matrix is exactly singular)
 
     model = Model()
 
@@ -368,25 +413,53 @@ if __name__ == "__main__":
 
     model.assemble()
 
+    # scale = 5.0e-2
+    # scale_di = 1.0e-2
+    # animate_beam([0], [model.q0], [beam], scale, scale_di=scale_di, n_frames=50)
+
     if statics:
         # n_load_steps = 2
         solver = Newton(model, n_load_steps=n_load_steps, max_iter=max_iter, atol=atol)
     else:
-        # TODO: Reduce rho_inf?
-        # solver = GeneralizedAlphaFirstOrder(model, t1, dt, tol=atol, rho_inf=0.5)
-        solver = GeneralizedAlphaSecondOrder(model, t1, dt, tol=atol, rho_inf=0.5)
+        # TODO: Increase rho_inf?
+        # rho_inf = 0.5
+        rho_inf = 0.85
+        solver = GeneralizedAlphaFirstOrder(model, t1, dt, tol=atol, rho_inf=rho_inf)
+        # solver = GeneralizedAlphaSecondOrder(model, t1, dt, tol=atol, rho_inf=rho_inf)
         # solver = ScipyIVP(model, t1, dt, method="RK45", rtol=1.0e-3, atol=1.0e-3)
 
     sol = solver.solve()
     t = sol.t
     q = sol.q
 
-    ###############################################
-    # visualize deflection and angles of rigid body
-    ###############################################
+    ##################################
+    # extract rigid body displacements
+    ##################################
     r_OS = q[:, bob.qDOF[:3]]
     angles = q[:, bob.qDOF[3:]]
 
+    from scipy.spatial.transform import Rotation
+
+    angles = np.array(
+        [Rotation.from_quat(Pi).as_euler("zyx") for Pi in q[:, bob.qDOF[3:]]]
+    )
+
+    ########
+    # export
+    ########
+    header = "t, x, y, z, alpha, beta, gamma"
+    export_data = np.vstack([t, *r_OS.T, *angles.T]).T
+    np.savetxt(
+        "examples/GAMM2022/Wilberforce.txt",
+        export_data,
+        delimiter=", ",
+        header=header,
+        comments="",
+    )
+
+    ###############
+    # visualization
+    ###############
     fig, ax = plt.subplots()
     # ax.plot(t, r_OS[:, 0], label="x")
     # ax.plot(t, r_OS[:, 1], label="y")
