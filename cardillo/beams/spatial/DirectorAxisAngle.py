@@ -3,6 +3,7 @@ import numpy as np
 from cardillo.utility.coo import Coo
 from cardillo.discretization.lagrange import NodeVector, lagrange_basis1D
 from cardillo.discretization.mesh1D import Mesh1D
+from cardillo.discretization.gauss import gauss
 from cardillo.math import (
     pi,
     norm,
@@ -142,6 +143,49 @@ def Log_SO3(A: np.ndarray) -> np.ndarray:
     return psi
 
 
+def Log_SO3_A(A: np.ndarray) -> np.ndarray:
+    """Derivative of the SO(3) Log map. See Blanco2010 (10.11)
+
+    References:
+    ===========
+    Claraco2010: https://doi.org/10.48550/arXiv.2103.15980
+    """
+    ca = 0.5 * (trace3(A) - 1.0)
+    ca = np.clip(ca, -1, 1)  # clip to [-1, 1] for arccos!
+    angle = np.arccos(ca)
+
+    psi_A = np.zeros((3, 3, 3), dtype=float)
+    if angle > angle_singular:
+        sa = np.sin(angle)
+        b = 0.5 * angle / sa
+
+        # fmt: off
+        a = (angle * ca - sa) / (4.0 * sa**3) * np.array([
+            A[2, 1] - A[1, 2],
+            A[0, 2] - A[2, 0],
+            A[1, 0] - A[0, 1]
+        ], dtype=A.dtype)
+        # fmt: on
+
+        psi_A[0, 0, 0] = psi_A[0, 1, 1] = psi_A[0, 2, 2] = a[0]
+        psi_A[1, 0, 0] = psi_A[1, 1, 1] = psi_A[1, 2, 2] = a[1]
+        psi_A[2, 0, 0] = psi_A[2, 1, 1] = psi_A[2, 2, 2] = a[2]
+
+        psi_A[0, 2, 1] = psi_A[1, 0, 2] = psi_A[2, 1, 0] = b
+        psi_A[0, 1, 2] = psi_A[1, 2, 0] = psi_A[2, 0, 1] = -b
+    else:
+        psi_A[0, 2, 1] = psi_A[1, 0, 2] = psi_A[2, 1, 0] = 0.5
+        psi_A[0, 1, 2] = psi_A[1, 2, 0] = psi_A[2, 0, 1] = -0.5
+
+    return psi_A
+
+    # psi_A_num = approx_fprime(A, Log_SO3, method="cs", eps=1.0e-10)
+    # diff = psi_A - psi_A_num
+    # error = np.linalg.norm(diff)
+    # print(f"error Log_SO3_A: {error}")
+    # return psi_A_num
+
+
 def T_SO3_inv(psi: np.ndarray) -> np.ndarray:
     angle = norm(psi)
     psi_tilde = ax2skew(psi)
@@ -177,11 +221,18 @@ class DirectorAxisAngle:
         self.K_S_rho0 = K_S_rho0
         self.K_I_rho0 = K_I_rho0
 
+        # can we use a constant mass matrix
+        if np.allclose(K_S_rho0, np.zeros_like(K_S_rho0)):
+            self.constant_mass_matrix = True
+        else:
+            self.constant_mass_matrix = False
+
         # discretization parameters
         self.polynomial_degree = polynomial_degree
         # assert polynomial_degree == 1, "we assume linear Lagrange elements!"
         # self.nquadrature = nquadrature = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
-        self.nquadrature = nquadrature = polynomial_degree
+        self.nquadrature = nquadrature = polynomial_degree + 1
+        # self.nquadrature = nquadrature = polynomial_degree + 2
         self.nelement = nelement
 
         self.node_vector = NodeVector(self.polynomial_degree, nelement)
@@ -271,19 +322,6 @@ class DirectorAxisAngle:
 
         for el in range(nelement):
             qe = self.Q[self.elDOF[el]]
-
-            # psis = np.array([
-            #     qe[self.nodalDOF_element_psi[node]] for node in range(self.nnodes_element)
-            # ])
-            # A_IKs = np.array([
-            #     Exp_SO3(psi) for psi in psis
-            # ])
-            A_IKs = np.array(
-                [
-                    Exp_SO3(qe[self.nodalDOF_element_psi[node]])
-                    for node in range(self.nnodes_element)
-                ]
-            )
 
             for i in range(nquadrature):
                 # interpolate tangent vector, transformation matrix and its derivative
@@ -424,16 +462,6 @@ class DirectorAxisAngle:
         nq = mesh.nnodes * 3
         q0 = np.zeros(nq, dtype=float)
 
-        # find indices in xis that fit best with node vectors xi's
-        # xi_idx = np.where(
-        #     np.abs(node_vector.data[:, None] - xis) < 1.0e-5
-        # )[1]
-
-        # xi_idx = np.where(
-        #     node_vector.data[:, None] > xis
-        # )[1]
-        # np.asarray(node_vector.data <= xis).nonzero()[0][-1]
-
         xi_idx = np.array(
             [np.where(xis >= node_vector.data[i])[0][0] for i in range(mesh.nnodes)]
         )
@@ -441,8 +469,9 @@ class DirectorAxisAngle:
         # warm start for optimization
         q0 = np.array([Log_SO3(A_IKs[idx]) for idx in xi_idx]).reshape(-1)
 
-        def cost_function(q):
-            K = 0.0
+        def residual(q):
+            nxis = len(xis)
+            R = np.zeros(3 * nxis, dtype=q.dtype)
             for i, xii in enumerate(xis):
                 # find element number and extract elemt degrees of freedom
                 el = node_vector.element_number(xii)[0]
@@ -453,32 +482,75 @@ class DirectorAxisAngle:
                 N = mesh.eval_basis(xii)
 
                 # interpoalte rotations
-                A_IK = np.zeros((3, 3), dtype=float)
+                A_IK = np.zeros((3, 3), dtype=q.dtype)
                 for node in range(mesh.nnodes_per_element):
                     A_IK += N[node] * Exp_SO3(qe[mesh.nodalDOF_element[node]])
 
                 # compute relative rotation vector
                 psi_rel = Log_SO3(A_IKs[i].T @ A_IK)
 
-                # compute quadratic cost function
-                K += psi_rel @ psi_rel
+                # insert to residual
+                R[3 * i : 3 * (i + 1)] = psi_rel
 
-            return K
+            return R
 
-        from scipy.optimize import minimize
+        # # TODO: Implement Jacobian
+        # def jacobian():
+        #     nxis = len(xis)
+        #     nq = len(q)
+        #     J = np.zeros((3 * nxis, nq), dtype=float)
 
-        # method = 'nelder-mead' # gradient free; best suited method!
-        method = "SLSQP"
-        res = minimize(
-            cost_function,
+        #     for i, xii in enumerate(xis):
+        #         # find element number and extract elemt degrees of freedom
+        #         el = node_vector.element_number(xii)[0]
+        #         elDOF = mesh.elDOF[el]
+        #         qe = q[elDOF]
+
+        #         # evaluate shape functions
+        #         N = mesh.eval_basis(xii)
+
+        #         # interpoalte rotations
+        #         A_IK = np.zeros((3, 3), dtype=float)
+        #         A_IK_q = np.zeros((3, 3, nq), dtype=float)
+        #         for node in range(mesh.nnodes_per_element):
+        #             nodalDOF = mesh.nodalDOF_element[node]
+        #             qe_node = qe[nodalDOF]
+        #             A_IK += N[node] * Exp_SO3(qe_node)
+        #             A_IK_q[:, :, nodalDOF] += N[node] * Exp_SO3_psi(qe_node)
+
+        #         # compute relative rotation vector
+        #         psi_rel_A_rel = Log_SO3_A(A_IKs[i].T @ A_IK)
+        #         psi_rel_q = np.einsum("", psi_rel_A_rel, )
+
+        #         # insert to residual
+        #         R[3 * i:3 * (i + 1)] = psi_rel
+
+        #     return R
+
+        from scipy.optimize import minimize, least_squares
+
+        res = least_squares(
+            residual,
             q0,
-            method=method,
-            tol=1.0e-3,
-            options={
-                "maxiter": 1000,
-                "disp": True,
-            },
+            jac="cs",
+            verbose=2,
         )
+
+        # def cost_function(q):
+        #     R = residual(q)
+        #     return 0.5 * np.sqrt(R @ R)
+
+        # method = "SLSQP"
+        # res = minimize(
+        #     cost_function,
+        #     q0,
+        #     method=method,
+        #     tol=1.0e-3,
+        #     options={
+        #         "maxiter": 1000,
+        #         "disp": True,
+        #     },
+        # )
 
         return res.x
 
@@ -488,15 +560,55 @@ class DirectorAxisAngle:
     #########################################
     # equations of motion
     #########################################
-    def M(self, t, q, coo):
-        for el in range(self.nelement):
-            # extract element degrees of freedom
-            elDOF = self.elDOF[el]
+    def assembler_callback(self):
+        if self.constant_mass_matrix:
+            self.__M_coo()
 
-            # sparse assemble element mass matrix
-            coo.extend(self.M_el(q[elDOF], el), (self.uDOF[elDOF], self.uDOF[elDOF]))
+    # def M_el_constant(self, el):
+    #     M_el = np.zeros((self.nq_element, self.nq_element), dtype=float)
 
-    def M_el(self, qe, el):
+    #     # use higher order quadrature for mass matrix
+    #     nquadrature = int(np.ceil((self.polynomial_degree + 1) ** 2 / 2))
+    #     Xi_element_interval = self.node_vector.element_interval(el)
+    #     qp, qw = gauss(nquadrature, interval=Xi_element_interval)
+
+    #     # reference generalized coordinates
+    #     Qe = self.Q[self.elDOF[el]]
+
+    #     for i in range(nquadrature):
+    #         # evaluate basis functions
+    #         N, N_xi = self.basis_functions(qp[i])
+
+    #         # interpolate reference tangent vector
+    #         r0_xi = np.zeros(3, dtype=float)
+    #         for node in range(self.nnodes_element):
+    #             r0_xi += N_xi * Qe[self.nodalDOF_element_r[node]]
+
+    #         Ji = norm(r0_xi)
+
+    #         # delta_r A_rho0 r_ddot part
+    #         M_el_r_r = np.eye(3) * self.A_rho0 * Ji * qw[i]
+    #         for node_a in range(self.nnodes_element):
+    #             nodalDOF_a = self.nodalDOF_element_r[node_a]
+    #             for node_b in range(self.nnodes_element):
+    #                 nodalDOF_b = self.nodalDOF_element_r[node_b]
+    #                 M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_r_r * (
+    #                     N[node_a] * N[node_b]
+    #                 )
+
+    #         # first part delta_phi (I_rho0 omega_dot + omega_tilde I_rho0 omega)
+    #         M_el_psi_psi = self.K_I_rho0 * Ji * qw[i]
+    #         for node_a in range(self.nnodes_element):
+    #             nodalDOF_a = self.nodalDOF_element_psi[node_a]
+    #             for node_b in range(self.nnodes_element):
+    #                 nodalDOF_b = self.nodalDOF_element_psi[node_b]
+    #                 M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_psi_psi * (
+    #                     N[node_a] * N[node_b]
+    #                 )
+
+    #     return M_el
+
+    def M_el_constant(self, el):
         M_el = np.zeros((self.nq_element, self.nq_element), dtype=float)
 
         for i in range(self.nquadrature):
@@ -505,7 +617,7 @@ class DirectorAxisAngle:
             Ji = self.J[el, i]
 
             # delta_r A_rho0 r_ddot part
-            M_el_r_r = np.eye(3, dtype=float) * self.A_rho0 * Ji * qwi
+            M_el_r_r = np.eye(3) * self.A_rho0 * Ji * qwi
             for node_a in range(self.nnodes_element):
                 nodalDOF_a = self.nodalDOF_element_r[node_a]
                 for node_b in range(self.nnodes_element):
@@ -524,16 +636,40 @@ class DirectorAxisAngle:
                         self.N[el, i, node_a] * self.N[el, i, node_b]
                     )
 
-            # interpolate transformation matrix
-            A_IK = np.zeros((3, 3), dtype=float)
-            for node in range(self.nnodes_element):
-                A_IK += self.N[el, i, node] * Exp_SO3(
-                    qe[self.nodalDOF_element_psi[node]]
-                )
+        return M_el
+
+    def M_el(self, qe, el):
+        M_el = np.zeros((self.nq_element, self.nq_element), dtype=float)
+
+        for i in range(self.nquadrature):
+            # extract reference state variables
+            qwi = self.qw[el, i]
+            Ji = self.J[el, i]
+
+            # delta_r A_rho0 r_ddot part
+            M_el_r_r = np.eye(3) * self.A_rho0 * Ji * qwi
+            for node_a in range(self.nnodes_element):
+                nodalDOF_a = self.nodalDOF_element_r[node_a]
+                for node_b in range(self.nnodes_element):
+                    nodalDOF_b = self.nodalDOF_element_r[node_b]
+                    M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_r_r * (
+                        self.N[el, i, node_a] * self.N[el, i, node_b]
+                    )
+
+            # first part delta_phi (I_rho0 omega_dot + omega_tilde I_rho0 omega)
+            M_el_psi_psi = self.K_I_rho0 * Ji * qwi
+            for node_a in range(self.nnodes_element):
+                nodalDOF_a = self.nodalDOF_element_psi[node_a]
+                for node_b in range(self.nnodes_element):
+                    nodalDOF_b = self.nodalDOF_element_psi[node_b]
+                    M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_psi_psi * (
+                        self.N[el, i, node_a] * self.N[el, i, node_b]
+                    )
 
             # For non symmetric cross sections there are also other parts
             # involved in the mass matrix. These parts are configuration
             # dependent and lead to configuration dependent mass matrix.
+            _, A_IK, _, _ = self.eval(qe, self.qp[el, i])
             M_el_r_psi = A_IK @ self.K_S_rho0 * Ji * qwi
             M_el_psi_r = A_IK @ self.K_S_rho0 * Ji * qwi
 
@@ -553,6 +689,30 @@ class DirectorAxisAngle:
                     )
 
         return M_el
+
+    def __M_coo(self):
+        self.__M = Coo((self.nu, self.nu))
+        for el in range(self.nelement):
+            # extract element degrees of freedom
+            elDOF = self.elDOF[el]
+
+            # sparse assemble element mass matrix
+            self.__M.extend(
+                self.M_el_constant(el), (self.uDOF[elDOF], self.uDOF[elDOF])
+            )
+
+    def M(self, t, q, coo):
+        if self.constant_mass_matrix:
+            coo.extend_sparse(self.__M)
+        else:
+            for el in range(self.nelement):
+                # extract element degrees of freedom
+                elDOF = self.elDOF[el]
+
+                # sparse assemble element mass matrix
+                coo.extend(
+                    self.M_el(q[elDOF], el), (self.uDOF[elDOF], self.uDOF[elDOF])
+                )
 
     def f_gyr_el(self, t, qe, ue, el):
         f_gyr_el = np.zeros(self.nq_element, dtype=float)

@@ -240,13 +240,13 @@ if __name__ == "__main__":
     pitch_unloaded = 1.0e-3  # 1mm
     # turns = 1
     # turns = 2
-    # turns = 5
-    turns = 10
+    turns = 5
+    # turns = 10
     # turns = 20
 
     # nxi = 10
-    # nxi = 100
-    nxi = 1000
+    nxi = 100
+    # nxi = 1000
     # nxi = 10000  # used in the paper
 
     #########################
@@ -289,8 +289,8 @@ if __name__ == "__main__":
             [np.vstack((d1i, d2i, d3i)).T for (d1i, d2i, d3i) in zip(d1, d2, d3)]
         )
         # TODO:
-        # q0_psi = DirectorAxisAngle.fit_orientation(A_IK, p, nEl)
-        q0_psi = np.zeros_like(q0_r)
+        q0_psi = DirectorAxisAngle.fit_orientation(A_IK, p, nEl)
+        # q0_psi = np.zeros_like(q0_r)
 
         # reference configuration
         Q = np.concatenate((q0_r, q0_psi))
@@ -413,9 +413,10 @@ if __name__ == "__main__":
 
     model.assemble()
 
-    # scale = 5.0e-2
-    # scale_di = 1.0e-2
-    # animate_beam([0], [model.q0], [beam], scale, scale_di=scale_di, n_frames=50)
+    scale = 5.0e-2
+    scale_di = 1.0e-2
+    animate_beam([0], [model.q0], [beam], scale, scale_di=scale_di, n_frames=50)
+    exit()
 
     if statics:
         # n_load_steps = 2

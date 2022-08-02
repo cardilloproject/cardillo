@@ -90,7 +90,6 @@ class Mesh1D:
         self.elDOF_u = np.zeros((self.nelement, self.nu_per_element), dtype=int)
 
         if basis == "Lagrange":
-            # raise NotImplementedError("Adapt according to new ordering of q!")
             # total number of nodes
             self.nnodes = self.degree * self.nelement + 1
 

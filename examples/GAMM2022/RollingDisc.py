@@ -378,6 +378,7 @@ def state():
     plt.show()
 
 
+# TODO: Add dt to the solutions!
 def convergence():
     rho_inf = 0.85
     tol_ref = 1.0e-8
@@ -386,37 +387,78 @@ def convergence():
     #####################################
     # compute step sizes with powers of 2
     #####################################
-    dt_ref = 6.4e-3
-    dts = (2.0 ** np.arange(3, 0, -1)) * dt_ref  # [5.12e-2, ..., 1.28e-2]
-    t1 = (2.0**9) * dt_ref  # 3.2768s
+    # dt_ref = 6.4e-3
+    # dts = (2.0 ** np.arange(3, 1, -1)) * dt_ref  # [5.12e-2, ..., 2.56e-2]
+    # t1 = (2.0**10) * dt_ref  # 6.5536s
+
+    # dt_ref = 3.2e-3
+    # dts = (2.0 ** np.arange(4, 1, -1)) * dt_ref  # [5.12e-2, ..., 1.28e-2]
+    # t1 = (2.0**11) * dt_ref  # 6.5536s
 
     # dt_ref = 1.6e-3
-    # dts = (2.0 ** np.arange(4, 0, -1)) * dt_ref  # [5.2e-2, ..., 8e-4]
-    # # t1 = (2.0**12) * dt_ref
-    # t1 = (2.0**8) * dt_ref
+    # dts = (2.0 ** np.arange(5, 1, -1)) * dt_ref  # [5.12e-2, ..., 6.4e-3]
+    # t1 = (2.0**12) * dt_ref # 6.5536s
 
-    # dt_ref = 8e-4
-    # dts = (2.0 ** np.arange(8, 2, -1)) * dt_ref  # [5.2e-2, ..., 8e-4]
-    # t1 = (2.0**12) * dt_ref
+    dt_ref = 8e-4
+    dts = (2.0 ** np.arange(6, 1, -1)) * dt_ref  # [5.12e-2, ..., 3.2e-3]
+    t1 = (2.0**13) * dt_ref  # 6.5536s
 
-    # dt_ref = 1e-4
-    # dts = (2.0 ** np.arange(8, 2, -1)) * dt_ref  # [5.2e-2, ..., 8e-4]
-    # t1 = (2.0**16) * dt_ref
+    # dt_ref = 4e-4
+    # dts = (2.0 ** np.arange(7, 1, -1)) * dt_ref  # [5.12e-2, ..., 1.6e-3]
+    # t1 = (2.0**14) * dt_ref # 6.5536s
+
+    # dt_ref = 2e-4
+    # dts = (2.0 ** np.arange(8, 1, -1)) * dt_ref  # [5.12e-2, ..., 8e-4]
+    # t1 = (2.0**15) * dt_ref # 6.5536s
 
     # dt_ref = 5e-5
-    # dts = (2.0 ** np.arange(8, 0, -1)) * dt_ref  # [5.2e-2, ..., 8e-4]
+    # dts = (2.0 ** np.arange(10, 1, -1)) * dt_ref  # [5.12e-2, ..., 2e-4]
+    # t1 = (2.0**17) * dt_ref # 6.5536s
 
-    # dt_ref = 2.5e-5  # Arnold2015b
-    # dts = (2.0 ** np.arange(9, 1, -1)) * dt_ref  # [5.2e-2, ..., 8e-4]
+    # # Final version used by Martin
+    # dt_ref = 2.5e-5
+    # dts = (2.0 ** np.arange(11, 1, -1)) * dt_ref  # [5.12e-2, ..., 1e-4]
+    # t1 = (2.0**18) * dt_ref # 6.5536s
 
-    # end time (note this has to be > 4, otherwise long term error throws ans error)
-    # t1 = (2.0**17) * dt_ref  # results in 6.5536s for dt_ref = 5e-5
-    # t1 = (2.0**18) * dt_ref # results in 6.5536s for dt_ref = 2.5e-5
+    #######################
+    # old stuff for 3.2768s
+    #######################
+    # dt_ref = 6.4e-3
+    # dts = (2.0 ** np.arange(3, 1, -1)) * dt_ref  # [5.12e-2, ..., 2.56e-2]
+    # t1 = (2.0**9) * dt_ref  # 3.2768s
 
-    # # TODO: Only for debugging!
-    # dt_ref = 2.5e-3
-    # dts = np.array([5.0e-3])
-    # t1 = (2.0**8) * dt_ref
+    # dt_ref = 3.2e-3
+    # dts = (2.0 ** np.arange(4, 1, -1)) * dt_ref  # [5.12e-2, ..., 1.28e-2]
+    # t1 = (2.0**10) * dt_ref  # 3.2768s
+
+    # dt_ref = 1.6e-3
+    # dts = (2.0 ** np.arange(5, 1, -1)) * dt_ref  # [5.12e-2, ..., 6.4e-3]
+    # t1 = (2.0**11) * dt_ref # 3.2768s
+
+    # dt_ref = 8e-4
+    # dts = (2.0 ** np.arange(6, 1, -1)) * dt_ref  # [5.12e-2, ..., 3.2e-3]
+    # t1 = (2.0**12) * dt_ref # 3.2768s
+
+    # dt_ref = 4e-4
+    # dts = (2.0 ** np.arange(7, 1, -1)) * dt_ref  # [5.12e-2, ..., 1.6e-3]
+    # t1 = (2.0**13) * dt_ref # 3.2768s
+
+    # dt_ref = 2e-4
+    # dts = (2.0 ** np.arange(8, 1, -1)) * dt_ref  # [5.12e-2, ..., 8e-4]
+    # t1 = (2.0**14) * dt_ref # 3.2768s
+
+    # dt_ref = 1e-4
+    # dts = (2.0 ** np.arange(9, 1, -1)) * dt_ref  # [5.12e-2, ..., 4e-4]
+    # t1 = (2.0**15) * dt_ref # 3.2768s
+
+    # dt_ref = 5e-5
+    # dts = (2.0 ** np.arange(10, 1, -1)) * dt_ref  # [5.12e-2, ..., 2e-4]
+    # t1 = (2.0**16) * dt_ref # 3.2768s
+
+    # Final version used by Martin
+    # dt_ref = 2.5e-5
+    # dts = (2.0 ** np.arange(11, 1, -1)) * dt_ref  # [5.12e-2, ..., 1e-4]
+    # t1 = (2.0**17) * dt_ref # 3.2768s
 
     dts_1 = dts
     dts_2 = dts**2
@@ -446,7 +488,7 @@ def convergence():
     file_longterm_u = "examples/GAMM2022/LongtermErrorRollingDisc_u.txt"
     file_longterm_la_g = "examples/GAMM2022/LongtermErrorRollingDisc_la_g.txt"
     file_longterm_la_gamma = "examples/GAMM2022/LongtermErrorRollingDisc_la_gamma.txt"
-    header = "2nd, 1st, 1st_GGL"
+    header = "dt, dt2, 2nd, 1st, 1st_GGL"
 
     def create(name):
         with open(name, "w") as file:
@@ -462,14 +504,6 @@ def convergence():
                 delimiter=", ",
                 comments="",
             )
-
-    np.savetxt(
-        "examples/GAMM2022/RollingDisc_dts.txt",
-        np.vstack((dts_1, dts_2)).T,
-        delimiter=", ",
-        comments="",
-        header="dt, dt2",
-    )
 
     create(file_transient_q)
     create(file_transient_u)
@@ -583,8 +617,8 @@ def convergence():
 
         plt.show()
 
-    # def errors(sol, sol_ref, t_transient=2, t_longterm=4):
-    def errors(sol, sol_ref, t_transient=2, t_longterm=2):
+    def errors(sol, sol_ref, t_transient=4, t_longterm=4):
+        # def errors(sol, sol_ref, t_transient=2, t_longterm=2):
         t = sol.t
         q = sol.q
         u = sol.u
@@ -721,15 +755,36 @@ def convergence():
             la_gamma_errors_longterm[2, i],
         ) = errors(sol, reference1_GGL)
 
-        data = np.array([[dts_1[i], dts_2[i], *q_errors_transient[:, i]]])
-        append(file_transient_q, np.atleast_2d(q_errors_transient[:, i]))
-        append(file_transient_u, np.atleast_2d(u_errors_transient[:, i]))
-        append(file_transient_la_g, np.atleast_2d(la_g_errors_transient[:, i]))
-        append(file_transient_la_gamma, np.atleast_2d(la_gamma_errors_transient[:, i]))
-        append(file_longterm_q, np.atleast_2d(q_errors_longterm[:, i]))
-        append(file_longterm_u, np.atleast_2d(u_errors_longterm[:, i]))
-        append(file_longterm_la_g, np.atleast_2d(la_g_errors_longterm[:, i]))
-        append(file_longterm_la_gamma, np.atleast_2d(la_gamma_errors_longterm[:, i]))
+        append(
+            file_transient_q,
+            np.array([[dts_1[i], dts_2[i], *q_errors_transient[:, i]]]),
+        )
+        append(
+            file_transient_u,
+            np.array([[dts_1[i], dts_2[i], *u_errors_transient[:, i]]]),
+        )
+        append(
+            file_transient_la_g,
+            np.array([[dts_1[i], dts_2[i], *la_g_errors_transient[:, i]]]),
+        )
+        append(
+            file_transient_la_gamma,
+            np.array([[dts_1[i], dts_2[i], *la_gamma_errors_transient[:, i]]]),
+        )
+        append(
+            file_longterm_q, np.array([[dts_1[i], dts_2[i], *q_errors_longterm[:, i]]])
+        )
+        append(
+            file_longterm_u, np.array([[dts_1[i], dts_2[i], *u_errors_longterm[:, i]]])
+        )
+        append(
+            file_longterm_la_g,
+            np.array([[dts_1[i], dts_2[i], *la_g_errors_longterm[:, i]]]),
+        )
+        append(
+            file_longterm_la_gamma,
+            np.array([[dts_1[i], dts_2[i], *la_gamma_errors_longterm[:, i]]]),
+        )
 
     # #############################
     # # export errors and dt, dt**2
