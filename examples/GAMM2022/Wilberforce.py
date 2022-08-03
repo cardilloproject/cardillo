@@ -28,8 +28,8 @@ import matplotlib.pyplot as plt
 # c = 6.5e-3  # best eccentricity - n = 10
 c = 7.25e-3  # best eccentricity - n = 20
 
-statics = True
-# statics = False
+# statics = True
+statics = False
 
 axis_angle = True
 # axis_angle = False
@@ -245,8 +245,8 @@ if __name__ == "__main__":
     # turns = 10
     # turns = 20
 
-    nxi = 10
-    # nxi = 100
+    # nxi = 10
+    nxi = 100
     # nxi = 500
     # nxi = 10000  # used in the paper
 
@@ -261,9 +261,9 @@ if __name__ == "__main__":
 
     # chose the number of elements that are required to describe a full spring turn
     # nEl_turn = 4
-    nEl_turn = 6
+    # nEl_turn = 6
     # nEl_turn = 8
-    # nEl_turn = 10
+    nEl_turn = 10
     # nEl_turn = 12
 
     nEl = turns * nEl_turn
@@ -350,26 +350,26 @@ if __name__ == "__main__":
     h = 50e-3  # height of the main cylinder
     m, K_Theta = Wilberforce_bob(R, h, debug=True)
 
-    # ############
-    # # Euler case
-    # ############
-    # q0 = np.zeros(6, dtype=float)
-    # q0[2] = (
-    #     -h / 2 + wire_radius
-    # )  # center of mass is shifted (wire starts out of the top cylinder surface)
-    # u0 = np.zeros(6, dtype=float)
-    # bob = RigidBodyEuler(m, K_Theta, q0=q0, u0=u0)
-
-    #################
-    # quaternion case
-    #################
-    q0 = np.zeros(7, dtype=float)
+    ############
+    # Euler case
+    ############
+    q0 = np.zeros(6, dtype=float)
     q0[2] = (
         -h / 2 + wire_radius
     )  # center of mass is shifted (wire starts out of the top cylinder surface)
-    q0[3] = 1.0  # initial unit quaternion
     u0 = np.zeros(6, dtype=float)
-    bob = RigidBodyQuaternion(m, K_Theta, q0=q0, u0=u0)
+    bob = RigidBodyEuler(m, K_Theta, q0=q0, u0=u0)
+
+    # #################
+    # # quaternion case
+    # #################
+    # q0 = np.zeros(7, dtype=float)
+    # q0[2] = (
+    #     -h / 2 + wire_radius
+    # )  # center of mass is shifted (wire starts out of the top cylinder surface)
+    # q0[3] = 1.0  # initial unit quaternion
+    # u0 = np.zeros(6, dtype=float)
+    # bob = RigidBodyQuaternion(m, K_Theta, q0=q0, u0=u0)
 
     ####################
     # gravity rigid body
@@ -398,9 +398,9 @@ if __name__ == "__main__":
     atol = 1.0e-6
 
     # t1 = 5.0e-1
-    # t1 = 1.5
+    t1 = 1.5
     # t1 = 2.5
-    t1 = 5
+    # t1 = 5
     # t1 = 20 # used for the paper
     # dt = 1e-4 # used timestep for paper Harsch2021
     # dt = 5e-4 # used timestep for paper Harsch2021
@@ -447,11 +447,10 @@ if __name__ == "__main__":
     r_OS = q[:, bob.qDOF[:3]]
     angles = q[:, bob.qDOF[3:]]
 
-    from scipy.spatial.transform import Rotation
-
-    angles = np.array(
-        [Rotation.from_quat(Pi).as_euler("zyx") for Pi in q[:, bob.qDOF[3:]]]
-    )
+    # from scipy.spatial.transform import Rotation
+    # angles = np.array(
+    #     [Rotation.from_quat(Pi).as_euler("zyx") for Pi in q[:, bob.qDOF[3:]]]
+    # )
 
     ########
     # export

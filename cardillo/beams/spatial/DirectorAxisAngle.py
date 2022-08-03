@@ -494,47 +494,70 @@ class DirectorAxisAngle:
 
             return R
 
-        # # TODO: Implement Jacobian
-        # def jacobian():
-        #     nxis = len(xis)
-        #     nq = len(q)
-        #     J = np.zeros((3 * nxis, nq), dtype=float)
+        def jacobian(q):
+            nxis = len(xis)
+            nq = len(q)
+            J = np.zeros((3 * nxis, nq), dtype=float)
 
-        #     for i, xii in enumerate(xis):
-        #         # find element number and extract elemt degrees of freedom
-        #         el = node_vector.element_number(xii)[0]
-        #         elDOF = mesh.elDOF[el]
-        #         qe = q[elDOF]
+            for i, xii in enumerate(xis):
+                # find element number and extract elemt degrees of freedom
+                el = node_vector.element_number(xii)[0]
+                elDOF = mesh.elDOF[el]
+                qe = q[elDOF]
+                nqe = len(qe)
 
-        #         # evaluate shape functions
-        #         N = mesh.eval_basis(xii)
+                # evaluate shape functions
+                N = mesh.eval_basis(xii)
 
-        #         # interpoalte rotations
-        #         A_IK = np.zeros((3, 3), dtype=float)
-        #         A_IK_q = np.zeros((3, 3, nq), dtype=float)
-        #         for node in range(mesh.nnodes_per_element):
-        #             nodalDOF = mesh.nodalDOF_element[node]
-        #             qe_node = qe[nodalDOF]
-        #             A_IK += N[node] * Exp_SO3(qe_node)
-        #             A_IK_q[:, :, nodalDOF] += N[node] * Exp_SO3_psi(qe_node)
+                # interpoalte rotations
+                A_IK = np.zeros((3, 3), dtype=float)
+                A_IK_qe = np.zeros((3, 3, nqe), dtype=float)
+                for node in range(mesh.nnodes_per_element):
+                    nodalDOF = mesh.nodalDOF_element[node]
+                    qe_node = qe[nodalDOF]
+                    A_IK += N[node] * Exp_SO3(qe_node)
+                    A_IK_qe[:, :, nodalDOF] += N[node] * Exp_SO3_psi(qe_node)
 
-        #         # compute relative rotation vector
-        #         psi_rel_A_rel = Log_SO3_A(A_IKs[i].T @ A_IK)
-        #         psi_rel_q = np.einsum("", psi_rel_A_rel, )
+                # compute relative rotation vector
+                psi_rel_A_rel = Log_SO3_A(A_IKs[i].T @ A_IK)
+                psi_rel_qe = np.einsum("ikl,mk,mlj->ij", psi_rel_A_rel, A_IKs[i], A_IK_qe)
 
-        #         # insert to residual
-        #         R[3 * i:3 * (i + 1)] = psi_rel
+                # insert to residual
+                J[3 * i:3 * (i + 1), elDOF] = psi_rel_qe
 
-        #     return R
+                # def psi_rel(qe):
+                #     # evaluate shape functions
+                #     N = mesh.eval_basis(xii)
+
+                #     # interpoalte rotations
+                #     A_IK = np.zeros((3, 3), dtype=q.dtype)
+                #     for node in range(mesh.nnodes_per_element):
+                #         A_IK += N[node] * Exp_SO3(qe[mesh.nodalDOF_element[node]])
+
+                #     # compute relative rotation vector
+                #     return Log_SO3(A_IKs[i].T @ A_IK)
+
+                # psi_rel_qe_num = approx_fprime(qe, psi_rel)
+                # diff = psi_rel_qe - psi_rel_qe_num
+                # error = np.linalg.norm(diff)
+                # print(f"error psi_rel_qe: {error}")
+
+                # # insert to residual
+                # J[3 * i:3 * (i + 1), elDOF] = psi_rel_qe_num
+
+            return J
 
         from scipy.optimize import minimize, least_squares
 
         res = least_squares(
             residual,
             q0,
-            jac="cs",
+            # jac="cs",
+            jac=jacobian,
             verbose=2,
         )
+
+        print(f"")
 
         # def cost_function(q):
         #     R = residual(q)
