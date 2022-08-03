@@ -25,11 +25,11 @@ import os
 import matplotlib.pyplot as plt
 
 # c = 4.5e-3 # best eccentricity - n = 2
-c = 6.5e-3  # best eccentricity - n = 10
-# c = 7.25e-3  # best eccentricity - n = 20
+# c = 6.5e-3  # best eccentricity - n = 10
+c = 7.25e-3  # best eccentricity - n = 20
 
-# statics = True
-statics = False
+statics = True
+# statics = False
 
 axis_angle = True
 # axis_angle = False
@@ -229,7 +229,8 @@ if __name__ == "__main__":
     # p = 3
     p_r = p
     p_di = p  # TODO: Do we want p_di = p - 1 here?
-    nQP = int(np.ceil((p**2 + 1) / 2)) + 1  # dynamics
+    # nQP = int(np.ceil((p**2 + 1) / 2)) + 1  # dynamics
+    nQP = p + 1
     print(f"nQP: {nQP}")
 
     #############################
@@ -239,14 +240,14 @@ if __name__ == "__main__":
     coil_radius = coil_diameter / 2
     pitch_unloaded = 1.0e-3  # 1mm
     # turns = 1
-    # turns = 2
-    turns = 5
+    turns = 2
+    # turns = 5
     # turns = 10
     # turns = 20
 
-    # nxi = 10
-    nxi = 100
-    # nxi = 1000
+    nxi = 10
+    # nxi = 100
+    # nxi = 500
     # nxi = 10000  # used in the paper
 
     #########################
@@ -260,9 +261,9 @@ if __name__ == "__main__":
 
     # chose the number of elements that are required to describe a full spring turn
     # nEl_turn = 4
-    # nEl_turn = 6
+    nEl_turn = 6
     # nEl_turn = 8
-    nEl_turn = 10
+    # nEl_turn = 10
     # nEl_turn = 12
 
     nEl = turns * nEl_turn
@@ -288,22 +289,29 @@ if __name__ == "__main__":
         A_IK = np.array(
             [np.vstack((d1i, d2i, d3i)).T for (d1i, d2i, d3i) in zip(d1, d2, d3)]
         )
-        # TODO:
         q0_psi = DirectorAxisAngle.fit_orientation(A_IK, p, nEl)
-        # q0_psi = np.zeros_like(q0_r)
+        # q0_psi = np.zeros_like(q0_r) # TODO: Only for test purpose!
 
         # reference configuration
         Q = np.concatenate((q0_r, q0_psi))
     else:
-        raise NotImplementedError
-        qr0 = fit_B_spline_curve(P, p_r, nEl)
-        qd1 = fit_B_spline_curve(d1, p_di, nEl)
-        qd2 = fit_B_spline_curve(d2, p_di, nEl)
-        qd3 = fit_B_spline_curve(d3, p_di, nEl)
+        # raise NotImplementedError
+        qr0 = TimoshenkoDirectorDirac.fit_field(P, p_r, nEl)
+        qd1 = TimoshenkoDirectorDirac.fit_field(d1, p_di, nEl)
+        qd2 = TimoshenkoDirectorDirac.fit_field(d2, p_di, nEl)
+        qd3 = TimoshenkoDirectorDirac.fit_field(d3, p_di, nEl)
+        # qr0 = fit_B_spline_curve(P, p_r, nEl)
+        # qd1 = fit_B_spline_curve(d1, p_di, nEl)
+        # qd2 = fit_B_spline_curve(d2, p_di, nEl)
+        # qd3 = fit_B_spline_curve(d3, p_di, nEl)
         # Q = np.concatenate(
         #     (qr0.T.reshape(-1), qd1.T.reshape(-1), qd2.T.reshape(-1), qd3.T.reshape(-1))
         # )
-        Q = np.concatenate((qr0, qd1, qd2, qd3))
+        qdi = np.vstack((qd1, qd2, qd3)).T.reshape(-1)
+        Q = np.concatenate((qr0, qdi))
+
+        # Q = TimoshenkoDirectorDirac.straight_configuration(p_r, p_di, nEl, 0.02)
+        # # Q = TimoshenkoDirectorIntegral.straight_configuration(p_r, p_di, nEl, 0.02)
 
     ############
     # beam model
@@ -323,8 +331,8 @@ if __name__ == "__main__":
             p_di,
             nQP,
             nEl,
+            Q,
             q0=Q,
-            Q=Q,
         )
 
     ##############
@@ -397,8 +405,9 @@ if __name__ == "__main__":
     # dt = 1e-4 # used timestep for paper Harsch2021
     # dt = 5e-4 # used timestep for paper Harsch2021
     # dt = 1e-3  # no convergence at ~1.5s with first order gen alpha an possibly not with second order one
-    dt = 5e-3  # works for turns=10, nEl_turn=8, p=1, nqp=p+1
-    # dt = 1e-2 # no convergence with first order scheme at 1.61s (Matrix is exactly singular)
+    # dt = 5e-3  # works for turns=10, nEl_turn=8, p=1, nqp=p+1
+    dt = 5e-3  # works for turns=20, nEl_turn=6, p=2, nqp=p+1
+    # dt = 1e-2 # no convergence with first order scheme at 3.37s (Matrix is exactly singular)
 
     model = Model()
 
@@ -413,13 +422,12 @@ if __name__ == "__main__":
 
     model.assemble()
 
-    scale = 5.0e-2
-    scale_di = 1.0e-2
-    animate_beam([0], [model.q0], [beam], scale, scale_di=scale_di, n_frames=50)
-    exit()
+    # scale = 5.0e-2
+    # scale_di = 1.0e-2
+    # animate_beam([0], [model.q0], [beam], scale, scale_di=scale_di, n_frames=50)
+    # exit()
 
     if statics:
-        # n_load_steps = 2
         solver = Newton(model, n_load_steps=n_load_steps, max_iter=max_iter, atol=atol)
     else:
         # TODO: Increase rho_inf?

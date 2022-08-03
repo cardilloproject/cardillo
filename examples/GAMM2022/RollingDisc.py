@@ -128,148 +128,199 @@ def state():
     # t1 = 2 * np.pi / np.abs(alpha_dot0) * 0.1
     t1 = 2 * np.pi / np.abs(alpha_dot0) * 1.0
     # dt = 5e-3
-    dt = 2.5e-2  # used for GAMM with R = 10 * r
-    # dt = 1e-2
-    # rho_inf = 0.95  # previously used for GAMM
-    rho_inf = 0.85  # used for GAMM
-    tol = 1.0e-8  # used for GAMM
+    # dt = 2.5e-2  # used for GAMM with R = 10 * r
+    dt = 1.0e-2  # used for GAMM with R = 10 * r
+
+    # rho_inf = 0.96 # used for GAMM (high oszillations)
+    rho_inf = 0.85  # used for GAMM (low oszillations)
+    # see Arnodl2016, p. 118
+    tol = 1.0e-10
+
     # sol = GeneralizedAlphaFirstOrder(model, t1, dt, rho_inf=rho_inf, tol=tol).solve()
-    # sol = GeneralizedAlphaFirstOrder(
-    #     model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=True
-    # ).solve()
+    # # sol = GeneralizedAlphaFirstOrder(
+    # #     model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=True
+    # # ).solve()
     sol = GeneralizedAlphaSecondOrder(model, t1, dt, rho_inf=rho_inf, tol=tol).solve()
     # sol = GeneralizedAlphaSecondOrder(model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=True).solve()
 
-    t_A = sol.t
-    q_A = sol.q
-    la_g_A = sol.la_g
-    la_gamma_A = sol.la_gamma
+    t = sol.t
+    q = sol.q
+    u = sol.u
+    u_dot = sol.u_dot
+    la_g = sol.la_g
+    la_gamma = sol.la_gamma
+
+    g = np.array([model.g(ti, qi) for ti, qi in zip(t, q)])
+    g_dot = np.array([model.g_dot(ti, qi, ui) for ti, qi, ui in zip(t, q, u)])
+    g_ddot = np.array(
+        [model.g_ddot(ti, qi, ui, u_doti) for ti, qi, ui, u_doti in zip(t, q, u, u_dot)]
+    )
+    gamma = np.array([model.gamma(ti, qi, ui) for ti, qi, ui in zip(t, q, u)])
+    gamma_dot = np.array(
+        [
+            model.gamma_dot(ti, qi, ui, u_doti)
+            for ti, qi, ui, u_doti in zip(t, q, u, u_dot)
+        ]
+    )
 
     ########
     # export
     ########
-    if True:
+    header = "t, x, y, z, p0, p1, p2, p3, la_g, la_ga0, la_ga1"
+    export_data = np.vstack([t, *q.T, *la_g.T, *la_gamma.T]).T
+    np.savetxt(
+        "examples/GAMM2022/RollingDiscTrajectory.txt",
+        export_data,
+        delimiter=", ",
+        header=header,
+        comments="",
+    )
 
-        def export_q(sol, name):
-            header = "t, x, y, z, p0, p1, p2, p3, la_g, la_ga0, la_ga1"
-            export_data = np.vstack([sol.t, *sol.q.T, *sol.la_g.T, *sol.la_gamma.T]).T
-            np.savetxt(
-                name,
-                export_data,
-                delimiter=", ",
-                header=header,
-                comments="",
-            )
+    header = "t, g, g_dot, g_ddot, gamma0, gamma1, gamma_dot0, gamma_dot1"
+    export_data = np.vstack([t, *g.T, *g_dot.T, *g_ddot.T, *gamma.T, *gamma_dot.T]).T
+    np.savetxt(
+        "examples/GAMM2022/RollingDiscGaps.txt",
+        export_data,
+        delimiter=", ",
+        header=header,
+        comments="",
+    )
 
-        export_q(sol, "examples/GAMM2022/RollingDiscTrajectory.txt")
+    # if True:
 
-        def export_gaps(sol, name):
-            header = "t, g, g_dot, g_ddot, ga, ga_dot"
-            t = sol.t
-            q = sol.q
-            u = sol.u
-            u_dot = sol.u_dot
+    #     def export_q(sol, name):
+    #         header = "t, x, y, z, p0, p1, p2, p3, la_g, la_ga0, la_ga1"
+    #         export_data = np.vstack([sol.t, *sol.q.T, *sol.la_g.T, *sol.la_gamma.T]).T
+    #         np.savetxt(
+    #             name,
+    #             export_data,
+    #             delimiter=", ",
+    #             header=header,
+    #             comments="",
+    #         )
 
-            g = np.array([np.linalg.norm(model.g(ti, qi)) for ti, qi in zip(t, q)])
+    #     export_q(sol, "examples/GAMM2022/RollingDiscTrajectory.txt")
 
-            g_dot = np.array(
-                [np.linalg.norm(model.g_dot(ti, qi, ui)) for ti, qi, ui in zip(t, q, u)]
-            )
+    #     def export_gaps(sol, name):
+    #         header = "t, g, g_dot, g_ddot, ga, ga_dot"
+    #         t = sol.t
+    #         q = sol.q
+    #         u = sol.u
+    #         u_dot = sol.u_dot
 
-            g_ddot = np.array(
-                [
-                    np.linalg.norm(model.g_ddot(ti, qi, ui, u_doti))
-                    for ti, qi, ui, u_doti in zip(t, q, u, u_dot)
-                ]
-            )
+    #         export_data = np.vstack([t, g, g_dot, g_ddot, gamma, gamma_dot]).T
+    #         np.savetxt(
+    #             name,
+    #             export_data,
+    #             delimiter=", ",
+    #             header=header,
+    #             comments="",
+    #         )
 
-            gamma = np.array(
-                [np.linalg.norm(model.gamma(ti, qi, ui)) for ti, qi, ui in zip(t, q, u)]
-            )
+    #         return g, g_dot, g_ddot
 
-            gamma_dot = np.array(
-                [
-                    np.linalg.norm(model.gamma_dot(ti, qi, ui, u_doti))
-                    for ti, qi, ui, u_doti in zip(t, q, u, u_dot)
-                ]
-            )
+    #     export_gaps(sol, "examples/GAMM2022/RollingDiscGaps.txt")
 
-            export_data = np.vstack([t, g, g_dot, g_ddot, gamma, gamma_dot]).T
-            np.savetxt(
-                name,
-                export_data,
-                delimiter=", ",
-                header=header,
-                comments="",
-            )
+    #     # exit()
 
-            return g, g_dot, g_ddot
+    ###############
+    # visualization
+    ###############
+    fig = plt.figure(figsize=plt.figaspect(0.5))
 
-        export_gaps(sol, "examples/GAMM2022/RollingDiscGaps.txt")
+    # g
+    ax = fig.add_subplot(3, 2, 1)
+    ax.plot(t, g)
+    ax.set_xlabel("t")
+    ax.set_ylabel("g")
+    ax.grid()
 
-        # exit()
+    # g_dot
+    ax = fig.add_subplot(3, 2, 3)
+    ax.plot(t, g_dot)
+    ax.set_xlabel("t")
+    ax.set_ylabel("g_dot")
+    ax.grid()
 
-        ###############
-        # visualization
-        ###############
-        fig = plt.figure(figsize=plt.figaspect(0.5))
+    # g_ddot
+    ax = fig.add_subplot(3, 2, 5)
+    ax.plot(t, g_ddot)
+    ax.set_xlabel("t")
+    ax.set_ylabel("g_ddot")
+    ax.grid()
 
-        # trajectory center of mass
-        ax = fig.add_subplot(2, 2, 1, projection="3d")
-        ax.plot(
-            q_A[:, 0],
-            q_A[:, 1],
-            q_A[:, 2],
-            "-r",
-            label="x-y-z - GenAlphaFirstOrderVeclotiy",
-        )
-        # ax.plot(q_genAlphaFirstOrderVelocityGGL[:, 0], q_genAlphaFirstOrderVelocityGGL[:, 1], q_genAlphaFirstOrderVelocityGGL[:, 2], '--g', label="x-y-z - GenAlphaFirstOrderVeclotiyGGl")
-        ax.set_xlabel("x")
-        ax.set_ylabel("y")
-        ax.set_zlabel("z")
-        ax.grid()
-        ax.legend()
+    # gamma
+    ax = fig.add_subplot(3, 2, 2)
+    ax.plot(t, gamma)
+    ax.set_xlabel("t")
+    ax.set_ylabel("gamma")
+    ax.grid()
 
-        # nonpenetrating contact point
-        ax = fig.add_subplot(2, 2, 2)
-        ax.plot(t_A[:], la_g_A[:, 0], "-r", label="la_g - GenAlphaFirstOrderVeclotiy")
-        # ax.plot(t_genAlphaFirstOrderVelocityGGL[:], la_g_genAlphaFirstOrderVelocityGGL[:, 0], '--g', label="la_g - GenAlphaFirstOrderVeclotiyGGL")
-        ax.set_xlabel("x")
-        ax.set_ylabel("y")
-        ax.grid()
-        ax.legend()
+    # gamma_dot
+    ax = fig.add_subplot(3, 2, 4)
+    ax.plot(t, gamma_dot)
+    ax.set_xlabel("t")
+    ax.set_ylabel("gamma_dot")
+    ax.grid()
 
-        # no lateral velocities 1
-        ax = fig.add_subplot(2, 2, 3)
-        ax.plot(
-            t_A[:],
-            la_gamma_A[:, 0],
-            "-r",
-            label="la_gamma[0] - GenAlphaFirstOrderVeclotiy",
-        )
-        ax.set_xlabel("t")
-        ax.set_ylabel("la_gamma1")
-        ax.grid()
-        ax.legend()
+    fig = plt.figure(figsize=plt.figaspect(0.5))
 
-        # no lateral velocities 2
-        ax = fig.add_subplot(2, 2, 4)
-        ax.plot(
-            t_A[:],
-            la_gamma_A[:, 1],
-            "-r",
-            label="la_gamma[1] - GenAlphaFirstOrderVeclotiy",
-        )
-        ax.set_xlabel("t")
-        ax.set_ylabel("la_gamma2")
-        ax.grid()
-        ax.legend()
+    # trajectory center of mass
+    ax = fig.add_subplot(2, 2, 1, projection="3d")
+    ax.plot(
+        q[:, 0],
+        q[:, 1],
+        q[:, 2],
+        "-r",
+        label="x-y-z - GenAlphaFirstOrderVeclotiy",
+    )
+    # ax.plot(q_genAlphaFirstOrderVelocityGGL[:, 0], q_genAlphaFirstOrderVelocityGGL[:, 1], q_genAlphaFirstOrderVelocityGGL[:, 2], '--g', label="x-y-z - GenAlphaFirstOrderVeclotiyGGl")
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
+    ax.set_zlabel("z")
+    ax.grid()
+    ax.legend()
+
+    # nonpenetrating contact point
+    ax = fig.add_subplot(2, 2, 2)
+    ax.plot(t[:], la_g[:, 0], "-r", label="la_g - GenAlphaFirstOrderVeclotiy")
+    # ax.plot(t_genAlphaFirstOrderVelocityGGL[:], la_g_genAlphaFirstOrderVelocityGGL[:, 0], '--g', label="la_g - GenAlphaFirstOrderVeclotiyGGL")
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
+    ax.grid()
+    ax.legend()
+
+    # no lateral velocities 1
+    ax = fig.add_subplot(2, 2, 3)
+    ax.plot(
+        t[:],
+        la_gamma[:, 0],
+        "-r",
+        label="la_gamma[0] - GenAlphaFirstOrderVeclotiy",
+    )
+    ax.set_xlabel("t")
+    ax.set_ylabel("la_gamma1")
+    ax.grid()
+    ax.legend()
+
+    # no lateral velocities 2
+    ax = fig.add_subplot(2, 2, 4)
+    ax.plot(
+        t[:],
+        la_gamma[:, 1],
+        "-r",
+        label="la_gamma[1] - GenAlphaFirstOrderVeclotiy",
+    )
+    ax.set_xlabel("t")
+    ax.set_ylabel("la_gamma2")
+    ax.grid()
+    ax.legend()
 
     ########################
     # animate configurations
     ########################
-    t = t_A
-    q = q_A
+    t = t
+    q = q
 
     fig = plt.figure()
     ax = fig.add_subplot(111, projection="3d")
@@ -378,11 +429,11 @@ def state():
     plt.show()
 
 
-# TODO: Add dt to the solutions!
 def convergence():
     rho_inf = 0.85
-    tol_ref = 1.0e-8
-    tol = 1.0e-8
+    # see Arnodl2016, p. 118
+    tol_ref = 1.0e-10
+    tol = 1.0e-10
 
     #####################################
     # compute step sizes with powers of 2
@@ -395,13 +446,13 @@ def convergence():
     # dts = (2.0 ** np.arange(4, 1, -1)) * dt_ref  # [5.12e-2, ..., 1.28e-2]
     # t1 = (2.0**11) * dt_ref  # 6.5536s
 
-    # dt_ref = 1.6e-3
-    # dts = (2.0 ** np.arange(5, 1, -1)) * dt_ref  # [5.12e-2, ..., 6.4e-3]
-    # t1 = (2.0**12) * dt_ref # 6.5536s
+    dt_ref = 1.6e-3
+    dts = (2.0 ** np.arange(5, 1, -1)) * dt_ref  # [5.12e-2, ..., 6.4e-3]
+    t1 = (2.0**12) * dt_ref  # 6.5536s
 
-    dt_ref = 8e-4
-    dts = (2.0 ** np.arange(6, 1, -1)) * dt_ref  # [5.12e-2, ..., 3.2e-3]
-    t1 = (2.0**13) * dt_ref  # 6.5536s
+    # dt_ref = 8e-4
+    # dts = (2.0 ** np.arange(6, 1, -1)) * dt_ref  # [5.12e-2, ..., 3.2e-3]
+    # t1 = (2.0**13) * dt_ref  # 6.5536s
 
     # dt_ref = 4e-4
     # dts = (2.0 ** np.arange(7, 1, -1)) * dt_ref  # [5.12e-2, ..., 1.6e-3]
@@ -415,6 +466,7 @@ def convergence():
     # dts = (2.0 ** np.arange(10, 1, -1)) * dt_ref  # [5.12e-2, ..., 2e-4]
     # t1 = (2.0**17) * dt_ref # 6.5536s
 
+    # # TODO:
     # # Final version used by Martin
     # dt_ref = 2.5e-5
     # dts = (2.0 ** np.arange(11, 1, -1)) * dt_ref  # [5.12e-2, ..., 1e-4]
@@ -617,8 +669,8 @@ def convergence():
 
         plt.show()
 
-    def errors(sol, sol_ref, t_transient=4, t_longterm=4):
-        # def errors(sol, sol_ref, t_transient=2, t_longterm=2):
+    def errors(sol, sol_ref, t_transient=2, t_longterm=2):
+        # def errors(sol, sol_ref, t_transient=4, t_longterm=4):
         t = sol.t
         q = sol.q
         u = sol.u
