@@ -1,6 +1,7 @@
 import numpy as np
 import meshio
 from scipy.sparse.linalg import spsolve
+from numpy.polynomial import Polynomial
 
 # from cardillo.discretization.mesh1D import mesh1D
 from cardillo.discretization.indexing import flat2D, flat3D, split2D, split3D
@@ -970,7 +971,9 @@ def test_Knot_vector():
     U = BSplineKnotVector(degree, nel)
     print(f"U.data: {U.data}")
 
-    U = BSplineKnotVector(degree, nel, data=np.array([0, 0, 0, 0.25, 0.5, 0.5, 1, 1, 1]))
+    U = BSplineKnotVector(
+        degree, nel, data=np.array([0, 0, 0, 0.25, 0.5, 0.5, 1, 1, 1])
+    )
     print(f"U.data: {U.data}")
     print(f"U.element_data: {U.element_data}")
 

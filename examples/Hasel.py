@@ -1285,8 +1285,8 @@ def cable_straight(case="cable"):
     animate_rope(t, q, [rope], L, show=True)
 
 
-def cable_straight_inflated(case="rope"):
-    # def cable_straight_inflated(case="cable"):
+# def cable_straight_inflated(case="rope"):
+def cable_straight_inflated(case="cable"):
     # statics or dynamics?
     statics = True
     # statics = False
@@ -1306,10 +1306,10 @@ def cable_straight_inflated(case="rope"):
 
     # discretization properties
     nelements = 3
-    polynomial_degree = 2
-    basis = "Lagrange"
-    # polynomial_degree = 3
-    # basis = "B-spline"
+    # polynomial_degree = 2
+    # basis = "Lagrange"
+    polynomial_degree = 3
+    basis = "B-spline"
     # polynomial_degree = 3
     # basis = "Hermite"
 
@@ -1694,5 +1694,5 @@ if __name__ == "__main__":
     # inflated_quarter_circle_external_force()
     # inflated_circular_segment()
     # cable_straight()
-    # cable_straight_inflated()
-    cable_inflated_circular_segment()
+    cable_straight_inflated()
+    # cable_inflated_circular_segment()

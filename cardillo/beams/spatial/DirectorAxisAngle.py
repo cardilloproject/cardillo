@@ -14,6 +14,7 @@ from cardillo.math import (
     tangent_map_s,
     trace3,
     LeviCivita,
+    e1,
 )
 
 # for smaller angles we use first order approximations of the equations since
@@ -236,7 +237,8 @@ class DirectorAxisAngle:
 
         p = max(polynomial_degree_r, polynomial_degree_psi)
         # self.nquadrature = nquadrature = int(np.ceil((p + 1) ** 2 / 2))
-        self.nquadrature = nquadrature = p + 1
+        self.nquadrature = nquadrature = p
+        # self.nquadrature = nquadrature = p + 1
         self.nelement = nelement
 
         # chose basis functions
@@ -248,59 +250,76 @@ class DirectorAxisAngle:
         elif basis_r == "B-spline":
             self.knot_vector_r = BSplineKnotVector(polynomial_degree_r, nelement)
         elif basis_r == "Hermite":
-            assert polynomial_degree_r == 3, "only cubic Hermite splines are implemented!"
+            assert (
+                polynomial_degree_r == 3
+            ), "only cubic Hermite splines are implemented!"
             self.knot_vector_r = HermiteNodeVector(polynomial_degree_r, nelement)
         else:
             raise RuntimeError(f'wrong basis_r: "{basis_r}" was chosen')
 
-        self.knot_vector_r = LagrangeKnotVector(self.polynomial_degree_r, nelement)
-        self.node_vector_psi = LagrangeKnotVector(self.polynomial_degree_r, nelement)
+        if basis_psi == "Lagrange":
+            self.knot_vector_psi = LagrangeKnotVector(polynomial_degree_psi, nelement)
+        elif basis_psi == "B-spline":
+            self.knot_vector_psi = BSplineKnotVector(polynomial_degree_psi, nelement)
+        elif basis_psi == "Hermite":
+            assert (
+                polynomial_degree_psi == 3
+            ), "only cubic Hermite splines are implemented!"
+            self.knot_vector_psi = HermiteNodeVector(polynomial_degree_psi, nelement)
+        else:
+            raise RuntimeError(f'wrong basis_psi: "{basis_psi}" was chosen')
 
-        # build mesh object
-        self.mesh = Mesh1D(
+        # build mesh objects
+        self.mesh_r = Mesh1D(
             self.knot_vector_r,
             nquadrature,
             dim_q=3,
             derivative_order=1,
-            basis="Lagrange",
+            basis=basis_r,
+            quadrature="Gauss",
+        )
+
+        self.mesh_psi = Mesh1D(
+            self.knot_vector_psi,
+            nquadrature,
+            dim_q=3,
+            derivative_order=1,
+            basis=basis_psi,
             quadrature="Gauss",
         )
 
         # total number of nodes
-        self.nnode = self.mesh.nnodes
+        self.nnodes_r = self.mesh_r.nnodes
+        self.nnodes_psi = self.mesh_psi.nnodes
 
         # number of nodes per element
-        self.nnodes_element = self.mesh.nnodes_per_element
+        self.nnodes_element_r = self.mesh_r.nnodes_per_element
+        self.nnodes_element_psi = self.mesh_psi.nnodes_per_element
 
         # total number of generalized coordinates and velocities
-        self.nq_r = self.nu_r = self.mesh.nq
-        self.nq_psi = self.nu_psi = self.mesh.nq
+        self.nq_r = self.nu_r = self.mesh_r.nq
+        self.nq_psi = self.nu_psi = self.mesh_psi.nq
         self.nq = self.nu = self.nq_r + self.nq_psi
 
         # number of generalized coordiantes and velocities per element
-        self.nq_element_r = self.nu_element_r = self.mesh.nq_per_element
-        self.nq_element_psi = self.nu_element_psi = self.mesh.nq_per_element
+        self.nq_element_r = self.nu_element_r = self.mesh_r.nq_per_element
+        self.nq_element_psi = self.nu_element_psi = self.mesh_psi.nq_per_element
         self.nq_element = self.nu_element = self.nq_element_r + self.nq_element_psi
 
         # global element connectivity
-        self.elDOF_r = self.mesh.elDOF
-        self.elDOF_psi = self.mesh.elDOF + self.nq_r
+        self.elDOF_r = self.mesh_r.elDOF
+        self.elDOF_psi = self.mesh_psi.elDOF + self.nq_r
         # qe = q[elDOF[e]] "q^e = C_e,q q"
 
         # global nodal
-        self.nodalDOF_r = self.mesh.nodalDOF
-        self.nodalDOF_psi = self.mesh.nodalDOF + self.nq_r
+        self.nodalDOF_r = self.mesh_r.nodalDOF
+        self.nodalDOF_psi = self.mesh_psi.nodalDOF + self.nq_r
 
         # nodal connectivity on element level
-        self.nodalDOF_element_r = self.mesh.nodalDOF_element
-        self.nodalDOF_element_psi = self.mesh.nodalDOF_element + self.nq_element_r
+        self.nodalDOF_element_r = self.mesh_r.nodalDOF_element
+        self.nodalDOF_element_psi = self.mesh_psi.nodalDOF_element + self.nq_element_r
         # r_OP_i^e = C_r,i^e * C_e,q q = C_r,i^e * q^e
         # r_OPi = qe[nodelDOF_element_r[i]]
-
-        self.nodalDOF_element = np.zeros((self.nnodes_element, 6), dtype=int)
-        for node in range(self.nnodes_element):
-            self.nodalDOF_element[node, :3] = self.nodalDOF_element_r[node]
-            self.nodalDOF_element[node, 3:] = self.nodalDOF_element_psi[node]
 
         # build global elDOF connectivity matrix
         self.elDOF = np.zeros((nelement, self.nq_element), dtype=int)
@@ -309,12 +328,14 @@ class DirectorAxisAngle:
             self.elDOF[el, self.nq_element_r :] = self.elDOF_psi[el]
 
         # shape functions and their first derivatives
-        self.N = self.mesh.N
-        self.N_xi = self.mesh.N_xi
+        self.N_r = self.mesh_r.N
+        self.N_r_xi = self.mesh_r.N_xi
+        self.N_psi = self.mesh_psi.N
+        self.N_psi_xi = self.mesh_psi.N_xi
 
         # quadrature points
-        self.qp = self.mesh.qp  # quadrature points
-        self.qw = self.mesh.wp  # quadrature weights
+        self.qp = self.mesh_r.qp  # quadrature points
+        self.qw = self.mesh_r.wp  # quadrature weights
 
         # reference generalized coordinates, initial coordinates and initial velocities
         self.Q = Q
@@ -322,7 +343,8 @@ class DirectorAxisAngle:
         self.u0 = np.zeros(self.nu, dtype=float) if u0 is None else u0
 
         # evaluate shape functions at specific xi
-        self.basis_functions = self.mesh.eval_basis
+        self.basis_functions_r = self.mesh_r.eval_basis
+        self.basis_functions_psi = self.mesh_psi.eval_basis
 
         # reference generalized coordinates, initial coordinates and initial velocities
         self.Q = Q  # reference configuration
@@ -343,18 +365,20 @@ class DirectorAxisAngle:
             qe = self.Q[self.elDOF[el]]
 
             for i in range(nquadrature):
-                # interpolate tangent vector, transformation matrix and its derivative
+                # interpolate tangent vector
                 r_OP_xi = np.zeros(3, dtype=float)
-                A_IK = np.zeros((3, 3), dtype=float)
-                A_IK_xi = np.zeros((3, 3), dtype=float)
-                for node in range(self.nnodes_element):
+                for node in range(self.nnodes_element_r):
                     r_OP_xi += (
-                        self.N_xi[el, i, node] * qe[self.nodalDOF_element_r[node]]
+                        self.N_r_xi[el, i, node] * qe[self.nodalDOF_element_r[node]]
                     )
 
+                # interpoalte transformation matrix and its derivative
+                A_IK = np.zeros((3, 3), dtype=float)
+                A_IK_xi = np.zeros((3, 3), dtype=float)
+                for node in range(self.nnodes_element_psi):
                     A_IK_node = Exp_SO3(qe[self.nodalDOF_element_psi[node]])
-                    A_IK += self.N[el, i, node] * A_IK_node
-                    A_IK_xi += self.N_xi[el, i, node] * A_IK_node
+                    A_IK += self.N_psi[el, i, node] * A_IK_node
+                    A_IK_xi += self.N_psi_xi[el, i, node] * A_IK_node
 
                 # length of reference tangential vector
                 J = norm(r_OP_xi)
@@ -386,30 +410,67 @@ class DirectorAxisAngle:
 
     @staticmethod
     def straight_configuration(
-        polynomial_degree,
+        polynomial_degree_r,
+        polynomial_degree_psi,
+        basis_r,
+        basis_psi,
         nelement,
         L,
         r_OP=np.zeros(3, dtype=float),
         A_IK=np.eye(3, dtype=float),
     ):
-        nn_r = polynomial_degree * nelement + 1
-        nn_psi = polynomial_degree * nelement + 1
+        if basis_r == "Lagrange":
+            nnodes_r = polynomial_degree_r * nelement + 1
+        elif basis_r == "B-spline":
+            nnodes_r = polynomial_degree_r + nelement
+        elif basis_r == "Hermite":
+            # nnodes_r = 2 * (nelement + 1)
+            nnodes_r = nelement + 1
+        else:
+            raise RuntimeError(f'wrong basis_r: "{basis_r}" was chosen')
 
-        x0 = np.linspace(0, L, num=nn_r)
-        y0 = np.zeros(nn_r, dtype=float)
-        z0 = np.zeros(nn_r, dtype=float)
+        if basis_psi == "Lagrange":
+            nnodes_psi = polynomial_degree_psi * nelement + 1
+        elif basis_psi == "B-spline":
+            nnodes_psi = polynomial_degree_psi + nelement
+        elif basis_psi == "Hermite":
+            # nnodes_psi = 2 * (nelement + 1)
+            nnodes_psi = nelement + 1
+        else:
+            raise RuntimeError(f'wrong basis_psi: "{basis_psi}" was chosen')
 
-        r0 = np.vstack((x0, y0, z0))
-        for i in range(nn_r):
-            r0[:, i] = r_OP + A_IK @ r0[:, i]
+        if basis_r == "B-spline":
+            x0 = np.linspace(0, L, num=nnodes_r)
+            y0 = np.zeros(nnodes_r)
+            z0 = np.zeros(nnodes_r)
+            # build Greville abscissae for B-spline basis
+            kv = BSplineKnotVector.uniform(polynomial_degree_r, nelement)
+            for i in range(nnodes_r):
+                x0[i] = np.sum(kv[i + 1 : i + polynomial_degree_r + 1])
+            x0 = x0 * L / polynomial_degree_r
+
+            r0 = np.vstack((x0, y0, z0))
+            for i in range(polynomial_degree_r):
+                r0[:, i] = r_OP + A_IK @ r0[:, i]
+
+        elif basis_r == "Hermite":
+            xis = np.linspace(0, 1, num=nnodes_r)
+            r0 = np.zeros((6, nnodes_r))
+            t0 = A_IK @ (L * e1)
+            for i, xi in enumerate(xis):
+                ri = r_OP + xi * t0
+                r0[:3, i] = ri
+                r0[3:, i] = t0
 
         # reshape generalized coordinates to nodal ordering
         q_r = r0.reshape(-1, order="F")
 
         # we have to extract the rotation vector from the given rotation matrix
         # and set its value for each node
+        if basis_psi == "Hermite":
+            raise NotImplementedError
         psi = Log_SO3(A_IK)
-        q_psi = np.tile(psi, nn_psi)
+        q_psi = np.tile(psi, nnodes_psi)
 
         return np.concatenate([q_r, q_psi])
 
@@ -423,6 +484,7 @@ class DirectorAxisAngle:
         v_P0=np.zeros(3, dtype=float),
         K_omega_IK0=np.zeros(3, dtype=float),
     ):
+        raise NotImplementedError
         nn_r = polynomial_degree * nelement + 1
         nn_psi = polynomial_degree * nelement + 1
 
@@ -460,6 +522,7 @@ class DirectorAxisAngle:
         polynomial_degree,
         nelement,
     ):
+        raise NotImplementedError
         # number of sample points
         n_samples = len(A_IKs)
 
@@ -606,50 +669,6 @@ class DirectorAxisAngle:
         if self.constant_mass_matrix:
             self.__M_coo()
 
-    # def M_el_constant(self, el):
-    #     M_el = np.zeros((self.nq_element, self.nq_element), dtype=float)
-
-    #     # use higher order quadrature for mass matrix
-    #     nquadrature = int(np.ceil((self.polynomial_degree + 1) ** 2 / 2))
-    #     Xi_element_interval = self.node_vector.element_interval(el)
-    #     qp, qw = gauss(nquadrature, interval=Xi_element_interval)
-
-    #     # reference generalized coordinates
-    #     Qe = self.Q[self.elDOF[el]]
-
-    #     for i in range(nquadrature):
-    #         # evaluate basis functions
-    #         N, N_xi = self.basis_functions(qp[i])
-
-    #         # interpolate reference tangent vector
-    #         r0_xi = np.zeros(3, dtype=float)
-    #         for node in range(self.nnodes_element):
-    #             r0_xi += N_xi * Qe[self.nodalDOF_element_r[node]]
-
-    #         Ji = norm(r0_xi)
-
-    #         # delta_r A_rho0 r_ddot part
-    #         M_el_r_r = np.eye(3) * self.A_rho0 * Ji * qw[i]
-    #         for node_a in range(self.nnodes_element):
-    #             nodalDOF_a = self.nodalDOF_element_r[node_a]
-    #             for node_b in range(self.nnodes_element):
-    #                 nodalDOF_b = self.nodalDOF_element_r[node_b]
-    #                 M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_r_r * (
-    #                     N[node_a] * N[node_b]
-    #                 )
-
-    #         # first part delta_phi (I_rho0 omega_dot + omega_tilde I_rho0 omega)
-    #         M_el_psi_psi = self.K_I_rho0 * Ji * qw[i]
-    #         for node_a in range(self.nnodes_element):
-    #             nodalDOF_a = self.nodalDOF_element_psi[node_a]
-    #             for node_b in range(self.nnodes_element):
-    #                 nodalDOF_b = self.nodalDOF_element_psi[node_b]
-    #                 M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_psi_psi * (
-    #                     N[node_a] * N[node_b]
-    #                 )
-
-    #     return M_el
-
     def M_el_constant(self, el):
         M_el = np.zeros((self.nq_element, self.nq_element), dtype=float)
 
@@ -660,22 +679,22 @@ class DirectorAxisAngle:
 
             # delta_r A_rho0 r_ddot part
             M_el_r_r = np.eye(3) * self.A_rho0 * Ji * qwi
-            for node_a in range(self.nnodes_element):
+            for node_a in range(self.nnodes_element_r):
                 nodalDOF_a = self.nodalDOF_element_r[node_a]
-                for node_b in range(self.nnodes_element):
+                for node_b in range(self.nnodes_element_r):
                     nodalDOF_b = self.nodalDOF_element_r[node_b]
                     M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_r_r * (
-                        self.N[el, i, node_a] * self.N[el, i, node_b]
+                        self.N_r[el, i, node_a] * self.N_r[el, i, node_b]
                     )
 
             # first part delta_phi (I_rho0 omega_dot + omega_tilde I_rho0 omega)
             M_el_psi_psi = self.K_I_rho0 * Ji * qwi
-            for node_a in range(self.nnodes_element):
+            for node_a in range(self.nnodes_element_psi):
                 nodalDOF_a = self.nodalDOF_element_psi[node_a]
-                for node_b in range(self.nnodes_element):
+                for node_b in range(self.nnodes_element_psi):
                     nodalDOF_b = self.nodalDOF_element_psi[node_b]
                     M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_psi_psi * (
-                        self.N[el, i, node_a] * self.N[el, i, node_b]
+                        self.N_psi[el, i, node_a] * self.N_psi[el, i, node_b]
                     )
 
         return M_el
@@ -690,22 +709,22 @@ class DirectorAxisAngle:
 
             # delta_r A_rho0 r_ddot part
             M_el_r_r = np.eye(3) * self.A_rho0 * Ji * qwi
-            for node_a in range(self.nnodes_element):
+            for node_a in range(self.nnodes_element_r):
                 nodalDOF_a = self.nodalDOF_element_r[node_a]
-                for node_b in range(self.nnodes_element):
+                for node_b in range(self.nnodes_element_r):
                     nodalDOF_b = self.nodalDOF_element_r[node_b]
                     M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_r_r * (
-                        self.N[el, i, node_a] * self.N[el, i, node_b]
+                        self.N_r[el, i, node_a] * self.N_r[el, i, node_b]
                     )
 
             # first part delta_phi (I_rho0 omega_dot + omega_tilde I_rho0 omega)
             M_el_psi_psi = self.K_I_rho0 * Ji * qwi
-            for node_a in range(self.nnodes_element):
+            for node_a in range(self.nnodes_element_psi):
                 nodalDOF_a = self.nodalDOF_element_psi[node_a]
-                for node_b in range(self.nnodes_element):
+                for node_b in range(self.nnodes_element_psi):
                     nodalDOF_b = self.nodalDOF_element_psi[node_b]
                     M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_psi_psi * (
-                        self.N[el, i, node_a] * self.N[el, i, node_b]
+                        self.N_psi[el, i, node_a] * self.N_psi[el, i, node_b]
                     )
 
             # For non symmetric cross sections there are also other parts
@@ -715,19 +734,19 @@ class DirectorAxisAngle:
             M_el_r_psi = A_IK @ self.K_S_rho0 * Ji * qwi
             M_el_psi_r = A_IK @ self.K_S_rho0 * Ji * qwi
 
-            for node_a in range(self.nnodes_element):
+            for node_a in range(self.nnodes_element_r):
                 nodalDOF_a = self.nodalDOF_element_r[node_a]
-                for node_b in range(self.nnodes_element):
+                for node_b in range(self.nnodes_element_psi):
                     nodalDOF_b = self.nodalDOF_element_psi[node_b]
                     M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_r_psi * (
-                        self.N[el, i, node_a] * self.N[el, i, node_b]
+                        self.N_r[el, i, node_a] * self.N_psi[el, i, node_b]
                     )
-            for node_a in range(self.nnodes_element):
+            for node_a in range(self.nnodes_element_psi):
                 nodalDOF_a = self.nodalDOF_element_psi[node_a]
-                for node_b in range(self.nnodes_element):
+                for node_b in range(self.nnodes_element_r):
                     nodalDOF_b = self.nodalDOF_element_r[node_b]
                     M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_psi_r * (
-                        self.N[el, i, node_a] * self.N[el, i, node_b]
+                        self.N_psi[el, i, node_a] * self.N_r[el, i, node_b]
                     )
 
         return M_el
@@ -762,8 +781,8 @@ class DirectorAxisAngle:
         for i in range(self.nquadrature):
             # interpoalte angular velocity
             K_Omega = np.zeros(3, dtype=float)
-            for node in range(self.nnodes_element):
-                K_Omega += self.N[el, i, node] * ue[self.nodalDOF_element_psi[node]]
+            for node in range(self.nnodes_element_psi):
+                K_Omega += self.N_psi[el, i, node] * ue[self.nodalDOF_element_psi[node]]
 
             # vector of gyroscopic forces
             f_gyr_el_psi = (
@@ -773,9 +792,9 @@ class DirectorAxisAngle:
             )
 
             # multiply vector of gyroscopic forces with nodal virtual rotations
-            for node in range(self.nnodes_element):
+            for node in range(self.nnodes_element_psi):
                 f_gyr_el[self.nodalDOF_element_psi[node]] += (
-                    self.N[el, i, node] * f_gyr_el_psi
+                    self.N_psi[el, i, node] * f_gyr_el_psi
                 )
 
         return f_gyr_el
@@ -794,8 +813,8 @@ class DirectorAxisAngle:
         for i in range(self.nquadrature):
             # interpoalte angular velocity
             K_Omega = np.zeros(3, dtype=float)
-            for node in range(self.nnodes_element):
-                K_Omega += self.N[el, i, node] * ue[self.nodalDOF_element_psi[node]]
+            for node in range(self.nnodes_element_psi):
+                K_Omega += self.N_psi[el, i, node] * ue[self.nodalDOF_element_psi[node]]
 
             # derivative of vector of gyroscopic forces
             f_gyr_u_el_psi = (
@@ -805,12 +824,12 @@ class DirectorAxisAngle:
             )
 
             # multiply derivative of gyroscopic force vector with nodal virtual rotations
-            for node_a in range(self.nnodes_element):
+            for node_a in range(self.nnodes_element_psi):
                 nodalDOF_a = self.nodalDOF_element_psi[node_a]
-                for node_b in range(self.nnodes_element):
+                for node_b in range(self.nnodes_element_psi):
                     nodalDOF_b = self.nodalDOF_element_psi[node_b]
                     f_gyr_u_el[nodalDOF_a[:, None], nodalDOF_b] += f_gyr_u_el_psi * (
-                        self.N[el, i, node_a] * self.N[el, i, node_b]
+                        self.N_psi[el, i, node_a] * self.N_psi[el, i, node_b]
                     )
 
         return f_gyr_u_el
@@ -838,16 +857,18 @@ class DirectorAxisAngle:
             K_Gamma0 = self.K_Gamma0[el, i]
             K_Kappa0 = self.K_Kappa0[el, i]
 
-            # interpolate tangent vector, transformation matrix and its derivative
+            # interpolate tangent vector
             r_OP_xi = np.zeros(3, dtype=float)
+            for node in range(self.nnodes_element_r):
+                r_OP_xi += self.N_r_xi[el, i, node] * qe[self.nodalDOF_element_r[node]]
+
+            # interpolate transformation matrix and its derivative
             A_IK = np.zeros((3, 3), dtype=float)
             A_IK_xi = np.zeros((3, 3), dtype=float)
-            for node in range(self.nnodes_element):
-                r_OP_xi += self.N_xi[el, i, node] * qe[self.nodalDOF_element_r[node]]
-
+            for node in range(self.nnodes_element_psi):
                 A_IK_node = Exp_SO3(qe[self.nodalDOF_element_psi[node]])
-                A_IK += self.N[el, i, node] * A_IK_node
-                A_IK_xi += self.N_xi[el, i, node] * A_IK_node
+                A_IK += self.N_psi[el, i, node] * A_IK_node
+                A_IK_xi += self.N_psi_xi[el, i, node] * A_IK_node
 
             # axial and shear strains
             K_Gamma_bar = A_IK.T @ r_OP_xi
@@ -895,15 +916,18 @@ class DirectorAxisAngle:
             K_Gamma0 = self.K_Gamma0[el, i]
             K_Kappa0 = self.K_Kappa0[el, i]
 
-            # interpolate tangent vector, transformation matrix and its derivative
+            # interpolate tangent vector
             r_OP_xi = np.zeros(3, dtype=qe.dtype)
+            for node in range(self.nnodes_element_r):
+                r_OP_xi += self.N_r_xi[el, i, node] * qe[self.nodalDOF_element_r[node]]
+
+            # interpolate transformation matrix and its derivative
             A_IK = np.zeros((3, 3), dtype=qe.dtype)
             A_IK_xi = np.zeros((3, 3), dtype=qe.dtype)
-            for node in range(self.nnodes_element):
-                r_OP_xi += self.N_xi[el, i, node] * qe[self.nodalDOF_element_r[node]]
+            for node in range(self.nnodes_element_psi):
                 A_IK_node = Exp_SO3(qe[self.nodalDOF_element_psi[node]])
-                A_IK += self.N[el, i, node] * A_IK_node
-                A_IK_xi += self.N_xi[el, i, node] * A_IK_node
+                A_IK += self.N_psi[el, i, node] * A_IK_node
+                A_IK_xi += self.N_psi_xi[el, i, node] * A_IK_node
 
             # axial and shear strains
             K_Gamma_bar = A_IK.T @ r_OP_xi
@@ -933,17 +957,18 @@ class DirectorAxisAngle:
             ############################
             # virtual work contributions
             ############################
-            for node in range(self.nnodes_element):
+            for node in range(self.nnodes_element_r):
                 f_pot_el[self.nodalDOF_element_r[node]] -= (
-                    self.N_xi[el, i, node] * A_IK @ K_n * qwi
+                    self.N_r_xi[el, i, node] * A_IK @ K_n * qwi
                 )
 
+            for node in range(self.nnodes_element_psi):
                 f_pot_el[self.nodalDOF_element_psi[node]] -= (
-                    self.N_xi[el, i, node] * K_m * qwi
+                    self.N_psi_xi[el, i, node] * K_m * qwi
                 )
 
                 f_pot_el[self.nodalDOF_element_psi[node]] += (
-                    self.N[el, i, node]
+                    self.N_psi[el, i, node]
                     * (cross3(K_Gamma_bar, K_n) + cross3(K_Kappa_bar, K_m))
                     * qwi
                 )
@@ -968,29 +993,33 @@ class DirectorAxisAngle:
             K_Gamma0 = self.K_Gamma0[el, i]
             K_Kappa0 = self.K_Kappa0[el, i]
 
-            # interpolate tangent vector, transformation matrix and its derivative
+            # interpolate tangent vector
             r_OP_xi = np.zeros(3, dtype=qe.dtype)
             r_OP_xi_qe = np.zeros((3, self.nq_element), dtype=qe.dtype)
+            for node in range(self.nnodes_element_r):
+                nodalDOF_r = self.nodalDOF_element_r[node]
+                r_OP_xi += self.N_r_xi[el, i, node] * qe[nodalDOF_r]
+                r_OP_xi_qe[:, nodalDOF_r] += self.N_r_xi[el, i, node] * np.eye(
+                    3, dtype=float
+                )
+
+            # interpolate transformation matrix and its derivative
             A_IK = np.zeros((3, 3), dtype=qe.dtype)
             A_IK_xi = np.zeros((3, 3), dtype=qe.dtype)
             A_IK_qe = np.zeros((3, 3, self.nq_element), dtype=qe.dtype)
             A_IK_xi_qe = np.zeros((3, 3, self.nq_element), dtype=qe.dtype)
-            for node in range(self.nnodes_element):
-                nodalDOF_r = self.nodalDOF_element_r[node]
-                r_OP_xi += self.N_xi[el, i, node] * qe[nodalDOF_r]
-                r_OP_xi_qe[:, nodalDOF_r] += self.N_xi[el, i, node] * np.eye(
-                    3, dtype=float
-                )
-
+            for node in range(self.nnodes_element_psi):
                 nodalDOF_psi = self.nodalDOF_element_psi[node]
                 psi_node = qe[nodalDOF_psi]
                 A_IK_node = Exp_SO3(psi_node)
                 A_IK_q_node = Exp_SO3_psi(psi_node)
 
-                A_IK += self.N[el, i, node] * A_IK_node
-                A_IK_xi += self.N_xi[el, i, node] * A_IK_node
-                A_IK_qe[:, :, nodalDOF_psi] += self.N[el, i, node] * A_IK_q_node
-                A_IK_xi_qe[:, :, nodalDOF_psi] += self.N_xi[el, i, node] * A_IK_q_node
+                A_IK += self.N_psi[el, i, node] * A_IK_node
+                A_IK_xi += self.N_psi_xi[el, i, node] * A_IK_node
+                A_IK_qe[:, :, nodalDOF_psi] += self.N_psi[el, i, node] * A_IK_q_node
+                A_IK_xi_qe[:, :, nodalDOF_psi] += (
+                    self.N_psi_xi[el, i, node] * A_IK_q_node
+                )
 
             # extract directors
             d1, d2, d3 = A_IK.T
@@ -1055,25 +1084,26 @@ class DirectorAxisAngle:
             ############################
             # virtual work contributions
             ############################
-            for node in range(self.nnodes_element):
+            for node in range(self.nnodes_element_r):
                 f_pot_q_el[self.nodalDOF_element_r[node], :] -= (
-                    self.N_xi[el, i, node]
+                    self.N_r_xi[el, i, node]
                     * qwi
                     * (np.einsum("ikj,k->ij", A_IK_qe, K_n) + A_IK @ K_n_qe)
                 )
 
+            for node in range(self.nnodes_element_psi):
                 f_pot_q_el[self.nodalDOF_element_psi[node], :] += (
-                    self.N[el, i, node]
+                    self.N_psi[el, i, node]
                     * qwi
                     * (ax2skew(K_Gamma_bar) @ K_n_qe - ax2skew(K_n) @ K_Gamma_bar_qe)
                 )
 
                 f_pot_q_el[self.nodalDOF_element_psi[node], :] -= (
-                    self.N_xi[el, i, node] * qwi * K_m_qe
+                    self.N_psi_xi[el, i, node] * qwi * K_m_qe
                 )
 
                 f_pot_q_el[self.nodalDOF_element_psi[node], :] += (
-                    self.N[el, i, node]
+                    self.N_psi[el, i, node]
                     * qwi
                     * (ax2skew(K_Kappa_bar) @ K_m_qe - ax2skew(K_m) @ K_Kappa_bar_qe)
                 )
@@ -1099,7 +1129,7 @@ class DirectorAxisAngle:
         q_dot = u
 
         # correct axis angle vector part
-        for node in range(self.nnode):
+        for node in range(self.nnodes_psi):
             nodalDOF_psi = self.nodalDOF_psi[node]
             psi = q[nodalDOF_psi]
             K_omega_IK = u[nodalDOF_psi]
@@ -1116,7 +1146,7 @@ class DirectorAxisAngle:
         )
 
         # axis angle vector part
-        for node in range(self.nnode):
+        for node in range(self.nnodes_psi):
             nodalDOF_psi = self.nodalDOF_psi[node]
 
             psi = q[nodalDOF_psi]
@@ -1130,7 +1160,7 @@ class DirectorAxisAngle:
         q_ddot = u_dot
 
         # correct axis angle vector part
-        for node in range(self.nnode):
+        for node in range(self.nnodes_psi):
             nodalDOF_psi = self.nodalDOF_psi[node]
 
             psi = q[nodalDOF_psi]
@@ -1171,7 +1201,7 @@ class DirectorAxisAngle:
             return psi_C
 
     def step_callback(self, t, q, u):
-        for node in range(self.nnode):
+        for node in range(self.nnodes_psi):
             psi = q[self.nodalDOF_psi[node]]
             q[self.nodalDOF_psi[node]] = DirectorAxisAngle.psi_C(psi)
         return q, u
@@ -1195,33 +1225,40 @@ class DirectorAxisAngle:
     ###################
     def r_OP(self, t, q, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
         # evaluate shape functions
-        N, _ = self.basis_functions(frame_ID[0])
+        N_r, _ = self.basis_functions_r(frame_ID[0])
+        N_psi, _ = self.basis_functions_psi(frame_ID[0])
 
-        # interpolate centerline position and orientation
+        # interpolate centerline
         r = np.zeros(3, dtype=q.dtype)
+        for node in range(self.nnodes_element_r):
+            r += N_r[node] * q[self.nodalDOF_element_r[node]]
+
+        # interpolate orientation
         A_IK = np.zeros((3, 3), dtype=q.dtype)
-        for node in range(self.nnodes_element):
-            r += N[node] * q[self.nodalDOF_element_r[node]]
-            A_IK += N[node] * Exp_SO3(q[self.nodalDOF_element_psi[node]])
+        for node in range(self.nnodes_element_psi):
+            A_IK += N_psi[node] * Exp_SO3(q[self.nodalDOF_element_psi[node]])
 
         return r + A_IK @ K_r_SP
 
     def r_OP_q(self, t, q, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
         # evaluate shape functions
-        N, _ = self.basis_functions(frame_ID[0])
+        N_r, _ = self.basis_functions_r(frame_ID[0])
+        N_psi, _ = self.basis_functions_psi(frame_ID[0])
 
-        # interpolate centerline position and orientation
+        # interpolate centerline position
         r_q = np.zeros((3, self.nq_element), dtype=q.dtype)
+        for node in range(self.nnodes_element_r):
+            nodalDOF_r = self.nodalDOF_element_r[node]
+            r_q[:, nodalDOF_r] += N_r[node] * np.eye(3, dtype=float)
+
+        # interpolate orientation
         A_IK = np.zeros((3, 3), dtype=q.dtype)
         A_IK_q = np.zeros((3, 3, self.nq_element), dtype=q.dtype)
-        for node in range(self.nnodes_element):
-            nodalDOF_r = self.nodalDOF_element_r[node]
-            r_q[:, nodalDOF_r] += N[node] * np.eye(3, dtype=float)
-
+        for node in range(self.nnodes_element_psi):
             nodalDOF_psi = self.nodalDOF_element_psi[node]
             psi_node = q[nodalDOF_psi]
-            A_IK += N[node] * Exp_SO3(psi_node)
-            A_IK_q[:, :, nodalDOF_psi] += N[node] * Exp_SO3_psi(psi_node)
+            A_IK += N_psi[node] * Exp_SO3(psi_node)
+            A_IK_q[:, :, nodalDOF_psi] += N_psi[node] * Exp_SO3_psi(psi_node)
 
         r_OP_q = r_q + np.einsum("k,kij", K_r_SP, A_IK_q)
         return r_OP_q
@@ -1236,24 +1273,24 @@ class DirectorAxisAngle:
 
     def A_IK(self, t, q, frame_ID):
         # evaluate shape functions
-        N, _ = self.basis_functions(frame_ID[0])
+        N_psi, _ = self.basis_functions_psi(frame_ID[0])
 
         # interpolate orientation
         A_IK = np.zeros((3, 3), dtype=q.dtype)
-        for node in range(self.nnodes_element):
-            A_IK += N[node] * Exp_SO3(q[self.nodalDOF_element_psi[node]])
+        for node in range(self.nnodes_element_psi):
+            A_IK += N_psi[node] * Exp_SO3(q[self.nodalDOF_element_psi[node]])
 
         return A_IK
 
     def A_IK_q(self, t, q, frame_ID):
         # evaluate shape functions
-        N, _ = self.basis_functions(frame_ID[0])
+        N_psi, _ = self.basis_functions_psi(frame_ID[0])
 
         # interpolate centerline position and orientation
         A_IK_q = np.zeros((3, 3, self.nq_element), dtype=q.dtype)
-        for node in range(self.nnodes_element):
+        for node in range(self.nnodes_element_psi):
             nodalDOF_psi = self.nodalDOF_element_psi[node]
-            A_IK_q[:, :, nodalDOF_psi] += N[node] * Exp_SO3_psi(q[nodalDOF_psi])
+            A_IK_q[:, :, nodalDOF_psi] += N_psi[node] * Exp_SO3_psi(q[nodalDOF_psi])
 
         return A_IK_q
 
@@ -1265,23 +1302,24 @@ class DirectorAxisAngle:
         # print(f"error A_IK_q: {error}")
         # return A_IK_q_num
 
-    def v_P(self, t, q, u, frame_ID, K_r_SP=np.zeros(3), dtype=float):
-        N, _ = self.basis_functions(frame_ID[0])
+    def v_P(self, t, q, u, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
+        N_r, _ = self.basis_functions_r(frame_ID[0])
+        N_psi, _ = self.basis_functions_psi(frame_ID[0])
 
         # interpolate orientation
         A_IK = np.zeros((3, 3), dtype=q.dtype)
-        for node in range(self.nnodes_element):
-            A_IK += N[node] * Exp_SO3(q[self.nodalDOF_element_psi[node]])
+        for node in range(self.nnodes_element_psi):
+            A_IK += N_psi[node] * Exp_SO3(q[self.nodalDOF_element_psi[node]])
 
         # angular velocity in K-frame
         K_Omega = np.zeros(3, dtype=float)
-        for node in range(self.nnodes_element):
-            K_Omega += N[node] * u[self.nodalDOF_element_psi[node]]
+        for node in range(self.nnodes_element_psi):
+            K_Omega += N_psi[node] * u[self.nodalDOF_element_psi[node]]
 
         # centerline velocity
         v = np.zeros(3, dtype=float)
-        for node in range(self.nnodes_element):
-            v += N[node] * u[self.nodalDOF_element_r[node]]
+        for node in range(self.nnodes_element_r):
+            v += N_r[node] * u[self.nodalDOF_element_r[node]]
 
         return v + A_IK @ cross3(K_Omega, K_r_SP)
 
@@ -1297,22 +1335,25 @@ class DirectorAxisAngle:
 
     def J_P(self, t, q, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
         # evaluate required nodal shape functions
-        N, _ = self.basis_functions(frame_ID[0])
+        N_r, _ = self.basis_functions_r(frame_ID[0])
+        N_psi, _ = self.basis_functions_psi(frame_ID[0])
 
         # interpolate orientation
         A_IK = np.zeros((3, 3), dtype=q.dtype)
-        for node in range(self.nnodes_element):
-            A_IK += N[node] * Exp_SO3(q[self.nodalDOF_element_psi[node]])
+        for node in range(self.nnodes_element_psi):
+            A_IK += N_psi[node] * Exp_SO3(q[self.nodalDOF_element_psi[node]])
 
         # skew symmetric matrix of K_r_SP
         K_r_SP_tilde = ax2skew(K_r_SP)
 
         # interpolate centerline and axis angle contributions
         J_P = np.zeros((3, self.nq_element), dtype=float)
-        for node in range(self.nnodes_element):
-            J_P[:, self.nodalDOF_element_r[node]] += N[node] * np.eye(3, dtype=q.dtype)
-        for node in range(self.nnodes_element):
-            J_P[:, self.nodalDOF_element_psi[node]] -= N[node] * A_IK @ K_r_SP_tilde
+        for node in range(self.nnodes_element_r):
+            J_P[:, self.nodalDOF_element_r[node]] += N_r[node] * np.eye(
+                3, dtype=q.dtype
+            )
+        for node in range(self.nnodes_element_psi):
+            J_P[:, self.nodalDOF_element_psi[node]] -= N_psi[node] * A_IK @ K_r_SP_tilde
 
         return J_P
 
@@ -1328,7 +1369,7 @@ class DirectorAxisAngle:
     # TODO:
     def J_P_q(self, t, q, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
         # evaluate required nodal shape functions
-        N, _ = self.basis_functions(frame_ID[0])
+        N_psi, _ = self.basis_functions_psi(frame_ID[0])
 
         K_r_SP_tilde = ax2skew(K_r_SP)
         A_IK_q = self.A_IK_q(t, q, frame_ID)
@@ -1337,9 +1378,9 @@ class DirectorAxisAngle:
         # interpolate axis angle contributions since centerline contributon is
         # zero
         J_P_q = np.zeros((3, self.nq_element, self.nq_element), dtype=float)
-        for node in range(self.nnodes_element):
+        for node in range(self.nnodes_element_psi):
             nodalDOF_psi = self.nodalDOF_element_psi[node]
-            J_P_q[:, nodalDOF_psi] -= N[node] * prod
+            J_P_q[:, nodalDOF_psi] -= N_psi[node] * prod
 
         return J_P_q
 
@@ -1352,17 +1393,18 @@ class DirectorAxisAngle:
         # return J_P_q_num
 
     def a_P(self, t, q, u, u_dot, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
-        N, _ = self.basis_functions(frame_ID[0])
+        N_r, _ = self.basis_functions_r(frame_ID[0])
+        N_psi, _ = self.basis_functions_psi(frame_ID[0])
 
         # interpolate orientation
         A_IK = np.zeros((3, 3), dtype=q.dtype)
-        for node in range(self.nnodes_element):
-            A_IK += N[node] * Exp_SO3(q[self.nodalDOF_element_psi[node]])
+        for node in range(self.nnodes_element_psi):
+            A_IK += N_psi[node] * Exp_SO3(q[self.nodalDOF_element_psi[node]])
 
         # centerline acceleration
         a = np.zeros(3, dtype=float)
-        for node in range(self.nnodes_element):
-            a += N[node] * u_dot[self.nodalDOF_element_r[node]]
+        for node in range(self.nnodes_element_r):
+            a += N_r[node] * u_dot[self.nodalDOF_element_r[node]]
 
         # angular velocity and acceleration in K-frame
         K_Omega = self.K_Omega(t, q, u, frame_ID)
@@ -1401,9 +1443,9 @@ class DirectorAxisAngle:
             ax2skew(cross3(K_Omega, K_r_SP)) + ax2skew(K_Omega) @ ax2skew(K_r_SP)
         )
 
-        N, _ = self.basis_functions(frame_ID[0])
+        N, _ = self.basis_functions_r(frame_ID[0])
         a_P_u = np.zeros((3, self.nq_element), dtype=float)
-        for node in range(self.nnodes_element):
+        for node in range(self.nnodes_element_r):
             a_P_u[:, self.nodalDOF_element_psi[node]] += N[node] * local
 
         # return a_P_u
@@ -1420,20 +1462,20 @@ class DirectorAxisAngle:
         """Since we use Petrov-Galerkin method we only interpoalte the nodal
         angular velocities in the K-frame.
         """
-        N, _ = self.basis_functions(frame_ID[0])
+        N_psi, _ = self.basis_functions_psi(frame_ID[0])
         K_Omega = np.zeros(3, dtype=float)
-        for node in range(self.nnodes_element):
-            K_Omega += N[node] * u[self.nodalDOF_element_psi[node]]
+        for node in range(self.nnodes_element_psi):
+            K_Omega += N_psi[node] * u[self.nodalDOF_element_psi[node]]
         return K_Omega
 
     def K_Omega_q(self, t, q, u, frame_ID):
         return np.zeros((3, self.nq_element), dtype=float)
 
     def K_J_R(self, t, q, frame_ID):
-        N, _ = self.basis_functions(frame_ID[0])
+        N_psi, _ = self.basis_functions_psi(frame_ID[0])
         K_J_R = np.zeros((3, self.nq_element), dtype=float)
-        for node in range(self.nnodes_element):
-            K_J_R[:, self.nodalDOF_element_psi[node]] += N[node] * np.eye(
+        for node in range(self.nnodes_element_psi):
+            K_J_R[:, self.nodalDOF_element_psi[node]] += N_psi[node] * np.eye(
                 3, dtype=float
             )
         return K_J_R
@@ -1445,10 +1487,10 @@ class DirectorAxisAngle:
         """Since we use Petrov-Galerkin method we only interpoalte the nodal
         time derivative of the angular velocities in the K-frame.
         """
-        N, _ = self.basis_functions(frame_ID[0])
+        N_psi, _ = self.basis_functions_psi(frame_ID[0])
         K_Psi = np.zeros(3, dtype=float)
-        for node in range(self.nnodes_element):
-            K_Psi += N[node] * u_dot[self.nodalDOF_element_psi[node]]
+        for node in range(self.nnodes_element_psi):
+            K_Psi += N_psi[node] * u_dot[self.nodalDOF_element_psi[node]]
         return K_Psi
 
     def K_Psi_q(self, t, q, u, u_dot, frame_ID):
@@ -1469,8 +1511,8 @@ class DirectorAxisAngle:
 
             # interpolate centerline position
             r_C = np.zeros(3, dtype=float)
-            for node in range(self.nnodes_element):
-                r_C += self.N[el, i, node] * qe[self.nodalDOF_element_r[node]]
+            for node in range(self.nnodes_element_r):
+                r_C += self.N_r[el, i, node] * qe[self.nodalDOF_element_r[node]]
 
             # compute potential value at given quadrature point
             Ve += (r_C @ force(t, qwi)) * Ji * qwi
@@ -1495,8 +1537,8 @@ class DirectorAxisAngle:
             fe_r = force(t, qwi) * Ji * qwi
 
             # multiply local force vector with variation of centerline
-            for node in range(self.nnodes_element):
-                fe[self.nodalDOF_element_r[node]] += self.N[el, i, node] * fe_r
+            for node in range(self.nnodes_element_r):
+                fe[self.nodalDOF_element_r[node]] += self.N_r[el, i, node] * fe_r
 
         return fe
 
