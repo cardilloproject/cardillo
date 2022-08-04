@@ -128,8 +128,8 @@ def state():
     # t1 = 2 * np.pi / np.abs(alpha_dot0) * 0.1
     t1 = 2 * np.pi / np.abs(alpha_dot0) * 1.0
     # dt = 5e-3
-    # dt = 2.5e-2  # used for GAMM with R = 10 * r
-    dt = 1.0e-2  # used for GAMM with R = 10 * r
+    dt = 2.5e-2
+    # dt = 1.0e-2  # used for GAMM with R = 10 * r
 
     # rho_inf = 0.96 # used for GAMM (high oszillations)
     rho_inf = 0.85  # used for GAMM (low oszillations)
@@ -140,7 +140,7 @@ def state():
     # # sol = GeneralizedAlphaFirstOrder(
     # #     model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=True
     # # ).solve()
-    sol = GeneralizedAlphaSecondOrder(model, t1, dt, rho_inf=rho_inf, tol=tol).solve()
+    sol = GeneralizedAlphaSecondOrder(model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=False).solve()
     # sol = GeneralizedAlphaSecondOrder(model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=True).solve()
 
     t = sol.t
@@ -446,9 +446,9 @@ def convergence():
     # dts = (2.0 ** np.arange(4, 1, -1)) * dt_ref  # [5.12e-2, ..., 1.28e-2]
     # t1 = (2.0**11) * dt_ref  # 6.5536s
 
-    dt_ref = 1.6e-3
-    dts = (2.0 ** np.arange(5, 1, -1)) * dt_ref  # [5.12e-2, ..., 6.4e-3]
-    t1 = (2.0**12) * dt_ref  # 6.5536s
+    # dt_ref = 1.6e-3
+    # dts = (2.0 ** np.arange(5, 1, -1)) * dt_ref  # [5.12e-2, ..., 6.4e-3]
+    # t1 = (2.0**12) * dt_ref  # 6.5536s
 
     # dt_ref = 8e-4
     # dts = (2.0 ** np.arange(6, 1, -1)) * dt_ref  # [5.12e-2, ..., 3.2e-3]
@@ -458,10 +458,17 @@ def convergence():
     # dts = (2.0 ** np.arange(7, 1, -1)) * dt_ref  # [5.12e-2, ..., 1.6e-3]
     # t1 = (2.0**14) * dt_ref # 6.5536s
 
-    # dt_ref = 2e-4
-    # dts = (2.0 ** np.arange(8, 1, -1)) * dt_ref  # [5.12e-2, ..., 8e-4]
-    # t1 = (2.0**15) * dt_ref # 6.5536s
+    # TODO: This is used for GAMM presentation!
+    dt_ref = 2e-4
+    dts = (2.0 ** np.arange(8, 1, -1)) * dt_ref  # [5.12e-2, ..., 8e-4]
+    t1 = (2.0**15) * dt_ref # 6.5536s
 
+    # # TODO: Why this setup gets killed!
+    # dt_ref = 1e-4
+    # dts = (2.0 ** np.arange(9, 1, -1)) * dt_ref  # [5.12e-2, ..., 4e-4]
+    # t1 = (2.0**16) * dt_ref  # 6.5536s
+
+    # # TODO: Why this setup gets killed!
     # dt_ref = 5e-5
     # dts = (2.0 ** np.arange(10, 1, -1)) * dt_ref  # [5.12e-2, ..., 2e-4]
     # t1 = (2.0**17) * dt_ref # 6.5536s
@@ -472,52 +479,11 @@ def convergence():
     # dts = (2.0 ** np.arange(11, 1, -1)) * dt_ref  # [5.12e-2, ..., 1e-4]
     # t1 = (2.0**18) * dt_ref # 6.5536s
 
-    #######################
-    # old stuff for 3.2768s
-    #######################
-    # dt_ref = 6.4e-3
-    # dts = (2.0 ** np.arange(3, 1, -1)) * dt_ref  # [5.12e-2, ..., 2.56e-2]
-    # t1 = (2.0**9) * dt_ref  # 3.2768s
-
-    # dt_ref = 3.2e-3
-    # dts = (2.0 ** np.arange(4, 1, -1)) * dt_ref  # [5.12e-2, ..., 1.28e-2]
-    # t1 = (2.0**10) * dt_ref  # 3.2768s
-
-    # dt_ref = 1.6e-3
-    # dts = (2.0 ** np.arange(5, 1, -1)) * dt_ref  # [5.12e-2, ..., 6.4e-3]
-    # t1 = (2.0**11) * dt_ref # 3.2768s
-
-    # dt_ref = 8e-4
-    # dts = (2.0 ** np.arange(6, 1, -1)) * dt_ref  # [5.12e-2, ..., 3.2e-3]
-    # t1 = (2.0**12) * dt_ref # 3.2768s
-
-    # dt_ref = 4e-4
-    # dts = (2.0 ** np.arange(7, 1, -1)) * dt_ref  # [5.12e-2, ..., 1.6e-3]
-    # t1 = (2.0**13) * dt_ref # 3.2768s
-
-    # dt_ref = 2e-4
-    # dts = (2.0 ** np.arange(8, 1, -1)) * dt_ref  # [5.12e-2, ..., 8e-4]
-    # t1 = (2.0**14) * dt_ref # 3.2768s
-
-    # dt_ref = 1e-4
-    # dts = (2.0 ** np.arange(9, 1, -1)) * dt_ref  # [5.12e-2, ..., 4e-4]
-    # t1 = (2.0**15) * dt_ref # 3.2768s
-
-    # dt_ref = 5e-5
-    # dts = (2.0 ** np.arange(10, 1, -1)) * dt_ref  # [5.12e-2, ..., 2e-4]
-    # t1 = (2.0**16) * dt_ref # 3.2768s
-
-    # Final version used by Martin
-    # dt_ref = 2.5e-5
-    # dts = (2.0 ** np.arange(11, 1, -1)) * dt_ref  # [5.12e-2, ..., 1e-4]
-    # t1 = (2.0**17) * dt_ref # 3.2768s
-
     dts_1 = dts
     dts_2 = dts**2
 
     print(f"t1: {t1}")
     print(f"dts: {dts}")
-    # exit()
 
     # errors for possible solvers
     q_errors_transient = np.inf * np.ones((3, len(dts)), dtype=float)

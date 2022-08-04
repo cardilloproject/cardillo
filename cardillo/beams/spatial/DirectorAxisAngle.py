@@ -1,9 +1,8 @@
 import numpy as np
 
 from cardillo.utility.coo import Coo
-from cardillo.discretization.lagrange import NodeVector, lagrange_basis1D
+from cardillo.discretization.lagrange import NodeVector
 from cardillo.discretization.mesh1D import Mesh1D
-from cardillo.discretization.gauss import gauss
 from cardillo.math import (
     pi,
     norm,
@@ -13,7 +12,6 @@ from cardillo.math import (
     tangent_map_s,
     trace3,
     LeviCivita,
-    det3D,
 )
 
 # for smaller angles we use first order approximations of the equations since
@@ -520,10 +518,12 @@ class DirectorAxisAngle:
 
                 # compute relative rotation vector
                 psi_rel_A_rel = Log_SO3_A(A_IKs[i].T @ A_IK)
-                psi_rel_qe = np.einsum("ikl,mk,mlj->ij", psi_rel_A_rel, A_IKs[i], A_IK_qe)
+                psi_rel_qe = np.einsum(
+                    "ikl,mk,mlj->ij", psi_rel_A_rel, A_IKs[i], A_IK_qe
+                )
 
                 # insert to residual
-                J[3 * i:3 * (i + 1), elDOF] = psi_rel_qe
+                J[3 * i : 3 * (i + 1), elDOF] = psi_rel_qe
 
                 # def psi_rel(qe):
                 #     # evaluate shape functions
@@ -556,8 +556,6 @@ class DirectorAxisAngle:
             jac=jacobian,
             verbose=2,
         )
-
-        print(f"")
 
         # def cost_function(q):
         #     R = residual(q)

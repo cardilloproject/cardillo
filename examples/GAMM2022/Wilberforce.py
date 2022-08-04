@@ -25,11 +25,11 @@ import os
 import matplotlib.pyplot as plt
 
 # c = 4.5e-3 # best eccentricity - n = 2
-# c = 6.5e-3  # best eccentricity - n = 10
-c = 7.25e-3  # best eccentricity - n = 20
+c = 6.5e-3  # best eccentricity - n = 10
+# c = 7.25e-3  # best eccentricity - n = 20
 
-# statics = True
-statics = False
+statics = True
+# statics = False
 
 axis_angle = True
 # axis_angle = False
@@ -245,8 +245,9 @@ if __name__ == "__main__":
     # turns = 10
     # turns = 20
 
+    nxi = 10 * turns
     # nxi = 10
-    nxi = 100
+    # nxi = 100
     # nxi = 500
     # nxi = 10000  # used in the paper
 
@@ -263,8 +264,9 @@ if __name__ == "__main__":
     # nEl_turn = 4
     # nEl_turn = 6
     # nEl_turn = 8
-    nEl_turn = 10
-    # nEl_turn = 12
+    # nEl_turn = 10
+    nEl_turn = 12
+    # nEl_turn = 20
 
     nEl = turns * nEl_turn
     print(f"nEl: {nEl}")
@@ -398,8 +400,8 @@ if __name__ == "__main__":
     atol = 1.0e-6
 
     # t1 = 5.0e-1
-    t1 = 1.5
-    # t1 = 2.5
+    # t1 = 1.5
+    t1 = 2.5
     # t1 = 5
     # t1 = 20 # used for the paper
     # dt = 1e-4 # used timestep for paper Harsch2021
@@ -413,7 +415,7 @@ if __name__ == "__main__":
 
     model.add(frame)
     model.add(beam)
-    # model.add(f_g_beam) # TODO: Enable this again?
+    model.add(f_g_beam) # TODO: Enable this again?
     model.add(junction_frame_beam)
 
     model.add(bob)
