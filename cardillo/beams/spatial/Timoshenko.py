@@ -5,8 +5,8 @@ from math import sin, cos, sqrt
 from cardillo.math.algebra import skew2ax
 
 from cardillo.utility.coo import Coo
-from cardillo.discretization.B_spline import KnotVector
-from cardillo.discretization.lagrange import NodeVector
+from cardillo.discretization.B_spline import BSplineKnotVector
+from cardillo.discretization.lagrange import LagrangeKnotVector
 from cardillo.discretization.Hermite import HermiteNodeVector
 from cardillo.discretization.mesh1D import Mesh1D
 from cardillo.math import norm, cross3, ax2skew, approx_fprime
@@ -271,13 +271,13 @@ class TimoshenkoQuarternionSE3:
 
         self.basis = basis
         if basis == "B-spline":
-            self.knot_vector_r = KnotVector(polynomial_degree_r, nelement)
-            self.knot_vector_psi = KnotVector(polynomial_degree_psi, nelement)
-            self.knot_vector_la = KnotVector(polynomial_degree_r, nelement)
+            self.knot_vector_r = BSplineKnotVector(polynomial_degree_r, nelement)
+            self.knot_vector_psi = BSplineKnotVector(polynomial_degree_psi, nelement)
+            self.knot_vector_la = BSplineKnotVector(polynomial_degree_r, nelement)
         elif basis == "Lagrange":
-            self.knot_vector_r = NodeVector(polynomial_degree_r, nelement)
-            self.knot_vector_psi = NodeVector(polynomial_degree_psi, nelement)
-            self.knot_vector_la = NodeVector(polynomial_degree_r, nelement)
+            self.knot_vector_r = LagrangeKnotVector(polynomial_degree_r, nelement)
+            self.knot_vector_psi = LagrangeKnotVector(polynomial_degree_psi, nelement)
+            self.knot_vector_la = LagrangeKnotVector(polynomial_degree_r, nelement)
             # self.knot_vector_la = Node_vector(0, nelement)
         else:
             raise RuntimeError(f'wrong basis: "{basis}" was chosen')
@@ -459,7 +459,7 @@ class TimoshenkoQuarternionSE3:
         y0 = np.zeros(nn_r, dtype=float)
         z0 = np.zeros(nn_r, dtype=float)
         if greville_abscissae and basis == "B-spline":
-            kv = KnotVector.uniform(polynomial_degree_r, nelement)
+            kv = BSplineKnotVector.uniform(polynomial_degree_r, nelement)
             for i in range(nn_r):
                 x0[i] = np.sum(kv[i + 1 : i + polynomial_degree_r + 1])
             x0 = x0 * L / polynomial_degree_r
@@ -505,7 +505,7 @@ class TimoshenkoQuarternionSE3:
         y0 = np.zeros(nn_r, dtype=float)
         z0 = np.zeros(nn_r, dtype=float)
         if greville_abscissae and basis == "B-spline":
-            kv = KnotVector.uniform(polynomial_degree_r, nelement)
+            kv = BSplineKnotVector.uniform(polynomial_degree_r, nelement)
             for i in range(nn_r):
                 x0[i] = np.sum(kv[i + 1 : i + polynomial_degree_r + 1])
             x0 = x0 * L / polynomial_degree_r
@@ -1542,11 +1542,11 @@ class TimoshenkoAxisAngleSE3Old:
 
         self.basis = basis
         if basis == "B-spline":
-            self.knot_vector_r = KnotVector(polynomial_degree_r, nelement)
-            self.knot_vector_psi = KnotVector(polynomial_degree_psi, nelement)
+            self.knot_vector_r = BSplineKnotVector(polynomial_degree_r, nelement)
+            self.knot_vector_psi = BSplineKnotVector(polynomial_degree_psi, nelement)
         elif basis == "Lagrange":
-            self.knot_vector_r = NodeVector(polynomial_degree_r, nelement)
-            self.knot_vector_psi = NodeVector(polynomial_degree_psi, nelement)
+            self.knot_vector_r = LagrangeKnotVector(polynomial_degree_r, nelement)
+            self.knot_vector_psi = LagrangeKnotVector(polynomial_degree_psi, nelement)
         else:
             raise RuntimeError(f'wrong basis: "{basis}" was chosen')
 
@@ -1691,7 +1691,7 @@ class TimoshenkoAxisAngleSE3Old:
         y0 = np.zeros(nn_r, dtype=float)
         z0 = np.zeros(nn_r, dtype=float)
         if greville_abscissae and basis == "B-spline":
-            kv = KnotVector.uniform(polynomial_degree_r, nelement)
+            kv = BSplineKnotVector.uniform(polynomial_degree_r, nelement)
             for i in range(nn_r):
                 x0[i] = np.sum(kv[i + 1 : i + polynomial_degree_r + 1])
             x0 = x0 * L / polynomial_degree_r
@@ -1736,7 +1736,7 @@ class TimoshenkoAxisAngleSE3Old:
         y0 = np.zeros(nn_r, dtype=float)
         z0 = np.zeros(nn_r, dtype=float)
         if greville_abscissae and basis == "B-spline":
-            kv = KnotVector.uniform(polynomial_degree_r, nelement)
+            kv = BSplineKnotVector.uniform(polynomial_degree_r, nelement)
             for i in range(nn_r):
                 x0[i] = np.sum(kv[i + 1 : i + polynomial_degree_r + 1])
             x0 = x0 * L / polynomial_degree_r
@@ -2739,11 +2739,11 @@ class TimoshenkoAxisAngleSE3Old:
                 Pw[i, 0, k] = qr + A_IK @ point
 
         if self.basis == "B-spline":
-            knot_vector_eta = KnotVector(polynomial_degree_eta, nEl_eta)
-            knot_vector_zeta = KnotVector(polynomial_degree_zeta, nEl_zeta)
+            knot_vector_eta = BSplineKnotVector(polynomial_degree_eta, nEl_eta)
+            knot_vector_zeta = BSplineKnotVector(polynomial_degree_zeta, nEl_zeta)
         elif self.basis == "lagrange":
-            knot_vector_eta = NodeVector(polynomial_degree_eta, nEl_eta)
-            knot_vector_zeta = NodeVector(polynomial_degree_zeta, nEl_zeta)
+            knot_vector_eta = LagrangeKnotVector(polynomial_degree_eta, nEl_eta)
+            knot_vector_zeta = LagrangeKnotVector(polynomial_degree_zeta, nEl_zeta)
         knot_vector_objs = [self.knot_vector_r, knot_vector_eta, knot_vector_zeta]
         degrees = (
             self.polynomial_degree_r,
@@ -2849,11 +2849,11 @@ class TimoshenkoAxisAngleSE3Old:
                     Pw[i, j, k] = qr + A_IK @ np.array([0, aj, bk])
 
         if self.basis == "B-spline":
-            knot_vector_eta = KnotVector(polynomial_degree_eta, nEl_eta)
-            knot_vector_zeta = KnotVector(polynomial_degree_zeta, nEl_zeta)
+            knot_vector_eta = BSplineKnotVector(polynomial_degree_eta, nEl_eta)
+            knot_vector_zeta = BSplineKnotVector(polynomial_degree_zeta, nEl_zeta)
         elif self.basis == "lagrange":
-            knot_vector_eta = NodeVector(polynomial_degree_eta, nEl_eta)
-            knot_vector_zeta = NodeVector(polynomial_degree_zeta, nEl_zeta)
+            knot_vector_eta = LagrangeKnotVector(polynomial_degree_eta, nEl_eta)
+            knot_vector_zeta = LagrangeKnotVector(polynomial_degree_zeta, nEl_zeta)
         knot_vector_objs = [self.knot_vector_r, knot_vector_eta, knot_vector_zeta]
         degrees = (
             self.polynomial_degree_r,
@@ -3283,10 +3283,10 @@ class BernoulliAxisAngleSE3(TimoshenkoAxisAngleSE3Old):
 
         self.basis = "B-spline"  # TODO
         if self.basis == "B-spline":
-            self.knot_vector_la = KnotVector(self.polynomial_degree_g, self.nelement)
+            self.knot_vector_la = BSplineKnotVector(self.polynomial_degree_g, self.nelement)
             self.nn_g = self.nelement + self.polynomial_degree_g  # number of nodes
         elif self.basis == "Lagrange":
-            self.knot_vector_la = NodeVector(self.polynomial_degree_g, self.nelement)
+            self.knot_vector_la = LagrangeKnotVector(self.polynomial_degree_g, self.nelement)
             # self.nn_g = self.nelement * self.polynomial_degree_g + 1  # number of nodes
             self.nn_g = self.nelement  # number of nodes
         else:
@@ -3445,11 +3445,11 @@ class TimoshenkoAxisAngle:
 
         self.basis = basis
         if basis == "B-spline":
-            self.knot_vector_r = KnotVector(polynomial_degree_r, nelement)
-            self.knot_vector_psi = KnotVector(polynomial_degree_psi, nelement)
+            self.knot_vector_r = BSplineKnotVector(polynomial_degree_r, nelement)
+            self.knot_vector_psi = BSplineKnotVector(polynomial_degree_psi, nelement)
         elif basis == "Lagrange":
-            self.knot_vector_r = NodeVector(polynomial_degree_r, nelement)
-            self.knot_vector_psi = NodeVector(polynomial_degree_psi, nelement)
+            self.knot_vector_r = LagrangeKnotVector(polynomial_degree_r, nelement)
+            self.knot_vector_psi = LagrangeKnotVector(polynomial_degree_psi, nelement)
         elif basis == "Hermite":
             # Note: This implements a cubic Hermite spline for the centerline
             #       together with a linear Lagrange axis angle vector field
@@ -3459,7 +3459,7 @@ class TimoshenkoAxisAngle:
             self.polynomial_degree_psi = polynomial_degree_psi = 1
             # TODO: Enbale Lagrange shape functions again if ready.
             # self.knot_vector_psi = Node_vector(polynomial_degree_psi, nelement)
-            self.knot_vector_psi = KnotVector(polynomial_degree_psi, nelement)
+            self.knot_vector_psi = BSplineKnotVector(polynomial_degree_psi, nelement)
         else:
             raise RuntimeError(f'wrong basis: "{basis}" was chosen')
 
@@ -3622,7 +3622,7 @@ class TimoshenkoAxisAngle:
             y0 = np.zeros(nn_r)
             z0 = np.zeros(nn_r)
             if greville_abscissae and basis == "B-spline":
-                kv = KnotVector.uniform(polynomial_degree_r, nelement)
+                kv = BSplineKnotVector.uniform(polynomial_degree_r, nelement)
                 for i in range(nn_r):
                     x0[i] = np.sum(kv[i + 1 : i + polynomial_degree_r + 1])
                 x0 = x0 * L / polynomial_degree_r
@@ -4764,11 +4764,11 @@ class TimoshenkoAxisAngle:
                 Pw[i, 0, k] = qr + A_IK @ point
 
         if self.basis == "B-spline":
-            knot_vector_eta = KnotVector(polynomial_degree_eta, nEl_eta)
-            knot_vector_zeta = KnotVector(polynomial_degree_zeta, nEl_zeta)
+            knot_vector_eta = BSplineKnotVector(polynomial_degree_eta, nEl_eta)
+            knot_vector_zeta = BSplineKnotVector(polynomial_degree_zeta, nEl_zeta)
         elif self.basis == "lagrange":
-            knot_vector_eta = NodeVector(polynomial_degree_eta, nEl_eta)
-            knot_vector_zeta = NodeVector(polynomial_degree_zeta, nEl_zeta)
+            knot_vector_eta = LagrangeKnotVector(polynomial_degree_eta, nEl_eta)
+            knot_vector_zeta = LagrangeKnotVector(polynomial_degree_zeta, nEl_zeta)
         knot_vector_objs = [self.knot_vector_r, knot_vector_eta, knot_vector_zeta]
         degrees = (
             self.polynomial_degree_r,
@@ -4874,11 +4874,11 @@ class TimoshenkoAxisAngle:
                     Pw[i, j, k] = qr + A_IK @ np.array([0, aj, bk])
 
         if self.basis == "B-spline":
-            knot_vector_eta = KnotVector(polynomial_degree_eta, nEl_eta)
-            knot_vector_zeta = KnotVector(polynomial_degree_zeta, nEl_zeta)
+            knot_vector_eta = BSplineKnotVector(polynomial_degree_eta, nEl_eta)
+            knot_vector_zeta = BSplineKnotVector(polynomial_degree_zeta, nEl_zeta)
         elif self.basis == "lagrange":
-            knot_vector_eta = NodeVector(polynomial_degree_eta, nEl_eta)
-            knot_vector_zeta = NodeVector(polynomial_degree_zeta, nEl_zeta)
+            knot_vector_eta = LagrangeKnotVector(polynomial_degree_eta, nEl_eta)
+            knot_vector_zeta = LagrangeKnotVector(polynomial_degree_zeta, nEl_zeta)
         knot_vector_objs = [self.knot_vector_r, knot_vector_eta, knot_vector_zeta]
         degrees = (
             self.polynomial_degree_r,
@@ -5313,11 +5313,11 @@ class TimoshenkoQuaternion:
         self.basis = basis
         self.quadrature = "Gauss"  # default for all meshes
         if basis == "B-spline":
-            self.knot_vector_r = KnotVector(polynomial_degree_r, nelement)
-            self.knot_vector_psi = KnotVector(polynomial_degree_psi, nelement)
+            self.knot_vector_r = BSplineKnotVector(polynomial_degree_r, nelement)
+            self.knot_vector_psi = BSplineKnotVector(polynomial_degree_psi, nelement)
         elif basis == "Lagrange":
-            self.knot_vector_r = NodeVector(polynomial_degree_r, nelement)
-            self.knot_vector_psi = NodeVector(polynomial_degree_psi, nelement)
+            self.knot_vector_r = LagrangeKnotVector(polynomial_degree_r, nelement)
+            self.knot_vector_psi = LagrangeKnotVector(polynomial_degree_psi, nelement)
         elif basis == "Hermite":
             # Note: This implements a cubic Hermite spline for the centerline
             #       together with a linear Lagrange axis angle vector field
@@ -5327,7 +5327,7 @@ class TimoshenkoQuaternion:
             self.polynomial_degree_psi = polynomial_degree_psi = 1
             # TODO: Enbale Lagrange shape functions again if ready.
             # self.knot_vector_psi = Node_vector(polynomial_degree_psi, nelement)
-            self.knot_vector_psi = KnotVector(polynomial_degree_psi, nelement)
+            self.knot_vector_psi = BSplineKnotVector(polynomial_degree_psi, nelement)
             self.quadrature = "Lobatto"
         else:
             raise RuntimeError(f'wrong basis: "{basis}" was chosen')
@@ -5529,7 +5529,7 @@ class TimoshenkoQuaternion:
             y0 = np.zeros(nn_r)
             z0 = np.zeros(nn_r)
             if greville_abscissae and basis == "B-spline":
-                kv = KnotVector.uniform(polynomial_degree_r, nelement)
+                kv = BSplineKnotVector.uniform(polynomial_degree_r, nelement)
                 for i in range(nn_r):
                     x0[i] = np.sum(kv[i + 1 : i + polynomial_degree_r + 1])
                 x0 = x0 * L / polynomial_degree_r
@@ -6655,11 +6655,11 @@ class TimoshenkoQuaternion:
                 Pw[i, 0, k] = qr + A_IK @ point
 
         if self.basis == "B-spline":
-            knot_vector_eta = KnotVector(polynomial_degree_eta, nEl_eta)
-            knot_vector_zeta = KnotVector(polynomial_degree_zeta, nEl_zeta)
+            knot_vector_eta = BSplineKnotVector(polynomial_degree_eta, nEl_eta)
+            knot_vector_zeta = BSplineKnotVector(polynomial_degree_zeta, nEl_zeta)
         elif self.basis == "lagrange":
-            knot_vector_eta = NodeVector(polynomial_degree_eta, nEl_eta)
-            knot_vector_zeta = NodeVector(polynomial_degree_zeta, nEl_zeta)
+            knot_vector_eta = LagrangeKnotVector(polynomial_degree_eta, nEl_eta)
+            knot_vector_zeta = LagrangeKnotVector(polynomial_degree_zeta, nEl_zeta)
         knot_vector_objs = [self.knot_vector_r, knot_vector_eta, knot_vector_zeta]
         degrees = (
             self.polynomial_degree_r,
@@ -6765,11 +6765,11 @@ class TimoshenkoQuaternion:
                     Pw[i, j, k] = qr + A_IK @ np.array([0, aj, bk])
 
         if self.basis == "B-spline":
-            knot_vector_eta = KnotVector(polynomial_degree_eta, nEl_eta)
-            knot_vector_zeta = KnotVector(polynomial_degree_zeta, nEl_zeta)
+            knot_vector_eta = BSplineKnotVector(polynomial_degree_eta, nEl_eta)
+            knot_vector_zeta = BSplineKnotVector(polynomial_degree_zeta, nEl_zeta)
         elif self.basis == "lagrange":
-            knot_vector_eta = NodeVector(polynomial_degree_eta, nEl_eta)
-            knot_vector_zeta = NodeVector(polynomial_degree_zeta, nEl_zeta)
+            knot_vector_eta = LagrangeKnotVector(polynomial_degree_eta, nEl_eta)
+            knot_vector_zeta = LagrangeKnotVector(polynomial_degree_zeta, nEl_zeta)
         knot_vector_objs = [self.knot_vector_r, knot_vector_eta, knot_vector_zeta]
         degrees = (
             self.polynomial_degree_r,

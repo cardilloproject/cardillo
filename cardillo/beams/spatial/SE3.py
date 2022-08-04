@@ -1,7 +1,7 @@
 import numpy as np
 
 from cardillo.utility.coo import Coo
-from cardillo.discretization.lagrange import NodeVector
+from cardillo.discretization.lagrange import LagrangeKnotVector
 from cardillo.discretization.mesh1D import Mesh1D
 from cardillo.math import (
     pi,
@@ -499,7 +499,7 @@ class TimoshenkoAxisAngleSE3_K_delta_r_P:
         self.nquadrature = nquadrature = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
         self.nelement = nelement  # number of elements
 
-        self.knot_vector = NodeVector(self.polynomial_degree, nelement)
+        self.knot_vector = LagrangeKnotVector(self.polynomial_degree, nelement)
 
         # build mesh object
         self.mesh = Mesh1D(
@@ -1933,7 +1933,7 @@ class TimoshenkoAxisAngleSE3_I_delta_r_P:
         self.nquadrature = nquadrature = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
         self.nelement = nelement  # number of elements
 
-        self.knot_vector = NodeVector(self.polynomial_degree, nelement)
+        self.knot_vector = LagrangeKnotVector(self.polynomial_degree, nelement)
 
         # build mesh object
         self.mesh = Mesh1D(

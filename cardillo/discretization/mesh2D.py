@@ -516,7 +516,7 @@ class Mesh2D:
 
 
 def test_edge_qDOF():
-    from cardillo.discretization.B_spline import KnotVector
+    from cardillo.discretization.B_spline import BSplineKnotVector
 
     # degrees = (1, 2, 3)
     # element_shape = (3, 2, 1)
@@ -524,8 +524,8 @@ def test_edge_qDOF():
     QP_shape = (3, 4)
     element_shape = (4, 5)
 
-    Xi = KnotVector(degrees[0], element_shape[0])
-    Eta = KnotVector(degrees[1], element_shape[1])
+    Xi = BSplineKnotVector(degrees[0], element_shape[0])
+    Eta = BSplineKnotVector(degrees[1], element_shape[1])
     knot_vectors = (Xi, Eta)
 
     # from cardillo.discretization.mesh import Mesh, cube, scatter_Qs

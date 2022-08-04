@@ -2,8 +2,8 @@ import numpy as np
 from cardillo.math.algebra import ax2skew
 
 from cardillo.utility.coo import Coo
-from cardillo.discretization.lagrange import NodeVector
-from cardillo.discretization.B_spline import KnotVector
+from cardillo.discretization.lagrange import LagrangeKnotVector
+from cardillo.discretization.B_spline import BSplineKnotVector
 from cardillo.discretization.Hermite import HermiteNodeVector
 from cardillo.math import (
     e1,
@@ -106,7 +106,7 @@ class Cable:
         self.basis = basis
         if basis == "B-spline":
             assert polynomial_degree >= 2, "use at least quadratic B-splines"
-            self.knot_vector = KnotVector(polynomial_degree, nelement)
+            self.knot_vector = BSplineKnotVector(polynomial_degree, nelement)
         elif basis == "Hermite":
             assert polynomial_degree == 3, "only cubic Hermite splines are implemented!"
             self.knot_vector = HermiteNodeVector(polynomial_degree, nelement)
@@ -217,7 +217,7 @@ class Cable:
             y0 = np.zeros(nn)
             z0 = np.zeros(nn)
             # build Greville abscissae for B-spline basis
-            kv = KnotVector.uniform(polynomial_degree, nelement)
+            kv = BSplineKnotVector.uniform(polynomial_degree, nelement)
             for i in range(nn):
                 x0[i] = np.sum(kv[i + 1 : i + polynomial_degree + 1])
             x0 = x0 * L / polynomial_degree

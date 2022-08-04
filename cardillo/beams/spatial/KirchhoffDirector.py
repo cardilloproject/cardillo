@@ -3,7 +3,7 @@ import meshio
 import os
 
 from cardillo.utility.coo import Coo
-from cardillo.discretization.B_spline import KnotVector
+from cardillo.discretization.B_spline import BSplineKnotVector
 from cardillo.math import (
     e1,
     e2,
@@ -51,8 +51,8 @@ class KirchhoffDirector:
         self.nquadrature = nquadrature  # number of quadrature points
         self.nelement = nelement  # number of elements
 
-        self.knot_vector_r = KnotVector(polynomial_degree_r, nelement)
-        self.knot_vector_alpha = KnotVector(polynomial_degree_alpha, nelement)
+        self.knot_vector_r = BSplineKnotVector(polynomial_degree_r, nelement)
+        self.knot_vector_alpha = BSplineKnotVector(polynomial_degree_alpha, nelement)
         self.nnode_r = nnode_r = nelement + polynomial_degree_r  # number of nodes
         self.nnode_alpha = nnode_alpha = (
             nelement + polynomial_degree_alpha
@@ -239,7 +239,7 @@ class KirchhoffDirector:
         Y = np.zeros(nn_r)
         Z = np.zeros(nn_r)
         if greville_abscissae:
-            kv = KnotVector.uniform(polynomial_degree_r, nEl)
+            kv = BSplineKnotVector.uniform(polynomial_degree_r, nEl)
             for i in range(nn_r):
                 X[i] = np.sum(kv[i + 1 : i + polynomial_degree_r + 1])
             X = X * L / polynomial_degree_r

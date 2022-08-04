@@ -1,13 +1,15 @@
 import numpy as np
 import meshio
 from scipy.sparse.linalg import spsolve
+
+# from cardillo.discretization.mesh1D import mesh1D
 from cardillo.discretization.indexing import flat2D, flat3D, split2D, split3D
 
 
 # TODO: Try to implement recursive basis functions using numpy.Polynomial, see lagrange and Hermite.
 
 
-class KnotVector:
+class BSplineKnotVector:
     @staticmethod
     def uniform(degree, nel, interval=[0, 1]):
         return np.concatenate(
@@ -22,7 +24,7 @@ class KnotVector:
         self.degree = degree
         self.nel = nel
         if data is None:
-            self.data = KnotVector.uniform(degree, nel, interval)
+            self.data = BSplineKnotVector.uniform(degree, nel, interval)
         else:
             self.data = data
 
@@ -356,7 +358,7 @@ def fit_B_spline_curve(points, degree, nEl, fixFirst=True, fixLast=True):
 
     # linear spaced xi's for target curve points
     xi = np.linspace(0, 1, n_xi)
-    Xi = KnotVector.uniform(degree, nEl)
+    Xi = BSplineKnotVector.uniform(degree, nEl)
 
     # B-spline related things
     # - knot vector
@@ -364,10 +366,22 @@ def fit_B_spline_curve(points, degree, nEl, fixFirst=True, fixLast=True):
     # - connectivity matrices
     basis = B_spline_basis1D(degree, 0, Xi, xi)
     nNd = nEl + degree
-    ndPerEl = degree + 1
-    tmp1 = np.tile(np.arange(0, ndPerEl), dim)
-    tmp2 = np.repeat(np.arange(0, dim * nNd, step=nNd), ndPerEl)
-    elDOF = (np.zeros((dim * ndPerEl, nEl), dtype=int) + np.arange(nEl)).T + tmp1 + tmp2
+    nNdPerEl = degree + 1
+    nq = nNd * dim
+    nq_per_element = nNdPerEl * dim
+    # tmp1 = np.tile(np.arange(0, ndPerEl), dim)
+    # tmp2 = np.repeat(np.arange(0, dim * nNd, step=nNd), ndPerEl)
+    # elDOF = (np.zeros((dim * ndPerEl, nEl), dtype=int) + np.arange(nEl)).T + tmp1 + tmp2
+
+    # mesh = mesh1D(KnotVector, 1, dim, 0, basis="B-spline")
+    # elDOF = mesh.elDOF
+
+    elDOF = np.zeros((nEl, nq_per_element), dtype=int)
+    elDOF_el = np.arange(nq_per_element)
+    for el in range(nEl):
+        elDOF[el] = elDOF_el + el * dim
+
+    nodalDOF = np.arange(nq).reshape(nNd, dim)
 
     # find corresponding knot vector indices of the target curve xi's
     # and compute the element number
@@ -375,41 +389,58 @@ def fit_B_spline_curve(points, degree, nEl, fixFirst=True, fixLast=True):
     elArray = ind - degree
 
     # memory allocation for the positions
-    nq_DOF = dim * nNd
-    M = np.zeros((nq_DOF, nq_DOF))
-    f = np.zeros(nq_DOF)
+    M = np.zeros((nq, nq), dtype=float)
+    f = np.zeros(nq, dtype=float)
 
     # assemble matrices
     for k, (P_k, el_k) in enumerate(zip(points, elArray)):
-        N = np.kron(np.eye(dim), basis[k])
-        M[elDOF[el_k][:, None], elDOF[el_k]] += N.T @ N
-        f[elDOF[el_k]] += P_k.T @ N
+        # N = np.kron(np.eye(dim), basis[k])
+        # M[elDOF[el_k][:, None], elDOF[el_k]] += N.T @ N
+        # f[elDOF[el_k]] += P_k.T @ N
 
-    # compute rhs contributions of boundary terms and collect constraint degrees of freedom
-    cDOF1 = []
-    if fixFirst:
-        cDOF1.extend([i * nNd for i in range(dim)])
-        f -= points[0].T @ M[cDOF1]
-    cDOF2 = []
-    if fixLast:
-        cDOF2.extend([(i + 1) * nNd - 1 for i in range(dim)])
-        f -= points[-1].T @ M[cDOF2]
+        elDOFk = elDOF[el_k]
+        N = basis[k]
+        for node_A in range(nNdPerEl):
+            nodalDOF_A = elDOFk[nodalDOF[node_A]]
+            for node_B in range(nNdPerEl):
+                nodalDOF_B = elDOFk[nodalDOF[node_B]]
 
-    # remove boundary equations from the system
-    cDOF = cDOF1 + cDOF2
-    qDOF = np.arange(nq_DOF)
-    fDOF = np.setdiff1d(qDOF, cDOF)
+                # TODO: we have to assemble over multiple nodes!!!
+                M[nodalDOF_A[:, None], nodalDOF_B] += (
+                    N[node_A] * np.eye(3, dtype=float) * N[node_B]
+                )
 
-    # solve least square problem with eliminated first and last node
-    Q_r = np.zeros(nq_DOF)
-    Q_r[fDOF] = np.linalg.solve(M[fDOF[:, None], fDOF], f[fDOF])
+            f[nodalDOF_A] += P_k * N[node_A]
 
-    # set first and last node to given values
-    if fixFirst:
-        Q_r[cDOF1] = points[0]
-    if fixLast:
-        Q_r[cDOF2] = points[-1]
-    return Q_r.reshape(dim, -1).T
+    # # compute rhs contributions of boundary terms and collect constraint degrees of freedom
+    # cDOF1 = []
+    # if fixFirst:
+    #     cDOF1.extend([i * nNd for i in range(dim)])
+    #     f -= points[0].T @ M[cDOF1]
+    # cDOF2 = []
+    # if fixLast:
+    #     cDOF2.extend([(i + 1) * nNd - 1 for i in range(dim)])
+    #     f -= points[-1].T @ M[cDOF2]
+
+    # # remove boundary equations from the system
+    # cDOF = cDOF1 + cDOF2
+    # qDOF = np.arange(nq)
+    # fDOF = np.setdiff1d(qDOF, cDOF)
+
+    # # solve least square problem with eliminated first and last node
+    # Q_r = np.zeros(nq)
+    # Q_r[fDOF] = np.linalg.solve(M[fDOF[:, None], fDOF], f[fDOF])
+
+    # # set first and last node to given values
+    # if fixFirst:
+    #     Q_r[cDOF1] = points[0]
+    # if fixLast:
+    #     Q_r[cDOF2] = points[-1]
+    # return Q_r.reshape(dim, -1).T
+
+    Q_r = np.linalg.solve(M, f)
+    return Q_r
+    # return Q_r.reshape(dim, -1).T
 
 
 def fit_B_spline_volume(mesh, knots, Pw, qc, cDOF):
@@ -936,10 +967,10 @@ def flat3D_vtk(Qw):
 def test_Knot_vector():
     degree = 2
     nel = 3
-    U = KnotVector(degree, nel)
+    U = BSplineKnotVector(degree, nel)
     print(f"U.data: {U.data}")
 
-    U = KnotVector(degree, nel, data=np.array([0, 0, 0, 0.25, 0.5, 0.5, 1, 1, 1]))
+    U = BSplineKnotVector(degree, nel, data=np.array([0, 0, 0, 0.25, 0.5, 0.5, 1, 1, 1]))
     print(f"U.data: {U.data}")
     print(f"U.element_data: {U.element_data}")
 
@@ -952,7 +983,7 @@ def test_Piegl_Fig5_18():
     degree = 3
     nel = 4
     data = np.array([0, 0, 0, 0, 1, 2, 3, 4, 4, 4, 4])
-    knot_vector = KnotVector(degree, nel, data=data)
+    knot_vector = BSplineKnotVector(degree, nel, data=data)
 
     q = np.array(
         [[0, 0], [0.1, 1], [1, 1], [1.5, -0.1], [2.2, -0.1], [2.5, 0.8], [2.0, 1.3]]
@@ -987,8 +1018,8 @@ def test_Piegl_Fig5_20():
     nels = (2, 2)
     data0 = np.array([0, 0, 0, 2 / 5, 1, 1, 1])
     data1 = np.array([0, 0, 0, 0, 3 / 5, 1, 1, 1, 1])
-    knot_vector0 = KnotVector(degrees[0], nels[0], data=data0)
-    knot_vector1 = KnotVector(degrees[1], nels[1], data=data1)
+    knot_vector0 = BSplineKnotVector(degrees[0], nels[0], data=data0)
+    knot_vector1 = BSplineKnotVector(degrees[1], nels[1], data=data1)
 
     # n = 200
     # xi_idx = 2
@@ -1156,9 +1187,9 @@ def test_mesh3D_vtk_export():
     QP_shape = (3, 4, 2)
     element_shape = (1, 1, 1)
 
-    Xi = KnotVector(degrees[0], element_shape[0])
-    Eta = KnotVector(degrees[1], element_shape[1])
-    Zeta = KnotVector(degrees[2], element_shape[2])
+    Xi = BSplineKnotVector(degrees[0], element_shape[0])
+    Eta = BSplineKnotVector(degrees[1], element_shape[1])
+    Zeta = BSplineKnotVector(degrees[2], element_shape[2])
     knot_vectors = (Xi, Eta, Zeta)
 
     from cardillo.discretization.mesh3D import Mesh3D, cube, scatter_Qs
@@ -1180,9 +1211,9 @@ def test_fit_B_spline_volume():
     element_shape = np.ones(3, dtype=int) * 5
     # element_shape = (10, 3, 3)
 
-    Xi = KnotVector(degrees[0], element_shape[0])
-    Eta = KnotVector(degrees[1], element_shape[1])
-    Zeta = KnotVector(degrees[2], element_shape[2])
+    Xi = BSplineKnotVector(degrees[0], element_shape[0])
+    Eta = BSplineKnotVector(degrees[1], element_shape[1])
+    Zeta = BSplineKnotVector(degrees[2], element_shape[2])
     knot_vectors = (Xi, Eta, Zeta)
 
     from cardillo.discretization.mesh3D import Mesh3D

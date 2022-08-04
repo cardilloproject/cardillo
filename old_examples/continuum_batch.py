@@ -6,8 +6,8 @@ import datetime
 import pathlib
 
 from cardillo.discretization.mesh2D import Mesh2D, rectangle
-from cardillo.discretization.B_spline import KnotVector
-from cardillo.discretization.lagrange import NodeVector
+from cardillo.discretization.B_spline import BSplineKnotVector
+from cardillo.discretization.lagrange import LagrangeKnotVector
 from cardillo.discretization.indexing import split2D
 from cardillo.model.continuum import (
     Ogden1997_compressible,
@@ -78,8 +78,8 @@ def first_gradient_solve(
     QP_shape = (3, 3)
 
     if source == "Treolar":
-        Xi = KnotVector(degrees[0], element_shape[0])
-        Eta = KnotVector(degrees[1], element_shape[1])
+        Xi = BSplineKnotVector(degrees[0], element_shape[0])
+        Eta = BSplineKnotVector(degrees[1], element_shape[1])
         knot_vectors = (Xi, Eta)
 
         mesh = Mesh2D(
@@ -102,8 +102,8 @@ def first_gradient_solve(
         mat = Ogden1997_complete_2D_incompressible(mu, al)
 
     if source == "Treolar_lagrange":
-        Xi = NodeVector(degrees[0], element_shape[0])
-        Eta = NodeVector(degrees[1], element_shape[1])
+        Xi = LagrangeKnotVector(degrees[0], element_shape[0])
+        Eta = LagrangeKnotVector(degrees[1], element_shape[1])
         knot_vectors = (Xi, Eta)
 
         mesh = Mesh2D(
@@ -173,8 +173,8 @@ def pantographic_sheet_solve(
     degrees = (2, 3)
     QP_shape = (2, 3)
 
-    Xi = KnotVector(degrees[0], element_shape[0])
-    Eta = KnotVector(degrees[1], element_shape[1])
+    Xi = BSplineKnotVector(degrees[0], element_shape[0])
+    Eta = BSplineKnotVector(degrees[1], element_shape[1])
     knot_vectors = (Xi, Eta)
 
     mesh = Mesh2D(knot_vectors, QP_shape, derivative_order=2, basis="B-spline", nq_n=2)

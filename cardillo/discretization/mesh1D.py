@@ -817,13 +817,13 @@ class MultifieldMesh1D:
 
 
 def test_point_qDOF():
-    from cardillo.discretization.B_spline import KnotVector
+    from cardillo.discretization.B_spline import BSplineKnotVector
 
     polynomial_degree = 3
     quadrature_points = polynomial_degree + 1
     elements = 4
 
-    Xi = KnotVector(polynomial_degree, elements)
+    Xi = BSplineKnotVector(polynomial_degree, elements)
 
     mesh = Mesh1D(Xi, quadrature_points, derivative_order=1, basis="B-spline", dim_q=2)
 

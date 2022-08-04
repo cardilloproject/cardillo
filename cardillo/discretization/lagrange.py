@@ -7,12 +7,12 @@ import meshio
 
 
 # data are only the corner nodes
-class NodeVector:
+class LagrangeKnotVector:
     def __init__(self, degree, nel, data=None):
         self.degree = degree
         self.nel = nel
         if data is None:
-            self.data = NodeVector.uniform(self.degree, self.nel)
+            self.data = LagrangeKnotVector.uniform(self.degree, self.nel)
         else:
             self.data = np.zeros(self.nel * self.degree + 1)
             for el in range(nel):

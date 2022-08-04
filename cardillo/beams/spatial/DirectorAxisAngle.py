@@ -1,7 +1,9 @@
 import numpy as np
 
 from cardillo.utility.coo import Coo
-from cardillo.discretization.lagrange import NodeVector
+from cardillo.discretization.lagrange import LagrangeKnotVector
+from cardillo.discretization.B_spline import BSplineKnotVector
+from cardillo.discretization.Hermite import HermiteNodeVector
 from cardillo.discretization.mesh1D import Mesh1D
 from cardillo.math import (
     pi,
@@ -207,11 +209,14 @@ class DirectorAxisAngle:
         A_rho0,
         K_S_rho0,
         K_I_rho0,
-        polynomial_degree,
+        polynomial_degree_r,
+        polynomial_degree_psi,
         nelement,
         Q,
         q0=None,
         u0=None,
+        basis_r="B-spline",
+        basis_psi="B-spline",
     ):
         # beam properties
         self.material_model = material_model  # material model
@@ -226,18 +231,34 @@ class DirectorAxisAngle:
             self.constant_mass_matrix = False
 
         # discretization parameters
-        self.polynomial_degree = polynomial_degree
-        # assert polynomial_degree == 1, "we assume linear Lagrange elements!"
-        # self.nquadrature = nquadrature = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
-        self.nquadrature = nquadrature = polynomial_degree + 1
-        # self.nquadrature = nquadrature = polynomial_degree + 2
+        self.polynomial_degree_r = polynomial_degree_r
+        self.polynomial_degree_psi = polynomial_degree_psi
+
+        p = max(polynomial_degree_r, polynomial_degree_psi)
+        # self.nquadrature = nquadrature = int(np.ceil((p + 1) ** 2 / 2))
+        self.nquadrature = nquadrature = p + 1
         self.nelement = nelement
 
-        self.node_vector = NodeVector(self.polynomial_degree, nelement)
+        # chose basis functions
+        self.basis_r = basis_r
+        self.basis_psi = basis_psi
+
+        if basis_r == "Lagrange":
+            self.knot_vector_r = LagrangeKnotVector(polynomial_degree_r, nelement)
+        elif basis_r == "B-spline":
+            self.knot_vector_r = BSplineKnotVector(polynomial_degree_r, nelement)
+        elif basis_r == "Hermite":
+            assert polynomial_degree_r == 3, "only cubic Hermite splines are implemented!"
+            self.knot_vector_r = HermiteNodeVector(polynomial_degree_r, nelement)
+        else:
+            raise RuntimeError(f'wrong basis_r: "{basis_r}" was chosen')
+
+        self.knot_vector_r = LagrangeKnotVector(self.polynomial_degree_r, nelement)
+        self.node_vector_psi = LagrangeKnotVector(self.polynomial_degree_r, nelement)
 
         # build mesh object
         self.mesh = Mesh1D(
-            self.node_vector,
+            self.knot_vector_r,
             nquadrature,
             dim_q=3,
             derivative_order=1,
@@ -444,7 +465,7 @@ class DirectorAxisAngle:
 
         # linear spaced xi's for target curve points
         xis = np.linspace(0, 1, n_samples)
-        node_vector = NodeVector(polynomial_degree, nelement)
+        node_vector = LagrangeKnotVector(polynomial_degree, nelement)
 
         # build mesh object
         mesh = Mesh1D(
@@ -576,7 +597,7 @@ class DirectorAxisAngle:
         return res.x
 
     def element_number(self, xi):
-        return self.node_vector.element_number(xi)[0]
+        return self.knot_vector_r.element_number(xi)[0]
 
     #########################################
     # equations of motion

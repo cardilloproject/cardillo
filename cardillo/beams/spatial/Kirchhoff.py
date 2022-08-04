@@ -5,8 +5,8 @@ from math import sin, cos
 from cardillo.math.rotations import smallest_rotation
 
 from cardillo.utility.coo import Coo
-from cardillo.discretization.B_spline import KnotVector
-from cardillo.discretization.lagrange import NodeVector
+from cardillo.discretization.B_spline import BSplineKnotVector
+from cardillo.discretization.lagrange import LagrangeKnotVector
 from cardillo.discretization.Hermite import HermiteNodeVector
 from cardillo.discretization.mesh1D import Mesh1D
 from cardillo.math import norm, cross3, ax2skew, approx_fprime
@@ -63,7 +63,7 @@ class Kirchhoff:
         self.polynomial_degree_psi = polynomial_degree_psi = 1
         # TODO: Enbale Lagrange shape functions again if ready.
         # self.knot_vector_psi = Node_vector(polynomial_degree_psi, nelement)
-        self.knot_vector_psi = KnotVector(polynomial_degree_psi, nelement)
+        self.knot_vector_psi = BSplineKnotVector(polynomial_degree_psi, nelement)
         self.quadrature = "Lobatto"
 
         # number of degrees of freedom per node
@@ -1434,11 +1434,11 @@ class Kirchhoff:
                 Pw[i, 0, k] = qr + A_IK @ point
 
         if self.basis == "B-spline":
-            knot_vector_eta = KnotVector(polynomial_degree_eta, nEl_eta)
-            knot_vector_zeta = KnotVector(polynomial_degree_zeta, nEl_zeta)
+            knot_vector_eta = BSplineKnotVector(polynomial_degree_eta, nEl_eta)
+            knot_vector_zeta = BSplineKnotVector(polynomial_degree_zeta, nEl_zeta)
         elif self.basis == "lagrange":
-            knot_vector_eta = NodeVector(polynomial_degree_eta, nEl_eta)
-            knot_vector_zeta = NodeVector(polynomial_degree_zeta, nEl_zeta)
+            knot_vector_eta = LagrangeKnotVector(polynomial_degree_eta, nEl_eta)
+            knot_vector_zeta = LagrangeKnotVector(polynomial_degree_zeta, nEl_zeta)
         knot_vector_objs = [self.knot_vector_r, knot_vector_eta, knot_vector_zeta]
         degrees = (
             self.polynomial_degree_r,
@@ -1544,11 +1544,11 @@ class Kirchhoff:
                     Pw[i, j, k] = qr + A_IK @ np.array([0, aj, bk])
 
         if self.basis == "B-spline":
-            knot_vector_eta = KnotVector(polynomial_degree_eta, nEl_eta)
-            knot_vector_zeta = KnotVector(polynomial_degree_zeta, nEl_zeta)
+            knot_vector_eta = BSplineKnotVector(polynomial_degree_eta, nEl_eta)
+            knot_vector_zeta = BSplineKnotVector(polynomial_degree_zeta, nEl_zeta)
         elif self.basis == "lagrange":
-            knot_vector_eta = NodeVector(polynomial_degree_eta, nEl_eta)
-            knot_vector_zeta = NodeVector(polynomial_degree_zeta, nEl_zeta)
+            knot_vector_eta = LagrangeKnotVector(polynomial_degree_eta, nEl_eta)
+            knot_vector_zeta = LagrangeKnotVector(polynomial_degree_zeta, nEl_zeta)
         knot_vector_objs = [self.knot_vector_r, knot_vector_eta, knot_vector_zeta]
         degrees = (
             self.polynomial_degree_r,

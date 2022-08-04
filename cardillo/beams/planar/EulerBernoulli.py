@@ -6,7 +6,7 @@ import os
 from cardillo.utility.coo import Coo
 from cardillo.math.algebra import ax2skew, norm, cross3, e3
 from cardillo.math import approx_fprime
-from cardillo.discretization.B_spline import KnotVector
+from cardillo.discretization.B_spline import BSplineKnotVector
 from cardillo.discretization.mesh1D import Mesh1D
 
 
@@ -35,7 +35,7 @@ class EulerBernoulli2D:
         self.nq_n = nq_n = 2  # number of degrees of freedom per node (x, y)
 
         # knot vector object and element span
-        self.knot_vector = KnotVector(polynomial_degree, nEl)
+        self.knot_vector = BSplineKnotVector(polynomial_degree, nEl)
         self.element_span = self.knot_vector.element_data
 
         # B-spline mesh object
@@ -127,7 +127,7 @@ class EulerBernoulli2D:
         X = np.linspace(0, L, num=nn)
         Y = np.zeros(nn)
         if greville_abscissae:
-            kv = KnotVector.uniform(polynomial_degree, nEl)
+            kv = BSplineKnotVector.uniform(polynomial_degree, nEl)
             for i in range(nn):
                 X[i] = np.sum(kv[i + 1 : i + polynomial_degree + 1])
             X = X * L / polynomial_degree
@@ -744,7 +744,7 @@ class Inextensible_Euler_bernoulli(EulerBernoulli2D):
 
         self.la_g0 = np.zeros(self.nla_g) if la_g0 is None else la_g0
 
-        self.knot_vector_g = KnotVector(
+        self.knot_vector_g = BSplineKnotVector(
             self.polynomial_degree_g, self.nEl
         )  # uniform open knot vector
         self.element_span_g = self.knot_vector_g.data[

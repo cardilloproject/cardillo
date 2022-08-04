@@ -1,6 +1,6 @@
 from .gauss import gauss
 from .B_spline import (
-    KnotVector,
+    BSplineKnotVector,
     find_knotspan,
     B_spline_basis1D,
     B_spline_basis2D,

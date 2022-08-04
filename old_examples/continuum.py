@@ -7,7 +7,7 @@ import pathlib
 import datetime
 from cardillo.discretization.mesh3D import Mesh3D, cube
 from cardillo.discretization.mesh2D import Mesh2D, rectangle
-from cardillo.discretization.B_spline import KnotVector, fit_B_spline_volume
+from cardillo.discretization.B_spline import BSplineKnotVector, fit_B_spline_volume
 from cardillo.discretization.indexing import flat3D, flat2D
 from cardillo.model.continuum import (
     Ogden1997_compressible,
@@ -52,9 +52,9 @@ def test_cube():
     QP_shape = (3, 3, 3)
     element_shape = (2, 2, 2)
 
-    Xi = KnotVector(degrees[0], element_shape[0])
-    Eta = KnotVector(degrees[1], element_shape[1])
-    Zeta = KnotVector(degrees[2], element_shape[2])
+    Xi = BSplineKnotVector(degrees[0], element_shape[0])
+    Eta = BSplineKnotVector(degrees[1], element_shape[1])
+    Zeta = BSplineKnotVector(degrees[2], element_shape[2])
     knot_vectors = (Xi, Eta, Zeta)
 
     mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=1, basis="B-spline", nq_n=3)
@@ -72,9 +72,9 @@ def test_cube():
 
     if Incompressible:
         mat = Ogden1997_incompressible(mu1)
-        Xi_la = KnotVector(degrees[0] - 1, element_shape[0])
-        Eta_la = KnotVector(degrees[1] - 1, element_shape[1])
-        Zeta_la = KnotVector(degrees[2] - 1, element_shape[2])
+        Xi_la = BSplineKnotVector(degrees[0] - 1, element_shape[0])
+        Eta_la = BSplineKnotVector(degrees[1] - 1, element_shape[1])
+        Zeta_la = BSplineKnotVector(degrees[2] - 1, element_shape[2])
         knot_vectors_la = (Xi_la, Eta_la, Zeta_la)
         la_mesh = Mesh3D(
             knot_vectors_la, QP_shape, derivative_order=0, basis="B-spline", nq_n=1
@@ -220,9 +220,9 @@ def test_cylinder():
     QP_shape = (3, 3, 3)
     element_shape = (2, 2, 4)
 
-    Xi = KnotVector(degrees[0], element_shape[0])
-    Eta = KnotVector(degrees[1], element_shape[1])
-    Zeta = KnotVector(degrees[2], element_shape[2])
+    Xi = BSplineKnotVector(degrees[0], element_shape[0])
+    Eta = BSplineKnotVector(degrees[1], element_shape[1])
+    Zeta = BSplineKnotVector(degrees[2], element_shape[2])
     knot_vectors = (Xi, Eta, Zeta)
 
     mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=1, basis="B-spline", nq_n=3)
@@ -332,8 +332,8 @@ def test_rectangle():
     QP_shape = (3, 3)
     element_shape = (4, 8)
 
-    Xi = KnotVector(degrees[0], element_shape[0])
-    Eta = KnotVector(degrees[1], element_shape[1])
+    Xi = BSplineKnotVector(degrees[0], element_shape[0])
+    Eta = BSplineKnotVector(degrees[1], element_shape[1])
     knot_vectors = (Xi, Eta)
 
     mesh = Mesh2D(knot_vectors, QP_shape, derivative_order=1, basis="B-spline", nq_n=2)

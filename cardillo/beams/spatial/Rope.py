@@ -1,8 +1,8 @@
 import numpy as np
 
 from cardillo.utility.coo import Coo
-from cardillo.discretization.lagrange import NodeVector
-from cardillo.discretization.B_spline import KnotVector
+from cardillo.discretization.lagrange import LagrangeKnotVector
+from cardillo.discretization.B_spline import BSplineKnotVector
 from cardillo.discretization.Hermite import HermiteNodeVector
 from cardillo.discretization.mesh1D import Mesh1D
 from cardillo.math import (
@@ -38,9 +38,9 @@ class Rope:
         # chose basis
         self.basis = basis
         if basis == "Lagrange":
-            self.knot_vector = NodeVector(polynomial_degree, nelement)
+            self.knot_vector = LagrangeKnotVector(polynomial_degree, nelement)
         elif basis == "B-spline":
-            self.knot_vector = KnotVector(polynomial_degree, nelement)
+            self.knot_vector = BSplineKnotVector(polynomial_degree, nelement)
         elif basis == "Hermite":
             assert polynomial_degree == 3, "only cubic Hermite splines are implemented!"
             self.knot_vector = HermiteNodeVector(polynomial_degree, nelement)
@@ -140,7 +140,7 @@ class Rope:
             z0 = np.zeros(nn)
             # build Greville abscissae for B-spline basis
             if basis == "B-spline":
-                kv = KnotVector.uniform(polynomial_degree, nelement)
+                kv = BSplineKnotVector.uniform(polynomial_degree, nelement)
                 for i in range(nn):
                     x0[i] = np.sum(kv[i + 1 : i + polynomial_degree + 1])
                 x0 = x0 * L / polynomial_degree

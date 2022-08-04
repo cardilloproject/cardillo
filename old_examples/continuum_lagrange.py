@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import pathlib
-from cardillo.discretization.lagrange import NodeVector, fit_lagrange_volume
+from cardillo.discretization.lagrange import LagrangeKnotVector, fit_lagrange_volume
 from cardillo.discretization.mesh3D import Mesh3D, cube
 from cardillo.discretization.mesh2D import Mesh2D, rectangle
 from cardillo.discretization.indexing import flat3D
@@ -50,9 +50,9 @@ def test_cube():
     # Xi = Knot_vector(degrees[0], element_shape[0], data=data_xi)
     # Eta = Knot_vector(degrees[1], element_shape[1], data=data_eta)
     # Zeta = Knot_vector(degrees[2], element_shape[2], data=data_zeta)
-    Xi = NodeVector(degrees[0], element_shape[0])
-    Eta = NodeVector(degrees[1], element_shape[1])
-    Zeta = NodeVector(degrees[2], element_shape[2])
+    Xi = LagrangeKnotVector(degrees[0], element_shape[0])
+    Eta = LagrangeKnotVector(degrees[1], element_shape[1])
+    Zeta = LagrangeKnotVector(degrees[2], element_shape[2])
     knot_vectors = (Xi, Eta, Zeta)
 
     mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=1, basis="lagrange", nq_n=3)
@@ -69,9 +69,9 @@ def test_cube():
     mu2 = 0.5  # * 1e3
     if Incompressible:
         mat = Ogden1997_incompressible(mu1)
-        Xi_la = NodeVector(degrees[0] - 1, element_shape[0])
-        Eta_la = NodeVector(degrees[1] - 1, element_shape[1])
-        Zeta_la = NodeVector(degrees[2] - 1, element_shape[2])
+        Xi_la = LagrangeKnotVector(degrees[0] - 1, element_shape[0])
+        Eta_la = LagrangeKnotVector(degrees[1] - 1, element_shape[1])
+        Zeta_la = LagrangeKnotVector(degrees[2] - 1, element_shape[2])
         knot_vectors_la = (Xi_la, Eta_la, Zeta_la)
         la_mesh = Mesh3D(
             knot_vectors_la, QP_shape, derivative_order=0, basis="lagrange", nq_n=1
@@ -195,9 +195,9 @@ def test_cylinder():
     QP_shape = (3, 3, 3)
     element_shape = (3, 3, 2)
 
-    Xi = NodeVector(degrees[0], element_shape[0])
-    Eta = NodeVector(degrees[1], element_shape[1])
-    Zeta = NodeVector(degrees[2], element_shape[2])
+    Xi = LagrangeKnotVector(degrees[0], element_shape[0])
+    Eta = LagrangeKnotVector(degrees[1], element_shape[1])
+    Zeta = LagrangeKnotVector(degrees[2], element_shape[2])
     knot_vectors = (Xi, Eta, Zeta)
 
     mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=1, basis="lagrange", nq_n=3)
@@ -312,8 +312,8 @@ def test_rectangle():
     QP_shape = (3, 3)
     element_shape = (4, 8)
 
-    Xi = NodeVector(degrees[0], element_shape[0])
-    Eta = NodeVector(degrees[1], element_shape[1])
+    Xi = LagrangeKnotVector(degrees[0], element_shape[0])
+    Eta = LagrangeKnotVector(degrees[1], element_shape[1])
     knot_vectors = (Xi, Eta)
 
     mesh = Mesh2D(knot_vectors, QP_shape, derivative_order=1, basis="lagrange", nq_n=2)
