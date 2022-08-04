@@ -3283,10 +3283,14 @@ class BernoulliAxisAngleSE3(TimoshenkoAxisAngleSE3Old):
 
         self.basis = "B-spline"  # TODO
         if self.basis == "B-spline":
-            self.knot_vector_la = BSplineKnotVector(self.polynomial_degree_g, self.nelement)
+            self.knot_vector_la = BSplineKnotVector(
+                self.polynomial_degree_g, self.nelement
+            )
             self.nn_g = self.nelement + self.polynomial_degree_g  # number of nodes
         elif self.basis == "Lagrange":
-            self.knot_vector_la = LagrangeKnotVector(self.polynomial_degree_g, self.nelement)
+            self.knot_vector_la = LagrangeKnotVector(
+                self.polynomial_degree_g, self.nelement
+            )
             # self.nn_g = self.nelement * self.polynomial_degree_g + 1  # number of nodes
             self.nn_g = self.nelement  # number of nodes
         else:

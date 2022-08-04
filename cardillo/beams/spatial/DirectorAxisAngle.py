@@ -238,7 +238,6 @@ class DirectorAxisAngle:
         p = max(polynomial_degree_r, polynomial_degree_psi)
         # self.nquadrature = nquadrature = int(np.ceil((p + 1) ** 2 / 2))
         self.nquadrature = nquadrature = p
-        # self.nquadrature = nquadrature = p + 1
         self.nelement = nelement
 
         # chose basis functions
@@ -439,15 +438,16 @@ class DirectorAxisAngle:
         else:
             raise RuntimeError(f'wrong basis_psi: "{basis_psi}" was chosen')
 
-        if basis_r == "B-spline":
+        if basis_r == "B-spline" or basis_r == "Lagrange":
             x0 = np.linspace(0, L, num=nnodes_r)
             y0 = np.zeros(nnodes_r)
             z0 = np.zeros(nnodes_r)
-            # build Greville abscissae for B-spline basis
-            kv = BSplineKnotVector.uniform(polynomial_degree_r, nelement)
-            for i in range(nnodes_r):
-                x0[i] = np.sum(kv[i + 1 : i + polynomial_degree_r + 1])
-            x0 = x0 * L / polynomial_degree_r
+            if basis_r == "B-spline":
+                # build Greville abscissae for B-spline basis
+                kv = BSplineKnotVector.uniform(polynomial_degree_r, nelement)
+                for i in range(nnodes_r):
+                    x0[i] = np.sum(kv[i + 1 : i + polynomial_degree_r + 1])
+                x0 = x0 * L / polynomial_degree_r
 
             r0 = np.vstack((x0, y0, z0))
             for i in range(polynomial_degree_r):

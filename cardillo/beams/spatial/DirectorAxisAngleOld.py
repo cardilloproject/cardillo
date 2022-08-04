@@ -98,7 +98,9 @@ class DirectorAxisAngleOld:
                 self.polynomial_degree_psi = polynomial_degree_psi = 1
                 # TODO: Enbale Lagrange shape functions again if ready.
                 # self.knot_vector_psi = Node_vector(polynomial_degree_psi, nelement)
-                self.knot_vector_psi = BSplineKnotVector(polynomial_degree_psi, nelement)
+                self.knot_vector_psi = BSplineKnotVector(
+                    polynomial_degree_psi, nelement
+                )
         else:
             raise RuntimeError(f'wrong basis: "{basis}" was chosen')
 

@@ -24,12 +24,35 @@ import matplotlib.pyplot as plt
 
 
 def statics():
-    nelements = 10
-    polynomial_degree = 1
-    # nelements = 4
-    # polynomial_degree = 2
+    # nelements = 5
+    # basis_r = "Lagrange"
+    # basis_psi = "Lagrange"
+    # polynomial_degree_r = 1
+    # polynomial_degree_psi = 1
+
     # nelements = 2
-    # polynomial_degree = 3
+    # basis_r = "Lagrange"
+    # basis_psi = "Lagrange"
+    # polynomial_degree_r = 2
+    # polynomial_degree_psi = 2
+
+    nelements = 2
+    basis_r = "Lagrange"
+    basis_psi = "Lagrange"
+    polynomial_degree_r = 3
+    polynomial_degree_psi = 3
+
+    # nelements = 10
+    # basis_r = "B-spline"
+    # basis_psi = "B-spline"
+    # polynomial_degree_r = 3
+    # polynomial_degree_psi = 3
+
+    # nelements = 3
+    # basis_r = "Hermite"
+    # basis_psi = "Lagrange"
+    # polynomial_degree_r = 3
+    # polynomial_degree_psi = 3
 
     # beam parameters
     L = 10
@@ -54,7 +77,10 @@ def statics():
     A_IK0 = np.eye(3, dtype=float)
 
     Q = DirectorAxisAngle.straight_configuration(
-        polynomial_degree,
+        polynomial_degree_r,
+        polynomial_degree_psi,
+        basis_r,
+        basis_psi,
         nelements,
         L,
         r_OP=r_OP0,
@@ -66,9 +92,12 @@ def statics():
         A_rho0,
         K_S_rho0,
         K_I_rho0,
-        polynomial_degree,
+        polynomial_degree_r,
+        polynomial_degree_psi,
         nelements,
         Q,
+        basis_r=basis_r,
+        basis_psi=basis_psi,
     )
 
     # junctions

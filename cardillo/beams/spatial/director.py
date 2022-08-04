@@ -2152,10 +2152,14 @@ class TimoshenkoDirectorIntegral(TimoshenkoBeamDirector):
         self.nn_el_g = self.polynomial_degree_g + 1  # number of nodes per element
 
         if self.basis == "B-spline":
-            self.knot_vector_g = BSplineKnotVector(self.polynomial_degree_g, self.nelement)
+            self.knot_vector_g = BSplineKnotVector(
+                self.polynomial_degree_g, self.nelement
+            )
             self.nn_g = self.nelement + self.polynomial_degree_g  # number of nodes
         elif self.basis == "Lagrange":
-            self.knot_vector_g = LagrangeKnotVector(self.polynomial_degree_g, self.nelement)
+            self.knot_vector_g = LagrangeKnotVector(
+                self.polynomial_degree_g, self.nelement
+            )
             self.nn_g = self.nelement * self.polynomial_degree_g + 1  # number of nodes
         else:
             raise NotImplementedError
@@ -2663,10 +2667,14 @@ class EulerBernoulliDirectorIntegral(TimoshenkoBeamDirector):
         self.nn_el_g = self.polynomial_degree_g + 1  # number of nodes per element
 
         if self.basis == "B-spline":
-            self.knot_vector_g = BSplineKnotVector(self.polynomial_degree_g, self.nelement)
+            self.knot_vector_g = BSplineKnotVector(
+                self.polynomial_degree_g, self.nelement
+            )
             self.nn_g = self.nelement + self.polynomial_degree_g  # number of nodes
         elif self.basis == "lagrange":
-            self.knot_vector_g = LagrangeKnotVector(self.polynomial_degree_g, self.nelement)
+            self.knot_vector_g = LagrangeKnotVector(
+                self.polynomial_degree_g, self.nelement
+            )
             self.nn_g = self.nelement * self.polynomial_degree_g + 1  # number of nodes
 
         self.nq_n_g = 8  # number of degrees of freedom per node
@@ -2960,10 +2968,14 @@ class InextensibleEulerBernoulliDirectorIntegral(TimoshenkoBeamDirector):
         self.nn_el_g = self.polynomial_degree_g + 1  # number of nodes per element
 
         if self.basis == "B-spline":
-            self.knot_vector_g = BSplineKnotVector(self.polynomial_degree_g, self.nelement)
+            self.knot_vector_g = BSplineKnotVector(
+                self.polynomial_degree_g, self.nelement
+            )
             self.nn_g = self.nelement + self.polynomial_degree_g  # number of nodes
         elif self.basis == "lagrange":
-            self.knot_vector_g = LagrangeKnotVector(self.polynomial_degree_g, self.nelement)
+            self.knot_vector_g = LagrangeKnotVector(
+                self.polynomial_degree_g, self.nelement
+            )
             self.nn_g = self.nelement * self.polynomial_degree_g + 1  # number of nodes
 
         self.nq_n_g = 9  # number of degrees of freedom per node
