@@ -2713,6 +2713,78 @@ class Pantobox_beam_network():
 
         return np.array([tau1, tau2, tau3, tau4])   
 
+    def kappa_n(self, F, G=G0):
+        d1 = F @ self.D1
+        d2 = F @ self.D2
+        rho1 = norm3(d1)
+        rho2 = norm3(d2)
+        e1 = d1 / rho1
+        e2 = d2 / rho2
+        e1xe2 = cross3(e1, e2)
+        cosga = norm3(e1xe2)
+        na = e1xe2 / cosga
+        m1 = cross3(na, e1)
+        m2 = cross3(na, e2)
+        c1 = np.einsum('ijk,j,k->i', G, self.D1, self.D1) / \
+            rho1  # same as G@D1@D1 speed is similar
+        c2 = np.einsum('ijk,j,k->i', G, self.D2, self.D2) / rho2
+
+        d3 = F @ self.D3
+        d4 = F @ self.D4
+        rho3 = norm3(d3)
+        rho4 = norm3(d4)
+        e3 = d3 / rho3
+        e4 = d4 / rho4
+        e3xe4 = cross3(e3, e4)
+        cosgb = norm3(e3xe4)
+        nb = e3xe4 / cosgb
+        m3 = cross3(nb, e3)
+        m4 = cross3(nb, e4)
+        c3 = np.einsum('ijk,j,k->i', G, self.D3, self.D3) / rho3
+        c4 = np.einsum('ijk,j,k->i', G, self.D4, self.D4) / rho4
+
+        kn1 = -m1 @ c1
+        kn2 = -m2 @ c2
+        kn3 = -m3 @ c3
+        kn4 = -m4 @ c4
+
+        return np.array([kn1, kn2, kn3, kn4])    
+
+    def kappa_g(self, F, G=G0):
+        d1 = F @ self.D1
+        d2 = F @ self.D2
+        rho1 = norm3(d1)
+        rho2 = norm3(d2)
+        e1 = d1 / rho1
+        e2 = d2 / rho2
+        e1xe2 = cross3(e1, e2)
+        cosga = norm3(e1xe2)
+        na = e1xe2 / cosga
+
+        c1 = np.einsum('ijk,j,k->i', G, self.D1, self.D1) / \
+            rho1  # same as G@D1@D1 speed is similar
+        c2 = np.einsum('ijk,j,k->i', G, self.D2, self.D2) / rho2
+
+        d3 = F @ self.D3
+        d4 = F @ self.D4
+        rho3 = norm3(d3)
+        rho4 = norm3(d4)
+        e3 = d3 / rho3
+        e4 = d4 / rho4
+        e3xe4 = cross3(e3, e4)
+        cosgb = norm3(e3xe4)
+        nb = e3xe4 / cosgb
+
+        c3 = np.einsum('ijk,j,k->i', G, self.D3, self.D3) / rho3
+        c4 = np.einsum('ijk,j,k->i', G, self.D4, self.D4) / rho4
+
+        kg1 = na @ c1
+        kg2 = na @ c2
+        kg3 = nb @ c3
+        kg4 = nb @ c4
+
+        return np.array([kg1, kg2, kg3, kg4])  
+
     # numerical derivatives
     def P_num(self, F, G, W=W):
         P_num = Numerical_derivative(lambda F: W(F, G), order=2)._X(F)

@@ -129,7 +129,7 @@ def test_cube():
                     cDOF2 = mesh.surface_qDOF[5].ravel()
                     cDOF = np.concatenate((cDOF1, cDOF2))
 
-                    def bt(t, phi0=0.25 * np.pi, h=0):
+                    def bt(t, phi0=0.5 * np.pi, h=0):
                         cDOF2_xyz = cDOF2.reshape(3, -1).T
                         out = np.zeros_like(Z)
 
@@ -198,7 +198,7 @@ def test_cube():
     # build mesh
     degrees = (3, 3, 3)
     QP_shape = (3, 3, 3)
-    element_shape = (3, 3, 9)
+    element_shape = (5, 5, 15)
 
     Xi = Knot_vector(degrees[0], element_shape[0])
     Eta = Knot_vector(degrees[1], element_shape[1])
@@ -216,7 +216,7 @@ def test_cube():
     Lx = 70.0 * u_l  # Block length in x direction in mm
     Ly = 70.0 * u_l # Block length in y direction in mm
     Lz = 210.0 * u_l # Block length in x direction in mm
-    nx = 2  # number of unit cells in x-direction
+    nx = 3  # number of unit cells in x-direction
     nxp = 1#(nx+1)/nx # number of sheets per length Lx including boundary
     p = Lx / np.sqrt(2) / nx  # distance between pivots along a beam
     a = 1.0 * p/5 * u_l # Beam thickness in d2 direction in mm
@@ -242,7 +242,7 @@ def test_cube():
 
     # reference configuration is a cube
     cube_shape = (Lx, Ly, Lz)
-    Z = cube(cube_shape, mesh, Greville=False)
+    Z = cube(cube_shape, mesh, Greville=True)
 
     mat = Pantobox_beam_network(Ke, Ks*0., Kg, Kn, Kt, Kc*0.,  numerical_derivative=False)
     # mat = Pantobox_beam_network(Ke, Ks, 0.0, 0.0, 0.0, Kc, numerical_derivative=False)
@@ -251,7 +251,7 @@ def test_cube():
     # mat = Ogden1997_compressible(mu1, mu2)
 
     density = 1e-3
-    tests = ['x'.join([str(v) for v in element_shape]),"torsion","z","second_grad","mm_GPa","direct_bc"]
+    tests = ['x'.join([str(v) for v in element_shape]),"torsion","90","z","second_grad","mm_GPa","direct_bc","greville"]
 
     # 3D continuum
     cDOF, b = boundary_conditions_cube(cube_shape, mesh, Z, tests=tests, srf_idx=[4,5])
@@ -385,6 +385,11 @@ def test_cube():
         / file_name
     )
     file_path.parent.mkdir(parents=True, exist_ok=True)
+    file_path = (
+        pathlib.Path("/media/boromir/stilz/Projects/Pantographic_orthoblock/Simulations/results/")
+                / str(f"{file_name}_cube_" + "_".join(tests) + "_nx=" + str(nx))
+            / file_name
+    )
     export_path = file_path.parent / "sol"
 
     file_path_la = file_path
@@ -404,7 +409,7 @@ def test_cube():
 
         save_solution(sol, str(export_path))
 
-    # continuum.post_processing(sol.t, sol.q, file_path, binary=True)
+    continuum.post_processing(sol.t, sol.q, file_path, binary=True)
 
 
    # continuum.post_processing_la(sol.t, la_mesh_z, sol.la_g[:,model.contributions[-1].la_gDOF], sol.q[:, continuum.mesh.surface_qDOF[5].ravel()], file_path_la)

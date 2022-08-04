@@ -471,6 +471,8 @@ class Second_gradient:
                 "rho": lambda F, G: self.mat.rho(F, G),
                 "ga": lambda F, G: self.mat.ga(F, G),
                 "tau": lambda F, G: self.mat.tau(F, G),
+                "kappa_n": lambda F, G: self.mat.kappa_n(F, G),
+                "kappa_g": lambda F, G: self.mat.kappa_g(F, G),
             }
 
             for name, fun in point_data_fields.items():
