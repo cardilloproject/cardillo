@@ -2383,8 +2383,8 @@ class GeneralizedAlphaSecondOrder:
         tol=1e-6,
         max_iter=30,
         error_function=lambda x: np.max(np.abs(x)),
-        # numerical_jacobian=False,
-        numerical_jacobian=True,
+        numerical_jacobian=False,
+        # numerical_jacobian=True,
         # preconditioning=True,
         preconditioning=False,
         GGL=False,
@@ -2457,7 +2457,7 @@ class GeneralizedAlphaSecondOrder:
         self.la_gammak = u_dot_la_g_la_gamma[self.nu + self.nla_g :]
 
         # initialize auxilary variables
-        self.u_dot_bark = self.u_dotk.copy()
+        self.ak = self.u_dotk.copy()
 
         # initial state
         if self.GGL:
@@ -2542,22 +2542,25 @@ class GeneralizedAlphaSecondOrder:
         u_dotk1 = xk1[:nu]
 
         # eqn. (71): compute auxiliary acceleration variables
-        u_dot_bark1 = (
-            alpha_f * self.u_dotk
-            + (1.0 - alpha_f) * u_dotk1
-            - alpha_m * self.u_dot_bark
+        ak1 = (
+            alpha_f * self.u_dotk + (1.0 - alpha_f) * u_dotk1 - alpha_m * self.ak
         ) / (1.0 - alpha_m)
 
         # eqn. (73): velocity update formula
-        uk1 = self.uk + dt * ((1.0 - gamma) * self.u_dot_bark + gamma * u_dot_bark1)
+        uk1 = self.uk + dt * ((1.0 - gamma) * self.ak + gamma * ak1)
 
-        # eqn. (125): generalized position update formula
-        u_dot_beta = (1.0 - 2.0 * beta) * self.u_dot_bark + 2.0 * beta * u_dot_bark1
-        qk1 = (
-            self.qk
-            + dt * self.model.q_dot(self.tk, self.qk, self.uk)
-            + 0.5 * dt2 * self.model.q_ddot(self.tk, self.qk, self.uk, u_dot_beta)
-        )
+        # # eqn. (125): generalized position update formula
+        # u_dot_beta = (1.0 - 2.0 * beta) * self.u_dot_bark + 2.0 * beta * u_dot_bark1
+        # qk1 = (
+        #     self.qk
+        #     + dt * self.model.q_dot(self.tk, self.qk, self.uk)
+        #     + 0.5 * dt2 * self.model.q_ddot(self.tk, self.qk, self.uk, u_dot_beta)
+        # )
+
+        # kinematic update proposed by Arnold2017, (56a) and (56b)
+        Delta_uk1 = self.uk + dt * ((0.5 - beta) * self.ak + beta * ak1)
+        qk1 = self.qk + dt * self.model.q_dot(self.tk, self.qk, Delta_uk1)
+
         if self.GGL:
             mu_gk1 = xk1[-nla_g:]
             qk1 += self.model.g_q(self.tk, self.qk).T @ mu_gk1
@@ -2566,7 +2569,7 @@ class GeneralizedAlphaSecondOrder:
             self.u_dotk = u_dotk1
             self.uk = uk1
             self.qk = qk1
-            self.u_dot_bark = u_dot_bark1
+            self.ak = ak1
 
         return qk1, uk1
 
@@ -2631,11 +2634,18 @@ class GeneralizedAlphaSecondOrder:
 
         yield R
 
-        raise NotImplementedError
-
         ###################
         # evaluate jacobian
         ###################
+
+        # chain rules
+        ak1_u_dotk1 = (1.0 - self.alpha_f) / (1.0 - self.alpha_m)
+        uk1_ak1 = self.dt * self.gamma
+        uk1_u_dotk1 = uk1_ak1 * ak1_u_dotk1
+        qk1_ak1 = self.dt**2 * self.beta * self.model.B(self.tk, self.qk)
+        qk1_u_dotk1 = qk1_ak1 * ak1_u_dotk1
+        qk1_muk1 = self.model.g_q(self.tk, self.qk).T
+
         K = (
             self.model.Mu_q(tk1, qk1, u_dotk1)
             - self.model.h_q(tk1, qk1, uk1)
@@ -2643,27 +2653,46 @@ class GeneralizedAlphaSecondOrder:
             - self.model.Wla_gamma_q(tk1, qk1, la_gammak1)
         )
         h_uk1 = self.model.h_u(tk1, qk1, uk1)
+
         g_qk1 = self.model.g_q(tk1, qk1)
         gamma_qk1 = self.model.gamma_q(tk1, qk1, uk1)
 
+        g_u_dotk1 = g_qk1 @ qk1_u_dotk1
+        gamma_u_dotk1 = gamma_qk1 @ qk1_u_dotk1 + W_gammak1.T * uk1_u_dotk1
+
+        if self.GGL:
+            g_muk1 = g_qk1 @ qk1_muk1
+
+            gamma_muk1 = gamma_qk1 @ qk1_muk1
+
+            g_dot_qk1 = self.model.g_dot_q(tk1, qk1, uk1)
+            g_dot_u_dotk1 = g_dot_qk1 @ qk1_u_dotk1 + W_gk1.T * uk1_u_dotk1
+            g_dot_muk1 = g_dot_qk1 @ qk1_muk1
+
         # sparse assemble global tangent matrix
-        a_bark1_ak1 = (1.0 - self.alpha_f) / (1.0 - self.alpha_m)
-        uk1_a_bark1 = self.dt * self.gamma
-        uk1_ak1 = uk1_a_bark1 * a_bark1_ak1
-        qk1_a_bark1 = self.dt**2 * self.beta * self.model.B(self.tk, self.qk)
-        qk1_ak1 = qk1_a_bark1 * a_bark1_ak1
-        g_ak1 = g_qk1 @ qk1_ak1
-        gamma_ak1 = W_gammak1.T * uk1_ak1 + gamma_qk1 @ qk1_ak1
-        # fmt: off
-        J = bmat(
-            [
-                [Mk1 + K @ qk1_ak1 - h_uk1 * uk1_ak1, -W_gk1, -W_gammak1],
-                [                g_ak1,   None,       None],
-                [            gamma_ak1,   None,       None],
-            ],
-            format="csr",
-        )
-        # fmt: on
+        if self.GGL:
+            # fmt: off
+            J = bmat(
+                [
+                    [Mk1 + K @ qk1_u_dotk1 - h_uk1 * uk1_u_dotk1, -W_gk1, -W_gammak1, K @ qk1_muk1],
+                    [                                  g_u_dotk1,   None,       None,       g_muk1],
+                    [                              gamma_u_dotk1,   None,       None,   gamma_muk1],
+                    [                              g_dot_u_dotk1,   None,       None,   g_dot_muk1],
+                ],
+                format="csr",
+            )
+            # fmt: on
+        else:
+            # fmt: off
+            J = bmat(
+                [
+                    [Mk1 + K @ qk1_u_dotk1 - h_uk1 * uk1_u_dotk1, -W_gk1, -W_gammak1],
+                    [                                  g_u_dotk1,   None,       None],
+                    [                              gamma_u_dotk1,   None,       None],
+                ],
+                format="csr",
+            )
+            # fmt: on
 
         # # TODO: Keep this for debugging!
         # J_num = self.__J_num(tk1, xk1)
