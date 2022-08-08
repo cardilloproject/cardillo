@@ -54,7 +54,7 @@ def statics():
     # polynomial_degree_psi = 3
 
     # test for Kirchhoff beam
-    nelements = 1
+    nelements = 3
 
     # beam parameters
     L = 10
@@ -113,21 +113,21 @@ def statics():
     nquadrature = int(max(polynomial_degree_r, polynomial_degree_psi)) + 1
     beam = Kirchhoff(material_model, A_rho0, K_I_rho0, nquadrature, nelements, Q)
 
-    # junctions
-    n = 1
-    # t_star = 0.25
-    t_star = 0.1
+    # # junctions
+    # n = 1
+    # # t_star = 0.25
+    # t_star = 0.1
 
-    def A_IK0(t):
-        # phi = (
-        #     n * np.heaviside(t - t_star, 1.0) * (t - t_star) / (1.0 - t_star) * 2.0 * pi
-        # )
-        # phi = t * n * 2.0 * pi
-        phi = t * pi
-        # return A_IK_basic(phi).x()
-        # return A_IK_basic(phi).y()
-        return A_IK_basic(phi).z()
-        # return A_IK_basic(phi).z() @ A_IK_basic(phi).x()
+    # def A_IK0(t):
+    #     # phi = (
+    #     #     n * np.heaviside(t - t_star, 1.0) * (t - t_star) / (1.0 - t_star) * 2.0 * pi
+    #     # )
+    #     # phi = t * n * 2.0 * pi
+    #     phi = t * pi
+    #     # return A_IK_basic(phi).x()
+    #     # return A_IK_basic(phi).y()
+    #     return A_IK_basic(phi).z()
+    #     # return A_IK_basic(phi).z() @ A_IK_basic(phi).x()
 
     frame1 = Frame(r_OP=r_OP0, A_IK=A_IK0)
 
@@ -136,8 +136,8 @@ def statics():
 
     # moment at right end
     Fi = material_model.Fi
-    # M = lambda t: t * 2 * np.pi * (Fi[0] * e1 + Fi[2] * e3) / L * 1.0
-    M = lambda t: t * 2 * np.pi * Fi[2] * e3 / L * 0.1
+    M = lambda t: t * 2 * np.pi * (Fi[0] * e1 + Fi[2] * e3) / L * 0.25
+    # M = lambda t: t * 2 * np.pi * Fi[2] * e3 / L * 0.25
     moment = K_Moment(M, beam, (1,))
 
     # assemble the model
@@ -145,7 +145,7 @@ def statics():
     model.add(beam)
     model.add(frame1)
     model.add(joint1)
-    # model.add(moment)
+    model.add(moment)
     model.assemble()
 
     n_load_steps = 10
@@ -161,8 +161,8 @@ def statics():
     nt = len(q)
     t = sol.t[:nt]
 
-    animate_beam(t, q, [beam], L, show=False)
-    animate_beam(t, [q[-1]], [beam], L, show=True)
+    animate_beam(t, q, [beam], L, show=True)
+    # animate_beam(t, [q[-1]], [beam], L, show=True)
 
 
 def dynamics():
