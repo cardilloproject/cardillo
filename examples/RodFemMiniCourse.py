@@ -54,6 +54,8 @@ def statics():
     # polynomial_degree_psi = 3
 
     # test for Kirchhoff beam
+    polynomial_degree_r = 3
+    polynomial_degree_psi = 1
     nelements = 3
 
     # beam parameters
@@ -110,7 +112,7 @@ def statics():
 
     Q = Kirchhoff.straight_configuration(nelements, L)
 
-    nquadrature = int(max(polynomial_degree_r, polynomial_degree_psi)) + 1
+    nquadrature = int(max(polynomial_degree_r, polynomial_degree_psi))  # + 1
     beam = Kirchhoff(material_model, A_rho0, K_I_rho0, nquadrature, nelements, Q)
 
     # # junctions
@@ -129,10 +131,11 @@ def statics():
     #     return A_IK_basic(phi).z()
     #     # return A_IK_basic(phi).z() @ A_IK_basic(phi).x()
 
+    r_OP0 = np.random.rand(3)
     frame1 = Frame(r_OP=r_OP0, A_IK=A_IK0)
 
     # left and right joint
-    joint1 = RigidConnection(frame1, beam, frame_ID2=(0,))
+    joint1 = RigidConnection(frame1, beam, frame_ID2=(0.25,))
 
     # moment at right end
     Fi = material_model.Fi

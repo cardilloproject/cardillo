@@ -198,6 +198,37 @@ def Log_SO3_A(A: np.ndarray) -> np.ndarray:
     # return psi_A_num
 
 
+def T_SO3(psi: np.ndarray) -> np.ndarray:
+    angle = norm(psi)
+    if angle > angle_singular:
+        # Park2005 (19), actually its the transposed!
+        sa = np.sin(angle)
+        ca = np.cos(angle)
+        psi_tilde = ax2skew(psi)
+        alpha = sa / angle
+        angle2 = angle * angle
+        beta2 = (1.0 - ca) / angle2
+        return (
+            np.eye(3, dtype=float)
+            - beta2 * psi_tilde
+            + ((1.0 - alpha) / angle2) * psi_tilde @ psi_tilde
+        )
+
+        # # Barfoot2014 (98), actually its the transposed!
+        # sa = np.sin(angle)
+        # ca = np.cos(angle)
+        # sinc = sa / angle
+        # n = psi / angle
+        # return (
+        #     sinc * np.eye(3, dtype=float)
+        #     - ((1.0 - ca) / angle) * ax2skew(n)
+        #     + (1.0 - sinc) * np.outer(n, n)
+        # )
+    else:
+        # first order approximation
+        return np.eye(3, dtype=float) - 0.5 * ax2skew(psi)
+
+
 def T_SO3_inv(psi: np.ndarray) -> np.ndarray:
     angle = norm(psi)
     psi_tilde = ax2skew(psi)
@@ -517,7 +548,7 @@ class Kirchhoff:
         t0 = j0 * (A_IK0 @ e1)
         t1 = j1 * (A_IK1 @ e1)
 
-        # interpolate centerline and its derivatives
+        # interpolate centerline and its derivatives using cubic Hermite spline
         r = N_r[0] * r0 + N_r[1] * t0 + N_r[2] * r1 + N_r[3] * t1
         r_xi = N_r_xi[0] * r0 + N_r_xi[1] * t0 + N_r_xi[2] * r1 + N_r_xi[3] * t1
         r_xixi = (
@@ -611,10 +642,10 @@ class Kirchhoff:
         return f_pot
 
     def f_pot_el(self, qe, el):
-        # return approx_fprime(qe, lambda qe: self.E_pot_el(qe, el), method="3-point")
         return approx_fprime(
             qe, lambda qe: self.E_pot_el(qe, el), eps=1.0e-10, method="cs"
         )
+
         f_pot_el = np.zeros(self.nq_element)
 
         for i in range(self.nquadrature):
@@ -985,82 +1016,36 @@ class Kirchhoff:
         el = self.element_number(xi)
         return self.elDOF[el]
 
-    # def r_OC(self, t, q, frame_ID):
-    #     # compute centerline position
-    #     N, _, _ = self.basis_functions_r(frame_ID[0])
-    #     r_OC = np.zeros(3, dtype=float)
-    #     for node in range(self.nnodes_element_r):
-    #         r_OC += N[node] * q[self.nodalDOF_element_r[node]]
-    #     return r_OC
-
-    # def r_OC_q(self, t, q, frame_ID):
-    #     # compute centerline position
-    #     N, _, _ = self.basis_functions_r(frame_ID[0])
-    #     r_OC_q = np.zeros((3, self.nq_element), dtype=float)
-    #     for node in range(self.nnodes_element_r):
-    #         r_OC_q[:, self.nodalDOF_element_r[node]] += N[node] * np.eye(3, dtype=float)
-    #     return r_OC_q
-
-    # def r_OC_xi(self, t, q, frame_ID):
-    #     # compute centerline position
-    #     _, N_xi, _ = self.basis_functions_r(frame_ID[0])
-    #     r_OC_xi = np.zeros(3, dtype=float)
-    #     for node in range(self.nnodes_element_r):
-    #         r_OC_xi += N_xi[node] * q[self.nodalDOF_element_r[node]]
-    #     return r_OC_xi
-
-    # def r_OC_xixi(self, t, q, frame_ID):
-    #     # compute centerline position
-    #     _, _, N_xixi = self.basis_functions_r(frame_ID[0])
-    #     r_OC_xixi = np.zeros(3, dtype=float)
-    #     for node in range(self.nnodes_element_r):
-    #         r_OC_xixi += N_xixi[node] * q[self.nodalDOF_element_r[node]]
-    #     return r_OC_xixi
-
-    # def J_C(self, t, q, frame_ID):
-    #     # evaluate required nodal shape functions
-    #     N, _, _ = self.basis_functions_r(frame_ID[0])
-
-    #     # interpolate centerline and axis angle contributions
-    #     J_C = np.zeros((3, self.nq_element), dtype=float)
-    #     for node in range(self.nnodes_element_r):
-    #         J_C[:, self.nodalDOF_element_r[node]] += N[node] * np.eye(3, dtype=float)
-
-    #     return J_C
-
-    # def J_C_q(self, t, q, frame_ID):
-    #     return np.zeros((3, self.nq_element, self.nq_element), dtype=float)
-
     ###################
     # r_OP contribution
     ###################
     def r_OP(self, t, q, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
-        # # compute centerline position
-        # N, _, _ = self.basis_functions_r(frame_ID[0])
-        # r_OC = np.zeros(3, dtype=float)
-        # for node in range(self.nnodes_element_r):
-        #     r_OC += N[node] * q[self.nodalDOF_element_r[node]]
         r_OC, _, _, A_IK, _ = self.eval(q, frame_ID[0])
 
         # rigid body formular
         return r_OC + A_IK @ K_r_SP
 
+    # TODO:
     def r_OP_q(self, t, q, frame_ID, K_r_SP=np.zeros(3)):
-        # compute centerline derivative
-        N, _, _ = self.basis_functions_r(frame_ID[0])
-        r_OP_q = np.zeros((3, self.nq_element), dtype=float)
-        for node in range(self.nnodes_element_r):
-            r_OP_q[:, self.nodalDOF_element_r[node]] += N[node] * np.eye(3)
+        # # TODO: The centerline part is not correct!
+        # # compute centerline derivative
+        # N, _, _ = self.basis_functions_r(frame_ID[0])
+        # r_OP_q = np.zeros((3, self.nq_element), dtype=float)
+        # for node in range(self.nnodes_element_r):
+        #     raise NotImplementedError
+        #     r_OP_q[:, self.nodalDOF_element_r[node]] += N[node] * np.eye(3)
 
-        # derivative of rigid body formular
-        r_OP_q += np.einsum("ijk,j->ik", self.A_IK_q(t, q, frame_ID), K_r_SP)
-        return r_OP_q
+        # # derivative of rigid body formular
+        # r_OP_q += np.einsum("ijk,j->ik", self.A_IK_q(t, q, frame_ID), K_r_SP)
+        # # return r_OP_q
 
-        # r_OP_q_num = approx_fprime(q, lambda q: self.r_OP(t, q, frame_ID, K_r_SP), method="3-point")
+        r_OP_q_num = approx_fprime(
+            q, lambda q: self.r_OP(t, q, frame_ID, K_r_SP), eps=1e-10, method="cs"
+        )
         # diff = r_OP_q_num - r_OP_q
         # error = np.linalg.norm(diff)
         # print(f"error r_OP_q: {error}")
-        # return r_OP_q_num
+        return r_OP_q_num
 
     def A_IK(self, t, q, frame_ID):
         _, _, _, A_IK, _ = self.eval(q, frame_ID[0])
@@ -1076,7 +1061,7 @@ class Kirchhoff:
         # return A_IK_q
 
         A_IK_q_num = approx_fprime(
-            q, lambda q: self.A_IK(t, q, frame_ID), method="3-point"
+            q, lambda q: self.A_IK(t, q, frame_ID), eps=1e-10, method="cs"
         )
         # diff = A_IK_q - A_IK_q_num
         # error = np.linalg.norm(diff)
@@ -1105,7 +1090,10 @@ class Kirchhoff:
     # TODO:
     def J_P(self, t, q, frame_ID, K_r_SP=np.zeros(3)):
         J_P_num = approx_fprime(
-            np.zeros(self.nq_element), lambda q: self.r_OP(t, q, frame_ID, K_r_SP)
+            np.zeros(self.nq_element),
+            lambda q: self.r_OP(t, q, frame_ID, K_r_SP),
+            eps=1e-10,
+            method="cs",
         )
         # J_P_num = approx_fprime(
         #     np.zeros(self.nq_element), lambda u: self.v_P(t, q, u, frame_ID, K_r_SP)
@@ -1208,16 +1196,34 @@ class Kirchhoff:
         # evaluate shape functions
         N_psi, _ = self.basis_functions_psi(frame_ID[0])
 
+        # #########################
+        # # Petrov-Galerkin version
+        # #########################
+        # # compute nodal angular velocities
+        # K_Omega0 = u[self.nodalDOF_element_r[1]]
+        # K_Omega1 = u[self.nodalDOF_element_r[3]]
+
+        #########################
+        # Bubnov-Galerkin version
+        #########################
+        # extract nodal quantities
+        psi0 = q[self.nodalDOF_element_r[1]]
+        psi1 = q[self.nodalDOF_element_r[3]]
+        psi_dot0 = u[self.nodalDOF_element_r[1]]
+        psi_dot1 = u[self.nodalDOF_element_r[3]]
+
         # compute nodal angular velocities
-        K_Omega0 = u[self.nodalDOF_element_r[1]]
-        K_Omega1 = u[self.nodalDOF_element_r[3]]
+        K_Omega0 = T_SO3(psi0) @ psi_dot0
+        K_Omega1 = T_SO3(psi1) @ psi_dot1
 
         # interpolate angular velocities
         return N_psi[0] * K_Omega0 + N_psi[1] * K_Omega1
 
     # TODO:
     def K_Omega_q(self, t, q, u, frame_ID):
-        return approx_fprime(q, lambda q: self.K_Omega(t, q, u, frame_ID))
+        return approx_fprime(
+            q, lambda q: self.K_Omega(t, q, u, frame_ID), eps=1e-10, method="cs"
+        )
 
     # TODO:
     def K_J_R(self, t, q, frame_ID):
