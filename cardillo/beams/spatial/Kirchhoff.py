@@ -2,6 +2,7 @@ import numpy as np
 import meshio
 import os
 from math import sin, cos
+from cardillo.math.algebra import skew2ax
 from cardillo.math.rotations import smallest_rotation
 
 from cardillo.utility.coo import Coo
@@ -24,15 +25,14 @@ from cardillo.math import (
 )
 
 
-# TODO: Remove distinction between nq and nu for Kirchhoff beam!
 class Kirchhoff:
     def __init__(
         self,
         material_model,
         A_rho0,
         I_rho0,
-        polynomial_degree_r,
-        polynomial_degree_psi,
+        # polynomial_degree_r,
+        # polynomial_degree_psi,
         nquadrature,
         nelement,
         Q,
@@ -48,10 +48,6 @@ class Kirchhoff:
         self.material_model = material_model
 
         # discretization parameters
-        self.polynomial_degree_r = polynomial_degree_r  # polynomial degree centerline
-        self.polynomial_degree_psi = (
-            polynomial_degree_psi  # polynomial degree axis angle
-        )
         self.nquadrature = nquadrature  # number of quadrature points
         self.nelement = nelement  # number of elements
 
@@ -60,11 +56,13 @@ class Kirchhoff:
         #       for the superimposed rotation w.r.t. the smallest rotation.
         polynomial_degree_r = 3
         self.knot_vector_r = HermiteNodeVector(polynomial_degree_r, nelement)
-        self.polynomial_degree_psi = polynomial_degree_psi = 1
+        polynomial_degree_psi = 1
         # TODO: Enbale Lagrange shape functions again if ready.
         # self.knot_vector_psi = Node_vector(polynomial_degree_psi, nelement)
+        polynomial_degree_psi = 1
         self.knot_vector_psi = BSplineKnotVector(polynomial_degree_psi, nelement)
-        self.quadrature = "Lobatto"
+        # self.quadrature = "Lobatto"
+        self.quadrature = "Gauss"
 
         # number of degrees of freedom per node
         self.nq_node_r = nq_node_r = 3
@@ -88,8 +86,8 @@ class Kirchhoff:
             self.knot_vector_psi,
             nquadrature,
             derivative_order=1,
-            # basis="Lagrange",
-            basis="B-spline",
+            basis="Lagrange",
+            # basis="B-spline",
             dim_q=nq_node_psi,
             dim_u=nu_node_psi,
             quadrature=self.quadrature,
@@ -151,6 +149,7 @@ class Kirchhoff:
         # shape functions and their first derivatives
         self.N_r = self.mesh_r.N
         self.N_r_xi = self.mesh_r.N_xi
+        self.N_r_xixi = self.mesh_r.N_xixi
         self.N_psi = self.mesh_psi.N
         self.N_psi_xi = self.mesh_psi.N_xi
 
@@ -186,16 +185,13 @@ class Kirchhoff:
             qe = self.Q[self.elDOF[el]]
 
             for i in range(nquadrature):
-                # interpolate tangent vector
-                r_xi = np.zeros(3)
-                for node in range(self.nnodes_element_r):
-                    r_xi += self.N_r_xi[el, i, node] * qe[self.nodalDOF_element_r[node]]
+                qp = self.qp[el, i]
+
+                # evaluate strain measures and other quantities depending on chosen formulation
+                r_xi, r_xixi, A_IK, K_Kappa_bar = self.eval(qe, qp)
 
                 # length of reference tangential vector
                 Ji = norm(r_xi)
-
-                # evaluate strain measures and other quantities depending on chosen formulation
-                r_xi, A_IK, K_Kappa_bar = self.eval(qe, el, i)
 
                 # # stretch
                 # stretch = 1. # Ji / Ji
@@ -459,7 +455,7 @@ class Kirchhoff:
             f_gyr_u_el = self.f_gyr_u_el(t, q[elDOF_q], u[elDOF_u], el)
             coo.extend(f_gyr_u_el, (self.uDOF[elDOF_u], self.uDOF[elDOF_u]))
 
-    def eval(self, qe, el, qp):
+    def eval_old(self, qe, el, qp):
         # interpolate tangent vector
         r_xi = np.zeros(3)
         for node in range(self.nnodes_element_r):
@@ -513,6 +509,63 @@ class Kirchhoff:
 
         return r_xi, A_IK, K_Kappa_bar
 
+    def eval(self, qe, qp):
+        # evaluate shape functions
+        _, N_r_xi, N_r_xixi = self.basis_functions_r(qp)
+        N_psi, N_psi_xi = self.basis_functions_psi(qp)
+
+        # interpolate tangent vector
+        r_xi = np.zeros(3, dtype=qe.dtype)
+        r_xixi = np.zeros(3, dtype=qe.dtype)
+        for node in range(self.nnodes_element_r):
+            r_xi += N_r_xi[node] * qe[self.nodalDOF_element_r[node]]
+            r_xixi += N_r_xixi[node] * qe[self.nodalDOF_element_r[node]]
+
+        # compute nodal smallest rotation
+        t0 = qe[self.nodalDOF_element_r[1]]
+        t1 = qe[self.nodalDOF_element_r[3]]
+        A_IB0 = smallest_rotation(e1, t0)
+        A_IB1 = smallest_rotation(e1, t1)
+
+        # compute rodriguez formular with nodal rotation values around nodal
+        # tangent vectors
+        d10 = t0 / norm(t0)
+        d11 = t1 / norm(t1)
+        phi0 = qe[self.nodalDOF_element_psi[0]]
+        phi1 = qe[self.nodalDOF_element_psi[1]]
+        # TODO: This can be implemented more efficient!
+        A_B0K0 = rodriguez(phi0 * d10)
+        A_B1K1 = rodriguez(phi1 * d11)
+
+        # composite rotation
+        A_IK0 = A_IB0 @ A_B0K0
+        A_IK1 = A_IB1 @ A_B1K1
+
+        # interpolate transformation matrix an dits derivative
+        A_IK = N_psi[0] * A_IK0 + N_psi[1] * A_IK1
+        A_IK_xi = N_psi_xi[0] * A_IK0 + N_psi_xi[1] * A_IK1
+
+        # compute curvature
+        K_Kappa_bar = skew2ax(A_IK.T @ A_IK_xi)
+
+        # # TODO: Better curvature with volume correction
+        # # torsional and flexural strains
+        # d1, d2, d3 = A_IK.T
+        # d1_xi, d2_xi, d3_xi = A_IK_xi.T
+        # half_d = d1 @ cross3(d2, d3)
+        # K_Kappa_bar = (
+        #     np.array(
+        #         [
+        #             0.5 * (d3 @ d2_xi - d2 @ d3_xi),
+        #             0.5 * (d1 @ d3_xi - d3 @ d1_xi),
+        #             0.5 * (d2 @ d1_xi - d1 @ d2_xi),
+        #         ]
+        #     )
+        #     / half_d
+        # )
+
+        return r_xi, r_xixi, A_IK, K_Kappa_bar
+
     def E_pot(self, t, q):
         E_pot = 0
         for el in range(self.nelement):
@@ -521,27 +574,36 @@ class Kirchhoff:
         return E_pot
 
     def E_pot_el(self, qe, el):
+        # raise NotImplementedError
         E_pot_el = 0
 
         for i in range(self.nquadrature):
             # extract reference state variables
+            qpi = self.qp[el, i]
             qwi = self.qw[el, i]
             Ji = self.J[el, i]
+            K_Gamma0 = e1
             K_Kappa0 = self.K_Kappa0[el, i]
 
             # evaluate strain measures and other quantities depending on chosen formulation
-            r_xi, A_IK, K_Kappa_bar = self.eval(qe, el, i)
+            r_xi, r_xixi, A_IK, K_Kappa_bar = self.eval(qe, qpi)
 
-            # stretch
-            ji = norm(r_xi)
-            stretch = ji / Ji
+            # # stretch
+            # ji = norm(r_xi)
+            # stretch = ji / Ji
+
+            # axial and shear strains
+            K_Gamma_bar = A_IK.T @ r_xi
+            K_Gamma = K_Gamma_bar / Ji
 
             # torsional and flexural strains
             K_Kappa = K_Kappa_bar / Ji
 
             # evaluate strain energy function
             E_pot_el += (
-                self.material_model.potential(stretch, K_Kappa, K_Kappa0) * Ji * qwi
+                self.material_model.potential(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
+                * Ji
+                * qwi
             )
 
         return E_pot_el
@@ -555,21 +617,27 @@ class Kirchhoff:
         return f_pot
 
     def f_pot_el(self, qe, el):
-        return approx_fprime(qe, lambda qe: self.E_pot_el(qe, el), method="3-point")
+        # return approx_fprime(qe, lambda qe: self.E_pot_el(qe, el), method="3-point")
+        return approx_fprime(
+            qe, lambda qe: self.E_pot_el(qe, el), eps=1.0e-10, method="cs"
+        )
         f_pot_el = np.zeros(self.nu_element)
 
         for i in range(self.nquadrature):
             # extract reference state variables
+            qpi = self.qp[el, i]
             qwi = self.qw[el, i]
             Ji = self.J[el, i]
-            K_Gamma0 = self.K_Gamma0[el, i]
+            K_Gamma0 = e1
             K_Kappa0 = self.K_Kappa0[el, i]
 
             # evaluate strain measures and other quantities depending on chosen formulation
-            r_xi, A_IK, K_Kappa_bar = self.eval(qe, el, i)
+            r_xi, r_xixi, A_IK, K_Kappa_bar = self.eval(qe, qpi)
+            r_xi2 = r_xi @ r_xi
 
             # axial and shear strains
-            K_Gamma = A_IK.T @ (r_xi / Ji)
+            K_Gamma_bar = A_IK.T @ r_xi
+            K_Gamma = K_Gamma_bar / Ji
 
             # torsional and flexural strains
             K_Kappa = K_Kappa_bar / Ji
@@ -578,27 +646,48 @@ class Kirchhoff:
             # the strain energy function w.r.t. strain measures
             K_n = self.material_model.K_n(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
             K_m = self.material_model.K_m(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
+            # n = A_IK @ K_n
+            # m = A_IK @ K_m
 
-            # - first delta Gamma part
+            # stretch = norm(K_Gamma)
+            # self.material_model.n1(stretch, K_Kappa, K_Kappa0) * Ji * qwi
+
+            ############################
+            # virtual work contributions
+            ############################
             for node in range(self.nnodes_element_r):
                 f_pot_el[self.nodalDOF_element_r[node]] -= (
                     self.N_r_xi[el, i, node] * A_IK @ K_n * qwi
                 )
 
-            # - second delta Gamma part
             for node in range(self.nnodes_element_psi):
-                f_pot_el[self.nodalDOF_element_u_psi[node]] += (
-                    self.N_psi[el, i, node] * cross3(A_IK.T @ r_xi, K_n) * qwi
+                # first delta phi parallel part
+                f_pot_el[self.nodalDOF_element_psi[node]] -= (
+                    self.N_psi_xi[el, i, node] * K_m[0] * qwi
                 )
 
-            # - delta kappa part
-            for node in range(self.nnodes_element_psi):
-                f_pot_el[self.nodalDOF_element_u_psi[node]] -= (
-                    self.N_psi_xi[el, i, node] * K_m * qwi
+                # second delta phi parallel part
+                tmp = cross3(K_Gamma_bar, K_n) + cross3(K_Kappa_bar, K_m)
+                f_pot_el[self.nodalDOF_element_psi[node]] += (
+                    self.N_psi[el, i, node] * tmp[0] * qwi
                 )
-                f_pot_el[self.nodalDOF_element_u_psi[node]] += (
-                    self.N_psi[el, i, node] * cross3(K_Kappa_bar, K_m) * qwi
-                )  # Euler term
+
+                # first delta phi perp part
+                f_pot_el[self.nodalDOF_element_r[node]] -= (
+                    self.N_r_xi[el, i, node]
+                    * cross3(
+                        r_xixi / r_xi2 - r_xi * (r_xi @ r_xixi) / (r_xi2 * r_xi2), K_m
+                    )
+                    * qwi
+                )
+                f_pot_el[self.nodalDOF_element_r[node]] -= (
+                    self.N_r_xixi[el, i, node] * cross3(r_xixi / r_xi2, K_m) * qwi
+                )
+
+                # second delta phi perp part
+                f_pot_el[self.nodalDOF_element_r[node]] += (
+                    self.N_r_xi[el, i, node] * cross3(r_xi / r_xi2, tmp) * qwi
+                )
 
         return f_pot_el
 
@@ -819,6 +908,7 @@ class Kirchhoff:
     # kinematic equation
     #########################################
     def q_dot(self, t, q, u):
+        raise NotImplementedError
         q_dot = np.zeros(self.nq)
 
         # centerline part
@@ -904,7 +994,7 @@ class Kirchhoff:
     def r_OC(self, t, q, frame_ID):
         # compute centerline position
         N, _, _ = self.basis_functions_r(frame_ID[0])
-        r_OC = np.zeros(3)
+        r_OC = np.zeros(3, dtype=float)
         for node in range(self.nnodes_element_r):
             r_OC += N[node] * q[self.nodalDOF_element_r[node]]
         return r_OC
@@ -912,15 +1002,15 @@ class Kirchhoff:
     def r_OC_q(self, t, q, frame_ID):
         # compute centerline position
         N, _, _ = self.basis_functions_r(frame_ID[0])
-        r_OC_q = np.zeros((3, self.nq_element))
+        r_OC_q = np.zeros((3, self.nq_element), dtype=float)
         for node in range(self.nnodes_element_r):
-            r_OC_q[:, self.nodalDOF_element_r[node]] += N[node] * np.eye(3)
+            r_OC_q[:, self.nodalDOF_element_r[node]] += N[node] * np.eye(3, dtype=float)
         return r_OC_q
 
     def r_OC_xi(self, t, q, frame_ID):
         # compute centerline position
         _, N_xi, _ = self.basis_functions_r(frame_ID[0])
-        r_OC_xi = np.zeros(3)
+        r_OC_xi = np.zeros(3, dtype=float)
         for node in range(self.nnodes_element_r):
             r_OC_xi += N_xi[node] * q[self.nodalDOF_element_r[node]]
         return r_OC_xi
@@ -928,7 +1018,7 @@ class Kirchhoff:
     def r_OC_xixi(self, t, q, frame_ID):
         # compute centerline position
         _, _, N_xixi = self.basis_functions_r(frame_ID[0])
-        r_OC_xixi = np.zeros(3)
+        r_OC_xixi = np.zeros(3, dtype=float)
         for node in range(self.nnodes_element_r):
             r_OC_xixi += N_xixi[node] * q[self.nodalDOF_element_r[node]]
         return r_OC_xixi
@@ -938,22 +1028,22 @@ class Kirchhoff:
         N, _, _ = self.basis_functions_r(frame_ID[0])
 
         # interpolate centerline and axis angle contributions
-        J_C = np.zeros((3, self.nq_element))
+        J_C = np.zeros((3, self.nq_element), dtype=float)
         for node in range(self.nnodes_element_r):
-            J_C[:, self.nodalDOF_element_r[node]] += N[node] * np.eye(3)
+            J_C[:, self.nodalDOF_element_r[node]] += N[node] * np.eye(3, dtype=float)
 
         return J_C
 
     def J_C_q(self, t, q, frame_ID):
-        return np.zeros((3, self.nq_element, self.nq_element))
+        return np.zeros((3, self.nq_element, self.nq_element), dtype=float)
 
     ###################
     # r_OP contribution
     ###################
-    def r_OP(self, t, q, frame_ID, K_r_SP=np.zeros(3)):
+    def r_OP(self, t, q, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
         # compute centerline position
         N, _, _ = self.basis_functions_r(frame_ID[0])
-        r_OC = np.zeros(3)
+        r_OC = np.zeros(3, dtype=float)
         for node in range(self.nnodes_element_r):
             r_OC += N[node] * q[self.nodalDOF_element_r[node]]
 
@@ -963,7 +1053,7 @@ class Kirchhoff:
     def r_OP_q(self, t, q, frame_ID, K_r_SP=np.zeros(3)):
         # compute centerline derivative
         N, _, _ = self.basis_functions_r(frame_ID[0])
-        r_OP_q = np.zeros((3, self.nq_element))
+        r_OP_q = np.zeros((3, self.nq_element), dtype=float)
         for node in range(self.nnodes_element_r):
             r_OP_q[:, self.nodalDOF_element_r[node]] += N[node] * np.eye(3)
 
@@ -978,46 +1068,48 @@ class Kirchhoff:
         # return r_OP_q_num
 
     def A_IK(self, t, q, frame_ID):
-        N, _ = self.basis_functions_psi(frame_ID[0])
+        # N, _ = self.basis_functions_psi(frame_ID[0])
 
-        # compute nodal smallest rotation
-        t0 = q[self.nodalDOF_element_r[1]]
-        t1 = q[self.nodalDOF_element_r[3]]
-        A_IB0 = smallest_rotation(e1, t0)
-        A_IB1 = smallest_rotation(e1, t1)
+        # # compute nodal smallest rotation
+        # t0 = q[self.nodalDOF_element_r[1]]
+        # t1 = q[self.nodalDOF_element_r[3]]
+        # A_IB0 = smallest_rotation(e1, t0)
+        # A_IB1 = smallest_rotation(e1, t1)
 
-        # compute rodriguez formular with nodal rotation values around nodal
-        # tangent vectors
-        d10 = t0 / norm(t0)
-        d11 = t1 / norm(t1)
-        phi0 = q[self.nodalDOF_element_psi[0]]
-        phi1 = q[self.nodalDOF_element_psi[1]]
-        A_B0K0 = rodriguez(phi0 * d10)
-        A_B1K1 = rodriguez(phi1 * d11)
+        # # compute rodriguez formular with nodal rotation values around nodal
+        # # tangent vectors
+        # d10 = t0 / norm(t0)
+        # d11 = t1 / norm(t1)
+        # phi0 = q[self.nodalDOF_element_psi[0]]
+        # phi1 = q[self.nodalDOF_element_psi[1]]
+        # A_B0K0 = rodriguez(phi0 * d10)
+        # A_B1K1 = rodriguez(phi1 * d11)
 
-        # composite rotation
-        A_IK0 = A_IB0 @ A_B0K0
-        A_IK1 = A_IB1 @ A_B1K1
+        # # composite rotation
+        # A_IK0 = A_IB0 @ A_B0K0
+        # A_IK1 = A_IB1 @ A_B1K1
 
-        # retlative rotation and corresponding rotation vector
-        A_01 = A_IK0.T @ A_IK1  # Crisfield1999 (5.8)
-        phi_01 = rodriguez_inv(A_01)
+        # # retlative rotation and corresponding rotation vector
+        # A_01 = A_IK0.T @ A_IK1  # Crisfield1999 (5.8)
+        # phi_01 = rodriguez_inv(A_01)
 
-        # midway reference rotation
-        A_IR = A_01 @ rodriguez(0.5 * phi_01)
+        # # midway reference rotation
+        # A_IR = A_01 @ rodriguez(0.5 * phi_01)
 
-        # relative rotation of each node and corresponding
-        # rotation vector
-        A_RK0 = A_IR.T @ A_IK0
-        psi_RK0 = rodriguez_inv(A_RK0)
-        A_RK1 = A_IR.T @ A_IK1
-        psi_RK1 = rodriguez_inv(A_RK1)
+        # # relative rotation of each node and corresponding
+        # # rotation vector
+        # A_RK0 = A_IR.T @ A_IK0
+        # psi_RK0 = rodriguez_inv(A_RK0)
+        # A_RK1 = A_IR.T @ A_IK1
+        # psi_RK1 = rodriguez_inv(A_RK1)
 
-        # add wheighted contribution of local rotation
-        psi_rel = N[0] * psi_RK0 + N[1] * psi_RK1
+        # # add wheighted contribution of local rotation
+        # psi_rel = N[0] * psi_RK0 + N[1] * psi_RK1
 
-        # objective rotation
-        A_IK = A_IR @ rodriguez(psi_rel)
+        # # objective rotation
+        # A_IK = A_IR @ rodriguez(psi_rel)
+
+        _, _, A_IK, _ = self.eval(q, frame_ID[0])
 
         return A_IK
 
@@ -1041,7 +1133,7 @@ class Kirchhoff:
     def v_P(self, t, q, u, frame_ID, K_r_SP=np.zeros(3)):
         # compute centerline velocity
         N, _, _ = self.basis_functions_r(frame_ID[0])
-        v_C = np.zeros(3)
+        v_C = np.zeros(3, dtype=float)
         for node in range(self.nnodes_element_r):
             v_C += N[node] * u[self.nodalDOF_element_r[node]]
 
@@ -1180,14 +1272,14 @@ class Kirchhoff:
         N_psi, _ = self.basis_functions_psi(frame_ID[0])
 
         # interpolate tangent vector and its derivative
-        r_xi = np.zeros(3)
-        r_xidot = np.zeros(3)
+        r_xi = np.zeros(3, dtype=float)
+        r_xidot = np.zeros(3, dtype=float)
         for node in range(self.nnodes_element_r):
             r_xi += N_r_xi[node] * q[self.nodalDOF_element_r[node]]
             r_xidot += N_r_xi[node] * u[self.nodalDOF_element_u_r[node]]
 
         # interpolate superimposed angular velocity around d1
-        psi_dot = np.zeros(1)
+        psi_dot = 0.0
         for node in range(self.nnodes_element_psi):
             psi_dot += N_psi[node] * u[self.nodalDOF_element_u_psi[node]]
 
@@ -1200,6 +1292,8 @@ class Kirchhoff:
 
         # angular velocity of centerline and angle part
         return cross3(d1, d1_dot) + d1 * psi_dot
+
+        # return d1 * psi_dot + cross3(r_xi, r_xidot) / (r_xi @ r_xi)
 
     # TODO:
     def K_Omega_q(self, t, q, u, frame_ID):
@@ -1295,18 +1389,21 @@ class Kirchhoff:
     ####################################################
     # visualization
     ####################################################
+    # def nodes(self, q):
+    #     q_body = q[self.qDOF]
+    #     if self.basis == "Hermite":
+    #         r = np.zeros((3, int(self.nnode_r / 2)))
+    #         idx = 0
+    #         for node, nodalDOF in enumerate(self.nodalDOF_r):
+    #             if node % 2 == 0:
+    #                 r[:, idx] = q_body[nodalDOF]
+    #                 idx += 1
+    #         return r
+    #     else:
+    #         return np.array([q_body[nodalDOF] for nodalDOF in self.nodalDOF_r]).T
     def nodes(self, q):
         q_body = q[self.qDOF]
-        if self.basis == "Hermite":
-            r = np.zeros((3, int(self.nnode_r / 2)))
-            idx = 0
-            for node, nodalDOF in enumerate(self.nodalDOF_r):
-                if node % 2 == 0:
-                    r[:, idx] = q_body[nodalDOF]
-                    idx += 1
-            return r
-        else:
-            return np.array([q_body[nodalDOF] for nodalDOF in self.nodalDOF_r]).T
+        return np.array([q_body[nodalDOF] for nodalDOF in self.nodalDOF_r]).T
 
     def centerline(self, q, n=100):
         q_body = q[self.qDOF]
@@ -1379,571 +1476,3 @@ class Kirchhoff:
         ax.quiver(*r, *d1, color="red", length=length)
         ax.quiver(*r, *d2, color="green", length=length)
         ax.quiver(*r, *d3, color="blue", length=length)
-
-    ############
-    # vtk export
-    ############
-    def post_processing_vtk_volume_circle(self, t, q, filename, R, binary=False):
-        # This is mandatory, otherwise we cannot construct the 3D continuum without L2 projection!
-        assert (
-            self.polynomial_degree_r == self.polynomial_degree_psi
-        ), "Not implemented for mixed polynomial degrees"
-
-        # rearrange generalized coordinates from solver ordering to Piegl's Pw 3D array
-        nn_xi = self.nelement + self.polynomial_degree_r
-        nEl_eta = 1
-        nEl_zeta = 4
-        # see Cotrell2009 Section 2.4.2
-        # TODO: Maybe eta and zeta have to be interchanged
-        polynomial_degree_eta = 1
-        polynomial_degree_zeta = 2
-        nn_eta = nEl_eta + polynomial_degree_eta
-        nn_zeta = nEl_zeta + polynomial_degree_zeta
-
-        # # TODO: We do the hard coded case for rectangular cross section here, but this has to be extended to the circular cross section case too!
-        # as_ = np.linspace(-a/2, a/2, num=nn_eta, endpoint=True)
-        # bs_ = np.linspace(-b/2, b/2, num=nn_eta, endpoint=True)
-
-        circle_points = (
-            0.5
-            * R
-            * np.array(
-                [
-                    [1, 0, 0],
-                    [1, 1, 0],
-                    [0, 1, 0],
-                    [-1, 1, 0],
-                    [-1, 0, 0],
-                    [-1, -1, 0],
-                    [0, -1, 0],
-                    [1, -1, 0],
-                    [1, 0, 0],
-                ],
-                dtype=float,
-            )
-        )
-
-        Pw = np.zeros((nn_xi, nn_eta, nn_zeta, 3))
-        for i in range(self.nnode_r):
-            qr = q[self.nodalDOF_r[i]]
-            q_di = q[self.nodalDOF_psi[i]]
-            A_IK = q_di.reshape(3, 3, order="F")  # TODO: Check this!
-
-            for k, point in enumerate(circle_points):
-                # Note: eta index is always 0!
-                Pw[i, 0, k] = qr + A_IK @ point
-
-        if self.basis == "B-spline":
-            knot_vector_eta = BSplineKnotVector(polynomial_degree_eta, nEl_eta)
-            knot_vector_zeta = BSplineKnotVector(polynomial_degree_zeta, nEl_zeta)
-        elif self.basis == "lagrange":
-            knot_vector_eta = LagrangeKnotVector(polynomial_degree_eta, nEl_eta)
-            knot_vector_zeta = LagrangeKnotVector(polynomial_degree_zeta, nEl_zeta)
-        knot_vector_objs = [self.knot_vector_r, knot_vector_eta, knot_vector_zeta]
-        degrees = (
-            self.polynomial_degree_r,
-            polynomial_degree_eta,
-            polynomial_degree_zeta,
-        )
-
-        # Build Bezier patches from B-spline control points
-        from cardillo.discretization.B_spline import decompose_B_spline_volume
-
-        Qw = decompose_B_spline_volume(knot_vector_objs, Pw)
-
-        nbezier_xi, nbezier_eta, nbezier_zeta, p1, q1, r1, dim = Qw.shape
-
-        # build vtk mesh
-        n_patches = nbezier_xi * nbezier_eta * nbezier_zeta
-        patch_size = p1 * q1 * r1
-        points = np.zeros((n_patches * patch_size, dim))
-        cells = []
-        HigherOrderDegrees = []
-        RationalWeights = []
-        vtk_cell_type = "VTK_BEZIER_HEXAHEDRON"
-        from PyPanto.miscellaneous.indexing import flat3D, rearange_vtk3D
-
-        for i in range(nbezier_xi):
-            for j in range(nbezier_eta):
-                for k in range(nbezier_zeta):
-                    idx = flat3D(i, j, k, (nbezier_xi, nbezier_eta))
-                    point_range = np.arange(idx * patch_size, (idx + 1) * patch_size)
-                    points[point_range] = rearange_vtk3D(Qw[i, j, k])
-
-                    cells.append((vtk_cell_type, point_range[None]))
-                    HigherOrderDegrees.append(np.array(degrees, dtype=float)[None])
-                    weight = np.sqrt(2) / 2
-                    # tmp = np.array([np.sqrt(2) / 2, 1.0])
-                    # RationalWeights.append(np.tile(tmp, 8)[None])
-                    weights_vertices = weight * np.ones(8)
-                    weights_edges = np.ones(4 * nn_xi)
-                    weights_faces = np.ones(2)
-                    weights_volume = np.ones(nn_xi - 2)
-                    weights = np.concatenate(
-                        (weights_edges, weights_vertices, weights_faces, weights_volume)
-                    )
-                    # weights = np.array([weight, weight, weight, weight,
-                    #                     1.0,    1.0,    1.0,    1.0,
-                    #                     0.0,    0.0,    0.0,    0.0 ])
-                    weights = np.ones_like(point_range)
-                    RationalWeights.append(weights[None])
-
-        # RationalWeights = np.ones(len(points))
-        RationalWeights = 2 * (np.random.rand(len(points)) + 1)
-
-        # write vtk mesh using meshio
-        meshio.write_points_cells(
-            # filename.parent / (filename.stem + '.vtu'),
-            filename,
-            points,
-            cells,
-            point_data={
-                "RationalWeights": RationalWeights,
-            },
-            cell_data={"HigherOrderDegrees": HigherOrderDegrees},
-            binary=binary,
-        )
-
-    def post_processing_vtk_volume(self, t, q, filename, circular=True, binary=False):
-        # This is mandatory, otherwise we cannot construct the 3D continuum without L2 projection!
-        assert (
-            self.polynomial_degree_r == self.polynomial_degree_psi
-        ), "Not implemented for mixed polynomial degrees"
-
-        # rearrange generalized coordinates from solver ordering to Piegl's Pw 3D array
-        nn_xi = self.nelement + self.polynomial_degree_r
-        nEl_eta = 1
-        nEl_zeta = 1
-        if circular:
-            polynomial_degree_eta = 2
-            polynomial_degree_zeta = 2
-        else:
-            polynomial_degree_eta = 1
-            polynomial_degree_zeta = 1
-        nn_eta = nEl_eta + polynomial_degree_eta
-        nn_zeta = nEl_zeta + polynomial_degree_zeta
-
-        # TODO: We do the hard coded case for rectangular cross section here, but this has to be extended to the circular cross section case too!
-        if circular:
-            r = 0.2
-            a = b = r
-        else:
-            a = 0.2
-            b = 0.1
-        as_ = np.linspace(-a / 2, a / 2, num=nn_eta, endpoint=True)
-        bs_ = np.linspace(-b / 2, b / 2, num=nn_eta, endpoint=True)
-
-        Pw = np.zeros((nn_xi, nn_eta, nn_zeta, 3))
-        for i in range(self.nnode_r):
-            qr = q[self.nodalDOF_r[i]]
-            q_di = q[self.nodalDOF_psi[i]]
-            A_IK = q_di.reshape(3, 3, order="F")  # TODO: Check this!
-
-            for j, aj in enumerate(as_):
-                for k, bk in enumerate(bs_):
-                    Pw[i, j, k] = qr + A_IK @ np.array([0, aj, bk])
-
-        if self.basis == "B-spline":
-            knot_vector_eta = BSplineKnotVector(polynomial_degree_eta, nEl_eta)
-            knot_vector_zeta = BSplineKnotVector(polynomial_degree_zeta, nEl_zeta)
-        elif self.basis == "lagrange":
-            knot_vector_eta = LagrangeKnotVector(polynomial_degree_eta, nEl_eta)
-            knot_vector_zeta = LagrangeKnotVector(polynomial_degree_zeta, nEl_zeta)
-        knot_vector_objs = [self.knot_vector_r, knot_vector_eta, knot_vector_zeta]
-        degrees = (
-            self.polynomial_degree_r,
-            polynomial_degree_eta,
-            polynomial_degree_zeta,
-        )
-
-        # Build Bezier patches from B-spline control points
-        from cardillo.discretization.B_spline import decompose_B_spline_volume
-
-        Qw = decompose_B_spline_volume(knot_vector_objs, Pw)
-
-        nbezier_xi, nbezier_eta, nbezier_zeta, p1, q1, r1, dim = Qw.shape
-
-        # build vtk mesh
-        n_patches = nbezier_xi * nbezier_eta * nbezier_zeta
-        patch_size = p1 * q1 * r1
-        points = np.zeros((n_patches * patch_size, dim))
-        cells = []
-        HigherOrderDegrees = []
-        RationalWeights = []
-        vtk_cell_type = "VTK_BEZIER_HEXAHEDRON"
-        from PyPanto.miscellaneous.indexing import flat3D, rearange_vtk3D
-
-        for i in range(nbezier_xi):
-            for j in range(nbezier_eta):
-                for k in range(nbezier_zeta):
-                    idx = flat3D(i, j, k, (nbezier_xi, nbezier_eta))
-                    point_range = np.arange(idx * patch_size, (idx + 1) * patch_size)
-                    points[point_range] = rearange_vtk3D(Qw[i, j, k])
-
-                    cells.append((vtk_cell_type, point_range[None]))
-                    HigherOrderDegrees.append(np.array(degrees, dtype=float)[None])
-                    weight = np.sqrt(2) / 2
-                    # tmp = np.array([np.sqrt(2) / 2, 1.0])
-                    # RationalWeights.append(np.tile(tmp, 8)[None])
-                    weights_vertices = weight * np.ones(8)
-                    weights_edges = np.ones(4 * nn_xi)
-                    weights_faces = np.ones(2)
-                    weights_volume = np.ones(nn_xi - 2)
-                    weights = np.concatenate(
-                        (weights_edges, weights_vertices, weights_faces, weights_volume)
-                    )
-                    # weights = np.array([weight, weight, weight, weight,
-                    #                     1.0,    1.0,    1.0,    1.0,
-                    #                     0.0,    0.0,    0.0,    0.0 ])
-                    weights = np.ones_like(point_range)
-                    RationalWeights.append(weights[None])
-
-        # RationalWeights = np.ones(len(points))
-        RationalWeights = 2 * (np.random.rand(len(points)) + 1)
-
-        # write vtk mesh using meshio
-        meshio.write_points_cells(
-            # filename.parent / (filename.stem + '.vtu'),
-            filename,
-            points,
-            cells,
-            point_data={
-                "RationalWeights": RationalWeights,
-            },
-            cell_data={"HigherOrderDegrees": HigherOrderDegrees},
-            binary=binary,
-        )
-
-    def post_processing(self, t, q, filename, binary=True):
-        # write paraview PVD file collecting time and all vtk files, see https://www.paraview.org/Wiki/ParaView/Data_formats#PVD_File_Format
-        from xml.dom import minidom
-
-        root = minidom.Document()
-
-        vkt_file = root.createElement("VTKFile")
-        vkt_file.setAttribute("type", "Collection")
-        root.appendChild(vkt_file)
-
-        collection = root.createElement("Collection")
-        vkt_file.appendChild(collection)
-
-        for i, (ti, qi) in enumerate(zip(t, q)):
-            filei = filename + f"{i}.vtu"
-
-            # write time step and file name in pvd file
-            dataset = root.createElement("DataSet")
-            dataset.setAttribute("timestep", f"{ti:0.6f}")
-            dataset.setAttribute("file", filei)
-            collection.appendChild(dataset)
-
-            self.post_processing_single_configuration(ti, qi, filei, binary=binary)
-
-        # write pvd file
-        xml_str = root.toprettyxml(indent="\t")
-        with open(filename + ".pvd", "w") as f:
-            f.write(xml_str)
-
-    def post_processing_single_configuration(self, t, q, filename, binary=True):
-        # centerline and connectivity
-        cells_r, points_r, HigherOrderDegrees_r = self.mesh_r.vtk_mesh(q[: self.nq_r])
-
-        # if the centerline and the directors are interpolated with the same
-        # polynomial degree we can use the values on the nodes and decompose the B-spline
-        # into multiple Bezier patches, otherwise the directors have to be interpolated
-        # onto the nodes of the centerline by a so-called L2-projection, see below
-        same_shape_functions = False
-        if self.polynomial_degree_r == self.polynomial_degree_psi:
-            same_shape_functions = True
-
-        if same_shape_functions:
-            _, points_di, _ = self.mesh_psi.vtk_mesh(q[self.nq_r :])
-
-            # fill dictionary storing point data with directors
-            point_data = {
-                "d1": points_di[:, 0:3],
-                "d2": points_di[:, 3:6],
-                "d3": points_di[:, 6:9],
-            }
-
-        else:
-            point_data = {}
-
-        # export existing values on quadrature points using L2 projection
-        J0_vtk = self.mesh_r.field_to_vtk(
-            self.J.reshape(self.nelement, self.nquadrature, 1)
-        )
-        point_data.update({"J0": J0_vtk})
-
-        Gamma0_vtk = self.mesh_r.field_to_vtk(self.K_Gamma0)
-        point_data.update({"Gamma0": Gamma0_vtk})
-
-        Kappa0_vtk = self.mesh_r.field_to_vtk(self.K_Kappa0)
-        point_data.update({"Kappa0": Kappa0_vtk})
-
-        # evaluate fields at quadrature points that have to be projected onto the centerline mesh:
-        # - strain measures Gamma & Kappa
-        # - directors d1, d2, d3
-        Gamma = np.zeros((self.mesh_r.nelement, self.mesh_r.nquadrature, 3))
-        Kappa = np.zeros((self.mesh_r.nelement, self.mesh_r.nquadrature, 3))
-        if not same_shape_functions:
-            d1s = np.zeros((self.mesh_r.nelement, self.mesh_r.nquadrature, 3))
-            d2s = np.zeros((self.mesh_r.nelement, self.mesh_r.nquadrature, 3))
-            d3s = np.zeros((self.mesh_r.nelement, self.mesh_r.nquadrature, 3))
-        for el in range(self.nelement):
-            qe = q[self.elDOF[el]]
-
-            # extract generalized coordinates for beam centerline and directors
-            # in the current and reference configuration
-            qe_r = qe[self.rDOF]
-            qe_d1 = qe[self.psiDOF]
-            qe_d2 = qe[self.d2DOF]
-            qe_d3 = qe[self.d3DOF]
-
-            for i in range(self.nquadrature):
-                # build matrix of shape function derivatives
-                NN_di_i = self.stack3psi(self.N_psi[el, i])
-                NN_r_xii = self.stack3r(self.N_r_xi[el, i])
-                NN_di_xii = self.stack3psi(self.N_psi_xi[el, i])
-
-                # extract reference state variables
-                J0i = self.J[el, i]
-                K_Gamma0 = self.K_Gamma0[el, i]
-                K_Kappa0 = self.K_Kappa0[el, i]
-
-                # Interpolate necessary quantities. The derivatives are evaluated w.r.t.
-                # the parameter space \xi and thus need to be transformed later
-                r_xi = NN_r_xii @ qe_r
-
-                d1 = NN_di_i @ qe_d1
-                d1_xi = NN_di_xii @ qe_d1
-
-                d2 = NN_di_i @ qe_d2
-                d2_xi = NN_di_xii @ qe_d2
-
-                d3 = NN_di_i @ qe_d3
-                d3_xi = NN_di_xii @ qe_d3
-
-                # compute derivatives w.r.t. the arc lenght parameter s
-                r_s = r_xi / J0i
-
-                d1_s = d1_xi / J0i
-                d2_s = d2_xi / J0i
-                d3_s = d3_xi / J0i
-
-                # build rotation matrices
-                if not same_shape_functions:
-                    d1s[el, i] = d1
-                    d2s[el, i] = d2
-                    d3s[el, i] = d3
-                R = np.vstack((d1, d2, d3)).T
-
-                # axial and shear strains
-                Gamma[el, i] = R.T @ r_s
-
-                # torsional and flexural strains
-                Kappa[el, i] = np.array(
-                    [
-                        0.5 * (d3 @ d2_s - d2 @ d3_s),
-                        0.5 * (d1 @ d3_s - d3 @ d1_s),
-                        0.5 * (d2 @ d1_s - d1 @ d2_s),
-                    ]
-                )
-
-        # L2 projection of strain measures
-        Gamma_vtk = self.mesh_r.field_to_vtk(Gamma)
-        point_data.update({"Gamma": Gamma_vtk})
-
-        Kappa_vtk = self.mesh_r.field_to_vtk(Kappa)
-        point_data.update({"Kappa": Kappa_vtk})
-
-        # L2 projection of directors
-        if not same_shape_functions:
-            d1_vtk = self.mesh_r.field_to_vtk(d1s)
-            point_data.update({"d1": d1_vtk})
-            d2_vtk = self.mesh_r.field_to_vtk(d2s)
-            point_data.update({"d2": d2_vtk})
-            d3_vtk = self.mesh_r.field_to_vtk(d3s)
-            point_data.update({"d3": d3_vtk})
-
-        # fields depending on strain measures and other previously computed quantities
-        point_data_fields = {
-            "W": lambda Gamma, Gamma0, Kappa, Kappa0: np.array(
-                [self.material_model.potential(Gamma, Gamma0, Kappa, Kappa0)]
-            ),
-            "n_i": lambda Gamma, Gamma0, Kappa, Kappa0: self.material_model.n_i(
-                Gamma, Gamma0, Kappa, Kappa0
-            ),
-            "m_i": lambda Gamma, Gamma0, Kappa, Kappa0: self.material_model.m_i(
-                Gamma, Gamma0, Kappa, Kappa0
-            ),
-        }
-
-        for name, fun in point_data_fields.items():
-            tmp = fun(Gamma_vtk[0], Gamma0_vtk[0], Kappa_vtk[0], Kappa0_vtk[0]).reshape(
-                -1
-            )
-            field = np.zeros((len(Gamma_vtk), len(tmp)))
-            for i, (K_Gamma, K_Gamma0, K_Kappa, K_Kappa0) in enumerate(
-                zip(Gamma_vtk, Gamma0_vtk, Kappa_vtk, Kappa0_vtk)
-            ):
-                field[i] = fun(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0).reshape(-1)
-            point_data.update({name: field})
-
-        # write vtk mesh using meshio
-        meshio.write_points_cells(
-            os.path.splitext(os.path.basename(filename))[0] + ".vtu",
-            points_r,  # only export centerline as geometry here!
-            cells_r,
-            point_data=point_data,
-            cell_data={"HigherOrderDegrees": HigherOrderDegrees_r},
-            binary=binary,
-        )
-
-    def post_processing_subsystem(self, t, q, u, binary=True):
-        # centerline and connectivity
-        cells_r, points_r, HigherOrderDegrees_r = self.mesh_r.vtk_mesh(q[: self.nq_r])
-
-        # if the centerline and the directors are interpolated with the same
-        # polynomial degree we can use the values on the nodes and decompose the B-spline
-        # into multiple Bezier patches, otherwise the directors have to be interpolated
-        # onto the nodes of the centerline by a so-called L2-projection, see below
-        same_shape_functions = False
-        if self.polynomial_degree_r == self.polynomial_degree_psi:
-            same_shape_functions = True
-
-        if same_shape_functions:
-            _, points_di, _ = self.mesh_psi.vtk_mesh(q[self.nq_r :])
-
-            # fill dictionary storing point data with directors
-            point_data = {
-                "u_r": points_r - points_r[0],
-                "d1": points_di[:, 0:3],
-                "d2": points_di[:, 3:6],
-                "d3": points_di[:, 6:9],
-            }
-
-        else:
-            point_data = {}
-
-        # export existing values on quadrature points using L2 projection
-        J0_vtk = self.mesh_r.field_to_vtk(
-            self.J.reshape(self.nelement, self.nquadrature, 1)
-        )
-        point_data.update({"J0": J0_vtk})
-
-        Gamma0_vtk = self.mesh_r.field_to_vtk(self.K_Gamma0)
-        point_data.update({"Gamma0": Gamma0_vtk})
-
-        Kappa0_vtk = self.mesh_r.field_to_vtk(self.K_Kappa0)
-        point_data.update({"Kappa0": Kappa0_vtk})
-
-        # evaluate fields at quadrature points that have to be projected onto the centerline mesh:
-        # - strain measures Gamma & Kappa
-        # - directors d1, d2, d3
-        Gamma = np.zeros((self.mesh_r.nelement, self.mesh_r.nquadrature, 3))
-        Kappa = np.zeros((self.mesh_r.nelement, self.mesh_r.nquadrature, 3))
-        if not same_shape_functions:
-            d1s = np.zeros((self.mesh_r.nelement, self.mesh_r.nquadrature, 3))
-            d2s = np.zeros((self.mesh_r.nelement, self.mesh_r.nquadrature, 3))
-            d3s = np.zeros((self.mesh_r.nelement, self.mesh_r.nquadrature, 3))
-        for el in range(self.nelement):
-            qe = q[self.elDOF[el]]
-
-            # extract generalized coordinates for beam centerline and directors
-            # in the current and reference configuration
-            qe_r = qe[self.rDOF]
-            qe_d1 = qe[self.psiDOF]
-            qe_d2 = qe[self.d2DOF]
-            qe_d3 = qe[self.d3DOF]
-
-            for i in range(self.nquadrature):
-                # build matrix of shape function derivatives
-                NN_di_i = self.stack3psi(self.N_psi[el, i])
-                NN_r_xii = self.stack3r(self.N_r_xi[el, i])
-                NN_di_xii = self.stack3psi(self.N_psi_xi[el, i])
-
-                # extract reference state variables
-                J0i = self.J[el, i]
-                K_Gamma0 = self.K_Gamma0[el, i]
-                K_Kappa0 = self.K_Kappa0[el, i]
-
-                # Interpolate necessary quantities. The derivatives are evaluated w.r.t.
-                # the parameter space \xi and thus need to be transformed later
-                r_xi = NN_r_xii @ qe_r
-
-                d1 = NN_di_i @ qe_d1
-                d1_xi = NN_di_xii @ qe_d1
-
-                d2 = NN_di_i @ qe_d2
-                d2_xi = NN_di_xii @ qe_d2
-
-                d3 = NN_di_i @ qe_d3
-                d3_xi = NN_di_xii @ qe_d3
-
-                # compute derivatives w.r.t. the arc lenght parameter s
-                r_s = r_xi / J0i
-
-                d1_s = d1_xi / J0i
-                d2_s = d2_xi / J0i
-                d3_s = d3_xi / J0i
-
-                # build rotation matrices
-                if not same_shape_functions:
-                    d1s[el, i] = d1
-                    d2s[el, i] = d2
-                    d3s[el, i] = d3
-                R = np.vstack((d1, d2, d3)).T
-
-                # axial and shear strains
-                Gamma[el, i] = R.T @ r_s
-
-                # torsional and flexural strains
-                Kappa[el, i] = np.array(
-                    [
-                        0.5 * (d3 @ d2_s - d2 @ d3_s),
-                        0.5 * (d1 @ d3_s - d3 @ d1_s),
-                        0.5 * (d2 @ d1_s - d1 @ d2_s),
-                    ]
-                )
-
-        # L2 projection of strain measures
-        Gamma_vtk = self.mesh_r.field_to_vtk(Gamma)
-        point_data.update({"Gamma": Gamma_vtk})
-
-        Kappa_vtk = self.mesh_r.field_to_vtk(Kappa)
-        point_data.update({"Kappa": Kappa_vtk})
-
-        # L2 projection of directors
-        if not same_shape_functions:
-            d1_vtk = self.mesh_r.field_to_vtk(d1s)
-            point_data.update({"d1": d1_vtk})
-            d2_vtk = self.mesh_r.field_to_vtk(d2s)
-            point_data.update({"d2": d2_vtk})
-            d3_vtk = self.mesh_r.field_to_vtk(d3s)
-            point_data.update({"d3": d3_vtk})
-
-        # fields depending on strain measures and other previously computed quantities
-        point_data_fields = {
-            "W": lambda Gamma, Gamma0, Kappa, Kappa0: np.array(
-                [self.material_model.potential(Gamma, Gamma0, Kappa, Kappa0)]
-            ),
-            "n_i": lambda Gamma, Gamma0, Kappa, Kappa0: self.material_model.n_i(
-                Gamma, Gamma0, Kappa, Kappa0
-            ),
-            "m_i": lambda Gamma, Gamma0, Kappa, Kappa0: self.material_model.m_i(
-                Gamma, Gamma0, Kappa, Kappa0
-            ),
-        }
-
-        for name, fun in point_data_fields.items():
-            tmp = fun(Gamma_vtk[0], Gamma0_vtk[0], Kappa_vtk[0], Kappa0_vtk[0]).reshape(
-                -1
-            )
-            field = np.zeros((len(Gamma_vtk), len(tmp)))
-            for i, (K_Gamma, K_Gamma0, K_Kappa, K_Kappa0) in enumerate(
-                zip(Gamma_vtk, Gamma0_vtk, Kappa_vtk, Kappa0_vtk)
-            ):
-                field[i] = fun(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0).reshape(-1)
-            point_data.update({name: field})
-
-        return points_r, point_data, cells_r, HigherOrderDegrees_r

@@ -12,12 +12,9 @@ from .SimplifiedGenAlpha import (
     NonsmoothNewmarkFirstOrder,
 )
 
-# TODO: gen alpha solvers
 from .genAlphaDAE import *
 from .NonsmoothGeneralizedAlpha import NonsmoothGeneralizedAlpha
 
 # static solvers
 from .Newton import Newton
 from .Riks import Riks
-
-# TODO: riks solver

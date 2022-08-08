@@ -128,21 +128,21 @@ def state():
     # t1 = 2 * np.pi / np.abs(alpha_dot0) * 0.1
     t1 = 2 * np.pi / np.abs(alpha_dot0) * 1.0
     # dt = 5e-3
-    dt = 2.5e-2
-    # dt = 1.0e-2  # used for GAMM with R = 10 * r
+    # dt = 2.5e-2
+    dt = 1.0e-2  # used for GAMM with R = 10 * r
 
-    # rho_inf = 0.96 # used for GAMM (high oszillations)
-    rho_inf = 0.85  # used for GAMM (low oszillations)
+    rho_inf = 0.96  # used for GAMM (high oszillations)
+    # rho_inf = 0.85  # used for GAMM (low oszillations)
     # see Arnodl2016, p. 118
     tol = 1.0e-10
 
     # sol = GeneralizedAlphaFirstOrder(model, t1, dt, rho_inf=rho_inf, tol=tol).solve()
-    # # sol = GeneralizedAlphaFirstOrder(
-    # #     model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=True
-    # # ).solve()
-    sol = GeneralizedAlphaSecondOrder(
-        model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=False
+    sol = GeneralizedAlphaFirstOrder(
+        model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=True
     ).solve()
+    # sol = GeneralizedAlphaSecondOrder(
+    #     model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=False
+    # ).solve()
     # sol = GeneralizedAlphaSecondOrder(
     #     model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=True
     # ).solve()
