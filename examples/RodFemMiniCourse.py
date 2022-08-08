@@ -1,11 +1,10 @@
 import numpy as np
 from cardillo.beams.spatial.SE3 import Exp_SO3
 
-from cardillo.beams.spatial.material_models import Simo1986
+from cardillo.beams.spatial.material_models import Simo1986, ShearStiffQuadratic
 from cardillo.beams.spatial.cross_section import CircularCrossSection
-from cardillo.beams.spatial import DirectorAxisAngle
+from cardillo.beams.spatial import DirectorAxisAngle, Kirchhoff
 from cardillo.beams import animate_beam
-from cardillo.model import frame
 
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints.implicit import (
@@ -13,11 +12,11 @@ from cardillo.model.bilateral_constraints.implicit import (
     SphericalJoint,
 )
 
-from cardillo.forces import Force, Moment, DistributedForce1D
+from cardillo.forces import Force, K_Moment, DistributedForce1D
 from cardillo.model import Model
 from cardillo.solver import Newton, ScipyIVP
 
-from cardillo.math import e1, e2, e3, ax2skew, inv3D, cross3
+from cardillo.math import e1, e2, e3, ax2skew, inv3D, cross3, A_IK_basic
 from math import sin, cos, pi
 
 import matplotlib.pyplot as plt
@@ -54,15 +53,13 @@ def statics():
     # polynomial_degree_r = 3
     # polynomial_degree_psi = 3
 
+    # test for Kirchhoff beam
+    nelements = 1
+
     # beam parameters
     L = 10
     EA = GA = 1.0e4
     GJ = EI = 1.0e2
-
-    # build quadratic material model
-    Ei = np.array([EA, GA, GA], dtype=float)
-    Fi = np.array([GJ, EI, EI], dtype=float)
-    material_model = Simo1986(Ei, Fi)
 
     # Note: This is never used in statics!
     line_density = 1.0
@@ -76,31 +73,62 @@ def statics():
     r_OP0 = np.zeros(3, dtype=float)
     A_IK0 = np.eye(3, dtype=float)
 
-    Q = DirectorAxisAngle.straight_configuration(
-        polynomial_degree_r,
-        polynomial_degree_psi,
-        basis_r,
-        basis_psi,
-        nelements,
-        L,
-        r_OP=r_OP0,
-        A_IK=A_IK0,
-    )
+    # # build quadratic material model
+    # Ei = np.array([EA, GA, GA], dtype=float)
+    # Fi = np.array([GJ, EI, EI], dtype=float)
+    # material_model = Simo1986(Ei, Fi)
 
-    beam = DirectorAxisAngle(
-        material_model,
-        A_rho0,
-        K_S_rho0,
-        K_I_rho0,
-        polynomial_degree_r,
-        polynomial_degree_psi,
-        nelements,
-        Q,
-        basis_r=basis_r,
-        basis_psi=basis_psi,
-    )
+    # Q = DirectorAxisAngle.straight_configuration(
+    #     polynomial_degree_r,
+    #     polynomial_degree_psi,
+    #     basis_r,
+    #     basis_psi,
+    #     nelements,
+    #     L,
+    #     r_OP=r_OP0,
+    #     A_IK=A_IK0,
+    # )
+
+    # beam = DirectorAxisAngle(
+    #     material_model,
+    #     A_rho0,
+    #     K_S_rho0,
+    #     K_I_rho0,
+    #     polynomial_degree_r,
+    #     polynomial_degree_psi,
+    #     nelements,
+    #     Q,
+    #     basis_r=basis_r,
+    #     basis_psi=basis_psi,
+    # )
+
+    # build quadratic material model
+    Ei = np.array([EA, GA, GA], dtype=float)
+    Fi = np.array([GJ, EI, EI], dtype=float)
+    material_model = Simo1986(Ei, Fi)
+    # material_model = ShearStiffQuadratic(EA, Fi)
+
+    Q = Kirchhoff.straight_configuration(nelements, L)
+
+    nquadrature = int(max(polynomial_degree_r, polynomial_degree_psi)) + 1
+    beam = Kirchhoff(material_model, A_rho0, K_I_rho0, nquadrature, nelements, Q)
 
     # junctions
+    n = 1
+    # t_star = 0.25
+    t_star = 0.1
+
+    def A_IK0(t):
+        # phi = (
+        #     n * np.heaviside(t - t_star, 1.0) * (t - t_star) / (1.0 - t_star) * 2.0 * pi
+        # )
+        # phi = t * n * 2.0 * pi
+        phi = t * pi
+        # return A_IK_basic(phi).x()
+        # return A_IK_basic(phi).y()
+        return A_IK_basic(phi).z()
+        # return A_IK_basic(phi).z() @ A_IK_basic(phi).x()
+
     frame1 = Frame(r_OP=r_OP0, A_IK=A_IK0)
 
     # left and right joint
@@ -108,23 +136,24 @@ def statics():
 
     # moment at right end
     Fi = material_model.Fi
-    M = lambda t: t * 2 * np.pi * (Fi[0] * e1 + Fi[2] * e3) / L * 1.0
-    moment = Moment(M, beam, (1,))
+    # M = lambda t: t * 2 * np.pi * (Fi[0] * e1 + Fi[2] * e3) / L * 1.0
+    M = lambda t: t * 2 * np.pi * Fi[2] * e3 / L * 0.1
+    moment = K_Moment(M, beam, (1,))
 
     # assemble the model
     model = Model()
     model.add(beam)
     model.add(frame1)
     model.add(joint1)
-    model.add(moment)
+    # model.add(moment)
     model.assemble()
 
-    n_load_steps = 20
+    n_load_steps = 10
 
     solver = Newton(
         model,
         n_load_steps=n_load_steps,
-        max_iter=30,
+        max_iter=10,
         atol=1.0e-8,
     )
     sol = solver.solve()
@@ -132,7 +161,8 @@ def statics():
     nt = len(q)
     t = sol.t[:nt]
 
-    animate_beam(t, q, [beam], L, show=True)
+    animate_beam(t, q, [beam], L, show=False)
+    animate_beam(t, [q[-1]], [beam], L, show=True)
 
 
 def dynamics():

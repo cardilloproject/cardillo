@@ -16,6 +16,9 @@ from cardillo.forces import Force
 from cardillo.solver import (
     GeneralizedAlphaFirstOrder,
     GeneralizedAlphaSecondOrder,
+    GenAlphaFirstOrderGGL2_V1,
+    GenAlphaFirstOrderGGL2_V2,
+    GenAlphaFirstOrderGGL2_V3,
 )
 
 
@@ -125,27 +128,29 @@ def state():
     Lesaux2005: https://doi.org/10.1007/s00332-004-0655-4
     """
     t0 = 0
-    # t1 = 2 * np.pi / np.abs(alpha_dot0) * 0.1
-    t1 = 2 * np.pi / np.abs(alpha_dot0) * 1.0
+    t1 = 2 * np.pi / np.abs(alpha_dot0) * 0.3
+    # t1 = 2 * np.pi / np.abs(alpha_dot0) * 1.0
     # dt = 5e-3
     # dt = 2.5e-2
     dt = 1.0e-2  # used for GAMM with R = 10 * r
 
     rho_inf = 0.96  # used for GAMM (high oszillations)
     # rho_inf = 0.85  # used for GAMM (low oszillations)
+    # rho_inf = 0.1
     # see Arnodl2016, p. 118
     tol = 1.0e-10
 
     # sol = GeneralizedAlphaFirstOrder(model, t1, dt, rho_inf=rho_inf, tol=tol).solve()
-    sol = GeneralizedAlphaFirstOrder(
-        model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=True
-    ).solve()
+    # sol = GeneralizedAlphaFirstOrder(
+    #     model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=True
+    #     # model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=2
+    # ).solve()
     # sol = GeneralizedAlphaSecondOrder(
     #     model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=False
     # ).solve()
-    # sol = GeneralizedAlphaSecondOrder(
-    #     model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=True
-    # ).solve()
+    sol = GeneralizedAlphaSecondOrder(
+        model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=True
+    ).solve()
 
     t = sol.t
     q = sol.q

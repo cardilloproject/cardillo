@@ -1667,16 +1667,17 @@ class GeneralizedAlphaFirstOrder:
         tol=1e-10,
         max_iter=40,
         error_function=lambda x: np.max(np.abs(x)),
-        numerical_jacobian=False,
-        # numerical_jacobian=True,
+        # numerical_jacobian=False,
+        numerical_jacobian=True,
         DAE_index=3,
         # preconditioning=True,
         preconditioning=False,
         # unknowns="positions",
         unknowns="velocities",
         # unknowns="auxiliary",
-        GGL=False,
-        # GGL=True,
+        # GGL=False,
+        # # GGL=True,
+        GGL=0,
     ):
 
         self.model = model
@@ -1689,6 +1690,7 @@ class GeneralizedAlphaFirstOrder:
             "auxiliary",
         ], f'wrong set of unknowns "{unknowns}" chosen!'
         self.GGL = GGL
+        assert GGL in [0, 1, 2], f"GGL has to be in [0, 1, 2]!"
 
         #######################################################################
         # integration time
@@ -1727,8 +1729,12 @@ class GeneralizedAlphaFirstOrder:
         self.nla_gamma = model.nla_gamma
         self.nx = self.ny = self.nq + self.nu  # dimension of the state space
         self.ns = self.nx + self.nla_g + self.nla_gamma  # vector of unknowns
-        if self.GGL:
+        if self.GGL == 1:
             self.ns += self.nla_g
+        if self.GGL == 2:
+            self.ns += 2 * self.nla_g
+            self.ns += self.nla_gamma
+            self.ns += self.nu
 
         if numerical_jacobian:
             self.__R_gen = self.__R_gen_num
@@ -1802,18 +1808,28 @@ class GeneralizedAlphaFirstOrder:
             x_dot0 = np.concatenate((q_dot0, u_dot0))
             y0 = x_dot0.copy()  # TODO: Use perturbed values found in Arnold2015
             if self.unknowns == "positions":
+                raise NotImplementedError
                 if self.GGL:
                     mu_g0 = np.zeros(self.nla_g)
                     s0 = self.pack(x0, la_g0, la_gamma0, mu_g0)
                 else:
                     s0 = self.pack(x0, la_g0, la_gamma0)
             elif self.unknowns == "velocities":
-                if self.GGL:
+                if self.GGL == 1:
                     mu_g0 = np.zeros(self.nla_g)
                     s0 = self.pack(x_dot0, la_g0, la_gamma0, mu_g0)
+                elif self.GGL == 2:
+                    mu_g0 = np.zeros(self.nla_g, dtype=float)
+                    kappa_g0 = np.zeros(self.nla_g, dtype=float)
+                    kappa_gamma0 = np.zeros(self.nla_gamma, dtype=float)
+                    U0 = np.zeros(self.nu, dtype=float)
+                    s0 = self.pack(
+                        x_dot0, la_g0, la_gamma0, mu_g0, kappa_g0, kappa_gamma0, U0
+                    )
                 else:
                     s0 = self.pack(x_dot0, la_g0, la_gamma0)
             elif self.unknowns == "auxiliary":
+                raise NotImplementedError
                 if self.GGL:
                     mu_g0 = np.zeros(self.nla_g)
                     s0 = self.pack(y0, la_g0, la_gamma0, mu_g0)
@@ -1829,8 +1845,14 @@ class GeneralizedAlphaFirstOrder:
             self.u_dotk = u_dot0
             self.la_gk = la_g0
             self.la_gammak = la_gamma0
-            if self.GGL:
+            if self.GGL == 1:
                 self.mu_gk = mu_g0
+            elif self.GGL == 2:
+                # self.ak = a0
+                self.mu_gk = mu_g0
+                self.kappa_gk = kappa_g0
+                self.kappa_gk = kappa_gamma0
+
             self.xk = x0
             self.x_dotk = x_dot0
             self.yk = y0
@@ -1849,14 +1871,16 @@ class GeneralizedAlphaFirstOrder:
             W_gamma0 = self.model.W_gamma(t0, q0, scipy_matrix=csr_matrix)
             zeta_g0 = self.model.zeta_g(t0, q0, u0)
             zeta_gamma0 = self.model.zeta_gamma(t0, q0, u0)
+            # fmt: off
             A = bmat(
                 [
-                    [M0, -W_g0, -W_gamma0],
-                    [W_g0.T, None, None],
-                    [W_gamma0.T, None, None],
+                    [        M0, -W_g0, -W_gamma0],
+                    [    W_g0.T,  None,      None],
+                    [W_gamma0.T,  None,      None],
                 ],
                 format="csc",
             )
+            # fmt: on
             b = np.concatenate([h0, -zeta_g0, -zeta_gamma0])
             u_dot_la_g_la_gamma = spsolve(A, b)
             u_dot0 = u_dot_la_g_la_gamma[: self.nu]
@@ -1876,15 +1900,18 @@ class GeneralizedAlphaFirstOrder:
             ##################################
             # compute perturbed initial values
             ##################################
-            s = 1.0e-1  # Anrold2015b p. 66 last paragraph
-            Delta_alpha = self.alpha_m - self.alpha_f  # Arnold2015b (41)
+            s = 1.0e-1  # Arnold2016 p. 150 last paragraph
+            Delta_alpha = self.alpha_m - self.alpha_f  # Arnold2016 (41)
 
             t0_plus = t0 + s * dt
             u0_plus = u0 + s * dt * u_dot0
-            q0_plus = q0 + s * dt * q_dot0
-            q0_plus = q0 + self.model.q_dot(
-                t0, q0, u0_plus + s**2 * dt**2 * u_dot0 / 2
-            )
+            # q0_plus = q0 + s * dt * q_dot0
+            q0_plus = q0 + s * dt * self.model.q_dot(t0, q0, u0)
+            # q0_plus = q0 + s * dt * self.model.q_dot(t0, q0, u0_plus)
+            # q0_plus = q0 + s * dt * self.model.q_dot(t0, q0, u0) + 0.5 * s**2 * dt**2 * self.model.q_ddot(t0, q0, u0, u_dot0)
+            # q0_plus = q0 + s * dt * self.model.q_dot(
+            #     t0, q0, u0_plus + s**2 * dt**2 * u_dot0 / 2
+            # )
             (
                 q_dot0_plus,
                 u_dot0_plus,
@@ -1898,7 +1925,10 @@ class GeneralizedAlphaFirstOrder:
 
             t0_minus = t0 - s * dt
             u0_minus = u0 - s * dt * u_dot0
-            q0_minus = q0 - s * dt * q_dot0
+            # q0_minus = q0 - s * dt * q_dot0
+            q0_minus = q0 - s * dt * self.model.q_dot(t0, q0, u0)
+            # q0_minus = q0 - s * dt * self.model.q_dot(t0, q0, u0_minus)
+            # q0_minus = q0 - s * dt * self.model.q_dot(t0, q0, u0) - 0.5 * s**2 * dt**2 * self.model.q_ddot(t0, q0, u0, u_dot0)
             # q0_minus = q0 + self.model.q_dot(t0, q0, u0_minus - s**2 * dt**2 * u_dot0 / 2)
             (
                 q_dot0_minus,
@@ -1946,8 +1976,8 @@ class GeneralizedAlphaFirstOrder:
             self.sk = s0
 
         # compute consistent initial conditions
-        initial_values(t0, model.q0, model.u0)
-        # initial_values_Martin(t0, model.q0, model.u0)
+        # initial_values(t0, model.q0, model.u0)
+        initial_values_Martin(t0, model.q0, model.u0)
 
         # check if initial conditions satisfy constraints on position, velocity
         # and acceleration level
@@ -1960,24 +1990,24 @@ class GeneralizedAlphaFirstOrder:
         # TODO: These tolerances should be used defined. Maybe all these
         #       initial computations and checks should be moved to a
         #       SolverOptions object ore something similar?
-        rtol = 1.0e-5
-        atol = 1.0e-5
+        rtol = 1.0e-15
+        atol = 1.0e-15
 
-        # assert np.allclose(
-        #     g0, np.zeros(self.nla_g), rtol, atol
-        # ), "Initial conditions do not fulfill g0!"
-        # assert np.allclose(
-        #     g_dot0, np.zeros(self.nla_g), rtol, atol
-        # ), "Initial conditions do not fulfill g_dot0!"
-        # assert np.allclose(
-        #     g_ddot0, np.zeros(self.nla_g), rtol, atol
-        # ), "Initial conditions do not fulfill g_ddot0!"
-        # assert np.allclose(
-        #     gamma0, np.zeros(self.nla_gamma)
-        # ), "Initial conditions do not fulfill gamma0!"
-        # assert np.allclose(
-        #     gamma_dot0, np.zeros(self.nla_gamma), rtol, atol
-        # ), "Initial conditions do not fulfill gamma_dot0!"
+        assert np.allclose(
+            g0, np.zeros(self.nla_g), rtol, atol
+        ), "Initial conditions do not fulfill g0!"
+        assert np.allclose(
+            g_dot0, np.zeros(self.nla_g), rtol, atol
+        ), "Initial conditions do not fulfill g_dot0!"
+        assert np.allclose(
+            g_ddot0, np.zeros(self.nla_g), rtol, atol
+        ), "Initial conditions do not fulfill g_ddot0!"
+        assert np.allclose(
+            gamma0, np.zeros(self.nla_gamma)
+        ), "Initial conditions do not fulfill gamma0!"
+        assert np.allclose(
+            gamma_dot0, np.zeros(self.nla_gamma), rtol, atol
+        ), "Initial conditions do not fulfill gamma_dot0!"
 
     def update(self, sk1, store=False):
         """Update dependent variables."""
@@ -2033,13 +2063,23 @@ class GeneralizedAlphaFirstOrder:
         nla_g = self.nla_g
         nla_gamma = self.nla_gamma
 
-        if self.GGL:
+        if self.GGL == 1:
             q = s[:nq]
             u = s[nq:nx]
             la_g = s[nx : nq + nu + nla_g]
             la_gamma = s[nx + nla_g : nx + nla_g + nla_gamma]
             mu_g = s[nx + nla_g + nla_gamma :]
             return q, u, la_g, la_gamma, mu_g
+        elif self.GGL == 2:
+            q = s[:nq]
+            u = s[nq:nx]
+            la_g = s[nx : nq + nu + nla_g]
+            la_gamma = s[nx + nla_g : nx + nla_g + nla_gamma]
+            mu_g = s[nx + nla_g + nla_gamma : nx + 2 * nla_g + nla_gamma]
+            kappa_g = s[nx + 2 * nla_g + nla_gamma : nx + 3 * nla_g + nla_gamma]
+            kappa_gamma = s[nx + 3 * nla_g + nla_gamma : nx + 3 * nla_g + 2 * nla_gamma]
+            U = s[nx + 3 * nla_g + 2 * nla_gamma :]
+            return q, u, la_g, la_gamma, mu_g, kappa_g, kappa_gamma, U
         else:
             q = s[:nq]
             u = s[nq:nx]
@@ -2058,8 +2098,19 @@ class GeneralizedAlphaFirstOrder:
         nla_gamma = self.nla_gamma
 
         # extract Lagrange multiplier
-        if self.GGL:
+        if self.GGL == 1:
             _, _, la_gk1, la_gammak1, mu_gk1 = self.unpack(sk1)
+        elif self.GGL == 2:
+            (
+                _,
+                _,
+                la_gk1,
+                la_gammak1,
+                mu_gk1,
+                kappa_gk1,
+                kappa_gammak1,
+                Uk1,
+            ) = self.unpack(sk1)
         else:
             _, _, la_gk1, la_gammak1 = self.unpack(sk1)
 
@@ -2071,6 +2122,9 @@ class GeneralizedAlphaFirstOrder:
         W_gk1 = self.model.W_g(tk1, qk1, scipy_matrix=csr_matrix)
         W_gammak1 = self.model.W_gamma(tk1, qk1, scipy_matrix=csr_matrix)
 
+        # if self.GGL == 2:
+        #     uk1 += Uk1
+
         ###################
         # evaluate residual
         ###################
@@ -2079,7 +2133,7 @@ class GeneralizedAlphaFirstOrder:
         # kinematic differential equation
         # TODO: Use Bk1
         R[:nq] = q_dotk1 - self.model.q_dot(tk1, qk1, uk1)
-        if self.GGL:
+        if self.GGL >= 1:
             g_qk1 = self.model.g_q(tk1, qk1)
             R[:nq] -= g_qk1.T @ mu_gk1
 
@@ -2092,11 +2146,7 @@ class GeneralizedAlphaFirstOrder:
         )
 
         # bilateral constraints
-        if self.GGL:
-            R[nx : nx + nla_g] = self.model.g_dot(tk1, qk1, uk1)
-            R[nx + nla_g : nx + nla_g + nla_gamma] = self.model.gamma(tk1, qk1, uk1)
-            R[nx + nla_g + nla_gamma :] = self.model.g(tk1, qk1)
-        else:
+        if self.GGL == 0:
             if self.DAE_index == 3:
                 R[nx : nx + nla_g] = self.model.g(tk1, qk1)
                 R[nx + nla_g :] = self.model.gamma(tk1, qk1, uk1)
@@ -2106,8 +2156,31 @@ class GeneralizedAlphaFirstOrder:
             elif self.DAE_index == 1:
                 R[nx : nx + nla_g] = self.model.g_ddot(tk1, qk1, uk1, u_dotk1)
                 R[nx + nla_g :] = self.model.gamma_dot(tk1, qk1, uk1, u_dotk1)
+        if self.GGL == 1:
+            R[nx : nx + nla_g] = self.model.g_dot(tk1, qk1, uk1)
+            R[nx + nla_g : nx + nla_g + nla_gamma] = self.model.gamma(tk1, qk1, uk1)
+            R[nx + nla_g + nla_gamma : nx + 2 * nla_g + nla_gamma] = self.model.g(
+                tk1, qk1
+            )
+        if self.GGL == 2:
+            R[nx : nx + nla_g] = self.model.g(tk1, qk1)
+            R[nx + nla_g : nx + nla_g + nla_gamma] = self.model.gamma(tk1, qk1, uk1)
+            R[nx + nla_g + nla_gamma : nx + 2 * nla_g + nla_gamma] = self.model.g_dot(
+                tk1, qk1, uk1
+            )
+            R[
+                nx + 2 * nla_g + nla_gamma : nx + 3 * nla_g + nla_gamma
+            ] = self.model.g_ddot(tk1, qk1, uk1, u_dotk1)
+            R[
+                nx + 3 * nla_g + nla_gamma : nx + 3 * nla_g + 2 * nla_gamma
+            ] = self.model.gamma_dot(tk1, qk1, uk1, u_dotk1)
+            R[nx + 3 * nla_g + 2 * nla_gamma : nx + 3 * nla_g + 2 * nla_gamma + nq] = (
+                Uk1 - W_gk1 @ kappa_gk1 + W_gammak1 @ kappa_gammak1
+            )
 
         yield R
+
+        raise NotImplementedError
 
         ###################
         # evaluate jacobian
@@ -2328,10 +2401,21 @@ class GeneralizedAlphaFirstOrder:
             qk1, uk1 = self.model.step_callback(tk1, qk1, uk1)
 
             # extract Lagrange multipliers
-            if self.GGL:
+            if self.GGL == 0:
+                _, _, la_gk1, la_gammak1 = self.unpack(sk1)
+            elif self.GGL == 1:
                 _, _, la_gk1, la_gammak1, mu_gk1 = self.unpack(sk1)
             else:
-                _, _, la_gk1, la_gammak1 = self.unpack(sk1)
+                (
+                    _,
+                    _,
+                    la_gk1,
+                    la_gammak1,
+                    mu_gk1,
+                    ak1,
+                    kappa_gk1,
+                    kappa_gammak1,
+                ) = self.unpack(sk1)
 
             # store soltuion fields
             t.append(tk1)
@@ -2422,41 +2506,150 @@ class GeneralizedAlphaSecondOrder:
         if self.GGL:
             self.nR += self.nla_g
 
+        # # initial velocites
+        # self.q_dotk = self.model.q_dot(t0, model.q0, model.u0)
+
+        # # solve for consistent initial accelerations and Lagrange mutlipliers
+        # M0 = self.model.M(t0, model.q0, scipy_matrix=csr_matrix)
+        # h0 = self.model.h(t0, model.q0, model.u0)
+        # W_g0 = self.model.W_g(t0, model.q0, scipy_matrix=csr_matrix)
+        # W_gamma0 = self.model.W_gamma(t0, model.q0, scipy_matrix=csr_matrix)
+        # zeta_g0 = self.model.zeta_g(t0, model.q0, model.u0)
+        # zeta_gamma0 = self.model.zeta_gamma(t0, model.q0, model.u0)
+        # A = bmat(
+        #     [
+        #         [M0, -W_g0, -W_gamma0],
+        #         [W_g0.T, None, None],
+        #         [W_gamma0.T, None, None],
+        #     ],
+        #     format="csc",
+        # )
+        # b = np.concatenate([h0, -zeta_g0, -zeta_gamma0])
+        # u_dot_la_g_la_gamma = spsolve(A, b)
+        # self.u_dotk = u_dot_la_g_la_gamma[: self.nu]
+        # self.la_gk = u_dot_la_g_la_gamma[self.nu : self.nu + self.nla_g]
+        # self.la_gammak = u_dot_la_g_la_gamma[self.nu + self.nla_g :]
+
+        # # initialize auxilary variables
+        # self.ak = self.u_dotk.copy()
+
+        def consistent_initial_values(t0, q0, u0):
+            """compute physically consistent initial values"""
+
+            # initial velocites
+            q_dot0 = self.model.q_dot(t0, q0, u0)
+
+            # solve for consistent initial accelerations and Lagrange mutlipliers
+            M0 = self.model.M(t0, q0, scipy_matrix=csr_matrix)
+            h0 = self.model.h(t0, q0, u0)
+            W_g0 = self.model.W_g(t0, q0, scipy_matrix=csr_matrix)
+            W_gamma0 = self.model.W_gamma(t0, q0, scipy_matrix=csr_matrix)
+            zeta_g0 = self.model.zeta_g(t0, q0, u0)
+            zeta_gamma0 = self.model.zeta_gamma(t0, q0, u0)
+            # fmt: off
+            A = bmat(
+                [
+                    [        M0, -W_g0, -W_gamma0],
+                    [    W_g0.T,  None,      None],
+                    [W_gamma0.T,  None,      None],
+                ],
+                format="csc",
+            )
+            # fmt: on
+            b = np.concatenate([h0, -zeta_g0, -zeta_gamma0])
+            u_dot_la_g_la_gamma = spsolve(A, b)
+            u_dot0 = u_dot_la_g_la_gamma[: self.nu]
+            la_g0 = u_dot_la_g_la_gamma[self.nu : self.nu + self.nla_g]
+            la_gamma0 = u_dot_la_g_la_gamma[self.nu + self.nla_g :]
+
+            a0 = u_dot0.copy()
+
+            return q0, u0, q_dot0, u_dot0, la_g0, la_gamma0, a0
+
+        def initial_values_Martin(t0, q0, u0):
+            ##############################################
+            # compute physically consistent initial values
+            ##############################################
+            q0, u0, q_dot0, u_dot0, la_g0, la_gamma0, a0 = consistent_initial_values(
+                t0, q0, u0
+            )
+
+            ##################################
+            # compute perturbed initial values
+            ##################################
+            s = 1.0e-3  # Arnold2016 p. 150 last paragraph
+            Delta_alpha = self.alpha_m - self.alpha_f  # Arnold2016 (41)
+
+            t0_plus = t0 + s * dt
+            u0_plus = u0 + s * dt * u_dot0
+            # q0_plus = q0 + s * dt * q_dot0
+            # from scipy.optimize import fsolve
+            # def q_plus_fun(q0_plus):
+            #     return q0_plus - q0 - s * dt * self.model.q_dot(t0, q0_plus, u0)
+            # q0_plus = fsolve(q_plus_fun, q0)
+            # q0_plus = q0 + s * dt * self.model.q_dot(t0, q0, u0)
+            # q0_plus = q0 + s * dt * self.model.q_dot(t0, q0, u0_plus)
+            # q0_plus = q0 + s * dt * self.model.q_dot(t0, q0, u0) + 0.5 * s**2 * dt**2 * self.model.q_ddot(t0, q0, u0, u_dot0)
+            q0_plus = q0 + s * dt * self.model.q_dot(t0, q0, u0_plus)
+            (
+                _,
+                _,
+                _,
+                u_dot0_plus,
+                _,
+                _,
+                _,
+            ) = consistent_initial_values(t0_plus, q0_plus, u0_plus)
+
+            t0_minus = t0 - s * dt
+            u0_minus = u0 - s * dt * u_dot0
+            # q0_minus = q0 - s * dt * q_dot0
+            # q0_minus = q0 - s * dt * self.model.q_dot(t0, q0, u0)
+            # def q_minus_fun(q0_minus):
+            #     return q0_minus - q0 + s * dt * self.model.q_dot(t0, q0_minus, u0)
+            # q0_minus = fsolve(q_minus_fun, q0)
+            # q0_minus = q0 - s * dt * self.model.q_dot(t0, q0, u0_minus)
+            # q0_minus = q0 - s * dt * self.model.q_dot(t0, q0, u0) - 0.5 * s**2 * dt**2 * self.model.q_ddot(t0, q0, u0, u_dot0)
+            q0_minus = q0 + s * dt * self.model.q_dot(t0, q0, u0_minus)
+            (
+                _,
+                _,
+                _,
+                u_dot0_minus,
+                _,
+                _,
+                _,
+            ) = consistent_initial_values(t0_minus, q0_minus, u0_minus)
+
+            a0 = u_dot0 + Delta_alpha * dt * (u_dot0_plus - u_dot0_minus) / (
+                2.0 * s * dt
+            )
+
+            # def fun(a0):
+            #     u_dot0_plus = consistent_initial_values(
+            #         t0 - s * dt,
+            #         q0 - s * dt * q_dot0, u0_minus)[3]
+            #     return a0 - u_dot0 - Delta_alpha * dt * (u_dot0_plus - u_dot0_minus) / (2.0 * s * dt)
+
+            return q0, u0, q_dot0, u_dot0, la_g0, la_gamma0, a0
+
+        # compute consistent initial conditions
+        # q0, u0, q_dot0, u_dot0, la_g0, la_gamma0, a0 = consistent_initial_values(t0, model.q0, model.u0)
+        q0, u0, q_dot0, u_dot0, la_g0, la_gamma0, a0 = initial_values_Martin(
+            t0, model.q0, model.u0
+        )
+
         # set initial conditions
         self.tk = t0
-        self.qk = model.q0
-        self.uk = model.u0
-        self.la_gk = model.la_g0
-        self.la_gammak = model.la_gamma0
+        self.qk = q0
+        self.uk = u0
+        self.q_dotk = q_dot0
+        self.u_dotk = u_dot0
+        self.ak = a0
+        self.la_gk = la_g0
+        self.la_gammak = la_gamma0
         if self.GGL:
-            self.mu_gk = np.zeros_like(model.la_g0)
-
-        # initial velocites
-        self.q_dotk = self.model.q_dot(t0, model.q0, model.u0)
-
-        # solve for consistent initial accelerations and Lagrange mutlipliers
-        M0 = self.model.M(t0, model.q0, scipy_matrix=csr_matrix)
-        h0 = self.model.h(t0, model.q0, model.u0)
-        W_g0 = self.model.W_g(t0, model.q0, scipy_matrix=csr_matrix)
-        W_gamma0 = self.model.W_gamma(t0, model.q0, scipy_matrix=csr_matrix)
-        zeta_g0 = self.model.zeta_g(t0, model.q0, model.u0)
-        zeta_gamma0 = self.model.zeta_gamma(t0, model.q0, model.u0)
-        A = bmat(
-            [
-                [M0, -W_g0, -W_gamma0],
-                [W_g0.T, None, None],
-                [W_gamma0.T, None, None],
-            ],
-            format="csc",
-        )
-        b = np.concatenate([h0, -zeta_g0, -zeta_gamma0])
-        u_dot_la_g_la_gamma = spsolve(A, b)
-        self.u_dotk = u_dot_la_g_la_gamma[: self.nu]
-        self.la_gk = u_dot_la_g_la_gamma[self.nu : self.nu + self.nla_g]
-        self.la_gammak = u_dot_la_g_la_gamma[self.nu + self.nla_g :]
-
-        # initialize auxilary variables
-        self.ak = self.u_dotk.copy()
+            self.mu_gk = np.zeros_like(la_g0)
 
         # initial state
         if self.GGL:
@@ -2465,8 +2658,6 @@ class GeneralizedAlphaSecondOrder:
             )
         else:
             self.xk = np.concatenate((self.u_dotk, self.la_gk, self.la_gammak))
-
-        # TODO: Check if constraints are satisfied on all kinematic levels!
 
         if numerical_jacobian:
             self.__R_gen = self.__R_gen_num
@@ -2563,6 +2754,11 @@ class GeneralizedAlphaSecondOrder:
         if self.GGL:
             mu_gk1 = xk1[-nla_g:]
             qk1 += self.model.g_q(self.tk, self.qk).T @ mu_gk1
+
+            # def fun(q):
+            #     return q - self.qk - dt * self.model.q_dot(self.tk, q, Delta_uk1) - self.model.g_q(self.tk, q).T @ mu_gk1
+            # from scipy.optimize import fsolve
+            # qk1 = fsolve(fun, qk1)
 
         if store:
             self.u_dotk = u_dotk1
