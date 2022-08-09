@@ -378,10 +378,11 @@ class Kirchhoff:
             qe = self.Q[self.elDOF[el]]
 
             for i in range(nquadrature):
-                qp = self.qp[el, i]
+                qpi = self.qp[el, i]
 
                 # evaluate strain measures and other quantities depending on chosen formulation
-                r, r_xi, r_xixi, A_IK, K_Kappa_bar = self.eval(qe, qp)
+                # r, r_xi, r_xixi, A_IK, K_Kappa_bar = self.eval(qe, qpi)
+                r, r_xi, A_IK, K_Gamma_bar, K_Kappa_bar = self.eval(qe, qpi)
 
                 # length of reference tangential vector
                 Ji = norm(r_xi)
@@ -579,17 +580,38 @@ class Kirchhoff:
         # #     / half_d
         # # )
 
-        #################################
-        # case 2: Crisfield interpolation
-        #################################
+        ##################################
+        # case 2: SO(3) x R3 interpolation
+        ##################################
         A_K0K1 = A_IK0.T @ A_IK1
         psi_K0K0 = Log_SO3(A_K0K1)
         psi = N_psi[1] * psi_K0K0
         psi_xi = N_psi_xi[1] * psi_K0K0
         A_IK = A_IK0 @ Exp_SO3(psi)
         K_Kappa_bar = psi_xi
+        K_Gamma_bar = A_IK.T @ r_xi
 
-        return r, r_xi, r_xixi, A_IK, K_Kappa_bar
+        # #############################
+        # # TODO: Why is this not working?
+        # # case 3: SE(3) interpolation
+        # #############################
+        # from cardillo.beams.spatial.SE3 import Exp_SE3, Log_SE3, SE3, SE3inv
+        # H_IK0 = SE3(A_IK0, r0)
+        # H_IK1 = SE3(A_IK1, r1)
+        # H_K0K1 = SE3inv(H_IK0) @ H_IK1
+        # h_K0K1 = Log_SE3(H_K0K1)
+        # h = N_psi[1] * h_K0K1
+        # h_xi = N_psi_xi[1] * h_K0K1
+        # H_IK = H_IK0 @ Exp_SE3(h)
+
+        # K_Gamma_bar = h_xi[:3]
+        # K_Kappa_bar = h_xi[3:]
+
+        # A_IK = H_IK[:3, :3]
+        # r = H_IK[:3, 3]
+        # r_xi = A_IK @ K_Gamma_bar
+
+        return r, r_xi, A_IK, K_Gamma_bar, K_Kappa_bar
 
     def E_pot(self, t, q):
         E_pot = 0
@@ -611,7 +633,8 @@ class Kirchhoff:
             K_Kappa0 = self.K_Kappa0[el, i]
 
             # evaluate strain measures and other quantities depending on chosen formulation
-            r, r_xi, r_xixi, A_IK, K_Kappa_bar = self.eval(qe, qpi)
+            # r, r_xi, r_xixi, A_IK, K_Kappa_bar = self.eval(qe, qpi)
+            r, r_xi, A_IK, K_Gamma_bar, K_Kappa_bar = self.eval(qe, qpi)
 
             # # stretch
             # ji = norm(r_xi)
@@ -1020,7 +1043,8 @@ class Kirchhoff:
     # r_OP contribution
     ###################
     def r_OP(self, t, q, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
-        r_OC, _, _, A_IK, _ = self.eval(q, frame_ID[0])
+        # r_OC, _, _, A_IK, _ = self.eval(q, frame_ID[0])
+        r_OC, _, A_IK, _, _ = self.eval(q, frame_ID[0])
 
         # rigid body formular
         return r_OC + A_IK @ K_r_SP
@@ -1048,7 +1072,8 @@ class Kirchhoff:
         return r_OP_q_num
 
     def A_IK(self, t, q, frame_ID):
-        _, _, _, A_IK, _ = self.eval(q, frame_ID[0])
+        # _, _, _, A_IK, _ = self.eval(q, frame_ID[0])
+        _, _, A_IK, _, _ = self.eval(q, frame_ID[0])
         return A_IK
 
     def A_IK_q(self, t, q, frame_ID):
