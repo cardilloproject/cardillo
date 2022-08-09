@@ -35,11 +35,11 @@ def statics():
     # polynomial_degree_r = 2
     # polynomial_degree_psi = 2
 
-    nelements = 2
-    basis_r = "Lagrange"
-    basis_psi = "Lagrange"
-    polynomial_degree_r = 3
-    polynomial_degree_psi = 3
+    # nelements = 2
+    # basis_r = "Lagrange"
+    # basis_psi = "Lagrange"
+    # polynomial_degree_r = 3
+    # polynomial_degree_psi = 3
 
     # nelements = 10
     # basis_r = "B-spline"
@@ -56,7 +56,8 @@ def statics():
     # test for Kirchhoff beam
     polynomial_degree_r = 3
     polynomial_degree_psi = 1
-    nelements = 3
+    # nelements = 6
+    nelements = 1
 
     # beam parameters
     L = 10
@@ -139,8 +140,9 @@ def statics():
 
     # moment at right end
     Fi = material_model.Fi
-    M = lambda t: t * 2 * np.pi * (Fi[0] * e1 + Fi[2] * e3) / L * 0.25
+    # M = lambda t: t * 2 * np.pi * (Fi[0] * e1 + Fi[2] * e3) / L * 0.1
     # M = lambda t: t * 2 * np.pi * Fi[2] * e3 / L * 0.25
+    M = lambda t: t * 2 * np.pi * Fi[0] * e1 / L * 0.5
     moment = K_Moment(M, beam, (1,))
 
     # assemble the model
@@ -151,7 +153,7 @@ def statics():
     model.add(moment)
     model.assemble()
 
-    n_load_steps = 10
+    n_load_steps = 5
 
     solver = Newton(
         model,

@@ -441,13 +441,13 @@ class Kirchhoff:
         # note the elements coincide for both meshes!
         return self.knot_vector_r.element_number(xi)[0]
 
-    # def assembler_callback(self):
-    #     self.__M_coo()
-
     #########################################
     # equations of motion
     #########################################
     if False:
+
+        def assembler_callback(self):
+            self.__M_coo()
 
         def M_el(self, el):
             raise NotImplementedError
@@ -579,8 +579,10 @@ class Kirchhoff:
             A_IK1 = Exp_SO3(psi1)
 
         # compute nodal tangent vectors
-        t0 = j0 * (A_IK0 @ e1)
-        t1 = j1 * (A_IK1 @ e1)
+        ex0 = A_IK0 @ e1
+        ex1 = A_IK1 @ e1
+        t0 = j0 * ex0
+        t1 = j1 * ex1
 
         # interpolate centerline and its derivatives using cubic Hermite spline
         r = N_r[0] * r0 + N_r[1] * t0 + N_r[2] * r1 + N_r[3] * t1
@@ -599,16 +601,16 @@ class Kirchhoff:
         # # TODO: Better curvature with volume correction
         # K_Kappa_bar = skew2ax(A_IK.T @ A_IK_xi)
 
-        ##################################
-        # case 2: SO(3) x R3 interpolation
-        ##################################
-        A_K0K1 = A_IK0.T @ A_IK1
-        psi_K0K0 = Log_SO3(A_K0K1)
-        psi = N_psi[1] * psi_K0K0
-        psi_xi = N_psi_xi[1] * psi_K0K0
-        A_IK = A_IK0 @ Exp_SO3(psi)
-        K_Kappa_bar = psi_xi
-        K_Gamma_bar = A_IK.T @ r_xi
+        # ##################################
+        # # case 2: SO(3) x R3 interpolation
+        # ##################################
+        # A_K0K1 = A_IK0.T @ A_IK1
+        # psi_K0K0 = Log_SO3(A_K0K1)
+        # psi = N_psi[1] * psi_K0K0
+        # psi_xi = N_psi_xi[1] * psi_K0K0
+        # A_IK = A_IK0 @ Exp_SO3(psi)
+        # K_Kappa_bar = psi_xi
+        # K_Gamma_bar = A_IK.T @ r_xi
 
         # #############################
         # # TODO: Why is this not working?
@@ -629,6 +631,103 @@ class Kirchhoff:
         # A_IK = H_IK[:3, :3]
         # r = H_IK[:3, 3]
         # r_xi = A_IK @ K_Gamma_bar
+
+        #########################################
+        # case 4: smallest rotation interpolation
+        #########################################
+        def A_IK_fun(xi):
+            # interpolate tangent vector using cubic Hermite spline
+            r_xi = N_r_xi[0] * r0 + N_r_xi[1] * t0 + N_r_xi[2] * r1 + N_r_xi[3] * t1
+
+            # relative torsion from first to second node using smallest rotation
+            A_K0K1 = smallest_rotation(t0, t1)
+
+            # composed rotation to node 1
+            A_IK1_bar = A_IK0 @ A_K0K1
+
+            # extract difference in torsion angle of the two rotations
+            d1, d2, d3 = A_IK1.T
+            d1_bar, d2_bar, d3_bar = A_IK1_bar.T
+            # alpha1 = np.arctan2(d3_bar @ d2, d2_bar @ d2) # TODO: Not working with complex arguments!
+            alpha1 = np.arctan((d3_bar @ d2) / (d2_bar @ d2))
+
+            # interpolate relative torsion angle
+            N_psi, _ = self.basis_functions_psi(xi)
+            alpha = N_psi[1] * alpha1
+
+            # current tangent vector
+            t = r_xi / norm(r_xi)
+
+            # relative smallest rotation w.r.t. first norde
+            A_K0B = smallest_rotation(t0, t)
+
+            # superimposed basic rotation with alpha around t
+            A_BK = Exp_SO3(t * alpha)
+
+            # composed rotation
+            return A_IK0 @ A_K0B @ A_BK
+
+        # A_IK = A_IK_fun(qp)
+        # A_IK_xi = approx_fprime(qp, A_IK_fun)
+        # K_Kappa_bar = skew2ax(A_IK.T @ A_IK_xi)
+
+        ##############################
+        # without numerical derivative
+        ##############################
+
+        # relative torsion from first to second node using smallest rotation
+        A_K0K1 = smallest_rotation(t0, t1)
+
+        # composed rotation to node 1
+        A_IK1_bar = A_IK0 @ A_K0K1
+
+        # extract difference in torsion angle of the two rotations
+        d1, d2, d3 = A_IK1.T
+        d1_bar, d2_bar, d3_bar = A_IK1_bar.T
+        # alpha1 = np.arctan2(d3_bar @ d2, d2_bar @ d2) # TODO: Not working with complex arguments!
+        alpha1 = np.arctan((d3_bar @ d2) / (d2_bar @ d2))
+
+        # interpolate relative torsion angle
+        alpha = N_psi[1] * alpha1
+        alpha_xi = N_psi_xi[1] * alpha1
+
+        # current tangent vector
+        t = r_xi / norm(r_xi)
+
+        # relative smallest rotation w.r.t. first norde
+        A_K0B = smallest_rotation(t0, t)
+
+        # superimposed basic rotation with alpha around t
+        A_BK = Exp_SO3(t * alpha)
+
+        # composed rotation
+        A_IK = A_IK0 @ A_K0B @ A_BK
+
+        # # TODO: curvature!
+        # K_Kappa_bar = A_IK.T @ cross3(r_xi, r_xixi) / (r_xi @ r_xi)
+        # K_Kappa_bar[0] += alpha_xi
+        # # # K_Kappa_bar = np.array([
+        # # #     alpha_xi + ???,
+        # # #     ???,
+        # # #     ???
+        # # # ])
+
+        # TODO: I think the curvature is still wrong!
+        j = norm(r_xi)
+        K_Kappa_bar = np.array(
+            [
+                # TODO: Do we have to add the torsion w.r.t. to the left node?
+                # alpha_xi, #+ r_xixi @ cross3(d1, e1) / (norm(r_xi) * (1 + d1 @ e1)),  # Mitterbach2020 (2.105)
+                alpha_xi
+                + r_xixi
+                @ cross3(d1, ex0)
+                / (j * (1 + d1 @ ex0)),  # Mitterbach2020 (2.105)
+                -(d3 @ r_xixi) / j,
+                (d2 @ r_xixi) / j,
+            ]
+        )
+
+        K_Gamma_bar = A_IK.T @ r_xi
 
         return r, r_xi, A_IK, K_Gamma_bar, K_Kappa_bar
 
@@ -680,12 +779,11 @@ class Kirchhoff:
 
     def f_pot_el(self, qe, el):
         return approx_fprime(
-            qe,
-            lambda qe: self.E_pot_el(qe, el),
-            eps=1.0e-10,
-            method="cs"
-            # qe, lambda qe: self.E_pot_el(qe, el), method="2-point"
+            qe, lambda qe: self.E_pot_el(qe, el), eps=1.0e-10, method="cs"
         )
+        # return approx_fprime(
+        #     qe, lambda qe: self.E_pot_el(qe, el), method="2-point"
+        # )
 
         f_pot_el = np.zeros(self.nq_element)
 
@@ -1082,7 +1180,10 @@ class Kirchhoff:
         # # return r_OP_q
 
         r_OP_q_num = approx_fprime(
-            q, lambda q: self.r_OP(t, q, frame_ID, K_r_SP), eps=1e-10, method="cs"
+            # q, lambda q: self.r_OP(t, q, frame_ID, K_r_SP), eps=1e-10, method="cs"
+            q,
+            lambda q: self.r_OP(t, q, frame_ID, K_r_SP),
+            method="2-point",
         )
         # diff = r_OP_q_num - r_OP_q
         # error = np.linalg.norm(diff)
@@ -1104,7 +1205,10 @@ class Kirchhoff:
         # return A_IK_q
 
         A_IK_q_num = approx_fprime(
-            q, lambda q: self.A_IK(t, q, frame_ID), eps=1e-10, method="cs"
+            # q, lambda q: self.A_IK(t, q, frame_ID), eps=1e-10, method="cs"
+            q,
+            lambda q: self.A_IK(t, q, frame_ID),
+            method="2-point",
         )
         # diff = A_IK_q - A_IK_q_num
         # error = np.linalg.norm(diff)
@@ -1132,11 +1236,16 @@ class Kirchhoff:
 
     # TODO:
     def J_P(self, t, q, frame_ID, K_r_SP=np.zeros(3)):
+        # J_P_num = approx_fprime(
+        #     q,
+        #     lambda q: self.r_OP(t, q, frame_ID, K_r_SP),
+        #     eps=1e-10,
+        #     method="cs",
+        # )
         J_P_num = approx_fprime(
             q,
             lambda q: self.r_OP(t, q, frame_ID, K_r_SP),
-            eps=1e-10,
-            method="cs",
+            method="2-point",
         )
         # J_P_num = approx_fprime(
         #     np.zeros(self.nq_element), lambda u: self.v_P(t, q, u, frame_ID, K_r_SP)
@@ -1301,7 +1410,10 @@ class Kirchhoff:
     # TODO:
     def K_Omega_q(self, t, q, u, frame_ID):
         return approx_fprime(
-            q, lambda q: self.K_Omega(t, q, u, frame_ID), eps=1e-10, method="cs"
+            # q, lambda q: self.K_Omega(t, q, u, frame_ID), eps=1e-10, method="cs"
+            q,
+            lambda q: self.K_Omega(t, q, u, frame_ID),
+            method="2-point",
         )
 
     # TODO:

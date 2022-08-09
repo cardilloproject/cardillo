@@ -358,7 +358,7 @@ class Kirchhoff:
             A_lr = smallest_rotation(d1_l, d1_r)
 
             # - compute the difference rotation angle between
-            #   (a) the pure smalles rotation of the right boundary and
+            #   (a) the pure smallest rotation of the right boundary and
             #   (b) the concatenation between the pure smallest rotation of the
             #       left boundary and the relative smallest rotation between both
             #       boundaries
