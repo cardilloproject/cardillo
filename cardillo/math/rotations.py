@@ -399,6 +399,23 @@ class Rotor:
 ##########################################
 # TODO: Refactor these and add references!
 ##########################################
+def quatprod(P, Q):
+    """Quaternion product, see Egeland2002 (6.190).
+
+    References:
+    -----------
+    Egenland2002: https://folk.ntnu.no/oe/Modeling%20and%20Simulation.pdf
+    """
+    p0 = P[0]
+    p = P[1:]
+    q0 = Q[0]
+    q = Q[1:]
+
+    z0 = p0 * q0 - p @ q
+    z = p0 * q + q0 * p + cross3(p, q)
+    return np.array([z0, *z])
+
+
 def quat2mat(p):
     p0, p1, p2, p3 = p
     # fmt: off
@@ -422,9 +439,15 @@ def quat2mat_p(p):
 
 
 def quat2rot(p):
+    """Rotation matrix defined by (non unit) quaternion, see Egeland2002 (6.199).
+
+    References:
+    -----------
+    Egenland2002: https://folk.ntnu.no/oe/Modeling%20and%20Simulation.pdf
+    """
     p_ = p / norm(p)
     v_p_tilde = ax2skew(p_[1:])
-    return np.eye(3) + 2 * (v_p_tilde @ v_p_tilde + p_[0] * v_p_tilde)
+    return np.eye(3, dtype=p.dtype) + 2.0 * (v_p_tilde @ v_p_tilde + p_[0] * v_p_tilde)
 
 
 def quat2rot_p(p):

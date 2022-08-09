@@ -3,7 +3,7 @@ import meshio
 import os
 from math import sin, cos
 from cardillo.math.algebra import skew2ax
-from cardillo.math.rotations import smallest_rotation
+from cardillo.math.rotations import Spurrier, smallest_rotation
 
 from cardillo.utility.coo import Coo
 from cardillo.discretization.B_spline import BSplineKnotVector
@@ -20,12 +20,13 @@ from cardillo.math import (
     tangent_map_s,
     e1,
     Rotor,
+    quat2rot,
+    quatprod,
     quat2mat,
     quat2mat_p,
     trace3,
     LeviCivita,
 )
-from examples.GAMM2022.RollingDisc import K_Omega0
 
 
 # for smaller angles we use first order approximations of the equations since
@@ -245,6 +246,10 @@ def T_SO3_inv(psi: np.ndarray) -> np.ndarray:
         return np.eye(3, dtype=float) + 0.5 * psi_tilde
 
 
+# use_quaternions = False
+use_quaternions = True
+
+
 class Kirchhoff:
     def __init__(
         self,
@@ -364,10 +369,6 @@ class Kirchhoff:
         self.q0 = Q.copy() if q0 is None else q0  # initial configuration
         self.u0 = np.zeros(self.nu) if u0 is None else u0  # initial velocities
 
-        # reference rotation for relative rotation proposed by Crisfield1999 (5.8)
-        self.node_A = int(0.5 * (self.nnodes_element_psi + 1)) - 1
-        self.node_B = int(0.5 * (self.nnodes_element_psi + 2)) - 1
-
         # precompute values of the reference configuration in order to save computation time
         # J in Harsch2020b (5)
         self.J = np.zeros((nelement, nquadrature))
@@ -405,7 +406,13 @@ class Kirchhoff:
         nn_psi = nelement + 1
 
         # compute axis angle vector
-        psi0 = Log_SO3(A_IK)
+        if use_quaternions:
+            P0 = Spurrier(A_IK)
+            P0 = np.sqrt(L) * P0
+            p0 = P0[0]
+            psi0 = P0[1:]
+        else:
+            psi0 = Log_SO3(A_IK)
 
         # centerline part
         xis = np.linspace(0, 1, num=nn_r)
@@ -421,8 +428,11 @@ class Kirchhoff:
         # reshape generalized coordinates to nodal ordering
         q_r = r0.reshape(-1, order="F")
 
-        # initial length ofthe tangent vectors
-        q_psi = L * np.ones(nn_psi)
+        # initial length of the tangent vectors
+        if use_quaternions:
+            q_psi = p0 * np.ones(nn_psi)
+        else:
+            q_psi = L * np.ones(nn_psi)
 
         # assemble all reference generalized coordinates
         return np.concatenate([q_r, q_psi])
@@ -538,12 +548,35 @@ class Kirchhoff:
         r1 = qe[self.nodalDOF_element_r[2]]
         psi0 = qe[self.nodalDOF_element_r[1]]
         psi1 = qe[self.nodalDOF_element_r[3]]
-        j0 = qe[self.nodalDOF_element_psi[0]]
-        j1 = qe[self.nodalDOF_element_psi[1]]
 
-        # compute nodal rotation matrices
-        A_IK0 = Exp_SO3(psi0)
-        A_IK1 = Exp_SO3(psi1)
+        if use_quaternions:
+            # nodal real part of the quaternion
+            p0 = qe[self.nodalDOF_element_psi[0]]
+            p1 = qe[self.nodalDOF_element_psi[1]]
+
+            # nodal quaternion
+            P0 = np.array([*p0, *psi0])
+            P1 = np.array([*p1, *psi1])
+
+            # nodal tangent vector lengths
+            j0 = P0 @ P0
+            j1 = P1 @ P1
+
+            # normalized quaternions
+            Q0 = P0 / norm(P0)
+            Q1 = P1 / norm(P1)
+
+            # nodal rotation matrices
+            A_IK0 = quat2rot(Q0)
+            A_IK1 = quat2rot(Q1)
+        else:
+            # nodal tangent vector lengths
+            j0 = qe[self.nodalDOF_element_psi[0]]
+            j1 = qe[self.nodalDOF_element_psi[1]]
+
+            # nodal rotation matrices
+            A_IK0 = Exp_SO3(psi0)
+            A_IK1 = Exp_SO3(psi1)
 
         # compute nodal tangent vectors
         t0 = j0 * (A_IK0 @ e1)
@@ -562,23 +595,9 @@ class Kirchhoff:
         # A_IK = N_psi[0] * A_IK0 + N_psi[1] * A_IK1
         # A_IK_xi = N_psi_xi[0] * A_IK0 + N_psi_xi[1] * A_IK1
 
+        # K_Gamma_bar = A_IK.T @ r_xi
+        # # TODO: Better curvature with volume correction
         # K_Kappa_bar = skew2ax(A_IK.T @ A_IK_xi)
-
-        # # # TODO: Better curvature with volume correction
-        # # # torsional and flexural strains
-        # # d1, d2, d3 = A_IK.T
-        # # d1_xi, d2_xi, d3_xi = A_IK_xi.T
-        # # half_d = d1 @ cross3(d2, d3)
-        # # K_Kappa_bar = (
-        # #     np.array(
-        # #         [
-        # #             0.5 * (d3 @ d2_xi - d2 @ d3_xi),
-        # #             0.5 * (d1 @ d3_xi - d3 @ d1_xi),
-        # #             0.5 * (d2 @ d1_xi - d1 @ d2_xi),
-        # #         ]
-        # #     )
-        # #     / half_d
-        # # )
 
         ##################################
         # case 2: SO(3) x R3 interpolation
@@ -636,12 +655,7 @@ class Kirchhoff:
             # r, r_xi, r_xixi, A_IK, K_Kappa_bar = self.eval(qe, qpi)
             r, r_xi, A_IK, K_Gamma_bar, K_Kappa_bar = self.eval(qe, qpi)
 
-            # # stretch
-            # ji = norm(r_xi)
-            # stretch = ji / Ji
-
             # axial and shear strains
-            K_Gamma_bar = A_IK.T @ r_xi
             K_Gamma = K_Gamma_bar / Ji
 
             # torsional and flexural strains
@@ -666,7 +680,11 @@ class Kirchhoff:
 
     def f_pot_el(self, qe, el):
         return approx_fprime(
-            qe, lambda qe: self.E_pot_el(qe, el), eps=1.0e-10, method="cs"
+            qe,
+            lambda qe: self.E_pot_el(qe, el),
+            eps=1.0e-10,
+            method="cs"
+            # qe, lambda qe: self.E_pot_el(qe, el), method="2-point"
         )
 
         f_pot_el = np.zeros(self.nq_element)
@@ -1115,7 +1133,7 @@ class Kirchhoff:
     # TODO:
     def J_P(self, t, q, frame_ID, K_r_SP=np.zeros(3)):
         J_P_num = approx_fprime(
-            np.zeros(self.nq_element),
+            q,
             lambda q: self.r_OP(t, q, frame_ID, K_r_SP),
             eps=1e-10,
             method="cs",
@@ -1231,15 +1249,51 @@ class Kirchhoff:
         #########################
         # Bubnov-Galerkin version
         #########################
-        # extract nodal quantities
-        psi0 = q[self.nodalDOF_element_r[1]]
-        psi1 = q[self.nodalDOF_element_r[3]]
-        psi_dot0 = u[self.nodalDOF_element_r[1]]
-        psi_dot1 = u[self.nodalDOF_element_r[3]]
 
-        # compute nodal angular velocities
-        K_Omega0 = T_SO3(psi0) @ psi_dot0
-        K_Omega1 = T_SO3(psi1) @ psi_dot1
+        # TODO: Nodal angular velcitiy of unit quaternions
+        if use_quaternions:
+            # nodal real parts of quaternions and their time derivative
+            p00 = q[self.nodalDOF_element_psi[0]]
+            p01 = q[self.nodalDOF_element_psi[1]]
+            p0_dot0 = u[self.nodalDOF_element_psi[0]]
+            p0_dot1 = u[self.nodalDOF_element_psi[1]]
+
+            # nodal quaternion vector parts and their time derivatives
+            p0 = q[self.nodalDOF_element_r[1]]
+            p1 = q[self.nodalDOF_element_r[3]]
+            p_dot0 = u[self.nodalDOF_element_r[1]]
+            p_dot1 = u[self.nodalDOF_element_r[3]]
+
+            # build nodal quaternions
+            P0 = np.array([*p00, *p0])
+            P_dot0 = np.array([*p0_dot0, *p_dot0])
+            P1 = np.array([*p01, *p1])
+            P_dot1 = np.array([*p0_dot1, *p_dot1])
+
+            # compute normalized quaternion quantities
+            Q0 = P0 / norm(P0)
+            Q1 = P1 / norm(P1)
+            Q0_inv = np.array([Q0[0], *-Q0[1:]])
+            Q1_inv = np.array([Q1[0], *-Q1[1:]])
+            Q_dot0 = (P_dot0 - Q0 * (Q0 @ P_dot0)) / norm(P0)
+            Q_dot1 = (P_dot1 - Q1 * (Q1 @ P_dot1)) / norm(P1)
+
+            # compute nodal angular velcoties in the body fixed frame,
+            # see Egeland2002, (6.325)
+            # Egenland2002: https://folk.ntnu.no/oe/Modeling%20and%20Simulation.pdf
+            K_Omega0 = 2.0 * quatprod(Q0_inv, Q_dot0)[1:]
+            K_Omega1 = 2.0 * quatprod(Q1_inv, Q_dot1)[1:]
+
+        else:
+            # extract nodal rotation vectors and their time derivatives
+            psi0 = q[self.nodalDOF_element_r[1]]
+            psi1 = q[self.nodalDOF_element_r[3]]
+            psi_dot0 = u[self.nodalDOF_element_r[1]]
+            psi_dot1 = u[self.nodalDOF_element_r[3]]
+
+            # compute nodal angular velocities
+            K_Omega0 = T_SO3(psi0) @ psi_dot0
+            K_Omega1 = T_SO3(psi1) @ psi_dot1
 
         # interpolate angular velocities
         return N_psi[0] * K_Omega0 + N_psi[1] * K_Omega1
@@ -1252,9 +1306,7 @@ class Kirchhoff:
 
     # TODO:
     def K_J_R(self, t, q, frame_ID):
-        return approx_fprime(
-            np.zeros(self.nq_element), lambda u: self.K_Omega(t, q, u, frame_ID)
-        )
+        return approx_fprime(q, lambda u: self.K_Omega(t, q, u, frame_ID))
         # N, _ = self.basis_functions_psi(frame_ID[0])
         # K_J_R = np.zeros((3, self.nq_element))
         # for node in range(self.nnodes_element_psi):
