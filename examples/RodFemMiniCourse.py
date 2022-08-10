@@ -108,8 +108,8 @@ def statics():
     # build quadratic material model
     Ei = np.array([EA, GA, GA], dtype=float)
     Fi = np.array([GJ, EI, EI], dtype=float)
-    # material_model = Simo1986(Ei, Fi)
-    material_model = ShearStiffQuadratic(EA, Fi)
+    material_model = Simo1986(Ei, Fi)
+    # material_model = ShearStiffQuadratic(EA, Fi)
 
     Q = Kirchhoff.straight_configuration(nelements, L)
 
@@ -141,7 +141,7 @@ def statics():
     # moment at right end
     Fi = material_model.Fi
     # M = lambda t: t * 2 * np.pi * (Fi[0] * e1 + Fi[2] * e3) / L * 0.25
-    M = lambda t: t * 2 * np.pi * Fi[2] * e3 / L * 0.25
+    M = lambda t: t * 2 * np.pi * Fi[2] * e3 / L  # * 0.25
     # M = lambda t: t * 2 * np.pi * Fi[0] * e1 / L * 0.45
     moment = K_Moment(M, beam, (1,))
 
