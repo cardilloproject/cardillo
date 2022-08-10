@@ -49,6 +49,11 @@ class CubicHermiteBasis:
         interval_length = interval[1] - interval[0]
 
         # cubic Hermite shape functions on [0, 1]
+        # - nodal positions r0, r1
+        # - nodal tangent vectors t0, t1
+        # - interpolation
+        #   r(xi) = h00(xi) * r0 + h01(xi) * t0
+        #           + h10(xi) * r1 + h11(xi) * t1
         self.h00 = Polynomial([1, 0, -3, 2], domain=interval, window=[0, 1])
         self.h01 = interval_length * Polynomial(
             [0, 1, -2, 1], domain=interval, window=[0, 1]

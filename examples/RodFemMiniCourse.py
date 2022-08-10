@@ -57,11 +57,11 @@ def statics():
     polynomial_degree_r = 3
     polynomial_degree_psi = 1
     # nelements = 6
-    nelements = 2
+    nelements = 4
 
     # beam parameters
     L = 10
-    EA = GA = 1.0e4
+    EA = GA = 1.0e2
     GJ = EI = 1.0e2
 
     # Note: This is never used in statics!
@@ -108,12 +108,12 @@ def statics():
     # build quadratic material model
     Ei = np.array([EA, GA, GA], dtype=float)
     Fi = np.array([GJ, EI, EI], dtype=float)
-    material_model = Simo1986(Ei, Fi)
-    # material_model = ShearStiffQuadratic(EA, Fi)
+    # material_model = Simo1986(Ei, Fi)
+    material_model = ShearStiffQuadratic(EA, Fi)
 
     Q = Kirchhoff.straight_configuration(nelements, L)
 
-    nquadrature = int(max(polynomial_degree_r, polynomial_degree_psi))  # + 1
+    nquadrature = int(max(polynomial_degree_r, polynomial_degree_psi)) + 1
     beam = Kirchhoff(material_model, A_rho0, K_I_rho0, nquadrature, nelements, Q)
 
     # # junctions
@@ -142,7 +142,7 @@ def statics():
     Fi = material_model.Fi
     # M = lambda t: t * 2 * np.pi * (Fi[0] * e1 + Fi[2] * e3) / L * 0.25
     M = lambda t: t * 2 * np.pi * Fi[2] * e3 / L * 0.25
-    # M = lambda t: t * 2 * np.pi * Fi[0] * e1 / L * 0.5
+    # M = lambda t: t * 2 * np.pi * Fi[0] * e1 / L * 0.45
     moment = K_Moment(M, beam, (1,))
 
     # assemble the model
@@ -153,7 +153,7 @@ def statics():
     model.add(moment)
     model.assemble()
 
-    n_load_steps = 20
+    n_load_steps = 10
 
     solver = Newton(
         model,
