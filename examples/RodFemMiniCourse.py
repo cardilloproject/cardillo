@@ -57,7 +57,7 @@ def statics():
     polynomial_degree_r = 3
     polynomial_degree_psi = 1
     # nelements = 6
-    nelements = 1
+    nelements = 2
 
     # beam parameters
     L = 10
@@ -113,7 +113,7 @@ def statics():
 
     Q = Kirchhoff.straight_configuration(nelements, L)
 
-    nquadrature = int(max(polynomial_degree_r, polynomial_degree_psi)) + 1
+    nquadrature = int(max(polynomial_degree_r, polynomial_degree_psi))  # + 1
     beam = Kirchhoff(material_model, A_rho0, K_I_rho0, nquadrature, nelements, Q)
 
     # # junctions
@@ -140,9 +140,9 @@ def statics():
 
     # moment at right end
     Fi = material_model.Fi
-    # M = lambda t: t * 2 * np.pi * (Fi[0] * e1 + Fi[2] * e3) / L * 0.1
-    # M = lambda t: t * 2 * np.pi * Fi[2] * e3 / L * 0.25
-    M = lambda t: t * 2 * np.pi * Fi[0] * e1 / L * 0.5
+    # M = lambda t: t * 2 * np.pi * (Fi[0] * e1 + Fi[2] * e3) / L * 0.25
+    M = lambda t: t * 2 * np.pi * Fi[2] * e3 / L * 0.25
+    # M = lambda t: t * 2 * np.pi * Fi[0] * e1 / L * 0.5
     moment = K_Moment(M, beam, (1,))
 
     # assemble the model
@@ -153,13 +153,13 @@ def statics():
     model.add(moment)
     model.assemble()
 
-    n_load_steps = 5
+    n_load_steps = 20
 
     solver = Newton(
         model,
         n_load_steps=n_load_steps,
         max_iter=10,
-        atol=1.0e-8,
+        atol=1.0e-6,
     )
     sol = solver.solve()
     q = sol.q

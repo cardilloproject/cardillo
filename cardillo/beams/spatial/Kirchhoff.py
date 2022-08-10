@@ -2,7 +2,7 @@ import numpy as np
 import meshio
 import os
 from math import sin, cos
-from cardillo.math.algebra import skew2ax
+from cardillo.math.algebra import sign, skew2ax
 from cardillo.math.rotations import Spurrier, smallest_rotation
 
 from cardillo.utility.coo import Coo
@@ -632,44 +632,50 @@ class Kirchhoff:
         # r = H_IK[:3, 3]
         # r_xi = A_IK @ K_Gamma_bar
 
-        #########################################
-        # case 4: smallest rotation interpolation
-        #########################################
-        def A_IK_fun(xi):
-            # interpolate tangent vector using cubic Hermite spline
-            r_xi = N_r_xi[0] * r0 + N_r_xi[1] * t0 + N_r_xi[2] * r1 + N_r_xi[3] * t1
+        # #########################################
+        # # case 4: smallest rotation interpolation
+        # #########################################
+        # def A_IK_fun(xi):
+        #     # interpolate tangent vector using cubic Hermite spline
+        #     _, N_r_xi, _ = self.basis_functions_r(xi)
+        #     r_xi = N_r_xi[0] * r0 + N_r_xi[1] * t0 + N_r_xi[2] * r1 + N_r_xi[3] * t1
 
-            # relative torsion from first to second node using smallest rotation
-            A_K0K1 = smallest_rotation(t0, t1)
+        #     # relative torsion from first to second node using smallest rotation
+        #     A_K0K1 = smallest_rotation(t0, t1)
 
-            # composed rotation to node 1
-            A_IK1_bar = A_IK0 @ A_K0K1
+        #     # composed rotation to node 1
+        #     A_IK1_bar = A_IK0 @ A_K0K1
 
-            # extract difference in torsion angle of the two rotations
-            d1, d2, d3 = A_IK1.T
-            d1_bar, d2_bar, d3_bar = A_IK1_bar.T
-            # alpha1 = np.arctan2(d3_bar @ d2, d2_bar @ d2) # TODO: Not working with complex arguments!
-            alpha1 = np.arctan((d3_bar @ d2) / (d2_bar @ d2))
+        #     # extract difference in torsion angle of the two rotations
+        #     d1, d2, d3 = A_IK1.T
+        #     d1_bar, d2_bar, d3_bar = A_IK1_bar.T
+        #     alpha1 = np.arctan2(d3 @ d2_bar, d2 @ d2_bar) # TODO: Not working with complex arguments!
+        #     alpha1 = np.arctan((d3 @ d2_bar) / (d2 @ d2_bar))
 
-            # interpolate relative torsion angle
-            N_psi, _ = self.basis_functions_psi(xi)
-            alpha = N_psi[1] * alpha1
+        #     # psi = Log_SO3(A_IK1_bar.T @ A_IK1)
+        #     # alpha1 = norm(psi)
 
-            # current tangent vector
-            t = r_xi / norm(r_xi)
+        #     # interpolate relative torsion angle
+        #     N_psi, _ = self.basis_functions_psi(xi)
+        #     alpha = N_psi[1] * alpha1
 
-            # relative smallest rotation w.r.t. first norde
-            A_K0B = smallest_rotation(t0, t)
+        #     # current tangent vector
+        #     t = r_xi / norm(r_xi)
 
-            # superimposed basic rotation with alpha around t
-            A_BK = Exp_SO3(t * alpha)
+        #     # relative smallest rotation w.r.t. first norde
+        #     A_K0B = smallest_rotation(t0, t)
 
-            # composed rotation
-            return A_IK0 @ A_K0B @ A_BK
+        #     # superimposed basic rotation with alpha around t
+        #     A_BK = Exp_SO3(t * alpha)
+
+        #     # composed rotation
+        #     return A_IK0 @ A_K0B @ A_BK
 
         # A_IK = A_IK_fun(qp)
         # A_IK_xi = approx_fprime(qp, A_IK_fun)
         # K_Kappa_bar = skew2ax(A_IK.T @ A_IK_xi)
+
+        # K_Gamma_bar = A_IK.T @ r_xi
 
         ##############################
         # without numerical derivative
@@ -684,8 +690,49 @@ class Kirchhoff:
         # extract difference in torsion angle of the two rotations
         d1, d2, d3 = A_IK1.T
         d1_bar, d2_bar, d3_bar = A_IK1_bar.T
+        cos_alpha1 = d2_bar @ d2
+        sin_alpha1 = d3_bar @ d2
+
+        def complex_atan2(y, x):
+            """Atan2 implementation that can handle complex numbers, see https://de.wikipedia.org/wiki/Arctan2#Formel. It returns atan(y / x)."""
+            if x > 0:
+                return np.arctan(y / x)
+            elif x < 0:
+                if y > 0:
+                    return np.arctan(y / x) + np.pi
+                elif y < 0:
+                    return np.arctan(y / x) - np.pi
+                else:
+                    return np.pi
+            else:
+                if y > 0:
+                    return 0.5 * np.pi
+                else:
+                    return -0.5 * np.pi
+            # elif x < 0 and y > 0:
+            #     return np.arctan(y / x) + np.pi
+            # elif x < 0 and y == 0:
+            #     return np.pi
+            # elif x < 0 and y < 0:
+            #     return np.arctan(y / x) - np.pi
+            # elif x == 0 and y > 0:
+            #     return 0.5 * np.pi
+            # elif x == 0 and y < 0:
+            #     return -0.5 * np.pi
+
+        alpha1 = complex_atan2(sin_alpha1, cos_alpha1)
+
+        # #############################################
+        # # angle extraction proposed by Meier2014 (54)
+        # #############################################
+        # # cos_alpha1 = min(-1.0, max(cos_alpha1, 1.0))
+        # cos_alpha1 = np.clip(cos_alpha1, -1, 1)
+        # alpha1 = np.sign(sin_alpha1) * np.arccos(cos_alpha1)
+
         # alpha1 = np.arctan2(d3_bar @ d2, d2_bar @ d2) # TODO: Not working with complex arguments!
-        alpha1 = np.arctan((d3_bar @ d2) / (d2_bar @ d2))
+        # # alpha1 = np.arctan((d3_bar @ d2) / (d2_bar @ d2))
+        # # # alpha1 = np.arctan2(d3 @ d2_bar, d2 @ d2_bar) # TODO: Not working with complex arguments!
+        # # alpha1 = np.arctan((d3 @ d2_bar) / (d2 @ d2_bar))
 
         # interpolate relative torsion angle
         alpha = N_psi[1] * alpha1
@@ -696,36 +743,51 @@ class Kirchhoff:
 
         # relative smallest rotation w.r.t. first norde
         A_K0B = smallest_rotation(t0, t)
+        A_IB = A_IK0 @ A_K0B
+        exB, eyB, ezB = A_IB.T
 
         # superimposed basic rotation with alpha around t
-        A_BK = Exp_SO3(t * alpha)
+        A_BK = Exp_SO3(alpha * t)
 
         # composed rotation
         A_IK = A_IK0 @ A_K0B @ A_BK
 
-        # # TODO: curvature!
-        # K_Kappa_bar = A_IK.T @ cross3(r_xi, r_xixi) / (r_xi @ r_xi)
-        # K_Kappa_bar[0] += alpha_xi
-        # # # K_Kappa_bar = np.array([
-        # # #     alpha_xi + ???,
-        # # #     ???,
-        # # #     ???
-        # # # ])
+        # # # # TODO: curvature!
+        # # # K_Kappa_bar = A_IK.T @ cross3(r_xi, r_xixi) / (r_xi @ r_xi)
+        # # # K_Kappa_bar[0] += alpha_xi
+        # # # # # K_Kappa_bar = np.array([
+        # # # # #     alpha_xi + ???,
+        # # # # #     ???,
+        # # # # #     ???
+        # # # # # ])
 
-        # TODO: I think the curvature is still wrong!
+        # # TODO: I think the curvature is still wrong!
+        # j = norm(r_xi)
+        # K_Kappa_bar = np.array(
+        #     [
+        #         # TODO: Do we have to add the torsion w.r.t. to the left node?
+        #         # alpha_xi,
+        #         # alpha_xi
+        #         # + r_xixi
+        #         # @ cross3(d1, ex0)
+        #         # / (j * (1 + d1 @ ex0)),  # Mitterbach2020 (2.105)
+        #         alpha_xi
+        #         + r_xixi
+        #         @ cross3(exB, ex0)
+        #         / (j * (1.0 + exB @ ex0)),  # Mitterbach2020 (2.105): Curvature of the relative smallest rotation from t0 to current tangent vector t + torsion correction, cf. Meier2014 (59)
+        #         (d3 @ r_xixi) / j,
+        #         -(d2 @ r_xixi) / j,
+        #     ]
+        # )
+
+        # cable version
         j = norm(r_xi)
-        K_Kappa_bar = np.array(
-            [
-                # TODO: Do we have to add the torsion w.r.t. to the left node?
-                # alpha_xi, #+ r_xixi @ cross3(d1, e1) / (norm(r_xi) * (1 + d1 @ e1)),  # Mitterbach2020 (2.105)
-                alpha_xi
-                + r_xixi
-                @ cross3(d1, ex0)
-                / (j * (1 + d1 @ ex0)),  # Mitterbach2020 (2.105)
-                -(d3 @ r_xixi) / j,
-                (d2 @ r_xixi) / j,
-            ]
-        )
+        K_Kappa_bar = cross3(d1, r_xixi) / j
+        K_Kappa_bar[0] += alpha_xi
+
+        # diff = K_Kappa_bar - K_Kappa_bar2
+        # error = norm(diff)
+        # print(f"error K_Kappa_bar: {error}")
 
         K_Gamma_bar = A_IK.T @ r_xi
 
@@ -756,6 +818,9 @@ class Kirchhoff:
 
             # axial and shear strains
             K_Gamma = K_Gamma_bar / Ji
+            # TODO: This works only for nodal smallest rotation!
+            # K_Gamma[1] = 0
+            # K_Gamma[2] = 0
 
             # torsional and flexural strains
             K_Kappa = K_Kappa_bar / Ji
@@ -779,10 +844,10 @@ class Kirchhoff:
 
     def f_pot_el(self, qe, el):
         return approx_fprime(
-            qe, lambda qe: self.E_pot_el(qe, el), eps=1.0e-10, method="cs"
+            qe, lambda qe: -self.E_pot_el(qe, el), eps=1.0e-10, method="cs"
         )
         # return approx_fprime(
-        #     qe, lambda qe: self.E_pot_el(qe, el), method="2-point"
+        #     qe, lambda qe: -self.E_pot_el(qe, el), method="3-point"
         # )
 
         f_pot_el = np.zeros(self.nq_element)
