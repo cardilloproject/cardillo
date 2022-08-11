@@ -56,8 +56,7 @@ def statics():
     # test for Kirchhoff beam
     polynomial_degree_r = 3
     polynomial_degree_psi = 1
-    # nelements = 6
-    nelements = 4
+    nelements = 3
 
     # beam parameters
     L = 10
@@ -140,8 +139,8 @@ def statics():
 
     # moment at right end
     Fi = material_model.Fi
-    # M = lambda t: t * 2 * np.pi * (Fi[0] * e1 + Fi[2] * e3) / L * 0.25
-    M = lambda t: t * 2 * np.pi * Fi[2] * e3 / L  # * 0.25
+    M = lambda t: t * 2 * np.pi * (Fi[0] * e1 + Fi[2] * e3) / L  # * 0.25
+    # M = lambda t: t * 2 * np.pi * Fi[2] * e3 / L  # * 0.25
     # M = lambda t: t * 2 * np.pi * Fi[0] * e1 / L * 0.45
     moment = K_Moment(M, beam, (1,))
 

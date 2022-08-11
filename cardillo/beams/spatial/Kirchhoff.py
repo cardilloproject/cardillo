@@ -9,6 +9,7 @@ from cardillo.discretization.Hermite import HermiteNodeVector
 from cardillo.discretization.mesh1D import Mesh1D
 from cardillo.math import norm, cross3, ax2skew, approx_fprime
 from cardillo.math import (
+    pi,
     rodriguez,
     rodriguez_der,
     rodriguez_inv,
@@ -159,14 +160,15 @@ def DExp_SO3(psi: np.ndarray, u: np.ndarray) -> np.ndarray:
     -----------
     Ritto-Corea2002: https://doi.org/10.1002/nme.532
     """
-    return np.einsum("ijk,j->ik", Exp_SO3_psi(psi), u)
+    # return np.einsum("ijk,j->ik", Exp_SO3_psi(psi), u)
+
     angle = norm(psi)
     if angle > angle_singular:
         # frequently used quantities
         sa = np.sin(angle)
         ca = np.cos(angle)
         angle2 = angle * angle
-        angle3 = angle2 * angle
+        # angle3 = angle2 * angle
         angle4 = angle2 * angle2
 
         psi_tilde = ax2skew(psi)
@@ -189,13 +191,8 @@ def DExp_SO3(psi: np.ndarray, u: np.ndarray) -> np.ndarray:
             * (np.eye(3, dtype=psi.dtype) + b2 * psi_tilde + b3 * np.outer(psi, psi))
         )
     else:
-        # for psi -> 0:
-        #  - a1 -> 1
-        #  - a2 -> 0.5
-        #  - b2 -> ???
-        #  - b3 -> ???
-        # raise NotImplementedError
-        return np.einsum("ijk,j->ik", Exp_SO3_psi(psi), u)
+        return ax2skew(u)
+        # return np.einsum("ijk,j->ik", Exp_SO3_psi(psi), u)
 
 
 def Log_SO3(A: np.ndarray) -> np.ndarray:
@@ -304,6 +301,18 @@ def T_SO3_inv(psi: np.ndarray) -> np.ndarray:
     else:
         # first order approximation
         return np.eye(3, dtype=float) + 0.5 * psi_tilde
+
+
+# change between rotation vector and its complement in order to circumvent
+# singularities of the rotation vector
+def psi_C(psi):
+    angle = norm(psi)
+    if angle < pi:
+        return psi
+    else:
+        # Ibrahimbegovic1995 after (62)
+        psi_C = (1.0 - 2.0 * pi / angle) * psi
+        return psi_C
 
 
 use_quaternions = False
@@ -499,6 +508,18 @@ class Kirchhoff:
     def element_number(self, xi):
         # note the elements coincide for both meshes!
         return self.knot_vector_r.element_number(xi)[0]
+
+    if not use_quaternions:
+        def step_callback(self, t, q, u):
+            """Update nodal rotation vectors using the clompmente rotation vector map."""
+            for el in range(self.nelement):
+                elDOF = self.elDOF[el]
+                nodalDOF0 = elDOF[self.nodalDOF_element_r[1]]
+                nodalDOF1 = elDOF[self.nodalDOF_element_r[3]]
+                if el == 0:
+                    q[nodalDOF0] = psi_C(q[nodalDOF0])
+                q[nodalDOF1] = psi_C(q[nodalDOF1])
+            return q, u
 
     #########################################
     # equations of motion
