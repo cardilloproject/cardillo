@@ -117,7 +117,7 @@ def test_cube():
                     cDOF = np.concatenate((cDOF134, cDOF2))
                     # cDOF = np.concatenate((cDOF1, cDOF2))
                     b1 = lambda t: Z[cDOF134]
-                    b2 = lambda t: Z[cDOF2] + t * 50.0 * u_l
+                    b2 = lambda t: Z[cDOF2] + t * 0.0 * u_l
                     b = lambda t: np.concatenate((b1(t), b2(t)))
                     # b = lambda t: b2(t)
                 if fix_derivatives:
@@ -192,13 +192,13 @@ def test_cube():
         return cDOF, b
 
 
-    save_sol = False
+    save_sol = True
     Statics = True
 
     # build mesh
     degrees = (3, 3, 3)
     QP_shape = (3, 3, 3)
-    element_shape = (5, 5, 15)
+    element_shape = (2, 2, 6)
 
     Xi = Knot_vector(degrees[0], element_shape[0])
     Eta = Knot_vector(degrees[1], element_shape[1])
@@ -251,7 +251,7 @@ def test_cube():
     # mat = Ogden1997_compressible(mu1, mu2)
 
     density = 1e-3
-    tests = ['x'.join([str(v) for v in element_shape]),"torsion","90","z","second_grad","mm_GPa","direct_bc","greville"]
+    tests = ['x'.join([str(v) for v in element_shape]),"tension","90","z","second_grad","mm_GPa","test","greville"]
 
     # 3D continuum
     cDOF, b = boundary_conditions_cube(cube_shape, mesh, Z, tests=tests, srf_idx=[4,5])
@@ -385,11 +385,11 @@ def test_cube():
         / file_name
     )
     file_path.parent.mkdir(parents=True, exist_ok=True)
-    file_path = (
-        pathlib.Path("/media/boromir/stilz/Projects/Pantographic_orthoblock/Simulations/results/")
-                / str(f"{file_name}_cube_" + "_".join(tests) + "_nx=" + str(nx))
-            / file_name
-    )
+    # file_path = (
+    #     pathlib.Path("/media/boromir/stilz/Projects/Pantographic_orthoblock/Simulations/results/")
+    #             / str(f"{file_name}_cube_" + "_".join(tests) + "_nx=" + str(nx))
+    #         / file_name
+    # )
     export_path = file_path.parent / "sol"
 
     file_path_la = file_path
@@ -400,7 +400,7 @@ def test_cube():
         # pr.enable()
         sol = solver.solve()
         # redundant coordinates
-        sol.z = np.array([continuum(t, sol.q[t]) for t in sol.t])
+        sol.z = np.array([continuum.z(t, sol.q[i]) for i,t in enumerate(sol.t)])
 
         save_solution(sol, str(export_path))
     else:
