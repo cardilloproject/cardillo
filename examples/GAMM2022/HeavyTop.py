@@ -17,6 +17,7 @@ from cardillo.model import Model
 from cardillo.solver import (
     GeneralizedAlphaFirstOrder,
     GeneralizedAlphaSecondOrder,
+    GeneralizedAlphaFirstOrderGGLGiuseppe,
 )
 
 
@@ -187,7 +188,7 @@ def state():
     rho_inf = 0.9
     tol = 1.0e-8
     t1 = 1
-    # t1 = 0.1
+    # t1 = 0.25
     dt = 1.0e-3
 
     sol = GeneralizedAlphaFirstOrder(
@@ -197,9 +198,15 @@ def state():
         rho_inf=rho_inf,
         tol=tol,
         unknowns="velocities",
-        GGL=False,
-        numerical_jacobian=False,
+        # GGL=False,
+        GGL=True,
+        # numerical_jacobian=False,
+        numerical_jacobian=True,
     ).solve()
+
+    # sol = GeneralizedAlphaFirstOrderGGLGiuseppe(
+    #     model, t1, dt, rho_inf=rho_inf, tol=tol
+    # ).solve()
 
     # sol = HalfExplicitEulerFixedPoint(model, t1, dt, atol=tol).solve()
 
@@ -214,7 +221,7 @@ def state():
 
     def export_q(sol, name):
         header = "t, x, y, z, al, be, ga, la_g, la_ga0, la_ga1"
-        export_data = np.vstack([sol.t, *sol.q.T, *sol.la_g.T, *sol.la_ga.T]).T
+        export_data = np.vstack([sol.t, *sol.q.T, *sol.la_g.T, *sol.la_gamma.T]).T
         np.savetxt(
             name,
             export_data,
@@ -306,8 +313,11 @@ def transient():
         )
 
     # solve index 3 problem with rho_inf = 0.9
-    sol_9 = GeneralizedAlphaFirstOrder(
-        model, t1, h, rho_inf=0.9, tol=tol, unknowns="velocities", GGL=False
+    # sol_9 = GeneralizedAlphaFirstOrder(
+    #     model, t1, h, rho_inf=0.9, tol=tol, unknowns="velocities", GGL=False
+    # ).solve()
+    sol_9 = GeneralizedAlphaFirstOrderGGLGiuseppe(
+        model, t1, h, rho_inf=0.9, tol=tol
     ).solve()
     export_la_g(sol_9, "la_g_9.txt")
 
@@ -346,7 +356,7 @@ def transient():
     ###################
     fig = plt.figure(figsize=plt.figaspect(1))
 
-    ax = fig.add_subplot(1, 3, 1)
+    ax = fig.add_subplot(1, 2, 1)
     ax.plot(sol_6.t, sol_6.la_g[:, 0], "-r", label="la_g0_6")
     ax.plot(sol_6.t, sol_6.la_g[:, 1], "-g", label="la_g1_6")
     ax.plot(sol_6.t, sol_6.la_g[:, 2], "-b", label="la_g2_6")
@@ -482,8 +492,11 @@ def gaps():
     g_9_GGL, g_dot_9_GGL, g_ddot_9_GGL = export_gaps(sol_9_GGL, "g_9_GGL.txt")
 
     # solve GGL2 with rho_inf = 0.9
-    sol_9_GGL2 = GenAlphaFirstOrderGGL2_V3(
-        model, t1, h, rho_inf=0.9, tol=tol, unknowns="velocities"
+    # sol_9_GGL2 = GenAlphaFirstOrderGGL2_V3(
+    #     model, t1, h, rho_inf=0.9, tol=tol, unknowns="velocities"
+    # ).solve()
+    sol_9_GGL2 = GeneralizedAlphaFirstOrderGGLGiuseppe(
+        model, t1, h, rho_inf=0.9, tol=tol
     ).solve()
     g_9_GGL2, g_dot_9_GGL2, g_ddot_9_GGL2 = export_gaps(sol_9_GGL2, "g_9_GGL2.txt")
 
@@ -927,7 +940,7 @@ def convergence():
 
 
 if __name__ == "__main__":
-    # state()
+    state()
     # transient()
     # gaps()
-    convergence()
+    # convergence()

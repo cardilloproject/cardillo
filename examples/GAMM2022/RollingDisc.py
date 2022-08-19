@@ -19,6 +19,7 @@ from cardillo.solver import (
     GenAlphaFirstOrderGGL2_V1,
     GenAlphaFirstOrderGGL2_V2,
     GenAlphaFirstOrderGGL2_V3,
+    GeneralizedAlphaFirstOrderGGLGiuseppe,
 )
 
 
@@ -128,29 +129,38 @@ def state():
     Lesaux2005: https://doi.org/10.1007/s00332-004-0655-4
     """
     t0 = 0
-    t1 = 2 * np.pi / np.abs(alpha_dot0) * 0.3
-    # t1 = 2 * np.pi / np.abs(alpha_dot0) * 1.0
+    # t1 = 2 * np.pi / np.abs(alpha_dot0) * 0.1
+    t1 = 2 * np.pi / np.abs(alpha_dot0) * 0.3  # used for GAMM
+    # t1 = 2 * np.pi / np.abs(alpha_dot0) * 0.5
     # dt = 5e-3
     # dt = 2.5e-2
     dt = 1.0e-2  # used for GAMM with R = 10 * r
 
-    rho_inf = 0.96  # used for GAMM (high oszillations)
-    # rho_inf = 0.85  # used for GAMM (low oszillations)
+    # rho_inf = 0.96  # used for GAMM (high oszillations)
+    rho_inf = 0.85  # used for GAMM (low oszillations)
     # rho_inf = 0.1
     # see Arnodl2016, p. 118
     tol = 1.0e-10
 
     # sol = GeneralizedAlphaFirstOrder(model, t1, dt, rho_inf=rho_inf, tol=tol).solve()
-    # sol = GeneralizedAlphaFirstOrder(
-    #     model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=True
-    #     # model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=2
-    # ).solve()
+    sol = GeneralizedAlphaFirstOrder(
+        model,
+        t1,
+        dt,
+        rho_inf=rho_inf,
+        tol=tol,
+        GGL=True
+        # model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=2
+    ).solve()
     # sol = GeneralizedAlphaSecondOrder(
     #     model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=False
     # ).solve()
-    sol = GeneralizedAlphaSecondOrder(
-        model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=True
-    ).solve()
+    # sol = GeneralizedAlphaSecondOrder(
+    #     model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=True
+    # ).solve()
+    # sol = GeneralizedAlphaFirstOrderGGLGiuseppe(
+    #     model, t1, dt, rho_inf=rho_inf, tol=tol
+    # ).solve()
 
     t = sol.t
     q = sol.q
@@ -299,31 +309,31 @@ def state():
     ax.grid()
     ax.legend()
 
-    # no lateral velocities 1
-    ax = fig.add_subplot(2, 2, 3)
-    ax.plot(
-        t[:],
-        la_gamma[:, 0],
-        "-r",
-        label="la_gamma[0] - GenAlphaFirstOrderVeclotiy",
-    )
-    ax.set_xlabel("t")
-    ax.set_ylabel("la_gamma1")
-    ax.grid()
-    ax.legend()
+    # # no lateral velocities 1
+    # ax = fig.add_subplot(2, 2, 3)
+    # ax.plot(
+    #     t[:],
+    #     la_gamma[:, 0],
+    #     "-r",
+    #     label="la_gamma[0] - GenAlphaFirstOrderVeclotiy",
+    # )
+    # ax.set_xlabel("t")
+    # ax.set_ylabel("la_gamma1")
+    # ax.grid()
+    # ax.legend()
 
-    # no lateral velocities 2
-    ax = fig.add_subplot(2, 2, 4)
-    ax.plot(
-        t[:],
-        la_gamma[:, 1],
-        "-r",
-        label="la_gamma[1] - GenAlphaFirstOrderVeclotiy",
-    )
-    ax.set_xlabel("t")
-    ax.set_ylabel("la_gamma2")
-    ax.grid()
-    ax.legend()
+    # # no lateral velocities 2
+    # ax = fig.add_subplot(2, 2, 4)
+    # ax.plot(
+    #     t[:],
+    #     la_gamma[:, 1],
+    #     "-r",
+    #     label="la_gamma[1] - GenAlphaFirstOrderVeclotiy",
+    # )
+    # ax.set_xlabel("t")
+    # ax.set_ylabel("la_gamma2")
+    # ax.grid()
+    # ax.legend()
 
     ########################
     # animate configurations

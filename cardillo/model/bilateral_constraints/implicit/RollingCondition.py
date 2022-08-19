@@ -127,8 +127,8 @@ class RollingCondition_g_I_Frame_gamma:
         self.subsystem = subsystem
 
         self.nla_g = 1
-        self.nla_gamma = 2
         self.la_g0 = np.zeros(self.nla_g) if la_g0 is None else la_g0
+        self.nla_gamma = 2
         self.la_gamma0 = np.zeros(self.nla_gamma) if la_gamma0 is None else la_gamma0
 
     def assembler_callback(self):
@@ -234,58 +234,63 @@ class RollingCondition_g_I_Frame_gamma:
     ########################
     # no in plane velocities
     ########################
-    def gamma(self, t, q, u):
-        v_C = self.subsystem.v_P(
-            t, q, u, K_r_SP=self.subsystem.A_IK(t, q).T @ self.r_SC(t, q)
-        )
-        return np.array([v_C @ e1, v_C @ e2])
+    # if False:
+    if True:
 
-    def gamma_dot(self, t, q, u, u_dot):
-        a_C = self.subsystem.a_P(
-            t, q, u, u_dot, K_r_SP=self.subsystem.A_IK(t, q).T @ self.r_SC(t, q)
-        )
-        return np.array([a_C @ e1, a_C @ e2])
+        def gamma(self, t, q, u):
+            v_C = self.subsystem.v_P(
+                t, q, u, K_r_SP=self.subsystem.A_IK(t, q).T @ self.r_SC(t, q)
+            )
+            return np.array([v_C @ e1, v_C @ e2])
 
-    # TODO:
-    def gamma_q(self, t, q, u, coo):
-        # K_Omega = self.subsystem.K_Omega(t, q)
-        # dense = (
-        #     self.subsystem.v_P_q(
-        #         t, q, u, K_r_SP=self.subsystem.A_IK(t, q).T @ self.r_SC(t, q)
-        #     )[:2]
-        #     + np.einsum("", ax2skew(K_Omega), ...)
-        # )
+        def gamma_dot(self, t, q, u, u_dot):
+            a_C = self.subsystem.a_P(
+                t, q, u, u_dot, K_r_SP=self.subsystem.A_IK(t, q).T @ self.r_SC(t, q)
+            )
+            return np.array([a_C @ e1, a_C @ e2])
 
-        dense_num = approx_fprime(q, lambda q: self.gamma(t, q, u), method="3-point")
-        # diff = dense - dense_num
-        # error = np.linalg.norm(diff)
-        # print(f"error gamma_q: {error}")
-        coo.extend(dense_num, (self.la_gammaDOF, self.qDOF))
+        # TODO:
+        def gamma_q(self, t, q, u, coo):
+            # K_Omega = self.subsystem.K_Omega(t, q)
+            # dense = (
+            #     self.subsystem.v_P_q(
+            #         t, q, u, K_r_SP=self.subsystem.A_IK(t, q).T @ self.r_SC(t, q)
+            #     )[:2]
+            #     + np.einsum("", ax2skew(K_Omega), ...)
+            # )
 
-    # TODO:
-    def gamma_dot_q(self, t, q, u, u_dot, coo):
-        raise NotImplementedError("")
-        coo.extend(
-            approx_fprime(
-                q, lambda q: self.gamma_dot(t, q, u, u_dot), method="2-point"
-            ).reshape(self.nla_gamma, self.subsystem.nq),
-            (self.la_gammaDOF, self.qDOF),
-        )
+            dense_num = approx_fprime(
+                q, lambda q: self.gamma(t, q, u), method="3-point"
+            )
+            # diff = dense - dense_num
+            # error = np.linalg.norm(diff)
+            # print(f"error gamma_q: {error}")
+            coo.extend(dense_num, (self.la_gammaDOF, self.qDOF))
 
-    def gamma_u_dense(self, t, q):
-        return self.subsystem.J_P(
-            t, q, K_r_SP=self.subsystem.A_IK(t, q).T @ self.r_SC(t, q)
-        )[:2]
+        # TODO:
+        def gamma_dot_q(self, t, q, u, u_dot, coo):
+            raise NotImplementedError("")
+            coo.extend(
+                approx_fprime(
+                    q, lambda q: self.gamma_dot(t, q, u, u_dot), method="2-point"
+                ).reshape(self.nla_gamma, self.subsystem.nq),
+                (self.la_gammaDOF, self.qDOF),
+            )
 
-    def gamma_u(self, t, q, coo):
-        coo.extend(self.gamma_u_dense(t, q), (self.la_gammaDOF, self.uDOF))
+        def gamma_u_dense(self, t, q):
+            return self.subsystem.J_P(
+                t, q, K_r_SP=self.subsystem.A_IK(t, q).T @ self.r_SC(t, q)
+            )[:2]
 
-    def W_gamma(self, t, q, coo):
-        coo.extend(self.gamma_u_dense(t, q).T, (self.uDOF, self.la_gammaDOF))
+        def gamma_u(self, t, q, coo):
+            coo.extend(self.gamma_u_dense(t, q), (self.la_gammaDOF, self.uDOF))
 
-    # TODO:
-    def Wla_gamma_q(self, t, q, la_gamma, coo):
-        dense = approx_fprime(
-            q, lambda q: self.gamma_u_dense(t, q).T @ la_gamma, method="2-point"
-        )
-        coo.extend(dense, (self.uDOF, self.qDOF))
+        def W_gamma(self, t, q, coo):
+            coo.extend(self.gamma_u_dense(t, q).T, (self.uDOF, self.la_gammaDOF))
+
+        # TODO:
+        def Wla_gamma_q(self, t, q, la_gamma, coo):
+            dense = approx_fprime(
+                q, lambda q: self.gamma_u_dense(t, q).T @ la_gamma, method="2-point"
+            )
+            coo.extend(dense, (self.uDOF, self.qDOF))

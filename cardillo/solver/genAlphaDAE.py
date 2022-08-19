@@ -1913,6 +1913,7 @@ class GeneralizedAlphaFirstOrderGGLGiuseppe:
 
         g_qk1 = self.model.g_q(tk1, qk1)
         gamma_qk1 = self.model.gamma_q(tk1, qk1, vk1)
+        # gamma_qk1 = self.model.gamma_q(tk1, qk1, uk1)
 
         ###################
         # evaluate residual
@@ -1938,26 +1939,33 @@ class GeneralizedAlphaFirstOrderGGLGiuseppe:
 
         # bilateral constraints
         R[2 * nx : 2 * nx + nla_g] = self.model.g(tk1, qk1)
-        R[2 * nx + nla_g : 2 * nx + 2 * nla_g] = g_qk1 @ vk1 + self.model.g_dot(
-            tk1, qk1, np.zeros(self.nu)
-        )  # TODO: affine part
+        R[2 * nx + nla_g : 2 * nx + 2 * nla_g] = g_qk1 @ vk1
+        # + self.model.g_dot(
+        #     tk1, qk1, np.zeros(self.nu)
+        # )
         R[2 * nx + 2 * nla_g : 2 * nx + 3 * nla_g] = self.model.g_ddot(
             tk1, qk1, uk1, ak1
         )
-        # R[2 * nx + nla_g: 2 * nx + 2 * nla_g] = self.model.g_dot(tk1, qk1, uk1)
-        # R[2 * nx + 2 * nla_g: 2 * nx + 3 * nla_g] = self.model.g_ddot(tk1, qk1, uk1, u_dotk1)
 
-        R[
-            2 * nx + 3 * nla_g : 2 * nx + 3 * nla_g + nla_gamma
-        ] = gamma_qk1 @ vk1 + self.model.gamma(
-            tk1, qk1, np.zeros(self.nu)
-        )  # TODO: affine part
+        # R[
+        #     2 * nx + 3 * nla_g : 2 * nx + 3 * nla_g + nla_gamma
+        # ] = gamma_qk1 @ vk1
+        # + self.model.gamma(
+        #     tk1, qk1, np.zeros(self.nu)
+        # )  # TODO: affine part
+        # R[
+        #     2 * nx + 3 * nla_g : 2 * nx + 3 * nla_g + nla_gamma
+        # ] = W_gammak1.T @ uk1 #+ self.model.gamma(tk1, qk1, np.zeros(self.nu))
+        R[2 * nx + 3 * nla_g : 2 * nx + 3 * nla_g + nla_gamma] = self.model.gamma(
+            tk1, qk1, uk1
+        )
         R[
             2 * nx + 3 * nla_g + nla_gamma : 2 * nx + 3 * nla_g + 2 * nla_gamma
         ] = self.model.gamma_dot(tk1, qk1, uk1, ak1)
         # R[2 * nx + 3 * nla_g + nla_gamma: 2 * nx + 3 * nla_g + 2 * nla_gamma] = W_gammak1.T @ ak1 #+ gamma_qk1 @ vk1 + self.model.gamma_dot(tk1, qk1, np.zeros(self.nu), np.zeros(self.nu))
+
         # R[2 * nx + 3 * nla_g: 2 * nx + 3 * nla_g + nla_gamma] = self.model.gamma(tk1, qk1, uk1)
-        # R[2 * nx + 3 * nla_g + nla_gamma: 2 * nx + 3 * nla_g + 2 * nla_gamma] = self.model.gamma_dot(tk1, qk1, uk1, u_dotk1)
+        # R[2 * nx + 3 * nla_g + nla_gamma: 2 * nx + 3 * nla_g + 2 * nla_gamma] = self.model.gamma_dot(tk1, qk1, uk1, ak1)
 
         yield R
 
@@ -2179,8 +2187,10 @@ class GeneralizedAlphaFirstOrderGGLGiuseppe:
             t.append(tk1)
             q.append(qk1)
             u.append(uk1)
-            q_dot.append(q_dotk1)
-            u_dot.append(u_dotk1)
+            # q_dot.append(q_dotk1)
+            # u_dot.append(u_dotk1)
+            q_dot.append(vk1)
+            u_dot.append(ak1)
             la_g.append(la_gk1)
             la_gamma.append(la_gammak1)
             # if self.GGL == 1:
@@ -2499,18 +2509,28 @@ class GeneralizedAlphaFirstOrder:
             y0 = x_dot0 + Delta_alpha * dt * (y0_plus - y0_minus) / (2.0 * s * dt)
 
             if self.unknowns == "positions":
+                raise NotImplementedError
                 if self.GGL:
                     mu_g0 = np.zeros(self.nla_g)
                     s0 = self.pack(x0, la_g0, la_gamma0, mu_g0)
                 else:
                     s0 = self.pack(x0, la_g0, la_gamma0)
             elif self.unknowns == "velocities":
-                if self.GGL:
+                if self.GGL == 1:
                     mu_g0 = np.zeros(self.nla_g)
                     s0 = self.pack(x_dot0, la_g0, la_gamma0, mu_g0)
+                elif self.GGL == 2:
+                    mu_g0 = np.zeros(self.nla_g)
+                    kappa_g0 = np.zeros(self.nla_g)
+                    kappa_gamma0 = np.zeros(self.nla_gamma)
+                    U0 = np.zeros(self.nu)
+                    s0 = self.pack(
+                        x_dot0, la_g0, la_gamma0, mu_g0, kappa_g0, kappa_gamma0, U0
+                    )
                 else:
                     s0 = self.pack(x_dot0, la_g0, la_gamma0)
             elif self.unknowns == "auxiliary":
+                raise NotImplementedError
                 if self.GGL:
                     mu_g0 = np.zeros(self.nla_g)
                     s0 = self.pack(y0, la_g0, la_gamma0, mu_g0)
@@ -2631,7 +2651,7 @@ class GeneralizedAlphaFirstOrder:
         elif self.GGL == 2:
             q = s[:nq]
             u = s[nq:nx]
-            la_g = s[nx : nq + nu + nla_g]
+            la_g = s[nx : nx + nla_g]
             la_gamma = s[nx + nla_g : nx + nla_g + nla_gamma]
             mu_g = s[nx + nla_g + nla_gamma : nx + 2 * nla_g + nla_gamma]
             kappa_g = s[nx + 2 * nla_g + nla_gamma : nx + 3 * nla_g + nla_gamma]
@@ -2651,6 +2671,7 @@ class GeneralizedAlphaFirstOrder:
 
     def __R_gen_analytic(self, tk1, sk1):
         nq = self.nq
+        nu = self.nu
         nx = self.nx
         nla_g = self.nla_g
         nla_gamma = self.nla_gamma
@@ -2680,8 +2701,8 @@ class GeneralizedAlphaFirstOrder:
         W_gk1 = self.model.W_g(tk1, qk1, scipy_matrix=csr_matrix)
         W_gammak1 = self.model.W_gamma(tk1, qk1, scipy_matrix=csr_matrix)
 
-        # if self.GGL == 2:
-        #     uk1 += Uk1
+        if self.GGL == 2:
+            uk1 += Uk1
 
         ###################
         # evaluate residual
@@ -2732,7 +2753,7 @@ class GeneralizedAlphaFirstOrder:
             R[
                 nx + 3 * nla_g + nla_gamma : nx + 3 * nla_g + 2 * nla_gamma
             ] = self.model.gamma_dot(tk1, qk1, uk1, u_dotk1)
-            R[nx + 3 * nla_g + 2 * nla_gamma : nx + 3 * nla_g + 2 * nla_gamma + nq] = (
+            R[nx + 3 * nla_g + 2 * nla_gamma : nx + 3 * nla_g + 2 * nla_gamma + nu] = (
                 Uk1 - W_gk1 @ kappa_gk1 + W_gammak1 @ kappa_gammak1
             )
 
