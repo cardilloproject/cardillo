@@ -4,6 +4,7 @@ from .spatial import (
     EulerBernoulliDirectorIntegral,
     InextensibleEulerBernoulliDirectorIntegral,
     Kirchhoff,
+    KirchhoffSingularity,
     Cable,
     CubicHermiteCable,
     DirectorAxisAngle,

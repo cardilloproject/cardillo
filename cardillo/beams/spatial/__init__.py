@@ -14,7 +14,7 @@ from .director import (
     InextensibleEulerBernoulliDirectorIntegral,
 )
 
-from .Kirchhoff import Kirchhoff
+from .Kirchhoff import Kirchhoff, KirchhoffSingularity
 from .Cable import Cable
 from .CubicHermiteCable import CubicHermiteCable
 from .DirectorAxisAngle import DirectorAxisAngle

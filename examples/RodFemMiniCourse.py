@@ -3,7 +3,7 @@ from cardillo.beams.spatial.SE3 import Exp_SO3
 
 from cardillo.beams.spatial.material_models import Simo1986, ShearStiffQuadratic
 from cardillo.beams.spatial.cross_section import CircularCrossSection
-from cardillo.beams.spatial import DirectorAxisAngle, Kirchhoff
+from cardillo.beams.spatial import DirectorAxisAngle, Kirchhoff, KirchhoffSingularity
 from cardillo.beams import animate_beam
 
 from cardillo.model.frame import Frame
@@ -21,8 +21,8 @@ from math import sin, cos, pi
 
 import matplotlib.pyplot as plt
 
-# use_Kirchhoff = True
-use_Kirchhoff = False
+use_Kirchhoff = True
+# use_Kirchhoff = False
 
 
 def statics():
@@ -59,7 +59,7 @@ def statics():
     # test for Kirchhoff beam
     polynomial_degree_r = 3
     polynomial_degree_psi = 1
-    nelements = 1
+    nelements = 2
 
     # beam parameters
     L = 10
@@ -115,10 +115,21 @@ def statics():
     else:
         material_model = Simo1986(Ei, Fi)
 
-    Q = Kirchhoff.straight_configuration(nelements, L)
+    nquadrature = int(max(polynomial_degree_r, polynomial_degree_psi)) + 1
 
-    nquadrature = int(max(polynomial_degree_r, polynomial_degree_psi))  # + 1
-    beam = Kirchhoff(
+    # Q = Kirchhoff.straight_configuration(nelements, L)
+    # beam = Kirchhoff(
+    #     material_model,
+    #     A_rho0,
+    #     K_I_rho0,
+    #     nquadrature,
+    #     nelements,
+    #     Q,
+    #     use_Kirchhoff=use_Kirchhoff,
+    # )
+
+    Q = KirchhoffSingularity.straight_configuration(nelements, L)
+    beam = KirchhoffSingularity(
         material_model,
         A_rho0,
         K_I_rho0,
@@ -152,9 +163,10 @@ def statics():
 
     # moment at right end
     Fi = material_model.Fi
-    # M = lambda t: t * 2 * np.pi * (Fi[0] * e1 + Fi[2] * e3) / L  # * 0.25
-    M = lambda t: t * 2 * np.pi * Fi[2] * e3 / L * 0.45
+    M = lambda t: t * 2 * np.pi * (Fi[0] * e1 + Fi[2] * e3) / L * 0.25
     # M = lambda t: t * 2 * np.pi * Fi[0] * e1 / L * 0.45
+    # M = lambda t: t * 2 * np.pi * Fi[1] * e2 / L * 0.45
+    # M = lambda t: t * 2 * np.pi * Fi[2] * e3 / L  * 0.45
     moment = K_Moment(M, beam, (1,))
 
     # assemble the model
