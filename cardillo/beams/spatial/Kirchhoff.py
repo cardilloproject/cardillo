@@ -315,6 +315,7 @@ def psi_C(psi):
         return psi_C
 
 
+# TODO: Move to constructor!
 use_quaternions = False
 # use_quaternions = True
 
@@ -330,7 +331,10 @@ class Kirchhoff:
         Q,
         q0=None,
         u0=None,
+        use_Kirchhoff=False,
     ):
+        self.use_Kirchhoff = use_Kirchhoff
+
         # beam properties
         self.materialModel = material_model  # material model
         self.A_rho0 = A_rho0  # line density
@@ -510,6 +514,7 @@ class Kirchhoff:
         return self.knot_vector_r.element_number(xi)[0]
 
     if not use_quaternions:
+
         def step_callback(self, t, q, u):
             """Update nodal rotation vectors using the clompmente rotation vector map."""
             for el in range(self.nelement):
@@ -618,7 +623,12 @@ class Kirchhoff:
                 f_gyr_u_el = self.f_gyr_u_el(t, q[elDOF], u[elDOF], el)
                 coo.extend(f_gyr_u_el, (self.uDOF[elDOF], self.uDOF[elDOF]))
 
-    def eval(self, qe, qp):
+    # def eval(self, qe, qp, case="director"):
+    # def eval(self, qe, qp, case="SO(3)"):
+    def eval(self, qe, qp, case="SR"):
+        if case not in ["director", "SO(3)", "SR"]:
+            raise RuntimeError(f'case: "{case}" is not implemented')
+
         # evaluate shape functions
         N_r, N_r_xi, N_r_xixi = self.basis_functions_r(qp)
         N_psi, N_psi_xi = self.basis_functions_psi(qp)
@@ -659,38 +669,48 @@ class Kirchhoff:
             A_IK1 = Exp_SO3(psi1)
 
         # compute nodal tangent vectors
-        ex0 = A_IK0 @ e1
-        ex1 = A_IK1 @ e1
-        t0 = j0 * ex0
-        t1 = j1 * ex1
+        # ex0 = A_IK0 @ e1
+        # ex1 = A_IK1 @ e1
+        ex0 = A_IK0[:, 0]
+        ex1 = A_IK1[:, 0]
+        t_node0 = j0 * ex0
+        t_node1 = j1 * ex1
 
         # interpolate centerline and its derivatives using cubic Hermite spline
-        r = N_r[0] * r0 + N_r[1] * t0 + N_r[2] * r1 + N_r[3] * t1
-        r_xi = N_r_xi[0] * r0 + N_r_xi[1] * t0 + N_r_xi[2] * r1 + N_r_xi[3] * t1
+        r = N_r[0] * r0 + N_r[1] * t_node0 + N_r[2] * r1 + N_r[3] * t_node1
+        r_xi = (
+            N_r_xi[0] * r0 + N_r_xi[1] * t_node0 + N_r_xi[2] * r1 + N_r_xi[3] * t_node1
+        )
         r_xixi = (
-            N_r_xixi[0] * r0 + N_r_xixi[1] * t0 + N_r_xixi[2] * r1 + N_r_xixi[3] * t1
+            N_r_xixi[0] * r0
+            + N_r_xixi[1] * t_node0
+            + N_r_xixi[2] * r1
+            + N_r_xixi[3] * t_node1
         )
 
-        # ################################
-        # # case 1: director interpolation
-        # ################################
-        # A_IK = N_psi[0] * A_IK0 + N_psi[1] * A_IK1
-        # A_IK_xi = N_psi_xi[0] * A_IK0 + N_psi_xi[1] * A_IK1
+        if case == "director":
+            #############################################################
+            # case 1: director interpolation, i.e., R3 x R9 interpoaltion
+            #############################################################
+            A_IK = N_psi[0] * A_IK0 + N_psi[1] * A_IK1
+            A_IK_xi = N_psi_xi[0] * A_IK0 + N_psi_xi[1] * A_IK1
 
-        # K_Gamma_bar = A_IK.T @ r_xi
-        # # TODO: Better curvature with volume correction
-        # K_Kappa_bar = skew2ax(A_IK.T @ A_IK_xi)
+            K_Gamma_bar = A_IK.T @ r_xi
+            # TODO: Better curvature with volume correction
+            K_Kappa_bar = skew2ax(A_IK.T @ A_IK_xi)
 
-        ##################################
-        # case 2: SO(3) x R3 interpolation
-        ##################################
-        A_K0K1 = A_IK0.T @ A_IK1
-        psi_K0K0 = Log_SO3(A_K0K1)
-        psi = N_psi[1] * psi_K0K0
-        psi_xi = N_psi_xi[1] * psi_K0K0
-        A_IK = A_IK0 @ Exp_SO3(psi)
-        K_Kappa_bar = psi_xi
-        K_Gamma_bar = A_IK.T @ r_xi
+        elif case == "SO(3)":
+            ##################################
+            # case 2: SO(3) x R3 interpolation
+            ##################################
+            A_K0K1 = A_IK0.T @ A_IK1
+            psi_K0K0 = Log_SO3(A_K0K1)
+            psi = N_psi[1] * psi_K0K0
+            psi_xi = N_psi_xi[1] * psi_K0K0
+            A_IK = A_IK0 @ Exp_SO3(psi)
+            K_Kappa_bar = psi_xi
+            K_Gamma_bar = A_IK.T @ r_xi
+            # print(f"K_Gamma_bar: {K_Gamma_bar.real}")
 
         # #############################
         # # case 3: SE(3) interpolation
@@ -714,128 +734,191 @@ class Kirchhoff:
         # r = H_IK[:3, 3]
         # r_xi = A_IK @ K_Gamma_bar
 
-        # #########################################
-        # # case 4: smallest rotation interpolation
-        # #########################################
+        elif case == "SR":
+            #########################################
+            # case 4: smallest rotation interpolation
+            #########################################
 
-        # # relative torsion from first to second node using smallest rotation
-        # A_K0K1 = smallest_rotation(t0, t1)
+            def f(qp):
+                # evaluate shape functions
+                N_r, N_r_xi, N_r_xixi = self.basis_functions_r(qp)
+                N_psi, N_psi_xi = self.basis_functions_psi(qp)
 
-        # # composed rotation to node 1
-        # A_IK1_bar = A_IK0 @ A_K0K1
+                # interpolate centerline and derivatives
+                r = N_r[0] * r0 + N_r[1] * t_node0 + N_r[2] * r1 + N_r[3] * t_node1
+                r_xi = (
+                    N_r_xi[0] * r0
+                    + N_r_xi[1] * t_node0
+                    + N_r_xi[2] * r1
+                    + N_r_xi[3] * t_node1
+                )
+                r_xixi = (
+                    N_r_xixi[0] * r0
+                    + N_r_xixi[1] * t_node0
+                    + N_r_xixi[2] * r1
+                    + N_r_xixi[3] * t_node1
+                )
 
-        # # extract difference in torsion angle of the two rotations
-        # d1, d2, d3 = A_IK1.T
-        # d1_bar, d2_bar, d3_bar = A_IK1_bar.T
-        # cos_alpha1 = d2_bar @ d2
-        # sin_alpha1 = d3_bar @ d2
+                # # get element boundaries
+                # el = self.element_number(qp)
+                # xi0, xi1 = self.knot_vector_r.element_interval(el)
 
-        # # # alpha1 = np.arctan2(d3 @ d2_bar, d2 @ d2_bar) # TODO: Not working with complex arguments!
-        # # alpha1 = np.arctan((d3 @ d2_bar) / (d2 @ d2_bar))
-        # alpha1 = complex_atan2(sin_alpha1, cos_alpha1)
-        # # psi = Log_SO3(A_IK1_bar.T @ A_IK1)
-        # # alpha1 = norm(psi)
+                # # evaluate shape functions for the centerline on boundaries
+                # _, N_r_xi0, _ = self.basis_functions_r(xi0)
+                # _, N_r_xi1, _ = self.basis_functions_r(xi1)
 
-        # # #############################################
-        # # # angle extraction proposed by Meier2014 (54)
-        # # #############################################
-        # # # cos_alpha1 = min(-1.0, max(cos_alpha1, 1.0))
-        # # cos_alpha1 = np.clip(cos_alpha1, -1, 1)
-        # # alpha1 = np.sign(sin_alpha1) * np.arccos(cos_alpha1)
+                # # compute left and right tangent vectors
+                # r_xi0 = N_r_xi0[0] * r0 + N_r_xi0[1] * t_node0 + N_r_xi0[2] * r1 + N_r_xi0[3] * t_node1
+                # r_xi1 = N_r_xi1[0] * r0 + N_r_xi1[1] * t_node0 + N_r_xi1[2] * r1 + N_r_xi1[3] * t_node1
+                # ex0 = r_xi0 / norm(r_xi0)
+                # ex1 = r_xi1 / norm(r_xi1)
 
-        # # alpha1 = np.arctan2(d3_bar @ d2, d2_bar @ d2) # TODO: Not working with complex arguments!
-        # # # alpha1 = np.arctan((d3_bar @ d2) / (d2_bar @ d2))
-        # # # # alpha1 = np.arctan2(d3 @ d2_bar, d2 @ d2_bar) # TODO: Not working with complex arguments!
-        # # # alpha1 = np.arctan((d3 @ d2_bar) / (d2 @ d2_bar))
+                # t0 = t_node0
+                # t1 = t_node1
 
-        # # interpolate relative torsion angle
-        # alpha = N_psi[1] * alpha1
-        # alpha_xi = N_psi_xi[1] * alpha1
+                # relative torsion from first to second node using smallest rotation
+                # A_K0K1 = smallest_rotation(t0, t1)
+                A_K0K1 = smallest_rotation(ex0, ex1, False)
 
-        # # current tangent vector
-        # t = r_xi / norm(r_xi)
+                # composed rotation to node 1
+                A_IK1_bar = A_IK0 @ A_K0K1
 
-        # # relative smallest rotation w.r.t. first norde
-        # A_K0B = smallest_rotation(t0, t)
+                # extract difference in torsion angle of the two rotations
+                d1_1, d2_1, d3_1 = A_IK1.T
+                d1_bar, d2_bar, d3_bar = A_IK1_bar.T
+                # cos_alpha1 = d2_bar @ d2_1
+                # sin_alpha1 = d3_bar @ d2_1
 
-        # # superimposed basic rotation with alpha around t
-        # A_BK = Exp_SO3(alpha * t)
+                # print(f"norm(A_IK0.T @ A_IK0 - eye(3)): {np.linalg.norm(A_IK0.T @ A_IK0 - np.eye(3))}")
+                # print(f"norm(A_IK1.T @ A_IK1 - eye(3)): {np.linalg.norm(A_IK1.T @ A_IK1 - np.eye(3))}")
+                # print(f"norm(A_IK1_bar.T @ A_IK1_bar - eye(3)): {np.linalg.norm(A_IK1_bar.T @ A_IK1_bar - np.eye(3))}")
 
-        # # composed rotation
-        # A_IK = A_IK0 @ A_K0B @ A_BK
+                # TODO: This etraction is still the problem!
+                # alpha1 = np.arctan2(d3_1 @ d2_bar, d2_1 @ d2_bar) # TODO: Not working with complex arguments!
+                # alpha1 = np.arctan((d3_1 @ d2_bar) / (d2_1 @ d2_bar))
+                # alpha1 = complex_atan2(sin_alpha1, cos_alpha1)
+                psi = Log_SO3(A_IK1_bar.T @ A_IK1)
+                alpha1 = norm(psi)
 
-        # ############################################################################
-        # # curvature given by Romero2020 (https://doi.org/10.1007/s00707-019-02562-0)
-        # # using the left tangent vector t0 as reference, see (83) and (84)
-        # ############################################################################
-        # j = norm(r_xi)
-        # K_Kappa_bar = cross3(d1, r_xixi) / j
-        # # denom = 1.0 + ex0 @ t
-        # # print(f"1.0 + ex0 @ t: {1.0 + ex0 @ t}")
-        # a = cross3(ex0, t) / (j * (1.0 + ex0 @ t))
-        # K_Kappa_bar[0] += alpha_xi - a @ r_xixi
+                # if psi.dtype == float:
+                #     # np.set_printoptions(5, suppress=False)
+                #     print(f"")
+                #     print(f"t1              : {t1 / norm(t1)}")
+                #     # print(f"A_IK1.T @ e1    : {A_IK1 @ e1}")
+                #     # print(f"A_IK1_bar.T @ e1: {A_IK1_bar @ e1}")
+                #     print(f"A_IK1[:, 0]     : {A_IK1[:, 0]}")
+                #     print(f"A_IK1_bar[:, 0] : {A_IK1_bar[:, 0]}")
+                #     # print(f"(A_IK1_bar.T @ A_IK1) @ t1: {(A_IK1_bar.T @ A_IK1) @ t1}")
+                #     # print(f"t1: {t1}")
 
-        # # axial and (numerical zero) shear strains
-        # K_Gamma_bar = A_IK.T @ r_xi
-        # # K_Gamma_bar[1] = 0.0
-        # # K_Gamma_bar[2] = 0.0
-        # # print(f"K_Gamma_bar: {K_Gamma_bar}")
+                #     # print(f"(A_IK1_bar.T @ A_IK1) @ t1 - t1: {((A_IK1_bar.T @ A_IK1) @ t1) - t1}")
 
-        # # if True:
-        # if False:
+                # #############################################
+                # # angle extraction proposed by Meier2014 (54)
+                # #############################################
+                # # cos_alpha1 = min(-1.0, max(cos_alpha1, 1.0))
+                # cos_alpha1 = np.clip(cos_alpha1, -1, 1)
+                # alpha1 = np.sign(sin_alpha1) * np.arccos(cos_alpha1)
 
-        #     def A_IK_fun(xi):
-        #         # interpolate tangent vector using cubic Hermite spline
-        #         _, N_r_xi, _ = self.basis_functions_r(xi)
-        #         r_xi = N_r_xi[0] * r0 + N_r_xi[1] * t0 + N_r_xi[2] * r1 + N_r_xi[3] * t1
+                # alpha1 = np.arctan2(d3_bar @ d2, d2_bar @ d2) # TODO: Not working with complex arguments!
+                # # alpha1 = np.arctan((d3_bar @ d2) / (d2_bar @ d2))
+                # # # alpha1 = np.arctan2(d3 @ d2_bar, d2 @ d2_bar) # TODO: Not working with complex arguments!
+                # # alpha1 = np.arctan((d3 @ d2_bar) / (d2 @ d2_bar))
 
-        #         # relative torsion from first to second node using smallest rotation
-        #         A_K0K1 = smallest_rotation(t0, t1)
+                # interpolate relative torsion angle
+                alpha = N_psi[1] * alpha1
+                alpha_xi = N_psi_xi[1] * alpha1
 
-        #         # composed rotation to node 1
-        #         A_IK1_bar = A_IK0 @ A_K0K1
+                # current tangent vector
+                j = norm(r_xi)
+                # t = r_xi / j
+                ex = r_xi / j
 
-        #         # extract difference in torsion angle of the two rotations
-        #         d1, d2, d3 = A_IK1.T
-        #         d1_bar, d2_bar, d3_bar = A_IK1_bar.T
-        #         cos_alpha1 = d2_bar @ d2
-        #         sin_alpha1 = d3_bar @ d2
+                # relative smallest rotation w.r.t. first norde
+                # A_K0B = smallest_rotation(t0, t)
+                A_K0B = smallest_rotation(ex0, ex, False)
+                d1_M, d2_M, d3_M = (A_IK0 @ A_K0B).T
+                # d1 = t = d1_M
+                # d1 = ex
+                d1 = d1_M
 
-        #         # # alpha1 = np.arctan2(d3 @ d2_bar, d2 @ d2_bar) # TODO: Not working with complex arguments!
-        #         # alpha1 = np.arctan((d3 @ d2_bar) / (d2 @ d2_bar))
-        #         alpha1 = complex_atan2(sin_alpha1, cos_alpha1)
-        #         # psi = Log_SO3(A_IK1_bar.T @ A_IK1)
-        #         # alpha1 = norm(psi)
+                # # superimposed basic rotation with alpha around t
+                # A_BK = Exp_SO3(alpha * t)
 
-        #         # interpolate relative torsion angle
-        #         N_psi, _ = self.basis_functions_psi(xi)
-        #         alpha = N_psi[1] * alpha1
+                # composed rotation and extract directors
+                # A_IK = A_IK0 @ A_K0B @ A_BK
+                # d1, d2, d3 = A_IK.T
+                sa = np.sin(alpha)
+                ca = np.cos(alpha)
+                # sa = sin(alpha)
+                # ca = cos(alpha)
+                d2 = ca * d2_M + sa * d3_M
+                d3 = ca * d3_M - sa * d2_M
+                A_IK = np.vstack((d1, d2, d3)).T
+                # print(f"norm(A_IK.T @ A_IK - eye(3)): {np.linalg.norm(A_IK.T @ A_IK - np.eye(3))}")
 
-        #         # current tangent vector
-        #         t = r_xi / norm(r_xi)
+                ############################################################################
+                # curvature given by Romero2020 (https://doi.org/10.1007/s00707-019-02562-0)
+                # using the left tangent vector t0 as reference, see (83) and (84)
+                ############################################################################
+                K_Kappa_bar = cross3(d1, r_xixi) / j
+                a = cross3(ex0, d1) / (j * (1.0 + ex0 @ d1))
+                K_Kappa_bar[0] += alpha_xi - a @ r_xixi
 
-        #         # relative smallest rotation w.r.t. first norde
-        #         A_K0B = smallest_rotation(t0, t)
+                # # Meier2014
+                # kappa_bar = cross3(d1, r_xixi) / j
+                # tau_bar = -kappa_bar @ ex0 / (1.0 + ex0 @ d1)
+                # K_Kappa_bar = np.array([
+                #     alpha_xi + tau_bar,
+                #     -r_xixi @ d3 / j, # TODO: Why is this not a relative strain measure?
+                #     r_xixi @ d2 / j,
+                # ])
 
-        #         # superimposed basic rotation with alpha around t
-        #         A_BK = Exp_SO3(t * alpha)
+                # # Mitterbach2020 (2.91) and (2.105)
+                # K_Kappa_bar = np.array([
+                #     alpha_xi + r_xixi @ cross3(d1, ex0) / (j * (1.0 + ex0 @ d1)),
+                #     -r_xixi @ d3 / j, # TODO: Why is this not a relative strain measure?
+                #     r_xixi @ d2 / j,
+                # ])
 
-        #         # composed rotation
-        #         return A_IK0 @ A_K0B @ A_BK
+                # axial and (numerical zero) shear strains
+                # TODO: This should have zero second and third component!
+                K_Gamma_bar = A_IK.T @ r_xi
+                # K_Gamma_bar[1] = 0
+                # K_Gamma_bar[2] = 0
+                # K_Gamma_bar = np.array([
+                #     d1 @ r_xi,
+                #     d2 @ r_xi,
+                #     d3 @ r_xi,
+                # ])
 
-        #     A_IK = A_IK_fun(qp)
-        #     A_IK_xi = approx_fprime(qp, A_IK_fun, method="2-point")
-        #     # A_IK_xi = approx_fprime(qp, A_IK_fun, eps=1e-10, method="cs")
-        #     K_Kappa_bar_num = skew2ax(A_IK.T @ A_IK_xi)
+                # if K_Gamma_bar.dtype == float and norm(K_Gamma_bar[1:]) > 1.0e-6:
+                #     print(f"")
+                #     # print(f"psi / ||psi||: {psi / norm(psi)}")
+                #     # print(f"r_xi / ||psi||: {r_xi / norm(r_xi)}")
+                #     # print(f"r_xi: {r_xi}")
+                #     # print(f"t: {t}")
+                #     print(f"K_Gamma_bar: {K_Gamma_bar.real}")
+                #     print(f"d1 @ d2: {d1 @ d2}")
+                #     print(f"d1 @ d3: {d1 @ d3}")
 
-        #     diff = K_Kappa_bar - K_Kappa_bar_num
-        #     error = norm(diff)
-        #     print(f"error K_Kappa_bar: {error}")
+                return A_IK, K_Gamma_bar, K_Kappa_bar
+
+            # TODO: Curvature is wrong!
+            A_IK, K_Gamma_bar, K_Kappa_bar = f(qp)
+            # A_IK_xi = approx_fprime(qp, lambda qp: f(qp)[0], eps=1.0e-6, method="2-point")
+            # # A_IK_xi = approx_fprime(qp, lambda qp: f(qp)[0], eps=1.0e-10, method="cs")
+            # K_Kappa_bar_num = skew2ax(A_IK.T @ A_IK_xi)
+            # # diff = K_Kappa_bar - K_Kappa_bar_num
+            # # error = np.linalg.norm(diff)
+            # # print(f"error K_Kappa_bar: {error}")
+
+            # K_Kappa_bar = K_Kappa_bar_num
 
         return r, r_xi, A_IK, K_Gamma_bar, K_Kappa_bar
 
     def E_pot(self, t, q):
-        E_pot = 0
+        E_pot = np.zeros(1, dtype=q.dtype)[0]
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             E_pot += self.E_pot_el(q[elDOF], el)
@@ -858,18 +941,25 @@ class Kirchhoff:
 
             # axial and shear strains
             K_Gamma = K_Gamma_bar / Ji
-            # lambda_ = norm(r_xi) / Ji
+
+            # TODO: What is better suited?
+            lambda_ = norm(r_xi) / Ji
+            # lambda_ = norm(K_Gamma_bar) / Ji
 
             # torsional and flexural strains
             K_Kappa = K_Kappa_bar / Ji
 
             # evaluate strain energy function
-            E_pot_el += (
-                self.material_model.potential(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
-                # self.material_model.potential(lambda_, K_Kappa, K_Kappa0)
-                * Ji
-                * qwi
-            )
+            if self.use_Kirchhoff:
+                E_pot_el += (
+                    self.material_model.potential(lambda_, K_Kappa, K_Kappa0) * Ji * qwi
+                )
+            else:
+                E_pot_el += (
+                    self.material_model.potential(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
+                    * Ji
+                    * qwi
+                )
 
         return E_pot_el
 
@@ -881,7 +971,16 @@ class Kirchhoff:
             f_pot[elDOF] += self.f_pot_el(q[elDOF], el)
         return f_pot
 
+    # TODO: Find error here!
     def f_pot_el(self, qe, el):
+        return approx_fprime(
+            qe,
+            lambda qe: -self.E_pot_el(qe, el),
+            eps=1.0e-10,
+            method="cs"
+            # qe, lambda qe: -self.E_pot_el(qe, el), eps=1.0e-6, method="2-point"
+        )
+
         f_pot_el = np.zeros(self.nq_element, dtype=qe.dtype)
 
         for i in range(self.nquadrature):
@@ -897,14 +996,23 @@ class Kirchhoff:
 
             # axial and shear strains
             K_Gamma = K_Gamma_bar / Ji
+            lambda_ = norm(r_xi) / Ji
 
             # torsional and flexural strains
             K_Kappa = K_Kappa_bar / Ji
 
             # compute contact forces and couples from partial derivatives of
             # the strain energy function w.r.t. strain measures
-            K_n = self.material_model.K_n(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
-            K_m = self.material_model.K_m(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
+            if self.use_Kirchhoff:
+                n = self.material_model.n(lambda_, K_Kappa, K_Kappa0)
+                K_m = self.material_model.K_m(lambda_, K_Kappa, K_Kappa0)
+                # delta lambda_ = delta (sqrt(r_xi @ r_xi)) / Ji
+                #               = 0.5 / (ji * Ji) * 2 * r_xi @ delta r_xi
+                #               = r_xi @ delta r_xi / (j * Ji)
+                K_n = n * r_xi / norm(r_xi)
+            else:
+                K_n = self.material_model.K_n(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
+                K_m = self.material_model.K_m(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
 
             ############################
             # virtual work contributions
@@ -931,6 +1039,8 @@ class Kirchhoff:
                 # nodal rotation matrices
                 A_IK0 = Exp_SO3(psi0)
                 A_IK1 = Exp_SO3(psi1)
+                T0 = T_SO3(psi0)
+                T1 = T_SO3(psi1)
 
                 # compute nodal tangent vectors
                 t0 = j0 * (A_IK0 @ e1)
@@ -940,6 +1050,7 @@ class Kirchhoff:
                 # centerline contributions
                 ##########################
                 n = A_IK @ K_n
+
                 f_pot_el[self.nodalDOF_element_r[0]] -= N_r_xi[0] * n * qwi
                 f_pot_el[self.nodalDOF_element_r[2]] -= N_r_xi[2] * n * qwi
                 f_pot_el[self.nodalDOF_element_r[1]] -= (
@@ -954,40 +1065,36 @@ class Kirchhoff:
                 ##############################################
                 # derivative of virtual rotation contributions
                 ##############################################
-                f_pot_el[self.nodalDOF_element_r[1]] -= (
-                    N_psi_xi[0] * T_SO3(psi0).T @ K_m * qwi
-                )
-                f_pot_el[self.nodalDOF_element_r[3]] -= (
-                    N_psi_xi[1] * T_SO3(psi1).T @ K_m * qwi
-                )
+                f_pot_el[self.nodalDOF_element_r[1]] -= N_psi_xi[0] * T0.T @ K_m * qwi
+                f_pot_el[self.nodalDOF_element_r[3]] -= N_psi_xi[1] * T1.T @ K_m * qwi
 
                 ################################
                 # virtual rotation contributions
                 ################################
                 tmp = cross3(K_Gamma_bar, K_n) + cross3(K_Kappa_bar, K_m)
-                f_pot_el[self.nodalDOF_element_r[1]] += (
-                    N_psi[0] * T_SO3(psi0).T @ tmp * qwi
-                )
-                f_pot_el[self.nodalDOF_element_r[3]] += (
-                    N_psi[1] * T_SO3(psi1).T @ tmp * qwi
-                )
+                f_pot_el[self.nodalDOF_element_r[1]] += N_psi[0] * T0.T @ tmp * qwi
+                f_pot_el[self.nodalDOF_element_r[3]] += N_psi[1] * T1.T @ tmp * qwi
 
-        return f_pot_el
+        # return f_pot_el
 
-        # f_pot_el_num = approx_fprime(
-        #     # qe, lambda qe: -self.E_pot_el(qe, el), eps=1.0e-10, method="cs"
-        #     qe, lambda qe: -self.E_pot_el(qe, el), eps=1.0e-6, method="2-point"
-        # )
-        # diff = f_pot_el - f_pot_el_num
-        # # diff = diff[self.nodalDOF_element_r[0]]
-        # # diff = diff[self.nodalDOF_element_r[1]]
-        # # diff = diff[self.nodalDOF_element_r[2]]
-        # # diff = diff[self.nodalDOF_element_r[3]]
-        # # diff = diff[self.nodalDOF_element_psi[0]]
-        # # diff = diff[self.nodalDOF_element_psi[1]]
-        # error = np.linalg.norm(diff)
-        # print(f"error f_pot: {error}")
-        # return f_pot_el_num
+        f_pot_el_num = approx_fprime(
+            # qe, lambda qe: -self.E_pot_el(qe, el), eps=1.0e-10, method="cs"
+            qe,
+            lambda qe: -self.E_pot_el(qe, el),
+            eps=1.0e-6,
+            method="3-point",
+        )
+        diff = f_pot_el - f_pot_el_num
+        # diff = diff[self.nodalDOF_element_r[0]]
+        # diff = diff[self.nodalDOF_element_r[1]]
+        # diff = diff[self.nodalDOF_element_r[2]]
+        # diff = diff[self.nodalDOF_element_r[3]]
+        # diff = diff[self.nodalDOF_element_psi[0]]
+        # diff = diff[self.nodalDOF_element_psi[1]]
+        error = np.linalg.norm(diff)  # / np.linalg.norm(f_pot_el_num)
+        # print(f"diff:\n{diff}")
+        print(f"error f_pot: {error}")
+        return f_pot_el_num
 
     def f_pot_q(self, t, q, coo):
         for el in range(self.nelement):

@@ -22,23 +22,23 @@ class ShearStiffQuadratic:
         dK = K_Kappa - K_Kappa0
         return 0.5 * self.E1 * (lambda_ - 1.0) ** 2 + 0.5 * dK @ self.C_m @ dK
 
-    def n_1(self, lambda_, K_Kappa, K_Kappa0):
+    def n(self, lambda_, K_Kappa, K_Kappa0):
         return self.E1 * (lambda_ - 1)
 
-    def m_i(self, lambda_, K_Kappa, K_Kappa0):
+    def K_m(self, lambda_, K_Kappa, K_Kappa0):
         dK = K_Kappa - K_Kappa0
         return self.C_m @ dK
 
-    def n_1_lambda(self, lambda_, K_Kappa, K_Kappa0):
+    def n_lambda(self, lambda_, K_Kappa, K_Kappa0):
         return self.E1
 
-    def n_1_K_j(self, lambda_, K_Kappa, K_Kappa0):
+    def n_K_Kappa(self, lambda_, K_Kappa, K_Kappa0):
         return np.zeros(3)
 
-    def m_i_lambda(self, lambda_, K_Kappa, K_Kappa0):
+    def K_m_lambda(self, lambda_, K_Kappa, K_Kappa0):
         return np.zeros(3)
 
-    def m_i_K_j(self, lambda_, K_Kappa, K_Kappa0):
+    def K_m_K_Kappa(self, lambda_, K_Kappa, K_Kappa0):
         return self.C_m
 
 

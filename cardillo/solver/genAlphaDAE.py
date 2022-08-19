@@ -1645,6 +1645,564 @@ class GenAlphaFirstOrderGGL2_V3:
 ##########################################################################
 
 
+class GeneralizedAlphaFirstOrderGGLGiuseppe:
+    def __init__(
+        self,
+        model,
+        t1,
+        dt,
+        rho_inf=1,
+        tol=1e-10,
+        max_iter=40,
+        error_function=lambda x: np.max(np.abs(x)),
+        # numerical_jacobian=False,
+        numerical_jacobian=True,
+    ):
+
+        self.model = model
+
+        #######################################################################
+        # integration time
+        #######################################################################
+        self.t0 = t0 = model.t0
+        self.t1 = (
+            t1 if t1 > t0 else ValueError("t1 must be larger than initial time t0.")
+        )
+        self.dt = dt
+
+        #######################################################################
+        # gen alpha parameter
+        #######################################################################
+        self.rho_inf = rho_inf
+        self.alpha_m = (3.0 * rho_inf - 1.0) / (2.0 * (rho_inf + 1.0))
+        self.alpha_f = rho_inf / (rho_inf + 1.0)
+        self.gamma = 0.5 + self.alpha_f - self.alpha_m
+
+        # self.gamma_prime = dt * self.gamma
+        # self.alpha_prime = (1.0 - self.alpha_m) / (1.0 - self.alpha_f)
+        # self.eta = self.alpha_prime / self.gamma_prime
+
+        #######################################################################
+        # newton settings
+        #######################################################################
+        self.tol = tol
+        self.max_iter = max_iter
+        self.error_function = error_function
+
+        #######################################################################
+        # dimensions
+        #######################################################################
+        self.nq = model.nq
+        self.nu = model.nu
+        self.nla_g = model.nla_g
+        self.nla_gamma = model.nla_gamma
+        self.nx = self.ny = self.nq + self.nu  # dimension of the state space
+        self.ns = (
+            2 * self.nx + 3 * self.nla_g + 2 * self.nla_gamma
+        )  # vector of unknowns
+
+        if numerical_jacobian:
+            self.__R_gen = self.__R_gen_num
+        else:
+            self.__R_gen = self.__R_gen_analytic
+
+        #################
+        # preconditioning
+        #################
+        def consistent_initial_values(t0, q0, u0):
+            """compute physically consistent initial values"""
+
+            # initial velocites
+            q_dot0 = self.model.q_dot(t0, q0, u0)
+
+            # solve for consistent initial accelerations and Lagrange mutlipliers
+            M0 = self.model.M(t0, q0, scipy_matrix=csr_matrix)
+            h0 = self.model.h(t0, q0, u0)
+            W_g0 = self.model.W_g(t0, q0, scipy_matrix=csr_matrix)
+            W_gamma0 = self.model.W_gamma(t0, q0, scipy_matrix=csr_matrix)
+            zeta_g0 = self.model.zeta_g(t0, q0, u0)
+            zeta_gamma0 = self.model.zeta_gamma(t0, q0, u0)
+            # fmt: off
+            A = bmat(
+                [
+                    [        M0, -W_g0, -W_gamma0],
+                    [    W_g0.T,  None,      None],
+                    [W_gamma0.T,  None,      None],
+                ],
+                format="csc",
+            )
+            # fmt: on
+            b = np.concatenate([h0, -zeta_g0, -zeta_gamma0])
+            u_dot_la_g_la_gamma = spsolve(A, b)
+
+            u_dot0 = u_dot_la_g_la_gamma[: self.nu]
+
+            la_g0 = u_dot_la_g_la_gamma[self.nu : self.nu + self.nla_g]
+            la_gamma0 = u_dot_la_g_la_gamma[self.nu + self.nla_g :]
+
+            mu_g0 = np.zeros(self.nla_g)
+            kappa_g0 = np.zeros(self.nla_g)
+            kappa_gamma0 = np.zeros(self.nla_gamma)
+
+            v0 = q_dot0.copy()
+            a0 = u_dot0.copy()
+
+            # TODO: I think we have to solve for initial conditions such that g, g_dot, g_ddot, gamma and gamma_dot are fulfilled. This requries the solution of a nonlinear system corresponding to the residual of the twice stabilized GGL scheme. This might remvoe the oszillations from the beginning!
+
+            return (
+                q_dot0,
+                u_dot0,
+                v0,
+                a0,
+                la_g0,
+                mu_g0,
+                kappa_g0,
+                la_gamma0,
+                kappa_gamma0,
+            )
+
+        # compute consistent initial conditions
+        q0 = model.q0
+        u0 = model.u0
+        (
+            q_dot0,
+            u_dot0,
+            v0,
+            a0,
+            la_g0,
+            mu_g0,
+            kappa_g0,
+            la_gamma0,
+            kappa_gamma0,
+        ) = consistent_initial_values(t0, q0, u0)
+
+        self.tk = t0
+        self.qk = q0
+        self.uk = u0
+        self.q_dotk = q_dot0
+        self.u_dotk = u_dot0
+        self.la_gk = la_g0
+        self.mu_gk = mu_g0
+        self.kappa_gk = kappa_g0
+        self.la_gammak = la_gamma0
+        self.kappa_gammak = kappa_gamma0
+        self.xk = np.concatenate((q0, u0))
+        self.x_dotk = np.concatenate((q_dot0, u_dot0))
+        self.yk = self.xk.copy()  # TODO: Use better values!
+        self.sk = np.concatenate(
+            (q_dot0, u_dot0, v0, a0, la_g0, mu_g0, kappa_g0, la_gamma0, kappa_gamma0)
+        )
+
+        # TODO: Where do we have to satisfy the initial conditions? This has to coincide with the constraint equation evaluation of the scheme!
+        # check if initial conditions satisfy constraints on position, velocity
+        # and acceleration level
+        g0 = model.g(t0, q0)
+        g_dot0 = model.g_dot(t0, q0, u0)  # TODO: Use g_q @ v + g_t
+        g_ddot0 = model.g_ddot(t0, q0, u0, a0)
+        gamma0 = model.gamma(t0, q0, u0)  # TODO: Use gamma_q @ v + ???
+        gamma_dot0 = model.gamma_dot(t0, q0, u0, a0)
+
+        # TODO: These tolerances should be used defined. Maybe all these
+        #       initial computations and checks should be moved to a
+        #       SolverOptions object ore something similar?
+        rtol = 1.0e-10
+        atol = 1.0e-10
+
+        assert np.allclose(
+            g0, np.zeros(self.nla_g), rtol, atol
+        ), "Initial conditions do not fulfill g0!"
+        assert np.allclose(
+            g_dot0, np.zeros(self.nla_g), rtol, atol
+        ), "Initial conditions do not fulfill g_dot0!"
+        assert np.allclose(
+            g_ddot0, np.zeros(self.nla_g), rtol, atol
+        ), "Initial conditions do not fulfill g_ddot0!"
+        assert np.allclose(
+            gamma0, np.zeros(self.nla_gamma)
+        ), "Initial conditions do not fulfill gamma0!"
+        assert np.allclose(
+            gamma_dot0, np.zeros(self.nla_gamma), rtol, atol
+        ), "Initial conditions do not fulfill gamma_dot0!"
+
+    def update(self, sk1, store=False):
+        """Update dependent variables."""
+        nq = self.nq
+        nu = self.nu
+        ny = self.ny
+
+        # constants
+        dt = self.dt
+        gamma = self.gamma
+        alpha_f = self.alpha_f
+        alpha_m = self.alpha_m
+
+        x_dotk1 = sk1[:ny]
+        yk1 = (
+            alpha_f * self.x_dotk + (1.0 - alpha_f) * x_dotk1 - alpha_m * self.yk
+        ) / (1.0 - alpha_m)
+        xk1 = self.xk + dt * ((1.0 - gamma) * self.yk + gamma * yk1)
+
+        if store:
+            self.sk = sk1.copy()
+            self.xk = xk1.copy()
+            self.x_dotk = x_dotk1.copy()
+            self.yk = yk1.copy()
+
+        # extract generaliezd coordinates and velocities
+        qk1 = xk1[:nq]
+        uk1 = xk1[nq : nq + nu]
+        q_dotk1 = x_dotk1[:nq]
+        u_dotk1 = x_dotk1[nq : nq + nu]
+        return qk1, uk1, q_dotk1, u_dotk1
+
+    def pack(self, *args):
+        return np.concatenate([*args])
+
+    def unpack(self, s):
+        nq = self.nq
+        nu = self.nu
+        nx = self.nx
+        nla_g = self.nla_g
+        nla_gamma = self.nla_gamma
+
+        q_dot = s[:nq]
+        u_dot = s[nq:nx]
+        v = s[nx : nx + nq]
+        a = s[nx + nq : 2 * nx]
+        la_g = s[2 * nx : 2 * nx + nla_g]
+        mu_g = s[2 * nx + nla_g : 2 * nx + 2 * nla_g]
+        kappa_g = s[2 * nx + 2 * nla_g : 2 * nx + 3 * nla_g]
+        la_gamma = s[2 * nx + 3 * nla_g : 2 * nx + 3 * nla_g + nla_gamma]
+        kappa_gamma = s[
+            2 * nx + 3 * nla_g + nla_gamma : 2 * nx + 3 * nla_g + 2 * nla_gamma
+        ]
+
+        return q_dot, u_dot, v, a, la_g, mu_g, kappa_g, la_gamma, kappa_gamma
+
+    def __R_gen_num(self, tk1, sk1):
+        yield self.__R(tk1, sk1)
+        yield csr_matrix(self.__J_num(tk1, sk1))
+
+    def __R_gen_analytic(self, tk1, sk1):
+        nq = self.nq
+        nx = self.nx
+        nla_g = self.nla_g
+        nla_gamma = self.nla_gamma
+
+        # extract Lagrange multiplier
+        (
+            _,
+            _,
+            vk1,
+            ak1,
+            la_gk1,
+            mu_gk1,
+            kappa_gk1,
+            la_gammak1,
+            kappa_gammak1,
+        ) = self.unpack(sk1)
+
+        # update dependent variables
+        qk1, uk1, q_dotk1, u_dotk1 = self.update(sk1, store=False)
+
+        # evaluate repeated used quantities
+        Mk1 = self.model.M(tk1, qk1, scipy_matrix=csr_matrix)
+
+        W_gk1 = self.model.W_g(tk1, qk1, scipy_matrix=csr_matrix)
+        W_gammak1 = self.model.W_gamma(tk1, qk1, scipy_matrix=csr_matrix)
+
+        g_qk1 = self.model.g_q(tk1, qk1)
+        gamma_qk1 = self.model.gamma_q(tk1, qk1, vk1)
+
+        ###################
+        # evaluate residual
+        ###################
+        R = np.zeros(self.ns)
+
+        # kinematic differential equation
+        R[:nq] = vk1 - self.model.q_dot(tk1, qk1, uk1)
+
+        # equations of motion
+        R[nq:nx] = (
+            Mk1 @ ak1
+            - self.model.h(tk1, qk1, uk1)
+            - W_gk1 @ la_gk1
+            - W_gammak1 @ la_gammak1
+        )
+
+        # stabilized derivatives
+        R[nx : nx + nq] = vk1 - q_dotk1 - g_qk1.T @ mu_gk1
+        R[nx + nq : 2 * nx] = (
+            ak1 - u_dotk1 - W_gk1 @ kappa_gk1 - W_gammak1 @ kappa_gammak1
+        )
+
+        # bilateral constraints
+        R[2 * nx : 2 * nx + nla_g] = self.model.g(tk1, qk1)
+        R[2 * nx + nla_g : 2 * nx + 2 * nla_g] = g_qk1 @ vk1 + self.model.g_dot(
+            tk1, qk1, np.zeros(self.nu)
+        )  # TODO: affine part
+        R[2 * nx + 2 * nla_g : 2 * nx + 3 * nla_g] = self.model.g_ddot(
+            tk1, qk1, uk1, ak1
+        )
+        # R[2 * nx + nla_g: 2 * nx + 2 * nla_g] = self.model.g_dot(tk1, qk1, uk1)
+        # R[2 * nx + 2 * nla_g: 2 * nx + 3 * nla_g] = self.model.g_ddot(tk1, qk1, uk1, u_dotk1)
+
+        R[
+            2 * nx + 3 * nla_g : 2 * nx + 3 * nla_g + nla_gamma
+        ] = gamma_qk1 @ vk1 + self.model.gamma(
+            tk1, qk1, np.zeros(self.nu)
+        )  # TODO: affine part
+        R[
+            2 * nx + 3 * nla_g + nla_gamma : 2 * nx + 3 * nla_g + 2 * nla_gamma
+        ] = self.model.gamma_dot(tk1, qk1, uk1, ak1)
+        # R[2 * nx + 3 * nla_g + nla_gamma: 2 * nx + 3 * nla_g + 2 * nla_gamma] = W_gammak1.T @ ak1 #+ gamma_qk1 @ vk1 + self.model.gamma_dot(tk1, qk1, np.zeros(self.nu), np.zeros(self.nu))
+        # R[2 * nx + 3 * nla_g: 2 * nx + 3 * nla_g + nla_gamma] = self.model.gamma(tk1, qk1, uk1)
+        # R[2 * nx + 3 * nla_g + nla_gamma: 2 * nx + 3 * nla_g + 2 * nla_gamma] = self.model.gamma_dot(tk1, qk1, uk1, u_dotk1)
+
+        yield R
+
+        raise NotImplementedError
+
+        ###################
+        # evaluate jacobian
+        ###################
+        eye_nq = eye(self.nq)
+        A = self.model.q_dot_q(tk1, qk1, uk1)
+        Bk1 = self.model.B(tk1, qk1, scipy_matrix=csr_matrix)
+        K = (
+            self.model.Mu_q(tk1, qk1, u_dotk1)
+            - self.model.h_q(tk1, qk1, uk1)
+            - self.model.Wla_g_q(tk1, qk1, la_gk1)
+            - self.model.Wla_gamma_q(tk1, qk1, la_gammak1)
+        )
+        h_uk1 = self.model.h_u(tk1, qk1, uk1)
+        g_qk1 = self.model.g_q(tk1, qk1)
+        gamma_qk1 = self.model.gamma_q(tk1, qk1, uk1)
+
+        # sparse assemble global tangent matrix
+        if self.GGL:
+            g_dot_qk1 = self.model.g_dot_q(tk1, qk1, uk1)
+            C = A + self.model.g_q_T_mu_g(tk1, qk1, mu_gk1)
+            if self.unknowns == "positions":
+                eta = self.eta
+                # fmt: off
+                J = bmat(
+                    [
+                        [eta * eye_nq - C,              -Bk1,   None,       None, -g_qk1.T],
+                        [               K, eta * Mk1 - h_uk1, -W_gk1, -W_gammak1,     None],
+                        [       g_dot_qk1,           W_gk1.T,   None,       None,     None],
+                        [       gamma_qk1,       W_gammak1.T,   None,       None,     None],
+                        [           g_qk1,              None,   None,       None,     None],
+                    ],
+                    format="csr",
+                )
+                # fmt: on
+            elif self.unknowns == "velocities":
+                etap = 1.0 / self.eta
+                # fmt: off
+                J = bmat(
+                    [
+                        [eye_nq - etap * C,        -etap * Bk1,   None,       None, -g_qk1.T],
+                        [         etap * K, Mk1 - etap * h_uk1, -W_gk1, -W_gammak1,     None],
+                        [ etap * g_dot_qk1,     etap * W_gk1.T,   None,       None,     None],
+                        [ etap * gamma_qk1, etap * W_gammak1.T,   None,       None,     None],
+                        [     etap * g_qk1,               None,   None,       None,     None],
+                    ],
+                    format="csr",
+                )
+                # fmt: on
+            elif self.unknowns == "auxiliary":
+                gap = self.gamma_prime
+                alp = self.alpha_prime
+                # fmt: off
+                J = bmat(
+                    [
+                        [alp * eye_nq - gap * C,              -gap * Bk1,   None,       None, -g_qk1.T],
+                        [               gap * K, alp * Mk1 - gap * h_uk1, -W_gk1, -W_gammak1,     None],
+                        [       gap * g_dot_qk1,           gap * W_gk1.T,   None,       None,     None],
+                        [       gap * gamma_qk1,       gap * W_gammak1.T,   None,       None,     None],
+                        [           gap * g_qk1,                    None,   None,       None,     None],
+                    ],
+                    format="csr",
+                )
+                # fmt: on
+        else:
+            if self.unknowns == "positions":
+                eta = self.eta
+                if self.DAE_index == 3:
+                    # fmt: off
+                    J = bmat(
+                        [
+                            [eta * eye_nq - A,              -Bk1,   None,       None],
+                            [               K, eta * Mk1 - h_uk1, -W_gk1, -W_gammak1],
+                            [           g_qk1,              None,   None,       None],
+                            [       gamma_qk1,       W_gammak1.T,   None,       None],
+                        ],
+                        format="csr",
+                    )
+                    # fmt: on
+                elif self.DAE_index == 2:
+                    raise NotImplementedError
+                elif self.DAE_index == 1:
+                    raise NotImplementedError
+            elif self.unknowns == "velocities":
+                etap = 1.0 / self.eta
+                if self.DAE_index == 3:
+                    # fmt: off
+                    J = bmat(
+                        [
+                            [eye_nq - etap * A,        -etap * Bk1,   None,       None],
+                            [         etap * K, Mk1 - etap * h_uk1, -W_gk1, -W_gammak1],
+                            [     etap * g_qk1,               None,   None,       None],
+                            [ etap * gamma_qk1, etap * W_gammak1.T,   None,       None],
+                        ],
+                        format="csr",
+                    )
+                    # fmt: on
+                else:
+                    raise NotImplementedError
+            elif self.unknowns == "auxiliary":
+                gap = self.gamma_prime
+                alp = self.alpha_prime
+                if self.DAE_index == 3:
+                    # fmt: off
+                    J = bmat(
+                        [
+                            [alp * eye_nq - gap * A,              -gap * Bk1,   None,       None],
+                            [               gap * K, alp * Mk1 - gap * h_uk1, -W_gk1, -W_gammak1],
+                            [           gap * g_qk1,                    None,   None,       None],
+                            [       gap * gamma_qk1,       gap * W_gammak1.T,   None,       None],
+                        ],
+                        format="csr",
+                    )
+                    # fmt: on
+                else:
+                    raise NotImplementedError
+
+        # # TODO: Keep this for debugging!
+        # J_num = self.__J_num(tk1, sk1)
+        # diff = (J - J_num).toarray()
+        # error = np.linalg.norm(diff)
+        # print(f"error J: {error}")
+
+        yield J
+
+    def __R(self, tk1, sk1):
+        return next(self.__R_gen_analytic(tk1, sk1))
+
+    def __J_num(self, tk1, sk1):
+        return csr_matrix(
+            approx_fprime(sk1, lambda x: self.__R(tk1, x), method="2-point")
+        )
+
+    def step(self, tk1, sk1):
+        # initial residual and error
+        R_gen = self.__R_gen(tk1, sk1)
+        R = next(R_gen)
+        error = self.error_function(R)
+        converged = error < self.tol
+        j = 0
+        if not converged:
+            while j < self.max_iter:
+                # jacobian
+                J = next(R_gen)
+
+                # Newton update
+                j += 1
+                ds = spsolve(J, R, use_umfpack=True)
+                sk1 -= ds
+
+                R_gen = self.__R_gen(tk1, sk1)
+                R = next(R_gen)
+
+                error = self.error_function(R)
+                converged = error < self.tol
+                if converged:
+                    break
+
+        return converged, j, error, sk1
+
+    def solve(self):
+        # lists storing output variables
+        t = [self.tk]
+        q = [self.qk]
+        u = [self.uk]
+        q_dot = [self.q_dotk]
+        u_dot = [self.u_dotk]
+        la_g = [self.la_gk]
+        la_gamma = [self.la_gammak]
+
+        # TODO:
+        # v =
+        # a =
+        # mu_g = [self.mu_gk]
+        # kappa_g = [self.kappa_gk]
+        # kappa_gamma = [self.kappa_gammak]
+
+        pbar = tqdm(np.arange(self.t0, self.t1, self.dt))
+        for _ in pbar:
+            # perform a sovler step
+            tk1 = self.tk + self.dt
+            sk1 = self.sk.copy()  # This copy is mandatory since we modify sk1
+            # in the step function
+            converged, n_iter, error, sk1 = self.step(tk1, sk1)
+
+            # update progress bar and check convergence
+            pbar.set_description(
+                f"t: {tk1:0.2e}s < {self.t1:0.2e}s; Newton: {n_iter}/{self.max_iter} iterations; error: {error:0.2e}"
+            )
+            if not converged:
+                raise RuntimeError(
+                    f"internal Newton-Raphson method not converged after {n_iter} steps with error: {error:.5e}"
+                )
+
+            # extract Lagrange multipliers
+            (
+                _,
+                _,
+                vk1,
+                ak1,
+                la_gk1,
+                mu_gk1,
+                kappa_gk1,
+                la_gammak1,
+                kappa_gammak1,
+            ) = self.unpack(sk1)
+
+            # update dependent variables
+            qk1, uk1, q_dotk1, u_dotk1 = self.update(sk1, store=True)
+
+            # modify converged quantities
+            qk1, uk1 = self.model.step_callback(tk1, qk1, uk1)
+
+            # store soltuion fields
+            t.append(tk1)
+            q.append(qk1)
+            u.append(uk1)
+            q_dot.append(q_dotk1)
+            u_dot.append(u_dotk1)
+            la_g.append(la_gk1)
+            la_gamma.append(la_gammak1)
+            # if self.GGL == 1:
+            #     mu_g.append(mu_gk1)
+
+            # update local variables for accepted time step
+            self.tk = tk1
+            self.sk = sk1.copy()
+
+        # write solution
+        return Solution(
+            t=np.array(t),
+            q=np.array(q),
+            u=np.array(u),
+            q_dot=np.array(q_dot),
+            u_dot=np.array(u_dot),
+            la_g=np.array(la_g),
+            la_gamma=np.array(la_gamma),
+            # mu_g=np.array(mu_g),
+        )
+
+
 class GeneralizedAlphaFirstOrder:
     """Generalized alpha solver for first order ODE's.
     
@@ -1990,8 +2548,8 @@ class GeneralizedAlphaFirstOrder:
         # TODO: These tolerances should be used defined. Maybe all these
         #       initial computations and checks should be moved to a
         #       SolverOptions object ore something similar?
-        rtol = 1.0e-15
-        atol = 1.0e-15
+        rtol = 1.0e-10
+        atol = 1.0e-10
 
         assert np.allclose(
             g0, np.zeros(self.nla_g), rtol, atol

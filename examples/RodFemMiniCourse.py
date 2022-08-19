@@ -21,6 +21,9 @@ from math import sin, cos, pi
 
 import matplotlib.pyplot as plt
 
+# use_Kirchhoff = True
+use_Kirchhoff = False
+
 
 def statics():
     # nelements = 5
@@ -56,7 +59,7 @@ def statics():
     # test for Kirchhoff beam
     polynomial_degree_r = 3
     polynomial_degree_psi = 1
-    nelements = 3
+    nelements = 1
 
     # beam parameters
     L = 10
@@ -107,13 +110,23 @@ def statics():
     # build quadratic material model
     Ei = np.array([EA, GA, GA], dtype=float)
     Fi = np.array([GJ, EI, EI], dtype=float)
-    material_model = Simo1986(Ei, Fi)
-    # material_model = ShearStiffQuadratic(EA, Fi)
+    if use_Kirchhoff:
+        material_model = ShearStiffQuadratic(EA, Fi)
+    else:
+        material_model = Simo1986(Ei, Fi)
 
     Q = Kirchhoff.straight_configuration(nelements, L)
 
-    nquadrature = int(max(polynomial_degree_r, polynomial_degree_psi)) + 1
-    beam = Kirchhoff(material_model, A_rho0, K_I_rho0, nquadrature, nelements, Q)
+    nquadrature = int(max(polynomial_degree_r, polynomial_degree_psi))  # + 1
+    beam = Kirchhoff(
+        material_model,
+        A_rho0,
+        K_I_rho0,
+        nquadrature,
+        nelements,
+        Q,
+        use_Kirchhoff=use_Kirchhoff,
+    )
 
     # # junctions
     # n = 1
@@ -139,8 +152,8 @@ def statics():
 
     # moment at right end
     Fi = material_model.Fi
-    M = lambda t: t * 2 * np.pi * (Fi[0] * e1 + Fi[2] * e3) / L  # * 0.25
-    # M = lambda t: t * 2 * np.pi * Fi[2] * e3 / L  # * 0.25
+    # M = lambda t: t * 2 * np.pi * (Fi[0] * e1 + Fi[2] * e3) / L  # * 0.25
+    M = lambda t: t * 2 * np.pi * Fi[2] * e3 / L * 0.45
     # M = lambda t: t * 2 * np.pi * Fi[0] * e1 / L * 0.45
     moment = K_Moment(M, beam, (1,))
 
@@ -157,7 +170,7 @@ def statics():
     solver = Newton(
         model,
         n_load_steps=n_load_steps,
-        max_iter=10,
+        max_iter=15,
         atol=1.0e-6,
     )
     sol = solver.solve()

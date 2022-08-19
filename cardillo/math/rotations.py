@@ -262,7 +262,9 @@ def rodriguez_inv(R: np.ndarray) -> np.ndarray:
     # return Rotation.from_matrix(R).as_rotvec()
 
 
-def smallest_rotation(a0: np.ndarray, a: np.ndarray) -> np.ndarray:
+def smallest_rotation(
+    a0: np.ndarray, a: np.ndarray, normalize: bool = True
+) -> np.ndarray:
     """Rotation matrix that rotates an unit vector a0 / ||a0|| to another unit vector
     a / ||a||, see Crisfield1996 16.13 and (16.104). This rotation is sometimes
     referred to 'smallest rotation'. Can we use the SVD proposed by eigen3?
@@ -272,8 +274,9 @@ def smallest_rotation(a0: np.ndarray, a: np.ndarray) -> np.ndarray:
     Crisfield1996: http://inis.jinr.ru/sl/M_Mathematics/MN_Numerical%20methods/MNf_Finite%20elements/Crisfield%20M.A.%20Vol.2.%20Non-linear%20Finite%20Element%20Analysis%20of%20Solids%20and%20Structures..%20Advanced%20Topics%20(Wiley,1996)(ISBN%20047195649X)(509s).pdf
     eigen3: https://gitlab.com/libeigen/eigen/-/blob/master/Eigen/src/Geometry/Quaternion.h#L633-669
     """
-    a0_bar = a0 / norm(a0)
-    a_bar = a / norm(a)
+    if normalize:
+        a0 = a0 / norm(a0)
+        a = a / norm(a)
 
     # ########################
     # # Crisfield1996 (16.104)
@@ -284,18 +287,22 @@ def smallest_rotation(a0: np.ndarray, a: np.ndarray) -> np.ndarray:
     ########################
     # Crisfield1996 (16.105)
     ########################
-    cos_psi = a0_bar @ a_bar
-    denom = 1 + cos_psi
-    if denom > 0:
-        e = cross3(a0_bar, a_bar)
-        return cos_psi * np.eye(3) + ax2skew(e) + np.outer(e, e) / denom
-    else:
-        print("svd case")
-        M = np.vstack((a0_bar, a_bar))
-        U, S, Vh = np.linalg.svd(M)
-        axis = Vh[2]
-        psi = np.arccos(cos_psi)
-        return rodriguez(psi * axis)
+    cos_psi = a0 @ a
+    denom = 1.0 + cos_psi
+    e = cross3(a0, a)
+    # return cos_psi * np.eye(3, dtype=e.dtype) + ax2skew(e) + np.outer(e, e) / denom
+    e_tilde = ax2skew(e)
+    return np.eye(3, dtype=e.dtype) + e_tilde + e_tilde @ e_tilde / denom
+    # if denom > 0:
+    #     e = cross3(a0_bar, a_bar)
+    #     return cos_psi * np.eye(3) + ax2skew(e) + np.outer(e, e) / denom
+    # else:
+    #     print("svd case")
+    #     M = np.vstack((a0_bar, a_bar))
+    #     U, S, Vh = np.linalg.svd(M)
+    #     axis = Vh[2]
+    #     psi = np.arccos(cos_psi)
+    #     return rodriguez(psi * axis)
 
 
 class Rotor:
