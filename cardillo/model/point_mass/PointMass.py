@@ -8,6 +8,7 @@ class PointMass:
         self.nu = dim
 
         self.M_ = m * np.eye(dim)
+        self.M_inv = 1 / m * np.eye(dim)
 
         self.q0 = np.zeros(self.nq) if q0 is None else q0
         self.u0 = np.zeros(self.nu) if u0 is None else u0

@@ -142,13 +142,11 @@ class Model(object):
                 self.nla_N += contr.nla_N
                 la_N0.extend(contr.la_N0.tolist())
                 e_N.extend(contr.e_N.tolist())
-                prox_r_N.extend(contr.prox_r_N.tolist())
                 # tangential
                 contr.la_FDOF = np.arange(0, contr.nla_F) + self.nla_F
                 self.nla_F += contr.nla_F
                 la_F0.extend(contr.la_F0.tolist())
                 e_F.extend(contr.e_F.tolist())
-                prox_r_F.extend(contr.prox_r_F.tolist())
                 mu.extend(contr.mu.tolist())
                 for i in range(contr.nla_N):
                     NF_connectivity.append(
@@ -171,9 +169,7 @@ class Model(object):
         self.N_has_friction = np.array(N_has_friction, dtype=bool)
         self.Ncontr_connectivity = np.array(Ncontr_connectivity, dtype=int)
         self.e_N = np.array(e_N)
-        self.prox_r_N = np.array(prox_r_N)
         self.e_F = np.array(e_F)
-        self.prox_r_F = np.array(prox_r_F)
         self.mu = np.array(mu)
 
         # call assembler callback: call methods that require first an assembly of the system
@@ -482,6 +478,19 @@ class Model(object):
     #################
     # normal contacts
     #################
+    def active_contacts(self, t, q):
+        active_contacts = np.zeros(self.nla_N, dtype=bool)
+        for contr in self.__g_N_contr:
+            active_contacts[contr.la_NDOF] = contr.active_contact(t, q[contr.qDOF])
+        return active_contacts
+
+    def prox_r_N(self, t, q):
+        prox_r_N = np.zeros([self.nla_N])
+        for contr in self.__g_N_contr:
+            G_ii_N = contr.G_ii_N(t, q[contr.qDOF])
+            prox_r_N[contr.la_NDOF] = 1 / G_ii_N if G_ii_N > 0 else G_ii_N
+        return prox_r_N
+
     def g_N(self, t, q):
         g_N = np.zeros(self.nla_N)
         for contr in self.__g_N_contr:
@@ -559,6 +568,14 @@ class Model(object):
     #################
     # friction
     #################
+    def prox_r_F(self, t, q):
+        prox_r_F = np.zeros(self.nla_F)
+        for contr in self.__gamma_F_contr:
+            G_ii_F = np.max(contr.G_ii_F(t, q[contr.qDOF]))
+            R_F = np.full((contr.nla_F), 1 / G_ii_F if G_ii_F > 0 else G_ii_F)
+            prox_r_F[contr.la_FDOF] = R_F
+        return prox_r_F
+
     def gamma_F(self, t, q, u):
         gamma_F = np.zeros(self.nla_F)
         for contr in self.__gamma_F_contr:
