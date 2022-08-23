@@ -21,8 +21,8 @@ from math import sin, cos, pi
 
 import matplotlib.pyplot as plt
 
-use_Kirchhoff = True
-# use_Kirchhoff = False
+# use_Kirchhoff = True
+use_Kirchhoff = False
 
 
 def statics():
@@ -59,7 +59,7 @@ def statics():
     # test for Kirchhoff beam
     polynomial_degree_r = 3
     polynomial_degree_psi = 1
-    nelements = 2
+    nelements = 4
 
     # beam parameters
     L = 10
@@ -93,7 +93,6 @@ def statics():
     #     r_OP=r_OP0,
     #     A_IK=A_IK0,
     # )
-
     # beam = DirectorAxisAngle(
     #     material_model,
     #     A_rho0,
@@ -117,19 +116,8 @@ def statics():
 
     nquadrature = int(max(polynomial_degree_r, polynomial_degree_psi)) + 1
 
-    # Q = Kirchhoff.straight_configuration(nelements, L)
-    # beam = Kirchhoff(
-    #     material_model,
-    #     A_rho0,
-    #     K_I_rho0,
-    #     nquadrature,
-    #     nelements,
-    #     Q,
-    #     use_Kirchhoff=use_Kirchhoff,
-    # )
-
-    Q = KirchhoffSingularity.straight_configuration(nelements, L)
-    beam = KirchhoffSingularity(
+    Q = Kirchhoff.straight_configuration(nelements, L)
+    beam = Kirchhoff(
         material_model,
         A_rho0,
         K_I_rho0,
@@ -138,6 +126,17 @@ def statics():
         Q,
         use_Kirchhoff=use_Kirchhoff,
     )
+
+    # Q = KirchhoffSingularity.straight_configuration(nelements, L)
+    # beam = KirchhoffSingularity(
+    #     material_model,
+    #     A_rho0,
+    #     K_I_rho0,
+    #     nquadrature,
+    #     nelements,
+    #     Q,
+    #     use_Kirchhoff=use_Kirchhoff,
+    # )
 
     # # junctions
     # n = 1
@@ -163,7 +162,7 @@ def statics():
 
     # moment at right end
     Fi = material_model.Fi
-    M = lambda t: t * 2 * np.pi * (Fi[0] * e1 + Fi[2] * e3) / L * 0.25
+    M = lambda t: t * 2 * np.pi * (Fi[0] * e1 + Fi[2] * e3) / L * 0.45
     # M = lambda t: t * 2 * np.pi * Fi[0] * e1 / L * 0.45
     # M = lambda t: t * 2 * np.pi * Fi[1] * e2 / L * 0.45
     # M = lambda t: t * 2 * np.pi * Fi[2] * e3 / L  * 0.45

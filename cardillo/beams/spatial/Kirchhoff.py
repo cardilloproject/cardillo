@@ -160,7 +160,7 @@ def DExp_SO3(psi: np.ndarray, u: np.ndarray) -> np.ndarray:
     -----------
     Ritto-Corea2002: https://doi.org/10.1002/nme.532
     """
-    # return np.einsum("ijk,j->ik", Exp_SO3_psi(psi), u)
+    return np.einsum("ijk,j->ik", Exp_SO3_psi(psi), u)
 
     angle = norm(psi)
     if angle > angle_singular:
@@ -623,9 +623,9 @@ class Kirchhoff:
                 f_gyr_u_el = self.f_gyr_u_el(t, q[elDOF], u[elDOF], el)
                 coo.extend(f_gyr_u_el, (self.uDOF[elDOF], self.uDOF[elDOF]))
 
-    # def eval(self, qe, qp, case="director"):
-    # def eval(self, qe, qp, case="SO(3)"):
-    def eval(self, qe, qp, case="SR"):
+    def eval(self, qe, qp, case="director"):
+        # def eval(self, qe, qp, case="SO(3)"):
+        # def eval(self, qe, qp, case="SR"):
         if case not in ["director", "SO(3)", "SR"]:
             raise RuntimeError(f'case: "{case}" is not implemented')
 
@@ -671,8 +671,8 @@ class Kirchhoff:
         # compute nodal tangent vectors
         # ex0 = A_IK0 @ e1
         # ex1 = A_IK1 @ e1
-        ex0 = A_IK0[:, 0]
-        ex1 = A_IK1[:, 0]
+        ex0, ey0, ez0 = A_IK0.T
+        ex1, ey1, ez1 = A_IK1.T
         t_node0 = j0 * ex0
         t_node1 = j1 * ex1
 
@@ -695,9 +695,12 @@ class Kirchhoff:
             A_IK = N_psi[0] * A_IK0 + N_psi[1] * A_IK1
             A_IK_xi = N_psi_xi[0] * A_IK0 + N_psi_xi[1] * A_IK1
 
+            # axial and shear strains
             K_Gamma_bar = A_IK.T @ r_xi
-            # TODO: Better curvature with volume correction
-            K_Kappa_bar = skew2ax(A_IK.T @ A_IK_xi)
+
+            # curvatures with volume correction
+            d1, d2, d3 = A_IK.T
+            K_Kappa_bar = skew2ax(A_IK.T @ A_IK_xi) / (d1 @ cross3(d2, d3))
 
         elif case == "SO(3)":
             ##################################
@@ -779,6 +782,7 @@ class Kirchhoff:
                 # relative torsion from first to second node using smallest rotation
                 # A_K0K1 = smallest_rotation(t0, t1)
                 A_K0K1 = smallest_rotation(ex0, ex1, False)
+                d1_bar = ex1
 
                 # composed rotation to node 1
                 A_IK1_bar = A_IK0 @ A_K0K1
@@ -786,14 +790,27 @@ class Kirchhoff:
                 # extract difference in torsion angle of the two rotations
                 d1_1, d2_1, d3_1 = A_IK1.T
                 d1_bar, d2_bar, d3_bar = A_IK1_bar.T
-                # cos_alpha1 = d2_bar @ d2_1
-                # sin_alpha1 = d3_bar @ d2_1
+
+                # # alternative formulation
+                # d1_bar = ex1
+                # d2_bar = ey0 - ((ey0 @ ex1) / (1.0 + ex1 @ ex0)) * (ex0 + ex1)
+                # d3_bar = ez0 - ((ez1 @ ex1) / (1.0 + ex1 @ ex0)) * (ex0 + ex1)
+                # A_IK1_bar2 = np.vstack((d1_bar, d2_bar, d3_bar))
+
+                # # diff = A_IK1_bar.T @ A_IK1_bar2 - np.eye(3)
+                # # # diff = A_IK1_bar2.T @ A_IK1_bar2 - np.eye(3)
+                # # error = np.linalg.norm(diff)
+                # # print(f"error smallest rotations: {error}")
+
+                # A_IK1_bar = A_IK1_bar2
 
                 # print(f"norm(A_IK0.T @ A_IK0 - eye(3)): {np.linalg.norm(A_IK0.T @ A_IK0 - np.eye(3))}")
                 # print(f"norm(A_IK1.T @ A_IK1 - eye(3)): {np.linalg.norm(A_IK1.T @ A_IK1 - np.eye(3))}")
                 # print(f"norm(A_IK1_bar.T @ A_IK1_bar - eye(3)): {np.linalg.norm(A_IK1_bar.T @ A_IK1_bar - np.eye(3))}")
 
-                # TODO: This etraction is still the problem!
+                # TODO: This etraction is still a problem!
+                # cos_alpha1 = d2_bar @ d2_1
+                # sin_alpha1 = d3_bar @ d2_1
                 # alpha1 = np.arctan2(d3_1 @ d2_bar, d2_1 @ d2_bar) # TODO: Not working with complex arguments!
                 # alpha1 = np.arctan((d3_1 @ d2_bar) / (d2_1 @ d2_bar))
                 # alpha1 = complex_atan2(sin_alpha1, cos_alpha1)
@@ -881,6 +898,17 @@ class Kirchhoff:
                 #     r_xixi @ d2 / j,
                 # ])
 
+                ###########################
+                ###########################
+                ###########################
+                # TODO: Get this corrected!
+                ###########################
+                ###########################
+                ###########################
+                # # TODO: Is this a good hack? I think we introduce a lot of
+                # # numerical rounding errors during the matrix multiplications above!
+                # r_xi = d1 * j
+
                 # axial and (numerical zero) shear strains
                 # TODO: This should have zero second and third component!
                 K_Gamma_bar = A_IK.T @ r_xi
@@ -904,7 +932,7 @@ class Kirchhoff:
 
                 return A_IK, K_Gamma_bar, K_Kappa_bar
 
-            # TODO: Curvature is wrong!
+            # TODO: Curvature might be wrong!
             A_IK, K_Gamma_bar, K_Kappa_bar = f(qp)
             # A_IK_xi = approx_fprime(qp, lambda qp: f(qp)[0], eps=1.0e-6, method="2-point")
             # # A_IK_xi = approx_fprime(qp, lambda qp: f(qp)[0], eps=1.0e-10, method="cs")
@@ -973,13 +1001,13 @@ class Kirchhoff:
 
     # TODO: Find error here!
     def f_pot_el(self, qe, el):
-        return approx_fprime(
-            qe,
-            lambda qe: -self.E_pot_el(qe, el),
-            eps=1.0e-10,
-            method="cs"
-            # qe, lambda qe: -self.E_pot_el(qe, el), eps=1.0e-6, method="2-point"
-        )
+        # return approx_fprime(
+        #     qe,
+        #     lambda qe: -self.E_pot_el(qe, el),
+        #     eps=1.0e-10,
+        #     method="cs"
+        #     # qe, lambda qe: -self.E_pot_el(qe, el), eps=1.0e-6, method="2-point"
+        # )
 
         f_pot_el = np.zeros(self.nq_element, dtype=qe.dtype)
 
@@ -996,7 +1024,8 @@ class Kirchhoff:
 
             # axial and shear strains
             K_Gamma = K_Gamma_bar / Ji
-            lambda_ = norm(r_xi) / Ji
+            ji = norm(r_xi)
+            lambda_ = ji / Ji
 
             # torsional and flexural strains
             K_Kappa = K_Kappa_bar / Ji
@@ -1009,7 +1038,7 @@ class Kirchhoff:
                 # delta lambda_ = delta (sqrt(r_xi @ r_xi)) / Ji
                 #               = 0.5 / (ji * Ji) * 2 * r_xi @ delta r_xi
                 #               = r_xi @ delta r_xi / (j * Ji)
-                K_n = n * r_xi / norm(r_xi)
+                K_n = n * r_xi / ji
             else:
                 K_n = self.material_model.K_n(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
                 K_m = self.material_model.K_m(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
@@ -1043,8 +1072,8 @@ class Kirchhoff:
                 T1 = T_SO3(psi1)
 
                 # compute nodal tangent vectors
-                t0 = j0 * (A_IK0 @ e1)
-                t1 = j1 * (A_IK1 @ e1)
+                ex0 = A_IK0[:, 0]
+                ex1 = A_IK1[:, 0]
 
                 ##########################
                 # centerline contributions
@@ -1053,14 +1082,16 @@ class Kirchhoff:
 
                 f_pot_el[self.nodalDOF_element_r[0]] -= N_r_xi[0] * n * qwi
                 f_pot_el[self.nodalDOF_element_r[2]] -= N_r_xi[2] * n * qwi
+
                 f_pot_el[self.nodalDOF_element_r[1]] -= (
-                    N_r_xi[1] * DExp_SO3(psi0, e1) @ n * qwi
+                    N_r_xi[1] * j0 * DExp_SO3(psi0, e1).T @ n * qwi
                 )
                 f_pot_el[self.nodalDOF_element_r[3]] -= (
-                    N_r_xi[3] * DExp_SO3(psi1, e1) @ n * qwi
+                    N_r_xi[3] * j1 * DExp_SO3(psi1, e1).T @ n * qwi
                 )
-                f_pot_el[self.nodalDOF_element_psi[0]] -= N_r_xi[1] * t0 @ n * qwi
-                f_pot_el[self.nodalDOF_element_psi[1]] -= N_r_xi[3] * t1 @ n * qwi
+
+                f_pot_el[self.nodalDOF_element_psi[0]] -= N_r_xi[1] * ex0 @ n * qwi
+                f_pot_el[self.nodalDOF_element_psi[1]] -= N_r_xi[3] * ex1 @ n * qwi
 
                 ##############################################
                 # derivative of virtual rotation contributions
@@ -1075,26 +1106,27 @@ class Kirchhoff:
                 f_pot_el[self.nodalDOF_element_r[1]] += N_psi[0] * T0.T @ tmp * qwi
                 f_pot_el[self.nodalDOF_element_r[3]] += N_psi[1] * T1.T @ tmp * qwi
 
-        # return f_pot_el
+        return f_pot_el
 
-        f_pot_el_num = approx_fprime(
-            # qe, lambda qe: -self.E_pot_el(qe, el), eps=1.0e-10, method="cs"
-            qe,
-            lambda qe: -self.E_pot_el(qe, el),
-            eps=1.0e-6,
-            method="3-point",
-        )
-        diff = f_pot_el - f_pot_el_num
-        # diff = diff[self.nodalDOF_element_r[0]]
-        # diff = diff[self.nodalDOF_element_r[1]]
-        # diff = diff[self.nodalDOF_element_r[2]]
-        # diff = diff[self.nodalDOF_element_r[3]]
+        # f_pot_el_num = approx_fprime(
+        #     qe, lambda qe: -self.E_pot_el(qe, el), eps=1.0e-10, method="cs"
+        #     # qe,
+        #     # lambda qe: -self.E_pot_el(qe, el),
+        #     # eps=1.0e-6,
+        #     # method="3-point",
+        # )
+        # diff = f_pot_el - f_pot_el_num
+        # # diff = diff[self.nodalDOF_element_r[0]]  # no error here for Timoshenko material law
+        # # diff = diff[self.nodalDOF_element_r[2]]  # no error here for Timoshenko material law
+        # # diff = diff[self.nodalDOF_element_r[1]]  # TODO: Since we do Petrov-Galerkin these are different!
+        # # diff = diff[self.nodalDOF_element_r[3]]  # TODO: Since we do Petrov-Galerkin these are different!
         # diff = diff[self.nodalDOF_element_psi[0]]
-        # diff = diff[self.nodalDOF_element_psi[1]]
-        error = np.linalg.norm(diff)  # / np.linalg.norm(f_pot_el_num)
-        # print(f"diff:\n{diff}")
-        print(f"error f_pot: {error}")
-        return f_pot_el_num
+        # # diff = diff[self.nodalDOF_element_psi[1]]
+        # error = np.linalg.norm(diff) #/ np.linalg.norm(f_pot_el_num)
+        # # print(f"diff:\n{diff}")
+        # print(f"error f_pot: {error}")
+        # return f_pot_el_num
+        # # return f_pot_el
 
     def f_pot_q(self, t, q, coo):
         for el in range(self.nelement):
@@ -1749,7 +1781,7 @@ class Kirchhoff:
     ####################################################
     def nodes(self, q):
         q_body = q[self.qDOF]
-        r = np.zeros((3, int(self.nnode_r / 2)))
+        r = np.zeros((3, int(self.nnode_r / 2)), dtype=float)
         idx = 0
         for node, nodalDOF in enumerate(self.nodalDOF_r):
             if node % 2 == 0:
@@ -2261,7 +2293,8 @@ class KirchhoffSingularity:
 
         return r_xi, A_IK, K_Kappa_bar
 
-    def eval(self, qe, qp, case="director"):
+    def eval(self, qe, qp, case="absolute"):
+        # def eval(self, qe, qp, case="director"):
         # def eval(self, qe, qp, case="Meier"):
         # def eval(self, qe, qp, case="SE(3)"):
         # evaluate shape functions
@@ -2299,45 +2332,45 @@ class KirchhoffSingularity:
 
         # TODO: We should investigate normalization + orthonormalization as done by Abaqus
         if case == "director":
-            # # interpolate transformation matrix and its derivative
-            # A_IK = N_psi[0] * A_IK0 + N_psi[1] * A_IK1
-            # A_IK_xi = N_psi_xi[0] * A_IK0 + N_psi_xi[1] * A_IK1
+            # interpolate transformation matrix and its derivative
+            A_IK = N_psi[0] * A_IK0 + N_psi[1] * A_IK1
+            A_IK_xi = N_psi_xi[0] * A_IK0 + N_psi_xi[1] * A_IK1
 
-            # construct orthonormal basis
-            def project(a, b):
-                """Projection of a on b."""
-                return ((a @ b) / (b @ b)) * b
+            # # construct orthonormal basis
+            # def project(a, b):
+            #     """Projection of a on b."""
+            #     return ((a @ b) / (b @ b)) * b
 
-            def A_IK_fun(xi):
-                N_psi, _ = self.basis_functions_psi(xi)
+            # def A_IK_fun(xi):
+            #     N_psi, _ = self.basis_functions_psi(xi)
 
-                # interpolate transformation matrix
-                A_IK = N_psi[0] * A_IK0 + N_psi[1] * A_IK1
+            #     # interpolate transformation matrix
+            #     A_IK = N_psi[0] * A_IK0 + N_psi[1] * A_IK1
 
-                # construct orthonormal basis
-                d1, d2, d3 = A_IK.T
-                ux = d1
-                uy = d2 - project(d2, ux)
-                uz = d3 - project(d3, ux) - project(d3, uy)
-                ex = ux / norm(ux)
-                ey = uy / norm(uy)
-                ez = uz / norm(uz)
-                A_IK = np.vstack((ex, ey, ez)).T
+            #     # construct orthonormal basis
+            #     d1, d2, d3 = A_IK.T
+            #     ux = d1
+            #     uy = d2 - project(d2, ux)
+            #     uz = d3 - project(d3, ux) - project(d3, uy)
+            #     ex = ux / norm(ux)
+            #     ey = uy / norm(uy)
+            #     ez = uz / norm(uz)
+            #     A_IK = np.vstack((ex, ey, ez)).T
 
-                Q, R = np.linalg.qr(A_IK, mode="complete")
-                # print()
-                # print(f"Q:\n{Q}")
-                # print(f"R:\n{R}")
-                A_IK = Q
+            #     Q, R = np.linalg.qr(A_IK, mode="complete")
+            #     # print()
+            #     # print(f"Q:\n{Q}")
+            #     # print(f"R:\n{R}")
+            #     A_IK = Q
 
-                return A_IK
+            #     return A_IK
 
-            A_IK = A_IK_fun(qp)
-            error = np.linalg.norm(A_IK @ A_IK.T - np.eye(3))
-            if error > 1.0e-6:
-                print(f"||A_IK - I||: {error}")
-            # TODO: We have to compute the derivatives of the orthonormalization process
-            A_IK_xi = approx_fprime(qp, A_IK_fun)
+            # A_IK = A_IK_fun(qp)
+            # error = np.linalg.norm(A_IK @ A_IK.T - np.eye(3))
+            # if error > 1.0e-6:
+            #     print(f"||A_IK - I||: {error}")
+            # # TODO: We have to compute the derivatives of the orthonormalization process
+            # A_IK_xi = approx_fprime(qp, A_IK_fun)
 
             # compute curvature
             K_Kappa_bar = skew2ax(A_IK.T @ A_IK_xi)
@@ -2455,6 +2488,43 @@ class KirchhoffSingularity:
             # compute tangent vector
             r_xi = A_IK @ K_Gamma_bar
 
+        elif case == "absolute":
+            j = norm(r_xi)
+            ex = r_xi / j
+            A_IB = smallest_rotation(e1, ex)
+            alpha = N_psi[0] * phi0 + N_psi[1] * phi1
+            alpha_xi = N_psi_xi[0] * phi0 + N_psi_xi[1] * phi1
+            A_BK = Exp_SO3(ex * alpha)
+
+            # TODO: Is this the wrong way round???
+            # A_IK = A_IB @ A_BK
+            A_IK = A_BK @ A_IB
+
+            d1, d2, d3 = A_IK.T
+
+            # ############################################################################
+            # # curvature given by Romero2020 (https://doi.org/10.1007/s00707-019-02562-0)
+            # # using the left tangent vector t0 as reference, see (83) and (84)
+            # ############################################################################
+            # K_Kappa_bar = cross3(d1, r_xixi) / j
+            # a = cross3(e1, d1) / (j * (1.0 + e1 @ d1))
+            # K_Kappa_bar[0] += alpha_xi - a @ r_xixi
+
+            ###################################
+            # Mitterbach2020 (2.91) and (2.105)
+            ###################################
+            K_Kappa_bar = np.array(
+                [
+                    alpha_xi[0] + r_xixi @ cross3(d1, e1) / (j * (1.0 + d1 @ e1)),
+                    -r_xixi @ d3 / j,
+                    r_xixi @ d2 / j,
+                ]
+            )
+
+            # axial and shear strains
+            K_Gamma_bar = A_IK.T @ r_xi
+            # print(f"K_Gamma_Bar: {K_Gamma_bar}")
+
         else:
             raise NotImplementedError
 
@@ -2516,11 +2586,11 @@ class KirchhoffSingularity:
 
     # TODO: Use virtual work formulation described by Mitterbach and Romero2020!
     def f_pot_el(self, qe, el):
-        return approx_fprime(qe, lambda qe: self.E_pot_el(qe, el), method="2-point")
-        # return approx_fprime(qe, lambda qe: self.E_pot_el(qe, el), method="3-point")
-        # return approx_fprime(
-        #     qe, lambda qe: -self.E_pot_el(qe, el), eps=1.0e-10, method="cs"
-        # )
+        # return approx_fprime(qe, lambda qe: -self.E_pot_el(qe, el), method="2-point")
+        # return approx_fprime(qe, lambda qe: -self.E_pot_el(qe, el), method="3-point")
+        return approx_fprime(
+            qe, lambda qe: -self.E_pot_el(qe, el), eps=1.0e-10, method="cs"
+        )
         f_pot_el = np.zeros(self.nq_element)
 
         for i in range(self.nquadrature):
@@ -3098,21 +3168,36 @@ class KirchhoffSingularity:
             r_xidot += N_r_xi[node] * u[self.nodalDOF_element_r[node]]
 
         # interpolate superimposed angular velocity around d1
-        psi_dot = 0.0
+        alpha = 0.0
+        alpha_dot = 0.0
         for node in range(self.nnodes_element_psi):
-            psi_dot += N_psi[node] * u[self.nodalDOF_element_psi[node]]
+            alpha += N_psi[node] * q[self.nodalDOF_element_psi[node]]
+            alpha_dot += N_psi[node] * u[self.nodalDOF_element_psi[node]]
 
         # compute first director
-        ji = norm(r_xi)
-        d1 = r_xi / ji
+        j = norm(r_xi)
+        d1 = r_xi / j
 
-        # first directors derivative
-        d1_dot = (np.eye(3) - np.outer(d1, d1)) @ r_xidot / ji
+        ######################
+        # absolute formulation
+        ######################
+        j = norm(r_xi)
+        ex = r_xi / j
+        A_IB = smallest_rotation(e1, ex)
+        A_BK = Exp_SO3(ex * alpha)
+        A_IK = A_IB @ A_BK
 
-        # angular velocity of centerline and angle part
-        return cross3(d1, d1_dot) + d1 * psi_dot
+        d1, d2, d3 = A_IK.T
 
-        # return d1 * psi_dot + cross3(r_xi, r_xidot) / (r_xi @ r_xi)
+        K_Omega = np.array(
+            [
+                alpha_dot[0] + r_xidot @ cross3(d1, e1) / (j * (1.0 + d1 @ e1)),
+                -r_xidot @ d3 / j,
+                r_xidot @ d2 / j,
+            ]
+        )
+
+        return K_Omega
 
     # TODO:
     def K_Omega_q(self, t, q, u, frame_ID):
@@ -3208,21 +3293,15 @@ class KirchhoffSingularity:
     ####################################################
     # visualization
     ####################################################
-    # def nodes(self, q):
-    #     q_body = q[self.qDOF]
-    #     if self.basis == "Hermite":
-    #         r = np.zeros((3, int(self.nnode_r / 2)))
-    #         idx = 0
-    #         for node, nodalDOF in enumerate(self.nodalDOF_r):
-    #             if node % 2 == 0:
-    #                 r[:, idx] = q_body[nodalDOF]
-    #                 idx += 1
-    #         return r
-    #     else:
-    #         return np.array([q_body[nodalDOF] for nodalDOF in self.nodalDOF_r]).T
     def nodes(self, q):
         q_body = q[self.qDOF]
-        return np.array([q_body[nodalDOF] for nodalDOF in self.nodalDOF_r]).T
+        r = np.zeros((3, int(self.nnode_r / 2)), dtype=float)
+        idx = 0
+        for node, nodalDOF in enumerate(self.nodalDOF_r):
+            if node % 2 == 0:
+                r[:, idx] = q_body[nodalDOF]
+                idx += 1
+        return r
 
     def centerline(self, q, n=100):
         q_body = q[self.qDOF]

@@ -1556,7 +1556,16 @@ class DirectorAxisAngle:
     ####################################################
     def nodes(self, q):
         q_body = q[self.qDOF]
-        return np.array([q_body[nodalDOF] for nodalDOF in self.nodalDOF_r]).T
+        if self.basis_r == "Hermite":
+            r = np.zeros((3, int(self.nnodes_r / 2)), dtype=float)
+            idx = 0
+            for node, nodalDOF in enumerate(self.nodalDOF_r):
+                if node % 2 == 0:
+                    r[:, idx] = q_body[nodalDOF]
+                    idx += 1
+            return r
+        else:
+            return np.array([q_body[nodalDOF] for nodalDOF in self.nodalDOF_r]).T
 
     def centerline(self, q, n=100):
         q_body = q[self.qDOF]
