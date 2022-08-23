@@ -623,8 +623,8 @@ class Kirchhoff:
                 f_gyr_u_el = self.f_gyr_u_el(t, q[elDOF], u[elDOF], el)
                 coo.extend(f_gyr_u_el, (self.uDOF[elDOF], self.uDOF[elDOF]))
 
-    def eval(self, qe, qp, case="director"):
-        # def eval(self, qe, qp, case="SO(3)"):
+    # def eval(self, qe, qp, case="director"):
+    def eval(self, qe, qp, case="SO(3)"):
         # def eval(self, qe, qp, case="SR"):
         if case not in ["director", "SO(3)", "SR"]:
             raise RuntimeError(f'case: "{case}" is not implemented')
@@ -706,14 +706,22 @@ class Kirchhoff:
             ##################################
             # case 2: SO(3) x R3 interpolation
             ##################################
+            # relative rotation
             A_K0K1 = A_IK0.T @ A_IK1
+
+            # relativ rotation vector
             psi_K0K0 = Log_SO3(A_K0K1)
+
+            # interpolate relative rotation vector and its derivative
             psi = N_psi[1] * psi_K0K0
             psi_xi = N_psi_xi[1] * psi_K0K0
+
+            # compute composed rotation
             A_IK = A_IK0 @ Exp_SO3(psi)
+
+            # strain measures
             K_Kappa_bar = psi_xi
             K_Gamma_bar = A_IK.T @ r_xi
-            # print(f"K_Gamma_bar: {K_Gamma_bar.real}")
 
         # #############################
         # # case 3: SE(3) interpolation
@@ -874,13 +882,13 @@ class Kirchhoff:
                 A_IK = np.vstack((d1, d2, d3)).T
                 # print(f"norm(A_IK.T @ A_IK - eye(3)): {np.linalg.norm(A_IK.T @ A_IK - np.eye(3))}")
 
-                ############################################################################
-                # curvature given by Romero2020 (https://doi.org/10.1007/s00707-019-02562-0)
-                # using the left tangent vector t0 as reference, see (83) and (84)
-                ############################################################################
-                K_Kappa_bar = cross3(d1, r_xixi) / j
-                a = cross3(ex0, d1) / (j * (1.0 + ex0 @ d1))
-                K_Kappa_bar[0] += alpha_xi - a @ r_xixi
+                # ############################################################################
+                # # curvature given by Romero2020 (https://doi.org/10.1007/s00707-019-02562-0)
+                # # using the left tangent vector t0 as reference, see (83) and (84)
+                # ############################################################################
+                # K_Kappa_bar = cross3(d1, r_xixi) / j
+                # a = cross3(ex0, d1) / (j * (1.0 + ex0 @ d1))
+                # K_Kappa_bar[0] += alpha_xi - a @ r_xixi
 
                 # # Meier2014
                 # kappa_bar = cross3(d1, r_xixi) / j
@@ -891,12 +899,16 @@ class Kirchhoff:
                 #     r_xixi @ d2 / j,
                 # ])
 
-                # # Mitterbach2020 (2.91) and (2.105)
-                # K_Kappa_bar = np.array([
-                #     alpha_xi + r_xixi @ cross3(d1, ex0) / (j * (1.0 + ex0 @ d1)),
-                #     -r_xixi @ d3 / j, # TODO: Why is this not a relative strain measure?
-                #     r_xixi @ d2 / j,
-                # ])
+                # Mitterbach2020 (2.91) and (2.105)
+                K_Kappa_bar = np.array(
+                    [
+                        alpha_xi + r_xixi @ cross3(d1, ex0) / (j * (1.0 + ex0 @ d1)),
+                        -r_xixi
+                        @ d3
+                        / j,  # TODO: Why is this not a relative strain measure?
+                        r_xixi @ d2 / j,
+                    ]
+                )
 
                 ###########################
                 ###########################
@@ -1026,6 +1038,7 @@ class Kirchhoff:
             K_Gamma = K_Gamma_bar / Ji
             ji = norm(r_xi)
             lambda_ = ji / Ji
+            # lambda_ = norm(K_Gamma)
 
             # torsional and flexural strains
             K_Kappa = K_Kappa_bar / Ji
