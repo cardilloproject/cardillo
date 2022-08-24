@@ -319,7 +319,7 @@ def psi_C(psi):
 use_quaternions = False
 # use_quaternions = True
 
-
+# TODO: I think Petrov-Galerkin is too much for this strange parametrization!
 class Kirchhoff:
     def __init__(
         self,
@@ -332,8 +332,11 @@ class Kirchhoff:
         q0=None,
         u0=None,
         use_Kirchhoff=False,
+        # use_PetrovGalerkin=True,
+        use_PetrovGalerkin=False,
     ):
         self.use_Kirchhoff = use_Kirchhoff
+        self.use_PetrovGalerkin = use_PetrovGalerkin
 
         # beam properties
         self.materialModel = material_model  # material model
@@ -623,8 +626,8 @@ class Kirchhoff:
                 f_gyr_u_el = self.f_gyr_u_el(t, q[elDOF], u[elDOF], el)
                 coo.extend(f_gyr_u_el, (self.uDOF[elDOF], self.uDOF[elDOF]))
 
-    # def eval(self, qe, qp, case="director"):
-    def eval(self, qe, qp, case="SO(3)"):
+    def eval(self, qe, qp, case="director"):
+        # def eval(self, qe, qp, case="SO(3)"):
         # def eval(self, qe, qp, case="SR"):
         if case not in ["director", "SO(3)", "SR"]:
             raise RuntimeError(f'case: "{case}" is not implemented')
@@ -882,13 +885,13 @@ class Kirchhoff:
                 A_IK = np.vstack((d1, d2, d3)).T
                 # print(f"norm(A_IK.T @ A_IK - eye(3)): {np.linalg.norm(A_IK.T @ A_IK - np.eye(3))}")
 
-                # ############################################################################
-                # # curvature given by Romero2020 (https://doi.org/10.1007/s00707-019-02562-0)
-                # # using the left tangent vector t0 as reference, see (83) and (84)
-                # ############################################################################
-                # K_Kappa_bar = cross3(d1, r_xixi) / j
-                # a = cross3(ex0, d1) / (j * (1.0 + ex0 @ d1))
-                # K_Kappa_bar[0] += alpha_xi - a @ r_xixi
+                ############################################################################
+                # curvature given by Romero2020 (https://doi.org/10.1007/s00707-019-02562-0)
+                # using the left tangent vector t0 as reference, see (83) and (84)
+                ############################################################################
+                K_Kappa_bar = cross3(d1, r_xixi) / j
+                a = cross3(ex0, d1) / (j * (1.0 + ex0 @ d1))
+                K_Kappa_bar[0] += alpha_xi - a @ r_xixi
 
                 # # Meier2014
                 # kappa_bar = cross3(d1, r_xixi) / j
@@ -899,16 +902,16 @@ class Kirchhoff:
                 #     r_xixi @ d2 / j,
                 # ])
 
-                # Mitterbach2020 (2.91) and (2.105)
-                K_Kappa_bar = np.array(
-                    [
-                        alpha_xi + r_xixi @ cross3(d1, ex0) / (j * (1.0 + ex0 @ d1)),
-                        -r_xixi
-                        @ d3
-                        / j,  # TODO: Why is this not a relative strain measure?
-                        r_xixi @ d2 / j,
-                    ]
-                )
+                # # Mitterbach2020 (2.91) and (2.105)
+                # K_Kappa_bar = np.array(
+                #     [
+                #         alpha_xi + r_xixi @ cross3(d1, ex0) / (j * (1.0 + ex0 @ d1)),
+                #         -r_xixi
+                #         @ d3
+                #         / j,  # TODO: Why is this not a relative strain measure?
+                #         r_xixi @ d2 / j,
+                #     ]
+                # )
 
                 ###########################
                 ###########################
@@ -1046,12 +1049,11 @@ class Kirchhoff:
             # compute contact forces and couples from partial derivatives of
             # the strain energy function w.r.t. strain measures
             if self.use_Kirchhoff:
-                n = self.material_model.n(lambda_, K_Kappa, K_Kappa0)
+                n1 = self.material_model.n(lambda_, K_Kappa, K_Kappa0)
                 K_m = self.material_model.K_m(lambda_, K_Kappa, K_Kappa0)
                 # delta lambda_ = delta (sqrt(r_xi @ r_xi)) / Ji
                 #               = 0.5 / (ji * Ji) * 2 * r_xi @ delta r_xi
                 #               = r_xi @ delta r_xi / (j * Ji)
-                K_n = n * r_xi / ji
             else:
                 K_n = self.material_model.K_n(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
                 K_m = self.material_model.K_m(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
@@ -1061,12 +1063,12 @@ class Kirchhoff:
             ############################
 
             # evaluate shape functions
-            # TODO: This is redundantly done in self.eval!
+            # TODO: This is redundantly called in self.eval!
             N_r, N_r_xi, N_r_xixi = self.basis_functions_r(qpi)
             N_psi, N_psi_xi = self.basis_functions_psi(qpi)
 
             # extract nodal quantities
-            # TODO: This is redundantly done in self.eval!
+            # TODO: This is redundantly called in self.eval!
             if use_quaternions:
                 raise NotImplementedError
             else:
@@ -1081,65 +1083,193 @@ class Kirchhoff:
                 # nodal rotation matrices
                 A_IK0 = Exp_SO3(psi0)
                 A_IK1 = Exp_SO3(psi1)
-                T0 = T_SO3(psi0)
-                T1 = T_SO3(psi1)
 
                 # compute nodal tangent vectors
                 ex0 = A_IK0[:, 0]
                 ex1 = A_IK1[:, 0]
 
-                ##########################
-                # centerline contributions
-                ##########################
-                n = A_IK @ K_n
+                if self.use_Kirchhoff:
+                    ############################
+                    # nodal position vector part
+                    ############################
+                    K_n = n1 * e1
+                    n = n1 * r_xi / ji
+                    f_pot_el[self.nodalDOF_element_r[0]] -= N_r_xi[0] * n * qwi
+                    f_pot_el[self.nodalDOF_element_r[2]] -= N_r_xi[2] * n * qwi
 
-                f_pot_el[self.nodalDOF_element_r[0]] -= N_r_xi[0] * n * qwi
-                f_pot_el[self.nodalDOF_element_r[2]] -= N_r_xi[2] * n * qwi
+                    ###########################
+                    # nodal tangent vector part
+                    ###########################
+                    if self.use_PetrovGalerkin:
+                        f_pot_el[self.nodalDOF_element_r[1]] += (
+                            N_r_xi[1] * j0 * ax2skew(e1) @ A_IK0.T @ n * qwi
+                        )
+                        f_pot_el[self.nodalDOF_element_r[3]] += (
+                            N_r_xi[3] * j1 * ax2skew(e1) @ A_IK1.T @ n * qwi
+                        )
+                    else:
+                        f_pot_el[self.nodalDOF_element_r[1]] += (
+                            N_r_xi[1]
+                            * j0
+                            * T_SO3(psi0).T
+                            @ ax2skew(e1)
+                            @ A_IK0.T
+                            @ n
+                            * qwi
+                        )
+                        f_pot_el[self.nodalDOF_element_r[3]] += (
+                            N_r_xi[3]
+                            * j1
+                            * T_SO3(psi1).T
+                            @ ax2skew(e1)
+                            @ A_IK1.T
+                            @ n
+                            * qwi
+                        )
 
-                f_pot_el[self.nodalDOF_element_r[1]] -= (
-                    N_r_xi[1] * j0 * DExp_SO3(psi0, e1).T @ n * qwi
-                )
-                f_pot_el[self.nodalDOF_element_r[3]] -= (
-                    N_r_xi[3] * j1 * DExp_SO3(psi1, e1).T @ n * qwi
-                )
+                    #########################################
+                    # variation of tangent vector length part
+                    #########################################
+                    f_pot_el[self.nodalDOF_element_psi[0]] -= N_r_xi[1] * ex0 @ n * qwi
+                    f_pot_el[self.nodalDOF_element_psi[1]] -= N_r_xi[3] * ex1 @ n * qwi
 
-                f_pot_el[self.nodalDOF_element_psi[0]] -= N_r_xi[1] * ex0 @ n * qwi
-                f_pot_el[self.nodalDOF_element_psi[1]] -= N_r_xi[3] * ex1 @ n * qwi
+                    ##############################################
+                    # derivative of virtual rotation contributions
+                    ##############################################
+                    if self.use_PetrovGalerkin:
+                        f_pot_el[self.nodalDOF_element_r[1]] -= N_psi_xi[0] * K_m * qwi
+                        f_pot_el[self.nodalDOF_element_r[3]] -= N_psi_xi[1] * K_m * qwi
+                    else:
+                        f_pot_el[self.nodalDOF_element_r[1]] -= (
+                            N_psi_xi[0] * T_SO3(psi0).T @ K_m * qwi
+                        )
+                        f_pot_el[self.nodalDOF_element_r[3]] -= (
+                            N_psi_xi[1] * T_SO3(psi1).T @ K_m * qwi
+                        )
 
-                ##############################################
-                # derivative of virtual rotation contributions
-                ##############################################
-                f_pot_el[self.nodalDOF_element_r[1]] -= N_psi_xi[0] * T0.T @ K_m * qwi
-                f_pot_el[self.nodalDOF_element_r[3]] -= N_psi_xi[1] * T1.T @ K_m * qwi
+                    ################################
+                    # virtual rotation contributions
+                    ################################
+                    # tmp = cross3(K_Gamma_bar, K_n) + cross3(K_Kappa_bar, K_m)
+                    tmp = cross3(K_Kappa_bar, K_m)
+                    if self.use_PetrovGalerkin:
+                        f_pot_el[self.nodalDOF_element_r[1]] += N_psi[0] * tmp * qwi
+                        f_pot_el[self.nodalDOF_element_r[3]] += N_psi[1] * tmp * qwi
+                    else:
+                        f_pot_el[self.nodalDOF_element_r[1]] += (
+                            N_psi[0] * T_SO3(psi0).T @ tmp * qwi
+                        )
+                        f_pot_el[self.nodalDOF_element_r[3]] += (
+                            N_psi[1] * T_SO3(psi1).T @ tmp * qwi
+                        )
 
-                ################################
-                # virtual rotation contributions
-                ################################
-                tmp = cross3(K_Gamma_bar, K_n) + cross3(K_Kappa_bar, K_m)
-                f_pot_el[self.nodalDOF_element_r[1]] += N_psi[0] * T0.T @ tmp * qwi
-                f_pot_el[self.nodalDOF_element_r[3]] += N_psi[1] * T1.T @ tmp * qwi
+                else:
+                    n = A_IK @ K_n
+
+                    ############################
+                    # nodal position vector part
+                    ############################
+                    f_pot_el[self.nodalDOF_element_r[0]] -= N_r_xi[0] * n * qwi
+                    f_pot_el[self.nodalDOF_element_r[2]] -= N_r_xi[2] * n * qwi
+
+                    ###########################
+                    # nodal tangent vector part
+                    ###########################
+                    if self.use_PetrovGalerkin:
+                        f_pot_el[self.nodalDOF_element_r[1]] += (
+                            N_r_xi[1] * j0 * ax2skew(e1) @ A_IK0.T @ n * qwi
+                        )
+                        f_pot_el[self.nodalDOF_element_r[3]] += (
+                            N_r_xi[3] * j1 * ax2skew(e1) @ A_IK1.T @ n * qwi
+                        )
+                    else:
+                        f_pot_el[self.nodalDOF_element_r[1]] += (
+                            N_r_xi[1]
+                            * j0
+                            * T_SO3(psi0).T
+                            @ ax2skew(e1)
+                            @ A_IK0.T
+                            @ n
+                            * qwi
+                        )
+                        f_pot_el[self.nodalDOF_element_r[3]] += (
+                            N_r_xi[3]
+                            * j1
+                            * T_SO3(psi1).T
+                            @ ax2skew(e1)
+                            @ A_IK1.T
+                            @ n
+                            * qwi
+                        )
+
+                        # f_pot_el[self.nodalDOF_element_r[1]] -= (
+                        #     N_r_xi[1] * j0 * DExp_SO3(psi0, e1).T @ n * qwi
+                        # )
+                        # f_pot_el[self.nodalDOF_element_r[3]] -= (
+                        #     N_r_xi[3] * j1 * DExp_SO3(psi1, e1).T @ n * qwi
+                        # )
+
+                    #########################################
+                    # variation of tangent vector length part
+                    #########################################
+                    f_pot_el[self.nodalDOF_element_psi[0]] -= N_r_xi[1] * ex0 @ n * qwi
+                    f_pot_el[self.nodalDOF_element_psi[1]] -= N_r_xi[3] * ex1 @ n * qwi
+
+                    ##############################################
+                    # derivative of virtual rotation contributions
+                    ##############################################
+                    if self.use_PetrovGalerkin:
+                        f_pot_el[self.nodalDOF_element_r[1]] -= N_psi_xi[0] * K_m * qwi
+                        f_pot_el[self.nodalDOF_element_r[3]] -= N_psi_xi[1] * K_m * qwi
+                    else:
+                        f_pot_el[self.nodalDOF_element_r[1]] -= (
+                            N_psi_xi[0] * T_SO3(psi0).T @ K_m * qwi
+                        )
+                        f_pot_el[self.nodalDOF_element_r[3]] -= (
+                            N_psi_xi[1] * T_SO3(psi1).T @ K_m * qwi
+                        )
+
+                    ################################
+                    # virtual rotation contributions
+                    ################################
+                    tmp = cross3(K_Gamma_bar, K_n) + cross3(K_Kappa_bar, K_m)
+                    if self.use_PetrovGalerkin:
+                        f_pot_el[self.nodalDOF_element_r[1]] += N_psi[0] * tmp * qwi
+                        f_pot_el[self.nodalDOF_element_r[3]] += N_psi[1] * tmp * qwi
+                    else:
+                        f_pot_el[self.nodalDOF_element_r[1]] += (
+                            N_psi[0] * T_SO3(psi0).T @ tmp * qwi
+                        )
+                        f_pot_el[self.nodalDOF_element_r[3]] += (
+                            N_psi[1] * T_SO3(psi1).T @ tmp * qwi
+                        )
 
         return f_pot_el
 
-        # f_pot_el_num = approx_fprime(
-        #     qe, lambda qe: -self.E_pot_el(qe, el), eps=1.0e-10, method="cs"
-        #     # qe,
-        #     # lambda qe: -self.E_pot_el(qe, el),
-        #     # eps=1.0e-6,
-        #     # method="3-point",
-        # )
-        # diff = f_pot_el - f_pot_el_num
-        # # diff = diff[self.nodalDOF_element_r[0]]  # no error here for Timoshenko material law
-        # # diff = diff[self.nodalDOF_element_r[2]]  # no error here for Timoshenko material law
-        # # diff = diff[self.nodalDOF_element_r[1]]  # TODO: Since we do Petrov-Galerkin these are different!
-        # # diff = diff[self.nodalDOF_element_r[3]]  # TODO: Since we do Petrov-Galerkin these are different!
+        f_pot_el_num = approx_fprime(
+            qe,
+            lambda qe: -self.E_pot_el(qe, el),
+            eps=1.0e-10,
+            method="cs"
+            # qe,
+            # lambda qe: -self.E_pot_el(qe, el),
+            # eps=1.0e-6,
+            # method="3-point",
+        )
+        diff = f_pot_el - f_pot_el_num
+        # diff = diff[self.nodalDOF_element_r[0]]  # no error here for Timoshenko material law
+        # diff = diff[self.nodalDOF_element_r[2]]  # no error here for Timoshenko material law
+        diff = diff[
+            self.nodalDOF_element_r[1]
+        ]  # TODO: Since we do Petrov-Galerkin these are different!
+        # diff = diff[self.nodalDOF_element_r[3]]  # TODO: Since we do Petrov-Galerkin these are different!
         # diff = diff[self.nodalDOF_element_psi[0]]
-        # # diff = diff[self.nodalDOF_element_psi[1]]
-        # error = np.linalg.norm(diff) #/ np.linalg.norm(f_pot_el_num)
-        # # print(f"diff:\n{diff}")
-        # print(f"error f_pot: {error}")
-        # return f_pot_el_num
-        # # return f_pot_el
+        # diff = diff[self.nodalDOF_element_psi[1]]
+        error = np.linalg.norm(diff)  # / np.linalg.norm(f_pot_el_num)
+        # print(f"diff:\n{diff}")
+        print(f"error f_pot: {error}")
+        return f_pot_el_num
+        # return f_pot_el
 
     def f_pot_q(self, t, q, coo):
         for el in range(self.nelement):
@@ -1151,8 +1281,8 @@ class Kirchhoff:
             coo.extend(f_pot_q_el, (self.uDOF[elDOF], self.qDOF[elDOF]))
 
     def f_pot_q_el(self, qe, el):
-        return approx_fprime(qe, lambda qe: self.f_pot_el(qe, el), method="2-point")
-        # return approx_fprime(qe, lambda qe: self.f_pot_el(qe, el), method="3-point")
+        # return approx_fprime(qe, lambda qe: self.f_pot_el(qe, el), method="2-point")
+        return approx_fprime(qe, lambda qe: self.f_pot_el(qe, el), method="3-point")
         # return approx_fprime(qe, lambda qe: self.f_pot_el(qe, el), eps=1e-10, method="cs")
 
         f_pot_q_el = np.zeros((self.nq_element, self.nq_element))
@@ -1520,26 +1650,29 @@ class Kirchhoff:
             "ijk,j->ik", self.A_IK_q(t, q, frame_ID), cross3(K_Omega, K_r_SP)
         )
 
-    # TODO:
+    # TODO: This is not correct for Petrov-Galerkin!
     def J_P(self, t, q, frame_ID, K_r_SP=np.zeros(3)):
-        # J_P_num = approx_fprime(
-        #     q,
-        #     lambda q: self.r_OP(t, q, frame_ID, K_r_SP),
-        #     eps=1e-10,
-        #     method="cs",
-        # )
-        J_P_num = approx_fprime(
-            q,
-            lambda q: self.r_OP(t, q, frame_ID, K_r_SP),
-            method="2-point",
-        )
-        # J_P_num = approx_fprime(
-        #     np.zeros(self.nq_element), lambda u: self.v_P(t, q, u, frame_ID, K_r_SP)
-        # )
-        # diff = J_P_num - J_P
-        # error = np.linalg.norm(diff)
-        # print(f"error J_P: {error}")
-        return J_P_num
+        if self.use_PetrovGalerkin:
+            raise NotADirectoryError
+        else:
+            # J_P_num = approx_fprime(
+            #     q,
+            #     lambda q: self.r_OP(t, q, frame_ID, K_r_SP),
+            #     eps=1e-10,
+            #     method="cs",
+            # )
+            J_P_num = approx_fprime(
+                q,
+                lambda q: self.r_OP(t, q, frame_ID, K_r_SP),
+                method="3-point",
+            )
+            # J_P_num = approx_fprime(
+            #     np.zeros(self.nq_element), lambda u: self.v_P(t, q, u, frame_ID, K_r_SP)
+            # )
+            # diff = J_P_num - J_P
+            # error = np.linalg.norm(diff)
+            # print(f"error J_P: {error}")
+            return J_P_num
 
     # TODO:
     def J_P_q(self, t, q, frame_ID, K_r_SP=np.zeros(3)):
@@ -1628,67 +1761,66 @@ class Kirchhoff:
         return a_P_u_num
 
     def K_Omega(self, t, q, u, frame_ID):
-        """Since we use Petrov-Galerkin method we only interpoalte the nodal
-        angular velocities in the K-frame.
-        """
         # evaluate shape functions
         N_psi, _ = self.basis_functions_psi(frame_ID[0])
 
-        # #########################
-        # # Petrov-Galerkin version
-        # #########################
-        # # compute nodal angular velocities
-        # K_Omega0 = u[self.nodalDOF_element_r[1]]
-        # K_Omega1 = u[self.nodalDOF_element_r[3]]
-
-        #########################
-        # Bubnov-Galerkin version
-        #########################
-
-        # TODO: Nodal angular velcitiy of unit quaternions
-        if use_quaternions:
-            # nodal real parts of quaternions and their time derivative
-            p00 = q[self.nodalDOF_element_psi[0]]
-            p01 = q[self.nodalDOF_element_psi[1]]
-            p0_dot0 = u[self.nodalDOF_element_psi[0]]
-            p0_dot1 = u[self.nodalDOF_element_psi[1]]
-
-            # nodal quaternion vector parts and their time derivatives
-            p0 = q[self.nodalDOF_element_r[1]]
-            p1 = q[self.nodalDOF_element_r[3]]
-            p_dot0 = u[self.nodalDOF_element_r[1]]
-            p_dot1 = u[self.nodalDOF_element_r[3]]
-
-            # build nodal quaternions
-            P0 = np.array([*p00, *p0])
-            P_dot0 = np.array([*p0_dot0, *p_dot0])
-            P1 = np.array([*p01, *p1])
-            P_dot1 = np.array([*p0_dot1, *p_dot1])
-
-            # compute normalized quaternion quantities
-            Q0 = P0 / norm(P0)
-            Q1 = P1 / norm(P1)
-            Q0_inv = np.array([Q0[0], *-Q0[1:]])
-            Q1_inv = np.array([Q1[0], *-Q1[1:]])
-            Q_dot0 = (P_dot0 - Q0 * (Q0 @ P_dot0)) / norm(P0)
-            Q_dot1 = (P_dot1 - Q1 * (Q1 @ P_dot1)) / norm(P1)
-
-            # compute nodal angular velcoties in the body fixed frame,
-            # see Egeland2002, (6.325)
-            # Egenland2002: https://folk.ntnu.no/oe/Modeling%20and%20Simulation.pdf
-            K_Omega0 = 2.0 * quatprod(Q0_inv, Q_dot0)[1:]
-            K_Omega1 = 2.0 * quatprod(Q1_inv, Q_dot1)[1:]
+        if self.use_PetrovGalerkin:
+            #########################
+            # Petrov-Galerkin version
+            #########################
+            # compute nodal angular velocities
+            K_Omega0 = u[self.nodalDOF_element_r[1]]
+            K_Omega1 = u[self.nodalDOF_element_r[3]]
 
         else:
-            # extract nodal rotation vectors and their time derivatives
-            psi0 = q[self.nodalDOF_element_r[1]]
-            psi1 = q[self.nodalDOF_element_r[3]]
-            psi_dot0 = u[self.nodalDOF_element_r[1]]
-            psi_dot1 = u[self.nodalDOF_element_r[3]]
+            #########################
+            # Bubnov-Galerkin version
+            #########################
 
-            # compute nodal angular velocities
-            K_Omega0 = T_SO3(psi0) @ psi_dot0
-            K_Omega1 = T_SO3(psi1) @ psi_dot1
+            # TODO: Check this again
+            if use_quaternions:
+                # nodal real parts of quaternions and their time derivative
+                p00 = q[self.nodalDOF_element_psi[0]]
+                p01 = q[self.nodalDOF_element_psi[1]]
+                p0_dot0 = u[self.nodalDOF_element_psi[0]]
+                p0_dot1 = u[self.nodalDOF_element_psi[1]]
+
+                # nodal quaternion vector parts and their time derivatives
+                p0 = q[self.nodalDOF_element_r[1]]
+                p1 = q[self.nodalDOF_element_r[3]]
+                p_dot0 = u[self.nodalDOF_element_r[1]]
+                p_dot1 = u[self.nodalDOF_element_r[3]]
+
+                # build nodal quaternions
+                P0 = np.array([*p00, *p0])
+                P_dot0 = np.array([*p0_dot0, *p_dot0])
+                P1 = np.array([*p01, *p1])
+                P_dot1 = np.array([*p0_dot1, *p_dot1])
+
+                # compute normalized quaternion quantities
+                Q0 = P0 / norm(P0)
+                Q1 = P1 / norm(P1)
+                Q0_inv = np.array([Q0[0], *-Q0[1:]])
+                Q1_inv = np.array([Q1[0], *-Q1[1:]])
+                Q_dot0 = (P_dot0 - Q0 * (Q0 @ P_dot0)) / norm(P0)
+                Q_dot1 = (P_dot1 - Q1 * (Q1 @ P_dot1)) / norm(P1)
+
+                # compute nodal angular velcoties in the body fixed frame,
+                # see Egeland2002, (6.325)
+                # Egenland2002: https://folk.ntnu.no/oe/Modeling%20and%20Simulation.pdf
+                K_Omega0 = 2.0 * quatprod(Q0_inv, Q_dot0)[1:]
+                K_Omega1 = 2.0 * quatprod(Q1_inv, Q_dot1)[1:]
+
+            else:
+                # extract nodal rotation vectors and their time derivatives
+                psi0 = q[self.nodalDOF_element_r[1]]
+                psi1 = q[self.nodalDOF_element_r[3]]
+                psi_dot0 = u[self.nodalDOF_element_r[1]]
+                psi_dot1 = u[self.nodalDOF_element_r[3]]
+
+                # compute nodal angular velocities
+                K_Omega0 = T_SO3(psi0) @ psi_dot0
+                K_Omega1 = T_SO3(psi1) @ psi_dot1
 
         # interpolate angular velocities
         return N_psi[0] * K_Omega0 + N_psi[1] * K_Omega1

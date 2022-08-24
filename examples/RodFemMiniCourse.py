@@ -21,8 +21,8 @@ from math import sin, cos, pi
 
 import matplotlib.pyplot as plt
 
-# use_Kirchhoff = True
-use_Kirchhoff = False
+use_Kirchhoff = True
+# use_Kirchhoff = False
 
 
 def statics():
@@ -162,9 +162,9 @@ def statics():
 
     # moment at right end
     Fi = material_model.Fi
-    M = lambda t: t * 2 * np.pi * (Fi[0] * e1 + Fi[2] * e3) / L * 0.45
+    # M = lambda t: t * 2 * np.pi * (Fi[0] * e1 + Fi[2] * e3) / L * 0.45
     # M = lambda t: t * 2 * np.pi * Fi[0] * e1 / L * 0.45
-    # M = lambda t: t * 2 * np.pi * Fi[1] * e2 / L * 0.45
+    M = lambda t: t * 2 * np.pi * Fi[1] * e2 / L * 0.45
     # M = lambda t: t * 2 * np.pi * Fi[2] * e3 / L  * 0.45
     moment = K_Moment(M, beam, (1,))
 
