@@ -450,10 +450,10 @@ def convergence_quarter_circle():
     rtol = 0
     n_load_steps = 20
 
-    L = 1.0e4
+    L = 1.0e3
     slenderness = 1.0e3
-    # atol = 1.0e-8
-    atol = 1.0e-9
+    # atol = 1.0e-9
+    atol = 1.0e-10
 
     # used cross section
     width = L / slenderness
@@ -507,22 +507,22 @@ def convergence_quarter_circle():
 
         # moment at the beam's tip
         Fi = material_model.Fi
-        M = lambda t: (e3 * Fi[2]) * t * 2 * np.pi / L * 0.25
+        m = Fi[2] * 2 * np.pi / L * 0.25
+        M = lambda t: t * e3 * m
         moment = K_Moment(M, beam, (1,))
 
         # force at the beam's tip
-        # f = lambda t: t * 1e-4 * Fi[2] / L * e3 # used in the paper!
-        # f = lambda t: t * 1e-4 * Fi / L
-        f = lambda t: t * 1e-3 * Fi / L
-        print(f"f_max: {f(1)}")
-        force = Force(f, beam, frame_ID=(1,))
+        f = m / L
+        F = lambda t: t * f * e3
+        print(f"f_max: {F(1)}")
+        force = Force(F, beam, frame_ID=(1,))
 
         # assemble the model
         model = Model()
         model.add(beam)
         model.add(frame1)
         model.add(joint1)
-        # model.add(moment)
+        model.add(moment)
         model.add(force)
         model.assemble()
 
@@ -706,12 +706,12 @@ def objectivity_quarter_circle():
     rtol = 0
     n = 10  # number of full rotations
     t_star = 0.1  # fraction of deformation pseudo time
-    # n_load_steps = 200
     n_load_steps = 500  # used for the paper
 
-    L = 1.0e4
+    L = 1.0e3
     slenderness = 1.0e3
-    atol = 1.0e-9
+    # atol = 1.0e-9
+    atol = 1.0e-10
 
     # used cross section
     width = L / slenderness
@@ -760,8 +760,10 @@ def objectivity_quarter_circle():
     # moment at the beam's tip
     Fi = material_model.Fi
 
+    m = Fi[2] * 2 * np.pi / L * 0.25
+
     def M(t):
-        M_max = (e3 * Fi[2]) * 2 * np.pi / L * 0.25
+        M_max = m * e3
         if t <= t_star:
             return t / t_star * M_max
         else:
@@ -771,8 +773,7 @@ def objectivity_quarter_circle():
 
     # force at the beam's tip
     def f(t):
-        # f_max = 1e-4 * Fi[2] / L * e3 # used in the paper!
-        f_max = 1e-4 * Fi / L
+        f_max = (m / L) * e3
         if t <= t_star:
             return t / t_star * f_max
         else:
@@ -1935,9 +1936,9 @@ def Bathe1979():
 
 
 if __name__ == "__main__":
-    membrane_and_locking_Meier()
-    # objectivity_quarter_circle()
+    # membrane_and_locking_Meier()
     # convergence_quarter_circle()
+    objectivity_quarter_circle()
     # HelixIbrahimbegovic1997()
     # HeavyTop()
     # BucklingRightHingedFrame()
