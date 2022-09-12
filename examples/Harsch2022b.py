@@ -1,4 +1,5 @@
 from re import A
+from cardillo.beams.spatial.SE3 import Log_SO3
 from cardillo.math import e1, e2, e3, sqrt, sin, cos, pi
 from cardillo.beams.spatial import (
     UserDefinedCrossSection,
@@ -25,6 +26,9 @@ from cardillo.beams import (
     animate_beam,
     TimoshenkoAxisAngleSE3,
     TimoshenkoAxisAngle,
+    DirectorAxisAngle,
+    TimoshenkoDirectorDirac,
+    TimoshenkoDirectorIntegral,
 )
 from cardillo.forces import Force, K_Force, K_Moment, Moment, DistributedForce1D
 from cardillo.model import Model
@@ -38,39 +42,168 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def locking_quarter_circle():
-    """This example examines shear and membrande locking as done in Meier2015.
+if False:
+
+    def locking_quarter_circle_old():
+        """This example examines shear and membrande locking as done in Meier2015.
+
+        References:
+        ===========
+        Meier2015: https://doi.org/10.1016/j.cma.2015.02.029
+        """
+        # Young's and shear modulus
+        E = 1.0  # Meier2015
+        G = 0.5  # Meier2015
+        nelements = 1
+        polynomial_degree = 1
+        rtol = 0
+
+        L = 1.0e4
+        # (slenderness, atol, n_load_steps
+        # this was used for the paper
+        # triplets = [
+        #     (1.0e1, 1.0e-6, 2),
+        #     (1.0e2, 1.0e-8, 2),
+        #     (1.0e3, 1.0e-9, 2),
+        #     (1.0e4, 1.0e-10, 2),  # this can't be sovle using the quaternion implementation
+        #     (1.0e5, 1.0e-11, 4),
+        # ]
+        triplets = [
+            (1.0e1, 1.0e-7, 3),
+            (1.0e2, 1.0e-8, 3),
+            (1.0e3, 1.0e-9, 3),
+            (
+                1.0e4,
+                1.0e-10,
+                3,
+            ),  # this can't be sovle using the quaternion implementation
+            (1.0e5, 1.0e-11, 3),
+        ]
+
+        for triplet in triplets:
+            slenderness, atol, n_load_steps = triplet
+
+            # used cross section
+            width = L / slenderness
+
+            # cross section and quadratic beam material
+            line_density = 1
+            cross_section = QuadraticCrossSection(line_density, width)
+            A_rho0 = line_density * cross_section.area
+            K_S_rho0 = line_density * cross_section.first_moment
+            K_I_rho0 = line_density * cross_section.second_moment
+            A = cross_section.area
+            Ip, I2, I3 = np.diag(cross_section.second_moment)
+            Ei = np.array([E * A, G * A, G * A])
+            Fi = np.array([G * Ip, E * I2, E * I3])
+            material_model = Simo1986(Ei, Fi)
+
+            # starting point and orientation of initial point, initial length
+            r_OP0 = np.zeros(3, dtype=float)
+            A_IK0 = np.eye(3, dtype=float)
+
+            q0 = TimoshenkoAxisAngleSE3.straight_configuration(
+                polynomial_degree,
+                nelements,
+                L,
+                r_OP=r_OP0,
+                A_IK=A_IK0,
+            )
+            beam = TimoshenkoAxisAngleSE3(
+                polynomial_degree,
+                material_model,
+                A_rho0,
+                K_S_rho0,
+                K_I_rho0,
+                nelements,
+                q0,
+            )
+
+            frame1 = Frame(r_OP=r_OP0, A_IK=A_IK0)
+            joint1 = RigidConnection(frame1, beam, r_OP0, frame_ID2=(0,))
+
+            # moment at the beam's tip
+            Fi = material_model.Fi
+            M = lambda t: t * (e3 * Fi[2]) * 2 * np.pi / L * 0.25
+            moment = K_Moment(M, beam, (1,))
+
+            # force at the beam's tip
+            # f = lambda t: t * 1e-4 * Fi[2] / L * e3 # used in the paper!
+            f = lambda t: t * 1e-4 * Fi / L
+            force = K_Force(f, beam, frame_ID=(1,))
+
+            # assemble the model
+            model = Model()
+            model.add(beam)
+            model.add(frame1)
+            model.add(joint1)
+            model.add(moment)
+            model.add(force)
+            model.assemble()
+
+            solver = Newton(
+                model,
+                n_load_steps=n_load_steps,
+                max_iter=100,
+                atol=atol,
+                rtol=rtol,
+            )
+
+            sol = solver.solve()
+            q = sol.q
+            nt = len(q)
+            t = sol.t[:nt]
+
+            # compute tip displacement
+            r_OB0 = beam.r_OP(t[-1], q[-1][beam.elDOF[-1]], frame_ID=(1,))
+            print(f"r_OP(1): {r_OB0}")
+
+        animate_beam(t, q, [beam], L, show=True)
+
+
+def membrane_and_locking_Meier():
+    """This example examines membrande and shear locking similar to Meier2015 example 6.1.
 
     References:
     ===========
     Meier2015: https://doi.org/10.1016/j.cma.2015.02.029
     """
     # Young's and shear modulus
-    E = 1.0  # Meier2015
-    G = 0.5  # Meier2015
-    nelements = 1
-    polynomial_degree = 1
-    rtol = 0
+    E = 1.0  # Meier2015 above (58)
+    G = 0.5  # Meier2015 above (58)
 
-    L = 1.0e4
+    # rod length
+    L = 1.0e3  # Meier2015 above (58)
+
+    # # dummy parameters for testing setup
+    # nelements_list = np.array([1, 8], dtype=int)
+    # nelements_ref = 16
+    # used parameters for the paper
+    nelements_list = np.array([1, 64], dtype=int)
+    nelements_ref = 256
+    # nelements_ref = 512
+
     # (slenderness, atol, n_load_steps
-    # this was used for the paper
-    # triplets = [
-    #     (1.0e1, 1.0e-6, 2),
-    #     (1.0e2, 1.0e-8, 2),
-    #     (1.0e3, 1.0e-9, 2),
-    #     (1.0e4, 1.0e-10, 2),  # this can't be sovle using the quaternion implementation
-    #     (1.0e5, 1.0e-11, 4),
-    # ]
     triplets = [
-        (1.0e1, 1.0e-6, 3),
-        (1.0e2, 1.0e-8, 3),
-        (1.0e3, 1.0e-9, 3),
-        (1.0e4, 1.0e-10, 3),  # this can't be sovle using the quaternion implementation
-        (1.0e5, 1.0e-11, 3),
+        (1.0e1, 1.0e-8, 20),
+        (1.0e2, 1.0e-9, 20),
+        (1.0e3, 1.0e-10, 20),
+        (1.0e4, 1.0e-11, 20),
+        # (1.0e5, 1.0e-12, 10),
     ]
 
-    for triplet in triplets:
+    # starting point and orientation of initial point, initial length
+    r_OP0 = np.zeros(3, dtype=float)
+    A_IK0 = np.eye(3, dtype=float)
+
+    solutions = np.zeros((len(triplets), len(nelements_list) + 1), dtype=object)
+    beams = np.zeros((len(triplets), len(nelements_list) + 1), dtype=object)
+    tip_displacement = np.zeros(
+        (len(triplets), len(nelements_list) + 1, 3), dtype=float
+    )
+    tip_orientation = np.zeros((len(triplets), len(nelements_list) + 1, 3), dtype=float)
+
+    for triplet_idx, triplet in enumerate(triplets):
         slenderness, atol, n_load_steps = triplet
 
         # used cross section
@@ -88,10 +221,267 @@ def locking_quarter_circle():
         Fi = np.array([G * Ip, E * I2, E * I3])
         material_model = Simo1986(Ei, Fi)
 
+        # moment at the beam's tip
+        Fi = material_model.Fi
+        m = Fi[2] * 2 * np.pi / L * 0.25
+        print(f"m: {m}")
+        M = lambda t: t * e3 * m
+
+        # force at the beam's tip
+        f = m / L  # Meier2015 below Table 3
+        print(f"f: {f}")
+        F = lambda t: t * e3 * f
+
         # starting point and orientation of initial point, initial length
         r_OP0 = np.zeros(3, dtype=float)
         A_IK0 = np.eye(3, dtype=float)
 
+        #############################################
+        # Director axis angle, the reference solution
+        #############################################
+        # p_r = 3
+        # p_psi = 1
+        # basis_r = "Hermite"
+        # basis_psi = "Lagrange"
+
+        # basis_r = "B-spline"
+        # basis_psi = "B-spline"
+        # p_r = 3
+        # p_psi = 3
+
+        basis_r = "Lagrange"
+        basis_psi = "Lagrange"
+        p_r = 1
+        p_psi = 1
+
+        q0_ref = DirectorAxisAngle.straight_configuration(
+            p_r,
+            p_psi,
+            basis_r,
+            basis_psi,
+            nelements_ref,
+            L,
+            r_OP=r_OP0,
+            A_IK=A_IK0,
+        )
+        beam_ref = DirectorAxisAngle(
+            material_model,
+            A_rho0,
+            K_S_rho0,
+            K_I_rho0,
+            p_r,
+            p_psi,
+            nelements_ref,
+            q0_ref,
+            basis_r=basis_r,
+            basis_psi=basis_psi,
+        )
+
+        frame = Frame(r_OP=r_OP0, A_IK=A_IK0)
+        joint = RigidConnection(frame, beam_ref, r_OP0, frame_ID2=(0,))
+
+        # assemble the model
+        model = Model()
+        model.add(beam_ref)
+        model.add(frame)
+        model.add(joint)
+        model.add(K_Moment(M, beam_ref, (1,)))
+        model.add(K_Force(F, beam_ref, frame_ID=(1,)))
+        model.assemble()
+
+        sol_ref = Newton(
+            model,
+            n_load_steps=n_load_steps,
+            max_iter=100,
+            atol=atol,
+            rtol=0.0,
+        ).solve()
+
+        beams[triplet_idx, 0] = beam_ref
+        solutions[triplet_idx, 0] = sol_ref
+
+        t = sol_ref.t[-1]
+        q = sol_ref.q[-1][beam_ref.qDOF_P((1,))]
+        tip_displacement[triplet_idx, 0] = beam_ref.r_OP(t, q, (1,))
+        tip_orientation[triplet_idx, 0] = Log_SO3(beam_ref.A_IK(t, q, (1,)))
+
+        #######
+        # SE(3)
+        #######
+        for nelements_idx, nelements in enumerate(nelements_list):
+            q0 = TimoshenkoAxisAngleSE3.straight_configuration(
+                1,
+                nelements,
+                L,
+                r_OP=r_OP0,
+                A_IK=A_IK0,
+            )
+            beam = TimoshenkoAxisAngleSE3(
+                1,
+                material_model,
+                A_rho0,
+                K_S_rho0,
+                K_I_rho0,
+                nelements,
+                q0,
+            )
+
+            frame = Frame(r_OP=r_OP0, A_IK=A_IK0)
+            joint = RigidConnection(frame, beam, r_OP0, frame_ID2=(0,))
+
+            # assemble the model
+            model = Model()
+            model.add(beam)
+            model.add(frame)
+            model.add(joint)
+            model.add(K_Moment(M, beam, (1,)))
+            model.add(K_Force(F, beam, frame_ID=(1,)))
+            model.assemble()
+
+            sol = Newton(
+                model,
+                n_load_steps=n_load_steps,
+                max_iter=100,
+                atol=atol,
+                rtol=0.0,
+            ).solve()
+
+            # sol = solver.solve()
+            # q = sol.q
+            # nt = len(q)
+            # t = sol.t[:nt]
+
+            # # compute tip displacement
+            # r_OB0 = beam.r_OP(t[-1], q[-1][beam.elDOF[-1]], frame_ID=(1,))
+            # print(f"r_OP(1): {r_OB0}")
+
+            beams[triplet_idx, nelements_idx + 1] = beam
+            solutions[triplet_idx, nelements_idx + 1] = sol
+
+            t = sol.t[-1]
+            q = sol.q[-1][beam.qDOF_P((1,))]
+            tip_displacement[triplet_idx, nelements_idx + 1] = beam.r_OP(t, q, (1,))
+            tip_orientation[triplet_idx, nelements_idx + 1] = Log_SO3(
+                beam.A_IK(t, q, (1,))
+            )
+
+    print(f"tip_displacement:\n{tip_displacement}")
+    print(f"tip_orientation:\n{tip_orientation}")
+
+    # sample centerline deflection of reference solution
+    num = 100
+    position_errors = np.zeros((len(triplets), len(nelements_list) + 1), dtype=float)
+    rotation_errors = np.zeros((len(triplets), len(nelements_list) + 1), dtype=float)
+    tip_position_errors = np.zeros(
+        (len(triplets), len(nelements_list) + 1), dtype=float
+    )
+    tip_rotation_errors = np.zeros(
+        (len(triplets), len(nelements_list) + 1), dtype=float
+    )
+    for i in range(len(triplets)):
+        sol_ref = solutions[i, 0]
+        beam_ref = beams[i, 0]
+
+        r_OP_ref = beam_ref.centerline(sol_ref.q[-1], n=num)
+        A_IK_ref = np.array(beam_ref.frames(sol_ref.q[-1], n=num)[1:])
+        for j in range(len(nelements_list) + 1):
+            beam = beams[i, j]
+            sol = solutions[i, j]
+
+            # centerline errors
+            r_OPi = beam.centerline(sol.q[-1], n=num)
+            diff = r_OPi - r_OP_ref
+            error = sqrt(sum([d @ d for d in diff])) / num
+            position_errors[i, j] = error
+
+            # tip displacement errors
+            tip_position_errors[i, j] = norm(diff[-1]) / norm(r_OP_ref[-1])
+
+            # rotation errors
+            A_IKi = np.array(beam.frames(sol.q[-1], n=num)[1:])
+            diff = []
+            for k in range(num):
+                diff.append(rodriguez_inv(A_IKi[:, :, k].T @ A_IK_ref[:, :, k]))
+            diff = np.array(diff)
+            error = sqrt(sum([d @ d for d in diff]))
+            rotation_errors[i, j] = error
+
+            # tip orientation errors
+            tip_rotation_errors[i, j] = norm(diff[-1]) / norm(r_OP_ref[-1])
+
+    print(f"e_r_100:\n{position_errors}")
+    print(f"e_psi_100:\n{rotation_errors}")
+    print(f"tip_position_errors:\n{tip_position_errors}")
+    print(f"tip_rotation_errors:\n{tip_rotation_errors}")
+
+    header = "ref, nel_1, nel_64"
+    np.savetxt(
+        "results/QuarterCircleLocking_e_r_100.txt",
+        position_errors,
+        delimiter=", ",
+        header=header,
+        comments="",
+    )
+    np.savetxt(
+        "results/QuarterCircleLocking_e_psi_100.txt",
+        rotation_errors,
+        delimiter=", ",
+        header=header,
+        comments="",
+    )
+
+    q = sol.q
+    nt = len(q)
+    t = sol.t[:nt]
+    animate_beam(t, q, [beam], L, show=True)
+
+
+def convergence_quarter_circle():
+    """This example examines shear and membrande locking as done in Meier2015.
+
+    References:
+    ===========
+    Meier2015: https://doi.org/10.1016/j.cma.2015.02.029
+    """
+    # Young's and shear modulus
+    E = 1.0  # Meier2015
+    G = 0.5  # Meier2015
+    polynomial_degree = 1
+    rtol = 0
+    n_load_steps = 20
+
+    L = 1.0e4
+    slenderness = 1.0e3
+    # atol = 1.0e-8
+    atol = 1.0e-9
+
+    # used cross section
+    width = L / slenderness
+
+    # cross section and quadratic beam material
+    line_density = 1
+    cross_section = QuadraticCrossSection(line_density, width)
+    A_rho0 = line_density * cross_section.area
+    K_S_rho0 = line_density * cross_section.first_moment
+    K_I_rho0 = line_density * cross_section.second_moment
+    A = cross_section.area
+    Ip, I2, I3 = np.diag(cross_section.second_moment)
+    Ei = np.array([E * A, G * A, G * A])
+    Fi = np.array([G * Ip, E * I2, E * I3])
+    material_model = Simo1986(Ei, Fi)
+
+    # # dummy parameters for testing setup
+    # nelements_list = np.array([1, 2, 4], dtype=int)
+    # nelements_ref = 8
+    # used parameters for the paper
+    nelements_list = np.array([1, 2, 4, 8, 16, 32, 64], dtype=int)
+    nelements_ref = 256
+
+    # starting point and orientation of initial point, initial length
+    r_OP0 = np.zeros(3, dtype=float)
+    A_IK0 = np.eye(3, dtype=float)
+
+    def solve(nelements):
         q0 = TimoshenkoAxisAngleSE3.straight_configuration(
             polynomial_degree,
             nelements,
@@ -109,25 +499,30 @@ def locking_quarter_circle():
             q0,
         )
 
+        # junctions
         frame1 = Frame(r_OP=r_OP0, A_IK=A_IK0)
-        joint1 = RigidConnection(frame1, beam, r_OP0, frame_ID2=(0,))
+
+        # left and right joint
+        joint1 = RigidConnection(frame1, beam, frame_ID2=(0,))
 
         # moment at the beam's tip
         Fi = material_model.Fi
-        M = lambda t: t * (e3 * Fi[2]) * 2 * np.pi / L * 0.25
+        M = lambda t: (e3 * Fi[2]) * t * 2 * np.pi / L * 0.25
         moment = K_Moment(M, beam, (1,))
 
         # force at the beam's tip
         # f = lambda t: t * 1e-4 * Fi[2] / L * e3 # used in the paper!
-        f = lambda t: t * 1e-4 * Fi / L
-        force = K_Force(f, beam, frame_ID=(1,))
+        # f = lambda t: t * 1e-4 * Fi / L
+        f = lambda t: t * 1e-3 * Fi / L
+        print(f"f_max: {f(1)}")
+        force = Force(f, beam, frame_ID=(1,))
 
         # assemble the model
         model = Model()
         model.add(beam)
         model.add(frame1)
         model.add(joint1)
-        model.add(moment)
+        # model.add(moment)
         model.add(force)
         model.assemble()
 
@@ -140,15 +535,160 @@ def locking_quarter_circle():
         )
 
         sol = solver.solve()
-        q = sol.q
-        nt = len(q)
-        t = sol.t[:nt]
 
-        # compute tip displacement
-        r_OB0 = beam.r_OP(t[-1], q[-1][beam.elDOF[-1]], frame_ID=(1,))
-        print(f"r_OP(1): {r_OB0}")
+        return beam, sol
 
-    animate_beam(t, q, [beam], L, show=True)
+    beam_ref, sol_ref = solve(nelements_ref)
+
+    # sample centerline deflection of reference solution
+    num = 100
+    xis = np.linspace(0, 1, num=num)
+    r_OP_ref = beam_ref.centerline(sol_ref.q[-1], n=num)
+    A_IK_ref = np.array(beam_ref.frames(sol_ref.q[-1], n=num)[1:])
+
+    position_errors = []
+    rotation_errors = []
+    for nelements in nelements_list:
+        beam, sol = solve(nelements)
+
+        # centerline errors
+        r_OPi = beam.centerline(sol.q[-1], n=num)
+        diff = r_OPi - r_OP_ref
+        error = sqrt(sum([d @ d for d in diff])) / num
+        position_errors.append(error)
+
+        # rotation errors
+        A_IKi = np.array(beam.frames(sol.q[-1], n=num)[1:])
+        diff = []
+        for i in range(num):
+            diff.append(rodriguez_inv(A_IKi[:, :, i].T @ A_IK_ref[:, :, i]))
+        diff = np.array(diff)
+        error = sqrt(sum([d @ d for d in diff]))
+        rotation_errors.append(error)
+
+    position_errors = np.array(position_errors)
+    print(f"position_errors: {position_errors}")
+    rotation_errors = np.array(rotation_errors)
+    print(f"rotation_errors: {rotation_errors}")
+
+    # export errors
+    header = "nelements, position_error, rotation_errors"
+    export_data = np.vstack([nelements_list, position_errors, rotation_errors]).T
+    np.savetxt(
+        "results/QuarterCircleConvergence.txt",
+        export_data,
+        delimiter=", ",
+        header=header,
+        comments="",
+    )
+
+    ##########################
+    # plot rate of convergence
+    ##########################
+    fig, ax = plt.subplots()
+    ax.loglog(nelements_list, position_errors, "-ok", label="e_r^100")
+    ax.loglog(nelements_list, rotation_errors, "-sk", label="e_psi^100")
+    ax.loglog(nelements_list, 90 / nelements_list, "--k", label="~1 / n_el")
+    ax.loglog(nelements_list, 90 / nelements_list**2, "-.k", label="~1 / n_el^2")
+    ax.grid()
+    ax.legend()
+
+    ###########################################
+    # strain measures of the reference solution
+    ###########################################
+    nxi = 100
+    xis = np.linspace(0, 1, num=nxi)
+
+    K_Gamma_bar = np.zeros((3, nxi))
+    K_Kappa_bar = np.zeros((3, nxi))
+    K_Gamma = np.zeros((3, nxi))
+    K_Kappa = np.zeros((3, nxi))
+    K_n = np.zeros((3, nxi))
+    K_m = np.zeros((3, nxi))
+    I_n = np.zeros((3, nxi))
+    I_m = np.zeros((3, nxi))
+    for i in range(nxi):
+        frame_ID = (xis[i],)
+        elDOF = beam_ref.qDOF_P(frame_ID)
+
+        # length of reference tangent vector
+        Qe = beam_ref.Q[elDOF]
+        _, _, K_Gamma_bar0, K_Kappa_bar0 = beam_ref.eval(Qe, xis[i])
+        J = norm(K_Gamma_bar0)
+
+        # current strain measures
+        qe = sol_ref.q[-1, beam_ref.qDOF][elDOF]
+        _, A_IK_i, K_Gamma_bar_i, K_Kappa_bar_i = beam_ref.eval(qe, xis[i])
+
+        K_Gamma_bar[:, i] = K_Gamma_bar_i
+        K_Kappa_bar[:, i] = K_Kappa_bar_i
+        K_Gamma[:, i] = K_Gamma_bar_i / J
+        K_Kappa[:, i] = K_Kappa_bar_i / J
+        K_n[:, i] = material_model.K_n(
+            K_Gamma_bar_i / J, K_Gamma_bar0 / J, K_Kappa_bar_i / J, K_Kappa_bar0 / J
+        )
+        K_m[:, i] = material_model.K_m(
+            K_Gamma_bar_i / J, K_Gamma_bar0 / J, K_Kappa_bar_i / J, K_Kappa_bar0 / J
+        )
+        I_n[:, i] = A_IK_i @ K_n[:, i]
+        I_m[:, i] = A_IK_i @ K_m[:, i]
+
+    fig, ax = plt.subplots(3, 2)
+    ax[0, 0].step(xis, K_Gamma[0] - 1.0, label="K_Gamma0 - 1.0")
+    ax[0, 0].step(xis, K_Gamma[1], label="K_Gamma1")
+    ax[0, 0].step(xis, K_Gamma[2], label="K_Gamma2")
+    ax[0, 0].grid()
+    ax[0, 0].legend()
+
+    ax[0, 1].step(xis, K_Kappa[0], label="K_Kappa0")
+    ax[0, 1].step(xis, K_Kappa[1], label="K_Kappa1")
+    ax[0, 1].step(xis, K_Kappa[2], label="K_Kappa2")
+    ax[0, 1].grid()
+    ax[0, 1].legend()
+
+    ax[1, 0].step(xis, K_n[0], label="K_n0")
+    ax[1, 0].step(xis, K_n[1], label="K_n1")
+    ax[1, 0].step(xis, K_n[2], label="K_n2")
+    ax[1, 0].grid()
+    ax[1, 0].legend()
+
+    ax[1, 1].step(xis, K_m[0], label="K_m0")
+    ax[1, 1].step(xis, K_m[1], label="K_m1")
+    ax[1, 1].step(xis, K_m[2], label="K_m2")
+    ax[1, 1].grid()
+    ax[1, 1].legend()
+
+    ax[2, 0].step(xis, I_n[0], label="I_n0")
+    ax[2, 0].step(xis, I_n[1], label="I_n1")
+    ax[2, 0].step(xis, I_n[2], label="I_n2")
+    ax[2, 0].grid()
+    ax[2, 0].legend()
+
+    ax[2, 1].step(xis, I_m[0], label="I_m0")
+    ax[2, 1].step(xis, I_m[1], label="I_m1")
+    ax[2, 1].step(xis, I_m[2], label="I_m2")
+    ax[2, 1].grid()
+    ax[2, 1].legend()
+
+    header = "xi, K_Gamma1_minus_1, K_Gamma2, K_Gamma3, K_Kappa1, K_Kappa2, K_Kappa3, K_n1, K_n2, K_n3, K_m1, K_m2, K_m3"
+    export_data = np.vstack(
+        [xis, K_Gamma[0] - 1.0, K_Gamma[1], K_Gamma[2], *K_Kappa, *K_n, *K_m]
+    ).T
+    np.savetxt(
+        "results/QuarterCircleConvergenceStrainMeasures.txt",
+        export_data,
+        delimiter=", ",
+        header=header,
+        comments="",
+    )
+
+    # compute tip displacement
+    r_OP = beam_ref.r_OP(
+        1, sol_ref.q[-1, beam_ref.qDOF][beam_ref.elDOF[-1]], frame_ID=(1,)
+    )
+    print(f"r_OP(xi=1): {r_OP}")
+
+    animate_beam(sol_ref.t, sol_ref.q, [beam_ref], scale=L)
 
 
 def objectivity_quarter_circle():
@@ -327,261 +867,6 @@ def objectivity_quarter_circle():
     # animation
     ###########
     animate_beam(t, q, [beam], L, show=True)
-
-
-def convergence_quarter_circle():
-    """This example examines shear and membrande locking as done in Meier2015.
-
-    References:
-    ===========
-    Meier2015: https://doi.org/10.1016/j.cma.2015.02.029
-    """
-    # Young's and shear modulus
-    E = 1.0  # Meier2015
-    G = 0.5  # Meier2015
-    polynomial_degree = 1
-    rtol = 0
-    # n_load_steps = 10
-    n_load_steps = 20
-
-    L = 1.0e4
-    slenderness = 1.0e3
-    # atol = 1.0e-8
-    atol = 1.0e-9
-
-    # used cross section
-    width = L / slenderness
-
-    # cross section and quadratic beam material
-    line_density = 1
-    cross_section = QuadraticCrossSection(line_density, width)
-    A_rho0 = line_density * cross_section.area
-    K_S_rho0 = line_density * cross_section.first_moment
-    K_I_rho0 = line_density * cross_section.second_moment
-    A = cross_section.area
-    Ip, I2, I3 = np.diag(cross_section.second_moment)
-    Ei = np.array([E * A, G * A, G * A])
-    Fi = np.array([G * Ip, E * I2, E * I3])
-    material_model = Simo1986(Ei, Fi)
-
-    # dummy parameters for testing setup
-    nelements_list = np.array([1, 2, 4], dtype=int)
-    nelements_ref = 8
-    # # used parameters for the paper
-    # nelements_list = np.array([1, 2, 4, 8, 16, 32, 64], dtype=int)
-    # nelements_ref = 256
-
-    # starting point and orientation of initial point, initial length
-    r_OP0 = np.zeros(3, dtype=float)
-    A_IK0 = np.eye(3, dtype=float)
-
-    def solve(nelements):
-        q0 = TimoshenkoAxisAngleSE3.straight_configuration(
-            polynomial_degree,
-            nelements,
-            L,
-            r_OP=r_OP0,
-            A_IK=A_IK0,
-        )
-        beam = TimoshenkoAxisAngleSE3(
-            polynomial_degree,
-            material_model,
-            A_rho0,
-            K_S_rho0,
-            K_I_rho0,
-            nelements,
-            q0,
-        )
-
-        # junctions
-        frame1 = Frame(r_OP=r_OP0, A_IK=A_IK0)
-
-        # left and right joint
-        joint1 = RigidConnection(frame1, beam, frame_ID2=(0,))
-
-        # moment at the beam's tip
-        Fi = material_model.Fi
-        M = lambda t: (e3 * Fi[2]) * t * 2 * np.pi / L * 0.25
-        moment = K_Moment(M, beam, (1,))
-
-        # force at the beam's tip
-        # f = lambda t: t * 1e-4 * Fi[2] / L * e3 # used in the paper!
-        f = lambda t: t * 1e-4 * Fi / L
-        print(f"f_max: {f(1)}")
-        force = Force(f, beam, frame_ID=(1,))
-
-        # assemble the model
-        model = Model()
-        model.add(beam)
-        model.add(frame1)
-        model.add(joint1)
-        # model.add(moment)
-        model.add(force)
-        model.assemble()
-
-        solver = Newton(
-            model,
-            n_load_steps=n_load_steps,
-            max_iter=100,
-            atol=atol,
-            rtol=rtol,
-        )
-
-        sol = solver.solve()
-
-        return beam, sol
-
-    beam_ref, sol_ref = solve(nelements_ref)
-
-    # sample centerline deflection of reference solution
-    num = 100
-    xis = np.linspace(0, 1, num=num)
-    r_OP_ref = beam_ref.centerline(sol_ref.q[-1], n=num)
-    A_IK_ref = np.array(beam_ref.frames(sol_ref.q[-1], n=num)[1:])
-
-    position_errors = []
-    rotation_errors = []
-    for nelements in nelements_list:
-        beam, sol = solve(nelements)
-
-        # centerline errors
-        r_OPi = beam.centerline(sol.q[-1], n=num)
-        diff = r_OPi - r_OP_ref
-        error = sqrt(sum([d @ d for d in diff])) / num
-        position_errors.append(error)
-
-        # rotation errors
-        A_IKi = np.array(beam.frames(sol.q[-1], n=num)[1:])
-        diff = []
-        for i in range(num):
-            diff.append(rodriguez_inv(A_IKi[:, :, i].T @ A_IK_ref[:, :, i]))
-        diff = np.array(diff)
-        error = sqrt(sum([d @ d for d in diff]))
-        rotation_errors.append(error)
-
-    position_errors = np.array(position_errors)
-    print(f"position_errors: {position_errors}")
-    rotation_errors = np.array(rotation_errors)
-    print(f"rotation_errors: {rotation_errors}")
-
-    # export errors
-    header = "nelements, position_error, rotation_errors"
-    export_data = np.vstack([nelements_list, position_errors, rotation_errors]).T
-    np.savetxt(
-        "results/QuarterCircleConvergence.txt",
-        export_data,
-        delimiter=", ",
-        header=header,
-        comments="",
-    )
-
-    ##########################
-    # plot rate of convergence
-    ##########################
-    fig, ax = plt.subplots()
-    ax.loglog(nelements_list, position_errors, "-ok", label="e_r^100")
-    ax.loglog(nelements_list, rotation_errors, "-sk", label="e_psi^100")
-    ax.loglog(nelements_list, 90 / nelements_list, "--k", label="~1 / n_el")
-    ax.loglog(nelements_list, 90 / nelements_list**2, "-.k", label="~1 / n_el^2")
-    ax.grid()
-    ax.legend()
-
-    ###########################################
-    # strain measures of the reference solution
-    ###########################################
-    nxi = 100
-    xis = np.linspace(0, 1, num=nxi)
-
-    K_Gamma_bar = np.zeros((3, nxi))
-    K_Kappa_bar = np.zeros((3, nxi))
-    K_Gamma = np.zeros((3, nxi))
-    K_Kappa = np.zeros((3, nxi))
-    K_n = np.zeros((3, nxi))
-    K_m = np.zeros((3, nxi))
-    I_n = np.zeros((3, nxi))
-    I_m = np.zeros((3, nxi))
-    for i in range(nxi):
-        frame_ID = (xis[i],)
-        elDOF = beam_ref.qDOF_P(frame_ID)
-
-        # length of reference tangent vector
-        Qe = beam_ref.Q[elDOF]
-        _, _, K_Gamma_bar0, K_Kappa_bar0 = beam_ref.eval(Qe, xis[i])
-        J = norm(K_Gamma_bar0)
-
-        # current strain measures
-        qe = sol_ref.q[-1, beam_ref.qDOF][elDOF]
-        _, A_IK_i, K_Gamma_bar_i, K_Kappa_bar_i = beam_ref.eval(qe, xis[i])
-
-        K_Gamma_bar[:, i] = K_Gamma_bar_i
-        K_Kappa_bar[:, i] = K_Kappa_bar_i
-        K_Gamma[:, i] = K_Gamma_bar_i / J
-        K_Kappa[:, i] = K_Kappa_bar_i / J
-        K_n[:, i] = material_model.K_n(
-            K_Gamma_bar_i / J, K_Gamma_bar0 / J, K_Kappa_bar_i / J, K_Kappa_bar0 / J
-        )
-        K_m[:, i] = material_model.K_m(
-            K_Gamma_bar_i / J, K_Gamma_bar0 / J, K_Kappa_bar_i / J, K_Kappa_bar0 / J
-        )
-        I_n[:, i] = A_IK_i @ K_n[:, i]
-        I_m[:, i] = A_IK_i @ K_m[:, i]
-
-    fig, ax = plt.subplots(3, 2)
-    ax[0, 0].step(xis, K_Gamma[0] - 1.0, label="K_Gamma0 - 1.0")
-    ax[0, 0].step(xis, K_Gamma[1], label="K_Gamma1")
-    ax[0, 0].step(xis, K_Gamma[2], label="K_Gamma2")
-    ax[0, 0].grid()
-    ax[0, 0].legend()
-
-    ax[0, 1].step(xis, K_Kappa[0], label="K_Kappa0")
-    ax[0, 1].step(xis, K_Kappa[1], label="K_Kappa1")
-    ax[0, 1].step(xis, K_Kappa[2], label="K_Kappa2")
-    ax[0, 1].grid()
-    ax[0, 1].legend()
-
-    ax[1, 0].step(xis, K_n[0], label="K_n0")
-    ax[1, 0].step(xis, K_n[1], label="K_n1")
-    ax[1, 0].step(xis, K_n[2], label="K_n2")
-    ax[1, 0].grid()
-    ax[1, 0].legend()
-
-    ax[1, 1].step(xis, K_m[0], label="K_m0")
-    ax[1, 1].step(xis, K_m[1], label="K_m1")
-    ax[1, 1].step(xis, K_m[2], label="K_m2")
-    ax[1, 1].grid()
-    ax[1, 1].legend()
-
-    ax[2, 0].step(xis, I_n[0], label="I_n0")
-    ax[2, 0].step(xis, I_n[1], label="I_n1")
-    ax[2, 0].step(xis, I_n[2], label="I_n2")
-    ax[2, 0].grid()
-    ax[2, 0].legend()
-
-    ax[2, 1].step(xis, I_m[0], label="I_m0")
-    ax[2, 1].step(xis, I_m[1], label="I_m1")
-    ax[2, 1].step(xis, I_m[2], label="I_m2")
-    ax[2, 1].grid()
-    ax[2, 1].legend()
-
-    header = "xi, K_Gamma1_minus_1, K_Gamma2, K_Gamma3, K_Kappa1, K_Kappa2, K_Kappa3, K_n1, K_n2, K_n3, K_m1, K_m2, K_m3"
-    export_data = np.vstack(
-        [xis, K_Gamma[0] - 1.0, K_Gamma[1], K_Gamma[2], *K_Kappa, *K_n, *K_m]
-    ).T
-    np.savetxt(
-        "results/QuarterCircleConvergenceStrainMeasures.txt",
-        export_data,
-        delimiter=", ",
-        header=header,
-        comments="",
-    )
-
-    # compute tip displacement
-    r_OP = beam_ref.r_OP(
-        1, sol_ref.q[-1, beam_ref.qDOF][beam_ref.elDOF[-1]], frame_ID=(1,)
-    )
-    print(f"r_OP(xi=1): {r_OP}")
-
-    animate_beam(sol_ref.t, sol_ref.q, [beam_ref], scale=L)
 
 
 def HelixIbrahimbegovic1997():
@@ -782,13 +1067,13 @@ def HelixIbrahimbegovic1997():
     nxi = 1000
     xis = np.linspace(0, 1, num=nxi)
 
-    K_Gamma = np.zeros((3, nxi))
-    K_Kappa = np.zeros((3, nxi))
-    for i in range(nxi):
-        frame_ID = (xis[i],)
-        elDOF = beam.qDOF_P(frame_ID)
-        qe = q[-1, beam.qDOF][elDOF]
-        _, _, K_Gamma[:, i], K_Kappa[:, i] = beam.eval(qe, xis[i])
+    # K_Gamma = np.zeros((3, nxi))
+    # K_Kappa = np.zeros((3, nxi))
+    # for i in range(nxi):
+    #     frame_ID = (xis[i],)
+    #     elDOF = beam.qDOF_P(frame_ID)
+    #     qe = q[-1, beam.qDOF][elDOF]
+    #     _, _, K_Gamma[:, i], K_Kappa[:, i] = beam.eval(qe, xis[i])
     ax[0].plot(xis, K_Gamma[0], "-r", label="K_Gamma0")
     ax[0].plot(xis, K_Gamma[1], "-g", label="K_Gamma1")
     ax[0].plot(xis, K_Gamma[2], "-b", label="K_Gamma2")
@@ -1650,10 +1935,10 @@ def Bathe1979():
 
 
 if __name__ == "__main__":
-    # locking_quarter_circle()
+    membrane_and_locking_Meier()
     # objectivity_quarter_circle()
     # convergence_quarter_circle()
     # HelixIbrahimbegovic1997()
     # HeavyTop()
     # BucklingRightHingedFrame()
-    Bathe1979()
+    # Bathe1979()
