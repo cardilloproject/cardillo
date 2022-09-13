@@ -177,12 +177,3 @@ class Point2Plane:
         # error = np.linalg.norm(dense - dense_num)
         # print(f'error: {error}')
         coo.extend(dense, (self.uDOF, self.qDOF))
-
-    def xi_N(self, t, q, u_pre, u_post):
-        return self.g_N_dot(t, q, u_post) + self.e_N * self.g_N_dot(t, q, u_pre)
-
-    def xi_N_q(self, t, q, u_pre, u_post, coo):
-        g_N_q_pre = self.g_N_dot_q_dense(t, q, u_pre)
-        g_N_q_post = self.g_N_dot_q_dense(t, q, u_post)
-        dense = g_N_q_post + self.e_N * g_N_q_pre
-        coo.extend(dense, (self.la_NDOF, self.qDOF))

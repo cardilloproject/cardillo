@@ -157,15 +157,6 @@ class Sphere2Plane:
     def g_N_dot_u(self, t, q, coo):
         coo.extend(self.g_N_dot_u_dense(t, q), (self.la_NDOF, self.uDOF))
 
-    def xi_N(self, t, q, u_pre, u_post):
-        return self.g_N_dot(t, q, u_post) + self.e_N * self.g_N_dot(t, q, u_pre)
-
-    def xi_N_q(self, t, q, u_pre, u_post, coo):
-        g_N_q_pre = self.g_N_dot_q_dense(t, q, u_pre)
-        g_N_q_post = self.g_N_dot_q_dense(t, q, u_post)
-        dense = g_N_q_post + self.e_N * g_N_q_pre
-        coo.extend(dense, (self.la_NDOF, self.qDOF))
-
     def W_N(self, t, q, coo):
         coo.extend(self.g_N_dot_u_dense(t, q).T, (self.uDOF, self.la_NDOF))
 
@@ -185,7 +176,8 @@ class Sphere2Plane:
         coo.extend(dense, (self.uDOF, self.qDOF))
 
     def __gamma_F(self, t, q, u):
-        v_C = self.v_P(t, q, u) + self.r * cross3(self.n(t), self.Omega(t, q, u))
+        v_C = self.v_P(t, q, u) + self.r * \
+            cross3(self.n(t), self.Omega(t, q, u))
         return self.t1t2(t) @ (v_C - self.v_Q(t))
 
     def gamma_F_q_dense(self, t, q, u):
@@ -429,7 +421,8 @@ class Sphere_to_plane2D:
         coo.extend(dense, (self.uDOF, self.qDOF))
 
     def __gamma_F(self, t, q, u):
-        v_C = self.v_P(t, q, u) + self.r * cross3(self.n(t), self.Omega(t, q, u))
+        v_C = self.v_P(t, q, u) + self.r * \
+            cross3(self.n(t), self.Omega(t, q, u))
         return np.array([self.t(t) @ (v_C - self.v_Q(t))])
 
     def gamma_F_q_dense(self, t, q, u):
