@@ -23,8 +23,8 @@ def norm(a: np.ndarray) -> float:
 
 
 def LeviCivita(i: int, j: int, k: int) -> int:
-    """Levi-Civita symbol, see https://en.wikipedia.org/wiki/Levi-Civita_symbol"""
-    return (i - j) * (j - k) * (k - i) / 2
+    """Levi-Civita symbol, see https://en.wikipedia.org/wiki/Levi-Civita_symbol """
+    return (i - j) * (j - k) * (k - i) // 2
 
 
 def ax2skew(a: np.ndarray) -> np.ndarray:
