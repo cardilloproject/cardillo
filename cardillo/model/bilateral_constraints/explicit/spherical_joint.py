@@ -1,12 +1,10 @@
 import numpy as np
-from cardillo.math.algebra import (
-    cross3,
-    ax2skew,
+
+from cardillo.math.rotations import (
     quat2mat,
     quat2mat_p,
-    norm4,
     quat2rot,
-    quat2rot_p,
+    quat2rot_p
 )
 
 
@@ -49,7 +47,8 @@ class Spherical_joint:
         B_q = quat2mat_p(q) / (2 * q2) - np.einsum(
             "ij,k->ijk", quat2mat(q), q / (q2**2)
         )
-        coo.extend(np.einsum("ijk,j->ik", B_q[:, 1:], u), (self.qDOF, self.qDOF))
+        coo.extend(
+            np.einsum("ijk,j->ik", B_q[:, 1:], u), (self.qDOF, self.qDOF))
 
     # other functions
     def A_B1B2(self, t, q):

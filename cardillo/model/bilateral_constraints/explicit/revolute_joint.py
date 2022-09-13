@@ -1,5 +1,5 @@
 import numpy as np
-from cardillo.math.algebra import A_IK_basic_z, dA_IK_basic_z
+from cardillo.math.rotations import A_IK_basic
 
 
 class Revolute_joint:
@@ -31,11 +31,11 @@ class Revolute_joint:
 
     # other functions
     def A_B1B2(self, t, q):
-        return A_IK_basic_z(q[0])
+        return A_IK_basic(q[0]).z()
 
     def A_B1B2_q(self, t, q):
         A_B1B2_q = np.zeros((3, 3, 1))
-        A_B1B2_q[:, :, 0] = dA_IK_basic_z(q[0])
+        A_B1B2_q[:, :, 0] = A_IK_basic(q[0]).dz()
         return A_B1B2_q
 
     def B1_r_B1B2(self, t, q):

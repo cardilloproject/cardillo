@@ -2,14 +2,11 @@ from math import pi, sin, cos
 import numpy as np
 from cardillo.math.algebra import (
     norm,
-    A_IK_basic_x,
-    A_IK_basic_z,
     ax2skew,
     cross3,
     e1,
     e2,
     e3,
-    inverse4D,
 )
 from cardillo.math.numerical_derivative import Numerical_derivative
 from scipy.optimize import fsolve
