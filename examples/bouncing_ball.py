@@ -91,72 +91,80 @@ if __name__ == "__main__":
     t1 = 2
     # dt = 1e-1
     # dt = 5e-2
-    dt = 1e-2
+    # dt = 1e-2
     # dt = 5e-3
     # TODO: Are convergence problems from finite differences or a problem of the solver?
-    # dt = 1e-3
+    dt = 1e-3
 
-    sol_g = NonsmoothNewmarkFirstOrder(model, t1, dt, atol=1.0e-8).solve()
-    # t_g = t = sol_g.t
-    # q_g = q = sol_g.q
-    t_g = sol_g.t
-    q_g = sol_g.q
-    u_g = sol_g.u
-    a_g = sol_g.a
-    la_N_g = sol_g.la_N
-    la_F_g = sol_g.la_F
-    La_N_g = sol_g.La_N
-    La_F_g = sol_g.La_F
-    P_N_g = sol_g.P_N
-    P_F_g = sol_g.P_F
-
-    # solver_fp = Generalized_alpha_3(model, t1, dt, numerical_jacobian=True)
-    solver_fp = NonsmoothGeneralizedAlpha(model, t1, dt)
-    # solver_fp = Moreau(model, t1, dt)
-    # solver_fp = MoreauGGL(model, t1, dt)
+    solver_fp = Moreau(model, t1, dt)
     sol_fp = solver_fp.solve()
     t_fp = t = sol_fp.t
     q_fp = q = sol_fp.q
-    # t_fp = sol_fp.t
-    # q_fp = sol_fp.q
     u_fp = sol_fp.u
     a_fp = np.zeros_like(u_fp)
     a_fp[1:] = (u_fp[1:] - u_fp[:-1]) / dt
     P_N_fp = sol_fp.P_N
     P_F_fp = sol_fp.P_F
 
+    # solver_other = NonsmoothGeneralizedAlpha(model, t1, dt)
+    # solver_other = Generalized_alpha_3(model, t1, dt, numerical_jacobian=True)
+    # solver_other = NonsmoothNewmarkFirstOrder(model, t1, dt, atol=1.0e-8)
+    solver_other = MoreauGGL(model, t1, dt)
+    sol_other = solver_other.solve()
+    t = sol_other.t
+    q = sol_other.q
+    t_other = sol_other.t
+    q_other = sol_other.q
+    u_other = sol_other.u
+    P_N_other = sol_other.P_N
+    P_F_other = sol_other.P_F
+    if type(solver_other) == MoreauGGL:
+        a_other = np.zeros_like(u_other)
+        a_other[1:] = (u_other[1:] - u_other[:-1]) / dt
+        la_N_other = np.zeros_like(P_N_other)
+        la_F_other = np.zeros_like(P_F_other)
+        La_N_other = np.zeros_like(P_N_other)
+        La_F_other = np.zeros_like(P_F_other)
+    else:
+        a_other = sol_other.a
+        la_N_other = sol_other.la_N
+        la_F_other = sol_other.la_F
+        La_N_other = sol_other.La_N
+        La_F_other = sol_other.La_F
+
     fig, ax = plt.subplots(3, 1)
     ax[0].set_title("x(t)")
     ax[0].plot(t_fp, q_fp[:, 0], "-r", label="Moreau")
-    ax[0].plot(t_g, q_g[:, 0], "--b", label="GenAlpha")
+    ax[0].plot(t_other, q_other[:, 0], "--b", label="Other")
     ax[0].legend()
 
     ax[1].set_title("u_x(t)")
     ax[1].plot(t_fp, u_fp[:, 0], "-r", label="Moreau")
-    ax[1].plot(t_g, u_g[:, 0], "--b", label="GenAlpha")
+    ax[1].plot(t_other, u_other[:, 0], "--b", label="Other")
     ax[1].legend()
 
     ax[2].set_title("a_x(t)")
     ax[2].plot(t_fp, a_fp[:, 0], "-r", label="Moreau")
-    ax[2].plot(t_g, a_g[:, 0], "--b", label="GenAlpha")
+    ax[2].plot(t_other, a_other[:, 0], "--b", label="Other")
     ax[2].legend()
 
     plt.tight_layout()
 
     fig, ax = plt.subplots(3, 1)
     ax[0].set_title("y(t)")
-    ax[0].plot(t_fp, q_fp[:, 1], "-r", label="Moreau")
-    ax[0].plot(t_g, q_g[:, 1], "--b", label="GenAlpha")
+    ax[0].plot([t_fp[0], t_fp[-1]], [r, r], "-k", label="ground")
+    ax[0].plot(t_fp, q_fp[:, 1], "-r", label="y Moreau")
+    ax[0].plot(t_other, q_other[:, 1], "--b", label="y Other")
     ax[0].legend()
 
     ax[1].set_title("u_y(t)")
     ax[1].plot(t_fp, u_fp[:, 1], "-r", label="Moreau")
-    ax[1].plot(t_g, u_g[:, 1], "--b", label="GenAlpha")
+    ax[1].plot(t_other, u_other[:, 1], "--b", label="Other")
     ax[1].legend()
 
     ax[2].set_title("a_y(t)")
     ax[2].plot(t_fp, a_fp[:, 1], "-r", label="Moreau")
-    ax[2].plot(t_g, a_g[:, 1], "--b", label="GenAlpha")
+    ax[2].plot(t_other, a_other[:, 1], "--b", label="Other")
     ax[2].legend()
 
     plt.tight_layout()
@@ -164,17 +172,17 @@ if __name__ == "__main__":
     fig, ax = plt.subplots(3, 1)
     ax[0].set_title("phi(t)")
     ax[0].plot(t_fp, q_fp[:, 3], "-r", label="Moreau")
-    ax[0].plot(t_g, q_g[:, 3], "--b", label="GenAlpha")
+    ax[0].plot(t_other, q_other[:, 3], "--b", label="Other")
     ax[0].legend()
 
     ax[1].set_title("u_phi(t)")
     ax[1].plot(t_fp, u_fp[:, -1], "-r", label="Moreau")
-    ax[1].plot(t_g, u_g[:, -1], "--b", label="GenAlpha")
+    ax[1].plot(t_other, u_other[:, -1], "--b", label="Other")
     ax[1].legend()
 
     ax[2].set_title("a_phi(t)")
     ax[2].plot(t_fp, a_fp[:, -1], "-r", label="Moreau")
-    ax[2].plot(t_g, a_g[:, -1], "--b", label="GenAlpha")
+    ax[2].plot(t_other, a_other[:, -1], "--b", label="Other")
     ax[2].legend()
 
     plt.tight_layout()
@@ -183,23 +191,23 @@ if __name__ == "__main__":
 
     ax[0].set_title("P_N(t)")
     ax[0].plot(t_fp, P_N_fp[:, 0], "-r", label="Moreau")
-    ax[0].plot(t_g, la_N_g[:, 0], "--b", label="GenAlpha_la_N")
-    ax[0].plot(t_g, La_N_g[:, 0], "--g", label="GenAlpha_La_N")
-    ax[0].plot(t_g, P_N_g[:, 0], "--k", label="GenAlpha_P_N")
+    ax[0].plot(t_other, la_N_other[:, 0], "--b", label="Other_la_N")
+    ax[0].plot(t_other, La_N_other[:, 0], "--g", label="Other_La_N")
+    ax[0].plot(t_other, P_N_other[:, 0], "--k", label="Other_P_N")
     ax[0].legend()
 
     # ax[1].set_title("P_Fx(t)")
     # ax[1].plot(t_fp, P_F_fp[:, 0], "-r", label="Moreau")
-    # ax[1].plot(t_g, la_F_g[:, 0], "--b", label="GenAlpha_la_F")
-    # ax[1].plot(t_g, La_F_g[:, 0], "--g", label="GenAlpha_La_F")
-    # ax[1].plot(t_g, P_F_g[:, 0], "--k", label="GenAlpha_P_N")
+    # ax[1].plot(t_g, la_F_g[:, 0], "--b", label="Other_la_F")
+    # ax[1].plot(t_g, La_F_g[:, 0], "--g", label="Other_La_F")
+    # ax[1].plot(t_g, P_F_g[:, 0], "--k", label="Other_P_N")
     # ax[1].legend()
 
     # ax[2].set_title("P_Fy(t)")
     # ax[2].plot(t_fp, P_F_fp[:, 1], "-r", label="Moreau")
-    # ax[2].plot(t_g, la_F_g[:, 1], "--b", label="GenAlpha_la_F")
-    # ax[2].plot(t_g, La_F_g[:, 1], "--g", label="GenAlpha_La_F")
-    # ax[2].plot(t_g, P_F_g[:, 1], "--k", label="GenAlpha_P_N")
+    # ax[2].plot(t_g, la_F_g[:, 1], "--b", label="Other_la_F")
+    # ax[2].plot(t_g, La_F_g[:, 1], "--g", label="Other_La_F")
+    # ax[2].plot(t_g, P_F_g[:, 1], "--k", label="Other_P_N")
     # ax[2].legend()
 
     plt.tight_layout()

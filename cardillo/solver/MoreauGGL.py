@@ -9,11 +9,12 @@ from cardillo.math import norm, prox_R0_nm, prox_R0_np, prox_sphere, approx_fpri
 use_position_formulation = True
 # use_position_formulation = False
 
-# theta = 1.0
-theta = 0.5
+theta = 1.0 # Euler backwards
+# theta = 0.5 # trapezoidal rule
 
 # TODO: Bilateral constraints on velocity level
 class MoreauGGL:
+    # class MoreauGGLNew:
     """Moreau's midpoint rule with GGL stabilization for unilateral contacts, 
     see Schoeder2013 and Schindler2015 section 15.2.
 
@@ -200,6 +201,7 @@ class MoreauGGL:
         W_Fk1 = self.model.W_F(tk1, qk1, scipy_matrix=csr_matrix)
         xi_Nk1 = self.model.xi_N(tk1, qk1, self.uk, uk1)
         xi_Fk1 = self.model.xi_F(tk1, qk1, self.uk, uk1)
+        gamma_F_qk1 = self.model.gamma_F_q(tk1, qk1, uk1)
 
         ###################
         # update index sets
@@ -248,10 +250,13 @@ class MoreauGGL:
         # R[:nq] = q_dotk1 - self.model.q_dot(tk1, qk1, u_sk1) - g_N_qk1.T @ mu_Nk1 - g_qk1.T @ mu_gk1
         R[:nq] = (
             q_dotk1
-            - (1.0 - theta) * self.model.q_dot(tk1, qk1, u_sk1)
-            - theta * self.model.q_dot(self.tk, self.qk, self.u_sk)
+            # - (1.0 - theta) * self.model.q_dot(tk1, qk1, u_sk1)
+            # - theta * self.model.q_dot(self.tk, self.qk, self.u_sk)
+            - (1.0 - theta) * self.model.q_dot(tk1, qk1, uk1) # TODO: Only works for theta=1.0, i.e., Euler backwards
+            - theta * self.model.q_dot(self.tk, self.qk, self.uk)
             - g_qk1.T @ mu_gk1
             - g_N_qk1.T @ mu_Nk1
+            - 0.5 * dt * gamma_F_qk1.T @ P_Fk1
         )
 
         #####################
@@ -393,8 +398,21 @@ class MoreauGGL:
                 f"t: {tk1:0.2e}s < {self.t1:0.2e}s; Newton: {n_iter}/{self.max_iter} iterations; error: {error:0.2e}"
             )
             if not converged:
-                raise RuntimeError(
-                    f"internal Newton-Raphson method not converged after {n_iter} steps with error: {error:.5e}"
+                # raise RuntimeError(
+                #     f"internal Newton-Raphson method not converged after {n_iter} steps with error: {error:.5e}"
+                # )
+                print(f"internal Newton-Raphson method not converged after {n_iter} steps with error: {error:.5e}")
+                # write solution
+                return Solution(
+                    t=np.array(t),
+                    q=np.array(q),
+                    u=np.array(u),
+                    U=np.array(U),
+                    P_g=np.array(P_g),
+                    mu_g=np.array(mu_g),
+                    P_N=np.array(P_N),
+                    mu_N=np.array(mu_N),
+                    P_F=np.array(P_F),
                 )
 
             # extract all variables from xk and xk1
@@ -1242,6 +1260,7 @@ class MoreauGGLInvertM:
         # P_gamma = [self.P_gammak]
         P_N = [self.P_Nk]
         mu_N = [self.mu_Nk]
+        P_F = [self.P_Fk]
 
         pbar = tqdm(np.arange(self.t0, self.t1, self.dt))
         for _ in pbar:
@@ -1285,6 +1304,7 @@ class MoreauGGLInvertM:
             la_g.append(la_gk1)
             P_N.append(P_Nk1)
             mu_N.append(mu_Nk1)
+            P_F.append(P_Fk1)
 
             # update local variables for accepted time step
             self.tk = tk1
@@ -1298,6 +1318,7 @@ class MoreauGGLInvertM:
             P_g=np.array(la_g),
             P_N=np.array(P_N),
             mu_N=np.array(mu_N),
+            P_F=np.array(P_F),
         )
 
 
