@@ -13,7 +13,8 @@ from cardillo.forces import Force
 from cardillo.contacts import Sphere2Plane
 from cardillo.solver import (
     Moreau,
-    MoreauGGL,
+    NonsmoothEulerBackwardsGGL,
+    NonsmoothThetaGGL,
     NonsmoothNewmarkFirstOrder,
     NonsmoothGeneralizedAlpha,
 )
@@ -91,10 +92,10 @@ if __name__ == "__main__":
     t1 = 2
     # dt = 1e-1
     # dt = 5e-2
-    # dt = 1e-2
+    dt = 1e-2
     # dt = 5e-3
     # TODO: Are convergence problems from finite differences or a problem of the solver?
-    dt = 1e-3
+    # dt = 1e-3
 
     solver_fp = Moreau(model, t1, dt)
     sol_fp = solver_fp.solve()
@@ -109,7 +110,8 @@ if __name__ == "__main__":
     # solver_other = NonsmoothGeneralizedAlpha(model, t1, dt)
     # solver_other = Generalized_alpha_3(model, t1, dt, numerical_jacobian=True)
     # solver_other = NonsmoothNewmarkFirstOrder(model, t1, dt, atol=1.0e-8)
-    solver_other = MoreauGGL(model, t1, dt)
+    # solver_other = NonsmoothThetaGGL(model, t1, dt)
+    solver_other = NonsmoothEulerBackwardsGGL(model, t1, dt)
     sol_other = solver_other.solve()
     t = sol_other.t
     q = sol_other.q
@@ -118,7 +120,7 @@ if __name__ == "__main__":
     u_other = sol_other.u
     P_N_other = sol_other.P_N
     P_F_other = sol_other.P_F
-    if type(solver_other) == MoreauGGL:
+    if type(solver_other) in [NonsmoothThetaGGL, NonsmoothEulerBackwardsGGL]:
         a_other = np.zeros_like(u_other)
         a_other[1:] = (u_other[1:] - u_other[:-1]) / dt
         la_N_other = np.zeros_like(P_N_other)
