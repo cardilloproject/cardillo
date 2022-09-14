@@ -243,7 +243,7 @@ class NonsmoothEulerBackwardsGGL:
         # R[:nq] = q_dotk1 - self.model.q_dot(tk1, qk1, u_sk1) - g_N_qk1.T @ mu_Nk1 - g_qk1.T @ mu_gk1
         R[:nq] = (
             q_dotk1
-            # TODO: Impulsive uk1 is not working
+            # # TODO: Impulsive uk1 is not working
             # - self.model.q_dot(tk1, qk1, uk1)
             # TODO: Smooth u_sk1 is working
             - self.model.q_dot(tk1, qk1, u_sk1)
@@ -255,7 +255,8 @@ class NonsmoothEulerBackwardsGGL:
         #####################
         # equations of motion
         #####################
-        R[nq : nq + nu] = Mk1 @ u_dot_sk1 - self.model.h(tk1, qk1, uk1)
+        # R[nq : nq + nu] = Mk1 @ u_dot_sk1 - self.model.h(tk1, qk1, uk1)
+        R[nq : nq + nu] = Mk1 @ u_dot_sk1 - self.model.h(tk1, qk1, u_sk1)
 
         #################
         # impact equation
@@ -298,38 +299,39 @@ class NonsmoothEulerBackwardsGGL:
         ##########
         # friction
         ##########
-        D_st = self.D_st
 
-        # # TODO: No friction case can be implemented like this:
-        # R[nx_s + 2 * nla_N :] = P_Fk1
+        # TODO: No friction case can be implemented like this:
+        R[nx_s + 2 * nla_N :] = P_Fk1
 
-        for i_N, i_F in enumerate(self.model.NF_connectivity):
-            i_F = np.array(i_F)
-            if len(i_F) > 0:
-                if A_N[i_N]:
+        # D_st = self.D_st
 
-                    # if primal_form:
-                    #     raise NotImplementedError
-                    #     R[nx_s + 2 * nla_N + i_F] = xi_Fk1[i_F] - prox_sphere(xi_Fk1[i_F] - self.model.prox_r_F[i_N] * P_Fk1[i_F], mu[i_N] * P_Nk1[i_N])
-                    # else:
-                    #     raise NotImplementedError
-                    #     R[nx_s + 2 * nla_N + i_F] = -P_Fk1[i_F] - prox_sphere(-P_Fk1[i_F] + self.model.prox_r_F[i_N] * xi_Fk1[i_F], mu[i_N] * P_Nk1[i_N])
+        # for i_N, i_F in enumerate(self.model.NF_connectivity):
+        #     i_F = np.array(i_F)
+        #     if len(i_F) > 0:
+        #         if A_N[i_N]:
 
-                    if D_st[i_N]:
-                        # eqn. (138a)
-                        R[nx_s + 2 * nla_N + i_F] = xi_Fk1[i_F]
-                    else:
-                        # eqn. (138b)
-                        norm_xi_Fi1 = norm(xi_Fk1[i_F])
-                        xi_Fk1_normalized = xi_Fk1.copy()
-                        if norm_xi_Fi1 > 0:
-                            xi_Fk1_normalized /= norm_xi_Fi1
-                        R[nx_s + 2 * nla_N + i_F] = (
-                            P_Fk1[i_F] + mu[i_N] * P_Nk1[i_N] * xi_Fk1_normalized[i_F]
-                        )
-                else:
-                    # eqn. (138c)
-                    R[nx_s + 2 * nla_N + i_F] = P_Fk1[i_F]
+        #             # if primal_form:
+        #             #     raise NotImplementedError
+        #             #     R[nx_s + 2 * nla_N + i_F] = xi_Fk1[i_F] - prox_sphere(xi_Fk1[i_F] - self.model.prox_r_F[i_N] * P_Fk1[i_F], mu[i_N] * P_Nk1[i_N])
+        #             # else:
+        #             #     raise NotImplementedError
+        #             #     R[nx_s + 2 * nla_N + i_F] = -P_Fk1[i_F] - prox_sphere(-P_Fk1[i_F] + self.model.prox_r_F[i_N] * xi_Fk1[i_F], mu[i_N] * P_Nk1[i_N])
+
+        #             if D_st[i_N]:
+        #                 # eqn. (138a)
+        #                 R[nx_s + 2 * nla_N + i_F] = xi_Fk1[i_F]
+        #             else:
+        #                 # eqn. (138b)
+        #                 norm_xi_Fi1 = norm(xi_Fk1[i_F])
+        #                 xi_Fk1_normalized = xi_Fk1.copy()
+        #                 if norm_xi_Fi1 > 0:
+        #                     xi_Fk1_normalized /= norm_xi_Fi1
+        #                 R[nx_s + 2 * nla_N + i_F] = (
+        #                     P_Fk1[i_F] + mu[i_N] * P_Nk1[i_N] * xi_Fk1_normalized[i_F]
+        #                 )
+        #         else:
+        #             # eqn. (138c)
+        #             R[nx_s + 2 * nla_N + i_F] = P_Fk1[i_F]
 
         return R
 
@@ -452,15 +454,11 @@ class NonsmoothEulerBackwardsGGL:
         )
 
 
-# TODO: Bilateral constraints on velocity level
-# theta = 1.0  # Euler backwards
-# theta = 0.75
-theta = 0.5  # trapezoidal rule
-
-
 class NonsmoothThetaGGL:
     """Moreau's midpoint rule with GGL stabilization for unilateral contacts, 
     see Schoeder2013 and Schindler2015 section 15.2.
+
+    TODO: Bilateral constraints on velocity level!
 
     References
     ----------
@@ -473,6 +471,7 @@ class NonsmoothThetaGGL:
         model,
         t1,
         dt,
+        theta=0.5,
         tol=1e-10,
         max_iter=40,
         error_function=lambda x: np.max(np.abs(x)),
@@ -482,6 +481,10 @@ class NonsmoothThetaGGL:
             raise NotImplementedError("Analytical Jacobian is not implemented yet!")
 
         self.model = model
+        # 0:   Euler forward
+        # 0.5: trapezoidla rule
+        # 1:   Euler backward
+        self.theta = theta
 
         #######################################################################
         # integration time
@@ -596,8 +599,14 @@ class NonsmoothThetaGGL:
         q_dotk1, u_dot_sk1, Uk1, P_gk1, mu_gk1, P_Nk1, mu_Nk1, P_Fk1 = self.unpack(xk1)
 
         # Theta method
-        qk1 = self.qk + dt * (1.0 - theta) * self.q_dotk + dt * theta * q_dotk1
-        u_sk1 = self.uk + dt * (1.0 - theta) * self.u_dot_sk + dt * theta * u_dot_sk1
+        qk1 = (
+            self.qk + dt * (1.0 - self.theta) * self.q_dotk + dt * self.theta * q_dotk1
+        )
+        u_sk1 = (
+            self.uk
+            + dt * (1.0 - self.theta) * self.u_dot_sk
+            + dt * self.theta * u_dot_sk1
+        )
 
         uk1 = u_sk1 + Uk1
 
@@ -690,12 +699,12 @@ class NonsmoothThetaGGL:
         # R[:nq] = q_dotk1 - self.model.q_dot(tk1, qk1, u_sk1) - g_N_qk1.T @ mu_Nk1 - g_qk1.T @ mu_gk1
         R[:nq] = (
             q_dotk1
-            # TODO: Implicit kinematic equations is not working
-            # - (1.0 - theta) * self.model.q_dot(self.tk, self.qk, self.uk)
-            # - theta * self.model.q_dot(tk1, qk1, uk1)
+            # # TODO: Implicit kinematic equations is not working
+            # - (1.0 - self.theta) * self.model.q_dot(self.tk, self.qk, self.uk)
+            # - self.theta * self.model.q_dot(tk1, qk1, uk1)
             # TODO: Explicit kinematic equations is working but with strange physics
-            - (1.0 - theta) * self.model.q_dot(self.tk, self.qk, self.u_sk)
-            - theta * self.model.q_dot(tk1, qk1, u_sk1)
+            - (1.0 - self.theta) * self.model.q_dot(self.tk, self.qk, self.u_sk)
+            - self.theta * self.model.q_dot(tk1, qk1, u_sk1)
             - g_qk1.T @ mu_gk1
             - g_N_qk1.T @ mu_Nk1
             # - 0.5 * dt * gamma_F_qk1.T @ P_Fk1 # TODO: Necessary?
@@ -704,11 +713,10 @@ class NonsmoothThetaGGL:
         #####################
         # equations of motion
         #####################
-        # R[nq : nq + nu] = Mk1 @ u_dot_sk1 - self.model.h(tk1, qk1, uk1)
         R[nq : nq + nu] = (
             Mk1 @ u_dot_sk1
-            - (1.0 - theta) * self.model.h(self.tk, self.qk, self.uk)
-            - theta * self.model.h(tk1, qk1, uk1)
+            - (1.0 - self.theta) * self.model.h(self.tk, self.qk, self.uk)
+            - self.theta * self.model.h(tk1, qk1, uk1)
         )
 
         #################

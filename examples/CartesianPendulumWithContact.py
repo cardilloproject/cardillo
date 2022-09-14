@@ -6,7 +6,7 @@ from scipy.integrate import solve_ivp
 from cardillo.model import Model
 from cardillo.solver import (
     Moreau,
-    MoreauGGL,
+    NonsmoothThetaGGL,
     NonsmoothNewmarkFirstOrder,
     NonsmoothGeneralizedAlpha,
 )
