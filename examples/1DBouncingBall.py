@@ -10,7 +10,7 @@ from cardillo.solver import (
     Moreau,
     NonsmoothEulerBackwardsGGL,
     NonsmoothThetaGGL,
-    NonsmoothNewmarkFirstOrder,
+    NonsmoothTheta,
     NonsmoothGeneralizedAlpha,
 )
 
@@ -144,7 +144,7 @@ if __name__ == "__main__":
 
     # solver_other = NonsmoothGeneralizedAlpha(model, t1, dt)
     # solver_other = Generalized_alpha_3(model, t1, dt, numerical_jacobian=True)
-    solver_other = NonsmoothNewmarkFirstOrder(model, t1, dt, atol=1.0e-8)
+    solver_other = NonsmoothTheta(model, t1, dt, atol=1.0e-8)
     # solver_other = NonsmoothThetaGGL(model, t1, dt)
     # solver_other = NonsmoothEulerBackwardsGGL(model, t1, dt)
     sol_other = solver_other.solve()

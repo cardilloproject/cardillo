@@ -15,8 +15,9 @@ from cardillo.solver import (
     Moreau,
     NonsmoothEulerBackwardsGGL,
     NonsmoothThetaGGL,
-    NonsmoothNewmarkFirstOrder,
+    NonsmoothTheta,
     NonsmoothGeneralizedAlpha,
+    NonsmoothGenAlphaFirstOrder,
 )
 
 # from cardillo.solver.generalized_alpha.generalized_alpha_3 import Generalized_alpha_3
@@ -94,7 +95,6 @@ if __name__ == "__main__":
     # dt = 5e-2
     dt = 1e-2
     # dt = 5e-3
-    # TODO: Are convergence problems from finite differences or a problem of the solver?
     # dt = 1e-3
 
     solver_fp = Moreau(model, t1, dt)
@@ -109,9 +109,10 @@ if __name__ == "__main__":
 
     # solver_other = NonsmoothGeneralizedAlpha(model, t1, dt)
     # solver_other = Generalized_alpha_3(model, t1, dt, numerical_jacobian=True)
-    solver_other = NonsmoothNewmarkFirstOrder(model, t1, dt, atol=1.0e-8)
-    # solver_other = NonsmoothThetaGGL(model, t1, dt)
+    # solver_other = NonsmoothTheta(model, t1, dt, atol=1.0e-8)
     # solver_other = NonsmoothEulerBackwardsGGL(model, t1, dt)
+    # solver_other = NonsmoothThetaGGL(model, t1, dt)
+    solver_other = NonsmoothGenAlphaFirstOrder(model, t1, dt, rho_inf=0.5)
     sol_other = solver_other.solve()
     t = sol_other.t
     q = sol_other.q
@@ -189,14 +190,14 @@ if __name__ == "__main__":
 
     plt.tight_layout()
 
-    fig, ax = plt.subplots(3, 1)
+    fig, ax = plt.subplots()
 
-    ax[0].set_title("P_N(t)")
-    ax[0].plot(t_fp, P_N_fp[:, 0], "-r", label="Moreau")
-    ax[0].plot(t_other, la_N_other[:, 0], "--b", label="Other_la_N")
-    ax[0].plot(t_other, La_N_other[:, 0], "--g", label="Other_La_N")
-    ax[0].plot(t_other, P_N_other[:, 0], "--k", label="Other_P_N")
-    ax[0].legend()
+    ax.set_title("P_N(t)")
+    ax.plot(t_fp, P_N_fp[:, 0], "-r", label="Moreau")
+    ax.plot(t_other, la_N_other[:, 0], "--b", label="Other_la_N")
+    ax.plot(t_other, La_N_other[:, 0], "--g", label="Other_La_N")
+    ax.plot(t_other, P_N_other[:, 0], "--k", label="Other_P_N")
+    ax.legend()
 
     # ax[1].set_title("P_Fx(t)")
     # ax[1].plot(t_fp, P_F_fp[:, 0], "-r", label="Moreau")

@@ -7,10 +7,7 @@ from .Moreau import Moreau
 from .MoreauGGL import NonsmoothEulerBackwardsGGL, NonsmoothThetaGGL
 from .EulerBackward import EulerBackward
 from .HalfExplicit import HalfExplicitEulerFixedPoint
-from .SimplifiedGenAlpha import (
-    SimplifiedGeneralizedAlpha,
-    NonsmoothNewmarkFirstOrder,
-)
+from .SimplifiedGenAlpha import *
 
 from .genAlphaDAE import *
 from .NonsmoothGeneralizedAlpha import NonsmoothGeneralizedAlpha
