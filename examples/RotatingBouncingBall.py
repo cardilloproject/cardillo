@@ -112,7 +112,7 @@ if __name__ == "__main__":
     # solver_other = NonsmoothTheta(model, t1, dt, atol=1.0e-8)
     # solver_other = NonsmoothEulerBackwardsGGL(model, t1, dt)
     # solver_other = NonsmoothThetaGGL(model, t1, dt)
-    solver_other = NonsmoothGenAlphaFirstOrder(model, t1, dt, rho_inf=0.5)
+    solver_other = NonsmoothGenAlphaFirstOrder(model, t1, dt, rho_inf=0.85)
     sol_other = solver_other.solve()
     t = sol_other.t
     q = sol_other.q

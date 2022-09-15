@@ -1881,7 +1881,7 @@ class NonsmoothGenAlphaFirstOrder:
         S_Nk1 = kappa_Nk1 + dt * Gamma_Nk1 + 0.5 * dt2 * lambda_Nk1
         P_Fk1 = Gamma_Fk1 + dt * lambda_Fk1
 
-        # # - newmark type version
+        # # - Newmark type version
         # #   TODO: This is the cause for negative values of La_N after impacts!
         # P_Nk1 = Gamma_Nk1 + (1.0 - gamma) * dt * self.la_Nk + gamma * dt * lambda_Nk1
         # S_Nk1 = (
@@ -2055,24 +2055,25 @@ class NonsmoothGenAlphaFirstOrder:
         # complementarity on position level
         ###################################
         Ak1 = self.Ak1
-        # Ak1_ind = np.where(Ak1)[0]
-        # _Ak1_ind = np.where(~Ak1)[0]
-        # R[nR_s + Ak1_ind] = g_Nk1[Ak1]
-        # R[nR_s + _Ak1_ind] = S_Nk1[~Ak1]
-        R[nR_s : nR_s + nla_N] = g_Nk1 - prox_R0_np(prox_N_arg_position)
+        Ak1_ind = np.where(Ak1)[0]
+        _Ak1_ind = np.where(~Ak1)[0]
+        R[nR_s + Ak1_ind] = g_Nk1[Ak1]
+        R[nR_s + _Ak1_ind] = S_Nk1[~Ak1]
+
+        # R[nR_s : nR_s + nla_N] = g_Nk1 - prox_R0_np(prox_N_arg_position)
 
         ###################################
         # complementarity on velocity level
         ###################################
         Bk1 = self.Bk1
-        # Bk1_ind = np.where(Bk1)[0]
-        # _Bk1_ind = np.where(~Bk1)[0]
-        # R[nR_s + nla_N + Bk1_ind] = xi_Nk1[Bk1]
-        # R[nR_s + nla_N + _Bk1_ind] = P_Nk1[~Bk1]
+        Bk1_ind = np.where(Bk1)[0]
+        _Bk1_ind = np.where(~Bk1)[0]
+        R[nR_s + nla_N + Bk1_ind] = xi_Nk1[Bk1]
+        R[nR_s + nla_N + _Bk1_ind] = P_Nk1[~Bk1]
 
-        R[nR_s + nla_N : nR_s + 2 * nla_N] = np.select(
-            self.Ak1, xi_Nk1 - prox_R0_np(prox_N_arg_velocity), P_Nk1
-        )
+        # R[nR_s + nla_N : nR_s + 2 * nla_N] = np.select(
+        #     self.Ak1, xi_Nk1 - prox_R0_np(prox_N_arg_velocity), P_Nk1
+        # )
 
         # R[nR_s + nla_N + Ak1_ind] = (xi_Nk1 - prox_Rn0(prox_N_arg_velocity))[Ak1]
         # R[nR_s + nla_N + _Ak1_ind] = Pk1[~Ak1]
@@ -2081,14 +2082,14 @@ class NonsmoothGenAlphaFirstOrder:
         # complementarity on acceleration level
         #######################################
         Ck1 = self.Ck1
-        # Ck1_ind = np.where(Ck1)[0]
-        # _Ck1_ind = np.where(~Ck1)[0]
-        # R[nR_s + 2 * nla_N + Ck1_ind] = g_N_ddotk1[Ck1]
-        # R[nR_s + 2 * nla_N + _Ck1_ind] = lambda_Nk1[~Ck1]
+        Ck1_ind = np.where(Ck1)[0]
+        _Ck1_ind = np.where(~Ck1)[0]
+        R[nR_s + 2 * nla_N + Ck1_ind] = g_N_ddotk1[Ck1]
+        R[nR_s + 2 * nla_N + _Ck1_ind] = lambda_Nk1[~Ck1]
 
-        R[nR_s + 2 * nla_N : nR_s + 3 * nla_N] = np.select(
-            self.Bk1, g_N_ddotk1 - prox_R0_np(prox_N_arg_acceleration), lambda_Nk1
-        )
+        # R[nR_s + 2 * nla_N : nR_s + 3 * nla_N] = np.select(
+        #     self.Bk1, g_N_ddotk1 - prox_R0_np(prox_N_arg_acceleration), lambda_Nk1
+        # )
 
         # R[nR_s + 2 * nla_N + Bk1_ind] = (g_N_ddotk1 - prox_Rn0(prox_arg_acceleration))[Bk1]
         # R[nR_s + 2 * nla_N + _Bk1_ind] = lak1[~Bk1]

@@ -182,8 +182,8 @@ if __name__ == "__main__":
     t_end = 1
     # t_end = 10
     # dt = 5.0e-2
-    dt = 1.0e-2
-    # dt = 5.0e-3
+    # dt = 1.0e-2
+    dt = 5.0e-3
     # dt = 1.0e-3
     # dt = 1.0e-4
 
