@@ -178,61 +178,63 @@ if __name__ == "__main__":
     model.assemble()
 
     # end time and numerical dissipation of generalized-alpha solver
-    # t1 = 1
-    t1 = 10
-    dt = 5.0e-2
+    t_end = 1
+    # t_end = 10
+    # dt = 5.0e-2
     # dt = 1.0e-2
-    # dt = 5.0e-3
+    dt = 5.0e-3
+    # dt = 1.0e-3
+    dt = 1.0e-4
 
     # solve with GGL stabilized Moreau scheme
     theta = 0.5
     theta = 0.4
-    # sol_Theta = MoreauGGL(model, t1, dt).solve()
-    sol_Theta = NonsmoothNewmarkFirstOrder(model, t1, dt).solve()
-    t_Theta = sol_Theta.t
-    q_Theta = sol_Theta.q
-    u_Theta = sol_Theta.u
-    # P_g_Theta = sol_Theta.P_g
-    P_g_Theta = sol_Theta.la_g
-    P_N_Theta = sol_Theta.P_N
+    # sol1 = NonsmoothThetaGGL(model, t_end, dt).solve()
+    sol1 = NonsmoothNewmarkFirstOrder(model, t_end, dt).solve()
+    t1 = sol1.t
+    q1 = sol1.q
+    u1 = sol1.u
+    # P_g1 = sol1.P_g
+    P_g1 = sol1.la_g * dt
+    P_N1 = sol1.P_N
 
     # solve with classical Moreau scheme
-    # sol_Moreau = Moreau(model, t1, dt).solve()
-    sol_Moreau = NonsmoothGeneralizedAlpha(model, t1, dt).solve()
-    t_Moreau = sol_Moreau.t
-    q_Moreau = sol_Moreau.q
-    u_Moreau = sol_Moreau.u
-    # P_g_Moreau = sol_Moreau.P_g
-    P_N_Moreau = sol_Moreau.P_N
+    sol2 = Moreau(model, t_end, dt).solve()
+    # sol2 = NonsmoothGeneralizedAlpha(model, t_end, dt).solve()
+    t2 = sol2.t
+    q2 = sol2.q
+    u2 = sol2.u
+    P_g2 = sol2.P_g
+    P_N2 = sol2.P_N
 
     # visualize results
     fig, ax = plt.subplots(2, 2)
 
     # generalized coordinates
-    ax[0, 0].plot(t_Moreau, q_Moreau[:, 0], "-xb", label="x - Moreau")
-    ax[0, 0].plot(t_Moreau, q_Moreau[:, 1], "--ob", label="y - Moreau")
-    ax[0, 0].plot(t_Theta, q_Theta[:, 0], "-xr", label="x - MoreauGGL")
-    ax[0, 0].plot(t_Theta, q_Theta[:, 1], "--or", label="y - MoreauGGL")
+    ax[0, 0].plot(t1, q1[:, 0], "-xr", label="x - Method1")
+    ax[0, 0].plot(t1, q1[:, 1], "--or", label="y - Method1")
+    ax[0, 0].plot(t2, q2[:, 0], "-xb", label="x - Method2")
+    ax[0, 0].plot(t2, q2[:, 1], "--ob", label="y - Method2")
     ax[0, 0].grid()
     ax[0, 0].legend()
 
     # generalized velocities
-    ax[0, 1].plot(t_Moreau, u_Moreau[:, 0], "-xb", label="x_dot - Moreau")
-    ax[0, 1].plot(t_Moreau, u_Moreau[:, 1], "--ob", label="y_dot - Moreau")
-    ax[0, 1].plot(t_Theta, u_Theta[:, 0], "-xr", label="x_dot - MoreauGGL")
-    ax[0, 1].plot(t_Theta, u_Theta[:, 1], "--or", label="y_dot - MoreauGGL")
+    ax[0, 1].plot(t1, u1[:, 0], "-xr", label="x_dot - Method1")
+    ax[0, 1].plot(t1, u1[:, 1], "--or", label="y_dot - Method1")
+    ax[0, 1].plot(t2, u2[:, 0], "-xb", label="x_dot - Method2")
+    ax[0, 1].plot(t2, u2[:, 1], "--ob", label="y_dot - Method2")
     ax[0, 1].grid()
     ax[0, 1].legend()
 
     # bilateral constraints
-    # ax[1, 0].plot(t_Moreau, P_g_Moreau[:, 0], "-xb", label="P_g - Moreau")
-    ax[1, 0].plot(t_Theta, P_g_Theta[:, 0], "-xr", label="P_g - MoreauGGL")
+    ax[1, 0].plot(t1, P_g1[:, 0], "-xr", label="P_g - Method1")
+    ax[1, 0].plot(t2, P_g2[:, 0], "-xb", label="P_g - Method2")
     ax[1, 0].grid()
     ax[1, 0].legend()
 
     # normal percussions
-    ax[1, 1].plot(t_Moreau, P_N_Moreau[:, 0], "-xb", label="P_N - Moreau")
-    ax[1, 1].plot(t_Theta, P_N_Theta[:, 0], "-xr", label="P_N - MoreauGGL")
+    ax[1, 1].plot(t1, P_N1[:, 0], "-xr", label="P_N - Method1")
+    ax[1, 1].plot(t2, P_N2[:, 0], "-xb", label="P_N - Method2")
     ax[1, 1].grid()
     ax[1, 1].legend()
 

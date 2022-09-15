@@ -1140,19 +1140,23 @@ class NonsmoothNewmarkFirstOrder:
         # qk1 = qk1_tmp + 0.5 * dt2 * self.model.q_ddot(self.tk, qk1_tmp, uk1, ak1)
 
         # integrated contact contributions
-        # P_Nk1 = La_Nk1 + dt * la_Nk1
-        # kappa_hat_Nk1 = kappa_Nk1 + dt * La_Nk1 + 0.5 * dt2 * la_Nk1
-        # P_Fk1 = La_Fk1 + dt * la_Fk1
-        P_Nk1 = La_Nk1 + (1.0 - gamma) * dt * self.la_Nk + gamma * dt * la_Nk1
-        kappa_hat_Nk1 = (
-            kappa_Nk1
-            + (1.0 - gamma) * dt * self.La_Nk
-            + gamma * dt * La_Nk1
-            + dt2 * (0.5 - beta) * self.la_Nk
-            + dt2 * beta * la_Nk1
-        )
 
-        P_Fk1 = La_Fk1 + (1.0 - gamma) * dt * self.la_Fk + gamma * dt * la_Fk1
+        # - simple version
+        P_Nk1 = La_Nk1 + dt * la_Nk1
+        kappa_hat_Nk1 = kappa_Nk1 + dt * La_Nk1 + 0.5 * dt2 * la_Nk1
+        P_Fk1 = La_Fk1 + dt * la_Fk1
+
+        # # - newmark type version
+        # P_Nk1 = La_Nk1 + (1.0 - gamma) * dt * self.la_Nk + gamma * dt * la_Nk1
+        # kappa_hat_Nk1 = (
+        #     kappa_Nk1
+        #     + (1.0 - gamma) * dt * self.La_Nk
+        #     + gamma * dt * La_Nk1
+        #     # TODO: Is this necessary?
+        #     + dt2 * (0.5 - beta) * self.la_Nk
+        #     + dt2 * beta * la_Nk1
+        # )
+        # P_Fk1 = La_Fk1 + (1.0 - gamma) * dt * self.la_Fk + gamma * dt * la_Fk1
 
         return qk1, uk1, P_Nk1, kappa_hat_Nk1, P_Fk1
 
@@ -1236,12 +1240,13 @@ class NonsmoothNewmarkFirstOrder:
         # TODO: Why do we have to use the smooth velocity here?
         # This is similar to the case of an implicit Moreau scheme, where the
         # contact detecten is not allowed to be implicitely depending on qk1?
-        # R[:nq] = q_dotk1 - self.model.q_dot(
-        #     tk1, qk1, uk1
-        # )  # TODO: Why is this working now?
+        # TODO: This works for 1D bouncing ball and the impacting pendulum!
         R[:nq] = q_dotk1 - self.model.q_dot(
-            tk1, qk1, uk1 - Uk1
-        )  # - 0.5 * dt * self.model.q_ddot(tk1, qk1, uk1 - Uk1, ak1)
+            tk1, qk1, uk1
+        )  # TODO: Why is this working now?
+        # R[:nq] = q_dotk1 - self.model.q_dot(
+        #     tk1, qk1, uk1 - Uk1
+        # )  # - 0.5 * dt * self.model.q_ddot(tk1, qk1, uk1 - Uk1, ak1)
         # This is the solution: Only use the smooth part of the velocity!
         # TODO: Why is this required if we do not use the integrated quantity
         # P_Nk1 = ... + 0.5 * dt2 * la_Nk1 in the update of P_Nk1
@@ -1255,13 +1260,21 @@ class NonsmoothNewmarkFirstOrder:
             Qk1
             - g_qk1.T @ kappa_gk1
             - g_N_qk1.T @ kappa_Nk1
-            - 0.5 * dt * gamma_F_qk1.T @ La_Fk1
-            # - g_qk1.T @ kappa_hat_gk1
-            # - g_N_qk1.T @ kappa_hat_Nk1
+            # - 0.5 * dt * gamma_F_qk1.T @ La_Fk1 # TODO: Do we need the coupling with La_Fk1?
             # - (1.0 - gamma) * dt * self.model.gamma_F_q(self.tk, self.qk, self.uk).T @ self.La_Fk
             # - gamma * dt * gamma_F_qk1.T @ La_Fk1
-            # - 0.5 * dt * gamma_F_qk1.T @ La_Fk1 # TODO: Do we need the coupling with La_Fk1?
         )
+
+        # # Remove Qk1 solution by solving for 0 and add position correction
+        # # directly to kinematic equation
+        # R[nq : 2 * nq] = Qk1
+        # R[:nq] = (
+        #     q_dotk1
+        #     - self.model.q_dot(tk1, qk1, uk1)
+        #     - g_qk1.T @ kappa_gk1 / dt
+        #     - g_N_qk1.T @ kappa_Nk1 / dt
+        #     # - gamma_F_qk1.T @ La_Fk1 # TODO: Do we need the coupling with La_Fk1?
+        # )
 
         ####################
         # equation of motion
