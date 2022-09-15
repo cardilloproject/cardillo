@@ -1001,6 +1001,7 @@ class NonsmoothNewmarkFirstOrder:
     -----
     - check for consistent initial conditions
     - Jacobian matrix
+    - friction
     """
 
     def __init__(
@@ -1106,17 +1107,30 @@ class NonsmoothNewmarkFirstOrder:
         U = x[2 * nq + nu : 2 * nq + 2 * nu]
 
         kappa_g = x[2 * nq + 2 * nu : 2 * nq + 2 * nu + nla_g]
-        La_g = x[2 * nq + 2 * nu + nla_g : 2 * nq + 2 * nu + 2 * nla_g]
-        la_g = x[2 * nq + 2 * nu + 2 * nla_g : 2 * nq + 2 * nu + 3 * nla_g]
+        Gamma_g = x[2 * nq + 2 * nu + nla_g : 2 * nq + 2 * nu + 2 * nla_g]
+        lambda_g = x[2 * nq + 2 * nu + 2 * nla_g : 2 * nq + 2 * nu + 3 * nla_g]
 
         kappa_N = x[nR_s : nR_s + nla_N]
-        La_N = x[nR_s + nla_N : nR_s + 2 * nla_N]
-        la_N = x[nR_s + 2 * nla_N : nR_s + 3 * nla_N]
+        Gamma_N = x[nR_s + nla_N : nR_s + 2 * nla_N]
+        lambda_N = x[nR_s + 2 * nla_N : nR_s + 3 * nla_N]
 
-        La_F = x[nR_s + 3 * nla_N : nR_s + 3 * nla_N + nla_F]
-        la_F = x[nR_s + 3 * nla_N + nla_F : nR_s + 3 * nla_N + 2 * nla_F]
+        Lambda_F = x[nR_s + 3 * nla_N : nR_s + 3 * nla_N + nla_F]
+        lambda_F = x[nR_s + 3 * nla_N + nla_F : nR_s + 3 * nla_N + 2 * nla_F]
 
-        return q_dot, Q, u_dot, U, kappa_g, La_g, la_g, kappa_N, La_N, la_N, La_F, la_F
+        return (
+            q_dot,
+            Q,
+            u_dot,
+            U,
+            kappa_g,
+            Gamma_g,
+            lambda_g,
+            kappa_N,
+            Gamma_N,
+            lambda_N,
+            Lambda_F,
+            lambda_F,
+        )
 
     def update(self, xk1):
         dt = self.dt
@@ -1128,13 +1142,13 @@ class NonsmoothNewmarkFirstOrder:
             u_dotk1,
             Uk1,
             kappa_gk1,
-            La_gk1,
-            la_gk1,
+            Gamma_gk1,
+            lambda_gk1,
             kappa_Nk1,
-            La_Nk1,
-            la_Nk1,
-            La_Fk1,
-            la_Fk1,
+            Gamma_Nk1,
+            lambda_Nk1,
+            Gamma_Fk1,
+            lambda_Fk1,
         ) = self.unpack(xk1)
 
         # update generalized coordinates and generalized velocities
@@ -1144,24 +1158,25 @@ class NonsmoothNewmarkFirstOrder:
         # integrated contact contributions
 
         # - simple version
-        P_Nk1 = La_Nk1 + dt * la_Nk1
+        P_Nk1 = Gamma_Nk1 + dt * lambda_Nk1
         # TODO: last part (with 0.5 * dt2) is necessary for accumulation points!
-        kappa_hat_Nk1 = kappa_Nk1 + dt * La_Nk1 + 0.5 * dt2 * la_Nk1
-        P_Fk1 = La_Fk1 + dt * la_Fk1
+        S_Nk1 = kappa_Nk1 + dt * Gamma_Nk1 + 0.5 * dt2 * lambda_Nk1
+        P_Fk1 = Gamma_Fk1 + dt * lambda_Fk1
 
         # # - newmark type version
-        # P_Nk1 = La_Nk1 + (1.0 - gamma) * dt * self.la_Nk + gamma * dt * la_Nk1
-        # kappa_hat_Nk1 = (
+        # #   TODO: This is the cause for negative values of La_N after impacts!
+        # P_Nk1 = Gamma_Nk1 + (1.0 - gamma) * dt * self.la_Nk + gamma * dt * lambda_Nk1
+        # S_Nk1 = (
         #     kappa_Nk1
         #     + (1.0 - gamma) * dt * self.La_Nk
-        #     + gamma * dt * La_Nk1
+        #     + gamma * dt * Gamma_Nk1
         #     # TODO: This partis necessary for accumulation points!
         #     + dt2 * (0.5 - beta) * self.la_Nk
-        #     + dt2 * beta * la_Nk1
+        #     + dt2 * beta * lambda_Nk1
         # )
-        # P_Fk1 = La_Fk1 + (1.0 - gamma) * dt * self.la_Fk + gamma * dt * la_Fk1
+        # P_Fk1 = Gamma_Fk1 + (1.0 - gamma) * dt * self.la_Fk + gamma * dt * lambda_Fk1
 
-        return qk1, uk1, P_Nk1, kappa_hat_Nk1, P_Fk1
+        return qk1, uk1, P_Nk1, S_Nk1, P_Fk1
 
     def residual(self, tk1, xk1, update_index_set=False):
         mu = self.model.mu
@@ -1176,19 +1191,19 @@ class NonsmoothNewmarkFirstOrder:
             u_dotk1,
             Uk1,
             kappa_gk1,
-            La_gk1,
-            la_gk1,
+            Gamma_gk1,
+            lambda_gk1,
             kappa_Nk1,
-            La_Nk1,
-            la_Nk1,
-            La_Fk1,
-            la_Fk1,
+            Gamma_Nk1,
+            lambda_Nk1,
+            Gamma_Fk1,
+            lambda_Fk1,
         ) = self.unpack(xk1)
 
         #############################
         # compute dependent variables
         #############################
-        qk1, uk1, P_Nk1, kappa_hat_Nk1, P_Fk1 = self.update(xk1)
+        qk1, uk1, P_Nk1, S_Nk1, P_Fk1 = self.update(xk1)
 
         ##############################
         # evaluate required quantities
@@ -1240,21 +1255,7 @@ class NonsmoothNewmarkFirstOrder:
         ####################
         # kinematic equation
         ####################
-        # TODO: Why do we have to use the smooth velocity here?
-        # This is similar to the case of an implicit Moreau scheme, where the
-        # contact detecten is not allowed to be implicitely depending on qk1?
-        # TODO: This works for 1D bouncing ball and the impacting pendulum!
-        R[:nq] = q_dotk1 - self.model.q_dot(
-            tk1, qk1, uk1
-        )  # TODO: Why is this working now?
-        # R[:nq] = q_dotk1 - self.model.q_dot(
-        #     tk1, qk1, uk1 - Uk1
-        # )  # - 0.5 * dt * self.model.q_ddot(tk1, qk1, uk1 - Uk1, ak1)
-        # This is the solution: Only use the smooth part of the velocity!
-        # TODO: Why is this required if we do not use the integrated quantity
-        # P_Nk1 = ... + 0.5 * dt2 * la_Nk1 in the update of P_Nk1
-        # # R[:nq] = q_dotk1 - self.model.q_dot(tk1, qk1, self.uk + dt * ak1)
-        # R[:nq] = q_dotk1 - self.model.q_dot(tk1, qk1, self.uk + (1.0 - gamma) * dt * self.ak + gamma * dt * ak1)
+        R[:nq] = q_dotk1 - self.model.q_dot(tk1, qk1, uk1)
 
         #####################
         # position correction
@@ -1283,14 +1284,18 @@ class NonsmoothNewmarkFirstOrder:
         # equation of motion
         ####################
         R[2 * nq : 2 * nq + nu] = (
-            Mk1 @ u_dotk1 - hk1 - W_gk1 @ la_gk1 - W_Nk1 @ la_Nk1 - W_Fk1 @ la_Fk1
+            Mk1 @ u_dotk1
+            - hk1
+            - W_gk1 @ lambda_gk1
+            - W_Nk1 @ lambda_Nk1
+            - W_Fk1 @ lambda_Fk1
         )
 
         #################
         # impact equation
         #################
         R[2 * nq + nu : 2 * nq + 2 * nu] = (
-            Mk1 @ Uk1 - W_gk1 @ La_gk1 - W_Nk1 @ La_Nk1 - W_Fk1 @ La_Fk1
+            Mk1 @ Uk1 - W_gk1 @ Gamma_gk1 - W_Nk1 @ Gamma_Nk1 - W_Fk1 @ Gamma_Fk1
         )
 
         ################################################
@@ -1303,13 +1308,9 @@ class NonsmoothNewmarkFirstOrder:
         #######################
         # unilateral index sets
         #######################
-        prox_N_arg_position = g_Nk1 - self.model.prox_r_N * kappa_hat_Nk1
+        prox_N_arg_position = g_Nk1 - self.model.prox_r_N * S_Nk1
         prox_N_arg_velocity = xi_Nk1 - self.model.prox_r_N * P_Nk1
-        prox_N_arg_acceleration = g_N_ddotk1 - self.model.prox_r_N * la_Nk1
-        # TODO: Why is this a bad choice?
-        # prox_N_arg_position = g_Nk1 - self.model.prox_r_N * kappa_Nk1
-        # prox_N_arg_velocity = xi_Nk1 - self.model.prox_r_N * La_Nk1
-        # prox_N_arg_acceleration = g_N_ddotk1 - self.model.prox_r_N * la_Nk1
+        prox_N_arg_acceleration = g_N_ddotk1 - self.model.prox_r_N * lambda_Nk1
         if update_index_set:
             self.Ak1 = prox_N_arg_position <= 0
             self.Bk1 = self.Ak1 * (prox_N_arg_velocity <= 0)
@@ -1326,33 +1327,34 @@ class NonsmoothNewmarkFirstOrder:
                     # eqn. (141):
                     self.Ek1_st[i_N] = self.Dk1_st[i_N] and (
                         norm(
-                            self.model.prox_r_F[i_N] * gamma_F_dotk1[i_F] - la_Fk1[i_F]
+                            self.model.prox_r_F[i_N] * gamma_F_dotk1[i_F]
+                            - lambda_Fk1[i_F]
                         )
-                        <= mu[i_N] * la_Nk1[i_N]
+                        <= mu[i_N] * lambda_Nk1[i_N]
                     )
 
         ###################################
         # complementarity on position level
         ###################################
         Ak1 = self.Ak1
-        Ak1_ind = np.where(Ak1)[0]
-        _Ak1_ind = np.where(~Ak1)[0]
-        R[nR_s + Ak1_ind] = g_Nk1[Ak1]
-        R[nR_s + _Ak1_ind] = kappa_hat_Nk1[~Ak1]
-        # R[nR_s : nR_s + nla_N] = g_Nk1 - prox_R0_np(prox_N_arg_position)
+        # Ak1_ind = np.where(Ak1)[0]
+        # _Ak1_ind = np.where(~Ak1)[0]
+        # R[nR_s + Ak1_ind] = g_Nk1[Ak1]
+        # R[nR_s + _Ak1_ind] = S_Nk1[~Ak1]
+        R[nR_s : nR_s + nla_N] = g_Nk1 - prox_R0_np(prox_N_arg_position)
 
         ###################################
         # complementarity on velocity level
         ###################################
         Bk1 = self.Bk1
-        Bk1_ind = np.where(Bk1)[0]
-        _Bk1_ind = np.where(~Bk1)[0]
-        R[nR_s + nla_N + Bk1_ind] = xi_Nk1[Bk1]
-        R[nR_s + nla_N + _Bk1_ind] = P_Nk1[~Bk1]
+        # Bk1_ind = np.where(Bk1)[0]
+        # _Bk1_ind = np.where(~Bk1)[0]
+        # R[nR_s + nla_N + Bk1_ind] = xi_Nk1[Bk1]
+        # R[nR_s + nla_N + _Bk1_ind] = P_Nk1[~Bk1]
 
-        # R[nR_s + nla_N : nR_s + 2 * nla_N] = np.select(
-        #     self.Ak1, xi_Nk1 - prox_Rn0(prox_N_arg_velocity), P_Nk1
-        # )
+        R[nR_s + nla_N : nR_s + 2 * nla_N] = np.select(
+            self.Ak1, xi_Nk1 - prox_R0_np(prox_N_arg_velocity), P_Nk1
+        )
 
         # R[nR_s + nla_N + Ak1_ind] = (xi_Nk1 - prox_Rn0(prox_N_arg_velocity))[Ak1]
         # R[nR_s + nla_N + _Ak1_ind] = Pk1[~Ak1]
@@ -1361,14 +1363,14 @@ class NonsmoothNewmarkFirstOrder:
         # complementarity on acceleration level
         #######################################
         Ck1 = self.Ck1
-        Ck1_ind = np.where(Ck1)[0]
-        _Ck1_ind = np.where(~Ck1)[0]
-        R[nR_s + 2 * nla_N + Ck1_ind] = g_N_ddotk1[Ck1]
-        R[nR_s + 2 * nla_N + _Ck1_ind] = la_Nk1[~Ck1]
+        # Ck1_ind = np.where(Ck1)[0]
+        # _Ck1_ind = np.where(~Ck1)[0]
+        # R[nR_s + 2 * nla_N + Ck1_ind] = g_N_ddotk1[Ck1]
+        # R[nR_s + 2 * nla_N + _Ck1_ind] = lambda_Nk1[~Ck1]
 
-        # R[nR_s + 2 * nla_N : nR_s + 3 * nla_N] = np.select(
-        #     self.Bk1, g_N_ddotk1 - prox_Rn0(prox_N_arg_acceleration), la_Nk1
-        # )
+        R[nR_s + 2 * nla_N : nR_s + 3 * nla_N] = np.select(
+            self.Bk1, g_N_ddotk1 - prox_R0_np(prox_N_arg_acceleration), lambda_Nk1
+        )
 
         # R[nR_s + 2 * nla_N + Bk1_ind] = (g_N_ddotk1 - prox_Rn0(prox_arg_acceleration))[Bk1]
         # R[nR_s + 2 * nla_N + _Bk1_ind] = lak1[~Bk1]
@@ -1398,8 +1400,10 @@ class NonsmoothNewmarkFirstOrder:
                             if norm_gamma_Fdoti1 > 0:
                                 gamma_F_dotk1_normalized /= norm_gamma_Fdoti1
                             R[nR_s + 3 * nla_N + nla_F + i_F] = (
-                                la_Fk1[i_F]
-                                + mu[i_N] * la_Nk1[i_N] * gamma_F_dotk1_normalized[i_F]
+                                lambda_Fk1[i_F]
+                                + mu[i_N]
+                                * lambda_Nk1[i_N]
+                                * gamma_F_dotk1_normalized[i_F]
                             )
                     else:
                         # eqn. (138b)
@@ -1417,14 +1421,14 @@ class NonsmoothNewmarkFirstOrder:
                         if norm_gamma_Fi1 > 0:
                             gamma_Fk1_normalized /= norm_gamma_Fi1
                         R[nR_s + 3 * nla_N + nla_F + i_F] = (
-                            la_Fk1[i_F]
-                            + mu[i_N] * la_Nk1[i_N] * gamma_Fk1_normalized[i_F]
+                            lambda_Fk1[i_F]
+                            + mu[i_N] * lambda_Nk1[i_N] * gamma_Fk1_normalized[i_F]
                         )
                 else:
                     # eqn. (138c)
                     R[nR_s + 3 * nla_N + i_F] = P_Fk1[i_F]
                     # eqn. (142d)
-                    R[nR_s + 3 * nla_N + nla_F + i_F] = la_Fk1[i_F]
+                    R[nR_s + 3 * nla_N + nla_F + i_F] = lambda_Fk1[i_F]
 
         return R
 
