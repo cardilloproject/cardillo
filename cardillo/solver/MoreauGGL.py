@@ -702,9 +702,11 @@ class NonsmoothThetaGGL:
             # # TODO: Implicit kinematic equations is not working
             # - (1.0 - self.theta) * self.model.q_dot(self.tk, self.qk, self.uk)
             # - self.theta * self.model.q_dot(tk1, qk1, uk1)
-            # TODO: Explicit kinematic equations is working but with strange physics
-            - (1.0 - self.theta) * self.model.q_dot(self.tk, self.qk, self.u_sk)
-            - self.theta * self.model.q_dot(tk1, qk1, u_sk1)
+            # # TODO: Explicit kinematic equations is working but with strange physics
+            # - (1.0 - self.theta) * self.model.q_dot(self.tk, self.qk, self.u_sk)
+            # - self.theta * self.model.q_dot(tk1, qk1, u_sk1)
+            - self.model.q_dot(tk1, qk1, u_sk1)
+            # - self.model.q_dot(tk1, qk1, uk1)
             - g_qk1.T @ mu_gk1
             - g_N_qk1.T @ mu_Nk1
             # - 0.5 * dt * gamma_F_qk1.T @ P_Fk1 # TODO: Necessary?
@@ -715,8 +717,9 @@ class NonsmoothThetaGGL:
         #####################
         R[nq : nq + nu] = (
             Mk1 @ u_dot_sk1
-            - (1.0 - self.theta) * self.model.h(self.tk, self.qk, self.uk)
-            - self.theta * self.model.h(tk1, qk1, uk1)
+            # - (1.0 - self.theta) * self.model.h(self.tk, self.qk, self.uk)
+            # - self.theta * self.model.h(tk1, qk1, uk1)
+            - self.model.h(tk1, qk1, uk1)
         )
 
         #################

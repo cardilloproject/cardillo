@@ -995,7 +995,13 @@ class NonsmoothNewmarkFirstOrderTest:
 
 class NonsmoothNewmarkFirstOrder:
     """Simplified generalized-alpha solver for mechanical systems in first
-    order form with unilateral frictional contact."""
+    order form with unilateral frictional contact.
+
+    TODO:
+    -----
+    - check for consistent initial conditions
+    - Jacobian matrix
+    """
 
     def __init__(
         self,
@@ -1053,7 +1059,7 @@ class NonsmoothNewmarkFirstOrder:
         self.q_dotk = self.model.q_dot(t0, model.q0, model.u0)
 
         # solve for initial accelerations
-        self.ak = spsolve(
+        self.u_dotk = spsolve(
             model.M(t0, model.q0, scipy_matrix=csr_matrix),
             self.model.h(t0, model.q0, model.u0)
             + self.model.W_g(t0, model.q0) @ self.model.la_g0
@@ -1065,7 +1071,7 @@ class NonsmoothNewmarkFirstOrder:
             (
                 self.q_dotk,
                 self.Qk,
-                self.ak,
+                self.u_dotk,
                 self.Uk,
                 self.kappa_gk,
                 self.La_gk,
@@ -1096,7 +1102,7 @@ class NonsmoothNewmarkFirstOrder:
         q_dot = x[:nq]
         Q = x[nq : 2 * nq]
 
-        a = x[2 * nq : 2 * nq + nu]
+        u_dot = x[2 * nq : 2 * nq + nu]
         U = x[2 * nq + nu : 2 * nq + 2 * nu]
 
         kappa_g = x[2 * nq + 2 * nu : 2 * nq + 2 * nu + nla_g]
@@ -1110,7 +1116,7 @@ class NonsmoothNewmarkFirstOrder:
         La_F = x[nR_s + 3 * nla_N : nR_s + 3 * nla_N + nla_F]
         la_F = x[nR_s + 3 * nla_N + nla_F : nR_s + 3 * nla_N + 2 * nla_F]
 
-        return q_dot, Q, a, U, kappa_g, La_g, la_g, kappa_N, La_N, la_N, La_F, la_F
+        return q_dot, Q, u_dot, U, kappa_g, La_g, la_g, kappa_N, La_N, la_N, La_F, la_F
 
     def update(self, xk1):
         dt = self.dt
@@ -1119,7 +1125,7 @@ class NonsmoothNewmarkFirstOrder:
         (
             q_dotk1,
             Qk1,
-            ak1,
+            u_dotk1,
             Uk1,
             kappa_gk1,
             La_gk1,
@@ -1132,17 +1138,14 @@ class NonsmoothNewmarkFirstOrder:
         ) = self.unpack(xk1)
 
         # update generalized coordinates and generalized velocities
-        # qk1 = self.qk + dt * q_dotk1 + Qk1
-        # uk1 = self.uk + dt * ak1 + Uk1
         qk1 = self.qk + (1.0 - gamma) * dt * self.q_dotk + gamma * dt * q_dotk1 + Qk1
-        uk1 = self.uk + (1.0 - gamma) * dt * self.ak + gamma * dt * ak1 + Uk1
-        # qk1_tmp = self.qk + (1.0 - gamma) * dt * self.q_dotk + gamma * dt * q_dotk1 + Qk1
-        # qk1 = qk1_tmp + 0.5 * dt2 * self.model.q_ddot(self.tk, qk1_tmp, uk1, ak1)
+        uk1 = self.uk + (1.0 - gamma) * dt * self.u_dotk + gamma * dt * u_dotk1 + Uk1
 
         # integrated contact contributions
 
         # - simple version
         P_Nk1 = La_Nk1 + dt * la_Nk1
+        # TODO: last part (with 0.5 * dt2) is necessary for accumulation points!
         kappa_hat_Nk1 = kappa_Nk1 + dt * La_Nk1 + 0.5 * dt2 * la_Nk1
         P_Fk1 = La_Fk1 + dt * la_Fk1
 
@@ -1152,7 +1155,7 @@ class NonsmoothNewmarkFirstOrder:
         #     kappa_Nk1
         #     + (1.0 - gamma) * dt * self.La_Nk
         #     + gamma * dt * La_Nk1
-        #     # TODO: Is this necessary?
+        #     # TODO: This partis necessary for accumulation points!
         #     + dt2 * (0.5 - beta) * self.la_Nk
         #     + dt2 * beta * la_Nk1
         # )
@@ -1170,7 +1173,7 @@ class NonsmoothNewmarkFirstOrder:
         (
             q_dotk1,
             Qk1,
-            ak1,
+            u_dotk1,
             Uk1,
             kappa_gk1,
             La_gk1,
@@ -1207,17 +1210,17 @@ class NonsmoothNewmarkFirstOrder:
         # kinematic quantities of bilateral constraints
         gk1 = self.model.g(tk1, qk1)
         g_dotk1 = self.model.g_dot(tk1, qk1, uk1)
-        g_ddotk1 = self.model.g_ddot(tk1, qk1, uk1, ak1)
+        g_ddotk1 = self.model.g_ddot(tk1, qk1, uk1, u_dotk1)
 
         # kinematic quantities of normal contacts
         g_Nk1 = self.model.g_N(tk1, qk1)
         xi_Nk1 = self.model.xi_N(tk1, qk1, self.uk, uk1)
-        g_N_ddotk1 = self.model.g_N_ddot(tk1, qk1, uk1, ak1)
+        g_N_ddotk1 = self.model.g_N_ddot(tk1, qk1, uk1, u_dotk1)
 
         # kinematic quantities of frictional contacts
         gamma_Fk1 = self.model.gamma_F(tk1, qk1, uk1)
         xi_Fk1 = self.model.xi_F(tk1, qk1, self.uk, uk1)
-        gamma_F_dotk1 = self.model.gamma_F_dot(tk1, qk1, uk1, ak1)
+        gamma_F_dotk1 = self.model.gamma_F_dot(tk1, qk1, uk1, u_dotk1)
 
         #########################
         # compute residual vector
@@ -1280,7 +1283,7 @@ class NonsmoothNewmarkFirstOrder:
         # equation of motion
         ####################
         R[2 * nq : 2 * nq + nu] = (
-            Mk1 @ ak1 - hk1 - W_gk1 @ la_gk1 - W_Nk1 @ la_Nk1 - W_Fk1 @ la_Fk1
+            Mk1 @ u_dotk1 - hk1 - W_gk1 @ la_gk1 - W_Nk1 @ la_Nk1 - W_Fk1 @ la_Fk1
         )
 
         #################
@@ -1471,7 +1474,7 @@ class NonsmoothNewmarkFirstOrder:
             self.qk = qk1.copy()
             self.uk = uk1.copy()
             self.q_dotk = q_dotk1.copy()
-            self.ak = ak1.copy()
+            self.u_dotk = ak1.copy()
 
             self.la_gk = la_gk1.copy()
             self.la_Nk = la_Nk1.copy()
