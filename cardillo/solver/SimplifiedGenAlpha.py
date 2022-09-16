@@ -1995,7 +1995,6 @@ class NonsmoothGenAlphaFirstOrder:
             Qk1
             - g_qk1.T @ kappa_gk1
             - g_N_qk1.T @ kappa_Nk1
-            # - 0.5 * dt * (W_gammai1 @ La_gammai1 + W_Fi1 @ La_Fi1)
             # - 0.5 * dt * gamma_F_qk1.T @ Gamma_Fk1 # TODO: Do we need the coupling with La_Fk1?
             # - (1.0 - gamma) * dt * self.model.gamma_F_q(self.tk, self.qk, self.uk).T @ self.La_Fk
             # - gamma * dt * gamma_F_qk1.T @ La_Fk1
@@ -2174,7 +2173,10 @@ class NonsmoothGenAlphaFirstOrder:
 
     def Jacobian(self, tk1, xk1):
         return csr_matrix(
-            approx_fprime(xk1, lambda x: self.residual(tk1, x), method="2-point")
+            # approx_fprime(xk1, lambda x: self.residual(tk1, x), method="2-point")
+            approx_fprime(
+                xk1, lambda x: self.residual(tk1, x), method="2-point", eps=1.0e-7
+            )
         )
 
     def solve(self):
@@ -2615,24 +2617,22 @@ class NonsmoothNewmark:
         # integrated contact contributions
         ##################################
 
-        # - simple version
-        P_Nk1 = Gamma_Nk1 + dt * lambda_Nk1
-        # TODO: last part (with 0.5 * dt2) is necessary for accumulation points!
-        S_Nk1 = kappa_Nk1 + dt * Gamma_Nk1 + 0.5 * dt2 * lambda_Nk1
-        P_Fk1 = Gamma_Fk1 + dt * lambda_Fk1
+        # # - simple version
+        # P_Nk1 = Gamma_Nk1 + dt * lambda_Nk1
+        # # TODO: last part (with 0.5 * dt2) is necessary for accumulation points!
+        # S_Nk1 = kappa_Nk1 + dt * Gamma_Nk1 + 0.5 * dt2 * lambda_Nk1
+        # P_Fk1 = Gamma_Fk1 + dt * lambda_Fk1
 
-        # # - Newmark version
-        # P_Nk1 = (
-        #     Gamma_Nk1 + (1.0 - gamma) * dt * self.la_Nk + gamma * dt * lambda_Nk1
-        # )
-        # S_Nk1 = (
-        #     kappa_Nk1
-        #     + dt2 * (0.5 - self.beta) * self.la_Nk
-        #     + dt2 * self.beta * lambda_Nk1
-        # )
-        # P_Fk1 = (
-        #     Gamma_Fk1 + (1.0 - gamma) * dt * self.la_Fk + gamma * dt * lambda_Fk1
-        # )
+        # - Newmark version
+        P_Nk1 = Gamma_Nk1 + (1.0 - gamma) * dt * self.la_Nk + gamma * dt * lambda_Nk1
+        S_Nk1 = (
+            kappa_Nk1
+            + (1.0 - gamma) * dt * self.La_Nk
+            + gamma * dt * Gamma_Nk1
+            + dt2 * (0.5 - self.beta) * self.la_Nk
+            + dt2 * self.beta * lambda_Nk1
+        )
+        P_Fk1 = Gamma_Fk1 + (1.0 - gamma) * dt * self.la_Fk + gamma * dt * lambda_Fk1
 
         if store:
             self.tk += dt
@@ -2641,6 +2641,8 @@ class NonsmoothNewmark:
             self.u_dotk = u_dotk1.copy()
             self.la_Nk = lambda_Nk1.copy()
             self.la_Fk = lambda_Fk1.copy()
+            self.La_Nk = Gamma_Nk1.copy()
+            self.La_Fk = Gamma_Fk1.copy()
 
         return qk1, uk1, P_Nk1, S_Nk1, P_Fk1
 
@@ -2737,9 +2739,10 @@ class NonsmoothNewmark:
             Qk1
             - g_qk1.T @ kappa_gk1
             - g_N_qk1.T @ kappa_Nk1
-            # - 0.5 * dt * gamma_F_qk1.T @ Gamma_Fk1 # TODO: Do we need the coupling with La_Fk1?
+            # # TODO: Do we need the coupling with La_Fk1?
+            # # - 0.5 * dt * gamma_F_qk1.T @ Gamma_Fk1
             # - (1.0 - gamma) * dt * self.model.gamma_F_q(self.tk, self.qk, self.uk).T @ self.La_Fk
-            # - gamma * dt * gamma_F_qk1.T @ La_Fk1
+            # - gamma * dt * gamma_F_qk1.T @ Gamma_Fk1
         )
 
         ################################################
@@ -2879,7 +2882,11 @@ class NonsmoothNewmark:
 
     def Jacobian(self, tk1, xk1):
         return csr_matrix(
-            approx_fprime(xk1, lambda x: self.residual(tk1, x), method="2-point")
+            # approx_fprime(xk1, lambda x: self.residual(tk1, x), method="2-point")
+            # approx_fprime(xk1, lambda x: self.residual(tk1, x), method="3-point")
+            approx_fprime(
+                xk1, lambda x: self.residual(tk1, x), method="2-point", eps=1.0e-7
+            )
         )
 
     def solve(self):

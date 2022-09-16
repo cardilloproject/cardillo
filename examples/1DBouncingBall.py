@@ -9,6 +9,7 @@ from cardillo.model import Model
 from cardillo.solver import (
     Moreau,
     NonsmoothEulerBackwardsGGL,
+    NonsmoothEulerBackwardsGGL_V2,
     NonsmoothThetaGGL,
     NonsmoothTheta,
     NonsmoothGeneralizedAlpha,
@@ -140,8 +141,9 @@ if __name__ == "__main__":
     # solver_other = NonsmoothTheta(model, t1, dt, atol=1.0e-8)
     # solver_other = NonsmoothThetaGGL(model, t1, dt)
     # solver_other = NonsmoothEulerBackwardsGGL(model, t1, dt)
+    solver_other = NonsmoothEulerBackwardsGGL_V2(model, t1, dt)
     # solver_other = NonsmoothGenAlphaFirstOrder(model, t1, dt, rho_inf=0.9)
-    solver_other = NonsmoothNewmark(model, t1, dt)
+    # solver_other = NonsmoothNewmark(model, t1, dt)
     sol_other = solver_other.solve()
     t = sol_other.t
     q = sol_other.q
@@ -150,7 +152,11 @@ if __name__ == "__main__":
     u_other = sol_other.u
     P_N_other = sol_other.P_N
     P_F_other = sol_other.P_F
-    if type(solver_other) in [NonsmoothThetaGGL, NonsmoothEulerBackwardsGGL]:
+    if type(solver_other) in [
+        NonsmoothThetaGGL,
+        NonsmoothEulerBackwardsGGL,
+        NonsmoothEulerBackwardsGGL_V2,
+    ]:
         a_other = np.zeros_like(u_other)
         a_other[1:] = (u_other[1:] - u_other[:-1]) / dt
         la_N_other = np.zeros_like(P_N_other)
