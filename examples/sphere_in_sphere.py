@@ -2,7 +2,6 @@ import numpy as np
 
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-from cardillo.math import numerical_derivative
 
 from cardillo.model import Model
 from cardillo.model.rigid_body import RigidBodyEuler

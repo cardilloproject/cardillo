@@ -7,6 +7,7 @@ from cardillo.model import Model
 from cardillo.solver import (
     Moreau,
     NonsmoothThetaGGL,
+    NonsmoothEulerBackwardsGGL_V2,
     NonsmoothTheta,
     NonsmoothGeneralizedAlpha,
     NonsmoothGenAlphaFirstOrder,
@@ -189,18 +190,17 @@ if __name__ == "__main__":
     # dt = 1.0e-4
 
     # solve with GGL stabilized Moreau scheme
-    theta = 0.5
-    theta = 0.4
     # sol1 = NonsmoothThetaGGL(model, t_end, dt).solve()
     # sol1 = NonsmoothTheta(model, t_end, dt).solve()
     # sol1 = NonsmoothGenAlphaFirstOrder(model, t_end, dt, rho_inf=0.85).solve()
     # sol1 = NonsmoothGeneralizedAlpha(model, t_end, dt, rho_inf=0.85).solve()
-    sol1 = NonsmoothNewmark(model, t_end, dt).solve()
+    # sol1 = NonsmoothNewmark(model, t_end, dt).solve()
+    sol1 = NonsmoothEulerBackwardsGGL_V2(model, t_end, dt).solve()
     t1 = sol1.t
     q1 = sol1.q
     u1 = sol1.u
-    # P_g1 = sol1.P_g
-    P_g1 = sol1.la_g * dt
+    P_g1 = sol1.P_g
+    # P_g1 = sol1.la_g * dt
     P_N1 = sol1.P_N
 
     # solve with classical Moreau scheme
