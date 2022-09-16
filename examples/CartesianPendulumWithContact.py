@@ -192,7 +192,7 @@ if __name__ == "__main__":
     theta = 0.4
     # sol1 = NonsmoothThetaGGL(model, t_end, dt).solve()
     # sol1 = NonsmoothTheta(model, t_end, dt).solve()
-    sol1 = NonsmoothGenAlphaFirstOrder(model, t_end, dt, rho_inf=0.5).solve()
+    sol1 = NonsmoothGenAlphaFirstOrder(model, t_end, dt, rho_inf=0.85).solve()
     t1 = sol1.t
     q1 = sol1.q
     u1 = sol1.u

@@ -11,8 +11,9 @@ from cardillo.forces import Force
 from cardillo.contacts import SphereInSphere
 from cardillo.solver import (
     Moreau,
-    NonsmoothNewmarkFirstOrder,
+    NonsmoothTheta,
     NonsmoothGeneralizedAlpha,
+    NonsmoothGenAlphaFirstOrder,
 )
 
 
@@ -67,10 +68,12 @@ if __name__ == "__main__":
     t0 = 0
     t1 = 0.6
     # t1 = 1
-    dt = 1e-2
+    # dt = 1e-2
+    dt = 5e-3
 
-    # solver_n = NonsmoothGeneralizedAlpha(model, t1, dt)
-    solver_n = NonsmoothNewmarkFirstOrder(model, t1, dt)
+    # solver_n = NonsmoothGeneralizedAlpha(model, t1, dt, rho_inf=0.85)
+    solver_n = NonsmoothTheta(model, t1, dt)
+    # solver_n = NonsmoothGenAlphaFirstOrder(model, t1, dt, rho_inf=0.85)
     sol_n = solver_n.solve()
     # sol_n = sol_fp
     t_n = sol_n.t
@@ -83,7 +86,6 @@ if __name__ == "__main__":
     P_N_n = sol_n.P_N
     P_F_n = sol_n.P_F
 
-    # solver_fp = NonsmoothNewmarkFirstOrder(model, t1, dt)
     solver_fp = Moreau(model, t1, dt)
     sol_fp = solver_fp.solve()
     t_fp = sol_fp.t

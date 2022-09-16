@@ -8,11 +8,12 @@ import matplotlib.animation as animation
 from cardillo.model import Model
 from cardillo.solver import (
     Moreau,
-    NonsmoothNewmarkFirstOrder,
+    NonsmoothTheta,
     NonsmoothGeneralizedAlpha,
-    MoreauGGL,
+    NonsmoothThetaGGL,
+    NonsmoothGenAlphaFirstOrder,
 )
-from cardillo.solver.MoreauGGL import MoreauGGLInvertM
+from cardillo.solver.MoreauGGL import MoreauGGLInvertM, MoreauGGLWorkingSolution
 
 
 class Slider_crank:
@@ -569,16 +570,18 @@ if __name__ == "__main__":
     # dt = 1e-5
     # dt = 1e-4
     # dt = 2.5e-4
-    # dt = 5e-4
-    dt = 1e-3
-    # dt = 5e-3
+    dt = 5e-4
+    # dt = 1e-3
 
     # TODO: This example seems to be broken!
     # solver = Moreau(model, t1, dt, fix_point_max_iter=5000)
     # solver = MoreauGGL(model, t1, dt)
     # solver = MoreauGGLInvertM(model, t1, dt)
-    solver = NonsmoothNewmarkFirstOrder(model, t1, dt, atol=1.0e-6)
-    # solver = NonsmoothGeneralizedAlpha(model, t1, dt, newton_tol=1.0e-6)
+    # solver = MoreauGGLWorkingSolution(model, t1, dt)
+    # solver = NonsmoothNewmarkFirstOrder(model, t1, dt, atol=1.0e-6)
+    # solver = NonsmoothGeneralizedAlpha(model, t1, dt, rho_inf=0.85)
+    # solver = NonsmoothTheta(model, t1, dt)
+    solver = NonsmoothGenAlphaFirstOrder(model, t1, dt, rho_inf=0.85)
     sol = solver.solve()
     t = sol.t
     q = sol.q
