@@ -18,6 +18,7 @@ from cardillo.solver import (
     NonsmoothTheta,
     NonsmoothGeneralizedAlpha,
     NonsmoothGenAlphaFirstOrder,
+    NonsmoothNewmark,
 )
 
 # from cardillo.solver.generalized_alpha.generalized_alpha_3 import Generalized_alpha_3
@@ -112,7 +113,8 @@ if __name__ == "__main__":
     # solver_other = NonsmoothTheta(model, t1, dt, atol=1.0e-8)
     # solver_other = NonsmoothEulerBackwardsGGL(model, t1, dt)
     # solver_other = NonsmoothThetaGGL(model, t1, dt)
-    solver_other = NonsmoothGenAlphaFirstOrder(model, t1, dt, rho_inf=0.85)
+    # solver_other = NonsmoothGenAlphaFirstOrder(model, t1, dt, rho_inf=0.85)
+    solver_other = NonsmoothNewmark(model, t1, dt)
     sol_other = solver_other.solve()
     t = sol_other.t
     q = sol_other.q

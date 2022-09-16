@@ -2365,14 +2365,10 @@ class NonsmoothNewmark:
         model,
         t1,
         dt,
-        rho_inf=1,
         atol=1e-10,
         max_iter=40,
         error_function=lambda x: np.max(np.abs(x)),
     ):
-
-        raise NotImplementedError
-
         self.model = model
 
         #######################################################################
@@ -2408,7 +2404,7 @@ class NonsmoothNewmark:
         self.nla_F = model.nla_F
 
         # dimensions of residual
-        self.nR_s = 2 * self.nq + 2 * self.nu + 3 * self.nla_g
+        self.nR_s = self.nq + 2 * self.nu + 3 * self.nla_g
         self.nR_c = 3 * self.nla_N + 2 * self.nla_F
         self.nR = self.nR_s + self.nR_c
 
@@ -2456,11 +2452,11 @@ class NonsmoothNewmark:
 
         self.kappa_Nk = np.zeros(self.nla_N)
         self.la_Nk = model.la_N0
-        self.la_Nbark = self.la_Nk.copy()
+        # self.la_Nbark = self.la_Nk.copy()
         self.La_Nk = np.zeros(self.nla_N)
 
         self.la_Fk = model.la_F0
-        self.la_Fbark = model.la_F0.copy()
+        # self.la_Fbark = model.la_F0.copy()
         self.La_Fk = np.zeros(self.nla_F)
 
         # compute initial velocity of generalized coordinates
@@ -2471,10 +2467,9 @@ class NonsmoothNewmark:
 
         self.xk = np.concatenate(
             (
-                self.q_dotk,
-                self.Qk,
                 self.u_dotk,
                 self.Uk,
+                self.Qk,
                 self.kappa_gk,
                 self.La_gk,
                 self.la_gk,
@@ -2486,9 +2481,9 @@ class NonsmoothNewmark:
             )
         )
 
-        # auxiliary derivatives related to q_dot and u_dot
-        self.vk = self.q_dotk.copy()
-        self.ak = self.u_dotk.copy()
+        # # auxiliary derivatives related to q_dot and u_dot
+        # self.vk = self.q_dotk.copy()
+        # self.ak = self.u_dotk.copy()
 
         # check if initial conditions satisfy constraints on position, velocity
         # and acceleration level
@@ -2531,9 +2526,6 @@ class NonsmoothNewmark:
         self.Dk1_st = np.zeros(self.nla_N, dtype=bool)
         self.Ek1_st = np.zeros(self.nla_N, dtype=bool)
 
-    def pack(self, *args):
-        return np.concatenate([*args])
-
     def unpack(self, x):
         nq = self.nq
         nu = self.nu
@@ -2542,15 +2534,13 @@ class NonsmoothNewmark:
         nla_F = self.nla_F
         nR_s = self.nR_s
 
-        q_dot = x[:nq]
-        Q = x[nq : 2 * nq]
+        u_dot = x[:nu]
+        U = x[nu : 2 * nu]
+        Q = x[2 * nu : 2 * nu + nq]
 
-        u_dot = x[2 * nq : 2 * nq + nu]
-        U = x[2 * nq + nu : 2 * nq + 2 * nu]
-
-        kappa_g = x[2 * nq + 2 * nu : 2 * nq + 2 * nu + nla_g]
-        Gamma_g = x[2 * nq + 2 * nu + nla_g : 2 * nq + 2 * nu + 2 * nla_g]
-        lambda_g = x[2 * nq + 2 * nu + 2 * nla_g : 2 * nq + 2 * nu + 3 * nla_g]
+        kappa_g = x[2 * nu + nq : 2 * nu + nq + nla_g]
+        Gamma_g = x[2 * nu + nq + nla_g : 2 * nu + nq + 2 * nla_g]
+        lambda_g = x[2 * nu + nq + 2 * nla_g : 2 * nu + nq + 3 * nla_g]
 
         kappa_N = x[nR_s : nR_s + nla_N]
         Gamma_N = x[nR_s + nla_N : nR_s + 2 * nla_N]
@@ -2560,10 +2550,9 @@ class NonsmoothNewmark:
         lambda_F = x[nR_s + 3 * nla_N + nla_F : nR_s + 3 * nla_N + 2 * nla_F]
 
         return (
-            q_dot,
-            Q,
             u_dot,
             U,
+            Q,
             kappa_g,
             Gamma_g,
             lambda_g,
@@ -2581,14 +2570,12 @@ class NonsmoothNewmark:
         dt = self.dt
         dt2 = dt * dt
         gamma = self.gamma
-        alpha_f = self.alpha_f
-        alpha_m = self.alpha_m
+        beta = self.beta
 
         (
-            q_dotk1,
-            Qk1,
             u_dotk1,
             Uk1,
+            Qk1,
             kappa_gk1,
             Gamma_gk1,
             lambda_gk1,
@@ -2599,27 +2586,30 @@ class NonsmoothNewmark:
             lambda_Fk1,
         ) = self.unpack(xk1)
 
-        # compute auxiliary derivatives from q_dotk1, u_dotk1, lambda_N and lambda_F
-        vk1 = (
-            alpha_f * self.q_dotk + (1.0 - alpha_f) * q_dotk1 - alpha_m * self.vk
-        ) / (1.0 - alpha_m)
-        ak1 = (
-            alpha_f * self.u_dotk + (1.0 - alpha_f) * u_dotk1 - alpha_m * self.ak
-        ) / (1.0 - alpha_m)
-        lambda_Nbark1 = (
-            alpha_f * self.la_Nk
-            + (1.0 - alpha_f) * lambda_Nk1
-            - alpha_m * self.la_Nbark
-        ) / (1.0 - alpha_m)
-        lambda_Fbark1 = (
-            alpha_f * self.la_Fk
-            + (1.0 - alpha_f) * lambda_Fk1
-            - alpha_m * self.la_Fbark
-        ) / (1.0 - alpha_m)
+        # # compute auxiliary derivatives from q_dotk1, u_dotk1, lambda_N and lambda_F
+        # vk1 = (
+        #     alpha_f * self.q_dotk + (1.0 - alpha_f) * q_dotk1 - alpha_m * self.vk
+        # ) / (1.0 - alpha_m)
+        # ak1 = (
+        #     alpha_f * self.u_dotk + (1.0 - alpha_f) * u_dotk1 - alpha_m * self.ak
+        # ) / (1.0 - alpha_m)
+        # lambda_Nbark1 = (
+        #     alpha_f * self.la_Nk
+        #     + (1.0 - alpha_f) * lambda_Nk1
+        #     - alpha_m * self.la_Nbark
+        # ) / (1.0 - alpha_m)
+        # lambda_Fbark1 = (
+        #     alpha_f * self.la_Fk
+        #     + (1.0 - alpha_f) * lambda_Fk1
+        #     - alpha_m * self.la_Fbark
+        # ) / (1.0 - alpha_m)
 
-        # Newmark update using v and a + stabilization with Q and U
-        qk1 = self.qk + dt * ((1.0 - gamma) * self.vk + gamma * vk1) + Qk1
-        uk1 = self.uk + dt * ((1.0 - gamma) * self.ak + gamma * ak1) + Uk1
+        # Newmark update for velocities + stabilization
+        uk1 = self.uk + dt * ((1.0 - gamma) * self.u_dotk + gamma * u_dotk1) + Uk1
+
+        # Newmark update for generalized coordinates + stabilization
+        Delta_uk1 = self.uk + self.dt * ((0.5 - beta) * self.u_dotk + beta * u_dotk1)
+        qk1 = self.qk + dt * self.model.q_dot(self.tk, self.qk, Delta_uk1) + Qk1
 
         ##################################
         # integrated contact contributions
@@ -2631,31 +2621,26 @@ class NonsmoothNewmark:
         S_Nk1 = kappa_Nk1 + dt * Gamma_Nk1 + 0.5 * dt2 * lambda_Nk1
         P_Fk1 = Gamma_Fk1 + dt * lambda_Fk1
 
-        # # - Generalized-alpha version
+        # # - Newmark version
         # P_Nk1 = (
-        #     Gamma_Nk1 + (1.0 - gamma) * dt * self.la_Nbark + gamma * dt * lambda_Nbark1
+        #     Gamma_Nk1 + (1.0 - gamma) * dt * self.la_Nk + gamma * dt * lambda_Nk1
         # )
         # S_Nk1 = (
         #     kappa_Nk1
-        #     + dt2 * (0.5 - self.beta) * self.la_Nbark
-        #     + dt2 * self.beta * lambda_Nbark1
+        #     + dt2 * (0.5 - self.beta) * self.la_Nk
+        #     + dt2 * self.beta * lambda_Nk1
         # )
         # P_Fk1 = (
-        #     Gamma_Fk1 + (1.0 - gamma) * dt * self.la_Fbark + gamma * dt * lambda_Fbark1
+        #     Gamma_Fk1 + (1.0 - gamma) * dt * self.la_Fk + gamma * dt * lambda_Fk1
         # )
 
         if store:
-            self.q_dotk = q_dotk1.copy()
-            self.u_dotk = u_dotk1.copy()
-            self.vk = vk1.copy()
-            self.ak = ak1.copy()
+            self.tk += dt
             self.qk = qk1.copy()
             self.uk = uk1.copy()
+            self.u_dotk = u_dotk1.copy()
             self.la_Nk = lambda_Nk1.copy()
-            self.La_Nk = Gamma_Nk1.copy()
             self.la_Fk = lambda_Fk1.copy()
-            self.la_Nbark = lambda_Nbark1.copy()
-            self.la_Fbark = lambda_Fbark1.copy()
 
         return qk1, uk1, P_Nk1, S_Nk1, P_Fk1
 
@@ -2667,10 +2652,9 @@ class NonsmoothNewmark:
         # unpack vector of unknowns
         ###########################
         (
-            q_dotk1,
-            Qk1,
             u_dotk1,
             Uk1,
+            Qk1,
             kappa_gk1,
             Gamma_gk1,
             lambda_gk1,
@@ -2729,44 +2713,9 @@ class NonsmoothNewmark:
         R = np.empty(self.nR, dtype=xk1.dtype)
 
         ####################
-        # kinematic equation
-        ####################
-        R[:nq] = q_dotk1 - self.model.q_dot(tk1, qk1, uk1)
-
-        #####################
-        # position correction
-        #####################
-        R[nq : 2 * nq] = (
-            Qk1
-            - g_qk1.T @ kappa_gk1
-            - g_N_qk1.T @ kappa_Nk1
-            # - 0.5 * dt * gamma_F_qk1.T @ Gamma_Fk1 # TODO: Do we need the coupling with La_Fk1?
-            # - (1.0 - gamma) * dt * self.model.gamma_F_q(self.tk, self.qk, self.uk).T @ self.La_Fk
-            # - gamma * dt * gamma_F_qk1.T @ La_Fk1
-        )
-
-        # # Remove Qk1 solution by solving for 0 and add position correction
-        # # directly to kinematic equation
-        # R[nq : 2 * nq] = Qk1
-        # # R[:nq] = (
-        # #     q_dotk1
-        # #     - self.model.q_dot(tk1, qk1, uk1)
-        # #     - g_qk1.T @ kappa_gk1 / dt
-        # #     - g_N_qk1.T @ kappa_Nk1 / dt
-        # #     # - gamma_F_qk1.T @ La_Fk1 # TODO: Do we need the coupling with La_Fk1?
-        # # )
-        # R[:nq] = (
-        #     dt * q_dotk1
-        #     # - dt * self.model.q_dot(tk1, qk1, uk1)
-        #     - dt * self.model.q_dot(tk1, qk1, uk1 - Uk1)
-        #     - g_qk1.T @ kappa_gk1
-        #     - g_N_qk1.T @ kappa_Nk1
-        # )
-
-        ####################
         # equation of motion
         ####################
-        R[2 * nq : 2 * nq + nu] = (
+        R[:nu] = (
             Mk1 @ u_dotk1
             - hk1
             - W_gk1 @ lambda_gk1
@@ -2777,16 +2726,28 @@ class NonsmoothNewmark:
         #################
         # impact equation
         #################
-        R[2 * nq + nu : 2 * nq + 2 * nu] = (
+        R[nu : 2 * nu] = (
             Mk1 @ Uk1 - W_gk1 @ Gamma_gk1 - W_Nk1 @ Gamma_Nk1 - W_Fk1 @ Gamma_Fk1
+        )
+
+        #####################
+        # position correction
+        #####################
+        R[2 * nu : 2 * nu + nq] = (
+            Qk1
+            - g_qk1.T @ kappa_gk1
+            - g_N_qk1.T @ kappa_Nk1
+            # - 0.5 * dt * gamma_F_qk1.T @ Gamma_Fk1 # TODO: Do we need the coupling with La_Fk1?
+            # - (1.0 - gamma) * dt * self.model.gamma_F_q(self.tk, self.qk, self.uk).T @ self.La_Fk
+            # - gamma * dt * gamma_F_qk1.T @ La_Fk1
         )
 
         ################################################
         # bilteral constraints on all kinematical levels
         ################################################
-        R[2 * nq + 2 * nu : 2 * nq + 2 * nu + nla_g] = gk1
-        R[2 * nq + 2 * nu + nla_g : 2 * nq + 2 * nu + 2 * nla_g] = g_dotk1
-        R[2 * nq + 2 * nu + 2 * nla_g : 2 * nq + 2 * nu + 3 * nla_g] = g_ddotk1
+        R[2 * nu + nq : 2 * nu + nq + nla_g] = gk1
+        R[2 * nu + nq + nla_g : 2 * nu + nq + 2 * nla_g] = g_dotk1
+        R[2 * nu + nq + 2 * nla_g : 2 * nu + nq + 3 * nla_g] = g_ddotk1
 
         #######################
         # unilateral index sets
@@ -2923,9 +2884,8 @@ class NonsmoothNewmark:
 
     def solve(self):
         q = []
-        q_dot = []
         u = []
-        a = []
+        u_dot = []
         Q = []
         U = []
 
@@ -2945,10 +2905,9 @@ class NonsmoothNewmark:
 
         def write_solution(tk1, xk1):
             (
-                q_dotk1,
-                Qk1,
                 ak1,
                 Uk1,
+                Qk1,
                 kappa_gk1,
                 La_gk1,
                 la_gk1,
@@ -2964,23 +2923,9 @@ class NonsmoothNewmark:
             # modify converged quantities
             qk1, uk1 = self.model.step_callback(tk1, qk1, uk1)
 
-            # self.qk = qk1.copy()
-            # self.uk = uk1.copy()
-            # self.q_dotk = q_dotk1.copy()
-            # self.u_dotk = ak1.copy()
-
-            # self.la_gk = la_gk1.copy()
-            # self.la_Nk = la_Nk1.copy()
-            # self.la_Fk = la_Fk1.copy()
-
-            # self.La_gk = La_gk1.copy()
-            # self.La_Nk = La_Nk1.copy()
-            # self.La_Fk = La_Fk1.copy()
-
             q.append(qk1.copy())
-            q_dot.append(q_dotk1.copy())
             u.append(uk1.copy())
-            a.append(ak1.copy())
+            u_dot.append(ak1.copy())
             Q.append(Qk1.copy())
             U.append(Uk1.copy())
 
@@ -3048,9 +2993,8 @@ class NonsmoothNewmark:
                 return Solution(
                     t=t[:n],
                     q=np.array(q),
-                    q_dot=np.array(q_dot),
                     u=np.array(u),
-                    a=np.array(a),
+                    a=np.array(u_dot),
                     Q=np.array(Q),
                     U=np.array(U),
                     la_g=np.array(la_g),
@@ -3073,9 +3017,8 @@ class NonsmoothNewmark:
         return Solution(
             t=t[:n],
             q=np.array(q),
-            q_dot=np.array(q_dot),
             u=np.array(u),
-            a=np.array(a),
+            a=np.array(u_dot),
             Q=np.array(Q),
             U=np.array(U),
             la_g=np.array(la_g),

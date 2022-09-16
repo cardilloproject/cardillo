@@ -12,6 +12,8 @@ from cardillo.solver import (
     NonsmoothThetaGGL,
     NonsmoothTheta,
     NonsmoothGeneralizedAlpha,
+    NonsmoothGenAlphaFirstOrder,
+    NonsmoothNewmark,
 )
 
 
@@ -133,20 +135,13 @@ if __name__ == "__main__":
     # dt = 1e-3
 
     # solve problem
-    sol_moreau = Moreau(model, t1, dt).solve()
-    t_moreau = sol_moreau.t
-    q_moreau = sol_moreau.q
-    u_moreau = sol_moreau.u
-    a_moreau = np.zeros_like(u_moreau)
-    a_moreau[1:] = (u_moreau[1:] - u_moreau[:-1]) / dt
-    P_N_moreau = sol_moreau.P_N
-    P_F_moreau = sol_moreau.P_F
-
     # solver_other = NonsmoothGeneralizedAlpha(model, t1, dt)
     # solver_other = Generalized_alpha_3(model, t1, dt, numerical_jacobian=True)
-    solver_other = NonsmoothTheta(model, t1, dt, atol=1.0e-8)
+    # solver_other = NonsmoothTheta(model, t1, dt, atol=1.0e-8)
     # solver_other = NonsmoothThetaGGL(model, t1, dt)
     # solver_other = NonsmoothEulerBackwardsGGL(model, t1, dt)
+    # solver_other = NonsmoothGenAlphaFirstOrder(model, t1, dt, rho_inf=0.9)
+    solver_other = NonsmoothNewmark(model, t1, dt)
     sol_other = solver_other.solve()
     t = sol_other.t
     q = sol_other.q
@@ -168,6 +163,15 @@ if __name__ == "__main__":
         la_F_other = sol_other.la_F
         La_N_other = sol_other.La_N
         La_F_other = sol_other.La_F
+
+    sol_moreau = Moreau(model, t1, dt).solve()
+    t_moreau = sol_moreau.t
+    q_moreau = sol_moreau.q
+    u_moreau = sol_moreau.u
+    a_moreau = np.zeros_like(u_moreau)
+    a_moreau[1:] = (u_moreau[1:] - u_moreau[:-1]) / dt
+    P_N_moreau = sol_moreau.P_N
+    P_F_moreau = sol_moreau.P_F
 
     # visualization
     fig, ax = plt.subplots(3, 1)

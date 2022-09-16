@@ -10,6 +10,7 @@ from cardillo.solver import (
     NonsmoothTheta,
     NonsmoothGeneralizedAlpha,
     NonsmoothGenAlphaFirstOrder,
+    NonsmoothNewmark,
 )
 
 # from cardillo.solver.generalized_alpha.generalized_alpha_3 import Generalized_alpha_3
@@ -192,7 +193,9 @@ if __name__ == "__main__":
     theta = 0.4
     # sol1 = NonsmoothThetaGGL(model, t_end, dt).solve()
     # sol1 = NonsmoothTheta(model, t_end, dt).solve()
-    sol1 = NonsmoothGenAlphaFirstOrder(model, t_end, dt, rho_inf=0.85).solve()
+    # sol1 = NonsmoothGenAlphaFirstOrder(model, t_end, dt, rho_inf=0.85).solve()
+    # sol1 = NonsmoothGeneralizedAlpha(model, t_end, dt, rho_inf=0.85).solve()
+    sol1 = NonsmoothNewmark(model, t_end, dt).solve()
     t1 = sol1.t
     q1 = sol1.q
     u1 = sol1.u
