@@ -641,7 +641,7 @@ class NonsmoothEulerBackwardsGGL_V2:
         Mk1 = self.model.M(tk1, qk1)
 
         gk1 = self.model.g(tk1, qk1)
-        g_dotk1 = self.model.g_dot(tk1, qk1, uk1)  # TODO: Only smooth part?
+        g_dotk1 = self.model.g_dot(tk1, qk1, uk1)
         g_qk1 = self.model.g_q(tk1, qk1, scipy_matrix=csr_matrix)
         W_gk1 = self.model.W_g(tk1, qk1, scipy_matrix=csr_matrix)
 
