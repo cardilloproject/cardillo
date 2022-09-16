@@ -633,6 +633,8 @@ class NonsmoothEulerBackwardsGGL_V2:
         q_sk1, qk1, u_sk1, uk1 = self.update(xk1)
         # TODO: Why is this corrrect???
         kappa_Nk1 = dt * mu_Nk1 + P_Nk1
+        # kappa_Nk1 = mu_Nk1 + P_Nk1 / dt
+        # kappa_Nk1 = mu_Nk1 + dt * P_Nk1
         # kappa_Nk1 = mu_Nk1
 
         # evaluate repeatedly used quantities
@@ -693,19 +695,30 @@ class NonsmoothEulerBackwardsGGL_V2:
         ###################
         R = np.zeros(self.nx)
 
-        #################################
-        # kinematic differential equation
-        #################################
-        R[:nq] = (
-            q_dotk1
-            # TODO: Impulsive uk1 is not working
-            - self.model.q_dot(tk1, qk1, uk1)
-            # # TODO: Smooth u_sk1 is working
-            # - self.model.q_dot(tk1, qk1, u_sk1)
-        )
+        # #################################
+        # # kinematic differential equation
+        # #################################
+        # R[:nq] = (
+        #     q_dotk1
+        #     # TODO: Impulsive uk1 is not working
+        #     - self.model.q_dot(tk1, qk1, uk1)
+        #     # # TODO: Smooth u_sk1 is working
+        #     # - self.model.q_dot(tk1, qk1, u_sk1)
+        # )
 
-        # position correction
-        R[nq : 2 * nq] = Qk1 - dt * g_qk1.T @ mu_gk1 - dt * g_N_qk1.T @ mu_Nk1
+        # # position correction
+        # R[nq : 2 * nq] = Qk1 - dt * g_qk1.T @ mu_gk1 - dt * g_N_qk1.T @ mu_Nk1
+
+        # TODO: This reduces the number of unknowns by nq!
+        # Remove Qk1 solution by solving for 0 and add position correction
+        # directly to kinematic equation
+        R[nq : 2 * nq] = Qk1
+        R[:nq] = (
+            dt * q_dotk1
+            - dt * self.model.q_dot(tk1, qk1, uk1)
+            - g_qk1.T @ mu_gk1
+            - g_N_qk1.T @ mu_Nk1
+        )
 
         #####################
         # equations of motion

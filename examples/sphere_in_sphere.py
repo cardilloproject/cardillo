@@ -11,9 +11,12 @@ from cardillo.forces import Force
 from cardillo.contacts import SphereInSphere
 from cardillo.solver import (
     Moreau,
+    NonsmoothEulerBackwardsGGL,
+    NonsmoothEulerBackwardsGGL_V2,
     NonsmoothTheta,
     NonsmoothGeneralizedAlpha,
     NonsmoothGenAlphaFirstOrder,
+    NonsmoothNewmark,
 )
 
 
@@ -66,25 +69,40 @@ if __name__ == "__main__":
     model.assemble()
 
     t0 = 0
-    t1 = 0.6
+    # t1 = 0.6
     # t1 = 1
+    t1 = 5
+    # dt = 5e-2
     dt = 1e-2
     # dt = 5e-3
+    # dt = 1e-3
 
     # solver_n = NonsmoothGeneralizedAlpha(model, t1, dt, rho_inf=0.85)
+    # solver_n = NonsmoothEulerBackwardsGGL(model, t1, dt)
+    solver_n = NonsmoothEulerBackwardsGGL_V2(model, t1, dt)
     # solver_n = NonsmoothTheta(model, t1, dt)
-    solver_n = NonsmoothGenAlphaFirstOrder(model, t1, dt, rho_inf=0.85)
+    # solver_n = NonsmoothGenAlphaFirstOrder(model, t1, dt, rho_inf=0.85)
+    # solver_n = NonsmoothNewmark(model, t1, dt)
     sol_n = solver_n.solve()
     # sol_n = sol_fp
     t_n = sol_n.t
     q_n = sol_n.q
     u_n = sol_n.u
-    a_n = sol_n.a
-    la_N_n = sol_n.la_N
-    la_F_n = sol_n.la_F
-
     P_N_n = sol_n.P_N
     P_F_n = sol_n.P_F
+    if type(solver_n) in [NonsmoothEulerBackwardsGGL, NonsmoothEulerBackwardsGGL_V2]:
+        a_n = np.zeros_like(u_n)
+        a_n[1:] = (u_n[1:] - u_n[:-1]) / dt
+        la_N_n = np.zeros_like(P_N_n)
+        la_F_n = np.zeros_like(P_F_n)
+        La_N_n = np.zeros_like(P_N_n)
+        La_F_n = np.zeros_like(P_F_n)
+    else:
+        a_n = sol_n.a
+        la_N_n = sol_n.la_N
+        la_F_n = sol_n.la_F
+        La_N_n = sol_n.La_N
+        La_F_n = sol_n.La_F
 
     solver_fp = Moreau(model, t1, dt)
     sol_fp = solver_fp.solve()
