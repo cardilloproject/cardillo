@@ -631,10 +631,13 @@ class NonsmoothEulerBackwardsGGL_V2:
 
         # update generalzed coordiantes
         q_sk1, qk1, u_sk1, uk1 = self.update(xk1)
-        # TODO: Why is this corrrect???
-        kappa_Nk1 = dt * mu_Nk1 + P_Nk1
-        # kappa_Nk1 = mu_Nk1 + P_Nk1 / dt # TODO: Seems also to work!
-        # kappa_Nk1 = mu_Nk1 + dt * P_Nk1
+        # # TODO: Why is this corrrect???
+        # kappa_Nk1 = dt * mu_Nk1 + P_Nk1
+        # # TODO: Seems also to work!
+        # kappa_Nk1 = mu_Nk1 + P_Nk1 / dt
+        # TODO: This works when "- W_gk1 @ mu_gk1 - W_Nk1 @ mu_Nk1" is added to EQM
+        # TODO: This works for equality of measures too
+        kappa_Nk1 = mu_Nk1 + dt * P_Nk1
         # kappa_Nk1 = mu_Nk1
 
         # evaluate repeatedly used quantities
@@ -684,16 +687,28 @@ class NonsmoothEulerBackwardsGGL_V2:
             - g_N_qk1.T @ mu_Nk1
         )
 
-        #####################
-        # equations of motion
-        #####################
-        R[2 * nq : 2 * nq + nu] = Mk1 @ u_dot_sk1 - self.model.h(tk1, qk1, uk1)
+        # #####################
+        # # equations of motion
+        # #####################
+        # # R[2 * nq : 2 * nq + nu] = Mk1 @ u_dot_sk1 - self.model.h(tk1, qk1, uk1)
+        # R[2 * nq : 2 * nq + nu] = Mk1 @ u_dot_sk1 - self.model.h(tk1, qk1, uk1) - W_gk1 @ mu_gk1 - W_Nk1 @ mu_Nk1
 
-        #################
-        # impact equation
-        #################
-        R[2 * nq + nu : 2 * nq + 2 * nu] = (
-            Mk1 @ Uk1 - W_gk1 @ P_gk1 - W_Nk1 @ P_Nk1 - W_Fk1 @ P_Fk1
+        # #################
+        # # impact equation
+        # #################
+        # R[2 * nq + nu : 2 * nq + 2 * nu] = (
+        #     Mk1 @ Uk1 - W_gk1 @ P_gk1 - W_Nk1 @ P_Nk1 - W_Fk1 @ P_Fk1
+        # )
+
+        # TODO: Test without Uk1
+        R[2 * nq + nu : 2 * nq + 2 * nu] = Uk1
+        # R[2 * nq : 2 * nq + nu] = Mk1 @ u_dot_sk1 - self.model.h(tk1, qk1, uk1) - W_gk1 @ (dt * mu_gk1 + P_gk1) - W_Nk1 @ (dt * mu_Nk1 + P_Nk1) - W_Fk1 @ P_Fk1
+        R[2 * nq : 2 * nq + nu] = (
+            Mk1 @ u_dot_sk1
+            - self.model.h(tk1, qk1, uk1)
+            - W_gk1 @ P_gk1
+            - W_Nk1 @ P_Nk1
+            - W_Fk1 @ P_Fk1
         )
 
         #######################################################
