@@ -16,13 +16,12 @@ from cardillo.solver import (
     NonsmoothEulerBackwardsGGL,
     NonsmoothThetaGGL,
     NonsmoothEulerBackwardsGGL_V2,
+    NonsmoothEulerBackwardsGGL_V3,
     NonsmoothTheta,
     NonsmoothGeneralizedAlpha,
     NonsmoothGenAlphaFirstOrder,
     NonsmoothNewmark,
 )
-
-# from cardillo.solver.generalized_alpha.generalized_alpha_3 import Generalized_alpha_3
 
 
 class Ball(RigidBodyEuler):
@@ -38,7 +37,8 @@ class Ball(RigidBodyEuler):
 
 
 if __name__ == "__main__":
-    animate = True
+    # animate = True
+    animate = False
 
     m = 1
     r = 0.1
@@ -95,10 +95,10 @@ if __name__ == "__main__":
     t1 = 2
     # dt = 1e-1
     # dt = 5e-2
-    # dt = 1e-2
+    dt = 1e-2
     # dt = 5e-3
     # dt = 1e-3
-    dt = 5e-4
+    # dt = 5e-4
 
     solver_fp = Moreau(model, t1, dt)
     sol_fp = solver_fp.solve()
@@ -111,10 +111,9 @@ if __name__ == "__main__":
     P_F_fp = sol_fp.P_F
 
     # solver_other = NonsmoothGeneralizedAlpha(model, t1, dt)
-    # solver_other = Generalized_alpha_3(model, t1, dt, numerical_jacobian=True)
     # solver_other = NonsmoothTheta(model, t1, dt, atol=1.0e-8)
     # solver_other = NonsmoothEulerBackwardsGGL(model, t1, dt)
-    solver_other = NonsmoothEulerBackwardsGGL_V2(model, t1, dt)
+    solver_other = NonsmoothEulerBackwardsGGL_V3(model, t1, dt)
     # solver_other = NonsmoothThetaGGL(model, t1, dt)
     # solver_other = NonsmoothGenAlphaFirstOrder(model, t1, dt, rho_inf=0.85)
     # solver_other = NonsmoothNewmark(model, t1, dt)
@@ -205,15 +204,10 @@ if __name__ == "__main__":
     ax[0].set_title("P_N(t)")
     ax[0].plot(t_fp, P_N_fp[:, 0], "-r", label="Moreau")
     # ax[0].plot(t_other, la_N_other[:, 0], "--b", label="Other_la_N")
-    # ax[0].plot(t_other, La_N_other[:, 0], "--g", label="Other_La_N")
+    ax[0].plot(t_other, La_N_other[:, 0], "--g", label="Other_La_N")
     ax[0].plot(t_other, P_N_other[:, 0], "--b", label="Other_P_N")
     # ax[0].plot(t_other, mu_N_other[:, 0], "--g", label="Other_mu_N")
     ax[0].legend()
-
-    # ax[1].set_title("mu_N(t)")
-    # ax[1].legend()
-
-    # fig, ax = plt.subplots(2, 1)
 
     # ax[1].set_title("P_Fx(t)")
     # ax[1].plot(t_fp, P_F_fp[:, 0], "-r", label="Moreau")

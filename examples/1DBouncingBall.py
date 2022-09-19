@@ -10,6 +10,7 @@ from cardillo.solver import (
     Moreau,
     NonsmoothEulerBackwardsGGL,
     NonsmoothEulerBackwardsGGL_V2,
+    NonsmoothEulerBackwardsGGL_V3,
     NonsmoothThetaGGL,
     NonsmoothTheta,
     NonsmoothGeneralizedAlpha,
@@ -106,7 +107,8 @@ if __name__ == "__main__":
     # system definition
     m = 1
     radius = 0.1
-    g = 9.81
+    # g = 9.81
+    g = 10.0
     e_N = 0.5
     prox_r_N = 0.5
 
@@ -132,8 +134,9 @@ if __name__ == "__main__":
     # dt = 1e-1
     # dt = 5e-2
     # dt = 1e-2
-    dt = 5e-3
-    # dt = 1e-3
+    # dt = 5e-3
+    dt = 1e-3
+    # dt = 5e-4
 
     # solve problem
     # solver_other = NonsmoothGeneralizedAlpha(model, t1, dt)
@@ -141,7 +144,7 @@ if __name__ == "__main__":
     # solver_other = NonsmoothTheta(model, t1, dt, atol=1.0e-8)
     # solver_other = NonsmoothThetaGGL(model, t1, dt)
     # solver_other = NonsmoothEulerBackwardsGGL(model, t1, dt)
-    solver_other = NonsmoothEulerBackwardsGGL_V2(model, t1, dt)
+    solver_other = NonsmoothEulerBackwardsGGL_V3(model, t1, dt)
     # solver_other = NonsmoothGenAlphaFirstOrder(model, t1, dt, rho_inf=0.9)
     # solver_other = NonsmoothNewmark(model, t1, dt)
     sol_other = solver_other.solve()
@@ -193,8 +196,15 @@ if __name__ == "__main__":
     ax[1].grid()
     ax[1].legend()
 
-    ax[2].plot(t_moreau, a_moreau[:, 0], "-r", label="a - Moreau")
-    ax[2].plot(t_other, a_other[:, 0], "-b", label="a - Other")
+    # ax[2].plot(t_moreau, a_moreau[:, 0], "-r", label="a - Moreau")
+    # ax[2].plot(t_other, a_other[:, 0], "-b", label="a - Other")
+    # ax[2].grid()
+    # ax[2].legend()
+
+    ax[2].plot(t_moreau, P_N_moreau[:, 0], "-r", label="P_N - Moreau")
+    ax[2].plot(t_other, la_N_other[:, 0], "-b", label="la_N - Other")
+    ax[2].plot(t_other, La_N_other[:, 0], "-g", label="La_N - Other")
+    ax[2].plot(t_other, P_N_other[:, 0], "--k", label="P_N - Other")
     ax[2].grid()
     ax[2].legend()
 
@@ -204,50 +214,52 @@ if __name__ == "__main__":
     t = t_other
     q = q_other
 
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    ax.set_xlabel("x [m]")
-    ax.set_ylabel("y [m]")
-    ax.axis("equal")
-    ax.set_xlim(-2 * y0, 2 * y0)
-    ax.set_ylim(-2 * y0, 2 * y0)
+    if False:
 
-    # prepare data for animation
-    frames = len(t)
-    target_frames = min(len(t), 200)
-    frac = int(frames / target_frames)
-    animation_time = 5
-    interval = animation_time * 1000 / target_frames
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        ax.set_xlabel("x [m]")
+        ax.set_ylabel("y [m]")
+        ax.axis("equal")
+        ax.set_xlim(-2 * y0, 2 * y0)
+        ax.set_ylim(-2 * y0, 2 * y0)
 
-    frames = target_frames
-    t = t[::frac]
-    q = q[::frac]
+        # prepare data for animation
+        frames = len(t)
+        target_frames = min(len(t), 200)
+        frac = int(frames / target_frames)
+        animation_time = 5
+        interval = animation_time * 1000 / target_frames
 
-    # horizontal plane
-    ax.plot([-2 * y0, 2 * y0], [0, 0], "-k")
+        frames = target_frames
+        t = t[::frac]
+        q = q[::frac]
 
-    def create(t, q):
-        (COM,) = ax.plot([], [], "ok")
-        (bdry,) = ax.plot([], [], "-k")
-        return COM, bdry
+        # horizontal plane
+        ax.plot([-2 * y0, 2 * y0], [0, 0], "-k")
 
-    COM, bdry = create(0, q[0])
+        def create(t, q):
+            (COM,) = ax.plot([], [], "ok")
+            (bdry,) = ax.plot([], [], "-k")
+            return COM, bdry
 
-    def update(t, q, COM, bdry):
-        x_S, y_S, _ = ball.r_OS(q)
-        x_bdry, y_bdry, _ = ball.boundary(q)
+        COM, bdry = create(0, q[0])
 
-        COM.set_data([x_S], [y_S])
-        bdry.set_data(x_bdry, y_bdry)
+        def update(t, q, COM, bdry):
+            x_S, y_S, _ = ball.r_OS(q)
+            x_bdry, y_bdry, _ = ball.boundary(q)
 
-        return COM, bdry
+            COM.set_data([x_S], [y_S])
+            bdry.set_data(x_bdry, y_bdry)
 
-    def animate(i):
-        update(t[i], q[i], COM, bdry)
+            return COM, bdry
 
-    anim = animation.FuncAnimation(
-        fig, animate, frames=frames, interval=interval, blit=False
-    )
+        def animate(i):
+            update(t[i], q[i], COM, bdry)
+
+        anim = animation.FuncAnimation(
+            fig, animate, frames=frames, interval=interval, blit=False
+        )
 
     plt.show()
 
