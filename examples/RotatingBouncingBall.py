@@ -95,9 +95,10 @@ if __name__ == "__main__":
     t1 = 2
     # dt = 1e-1
     # dt = 5e-2
-    dt = 1e-2
+    # dt = 1e-2
     # dt = 5e-3
     # dt = 1e-3
+    dt = 5e-4
 
     solver_fp = Moreau(model, t1, dt)
     sol_fp = solver_fp.solve()
@@ -206,7 +207,7 @@ if __name__ == "__main__":
     # ax[0].plot(t_other, la_N_other[:, 0], "--b", label="Other_la_N")
     # ax[0].plot(t_other, La_N_other[:, 0], "--g", label="Other_La_N")
     ax[0].plot(t_other, P_N_other[:, 0], "--b", label="Other_P_N")
-    ax[0].plot(t_other, mu_N_other[:, 0], "--g", label="Other_mu_N")
+    # ax[0].plot(t_other, mu_N_other[:, 0], "--g", label="Other_mu_N")
     ax[0].legend()
 
     # ax[1].set_title("mu_N(t)")
