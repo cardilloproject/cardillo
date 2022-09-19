@@ -136,6 +136,7 @@ if __name__ == "__main__":
         la_F_other = np.zeros_like(P_F_other)
         La_N_other = np.zeros_like(P_N_other)
         La_F_other = np.zeros_like(P_F_other)
+        mu_N_other = sol_other.mu_N
     else:
         a_other = sol_other.a
         la_N_other = sol_other.la_N
@@ -198,14 +199,20 @@ if __name__ == "__main__":
 
     plt.tight_layout()
 
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(2, 1)
 
-    ax.set_title("P_N(t)")
-    ax.plot(t_fp, P_N_fp[:, 0], "-r", label="Moreau")
-    ax.plot(t_other, la_N_other[:, 0], "--b", label="Other_la_N")
-    ax.plot(t_other, La_N_other[:, 0], "--g", label="Other_La_N")
-    ax.plot(t_other, P_N_other[:, 0], "--k", label="Other_P_N")
-    ax.legend()
+    ax[0].set_title("P_N(t)")
+    ax[0].plot(t_fp, P_N_fp[:, 0], "-r", label="Moreau")
+    # ax[0].plot(t_other, la_N_other[:, 0], "--b", label="Other_la_N")
+    # ax[0].plot(t_other, La_N_other[:, 0], "--g", label="Other_La_N")
+    ax[0].plot(t_other, P_N_other[:, 0], "--b", label="Other_P_N")
+    ax[0].plot(t_other, mu_N_other[:, 0], "--g", label="Other_mu_N")
+    ax[0].legend()
+
+    # ax[1].set_title("mu_N(t)")
+    # ax[1].legend()
+
+    # fig, ax = plt.subplots(2, 1)
 
     # ax[1].set_title("P_Fx(t)")
     # ax[1].plot(t_fp, P_F_fp[:, 0], "-r", label="Moreau")

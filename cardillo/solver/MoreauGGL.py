@@ -456,6 +456,7 @@ class NonsmoothEulerBackwardsGGL:
         )
 
 
+# TODO: Investigate values of mu_gk1 and mu_nk1 for rotating bouncing ball example!
 class NonsmoothEulerBackwardsGGL_V2:
     """Moreau's midpoint rule with GGL stabilization for unilateral contacts, 
     see Schoeder2013 and Schindler2015 section 15.2.
@@ -635,10 +636,24 @@ class NonsmoothEulerBackwardsGGL_V2:
         # kappa_Nk1 = dt * mu_Nk1 + P_Nk1
         # # TODO: Seems also to work!
         # kappa_Nk1 = mu_Nk1 + P_Nk1 / dt
-        # TODO: This works when "- W_gk1 @ mu_gk1 - W_Nk1 @ mu_Nk1" is added to EQM
-        # TODO: This works for equality of measures too
+        # # TODO: This works when "- W_gk1 @ mu_gk1 - W_Nk1 @ mu_Nk1" is added to EQM
+        # TODO: not working
         kappa_Nk1 = mu_Nk1 + dt * P_Nk1
+        # # TODO: This also works
+        # kappa_Nk1 = mu_Nk1 + P_Nk1
+        # # not working
         # kappa_Nk1 = mu_Nk1
+
+        # # TODO: This also works
+        # # change role of mu and P
+        # tmp_g = mu_gk1.copy()
+        # tmp_N = mu_Nk1.copy()
+        # mu_gk1 = P_gk1.copy()
+        # mu_Nk1 = P_Nk1.copy()
+        # P_gk1 = tmp_g.copy()
+        # P_Nk1 = tmp_N.copy()
+
+        # kappa_Nk1 = P_Nk1 + dt * mu_Nk1
 
         # evaluate repeatedly used quantities
         Mk1 = self.model.M(tk1, qk1)
@@ -685,6 +700,8 @@ class NonsmoothEulerBackwardsGGL_V2:
             - dt * self.model.q_dot(tk1, qk1, uk1)
             - g_qk1.T @ mu_gk1
             - g_N_qk1.T @ mu_Nk1
+            # - g_qk1.T @ (mu_gk1 + dt * P_gk1)
+            # - g_N_qk1.T @ (mu_Nk1 + dt * P_Nk1)
         )
 
         # #####################
@@ -702,12 +719,22 @@ class NonsmoothEulerBackwardsGGL_V2:
 
         # TODO: Test without Uk1
         R[2 * nq + nu : 2 * nq + 2 * nu] = Uk1
-        # R[2 * nq : 2 * nq + nu] = Mk1 @ u_dot_sk1 - self.model.h(tk1, qk1, uk1) - W_gk1 @ (dt * mu_gk1 + P_gk1) - W_Nk1 @ (dt * mu_Nk1 + P_Nk1) - W_Fk1 @ P_Fk1
+        # # R[2 * nq : 2 * nq + nu] = Mk1 @ u_dot_sk1 - self.model.h(tk1, qk1, uk1) - W_gk1 @ (dt * mu_gk1 + P_gk1) - W_Nk1 @ (dt * mu_Nk1 + P_Nk1) - W_Fk1 @ P_Fk1
+        # R[2 * nq : 2 * nq + nu] = (
+        #     Mk1 @ u_dot_sk1
+        #     - self.model.h(tk1, qk1, uk1)
+        #     - W_gk1 @ P_gk1 / dt # necessary for correct P's
+        #     - W_Nk1 @ P_Nk1 / dt # necessary for correct P's
+        #     - W_Fk1 @ P_Fk1 / dt # necessary for correct P's
+        # )
         R[2 * nq : 2 * nq + nu] = (
-            Mk1 @ u_dot_sk1
-            - self.model.h(tk1, qk1, uk1)
-            - W_gk1 @ P_gk1
-            - W_Nk1 @ P_Nk1
+            dt * Mk1 @ u_dot_sk1
+            - dt * self.model.h(tk1, qk1, uk1)
+            # - W_gk1 @ P_gk1
+            # - W_Nk1 @ P_Nk1
+            # - W_Fk1 @ P_Fk1
+            - W_gk1 @ (P_gk1 + dt * mu_gk1)
+            - W_Nk1 @ (P_Nk1 + dt * mu_Nk1)
             - W_Fk1 @ P_Fk1
         )
 
