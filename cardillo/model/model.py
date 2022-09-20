@@ -62,6 +62,9 @@ class Model(object):
 
     def pop(self, index):
         self.contributions.pop(index)
+    
+    def extend(self, contr_list):
+        list(map(self.add, contr_list))
 
     # def pre_iteration_update(self, t, q, u):
     #     """Update or precalculate any system variables before next solver iteration"""
