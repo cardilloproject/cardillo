@@ -647,8 +647,8 @@ class NonsmoothEulerBackwardsGGL_V2:
         # # TODO: This also works
         # kappa_Nk1 = mu_Nk1 + P_Nk1
         # not working
-        # kappa_Nk1 = mu_Nk1
-        kappa_Nk1 = mu_Nk1 / dt
+        kappa_Nk1 = mu_Nk1
+        # kappa_Nk1 = mu_Nk1 / dt
 
         # # TODO: This also works
         # # change role of mu and P
