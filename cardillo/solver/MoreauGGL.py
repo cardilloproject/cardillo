@@ -647,7 +647,8 @@ class NonsmoothEulerBackwardsGGL_V2:
         # # TODO: This also works
         # kappa_Nk1 = mu_Nk1 + P_Nk1
         # not working
-        kappa_Nk1 = mu_Nk1
+        # kappa_Nk1 = mu_Nk1
+        kappa_Nk1 = mu_Nk1 / dt
 
         # # TODO: This also works
         # # change role of mu and P
@@ -723,8 +724,8 @@ class NonsmoothEulerBackwardsGGL_V2:
         #####################
         # R[2 * nq : 2 * nq + nu] = Mk1 @ u_dot_sk1 - self.model.h(tk1, qk1, uk1)
         R[2 * nq : 2 * nq + nu] = (
-            Mk1 @ u_dot_sk1
-            - self.model.h(tk1, qk1, uk1)
+            dt * Mk1 @ u_dot_sk1
+            - dt * self.model.h(tk1, qk1, uk1)
             - W_gk1 @ mu_gk1
             - W_Nk1 @ mu_Nk1
         )
@@ -1254,6 +1255,9 @@ class NonsmoothEulerBackwardsGGL_V3:
             - self.model.q_dot(tk1, qk1, uk1)
             - g_qk1.T @ la_gk1
             - g_N_qk1.T @ la_Nk1
+            # - gamma_F_qk1.T @ P_Fk1 * dt
+            # - g_qk1.T @ P_gk1
+            # - g_N_qk1.T @ P_Nk1
             # - g_qk1.T @ (dt * P_gk1)
             # - g_N_qk1.T @ (dt * P_Nk1)
             # - g_qk1.T @ (dt * La_gk1)
@@ -1282,6 +1286,7 @@ class NonsmoothEulerBackwardsGGL_V3:
             - dt * self.model.h(tk1, qk1, uk1)
             - W_gk1 @ La_gk1
             - W_Nk1 @ La_Nk1
+            - W_Fk1 @ P_Fk1
         )
         # R[2 * nq : 2 * nq + nu] = dt * Mk1 @ u_dot_sk1 - dt * self.model.h(tk1, qk1, uk1) - W_gk1 @ P_gk1 - W_Nk1 @ P_Nk1
 
@@ -1317,8 +1322,8 @@ class NonsmoothEulerBackwardsGGL_V3:
                     # eqn. (139):
                     self.Dk1_st[i_N] = self.Ak1[i_N] and (
                         norm(self.model.prox_r_F[i_N] * xi_Fk1[i_F] - P_Fk1[i_F])
-                        # <= mu[i_N] * P_Nk1[i_N]
-                        <= mu[i_N] * La_Nk1[i_N]
+                        <= mu[i_N] * P_Nk1[i_N]
+                        # <= mu[i_N] * La_Nk1[i_N]
                     )
 
         #################################################
@@ -1366,8 +1371,8 @@ class NonsmoothEulerBackwardsGGL_V3:
         ##########
         # friction
         ##########
-        no_friction = True
-        # no_friction = False
+        # no_friction = True
+        no_friction = False
 
         # TODO: No friction case can be implemented like this:
         if no_friction:
@@ -1380,12 +1385,14 @@ class NonsmoothEulerBackwardsGGL_V3:
 
                         # TODO:
                         if primal_form:
-                            # raise NotImplementedError
+                            # R[nx_s + 2 * nla_N + i_F] = xi_Fk1[i_F] - prox_sphere(
+                            #     xi_Fk1[i_F] - self.model.prox_r_F[i_N] * P_Fk1[i_F],
+                            #     mu[i_N] * P_Nk1[i_N],
+                            # )
                             R[nx_s + 2 * nla_N + i_F] = xi_Fk1[i_F] - prox_sphere(
                                 xi_Fk1[i_F] - self.model.prox_r_F[i_N] * P_Fk1[i_F],
-                                mu[i_N] * P_Nk1[i_N],
+                                mu[i_N] * La_Nk1[i_N],
                             )
-                            # R[nx_s + 2 * nla_N + i_F] = xi_Fk1[i_F] - prox_sphere(xi_Fk1[i_F] - self.model.prox_r_F[i_N] * P_Fk1[i_F], mu[i_N] * La_Nk1[i_N])
                         else:
                             raise NotImplementedError
                             R[nx_s + 2 * nla_N + i_F] = -P_Fk1[i_F] - prox_sphere(
