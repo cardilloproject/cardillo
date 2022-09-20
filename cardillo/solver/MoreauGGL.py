@@ -724,15 +724,15 @@ class NonsmoothEulerBackwardsGGL_V2:
         #####################
         # R[2 * nq : 2 * nq + nu] = Mk1 @ u_dot_sk1 - self.model.h(tk1, qk1, uk1)
         R[2 * nq : 2 * nq + nu] = (
-            dt * Mk1 @ u_dot_sk1
-            - dt * self.model.h(tk1, qk1, uk1)
+            Mk1 @ u_dot_sk1
+            - self.model.h(tk1, qk1, uk1)
             - W_gk1 @ mu_gk1
             - W_Nk1 @ mu_Nk1
         )
 
         #################
         # impact equation
-        #################
+        ################
         R[2 * nq + nu : 2 * nq + 2 * nu] = (
             Mk1 @ Uk1 - W_gk1 @ P_gk1 - W_Nk1 @ P_Nk1 - W_Fk1 @ P_Fk1
         )
@@ -784,9 +784,13 @@ class NonsmoothEulerBackwardsGGL_V2:
                 i_F = np.array(i_F)
                 if len(i_F) > 0:
                     # eqn. (139):
+                    # self.Dk1_st[i_N] = self.Ak1[i_N] and (
+                    #     norm(self.model.prox_r_F[i_N] * xi_Fk1[i_F] - P_Fk1[i_F])
+                    #     <= mu[i_N] * P_Nk1[i_N]
+                    # )
                     self.Dk1_st[i_N] = self.Ak1[i_N] and (
                         norm(self.model.prox_r_F[i_N] * xi_Fk1[i_F] - P_Fk1[i_F])
-                        <= mu[i_N] * P_Nk1[i_N]
+                        <= mu[i_N] * (dt * mu_Nk1[i_N] + P_Nk1[i_N])
                     )
 
         #################################################
@@ -861,9 +865,15 @@ class NonsmoothEulerBackwardsGGL_V2:
                             xi_Fk1_normalized = xi_Fk1.copy()
                             if norm_xi_Fi1 > 0:
                                 xi_Fk1_normalized /= norm_xi_Fi1
+                            # R[nx_s + 2 * nla_N + i_F] = (
+                            #     P_Fk1[i_F]
+                            #     + mu[i_N] * P_Nk1[i_N] * xi_Fk1_normalized[i_F]
+                            # )
                             R[nx_s + 2 * nla_N + i_F] = (
                                 P_Fk1[i_F]
-                                + mu[i_N] * P_Nk1[i_N] * xi_Fk1_normalized[i_F]
+                                + mu[i_N]
+                                * (dt * mu_Nk1[i_N] + P_Nk1[i_N])
+                                * xi_Fk1_normalized[i_F]
                             )
                     else:
                         # eqn. (138c)
@@ -1251,44 +1261,48 @@ class NonsmoothEulerBackwardsGGL_V3:
         # )
         R[:nq] = (
             q_dotk1
-            # - self.model.q_dot(tk1, qk1, uk1 - Uk1)
-            - self.model.q_dot(tk1, qk1, uk1)
-            - g_qk1.T @ la_gk1
-            - g_N_qk1.T @ la_Nk1
-            # - gamma_F_qk1.T @ P_Fk1 * dt
-            # - g_qk1.T @ P_gk1
-            # - g_N_qk1.T @ P_Nk1
-            # - g_qk1.T @ (dt * P_gk1)
-            # - g_N_qk1.T @ (dt * P_Nk1)
-            # - g_qk1.T @ (dt * La_gk1)
-            # - g_N_qk1.T @ (dt * La_Nk1)
+            - self.model.q_dot(tk1, qk1, uk1 - Uk1)
+            # - self.model.q_dot(tk1, qk1, uk1)
+            # - g_qk1.T @ la_gk1
+            # - g_N_qk1.T @ la_Nk1
+            # # - gamma_F_qk1.T @ P_Fk1 * dt
+            # # - g_qk1.T @ P_gk1
+            # # - g_N_qk1.T @ P_Nk1
+            # # - g_qk1.T @ (dt * P_gk1)
+            # # - g_N_qk1.T @ (dt * P_Nk1)
+            # # - g_qk1.T @ (dt * La_gk1)
+            # # - g_N_qk1.T @ (dt * La_Nk1)
         )
 
-        # #####################
-        # # equations of motion
-        # #####################
-        # # R[2 * nq : 2 * nq + nu] = Mk1 @ u_dot_sk1 - self.model.h(tk1, qk1, uk1)
-        # R[2 * nq : 2 * nq + nu] = Mk1 @ u_dot_sk1 - self.model.h(tk1, qk1, uk1) - W_gk1 @ la_gk1 - W_Nk1 @ la_Nk1
-        # # R[2 * nq : 2 * nq + nu] = Mk1 @ u_dot_sk1 - self.model.h(tk1, qk1, uk1) - W_gk1 @ P_gk1 / dt - W_Nk1 @ P_Nk1 / dt # - dt * W_Fk1 @ P_Fk1
-
-        # #################
-        # # impact equation
-        # #################
-        # R[2 * nq + nu : 2 * nq + 2 * nu] = (
-        #     Mk1 @ Uk1 - W_gk1 @ La_gk1 - W_Nk1 @ La_Nk1 - W_Fk1 @ P_Fk1
-        #     # Mk1 @ Uk1 - W_gk1 @ P_gk1 - W_Nk1 @ P_Nk1 - W_Fk1 @ P_Fk1
-        # )
-
-        R[2 * nq + nu : 2 * nq + 2 * nu] = Uk1
-        # R[2 * nq : 2 * nq + nu] = Mk1 @ u_dot_sk1 - self.model.h(tk1, qk1, uk1) - W_gk1 @ P_gk1 - W_Nk1 @ P_Nk1
+        #####################
+        # equations of motion
+        #####################
+        # R[2 * nq : 2 * nq + nu] = Mk1 @ u_dot_sk1 - self.model.h(tk1, qk1, uk1)
         R[2 * nq : 2 * nq + nu] = (
-            dt * Mk1 @ u_dot_sk1
-            - dt * self.model.h(tk1, qk1, uk1)
-            - W_gk1 @ La_gk1
-            - W_Nk1 @ La_Nk1
-            - W_Fk1 @ P_Fk1
+            Mk1 @ u_dot_sk1
+            - self.model.h(tk1, qk1, uk1)
+            - W_gk1 @ la_gk1
+            - W_Nk1 @ la_Nk1
         )
-        # R[2 * nq : 2 * nq + nu] = dt * Mk1 @ u_dot_sk1 - dt * self.model.h(tk1, qk1, uk1) - W_gk1 @ P_gk1 - W_Nk1 @ P_Nk1
+        # R[2 * nq : 2 * nq + nu] = Mk1 @ u_dot_sk1 - self.model.h(tk1, qk1, uk1) - W_gk1 @ P_gk1 / dt - W_Nk1 @ P_Nk1 / dt # - dt * W_Fk1 @ P_Fk1
+
+        #################
+        # impact equation
+        #################
+        R[2 * nq + nu : 2 * nq + 2 * nu] = (
+            Mk1 @ Uk1 - W_gk1 @ La_gk1 - W_Nk1 @ La_Nk1 - W_Fk1 @ P_Fk1
+        )
+
+        # R[2 * nq + nu : 2 * nq + 2 * nu] = Uk1
+        # # R[2 * nq : 2 * nq + nu] = Mk1 @ u_dot_sk1 - self.model.h(tk1, qk1, uk1) - W_gk1 @ P_gk1 - W_Nk1 @ P_Nk1
+        # R[2 * nq : 2 * nq + nu] = (
+        #     dt * Mk1 @ u_dot_sk1
+        #     - dt * self.model.h(tk1, qk1, uk1)
+        #     - W_gk1 @ P_gk1
+        #     - W_Nk1 @ P_Nk1
+        #     - W_Fk1 @ P_Fk1
+        # )
+        # # R[2 * nq : 2 * nq + nu] = dt * Mk1 @ u_dot_sk1 - dt * self.model.h(tk1, qk1, uk1) - W_gk1 @ P_gk1 - W_Nk1 @ P_Nk1
 
         #######################################################
         # bilateral constraints on position and velocitiy level
@@ -1302,10 +1316,10 @@ class NonsmoothEulerBackwardsGGL_V3:
         primal_form = True
         # primal_form = False
         if primal_form:
-            # prox_N_arg_position = g_Nk1 - self.model.prox_r_N * la_Nk1
+            prox_N_arg_position = g_Nk1 - self.model.prox_r_N * la_Nk1
             prox_N_arg_velocity = xi_Nk1 - self.model.prox_r_N * La_Nk1
             # prox_N_arg_velocity = xi_Nk1 - self.model.prox_r_N * P_Nk1
-            prox_N_arg_position = g_Nk1 - self.model.prox_r_N * P_Nk1
+            # prox_N_arg_position = g_Nk1 - self.model.prox_r_N * P_Nk1
         else:
             raise NotImplementedError
             # prox_N_arg_position = -la_Nk1 + self.model.prox_r_N * g_Nk1
@@ -1323,7 +1337,6 @@ class NonsmoothEulerBackwardsGGL_V3:
                     self.Dk1_st[i_N] = self.Ak1[i_N] and (
                         norm(self.model.prox_r_F[i_N] * xi_Fk1[i_F] - P_Fk1[i_F])
                         <= mu[i_N] * P_Nk1[i_N]
-                        # <= mu[i_N] * La_Nk1[i_N]
                     )
 
         #################################################
@@ -1331,17 +1344,13 @@ class NonsmoothEulerBackwardsGGL_V3:
         #################################################
         if primal_form:
             R[nx_s : nx_s + nla_N] = np.select(
-                # self.Ak1, xi_Nk1 - prox_R0_np(prox_N_arg_velocity), P_Nk1
                 self.Ak1,
                 xi_Nk1 - prox_R0_np(prox_N_arg_velocity),
                 La_Nk1,
             )
         else:
             R[nx_s : nx_s + nla_N] = np.select(
-                # self.Ak1, -P_Nk1 - prox_R0_nm(prox_N_arg_velocity), xi_Nk1
-                self.Ak1,
-                -La_Nk1 - prox_R0_nm(prox_N_arg_velocity),
-                xi_Nk1,
+                self.Ak1, -P_Nk1 - prox_R0_nm(prox_N_arg_velocity), xi_Nk1
             )
 
         # Bk1 = self.Bk1
@@ -1385,13 +1394,9 @@ class NonsmoothEulerBackwardsGGL_V3:
 
                         # TODO:
                         if primal_form:
-                            # R[nx_s + 2 * nla_N + i_F] = xi_Fk1[i_F] - prox_sphere(
-                            #     xi_Fk1[i_F] - self.model.prox_r_F[i_N] * P_Fk1[i_F],
-                            #     mu[i_N] * P_Nk1[i_N],
-                            # )
                             R[nx_s + 2 * nla_N + i_F] = xi_Fk1[i_F] - prox_sphere(
                                 xi_Fk1[i_F] - self.model.prox_r_F[i_N] * P_Fk1[i_F],
-                                mu[i_N] * La_Nk1[i_N],
+                                mu[i_N] * P_Nk1[i_N],
                             )
                         else:
                             raise NotImplementedError
