@@ -166,8 +166,8 @@ if __name__ == "__main__":
         # la_N_other = dt * sol_other.mu_N # TODO: Why is this the derivative fo la_N?
         # P_N_other = dt * sol_other.mu_N + sol_other.P_N
         la_N_other = sol_other.mu_N  # TODO: Why is this the derivative fo la_N?
-        La_N_other = sol_other.P_N
-        P_N_other = dt * la_N_other + La_N_other
+        La_N_other = np.zeros_like(P_N_other)
+        P_N_other = sol_other.P_N
         # P_N_other = sol_other.P_N
         # la_N_other = np.zeros_like(P_N_other)
         la_F_other = np.zeros_like(P_F_other)

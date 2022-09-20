@@ -642,24 +642,24 @@ class NonsmoothEulerBackwardsGGL_V2:
         # # TODO: Seems also to work!
         # kappa_Nk1 = mu_Nk1 + P_Nk1 / dt
         # # TODO: This works when "- W_gk1 @ mu_gk1 - W_Nk1 @ mu_Nk1" is added to EQM
-        # # # TODO: not working
-        # # kappa_Nk1 = mu_Nk1 + dt * P_Nk1
+        # # TODO: not working
+        # kappa_Nk1 = mu_Nk1 + dt * P_Nk1
         # # TODO: This also works
         # kappa_Nk1 = mu_Nk1 + P_Nk1
-        # not working
-        kappa_Nk1 = mu_Nk1
+        # # not working
+        # kappa_Nk1 = mu_Nk1
         # kappa_Nk1 = mu_Nk1 / dt
 
-        # # TODO: This also works
-        # # change role of mu and P
-        # tmp_g = mu_gk1.copy()
-        # tmp_N = mu_Nk1.copy()
-        # mu_gk1 = P_gk1.copy()
-        # mu_Nk1 = P_Nk1.copy()
-        # P_gk1 = tmp_g.copy()
-        # P_Nk1 = tmp_N.copy()
-
-        # kappa_Nk1 = P_Nk1 + dt * mu_Nk1
+        kappa_Nk1 = mu_Nk1 + dt * P_Nk1
+        kappa_gk1 = mu_gk1 + dt * P_gk1
+        # kappa_Nk1 = mu_Nk1 + P_Nk1 / dt
+        # kappa_gk1 = mu_gk1 + P_gk1 / dt
+        # kappa_Nk1 = mu_Nk1 + P_Nk1
+        # kappa_gk1 = mu_gk1 + P_gk1
+        # kappa_Nk1 = dt * mu_Nk1 + P_Nk1
+        # kappa_gk1 = dt * mu_gk1 + P_gk1
+        # kappa_Nk1 = mu_Nk1
+        # kappa_gk1 = mu_gk1
 
         # evaluate repeatedly used quantities
         Mk1 = self.model.M(tk1, qk1)
@@ -710,11 +710,14 @@ class NonsmoothEulerBackwardsGGL_V2:
         #     # - g_N_qk1.T @ (mu_Nk1 + dt * P_Nk1)
         # )
         R[:nq] = (
-            q_dotk1
-            - self.model.q_dot(tk1, qk1, uk1 - Uk1)
-            # - self.model.q_dot(tk1, qk1, uk1)
-            # - g_qk1.T @ mu_gk1
-            # - g_N_qk1.T @ mu_Nk1
+            dt * q_dotk1
+            # - self.model.q_dot(tk1, qk1, uk1 - Uk1)
+            - dt * self.model.q_dot(tk1, qk1, uk1)
+            - g_qk1.T @ mu_gk1
+            - g_N_qk1.T @ mu_Nk1
+            # # TODO: Use kappa here?
+            # - g_qk1.T @ kappa_gk1
+            # - g_N_qk1.T @ kappa_Nk1
             # # - g_qk1.T @ (mu_gk1 + dt * P_gk1)
             # # - g_N_qk1.T @ (mu_Nk1 + dt * P_Nk1)
         )
@@ -723,19 +726,33 @@ class NonsmoothEulerBackwardsGGL_V2:
         # equations of motion
         #####################
         # R[2 * nq : 2 * nq + nu] = Mk1 @ u_dot_sk1 - self.model.h(tk1, qk1, uk1)
+        # R[2 * nq : 2 * nq + nu] = (
+        #     Mk1 @ u_dot_sk1
+        #     - self.model.h(tk1, qk1, uk1)
+        #     - W_gk1 @ mu_gk1
+        #     - W_Nk1 @ mu_Nk1
+        # )
+        ################################
+        # interated equality of measures
+        ################################
         R[2 * nq : 2 * nq + nu] = (
-            Mk1 @ u_dot_sk1
-            - self.model.h(tk1, qk1, uk1)
-            - W_gk1 @ mu_gk1
-            - W_Nk1 @ mu_Nk1
+            # Mk1 @ u_dot_sk1
+            # - self.model.h(tk1, qk1, uk1)
+            # - W_gk1 @ P_gk1 / dt
+            # - W_Nk1 @ P_Nk1 / dt
+            dt * Mk1 @ u_dot_sk1
+            - dt * self.model.h(tk1, qk1, uk1)
+            - W_gk1 @ P_gk1
+            - W_Nk1 @ P_Nk1
         )
 
         #################
         # impact equation
         ################
-        R[2 * nq + nu : 2 * nq + 2 * nu] = (
-            Mk1 @ Uk1 - W_gk1 @ P_gk1 - W_Nk1 @ P_Nk1 - W_Fk1 @ P_Fk1
-        )
+        R[2 * nq + nu : 2 * nq + 2 * nu] = Uk1
+        # R[2 * nq + nu : 2 * nq + 2 * nu] = (
+        #     Mk1 @ Uk1 - W_gk1 @ P_gk1 - W_Nk1 @ P_Nk1 - W_Fk1 @ P_Fk1
+        # )
 
         # # TODO: Test without Uk1
         # R[2 * nq + nu : 2 * nq + 2 * nu] = Uk1
@@ -784,14 +801,14 @@ class NonsmoothEulerBackwardsGGL_V2:
                 i_F = np.array(i_F)
                 if len(i_F) > 0:
                     # eqn. (139):
-                    # self.Dk1_st[i_N] = self.Ak1[i_N] and (
-                    #     norm(self.model.prox_r_F[i_N] * xi_Fk1[i_F] - P_Fk1[i_F])
-                    #     <= mu[i_N] * P_Nk1[i_N]
-                    # )
                     self.Dk1_st[i_N] = self.Ak1[i_N] and (
                         norm(self.model.prox_r_F[i_N] * xi_Fk1[i_F] - P_Fk1[i_F])
-                        <= mu[i_N] * (dt * mu_Nk1[i_N] + P_Nk1[i_N])
+                        <= mu[i_N] * P_Nk1[i_N]
                     )
+                    # self.Dk1_st[i_N] = self.Ak1[i_N] and (
+                    #     norm(self.model.prox_r_F[i_N] * xi_Fk1[i_F] - P_Fk1[i_F])
+                    #     <= mu[i_N] * (dt * mu_Nk1[i_N] + P_Nk1[i_N])
+                    # )
 
         #################################################
         # Mixed Signorini on velcity level and impact law
@@ -816,11 +833,11 @@ class NonsmoothEulerBackwardsGGL_V2:
         ########################
         # R[nx_s + nla_N : nx_s + 2 * nla_N] = mu_Nk1
         if primal_form:
-            # R[nx_s + nla_N : nx_s + 2 * nla_N] = g_Nk1 - prox_R0_np(prox_N_arg_position)
-            # # R[nx_s + nla_N : nx_s + 2 * nla_N] = g_Nk1 - prox_R0_np(g_Nk1 - self.model.prox_r_N * mu_Nk1)
-            R[nx_s + nla_N : nx_s + 2 * nla_N] = g_Nk1 - prox_R0_np(
-                g_Nk1 - self.model.prox_r_N * mu_Nk1
-            )
+            R[nx_s + nla_N : nx_s + 2 * nla_N] = g_Nk1 - prox_R0_np(prox_N_arg_position)
+            # R[nx_s + nla_N : nx_s + 2 * nla_N] = g_Nk1 - prox_R0_np(g_Nk1 - self.model.prox_r_N * mu_Nk1)
+            # R[nx_s + nla_N : nx_s + 2 * nla_N] = g_Nk1 - prox_R0_np(
+            #     g_Nk1 - self.model.prox_r_N * mu_Nk1
+            # )
 
         else:
             R[nx_s + nla_N : nx_s + 2 * nla_N] = -kappa_Nk1 - prox_R0_nm(
@@ -836,8 +853,8 @@ class NonsmoothEulerBackwardsGGL_V2:
         ##########
         # friction
         ##########
-        # no_friction = True
-        no_friction = False
+        no_friction = True
+        # no_friction = False
 
         # TODO: No friction case can be implemented like this:
         if no_friction:
