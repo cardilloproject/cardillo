@@ -684,20 +684,6 @@ class NonsmoothEulerBackwardsGGL_V2:
         ###################
         R = np.zeros(self.nx)
 
-        # #################################
-        # # kinematic differential equation
-        # #################################
-        # R[:nq] = (
-        #     q_dotk1
-        #     # TODO: Impulsive uk1 is not working
-        #     - self.model.q_dot(tk1, qk1, uk1)
-        #     # # TODO: Smooth u_sk1 is working
-        #     # - self.model.q_dot(tk1, qk1, u_sk1)
-        # )
-
-        # # position correction
-        # R[nq : 2 * nq] = Qk1 - dt * g_qk1.T @ mu_gk1 - dt * g_N_qk1.T @ mu_Nk1
-
         ########################
         # no position correction
         ########################
@@ -757,17 +743,10 @@ class NonsmoothEulerBackwardsGGL_V2:
             for i_N, i_F in enumerate(self.model.NF_connectivity):
                 i_F = np.array(i_F)
                 if len(i_F) > 0:
-                    # eqn. (139):
-                    # if self.Ak1[i_N]:
-                    #     print(f"contact")
                     self.Dk1_st[i_N] = self.Ak1[i_N] and (
                         norm(self.model.prox_r_F[i_N] * xi_Fk1[i_F] - P_Fk1[i_F])
                         <= mu[i_N] * P_Nk1[i_N]
                     )
-                    # self.Dk1_st[i_N] = self.Ak1[i_N] and (
-                    #     norm(self.model.prox_r_F[i_N] * xi_Fk1[i_F] - P_Fk1[i_F])
-                    #     <= mu[i_N] * (dt * mu_Nk1[i_N] + P_Nk1[i_N])
-                    # )
 
         #################################################
         # Mixed Signorini on velcity level and impact law
@@ -790,13 +769,8 @@ class NonsmoothEulerBackwardsGGL_V2:
         ########################
         # position stabilization
         ########################
-        # R[nx_s + nla_N : nx_s + 2 * nla_N] = mu_Nk1
         if primal_form:
             R[nx_s + nla_N : nx_s + 2 * nla_N] = g_Nk1 - prox_R0_np(prox_N_arg_position)
-            # R[nx_s + nla_N : nx_s + 2 * nla_N] = g_Nk1 - prox_R0_np(g_Nk1 - self.model.prox_r_N * mu_Nk1)
-            # R[nx_s + nla_N : nx_s + 2 * nla_N] = g_Nk1 - prox_R0_np(
-            #     g_Nk1 - self.model.prox_r_N * mu_Nk1
-            # )
 
         else:
             R[nx_s + nla_N : nx_s + 2 * nla_N] = -kappa_Nk1 - prox_R0_nm(
@@ -845,12 +819,6 @@ class NonsmoothEulerBackwardsGGL_V2:
                                 P_Fk1[i_F]
                                 + mu[i_N] * P_Nk1[i_N] * xi_Fk1_normalized[i_F]
                             )
-                            # R[nx_s + 2 * nla_N + i_F] = (
-                            #     P_Fk1[i_F]
-                            #     + mu[i_N]
-                            #     * (dt * mu_Nk1[i_N] + P_Nk1[i_N])
-                            #     * xi_Fk1_normalized[i_F]
-                            # )
                     else:
                         # eqn. (138c)
                         R[nx_s + 2 * nla_N + i_F] = P_Fk1[i_F]

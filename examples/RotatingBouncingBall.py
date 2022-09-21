@@ -96,9 +96,10 @@ if __name__ == "__main__":
     # dt = 1e-1
     # dt = 5e-2
     # dt = 1e-2
-    # dt = 5e-3
-    dt = 1e-3
+    dt = 5e-3
+    # dt = 1e-3
     # dt = 5e-4
+    # dt = 1e-4
 
     solver_fp = Moreau(model, t1, dt)
     sol_fp = solver_fp.solve()
@@ -137,6 +138,7 @@ if __name__ == "__main__":
         la_F_other = np.zeros_like(P_F_other)
         La_N_other = np.zeros_like(P_N_other)
         La_F_other = np.zeros_like(P_F_other)
+        mu_g_other = sol_other.mu_g
         mu_N_other = sol_other.mu_N
     else:
         a_other = sol_other.a
@@ -205,9 +207,9 @@ if __name__ == "__main__":
     ax[0].set_title("P_N(t)")
     ax[0].plot(t_fp, P_N_fp[:, 0], "-r", label="Moreau")
     # ax[0].plot(t_other, la_N_other[:, 0], "--b", label="Other_la_N")
-    ax[0].plot(t_other, La_N_other[:, 0], "--g", label="Other_La_N")
+    # ax[0].plot(t_other, La_N_other[:, 0], "--g", label="Other_La_N")
     ax[0].plot(t_other, P_N_other[:, 0], "--b", label="Other_P_N")
-    # ax[0].plot(t_other, mu_N_other[:, 0], "--g", label="Other_mu_N")
+    ax[0].plot(t_other, mu_N_other[:, 0], "--g", label="Other_mu_N")
     ax[0].legend()
 
     # ax[1].set_title("P_Fx(t)")
