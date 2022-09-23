@@ -16,6 +16,7 @@ from cardillo.solver import (
     NonsmoothGeneralizedAlpha,
     NonsmoothGenAlphaFirstOrder,
     NonsmoothNewmark,
+    Remco,
 )
 
 
@@ -144,10 +145,11 @@ if __name__ == "__main__":
     # solver_other = NonsmoothTheta(model, t1, dt, atol=1.0e-8)
     # solver_other = NonsmoothThetaGGL(model, t1, dt)
     # solver_other = NonsmoothEulerBackwardsGGL(model, t1, dt)
-    # solver_other = NonsmoothEulerBackwardsGGL_V2(model, t1, dt)
-    solver_other = NonsmoothEulerBackwardsGGL_V3(model, t1, dt)
+    solver_other = NonsmoothEulerBackwardsGGL_V2(model, t1, dt)
+    # solver_other = NonsmoothEulerBackwardsGGL_V3(model, t1, dt)
     # solver_other = NonsmoothGenAlphaFirstOrder(model, t1, dt, rho_inf=0.9)
     # solver_other = NonsmoothNewmark(model, t1, dt)
+    # solver_other = Remco(model, t1, dt)
     sol_other = solver_other.solve()
     t = sol_other.t
     q = sol_other.q
@@ -155,7 +157,7 @@ if __name__ == "__main__":
     q_other = sol_other.q
     u_other = sol_other.u
     P_N_other = sol_other.P_N
-    P_F_other = sol_other.P_F
+    # P_F_other = sol_other.P_F
     if type(solver_other) in [
         NonsmoothThetaGGL,
         NonsmoothEulerBackwardsGGL,
@@ -168,17 +170,10 @@ if __name__ == "__main__":
         la_N_other = sol_other.mu_N  # TODO: Why is this the derivative fo la_N?
         La_N_other = np.zeros_like(P_N_other)
         P_N_other = sol_other.P_N
-        # P_N_other = sol_other.P_N
-        # la_N_other = np.zeros_like(P_N_other)
-        la_F_other = np.zeros_like(P_F_other)
-        # La_N_other = np.zeros_like(P_N_other)
-        La_F_other = np.zeros_like(P_F_other)
     else:
         a_other = sol_other.a
         la_N_other = sol_other.la_N
-        la_F_other = sol_other.la_F
         La_N_other = sol_other.La_N
-        La_F_other = sol_other.La_F
 
     sol_moreau = Moreau(model, t1, dt).solve()
     t_moreau = sol_moreau.t
@@ -221,7 +216,7 @@ if __name__ == "__main__":
     t = t_other
     q = q_other
 
-    if False:
+    if True:
 
         fig = plt.figure()
         ax = fig.add_subplot(111)
@@ -269,163 +264,3 @@ if __name__ == "__main__":
         )
 
     plt.show()
-
-    exit()
-
-    fig, ax = plt.subplots(3, 1)
-    ax[0].set_title("x(t)")
-    ax[0].plot(t_moreau, q_moreau[:, 0], "-r", label="Moreau")
-    ax[0].plot(t_other, q_other[:, 0], "--b", label="Other")
-    ax[0].legend()
-
-    ax[1].set_title("u_x(t)")
-    ax[1].plot(t_moreau, u_moreau[:, 0], "-r", label="Moreau")
-    ax[1].plot(t_other, u_other[:, 0], "--b", label="Other")
-    ax[1].legend()
-
-    ax[2].set_title("a_x(t)")
-    ax[2].plot(t_moreau, a_moreau[:, 0], "-r", label="Moreau")
-    ax[2].plot(t_other, a_other[:, 0], "--b", label="Other")
-    ax[2].legend()
-
-    plt.tight_layout()
-
-    fig, ax = plt.subplots(3, 1)
-    ax[0].set_title("y(t)")
-    ax[0].plot([t_moreau[0], t_moreau[-1]], [radius, radius], "-k", label="ground")
-    ax[0].plot(t_moreau, q_moreau[:, 1], "-r", label="y Moreau")
-    ax[0].plot(t_other, q_other[:, 1], "--b", label="y Other")
-    ax[0].legend()
-
-    ax[1].set_title("u_y(t)")
-    ax[1].plot(t_moreau, u_moreau[:, 1], "-r", label="Moreau")
-    ax[1].plot(t_other, u_other[:, 1], "--b", label="Other")
-    ax[1].legend()
-
-    ax[2].set_title("a_y(t)")
-    ax[2].plot(t_moreau, a_moreau[:, 1], "-r", label="Moreau")
-    ax[2].plot(t_other, a_other[:, 1], "--b", label="Other")
-    ax[2].legend()
-
-    plt.tight_layout()
-
-    fig, ax = plt.subplots(3, 1)
-    ax[0].set_title("phi(t)")
-    ax[0].plot(t_moreau, q_moreau[:, 3], "-r", label="Moreau")
-    ax[0].plot(t_other, q_other[:, 3], "--b", label="Other")
-    ax[0].legend()
-
-    ax[1].set_title("u_phi(t)")
-    ax[1].plot(t_moreau, u_moreau[:, -1], "-r", label="Moreau")
-    ax[1].plot(t_other, u_other[:, -1], "--b", label="Other")
-    ax[1].legend()
-
-    ax[2].set_title("a_phi(t)")
-    ax[2].plot(t_moreau, a_moreau[:, -1], "-r", label="Moreau")
-    ax[2].plot(t_other, a_other[:, -1], "--b", label="Other")
-    ax[2].legend()
-
-    plt.tight_layout()
-
-    fig, ax = plt.subplots(3, 1)
-
-    ax[0].set_title("P_N(t)")
-    ax[0].plot(t_moreau, P_N_moreau[:, 0], "-r", label="Moreau")
-    ax[0].plot(t_other, la_N_other[:, 0], "--b", label="Other_la_N")
-    ax[0].plot(t_other, La_N_other[:, 0], "--g", label="Other_La_N")
-    ax[0].plot(t_other, P_N_other[:, 0], "--k", label="Other_P_N")
-    ax[0].legend()
-
-    # ax[1].set_title("P_Fx(t)")
-    # ax[1].plot(t_fp, P_F_fp[:, 0], "-r", label="Moreau")
-    # ax[1].plot(t_g, la_F_g[:, 0], "--b", label="Other_la_F")
-    # ax[1].plot(t_g, La_F_g[:, 0], "--g", label="Other_La_F")
-    # ax[1].plot(t_g, P_F_g[:, 0], "--k", label="Other_P_N")
-    # ax[1].legend()
-
-    # ax[2].set_title("P_Fy(t)")
-    # ax[2].plot(t_fp, P_F_fp[:, 1], "-r", label="Moreau")
-    # ax[2].plot(t_g, la_F_g[:, 1], "--b", label="Other_la_F")
-    # ax[2].plot(t_g, La_F_g[:, 1], "--g", label="Other_La_F")
-    # ax[2].plot(t_g, P_F_g[:, 1], "--k", label="Other_P_N")
-    # ax[2].legend()
-
-    plt.tight_layout()
-
-    plt.show()
-
-    if animate:
-
-        # animate configurations
-        fig = plt.figure()
-        ax = fig.add_subplot(111)
-
-        ax.set_xlabel("x [m]")
-        ax.set_ylabel("y [m]")
-        ax.axis("equal")
-        ax.set_xlim(-2 * y0, 2 * y0)
-        ax.set_ylim(-2 * y0, 2 * y0)
-
-        # prepare data for animation
-        frames = len(t)
-        target_frames = min(len(t), 200)
-        frac = int(frames / target_frames)
-        animation_time = 5
-        interval = animation_time * 1000 / target_frames
-
-        frames = target_frames
-        t = t[::frac]
-        q = q[::frac]
-
-        # ax.plot([-2 * y0, 2 * y0], (y0-0.1)*np.array([1, 1]), '-k')
-
-        # horizontal plane
-        ax.plot([-2 * y0, 2 * y0], [0, 0], "-k")
-
-        # # inclined planes
-        # ax.plot([0, -y0 * np.cos(alpha)], [0, y0 * np.sin(alpha)], '-k')
-        # ax.plot([0, y0 * np.cos(beta)], [0, - y0 * np.sin(beta)], '-k')
-
-        def create(t, q):
-            x_S, y_S, _ = ball.r_OP(t, q)
-
-            A_IK = ball.A_IK(t, q)
-            d1 = A_IK[:, 0] * radius
-            d2 = A_IK[:, 1] * radius
-            # d3 = A_IK[:, 2] * r
-
-            (COM,) = ax.plot([x_S], [y_S], "ok")
-            (bdry,) = ax.plot([], [], "-k")
-            (d1_,) = ax.plot([x_S, x_S + d1[0]], [y_S, y_S + d1[1]], "-r")
-            (d2_,) = ax.plot([x_S, x_S + d2[0]], [y_S, y_S + d2[1]], "-g")
-            return COM, bdry, d1_, d2_
-
-        COM, bdry, d1_, d2_ = create(0, q[0])
-
-        def update(t, q, COM, bdry, d1_, d2_):
-
-            x_S, y_S, _ = ball.r_OP(t, q)
-
-            x_bdry, y_bdry, _ = ball.boundary(t, q)
-
-            A_IK = ball.A_IK(t, q)
-            d1 = A_IK[:, 0] * radius
-            d2 = A_IK[:, 1] * radius
-            # d3 = A_IK[:, 2] * r
-
-            COM.set_data([x_S], [y_S])
-            bdry.set_data(x_bdry, y_bdry)
-
-            d1_.set_data([x_S, x_S + d1[0]], [y_S, y_S + d1[1]])
-            d2_.set_data([x_S, x_S + d2[0]], [y_S, y_S + d2[1]])
-
-            return COM, bdry, d1_, d2_
-
-        def animate(i):
-            update(t[i], q[i], COM, bdry, d1_, d2_)
-
-        anim = animation.FuncAnimation(
-            fig, animate, frames=frames, interval=interval, blit=False
-        )
-
-        plt.show()
