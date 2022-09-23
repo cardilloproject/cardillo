@@ -7,7 +7,7 @@ from cardillo.math import approx_fprime
 from cardillo.solver import Solution
 
 
-class HalfExplicitEulerFixedPoint:
+class HalfExplicitEuler:
     def __init__(
         self,
         model,
@@ -84,10 +84,10 @@ class HalfExplicitEulerFixedPoint:
         self.q_dotk, self.u_dotk, self.la_gk = initial_values(self.tk, self.qk, self.uk)
         self.mu_gk = np.zeros_like(self.la_gk)
 
-        if hasattr(model, "step_callback"):
-            self.step_callback = model.step_callback
-        else:
-            self.step_callback = self.__step_callback
+        # if hasattr(model, "step_callback"):
+        #     self.step_callback = model.step_callback
+        # else:
+        #     self.step_callback = self.__step_callback
 
         # check if initial conditions satisfy constraints on position, velocity
         # and acceleration level
@@ -112,9 +112,6 @@ class HalfExplicitEulerFixedPoint:
         # assert np.allclose(
         #     gamma_dot0, np.zeros(self.nla_gamma)
         # ), "Initial conditions do not fulfill gamma_dot0!"
-
-    def __step_callback(self, q, u):
-        return q, u
 
     def c(self, kappa_k):
         mu_gk1 = kappa_k[: self.nla_g]
@@ -149,7 +146,13 @@ class HalfExplicitEulerFixedPoint:
         g_dot_muk1 = self.model.g_dot_q(tk1, qk1, uk1) @ g_qk.T
         g_dot_la_gk1 = self.dt * W_gk1.T @ spsolve(Mk, W_gk)
 
-        c_kappak1 = bmat([[g_muk1, None], [g_dot_muk1, g_dot_la_gk1]], format="csr")
+        # fmt: off
+        c_kappak1 = bmat(
+            [[    g_muk1,         None], 
+             [g_dot_muk1, g_dot_la_gk1]], 
+             format="csr"
+        )
+        # fmt: on
 
         yield c_kappak1
 
@@ -181,11 +184,14 @@ class HalfExplicitEulerFixedPoint:
 
             # compute Jacobian and make a Newton step
             c_kappak1 = next(gen)
-            kappa_k1 -= spsolve(c_kappak1, ck1)
+            # kappa_k1 -= spsolve(c_kappak1, ck1)
+            # kappa_k1 -= spsolve(c_kappak1, ck1)
+            kappa_k1 -= np.linalg.lstsq(c_kappak1.toarray(), ck1)[0]
 
             # # fixed-point iteration
-            # self.atol = 1.0e-4
+            # # self.atol = 1.0e-4
             # r = 4.0e-1
+            # # r = 1.0e-2
             # kappa_k1 -= r * ck1
 
             # c_kappak1_num = approx_fprime(kappa_k1, lambda kappa: next(self.c(kappa))[0], method="2-point")
@@ -313,7 +319,7 @@ class HalfExplicitEulerFixedPoint:
                     f"Newton iteration not converged after {j+1} iterations with error: {error:.5e}"
                 )
 
-            qk1, uk1 = self.step_callback(tk1, qk1, uk1)
+            qk1, uk1 = self.model.step_callback(tk1, qk1, uk1)
 
             q.append(qk1)
             u.append(uk1)

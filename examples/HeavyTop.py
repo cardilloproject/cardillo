@@ -17,7 +17,7 @@ from cardillo.model import Model
 from cardillo.solver import (
     GeneralizedAlphaFirstOrder,
     GenAlphaFirstOrderGGL2_V3,
-    HalfExplicitEulerFixedPoint,
+    HalfExplicitEuler,
     GeneralizedAlphaSecondOrder,
 )
 

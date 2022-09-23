@@ -101,16 +101,6 @@ if __name__ == "__main__":
     # dt = 5e-4
     # dt = 1e-4
 
-    solver_fp = Moreau(model, t1, dt)
-    sol_fp = solver_fp.solve()
-    t_fp = t = sol_fp.t
-    q_fp = q = sol_fp.q
-    u_fp = sol_fp.u
-    a_fp = np.zeros_like(u_fp)
-    a_fp[1:] = (u_fp[1:] - u_fp[:-1]) / dt
-    P_N_fp = sol_fp.P_N
-    P_F_fp = sol_fp.P_F
-
     # solver_other = NonsmoothGeneralizedAlpha(model, t1, dt)
     # solver_other = NonsmoothTheta(model, t1, dt, atol=1.0e-8)
     # solver_other = NonsmoothEulerBackwardsGGL(model, t1, dt)
@@ -146,6 +136,16 @@ if __name__ == "__main__":
         la_F_other = sol_other.la_F
         La_N_other = sol_other.La_N
         La_F_other = sol_other.La_F
+
+    solver_fp = Moreau(model, t1, dt)
+    sol_fp = solver_fp.solve()
+    t_fp = t = sol_fp.t
+    q_fp = q = sol_fp.q
+    u_fp = sol_fp.u
+    a_fp = np.zeros_like(u_fp)
+    a_fp[1:] = (u_fp[1:] - u_fp[:-1]) / dt
+    P_N_fp = sol_fp.P_N
+    P_F_fp = sol_fp.P_F
 
     fig, ax = plt.subplots(3, 1)
     ax[0].set_title("x(t)")
@@ -202,7 +202,7 @@ if __name__ == "__main__":
 
     plt.tight_layout()
 
-    fig, ax = plt.subplots(2, 1)
+    fig, ax = plt.subplots(3, 1)
 
     ax[0].set_title("P_N(t)")
     ax[0].plot(t_fp, P_N_fp[:, 0], "-r", label="Moreau")
@@ -212,19 +212,19 @@ if __name__ == "__main__":
     ax[0].plot(t_other, mu_N_other[:, 0], "--g", label="Other_mu_N")
     ax[0].legend()
 
-    # ax[1].set_title("P_Fx(t)")
-    # ax[1].plot(t_fp, P_F_fp[:, 0], "-r", label="Moreau")
-    # ax[1].plot(t_g, la_F_g[:, 0], "--b", label="Other_la_F")
-    # ax[1].plot(t_g, La_F_g[:, 0], "--g", label="Other_La_F")
-    # ax[1].plot(t_g, P_F_g[:, 0], "--k", label="Other_P_N")
-    # ax[1].legend()
+    ax[1].set_title("P_Fx(t)")
+    ax[1].plot(t_fp, P_F_fp[:, 0], "-r", label="Moreau")
+    # ax[1].plot(t_other, la_F_other[:, 0], "--b", label="Other_la_F")
+    # ax[1].plot(t_other, La_F_other[:, 0], "--g", label="Other_La_F")
+    ax[1].plot(t_other, P_F_other[:, 0], "--k", label="Other_P_N")
+    ax[1].legend()
 
-    # ax[2].set_title("P_Fy(t)")
-    # ax[2].plot(t_fp, P_F_fp[:, 1], "-r", label="Moreau")
-    # ax[2].plot(t_g, la_F_g[:, 1], "--b", label="Other_la_F")
-    # ax[2].plot(t_g, La_F_g[:, 1], "--g", label="Other_La_F")
-    # ax[2].plot(t_g, P_F_g[:, 1], "--k", label="Other_P_N")
-    # ax[2].legend()
+    ax[2].set_title("P_Fy(t)")
+    ax[2].plot(t_fp, P_F_fp[:, 1], "-r", label="Moreau")
+    # ax[2].plot(t_other, la_F_other[:, 1], "--b", label="Other_la_F")
+    # ax[2].plot(t_other, La_F_other[:, 1], "--g", label="Other_La_F")
+    ax[2].plot(t_other, P_F_other[:, 1], "--k", label="Other_P_N")
+    ax[2].legend()
 
     plt.tight_layout()
 

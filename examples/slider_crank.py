@@ -8,6 +8,7 @@ import matplotlib.animation as animation
 from cardillo.model import Model
 from cardillo.solver import (
     Moreau,
+    NonsmoothEulerBackwardsGGL_V2,
     NonsmoothTheta,
     NonsmoothGeneralizedAlpha,
     NonsmoothThetaGGL,
@@ -570,8 +571,8 @@ if __name__ == "__main__":
     # dt = 1e-5
     # dt = 1e-4
     # dt = 2.5e-4
-    dt = 5e-4
-    # dt = 1e-3
+    # dt = 5e-4
+    dt = 1e-3
 
     # TODO: This example seems to be broken!
     # solver = Moreau(model, t1, dt, fix_point_max_iter=5000)
@@ -581,7 +582,8 @@ if __name__ == "__main__":
     # solver = NonsmoothNewmarkFirstOrder(model, t1, dt, atol=1.0e-6)
     # solver = NonsmoothGeneralizedAlpha(model, t1, dt, rho_inf=0.85)
     # solver = NonsmoothTheta(model, t1, dt)
-    solver = NonsmoothGenAlphaFirstOrder(model, t1, dt, rho_inf=0.85)
+    # solver = NonsmoothGenAlphaFirstOrder(model, t1, dt, rho_inf=0.85)
+    solver = NonsmoothEulerBackwardsGGL_V2(model, t1, dt)
     sol = solver.solve()
     t = sol.t
     q = sol.q

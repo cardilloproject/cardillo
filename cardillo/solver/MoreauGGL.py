@@ -1,5 +1,12 @@
+from unittest import expectedFailure
 import numpy as np
-from scipy.sparse.linalg import spsolve
+
+np.seterr(all="raise")
+import warnings
+
+warnings.filterwarnings("error")
+
+from scipy.sparse.linalg import spsolve, lsqr
 from scipy.sparse import csr_matrix, bmat, eye
 from tqdm import tqdm
 
@@ -456,6 +463,13 @@ class NonsmoothEulerBackwardsGGL:
         )
 
 
+# TODO:
+# - Implement fixed-point iteration case for redundant contacts.
+# - Investigate/ discuss with Remco if least squares solution is more
+#   meaningfull since it choses "the best solution" in some norm. What
+#   is its physical interpretation?
+# - Implement Newmark method with explicit kinematic equation.
+# - Remove Qk1 as unknown.
 class NonsmoothEulerBackwardsGGL_V2:
     """Moreau's midpoint rule with GGL stabilization for unilateral contacts, 
     see Schoeder2013 and Schindler2015 section 15.2.
@@ -474,11 +488,7 @@ class NonsmoothEulerBackwardsGGL_V2:
         tol=1e-10,
         max_iter=40,
         error_function=lambda x: np.max(np.abs(x)),
-        numerical_jacobian=True,
     ):
-        if numerical_jacobian == False:
-            raise NotImplementedError("Analytical Jacobian is not implemented yet!")
-
         self.model = model
 
         #######################################################################
@@ -629,7 +639,8 @@ class NonsmoothEulerBackwardsGGL_V2:
 
         return q_sk1, qk1, u_sk1, uk1
 
-    def R(self, tk1, xk1, update_index_set=False, primal_form=False):
+    def R(self, tk1, xk1, update_index_set=False, primal_form=True):
+        # def R(self, tk1, xk1, update_index_set=False, primal_form=False):
         nq = self.nq
         nu = self.nu
         nla_g = self.nla_g
@@ -677,34 +688,20 @@ class NonsmoothEulerBackwardsGGL_V2:
         # TODO: Use integrated form or not?
         ###################################
         R[:nq] = (
-            dt * q_dotk1
-            # - dt * self.model.q_dot(tk1, qk1, uk1)
-            - dt * self.model.q_dot(tk1, qk1, uk1 - Uk1)
-            # q_dotk1
-            # - self.model.q_dot(tk1, qk1, uk1 - Uk1)
+            q_dotk1
+            - self.model.q_dot(tk1, qk1, uk1 - Uk1)
             - g_qk1.T @ mu_gk1
             - g_N_qk1.T @ mu_Nk1
         )
 
-        ################################
-        # interated equality of measures
-        ################################
-        R[2 * nq : 2 * nq + nu] = (
-            Mk1 @ u_dotk1
-            - self.model.h(tk1, qk1, uk1)
-            # dt * Mk1 @ u_dot_sk1
-            # - dt * self.model.h(tk1, qk1, uk1)
-            # - W_gk1 @ P_gk1
-            # - W_Nk1 @ P_Nk1
-            # - W_Fk1 @ P_Fk1
-        )
+        #####################
+        # equations of motion
+        #####################
+        R[2 * nq : 2 * nq + nu] = Mk1 @ u_dotk1 - self.model.h(tk1, qk1, uk1)
 
-        ####################
-        # no impact equation
-        ####################
-        # R[2 * nq + nu : 2 * nq + 2 * nu] = Uk1
-
+        #################
         # impact equation
+        #################
         R[2 * nq + nu : 2 * nq + 2 * nu] = (
             Mk1 @ Uk1 - W_gk1 @ P_gk1 - W_Nk1 @ P_Nk1 - W_Fk1 @ P_Fk1
         )
@@ -718,8 +715,6 @@ class NonsmoothEulerBackwardsGGL_V2:
         ###################
         # update index sets
         ###################
-        primal_form = True
-        # primal_form = False
         if primal_form:
             prox_N_arg_position = g_Nk1 - self.model.prox_r_N * mu_Nk1
             prox_N_arg_velocity = xi_Nk1 - self.model.prox_r_N * P_Nk1
@@ -729,33 +724,18 @@ class NonsmoothEulerBackwardsGGL_V2:
 
         if update_index_set:
             self.Ak1 = prox_N_arg_position <= 0
-            self.Bk1 = self.Ak1 * (prox_N_arg_velocity <= 0)
-
-            for i_N, i_F in enumerate(self.model.NF_connectivity):
-                i_F = np.array(i_F)
-                if len(i_F) > 0:
-                    self.Dk1_st[i_N] = self.Ak1[i_N] and (
-                        norm(self.model.prox_r_F[i_N] * xi_Fk1[i_F] - P_Fk1[i_F])
-                        <= mu[i_N] * P_Nk1[i_N]
-                    )
 
         #################################################
         # Mixed Signorini on velcity level and impact law
         #################################################
         if primal_form:
-            R[nx_s : nx_s + nla_N] = np.select(
+            R[nx_s : nx_s + nla_N] = np.where(
                 self.Ak1, xi_Nk1 - prox_R0_np(prox_N_arg_velocity), P_Nk1
             )
         else:
-            R[nx_s : nx_s + nla_N] = np.select(
+            R[nx_s : nx_s + nla_N] = np.where(
                 self.Ak1, -P_Nk1 - prox_R0_nm(prox_N_arg_velocity), P_Nk1
             )
-
-        # Bk1 = self.Bk1
-        # Bk1_ind = np.where(Bk1)[0]
-        # _Bk1_ind = np.where(~Bk1)[0]
-        # R[nx_s + Bk1_ind] = xi_Nk1[Bk1]
-        # R[nx_s + _Bk1_ind] = P_Nk1[~Bk1]
 
         ########################
         # position stabilization
@@ -768,55 +748,37 @@ class NonsmoothEulerBackwardsGGL_V2:
                 prox_N_arg_position
             )
 
-        # Ak1 = self.Ak1
-        # Ak1_ind = np.where(Ak1)[0]
-        # _Ak1_ind = np.where(~Ak1)[0]
-        # R[nx_s + nla_N + Ak1_ind] = g_Nk1[Ak1]
-        # R[nx_s + nla_N + _Ak1_ind] = kappa_Nk1[~Ak1]
-
         ##########
         # friction
         ##########
-        # no_friction = True
-        no_friction = False
+        for i_N, i_F in enumerate(self.model.NF_connectivity):
+            i_F = np.array(i_F)
 
-        # TODO: No friction case can be implemented like this:
-        if no_friction:
-            R[nx_s + 2 * nla_N :] = P_Fk1
-        else:
-            for i_N, i_F in enumerate(self.model.NF_connectivity):
-                i_F = np.array(i_F)
-                if len(i_F) > 0:
-                    if self.Ak1[i_N]:
-
-                        # TODO:
-                        # if primal_form:
-                        #     raise NotImplementedError
-                        #     R[nx_s + 2 * nla_N + i_F] = xi_Fk1[i_F] - prox_sphere(xi_Fk1[i_F] - self.model.prox_r_F[i_N] * P_Fk1[i_F], mu[i_N] * P_Nk1[i_N])
-                        # else:
-                        #     raise NotImplementedError
-                        #     R[nx_s + 2 * nla_N + i_F] = -P_Fk1[i_F] - prox_sphere(-P_Fk1[i_F] + self.model.prox_r_F[i_N] * xi_Fk1[i_F], mu[i_N] * P_Nk1[i_N])
-
-                        if self.Dk1_st[i_N]:
-                            # eqn. (138a)
-                            R[nx_s + 2 * nla_N + i_F] = xi_Fk1[i_F]
-                        else:
-                            # eqn. (138b)
-                            norm_xi_Fi1 = norm(xi_Fk1[i_F])
-                            xi_Fk1_normalized = xi_Fk1.copy()
-                            if norm_xi_Fi1 > 0:
-                                xi_Fk1_normalized /= norm_xi_Fi1
-                            R[nx_s + 2 * nla_N + i_F] = (
-                                P_Fk1[i_F]
-                                + mu[i_N] * P_Nk1[i_N] * xi_Fk1_normalized[i_F]
-                            )
-                    else:
-                        # eqn. (138c)
-                        R[nx_s + 2 * nla_N + i_F] = P_Fk1[i_F]
+            if len(i_F) > 0:
+                # TODO: Is there a primal/ dual form?
+                R[nx_s + 2 * nla_N + i_F] = np.where(
+                    self.Ak1[i_N] * np.ones(len(i_F), dtype=bool),
+                    -P_Fk1[i_F]
+                    - prox_sphere(
+                        -P_Fk1[i_F] + self.model.prox_r_F[i_N] * xi_Fk1[i_F],
+                        mu[i_N] * P_Nk1[i_N],
+                    ),
+                    P_Fk1[i_F],
+                )
 
         return R
 
     def step(self, tk1, xk1):
+        # from scipy.optimize import least_squares
+        # # res = least_squares(lambda x: self.R(tk1, x, update_index_set=True), xk1)
+        # res = least_squares(lambda x: self.R(tk1, x, update_index_set=True), xk1, method="lm")
+        # xk1 = res.x
+        # # error = res.cost
+        # error = res.optimality
+        # converged = res.success
+        # j = res.nfev
+        # return converged, j, error, xk1
+
         # initial residual and error
         R = self.R(tk1, xk1, update_index_set=True)
         error = self.error_function(R)
@@ -835,7 +797,31 @@ class NonsmoothEulerBackwardsGGL_V2:
 
                 # Newton update
                 j += 1
-                dx = spsolve(J, R, use_umfpack=True)
+
+                # from scipy.linalg import det
+                # det_ = det(J.toarray())
+                # print(f"det: {det_}")
+
+                # guard against rank deficiency
+                # dx = spsolve(J, R, use_umfpack=True)
+                dx = lsqr(J, R, atol=1.0e-12, btol=1.0e-12)[0]
+                # try:
+                #     # dx = spsolve(J, R, use_umfpack=True)
+                #     dx = spsolve(J, R, use_umfpack=False)
+                # except:
+                #     print(f"lsqr case")
+                #     # dx = lsqr(J, R)[0]
+                #     dx = lsqr(J, R, atol=1.0e-10, btol=1.0e-10)[0]
+                # except np.linalg.LinAlgError as err:
+                #     if 'Singular matrix' in str(err):
+                #         print(f"lsqr case")
+                #         # TODO: Is it beneficial to initialize with the difference of the last step?
+                #         # dx = lsqr(J, R, x0=xk1 - xk)[0]
+                #         # dx = lsqr(J, R)[0]
+                #         dx = lsqr(J, R, atol=1.0e-8, btol=1.0e-8)[0]
+                #     else:
+                #         raise RuntimeError("Unexpected problem occurred when inverting the Jacobian.")
+
                 xk1 -= dx
                 R = self.R(tk1, xk1, update_index_set=True)
 
@@ -1765,7 +1751,8 @@ class Remco:
 
                 # Newton update
                 j += 1
-                dx = spsolve(J, R, use_umfpack=True)
+                # dx = spsolve(J, R, use_umfpack=True)
+                dx = lsqr(J, R)[0]
                 xk1 -= dx
                 R = f(xk1)
 

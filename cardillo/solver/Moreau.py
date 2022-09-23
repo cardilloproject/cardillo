@@ -14,7 +14,7 @@ class Moreau:
         t1,
         dt,
         fix_point_tol=1e-8,
-        fix_point_max_iter=1000,
+        fix_point_max_iter=100,
         error_function=lambda x: np.max(np.abs(x)),
     ):
         self.model = model
@@ -64,15 +64,19 @@ class Moreau:
         W_gamma0 = self.model.W_gamma(self.tk, self.qk, scipy_matrix=csr_matrix)
         zeta_g0 = self.model.zeta_g(t0, self.qk, self.uk)
         zeta_gamma0 = self.model.zeta_gamma(t0, self.qk, self.uk)
+        # fmt: off
         A = bmat(
-            [[M0, -W_g0, -W_gamma0], [W_g0.T, None, None], [W_gamma0.T, None, None]],
+            [[       M0, -W_g0, -W_gamma0], 
+             [    W_g0.T, None,      None], 
+             [W_gamma0.T, None,      None]],
             format="csc",
         )
+        # fmt: on
         b = np.concatenate([h0, -zeta_g0, -zeta_gamma0])
         u_dot_la_g_la_gamma = splu(A).solve(b)
         self.u_dotk = u_dot_la_g_la_gamma[: self.nu]
-        self.P_gk = u_dot_la_g_la_gamma[self.nu : self.nu + self.nla_g]
-        self.P_gammak = u_dot_la_g_la_gamma[self.nu + self.nla_g :]
+        self.P_gk = u_dot_la_g_la_gamma[self.nu : self.nu + self.nla_g] * dt
+        self.P_gammak = u_dot_la_g_la_gamma[self.nu + self.nla_g :] * dt
 
         # check if initial conditions satisfy constraints on position, velocity
         # and acceleration level
@@ -176,8 +180,8 @@ class Moreau:
         P_gk1 = x[self.nu : self.nu + self.nla_g]
         P_gammak1 = x[self.nu + self.nla_g :]
 
-        P_Nk1 = np.zeros(self.nla_N)
-        P_Fk1 = np.zeros(self.nla_F)
+        P_Nk1 = np.zeros(self.nla_N, dtype=float)
+        P_Fk1 = np.zeros(self.nla_F, dtype=float)
 
         converged = True
         error = 0
@@ -264,7 +268,10 @@ class Moreau:
                 f"t: {tk1:0.2e}; fixed-point iterations: {j+1}; error: {error:.3e}"
             )
             if not converged:
-                raise RuntimeError(
+                # raise RuntimeError(
+                #     f"fixed-point iteration not converged after {j+1} iterations with error: {error:.5e}"
+                # )
+                print(
                     f"fixed-point iteration not converged after {j+1} iterations with error: {error:.5e}"
                 )
 

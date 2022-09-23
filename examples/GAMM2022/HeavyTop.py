@@ -18,6 +18,7 @@ from cardillo.solver import (
     GeneralizedAlphaFirstOrder,
     GeneralizedAlphaSecondOrder,
     GeneralizedAlphaFirstOrderGGLGiuseppe,
+    HalfExplicitEuler,
 )
 
 
@@ -187,22 +188,24 @@ def show_animation(top, t, q, scale=1, show=False):
 def state():
     rho_inf = 0.9
     tol = 1.0e-8
-    t1 = 1
-    # t1 = 0.25
+    # t1 = 1
+    t1 = 0.25
     dt = 1.0e-3
 
-    sol = GeneralizedAlphaFirstOrder(
-        model,
-        t1,
-        dt,
-        rho_inf=rho_inf,
-        tol=tol,
-        unknowns="velocities",
-        # GGL=False,
-        GGL=True,
-        # numerical_jacobian=False,
-        numerical_jacobian=True,
-    ).solve()
+    sol = HalfExplicitEuler(model, t1, dt, tol).solve()
+
+    # sol = GeneralizedAlphaFirstOrder(
+    #     model,
+    #     t1,
+    #     dt,
+    #     rho_inf=rho_inf,
+    #     tol=tol,
+    #     unknowns="velocities",
+    #     # GGL=False,
+    #     GGL=True,
+    #     # numerical_jacobian=False,
+    #     numerical_jacobian=True,
+    # ).solve()
 
     # sol = GeneralizedAlphaFirstOrderGGLGiuseppe(
     #     model, t1, dt, rho_inf=rho_inf, tol=tol
@@ -220,8 +223,8 @@ def state():
     la_g = sol.la_g
 
     def export_q(sol, name):
-        header = "t, x, y, z, al, be, ga, la_g, la_ga0, la_ga1"
-        export_data = np.vstack([sol.t, *sol.q.T, *sol.la_g.T, *sol.la_gamma.T]).T
+        header = "t, x, y, z, al, be, ga, la_g"
+        export_data = np.vstack([sol.t, *sol.q.T, *sol.la_g.T]).T
         np.savetxt(
             name,
             export_data,
