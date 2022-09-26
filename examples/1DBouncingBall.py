@@ -135,8 +135,8 @@ if __name__ == "__main__":
     # dt = 1e-1
     # dt = 5e-2
     # dt = 1e-2
-    dt = 5e-3
-    # dt = 1e-3
+    # dt = 5e-3
+    dt = 1e-3
     # dt = 5e-4
 
     # solve problem

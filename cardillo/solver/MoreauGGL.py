@@ -470,6 +470,13 @@ class NonsmoothEulerBackwardsGGL:
 #   is its physical interpretation?
 # - Implement Newmark method with explicit kinematic equation.
 # - Remove Qk1 as unknown.
+# - Implement astroblaster example.
+# - Can we use the Shur complement reformulation and solve the least squares
+#   solution for the Lagrange multipliers. After that, we can solve for all
+#   other quantities with these values. Is the Dellasus matrix invertible?
+# - Investigate preconditioning by making all residual values of the same
+#   order in h. Otherwise we get problems when solving the least squares
+#   solution later du to the twice as bad vondition number.
 class NonsmoothEulerBackwardsGGL_V2:
     """Moreau's midpoint rule with GGL stabilization for unilateral contacts, 
     see Schoeder2013 and Schindler2015 section 15.2.
@@ -608,20 +615,24 @@ class NonsmoothEulerBackwardsGGL_V2:
             xk1
         )
 
-        ################
-        # implicit Euler
-        ################
-        q_sk1 = self.qk + dt * q_dotk1
-        u_sk1 = self.uk + dt * u_dotk1
+        # ################
+        # # implicit Euler
+        # ################
+        # q_sk1 = self.qk + dt * q_dotk1
+        # u_sk1 = self.uk + dt * u_dotk1
 
-        # ##################
-        # # trapezoidal rule
-        # ##################
-        # # q_sk1 = self.qk + 0.5 * dt * (self.q_dotk + q_dotk1)
-        # # u_sk1 = self.uk + 0.5 * dt * (self.u_dotk + u_dotk1)
-        # theta = 0.5
-        # q_sk1 = self.qk + dt * (1.0 - theta) * self.q_dotk + dt * theta * q_dotk1
-        # u_sk1 = self.uk + dt * (1.0 - theta) * self.u_dotk + dt * theta * u_dotk1
+        ##################
+        # trapezoidal rule
+        ##################
+        # q_sk1 = self.qk + 0.5 * dt * (self.q_dotk + q_dotk1)
+        # u_sk1 = self.uk + 0.5 * dt * (self.u_dotk + u_dotk1)
+
+        ##############
+        # theta method
+        ##############
+        theta = 0.5
+        q_sk1 = self.qk + dt * (1.0 - theta) * self.q_dotk + dt * theta * q_dotk1
+        u_sk1 = self.uk + dt * (1.0 - theta) * self.u_dotk + dt * theta * u_dotk1
 
         # #################################################################
         # # Newmark with gamma = 1 and beta = 0.5, see
@@ -692,12 +703,12 @@ class NonsmoothEulerBackwardsGGL_V2:
             - self.model.q_dot(tk1, qk1, uk1 - Uk1)
             - g_qk1.T @ mu_gk1
             - g_N_qk1.T @ mu_Nk1
-        )
+        ) * dt
 
         #####################
         # equations of motion
         #####################
-        R[2 * nq : 2 * nq + nu] = Mk1 @ u_dotk1 - self.model.h(tk1, qk1, uk1)
+        R[2 * nq : 2 * nq + nu] = (Mk1 @ u_dotk1 - self.model.h(tk1, qk1, uk1)) * dt
 
         #################
         # impact equation
@@ -769,9 +780,77 @@ class NonsmoothEulerBackwardsGGL_V2:
         return R
 
     def step(self, tk1, xk1):
+        ##########################################
+        ##########################################
+        ##########################################
+        # from scipy.optimize import minimize
+
+        # nq = self.nq
+        # nu = self.nu
+
+        # def fun(x):
+        #     R = self.R(tk1, x, update_index_set=True)#[nq + nu :]
+        #     return sum(R**2)
+        #     # n = len(R)
+        #     # return sum(R**2) / n
+
+        # def jac(x):
+        #     approx_fprime(x, fun)
+        #     # R = self.R(tk1, x, update_index_set=True)[nq + nu :]
+        #     # # J = approx_fprime(
+        #     # #     xk1,
+        #     # #     lambda x: self.R(tk1, x, update_index_set=False),
+        #     # #     method="2-point",
+        #     # # )
+        #     # return 2.0 * sum(R) * R
+
+        # def con(x):
+        #     return self.R(tk1, x, update_index_set=True)[: nq + nu]
+
+        # def con_jac(x):
+        #     J = approx_fprime(
+        #         xk1,
+        #         lambda x: self.R(tk1, x, update_index_set=False),
+        #         method="2-point",
+        #     )
+        #     return J[: nq + nu]
+
+        # cons = {"type": "eq", "fun": con, "jac": con_jac}
+
+        # res = minimize(
+        #     fun,
+        #     x0=xk1,
+        #     # constraints=cons,
+        #     # jac=jac,
+        #     method="trust-constr",
+        #     # method="SLSQP",
+        #     tol=1e-8,
+        #     # options={
+        #     #     # "func": None,
+        #     #     # "maxiter": 100,
+        #     #     "ftol": 1e-08,
+        #     #     "iprint": 1,
+        #     #     "disp": True,
+        #     #     # "eps": 1.4901161193847656e-08,
+        #     #     # "finite_diff_rel_step": None,
+        #     # },
+        # )
+
+        # error = res.fun
+        # converged = res.success
+        # j = res.nfev
+        # return converged, j, error, xk1
+
+        ##########################################
+        ##########################################
+        ##########################################
         # from scipy.optimize import least_squares
+
+        # f = lambda x: self.R(tk1, x, update_index_set=True)
         # # res = least_squares(lambda x: self.R(tk1, x, update_index_set=True), xk1)
-        # res = least_squares(lambda x: self.R(tk1, x, update_index_set=True), xk1, method="lm")
+        # res = least_squares(f, xk1, method="trf")
+        # # res = least_squares(f, xk1, method="dogbox")
+        # # res = least_squares(f, xk1, method="lm")
         # xk1 = res.x
         # # error = res.cost
         # error = res.optimality
@@ -779,6 +858,9 @@ class NonsmoothEulerBackwardsGGL_V2:
         # j = res.nfev
         # return converged, j, error, xk1
 
+        ##########################################
+        ##########################################
+        ##########################################
         # initial residual and error
         R = self.R(tk1, xk1, update_index_set=True)
         error = self.error_function(R)
@@ -804,7 +886,29 @@ class NonsmoothEulerBackwardsGGL_V2:
 
                 # guard against rank deficiency
                 # dx = spsolve(J, R, use_umfpack=True)
-                dx = lsqr(J, R, atol=1.0e-12, btol=1.0e-12)[0]
+                # TODO: Why we get underflow errors of the sparse solvers?
+                # dx = lsqr(J, R, atol=1.0e-12, btol=1.0e-12, show=True)[0]
+                # dx = lsqr(J, R, show=True)[0]
+                dx = lsqr(J, R)[0]
+                # from scipy.sparse.linalg import lsmr
+                # dx = lsmr(J, R)[0]
+
+                # # no underflow errors
+                # dx = np.linalg.lstsq(J.toarray(), R, rcond=None)[0]
+
+                # # using QR decomposition
+                # b = R.copy()
+                # Q, R = np.linalg.qr(J.toarray())
+                # Qb = np.dot(Q.T, b)
+                # dx = np.linalg.solve(R, Qb) # solving R*x = Q^T*b
+
+                # solve normal equation (should be independent of the conditioning
+                # number!)
+                # A = J.T @ J
+                # b = J.T @ R
+                # dx = spsolve(A, b)
+                dx = spsolve(J.T @ J, J.T @ R)
+
                 # try:
                 #     # dx = spsolve(J, R, use_umfpack=True)
                 #     dx = spsolve(J, R, use_umfpack=False)
@@ -812,15 +916,15 @@ class NonsmoothEulerBackwardsGGL_V2:
                 #     print(f"lsqr case")
                 #     # dx = lsqr(J, R)[0]
                 #     dx = lsqr(J, R, atol=1.0e-10, btol=1.0e-10)[0]
-                # except np.linalg.LinAlgError as err:
-                #     if 'Singular matrix' in str(err):
-                #         print(f"lsqr case")
-                #         # TODO: Is it beneficial to initialize with the difference of the last step?
-                #         # dx = lsqr(J, R, x0=xk1 - xk)[0]
-                #         # dx = lsqr(J, R)[0]
-                #         dx = lsqr(J, R, atol=1.0e-8, btol=1.0e-8)[0]
-                #     else:
-                #         raise RuntimeError("Unexpected problem occurred when inverting the Jacobian.")
+                # # except np.linalg.LinAlgError as err:
+                # #     if 'Singular matrix' in str(err):
+                # #         print(f"lsqr case")
+                # #         # TODO: Is it beneficial to initialize with the difference of the last step?
+                # #         # dx = lsqr(J, R, x0=xk1 - xk)[0]
+                # #         # dx = lsqr(J, R)[0]
+                # #         dx = lsqr(J, R, atol=1.0e-8, btol=1.0e-8)[0]
+                # #     else:
+                # #         raise RuntimeError("Unexpected problem occurred when inverting the Jacobian.")
 
                 xk1 -= dx
                 R = self.R(tk1, xk1, update_index_set=True)
