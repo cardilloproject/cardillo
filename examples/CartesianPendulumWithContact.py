@@ -100,39 +100,39 @@ class MathematicalPendulumCartesianContact:
     def f_pot_q(self, t, q, coo):
         raise NotImplementedError
 
-    # def g(self, t, q):
-    #     x, y = q
-    #     return np.array([x * x + y * y - self.l * self.l])
+    def g(self, t, q):
+        x, y = q
+        return np.array([x * x + y * y - self.l * self.l])
 
-    # def g_dot(self, t, q, u):
-    #     x, y = q
-    #     u_x, u_y = u
-    #     return np.array([2 * x * u_x + 2 * y * u_y])
+    def g_dot(self, t, q, u):
+        x, y = q
+        u_x, u_y = u
+        return np.array([2 * x * u_x + 2 * y * u_y])
 
-    # def g_dot_u(self, t, q, coo):
-    #     coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
+    def g_dot_u(self, t, q, coo):
+        coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
 
-    # def g_ddot(self, t, q, u, a):
-    #     x, y = q
-    #     u_x, u_y = u
-    #     a_x, a_y = a
-    #     return np.array([2 * (u_x * u_x + x * a_x) + 2 * (u_y * u_y + y * a_y)])
+    def g_ddot(self, t, q, u, a):
+        x, y = q
+        u_x, u_y = u
+        a_x, a_y = a
+        return np.array([2 * (u_x * u_x + x * a_x) + 2 * (u_y * u_y + y * a_y)])
 
-    # def g_q_dense(self, t, q):
-    #     x, y = q
-    #     return np.array([2 * x, 2 * y])
+    def g_q_dense(self, t, q):
+        x, y = q
+        return np.array([2 * x, 2 * y])
 
-    # def g_q(self, t, q, coo):
-    #     coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
+    def g_q(self, t, q, coo):
+        coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
 
-    # def W_g_dense(self, t, q):
-    #     return self.g_q_dense(t, q).T
+    def W_g_dense(self, t, q):
+        return self.g_q_dense(t, q).T
 
-    # def W_g(self, t, q, coo):
-    #     coo.extend(self.W_g_dense(t, q), (self.uDOF, self.la_gDOF))
+    def W_g(self, t, q, coo):
+        coo.extend(self.W_g_dense(t, q), (self.uDOF, self.la_gDOF))
 
-    # def Wla_g_q(self, t, q, la_g, coo):
-    #     coo.extend(np.eye(self.nu, self.nq) * 2 * la_g[0], (self.uDOF, self.qDOF))
+    def Wla_g_q(self, t, q, la_g, coo):
+        coo.extend(np.eye(self.nu, self.nq) * 2 * la_g[0], (self.uDOF, self.qDOF))
 
     # def G(self, t, q):
     #     W = self.W_g_dense(t, q)
@@ -196,9 +196,9 @@ if __name__ == "__main__":
     t_end = 1
     # t_end = 10
     # dt = 5.0e-2
-    # dt = 1.0e-2
+    dt = 1.0e-2
     # dt = 5.0e-3
-    dt = 1.0e-3
+    # dt = 1.0e-3
     # dt = 1.0e-4
 
     # solve with GGL stabilized Moreau scheme

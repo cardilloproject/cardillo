@@ -75,20 +75,29 @@ if __name__ == "__main__":
 
     eps = 1.0e-1
     y0 = 1
-    # ball1 = initalize_ball(1, 0.5, np.array([-0.5 - eps, y0, 0]), np.array([0, 0, 0]))
-    # ball2 = initalize_ball(1, 0.5, np.array([0.5 + eps, y0, 0]), np.array([0, 0, 0]))
-    # ball3 = initalize_ball(1, 0.5, np.array([eps, y0 + 1.0 + eps, 0]), np.array([0, 0, 0]))
-    # ball4 = initalize_ball(1, 0.5, np.array([-eps, y0 + 2.0 + 2 * eps, 0]), np.array([0, 0, 0]))
-    ball1 = initalize_ball(1, 0.5, np.array([0, y0, 0]), np.array([0, 0, 0]))
-    ball2 = initalize_ball(
-        1, 0.5, np.array([0, y0 + (1.0 + eps), 0]), np.array([0, 0, 0])
-    )
+
+    # random
+    ball1 = initalize_ball(1, 0.5, np.array([-0.5 - eps, y0, 0]), np.array([0, 0, 0]))
+    ball2 = initalize_ball(1, 0.5, np.array([0.5 + eps, y0, 0]), np.array([0, 0, 0]))
     ball3 = initalize_ball(
-        1, 0.5, np.array([0, y0 + 2.0 * (1.0 + eps), 0]), np.array([0, 0, 0])
+        1, 0.5, np.array([eps, y0 + 1.0 + eps, 0]), np.array([0, 0, 0])
     )
     ball4 = initalize_ball(
-        1, 0.5, np.array([0, y0 + 3.0 * (1.0 + eps), 0]), np.array([0, 0, 0])
+        1, 0.5, np.array([-eps, y0 + 2.0 + 2 * eps, 0]), np.array([0, 0, 0])
     )
+
+    # # tower
+    # ball1 = initalize_ball(1, 0.5, np.array([0, y0, 0]), np.array([0, 0, 0]))
+    # ball2 = initalize_ball(
+    #     1, 0.5, np.array([0, y0 + (1.0 + eps), 0]), np.array([0, 0, 0])
+    # )
+    # ball3 = initalize_ball(
+    #     1, 0.5, np.array([0, y0 + 2.0 * (1.0 + eps), 0]), np.array([0, 0, 0])
+    # )
+    # ball4 = initalize_ball(
+    #     1, 0.5, np.array([0, y0 + 3.0 * (1.0 + eps), 0]), np.array([0, 0, 0])
+    # )
+
     balls = [ball1, ball2, ball3, ball4]
 
     # contact = Sphere2Sphere(ball1, ball2, ball1.radius, ball2.radius, e_N, prox_r_N)

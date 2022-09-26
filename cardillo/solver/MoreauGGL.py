@@ -717,6 +717,7 @@ class NonsmoothEulerBackwardsGGL_V2:
         if update_index_set:
             # implicit index set
             self.Ak1 = prox_N_arg_position <= 0
+            # self.Ak1 = g_Nk1 <= 0 # TODO: This is better!
 
             # # secplicit forecas like Moreau
             # # TODO: This yields chattering for 1D bouncing ball
