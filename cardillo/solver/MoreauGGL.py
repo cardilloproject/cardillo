@@ -94,20 +94,6 @@ class NonsmoothEulerBackwardsGGL:
             M0, h0 + W_g0 @ model.la_g0 + W_N0 @ model.la_N0 + W_F0 @ model.la_F0
         )
 
-        # # check if initial conditions satisfy constraints on position, velocity
-        # # and acceleration level
-        # g0 = model.g(self.tk, self.qk)
-        # g_dot0 = model.g_dot(self.tk, self.qk, self.uk)
-        # g_ddot0 = model.g_ddot(self.tk, self.qk, self.uk, self.u_dotk)
-        # gamma0 = model.gamma(self.tk, self.qk, self.uk)
-        # gamma_dot0 = model.gamma_dot(self.tk, self.qk, self.uk, self.u_dotk)
-
-        # assert np.allclose(g0, np.zeros(self.nla_g)), "Initial conditions do not fulfill g0!"
-        # assert np.allclose(g_dot0, np.zeros(self.nla_g)), "Initial conditions do not fulfill g_dot0!"
-        # assert np.allclose(g_ddot0, np.zeros(self.nla_g)), "Initial conditions do not fulfill g_ddot0!"
-        # assert np.allclose(gamma0, np.zeros(self.nla_gamma)), "Initial conditions do not fulfill gamma0!"
-        # assert np.allclose(gamma_dot0, np.zeros(self.nla_gamma)), "Initial conditions do not fulfill gamma_dot0!"
-
         #######################################################################
         # starting values for generalized state vector, its derivatives and
         # auxiliary velocities
@@ -805,16 +791,16 @@ class NonsmoothEulerBackwardsGGL_V2:
                 # # no underflow errors
                 # dx = np.linalg.lstsq(J.toarray(), R, rcond=None)[0]
 
-                # # TODO: Can we get this sparse?
-                # # using QR decomposition
-                # b = R.copy()
-                # Q, R = np.linalg.qr(J.toarray())
-                # Qb = np.dot(Q.T, b)
-                # dx = np.linalg.solve(R, Qb) # solving R*x = Q^T*b
+                # TODO: Can we get this sparse?
+                # using QR decomposition, see https://de.wikipedia.org/wiki/QR-Zerlegung#L%C3%B6sung_regul%C3%A4rer_oder_%C3%BCberbestimmter_Gleichungssysteme
+                b = R.copy()
+                Q, R = np.linalg.qr(J.toarray())
+                z = Q.T @ b
+                dx = np.linalg.solve(R, z)  # solving R*x = Q^T*b
 
-                # solve normal equation (should be independent of the conditioning
-                # number!)
-                dx = spsolve(J.T @ J, J.T @ R)
+                # # solve normal equation (should be independent of the conditioning
+                # # number!)
+                # dx = spsolve(J.T @ J, J.T @ R)
 
                 # try:
                 #     # dx = spsolve(J, R, use_umfpack=True)
@@ -1893,20 +1879,6 @@ class NonsmoothEulerBackwardsGGL_V3:
             M0, h0 + W_g0 @ model.la_g0 + W_N0 @ model.la_N0 + W_F0 @ model.la_F0
         )
 
-        # # check if initial conditions satisfy constraints on position, velocity
-        # # and acceleration level
-        # g0 = model.g(self.tk, self.qk)
-        # g_dot0 = model.g_dot(self.tk, self.qk, self.uk)
-        # g_ddot0 = model.g_ddot(self.tk, self.qk, self.uk, self.u_dotk)
-        # gamma0 = model.gamma(self.tk, self.qk, self.uk)
-        # gamma_dot0 = model.gamma_dot(self.tk, self.qk, self.uk, self.u_dotk)
-
-        # assert np.allclose(g0, np.zeros(self.nla_g)), "Initial conditions do not fulfill g0!"
-        # assert np.allclose(g_dot0, np.zeros(self.nla_g)), "Initial conditions do not fulfill g_dot0!"
-        # assert np.allclose(g_ddot0, np.zeros(self.nla_g)), "Initial conditions do not fulfill g_ddot0!"
-        # assert np.allclose(gamma0, np.zeros(self.nla_gamma)), "Initial conditions do not fulfill gamma0!"
-        # assert np.allclose(gamma_dot0, np.zeros(self.nla_gamma)), "Initial conditions do not fulfill gamma_dot0!"
-
         #######################################################################
         # starting values for generalized state vector, its derivatives and
         # auxiliary velocities
@@ -2043,76 +2015,36 @@ class NonsmoothEulerBackwardsGGL_V3:
         ###################
         R = np.zeros(self.nx)
 
-        # #################################
-        # # kinematic differential equation
-        # #################################
-        # R[:nq] = (
-        #     q_dotk1
-        #     # TODO: Impulsive uk1 is not working
-        #     - self.model.q_dot(tk1, qk1, uk1)
-        #     # # TODO: Smooth u_sk1 is working
-        #     # - self.model.q_dot(tk1, qk1, u_sk1)
-        # )
-
-        # # position correction
-        # R[nq : 2 * nq] = Qk1 - dt * g_qk1.T @ mu_gk1 - dt * g_N_qk1.T @ mu_Nk1
-
-        # TODO: This reduces the number of unknowns by nq!
-        # Remove Qk1 solution by solving for 0 and add position correction
-        # directly to kinematic equation
-        R[nq : 2 * nq] = Qk1
-        # R[:nq] = (
-        #     dt * q_dotk1
-        #     - dt * self.model.q_dot(tk1, qk1, uk1)
-        #     - g_qk1.T @ mu_gk1
-        #     - g_N_qk1.T @ mu_Nk1
-        #     # - g_qk1.T @ (mu_gk1 + dt * P_gk1)
-        #     # - g_N_qk1.T @ (mu_Nk1 + dt * P_Nk1)
-        # )
+        ####################
+        # kinematic equation
+        ####################
         R[:nq] = (
             q_dotk1
             - self.model.q_dot(tk1, qk1, uk1 - Uk1)
             # - self.model.q_dot(tk1, qk1, uk1)
-            # - g_qk1.T @ la_gk1
-            # - g_N_qk1.T @ la_Nk1
-            # # - gamma_F_qk1.T @ P_Fk1 * dt
-            # # - g_qk1.T @ P_gk1
-            # # - g_N_qk1.T @ P_Nk1
-            # # - g_qk1.T @ (dt * P_gk1)
-            # # - g_N_qk1.T @ (dt * P_Nk1)
-            # # - g_qk1.T @ (dt * La_gk1)
-            # # - g_N_qk1.T @ (dt * La_Nk1)
         )
+        R[nq : 2 * nq] = Qk1
 
         #####################
         # equations of motion
         #####################
-        # R[2 * nq : 2 * nq + nu] = Mk1 @ u_dot_sk1 - self.model.h(tk1, qk1, uk1)
         R[2 * nq : 2 * nq + nu] = (
             Mk1 @ u_dot_sk1
             - self.model.h(tk1, qk1, uk1)
             - W_gk1 @ la_gk1
             - W_Nk1 @ la_Nk1
         )
-        # R[2 * nq : 2 * nq + nu] = Mk1 @ u_dot_sk1 - self.model.h(tk1, qk1, uk1) - W_gk1 @ P_gk1 / dt - W_Nk1 @ P_Nk1 / dt # - dt * W_Fk1 @ P_Fk1
 
         #################
         # impact equation
         #################
         R[2 * nq + nu : 2 * nq + 2 * nu] = (
-            Mk1 @ Uk1 - W_gk1 @ La_gk1 - W_Nk1 @ La_Nk1 - W_Fk1 @ P_Fk1
+            Mk1 @ Uk1
+            - W_gk1 @ La_gk1
+            - W_Nk1 @ La_Nk1
+            - W_Fk1 @ P_Fk1
+            # Mk1 @ Uk1 - W_gk1 @ P_gk1 - W_Nk1 @ P_Nk1 - W_Fk1 @ P_Fk1
         )
-
-        # R[2 * nq + nu : 2 * nq + 2 * nu] = Uk1
-        # # R[2 * nq : 2 * nq + nu] = Mk1 @ u_dot_sk1 - self.model.h(tk1, qk1, uk1) - W_gk1 @ P_gk1 - W_Nk1 @ P_Nk1
-        # R[2 * nq : 2 * nq + nu] = (
-        #     dt * Mk1 @ u_dot_sk1
-        #     - dt * self.model.h(tk1, qk1, uk1)
-        #     - W_gk1 @ P_gk1
-        #     - W_Nk1 @ P_Nk1
-        #     - W_Fk1 @ P_Fk1
-        # )
-        # # R[2 * nq : 2 * nq + nu] = dt * Mk1 @ u_dot_sk1 - dt * self.model.h(tk1, qk1, uk1) - W_gk1 @ P_gk1 - W_Nk1 @ P_Nk1
 
         #######################################################
         # bilateral constraints on position and velocitiy level
@@ -2123,18 +2055,9 @@ class NonsmoothEulerBackwardsGGL_V3:
         ###################
         # update index sets
         ###################
-        primal_form = True
-        # primal_form = False
-        if primal_form:
-            prox_N_arg_position = g_Nk1 - self.model.prox_r_N * la_Nk1
-            prox_N_arg_velocity = xi_Nk1 - self.model.prox_r_N * La_Nk1
-            # prox_N_arg_velocity = xi_Nk1 - self.model.prox_r_N * P_Nk1
-            # prox_N_arg_position = g_Nk1 - self.model.prox_r_N * P_Nk1
-        else:
-            raise NotImplementedError
-            # prox_N_arg_position = -la_Nk1 + self.model.prox_r_N * g_Nk1
-            # # prox_N_arg_velocity = -La_Nk1 + self.model.prox_r_N * xi_Nk1
-            # prox_N_arg_velocity = -P_Nk1 + self.model.prox_r_N * xi_Nk1
+        prox_N_arg_position = g_Nk1 - self.model.prox_r_N * la_Nk1
+        prox_N_arg_velocity = xi_Nk1 - self.model.prox_r_N * La_Nk1
+        # prox_N_arg_velocity = xi_Nk1 - self.model.prox_r_N * P_Nk1
 
         if update_index_set:
             self.Ak1 = prox_N_arg_position <= 0
@@ -2152,43 +2075,19 @@ class NonsmoothEulerBackwardsGGL_V3:
         #################################################
         # Mixed Signorini on velcity level and impact law
         #################################################
-        if primal_form:
-            R[nx_s : nx_s + nla_N] = np.select(
-                self.Ak1,
-                xi_Nk1 - prox_R0_np(prox_N_arg_velocity),
-                La_Nk1,
-            )
-        else:
-            R[nx_s : nx_s + nla_N] = np.select(
-                self.Ak1,
-                -La_Nk1 - prox_R0_nm(prox_N_arg_velocity),
-                xi_Nk1
-                # self.Ak1, -P_Nk1 - prox_R0_nm(prox_N_arg_velocity), xi_Nk1
-            )
-
-        # Bk1 = self.Bk1
-        # Bk1_ind = np.where(Bk1)[0]
-        # _Bk1_ind = np.where(~Bk1)[0]
-        # R[nx_s + Bk1_ind] = xi_Nk1[Bk1]
-        # R[nx_s + _Bk1_ind] = P_Nk1[~Bk1]
+        R[nx_s : nx_s + nla_N] = np.select(
+            self.Ak1,
+            xi_Nk1 - prox_R0_np(prox_N_arg_velocity),
+            La_Nk1,
+            # self.Ak1,
+            # xi_Nk1 - prox_R0_np(prox_N_arg_velocity),
+            # P_Nk1,
+        )
 
         ########################
         # position stabilization
         ########################
-        # R[nx_s + nla_N : nx_s + 2 * nla_N] = mu_Nk1
-        if primal_form:
-            R[nx_s + nla_N : nx_s + 2 * nla_N] = g_Nk1 - prox_R0_np(prox_N_arg_position)
-
-        else:
-            R[nx_s + nla_N : nx_s + 2 * nla_N] = -la_Nk1 - prox_R0_nm(
-                prox_N_arg_position
-            )
-
-        # Ak1 = self.Ak1
-        # Ak1_ind = np.where(Ak1)[0]
-        # _Ak1_ind = np.where(~Ak1)[0]
-        # R[nx_s + nla_N + Ak1_ind] = g_Nk1[Ak1]
-        # R[nx_s + nla_N + _Ak1_ind] = kappa_Nk1[~Ak1]
+        R[nx_s + nla_N : nx_s + 2 * nla_N] = g_Nk1 - prox_R0_np(prox_N_arg_position)
 
         ##########
         # friction
@@ -2202,38 +2101,18 @@ class NonsmoothEulerBackwardsGGL_V3:
         else:
             for i_N, i_F in enumerate(self.model.NF_connectivity):
                 i_F = np.array(i_F)
+
                 if len(i_F) > 0:
-                    if self.Ak1[i_N]:
-
-                        # TODO:
-                        if primal_form:
-                            R[nx_s + 2 * nla_N + i_F] = xi_Fk1[i_F] - prox_sphere(
-                                xi_Fk1[i_F] - self.model.prox_r_F[i_N] * P_Fk1[i_F],
-                                mu[i_N] * P_Nk1[i_N],
-                            )
-                        else:
-                            raise NotImplementedError
-                            R[nx_s + 2 * nla_N + i_F] = -P_Fk1[i_F] - prox_sphere(
-                                -P_Fk1[i_F] + self.model.prox_r_F[i_N] * xi_Fk1[i_F],
-                                mu[i_N] * P_Nk1[i_N],
-                            )
-
-                        # if self.Dk1_st[i_N]:
-                        #     # eqn. (138a)
-                        #     R[nx_s + 2 * nla_N + i_F] = xi_Fk1[i_F]
-                        # else:
-                        #     # eqn. (138b)
-                        #     norm_xi_Fi1 = norm(xi_Fk1[i_F])
-                        #     xi_Fk1_normalized = xi_Fk1.copy()
-                        #     if norm_xi_Fi1 > 0:
-                        #         xi_Fk1_normalized /= norm_xi_Fi1
-                        #     R[nx_s + 2 * nla_N + i_F] = (
-                        #         # P_Fk1[i_F] + mu[i_N] * La_Nk1[i_N] * xi_Fk1_normalized[i_F]
-                        #         P_Fk1[i_F] + mu[i_N] * P_Nk1[i_N] * xi_Fk1_normalized[i_F]
-                        #     )
-                    else:
-                        # eqn. (138c)
-                        R[nx_s + 2 * nla_N + i_F] = P_Fk1[i_F]
+                    # TODO: Is there a primal/ dual form?
+                    R[nx_s + 2 * nla_N + i_F] = np.where(
+                        self.Ak1[i_N] * np.ones(len(i_F), dtype=bool),
+                        -P_Fk1[i_F]
+                        - prox_sphere(
+                            -P_Fk1[i_F] + self.model.prox_r_F[i_N] * xi_Fk1[i_F],
+                            mu[i_N] * P_Nk1[i_N],
+                        ),
+                        P_Fk1[i_F],
+                    )
 
         return R
 
@@ -2251,7 +2130,23 @@ class NonsmoothEulerBackwardsGGL_V3:
 
                 # Newton update
                 j += 1
+
                 dx = spsolve(R_x, R, use_umfpack=True)
+                # dx = lsqr(R_x, R)[0]
+
+                # # no underflow errors
+                # dx = np.linalg.lstsq(J.toarray(), R, rcond=None)[0]
+
+                # # using QR decomposition
+                # b = R.copy()
+                # Q, R = np.linalg.qr(R_x.toarray())
+                # Qb = np.dot(Q.T, b)
+                # dx = np.linalg.solve(R, Qb) # solving R*x = Q^T*b
+
+                # # solve normal equation (should be independent of the conditioning
+                # # number!)
+                # dx = spsolve(R_x.T @ R_x, R_x.T @ R)
+
                 xk1 -= dx
                 R_gen = self.R_gen(tk1, xk1)
                 R = next(R_gen)

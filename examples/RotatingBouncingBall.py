@@ -37,8 +37,8 @@ class Ball(RigidBodyEuler):
 
 
 if __name__ == "__main__":
-    # animate = True
-    animate = False
+    animate = True
+    # animate = False
 
     m = 1
     r = 0.1
@@ -95,8 +95,8 @@ if __name__ == "__main__":
     t1 = 2
     # dt = 1e-1
     # dt = 5e-2
-    # dt = 1e-2
-    dt = 5e-3
+    dt = 1e-2
+    # dt = 5e-3
     # dt = 1e-3
     # dt = 5e-4
     # dt = 1e-4
@@ -104,8 +104,8 @@ if __name__ == "__main__":
     # solver_other = NonsmoothGeneralizedAlpha(model, t1, dt)
     # solver_other = NonsmoothTheta(model, t1, dt, atol=1.0e-8)
     # solver_other = NonsmoothEulerBackwardsGGL(model, t1, dt)
-    solver_other = NonsmoothEulerBackwardsGGL_V2(model, t1, dt)
-    # solver_other = NonsmoothEulerBackwardsGGL_V3(model, t1, dt)
+    # solver_other = NonsmoothEulerBackwardsGGL_V2(model, t1, dt)
+    solver_other = NonsmoothEulerBackwardsGGL_V3(model, t1, dt)
     # solver_other = NonsmoothThetaGGL(model, t1, dt)
     # solver_other = NonsmoothGenAlphaFirstOrder(model, t1, dt, rho_inf=0.85)
     # solver_other = NonsmoothNewmark(model, t1, dt)
@@ -133,6 +133,7 @@ if __name__ == "__main__":
     else:
         a_other = sol_other.a
         la_N_other = sol_other.la_N
+        # mu_N_other = sol_other.la_N
         la_F_other = sol_other.la_F
         La_N_other = sol_other.La_N
         La_F_other = sol_other.La_F
@@ -206,10 +207,10 @@ if __name__ == "__main__":
 
     ax[0].set_title("P_N(t)")
     ax[0].plot(t_fp, P_N_fp[:, 0], "-r", label="Moreau")
-    # ax[0].plot(t_other, la_N_other[:, 0], "--b", label="Other_la_N")
-    # ax[0].plot(t_other, La_N_other[:, 0], "--g", label="Other_La_N")
-    ax[0].plot(t_other, P_N_other[:, 0], "--b", label="Other_P_N")
-    ax[0].plot(t_other, mu_N_other[:, 0], "--g", label="Other_mu_N")
+    ax[0].plot(t_other, dt * la_N_other[:, 0], "--b", label="dt * Other_la_N")
+    ax[0].plot(t_other, La_N_other[:, 0], "--g", label="Other_La_N")
+    ax[0].plot(t_other, P_N_other[:, 0], "--k", label="Other_P_N")
+    # ax[0].plot(t_other, mu_N_other[:, 0], "--g", label="Other_mu_N")
     ax[0].legend()
 
     ax[1].set_title("P_Fx(t)")
