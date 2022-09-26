@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 
 from scipy.integrate import solve_ivp
 
@@ -8,6 +9,7 @@ from cardillo.solver import (
     Moreau,
     NonsmoothThetaGGL,
     NonsmoothEulerBackwardsGGL_V2,
+    NonsmoothNewmarkGGL,
     NonsmoothEulerBackwardsGGL_V3,
     NonsmoothTheta,
     NonsmoothGeneralizedAlpha,
@@ -15,8 +17,7 @@ from cardillo.solver import (
     NonsmoothNewmark,
 )
 
-# from cardillo.solver.generalized_alpha.generalized_alpha_3 import Generalized_alpha_3
-from cardillo.math.algebra import e1
+from cardillo.math.algebra import e1, norm
 
 
 class MathematicalPendulumCartesianContact:
@@ -66,6 +67,8 @@ class MathematicalPendulumCartesianContact:
         self.prox_r_F = np.array([prox_r_T])
         self.mu = np.array([0.0])
 
+        self.g0 = norm(self.q0[:3])
+
     def q_dot(self, t, q, u):
         return u
 
@@ -85,62 +88,69 @@ class MathematicalPendulumCartesianContact:
         coo.extend(self.M_dense(t, q), (self.uDOF, self.uDOF))
 
     def f_pot(self, t, q):
-        return np.array([0, -self.m * self.grav])
+        f_g = np.array([0, -self.m * self.grav])
+        r_OS = q[:3]
+        g = norm(r_OS)
+        n = r_OS / g
+        k = 1.0e3
+        la = -k * (g - self.g0)
+        f_spring = n * la
+        return f_g + f_spring
 
     def f_pot_q(self, t, q, coo):
-        pass
+        raise NotImplementedError
 
-    def g(self, t, q):
-        x, y = q
-        return np.array([x * x + y * y - self.l * self.l])
+    # def g(self, t, q):
+    #     x, y = q
+    #     return np.array([x * x + y * y - self.l * self.l])
 
-    def g_dot(self, t, q, u):
-        x, y = q
-        u_x, u_y = u
-        return np.array([2 * x * u_x + 2 * y * u_y])
+    # def g_dot(self, t, q, u):
+    #     x, y = q
+    #     u_x, u_y = u
+    #     return np.array([2 * x * u_x + 2 * y * u_y])
 
-    def g_dot_u(self, t, q, coo):
-        coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
+    # def g_dot_u(self, t, q, coo):
+    #     coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
 
-    def g_ddot(self, t, q, u, a):
-        x, y = q
-        u_x, u_y = u
-        a_x, a_y = a
-        return np.array([2 * (u_x * u_x + x * a_x) + 2 * (u_y * u_y + y * a_y)])
+    # def g_ddot(self, t, q, u, a):
+    #     x, y = q
+    #     u_x, u_y = u
+    #     a_x, a_y = a
+    #     return np.array([2 * (u_x * u_x + x * a_x) + 2 * (u_y * u_y + y * a_y)])
 
-    def g_q_dense(self, t, q):
-        x, y = q
-        return np.array([2 * x, 2 * y])
+    # def g_q_dense(self, t, q):
+    #     x, y = q
+    #     return np.array([2 * x, 2 * y])
 
-    def g_q(self, t, q, coo):
-        coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
+    # def g_q(self, t, q, coo):
+    #     coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
 
-    def W_g_dense(self, t, q):
-        return self.g_q_dense(t, q).T
+    # def W_g_dense(self, t, q):
+    #     return self.g_q_dense(t, q).T
 
-    def W_g(self, t, q, coo):
-        coo.extend(self.W_g_dense(t, q), (self.uDOF, self.la_gDOF))
+    # def W_g(self, t, q, coo):
+    #     coo.extend(self.W_g_dense(t, q), (self.uDOF, self.la_gDOF))
 
-    def Wla_g_q(self, t, q, la_g, coo):
-        coo.extend(np.eye(self.nu, self.nq) * 2 * la_g[0], (self.uDOF, self.qDOF))
+    # def Wla_g_q(self, t, q, la_g, coo):
+    #     coo.extend(np.eye(self.nu, self.nq) * 2 * la_g[0], (self.uDOF, self.qDOF))
 
-    def G(self, t, q):
-        W = self.W_g_dense(t, q)
-        M = self.M_dense(t, q)
-        # G1 = W.T @ np.linalg.inv(M) @ W
-        G2 = W.T @ np.linalg.solve(M, W)
-        # error = np.linalg.norm(G1 - G2)
-        # print(f"error G: {error}")
-        return G2
+    # def G(self, t, q):
+    #     W = self.W_g_dense(t, q)
+    #     M = self.M_dense(t, q)
+    #     # G1 = W.T @ np.linalg.inv(M) @ W
+    #     G2 = W.T @ np.linalg.solve(M, W)
+    #     # error = np.linalg.norm(G1 - G2)
+    #     # print(f"error G: {error}")
+    #     return G2
 
-    def la_g(self, t, q, u):
-        W = self.W_g_dense(t, q)
-        M = self.M_dense(t, q)
-        G = np.array([[W.T @ np.linalg.solve(M, W)]])
-        zeta = self.g_ddot(t, q, u, np.zeros_like(u))
-        h = self.f_pot(t, q)
-        eta = zeta + W.T @ np.linalg.solve(M, h)
-        return np.linalg.solve(G, -eta)
+    # def la_g(self, t, q, u):
+    #     W = self.W_g_dense(t, q)
+    #     M = self.M_dense(t, q)
+    #     G = np.array([[W.T @ np.linalg.solve(M, W)]])
+    #     zeta = self.g_ddot(t, q, u, np.zeros_like(u))
+    #     h = self.f_pot(t, q)
+    #     eta = zeta + W.T @ np.linalg.solve(M, h)
+    #     return np.linalg.solve(G, -eta)
 
     def g_N(self, t, q):
         return e1[:2] @ q
@@ -182,6 +192,7 @@ if __name__ == "__main__":
     model.assemble()
 
     # end time and numerical dissipation of generalized-alpha solver
+    # t_end = 0.1
     t_end = 1
     # t_end = 10
     # dt = 5.0e-2
@@ -196,25 +207,27 @@ if __name__ == "__main__":
     # sol1 = NonsmoothGenAlphaFirstOrder(model, t_end, dt, rho_inf=0.85).solve()
     # sol1 = NonsmoothGeneralizedAlpha(model, t_end, dt, rho_inf=0.85).solve()
     # sol1 = NonsmoothNewmark(model, t_end, dt).solve()
-    sol1 = NonsmoothEulerBackwardsGGL_V2(model, t_end, dt).solve()
+    # sol1 = NonsmoothEulerBackwardsGGL_V2(model, t_end, dt).solve()
+    sol1 = NonsmoothNewmarkGGL(model, t_end, dt).solve()
     # sol1 = NonsmoothEulerBackwardsGGL_V3(model, t_end, dt).solve()
     t1 = sol1.t
     q1 = sol1.q
     u1 = sol1.u
     P_g1 = sol1.P_g
+    # P_g1 = sol1.La_g + dt * sol1.la_g
     # P_g1 = sol1.La_g
     # P_g1 = sol1.la_g * dt
     P_N1 = sol1.P_N
     # P_N1 = sol1.La_N
 
-    # solve with classical Moreau scheme
-    sol2 = Moreau(model, t_end, dt).solve()
-    # sol2 = NonsmoothGeneralizedAlpha(model, t_end, dt).solve()
-    t2 = sol2.t
-    q2 = sol2.q
-    u2 = sol2.u
-    P_g2 = sol2.P_g
-    P_N2 = sol2.P_N
+    # # solve with classical Moreau scheme
+    # sol2 = Moreau(model, t_end, dt).solve()
+    # # sol2 = NonsmoothGeneralizedAlpha(model, t_end, dt).solve()
+    # t2 = sol2.t
+    # q2 = sol2.q
+    # u2 = sol2.u
+    # P_g2 = sol2.P_g
+    # P_N2 = sol2.P_N
 
     # visualize results
     fig, ax = plt.subplots(2, 2)
@@ -222,29 +235,77 @@ if __name__ == "__main__":
     # generalized coordinates
     ax[0, 0].plot(t1, q1[:, 0], "-xr", label="x - Method1")
     ax[0, 0].plot(t1, q1[:, 1], "--or", label="y - Method1")
-    ax[0, 0].plot(t2, q2[:, 0], "-xb", label="x - Method2")
-    ax[0, 0].plot(t2, q2[:, 1], "--ob", label="y - Method2")
+    # ax[0, 0].plot(t2, q2[:, 0], "-xb", label="x - Method2")
+    # ax[0, 0].plot(t2, q2[:, 1], "--ob", label="y - Method2")
     ax[0, 0].grid()
     ax[0, 0].legend()
 
     # generalized velocities
     ax[0, 1].plot(t1, u1[:, 0], "-xr", label="x_dot - Method1")
     ax[0, 1].plot(t1, u1[:, 1], "--or", label="y_dot - Method1")
-    ax[0, 1].plot(t2, u2[:, 0], "-xb", label="x_dot - Method2")
-    ax[0, 1].plot(t2, u2[:, 1], "--ob", label="y_dot - Method2")
+    # ax[0, 1].plot(t2, u2[:, 0], "-xb", label="x_dot - Method2")
+    # ax[0, 1].plot(t2, u2[:, 1], "--ob", label="y_dot - Method2")
     ax[0, 1].grid()
     ax[0, 1].legend()
 
     # bilateral constraints
     ax[1, 0].plot(t1, P_g1[:, 0], "-xr", label="P_g - Method1")
-    ax[1, 0].plot(t2, P_g2[:, 0], "-xb", label="P_g - Method2")
+    # ax[1, 0].plot(t2, P_g2[:, 0], "-xb", label="P_g - Method2")
     ax[1, 0].grid()
     ax[1, 0].legend()
 
     # normal percussions
     ax[1, 1].plot(t1, P_N1[:, 0], "-xr", label="P_N - Method1")
-    ax[1, 1].plot(t2, P_N2[:, 0], "-xb", label="P_N - Method2")
+    # ax[1, 1].plot(t2, P_N2[:, 0], "-xb", label="P_N - Method2")
     ax[1, 1].grid()
     ax[1, 1].legend()
+
+    # plt.show()
+
+    #########
+    # animate
+    #########
+    t = t1
+    q = q1
+
+    lim = 1.5 * l
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.set_xlabel("x [m]")
+    ax.set_ylabel("y [m]")
+    ax.axis("equal")
+    ax.set_xlim(-lim, lim)
+    ax.set_ylim(-lim, lim)
+
+    # prepare data for animation
+    frames = len(t)
+    target_frames = min(len(t), 200)
+    frac = int(frames / target_frames)
+    animation_time = 1
+    interval = animation_time * 1000 / target_frames
+
+    frames = target_frames
+    t = t[::frac]
+    q = q[::frac]
+
+    # vertical plane
+    ax.plot([0, 0], [-lim, lim], "-k")
+
+    # point mass
+    (com,) = ax.plot([], [], "-ok")
+
+    def update(t, q, com):
+        x, y = q
+        com.set_data([0, x], [0, y])
+
+        return com
+
+    def animate(i):
+        update(t[i], q[i], com)
+
+    anim = animation.FuncAnimation(
+        fig, animate, frames=frames, interval=interval, blit=False
+    )
 
     plt.show()

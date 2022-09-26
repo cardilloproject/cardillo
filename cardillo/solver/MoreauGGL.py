@@ -1,10 +1,9 @@
-from unittest import expectedFailure
 import numpy as np
 
-np.seterr(all="raise")
-import warnings
+# np.seterr(all="raise")
+# import warnings
 
-warnings.filterwarnings("error")
+# warnings.filterwarnings("error")
 
 from scipy.sparse.linalg import spsolve, lsqr
 from scipy.sparse import csr_matrix, bmat, eye
@@ -469,11 +468,7 @@ class NonsmoothEulerBackwardsGGL:
 #   meaningfull since it choses "the best solution" in some norm. What
 #   is its physical interpretation?
 # - Implement Newmark method with explicit kinematic equation.
-# - Remove Qk1 as unknown.
 # - Implement astroblaster example.
-# - Can we use the Shur complement reformulation and solve the least squares
-#   solution for the Lagrange multipliers. After that, we can solve for all
-#   other quantities with these values. Is the Dellasus matrix invertible?
 # - Investigate preconditioning by making all residual values of the same
 #   order in h. Otherwise we get problems when solving the least squares
 #   solution later du to the twice as bad vondition number.
@@ -522,7 +517,7 @@ class NonsmoothEulerBackwardsGGL_V2:
         self.nla_g = model.nla_g
         self.nla_N = model.nla_N
         self.nla_F = model.nla_F
-        self.nx_s = 2 * self.nq + 2 * self.nu + 2 * self.nla_g
+        self.nx_s = self.nq + 2 * self.nu + 2 * self.nla_g
         self.nx = self.nx_s + 2 * self.nla_N + self.nla_F
 
         #######################################################################
@@ -531,9 +526,7 @@ class NonsmoothEulerBackwardsGGL_V2:
         self.tk = model.t0
         self.qk = model.q0
         self.uk = model.u0
-        # self.u_sk = model.u0
         self.Uk = np.zeros_like(self.uk)
-        self.Qk = np.zeros_like(self.qk)
         self.P_gk = dt * model.la_g0
         self.mu_gk = np.zeros_like(self.P_gk)
         self.P_Nk = dt * model.la_N0
@@ -573,7 +566,6 @@ class NonsmoothEulerBackwardsGGL_V2:
         self.xk = np.concatenate(
             (
                 self.q_dotk,
-                self.Qk,
                 self.u_dotk,
                 self.Uk,
                 self.P_gk,
@@ -598,41 +590,38 @@ class NonsmoothEulerBackwardsGGL_V2:
         nla_F = self.nla_F
 
         q_dot = x[:nq]
-        Q = x[nq : 2 * nq]
-        u_dot = x[2 * nq : 2 * nq + nu]
-        U = x[2 * nq + nu : 2 * nq + 2 * nu]
-        P_g = x[2 * nq + 2 * nu : 2 * nq + 2 * nu + nla_g]
-        mu_g = x[2 * nq + 2 * nu + nla_g : 2 * nq + 2 * nu + 2 * nla_g]
+        u_dot = x[nq : nq + nu]
+        U = x[nq + nu : nq + 2 * nu]
+        P_g = x[nq + 2 * nu : nq + 2 * nu + nla_g]
+        mu_g = x[nq + 2 * nu + nla_g : nq + 2 * nu + 2 * nla_g]
         P_N = x[nx_s : nx_s + nla_N]
         mu_N = x[nx_s + nla_N : nx_s + 2 * nla_N]
         P_F = x[nx_s + 2 * nla_N : nx_s + 2 * nla_N + nla_F]
 
-        return q_dot, Q, u_dot, U, P_g, mu_g, P_N, mu_N, P_F
+        return q_dot, u_dot, U, P_g, mu_g, P_N, mu_N, P_F
 
     def update(self, xk1):
         dt = self.dt
-        q_dotk1, Qk1, u_dotk1, Uk1, P_gk1, mu_gk1, P_Nk1, mu_Nk1, P_Fk1 = self.unpack(
-            xk1
-        )
+        q_dotk1, u_dotk1, Uk1, P_gk1, mu_gk1, P_Nk1, mu_Nk1, P_Fk1 = self.unpack(xk1)
 
-        # ################
-        # # implicit Euler
-        # ################
-        # q_sk1 = self.qk + dt * q_dotk1
-        # u_sk1 = self.uk + dt * u_dotk1
+        ################
+        # implicit Euler
+        ################
+        q_sk1 = self.qk + dt * q_dotk1
+        u_sk1 = self.uk + dt * u_dotk1
 
-        ##################
-        # trapezoidal rule
-        ##################
+        # # #################
+        # # trapezoidal rule
+        # # #################
         # q_sk1 = self.qk + 0.5 * dt * (self.q_dotk + q_dotk1)
         # u_sk1 = self.uk + 0.5 * dt * (self.u_dotk + u_dotk1)
 
-        ##############
-        # theta method
-        ##############
-        theta = 0.5
-        q_sk1 = self.qk + dt * (1.0 - theta) * self.q_dotk + dt * theta * q_dotk1
-        u_sk1 = self.uk + dt * (1.0 - theta) * self.u_dotk + dt * theta * u_dotk1
+        # ##############
+        # # theta method
+        # ##############
+        # theta = 0.5
+        # q_sk1 = self.qk + dt * (1.0 - theta) * self.q_dotk + dt * theta * q_dotk1
+        # u_sk1 = self.uk + dt * (1.0 - theta) * self.u_dotk + dt * theta * u_dotk1
 
         # #################################################################
         # # Newmark with gamma = 1 and beta = 0.5, see
@@ -645,13 +634,12 @@ class NonsmoothEulerBackwardsGGL_V2:
         # # u_sk1 = self.uk + dt * (1.0 - gamma) * self.u_dot_sk + dt * gamma * u_dotk1
         # # q_sk1 = self.qk + dt * self.u_dot_sk + dt**2 * (0.5 - beta) * self.u_dot_sk + dt**2 * beta * u_dotk1
 
-        qk1 = q_sk1 + Qk1
+        qk1 = q_sk1
         uk1 = u_sk1 + Uk1
 
         return q_sk1, qk1, u_sk1, uk1
 
     def R(self, tk1, xk1, update_index_set=False, primal_form=True):
-        # def R(self, tk1, xk1, update_index_set=False, primal_form=False):
         nq = self.nq
         nu = self.nu
         nla_g = self.nla_g
@@ -661,9 +649,7 @@ class NonsmoothEulerBackwardsGGL_V2:
         mu = self.model.mu
 
         # extract all variables from xk1
-        q_dotk1, Qk1, u_dotk1, Uk1, P_gk1, mu_gk1, P_Nk1, mu_Nk1, P_Fk1 = self.unpack(
-            xk1
-        )
+        q_dotk1, u_dotk1, Uk1, P_gk1, mu_gk1, P_Nk1, mu_Nk1, P_Fk1 = self.unpack(xk1)
 
         # update generalzed coordiantes
         q_sk1, qk1, u_sk1, uk1 = self.update(xk1)
@@ -689,18 +675,13 @@ class NonsmoothEulerBackwardsGGL_V2:
         ###################
         R = np.zeros(self.nx)
 
-        ########################
-        # no position correction
-        ########################
-        R[nq : 2 * nq] = Qk1
-
         ###################################
         # kinematic equation
-        # TODO: Use integrated form or not?
         ###################################
         R[:nq] = (
             q_dotk1
             - self.model.q_dot(tk1, qk1, uk1 - Uk1)
+            # - self.model.q_dot(tk1, qk1, uk1)
             - g_qk1.T @ mu_gk1
             - g_N_qk1.T @ mu_Nk1
         ) * dt
@@ -708,20 +689,20 @@ class NonsmoothEulerBackwardsGGL_V2:
         #####################
         # equations of motion
         #####################
-        R[2 * nq : 2 * nq + nu] = (Mk1 @ u_dotk1 - self.model.h(tk1, qk1, uk1)) * dt
+        R[nq : nq + nu] = (Mk1 @ u_dotk1 - self.model.h(tk1, qk1, uk1)) * dt
 
         #################
         # impact equation
         #################
-        R[2 * nq + nu : 2 * nq + 2 * nu] = (
+        R[nq + nu : nq + 2 * nu] = (
             Mk1 @ Uk1 - W_gk1 @ P_gk1 - W_Nk1 @ P_Nk1 - W_Fk1 @ P_Fk1
         )
 
         #######################################################
         # bilateral constraints on position and velocitiy level
         #######################################################
-        R[2 * nq + 2 * nu : 2 * nq + 2 * nu + nla_g] = g_dotk1
-        R[2 * nq + 2 * nu + nla_g : 2 * nq + 2 * nu + 2 * nla_g] = gk1
+        R[nq + 2 * nu : nq + 2 * nu + nla_g] = g_dotk1
+        R[nq + 2 * nu + nla_g : nq + 2 * nu + 2 * nla_g] = gk1
 
         ###################
         # update index sets
@@ -734,7 +715,14 @@ class NonsmoothEulerBackwardsGGL_V2:
             prox_N_arg_velocity = -P_Nk1 + self.model.prox_r_N * xi_Nk1
 
         if update_index_set:
+            # implicit index set
             self.Ak1 = prox_N_arg_position <= 0
+
+            # # secplicit forecas like Moreau
+            # # TODO: This yields chattering for 1D bouncing ball
+            # q_M = self.qk + 0.5 * dt * self.model.q_dot(self.tk, self.qk, self.uk)
+            # g_N_M = self.model.g_N(self.tk, q_M)
+            # self.Ak1 = g_N_M <= 0
 
         #################################################
         # Mixed Signorini on velcity level and impact law
@@ -780,87 +768,6 @@ class NonsmoothEulerBackwardsGGL_V2:
         return R
 
     def step(self, tk1, xk1):
-        ##########################################
-        ##########################################
-        ##########################################
-        # from scipy.optimize import minimize
-
-        # nq = self.nq
-        # nu = self.nu
-
-        # def fun(x):
-        #     R = self.R(tk1, x, update_index_set=True)#[nq + nu :]
-        #     return sum(R**2)
-        #     # n = len(R)
-        #     # return sum(R**2) / n
-
-        # def jac(x):
-        #     approx_fprime(x, fun)
-        #     # R = self.R(tk1, x, update_index_set=True)[nq + nu :]
-        #     # # J = approx_fprime(
-        #     # #     xk1,
-        #     # #     lambda x: self.R(tk1, x, update_index_set=False),
-        #     # #     method="2-point",
-        #     # # )
-        #     # return 2.0 * sum(R) * R
-
-        # def con(x):
-        #     return self.R(tk1, x, update_index_set=True)[: nq + nu]
-
-        # def con_jac(x):
-        #     J = approx_fprime(
-        #         xk1,
-        #         lambda x: self.R(tk1, x, update_index_set=False),
-        #         method="2-point",
-        #     )
-        #     return J[: nq + nu]
-
-        # cons = {"type": "eq", "fun": con, "jac": con_jac}
-
-        # res = minimize(
-        #     fun,
-        #     x0=xk1,
-        #     # constraints=cons,
-        #     # jac=jac,
-        #     method="trust-constr",
-        #     # method="SLSQP",
-        #     tol=1e-8,
-        #     # options={
-        #     #     # "func": None,
-        #     #     # "maxiter": 100,
-        #     #     "ftol": 1e-08,
-        #     #     "iprint": 1,
-        #     #     "disp": True,
-        #     #     # "eps": 1.4901161193847656e-08,
-        #     #     # "finite_diff_rel_step": None,
-        #     # },
-        # )
-
-        # error = res.fun
-        # converged = res.success
-        # j = res.nfev
-        # return converged, j, error, xk1
-
-        ##########################################
-        ##########################################
-        ##########################################
-        # from scipy.optimize import least_squares
-
-        # f = lambda x: self.R(tk1, x, update_index_set=True)
-        # # res = least_squares(lambda x: self.R(tk1, x, update_index_set=True), xk1)
-        # res = least_squares(f, xk1, method="trf")
-        # # res = least_squares(f, xk1, method="dogbox")
-        # # res = least_squares(f, xk1, method="lm")
-        # xk1 = res.x
-        # # error = res.cost
-        # error = res.optimality
-        # converged = res.success
-        # j = res.nfev
-        # return converged, j, error, xk1
-
-        ##########################################
-        ##########################################
-        ##########################################
         # initial residual and error
         R = self.R(tk1, xk1, update_index_set=True)
         error = self.error_function(R)
@@ -884,18 +791,20 @@ class NonsmoothEulerBackwardsGGL_V2:
                 # det_ = det(J.toarray())
                 # print(f"det: {det_}")
 
-                # guard against rank deficiency
                 # dx = spsolve(J, R, use_umfpack=True)
-                # TODO: Why we get underflow errors of the sparse solvers?
-                # dx = lsqr(J, R, atol=1.0e-12, btol=1.0e-12, show=True)[0]
-                # dx = lsqr(J, R, show=True)[0]
-                dx = lsqr(J, R)[0]
-                # from scipy.sparse.linalg import lsmr
-                # dx = lsmr(J, R)[0]
+
+                # # guard against rank deficiency
+                # # TODO: Why we get underflow errors of the sparse solvers?
+                # # dx = lsqr(J, R, atol=1.0e-12, btol=1.0e-12, show=True)[0]
+                # # dx = lsqr(J, R, show=True)[0]
+                # dx = lsqr(J, R)[0]
+                # # from scipy.sparse.linalg import lsmr
+                # # dx = lsmr(J, R)[0]
 
                 # # no underflow errors
                 # dx = np.linalg.lstsq(J.toarray(), R, rcond=None)[0]
 
+                # # TODO: Can we get this sparse?
                 # # using QR decomposition
                 # b = R.copy()
                 # Q, R = np.linalg.qr(J.toarray())
@@ -904,9 +813,6 @@ class NonsmoothEulerBackwardsGGL_V2:
 
                 # solve normal equation (should be independent of the conditioning
                 # number!)
-                # A = J.T @ J
-                # b = J.T @ R
-                # dx = spsolve(A, b)
                 dx = spsolve(J.T @ J, J.T @ R)
 
                 # try:
@@ -985,7 +891,6 @@ class NonsmoothEulerBackwardsGGL_V2:
             # extract all variables from xk and xk1
             (
                 q_dotk1,
-                Qk1,
                 u_dot_sk1,
                 Uk1,
                 P_gk1,
@@ -1005,6 +910,875 @@ class NonsmoothEulerBackwardsGGL_V2:
             self.qk = qk1.copy()
             self.uk = uk1.copy()
             self.q_dotk = q_dotk1.copy()
+            self.u_dotk = u_dot_sk1.copy()
+            self.u_sk = u_sk1.copy()
+            self.Uk = Uk1.copy()
+            self.P_Nk = P_Nk1.copy()
+            self.P_gk = P_gk1.copy()
+
+            # store soltuion fields
+            t.append(tk1)
+            q.append(qk1)
+            u.append(uk1)
+            U.append(Uk1)
+            P_g.append(P_gk1)
+            mu_g.append(mu_gk1)
+            P_N.append(P_Nk1)
+            mu_N.append(mu_Nk1)
+            P_F.append(P_Fk1)
+
+            # update local variables for accepted time step
+            self.tk = tk1
+            self.xk = xk1.copy()
+
+        # write solution
+        return Solution(
+            t=np.array(t),
+            q=np.array(q),
+            u=np.array(u),
+            U=np.array(U),
+            P_g=np.array(P_g),
+            mu_g=np.array(mu_g),
+            P_N=np.array(P_N),
+            mu_N=np.array(mu_N),
+            P_F=np.array(P_F),
+        )
+
+
+class NonsmoothNewmarkGGL:
+    """Moreau's midpoint rule with GGL stabilization for unilateral contacts, 
+    see Schoeder2013 and Schindler2015 section 15.2.
+
+    References
+    ----------
+    Schoeder2013: https://doi.org/10.1007/s11044-013-9370-y \\
+    Schindler2015: https://mediatum.ub.tum.de/download/1422349/1422349.pdf
+    """
+
+    def __init__(
+        self,
+        model,
+        t1,
+        dt,
+        tol=1e-10,
+        max_iter=40,
+        error_function=lambda x: np.max(np.abs(x)),
+    ):
+        self.model = model
+
+        #######################################################################
+        # integration time
+        #######################################################################
+        self.t0 = t0 = model.t0
+        self.t1 = (
+            t1 if t1 > t0 else ValueError("t1 must be larger than initial time t0.")
+        )
+        self.dt = dt
+
+        #######################################################################
+        # newton settings
+        #######################################################################
+        self.tol = tol
+        self.max_iter = max_iter
+        self.error_function = error_function
+
+        #######################################################################
+        # dimensions
+        #######################################################################
+        self.nq = model.nq
+        self.nu = model.nu
+        self.nla_g = model.nla_g
+        self.nla_N = model.nla_N
+        self.nla_F = model.nla_F
+        self.nx_s = 2 * self.nu + 2 * self.nla_g
+        self.nx = self.nx_s + 2 * self.nla_N + self.nla_F
+
+        #######################################################################
+        # consistent initial conditions
+        #######################################################################
+        self.tk = model.t0
+        self.qk = model.q0
+        self.uk = model.u0
+        self.u_sk = model.u0
+        self.Uk = np.zeros_like(self.uk)
+        self.P_gk = dt * model.la_g0
+        self.mu_gk = np.zeros_like(self.P_gk)
+        self.P_Nk = dt * model.la_N0
+        self.mu_Nk = np.zeros_like(self.P_Nk)
+        self.P_Fk = dt * model.la_F0
+
+        # initial velocites
+        self.q_dotk = self.model.q_dot(self.tk, self.qk, self.uk)
+
+        M0 = self.model.M(self.tk, self.qk, scipy_matrix=csr_matrix)
+        h0 = self.model.h(self.tk, self.qk, self.uk)
+        W_g0 = self.model.W_g(self.tk, self.qk, scipy_matrix=csr_matrix)
+        W_N0 = self.model.W_N(self.tk, self.qk, scipy_matrix=csr_matrix)
+        W_F0 = self.model.W_F(self.tk, self.qk, scipy_matrix=csr_matrix)
+        self.u_dotk = spsolve(
+            M0, h0 + W_g0 @ model.la_g0 + W_N0 @ model.la_N0 + W_F0 @ model.la_F0
+        )
+
+        #######################################################################
+        # starting values for generalized state vector, its derivatives and
+        # auxiliary velocities
+        #######################################################################
+        self.xk = np.concatenate(
+            (
+                self.u_dotk,
+                self.Uk,
+                self.P_gk,
+                self.mu_gk,
+                self.P_Nk,
+                self.mu_Nk,
+                self.P_Fk,
+            )
+        )
+
+        # initialize index sets
+        self.Ak1 = np.zeros(self.nla_N, dtype=bool)
+        self.Bk1 = np.zeros(self.nla_N, dtype=bool)
+        self.Dk1_st = np.zeros(self.nla_N, dtype=bool)
+
+    def unpack(self, x):
+        nu = self.nu
+        nla_g = self.nla_g
+        nx_s = self.nx_s
+        nla_N = self.nla_N
+        nla_F = self.nla_F
+
+        u_dot = x[:nu]
+        U = x[nu : 2 * nu]
+        P_g = x[2 * nu : 2 * nu + nla_g]
+        mu_g = x[2 * nu + nla_g : 2 * nu + 2 * nla_g]
+        P_N = x[nx_s : nx_s + nla_N]
+        mu_N = x[nx_s + nla_N : nx_s + 2 * nla_N]
+        P_F = x[nx_s + 2 * nla_N : nx_s + 2 * nla_N + nla_F]
+
+        return u_dot, U, P_g, mu_g, P_N, mu_N, P_F
+
+    def update(self, xk1):
+        dt = self.dt
+        u_dotk1, Uk1, P_gk1, mu_gk1, P_Nk1, mu_Nk1, P_Fk1 = self.unpack(xk1)
+
+        #################################################################
+        # Newmark, see
+        # https://de.wikipedia.org/wiki/Newmark-beta-Verfahren#Herleitung
+        #################################################################
+        # gamma = 0.5
+        # beta = 1.0 / 6.0
+        # u_sk1 = self.uk + dt * (1.0 - gamma) * self.u_dotk + dt * gamma * u_dotk1
+        # Delta_u_k1 = self.uk + dt * (0.5 - beta) * self.u_dotk + dt * beta * u_dotk1
+
+        # mu_Nk1 = dt * (1.0 - gamma) * self.mu_Nk + dt * gamma * mu_Nk1
+        # mu_gk1 = dt * (1.0 - gamma) * self.mu_gk + dt * gamma * mu_gk1
+
+        # gamma = 1, beta = 0.5
+        u_sk1 = self.uk + dt * u_dotk1
+        Delta_u_k1 = self.uk + 0.5 * dt * u_dotk1  # + 0.5 * dt * Uk1
+
+        # qk1 = self.qk + dt * self.model.q_dot(self.tk, self.qk, Delta_u_k1) # + 0.5 * dt * Uk1
+        # qk1 = self.qk + dt * self.model.q_dot(self.tk, self.qk, Delta_u_k1 - Uk1)
+        qk1 = self.qk + dt * self.model.q_dot(self.tk, self.qk, Delta_u_k1)
+        uk1 = u_sk1 + Uk1
+
+        return qk1, u_sk1, uk1, mu_gk1, mu_Nk1
+
+    def R(self, tk1, xk1, update_index_set=False):
+        nu = self.nu
+        nla_g = self.nla_g
+        nx_s = self.nx_s
+        nla_N = self.nla_N
+        dt = self.dt
+        mu = self.model.mu
+
+        # extract all variables from xk1
+        u_dotk1, Uk1, P_gk1, mu_gk1, P_Nk1, mu_Nk1, P_Fk1 = self.unpack(xk1)
+
+        # update generalzed coordiantes
+        qk1, u_sk1, uk1, mu_gk1, mu_Nk1 = self.update(xk1)
+
+        # evaluate repeatedly used quantities
+        Mk1 = self.model.M(tk1, qk1)
+
+        gk1 = self.model.g(tk1, qk1)
+        g_dotk1 = self.model.g_dot(tk1, qk1, uk1)
+        g_qk1 = self.model.g_q(tk1, qk1, scipy_matrix=csr_matrix)
+        W_gk1 = self.model.W_g(tk1, qk1, scipy_matrix=csr_matrix)
+
+        W_Nk1 = self.model.W_N(tk1, qk1, scipy_matrix=csr_matrix)
+        g_N_qk1 = self.model.g_N_q(tk1, qk1, scipy_matrix=csr_matrix)
+        g_Nk1 = self.model.g_N(tk1, qk1)
+
+        W_Fk1 = self.model.W_F(tk1, qk1, scipy_matrix=csr_matrix)
+        xi_Nk1 = self.model.xi_N(tk1, qk1, self.uk, uk1)
+        xi_Fk1 = self.model.xi_F(tk1, qk1, self.uk, uk1)
+
+        La_gk1 = P_gk1.copy()
+        La_Nk1 = P_Nk1.copy()
+        P_gk1 = La_gk1 + dt * mu_gk1.copy()
+        P_Nk1 = La_Nk1 + dt * mu_Nk1.copy()
+
+        ###################
+        # evaluate residual
+        ###################
+        R = np.zeros(self.nx)
+
+        #####################
+        # equations of motion
+        #####################
+        R[:nu] = (
+            Mk1 @ u_dotk1
+            - self.model.h(tk1, qk1, uk1)
+            - W_gk1 @ mu_gk1
+            - W_Nk1 @ mu_Nk1
+        )
+
+        #################
+        # impact equation
+        #################
+        R[nu : 2 * nu] = (
+            # Mk1 @ Uk1 - W_gk1 @ La_gk1 - W_Nk1 @ La_Nk1 - W_Fk1 @ P_Fk1
+            Mk1 @ Uk1
+            - W_gk1 @ P_gk1
+            - W_Nk1 @ P_Nk1
+            - W_Fk1 @ P_Fk1
+        )
+
+        #######################################################
+        # bilateral constraints on position and velocitiy level
+        #######################################################
+        R[2 * nu : 2 * nu + nla_g] = g_dotk1
+        # R[2 * nu + nla_g : 2 * nu + 2 * nla_g] = gk1
+        R[2 * nu + nla_g : 2 * nu + 2 * nla_g] = mu_gk1
+
+        ###################
+        # update index sets
+        ###################
+        prox_N_arg_position = g_Nk1 - self.model.prox_r_N * mu_Nk1
+        prox_N_arg_velocity = xi_Nk1 - self.model.prox_r_N * P_Nk1
+        # prox_N_arg_velocity = xi_Nk1 - self.model.prox_r_N * La_Nk1
+
+        if update_index_set:
+            # self.Ak1 = g_Nk1 <= 0
+            self.Ak1 = prox_N_arg_position <= 0
+            # q_M = self.qk + 0.5 * dt * self.model.q_dot(self.tk, self.qk, self.uk)
+            # g_N_M = self.model.g_N(self.tk, q_M)
+            # self.Ak1 = g_N_M <= 0
+
+        #################################################
+        # Mixed Signorini on velcity level and impact law
+        #################################################
+        R[nx_s : nx_s + nla_N] = np.where(
+            self.Ak1,
+            xi_Nk1 - prox_R0_np(prox_N_arg_velocity),
+            P_Nk1
+            # self.Ak1, xi_Nk1 - prox_R0_np(prox_N_arg_velocity), La_Nk1
+        )
+
+        ########################
+        # position stabilization
+        ########################
+        R[nx_s + nla_N : nx_s + 2 * nla_N] = g_Nk1 - prox_R0_np(prox_N_arg_position)
+        # R[nx_s + nla_N : nx_s + 2 * nla_N] = mu_Nk1
+
+        ##########
+        # friction
+        ##########
+        # no friction!
+        R[nx_s + 2 * nla_N :] = P_Fk1
+
+        # for i_N, i_F in enumerate(self.model.NF_connectivity):
+        #     i_F = np.array(i_F)
+
+        #     if len(i_F) > 0:
+        #         # TODO: Is there a primal/ dual form?
+        #         R[nx_s + 2 * nla_N + i_F] = np.where(
+        #             self.Ak1[i_N] * np.ones(len(i_F), dtype=bool),
+        #             -P_Fk1[i_F]
+        #             - prox_sphere(
+        #                 -P_Fk1[i_F] + self.model.prox_r_F[i_N] * xi_Fk1[i_F],
+        #                 mu[i_N] * P_Nk1[i_N],
+        #             ),
+        #             P_Fk1[i_F],
+        #         )
+
+        return R
+
+    def step(self, tk1, xk1):
+        # initial residual and error
+        R = self.R(tk1, xk1, update_index_set=True)
+        error = self.error_function(R)
+        converged = error < self.tol
+        j = 0
+        if not converged:
+            while j < self.max_iter:
+                # jacobian
+                J = csr_matrix(
+                    approx_fprime(
+                        xk1,
+                        lambda x: self.R(tk1, x, update_index_set=False),
+                        method="2-point",
+                    )
+                )
+
+                # Newton update
+                j += 1
+
+                # from scipy.linalg import det
+                # det_ = det(J.toarray())
+                # print(f"det: {det_}")
+
+                # guard against rank deficiency
+                dx = spsolve(J, R, use_umfpack=True)
+                # # TODO: Why we get underflow errors of the sparse solvers?
+                # # dx = lsqr(J, R, atol=1.0e-12, btol=1.0e-12, show=True)[0]
+                # # dx = lsqr(J, R, show=True)[0]
+                # dx = lsqr(J, R)[0]
+                # # from scipy.sparse.linalg import lsmr
+                # # dx = lsmr(J, R)[0]
+
+                # # no underflow errors
+                # dx = np.linalg.lstsq(J.toarray(), R, rcond=None)[0]
+
+                # # TODO: Can we get this sparse?
+                # # using QR decomposition
+                # b = R.copy()
+                # Q, R = np.linalg.qr(J.toarray())
+                # Qb = np.dot(Q.T, b)
+                # dx = np.linalg.solve(R, Qb) # solving R*x = Q^T*b
+
+                # # solve normal equation (should be independent of the conditioning
+                # # number!)
+                # dx = spsolve(J.T @ J, J.T @ R)
+
+                # try:
+                #     # dx = spsolve(J, R, use_umfpack=True)
+                #     dx = spsolve(J, R, use_umfpack=False)
+                # except:
+                #     print(f"lsqr case")
+                #     # dx = lsqr(J, R)[0]
+                #     dx = lsqr(J, R, atol=1.0e-10, btol=1.0e-10)[0]
+                # # except np.linalg.LinAlgError as err:
+                # #     if 'Singular matrix' in str(err):
+                # #         print(f"lsqr case")
+                # #         # TODO: Is it beneficial to initialize with the difference of the last step?
+                # #         # dx = lsqr(J, R, x0=xk1 - xk)[0]
+                # #         # dx = lsqr(J, R)[0]
+                # #         dx = lsqr(J, R, atol=1.0e-8, btol=1.0e-8)[0]
+                # #     else:
+                # #         raise RuntimeError("Unexpected problem occurred when inverting the Jacobian.")
+
+                xk1 -= dx
+                R = self.R(tk1, xk1, update_index_set=True)
+
+                error = self.error_function(R)
+                converged = error < self.tol
+                if converged:
+                    break
+
+        return converged, j, error, xk1
+
+    def solve(self):
+        # lists storing output variables
+        t = [self.tk]
+        q = [self.qk]
+        u = [self.uk]
+        U = [self.Uk]
+        P_g = [self.P_gk]
+        mu_g = [self.mu_gk]
+        # P_gamma = [self.P_gammak]
+        P_N = [self.P_Nk]
+        mu_N = [self.mu_Nk]
+        P_F = [self.P_Fk]
+
+        pbar = tqdm(np.arange(self.t0, self.t1, self.dt))
+        for _ in pbar:
+            # perform a sovler step
+            tk1 = self.tk + self.dt
+            xk1 = self.xk.copy()  # This copy is mandatory since we modify xk1
+            # in the step function
+
+            converged, n_iter, error, xk1 = self.step(tk1, xk1)
+
+            # update progress bar and check convergence
+            pbar.set_description(
+                f"t: {tk1:0.2e}s < {self.t1:0.2e}s; Newton: {n_iter}/{self.max_iter} iterations; error: {error:0.2e}"
+            )
+            if not converged:
+                # raise RuntimeError(
+                #     f"internal Newton-Raphson method not converged after {n_iter} steps with error: {error:.5e}"
+                # )
+                print(
+                    f"internal Newton-Raphson method not converged after {n_iter} steps with error: {error:.5e}"
+                )
+                # write solution
+                return Solution(
+                    t=np.array(t),
+                    q=np.array(q),
+                    u=np.array(u),
+                    U=np.array(U),
+                    P_g=np.array(P_g),
+                    mu_g=np.array(mu_g),
+                    P_N=np.array(P_N),
+                    mu_N=np.array(mu_N),
+                    P_F=np.array(P_F),
+                )
+
+            # extract all variables from xk and xk1
+            (
+                u_dot_sk1,
+                Uk1,
+                P_gk1,
+                mu_gk1,
+                P_Nk1,
+                mu_Nk1,
+                P_Fk1,
+            ) = self.unpack(xk1)
+
+            # update generalzed coordiantes
+            qk1, u_sk1, uk1, mu_gk1, mu_Nk1 = self.update(xk1)
+
+            # modify converged quantities
+            qk1, uk1 = self.model.step_callback(tk1, qk1, uk1)
+
+            # update converged and updated quantities of previous time step
+            self.qk = qk1.copy()
+            self.uk = uk1.copy()
+            self.u_dotk = u_dot_sk1.copy()
+            self.u_sk = u_sk1.copy()
+            self.mu_Nk = mu_Nk1.copy()
+            self.mu_gk = mu_gk1.copy()
+            self.P_Nk = P_Nk1.copy()
+            self.P_gk = P_gk1.copy()
+
+            # store soltuion fields
+            t.append(tk1)
+            q.append(qk1)
+            u.append(uk1)
+            U.append(Uk1)
+            P_g.append(P_gk1)
+            mu_g.append(mu_gk1)
+            P_N.append(P_Nk1)
+            mu_N.append(mu_Nk1)
+            P_F.append(P_Fk1)
+
+            # update local variables for accepted time step
+            self.tk = tk1
+            self.xk = xk1.copy()
+
+        # write solution
+        return Solution(
+            t=np.array(t),
+            q=np.array(q),
+            u=np.array(u),
+            U=np.array(U),
+            P_g=np.array(P_g),
+            mu_g=np.array(mu_g),
+            P_N=np.array(P_N),
+            mu_N=np.array(mu_N),
+            P_F=np.array(P_F),
+        )
+
+
+class NonsmoothNewmarkGGLDoNotKow:
+    def __init__(
+        self,
+        model,
+        t1,
+        dt,
+        tol=1e-10,
+        max_iter=40,
+        error_function=lambda x: np.max(np.abs(x)),
+    ):
+        self.model = model
+
+        #######################################################################
+        # integration time
+        #######################################################################
+        self.t0 = t0 = model.t0
+        self.t1 = (
+            t1 if t1 > t0 else ValueError("t1 must be larger than initial time t0.")
+        )
+        self.dt = dt
+
+        #######################################################################
+        # newton settings
+        #######################################################################
+        self.tol = tol
+        self.max_iter = max_iter
+        self.error_function = error_function
+
+        #######################################################################
+        # dimensions
+        #######################################################################
+        self.nq = model.nq
+        self.nu = model.nu
+        self.nla_g = model.nla_g
+        self.nla_N = model.nla_N
+        self.nla_F = model.nla_F
+        self.nx_s = 2 * self.nu + 2 * self.nla_g
+        self.nx = self.nx_s + 2 * self.nla_N + self.nla_F
+
+        #######################################################################
+        # consistent initial conditions
+        #######################################################################
+        self.tk = model.t0
+        self.qk = model.q0
+        self.uk = model.u0
+        self.Uk = np.zeros_like(self.uk)
+        self.P_gk = dt * model.la_g0
+        self.mu_gk = np.zeros_like(self.P_gk)
+        self.P_Nk = dt * model.la_N0
+        self.mu_Nk = np.zeros_like(self.P_Nk)
+        self.P_Fk = dt * model.la_F0
+
+        # initial velocites
+        self.q_dotk = self.model.q_dot(self.tk, self.qk, self.uk)
+
+        M0 = self.model.M(self.tk, self.qk, scipy_matrix=csr_matrix)
+        h0 = self.model.h(self.tk, self.qk, self.uk)
+        W_g0 = self.model.W_g(self.tk, self.qk, scipy_matrix=csr_matrix)
+        W_N0 = self.model.W_N(self.tk, self.qk, scipy_matrix=csr_matrix)
+        W_F0 = self.model.W_F(self.tk, self.qk, scipy_matrix=csr_matrix)
+        self.u_dotk = spsolve(
+            M0, h0 + W_g0 @ model.la_g0 + W_N0 @ model.la_N0 + W_F0 @ model.la_F0
+        )
+
+        # # check if initial conditions satisfy constraints on position, velocity
+        # # and acceleration level
+        # g0 = model.g(self.tk, self.qk)
+        # g_dot0 = model.g_dot(self.tk, self.qk, self.uk)
+        # g_ddot0 = model.g_ddot(self.tk, self.qk, self.uk, self.u_dotk)
+        # gamma0 = model.gamma(self.tk, self.qk, self.uk)
+        # gamma_dot0 = model.gamma_dot(self.tk, self.qk, self.uk, self.u_dotk)
+
+        # assert np.allclose(g0, np.zeros(self.nla_g)), "Initial conditions do not fulfill g0!"
+        # assert np.allclose(g_dot0, np.zeros(self.nla_g)), "Initial conditions do not fulfill g_dot0!"
+        # assert np.allclose(g_ddot0, np.zeros(self.nla_g)), "Initial conditions do not fulfill g_ddot0!"
+        # assert np.allclose(gamma0, np.zeros(self.nla_gamma)), "Initial conditions do not fulfill gamma0!"
+        # assert np.allclose(gamma_dot0, np.zeros(self.nla_gamma)), "Initial conditions do not fulfill gamma_dot0!"
+
+        #######################################################################
+        # starting values for generalized state vector, its derivatives and
+        # auxiliary velocities
+        #######################################################################
+        self.xk = np.concatenate(
+            (
+                self.u_dotk,
+                self.Uk,
+                self.P_gk,
+                self.mu_gk,
+                self.P_Nk,
+                self.mu_Nk,
+                self.P_Fk,
+            )
+        )
+
+        # initialize index sets
+        self.Ak1 = np.zeros(self.nla_N, dtype=bool)
+        self.Bk1 = np.zeros(self.nla_N, dtype=bool)
+        self.Dk1_st = np.zeros(self.nla_N, dtype=bool)
+
+    def unpack(self, x):
+        nu = self.nu
+        nla_g = self.nla_g
+        nx_s = self.nx_s
+        nla_N = self.nla_N
+        nla_F = self.nla_F
+
+        u_dot = x[:nu]
+        U = x[nu : 2 * nu]
+        P_g = x[2 * nu : 2 * nu + nla_g]
+        mu_g = x[2 * nu + nla_g : 2 * nu + 2 * nla_g]
+        P_N = x[nx_s : nx_s + nla_N]
+        mu_N = x[nx_s + nla_N : nx_s + 2 * nla_N]
+        P_F = x[nx_s + 2 * nla_N : nx_s + 2 * nla_N + nla_F]
+
+        return u_dot, U, P_g, mu_g, P_N, mu_N, P_F
+
+    def update(self, xk1):
+        dt = self.dt
+        u_dotk1, Uk1, P_gk1, mu_gk1, P_Nk1, mu_Nk1, P_Fk1 = self.unpack(xk1)
+
+        #################################################################
+        # Newmark, see
+        # https://de.wikipedia.org/wiki/Newmark-beta-Verfahren#Herleitung
+        #################################################################
+        gamma = 0.5
+        beta = 1.0 / 6.0
+        u_sk1 = self.uk + dt * (1.0 - gamma) * self.u_dotk + dt * gamma * u_dotk1
+        Delta_u_k1 = self.uk + dt * (0.5 - beta) * self.u_dotk + dt * beta * u_dotk1
+
+        # u_sk1 = self.uk + dt * u_dotk1
+        # Delta_u_k1 = self.uk + 0.5 * dt * u_dotk1
+
+        qk1 = self.qk + dt * self.model.q_dot(self.tk, self.qk, Delta_u_k1)
+        uk1 = u_sk1 + Uk1
+
+        return qk1, u_sk1, uk1
+
+    def R(self, tk1, xk1, update_index_set=False, primal_form=True):
+        nu = self.nu
+        nla_g = self.nla_g
+        nx_s = self.nx_s
+        nla_N = self.nla_N
+        dt = self.dt
+        mu = self.model.mu
+
+        # extract all variables from xk1
+        u_dotk1, Uk1, P_gk1, mu_gk1, P_Nk1, mu_Nk1, P_Fk1 = self.unpack(xk1)
+
+        la_gk1 = mu_gk1.copy()
+        la_Nk1 = mu_Nk1.copy()
+        La_gk1 = P_gk1.copy()
+        La_Nk1 = P_Nk1.copy()
+        P_gk1 = dt * la_gk1 + La_gk1
+        P_Nk1 = dt * la_Nk1 + La_Nk1
+
+        # update generalzed coordiantes
+        qk1, u_sk1, uk1 = self.update(xk1)
+
+        # evaluate repeatedly used quantities
+        Mk1 = self.model.M(tk1, qk1)
+
+        gk1 = self.model.g(tk1, qk1)
+        g_dotk1 = self.model.g_dot(tk1, qk1, uk1)
+        g_qk1 = self.model.g_q(tk1, qk1, scipy_matrix=csr_matrix)
+        W_gk1 = self.model.W_g(tk1, qk1, scipy_matrix=csr_matrix)
+
+        W_Nk1 = self.model.W_N(tk1, qk1, scipy_matrix=csr_matrix)
+        g_N_qk1 = self.model.g_N_q(tk1, qk1, scipy_matrix=csr_matrix)
+        g_Nk1 = self.model.g_N(tk1, qk1)
+
+        W_Fk1 = self.model.W_F(tk1, qk1, scipy_matrix=csr_matrix)
+        xi_Nk1 = self.model.xi_N(tk1, qk1, self.uk, uk1)
+        xi_Fk1 = self.model.xi_F(tk1, qk1, self.uk, uk1)
+
+        ###################
+        # evaluate residual
+        ###################
+        R = np.zeros(self.nx)
+
+        #####################
+        # equations of motion
+        #####################
+        R[:nu] = (
+            Mk1 @ u_dotk1
+            - self.model.h(tk1, qk1, uk1)
+            - W_gk1 @ la_gk1
+            - W_Nk1 @ la_Nk1
+        )
+
+        #################
+        # impact equation
+        #################
+        R[nu : 2 * nu] = Mk1 @ Uk1 - W_gk1 @ La_gk1 - W_Nk1 @ La_Nk1 - W_Fk1 @ P_Fk1
+
+        #######################################################
+        # bilateral constraints on position and velocitiy level
+        #######################################################
+        R[2 * nu : 2 * nu + nla_g] = g_dotk1
+        R[2 * nu + nla_g : 2 * nu + 2 * nla_g] = gk1
+
+        ###################
+        # update index sets
+        ###################
+        if primal_form:
+            prox_N_arg_position = g_Nk1 - self.model.prox_r_N * la_Nk1
+            prox_N_arg_velocity = xi_Nk1 - self.model.prox_r_N * P_Nk1
+        else:
+            prox_N_arg_position = -la_Nk1 + self.model.prox_r_N * g_Nk1
+            prox_N_arg_velocity = -P_Nk1 + self.model.prox_r_N * xi_Nk1
+
+        if update_index_set:
+            self.Ak1 = prox_N_arg_position <= 0
+
+        #################################################
+        # Mixed Signorini on velcity level and impact law
+        #################################################
+        if primal_form:
+            R[nx_s : nx_s + nla_N] = np.where(
+                self.Ak1, xi_Nk1 - prox_R0_np(prox_N_arg_velocity), P_Nk1
+            )
+        else:
+            R[nx_s : nx_s + nla_N] = np.where(
+                self.Ak1, -P_Nk1 - prox_R0_nm(prox_N_arg_velocity), P_Nk1
+            )
+
+        ########################
+        # position stabilization
+        ########################
+        if primal_form:
+            R[nx_s + nla_N : nx_s + 2 * nla_N] = g_Nk1 - prox_R0_np(prox_N_arg_position)
+
+        else:
+            R[nx_s + nla_N : nx_s + 2 * nla_N] = -la_Nk1 - prox_R0_nm(
+                prox_N_arg_position
+            )
+
+        ##########
+        # friction
+        ##########
+        for i_N, i_F in enumerate(self.model.NF_connectivity):
+            i_F = np.array(i_F)
+
+            if len(i_F) > 0:
+                # TODO: Is there a primal/ dual form?
+                R[nx_s + 2 * nla_N + i_F] = np.where(
+                    self.Ak1[i_N] * np.ones(len(i_F), dtype=bool),
+                    -P_Fk1[i_F]
+                    - prox_sphere(
+                        -P_Fk1[i_F] + self.model.prox_r_F[i_N] * xi_Fk1[i_F],
+                        mu[i_N] * P_Nk1[i_N],
+                    ),
+                    P_Fk1[i_F],
+                )
+
+        return R
+
+    def step(self, tk1, xk1):
+        # initial residual and error
+        R = self.R(tk1, xk1, update_index_set=True)
+        error = self.error_function(R)
+        converged = error < self.tol
+        j = 0
+        if not converged:
+            while j < self.max_iter:
+                # jacobian
+                J = csr_matrix(
+                    approx_fprime(
+                        xk1,
+                        lambda x: self.R(tk1, x, update_index_set=False),
+                        method="2-point",
+                    )
+                )
+
+                # Newton update
+                j += 1
+
+                # from scipy.linalg import det
+                # det_ = det(J.toarray())
+                # print(f"det: {det_}")
+
+                # guard against rank deficiency
+                dx = spsolve(J, R, use_umfpack=True)
+                # TODO: Why we get underflow errors of the sparse solvers?
+                # dx = lsqr(J, R, atol=1.0e-12, btol=1.0e-12, show=True)[0]
+                # dx = lsqr(J, R, show=True)[0]
+                # dx = lsqr(J, R)[0]
+                # from scipy.sparse.linalg import lsmr
+                # dx = lsmr(J, R)[0]
+
+                # # no underflow errors
+                # dx = np.linalg.lstsq(J.toarray(), R, rcond=None)[0]
+
+                # # using QR decomposition
+                # b = R.copy()
+                # Q, R = np.linalg.qr(J.toarray())
+                # Qb = np.dot(Q.T, b)
+                # dx = np.linalg.solve(R, Qb) # solving R*x = Q^T*b
+
+                # # solve normal equation (should be independent of the conditioning
+                # # number!)
+                # # A = J.T @ J
+                # # b = J.T @ R
+                # # dx = spsolve(A, b)
+                # dx = spsolve(J.T @ J, J.T @ R)
+
+                # try:
+                #     # dx = spsolve(J, R, use_umfpack=True)
+                #     dx = spsolve(J, R, use_umfpack=False)
+                # except:
+                #     print(f"lsqr case")
+                #     # dx = lsqr(J, R)[0]
+                #     dx = lsqr(J, R, atol=1.0e-10, btol=1.0e-10)[0]
+                # # except np.linalg.LinAlgError as err:
+                # #     if 'Singular matrix' in str(err):
+                # #         print(f"lsqr case")
+                # #         # TODO: Is it beneficial to initialize with the difference of the last step?
+                # #         # dx = lsqr(J, R, x0=xk1 - xk)[0]
+                # #         # dx = lsqr(J, R)[0]
+                # #         dx = lsqr(J, R, atol=1.0e-8, btol=1.0e-8)[0]
+                # #     else:
+                # #         raise RuntimeError("Unexpected problem occurred when inverting the Jacobian.")
+
+                xk1 -= dx
+                R = self.R(tk1, xk1, update_index_set=True)
+
+                error = self.error_function(R)
+                converged = error < self.tol
+                if converged:
+                    break
+
+        return converged, j, error, xk1
+
+    def solve(self):
+        # lists storing output variables
+        t = [self.tk]
+        q = [self.qk]
+        u = [self.uk]
+        U = [self.Uk]
+        P_g = [self.P_gk]
+        mu_g = [self.mu_gk]
+        # P_gamma = [self.P_gammak]
+        P_N = [self.P_Nk]
+        mu_N = [self.mu_Nk]
+        P_F = [self.P_Fk]
+
+        pbar = tqdm(np.arange(self.t0, self.t1, self.dt))
+        for _ in pbar:
+            # perform a sovler step
+            tk1 = self.tk + self.dt
+            xk1 = self.xk.copy()  # This copy is mandatory since we modify xk1
+            # in the step function
+
+            converged, n_iter, error, xk1 = self.step(tk1, xk1)
+
+            # update progress bar and check convergence
+            pbar.set_description(
+                f"t: {tk1:0.2e}s < {self.t1:0.2e}s; Newton: {n_iter}/{self.max_iter} iterations; error: {error:0.2e}"
+            )
+            if not converged:
+                # raise RuntimeError(
+                #     f"internal Newton-Raphson method not converged after {n_iter} steps with error: {error:.5e}"
+                # )
+                print(
+                    f"internal Newton-Raphson method not converged after {n_iter} steps with error: {error:.5e}"
+                )
+                # write solution
+                return Solution(
+                    t=np.array(t),
+                    q=np.array(q),
+                    u=np.array(u),
+                    U=np.array(U),
+                    P_g=np.array(P_g),
+                    mu_g=np.array(mu_g),
+                    P_N=np.array(P_N),
+                    mu_N=np.array(mu_N),
+                    P_F=np.array(P_F),
+                )
+
+            # extract all variables from xk and xk1
+            (
+                u_dot_sk1,
+                Uk1,
+                P_gk1,
+                mu_gk1,
+                P_Nk1,
+                mu_Nk1,
+                P_Fk1,
+            ) = self.unpack(xk1)
+
+            # update generalzed coordiantes
+            qk1, u_sk1, uk1 = self.update(xk1)
+
+            # modify converged quantities
+            qk1, uk1 = self.model.step_callback(tk1, qk1, uk1)
+
+            # update converged and updated quantities of previous time step
+            self.qk = qk1.copy()
+            self.uk = uk1.copy()
             self.u_dotk = u_dot_sk1.copy()
             self.u_sk = u_sk1.copy()
             self.P_Nk = P_Nk1.copy()

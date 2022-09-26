@@ -1938,8 +1938,8 @@ def Bathe1979():
 if __name__ == "__main__":
     # membrane_and_locking_Meier()
     # convergence_quarter_circle()
-    objectivity_quarter_circle()
+    # objectivity_quarter_circle()
     # HelixIbrahimbegovic1997()
     # HeavyTop()
-    # BucklingRightHingedFrame()
+    BucklingRightHingedFrame()
     # Bathe1979()
