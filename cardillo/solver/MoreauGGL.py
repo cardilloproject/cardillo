@@ -454,7 +454,6 @@ class NonsmoothEulerBackwardsGGL:
 #   meaningfull since it choses "the best solution" in some norm. What
 #   is its physical interpretation?
 # - Implement Newmark method with explicit kinematic equation.
-# - Implement astroblaster example.
 # - Investigate preconditioning by making all residual values of the same
 #   order in h. Otherwise we get problems when solving the least squares
 #   solution later du to the twice as bad vondition number.
@@ -590,11 +589,11 @@ class NonsmoothEulerBackwardsGGL_V2:
         dt = self.dt
         q_dotk1, u_dotk1, Uk1, P_gk1, mu_gk1, P_Nk1, mu_Nk1, P_Fk1 = self.unpack(xk1)
 
-        ################
-        # implicit Euler
-        ################
-        q_sk1 = self.qk + dt * q_dotk1
-        u_sk1 = self.uk + dt * u_dotk1
+        # ################
+        # # implicit Euler
+        # ################
+        # q_sk1 = self.qk + dt * q_dotk1
+        # u_sk1 = self.uk + dt * u_dotk1
 
         # # #################
         # # trapezoidal rule
@@ -602,28 +601,19 @@ class NonsmoothEulerBackwardsGGL_V2:
         # q_sk1 = self.qk + 0.5 * dt * (self.q_dotk + q_dotk1)
         # u_sk1 = self.uk + 0.5 * dt * (self.u_dotk + u_dotk1)
 
-        # ##############
-        # # theta method
-        # ##############
-        # theta = 0.5
-        # q_sk1 = self.qk + dt * (1.0 - theta) * self.q_dotk + dt * theta * q_dotk1
-        # u_sk1 = self.uk + dt * (1.0 - theta) * self.u_dotk + dt * theta * u_dotk1
+        ##############
+        # theta method
+        ##############
+        theta = 0.5
+        q_sk1 = self.qk + dt * (1.0 - theta) * self.q_dotk + dt * theta * q_dotk1
+        u_sk1 = self.uk + dt * (1.0 - theta) * self.u_dotk + dt * theta * u_dotk1
 
-        # #################################################################
-        # # Newmark with gamma = 1 and beta = 0.5, see
-        # # https://de.wikipedia.org/wiki/Newmark-beta-Verfahren#Herleitung
-        # #################################################################
-        # q_sk1 = self.qk + 0.5 * dt * (self.q_dotk + q_dotk1)
-        # u_sk1 = self.uk + dt * u_dotk1
-        # # gamma = 0.5
-        # # beta = 1.0 / 6.0
-        # # u_sk1 = self.uk + dt * (1.0 - gamma) * self.u_dot_sk + dt * gamma * u_dotk1
-        # # q_sk1 = self.qk + dt * self.u_dot_sk + dt**2 * (0.5 - beta) * self.u_dot_sk + dt**2 * beta * u_dotk1
+        # TODO: Generalized alpha method for first order differential equations
 
         qk1 = q_sk1
         uk1 = u_sk1 + Uk1
 
-        return q_sk1, qk1, u_sk1, uk1
+        return qk1, uk1
 
     def R(self, tk1, xk1, update_index_set=False, primal_form=True):
         nq = self.nq
@@ -638,7 +628,7 @@ class NonsmoothEulerBackwardsGGL_V2:
         q_dotk1, u_dotk1, Uk1, P_gk1, mu_gk1, P_Nk1, mu_Nk1, P_Fk1 = self.unpack(xk1)
 
         # update generalzed coordiantes
-        q_sk1, qk1, u_sk1, uk1 = self.update(xk1)
+        qk1, uk1 = self.update(xk1)
 
         # evaluate repeatedly used quantities
         Mk1 = self.model.M(tk1, qk1)
@@ -703,7 +693,7 @@ class NonsmoothEulerBackwardsGGL_V2:
         if update_index_set:
             # implicit index set
             self.Ak1 = prox_N_arg_position <= 0
-            # self.Ak1 = g_Nk1 <= 0 # TODO: This is better!
+            # self.Ak1 = g_Nk1 <= 0 # TODO: Is this better?
 
             # # secplicit forecas like Moreau
             # # TODO: This yields chattering for 1D bouncing ball
@@ -780,23 +770,24 @@ class NonsmoothEulerBackwardsGGL_V2:
 
                 # dx = spsolve(J, R, use_umfpack=True)
 
-                # # guard against rank deficiency
-                # # TODO: Why we get underflow errors of the sparse solvers?
-                # # dx = lsqr(J, R, atol=1.0e-12, btol=1.0e-12, show=True)[0]
-                # # dx = lsqr(J, R, show=True)[0]
+                # guard against rank deficiency
+                # TODO: Why we get underflow errors of the sparse solvers?
+                # dx = lsqr(J, R, atol=1.0e-12, btol=1.0e-12, show=True)[0]
+                dx = lsqr(J, R, atol=1.0e-12, btol=1.0e-12, show=False)[0]
+                # dx = lsqr(J, R, show=True)[0]
                 # dx = lsqr(J, R)[0]
-                # # from scipy.sparse.linalg import lsmr
-                # # dx = lsmr(J, R)[0]
+                # from scipy.sparse.linalg import lsmr
+                # dx = lsmr(J, R)[0]
 
                 # # no underflow errors
                 # dx = np.linalg.lstsq(J.toarray(), R, rcond=None)[0]
 
-                # TODO: Can we get this sparse?
-                # using QR decomposition, see https://de.wikipedia.org/wiki/QR-Zerlegung#L%C3%B6sung_regul%C3%A4rer_oder_%C3%BCberbestimmter_Gleichungssysteme
-                b = R.copy()
-                Q, R = np.linalg.qr(J.toarray())
-                z = Q.T @ b
-                dx = np.linalg.solve(R, z)  # solving R*x = Q^T*b
+                # # TODO: Can we get this sparse?
+                # # using QR decomposition, see https://de.wikipedia.org/wiki/QR-Zerlegung#L%C3%B6sung_regul%C3%A4rer_oder_%C3%BCberbestimmter_Gleichungssysteme
+                # b = R.copy()
+                # Q, R = np.linalg.qr(J.toarray())
+                # z = Q.T @ b
+                # dx = np.linalg.solve(R, z)  # solving R*x = Q^T*b
 
                 # # solve normal equation (should be independent of the conditioning
                 # # number!)
@@ -888,7 +879,7 @@ class NonsmoothEulerBackwardsGGL_V2:
             ) = self.unpack(xk1)
 
             # update generalzed coordiantes
-            q_sk1, qk1, u_sk1, uk1 = self.update(xk1)
+            qk1, uk1 = self.update(xk1)
 
             # modify converged quantities
             qk1, uk1 = self.model.step_callback(tk1, qk1, uk1)
@@ -898,7 +889,6 @@ class NonsmoothEulerBackwardsGGL_V2:
             self.uk = uk1.copy()
             self.q_dotk = q_dotk1.copy()
             self.u_dotk = u_dot_sk1.copy()
-            self.u_sk = u_sk1.copy()
             self.Uk = Uk1.copy()
             self.P_Nk = P_Nk1.copy()
             self.P_gk = P_gk1.copy()
@@ -1932,15 +1922,34 @@ class NonsmoothEulerBackwardsGGL_V3:
         q_sk1 = self.qk + dt * q_dotk1
         u_sk1 = self.uk + dt * u_dotk1
 
+        P_gk1 = La_gk1 + dt * la_gk1
+        P_Nk1 = La_Nk1 + dt * la_Nk1
+
         # # TODO: What is wrong here?
         # # midpoint rule
         # q_sk1 = self.qk + 0.5 * dt * (self.q_dotk + q_dotk1)
         # u_sk1 = self.uk + 0.5 * dt * (self.u_dot_sk + u_dotk1)
 
-        qk1 = q_sk1 + Qk1
+        # P_gk1 = La_gk1 + 0.5 * dt * (self.la_gk + la_gk1)
+        # P_Nk1 = La_Nk1 + 0.5 * dt * (self.la_Nk + la_Nk1)
+
+        # ##############
+        # # theta method
+        # ##############
+        # # theta = 0.75
+        # theta = 0.5
+        # # theta = 1.0
+
+        # q_sk1 = self.qk + dt * (1.0 - theta) * self.q_dotk + dt * theta * q_dotk1
+        # u_sk1 = self.uk + dt * (1.0 - theta) * self.u_dot_sk + dt * theta * u_dotk1
+
+        # P_gk1 = La_gk1 + dt * (1.0 - theta) * self.la_gk + dt * theta * la_gk1
+        # P_Nk1 = La_Nk1 + dt * (1.0 - theta) * self.la_Nk + dt * theta * la_Nk1
+
+        qk1 = q_sk1 + Qk1  # + 0.5 * dt * Uk1
         uk1 = u_sk1 + Uk1
 
-        return q_sk1, qk1, u_sk1, uk1
+        return q_sk1, qk1, u_sk1, uk1, P_gk1, P_Nk1
 
     def R_gen(self, tk1, xk1):
         yield self.R(tk1, xk1, update_index_set=True)
@@ -1973,25 +1982,7 @@ class NonsmoothEulerBackwardsGGL_V3:
         ) = self.unpack(xk1)
 
         # update generalzed coordiantes
-        q_sk1, qk1, u_sk1, uk1 = self.update(xk1)
-        # # TODO: Why is this corrrect???
-        # kappa_Nk1 = dt * mu_Nk1 + P_Nk1
-        # # TODO: Seems also to work!
-        # kappa_Nk1 = mu_Nk1 + P_Nk1 / dt
-        # # TODO: This works when "- W_gk1 @ mu_gk1 - W_Nk1 @ mu_Nk1" is added to EQM
-        # # # TODO: not working
-        # # kappa_Nk1 = mu_Nk1 + dt * P_Nk1
-        # # TODO: This also works
-        # kappa_Nk1 = mu_Nk1 + P_Nk1
-        # # not working
-        # kappa_Nk1 = la_Nk1
-
-        # percussions
-        P_gk1 = La_gk1 + dt * la_gk1
-        P_Nk1 = La_Nk1 + dt * la_Nk1
-
-        # # stabilization
-        # kappa_Nk1 = mu_Nk1 + dt * P_Nk1
+        q_sk1, qk1, u_sk1, uk1, P_gk1, P_Nk1 = self.update(xk1)
 
         # evaluate repeatedly used quantities
         Mk1 = self.model.M(tk1, qk1)
@@ -2033,6 +2024,7 @@ class NonsmoothEulerBackwardsGGL_V3:
             - self.model.h(tk1, qk1, uk1)
             - W_gk1 @ la_gk1
             - W_Nk1 @ la_Nk1
+            # - W_Fk1 @ P_Fk1 * dt # TODO: Is this a good idea?
         )
 
         #################
@@ -2042,8 +2034,9 @@ class NonsmoothEulerBackwardsGGL_V3:
             Mk1 @ Uk1
             - W_gk1 @ La_gk1
             - W_Nk1 @ La_Nk1
+            # - W_gk1 @ P_gk1
+            # - W_Nk1 @ P_Nk1
             - W_Fk1 @ P_Fk1
-            # Mk1 @ Uk1 - W_gk1 @ P_gk1 - W_Nk1 @ P_Nk1 - W_Fk1 @ P_Fk1
         )
 
         #######################################################
@@ -2061,16 +2054,11 @@ class NonsmoothEulerBackwardsGGL_V3:
 
         if update_index_set:
             self.Ak1 = prox_N_arg_position <= 0
-            self.Bk1 = self.Ak1 * (prox_N_arg_velocity <= 0)
+            # self.Ak1 = g_Nk1 <= 0
 
-            for i_N, i_F in enumerate(self.model.NF_connectivity):
-                i_F = np.array(i_F)
-                if len(i_F) > 0:
-                    # eqn. (139):
-                    self.Dk1_st[i_N] = self.Ak1[i_N] and (
-                        norm(self.model.prox_r_F[i_N] * xi_Fk1[i_F] - P_Fk1[i_F])
-                        <= mu[i_N] * P_Nk1[i_N]
-                    )
+            # q_M = self.qk + 0.5 * dt * self.model.q_dot(self.tk, self.qk, self.uk)
+            # g_N_M = self.model.g_N(self.tk, q_M)
+            # self.Ak1 = g_N_M <= 0
 
         #################################################
         # Mixed Signorini on velcity level and impact law
@@ -2079,8 +2067,6 @@ class NonsmoothEulerBackwardsGGL_V3:
             self.Ak1,
             xi_Nk1 - prox_R0_np(prox_N_arg_velocity),
             La_Nk1,
-            # self.Ak1,
-            # xi_Nk1 - prox_R0_np(prox_N_arg_velocity),
             # P_Nk1,
         )
 
@@ -2092,27 +2078,23 @@ class NonsmoothEulerBackwardsGGL_V3:
         ##########
         # friction
         ##########
-        # no_friction = True
-        no_friction = False
+        # # no friction
+        # R[nx_s + 2 * nla_N :] = P_Fk1
 
-        # TODO: No friction case can be implemented like this:
-        if no_friction:
-            R[nx_s + 2 * nla_N :] = P_Fk1
-        else:
-            for i_N, i_F in enumerate(self.model.NF_connectivity):
-                i_F = np.array(i_F)
+        for i_N, i_F in enumerate(self.model.NF_connectivity):
+            i_F = np.array(i_F)
 
-                if len(i_F) > 0:
-                    # TODO: Is there a primal/ dual form?
-                    R[nx_s + 2 * nla_N + i_F] = np.where(
-                        self.Ak1[i_N] * np.ones(len(i_F), dtype=bool),
-                        -P_Fk1[i_F]
-                        - prox_sphere(
-                            -P_Fk1[i_F] + self.model.prox_r_F[i_N] * xi_Fk1[i_F],
-                            mu[i_N] * P_Nk1[i_N],
-                        ),
-                        P_Fk1[i_F],
-                    )
+            if len(i_F) > 0:
+                # TODO: Is there a primal/ dual form?
+                R[nx_s + 2 * nla_N + i_F] = np.where(
+                    self.Ak1[i_N] * np.ones(len(i_F), dtype=bool),
+                    -P_Fk1[i_F]
+                    - prox_sphere(
+                        -P_Fk1[i_F] + self.model.prox_r_F[i_N] * xi_Fk1[i_F],
+                        mu[i_N] * P_Nk1[i_N],
+                    ),
+                    P_Fk1[i_F],
+                )
 
         return R
 
@@ -2132,10 +2114,11 @@ class NonsmoothEulerBackwardsGGL_V3:
                 j += 1
 
                 dx = spsolve(R_x, R, use_umfpack=True)
+
                 # dx = lsqr(R_x, R)[0]
 
                 # # no underflow errors
-                # dx = np.linalg.lstsq(J.toarray(), R, rcond=None)[0]
+                # dx = np.linalg.lstsq(R_x.toarray(), R, rcond=None)[0]
 
                 # # using QR decomposition
                 # b = R.copy()
@@ -2226,7 +2209,7 @@ class NonsmoothEulerBackwardsGGL_V3:
             ) = self.unpack(xk1)
 
             # update generalzed coordiantes
-            q_sk1, qk1, u_sk1, uk1 = self.update(xk1)
+            q_sk1, qk1, u_sk1, uk1, P_gk1, P_Nk1 = self.update(xk1)
 
             # modify converged quantities
             qk1, uk1 = self.model.step_callback(tk1, qk1, uk1)
@@ -2237,6 +2220,8 @@ class NonsmoothEulerBackwardsGGL_V3:
             self.q_dotk = q_dotk1.copy()
             self.u_dot_sk = u_dot_sk1.copy()
             self.u_sk = u_sk1.copy()
+            self.la_gk = la_gk1.copy()
+            self.la_Nk = la_Nk1.copy()
 
             # store soltuion fields
             t.append(tk1)
@@ -2246,10 +2231,10 @@ class NonsmoothEulerBackwardsGGL_V3:
             U.append(Uk1)
             la_g.append(la_gk1)
             La_g.append(La_gk1)
-            P_g.append(self.dt * la_gk1 + La_gk1)
+            P_g.append(P_gk1)
             la_N.append(la_Nk1)
             La_N.append(La_Nk1)
-            P_N.append(self.dt * la_Nk1 + La_Nk1)
+            P_N.append(P_Nk1)
             P_F.append(P_Fk1)
 
             # update local variables for accepted time step

@@ -9,8 +9,8 @@ from cardillo.solver import (
     Moreau,
     NonsmoothThetaGGL,
     NonsmoothEulerBackwardsGGL_V2,
-    NonsmoothNewmarkGGL,
     NonsmoothEulerBackwardsGGL_V3,
+    NonsmoothNewmarkGGL,
     NonsmoothTheta,
     NonsmoothGeneralizedAlpha,
     NonsmoothGenAlphaFirstOrder,
@@ -208,7 +208,8 @@ if __name__ == "__main__":
     # sol1 = NonsmoothGeneralizedAlpha(model, t_end, dt, rho_inf=0.85).solve()
     # sol1 = NonsmoothNewmark(model, t_end, dt).solve()
     # sol1 = NonsmoothEulerBackwardsGGL_V2(model, t_end, dt).solve()
-    sol1 = NonsmoothNewmarkGGL(model, t_end, dt).solve()
+    sol1 = NonsmoothEulerBackwardsGGL_V3(model, t_end, dt).solve()
+    # sol1 = NonsmoothNewmarkGGL(model, t_end, dt).solve()
     # sol1 = NonsmoothEulerBackwardsGGL_V3(model, t_end, dt).solve()
     t1 = sol1.t
     q1 = sol1.q

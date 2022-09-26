@@ -11,6 +11,7 @@ from cardillo.contacts import Sphere2Plane, Sphere2Sphere
 from cardillo.solver import (
     Moreau,
     NonsmoothEulerBackwardsGGL_V2,
+    NonsmoothEulerBackwardsGGL_V3,
     NonsmoothGeneralizedAlpha,
     Remco,
     NonsmoothHalfExplicitEuler,
@@ -126,13 +127,14 @@ if __name__ == "__main__":
     # dt = 1e-1
     # dt = 5e-2
     # dt = 1e-2
-    dt = 5e-3
-    # dt = 1e-3
+    # dt = 5e-3
+    dt = 1e-3
     # dt = 5e-4
 
     # solve problem
     # solver_other = NonsmoothGeneralizedAlpha(model, t1, dt)
     solver_other = NonsmoothEulerBackwardsGGL_V2(model, t1, dt, tol=1.0e-8)
+    # solver_other = NonsmoothEulerBackwardsGGL_V3(model, t1, dt, tol=1.0e-8)
     # solver_other = NonsmoothHalfExplicitEuler(model, t1, dt)
     # solver_other = Remco(model, t1, dt, tol=1.0e-6)
     sol_other = solver_other.solve()
