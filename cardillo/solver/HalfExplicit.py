@@ -447,22 +447,17 @@ class NonsmoothHalfExplicitEuler:
         # friction
         ##########
         mu = self.model.mu
-        c_Fk1 = np.zeros(self.nla_F)
+        c_Fk1 = P_Fk1.copy()  # this is the else case => P_Fk1 = 0
         for i_N, i_F in enumerate(self.model.NF_connectivity):
             i_F = np.array(i_F)
 
             if len(i_F) > 0:
                 # TODO: Is there a primal/ dual form?
-                # TODO: Is "np.where" the correct function?
-                c_Fk1[i_F] = np.where(
-                    self.Ak1[i_N] * np.ones(len(i_F), dtype=bool),
-                    -P_Fk1[i_F]
-                    - prox_sphere(
+                if self.Ak1[i_N]:
+                    c_Fk1[i_F] = -P_Fk1[i_F] - prox_sphere(
                         -P_Fk1[i_F] + self.model.prox_r_F[i_N] * xi_Fk1[i_F],
                         mu[i_N] * P_Nk1[i_N],
-                    ),
-                    P_Fk1[i_F],
-                )
+                    )
 
         ck1 = np.concatenate((c_Nk1, c_Fk1))
 

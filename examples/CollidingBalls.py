@@ -77,27 +77,27 @@ if __name__ == "__main__":
     eps = 1.0e-1
     y0 = 1
 
-    # # random
-    # ball1 = initalize_ball(1, 0.5, np.array([-0.5 - eps, y0, 0]), np.array([0, 0, 0]))
-    # ball2 = initalize_ball(1, 0.5, np.array([0.5 + eps, y0, 0]), np.array([0, 0, 0]))
-    # ball3 = initalize_ball(
-    #     1, 0.5, np.array([eps, y0 + 1.0 + eps, 0]), np.array([0, 0, 0])
-    # )
-    # ball4 = initalize_ball(
-    #     1, 0.5, np.array([-eps, y0 + 2.0 + 2 * eps, 0]), np.array([0, 0, 0])
-    # )
-
-    # tower
-    ball1 = initalize_ball(1, 0.5, np.array([0, y0, 0]), np.array([0, 0, 0]))
-    ball2 = initalize_ball(
-        1, 0.5, np.array([0, y0 + (1.0 + eps), 0]), np.array([0, 0, 0])
-    )
+    # random
+    ball1 = initalize_ball(1, 0.5, np.array([-0.5 - eps, y0, 0]), np.array([0, 0, 0]))
+    ball2 = initalize_ball(1, 0.5, np.array([0.5 + eps, y0, 0]), np.array([0, 0, 0]))
     ball3 = initalize_ball(
-        1, 0.5, np.array([0, y0 + 2.0 * (1.0 + eps), 0]), np.array([0, 0, 0])
+        1, 0.5, np.array([eps, y0 + 1.0 + eps, 0]), np.array([0, 0, 0])
     )
     ball4 = initalize_ball(
-        1, 0.5, np.array([0, y0 + 3.0 * (1.0 + eps), 0]), np.array([0, 0, 0])
+        1, 0.5, np.array([-eps, y0 + 2.0 + 2 * eps, 0]), np.array([0, 0, 0])
     )
+
+    # # tower
+    # ball1 = initalize_ball(1, 0.5, np.array([0, y0, 0]), np.array([0, 0, 0]))
+    # ball2 = initalize_ball(
+    #     1, 0.5, np.array([0, y0 + (1.0 + eps), 0]), np.array([0, 0, 0])
+    # )
+    # ball3 = initalize_ball(
+    #     1, 0.5, np.array([0, y0 + 2.0 * (1.0 + eps), 0]), np.array([0, 0, 0])
+    # )
+    # ball4 = initalize_ball(
+    #     1, 0.5, np.array([0, y0 + 3.0 * (1.0 + eps), 0]), np.array([0, 0, 0])
+    # )
 
     # # four parallel
     # ball1 = initalize_ball(1, 0.5, np.array([-1.0 * (1.0 + eps), y0, 0]), np.array([0, 0, 0]))
@@ -133,8 +133,8 @@ if __name__ == "__main__":
     # solver setup
     t0 = 0
     # t1 = 0.05
-    t1 = 0.1
-    # t1 = 2
+    # t1 = 0.1
+    t1 = 0.5
     # t1 = 20
     # dt = 1e-1
     # dt = 5e-2
