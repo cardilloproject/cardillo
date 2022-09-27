@@ -21,6 +21,7 @@ from cardillo.solver import (
     NonsmoothGeneralizedAlpha,
     NonsmoothGenAlphaFirstOrder,
     NonsmoothNewmark,
+    NonsmoothHalfExplicitEuler,
 )
 
 
@@ -92,7 +93,8 @@ if __name__ == "__main__":
     model.assemble()
 
     t0 = 0
-    t1 = 2
+    # t1 = 0.5
+    t1 = 1
     # dt = 1e-1
     # dt = 5e-2
     # dt = 1e-2
@@ -104,7 +106,8 @@ if __name__ == "__main__":
     # solver_other = NonsmoothGeneralizedAlpha(model, t1, dt)
     # solver_other = NonsmoothTheta(model, t1, dt, atol=1.0e-8)
     # solver_other = NonsmoothEulerBackwardsGGL(model, t1, dt)
-    solver_other = NonsmoothEulerBackwardsGGL_V2(model, t1, dt)
+    # solver_other = NonsmoothEulerBackwardsGGL_V2(model, t1, dt)
+    solver_other = NonsmoothHalfExplicitEuler(model, t1, dt)
     # solver_other = NonsmoothEulerBackwardsGGL_V3(model, t1, dt)
     # solver_other = NonsmoothThetaGGL(model, t1, dt)
     # solver_other = NonsmoothGenAlphaFirstOrder(model, t1, dt, rho_inf=0.85)
@@ -121,6 +124,7 @@ if __name__ == "__main__":
         NonsmoothThetaGGL,
         NonsmoothEulerBackwardsGGL,
         NonsmoothEulerBackwardsGGL_V2,
+        NonsmoothHalfExplicitEuler,
     ]:
         a_other = np.zeros_like(u_other)
         a_other[1:] = (u_other[1:] - u_other[:-1]) / dt
@@ -128,8 +132,10 @@ if __name__ == "__main__":
         la_F_other = np.zeros_like(P_F_other)
         La_N_other = np.zeros_like(P_N_other)
         La_F_other = np.zeros_like(P_F_other)
-        mu_g_other = sol_other.mu_g
-        mu_N_other = sol_other.mu_N
+        # mu_g_other = sol_other.mu_g
+        # mu_N_other = sol_other.mu_N
+        mu_g_other = np.zeros(model.nla_g)
+        mu_N_other = np.zeros_like(P_N_other)
     else:
         a_other = sol_other.a
         la_N_other = sol_other.la_N
@@ -140,8 +146,8 @@ if __name__ == "__main__":
 
     solver_fp = Moreau(model, t1, dt)
     sol_fp = solver_fp.solve()
-    t_fp = t = sol_fp.t
-    q_fp = q = sol_fp.q
+    t_fp = sol_fp.t
+    q_fp = sol_fp.q
     u_fp = sol_fp.u
     a_fp = np.zeros_like(u_fp)
     a_fp[1:] = (u_fp[1:] - u_fp[:-1]) / dt
@@ -232,6 +238,9 @@ if __name__ == "__main__":
     plt.show()
 
     if animate:
+
+        t = t_other
+        q = q_other
 
         # animate configurations
         fig = plt.figure()

@@ -77,26 +77,38 @@ if __name__ == "__main__":
     eps = 1.0e-1
     y0 = 1
 
-    # random
-    ball1 = initalize_ball(1, 0.5, np.array([-0.5 - eps, y0, 0]), np.array([0, 0, 0]))
-    ball2 = initalize_ball(1, 0.5, np.array([0.5 + eps, y0, 0]), np.array([0, 0, 0]))
-    ball3 = initalize_ball(
-        1, 0.5, np.array([eps, y0 + 1.0 + eps, 0]), np.array([0, 0, 0])
-    )
-    ball4 = initalize_ball(
-        1, 0.5, np.array([-eps, y0 + 2.0 + 2 * eps, 0]), np.array([0, 0, 0])
-    )
-
-    # # tower
-    # ball1 = initalize_ball(1, 0.5, np.array([0, y0, 0]), np.array([0, 0, 0]))
-    # ball2 = initalize_ball(
-    #     1, 0.5, np.array([0, y0 + (1.0 + eps), 0]), np.array([0, 0, 0])
-    # )
+    # # random
+    # ball1 = initalize_ball(1, 0.5, np.array([-0.5 - eps, y0, 0]), np.array([0, 0, 0]))
+    # ball2 = initalize_ball(1, 0.5, np.array([0.5 + eps, y0, 0]), np.array([0, 0, 0]))
     # ball3 = initalize_ball(
-    #     1, 0.5, np.array([0, y0 + 2.0 * (1.0 + eps), 0]), np.array([0, 0, 0])
+    #     1, 0.5, np.array([eps, y0 + 1.0 + eps, 0]), np.array([0, 0, 0])
     # )
     # ball4 = initalize_ball(
-    #     1, 0.5, np.array([0, y0 + 3.0 * (1.0 + eps), 0]), np.array([0, 0, 0])
+    #     1, 0.5, np.array([-eps, y0 + 2.0 + 2 * eps, 0]), np.array([0, 0, 0])
+    # )
+
+    # tower
+    ball1 = initalize_ball(1, 0.5, np.array([0, y0, 0]), np.array([0, 0, 0]))
+    ball2 = initalize_ball(
+        1, 0.5, np.array([0, y0 + (1.0 + eps), 0]), np.array([0, 0, 0])
+    )
+    ball3 = initalize_ball(
+        1, 0.5, np.array([0, y0 + 2.0 * (1.0 + eps), 0]), np.array([0, 0, 0])
+    )
+    ball4 = initalize_ball(
+        1, 0.5, np.array([0, y0 + 3.0 * (1.0 + eps), 0]), np.array([0, 0, 0])
+    )
+
+    # # four parallel
+    # ball1 = initalize_ball(1, 0.5, np.array([-1.0 * (1.0 + eps), y0, 0]), np.array([0, 0, 0]))
+    # ball2 = initalize_ball(
+    #     1, 0.5, np.array([0, y0, 0]), np.array([0, 0, 0])
+    # )
+    # ball3 = initalize_ball(
+    #     1, 0.5, np.array([1.0 * (1.0 + eps), y0, 0]), np.array([0, 0, 0])
+    # )
+    # ball4 = initalize_ball(
+    #     1, 0.5, np.array([2.0 * (1.0 + eps), y0, 0]), np.array([0, 0, 0])
     # )
 
     balls = [ball1, ball2, ball3, ball4]
@@ -130,12 +142,13 @@ if __name__ == "__main__":
     # dt = 5e-3
     dt = 1e-3
     # dt = 5e-4
+    # dt = 1e-4
 
     # solve problem
     # solver_other = NonsmoothGeneralizedAlpha(model, t1, dt)
-    solver_other = NonsmoothEulerBackwardsGGL_V2(model, t1, dt, tol=1.0e-8)
+    # solver_other = NonsmoothEulerBackwardsGGL_V2(model, t1, dt, tol=1.0e-8)
     # solver_other = NonsmoothEulerBackwardsGGL_V3(model, t1, dt, tol=1.0e-8)
-    # solver_other = NonsmoothHalfExplicitEuler(model, t1, dt)
+    solver_other = NonsmoothHalfExplicitEuler(model, t1, dt)
     # solver_other = Remco(model, t1, dt, tol=1.0e-6)
     sol_other = solver_other.solve()
     t = sol_other.t

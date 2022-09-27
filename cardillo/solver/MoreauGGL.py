@@ -5,7 +5,7 @@ import numpy as np
 
 # warnings.filterwarnings("error")
 
-from scipy.sparse.linalg import spsolve, lsqr
+from scipy.sparse.linalg import spsolve, lsqr, LinearOperator
 from scipy.sparse import csr_matrix, bmat, eye
 from tqdm import tqdm
 
@@ -769,6 +769,23 @@ class NonsmoothEulerBackwardsGGL_V2:
                 # print(f"det: {det_}")
 
                 # dx = spsolve(J, R, use_umfpack=True)
+
+                # LinearOperator()
+                # def Ax(x):
+                #     """Returns A*x"""
+                #     return J @ x
+
+                # def Atb(b):
+                #     """Returns A^T*b"""
+                #     return J.T @ b
+
+                # # def mv(v):
+                # #     return np.array([2*v[0], 3*v[1]])
+                # # A = LinearOperator((2,2), matvec=mv)
+
+                # # A = LinearOperator(shape=(self.nx, self.nx), matvec=Ax, rmatvec=Atb)
+                # A = LinearOperator(shape=(self.nx, self.nx), matvec=Ax, rmatvec=Atb)
+                # dx = lsqr(A, R)[0]
 
                 # guard against rank deficiency
                 # TODO: Why we get underflow errors of the sparse solvers?
