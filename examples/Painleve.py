@@ -9,6 +9,8 @@ from cardillo.solver import (
     Moreau,
     NonsmoothEulerBackwardsGGL_V2,
     NonsmoothGeneralizedAlpha,
+    NonsmoothHalfExplicitEuler,
+    NonsmoothHalfExplicitEulerGGL,
 )
 
 
@@ -228,12 +230,14 @@ if __name__ == "__main__":
     # t1 = 1.0
     t1 = 1.5
     # dt = 5e-3
-    # dt = 1e-3
-    dt = 5e-4
+    dt = 1e-3
+    # dt = 5e-4
     # dt = 1e-4
 
     # solver = Moreau(model, t1, dt, fix_point_tol=1.0e-6, fix_point_max_iter=5000)
-    solver = NonsmoothEulerBackwardsGGL_V2(model, t1, dt, tol=1.0e-10)
+    # solver = NonsmoothEulerBackwardsGGL_V2(model, t1, dt, tol=1.0e-10)
+    # solver = NonsmoothHalfExplicitEuler(model, t1, dt, atol=1.0e-8)
+    solver = NonsmoothHalfExplicitEulerGGL(model, t1, dt, atol=1.0e-8)
     # solver = NonsmoothGeneralizedAlpha(model, t1, dt, newton_tol=1.0e-6, fixed_point_tol=1.0e-6)
     sol = solver.solve()
     t = sol.t

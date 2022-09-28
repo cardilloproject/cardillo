@@ -714,7 +714,10 @@ class NonsmoothHalfExplicitEulerGGL:
 
     def c_y(self, zk1):
         return csr_matrix(
-            approx_fprime(zk1, lambda z: self.c(z, update_index_set=False)[0])
+            # approx_fprime(zk1, lambda z: self.c(z, update_index_set=False)[0])
+            approx_fprime(
+                zk1, lambda z: self.c(z, update_index_set=False)[0], method="3-point"
+            )
         )
 
     def f(self, tk, yk, zk1):
@@ -744,6 +747,19 @@ class NonsmoothHalfExplicitEulerGGL:
         )
 
     def step(self):
+        # from scipy.optimize import fsolve
+        # zk1 = np.concatenate((self.P_Nk, self.mu_Nk, self.P_Fk))
+        # res = fsolve(lambda z: self.c(z)[0], zk1, full_output=1)
+
+        # j = res[1]["nfev"]
+        # converged = res[2]
+        # zk1 = res[0]
+
+        # ck1, tk1, qk1, uk1, P_Nk1, mu_Nk1, P_Fk1 = self.c(zk1)
+        # error = self.error_function(ck1)
+
+        # return (converged, j, error), tk1, qk1, uk1, P_Nk1, mu_Nk1, P_Fk1
+
         j = 0
         converged = False
         zk1 = np.concatenate((self.P_Nk, self.mu_Nk, self.P_Fk))
@@ -768,8 +784,9 @@ class NonsmoothHalfExplicitEulerGGL:
 
             # # fixed-point iteration
             # # self.atol = 1.0e-4
+            # # r = 7.0e-1
             # r = 4.0e-1
-            # # r = 1.0e-2
+            # # r = 3.0e-1
             # zk1 -= r * ck1
 
             # check error for new Lagrange multipliers

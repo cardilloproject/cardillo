@@ -530,6 +530,11 @@ class NonsmoothEulerBackwardsGGL_V2:
             M0, h0 + W_g0 @ model.la_g0 + W_N0 @ model.la_N0 + W_F0 @ model.la_F0
         )
 
+        # auxiliary quantities for generalized alpha method
+        self.u_sk = self.uk.copy()
+        self.vk = self.q_dotk.copy()
+        self.ak = self.u_dotk.copy()
+
         # # check if initial conditions satisfy constraints on position, velocity
         # # and acceleration level
         # g0 = model.g(self.tk, self.qk)
@@ -585,33 +590,59 @@ class NonsmoothEulerBackwardsGGL_V2:
 
         return q_dot, u_dot, U, P_g, mu_g, P_N, mu_N, P_F
 
-    def update(self, xk1):
+    def update(self, xk1, store=False):
         dt = self.dt
         q_dotk1, u_dotk1, Uk1, P_gk1, mu_gk1, P_Nk1, mu_Nk1, P_Fk1 = self.unpack(xk1)
 
         ################
         # implicit Euler
         ################
-        q_sk1 = self.qk + dt * q_dotk1
-        u_sk1 = self.uk + dt * u_dotk1
+        qk1 = self.qk + dt * q_dotk1
+        uk1 = self.uk + dt * u_dotk1 + Uk1
 
         # # #################
         # # trapezoidal rule
         # # #################
-        # q_sk1 = self.qk + 0.5 * dt * (self.q_dotk + q_dotk1)
+        # qk1 = self.qk + 0.5 * dt * (self.q_dotk + q_dotk1)
         # u_sk1 = self.uk + 0.5 * dt * (self.u_dotk + u_dotk1)
 
         # ##############
         # # theta method
         # ##############
         # theta = 0.5
-        # q_sk1 = self.qk + dt * (1.0 - theta) * self.q_dotk + dt * theta * q_dotk1
-        # u_sk1 = self.uk + dt * (1.0 - theta) * self.u_dotk + dt * theta * u_dotk1
+        # qk1 = self.qk + dt * (1.0 - theta) * self.q_dotk + dt * theta * q_dotk1
+        # uk1 = self.uk + dt * (1.0 - theta) * self.u_dotk + dt * theta * u_dotk1 + Uk1
 
-        # TODO: Generalized alpha method for first order differential equations
+        # #################################################################
+        # # generalized alpha method for first order differential equations
+        # #################################################################
 
-        qk1 = q_sk1
-        uk1 = u_sk1 + Uk1
+        # # constants
+        # # rho_inf = 1.0
+        # rho_inf = 0.8
+        # # rho_inf = 0.1
+        # # rho_inf = 0.0
+        # alpha_m = (3.0 * rho_inf - 1.0) / (2.0 * (rho_inf + 1.0))
+        # alpha_f = rho_inf / (rho_inf + 1.0)
+        # gamma = 0.5 + alpha_f - alpha_m
+
+        # # update auxiliary quantities
+        # vk1 = (
+        #     alpha_f * self.q_dotk + (1.0 - alpha_f) * q_dotk1 - alpha_m * self.vk
+        # ) / (1.0 - alpha_m)
+        # ak1 = (
+        #     alpha_f * self.u_dotk + (1.0 - alpha_f) * u_dotk1 - alpha_m * self.ak
+        # ) / (1.0 - alpha_m)
+
+        # qk1 = self.qk + dt * ((1.0 - gamma) * self.vk + gamma * vk1)
+        # uk1 = self.uk + dt * ((1.0 - gamma) * self.ak + gamma * ak1) + Uk1
+        # if store:
+        #     self.qk = qk1.copy()
+        #     self.uk = uk1.copy()
+        #     self.q_dotk = q_dotk1.copy()
+        #     self.u_dotk = u_dotk1.copy()
+        #     self.vk = vk1.copy()
+        #     self.ak = ak1.copy()
 
         return qk1, uk1
 
@@ -897,7 +928,7 @@ class NonsmoothEulerBackwardsGGL_V2:
             ) = self.unpack(xk1)
 
             # update generalzed coordiantes
-            qk1, uk1 = self.update(xk1)
+            qk1, uk1 = self.update(xk1, store=True)
 
             # modify converged quantities
             qk1, uk1 = self.model.step_callback(tk1, qk1, uk1)
