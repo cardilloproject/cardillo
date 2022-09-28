@@ -589,11 +589,11 @@ class NonsmoothEulerBackwardsGGL_V2:
         dt = self.dt
         q_dotk1, u_dotk1, Uk1, P_gk1, mu_gk1, P_Nk1, mu_Nk1, P_Fk1 = self.unpack(xk1)
 
-        # ################
-        # # implicit Euler
-        # ################
-        # q_sk1 = self.qk + dt * q_dotk1
-        # u_sk1 = self.uk + dt * u_dotk1
+        ################
+        # implicit Euler
+        ################
+        q_sk1 = self.qk + dt * q_dotk1
+        u_sk1 = self.uk + dt * u_dotk1
 
         # # #################
         # # trapezoidal rule
@@ -601,12 +601,12 @@ class NonsmoothEulerBackwardsGGL_V2:
         # q_sk1 = self.qk + 0.5 * dt * (self.q_dotk + q_dotk1)
         # u_sk1 = self.uk + 0.5 * dt * (self.u_dotk + u_dotk1)
 
-        ##############
-        # theta method
-        ##############
-        theta = 0.5
-        q_sk1 = self.qk + dt * (1.0 - theta) * self.q_dotk + dt * theta * q_dotk1
-        u_sk1 = self.uk + dt * (1.0 - theta) * self.u_dotk + dt * theta * u_dotk1
+        # ##############
+        # # theta method
+        # ##############
+        # theta = 0.5
+        # q_sk1 = self.qk + dt * (1.0 - theta) * self.q_dotk + dt * theta * q_dotk1
+        # u_sk1 = self.uk + dt * (1.0 - theta) * self.u_dotk + dt * theta * u_dotk1
 
         # TODO: Generalized alpha method for first order differential equations
 
@@ -657,6 +657,7 @@ class NonsmoothEulerBackwardsGGL_V2:
         R[:nq] = (
             q_dotk1
             - self.model.q_dot(tk1, qk1, uk1 - Uk1)
+            # - self.model.q_dot(tk1, qk1, self.uk)
             # - self.model.q_dot(tk1, qk1, uk1)
             - g_qk1.T @ mu_gk1
             - g_N_qk1.T @ mu_Nk1
@@ -768,7 +769,7 @@ class NonsmoothEulerBackwardsGGL_V2:
                 # det_ = det(J.toarray())
                 # print(f"det: {det_}")
 
-                # dx = spsolve(J, R, use_umfpack=True)
+                dx = spsolve(J, R, use_umfpack=True)
 
                 # LinearOperator()
                 # def Ax(x):
@@ -787,14 +788,14 @@ class NonsmoothEulerBackwardsGGL_V2:
                 # A = LinearOperator(shape=(self.nx, self.nx), matvec=Ax, rmatvec=Atb)
                 # dx = lsqr(A, R)[0]
 
-                # guard against rank deficiency
-                # TODO: Why we get underflow errors of the sparse solvers?
-                # dx = lsqr(J, R, atol=1.0e-12, btol=1.0e-12, show=True)[0]
-                dx = lsqr(J, R, atol=1.0e-12, btol=1.0e-12, show=False)[0]
-                # dx = lsqr(J, R, show=True)[0]
-                # dx = lsqr(J, R)[0]
-                # from scipy.sparse.linalg import lsmr
-                # dx = lsmr(J, R)[0]
+                # # guard against rank deficiency
+                # # TODO: Why we get underflow errors of the sparse solvers?
+                # # dx = lsqr(J, R, atol=1.0e-12, btol=1.0e-12, show=True)[0]
+                # dx = lsqr(J, R, atol=1.0e-12, btol=1.0e-12, show=False)[0]
+                # # dx = lsqr(J, R, show=True)[0]
+                # # dx = lsqr(J, R)[0]
+                # # from scipy.sparse.linalg import lsmr
+                # # dx = lsmr(J, R)[0]
 
                 # # no underflow errors
                 # dx = np.linalg.lstsq(J.toarray(), R, rcond=None)[0]

@@ -22,6 +22,7 @@ from cardillo.solver import (
     NonsmoothGenAlphaFirstOrder,
     NonsmoothNewmark,
     NonsmoothHalfExplicitEuler,
+    NonsmoothHalfExplicitEulerGGL,
 )
 
 
@@ -94,7 +95,7 @@ if __name__ == "__main__":
 
     t0 = 0
     # t1 = 0.5
-    t1 = 1
+    t1 = 2
     # dt = 1e-1
     # dt = 5e-2
     dt = 1e-2
@@ -107,7 +108,8 @@ if __name__ == "__main__":
     # solver_other = NonsmoothTheta(model, t1, dt, atol=1.0e-8)
     # solver_other = NonsmoothEulerBackwardsGGL(model, t1, dt)
     # solver_other = NonsmoothEulerBackwardsGGL_V2(model, t1, dt)
-    solver_other = NonsmoothHalfExplicitEuler(model, t1, dt)
+    # solver_other = NonsmoothHalfExplicitEuler(model, t1, dt)
+    solver_other = NonsmoothHalfExplicitEulerGGL(model, t1, dt)
     # solver_other = NonsmoothEulerBackwardsGGL_V3(model, t1, dt)
     # solver_other = NonsmoothThetaGGL(model, t1, dt)
     # solver_other = NonsmoothGenAlphaFirstOrder(model, t1, dt, rho_inf=0.85)
@@ -125,6 +127,7 @@ if __name__ == "__main__":
         NonsmoothEulerBackwardsGGL,
         NonsmoothEulerBackwardsGGL_V2,
         NonsmoothHalfExplicitEuler,
+        NonsmoothHalfExplicitEulerGGL,
     ]:
         a_other = np.zeros_like(u_other)
         a_other[1:] = (u_other[1:] - u_other[:-1]) / dt

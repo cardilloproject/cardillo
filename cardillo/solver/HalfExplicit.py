@@ -409,7 +409,8 @@ class NonsmoothHalfExplicitEuler:
         #####################
         tk1 = self.tk + self.dt
         yk = np.concatenate((self.qk, self.uk))
-        yk1 = yk + self.dt * self.f(self.tk, yk, zk1)
+        # yk1 = yk + self.f(self.tk, yk, zk1)
+        yk1 = yk + self.f(self.tk, yk, zk1)
         qk1 = yk1[: self.nq]
         uk1 = yk1[self.nq :]
 
@@ -422,10 +423,13 @@ class NonsmoothHalfExplicitEuler:
         # dt = self.dt
         # tk = self.tk
         # yk = np.concatenate((self.qk, self.uk))
-        # k1 = self.f(tk, yk, P_Nk1)
-        # k2 = self.f(tk + 0.5 * dt, yk + 0.5 * k1, P_Nk1)
-        # k3 = self.f(tk + 1.0 * dt, yk - 1.0 * k1 + 2.0 * k2, P_Nk1)
-        # yk1 = yk + dt * (k1 / 6 + 4 * k2 / 6 + k3 / 6)
+        # k1 = self.f(tk, yk, np.zeros_like(zk1))
+        # k2 = self.f(tk + 0.5 * dt, yk + 0.5 * k1, np.zeros_like(zk1))
+        # k3 = self.f(tk + 1.0 * dt, yk - 1.0 * k1 + 2.0 * k2, 6 * P_Nk1)
+        # # k1 = self.f(tk, yk, P_Nk1 / 6)
+        # # k2 = self.f(tk + 0.5 * dt, yk + 0.5 * k1, P_Nk1 * 4 / 6)
+        # # k3 = self.f(tk + 1.0 * dt, yk - 1.0 * k1 + 2.0 * k2, P_Nk1 / 6)
+        # yk1 = yk + (k1 / 6 + 4 * k2 / 6 + k3 / 6)
 
         # tk1 = tk + dt
         # qk1 = yk1[:self.nq]
@@ -485,8 +489,8 @@ class NonsmoothHalfExplicitEuler:
         dt = self.dt
         return np.concatenate(
             (
-                self.model.q_dot(tk, qk, uk),
-                spsolve(Mk, hk + W_Nk @ P_Nk1 / dt + W_Fk @ P_Fk1 / dt),
+                self.model.q_dot(tk, qk, uk) * dt,
+                spsolve(Mk, hk * dt + W_Nk @ P_Nk1 + W_Fk @ P_Fk1),
             )
         )
 
@@ -527,6 +531,26 @@ class NonsmoothHalfExplicitEuler:
         if not converged:
             # raise RuntimeError("Internal Newton-Raphson scheme is not converged!")
             print(f"Internal Newton-Raphson scheme is not converged with error {error}")
+
+        # # TODO: Perfom projection on position level
+        # def R(x):
+        #     q = x[:self.nq]
+        #     mu = x[self.nq:]
+        #     g_N = self.model.g_N(tk1, q)
+        #     # g_N_qk1 = self.model.g_N_q(tk1, qk1)
+        #     g_N_qk1 = self.model.g_N_q(tk1, q)
+        #     return np.concatenate([
+        #         q - qk1 - g_N_qk1 @ mu,
+        #         g_N - prox_R0_np(g_N - self.model.prox_r_N * mu)
+        #         # g_N - np.maximum(g_N - self.model.prox_r_N * mu, 1.0e-8)
+        #     ])
+
+        # from scipy.optimize import fsolve
+        # x0 = np.concatenate((qk1, np.zeros(self.nla_N)))
+        # res = fsolve(R, x0, full_output=1)
+        # x = res[0]
+        # qk1 = x[:self.nq]
+        # mu_Nk1 = x[self.nq:]
 
         return (converged, j, error), tk1, qk1, uk1, P_Nk1, P_Fk1
 
@@ -584,6 +608,503 @@ class NonsmoothHalfExplicitEuler:
 
 
 class NonsmoothHalfExplicitEulerGGL:
+    def __init__(
+        self,
+        model,
+        t1,
+        dt,
+        atol=1e-6,
+        max_iter=50,
+        error_function=lambda x: np.max(np.abs(x)),
+    ):
+        self.model = model
+
+        # integration time
+        t0 = model.t0
+        self.t1 = (
+            t1 if t1 > t0 else ValueError("t1 must be larger than initial time t0.")
+        )
+        self.dt = dt
+        self.t = np.arange(t0, self.t1 + self.dt, self.dt)
+
+        self.error_function = error_function
+        self.atol = atol
+        self.max_iter = max_iter
+
+        self.nq = model.nq
+        self.nu = model.nu
+        self.nla_N = model.nla_N
+        self.nla_F = model.nla_F
+
+        # initial state
+        self.tk = t0
+        self.qk = model.q0
+        self.uk = model.u0
+
+        # initial accelerations
+        self.q_dotk = self.model.q_dot(self.tk, self.qk, self.uk)
+
+        # TODO: Solve for initial Lagrange multipliers!
+        M0 = self.model.M(self.tk, self.qk, scipy_matrix=csr_matrix)
+        h0 = self.model.h(self.tk, self.qk, self.uk)
+        W_g0 = self.model.W_g(self.tk, self.qk, scipy_matrix=csr_matrix)
+        W_N0 = self.model.W_N(self.tk, self.qk, scipy_matrix=csr_matrix)
+        W_F0 = self.model.W_F(self.tk, self.qk, scipy_matrix=csr_matrix)
+        self.u_dotk = spsolve(
+            M0, h0 + W_g0 @ model.la_g0 + W_N0 @ model.la_N0 + W_F0 @ model.la_F0
+        )
+
+        self.tk = model.t0
+        self.qk = model.q0
+        self.uk = model.u0
+        self.mu_Nk = np.zeros(self.nla_N)
+        self.P_Nk = dt * model.la_N0
+        self.P_Fk = dt * model.la_F0
+
+    def c(self, zk1, update_index_set=True):
+        # unpack percussions
+        P_Nk1 = zk1[: self.nla_N]
+        mu_Nk1 = zk1[self.nla_N : 2 * self.nla_N]
+        P_Fk1 = zk1[2 * self.nla_N :]
+
+        #####################
+        # explicit Euler step
+        #####################
+        tk1 = self.tk + self.dt
+        yk = np.concatenate((self.qk, self.uk))
+        yk1 = yk + self.f(self.tk, yk, zk1)
+        qk1 = yk1[: self.nq]
+        uk1 = yk1[self.nq : self.nq + self.nu]
+
+        # constraint equations
+        g_Nk1 = self.model.g_N(tk1, qk1)
+        xi_Nk1 = self.model.xi_N(tk1, qk1, self.uk, uk1)
+        xi_Fk1 = self.model.xi_F(tk1, qk1, self.uk, uk1)
+
+        prox_arg_pos = g_Nk1 - self.model.prox_r_N * mu_Nk1
+        c_Nk1_stab = g_Nk1 - prox_R0_np(prox_arg_pos)
+
+        if update_index_set:
+            # self.Ak1 = g_Nk1 <= 0
+            self.Ak1 = prox_arg_pos <= 0
+
+        c_Nk1 = np.where(
+            self.Ak1, xi_Nk1 - prox_R0_np(xi_Nk1 - self.model.prox_r_N * P_Nk1), P_Nk1
+        )
+
+        ##########
+        # friction
+        ##########
+        mu = self.model.mu
+        c_Fk1 = P_Fk1.copy()  # this is the else case => P_Fk1 = 0
+        for i_N, i_F in enumerate(self.model.NF_connectivity):
+            i_F = np.array(i_F)
+
+            if len(i_F) > 0:
+                # TODO: Is there a primal/ dual form?
+                if self.Ak1[i_N]:
+                    c_Fk1[i_F] = -P_Fk1[i_F] - prox_sphere(
+                        -P_Fk1[i_F] + self.model.prox_r_F[i_N] * xi_Fk1[i_F],
+                        mu[i_N] * P_Nk1[i_N],
+                    )
+
+        ck1 = np.concatenate((c_Nk1, c_Nk1_stab, c_Fk1))
+
+        return ck1, tk1, qk1, uk1, P_Nk1, mu_Nk1, P_Fk1
+
+    def c_y(self, zk1):
+        return csr_matrix(
+            approx_fprime(zk1, lambda z: self.c(z, update_index_set=False)[0])
+        )
+
+    def f(self, tk, yk, zk1):
+        # unpack state
+        qk = yk[: self.nq]
+        uk = yk[self.nq : self.nq + self.nu]
+
+        # unpack percussions
+        P_Nk1 = zk1[: self.nla_N]
+        mu_Nk1 = zk1[self.nla_N : 2 * self.nla_N]
+        P_Fk1 = zk1[2 * self.nla_N :]
+
+        # evaluate quantities of previous time step
+        Mk = self.model.M(tk, qk, scipy_matrix=csr_matrix)
+        hk = self.model.h(tk, qk, uk)
+        W_Nk = self.model.W_N(tk, qk, scipy_matrix=csr_matrix)
+        g_N_qk = self.model.g_N_q(tk, qk, scipy_matrix=csr_matrix)
+        W_Fk = self.model.W_F(tk, qk, scipy_matrix=csr_matrix)
+
+        # explicit Euler step
+        dt = self.dt
+        return np.concatenate(
+            (
+                self.model.q_dot(tk, qk, uk) * dt + g_N_qk.T @ mu_Nk1,
+                spsolve(Mk, hk * dt + W_Nk @ P_Nk1 + W_Fk @ P_Fk1),
+            )
+        )
+
+    def step(self):
+        j = 0
+        converged = False
+        zk1 = np.concatenate((self.P_Nk, self.mu_Nk, self.P_Fk))
+        ck1, tk1, qk1, uk1, P_Nk1, mu_Nk1, P_Fk1 = self.c(zk1)
+
+        error = self.error_function(ck1)
+        converged = error < self.atol
+        while (not converged) and (j < self.max_iter):
+            j += 1
+
+            # compute Jacobian and make a Newton step
+            c_yk1 = self.c_y(zk1)
+
+            zk1 -= spsolve(c_yk1, ck1)
+
+            # from scipy.sparse.linalg import lsqr
+            # zk1 -= lsqr(c_yk1, ck1)[0]
+
+            # zk1 -= np.linalg.lstsq(c_yk1.toarray(), ck1, rcond=None)[0]
+
+            # zk1 -= spsolve(c_yk1.T @ c_yk1, c_yk1.T @ ck1)
+
+            # # fixed-point iteration
+            # # self.atol = 1.0e-4
+            # r = 4.0e-1
+            # # r = 1.0e-2
+            # zk1 -= r * ck1
+
+            # check error for new Lagrange multipliers
+            ck1, tk1, qk1, uk1, P_Nk1, mu_Nk1, P_Fk1 = self.c(zk1)
+            error = self.error_function(ck1)
+            converged = error < self.atol
+
+        if not converged:
+            # raise RuntimeError("Internal Newton-Raphson scheme is not converged!")
+            print(f"Internal Newton-Raphson scheme is not converged with error {error}")
+
+        return (converged, j, error), tk1, qk1, uk1, P_Nk1, mu_Nk1, P_Fk1
+
+    def solve(self):
+        # lists storing output variables
+        q = [self.qk]
+        u = [self.uk]
+        P_N = [self.P_Nk]
+        mu_N = [self.mu_Nk]
+        P_F = [self.P_Fk]
+
+        pbar = tqdm(self.t[:-1])
+        for _ in pbar:
+            (
+                (converged, j, error),
+                tk1,
+                qk1,
+                uk1,
+                P_Nk1,
+                mu_Nk1,
+                P_Fk1,
+            ) = self.step()
+            pbar.set_description(
+                # f"t: {tk1:0.2e}; fixed-point iterations: {j+1}; error: {error:.3e}"
+                f"t: {tk1:0.2e}; Newton iterations: {j+1}; error: {error:.3e}"
+            )
+            if not converged:
+                # raise RuntimeError(
+                print(
+                    # f"fixed-point iteration not converged after {j+1} iterations with error: {error:.5e}"
+                    f"Newton iteration not converged after {j+1} iterations with error: {error:.5e}"
+                )
+
+            qk1, uk1 = self.model.step_callback(tk1, qk1, uk1)
+
+            q.append(qk1)
+            u.append(uk1)
+            P_N.append(P_Nk1)
+            mu_N.append(mu_Nk1)
+            P_F.append(P_Fk1)
+
+            # update local variables for accepted time step
+            (
+                self.tk,
+                self.qk,
+                self.uk,
+                self.P_Nk,
+                self.mu_Nk,
+                self.P_Fk,
+            ) = (tk1, qk1, uk1, P_Nk1, mu_Nk1, P_Fk1)
+
+        return Solution(
+            t=np.array(self.t),
+            q=np.array(q),
+            u=np.array(u),
+            P_N=np.array(P_N),
+            mu_N=np.array(mu_N),
+            P_F=np.array(P_F),
+        )
+
+
+class NonsmoothHalfExplicitEulerGGLWithImpactEquation:
+    def __init__(
+        self,
+        model,
+        t1,
+        dt,
+        atol=1e-6,
+        max_iter=50,
+        error_function=lambda x: np.max(np.abs(x)),
+    ):
+        self.model = model
+
+        # integration time
+        t0 = model.t0
+        self.t1 = (
+            t1 if t1 > t0 else ValueError("t1 must be larger than initial time t0.")
+        )
+        self.dt = dt
+        self.t = np.arange(t0, self.t1 + self.dt, self.dt)
+
+        self.error_function = error_function
+        self.atol = atol
+        self.max_iter = max_iter
+
+        self.nq = model.nq
+        self.nu = model.nu
+        self.nla_N = model.nla_N
+        self.nla_F = model.nla_F
+
+        # initial state
+        self.tk = t0
+        self.qk = model.q0
+        self.uk = model.u0
+
+        # initial accelerations
+        self.q_dotk = self.model.q_dot(self.tk, self.qk, self.uk)
+
+        # TODO: Solve for initial Lagrange multipliers!
+        M0 = self.model.M(self.tk, self.qk, scipy_matrix=csr_matrix)
+        h0 = self.model.h(self.tk, self.qk, self.uk)
+        W_g0 = self.model.W_g(self.tk, self.qk, scipy_matrix=csr_matrix)
+        W_N0 = self.model.W_N(self.tk, self.qk, scipy_matrix=csr_matrix)
+        W_F0 = self.model.W_F(self.tk, self.qk, scipy_matrix=csr_matrix)
+        self.u_dotk = spsolve(
+            M0, h0 + W_g0 @ model.la_g0 + W_N0 @ model.la_N0 + W_F0 @ model.la_F0
+        )
+
+        self.tk = model.t0
+        self.qk = model.q0
+        self.uk = model.u0
+        self.mu_Nk = np.zeros(self.nla_N)
+        self.P_Nk = dt * model.la_N0
+        self.P_Fk = dt * model.la_F0
+
+    def c(self, zk1, update_index_set=True):
+        # unpack percussions
+        P_Nk1 = zk1[: self.nla_N]
+        mu_Nk1 = zk1[self.nla_N : 2 * self.nla_N]
+        P_Fk1 = zk1[2 * self.nla_N :]
+
+        #####################
+        # explicit Euler step
+        #####################
+        tk1 = self.tk + self.dt
+        yk = np.concatenate((self.qk, self.uk))
+        self.Uk = np.zeros(self.nu)
+        yk = np.concatenate((self.qk, self.uk, self.Uk))
+        yk1 = yk + self.dt * self.f(self.tk, yk, zk1)
+        qk1 = yk1[: self.nq]
+        uk1 = yk1[self.nq : self.nq + self.nu]
+        Uk1 = yk1[self.nq + self.nu :]
+
+        uk1 += Uk1
+
+        # #######################################################################
+        # # three-stage Runge-Kutta,
+        # # see https://de.wikipedia.org/wiki/Runge-Kutta-Verfahren#Beispiel
+        # # This is not so easy and requires multiple solutions of c1, c2, c3,
+        # # etc. See Hairer1996, Section VII.6, p 520.
+        # #######################################################################
+        # dt = self.dt
+        # tk = self.tk
+        # yk = np.concatenate((self.qk, self.uk))
+        # k1 = self.f(tk, yk, P_Nk1)
+        # k2 = self.f(tk + 0.5 * dt, yk + 0.5 * k1, P_Nk1)
+        # k3 = self.f(tk + 1.0 * dt, yk - 1.0 * k1 + 2.0 * k2, P_Nk1)
+        # yk1 = yk + dt * (k1 / 6 + 4 * k2 / 6 + k3 / 6)
+
+        # tk1 = tk + dt
+        # qk1 = yk1[:self.nq]
+        # uk1 = yk1[self.nq:]
+
+        # constraint equations
+        g_Nk1 = self.model.g_N(tk1, qk1)
+        xi_Nk1 = self.model.xi_N(tk1, qk1, self.uk, uk1)
+        xi_Fk1 = self.model.xi_F(tk1, qk1, self.uk, uk1)
+
+        prox_arg_pos = g_Nk1 - self.model.prox_r_N * mu_Nk1
+        c_Nk1_stab = g_Nk1 - prox_R0_np(prox_arg_pos)
+
+        if update_index_set:
+            # self.Ak1 = g_Nk1 <= 0
+            self.Ak1 = prox_arg_pos <= 0
+
+        c_Nk1 = np.where(
+            self.Ak1, xi_Nk1 - prox_R0_np(xi_Nk1 - self.model.prox_r_N * P_Nk1), P_Nk1
+        )
+
+        ##########
+        # friction
+        ##########
+        mu = self.model.mu
+        c_Fk1 = P_Fk1.copy()  # this is the else case => P_Fk1 = 0
+        for i_N, i_F in enumerate(self.model.NF_connectivity):
+            i_F = np.array(i_F)
+
+            if len(i_F) > 0:
+                # TODO: Is there a primal/ dual form?
+                if self.Ak1[i_N]:
+                    c_Fk1[i_F] = -P_Fk1[i_F] - prox_sphere(
+                        -P_Fk1[i_F] + self.model.prox_r_F[i_N] * xi_Fk1[i_F],
+                        mu[i_N] * P_Nk1[i_N],
+                    )
+
+        ck1 = np.concatenate((c_Nk1, c_Nk1_stab, c_Fk1))
+
+        return ck1, tk1, qk1, uk1, P_Nk1, mu_Nk1, P_Fk1
+
+    def c_y(self, zk1):
+        return csr_matrix(
+            approx_fprime(zk1, lambda z: self.c(z, update_index_set=False)[0])
+        )
+
+    def f(self, tk, yk, zk1):
+        # unpack state
+        qk = yk[: self.nq]
+        uk = yk[self.nq : self.nq + self.nu]
+        Uk = yk[self.nq + self.nu :]
+
+        # unpack percussions
+        P_Nk1 = zk1[: self.nla_N]
+        mu_Nk1 = zk1[self.nla_N : 2 * self.nla_N]
+        P_Fk1 = zk1[2 * self.nla_N :]
+
+        P_Nk1 = mu_Nk1 * self.dt + P_Nk1.copy()
+
+        # evaluate quantities of previous time step
+        Mk = self.model.M(tk, qk, scipy_matrix=csr_matrix)
+        hk = self.model.h(tk, qk, uk + Uk)
+        W_Nk = self.model.W_N(tk, qk, scipy_matrix=csr_matrix)
+        g_N_qk = self.model.g_N_q(tk, qk, scipy_matrix=csr_matrix)
+        W_Fk = self.model.W_F(tk, qk, scipy_matrix=csr_matrix)
+
+        # explicit Euler step
+        dt = self.dt
+        return np.concatenate(
+            (
+                # self.model.q_dot(tk, qk, uk) + g_N_qk.T @ mu_Nk1,
+                # spsolve(Mk, hk + W_Nk @ P_Nk1 / dt + W_Fk @ P_Fk1 / dt),
+                self.model.q_dot(tk, qk, uk + Uk),
+                spsolve(Mk, hk + W_Nk @ mu_Nk1),
+                spsolve(Mk, W_Nk @ P_Nk1 + W_Fk @ P_Fk1),
+            )
+        )
+
+    def step(self):
+        j = 0
+        converged = False
+        zk1 = np.concatenate((self.P_Nk, self.mu_Nk, self.P_Fk))
+        ck1, tk1, qk1, uk1, P_Nk1, mu_Nk1, P_Fk1 = self.c(zk1)
+
+        error = self.error_function(ck1)
+        converged = error < self.atol
+        while (not converged) and (j < self.max_iter):
+            j += 1
+
+            # compute Jacobian and make a Newton step
+            c_yk1 = self.c_y(zk1)
+
+            # zk1 -= spsolve(c_yk1, ck1)
+
+            # from scipy.sparse.linalg import lsqr
+            # zk1 -= lsqr(c_yk1, ck1)[0]
+
+            # zk1 -= np.linalg.lstsq(c_yk1.toarray(), ck1, rcond=None)[0]
+
+            zk1 -= spsolve(c_yk1.T @ c_yk1, c_yk1.T @ ck1)
+
+            # # fixed-point iteration
+            # # self.atol = 1.0e-4
+            # r = 4.0e-1
+            # # r = 1.0e-2
+            # zk1 -= r * ck1
+
+            # check error for new Lagrange multipliers
+            ck1, tk1, qk1, uk1, P_Nk1, mu_Nk1, P_Fk1 = self.c(zk1)
+            error = self.error_function(ck1)
+            converged = error < self.atol
+
+        if not converged:
+            # raise RuntimeError("Internal Newton-Raphson scheme is not converged!")
+            print(f"Internal Newton-Raphson scheme is not converged with error {error}")
+
+        return (converged, j, error), tk1, qk1, uk1, P_Nk1, mu_Nk1, P_Fk1
+
+    def solve(self):
+        # lists storing output variables
+        q = [self.qk]
+        u = [self.uk]
+        P_N = [self.P_Nk]
+        mu_N = [self.mu_Nk]
+        P_F = [self.P_Fk]
+
+        pbar = tqdm(self.t[:-1])
+        for _ in pbar:
+            (
+                (converged, j, error),
+                tk1,
+                qk1,
+                uk1,
+                P_Nk1,
+                mu_Nk1,
+                P_Fk1,
+            ) = self.step()
+            pbar.set_description(
+                # f"t: {tk1:0.2e}; fixed-point iterations: {j+1}; error: {error:.3e}"
+                f"t: {tk1:0.2e}; Newton iterations: {j+1}; error: {error:.3e}"
+            )
+            if not converged:
+                # raise RuntimeError(
+                print(
+                    # f"fixed-point iteration not converged after {j+1} iterations with error: {error:.5e}"
+                    f"Newton iteration not converged after {j+1} iterations with error: {error:.5e}"
+                )
+
+            qk1, uk1 = self.model.step_callback(tk1, qk1, uk1)
+
+            q.append(qk1)
+            u.append(uk1)
+            P_N.append(P_Nk1)
+            mu_N.append(mu_Nk1)
+            P_F.append(P_Fk1)
+
+            # update local variables for accepted time step
+            (
+                self.tk,
+                self.qk,
+                self.uk,
+                self.P_Nk,
+                self.mu_Nk,
+                self.P_Fk,
+            ) = (tk1, qk1, uk1, P_Nk1, mu_Nk1, P_Fk1)
+
+        return Solution(
+            t=np.array(self.t),
+            q=np.array(q),
+            u=np.array(u),
+            P_N=np.array(P_N),
+            mu_N=np.array(mu_N),
+            P_F=np.array(P_F),
+        )
+
+
+class NonsmoothHalfExplicitEulerGGLOld:
     def __init__(
         self,
         model,

@@ -18,6 +18,7 @@ from cardillo.solver import (
     NonsmoothGenAlphaFirstOrder,
     NonsmoothNewmark,
     NonsmoothHalfExplicitEuler,
+    NonsmoothHalfExplicitEulerGGL,
 )
 
 
@@ -74,10 +75,10 @@ if __name__ == "__main__":
     t1 = 2
     # t1 = 5
     # dt = 1e-1
-    # dt = 5e-2
+    dt = 5e-2
     # dt = 1e-2
     # dt = 5e-3
-    dt = 1e-3
+    # dt = 1e-3
 
     # solver_n = NonsmoothGeneralizedAlpha(model, t1, dt, rho_inf=0.85)
     # solver_n = NonsmoothEulerBackwardsGGL(model, t1, dt)
@@ -86,7 +87,8 @@ if __name__ == "__main__":
     # solver_n = NonsmoothTheta(model, t1, dt)
     # solver_n = NonsmoothGenAlphaFirstOrder(model, t1, dt, rho_inf=0.85)
     # solver_n = NonsmoothNewmark(model, t1, dt)
-    solver_n = NonsmoothHalfExplicitEuler(model, t1, dt)
+    # solver_n = NonsmoothHalfExplicitEuler(model, t1, dt)
+    solver_n = NonsmoothHalfExplicitEulerGGL(model, t1, dt)
     sol_n = solver_n.solve()
     # sol_n = sol_fp
     t_n = sol_n.t
@@ -99,6 +101,7 @@ if __name__ == "__main__":
         NonsmoothEulerBackwardsGGL_V2,
         NonsmoothEulerBackwardsGGL_V3,
         NonsmoothHalfExplicitEuler,
+        NonsmoothHalfExplicitEulerGGL,
     ]:
         a_n = np.zeros_like(u_n)
         a_n[1:] = (u_n[1:] - u_n[:-1]) / dt
