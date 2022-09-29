@@ -19,6 +19,7 @@ from cardillo.solver import (
     NonsmoothNewmark,
     NonsmoothHalfExplicitEuler,
     NonsmoothHalfExplicitEulerGGL,
+    Remco,
 )
 
 
@@ -71,12 +72,12 @@ if __name__ == "__main__":
     model.assemble()
 
     t0 = 0
-    # t1 = 0.6
-    t1 = 2
-    # t1 = 5
+    # t1 = 0.1
+    # t1 = 2
+    t1 = 10
     # dt = 1e-1
-    # dt = 5e-2
-    dt = 1e-2
+    dt = 5e-2
+    # dt = 1e-2
     # dt = 5e-3
     # dt = 1e-3
 
@@ -89,6 +90,7 @@ if __name__ == "__main__":
     # solver_n = NonsmoothNewmark(model, t1, dt)
     # solver_n = NonsmoothHalfExplicitEuler(model, t1, dt)
     solver_n = NonsmoothHalfExplicitEulerGGL(model, t1, dt)
+    # solver_n = Remco(model, t1, dt)
     sol_n = solver_n.solve()
     # sol_n = sol_fp
     t_n = sol_n.t
@@ -102,13 +104,12 @@ if __name__ == "__main__":
         NonsmoothEulerBackwardsGGL_V3,
         NonsmoothHalfExplicitEuler,
         NonsmoothHalfExplicitEulerGGL,
+        Remco,
     ]:
         a_n = np.zeros_like(u_n)
         a_n[1:] = (u_n[1:] - u_n[:-1]) / dt
         la_N_n = np.zeros_like(P_N_n)
-        la_F_n = np.zeros_like(P_F_n)
         La_N_n = np.zeros_like(P_N_n)
-        La_F_n = np.zeros_like(P_F_n)
     else:
         a_n = sol_n.a
         la_N_n = sol_n.la_N

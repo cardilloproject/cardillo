@@ -15,6 +15,8 @@ from cardillo.solver import (
     NonsmoothGeneralizedAlpha,
     NonsmoothGenAlphaFirstOrder,
     NonsmoothNewmark,
+    NonsmoothHalfExplicitEuler,
+    NonsmoothHalfExplicitEulerGGL,
 )
 
 from cardillo.math.algebra import e1, norm
@@ -208,27 +210,30 @@ if __name__ == "__main__":
     # sol1 = NonsmoothGeneralizedAlpha(model, t_end, dt, rho_inf=0.85).solve()
     # sol1 = NonsmoothNewmark(model, t_end, dt).solve()
     # sol1 = NonsmoothEulerBackwardsGGL_V2(model, t_end, dt).solve()
-    sol1 = NonsmoothEulerBackwardsGGL_V3(model, t_end, dt).solve()
+    # sol1 = NonsmoothEulerBackwardsGGL_V3(model, t_end, dt).solve()
     # sol1 = NonsmoothNewmarkGGL(model, t_end, dt).solve()
     # sol1 = NonsmoothEulerBackwardsGGL_V3(model, t_end, dt).solve()
+    # sol1 = NonsmoothHalfExplicitEuler(model, t_end, dt).solve()
+    sol1 = NonsmoothHalfExplicitEulerGGL(model, t_end, dt).solve()
     t1 = sol1.t
     q1 = sol1.q
     u1 = sol1.u
     P_g1 = sol1.P_g
-    # P_g1 = sol1.La_g + dt * sol1.la_g
-    # P_g1 = sol1.La_g
-    # P_g1 = sol1.la_g * dt
     P_N1 = sol1.P_N
-    # P_N1 = sol1.La_N
 
-    # # solve with classical Moreau scheme
+    # solve with classical Moreau scheme
     # sol2 = Moreau(model, t_end, dt).solve()
-    # # sol2 = NonsmoothGeneralizedAlpha(model, t_end, dt).solve()
-    # t2 = sol2.t
-    # q2 = sol2.q
-    # u2 = sol2.u
-    # P_g2 = sol2.P_g
-    # P_N2 = sol2.P_N
+    sol2 = NonsmoothGeneralizedAlpha(model, t_end, dt).solve()
+    t2 = sol2.t
+    q2 = sol2.q
+    u2 = sol2.u
+    try:
+        P_g2 = sol2.P_g
+    except:
+        la_g2 = sol2.la_g
+        La_g2 = sol2.La_g
+        P_g2 = la_g2 * dt + La_g2
+    P_N2 = sol2.P_N
 
     # visualize results
     fig, ax = plt.subplots(2, 2)
@@ -236,28 +241,28 @@ if __name__ == "__main__":
     # generalized coordinates
     ax[0, 0].plot(t1, q1[:, 0], "-xr", label="x - Method1")
     ax[0, 0].plot(t1, q1[:, 1], "--or", label="y - Method1")
-    # ax[0, 0].plot(t2, q2[:, 0], "-xb", label="x - Method2")
-    # ax[0, 0].plot(t2, q2[:, 1], "--ob", label="y - Method2")
+    ax[0, 0].plot(t2, q2[:, 0], "-xb", label="x - Method2")
+    ax[0, 0].plot(t2, q2[:, 1], "--ob", label="y - Method2")
     ax[0, 0].grid()
     ax[0, 0].legend()
 
     # generalized velocities
     ax[0, 1].plot(t1, u1[:, 0], "-xr", label="x_dot - Method1")
     ax[0, 1].plot(t1, u1[:, 1], "--or", label="y_dot - Method1")
-    # ax[0, 1].plot(t2, u2[:, 0], "-xb", label="x_dot - Method2")
-    # ax[0, 1].plot(t2, u2[:, 1], "--ob", label="y_dot - Method2")
+    ax[0, 1].plot(t2, u2[:, 0], "-xb", label="x_dot - Method2")
+    ax[0, 1].plot(t2, u2[:, 1], "--ob", label="y_dot - Method2")
     ax[0, 1].grid()
     ax[0, 1].legend()
 
     # bilateral constraints
     ax[1, 0].plot(t1, P_g1[:, 0], "-xr", label="P_g - Method1")
-    # ax[1, 0].plot(t2, P_g2[:, 0], "-xb", label="P_g - Method2")
+    ax[1, 0].plot(t2, P_g2[:, 0], "-xb", label="P_g - Method2")
     ax[1, 0].grid()
     ax[1, 0].legend()
 
     # normal percussions
     ax[1, 1].plot(t1, P_N1[:, 0], "-xr", label="P_N - Method1")
-    # ax[1, 1].plot(t2, P_N2[:, 0], "-xb", label="P_N - Method2")
+    ax[1, 1].plot(t2, P_N2[:, 0], "-xb", label="P_N - Method2")
     ax[1, 1].grid()
     ax[1, 1].legend()
 

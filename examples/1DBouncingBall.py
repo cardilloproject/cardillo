@@ -135,6 +135,7 @@ if __name__ == "__main__":
 
     # solver setup
     t0 = 0
+    # t1 = 1.5
     t1 = 2
     # dt = 1e-1
     # dt = 5e-2
@@ -149,10 +150,10 @@ if __name__ == "__main__":
     # solver_other = NonsmoothTheta(model, t1, dt, atol=1.0e-8)
     # solver_other = NonsmoothThetaGGL(model, t1, dt)
     # solver_other = NonsmoothEulerBackwardsGGL(model, t1, dt)
-    solver_other = NonsmoothEulerBackwardsGGL_V2(model, t1, dt)
+    # solver_other = NonsmoothEulerBackwardsGGL_V2(model, t1, dt)
     # solver_other = NonsmoothEulerBackwardsGGL_V3(model, t1, dt)
     # solver_other = NonsmoothHalfExplicitEuler(model, t1, dt)
-    # solver_other = NonsmoothHalfExplicitEulerGGL(model, t1, dt)
+    solver_other = NonsmoothHalfExplicitEulerGGL(model, t1, dt)
     # solver_other = NonsmoothNewmarkGGL(model, t1, dt)
     # solver_other = NonsmoothGenAlphaFirstOrder(model, t1, dt, rho_inf=0.9)
     # solver_other = NonsmoothNewmark(model, t1, dt)
@@ -193,7 +194,40 @@ if __name__ == "__main__":
     P_N_moreau = sol_moreau.P_N
     P_F_moreau = sol_moreau.P_F
 
+    ########
+    # export
+    ########
+    def export(file, sol):
+        t = sol.t
+        q = sol.q
+        u = sol.u
+        P_N = sol.P_N
+        try:
+            la_N = sol.la_N
+        except:
+            la_N = np.zeros_like(P_N)
+        try:
+            La_N = sol.La_N
+        except:
+            La_N = np.zeros_like(P_N)
+        header = "t, q, u, la_N, La_N, P_N"
+        export_data = np.vstack([t, *q.T, *u.T, *la_N.T, La_N.T, P_N.T]).T
+        np.savetxt(
+            file,
+            export_data,
+            delimiter=", ",
+            header=header,
+            comments="",
+        )
+
+    export("examples/1DBouncingBall_Moreau.txt", sol_moreau)
+    export("examples/1DBouncingBall_Other.txt", sol_other)
+
+    # exit()
+
+    ###############
     # visualization
+    ###############
     fig, ax = plt.subplots(3, 1)
 
     ax[0].plot([t_moreau[0], t_moreau[-1]], [radius, radius], "-k", label="ground")

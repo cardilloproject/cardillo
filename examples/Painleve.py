@@ -230,8 +230,8 @@ if __name__ == "__main__":
     # t1 = 1.0
     t1 = 1.5
     # dt = 5e-3
-    dt = 1e-3
-    # dt = 5e-4
+    # dt = 1e-3
+    dt = 5e-4
     # dt = 1e-4
 
     # solver = Moreau(model, t1, dt, fix_point_tol=1.0e-6, fix_point_max_iter=5000)

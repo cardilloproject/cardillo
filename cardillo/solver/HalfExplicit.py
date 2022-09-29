@@ -372,6 +372,8 @@ class NonsmoothHalfExplicitEuler:
 
         self.nq = model.nq
         self.nu = model.nu
+        self.nla_g = model.nla_g
+        self.nla_gamma = model.nla_gamma
         self.nla_N = model.nla_N
         self.nla_F = model.nla_F
 
@@ -387,29 +389,41 @@ class NonsmoothHalfExplicitEuler:
         M0 = self.model.M(self.tk, self.qk, scipy_matrix=csr_matrix)
         h0 = self.model.h(self.tk, self.qk, self.uk)
         W_g0 = self.model.W_g(self.tk, self.qk, scipy_matrix=csr_matrix)
+        W_gamma0 = self.model.W_gamma(self.tk, self.qk, scipy_matrix=csr_matrix)
         W_N0 = self.model.W_N(self.tk, self.qk, scipy_matrix=csr_matrix)
         W_F0 = self.model.W_F(self.tk, self.qk, scipy_matrix=csr_matrix)
         self.u_dotk = spsolve(
-            M0, h0 + W_g0 @ model.la_g0 + W_N0 @ model.la_N0 + W_F0 @ model.la_F0
+            M0,
+            h0
+            + W_g0 @ model.la_g0
+            + W_gamma0 @ model.la_gamma0
+            + W_N0 @ model.la_N0
+            + W_F0 @ model.la_F0,
         )
 
+        # TODO: Add solve for bilateral constraints!
         self.tk = model.t0
         self.qk = model.q0
         self.uk = model.u0
+        self.P_gk = dt * model.la_g0
+        self.P_gammak = dt * model.la_gamma0
         self.P_Nk = dt * model.la_N0
         self.P_Fk = dt * model.la_F0
 
     def c(self, zk1, update_index_set=True):
         # unpack percussions
-        P_Nk1 = zk1[: self.nla_N]
-        P_Fk1 = zk1[self.nla_N :]
+        P_gk1 = zk1[: self.nla_g]
+        P_gammak1 = zk1[self.nla_g : self.nla_g + self.nla_gamma]
+        P_Nk1 = zk1[
+            self.nla_g + self.nla_gamma : self.nla_g + self.nla_gamma + self.nla_N
+        ]
+        P_Fk1 = zk1[self.nla_g + self.nla_gamma + self.nla_N :]
 
         #####################
         # explicit Euler step
         #####################
         tk1 = self.tk + self.dt
         yk = np.concatenate((self.qk, self.uk))
-        # yk1 = yk + self.f(self.tk, yk, zk1)
         yk1 = yk + self.f(self.tk, yk, zk1)
         qk1 = yk1[: self.nq]
         uk1 = yk1[self.nq :]
@@ -436,6 +450,8 @@ class NonsmoothHalfExplicitEuler:
         # uk1 = yk1[self.nq:]
 
         # constraint equations
+        g_dotk1 = self.model.g_dot(tk1, qk1, uk1)
+        gammak1 = self.model.gamma(tk1, qk1, uk1)
         g_Nk1 = self.model.g_N(tk1, qk1)
         xi_Nk1 = self.model.xi_N(tk1, qk1, self.uk, uk1)
         xi_Fk1 = self.model.xi_F(tk1, qk1, self.uk, uk1)
@@ -463,9 +479,9 @@ class NonsmoothHalfExplicitEuler:
                         mu[i_N] * P_Nk1[i_N],
                     )
 
-        ck1 = np.concatenate((c_Nk1, c_Fk1))
+        ck1 = np.concatenate((g_dotk1, gammak1, c_Nk1, c_Fk1))
 
-        return ck1, tk1, qk1, uk1, P_Nk1, P_Fk1
+        return ck1, tk1, qk1, uk1, P_gk1, P_gammak1, P_Nk1, P_Fk1
 
     def c_y(self, zk1):
         return csr_matrix(
@@ -476,12 +492,18 @@ class NonsmoothHalfExplicitEuler:
         # unpack y and z
         qk = yk[: self.nq]
         uk = yk[self.nq :]
-        P_Nk1 = zk1[: self.nla_N]
-        P_Fk1 = zk1[self.nla_N :]
+        P_gk1 = zk1[: self.nla_g]
+        P_gammak1 = zk1[self.nla_g : self.nla_g + self.nla_gamma]
+        P_Nk1 = zk1[
+            self.nla_g + self.nla_gamma : self.nla_g + self.nla_gamma + self.nla_N
+        ]
+        P_Fk1 = zk1[self.nla_g + self.nla_gamma + self.nla_N :]
 
         # evaluate quantities of previous time step
         Mk = self.model.M(tk, qk, scipy_matrix=csr_matrix)
         hk = self.model.h(tk, qk, uk)
+        W_gk = self.model.W_g(tk, qk, scipy_matrix=csr_matrix)
+        W_gammak = self.model.W_gamma(tk, qk, scipy_matrix=csr_matrix)
         W_Nk = self.model.W_N(tk, qk, scipy_matrix=csr_matrix)
         W_Fk = self.model.W_F(tk, qk, scipy_matrix=csr_matrix)
 
@@ -490,16 +512,23 @@ class NonsmoothHalfExplicitEuler:
         return np.concatenate(
             (
                 self.model.q_dot(tk, qk, uk) * dt,
-                spsolve(Mk, hk * dt + W_Nk @ P_Nk1 + W_Fk @ P_Fk1),
+                spsolve(
+                    Mk,
+                    hk * dt
+                    + W_gk @ P_gk1
+                    + W_gammak @ P_gammak1
+                    + W_Nk @ P_Nk1
+                    + W_Fk @ P_Fk1,
+                ),
             )
         )
 
     def step(self):
         j = 0
         converged = False
-        zk1 = np.concatenate((self.P_Nk, self.P_Fk))
+        zk1 = np.concatenate((self.P_gk, self.P_gammak, self.P_Nk, self.P_Fk))
         # zk1 = np.zeros(self.nla_N + self.nla_F)
-        ck1, tk1, qk1, uk1, P_Nk1, P_Fk1 = self.c(zk1)
+        ck1, tk1, qk1, uk1, P_gk1, P_gammak1, P_Nk1, P_Fk1 = self.c(zk1)
 
         error = self.error_function(ck1)
         converged = error < self.atol
@@ -524,7 +553,7 @@ class NonsmoothHalfExplicitEuler:
             # zk1 -= r * ck1
 
             # check error for new Lagrange multipliers
-            ck1, tk1, qk1, uk1, P_Nk1, P_Fk1 = self.c(zk1)
+            ck1, tk1, qk1, uk1, P_gk1, P_gammak1, P_Nk1, P_Fk1 = self.c(zk1)
             error = self.error_function(ck1)
             converged = error < self.atol
 
@@ -552,12 +581,14 @@ class NonsmoothHalfExplicitEuler:
         # qk1 = x[:self.nq]
         # mu_Nk1 = x[self.nq:]
 
-        return (converged, j, error), tk1, qk1, uk1, P_Nk1, P_Fk1
+        return (converged, j, error), tk1, qk1, uk1, P_gk1, P_gammak1, P_Nk1, P_Fk1
 
     def solve(self):
         # lists storing output variables
         q = [self.qk]
         u = [self.uk]
+        P_g = [self.P_gk]
+        P_gamma = [self.P_gammak]
         P_N = [self.P_Nk]
         P_F = [self.P_Fk]
 
@@ -568,6 +599,8 @@ class NonsmoothHalfExplicitEuler:
                 tk1,
                 qk1,
                 uk1,
+                P_gk1,
+                P_gammak1,
                 P_Nk1,
                 P_Fk1,
             ) = self.step()
@@ -586,6 +619,8 @@ class NonsmoothHalfExplicitEuler:
 
             q.append(qk1)
             u.append(uk1)
+            P_g.append(P_gk1)
+            P_gamma.append(P_gammak1)
             P_N.append(P_Nk1)
             P_F.append(P_Fk1)
 
@@ -594,14 +629,18 @@ class NonsmoothHalfExplicitEuler:
                 self.tk,
                 self.qk,
                 self.uk,
+                self.P_gk,
+                self.P_gammak,
                 self.P_Nk,
                 self.P_Fk,
-            ) = (tk1, qk1, uk1, P_Nk1, P_Fk1)
+            ) = (tk1, qk1, uk1, P_gk1, P_gammak1, P_Nk1, P_Fk1)
 
         return Solution(
             t=np.array(self.t),
             q=np.array(q),
             u=np.array(u),
+            P_g=np.array(P_g),
+            P_gamma=np.array(P_gamma),
             P_N=np.array(P_N),
             P_F=np.array(P_F),
         )
@@ -633,6 +672,8 @@ class NonsmoothHalfExplicitEulerGGL:
 
         self.nq = model.nq
         self.nu = model.nu
+        self.nla_g = model.nla_g
+        self.nla_gamma = model.nla_gamma
         self.nla_N = model.nla_N
         self.nla_F = model.nla_F
 
@@ -648,24 +689,48 @@ class NonsmoothHalfExplicitEulerGGL:
         M0 = self.model.M(self.tk, self.qk, scipy_matrix=csr_matrix)
         h0 = self.model.h(self.tk, self.qk, self.uk)
         W_g0 = self.model.W_g(self.tk, self.qk, scipy_matrix=csr_matrix)
+        W_gamma0 = self.model.W_gamma(self.tk, self.qk, scipy_matrix=csr_matrix)
         W_N0 = self.model.W_N(self.tk, self.qk, scipy_matrix=csr_matrix)
         W_F0 = self.model.W_F(self.tk, self.qk, scipy_matrix=csr_matrix)
         self.u_dotk = spsolve(
-            M0, h0 + W_g0 @ model.la_g0 + W_N0 @ model.la_N0 + W_F0 @ model.la_F0
+            M0,
+            h0
+            + W_g0 @ model.la_g0
+            + W_gamma0 @ model.la_gamma0
+            + W_N0 @ model.la_N0
+            + W_F0 @ model.la_F0,
         )
 
+        # TODO: Add solve for bilateral constraints!
         self.tk = model.t0
         self.qk = model.q0
         self.uk = model.u0
-        self.mu_Nk = np.zeros(self.nla_N)
+        self.P_gk = dt * model.la_g0
+        self.mu_gk = np.zeros(self.nla_g)
+        self.P_gammak = dt * model.la_gamma0
         self.P_Nk = dt * model.la_N0
+        self.mu_Nk = np.zeros(self.nla_N)
         self.P_Fk = dt * model.la_F0
 
     def c(self, zk1, update_index_set=True):
         # unpack percussions
-        P_Nk1 = zk1[: self.nla_N]
-        mu_Nk1 = zk1[self.nla_N : 2 * self.nla_N]
-        P_Fk1 = zk1[2 * self.nla_N :]
+        P_gk1 = zk1[: self.nla_g]
+        mu_gk1 = zk1[self.nla_g : 2 * self.nla_g]
+        P_gammak1 = zk1[2 * self.nla_g : 2 * self.nla_g + self.nla_gamma]
+        P_Nk1 = zk1[
+            2 * self.nla_g
+            + self.nla_gamma : 2 * self.nla_g
+            + self.nla_gamma
+            + self.nla_N
+        ]
+        mu_Nk1 = zk1[
+            2 * self.nla_g
+            + self.nla_gamma
+            + self.nla_N : 2 * self.nla_g
+            + self.nla_gamma
+            + 2 * self.nla_N
+        ]
+        P_Fk1 = zk1[2 * self.nla_g + self.nla_gamma + 2 * self.nla_N :]
 
         #####################
         # explicit Euler step
@@ -676,7 +741,12 @@ class NonsmoothHalfExplicitEulerGGL:
         qk1 = yk1[: self.nq]
         uk1 = yk1[self.nq : self.nq + self.nu]
 
-        # constraint equations
+        # bilateral constraints
+        gk1 = self.model.g(tk1, qk1)
+        g_dotk1 = self.model.g_dot(tk1, qk1, uk1)
+        gammak1 = self.model.gamma(tk1, qk1, uk1)
+
+        # unilateral constraints
         g_Nk1 = self.model.g_N(tk1, qk1)
         xi_Nk1 = self.model.xi_N(tk1, qk1, self.uk, uk1)
         xi_Fk1 = self.model.xi_F(tk1, qk1, self.uk, uk1)
@@ -708,9 +778,9 @@ class NonsmoothHalfExplicitEulerGGL:
                         mu[i_N] * P_Nk1[i_N],
                     )
 
-        ck1 = np.concatenate((c_Nk1, c_Nk1_stab, c_Fk1))
+        ck1 = np.concatenate((g_dotk1, gk1, gammak1, c_Nk1, c_Nk1_stab, c_Fk1))
 
-        return ck1, tk1, qk1, uk1, P_Nk1, mu_Nk1, P_Fk1
+        return ck1, tk1, qk1, uk1, P_gk1, mu_gk1, P_gammak1, P_Nk1, mu_Nk1, P_Fk1
 
     def c_y(self, zk1):
         return csr_matrix(
@@ -726,23 +796,51 @@ class NonsmoothHalfExplicitEulerGGL:
         uk = yk[self.nq : self.nq + self.nu]
 
         # unpack percussions
-        P_Nk1 = zk1[: self.nla_N]
-        mu_Nk1 = zk1[self.nla_N : 2 * self.nla_N]
-        P_Fk1 = zk1[2 * self.nla_N :]
+        P_gk1 = zk1[: self.nla_g]
+        mu_gk1 = zk1[self.nla_g : 2 * self.nla_g]
+        P_gammak1 = zk1[2 * self.nla_g : 2 * self.nla_g + self.nla_gamma]
+        P_Nk1 = zk1[
+            2 * self.nla_g
+            + self.nla_gamma : 2 * self.nla_g
+            + self.nla_gamma
+            + self.nla_N
+        ]
+        mu_Nk1 = zk1[
+            2 * self.nla_g
+            + self.nla_gamma
+            + self.nla_N : 2 * self.nla_g
+            + self.nla_gamma
+            + 2 * self.nla_N
+        ]
+        P_Fk1 = zk1[2 * self.nla_g + self.nla_gamma + 2 * self.nla_N :]
 
         # evaluate quantities of previous time step
         Mk = self.model.M(tk, qk, scipy_matrix=csr_matrix)
         hk = self.model.h(tk, qk, uk)
+        W_gk = self.model.W_g(tk, qk, scipy_matrix=csr_matrix)
+        W_gammak = self.model.W_gamma(tk, qk, scipy_matrix=csr_matrix)
+        g_qk = self.model.g_q(tk, qk, scipy_matrix=csr_matrix)
         W_Nk = self.model.W_N(tk, qk, scipy_matrix=csr_matrix)
         g_N_qk = self.model.g_N_q(tk, qk, scipy_matrix=csr_matrix)
         W_Fk = self.model.W_F(tk, qk, scipy_matrix=csr_matrix)
 
         # explicit Euler step
         dt = self.dt
+        uk1_smooth = self.uk + spsolve(Mk, hk * dt)
         return np.concatenate(
             (
-                self.model.q_dot(tk, qk, uk) * dt + g_N_qk.T @ mu_Nk1,
-                spsolve(Mk, hk * dt + W_Nk @ P_Nk1 + W_Fk @ P_Fk1),
+                # self.model.q_dot(tk, qk, uk) * dt + g_qk.T @ mu_gk1 + g_N_qk.T @ mu_Nk1, # original version
+                self.model.q_dot(tk, qk, uk1_smooth) * dt
+                + g_qk.T @ mu_gk1
+                + g_N_qk.T @ mu_Nk1,  # TODOD: This works without chattering!
+                spsolve(
+                    Mk,
+                    hk * dt
+                    + W_gk @ P_gk1
+                    + W_gammak @ P_gammak1
+                    + W_Nk @ P_Nk1
+                    + W_Fk @ P_Fk1,
+                ),
             )
         )
 
@@ -762,8 +860,10 @@ class NonsmoothHalfExplicitEulerGGL:
 
         j = 0
         converged = False
-        zk1 = np.concatenate((self.P_Nk, self.mu_Nk, self.P_Fk))
-        ck1, tk1, qk1, uk1, P_Nk1, mu_Nk1, P_Fk1 = self.c(zk1)
+        zk1 = np.concatenate(
+            (self.P_gk, self.mu_gk, self.P_gammak, self.P_Nk, self.mu_Nk, self.P_Fk)
+        )
+        ck1, tk1, qk1, uk1, P_gk1, mu_gk1, P_gammak1, P_Nk1, mu_Nk1, P_Fk1 = self.c(zk1)
 
         error = self.error_function(ck1)
         converged = error < self.atol
@@ -790,7 +890,9 @@ class NonsmoothHalfExplicitEulerGGL:
             # zk1 -= r * ck1
 
             # check error for new Lagrange multipliers
-            ck1, tk1, qk1, uk1, P_Nk1, mu_Nk1, P_Fk1 = self.c(zk1)
+            ck1, tk1, qk1, uk1, P_gk1, mu_gk1, P_gammak1, P_Nk1, mu_Nk1, P_Fk1 = self.c(
+                zk1
+            )
             error = self.error_function(ck1)
             converged = error < self.atol
 
@@ -798,12 +900,26 @@ class NonsmoothHalfExplicitEulerGGL:
             # raise RuntimeError("Internal Newton-Raphson scheme is not converged!")
             print(f"Internal Newton-Raphson scheme is not converged with error {error}")
 
-        return (converged, j, error), tk1, qk1, uk1, P_Nk1, mu_Nk1, P_Fk1
+        return (
+            (converged, j, error),
+            tk1,
+            qk1,
+            uk1,
+            P_gk1,
+            mu_gk1,
+            P_gammak1,
+            P_Nk1,
+            mu_Nk1,
+            P_Fk1,
+        )
 
     def solve(self):
         # lists storing output variables
         q = [self.qk]
         u = [self.uk]
+        P_g = [self.P_gk]
+        mu_g = [self.mu_gk]
+        P_gamma = [self.P_gammak]
         P_N = [self.P_Nk]
         mu_N = [self.mu_Nk]
         P_F = [self.P_Fk]
@@ -815,6 +931,9 @@ class NonsmoothHalfExplicitEulerGGL:
                 tk1,
                 qk1,
                 uk1,
+                P_gk1,
+                mu_gk1,
+                P_gammak1,
                 P_Nk1,
                 mu_Nk1,
                 P_Fk1,
@@ -834,6 +953,9 @@ class NonsmoothHalfExplicitEulerGGL:
 
             q.append(qk1)
             u.append(uk1)
+            P_g.append(P_gk1)
+            mu_g.append(mu_gk1)
+            P_gamma.append(P_gammak1)
             P_N.append(P_Nk1)
             mu_N.append(mu_Nk1)
             P_F.append(P_Fk1)
@@ -843,15 +965,21 @@ class NonsmoothHalfExplicitEulerGGL:
                 self.tk,
                 self.qk,
                 self.uk,
+                self.P_gk,
+                self.mu_gk,
+                self.P_gammak,
                 self.P_Nk,
                 self.mu_Nk,
                 self.P_Fk,
-            ) = (tk1, qk1, uk1, P_Nk1, mu_Nk1, P_Fk1)
+            ) = (tk1, qk1, uk1, P_gk1, mu_gk1, P_gammak1, P_Nk1, mu_Nk1, P_Fk1)
 
         return Solution(
             t=np.array(self.t),
             q=np.array(q),
             u=np.array(u),
+            P_g=np.array(P_g),
+            mu_g=np.array(mu_g),
+            P_gamma=np.array(P_gamma),
             P_N=np.array(P_N),
             mu_N=np.array(mu_N),
             P_F=np.array(P_F),

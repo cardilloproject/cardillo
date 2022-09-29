@@ -2309,7 +2309,7 @@ class NonsmoothEulerBackwardsGGL_V3:
         )
 
 
-class Remco:
+class RemcoOriginal:
     def __init__(
         self,
         model,
@@ -2551,23 +2551,31 @@ class Remco:
         R = f(xk1)
         error = self.error_function(R)
         converged = error < self.tol
+
+        # print(f"initial error: {error}")
         j = 0
         if not converged:
             while j < self.max_iter:
                 # jacobian
-                J = csr_matrix(approx_fprime(xk1, f, method="2-point"))
+                # J = csr_matrix(approx_fprime(xk1, f, method="2-point"))
+                J = csr_matrix(approx_fprime(xk1, f, method="3-point"))
 
                 # Newton update
                 j += 1
-                # dx = spsolve(J, R, use_umfpack=True)
-                dx = lsqr(J, R)[0]
+                dx = spsolve(J, R, use_umfpack=True)
+                # dx = lsqr(J, R)[0]
                 xk1 -= dx
                 R = f(xk1)
 
                 error = self.error_function(R)
+                # print(f" - j: {j}; error: {error}")
                 converged = error < self.tol
                 if converged:
                     break
+
+            if not converged:
+                # raise RuntimeError("internal Newton-Raphson not converged")
+                print(f"not converged!")
 
         return converged, j, error, xk1
 
@@ -2684,6 +2692,384 @@ class Remco:
             # la_F=np.zeros((len(t), self.nla_F)),
             # La_F=np.zeros((len(t), self.nla_F)),
             # P_F=np.array(P_F),
+        )
+
+
+class Remco:
+    def __init__(
+        self,
+        model,
+        t1,
+        dt,
+        tol=1e-8,
+        max_iter=40,
+        error_function=lambda x: np.max(np.abs(x)),
+    ):
+        self.model = model
+
+        #######################################################################
+        # integration time
+        #######################################################################
+        self.t0 = t0 = model.t0
+        self.t1 = (
+            t1 if t1 > t0 else ValueError("t1 must be larger than initial time t0.")
+        )
+        self.dt = dt
+
+        #######################################################################
+        # newton settings
+        #######################################################################
+        self.tol = tol
+        self.max_iter = max_iter
+        self.error_function = error_function
+
+        #######################################################################
+        # dimensions
+        #######################################################################
+        self.nq = model.nq
+        self.nu = model.nu
+        self.nla_g = model.nla_g
+        self.nla_N = model.nla_N
+        self.nla_F = model.nla_F
+        self.nx = self.nq + self.nu + self.nla_N + self.nla_F
+        self.ny = self.nu + self.nla_N + self.nla_F
+
+        #######################################################################
+        # consistent initial conditions
+        #######################################################################
+        self.tk = model.t0
+        self.qk = model.q0
+        self.uk = model.u0
+        self.Uk = np.zeros(self.nq)
+        self.La_Nk = np.zeros(self.nla_N)
+        self.la_Nk = model.la_N0
+        self.La_Fk = np.zeros(self.nla_F)
+        self.la_Fk = model.la_F0
+
+        # initial velocites
+        self.q_dotk = self.model.q_dot(self.tk, self.qk, self.uk)
+
+        M0 = self.model.M(self.tk, self.qk, scipy_matrix=csr_matrix)
+        h0 = self.model.h(self.tk, self.qk, self.uk)
+        W_N0 = self.model.W_N(self.tk, self.qk, scipy_matrix=csr_matrix)
+        W_F0 = self.model.W_F(self.tk, self.qk, scipy_matrix=csr_matrix)
+        self.u_dotk = spsolve(M0, h0 + W_N0 @ model.la_N0 + W_F0 @ model.la_F0)
+
+        #######################################################################
+        # starting values for generalized state vector, its derivatives and
+        # auxiliary velocities
+        #######################################################################
+        self.xk = np.concatenate((self.q_dotk, self.u_dotk, self.la_Nk, self.la_Fk))
+        self.yk = np.concatenate((self.Uk, self.La_Nk, self.La_Fk))
+
+        # initialize index sets
+        self.Ak1 = np.zeros(self.nla_N, dtype=bool)
+
+    def unpack_x(self, xk1):
+        nq = self.nq
+        nu = self.nu
+        nla_N = self.nla_N
+
+        # unpack yk1
+        q_dotk1 = xk1[:nq]
+        u_dotk1 = xk1[nq : nq + nu]
+        la_Nk = xk1[nq + nu : nq + nu + nla_N]
+        la_Fk = xk1[nq + nu + nla_N :]
+
+        return q_dotk1, u_dotk1, la_Nk, la_Fk
+
+    def unpack_y(self, yk1):
+        nu = self.nu
+        nla_N = self.nla_N
+
+        Uk1 = yk1[:nu]
+        La_Nk_plus = yk1[nu : nu + nla_N]
+        La_Fk_plus = yk1[nu + nla_N :]
+
+        return Uk1, La_Nk_plus, La_Fk_plus
+
+    def update_x(self, xk1):
+        q_dotk1, u_dotk1, la_Nk1, la_Fk1 = self.unpack_x(xk1)
+
+        # backward Euler
+        tk1 = self.tk + self.dt
+        uk1 = self.uk + self.dt * u_dotk1
+        qk1 = self.qk + self.dt * q_dotk1
+
+        return tk1, qk1, uk1
+
+    def Rx(self, xk1):
+        nq = self.nq
+        nu = self.nu
+        nla_N = self.nla_N
+        mu = self.model.mu
+
+        q_dotk1, u_dotk1, la_Nk1, la_Fk1 = self.unpack_x(xk1)
+        tk1, qk1, uk1 = self.update_x(xk1)
+
+        # evaluate repeatedly used quantities
+        Mk1 = self.model.M(tk1, qk1)
+        hk1 = self.model.h(tk1, qk1, uk1)
+        W_Nk1 = self.model.W_N(tk1, qk1, scipy_matrix=csr_matrix)
+        W_Fk1 = self.model.W_F(tk1, qk1, scipy_matrix=csr_matrix)
+        g_Nk1 = self.model.g_N(tk1, qk1)
+        xi_Fk1 = self.model.xi_F(tk1, qk1, self.uk, uk1)
+
+        ###################
+        # evaluate residual
+        ###################
+        Rx = np.zeros(self.nx)
+
+        ####################
+        # kinematic equation
+        ####################
+        Rx[:nq] = q_dotk1 - self.model.q_dot(tk1, qk1, uk1)
+
+        ####################
+        # euations of motion
+        ####################
+        Rx[nq : nq + nu] = Mk1 @ u_dotk1 - hk1 - W_Nk1 @ la_Nk1 - W_Fk1 @ la_Fk1
+
+        ################
+        # normal contact
+        ################
+        # Rx[nq + nu : nq + nu + nla_N] = g_Nk1 - prox_R0_np(
+        #     g_Nk1 - self.model.prox_r_N * la_Nk1
+        # )
+        Rx[nq + nu : nq + nu + nla_N] = la_Nk1
+
+        ##########
+        # TODO: friction
+        ##########
+        Rx[nq + nu + nla_N :] = la_Fk1
+
+        # I_N = g_Nk1 <= 0
+
+        # for i_N, i_F in enumerate(self.model.NF_connectivity):
+        #     i_F = np.array(i_F)
+
+        #     if len(i_F) > 0:
+        #         Rx[nq + nu + nla_N + i_F] = np.where(
+        #             I_N[i_N] * np.ones(len(i_F), dtype=bool),
+        #             -la_Fk1[i_F]
+        #             - prox_sphere(
+        #                 -la_Fk1[i_F] + self.model.prox_r_F[i_N] * xi_Fk1[i_F],
+        #                 mu[i_N] * la_Nk1[i_N],
+        #             ),
+        #             la_Fk1[i_F],
+        #         )
+
+        # update quantities of new time step
+        self.tk1 = tk1
+        self.qk1 = qk1
+        self.uk1 = uk1
+
+        return Rx
+
+    def Ry(self, yk1):
+        nu = self.nu
+        nla_N = self.nla_N
+        mu = self.model.mu
+
+        # quantities of old time step
+        tk1 = self.tk1
+        qk1 = self.qk1
+        uk1 = self.uk1
+
+        # unpack xk1
+        Uk1, La_Nk1, La_Fk1 = self.unpack_y(yk1)
+
+        # update velocities
+        uk1_plus = uk1 + Uk1
+
+        # evaluate repeatedly used quantities
+        Mk1 = self.model.M(tk1, qk1)
+        W_Nk1 = self.model.W_N(tk1, qk1, scipy_matrix=csr_matrix)
+        W_Fk1 = self.model.W_F(tk1, qk1, scipy_matrix=csr_matrix)
+        g_Nk1 = self.model.g_N(tk1, qk1)
+        xi_Nk1_plus = self.model.xi_N(tk1, qk1, self.uk, uk1_plus)
+        xi_Fk1_plus = self.model.xi_F(tk1, qk1, self.uk, uk1_plus)
+
+        # compute set of active contacts
+        I_N = g_Nk1 <= 0
+
+        ###################
+        # evaluate residual
+        ###################
+        Ry = np.zeros(self.ny)
+
+        #################
+        # impact equation
+        #################
+        Ry[:nu] = Mk1 @ Uk1 - W_Nk1 @ La_Nk1 - W_Fk1 @ La_Fk1
+
+        ############
+        # impact law
+        ############
+        Ry[nu : nu + nla_N] = np.select(
+            I_N,
+            xi_Nk1_plus - prox_R0_np(xi_Nk1_plus - self.model.prox_r_N * La_Nk1),
+            La_Nk1,
+        )
+
+        Ry[nu + nla_N :] = La_Fk1
+        # for i_N, i_F in enumerate(self.model.NF_connectivity):
+        #     i_F = np.array(i_F)
+
+        #     if len(i_F) > 0:
+        #         Ry[nu + nla_N + i_F] = np.where(
+        #             I_N[i_N] * np.ones(len(i_F), dtype=bool),
+        #             -La_Fk1[i_F]
+        #             - prox_sphere(
+        #                 -La_Fk1[i_F] + self.model.prox_r_F[i_N] * xi_Fk1_plus[i_F],
+        #                 mu[i_N] * La_Nk1[i_N],
+        #             ),
+        #             La_Fk1[i_F],
+        #         )
+
+        return Ry
+
+    def step(self, xk1, f):
+        # initial residual and error
+        R = f(xk1)
+        error = self.error_function(R)
+        converged = error < self.tol
+
+        # print(f"initial error: {error}")
+        j = 0
+        if not converged:
+            while j < self.max_iter:
+                # jacobian
+                # J = csr_matrix(approx_fprime(xk1, f, method="2-point"))
+                J = csr_matrix(approx_fprime(xk1, f, method="3-point"))
+
+                # Newton update
+                j += 1
+                # dx = spsolve(J, R, use_umfpack=True)
+                dx = lsqr(J, R)[0]
+                xk1 -= dx
+                R = f(xk1)
+
+                error = self.error_function(R)
+                # print(f" - j: {j}; error: {error}")
+                converged = error < self.tol
+                if converged:
+                    break
+
+            if not converged:
+                # raise RuntimeError("internal Newton-Raphson not converged")
+                print(f"not converged!")
+
+        return converged, j, error, xk1
+
+    def solve(self):
+        # lists storing output variables
+        t = [self.tk]
+        q = [self.qk]
+        u = [self.uk]
+        a = [np.zeros(self.nu)]
+        U = [self.Uk]
+        la_N = [self.la_Nk]
+        La_N = [self.La_Nk]
+        P_N = [self.dt * self.la_Nk + self.La_Nk]
+        la_F = [self.la_Fk]
+        La_F = [self.La_Fk]
+        P_F = [self.dt * self.la_Fk + self.La_Fk]
+
+        # pbar = tqdm(np.arange(self.t0, self.t1, self.dt))
+        # for _ in pbar:
+        for _ in np.arange(self.t0, self.t1, self.dt):
+            # perform a sovler step
+            tk1 = self.tk + self.dt
+            xk1 = self.xk.copy()
+            yk1 = self.yk.copy()
+
+            converged_x, n_iter_x, error_x, xk1 = self.step(xk1, self.Rx)
+            converged_y, n_iter_y, error_y, yk1 = self.step(yk1, self.Ry)
+
+            # update progress bar and check convergence
+            # pbar.set_description(
+            #     f"t: {tk1:0.2e}s < {self.t1:0.2e}s; Newton: {n_iter_x}/{self.max_iter} iterations; error: {error_x:0.2e}"
+            # )
+            print(f"t: {tk1:0.2e}s < {self.t1:0.2e}s")
+            print(
+                f"  Newton_x: {n_iter_x}/{self.max_iter} iterations; error: {error_x:0.2e}"
+            )
+            print(
+                f"  Newton_y: {n_iter_y}/{self.max_iter} iterations; error: {error_y:0.2e}"
+            )
+            if not (converged_x and converged_y):
+                print(
+                    f"internal Newton-Raphson method not converged after {n_iter_x} x-steps with error: {error_x:.5e}"
+                )
+                print(
+                    f"internal Newton-Raphson method not converged after {n_iter_y} y-steps with error: {error_y:.5e}"
+                )
+                # write solution
+                return Solution(
+                    t=np.array(t),
+                    q=np.array(q),
+                    u=np.array(u),
+                    a=np.array(a),
+                    U=np.array(U),
+                    la_N=np.array(la_N),
+                    La_N=np.array(La_N),
+                    P_N=np.array(P_N),
+                    la_F=np.array(la_F),
+                    La_F=np.array(La_F),
+                    P_F=np.array(P_F),
+                )
+
+            q_dotk1, u_dotk1, la_Nk1, la_Fk1 = self.unpack_x(xk1)
+            Uk1, La_Nk_plus, La_Fk_plus = self.unpack_y(yk1)
+
+            tk1, qk1, uk1 = self.update_x(xk1)
+            uk_plus = uk1 + Uk1
+
+            # modify converged quantities
+            qk1, uk1 = self.model.step_callback(tk1, qk1, uk1)
+
+            # update converged and updated quantities of previous time step
+            self.qk = qk1.copy()
+            # self.uk = uk1.copy()
+            self.uk = uk_plus.copy()
+            self.q_dotk = q_dotk1.copy()
+            self.u_dotk = u_dotk1.copy()
+
+            # store soltuion fields
+            t.append(tk1)
+            q.append(qk1)
+            u.append(uk1)
+            a.append((uk1 - self.uk) / self.dt)
+            U.append(Uk1)
+            la_N.append(la_Nk1)
+            La_N.append(La_Nk_plus)
+            P_N.append(self.dt * la_Nk1 + La_Nk_plus)
+            la_F.append(la_Fk1)
+            La_F.append(La_Fk_plus)
+            P_F.append(self.dt * la_Fk1 + La_Fk_plus)
+
+            # update local variables for accepted time step
+            self.tk = tk1
+            self.xk = xk1.copy()
+            self.yk = yk1.copy()
+
+        # write solution
+        return Solution(
+            t=np.array(t),
+            q=np.array(q),
+            u=np.array(u),
+            a=np.array(a),
+            U=np.array(U),
+            # la_g=np.array(la_g),
+            # La_g=np.array(La_g),
+            # P_g=np.array(P_g),
+            La_N=np.array(La_N),
+            la_N=np.array(la_N),
+            P_N=np.array(P_N),
+            la_F=np.array(la_F),
+            La_F=np.array(La_F),
+            P_F=np.array(P_F),
         )
 
 
