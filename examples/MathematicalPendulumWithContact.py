@@ -2,8 +2,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
-from scipy.integrate import solve_ivp
-
 from cardillo.model import Model
 from cardillo.solver import (
     Moreau,
@@ -195,8 +193,8 @@ if __name__ == "__main__":
 
     # end time and numerical dissipation of generalized-alpha solver
     # t_end = 0.1
-    t_end = 1
-    # t_end = 10
+    # t_end = 1
+    t_end = 3
     # dt = 5.0e-2
     dt = 1.0e-2
     # dt = 5.0e-3

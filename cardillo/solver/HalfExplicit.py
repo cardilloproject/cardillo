@@ -1,4 +1,5 @@
 import numpy as np
+from math import sqrt
 from scipy.sparse.linalg import spsolve
 from scipy.sparse import csr_matrix, csc_matrix, bmat
 from tqdm import tqdm
@@ -741,6 +742,128 @@ class NonsmoothHalfExplicitEulerGGL:
         qk1 = yk1[: self.nq]
         uk1 = yk1[self.nq : self.nq + self.nu]
 
+        # # #######################################################################
+        # # # three-stage Runge-Kutta,
+        # # # see https://de.wikipedia.org/wiki/Runge-Kutta-Verfahren#Beispiel
+        # # # This is not so easy and requires multiple solutions of c1, c2, c3,
+        # # # etc. See Hairer1996, Section VII.6, p 520.
+        # # #######################################################################
+        # dt = self.dt
+        # tk = self.tk
+        # yk = np.concatenate((self.qk, self.uk))
+        # k1 = self.f(tk, yk, np.zeros_like(zk1))
+        # k2 = self.f(tk + 0.5 * dt, yk + 0.5 * k1, np.zeros_like(zk1))
+        # k3 = self.f(tk + 1.0 * dt, yk - 1.0 * k1 + 2.0 * k2, 6 * zk1)
+        # # k1 = self.f(tk, yk, zk1 / 6)
+        # # k2 = self.f(tk + 0.5 * dt, yk + 0.5 * k1, zk1 * 4 / 6)
+        # # k3 = self.f(tk + 1.0 * dt, yk - 1.0 * k1 + 2.0 * k2, zk1 / 6)
+        # yk1 = yk + (k1 / 6 + 4 * k2 / 6 + k3 / 6)
+
+        # different methods, see https://de.wikipedia.org/wiki/Runge-Kutta-Verfahren#Beispiele
+
+        # ###############
+        # # forward Euler
+        # ###############
+        # c = [0.0]
+
+        # A = [[]]
+
+        # b = [1.0]
+
+        # ################
+        # # midpoint rule,
+        # # see https://en.wikipedia.org/wiki/Runge%E2%80%93Kutta_methods#Second-order_methods_with_two_stages
+        # ################
+        # c = [
+        #     0,
+        #     0.5,
+        # ]
+
+        # A = [
+        #     [],
+        #     [0.5],
+        # ]
+
+        # b = [
+        #     0.0,
+        #     1.0
+        # ]
+
+        # ##########################
+        # # classical Runge-Kutta 4,
+        # # see https://en.wikipedia.org/wiki/Runge%E2%80%93Kutta_methods#Examples
+        # ##########################
+        # ################
+        # c = [
+        #     0,
+        #     0.5,
+        #     0.5,
+        #     1.0,
+        # ]
+
+        # A = [
+        #     [],
+        #     [0.5],
+        #     [0.0, 0.5],
+        #     [0.0, 0.0, 1.0],
+        # ]
+
+        # b = [
+        #     1 / 6,
+        #     1 / 3,
+        #     1 / 3,
+        #     1 / 6,
+        # ]
+
+        # k = []
+
+        # dt = self.dt
+        # tk = self.tk
+        # yk = np.concatenate((self.qk, self.uk))
+        # s = len(c)
+        # for i, (ci, ai) in enumerate(zip(c, A)):
+        #     ti = tk + ci * dt
+
+        #     yi = yk + sum([
+        #         aij * k[j] for j, aij in enumerate(ai)
+        #     ])
+
+        #     # # always add Lagrange multiplier
+        #     # k.append(self.f(ti, yi, zk1 / b[i]))
+
+        #     # add Lagrange multiplier only at the last stage
+        #     if i < s - 1:
+        #         k.append(self.f(ti, yi, np.zeros_like(zk1)))
+        #     else:
+        #         k.append(self.f(ti, yi, zk1 / b[-1]))
+
+        # yk1 = yk + sum([
+        #     bj * kj for bj, kj in zip(b, k)
+        # ])
+
+        ######################################
+        # HEM4, see Brasey1993, table 5,
+        # https://www.jstor.org/stable/2158176
+        ######################################
+        # c = np.array([
+        #     3 / 10,
+        #     (4 - sqrt(6) / 10),
+        #     (4 + sqrt(6) / 10),
+        #     1,
+        # ], dtype=float)
+
+        # A = np.array([
+        #     [3 / 10, 0, 0, 0],
+        #     [(1 + sqrt(6)) / 10, (11 - 4 * sqrt(6)) / 30, 0, 0]
+        # ])
+
+        # ################################################
+        # # extract final solution for Runge-Kutta methods
+        # ################################################
+        # tk1 = tk + dt
+        # qk1 = yk1[:self.nq]
+        # uk1 = yk1[self.nq:]
+
         # bilateral constraints
         gk1 = self.model.g(tk1, qk1)
         g_dotk1 = self.model.g_dot(tk1, qk1, uk1)
@@ -761,6 +884,8 @@ class NonsmoothHalfExplicitEulerGGL:
         c_Nk1 = np.where(
             self.Ak1, xi_Nk1 - prox_R0_np(xi_Nk1 - self.model.prox_r_N * P_Nk1), P_Nk1
         )
+        # # no normal impacts
+        # c_Nk1 = P_Nk1
 
         ##########
         # friction
@@ -826,13 +951,14 @@ class NonsmoothHalfExplicitEulerGGL:
 
         # explicit Euler step
         dt = self.dt
-        uk1_smooth = self.uk + spsolve(Mk, hk * dt)
+        # TODO: How to get compute free velocity for higher order Runge-Kutta methods?
+        uk1_free = self.uk + spsolve(Mk, hk * dt)
         return np.concatenate(
             (
                 # self.model.q_dot(tk, qk, uk) * dt + g_qk.T @ mu_gk1 + g_N_qk.T @ mu_Nk1, # original version
-                self.model.q_dot(tk, qk, uk1_smooth) * dt
+                self.model.q_dot(tk, qk, uk1_free) * dt
                 + g_qk.T @ mu_gk1
-                + g_N_qk.T @ mu_Nk1,  # TODOD: This works without chattering!
+                + g_N_qk.T @ mu_Nk1,  # TODO: This works without chattering!
                 spsolve(
                     Mk,
                     hk * dt
@@ -846,17 +972,19 @@ class NonsmoothHalfExplicitEulerGGL:
 
     def step(self):
         # from scipy.optimize import fsolve
-        # zk1 = np.concatenate((self.P_Nk, self.mu_Nk, self.P_Fk))
+        # zk1 = np.concatenate(
+        #     (self.P_gk, self.mu_gk, self.P_gammak, self.P_Nk, self.mu_Nk, self.P_Fk)
+        # )
         # res = fsolve(lambda z: self.c(z)[0], zk1, full_output=1)
 
         # j = res[1]["nfev"]
         # converged = res[2]
         # zk1 = res[0]
 
-        # ck1, tk1, qk1, uk1, P_Nk1, mu_Nk1, P_Fk1 = self.c(zk1)
+        # ck1, tk1, qk1, uk1, P_gk1, mu_gk1, P_gammak1, P_Nk1, mu_Nk1, P_Fk1 = self.c(zk1)
         # error = self.error_function(ck1)
 
-        # return (converged, j, error), tk1, qk1, uk1, P_Nk1, mu_Nk1, P_Fk1
+        # return (converged, j, error), tk1, qk1, uk1, P_gk1, mu_gk1, P_gammak1, P_Nk1, mu_Nk1, P_Fk1
 
         j = 0
         converged = False

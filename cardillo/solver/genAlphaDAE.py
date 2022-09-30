@@ -1640,7 +1640,7 @@ class GenAlphaFirstOrderGGL2_V3:
 
 
 ##########################################################################
-# Subsequently follow the new implementations for the generalized alapha
+# Subsequently follow the new implementations for the generalized alpha
 # scheme for constrained mechanical systems in first and second order form
 ##########################################################################
 
