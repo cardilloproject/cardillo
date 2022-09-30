@@ -814,47 +814,17 @@ class NonsmoothHalfExplicitEulerGGL:
             1 / 6,
         ]
 
-        k_free = []
-        k = []
-
         dt = self.dt
         tk = self.tk
         yk = np.concatenate((self.qk, self.uk))
-        s = len(c)
-        for i, (ci, ai) in enumerate(zip(c, A)):
+
+        k = []
+        for ci, ai in zip(c, A):
             ti = tk + ci * dt
+            Yi = yk + sum([aij * kj for aij, kj in zip(ai, k)])
+            k.append(self.f(ti, Yi))
 
-            yi_free = yk + sum([aij * k_free[j] for j, aij in enumerate(ai)])
-
-            k_free.append(self.f(ti, yi_free))
-            # k_free.append(self.f_G(ti, yi_free, np.zeros_like(zk1)))
-            # if i == s - 1:
-            #     k_s = self.f(ti, yi_free, zk1) - k_free[-1]
-
-            # yi = yk + sum([
-            #     aij * k[j] for j, aij in enumerate(ai)
-            # ])
-
-            # # # always add Lagrange multiplier
-            # # k.append(self.f(ti, yi, zk1 / b[i]))
-
-            # # add Lagrange multiplier only at the last stage
-            # if i < s - 1:
-            #     k.append(self.f(ti, yi, np.zeros_like(zk1)))
-            # else:
-            #     k.append(self.f(ti, yi, zk1 / b[-1]))
-
-        # yk1 = yk + sum([
-        #     bj * kj for bj, kj in zip(b, k)
-        # ])
-
-        # yk1 = yk + sum([
-        #     bj * kj for bj, kj in zip(b, k_free)
-        # ]) + k_s
-
-        yk1 = (
-            yk + sum([bj * kj for bj, kj in zip(b, k_free)]) + self.G(ti, yi_free) @ zk1
-        )
+        yk1 = yk + sum([bj * kj for bj, kj in zip(b, k)]) + self.G(ti, Yi) @ zk1
 
         ######################################
         # HEM4, see Brasey1993, table 5,
@@ -997,12 +967,13 @@ class NonsmoothHalfExplicitEulerGGL:
         # explicit Euler step
         dt = self.dt
         # TODO: How to get compute free velocity for higher order Runge-Kutta methods?
-        # uk1_free = self.uk + spsolve(Mk, hk * dt)
+        u_dotk1_free = spsolve(Mk, hk * dt)
+        # uk1_free = uk + u_dotk1_free
         return np.concatenate(
             (
                 self.model.q_dot(tk, qk, uk) * dt,  # original version
-                # self.model.q_dot(tk, qk, uk1_free) # TODO: This works without chattering!
-                spsolve(Mk, hk * dt),
+                # self.model.q_dot(tk, qk, uk1_free) * dt,  # TODO: This works without chattering!
+                u_dotk1_free,
             )
         )
 
