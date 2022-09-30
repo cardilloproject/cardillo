@@ -186,9 +186,9 @@ class HalfExplicitEuler:
 
             # compute Jacobian and make a Newton step
             c_kappak1 = next(gen)
+            kappa_k1 -= spsolve(c_kappak1, ck1)
             # kappa_k1 -= spsolve(c_kappak1, ck1)
-            # kappa_k1 -= spsolve(c_kappak1, ck1)
-            kappa_k1 -= np.linalg.lstsq(c_kappak1.toarray(), ck1)[0]
+            # kappa_k1 -= np.linalg.lstsq(c_kappak1.toarray(), ck1)[0]
 
             # # fixed-point iteration
             # # self.atol = 1.0e-4
@@ -733,14 +733,13 @@ class NonsmoothHalfExplicitEulerGGL:
         ]
         P_Fk1 = zk1[2 * self.nla_g + self.nla_gamma + 2 * self.nla_N :]
 
-        #####################
-        # explicit Euler step
-        #####################
-        tk1 = self.tk + self.dt
-        yk = np.concatenate((self.qk, self.uk))
-        yk1 = yk + self.f(self.tk, yk, zk1)
-        qk1 = yk1[: self.nq]
-        uk1 = yk1[self.nq : self.nq + self.nu]
+        # #####################
+        # # explicit Euler step
+        # #####################
+        # tk1 = self.tk + self.dt
+        # yk = np.concatenate((self.qk, self.uk))
+        # # yk1 = yk + self.f_G(self.tk, yk, zk1)
+        # yk1 = yk + self.f(self.tk, yk) + self.G(self.tk, yk) @ zk1
 
         # # #######################################################################
         # # # three-stage Runge-Kutta,
@@ -789,57 +788,73 @@ class NonsmoothHalfExplicitEulerGGL:
         #     1.0
         # ]
 
-        # ##########################
-        # # classical Runge-Kutta 4,
-        # # see https://en.wikipedia.org/wiki/Runge%E2%80%93Kutta_methods#Examples
-        # ##########################
-        # ################
-        # c = [
-        #     0,
-        #     0.5,
-        #     0.5,
-        #     1.0,
-        # ]
+        ##########################
+        # classical Runge-Kutta 4,
+        # see https://en.wikipedia.org/wiki/Runge%E2%80%93Kutta_methods#Examples
+        ##########################
+        ################
+        c = [
+            0,
+            0.5,
+            0.5,
+            1.0,
+        ]
 
-        # A = [
-        #     [],
-        #     [0.5],
-        #     [0.0, 0.5],
-        #     [0.0, 0.0, 1.0],
-        # ]
+        A = [
+            [],
+            [0.5],
+            [0.0, 0.5],
+            [0.0, 0.0, 1.0],
+        ]
 
-        # b = [
-        #     1 / 6,
-        #     1 / 3,
-        #     1 / 3,
-        #     1 / 6,
-        # ]
+        b = [
+            1 / 6,
+            1 / 3,
+            1 / 3,
+            1 / 6,
+        ]
 
-        # k = []
+        k_free = []
+        k = []
 
-        # dt = self.dt
-        # tk = self.tk
-        # yk = np.concatenate((self.qk, self.uk))
-        # s = len(c)
-        # for i, (ci, ai) in enumerate(zip(c, A)):
-        #     ti = tk + ci * dt
+        dt = self.dt
+        tk = self.tk
+        yk = np.concatenate((self.qk, self.uk))
+        s = len(c)
+        for i, (ci, ai) in enumerate(zip(c, A)):
+            ti = tk + ci * dt
 
-        #     yi = yk + sum([
-        #         aij * k[j] for j, aij in enumerate(ai)
-        #     ])
+            yi_free = yk + sum([aij * k_free[j] for j, aij in enumerate(ai)])
 
-        #     # # always add Lagrange multiplier
-        #     # k.append(self.f(ti, yi, zk1 / b[i]))
+            k_free.append(self.f(ti, yi_free))
+            # k_free.append(self.f_G(ti, yi_free, np.zeros_like(zk1)))
+            # if i == s - 1:
+            #     k_s = self.f(ti, yi_free, zk1) - k_free[-1]
 
-        #     # add Lagrange multiplier only at the last stage
-        #     if i < s - 1:
-        #         k.append(self.f(ti, yi, np.zeros_like(zk1)))
-        #     else:
-        #         k.append(self.f(ti, yi, zk1 / b[-1]))
+            # yi = yk + sum([
+            #     aij * k[j] for j, aij in enumerate(ai)
+            # ])
+
+            # # # always add Lagrange multiplier
+            # # k.append(self.f(ti, yi, zk1 / b[i]))
+
+            # # add Lagrange multiplier only at the last stage
+            # if i < s - 1:
+            #     k.append(self.f(ti, yi, np.zeros_like(zk1)))
+            # else:
+            #     k.append(self.f(ti, yi, zk1 / b[-1]))
 
         # yk1 = yk + sum([
         #     bj * kj for bj, kj in zip(b, k)
         # ])
+
+        # yk1 = yk + sum([
+        #     bj * kj for bj, kj in zip(b, k_free)
+        # ]) + k_s
+
+        yk1 = (
+            yk + sum([bj * kj for bj, kj in zip(b, k_free)]) + self.G(ti, yi_free) @ zk1
+        )
 
         ######################################
         # HEM4, see Brasey1993, table 5,
@@ -857,12 +872,12 @@ class NonsmoothHalfExplicitEulerGGL:
         #     [(1 + sqrt(6)) / 10, (11 - 4 * sqrt(6)) / 30, 0, 0]
         # ])
 
-        # ################################################
-        # # extract final solution for Runge-Kutta methods
-        # ################################################
-        # tk1 = tk + dt
-        # qk1 = yk1[:self.nq]
-        # uk1 = yk1[self.nq:]
+        ################################################
+        # extract final solution for Runge-Kutta methods
+        ################################################
+        tk1 = self.tk + self.dt
+        qk1 = yk1[: self.nq]
+        uk1 = yk1[self.nq :]
 
         # bilateral constraints
         gk1 = self.model.g(tk1, qk1)
@@ -884,8 +899,6 @@ class NonsmoothHalfExplicitEulerGGL:
         c_Nk1 = np.where(
             self.Ak1, xi_Nk1 - prox_R0_np(xi_Nk1 - self.model.prox_r_N * P_Nk1), P_Nk1
         )
-        # # no normal impacts
-        # c_Nk1 = P_Nk1
 
         ##########
         # friction
@@ -915,7 +928,7 @@ class NonsmoothHalfExplicitEulerGGL:
             )
         )
 
-    def f(self, tk, yk, zk1):
+    def f_G(self, tk, yk, zk1):
         # unpack state
         qk = yk[: self.nq]
         uk = yk[self.nq : self.nq + self.nu]
@@ -952,13 +965,15 @@ class NonsmoothHalfExplicitEulerGGL:
         # explicit Euler step
         dt = self.dt
         # TODO: How to get compute free velocity for higher order Runge-Kutta methods?
-        uk1_free = self.uk + spsolve(Mk, hk * dt)
+        # uk1_free = self.uk + spsolve(Mk, hk * dt)
         return np.concatenate(
             (
-                # self.model.q_dot(tk, qk, uk) * dt + g_qk.T @ mu_gk1 + g_N_qk.T @ mu_Nk1, # original version
-                self.model.q_dot(tk, qk, uk1_free) * dt
+                self.model.q_dot(tk, qk, uk) * dt
                 + g_qk.T @ mu_gk1
-                + g_N_qk.T @ mu_Nk1,  # TODO: This works without chattering!
+                + g_N_qk.T @ mu_Nk1,  # original version
+                # self.model.q_dot(tk, qk, uk1_free) * dt
+                # + g_qk.T @ mu_gk1
+                # + g_N_qk.T @ mu_Nk1,  # TODO: This works without chattering!
                 spsolve(
                     Mk,
                     hk * dt
@@ -969,6 +984,46 @@ class NonsmoothHalfExplicitEulerGGL:
                 ),
             )
         )
+
+    def f(self, tk, yk):
+        # unpack state
+        qk = yk[: self.nq]
+        uk = yk[self.nq : self.nq + self.nu]
+
+        # evaluate quantities of previous time step
+        Mk = self.model.M(tk, qk, scipy_matrix=csr_matrix)
+        hk = self.model.h(tk, qk, uk)
+
+        # explicit Euler step
+        dt = self.dt
+        # TODO: How to get compute free velocity for higher order Runge-Kutta methods?
+        # uk1_free = self.uk + spsolve(Mk, hk * dt)
+        return np.concatenate(
+            (
+                self.model.q_dot(tk, qk, uk) * dt,  # original version
+                # self.model.q_dot(tk, qk, uk1_free) # TODO: This works without chattering!
+                spsolve(Mk, hk * dt),
+            )
+        )
+
+    def G(self, tk, yk):
+        # unpack state
+        qk = yk[: self.nq]
+
+        # evaluate quantities of previous time step
+        W_gk = self.model.W_g(tk, qk, scipy_matrix=csr_matrix)
+        W_gammak = self.model.W_gamma(tk, qk, scipy_matrix=csr_matrix)
+        g_qk = self.model.g_q(tk, qk, scipy_matrix=csr_matrix)
+        W_Nk = self.model.W_N(tk, qk, scipy_matrix=csr_matrix)
+        g_N_qk = self.model.g_N_q(tk, qk, scipy_matrix=csr_matrix)
+        W_Fk = self.model.W_F(tk, qk, scipy_matrix=csr_matrix)
+
+        # fmt: off
+        return bmat([
+            [None, g_qk.T,     None, None, g_N_qk.T, None],
+            [W_gk,   None, W_gammak, W_Nk, None, W_Fk]
+        ])
+        # fmt: on
 
     def step(self):
         # from scipy.optimize import fsolve

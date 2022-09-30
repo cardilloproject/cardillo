@@ -185,9 +185,9 @@ if __name__ == "__main__":
     # t1 = 20
     # dt = 1e-1
     # dt = 5e-2
-    # dt = 1e-2
+    dt = 1e-2
     # dt = 5e-3
-    dt = 1e-3
+    # dt = 1e-3
     # dt = 5e-4
 
     # solve problem
@@ -230,58 +230,6 @@ if __name__ == "__main__":
     P_N_moreau = sol_moreau.P_N
     P_F_moreau = sol_moreau.P_F
 
-    ###########
-    # animation
-    ###########
-    lim = 5
-    s = np.linspace(-lim, lim, num=100)
-    parabola = np.array([ball.parabola(si) for si in s])
-
-    t = t_moreau
-    q = q_moreau
-
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    ax.set_xlabel("x [m]")
-    ax.set_ylabel("y [m]")
-    ax.axis("equal")
-    ax.set_xlim(-lim, lim)
-    ax.set_ylim(-lim, lim)
-
-    # prepare data for animation
-    frames = len(t)
-    target_frames = min(len(t), 200)
-    frac = int(frames / target_frames)
-    animation_time = 1
-    interval = animation_time * 1000 / target_frames
-
-    frames = target_frames
-    t = t[::frac]
-    q = q[::frac]
-
-    # parabola
-    ax.plot(*parabola.T, "-k")
-
-    # point mass
-    (com,) = ax.plot([], [], "-ok")
-
-    def update(t, q, com):
-        x, y = q
-        com.set_data([x], [y])
-
-        return com
-
-    def animate(i):
-        update(t[i], q[i], com)
-
-    anim = animation.FuncAnimation(
-        fig, animate, frames=frames, interval=interval, blit=False
-    )
-
-    # plt.show()
-
-    # exit()
-
     ###############
     # visualization
     ###############
@@ -312,61 +260,52 @@ if __name__ == "__main__":
     ax[3].grid()
     ax[3].legend()
 
-    plt.show()
-
-    exit()
-
+    ###########
     # animation
-    # t = t_moreau
-    # q = q_moreau
-    t = t_other
-    q = q_other
+    ###########
+    lim = 14
+    s = np.linspace(-lim, lim, num=100)
+    parabola = np.array([ball.parabola(si) for si in s])
 
-    if True:
+    t = t_moreau
+    q = q_moreau
 
-        fig = plt.figure()
-        ax = fig.add_subplot(111)
-        ax.set_xlabel("x [m]")
-        ax.set_ylabel("y [m]")
-        ax.axis("equal")
-        ax.set_xlim(-2 * y0, 2 * y0)
-        ax.set_ylim(-2 * y0, 2 * y0)
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.set_xlabel("x [m]")
+    ax.set_ylabel("y [m]")
+    ax.axis("equal")
+    ax.set_xlim(-lim, lim)
+    ax.set_ylim(-lim, lim)
 
-        # prepare data for animation
-        frames = len(t)
-        target_frames = min(len(t), 200)
-        frac = int(frames / target_frames)
-        animation_time = 5
-        interval = animation_time * 1000 / target_frames
+    # prepare data for animation
+    frames = len(t)
+    target_frames = min(len(t), 200)
+    frac = int(frames / target_frames)
+    animation_time = 3
+    interval = animation_time * 1000 / target_frames
 
-        frames = target_frames
-        t = t[::frac]
-        q = q[::frac]
+    frames = target_frames
+    t = t[::frac]
+    q = q[::frac]
 
-        # horizontal plane
-        ax.plot([-2 * y0, 2 * y0], [0, 0], "-k")
+    # parabola
+    ax.plot(*parabola.T, "-k")
 
-        def create(t, q):
-            (COM,) = ax.plot([], [], "ok")
-            (bdry,) = ax.plot([], [], "-k")
-            return COM, bdry
+    # point mass
+    (com,) = ax.plot([], [], "-or")
 
-        COM, bdry = create(0, q[0])
+    def update(t, q, com):
+        x, y = q
+        com.set_data([x], [y])
 
-        def update(t, q, COM, bdry):
-            x_S, y_S, _ = ball.r_OS(q)
-            x_bdry, y_bdry, _ = ball.boundary(q)
+        return com
 
-            COM.set_data([x_S], [y_S])
-            bdry.set_data(x_bdry, y_bdry)
+    def animate(i):
+        update(t[i], q[i], com)
 
-            return COM, bdry
-
-        def animate(i):
-            update(t[i], q[i], COM, bdry)
-
-        anim = animation.FuncAnimation(
-            fig, animate, frames=frames, interval=interval, blit=False
-        )
+    anim = animation.FuncAnimation(
+        fig, animate, frames=frames, interval=interval, blit=False
+    )
 
     plt.show()
