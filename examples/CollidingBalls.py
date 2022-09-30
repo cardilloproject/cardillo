@@ -78,27 +78,27 @@ if __name__ == "__main__":
     eps = 1.0e-1
     y0 = 1
 
-    # random
-    ball1 = initalize_ball(1, 0.5, np.array([-0.5 - eps, y0, 0]), np.array([0, 0, 0]))
-    ball2 = initalize_ball(1, 0.5, np.array([0.5 + eps, y0, 0]), np.array([0, 0, 0]))
-    ball3 = initalize_ball(
-        1, 0.5, np.array([eps, y0 + 1.0 + eps, 0]), np.array([0, 0, 0])
-    )
-    ball4 = initalize_ball(
-        1, 0.5, np.array([-eps, y0 + 2.0 + 2 * eps, 0]), np.array([0, 0, 0])
-    )
-
-    # # tower
-    # ball1 = initalize_ball(1, 0.5, np.array([0, y0, 0]), np.array([0, 0, 0]))
-    # ball2 = initalize_ball(
-    #     1, 0.5, np.array([0, y0 + (1.0 + eps), 0]), np.array([0, 0, 0])
-    # )
+    # # random
+    # ball1 = initalize_ball(1, 0.5, np.array([-0.5 - eps, y0, 0]), np.array([0, 0, 0]))
+    # ball2 = initalize_ball(1, 0.5, np.array([0.5 + eps, y0, 0]), np.array([0, 0, 0]))
     # ball3 = initalize_ball(
-    #     1, 0.5, np.array([0, y0 + 2.0 * (1.0 + eps), 0]), np.array([0, 0, 0])
+    #     1, 0.5, np.array([eps, y0 + 1.0 + eps, 0]), np.array([0, 0, 0])
     # )
     # ball4 = initalize_ball(
-    #     1, 0.5, np.array([0, y0 + 3.0 * (1.0 + eps), 0]), np.array([0, 0, 0])
+    #     1, 0.5, np.array([-eps, y0 + 2.0 + 2 * eps, 0]), np.array([0, 0, 0])
     # )
+
+    # tower
+    ball1 = initalize_ball(1, 0.5, np.array([0, y0, 0]), np.array([0, 0, 0]))
+    ball2 = initalize_ball(
+        1, 0.5, np.array([0, y0 + (1.0 + eps), 0]), np.array([0, 0, 0])
+    )
+    ball3 = initalize_ball(
+        1, 0.5, np.array([0, y0 + 2.0 * (1.0 + eps), 0]), np.array([0, 0, 0])
+    )
+    ball4 = initalize_ball(
+        1, 0.5, np.array([0, y0 + 3.0 * (1.0 + eps), 0]), np.array([0, 0, 0])
+    )
 
     # # four parallel
     # ball1 = initalize_ball(1, 0.5, np.array([-1.0 * (1.0 + eps), y0, 0]), np.array([0, 0, 0]))
@@ -175,14 +175,14 @@ if __name__ == "__main__":
         la_N_other = sol_other.la_N
         La_N_other = sol_other.La_N
 
-    sol_moreau = Moreau(model, t1, dt).solve()
-    t_moreau = sol_moreau.t
-    q_moreau = sol_moreau.q
-    u_moreau = sol_moreau.u
-    a_moreau = np.zeros_like(u_moreau)
-    a_moreau[1:] = (u_moreau[1:] - u_moreau[:-1]) / dt
-    P_N_moreau = sol_moreau.P_N
-    P_F_moreau = sol_moreau.P_F
+    # sol_moreau = Moreau(model, t1, dt).solve()
+    # t_moreau = sol_moreau.t
+    # q_moreau = sol_moreau.q
+    # u_moreau = sol_moreau.u
+    # a_moreau = np.zeros_like(u_moreau)
+    # a_moreau[1:] = (u_moreau[1:] - u_moreau[:-1]) / dt
+    # P_N_moreau = sol_moreau.P_N
+    # P_F_moreau = sol_moreau.P_F
 
     # # visualization
     # fig, ax = plt.subplots(3, 1)

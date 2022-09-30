@@ -1,5 +1,4 @@
 import numpy as np
-from math import sqrt
 from scipy.sparse.linalg import spsolve
 from scipy.sparse import csr_matrix, csc_matrix, bmat
 from tqdm import tqdm
@@ -739,7 +738,7 @@ class NonsmoothHalfExplicitEulerGGL:
         # tk1 = self.tk + self.dt
         # yk = np.concatenate((self.qk, self.uk))
         # # yk1 = yk + self.f_G(self.tk, yk, zk1)
-        # yk1 = yk + self.f(self.tk, yk) + self.G(self.tk, yk) @ zk1
+        # yk1 = yk + self.f(self.tk, yk) + self.G_z(self.tk, yk, zk1)
 
         # # #######################################################################
         # # # three-stage Runge-Kutta,
@@ -760,59 +759,59 @@ class NonsmoothHalfExplicitEulerGGL:
 
         # different methods, see https://de.wikipedia.org/wiki/Runge-Kutta-Verfahren#Beispiele
 
-        # ###############
-        # # forward Euler
-        # ###############
-        # c = [0.0]
+        ###############
+        # forward Euler
+        ###############
+        c = [0.0]
 
-        # A = [[]]
+        A = [[]]
 
-        # b = [1.0]
+        b = [1.0]
 
-        # ################
-        # # midpoint rule,
-        # # see https://en.wikipedia.org/wiki/Runge%E2%80%93Kutta_methods#Second-order_methods_with_two_stages
+        # # ################
+        # # # midpoint rule,
+        # # # see https://en.wikipedia.org/wiki/Runge%E2%80%93Kutta_methods#Second-order_methods_with_two_stages
+        # # ################
+        # # c = [
+        # #     0,
+        # #     0.5,
+        # # ]
+
+        # # A = [
+        # #     [],
+        # #     [0.5],
+        # # ]
+
+        # # b = [
+        # #     0.0,
+        # #     1.0
+        # # ]
+
+        # ##########################
+        # # classical Runge-Kutta 4,
+        # # see https://en.wikipedia.org/wiki/Runge%E2%80%93Kutta_methods#Examples
+        # ##########################
         # ################
         # c = [
         #     0,
         #     0.5,
+        #     0.5,
+        #     1.0,
         # ]
 
         # A = [
         #     [],
         #     [0.5],
+        #     [0.0, 0.5],
+        #     [0.0, 0.0, 1.0],
         # ]
 
         # b = [
-        #     0.0,
-        #     1.0
+        #     1 / 6,
+        #     1 / 3,
+        #     1 / 3,
+        #     1 / 6,
         # ]
-
-        ##########################
-        # classical Runge-Kutta 4,
-        # see https://en.wikipedia.org/wiki/Runge%E2%80%93Kutta_methods#Examples
-        ##########################
-        ################
-        c = [
-            0,
-            0.5,
-            0.5,
-            1.0,
-        ]
-
-        A = [
-            [],
-            [0.5],
-            [0.0, 0.5],
-            [0.0, 0.0, 1.0],
-        ]
-
-        b = [
-            1 / 6,
-            1 / 3,
-            1 / 3,
-            1 / 6,
-        ]
 
         dt = self.dt
         tk = self.tk
@@ -824,23 +823,23 @@ class NonsmoothHalfExplicitEulerGGL:
             Yi = yk + sum([aij * kj for aij, kj in zip(ai, k)])
             k.append(self.f(ti, Yi))
 
-        yk1 = yk + sum([bj * kj for bj, kj in zip(b, k)]) + self.G(ti, Yi) @ zk1
+        yk1 = yk + sum([bj * kj for bj, kj in zip(b, k)]) + self.G_z(ti, Yi, zk1)
 
-        ######################################
-        # HEM4, see Brasey1993, table 5,
-        # https://www.jstor.org/stable/2158176
-        ######################################
-        # c = np.array([
-        #     3 / 10,
-        #     (4 - sqrt(6) / 10),
-        #     (4 + sqrt(6) / 10),
-        #     1,
-        # ], dtype=float)
+        # ######################################
+        # # HEM4, see Brasey1993, table 5,
+        # # https://www.jstor.org/stable/2158176
+        # ######################################
+        # # c = np.array([
+        # #     3 / 10,
+        # #     (4 - sqrt(6) / 10),
+        # #     (4 + sqrt(6) / 10),
+        # #     1,
+        # # ], dtype=float)
 
-        # A = np.array([
-        #     [3 / 10, 0, 0, 0],
-        #     [(1 + sqrt(6)) / 10, (11 - 4 * sqrt(6)) / 30, 0, 0]
-        # ])
+        # # A = np.array([
+        # #     [3 / 10, 0, 0, 0],
+        # #     [(1 + sqrt(6)) / 10, (11 - 4 * sqrt(6)) / 30, 0, 0]
+        # # ])
 
         ################################################
         # extract final solution for Runge-Kutta methods
@@ -861,9 +860,11 @@ class NonsmoothHalfExplicitEulerGGL:
 
         prox_arg_pos = g_Nk1 - self.model.prox_r_N * mu_Nk1
         c_Nk1_stab = g_Nk1 - prox_R0_np(prox_arg_pos)
+        # c_Nk1_stab = mu_Nk1
 
         if update_index_set:
             # self.Ak1 = g_Nk1 <= 0
+            # TODO: This together with u_k1_free removes chattering!
             self.Ak1 = prox_arg_pos <= 0
 
         c_Nk1 = np.where(
@@ -935,15 +936,15 @@ class NonsmoothHalfExplicitEulerGGL:
         # explicit Euler step
         dt = self.dt
         # TODO: How to get compute free velocity for higher order Runge-Kutta methods?
-        # uk1_free = self.uk + spsolve(Mk, hk * dt)
+        uk1_free = self.uk + spsolve(Mk, hk * dt)
         return np.concatenate(
             (
-                self.model.q_dot(tk, qk, uk) * dt
-                + g_qk.T @ mu_gk1
-                + g_N_qk.T @ mu_Nk1,  # original version
-                # self.model.q_dot(tk, qk, uk1_free) * dt
+                # self.model.q_dot(tk, qk, uk) * dt
                 # + g_qk.T @ mu_gk1
-                # + g_N_qk.T @ mu_Nk1,  # TODO: This works without chattering!
+                # + g_N_qk.T @ mu_Nk1,  # original version
+                self.model.q_dot(tk, qk, uk1_free) * dt
+                + g_qk.T @ mu_gk1
+                + g_N_qk.T @ mu_Nk1,  # TODO: This works without chattering!
                 spsolve(
                     Mk,
                     hk * dt
@@ -968,20 +969,41 @@ class NonsmoothHalfExplicitEulerGGL:
         dt = self.dt
         # TODO: How to get compute free velocity for higher order Runge-Kutta methods?
         u_dotk1_free = spsolve(Mk, hk * dt)
-        # uk1_free = uk + u_dotk1_free
+        uk1_free = uk + u_dotk1_free
         return np.concatenate(
             (
-                self.model.q_dot(tk, qk, uk) * dt,  # original version
-                # self.model.q_dot(tk, qk, uk1_free) * dt,  # TODO: This works without chattering!
+                # self.model.q_dot(tk, qk, uk) * dt,  # original version
+                self.model.q_dot(tk, qk, uk1_free)
+                * dt,  # TODO: This works without chattering!
                 u_dotk1_free,
             )
         )
 
-    def G(self, tk, yk):
+    def G_z(self, tk, yk, zk1):
         # unpack state
         qk = yk[: self.nq]
 
+        # unpack percussions
+        P_gk1 = zk1[: self.nla_g]
+        mu_gk1 = zk1[self.nla_g : 2 * self.nla_g]
+        P_gammak1 = zk1[2 * self.nla_g : 2 * self.nla_g + self.nla_gamma]
+        P_Nk1 = zk1[
+            2 * self.nla_g
+            + self.nla_gamma : 2 * self.nla_g
+            + self.nla_gamma
+            + self.nla_N
+        ]
+        mu_Nk1 = zk1[
+            2 * self.nla_g
+            + self.nla_gamma
+            + self.nla_N : 2 * self.nla_g
+            + self.nla_gamma
+            + 2 * self.nla_N
+        ]
+        P_Fk1 = zk1[2 * self.nla_g + self.nla_gamma + 2 * self.nla_N :]
+
         # evaluate quantities of previous time step
+        Mk = self.model.M(tk, qk, scipy_matrix=csc_matrix)
         W_gk = self.model.W_g(tk, qk, scipy_matrix=csr_matrix)
         W_gammak = self.model.W_gamma(tk, qk, scipy_matrix=csr_matrix)
         g_qk = self.model.g_q(tk, qk, scipy_matrix=csr_matrix)
@@ -989,12 +1011,15 @@ class NonsmoothHalfExplicitEulerGGL:
         g_N_qk = self.model.g_N_q(tk, qk, scipy_matrix=csr_matrix)
         W_Fk = self.model.W_F(tk, qk, scipy_matrix=csr_matrix)
 
-        # fmt: off
-        return bmat([
-            [None, g_qk.T,     None, None, g_N_qk.T, None],
-            [W_gk,   None, W_gammak, W_Nk, None, W_Fk]
-        ])
-        # fmt: on
+        return np.concatenate(
+            [
+                g_qk.T @ mu_gk1 + g_N_qk.T @ mu_Nk1,
+                spsolve(
+                    Mk,
+                    W_gk @ P_gk1 + W_gammak @ P_gammak1 + W_Nk @ P_Nk1 + W_Fk @ P_Fk1,
+                ),
+            ]
+        )
 
     def step(self):
         # from scipy.optimize import fsolve
