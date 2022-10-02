@@ -2828,15 +2828,23 @@ class Remco:
         ####################
         # euations of motion
         ####################
+        # self.f_free = hk1 + W_Nk1 @ la_Nk1 + W_Fk1 @ la_Fk1
+        self.Delta_uk1_free = self.dt * spsolve(
+            Mk1, hk1 + W_Nk1 @ la_Nk1 + W_Fk1 @ la_Fk1
+        )
         Rx[nq : nq + nu] = Mk1 @ u_dotk1 - hk1 - W_Nk1 @ la_Nk1 - W_Fk1 @ la_Fk1
 
         ################
         # normal contact
         ################
+        prox_arg = g_Nk1 - self.model.prox_r_N * la_Nk1
+        self.I_N = prox_arg <= 0.0
+        Rx[nq + nu : nq + nu + nla_N] = g_Nk1 - prox_R0_np(prox_arg)
+
         # Rx[nq + nu : nq + nu + nla_N] = g_Nk1 - prox_R0_np(
         #     g_Nk1 - self.model.prox_r_N * la_Nk1
         # )
-        Rx[nq + nu : nq + nu + nla_N] = la_Nk1
+        # Rx[nq + nu : nq + nu + nla_N] = la_Nk1
 
         ##########
         # TODO: friction
@@ -2890,9 +2898,6 @@ class Remco:
         xi_Nk1_plus = self.model.xi_N(tk1, qk1, self.uk, uk1_plus)
         xi_Fk1_plus = self.model.xi_F(tk1, qk1, self.uk, uk1_plus)
 
-        # compute set of active contacts
-        I_N = g_Nk1 <= 0
-
         ###################
         # evaluate residual
         ###################
@@ -2907,7 +2912,7 @@ class Remco:
         # impact law
         ############
         Ry[nu : nu + nla_N] = np.select(
-            I_N,
+            self.I_N,
             xi_Nk1_plus - prox_R0_np(xi_Nk1_plus - self.model.prox_r_N * La_Nk1),
             La_Nk1,
         )
@@ -2918,7 +2923,7 @@ class Remco:
 
         #     if len(i_F) > 0:
         #         Ry[nu + nla_N + i_F] = np.where(
-        #             I_N[i_N] * np.ones(len(i_F), dtype=bool),
+        #             self.I_N[i_N] * np.ones(len(i_F), dtype=bool),
         #             -La_Fk1[i_F]
         #             - prox_sphere(
         #                 -La_Fk1[i_F] + self.model.prox_r_F[i_N] * xi_Fk1_plus[i_F],
