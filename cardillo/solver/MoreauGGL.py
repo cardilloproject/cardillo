@@ -2695,6 +2695,7 @@ class RemcoOriginal:
         )
 
 
+# TODO: Bilateral constraints!
 class Remco:
     def __init__(
         self,
@@ -2793,10 +2794,10 @@ class Remco:
 
         # backward Euler
         tk1 = self.tk + self.dt
-        uk1 = self.uk + self.dt * u_dotk1
+        uk1_free = self.uk + self.dt * u_dotk1
         qk1 = self.qk + self.dt * q_dotk1
 
-        return tk1, qk1, uk1
+        return tk1, qk1, uk1_free
 
     def Rx(self, xk1):
         nq = self.nq
@@ -2805,15 +2806,15 @@ class Remco:
         mu = self.model.mu
 
         q_dotk1, u_dotk1, la_Nk1, la_Fk1 = self.unpack_x(xk1)
-        tk1, qk1, uk1 = self.update_x(xk1)
+        tk1, qk1, uk1_free = self.update_x(xk1)
 
         # evaluate repeatedly used quantities
         Mk1 = self.model.M(tk1, qk1)
-        hk1 = self.model.h(tk1, qk1, uk1)
+        hk1 = self.model.h(tk1, qk1, uk1_free)
         W_Nk1 = self.model.W_N(tk1, qk1, scipy_matrix=csr_matrix)
         W_Fk1 = self.model.W_F(tk1, qk1, scipy_matrix=csr_matrix)
         g_Nk1 = self.model.g_N(tk1, qk1)
-        xi_Fk1 = self.model.xi_F(tk1, qk1, self.uk, uk1)
+        xi_Fk1 = self.model.xi_F(tk1, qk1, self.uk, uk1_free)
 
         ###################
         # evaluate residual
@@ -2823,7 +2824,7 @@ class Remco:
         ####################
         # kinematic equation
         ####################
-        Rx[:nq] = q_dotk1 - self.model.q_dot(tk1, qk1, uk1)
+        Rx[:nq] = q_dotk1 - self.model.q_dot(tk1, qk1, uk1_free)
 
         ####################
         # euations of motion
@@ -2840,9 +2841,6 @@ class Remco:
         ##########
         # friction
         ##########
-        # # no friction (for test purpose)
-        # Rx[nq + nu + nla_N :] = la_Fk1
-
         for i_N, i_F in enumerate(self.model.NF_connectivity):
             i_F = np.array(i_F)
 
@@ -2860,10 +2858,11 @@ class Remco:
         # update quantities of new time step
         self.tk1 = tk1
         self.qk1 = qk1
-        self.uk1 = uk1
+        self.uk1_free = uk1_free
 
         return Rx
 
+    # TODO: Solve this using a fixed-point iteration as in Moreau. Or an LCP solver?
     def Ry(self, yk1):
         nu = self.nu
         nla_N = self.nla_N
@@ -2872,21 +2871,20 @@ class Remco:
         # quantities of old time step
         tk1 = self.tk1
         qk1 = self.qk1
-        uk1 = self.uk1
+        uk1_free = self.uk1_free
 
         # unpack xk1
         Uk1, La_Nk1, La_Fk1 = self.unpack_y(yk1)
 
         # update velocities
-        uk1_plus = uk1 + Uk1
+        uk1 = uk1_free + Uk1
 
         # evaluate repeatedly used quantities
         Mk1 = self.model.M(tk1, qk1)
         W_Nk1 = self.model.W_N(tk1, qk1, scipy_matrix=csr_matrix)
         W_Fk1 = self.model.W_F(tk1, qk1, scipy_matrix=csr_matrix)
-        g_Nk1 = self.model.g_N(tk1, qk1)
-        xi_Nk1_plus = self.model.xi_N(tk1, qk1, self.uk, uk1_plus)
-        xi_Fk1_plus = self.model.xi_F(tk1, qk1, self.uk, uk1_plus)
+        xi_Nk1_plus = self.model.xi_N(tk1, qk1, self.uk, uk1)
+        xi_Fk1_plus = self.model.xi_F(tk1, qk1, self.uk, uk1)
 
         ###################
         # evaluate residual
@@ -2906,9 +2904,6 @@ class Remco:
             xi_Nk1_plus - prox_R0_np(xi_Nk1_plus - self.model.prox_r_N * La_Nk1),
             La_Nk1,
         )
-
-        # # no frictio
-        # Ry[nu + nla_N :] = La_Fk1
 
         ####################
         # tangent impact law
@@ -2940,18 +2935,17 @@ class Remco:
         if not converged:
             while j < self.max_iter:
                 # jacobian
-                # J = csr_matrix(approx_fprime(xk1, f, method="2-point"))
-                J = csr_matrix(approx_fprime(xk1, f, method="3-point"))
+                J = csr_matrix(approx_fprime(xk1, f, method="2-point"))
+                # J = csr_matrix(approx_fprime(xk1, f, method="3-point"))
 
                 # Newton update
                 j += 1
-                # dx = spsolve(J, R, use_umfpack=True)
-                dx = lsqr(J, R)[0]
+                dx = spsolve(J, R, use_umfpack=True)
+                # dx = lsqr(J, R)[0]
                 xk1 -= dx
-                R = f(xk1)
 
+                R = f(xk1)
                 error = self.error_function(R)
-                # print(f" - j: {j}; error: {error}")
                 converged = error < self.tol
                 if converged:
                     break
@@ -2976,9 +2970,8 @@ class Remco:
         La_F = [self.La_Fk]
         P_F = [self.dt * self.la_Fk + self.La_Fk]
 
-        # pbar = tqdm(np.arange(self.t0, self.t1, self.dt))
-        # for _ in pbar:
-        for _ in np.arange(self.t0, self.t1, self.dt):
+        pbar = tqdm(np.arange(self.t0, self.t1, self.dt))
+        for _ in pbar:
             # perform a sovler step
             tk1 = self.tk + self.dt
             xk1 = self.xk.copy()
@@ -2988,15 +2981,8 @@ class Remco:
             converged_y, n_iter_y, error_y, yk1 = self.step(yk1, self.Ry)
 
             # update progress bar and check convergence
-            # pbar.set_description(
-            #     f"t: {tk1:0.2e}s < {self.t1:0.2e}s; Newton: {n_iter_x}/{self.max_iter} iterations; error: {error_x:0.2e}"
-            # )
-            print(f"t: {tk1:0.2e}s < {self.t1:0.2e}s")
-            print(
-                f"  Newton_x: {n_iter_x}/{self.max_iter} iterations; error: {error_x:0.2e}"
-            )
-            print(
-                f"  Newton_y: {n_iter_y}/{self.max_iter} iterations; error: {error_y:0.2e}"
+            pbar.set_description(
+                f"t: {tk1:0.2e}s < {self.t1:0.2e}s; ||R_x||: {error_y:0.2e} ({n_iter_x}/{self.max_iter}); ||R_y||: {error_x:0.2e} ({n_iter_y}/{self.max_iter})"
             )
             if not (converged_x and converged_y):
                 print(
@@ -3023,16 +3009,15 @@ class Remco:
             q_dotk1, u_dotk1, la_Nk1, la_Fk1 = self.unpack_x(xk1)
             Uk1, La_Nk_plus, La_Fk_plus = self.unpack_y(yk1)
 
-            tk1, qk1, uk1 = self.update_x(xk1)
-            uk_plus = uk1 + Uk1
+            tk1, qk1, uk1_free = self.update_x(xk1)
+            uk1 = uk1_free + Uk1
 
             # modify converged quantities
             qk1, uk1 = self.model.step_callback(tk1, qk1, uk1)
 
             # update converged and updated quantities of previous time step
             self.qk = qk1.copy()
-            # self.uk = uk1.copy()
-            self.uk = uk_plus.copy()
+            self.uk = uk1.copy()
             self.q_dotk = q_dotk1.copy()
             self.u_dotk = u_dotk1.copy()
 
