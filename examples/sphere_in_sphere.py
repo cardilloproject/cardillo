@@ -76,8 +76,8 @@ if __name__ == "__main__":
     # t1 = 2
     t1 = 10
     # dt = 1e-1
-    dt = 5e-2
-    # dt = 1e-2
+    # dt = 5e-2
+    dt = 1e-2
     # dt = 5e-3
     # dt = 1e-3
 
@@ -89,8 +89,8 @@ if __name__ == "__main__":
     # solver_n = NonsmoothGenAlphaFirstOrder(model, t1, dt, rho_inf=0.85)
     # solver_n = NonsmoothNewmark(model, t1, dt)
     # solver_n = NonsmoothHalfExplicitEuler(model, t1, dt)
-    solver_n = NonsmoothHalfExplicitEulerGGL(model, t1, dt)
-    # solver_n = Remco(model, t1, dt)
+    # solver_n = NonsmoothHalfExplicitEulerGGL(model, t1, dt)
+    solver_n = Remco(model, t1, dt)
     sol_n = solver_n.solve()
     # sol_n = sol_fp
     t_n = sol_n.t

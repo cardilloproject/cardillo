@@ -2734,6 +2734,7 @@ class Remco:
         self.nq = model.nq
         self.nu = model.nu
         self.nla_g = model.nla_g
+        self.nla_gamma = model.nla_gamma
         self.nla_N = model.nla_N
         self.nla_F = model.nla_F
         self.nx = self.nq + self.nu + self.nla_N + self.nla_F
@@ -2769,6 +2770,92 @@ class Remco:
 
         # initialize index sets
         self.Ak1 = np.zeros(self.nla_N, dtype=bool)
+
+    def f(self, tk, xk, zk1):
+        # unpack state
+        qk = xk[: self.nq]
+        uk = xk[self.nq :]
+
+        # unpack constraint forces
+        la_gk1 = zk1[: self.nla_g]
+        la_gammak1 = zk1[self.nla_g : self.nla_g + self.nla_gamma]
+        la_Nk1 = zk1[
+            self.nla_g + self.nla_gamma : self.nla_g + self.nla_gamma + self.nla_N
+        ]
+        la_Fk1 = zk1[self.nla_g + self.nla_gamma + self.nla_N :]
+
+        # evaluate quantities of previous time step
+        Mk = self.model.M(tk, qk, scipy_matrix=csr_matrix)
+        hk = self.model.h(tk, qk, uk)
+        W_gk = self.model.W_g(tk, qk, scipy_matrix=csr_matrix)
+        W_gammak = self.model.W_gamma(tk, qk, scipy_matrix=csr_matrix)
+        W_Nk = self.model.W_N(tk, qk, scipy_matrix=csr_matrix)
+        W_Fk = self.model.W_F(tk, qk, scipy_matrix=csr_matrix)
+
+        return np.concatenate(
+            (
+                self.model.q_dot(tk, qk, uk),
+                spsolve(
+                    Mk,
+                    hk
+                    + W_gk @ la_gk1
+                    + W_gammak @ la_gammak1
+                    + W_Nk @ la_Nk1
+                    + W_Fk @ la_Fk1,
+                ),
+            )
+        )
+
+    def c_x(self, zk1, update_index_set=True):
+        # unpack percussions
+        la_gk1 = zk1[: self.nla_g]
+        la_gammak1 = zk1[self.nla_g : self.nla_g + self.nla_gamma]
+        la_Nk1 = zk1[
+            self.nla_g + self.nla_gamma : self.nla_g + self.nla_gamma + self.nla_N
+        ]
+        la_Fk1 = zk1[self.nla_g + self.nla_gamma + self.nla_N :]
+
+        #####################
+        # explicit Euler step
+        #####################
+        tk1 = self.tk + self.dt
+        xk = np.concatenate((self.qk, self.uk))
+        xk1 = xk + self.dt * self.f(self.tk, xk, zk1)
+        qk1 = xk1[: self.nq]
+        uk1_free = xk1[self.nq :]
+
+        # constraint equations
+        gk1 = self.model.g(tk1, qk1)
+        gammak1 = self.model.gamma(tk1, qk1, uk1_free)
+        g_Nk1 = self.model.g_N(tk1, qk1)
+        xi_Fk1 = self.model.xi_F(tk1, qk1, self.uk, uk1_free)
+
+        prox_arg = g_Nk1 - self.model.prox_r_N * la_Nk1
+        c_Nk1 = g_Nk1 - prox_R0_np(prox_arg)
+
+        if update_index_set:
+            # self.Ak1 = g_Nk1 <= 0
+            self.Ak1 = prox_arg <= 0
+
+        ##########
+        # friction
+        ##########
+        mu = self.model.mu
+        c_Fk1 = la_Fk1.copy()  # this is the else case => P_Fk1 = 0
+        for i_N, i_F in enumerate(self.model.NF_connectivity):
+            i_F = np.array(i_F)
+
+            if len(i_F) > 0:
+                # TODO: Is there a primal/ dual form?
+                if self.Ak1[i_N]:
+                    c_Fk1[i_F] = -la_Fk1[i_F] - prox_sphere(
+                        -la_Fk1[i_F] + self.model.prox_r_F[i_N] * xi_Fk1[i_F],
+                        mu[i_N] * la_Nk1[i_N],
+                    )
+
+        ck1 = np.concatenate((gk1, gammak1, c_Nk1, c_Fk1))
+
+        return ck1, tk1, qk1, uk1_free, la_gk1, la_gammak1, la_Nk1, la_Fk1
 
     def unpack_x(self, xk1):
         nq = self.nq
@@ -2939,8 +3026,8 @@ class Remco:
         if not converged:
             while j < self.max_iter:
                 # jacobian
-                J = csr_matrix(approx_fprime(xk1, f, method="2-point"))
-                # J = csr_matrix(approx_fprime(xk1, f, method="3-point"))
+                # J = csr_matrix(approx_fprime(xk1, f, method="2-point"))
+                J = csr_matrix(approx_fprime(xk1, f, method="3-point"))
 
                 # Newton update
                 j += 1
@@ -2999,7 +3086,10 @@ class Remco:
             xk1 = self.xk.copy()
             yk1 = self.yk.copy()
 
+            # converged_x, n_iter_x, error_x, xk1 = self.step(xk1, lambda x: self.c_x(x)[0])
+
             converged_x, n_iter_x, error_x, xk1 = self.step(xk1, self.Rx)
+
             converged_y, n_iter_y, error_y, yk1 = self.step(yk1, self.Ry)
 
             # update progress bar and check convergence
