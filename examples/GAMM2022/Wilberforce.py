@@ -415,7 +415,7 @@ if __name__ == "__main__":
 
     model.add(frame)
     model.add(beam)
-    model.add(f_g_beam) # TODO: Enable this again?
+    model.add(f_g_beam)  # TODO: Enable this again?
     model.add(junction_frame_beam)
 
     model.add(bob)

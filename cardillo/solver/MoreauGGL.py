@@ -2828,10 +2828,6 @@ class Remco:
         ####################
         # euations of motion
         ####################
-        # self.f_free = hk1 + W_Nk1 @ la_Nk1 + W_Fk1 @ la_Fk1
-        self.Delta_uk1_free = self.dt * spsolve(
-            Mk1, hk1 + W_Nk1 @ la_Nk1 + W_Fk1 @ la_Fk1
-        )
         Rx[nq : nq + nu] = Mk1 @ u_dotk1 - hk1 - W_Nk1 @ la_Nk1 - W_Fk1 @ la_Fk1
 
         ################
@@ -2841,31 +2837,25 @@ class Remco:
         self.I_N = prox_arg <= 0.0
         Rx[nq + nu : nq + nu + nla_N] = g_Nk1 - prox_R0_np(prox_arg)
 
-        # Rx[nq + nu : nq + nu + nla_N] = g_Nk1 - prox_R0_np(
-        #     g_Nk1 - self.model.prox_r_N * la_Nk1
-        # )
-        # Rx[nq + nu : nq + nu + nla_N] = la_Nk1
-
         ##########
-        # TODO: friction
+        # friction
         ##########
-        Rx[nq + nu + nla_N :] = la_Fk1
+        # # no friction (for test purpose)
+        # Rx[nq + nu + nla_N :] = la_Fk1
 
-        # I_N = g_Nk1 <= 0
+        for i_N, i_F in enumerate(self.model.NF_connectivity):
+            i_F = np.array(i_F)
 
-        # for i_N, i_F in enumerate(self.model.NF_connectivity):
-        #     i_F = np.array(i_F)
-
-        #     if len(i_F) > 0:
-        #         Rx[nq + nu + nla_N + i_F] = np.where(
-        #             I_N[i_N] * np.ones(len(i_F), dtype=bool),
-        #             -la_Fk1[i_F]
-        #             - prox_sphere(
-        #                 -la_Fk1[i_F] + self.model.prox_r_F[i_N] * xi_Fk1[i_F],
-        #                 mu[i_N] * la_Nk1[i_N],
-        #             ),
-        #             la_Fk1[i_F],
-        #         )
+            if len(i_F) > 0:
+                Rx[nq + nu + nla_N + i_F] = np.where(
+                    self.I_N[i_N] * np.ones(len(i_F), dtype=bool),
+                    -la_Fk1[i_F]
+                    - prox_sphere(
+                        -la_Fk1[i_F] + self.model.prox_r_F[i_N] * xi_Fk1[i_F],
+                        mu[i_N] * la_Nk1[i_N],
+                    ),
+                    la_Fk1[i_F],
+                )
 
         # update quantities of new time step
         self.tk1 = tk1
@@ -2908,29 +2898,34 @@ class Remco:
         #################
         Ry[:nu] = Mk1 @ Uk1 - W_Nk1 @ La_Nk1 - W_Fk1 @ La_Fk1
 
-        ############
-        # impact law
-        ############
+        ###################
+        # normal impact law
+        ###################
         Ry[nu : nu + nla_N] = np.select(
             self.I_N,
             xi_Nk1_plus - prox_R0_np(xi_Nk1_plus - self.model.prox_r_N * La_Nk1),
             La_Nk1,
         )
 
-        Ry[nu + nla_N :] = La_Fk1
-        # for i_N, i_F in enumerate(self.model.NF_connectivity):
-        #     i_F = np.array(i_F)
+        # # no frictio
+        # Ry[nu + nla_N :] = La_Fk1
 
-        #     if len(i_F) > 0:
-        #         Ry[nu + nla_N + i_F] = np.where(
-        #             self.I_N[i_N] * np.ones(len(i_F), dtype=bool),
-        #             -La_Fk1[i_F]
-        #             - prox_sphere(
-        #                 -La_Fk1[i_F] + self.model.prox_r_F[i_N] * xi_Fk1_plus[i_F],
-        #                 mu[i_N] * La_Nk1[i_N],
-        #             ),
-        #             La_Fk1[i_F],
-        #         )
+        ####################
+        # tangent impact law
+        ####################
+        for i_N, i_F in enumerate(self.model.NF_connectivity):
+            i_F = np.array(i_F)
+
+            if len(i_F) > 0:
+                Ry[nu + nla_N + i_F] = np.where(
+                    self.I_N[i_N] * np.ones(len(i_F), dtype=bool),
+                    -La_Fk1[i_F]
+                    - prox_sphere(
+                        -La_Fk1[i_F] + self.model.prox_r_F[i_N] * xi_Fk1_plus[i_F],
+                        mu[i_N] * La_Nk1[i_N],
+                    ),
+                    La_Fk1[i_F],
+                )
 
         return Ry
 

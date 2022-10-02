@@ -236,8 +236,8 @@ if __name__ == "__main__":
 
     # solver = Moreau(model, t1, dt, fix_point_tol=1.0e-6, fix_point_max_iter=5000)
     # solver = NonsmoothEulerBackwardsGGL_V2(model, t1, dt, tol=1.0e-10)
-    # solver = NonsmoothHalfExplicitEuler(model, t1, dt, atol=1.0e-12)
-    solver = NonsmoothHalfExplicitEulerGGL(model, t1, dt, atol=1.0e-8)
+    solver = NonsmoothHalfExplicitEuler(model, t1, dt, atol=1.0e-12)
+    # solver = NonsmoothHalfExplicitEulerGGL(model, t1, dt, atol=1.0e-8)
     # solver = NonsmoothGeneralizedAlpha(model, t1, dt, newton_tol=1.0e-6, fixed_point_tol=1.0e-6)
     sol = solver.solve()
     t = sol.t
