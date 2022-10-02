@@ -2695,7 +2695,11 @@ class RemcoOriginal:
         )
 
 
-# TODO: Bilateral constraints!
+# TODO:
+# - add bilateral constraints
+# - solve Ry as LCP or using fixed point iteration an in Moreau in oder to
+#   overcome redundant contacts!
+# - use half explicit Runge-Kutta method for smooth Rx solution
 class Remco:
     def __init__(
         self,
@@ -2836,6 +2840,7 @@ class Remco:
         ################
         prox_arg = g_Nk1 - self.model.prox_r_N * la_Nk1
         self.I_N = prox_arg <= 0.0
+        # self.I_N = g_Nk1 <= 0.0
         Rx[nq + nu : nq + nu + nla_N] = g_Nk1 - prox_R0_np(prox_arg)
 
         ##########
@@ -2862,7 +2867,6 @@ class Remco:
 
         return Rx
 
-    # TODO: Solve this using a fixed-point iteration as in Moreau. Or an LCP solver?
     def Ry(self, yk1):
         nu = self.nu
         nla_N = self.nla_N
@@ -2940,8 +2944,25 @@ class Remco:
 
                 # Newton update
                 j += 1
+
                 dx = spsolve(J, R, use_umfpack=True)
-                # dx = lsqr(J, R)[0]
+
+                # dx = lsqr(J, R, atol=1.0e-12, btol=1.0e-12)[0]
+
+                # # no underflow errors
+                # dx = np.linalg.lstsq(J.toarray(), R, rcond=None)[0]
+
+                # # TODO: Can we get this sparse?
+                # # using QR decomposition, see https://de.wikipedia.org/wiki/QR-Zerlegung#L%C3%B6sung_regul%C3%A4rer_oder_%C3%BCberbestimmter_Gleichungssysteme
+                # b = R.copy()
+                # Q, R = np.linalg.qr(J.toarray())
+                # z = Q.T @ b
+                # dx = np.linalg.solve(R, z)  # solving R*x = Q^T*b
+
+                # # solve normal equation (should be independent of the conditioning
+                # # number!)
+                # dx = spsolve(J.T @ J, J.T @ R)
+
                 xk1 -= dx
 
                 R = f(xk1)
@@ -2961,7 +2982,8 @@ class Remco:
         t = [self.tk]
         q = [self.qk]
         u = [self.uk]
-        a = [np.zeros(self.nu)]
+        q_dot = [self.q_dotk]
+        a = [self.u_dotk]
         U = [self.Uk]
         la_N = [self.la_Nk]
         La_N = [self.La_Nk]
@@ -2996,6 +3018,7 @@ class Remco:
                     t=np.array(t),
                     q=np.array(q),
                     u=np.array(u),
+                    q_dot=np.array(q_dot),
                     a=np.array(a),
                     U=np.array(U),
                     la_N=np.array(la_N),
@@ -3025,7 +3048,8 @@ class Remco:
             t.append(tk1)
             q.append(qk1)
             u.append(uk1)
-            a.append((uk1 - self.uk) / self.dt)
+            q_dot.append(q_dotk1)
+            a.append(u_dotk1)
             U.append(Uk1)
             la_N.append(la_Nk1)
             La_N.append(La_Nk_plus)
@@ -3044,6 +3068,7 @@ class Remco:
             t=np.array(t),
             q=np.array(q),
             u=np.array(u),
+            q_dot=np.array(q_dot),
             a=np.array(a),
             U=np.array(U),
             # la_g=np.array(la_g),
