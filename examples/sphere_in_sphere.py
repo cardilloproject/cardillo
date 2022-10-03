@@ -20,6 +20,7 @@ from cardillo.solver import (
     NonsmoothHalfExplicitEuler,
     NonsmoothHalfExplicitEulerGGL,
     Remco,
+    NonsmoothDecoupled,
 )
 
 
@@ -90,7 +91,8 @@ if __name__ == "__main__":
     # solver_n = NonsmoothNewmark(model, t1, dt)
     # solver_n = NonsmoothHalfExplicitEuler(model, t1, dt)
     # solver_n = NonsmoothHalfExplicitEulerGGL(model, t1, dt)
-    solver_n = Remco(model, t1, dt)
+    # solver_n = Remco(model, t1, dt)
+    solver_n = NonsmoothDecoupled(model, t1, dt)
     sol_n = solver_n.solve()
     # sol_n = sol_fp
     t_n = sol_n.t

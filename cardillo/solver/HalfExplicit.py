@@ -419,35 +419,35 @@ class NonsmoothHalfExplicitEuler:
         ]
         P_Fk1 = zk1[self.nla_g + self.nla_gamma + self.nla_N :]
 
-        #####################
-        # explicit Euler step
-        #####################
-        tk1 = self.tk + self.dt
+        # #####################
+        # # explicit Euler step
+        # #####################
+        # tk1 = self.tk + self.dt
+        # yk = np.concatenate((self.qk, self.uk))
+        # yk1 = yk + self.f(self.tk, yk, zk1)
+        # qk1 = yk1[: self.nq]
+        # uk1 = yk1[self.nq :]
+
+        #######################################################################
+        # three-stage Runge-Kutta,
+        # see https://de.wikipedia.org/wiki/Runge-Kutta-Verfahren#Beispiel
+        # This is not so easy and requires multiple solutions of c1, c2, c3,
+        # etc. See Hairer1996, Section VII.6, p 520.
+        #######################################################################
+        dt = self.dt
+        tk = self.tk
         yk = np.concatenate((self.qk, self.uk))
-        yk1 = yk + self.f(self.tk, yk, zk1)
+        k1 = self.f(tk, yk, np.zeros_like(zk1))
+        k2 = self.f(tk + 0.5 * dt, yk + 0.5 * k1, np.zeros_like(zk1))
+        k3 = self.f(tk + 1.0 * dt, yk - 1.0 * k1 + 2.0 * k2, 6 * zk1)
+        # k1 = self.f(tk, yk, P_Nk1 / 6)
+        # k2 = self.f(tk + 0.5 * dt, yk + 0.5 * k1, P_Nk1 * 4 / 6)
+        # k3 = self.f(tk + 1.0 * dt, yk - 1.0 * k1 + 2.0 * k2, P_Nk1 / 6)
+        yk1 = yk + (k1 / 6 + 4 * k2 / 6 + k3 / 6)
+
+        tk1 = tk + dt
         qk1 = yk1[: self.nq]
         uk1 = yk1[self.nq :]
-
-        # #######################################################################
-        # # three-stage Runge-Kutta,
-        # # see https://de.wikipedia.org/wiki/Runge-Kutta-Verfahren#Beispiel
-        # # This is not so easy and requires multiple solutions of c1, c2, c3,
-        # # etc. See Hairer1996, Section VII.6, p 520.
-        # #######################################################################
-        # dt = self.dt
-        # tk = self.tk
-        # yk = np.concatenate((self.qk, self.uk))
-        # k1 = self.f(tk, yk, np.zeros_like(zk1))
-        # k2 = self.f(tk + 0.5 * dt, yk + 0.5 * k1, np.zeros_like(zk1))
-        # k3 = self.f(tk + 1.0 * dt, yk - 1.0 * k1 + 2.0 * k2, 6 * P_Nk1)
-        # # k1 = self.f(tk, yk, P_Nk1 / 6)
-        # # k2 = self.f(tk + 0.5 * dt, yk + 0.5 * k1, P_Nk1 * 4 / 6)
-        # # k3 = self.f(tk + 1.0 * dt, yk - 1.0 * k1 + 2.0 * k2, P_Nk1 / 6)
-        # yk1 = yk + (k1 / 6 + 4 * k2 / 6 + k3 / 6)
-
-        # tk1 = tk + dt
-        # qk1 = yk1[:self.nq]
-        # uk1 = yk1[self.nq:]
 
         # constraint equations
         g_dotk1 = self.model.g_dot(tk1, qk1, uk1)

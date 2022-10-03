@@ -12,6 +12,8 @@ from cardillo.solver import (
     NonsmoothHalfExplicitEuler,
     NonsmoothHalfExplicitEulerGGL,
     Remco,
+    NonsmoothDecoupled,
+    DecoupledNonsmoothHalfExplicitRungeKutta,
 )
 
 
@@ -231,8 +233,8 @@ if __name__ == "__main__":
     # t1 = 1.0
     t1 = 1.5
     # dt = 5e-3
-    dt = 1e-3
-    # dt = 5e-4
+    # dt = 1e-3
+    dt = 5e-4
     # dt = 1e-4
 
     # solver = Moreau(model, t1, dt, fix_point_tol=1.0e-6, fix_point_max_iter=5000)
@@ -240,7 +242,9 @@ if __name__ == "__main__":
     # solver = NonsmoothHalfExplicitEuler(model, t1, dt, atol=1.0e-12)
     # solver = NonsmoothHalfExplicitEulerGGL(model, t1, dt, atol=1.0e-8)
     # solver = NonsmoothGeneralizedAlpha(model, t1, dt, newton_tol=1.0e-6, fixed_point_tol=1.0e-6)
-    solver = Remco(model, t1, dt, tol=1.0e-10)
+    # solver = Remco(model, t1, dt, tol=1.0e-10)
+    # solver = NonsmoothDecoupled(model, t1, dt, tol=1.0e-10)
+    solver = DecoupledNonsmoothHalfExplicitRungeKutta(model, t1, dt, tol=1.0e-6)
     sol = solver.solve()
     t = sol.t
     q = sol.q
