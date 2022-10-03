@@ -19,8 +19,10 @@ from cardillo.solver import (
     NonsmoothNewmark,
     Remco,
     RemcoOriginal,
+    DecoupledNonsmoothHalfExplicitRungeKutta,
     NonsmoothHalfExplicitEuler,
     NonsmoothHalfExplicitEulerGGL,
+    NonsmoothDecoupled,
 )
 
 
@@ -159,7 +161,9 @@ if __name__ == "__main__":
     # solver_other = NonsmoothGenAlphaFirstOrder(model, t1, dt, rho_inf=0.9)
     # solver_other = NonsmoothNewmark(model, t1, dt)
     # solver_other = RemcoOriginal(model, t1, dt)
-    solver_other = Remco(model, t1, dt)
+    # solver_other = Remco(model, t1, dt)
+    # solver_other = DecoupledNonsmoothHalfExplicitRungeKutta(model, t1, dt)
+    solver_other = NonsmoothDecoupled(model, t1, dt)
     sol_other = solver_other.solve()
     t = sol_other.t
     q = sol_other.q
