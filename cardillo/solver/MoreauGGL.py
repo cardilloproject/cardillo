@@ -3279,9 +3279,20 @@ class NonsmoothDecoupled:
         self.yk = np.concatenate(
             (self.Uk, self.La_gk, self.La_gammak, self.La_Nk, self.La_Fk)
         )
+        self.sk = np.concatenate(
+            (
+                self.q_dotk,
+                self.u_dotk,
+                self.Uk,
+                self.la_Nk,
+                self.La_Nk,
+                self.la_Fk,
+                self.La_Fk,
+            )
+        )
 
         # initialize index sets
-        self.Ak1 = np.zeros(self.nla_N, dtype=bool)
+        self.I_Nk1 = np.zeros(self.nla_N, dtype=bool)
 
     def unpack_x(self, xk1):
         q_dotk1 = xk1[: self.nq]
@@ -3328,14 +3339,39 @@ class NonsmoothDecoupled:
     def update_x(self, xk1):
         q_dotk1, u_dotk1, la_gk1, la_gammak1, la_Nk1, la_Fk1 = self.unpack_x(xk1)
 
+        ################
         # backward Euler
+        ################
         tk1 = self.tk + self.dt
         uk1_free = self.uk + self.dt * u_dotk1
         qk1 = self.qk + self.dt * q_dotk1
+        la_gk1_free = la_gk1.copy()
+        la_gammak1_free = la_gammak1.copy()
+        la_Nk1_free = la_Nk1.copy()
+        la_Fk1_free = la_Fk1.copy()
 
-        return tk1, qk1, uk1_free, la_gk1, la_gammak1, la_Nk1, la_Fk1
+        # ################
+        # # trapezoid rule
+        # ################
+        # tk1 = self.tk + self.dt
+        # uk1_free = self.uk + 0.5 * self.dt * (self.u_dotk + u_dotk1)
+        # qk1 = self.qk + 0.5 * self.dt * (self.q_dotk + q_dotk1)
+        # # la_gk1_free = 0.5 * self.dt * (self.la_gk + la_gk1)
+        # # la_gammak1_free = 0.5 * self.dt * (self.la_gammak + la_gammak1)
+        # # la_Nk1_free = 0.5 * self.dt * (self.la_Nk + la_Nk1)
+        # # la_Fk1_free = 0.5 * self.dt * (self.la_Fk + la_Fk1)
 
-    def Rx(self, xk1):
+        return (
+            tk1,
+            qk1,
+            uk1_free,
+            la_gk1_free,
+            la_gammak1_free,
+            la_Nk1_free,
+            la_Fk1_free,
+        )
+
+    def Rx(self, xk1, update_index=False):
         nq = self.nq
         nu = self.nu
         nla_g = self.nla_g
@@ -3344,10 +3380,18 @@ class NonsmoothDecoupled:
         mu = self.model.mu
 
         q_dotk1, u_dotk1, la_gk1, la_gammak1, la_Nk1, la_Fk1 = self.unpack_x(xk1)
-        tk1, qk1, uk1_free, la_gk1, la_gammak1, la_Nk1, la_Fk1 = self.update_x(xk1)
+        (
+            tk1,
+            qk1,
+            uk1_free,
+            la_gk1_free,
+            la_gammak1_free,
+            la_Nk1_free,
+            la_Fk1_free,
+        ) = self.update_x(xk1)
 
         # evaluate repeatedly used quantities
-        Mk1 = self.model.M(tk1, qk1)
+        Mk1 = self.model.M(tk1, qk1, scipy_matrix=csr_matrix)
         hk1 = self.model.h(tk1, qk1, uk1_free)
         W_gk1 = self.model.W_g(tk1, qk1, scipy_matrix=csr_matrix)
         W_gammak1 = self.model.W_gamma(tk1, qk1, scipy_matrix=csr_matrix)
@@ -3374,10 +3418,10 @@ class NonsmoothDecoupled:
         Rx[nq : nq + nu] = (
             Mk1 @ u_dotk1
             - hk1
-            - W_gk1 @ la_gk1
-            - W_gammak1 @ la_gammak1
-            - W_Nk1 @ la_Nk1
-            - W_Fk1 @ la_Fk1
+            - W_gk1 @ la_gk1_free
+            - W_gammak1 @ la_gammak1_free
+            - W_Nk1 @ la_Nk1_free
+            - W_Fk1 @ la_Fk1_free
         )
 
         #######################
@@ -3389,9 +3433,11 @@ class NonsmoothDecoupled:
         ################
         # normal contact
         ################
-        prox_arg = g_Nk1 - self.model.prox_r_N * la_Nk1
-        self.Ak1 = prox_arg <= 0.0
-        # self.Ak1 = g_Nk1 <= 0.0
+        prox_arg = g_Nk1 - self.model.prox_r_N * la_Nk1_free
+        if update_index:
+            self.I_Nk1 = prox_arg <= 0.0
+            # self.I_Nk1 = g_Nk1 <= 0.0
+
         Rx[
             nq + nu + nla_g + nla_gamma : nq + nu + nla_g + nla_gamma + nla_N
         ] = g_Nk1 - prox_R0_np(prox_arg)
@@ -3403,14 +3449,14 @@ class NonsmoothDecoupled:
             i_F = np.array(i_F)
 
             if len(i_F) > 0:
-                Rx[nq + nu + nla_g + nla_gamma + i_F] = np.where(
-                    self.I_N[i_N] * np.ones(len(i_F), dtype=bool),
-                    -la_Fk1[i_F]
+                Rx[nq + nu + nla_g + nla_gamma + nla_N + i_F] = np.where(
+                    self.I_Nk1[i_N] * np.ones(len(i_F), dtype=bool),
+                    -la_Fk1_free[i_F]
                     - prox_sphere(
-                        -la_Fk1[i_F] + self.model.prox_r_F[i_N] * xi_Fk1[i_F],
-                        mu[i_N] * la_Nk1[i_N],
+                        -la_Fk1_free[i_F] + self.model.prox_r_F[i_N] * xi_Fk1[i_F],
+                        mu[i_N] * la_Nk1_free[i_N],
                     ),
-                    la_Fk1[i_F],
+                    la_Fk1_free[i_F],
                 )
 
         # update quantities of new time step
@@ -3420,7 +3466,7 @@ class NonsmoothDecoupled:
 
         return Rx
 
-    def Ry(self, yk1):
+    def Ry(self, yk1, update_index=False):
         nu = self.nu
         nla_g = self.nla_g
         nla_gamma = self.nla_gamma
@@ -3446,8 +3492,8 @@ class NonsmoothDecoupled:
         W_Fk1 = self.model.W_F(tk1, qk1, scipy_matrix=csr_matrix)
         g_dot = self.model.g_dot(tk1, qk1, uk1)
         gamma = self.model.gamma(tk1, qk1, uk1)
-        xi_Nk1_plus = self.model.xi_N(tk1, qk1, self.uk, uk1)
-        xi_Fk1_plus = self.model.xi_F(tk1, qk1, self.uk, uk1)
+        xi_Nk1 = self.model.xi_N(tk1, qk1, self.uk, uk1)
+        xi_Fk1 = self.model.xi_F(tk1, qk1, self.uk, uk1)
 
         ###################
         # evaluate residual
@@ -3474,8 +3520,8 @@ class NonsmoothDecoupled:
         # normal impact law
         ###################
         Ry[nu + nla_g + nla_gamma : nu + nla_g + nla_gamma + nla_N] = np.select(
-            self.Ak1,
-            xi_Nk1_plus - prox_R0_np(xi_Nk1_plus - self.model.prox_r_N * La_Nk1),
+            self.I_Nk1,
+            xi_Nk1 - prox_R0_np(xi_Nk1 - self.model.prox_r_N * La_Nk1),
             La_Nk1,
         )
 
@@ -3487,10 +3533,10 @@ class NonsmoothDecoupled:
 
             if len(i_F) > 0:
                 Ry[nu + nla_g + nla_gamma + nla_N + i_F] = np.where(
-                    self.Ak1[i_N] * np.ones(len(i_F), dtype=bool),
+                    self.I_Nk1[i_N] * np.ones(len(i_F), dtype=bool),
                     -La_Fk1[i_F]
                     - prox_sphere(
-                        -La_Fk1[i_F] + self.model.prox_r_F[i_N] * xi_Fk1_plus[i_F],
+                        -La_Fk1[i_F] + self.model.prox_r_F[i_N] * xi_Fk1[i_F],
                         mu[i_N] * La_Nk1[i_N],
                     ),
                     La_Fk1[i_F],
@@ -3498,9 +3544,158 @@ class NonsmoothDecoupled:
 
         return Ry
 
+    def unpack_s(self, sk1):
+        nq = self.nq
+        nu = self.nu
+        nla_N = self.nla_N
+        nla_F = self.nla_F
+
+        q_dotk1 = sk1[:nq]
+        u_dotk1 = sk1[nq : nq + nu]
+        Uk1 = sk1[nq + nu : nq + 2 * nu]
+        la_Nk1 = sk1[nq + 2 * nu : nq + 2 * nu + nla_N]
+        La_Nk1 = sk1[nq + 2 * nu + nla_N : nq + 2 * nu + 2 * nla_N]
+        la_Fk1 = sk1[nq + 2 * nu + 2 * nla_N : nq + 2 * nu + 2 * nla_N + nla_F]
+        La_Fk1 = sk1[nq + 2 * nu + 2 * nla_N + nla_F :]
+
+        return q_dotk1, u_dotk1, Uk1, la_Nk1, La_Nk1, la_Fk1, La_Fk1
+
+    def update_s(self, sk1):
+        q_dotk1, u_dotk1, Uk1, la_Nk1, La_Nk1, la_Fk1, La_Fk1 = self.unpack_s(sk1)
+
+        ################
+        # backward Euler
+        ################
+        tk1 = self.tk + self.dt
+        uk1_free = self.uk + self.dt * u_dotk1
+        uk1 = uk1_free + Uk1
+        qk1 = self.qk + self.dt * q_dotk1
+        P_Nk1 = La_Nk1 + self.dt * la_Nk1
+        P_Fk1 = La_Fk1 + self.dt * la_Fk1
+
+        # ################
+        # # trapezoid rule
+        # ################
+        # tk1 = self.tk + self.dt
+        # uk1_free = self.uk + 0.5 * self.dt * (self.u_dotk + u_dotk1)
+        # qk1 = self.qk + 0.5 * self.dt * (self.q_dotk + q_dotk1)
+        # # la_gk1_free = 0.5 * self.dt * (self.la_gk + la_gk1)
+        # # la_gammak1_free = 0.5 * self.dt * (self.la_gammak + la_gammak1)
+        # # la_Nk1_free = 0.5 * self.dt * (self.la_Nk + la_Nk1)
+        # # la_Fk1_free = 0.5 * self.dt * (self.la_Fk + la_Fk1)
+
+        return tk1, qk1, uk1, uk1_free, P_Nk1, P_Fk1
+
+    def Rs(self, sk1, update_index=False):
+        nq = self.nq
+        nu = self.nu
+        nla_N = self.nla_N
+        nla_F = self.nla_F
+        mu = self.model.mu
+
+        q_dotk1, u_dotk1, Uk1, la_Nk1, La_Nk1, la_Fk1, La_Fk1 = self.unpack_s(sk1)
+        tk1, qk1, uk1, uk1_free, P_Nk1, P_Fk1 = self.update_s(sk1)
+
+        # evaluate repeatedly used quantities
+        Mk1 = self.model.M(tk1, qk1, scipy_matrix=csr_matrix)
+        hk1 = self.model.h(tk1, qk1, uk1_free)
+        W_Nk1 = self.model.W_N(tk1, qk1, scipy_matrix=csr_matrix)
+        W_Fk1 = self.model.W_F(tk1, qk1, scipy_matrix=csr_matrix)
+        g_Nk1 = self.model.g_N(tk1, qk1)
+        xi_Nk1 = self.model.xi_N(tk1, qk1, self.uk, uk1)
+        xi_Fk1_free = self.model.xi_F(tk1, qk1, self.uk, uk1_free)
+        xi_Fk1 = self.model.xi_F(tk1, qk1, self.uk, uk1)
+
+        ###################
+        # evaluate residual
+        ###################
+        R = np.zeros(self.nq + 2 * self.nu + 2 * self.nla_N + 2 * self.nla_F)
+
+        ####################
+        # kinematic equation
+        ####################
+        R[:nq] = q_dotk1 - self.model.q_dot(tk1, qk1, uk1_free)
+
+        ####################
+        # euations of motion
+        ####################
+        R[nq : nq + nu] = Mk1 @ u_dotk1 - hk1 - W_Nk1 @ la_Nk1 - W_Fk1 @ la_Fk1
+
+        #################
+        # impact equation
+        #################
+        R[nq + nu : nq + 2 * nu] = (
+            Mk1 @ Uk1
+            # - W_Nk1 @ P_Nk1
+            # - W_Fk1 @ P_Fk1
+            - W_Nk1 @ La_Nk1
+            - W_Fk1 @ La_Fk1
+        )
+
+        ################
+        # normal contact
+        ################
+        prox_arg = g_Nk1 - self.model.prox_r_N * la_Nk1
+        if update_index:
+            self.I_Nk1 = prox_arg <= 0.0
+        R[nq + 2 * nu : nq + 2 * nu + nla_N] = g_Nk1 - prox_R0_np(prox_arg)
+        R[
+            nq
+            + 2 * nu
+            + nla_N : nq
+            + 2 * nu
+            + 2 * nla_N
+            # ] = np.select(
+            #     self.I_Nk1,
+            #     xi_Nk1 - prox_R0_np(xi_Nk1 - self.model.prox_r_N * P_Nk1),
+            #     P_Nk1,
+            # )
+        ] = np.select(
+            self.I_Nk1,
+            xi_Nk1 - prox_R0_np(xi_Nk1 - self.model.prox_r_N * La_Nk1),
+            La_Nk1,
+        )
+
+        ##########
+        # friction
+        ##########
+        for i_N, i_F in enumerate(self.model.NF_connectivity):
+            i_F = np.array(i_F)
+
+            if len(i_F) > 0:
+                R[nq + 2 * nu + 2 * nla_N + i_F] = np.where(
+                    self.I_Nk1[i_N] * np.ones(len(i_F), dtype=bool),
+                    -la_Fk1[i_F]
+                    - prox_sphere(
+                        -la_Fk1[i_F] + self.model.prox_r_F[i_N] * xi_Fk1_free[i_F],
+                        mu[i_N] * la_Nk1[i_N],
+                    ),
+                    la_Fk1[i_F],
+                )
+                # R[nq + 2 * nu + 2 * nla_N + nla_F + i_F] = np.where(
+                #     self.I_Nk1[i_N] * np.ones(len(i_F), dtype=bool),
+                #     -P_Fk1[i_F]
+                #     - prox_sphere(
+                #         -P_Fk1[i_F] + self.model.prox_r_F[i_N] * xi_Fk1[i_F],
+                #         mu[i_N] * P_Nk1[i_N],
+                #     ),
+                #     P_Fk1[i_F],
+                # )
+                R[nq + 2 * nu + 2 * nla_N + nla_F + i_F] = np.where(
+                    self.I_Nk1[i_N] * np.ones(len(i_F), dtype=bool),
+                    -La_Fk1[i_F]
+                    - prox_sphere(
+                        -La_Fk1[i_F] + self.model.prox_r_F[i_N] * xi_Fk1[i_F],
+                        mu[i_N] * La_Nk1[i_N],
+                    ),
+                    La_Fk1[i_F],
+                )
+
+        return R
+
     def step(self, xk1, f):
         # initial residual and error
-        R = f(xk1)
+        R = f(xk1, update_index=True)
         error = self.error_function(R)
         converged = error < self.tol
 
@@ -3535,7 +3730,7 @@ class NonsmoothDecoupled:
 
                 xk1 -= dx
 
-                R = f(xk1)
+                R = f(xk1, update_index=True)
                 error = self.error_function(R)
                 converged = error < self.tol
                 if converged:
@@ -3572,23 +3767,33 @@ class NonsmoothDecoupled:
         for _ in pbar:
             # perform a sovler step
             tk1 = self.tk + self.dt
-            xk1 = self.xk.copy()
-            yk1 = self.yk.copy()
+            # xk1 = self.xk.copy()
+            # yk1 = self.yk.copy()
+            sk1 = self.sk.copy()
 
-            converged_x, n_iter_x, error_x, xk1 = self.step(xk1, self.Rx)
-            converged_y, n_iter_y, error_y, yk1 = self.step(yk1, self.Ry)
+            # converged_x, n_iter_x, error_x, xk1 = self.step(xk1, self.Rx)
+            # converged_y, n_iter_y, error_y, yk1 = self.step(yk1, self.Ry)
+            converged, n_iter, error, sk1 = self.step(sk1, self.Rs)
 
             # update progress bar and check convergence
+            # pbar.set_description(
+            #     f"t: {tk1:0.2e}s < {self.t1:0.2e}s; ||R_x||: {error_y:0.2e} ({n_iter_x}/{self.max_iter}); ||R_y||: {error_x:0.2e} ({n_iter_y}/{self.max_iter})"
+            # )
             pbar.set_description(
-                f"t: {tk1:0.2e}s < {self.t1:0.2e}s; ||R_x||: {error_y:0.2e} ({n_iter_x}/{self.max_iter}); ||R_y||: {error_x:0.2e} ({n_iter_y}/{self.max_iter})"
+                f"t: {tk1:0.2e}s < {self.t1:0.2e}s; ||R||: {error:0.2e} ({n_iter}/{self.max_iter})"
             )
-            if not (converged_x and converged_y):
+            # if not (converged_x and converged_y):
+            if not converged:
+                # print(
+                #     f"internal Newton-Raphson method not converged after {n_iter_x} x-steps with error: {error_x:.5e}"
+                # )
+                # print(
+                #     f"internal Newton-Raphson method not converged after {n_iter_y} y-steps with error: {error_y:.5e}"
+                # )
                 print(
-                    f"internal Newton-Raphson method not converged after {n_iter_x} x-steps with error: {error_x:.5e}"
+                    f"internal Newton-Raphson method not converged after {n_iter} x-steps with error: {error:.5e}"
                 )
-                print(
-                    f"internal Newton-Raphson method not converged after {n_iter_y} y-steps with error: {error_y:.5e}"
-                )
+
                 # write solution
                 return Solution(
                     t=np.array(t),
@@ -3605,11 +3810,14 @@ class NonsmoothDecoupled:
                     P_F=np.array(P_F),
                 )
 
-            q_dotk1, u_dotk1, la_gk1, la_gammak1, la_Nk1, la_Fk1 = self.unpack_x(xk1)
-            tk1, qk1, uk1_free, la_gk1, la_gammak1, la_Nk1, la_Fk1 = self.update_x(xk1)
+            # q_dotk1, u_dotk1, la_gk1, la_gammak1, la_Nk1, la_Fk1 = self.unpack_x(xk1)
+            # tk1, qk1, uk1_free, la_gk1_free, la_gammak1_free, la_Nk1_free, la_Fk1_free = self.update_x(xk1)
 
-            Uk1, La_gk1, La_gammak1, La_Nk1, La_Fk1 = self.unpack_y(yk1)
-            uk1 = uk1_free + Uk1
+            # Uk1, La_gk1, La_gammak1, La_Nk1, La_Fk1 = self.unpack_y(yk1)
+            # uk1 = uk1_free + Uk1
+
+            q_dotk1, u_dotk1, Uk1, la_Nk1, La_Nk1, la_Fk1, La_Fk1 = self.unpack_s(sk1)
+            tk1, qk1, uk1, uk1_free, P_Nk1, P_Fk1 = self.update_s(sk1)
 
             # modify converged quantities
             qk1, uk1 = self.model.step_callback(tk1, qk1, uk1)
@@ -3621,33 +3829,36 @@ class NonsmoothDecoupled:
             q_dot.append(q_dotk1)
             a.append(u_dotk1)
             U.append(Uk1)
-            la_g.append(la_gk1)
-            La_g.append(La_gk1)
-            P_g.append(self.dt * la_gk1 + La_gk1)
-            la_gamma.append(la_gammak1)
-            La_gamma.append(La_gammak1)
-            P_gamma.append(self.dt * la_gammak1 + La_gammak1)
+            # la_g.append(la_gk1)
+            # La_g.append(La_gk1)
+            # P_g.append(self.dt * la_gk1 + La_gk1)
+            # la_gamma.append(la_gammak1)
+            # La_gamma.append(La_gammak1)
+            # P_gamma.append(self.dt * la_gammak1 + La_gammak1)
             la_N.append(la_Nk1)
             La_N.append(La_Nk1)
-            P_N.append(self.dt * la_Nk1 + La_Nk1)
+            # P_N.append(self.dt * la_Nk1 + La_Nk1)
+            P_N.append(P_Nk1)
             la_F.append(la_Fk1)
             La_F.append(La_Fk1)
-            P_F.append(self.dt * la_Fk1 + La_Fk1)
+            # P_F.append(self.dt * la_Fk1 + La_Fk1)
+            P_F.append(P_Fk1)
 
             # update local variables for accepted time step
             self.tk = tk1
 
             self.qk = qk1.copy()
             self.uk = uk1.copy()
-            self.q_dotk = qk1.copy()
-            self.u_dotk = uk1.copy()
-            self.la_gk = la_gk1.copy()
-            self.la_gammak = la_gammak1.copy()
+            self.q_dotk = q_dotk1.copy()
+            self.u_dotk = u_dotk1.copy()
+            # self.la_gk = la_gk1.copy()
+            # self.la_gammak = la_gammak1.copy()
             self.la_Nk = la_Nk1.copy()
             self.la_Fk = la_Fk1.copy()
 
-            self.xk = xk1.copy()
-            self.yk = yk1.copy()
+            # self.xk = xk1.copy()
+            # self.yk = yk1.copy()
+            self.sk = sk1.copy()
 
         # write solution
         return Solution(
@@ -3657,12 +3868,12 @@ class NonsmoothDecoupled:
             q_dot=np.array(q_dot),
             a=np.array(a),
             U=np.array(U),
-            la_g=np.array(la_g),
-            La_g=np.array(La_g),
-            P_g=np.array(P_g),
-            la_gamma=np.array(la_gamma),
-            La_gamma=np.array(La_gamma),
-            P_gamma=np.array(P_gamma),
+            # la_g=np.array(la_g),
+            # La_g=np.array(La_g),
+            # P_g=np.array(P_g),
+            # la_gamma=np.array(la_gamma),
+            # La_gamma=np.array(La_gamma),
+            # P_gamma=np.array(P_gamma),
             La_N=np.array(La_N),
             la_N=np.array(la_N),
             P_N=np.array(P_N),
