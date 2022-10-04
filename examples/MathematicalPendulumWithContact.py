@@ -194,8 +194,8 @@ if __name__ == "__main__":
 
     # end time and numerical dissipation of generalized-alpha solver
     # t_end = 0.1
-    t_end = 1
-    # t_end = 3
+    # t_end = 1
+    t_end = 3
     # dt = 5.0e-2
     # dt = 1.0e-2
     dt = 5.0e-3

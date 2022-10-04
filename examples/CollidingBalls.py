@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
 from cardillo.model import Model
+from cardillo.model.point_mass import PointMass
 from cardillo.model.rigid_body import RigidBodyEuler
 from cardillo.model.frame import Frame
 from cardillo.contacts import Sphere2Plane, Sphere2Sphere
@@ -16,18 +17,37 @@ from cardillo.solver import (
     Remco,
     NonsmoothHalfExplicitEuler,
     NonsmoothHalfExplicitEulerGGL,
+    NonsmoothDecoupled,
 )
 
 
-class Ball(RigidBodyEuler):
+# class Ball(RigidBodyEuler):
+#     def __init__(self, m, radius, g, q0=None, u0=None):
+#         theta = 2 / 5 * m * radius**2
+#         self.radius = radius
+#         self.g = g
+#         super().__init__(m, theta * np.eye(3, dtype=float), q0=q0, u0=u0)
+
+#     def f_pot(self, t, q):
+#         return np.array([0, -self.m * self.g, 0, 0, 0, 0])
+
+#     def f_pot_q(self, t, q, coo):
+#         coo.extend(np.zeros((self.nu, 1)), (self.uDOF, self.qDOF))
+
+#     def boundary(self, t, q, n=100):
+#         phi = np.linspace(0, 2 * np.pi, n, endpoint=True)
+#         K_r_SP = self.radius * np.vstack([np.sin(phi), np.cos(phi), np.zeros(n)])
+#         return np.repeat(self.r_OP(t, q), n).reshape(3, n) + self.A_IK(t, q) @ K_r_SP
+
+
+class Ball(PointMass):
     def __init__(self, m, radius, g, q0=None, u0=None):
-        theta = 2 / 5 * m * radius**2
         self.radius = radius
         self.g = g
-        super().__init__(m, theta * np.eye(3), q0=q0, u0=u0)
+        super().__init__(m, q0=q0[:3], u0=u0[:3])
 
     def f_pot(self, t, q):
-        return np.array([0, -self.m * self.g, 0, 0, 0, 0])
+        return np.array([0, -self.m * self.g, 0])
 
     def f_pot_q(self, t, q, coo):
         coo.extend(np.zeros((self.nu, 1)), (self.uDOF, self.qDOF))
@@ -35,7 +55,7 @@ class Ball(RigidBodyEuler):
     def boundary(self, t, q, n=100):
         phi = np.linspace(0, 2 * np.pi, n, endpoint=True)
         K_r_SP = self.radius * np.vstack([np.sin(phi), np.cos(phi), np.zeros(n)])
-        return np.repeat(self.r_OP(t, q), n).reshape(3, n) + self.A_IK(t, q) @ K_r_SP
+        return np.repeat(self.r_OP(t, q), n).reshape(3, n) + K_r_SP
 
 
 if __name__ == "__main__":
@@ -47,7 +67,7 @@ if __name__ == "__main__":
     def initalize_ball(mass, radius, r_OS0, v_S0):
         q0 = np.array([*r_OS0, 0, 0, 0])
         u0 = np.array([*v_S0, 0, 0, 0])
-        return Ball(mass, radius, g, q0=q0, u0=u0)
+        return Ball(mass, radius, g, q0=q0.copy(), u0=u0.copy())
 
     def add_ground_contact(ball, mu, e_N):
         e1, e2, e3 = np.eye(3)
@@ -63,17 +83,6 @@ if __name__ == "__main__":
             e_F=0,
         )
         return plane
-
-    # eps = 1.0e-1
-    # ball1 = initalize_ball(1, 0.5, np.array([0.0, 0.5, 0]), np.array([0, 0, 0]))
-    # ball2 = initalize_ball(1, 0.5, np.array([0.5, 1.5 - eps, 0]), np.array([-1, 0, 0]))
-    # ball3 = initalize_ball(
-    #     1, 0.5, np.array([0.0, 2.5 - 2 * eps, 0]), np.array([0, 0, 0])
-    # )
-    # ball4 = initalize_ball(
-    #     1, 0.5, np.array([0.5, 3.5 - 3 * eps, 0]), np.array([-1, 0, 0])
-    # )
-    # balls = [ball1, ball2, ball3, ball4]
 
     eps = 1.0e-1
     y0 = 1
@@ -137,8 +146,8 @@ if __name__ == "__main__":
     # t1 = 20
     # dt = 1e-1
     # dt = 5e-2
-    # dt = 1e-2
-    dt = 5e-3
+    dt = 1e-2
+    # dt = 5e-3
     # dt = 1e-3
     # dt = 5e-4
     # dt = 1e-4
@@ -149,7 +158,9 @@ if __name__ == "__main__":
     # solver_other = NonsmoothEulerBackwardsGGL_V3(model, t1, dt, tol=1.0e-8)
     # solver_other = NonsmoothHalfExplicitEuler(model, t1, dt)
     # solver_other = NonsmoothHalfExplicitEulerGGL(model, t1, dt)
-    solver_other = Remco(model, t1, dt)
+    # solver_other = Remco(model, t1, dt)
+    # solver_other = Moreau(model, t1, dt)
+    solver_other = NonsmoothDecoupled(model, t1, dt)
     sol_other = solver_other.solve()
     t = sol_other.t
     q = sol_other.q
@@ -159,6 +170,7 @@ if __name__ == "__main__":
     P_N_other = sol_other.P_N
     # P_F_other = sol_other.P_F
     if type(solver_other) in [
+        Moreau,
         NonsmoothEulerBackwardsGGL_V2,
         NonsmoothHalfExplicitEuler,
         NonsmoothHalfExplicitEulerGGL,

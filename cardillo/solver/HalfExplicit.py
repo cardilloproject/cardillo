@@ -410,115 +410,91 @@ class NonsmoothHalfExplicitEuler:
         self.P_Nk = dt * model.la_N0
         self.P_Fk = dt * model.la_F0
 
-    def c(self, zk1, update_index_set=True):
-        # unpack percussions
-        P_gk1 = zk1[: self.nla_g]
-        P_gammak1 = zk1[self.nla_g : self.nla_g + self.nla_gamma]
-        P_Nk1 = zk1[
-            self.nla_g + self.nla_gamma : self.nla_g + self.nla_gamma + self.nla_N
-        ]
-        P_Fk1 = zk1[self.nla_g + self.nla_gamma + self.nla_N :]
+        self.yk = np.concatenate((self.qk, self.uk))
 
-        # #####################
-        # # explicit Euler step
-        # #####################
-        # tk1 = self.tk + self.dt
-        # yk = np.concatenate((self.qk, self.uk))
-        # yk1 = yk + self.f(self.tk, yk, zk1)
-        # qk1 = yk1[: self.nq]
-        # uk1 = yk1[self.nq :]
+    def build_g(self, ci, ai):
+        def g(Z, update_index_set=True):
+            # unpack percussions
+            P_g = Z[: self.nla_g]
+            P_gamma = Z[self.nla_g : self.nla_g + self.nla_gamma]
+            P_N = Z[
+                self.nla_g + self.nla_gamma : self.nla_g + self.nla_gamma + self.nla_N
+            ]
+            P_F = Z[self.nla_g + self.nla_gamma + self.nla_N :]
 
-        #######################################################################
-        # three-stage Runge-Kutta,
-        # see https://de.wikipedia.org/wiki/Runge-Kutta-Verfahren#Beispiel
-        # This is not so easy and requires multiple solutions of c1, c2, c3,
-        # etc. See Hairer1996, Section VII.6, p 520.
-        #######################################################################
-        dt = self.dt
-        tk = self.tk
-        yk = np.concatenate((self.qk, self.uk))
-        k1 = self.f(tk, yk, np.zeros_like(zk1))
-        k2 = self.f(tk + 0.5 * dt, yk + 0.5 * k1, np.zeros_like(zk1))
-        k3 = self.f(tk + 1.0 * dt, yk - 1.0 * k1 + 2.0 * k2, 6 * zk1)
-        # k1 = self.f(tk, yk, P_Nk1 / 6)
-        # k2 = self.f(tk + 0.5 * dt, yk + 0.5 * k1, P_Nk1 * 4 / 6)
-        # k3 = self.f(tk + 1.0 * dt, yk - 1.0 * k1 + 2.0 * k2, P_Nk1 / 6)
-        yk1 = yk + (k1 / 6 + 4 * k2 / 6 + k3 / 6)
+            # update states
+            ti = self.tk + ci * self.dt
+            Yi = self.yk + sum([aij * kj for aij, kj in zip(ai, self.Y)])
 
-        tk1 = tk + dt
-        qk1 = yk1[: self.nq]
-        uk1 = yk1[self.nq :]
+            # unpack state
+            qi = Yi[: self.nq]
+            ui = Yi[self.nq :]
 
-        # constraint equations
-        g_dotk1 = self.model.g_dot(tk1, qk1, uk1)
-        gammak1 = self.model.gamma(tk1, qk1, uk1)
-        g_Nk1 = self.model.g_N(tk1, qk1)
-        xi_Nk1 = self.model.xi_N(tk1, qk1, self.uk, uk1)
-        xi_Fk1 = self.model.xi_F(tk1, qk1, self.uk, uk1)
+            # constraint equations
+            g_dotk1 = self.model.g_dot(ti, qi, ui)
+            gammak1 = self.model.gamma(ti, qi, ui)
+            g_Nk1 = self.model.g_N(ti, qi)
+            xi_Nk1 = self.model.xi_N(ti, qi, self.uk, ui)
+            xi_Fk1 = self.model.xi_F(ti, qi, self.uk, ui)
 
-        if update_index_set:
-            self.Ak1 = g_Nk1 <= 0
+            if update_index_set:
+                self.Ak1 = g_Nk1 <= 0
 
-        c_Nk1 = np.where(
-            self.Ak1, xi_Nk1 - prox_R0_np(xi_Nk1 - self.model.prox_r_N * P_Nk1), P_Nk1
-        )
+            c_Nk1 = np.where(
+                self.Ak1, xi_Nk1 - prox_R0_np(xi_Nk1 - self.model.prox_r_N * P_N), P_N
+            )
 
-        ##########
-        # friction
-        ##########
-        mu = self.model.mu
-        c_Fk1 = P_Fk1.copy()  # this is the else case => P_Fk1 = 0
-        for i_N, i_F in enumerate(self.model.NF_connectivity):
-            i_F = np.array(i_F)
+            ##########
+            # friction
+            ##########
+            mu = self.model.mu
+            c_Fk1 = P_F.copy()  # this is the else case => P_Fk1 = 0
+            for i_N, i_F in enumerate(self.model.NF_connectivity):
+                i_F = np.array(i_F)
 
-            if len(i_F) > 0:
-                # TODO: Is there a primal/ dual form?
-                if self.Ak1[i_N]:
-                    c_Fk1[i_F] = -P_Fk1[i_F] - prox_sphere(
-                        -P_Fk1[i_F] + self.model.prox_r_F[i_N] * xi_Fk1[i_F],
-                        mu[i_N] * P_Nk1[i_N],
-                    )
+                if len(i_F) > 0:
+                    # TODO: Is there a primal/ dual form?
+                    if self.Ak1[i_N]:
+                        c_Fk1[i_F] = -P_F[i_F] - prox_sphere(
+                            -P_F[i_F] + self.model.prox_r_F[i_N] * xi_Fk1[i_F],
+                            mu[i_N] * P_N[i_N],
+                        )
 
-        ck1 = np.concatenate((g_dotk1, gammak1, c_Nk1, c_Fk1))
+            ck1 = np.concatenate((g_dotk1, gammak1, c_Nk1, c_Fk1))
 
-        return ck1, tk1, qk1, uk1, P_gk1, P_gammak1, P_Nk1, P_Fk1
+            return ck1, Yi, Z
 
-    def c_y(self, zk1):
-        return csr_matrix(
-            approx_fprime(zk1, lambda z: self.c(z, update_index_set=False)[0])
-        )
+        return g
 
-    def f(self, tk, yk, zk1):
+    # def c_y(self, zk1):
+    #     return csr_matrix(
+    #         approx_fprime(zk1, lambda z: self.c(z, update_index_set=False)[0])
+    #     )
+
+    def f(self, tk, y, z):
         # unpack y and z
-        qk = yk[: self.nq]
-        uk = yk[self.nq :]
-        P_gk1 = zk1[: self.nla_g]
-        P_gammak1 = zk1[self.nla_g : self.nla_g + self.nla_gamma]
-        P_Nk1 = zk1[
-            self.nla_g + self.nla_gamma : self.nla_g + self.nla_gamma + self.nla_N
-        ]
-        P_Fk1 = zk1[self.nla_g + self.nla_gamma + self.nla_N :]
+        q = y[: self.nq]
+        u = y[self.nq :]
+        P_g = z[: self.nla_g]
+        P_gamma = z[self.nla_g : self.nla_g + self.nla_gamma]
+        P_N = z[self.nla_g + self.nla_gamma : self.nla_g + self.nla_gamma + self.nla_N]
+        P_F = z[self.nla_g + self.nla_gamma + self.nla_N :]
 
         # evaluate quantities of previous time step
-        Mk = self.model.M(tk, qk, scipy_matrix=csr_matrix)
-        hk = self.model.h(tk, qk, uk)
-        W_gk = self.model.W_g(tk, qk, scipy_matrix=csr_matrix)
-        W_gammak = self.model.W_gamma(tk, qk, scipy_matrix=csr_matrix)
-        W_Nk = self.model.W_N(tk, qk, scipy_matrix=csr_matrix)
-        W_Fk = self.model.W_F(tk, qk, scipy_matrix=csr_matrix)
+        M = self.model.M(tk, q, scipy_matrix=csr_matrix)
+        h = self.model.h(tk, q, u)
+        W_g = self.model.W_g(tk, q, scipy_matrix=csr_matrix)
+        W_gamma = self.model.W_gamma(tk, q, scipy_matrix=csr_matrix)
+        W_N = self.model.W_N(tk, q, scipy_matrix=csr_matrix)
+        W_F = self.model.W_F(tk, q, scipy_matrix=csr_matrix)
 
-        # explicit Euler step
         dt = self.dt
         return np.concatenate(
             (
-                self.model.q_dot(tk, qk, uk) * dt,
+                self.model.q_dot(tk, q, u) * dt,
                 spsolve(
-                    Mk,
-                    hk * dt
-                    + W_gk @ P_gk1
-                    + W_gammak @ P_gammak1
-                    + W_Nk @ P_Nk1
-                    + W_Fk @ P_Fk1,
+                    M,
+                    h * dt + W_g @ P_g + W_gamma @ P_gamma + W_N @ P_N + W_F @ P_F,
                 ),
             )
         )
@@ -526,9 +502,75 @@ class NonsmoothHalfExplicitEuler:
     def step(self):
         j = 0
         converged = False
-        zk1 = np.concatenate((self.P_gk, self.P_gammak, self.P_Nk, self.P_Fk))
-        # zk1 = np.zeros(self.nla_N + self.nla_F)
-        ck1, tk1, qk1, uk1, P_gk1, P_gammak1, P_Nk1, P_Fk1 = self.c(zk1)
+        Z0 = np.concatenate((self.P_gk, self.P_gammak, self.P_Nk, self.P_Fk))
+
+        ##########################
+        # classical Runge-Kutta 4,
+        # see https://en.wikipedia.org/wiki/Runge%E2%80%93Kutta_methods#Examples
+        ##########################
+        ################
+        c = [
+            0,
+            0.5,
+            0.5,
+            1.0,
+        ]
+
+        A = [
+            [],
+            [0.5],
+            [0.0, 0.5],
+            [0.0, 0.0, 1.0],
+        ]
+
+        b = [
+            1 / 6,
+            1 / 3,
+            1 / 3,
+            1 / 6,
+        ]
+
+        from scipy.optimize import fsolve
+
+        self.Y = []
+        self.Z = []
+        for ci, ai in zip(c, A):
+            g_fun = self.build_g(ci, ai)
+
+            # solve stabe i
+            Zi = fsolve(lambda Z: g_fun(Z)[0], Z0)
+
+            # evaluate state of stage i
+            gi, Yi, Zi = g_fun(Zi)
+
+            # store stage i
+            self.Z.append(Zi)
+            self.Y.append(Yi)
+
+        # y = self.yk + sum([bj * Yj for bj, Yj in zip(b, self.Y)])
+
+        print(f"")
+
+        raise RuntimeError("move on here!")
+
+        # compute final stage
+        def g_final(Zs, update_index_set=True):
+            y = self.yk.copy()
+            s = len(c)
+            for i in range(s):
+                ti = self.tk + c[i] * self.dt
+                Yi = self.Y[i]
+                Zi = self.Z[i]
+                y += b[i] * self.f(ti, Yi, Zi)
+
+            # last stage
+            y += b[-1] * self.f(self.tk + c[-1] * self.dt, self.Y[-1], Zs)
+
+            return self.c
+
+        Zs = fsolve(lambda Z: g_final(Z), Z0)
+
+        ck1, tk1, qk1, uk1, P_gk1, P_gammak1, P_Nk1, P_Fk1 = self.c(Zi)
 
         error = self.error_function(ck1)
         converged = error < self.atol
@@ -536,9 +578,9 @@ class NonsmoothHalfExplicitEuler:
             j += 1
 
             # compute Jacobian and make a Newton step
-            c_yk1 = self.c_y(zk1)
+            c_yk1 = self.c_y(Zi)
 
-            zk1 -= spsolve(c_yk1, ck1)
+            Zi -= spsolve(c_yk1, ck1)
 
             # from scipy.sparse.linalg import lsqr
             # zk1 -= lsqr(c_yk1, ck1)[0]
@@ -553,7 +595,7 @@ class NonsmoothHalfExplicitEuler:
             # zk1 -= r * ck1
 
             # check error for new Lagrange multipliers
-            ck1, tk1, qk1, uk1, P_gk1, P_gammak1, P_Nk1, P_Fk1 = self.c(zk1)
+            ck1, tk1, qk1, uk1, P_gk1, P_gammak1, P_Nk1, P_Fk1 = self.c(Zi)
             error = self.error_function(ck1)
             converged = error < self.atol
 
@@ -591,6 +633,8 @@ class NonsmoothHalfExplicitEuler:
         P_gamma = [self.P_gammak]
         P_N = [self.P_Nk]
         P_F = [self.P_Fk]
+
+        self.yk = np.concatenate((self.qk, self.uk))
 
         pbar = tqdm(self.t[:-1])
         for _ in pbar:

@@ -163,7 +163,7 @@ if __name__ == "__main__":
     P_N_fp = sol_fp.P_N
     P_F_fp = sol_fp.P_F
 
-    fig, ax = plt.subplots(3, 1)
+    fig, ax = plt.subplots(2, 1)
     ax[0].set_title("x(t)")
     ax[0].plot(t_fp, q_fp[:, 0], "-r", label="Moreau")
     ax[0].plot(t_other, q_other[:, 0], "--b", label="Other")
@@ -174,14 +174,14 @@ if __name__ == "__main__":
     ax[1].plot(t_other, u_other[:, 0], "--b", label="Other")
     ax[1].legend()
 
-    ax[2].set_title("a_x(t)")
-    ax[2].plot(t_fp, a_fp[:, 0], "-r", label="Moreau")
-    ax[2].plot(t_other, a_other[:, 0], "--b", label="Other")
-    ax[2].legend()
+    # ax[2].set_title("a_x(t)")
+    # ax[2].plot(t_fp, a_fp[:, 0], "-r", label="Moreau")
+    # ax[2].plot(t_other, a_other[:, 0], "--b", label="Other")
+    # ax[2].legend()
 
     plt.tight_layout()
 
-    fig, ax = plt.subplots(3, 1)
+    fig, ax = plt.subplots(2, 1)
     ax[0].set_title("y(t)")
     ax[0].plot([t_fp[0], t_fp[-1]], [r, r], "-k", label="ground")
     ax[0].plot(t_fp, q_fp[:, 1], "-r", label="y Moreau")
@@ -193,14 +193,14 @@ if __name__ == "__main__":
     ax[1].plot(t_other, u_other[:, 1], "--b", label="Other")
     ax[1].legend()
 
-    ax[2].set_title("a_y(t)")
-    ax[2].plot(t_fp, a_fp[:, 1], "-r", label="Moreau")
-    ax[2].plot(t_other, a_other[:, 1], "--b", label="Other")
-    ax[2].legend()
+    # ax[2].set_title("a_y(t)")
+    # ax[2].plot(t_fp, a_fp[:, 1], "-r", label="Moreau")
+    # ax[2].plot(t_other, a_other[:, 1], "--b", label="Other")
+    # ax[2].legend()
 
     plt.tight_layout()
 
-    fig, ax = plt.subplots(3, 1)
+    fig, ax = plt.subplots(2, 1)
     ax[0].set_title("phi(t)")
     ax[0].plot(t_fp, q_fp[:, 3], "-r", label="Moreau")
     ax[0].plot(t_other, q_other[:, 3], "--b", label="Other")
@@ -211,10 +211,10 @@ if __name__ == "__main__":
     ax[1].plot(t_other, u_other[:, -1], "--b", label="Other")
     ax[1].legend()
 
-    ax[2].set_title("a_phi(t)")
-    ax[2].plot(t_fp, a_fp[:, -1], "-r", label="Moreau")
-    ax[2].plot(t_other, a_other[:, -1], "--b", label="Other")
-    ax[2].legend()
+    # ax[2].set_title("a_phi(t)")
+    # ax[2].plot(t_fp, a_fp[:, -1], "-r", label="Moreau")
+    # ax[2].plot(t_other, a_other[:, -1], "--b", label="Other")
+    # ax[2].legend()
 
     plt.tight_layout()
 

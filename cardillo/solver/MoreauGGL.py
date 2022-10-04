@@ -3356,10 +3356,10 @@ class NonsmoothDecoupled:
         # tk1 = self.tk + self.dt
         # uk1_free = self.uk + 0.5 * self.dt * (self.u_dotk + u_dotk1)
         # qk1 = self.qk + 0.5 * self.dt * (self.q_dotk + q_dotk1)
-        # la_gk1_free = 0.5 * self.dt * (self.la_gk + la_gk1)
-        # la_gammak1_free = 0.5 * self.dt * (self.la_gammak + la_gammak1)
-        # la_Nk1_free = 0.5 * self.dt * (self.la_Nk + la_Nk1)
-        # la_Fk1_free = 0.5 * self.dt * (self.la_Fk + la_Fk1)
+        # # la_gk1_free = 0.5 * self.dt * (self.la_gk + la_gk1)
+        # # la_gammak1_free = 0.5 * self.dt * (self.la_gammak + la_gammak1)
+        # # la_Nk1_free = 0.5 * self.dt * (self.la_Nk + la_Nk1)
+        # # la_Fk1_free = 0.5 * self.dt * (self.la_Fk + la_Fk1)
 
         return (
             tk1,
@@ -3503,6 +3503,9 @@ class NonsmoothDecoupled:
         #################
         # impact equation
         #################
+        # print(f"det(Mk1): {np.linalg.det(Mk1.toarray())}")
+        # Gk1 = W_Nk1.T @ spsolve(Mk1, W_Nk1)
+        # print(f"det(Gk1): {np.linalg.det(Gk1.toarray())}")
         Ry[:nu] = (
             Mk1 @ Uk1
             - W_gk1 @ La_gk1
@@ -3519,7 +3522,7 @@ class NonsmoothDecoupled:
         ###################
         # normal impact law
         ###################
-        Ry[nu + nla_g + nla_gamma : nu + nla_g + nla_gamma + nla_N] = np.select(
+        Ry[nu + nla_g + nla_gamma : nu + nla_g + nla_gamma + nla_N] = np.where(
             self.I_Nk1,
             xi_Nk1 - prox_R0_np(xi_Nk1 - self.model.prox_r_N * La_Nk1),
             La_Nk1,
@@ -3710,8 +3713,8 @@ class NonsmoothDecoupled:
         if not converged:
             while j < self.max_iter:
                 # jacobian
-                # J = csr_matrix(approx_fprime(xk1, f, method="2-point"))
-                J = csr_matrix(approx_fprime(xk1, f, method="3-point"))
+                J = csr_matrix(approx_fprime(xk1, f, method="2-point"))
+                # J = csr_matrix(approx_fprime(xk1, f, method="3-point"))
 
                 # Newton update
                 j += 1
@@ -3808,6 +3811,12 @@ class NonsmoothDecoupled:
                     q_dot=np.array(q_dot),
                     a=np.array(a),
                     U=np.array(U),
+                    la_g=np.array(la_g),
+                    La_g=np.array(La_g),
+                    P_g=np.array(P_g),
+                    la_gamma=np.array(la_gamma),
+                    La_gamma=np.array(La_gamma),
+                    P_gamma=np.array(P_gamma),
                     la_N=np.array(la_N),
                     La_N=np.array(La_N),
                     P_N=np.array(P_N),
@@ -3843,12 +3852,12 @@ class NonsmoothDecoupled:
             q_dot.append(q_dotk1)
             a.append(u_dotk1)
             U.append(Uk1)
-            # la_g.append(la_gk1)
-            # La_g.append(La_gk1)
-            # P_g.append(self.dt * la_gk1 + La_gk1)
-            # la_gamma.append(la_gammak1)
-            # La_gamma.append(La_gammak1)
-            # P_gamma.append(self.dt * la_gammak1 + La_gammak1)
+            la_g.append(la_gk1)
+            La_g.append(La_gk1)
+            P_g.append(self.dt * la_gk1 + La_gk1)
+            la_gamma.append(la_gammak1)
+            La_gamma.append(La_gammak1)
+            P_gamma.append(self.dt * la_gammak1 + La_gammak1)
             la_N.append(la_Nk1)
             La_N.append(La_Nk1)
             P_N.append(self.dt * la_Nk1 + La_Nk1)
@@ -3883,12 +3892,12 @@ class NonsmoothDecoupled:
             q_dot=np.array(q_dot),
             a=np.array(a),
             U=np.array(U),
-            # la_g=np.array(la_g),
-            # La_g=np.array(La_g),
-            # P_g=np.array(P_g),
-            # la_gamma=np.array(la_gamma),
-            # La_gamma=np.array(La_gamma),
-            # P_gamma=np.array(P_gamma),
+            la_g=np.array(la_g),
+            La_g=np.array(La_g),
+            P_g=np.array(P_g),
+            la_gamma=np.array(la_gamma),
+            La_gamma=np.array(La_gamma),
+            P_gamma=np.array(P_gamma),
             La_N=np.array(La_N),
             la_N=np.array(la_N),
             P_N=np.array(P_N),
@@ -4807,9 +4816,12 @@ class DecoupledNonsmoothHalfExplicitRungeKutta:
         W_Nk = self.model.W_N(tk, qk, scipy_matrix=csr_matrix)
         W_Fk = self.model.W_F(tk, qk, scipy_matrix=csr_matrix)
 
+        u_free = uk + self.dt * spsolve(Mk, hk)
+
         return np.concatenate(
             (
-                self.model.q_dot(tk, qk, uk) + g_N_qk.T @ mu_Nk1,
+                # self.model.q_dot(tk, qk, uk) + g_N_qk.T @ mu_Nk1,
+                self.model.q_dot(tk, qk, u_free) + g_N_qk.T @ mu_Nk1,
                 spsolve(
                     Mk,
                     hk
@@ -4837,14 +4849,14 @@ class DecoupledNonsmoothHalfExplicitRungeKutta:
         ]
         la_Fk1 = zk1[self.nla_g + self.nla_gamma + 2 * self.nla_N :]
 
-        # #####################
-        # # explicit Euler step
-        # #####################
-        # tk1 = self.tk + self.dt
-        # xk = np.concatenate((self.qk, self.uk))
-        # xk1 = xk + self.dt * self.f(self.tk, xk, zk1)
-        # qk1 = xk1[: self.nq]
-        # uk1_free = xk1[self.nq :]
+        #####################
+        # explicit Euler step
+        #####################
+        tk1 = self.tk + self.dt
+        xk = np.concatenate((self.qk, self.uk))
+        xk1 = xk + self.dt * self.f(self.tk, xk, zk1)
+        qk1 = xk1[: self.nq]
+        uk1_free = xk1[self.nq :]
 
         # ###############
         # # forward Euler
@@ -4874,57 +4886,57 @@ class DecoupledNonsmoothHalfExplicitRungeKutta:
         # #     1.0
         # # ]
 
-        ##########################
-        # classical Runge-Kutta 4,
-        # see https://en.wikipedia.org/wiki/Runge%E2%80%93Kutta_methods#Examples
-        ##########################
-        ################
-        c = [
-            0,
-            0.5,
-            0.5,
-            1.0,
-        ]
+        # ##########################
+        # # classical Runge-Kutta 4,
+        # # see https://en.wikipedia.org/wiki/Runge%E2%80%93Kutta_methods#Examples
+        # ##########################
+        # ################
+        # c = [
+        #     0,
+        #     0.5,
+        #     0.5,
+        #     1.0,
+        # ]
 
-        A = [
-            [],
-            [0.5],
-            [0.0, 0.5],
-            [0.0, 0.0, 1.0],
-        ]
+        # A = [
+        #     [],
+        #     [0.5],
+        #     [0.0, 0.5],
+        #     [0.0, 0.0, 1.0],
+        # ]
 
-        b = [
-            1 / 6,
-            1 / 3,
-            1 / 3,
-            1 / 6,
-        ]
+        # b = [
+        #     1 / 6,
+        #     1 / 3,
+        #     1 / 3,
+        #     1 / 6,
+        # ]
 
-        dt = self.dt
-        tk = self.tk
-        yk = np.concatenate((self.qk, self.uk))
+        # dt = self.dt
+        # tk = self.tk
+        # yk = np.concatenate((self.qk, self.uk))
 
-        k = []
-        for i, (ci, ai) in enumerate(zip(c, A)):
-            ti = tk + ci * dt
-            Yi = yk + dt * sum([aij * kj for aij, kj in zip(ai, k)])
-            # k.append(self.f(ti, Yi))
-            if i < len(c) - 1:
-                k.append(self.f(ti, Yi, np.zeros_like(zk1)))
-            else:
-                k.append(self.f(ti, Yi, zk1))
+        # k = []
+        # for i, (ci, ai) in enumerate(zip(c, A)):
+        #     ti = tk + ci * dt
+        #     Yi = yk + dt * sum([aij * kj for aij, kj in zip(ai, k)])
+        #     if i < len(c) - 1:
+        #         k.append(self.f(ti, Yi, np.zeros_like(zk1)))
+        #     else:
+        #         k.append(self.f(ti, Yi, zk1 / b[-1]))
 
-        yk1 = yk + dt * sum([bj * kj for bj, kj in zip(b, k)])
+        # yk1 = yk + dt * sum([bj * kj for bj, kj in zip(b, k)])
 
-        tk1 = self.tk + self.dt
-        qk1 = yk1[: self.nq]
-        uk1_free = yk1[self.nq :]
+        # tk1 = self.tk + self.dt
+        # qk1 = yk1[: self.nq]
+        # uk1_free = yk1[self.nq :]
 
         # constraint equations
         gk1 = self.model.g(tk1, qk1)
         gammak1 = self.model.gamma(tk1, qk1, uk1_free)
         g_Nk1 = self.model.g_N(tk1, qk1)
-        g_dot_Nk1 = self.model.g_N_dot(tk1, qk1, uk1_free)
+        # g_dot_Nk1 = self.model.g_N_dot(tk1, qk1, uk1_free)
+        g_dot_Nk1 = self.model.xi_N(tk1, qk1, self.uk, uk1_free)  # TODO!!!
         xi_Fk1 = self.model.xi_F(tk1, qk1, self.uk, uk1_free)
 
         # prox_arg = g_Nk1 - self.model.prox_r_N * la_Nk1

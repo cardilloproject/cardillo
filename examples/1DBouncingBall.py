@@ -125,8 +125,8 @@ if __name__ == "__main__":
     y_dot0 = 0
     r_OS0 = np.array([y0])
     vS0 = np.array([y_dot0])
-    q0 = np.array([y0])
-    u0 = np.array([y_dot0])
+    q0 = np.array([y0], dtype=float)
+    u0 = np.array([y_dot0], dtype=float)
 
     # create bouncing ball subsystem
     ball = BouncingBall(m, g, radius, prox_r_N=prox_r_N, e_N=e_N, q0=q0, u0=u0)
@@ -142,8 +142,8 @@ if __name__ == "__main__":
     t1 = 2
     # dt = 1e-1
     # dt = 5e-2
-    dt = 1e-2
-    # dt = 5e-3
+    # dt = 1e-2
+    dt = 5e-3
     # dt = 1e-3
     # dt = 5e-4
 
