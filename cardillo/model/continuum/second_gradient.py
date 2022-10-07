@@ -92,8 +92,6 @@ class Second_gradient:
         z[self.cDOF] = self.b(t)
         return z
 
-
-
     def F_qp(self, q):
         """Compute deformation gradient at quadrature points"""
         F = np.zeros((self.nel, self.nqp, self.dim, self.dim))
@@ -215,12 +213,6 @@ class Second_gradient:
                 F_q[:, :, self.nodalDOF[a]] += np.einsum("ik,j->ijk", I3, N_X[a])
                 G_q[:, :, :, self.nodalDOF[a]] += np.einsum("il,jk->ijkl", I3, N_XX[a])
 
-            # differentiate first Piola-Kirchhoff deformation tensor w.r.t. generalized coordinates
-            # S = self.mat.S(F_eli)
-            # S_F = self.mat.S_F(F_eli)
-            # P_F  = np.einsum('ik,lj->ijkl', I3, S)  + np.einsum('in,njkl->ijkl', F_eli, S_F)
-            # P_q = np.einsum('klmn,mnj->klj', P_F, F_q)
-
             # derivative of P and bbP w.r.t. q
             P_F = self.mat.P_F(F_eli, G_eli)
             P_G = self.mat.P_G(F_eli, G_eli)
@@ -247,12 +239,6 @@ class Second_gradient:
         for el in range(self.nel):
             # t0 = time.time()
             Ke = self.f_pot_q_el(z[self.elDOF[el]], el)
-            # t1 = time.time()
-            # Ke_num = Numerical_derivative(lambda z: self.f_pot_el(z, el), order=2)._X(z[self.elDOF[el]])
-            # t2 = time.time()
-            # error = np.linalg.norm(Ke - Ke_num)
-            # print(f'error: {error}')
-            # print('time%s,%s:' %(t1-t0, t2-t1))
 
             # sparse assemble element internal stiffness matrix
             elfDOF = self.elfDOF[el]
@@ -261,7 +247,7 @@ class Second_gradient:
             coo.extend(Ke[elfDOF[:, None], elfDOF], (eluDOF, elqDOF))
 
     ####################################################
-    # TODO: test line forces
+    # Line forces
     ####################################################
     def force_distr1D_el(self, force, t, el, edge_mesh, edge_w_J0el):
         fe = np.zeros(edge_mesh.nq_el)
@@ -297,7 +283,7 @@ class Second_gradient:
         pass
 
     ####################################################
-    # surface forces and double forces
+    # surface forces
     ####################################################
     def force_distr2D_el(self, force, t, el, srf_mesh, srf_w_J0el):
         fe = np.zeros(srf_mesh.nq_el)
@@ -334,20 +320,27 @@ class Second_gradient:
     def force_distr2D_q(self, t, q, coo, force, srf_idx):
         pass
 
-    def doubleforce_distr2D_el(self, dforce, t, el, srf_mesh, srf_w_J0el, srf_Norm, Nb_Xel):
+    ####################################################
+    # surface double forces
+    ####################################################
+    def doubleforce_distr2D_el(
+        self, dforce, t, el, srf_mesh, srf_w_J0el, srf_Norm, Nb_Xel
+    ):
         fe = np.zeros(self.mesh.nq_el)
 
         el_xi, el_eta = split2D(el, (srf_mesh.nel_xi,))
 
         for i in range(srf_mesh.nqp):
             Nb_Xeli = Nb_Xel[i]
-            
+
             i_xi, i_eta = split2D(i, (srf_mesh.nqp_xi,))
             xi = srf_mesh.qp_xi[el_xi, i_xi]
             eta = srf_mesh.qp_eta[el_eta, i_eta]
 
             for a in range(self.mesh.nn_el):
-                fe[self.mesh.nodalDOF[a]] += dforce(t, xi, eta) * Nb_Xeli[a, srf_Norm] * srf_w_J0el[i]
+                fe[self.mesh.nodalDOF[a]] += (
+                    dforce(t, xi, eta) * Nb_Xeli[a, srf_Norm] * srf_w_J0el[i]
+                )
 
             # internal forces
             # for a_tilde in range(srf_mesh.nn_el):
@@ -371,9 +364,7 @@ class Second_gradient:
             )
         return f[self.fDOF]
 
-    def doubleforce_distr2D_q(self,
-            t, q, coo, doubleforce_distr2D, srf_idx, srf_w_J0
-        ):
+    def doubleforce_distr2D_q(self, t, q, coo, doubleforce_distr2D, srf_idx, srf_w_J0):
         pass
 
     ####################################################
@@ -410,10 +401,10 @@ class Second_gradient:
     def force_distr3D_q(self, t, q, coo, force):
         pass
 
-
+    # TODO: Include global data in vtk file
     def post_processing_single_configuration(
         self, t, q, filename, binary=True, return_strain=False
-        ):
+    ):
         # compute redundant generalized coordinates
         z = self.z(t, q)
 
@@ -445,7 +436,7 @@ class Second_gradient:
                     G[el, i] += np.einsum(
                         "i,jk->ijk", ze[self.nodalDOF[a]], self.N_XX[el, i, a]
                     )
-                We[el, i] = self.mat.We(F[el,i], G[el,i])
+                We[el, i] = self.mat.We(F[el, i], G[el, i])
 
         if return_strain == False:
 
@@ -454,7 +445,7 @@ class Second_gradient:
             point_data.update({"F": F_vtk, "G": G_vtk})
 
             # field data vtk export
-            # TODO: get export field from material
+            # TODO: get export fields from material
             point_data_fields = {
                 # "C": lambda F: F.T @ F,
                 "J": lambda F, G: np.array([self.determinant(F)]),
@@ -464,15 +455,15 @@ class Second_gradient:
                 "W": lambda F, G: self.mat.W(F, G),
                 "We": lambda F, G: self.mat.We(F, G),
                 "Ws": lambda F, G: self.mat.Ws(F, G),
-                "Wc": lambda F, G: self.mat.Wc(F, G),
-                "Wg": lambda F, G: self.mat.Wg(F, G),
-                "Wn": lambda F, G: self.mat.Wn(F, G),
-                "Wt": lambda F, G: self.mat.Wt(F, G),
-                "rho": lambda F, G: self.mat.rho(F, G),
-                "ga": lambda F, G: self.mat.ga(F, G),
-                "tau": lambda F, G: self.mat.tau(F, G),
-                "kappa_n": lambda F, G: self.mat.kappa_n(F, G),
-                "kappa_g": lambda F, G: self.mat.kappa_g(F, G),
+                # "Wc": lambda F, G: self.mat.Wc(F, G),
+                # "Wg": lambda F, G: self.mat.Wg(F, G),
+                # "Wn": lambda F, G: self.mat.Wn(F, G),
+                # "Wt": lambda F, G: self.mat.Wt(F, G),
+                # "rho": lambda F, G: self.mat.rho(F, G),
+                # "ga": lambda F, G: self.mat.ga(F, G),
+                # "tau": lambda F, G: self.mat.tau(F, G),
+                # "kappa_n": lambda F, G: self.mat.kappa_n(F, G),
+                # "kappa_g": lambda F, G: self.mat.kappa_g(F, G),
             }
 
             for name, fun in point_data_fields.items():
@@ -490,17 +481,22 @@ class Second_gradient:
 
             # Global Values as Field Data
             field_data = {
-            "W_tot": self.integrate(self.mat.W, F, G),   
-            "We_tot": self.integrate(self.mat.We, F, G),
-            "Ws_tot": self.integrate(self.mat.Ws, F, G),
-            "Wn_tot": self.integrate(self.mat.Wn, F, G),
-            "Wg_tot": self.integrate(self.mat.Wg, F, G),
-            "Wt_tot": self.integrate(self.mat.Wt, F, G),
-            "Wc_tot": self.integrate(self.mat.Wc, F, G),
+                "W_tot": self.integrate(self.mat.W, F, G),
+                "We_tot": self.integrate(self.mat.We, F, G),
+                "Ws_tot": self.integrate(self.mat.Ws, F, G),
+                # "Wn_tot": self.integrate(self.mat.Wn, F, G),
+                # "Wg_tot": self.integrate(self.mat.Wg, F, G),
+                # "Wt_tot": self.integrate(self.mat.Wt, F, G),
+                # "Wc_tot": self.integrate(self.mat.Wc, F, G),
             }
             # write field data
             import pickle
-            with open(filename.parent / str('field_data_' + str.split(filename.stem,'_')[-1]), mode="wb") as f:
+
+            with open(
+                filename.parent
+                / str("field_data_" + str.split(filename.stem, "_")[-1]),
+                mode="wb",
+            ) as f:
                 pickle.dump(field_data, f)
             print(field_data)
             # write vtk mesh using meshio
@@ -548,8 +544,42 @@ class Second_gradient:
         with (filename.parent / (filename.stem + ".pvd")).open("w") as f:
             f.write(xml_str)
 
+    # Export for Lagrange multipliers
+    def post_processing_la_single_configuration(
+        self, t, la_mesh, la, q, z_range, filename, binary=True
+    ):
+
+        la_q = self.z(t, q)[z_range]
+
+        # generalized coordinates, connectivity and polynomial degree
+        cells, points, HigherOrderDegrees = la_mesh.vtk_mesh(la_q, dim=self.nq_n)
+
+        # dictionary storing point data
+        point_data = {}
+
+        _, la_vtk, _ = la_mesh.vtk_mesh(la, dim=la_mesh.nq_n)
+        point_data.update({"la": la_vtk})
+
+        # write vtk mesh using meshio
+        meshio.write_points_cells(
+            filename.parent / (filename.stem + ".vtu"),
+            points,
+            cells,
+            point_data=point_data,
+            cell_data={"HigherOrderDegrees": HigherOrderDegrees},
+            binary=binary,
+        )
+
     def post_processing_la(
-        self, t, la_mesh, la, q_la, filename, binary=True, project_to_reference=False
+        self,
+        t,
+        la_mesh,
+        la,
+        q_la,
+        z_range,
+        filename,
+        binary=True,
+        project_to_reference=False,
     ):
         # write paraview PVD file collecting time and all vtk files, see https://www.paraview.org/Wiki/ParaView/Data_formats#PVD_File_Format
         from xml.dom import minidom
@@ -575,7 +605,7 @@ class Second_gradient:
             if project_to_reference == True:
                 raise NotImplementedError
             self.post_processing_la_single_configuration(
-                ti, la_mesh, lai, q_lai, filei, binary=binary
+                ti, la_mesh, lai, q_lai, z_range, filei, binary=binary
             )
 
         # write pvd file
@@ -583,32 +613,10 @@ class Second_gradient:
         with (filename.parent / (filename.stem + "_la.pvd")).open("w") as f:
             f.write(xml_str)
 
-    def post_processing_la_single_configuration(
-        self, t, la_mesh, la, la_q, filename, binary=True
-    ):
-
-        # generalized coordinates, connectivity and polynomial degree
-        cells, points, HigherOrderDegrees = la_mesh.vtk_mesh(la_q, dim=self.nq_n)
-
-        # dictionary storing point data
-        point_data = {}
-
-        _, la_vtk, _ = la_mesh.vtk_mesh(la, dim=la_mesh.nq_n)
-        point_data.update({"la": la_vtk})
-
-        # write vtk mesh using meshio
-        meshio.write_points_cells(
-            filename.parent / (filename.stem + ".vtu"),
-            points,
-            cells,
-            point_data=point_data,
-            cell_data={"HigherOrderDegrees": HigherOrderDegrees},
-            binary=binary,
-        )
-
+    # Integration to obtain global values for export
     def integrate(self, var, F, G):
         # integrates variable over domain
-        Var = 0.
+        Var = 0.0
         for el in range(self.nel):
             for i in range(self.nqp):
                 vari = var(F[el, i], G[el, i])
@@ -619,217 +627,214 @@ class Second_gradient:
 
         return np.array([[Var]])
 
+    # TODO: test functions
+    # def test_gradient():
+    #     from cardillo.discretization.mesh3D import Mesh3D, cube
+    #     from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume
+    #     from cardillo.discretization.indexing import flat3D
 
+    #     QP_shape = (1, 1, 1)
+    #     degrees = (3, 3, 1)
+    #     element_shape = (10, 10, 1)
 
-def test_gradient():
-    from cardillo.discretization.mesh3D import Mesh3D, cube
-    from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume
-    from cardillo.discretization.indexing import flat3D
+    #     Xi = Knot_vector(degrees[0], element_shape[0])
+    #     Eta = Knot_vector(degrees[1], element_shape[1])
+    #     Zeta = Knot_vector(degrees[2], element_shape[2])
+    #     knot_vectors = (Xi, Eta, Zeta)
 
-    QP_shape = (1, 1, 1)
-    degrees = (3, 3, 1)
-    element_shape = (10, 10, 1)
+    #     mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=1, basis="B-spline", nq_n=3)
 
-    Xi = Knot_vector(degrees[0], element_shape[0])
-    Eta = Knot_vector(degrees[1], element_shape[1])
-    Zeta = Knot_vector(degrees[2], element_shape[2])
-    knot_vectors = (Xi, Eta, Zeta)
+    #     def bending(xi, eta, zeta, phi0=np.pi / 2, R=1, B=1, H=1):
+    #         phi = (1 - xi) * phi0
+    #         x = (R + B * eta) * np.cos(phi)
+    #         y = (R + B * eta) * np.sin(phi)
+    #         z = zeta * H
+    #         return x, y, z
 
-    mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=1, basis="B-spline", nq_n=3)
+    #     nxi, neta, nzeta = 15, 15, 5
+    #     xi = np.linspace(0, 1, num=nxi)
+    #     eta = np.linspace(0, 1, num=neta)
+    #     zeta = np.linspace(0, 1, num=nzeta)
 
-    def bending(xi, eta, zeta, phi0=np.pi / 2, R=1, B=1, H=1):
-        phi = (1 - xi) * phi0
-        x = (R + B * eta) * np.cos(phi)
-        y = (R + B * eta) * np.sin(phi)
-        z = zeta * H
-        return x, y, z
+    #     phi0, R, B, H = np.pi / 2, 1, 1, 1
 
-    nxi, neta, nzeta = 15, 15, 5
-    xi = np.linspace(0, 1, num=nxi)
-    eta = np.linspace(0, 1, num=neta)
-    zeta = np.linspace(0, 1, num=nzeta)
+    #     n3 = nxi * neta * nzeta
+    #     knots = np.zeros((n3, 3))
+    #     Pw = np.zeros((n3, 3))
+    #     for i, xii in enumerate(xi):
+    #         for j, etai in enumerate(eta):
+    #             for k, zetai in enumerate(zeta):
+    #                 idx = flat3D(i, j, k, (nxi, neta, nzeta))
+    #                 knots[idx] = xii, etai, zetai
+    #                 Pw[idx] = bending(xii, etai, zetai, phi0=phi0, R=R, B=B, H=H)
 
-    phi0, R, B, H = np.pi / 2, 1, 1, 1
+    #     cDOF = np.array([], dtype=int)
+    #     qc = np.array([], dtype=float).reshape((0, 3))
+    #     x, y, z = fit_B_spline_volume(mesh, knots, Pw, qc, cDOF)
 
-    n3 = nxi * neta * nzeta
-    knots = np.zeros((n3, 3))
-    Pw = np.zeros((n3, 3))
-    for i, xii in enumerate(xi):
-        for j, etai in enumerate(eta):
-            for k, zetai in enumerate(zeta):
-                idx = flat3D(i, j, k, (nxi, neta, nzeta))
-                knots[idx] = xii, etai, zetai
-                Pw[idx] = bending(xii, etai, zetai, phi0=phi0, R=R, B=B, H=H)
+    #     L = 1
+    #     cube_shape = (L, B, H)
+    #     Q = cube(cube_shape, mesh, Greville=True)
+    #     q0 = np.concatenate((x, y, z))
+    #     continuum = First_gradient(None, mesh, Q, z0=q0)
 
-    cDOF = np.array([], dtype=int)
-    qc = np.array([], dtype=float).reshape((0, 3))
-    x, y, z = fit_B_spline_volume(mesh, knots, Pw, qc, cDOF)
+    #     # import matplotlib.pyplot as plt
+    #     # fig = plt.figure()
+    #     # ax = fig.add_subplot(111, projection='3d')
+    #     # # ax.scatter(*Pw.T, color='black')
+    #     # ax.scatter(*Q.reshape(3, -1), color='blue')
+    #     # ax.scatter(*q0.reshape(3, -1), color='red')
+    #     # plt.show()
 
-    L = 1
-    cube_shape = (L, B, H)
-    Q = cube(cube_shape, mesh, Greville=True)
-    q0 = np.concatenate((x, y, z))
-    continuum = First_gradient(None, mesh, Q, z0=q0)
+    #     # knots = np.array([[0.5, 0.5, 0.5]])
+    #     # knots = np.array([[0.125, 0.35, 0.85]])
+    #     knots = np.random.rand(3).reshape(1, 3)
+    #     F_num = continuum.F(knots, q0)
+    #     print(f"F_num({knots[0]}):\n{F_num[0]}")
 
-    # import matplotlib.pyplot as plt
-    # fig = plt.figure()
-    # ax = fig.add_subplot(111, projection='3d')
-    # # ax.scatter(*Pw.T, color='black')
-    # ax.scatter(*Q.reshape(3, -1), color='blue')
-    # ax.scatter(*q0.reshape(3, -1), color='red')
-    # plt.show()
+    #     def F(xi, eta, zeta, phi0, R, B, L):
+    #         r = phi0 * (R + B * eta) / L
+    #         phi = (1 - xi) * phi0
+    #         F = np.array(
+    #             [
+    #                 [r * np.sin(phi), np.cos(phi), 0],
+    #                 [-r * np.cos(phi), np.sin(phi), 0],
+    #                 [0, 0, 1],
+    #             ]
+    #         )
+    #         return F
 
-    # knots = np.array([[0.5, 0.5, 0.5]])
-    # knots = np.array([[0.125, 0.35, 0.85]])
-    knots = np.random.rand(3).reshape(1, 3)
-    F_num = continuum.F(knots, q0)
-    print(f"F_num({knots[0]}):\n{F_num[0]}")
+    #     F_an = F(*knots[0], phi0, R, B, L)
+    #     print(f"F({knots[0]}):\n{F_an}")
 
-    def F(xi, eta, zeta, phi0, R, B, L):
-        r = phi0 * (R + B * eta) / L
-        phi = (1 - xi) * phi0
-        F = np.array(
-            [
-                [r * np.sin(phi), np.cos(phi), 0],
-                [-r * np.cos(phi), np.sin(phi), 0],
-                [0, 0, 1],
-            ]
-        )
-        return F
+    #     error = np.linalg.norm(F_num[0] - F_an)
+    #     print(f"error: {error}")
 
-    F_an = F(*knots[0], phi0, R, B, L)
-    print(f"F({knots[0]}):\n{F_an}")
+    # def test_gradient_vtk_export():
+    #     from cardillo.discretization.mesh3D import Mesh3D, cube
+    #     from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume
+    #     from cardillo.discretization.indexing import flat3D
 
-    error = np.linalg.norm(F_num[0] - F_an)
-    print(f"error: {error}")
+    #     QP_shape = (5, 5, 5)
+    #     degrees = (3, 3, 1)
+    #     element_shape = (5, 5, 1)
 
+    #     Xi = Knot_vector(degrees[0], element_shape[0])
+    #     Eta = Knot_vector(degrees[1], element_shape[1])
+    #     Zeta = Knot_vector(degrees[2], element_shape[2])
+    #     knot_vectors = (Xi, Eta, Zeta)
 
-def test_gradient_vtk_export():
-    from cardillo.discretization.mesh3D import Mesh3D, cube
-    from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume
-    from cardillo.discretization.indexing import flat3D
+    #     mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=1, basis="B-spline", nq_n=3)
 
-    QP_shape = (5, 5, 5)
-    degrees = (3, 3, 1)
-    element_shape = (5, 5, 1)
+    #     # reference configuration is a cube
+    #     phi0 = np.pi / 2
+    #     R = 1
+    #     B = 1
+    #     H = 1
+    #     # L = (R + B / 2) * phi0
+    #     L = (R) * phi0
+    #     cube_shape = (L, B, H)
+    #     Q = cube(cube_shape, mesh, Greville=True)
 
-    Xi = Knot_vector(degrees[0], element_shape[0])
-    Eta = Knot_vector(degrees[1], element_shape[1])
-    Zeta = Knot_vector(degrees[2], element_shape[2])
-    knot_vectors = (Xi, Eta, Zeta)
+    #     # 3D continuum
+    #     continuum = First_gradient(None, mesh, Q, z0=Q)
 
-    mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=1, basis="B-spline", nq_n=3)
+    #     # fit quater circle configuration
+    #     def bending(xi, eta, zeta, phi0, R, B, H):
+    #         phi = (1 - xi) * phi0
+    #         x = (R + B * eta) * np.cos(phi)
+    #         y = (R + B * eta) * np.sin(phi)
+    #         z = zeta * H
+    #         return x, y, z
 
-    # reference configuration is a cube
-    phi0 = np.pi / 2
-    R = 1
-    B = 1
-    H = 1
-    # L = (R + B / 2) * phi0
-    L = (R) * phi0
-    cube_shape = (L, B, H)
-    Q = cube(cube_shape, mesh, Greville=True)
+    #     nxi, neta, nzeta = 15, 15, 5
+    #     xi = np.linspace(0, 1, num=nxi)
+    #     eta = np.linspace(0, 1, num=neta)
+    #     zeta = np.linspace(0, 1, num=nzeta)
 
-    # 3D continuum
-    continuum = First_gradient(None, mesh, Q, z0=Q)
+    #     n3 = nxi * neta * nzeta
+    #     knots = np.zeros((n3, 3))
+    #     Pw = np.zeros((n3, 3))
+    #     for i, xii in enumerate(xi):
+    #         for j, etai in enumerate(eta):
+    #             for k, zetai in enumerate(zeta):
+    #                 idx = flat3D(i, j, k, (nxi, neta, nzeta))
+    #                 knots[idx] = xii, etai, zetai
+    #                 Pw[idx] = bending(xii, etai, zetai, phi0=phi0, R=R, B=B, H=H)
 
-    # fit quater circle configuration
-    def bending(xi, eta, zeta, phi0, R, B, H):
-        phi = (1 - xi) * phi0
-        x = (R + B * eta) * np.cos(phi)
-        y = (R + B * eta) * np.sin(phi)
-        z = zeta * H
-        return x, y, z
+    #     cDOF = np.array([], dtype=int)
+    #     qc = np.array([], dtype=float).reshape((0, 3))
+    #     x, y, z = fit_B_spline_volume(mesh, knots, Pw, qc, cDOF)
+    #     q = np.concatenate((x, y, z))
 
-    nxi, neta, nzeta = 15, 15, 5
-    xi = np.linspace(0, 1, num=nxi)
-    eta = np.linspace(0, 1, num=neta)
-    zeta = np.linspace(0, 1, num=nzeta)
+    #     # export current configuration and deformation gradient on quadrature points to paraview
+    #     continuum.post_processing(q, "test.vtu")
 
-    n3 = nxi * neta * nzeta
-    knots = np.zeros((n3, 3))
-    Pw = np.zeros((n3, 3))
-    for i, xii in enumerate(xi):
-        for j, etai in enumerate(eta):
-            for k, zetai in enumerate(zeta):
-                idx = flat3D(i, j, k, (nxi, neta, nzeta))
-                knots[idx] = xii, etai, zetai
-                Pw[idx] = bending(xii, etai, zetai, phi0=phi0, R=R, B=B, H=H)
+    # def test_internal_forces():
+    # from cardillo.discretization.mesh3D import Mesh3D, cube
+    # from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume
+    # from cardillo.discretization.indexing import flat3D
+    # from cardillo.model.continuum import Ogden1997_compressible
 
-    cDOF = np.array([], dtype=int)
-    qc = np.array([], dtype=float).reshape((0, 3))
-    x, y, z = fit_B_spline_volume(mesh, knots, Pw, qc, cDOF)
-    q = np.concatenate((x, y, z))
+    # QP_shape = (2, 2, 2)
+    # degrees = (2, 2, 2)
+    # element_shape = (4, 4, 2)
 
-    # export current configuration and deformation gradient on quadrature points to paraview
-    continuum.post_processing(q, "test.vtu")
+    # Xi = Knot_vector(degrees[0], element_shape[0])
+    # Eta = Knot_vector(degrees[1], element_shape[1])
+    # Zeta = Knot_vector(degrees[2], element_shape[2])
+    # knot_vectors = (Xi, Eta, Zeta)
 
+    # mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=1, basis="B-spline", nq_n=3)
 
-def test_internal_forces():
-    from cardillo.discretization.mesh3D import Mesh3D, cube
-    from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume
-    from cardillo.discretization.indexing import flat3D
-    from cardillo.model.continuum import Ogden1997_compressible
+    # # reference configuration is a cube
+    # phi0 = np.pi / 2
+    # R = 1
+    # B = 1
+    # H = 1
+    # # L = (R + B / 2) * phi0
+    # L = (R) * phi0
+    # cube_shape = (L, B, H)
+    # Z = cube(cube_shape, mesh, Greville=True)
 
-    QP_shape = (2, 2, 2)
-    degrees = (2, 2, 2)
-    element_shape = (4, 4, 2)
+    # # material model
+    # mu1 = 0.3
+    # mu2 = 0.5
+    # mat = Ogden1997_compressible(mu1, mu2)
 
-    Xi = Knot_vector(degrees[0], element_shape[0])
-    Eta = Knot_vector(degrees[1], element_shape[1])
-    Zeta = Knot_vector(degrees[2], element_shape[2])
-    knot_vectors = (Xi, Eta, Zeta)
+    # # 3D continuum
+    # # cDOF = []
+    # # b = lambda t: np.array([], dtype=float)
+    # cDOF1 = mesh.surface_DOF[0].reshape(-1)
+    # cDOF2 = mesh.surface_DOF[1][2]
+    # cDOF = np.concatenate((cDOF1, cDOF2))
+    # b1 = lambda t: Z[cDOF1]
+    # b2 = lambda t: Z[cDOF2] + t * 0.25
+    # b = lambda t: np.concatenate((b1(t), b2(t)))
 
-    mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=1, basis="B-spline", nq_n=3)
+    # continuum = First_gradient(mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
 
-    # reference configuration is a cube
-    phi0 = np.pi / 2
-    R = 1
-    B = 1
-    H = 1
-    # L = (R + B / 2) * phi0
-    L = (R) * phi0
-    cube_shape = (L, B, H)
-    Z = cube(cube_shape, mesh, Greville=True)
+    # from cardillo.model import Model
 
-    # material model
-    mu1 = 0.3
-    mu2 = 0.5
-    mat = Ogden1997_compressible(mu1, mu2)
+    # model = Model()
+    # model.add(continuum)
+    # model.assemble()
 
-    # 3D continuum
-    # cDOF = []
-    # b = lambda t: np.array([], dtype=float)
-    cDOF1 = mesh.surface_DOF[0].reshape(-1)
-    cDOF2 = mesh.surface_DOF[1][2]
-    cDOF = np.concatenate((cDOF1, cDOF2))
-    b1 = lambda t: Z[cDOF1]
-    b2 = lambda t: Z[cDOF2] + t * 0.25
-    b = lambda t: np.concatenate((b1(t), b2(t)))
+    # # evaluate internal forces in reference configuration
+    # Q = Z[continuum.fDOF]
+    # # f_pot = continuum.f_pot(0, Q)
+    # f_pot = model.f_pot(0, Q)
+    # # print(f'f_pot:\n{f_pot}')
+    # print(f"f_pot.shape: {f_pot.shape}")
+    # print(f"len(cDOF): {len(cDOF)}")
+    # print(f"len(b(0)): {len(b(0))}")
 
-    continuum = First_gradient(mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
+    # f_pot_q = model.f_pot_q(0, Q)
+    # # print(f'f_pot_q:\n{f_pot_q.toarray()}')
+    # print(f"f_pot_q.shape:\n{f_pot_q.toarray().shape}")
 
-    from cardillo.model import Model
-
-    model = Model()
-    model.add(continuum)
-    model.assemble()
-
-    # evaluate internal forces in reference configuration
-    Q = Z[continuum.fDOF]
-    # f_pot = continuum.f_pot(0, Q)
-    f_pot = model.f_pot(0, Q)
-    # print(f'f_pot:\n{f_pot}')
-    print(f"f_pot.shape: {f_pot.shape}")
-    print(f"len(cDOF): {len(cDOF)}")
-    print(f"len(b(0)): {len(b(0))}")
-
-    f_pot_q = model.f_pot_q(0, Q)
-    # print(f'f_pot_q:\n{f_pot_q.toarray()}')
-    print(f"f_pot_q.shape:\n{f_pot_q.toarray().shape}")
-
-    # export current configuration and deformation gradient on quadrature points to paraview
-    continuum.post_processing(0.137, Q, "test.vtu")
+    # # export current configuration and deformation gradient on quadrature points to paraview
+    # continuum.post_processing(0.137, Q, "test.vtu")
 
 
 if __name__ == "__main__":

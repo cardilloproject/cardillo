@@ -4,6 +4,7 @@ import matplotlib.animation as animation
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 from cardillo.utility.post_processing_vtk import post_processing
+
 # from cardillo.model.classical_beams.spatial.Timoshenko_beam_director import post_processing
 from cardillo.math.algebra import A_IK_basic_z, A_IK_basic_x, A_IK_basic_y
 from cardillo.solver.solution import load_solution
@@ -11,11 +12,24 @@ from cardillo.model.force import Force
 from cardillo.model.moment import K_Moment
 from cardillo.discretization import uniform_knot_vector
 from cardillo.model.line_force.line_force import Line_force
-from cardillo.solver import Newton, Euler_backward, Euler_forward, Generalized_alpha_1, Generalized_alpha_2, Scipy_ivp, Generalized_alpha_4_index3, Generalized_alpha_4_singular_index3
+from cardillo.solver import (
+    Newton,
+    Euler_backward,
+    Euler_forward,
+    Generalized_alpha_1,
+    Generalized_alpha_2,
+    Scipy_ivp,
+    Generalized_alpha_4_index3,
+    Generalized_alpha_4_singular_index3,
+)
 from cardillo.model import Model
 from cardillo.model.classical_beams.spatial import Hooke_quadratic, Hooke
 from cardillo.model.classical_beams.spatial import Timoshenko_director_dirac
-from cardillo.model.classical_beams.spatial import Timoshenko_director_integral, Euler_Bernoulli_director_integral, Inextensible_Euler_Bernoulli_director_integral
+from cardillo.model.classical_beams.spatial import (
+    Timoshenko_director_integral,
+    Euler_Bernoulli_director_integral,
+    Inextensible_Euler_Bernoulli_director_integral,
+)
 from cardillo.model.classical_beams.spatial.director import straight_configuration
 from cardillo.model.frame import Frame
 from cardillo.model.rigid_body import Rigid_body_euler, Rigid_body_director
@@ -30,9 +44,14 @@ from cardillo.model.bilateral_constraints.implicit import (
     # Saddle_joint,
     # Single_position_all_angles
 )
-from cardillo.model.scalar_force_interactions.force_laws import Linear_spring, Power_spring
+from cardillo.model.scalar_force_interactions.force_laws import (
+    Linear_spring,
+    Power_spring,
+)
 from cardillo.model.scalar_force_interactions import Translational_f_pot
-from cardillo.model.scalar_force_interactions import add_rotational_forcelaw as Rotational 
+from cardillo.model.scalar_force_interactions import (
+    add_rotational_forcelaw as Rotational,
+)
 from collections import defaultdict
 
 
@@ -42,60 +61,142 @@ A_IK2 = A_IK_basic_z(3 * np.pi / 4)
 A_IK3 = A_IK_basic_x(3 * np.pi / 4) @ A_IK_basic_y(np.pi / 2)
 # A_IK3 = A_IK_basic_z(np.pi / 4) @ A_IK_basic_y(np.pi / 2)
 
-A_IK4 = A_IK_basic_x(3*np.pi / 4) @ A_IK_basic_y(np.pi /
-                                                 2) @ A_IK_basic_z(np.pi/2)
+A_IK4 = A_IK_basic_x(3 * np.pi / 4) @ A_IK_basic_y(np.pi / 2) @ A_IK_basic_z(np.pi / 2)
 
 A_IK_list = [A_IK1, A_IK2, A_IK3, A_IK4]
 
-A_IK_y = A_IK_basic_x(np.pi/2) @ A_IK_basic_y(np.pi/2)
-A_IK_y = A_IK_basic_z(np.pi/2) @ np.eye(3)
+A_IK_y = A_IK_basic_x(np.pi / 2) @ A_IK_basic_y(np.pi / 2)
+A_IK_y = A_IK_basic_z(np.pi / 2) @ np.eye(3)
 
 A_IK_x = np.eye(3)
 
 A_IK_xm = A_IK_basic_z(np.pi) @ np.eye(3)
-A_IK_ym = A_IK_basic_z(-np.pi/2) @ np.eye(3)
+A_IK_ym = A_IK_basic_z(-np.pi / 2) @ np.eye(3)
 
 # A_IK_x = np.eye(3)
 
-A_IK_z = A_IK_basic_x(-np.pi/2) @ A_IK_basic_z(-np.pi/2)
+A_IK_z = A_IK_basic_x(-np.pi / 2) @ A_IK_basic_z(-np.pi / 2)
 
-A_IK_p = A_IK_basic_x(-np.pi/2)
+A_IK_p = A_IK_basic_x(-np.pi / 2)
 
-ex = np.array([1,0,0])
-ey = np.array([0,1,0])
-ez = np.array([0,0,1])
+A_IK_yz = A_IK_basic_y(-np.pi / 2) @ A_IK_basic_z(np.pi / 4) @ np.eye(3)
+A_IK_ymz = A_IK_basic_y(-np.pi / 2) @ A_IK_basic_z(-np.pi / 4) @ np.eye(3)
+
+ex = np.array([1, 0, 0])
+ey = np.array([0, 1, 0])
+ez = np.array([0, 0, 1])
+
 
 def save_solution(sol, filename):
     import pickle
-    with open(filename, mode='wb') as f:
+
+    with open(filename, mode="wb") as f:
         pickle.dump(sol, f)
 
 
-class Beam():
+class Beam(Timoshenko_director_integral):
     def __init__(self, p, q, nEl, L, r_OP, k, A_IK, material):
+        self.r_OP0 = r_OP
+        self.k = k
+        self.A_IK0 = A_IK
+        Q = straight_configuration(
+            p,
+            q,
+            nEl * k,
+            L * k,
+            greville_abscissae=greville,
+            r_OP=r_OP,
+            A_IK=self.A_IK0,
+            basis=basis,
+        )
+        self.q0 = Q.copy()
+        super().__init__(
+            material_model,
+            A_rho0,
+            B_rho0,
+            C_rho0,
+            p,
+            q,
+            nQP,
+            nEl * k,
+            Q=Q,
+            q0=self.q0,
+            basis=basis,
+        )
+
+
+class Beam_old:
+    def __init__(self, p, q, nEl, L, r_OP, k, A_IK, material):
+        super().__init__()
         self.r_OP = r_OP
         self.k = k
         # self.b_type = b_type
         self.A_IK = A_IK
         Q = straight_configuration(
-            p, q, nEl*k, L*k, greville_abscissae=greville, r_OP=r_OP, A_IK=self.A_IK, basis=basis)
+            p,
+            q,
+            nEl * k,
+            L * k,
+            greville_abscissae=greville,
+            r_OP=r_OP,
+            A_IK=self.A_IK,
+            basis=basis,
+        )
         self.q0 = Q.copy()
-        self.beam = Timoshenko_director_integral(material, A_rho0,
-                                                 B_rho0, C_rho0, p, q, nQP,
-                                                 nEl*k, Q=Q, q0=self.q0, basis=basis)
+        self.beam = Timoshenko_director_integral(
+            material,
+            A_rho0,
+            B_rho0,
+            C_rho0,
+            p,
+            q,
+            nQP,
+            nEl * k,
+            Q=Q,
+            q0=self.q0,
+            basis=basis,
+        )
 
 
-def Joint(jtype, subsystem1, subsystem2, r_OB, A_IB=np.eye(3), law=None, frame_ID1=(0,), frame_ID2=(0,)):       
-    if jtype == 'rigid':
-        return Rigid_connection(subsystem1, subsystem2, r_OB, frame_ID1=frame_ID1, frame_ID2=frame_ID2)
-    elif (jtype == 'revolute'):
-        return Revolute_joint(subsystem1, subsystem2, r_OB, A_IB, frame_ID1=frame_ID1, frame_ID2=frame_ID2)
-    elif (jtype == 'spring'):
-        return Rotational(law, Revolute_joint)(subsystem1, subsystem2, r_OB, A_IB, frame_ID1=frame_ID1, frame_ID2=frame_ID2)
+def Joint(
+    jtype,
+    subsystem1,
+    subsystem2,
+    r_OB,
+    A_IB=np.eye(3),
+    law=None,
+    frame_ID1=(0,),
+    frame_ID2=(0,),
+):
+    if jtype == "rigid":
+        return Rigid_connection(
+            subsystem1, subsystem2, r_OB, frame_ID1=frame_ID1, frame_ID2=frame_ID2
+        )
+    elif jtype == "revolute":
+        return Revolute_joint(
+            subsystem1, subsystem2, r_OB, A_IB, frame_ID1=frame_ID1, frame_ID2=frame_ID2
+        )
+    elif jtype == "spring":
+        return Rotational(law, Revolute_joint)(
+            subsystem1, subsystem2, r_OB, A_IB, frame_ID1=frame_ID1, frame_ID2=frame_ID2
+        )
 
 
-class Cross():
-    def __init__(self, r_OB, l1, l2, rigid=False, pivot=True):
+class Cross:
+    def __init__(self, r_OB, l1, l2, orientation="cw", rigid=False):
+        self.r_OB = r_OB
+        if orientation == "cw":
+            dor = 1
+            A_IK_x1 = A_IK_x
+            A_IK_x2 = A_IK_xm
+            A_IK_y1 = A_IK_y
+            A_IK_y2 = A_IK_ym
+        else:
+            dor = -1
+            A_IK_x1 = A_IK_xm
+            A_IK_x2 = A_IK_x
+            A_IK_y1 = A_IK_ym
+            A_IK_y2 = A_IK_y
 
         if rigid:
             NotImplementedError()
@@ -105,33 +206,77 @@ class Cross():
             self.rigid = np.empty(4, dtype=object)
             self.force_laws = np.empty(4, dtype=object)
 
-
             # joint_type = 'spring'
-            joint_type = 'rigid'
+            joint_type = "rigid"
             spring = Power_spring(ks, 2)
 
-            self.beams[0] = Beam(p, q, nel, l1, r_OB - 0.5*l1*ex, 1, A_IK_x, material_model)
-            self.beams[1] = Beam(p, q, nel, l1, r_OB - 0.5*l1*ey, 1, A_IK_y, material_model)
+            self.beams[0] = Beam(
+                p, q, nel, l1, r_OB - dor * 0.5 * l1 * ex, 1, A_IK_x1, material_model
+            )
+            self.beams[1] = Beam(
+                p, q, nel, l1, r_OB - dor * 0.5 * l1 * ey, 1, A_IK_y1, material_model
+            )
 
             # self.joints[0] = Revolute_joint(self.beams[0].beam, self.beams[1].beam, r_OB, A_IK_x, frame_ID1=(.5,), frame_ID2=(.5,))
-            self.joints[0] = Rigid_connection(self.beams[0].beam, self.beams[1].beam, r_OB, frame_ID1=(.5,), frame_ID2=(.5,))
+            self.joints[0] = Rigid_connection(
+                self.beams[0],
+                self.beams[1],
+                r_OB,
+                frame_ID1=(0.5,),
+                frame_ID2=(0.5,),
+            )
 
             # beam top
-            self.beams[2] = Beam(p, q, nel, l2, r_OB + 0.5*l1*ex, 1, A_IK_ym, material_model)
-            self.r_OP_b = r_OB + 0.5 * l1 * ex - l2 * ey
-            self.beams[3] = Beam(p, q, nel, l2, r_OB - 0.5*l1*ex, 1, A_IK_y, material_model)
-            self.r_OP_t = r_OB - 0.5 * l1 * ex + l2 * ey
+            self.beams[2] = Beam(
+                p, q, nel, l2, r_OB + dor * 0.5 * l1 * ex, 1, A_IK_ym, material_model
+            )
+            self.r_OP_b = r_OB + dor * 0.5 * l1 * ex - l2 * ey
+            self.beams[3] = Beam(
+                p, q, nel, l2, r_OB - dor * 0.5 * l1 * ex, 1, A_IK_y, material_model
+            )
+            self.r_OP_t = r_OB - dor * 0.5 * l1 * ex + l2 * ey
 
-            self.joints[1] = Joint(joint_type, self.beams[0].beam, self.beams[3].beam, r_OB - 0.5 * l1 * ex, law=spring)
-            self.joints[2] = Joint(joint_type, self.beams[0].beam, self.beams[2].beam, r_OB + 0.5 * l1 * ex, law=spring, frame_ID1=(1,))
+            self.joints[1] = Joint(
+                joint_type,
+                self.beams[0],
+                self.beams[3],
+                r_OB - dor * 0.5 * l1 * ex,
+                law=spring,
+            )
+            self.joints[2] = Joint(
+                joint_type,
+                self.beams[0],
+                self.beams[2],
+                r_OB + dor * 0.5 * l1 * ex,
+                law=spring,
+                frame_ID1=(1,),
+            )
 
-            self.beams[4] = Beam(p, q, nel, l2, r_OB + 0.5*l1*ey, 1, A_IK_x, material_model)
-            self.r_OP_r = r_OB + 0.5 * l1 * ey + l2 * ex
-            self.beams[5] = Beam(p, q, nel, l2, r_OB - 0.5*l1*ey, 1, A_IK_xm, material_model)
-            self.r_OP_l = r_OB - 0.5 * l1 * ey - l2 * ex
+            # beam bottom
+            self.beams[4] = Beam(
+                p, q, nel, l2, r_OB + dor * 0.5 * l1 * ey, 1, A_IK_x, material_model
+            )
+            self.r_OP_r = r_OB + dor * 0.5 * l1 * ey + l2 * ex
+            self.beams[5] = Beam(
+                p, q, nel, l2, r_OB - dor * 0.5 * l1 * ey, 1, A_IK_xm, material_model
+            )
+            self.r_OP_l = r_OB - dor * 0.5 * l1 * ey - l2 * ex
 
-            self.joints[3] = Joint(joint_type, self.beams[1].beam, self.beams[5].beam, r_OB - 0.5 * l1 * ey, law=spring)
-            self.joints[4] = Joint(joint_type, self.beams[1].beam, self.beams[4].beam, r_OB + 0.5 * l1 * ey,  law=spring, frame_ID1=(1,))
+            self.joints[3] = Joint(
+                joint_type,
+                self.beams[1],
+                self.beams[5],
+                r_OB - dor * 0.5 * l1 * ey,
+                law=spring,
+            )
+            self.joints[4] = Joint(
+                joint_type,
+                self.beams[1],
+                self.beams[4],
+                r_OB + dor * 0.5 * l1 * ey,
+                law=spring,
+                frame_ID1=(1,),
+            )
 
             # rigid bodies on end nodes
             q0_l = np.concatenate((self.r_OP_l, np.zeros(3)))
@@ -154,99 +299,282 @@ class Cross():
             # self.rigid[3] = Rigid_body_euler(1, np.eye(3), q0=q0_l)
             # # self.joints[8] = Revolute_joint(self.beams[5], self.rigid[3], self.r_OP_l, A_IK_x)
             # self.force_laws[3] = Rotational(spring, Revolute_joint)(self.beams[5].beam, self.rigid[3], self.r_OP_l, A_IK_x, frame_ID1=(1,))
-            
-class Grid():
-    def __init__(self, l1, l2, nEl, spring=False):
-        nEl_x, nEl_y = nEl
+
+
+class Panto_unit:
+    def __init__(self, l3, r_OB):
+        self.beams = np.empty(4, dtype=object)
+        self.joints = np.empty(4, dtype=object)
+        self.rigid = np.empty(4, dtype=object)
+        self.force_laws = np.empty(4, dtype=object)
+        r_OB = r_OB - l3 * ez
+        lb = l3 / np.sqrt(2)
+        lp = 0
+
+        self.beams[0] = Beam(
+            p, q, nel, lb, r_OB + lp / 2 * ez, 1, A_IK_yz, material_model
+        )
+        self.beams[1] = Beam(
+            p, q, nel, lb, r_OB - lp / 2 * ez, 1, A_IK_ymz, material_model
+        )
+        self.beams[2] = Beam(
+            p,
+            q,
+            nel,
+            lb,
+            r_OB + lp / 2 * ez + A_IK_yz @ ex * lb,
+            1,
+            A_IK_ymz,
+            material_model,
+        )
+        self.beams[3] = Beam(
+            p,
+            q,
+            nel,
+            lb,
+            r_OB - lp / 2 * ez + A_IK_ymz @ ex * lb,
+            1,
+            A_IK_yz,
+            material_model,
+        )
+
+        self.joints[0] = Joint("revolute", self.beams[0], self.beams[1], r_OB)
+        self.joints[1] = Joint(
+            "revolute",
+            self.beams[2],
+            self.beams[3],
+            r_OB + l3 * ez,
+            A_IB=A_IK_yz,
+            frame_ID1=(1,),
+            frame_ID2=(1,),
+        )
+        self.joints[2] = Joint(
+            "revolute",
+            self.beams[0],
+            self.beams[2],
+            r_OB + A_IK_yz @ ex * lb,
+            A_IB=A_IK_yz,
+            frame_ID1=(1,),
+        )
+        self.joints[3] = Joint(
+            "revolute",
+            self.beams[1],
+            self.beams[3],
+            r_OB + A_IK_ymz @ ex * lb,
+            A_IB=A_IK_ymz,
+            frame_ID1=(1,),
+        )
+
+
+class Grid:
+    def __init__(self, l1, l2, l3, nEl, spring=False, orientation="ccw"):
+        self.orientation = orientation
+        nEl_x, nEl_y, nEl_z = nEl
         grid_dict = {}
         self.beams = []
         self.joints = []
         self.rigid = []
         self.force_laws = []
         # joint_type = 'rigid'
-        joint_type = 'spring'
+        joint_type = "spring"
         self.joint_type = joint_type
         spring = Power_spring(ks, 2)
-        for nx in range(nEl_x):
-            for ny in range(nEl_y):
-                r_OB = 2*l2*nx*ex + 2*l2*ny*ey
-                cross = Cross(r_OB, l1, l2)
-                grid_dict.update({(nx, ny) : {'cross': cross}})
-                for beam in cross.beams:
-                    self.beams.append(beam.beam)
-                for rigid in cross.rigid:
-                    self.rigid.append(rigid)
-                for law in cross.force_laws:
-                    self.force_laws.append(law)
-                for joint in cross.joints:
-                    self.joints.append(joint)
-                    
-                # connection to frame left
-                if nx == 0:
-                    # bc = Rigid_connection(frame_left, cross.beams[5].beam, cross.r_OP_l, frame_ID2=(1,))
-                    bc = Joint('revolute', frame_left, cross.beams[0].beam, r_OB, frame_ID2=(.5,))
-                    self.joints.append(bc)
 
-                # connection to frame right and left unit cell
-                elif nx == nEl_x - 1:
-                    # bc = Rigid_connection(frame_right, cross.beams[4].beam, cross.r_OP_r, frame_ID2=(1,))
-                    bc = Joint('revolute', frame_right, cross.beams[0].beam, r_OB, frame_ID2=(.5,))
-                    self.joints.append(bc)
-                    beam = Beam(p, q, nel, l1, cross.r_OP_l, 1, A_IK_y, material=soft_beam)
-                    bc1 = Joint(joint_type, beam.beam, cross.beams[5].beam, cross.r_OP_l, A_IB=A_IK_x, law=spring, frame_ID2=(1,))
-                    bc2 = Joint(joint_type, beam.beam, grid_dict[(nx-1,ny)]['cross'].beams[4].beam, grid_dict[(nx-1,ny)]['cross'].r_OP_r, A_IB=A_IK_x, law=spring, frame_ID1=(1,), frame_ID2=(1,))
-  
-                    self.beams.append(beam.beam)
-                    self.joints.append(bc1)
-                    self.joints.append(bc2)
+        for nz in range(nEl_z):
+            if self.orientation == "ccw" and nz > 0:
+                self.orientation = "cw"
+            elif nz > 0:
+                self.orientation = "ccw"
 
-                else:
-                    beam = Beam(p, q, nel, l1, cross.r_OP_l, 1, A_IK_y, material=soft_beam)
-                    bc1 = Joint(joint_type, beam.beam, cross.beams[5].beam, cross.r_OP_l, A_IB=A_IK_x, law=spring, frame_ID2=(1,))
-                    bc2 = Joint(joint_type, beam.beam, grid_dict[(nx-1,ny)]['cross'].beams[4].beam, grid_dict[(nx-1,ny)]['cross'].r_OP_r, A_IB=A_IK_x, law=spring, frame_ID1=(1,), frame_ID2=(1,))
-   
-                    self.beams.append(beam.beam)
-                    self.joints.append(bc1)
-                    self.joints.append(bc2)
+            if self.orientation == "cw":
+                A_IK_y1 = A_IK_y
+                A_IK_x2 = A_IK_xm
+            else:
+                A_IK_y1 = A_IK_ym
+                A_IK_x2 = A_IK_x
+            for nx in range(nEl_x):
+                for ny in range(nEl_y):
 
-                # connections to cross on lower ny
-                if ny > 0:
-                    beam = Beam(p, q, nel, l1, cross.r_OP_b, 1, A_IK_xm, material=soft_beam)
-                    bc1 = Joint(joint_type, beam.beam, cross.beams[2].beam, cross.r_OP_b, A_IB=A_IK_x, law=spring, frame_ID2=(1,))
-                    bc2 = Joint(joint_type, beam.beam, grid_dict[(nx,ny-1)]['cross'].beams[3].beam, grid_dict[(nx,ny-1)]['cross'].r_OP_t, A_IB=A_IK_x, law=spring, frame_ID1=(1,), frame_ID2=(1,))
+                    r_OB = 2 * l2 * nx * ex + 2 * l2 * ny * ey + nz * l3 * ez
+                    cross = Cross(r_OB, l1, l2, orientation=self.orientation)
+                    grid_dict.update({(nx, ny, nz): {"cross": cross}})
+                    for beam in cross.beams:
+                        self.beams.append(beam)
+                    for rigid in cross.rigid:
+                        self.rigid.append(rigid)
+                    for law in cross.force_laws:
+                        self.force_laws.append(law)
+                    for joint in cross.joints:
+                        self.joints.append(joint)
 
-                    self.beams.append(beam.beam)
-                    self.joints.append(bc1)
-                    self.joints.append(bc2)
+                    # connection to frame left
+                    if nx == 0:
+                        # bc = Rigid_connection(frame_left, cross.beams[5].beam, cross.r_OP_l, frame_ID2=(1,))
+                        bc = Joint(
+                            "revolute",
+                            frame_left,
+                            cross.beams[0],
+                            r_OB,
+                            frame_ID2=(0.5,),
+                        )
+                        self.joints.append(bc)
+
+                    # connection to frame right and left unit cell
+                    elif nx == nEl_x - 1:
+                        # bc = Rigid_connection(frame_right, cross.beams[4].beam, cross.r_OP_r, frame_ID2=(1,))
+                        bc = Joint(
+                            "revolute",
+                            frame_right,
+                            cross.beams[0],
+                            r_OB,
+                            frame_ID2=(0.5,),
+                        )
+                        self.joints.append(bc)
+                        # beam between crosses in x-direction
+                        beam = Beam(
+                            p, q, nel, l1, cross.r_OP_l, 1, A_IK_y1, material=soft_beam
+                        )
+                        bc1 = Joint(
+                            joint_type,
+                            beam,
+                            cross.beams[5],
+                            cross.r_OP_l,
+                            A_IB=A_IK_x,
+                            law=spring,
+                            frame_ID2=(1,),
+                        )
+                        bc2 = Joint(
+                            joint_type,
+                            beam,
+                            grid_dict[(nx - 1, ny, nz)]["cross"].beams[4],
+                            grid_dict[(nx - 1, ny, nz)]["cross"].r_OP_r,
+                            A_IB=A_IK_x,
+                            law=spring,
+                            frame_ID1=(1,),
+                            frame_ID2=(1,),
+                        )
+
+                        self.beams.append(beam)
+                        self.joints.append(bc1)
+                        self.joints.append(bc2)
+
+                    else:
+                        beam = Beam(
+                            p, q, nel, l1, cross.r_OP_l, 1, A_IK_y1, material=soft_beam
+                        )
+                        bc1 = Joint(
+                            joint_type,
+                            beam,
+                            cross.beams[5],
+                            cross.r_OP_l,
+                            A_IB=A_IK_x,
+                            law=spring,
+                            frame_ID2=(1,),
+                        )
+                        bc2 = Joint(
+                            joint_type,
+                            beam,
+                            grid_dict[(nx - 1, ny, nz)]["cross"].beams[4],
+                            grid_dict[(nx - 1, ny, nz)]["cross"].r_OP_r,
+                            A_IB=A_IK_x,
+                            law=spring,
+                            frame_ID1=(1,),
+                            frame_ID2=(1,),
+                        )
+
+                        self.beams.append(beam)
+                        self.joints.append(bc1)
+                        self.joints.append(bc2)
+
+                    # connections to cross on lower ny
+                    if ny > 0:
+                        beam = Beam(
+                            p, q, nel, l1, cross.r_OP_b, 1, A_IK_x2, material=soft_beam
+                        )
+                        bc1 = Joint(
+                            joint_type,
+                            beam,
+                            cross.beams[2],
+                            cross.r_OP_b,
+                            A_IB=A_IK_x,
+                            law=spring,
+                            frame_ID2=(1,),
+                        )
+                        bc2 = Joint(
+                            joint_type,
+                            beam,
+                            grid_dict[(nx, ny - 1, nz)]["cross"].beams[3],
+                            grid_dict[(nx, ny - 1, nz)]["cross"].r_OP_t,
+                            A_IB=A_IK_x,
+                            law=spring,
+                            frame_ID1=(1,),
+                            frame_ID2=(1,),
+                        )
+
+                        self.beams.append(beam)
+                        self.joints.append(bc1)
+                        self.joints.append(bc2)
+
+                    if nz > 0 and nx > 0 and nx < nEl_x - 1:
+                        panto_cell = Panto_unit(l3, r_OB)
+
+                        for beam in panto_cell.beams:
+                            self.beams.append(beam)
+                        for joint in panto_cell.joints:
+                            self.joints.append(joint)
+
+                        # conection between pantobeam cells and duoskellion cell
+                        bc1 = Joint(
+                            "revolute",
+                            grid_dict[(nx, ny, nz - 1)]["cross"].beams[0],
+                            panto_cell.beams[0],
+                            grid_dict[(nx, ny, nz - 1)]["cross"].r_OB,
+                            A_IB=A_IK_yz,
+                            frame_ID1=(0.5,),
+                        )
+                        bc2 = Joint(
+                            "revolute",
+                            cross.beams[1],
+                            panto_cell.beams[3],
+                            r_OB,
+                            A_IB=A_IK_ymz,
+                            frame_ID1=(0.5,),
+                            frame_ID2=(1,),
+                        )
+
+                        self.joints.extend([bc1, bc2])
+
+
 #  create unit cells
 ncells_x = 5
 ncells_y = 5
+ncells_z = 5
 
-ncells = (ncells_x, ncells_y)
+ncells = (ncells_x, ncells_y, ncells_z)
 
-u_l = 1. #1e-3
-u_Pa = 1. #1e9
+u_l = 1.0  # 1e-3
+u_Pa = 1.0  # 1e9
 l = 70.0 * 3 * u_l  # length in mm
 # Beam dimensions and parameter
-L = l/np.sqrt(2)/ncells_x*2.  # beam length between pivots
-L = 70.
+L = l / np.sqrt(2) / ncells_x * 2.0  # beam length between pivots
+L = 70.0
 r = 0.45 * u_l  #  pivot radius in mm
-E_Y = 10. * u_Pa  # Young's Modulus in GPa
-a = L/5 # 1. * u_l  # Beam cross section length 1 in mm
-b = L/5 # 1. * u_l  # Beam cross section length 2 in mm
+E_Y = 10.0 * u_Pa  # Young's Modulus in GPa
+a = L / 5  # 1. * u_l  # Beam cross section length 1 in mm
+b = L / 5  # 1. * u_l  # Beam cross section length 2 in mm
 G = E_Y / (2 + 0.8)
-I_1 = 2.25*(a/2)**4  # torsional moment for square cross-section
-I_2 = a**3*b/12  # Bending moments
-I_3 = a*b**3/12
+I_1 = 2.25 * (a / 2) ** 4  # torsional moment for square cross-section
+I_2 = a**3 * b / 12  # Bending moments
+I_3 = a * b**3 / 12
 # I_i = np.pi * r**4 * np.array([1/2, 1/4, 1/4])
 I_P = I_1 + I_2
-A = a*b
+A = a * b
 Ei = np.array([E_Y, G, G]) * A
-Fi = np.array([G*I_1, E_Y*I_2, E_Y*I_3])
+Fi = np.array([G * I_1, E_Y * I_2, E_Y * I_3])
 
 # force law parameters
-kt = 100.
-ks = 100.
+kt = 100.0
+ks = 10000000.0
 # ks = G*I_1 / L
 
 # Beam parameters
@@ -256,15 +584,15 @@ B_rho0 = np.zeros(3)
 C_rho0 = np.array([[0, 0, 0], [0, I_3, 0], [0, 0, I_2]]) * rho
 
 material_model = Hooke_quadratic(Ei, Fi)
-soft_beam = Hooke_quadratic(Ei,Fi)
+soft_beam = Hooke_quadratic(Ei, Fi)
 
 # pivot length
-piv_h = 1.5 * u_l * 0# mm
+piv_h = 1.5 * u_l * 0  # mm
 rigid_pivot = True
 cross = False
 
 # discretization
-basis = 'B-spline'
+basis = "B-spline"
 # basis = 'lagrange'
 greville = True
 p = 3
@@ -282,7 +610,7 @@ load_sol = True
 model = Model()
 
 # boundary condittions
-bc_dir = 'z'
+bc_dir = "z"
 r_OB_top0 = l / 3 * np.array([0.5, 0.5, 3.0])
 
 # tests = ['tension', str(l),"fixed_boundary","I_1"]
@@ -300,19 +628,14 @@ r_OB_top0 = l / 3 * np.array([0.5, 0.5, 3.0])
 #     frame_top2 = Frame(r_OP_top, A_IK=A_IK_top)
 #     model.add(frame_top2)
 
-
-def r_OP_middle(t): return r_OB_top0 * .5 + np.sqrt(2) * \
-    L/2 * np.array([0.0, 0.0, 1.0]) * t  # * 0.5 * 5e-1
-
 # frames
 l1 = L
-l2 = 2*L
-frame_left = Frame(np.zeros(3)-l2*ex)
-disp = 5 * l2
-r_OPf = lambda t: (ncells_x * 2 * l2 + disp * t)*ex
+l2 = 2 * L
+l3 = l2
+frame_left = Frame(np.zeros(3) - l2 * ex)
+disp = l2 * 1.5
+r_OPf = lambda t: (ncells_x * 2 * l2 + disp * t) * ex
 frame_right = Frame(r_OPf)
-
-
 
 
 # if 'force' in tests:
@@ -328,9 +651,9 @@ frame_right = Frame(r_OPf)
 #     # model.add(rigid_frame_body)
 
 # make
-grid = Grid(l1, l2, (ncells))
+grid = Grid(l1, l2, l3, (ncells))
 
-tests = [grid.joint_type,'disp',str(disp)]
+tests = [grid.joint_type, "disp", str(disp)]
 
 # assemble
 beams_all = []
@@ -347,7 +670,7 @@ for beam in grid.beams:
 #     beams_all.append(beam)
 for joint in grid.joints:
     model.add(joint)
-# for rigid in grid.rigid:
+# for rigid in grid.rigid:g
 #     model.add(rigid)
 # for law in grid.force_laws:
 #     model.add(law)
@@ -358,6 +681,7 @@ model.assemble()
 # set initial accelarations
 if dynamic:
     from scipy.sparse.linalg import spsolve
+
     uDOF = np.arange(model.nu)
     uDOF_algebraic = []
     uDOF_dynamic = []
@@ -365,7 +689,7 @@ if dynamic:
     for beam in beams_all:
         rDOF = (beam.nEl + beam.polynomial_degree_r) * 3
         dDOF = (beam.nEl + beam.polynomial_degree_di) * 3
-        uDOF_algebraic.extend(beam.uDOF[rDOF:rDOF+dDOF])  # whole beam dynamic
+        uDOF_algebraic.extend(beam.uDOF[rDOF : rDOF + dDOF])  # whole beam dynamic
         # uDOF_algebraic.extend(beam.uDOF[rDOF:])  # exclude director dynamics
         # beam as static force element (no beam dynamics)
         # uDOF_algebraic.extend(beam.uDOF)
@@ -401,14 +725,21 @@ if dynamic:
     # solver = Generalized_alpha_4_index3(
     #  model, t1, dt, newton_max_iter=max_iter, newton_tol=tol, a0=a0).solve()
     solver = Generalized_alpha_4_singular_index3(
-        model, t1, dt, uDOF_algebraic=uDOF_algebraic, rho_inf=rho_inf, newton_max_iter=max_iter, newton_tol=tol).solve()
+        model,
+        t1,
+        dt,
+        uDOF_algebraic=uDOF_algebraic,
+        rho_inf=rho_inf,
+        newton_max_iter=max_iter,
+        newton_tol=tol,
+    ).solve()
 
     sol = solver
     # t = sol.t
     # q = sol.q
 
 else:
-    solver = Newton(model, n_load_steps=50, max_iter=20, tol=1e-6)
+    solver = Newton(model, n_load_steps=20, max_iter=20, tol=1e-6)
 
     sol = solver.solve()
     # t = sol.t
@@ -416,26 +747,29 @@ else:
 
 
 file_name = pathlib.Path(__file__).stem
-file_path = pathlib.Path(__file__).parent / 'results' / str(
-    f"{file_name}_" + 'x'.join([str(v) for v in ncells]) + '_'.join(tests)) / file_name
+file_path = (
+    pathlib.Path(__file__).parent
+    / "results"
+    / str(f"{file_name}_" + "x".join([str(v) for v in ncells]) + "_".join(tests))
+    / file_name
+)
 file_path.parent.mkdir(parents=True, exist_ok=True)
-export_path = file_path.parent / 'sol'
+export_path = file_path.parent / "sol"
 
 if save_sol:
     # import cProfile, pstats
     # pr = cProfile.Profile()
     # pr.enable()
-    
+
     # t = sol.t
     # q = sol.q
 
     save_solution(sol, str(export_path))
 elif load_sol:
     import pickle
-    sol = pickle.load(open(str(export_path), 'rb'))
+
+    sol = pickle.load(open(str(export_path), "rb"))
 
 
 # vtk export
-post_processing(
-    beams_all, sol.t, sol.q,
-    file_path, binary=True)
+post_processing(beams_all, sol.t, sol.q, file_path, binary=True)

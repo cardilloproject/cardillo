@@ -5,29 +5,45 @@ import os.path
 import pickle
 import pathlib
 import datetime
+from cardillo.discretization.mesh1D import Mesh1D
 from cardillo.discretization.mesh3D import Mesh3D, cube
 from cardillo.discretization.mesh2D import Mesh2D, rectangle
 from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume
 from cardillo.discretization.indexing import flat3D, flat2D
-from cardillo.model.continuum import Second_gradient, Pantobox_beam_network, Pantosheet_beam_network
+from cardillo.model.continuum import (
+    Second_gradient,
+    Pantobox_beam_network,
+    Pantosheet_beam_network,
+)
 from cardillo.solver import Newton, Euler_backward, Generalized_alpha_1
 from cardillo.model import Model
 from cardillo.math.algebra import A_IK_basic_z, A_IK_basic_x
 from cardillo.model.force_distr2D import Force_distr2D
 from cardillo.model.force_distr3D import Force_distr3D
-from cardillo.model.bilateral_constraints.implicit.incompressibility import Incompressibility
+from cardillo.model.bilateral_constraints.implicit import (
+    Incompressibility,
+    Displacement_constraint,
+)
+
 
 def save_solution(sol, filename):
     import pickle
-    with open(filename, mode='wb') as f:
+
+    with open(filename, mode="wb") as f:
         pickle.dump(sol, f)
+
 
 def test_cube():
 
     file_name = pathlib.Path(__file__).stem
-    file_path = pathlib.Path(__file__).parent / 'results' / f"{file_name}_cube_2x2x6_ext" / file_name
+    file_path = (
+        pathlib.Path(__file__).parent
+        / "results"
+        / f"{file_name}_cube_2x2x6_ext"
+        / file_name
+    )
     file_path.parent.mkdir(parents=True, exist_ok=True)
-    export_path = file_path.parent / 'sol'
+    export_path = file_path.parent / "sol"
 
     TractionForce = False
     Gravity = False
@@ -45,10 +61,8 @@ def test_cube():
     Eta = Knot_vector(degrees[1], element_shape[1])
     Zeta = Knot_vector(degrees[2], element_shape[2])
     knot_vectors = (Xi, Eta, Zeta)
-    
-    mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=2, basis='B-spline', nq_n=3)
 
-
+    mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=2, basis="B-spline", nq_n=3)
 
     # material model
     l = 70.0  # in mm
@@ -57,32 +71,34 @@ def test_cube():
     b = 1.0  # in mm
     Yb = 50.0  # in GPa
     Gb = Yb / (2 + 0.8)
-    rp = 0.45 # in mm
-    hp = 1.5 # in mm
-    Jn = a**3*b/12
-    Jg = a*b**3/12
-    Jt = 0.196*a**3*b
+    rp = 0.45  # in mm
+    hp = 1.5  # in mm
+    Jn = a**3 * b / 12
+    Jg = a * b**3 / 12
+    Jt = 0.196 * a**3 * b
     nf = 1
-    p = l/np.sqrt(2)/nf
-    Ke = Yb*a*b/p
-    Kg = Yb*Jg/p
-    Kn = Yb*Jn/p
-    Kt = Gb*Jt/p
-    Kp = Gb*np.pi*rp**4/2/hp/p**2
+    p = l / np.sqrt(2) / nf
+    Ke = Yb * a * b / p
+    Kg = Yb * Jg / p
+    Kn = Yb * Jn / p
+    Kt = Gb * Jt / p
+    Kp = Gb * np.pi * rp**4 / 2 / hp / p**2
     Ks = Kp * 0
     Kc = Ks
     # H = L/3
-    nsH = nf/l
+    nsH = nf / l
     # nsH = 1
 
     # reference configuration is a cube
-    W = L/3
-    B = L/3
+    W = L / 3
+    B = L / 3
     H = L
     cube_shape = (W, B, H)
     Z = cube(cube_shape, mesh, Greville=False)
 
-    mat = Pantobox_beam_network(Ke*nsH, Ks*nsH, Kg*nsH, Kn*nsH, Kt*nsH, Kc*nsH)
+    mat = Pantobox_beam_network(
+        Ke * nsH, Ks * nsH, Kg * nsH, Kn * nsH, Kt * nsH, Kc * nsH
+    )
 
     density = 1.0e-3
 
@@ -100,7 +116,13 @@ def test_cube():
                 cDOF3 = mesh.surface_qDOF[5][0]
                 cDOF4 = mesh.surface_qDOF[5][1]
                 cDOF2 = mesh.surface_qDOF[5][2]
-                cDOF134 = np.concatenate((cDOF1, cDOF3, cDOF4,))
+                cDOF134 = np.concatenate(
+                    (
+                        cDOF1,
+                        cDOF3,
+                        cDOF4,
+                    )
+                )
                 cDOF = np.concatenate((cDOF134, cDOF2))
                 b1 = lambda t: Z[cDOF134]
                 b2 = lambda t: Z[cDOF2] + t * 30.0
@@ -112,7 +134,7 @@ def test_cube():
                 cDOF2 = mesh.surface_qDOF[5].ravel()
                 cDOF = np.concatenate((cDOF1, cDOF2))
 
-                def bt(t, phi0=0.5*np.pi, h=100):
+                def bt(t, phi0=0.5 * np.pi, h=100):
                     cDOF2_xyz = cDOF2.reshape(3, -1).T
                     out = np.zeros_like(Z)
 
@@ -121,8 +143,10 @@ def test_cube():
 
                     th = t * np.array([0, 0, h])
                     for DOF in cDOF2_xyz:
-                        out[DOF] = R @ (Z[DOF] - [W/2, B/2, 0]) + th + [W/2, B/2, 0]
-                    
+                        out[DOF] = (
+                            R @ (Z[DOF] - [W / 2, B / 2, 0]) + th + [W / 2, B / 2, 0]
+                        )
+
                     return out[cDOF2]
 
                 b1 = lambda t: Z[cDOF1]
@@ -140,11 +164,9 @@ def test_cube():
         b_zeta = lambda t: Z[cDOF_zeta]
         b = lambda t: np.concatenate((b_xi(t), b_eta(t), b_zeta(t)))
 
-
     # 3D continuum
     continuum = Second_gradient(density, mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
     # continuum = First_gradient(density, mat, mesh, Z)
-
 
     # build model
     model = Model()
@@ -159,9 +181,13 @@ def test_cube():
         # model.add(Force_distr2D(F, continuum, 1))
         # F = lambda t, xi, eta: t * np.array([0, -2.5e0, 0]) * (0.25 - (xi-0.5)**2) * (0.25 - (eta-0.5)**2)
         # model.add(Force_distr2D(F, continuum, 5))
-        F = lambda t, xi, eta: np.array([0, 0, -5e0]) * (0.25 - (xi-0.5)**2) * (0.25 - (eta-0.5)**2)
+        F = (
+            lambda t, xi, eta: np.array([0, 0, -5e0])
+            * (0.25 - (xi - 0.5) ** 2)
+            * (0.25 - (eta - 0.5) ** 2)
+        )
         model.add(Force_distr2D(F, continuum, 5))
-    
+
     if Gravity:
         if Statics:
             G = lambda t, xi, eta, zeta: t * np.array([0, 0, -9.81 * density])
@@ -175,10 +201,9 @@ def test_cube():
     # np.set_printoptions(precision=5, suppress=True)
     # print(M.toarray())
     # print(np.linalg.det(M.toarray()))
-    
 
     if Statics:
-    # static solver
+        # static solver
         n_load_steps = 20
         tol = 1.0e-5
         max_iter = 10
@@ -189,7 +214,6 @@ def test_cube():
         dt = 1e-1
         # solver = Generalized_alpha_1(model, t1, dt=dt, variable_dt=False, rho_inf=0.25)
         solver = Euler_backward(model, t1, dt)
-
 
     if save_sol:
 
@@ -202,12 +226,12 @@ def test_cube():
         # sortby = 'cumulative'
         # ps = pstats.Stats(pr).sort_stats(sortby)
         # ps.print_stats(0.1) # print only first 10% of the list
-            # export solution object
-            # if not os.path.exists(export_dir):
-            #     os.makedirs(export_dir)
+        # export solution object
+        # if not os.path.exists(export_dir):
+        #     os.makedirs(export_dir)
         save_solution(sol, str(export_path))
     else:
-        sol = pickle.load( open(str(export_path), 'rb') )
+        sol = pickle.load(open(str(export_path), "rb"))
 
     # import matplotlib.pyplot as plt
 
@@ -243,9 +267,12 @@ def test_cube():
     # continuum.post_processing(sol.t, sol.q, filepath.parent / filepath.stem)
     continuum.post_processing(sol.t, sol.q, file_path, binary=True)
 
-def test_cylinder():  
+
+def test_cylinder():
     file_name = pathlib.Path(__file__).stem
-    file_path = pathlib.Path(__file__).parent / 'results' / f"{file_name}_cylinder" / file_name
+    file_path = (
+        pathlib.Path(__file__).parent / "results" / f"{file_name}_cylinder" / file_name
+    )
     file_path.parent.mkdir(parents=True, exist_ok=True)
     # export_path = file_path.parent / 'sol'
 
@@ -258,9 +285,9 @@ def test_cylinder():
     Eta = Knot_vector(degrees[1], element_shape[1])
     Zeta = Knot_vector(degrees[2], element_shape[2])
     knot_vectors = (Xi, Eta, Zeta)
-    
-    mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=1, basis='B-spline', nq_n=3)
-    
+
+    mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=1, basis="B-spline", nq_n=3)
+
     def cylinder(xi, eta, zeta, R=1, H=3):
         xi_ = 2 * xi - 1
         eta_ = 2 * eta - 1
@@ -279,7 +306,7 @@ def test_cylinder():
     xi = np.linspace(0, 1, num=nxi)
     eta = np.linspace(0, 1, num=neta)
     zeta = np.linspace(0, 1, num=nzeta)
-    
+
     n3 = nxi * neta * nzeta
     knots = np.zeros((n3, 3))
     Pw = np.zeros((n3, 3))
@@ -295,7 +322,7 @@ def test_cylinder():
     X, Y, Z_ = fit_B_spline_volume(mesh, knots, Pw, qc, cDOF_)
     Z = np.concatenate((X, Y, Z_))
 
-    # material model    
+    # material model
     mu1 = 0.3
     mu2 = 0.5
     mat = Ogden1997_compressible(mu1, mu2)
@@ -316,7 +343,7 @@ def test_cylinder():
         th = t * np.array([0, 0, h])
         for DOF in cDOF2_xyz:
             out[DOF] = R @ Z[DOF] + th
-        
+
         return out[cDOF2]
 
     b = lambda t: np.concatenate((b1(t), b2(t)))
@@ -336,81 +363,98 @@ def test_cylinder():
     tol = 1.0e-5
     max_iter = 10
     solver = Newton(model, n_load_steps=n_load_steps, tol=tol, max_iter=max_iter)
-    
+
     import cProfile, pstats
+
     pr = cProfile.Profile()
     pr.enable()
     sol = solver.solve()
     pr.disable()
 
-    sortby = 'cumulative'
+    sortby = "cumulative"
     ps = pstats.Stats(pr).sort_stats(sortby)
-    ps.print_stats(0.1) # print only first 10% of the list
+    ps.print_stats(0.1)  # print only first 10% of the list
 
     # vtk export
     continuum.post_processing(sol.t, sol.q, file_path)
 
+
 def test_embedded_rectangle():
+
+    # Pantographic sheet embedded in 3D space
 
     # build mesh
     degrees = (3, 3)
     QP_shape = (3, 3)
-    element_shape = (3, 3)
+    element_shape = (3, 9)
 
     Xi = Knot_vector(degrees[0], element_shape[0])
     Eta = Knot_vector(degrees[1], element_shape[1])
     knot_vectors = (Xi, Eta)
-    
-    mesh = Mesh2D(knot_vectors, QP_shape, derivative_order=2, basis='B-spline', nq_n=3)
+
+    mesh = Mesh2D(knot_vectors, QP_shape, derivative_order=2, basis="B-spline", nq_n=3)
 
     # material parameters
-     # material parameters
-    u_l =  1. # 1e-3
-    u_Pa = 1. # 1e9
-    Lx = 70.0 * u_l  # Block length in x direction in mm
-    Ly = 210.0 * u_l # Block length in x direction in mm
-    a = 1.0 * u_l # Beam thickness in d2 direction in mm
-    b = 1.0 * u_l # Beam thickness in d3 direction in mm
-    Yb = 50. * u_Pa # in GPa
-    Gb = Yb / (2 + 0.8)
-    rp = 0.45 * u_l # pivot radius in mm
-    hp = 1.5 * u_l # pivot length in mm
+    # material parameters
+    u_l = 1.0  # 1e-3
+    u_Pa = 1.0  # 1e9
+    Lx = 25.0 * u_l  # Block length in x direction in mm
+    Ly = 75.0 * u_l  # Block length in x direction in mm
+    a = 0.6 * u_l  # Beam thickness in d2 direction in mm
+    b = 0.6 * u_l  # Beam thickness in d3 direction in mm
+    Yb = 100.0 * u_Pa  # in GPa
+    Gb = Yb / (2 + 0.6)
+    rp = 0.3 * u_l  # pivot radius in mm
+    hp = 1.25 * u_l  # pivot length in mm
     Jn = a**3 * b / 12  # second moment of are I_d2
     Jg = a * b**3 / 12  # second moment of area I_d3
-    Jt = 2.25*a**4 # torsional moment of area I_d1
-    nx = 2  # number of unit cells in x-direction
+    Jt = 2.25 * a**4  # torsional moment of area I_d1
+    nx = 10  # number of unit cells in x-direction
     p = Lx / np.sqrt(2) / nx  # distance between pivots along a beam
-    Ke = Yb * a * b / p # extensional stiffness
-    # Ke = Yb * a * b / (np.sqrt(2)*p**2) 
-    Kg = Yb * Jg / p # geodesic bending stiffness
-    #  Kg = Yb * Jg / (np.sqrt(2)*p**2) 
-    Kn = Yb * Jn / p # normal bending stiffness
-    # Kn = Yb * Jn / (np.sqrt(2)*p**2) 
+    Ke = Yb * a * b / p  # extensional stiffness
+    # Ke = Yb * a * b / (np.sqrt(2)*p**2)
+    Kg = Yb * Jg / p  # geodesic bending stiffness
+    #  Kg = Yb * Jg / (np.sqrt(2)*p**2)
+    Kn = Yb * Jn / p  # normal bending stiffness
+    # Kn = Yb * Jn / (np.sqrt(2)*p**2)
     Kt = Gb * Jt / p  # torsional stiffness
-    # Kt = Gb * Jt / (np.sqrt(2)*p**2) 
+    # Kt = Gb * Jt / (np.sqrt(2)*p**2)
     Kp = Gb * np.pi * rp**4 / 2 / hp / p**2
-    Ks = Kp #* 0
+    Ks = Kp  # * 0
 
     rectangle_shape = (Lx, Ly)
-    Z = rectangle(rectangle_shape, mesh, Greville=False)
+    Z = rectangle(rectangle_shape, mesh, Greville=True)
 
-    # material model    
+    # material model
     # mat = Pantosheet_beam_network(Ke, Ks, Kg, Kn, Kt)
-    mat = Pantosheet_beam_network(Ke, Ks, 0, 0, 0)
+    mat = Pantosheet_beam_network(Ke, 0, Kg, Kn, Kt)
+    # mat = Pantosheet_beam_network(Ke, Ks, 0, 0, 0)
 
-    tests = ['x'.join([str(v) for v in element_shape]),"tension","z","first_grad","mm_GPa","direct_bc"]
+    tests = [
+        "x".join([str(v) for v in element_shape]),
+        "tension",
+        "z",
+        "first_grad",
+        "mm_GPa",
+        "direct_bc",
+    ]
     # boundary conditions
-    cDOF1 = mesh.edge_qDOF[2].ravel()
-    cDOF2 = mesh.edge_qDOF[3][::2].ravel()
-    cDOF3 = mesh.edge_qDOF[3][1]
+    # displacement
+    cDOF1 = mesh.edge_qDOF[2][0]
+    cDOF2 = mesh.edge_qDOF[2][1]
+    cDOF3 = mesh.edge_qDOF[2][2]
+    # cDOF2 = mesh.edge_qDOF[3][::2].ravel()
+    # cDOF3 = mesh.edge_qDOF[3][1]
+    # cDOF = np.concatenate((cDOF1, cDOF2, cDOF3))
     cDOF = np.concatenate((cDOF1, cDOF2, cDOF3))
     b1 = lambda t: Z[cDOF1]
     b2 = lambda t: Z[cDOF2]
-    b3 = lambda t: Z[cDOF3] + t * 50
+    b3 = lambda t: Z[cDOF3]
     b = lambda t: np.concatenate((b1(t), b2(t), b3(t)))
+    # b = lambda t: np.concatenate((b1(t), b2(t)))
 
     # torsion
-    def bt(t, phi0=0.5*np.pi, h=-20):
+    def bt(t, phi0=0.5 * np.pi, h=-20):
         cDOF2_xyz = cDOF3.reshape(3, -1).T
         out = np.zeros_like(Z)
 
@@ -419,21 +463,39 @@ def test_embedded_rectangle():
 
         th = t * np.array([1, 0, 0]) * h
         for DOF in cDOF2_xyz:
-            out[DOF] = R @ (Z[DOF] - [0, Ly/2, 0]) + th + [0, Ly/2, 0]
-        
+            out[DOF] = R @ (Z[DOF] - [0, Ly / 2, 0]) + th + [0, Ly / 2, 0]
+
         return out[cDOF3]
 
     # b = lambda t: np.concatenate((b1(t), bt(t)))
 
     # 3D continuum
     continuum = Second_gradient(1, mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
+    # continuum = Second_gradient(1, mat, mesh, Z, z0=Z)
 
-    # vtk export reference configuration
-    # continuum.post_processing_single_configuration(0, Z, 'rectangleReferenceConfig.vtu')
+    # weak constraint on displacement
+    la_mesh_x = Mesh1D(Xi, 3, derivative_order=0, nq_n=1)
+    la_mesh_y = Mesh1D(Eta, 3, derivative_order=0, nq_n=1)
+
+    disp = lambda t, q: 20 * t
+
+    displacement_constraint_x = Displacement_constraint(
+        continuum, la_mesh_x, edge_id=3, x=0, disp=0
+    )
+    displacement_constraint_y = Displacement_constraint(
+        continuum, la_mesh_x, edge_id=3, x=1, disp=disp
+    )
+    # displacement_constraint_z = Displacement_constraint(
+    #     continuum, la_mesh_y, edge_id=3, x=2, disp=0
+    # )
+
+    save_sol = True
 
     # build model
     model = Model()
     model.add(continuum)
+    model.add(displacement_constraint_x)
+    model.add(displacement_constraint_y)
     model.assemble()
 
     # static solver
@@ -441,8 +503,6 @@ def test_embedded_rectangle():
     tol = 1.0e-8
     max_iter = 20
     solver = Newton(model, n_load_steps=n_load_steps, tol=tol, max_iter=max_iter)
-    
-    sol = solver.solve()
 
     file_name = pathlib.Path(__file__).stem
     file_path = (
@@ -456,37 +516,62 @@ def test_embedded_rectangle():
 
     file_path_la = file_path
 
+    if save_sol:
+        # import cProfile, pstats
+        # pr = cProfile.Profile()
+        # pr.enable()
+        sol = solver.solve()
+        # redundant coordinates
+        sol.z = np.array([continuum.z(t, sol.q[i]) for i, t in enumerate(sol.t)])
+
+        save_solution(sol, str(export_path))
+    else:
+        sol = pickle.load(open(str(export_path), "rb"))
+        sol.z = np.array([continuum.z(t, sol.q[i]) for i, t in enumerate(sol.t)])
+
+        save_solution(sol, str(export_path))
+
     # # vtk export
     continuum.post_processing(sol.t, sol.q, file_path)
+    # export of Lagrange multiplier
+    continuum.post_processing_la(
+        sol.t,
+        la_mesh_x,
+        sol.la_g[:, model.contributions[-1].la_gDOF],
+        sol.q,
+        continuum.mesh.edge_qDOF[3].ravel(),
+        file_path,
+    )
+
 
 def write_xml():
     # write paraview PVD file, see https://www.paraview.org/Wiki/ParaView/Data_formats#PVD_File_Format
     from xml.dom import minidom
-    
+
     root = minidom.Document()
-    
-    vkt_file = root.createElement('VTKFile')
-    vkt_file.setAttribute('type', 'Collection')
+
+    vkt_file = root.createElement("VTKFile")
+    vkt_file.setAttribute("type", "Collection")
     root.appendChild(vkt_file)
-    
-    collection = root.createElement('Collection')
+
+    collection = root.createElement("Collection")
     vkt_file.appendChild(collection)
 
     for i in range(10):
         ti = 0.1 * i
-        dataset = root.createElement('DataSet')
-        dataset.setAttribute('timestep', f'{ti:0.6f}')
+        dataset = root.createElement("DataSet")
+        dataset.setAttribute("timestep", f"{ti:0.6f}")
         # dataset.setAttribute('group', '')
         # dataset.setAttribute('part', '0')
-        dataset.setAttribute('file', f'continuum{i}.vtu')
+        dataset.setAttribute("file", f"continuum{i}.vtu")
         collection.appendChild(dataset)
- 
-    xml_str = root.toprettyxml(indent ="\t")   
+
+    xml_str = root.toprettyxml(indent="\t")
     save_path_file = "continuum.pvd"
     with open(save_path_file, "w") as f:
         f.write(xml_str)
 
-    
+
 if __name__ == "__main__":
     # test_cube()
     # test_cylinder()

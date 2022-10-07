@@ -86,7 +86,7 @@ def post_processing(subsystem, t, q, filename, u=None, binary=True):
             binary=binary
         )
 
-    # write nodal positions
+    # write nodal positions for centerline points of beams to external file
     with open(filename.parent / 'nodes', mode="wb") as f:
         pickle.dump(nodes, f)
 

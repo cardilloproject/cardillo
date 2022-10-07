@@ -325,7 +325,7 @@ class Mesh3D:
         self.Nb_xixi = (Nb0_xixi, Nb1_xixi, Nb2_xixi, Nb3_xixi, Nb4_xixi, Nb5_xixi)
         # self.Nb_X = (self.Nb_X(0), self.Nb_X(1), self.Nb_X(2),
         #             self.Nb_X(3), self.Nb_X(4), self.Nb_X(5))
-
+    # DOF of boundary elements. Needed for double-forces
     def boundary_elements(self):
         bc0 = np.zeros((self.nel_eta * self.nel_zeta), dtype=int)
         bc1 = np.zeros((self.nel_eta * self.nel_zeta), dtype=int)
@@ -355,7 +355,7 @@ class Mesh3D:
                 idx += 1
 
         self.bc_el = (bc0, bc1, bc2, bc3, bc4, bc5)
-
+    # boundary surface DOF
     def surfaces(self):
         def select_surface(**kwargs):
             nn_0 = kwargs.get("nn_0", range(self.nn_xi))
@@ -434,7 +434,7 @@ class Mesh3D:
             surface45,
             surface45,
         )
-        # TODO: doesn't work as surfaces are not copies!
+        # TODO: doesn't work as surfaces are not copies!!
         for i in range(6):
             self.surface_mesh[i].idx = i
 
@@ -551,7 +551,7 @@ class Mesh3D:
                     )  # Maurin2019 (28) modified
         return N_XX
 
-    # N_X for boundaries
+    # N_X of DOF on boundary surfaces also in surface normal direction
     def Nb_X(self, Q, srf_idx):
         srf = self.surface_mesh[srf_idx]
         kappa0_xi_inv = np.zeros((srf.nel, srf.nqp, self.nq_n, self.nq_n))
