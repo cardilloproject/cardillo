@@ -20,6 +20,7 @@ from cardillo.solver import (
     GenAlphaFirstOrderGGL2_V2,
     GenAlphaFirstOrderGGL2_V3,
     GeneralizedAlphaFirstOrderGGLGiuseppe,
+    NonsmoothHalfExplicitEuler,
 )
 
 
@@ -129,12 +130,14 @@ def state():
     Lesaux2005: https://doi.org/10.1007/s00332-004-0655-4
     """
     t0 = 0
-    # t1 = 2 * np.pi / np.abs(alpha_dot0) * 0.1
-    t1 = 2 * np.pi / np.abs(alpha_dot0) * 0.3  # used for GAMM
+    # t1 = 2 * np.pi / np.abs(alpha_dot0) * 0.25
+    # t1 = 2 * np.pi / np.abs(alpha_dot0) * 0.3  # used for GAMM
     # t1 = 2 * np.pi / np.abs(alpha_dot0) * 0.5
+    t1 = 2 * np.pi / np.abs(alpha_dot0) * 1.0
     # dt = 5e-3
+    dt = 5e-2
     # dt = 2.5e-2
-    dt = 1.0e-2  # used for GAMM with R = 10 * r
+    # dt = 1.0e-2  # used for GAMM with R = 10 * r
 
     # rho_inf = 0.96  # used for GAMM (high oszillations)
     rho_inf = 0.85  # used for GAMM (low oszillations)
@@ -142,16 +145,17 @@ def state():
     # see Arnodl2016, p. 118
     tol = 1.0e-10
 
+    sol = NonsmoothHalfExplicitEuler(model, t1, dt).solve()
     # sol = GeneralizedAlphaFirstOrder(model, t1, dt, rho_inf=rho_inf, tol=tol).solve()
-    sol = GeneralizedAlphaFirstOrder(
-        model,
-        t1,
-        dt,
-        rho_inf=rho_inf,
-        tol=tol,
-        GGL=True
-        # model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=2
-    ).solve()
+    # sol = GeneralizedAlphaFirstOrder(
+    #     model,
+    #     t1,
+    #     dt,
+    #     rho_inf=rho_inf,
+    #     tol=tol,
+    #     GGL=True
+    #     # model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=2
+    # ).solve()
     # sol = GeneralizedAlphaSecondOrder(
     #     model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=False
     # ).solve()
@@ -165,9 +169,15 @@ def state():
     t = sol.t
     q = sol.q
     u = sol.u
-    u_dot = sol.u_dot
-    la_g = sol.la_g
-    la_gamma = sol.la_gamma
+    try:
+        u_dot = sol.u_dot
+        la_g = sol.la_g
+        la_gamma = sol.la_gamma
+    except:
+        u_dot = np.zeros_like(u)
+        u_dot[1:] = (u[1:] - u[:-1]) / dt
+        la_g = sol.P_g
+        la_gamma = sol.P_gamma
 
     g = np.array([model.g(ti, qi) for ti, qi in zip(t, q)])
     g_dot = np.array([model.g_dot(ti, qi, ui) for ti, qi, ui in zip(t, q, u)])
