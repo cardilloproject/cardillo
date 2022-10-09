@@ -7,9 +7,9 @@ class PointMass:
     def __init__(
         self, 
         m: float,
+        q0: npt.ArrayLike, 
+        u0: Optional[npt.ArrayLike] = None,
         dim: int = 3, 
-        q0: Optional[npt.NDArray[np.float_]] = None, 
-        u0: Optional[npt.NDArray[np.float_]] = None
     ) -> None :
         self.m = m
         self.nq = dim
@@ -21,8 +21,8 @@ class PointMass:
         else:
             self.M_inv = np.zeros(3)
 
-        self.q0 = np.zeros(self.nq) if q0 is None else q0
-        self.u0 = np.zeros(self.nu) if u0 is None else u0
+        self.q0 = np.asarray(q0)
+        self.u0 = np.zeros(self.nu) if u0 is None else np.asarray(u0)
 
     def M(self, t, q, coo):
         coo.extend(self.M_, (self.uDOF, self.uDOF))

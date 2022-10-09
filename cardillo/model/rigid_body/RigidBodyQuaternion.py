@@ -1,3 +1,5 @@
+from typing import Optional
+import numpy.typing as npt
 import numpy as np
 from cardillo.math import (
     norm,
@@ -20,15 +22,21 @@ class RigidBodyQuaternion:
     Schweizer2015: https://www.research-collection.ethz.ch/handle/20.500.11850/101867
     """
 
-    def __init__(self, m, K_theta_S, q0=None, u0=None):
+    def __init__(
+        self, 
+        m: float, 
+        K_theta_S: npt.ArrayLike, 
+        q0: npt.ArrayLike, 
+        u0:Optional[npt.ArrayLike] = None
+    ):
         self.m = m
-        self.K_Theta_S = K_theta_S
+        self.K_Theta_S = np.asarray(K_theta_S)
 
         self.nq = 7
         self.nu = 6
         self.nla_S = 1
-        self.q0 = np.array([0, 0, 0, 1, 0, 0, 0]) if q0 is None else q0
-        self.u0 = np.zeros(self.nu, dtype=float) if u0 is None else u0
+        self.q0 = np.array([0, 0, 0, 1, 0, 0, 0]) if q0 is None else np.asarray(q0)
+        self.u0 = np.zeros(self.nu, dtype=float) if u0 is None else np.asarray(u0)
         self.la_S0 = np.zeros(self.nla_S, dtype=float)
 
         self.M_ = np.zeros((self.nu, self.nu))
