@@ -7,12 +7,12 @@ import matplotlib.animation as animation
 from cardillo.math import A_IK_basic, cross3, axis_angle2quat
 
 from cardillo import System
-from cardillo.model.frame import Frame
+from cardillo.discrete import Frame
 from cardillo.bilateral_constraints import (
     SphericalJoint,
     RevoluteJoint,
 )
-from cardillo.model.rigid_body import RigidBodyQuaternion
+from cardillo.discrete import RigidBodyQuaternion
 from cardillo.forces import Force
 from cardillo.solver import (
     ScipyIVP,

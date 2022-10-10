@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from cardillo.math.rotations import A_IK_basic, rodriguez_inv, Spurrier
 
-from cardillo.model.frame.frame import Frame
+from cardillo.discrete_bodies.frame import Frame
 from cardillo.model.rigid_body import (
     RigidBodyEuler,
     RigidBodyAxisAngle,
