@@ -23,7 +23,7 @@ properties.extend(["assembler_callback", "pre_iteration_update", "step_callback"
 properties.extend(["g_S"])
 
 
-class Model(object):
+class Model:
     """Sparse model implementation which assembles all global objects without copying on body and element level.
 
     Notes

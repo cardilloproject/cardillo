@@ -26,7 +26,10 @@ from cardillo.math import (
 
 
 def complex_atan2(y, x):
-    """Atan2 implementation that can handle complex numbers, see https://de.wikipedia.org/wiki/Arctan2#Formel. It returns atan(y / x)."""
+    """Atan2 implementation that can handle complex numbers, 
+       see https://de.wikipedia.org/wiki/Arctan2#Formel. 
+       It returns atan(y / x).
+    """
     if x > 0:
         return np.arctan(y / x)
     elif x < 0:

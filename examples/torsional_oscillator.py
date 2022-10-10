@@ -26,23 +26,26 @@ if __name__ == "__main__":
     K_theta_S = np.diag(np.array([A, A, C]))
 
     k = 1
-    phi0 = np.pi / 2 * 0
+    # phi0 = np.pi / 2 * 0
+    phi0 = 0
     print(f"phi0: {phi0}")
     print(f"pi: {np.pi}")
 
     q0 = np.array([0, 0, 0, 0, phi0, 0])
     u0 = np.zeros(6)
-    # alpha_dot0 = 0
+    alpha_dot0 = 0
     # alpha_dot0 = 22
     # alpha_dot0 = 23
-    alpha_dot0 = 48
+    # alpha_dot0 = 48
+    # alpha_dot0 = 100
     u0[5] = alpha_dot0
 
     RB = RigidCylinder(m, r, l, q0, u0)
 
     origin = Frame()
-    factor = 10
-    spring = LinearSpring(k, g0=-factor * np.pi / 2)
+    factor = 1
+    # spring = LinearSpring(k, g0=-factor * np.pi / 2)
+    spring = LinearSpring(k, g0=factor * 2 * np.pi)
     joint_with_spring = add_rotational_forcelaw(spring, RevoluteJoint)(
         origin, RB, np.zeros(3), np.eye(3)
     )
@@ -76,9 +79,9 @@ if __name__ == "__main__":
         [t[0], t[-1]], [factor * 0.5 * np.pi, factor * 0.5 * np.pi], "--k", label="pi/2"
     )
     ax[1].plot([t[0], t[-1]], [factor * np.pi, factor * np.pi], "-k", label="pi")
-    # ax[1].plot([t[0], t[-1]], [2 * np.pi, 2 * np.pi], "--k", label="2pi")
+    ax[1].plot([t[0], t[-1]], [2 * np.pi, 2 * np.pi], "--k", label="2pi")
     # ax[1].plot([t[0], t[-1]], [2.1 * np.pi, 2.1 * np.pi], "-.r", label="2.1pi")
-    # ax[1].plot([t[0], t[-1]], [4 * np.pi, 4 * np.pi], "-.k", label="4pi")
+    ax[1].plot([t[0], t[-1]], [4 * np.pi, 4 * np.pi], "-.k", label="4pi")
     ax[1].legend()
 
     plt.show()

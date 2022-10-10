@@ -34,11 +34,12 @@ if __name__ == "__main__":
     # animate = False
 
     # discretization properties
-    # nelements = 1
-    nelements = 3
-    polynomial_degree_r = 1
+    nelements = 1
+    # nelements = 3
+    polynomial_degree_r = 2
     # basis_r = "Hermite"
-    basis_r = "B-spline"
+    # basis_r = "B-spline"
+    basis_r = "Lagrange"
     # polynomial_degree_r = 1
     # basis_r = "Lagrange"
     # polynomial_degree_r = 2
@@ -46,7 +47,8 @@ if __name__ == "__main__":
     # polynomial_degree_psi = 1
     # basis_psi = "Lagrange"
     polynomial_degree_psi = 1
-    basis_psi = "B-spline"
+    # basis_psi = "B-spline"
+    basis_psi = "Lagrange"
 
     # starting point and corresponding orientation
     # r_OP0 = np.zeros(3, dtype=float)
