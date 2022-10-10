@@ -1,5 +1,4 @@
 import numpy as np
-from cardillo.math.algebra import A_IK_basic_z, dA_IK_basic_z
 
 
 class Linear_guidance:

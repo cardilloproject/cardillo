@@ -1132,7 +1132,7 @@ def test_Piegl_Ex3_4():
     degrees = (3, 2)
     nEls = (4, 6)
     # U = np.array([0, 0, 0, 0, 1/4, 1/2, 3/4, 1, 1, 1, 1])
-    U = uniform_knot_vector(degrees[0], nEls[0])
+    U = BSplineKnotVector.uniform(degrees[0], nEls[0])
     V = np.array([0, 0, 0, 1 / 5, 2 / 5, 3 / 5, 3 / 5, 4 / 5, 1, 1, 1])
 
     n = 200

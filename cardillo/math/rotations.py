@@ -314,7 +314,7 @@ class Rotor:
 
     @staticmethod
     def fromRotor(R: Rotor):
-        return Rotor(R.data().copy())
+        return Rotor(R.__data.copy())
 
     @staticmethod
     def fromVector(v: np.ndarray):

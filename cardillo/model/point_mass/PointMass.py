@@ -1,16 +1,28 @@
 import numpy as np
+import numpy.typing as npt
+from typing import Optional
 
 
 class PointMass:
-    def __init__(self, m, dim=3, q0=None, u0=None):
+    def __init__(
+        self,
+        m: float,
+        q0: npt.ArrayLike,
+        u0: Optional[npt.ArrayLike] = None,
+        dim: int = 3,
+    ) -> None:
         self.m = m
         self.nq = dim
         self.nu = dim
 
         self.M_ = m * np.eye(dim)
+        if m > 0:
+            self.M_inv = 1 / m * np.eye(dim)
+        else:
+            self.M_inv = np.zeros(3)
 
-        self.q0 = np.zeros(self.nq) if q0 is None else q0
-        self.u0 = np.zeros(self.nu) if u0 is None else u0
+        self.q0 = np.asarray(q0)
+        self.u0 = np.zeros(self.nu) if u0 is None else np.asarray(u0)
 
     def M(self, t, q, coo):
         coo.extend(self.M_, (self.uDOF, self.uDOF))

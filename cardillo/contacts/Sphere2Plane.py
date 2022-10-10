@@ -157,15 +157,6 @@ class Sphere2Plane:
     def g_N_dot_u(self, t, q, coo):
         coo.extend(self.g_N_dot_u_dense(t, q), (self.la_NDOF, self.uDOF))
 
-    def xi_N(self, t, q, u_pre, u_post):
-        return self.g_N_dot(t, q, u_post) + self.e_N * self.g_N_dot(t, q, u_pre)
-
-    def xi_N_q(self, t, q, u_pre, u_post, coo):
-        g_N_q_pre = self.g_N_dot_q_dense(t, q, u_pre)
-        g_N_q_post = self.g_N_dot_q_dense(t, q, u_post)
-        dense = g_N_q_post + self.e_N * g_N_q_pre
-        coo.extend(dense, (self.la_NDOF, self.qDOF))
-
     def W_N(self, t, q, coo):
         coo.extend(self.g_N_dot_u_dense(t, q).T, (self.uDOF, self.la_NDOF))
 

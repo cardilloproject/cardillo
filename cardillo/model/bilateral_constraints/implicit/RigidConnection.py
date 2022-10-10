@@ -150,7 +150,7 @@ class RigidConnection:
             self.subsystem1.K_J_R_q(t, q[:nq1], frame_ID=self.frame_ID1),
         )
 
-        # auxiliary functions for subsystem 1
+        # auxiliary functions for subsystem 2
         self.r_OB2 = lambda t, q: self.subsystem2.r_OP(
             t, q[nq1:], frame_ID=self.frame_ID2, K_r_SP=K2_r_S2B
         )
