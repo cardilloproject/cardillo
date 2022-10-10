@@ -2,7 +2,7 @@ import numpy as np
 import meshio
 import os
 
-from cardillo.model.system import System
+from cardillo.system import System
 from cardillo.utility.coo import Coo
 from cardillo.math.numerical_derivative import Numerical_derivative
 from cardillo.discretization.indexing import flat2D, flat3D, split2D, split3D
