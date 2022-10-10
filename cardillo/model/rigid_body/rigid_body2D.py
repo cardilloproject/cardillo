@@ -1,5 +1,9 @@
 import numpy as np
-from cardillo.math.algebra import cross3, ax2skew, A_IK_basic_z, dA_IK_basic_z
+from cardillo.math.algebra import (
+    cross3,
+    ax2skew,
+)
+from cardillo.math.rotations import A_IK_basic
 
 
 class Rigid_body2D:
@@ -37,11 +41,11 @@ class Rigid_body2D:
         return np.arange(self.nu)
 
     def A_IK(self, t, q, frame_ID=None):
-        return A_IK_basic_z(q[2])
+        return A_IK_basic(q[2]).z()
 
     def A_IK_q(self, t, q, frame_ID=None):
         A_IK_q = np.zeros((3, 3, self.nq))
-        A_IK_q[:, :, 2] = dA_IK_basic_z(q[2])
+        A_IK_q[:, :, 2] = A_IK_basic(q[2]).dz()
         return A_IK_q
 
     def __vec_xy(self, x):

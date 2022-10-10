@@ -1,9 +1,9 @@
 import numpy as np
+from cardillo.discretization.B_spline import BSplineKnotVector
 
 from cardillo.utility.coo import Coo
 from cardillo.discretization import gauss
 from cardillo.discretization import (
-    uniform_knot_vector,
     B_spline_basis1D,
     Lagrange_basis,
 )
@@ -55,7 +55,7 @@ class Rope(object):
 
         if B_splines:
             nn = nEl + polynomial_degree  # number of nodes
-            self.knot_vector = knot_vector = uniform_knot_vector(
+            self.knot_vector = knot_vector = BSplineKnotVector.uniform(
                 polynomial_degree, nEl
             )  # uniform open knot vector
             self.element_span = np.asarray(
@@ -430,7 +430,7 @@ class Inextensible_Rope(Rope):
 
         # la_g0 = kwargs.get('la_g0')
         self.la_g0 = np.zeros(self.nla_g) if la_g0 is None else la_g0
-        self.knot_vector_g = uniform_knot_vector(
+        self.knot_vector_g = BSplineKnotVector.uniform(
             self.polynomial_degree_g, self.nEl
         )  # uniform open knot vector
         self.element_span_g = self.knot_vector_g[

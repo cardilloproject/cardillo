@@ -8,7 +8,8 @@ import matplotlib.pyplot as plt
 from cardillo.math.numerical_derivative import Numerical_derivative
 from cardillo.discretization.indexing import flat2D, flat3D, split2D, split3D
 from cardillo.discretization.B_spline import B_spline_basis3D
-from cardillo.math.algebra import det2D, inv3D, det3D, A_IK_basic_z, norm
+from cardillo.math.algebra import det2D, inv3D, det3D, norm
+from cardillo.math.rotations import A_IK_basic
 from cardillo.discretization.mesh2D import Mesh2D
 
 
@@ -230,7 +231,7 @@ class Pantographic_sheet:
         self.determinant = det2D
 
         self.fiber_angle = fiber_angle
-        self.R = A_IK_basic_z(fiber_angle)[:2, :2]
+        self.R = A_IK_basic(fiber_angle).z()[:2, :2]
 
         # for each Gauss point, compute kappa0^-1, N_X and w_J0 = w * det(kappa0^-1)
         kappa0_xi_inv, N_X, self.w_J0 = self.mesh.reference_mappings(Z)
@@ -1076,7 +1077,7 @@ def test_gradients():
         return np.array([x, y])
 
     A = np.array([[L, 0], [0, B]])
-    rotation = A_IK_basic_z(continuum.fiber_angle)[:2, :2]
+    rotation = A_IK_basic(continuum.fiber_angle).z()[:2, :2]
     kappa0 = lambda vxi: rotation @ A @ vxi
     inv_kappa0 = lambda vX: np.linalg.inv(rotation @ A) @ vX
     phi = lambda vX: kappa(inv_kappa0(vX))

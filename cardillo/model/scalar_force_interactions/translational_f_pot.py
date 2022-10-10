@@ -32,7 +32,7 @@ class Translational_f_pot:
         self.qDOF = np.concatenate([self.qDOF1, self.qDOF2])
         self.nq1 = len(self.qDOF1)
         self.nq2 = len(self.qDOF2)
-        self.nq = self.nq1 + self.nq2
+        self.nq_ = self.nq1 + self.nq2
 
         if self.force_law.g0 is None:
             r_OP10 = self.subsystem1.r_OP(

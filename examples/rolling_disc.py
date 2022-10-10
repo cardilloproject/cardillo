@@ -8,8 +8,8 @@ from cardillo.math.rotations import rodriguez_inv
 
 from cardillo.model import System
 from cardillo.model.rigid_body import RigidBodyEuler, RigidBodyAxisAngle
-from cardillo.math import A_IK_basic
-from cardillo.model.rolling_disc import (
+from cardillo.math.rotations import A_IK_basic
+from cardillo.model.rolling_disc.rolling_condition import (
     Rolling_condition,
     Rolling_condition_I_frame,
     Rolling_condition_I_frame_g_gamma,

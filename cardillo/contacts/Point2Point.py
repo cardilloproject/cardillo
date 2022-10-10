@@ -2,14 +2,11 @@ from math import pi, sin, cos
 import numpy as np
 from cardillo.math.algebra import (
     norm,
-    A_IK_basic_x,
-    A_IK_basic_z,
     ax2skew,
     cross3,
     e1,
     e2,
     e3,
-    inverse4D,
 )
 from cardillo.math.numerical_derivative import Numerical_derivative
 from scipy.optimize import fsolve
@@ -323,17 +320,18 @@ class Point2Point:
         # print(f'error grad2_distance2: {error}')
         # return grad2_d2_num
 
-    def closest_points_gradient_d2(self, t, q):
-        p0 = np.array([self.xi_c, self.eta_c])
-        f = lambda p: self.grad_distance2(t, q, p)
-        f_p = lambda p: self.grad2_distance2(t, q, p)
-        sol = fsolve(f, p0, fprime=f_p, full_output=True)
-        self.xi_c, self.eta_c = sol[0]  # update new initial guess
+    # TODO is this an old verion of the funtion below?
+    # def closest_points_gradient_d2(self, t, q):
+    #     p0 = np.array([self.xi_c, self.eta_c])
+    #     f = lambda p: self.grad_distance2(t, q, p)
+    #     f_p = lambda p: self.grad2_distance2(t, q, p)
+    #     sol = fsolve(f, p0, fprime=f_p, full_output=True)
+    #     self.xi_c, self.eta_c = sol[0]  # update new initial guess
 
-        if sol[2] != 1:
-            print(f"Closest point not found! Message: " + sol[3])
+    #     if sol[2] != 1:
+    #         print(f"Closest point not found! Message: " + sol[3])
 
-        return sol[0]
+    #     return sol[0]
 
     # def closest_points_gradient_d2(self, t, q, max_iter=100, tol=1.0e-6, debug=False, damped=False):
     def closest_points_gradient_d2(

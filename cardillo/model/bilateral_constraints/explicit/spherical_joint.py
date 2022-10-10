@@ -1,13 +1,6 @@
 import numpy as np
-from cardillo.math.algebra import (
-    cross3,
-    ax2skew,
-    quat2mat,
-    quat2mat_p,
-    norm4,
-    quat2rot,
-    quat2rot_p,
-)
+
+from cardillo.math.rotations import quat2mat, quat2mat_p, quat2rot, quat2rot_p
 
 
 class Spherical_joint:
