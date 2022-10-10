@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
 from cardillo import System
-from cardillo.discrete import RigidBodyQuaternion, RigidBodyAxisAngle
+from cardillo.discrete import RigidBodyQuaternion, RigidBodyAxisAngle, RigidBodyEuler
 from cardillo.math import axis_angle2quat
 from cardillo.constraints import (
     RollingCondition_g_I_Frame_gamma,
@@ -16,6 +16,8 @@ from cardillo.forces import Force
 from cardillo.solver import (
     ScipyIVP,
     EulerBackward,
+    GeneralizedAlphaFirstOrder,
+    NonsmoothDecoupled,
     # GeneralizedAlphaFirstOrder,
     # GeneralizedAlphaSecondOrder,
     # GenAlphaFirstOrderGGL2_V1,
@@ -76,15 +78,22 @@ K_Omega0 = np.array(
 # TODO: Derive these equations!
 v_S0 = np.array([-R * alpha_dot0 + r * alpha_dot0 * np.sin(beta0), 0, 0])
 
+# RigidBody = RigidBodyQuaternion
+# RigidBody = RigidBodyAxisAngle
+RigidBody = RigidBodyEuler
+
 # initial conditions
 u0 = np.concatenate((v_S0, K_Omega0))
-p0 = axis_angle2quat(np.array([1, 0, 0]), beta0)
-# p0 = np.array([1, 0, 0]) * beta0
+if RigidBody is RigidBodyQuaternion:
+    p0 = axis_angle2quat(np.array([1, 0, 0]), beta0)
+elif RigidBody is RigidBodyAxisAngle:
+    p0 = np.array([1, 0, 0]) * beta0
+elif RigidBody is RigidBodyEuler:
+    p0 = np.array([0, 1, 0]) * beta0
 q0 = np.array((x0, y0, z0, *p0))
 
 
-class DiscQuaternion(RigidBodyQuaternion):
-    # class DiscQuaternion(RigidBodyAxisAngle):
+class Disc(RigidBody):
     def __init__(self, m, r, q0=None, u0=None):
         A = 1 / 4 * m * r**2
         C = 1 / 2 * m * r**2
@@ -101,9 +110,12 @@ class DiscQuaternion(RigidBodyQuaternion):
 
 
 # create the model
-disc = DiscQuaternion(m, r, q0, u0)
-# rolling = RollingCondition_g_I_Frame_gamma(disc)
-rolling = RollingCondition(disc)
+disc = Disc(m, r, q0, u0)
+
+Constraint = RollingCondition_g_I_Frame_gamma
+# Constraint = RollingCondition
+
+rolling = Constraint(disc)
 f_g = Force(lambda t: np.array([0, 0, -m * g]), disc)
 
 model = System()
@@ -130,8 +142,8 @@ def state():
     # dt = 5e-3
     # dt = 5e-2
     # dt = 2.5e-2
-    # dt = 1.0e-2  # used for GAMM with R = 10 * r
-    dt = 1.0e-3
+    dt = 1.0e-2  # used for GAMM with R = 10 * r
+    # dt = 1.0e-3
 
     # rho_inf = 0.96  # used for GAMM (high oszillations)
     rho_inf = 0.85  # used for GAMM (low oszillations)
@@ -140,35 +152,18 @@ def state():
     tol = 1.0e-10
 
     # sol = ScipyIVP(model, t1, dt).solve()
-    sol = EulerBackward(model, t1, dt).solve()
+    # sol = EulerBackward(model, t1, dt).solve()
     # sol = NonsmoothHalfExplicitEuler(model, t1, dt).solve()
     # sol = GeneralizedAlphaFirstOrder(model, t1, dt, rho_inf=rho_inf, tol=tol).solve()
-    # sol = GeneralizedAlphaFirstOrder(
-    #     model,
-    #     t1,
-    #     dt,
-    #     rho_inf=rho_inf,
-    #     tol=tol,
-    #     GGL=True
-    #     # model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=2
-    # ).solve()
-    # sol = GeneralizedAlphaSecondOrder(
-    #     model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=False
-    # ).solve()
-    # sol = GeneralizedAlphaSecondOrder(
-    #     model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=True
-    # ).solve()
-    # sol = GeneralizedAlphaFirstOrderGGLGiuseppe(
-    #     model, t1, dt, rho_inf=rho_inf, tol=tol
-    # ).solve()
+    sol = NonsmoothDecoupled(model, t1, dt).solve()
 
     t = sol.t
     q = sol.q
     u = sol.u
     try:
-        # u_dot = sol.u_dot
-        u_dot = np.zeros_like(u)
-        u_dot[1:] = (u[1:] - u[:-1]) / dt
+        u_dot = sol.u_dot
+        # u_dot = np.zeros_like(u)
+        # u_dot[1:] = (u[1:] - u[:-1]) / dt
         la_g = sol.la_g
         la_gamma = sol.la_gamma
     except:
@@ -212,43 +207,6 @@ def state():
         header=header,
         comments="",
     )
-
-    # if True:
-
-    #     def export_q(sol, name):
-    #         header = "t, x, y, z, p0, p1, p2, p3, la_g, la_ga0, la_ga1"
-    #         export_data = np.vstack([sol.t, *sol.q.T, *sol.la_g.T, *sol.la_gamma.T]).T
-    #         np.savetxt(
-    #             name,
-    #             export_data,
-    #             delimiter=", ",
-    #             header=header,
-    #             comments="",
-    #         )
-
-    #     export_q(sol, "examples/GAMM2022/RollingDiscTrajectory.txt")
-
-    #     def export_gaps(sol, name):
-    #         header = "t, g, g_dot, g_ddot, ga, ga_dot"
-    #         t = sol.t
-    #         q = sol.q
-    #         u = sol.u
-    #         u_dot = sol.u_dot
-
-    #         export_data = np.vstack([t, g, g_dot, g_ddot, gamma, gamma_dot]).T
-    #         np.savetxt(
-    #             name,
-    #             export_data,
-    #             delimiter=", ",
-    #             header=header,
-    #             comments="",
-    #         )
-
-    #         return g, g_dot, g_ddot
-
-    #     export_gaps(sol, "examples/GAMM2022/RollingDiscGaps.txt")
-
-    #     # exit()
 
     ###############
     # visualization
@@ -299,9 +257,8 @@ def state():
         q[:, 1],
         q[:, 2],
         "-r",
-        label="x-y-z - GenAlphaFirstOrderVeclotiy",
+        label="x-y-z",
     )
-    # ax.plot(q_genAlphaFirstOrderVelocityGGL[:, 0], q_genAlphaFirstOrderVelocityGGL[:, 1], q_genAlphaFirstOrderVelocityGGL[:, 2], '--g', label="x-y-z - GenAlphaFirstOrderVeclotiyGGl")
     ax.set_xlabel("x")
     ax.set_ylabel("y")
     ax.set_zlabel("z")
@@ -310,38 +267,31 @@ def state():
 
     # nonpenetrating contact point
     ax = fig.add_subplot(2, 2, 2)
-    # ax.plot(t[:], la_g[:, 0], "-r", label="la_g - GenAlphaFirstOrderVeclotiy")
-    ax.plot(t[:], la_gamma[:, 0], "--g", label="la_g - GenAlphaFirstOrderVeclotiyGGL")
-    ax.set_xlabel("x")
-    ax.set_ylabel("y")
+    if Constraint is RollingCondition_g_I_Frame_gamma:
+        ax.plot(t[:], la_g[:, 0], "-r", label="la_g")
+    elif Constraint is RollingCondition:
+        ax.plot(t[:], la_gamma[:, 0], "--g", label="la_gamma0")
+    ax.set_xlabel("t")
     ax.grid()
     ax.legend()
 
     # no lateral velocities 1
     ax = fig.add_subplot(2, 2, 3)
-    ax.plot(
-        t[:],
-        # la_gamma[:, 0],
-        la_gamma[:, 1],
-        "-r",
-        label="la_gamma[0] - GenAlphaFirstOrderVeclotiy",
-    )
+    if Constraint is RollingCondition_g_I_Frame_gamma:
+        ax.plot(t[:], la_gamma[:, 0], "-r", label="la_gamma[0]")
+    elif Constraint is RollingCondition:
+        ax.plot(t[:], la_gamma[:, 1], "-r", label="la_gamma[1]")
     ax.set_xlabel("t")
-    ax.set_ylabel("la_gamma1")
     ax.grid()
     ax.legend()
 
     # no lateral velocities 2
     ax = fig.add_subplot(2, 2, 4)
-    ax.plot(
-        t[:],
-        # la_gamma[:, 1],
-        la_gamma[:, 2],
-        "-r",
-        label="la_gamma[1] - GenAlphaFirstOrderVeclotiy",
-    )
+    if Constraint is RollingCondition_g_I_Frame_gamma:
+        ax.plot(t[:], la_gamma[:, 1], "-r", label="la_gamma[1]")
+    elif Constraint is RollingCondition:
+        ax.plot(t[:], la_gamma[:, 2], "-r", label="la_gamma[2]")
     ax.set_xlabel("t")
-    ax.set_ylabel("la_gamma2")
     ax.grid()
     ax.legend()
 

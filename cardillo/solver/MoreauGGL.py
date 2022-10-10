@@ -3226,7 +3226,7 @@ class NonsmoothDecoupled:
         self.tk = t0 = model.t0
         self.qk = q0 = model.q0
         self.uk = u0 = model.u0
-        self.Uk = np.zeros(self.nq)
+        self.Uk = np.zeros(self.nu)
         self.La_gk = np.zeros(self.nla_g)
         self.La_gammak = np.zeros(self.nla_gamma)
         self.La_Nk = np.zeros(self.nla_N)
@@ -3295,6 +3295,24 @@ class NonsmoothDecoupled:
                 self.La_Fk,
             )
         )
+
+        #########################################
+        # solve for consistent initial conditions
+        #########################################
+        from scipy.optimize import fsolve
+
+        res = fsolve(self.Rx, self.xk.copy(), full_output=1)
+        self.xk = res[0].copy()
+
+        (
+            self.q_dotk,
+            self.u_dotk,
+            self.la_gk,
+            self.la_gammak,
+            self.la_Nk,
+            self.la_Fk,
+        ) = self.unpack_x(self.xk)
+        print(f"la_g0: {self.la_gk}")
 
         # initialize index sets
         self.I_Nk1 = np.zeros(self.nla_N, dtype=bool)
