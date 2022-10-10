@@ -1,35 +1,27 @@
-from cardillo.model.bilateral_constraints.implicit.RigidConnection import (
-    Rigid_connection,
-)
 import numpy as np
 from math import cos, sin, pi
 
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.animation as animation
 
-from cardillo.math.algebra import A_IK_basic_z, cross3, axis_angle2quat
+from cardillo.math import A_IK_basic, cross3, axis_angle2quat
 
 from cardillo.model import System
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints.implicit import (
-    Spherical_joint,
-    Revolute_joint,
-    Linear_guidance_x,
-    Linear_guidance_xyz,
+    SphericalJoint,
+    RevoluteJoint,
 )
-from cardillo.model.rigid_body import Rigid_body_quaternion
-from cardillo.model.force import Force
+from cardillo.model.rigid_body import RigidBodyQuaternion
+from cardillo.forces import Force
 from cardillo.solver import (
-    Scipy_ivp,
-    Euler_backward,
-    Generalized_alpha_1,
-    Moreau,
-    Moreau_sym,
-    Generalized_alpha_2,
+    ScipyIVP,
+    EulerBackward,
 )
 
 from scipy.integrate import solve_ivp
+
+use_spherical_joint = True
 
 if __name__ == "__main__":
     animate = True
@@ -51,24 +43,26 @@ if __name__ == "__main__":
     A_IB1 = np.eye(3)
     origin = Frame(r_OP=r_OB1, A_IK=A_IB1)
 
-    A_IK10 = A_IK_basic_z(alpha0)
+    A_IK10 = A_IK_basic(alpha0).z()
     r_OS10 = -0.5 * l * A_IK10[:, 1]
     p01 = axis_angle2quat(np.array([0, 0, 1]), alpha0)
     q01 = np.concatenate([r_OS10, p01])
     omega01 = np.array([0, 0, alpha_dot0])
     vS1 = cross3(omega01, r_OS10)
     u01 = np.concatenate([vS1, omega01])
-    RB1 = Rigid_body_quaternion(m, K_theta_S, q01, u01)
+    RB1 = RigidBodyQuaternion(m, K_theta_S, q01, u01)
 
-    # joint1 = Spherical_joint(origin, RB1, r_OB1)
-    joint1 = Revolute_joint(origin, RB1, np.zeros(3), A_IB1)
+    if use_spherical_joint:
+        joint1 = SphericalJoint(origin, RB1, r_OB1)
+    else:
+        joint1 = RevoluteJoint(origin, RB1, r_OB1, A_IB1)
 
     beta0 = 0
     beta_dot0 = 0
 
     r_OB2 = -l * A_IK10[:, 1]
 
-    A_IK20 = A_IK10 @ A_IK_basic_z(beta0)
+    A_IK20 = A_IK10 @ A_IK_basic(beta0).z()
     r_B2S2 = -0.5 * l * A_IK20[:, 1]
     r_OS20 = r_OB2 + r_B2S2
     p02 = axis_angle2quat(np.array([0, 0, 1]), alpha0 + beta0)
@@ -77,18 +71,13 @@ if __name__ == "__main__":
     vB2 = cross3(omega01, r_OB2)
     vS2 = vB2 + cross3(omega02, r_B2S2)
     u02 = np.concatenate([vS2, omega02])
-    RB2 = Rigid_body_quaternion(m, K_theta_S, q02, u02)
+    RB2 = RigidBodyQuaternion(m, K_theta_S, q02, u02)
 
     A_IB2 = A_IK10
-    joint2 = Revolute_joint(RB1, RB2, r_OB2, A_IB2)
-    # joint2 = Spherical_joint(RB1, RB2, r_OB2)
-
-    # # permute x to z axis
-    ex2, ey2, ez2 = A_IB2.T
-    A_IB2 = np.array([ez2, ex2, ey2]).T
-    # joint2 = Linear_guidance_x(RB1, RB2, r_OB2, A_IB2)
-    # joint2 = Linear_guidance_xyz(RB1, RB2, r_OB2, A_IB2)
-    joint2 = Rigid_connection(RB1, RB2, r_OB2)
+    if use_spherical_joint:
+        joint2 = SphericalJoint(RB1, RB2, r_OB2)
+    else:
+        joint2 = RevoluteJoint(RB1, RB2, r_OB2, A_IB2)
 
     model = System()
     model.add(origin)
@@ -99,21 +88,13 @@ if __name__ == "__main__":
     model.add(Force(lambda t: np.array([0, -g * m, 0]), RB1))
     model.add(Force(lambda t: np.array([0, -g * m, 0]), RB2))
 
-    model.add(Force(lambda t: np.array([0, 0, -g * m]), RB2))
-
     model.assemble()
 
     t0 = 0
     t1 = 3
     dt = 5e-3
-    solver = Scipy_ivp(model, t1, dt)
-    # solver = Moreau(model, t1, dt)
-    # solver = Moreau_sym(model, t1, dt)
-    # solver = Euler_backward(model, t1, dt, numerical_jacobian=True, debug=True)
-    # solver = Euler_backward(model, t1, dt, numerical_jacobian=False, debug=False)
-    # solver = Generalized_alpha_1(model, t1, dt, numerical_jacobian=True, debug=True)
-    # solver = Generalized_alpha_1(model, t1, dt, newton_tol=1.0e-10, numerical_jacobian=False, debug=False)
-    # solver = Generalized_alpha_2(model, t1, dt, numerical_jacobian=False, debug=False)
+    solver = ScipyIVP(model, t1, dt)
+    # solver = EulerBackward(model, t1, dt)
 
     sol = solver.solve()
     t = sol.t
@@ -251,8 +232,6 @@ if __name__ == "__main__":
 
         plt.show()
 
-    # #%% reference solution
-
     if reference_solution:
 
         def eqm(t, x):
@@ -283,11 +262,9 @@ if __name__ == "__main__":
         x0 = np.array([alpha0, alpha0 + beta0, alpha_dot0, alpha_dot0 + beta_dot0])
         ref = solve_ivp(
             eqm, [t0, t1], x0, method="RK45", rtol=1e-8, atol=1e-12
-        )  # MATLAB ode45
+        )
         x = ref.y
         t_ref = ref.t
-
-        # import matplotlib.pyplot as plt
 
         alpha_ref = x[0]
         phi_ref = x[1]
