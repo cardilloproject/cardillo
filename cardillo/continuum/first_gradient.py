@@ -262,12 +262,13 @@ class First_gradient:
             w_J0 = self.w_J0[el, i]
 
             # deformation gradient
-            # F = np.zeros((self.dim, self.dim))
-            # for a in range(self.nn_el):
-            #     F += np.outer(ze[self.nodalDOF[a]], N_X[a]) # Bonet 1997 (7.5)
+            F = np.zeros((self.dim, self.dim))
+            for a in range(self.nn_el):
+                F += np.outer(ze[self.nodalDOF[a]], N_X[a])  # Bonet 1997 (7.5)
 
-            # first Piola-Kirchhoff deformation tensor
-            P = self.mat.P(self.F[el, i])
+            # # first Piola-Kirchhoff deformation tensor
+            P = self.mat.P(F)
+            # P = self.mat.P(self.F[el, i])
 
             # internal forces
             for a in range(self.nn_el):
@@ -293,11 +294,11 @@ class First_gradient:
             w_J0 = self.w_J0[el, i]
 
             # deformation gradient
-            # F = np.zeros((self.dim, self.dim))
-            F_eli = self.F[el, i]
+            F_eli = np.zeros((self.dim, self.dim))
+            # F_eli = self.F[el, i]
             F_q = np.zeros((self.dim, self.dim, self.nq_el))
             for a in range(self.nn_el):
-                # F += np.outer(ze[self.nodalDOF[a]], N_X[a]) # Bonet 1997 (7.5)
+                F_eli += np.outer(ze[self.nodalDOF[a]], N_X[a])  # Bonet 1997 (7.5)
                 F_q[:, :, self.nodalDOF[a]] += np.einsum("ik,j->ijk", I3, N_X[a])
 
             # differentiate first Piola-Kirchhoff deformation tensor w.r.t. generalized coordinates
