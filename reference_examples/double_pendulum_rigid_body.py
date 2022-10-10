@@ -8,7 +8,7 @@ from cardillo.math import A_IK_basic, cross3, axis_angle2quat
 
 from cardillo import System
 from cardillo.discrete import Frame
-from cardillo.bilateral_constraints import (
+from cardillo.constraints import (
     SphericalJoint,
     RevoluteJoint,
 )
@@ -21,7 +21,8 @@ from cardillo.solver import (
 
 from scipy.integrate import solve_ivp
 
-use_spherical_joint = True
+# use_spherical_joint = True
+use_spherical_joint = False
 
 if __name__ == "__main__":
     m = 1
