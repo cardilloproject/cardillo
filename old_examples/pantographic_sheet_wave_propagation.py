@@ -312,16 +312,16 @@ def create_pantograph(
 ):
 
     assert p >= 2
-    LBeam = H / (nRow * sin(gamma))
-    L = nCol * LBeam * cos(gamma)
+    LBeam = H / (nRow * np.sin(gamma))
+    L = nCol * LBeam * np.cos(gamma)
 
     ###################################################
     # create reference configuration individual beams #
     ###################################################
 
     # projections of beam length
-    Lx = LBeam * cos(gamma)
-    Ly = LBeam * sin(gamma)
+    Lx = LBeam * np.cos(gamma)
+    Ly = LBeam * np.sin(gamma)
     # upper left node
     xUL = 0
     yUL = Ly * nRow
@@ -583,8 +583,8 @@ if __name__ == "__main__":
     nCol = 1200  # number of columns = 2 * number of fibers per length
 
     H = 0.07  # height of pantographic sheet
-    LBeam = H / (nRow * sin(gamma))  # length of individual beam
-    L = nCol * LBeam * cos(gamma)  # length of pantographic sheet
+    LBeam = H / (nRow * np.sin(gamma))  # length of individual beam
+    L = nCol * LBeam * np.cos(gamma)  # length of pantographic sheet
 
     # beam finite element parameters
     p = 3  # polynomial degree
@@ -618,7 +618,7 @@ if __name__ == "__main__":
     # fcn = lambda t: displ * np.exp(-(t-c2)**2/c1**2) - 0.8 * displ * np.exp(-(t-c2)**2/c3**2)
     fcn = (
         lambda t: displ
-        * sin(t / (3 * c1) * (2 * pi))
+        * np.sin(t / (3 * c1) * (2 * pi))
         * np.exp(-((t - c2) ** 2) / c1**2)
     )
 

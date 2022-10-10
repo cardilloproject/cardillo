@@ -1,5 +1,5 @@
 import numpy as np
-from math import sin, cos, pi
+from math import pi
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from cardillo.math.rotations import A_IK_basic, rodriguez_inv, Spurrier
@@ -121,9 +121,9 @@ class HeavyTop:
     @staticmethod
     def A_IK(t, q, frame_ID=None):
         alpha, beta, gamma = q[3:]
-        sa, ca = sin(alpha), cos(alpha)
-        sb, cb = sin(beta), cos(beta)
-        sg, cg = sin(gamma), cos(gamma)
+        sa, ca = np.sin(alpha), np.cos(alpha)
+        sb, cb = np.sin(beta), np.cos(beta)
+        sg, cg = np.sin(gamma), np.cos(gamma)
         # fmt: off
         return np.array([
             [ca * cg - sa * cb * sg, - ca * sg - sa * cb * cg, sa * sb],
@@ -199,8 +199,8 @@ class HeavyTop:
     #################################
     def Q(self, t, q_angles):
         _, beta, gamma = q_angles
-        sb, cb = sin(beta), cos(beta)
-        sg, cg = sin(gamma), cos(gamma)
+        sb, cb = np.sin(beta), np.cos(beta)
+        sg, cg = np.sin(gamma), np.cos(gamma)
         # fmt: off
         return np.array([
             [sg, cg, 0],
@@ -349,8 +349,8 @@ class HeavyTop:
 
         # h vector
         _, beta, gamma = q
-        sb, _ = sin(beta), cos(beta)
-        sg, cg = sin(gamma), cos(gamma)
+        sb, _ = np.sin(beta), np.cos(beta)
+        sg, cg = np.sin(gamma), np.cos(gamma)
         omega_x, omega_y, omega_z = u
         m, l, g, A, B = self.m, self.l, self.grav, self.A, self.B_
         Theta1 = A

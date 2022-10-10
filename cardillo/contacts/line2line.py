@@ -1,4 +1,3 @@
-from math import sin, cos, sqrt
 import numpy as np
 from cardillo.math import approx_fprime, norm, e1, e2, e3
 from scipy.optimize import fsolve
@@ -533,16 +532,18 @@ class Line2Line:
         r1 = self.r1(t, q, xi)
         r1_xi = self.r1_xi(t, q, xi)
         R1 = rodriguez_B(e1, r1_xi)
-        # x1_b = r1 + self.R1 * (cos(alpha) * R1 @ e2 + sin(alpha) * R1 @ e3)
-        x1_b = r1 + self.R1(xi, alpha) * (cos(alpha) * R1 @ e2 + sin(alpha) * R1 @ e3)
+        # x1_b = r1 + self.R1 * (cos(alpha) * R1 @ e2 + np.sin(alpha) * R1 @ e3)
+        x1_b = r1 + self.R1(xi, alpha) * (
+            cos(alpha) * R1 @ e2 + np.sin(alpha) * R1 @ e3
+        )
 
         # position and tangant vector of subsystem 2
         # smallest rotation in order to get an orthogonal frame
         r2 = self.r2(t, q, eta)
         r2_eta = self.r2_eta(t, q, eta)
         R2 = rodriguez_B(e1, r2_eta)
-        # x2_b = r2 + self.R2 * (cos(beta) * R2 @ e2 + sin(beta) * R2 @ e3)
-        x2_b = r2 + self.R2(eta, beta) * (cos(beta) * R2 @ e2 + sin(beta) * R2 @ e3)
+        # x2_b = r2 + self.R2 * (cos(beta) * R2 @ e2 + np.sin(beta) * R2 @ e3)
+        x2_b = r2 + self.R2(eta, beta) * (cos(beta) * R2 @ e2 + np.sin(beta) * R2 @ e3)
 
         # squared distance of both centerlines, Meier2017 (8)
         delta_x_b = x1_b - x2_b
@@ -558,7 +559,7 @@ class Line2Line:
         #     r1 = self.r1(t, q, xi)
         #     r1_xi = self.r1_xi(t, q, xi)
         #     R1 = rodriguez_B(e1, r1_xi)
-        #     return r1 + self.R1(xi, alpha) * (cos(alpha) * R1 @ e2 + sin(alpha) * R1 @ e3)
+        #     return r1 + self.R1(xi, alpha) * (cos(alpha) * R1 @ e2 + np.sin(alpha) * R1 @ e3)
 
         # p1 = np.array([xi, alpha])
         # x1_b = x1_b_fun(p1)
@@ -570,7 +571,7 @@ class Line2Line:
         #     r2 = self.r2(t, q, eta)
         #     r2_eta = self.r2_eta(t, q, eta)
         #     R2 = rodriguez_B(e1, r2_eta)
-        #     return r2 + self.R2(eta, beta) * (cos(beta) * R2 @ e2 + sin(beta) * R2 @ e3)
+        #     return r2 + self.R2(eta, beta) * (cos(beta) * R2 @ e2 + np.sin(beta) * R2 @ e3)
 
         # p2 = np.array([eta, beta])
         # x2_b = x2_b_fun(p2)
@@ -816,18 +817,18 @@ class Line2Line:
                 # r1_xi = self.r1_xi(t, q, xi)
                 # R1 = rodriguez_B(e1, r1_xi)
                 # x1_b = r1 + self.R1(xi, alpha) * (
-                #     cos(alpha) * R1 @ e2 + sin(alpha) * R1 @ e3
+                #     np.cos(alpha) * R1 @ e2 + np.sin(alpha) * R1 @ e3
                 # )
-                # # x1_b = r1 + self.R1 * (cos(alpha) * R1 @ e2 + sin(alpha) * R1 @ e3)
+                # # x1_b = r1 + self.R1 * (cos(alpha) * R1 @ e2 + np.sin(alpha) * R1 @ e3)
 
                 # # position and tangant vector of subsystem 2
                 # # smallest rotation in order to get an orthogonal frame
                 # r2 = self.r2(t, q, eta)
                 # r2_eta = self.r2_eta(t, q, eta)
                 # R2 = rodriguez_B(e1, r2_eta)
-                # # x2_b = r2 + self.R2 * (cos(beta) * R2 @ e2 + sin(beta) * R2 @ e3)
+                # # x2_b = r2 + self.R2 * (cos(beta) * R2 @ e2 + np.sin(beta) * R2 @ e3)
                 # x2_b = r2 + self.R2(eta, beta) * (
-                #     cos(beta) * R2 @ e2 + sin(beta) * R2 @ e3
+                #     np.cos(beta) * R2 @ e2 + np.sin(beta) * R2 @ e3
                 # )
 
                 # # gap function

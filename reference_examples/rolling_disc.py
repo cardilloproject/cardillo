@@ -56,25 +56,25 @@ beta0 = 5 * np.pi / 180  # initial inlination angle (0 < beta0 < pi/2)
 
 # center of mass, see DMS (22)
 x0 = 0
-y0 = R - r * sin(beta0)
-z0 = r * cos(beta0)
+y0 = R - r * np.sin(beta0)
+z0 = r * np.cos(beta0)
 
 # initial angles
 beta_dot0 = 0  # Lesaux1005 before (5.10)
 gamma_dot0_pow2 = (
-    4 * (g / r) * sin(beta0) / ((6 - 5 * rho * sin(beta0)) * rho * cos(beta0))
+    4 * (g / r) * np.sin(beta0) / ((6 - 5 * rho * np.sin(beta0)) * rho * np.cos(beta0))
 )
 gamma_dot0 = sqrt(gamma_dot0_pow2)  # Lesaux2005 (5.12)
 alpha_dot0 = -rho * gamma_dot0  # Lesaux2005 (5.11)
 
 # angular velocity, see DMS after (22)
 K_Omega0 = np.array(
-    [beta_dot0, alpha_dot0 * sin(beta0) + gamma_dot0, alpha_dot0 * cos(beta0)]
+    [beta_dot0, alpha_dot0 * np.sin(beta0) + gamma_dot0, alpha_dot0 * np.cos(beta0)]
 )
 
 # center of mass velocity
 # TODO: Derive these equations!
-v_S0 = np.array([-R * alpha_dot0 + r * alpha_dot0 * sin(beta0), 0, 0])
+v_S0 = np.array([-R * alpha_dot0 + r * alpha_dot0 * np.sin(beta0), 0, 0])
 
 # initial conditions
 u0 = np.concatenate((v_S0, K_Omega0))

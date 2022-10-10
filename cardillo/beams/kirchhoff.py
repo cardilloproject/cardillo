@@ -1,5 +1,4 @@
 import numpy as np
-from math import sin, cos
 from cardillo.math.rotations import Spurrier, smallest_rotation
 
 from cardillo.utility.coo import Coo
@@ -881,8 +880,6 @@ class Kirchhoff:
                 # d1, d2, d3 = A_IK.T
                 sa = np.sin(alpha)
                 ca = np.cos(alpha)
-                # sa = sin(alpha)
-                # ca = cos(alpha)
                 d2 = ca * d2_M + sa * d3_M
                 d3 = ca * d3_M - sa * d2_M
                 A_IK = np.vstack((d1, d2, d3)).T

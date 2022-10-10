@@ -1,7 +1,7 @@
 import numpy as np
 import meshio
 import os
-from math import sin, cos, sqrt
+from math import sqrt
 from cardillo.math.algebra import skew2ax
 
 from cardillo.utility.coo import Coo
@@ -59,8 +59,8 @@ def se3exp(h):
     #     psi_tilde = ax2skew(psi)
     #     A = (
     #         np.eye(3, dtype=float)
-    #         + (1.0 - cos(abs_psi)) / psi2 * psi_tilde
-    #         + (abs_psi - sin(abs_psi)) / (abs_psi * psi2) * psi_tilde @ psi_tilde
+    #         + (1.0 - np.cos(abs_psi)) / psi2 * psi_tilde
+    #         + (abs_psi - np.sin(abs_psi)) / (abs_psi * psi2) * psi_tilde @ psi_tilde
     #     )
     #     # A = tangent_map(psi).T # Sonneville2013 (A.10)
 
@@ -92,8 +92,8 @@ def SE3log(H):
     #     psi_tilde = ax2skew(psi)
     #     A_inv += (
     #         -0.5 * psi_tilde
-    #         + (2.0 * sin(abs_psi) - abs_psi * (1.0 + cos(abs_psi)))
-    #         / (2.0 * psi2 * sin(abs_psi))
+    #         + (2.0 * np.sin(abs_psi) - abs_psi * (1.0 + np.cos(abs_psi)))
+    #         / (2.0 * psi2 * np.sin(abs_psi))
     #         * psi_tilde
     #         @ psi_tilde
     #     )
@@ -115,8 +115,8 @@ def T_UOm_p(a, b):
     b2 = b @ b
     if b2 > 0:
         abs_b = sqrt(b2)
-        alpha = sin(abs_b) / abs_b
-        beta = 2.0 * (1.0 - cos(abs_b)) / b2
+        alpha = np.sin(abs_b) / abs_b
+        beta = 2.0 * (1.0 - np.cos(abs_b)) / b2
 
         b_tilde = ax2skew(b)
         ab = a_tilde @ b_tilde + b_tilde @ a_tilde
@@ -155,8 +155,8 @@ def U(a, b):
     b2 = b @ b
     if b2 > 0:
         abs_b = sqrt(b2)
-        alpha = sin(abs_b) / abs_b
-        beta = 2.0 * (1.0 - cos(abs_b)) / b2
+        alpha = np.sin(abs_b) / abs_b
+        beta = 2.0 * (1.0 - np.cos(abs_b)) / b2
 
         b_tilde = ax2skew(b)
         ab = a_tilde @ b_tilde + b_tilde @ a_tilde
@@ -194,8 +194,8 @@ def T_UOm_m(a, b):
     b2 = b @ b
     if b2 > 0:
         abs_b = sqrt(b2)
-        alpha = sin(abs_b) / abs_b
-        beta = 2.0 * (1.0 - cos(abs_b)) / b2
+        alpha = np.sin(abs_b) / abs_b
+        beta = 2.0 * (1.0 - np.cos(abs_b)) / b2
 
         b_tilde = ax2skew(b)
         ab = a_tilde @ b_tilde + b_tilde @ a_tilde
@@ -1478,7 +1478,7 @@ class TimoshenkoQuarternionSE3:
             # compute points on circular cross section
             x0 = None  # initial point is required twice
             for alpha in np.linspace(0, 2 * np.pi, num=n_alpha):
-                x = r + radius * cos(alpha) * d2 + radius * sin(alpha) * d3
+                x = r + radius * np.cos(alpha) * d2 + radius * np.sin(alpha) * d3
                 points.append(x)
                 if x0 is None:
                     x0 = x
@@ -2662,7 +2662,7 @@ class TimoshenkoAxisAngleSE3Old:
             # compute points on circular cross section
             x0 = None  # initial point is required twice
             for alpha in np.linspace(0, 2 * np.pi, num=n_alpha):
-                x = r + radius * cos(alpha) * d2 + radius * sin(alpha) * d3
+                x = r + radius * np.cos(alpha) * d2 + radius * np.sin(alpha) * d3
                 points.append(x)
                 if x0 is None:
                     x0 = x
@@ -4691,7 +4691,7 @@ class TimoshenkoAxisAngle:
             # compute points on circular cross section
             x0 = None  # initial point is required twice
             for alpha in np.linspace(0, 2 * np.pi, num=n_alpha):
-                x = r + radius * cos(alpha) * d2 + radius * sin(alpha) * d3
+                x = r + radius * np.cos(alpha) * d2 + radius * np.sin(alpha) * d3
                 points.append(x)
                 if x0 is None:
                     x0 = x
@@ -6582,7 +6582,7 @@ class TimoshenkoQuaternion:
             # compute points on circular cross section
             x0 = None  # initial point is required twice
             for alpha in np.linspace(0, 2 * np.pi, num=n_alpha):
-                x = r + radius * cos(alpha) * d2 + radius * sin(alpha) * d3
+                x = r + radius * np.cos(alpha) * d2 + radius * np.sin(alpha) * d3
                 points.append(x)
                 if x0 is None:
                     x0 = x

@@ -340,7 +340,7 @@ def run(statics):
         phi = (
             lambda t: n_circles * 2 * pi * smoothstep2(t, frac_deformation, 1.0)
         )  # * 0.5
-        # phi2 = lambda t: pi / 4 * sin(2 * pi * smoothstep2(t, frac_deformation, 1.0))
+        # phi2 = lambda t: pi / 4 * np.sin(2 * pi * smoothstep2(t, frac_deformation, 1.0))
         # A_IK0 = lambda t: A_IK_basic(phi(t)).x()
         # TODO: Get this strange rotation working with a full circle
         # A_IK0 = lambda t: A_IK_basic(phi(t)).z()
@@ -351,8 +351,8 @@ def run(statics):
         )
         # A_IK0 = lambda t: np.eye(3)
     else:
-        phi = lambda t: smoothstep2(t, 0, 0.1) * sin(0.3 * pi * t) * pi / 4
-        # phi = lambda t: smoothstep2(t, 0, 0.1) * sin(0.6 * pi * t) * pi / 4
+        phi = lambda t: smoothstep2(t, 0, 0.1) * np.sin(0.3 * pi * t) * pi / 4
+        # phi = lambda t: smoothstep2(t, 0, 0.1) * np.sin(0.6 * pi * t) * pi / 4
         # A_IK0 = lambda t: A_IK_basic(phi(t)).z()
         A_IK0 = (
             lambda t: A_IK_basic(0.5 * phi(t)).z()
@@ -1322,9 +1322,9 @@ def HeavyTop():
             # A_BC = A_IK_basic(beta).y()
             # A_CK = A_IK_basic(gamma).x()
             # return A_IB @ A_BC @ A_CK
-            sa, ca = sin(alpha), cos(alpha)
-            sb, cb = sin(beta), cos(beta)
-            sg, cg = sin(gamma), cos(gamma)
+            sa, ca = np.sin(alpha), np.cos(alpha)
+            sb, cb = np.sin(beta), np.cos(beta)
+            sg, cg = np.sin(gamma), np.cos(gamma)
             # fmt: off
             return np.array([
                 [ca * cb, ca * sb  *sg - sa * cg, ca * sb * cg + sa * sg],
@@ -1349,8 +1349,8 @@ def HeavyTop():
             A = self.A
             B = self.B
 
-            sb, cb = sin(beta), cos(beta)
-            sg, cg = sin(gamma), cos(gamma)
+            sb, cb = np.sin(beta), np.cos(beta)
+            sg, cg = np.sin(gamma), np.cos(gamma)
 
             # z, y, x
             # fmt: off

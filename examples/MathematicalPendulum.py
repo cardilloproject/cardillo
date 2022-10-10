@@ -1,5 +1,5 @@
 import numpy as np
-from math import sin, cos, pi
+from math import pi
 import matplotlib.pyplot as plt
 
 from cardillo.model.frame.frame import Frame

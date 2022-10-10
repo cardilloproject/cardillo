@@ -284,9 +284,9 @@ def dI3(A):
 #     tmp1 = I1_**2 - 3 * I2_
 #     Theta = acos((2 * I1_**3 - 9 * I1_ * I2_ + 27 * I3_) / (2 * tmp1**(3/2)))
 
-#     la1 = (I1_ + 2 * sqrt(tmp1) * cos((Theta + 2 * pi) / 3)) / 3
-#     la2 = (I1_ + 2 * sqrt(tmp1) * cos((Theta + 4 * pi) / 3)) / 3
-#     la3 = (I1_ + 2 * sqrt(tmp1) * cos((Theta + 6 * pi) / 3)) / 3
+#     la1 = (I1_ + 2 * sqrt(tmp1) * np.cos((Theta + 2 * pi) / 3)) / 3
+#     la2 = (I1_ + 2 * sqrt(tmp1) * np.cos((Theta + 4 * pi) / 3)) / 3
+#     la3 = (I1_ + 2 * sqrt(tmp1) * np.cos((Theta + 6 * pi) / 3)) / 3
 
 #     return la1, la2, la3
 
@@ -316,8 +316,8 @@ def eig(C):
             phi = acos(r) / 3
 
         # the eigenvalues satisfy eig3 <= eig2 <= eig1
-        eig1 = q + 2 * p * cos(phi)
-        eig3 = q + 2 * p * cos(phi + (2 * pi / 3))
+        eig1 = q + 2 * p * np.cos(phi)
+        eig3 = q + 2 * p * np.cos(phi + (2 * pi / 3))
         eig2 = 3 * q - eig1 - eig3  # since trace(A) = eig1 + eig2 + eig3
 
     return eig3, eig2, eig1

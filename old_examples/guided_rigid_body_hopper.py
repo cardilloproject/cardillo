@@ -1,5 +1,5 @@
 import numpy as np
-from numpy import sin, cos, pi
+from numpy import pi
 from scipy.sparse.linalg.eigen.arpack.arpack import gmres_loose
 
 from cardillo.math.algebra import A_IK_basic_z, e1, e2, e3
@@ -73,9 +73,9 @@ if __name__ == "__main__":
     beta0 = pi - 2 * alpha0
     gamma0 = 0
     hight_over_foot = (
-        l_t * cos(alpha0)
-        + l_s * sin(beta0 - (pi / 2 - alpha0))
-        + l_f * sin(gamma0 + beta0 + alpha0 - pi / 2)
+        l_t * np.cos(alpha0)
+        + l_s * np.sin(beta0 - (pi / 2 - alpha0))
+        + l_f * np.sin(gamma0 + beta0 + alpha0 - pi / 2)
         + h_bdy / 2
     )
     y0 = hight_over_foot + h_bdy / 2
@@ -93,7 +93,7 @@ if __name__ == "__main__":
     T = 1 / 4
     omega = 2 * pi / T
 
-    alpha = lambda t: alpha0 - A * (1 - cos(omega * t))
+    alpha = lambda t: alpha0 - A * (1 - np.cos(omega * t))
     beta = lambda t: pi - 2 * alpha(t)
 
     # --------------------------------------------------------------------------------

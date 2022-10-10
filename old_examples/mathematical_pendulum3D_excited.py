@@ -1,5 +1,5 @@
 import numpy as np
-from math import sin, cos, pi
+from math import pi
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.animation as animation
@@ -41,16 +41,16 @@ class Mathematical_pendulum3D_excited:
     def r_OP(self, t, q):
         L = self.L
         return A_IK_basic_y(q[0]) @ np.array(
-            [L * cos(q[1]), L * sin(q[1]) + self.e(t), 0]
+            [L * np.cos(q[1]), L * np.sin(q[1]) + self.e(t), 0]
         )
 
     def v_P(self, t, q, u):
         L = self.L
         B_v_S = np.array(
             [
-                -L * sin(q[1]) * u[1],
-                L * cos(q[1]) * u[1] + self.e_t(t),
-                L * cos(q[1]) * u[0],
+                -L * np.sin(q[1]) * u[1],
+                L * np.cos(q[1]) * u[1] + self.e_t(t),
+                L * np.cos(q[1]) * u[0],
             ]
         )
         return A_IK_basic_y(q[0]) @ B_v_S
@@ -66,14 +66,14 @@ class Mathematical_pendulum3D_excited:
         mL = self.m * self.L
         mL2 = self.m * self.L**2
 
-        M = np.diag(np.array([mL2 * cos(beta) ** 2, mL2]))
+        M = np.diag(np.array([mL2 * np.cos(beta) ** 2, mL2]))
 
         h = np.array(
             [
-                2 * mL2 * cos(beta) * sin(beta) * alpha_dot * beta_dot,
-                -mL * cos(beta) * self.e_tt(t)
-                - mL2 * cos(beta) * sin(beta) * alpha_dot**2
-                - mL * cos(beta) * g,
+                2 * mL2 * np.cos(beta) * np.sin(beta) * alpha_dot * beta_dot,
+                -mL * np.cos(beta) * self.e_tt(t)
+                - mL2 * np.cos(beta) * np.sin(beta) * alpha_dot**2
+                - mL * np.cos(beta) * g,
             ]
         )
 

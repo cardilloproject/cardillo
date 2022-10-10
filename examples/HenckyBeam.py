@@ -1,5 +1,5 @@
 import numpy as np
-from math import sin, cos, atan2
+from math import atan2
 
 from cardillo.math import norm, e2
 from cardillo.model import System

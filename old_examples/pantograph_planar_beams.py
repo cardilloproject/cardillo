@@ -317,7 +317,7 @@ if __name__ == "__main__":
 
     H = 0.0048 * 10 * sqrt(2)
     L = nCol / nRow * H
-    LBeam = H / (nRow * sin(gamma))
+    LBeam = H / (nRow * np.sin(gamma))
 
     EA = 1.34e5 * LBeam
     EI = 1.92e-2 * LBeam
@@ -384,8 +384,8 @@ if __name__ == "__main__":
     nEl = 2
 
     # projections of beam length
-    Lx = LBeam * cos(gamma)
-    Ly = LBeam * sin(gamma)
+    Lx = LBeam * np.cos(gamma)
+    Ly = LBeam * np.sin(gamma)
 
     # upper left node
     xUL = 0
@@ -623,7 +623,7 @@ if __name__ == "__main__":
     #     fig, ax = plt.subplots()
     #     ax.set_xlabel('x [m]')
     #     ax.set_ylabel('y [m]')
-    #     # ax.set_xlim([-Ly + H/2 * sin(rotationZ_l), Ly*(nCol+1) + displacementX + H/2 * sin(rotationZ_r)])
+    #     # ax.set_xlim([-Ly + H/2 * np.sin(rotationZ_l), Ly*(nCol+1) + displacementX + H/2 * np.sin(rotationZ_r)])
     #     # ax.set_ylim([-Ly, Ly*(nRow+1) + displacementY])
     #     ax.grid(linestyle='-', linewidth='0.5')
     #     ax.set_aspect('equal')
@@ -638,7 +638,7 @@ if __name__ == "__main__":
     #     fig, ax = plt.subplots()
     #     ax.set_xlabel('x [m]')
     #     ax.set_ylabel('y [m]')
-    #     ax.set_xlim([-Ly + H/2 * sin(rotationZ_l), Ly*(nCol+1) + displacementX_r + H/2 * sin(rotationZ_r)])
+    #     ax.set_xlim([-Ly + H/2 * np.sin(rotationZ_l), Ly*(nCol+1) + displacementX_r + H/2 * np.sin(rotationZ_r)])
     #     ax.set_ylim([-Ly, Ly*(nRow+1) + displacementY_r])
     #     ax.grid(linestyle='-', linewidth='0.5')
     #     ax.set_aspect('equal')

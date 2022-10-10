@@ -1,5 +1,5 @@
 import numpy as np
-from math import cos, sin, pi
+from math import pi
 
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D

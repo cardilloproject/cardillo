@@ -1,7 +1,7 @@
 from cardillo.model.rigid_body import RigidBodyQuaternion
 import numpy as np
 from scipy.integrate import solve_ivp
-from math import cos, sin, sqrt, tan
+from math import sqrt, tan
 import matplotlib.pyplot as plt
 
 from cardillo.math.algebra import A_IK_basic_z, axis_angle2quat, cross3, ax2skew
@@ -255,7 +255,7 @@ if __name__ == "__main__":
     def eqm(t, x):
         dx = np.zeros(2)
         dx[0] = x[1]
-        dx[1] = -0.5 * m * L * (e_tt(t) * cos(x[0]) + g * sin(x[0])) / theta_O
+        dx[1] = -0.5 * m * L * (e_tt(t) * np.cos(x[0]) + g * np.sin(x[0])) / theta_O
         return dx
 
     dt = 0.001

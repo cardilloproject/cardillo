@@ -1,5 +1,4 @@
 import numpy as np
-from math import cos, sin
 
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
@@ -185,7 +184,7 @@ if __name__ == "__main__":
     def eqm(t, x):
         dx = np.zeros(2)
         dx[0] = x[1]
-        dx[1] = -m * r * (e_tt(t) * cos(x[0]) + g * sin(x[0])) / theta_O
+        dx[1] = -m * r * (e_tt(t) * np.cos(x[0]) + g * np.sin(x[0])) / theta_O
         return dx
 
     dt = 0.001

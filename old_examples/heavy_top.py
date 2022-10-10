@@ -1,5 +1,5 @@
 import numpy as np
-from math import sin, cos, pi
+from math import pi
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.animation as animation
@@ -64,8 +64,8 @@ class Heavy_top:
         Q = np.array(
             [
                 [sin(beta), 0, 1],
-                [cos(beta) * sin(gamma), -cos(gamma), 0],
-                [cos(beta) * cos(gamma), sin(gamma), 0],
+                [cos(beta) * np.sin(gamma), -cos(gamma), 0],
+                [cos(beta) * np.cos(gamma), np.sin(gamma), 0],
             ]
         )
 
@@ -75,9 +75,9 @@ class Heavy_top:
             [
                 0,
                 (B + m * L**2 - A) * omega_x * omega_z
-                + m * g * L * cos(beta) * cos(gamma),
+                + m * g * L * np.cos(beta) * np.cos(gamma),
                 -(B + m * L**2 - A) * omega_x * omega_y
-                - m * g * L * cos(beta) * sin(gamma),
+                - m * g * L * np.cos(beta) * np.sin(gamma),
             ]
         )
 

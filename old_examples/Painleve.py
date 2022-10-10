@@ -1,6 +1,6 @@
 import enum
 import numpy as np
-from math import cos, sin, pi
+from math import pi
 
 # import matplotlib
 # matplotlib.use("Agg")
@@ -37,7 +37,7 @@ class Painleve_rod:
         x0 = 0
         phi0 = 31 / 180 * pi
         # y0 = 0.515
-        y0 = sin(phi0) * self.s  # 0.5150380749100542
+        y0 = np.sin(phi0) * self.s  # 0.5150380749100542
 
         x_dot0 = 30
         y_dot0 = 0
@@ -81,11 +81,11 @@ class Painleve_rod:
     #################
     def g_N(self, t, q):
         x, y, phi = q
-        return np.array([y - self.s * sin(phi)])
+        return np.array([y - self.s * np.sin(phi)])
 
     def g_N_q_dense(self, t, q):
         x, y, phi = q
-        return np.array([[0, 1, -self.s * cos(phi)]])
+        return np.array([[0, 1, -self.s * np.cos(phi)]])
 
     def g_N_q(self, t, q, coo):
         coo.extend(self.g_N_q_dense(t, q), (self.la_NDOF, self.qDOF))
@@ -93,19 +93,19 @@ class Painleve_rod:
     def g_N_dot(self, t, q, u):
         x, y, phi = q
         x_dot, y_dot, phi_dot = u
-        return np.array([y_dot - self.s * cos(phi) * phi_dot])
+        return np.array([y_dot - self.s * np.cos(phi) * phi_dot])
 
     def g_N_dot_q_dense(self, t, q, u):
         x, y, phi = q
         x_dot, y_dot, phi_dot = u
-        return np.array([0, 0, self.s * sin(phi) * phi_dot])
+        return np.array([0, 0, self.s * np.sin(phi) * phi_dot])
 
     def g_N_dot_q(self, t, q, u, coo):
         coo.extend(self.g_N_dot_q_dense(t, q, u), (self.la_NDOF, self.qDOF))
 
     def g_N_dot_u_dense(self, t, q):
         x, y, phi = q
-        return np.array([0, 1, -self.s * cos(phi)])
+        return np.array([0, 1, -self.s * np.cos(phi)])
 
     def g_N_dot_u(self, t, q, coo):
         coo.extend(self.g_N_dot_u_dense(t, q), (self.la_NDOF, self.uDOF))
@@ -127,7 +127,11 @@ class Painleve_rod:
         x_dot, y_dot, phi_dot = u
         x_ddot, y_ddot, phi_ddot = u_dot
         return np.array(
-            [y_ddot + self.s * sin(phi) * phi_dot**2 - self.s * cos(phi) * phi_ddot]
+            [
+                y_ddot
+                + self.s * np.sin(phi) * phi_dot**2
+                - self.s * np.cos(phi) * phi_ddot
+            ]
         )
 
     def g_N_ddot_q(self, t, q, u, u_dot, coo):
@@ -135,19 +139,23 @@ class Painleve_rod:
         x_dot, y_dot, phi_dot = u
         x_ddot, y_ddot, phi_ddot = u_dot
         dense = np.array(
-            [0, 0, self.s * cos(phi) * phi_dot**2 + self.s * sin(phi) * phi_ddot]
+            [
+                0,
+                0,
+                self.s * np.cos(phi) * phi_dot**2 + self.s * np.sin(phi) * phi_ddot,
+            ]
         )
         coo.extend(dense, (self.la_NDOF, self.qDOF))
 
     def g_N_ddot_u(self, t, q, u, u_dot, coo):
         x, y, phi = q
         x_dot, y_dot, phi_dot = u
-        dense = np.array([0, 0, 2 * self.s * sin(phi) * phi_dot])
+        dense = np.array([0, 0, 2 * self.s * np.sin(phi) * phi_dot])
         coo.extend(dense, (self.la_NDOF, self.uDOF))
 
     def Wla_N_q(self, t, q, la_N, coo):
         x, y, phi = q
-        dense = la_N[0] * np.array([[0, 0, 0], [0, 0, 0], [0, 0, self.s * sin(phi)]])
+        dense = la_N[0] * np.array([[0, 0, 0], [0, 0, 0], [0, 0, self.s * np.sin(phi)]])
         coo.extend(dense, (self.uDOF, self.qDOF))
 
     #################
@@ -156,19 +164,19 @@ class Painleve_rod:
     def gamma_T(self, t, q, u):
         x, y, phi = q
         x_dot, y_dot, phi_dot = u
-        return np.array([x_dot - self.s * sin(phi) * phi_dot])
+        return np.array([x_dot - self.s * np.sin(phi) * phi_dot])
 
     def gamma_T_q_dense(self, t, q, u):
         x, y, phi = q
         x_dot, y_dot, phi_dot = u
-        return np.array([[0, 0, -self.s * cos(phi) * phi_dot]])
+        return np.array([[0, 0, -self.s * np.cos(phi) * phi_dot]])
 
     def gamma_T_q(self, t, q, u, coo):
         coo.extend(self.gamma_T_q_dense(t, q, u), (self.la_TDOF, self.qDOF))
 
     def gamma_T_u_dense(self, t, q):
         x, y, phi = q
-        return np.array([[1, 0, -self.s * sin(phi)]])
+        return np.array([[1, 0, -self.s * np.sin(phi)]])
 
     def gamma_T_u(self, t, q, coo):
         coo.extend(self.gamma_T_u_dense(t, q), (self.la_TDOF, self.uDOF))
@@ -178,7 +186,9 @@ class Painleve_rod:
 
     def Wla_T_q(self, t, q, la_T, coo):
         x, y, phi = q
-        dense = la_T[0] * np.array([[0, 0, 0], [0, 0, 0], [0, 0, -self.s * cos(phi)]])
+        dense = la_T[0] * np.array(
+            [[0, 0, 0], [0, 0, 0], [0, 0, -self.s * np.cos(phi)]]
+        )
         coo.extend(dense, (self.uDOF, self.qDOF))
 
     def gamma_T_dot(self, t, q, u, u_dot):
@@ -186,7 +196,11 @@ class Painleve_rod:
         x_dot, y_dot, phi_dot = u
         x_ddot, y_ddot, phi_ddot = u_dot
         return np.array(
-            [x_ddot - self.s * cos(phi) * phi_dot**2 - self.s * sin(phi) * phi_ddot]
+            [
+                x_ddot
+                - self.s * np.cos(phi) * phi_dot**2
+                - self.s * np.sin(phi) * phi_ddot
+            ]
         )
 
     def gamma_T_dot_q(self, t, q, u, u_dot, coo):
@@ -194,7 +208,14 @@ class Painleve_rod:
         x_dot, y_dot, phi_dot = u
         x_ddot, y_ddot, phi_ddot = u_dot
         dense = np.array(
-            [[0, 0, self.s * sin(phi) * phi_dot**2 - self.s * cos(phi) * phi_ddot]]
+            [
+                [
+                    0,
+                    0,
+                    self.s * np.sin(phi) * phi_dot**2
+                    - self.s * np.cos(phi) * phi_ddot,
+                ]
+            ]
         )
         coo.extend(dense, (self.la_TDOF, self.qDOF))
 
@@ -202,7 +223,7 @@ class Painleve_rod:
         x, y, phi = q
         x_dot, y_dot, phi_dot = u
         x_ddot, y_ddot, phi_ddot = u_dot
-        dense = np.array([[0, 0, -2 * self.s * cos(phi) * phi_dot]])
+        dense = np.array([[0, 0, -2 * self.s * np.cos(phi) * phi_dot]])
         coo.extend(dense, (self.la_TDOF, self.uDOF))
 
     def xi_T(self, t, q, u_pre, u_post):
@@ -330,8 +351,8 @@ if __name__ == "__main__":
         def configuration_rod(q):
             x, y, phi = q
             s = rod.s
-            x = np.array([x - s * cos(phi), x + s * cos(phi)])
-            y = np.array([y + s * sin(phi), y - s * sin(phi)])
+            x = np.array([x - s * np.cos(phi), x + s * np.cos(phi)])
+            y = np.array([y + s * np.sin(phi), y - s * np.sin(phi)])
             return x, y
 
         (line,) = ax_anim.plot(*configuration_rod(rod.q0), "-r", linewidth=2)
