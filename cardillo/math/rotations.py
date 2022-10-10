@@ -475,11 +475,11 @@ def quat2rot_p(p):
 
 def axis_angle2quat(axis, angle):
     n = axis / norm(axis)
-    return np.concatenate([[cos(angle / 2)], np.sin(angle / 2) * n])
+    return np.concatenate([[np.cos(angle / 2)], np.sin(angle / 2) * n])
 
 
 def test_smallest_rotation():
-    from cardillo.math import e1, e2, e3, pi, sin, cos
+    from cardillo.math import e1, e2, e3, pi
 
     a0 = e1
     a_fun = lambda t: np.cos(t) * e1 + np.sin(t) * e2
