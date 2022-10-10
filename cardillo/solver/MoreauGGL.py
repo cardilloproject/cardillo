@@ -3511,107 +3511,107 @@ class NonsmoothDecoupled:
         return Rx
 
     def Jx(self, xk1):
-        nq = self.nq
-        nu = self.nu
-        nla_g = self.nla_g
-        nla_gamma = self.nla_gamma
-        nla_N = self.nla_N
-        mu = self.model.mu
+        # nq = self.nq
+        # nu = self.nu
+        # nla_g = self.nla_g
+        # nla_gamma = self.nla_gamma
+        # nla_N = self.nla_N
+        # mu = self.model.mu
 
-        q_dotk1, u_dotk1, la_gk1, la_gammak1, la_Nk1, la_Fk1 = self.unpack_x(xk1)
-        (
-            tk1,
-            qk1,
-            uk1_free,
-            la_gk1_free,
-            la_gammak1_free,
-            la_Nk1_free,
-            la_Fk1_free,
-        ) = self.update_x(xk1)
+        # q_dotk1, u_dotk1, la_gk1, la_gammak1, la_Nk1, la_Fk1 = self.unpack_x(xk1)
+        # (
+        #     tk1,
+        #     qk1,
+        #     uk1_free,
+        #     la_gk1_free,
+        #     la_gammak1_free,
+        #     la_Nk1_free,
+        #     la_Fk1_free,
+        # ) = self.update_x(xk1)
 
-        # evaluate repeatedly used quantities
-        Mk1 = self.model.M(tk1, qk1, scipy_matrix=csr_matrix)
-        hk1 = self.model.h(tk1, qk1, uk1_free)
-        W_gk1 = self.model.W_g(tk1, qk1, scipy_matrix=csr_matrix)
-        W_gammak1 = self.model.W_gamma(tk1, qk1, scipy_matrix=csr_matrix)
-        W_Nk1 = self.model.W_N(tk1, qk1, scipy_matrix=csr_matrix)
-        W_Fk1 = self.model.W_F(tk1, qk1, scipy_matrix=csr_matrix)
-        gk1 = self.model.g(tk1, qk1)
-        gammak1 = self.model.gamma(tk1, qk1, uk1_free)
-        g_Nk1 = self.model.g_N(tk1, qk1)
-        xi_Fk1 = self.model.xi_F(tk1, qk1, self.uk, uk1_free)
+        # # evaluate repeatedly used quantities
+        # Mk1 = self.model.M(tk1, qk1, scipy_matrix=csr_matrix)
+        # hk1 = self.model.h(tk1, qk1, uk1_free)
+        # W_gk1 = self.model.W_g(tk1, qk1, scipy_matrix=csr_matrix)
+        # W_gammak1 = self.model.W_gamma(tk1, qk1, scipy_matrix=csr_matrix)
+        # W_Nk1 = self.model.W_N(tk1, qk1, scipy_matrix=csr_matrix)
+        # W_Fk1 = self.model.W_F(tk1, qk1, scipy_matrix=csr_matrix)
+        # gk1 = self.model.g(tk1, qk1)
+        # gammak1 = self.model.gamma(tk1, qk1, uk1_free)
+        # g_Nk1 = self.model.g_N(tk1, qk1)
+        # xi_Fk1 = self.model.xi_F(tk1, qk1, self.uk, uk1_free)
 
-        # chain rules for backward Euler update
-        qk1_q_dotk1 = self.dt
-        uk1_free_u_dotk1 = self.dt
+        # # chain rules for backward Euler update
+        # qk1_q_dotk1 = self.dt
+        # uk1_free_u_dotk1 = self.dt
 
-        ####################
-        # kinematic equation
-        ####################
-        # Rx[:nq] = q_dotk1 - self.model.q_dot(tk1, qk1, uk1_free)
-        J_q_dotk1_q_dotk1 = (
-            eye(nq, nq) - self.model.q_dot_q(tk1, qk1, uk1_free) * qk1_q_dotk1
-        )
-        J_q_dotk1_u_dotk1 = -self.model.B(tk1, qk1) * uk1_free_u_dotk1
-
-        ####################
-        # euations of motion
-        ####################
-        # Rx[nq : nq + nu] = (
-        #     Mk1 @ u_dotk1
-        #     - hk1
-        #     - W_gk1 @ la_gk1_free
-        #     - W_gammak1 @ la_gammak1_free
-        #     - W_Nk1 @ la_Nk1_free
-        #     - W_Fk1 @ la_Fk1_free
+        # ####################
+        # # kinematic equation
+        # ####################
+        # # Rx[:nq] = q_dotk1 - self.model.q_dot(tk1, qk1, uk1_free)
+        # J_q_dotk1_q_dotk1 = (
+        #     eye(nq, nq) - self.model.q_dot_q(tk1, qk1, uk1_free) * qk1_q_dotk1
         # )
-        J_u_dotk1_q_dotk1 = (
-            self.model.Mu_q(tk1, qk1, uk1_free)
-            - self.model.h_q(tk1, qk1, uk1_free)
-            - self.model.Wla_g_q(tk1, qk1, la_gk1)
-            - self.model.Wla_gamma_q(tk1, qk1, la_gammak1)
-            - self.model.Wla_N_q(tk1, qk1, la_Nk1)
-            - self.model.Wla_F_q(tk1, qk1, la_Fk1)
-        ) * qk1_q_dotk1
-        J_u_dotk1_u_dotk1 = Mk1 - self.model.h_u(tk1, qk1, uk1_free) * uk1_free_u_dotk1
+        # J_q_dotk1_u_dotk1 = -self.model.B(tk1, qk1) * uk1_free_u_dotk1
 
-        #######################
-        # bilateral constraints
-        #######################
-        # Rx[nq + nu : nq + nu + nla_g] = gk1
-        # Rx[nq + nu + nla_g : nq + nu + nla_g + nla_gamma] = gammak1
-        J_gk1_q_dotk1 = self.model.g_q(tk1, qk1) * qk1_q_dotk1
-        J_gammak1_q_dotk1 = self.model.gamma_q(tk1, qk1, uk1_free) * qk1_q_dotk1
-        J_gammak1_u_dotk1 = W_gammak1.T * uk1_free_u_dotk1
+        # ####################
+        # # euations of motion
+        # ####################
+        # # Rx[nq : nq + nu] = (
+        # #     Mk1 @ u_dotk1
+        # #     - hk1
+        # #     - W_gk1 @ la_gk1_free
+        # #     - W_gammak1 @ la_gammak1_free
+        # #     - W_Nk1 @ la_Nk1_free
+        # #     - W_Fk1 @ la_Fk1_free
+        # # )
+        # J_u_dotk1_q_dotk1 = (
+        #     self.model.Mu_q(tk1, qk1, uk1_free)
+        #     - self.model.h_q(tk1, qk1, uk1_free)
+        #     - self.model.Wla_g_q(tk1, qk1, la_gk1)
+        #     - self.model.Wla_gamma_q(tk1, qk1, la_gammak1)
+        #     - self.model.Wla_N_q(tk1, qk1, la_Nk1)
+        #     - self.model.Wla_F_q(tk1, qk1, la_Fk1)
+        # ) * qk1_q_dotk1
+        # J_u_dotk1_u_dotk1 = Mk1 - self.model.h_u(tk1, qk1, uk1_free) * uk1_free_u_dotk1
 
-        ################
-        # normal contact
-        ################
-        # prox_arg = g_Nk1 - self.model.prox_r_N * la_Nk1_free
-        # if update_index:
-        #     self.I_Nk1 = prox_arg <= 0.0
-        # Rx[
-        #     nq
-        #     + nu
-        #     + nla_g
-        #     + nla_gamma : nq
-        #     + nu
-        #     + nla_g
-        #     + nla_gamma
-        #     + nla_N
-        # ] = g_Nk1 - prox_R0_np(prox_arg)
+        # #######################
+        # # bilateral constraints
+        # #######################
+        # # Rx[nq + nu : nq + nu + nla_g] = gk1
+        # # Rx[nq + nu + nla_g : nq + nu + nla_g + nla_gamma] = gammak1
+        # J_gk1_q_dotk1 = self.model.g_q(tk1, qk1) * qk1_q_dotk1
+        # J_gammak1_q_dotk1 = self.model.gamma_q(tk1, qk1, uk1_free) * qk1_q_dotk1
+        # J_gammak1_u_dotk1 = W_gammak1.T * uk1_free_u_dotk1
 
-        raise RuntimeError("Move on here!")
+        # ################
+        # # normal contact
+        # ################
+        # # prox_arg = g_Nk1 - self.model.prox_r_N * la_Nk1_free
+        # # if update_index:
+        # #     self.I_Nk1 = prox_arg <= 0.0
+        # # Rx[
+        # #     nq
+        # #     + nu
+        # #     + nla_g
+        # #     + nla_gamma : nq
+        # #     + nu
+        # #     + nla_g
+        # #     + nla_gamma
+        # #     + nla_N
+        # # ] = g_Nk1 - prox_R0_np(prox_arg)
 
-        Jx = bmat(
-            [
-                [J_q_dotk1_q_dotk1, J_q_dotk1_u_dotk1, None, None, None, None],
-                [J_u_dotk1_q_dotk1, J_u_dotk1_u_dotk1, W_gk1, W_gammak1, W_Nk1, W_Fk1],
-                [J_gk1_q_dotk1, None, None, None, None, None],
-                [J_gammak1_q_dotk1, J_gammak1_u_dotk1, None, None, None, None],
-            ],
-            format="csr",
-        )
+        # raise RuntimeError("Move on here!")
+
+        # Jx = bmat(
+        #     [
+        #         [J_q_dotk1_q_dotk1, J_q_dotk1_u_dotk1, None, None, None, None],
+        #         [J_u_dotk1_q_dotk1, J_u_dotk1_u_dotk1, W_gk1, W_gammak1, W_Nk1, W_Fk1],
+        #         [J_gk1_q_dotk1, None, None, None, None, None],
+        #         [J_gammak1_q_dotk1, J_gammak1_u_dotk1, None, None, None, None],
+        #     ],
+        #     format="csr",
+        # )
 
         Jx_num = csr_matrix(approx_fprime(xk1, self.Rx, method="2-point"))
         return Jx_num

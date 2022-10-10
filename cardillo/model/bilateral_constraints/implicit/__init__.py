@@ -4,6 +4,7 @@ from .RigidConnection import (
     RigidConnection,
     RigidConnectionCable,
 )
+from .RevoluteJoint import RevoluteJoint
 
 from .RevoluteJoint import Revolute_joint, Revolute_joint2D
 
