@@ -1,8 +1,6 @@
 import numpy as np
-from cardillo.math.algebra import ax2skew
 
 from cardillo.utility.coo import Coo
-from cardillo.discretization.lagrange import LagrangeKnotVector
 from cardillo.discretization.b_spline import BSplineKnotVector
 from cardillo.discretization.hermite import HermiteNodeVector
 from cardillo.math import (
