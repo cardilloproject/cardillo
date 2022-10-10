@@ -73,10 +73,16 @@ class EulerBackward:
         W_gamma0 = self.model.W_gamma(self.tk, self.qk, scipy_matrix=csr_matrix)
         zeta_g0 = self.model.zeta_g(t0, self.qk, self.uk)
         zeta_gamma0 = self.model.zeta_gamma(t0, self.qk, self.uk)
+        # fmt: off
         A = bmat(
-            [[M0, -W_g0, -W_gamma0], [W_g0.T, None, None], [W_gamma0.T, None, None]],
+            [
+                [        M0, -W_g0, -W_gamma0], 
+                [    W_g0.T,  None,      None], 
+                [W_gamma0.T,  None,      None]
+            ],
             format="csc",
         )
+        # fmt: on
         b = np.concatenate([h0, -zeta_g0, -zeta_gamma0])
         u_dot_la_g_la_gamma = spsolve(A, b)
         self.u_dotk = u_dot_la_g_la_gamma[: self.nu]
