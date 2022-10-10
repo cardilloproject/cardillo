@@ -200,4 +200,3 @@ class SphericalJoint:
         dense[nu1:, nq1:] = np.einsum("i,ijk->jk", la_g, J_P2_q)
 
         coo.extend(dense, (self.uDOF, self.qDOF))
-

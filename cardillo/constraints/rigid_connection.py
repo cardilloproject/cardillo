@@ -882,4 +882,3 @@ class RigidConnectionCable(RigidConnection):
         )
 
         coo.extend(dense, (self.uDOF, self.qDOF))
-
