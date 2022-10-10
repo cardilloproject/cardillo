@@ -125,9 +125,7 @@ if __name__ == "__main__":
         d32 = A_IK2[:, 2]
 
         # COM, = ax.plot([x_0, x_S1], [y_0, y_S1], [z_0, z_S1], '-ok')
-        (COM,) = ax.plot(
-            [x_0, x_S1, x_S2], [y_0, y_S1, y_S2], [z_0, z_S1, z_S2], "-ok"
-        )
+        (COM,) = ax.plot([x_0, x_S1, x_S2], [y_0, y_S1, y_S2], [z_0, z_S1, z_S2], "-ok")
         (d11_,) = ax.plot(
             [x_S1, x_S1 + d11[0]],
             [y_S1, y_S1 + d11[1]],
@@ -252,9 +250,7 @@ if __name__ == "__main__":
         return dx
 
     x0 = np.array([alpha0, alpha0 + beta0, alpha_dot0, alpha_dot0 + beta_dot0])
-    ref = solve_ivp(
-        eqm, [t0, t1], x0, method="RK45", rtol=1e-8, atol=1e-12
-    )
+    ref = solve_ivp(eqm, [t0, t1], x0, method="RK45", rtol=1e-8, atol=1e-12)
     x = ref.y
     t_ref = ref.t
 

@@ -396,4 +396,3 @@ class RevoluteJoint:
         dense[nu1:, nq1:] = np.einsum("i,ijk->jk", e3, K_J_R2_q2)
 
         return dense
-
