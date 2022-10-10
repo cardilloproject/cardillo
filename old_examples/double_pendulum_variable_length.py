@@ -5,7 +5,7 @@ from scipy.integrate import solve_ivp
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
-from cardillo.model import Model
+from cardillo.model import System
 from cardillo.model.pendulum_variable_length import Pendulum_variable_length
 from cardillo.model.point_mass import PointMass
 from cardillo.model.bilateral_constraints.implicit import Rod
@@ -25,7 +25,7 @@ def double_pendulum():
     l_t = lambda t: -0.5 * omega * np.cos(omega * t)
     l_tt = lambda t: 0.5 * omega**2 * np.sin(omega * t)
 
-    model = Model()
+    model = System()
 
     q0 = np.array([L, 0])
     u0 = np.array([0])

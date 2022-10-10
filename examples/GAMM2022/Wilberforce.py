@@ -12,7 +12,7 @@ from cardillo.beams import (
     TimoshenkoDirectorIntegral,
 )
 from cardillo.forces import Force, DistributedForce1D
-from cardillo.model import Model
+from cardillo.model import System
 from cardillo.solver import (
     Newton,
     GeneralizedAlphaFirstOrder,
@@ -411,7 +411,7 @@ if __name__ == "__main__":
     dt = 5e-3  # works for turns=20, nEl_turn=6, p=2, nqp=p+1
     # dt = 1e-2 # no convergence with first order scheme at 3.37s (Matrix is exactly singular)
 
-    model = Model()
+    model = System()
 
     model.add(frame)
     model.add(beam)

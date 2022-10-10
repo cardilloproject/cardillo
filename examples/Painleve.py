@@ -4,7 +4,7 @@ from math import cos, sin, pi
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
-from cardillo.model import Model
+from cardillo.model import System
 from cardillo.solver import (
     Moreau,
     NonsmoothEulerBackwardsGGL_V2,
@@ -223,7 +223,7 @@ class Painleve_rod:
 if __name__ == "__main__":
     animate = True
 
-    model = Model()
+    model = System()
     rod = Painleve_rod()
     model.add(rod)
     model.assemble()

@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
 
-from cardillo.model import Model
+from cardillo.model import System
 from cardillo.model.classical_beams.planar import (
     EulerBernoulli,
     Hooke,
@@ -341,7 +341,7 @@ def create_pantograph(
     # add beams #
     #############
 
-    model = Model()
+    model = System()
 
     material_model = Hooke(EA, EI)
     beams = []

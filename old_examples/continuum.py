@@ -16,7 +16,7 @@ from cardillo.model.continuum import (
     Ogden1997_complete_2D_incompressible,
 )
 from cardillo.solver import Newton, Euler_backward, Generalized_alpha_1
-from cardillo.model import Model
+from cardillo.model import System
 from cardillo.math.algebra import A_IK_basic_z
 from cardillo.model.force_distr2D import Force_distr2D
 from cardillo.model.force_distr3D import Force_distr3D
@@ -117,7 +117,7 @@ def test_cube():
     # continuum = First_gradient(density, mat, mesh, Z)
 
     # build model
-    model = Model()
+    model = System()
     model.add(continuum)
 
     if Incompressible:
@@ -293,7 +293,7 @@ def test_cylinder():
     continuum = First_gradient(density, mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
 
     # build model
-    model = Model()
+    model = System()
     model.add(continuum)
     model.assemble()
 
@@ -365,7 +365,7 @@ def test_rectangle():
     # continuum.post_processing_single_configuration(0, Z, 'rectangleReferenceConfig.vtu')
 
     # build model
-    model = Model()
+    model = System()
     model.add(continuum)
     model.assemble()
 

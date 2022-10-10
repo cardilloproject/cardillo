@@ -32,7 +32,7 @@ from cardillo.beams import (
     TimoshenkoAxisAngleSE3,
 )
 from cardillo.forces import Force, K_Force, K_Moment, Moment, DistributedForce1D
-from cardillo.model import Model
+from cardillo.model import System
 from cardillo.solver import (
     Newton,
     ScipyIVP,
@@ -397,7 +397,7 @@ def run(statics):
     force = Force(F, beam, frame_ID=(1,))
 
     # assemble the model
-    model = Model()
+    model = System()
     model.add(beam)
     model.add(frame1)
     model.add(joint1)
@@ -701,7 +701,7 @@ def locking(case="helix"):
         force = Force(f, beam, frame_ID=(1,))
 
     # assemble the model
-    model = Model()
+    model = System()
     model.add(beam)
     model.add(frame1)
     model.add(joint1)
@@ -1132,7 +1132,7 @@ def HelixIbrahimbegovic1997(export=True):
     force = Force(F, beam, frame_ID=(1,))
 
     # assemble the model
-    model = Model()
+    model = System()
     model.add(beam)
     model.add(frame1)
     model.add(joint1)
@@ -1489,7 +1489,7 @@ def HeavyTop():
         f_g_beam = DistributedForce1D(lambda t, xi: vg, beam)
 
         # assemble the model
-        model = Model()
+        model = System()
         model.add(beam)
         model.add(frame)
         model.add(joint)
@@ -1746,7 +1746,7 @@ def Dschanibekow():
     )
 
     # assemble the model
-    model = Model()
+    model = System()
     model.add(beam)
     model.assemble()
 
@@ -1916,7 +1916,7 @@ def distributed_force():
     force = DistributedForce1D(b, beam)
 
     # assemble the model
-    model = Model()
+    model = System()
     model.add(beam)
     model.add(frame1)
     model.add(joint1)
@@ -2214,7 +2214,7 @@ def objectivity_quater_circle():
     force = K_Force(f, beam, frame_ID=(1,))
 
     # assemble the model
-    model = Model()
+    model = System()
     model.add(beam)
     model.add(frame1)
     model.add(joint1)
@@ -2446,7 +2446,7 @@ def convergence_quater_circle():
         force = Force(f, beam, frame_ID=(1,))
 
         # assemble the model
-        model = Model()
+        model = System()
         model.add(beam)
         model.add(frame1)
         model.add(joint1)
@@ -2674,7 +2674,7 @@ def Noor1981():
     force = Force(F, beam1, frame_ID=(0,))
 
     # assemble the model
-    model = Model()
+    model = System()
     model.add(beam0)
     model.add(frame0)
     model.add(joint0)
@@ -2868,7 +2868,7 @@ def BucklingRightHingedFrame(follower=False):
         force = Force(F, beam1, frame_ID=(0.2,))
 
     # assemble the model
-    model = Model()
+    model = System()
     model.add(beam0)
     model.add(frame0)
     model.add(joint0)
@@ -2980,7 +2980,7 @@ def Bernoulli():
     force = Force(f, beam, frame_ID=(1,))
 
     # assemble the model
-    model = Model()
+    model = System()
     model.add(beam)
     model.add(frame1)
     model.add(joint1)

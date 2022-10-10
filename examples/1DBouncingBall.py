@@ -4,7 +4,7 @@ from math import pi
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
-from cardillo.model import Model
+from cardillo.model import System
 
 from cardillo.solver import (
     Moreau,
@@ -132,7 +132,7 @@ if __name__ == "__main__":
     ball = BouncingBall(m, g, radius, prox_r_N=prox_r_N, e_N=e_N, q0=q0, u0=u0)
 
     # assemble model
-    model = Model()
+    model = System()
     model.add(ball)
     model.assemble()
 

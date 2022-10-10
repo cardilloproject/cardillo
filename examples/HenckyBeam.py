@@ -2,7 +2,7 @@ import numpy as np
 from math import sin, cos, atan2
 
 from cardillo.math import norm, e2
-from cardillo.model import Model
+from cardillo.model import System
 from cardillo.model.frame import Frame
 from cardillo.model.point_mass import PointMass
 from cardillo.model.bilateral_constraints.implicit import SphericalJoint2D
@@ -462,7 +462,7 @@ if __name__ == "__main__":
 
     henckyBeam = HenckyBeam(M, Ke, Kt, L, nEl)
 
-    model = Model()
+    model = System()
 
     for pm in henckyBeam.point_masses:
         model.add(pm)

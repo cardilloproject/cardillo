@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from cardillo.model import Model
+from cardillo.model import System
 from cardillo.math.algebra import A_IK_basic_z
 from cardillo.solver import Generalized_alpha_1, Scipy_ivp
 from cardillo.model.frame import Frame
@@ -84,7 +84,7 @@ if __name__ == "__main__":
     # M = K_Moment(np.array([0, 1, 0]), RB)
     M = K_Moment(np.array([0, 0, 1]), RB)
 
-    model = Model()
+    model = System()
     model.add(Origin)
     if implicit:
         model.add(RB)

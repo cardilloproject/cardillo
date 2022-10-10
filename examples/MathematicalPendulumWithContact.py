@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
-from cardillo.model import Model
+from cardillo.model import System
 from cardillo.solver import (
     Moreau,
     NonsmoothThetaGGL,
@@ -188,7 +188,7 @@ if __name__ == "__main__":
 
     # system definition and assemble the model
     pendulum = MathematicalPendulumCartesianContact(m, l, g, q0, u0, e_N=e_N)
-    model = Model()
+    model = System()
     model.add(pendulum)
     model.assemble()
 

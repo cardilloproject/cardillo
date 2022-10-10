@@ -7,7 +7,7 @@ import matplotlib.animation as animation
 
 from cardillo.math.algebra import cross3, A_IK_basic_z
 
-from cardillo.model import Model
+from cardillo.model import System
 from cardillo.model.rigid_body import Rigid_body2D, Rigid_body_euler
 from cardillo.model.bilateral_constraints.explicit import Revolute_joint
 from cardillo.model.scalar_force_interactions.force_laws import Linear_spring_damper
@@ -198,7 +198,7 @@ if __name__ == "__main__":
         K_r_SP=K_r_ShDf,
     )
 
-    model = Model()
+    model = System()
     model.add(main_body)
     model.add(Force(lambda t: np.array([0, -g * main_body.m, 0]), main_body))
 

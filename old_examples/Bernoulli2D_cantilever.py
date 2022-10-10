@@ -8,7 +8,7 @@ from cardillo.model.classical_beams.planar import (
 from cardillo.model.bilateral_constraints.implicit import Rigid_connection2D
 from cardillo.model.force import Force
 from cardillo.model.moment import K_Moment
-from cardillo.model import Model
+from cardillo.model import System
 from cardillo.solver import Newton
 
 from cardillo.model.scalar_force_interactions.force_laws import Linear_spring
@@ -72,7 +72,7 @@ if __name__ == "__main__":
     spring_element = Translational_f_pot(linear_spring, frame, beam, frame_ID2=(1,))
 
     # assemble the model
-    model = Model()
+    model = System()
     model.add(beam)
     model.add(frame)
     model.add(joint)

@@ -6,7 +6,7 @@ from cardillo.model.bilateral_constraints.implicit import (
     Spherical_joint,
     Rigid_connection,
 )
-from cardillo.model import Model
+from cardillo.model import System
 from cardillo.solver import (
     Euler_backward,
     Moreau,
@@ -107,7 +107,7 @@ def B_spline_fitting():
         f_point = Force(lambda t: t * F * np.array([0, -1, 0]), beam1, frame_ID=(1,))
 
     # assemble the model
-    model = Model()
+    model = System()
     model.add(beam1)
     model.add(beam2)
 
@@ -294,7 +294,7 @@ def top():
     joint = Spherical_joint(beam, RB, r_OB2, frame_ID1=(1,))
 
     # assemble the model
-    model = Model()
+    model = System()
     model.add(beam)
     model.add(frame_left)
     model.add(joint_left)

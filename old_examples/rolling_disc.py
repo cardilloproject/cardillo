@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.animation as animation
 
-from cardillo.model import Model
+from cardillo.model import System
 from cardillo.model.rolling_disc import Rolling_disc
 from cardillo.model.rigid_body import (
     Rigid_body_euler,
@@ -168,7 +168,7 @@ def DMS():
 
     RD = Rolling_disc(m, r, 9.81, q0=q0, u0=u0)
 
-    model = Model()
+    model = System()
     model.add(RD)
     model.assemble()
     t0 = 0
@@ -339,7 +339,7 @@ def rolling_disc_velocity_constraints():
     RC = Rolling_condition(RD)
     f_g = Force(lambda t: np.array([0, 0, -m * g]), RD)
 
-    model = Model()
+    model = System()
     model.add(RD)
     model.add(RC)
     model.add(f_g)

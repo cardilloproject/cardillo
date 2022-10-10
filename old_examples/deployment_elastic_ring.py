@@ -6,7 +6,7 @@ from cardillo.model.bilateral_constraints.implicit import (
     Rigid_connection,
     Linear_guidance_x,
 )
-from cardillo.model import Model
+from cardillo.model import System
 from cardillo.solver import Newton, Riks
 from cardillo.model.force import Force
 from cardillo.model.moment import K_Moment, K_Moment_scaled
@@ -191,7 +191,7 @@ if __name__ == "__main__":
     r_OB2 = np.array([R, 0, 0])  # apex
 
     # build the model
-    model = Model()
+    model = System()
     beam1 = Beam(material_model, A_rho0, B_rho0, C_rho0, p, p, nQP, nEl, Q=Q1)
     model.add(beam1)
     beam2 = Beam(material_model, A_rho0, B_rho0, C_rho0, p, p, nQP, nEl, Q=Q2)

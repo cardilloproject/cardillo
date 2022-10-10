@@ -15,7 +15,7 @@ from cardillo.math.algebra import (
 )
 from scipy.integrate import solve_ivp
 
-from cardillo.model import Model
+from cardillo.model import System
 from cardillo.model.rigid_body import (
     Rigid_body_euler,
     Rigid_body_quaternion,
@@ -216,7 +216,7 @@ def comparison_heavy_top(
     origin = Frame()
     joint = Spherical_joint(origin, RB, np.zeros(3))
 
-    model = Model()
+    model = System()
     model.add(origin)
     model.add(RB)
     model.add(joint)

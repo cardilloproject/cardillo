@@ -10,7 +10,7 @@ import matplotlib.animation as animation
 
 from cardillo.math.algebra import A_IK_basic_z, cross3, axis_angle2quat
 
-from cardillo.model import Model
+from cardillo.model import System
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints.implicit import (
     Spherical_joint,
@@ -90,7 +90,7 @@ if __name__ == "__main__":
     # joint2 = Linear_guidance_xyz(RB1, RB2, r_OB2, A_IB2)
     joint2 = Rigid_connection(RB1, RB2, r_OB2)
 
-    model = Model()
+    model = System()
     model.add(origin)
     model.add(RB1)
     model.add(joint1)

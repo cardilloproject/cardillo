@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from cardillo.model import Model
+from cardillo.model import System
 from cardillo.solver import (
     GeneralizedAlphaFirstOrder,
     GenAlphaFirstOrderGGL2_V3,
@@ -124,7 +124,7 @@ if __name__ == "__main__":
 
     # system definition and assemble the model
     pendulum = MathematicalPendulumCartesian(m, l, g, q0, u0)
-    model = Model()
+    model = System()
     model.add(pendulum)
     model.assemble()
 

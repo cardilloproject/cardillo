@@ -5,7 +5,7 @@ from math import cos, sin
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
-from cardillo.model import Model
+from cardillo.model import System
 from cardillo.solver import (
     Moreau,
     NonsmoothEulerBackwardsGGL_V2,
@@ -562,7 +562,7 @@ if __name__ == "__main__":
     animate = True
     # animate = False
 
-    model = Model()
+    model = System()
     slider_crank = Slider_crank()
     model.add(slider_crank)
     model.assemble()

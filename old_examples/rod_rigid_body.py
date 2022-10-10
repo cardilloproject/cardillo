@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.animation as animation
 
-from cardillo.model import Model
+from cardillo.model import System
 from cardillo.model.rigid_body import Rigid_body_quaternion
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints.implicit import Rod
@@ -37,7 +37,7 @@ if __name__ == "__main__":
     cylinder = Rigid_cylinder(m, r, l, q0, u0)
     frame = Frame()
 
-    model = Model()
+    model = System()
     model.add(cylinder)
     model.add(Force(lambda t: np.array([0, 0, -9.81 * m]), cylinder))
     model.add(frame)

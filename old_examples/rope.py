@@ -5,7 +5,7 @@ from cardillo.model.bilateral_constraints.implicit import (
     Spherical_joint,
     Spherical_joint2D,
 )
-from cardillo.model import Model
+from cardillo.model import System
 from cardillo.solver import (
     Euler_backward,
     Moreau,
@@ -192,7 +192,7 @@ if __name__ == "__main__":
             f_g = Line_force(lambda xi, t: fg, rope)
 
         # assemble the model
-        model = Model()
+        model = System()
         model.add(rope)
         model.add(frame0)
         model.add(joint_left)

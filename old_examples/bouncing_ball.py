@@ -7,7 +7,7 @@ import matplotlib.animation as animation
 
 from cardillo.math.algebra import cross3, A_IK_basic_z
 
-from cardillo.model import Model
+from cardillo.model import System
 from cardillo.model.rigid_body import Rigid_body2D, Rigid_body_euler
 from cardillo.model.frame import Frame
 from cardillo.model.force import Force
@@ -85,7 +85,7 @@ if __name__ == "__main__":
         frame2, RB, r, mu, prox_r_N=r_N, prox_r_T=r_N, e_N=e_N
     )
 
-    model = Model()
+    model = System()
     model.add(RB)
     model.add(Force(lambda t: np.array([0, -g * m, 0]), RB))
     # model.add(plane)

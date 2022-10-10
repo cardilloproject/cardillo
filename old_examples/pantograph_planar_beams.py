@@ -9,7 +9,7 @@ from numpy.lib.function_base import disp
 import meshio
 import os
 
-from cardillo.model import Model
+from cardillo.model import System
 from cardillo.model.classical_beams.planar import (
     EulerBernoulli,
     Hooke,
@@ -404,7 +404,7 @@ if __name__ == "__main__":
     Y2 = -np.copy(Y1)
 
     # create model
-    model = Model()
+    model = System()
 
     # create beams
     beams = []

@@ -12,7 +12,7 @@ from cardillo.model.scalar_force_interactions import QuadraticPotential
 from cardillo.beams.spatial.Cable import QuadraticMaterial, QuadraticMaterialDegraded
 from cardillo.model.point_mass import PointMass
 from cardillo.forces import DistributedForce1D, Force
-from cardillo.model import Model
+from cardillo.model import System
 from cardillo.solver import (
     Newton,
     ScipyIVP,
@@ -552,7 +552,7 @@ def inflated_straight():
     gravity = DistributedForce1D(fg, rope)
 
     # assemble the model
-    model = Model()
+    model = System()
     model.add(rope)
     model.add(frame1)
     model.add(joint1)
@@ -670,7 +670,7 @@ def inflated_quarter_circle():
     # joint1 = Linear_guidance_xyz(frame1, rope, r_OP1, A_IK1, frame_ID2=(1,))
 
     # assemble the model
-    model = Model()
+    model = System()
     model.add(rope)
     model.add(frame0)
     model.add(joint0)
@@ -827,7 +827,7 @@ def inflated_quarter_circle_external_force():
     # gravity = DistributedForce1D(fg, rope)
 
     # assemble the model
-    model = Model()
+    model = System()
     model.add(rope)
     model.add(frame0)
     model.add(joint0)
@@ -1059,7 +1059,7 @@ def inflated_circular_segment():
     joint2 = SphericalJoint(rope, pm, r_OP1, frame_ID1=(1,))
 
     # assemble the model
-    model = Model()
+    model = System()
     model.add(rope)
     model.add(frame0)
     model.add(joint0)
@@ -1250,7 +1250,7 @@ def cable_straight(case="cable"):
     gravity = DistributedForce1D(fg, rope)
 
     # assemble the model
-    model = Model()
+    model = System()
     model.add(rope)
     model.add(frame1)
     model.add(joint1)
@@ -1388,7 +1388,7 @@ def cable_straight_inflated(case="cable"):
     joint2 = SphericalJoint(frame2, rope, r_OP1, frame_ID2=(1,))
 
     # assemble the model
-    model = Model()
+    model = System()
     model.add(rope)
     model.add(frame1)
     model.add(joint1)
@@ -1604,7 +1604,7 @@ def cable_inflated_circular_segment(case="rope"):
     joint3 = SphericalJoint(rope, pm, r_OP1, frame_ID1=(1,))
 
     # assemble the model
-    model = Model()
+    model = System()
     model.add(rope)
     model.add(frame0)
     model.add(joint0)

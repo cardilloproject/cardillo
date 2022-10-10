@@ -5,7 +5,7 @@ from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.animation as animation
 
 from cardillo.math.algebra import axis_angle2quat
-from cardillo.model import Model
+from cardillo.model import System
 from cardillo.model.rigid_body import Rigid_body_quaternion
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints.implicit import (
@@ -49,7 +49,7 @@ if __name__ == "__main__":
     RB2 = Rigid_cylinder(m, r, l, q02, u0)
     frame = Frame()
 
-    model = Model()
+    model = System()
     model.add(RB1)
     model.add(RB2)
     model.add(Force(lambda t: np.array([0, 0, -9.81 * m]), RB1))

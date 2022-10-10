@@ -6,7 +6,7 @@ import matplotlib.animation as animation
 from cardillo.math.algebra import norm
 from cardillo.math.numerical_derivative import approx_fprime
 
-from cardillo.model import Model
+from cardillo.model import System
 
 from cardillo.solver import (
     Moreau,
@@ -176,7 +176,7 @@ if __name__ == "__main__":
     ball = BallOnParabola(m, g, mu, prox_r_N, prox_r_F, e_N=e_N, e_F=e_F, q0=q0, u0=u0)
 
     # assemble model
-    model = Model()
+    model = System()
     model.add(ball)
     model.assemble()
 

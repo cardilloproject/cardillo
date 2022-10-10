@@ -6,7 +6,7 @@ import matplotlib.animation as animation
 
 from cardillo.math import e1, e2, e3
 
-from cardillo.model import Model
+from cardillo.model import System
 from cardillo.beams.spatial import (
     CircularCrossSection,
     Simo1986,
@@ -132,7 +132,7 @@ if __name__ == "__main__":
         frame_ID=(1,),
     )
 
-    model = Model()
+    model = System()
     model.add(rod)
     model.add(gravity)
     model.add(plane_left)

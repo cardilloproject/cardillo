@@ -4,7 +4,7 @@ from numpy import sin, cos, pi
 from cardillo.math.algebra import A_IK_basic_z, e1, e2, e3
 from cardillo.discretization import uniform_knot_vector
 
-from cardillo.model import Model
+from cardillo.model import System
 from cardillo.model.frame import Frame
 from cardillo.model.rigid_body import Rigid_body_rel_kinematics
 from cardillo.model.bilateral_constraints.explicit import Linear_guidance
@@ -113,7 +113,7 @@ if __name__ == "__main__":
     f_gravity = lambda t, m: m * np.array([0, -9.81, 0])
 
     # create assembler object
-    model = Model(t0=t0)
+    model = System(t0=t0)
     origin = Frame()
     model.add(origin)
 

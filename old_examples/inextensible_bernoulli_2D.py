@@ -18,7 +18,7 @@ from cardillo.model.scalar_force_interactions.translational_f_pot import (
     Translational_f_pot,
 )
 
-from cardillo.model import Model
+from cardillo.model import System
 from cardillo.solver import Newton, Euler_backward, Generalized_alpha_1, Scipy_ivp
 from cardillo.discretization import uniform_knot_vector
 from cardillo.model.force import Force
@@ -78,7 +78,7 @@ def inextensible_rope():
     __g = np.array([0, -A_rho0 * 9.81, 0])
 
     # Model 1: left fixed, right linear guidance
-    model1 = Model()
+    model1 = System()
     material_model1 = Hooke(EA, EI)
     inextensible_bernoulli1 = Inextensible_Euler_bernoulli(
         A_rho0, material_model1, p, nEl, nQP, Q=Q, q0=q0, u0=u0
@@ -112,7 +112,7 @@ def inextensible_rope():
     sols.append(solver.solve())
 
     # Model 2: left fixed, right fixed
-    model2 = Model()
+    model2 = System()
     material_model2 = material_model1
     # inextensible_bernoulli2 = Inextensible_Euler_bernoulli(A_rho0, material_model2, p, nEl, nQP, Q=Q, q0=sols[0].q[-1], u0=u0)
     inextensible_bernoulli2 = Inextensible_Euler_bernoulli(
@@ -152,7 +152,7 @@ def inextensible_rope():
     sols.append(solver.solve())
 
     # Model 3: left fixed, right fixed, modified EI
-    model3 = Model()
+    model3 = System()
     material_model3 = Hooke(EA, 0)
     # inextensible_bernoulli3 = Inextensible_Euler_bernoulli(A_rho0, material_model3, p, nEl, nQP, Q=Q, q0=sols[1].q[-1], u0=u0)
     inextensible_bernoulli3 = Inextensible_Euler_bernoulli(
@@ -265,7 +265,7 @@ def cantilever():
 
     sols = []
     for beam in beams:
-        model = Model()
+        model = System()
         model.add(beam)
         model.add(frame_left)
         model.add(Rigid_connection2D(frame_left, beam, r_OB1, frame_ID2=(0,)))

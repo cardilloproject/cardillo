@@ -5,7 +5,7 @@ from cardillo.model.bilateral_constraints.implicit import (
     Spherical_joint2D,
     Spherical_joint,
 )
-from cardillo.model import Model
+from cardillo.model import System
 from cardillo.solver import Generalized_alpha_1, Generalized_alpha_2
 from cardillo.model.line_force.line_force import Line_force
 from cardillo.discretization import uniform_knot_vector
@@ -122,7 +122,7 @@ if __name__ == "__main__":
     )
 
     # assemble the model
-    model = Model()
+    model = System()
     model.add(beam)
     # model.add(frame_left)
     # model.add(joint_left)

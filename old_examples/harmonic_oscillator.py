@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from cardillo.model import Model
+from cardillo.model import System
 from cardillo.solver import (
     Euler_forward,
     Euler_backward,
@@ -46,7 +46,7 @@ if __name__ == "__main__":
         linear_damper, frame, mass, n=np.array([0, 0, 1])
     )
 
-    model = Model()
+    model = System()
     model.add(frame)
     model.add(mass)
     model.add(f_g)

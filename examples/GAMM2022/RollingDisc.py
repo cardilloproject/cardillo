@@ -5,7 +5,7 @@ from math import pi, sin, cos, sqrt
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
-from cardillo.model import Model
+from cardillo.model import System
 from cardillo.model.rigid_body import RigidBodyQuaternion
 from cardillo.math import axis_angle2quat
 from cardillo.model.bilateral_constraints.implicit import (
@@ -114,7 +114,7 @@ rolling = RollingCondition_g_I_Frame_gamma(disc)
 # rolling = RollingCondition(disc)
 f_g = Force(lambda t: np.array([0, 0, -m * g]), disc)
 
-model = Model()
+model = System()
 model.add(disc)
 model.add(rolling)
 model.add(f_g)

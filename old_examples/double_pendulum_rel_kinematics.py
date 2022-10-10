@@ -7,7 +7,7 @@ import matplotlib.animation as animation
 
 from cardillo.math.algebra import A_IK_basic_z
 
-from cardillo.model import Model
+from cardillo.model import System
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints.explicit import (
     Revolute_joint,
@@ -67,7 +67,7 @@ if __name__ == "__main__":
         m, K_theta_S, joint2, RB1, r_OS0=r_OS20, A_IK0=A_IK20
     )
 
-    model = Model()
+    model = System()
     model.add(origin)
     model.add(joint1)
     model.add(RB1)

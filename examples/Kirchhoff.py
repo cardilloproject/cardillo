@@ -17,7 +17,7 @@ from cardillo.beams import (
 )
 from cardillo.forces import Force, K_Moment, DistributedForce1D
 from cardillo.contacts import Line2Line
-from cardillo.model import Model
+from cardillo.model import System
 from cardillo.solver import (
     Newton,
     ScipyIVP,
@@ -440,7 +440,7 @@ def run(statics=True):
     force = Force(F, beam, frame_ID=(1,))
 
     # assemble the model
-    model = Model()
+    model = System()
     model.add(beam)
     model.add(frame1)
     model.add(joint1)
@@ -814,7 +814,7 @@ def run_contact():
     line2line = Line2Line(eps_contact, radius, radius, beam0, beam1)
 
     # assemble the model
-    model = Model()
+    model = System()
     model.add(beam0)
     model.add(beam1)
     model.add(f_g_beam0)

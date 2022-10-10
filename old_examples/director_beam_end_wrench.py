@@ -8,7 +8,7 @@ from cardillo.model.classical_beams.spatial import (
 from cardillo.model.classical_beams.spatial.director import straight_configuration
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints.implicit import Rigid_connection
-from cardillo.model import Model
+from cardillo.model import System
 from cardillo.solver import Newton
 from cardillo.model.line_force.line_force import Line_force
 from cardillo.discretization import uniform_knot_vector
@@ -80,7 +80,7 @@ if __name__ == "__main__":
     force = Force(F, beam, frame_ID=(1,))
 
     # assemble the model
-    model = Model()
+    model = System()
     model.add(beam)
     model.add(frame_left)
     model.add(joint_left)

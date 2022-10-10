@@ -7,7 +7,7 @@ from cardillo.model.rigid_body import RigidBodyEuler
 from cardillo.model.bilateral_constraints.implicit import SphericalJoint
 from cardillo.math.algebra import cross3, ax2skew
 from cardillo.math import approx_fprime
-from cardillo.model import Model
+from cardillo.model import System
 from cardillo.solver import (
     GeneralizedAlphaFirstOrder,
     GenAlphaFirstOrderGGL2_V3,
@@ -74,7 +74,7 @@ u0 = np.array([0])
 # build model
 #############
 pendulum = MathematicalPendulum(m, l, F_g, q0=q0, u0=u0)
-model = Model()
+model = System()
 model.add(pendulum)
 model.assemble()
 

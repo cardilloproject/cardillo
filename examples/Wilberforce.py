@@ -9,7 +9,7 @@ from cardillo.beams import (
     TimoshenkoDirectorIntegral,
 )
 from cardillo.forces import Force, DistributedForce1D
-from cardillo.model import Model
+from cardillo.model import System
 from cardillo.solver import Newton, GenAlphaFirstOrderVelocity
 
 import numpy as np
@@ -329,7 +329,7 @@ if __name__ == "__main__":
     # dt = 1e-3  # largest possible timestep for old gen alpha solver
     dt = 5e-3
 
-    model = Model()
+    model = System()
 
     model.add(frame)
     model.add(beam)

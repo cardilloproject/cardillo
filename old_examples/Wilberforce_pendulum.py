@@ -3,7 +3,7 @@ from cardillo.model.classical_beams.spatial import TimoshenkoDirectorIntegral
 from cardillo.discretization.B_spline import fit_B_spline_curve
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints.implicit import Rigid_connection
-from cardillo.model import Model
+from cardillo.model import System
 from cardillo.solver import Newton
 from cardillo.solver import Generalized_alpha_4_singular_index3
 from cardillo.model.force import Force
@@ -290,7 +290,7 @@ if __name__ == "__main__":
         material_model, A_rho0, B_rho0, C_rho0, p, p, nQP, nEl, q0=Q, Q=Q
     )
 
-    model = Model()
+    model = System()
 
     model.add(beam)
     model.add(frame)

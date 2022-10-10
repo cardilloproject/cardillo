@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
-from cardillo.model import Model
+from cardillo.model import System
 from cardillo.model.rigid_body import RigidBodyEuler
 from cardillo.model.frame import Frame
 from cardillo.forces import Force
@@ -66,7 +66,7 @@ if __name__ == "__main__":
         frame, R, RB, r, mu, prox_r_N=r_N, prox_r_F=r_N, e_N=e_N, e_F=0
     )
 
-    model = Model()
+    model = System()
     model.add(RB)
     model.add(Force(lambda t: np.array([0, -g * m, 0]), RB))
     model.add(sphere)

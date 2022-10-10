@@ -5,7 +5,7 @@ from scipy.integrate import solve_ivp
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
-from cardillo.model import Model
+from cardillo.model import System
 from cardillo.model.pendulum_variable_length import Pendulum_variable_length
 from cardillo.solver import Euler_forward, Euler_backward, Scipy_ivp
 
@@ -24,7 +24,7 @@ if __name__ == "__main__":
     l_t = lambda t: 0
     l_tt = lambda t: 0
 
-    model = Model()
+    model = System()
 
     q0 = np.array([L, 0])
     u0 = np.array([0])

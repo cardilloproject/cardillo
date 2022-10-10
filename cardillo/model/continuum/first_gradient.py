@@ -2,7 +2,7 @@ import numpy as np
 import meshio
 import os
 
-from cardillo.model.model import Model
+from cardillo.model.system import System
 from cardillo.utility.coo import Coo
 from cardillo.math.numerical_derivative import Numerical_derivative
 from cardillo.discretization.indexing import flat2D, flat3D, split2D, split3D
@@ -589,9 +589,9 @@ def test_internal_forces():
 
     continuum = First_gradient(mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
 
-    from cardillo.model import Model
+    from cardillo.model import System
 
-    model = Model()
+    model = System()
     model.add(continuum)
     model.assemble()
 

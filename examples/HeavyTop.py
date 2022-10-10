@@ -13,7 +13,7 @@ from cardillo.model.rigid_body import (
 from cardillo.model.bilateral_constraints.implicit import SphericalJoint
 from cardillo.math.algebra import cross3, ax2skew
 from cardillo.math import approx_fprime
-from cardillo.model import Model
+from cardillo.model import System
 from cardillo.solver import (
     GeneralizedAlphaFirstOrder,
     GenAlphaFirstOrderGGL2_V3,
@@ -443,7 +443,7 @@ u0 = np.concatenate((v_S0, K_Omega0))
 # 1. hand written version
 if case == "Euler_self":
     top = HeavyTop(m, l, A, B, grav, r_OQ, q0, u0)
-    model = Model()
+    model = System()
     model.add(top)
     model.assemble()
 else:
@@ -457,7 +457,7 @@ else:
         top = HeavyTopQuaternion(A, B, grav, q0, u0)
 
     spherical_joint = SphericalJoint(frame, top, np.zeros(3))
-    model = Model()
+    model = System()
     model.add(top)
     model.add(frame)
     model.add(spherical_joint)

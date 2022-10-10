@@ -21,7 +21,7 @@ from cardillo.model.continuum import (
     Bipantographic_lattice,
 )
 from cardillo.solver import Newton
-from cardillo.model import Model
+from cardillo.model import System
 from cardillo.math.algebra import A_IK_basic_z, norm
 
 
@@ -130,7 +130,7 @@ def first_gradient_solve(
 
     # 3D continuum
     continuum = First_gradient(None, mat, mesh, Z, z0=z0, cDOF=cDOF, b=b)
-    model = Model()
+    model = System()
     model.add(continuum)
     model.assemble()
 
@@ -248,7 +248,7 @@ def pantographic_sheet_solve(
     # run derivative check for the chosen material
     verify_derivatives(continuum)
 
-    model = Model()
+    model = System()
     model.add(continuum)
     model.assemble()
 

@@ -13,7 +13,7 @@ from cardillo.model.bilateral_constraints.implicit import (
 )
 
 from cardillo.forces import Force, K_Moment, DistributedForce1D
-from cardillo.model import Model
+from cardillo.model import System
 from cardillo.solver import Newton, ScipyIVP
 
 from cardillo.math import e1, e2, e3, ax2skew, inv3D, cross3, A_IK_basic
@@ -169,7 +169,7 @@ def statics():
     moment = K_Moment(M, beam, (1,))
 
     # assemble the model
-    model = Model()
+    model = System()
     model.add(beam)
     model.add(frame1)
     model.add(joint1)
@@ -253,7 +253,7 @@ def dynamics():
     # force = Force(F, beam, (1,))
 
     # assemble the model
-    model = Model()
+    model = System()
     model.add(beam)
     model.add(frame1)
     model.add(joint1)
@@ -445,7 +445,7 @@ def HeavyTop():
         f_g_beam = DistributedForce1D(lambda t, xi: vg, beam)
 
         # assemble the model
-        model = Model()
+        model = System()
         model.add(beam)
         model.add(frame)
         model.add(joint)

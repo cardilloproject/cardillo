@@ -5,7 +5,7 @@ from math import cos, sin, sqrt, tan
 import matplotlib.pyplot as plt
 
 from cardillo.math.algebra import A_IK_basic_z, axis_angle2quat, cross3, ax2skew
-from cardillo.model import Model
+from cardillo.model import System
 from cardillo.model.rigid_body import (
     Rigid_body_euler,
     Rigid_body_quaternion,
@@ -95,7 +95,7 @@ if __name__ == "__main__":
     r_OS20 = r_OP(0) - A_IK0 @ K_r_SP2
     v_S20 = v_P(0) + A_IK0 @ (cross3(K_omega0, K_r_SP2))
 
-    model = Model()
+    model = System()
 
     frame = Frame(r_OP=r_OP, r_OP_t=v_P, r_OP_tt=a_P)
     model.add(frame)

@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
-from cardillo.model import Model
+from cardillo.model import System
 from cardillo.model.point_mass import PointMass
 from cardillo.model.rigid_body import RigidBodyEuler
 from cardillo.model.frame import Frame
@@ -124,7 +124,7 @@ if __name__ == "__main__":
     balls = [ball1, ball2, ball3, ball4]
 
     # assemble model
-    model = Model()
+    model = System()
     for ball in balls:
         model.add(ball)
         model.add(add_ground_contact(ball, 0, e_N))

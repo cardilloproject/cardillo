@@ -13,7 +13,7 @@ from cardillo.model.rigid_body import (
 from cardillo.model.bilateral_constraints.implicit import SphericalJoint
 from cardillo.math.algebra import cross3, ax2skew
 from cardillo.math import approx_fprime
-from cardillo.model import Model
+from cardillo.model import System
 from cardillo.solver import (
     GeneralizedAlphaFirstOrder,
     GeneralizedAlphaSecondOrder,
@@ -97,7 +97,7 @@ u0 = np.concatenate((v_S0, K_Omega0))
 top = HeavyTopQuaternion(A, B, grav, q0, u0)
 frame = Frame()
 spherical_joint = SphericalJoint(frame, top, np.zeros(3, dtype=float))
-model = Model()
+model = System()
 model.add(top)
 model.add(frame)
 model.add(spherical_joint)

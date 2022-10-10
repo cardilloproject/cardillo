@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from cardillo.math.rotations import rodriguez_inv
 
-from cardillo.model import Model
+from cardillo.model import System
 from cardillo.model.rigid_body import RigidBodyEuler, RigidBodyAxisAngle
 from cardillo.math import A_IK_basic
 from cardillo.model.rolling_disc import (
@@ -152,7 +152,7 @@ def rolling_disc_DMS(rigid_body_case="Euler", constraint_case="velocity_K"):
         raise NotImplementedError("")
     f_g = Force(lambda t: np.array([0, 0, -m * g]), disc)
 
-    model = Model()
+    model = System()
     model.add(disc)
     model.add(rolling)
     model.add(f_g)

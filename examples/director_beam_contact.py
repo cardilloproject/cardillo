@@ -6,7 +6,7 @@ from cardillo.beams import (
     TimoshenkoDirectorIntegral,
 )
 from cardillo.forces import Force, K_Moment, DistributedForce1D
-from cardillo.model import Model
+from cardillo.model import System
 from cardillo.solver import Newton
 from cardillo.contacts import Point2Plane
 
@@ -85,7 +85,7 @@ def junction_left_plane_contact_right():
     contact = Point2Plane(frame_contact, beam, prox_r_N, e_N, frame_ID=(1.0,))
 
     # assemble the model
-    model = Model()
+    model = System()
     model.add(beam)
     model.add(frame_left)
     model.add(joint_frame_beam)
