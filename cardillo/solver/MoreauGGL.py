@@ -2112,7 +2112,7 @@ class NonsmoothEulerBackwardsGGL_V3:
         #################################################
         # Mixed Signorini on velcity level and impact law
         #################################################
-        R[nx_s : nx_s + nla_N] = np.select(
+        R[nx_s : nx_s + nla_N] = np.where(
             self.Ak1,
             xi_Nk1 - prox_R0_np(prox_N_arg_velocity),
             La_Nk1,
@@ -2496,7 +2496,7 @@ class RemcoOriginal:
         ############
         # impact law
         ############
-        Rx[nu : nu + nla_N] = np.select(
+        Rx[nu : nu + nla_N] = np.where(
             I_N,
             xi_Nk_plus - prox_R0_np(xi_Nk_plus - self.model.prox_r_N * La_Nk_plus),
             La_Nk_plus,
@@ -2990,7 +2990,7 @@ class Remco:
         ###################
         # normal impact law
         ###################
-        Ry[nu : nu + nla_N] = np.select(
+        Ry[nu : nu + nla_N] = np.where(
             self.I_N,
             xi_Nk1_plus - prox_R0_np(xi_Nk1_plus - self.model.prox_r_N * La_Nk1),
             La_Nk1,
@@ -3173,14 +3173,19 @@ class Remco:
         )
 
 
+# TODO:
+# - analytical Jacobian
+# - alternative solution strategy (fixed-point iterations)
+#   is the lsqr aproach working?
+# - variable step-size with Richardson iteration, see Acary presentation/ Hairer
 class NonsmoothDecoupled:
     def __init__(
         self,
         model,
         t1,
         dt,
-        tol=1e-8,
-        max_iter=40,
+        tol=1e-6,
+        max_iter=10,
         error_function=lambda x: np.max(np.abs(x)),
     ):
         self.model = model
@@ -3339,27 +3344,37 @@ class NonsmoothDecoupled:
     def update_x(self, xk1):
         q_dotk1, u_dotk1, la_gk1, la_gammak1, la_Nk1, la_Fk1 = self.unpack_x(xk1)
 
-        ################
-        # backward Euler
-        ################
         tk1 = self.tk + self.dt
-        uk1_free = self.uk + self.dt * u_dotk1
-        qk1 = self.qk + self.dt * q_dotk1
+
         la_gk1_free = la_gk1.copy()
         la_gammak1_free = la_gammak1.copy()
         la_Nk1_free = la_Nk1.copy()
         la_Fk1_free = la_Fk1.copy()
 
+        ################
+        # backward Euler
+        ################
+        uk1_free = self.uk + self.dt * u_dotk1
+        qk1 = self.qk + self.dt * q_dotk1
+        # qk1 = self.qk + self.dt * self.uk + 0.5 * self.dt**2 * u_dotk1
+
+        # ##############
+        # # Newmark beta, see https://de.wikipedia.org/wiki/Newmark-beta-Verfahren
+        # ##############
+        # gamma = 0.5
+        # beta = 1/6
+        # uk1_free = self.uk + gamma * self.dt * (self.u_dotk + u_dotk1)
+        # # qk1 = self.qk + self.dt * q_dotk1
+        # # qk1 = self.qk + self.dt * self.u_dotk + self.dt**2 * ((0.5 - beta) * self.u_dotk + beta * u_dotk1)
+        # # qk1 = self.qk + self.dt * (self.uk - self.Uk) + self.dt**2 * ((0.5 - beta) * self.u_dotk + beta * u_dotk1)
+        # qk1 = self.qk + self.dt * self.uk + self.dt**2 * ((0.5 - beta) * self.u_dotk + beta * u_dotk1)
+
         # ################
-        # # trapezoid rule
+        # # trapezoid rule,
+        # # TODO: Works only with unilateral constraints on acceleration level!
         # ################
-        # tk1 = self.tk + self.dt
         # uk1_free = self.uk + 0.5 * self.dt * (self.u_dotk + u_dotk1)
         # qk1 = self.qk + 0.5 * self.dt * (self.q_dotk + q_dotk1)
-        # # la_gk1_free = 0.5 * self.dt * (self.la_gk + la_gk1)
-        # # la_gammak1_free = 0.5 * self.dt * (self.la_gammak + la_gammak1)
-        # # la_Nk1_free = 0.5 * self.dt * (self.la_Nk + la_Nk1)
-        # # la_Fk1_free = 0.5 * self.dt * (self.la_Fk + la_Fk1)
 
         return (
             tk1,
@@ -3400,17 +3415,20 @@ class NonsmoothDecoupled:
         gk1 = self.model.g(tk1, qk1)
         gammak1 = self.model.gamma(tk1, qk1, uk1_free)
         g_Nk1 = self.model.g_N(tk1, qk1)
+        # g_N_dotk1 = self.model.g_N_dot(tk1, qk1, uk1_free)
+        # g_N_ddotk1 = self.model.g_N_ddot(tk1, qk1, uk1_free, u_dotk1)
         xi_Fk1 = self.model.xi_F(tk1, qk1, self.uk, uk1_free)
 
         ###################
         # evaluate residual
         ###################
-        Rx = np.zeros(self.nx)
+        Rx = np.zeros(self.nx, dtype=float)
 
         ####################
         # kinematic equation
         ####################
         Rx[:nq] = q_dotk1 - self.model.q_dot(tk1, qk1, uk1_free)
+        # Rx[:nq] = q_dotk1
 
         ####################
         # euations of motion
@@ -3437,10 +3455,36 @@ class NonsmoothDecoupled:
         if update_index:
             self.I_Nk1 = prox_arg <= 0.0
             # self.I_Nk1 = g_Nk1 <= 0.0
+            # self.B_Nk1 = self.I_Nk1 * (g_N_dotk1 <= 0.0)
 
         Rx[
             nq + nu + nla_g + nla_gamma : nq + nu + nla_g + nla_gamma + nla_N
         ] = g_Nk1 - prox_R0_np(prox_arg)
+        # Rx[
+        #     nq + nu + nla_g + nla_gamma : nq + nu + nla_g + nla_gamma + nla_N
+        # ] = np.where(
+        #     self.I_Nk1,
+        #     g_N_dotk1 - prox_R0_np(g_N_dotk1 - self.model.prox_r_N * la_Nk1_free),
+        #     la_Nk1_free
+        # )
+        # Rx[
+        #     nq + nu + nla_g + nla_gamma : nq + nu + nla_g + nla_gamma + nla_N
+        # ] = np.where(
+        #     self.B_Nk1,
+        #     g_N_ddotk1 - prox_R0_np(g_N_ddotk1 - self.model.prox_r_N * la_Nk1_free),
+        #     la_Nk1_free
+        # )
+
+        # a = 1.0e-1
+        # b = 1.0e-1
+        # g_bar = g_N_ddotk1 + a * g_N_dotk1 + b * g_Nk1
+        # Rx[
+        #     nq + nu + nla_g + nla_gamma : nq + nu + nla_g + nla_gamma + nla_N
+        # ] = np.where(
+        #     self.B_Nk1,
+        #     g_bar - prox_R0_np(g_bar - self.model.prox_r_N * la_Nk1_free),
+        #     la_Nk1_free
+        # )
 
         ##########
         # friction
@@ -3465,6 +3509,112 @@ class NonsmoothDecoupled:
         self.uk1_free = uk1_free
 
         return Rx
+
+    def Jx(self, xk1):
+        nq = self.nq
+        nu = self.nu
+        nla_g = self.nla_g
+        nla_gamma = self.nla_gamma
+        nla_N = self.nla_N
+        mu = self.model.mu
+
+        q_dotk1, u_dotk1, la_gk1, la_gammak1, la_Nk1, la_Fk1 = self.unpack_x(xk1)
+        (
+            tk1,
+            qk1,
+            uk1_free,
+            la_gk1_free,
+            la_gammak1_free,
+            la_Nk1_free,
+            la_Fk1_free,
+        ) = self.update_x(xk1)
+
+        # evaluate repeatedly used quantities
+        Mk1 = self.model.M(tk1, qk1, scipy_matrix=csr_matrix)
+        hk1 = self.model.h(tk1, qk1, uk1_free)
+        W_gk1 = self.model.W_g(tk1, qk1, scipy_matrix=csr_matrix)
+        W_gammak1 = self.model.W_gamma(tk1, qk1, scipy_matrix=csr_matrix)
+        W_Nk1 = self.model.W_N(tk1, qk1, scipy_matrix=csr_matrix)
+        W_Fk1 = self.model.W_F(tk1, qk1, scipy_matrix=csr_matrix)
+        gk1 = self.model.g(tk1, qk1)
+        gammak1 = self.model.gamma(tk1, qk1, uk1_free)
+        g_Nk1 = self.model.g_N(tk1, qk1)
+        xi_Fk1 = self.model.xi_F(tk1, qk1, self.uk, uk1_free)
+
+        # chain rules for backward Euler update
+        qk1_q_dotk1 = self.dt
+        uk1_free_u_dotk1 = self.dt
+
+        ####################
+        # kinematic equation
+        ####################
+        # Rx[:nq] = q_dotk1 - self.model.q_dot(tk1, qk1, uk1_free)
+        J_q_dotk1_q_dotk1 = (
+            eye(nq, nq) - self.model.q_dot_q(tk1, qk1, uk1_free) * qk1_q_dotk1
+        )
+        J_q_dotk1_u_dotk1 = -self.model.B(tk1, qk1) * uk1_free_u_dotk1
+
+        ####################
+        # euations of motion
+        ####################
+        # Rx[nq : nq + nu] = (
+        #     Mk1 @ u_dotk1
+        #     - hk1
+        #     - W_gk1 @ la_gk1_free
+        #     - W_gammak1 @ la_gammak1_free
+        #     - W_Nk1 @ la_Nk1_free
+        #     - W_Fk1 @ la_Fk1_free
+        # )
+        J_u_dotk1_q_dotk1 = (
+            self.model.Mu_q(tk1, qk1, uk1_free)
+            - self.model.h_q(tk1, qk1, uk1_free)
+            - self.model.Wla_g_q(tk1, qk1, la_gk1)
+            - self.model.Wla_gamma_q(tk1, qk1, la_gammak1)
+            - self.model.Wla_N_q(tk1, qk1, la_Nk1)
+            - self.model.Wla_F_q(tk1, qk1, la_Fk1)
+        ) * qk1_q_dotk1
+        J_u_dotk1_u_dotk1 = Mk1 - self.model.h_u(tk1, qk1, uk1_free) * uk1_free_u_dotk1
+
+        #######################
+        # bilateral constraints
+        #######################
+        # Rx[nq + nu : nq + nu + nla_g] = gk1
+        # Rx[nq + nu + nla_g : nq + nu + nla_g + nla_gamma] = gammak1
+        J_gk1_q_dotk1 = self.model.g_q(tk1, qk1) * qk1_q_dotk1
+        J_gammak1_q_dotk1 = self.model.gamma_q(tk1, qk1, uk1_free) * qk1_q_dotk1
+        J_gammak1_u_dotk1 = W_gammak1.T * uk1_free_u_dotk1
+
+        ################
+        # normal contact
+        ################
+        # prox_arg = g_Nk1 - self.model.prox_r_N * la_Nk1_free
+        # if update_index:
+        #     self.I_Nk1 = prox_arg <= 0.0
+        # Rx[
+        #     nq
+        #     + nu
+        #     + nla_g
+        #     + nla_gamma : nq
+        #     + nu
+        #     + nla_g
+        #     + nla_gamma
+        #     + nla_N
+        # ] = g_Nk1 - prox_R0_np(prox_arg)
+
+        raise RuntimeError("Move on here!")
+
+        Jx = bmat(
+            [
+                [J_q_dotk1_q_dotk1, J_q_dotk1_u_dotk1, None, None, None, None],
+                [J_u_dotk1_q_dotk1, J_u_dotk1_u_dotk1, W_gk1, W_gammak1, W_Nk1, W_Fk1],
+                [J_gk1_q_dotk1, None, None, None, None, None],
+                [J_gammak1_q_dotk1, J_gammak1_u_dotk1, None, None, None, None],
+            ],
+            format="csr",
+        )
+
+        Jx_num = csr_matrix(approx_fprime(xk1, self.Rx, method="2-point"))
+        return Jx_num
 
     def Ry(self, yk1, update_index=False):
         nu = self.nu
@@ -3514,7 +3664,7 @@ class NonsmoothDecoupled:
             - W_Fk1 @ La_Fk1
         )
 
-        # bilateral constraints
+        # impulsive bilateral constraints
         # TODO: Are they correct?
         Ry[nu : nu + nla_g] = g_dot
         Ry[nu + nla_g : nu + nla_g + nla_gamma] = gamma
@@ -3546,6 +3696,9 @@ class NonsmoothDecoupled:
                 )
 
         return Ry
+
+    def Jy(self, yk1):
+        return csr_matrix(approx_fprime(yk1, self.Ry, method="2-point"))
 
     def unpack_s(self, sk1):
         nq = self.nq
@@ -3645,19 +3798,19 @@ class NonsmoothDecoupled:
             self.I_Nk1 = prox_arg <= 0.0
             # self.I_Nk1 = g_Nk1 <= 0.0
         R[nq + 2 * nu : nq + 2 * nu + nla_N] = g_Nk1 - prox_R0_np(prox_arg)
-        # R[nq + 2 * nu : nq + 2 * nu + nla_N] = np.select(
+        # R[nq + 2 * nu : nq + 2 * nu + nla_N] = np.where(
         #     self.I_Nk1,
         #     g_N_dotk1_free - prox_R0_np(g_N_dotk1_free - self.model.prox_r_N * la_Nk1),
         #     la_Nk1,
         # )
         if use_percussions:
-            R[nq + 2 * nu + nla_N : nq + 2 * nu + 2 * nla_N] = np.select(
+            R[nq + 2 * nu + nla_N : nq + 2 * nu + 2 * nla_N] = np.where(
                 self.I_Nk1,
                 xi_Nk1 - prox_R0_np(xi_Nk1 - self.model.prox_r_N * P_Nk1),
                 P_Nk1,
             )
         else:
-            R[nq + 2 * nu + nla_N : nq + 2 * nu + 2 * nla_N] = np.select(
+            R[nq + 2 * nu + nla_N : nq + 2 * nu + 2 * nla_N] = np.where(
                 self.I_Nk1,
                 xi_Nk1 - prox_R0_np(xi_Nk1 - self.model.prox_r_N * La_Nk1),
                 La_Nk1,
@@ -3702,7 +3855,7 @@ class NonsmoothDecoupled:
 
         return R
 
-    def step(self, xk1, f):
+    def step(self, xk1, f, G):
         # initial residual and error
         R = f(xk1, update_index=True)
         error = self.error_function(R)
@@ -3713,8 +3866,9 @@ class NonsmoothDecoupled:
         if not converged:
             while j < self.max_iter:
                 # jacobian
-                J = csr_matrix(approx_fprime(xk1, f, method="2-point"))
-                # J = csr_matrix(approx_fprime(xk1, f, method="3-point"))
+                # J = csr_matrix(approx_fprime(xk1, f, method="2-point"))
+                # # J = csr_matrix(approx_fprime(xk1, f, method="3-point"))
+                J = G(xk1)
 
                 # Newton update
                 j += 1
@@ -3780,13 +3934,16 @@ class NonsmoothDecoupled:
             yk1 = self.yk.copy()
             sk1 = self.sk.copy()
 
-            converged_x, n_iter_x, error_x, xk1 = self.step(xk1, self.Rx)
-            converged_y, n_iter_y, error_y, yk1 = self.step(yk1, self.Ry)
+            converged_x, n_iter_x, error_x, xk1 = self.step(xk1, self.Rx, self.Jx)
+            converged_y, n_iter_y, error_y, yk1 = self.step(yk1, self.Ry, self.Jy)
             # converged, n_iter, error, sk1 = self.step(sk1, self.Rs)
 
             # update progress bar and check convergence
+            # pbar.set_description(
+            #     f"t: {tk1:0.2e}s < {self.t1:0.2e}s; ||R_x||: {error_x:0.2e} ({n_iter_x}/{self.max_iter});"
+            # )
             pbar.set_description(
-                f"t: {tk1:0.2e}s < {self.t1:0.2e}s; ||R_x||: {error_y:0.2e} ({n_iter_x}/{self.max_iter}); ||R_y||: {error_x:0.2e} ({n_iter_y}/{self.max_iter})"
+                f"t: {tk1:0.2e}s < {self.t1:0.2e}s; ||R_x||: {error_x:0.2e} ({n_iter_x}/{self.max_iter}); ||R_y||: {error_y:0.2e} ({n_iter_y}/{self.max_iter})"
             )
             # pbar.set_description(
             #     f"t: {tk1:0.2e}s < {self.t1:0.2e}s; ||R||: {error:0.2e} ({n_iter}/{self.max_iter})"
@@ -3838,6 +3995,7 @@ class NonsmoothDecoupled:
 
             Uk1, La_gk1, La_gammak1, La_Nk1, La_Fk1 = self.unpack_y(yk1)
             uk1 = uk1_free + Uk1
+            # uk1 = uk1_free
 
             # q_dotk1, u_dotk1, Uk1, la_Nk1, La_Nk1, la_Fk1, La_Fk1 = self.unpack_s(sk1)
             # tk1, qk1, uk1, uk1_free, P_Nk1, P_Fk1 = self.update_s(sk1)
@@ -3861,11 +4019,9 @@ class NonsmoothDecoupled:
             la_N.append(la_Nk1)
             La_N.append(La_Nk1)
             P_N.append(self.dt * la_Nk1 + La_Nk1)
-            # P_N.append(P_Nk1)
             la_F.append(la_Fk1)
             La_F.append(La_Fk1)
             P_F.append(self.dt * la_Fk1 + La_Fk1)
-            # P_F.append(P_Fk1)
 
             # update local variables for accepted time step
             self.tk = tk1
@@ -4203,7 +4359,7 @@ class NonsmoothDecoupledGGLRx:
 
         Rx[
             nq + nu + nla_g + nla_gamma : nq + nu + nla_g + nla_gamma + nla_N
-        ] = np.select(
+        ] = np.where(
             self.I_Nk1,
             g_N_dotk1_free
             - prox_R0_np(g_N_dotk1_free - self.model.prox_r_N * la_Nk1_free),
@@ -4298,7 +4454,7 @@ class NonsmoothDecoupledGGLRx:
         ###################
         # normal impact law
         ###################
-        Ry[nu + nla_g + nla_gamma : nu + nla_g + nla_gamma + nla_N] = np.select(
+        Ry[nu + nla_g + nla_gamma : nu + nla_g + nla_gamma + nla_N] = np.where(
             self.I_Nk1,
             xi_Nk1 - prox_R0_np(xi_Nk1 - self.model.prox_r_N * La_Nk1),
             La_Nk1,
@@ -4421,19 +4577,19 @@ class NonsmoothDecoupledGGLRx:
             self.I_Nk1 = prox_arg <= 0.0
             # self.I_Nk1 = g_Nk1 <= 0.0
         R[nq + 2 * nu : nq + 2 * nu + nla_N] = g_Nk1 - prox_R0_np(prox_arg)
-        # R[nq + 2 * nu : nq + 2 * nu + nla_N] = np.select(
+        # R[nq + 2 * nu : nq + 2 * nu + nla_N] = np.where(
         #     self.I_Nk1,
         #     g_N_dotk1_free - prox_R0_np(g_N_dotk1_free - self.model.prox_r_N * la_Nk1),
         #     la_Nk1,
         # )
         if use_percussions:
-            R[nq + 2 * nu + nla_N : nq + 2 * nu + 2 * nla_N] = np.select(
+            R[nq + 2 * nu + nla_N : nq + 2 * nu + 2 * nla_N] = np.where(
                 self.I_Nk1,
                 xi_Nk1 - prox_R0_np(xi_Nk1 - self.model.prox_r_N * P_Nk1),
                 P_Nk1,
             )
         else:
-            R[nq + 2 * nu + nla_N : nq + 2 * nu + 2 * nla_N] = np.select(
+            R[nq + 2 * nu + nla_N : nq + 2 * nu + 2 * nla_N] = np.where(
                 self.I_Nk1,
                 xi_Nk1 - prox_R0_np(xi_Nk1 - self.model.prox_r_N * La_Nk1),
                 La_Nk1,
@@ -4951,7 +5107,7 @@ class DecoupledNonsmoothHalfExplicitRungeKutta:
             # self.Ak1 = g_Nk1 <= 0
             self.Ak1 = prox_arg <= 0
 
-        c_Nk1 = np.select(
+        c_Nk1 = np.where(
             self.Ak1,
             g_dot_Nk1 - prox_R0_np(g_dot_Nk1 - self.model.prox_r_N * la_Nk1),
             la_Nk1,
@@ -5156,7 +5312,7 @@ class DecoupledNonsmoothHalfExplicitRungeKutta:
         # normal impact law
         ###################
         # Ry[nu + nla_g + nla_gamma : nu + nla_g + nla_gamma + nla_N] = La_Nk1
-        Ry[nu + nla_g + nla_gamma : nu + nla_g + nla_gamma + nla_N] = np.select(
+        Ry[nu + nla_g + nla_gamma : nu + nla_g + nla_gamma + nla_N] = np.where(
             self.Ak1,
             xi_Nk1_plus - prox_R0_np(xi_Nk1_plus - self.model.prox_r_N * La_Nk1),
             La_Nk1,

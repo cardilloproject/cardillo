@@ -4,146 +4,191 @@ from math import pi
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
-from cardillo.math import A_IK_basic
+from cardillo.math import e1, e2, e3
 
 from cardillo.model import Model
-from cardillo.model.rigid_body import RigidBodyEuler
+from cardillo.beams.spatial import (
+    CircularCrossSection,
+    Simo1986,
+)
+from cardillo.beams.spatial.Cable import QuadraticMaterial
+from cardillo.beams import (
+    DirectorAxisAngle,
+    animate_rope,
+)
+from cardillo.forces import DistributedForce1D
+
 from cardillo.model.frame import Frame
 from cardillo.forces import Force
 from cardillo.contacts import Sphere2Plane
+
 from cardillo.solver import (
     Moreau,
-    NonsmoothEulerBackwardsGGL,
-    NonsmoothThetaGGL,
-    NonsmoothEulerBackwardsGGL_V2,
-    NonsmoothEulerBackwardsGGL_V3,
-    NonsmoothTheta,
     NonsmoothGeneralizedAlpha,
-    NonsmoothGenAlphaFirstOrder,
-    NonsmoothNewmark,
-    NonsmoothHalfExplicitEuler,
-    NonsmoothHalfExplicitEulerGGL,
-    Remco,
     NonsmoothDecoupled,
-    DecoupledNonsmoothHalfExplicitRungeKutta,
 )
-
-
-class Ball(RigidBodyEuler):
-    def __init__(self, m, r, q0=None, u0=None):
-        theta = 2 / 5 * m * r**2
-        self.r = r
-        super().__init__(m, theta * np.eye(3), q0=q0, u0=u0)
-
-    def boundary(self, t, q, n=100):
-        phi = np.linspace(0, 2 * np.pi, n, endpoint=True)
-        K_r_SP = self.r * np.vstack([np.sin(phi), np.cos(phi), np.zeros(n)])
-        return np.repeat(self.r_OP(t, q), n).reshape(3, n) + self.A_IK(t, q) @ K_r_SP
 
 
 if __name__ == "__main__":
     animate = True
     # animate = False
 
-    m = 1
-    r = 0.1
+    # discretization properties
+    # nelements = 1
+    nelements = 3
+    polynomial_degree_r = 1
+    # basis_r = "Hermite"
+    basis_r = "B-spline"
+    # polynomial_degree_r = 1
+    # basis_r = "Lagrange"
+    # polynomial_degree_r = 2
+    # basis_r = "Lagrange"
+    # polynomial_degree_psi = 1
+    # basis_psi = "Lagrange"
+    polynomial_degree_psi = 1
+    basis_psi = "B-spline"
+
+    # starting point and corresponding orientation
+    # r_OP0 = np.zeros(3, dtype=float)
+    z0 = 0.25
+    r_OP0 = np.array([0, 0, z0], dtype=float)
+    A_IK0 = np.eye(3, dtype=float)
+
+    # cross section and quadratic beam material
+    L = np.pi
+    line_density = 1.0e-1
+    radius_rod = 1.0e-1
+    E = 1.0e2
+    G = 0.5e2
+    cross_section = CircularCrossSection(line_density, radius_rod)
+    A_rho0 = line_density * cross_section.area
+    K_S_rho0 = line_density * cross_section.first_moment
+    K_I_rho0 = line_density * cross_section.second_moment
+    A = cross_section.area
+    Ip, I2, I3 = np.diag(cross_section.second_moment)
+    Ei = np.array([E * A, G * A, G * A])
+    Fi = np.array([G * Ip, E * I2, E * I3])
+    material_model = Simo1986(Ei, Fi)
+
+    Q = DirectorAxisAngle.straight_configuration(
+        polynomial_degree_r,
+        polynomial_degree_psi,
+        basis_r,
+        basis_psi,
+        nelements,
+        L,
+        r_OP0,
+        A_IK0,
+    )
+    rod = DirectorAxisAngle(
+        material_model,
+        A_rho0,
+        K_S_rho0,
+        K_I_rho0,
+        polynomial_degree_r,
+        polynomial_degree_psi,
+        nelements,
+        Q,
+        q0=Q,
+        basis_r=basis_r,
+        basis_psi=basis_psi,
+    )
+
+    # gravity
     g = 9.81
-    x0 = -1
-    y0 = 1
-    x_dot0 = 1
-    y_dot0 = 0
-    phi0 = 0
-    phi_dot0 = 50
-    r_OS0 = np.array([x0, y0, 0])
-    vS0 = np.array([x_dot0, y_dot0, 0])
-    q0 = np.concatenate([r_OS0, np.array([phi0, 0, 0])])
-    u0 = np.concatenate([vS0, np.array([0, 0, phi_dot0])])
-    RB = Ball(m, r, q0, u0)
+    __fg = -A_rho0 * g * e3
+    fg = lambda t, xi: __fg
+    gravity = DistributedForce1D(fg, rod)
 
-    e1, e2, e3 = np.eye(3)
-    frame = Frame(A_IK=np.vstack((e3, e1, e2)).T, r_OP=np.array([0, 0, 0]))
-    # mu = 0.0  # no friction
-    mu = 0.2
-    # r_N = 0.1
-    r_N = 0.5
-    e_N = 0.5
-    plane = Sphere2Plane(frame, RB, r, mu, prox_r_N=r_N, prox_r_F=r_N, e_N=e_N, e_F=0)
-
-    alpha = pi / 4
-    # e1, e2, e3 = A_IK_basic_z(alpha)
-    e1, e2, e3 = A_IK_basic(alpha).z()
-    frame1 = Frame(A_IK=np.vstack((e3, e1, e2)).T)
-    mu = 0.2
-    r_N = 0.2
-    e_N = 1
-    plane_left = Sphere2Plane(frame1, RB, r, mu, prox_r_N=r_N, prox_r_F=r_N, e_N=e_N)
-
-    beta = -pi / 4
-    # e1, e2, e3 = A_IK_basic_z(beta)
-    e1, e2, e3 = A_IK_basic(beta).z()
-    frame2 = Frame(A_IK=np.vstack((e3, e1, e2)).T)
     mu = 0.1
     # r_N = 0.2
-    r_N = 0.01
-    e_N = 1
-    plane_right = Sphere2Plane(frame2, RB, r, mu, prox_r_N=r_N, prox_r_F=r_N, e_N=e_N)
+    r_N = 0.1
+    # r_N = 5.0e-3
+    e_N = 0
+
+    frame_left = Frame()
+    plane_left = Sphere2Plane(
+        frame_left,
+        rod,
+        radius_rod,
+        mu,
+        prox_r_N=r_N,
+        prox_r_F=r_N,
+        e_N=e_N,
+        frame_ID=(0,),
+    )
+
+    frame_right = Frame()
+    plane_right = Sphere2Plane(
+        frame_right,
+        rod,
+        radius_rod,
+        mu,
+        prox_r_N=r_N,
+        prox_r_F=r_N,
+        e_N=e_N,
+        frame_ID=(1,),
+    )
 
     model = Model()
-    model.add(RB)
-    model.add(Force(lambda t: np.array([0, -g * m, 0]), RB))
-    model.add(plane)
-    # model.add(plane_right)
-    # model.add(plane_left)
+    model.add(rod)
+    model.add(gravity)
+    model.add(plane_left)
+    model.add(plane_right)
     model.assemble()
 
     t0 = 0
-    # t1 = 0.5
-    t1 = 2
-    # dt = 1e-1
+    t1 = 1
+
     # dt = 5e-2
-    dt = 1e-2
+    # dt = 1e-2
     # dt = 5e-3
-    # dt = 1e-3
+    dt = 1e-3
     # dt = 5e-4
     # dt = 1e-4
 
-    solver_other = NonsmoothHalfExplicitEuler(model, t1, dt)
-    # solver_other = NonsmoothGeneralizedAlpha(model, t1, dt)
-    # solver_other = NonsmoothEulerBackwardsGGL_V2(model, t1, dt)
-    # solver_other = NonsmoothDecoupled(model, t1, dt)
-    # solver_other = DecoupledNonsmoothHalfExplicitRungeKutta(model, t1, dt)
-    sol_other = solver_other.solve()
+    # solver = NonsmoothGeneralizedAlpha(model, t1, dt, newton_max_iter=10)
+    solver = NonsmoothDecoupled(model, t1, dt)
+    # solver = Moreau(model, t1, dt, fix_point_max_iter=100)
+    sol_other = solver.solve()
+
     t = sol_other.t
     q = sol_other.q
-    t_other = sol_other.t
-    q_other = sol_other.q
-    u_other = sol_other.u
-    P_N_other = sol_other.P_N
-    P_F_other = sol_other.P_F
-    if type(solver_other) in [
-        NonsmoothThetaGGL,
-        NonsmoothEulerBackwardsGGL,
-        NonsmoothEulerBackwardsGGL_V2,
-        NonsmoothHalfExplicitEuler,
-        NonsmoothHalfExplicitEulerGGL,
-    ]:
-        a_other = np.zeros_like(u_other)
-        a_other[1:] = (u_other[1:] - u_other[:-1]) / dt
-        la_N_other = np.zeros_like(P_N_other)
-        la_F_other = np.zeros_like(P_F_other)
-        La_N_other = np.zeros_like(P_N_other)
-        La_F_other = np.zeros_like(P_F_other)
-        # mu_g_other = sol_other.mu_g
-        # mu_N_other = sol_other.mu_N
-        mu_g_other = np.zeros(model.nla_g)
-        mu_N_other = np.zeros_like(P_N_other)
-    else:
-        a_other = sol_other.a
-        la_N_other = sol_other.la_N
-        # mu_N_other = sol_other.la_N
-        la_F_other = sol_other.la_F
-        La_N_other = sol_other.La_N
-        La_F_other = sol_other.La_F
+    scale = L
+    animate_rope(t, q, [rod], scale)
+
+    exit()
+    # t = sol_other.t
+    # q = sol_other.q
+    # t_other = sol_other.t
+    # q_other = sol_other.q
+    # u_other = sol_other.u
+    # P_N_other = sol_other.P_N
+    # P_F_other = sol_other.P_F
+    # if type(solver) in [
+    #     NonsmoothThetaGGL,
+    #     NonsmoothEulerBackwardsGGL,
+    #     NonsmoothEulerBackwardsGGL_V2,
+    #     NonsmoothHalfExplicitEuler,
+    #     NonsmoothHalfExplicitEulerGGL,
+    # ]:
+    #     a_other = np.zeros_like(u_other)
+    #     a_other[1:] = (u_other[1:] - u_other[:-1]) / dt
+    #     la_N_other = np.zeros_like(P_N_other)
+    #     la_F_other = np.zeros_like(P_F_other)
+    #     La_N_other = np.zeros_like(P_N_other)
+    #     La_F_other = np.zeros_like(P_F_other)
+    #     # mu_g_other = sol_other.mu_g
+    #     # mu_N_other = sol_other.mu_N
+    #     mu_g_other = np.zeros(model.nla_g)
+    #     mu_N_other = np.zeros_like(P_N_other)
+    # else:
+    #     a_other = sol_other.a
+    #     la_N_other = sol_other.la_N
+    #     # mu_N_other = sol_other.la_N
+    #     la_F_other = sol_other.la_F
+    #     La_N_other = sol_other.La_N
+    #     La_F_other = sol_other.La_F
 
     solver_fp = Moreau(model, t1, dt)
     sol_fp = solver_fp.solve()

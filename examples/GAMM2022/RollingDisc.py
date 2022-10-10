@@ -135,8 +135,8 @@ def state():
     # t1 = 2 * np.pi / np.abs(alpha_dot0) * 0.5
     t1 = 2 * np.pi / np.abs(alpha_dot0) * 1.0
     # dt = 5e-3
-    dt = 5e-2
-    # dt = 2.5e-2
+    # dt = 5e-2
+    dt = 2.5e-2
     # dt = 1.0e-2  # used for GAMM with R = 10 * r
 
     # rho_inf = 0.96  # used for GAMM (high oszillations)

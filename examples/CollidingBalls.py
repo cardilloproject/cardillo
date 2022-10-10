@@ -155,12 +155,10 @@ if __name__ == "__main__":
     # solve problem
     # solver_other = NonsmoothGeneralizedAlpha(model, t1, dt)
     # solver_other = NonsmoothEulerBackwardsGGL_V2(model, t1, dt, tol=1.0e-8)
-    # solver_other = NonsmoothEulerBackwardsGGL_V3(model, t1, dt, tol=1.0e-8)
-    # solver_other = NonsmoothHalfExplicitEuler(model, t1, dt)
+    solver_other = NonsmoothHalfExplicitEuler(model, t1, dt)
     # solver_other = NonsmoothHalfExplicitEulerGGL(model, t1, dt)
-    # solver_other = Remco(model, t1, dt)
     # solver_other = Moreau(model, t1, dt)
-    solver_other = NonsmoothDecoupled(model, t1, dt)
+    # solver_other = NonsmoothDecoupled(model, t1, dt)
     sol_other = solver_other.solve()
     t = sol_other.t
     q = sol_other.q

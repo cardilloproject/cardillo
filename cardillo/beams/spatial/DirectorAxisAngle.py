@@ -236,8 +236,8 @@ class DirectorAxisAngle:
         self.polynomial_degree_psi = polynomial_degree_psi
 
         p = max(polynomial_degree_r, polynomial_degree_psi)
-        # self.nquadrature = nquadrature = int(np.ceil((p + 1) ** 2 / 2))
-        self.nquadrature = nquadrature = p
+        self.nquadrature = nquadrature = int(np.ceil((p + 1) ** 2 / 2))
+        # self.nquadrature = nquadrature = p
         self.nelement = nelement
 
         # chose basis functions
@@ -450,7 +450,7 @@ class DirectorAxisAngle:
                 x0 = x0 * L / polynomial_degree_r
 
             r0 = np.vstack((x0, y0, z0))
-            for i in range(polynomial_degree_r):
+            for i in range(nnodes_r):
                 r0[:, i] = r_OP + A_IK @ r0[:, i]
 
         elif basis_r == "Hermite":
