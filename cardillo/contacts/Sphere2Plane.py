@@ -176,8 +176,7 @@ class Sphere2Plane:
         coo.extend(dense, (self.uDOF, self.qDOF))
 
     def __gamma_F(self, t, q, u):
-        v_C = self.v_P(t, q, u) + self.r * \
-            cross3(self.n(t), self.Omega(t, q, u))
+        v_C = self.v_P(t, q, u) + self.r * cross3(self.n(t), self.Omega(t, q, u))
         return self.t1t2(t) @ (v_C - self.v_Q(t))
 
     def gamma_F_q_dense(self, t, q, u):
@@ -421,8 +420,7 @@ class Sphere_to_plane2D:
         coo.extend(dense, (self.uDOF, self.qDOF))
 
     def __gamma_F(self, t, q, u):
-        v_C = self.v_P(t, q, u) + self.r * \
-            cross3(self.n(t), self.Omega(t, q, u))
+        v_C = self.v_P(t, q, u) + self.r * cross3(self.n(t), self.Omega(t, q, u))
         return np.array([self.t(t) @ (v_C - self.v_Q(t))])
 
     def gamma_F_q_dense(self, t, q, u):

@@ -23,11 +23,11 @@ class RigidBodyQuaternion:
     """
 
     def __init__(
-        self, 
-        m: float, 
-        K_theta_S: npt.ArrayLike, 
-        q0: npt.ArrayLike, 
-        u0:Optional[npt.ArrayLike] = None
+        self,
+        m: float,
+        K_theta_S: npt.ArrayLike,
+        q0: npt.ArrayLike,
+        u0: Optional[npt.ArrayLike] = None,
     ):
         self.m = m
         self.K_Theta_S = np.asarray(K_theta_S)

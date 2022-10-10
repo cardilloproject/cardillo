@@ -62,7 +62,7 @@ class Model(object):
 
     def pop(self, index):
         self.contributions.pop(index)
-    
+
     def extend(self, contr_list):
         list(map(self.add, contr_list))
 

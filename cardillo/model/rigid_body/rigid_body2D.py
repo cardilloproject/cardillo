@@ -99,8 +99,7 @@ class Rigid_body2D:
     def kappa_P_q(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
         omega = self.__vec_z(u[2])
         return np.einsum(
-            "ijk,j->ik", self.A_IK_q(t, q), cross3(omega,
-                                                   cross3(omega, K_r_SP))
+            "ijk,j->ik", self.A_IK_q(t, q), cross3(omega, cross3(omega, K_r_SP))
         )
 
     def kappa_P_u(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
