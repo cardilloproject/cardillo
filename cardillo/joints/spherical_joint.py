@@ -3,7 +3,7 @@ import numpy as np
 from cardillo.math.rotations import quat2mat, quat2mat_p, quat2rot, quat2rot_p
 
 
-class Spherical_joint:
+class SphericalJoint:
     def __init__(self, r_OB1, A_IB1, q0=None, u0=None):
         self.nq = 4
         self.nu = 3

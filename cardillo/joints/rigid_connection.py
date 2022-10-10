@@ -1,7 +1,7 @@
 import numpy as np
 
 
-class Rigid_connection:
+class RigidConnection:
     def __init__(self, r_OB1, A_IB1):
         self.nq = 0
         self.nu = 0
