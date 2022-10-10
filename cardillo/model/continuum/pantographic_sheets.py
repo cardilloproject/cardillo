@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 from cardillo.math.numerical_derivative import Numerical_derivative
 from cardillo.discretization.indexing import flat2D, flat3D, split2D, split3D
-from cardillo.discretization.B_spline import B_spline_basis3D
+from cardillo.discretization.b_spline import B_spline_basis3D
 from cardillo.math.algebra import det2D, inv3D, det3D, norm
 from cardillo.math.rotations import A_IK_basic
 from cardillo.discretization.mesh2D import Mesh2D
@@ -1030,7 +1030,7 @@ def test_gradients():
     # this test compares the deformation gradients F and G for the analytical and the discretized formulation of a deformed body
 
     from cardillo.discretization.mesh2D import rectangle
-    from cardillo.discretization.B_spline import BSplineKnotVector, fit_B_spline_volume
+    from cardillo.discretization.b_spline import BSplineKnotVector, fit_B_spline_volume
 
     # from cardillo.discretization.indexing import flat2D
     # from cardillo.model.continuum import Maurin2019

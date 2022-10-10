@@ -3,7 +3,7 @@ import meshio
 import os
 
 from cardillo.utility.coo import Coo
-from cardillo.discretization.Hermite import HermiteNodeVector
+from cardillo.discretization.hermite import HermiteNodeVector
 from cardillo.math import (
     e1,
     norm,

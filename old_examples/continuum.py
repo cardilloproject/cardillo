@@ -7,7 +7,7 @@ import pathlib
 import datetime
 from cardillo.discretization.mesh3D import Mesh3D, cube
 from cardillo.discretization.mesh2D import Mesh2D, rectangle
-from cardillo.discretization.B_spline import BSplineKnotVector, fit_B_spline_volume
+from cardillo.discretization.b_spline import BSplineKnotVector, fit_B_spline_volume
 from cardillo.discretization.indexing import flat3D, flat2D
 from cardillo.model.continuum import (
     Ogden1997_compressible,

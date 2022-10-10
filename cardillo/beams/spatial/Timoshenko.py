@@ -5,9 +5,9 @@ from math import sin, cos, sqrt
 from cardillo.math.algebra import skew2ax
 
 from cardillo.utility.coo import Coo
-from cardillo.discretization.B_spline import BSplineKnotVector
+from cardillo.discretization.b_spline import BSplineKnotVector
 from cardillo.discretization.lagrange import LagrangeKnotVector
-from cardillo.discretization.Hermite import HermiteNodeVector
+from cardillo.discretization.hermite import HermiteNodeVector
 from cardillo.discretization.mesh1D import Mesh1D
 from cardillo.math import norm, cross3, ax2skew, approx_fprime
 from cardillo.math import (
@@ -2752,7 +2752,7 @@ class TimoshenkoAxisAngleSE3Old:
         )
 
         # Build Bezier patches from B-spline control points
-        from cardillo.discretization.B_spline import decompose_B_spline_volume
+        from cardillo.discretization.b_spline import decompose_B_spline_volume
 
         Qw = decompose_B_spline_volume(knot_vector_objs, Pw)
 
@@ -2862,7 +2862,7 @@ class TimoshenkoAxisAngleSE3Old:
         )
 
         # Build Bezier patches from B-spline control points
-        from cardillo.discretization.B_spline import decompose_B_spline_volume
+        from cardillo.discretization.b_spline import decompose_B_spline_volume
 
         Qw = decompose_B_spline_volume(knot_vector_objs, Pw)
 
@@ -4781,7 +4781,7 @@ class TimoshenkoAxisAngle:
         )
 
         # Build Bezier patches from B-spline control points
-        from cardillo.discretization.B_spline import decompose_B_spline_volume
+        from cardillo.discretization.b_spline import decompose_B_spline_volume
 
         Qw = decompose_B_spline_volume(knot_vector_objs, Pw)
 
@@ -4891,7 +4891,7 @@ class TimoshenkoAxisAngle:
         )
 
         # Build Bezier patches from B-spline control points
-        from cardillo.discretization.B_spline import decompose_B_spline_volume
+        from cardillo.discretization.b_spline import decompose_B_spline_volume
 
         Qw = decompose_B_spline_volume(knot_vector_objs, Pw)
 
@@ -6672,7 +6672,7 @@ class TimoshenkoQuaternion:
         )
 
         # Build Bezier patches from B-spline control points
-        from cardillo.discretization.B_spline import decompose_B_spline_volume
+        from cardillo.discretization.b_spline import decompose_B_spline_volume
 
         Qw = decompose_B_spline_volume(knot_vector_objs, Pw)
 
@@ -6782,7 +6782,7 @@ class TimoshenkoQuaternion:
         )
 
         # Build Bezier patches from B-spline control points
-        from cardillo.discretization.B_spline import decompose_B_spline_volume
+        from cardillo.discretization.b_spline import decompose_B_spline_volume
 
         Qw = decompose_B_spline_volume(knot_vector_objs, Pw)
 

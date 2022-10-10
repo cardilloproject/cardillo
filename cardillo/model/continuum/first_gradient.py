@@ -6,7 +6,7 @@ from cardillo.system import System
 from cardillo.utility.coo import Coo
 from cardillo.math.numerical_derivative import Numerical_derivative
 from cardillo.discretization.indexing import flat2D, flat3D, split2D, split3D
-from cardillo.discretization.B_spline import B_spline_basis3D
+from cardillo.discretization.b_spline import B_spline_basis3D
 from cardillo.math.algebra import det2D, inv3D, det3D
 
 
@@ -403,7 +403,7 @@ class First_gradient:
 
 def test_gradient():
     from cardillo.discretization.mesh3D import Mesh3D, cube
-    from cardillo.discretization.B_spline import BSplineKnotVector, fit_B_spline_volume
+    from cardillo.discretization.b_spline import BSplineKnotVector, fit_B_spline_volume
     from cardillo.discretization.indexing import flat3D
 
     QP_shape = (1, 1, 1)
@@ -486,7 +486,7 @@ def test_gradient():
 
 def test_gradient_vtk_export():
     from cardillo.discretization.mesh3D import Mesh3D, cube
-    from cardillo.discretization.B_spline import BSplineKnotVector, fit_B_spline_volume
+    from cardillo.discretization.b_spline import BSplineKnotVector, fit_B_spline_volume
     from cardillo.discretization.indexing import flat3D
 
     QP_shape = (5, 5, 5)
@@ -547,7 +547,7 @@ def test_gradient_vtk_export():
 
 def test_internal_forces():
     from cardillo.discretization.mesh3D import Mesh3D, cube
-    from cardillo.discretization.B_spline import BSplineKnotVector, fit_B_spline_volume
+    from cardillo.discretization.b_spline import BSplineKnotVector, fit_B_spline_volume
     from cardillo.discretization.indexing import flat3D
     from cardillo.model.continuum import Ogden1997_compressible
 

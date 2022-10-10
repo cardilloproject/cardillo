@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.sparse.linalg import spsolve
-from cardillo.discretization.B_spline import (
+from cardillo.discretization.b_spline import (
     B_spline_basis2D,
     q_to_Pw_2D,
     decompose_B_spline_surface,
@@ -516,7 +516,7 @@ class Mesh2D:
 
 
 def test_edge_qDOF():
-    from cardillo.discretization.B_spline import BSplineKnotVector
+    from cardillo.discretization.b_spline import BSplineKnotVector
 
     # degrees = (1, 2, 3)
     # element_shape = (3, 2, 1)

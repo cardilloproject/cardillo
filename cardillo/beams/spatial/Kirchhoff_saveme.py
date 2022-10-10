@@ -3,7 +3,7 @@ import meshio
 import os
 
 from cardillo.utility.coo import Coo
-from cardillo.discretization.B_spline import BSplineKnotVector
+from cardillo.discretization.b_spline import BSplineKnotVector
 from cardillo.math import (
     e1,
     e2,

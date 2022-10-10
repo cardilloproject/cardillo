@@ -4,7 +4,7 @@ import meshio
 import os
 
 from cardillo.utility.coo import Coo
-from cardillo.discretization.B_spline import BSplineKnotVector
+from cardillo.discretization.b_spline import BSplineKnotVector
 from cardillo.discretization.lagrange import LagrangeKnotVector
 from cardillo.math.algebra import norm, cross3, skew2ax, skew2ax_A
 from cardillo.math import approx_fprime
@@ -1511,7 +1511,7 @@ class TimoshenkoBeamDirector(metaclass=ABCMeta):
         )
 
         # Build Bezier patches from B-spline control points
-        from cardillo.discretization.B_spline import decompose_B_spline_volume
+        from cardillo.discretization.b_spline import decompose_B_spline_volume
 
         Qw = decompose_B_spline_volume(knot_vector_objs, Pw)
 
@@ -1621,7 +1621,7 @@ class TimoshenkoBeamDirector(metaclass=ABCMeta):
         )
 
         # Build Bezier patches from B-spline control points
-        from cardillo.discretization.B_spline import decompose_B_spline_volume
+        from cardillo.discretization.b_spline import decompose_B_spline_volume
 
         Qw = decompose_B_spline_volume(knot_vector_objs, Pw)
 

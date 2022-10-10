@@ -1,5 +1,5 @@
 from .gauss import gauss
-from .B_spline import (
+from .b_spline import (
     BSplineKnotVector,
     find_knotspan,
     B_spline_basis1D,
@@ -8,4 +8,4 @@ from .B_spline import (
     fit_B_spline_curve,
 )
 from .lagrange import Lagrange_basis
-from .Hermite import HermiteNodeVector
+from .hermite import HermiteNodeVector

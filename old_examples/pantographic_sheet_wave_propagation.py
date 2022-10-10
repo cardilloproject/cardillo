@@ -20,13 +20,13 @@ from cardillo.model.scalar_force_interactions.force_laws import Linear_spring
 from cardillo.model.scalar_force_interactions import add_rotational_forcelaw
 from cardillo.solver.Newton import Newton
 from cardillo.solver import Generalized_alpha_index3_panto
-from cardillo.discretization.B_spline import uniform_knot_vector
+from cardillo.discretization.b_spline import uniform_knot_vector
 from cardillo.model.frame import Frame
 from cardillo.math.algebra import A_IK_basic_z
 from cardillo.utility.post_processing_vtk import post_processing
 from scipy.interpolate import interp1d
 
-from cardillo.discretization.B_spline import B_spline_basis1D
+from cardillo.discretization.b_spline import B_spline_basis1D
 
 
 class Junction:

@@ -1,12 +1,12 @@
 import numpy as np
 from scipy.sparse.linalg import spsolve
-from cardillo.discretization.B_spline import (
+from cardillo.discretization.b_spline import (
     B_spline_basis1D,
     decompose_B_spline_curve,
     flat1D_vtk,
 )
 from cardillo.discretization.lagrange import lagrange_basis1D
-from cardillo.discretization.Hermite import cubic_Hermite_basis_1D
+from cardillo.discretization.hermite import cubic_Hermite_basis_1D
 from cardillo.discretization.gauss import gauss, lobatto
 from cardillo.utility.coo import Coo
 
@@ -817,7 +817,7 @@ class MultifieldMesh1D:
 
 
 def test_point_qDOF():
-    from cardillo.discretization.B_spline import BSplineKnotVector
+    from cardillo.discretization.b_spline import BSplineKnotVector
 
     polynomial_degree = 3
     quadrature_points = polynomial_degree + 1

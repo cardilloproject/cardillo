@@ -3,9 +3,9 @@ from math import sin, cos
 from cardillo.math.rotations import Spurrier, smallest_rotation
 
 from cardillo.utility.coo import Coo
-from cardillo.discretization.B_spline import BSplineKnotVector
+from cardillo.discretization.b_spline import BSplineKnotVector
 from cardillo.discretization.lagrange import LagrangeKnotVector
-from cardillo.discretization.Hermite import HermiteNodeVector
+from cardillo.discretization.hermite import HermiteNodeVector
 from cardillo.discretization.mesh1D import Mesh1D
 from cardillo.math import norm, cross3, ax2skew, approx_fprime
 from cardillo.math import (

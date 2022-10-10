@@ -6,7 +6,7 @@ import os
 from cardillo.utility.coo import Coo
 from cardillo.math.algebra import ax2skew, norm, cross3, e3
 from cardillo.math import approx_fprime
-from cardillo.discretization.B_spline import BSplineKnotVector
+from cardillo.discretization.b_spline import BSplineKnotVector
 from cardillo.discretization.mesh1D import Mesh1D
 
 
