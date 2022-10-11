@@ -8,6 +8,7 @@ from cardillo.discretization.mesh2D import Mesh2D, rectangle
 from cardillo.discretization.b_spline import BSplineKnotVector, fit_B_spline_volume
 from cardillo.discretization.indexing import flat3D
 from cardillo.continuum import (
+    FirstGradient,
     SecondGradient,
     PantoboxBeamNetwork,
     PantosheetBeamNetwork,
@@ -163,8 +164,8 @@ def test_cube():
         b = lambda t: np.concatenate((b_xi(t), b_eta(t), b_zeta(t)))
 
     # 3D continuum
+    # continuum = FirstGradient(density, mat, mesh, Z)
     continuum = SecondGradient(density, mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
-    # continuum = First_gradient(density, mat, mesh, Z)
 
     # build model
     model = System()
@@ -350,7 +351,7 @@ def test_cylinder():
     density = 1e-2
 
     # 3D continuum
-    continuum = First_gradient(density, mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
+    continuum = FirstGradient(density, mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
 
     # build model
     model = System()
@@ -393,6 +394,7 @@ def test_embedded_rectangle():
     knot_vectors = (Xi, Eta)
 
     mesh = Mesh2D(knot_vectors, QP_shape, derivative_order=2, basis="B-spline", nq_n=3)
+    # mesh = Mesh2D(knot_vectors, QP_shape, derivative_order=1, basis="Lagrange", nq_n=3)
 
     # material parameters
     # material parameters
@@ -504,8 +506,7 @@ def test_embedded_rectangle():
     n_load_steps = 10
     tol = 1.0e-8
     max_iter = 20
-    # solver = Newton(model, n_load_steps=n_load_steps, atol=tol, max_iter=max_iter)
-    solver = NewtonOld(model, n_load_steps=n_load_steps, tol=tol, max_iter=max_iter)
+    solver = Newton(model, n_load_steps=n_load_steps, atol=tol, max_iter=max_iter)
 
     file_name = pathlib.Path(__file__).stem
     file_path = (

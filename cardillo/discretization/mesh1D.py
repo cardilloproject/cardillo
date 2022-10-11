@@ -38,7 +38,6 @@ class Mesh1D:
         derivative_order=1,
         basis="B-spline",
         quadrature="Gauss",
-        # quadrature="Lobatto",
         dim_u=None,
     ):
         self.basis = basis
@@ -93,17 +92,34 @@ class Mesh1D:
             # total number of nodes
             self.nnodes = self.degree * self.nelement + 1
 
-            elDOF_el = np.arange(self.nq_per_element)
-            elDOF_el_u = np.arange(self.nu_per_element)
+            # elDOF_el = np.arange(self.nq_per_element)
+            # elDOF_el_u = np.arange(self.nu_per_element)
+            # for el in range(self.nelement):
+            #     self.elDOF[el] = elDOF_el + el * (self.nnodes_per_element - 1) * dim_q
+            #     self.elDOF_u[el] = (
+            #         elDOF_el_u + el * (self.nnodes_per_element - 1) * dim_u
+            #     )
+
+            elDOF_el = np.concatenate(
+                [
+                    np.arange(self.nnodes_per_element) + i * self.nnodes
+                    for i in range(dim_q)
+                ]
+            )
+            elDOF_el_u = np.concatenate(
+                [
+                    np.arange(self.nnodes_per_element) + i * self.nnodes
+                    for i in range(dim_u)
+                ]
+            )
+
             for el in range(self.nelement):
-                self.elDOF[el] = elDOF_el + el * (self.nnodes_per_element - 1) * dim_q
-                self.elDOF_u[el] = (
-                    elDOF_el_u + el * (self.nnodes_per_element - 1) * dim_u
-                )
+                self.elDOF[el] = elDOF_el + el * self.degree
+                self.elDOF_u[el] = elDOF_el_u + el * self.degree
 
             self.vtk_cell_type = "VTK_LAGRANGE_CURVE"
         elif basis == "Hermite":
-            # raise NotImplementedError("Adapt according to new ordering of q!")
+            raise NotImplementedError("Adapt according to new ordering of q!")
 
             # total number of nodes
             self.nnodes = 2 * (self.nelement + 1)
@@ -122,11 +138,28 @@ class Mesh1D:
             # total number of nodes
             self.nnodes = self.degree + self.nelement
 
-            elDOF_el = np.arange(self.nq_per_element)
-            elDOF_el_u = np.arange(self.nu_per_element)
+            elDOF_el = np.concatenate(
+                [
+                    np.arange(self.nnodes_per_element) + i * self.nnodes
+                    for i in range(dim_q)
+                ]
+            )
+            elDOF_el_u = np.concatenate(
+                [
+                    np.arange(self.nnodes_per_element) + i * self.nnodes
+                    for i in range(dim_u)
+                ]
+            )
+
             for el in range(self.nelement):
-                self.elDOF[el] = elDOF_el + el * dim_q
-                self.elDOF_u[el] = elDOF_el_u + el * dim_u
+                self.elDOF[el] = elDOF_el + el
+                self.elDOF_u[el] = elDOF_el_u + el
+
+            # elDOF_el = np.arange(self.nq_per_element)
+            # elDOF_el_u = np.arange(self.nu_per_element)
+            # for el in range(self.nelement):
+            #     self.elDOF[el] = elDOF_el + el * dim_q
+            #     self.elDOF_u[el] = elDOF_el_u + el * dim_u
 
             self.vtk_cell_type = "VTK_BEZIER_CURVE"
 
@@ -136,17 +169,17 @@ class Mesh1D:
 
         # construct tthe Boolean selection amtrix that choses the coordinates
         # of an individual node via q[nodalDOF[a]] = C^a * q
-        self.nodalDOF = np.arange(self.nq).reshape(self.nnodes, dim_q)
-        self.nodalDOF_u = np.arange(self.nu).reshape(self.nnodes, dim_u)
+        self.nodalDOF = np.arange(self.nq).reshape(self.nnodes, dim_q, order="F")
+        self.nodalDOF_u = np.arange(self.nu).reshape(self.nnodes, dim_u, order="F")
 
         # Boolean connectivity matrix for nodal polynomial_degrees of freedom
         # inside each element. This is only required if multiple fields are
         # discretized. It is used as qe[nodalDOF_element_[a]] = q_e^a = C^a * q_e
         self.nodalDOF_element = np.arange(self.nq_per_element).reshape(
-            self.nnodes_per_element, dim_q
+            self.nnodes_per_element, dim_q, order="F"
         )
         self.nodalDOF_element_u = np.arange(self.nu_per_element).reshape(
-            self.nnodes_per_element, dim_u
+            self.nnodes_per_element, dim_u, order="F"
         )
 
         # transform quadrature points on element intervals

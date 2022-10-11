@@ -7,5 +7,5 @@ from .b_spline import (
     B_spline_basis3D,
     fit_B_spline_curve,
 )
-from .lagrange import Lagrange_basis
+
 from .hermite import HermiteNodeVector

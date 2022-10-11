@@ -1,4 +1,4 @@
-from .first_gradient import First_gradient
+from .first_gradient import FirstGradient
 from .first_gradient_material import (
     Ogden1997_compressible,
     Ogden1997_complete_2D_incompressible,

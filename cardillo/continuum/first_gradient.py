@@ -10,7 +10,7 @@ from cardillo.discretization.b_spline import B_spline_basis3D
 from cardillo.math.algebra import det2D, inv3D, det3D
 
 
-class First_gradient:
+class FirstGradient:
     def __init__(self, density, material, mesh, Z, z0=None, v0=None, cDOF=[], b=None):
         self.density = density
         self.mat = material
@@ -470,7 +470,7 @@ def test_gradient():
     cube_shape = (L, B, H)
     Q = cube(cube_shape, mesh, Greville=True)
     q0 = np.concatenate((x, y, z))
-    continuum = First_gradient(None, mesh, Q, z0=q0)
+    continuum = FirstGradient(None, mesh, Q, z0=q0)
 
     # import matplotlib.pyplot as plt
     # fig = plt.figure()
@@ -540,7 +540,7 @@ def test_gradient_vtk_export():
     Q = cube(cube_shape, mesh, Greville=True)
 
     # 3D continuum
-    continuum = First_gradient(1, None, mesh, Q, z0=Q)
+    continuum = FirstGradient(1, None, mesh, Q, z0=Q)
 
     # fit quater circle configuration
     def bending(xi, eta, zeta, phi0, R, B, H):
@@ -616,7 +616,7 @@ def test_internal_forces():
     b2 = lambda t: Z[cDOF2] + t * 0.25
     b = lambda t: np.concatenate((b1(t), b2(t)))
 
-    continuum = First_gradient(mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
+    continuum = FirstGradient(mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
 
     from cardillo.model import System
 

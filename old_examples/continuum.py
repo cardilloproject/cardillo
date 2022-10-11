@@ -12,7 +12,7 @@ from cardillo.discretization.indexing import flat3D, flat2D
 from cardillo.continuum import (
     Ogden1997_compressible,
     Ogden1997_incompressible,
-    First_gradient,
+    FirstGradient,
     Ogden1997_complete_2D_incompressible,
 )
 from cardillo.solver import Newton, EulerBackward
@@ -115,7 +115,7 @@ def test_cube():
         b = lambda t: np.concatenate((b_xi(t), b_eta(t), b_zeta(t)))
 
     # 3D continuum
-    continuum = First_gradient(density, mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
+    continuum = FirstGradient(density, mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
     # continuum = First_gradient(density, mat, mesh, Z)
 
     # build model
@@ -292,7 +292,7 @@ def test_cylinder():
     density = 1e-2
 
     # 3D continuum
-    continuum = First_gradient(density, mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
+    continuum = FirstGradient(density, mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
 
     # build model
     model = System()
@@ -361,7 +361,7 @@ def test_rectangle():
     b = lambda t: np.concatenate((b1(t), b2(t)))
 
     # 3D continuum
-    continuum = First_gradient(1, mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
+    continuum = FirstGradient(1, mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
 
     # vtk export reference configuration
     # continuum.post_processing_single_configuration(0, Z, 'rectangleReferenceConfig.vtu')
