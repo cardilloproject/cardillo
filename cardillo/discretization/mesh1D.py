@@ -92,14 +92,6 @@ class Mesh1D:
             # total number of nodes
             self.nnodes = self.degree * self.nelement + 1
 
-            # elDOF_el = np.arange(self.nq_per_element)
-            # elDOF_el_u = np.arange(self.nu_per_element)
-            # for el in range(self.nelement):
-            #     self.elDOF[el] = elDOF_el + el * (self.nnodes_per_element - 1) * dim_q
-            #     self.elDOF_u[el] = (
-            #         elDOF_el_u + el * (self.nnodes_per_element - 1) * dim_u
-            #     )
-
             elDOF_el = np.concatenate(
                 [
                     np.arange(self.nnodes_per_element) + i * self.nnodes
@@ -119,17 +111,28 @@ class Mesh1D:
 
             self.vtk_cell_type = "VTK_LAGRANGE_CURVE"
         elif basis == "Hermite":
-            raise NotImplementedError("Adapt according to new ordering of q!")
+            # raise NotImplementedError("Adapt according to new ordering of q!")
 
             # total number of nodes
             self.nnodes = 2 * (self.nelement + 1)
 
-            # ordering for a single node (needs to be shifted for each elements)
-            elDOF_node = np.arange(self.nbasis_element * self.dim_q)
-            elDOF_node_u = np.arange(self.nbasis_element * self.dim_u)
+            # # ordering for a single node (needs to be shifted for each elements)
+            # elDOF_node = np.arange(self.nbasis_element * self.dim_q)
+            # elDOF_node_u = np.arange(self.nbasis_element * self.dim_u)
+            # for el in range(self.nelement):
+            #     self.elDOF[el] = elDOF_node + el * 2 * self.dim_q
+            #     self.elDOF_u[el] = elDOF_node_u + el * 2 * self.dim_u
+
+            elDOF_el = np.concatenate(
+                [np.arange(4) + i * self.nnodes for i in range(dim_q)]
+            )
+            elDOF_el_u = np.concatenate(
+                [np.arange(4) + i * self.nnodes for i in range(dim_u)]
+            )
+
             for el in range(self.nelement):
-                self.elDOF[el] = elDOF_node + el * 2 * self.dim_q
-                self.elDOF_u[el] = elDOF_node_u + el * 2 * self.dim_u
+                self.elDOF[el] = elDOF_el + 2 * el
+                self.elDOF_u[el] = elDOF_el_u + 2 * el
 
             # TODO: Does VTK implement Hermite curves?
             # TODO: We should convert the Hermite spline into Bezier cells.

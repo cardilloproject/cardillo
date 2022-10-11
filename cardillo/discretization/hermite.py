@@ -85,6 +85,10 @@ class CubicHermiteBasis:
             values[i, 1] = self.h01(xii)
             values[i, 2] = self.h10(xii)
             values[i, 3] = self.h11(xii)
+            # values[i, 0] = self.h00(xii)
+            # values[i, 1] = self.h10(xii)
+            # values[i, 2] = self.h01(xii)
+            # values[i, 3] = self.h11(xii)
         return values
 
     def deriv(self, xis, n=1):
@@ -95,11 +99,17 @@ class CubicHermiteBasis:
             values[i, 1] = self.h01.deriv(n)(xii)
             values[i, 2] = self.h10.deriv(n)(xii)
             values[i, 3] = self.h11.deriv(n)(xii)
+            # values[i, 0] = self.h00.deriv(n)(xii)
+            # values[i, 1] = self.h10.deriv(n)(xii)
+            # values[i, 2] = self.h01.deriv(n)(xii)
+            # values[i, 3] = self.h11.deriv(n)(xii)
         return values
 
 
 class QuinticHermiteBasis:
     def __init__(self, interval=[0, 1]):
+        raise NotImplementedError("Adapt ordering!")
+
         # Quintic Hermite basis function on [0, 1], see
         # https://www.rose-hulman.edu/~finn/CCLI/Notes/day09.pdf.
         # Note: We have to perform a change of coordinates as described in

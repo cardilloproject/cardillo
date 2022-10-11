@@ -1,5 +1,5 @@
-from cardillo.model.frame import Frame
-from cardillo.model.bilateral_constraints.implicit import (
+from cardillo.discrete import Frame
+from cardillo.constraints import (
     SphericalJoint,
     Linear_guidance_xyz,
 )
@@ -8,11 +8,11 @@ from cardillo.beams import (
     Cable,
     animate_rope,
 )
-from cardillo.model.scalar_force_interactions import QuadraticPotential
-from cardillo.beams.spatial.Cable import QuadraticMaterial, QuadraticMaterialDegraded
-from cardillo.model.point_mass import PointMass
+from cardillo.scalar_force_interactions import QuadraticPotential
+from cardillo.beams.cable import QuadraticMaterial, QuadraticMaterialDegraded
+from cardillo.discrete import PointMass
 from cardillo.forces import DistributedForce1DBeam, Force
-from cardillo.model import System
+from cardillo import System
 from cardillo.solver import (
     Newton,
     ScipyIVP,
@@ -1308,10 +1308,10 @@ def cable_straight_inflated(case="cable"):
     nelements = 3
     # polynomial_degree = 2
     # basis = "Lagrange"
-    polynomial_degree = 3
-    basis = "B-spline"
     # polynomial_degree = 3
-    # basis = "Hermite"
+    # basis = "B-spline"
+    polynomial_degree = 3
+    basis = "Hermite"
 
     # rope parameters
     L = 3.14

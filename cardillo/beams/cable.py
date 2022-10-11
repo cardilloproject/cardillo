@@ -226,15 +226,23 @@ class Cable:
 
         elif basis == "Hermite":
             xis = np.linspace(0, 1, num=nn)
-            r0 = np.zeros((6, nn))
+
+            r0 = np.zeros((3, 2 * nn))
             t0 = A_IK @ (L * e1)
             for i, xi in enumerate(xis):
                 ri = r_OP + xi * t0
-                r0[:3, i] = ri
-                r0[3:, i] = t0
+                r0[:, 2 * i] = ri
+                r0[:, 2 * i + 1] = t0
+
+            # r0 = np.zeros((6, nn))
+            # t0 = A_IK @ (L * e1)
+            # for i, xi in enumerate(xis):
+            #     ri = r_OP + xi * t0
+            #     r0[:3, i] = ri
+            #     r0[3:, i] = t0
 
         # reshape generalized coordinates to nodal ordering
-        q = r0.reshape(-1, order="F")
+        q = r0.reshape(-1, order="C")
 
         return q
 
@@ -263,7 +271,7 @@ class Cable:
             r0[1, i] = R * np.cos(phi_i) - R * np.cos(phi)
 
         # reshape generalized coordinates to nodal ordering
-        q = r0.reshape(-1, order="F")
+        q = r0.reshape(-1, order="C")
         return q
 
     def element_number(self, xi):
@@ -481,7 +489,11 @@ class Cable:
         # return f_pot_q_el
 
         f_pot_q_el_num = approx_fprime(
-            qe, lambda qe: self.f_pot_el(t, qe, el), eps=1.0e-10, method="cs"
+            # qe, lambda qe: self.f_pot_el(t, qe, el), eps=1.0e-12, method="cs"
+            qe,
+            lambda qe: self.f_pot_el(t, qe, el),
+            eps=1.0e-6,
+            method="2-point",
         )
         # diff = f_pot_q_el - f_pot_q_el_num
         # error = np.linalg.norm(diff)
@@ -648,7 +660,7 @@ class Cable:
     ####################################################
     def nodes(self, q):
         q_body = q[self.qDOF]
-        return np.array([q_body[nodalDOF] for nodalDOF in self.nodalDOF]).T
+        return np.array([q_body[nodalDOF] for nodalDOF in self.nodalDOF[::2]]).T
 
     def centerline(self, q, n=100):
         q_body = q[self.qDOF]
