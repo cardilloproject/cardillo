@@ -108,7 +108,7 @@ class Mesh3D:
             self.nn_el * nq_n
         )  # total number of generalized coordinates per element
 
-        if self.basis == "lagrange":
+        if self.basis == "Lagrange":
             # number of total nodes
             self.nn = (
                 (self.p * self.nel_xi + 1)
@@ -196,8 +196,8 @@ class Mesh3D:
             return B_spline_basis3D(
                 degrees, derivative_order, [kv.data for kv in knot_vectors], knots
             )
-        elif self.basis == "lagrange":
-            return lagrange_basis3D(degrees, knots, derivative_order, knot_vectors)
+        elif self.basis == "Lagrange":
+            return lagrange_basis3D(degrees, knots, knot_vectors, derivative_order)
 
     def quadrature_points(self):
         self.qp_xi = np.zeros((self.nel_xi, self.nqp_xi))
@@ -596,7 +596,7 @@ class Mesh3D:
             # decompose B-spline mesh in Bezier patches
             Qw = decompose_B_spline_volume(self.knot_vector_objs, Pw)
 
-        elif self.basis == "lagrange":
+        elif self.basis == "Lagrange":
             # rearrange q's from solver to Piegl's 3D ordering
             Qw = np.zeros(
                 (
@@ -641,7 +641,7 @@ class Mesh3D:
             # decompose B-spline mesh in Bezier patches
             Qw = decompose_B_spline_volume(self.knot_vector_objs, Pw)
 
-        elif self.basis == "lagrange":
+        elif self.basis == "Lagrange":
             # rearrange q's from solver to Piegl's 3D ordering
             Qw = np.zeros(
                 (

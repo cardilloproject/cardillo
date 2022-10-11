@@ -104,7 +104,7 @@ class Mesh2D:
             self.nn_el * nq_n
         )  # total number of generalized coordinates per element
 
-        if self.basis == "lagrange":
+        if self.basis == "Lagrange":
             # number of total nodes
             self.nn = (self.p * self.nel_xi + 1) * (self.p * self.nel_eta + 1)
 
@@ -150,6 +150,9 @@ class Mesh2D:
 
             self.vtk_cell_type = "VTK_BEZIER_QUADRILATERAL"
 
+        else:
+            raise NotImplementedError(f"Basis: '{basis}' is not implemented!")
+
         # construct selection matrix ndDOF assining to each node its DOFs
         # qe[ndDOF[a]] is equivalent to q_e^a = C^a * q^e
         self.nodalDOF = np.zeros((self.nn_el, self.nq_n), dtype=int)
@@ -174,8 +177,8 @@ class Mesh2D:
             return B_spline_basis2D(
                 degrees, derivative_order, [kv.data for kv in knot_vectors], knots
             )
-        elif self.basis == "lagrange":
-            return lagrange_basis2D(degrees, knots, derivative_order, knot_vectors)
+        elif self.basis == "Lagrange":
+            return lagrange_basis2D(degrees, knots, knot_vectors, derivative_order)
 
     def evaluation_points(self, vxi):
         self.qp_xi = np.zeros((self.nel_xi, self.nqp_xi))

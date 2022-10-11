@@ -1,7 +1,7 @@
 import numpy as np
 from numpy.polynomial import Polynomial
 from scipy.sparse.linalg import spsolve
-from cardillo.discretization.indexing import flat2D, flat3D, split2D, split3D
+from cardillo.discretization.indexing import split2D, split3D
 import meshio
 
 
@@ -98,14 +98,14 @@ class LagrangeBasis:
         return values
 
 
-def lagrange_basis1D(degree, xis, derivative, node_vector, squeeze=True):
+def lagrange_basis1D(degree, xis, derivative, knot_vector, squeeze=True):
     """Compute Lagrange basis functions for a given node vector."""
     xis = np.atleast_1d(xis)
     nxis = len(xis)
     N = np.zeros((derivative + 1, nxis, degree + 1))
     for i, xi in enumerate(xis):
-        el = node_vector.element_number(xi)[0]
-        basis = LagrangeBasis(degree, interval=node_vector.element_interval(el))
+        el = knot_vector.element_number(xi)[0]
+        basis = LagrangeBasis(degree, interval=knot_vector.element_interval(el))
         N[0, i] = basis(xi)
         if derivative:
             for j in range(1, derivative + 1):
@@ -115,35 +115,7 @@ def lagrange_basis1D(degree, xis, derivative, node_vector, squeeze=True):
     return N
 
 
-def lagrange_basis1D_old(
-    degree, xi, derivative=1, knot_vector=None, interval=[-1, 1], squeeze=False
-):
-    p = degree
-
-    if not hasattr(xi, "__len__"):
-        xi = np.array([xi])
-
-    # k = len(xi)
-    # n = sum([1 for d in range(derivative + 1)])
-    # NN = np.zeros((n, k, p+1))
-    # Nxi, N_xi = Lagrange_basis(p, xi, derivative=True, knot_vector=knot_vector, interval=interval)
-
-    # NN[0] = Nxi
-    # if derivative > 0:
-    #     NN[1] = N_xi
-
-    # return NN
-    if squeeze:
-        return Lagrange_basis(
-            p, xi, derivative=derivative, knot_vector=knot_vector, interval=interval
-        ).squeeze()
-    else:
-        return Lagrange_basis(
-            p, xi, derivative=derivative, knot_vector=knot_vector, interval=interval
-        )
-
-
-def lagrange_basis2D(degrees, xis, derivative=1, knot_vectors=None, interval=[-1, 1]):
+def lagrange_basis2D(degrees, xis, knot_vectors, derivative=1):
     p, q = degrees
     xi, eta = xis
     p1q1 = (p + 1) * (q + 1)
@@ -160,12 +132,8 @@ def lagrange_basis2D(degrees, xis, derivative=1, knot_vectors=None, interval=[-1
     n = sum([2**d for d in range(derivative + 1)])
     NN = np.zeros((n, kl, p1q1))
     # TODO: make seperate 1D Basis function with second derrivative
-    Nxi = lagrange_basis1D(
-        p, xi, derivative=derivative, knot_vector=knot_vectors[0], interval=interval
-    )
-    Neta = lagrange_basis1D(
-        q, eta, derivative=derivative, knot_vector=knot_vectors[1], interval=interval
-    )
+    Nxi = lagrange_basis1D(p, xi, derivative=derivative, knot_vector=knot_vectors[0])
+    Neta = lagrange_basis1D(q, eta, derivative=derivative, knot_vector=knot_vectors[1])
 
     for i in range(kl):
         ik, il = split2D(i, (k,))
@@ -187,7 +155,7 @@ def lagrange_basis2D(degrees, xis, derivative=1, knot_vectors=None, interval=[-1
     return NN
 
 
-def lagrange_basis3D(degrees, xis, derivative=1, knot_vectors=None, interval=[-1, 1]):
+def lagrange_basis3D(degrees, xis, knot_vectors, derivative=1):
     p, q, r = degrees
     xi, eta, zeta = xis
     p1q1r1 = (p + 1) * (q + 1) * (r + 1)
@@ -206,29 +174,19 @@ def lagrange_basis3D(degrees, xis, derivative=1, knot_vectors=None, interval=[-1
 
     n = sum([3**d for d in range(derivative + 1)])
     NN = np.zeros((n, klm, p1q1r1))
-    # TODO: make seperate 1D Basis function with second derrivative
-    if knot_vectors:
-        Nxi = lagrange_basis1D(
-            p, xi, derivative=derivative, knot_vector=knot_vectors[0], interval=interval
-        )
-        Neta = lagrange_basis1D(
-            q,
-            eta,
-            derivative=derivative,
-            knot_vector=knot_vectors[1],
-            interval=interval,
-        )
-        Nzeta = lagrange_basis1D(
-            r,
-            zeta,
-            derivative=derivative,
-            knot_vector=knot_vectors[2],
-            interval=interval,
-        )
-    else:
-        Nxi = lagrange_basis1D(p, xi, interval=interval)
-        Neta = lagrange_basis1D(q, eta, interval=interval)
-        Nzeta = lagrange_basis1D(r, zeta, interval=interval)
+    Nxi = lagrange_basis1D(p, xi, derivative=derivative, knot_vector=knot_vectors[0])
+    Neta = lagrange_basis1D(
+        q,
+        eta,
+        derivative=derivative,
+        knot_vector=knot_vectors[1],
+    )
+    Nzeta = lagrange_basis1D(
+        r,
+        zeta,
+        derivative=derivative,
+        knot_vector=knot_vectors[2],
+    )
 
     for i in range(klm):
         ik, il, im = split3D(i, (k, l))
@@ -272,128 +230,6 @@ def lagrange_basis3D(degrees, xis, derivative=1, knot_vectors=None, interval=[-1
                     )
 
     return NN
-
-
-def Lagrange_basis(degree, x, derivative=1, knot_vector=None, interval=[-1, 1]):
-    """Compute Lagrange shape function basis.
-
-    Parameters
-    ----------
-    degree : int
-        polynomial degree
-    x : ndarray, 1D
-        array containing the evaluation points of the polynomial
-    derivative : bool
-        whether to compute the derivative of the shape function or not
-    returns : ndarray or (ndarray, ndarray)
-        2D array of shape (len(x), degree + 1) containing the k = degree + 1 shape functions evaluated at x and optional the array containing the corresponding first derivatives
-
-    """
-    if not hasattr(x, "__len__"):
-        x = [x]
-    nx = len(x)
-    N = np.zeros((derivative + 1, nx, degree + 1))
-    if knot_vector is not None:
-        for i, xi in enumerate(x):
-            el = knot_vector.element_number(xi)[0]
-            N[0, i] = __lagrange(xi, degree, interval=knot_vector.element_interval(el))
-        if derivative:
-            for i, xi in enumerate(x):
-                el = knot_vector.element_number(xi)[0]
-                N[1, i] = __lagrange_x(
-                    xi, degree, interval=knot_vector.element_interval(el)
-                )
-        return N
-    else:
-        for i, xi in enumerate(x):
-            N[0, i] = __lagrange(xi, degree, interval=interval)
-        if derivative:
-            for i, xi in enumerate(x):
-                N[1, i] = __lagrange_x(xi, degree, interval=interval)
-        return N
-
-
-def __lagrange(x, degree, skip=[], interval=[-1, 1]):
-    """1D Lagrange shape functions, see https://en.wikipedia.org/wiki/Lagrange_polynomial#Definition.
-
-    Parameter
-    ---------
-    x : float
-        evaluation point
-    degree : int
-        polynomial degree
-    returns : ndarray, 1D
-        array containing the k = degree + 1 shape functions evaluated at x
-    """
-    k = degree + 1
-    xi = np.linspace(interval[0], interval[1], num=k)
-    l = np.ones(k)
-    for j in range(k):
-        for m in range(k):
-            if m == j or m in skip:
-                continue
-            l[j] *= (x - xi[m]) / (xi[j] - xi[m])
-
-    return l
-
-
-def __lagrange_x(x, degree, interval=[-1, 1]):
-    """First derivative of 1D Lagrange shape functions, see https://en.wikipedia.org/wiki/Lagrange_polynomial#Derivatives.
-
-    Parameter
-    ---------
-    x : float
-        evaluation point
-    degree : int
-        polynomial degree
-    returns : ndarray, 1D
-        array containing the first derivative of the k = degree + 1 shape functions evaluated at x
-    """
-    k = degree + 1
-    xi = np.linspace(interval[0], interval[1], num=k)
-    l_x = np.zeros(k)
-    for j in range(k):
-        for i in range(k):
-            if i == j:
-                continue
-            prod = 1
-            for m in range(k):
-                if m == i or m == j:
-                    continue
-                prod *= (x - xi[m]) / (xi[j] - xi[m])
-            l_x[j] += prod / (xi[j] - xi[i])
-
-    return l_x
-
-
-def __lagrange_x_r(x, degree, skip=[]):
-    """Recursive formular for first derivative of Lagrange shape functions."""
-    k = degree + 1
-    xi = np.linspace(-1, 1, num=k)
-    l_x = np.zeros(k)
-    for j in range(k):
-        for i in range(k):
-            if i == j or i in skip:
-                continue
-            l = __lagrange(x, degree, skip=[i] + skip)
-            l_x[j] += l[j] / (xi[j] - xi[i])
-
-    return l_x
-
-
-def __lagrange_xx_r(x, degree):
-    """Recursive formular for second derivative of Lagrange shape functions."""
-    k = degree + 1
-    xi = np.linspace(-1, 1, num=k)
-    l_xx = np.zeros(k)
-    for j in range(k):
-        for i in range(k):
-            if i == j:
-                continue
-            l_x = __lagrange_x_r(x, degree, skip=[i])
-            l_xx[j] += l_x[j] / (xi[j] - xi[i])
-
-    return l_xx
 
 
 def lagrange_volume2vtk(mesh, Q, filename, binary=False):
@@ -605,7 +441,6 @@ def test_shape_functions_der():
 #     plt.scatter(*X,   color='red')
 
 #     plt.show()
-
 
 if __name__ == "__main__":
     import numpy as np

@@ -42,10 +42,9 @@ class DisplacementConstraint:
             N_eli = self.con_mesh.N[el, i]
             dqi = 0
             for a in range(self.con_mesh.nnodes_per_element):
+                nodalDOF_element = self.con_mesh.nodalDOF_element[a, self.x]
                 dqi += N_eli[a] * (
-                    qe[self.x * self.con_mesh.nnodes_per_element + a]
-                    - Qe[self.x * self.con_mesh.nnodes_per_element + a]
-                    - displacement
+                    qe[nodalDOF_element] - Qe[nodalDOF_element] - displacement
                 )
             for a_tilde in range(self.la_mesh.nnodes_per_element):
                 ge[a_tilde] += N_la_eli[a_tilde] * dqi * w_J0
@@ -71,7 +70,7 @@ class DisplacementConstraint:
             w_J0 = self.w_J0[el, i]
             for a in range(self.con_mesh.nnodes_per_element):
                 for a_tilde in range(self.la_mesh.nnodes_per_element):
-                    ge_q[a_tilde, self.con_mesh.nodalDOF[a, self.x]] += (
+                    ge_q[a_tilde, self.con_mesh.nodalDOF_element[a, self.x]] += (
                         N_la_eli[a_tilde] * N_eli[a] * w_J0
                     )
         return ge_q
@@ -159,9 +158,9 @@ class GradientConstraint:
             dqi_X = 0
             # gradient difference in direction X
             for a in range(self.mesh.nnodes_per_element):
+                nodalDOF_element = self.con_mesh.nodalDOF_element[a, self.x]
                 dqi_X += Nb_X_eli[a, self._X] * (
-                    qe[self.x * self.mesh.nnodes_per_element + a]
-                    - Qe[self.x * self.mesh.nnodes_per_element + a]
+                    qe[nodalDOF_element] - Qe[nodalDOF_element]
                 )
             for a_tilde in range(self.la_mesh.nnodes_per_element):
                 ge[a_tilde] += N_la_eli[a_tilde] * dqi_X * w_J0
@@ -187,7 +186,7 @@ class GradientConstraint:
             w_J0 = self.w_J0[el, i]
             for a in range(self.mesh.nnodes_per_element):
                 for a_tilde in range(self.con_mesh.nnodes_per_element):
-                    ge_q[a_tilde, self.mesh.nodalDOF[a, self.x]] += (
+                    ge_q[a_tilde, self.mesh.nodalDOF_element[a, self.x]] += (
                         N_la_eli[a_tilde] * Nb_X_eli[a, self._X] * w_J0
                     )
         return ge_q
