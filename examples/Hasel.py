@@ -11,7 +11,7 @@ from cardillo.beams import (
 from cardillo.model.scalar_force_interactions import QuadraticPotential
 from cardillo.beams.spatial.Cable import QuadraticMaterial, QuadraticMaterialDegraded
 from cardillo.model.point_mass import PointMass
-from cardillo.forces import DistributedForce1D, Force
+from cardillo.forces import DistributedForce1DBeam, Force
 from cardillo.model import System
 from cardillo.solver import (
     Newton,
@@ -549,7 +549,7 @@ def inflated_straight():
         fg = lambda t, xi: t * __fg
     else:
         fg = lambda t, xi: __fg
-    gravity = DistributedForce1D(fg, rope)
+    gravity = DistributedForce1DBeam(fg, rope)
 
     # assemble the model
     model = System()
@@ -1035,7 +1035,7 @@ def inflated_circular_segment():
             else:
                 return np.zeros(3, dtype=float)
 
-    gravity = DistributedForce1D(fg, rope)
+    gravity = DistributedForce1DBeam(fg, rope)
 
     # __f = 1.0e1 * e1
     # if statics:
@@ -1247,7 +1247,7 @@ def cable_straight(case="cable"):
         fg = lambda t, xi: t * __fg
     else:
         fg = lambda t, xi: __fg
-    gravity = DistributedForce1D(fg, rope)
+    gravity = DistributedForce1DBeam(fg, rope)
 
     # assemble the model
     model = System()
@@ -1580,7 +1580,7 @@ def cable_inflated_circular_segment(case="rope"):
             else:
                 return np.zeros(3, dtype=float)
 
-    gravity = DistributedForce1D(fg, rope)
+    gravity = DistributedForce1DBeam(fg, rope)
 
     # __f = 1.0e1 * e1
     # if statics:

@@ -19,7 +19,7 @@ from cardillo.math import (
     quat2mat,
     quat2mat_p,
     trace3,
-    LeviCivita,
+    LeviCivita3,
     skew2ax,
 )
 
@@ -133,8 +133,8 @@ def Exp_SO3_psi(psi: np.ndarray) -> np.ndarray:
                             0.5
                             * beta
                             * (
-                                LeviCivita(k, l, i) * psi_tilde[l, j]
-                                + psi_tilde[l, i] * LeviCivita(k, l, j)
+                                LeviCivita3(k, l, i) * psi_tilde[l, j]
+                                + psi_tilde[l, i] * LeviCivita3(k, l, j)
                             )
                         )
     else:

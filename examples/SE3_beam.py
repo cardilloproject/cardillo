@@ -31,7 +31,7 @@ from cardillo.beams import (
     BernoulliAxisAngleSE3,
     TimoshenkoAxisAngleSE3,
 )
-from cardillo.forces import Force, K_Force, K_Moment, Moment, DistributedForce1D
+from cardillo.forces import Force, K_Force, K_Moment, Moment, DistributedForce1DBeam
 from cardillo.model import System
 from cardillo.solver import (
     Newton,
@@ -369,9 +369,9 @@ def run(statics):
     # gravity beam
     g = np.array([0, 0, -cross_section.area * cross_section.density * 9.81 * 1.0e-1])
     if statics:
-        f_g_beam = DistributedForce1D(lambda t, xi: t * g, beam)
+        f_g_beam = DistributedForce1DBeam(lambda t, xi: t * g, beam)
     else:
-        f_g_beam = DistributedForce1D(lambda t, xi: g, beam)
+        f_g_beam = DistributedForce1DBeam(lambda t, xi: g, beam)
 
     # moment at right end
     Fi = material_model.Fi
@@ -1486,7 +1486,7 @@ def HeavyTop():
 
         # gravity beam
         vg = np.array(-cross_section.area * cross_section.density * g * e3, dtype=float)
-        f_g_beam = DistributedForce1D(lambda t, xi: vg, beam)
+        f_g_beam = DistributedForce1DBeam(lambda t, xi: vg, beam)
 
         # assemble the model
         model = System()
@@ -1913,7 +1913,7 @@ def distributed_force():
     joint1 = RigidConnection(frame1, beam, r_OB0, frame_ID2=(0,))
 
     b = lambda t, xi: -t * e3 * 1.0e-1
-    force = DistributedForce1D(b, beam)
+    force = DistributedForce1DBeam(b, beam)
 
     # assemble the model
     model = System()

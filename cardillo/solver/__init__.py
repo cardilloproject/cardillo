@@ -21,4 +21,5 @@ from .NonsmoothGeneralizedAlpha import NonsmoothGeneralizedAlpha
 
 # static solvers
 from .Newton import Newton
+from .NewtonOld import NewtonOld
 from .Riks import Riks

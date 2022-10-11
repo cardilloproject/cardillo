@@ -68,10 +68,10 @@ class System:
         list(map(self.add, contr_list))
 
     # def pre_iteration_update(self, t, q, u):
-    #     """Update or precalculate any system variables before next solver iteration"""
+    #     """ Update or precalculate any system variables before next solver iteration """
     #     for contr in self.contributions:
-    #         if callable(getattr(contr, "pre_iteration_update", None)):
-    #             contr.pre_iteration_update(t, q, u)
+    #         if callable(getattr(contr, 'pre_iteration_update', None)):
+    #             contr.pre_iteration_update(t, q[contr.qDOF], u)
 
     def assemble(self):
         self.nq = 0
@@ -214,9 +214,7 @@ class System:
 
     def pre_iteration_update(self, t, q, u):
         for contr in self.__pre_iteration_update_contr:
-            q[contr.qDOF], u[contr.uDOF] = contr.pre_iteration_update(
-                t, q[contr.qDOF], u[contr.uDOF]
-            )
+            contr.pre_iteration_update(t, q[contr.qDOF], u[contr.uDOF])
         return q, u
 
     def step_callback(self, t, q, u):

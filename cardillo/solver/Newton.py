@@ -167,6 +167,8 @@ class Newton:
         la_g = x[nq : nq + nla_g]
         la_N = x[nq + nla_g :]
 
+        self.pre_iteration_update(t, q)
+
         # compute redundant coordinates
         z = self.z(t, q)
 
@@ -234,6 +236,10 @@ class Newton:
         yield next(self.__eval__analytic(t, x))
         yield self.__jacobian(t, x)
 
+    def pre_iteration_update(self, t, q):
+        z = self.z(t, q)
+        self.model.pre_iteration_update(t, z, self.u)
+
     def solve(self):
         # compute numbe rof digits for status update
         len_t = len(str(self.nt))
@@ -244,15 +250,6 @@ class Newton:
         else:
             pbar = range(0, self.nt)
         for i in pbar:
-
-            # ti = self.load_steps[i]
-            # qi = self.x[i, : self.nq]
-            # zi = self.z(ti, qi)
-            # ui = self.u
-            # zi, ui = self.model.pre_iteration_update(ti, zi, ui)
-            # # qi = zi[self.fDOF_q]
-            # # self.x[i, : self.nq] = qi
-
             # compute initial residual
             generator = self.__eval__(self.load_steps[i], self.x[i])
             R = next(generator)
@@ -292,7 +289,6 @@ class Newton:
                     self.x[i] -= update
 
                     # compute new residual
-                    # self.model.pre_iteration_update(self.load_steps[i], self.x[i, :self.nq], self.u)
                     generator = self.__eval__(self.load_steps[i], self.x[i])
                     R = next(generator)
 

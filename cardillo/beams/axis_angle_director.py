@@ -13,7 +13,7 @@ from cardillo.math import (
     approx_fprime,
     tangent_map_s,
     trace3,
-    LeviCivita,
+    LeviCivita3,
     e1,
 )
 
@@ -105,8 +105,8 @@ def Exp_SO3_psi(psi: np.ndarray) -> np.ndarray:
                             0.5
                             * beta
                             * (
-                                LeviCivita(k, l, i) * psi_tilde[l, j]
-                                + psi_tilde[l, i] * LeviCivita(k, l, j)
+                                LeviCivita3(k, l, i) * psi_tilde[l, j]
+                                + psi_tilde[l, i] * LeviCivita3(k, l, j)
                             )
                         )
     else:

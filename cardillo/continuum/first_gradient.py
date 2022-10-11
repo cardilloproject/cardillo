@@ -116,7 +116,7 @@ class First_gradient:
                 "C": lambda F: F.T @ F,
                 "J": lambda F: np.array([self.determinant(F)]),
                 "P": lambda F: self.mat.P(F),
-                "S": lambda F: self.mat.S(F),
+                # "S": lambda F: self.mat.S(F),
                 "W": lambda F: self.mat.W(F),
             }
 
@@ -126,6 +126,13 @@ class First_gradient:
                 for i, Fi in enumerate(F_vtk):
                     field[i] = fun(Fi.reshape(self.dim, self.dim)).reshape(-1)
                 point_data.update({name: field})
+
+            # TODO: Get field data workding.
+            #    # Global Values as Field Data
+            #     field_data = {
+            #     "W_tot": self.integrate(self.mat.W, F)
+            #     }
+            #     print(field_data)
 
             # write vtk mesh using meshio
             meshio.write_points_cells(
@@ -170,6 +177,19 @@ class First_gradient:
         xml_str = root.toprettyxml(indent="\t")
         with (filename.parent / (filename.stem + ".pvd")).open("w") as f:
             f.write(xml_str)
+
+    def integrate(self, var, F):
+        # integrates variable over domain
+        Var = 0.0
+        for el in range(self.nel):
+            for i in range(self.nqp):
+                vari = var(F[el, i])
+                # Neli = self.N[el, i]
+                w_J0eli = self.w_J0[el, i]
+                # for a in range(self.nq_n):
+                Var += vari * w_J0eli
+
+        return np.array([[Var]])
 
     def F_qp(self, q):
         """Compute deformation gradient at quadrature points"""
@@ -486,9 +506,17 @@ def test_gradient():
 
 
 def test_gradient_vtk_export():
+    import pathlib
     from cardillo.discretization.mesh3D import Mesh3D, cube
     from cardillo.discretization.b_spline import BSplineKnotVector, fit_B_spline_volume
     from cardillo.discretization.indexing import flat3D
+
+    file_name = pathlib.Path(__file__).stem
+    file_path = (
+        pathlib.Path(__file__).parent / "results" / f"{file_name}_cube" / file_name
+    )
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    export_path = file_path.parent / "sol"
 
     QP_shape = (5, 5, 5)
     degrees = (3, 3, 1)
@@ -512,7 +540,7 @@ def test_gradient_vtk_export():
     Q = cube(cube_shape, mesh, Greville=True)
 
     # 3D continuum
-    continuum = First_gradient(None, mesh, Q, z0=Q)
+    continuum = First_gradient(1, None, mesh, Q, z0=Q)
 
     # fit quater circle configuration
     def bending(xi, eta, zeta, phi0, R, B, H):

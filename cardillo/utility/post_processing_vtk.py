@@ -1,6 +1,7 @@
 import numpy as np
 import meshio
 import os
+import pickle
 
 
 def post_processing(subsystem, t, q, filename, u=None, binary=True):
@@ -16,6 +17,8 @@ def post_processing(subsystem, t, q, filename, u=None, binary=True):
 
     collection = root.createElement("Collection")
     vkt_file.appendChild(collection)
+
+    nodes = {}
 
     if u is None:
         u = np.zeros_like(q)
@@ -33,7 +36,9 @@ def post_processing(subsystem, t, q, filename, u=None, binary=True):
         cells = []
         HigherOrderDegrees = []
         point_data = {}
+        field_data = {}
         offset = 0
+        nodes_ti = []
 
         for subsystemi in subsystem:
             (
@@ -64,18 +69,37 @@ def post_processing(subsystem, t, q, filename, u=None, binary=True):
                 else:
                     point_data.update({key: point_datai[key]})
 
+            # update field data
+            field_data = {
+                k: field_data.get(k, 0) + field_datai.get(k, 0)
+                for k in set(field_datai)
+            }
+
+            # update nodal positions
+            nodes_ti.extend(subsystemi.centerline(qi, 5).T)
+        nodes.update({i: nodes_ti})
+
+        # write field data
+        with open(filei.parent / f"field_data_{i}", mode="wb") as f:
+            pickle.dump(field_data, f)
+
         # write vtk mesh using meshio
         meshio.write_points_cells(
-            filei,
+            filei.parent / (filei.stem + ".vtu"),
             # os.path.splitext(os.path.basename(filei))[0] + '.vtu',
             geom_points,  # only export centerline as geometry here!
             cells,
             point_data=point_data,
             cell_data={"HigherOrderDegrees": HigherOrderDegrees},
+            field_data=field_data,
             binary=binary,
         )
 
+    # write nodal positions for centerline points of beams to external file
+    with open(filename.parent / "nodes", mode="wb") as f:
+        pickle.dump(nodes, f)
+
     # write pvd file
     xml_str = root.toprettyxml(indent="\t")
-    with open(filename + ".pvd", "w") as f:
+    with (filename.parent / (filename.stem + ".pvd")).open("w") as f:
         f.write(xml_str)

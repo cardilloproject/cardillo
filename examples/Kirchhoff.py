@@ -15,7 +15,7 @@ from cardillo.beams import (
     TimoshenkoAxisAngle,
     TimoshenkoAxisAngleSE3,
 )
-from cardillo.forces import Force, K_Moment, DistributedForce1D
+from cardillo.forces import Force, K_Moment, DistributedForce1DBeam
 from cardillo.contacts import Line2Line
 from cardillo.model import System
 from cardillo.solver import (
@@ -414,7 +414,7 @@ def run(statics=True):
 
     # gravity beam
     g = np.array([0, 0, -cross_section.area * cross_section.density * 9.81])
-    f_g_beam = DistributedForce1D(lambda t, xi: g, beam)
+    f_g_beam = DistributedForce1DBeam(lambda t, xi: g, beam)
 
     # moment at right end
     Fi = material_model.Fi
@@ -806,8 +806,8 @@ def run_contact():
 
     # gravity beam
     g = np.array([0, 0, -cross_section.area * cross_section.density * 9.81])
-    f_g_beam0 = DistributedForce1D(lambda t, xi: g, beam0)
-    f_g_beam1 = DistributedForce1D(lambda t, xi: g, beam1)
+    f_g_beam0 = DistributedForce1DBeam(lambda t, xi: g, beam0)
+    f_g_beam1 = DistributedForce1DBeam(lambda t, xi: g, beam1)
 
     # contact between both beams
     eps_contact = 1.0e4

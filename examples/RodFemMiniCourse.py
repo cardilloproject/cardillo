@@ -12,7 +12,7 @@ from cardillo.model.bilateral_constraints.implicit import (
     SphericalJoint,
 )
 
-from cardillo.forces import Force, K_Moment, DistributedForce1D
+from cardillo.forces import Force, K_Moment, DistributedForce1DBeam
 from cardillo.model import System
 from cardillo.solver import Newton, ScipyIVP
 
@@ -442,7 +442,7 @@ def HeavyTop():
 
         # gravity beam
         vg = np.array(-cross_section.area * cross_section.density * g * e3, dtype=float)
-        f_g_beam = DistributedForce1D(lambda t, xi: vg, beam)
+        f_g_beam = DistributedForce1DBeam(lambda t, xi: vg, beam)
 
         # assemble the model
         model = System()
