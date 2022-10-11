@@ -240,9 +240,6 @@ class Mesh2D():
 
         self.edge_mesh = (line01, line01, line23, line23)
 
-        for i in range(4):
-            self.edge_mesh[i].idx = i
-
     # TODO: handle derivatives, check usage of function
     def interpolate(self, knots, q, derivative_order=0):
         n = len(knots)

@@ -198,31 +198,6 @@ class Mesh3D:
         elif self.basis == "lagrange":
             return lagrange_basis3D(degrees, knots, derivative_order, knot_vectors)
 
-    def evaluation_points(self):
-        raise NotImplementedError("...")
-        self.qp_xi = np.zeros((self.nel_xi, self.nqp_xi))
-        self.qp_eta = np.zeros((self.nel_eta, self.nqp_eta))
-        self.qp_zeta = np.zeros((self.nel_zeta, self.nqp_zeta))
-        self.wp = np.zeros((self.nel, self.nqp))
-
-        for el in range(self.nel):
-            el_xi, el_eta, el_zeta = split3D(el, self.nel_per_dim)
-
-            Xi_element_interval = self.Xi.element_interval(el_xi)
-            Eta_element_interval = self.Eta.element_interval(el_eta)
-            Zeta_element_interval = self.Zeta.element_interval(el_zeta)
-
-            self.qp_xi[el_xi], w_xi = gauss(self.nqp_xi, interval=Xi_element_interval)
-            self.qp_eta[el_eta], w_eta = gauss(
-                self.nqp_eta, interval=Eta_element_interval
-            )
-            self.qp_zeta[el_zeta], w_zeta = gauss(
-                self.nqp_zeta, interval=Zeta_element_interval
-            )
-
-            for i in range(self.nqp):
-                i_xi, i_eta, i_zeta = split3D(i, self.nqp_per_dim)
-                self.wp[el, i] = w_xi[i_xi] * w_eta[i_eta] * w_zeta[i_zeta]
 
     def quadrature_points(self):
         self.qp_xi = np.zeros((self.nel_xi, self.nqp_xi))
@@ -323,8 +298,7 @@ class Mesh3D:
         self.Nb = (Nb0, Nb1, Nb2, Nb3, Nb4, Nb5)
         self.Nb_xi = (Nb0_xi, Nb1_xi, Nb2_xi, Nb3_xi, Nb4_xi, Nb5_xi)
         self.Nb_xixi = (Nb0_xixi, Nb1_xixi, Nb2_xixi, Nb3_xixi, Nb4_xixi, Nb5_xixi)
-        # self.Nb_X = (self.Nb_X(0), self.Nb_X(1), self.Nb_X(2),
-        #             self.Nb_X(3), self.Nb_X(4), self.Nb_X(5))
+        
     # DOF of boundary elements. Needed for double-forces
     def boundary_elements(self):
         bc0 = np.zeros((self.nel_eta * self.nel_zeta), dtype=int)
@@ -355,6 +329,7 @@ class Mesh3D:
                 idx += 1
 
         self.bc_el = (bc0, bc1, bc2, bc3, bc4, bc5)
+
     # boundary surface DOF
     def surfaces(self):
         def select_surface(**kwargs):
@@ -434,9 +409,6 @@ class Mesh3D:
             surface45,
             surface45,
         )
-        # TODO: doesn't work as surfaces are not copies!!
-        for i in range(6):
-            self.surface_mesh[i].idx = i
 
     # TODO: handle derivatives
     def interpolate(self, knots, q, derivative_order=0):
@@ -531,7 +503,6 @@ class Mesh3D:
                 N_xi = self.N_xi[el, i]
                 N_xixi = self.N_xixi[el, i]
                 kappa0_xi_inv_el_i = kappa0_xi_inv[el, i]
-                kappa0_xi_eli = inverse3D(kappa0_xi_inv_el_i)
                 kappa0_xixi = np.zeros((self.nq_n, 3, 3))
                 for a in range(self.nn_el):
                     kappa0_xixi += np.einsum(
@@ -547,7 +518,7 @@ class Mesh3D:
                                 "i,ijk->jk", N_xi[a] @ kappa0_xi_inv_el_i, kappa0_xixi
                             )
                         )
-                        @ kappa0_xi_inv_el_i  # or kappa0_xi_inv_eli?
+                        @ kappa0_xi_inv_el_i
                     )  # Maurin2019 (28) modified
         return N_XX
 
@@ -556,7 +527,6 @@ class Mesh3D:
         srf = self.surface_mesh[srf_idx]
         kappa0_xi_inv = np.zeros((srf.nel, srf.nqp, self.nq_n, self.nq_n))
         Nb_X = np.zeros((srf.nel, srf.nqp, self.nn_el, self.nq_n))
-        # w_J0 = np.zeros((self.nel, self.nqp))
         for el in range(srf.nel):
             Qe = Q[self.elDOF[self.bc_el[srf_idx][el]]]
 
@@ -570,13 +540,11 @@ class Mesh3D:
                     )  # Bonet 1997 (7.6b)
 
                 kappa0_xi_inv[el, i] = inverse3D(kappa0_xi)
-                # w_J0[el, i] = determinant3D(kappa0_xi) * self.wp[el, i]
 
                 for a in range(self.nn_el):
                     Nb_X[el, i, a] = (
                         Nb_xi[a] @ kappa0_xi_inv[el, i]
                     )  # Bonet 1997 (7.6a) modified
-                    # N_X[el, i, a] = kappa0_xi_inv[el, i].T @ N_xi[a] # Bonet 1997 (7.6a)
 
         return Nb_X
 
