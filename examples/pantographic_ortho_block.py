@@ -1,10 +1,8 @@
+from dis import dis
 import numpy as np
-import matplotlib.pyplot as plt
-import os
 import os.path
 import pickle
 import pathlib
-import datetime
 from cardillo.discretization.mesh3D import Mesh3D, cube
 from cardillo.discretization.mesh2D import Mesh2D, rectangle
 from cardillo.discretization.lagrange import Node_vector
@@ -31,8 +29,6 @@ from cardillo.model.bilateral_constraints.implicit import (
     Gradient_constraint,
     Linear_guidance_x,
 )
-
-# from cardillo.model.bilateral_constraints.implicit.incompressibility import Incompressibility
 
 
 def save_solution(sol, filename):
@@ -288,30 +284,30 @@ def ortho_block_cuboid():
     ]
 
     # 3D continuum
-    cDOF, b = boundary_conditions_cube(cube_shape, mesh, Z, tests=tests, srf_idx=[4, 5])
-    continuum = Second_gradient(density, mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
+    # cDOF, b = boundary_conditions_cube(cube_shape, mesh, Z, tests=tests, srf_idx=[4, 5])
+    # continuum = Second_gradient(density, mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
     # continuum = First_gradient(density, mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
-    # continuum = Second_gradient(density, mat, mesh, Z, z0=Z)
+    continuum = Second_gradient(density, mat, mesh, Z, z0=Z)
     # RB = Rigid_body_euler(1, np.eye(3), q0=np.concatenate((np.array([0,0,210.]), np.zeros(3))))
 
-    # shear constraint
-    bs = lambda t, q: RB.r_OP(t, q)[2]
+    # # shear constraint
+    # bs = lambda t, q: RB.r_OP(t, q)[2]
 
-    # tension constraint
-    bt = lambda t, q: t * 50.0 * u_l
+    # # tension constraint
+    # bt = lambda t, q: t * 50.0 * u_l
 
-    # # Weak contstraints
+    # Weak contstraints
     # TODO: combine in function
-    # la_mesh_z = Mesh2D((Xi, Eta), QP_shape[1:], derivative_order=0, nq_n=1)
+    la_mesh_z = Mesh2D((Xi, Eta), QP_shape[1:], derivative_order=0, nq_n=1)
     # la_mesh_y = Mesh2D((Xi, Zeta), (3, 3), derivative_order=0, nq_n=1)
     # la_mesh_x = Mesh2D((Eta, Zeta), (3, 3), derivative_order=0, nq_n=1)
 
-    # displacement_constraint_x = Displacement_constraint(
-    #     continuum, la_mesh_z, srf_id=4, x=0
-    # )
-    # displacement_constraint_x1 = Displacement_constraint(
-    #     continuum, la_mesh_z, srf_id=5, x=0
-    # )
+    displacement_constraint_x = Displacement_constraint(
+        continuum, la_mesh_z, srf_id=4, x=0
+    )
+    displacement_constraint_x1 = Displacement_constraint(
+        continuum, la_mesh_z, srf_id=5, x=0, disp=lambda t: t * 1
+    )
     # displacement_constraint_y = Displacement_constraint(
     #     continuum, la_mesh_z, srf_id=4, x=1
     # )
@@ -331,7 +327,7 @@ def ortho_block_cuboid():
     # gradient_constraint_x_Z = Gradient_constraint(continuum, la_mesh_z, srf_id=4, x=0, _X=2)
     # gradient_constraint_y_Z = Gradient_constraint(continuum, la_mesh_z, srf_id=4, x=1, _X=2)
     # gradient_constraint_z_Z = Gradient_constraint(continuum, la_mesh_z, srf_id=4, x=2, _X=2)
-    # gradient_constraint_x_Z1 = Gradient_constraint(continuum, la_mesh_z, srf_id=5, x=0, _X=2)
+    gradient_constraint_x_Z1 = Gradient_constraint(continuum, la_mesh_z, srf_id=5, x=0, _X=2)
     # gradient_constraint_y_Z1 = Gradient_constraint(continuum, la_mesh_z, srf_id=5, x=1, _X=2)
     # gradient_constraint_z_Z1 = Gradient_constraint(continuum, la_mesh_z, srf_id=5, x=2, _X=2)
 
@@ -354,17 +350,17 @@ def ortho_block_cuboid():
     # model.add(traction_force)
     model.add(continuum)
     # model.add(gradient_constraint)
-    # model.add(displacement_constraint_x)
+    model.add(displacement_constraint_x)
     # model.add(displacement_constraint_y)
     # model.add(displacement_constraint_z)
-    # model.add(displacement_constraint_x1)
+    model.add(displacement_constraint_x1)
     # model.add(displacement_constraint_y1)
     # model.add(displacement_constraint_z1)
 
     # model.add(gradient_constraint_x_Z)
     # model.add(gradient_constraint_y_Z)
     # model.add(gradient_constraint_z_Z)
-    # model.add(gradient_constraint_x_Z1)
+    model.add(gradient_constraint_x_Z1)
     # model.add(gradient_constraint_y_Z1)
     # model.add(gradient_constraint_z_Z1)
     # model.add(displacement_constraint_shear)

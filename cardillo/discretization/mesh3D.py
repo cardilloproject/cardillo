@@ -185,10 +185,10 @@ class Mesh3D:
         self.surfaces()
 
         # store shape function values on boundary quadrature points
-        # self.shape_functions_boundary()
+        self.shape_functions_boundary()
 
         # store array with mesh element number on boundaries
-        # self.boundary_elements()
+        self.boundary_elements()
 
     def basis3D(self, degrees, derivative_order, knot_vectors, knots):
         if self.basis == "B-spline":
