@@ -1,25 +1,40 @@
 import numpy as np
-from scipy.sparse.linalg import spsolve 
+from scipy.sparse.linalg import spsolve
 from scipy.sparse import csr_matrix, bmat, identity
 from tqdm import tqdm
 
 from cardillo.math import Numerical_derivative
 from cardillo.solver import Solution
 
-class Generalized_alpha_index3_panto():
-    """Generalized alpha solver. 
+
+class Generalized_alpha_index3_panto:
+    """Generalized alpha solver.
     Constraints on position level and constraints on velocity level can be solved;
     no derivatives of constraint functions are computed!
     """
-    def __init__(self, model, t1, dt, \
-                 rho_inf=1, beta=None, gamma=None, alpha_m=None, alpha_f=None,\
-                 newton_tol=1e-8, newton_max_iter=40, newton_error_function=lambda x: np.max(np.abs(x))):
-        
+
+    def __init__(
+        self,
+        model,
+        t1,
+        dt,
+        rho_inf=1,
+        beta=None,
+        gamma=None,
+        alpha_m=None,
+        alpha_f=None,
+        newton_tol=1e-8,
+        newton_max_iter=40,
+        newton_error_function=lambda x: np.max(np.abs(x)),
+    ):
+
         self.model = model
 
         # integration time
         self.t0 = t0 = model.t0
-        self.t1 = t1 if t1 > t0 else ValueError("t1 must be larger than initial time t0.")
+        self.t1 = (
+            t1 if t1 > t0 else ValueError("t1 must be larger than initial time t0.")
+        )
         self.dt = dt
 
         # parameter
@@ -55,15 +70,23 @@ class Generalized_alpha_index3_panto():
         self.la_gk = model.la_g0
 
         self.M0 = M0 = model.M(t0, model.q0)
-        rhs0 = self.model.h(t0, model.q0, model.u0) + self.model.W_g(t0, model.q0) @ model.la_g0
+        rhs0 = (
+            self.model.h(t0, model.q0, model.u0)
+            + self.model.W_g(t0, model.q0) @ model.la_g0
+        )
         self.ak = spsolve(M0.tocsr(), rhs0)
         self.a_bark = self.ak.copy()
-        
+
         self.__R_gen = self.__R_gen_analytic
 
         # evaluate quantities at previous time step
-        self.q_a = dt**2 * self.beta * self.alpha_ratio * identity(self.model.nq, format='csr') 
-        self.u_a = dt * self.gamma * self.alpha_ratio 
+        self.q_a = (
+            dt**2
+            * self.beta
+            * self.alpha_ratio
+            * identity(self.model.nq, format="csr")
+        )
+        self.u_a = dt * self.gamma * self.alpha_ratio
 
     def update(self, ak1, store=False):
         """update dependent variables modifed version of Capobianco2019 (17):
@@ -73,14 +96,18 @@ class Generalized_alpha_index3_panto():
         """
         dt = self.dt
         dt2 = dt * dt
-        a_bark1 = (self.alpha_f * self.ak + (1 - self.alpha_f) * ak1 - self.alpha_m * self.a_bark) / (1 - self.alpha_m)
+        a_bark1 = (
+            self.alpha_f * self.ak
+            + (1 - self.alpha_f) * ak1
+            - self.alpha_m * self.a_bark
+        ) / (1 - self.alpha_m)
         uk1 = self.uk + dt * ((1 - self.gamma) * self.a_bark + self.gamma * a_bark1)
         a_beta = (0.5 - self.beta) * self.a_bark + self.beta * a_bark1
         if store:
             self.a_bark = a_bark1
         qk1 = self.qk + dt * self.uk + dt2 * a_beta
         return qk1, uk1
-        
+
     def __R_gen_analytic(self, tk1, xk1):
         nu = self.nu
 
@@ -91,24 +118,26 @@ class Generalized_alpha_index3_panto():
 
         # evaluate mass matrix and constraint force directions and rhs
         W_gk1 = self.model.W_g(tk1, qk1)
-        
+
         ###################
         # evaluate residual
         ###################
         R = np.zeros(self.nR)
 
         # equations of motion
-        R[:nu] = self.M0 @ ak1 -( self.model.h(tk1, qk1, uk1) + W_gk1 @ la_gk1)
+        R[:nu] = self.M0 @ ak1 - (self.model.h(tk1, qk1, uk1) + W_gk1 @ la_gk1)
 
         # constraints on position level
         R[nu:] = self.model.g(tk1, qk1)
-       
+
         yield R
 
         ###############################################################################################
         # R[:nu] = Mk1 @ ak1 -( self.model.h(tk1, qk1, uk1) + W_gk1 @ la_gk1 + W_gammak1 @ la_gammak1 )
         ###############################################################################################
-        rhs_q = self.model.h_q(tk1, qk1, uk1, scipy_matrix=csr_matrix) + self.model.Wla_g_q(tk1, qk1, la_gk1, scipy_matrix=csr_matrix)
+        rhs_q = self.model.h_q(
+            tk1, qk1, uk1, scipy_matrix=csr_matrix
+        ) + self.model.Wla_g_q(tk1, qk1, la_gk1, scipy_matrix=csr_matrix)
         rhs_u = self.model.h_u(tk1, qk1, uk1)
 
         Ra_a = self.M0 - rhs_q @ self.q_a - self.u_a * rhs_u
@@ -118,14 +147,18 @@ class Generalized_alpha_index3_panto():
         # R[nu:nu+nla_g] = self.model.g(tk1, qk1)
         #########################################
         Rla_g_a = W_gk1.T @ self.q_a
-        
+
         # sparse assemble global tangent matrix
-        R_x =  bmat([ [Ra_a,    Ra_la_g],
-                      [Rla_g_a,    None],
-                    ], format='csr')
+        R_x = bmat(
+            [
+                [Ra_a, Ra_la_g],
+                [Rla_g_a, None],
+            ],
+            format="csr",
+        )
 
         yield R_x
-           
+
     def step(self, tk1, xk1):
         # initial residual and error
         R_gen = self.__R_gen(tk1, xk1)
@@ -137,14 +170,14 @@ class Generalized_alpha_index3_panto():
             while j < self.newton_max_iter:
                 # jacobian
                 R_x = next(R_gen)
-                
+
                 # Newton update
                 j += 1
                 dx = spsolve(R_x, R)
                 xk1 -= dx
                 R_gen = self.__R_gen(tk1, xk1)
                 R = next(R_gen)
-                
+
                 error = self.newton_error_function(R)
                 converged = error < self.newton_tol
                 if converged:
@@ -172,15 +205,19 @@ class Generalized_alpha_index3_panto():
             la_gk1 = xk1[nu:]
 
             # update progress bar and check convergence
-            pbar.set_description(f't: {tk1:0.2e}s < {self.t1:0.2e}s; Newton: {n_iter}/{self.newton_max_iter} iterations; error: {error:0.2e}')
+            pbar.set_description(
+                f"t: {tk1:0.2e}s < {self.t1:0.2e}s; Newton: {n_iter}/{self.newton_max_iter} iterations; error: {error:0.2e}"
+            )
             if not converged:
-                raise RuntimeError(f'internal Newton-Raphson method not converged after {n_iter} steps with error: {error:.5e}')
+                raise RuntimeError(
+                    f"internal Newton-Raphson method not converged after {n_iter} steps with error: {error:.5e}"
+                )
 
             # update dependent variables
             qk1, uk1 = self.update(ak1, store=True)
 
             # modify converged quantities
-            qk1, uk1 = self.model.solver_step_callback(tk1, qk1, uk1)
+            qk1, uk1 = self.model.step_callback(tk1, qk1, uk1)
 
             # store soltuion fields
             t.append(tk1)
@@ -196,4 +233,10 @@ class Generalized_alpha_index3_panto():
             self.la_gk = la_gk1
 
         # write solution
-        return Solution(t=np.array(t), q=np.array(q), u=np.array(u), a=np.array(a), la_g=np.array(la_g))
+        return Solution(
+            t=np.array(t),
+            q=np.array(q),
+            u=np.array(u),
+            a=np.array(a),
+            la_g=np.array(la_g),
+        )

@@ -1,0 +1,299 @@
+%% Mathematical symbols
+% the real numbers
+\newcommand{\mR}{\mathbb{R}}
+% the three-dimensional Euclidian space
+\newcommand{\Eucl}{\mathbb{E}^3}
+% the set of all second order Euclidean tensors
+\newcommand{\EuclSecTens}{\operatorname{L}(\Eucl; \Eucl)}
+% the set of permutations
+\newcommand{\perm}{\mathrm{Perm}}
+% the general linear group
+\newcommand{\GL}{GL}
+% the orthogonal group
+\newcommand{\Orth}{O}
+% the special orthogonal group
+\newcommand{\SO}{SO}
+% matrix transpose
+\newcommand{\T}{^{\!\mathrm{T}}}
+% exterior derivative
+\newcommand{\ed}{d}
+% differential of a function
+\newcommand{\DD}{D}
+% integration d
+\newcommand{\dd}{\mathrm{d}}
+% set of smooth functions
+\newcommand{\funct}{\mathrm{C}^\infty}
+% set of smooth vector fields
+\newcommand{\vect}{\mathrm{Vect}}
+% set of smooth covector fields
+\newcommand{\covect}{\mathrm{\Omega}^1}
+% differential measure
+\newcommand{\diff}[1][]{\mathrm{d}#1}
+
+% induced basis on the tangent space
+\newcommand{\e}[1]{\frac{\partial}{\partial #1}}
+
+% Lie derivative
+\newcommand{\lie}{\mathrm{L}}
+% partial derivative
+\newcommand{\pd}[2]{\frac{\partial #1}{\partial #2}}
+% total derivative
+\newcommand{\td}[2]{\frac{\mathrm{d} #1}{\mathrm{d} #2}}
+
+% identity map
+\newcommand{\id}{\mathrm{id}}
+% projection map
+\newcommand{\pr}{\mathrm{pr}}
+\DeclareMathOperator{\sgn}{sgn}
+
+% the zero vector
+\newcommand{\vzero}{\mathbf{0}}
+\newcommand{\veczero}{\symsfup{0}}
+
+% span
+\DeclareMathOperator{\Span}{span}
+
+% capital kappa
+\newcommand{\Kappa}{\mathrm{K}}
+\newcommand{\vKa}{\bm{\Kappa}}
+
+
+%% bold letters
+
+%bold greek
+\newcommand{\val}{\bm{\alpha}}
+\newcommand{\vbe}{\bm{\beta}}
+\newcommand{\vga}{\bm{\gamma}}
+\newcommand{\vde}{\bm{\delta}}
+\newcommand{\vep}{\bm{\epsilon}}
+\newcommand{\vze}{\bm{\zeta}}
+\newcommand{\vet}{\bm{\eta}}
+\newcommand{\vth}{\bm{\theta}}
+\newcommand{\vio}{\bm{\iota}}
+\newcommand{\vka}{\bm{\kappa}}
+\newcommand{\vla}{\bm{\lambda}}
+\newcommand{\vmu}{\bm{\mu}}
+\newcommand{\vnu}{\bm{\nu}}
+\newcommand{\vxi}{\bm{\xi}}
+\newcommand{\vpi}{\bm{\pi}}
+\newcommand{\vrh}{\bm{\rho}}
+\newcommand{\vsi}{\bm{\sigma}}
+\newcommand{\vta}{\bm{\tau}}
+\newcommand{\vup}{\bm{\upsilon}}
+%\newcommand{\vph}{\bm{\varphi}}
+\newcommand{\vph}{\bm{\phi}} % springer template version
+\newcommand{\vch}{\bm{\chi}}
+\newcommand{\vps}{\bm{\psi}}
+\newcommand{\vom}{\bm{\omega}}
+
+\newcommand{\vvep}{\bm{\varepsilon}}
+\newcommand{\vvth}{\bm{\vartheta}}
+\newcommand{\vvrh}{\bm{\varrho}}
+\newcommand{\vvpi}{\bm{\varpi}}
+\newcommand{\vvsi}{\bm{\varsigma}}
+%\newcommand{\vph}{\bm{\phi}}
+\newcommand{\vvph}{\bm{\varphi}} % springer template version
+
+% bold capital greek
+%\newcommand{\vGa}{\mathbf \Gamma}
+%\newcommand{\vDe}{\mathbf \Delta}
+%\newcommand{\vTh}{\mathbf \Theta}
+%\newcommand{\vLa}{\mathbf \Lambda}
+%\newcommand{\vXi}{\mathbf \Xi}
+%\newcommand{\vPi}{\mathbf \Pi}
+%\newcommand{\vSi}{\mathbf \Sigma}
+%\newcommand{\vUp}{\mathbf \Upsilon}
+%\newcommand{\vPh}{\mathbf \Phi}
+%\newcommand{\vPs}{\mathbf \Psi}
+%\newcommand{\vOm}{\mathbf \Omega}
+%
+\newcommand{\vGa}{\bm \Gamma}
+\newcommand{\vDe}{\bm \Delta}
+\newcommand{\vTh}{\bm \Theta}
+\newcommand{\vLa}{\bm \Lambda}
+\newcommand{\vXi}{\bm \Xi}
+\newcommand{\vPi}{\bm \Pi}
+\newcommand{\vSi}{\bm \Sigma}
+\newcommand{\vUp}{\bm \Upsilon}
+\newcommand{\vPh}{\bm \Phi}
+\newcommand{\vPs}{\bm \Psi}
+\newcommand{\vOm}{\bm \Omega}
+
+% cursive upright bold capital symbols
+%\newcommand{\vGa}{\bm \varGamma}
+%\newcommand{\vDe}{\bm \varDelta}
+%\newcommand{\vTh}{\bm \varTheta}
+%\newcommand{\vLa}{\bm \varLambda}
+%\newcommand{\vXi}{\bm \varXi}
+%\newcommand{\vPi}{\bm \varPi}
+%\newcommand{\vSi}{\bm \varSigma}
+%\newcommand{\vUp}{\bm \varUpsilon}
+%\newcommand{\vPh}{\bm \varPhi}
+%\newcommand{\vPs}{\bm \varPsi}
+%\newcommand{\vOm}{\bm \varOmega}
+
+%capital greek slanted, OHNE amsmath-package
+%\newcommand{\iGa}{\mathnormal{\Gamma}}
+%\newcommand{\iDe}{\mathnormal{\Delta}}
+%\newcommand{\iTh}{\mathnormal{\Theta}}
+%\newcommand{\iLa}{\mathnormal{\Lambda}}
+%\newcommand{\iXi}{\mathnormal{\Xi}}
+%\newcommand{\iPi}{\mathnormal{\Pi}}
+%\newcommand{\iSi}{\mathnormal{\Sigma}}
+%\newcommand{\iUp}{\mathnormal{\Upsilon}}
+%\newcommand{\iPh}{\mathnormal{\Phi}}
+%\newcommand{\iPs}{\mathnormal{\Psi}}
+%\newcommand{\iOm}{\mathnormal{\Omega}}
+
+%capital greek slanted, MIT amsmath-package
+\newcommand{\iGa}{\varGamma}
+\newcommand{\iDe}{\varDelta}
+\newcommand{\iTh}{\varTheta}
+\newcommand{\iLa}{\varLambda}
+\newcommand{\iXi}{\varXi}
+\newcommand{\iPi}{\varPi}
+\newcommand{\iSi}{\varSigma}
+\newcommand{\iUp}{\varUpsilon}
+\newcommand{\iPh}{\varPhi}
+\newcommand{\iPs}{\varPsi}
+\newcommand{\iOm}{\varOmega}
+
+%bold latin
+\newcommand{\va}{\mathbf a}
+\newcommand{\vb}{\mathbf b}
+\newcommand{\vc}{\mathbf c}
+\newcommand{\vd}{\mathbf d}
+\newcommand{\ve}{\mathbf e}
+\newcommand{\vf}{\mathbf f}
+\newcommand{\vg}{\mathbf g}
+\newcommand{\vh}{\mathbf h}
+\newcommand{\vi}{\mathbf i}
+\newcommand{\vj}{\mathbf j}
+\newcommand{\vk}{\mathbf k}
+\newcommand{\vl}{\mathbf l}
+\newcommand{\vm}{\mathbf m}
+\newcommand{\vn}{\mathbf n}
+\newcommand{\vo}{\mathbf o}
+\newcommand{\vp}{\mathbf p}
+\newcommand{\vq}{\mathbf q}
+\newcommand{\vr}{\mathbf r}
+\newcommand{\vs}{\mathbf s}
+\newcommand{\vt}{\mathbf t}
+\newcommand{\vu}{\mathbf u}
+\newcommand{\vv}{\mathbf v}
+\newcommand{\vw}{\mathbf w}
+\newcommand{\vx}{\mathbf x}
+\newcommand{\vy}{\mathbf y}
+\newcommand{\vz}{\mathbf z}
+\newcommand{\eins}{\mathbf 1}
+
+%bold capital latin
+\newcommand{\vA}{\mathbf A}
+\newcommand{\vB}{\mathbf B}
+\newcommand{\vC}{\mathbf C}
+\newcommand{\vD}{\mathbf D}
+\newcommand{\vE}{\mathbf E}
+\newcommand{\vF}{\mathbf F}
+\newcommand{\vG}{\mathbf G}
+\newcommand{\vH}{\mathbf H}
+\newcommand{\vI}{\mathbf I}
+\newcommand{\vJ}{\mathbf J}
+\newcommand{\vK}{\mathbf K}
+\newcommand{\vL}{\mathbf L}
+\newcommand{\vM}{\mathbf M}
+\newcommand{\vN}{\mathbf N}
+\newcommand{\vO}{\mathbf O}
+\newcommand{\vP}{\mathbf P}
+\newcommand{\vQ}{\mathbf Q}
+\newcommand{\vR}{\mathbf R}
+\newcommand{\vS}{\mathbf S}
+\newcommand{\vT}{\mathbf T}
+\newcommand{\vU}{\mathbf U}
+\newcommand{\vV}{\mathbf V}
+\newcommand{\vW}{\mathbf W}
+\newcommand{\vX}{\mathbf X}
+\newcommand{\vY}{\mathbf Y}
+\newcommand{\vZ}{\mathbf Z}
+
+%calligraphic
+\newcommand{\cA}{\mathcal{A}}
+\newcommand{\cB}{\mathcal{B}}
+\newcommand{\cC}{\mathcal{C}}
+\newcommand{\cD}{\mathcal{D}}
+\newcommand{\cE}{\mathcal{E}}
+\newcommand{\cF}{\mathcal{F}}
+\newcommand{\cG}{\mathcal{G}}
+\newcommand{\cH}{\mathcal{H}}
+\newcommand{\cI}{\mathcal{I}}
+\newcommand{\cJ}{\mathcal{J}}
+\newcommand{\cK}{\mathcal{K}}
+\newcommand{\cL}{\mathcal{L}}
+\newcommand{\cM}{\mathcal{M}}
+\newcommand{\cN}{\mathcal{N}}
+\newcommand{\cO}{\mathcal{O}}
+\newcommand{\cP}{\mathcal{P}}
+\newcommand{\cQ}{\mathcal{Q}}
+\newcommand{\cR}{\mathcal{R}}
+\newcommand{\cS}{\mathcal{S}}
+\newcommand{\cT}{\mathcal{T}}
+\newcommand{\cU}{\mathcal{U}}
+\newcommand{\cV}{\mathcal{V}}
+\newcommand{\cW}{\mathcal{W}}
+\newcommand{\cX}{\mathcal{X}}
+\newcommand{\cY}{\mathcal{Y}}
+\newcommand{\cZ}{\mathcal{Z}}
+
+%fraktur
+\newcommand{\frA}{\mathfrak{A}}
+\newcommand{\frB}{\mathfrak{B}}
+\newcommand{\frC}{\mathfrak{C}}
+\newcommand{\frD}{\mathfrak{D}}
+\newcommand{\frE}{\mathfrak{E}}
+\newcommand{\frF}{\mathfrak{F}}
+\newcommand{\frG}{\mathfrak{G}}
+\newcommand{\frH}{\mathfrak{H}}
+\newcommand{\frI}{\mathfrak{I}}
+\newcommand{\frJ}{\mathfrak{J}}
+\newcommand{\frK}{\mathfrak{K}}
+\newcommand{\frL}{\mathfrak{L}}
+\newcommand{\frM}{\mathfrak{M}}
+\newcommand{\frN}{\mathfrak{N}}
+\newcommand{\frO}{\mathfrak{O}}
+\newcommand{\frP}{\mathfrak{P}}
+\newcommand{\frQ}{\mathfrak{Q}}
+\newcommand{\frR}{\mathfrak{R}}
+\newcommand{\frS}{\mathfrak{S}}
+\newcommand{\frT}{\mathfrak{T}}
+\newcommand{\frU}{\mathfrak{U}}
+\newcommand{\frV}{\mathfrak{V}}
+\newcommand{\frW}{\mathfrak{W}}
+\newcommand{\frX}{\mathfrak{X}}
+\newcommand{\frY}{\mathfrak{Y}}
+\newcommand{\frZ}{\mathfrak{Z}}
+
+\newcommand{\fra}{\mathfrak{a}}
+\newcommand{\frb}{\mathfrak{b}}
+\newcommand{\frc}{\mathfrak{c}}
+\newcommand{\frd}{\mathfrak{d}}
+\newcommand{\fre}{\mathfrak{e}}
+\newcommand{\frf}{\mathfrak{f}}
+\newcommand{\frg}{\mathfrak{g}}
+\newcommand{\frh}{\mathfrak{h}}
+\newcommand{\fri}{\mathfrak{i}}
+\newcommand{\frj}{\mathfrak{j}}
+\newcommand{\frk}{\mathfrak{k}}
+\newcommand{\frl}{\mathfrak{l}}
+\newcommand{\frm}{\mathfrak{m}}
+\newcommand{\frn}{\mathfrak{n}}
+\newcommand{\fro}{\mathfrak{o}}
+\newcommand{\frp}{\mathfrak{p}}
+\renewcommand{\frq}{\mathfrak{q}}
+\newcommand{\frr}{\mathfrak{r}}
+\newcommand{\frs}{\mathfrak{s}}
+\newcommand{\frt}{\mathfrak{t}}
+\newcommand{\fru}{\mathfrak{u}}
+\newcommand{\frv}{\mathfrak{v}}
+\newcommand{\frw}{\mathfrak{w}}
+\newcommand{\frx}{\mathfrak{x}}
+\newcommand{\fry}{\mathfrak{y}}
+\newcommand{\frz}{\mathfrak{z}}

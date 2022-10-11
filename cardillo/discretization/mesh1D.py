@@ -1,12 +1,13 @@
 import numpy as np
 from scipy.sparse.linalg import spsolve
-from cardillo.discretization.B_spline import (
+from cardillo.discretization.b_spline import (
     B_spline_basis1D,
     decompose_B_spline_curve,
     flat1D_vtk,
 )
 from cardillo.discretization.lagrange import lagrange_basis1D
-from cardillo.discretization.gauss import gauss
+from cardillo.discretization.hermite import cubic_Hermite_basis_1D
+from cardillo.discretization.gauss import gauss, lobatto
 from cardillo.utility.coo import Coo
 
 
@@ -29,65 +30,124 @@ def line2D(L, mesh, Greville=False, Fuzz=None):
 
 
 class Mesh1D:
-    def __init__(self, knot_vector, nqp, derivative_order=1, basis="B-spline", nq_n=2):
+    def __init__(
+        self,
+        knot_vector,
+        nquadrature,
+        dim_q,
+        derivative_order=1,
+        basis="B-spline",
+        quadrature="Gauss",
+        # quadrature="Lobatto",
+        dim_u=None,
+    ):
         self.basis = basis
-        # number of elements
-        self.nel = knot_vector.nel
-
-        # knot vectors
+        self.nelement = knot_vector.nel
         self.knot_vector = knot_vector
         self.data = self.knot_vector.data
         self.degree = self.knot_vector.degree
-        self.degrees1 = self.degree + 1
-        self.p = self.degree
-
         self.derivative_order = derivative_order
+        self.nquadrature = nquadrature
+        if quadrature == "Gauss":
+            self.quadrature = gauss
+        elif quadrature == "Lobatto":
+            self.quadrature = lobatto
+        else:
+            raise NotImplementedError(
+                f"Quadrature method '{quadrature}' is not implemented!"
+            )
 
-        # number of quadrature points
-        self.nqp = nqp
+        # we might have different meshes for q and u, e.g. quaternions for
+        # describing spatial rotations
+        if dim_u is None:
+            self.dim_u = dim_u = dim_q
 
-        # number of nodes influencing each element
-        self.nn_el = self.p + 1
-        self.nq_n = nq_n  # number of degrees of freedom per node
-        self.nq_el = (
-            self.nn_el * nq_n
+        if basis == "Lagrange" or basis == "B-spline":
+            self.nnodes_per_element = (
+                self.degree + 1
+            )  # number of nodes influencing each element
+            self.dim_q = dim_q  # number of degrees of freedom per node
+            self.nbasis_element = (
+                self.nnodes_per_element
+            )  # number of basis function per element
+        elif basis == "Hermite":
+            self.nnodes_per_element = 4
+            self.dim_q = dim_q  # number of degrees of freedom per node
+            self.nbasis_element = 4  # number of basis function per element
+        else:
+            raise NotImplementedError("")
+        self.nq_per_element = (
+            self.nnodes_per_element * dim_q
         )  # total number of generalized coordinates per element
+        self.nu_per_element = (
+            self.nnodes_per_element * dim_u
+        )  # total number of generalized velocities per element
 
-        if basis == "lagrange":
-            self.nn = self.p * self.nel + 1
+        # Boolean connectivity matrix for element polynomial_degrees of
+        # freedom. This is used to extract the element degrees of freedom via
+        # q[elDOF[el]] = q_e = C^e * q.
+        self.elDOF = np.zeros((self.nelement, self.nq_per_element), dtype=int)
+        self.elDOF_u = np.zeros((self.nelement, self.nu_per_element), dtype=int)
 
-            # elDOF
-            self.elDOF = np.zeros((self.nel, self.nq_n * self.nn_el), dtype=int)
-            for el in range(self.nel):
-                for a in range(self.nn_el):
-                    elDOF_x = self.p * el + a
-                    for d in range(self.nq_n):
-                        self.elDOF[el, a + self.nn_el * d] = elDOF_x + self.nn * d
+        if basis == "Lagrange":
+            # total number of nodes
+            self.nnodes = self.degree * self.nelement + 1
+
+            elDOF_el = np.arange(self.nq_per_element)
+            elDOF_el_u = np.arange(self.nu_per_element)
+            for el in range(self.nelement):
+                self.elDOF[el] = elDOF_el + el * (self.nnodes_per_element - 1) * dim_q
+                self.elDOF_u[el] = (
+                    elDOF_el_u + el * (self.nnodes_per_element - 1) * dim_u
+                )
 
             self.vtk_cell_type = "VTK_LAGRANGE_CURVE"
+        elif basis == "Hermite":
+            # raise NotImplementedError("Adapt according to new ordering of q!")
 
+            # total number of nodes
+            self.nnodes = 2 * (self.nelement + 1)
+
+            # ordering for a single node (needs to be shifted for each elements)
+            elDOF_node = np.arange(self.nbasis_element * self.dim_q)
+            elDOF_node_u = np.arange(self.nbasis_element * self.dim_u)
+            for el in range(self.nelement):
+                self.elDOF[el] = elDOF_node + el * 2 * self.dim_q
+                self.elDOF_u[el] = elDOF_node_u + el * 2 * self.dim_u
+
+            # TODO: Does VTK implement Hermite curves?
+            # TODO: We should convert the Hermite spline into Bezier cells.
+            self.vtk_cell_type = "VTK_LAGRANGE_CURVE"
         elif basis == "B-spline":
-            # number of total nodes
-            self.nn = self.p + self.nel
+            # total number of nodes
+            self.nnodes = self.degree + self.nelement
 
-            # construct selection matrix elDOF assigning to each element its DOFs of the displacement
-            # q[elDOF[el]] is equivalent to q_e = C^e * q
-            self.elDOF = np.zeros((self.nel, self.nq_n * self.nn_el), dtype=int)
-            for el in range(self.nel):
-                for a in range(self.nn_el):
-                    elDOF_x = el + a
-                    for d in range(self.nq_n):
-                        self.elDOF[el, a + self.nn_el * d] = elDOF_x + self.nn * d
+            elDOF_el = np.arange(self.nq_per_element)
+            elDOF_el_u = np.arange(self.nu_per_element)
+            for el in range(self.nelement):
+                self.elDOF[el] = elDOF_el + el * dim_q
+                self.elDOF_u[el] = elDOF_el_u + el * dim_u
 
             self.vtk_cell_type = "VTK_BEZIER_CURVE"
 
-        # self.nn_per_dim = (self.nn_xi, self.nn_eta)
+        # todal number of degrees of freedoms
+        self.nq = self.nnodes * dim_q
+        self.nu = self.nnodes * dim_u
 
-        # construct selection matrix ndDOF assining to each node its DOFs
-        # qe[ndDOF[a]] is equivalent to q_e^a = C^a * q^e
-        self.nodalDOF = np.zeros((self.nn_el, self.nq_n), dtype=int)
-        for d in range(self.nq_n):
-            self.nodalDOF[:, d] = np.arange(self.nn_el) + d * self.nn_el
+        # construct tthe Boolean selection amtrix that choses the coordinates
+        # of an individual node via q[nodalDOF[a]] = C^a * q
+        self.nodalDOF = np.arange(self.nq).reshape(self.nnodes, dim_q)
+        self.nodalDOF_u = np.arange(self.nu).reshape(self.nnodes, dim_u)
+
+        # Boolean connectivity matrix for nodal polynomial_degrees of freedom
+        # inside each element. This is only required if multiple fields are
+        # discretized. It is used as qe[nodalDOF_element_[a]] = q_e^a = C^a * q_e
+        self.nodalDOF_element = np.arange(self.nq_per_element).reshape(
+            self.nnodes_per_element, dim_q
+        )
+        self.nodalDOF_element_u = np.arange(self.nu_per_element).reshape(
+            self.nnodes_per_element, dim_u
+        )
 
         # transform quadrature points on element intervals
         self.quadrature_points()
@@ -98,43 +158,62 @@ class Mesh1D:
         # end_points degrees of freedom
         self.end_points()
 
-    def basis1D(self, degree, derivative_order, knot_vector, knots):
+    def basis1D(self, xis):
         if self.basis == "B-spline":
             return B_spline_basis1D(
-                degree, derivative_order, knot_vector.data, knots, squeeze=False
+                self.degree,
+                self.derivative_order,
+                self.knot_vector.data,
+                xis,
+                squeeze=False,
             )
-        elif self.basis == "lagrange":
-            return lagrange_basis1D(degree, knots, derivative_order, knot_vector)
+        elif self.basis == "Lagrange":
+            # return lagrange_basis1D(
+            #     self.degree, xis, self.derivative_order, self.knot_vector
+            # )
+            return lagrange_basis1D(
+                self.degree, xis, self.derivative_order, self.knot_vector
+            )
+        elif self.basis == "Hermite":
+            return cubic_Hermite_basis_1D(xis, self.knot_vector, self.derivative_order)
 
     def eval_basis(self, xi):
         if self.basis == "B-spline":
             return B_spline_basis1D(
                 self.degree, self.derivative_order, self.data, xi, squeeze=True
             )
-        elif self.basis == "lagrange":
+        elif self.basis == "Lagrange":
             return lagrange_basis1D(
                 self.degree, xi, self.derivative_order, self.knot_vector, squeeze=True
             )
+        elif self.basis == "Hermite":
+            return cubic_Hermite_basis_1D(xi, self.knot_vector, self.derivative_order)
 
     def quadrature_points(self):
-        self.qp = np.zeros((self.nel, self.nqp))
-        self.wp = np.zeros((self.nel, self.nqp))
+        self.qp = np.zeros((self.nelement, self.nquadrature))
+        self.wp = np.zeros((self.nelement, self.nquadrature))
 
-        for el in range(self.nel):
+        for el in range(self.nelement):
             Xi_element_interval = self.knot_vector.element_interval(el)
-            self.qp[el], self.wp[el] = gauss(self.nqp, interval=Xi_element_interval)
+            self.qp[el], self.wp[el] = self.quadrature(
+                self.nquadrature, interval=Xi_element_interval
+            )
 
     def shape_functions(self):
-        self.N = np.zeros((self.nel, self.nqp, self.nn_el))
+        self.N = np.zeros((self.nelement, self.nquadrature, self.nbasis_element))
         if self.derivative_order > 0:
-            self.N_xi = np.zeros((self.nel, self.nqp, self.nn_el))
+            self.N_xi = np.zeros((self.nelement, self.nquadrature, self.nbasis_element))
             if self.derivative_order > 1:
-                self.N_xixi = np.zeros((self.nel, self.nqp, self.nn_el))
+                self.N_xixi = np.zeros(
+                    (self.nelement, self.nquadrature, self.nbasis_element)
+                )
 
-        for el in range(self.nel):
-            NN = self.basis1D(
-                self.degree, self.derivative_order, self.knot_vector, self.qp[el]
-            )
+        for el in range(self.nelement):
+            NN = self.basis1D(self.qp[el])
+            # expression = "self.N"
+            # for i in range(self.derivative_order):
+            #     expression += ", self.N_" + (i + 1) * "xi"
+            # eval(expression) = NN
             self.N[el] = NN[0]
             if self.derivative_order > 0:
                 self.N_xi[el] = NN[1]
@@ -143,7 +222,7 @@ class Mesh1D:
 
     def end_points(self):
         def select_end_points(**kwargs):
-            nn_0 = kwargs.get("nn_0", range(self.nn))
+            nn_0 = kwargs.get("nn_0", range(self.nnodes))
 
             end_points = []
             for i in nn_0:
@@ -151,15 +230,15 @@ class Mesh1D:
 
             DOF_x = np.array(end_points)
             nn_edge = len(end_points)
-            DOF = np.zeros((self.nq_n, nn_edge), dtype=int)
-            for i in range(self.nq_n):
-                DOF[i] = DOF_x + i * self.nn
+            DOF = np.zeros((self.dim_q, nn_edge), dtype=int)
+            for i in range(self.dim_q):
+                DOF[i] = DOF_x + i * self.nnodes
 
             return DOF
 
         self.point_qDOF = (
             select_end_points(nn_0=[0]),
-            select_end_points(nn_0=[self.nn - 1]),
+            select_end_points(nn_0=[self.nnodes - 1]),
         )
 
         # evaluate shape functions at the boundaries
@@ -168,17 +247,19 @@ class Mesh1D:
 
     def reference_mappings(self, Q):
         """Compute inverse gradient from the reference configuration to the parameter space and scale quadrature points by its determinant. See Bonet 1997 (7.6a,b)"""
-        if self.nq_n == 3:
-            w_J0 = np.zeros((self.nel, self.nqp))
-            for el in range(self.nel):
+        if self.dim_q == 3:
+            w_J0 = np.zeros((self.nelement, self.nquadrature))
+            for el in range(self.nelement):
                 Qe = Q[self.elDOF[el]]
 
-                for i in range(self.nqp):
+                for i in range(self.nquadrature):
                     N_xi = self.N_xi[el, i]
 
-                    kappa0_xi = np.zeros((self.nq_n, self.nq_n))
-                    for a in range(self.nn_el):
-                        kappa0_xi += Qe[self.nodalDOF[a]] * N_xi[a]  # Bonet 1997 (7.6b)
+                    kappa0_xi = np.zeros((self.dim_q, self.dim_q))
+                    for a in range(self.nnodes_per_element):
+                        kappa0_xi += (
+                            Qe[self.nodalDOF_element[a]] * N_xi[a]
+                        )  # Bonet 1997 (7.6b)
 
                     w_J0[el, i] = np.linalg.norm(kappa0_xi)
 
@@ -187,14 +268,14 @@ class Mesh1D:
     # functions for vtk export
     def ensure_L2_projection_A(self):
         if not hasattr(self, "A"):
-            A = Coo((self.nn, self.nn))
-            for el in range(self.nel):
-                elDOF_el = self.elDOF[el, : self.nn_el]
-                Ae = np.zeros((self.nn_el, self.nn_el))
+            A = Coo((self.nnodes, self.nnodes))
+            for el in range(self.nelement):
+                elDOF_el = self.elDOF[el, : self.nnodes_per_element]
+                Ae = np.zeros((self.nnodes_per_element, self.nnodes_per_element))
                 Nel = self.N[el]
-                for a in range(self.nn_el):
-                    for b in range(self.nn_el):
-                        for i in range(self.nqp):
+                for a in range(self.nnodes_per_element):
+                    for b in range(self.nnodes_per_element):
+                        for i in range(self.nquadrature):
                             Ae[a, b] += Nel[i, a] * Nel[i, b]
                 A.extend(Ae, (elDOF_el, elDOF_el))
             self.A = A.tocsc()
@@ -203,12 +284,12 @@ class Mesh1D:
         _, nqp, *shape = field.shape
         dim = np.prod(shape)
 
-        b = np.zeros((self.nn, dim))
-        for el in range(self.nel):
-            elDOF_el = self.elDOF[el, : self.nn_el]
-            be = np.zeros((self.nn_el, dim))
+        b = np.zeros((self.nnodes, dim))
+        for el in range(self.nelement):
+            elDOF_el = self.elDOF[el, : self.nnodes_per_element]
+            be = np.zeros((self.nnodes_per_element, dim))
             Nel = self.N[el]
-            for a in range(self.nn_el):
+            for a in range(self.nnodes_per_element):
                 for i in range(nqp):
                     be[a] += Nel[i, a] * field[el, i].reshape(-1)
             b[elDOF_el] += be
@@ -221,7 +302,7 @@ class Mesh1D:
         # L2 projection on B-spline mesh
         self.ensure_L2_projection_A()
         b = self.rhs_L2_projection(field)
-        q = np.zeros((self.nn, dim))
+        q = np.zeros((self.nnodes, dim))
         for i, bi in enumerate(b.T):
             q[:, i] = spsolve(self.A, bi)
 
@@ -232,12 +313,12 @@ class Mesh1D:
             # decompose B-spline mesh in Bezier patches
             Qw = decompose_B_spline_curve(self.knot_vector, Pw)
 
-        elif self.basis == "lagrange":
+        elif self.basis == "Lagrange":
             # rearrange q's from solver to Piegl's 3D ordering
-            Qw = np.zeros((self.nel, self.p + 1, dim))
-            for el in range(self.nel):
-                for a in range(self.nn_el):
-                    Qw[el, a] = q[self.elDOF[el][self.nodalDOF[a][0]]]
+            Qw = np.zeros((self.nelement, self.degree + 1, dim))
+            for el in range(self.nelement):
+                for a in range(self.nnodes_per_element):
+                    Qw[el, a] = q[self.elDOF[el][self.nodalDOF_element[a][0]]]
 
         nbezier_xi, p1, dim = Qw.shape
 
@@ -251,7 +332,431 @@ class Mesh1D:
 
         return point_data
 
-    def vtk_mesh(self, q, dim=1):
+    def vtk_mesh(self, q):
+        if self.basis == "B-spline":
+            # rearrange q's from solver to Piegl's 1D ordering
+            Pw = q.reshape(-1, self.dim_q, order="F")
+
+            # decompose B-spline mesh in Bezier patches
+            Qw = decompose_B_spline_curve(self.knot_vector, Pw)
+
+        elif self.basis == "Lagrange":
+            # rearrange q's from solver to Piegl's 1D ordering
+            Qw = np.zeros((self.nelement, self.degree + 1, self.dim_q))
+            for el in range(self.nelement):
+                for a in range(self.nnodes_per_element):
+                    Qw[el, a] = q[self.elDOF[el][self.nodalDOF_element[a]]]
+
+        nbezier_xi, p1, dim = Qw.shape
+
+        # build vtk mesh
+        n_patches = nbezier_xi
+        patch_size = p1
+        points = np.zeros((n_patches * patch_size, dim))
+        cells = []
+        HigherOrderDegrees = []
+        for i in range(nbezier_xi):
+            point_range = np.arange(i * patch_size, (i + 1) * patch_size)
+            points[point_range] = flat1D_vtk(Qw[i])
+
+            cells.append((self.vtk_cell_type, point_range[None]))
+            HigherOrderDegrees.append(np.array((self.degree, 0, 0))[None])
+
+        return cells, points, HigherOrderDegrees
+
+
+class MultifieldMesh1D:
+    """This new mesh class should deal with multi field 1D meshes.
+
+    It should be possible to do operations like
+
+        for el in range(nel):
+            qe = q[elDOF[el]]
+            r_OP = np.zeros(3)
+            psi = np.zeros(3)
+            for i in (nnodes_per_element):
+                r_OP += N[i] * qe[self.nodalDOF[el]["r_OP"]
+                psi += N[i] * qe[self.nodalDOF[el]["psi"]
+
+    that means we have a global elDOF for all fields but can extract the
+    nodalDOF's with a given string or an index. This results in the global
+    ordering as described in the beam paper and makes is convenient to create
+    objects with multiple fields.
+    """
+
+    def __init__(
+        self,
+        knot_vectors,
+        dim_qs,
+        dim_us,
+        derivative_orders,
+        basis_functions,
+        nquadrature,
+        quadrature="Gauss",
+    ):
+        # self.nmeshes = len(knot_vectors)
+        self.nelement = knot_vectors[0].nel
+        for kv in knot_vectors:
+            assert (
+                self.nelement == kv.nel
+            ), "fields have to share the same number of elements"
+
+        # self.knot_vectors = knot_vectors
+        # self.datas = [kv.data for kv in knot_vectors]
+        # self.degrees = [kv.degrees for kv in knot_vectors]
+        # self.derivative_orders = [kv.derivative_order for kv in knot_vectors]
+
+        self.nquadrature = nquadrature
+        if quadrature == "Gauss":
+            self.quadrature = gauss
+        elif quadrature == "Lobatto":
+            self.quadrature = lobatto
+        else:
+            raise NotImplementedError(
+                f"Quadrature method '{quadrature}' is not implemented!"
+            )
+
+        # build simple mesh for each field
+        self.meshes = []
+        for (kv, dim_q, dim_u, derivative_order, basis_function) in zip(
+            knot_vectors, dim_qs, dim_us, derivative_orders, basis_functions
+        ):
+            self.meshes.append(
+                Mesh1D(
+                    kv,
+                    nquadrature,
+                    dim_q,
+                    derivative_order,
+                    basis_function,
+                    quadrature,
+                    dim_u,
+                )
+            )
+
+        # compute total number of generalized coordinates and velocities
+        self.nq = sum([mesh.nq for mesh in self.meshes])
+        self.nu = sum([mesh.nu for mesh in self.meshes])
+
+        # compute number of generalized coordinates and velocities per elements
+        self.nq_per_element = sum([mesh.nq_per_element for mesh in self.meshes])
+        self.nu_per_element = sum([mesh.nu_per_element for mesh in self.meshes])
+
+        # concatenate global Boolean connectivity matrix elDOF
+        self.elDOF_q = np.zeros((self.nelement, self.nq_per_element), dtype=int)
+        self.elDOF_u = np.zeros((self.nelement, self.nu_per_element), dtype=int)
+        offset_q = 0
+        offset_u = 0
+        for el in range(self.nelement):
+            for mesh in self.meshes:
+                self.elDOF_q[
+                    el, offset_q : offset_q + mesh.nq_per_element
+                ] = mesh.elDOF  # TODO: We shoud rename this to elDOF_q as well!
+                self.elDOF_u[
+                    el, offset_u : offset_u + mesh.nu_per_element
+                ] = mesh.elDOF_u
+
+                offset_q += mesh.nq_per_element
+                offset_u += mesh.nu_per_element
+
+        # concatenate nodal Boolean connectivity matrix nodalDOF
+        self.nodalDOF_element_q = []
+        self.nodalDOF_element_u = []
+        offset_q = 0
+        offset_u = 0
+        for mesh in self.meshes:
+            self.nodalDOF_element_q.append(
+                mesh.nodalDOF_element + offset_q
+            )  # TODO: This should be named nodalDOF_q as well!
+            self.nodalDOF_element_u.append(mesh.nodalDOF_element_u + offset_u)
+
+            offset_q += mesh.nq_per_element
+            offset_u += mesh.nu_per_element
+
+        exit()
+
+        # we might have different meshes for q and u, e.g. quaternions for
+        # describing spatial rotations
+        self.dim_qs = dim_qs  # number of q's per node of each field
+        self.dim_us = dim_us  # number of u's per node of each field
+        # self.dim_q = sum(dim_qs) # total number of q's per node
+        # self.dim_u = sum(dim_us) # total number of u's per node
+
+        self.nnodes_per_elements = []  # number of nodes influencing each element
+        self.nbasis_elements = []  # number of basis function per element
+        for basis in basis_functions:
+            if basis == "Lagrange" or basis == "B-spline":
+                self.nnodes_per_elements.append(self.degree + 1)
+                self.nbasis_element.append(self.nnodes_per_element)
+            elif basis == "Hermite":
+                self.nnodes_per_elements.append(4)
+                self.nbasis_element.append(4)
+            else:
+                raise NotImplementedError("")
+
+        # total number of generalized coordinates and generalzed velocities per element
+        self.nq_per_element = sum(
+            [
+                nnodes * dim_q
+                for (nnodes, dim_q) in zip(self.nnodes_per_elements, dim_qs)
+            ]
+        )
+        self.nu_per_element = sum(
+            [
+                nnodes * dim_u
+                for (nnodes, dim_u) in zip(self.nnodes_per_elements, dim_us)
+            ]
+        )
+        # self.nnodes_per_element = sum(self.nnodes_per_elements)
+
+        # Boolean connectivity matrix for element polynomial_degrees of
+        # freedom. This is used to extract the element degrees of freedom via
+        # q[elDOF[el]] = q_e = C^e * q.
+        self.elDOF = np.zeros((self.nelement, self.nq_per_element), dtype=int)
+        self.elDOF_u = np.zeros((self.nelement, self.nu_per_element), dtype=int)
+
+        exit()
+
+        if basis == "Lagrange":
+            # TODO: We want to allow for different shape functions for each field!
+            exit()
+
+            # total number of nodes
+            self.nnodes_per_field = [
+                degree * self.nelement + 1 for degree in self.degrees
+            ]
+
+            offset_q = sum(
+                [
+                    (nnodes - 1) * dim_q
+                    for (nnodes, dim_q) in zip(self.nnodes_per_elements, dim_qs)
+                ]
+            )
+            offset_u = sum(
+                [
+                    (nnodes - 1) * dim_u
+                    for (nnodes, dim_u) in zip(self.nnodes_per_elements, dim_us)
+                ]
+            )
+
+            elDOF_el = np.arange(self.nq_per_element)
+            elDOF_el_u = np.arange(self.nu_per_element)
+            for el in range(self.nelement):
+                self.elDOF[el] = elDOF_el + el * offset_q
+                self.elDOF_u[el] = elDOF_el_u + el * offset_u
+
+            self.vtk_cell_type = "VTK_LAGRANGE_CURVE"
+        elif basis == "Hermite":
+            raise NotImplementedError
+            # raise NotImplementedError("Adapt according to new ordering of q!")
+
+            # total number of nodes
+            self.nnodes = 2 * (self.nelement + 1)
+
+            # ordering for a single node (needs to be shifted for each elements)
+            elDOF_node = np.arange(self.nbasis_element * self.dim_q)
+            elDOF_node_u = np.arange(self.nbasis_element * self.dim_u)
+            for el in range(self.nelement):
+                self.elDOF[el] = elDOF_node + el * 2 * self.dim_q
+                self.elDOF_u[el] = elDOF_node_u + el * 2 * self.dim_u
+
+            # TODO: Does VTK implement Hermite curves?
+            # TODO: We should convert the Hermite spline into Bezier cells.
+            self.vtk_cell_type = "VTK_LAGRANGE_CURVE"
+        elif basis == "B-spline":
+            raise NotImplementedError
+            # total number of nodes
+            self.nnodes = self.degree + self.nelement
+
+            elDOF_el = np.arange(self.nq_per_element)
+            elDOF_el_u = np.arange(self.nu_per_element)
+            for el in range(self.nelement):
+                self.elDOF[el] = elDOF_el + el * dim_q
+                self.elDOF_u[el] = elDOF_el_u + el * dim_u
+
+            self.vtk_cell_type = "VTK_BEZIER_CURVE"
+
+        # total number of degrees of freedoms
+        self.nq = sum(
+            [nnodes * dim_q for (nnodes, dim_q) in zip(self.nnodes_per_field, dim_qs)]
+        )
+        self.nq = self.nnodes * dim_q
+        self.nu = self.nnodes * dim_u
+
+        # TODO: Move on here!
+        exit()
+
+        # construct tthe Boolean selection amtrix that choses the coordinates
+        # of an individual node via q[nodalDOF[a]] = C^a * q
+        self.nodalDOF = np.arange(self.nq).reshape(self.nnodes, dim_q)
+        self.nodalDOF_element_u = np.arange(self.nu).reshape(self.nnodes, dim_u)
+
+        # Boolean connectivity matrix for nodal polynomial_degrees of freedom
+        # inside each element. This is only required if multiple fields are
+        # discretized. It is used as qe[nodalDOF_element_[a]] = q_e^a = C^a * q_e
+        self.nodalDOF_element = np.arange(self.nq_per_element).reshape(
+            self.nnodes_per_element, dim_q
+        )
+        self.nodalDOF_element_u = np.arange(self.nu_per_element).reshape(
+            self.nnodes_per_element, dim_u
+        )
+
+        # transform quadrature points on element intervals
+        self.quadrature_points()
+
+        # evaluate element shape functions at quadrature points
+        self.shape_functions()
+
+        # end_points degrees of freedom
+        self.end_points()
+
+    def basis1D(self, xis):
+        if self.basis == "B-spline":
+            return B_spline_basis1D(
+                self.degree,
+                self.derivative_order,
+                self.knot_vector.data,
+                xis,
+                squeeze=False,
+            )
+        elif self.basis == "Lagrange":
+            # return lagrange_basis1D(
+            #     self.degree, xis, self.derivative_order, self.knot_vector
+            # )
+            return lagrange_basis1D(
+                self.degree, xis, self.derivative_order, self.knot_vector
+            )
+        elif self.basis == "Hermite":
+            return cubic_Hermite_basis_1D(xis, self.knot_vector, self.derivative_order)
+
+    def eval_basis(self, xi):
+        if self.basis == "B-spline":
+            return B_spline_basis1D(
+                self.degree, self.derivative_order, self.data, xi, squeeze=True
+            )
+        elif self.basis == "Lagrange":
+            return lagrange_basis1D(
+                self.degree, xi, self.derivative_order, self.knot_vector, squeeze=True
+            )
+        elif self.basis == "Hermite":
+            return cubic_Hermite_basis_1D(xi, self.knot_vector, self.derivative_order)
+
+    def quadrature_points(self):
+        self.qp = np.zeros((self.nelement, self.nquadrature))
+        self.wp = np.zeros((self.nelement, self.nquadrature))
+
+        for el in range(self.nelement):
+            Xi_element_interval = self.knot_vector.element_interval(el)
+            self.qp[el], self.wp[el] = self.quadrature(
+                self.nquadrature, interval=Xi_element_interval
+            )
+
+    def shape_functions(self):
+        self.N = np.zeros((self.nelement, self.nquadrature, self.nbasis_element))
+        if self.derivative_order > 0:
+            self.N_xi = np.zeros((self.nelement, self.nquadrature, self.nbasis_element))
+            if self.derivative_order > 1:
+                self.N_xixi = np.zeros(
+                    (self.nelement, self.nquadrature, self.nbasis_element)
+                )
+
+        for el in range(self.nelement):
+            NN = self.basis1D(self.qp[el])
+            # expression = "self.N"
+            # for i in range(self.derivative_order):
+            #     expression += ", self.N_" + (i + 1) * "xi"
+            # eval(expression) = NN
+            self.N[el] = NN[0]
+            if self.derivative_order > 0:
+                self.N_xi[el] = NN[1]
+                if self.derivative_order > 1:
+                    self.N_xixi[el] = NN[2]
+
+    def end_points(self):
+        def select_end_points(**kwargs):
+            nn_0 = kwargs.get("nn_0", range(self.nnodes))
+
+            end_points = []
+            for i in nn_0:
+                end_points.append(i)
+
+            DOF_x = np.array(end_points)
+            nn_edge = len(end_points)
+            DOF = np.zeros((self.dim_q, nn_edge), dtype=int)
+            for i in range(self.dim_q):
+                DOF[i] = DOF_x + i * self.nnodes
+
+            return DOF
+
+        self.point_qDOF = (
+            select_end_points(nn_0=[0]),
+            select_end_points(nn_0=[self.nnodes - 1]),
+        )
+
+        # evaluate shape functions at the boundaries
+        self.NN_bdry0 = self.eval_basis(0)
+        self.NN_bdry1 = self.eval_basis(1)
+
+    def reference_mappings(self, Q):
+        """Compute inverse gradient from the reference configuration to the parameter space and scale quadrature points by its determinant. See Bonet 1997 (7.6a,b)"""
+        if self.dim_q == 3:
+            w_J0 = np.zeros((self.nelement, self.nquadrature))
+            for el in range(self.nelement):
+                Qe = Q[self.elDOF[el]]
+
+                for i in range(self.nquadrature):
+                    N_xi = self.N_xi[el, i]
+
+                    kappa0_xi = np.zeros((self.dim_q, self.dim_q))
+                    for a in range(self.nnodes_per_element):
+                        kappa0_xi += (
+                            Qe[self.nodalDOF_element[a]] * N_xi[a]
+                        )  # Bonet 1997 (7.6b)
+
+                    w_J0[el, i] = np.linalg.norm(kappa0_xi)
+
+            return w_J0
+
+    # functions for vtk export
+    def ensure_L2_projection_A(self):
+        if not hasattr(self, "A"):
+            A = Coo((self.nnodes, self.nnodes))
+            for el in range(self.nelement):
+                elDOF_el = self.elDOF[el, : self.nnodes_per_element]
+                Ae = np.zeros((self.nnodes_per_element, self.nnodes_per_element))
+                Nel = self.N[el]
+                for a in range(self.nnodes_per_element):
+                    for b in range(self.nnodes_per_element):
+                        for i in range(self.nquadrature):
+                            Ae[a, b] += Nel[i, a] * Nel[i, b]
+                A.extend(Ae, (elDOF_el, elDOF_el))
+            self.A = A.tocsc()
+
+    def rhs_L2_projection(self, field):
+        _, nqp, *shape = field.shape
+        dim = np.prod(shape)
+
+        b = np.zeros((self.nnodes, dim))
+        for el in range(self.nelement):
+            elDOF_el = self.elDOF[el, : self.nnodes_per_element]
+            be = np.zeros((self.nnodes_per_element, dim))
+            Nel = self.N[el]
+            for a in range(self.nnodes_per_element):
+                for i in range(nqp):
+                    be[a] += Nel[i, a] * field[el, i].reshape(-1)
+            b[elDOF_el] += be
+        return b
+
+    def field_to_vtk(self, field):
+        _, _, *shape = field.shape
+        dim = np.prod(shape)
+
+        # L2 projection on B-spline mesh
+        self.ensure_L2_projection_A()
+        b = self.rhs_L2_projection(field)
+        q = np.zeros((self.nnodes, dim))
+        for i, bi in enumerate(b.T):
+            q[:, i] = spsolve(self.A, bi)
+
         if self.basis == "B-spline":
             # rearrange q's from solver to Piegl's 1D ordering
             Pw = q.reshape(-1, dim, order="F")
@@ -259,12 +764,39 @@ class Mesh1D:
             # decompose B-spline mesh in Bezier patches
             Qw = decompose_B_spline_curve(self.knot_vector, Pw)
 
-        elif self.basis == "lagrange":
+        elif self.basis == "Lagrange":
+            # rearrange q's from solver to Piegl's 3D ordering
+            Qw = np.zeros((self.nelement, self.degree + 1, dim))
+            for el in range(self.nelement):
+                for a in range(self.nnodes_per_element):
+                    Qw[el, a] = q[self.elDOF[el][self.nodalDOF_element[a][0]]]
+
+        nbezier_xi, p1, dim = Qw.shape
+
+        # rearrange Bezier mesh points for vtk ordering
+        n_patches = nbezier_xi
+        patch_size = p1
+        point_data = np.zeros((n_patches * patch_size, dim))
+        for i in range(nbezier_xi):
+            point_range = np.arange(i * patch_size, (i + 1) * patch_size)
+            point_data[point_range] = flat1D_vtk(Qw[i])
+
+        return point_data
+
+    def vtk_mesh(self, q):
+        if self.basis == "B-spline":
             # rearrange q's from solver to Piegl's 1D ordering
-            Qw = np.zeros((self.nel, self.p + 1, dim))
-            for el in range(self.nel):
-                for a in range(self.nn_el):
-                    Qw[el, a] = q[self.elDOF[el][self.nodalDOF[a]]]
+            Pw = q.reshape(-1, self.dim_q, order="F")
+
+            # decompose B-spline mesh in Bezier patches
+            Qw = decompose_B_spline_curve(self.knot_vector, Pw)
+
+        elif self.basis == "Lagrange":
+            # rearrange q's from solver to Piegl's 1D ordering
+            Qw = np.zeros((self.nelement, self.degree + 1, self.dim_q))
+            for el in range(self.nelement):
+                for a in range(self.nnodes_per_element):
+                    Qw[el, a] = q[self.elDOF[el][self.nodalDOF_element[a]]]
 
         nbezier_xi, p1, dim = Qw.shape
 
@@ -285,15 +817,15 @@ class Mesh1D:
 
 
 def test_point_qDOF():
-    from cardillo.discretization.B_spline import Knot_vector
+    from cardillo.discretization.b_spline import BSplineKnotVector
 
     polynomial_degree = 3
     quadrature_points = polynomial_degree + 1
     elements = 4
 
-    Xi = Knot_vector(polynomial_degree, elements)
+    Xi = BSplineKnotVector(polynomial_degree, elements)
 
-    mesh = Mesh1D(Xi, quadrature_points, derivative_order=1, basis="B-spline", nq_n=2)
+    mesh = Mesh1D(Xi, quadrature_points, derivative_order=1, basis="B-spline", dim_q=2)
 
     Q = line2D(5, mesh, Greville=True, Fuzz=0)
 

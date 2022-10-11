@@ -1,12 +1,13 @@
 import numpy as np
-from scipy.sparse.linalg import spsolve 
+from scipy.sparse.linalg import spsolve
 from scipy.sparse import csr_matrix, bmat
 from tqdm import tqdm
 
 from cardillo.math import Numerical_derivative
 from cardillo.solver import Solution
 
-class Generalized_alpha_4_index3():
+
+class Generalized_alpha_4_index3:
     """Generalized alpha solver for constraint mechanical systems of DAE index 3 with the right precondtioner introduced in Arnold2008 and Bottasso2008. 
     Aditionally constraints on velocity level can be solved.
 
@@ -19,16 +20,33 @@ class Generalized_alpha_4_index3():
     Arnold2008: https://doi.org/10.1007/s11044-007-9084-0 \\
     Bottasso2008 https://doi.org/10.1007/s11044-007-9051-9
     """
-    def __init__(self, model, t1, dt, \
-                 rho_inf=1, beta=None, gamma=None, alpha_m=None, alpha_f=None,\
-                 newton_tol=1e-8, newton_max_iter=40, newton_error_function=lambda x: np.max(np.abs(x)),\
-                 numerical_jacobian=False, debug=False, a0=None, pre_cond=True):
-        
+
+    def __init__(
+        self,
+        model,
+        t1,
+        dt,
+        rho_inf=1,
+        beta=None,
+        gamma=None,
+        alpha_m=None,
+        alpha_f=None,
+        newton_tol=1e-8,
+        newton_max_iter=40,
+        newton_error_function=lambda x: np.max(np.abs(x)),
+        numerical_jacobian=False,
+        debug=False,
+        a0=None,
+        pre_cond=True,
+    ):
+
         self.model = model
 
         # integration time
         self.t0 = t0 = model.t0
-        self.t1 = t1 if t1 > t0 else ValueError("t1 must be larger than initial time t0.")
+        self.t1 = (
+            t1 if t1 > t0 else ValueError("t1 must be larger than initial time t0.")
+        )
         self.dt = dt
 
         # parameter
@@ -48,7 +66,7 @@ class Generalized_alpha_4_index3():
         if pre_cond:
             self.pre_cond = 1.0 / (self.dt**2 * self.beta)
         else:
-            self.pre_cond = 1 # no preconditioning
+            self.pre_cond = 1  # no preconditioning
 
         # newton settings
         self.newton_tol = newton_tol
@@ -74,7 +92,11 @@ class Generalized_alpha_4_index3():
             self.ak = a0
         else:
             M0 = model.M(t0, model.q0).tocsr()
-            rhs0 = self.model.h(t0, model.q0, model.u0) + self.model.W_g(t0, model.q0) @ model.la_g0 + self.model.W_gamma(t0, model.q0) @ model.la_gamma0
+            rhs0 = (
+                self.model.h(t0, model.q0, model.u0)
+                + self.model.W_g(t0, model.q0) @ model.la_g0
+                + self.model.W_gamma(t0, model.q0) @ model.la_gamma0
+            )
             self.ak = spsolve(M0, rhs0, use_umfpack=False)
         self.a_bark = self.ak.copy()
 
@@ -92,12 +114,20 @@ class Generalized_alpha_4_index3():
         """
         dt = self.dt
         dt2 = dt * dt
-        a_bark1 = (self.alpha_f * self.ak + (1 - self.alpha_f) * ak1 - self.alpha_m * self.a_bark) / (1 - self.alpha_m)
+        a_bark1 = (
+            self.alpha_f * self.ak
+            + (1 - self.alpha_f) * ak1
+            - self.alpha_m * self.a_bark
+        ) / (1 - self.alpha_m)
         uk1 = self.uk + dt * ((1 - self.gamma) * self.a_bark + self.gamma * a_bark1)
         a_beta = (0.5 - self.beta) * self.a_bark + self.beta * a_bark1
         if store:
             self.a_bark = a_bark1
-        qk1 = self.qk + dt * self.model.q_dot(self.tk, self.qk, self.uk) + dt2 * self.model.q_ddot(self.tk, self.qk, self.uk, a_beta)
+        qk1 = (
+            self.qk
+            + dt * self.model.q_dot(self.tk, self.qk, self.uk)
+            + dt2 * self.model.q_ddot(self.tk, self.qk, self.uk, a_beta)
+        )
         return qk1, uk1
 
     def pack(self, a, la_g, la_gamma):
@@ -108,8 +138,8 @@ class Generalized_alpha_4_index3():
         x = np.zeros(self.nR)
 
         x[:nu] = a
-        x[nu:nu+nla_g] = la_g
-        x[nu+nla_g:nu+nla_g+nla_gamma] = la_gamma
+        x[nu : nu + nla_g] = la_g
+        x[nu + nla_g : nu + nla_g + nla_gamma] = la_gamma
 
         return x
 
@@ -122,17 +152,17 @@ class Generalized_alpha_4_index3():
         a = x[:nu]
 
         # constraints on position level
-        la_g = x[nu:nu+nla_g]
+        la_g = x[nu : nu + nla_g]
 
         # constraints on velocity level
-        la_gamma = x[nu+nla_g:nu+nla_g+nla_gamma]
+        la_gamma = x[nu + nla_g : nu + nla_g + nla_gamma]
 
         return a, la_g, la_gamma
 
     def __R_gen_num(self, tk1, xk1):
         yield self.__R(tk1, xk1)
         yield csr_matrix(self.__R_x_num(tk1, xk1))
-        
+
     def __R_gen_analytic(self, tk1, xk1):
         nu = self.nu
         nla_g = self.nla_g
@@ -146,32 +176,38 @@ class Generalized_alpha_4_index3():
         Mk1 = self.model.M(tk1, qk1)
         W_gk1 = self.model.W_g(tk1, qk1)
         W_gammak1 = self.model.W_gamma(tk1, qk1)
-        
+
         ###################
         # evaluate residual
         ###################
         R = np.zeros(self.nR)
 
         # equations of motion
-        R[:nu] = Mk1 @ ak1 -( self.model.h(tk1, qk1, uk1) + W_gk1 @ la_gk1 + W_gammak1 @ la_gammak1)
+        R[:nu] = Mk1 @ ak1 - (
+            self.model.h(tk1, qk1, uk1) + W_gk1 @ la_gk1 + W_gammak1 @ la_gammak1
+        )
 
         # constraints on position level
-        R[nu:nu+nla_g] = self.model.g(tk1, qk1)
+        R[nu : nu + nla_g] = self.model.g(tk1, qk1)
 
         # constraints on velocity level
-        R[nu+nla_g:nu+nla_g+nla_gamma] = self.model.gamma(tk1, qk1, uk1)
-        
+        R[nu + nla_g : nu + nla_g + nla_gamma] = self.model.gamma(tk1, qk1, uk1)
+
         yield R
 
         ###############################################################################################
         # R[:nu] = Mk1 @ ak1 -( self.model.h(tk1, qk1, uk1) + W_gk1 @ la_gk1 + W_gammak1 @ la_gammak1 )
         ###############################################################################################
         Wla_g_q = self.model.Wla_g_q(tk1, qk1, la_gk1, scipy_matrix=csr_matrix)
-        Wla_gamma_q = self.model.Wla_gamma_q(tk1, qk1, la_gammak1, scipy_matrix=csr_matrix)
-        rhs_q = - ( self.model.h_q(tk1, qk1, uk1) + Wla_g_q + Wla_gamma_q )
+        Wla_gamma_q = self.model.Wla_gamma_q(
+            tk1, qk1, la_gammak1, scipy_matrix=csr_matrix
+        )
+        rhs_q = -(self.model.h_q(tk1, qk1, uk1) + Wla_g_q + Wla_gamma_q)
         rhs_u = -self.model.h_u(tk1, qk1, uk1)
         rhs_a = rhs_q @ self.q_a + rhs_u * self.u_a
-        Ma_a = self.model.Mu_q(tk1, qk1, ak1, scipy_matrix=csr_matrix) @ self.q_a + rhs_a
+        Ma_a = (
+            self.model.Mu_q(tk1, qk1, ak1, scipy_matrix=csr_matrix) @ self.q_a + rhs_a
+        )
 
         Ra_a = Mk1 + Ma_a
         Ra_la_g = -W_gk1
@@ -188,15 +224,22 @@ class Generalized_alpha_4_index3():
         ##################################################################
         # R[nu+nla_g:nu+nla_g+nla_gamma] = self.model.gamma(tk1, qk1, uk1)
         ##################################################################
-        Rla_gamma_a = self.model.gamma_q(tk1, qk1, uk1) @ self.q_a + self.model.gamma_u(tk1, qk1) * self.u_a
+        Rla_gamma_a = (
+            self.model.gamma_q(tk1, qk1, uk1) @ self.q_a
+            + self.model.gamma_u(tk1, qk1) * self.u_a
+        )
         Rla_gamma_la_g = None
         Rla_gamma_la_gamma = None
-        
+
         # sparse assemble global tangent matrix
-        R_x =  bmat([ [Ra_a,               Ra_la_g,        Ra_la_gamma],
-                      [Rla_g_a,         Rla_g_la_g,     Rla_g_la_gamma],
-                      [Rla_gamma_a, Rla_gamma_la_g, Rla_gamma_la_gamma],
-                    ], format='csr')
+        R_x = bmat(
+            [
+                [Ra_a, Ra_la_g, Ra_la_gamma],
+                [Rla_g_a, Rla_g_la_g, Rla_g_la_gamma],
+                [Rla_gamma_a, Rla_gamma_la_g, Rla_gamma_la_gamma],
+            ],
+            format="csr",
+        )
 
         yield R_x
 
@@ -208,7 +251,7 @@ class Generalized_alpha_4_index3():
         # # diff_error = diff[nu+nla_g:nu+nla_g+nla_gamma]
 
         # diff_error = diff #~1.0e-5
-        
+
         # error = np.max(np.abs(diff_error))
         # print(f'absolute error R_x = {error}')
 
@@ -216,13 +259,13 @@ class Generalized_alpha_4_index3():
         # # print(f'relative error R_x = {error}')
 
         # yield R_x_num
-        
+
     def __R(self, tk1, xk1):
         return next(self.__R_gen_analytic(tk1, xk1))
 
     def __R_x_num(self, tk1, xk1):
         return Numerical_derivative(self.__R, order=2)._x(tk1, xk1)
-    
+
     def step(self, tk1, xk1):
         # initial residual and error
         R_gen = self.__R_gen(tk1, xk1)
@@ -234,15 +277,15 @@ class Generalized_alpha_4_index3():
             while j < self.newton_max_iter:
                 # jacobian
                 R_x = next(R_gen)
-                
+
                 # Newton update
                 j += 1
                 dx = spsolve(R_x, R, use_umfpack=True)
-                dx[self.nu:] *= self.pre_cond
+                dx[self.nu :] *= self.pre_cond
                 xk1 -= dx
                 R_gen = self.__R_gen(tk1, xk1)
                 R = next(R_gen)
-                
+
                 error = self.newton_error_function(R)
                 converged = error < self.newton_tol
                 if converged:
@@ -250,7 +293,7 @@ class Generalized_alpha_4_index3():
 
         return converged, j, error, xk1
 
-    def solve(self): 
+    def solve(self):
         dt = self.dt
         dt2 = self.dt**2
 
@@ -265,7 +308,12 @@ class Generalized_alpha_4_index3():
         pbar = tqdm(np.arange(self.t0, self.t1, self.dt))
         for _ in pbar:
             # evaluate quantities at previous time step
-            self.q_a = dt2 * self.beta * self.alpha_ratio * self.model.B(self.tk, self.qk, scipy_matrix=csr_matrix)
+            self.q_a = (
+                dt2
+                * self.beta
+                * self.alpha_ratio
+                * self.model.B(self.tk, self.qk, scipy_matrix=csr_matrix)
+            )
             self.u_a = dt * self.gamma * self.alpha_ratio
 
             # initial guess for Newton-Raphson solver and time step
@@ -275,15 +323,19 @@ class Generalized_alpha_4_index3():
             ak1, la_gk1, la_gammak1 = self.unpack(xk1)
 
             # update progress bar and check convergence
-            pbar.set_description(f't: {tk1:0.2e}s < {self.t1:0.2e}s; Newton: {n_iter}/{self.newton_max_iter} iterations; error: {error:0.2e}')
+            pbar.set_description(
+                f"t: {tk1:0.2e}s < {self.t1:0.2e}s; Newton: {n_iter}/{self.newton_max_iter} iterations; error: {error:0.2e}"
+            )
             if not converged:
-                raise RuntimeError(f'internal Newton-Raphson method not converged after {n_iter} steps with error: {error:.5e}')
+                raise RuntimeError(
+                    f"internal Newton-Raphson method not converged after {n_iter} steps with error: {error:.5e}"
+                )
 
             # update dependent variables
             qk1, uk1 = self.update(ak1, store=True)
 
             # modify converged quantities
-            qk1, uk1 = self.model.solver_step_callback(tk1, qk1, uk1)
+            qk1, uk1 = self.model.step_callback(tk1, qk1, uk1)
 
             # store soltuion fields
             t.append(tk1)
@@ -301,23 +353,47 @@ class Generalized_alpha_4_index3():
             self.la_gammak = la_gammak1
 
         # write solution
-        return Solution(t=np.array(t), q=np.array(q), u=np.array(u), a=np.array(a), la_g=np.array(la_g), la_gamma=np.array(la_gamma))
+        return Solution(
+            t=np.array(t),
+            q=np.array(q),
+            u=np.array(u),
+            a=np.array(a),
+            la_g=np.array(la_g),
+            la_gamma=np.array(la_gamma),
+        )
 
-class Generalized_alpha_4_index1():
-    """Generalized alpha solver. 
+
+class Generalized_alpha_4_index1:
+    """Generalized alpha solver.
     Constraints on position level and constraints on velocity level can be solved;
     all derivatives of constraint functions on position funcitons are included!
     """
-    def __init__(self, model, t1, dt, \
-                 rho_inf=1, beta=None, gamma=None, alpha_m=None, alpha_f=None,\
-                 newton_tol=1e-8, newton_max_iter=40, newton_error_function=lambda x: np.max(np.abs(x)),\
-                 numerical_jacobian=False, debug=False, a0=None):
-        
+
+    def __init__(
+        self,
+        model,
+        t1,
+        dt,
+        rho_inf=1,
+        beta=None,
+        gamma=None,
+        alpha_m=None,
+        alpha_f=None,
+        newton_tol=1e-8,
+        newton_max_iter=40,
+        newton_error_function=lambda x: np.max(np.abs(x)),
+        numerical_jacobian=False,
+        debug=False,
+        a0=None,
+    ):
+
         self.model = model
 
         # integration time
         self.t0 = t0 = model.t0
-        self.t1 = t1 if t1 > t0 else ValueError("t1 must be larger than initial time t0.")
+        self.t1 = (
+            t1 if t1 > t0 else ValueError("t1 must be larger than initial time t0.")
+        )
         self.dt = dt
 
         # parameter
@@ -345,7 +421,7 @@ class Generalized_alpha_4_index1():
         self.nla_g = model.nla_g
         self.nla_gamma = model.nla_gamma
 
-        # constraints on position, velocity and acceleration level + corresponding equations (EQM, position and velocity correction) 
+        # constraints on position, velocity and acceleration level + corresponding equations (EQM, position and velocity correction)
         # + constraints on velocitiy level
         self.nR = 3 * self.nu + 3 * self.nla_g + self.nla_gamma
 
@@ -361,7 +437,11 @@ class Generalized_alpha_4_index1():
             self.ak = a0
         else:
             M0 = model.M(t0, model.q0).tocsr()
-            rhs0 = self.model.h(t0, model.q0, model.u0) + self.model.W_g(t0, model.q0) @ model.la_g0 + self.model.W_gamma(t0, model.q0) @ model.la_gamma0
+            rhs0 = (
+                self.model.h(t0, model.q0, model.u0)
+                + self.model.W_g(t0, model.q0) @ model.la_g0
+                + self.model.W_gamma(t0, model.q0) @ model.la_gamma0
+            )
             self.ak = spsolve(M0, rhs0)
         self.Qk = np.zeros(self.nu)
         self.Uk = np.zeros(self.nu)
@@ -381,12 +461,23 @@ class Generalized_alpha_4_index1():
         """
         dt = self.dt
         dt2 = dt * dt
-        a_bark1 = (self.alpha_f * self.ak + (1 - self.alpha_f) * ak1 - self.alpha_m * self.a_bark) / (1 - self.alpha_m)
-        uk1 = self.uk + dt * ((1 - self.gamma) * self.a_bark + self.gamma * a_bark1) + Uk1
+        a_bark1 = (
+            self.alpha_f * self.ak
+            + (1 - self.alpha_f) * ak1
+            - self.alpha_m * self.a_bark
+        ) / (1 - self.alpha_m)
+        uk1 = (
+            self.uk + dt * ((1 - self.gamma) * self.a_bark + self.gamma * a_bark1) + Uk1
+        )
         a_beta = (0.5 - self.beta) * self.a_bark + self.beta * a_bark1
         if store:
             self.a_bark = a_bark1
-        qk1 = self.qk + dt * self.model.q_dot(self.tk, self.qk, self.uk) + dt2 * self.model.q_ddot(self.tk, self.qk, self.uk, a_beta) + self.Bk @ Qk1
+        qk1 = (
+            self.qk
+            + dt * self.model.q_dot(self.tk, self.qk, self.uk)
+            + dt2 * self.model.q_ddot(self.tk, self.qk, self.uk, a_beta)
+            + self.Bk @ Qk1
+        )
         return qk1, uk1
 
     def pack(self, a, U, Q, kappa_g, La_g, la_g, la_gamma):
@@ -397,14 +488,14 @@ class Generalized_alpha_4_index1():
         x = np.zeros(self.nR)
 
         x[:nu] = a
-        x[nu:2*nu] = U
-        x[2*nu:3*nu] = Q
+        x[nu : 2 * nu] = U
+        x[2 * nu : 3 * nu] = Q
 
-        x[3*nu:3*nu+nla_g] = kappa_g
-        x[3*nu+nla_g:3*nu+2*nla_g] = La_g
-        x[3*nu+2*nla_g:3*nu+3*nla_g] = la_g
+        x[3 * nu : 3 * nu + nla_g] = kappa_g
+        x[3 * nu + nla_g : 3 * nu + 2 * nla_g] = La_g
+        x[3 * nu + 2 * nla_g : 3 * nu + 3 * nla_g] = la_g
 
-        x[3*nu+3*nla_g:3*nu+3*nla_g+nla_gamma] = la_gamma
+        x[3 * nu + 3 * nla_g : 3 * nu + 3 * nla_g + nla_gamma] = la_gamma
 
         return x
 
@@ -417,25 +508,29 @@ class Generalized_alpha_4_index1():
         a = x[:nu]
 
         # velocity correction
-        U = x[nu:2*nu]
+        U = x[nu : 2 * nu]
 
         # position correction
-        Q = x[2*nu:3*nu]
+        Q = x[2 * nu : 3 * nu]
 
         # constraints on position level
-        kappa_g = x[3*nu:3*nu+nla_g] # Lagrange multiplier position correction
-        La_g = x[3*nu+nla_g:3*nu+2*nla_g] # Lagrange multiplier velocity correction
-        la_g = x[3*nu+2*nla_g:3*nu+3*nla_g] # Lagrange multiplier acceleration correction (constraint force)
+        kappa_g = x[3 * nu : 3 * nu + nla_g]  # Lagrange multiplier position correction
+        La_g = x[
+            3 * nu + nla_g : 3 * nu + 2 * nla_g
+        ]  # Lagrange multiplier velocity correction
+        la_g = x[
+            3 * nu + 2 * nla_g : 3 * nu + 3 * nla_g
+        ]  # Lagrange multiplier acceleration correction (constraint force)
 
         # constraints on velocity level
-        la_gamma = x[3*nu+3*nla_g:3*nu+3*nla_g+nla_gamma]
+        la_gamma = x[3 * nu + 3 * nla_g : 3 * nu + 3 * nla_g + nla_gamma]
 
         return a, U, Q, kappa_g, La_g, la_g, la_gamma
 
     def __R_gen_num(self, tk1, xk1):
         yield self.__R(tk1, xk1)
         yield csr_matrix(self.__R_x_num(tk1, xk1))
-        
+
     def __R_gen_analytic(self, tk1, xk1):
         nu = self.nu
         nla_g = self.nla_g
@@ -450,37 +545,45 @@ class Generalized_alpha_4_index1():
         Mk1 = self.model.M(tk1, qk1)
         W_gk1 = self.model.W_g(tk1, qk1)
         W_gammak1 = self.model.W_gamma(tk1, qk1)
-        
+
         ###################
         # evaluate residual
         ###################
         R = np.zeros(self.nR)
 
         # equations of motion
-        R[:nu] = Mk1 @ ak1 -( self.model.h(tk1, qk1, uk1) + W_gk1 @ la_gk1 + W_gammak1 @ la_gammak1 )
+        R[:nu] = Mk1 @ ak1 - (
+            self.model.h(tk1, qk1, uk1) + W_gk1 @ la_gk1 + W_gammak1 @ la_gammak1
+        )
 
         # velocity correction
-        R[nu:2*nu] = Mk1 @ Uk1 - W_gk1 @ La_gk1
+        R[nu : 2 * nu] = Mk1 @ Uk1 - W_gk1 @ La_gk1
 
         # position correction
-        R[2*nu:3*nu] = Mk1 @ Qk1 - W_gk1 @ kappa_gk1
+        R[2 * nu : 3 * nu] = Mk1 @ Qk1 - W_gk1 @ kappa_gk1
 
         # constraints on position level
-        R[3*nu:3*nu+nla_g] = self.model.g(tk1, qk1)
-        R[3*nu+nla_g:3*nu+2*nla_g] = self.model.g_dot(tk1, qk1, uk1)
-        R[3*nu+2*nla_g:3*nu+3*nla_g] = self.model.g_ddot(tk1, qk1, uk1, ak1)
+        R[3 * nu : 3 * nu + nla_g] = self.model.g(tk1, qk1)
+        R[3 * nu + nla_g : 3 * nu + 2 * nla_g] = self.model.g_dot(tk1, qk1, uk1)
+        R[3 * nu + 2 * nla_g : 3 * nu + 3 * nla_g] = self.model.g_ddot(
+            tk1, qk1, uk1, ak1
+        )
 
         # constraints on velocity level
-        R[3*nu+3*nla_g:3*nu+3*nla_g+nla_gamma] = self.model.gamma(tk1, qk1, uk1)
-        
+        R[3 * nu + 3 * nla_g : 3 * nu + 3 * nla_g + nla_gamma] = self.model.gamma(
+            tk1, qk1, uk1
+        )
+
         yield R
 
         #########################################################################################################################
         # R[:nu] = Mk1 @ ak1[uDOF_dyn] + rhs[uDOF_dyn] -( self.model.h(tk1, qk1, uk1) + W_gk1 @ la_gk1 + W_gammak1 @ la_gammak1 )
         #########################################################################################################################
         Wla_g_q = self.model.Wla_g_q(tk1, qk1, la_gk1, scipy_matrix=csr_matrix)
-        Wla_gamma_q = self.model.Wla_gamma_q(tk1, qk1, la_gammak1, scipy_matrix=csr_matrix)
-        rhs_q = - ( self.model.h_q(tk1, qk1, uk1) + Wla_g_q + Wla_gamma_q )
+        Wla_gamma_q = self.model.Wla_gamma_q(
+            tk1, qk1, la_gammak1, scipy_matrix=csr_matrix
+        )
+        rhs_q = -(self.model.h_q(tk1, qk1, uk1) + Wla_g_q + Wla_gamma_q)
         rhs_u = -self.model.h_u(tk1, qk1, uk1)
         rhs_a = rhs_q @ self.q_a + rhs_u * self.u_a
         Ma_q = self.model.Mu_q(tk1, qk1, ak1, scipy_matrix=csr_matrix)
@@ -494,7 +597,7 @@ class Generalized_alpha_4_index1():
         Ra_la_g = -W_gk1
 
         Ra_la_gamma = -W_gammak1
-        
+
         #########################################
         # R[nu:2*nu] = Mk1 @ Uk1 - W_gk1 @ La_gk1
         #########################################
@@ -565,8 +668,8 @@ class Generalized_alpha_4_index1():
         ######################################################################
         Rla_g_q = self.model.g_ddot_q(tk1, qk1, uk1, ak1)
         Rla_g_u = self.model.g_ddot_u(tk1, qk1, uk1, ak1)
-        
-        Rla_g_a = RLa_g_u # = self.model.g_ddot_a(tk1, qk1, uk1)!
+
+        Rla_g_a = RLa_g_u  # = self.model.g_ddot_a(tk1, qk1, uk1)!
         Rla_g_a += Rla_g_q @ self.q_a + Rla_g_u * self.u_a
         Rla_g_U = Rla_g_u
         Rla_g_Q = Rla_g_q @ self.q_Q
@@ -580,7 +683,7 @@ class Generalized_alpha_4_index1():
         ##########################################################################
         # R[3*nu+3*nla_g:3*nu+3*nla_g+nla_gamma] = self.model.gamma(tk1, qk1, uk1)
         ##########################################################################
-        Rla_gamma_q = self.model.gamma_q(tk1, qk1, uk1) 
+        Rla_gamma_q = self.model.gamma_q(tk1, qk1, uk1)
         Rla_gamma_u = self.model.gamma_u(tk1, qk1)
         Rla_gamma_a = Rla_gamma_q @ self.q_a + Rla_gamma_u * self.u_a
         Rla_gamma_U = Rla_gamma_u
@@ -591,31 +694,67 @@ class Generalized_alpha_4_index1():
         Rla_gamma_la_g = None
 
         Rla_gamma_la_gamma = None
-        
+
         # sparse assemble global tangent matrix
-        R_x =  bmat([ [Ra_a,               Ra_U,       Ra_Q,        Ra_kappa_g,         Ra_La_g,        Ra_la_g,        Ra_la_gamma],
-                      [RU_a,               RU_U,       RU_Q,        RU_kappa_g,         RU_La_g,        RU_la_g,        RU_la_gamma],
-                      [RQ_a,               RQ_U,       RQ_Q,        RQ_kappa_g,         RQ_La_g,        RQ_la_g,        RQ_la_gamma],
-                      [Rkappa_g_a,   Rkappa_g_U, Rkappa_g_Q,  Rkappa_g_kappa_g,   Rkappa_g_La_g,  Rkappa_g_la_g,  Rkappa_g_la_gamma],
-                      [RLa_g_a,         RLa_g_U,    RLa_g_Q,     RLa_g_kappa_g,      RLa_g_La_g,     RLa_g_la_g,     RLa_g_la_gamma],
-                      [Rla_g_a,         Rla_g_U,    Rla_g_Q,     Rla_g_kappa_g,      Rla_g_La_g,     Rla_g_la_g,     Rla_g_la_gamma],
-                      [Rla_gamma_a, Rla_gamma_U, Rla_gamma_Q, Rla_gamma_kappa_g, Rla_gamma_La_g, Rla_gamma_la_g, Rla_gamma_la_gamma],
-                    ], format='csc')
+        R_x = bmat(
+            [
+                [Ra_a, Ra_U, Ra_Q, Ra_kappa_g, Ra_La_g, Ra_la_g, Ra_la_gamma],
+                [RU_a, RU_U, RU_Q, RU_kappa_g, RU_La_g, RU_la_g, RU_la_gamma],
+                [RQ_a, RQ_U, RQ_Q, RQ_kappa_g, RQ_La_g, RQ_la_g, RQ_la_gamma],
+                [
+                    Rkappa_g_a,
+                    Rkappa_g_U,
+                    Rkappa_g_Q,
+                    Rkappa_g_kappa_g,
+                    Rkappa_g_La_g,
+                    Rkappa_g_la_g,
+                    Rkappa_g_la_gamma,
+                ],
+                [
+                    RLa_g_a,
+                    RLa_g_U,
+                    RLa_g_Q,
+                    RLa_g_kappa_g,
+                    RLa_g_La_g,
+                    RLa_g_la_g,
+                    RLa_g_la_gamma,
+                ],
+                [
+                    Rla_g_a,
+                    Rla_g_U,
+                    Rla_g_Q,
+                    Rla_g_kappa_g,
+                    Rla_g_La_g,
+                    Rla_g_la_g,
+                    Rla_g_la_gamma,
+                ],
+                [
+                    Rla_gamma_a,
+                    Rla_gamma_U,
+                    Rla_gamma_Q,
+                    Rla_gamma_kappa_g,
+                    Rla_gamma_La_g,
+                    Rla_gamma_la_g,
+                    Rla_gamma_la_gamma,
+                ],
+            ],
+            format="csc",
+        )
 
         yield R_x
 
         # R_x_num = self.__R_x_num(tk1, xk1)
-        # diff = R_x.toarray() - R_x_num        
+        # diff = R_x.toarray() - R_x_num
         # error = np.max(np.abs(diff))
         # print(f'absolute error R_x = {error}')
         # yield R_x_num
-        
+
     def __R(self, tk1, xk1):
         return next(self.__R_gen_analytic(tk1, xk1))
 
     def __R_x_num(self, tk1, xk1):
         return Numerical_derivative(self.__R, order=2)._x(tk1, xk1)
-    
+
     def step(self, tk1, xk1):
         # initial residual and error
         R_gen = self.__R_gen(tk1, xk1)
@@ -627,14 +766,14 @@ class Generalized_alpha_4_index1():
             while j < self.newton_max_iter:
                 # jacobian
                 R_x = next(R_gen)
-                
+
                 # Newton update
                 j += 1
                 dx = spsolve(R_x, R)
                 xk1 -= dx
                 R_gen = self.__R_gen(tk1, xk1)
                 R = next(R_gen)
-                
+
                 error = self.newton_error_function(R)
                 converged = error < self.newton_tol
                 if converged:
@@ -642,7 +781,7 @@ class Generalized_alpha_4_index1():
 
         return converged, j, error, xk1
 
-    def solve(self): 
+    def solve(self):
         dt = self.dt
         dt2 = self.dt**2
 
@@ -666,20 +805,32 @@ class Generalized_alpha_4_index1():
 
             # initial guess for Newton-Raphson solver and time step
             tk1 = self.tk + self.dt
-            xk1 = self.pack(self.ak, self.Uk, self.Qk, self.kappa_gk, self.La_gk, self.la_gk, self.la_gammak)
+            xk1 = self.pack(
+                self.ak,
+                self.Uk,
+                self.Qk,
+                self.kappa_gk,
+                self.La_gk,
+                self.la_gk,
+                self.la_gammak,
+            )
             converged, n_iter, error, xk1 = self.step(tk1, xk1)
             ak1, Uk1, Qk1, kappa_gk1, La_gk1, la_gk1, la_gammak1 = self.unpack(xk1)
 
             # update progress bar and check convergence
-            pbar.set_description(f't: {tk1:0.2e}s < {self.t1:0.2e}s; Newton: {n_iter}/{self.newton_max_iter} iterations; error: {error:0.2e}')
+            pbar.set_description(
+                f"t: {tk1:0.2e}s < {self.t1:0.2e}s; Newton: {n_iter}/{self.newton_max_iter} iterations; error: {error:0.2e}"
+            )
             if not converged:
-                raise RuntimeError(f'internal Newton-Raphson method not converged after {n_iter} steps with error: {error:.5e}')
+                raise RuntimeError(
+                    f"internal Newton-Raphson method not converged after {n_iter} steps with error: {error:.5e}"
+                )
 
             # update dependent variables
             qk1, uk1 = self.update(ak1, Uk1, Qk1, store=True)
 
             # modify converged quantities
-            qk1, uk1 = self.model.solver_step_callback(tk1, qk1, uk1)
+            qk1, uk1 = self.model.step_callback(tk1, qk1, uk1)
 
             # store soltuion fields
             t.append(tk1)
@@ -704,23 +855,48 @@ class Generalized_alpha_4_index1():
             self.la_gammak = la_gammak1
 
         # write solution
-        return Solution(t=np.array(t), q=np.array(q), u=np.array(u), a=np.array(a), kappa_g=np.array(kappa_g), La_g=np.array(La_g), la_g=np.array(la_g), la_gamma=np.array(la_gamma))
+        return Solution(
+            t=np.array(t),
+            q=np.array(q),
+            u=np.array(u),
+            a=np.array(a),
+            kappa_g=np.array(kappa_g),
+            La_g=np.array(La_g),
+            la_g=np.array(la_g),
+            la_gamma=np.array(la_gamma),
+        )
 
-class Generalized_alpha_4_singular_index3():
-    """Generalized alpha solver handling pure algebraic equations. 
+
+class Generalized_alpha_4_singular_index3:
+    """Generalized alpha solver handling pure algebraic equations.
     Constraints on position level and constraints on velocity level can be solved;
     no derivatives of constraint functions are computed!
     """
-    def __init__(self, model, t1, dt, uDOF_algebraic=None, \
-                 rho_inf=1, beta=None, gamma=None, alpha_m=None, alpha_f=None,\
-                 newton_tol=1e-8, newton_max_iter=40, newton_error_function=lambda x: np.max(np.abs(x)),\
-                 numerical_jacobian=False):
-        
+
+    def __init__(
+        self,
+        model,
+        t1,
+        dt,
+        uDOF_algebraic=None,
+        rho_inf=1,
+        beta=None,
+        gamma=None,
+        alpha_m=None,
+        alpha_f=None,
+        newton_tol=1e-8,
+        newton_max_iter=40,
+        newton_error_function=lambda x: np.max(np.abs(x)),
+        numerical_jacobian=False,
+    ):
+
         self.model = model
 
         # integration time
         self.t0 = t0 = model.t0
-        self.t1 = t1 if t1 > t0 else ValueError("t1 must be larger than initial time t0.")
+        self.t1 = (
+            t1 if t1 > t0 else ValueError("t1 must be larger than initial time t0.")
+        )
         self.dt = dt
 
         # parameter
@@ -767,8 +943,14 @@ class Generalized_alpha_4_singular_index3():
         self.la_gk = model.la_g0
         self.la_gammak = model.la_gamma0
 
-        M0 = model.M(t0, model.q0).tocsr()[self.uDOF_dynamic[:, None], self.uDOF_dynamic]
-        rhs0 = self.model.h(t0, model.q0, model.u0) + self.model.W_g(t0, model.q0) @ model.la_g0 + self.model.W_gamma(t0, model.q0) @ model.la_gamma0
+        M0 = model.M(t0, model.q0).tocsr()[
+            self.uDOF_dynamic[:, None], self.uDOF_dynamic
+        ]
+        rhs0 = (
+            self.model.h(t0, model.q0, model.u0)
+            + self.model.W_g(t0, model.q0) @ model.la_g0
+            + self.model.W_gamma(t0, model.q0) @ model.la_gamma0
+        )
         self.ak = np.zeros(model.nu)
         self.ak[self.uDOF_dynamic] = spsolve(M0, rhs0[self.uDOF_dynamic])
         self.a_bark = self.ak.copy()
@@ -785,10 +967,18 @@ class Generalized_alpha_4_singular_index3():
         """
         dt = self.dt
         dt2 = dt * dt
-        a_bark1 = (self.alpha_f * self.ak + (1 - self.alpha_f) * ak1 - self.alpha_m * self.a_bark) / (1 - self.alpha_m)
+        a_bark1 = (
+            self.alpha_f * self.ak
+            + (1 - self.alpha_f) * ak1
+            - self.alpha_m * self.a_bark
+        ) / (1 - self.alpha_m)
         uk1 = self.uk + dt * ((1 - self.gamma) * self.a_bark + self.gamma * a_bark1)
         a_beta = (0.5 - self.beta) * self.a_bark + self.beta * a_bark1
-        qk1 = self.qk + dt * self.model.q_dot(self.tk, self.qk, self.uk) + dt2 * self.model.q_ddot(self.tk, self.qk, self.uk, a_beta)
+        qk1 = (
+            self.qk
+            + dt * self.model.q_dot(self.tk, self.qk, self.uk)
+            + dt2 * self.model.q_ddot(self.tk, self.qk, self.uk, a_beta)
+        )
         if store:
             self.a_bark = a_bark1
         return qk1, uk1
@@ -805,8 +995,8 @@ class Generalized_alpha_4_singular_index3():
 
         x[:nu_dyn] = a[uDOF_dyn]
         x[nu_dyn:nu] = a[uDOF_alg]
-        x[nu:nu+nla_g] = la_g
-        x[nu+nla_g:nu+nla_g+nla_gamma] = la_gamma
+        x[nu : nu + nla_g] = la_g
+        x[nu + nla_g : nu + nla_g + nla_gamma] = la_gamma
 
         return x
 
@@ -824,17 +1014,17 @@ class Generalized_alpha_4_singular_index3():
         a[uDOF_alg] = x[nu_dyn:nu]
 
         # constraints on position level
-        la_g = x[nu:nu+nla_g]
+        la_g = x[nu : nu + nla_g]
 
         # constraints on velocity level
-        la_gamma = x[nu+nla_g:nu+nla_g+nla_gamma]
+        la_gamma = x[nu + nla_g : nu + nla_g + nla_gamma]
 
         return a, la_g, la_gamma
 
     def __R_gen_num(self, tk1, xk1):
         yield self.__R(tk1, xk1)
         yield csr_matrix(self.__R_x_num(tk1, xk1))
-        
+
     def __R_gen_analytic(self, tk1, xk1):
         nu = self.nu
         nu_dyn = self.nu_dynamic
@@ -848,11 +1038,13 @@ class Generalized_alpha_4_singular_index3():
         qk1, uk1 = self.update(ak1)
 
         # evaluate mass matrix and constraint force directions and rhs
-        Mk1 = self.model.M(tk1, qk1, scipy_matrix=csr_matrix)[uDOF_dyn[:, None], uDOF_dyn]
+        Mk1 = self.model.M(tk1, qk1, scipy_matrix=csr_matrix)[
+            uDOF_dyn[:, None], uDOF_dyn
+        ]
         W_gk1 = self.model.W_g(tk1, qk1, scipy_matrix=csr_matrix)
         W_gammak1 = self.model.W_gamma(tk1, qk1, scipy_matrix=csr_matrix)
-        rhs = -( self.model.h(tk1, qk1, uk1) + W_gk1 @ la_gk1 + W_gammak1 @ la_gammak1 )
-        
+        rhs = -(self.model.h(tk1, qk1, uk1) + W_gk1 @ la_gk1 + W_gammak1 @ la_gammak1)
+
         ###################
         # evaluate residual
         ###################
@@ -863,11 +1055,11 @@ class Generalized_alpha_4_singular_index3():
         R[nu_dyn:nu] = rhs[uDOF_alg]
 
         # constraints on position level
-        R[nu:nu+nla_g] = self.model.g(tk1, qk1)
+        R[nu : nu + nla_g] = self.model.g(tk1, qk1)
 
         # constraints on velocity level
-        R[nu+nla_g:nu+nla_g+nla_gamma] = self.model.gamma(tk1, qk1, uk1)
-        
+        R[nu + nla_g : nu + nla_g + nla_gamma] = self.model.gamma(tk1, qk1, uk1)
+
         yield R
 
         ##################################################################################
@@ -876,8 +1068,10 @@ class Generalized_alpha_4_singular_index3():
         # R[nu_dyn:nu] = rhs[uDOF_alg]
         ##################################################################################
         Wla_g_q = self.model.Wla_g_q(tk1, qk1, la_gk1, scipy_matrix=csr_matrix)
-        Wla_gamma_q = self.model.Wla_gamma_q(tk1, qk1, la_gammak1, scipy_matrix=csr_matrix)
-        rhs_q = - ( self.model.h_q(tk1, qk1, uk1) + Wla_g_q + Wla_gamma_q )
+        Wla_gamma_q = self.model.Wla_gamma_q(
+            tk1, qk1, la_gammak1, scipy_matrix=csr_matrix
+        )
+        rhs_q = -(self.model.h_q(tk1, qk1, uk1) + Wla_g_q + Wla_gamma_q)
         rhs_u = -self.model.h_u(tk1, qk1, uk1)
         rhs_a = rhs_q @ self.q_a + rhs_u * self.u_a
 
@@ -914,7 +1108,7 @@ class Generalized_alpha_4_singular_index3():
         ##################################################################
         # R[nu+nla_g:nu+nla_g+nla_gamma] = self.model.gamma(tk1, qk1, uk1)
         ##################################################################
-        Rla_gamma_q = self.model.gamma_q(tk1, qk1, uk1) 
+        Rla_gamma_q = self.model.gamma_q(tk1, qk1, uk1)
         Rla_gamma_u = self.model.gamma_u(tk1, qk1, scipy_matrix=csr_matrix)
         Rla_gamma_a = Rla_gamma_q @ self.q_a + Rla_gamma_u * self.u_a
 
@@ -924,13 +1118,17 @@ class Generalized_alpha_4_singular_index3():
         Rla_gamma_la_g = None
 
         Rla_gamma_la_gamma = None
-        
+
         # sparse assemble global tangent matrix
-        R_x =  bmat([ [Ra_dyn_a_dyn,       Ra_dyn_a_alg,    Ra_dyn_la_g,    Ra_dyn_la_gamma],
-                      [Ra_alg_a_dyn,       Ra_alg_a_alg,    Ra_alg_la_g,    Ra_alg_la_gamma],
-                      [Rla_g_a_dyn,         Rla_g_a_alg,     Rla_g_la_g,     Rla_g_la_gamma],
-                      [Rla_gamma_a_dyn, Rla_gamma_a_alg, Rla_gamma_la_g, Rla_gamma_la_gamma],
-                    ], format='csr')
+        R_x = bmat(
+            [
+                [Ra_dyn_a_dyn, Ra_dyn_a_alg, Ra_dyn_la_g, Ra_dyn_la_gamma],
+                [Ra_alg_a_dyn, Ra_alg_a_alg, Ra_alg_la_g, Ra_alg_la_gamma],
+                [Rla_g_a_dyn, Rla_g_a_alg, Rla_g_la_g, Rla_g_la_gamma],
+                [Rla_gamma_a_dyn, Rla_gamma_a_alg, Rla_gamma_la_g, Rla_gamma_la_gamma],
+            ],
+            format="csr",
+        )
 
         yield R_x
 
@@ -944,7 +1142,7 @@ class Generalized_alpha_4_singular_index3():
         # # diff_error = diff[nu+nla_g:nu+nla_g+nla_gamma]
 
         # diff_error = diff #~1.0e-5
-        
+
         # error = np.max(np.abs(diff_error))
         # print(f'absolute error R_x = {error}')
 
@@ -952,13 +1150,13 @@ class Generalized_alpha_4_singular_index3():
         # # print(f'relative error R_x = {error}')
 
         # yield R_x_num
-        
+
     def __R(self, tk1, xk1):
         return next(self.__R_gen_analytic(tk1, xk1))
 
     def __R_x_num(self, tk1, xk1):
         return Numerical_derivative(self.__R, order=2)._x(tk1, xk1)
-    
+
     def step(self, tk1, xk1):
         # initial residual and error
         R_gen = self.__R_gen(tk1, xk1)
@@ -970,14 +1168,14 @@ class Generalized_alpha_4_singular_index3():
             while j < self.newton_max_iter:
                 # jacobian
                 R_x = next(R_gen)
-                
+
                 # Newton update
                 j += 1
                 dx = spsolve(R_x, R)
                 xk1 -= dx
                 R_gen = self.__R_gen(tk1, xk1)
                 R = next(R_gen)
-                
+
                 error = self.newton_error_function(R)
                 converged = error < self.newton_tol
                 if converged:
@@ -985,7 +1183,7 @@ class Generalized_alpha_4_singular_index3():
 
         return converged, j, error, xk1
 
-    def solve(self): 
+    def solve(self):
         dt = self.dt
         dt2 = self.dt**2
 
@@ -1000,7 +1198,12 @@ class Generalized_alpha_4_singular_index3():
         pbar = tqdm(np.arange(self.t0, self.t1, self.dt))
         for _ in pbar:
             # evaluate quantities at previous time step
-            self.q_a = dt2 * self.beta * self.alpha_ratio * self.model.B(self.tk, self.qk, scipy_matrix=csr_matrix)
+            self.q_a = (
+                dt2
+                * self.beta
+                * self.alpha_ratio
+                * self.model.B(self.tk, self.qk, scipy_matrix=csr_matrix)
+            )
             self.u_a = dt * self.gamma * self.alpha_ratio
 
             # initial guess for Newton-Raphson solver and time step
@@ -1010,15 +1213,19 @@ class Generalized_alpha_4_singular_index3():
             ak1, la_gk1, la_gammak1 = self.unpack(xk1)
 
             # update progress bar and check convergence
-            pbar.set_description(f't: {tk1:0.2e}s < {self.t1:0.2e}s; Newton: {n_iter}/{self.newton_max_iter} iterations; error: {error:0.2e}')
+            pbar.set_description(
+                f"t: {tk1:0.2e}s < {self.t1:0.2e}s; Newton: {n_iter}/{self.newton_max_iter} iterations; error: {error:0.2e}"
+            )
             if not converged:
-                raise RuntimeError(f'internal Newton-Raphson method not converged after {n_iter} steps with error: {error:.5e}')
+                raise RuntimeError(
+                    f"internal Newton-Raphson method not converged after {n_iter} steps with error: {error:.5e}"
+                )
 
             # update dependent variables
             qk1, uk1 = self.update(ak1, store=True)
 
             # modify converged quantities
-            qk1, uk1 = self.model.solver_step_callback(tk1, qk1, uk1)
+            qk1, uk1 = self.model.step_callback(tk1, qk1, uk1)
 
             # store soltuion fields
             t.append(tk1)
@@ -1036,21 +1243,44 @@ class Generalized_alpha_4_singular_index3():
             self.la_gammak = la_gammak1
 
         # write solution
-        return Solution(t=np.array(t), q=np.array(q), u=np.array(u), a=np.array(a), la_g=np.array(la_g), la_gamma=np.array(la_gamma))
+        return Solution(
+            t=np.array(t),
+            q=np.array(q),
+            u=np.array(u),
+            a=np.array(a),
+            la_g=np.array(la_g),
+            la_gamma=np.array(la_gamma),
+        )
 
-class Generalized_alpha_4_singular_index1():
-    """Index 1 generalized alpha solver handling pure algebraic equations.
-    """
-    def __init__(self, model, t1, dt, uDOF_algebraic=None, \
-                 rho_inf=1, beta=None, gamma=None, alpha_m=None, alpha_f=None,\
-                 newton_tol=1e-8, newton_max_iter=40, newton_error_function=lambda x: np.max(np.abs(x)),\
-                 numerical_jacobian=False, debug=False):
-        
+
+class Generalized_alpha_4_singular_index1:
+    """Index 1 generalized alpha solver handling pure algebraic equations."""
+
+    def __init__(
+        self,
+        model,
+        t1,
+        dt,
+        uDOF_algebraic=None,
+        rho_inf=1,
+        beta=None,
+        gamma=None,
+        alpha_m=None,
+        alpha_f=None,
+        newton_tol=1e-8,
+        newton_max_iter=40,
+        newton_error_function=lambda x: np.max(np.abs(x)),
+        numerical_jacobian=False,
+        debug=False,
+    ):
+
         self.model = model
 
         # integration time
         self.t0 = t0 = model.t0
-        self.t1 = t1 if t1 > t0 else ValueError("t1 must be larger than initial time t0.")
+        self.t1 = (
+            t1 if t1 > t0 else ValueError("t1 must be larger than initial time t0.")
+        )
         self.dt = dt
 
         # parameter
@@ -1088,7 +1318,7 @@ class Generalized_alpha_4_singular_index1():
         self.nu_algebraic = len(self.uDOF_algebraic)
         self.nu_dynamic = len(self.uDOF_dynamic)
 
-        # constraints on position, velocity and acceleration level + corresponding equations (EQM, position and velocity correction) 
+        # constraints on position, velocity and acceleration level + corresponding equations (EQM, position and velocity correction)
         # + constraints on velocitiy level
         self.nR = 3 * self.nu + 3 * self.nla_g + self.nla_gamma
 
@@ -1101,9 +1331,15 @@ class Generalized_alpha_4_singular_index1():
         self.la_gammak = model.la_gamma0
 
         Mk = model.M(t0, model.q0).tocsr()
-        rhsk = self.model.h(t0, model.q0, model.u0) + self.model.W_g(t0, model.q0) @ model.la_g0 + self.model.W_gamma(t0, model.q0) @ model.la_gamma0
+        rhsk = (
+            self.model.h(t0, model.q0, model.u0)
+            + self.model.W_g(t0, model.q0) @ model.la_g0
+            + self.model.W_gamma(t0, model.q0) @ model.la_gamma0
+        )
         self.ak = np.zeros(model.nu)
-        self.ak[self.uDOF_dynamic] = spsolve(Mk[self.uDOF_dynamic[:, None], self.uDOF_dynamic], rhsk[self.uDOF_dynamic])
+        self.ak[self.uDOF_dynamic] = spsolve(
+            Mk[self.uDOF_dynamic[:, None], self.uDOF_dynamic], rhsk[self.uDOF_dynamic]
+        )
         self.Qk = np.zeros(self.nu)
         self.Uk = np.zeros(self.nu)
         self.a_bark = self.ak.copy()
@@ -1122,12 +1358,23 @@ class Generalized_alpha_4_singular_index1():
         """
         dt = self.dt
         dt2 = dt * dt
-        a_bark1 = (self.alpha_f * self.ak + (1 - self.alpha_f) * ak1 - self.alpha_m * self.a_bark) / (1 - self.alpha_m)
-        uk1 = self.uk + dt * ((1 - self.gamma) * self.a_bark + self.gamma * a_bark1) + Uk1
+        a_bark1 = (
+            self.alpha_f * self.ak
+            + (1 - self.alpha_f) * ak1
+            - self.alpha_m * self.a_bark
+        ) / (1 - self.alpha_m)
+        uk1 = (
+            self.uk + dt * ((1 - self.gamma) * self.a_bark + self.gamma * a_bark1) + Uk1
+        )
         a_beta = (0.5 - self.beta) * self.a_bark + self.beta * a_bark1
         if store:
             self.a_bark = a_bark1
-        qk1 = self.qk + dt * self.model.q_dot(self.tk, self.qk, self.uk) + dt2 * self.model.q_ddot(self.tk, self.qk, self.uk, a_beta) + self.Bk @ Qk1
+        qk1 = (
+            self.qk
+            + dt * self.model.q_dot(self.tk, self.qk, self.uk)
+            + dt2 * self.model.q_ddot(self.tk, self.qk, self.uk, a_beta)
+            + self.Bk @ Qk1
+        )
         return qk1, uk1
 
     def pack(self, a, U, Q, kappa_g, La_g, la_g, la_gamma):
@@ -1143,17 +1390,17 @@ class Generalized_alpha_4_singular_index1():
         x[:nu_dyn] = a[uDOF_dyn]
         x[nu_dyn:nu] = a[uDOF_alg]
 
-        x[nu:nu+nu_dyn] = U[uDOF_dyn]
-        x[nu+nu_dyn:2*nu] = U[uDOF_alg]
+        x[nu : nu + nu_dyn] = U[uDOF_dyn]
+        x[nu + nu_dyn : 2 * nu] = U[uDOF_alg]
 
-        x[2*nu:2*nu+nu_dyn] = Q[uDOF_dyn]
-        x[2*nu+nu_dyn:3*nu] = Q[uDOF_alg]
+        x[2 * nu : 2 * nu + nu_dyn] = Q[uDOF_dyn]
+        x[2 * nu + nu_dyn : 3 * nu] = Q[uDOF_alg]
 
-        x[3*nu:3*nu+nla_g] = kappa_g
-        x[3*nu+nla_g:3*nu+2*nla_g] = La_g
-        x[3*nu+2*nla_g:3*nu+3*nla_g] = la_g
+        x[3 * nu : 3 * nu + nla_g] = kappa_g
+        x[3 * nu + nla_g : 3 * nu + 2 * nla_g] = La_g
+        x[3 * nu + 2 * nla_g : 3 * nu + 3 * nla_g] = la_g
 
-        x[3*nu+3*nla_g:3*nu+3*nla_g+nla_gamma] = la_gamma
+        x[3 * nu + 3 * nla_g : 3 * nu + 3 * nla_g + nla_gamma] = la_gamma
 
         return x
 
@@ -1172,28 +1419,32 @@ class Generalized_alpha_4_singular_index1():
 
         # velocity correction
         U = np.zeros(nu)
-        U[uDOF_dyn] = x[nu:nu+nu_dyn]
-        U[uDOF_alg] = x[nu+nu_dyn:2*nu]
+        U[uDOF_dyn] = x[nu : nu + nu_dyn]
+        U[uDOF_alg] = x[nu + nu_dyn : 2 * nu]
 
         # position correction
         Q = np.zeros(nu)
-        Q[uDOF_dyn] = x[2*nu:2*nu+nu_dyn]
-        Q[uDOF_alg] = x[2*nu+nu_dyn:3*nu]
+        Q[uDOF_dyn] = x[2 * nu : 2 * nu + nu_dyn]
+        Q[uDOF_alg] = x[2 * nu + nu_dyn : 3 * nu]
 
         # constraints on position level
-        kappa_g = x[3*nu:3*nu+nla_g] # Lagrange multiplier position correction
-        La_g = x[3*nu+nla_g:3*nu+2*nla_g] # Lagrange multiplier velocity correction
-        la_g = x[3*nu+2*nla_g:3*nu+3*nla_g] # Lagrange multiplier acceleration correction (constraint force)
+        kappa_g = x[3 * nu : 3 * nu + nla_g]  # Lagrange multiplier position correction
+        La_g = x[
+            3 * nu + nla_g : 3 * nu + 2 * nla_g
+        ]  # Lagrange multiplier velocity correction
+        la_g = x[
+            3 * nu + 2 * nla_g : 3 * nu + 3 * nla_g
+        ]  # Lagrange multiplier acceleration correction (constraint force)
 
         # constraints on velocity level
-        la_gamma = x[3*nu+3*nla_g:3*nu+3*nla_g+nla_gamma]
+        la_gamma = x[3 * nu + 3 * nla_g : 3 * nu + 3 * nla_g + nla_gamma]
 
         return a, U, Q, kappa_g, La_g, la_g, la_gamma
 
     def __R_gen_num(self, tk1, xk1):
         yield self.__R(tk1, xk1)
         yield csr_matrix(self.__R_x_num(tk1, xk1))
-        
+
     def __R_gen_analytic(self, tk1, xk1):
         nu = self.nu
         nu_dyn = self.nu_dynamic
@@ -1208,11 +1459,13 @@ class Generalized_alpha_4_singular_index1():
         qk1, uk1 = self.update(ak1, Uk1, Qk1)
 
         # evaluate mass matrix and constraint force directions and rhs
-        Mk1 = self.model.M(tk1, qk1, scipy_matrix=csr_matrix)[uDOF_dyn[:, None], uDOF_dyn]
+        Mk1 = self.model.M(tk1, qk1, scipy_matrix=csr_matrix)[
+            uDOF_dyn[:, None], uDOF_dyn
+        ]
         W_gk1 = self.model.W_g(tk1, qk1, scipy_matrix=csr_matrix)
         W_gammak1 = self.model.W_gamma(tk1, qk1, scipy_matrix=csr_matrix)
-        rhs = -( self.model.h(tk1, qk1, uk1) + W_gk1 @ la_gk1 + W_gammak1 @ la_gammak1 )
-        
+        rhs = -(self.model.h(tk1, qk1, uk1) + W_gk1 @ la_gk1 + W_gammak1 @ la_gammak1)
+
         ###################
         # evaluate residual
         ###################
@@ -1224,22 +1477,26 @@ class Generalized_alpha_4_singular_index1():
 
         # velocity correction
         W_g_La = W_gk1 @ La_gk1
-        R[nu:nu+nu_dyn] = Mk1 @ Uk1[uDOF_dyn] - W_g_La[uDOF_dyn]
-        R[nu+nu_dyn:2*nu] = - W_g_La[uDOF_alg]
+        R[nu : nu + nu_dyn] = Mk1 @ Uk1[uDOF_dyn] - W_g_La[uDOF_dyn]
+        R[nu + nu_dyn : 2 * nu] = -W_g_La[uDOF_alg]
 
         # position correction
         W_g_ka = W_gk1 @ kappa_gk1
-        R[2*nu:2*nu+nu_dyn] = Mk1 @ Qk1[uDOF_dyn] - W_g_ka[uDOF_dyn]
-        R[2*nu+nu_dyn:3*nu] = - W_g_ka[uDOF_alg]
+        R[2 * nu : 2 * nu + nu_dyn] = Mk1 @ Qk1[uDOF_dyn] - W_g_ka[uDOF_dyn]
+        R[2 * nu + nu_dyn : 3 * nu] = -W_g_ka[uDOF_alg]
 
         # constraints on position level
-        R[3*nu:3*nu+nla_g] = self.model.g(tk1, qk1)
-        R[3*nu+nla_g:3*nu+2*nla_g] = self.model.g_dot(tk1, qk1, uk1)
-        R[3*nu+2*nla_g:3*nu+3*nla_g] = self.model.g_ddot(tk1, qk1, uk1, ak1)
+        R[3 * nu : 3 * nu + nla_g] = self.model.g(tk1, qk1)
+        R[3 * nu + nla_g : 3 * nu + 2 * nla_g] = self.model.g_dot(tk1, qk1, uk1)
+        R[3 * nu + 2 * nla_g : 3 * nu + 3 * nla_g] = self.model.g_ddot(
+            tk1, qk1, uk1, ak1
+        )
 
         # constraints on velocity level
-        R[3*nu+3*nla_g:3*nu+3*nla_g+nla_gamma] = self.model.gamma(tk1, qk1, uk1)
-        
+        R[3 * nu + 3 * nla_g : 3 * nu + 3 * nla_g + nla_gamma] = self.model.gamma(
+            tk1, qk1, uk1
+        )
+
         yield R
 
         ##################################################################################
@@ -1248,8 +1505,10 @@ class Generalized_alpha_4_singular_index1():
         # R[nu_dyn:nu] = rhs[uDOF_alg]
         ##################################################################################
         Wla_g_q = self.model.Wla_g_q(tk1, qk1, la_gk1, scipy_matrix=csr_matrix)
-        Wla_gamma_q = self.model.Wla_gamma_q(tk1, qk1, la_gammak1, scipy_matrix=csr_matrix)
-        rhs_q = - ( self.model.h_q(tk1, qk1, uk1) + Wla_g_q + Wla_gamma_q )
+        Wla_gamma_q = self.model.Wla_gamma_q(
+            tk1, qk1, la_gammak1, scipy_matrix=csr_matrix
+        )
+        rhs_q = -(self.model.h_q(tk1, qk1, uk1) + Wla_g_q + Wla_gamma_q)
         rhs_u = -self.model.h_u(tk1, qk1, uk1)
         rhs_a = rhs_q @ self.q_a + rhs_u * self.u_a
         rhs_Q = rhs_q @ self.q_Q
@@ -1260,7 +1519,7 @@ class Generalized_alpha_4_singular_index1():
 
         Ra_dyn_a_dyn = Mk1 + Ma_dyn_a[:, uDOF_dyn]
         Ra_dyn_a_alg = Ma_dyn_a[:, uDOF_alg]
-        
+
         Ra_dyn_U_dyn = rhs_u[uDOF_dyn[:, None], uDOF_dyn]
         Ra_dyn_U_alg = rhs_u[uDOF_dyn[:, None], uDOF_alg]
 
@@ -1287,7 +1546,7 @@ class Generalized_alpha_4_singular_index1():
         Ra_alg_la_g = -W_gk1[uDOF_alg]
 
         Ra_alg_la_gamma = -W_gammak1[uDOF_alg]
-        
+
         ##########################################################
         # W_g_La = W_gk1 @ La_gk1
         # R[nu:nu+nu_dyn] = Mk1 @ Uk1[uDOF_dyn] - W_g_La[uDOF_dyn]
@@ -1314,8 +1573,7 @@ class Generalized_alpha_4_singular_index1():
 
         RU_dyn_la_gamma = None
 
-
-        RU_alg_q = - WLa_g_q[uDOF_alg]
+        RU_alg_q = -WLa_g_q[uDOF_alg]
         RU_alg_a = RU_alg_q @ self.q_a
         RU_alg_Q = RU_alg_q @ self.q_Q
 
@@ -1360,8 +1618,7 @@ class Generalized_alpha_4_singular_index1():
 
         RQ_dyn_la_gamma = None
 
-
-        RQ_alg_q = - Wkappa_g_q[uDOF_alg]
+        RQ_alg_q = -Wkappa_g_q[uDOF_alg]
         RQ_alg_a = RQ_alg_q @ self.q_a
         RQ_alg_Q = RQ_alg_q @ self.q_Q
 
@@ -1430,7 +1687,7 @@ class Generalized_alpha_4_singular_index1():
         ######################################################################
         Rla_g_q = self.model.g_ddot_q(tk1, qk1, uk1, ak1)
         Rla_g_u = self.model.g_ddot_u(tk1, qk1, uk1, ak1, scipy_matrix=csr_matrix)
-        Rla_g_a = RLa_g_u # = self.model.g_ddot_a(tk1, qk1, uk1)!
+        Rla_g_a = RLa_g_u  # = self.model.g_ddot_a(tk1, qk1, uk1)!
         Rla_g_a += Rla_g_q @ self.q_a + Rla_g_u * self.u_a
         Rla_g_Q = Rla_g_q @ self.q_Q
 
@@ -1452,7 +1709,7 @@ class Generalized_alpha_4_singular_index1():
         ##################################################################
         # R[nu+nla_g:nu+nla_g+nla_gamma] = self.model.gamma(tk1, qk1, uk1)
         ##################################################################
-        Rla_gamma_q = self.model.gamma_q(tk1, qk1, uk1) 
+        Rla_gamma_q = self.model.gamma_q(tk1, qk1, uk1)
         Rla_gamma_u = self.model.gamma_u(tk1, qk1, scipy_matrix=csr_matrix)
         Rla_gamma_a = Rla_gamma_q @ self.q_a + Rla_gamma_u * self.u_a
         Rla_gamma_Q = Rla_gamma_q @ self.q_Q
@@ -1471,19 +1728,133 @@ class Generalized_alpha_4_singular_index1():
         Rla_gamma_la_g = None
 
         Rla_gamma_la_gamma = None
-        
+
         # sparse assemble global tangent matrix
-        R_x =  bmat([ [Ra_dyn_a_dyn,       Ra_dyn_a_alg,    Ra_dyn_U_dyn,    Ra_dyn_U_alg,    Ra_dyn_Q_dyn,    Ra_dyn_Q_alg,    Ra_dyn_kappa_g,    Ra_dyn_La_g,    Ra_dyn_la_g,    Ra_dyn_la_gamma],
-                      [Ra_alg_a_dyn,       Ra_alg_a_alg,    Ra_alg_U_dyn,    Ra_alg_U_alg,    Ra_alg_Q_dyn,    Ra_alg_Q_alg,    Ra_alg_kappa_g,    Ra_alg_La_g,    Ra_alg_la_g,    Ra_alg_la_gamma],
-                      [RU_dyn_a_dyn,       RU_dyn_a_alg,    RU_dyn_U_dyn,    RU_dyn_U_alg,    RU_dyn_Q_dyn,    RU_dyn_Q_alg,    RU_dyn_kappa_g,    RU_dyn_La_g,    RU_dyn_la_g,    RU_dyn_la_gamma],
-                      [RU_alg_a_dyn,       RU_alg_a_alg,    RU_alg_U_dyn,    RU_alg_U_alg,    RU_alg_Q_dyn,    RU_alg_Q_alg,    RU_alg_kappa_g,    RU_alg_La_g,    RU_alg_la_g,    RU_alg_la_gamma],
-                      [RQ_dyn_a_dyn,       RQ_dyn_a_alg,    RQ_dyn_U_dyn,    RQ_dyn_U_alg,    RQ_dyn_Q_dyn,    RQ_dyn_Q_alg,    RQ_dyn_kappa_g,    RQ_dyn_La_g,    RQ_dyn_la_g,    RQ_dyn_la_gamma],
-                      [RQ_alg_a_dyn,       RQ_alg_a_alg,    RQ_alg_U_dyn,    RQ_alg_U_alg,    RQ_alg_Q_dyn,    RQ_alg_Q_alg,    RQ_alg_kappa_g,    RQ_alg_La_g,    RQ_alg_la_g,    RQ_alg_la_gamma],
-                      [Rkappa_g_a_dyn,   Rkappa_g_a_alg,  Rkappa_g_U_dyn,  Rkappa_g_U_alg,  Rkappa_g_Q_dyn,  Rkappa_g_Q_alg,  Rkappa_g_kappa_g,  Rkappa_g_La_g,  Rkappa_g_la_g,  Rkappa_g_la_gamma],
-                      [RLa_g_a_dyn,         RLa_g_a_alg,     RLa_g_U_dyn,     RLa_g_U_alg,     RLa_g_Q_dyn,     RLa_g_Q_alg,     RLa_g_kappa_g,     RLa_g_La_g,     RLa_g_la_g,     RLa_g_la_gamma],
-                      [Rla_g_a_dyn,         Rla_g_a_alg,     Rla_g_U_dyn,     Rla_g_U_alg,     Rla_g_Q_dyn,     Rla_g_Q_alg,     Rla_g_kappa_g,     Rla_g_La_g,     Rla_g_la_g,     Rla_g_la_gamma],
-                      [Rla_gamma_a_dyn, Rla_gamma_a_alg, Rla_gamma_U_dyn, Rla_gamma_U_alg, Rla_gamma_Q_dyn, Rla_gamma_Q_alg, Rla_gamma_kappa_g, Rla_gamma_La_g, Rla_gamma_la_g, Rla_gamma_la_gamma],
-                    ], format='csr')
+        R_x = bmat(
+            [
+                [
+                    Ra_dyn_a_dyn,
+                    Ra_dyn_a_alg,
+                    Ra_dyn_U_dyn,
+                    Ra_dyn_U_alg,
+                    Ra_dyn_Q_dyn,
+                    Ra_dyn_Q_alg,
+                    Ra_dyn_kappa_g,
+                    Ra_dyn_La_g,
+                    Ra_dyn_la_g,
+                    Ra_dyn_la_gamma,
+                ],
+                [
+                    Ra_alg_a_dyn,
+                    Ra_alg_a_alg,
+                    Ra_alg_U_dyn,
+                    Ra_alg_U_alg,
+                    Ra_alg_Q_dyn,
+                    Ra_alg_Q_alg,
+                    Ra_alg_kappa_g,
+                    Ra_alg_La_g,
+                    Ra_alg_la_g,
+                    Ra_alg_la_gamma,
+                ],
+                [
+                    RU_dyn_a_dyn,
+                    RU_dyn_a_alg,
+                    RU_dyn_U_dyn,
+                    RU_dyn_U_alg,
+                    RU_dyn_Q_dyn,
+                    RU_dyn_Q_alg,
+                    RU_dyn_kappa_g,
+                    RU_dyn_La_g,
+                    RU_dyn_la_g,
+                    RU_dyn_la_gamma,
+                ],
+                [
+                    RU_alg_a_dyn,
+                    RU_alg_a_alg,
+                    RU_alg_U_dyn,
+                    RU_alg_U_alg,
+                    RU_alg_Q_dyn,
+                    RU_alg_Q_alg,
+                    RU_alg_kappa_g,
+                    RU_alg_La_g,
+                    RU_alg_la_g,
+                    RU_alg_la_gamma,
+                ],
+                [
+                    RQ_dyn_a_dyn,
+                    RQ_dyn_a_alg,
+                    RQ_dyn_U_dyn,
+                    RQ_dyn_U_alg,
+                    RQ_dyn_Q_dyn,
+                    RQ_dyn_Q_alg,
+                    RQ_dyn_kappa_g,
+                    RQ_dyn_La_g,
+                    RQ_dyn_la_g,
+                    RQ_dyn_la_gamma,
+                ],
+                [
+                    RQ_alg_a_dyn,
+                    RQ_alg_a_alg,
+                    RQ_alg_U_dyn,
+                    RQ_alg_U_alg,
+                    RQ_alg_Q_dyn,
+                    RQ_alg_Q_alg,
+                    RQ_alg_kappa_g,
+                    RQ_alg_La_g,
+                    RQ_alg_la_g,
+                    RQ_alg_la_gamma,
+                ],
+                [
+                    Rkappa_g_a_dyn,
+                    Rkappa_g_a_alg,
+                    Rkappa_g_U_dyn,
+                    Rkappa_g_U_alg,
+                    Rkappa_g_Q_dyn,
+                    Rkappa_g_Q_alg,
+                    Rkappa_g_kappa_g,
+                    Rkappa_g_La_g,
+                    Rkappa_g_la_g,
+                    Rkappa_g_la_gamma,
+                ],
+                [
+                    RLa_g_a_dyn,
+                    RLa_g_a_alg,
+                    RLa_g_U_dyn,
+                    RLa_g_U_alg,
+                    RLa_g_Q_dyn,
+                    RLa_g_Q_alg,
+                    RLa_g_kappa_g,
+                    RLa_g_La_g,
+                    RLa_g_la_g,
+                    RLa_g_la_gamma,
+                ],
+                [
+                    Rla_g_a_dyn,
+                    Rla_g_a_alg,
+                    Rla_g_U_dyn,
+                    Rla_g_U_alg,
+                    Rla_g_Q_dyn,
+                    Rla_g_Q_alg,
+                    Rla_g_kappa_g,
+                    Rla_g_La_g,
+                    Rla_g_la_g,
+                    Rla_g_la_gamma,
+                ],
+                [
+                    Rla_gamma_a_dyn,
+                    Rla_gamma_a_alg,
+                    Rla_gamma_U_dyn,
+                    Rla_gamma_U_alg,
+                    Rla_gamma_Q_dyn,
+                    Rla_gamma_Q_alg,
+                    Rla_gamma_kappa_g,
+                    Rla_gamma_La_g,
+                    Rla_gamma_la_g,
+                    Rla_gamma_la_gamma,
+                ],
+            ],
+            format="csr",
+        )
 
         yield R_x
 
@@ -1509,7 +1880,7 @@ class Generalized_alpha_4_singular_index1():
         # # diff_error = diff[nu:] #~1.0e-9
 
         # # diff_error = diff #~1.0e-5
-        
+
         # error = np.max(np.abs(diff_error))
         # print(f'absolute error R_x = {error}')
 
@@ -1517,13 +1888,13 @@ class Generalized_alpha_4_singular_index1():
         # # print(f'relative error R_x = {error}')
 
         # yield R_x_num
-        
+
     def __R(self, tk1, xk1):
         return next(self.__R_gen_analytic(tk1, xk1))
 
     def __R_x_num(self, tk1, xk1):
         return Numerical_derivative(self.__R, order=2)._x(tk1, xk1)
-    
+
     def step(self, tk1, xk1):
         # initial residual and error
         R_gen = self.__R_gen(tk1, xk1)
@@ -1535,14 +1906,14 @@ class Generalized_alpha_4_singular_index1():
             while j < self.newton_max_iter:
                 # jacobian
                 R_x = next(R_gen)
-                
+
                 # Newton update
                 j += 1
                 dx = spsolve(R_x, R)
                 xk1 -= dx
                 R_gen = self.__R_gen(tk1, xk1)
                 R = next(R_gen)
-                
+
                 error = self.newton_error_function(R)
                 converged = error < self.newton_tol
                 if converged:
@@ -1550,7 +1921,7 @@ class Generalized_alpha_4_singular_index1():
 
         return converged, j, error, xk1
 
-    def solve(self): 
+    def solve(self):
         dt = self.dt
         dt2 = self.dt**2
 
@@ -1574,20 +1945,32 @@ class Generalized_alpha_4_singular_index1():
 
             # initial guess for Newton-Raphson solver and time step
             tk1 = self.tk + self.dt
-            xk1 = self.pack(self.ak, self.Uk, self.Qk, self.kappa_gk, self.La_gk, self.la_gk, self.la_gammak)
+            xk1 = self.pack(
+                self.ak,
+                self.Uk,
+                self.Qk,
+                self.kappa_gk,
+                self.La_gk,
+                self.la_gk,
+                self.la_gammak,
+            )
             converged, n_iter, error, xk1 = self.step(tk1, xk1)
             ak1, Uk1, Qk1, kappa_gk1, La_gk1, la_gk1, la_gammak1 = self.unpack(xk1)
 
             # update progress bar and check convergence
-            pbar.set_description(f't: {tk1:0.2e}s < {self.t1:0.2e}s; Newton: {n_iter}/{self.newton_max_iter} iterations; error: {error:0.2e}')
+            pbar.set_description(
+                f"t: {tk1:0.2e}s < {self.t1:0.2e}s; Newton: {n_iter}/{self.newton_max_iter} iterations; error: {error:0.2e}"
+            )
             if not converged:
-                raise RuntimeError(f'internal Newton-Raphson method not converged after {n_iter} steps with error: {error:.5e}')
+                raise RuntimeError(
+                    f"internal Newton-Raphson method not converged after {n_iter} steps with error: {error:.5e}"
+                )
 
             # update dependent variables
             qk1, uk1 = self.update(ak1, Uk1, Qk1, store=True)
 
             # modify converged quantities
-            qk1, uk1 = self.model.solver_step_callback(tk1, qk1, uk1)
+            qk1, uk1 = self.model.step_callback(tk1, qk1, uk1)
 
             # store soltuion fields
             t.append(tk1)
@@ -1612,7 +1995,17 @@ class Generalized_alpha_4_singular_index1():
             self.la_gammak = la_gammak1
 
         # write solution
-        return Solution(t=np.array(t), q=np.array(q), u=np.array(u), a=np.array(a), kappa_g=np.array(kappa_g), La_g=np.array(La_g), la_g=np.array(la_g), la_gamma=np.array(la_gamma))
+        return Solution(
+            t=np.array(t),
+            q=np.array(q),
+            u=np.array(u),
+            a=np.array(a),
+            kappa_g=np.array(kappa_g),
+            La_g=np.array(La_g),
+            la_g=np.array(la_g),
+            la_gamma=np.array(la_gamma),
+        )
+
 
 # class Generalized_alpha_4_singular_index1_gamma():
 #     """Index 1 generalized alpha solver handling pure algebraic equations.
@@ -1621,7 +2014,7 @@ class Generalized_alpha_4_singular_index1():
 #                  rho_inf=1, beta=None, gamma=None, alpha_m=None, alpha_f=None,\
 #                  newton_tol=1e-8, newton_max_iter=40, newton_error_function=lambda x: np.max(np.abs(x)),\
 #                  numerical_jacobian=False, debug=False):
-        
+
 #         self.model = model
 
 #         # integration time
@@ -1664,13 +2057,13 @@ class Generalized_alpha_4_singular_index1():
 #         self.nu_algebraic = len(self.uDOF_algebraic)
 #         self.nu_dynamic = len(self.uDOF_dynamic)
 
-#         # constraints on position, 2 x velocity and acceleration level + corresponding equations (EQM, three kinematic equations) 
+#         # constraints on position, 2 x velocity and acceleration level + corresponding equations (EQM, three kinematic equations)
 #         # + constraints on velocitiy level (and their time derivative)
 #         self.nR = 4 * self.nu + 3 * self.nla_g + 2 * self.nla_gamma
 
 #         self.tk = model.t0
-#         self.qk = model.q0 
-#         self.uk = model.u0 
+#         self.qk = model.q0
+#         self.uk = model.u0
 #         self.kappa_gk = np.zeros_like(model.la_g0)
 #         self.La_gk = np.zeros_like(model.la_g0)
 #         self.la_gk = model.la_g0
@@ -1782,7 +2175,7 @@ class Generalized_alpha_4_singular_index1():
 #     def __R_gen_num(self, tk1, xk1):
 #         yield self.__R(tk1, xk1)
 #         yield csr_matrix(self.__R_x_num(tk1, xk1))
-        
+
 #     def __R_gen_analytic(self, tk1, xk1):
 #         nu = self.nu
 #         nu_dyn = self.nu_dynamic
@@ -1801,7 +2194,7 @@ class Generalized_alpha_4_singular_index1():
 #         W_gk1 = self.model.W_g(tk1, qk1, scipy_matrix=csr_matrix)
 #         W_gammak1 = self.model.W_gamma(tk1, qk1, scipy_matrix=csr_matrix)
 #         rhs = -( self.model.h(tk1, qk1, uk1) + W_gk1 @ la_gk1 + W_gammak1 @ la_gammak1 )
-        
+
 #         ###################
 #         # evaluate residual
 #         ###################
@@ -1834,7 +2227,7 @@ class Generalized_alpha_4_singular_index1():
 #         # constraints on velocity level
 #         R[4*nu+3*nla_g:4*nu+3*nla_g+nla_gamma] = self.model.gamma(tk1, qk1, uk1)
 #         R[4*nu+3*nla_g+nla_gamma:4*nu+3*nla_g+2*nla_gamma] = self.model.gamma_dot(tk1, qk1, uk1, ak1)
-        
+
 #         yield R
 
 #         raise NotImplementedError('...')
@@ -1861,12 +2254,12 @@ class Generalized_alpha_4_singular_index1():
 #         Ra_alg_la_g = -W_gk1[uDOF_alg]
 #         Ra_dyn_la_gamma = -W_gammak1[uDOF_dyn]
 #         Ra_alg_la_gamma = -W_gammak1[uDOF_alg]
-        
+
 #         # # R[nu:2*nu] = Mk1 @ Uk1 - W_Nk1 @ La_Nk1 - W_Tk1 @ La_Tk1
 #         # RU_q = self.model.Mu_q(tk1, qk1, Uk1) - self.model.Wla_g_q(tk1, qk1, La_gk1) - self.model.Wla_N_q(tk1, qk1, La_Nk1) - self.model.Wla_T_q(tk1, qk1, La_Tk1)
 #         # RU_a = RU_q @ self.q_a
 #         # RU_Q = RU_q @ self.q_Q
-        
+
 #         # # R[2*nu:3*nu] = Mk1 @ Qk1 - W_Nk1 @ kappa_Nk1
 #         # RQ_q = self.model.Mu_q(tk1, qk1, Qk1) - self.model.Wla_g_q(tk1, qk1, kappa_gk1) - self.model.Wla_N_q(tk1, qk1, kappa_Nk1)
 #         # RQ_a = RQ_q @ self.q_a
@@ -1896,18 +2289,18 @@ class Generalized_alpha_4_singular_index1():
 #         # Rla_g_u = self.model.g_ddot_u(tk1, qk1, uk1, ak1)
 #         # Rla_g_a = self.model.g_dot_u(tk1, qk1)
 #         # Rla_g_a += Rla_g_q @ self.q_a + Rla_g_u * self.u_a
-#         # Rla_g_Q = Rla_g_q @ self.q_Q 
+#         # Rla_g_Q = Rla_g_q @ self.q_Q
 
 #         ##################################################################
 #         # R[nu+nla_g:nu+nla_g+nla_gamma] = self.model.gamma(tk1, qk1, uk1)
 #         ##################################################################
-#         Rla_gamma_q = self.model.gamma_q(tk1, qk1, uk1) 
+#         Rla_gamma_q = self.model.gamma_q(tk1, qk1, uk1)
 #         Rla_gamma_u = self.model.gamma_u(tk1, qk1) # == Rla_gamma_U
 #         Rla_gamma_a = Rla_gamma_q @ self.q_a + Rla_gamma_u * self.u_a
 #         Rla_gamm_a_dyn = Rla_gamma_a[:, uDOF_dyn]
 #         Rla_gamm_a_alg = Rla_gamma_a[:, uDOF_alg]
 #         # Rla_gamma_Q = Rla_gamma_q @ self.q_Q
-        
+
 #         R_x =  bmat([ [Ra_dyn_a_dyn,      Ra_dyn_a_alg, Ra_dyn_la_g, Ra_dyn_la_gamma], \
 #                       [Ra_alg_a_dyn,      Ra_alg_a_alg, Ra_alg_la_g, Ra_alg_la_gamma], \
 #                       [Rla_g_a_dyn,        Rla_g_a_alg,        None,            None], \
@@ -1920,13 +2313,13 @@ class Generalized_alpha_4_singular_index1():
 #         # print(f'error = {error}')
 
 #         yield R_x
-        
+
 #     def __R(self, tk1, xk1):
 #         return next(self.__R_gen_analytic(tk1, xk1))
 
 #     def __R_x_num(self, tk1, xk1):
 #         return Numerical_derivative(self.__R, order=2)._x(tk1, xk1)
-    
+
 #     def step(self):
 #         tk1 = self.tk + self.dt
 
@@ -1943,14 +2336,14 @@ class Generalized_alpha_4_singular_index1():
 #             while j < self.newton_max_iter:
 #                 # jacobian
 #                 R_x = next(R_gen)
-                
+
 #                 # Newton update
 #                 j += 1
 #                 dx = spsolve(R_x, R)
 #                 xk1 -= dx
 #                 R_gen = self.__R_gen(tk1, xk1)
 #                 R = next(R_gen)
-                
+
 #                 error = self.newton_error_function(R)
 #                 converged = error < self.newton_tol
 #                 if converged:
@@ -1958,7 +2351,7 @@ class Generalized_alpha_4_singular_index1():
 
 #         return converged, j, error, tk1, xk1
 
-#     def solve(self): 
+#     def solve(self):
 #         dt = self.dt
 #         dt2 = self.dt**2
 
@@ -1995,7 +2388,7 @@ class Generalized_alpha_4_singular_index1():
 #             qk1, uk1 = self.update(ak1, Uk1, Qk1, Vk1, store=True)
 
 #             # modify converged quantities
-#             qk1, uk1 = self.model.solver_step_callback(tk1, qk1, uk1)
+#             qk1, uk1 = self.model.step_callback(tk1, qk1, uk1)
 
 #             # store soltuion fields
 #             t.append(tk1)

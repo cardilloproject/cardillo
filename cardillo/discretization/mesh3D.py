@@ -1,14 +1,15 @@
 import numpy as np
 from scipy.sparse.linalg import spsolve
-from cardillo.discretization.B_spline import (
+from cardillo.discretization.b_spline import (
     B_spline_basis3D,
     q_to_Pw_3D,
     decompose_B_spline_volume,
     flat3D_vtk,
 )
 from cardillo.discretization.lagrange import lagrange_basis3D
-from cardillo.math.algebra import inverse3D, determinant3D
 from cardillo.discretization.indexing import flat3D, split3D, split2D
+from cardillo.math.algebra import inv3D, det3D
+from cardillo.discretization.indexing import flat3D, split3D
 from cardillo.discretization.mesh2D import Mesh2D
 from cardillo.discretization.gauss import gauss
 from cardillo.utility.coo import Coo
@@ -197,7 +198,6 @@ class Mesh3D:
             )
         elif self.basis == "lagrange":
             return lagrange_basis3D(degrees, knots, derivative_order, knot_vectors)
-
 
     def quadrature_points(self):
         self.qp_xi = np.zeros((self.nel_xi, self.nqp_xi))
@@ -481,8 +481,8 @@ class Mesh3D:
                         Qe[self.nodalDOF[a]], N_xi[a]
                     )  # Bonet 1997 (7.6b)
 
-                kappa0_xi_inv[el, i] = inverse3D(kappa0_xi)
-                w_J0[el, i] = determinant3D(kappa0_xi) * self.wp[el, i]
+                kappa0_xi_inv[el, i] = inv3D(kappa0_xi)
+                w_J0[el, i] = det3D(kappa0_xi) * self.wp[el, i]
 
                 for a in range(self.nn_el):
                     N_X[el, i, a] = (
@@ -539,7 +539,7 @@ class Mesh3D:
                         Qe[self.nodalDOF[a]], Nb_xi[a]
                     )  # Bonet 1997 (7.6b)
 
-                kappa0_xi_inv[el, i] = inverse3D(kappa0_xi)
+                kappa0_xi_inv[el, i] = inv3D(kappa0_xi)
 
                 for a in range(self.nn_el):
                     Nb_X[el, i, a] = (
@@ -684,15 +684,15 @@ class Mesh3D:
 
 
 def test_surface_qDOF():
-    from cardillo.discretization.lagrange import Node_vector
+    from cardillo.discretization.lagrange import LagrangeKnotVector
 
     degrees = (3, 3, 3)
     QP_shape = (2, 2, 2)
     element_shape = (2, 2, 2)
 
-    Xi = Node_vector(degrees[0], element_shape[0])
-    Eta = Node_vector(degrees[1], element_shape[1])
-    Zeta = Node_vector(degrees[2], element_shape[2])
+    Xi = LagrangeKnotVector(degrees[0], element_shape[0])
+    Eta = LagrangeKnotVector(degrees[1], element_shape[1])
+    Zeta = LagrangeKnotVector(degrees[2], element_shape[2])
     knot_vectors = (Xi, Eta, Zeta)
 
     # from cardillo.discretization.mesh import Mesh, cube, scatter_Qs

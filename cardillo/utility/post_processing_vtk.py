@@ -11,11 +11,11 @@ def post_processing(subsystem, t, q, filename, u=None, binary=True):
 
     root = minidom.Document()
 
-    vkt_file = root.createElement('VTKFile')
-    vkt_file.setAttribute('type', 'Collection')
+    vkt_file = root.createElement("VTKFile")
+    vkt_file.setAttribute("type", "Collection")
     root.appendChild(vkt_file)
 
-    collection = root.createElement('Collection')
+    collection = root.createElement("Collection")
     vkt_file.appendChild(collection)
 
     nodes = {}
@@ -24,12 +24,12 @@ def post_processing(subsystem, t, q, filename, u=None, binary=True):
         u = np.zeros_like(q)
 
     for i, (ti, qi, ui) in enumerate(zip(t, q, u)):
-        filei = filename.parent / (filename.stem + f'_{i}.vtu')
+        filei = filename + f"{i}.vtu"
 
         # write time step and file name in pvd file
-        dataset = root.createElement('DataSet')
-        dataset.setAttribute('timestep', f'{ti:0.6f}')
-        dataset.setAttribute('file', filei.name)
+        dataset = root.createElement("DataSet")
+        dataset.setAttribute("timestep", f"{ti:0.6f}")
+        dataset.setAttribute("file", filei)
         collection.appendChild(dataset)
 
         geom_points = np.array([]).reshape(0, 3)
@@ -41,8 +41,14 @@ def post_processing(subsystem, t, q, filename, u=None, binary=True):
         nodes_ti = []
 
         for subsystemi in subsystem:
-            geom_pointsi, point_datai, cellsi, field_datai, HigherOrderDegreesi = subsystemi.post_processing_subsystem(
-                ti, qi[subsystemi.qDOF], ui[subsystemi.uDOF], binary=binary)
+            (
+                geom_pointsi,
+                point_datai,
+                cellsi,
+                HigherOrderDegreesi,
+            ) = subsystemi.post_processing_subsystem(
+                ti, qi[subsystemi.qDOF], ui[subsystemi.uDOF], binary=binary
+            )
 
             geom_points = np.append(geom_points, geom_pointsi, axis=0)
 
