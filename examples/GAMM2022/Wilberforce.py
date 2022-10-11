@@ -11,7 +11,7 @@ from cardillo.beams import (
     TimoshenkoDirectorDirac,
     TimoshenkoDirectorIntegral,
 )
-from cardillo.forces import Force, DistributedForce1D
+from cardillo.forces import Force, DistributedForce1DBeam
 from cardillo.model import System
 from cardillo.solver import (
     Newton,
@@ -341,9 +341,9 @@ if __name__ == "__main__":
     # gravity beam
     ##############
     if statics:
-        f_g_beam = DistributedForce1D(lambda t, xi: t * A_rho0 * g * e3, beam)
+        f_g_beam = DistributedForce1DBeam(lambda t, xi: t * A_rho0 * g * e3, beam)
     else:
-        f_g_beam = DistributedForce1D(lambda t, xi: A_rho0 * g * e3, beam)
+        f_g_beam = DistributedForce1DBeam(lambda t, xi: A_rho0 * g * e3, beam)
 
     ############
     # rigid body

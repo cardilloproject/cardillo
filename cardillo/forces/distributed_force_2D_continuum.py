@@ -1,7 +1,7 @@
 from cardillo.math import Numerical_derivative
 
 
-class Force_distr2D:
+class DistributedForce2DContinuum:
     def __init__(self, force_distr2D, subsystem, srf_idx):
         if not callable(force_distr2D):
             self.force_distr2D = lambda t, xi, eta: force_distr2D

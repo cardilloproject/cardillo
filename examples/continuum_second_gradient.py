@@ -1,29 +1,27 @@
 import numpy as np
-import matplotlib.pyplot as plt
-import os
 import os.path
 import pickle
 import pathlib
-import datetime
 from cardillo.discretization.mesh1D import Mesh1D
 from cardillo.discretization.mesh3D import Mesh3D, cube
 from cardillo.discretization.mesh2D import Mesh2D, rectangle
-from cardillo.discretization.B_spline import Knot_vector, fit_B_spline_volume
-from cardillo.discretization.indexing import flat3D, flat2D
-from cardillo.model.continuum import (
-    Second_gradient,
-    Pantobox_beam_network,
-    Pantosheet_beam_network,
+from cardillo.discretization.b_spline import BSplineKnotVector, fit_B_spline_volume
+from cardillo.discretization.indexing import flat3D
+from cardillo.continuum import (
+    SecondGradient,
+    PantoboxBeamNetwork,
+    PantosheetBeamNetwork,
 )
-from cardillo.solver import Newton, Euler_backward, Generalized_alpha_1
-from cardillo.model import Model
-from cardillo.math.algebra import A_IK_basic_z, A_IK_basic_x
-from cardillo.model.force_distr2D import Force_distr2D
-from cardillo.model.force_distr3D import Force_distr3D
-from cardillo.model.bilateral_constraints.implicit import (
-    Incompressibility,
-    Displacement_constraint,
-)
+from cardillo.solver import Newton, EulerBackward, NewtonOld
+from cardillo import System
+from cardillo.math import A_IK_basic
+
+# from cardillo.forces import Force_distr2D, Force_distr3D
+# from cardillo.constraints import (
+#     Incompressibility,
+#     Displacement_constraint,
+# )
+from cardillo.constraints import DisplacementConstraint
 
 
 def save_solution(sol, filename):
@@ -57,9 +55,9 @@ def test_cube():
     QP_shape = (3, 3, 3)
     element_shape = (2, 2, 6)
 
-    Xi = Knot_vector(degrees[0], element_shape[0])
-    Eta = Knot_vector(degrees[1], element_shape[1])
-    Zeta = Knot_vector(degrees[2], element_shape[2])
+    Xi = BSplineKnotVector(degrees[0], element_shape[0])
+    Eta = BSplineKnotVector(degrees[1], element_shape[1])
+    Zeta = BSplineKnotVector(degrees[2], element_shape[2])
     knot_vectors = (Xi, Eta, Zeta)
 
     mesh = Mesh3D(knot_vectors, QP_shape, derivative_order=2, basis="B-spline", nq_n=3)
@@ -96,7 +94,7 @@ def test_cube():
     cube_shape = (W, B, H)
     Z = cube(cube_shape, mesh, Greville=False)
 
-    mat = Pantobox_beam_network(
+    mat = PantoboxBeamNetwork(
         Ke * nsH, Ks * nsH, Kg * nsH, Kn * nsH, Kt * nsH, Kc * nsH
     )
 
@@ -139,7 +137,7 @@ def test_cube():
                     out = np.zeros_like(Z)
 
                     phi = t * phi0
-                    R = A_IK_basic_z(phi)
+                    R = A_IK_basic(phi).z()
 
                     th = t * np.array([0, 0, h])
                     for DOF in cDOF2_xyz:
@@ -165,11 +163,11 @@ def test_cube():
         b = lambda t: np.concatenate((b_xi(t), b_eta(t), b_zeta(t)))
 
     # 3D continuum
-    continuum = Second_gradient(density, mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
+    continuum = SecondGradient(density, mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
     # continuum = First_gradient(density, mat, mesh, Z)
 
     # build model
-    model = Model()
+    model = System()
     model.add(continuum)
 
     # if Incompressible:
@@ -207,13 +205,14 @@ def test_cube():
         n_load_steps = 20
         tol = 1.0e-5
         max_iter = 10
-        solver = Newton(model, n_load_steps=n_load_steps, tol=tol, max_iter=max_iter)
+        # solver = Newton(model, n_load_steps=n_load_steps, atol=tol, max_iter=max_iter)
+        solver = NewtonOld(model, n_load_steps=n_load_steps, tol=tol, max_iter=max_iter)
 
     else:
         t1 = 10
         dt = 1e-1
         # solver = Generalized_alpha_1(model, t1, dt=dt, variable_dt=False, rho_inf=0.25)
-        solver = Euler_backward(model, t1, dt)
+        solver = EulerBackward(model, t1, dt)
 
     if save_sol:
 
@@ -354,7 +353,7 @@ def test_cylinder():
     continuum = First_gradient(density, mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
 
     # build model
-    model = Model()
+    model = System()
     model.add(continuum)
     model.assemble()
 
@@ -386,10 +385,11 @@ def test_embedded_rectangle():
     # build mesh
     degrees = (3, 3)
     QP_shape = (3, 3)
-    element_shape = (3, 9)
+    # element_shape = (3, 9)
+    element_shape = (2, 4)
 
-    Xi = Knot_vector(degrees[0], element_shape[0])
-    Eta = Knot_vector(degrees[1], element_shape[1])
+    Xi = BSplineKnotVector(degrees[0], element_shape[0])
+    Eta = BSplineKnotVector(degrees[1], element_shape[1])
     knot_vectors = (Xi, Eta)
 
     mesh = Mesh2D(knot_vectors, QP_shape, derivative_order=2, basis="B-spline", nq_n=3)
@@ -426,9 +426,9 @@ def test_embedded_rectangle():
     Z = rectangle(rectangle_shape, mesh, Greville=True)
 
     # material model
-    # mat = Pantosheet_beam_network(Ke, Ks, Kg, Kn, Kt)
-    mat = Pantosheet_beam_network(Ke, 0, Kg, Kn, Kt)
-    # mat = Pantosheet_beam_network(Ke, Ks, 0, 0, 0)
+    # mat = PantosheetBeamNetwork(Ke, Ks, Kg, Kn, Kt)
+    mat = PantosheetBeamNetwork(Ke, 0, Kg, Kn, Kt)
+    # mat = PantosheetBeamNetwork(Ke, Ks, 0, 0, 0)
 
     tests = [
         "x".join([str(v) for v in element_shape]),
@@ -438,11 +438,12 @@ def test_embedded_rectangle():
         "mm_GPa",
         "direct_bc",
     ]
+
     # boundary conditions
     # displacement
-    cDOF1 = mesh.edge_qDOF[2][0]
-    cDOF2 = mesh.edge_qDOF[2][1]
-    cDOF3 = mesh.edge_qDOF[2][2]
+    cDOF1 = mesh.edge_qDOF[0][0]
+    cDOF2 = mesh.edge_qDOF[0][1]
+    cDOF3 = mesh.edge_qDOF[0][2]
     # cDOF2 = mesh.edge_qDOF[3][::2].ravel()
     # cDOF3 = mesh.edge_qDOF[3][1]
     # cDOF = np.concatenate((cDOF1, cDOF2, cDOF3))
@@ -453,48 +454,49 @@ def test_embedded_rectangle():
     b = lambda t: np.concatenate((b1(t), b2(t), b3(t)))
     # b = lambda t: np.concatenate((b1(t), b2(t)))
 
-    # torsion
-    def bt(t, phi0=0.5 * np.pi, h=-20):
-        cDOF2_xyz = cDOF3.reshape(3, -1).T
-        out = np.zeros_like(Z)
+    # # torsion
+    # def bt(t, phi0=0.5 * np.pi, h=-20):
+    #     cDOF2_xyz = cDOF3.reshape(3, -1).T
+    #     out = np.zeros_like(Z)
 
-        phi = t * phi0
-        R = A_IK_basic_x(phi)
+    #     phi = t * phi0
+    #     R = A_IK_basic(phi).x()
 
-        th = t * np.array([1, 0, 0]) * h
-        for DOF in cDOF2_xyz:
-            out[DOF] = R @ (Z[DOF] - [0, Ly / 2, 0]) + th + [0, Ly / 2, 0]
+    #     th = t * np.array([1, 0, 0]) * h
+    #     for DOF in cDOF2_xyz:
+    #         out[DOF] = R @ (Z[DOF] - [0, Ly / 2, 0]) + th + [0, Ly / 2, 0]
 
-        return out[cDOF3]
+    #     return out[cDOF3]
 
     # b = lambda t: np.concatenate((b1(t), bt(t)))
 
     # 3D continuum
-    continuum = Second_gradient(1, mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
-    # continuum = Second_gradient(1, mat, mesh, Z, z0=Z)
+    continuum = SecondGradient(1, mat, mesh, Z, z0=Z, cDOF=cDOF, b=b)
+    # continuum = SecondGradient(1, mat, mesh, Z, z0=Z)
 
     # weak constraint on displacement
-    la_mesh_x = Mesh1D(Xi, 3, derivative_order=0, nq_n=1)
-    la_mesh_y = Mesh1D(Eta, 3, derivative_order=0, nq_n=1)
+    la_mesh_x = Mesh1D(Xi, 3, derivative_order=0, dim_q=1)
+    la_mesh_y = Mesh1D(Eta, 3, derivative_order=0, dim_q=1)
 
-    disp = lambda t, q: 20 * t
+    # disp = lambda t: 20 * t
+    disp = lambda t: 1 * t
 
-    displacement_constraint_x = Displacement_constraint(
-        continuum, la_mesh_x, edge_id=3, x=0, disp=0
+    displacement_constraint_x = DisplacementConstraint(
+        continuum, la_mesh_y, edge_id=1, x=0, disp=0
     )
-    displacement_constraint_y = Displacement_constraint(
-        continuum, la_mesh_x, edge_id=3, x=1, disp=disp
+    displacement_constraint_y = DisplacementConstraint(
+        continuum, la_mesh_y, edge_id=1, x=1, disp=disp
     )
-    # displacement_constraint_z = Displacement_constraint(
+    # displacement_constraint_z = DisplacementConstraint(
     #     continuum, la_mesh_y, edge_id=3, x=2, disp=0
     # )
 
     save_sol = True
 
     # build model
-    model = Model()
+    model = System()
     model.add(continuum)
-    model.add(displacement_constraint_x)
+    # model.add(displacement_constraint_x)
     model.add(displacement_constraint_y)
     model.assemble()
 
@@ -502,7 +504,8 @@ def test_embedded_rectangle():
     n_load_steps = 10
     tol = 1.0e-8
     max_iter = 20
-    solver = Newton(model, n_load_steps=n_load_steps, tol=tol, max_iter=max_iter)
+    # solver = Newton(model, n_load_steps=n_load_steps, atol=tol, max_iter=max_iter)
+    solver = NewtonOld(model, n_load_steps=n_load_steps, tol=tol, max_iter=max_iter)
 
     file_name = pathlib.Path(__file__).stem
     file_path = (

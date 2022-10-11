@@ -214,9 +214,7 @@ class System:
 
     def pre_iteration_update(self, t, q, u):
         for contr in self.__pre_iteration_update_contr:
-            q[contr.qDOF], u[contr.uDOF] = contr.pre_iteration_update(
-                t, q[contr.qDOF], u[contr.uDOF]
-            )
+            contr.pre_iteration_update(t, q[contr.qDOF], u[contr.uDOF])
         return q, u
 
     def step_callback(self, t, q, u):

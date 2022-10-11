@@ -1,12 +1,6 @@
-# from abc import ABC, abstractmethod
 import numpy as np
-from math import sqrt, log, isclose
-from cardillo.math.algebra import (
-    determinant2D,
-    determinant3D,
-    inverse3D,
+from cardillo.math import (
     norm,
-    norm3,
     cross3,
     LeviCivita3,
 )
@@ -16,7 +10,7 @@ num_order = 2
 G0 = np.zeros((3, 3, 3))
 
 # TODO: untested!
-class Pantosheet_beam_network:
+class PantosheetBeamNetwork:
     """Giorgio et al 2017 Surface embedded in 3D space"""
 
     def __init__(self, Ke, Ks, Kg, Kn, Kt, dim=2, numerical_derivative=True):
@@ -46,12 +40,12 @@ class Pantosheet_beam_network:
         # Layer a
         d1 = F @ self.D1
         d2 = F @ self.D2
-        rho1 = norm3(d1)
-        rho2 = norm3(d2)
+        rho1 = norm(d1)
+        rho2 = norm(d2)
         e1 = d1 / rho1
         e2 = d2 / rho2
         e1xe2 = cross3(e1, e2)
-        cosga = norm3(e1xe2)
+        cosga = norm(e1xe2)
         singa = e1 @ e2
         tanga = singa / cosga
         na = e1xe2 / cosga
@@ -174,12 +168,12 @@ class Pantosheet_beam_network:
         """Piola-Lagrange double stress tensor"""
         d1 = F @ self.D1
         d2 = F @ self.D2
-        rho1 = norm3(d1)
-        rho2 = norm3(d2)
+        rho1 = norm(d1)
+        rho2 = norm(d2)
         e1 = d1 / rho1
         e2 = d2 / rho2
         e1xe2 = cross3(e1, e2)
-        cosga = norm3(e1xe2)
+        cosga = norm(e1xe2)
         singa = e1 @ e2
         tanga = singa / cosga
         na = e1xe2 / cosga
@@ -268,12 +262,12 @@ class Pantosheet_beam_network:
         # Layer a
         d1 = F @ self.D1
         d2 = F @ self.D2
-        rho1 = norm3(d1)
-        rho2 = norm3(d2)
+        rho1 = norm(d1)
+        rho2 = norm(d2)
         e1 = d1 / rho1
         e2 = d2 / rho2
         e1xe2 = cross3(e1, e2)
-        cosga = norm3(e1xe2)
+        cosga = norm(e1xe2)
         singa = e1 @ e2
         na = e1xe2 / cosga
         m1 = cross3(na, e1)
@@ -313,8 +307,8 @@ class Pantosheet_beam_network:
         # layer a
         d1 = F @ self.D1
         d2 = F @ self.D2
-        rho1 = norm3(d1)
-        rho2 = norm3(d2)
+        rho1 = norm(d1)
+        rho2 = norm(d2)
         e1 = d1 / rho1
         e2 = d2 / rho2
         singa = e1 @ e2
@@ -323,7 +317,7 @@ class Pantosheet_beam_network:
         return Wsa
 
 
-class Pantobox_beam_network:
+class PantoboxBeamNetwork:
     """Based on Giorgio et al 2017 extended to 4 fibers"""
 
     def __init__(
@@ -374,12 +368,12 @@ class Pantobox_beam_network:
         # Layer a
         d1 = F @ self.D1
         d2 = F @ self.D2
-        rho1 = norm3(d1)
-        rho2 = norm3(d2)
+        rho1 = norm(d1)
+        rho2 = norm(d2)
         e1 = d1 / rho1
         e2 = d2 / rho2
         e1xe2 = cross3(e1, e2)
-        cosga = norm3(e1xe2)
+        cosga = norm(e1xe2)
         singa = e1 @ e2
         tanga = singa / cosga
         na = e1xe2 / cosga
@@ -400,12 +394,12 @@ class Pantobox_beam_network:
         # Layer b
         d3 = F @ self.D3
         d4 = F @ self.D4
-        rho3 = norm3(d3)
-        rho4 = norm3(d4)
+        rho3 = norm(d3)
+        rho4 = norm(d4)
         e3 = d3 / rho3
         e4 = d4 / rho4
         e3xe4 = cross3(e3, e4)
-        cosgb = norm3(e3xe4)
+        cosgb = norm(e3xe4)
         singb = e3 @ e4
         tangb = singb / cosgb
         nb = e3xe4 / cosgb
@@ -424,7 +418,7 @@ class Pantobox_beam_network:
         tau4 = -nb @ (g4 - singb * c4) / cosgb
 
         singc = na @ nb
-        cosgc = norm3(cross3(na, nb))
+        cosgc = norm(cross3(na, nb))
 
         # Elongation
         Pe = self.Ke * (
@@ -616,12 +610,12 @@ class Pantobox_beam_network:
         # Layer a
         d1 = F @ self.D1
         d2 = F @ self.D2
-        rho1 = norm3(d1)
-        rho2 = norm3(d2)
+        rho1 = norm(d1)
+        rho2 = norm(d2)
         e1 = d1 / rho1
         e2 = d2 / rho2
         e1xe2 = cross3(e1, e2)
-        cosga = norm3(e1xe2)
+        cosga = norm(e1xe2)
         singa = e1 @ e2
         tanga = singa / cosga
         na = e1xe2 / cosga
@@ -638,12 +632,12 @@ class Pantobox_beam_network:
         # Layer b
         d3 = F @ self.D3
         d4 = F @ self.D4
-        rho3 = norm3(d3)
-        rho4 = norm3(d4)
+        rho3 = norm(d3)
+        rho4 = norm(d4)
         e3 = d3 / rho3
         e4 = d4 / rho4
         e3xe4 = cross3(e3, e4)
-        cosgb = norm3(e3xe4)
+        cosgb = norm(e3xe4)
         singb = e3 @ e4
         tangb = singb / cosgb
         nb = e3xe4 / cosgb
@@ -658,7 +652,7 @@ class Pantobox_beam_network:
         tau4 = -nb @ (g4 - singb * c4) / cosgb
 
         singc = na @ nb
-        cosgc = norm3(cross3(na, nb))
+        cosgc = norm(cross3(na, nb))
         tangc = singc / cosgc
 
         rho1_F = np.outer(e1, self.D1)
@@ -1193,12 +1187,12 @@ class Pantobox_beam_network:
         # layer a
         d1 = F @ self.D1
         d2 = F @ self.D2
-        rho1 = norm3(d1)
-        rho2 = norm3(d2)
+        rho1 = norm(d1)
+        rho2 = norm(d2)
         e1 = d1 / rho1
         e2 = d2 / rho2
         e1xe2 = cross3(e1, e2)
-        cosga = norm3(e1xe2)
+        cosga = norm(e1xe2)
         singa = e1 @ e2
         tanga = singa / cosga
         na = e1xe2 / cosga
@@ -1212,12 +1206,12 @@ class Pantobox_beam_network:
         # layer b
         d3 = F @ self.D3
         d4 = F @ self.D4
-        rho3 = norm3(d3)
-        rho4 = norm3(d4)
+        rho3 = norm(d3)
+        rho4 = norm(d4)
         e3 = d3 / rho3
         e4 = d4 / rho4
         e3xe4 = cross3(e3, e4)
-        cosgb = norm3(e3xe4)
+        cosgb = norm(e3xe4)
         singb = e3 @ e4
         tangb = singb / cosgb
         nb = e3xe4 / cosgb
@@ -1510,12 +1504,12 @@ class Pantobox_beam_network:
         """Piola-Lagrange double stress tensor"""
         d1 = F @ self.D1
         d2 = F @ self.D2
-        rho1 = norm3(d1)
-        rho2 = norm3(d2)
+        rho1 = norm(d1)
+        rho2 = norm(d2)
         e1 = d1 / rho1
         e2 = d2 / rho2
         e1xe2 = cross3(e1, e2)
-        cosga = norm3(e1xe2)
+        cosga = norm(e1xe2)
         singa = e1 @ e2
         tanga = singa / cosga
         na = e1xe2 / cosga
@@ -1536,12 +1530,12 @@ class Pantobox_beam_network:
         # Layer b
         d3 = F @ self.D3
         d4 = F @ self.D4
-        rho3 = norm3(d3)
-        rho4 = norm3(d4)
+        rho3 = norm(d3)
+        rho4 = norm(d4)
         e3 = d3 / rho3
         e4 = d4 / rho4
         e3xe4 = cross3(e3, e4)
-        cosgb = norm3(e3xe4)
+        cosgb = norm(e3xe4)
         singb = e3 @ e4
         tangb = singb / cosgb
         nb = e3xe4 / cosgb
@@ -1620,12 +1614,12 @@ class Pantobox_beam_network:
         # layer a
         d1 = F @ self.D1
         d2 = F @ self.D2
-        rho1 = norm3(d1)
-        rho2 = norm3(d2)
+        rho1 = norm(d1)
+        rho2 = norm(d2)
         e1 = d1 / rho1
         e2 = d2 / rho2
         e1xe2 = cross3(e1, e2)
-        cosga = norm3(e1xe2)
+        cosga = norm(e1xe2)
         singa = e1 @ e2
         tanga = singa / cosga
         na = e1xe2 / cosga
@@ -1639,12 +1633,12 @@ class Pantobox_beam_network:
         # layer b
         d3 = F @ self.D3
         d4 = F @ self.D4
-        rho3 = norm3(d3)
-        rho4 = norm3(d4)
+        rho3 = norm(d3)
+        rho4 = norm(d4)
         e3 = d3 / rho3
         e4 = d4 / rho4
         e3xe4 = cross3(e3, e4)
-        cosgb = norm3(e3xe4)
+        cosgb = norm(e3xe4)
         singb = e3 @ e4
         tangb = singb / cosgb
         nb = e3xe4 / cosgb
@@ -1995,12 +1989,12 @@ class Pantobox_beam_network:
         # layer a
         d1 = F @ self.D1
         d2 = F @ self.D2
-        rho1 = norm3(d1)
-        rho2 = norm3(d2)
+        rho1 = norm(d1)
+        rho2 = norm(d2)
         e1 = d1 / rho1
         e2 = d2 / rho2
         e1xe2 = cross3(e1, e2)
-        cosga = norm3(e1xe2)
+        cosga = norm(e1xe2)
         singa = e1 @ e2
         tanga = singa / cosga
         na = e1xe2 / cosga
@@ -2014,12 +2008,12 @@ class Pantobox_beam_network:
         # layer b
         d3 = F @ self.D3
         d4 = F @ self.D4
-        rho3 = norm3(d3)
-        rho4 = norm3(d4)
+        rho3 = norm(d3)
+        rho4 = norm(d4)
         e3 = d3 / rho3
         e4 = d4 / rho4
         e3xe4 = cross3(e3, e4)
-        cosgb = norm3(e3xe4)
+        cosgb = norm(e3xe4)
         singb = e3 @ e4
         tangb = singb / cosgb
         nb = e3xe4 / cosgb
@@ -2144,10 +2138,10 @@ class Pantobox_beam_network:
         d2 = F @ self.D2
         d3 = F @ self.D3
         d4 = F @ self.D4
-        rho1 = norm3(d1)
-        rho2 = norm3(d2)
-        rho3 = norm3(d3)
-        rho4 = norm3(d4)
+        rho1 = norm(d1)
+        rho2 = norm(d2)
+        rho3 = norm(d3)
+        rho4 = norm(d4)
         e1 = d1 / rho1
         e2 = d2 / rho2
         e3 = d3 / rho3
@@ -2165,8 +2159,8 @@ class Pantobox_beam_network:
     def e1(self, F, G):
         d1 = F @ self.D1
         d2 = F @ self.D2
-        rho1 = norm3(d1)
-        rho2 = norm3(d2)
+        rho1 = norm(d1)
+        rho2 = norm(d2)
         e1 = d1 / rho1
         e2 = d2 / rho2
 
@@ -2177,16 +2171,16 @@ class Pantobox_beam_network:
         # layer a
         d1 = F @ self.D1
         d2 = F @ self.D2
-        rho1 = norm3(d1)
-        rho2 = norm3(d2)
+        rho1 = norm(d1)
+        rho2 = norm(d2)
         e1 = d1 / rho1
         e2 = d2 / rho2
 
         # layer b
         d3 = F @ self.D3
         d4 = F @ self.D4
-        rho3 = norm3(d3)
-        rho4 = norm3(d4)
+        rho3 = norm(d3)
+        rho4 = norm(d4)
         e3 = d3 / rho3
         e4 = d4 / rho4
 
@@ -2212,8 +2206,8 @@ class Pantobox_beam_network:
     def e_F_F(self, F, G, al):
         d1 = F @ self.D1
         d2 = F @ self.D2
-        rho1 = norm3(d1)
-        rho2 = norm3(d2)
+        rho1 = norm(d1)
+        rho2 = norm(d2)
         e1 = d1 / rho1
         e2 = d2 / rho2
         e = [e1, e2]
@@ -2234,8 +2228,8 @@ class Pantobox_beam_network:
 
         d1 = F @ self.D1
         d2 = F @ self.D2
-        rho1 = norm3(d1)
-        rho2 = norm3(d2)
+        rho1 = norm(d1)
+        rho2 = norm(d2)
         e1 = d1 / rho1
         e2 = d2 / rho2
 
@@ -2244,12 +2238,12 @@ class Pantobox_beam_network:
     def ga_F(self, F, G):
         d1 = F @ self.D1
         d2 = F @ self.D2
-        rho1 = norm3(d1)
-        rho2 = norm3(d2)
+        rho1 = norm(d1)
+        rho2 = norm(d2)
         e1 = d1 / rho1
         e2 = d2 / rho2
         e1xe2 = cross3(e1, e2)
-        cosga = norm3(e1xe2)
+        cosga = norm(e1xe2)
         singa = e1 @ e2
         tanga = singa / cosga
         na = e1xe2 / cosga
@@ -2263,12 +2257,12 @@ class Pantobox_beam_network:
     def gb_F(self, F, G):
         d3 = F @ self.D3
         d4 = F @ self.D4
-        rho3 = norm3(d3)
-        rho4 = norm3(d4)
+        rho3 = norm(d3)
+        rho4 = norm(d4)
         e3 = d3 / rho3
         e4 = d4 / rho4
         e3xe4 = cross3(e3, e4)
-        cosgb = norm3(e3xe4)
+        cosgb = norm(e3xe4)
         singb = e3 @ e4
         tangb = singb / cosgb
         nb = e3xe4 / cosgb
@@ -2282,12 +2276,12 @@ class Pantobox_beam_network:
     def ga_F_F(self, F, G):
         d1 = F @ self.D1
         d2 = F @ self.D2
-        rho1 = norm3(d1)
-        rho2 = norm3(d2)
+        rho1 = norm(d1)
+        rho2 = norm(d2)
         e1 = d1 / rho1
         e2 = d2 / rho2
         e1xe2 = cross3(e1, e2)
-        cosga = norm3(e1xe2)
+        cosga = norm(e1xe2)
         singa = e1 @ e2
         tanga = singa / cosga
         na = e1xe2 / cosga
@@ -2306,12 +2300,12 @@ class Pantobox_beam_network:
     def m(self, F, G):
         d1 = F @ self.D1
         d2 = F @ self.D2
-        rho1 = norm3(d1)
-        rho2 = norm3(d2)
+        rho1 = norm(d1)
+        rho2 = norm(d2)
         e1 = d1 / rho1
         e2 = d2 / rho2
         e1xe2 = cross3(e1, e2)
-        cosga = norm3(e1xe2)
+        cosga = norm(e1xe2)
         singa = e1 @ e2
         tanga = singa / cosga
         na = e1xe2 / cosga
@@ -2321,12 +2315,12 @@ class Pantobox_beam_network:
         # layer b
         d3 = F @ self.D3
         d4 = F @ self.D4
-        rho3 = norm3(d3)
-        rho4 = norm3(d4)
+        rho3 = norm(d3)
+        rho4 = norm(d4)
         e3 = d3 / rho3
         e4 = d4 / rho4
         e3xe4 = cross3(e3, e4)
-        cosgb = norm3(e3xe4)
+        cosgb = norm(e3xe4)
         singb = e3 @ e4
         tangb = singb / cosgb
         nb = e3xe4 / cosgb
@@ -2339,12 +2333,12 @@ class Pantobox_beam_network:
         # layer a
         d1 = F @ self.D1
         d2 = F @ self.D2
-        rho1 = norm3(d1)
-        rho2 = norm3(d2)
+        rho1 = norm(d1)
+        rho2 = norm(d2)
         e1 = d1 / rho1
         e2 = d2 / rho2
         e1xe2 = cross3(e1, e2)
-        cosga = norm3(e1xe2)
+        cosga = norm(e1xe2)
         singa = e1 @ e2
         tanga = singa / cosga
         na = e1xe2 / cosga
@@ -2358,12 +2352,12 @@ class Pantobox_beam_network:
         # layer b
         d3 = F @ self.D3
         d4 = F @ self.D4
-        rho3 = norm3(d3)
-        rho4 = norm3(d4)
+        rho3 = norm(d3)
+        rho4 = norm(d4)
         e3 = d3 / rho3
         e4 = d4 / rho4
         e3xe4 = cross3(e3, e4)
-        cosgb = norm3(e3xe4)
+        cosgb = norm(e3xe4)
         singb = e3 @ e4
         tangb = singb / cosgb
         nb = e3xe4 / cosgb
@@ -2393,12 +2387,12 @@ class Pantobox_beam_network:
     def m_F_F(self, F, G, al):
         d1 = F @ self.D1
         d2 = F @ self.D2
-        rho1 = norm3(d1)
-        rho2 = norm3(d2)
+        rho1 = norm(d1)
+        rho2 = norm(d2)
         e1 = d1 / rho1
         e2 = d2 / rho2
         e1xe2 = cross3(e1, e2)
-        cosga = norm3(e1xe2)
+        cosga = norm(e1xe2)
         singa = e1 @ e2
         tanga = singa / cosga
         na = e1xe2 / cosga
@@ -2430,12 +2424,12 @@ class Pantobox_beam_network:
     def na(self, F, G):
         d1 = F @ self.D1
         d2 = F @ self.D2
-        rho1 = norm3(d1)
-        rho2 = norm3(d2)
+        rho1 = norm(d1)
+        rho2 = norm(d2)
         e1 = d1 / rho1
         e2 = d2 / rho2
         e1xe2 = cross3(e1, e2)
-        cosga = norm3(e1xe2)
+        cosga = norm(e1xe2)
         singa = e1 @ e2
         tanga = singa / cosga
         na = e1xe2 / cosga
@@ -2445,12 +2439,12 @@ class Pantobox_beam_network:
     def na_F(self, F, G):
         d1 = F @ self.D1
         d2 = F @ self.D2
-        rho1 = norm3(d1)
-        rho2 = norm3(d2)
+        rho1 = norm(d1)
+        rho2 = norm(d2)
         e1 = d1 / rho1
         e2 = d2 / rho2
         e1xe2 = cross3(e1, e2)
-        cosga = norm3(e1xe2)
+        cosga = norm(e1xe2)
         singa = e1 @ e2
         tanga = singa / cosga
         na = e1xe2 / cosga
@@ -2468,12 +2462,12 @@ class Pantobox_beam_network:
     def nb_F(self, F, G):
         d3 = F @ self.D3
         d4 = F @ self.D4
-        rho3 = norm3(d3)
-        rho4 = norm3(d4)
+        rho3 = norm(d3)
+        rho4 = norm(d4)
         e3 = d3 / rho3
         e4 = d4 / rho4
         e3xe4 = cross3(e3, e4)
-        cosgb = norm3(e3xe4)
+        cosgb = norm(e3xe4)
         singb = e3 @ e4
         tangb = singb / cosgb
         nb = e3xe4 / cosgb
@@ -2490,12 +2484,12 @@ class Pantobox_beam_network:
     def na_F_F(self, F, G):
         d1 = F @ self.D1
         d2 = F @ self.D2
-        rho1 = norm3(d1)
-        rho2 = norm3(d2)
+        rho1 = norm(d1)
+        rho2 = norm(d2)
         e1 = d1 / rho1
         e2 = d2 / rho2
         e1xe2 = cross3(e1, e2)
-        cosga = norm3(e1xe2)
+        cosga = norm(e1xe2)
         singa = e1 @ e2
         tanga = singa / cosga
         na = e1xe2 / cosga
@@ -2531,8 +2525,8 @@ class Pantobox_beam_network:
     def c_F(self, F, G):
         d1 = F @ self.D1
         d2 = F @ self.D2
-        rho1 = norm3(d1)
-        rho2 = norm3(d2)
+        rho1 = norm(d1)
+        rho2 = norm(d2)
         e1 = d1 / rho1
         e2 = d2 / rho2
         c1 = np.einsum("ijk,j,k->i", G, self.D1, self.D1) / rho1
@@ -2541,8 +2535,8 @@ class Pantobox_beam_network:
         # Layer b
         d3 = F @ self.D3
         d4 = F @ self.D4
-        rho3 = norm3(d3)
-        rho4 = norm3(d4)
+        rho3 = norm(d3)
+        rho4 = norm(d4)
         e3 = d3 / rho3
         e4 = d4 / rho4
         c3 = np.einsum("ijk,j,k->i", G, self.D3, self.D3) / rho3
@@ -2558,8 +2552,8 @@ class Pantobox_beam_network:
     def c_F_F(self, F, G):
         d1 = F @ self.D1
         d2 = F @ self.D2
-        rho1 = norm3(d1)
-        rho2 = norm3(d2)
+        rho1 = norm(d1)
+        rho2 = norm(d2)
         e1 = d1 / rho1
         e2 = d2 / rho2
         c1 = np.einsum("ijk,j,k->i", G, self.D1, self.D1) / rho1
@@ -2568,8 +2562,8 @@ class Pantobox_beam_network:
         # Layer b
         d3 = F @ self.D3
         d4 = F @ self.D4
-        rho3 = norm3(d3)
-        rho4 = norm3(d4)
+        rho3 = norm(d3)
+        rho4 = norm(d4)
         e3 = d3 / rho3
         e4 = d4 / rho4
         c3 = np.einsum("ijk,j,k->i", G, self.D3, self.D3) / rho3
@@ -2584,15 +2578,15 @@ class Pantobox_beam_network:
     def c(self, F, G):
         d1 = F @ self.D1
         d2 = F @ self.D2
-        rho1 = norm3(d1)
-        rho2 = norm3(d2)
+        rho1 = norm(d1)
+        rho2 = norm(d2)
         c1 = np.einsum("ijk,j,k->i", G, self.D1, self.D1) / rho1
         c2 = np.einsum("ijk,j,k->i", G, self.D2, self.D2) / rho2
 
         d3 = F @ self.D3
         d4 = F @ self.D4
-        rho3 = norm3(d3)
-        rho4 = norm3(d4)
+        rho3 = norm(d3)
+        rho4 = norm(d4)
         c3 = np.einsum("ijk,j,k->i", G, self.D3, self.D3) / rho3
         c4 = np.einsum("ijk,j,k->i", G, self.D4, self.D4) / rho4
 
@@ -2601,8 +2595,8 @@ class Pantobox_beam_network:
     def g(self, F, G):
         d1 = F @ self.D1
         d2 = F @ self.D2
-        rho1 = norm3(d1)
-        rho2 = norm3(d2)
+        rho1 = norm(d1)
+        rho2 = norm(d2)
         e1 = d1 / rho1
         e2 = d2 / rho2
         g1 = np.einsum("ijk,j,k->i", G, self.D2, self.D1) / rho2
@@ -2610,8 +2604,8 @@ class Pantobox_beam_network:
 
         d3 = F @ self.D3
         d4 = F @ self.D4
-        rho3 = norm3(d3)
-        rho4 = norm3(d4)
+        rho3 = norm(d3)
+        rho4 = norm(d4)
         e3 = d3 / rho3
         e4 = d4 / rho4
         g3 = np.einsum("ijk,j,k->i", G, self.D4, self.D3) / rho4
@@ -2622,8 +2616,8 @@ class Pantobox_beam_network:
     def g_F(self, F, G):
         d1 = F @ self.D1
         d2 = F @ self.D2
-        rho1 = norm3(d1)
-        rho2 = norm3(d2)
+        rho1 = norm(d1)
+        rho2 = norm(d2)
         e1 = d1 / rho1
         e2 = d2 / rho2
         g1 = np.einsum("ijk,j,k->i", G, self.D2, self.D1) / rho2
@@ -2631,8 +2625,8 @@ class Pantobox_beam_network:
 
         d3 = F @ self.D3
         d4 = F @ self.D4
-        rho3 = norm3(d3)
-        rho4 = norm3(d4)
+        rho3 = norm(d3)
+        rho4 = norm(d4)
         e3 = d3 / rho3
         e4 = d4 / rho4
         g3 = np.einsum("ijk,j,k->i", G, self.D4, self.D3) / rho4
@@ -2655,12 +2649,12 @@ class Pantobox_beam_network:
     #     # layer a
     #     d1 = F @ self.D1
     #     d2 = F @ self.D2
-    #     rho1 = norm3(d1)
-    #     rho2 = norm3(d2)
+    #     rho1 = norm(d1)
+    #     rho2 = norm(d2)
     #     e1 = d1 / rho1
     #     e2 = d2 / rho2
     #     e1xe2 = cross3(e1, e2)
-    #     cosga = norm3(e1xe2)
+    #     cosga = norm(e1xe2)
     #     singa = e1 @ e2
     #     tanga = singa / cosga
     #     na = e1xe2 / cosga
@@ -2674,12 +2668,12 @@ class Pantobox_beam_network:
     #     # layer b
     #     d3 = F @ self.D3
     #     d4 = F @ self.D4
-    #     rho3 = norm3(d3)
-    #     rho4 = norm3(d4)
+    #     rho3 = norm(d3)
+    #     rho4 = norm(d4)
     #     e3 = d3 / rho3
     #     e4 = d4 / rho4
     #     e3xe4 = cross3(e3, e4)
-    #     cosgb = norm3(e3xe4)
+    #     cosgb = norm(e3xe4)
     #     singb = e3 @ e4
     #     tangb = singb / cosgb
     #     nb = e3xe4 / cosgb
@@ -2776,12 +2770,12 @@ class Pantobox_beam_network:
         # Layer a
         d1 = F @ self.D1
         d2 = F @ self.D2
-        rho1 = norm3(d1)
-        rho2 = norm3(d2)
+        rho1 = norm(d1)
+        rho2 = norm(d2)
         e1 = d1 / rho1
         e2 = d2 / rho2
         e1xe2 = cross3(e1, e2)
-        cosga = norm3(e1xe2)
+        cosga = norm(e1xe2)
         singa = e1 @ e2
         na = e1xe2 / cosga
         m1 = cross3(na, e1)
@@ -2799,12 +2793,12 @@ class Pantobox_beam_network:
         # Layer b
         d3 = F @ self.D3
         d4 = F @ self.D4
-        rho3 = norm3(d3)
-        rho4 = norm3(d4)
+        rho3 = norm(d3)
+        rho4 = norm(d4)
         e3 = d3 / rho3
         e4 = d4 / rho4
         e3xe4 = cross3(e3, e4)
-        cosgb = norm3(e3xe4)
+        cosgb = norm(e3xe4)
         singb = e3 @ e4
         nb = e3xe4 / cosgb
         m3 = cross3(nb, e3)
@@ -2862,14 +2856,14 @@ class Pantobox_beam_network:
 
         d1 = F @ self.D1
         d2 = F @ self.D2
-        rho1 = norm3(d1)
-        rho2 = norm3(d2)
+        rho1 = norm(d1)
+        rho2 = norm(d2)
         e1 = d1 / rho1
         e2 = d2 / rho2
         d3 = F @ self.D3
         d4 = F @ self.D4
-        rho3 = norm3(d3)
-        rho4 = norm3(d4)
+        rho3 = norm(d3)
+        rho4 = norm(d4)
         e3 = d3 / rho3
         e4 = d4 / rho4
 
@@ -2887,12 +2881,12 @@ class Pantobox_beam_network:
     def Wn(self, F, G=G0):
         d1 = F @ self.D1
         d2 = F @ self.D2
-        rho1 = norm3(d1)
-        rho2 = norm3(d2)
+        rho1 = norm(d1)
+        rho2 = norm(d2)
         e1 = d1 / rho1
         e2 = d2 / rho2
         e1xe2 = cross3(e1, e2)
-        cosga = norm3(e1xe2)
+        cosga = norm(e1xe2)
         na = e1xe2 / cosga
         m1 = cross3(na, e1)
         m2 = cross3(na, e2)
@@ -2903,12 +2897,12 @@ class Pantobox_beam_network:
 
         d3 = F @ self.D3
         d4 = F @ self.D4
-        rho3 = norm3(d3)
-        rho4 = norm3(d4)
+        rho3 = norm(d3)
+        rho4 = norm(d4)
         e3 = d3 / rho3
         e4 = d4 / rho4
         e3xe4 = cross3(e3, e4)
-        cosgb = norm3(e3xe4)
+        cosgb = norm(e3xe4)
         nb = e3xe4 / cosgb
         m3 = cross3(nb, e3)
         m4 = cross3(nb, e4)
@@ -2926,12 +2920,12 @@ class Pantobox_beam_network:
 
         d1 = F @ self.D1
         d2 = F @ self.D2
-        rho1 = norm3(d1)
-        rho2 = norm3(d2)
+        rho1 = norm(d1)
+        rho2 = norm(d2)
         e1 = d1 / rho1
         e2 = d2 / rho2
         e1xe2 = cross3(e1, e2)
-        cosga = norm3(e1xe2)
+        cosga = norm(e1xe2)
         singa = e1 @ e2
         tanga = singa / cosga
         na = e1xe2 / cosga
@@ -2942,13 +2936,13 @@ class Pantobox_beam_network:
 
         d3 = F @ self.D3
         d4 = F @ self.D4
-        rho3 = norm3(d3)
-        rho4 = norm3(d4)
+        rho3 = norm(d3)
+        rho4 = norm(d4)
         e3 = d3 / rho3
         e4 = d4 / rho4
         e3xe4 = cross3(e3, e4)
         singb = e3 @ e4
-        cosgb = norm3(e3xe4)
+        cosgb = norm(e3xe4)
         tangb = singb / cosgb
         nb = e3xe4 / cosgb
         m3 = cross3(nb, e3)
@@ -3025,12 +3019,12 @@ class Pantobox_beam_network:
         # layer a
         d1 = F @ self.D1
         d2 = F @ self.D2
-        rho1 = norm3(d1)
-        rho2 = norm3(d2)
+        rho1 = norm(d1)
+        rho2 = norm(d2)
         e1 = d1 / rho1
         e2 = d2 / rho2
         e1xe2 = cross3(e1, e2)
-        cosga = norm3(e1xe2)
+        cosga = norm(e1xe2)
         singa = e1 @ e2
         na = e1xe2 / cosga
         c1 = (
@@ -3041,12 +3035,12 @@ class Pantobox_beam_network:
         # layer b
         d3 = F @ self.D3
         d4 = F @ self.D4
-        rho3 = norm3(d3)
-        rho4 = norm3(d4)
+        rho3 = norm(d3)
+        rho4 = norm(d4)
         e3 = d3 / rho3
         e4 = d4 / rho4
         e3xe4 = cross3(e3, e4)
-        cosgb = norm3(e3xe4)
+        cosgb = norm(e3xe4)
         nb = e3xe4 / cosgb
         c3 = np.einsum("ijk,j,k->i", G, self.D3, self.D3) / rho3
         c4 = np.einsum("ijk,j,k->i", G, self.D4, self.D4) / rho4
@@ -3069,12 +3063,12 @@ class Pantobox_beam_network:
         # layer a
         d1 = F @ self.D1
         d2 = F @ self.D2
-        rho1 = norm3(d1)
-        rho2 = norm3(d2)
+        rho1 = norm(d1)
+        rho2 = norm(d2)
         e1 = d1 / rho1
         e2 = d2 / rho2
         e1xe2 = cross3(e1, e2)
-        cosga = norm3(e1xe2)
+        cosga = norm(e1xe2)
         singa = e1 @ e2
         na = e1xe2 / cosga
         m1 = cross3(na, e1)
@@ -3087,13 +3081,13 @@ class Pantobox_beam_network:
         # layer b
         d3 = F @ self.D3
         d4 = F @ self.D4
-        rho3 = norm3(d3)
-        rho4 = norm3(d4)
+        rho3 = norm(d3)
+        rho4 = norm(d4)
         e3 = d3 / rho3
         e4 = d4 / rho4
         e3xe4 = cross3(e3, e4)
         singb = e3 @ e4
-        cosgb = norm3(e3xe4)
+        cosgb = norm(e3xe4)
         nb = e3xe4 / cosgb
         m3 = cross3(nb, e3)
         m4 = cross3(nb, e4)
@@ -3152,12 +3146,12 @@ class Pantobox_beam_network:
         # layer a
         d1 = F @ self.D1
         d2 = F @ self.D2
-        rho1 = norm3(d1)
-        rho2 = norm3(d2)
+        rho1 = norm(d1)
+        rho2 = norm(d2)
         e1 = d1 / rho1
         e2 = d2 / rho2
         e1xe2 = cross3(e1, e2)
-        cosga = norm3(e1xe2)
+        cosga = norm(e1xe2)
         singa = e1 @ e2
         na = e1xe2 / cosga
         c1 = (
@@ -3170,12 +3164,12 @@ class Pantobox_beam_network:
         # layer b
         d3 = F @ self.D3
         d4 = F @ self.D4
-        rho3 = norm3(d3)
-        rho4 = norm3(d4)
+        rho3 = norm(d3)
+        rho4 = norm(d4)
         e3 = d3 / rho3
         e4 = d4 / rho4
         e3xe4 = cross3(e3, e4)
-        cosgb = norm3(e3xe4)
+        cosgb = norm(e3xe4)
         singb = e3 @ e4
         nb = e3xe4 / cosgb
         c3 = np.einsum("ijk,j,k->i", G, self.D3, self.D3) / rho3
@@ -3198,12 +3192,12 @@ class Pantobox_beam_network:
     def Pt(self, F, G=G0):
         d1 = F @ self.D1
         d2 = F @ self.D2
-        rho1 = norm3(d1)
-        rho2 = norm3(d2)
+        rho1 = norm(d1)
+        rho2 = norm(d2)
         e1 = d1 / rho1
         e2 = d2 / rho2
         e1xe2 = cross3(e1, e2)
-        cosga = norm3(e1xe2)
+        cosga = norm(e1xe2)
         singa = e1 @ e2
         na = e1xe2 / cosga
         m1 = cross3(na, e1)
@@ -3221,12 +3215,12 @@ class Pantobox_beam_network:
         # layer b
         d3 = F @ self.D3
         d4 = F @ self.D4
-        rho3 = norm3(d3)
-        rho4 = norm3(d4)
+        rho3 = norm(d3)
+        rho4 = norm(d4)
         e3 = d3 / rho3
         e4 = d4 / rho4
         e3xe4 = cross3(e3, e4)
-        cosgb = norm3(e3xe4)
+        cosgb = norm(e3xe4)
         singb = e3 @ e4
         nb = e3xe4 / cosgb
         m3 = cross3(nb, e3)
@@ -3299,23 +3293,23 @@ class Pantobox_beam_network:
         # layer a
         d1 = F @ self.D1
         d2 = F @ self.D2
-        rho1 = norm3(d1)
-        rho2 = norm3(d2)
+        rho1 = norm(d1)
+        rho2 = norm(d2)
         e1 = d1 / rho1
         e2 = d2 / rho2
         e1xe2 = cross3(e1, e2)
-        cosga = norm3(e1xe2)
+        cosga = norm(e1xe2)
         singa = e1 @ e2
 
         # layer b
         d3 = F @ self.D3
         d4 = F @ self.D4
-        rho3 = norm3(d3)
-        rho4 = norm3(d4)
+        rho3 = norm(d3)
+        rho4 = norm(d4)
         e3 = d3 / rho3
         e4 = d4 / rho4
         e3xe4 = cross3(e3, e4)
-        cosgb = norm3(e3xe4)
+        cosgb = norm(e3xe4)
         singb = e3 @ e4
 
         Wsa = 0.5 * self.Ks * np.arcsin(singa) ** 2
@@ -3326,12 +3320,12 @@ class Pantobox_beam_network:
         # layer a
         d1 = F @ self.D1
         d2 = F @ self.D2
-        rho1 = norm3(d1)
-        rho2 = norm3(d2)
+        rho1 = norm(d1)
+        rho2 = norm(d2)
         e1 = d1 / rho1
         e2 = d2 / rho2
         e1xe2 = cross3(e1, e2)
-        cosga = norm3(e1xe2)
+        cosga = norm(e1xe2)
         singa = e1 @ e2
         na = e1xe2 / cosga
         m1 = cross3(na, e1)
@@ -3340,12 +3334,12 @@ class Pantobox_beam_network:
         # layer b
         d3 = F @ self.D3
         d4 = F @ self.D4
-        rho3 = norm3(d3)
-        rho4 = norm3(d4)
+        rho3 = norm(d3)
+        rho4 = norm(d4)
         e3 = d3 / rho3
         e4 = d4 / rho4
         e3xe4 = cross3(e3, e4)
-        cosgb = norm3(e3xe4)
+        cosgb = norm(e3xe4)
         singb = e3 @ e4
         nb = e3xe4 / cosgb
         m3 = cross3(nb, e3)
@@ -3373,24 +3367,24 @@ class Pantobox_beam_network:
     def Wc(self, F, G=G0):
         d1 = F @ self.D1
         d2 = F @ self.D2
-        rho1 = norm3(d1)
-        rho2 = norm3(d2)
+        rho1 = norm(d1)
+        rho2 = norm(d2)
         e1 = d1 / rho1
         e2 = d2 / rho2
         e1xe2 = cross3(e1, e2)
-        cosga = norm3(e1xe2)
+        cosga = norm(e1xe2)
         singa = e1 @ e2
         na = e1xe2 / cosga
         m1 = cross3(na, e1)
         m2 = cross3(na, e2)
         d3 = F @ self.D3
         d4 = F @ self.D4
-        rho3 = norm3(d3)
-        rho4 = norm3(d4)
+        rho3 = norm(d3)
+        rho4 = norm(d4)
         e3 = d3 / rho3
         e4 = d4 / rho4
         e3xe4 = cross3(e3, e4)
-        cosgb = norm3(e3xe4)
+        cosgb = norm(e3xe4)
         singb = e3 @ e4
         nb = e3xe4 / cosgb
         m3 = cross3(nb, e3)
@@ -3403,12 +3397,12 @@ class Pantobox_beam_network:
     def Pc(self, F, G=G0):
         d1 = F @ self.D1
         d2 = F @ self.D2
-        rho1 = norm3(d1)
-        rho2 = norm3(d2)
+        rho1 = norm(d1)
+        rho2 = norm(d2)
         e1 = d1 / rho1
         e2 = d2 / rho2
         e1xe2 = cross3(e1, e2)
-        cosga = norm3(e1xe2)
+        cosga = norm(e1xe2)
         singa = e1 @ e2
         tanga = singa / cosga
         na = e1xe2 / cosga
@@ -3416,12 +3410,12 @@ class Pantobox_beam_network:
         m2 = cross3(na, e2)
         d3 = F @ self.D3
         d4 = F @ self.D4
-        rho3 = norm3(d3)
-        rho4 = norm3(d4)
+        rho3 = norm(d3)
+        rho4 = norm(d4)
         e3 = d3 / rho3
         e4 = d4 / rho4
         e3xe4 = cross3(e3, e4)
-        cosgb = norm3(e3xe4)
+        cosgb = norm(e3xe4)
         singb = e3 @ e4
         tangb = singb / cosgb
         nb = e3xe4 / cosgb
@@ -3473,8 +3467,8 @@ class Pantobox_beam_network:
     def ga(self, F, G=G0):
         d1 = F @ self.D1
         d2 = F @ self.D2
-        rho1 = norm3(d1)
-        rho2 = norm3(d2)
+        rho1 = norm(d1)
+        rho2 = norm(d2)
         e1 = d1 / rho1
         e2 = d2 / rho2
         singa = e1 @ e2
@@ -3482,8 +3476,8 @@ class Pantobox_beam_network:
         # Layer b
         d3 = F @ self.D3
         d4 = F @ self.D4
-        rho3 = norm3(d3)
-        rho4 = norm3(d4)
+        rho3 = norm(d3)
+        rho4 = norm(d4)
         e3 = d3 / rho3
         e4 = d4 / rho4
         singb = e3 @ e4
@@ -3494,12 +3488,12 @@ class Pantobox_beam_network:
         # layer a
         d1 = F @ self.D1
         d2 = F @ self.D2
-        rho1 = norm3(d1)
-        rho2 = norm3(d2)
+        rho1 = norm(d1)
+        rho2 = norm(d2)
         e1 = d1 / rho1
         e2 = d2 / rho2
         e1xe2 = cross3(e1, e2)
-        cosga = norm3(e1xe2)
+        cosga = norm(e1xe2)
         singa = e1 @ e2
         na = e1xe2 / cosga
         c1 = (
@@ -3512,12 +3506,12 @@ class Pantobox_beam_network:
         # layer b
         d3 = F @ self.D3
         d4 = F @ self.D4
-        rho3 = norm3(d3)
-        rho4 = norm3(d4)
+        rho3 = norm(d3)
+        rho4 = norm(d4)
         e3 = d3 / rho3
         e4 = d4 / rho4
         e3xe4 = cross3(e3, e4)
-        cosgb = norm3(e3xe4)
+        cosgb = norm(e3xe4)
         singb = e3 @ e4
         nb = e3xe4 / cosgb
         c3 = np.einsum("ijk,j,k->i", G, self.D3, self.D3) / rho3
@@ -3535,12 +3529,12 @@ class Pantobox_beam_network:
     def kappa_n(self, F, G=G0):
         d1 = F @ self.D1
         d2 = F @ self.D2
-        rho1 = norm3(d1)
-        rho2 = norm3(d2)
+        rho1 = norm(d1)
+        rho2 = norm(d2)
         e1 = d1 / rho1
         e2 = d2 / rho2
         e1xe2 = cross3(e1, e2)
-        cosga = norm3(e1xe2)
+        cosga = norm(e1xe2)
         na = e1xe2 / cosga
         m1 = cross3(na, e1)
         m2 = cross3(na, e2)
@@ -3551,12 +3545,12 @@ class Pantobox_beam_network:
 
         d3 = F @ self.D3
         d4 = F @ self.D4
-        rho3 = norm3(d3)
-        rho4 = norm3(d4)
+        rho3 = norm(d3)
+        rho4 = norm(d4)
         e3 = d3 / rho3
         e4 = d4 / rho4
         e3xe4 = cross3(e3, e4)
-        cosgb = norm3(e3xe4)
+        cosgb = norm(e3xe4)
         nb = e3xe4 / cosgb
         m3 = cross3(nb, e3)
         m4 = cross3(nb, e4)
@@ -3573,12 +3567,12 @@ class Pantobox_beam_network:
     def kappa_g(self, F, G=G0):
         d1 = F @ self.D1
         d2 = F @ self.D2
-        rho1 = norm3(d1)
-        rho2 = norm3(d2)
+        rho1 = norm(d1)
+        rho2 = norm(d2)
         e1 = d1 / rho1
         e2 = d2 / rho2
         e1xe2 = cross3(e1, e2)
-        cosga = norm3(e1xe2)
+        cosga = norm(e1xe2)
         na = e1xe2 / cosga
 
         c1 = (
@@ -3588,12 +3582,12 @@ class Pantobox_beam_network:
 
         d3 = F @ self.D3
         d4 = F @ self.D4
-        rho3 = norm3(d3)
-        rho4 = norm3(d4)
+        rho3 = norm(d3)
+        rho4 = norm(d4)
         e3 = d3 / rho3
         e4 = d4 / rho4
         e3xe4 = cross3(e3, e4)
-        cosgb = norm3(e3xe4)
+        cosgb = norm(e3xe4)
         nb = e3xe4 / cosgb
 
         c3 = np.einsum("ijk,j,k->i", G, self.D3, self.D3) / rho3
@@ -3642,7 +3636,7 @@ class Pantobox_beam_network:
 def verify_derivatives():
     K = np.random.rand(6) * 50
     KE, KS, KG, KN, KT, KC = K
-    mat = Pantobox_beam_network(
+    mat = PantoboxBeamNetwork(
         KE * 0, KS * 0, KG * 0, KN * 0, KT, KC * 0, numerical_derivative=False
     )
     F = np.random.rand(3, 3)
@@ -3665,7 +3659,7 @@ def verify_derivatives():
 def speed_test():
     import time
 
-    mat = Pantobox_beam_network(1, 1, 1, 1, 1, 1)
+    mat = PantoboxBeamNetwork(1, 1, 1, 1, 1, 1)
     F = np.random.rand(3, 3)
     G = np.random.rand(3, 3, 3)
     # t0 = time.time()

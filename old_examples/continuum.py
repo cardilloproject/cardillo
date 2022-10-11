@@ -18,7 +18,7 @@ from cardillo.continuum import (
 from cardillo.solver import Newton, EulerBackward
 from cardillo import System
 from cardillo.math import A_IK_basic
-from cardillo.forces import DistributedForce2D, DistributedForce3D
+from cardillo.forces import DistributedForce2D, DistributedForce3DContinuum
 
 # , Force_distr2D
 # from cardillo.forces import , Force_distr3D
@@ -143,7 +143,7 @@ def test_cube():
             G = lambda t, xi, eta, zeta: t * np.array([0, 0, -9.81 * density])
         else:
             G = lambda t, xi, eta, zeta: np.array([0, 0, -9.81 * density])
-        model.add(DistributedForce3D(G, continuum))
+        model.add(DistributedForce3DContinuum(G, continuum))
 
     model.assemble()
 

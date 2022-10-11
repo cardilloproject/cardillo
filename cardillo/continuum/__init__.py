@@ -5,6 +5,8 @@ from .first_gradient_material import (
     Ogden1997_incompressible,
     Pantobox_linear,
 )
+from .second_gradient import SecondGradient
+from .second_gradient_material import PantosheetBeamNetwork, PantoboxBeamNetwork
 
 # from .pantographic_sheets import (
 #     Pantographic_sheet,

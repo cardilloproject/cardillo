@@ -1,15 +1,10 @@
 import numpy as np
 import meshio
-import os
-from cardillo.model.model import Model
-from cardillo.utility.coo import Coo
-from cardillo.math.numerical_derivative import Numerical_derivative
 from cardillo.discretization.indexing import flat2D, flat3D, split2D, split3D
-from cardillo.discretization.B_spline import B_spline_basis3D
-from cardillo.math.algebra import determinant2D, inverse3D, determinant3D
+from cardillo.math import det2D, det3D
 
 
-class Second_gradient:
+class SecondGradient:
     def __init__(self, density, material, mesh, Z, z0=None, v0=None, cDOF=[], b=None):
         self.density = density
         self.mat = material
@@ -51,10 +46,10 @@ class Second_gradient:
         self.dim = int(len(Z) / self.nn)
         if self.dim == 2:
             self.flat = flat2D
-            self.determinant = determinant2D
+            self.determinant = det2D
         else:
             self.flat = flat3D
-            self.determinant = determinant3D
+            self.determinant = det3D
 
         # for each Gauss point, compute kappa0^-1, N_X and w_J0 = w * det(kappa0^-1)
         if self.nq_n > 1:

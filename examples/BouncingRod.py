@@ -16,7 +16,7 @@ from cardillo.beams import (
     DirectorAxisAngle,
     animate_rope,
 )
-from cardillo.forces import DistributedForce1D
+from cardillo.forces import DistributedForce1DBeam
 
 from cardillo.model.frame import Frame
 from cardillo.forces import Force
@@ -100,7 +100,7 @@ if __name__ == "__main__":
     g = 9.81
     __fg = -A_rho0 * g * e3
     fg = lambda t, xi: __fg
-    gravity = DistributedForce1D(fg, rod)
+    gravity = DistributedForce1DBeam(fg, rod)
 
     mu = 0.1
     # r_N = 0.2

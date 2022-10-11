@@ -1,17 +1,18 @@
 import numpy as np
 
 
-class Displacement_constraint:
+class DisplacementConstraint:
     def __init__(self, subsystem, la_mesh, srf_id=None, edge_id=None, x=0, disp=0):
         self.subsystem = subsystem
         self.srf_id = srf_id
         self.edge_id = edge_id
         if srf_id:
+            raise RuntimeWarning("Rename mesh attributes.")
             self.con_mesh = subsystem.mesh.surface_mesh[srf_id]
         elif edge_id:
             self.con_mesh = subsystem.mesh.edge_mesh[edge_id]
         self.la_mesh = la_mesh
-        self.nla_g = la_mesh.nn
+        self.nla_g = la_mesh.nnodes
         self.la_g0 = np.zeros(self.nla_g)
         self.x = x
         if not callable(disp):
@@ -21,6 +22,7 @@ class Displacement_constraint:
 
     def assembler_callback(self):
         self.qDOF = self.subsystem.qDOF
+        self.uDOF = self.subsystem.uDOF
         if self.srf_id:
             self.con_zDOF = self.subsystem.mesh.surface_qDOF[self.srf_id].ravel()
         elif self.edge_id:
@@ -28,27 +30,24 @@ class Displacement_constraint:
         self.Z_con = self.subsystem.Z[self.con_zDOF]
         self.nz_con = len(self.Z_con)
         self.con_z_elDOF_global = self.con_zDOF[self.con_mesh.elDOF]
-        self.w_J0 = self.con_mesh.reference_mappings(self.Z_con)[2]
-
-        # TODO: Required for dynamics and sorting of generalized force directions.
-        # self.uDOF = self.subsystem.uDOF
+        self.w_J0 = self.con_mesh.reference_mappings(self.Z_con)[-1]
 
     def g_el(self, t, qe, Qe, el):
         displacement = self.dq(t)
 
-        ge = np.zeros(self.la_mesh.nn_el)
-        for i in range(self.con_mesh.nqp):
+        ge = np.zeros(self.la_mesh.nnodes_per_element)
+        for i in range(self.con_mesh.nquadrature):
             w_J0 = self.w_J0[el, i]
             N_la_eli = self.la_mesh.N[el, i]
             N_eli = self.con_mesh.N[el, i]
             dqi = 0
-            for a in range(self.con_mesh.nn_el):
+            for a in range(self.con_mesh.nnodes_per_element):
                 dqi += N_eli[a] * (
-                    qe[self.x * self.con_mesh.nn_el + a]
-                    - Qe[self.x * self.con_mesh.nn_el + a]
+                    qe[self.x * self.con_mesh.nnodes_per_element + a]
+                    - Qe[self.x * self.con_mesh.nnodes_per_element + a]
                     - displacement
                 )
-            for a_tilde in range(self.la_mesh.nn_el):
+            for a_tilde in range(self.la_mesh.nnodes_per_element):
                 ge[a_tilde] += N_la_eli[a_tilde] * dqi * w_J0
         return ge
 
@@ -56,7 +55,7 @@ class Displacement_constraint:
         g = np.zeros(self.nla_g)
         z = self.subsystem.z(t, q)
         Z = self.subsystem.Z
-        for el in range(self.con_mesh.nel):
+        for el in range(self.con_mesh.nelement):
             elDOF_el = self.con_z_elDOF_global[el]
             qe = z[elDOF_el]
             Qe = Z[elDOF_el]
@@ -65,13 +64,13 @@ class Displacement_constraint:
         return g
 
     def g_el_q(self, t, qe, el):
-        ge_q = np.zeros((self.la_mesh.nn_el, qe.shape[0]))
-        for i in range(self.con_mesh.nqp):
+        ge_q = np.zeros((self.la_mesh.nnodes_per_element, qe.shape[0]))
+        for i in range(self.con_mesh.nquadrature):
             N_la_eli = self.la_mesh.N[el, i]
             N_eli = self.con_mesh.N[el, i]
             w_J0 = self.w_J0[el, i]
-            for a in range(self.con_mesh.nn_el):
-                for a_tilde in range(self.la_mesh.nn_el):
+            for a in range(self.con_mesh.nnodes_per_element):
+                for a_tilde in range(self.la_mesh.nnodes_per_element):
                     ge_q[a_tilde, self.con_mesh.nodalDOF[a, self.x]] += (
                         N_la_eli[a_tilde] * N_eli[a] * w_J0
                     )
@@ -80,7 +79,7 @@ class Displacement_constraint:
     def g_q_dense(self, t, q):
         g_z = np.zeros((self.nla_g, self.subsystem.nz))
         z = self.subsystem.z(t, q)
-        for el in range(self.con_mesh.nel):
+        for el in range(self.con_mesh.nelement):
             elDOF_el = self.con_z_elDOF_global[el]
             qe = z[elDOF_el]
             la_elDOF_el = self.la_mesh.elDOF[el]
@@ -92,16 +91,16 @@ class Displacement_constraint:
 
     def W_g(self, t, q, coo):
         # TODO: uDOF instead of qDOF!
-        coo.extend(self.g_q_dense(t, q).T, (self.qDOF, self.la_gDOF))
+        coo.extend(self.g_q_dense(t, q).T, (self.uDOF, self.la_gDOF))
 
     # def Wla_g_q_el(self, t, qel, lael, el):
     #     Wla_g_q_el = np.zeros((qel.shape[0], qel.shape[0]))
-    #     for i in range(self.con_mesh.nqp):
+    #     for i in range(self.con_mesh.nquadrature):
     #         # N_la_eli = self.la_mesh.N[el, i]
     #         # w_J0 = self.w_J0[el, i]
     #         idx = np.array([self.x + 3 * i for i in range(int(qel.shape[0] / 3))])
-    #         for a in range(self.con_mesh.nn_el):
-    #             for a_tilde in range(self.la_mesh.nn_el):
+    #         for a in range(self.con_mesh.nnodes_per_element):
+    #             for a_tilde in range(self.la_mesh.nnodes_per_element):
     #                 # la_a_tilde = lael[a_tilde]
     #                 Wla_g_q_el[self.con_mesh.nodalDOF[a, self.x], idx] += 0
     #     return Wla_g_q_el
@@ -110,7 +109,7 @@ class Displacement_constraint:
         pass
         # Wla_g_q = np.zeros((self.subsystem.nz, self.subsystem.nz))
         # z = self.subsystem.z(t, q)
-        # for el in range(self.con_mesh.nel):
+        # for el in range(self.con_mesh.nelement):
         #     qel = z[self.con_z_elDOF_global[el]]
         #     la_elDOF = self.la_mesh.elDOF[el]
         #     lael = la_g[la_elDOF]
@@ -125,7 +124,7 @@ class Displacement_constraint:
         # )
 
 
-class Gradient_constraint:
+class GradientConstraint:
     def __init__(self, subsystem, la_mesh, srf_id=0, x=0, _X=0):
         self.subsystem = subsystem
         self.mesh = self.subsystem.mesh
@@ -142,6 +141,7 @@ class Gradient_constraint:
 
     def assembler_callback(self):
         self.qDOF = self.subsystem.qDOF
+        self.uDOF = self.subsystem.uDOF
         self.con_zDOF = self.subsystem.mesh.surface_qDOF[self.con_id].ravel()
         self.fDOF = self.subsystem.fDOF
         self.con_fDOF = np.intersect1d(self.con_zDOF, self.fDOF)
@@ -150,22 +150,20 @@ class Gradient_constraint:
         self.w_J0 = self.con_mesh.reference_mappings(self.Z_con)[2]
         self.con_z_elDOF_global = self.con_zDOF[self.con_mesh.elDOF]
 
-        # TODO: Required for dynamics and sorting of generalized force directions.
-        # self.uDOF = self.subsystem.uDOF
-
     def g_el(self, t, qe, Qe, el):
-        ge = np.zeros(self.la_mesh.nn_el)
-        for i in range(self.con_mesh.nqp):
+        ge = np.zeros(self.la_mesh.nnodes_per_element)
+        for i in range(self.con_mesh.nquadrature):
             w_J0 = self.w_J0[el, i]
             N_la_eli = self.la_mesh.N[el, i]
             Nb_X_eli = self.Nb_X[el, i]
             dqi_X = 0
             # gradient difference in direction X
-            for a in range(self.mesh.nn_el):
+            for a in range(self.mesh.nnodes_per_element):
                 dqi_X += Nb_X_eli[a, self._X] * (
-                    qe[self.x * self.mesh.nn_el + a] - Qe[self.x * self.mesh.nn_el + a]
+                    qe[self.x * self.mesh.nnodes_per_element + a]
+                    - Qe[self.x * self.mesh.nnodes_per_element + a]
                 )
-            for a_tilde in range(self.la_mesh.nn_el):
+            for a_tilde in range(self.la_mesh.nnodes_per_element):
                 ge[a_tilde] += N_la_eli[a_tilde] * dqi_X * w_J0
         return ge
 
@@ -173,7 +171,7 @@ class Gradient_constraint:
         g = np.zeros(self.nla_g)
         z = self.subsystem.z(t, q)
         Z = self.subsystem.Z
-        for el in range(self.con_mesh.nel):
+        for el in range(self.con_mesh.nelement):
             elDOF_el = self.mesh.elDOF[self.bc_el[el]]
             qe = z[elDOF_el]
             Qe = Z[elDOF_el]
@@ -182,13 +180,13 @@ class Gradient_constraint:
         return g
 
     def g_el_q(self, t, qe, el):
-        ge_q = np.zeros((self.la_mesh.nn_el, qe.shape[0]))
-        for i in range(self.con_mesh.nqp):
+        ge_q = np.zeros((self.la_mesh.nnodes_per_element, qe.shape[0]))
+        for i in range(self.con_mesh.nquadrature):
             N_la_eli = self.la_mesh.N[el, i]
             Nb_X_eli = self.Nb_X[el, i]
             w_J0 = self.w_J0[el, i]
-            for a in range(self.mesh.nn_el):
-                for a_tilde in range(self.con_mesh.nn_el):
+            for a in range(self.mesh.nnodes_per_element):
+                for a_tilde in range(self.con_mesh.nnodes_per_element):
                     ge_q[a_tilde, self.mesh.nodalDOF[a, self.x]] += (
                         N_la_eli[a_tilde] * Nb_X_eli[a, self._X] * w_J0
                     )
@@ -197,7 +195,7 @@ class Gradient_constraint:
     def g_q_dense(self, t, q):
         g_z = np.zeros((self.nla_g, self.subsystem.nz))
         z = self.subsystem.z(t, q)
-        for el in range(self.con_mesh.nel):
+        for el in range(self.con_mesh.nelement):
             elDOF_el = self.mesh.elDOF[self.bc_el[el]]
             qe = z[elDOF_el]
             la_elDOF_el = self.la_mesh.elDOF[el]
@@ -208,8 +206,7 @@ class Gradient_constraint:
         coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
 
     def W_g(self, t, q, coo):
-        # TODO: Use uDOF instead of qDOF!
-        coo.extend(self.g_q_dense(t, q).T, (self.qDOF, self.la_gDOF))
+        coo.extend(self.g_q_dense(t, q).T, (self.uDOF, self.la_gDOF))
 
     def Wla_g_q(self, t, q, la_g, coo):
         pass

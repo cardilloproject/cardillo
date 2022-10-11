@@ -1,7 +1,7 @@
 from cardillo.math import Numerical_derivative
 
 # TODO: only works with 3D continua
-class Force_distr1D:
+class DistributedForce1DContinuum:
     def __init__(self, force_distr1D, subsystem, edge_idx):
         if not callable(force_distr1D):
             self.force_distr1D = lambda t, xi: force_distr1D

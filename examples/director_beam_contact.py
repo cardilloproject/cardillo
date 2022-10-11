@@ -5,7 +5,7 @@ from cardillo.beams import (
     animate_beam,
     TimoshenkoDirectorIntegral,
 )
-from cardillo.forces import Force, K_Moment, DistributedForce1D
+from cardillo.forces import Force, K_Moment, DistributedForce1DBeam
 from cardillo.model import System
 from cardillo.solver import Newton
 from cardillo.contacts import Point2Plane
@@ -67,7 +67,7 @@ def junction_left_plane_contact_right():
 
     # gravity beam
     __g = np.array([0, 0, -A_rho0 * 9.81 * 5.0e-3])
-    f_g_beam = DistributedForce1D(lambda t, xi: t * __g, beam)
+    f_g_beam = DistributedForce1DBeam(lambda t, xi: t * __g, beam)
 
     # moment at right end
     M = lambda t: -np.array([1, 0, 1]) * t * 2 * np.pi * Fi[1] / L * 0.5

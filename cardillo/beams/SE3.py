@@ -11,7 +11,7 @@ from cardillo.math import (
     approx_fprime,
     tangent_map_s,
     trace3,
-    LeviCivita,
+    LeviCivita3,
 )
 
 # usefull links:
@@ -122,8 +122,8 @@ def Exp_SO3_psi(psi: np.ndarray) -> np.ndarray:
                             0.5
                             * beta
                             * (
-                                LeviCivita(k, l, i) * psi_tilde[l, j]
-                                + psi_tilde[l, i] * LeviCivita(k, l, j)
+                                LeviCivita3(k, l, i) * psi_tilde[l, j]
+                                + psi_tilde[l, i] * LeviCivita3(k, l, j)
                             )
                         )
     else:
@@ -272,8 +272,8 @@ def T_SO3_psi(psi: np.ndarray) -> np.ndarray:
                     T_SO3_psi[i, j, k] += psi_tilde2[i, j] * psi[k] * c_psik
                     for l in range(3):
                         T_SO3_psi[i, j, k] += c * (
-                            LeviCivita(k, l, i) * psi_tilde[l, j]
-                            + psi_tilde[l, i] * LeviCivita(k, l, j)
+                            LeviCivita3(k, l, i) * psi_tilde[l, j]
+                            + psi_tilde[l, i] * LeviCivita3(k, l, j)
                         )
     else:
         ####################
@@ -353,8 +353,8 @@ def T_SO3_inv_psi(psi: np.ndarray) -> np.ndarray:
                     T_SO3_inv_psi[i, j, k] += psi_tilde2[i, j] * psi[k] * c_psi_k
                     for l in range(3):
                         T_SO3_inv_psi[i, j, k] += c * (
-                            LeviCivita(i, k, l) * psi_tilde[l, j]
-                            + psi_tilde[i, l] * LeviCivita(l, k, j)
+                            LeviCivita3(i, k, l) * psi_tilde[l, j]
+                            + psi_tilde[i, l] * LeviCivita3(l, k, j)
                         )
 
     return T_SO3_inv_psi
