@@ -2554,8 +2554,8 @@ class GeneralizedAlphaFirstOrder:
             self.sk = s0
 
         # compute consistent initial conditions
-        # initial_values(t0, model.q0, model.u0)
-        initial_values_Martin(t0, model.q0, model.u0)
+        initial_values(t0, model.q0, model.u0)
+        # initial_values_Martin(t0, model.q0, model.u0)
 
         # check if initial conditions satisfy constraints on position, velocity
         # and acceleration level

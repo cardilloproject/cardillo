@@ -481,7 +481,8 @@ class NonsmoothHalfExplicitEuler:
             ui = Yi[self.nq :]
 
             # bilateral constraints
-            gk1 = self.model.g(ti, qi)
+            # gk1 = self.model.g(ti, qi)
+            gk1 = mu_g
             g_dotk1 = self.model.g_dot(ti, qi, ui)
             gammak1 = self.model.gamma(ti, qi, ui)
 
@@ -492,7 +493,10 @@ class NonsmoothHalfExplicitEuler:
             xi_Nk1 = self.model.xi_N(ti, qi, self.uk, ui)
             xi_Fk1 = self.model.xi_F(ti, qi, self.uk, ui)
 
-            prox_arg_pos = g_Nk1 - self.model.prox_r_N * mu_N
+            prox_r_N = self.model.prox_r_N(ti, qi)
+            prox_r_F = self.model.prox_r_F(ti, qi)
+
+            prox_arg_pos = g_Nk1 - prox_r_N * mu_N
             c_Nk1_stab = g_Nk1 - prox_R0_np(prox_arg_pos)
             # c_Nk1_stab = mu_N
 
@@ -505,7 +509,7 @@ class NonsmoothHalfExplicitEuler:
             # )
             c_Nk1 = np.where(
                 self.Ak1,
-                g_N_dotk1 - prox_R0_np(g_N_dotk1 - self.model.prox_r_N * P_N),
+                g_N_dotk1 - prox_R0_np(g_N_dotk1 - prox_r_N * P_N),
                 P_N,
             )
 
@@ -541,7 +545,7 @@ class NonsmoothHalfExplicitEuler:
                         #     mu[i_N] * P_N[i_N],
                         # )
                         c_Fk1[i_F] = -P_F[i_F] - prox_sphere(
-                            -P_F[i_F] + self.model.prox_r_F[i_N] * gamma_Fk1[i_F],
+                            -P_F[i_F] + prox_r_F[i_N] * gamma_Fk1[i_F],
                             mu[i_N] * P_N[i_N],
                         )
 

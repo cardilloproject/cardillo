@@ -1,6 +1,6 @@
 from cardillo.model.classical_beams.spatial import Hooke_quadratic, Hooke
 from cardillo.model.classical_beams.spatial import TimoshenkoDirectorIntegral
-from cardillo.discretization.B_spline import fit_B_spline_curve
+from cardillo.discretization.b_spline import fit_B_spline_curve
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints.implicit import (
     Rigid_connection,

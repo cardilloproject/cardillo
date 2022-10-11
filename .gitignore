@@ -37,3 +37,5 @@ eggs/
 # jupyter cache
 .jupyter_cache/
 jupyter_execute/
+
+.mypy_cache

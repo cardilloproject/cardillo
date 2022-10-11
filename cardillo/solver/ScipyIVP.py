@@ -8,7 +8,7 @@ from cardillo.solver import Solution
 
 
 class ScipyIVP:
-    def __init__(self, model, t1, dt, method="RK45", rtol=1.0e-6, atol=1.0e-10):
+    def __init__(self, model, t1, dt, method="RK45", rtol=1.0e-8, atol=1.0e-10):
         self.model = model
         self.rtol = rtol
         self.atol = atol
@@ -61,8 +61,8 @@ class ScipyIVP:
 
         # TODO: Can be use a sparse ldl decomposition here as done in C++?
         # fmt: off
-        A = bmat([[M,       -W_g, -W_gamma], \
-                  [W_g.T, None,     None], \
+        A = bmat([[        M, -W_g, -W_gamma], \
+                  [    W_g.T, None,     None], \
                   [W_gamma.T, None,     None]], format="csc")
         # fmt: on
 
@@ -103,7 +103,10 @@ class ScipyIVP:
             )
         )
         la = spsolve(G, -mu)
-        return la[: self.nla_g], la[self.nla_g :]
+        la_g = la[: self.nla_g]
+        la_gamma = la[self.nla_g :]
+        u_dot = spsolve(M, h + W_g @ la_g + W_gamma @ la_gamma)
+        return u_dot, la_g, la_gamma
 
     def solve(self):
         sol = solve_ivp(
@@ -122,10 +125,11 @@ class ScipyIVP:
         nt = len(t)
         q = sol.y[: self.nq, :].T
         u = sol.y[self.nq :, :].T
+        u_dot = np.zeros((nt, self.nu))
         la_g = np.zeros((nt, self.nla_g))
         la_gamma = np.zeros((nt, self.nla_gamma))
         for i, (ti, qi, ui) in enumerate(zip(t, q, u)):
-            la_g[i], la_gamma[i] = self.la_g_la_gamma(ti, qi, ui)
+            u_dot[i], la_g[i], la_gamma[i] = self.la_g_la_gamma(ti, qi, ui)
 
-        return Solution(t=t, q=q, u=u, la_g=la_g, la_gamma=la_gamma)
+        return Solution(t=t, q=q, u=u, u_dot=u_dot, la_g=la_g, la_gamma=la_gamma)
         # return Solution(t=t, q=q, u=u)

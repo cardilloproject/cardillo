@@ -1131,9 +1131,9 @@ def HeavyTop():
             # A_BC = A_IK_basic(beta).y()
             # A_CK = A_IK_basic(gamma).x()
             # return A_IB @ A_BC @ A_CK
-            sa, ca = sin(alpha), cos(alpha)
-            sb, cb = sin(beta), cos(beta)
-            sg, cg = sin(gamma), cos(gamma)
+            sa, ca = np.sin(alpha), np.cos(alpha)
+            sb, cb = np.sin(beta), np.cos(beta)
+            sg, cg = np.sin(gamma), np.cos(gamma)
             # fmt: off
             return np.array([
                 [ca * cb, ca * sb  *sg - sa * cg, ca * sb * cg + sa * sg],
@@ -1158,8 +1158,8 @@ def HeavyTop():
             A = self.A
             B = self.B
 
-            sb, cb = sin(beta), cos(beta)
-            sg, cg = sin(gamma), cos(gamma)
+            sb, cb = np.sin(beta), np.cos(beta)
+            sg, cg = np.sin(gamma), np.cos(gamma)
 
             # z, y, x
             # fmt: off

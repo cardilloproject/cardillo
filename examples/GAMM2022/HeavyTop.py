@@ -1,5 +1,5 @@
 import numpy as np
-from math import sin, cos, pi
+from math import pi
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from cardillo.math.rotations import A_IK_basic, rodriguez_inv, Spurrier
@@ -66,9 +66,9 @@ phi0 = np.array([alpha0, beta0, gamma0])
 
 
 def A_IK(alpha, beta, gamma):
-    sa, ca = sin(alpha), cos(alpha)
-    sb, cb = sin(beta), cos(beta)
-    sg, cg = sin(gamma), cos(gamma)
+    sa, ca = np.sin(alpha), np.cos(alpha)
+    sb, cb = np.sin(beta), np.cos(beta)
+    sg, cg = np.sin(gamma), np.cos(gamma)
     # fmt: off
     return np.array([
         [ca * cg - sa * cb * sg, - ca * sg - sa * cb * cg, sa * sb],

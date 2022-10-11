@@ -1,5 +1,5 @@
 import numpy as np
-from math import cos, sin, pi
+from math import pi
 
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
@@ -230,17 +230,17 @@ if __name__ == "__main__":
 
             M = np.array(
                 [
-                    [thetaA, 0.5 * m * l * l * cos(x[0] - x[1])],
-                    [0.5 * m * l * l * cos(x[0] - x[1]), thetaB],
+                    [thetaA, 0.5 * m * l * l * np.cos(x[0] - x[1])],
+                    [0.5 * m * l * l * np.cos(x[0] - x[1]), thetaB],
                 ]
             )
 
             h = np.array(
                 [
-                    -0.5 * m * l * l * (x[3] ** 2) * sin(x[0] - x[1])
-                    - 1.5 * m * l * g * sin(x[0]),
-                    0.5 * m * l * l * (x[2] ** 2) * sin(x[0] - x[1])
-                    - 0.5 * m * l * g * sin(x[1]),
+                    -0.5 * m * l * l * (x[3] ** 2) * np.sin(x[0] - x[1])
+                    - 1.5 * m * l * g * np.sin(x[0]),
+                    0.5 * m * l * l * (x[2] ** 2) * np.sin(x[0] - x[1])
+                    - 0.5 * m * l * g * np.sin(x[1]),
                 ]
             )
 

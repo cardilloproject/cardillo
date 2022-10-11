@@ -1,6 +1,6 @@
 import numpy as np
 
-from math import sin, cos, sqrt
+from math import sqrt
 
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
@@ -158,7 +158,12 @@ def DMS():
     # Initial condition for circular trajectory
     R = 5  # radius of trajectory
     rho = r / R
-    gamma_dot = 4 * g * sin(beta0) / ((6 - 5 * rho * sin(beta0)) * rho * r * cos(beta0))
+    gamma_dot = (
+        4
+        * g
+        * np.sin(beta0)
+        / ((6 - 5 * rho * np.sin(beta0)) * rho * r * np.cos(beta0))
+    )
     gamma_dot = sqrt(gamma_dot)
     alpha_dot = -rho * gamma_dot
 
@@ -297,7 +302,7 @@ def rolling_disc_velocity_constraints():
     # Initial condition for circular trajectory
     rho = r / R
 
-    r_S0 = np.array([0, R - r * sin(beta0), r * cos(beta0)])
+    r_S0 = np.array([0, R - r * np.sin(beta0), r * np.cos(beta0)])
 
     if rigid_body == "Euler":
         p0 = np.array([0, beta0, 0])
@@ -307,12 +312,19 @@ def rolling_disc_velocity_constraints():
         R0 = A_IK_basic_x(beta0)
         p0 = np.concatenate((R0[:, 0], R0[:, 1], R0[:, 2]))
 
-    gamma_dot = 4 * g * sin(beta0) / ((6 - 5 * rho * sin(beta0)) * rho * r * cos(beta0))
+    gamma_dot = (
+        4
+        * g
+        * np.sin(beta0)
+        / ((6 - 5 * rho * np.sin(beta0)) * rho * r * np.cos(beta0))
+    )
     gamma_dot = sqrt(gamma_dot)
     alpha_dot = -rho * gamma_dot
 
-    v_S0 = np.array([-R * alpha_dot + r * alpha_dot * sin(beta0), 0, 0])
-    omega0 = np.array([0, alpha_dot * sin(beta0) + gamma_dot, alpha_dot * cos(beta0)])
+    v_S0 = np.array([-R * alpha_dot + r * alpha_dot * np.sin(beta0), 0, 0])
+    omega0 = np.array(
+        [0, alpha_dot * np.sin(beta0) + gamma_dot, alpha_dot * np.cos(beta0)]
+    )
     # omega0 = np.array([0, 1, 0]) * 10
     # v_S0 = np.array([r * omega0[1], 0, 0])
 

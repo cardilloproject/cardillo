@@ -6,7 +6,7 @@ import datetime
 import pathlib
 
 from cardillo.discretization.mesh2D import Mesh2D, rectangle
-from cardillo.discretization.B_spline import BSplineKnotVector
+from cardillo.discretization.b_spline import BSplineKnotVector
 from cardillo.discretization.lagrange import LagrangeKnotVector
 from cardillo.discretization.indexing import split2D
 from cardillo.model.continuum import (

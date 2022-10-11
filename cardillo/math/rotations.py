@@ -1,6 +1,6 @@
 from __future__ import annotations
 import numpy as np
-from math import sin, cos, tan, sqrt, atan2, acos
+from math import tan, sqrt, atan2, acos
 from cardillo.math import norm, cross3, skew2ax, ax2skew, ax2skew_a, ei
 
 
@@ -9,8 +9,8 @@ class A_IK_basic:
 
     def __init__(self, phi: float):
         self.phi = phi
-        self.sp = sin(phi)
-        self.cp = cos(phi)
+        self.sp = np.sin(phi)
+        self.cp = np.cos(phi)
 
     def x(self) -> np.ndarray:
         """Rotation around x-axis."""
@@ -126,8 +126,8 @@ def tangent_map(psi: np.ndarray) -> np.ndarray:
     """
     angle = norm(psi)
     if angle > 0:
-        sa = sin(angle)
-        ca = cos(angle)
+        sa = np.sin(angle)
+        ca = np.cos(angle)
         T = (
             (sa / angle) * np.eye(3)
             - ((1.0 - ca) / angle**2) * ax2skew(psi)
@@ -172,8 +172,8 @@ def tangent_map_s(psi: np.ndarray, psi_s: np.ndarray) -> np.ndarray:
     """
     angle = norm(psi)
     if angle > 0:
-        sa = sin(angle)
-        ca = cos(angle)
+        sa = np.sin(angle)
+        ca = np.cos(angle)
         c1 = (angle * ca - sa) / angle**3
         c2 = (angle * sa + 2 * ca - 2) / angle**4
         c3 = (3 * sa - 2 * angle - angle * ca) / angle**5
@@ -251,7 +251,7 @@ def rodriguez_inv(R: np.ndarray) -> np.ndarray:
     # trace = R[0, 0] + R[1, 1] + R[2, 2]
     # psi = acos(0.5 * (trace - 1.))
     # if psi > 0:
-    #     return skew2ax(0.5 * psi / sin(psi) * (R - R.T))
+    #     return skew2ax(0.5 * psi / np.sin(psi) * (R - R.T))
     # else:
     #     return np.zeros(3, dtype=float)
 
@@ -475,14 +475,14 @@ def quat2rot_p(p):
 
 def axis_angle2quat(axis, angle):
     n = axis / norm(axis)
-    return np.concatenate([[cos(angle / 2)], sin(angle / 2) * n])
+    return np.concatenate([[np.cos(angle / 2)], np.sin(angle / 2) * n])
 
 
 def test_smallest_rotation():
-    from cardillo.math import e1, e2, e3, pi, sin, cos
+    from cardillo.math import e1, e2, e3, pi
 
     a0 = e1
-    a_fun = lambda t: cos(t) * e1 + sin(t) * e2
+    a_fun = lambda t: np.cos(t) * e1 + np.sin(t) * e2
 
     # random rotation axis
     psi = np.random.rand(3)

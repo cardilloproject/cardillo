@@ -1,6 +1,6 @@
 from __future__ import annotations
 import numpy as np
-from math import sin, cos, sqrt
+from math import sqrt
 from cardillo.math import (
     ax2skew,
     rodriguez,
@@ -151,8 +151,8 @@ class se3:
         b2 = b @ b
         if b2 > 0:
             abs_b = sqrt(b2)
-            alpha = sin(abs_b) / abs_b
-            beta = 2.0 * (1.0 - cos(abs_b)) / b2
+            alpha = np.sin(abs_b) / abs_b
+            beta = 2.0 * (1.0 - np.cos(abs_b)) / b2
 
             b_tilde = ax2skew(b)
             ab = a_tilde @ b_tilde + b_tilde @ a_tilde

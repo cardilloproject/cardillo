@@ -1,24 +1,31 @@
-from .spatial import (
+from .cross_section import (
+    UserDefinedCrossSection,
+    CircularCrossSection,
+    RectangularCrossSection,
+    QuadraticCrossSection,
+)
+
+from .material_models import *
+
+from .director import (
     TimoshenkoDirectorDirac,
     TimoshenkoDirectorIntegral,
     EulerBernoulliDirectorIntegral,
     InextensibleEulerBernoulliDirectorIntegral,
-    Kirchhoff,
-    KirchhoffSingularity,
-    Cable,
-    CubicHermiteCable,
-    DirectorAxisAngle,
-    TimoshenkoQuaternion,
-    TimoshenkoAxisAngle,
-    TimoshenkoAxisAngleSE3,
-    TimoshenkoQuarternionSE3,
-    # BernoulliAxisAngleSE3,
-    TimoshenkoAxisAngleSE3,
-    Rope,
 )
 
-from .planar import (
-    EulerBernoulli2D,
+from .kirchhoff import Kirchhoff, KirchhoffSingularity
+from .cable import Cable
+from .axis_angle_director import DirectorAxisAngle
+from .timoshenko import (
+    TimoshenkoAxisAngle,
+    TimoshenkoQuaternion,
+    TimoshenkoQuarternionSE3,
+    # TimoshenkoAxisAngleSE3,
+    # BernoulliAxisAngleSE3,
 )
+from .SE3 import TimoshenkoAxisAngleSE3
+
+from .rope import Rope
 
 from .animate import animate_beam, animate_rope

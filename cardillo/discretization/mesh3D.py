@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.sparse.linalg import spsolve
-from cardillo.discretization.B_spline import (
+from cardillo.discretization.b_spline import (
     B_spline_basis3D,
     q_to_Pw_3D,
     decompose_B_spline_volume,

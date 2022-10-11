@@ -1,5 +1,5 @@
 import numpy as np
-from numpy import sin, cos, pi
+from numpy import pi
 
 from cardillo.math.algebra import A_IK_basic_z, e1, e2, e3
 from cardillo.discretization import uniform_knot_vector
@@ -89,7 +89,7 @@ if __name__ == "__main__":
     h = h_bdy
     beta0 = pi - 2 * alpha0
     gamma0 = beta0 - (pi / 2 - alpha0)
-    hight_over_foot = l_t * cos(alpha0) + l_bl * sin(gamma0) + h_bdy / 2
+    hight_over_foot = l_t * np.cos(alpha0) + l_bl * np.sin(gamma0) + h_bdy / 2
     y0 = hight_over_foot + h
 
     # velocities
@@ -104,7 +104,7 @@ if __name__ == "__main__":
     T = 1 / 4
     omega = 2 * pi / T
 
-    alpha = lambda t: alpha0 - A * (1 - cos(omega * t))
+    alpha = lambda t: alpha0 - A * (1 - np.cos(omega * t))
     beta = lambda t: pi - 2 * alpha(t)
 
     # --------------------------------------------------------------------------------
@@ -157,7 +157,7 @@ if __name__ == "__main__":
     X0 = X0 * l_bl / p
     Y0 = np.zeros_like(X0)
     Q = np.hstack((X0, Y0))
-    q0 = np.hstack((X0 * cos(gamma0), X0 * sin(gamma0) + h))
+    q0 = np.hstack((X0 * np.cos(gamma0), X0 * np.sin(gamma0) + h))
     u0 = np.zeros_like(q0)
     if inextensible:
         blade = Inextensible_Euler_bernoulli(

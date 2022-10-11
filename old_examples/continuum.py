@@ -7,22 +7,24 @@ import pathlib
 import datetime
 from cardillo.discretization.mesh3D import Mesh3D, cube
 from cardillo.discretization.mesh2D import Mesh2D, rectangle
-from cardillo.discretization.B_spline import BSplineKnotVector, fit_B_spline_volume
+from cardillo.discretization.b_spline import BSplineKnotVector, fit_B_spline_volume
 from cardillo.discretization.indexing import flat3D, flat2D
-from cardillo.model.continuum import (
+from cardillo.continuum import (
     Ogden1997_compressible,
     Ogden1997_incompressible,
     First_gradient,
     Ogden1997_complete_2D_incompressible,
 )
-from cardillo.solver import Newton, Euler_backward, Generalized_alpha_1
-from cardillo.model import System
-from cardillo.math.algebra import A_IK_basic_z
-from cardillo.model.force_distr2D import Force_distr2D
-from cardillo.model.force_distr3D import Force_distr3D
-from cardillo.model.bilateral_constraints.implicit.incompressibility import (
-    Incompressibility,
-)
+from cardillo.solver import Newton, EulerBackward
+from cardillo import System
+from cardillo.math import A_IK_basic
+from cardillo.forces import DistributedForce2D, DistributedForce3D
+
+# , Force_distr2D
+# from cardillo.forces import , Force_distr3D
+# from cardillo.bilateral_constraints.implicit.incompressibility import (
+#     Incompressibility,
+# )
 
 
 def save_solution(sol, filename):
@@ -134,14 +136,14 @@ def test_cube():
             * (0.25 - (xi - 0.5) ** 2)
             * (0.25 - (eta - 0.5) ** 2)
         )
-        model.add(Force_distr2D(F, continuum, 5))
+        model.add(DistributedForce2D(F, continuum, 5))
 
     if Gravity:
         if Statics:
             G = lambda t, xi, eta, zeta: t * np.array([0, 0, -9.81 * density])
         else:
             G = lambda t, xi, eta, zeta: np.array([0, 0, -9.81 * density])
-        model.add(Force_distr3D(G, continuum))
+        model.add(DistributedForce3D(G, continuum))
 
     model.assemble()
 
@@ -155,13 +157,13 @@ def test_cube():
         n_load_steps = 10
         tol = 1.0e-5
         max_iter = 10
-        solver = Newton(model, n_load_steps=n_load_steps, tol=tol, max_iter=max_iter)
+        solver = Newton(model, n_load_steps=n_load_steps, atol=tol, max_iter=max_iter)
 
     else:
         t1 = 10
         dt = 1e-1
         # solver = Generalized_alpha_1(model, t1, dt=dt, variable_dt=False, rho_inf=0.25)
-        solver = Euler_backward(model, t1, dt)
+        solver = EulerBackward(model, t1, dt)
 
     if save_sol:
         sol = solver.solve()
@@ -277,7 +279,7 @@ def test_cylinder():
         out = np.zeros_like(Z)
 
         phi = t * phi0
-        R = A_IK_basic_z(phi)
+        R = A_IK_basic(phi).z()
 
         th = t * np.array([0, 0, h])
         for DOF in cDOF2_xyz:
@@ -410,7 +412,7 @@ def write_xml():
 
 
 if __name__ == "__main__":
-    # test_cube()
+    test_cube()
     # test_cylinder()
-    test_rectangle()
+    # test_rectangle()
     # write_xml()

@@ -18,7 +18,7 @@ from cardillo.solver import (
 from cardillo.model.line_force.line_force import Line_force
 from cardillo.model.force import Force
 from cardillo.discretization import uniform_knot_vector
-from cardillo.discretization.B_spline import fit_B_spline_curve
+from cardillo.discretization.b_spline import fit_B_spline_curve
 from cardillo.model.rigid_body import Rigid_body_quaternion
 from cardillo.model.force import Force
 from cardillo.utility.post_processing_vtk import post_processing
