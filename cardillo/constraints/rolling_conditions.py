@@ -153,22 +153,30 @@ class RollingCondition_g_I_Frame_gamma:
     # non penetration
     #################
     def g(self, t, q):
-        # cf. LeSaux2005 (2.15a)
+        # see LeSaux2005 (2.15a)
         r_OS = self.subsystem.r_OP(t, q)
         r_OC = r_OS + self.r_SC(t, q)
         return r_OC @ e3
 
     def g_dot(self, t, q, u):
-        v_C = self.subsystem.v_P(
-            t, q, u, K_r_SP=self.subsystem.A_IK(t, q).T @ self.r_SC(t, q)
-        )
-        return v_C @ e3
+        # v_C = self.subsystem.v_P(
+        #     t, q, u, K_r_SP=self.subsystem.A_IK(t, q).T @ self.r_SC(t, q)
+        # )
+        # return v_C @ e3
+
+        g_q = self.g_q_dense(t, q)
+        return g_q @ self.subsystem.q_dot(t, q, u)
 
     def g_ddot(self, t, q, u, u_dot):
-        a_C = self.subsystem.a_P(
-            t, q, u, u_dot, K_r_SP=self.subsystem.A_IK(t, q).T @ self.r_SC(t, q)
-        )
-        return a_C @ e3
+        # a_C = self.subsystem.a_P(
+        #     t, q, u, u_dot, K_r_SP=self.subsystem.A_IK(t, q).T @ self.r_SC(t, q)
+        # )
+        # return a_C @ e3
+
+        g_dot_q = approx_fprime(q, lambda q: self.g_dot(t, q, u), method="2-point")
+        g_dot_u = self.W_g_dense(t, q).T
+
+        return g_dot_q @ self.subsystem.q_dot(t, q, u) + g_dot_u @ u_dot
 
     # TODO:
     def g_q_dense(self, t, q):
@@ -244,10 +252,15 @@ class RollingCondition_g_I_Frame_gamma:
             return np.array([v_C @ e1, v_C @ e2])
 
         def gamma_dot(self, t, q, u, u_dot):
-            a_C = self.subsystem.a_P(
-                t, q, u, u_dot, K_r_SP=self.subsystem.A_IK(t, q).T @ self.r_SC(t, q)
-            )
-            return np.array([a_C @ e1, a_C @ e2])
+            gamma_q = approx_fprime(q, lambda q: self.gamma(t, q, u), method="2-point")
+            gamma_u = gamma_u = self.gamma_u_dense(t, q)
+
+            return gamma_q @ self.subsystem.q_dot(t, q, u) + gamma_u @ u_dot
+
+            # a_C = self.subsystem.a_P(
+            #     t, q, u, u_dot, K_r_SP=self.subsystem.A_IK(t, q).T @ self.r_SC(t, q)
+            # )
+            # return np.array([a_C @ e1, a_C @ e2])
 
         # TODO:
         def gamma_q(self, t, q, u, coo):
