@@ -85,10 +85,6 @@ class CubicHermiteBasis:
             values[i, 1] = self.h01(xii)
             values[i, 2] = self.h10(xii)
             values[i, 3] = self.h11(xii)
-            # values[i, 0] = self.h00(xii)
-            # values[i, 1] = self.h10(xii)
-            # values[i, 2] = self.h01(xii)
-            # values[i, 3] = self.h11(xii)
         return values
 
     def deriv(self, xis, n=1):
@@ -99,10 +95,6 @@ class CubicHermiteBasis:
             values[i, 1] = self.h01.deriv(n)(xii)
             values[i, 2] = self.h10.deriv(n)(xii)
             values[i, 3] = self.h11.deriv(n)(xii)
-            # values[i, 0] = self.h00.deriv(n)(xii)
-            # values[i, 1] = self.h10.deriv(n)(xii)
-            # values[i, 2] = self.h01.deriv(n)(xii)
-            # values[i, 3] = self.h11.deriv(n)(xii)
         return values
 
 

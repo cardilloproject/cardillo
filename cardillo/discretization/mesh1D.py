@@ -116,13 +116,6 @@ class Mesh1D:
             # total number of nodes
             self.nnodes = 2 * (self.nelement + 1)
 
-            # # ordering for a single node (needs to be shifted for each elements)
-            # elDOF_node = np.arange(self.nbasis_element * self.dim_q)
-            # elDOF_node_u = np.arange(self.nbasis_element * self.dim_u)
-            # for el in range(self.nelement):
-            #     self.elDOF[el] = elDOF_node + el * 2 * self.dim_q
-            #     self.elDOF_u[el] = elDOF_node_u + el * 2 * self.dim_u
-
             elDOF_el = np.concatenate(
                 [np.arange(4) + i * self.nnodes for i in range(dim_q)]
             )
@@ -157,12 +150,6 @@ class Mesh1D:
             for el in range(self.nelement):
                 self.elDOF[el] = elDOF_el + el
                 self.elDOF_u[el] = elDOF_el_u + el
-
-            # elDOF_el = np.arange(self.nq_per_element)
-            # elDOF_el_u = np.arange(self.nu_per_element)
-            # for el in range(self.nelement):
-            #     self.elDOF[el] = elDOF_el + el * dim_q
-            #     self.elDOF_u[el] = elDOF_el_u + el * dim_u
 
             self.vtk_cell_type = "VTK_BEZIER_CURVE"
 
