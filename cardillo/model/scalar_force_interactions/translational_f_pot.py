@@ -24,8 +24,8 @@ class Translational_f_pot():
         self.nq = self.nq1 + self.nq2
         
         if self.force_law.g0 is None:
-            r_OP10 = self.subsystem1.r_OP(self.subsystem1.t0, self.subsystem1.q0, self.frame_ID1, self.K_r_SP1)
-            r_OP20 = self.subsystem2.r_OP(self.subsystem2.t0, self.subsystem2.q0, self.frame_ID2, self.K_r_SP2)
+            r_OP10 = self.subsystem1.r_OP(self.subsystem1.t0, self.subsystem1.q0[self.qDOF1], self.frame_ID1, self.K_r_SP1)
+            r_OP20 = self.subsystem2.r_OP(self.subsystem2.t0, self.subsystem2.q0[self.qDOF2], self.frame_ID2, self.K_r_SP2)
             self.force_law.g0 = np.linalg.norm(r_OP20 - r_OP10)
             if self.force_law.g0 < 1e-6:
                 raise ValueError('computed g0 from given subsystems is close to zero.')
