@@ -1,6 +1,7 @@
 import numpy as np
 from cardillo.utility.coo import Coo
-from scipy.sparse import coo_matrix
+from scipy.sparse import coo_matrix, csc_matrix
+from scipy.sparse.linalg import spsolve
 
 properties = []
 properties.extend(["M", "Mu_q"])
@@ -487,12 +488,23 @@ class System:
             active_contacts[contr.la_NDOF] = contr.active_contact(t, q[contr.qDOF])
         return active_contacts
 
+    # TODO: How can we use fixed prox parameters on subsystem level?
     def prox_r_N(self, t, q):
-        prox_r_N = np.zeros([self.nla_N])
-        for contr in self.__g_N_contr:
-            G_ii_N = contr.G_ii_N(t, q[contr.qDOF])
-            prox_r_N[contr.la_NDOF] = 1 / G_ii_N if G_ii_N > 0 else G_ii_N
-        return prox_r_N
+        # M_coo = Coo((subsystem.nu, subsystem.nu))
+        # self.subsystem.M(t, q, M_coo)
+        M = self.M(t, q, csc_matrix)
+        W_N = self.W_N(t, q, csc_matrix)
+
+        G = np.atleast_2d(W_N.T @ spsolve(M, W_N))
+        return 1.0 / np.diag(G)
+
+        # prox_r_N = np.zeros([self.nla_N])
+        # for contr in self.__g_N_contr:
+        #     # G_ii_N = contr.G_ii_N(t, q[contr.qDOF])
+        #     # prox_r_N[contr.la_NDOF] = 1 / G_ii_N if G_ii_N > 0 else G_ii_N
+
+        #     prox_r_N[contr.la_NDOF] = contr.prox_r_N(t, q[contr.qDOF])
+        # return prox_r_N
 
     def g_N(self, t, q):
         g_N = np.zeros(self.nla_N)
@@ -529,10 +541,9 @@ class System:
     def xi_N(self, t, q, u_pre, u_post):
         xi_N = np.zeros(self.nla_N)
         for contr in self.__g_N_contr:
-            # xi_N[contr.la_NDOF] = contr.g_N_dot(t, q[contr.qDOF], u_post[contr.uDOF]) + contr.e_N * contr.g_N_dot(t, q[contr.qDOF], u_pre[contr.uDOF])
-            xi_N[contr.la_NDOF] = contr.xi_N(
-                t, q[contr.qDOF], u_pre[contr.uDOF], u_post[contr.uDOF]
-            )
+            xi_N[contr.la_NDOF] = contr.g_N_dot(
+                t, q[contr.qDOF], u_post[contr.uDOF]
+            ) + contr.e_N * contr.g_N_dot(t, q[contr.qDOF], u_pre[contr.uDOF])
         return xi_N
 
     def xi_N_q(self, t, q, u_pre, u_post, scipy_matrix=coo_matrix):
@@ -571,12 +582,14 @@ class System:
     #################
     # friction
     #################
+    # TODO: Use estimation with Delassus matrix.
     def prox_r_F(self, t, q):
         prox_r_F = np.zeros(self.nla_F)
         for contr in self.__gamma_F_contr:
-            G_ii_F = np.max(contr.G_ii_F(t, q[contr.qDOF]))
-            R_F = np.full((contr.nla_F), 1 / G_ii_F if G_ii_F > 0 else G_ii_F)
-            prox_r_F[contr.la_FDOF] = R_F
+            # G_ii_F = np.max(contr.G_ii_F(t, q[contr.qDOF]))
+            # R_F = np.full((contr.nla_F), 1 / G_ii_F if G_ii_F > 0 else G_ii_F)
+            # prox_r_F[contr.la_FDOF] = R_F
+            prox_r_F[contr.la_FDOF] = contr.prox_r_F(t, q[contr.qDOF])
         return prox_r_F
 
     def gamma_F(self, t, q, u):

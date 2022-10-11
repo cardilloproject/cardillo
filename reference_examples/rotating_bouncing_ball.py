@@ -6,26 +6,26 @@ import matplotlib.animation as animation
 
 from cardillo.math import A_IK_basic
 
-from cardillo.model import System
-from cardillo.model.rigid_body import RigidBodyEuler
-from cardillo.model.frame import Frame
+from cardillo import System
+from cardillo.discrete import RigidBodyEuler
+from cardillo.discrete import Frame
 from cardillo.forces import Force
 from cardillo.contacts import Sphere2Plane
 from cardillo.solver import (
     Moreau,
-    NonsmoothEulerBackwardsGGL,
-    NonsmoothThetaGGL,
-    NonsmoothEulerBackwardsGGL_V2,
-    NonsmoothEulerBackwardsGGL_V3,
-    NonsmoothTheta,
-    NonsmoothGeneralizedAlpha,
-    NonsmoothGenAlphaFirstOrder,
-    NonsmoothNewmark,
+    # NonsmoothEulerBackwardsGGL,
+    # NonsmoothThetaGGL,
+    # NonsmoothEulerBackwardsGGL_V2,
+    # NonsmoothEulerBackwardsGGL_V3,
+    # NonsmoothTheta,
+    # NonsmoothGeneralizedAlpha,
+    # NonsmoothGenAlphaFirstOrder,
+    # NonsmoothNewmark,
     NonsmoothHalfExplicitEuler,
-    NonsmoothHalfExplicitEulerGGL,
-    Remco,
+    # NonsmoothHalfExplicitEulerGGL,
+    # Remco,
     NonsmoothDecoupled,
-    DecoupledNonsmoothHalfExplicitRungeKutta,
+    # DecoupledNonsmoothHalfExplicitRungeKutta,
 )
 
 
@@ -107,10 +107,11 @@ if __name__ == "__main__":
     # dt = 5e-4
     # dt = 1e-4
 
-    solver_other = NonsmoothHalfExplicitEuler(model, t1, dt)
+    # solver_other = Moreau(model, t1, dt)
+    # solver_other = NonsmoothHalfExplicitEuler(model, t1, dt)
     # solver_other = NonsmoothGeneralizedAlpha(model, t1, dt)
     # solver_other = NonsmoothEulerBackwardsGGL_V2(model, t1, dt)
-    # solver_other = NonsmoothDecoupled(model, t1, dt)
+    solver_other = NonsmoothDecoupled(model, t1, dt)
     # solver_other = DecoupledNonsmoothHalfExplicitRungeKutta(model, t1, dt)
     sol_other = solver_other.solve()
     t = sol_other.t
@@ -121,11 +122,11 @@ if __name__ == "__main__":
     P_N_other = sol_other.P_N
     P_F_other = sol_other.P_F
     if type(solver_other) in [
-        NonsmoothThetaGGL,
-        NonsmoothEulerBackwardsGGL,
-        NonsmoothEulerBackwardsGGL_V2,
+        # NonsmoothThetaGGL,
+        # NonsmoothEulerBackwardsGGL,
+        # NonsmoothEulerBackwardsGGL_V2,
         NonsmoothHalfExplicitEuler,
-        NonsmoothHalfExplicitEulerGGL,
+        # NonsmoothHalfExplicitEulerGGL,
     ]:
         a_other = np.zeros_like(u_other)
         a_other[1:] = (u_other[1:] - u_other[:-1]) / dt

@@ -3469,7 +3469,8 @@ class NonsmoothDecoupled:
         ################
         # normal contact
         ################
-        prox_arg = g_Nk1 - self.model.prox_r_N * la_Nk1_free
+        prox_r_N = self.model.prox_r_N(tk1, qk1)
+        prox_arg = g_Nk1 - prox_r_N * la_Nk1_free
         if update_index:
             self.I_Nk1 = prox_arg <= 0.0
             # self.I_Nk1 = g_Nk1 <= 0.0
@@ -3507,6 +3508,7 @@ class NonsmoothDecoupled:
         ##########
         # friction
         ##########
+        prox_r_F = self.model.prox_r_F(tk1, qk1)
         for i_N, i_F in enumerate(self.model.NF_connectivity):
             i_F = np.array(i_F)
 
@@ -3515,7 +3517,7 @@ class NonsmoothDecoupled:
                     self.I_Nk1[i_N] * np.ones(len(i_F), dtype=bool),
                     -la_Fk1_free[i_F]
                     - prox_sphere(
-                        -la_Fk1_free[i_F] + self.model.prox_r_F[i_N] * xi_Fk1[i_F],
+                        -la_Fk1_free[i_F] + prox_r_F[i_N] * xi_Fk1[i_F],
                         mu[i_N] * la_Nk1_free[i_N],
                     ),
                     la_Fk1_free[i_F],
@@ -3690,15 +3692,17 @@ class NonsmoothDecoupled:
         ###################
         # normal impact law
         ###################
+        prox_r_N = self.model.prox_r_N(tk1, qk1)
         Ry[nu + nla_g + nla_gamma : nu + nla_g + nla_gamma + nla_N] = np.where(
             self.I_Nk1,
-            xi_Nk1 - prox_R0_np(xi_Nk1 - self.model.prox_r_N * La_Nk1),
+            xi_Nk1 - prox_R0_np(xi_Nk1 - prox_r_N * La_Nk1),
             La_Nk1,
         )
 
         ####################
         # tangent impact law
         ####################
+        prox_r_F = self.model.prox_r_F(tk1, qk1)
         for i_N, i_F in enumerate(self.model.NF_connectivity):
             i_F = np.array(i_F)
 
@@ -3707,7 +3711,7 @@ class NonsmoothDecoupled:
                     self.I_Nk1[i_N] * np.ones(len(i_F), dtype=bool),
                     -La_Fk1[i_F]
                     - prox_sphere(
-                        -La_Fk1[i_F] + self.model.prox_r_F[i_N] * xi_Fk1[i_F],
+                        -La_Fk1[i_F] + prox_r_F[i_N] * xi_Fk1[i_F],
                         mu[i_N] * La_Nk1[i_N],
                     ),
                     La_Fk1[i_F],

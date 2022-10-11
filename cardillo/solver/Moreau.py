@@ -127,8 +127,9 @@ class Moreau:
         W_F = self.model.W_F(
             tk1, qk1, scipy_matrix=csr_matrix
         )  # csr for column slicing
-        prox_r_N = self.model.prox_r_N
-        prox_r_F = self.model.prox_r_F
+
+        prox_r_N = self.model.prox_r_N(tk1, qk1)
+        prox_r_F = self.model.prox_r_F(tk1, qk1)
         mu = self.model.mu
 
         # identify active normal and tangential contacts
