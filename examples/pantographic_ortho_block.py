@@ -327,7 +327,9 @@ def ortho_block_cuboid():
     # gradient_constraint_x_Z = Gradient_constraint(continuum, la_mesh_z, srf_id=4, x=0, _X=2)
     # gradient_constraint_y_Z = Gradient_constraint(continuum, la_mesh_z, srf_id=4, x=1, _X=2)
     # gradient_constraint_z_Z = Gradient_constraint(continuum, la_mesh_z, srf_id=4, x=2, _X=2)
-    gradient_constraint_x_Z1 = Gradient_constraint(continuum, la_mesh_z, srf_id=5, x=0, _X=2)
+    gradient_constraint_x_Z1 = Gradient_constraint(
+        continuum, la_mesh_z, srf_id=5, x=0, _X=2
+    )
     # gradient_constraint_y_Z1 = Gradient_constraint(continuum, la_mesh_z, srf_id=5, x=1, _X=2)
     # gradient_constraint_z_Z1 = Gradient_constraint(continuum, la_mesh_z, srf_id=5, x=2, _X=2)
 

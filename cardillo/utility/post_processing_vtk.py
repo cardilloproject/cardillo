@@ -64,39 +64,42 @@ def post_processing(subsystem, t, q, filename, u=None, binary=True):
             for key in point_datai:
                 if key in point_data:
                     point_data.update(
-                        {key: np.append(point_data[key], point_datai[key], axis=0)})
+                        {key: np.append(point_data[key], point_datai[key], axis=0)}
+                    )
                 else:
                     point_data.update({key: point_datai[key]})
 
             # update field data
-            field_data = {k: field_data.get(k, 0) + field_datai.get(k,0) for k in set(field_datai)}
+            field_data = {
+                k: field_data.get(k, 0) + field_datai.get(k, 0)
+                for k in set(field_datai)
+            }
 
             # update nodal positions
             nodes_ti.extend(subsystemi.centerline(qi, 5).T)
         nodes.update({i: nodes_ti})
 
         # write field data
-        with open(filei.parent / f'field_data_{i}', mode="wb") as f:
+        with open(filei.parent / f"field_data_{i}", mode="wb") as f:
             pickle.dump(field_data, f)
-
 
         # write vtk mesh using meshio
         meshio.write_points_cells(
-            filei.parent / (filei.stem + '.vtu'),
+            filei.parent / (filei.stem + ".vtu"),
             # os.path.splitext(os.path.basename(filei))[0] + '.vtu',
             geom_points,  # only export centerline as geometry here!
             cells,
             point_data=point_data,
             cell_data={"HigherOrderDegrees": HigherOrderDegrees},
             field_data=field_data,
-            binary=binary
+            binary=binary,
         )
 
     # write nodal positions for centerline points of beams to external file
-    with open(filename.parent / 'nodes', mode="wb") as f:
+    with open(filename.parent / "nodes", mode="wb") as f:
         pickle.dump(nodes, f)
 
     # write pvd file
     xml_str = root.toprettyxml(indent="\t")
-    with (filename.parent / (filename.stem + '.pvd')).open("w") as f:
+    with (filename.parent / (filename.stem + ".pvd")).open("w") as f:
         f.write(xml_str)

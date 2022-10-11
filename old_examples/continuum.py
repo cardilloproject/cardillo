@@ -99,7 +99,7 @@ def test_cube():
             cDOF2 = mesh.surface_qDOF[5][2]
             cDOF = np.concatenate((cDOF1, cDOF2))
             b1 = lambda t: Z[cDOF1]
-            b2 = lambda t: Z[cDOF2] + t * 1.
+            b2 = lambda t: Z[cDOF2] + t * 1.0
             b = lambda t: np.concatenate((b1(t), b2(t)))
             # cDOF = mesh.surface_qDOF[4].ravel()
             # b = lambda t: Z[cDOF]
@@ -356,7 +356,7 @@ def test_rectangle():
     cDOF1 = mesh.edge_qDOF[0].reshape(-1)
     cDOF2 = mesh.edge_qDOF[1][0]
     cDOF = np.concatenate((cDOF1, cDOF2))
-    b1 = lambda t: Z[cDOF1] 
+    b1 = lambda t: Z[cDOF1]
     b2 = lambda t: Z[cDOF2] + t * 1
     b = lambda t: np.concatenate((b1(t), b2(t)))
 

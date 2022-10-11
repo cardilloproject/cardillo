@@ -128,11 +128,11 @@ class First_gradient:
                 point_data.update({name: field})
 
             # TODO: Get field data workding.
-        #    # Global Values as Field Data
-        #     field_data = {
-        #     "W_tot": self.integrate(self.mat.W, F)
-        #     }
-        #     print(field_data)  
+            #    # Global Values as Field Data
+            #     field_data = {
+            #     "W_tot": self.integrate(self.mat.W, F)
+            #     }
+            #     print(field_data)
 
             # write vtk mesh using meshio
             meshio.write_points_cells(
@@ -180,7 +180,7 @@ class First_gradient:
 
     def integrate(self, var, F):
         # integrates variable over domain
-        Var = 0.
+        Var = 0.0
         for el in range(self.nel):
             for i in range(self.nqp):
                 vari = var(F[el, i])
@@ -512,9 +512,11 @@ def test_gradient_vtk_export():
     from cardillo.discretization.indexing import flat3D
 
     file_name = pathlib.Path(__file__).stem
-    file_path = pathlib.Path(__file__).parent / 'results' / f"{file_name}_cube" / file_name
+    file_path = (
+        pathlib.Path(__file__).parent / "results" / f"{file_name}_cube" / file_name
+    )
     file_path.parent.mkdir(parents=True, exist_ok=True)
-    export_path = file_path.parent / 'sol'
+    export_path = file_path.parent / "sol"
 
     QP_shape = (5, 5, 5)
     degrees = (3, 3, 1)

@@ -319,7 +319,9 @@ def B_spline_basis3D(degrees, derivative_order, knot_vectors, knots):
                     )
                     NN[10, i, a] = NN[6, i, a]
                     NN[11, i, a] = NN[9, i, a]
-                    NN[12, i, a] = Nxi[0, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[2, im, a_zeta]
+                    NN[12, i, a] = (
+                        Nxi[0, ik, a_xi] * Neta[0, il, a_eta] * Nzeta[2, im, a_zeta]
+                    )
 
     return NN
 

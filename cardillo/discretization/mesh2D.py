@@ -369,19 +369,25 @@ class Mesh2D:
 
                     kappa0_xi = np.zeros((self.nq_n, 2))
                     for a in range(self.nn_el):
-                        kappa0_xi += np.outer(Qe[self.nodalDOF[a]], N_xi[a]) # Bonet 1997 (7.6b)
+                        kappa0_xi += np.outer(
+                            Qe[self.nodalDOF[a]], N_xi[a]
+                        )  # Bonet 1997 (7.6b)
                     # Ciarlet2005 Theorem 2.3-1 (a) and Schulte2020 below (5)
-                    w_J0[el, i] = (norm(cross3(kappa0_xi[:, 0], kappa0_xi[:, 1]))
-                                   * self.wp[el, i])
+                    w_J0[el, i] = (
+                        norm(cross3(kappa0_xi[:, 0], kappa0_xi[:, 1])) * self.wp[el, i]
+                    )
                     # compute N_X
-                    kappa0_xi = np.c_[kappa0_xi, cross3(kappa0_xi[:, 0], kappa0_xi[:, 1]) / w_J0[el, i]]
+                    kappa0_xi = np.c_[
+                        kappa0_xi,
+                        cross3(kappa0_xi[:, 0], kappa0_xi[:, 1]) / w_J0[el, i],
+                    ]
                     kappa0_xi_inv[el, i] = inv3D(kappa0_xi)
 
                     for a in range(self.nn_el):
                         N_X[el, i, a] = np.append(N_xi[a], 0) @ kappa0_xi_inv[el, i]
 
             return kappa0_xi_inv, N_X, w_J0
-                        
+
     def N_XX(self, Q, kappa0_xi_inv):
         assert self.derivative_order == 2
         N_XX = np.zeros((self.nel, self.nqp, self.nn_el, self.nq_n, self.nq_n))
@@ -389,11 +395,11 @@ class Mesh2D:
             Qe = Q[self.elDOF[el]]
 
             for i in range(self.nqp):
-                N_xi = np.pad(self.N_xi[el, i],(0,1))
-                N_xixi = np.zeros((self.nn_el,self.nq_n, self.nq_n))
-                N_xixi[:,:2,:2] = self.N_xixi[el, i]
+                N_xi = np.pad(self.N_xi[el, i], (0, 1))
+                N_xixi = np.zeros((self.nn_el, self.nq_n, self.nq_n))
+                N_xixi[:, :2, :2] = self.N_xixi[el, i]
                 kappa0_xi_inv_el_i = kappa0_xi_inv[el, i]
-                
+
                 kappa0_xixi = np.zeros((self.nq_n, self.nq_n, self.nq_n))
                 for a in range(self.nn_el):
                     kappa0_xixi += np.einsum(

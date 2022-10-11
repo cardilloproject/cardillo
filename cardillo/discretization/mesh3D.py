@@ -298,7 +298,7 @@ class Mesh3D:
         self.Nb = (Nb0, Nb1, Nb2, Nb3, Nb4, Nb5)
         self.Nb_xi = (Nb0_xi, Nb1_xi, Nb2_xi, Nb3_xi, Nb4_xi, Nb5_xi)
         self.Nb_xixi = (Nb0_xixi, Nb1_xixi, Nb2_xixi, Nb3_xixi, Nb4_xixi, Nb5_xixi)
-        
+
     # DOF of boundary elements. Needed for double-forces
     def boundary_elements(self):
         bc0 = np.zeros((self.nel_eta * self.nel_zeta), dtype=int)
@@ -307,7 +307,7 @@ class Mesh3D:
         for el_eta in range(self.nel_eta):
             for el_zeta in range(self.nel_zeta):
                 bc0[idx] = flat3D(0, el_eta, el_zeta, self.element_shape)
-                bc1[idx] = flat3D(self.nel_xi-1, el_eta, el_zeta, self.element_shape)
+                bc1[idx] = flat3D(self.nel_xi - 1, el_eta, el_zeta, self.element_shape)
                 idx += 1
 
         bc2 = np.zeros((self.nel_xi * self.nel_zeta), dtype=int)
@@ -316,7 +316,7 @@ class Mesh3D:
         for el_xi in range(self.nel_xi):
             for el_zeta in range(self.nel_zeta):
                 bc2[idx] = flat3D(el_xi, 0, el_zeta, self.element_shape)
-                bc3[idx] = flat3D(el_xi, self.nel_eta-1, el_zeta, self.element_shape)
+                bc3[idx] = flat3D(el_xi, self.nel_eta - 1, el_zeta, self.element_shape)
                 idx += 1
 
         bc4 = np.zeros((self.nel_eta * self.nel_xi), dtype=int)
@@ -325,7 +325,7 @@ class Mesh3D:
         for el_xi in range(self.nel_xi):
             for el_eta in range(self.nel_eta):
                 bc4[idx] = flat3D(el_xi, el_eta, 0, self.element_shape)
-                bc5[idx] = flat3D(el_xi, el_eta, self.nel_zeta-1, self.element_shape)
+                bc5[idx] = flat3D(el_xi, el_eta, self.nel_zeta - 1, self.element_shape)
                 idx += 1
 
         self.bc_el = (bc0, bc1, bc2, bc3, bc4, bc5)

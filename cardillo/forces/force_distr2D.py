@@ -1,6 +1,7 @@
 from cardillo.math import Numerical_derivative
 
-class Force_distr2D():
+
+class Force_distr2D:
     def __init__(self, force_distr2D, subsystem, srf_idx):
         if not callable(force_distr2D):
             self.force_distr2D = lambda t, xi, eta: force_distr2D
@@ -21,7 +22,9 @@ class Force_distr2D():
         return self.subsystem.force_distr2D_pot(t, q, self.force_distr2D, self.srf_idx)
 
     def f_pot(self, t, q):
-        return self.subsystem.force_distr2D(t, q, self.force_distr2D, self.srf_idx, self.srf_w_J0)
+        return self.subsystem.force_distr2D(
+            t, q, self.force_distr2D, self.srf_idx, self.srf_w_J0
+        )
 
     def f_pot_q(self, t, q, coo):
         self.subsystem.force_distr2D_q(t, q, coo, self.force_distr2D, self.srf_idx)
