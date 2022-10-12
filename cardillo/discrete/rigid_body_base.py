@@ -21,8 +21,9 @@ class RigidBodyBase(ABC):
         self.__M[:3, :3] = self.m * np.eye(3, dtype=float)
         self.__M[3:, 3:] = self.K_theta_S
 
-        if q0.size is not self.nq or u0.size is not self.nu:
-            raise RuntimeError("q_0 or u_0 has wrong dimension")
+        assert q0.size == self.nq
+        assert u0.size == self.nu
+
         self.u0 = u0
         self.q0 = q0
 
