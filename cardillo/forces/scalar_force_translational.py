@@ -24,18 +24,20 @@ class ScalarForceTranslational:
         if self.force_law_spring is not None:
             self.E_pot = lambda t, q: self.force_law_spring.E_pot(t, self.__g(t, q))
             if self.force_law_damper is not None:
-                self.h = lambda t, q, u: self.__f_pot(t, q) + self.__f_npot(t, q, u)
-                self.h_q = lambda t, q, u, coo: self.__f_pot_q(
+                self.h = lambda t, q, u: self.__f_spring(t, q) + self.__f_damper(
+                    t, q, u
+                )
+                self.h_q = lambda t, q, u, coo: self.__f_spring_q(
                     t, q, coo
-                ) + self.__f_npot_q(t, q, u, coo)
-                self.h_u = lambda t, q, u, coo: self.__f_npot_u(t, q, u, coo)
+                ) + self.__f_damper_q(t, q, u, coo)
+                self.h_u = lambda t, q, u, coo: self.__f_damper_u(t, q, u, coo)
             else:
-                self.h = lambda t, q, u: self.__f_pot(t, q)
-                self.h_q = lambda t, q, u, coo: self.__f_pot_q(t, q, coo)
+                self.h = lambda t, q, u: self.__f_spring(t, q)
+                self.h_q = lambda t, q, u, coo: self.__f_spring_q(t, q, coo)
         else:
-            self.h = lambda t, q, u: self.__f_npot(t, q, u)
-            self.h_q = lambda t, q, u, coo: self.__f_npot_q(t, q, u, coo)
-            self.h_u = lambda t, q, u, coo: self.__f_npot_u(t, q, u, coo)
+            self.h = lambda t, q, u: self.__f_damper(t, q, u)
+            self.h_q = lambda t, q, u, coo: self.__f_damper_q(t, q, u, coo)
+            self.h_u = lambda t, q, u, coo: self.__f_damper_u(t, q, u, coo)
 
         self.subsystem1 = subsystem1
         self.frame_ID1 = frame_ID1
@@ -195,11 +197,11 @@ class ScalarForceTranslational:
 
         return dense
 
-    def __f_pot(self, t, q):
+    def __f_spring(self, t, q):
         g = self.__g(t, q)
         return -self.__W(t, q) * self.force_law_spring.la(t, g)
 
-    def __f_pot_q(self, t, q, coo):
+    def __f_spring_q(self, t, q, coo):
         g = self.__g(t, q)
         dense = -self.force_law_spring.la(t, g) * self.__W_q(
             t, q
@@ -208,16 +210,16 @@ class ScalarForceTranslational:
         )
         coo.extend(dense, (self.uDOF, self.qDOF))
 
-    def __f_npot(self, t, q, u):
+    def __f_damper(self, t, q, u):
         g_dot = self.__g_dot(t, q, u)
         return -self.__W(t, q) * self.force_law_damper.la(t, g_dot)
 
-    def __f_npot_q(self, t, q, u, coo):
+    def __f_damper_q(self, t, q, u, coo):
         g_dot = self.__g_dot(t, q, u)
         dense = -self.force_law_damper.la(t, g_dot) * self.__W_q(t, q)
         coo.extend(dense, (self.uDOF, self.qDOF))
 
-    def __f_npot_u(self, t, q, u, coo):
+    def __f_damper_u(self, t, q, u, coo):
         gamma = self.__g_dot(t, q, u)
         dense = -self.force_law_damper.la_gamma(t, gamma) * np.outer(
             self.__W(t, q), self.__W(t, q)
