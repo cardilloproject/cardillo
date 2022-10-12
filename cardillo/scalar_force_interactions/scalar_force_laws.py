@@ -1,4 +1,4 @@
-class Linear_spring:
+class LinearSpring:
     def __init__(self, k, g_ref=None):
         self.k = k
         self.g_ref = g_ref
@@ -11,6 +11,7 @@ class Linear_spring:
 
     def la_g(self, t, g):
         return self.k
+
 
 class LinearDamper:
     def __init__(self, d):
