@@ -4,7 +4,7 @@ from cardillo.math.numerical_derivative import Numerical_derivative
 from cardillo.math.algebra import ax2skew, ax2skew_a, cross3, skew2ax
 
 # TODO: enable construction with standard inertia tensor
-class Rigid_body_director:
+class RigidBodyDirector:
     def __init__(self, V_rho, B_rho0, C_rho0, q0=None, u0=None, la0=None):
         self.nq = 12
         self.nu = 12
@@ -370,7 +370,7 @@ class Rigid_body_director:
         return skew2ax(K_Psi_tilde)
 
 
-class Rigid_body_director_angular_velocities:
+class RigidBodyDirectorAngularVelocities:
     def __init__(self, m, K_Theta_S, q0=None, u0=None, nka_c0=None):
         self.m = m
         self.theta = K_Theta_S

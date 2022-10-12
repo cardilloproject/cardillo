@@ -12,7 +12,12 @@ from cardillo.constraints import (
     SphericalJoint,
     RevoluteJoint,
 )
-from cardillo.discrete import RigidBodyQuaternion
+from cardillo.discrete import (
+    RigidBodyQuaternion,
+    RigidBodyEuler,
+    RigidBodyAxisAngle,
+    RigidBodyDirectorAngularVelocities,
+)
 from cardillo.forces import Force
 from cardillo.solver import (
     ScipyIVP,
@@ -21,8 +26,11 @@ from cardillo.solver import (
 
 from scipy.integrate import solve_ivp
 
-# use_spherical_joint = True
 use_spherical_joint = False
+
+use_quaternion = False
+use_euler = False
+use_axisangle = True
 
 if __name__ == "__main__":
     m = 1
@@ -34,49 +42,74 @@ if __name__ == "__main__":
     C = 1 / 2 * m * r**2
     K_theta_S = np.diag(np.array([A, C, A]))
 
+    ############################################################################
+    #                   Rigid Body 1
+    ############################################################################
     alpha0 = pi / 2
     alpha_dot0 = 0
 
     r_OB1 = np.zeros(3)
     A_IB1 = np.eye(3)
     origin = Frame(r_OP=r_OB1, A_IK=A_IB1)
-
     A_IK10 = A_IK_basic(alpha0).z()
     r_OS10 = -0.5 * l * A_IK10[:, 1]
-    p01 = axis_angle2quat(np.array([0, 0, 1]), alpha0)
-    q01 = np.concatenate([r_OS10, p01])
     omega01 = np.array([0, 0, alpha_dot0])
     vS1 = cross3(omega01, r_OS10)
     u01 = np.concatenate([vS1, omega01])
-    RB1 = RigidBodyQuaternion(m, K_theta_S, q01, u01)
+
+    if use_quaternion:
+        p01 = axis_angle2quat(np.array([0, 0, 1]), alpha0)
+        q01 = np.concatenate([r_OS10, p01])
+        RB1 = RigidBodyQuaternion(m, K_theta_S, q01, u01)
+    elif use_euler:
+        q01 = np.concatenate([r_OS10, np.array([0, 0, alpha0])])
+        RB1 = RigidBodyEuler(m, K_theta_S, "xyz", q0=q01, u0=u01)
+    elif use_axisangle:
+        p01 = np.array([0, 0, 1]) * alpha0
+        q01 = np.concatenate([r_OS10, p01])
+        RB1 = RigidBodyAxisAngle(m, K_theta_S, q01, u01)
 
     if use_spherical_joint:
         joint1 = SphericalJoint(origin, RB1, r_OB1)
     else:
         joint1 = RevoluteJoint(origin, RB1, r_OB1, A_IB1)
 
+    ############################################################################
+    #                   Rigid Body 2
+    ############################################################################
     beta0 = 0
     beta_dot0 = 0
 
     r_OB2 = -l * A_IK10[:, 1]
-
+    A_IB2 = A_IK10
     A_IK20 = A_IK10 @ A_IK_basic(beta0).z()
     r_B2S2 = -0.5 * l * A_IK20[:, 1]
     r_OS20 = r_OB2 + r_B2S2
-    p02 = axis_angle2quat(np.array([0, 0, 1]), alpha0 + beta0)
-    q02 = np.concatenate([r_OS20, p02])
     omega02 = np.array([0, 0, alpha_dot0 + beta_dot0])
     vB2 = cross3(omega01, r_OB2)
     vS2 = vB2 + cross3(omega02, r_B2S2)
     u02 = np.concatenate([vS2, omega02])
-    RB2 = RigidBodyQuaternion(m, K_theta_S, q02, u02)
 
-    A_IB2 = A_IK10
+    if use_quaternion:
+        p02 = axis_angle2quat(np.array([0, 0, 1]), alpha0 + beta0)
+        q02 = np.concatenate([r_OS20, p02])
+        RB2 = RigidBodyQuaternion(m, K_theta_S, q02, u02)
+    elif use_euler:
+        q02 = np.concatenate([r_OS20, np.array([0, 0, alpha0 + beta0])])
+        RB2 = RigidBodyEuler(m, K_theta_S, "xyz", q0=q02, u0=u02)
+    elif use_axisangle:
+        p02 = np.array([0, 0, 1]) * (alpha0 + beta0)
+        q02 = np.concatenate([r_OS20, p02])
+        RB2 = RigidBodyAxisAngle(m, K_theta_S, q02, u02)
+
     if use_spherical_joint:
         joint2 = SphericalJoint(RB1, RB2, r_OB2)
     else:
         joint2 = RevoluteJoint(RB1, RB2, r_OB2, A_IB2)
 
+    ############################################################################
+    #                   model
+    ############################################################################
     model = System()
     model.add(origin)
     model.add(RB1)
@@ -88,6 +121,9 @@ if __name__ == "__main__":
 
     model.assemble()
 
+    ############################################################################
+    #                   solver
+    ############################################################################
     t0 = 0
     t1 = 3
     dt = 5e-3
@@ -98,7 +134,9 @@ if __name__ == "__main__":
     t = sol.t
     q = sol.q
 
-    # animate configurations
+    ############################################################################
+    #                   animation
+    ############################################################################
     fig = plt.figure()
     ax = fig.add_subplot(111, projection="3d")
 
@@ -125,7 +163,6 @@ if __name__ == "__main__":
         d22 = A_IK2[:, 1]
         d32 = A_IK2[:, 2]
 
-        # COM, = ax.plot([x_0, x_S1], [y_0, y_S1], [z_0, z_S1], '-ok')
         (COM,) = ax.plot([x_0, x_S1, x_S2], [y_0, y_S1, y_S2], [z_0, z_S1, z_S2], "-ok")
         (d11_,) = ax.plot(
             [x_S1, x_S1 + d11[0]],
@@ -207,12 +244,10 @@ if __name__ == "__main__":
 
         return COM, d11_, d21_, d31_, d12_, d22_, d32_
 
-    # COM, d11_, d21_, d31_ = init(0, q[0])
     COM, d11_, d21_, d31_, d12_, d22_, d32_ = init(0, q[0])
 
     def animate(i):
         update(t[i], q[i], COM, d11_, d21_, d31_, d12_, d22_, d32_)
-        # update(t[i], q[i], COM, d11_, d21_, d31_)
 
     # compute naimation interval according to te - ts = frames * interval / 1000
     frames = len(t)
@@ -220,9 +255,6 @@ if __name__ == "__main__":
     anim = animation.FuncAnimation(
         fig, animate, frames=frames, interval=interval, blit=False
     )
-    # fps = int(np.ceil(frames / (te - ts))) / 10
-    # writer = animation.writers['ffmpeg'](fps=fps, bitrate=1800)
-    # # anim.save('directorRigidBodyPendulum.mp4', writer=writer)
 
     # compute reference solution
     def eqm(t, x):
@@ -261,13 +293,19 @@ if __name__ == "__main__":
     alpha = np.arctan2(sol.q[:, 0], -sol.q[:, 1])
     x_B2 = 2 * sol.q[:, 0]
     y_B2 = 2 * sol.q[:, 1]
-    phi = np.arctan2(sol.q[:, 7] - x_B2, -(sol.q[:, 8] - y_B2))
+    if use_quaternion:
+        phi = np.arctan2(sol.q[:, 7] - x_B2, -(sol.q[:, 8] - y_B2))
+    else:
+        phi = np.arctan2(sol.q[:, 6] - x_B2, -(sol.q[:, 7] - y_B2))
 
     fig, ax = plt.subplots()
-    ax.plot(t_ref, alpha_ref, "-r")
-    ax.plot(t, alpha, "xr")
+    ax.plot(t_ref, alpha_ref, "-.r", label="alpha ref")
+    ax.plot(t, alpha, "-r", label="alpha")
 
-    ax.plot(t_ref, phi_ref, "-g")
-    ax.plot(t, phi, "xg")
+    ax.plot(t_ref, phi_ref, "-.g", label="phi ref")
+    ax.plot(t, phi, "-g", label="phi")
+
+    ax.grid()
+    ax.legend()
 
     plt.show()

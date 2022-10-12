@@ -8,7 +8,7 @@ from cardillo.math.algebra import (
 from cardillo.math.numerical_derivative import Numerical_derivative
 
 
-class Rigid_body_rel_kinematics:
+class RigidBodyRelKinematics:
     def __init__(
         self,
         m,
