@@ -1972,7 +1972,6 @@ class TimoshenkoAxisAngleSE3_I_delta_r_P:
         self.nodalDOF_element_r = self.mesh.nodalDOF_element
         self.nodalDOF_element_psi = self.mesh.nodalDOF_element + self.nq_element_r
 
-        # TODO: Check if this is valid!
         self.nodalDOF_element = np.zeros((self.nnodes_element, 6), dtype=int)
         for node in range(self.nnodes_element):
             self.nodalDOF_element[node, :3] = self.nodalDOF_element_r[node]
@@ -2056,7 +2055,7 @@ class TimoshenkoAxisAngleSE3_I_delta_r_P:
             r0[:, i] = r_OP + A_IK @ r0[:, i]
 
         # reshape generalized coordinates to nodal ordering
-        q_r = r0.reshape(-1, order="F")
+        q_r = r0.reshape(-1, order="C")
 
         # we have to extract the rotation vector from the given rotation matrix
         # and set its value for each node
@@ -2089,7 +2088,7 @@ class TimoshenkoAxisAngleSE3_I_delta_r_P:
             r_OC0[:, i] = r_OP0 + A_IK0 @ r_OC0[:, i]
 
         # reshape generalized coordinates to nodal ordering
-        q_r = r_OC0.reshape(-1, order="F")
+        q_r = r_OC0.reshape(-1, order="C")
 
         # we have to extract the rotation vector from the given rotation matrix
         # and set its value for each node
@@ -2101,8 +2100,8 @@ class TimoshenkoAxisAngleSE3_I_delta_r_P:
             v_C0[:, i] = v_P0 + cross3(A_IK0 @ K_omega_IK0, (r_OC0[:, i] - r_OC0[:, 0]))
 
         # reshape generalized coordinates to nodal ordering
-        q_r = r_OC0.reshape(-1, order="F")
-        u_r = v_C0.reshape(-1, order="F")
+        q_r = r_OC0.reshape(-1, order="C")
+        u_r = v_C0.reshape(-1, order="C")
         q_psi = np.tile(psi, nn_psi)
         u_psi = np.tile(K_omega_IK0, nn_psi)
 
@@ -2150,8 +2149,8 @@ class TimoshenkoAxisAngleSE3_I_delta_r_P:
             # psis[:, i] = Log_SO3(A_IK)
 
         # reshape generalized coordinates to nodal ordering
-        q_r = r_OPs.reshape(-1, order="F")
-        q_psi = psis.reshape(-1, order="F")
+        q_r = r_OPs.reshape(-1, order="C")
+        q_psi = psis.reshape(-1, order="C")
 
         return np.concatenate([q_r, q_psi])
 
@@ -2585,6 +2584,31 @@ class TimoshenkoAxisAngleSE3_I_delta_r_P:
                     self.M_el(q[elDOF], el), (self.uDOF[elDOF], self.uDOF[elDOF])
                 )
 
+    def h(self, t, q, u):
+        h = np.zeros(self.nu, dtype=np.common_type(q, u))
+        for el in range(self.nelement):
+            elDOF = self.elDOF[el]
+            qe = q[elDOF]
+            ue = u[elDOF]
+            h[elDOF] += self.f_pot_el(qe, el) - self.f_gyr_el(t, qe, ue, el)
+        return h
+
+    def h_q(self, t, q, u, coo):
+        for el in range(self.nelement):
+            elDOF = self.elDOF[el]
+            h_q_el = self.f_pot_q_el(q[elDOF], el)
+
+            # sparse assemble element internal stiffness matrix
+            coo.extend(h_q_el, (self.uDOF[elDOF], self.qDOF[elDOF]))
+
+    def h_u(self, t, q, u, coo):
+        for el in range(self.nelement):
+            elDOF = self.elDOF[el]
+            h_u_el = self.f_gyr_u_el(q[elDOF], u[elDOF], el)
+
+            # sparse assemble element internal stiffness matrix
+            coo.extend(h_u_el, (self.uDOF[elDOF], self.uDOF[elDOF]))
+
     def f_gyr_el(self, t, qe, ue, el):
         f_gyr_el = np.zeros(self.nq_element, dtype=float)
 
@@ -2608,14 +2632,6 @@ class TimoshenkoAxisAngleSE3_I_delta_r_P:
                 )
 
         return f_gyr_el
-
-    def f_gyr(self, t, q, u):
-        f_gyr = np.zeros(self.nu, dtype=float)
-        for el in range(self.nelement):
-            f_gyr[self.elDOF[el]] += self.f_gyr_el(
-                t, q[self.elDOF[el]], u[self.elDOF[el]], el
-            )
-        return f_gyr
 
     def f_gyr_u_el(self, t, qe, ue, el):
         f_gyr_u_el = np.zeros((self.nq_element, self.nq_element), dtype=float)
@@ -2643,12 +2659,6 @@ class TimoshenkoAxisAngleSE3_I_delta_r_P:
                     )
 
         return f_gyr_u_el
-
-    def f_gyr_u(self, t, q, u, coo):
-        for el in range(self.nelement):
-            elDOF = self.elDOF[el]
-            f_gyr_u_el = self.f_gyr_u_el(t, q[elDOF], u[elDOF], el)
-            coo.extend(f_gyr_u_el, (self.uDOF[elDOF], self.uDOF[elDOF]))
 
     def E_pot(self, t, q):
         E_pot = 0
@@ -2684,13 +2694,6 @@ class TimoshenkoAxisAngleSE3_I_delta_r_P:
             )
 
         return E_pot_el
-
-    def h(self, t, q, u):
-        f_pot = np.zeros(self.nu, dtype=q.dtype)
-        for el in range(self.nelement):
-            elDOF = self.elDOF[el]
-            f_pot[elDOF] += self.f_pot_el(q[elDOF], el)
-        return f_pot
 
     def f_pot_el(self, qe, el):
         f_pot_el = np.zeros(self.nq_element, dtype=qe.dtype)
@@ -2742,14 +2745,6 @@ class TimoshenkoAxisAngleSE3_I_delta_r_P:
                 )  # Euler term
 
         return f_pot_el
-
-    def h_q(self, t, q, u, coo):
-        for el in range(self.nelement):
-            elDOF = self.elDOF[el]
-            f_pot_q_el = self.f_pot_q_el(q[elDOF], el)
-
-            # sparse assemble element internal stiffness matrix
-            coo.extend(f_pot_q_el, (self.uDOF[elDOF], self.qDOF[elDOF]))
 
     def f_pot_q_el(self, qe, el):
         f_pot_q_el = np.zeros((self.nq_element, self.nq_element), dtype=float)

@@ -48,13 +48,13 @@ class RigidConnection:
 
         r_OS1 = self.subsystem1.r_OP(
             self.subsystem1.t0,
-            self.subsystem1.q0[qDOF1],
+            self.subsystem1.q0[local_qDOF1],
             frame_ID=self.frame_ID1,
             K_r_SP=np.zeros(3),
         )
         r_OS2 = self.subsystem2.r_OP(
             self.subsystem2.t0,
-            self.subsystem2.q0[qDOF2],
+            self.subsystem2.q0[local_qDOF2],
             frame_ID=self.frame_ID2,
             K_r_SP=np.zeros(3),
         )
