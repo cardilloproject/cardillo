@@ -6,7 +6,7 @@ import numpy as np
 # warnings.filterwarnings("error")
 
 from scipy.sparse.linalg import spsolve, lsqr, LinearOperator
-from scipy.sparse import csr_matrix, bmat, eye
+from scipy.sparse import csr_matrix, csc_matrix, bmat, eye, lil_matrix
 from tqdm import tqdm
 
 from cardillo.solver import Solution
@@ -3435,7 +3435,8 @@ class NonsmoothDecoupled:
         g_Nk1 = self.model.g_N(tk1, qk1)
         # g_N_dotk1 = self.model.g_N_dot(tk1, qk1, uk1_free)
         # g_N_ddotk1 = self.model.g_N_ddot(tk1, qk1, uk1_free, u_dotk1)
-        xi_Fk1 = self.model.xi_F(tk1, qk1, self.uk, uk1_free)
+        # xi_Fk1 = self.model.xi_F(tk1, qk1, self.uk, uk1_free)
+        gamma_Fk1 = self.model.gamma_F(tk1, qk1, uk1_free)
 
         ###################
         # evaluate residual
@@ -3508,6 +3509,8 @@ class NonsmoothDecoupled:
         ##########
         # friction
         ##########
+        # Rx[nq + nu + nla_g + nla_gamma + nla_N :] = la_Fk1_free
+
         prox_r_F = self.model.prox_r_F(tk1, qk1)
         for i_N, i_F in enumerate(self.model.NF_connectivity):
             i_F = np.array(i_F)
@@ -3517,7 +3520,7 @@ class NonsmoothDecoupled:
                     self.I_Nk1[i_N] * np.ones(len(i_F), dtype=bool),
                     -la_Fk1_free[i_F]
                     - prox_sphere(
-                        -la_Fk1_free[i_F] + prox_r_F[i_N] * xi_Fk1[i_F],
+                        -la_Fk1_free[i_F] + prox_r_F[i_N] * gamma_Fk1[i_F],
                         mu[i_N] * la_Nk1_free[i_N],
                     ),
                     la_Fk1_free[i_F],
@@ -3531,110 +3534,199 @@ class NonsmoothDecoupled:
         return Rx
 
     def Jx(self, xk1):
-        # nq = self.nq
-        # nu = self.nu
-        # nla_g = self.nla_g
-        # nla_gamma = self.nla_gamma
-        # nla_N = self.nla_N
-        # mu = self.model.mu
+        nq = self.nq
+        nu = self.nu
+        nla_g = self.nla_g
+        nla_gamma = self.nla_gamma
+        nla_N = self.nla_N
+        mu = self.model.mu
 
-        # q_dotk1, u_dotk1, la_gk1, la_gammak1, la_Nk1, la_Fk1 = self.unpack_x(xk1)
-        # (
-        #     tk1,
-        #     qk1,
-        #     uk1_free,
-        #     la_gk1_free,
-        #     la_gammak1_free,
-        #     la_Nk1_free,
-        #     la_Fk1_free,
-        # ) = self.update_x(xk1)
+        q_dotk1, u_dotk1, la_gk1, la_gammak1, la_Nk1, la_Fk1 = self.unpack_x(xk1)
+        (
+            tk1,
+            qk1,
+            uk1_free,
+            la_gk1_free,
+            la_gammak1_free,
+            la_Nk1_free,
+            la_Fk1_free,
+        ) = self.update_x(xk1)
 
-        # # evaluate repeatedly used quantities
-        # Mk1 = self.model.M(tk1, qk1, scipy_matrix=csr_matrix)
+        # evaluate repeatedly used quantities
+        Mk1 = self.model.M(tk1, qk1, scipy_matrix=csr_matrix)
         # hk1 = self.model.h(tk1, qk1, uk1_free)
-        # W_gk1 = self.model.W_g(tk1, qk1, scipy_matrix=csr_matrix)
-        # W_gammak1 = self.model.W_gamma(tk1, qk1, scipy_matrix=csr_matrix)
-        # W_Nk1 = self.model.W_N(tk1, qk1, scipy_matrix=csr_matrix)
-        # W_Fk1 = self.model.W_F(tk1, qk1, scipy_matrix=csr_matrix)
+        W_gk1 = self.model.W_g(tk1, qk1, scipy_matrix=csr_matrix)
+        W_gammak1 = self.model.W_gamma(tk1, qk1, scipy_matrix=csr_matrix)
+        W_Nk1 = self.model.W_N(tk1, qk1, scipy_matrix=csr_matrix)
+        W_Fk1 = self.model.W_F(tk1, qk1, scipy_matrix=csr_matrix)
         # gk1 = self.model.g(tk1, qk1)
         # gammak1 = self.model.gamma(tk1, qk1, uk1_free)
         # g_Nk1 = self.model.g_N(tk1, qk1)
         # xi_Fk1 = self.model.xi_F(tk1, qk1, self.uk, uk1_free)
+        gamma_Fk1 = self.model.gamma_F(tk1, qk1, uk1_free)
 
-        # # chain rules for backward Euler update
-        # qk1_q_dotk1 = self.dt
-        # uk1_free_u_dotk1 = self.dt
+        # chain rules for backward Euler update
+        qk1_q_dotk1 = self.dt
+        uk1_free_u_dotk1 = self.dt
 
-        # ####################
-        # # kinematic equation
-        # ####################
-        # # Rx[:nq] = q_dotk1 - self.model.q_dot(tk1, qk1, uk1_free)
-        # J_q_dotk1_q_dotk1 = (
-        #     eye(nq, nq) - self.model.q_dot_q(tk1, qk1, uk1_free) * qk1_q_dotk1
+        ####################
+        # kinematic equation
+        ####################
+        # Rx[:nq] = q_dotk1 - self.model.q_dot(tk1, qk1, uk1_free)
+        J_q_dotk1_q_dotk1 = (
+            eye(nq, nq) - self.model.q_dot_q(tk1, qk1, uk1_free) * qk1_q_dotk1
+        )
+        J_q_dotk1_u_dotk1 = -self.model.B(tk1, qk1) * uk1_free_u_dotk1
+
+        ####################
+        # euations of motion
+        ####################
+        # Rx[nq : nq + nu] = (
+        #     Mk1 @ u_dotk1
+        #     - hk1
+        #     - W_gk1 @ la_gk1_free
+        #     - W_gammak1 @ la_gammak1_free
+        #     - W_Nk1 @ la_Nk1_free
+        #     - W_Fk1 @ la_Fk1_free
         # )
-        # J_q_dotk1_u_dotk1 = -self.model.B(tk1, qk1) * uk1_free_u_dotk1
+        J_u_dotk1_q_dotk1 = (
+            self.model.Mu_q(tk1, qk1, uk1_free)
+            - self.model.h_q(tk1, qk1, uk1_free)
+            - self.model.Wla_g_q(tk1, qk1, la_gk1)
+            - self.model.Wla_gamma_q(tk1, qk1, la_gammak1)
+            - self.model.Wla_N_q(tk1, qk1, la_Nk1)
+            - self.model.Wla_F_q(tk1, qk1, la_Fk1)
+        ) * qk1_q_dotk1
+        J_u_dotk1_u_dotk1 = Mk1 - self.model.h_u(tk1, qk1, uk1_free) * uk1_free_u_dotk1
 
-        # ####################
-        # # euations of motion
-        # ####################
-        # # Rx[nq : nq + nu] = (
-        # #     Mk1 @ u_dotk1
-        # #     - hk1
-        # #     - W_gk1 @ la_gk1_free
-        # #     - W_gammak1 @ la_gammak1_free
-        # #     - W_Nk1 @ la_Nk1_free
-        # #     - W_Fk1 @ la_Fk1_free
-        # # )
-        # J_u_dotk1_q_dotk1 = (
-        #     self.model.Mu_q(tk1, qk1, uk1_free)
-        #     - self.model.h_q(tk1, qk1, uk1_free)
-        #     - self.model.Wla_g_q(tk1, qk1, la_gk1)
-        #     - self.model.Wla_gamma_q(tk1, qk1, la_gammak1)
-        #     - self.model.Wla_N_q(tk1, qk1, la_Nk1)
-        #     - self.model.Wla_F_q(tk1, qk1, la_Fk1)
-        # ) * qk1_q_dotk1
-        # J_u_dotk1_u_dotk1 = Mk1 - self.model.h_u(tk1, qk1, uk1_free) * uk1_free_u_dotk1
+        #######################
+        # bilateral constraints
+        #######################
+        # Rx[nq + nu : nq + nu + nla_g] = gk1
+        # Rx[nq + nu + nla_g : nq + nu + nla_g + nla_gamma] = gammak1
+        J_gk1_q_dotk1 = self.model.g_q(tk1, qk1) * qk1_q_dotk1
+        J_gammak1_q_dotk1 = self.model.gamma_q(tk1, qk1, uk1_free) * qk1_q_dotk1
+        J_gammak1_u_dotk1 = W_gammak1.T * uk1_free_u_dotk1
 
-        # #######################
-        # # bilateral constraints
-        # #######################
-        # # Rx[nq + nu : nq + nu + nla_g] = gk1
-        # # Rx[nq + nu + nla_g : nq + nu + nla_g + nla_gamma] = gammak1
-        # J_gk1_q_dotk1 = self.model.g_q(tk1, qk1) * qk1_q_dotk1
-        # J_gammak1_q_dotk1 = self.model.gamma_q(tk1, qk1, uk1_free) * qk1_q_dotk1
-        # J_gammak1_u_dotk1 = W_gammak1.T * uk1_free_u_dotk1
+        ################
+        # normal contact
+        ################
+        # prox_arg = g_Nk1 - self.model.prox_r_N * la_Nk1_free
+        # if update_index:
+        #     self.I_Nk1 = prox_arg <= 0.0
+        # Rx[
+        #     nq
+        #     + nu
+        #     + nla_g
+        #     + nla_gamma : nq
+        #     + nu
+        #     + nla_g
+        #     + nla_gamma
+        #     + nla_N
+        # ] = g_Nk1 - prox_R0_np(prox_arg)
 
-        # ################
-        # # normal contact
-        # ################
-        # # prox_arg = g_Nk1 - self.model.prox_r_N * la_Nk1_free
-        # # if update_index:
-        # #     self.I_Nk1 = prox_arg <= 0.0
-        # # Rx[
-        # #     nq
-        # #     + nu
-        # #     + nla_g
-        # #     + nla_gamma : nq
-        # #     + nu
-        # #     + nla_g
-        # #     + nla_gamma
-        # #     + nla_N
-        # # ] = g_Nk1 - prox_R0_np(prox_arg)
+        prox_r_N = self.model.prox_r_N(tk1, qk1)
+        # note: csr_matrix is best for row slicing, see
+        # (https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csr_matrix.html#scipy.sparse.csr_matrix)
+        g_Nk1_qk1 = self.model.g_N_q(tk1, qk1, scipy_matrix=csr_matrix)
 
-        # raise RuntimeError("Move on here!")
+        J_la_Nk1_qk1 = lil_matrix((self.nla_N, self.nq))
+        J_la_Nk1_la_Nk1 = lil_matrix((self.nla_N, self.nla_N))
+        for i in range(self.nla_N):
+            if self.I_Nk1:
+                J_la_Nk1_qk1[i] = g_Nk1_qk1[i]
+            else:
+                J_la_Nk1_la_Nk1[i, i] = prox_r_N[i]
 
-        # Jx = bmat(
-        #     [
-        #         [J_q_dotk1_q_dotk1, J_q_dotk1_u_dotk1, None, None, None, None],
-        #         [J_u_dotk1_q_dotk1, J_u_dotk1_u_dotk1, W_gk1, W_gammak1, W_Nk1, W_Fk1],
-        #         [J_gk1_q_dotk1, None, None, None, None, None],
-        #         [J_gammak1_q_dotk1, J_gammak1_u_dotk1, None, None, None, None],
-        #     ],
-        #     format="csr",
-        # )
+        J_la_Nk1_q_dotk1 = J_la_Nk1_qk1 * qk1_q_dotk1
+
+        ##########
+        # friction
+        ##########
+        prox_r_F = self.model.prox_r_F(tk1, qk1)
+        gamma_Fk1_qk1 = self.model.gamma_F_q(tk1, qk1, uk1_free, scipy_matrix=csc_matrix)
+        gamma_Fk1_uk1 = W_Fk1.T
+
+        J_la_Fk1_qk1 = lil_matrix((self.nla_F, self.nq))
+        J_la_Fk1_uk1_free = lil_matrix((self.nla_F, self.nu))
+        J_la_Fk1_la_Fk1 = lil_matrix((self.nla_F, self.nla_F))
+        for i_N, i_F in enumerate(self.model.NF_connectivity):
+            i_F = np.array(i_F)
+
+            if len(i_F) > 0:
+                if self.I_Nk1[i]:
+                    gamma_Fk1i = gamma_Fk1[i_F]
+                    gamma_Fk1_qk1i = gamma_Fk1_qk1[i_F]
+                    gamma_Fk1_uk1i = gamma_Fk1_uk1[i_F]
+                    prox_arg_sphere = -la_Fk1_free[i_F] + prox_r_F[i_N] * gamma_Fk1i
+                    norm_prox_arg_sphere = norm(prox_arg_sphere)
+                    prox_radius = mu[i_N] * la_Nk1_free[i_N]
+
+                    if norm_prox_arg_sphere <= prox_radius:
+                        # stick case
+                        J_la_Fk1_qk1[i_F] = prox_r_F[i_N] * gamma_Fk1_qk1i
+                        J_la_Fk1_uk1_free[i_F] = prox_r_F[i_N] * gamma_Fk1_uk1i
+                    else:
+                        # slip case
+                        norm_gamma_Fi = norm(gamma_Fk1i)
+                        norm_gamma_Fi2 = norm_gamma_Fi * norm_gamma_Fi
+                        if norm_gamma_Fi > 0:
+                            J_la_Fk1_qk1[i_F] = (mu[i_N] * la_Nk1_free[i_N] / norm_gamma_Fi) * (
+                                gamma_Fk1_qk1i - np.outer(gamma_Fk1i / norm_gamma_Fi2, gamma_Fk1i @ gamma_Fk1_qk1i)
+                            )
+                            J_la_Fk1_uk1_free[i_F] = (mu[i_N] * la_Nk1_free[i_N] / norm_gamma_Fi) * (
+                                gamma_Fk1_uk1i - np.outer(gamma_Fk1i / norm_gamma_Fi2, gamma_Fk1i @ gamma_Fk1_uk1i)
+                            )
+                            # TODO: derivative w.r.t. la_Nk1
+                        else:
+                            # TODO: zero velocity case
+                            pass
+                else:
+                    J_la_Fk1_la_Fk1[i_F, i_F] = la_Fk1_free[i_F]
+
+                # Rx[nq + nu + nla_g + nla_gamma + nla_N + i_F] = np.where(
+                #     self.I_Nk1[i_N] * np.ones(len(i_F), dtype=bool),
+                #     -la_Fk1_free[i_F]
+                #     - prox_sphere(
+                #         -la_Fk1_free[i_F] + prox_r_F[i_N] * xi_Fk1[i_F],
+                #         mu[i_N] * la_Nk1_free[i_N],
+                #     ),
+                #     la_Fk1_free[i_F],
+                # )
+
+        J_la_Fk1_q_dotk1 = J_la_Fk1_qk1 * qk1_q_dotk1
+        J_la_Fk1_q_uotk1 = J_la_Fk1_uk1_free * uk1_free_u_dotk1
+
+        # TODO: Add friction!
+        J_la_Fk1_la_Fk1 = eye(self.nla_F, self.nla_F)
+
+        # fmt: off
+        Jx = bmat(
+            [
+                [J_q_dotk1_q_dotk1, J_q_dotk1_u_dotk1, None, None, None, None],
+                [J_u_dotk1_q_dotk1, J_u_dotk1_u_dotk1, -W_gk1, -W_gammak1, -W_Nk1, -W_Fk1],
+                [J_gk1_q_dotk1, None, None, None, None, None],
+                [J_gammak1_q_dotk1, J_gammak1_u_dotk1, None, None, None, None],
+                [J_la_Nk1_q_dotk1, None, None, None, J_la_Nk1_la_Nk1, None],
+                [None, None, None, None, None, J_la_Fk1_la_Fk1]
+            ],
+            format="csr",
+        )
+        # fmt: on
 
         Jx_num = csr_matrix(approx_fprime(xk1, self.Rx, method="2-point"))
+
+        diff = (Jx - Jx_num).toarray()
+        # diff = (Jx - Jx_num).toarray()[:self.nq]
+        # diff = (Jx - Jx_num).toarray()[self.nq : self.nq + self.nu, :self.nq]
+        # diff = (Jx - Jx_num).toarray()[self.nq : self.nq + self.nu]
+        # diff = (Jx - Jx_num).toarray()[self.nq + self.nu : self.nq + self.nu + self.nla_g]
+        # diff = (Jx - Jx_num).toarray()[self.nq + self.nu + self.nla_g : self.nq + self.nu + self.nla_g + self.nla_gamma]
+        # diff = (Jx - Jx_num).toarray()[self.nq + self.nu + self.nla_g + self.nla_gamma: self.nq + self.nu + self.nla_g + self.nla_gamma + self.nla_N, :self.nq]
+        error = np.linalg.norm(diff)
+        print(f"error Jx: {error}")
         return Jx_num
+        # return Jx
 
     def Ry(self, yk1, update_index=False):
         nu = self.nu
