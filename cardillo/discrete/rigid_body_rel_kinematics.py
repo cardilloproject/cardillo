@@ -39,13 +39,13 @@ class RigidBodyRelKinematics:
                 "Predecessor is not assembled; maybe not added to the model."
             )
 
-        qDOFp = self.predecessor.qDOF_P(self.frame_IDp)
+        qDOFp = self.predecessor.local_qDOF_P(self.frame_IDp)
         self.qDOF = np.concatenate([self.predecessor.qDOF[qDOFp], self.joint.qDOF])
         self.nqp = nqp = len(qDOFp)
         self.q0 = np.concatenate([self.predecessor.q0[qDOFp], self.joint.q0])
         self.__nq = nqp + self.joint.nq
 
-        uDOFp = self.predecessor.uDOF_P(self.frame_IDp)
+        uDOFp = self.predecessor.local_uDOF_P(self.frame_IDp)
         self.uDOF = np.concatenate([self.predecessor.uDOF[uDOFp], self.joint.uDOF])
         self.nup = nup = len(uDOFp)
         self.u0 = np.concatenate([self.predecessor.u0[uDOFp], self.joint.u0])

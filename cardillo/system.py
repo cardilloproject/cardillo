@@ -252,13 +252,13 @@ class System:
         return h
 
     def h_q(self, t, q, u, scipy_matrix=coo_matrix):
-        coo = Coo((self.nu, self.nq), dtype=np.common_type(q, u))
+        coo = Coo((self.nu, self.nq))
         for contr in self.__h_q_contr:
             contr.h_q(t, q[contr.qDOF], u[contr.uDOF], coo)
         return coo.tosparse(scipy_matrix)
 
     def h_u(self, t, q, u, scipy_matrix=coo_matrix):
-        coo = Coo((self.nu, self.nu), dtype=np.common_type(q, u))
+        coo = Coo((self.nu, self.nu))
         for contr in self.__h_u_contr:
             contr.h_u(t, q[contr.qDOF], u[contr.uDOF], coo)
         return coo.tosparse(scipy_matrix)

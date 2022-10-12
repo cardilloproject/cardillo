@@ -46,11 +46,11 @@ class Point2Cylinder:
         self.is_assembled = False
 
     def assembler_callback(self):
-        qDOF = self.subsystem.qDOF_P(self.frame_ID)
+        qDOF = self.subsystem.local_qDOF_P(self.frame_ID)
         self.qDOF = self.subsystem.qDOF[qDOF]
         self.nq = len(self.qDOF)
 
-        uDOF = self.subsystem.uDOF_P(self.frame_ID)
+        uDOF = self.subsystem.local_uDOF_P(self.frame_ID)
         self.uDOF = self.subsystem.uDOF[uDOF]
         self.nu = len(self.uDOF)
 

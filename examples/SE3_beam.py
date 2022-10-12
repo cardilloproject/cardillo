@@ -479,7 +479,7 @@ def run(statics):
         K_Kappa = np.zeros((3, nxi))
         for i in range(nxi):
             frame_ID = (xis[i],)
-            elDOF = beam.qDOF_P(frame_ID)
+            elDOF = beam.local_qDOF_P(frame_ID)
             qe = q[-1, beam.qDOF][elDOF]
             _, _, K_Gamma[:, i], K_Kappa[:, i] = beam.eval(qe, xis[i])
         ax[0].plot(xis, K_Gamma[0], "-r", label="K_Gamma0")
@@ -505,7 +505,7 @@ def run(statics):
     # abs_r0_xi = np.zeros(nxi)
     # for i in range(nxi):
     #     frame_ID = (xis[i],)
-    #     elDOF = beam.qDOF_P(frame_ID)
+    #     elDOF = beam.local_qDOF_P(frame_ID)
     #     qe = q[-1, beam.qDOF][elDOF]
     #     abs_r_xi[i] = np.linalg.norm(beam.r_OC_xi(t[-1], qe, frame_ID))
     #     q0e = q[0, beam.qDOF][elDOF]
@@ -796,7 +796,7 @@ def locking(case="helix"):
     K_Kappa = np.zeros((3, nxi))
     for i in range(nxi):
         frame_ID = (xis[i],)
-        elDOF = beam.qDOF_P(frame_ID)
+        elDOF = beam.local_qDOF_P(frame_ID)
         qe = q[-1, beam.qDOF][elDOF]
         _, _, K_Gamma[:, i], K_Kappa[:, i] = beam.eval(qe, xis[i])
     ax[0].plot(xis, K_Gamma[0], "-r", label="K_Gamma0")
@@ -822,7 +822,7 @@ def locking(case="helix"):
     # abs_r0_xi = np.zeros(nxi)
     # for i in range(nxi):
     #     frame_ID = (xis[i],)
-    #     elDOF = beam.qDOF_P(frame_ID)
+    #     elDOF = beam.local_qDOF_P(frame_ID)
     #     qe = q[-1, beam.qDOF][elDOF]
     #     abs_r_xi[i] = np.linalg.norm(beam.r_OC_xi(t[-1], qe, frame_ID))
     #     q0e = q[0, beam.qDOF][elDOF]
@@ -1162,7 +1162,7 @@ def HelixIbrahimbegovic1997(export=True):
     if export:
         header = "t, x, y, z"
         frame_ID = (1,)
-        elDOF = beam.qDOF_P(frame_ID)
+        elDOF = beam.local_qDOF_P(frame_ID)
         r_OC_L = np.array(
             [beam.r_OP(ti, qi[elDOF], frame_ID) for (ti, qi) in zip(t, q)]
         )
@@ -1207,7 +1207,7 @@ def HelixIbrahimbegovic1997(export=True):
         K_Gamma = np.zeros((3, nxi), dtype=float)
         K_Kappa = np.zeros((3, nxi), dtype=float)
         for i, xi in enumerate(xis):
-            elDOF = beam.qDOF_P((xi,))
+            elDOF = beam.local_qDOF_P((xi,))
 
             _, _, K_Gamma_bar, K_Kappa_bar = beam.eval(q[0, beam.qDOF[elDOF]], xi)
             J = norm(K_Gamma_bar)
@@ -1263,7 +1263,7 @@ def HelixIbrahimbegovic1997(export=True):
         K_Kappa = np.zeros((3, nxi))
         for i in range(nxi):
             frame_ID = (xis[i],)
-            elDOF = beam.qDOF_P(frame_ID)
+            elDOF = beam.local_qDOF_P(frame_ID)
             qe = q[-1, beam.qDOF][elDOF]
             _, _, K_Gamma[:, i], K_Kappa[:, i] = beam.eval(qe, xis[i])
         ax[0].plot(xis, K_Gamma[0], "-r", label="K_Gamma0")
@@ -1637,7 +1637,7 @@ def HeavyTop():
 
     # beam's
     frame_ID = (1,)
-    elDOF = beam_stiff.qDOF_P(frame_ID)
+    elDOF = beam_stiff.local_qDOF_P(frame_ID)
     r_OC_L_soft = np.array(
         [beam_soft.r_OP(ti, qi[elDOF], frame_ID) for (ti, qi) in zip(t, q_soft)]
     )
@@ -2007,7 +2007,7 @@ def distributed_force():
     K_Kappa = np.zeros((3, nxi))
     for i in range(nxi):
         frame_ID = (xis[i],)
-        elDOF = beam.qDOF_P(frame_ID)
+        elDOF = beam.local_qDOF_P(frame_ID)
         qe = q[-1, beam.qDOF][elDOF]
         _, _, K_Gamma[:, i], K_Kappa[:, i] = beam.eval(qe, xis[i])
 
@@ -2269,7 +2269,7 @@ def objectivity_quater_circle():
     # K_Kappa = np.zeros((3, nxi))
     # for i in range(nxi):
     #     frame_ID = (xis[i],)
-    #     elDOF = beam.qDOF_P(frame_ID)
+    #     elDOF = beam.local_qDOF_P(frame_ID)
     #     qe = q[-1, beam.qDOF][elDOF]
     #     _, _, K_Gamma[:, i], K_Kappa[:, i] = beam.eval(qe, xis[i])
     # ax[0].plot(xis, K_Gamma[0], "-r", label="K_Gamma0")
@@ -2533,7 +2533,7 @@ def convergence_quater_circle():
     K_Kappa = np.zeros((3, nxi))
     for i in range(nxi):
         frame_ID = (xis[i],)
-        elDOF = beam_ref.qDOF_P(frame_ID)
+        elDOF = beam_ref.local_qDOF_P(frame_ID)
         qe = sol_ref.q[-1, beam_ref.qDOF][elDOF]
         _, _, K_Gamma[:, i], K_Kappa[:, i] = beam_ref.eval(qe, xis[i])
 
@@ -3011,7 +3011,7 @@ def Bernoulli():
     K_Kappa = np.zeros((3, nxi))
     for i in range(nxi):
         frame_ID = (xis[i],)
-        elDOF = beam.qDOF_P(frame_ID)
+        elDOF = beam.local_qDOF_P(frame_ID)
         qe = q[-1, beam.qDOF][elDOF]
         _, _, K_Gamma[:, i], K_Kappa[:, i] = beam.eval(qe, xis[i])
     ax[0].plot(xis, K_Gamma[0], "-r", label="K_Gamma0")

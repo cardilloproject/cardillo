@@ -66,73 +66,73 @@ class Line2Line:
 
     def r1(self, t, q, xi):
         frame_ID = (xi,)
-        qDOF_P = self.subsystem1.qDOF_P(frame_ID)
+        qDOF_P = self.subsystem1.local_qDOF_P(frame_ID)
         q_subsystem1 = q[: self.nq1][qDOF_P]
         return self.subsystem1.r_OC(t, q_subsystem1, frame_ID)
 
     def r1_q(self, t, q, xi):
         frame_ID = (xi,)
-        qDOF_P = self.subsystem1.qDOF_P(frame_ID)
+        qDOF_P = self.subsystem1.local_qDOF_P(frame_ID)
         q_subsystem1 = q[: self.nq1][qDOF_P]
         return self.subsystem1.r_OC_q(t, q_subsystem1, frame_ID)
 
     def r1_xi(self, t, q, xi):
         frame_ID = (xi,)
-        qDOF_P = self.subsystem1.qDOF_P(frame_ID)
+        qDOF_P = self.subsystem1.local_qDOF_P(frame_ID)
         q_subsystem1 = q[: self.nq1][qDOF_P]
         return self.subsystem1.r_OC_xi(t, q_subsystem1, frame_ID)
 
     def r1_xixi(self, t, q, xi):
         frame_ID = (xi,)
-        qDOF_P = self.subsystem1.qDOF_P(frame_ID)
+        qDOF_P = self.subsystem1.local_qDOF_P(frame_ID)
         q_subsystem1 = q[: self.nq1][qDOF_P]
         return self.subsystem1.r_OC_xixi(t, q_subsystem1, frame_ID)
 
     def J1(self, t, q, xi):
         frame_ID = (xi,)
-        qDOF_P = self.subsystem1.qDOF_P(frame_ID)
+        qDOF_P = self.subsystem1.local_qDOF_P(frame_ID)
         q_subsystem1 = q[: self.nq1][qDOF_P]
         return self.subsystem1.J_C(t, q_subsystem1, frame_ID)
 
     def J1_q(self, t, q, xi):
         frame_ID = (xi,)
-        qDOF_P = self.subsystem1.qDOF_P(frame_ID)
+        qDOF_P = self.subsystem1.local_qDOF_P(frame_ID)
         q_subsystem1 = q[: self.nq1][qDOF_P]
         return self.subsystem1.J_C_q(t, q_subsystem1, frame_ID)
 
     def r2(self, t, q, eta):
         frame_ID = (eta,)
-        qDOF_P = self.subsystem2.qDOF_P(frame_ID)
+        qDOF_P = self.subsystem2.local_qDOF_P(frame_ID)
         q_subsystem2 = q[self.nq1 :][qDOF_P]
         return self.subsystem2.r_OC(t, q_subsystem2, frame_ID)
 
     def r2_q(self, t, q, eta):
         frame_ID = (eta,)
-        qDOF_P = self.subsystem2.qDOF_P(frame_ID)
+        qDOF_P = self.subsystem2.local_qDOF_P(frame_ID)
         q_subsystem2 = q[self.nq1 :][qDOF_P]
         return self.subsystem2.r_OC_q(t, q_subsystem2, frame_ID)
 
     def r2_eta(self, t, q, eta):
         frame_ID = (eta,)
-        qDOF_P = self.subsystem2.qDOF_P(frame_ID)
+        qDOF_P = self.subsystem2.local_qDOF_P(frame_ID)
         q_subsystem2 = q[self.nq1 :][qDOF_P]
         return self.subsystem2.r_OC_xi(t, q_subsystem2, frame_ID)
 
     def r2_etaeta(self, t, q, eta):
         frame_ID = (eta,)
-        qDOF_P = self.subsystem2.qDOF_P(frame_ID)
+        qDOF_P = self.subsystem2.local_qDOF_P(frame_ID)
         q_subsystem2 = q[self.nq1 :][qDOF_P]
         return self.subsystem2.r_OC_xixi(t, q_subsystem2, frame_ID)
 
     def J2(self, t, q, eta):
         frame_ID = (eta,)
-        qDOF_P = self.subsystem2.qDOF_P(frame_ID)
+        qDOF_P = self.subsystem2.local_qDOF_P(frame_ID)
         q_subsystem2 = q[self.nq1 :][qDOF_P]
         return self.subsystem2.J_C(t, q_subsystem2, frame_ID)
 
     def J2_q(self, t, q, eta):
         frame_ID = (eta,)
-        qDOF_P = self.subsystem2.qDOF_P(frame_ID)
+        qDOF_P = self.subsystem2.local_qDOF_P(frame_ID)
         q_subsystem2 = q[self.nq1 :][qDOF_P]
         return self.subsystem2.J_C_q(t, q_subsystem2, frame_ID)
 
@@ -664,12 +664,12 @@ class Line2Line:
                 # position and tangant vector of subsystem 1
                 r1 = self.r1(t, q, xi)
                 J1 = self.J1(t, q, xi)
-                uDOF1 = self.subsystem1.uDOF_P((xi,))
+                uDOF1 = self.subsystem1.local_uDOF_P((xi,))
 
                 # position and tangant vector of subsystem 2
                 r2 = self.r2(t, q, eta_c)
                 J2 = self.J2(t, q, eta_c)
-                uDOF2 = self.subsystem1.uDOF_P((eta_c,))
+                uDOF2 = self.subsystem1.local_uDOF_P((eta_c,))
 
                 # distance of both centerlines and normal vector, Meier2016c (8), (12)
                 delta_r = r1 - r2

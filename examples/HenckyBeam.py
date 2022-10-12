@@ -58,15 +58,15 @@ class TranslationalSpring:
         )
         self.g0 = norm(r_OP20 - r_OP10)
 
-        self.qDOF1 = self.subsystem1.qDOF[self.subsystem1.qDOF_P(self.frame_ID1)]
-        self.qDOF2 = self.subsystem2.qDOF[self.subsystem2.qDOF_P(self.frame_ID2)]
+        self.qDOF1 = self.subsystem1.qDOF[self.subsystem1.local_qDOF_P(self.frame_ID1)]
+        self.qDOF2 = self.subsystem2.qDOF[self.subsystem2.local_qDOF_P(self.frame_ID2)]
         self.qDOF = np.concatenate([self.qDOF1, self.qDOF2])
         self.nq1 = len(self.qDOF1)
         self.nq2 = len(self.qDOF2)
         self.nq = self.nq1 + self.nq2
 
-        self.uDOF1 = self.subsystem1.uDOF[self.subsystem1.uDOF_P(self.frame_ID1)]
-        self.uDOF2 = self.subsystem2.uDOF[self.subsystem2.uDOF_P(self.frame_ID2)]
+        self.uDOF1 = self.subsystem1.uDOF[self.subsystem1.local_uDOF_P(self.frame_ID1)]
+        self.uDOF2 = self.subsystem2.uDOF[self.subsystem2.local_uDOF_P(self.frame_ID2)]
         self.uDOF = np.concatenate([self.uDOF1, self.uDOF2])
         self.nu1 = len(self.uDOF1)
         self.nu2 = len(self.uDOF2)
@@ -241,18 +241,18 @@ class TorsionalSpring3Point2D:
         )
         self.g0 = self.relative_angle(r_OP10, r_OP20, r_OP30)
 
-        self.qDOF1 = self.subsystem1.qDOF[self.subsystem1.qDOF_P(self.frame_ID1)]
-        self.qDOF2 = self.subsystem2.qDOF[self.subsystem2.qDOF_P(self.frame_ID2)]
-        self.qDOF3 = self.subsystem3.qDOF[self.subsystem3.qDOF_P(self.frame_ID3)]
+        self.qDOF1 = self.subsystem1.qDOF[self.subsystem1.local_qDOF_P(self.frame_ID1)]
+        self.qDOF2 = self.subsystem2.qDOF[self.subsystem2.local_qDOF_P(self.frame_ID2)]
+        self.qDOF3 = self.subsystem3.qDOF[self.subsystem3.local_qDOF_P(self.frame_ID3)]
         self.qDOF = np.concatenate([self.qDOF1, self.qDOF2, self.qDOF3])
         self.nq1 = len(self.qDOF1)
         self.nq2 = len(self.qDOF2)
         self.nq3 = len(self.qDOF3)
         self.nq = self.nq1 + self.nq2 + self.nq3
 
-        self.uDOF1 = self.subsystem1.uDOF[self.subsystem1.uDOF_P(self.frame_ID1)]
-        self.uDOF2 = self.subsystem2.uDOF[self.subsystem2.uDOF_P(self.frame_ID2)]
-        self.uDOF3 = self.subsystem3.uDOF[self.subsystem3.uDOF_P(self.frame_ID3)]
+        self.uDOF1 = self.subsystem1.uDOF[self.subsystem1.local_uDOF_P(self.frame_ID1)]
+        self.uDOF2 = self.subsystem2.uDOF[self.subsystem2.local_uDOF_P(self.frame_ID2)]
+        self.uDOF3 = self.subsystem3.uDOF[self.subsystem3.local_uDOF_P(self.frame_ID3)]
         self.uDOF = np.concatenate([self.uDOF1, self.uDOF2, self.uDOF3])
         self.nu1 = len(self.uDOF1)
         self.nu2 = len(self.uDOF2)

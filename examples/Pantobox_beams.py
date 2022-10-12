@@ -431,7 +431,9 @@ class Panto_grid:
                             if pivot[i]:
                                 beam = pivot[i]["beam"]
                                 f_ID = pivot[i]["f_ID"]
-                                r_OB = beam.r_OP(0, beam.q0[beam.qDOF_P(f_ID)], f_ID)
+                                r_OB = beam.r_OP(
+                                    0, beam.q0[beam.local_qDOF_P(f_ID)], f_ID
+                                )
 
                                 # joints between beams and pivot on boundaries
                                 if [nx, ny, nz][bc_i] in [0, n_xyz[bc_i]]:
@@ -504,7 +506,9 @@ class Panto_grid:
             for _, beam_bottom in bc_beams["bottom"]:
                 beam = beam_bottom["beam"]
                 r_OB_bottom = beam.r_OP(
-                    0, beam.q0[beam.qDOF_P(beam_bottom["f_ID"])], beam_bottom["f_ID"]
+                    0,
+                    beam.q0[beam.local_qDOF_P(beam_bottom["f_ID"])],
+                    beam_bottom["f_ID"],
                 )
                 rigid_bottom = Rigid_connection(
                     beam, frame_bottom, r_OB_bottom, beam_bottom["f_ID"]
@@ -515,7 +519,7 @@ class Panto_grid:
             for _, beam_top in bc_beams["top"]:
                 beam = beam_top["beam"]
                 r_OB_top = beam.r_OP(
-                    0, beam.q0[beam.qDOF_P(beam_top["f_ID"])], beam_top["f_ID"]
+                    0, beam.q0[beam.local_qDOF_P(beam_top["f_ID"])], beam_top["f_ID"]
                 )
                 rigid_top = Rigid_connection(
                     beam, frame_top, r_OB_top, beam_top["f_ID"]

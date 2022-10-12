@@ -16,8 +16,8 @@ class K_Moment:
         self.K_J_R_q = lambda t, q: subsystem.K_J_R_q(t, q, frame_ID=frame_ID)
 
     def assembler_callback(self):
-        self.qDOF = self.subsystem.qDOF[self.subsystem.qDOF_P(self.frame_ID)]
-        self.uDOF = self.subsystem.uDOF[self.subsystem.uDOF_P(self.frame_ID)]
+        self.qDOF = self.subsystem.qDOF[self.subsystem.local_qDOF_P(self.frame_ID)]
+        self.uDOF = self.subsystem.uDOF[self.subsystem.local_uDOF_P(self.frame_ID)]
 
     def h(self, t, q, u):
         return self.K_M(t) @ self.K_J_R(t, q)
@@ -44,8 +44,8 @@ class Moment:
         self.K_J_R_q = lambda t, q: subsystem.K_J_R_q(t, q, frame_ID=frame_ID)
 
     def assembler_callback(self):
-        self.qDOF = self.subsystem.qDOF[self.subsystem.qDOF_P(self.frame_ID)]
-        self.uDOF = self.subsystem.uDOF[self.subsystem.uDOF_P(self.frame_ID)]
+        self.qDOF = self.subsystem.qDOF[self.subsystem.local_qDOF_P(self.frame_ID)]
+        self.uDOF = self.subsystem.uDOF[self.subsystem.local_uDOF_P(self.frame_ID)]
 
     def h(self, t, q, u):
         return (self.I_M(t) @ self.A_IK(t, q)) @ self.K_J_R(t, q)

@@ -66,15 +66,15 @@ class Junction:
         self.beam2_N_xi_perp = self.stack_shapefunctions_perp(N_xi, beam2.nq_el)
 
     def assembler_callback(self):
-        qDOF1 = self.beam1.qDOF_P(self.frame_ID1)
-        qDOF2 = self.beam2.qDOF_P(self.frame_ID2)
+        qDOF1 = self.beam1.local_qDOF_P(self.frame_ID1)
+        qDOF2 = self.beam2.local_qDOF_P(self.frame_ID2)
         self.qDOF = np.concatenate([self.beam1.qDOF[qDOF1], self.beam2.qDOF[qDOF2]])
         self.nq1 = nq1 = len(qDOF1)
         self.nq2 = len(qDOF2)
         self._nq = self.nq1 + self.nq2
 
-        uDOF1 = self.beam1.uDOF_P(self.frame_ID1)
-        uDOF2 = self.beam2.uDOF_P(self.frame_ID2)
+        uDOF1 = self.beam1.local_uDOF_P(self.frame_ID1)
+        uDOF2 = self.beam2.local_uDOF_P(self.frame_ID2)
         self.uDOF = np.concatenate([self.beam1.uDOF[uDOF1], self.beam2.uDOF[uDOF2]])
         self.nu1 = nu1 = len(uDOF1)
         self.nu2 = len(uDOF2)
@@ -167,15 +167,15 @@ class Pivot_w_spring:
         self.beam2_N_xi_perp = self.stack_shapefunctions_perp(N_xi, beam2.nq_el)
 
     def assembler_callback(self):
-        qDOF1 = self.beam1.qDOF_P(self.frame_ID1)
-        qDOF2 = self.beam2.qDOF_P(self.frame_ID2)
+        qDOF1 = self.beam1.local_qDOF_P(self.frame_ID1)
+        qDOF2 = self.beam2.local_qDOF_P(self.frame_ID2)
         self.qDOF = np.concatenate([self.beam1.qDOF[qDOF1], self.beam2.qDOF[qDOF2]])
         self.nq1 = nq1 = len(qDOF1)
         self.nq2 = len(qDOF2)
         self._nq = self.nq1 + self.nq2
 
-        uDOF1 = self.beam1.uDOF_P(self.frame_ID1)
-        uDOF2 = self.beam2.uDOF_P(self.frame_ID2)
+        uDOF1 = self.beam1.local_uDOF_P(self.frame_ID1)
+        uDOF2 = self.beam2.local_uDOF_P(self.frame_ID2)
         self.uDOF = np.concatenate([self.beam1.uDOF[uDOF1], self.beam2.uDOF[uDOF2]])
         self.nu1 = nu1 = len(uDOF1)
         self.nu2 = len(uDOF2)
@@ -476,7 +476,7 @@ if __name__ == "__main__":
         for brow in range(0, nRow, 2):
             beam1 = beams[ID_mat[brow, bcol]]
             beam2 = beams[ID_mat[brow + 1, bcol + 1]]
-            r_OB = beam1.r_OP(0, beam1.q0[beam1.qDOF_P(frame_ID1)], frame_ID1)
+            r_OB = beam1.r_OP(0, beam1.q0[beam1.local_qDOF_P(frame_ID1)], frame_ID1)
             if E_B_beam:
                 model.add(Junction(beam1, beam2))
             else:
@@ -488,7 +488,7 @@ if __name__ == "__main__":
 
             beam1 = beams[ID_mat[brow + 1, bcol]]
             beam2 = beams[ID_mat[brow, bcol + 1]]
-            r_OB = beam1.r_OP(0, beam1.q0[beam1.qDOF_P(frame_ID1)], frame_ID1)
+            r_OB = beam1.r_OP(0, beam1.q0[beam1.local_qDOF_P(frame_ID1)], frame_ID1)
             if E_B_beam:
                 model.add(Junction(beam1, beam2))
             else:
@@ -503,7 +503,7 @@ if __name__ == "__main__":
         for brow in range(1, nRow - 1, 2):
             beam1 = beams[ID_mat[brow, bcol]]
             beam2 = beams[ID_mat[brow + 1, bcol + 1]]
-            r_OB = beam1.r_OP(0, beam1.q0[beam1.qDOF_P(frame_ID1)], frame_ID1)
+            r_OB = beam1.r_OP(0, beam1.q0[beam1.local_qDOF_P(frame_ID1)], frame_ID1)
             if E_B_beam:
                 model.add(Junction(beam1, beam2))
             else:
@@ -515,7 +515,7 @@ if __name__ == "__main__":
 
             beam1 = beams[ID_mat[brow + 1, bcol]]
             beam2 = beams[ID_mat[brow, bcol + 1]]
-            r_OB = beam1.r_OP(0, beam1.q0[beam1.qDOF_P(frame_ID1)], frame_ID1)
+            r_OB = beam1.r_OP(0, beam1.q0[beam1.local_qDOF_P(frame_ID1)], frame_ID1)
             if E_B_beam:
                 model.add(Junction(beam1, beam2))
             else:
@@ -532,7 +532,7 @@ if __name__ == "__main__":
         for bcol in range(0, nCol - 1):
             beam1 = beams[ID_mat[brow, bcol]]
             beam2 = beams[ID_mat[brow, bcol + 1]]
-            r_OB = beam1.r_OP(0, beam1.q0[beam1.qDOF_P(frame_ID1)], frame_ID1)
+            r_OB = beam1.r_OP(0, beam1.q0[beam1.local_qDOF_P(frame_ID1)], frame_ID1)
             # revolute joint without shear stiffness
             # model.add(Revolute_joint2D(beam1, beam2, r_OB, np.eye(3), frame_ID1=frame_ID1, frame_ID2=frame_ID2))
             # revolute joint with shear stiffness
@@ -556,7 +556,7 @@ if __name__ == "__main__":
     for bcol in range(1, nCol - 1, 2):
         beam1 = beams[ID_mat[-1, bcol]]
         beam2 = beams[ID_mat[-1, bcol + 1]]
-        r_OB = beam1.r_OP(0, beam1.q0[beam1.qDOF_P(frame_ID1)], frame_ID1)
+        r_OB = beam1.r_OP(0, beam1.q0[beam1.local_qDOF_P(frame_ID1)], frame_ID1)
         # revolute joint without shear stiffness
         # model.add(Revolute_joint2D(beam1, beam2, r_OB, np.eye(3), frame_ID1=frame_ID1, frame_ID2=frame_ID2))
         # revolute joint with shear stiffness
@@ -581,7 +581,7 @@ if __name__ == "__main__":
     model.add(frame_l)
     for idx in ID_mat[:, 0]:
         beam = beams[idx]
-        r_OB = beam.r_OP(0, beam.q0[beam.qDOF_P(frame_ID2)], frame_ID=frame_ID2)
+        r_OB = beam.r_OP(0, beam.q0[beam.local_qDOF_P(frame_ID2)], frame_ID=frame_ID2)
         model.add(Rigid_connection2D(frame_l, beam, r_OB, frame_ID2=frame_ID2))
 
     # clamping at the right hand side
@@ -589,7 +589,7 @@ if __name__ == "__main__":
     model.add(frame_r)
     for idx in ID_mat[:, -1]:
         beam = beams[idx]
-        r_OB = beam.r_OP(0, beam.q0[beam.qDOF_P(frame_ID1)], frame_ID=frame_ID1)
+        r_OB = beam.r_OP(0, beam.q0[beam.local_qDOF_P(frame_ID1)], frame_ID=frame_ID1)
         model.add(Rigid_connection2D(beam, frame_r, r_OB, frame_ID1=frame_ID1))
 
     # assemble model

@@ -56,8 +56,8 @@ class Point2Point:
         # generalized coordinates of the two subsystems
         # TODO: we cannot restrict this to the qDOF's of s single point
         #       identified by a frame_ID
-        # qDOF1 = self.subsystem1.qDOF_P(self.frame_ID1)
-        # qDOF2 = self.subsystem2.qDOF_P(self.frame_ID2)
+        # qDOF1 = self.subsystem1.local_qDOF_P(self.frame_ID1)
+        # qDOF2 = self.subsystem2.local_qDOF_P(self.frame_ID2)
         # qDOF_subsystems = np.concatenate([self.subsystem1.qDOF[qDOF1],
         #                                   self.subsystem2.qDOF[qDOF2]])
         qDOF_subsystems = np.concatenate([self.subsystem1.qDOF, self.subsystem2.qDOF])

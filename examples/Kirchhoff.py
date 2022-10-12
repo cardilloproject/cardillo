@@ -512,7 +512,7 @@ def run(statics=True):
     K_Kappa = np.zeros((3, nxi))
     for i in range(nxi):
         frame_ID = (xis[i],)
-        elDOF = beam.qDOF_P(frame_ID)
+        elDOF = beam.local_qDOF_P(frame_ID)
         qe = q[-1, beam.qDOF][elDOF]
         _, _, K_Gamma[:, i], K_Kappa[:, i] = beam.eval(qe, xis[i])
     ax[0].plot(xis, K_Gamma[0], "-r", label="K_Gamma0")
@@ -538,7 +538,7 @@ def run(statics=True):
     # abs_r0_xi = np.zeros(nxi)
     # for i in range(nxi):
     #     frame_ID = (xis[i],)
-    #     elDOF = beam.qDOF_P(frame_ID)
+    #     elDOF = beam.local_qDOF_P(frame_ID)
     #     qe = q[-1, beam.qDOF][elDOF]
     #     abs_r_xi[i] = np.linalg.norm(beam.r_OC_xi(t[-1], qe, frame_ID))
     #     q0e = q[0, beam.qDOF][elDOF]

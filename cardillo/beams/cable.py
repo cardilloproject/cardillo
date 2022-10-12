@@ -660,14 +660,17 @@ class Cable:
     ####################################################
     def nodes(self, q):
         q_body = q[self.qDOF]
-        return np.array([q_body[nodalDOF] for nodalDOF in self.nodalDOF[::2]]).T
+        if self.basis == "Hermite":
+            return np.array([q_body[nodalDOF] for nodalDOF in self.nodalDOF[::2]]).T
+        else:
+            return np.array([q_body[nodalDOF] for nodalDOF in self.nodalDOF]).T
 
     def centerline(self, q, n=100):
         q_body = q[self.qDOF]
         r = []
         for xi in np.linspace(0, 1, n):
             frame_ID = (xi,)
-            qe = q_body[self.qDOF_P(frame_ID)]
+            qe = q_body[self.local_qDOF_P(frame_ID)]
             r.append(self.r_OP(1, qe, frame_ID))
         return np.array(r).T
 
@@ -680,8 +683,8 @@ class Cable:
         la = []
         for xi in np.linspace(0, 1, n):
             frame_ID = (xi,)
-            qe = q_body[self.qDOF_P(frame_ID)]
-            Qe = self.Q[self.qDOF_P(frame_ID)]
+            qe = q_body[self.local_qDOF_P(frame_ID)]
+            Qe = self.Q[self.local_qDOF_P(frame_ID)]
             r_xi = self.r_xi(1, qe, frame_ID)
             r0_xi = self.r_xi(1, Qe, frame_ID)
             la.append(norm(r_xi) / norm(r0_xi))
