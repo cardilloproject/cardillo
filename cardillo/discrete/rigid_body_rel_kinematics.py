@@ -3,7 +3,6 @@ import numpy as np
 from cardillo.math.algebra import (
     cross3,
     ax2skew,
-    inv3D,
 )
 from cardillo.math.numerical_derivative import Numerical_derivative
 
@@ -195,13 +194,15 @@ class RigidBodyRelKinematics:
 
         coo.extend(Mu_q, (self.uDOF, self.qDOF))
 
-    def f_gyr(self, t, q, u):
+    def h(self, t, q, u):
         Omega = self.K_Omega(t, q, u)
-        return self.m * self.J_P(t, q).T @ self.kappa_P(t, q, u) + self.K_J_R(
-            t, q
-        ).T @ (self.theta @ self.K_kappa_R(t, q, u) + cross3(Omega, self.theta @ Omega))
+        return -(
+                self.m * self.J_P(t, q).T @ self.kappa_P(t, q, u) + self.K_J_R(
+                t, q
+            ).T @ (self.theta @ self.K_kappa_R(t, q, u) + cross3(Omega, self.theta @ Omega))
+        )
 
-    def f_gyr_q(self, t, q, u, coo):
+    def h_q(self, t, q, u, coo):
         Omega = self.K_Omega(t, q, u)
         Omega_q = self.K_Omega_q(t, q, u)
         tmp1 = self.theta @ self.K_kappa_R(t, q, u)
@@ -209,7 +210,7 @@ class RigidBodyRelKinematics:
         tmp2 = cross3(Omega, self.theta @ Omega)
         tmp2_q = (ax2skew(Omega) @ self.theta - ax2skew(self.theta @ Omega)) @ Omega_q
 
-        f_gyr_q = (
+        f_gyr_q = -(
             np.einsum("jik,j->ik", self.J_P_q(t, q), self.m * self.kappa_P(t, q, u))
             + self.m * self.J_P(t, q).T @ self.kappa_P_q(t, q, u)
             + np.einsum("jik,j->ik", self.J_P_q(t, q), tmp1 + tmp2)
@@ -218,16 +219,18 @@ class RigidBodyRelKinematics:
 
         coo.extend(f_gyr_q, (self.uDOF, self.qDOF))
 
-    def f_gyr_u(self, t, q, u, coo):
+    def h_u(self, t, q, u, coo):
         Omega = self.K_Omega(t, q, u)
         Omega_u = self.K_J_R(t, q)
         tmp1_u = self.theta @ self.K_kappa_R_u(t, q, u)
         tmp2_u = (ax2skew(Omega) @ self.theta - ax2skew(self.theta @ Omega)) @ Omega_u
 
-        f_gyr_u = self.m * self.J_P(t, q).T @ self.kappa_P_u(t, q, u) + self.K_J_R(
-            t, q
-        ).T @ (tmp1_u + tmp2_u)
-        coo.extend(f_gyr_u, (self.uDOF, self.uDOF))
+        h_u = -(
+            self.m * self.J_P(t, q).T @ self.kappa_P_u(t, q, u) + self.K_J_R(
+                t, q
+            ).T @ (tmp1_u + tmp2_u)
+        )
+        coo.extend(h_u, (self.uDOF, self.uDOF))
 
         # f_gyr_u_num = Numerical_derivative(self.f_gyr, order=2)._y(t, q, u)
         # print(f'f_gyr_u error = {np.linalg.norm(f_gyr_u - f_gyr_u_num)}')
