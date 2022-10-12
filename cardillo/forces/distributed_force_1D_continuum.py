@@ -1,5 +1,3 @@
-from cardillo.math import Numerical_derivative
-
 # TODO: only works with 3D continua
 class DistributedForce1DContinuum:
     def __init__(self, force_distr1D, subsystem, edge_idx):
@@ -29,14 +27,12 @@ class DistributedForce1DContinuum:
             t, q, self.force_distr1D, self.edge_idx, self.edge_w_J0
         )
 
-    def f_pot(self, t, q):
+    def h(self, t, q, u):
         return self.subsystem.force_distr1D(
             t, q, self.force_distr1D, self.edge_idx, self.edge_qDOF, self.edge_w_J0
         )
 
-    def f_pot_q(self, t, q, coo):
+    def h_q(self, t, q, coo):
         self.subsystem.force_distr1D_q(
             t, q, coo, self.force_distr1D, self.edge_idx, self.edge_w_J0
         )
-        # dense = Numerical_derivative(self.f_pot)._x(t, q)
-        # coo.extend(dense, (self.uDOF, self.qDOF))

@@ -39,7 +39,9 @@ class RigidBodyBase(ABC):
     def h_u(self, t, q, u, coo):
         omega = u[3:]
         dense = np.zeros((self.nu, self.nu), dtype=np.common_type(q, u))
-        dense[3:, 3:] = ax2skew(self.K_theta_S @ omega) - ax2skew(omega) @ self.K_theta_S
+        dense[3:, 3:] = (
+            ax2skew(self.K_theta_S @ omega) - ax2skew(omega) @ self.K_theta_S
+        )
         coo.extend(dense, (self.uDOF, self.uDOF))
 
     def local_qDOF_P(self, frame_ID=None):

@@ -1,4 +1,3 @@
-# TODO: Why is there no surface index?
 class DistributedForce3DContinuum:
     def __init__(self, force, subsystem):
         if not callable(force):
@@ -14,8 +13,8 @@ class DistributedForce3DContinuum:
     def E_pot(self, t, q):
         return self.subsystem.distributed_force3D_pot(t, q, self.force)
 
-    def f_pot(self, t, q):
+    def h(self, t, q, u):
         return self.subsystem.distributed_force3D(t, q, self.force)
 
-    def f_pot_q(self, t, q, coo):
+    def h_q(self, t, q, u, coo):
         self.subsystem.distributed_force3D_q(t, q, coo, self.force)

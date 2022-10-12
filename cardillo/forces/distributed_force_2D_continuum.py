@@ -1,6 +1,3 @@
-from cardillo.math import Numerical_derivative
-
-
 class DistributedForce2DContinuum:
     def __init__(self, force_distr2D, subsystem, srf_idx):
         if not callable(force_distr2D):
@@ -21,12 +18,10 @@ class DistributedForce2DContinuum:
     def E_pot(self, t, q):
         return self.subsystem.force_distr2D_pot(t, q, self.force_distr2D, self.srf_idx)
 
-    def f_pot(self, t, q):
+    def h(self, t, q, u):
         return self.subsystem.force_distr2D(
             t, q, self.force_distr2D, self.srf_idx, self.srf_w_J0
         )
 
-    def f_pot_q(self, t, q, coo):
+    def h_q(self, t, q, u, coo):
         self.subsystem.force_distr2D_q(t, q, coo, self.force_distr2D, self.srf_idx)
-        # dense = Numerical_derivative(self.f_pot)._x(t, q)
-        # coo.extend(dense, (self.uDOF, self.qDOF))

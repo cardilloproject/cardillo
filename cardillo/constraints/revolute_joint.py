@@ -169,7 +169,9 @@ class RevoluteJoint:
             self.subsystem2.K_J_R_q(t, q[nq1:], self.frame_ID2),
         )
 
-        q0 = np.concatenate([self.subsystem1.q0[local_qDOF1], self.subsystem2.q0[local_qDOF2]])
+        q0 = np.concatenate(
+            [self.subsystem1.q0[local_qDOF1], self.subsystem2.q0[local_qDOF2]]
+        )
         self.angle0 = self.angle(self.t0, q0)
 
     def g(self, t, q):

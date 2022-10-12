@@ -16,7 +16,7 @@ from cardillo.discrete import (
     RigidBodyQuaternion,
     RigidBodyEuler,
     RigidBodyAxisAngle,
-    RigidBodyDirectorAngularVelocities, # TODO: test rigid body with director DOF's
+    RigidBodyDirectorAngularVelocities,  # TODO: test rigid body with director DOF's
 )
 from cardillo.forces import Force
 from cardillo.solver import (

@@ -98,14 +98,18 @@ class RollingCondition_I_Frame:
         return np.vstack((e_R_x, e_R_y, e_R_z))
 
     def gamma(self, t, q, u):
-        return self.subsystem.v_P(t, q, u, K_r_SP=self.subsystem.A_IK(t, q).T @ self.r_SA(t, q))
+        return self.subsystem.v_P(
+            t, q, u, K_r_SP=self.subsystem.A_IK(t, q).T @ self.r_SA(t, q)
+        )
 
     def gamma_q(self, t, q, u, coo):
         dense = approx_fprime(q, lambda q: self.gamma(t, q, u), method="2-point")
         coo.extend(dense, (self.la_gammaDOF, self.qDOF))
 
     def gamma_u_dense(self, t, q):
-        return self.subsystem.J_P(t, q, K_r_SP=self.subsystem.A_IK(t, q).T @ self.r_SA(t, q))
+        return self.subsystem.J_P(
+            t, q, K_r_SP=self.subsystem.A_IK(t, q).T @ self.r_SA(t, q)
+        )
 
     def gamma_u(self, t, q, coo):
         coo.extend(self.gamma_u_dense(t, q), (self.la_gammaDOF, self.uDOF))
