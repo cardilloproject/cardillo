@@ -25,11 +25,11 @@ class Pendulum_variable_length:
         dense = np.array([[2 * self.m * self.l(t) * self.l_t(t)]])
         coo.extend(dense, (self.uDOF, self.uDOF))
 
-    def f_pot(self, t, q):
+    def h(self, t, q, u):
         F = self.F(t)
         return np.array([F[0] * q[1] + F[1] * q[0]])
 
-    def f_pot_q(self, t, q, coo):
+    def h_q(self, t, q, u, coo):
         F = self.F(t)
         dense = np.array([[F[1], F[0]]])
         coo.extend(dense, (self.uDOF, self.qDOF))

@@ -225,7 +225,7 @@ class Pivot_w_spring:
     def pot(self, t, q):
         return self.force_law.pot(t, self.__g(t, q))
 
-    def f_pot(self, t, q):
+    def h(self, t, q, u):
         return -self.g_spring_q(t, q) * self.force_law.pot_g(t, self.g_spring(t, q))
 
     def g_spring(self, t, q):
@@ -251,7 +251,7 @@ class Pivot_w_spring:
 
         return W
 
-    def f_pot_q(self, t, q, coo):
+    def h_q(self, t, q, u, coo):
         # dense_num = Numerical_derivative(lambda t, q: self.f_pot(t, q), order=2)._x(t, q)
         dense = np.zeros((self._nu, self._nq))
 

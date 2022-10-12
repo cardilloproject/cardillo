@@ -56,8 +56,8 @@ class Point2Point:
         # generalized coordinates of the two subsystems
         # TODO: we cannot restrict this to the qDOF's of s single point
         #       identified by a frame_ID
-        # qDOF1 = self.subsystem1.qDOF_P(self.frame_ID1)
-        # qDOF2 = self.subsystem2.qDOF_P(self.frame_ID2)
+        # qDOF1 = self.subsystem1.local_qDOF_P(self.frame_ID1)
+        # qDOF2 = self.subsystem2.local_qDOF_P(self.frame_ID2)
         # qDOF_subsystems = np.concatenate([self.subsystem1.qDOF[qDOF1],
         #                                   self.subsystem2.qDOF[qDOF2]])
         qDOF_subsystems = np.concatenate([self.subsystem1.qDOF, self.subsystem2.qDOF])
@@ -839,7 +839,7 @@ class Point2Point:
 
         return E_pot, f_pot, r1_q, r2_q
 
-    def f_npot(self, t, q, u):
+    def h(self, t, q, u):
         E_pot, f_pot, r1_q, r2_q = self.all_in_one(t, q)
 
         f = np.zeros(self.__nu)
@@ -851,7 +851,7 @@ class Point2Point:
         # f[self.subsystemsDOF[self.nu1:]] =  r2_q.T @ f_pot
         return f
 
-    def f_npot_q(self, t, q, u, coo):
+    def h_q(self, t, q, u, coo):
         # TODO: Derive analytical derivative. This requires the derivatives of
         #       xi_c, eta_c w.r.t. changes of q's. See Meier2017, Appendix C
         #       for a derivation.
@@ -861,7 +861,7 @@ class Point2Point:
         if (self.jacobian_updates >= self.n_jacobian_update) or (
             self.f_npot_q_num is None
         ):
-            self.f_npot_q_num = Numerical_derivative(self.f_npot)._x(t, q, u)
+            self.f_npot_q_num = Numerical_derivative(self.h)._x(t, q, u)
             self.jacobian_updates = 0
         coo.extend(self.f_npot_q_num, (self.uDOF, self.qDOF))
 

@@ -16,7 +16,7 @@ from cardillo.discrete import (
     RigidBodyQuaternion,
     RigidBodyEuler,
     RigidBodyAxisAngle,
-    RigidBodyDirectorAngularVelocities,
+    RigidBodyDirectorAngularVelocities,  # TODO: test rigid body with director DOF's
 )
 from cardillo.forces import Force
 from cardillo.solver import (
@@ -26,7 +26,7 @@ from cardillo.solver import (
 
 from scipy.integrate import solve_ivp
 
-use_spherical_joint = False
+use_spherical_joint = True
 
 use_quaternion = False
 use_euler = False

@@ -38,15 +38,15 @@ class Translational_f_npot:
             if self.force_law.g0 < 1e-6:
                 raise ValueError("computed g0 from given subsystems is close to zero.")
 
-        self.qDOF1 = self.subsystem1.qDOF[self.subsystem1.qDOF_P(self.frame_ID1)]
-        self.qDOF2 = self.subsystem2.qDOF[self.subsystem2.qDOF_P(self.frame_ID2)]
+        self.qDOF1 = self.subsystem1.qDOF[self.subsystem1.local_qDOF_P(self.frame_ID1)]
+        self.qDOF2 = self.subsystem2.qDOF[self.subsystem2.local_qDOF_P(self.frame_ID2)]
         self.qDOF = np.concatenate([self.qDOF1, self.qDOF2])
         self.nq1 = len(self.qDOF1)
         self.nq2 = len(self.qDOF2)
         self.nq = self.nq1 + self.nq2
 
-        self.uDOF1 = self.subsystem1.uDOF[self.subsystem1.uDOF_P(self.frame_ID1)]
-        self.uDOF2 = self.subsystem2.uDOF[self.subsystem2.uDOF_P(self.frame_ID2)]
+        self.uDOF1 = self.subsystem1.uDOF[self.subsystem1.local_uDOF_P(self.frame_ID1)]
+        self.uDOF2 = self.subsystem2.uDOF[self.subsystem2.local_uDOF_P(self.frame_ID2)]
         self.uDOF = np.concatenate([self.uDOF1, self.uDOF2])
         self.nu1 = len(self.uDOF1)
         self.nu2 = len(self.uDOF2)
@@ -167,12 +167,12 @@ class Translational_f_npot:
         return dense
 
     # public functions
-    def f_npot(self, t, q, u):
+    def h(self, t, q, u):
         g = self.__g(t, q)
         gamma = self.__gamma(t, q, u)
         return -self.__W(t, q) * self.force_law.F(t, g, gamma)
 
-    def f_npot_q(self, t, q, u, coo):
+    def h_q(self, t, q, u, coo):
         g = self.__g(t, q)
         gamma = self.__gamma(t, q, u)
         dense = (
@@ -184,7 +184,7 @@ class Translational_f_npot:
         )
         coo.extend(dense, (self.uDOF, self.qDOF))
 
-    def f_npot_u(self, t, q, u, coo):
+    def h_u(self, t, q, u, coo):
         g = self.__g(t, q)
         gamma = self.__gamma(t, q, u)
         dense = -self.force_law.F_gamma(t, g, gamma) * np.outer(

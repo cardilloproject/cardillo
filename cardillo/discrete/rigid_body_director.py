@@ -1,6 +1,5 @@
-from ast import Num
 import numpy as np
-from cardillo.math.numerical_derivative import Numerical_derivative
+from cardillo.math.numerical_derivative import approx_fprime
 from cardillo.math.algebra import ax2skew, ax2skew_a, cross3, skew2ax
 
 # TODO: enable construction with standard inertia tensor
@@ -357,11 +356,6 @@ class RigidBodyDirector:
         K_J_R_q[:, 9:12, 9:12] += tmp
         return K_J_R_q
 
-        # K_J_R_q_num = Numerical_derivative(self.K_J_R)._x(t, q)
-        # error = np.max(np.abs(K_J_R_q_num - K_J_R_q))
-        # print(f'error K_J_R_q: {error}')
-        # return K_J_R_q_num
-
     def K_Psi(self, t, q, u, u_dot, frame_ID=None):
         A_IK = self.A_IK(t, q)
         A_IK_dot = self.A_IK(t, u)
@@ -377,7 +371,7 @@ class RigidBodyDirectorAngularVelocities:
 
         self.nq = 12
         self.nu = 6
-        self.nka_c = 6
+        self.nla_S = 6
 
         self.M_ = np.zeros((self.nu, self.nu))
         self.M_[:3, :3] = m * np.eye(3)
@@ -400,16 +394,16 @@ class RigidBodyDirectorAngularVelocities:
     def M(self, t, q, coo):
         coo.extend(self.M_, (self.uDOF, self.uDOF))
 
-    def f_gyr(self, t, q, u):
+    def h(self, t, q, u):
         omega = u[3:]
-        f = np.zeros(self.nu)
-        f[3:] = cross3(omega, self.theta @ omega)
-        return f
+        h = np.zeros(self.nu)
+        h[3:] = -cross3(omega, self.theta @ omega)
+        return h
 
-    def f_gyr_u(self, t, q, u, coo):
+    def h_u(self, t, q, u, coo):
         omega = u[3:]
         dense = np.zeros((self.nu, self.nu))
-        dense[3:, 3:] = ax2skew(omega) @ self.theta - ax2skew(self.theta @ omega)
+        dense[3:, 3:] = ax2skew(self.theta @ omega) - ax2skew(omega) @ self.theta
         coo.extend(dense, (self.uDOF, self.uDOF))
 
     #########################################
@@ -419,7 +413,7 @@ class RigidBodyDirectorAngularVelocities:
         return self.__B_dense(q) @ u
 
     def q_dot_q(self, t, q, u, coo):
-        dense = Numerical_derivative(self.q_dot, order=2)._x(t, q, u)
+        dense = approx_fprime(q, lambda q: self.q_dot(t, q, u))
         coo.extend(dense, (self.qDOF, self.qDOF))
 
     def __B_dense(self, q):
@@ -477,7 +471,7 @@ class RigidBodyDirectorAngularVelocities:
     #########################################
     # stabilization conditions for the kinematic equation
     #########################################
-    def c(self, t, q):
+    def g_S(self, t, q):
         d1 = q[3:6]
         d2 = q[6:9]
         d3 = q[9:]
@@ -492,7 +486,7 @@ class RigidBodyDirectorAngularVelocities:
 
         return c
 
-    def __c_q_dense(self, t, q):
+    def __g_S_q_dense(self, t, q):
         d1 = q[3:6]
         d2 = q[6:9]
         d3 = q[9:]
@@ -512,45 +506,8 @@ class RigidBodyDirectorAngularVelocities:
         c_q[5, 9:12] = d2
         return c_q
 
-        # c_q_num = Numerical_derivative(self.c, order=2)._x(t, q)
-        # diff = c_q - c_q_num
-        # np.set_printoptions(precision=3)
-        # error = np.linalg.norm(diff)
-        # print(f'error num_tan - tan = {error}')
-        # return c_q_num
-
-    def __c_qq_dense(self, t, q):
-        gap_qq = np.zeros((self.nka_c, self.nq, self.nq))
-        gap_qq[0, 3:6, 3:6] = 2 * np.eye(3)
-        gap_qq[1, 6:9, 6:9] = 2 * np.eye(3)
-        gap_qq[2, 9:12, 9:12] = 2 * np.eye(3)
-
-        gap_qq[3, 3:6, 6:9] = np.eye(3)
-        gap_qq[3, 6:9, 3:6] = np.eye(3)
-
-        gap_qq[4, 3:6, 9:12] = np.eye(3)
-        gap_qq[4, 9:12, 3:6] = np.eye(3)
-
-        gap_qq[5, 6:9, 9:12] = np.eye(3)
-        gap_qq[5, 9:12, 6:9] = np.eye(3)
-
-        # gap_qq_num = NumericalDerivativeNew(self.gap_q_dense, order=2).dR_dq(t, q)
-        # diff = gap_qq - gap_qq_num
-        # np.set_printoptions(precision=3)
-        # error = np.linalg.norm(diff)
-        # print(f'error num_tan - tan = {error}')
-        # return gap_qq_num
-
-        return gap_qq
-
-    def c_q(self, t, q, coo):
-        coo.extend(self.__c_q_dense(t, q), (self.ka_cDOF, self.qDOF))
-
-    def ka_cc_qq(self, t, q, ka_c, coo):
-        dense = Numerical_derivative(
-            lambda t, q: ka_c @ self.__c_qq_dense(t, q), order=2
-        )._x(t, q)
-        coo.extend(dense, (self.ka_cDOF, self.qDOF))
+    def g_S_q(self, t, q, coo):
+        coo.extend(self.__g_S_q_dense(t, q), (self.ka_cDOF, self.qDOF))
 
     #########################################
     # helper functions
@@ -590,21 +547,6 @@ class RigidBodyDirectorAngularVelocities:
         return u_dot[:3] + self.A_IK(t, q) @ (
             cross3(u_dot[3:], K_r_SP) + cross3(u[3:], cross3(u[3:], K_r_SP))
         )
-
-    def kappa_P(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
-        return self.A_IK(t, q) @ (cross3(u[3:], cross3(u[3:], K_r_SP)))
-
-    def kappa_P_q(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
-        return np.einsum(
-            "ijk,j->ik", self.A_IK_q(t, q), cross3(u[3:], cross3(u[3:], K_r_SP))
-        )
-
-    def kappa_P_u(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
-        kappa_P_u = np.zeros((3, self.nu))
-        kappa_P_u[:, 3:] = -self.A_IK(t, q) @ (
-            ax2skew(cross3(u[3:], K_r_SP)) + ax2skew(u[3:]) @ ax2skew(K_r_SP)
-        )
-        return kappa_P_u
 
     def J_P(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
         J_P = np.zeros((3, self.nu))

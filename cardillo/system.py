@@ -4,24 +4,23 @@ from scipy.sparse import coo_matrix, csc_matrix, csr_matrix
 from scipy.sparse.linalg import spsolve
 
 properties = []
+
+properties.extend(["E_kin", "E_pot"])
+
 properties.extend(["M", "Mu_q"])
-properties.extend(["f_gyr", "f_gyr_q", "f_gyr_u"])
-properties.extend(["f_pot", "f_pot_q"])
-properties.extend(["f_npot", "f_npot_q", "f_npot_u"])
-properties.extend(["f_scaled", "f_scaled_q"])
+
+properties.extend(["h", "h_q", "h_u"])
 
 properties.extend(["q_dot", "q_dot_q", "B"])
 
 properties.extend(["g", "g_q", "g_t"])
 properties.extend(["gamma", "gamma_q", "gamma_u"])
+properties.extend(["g_S"])
 
 properties.extend(["g_N"])
-
 properties.extend(["gamma_F"])
 
 properties.extend(["assembler_callback", "pre_iteration_update", "step_callback"])
-
-properties.extend(["g_S"])
 
 
 class System:
@@ -216,6 +215,21 @@ class System:
             )
         return q, u
 
+    ################
+    # total energies
+    ################
+    def E_pot(self, t, q):
+        E_pot = 0
+        for contr in self.__E_pot_contr:
+            E_pot += contr.E_pot(t, q[contr.qDOF])
+        return E_pot
+
+    def E_kin(self, t, q, u):
+        E_kin = 0
+        for contr in self.__E_kin_contr:
+            E_kin += contr.E_kin(t, q[contr.qDOF], u[contr.uDOF])
+        return E_kin
+
     #####################
     # equations of motion
     #####################
@@ -231,87 +245,22 @@ class System:
             contr.Mu_q(t, q[contr.qDOF], u[contr.uDOF], coo)
         return coo.tosparse(scipy_matrix)
 
-    def f_gyr(self, t, q, u):
-        f = np.zeros(self.nu)
-        for contr in self.__f_gyr_contr:
-            f[contr.uDOF] += contr.f_gyr(t, q[contr.qDOF], u[contr.uDOF])
-        return f
-
-    def f_gyr_q(self, t, q, u, scipy_matrix=coo_matrix):
-        coo = Coo((self.nu, self.nq))
-        for contr in self.__f_gyr_q_contr:
-            contr.f_gyr_q(t, q[contr.qDOF], u[contr.uDOF], coo)
-        return coo.tosparse(scipy_matrix)
-
-    def f_gyr_u(self, t, q, u, scipy_matrix=coo_matrix):
-        coo = Coo((self.nu, self.nu))
-        for contr in self.__f_gyr_u_contr:
-            contr.f_gyr_u(t, q[contr.qDOF], u[contr.uDOF], coo)
-        return coo.tosparse(scipy_matrix)
-
-    def E_pot(self, t, q):
-        E_pot = 0
-        for contr in self.__f_pot_contr:
-            E_pot += contr.E_pot(t, q[contr.qDOF])
-        return E_pot
-
-    def f_pot(self, t, q):
-        f = np.zeros(self.nu)
-        for contr in self.__f_pot_contr:
-            f[contr.uDOF] += contr.f_pot(t, q[contr.qDOF])
-        return f
-
-    def f_pot_q(self, t, q, scipy_matrix=coo_matrix):
-        coo = Coo((self.nu, self.nq))
-        for contr in self.__f_pot_q_contr:
-            contr.f_pot_q(t, q[contr.qDOF], coo)
-        return coo.tosparse(scipy_matrix)
-
-    def f_npot(self, t, q, u):
-        f = np.zeros(self.nu)
-        for contr in self.__f_npot_contr:
-            f[contr.uDOF] += contr.f_npot(t, q[contr.qDOF], u[contr.uDOF])
-        return f
-
-    def f_npot_q(self, t, q, u, scipy_matrix=coo_matrix):
-        coo = Coo((self.nu, self.nq))
-        for contr in self.__f_npot_q_contr:
-            contr.f_npot_q(t, q[contr.qDOF], u[contr.uDOF], coo)
-        return coo.tosparse(scipy_matrix)
-
-    def f_npot_u(self, t, q, u, scipy_matrix=coo_matrix):
-        coo = Coo((self.nu, self.nu))
-        for contr in self.__f_npot_u_contr:
-            contr.f_npot_u(t, q[contr.qDOF], u[contr.uDOF], coo)
-        return coo.tosparse(scipy_matrix)
-
     def h(self, t, q, u):
-        return self.f_pot(t, q) + self.f_npot(t, q, u) - self.f_gyr(t, q, u)
+        h = np.zeros(self.nu, dtype=np.common_type(q, u))
+        for contr in self.__h_contr:
+            h[contr.uDOF] += contr.h(t, q[contr.qDOF], u[contr.uDOF])
+        return h
 
     def h_q(self, t, q, u, scipy_matrix=coo_matrix):
-        return (
-            self.f_pot_q(t, q, scipy_matrix=scipy_matrix)
-            + self.f_npot_q(t, q, u, scipy_matrix=scipy_matrix)
-            - self.f_gyr_q(t, q, u, scipy_matrix=scipy_matrix)
-        )
+        coo = Coo((self.nu, self.nq))
+        for contr in self.__h_q_contr:
+            contr.h_q(t, q[contr.qDOF], u[contr.uDOF], coo)
+        return coo.tosparse(scipy_matrix)
 
     def h_u(self, t, q, u, scipy_matrix=coo_matrix):
-        return self.f_npot_u(t, q, u, scipy_matrix=scipy_matrix) - self.f_gyr_u(
-            t, q, u, scipy_matrix=scipy_matrix
-        )
-
-    # TODO: do this better!
-    # scaled forces for arc-length solvers
-    def f_scaled(self, t, q):
-        f = np.zeros(self.nu)
-        for contr in self.__f_scaled_contr:
-            f[contr.uDOF] += contr.f_scaled(t, q[contr.qDOF])
-        return f
-
-    def f_scaled_q(self, t, q, scipy_matrix=coo_matrix):
-        coo = Coo((self.nu, self.nq))
-        for contr in self.__f_scaled_q_contr:
-            contr.f_scaled_q(t, q[contr.qDOF], coo)
+        coo = Coo((self.nu, self.nu))
+        for contr in self.__h_u_contr:
+            contr.h_u(t, q[contr.qDOF], u[contr.uDOF], coo)
         return coo.tosparse(scipy_matrix)
 
     #########################################
@@ -465,19 +414,9 @@ class System:
             contr.g_S_q(t, q[contr.qDOF], coo)
         return coo.tosparse(scipy_matrix)
 
-    # TODO: Do we need them for stabilization of kinematic equation?
-    # def W_S
-    # def W_la_S_q
-
     #################
     # normal contacts
     #################
-    def active_contacts(self, t, q):
-        active_contacts = np.zeros(self.nla_N, dtype=bool)
-        for contr in self.__g_N_contr:
-            active_contacts[contr.la_NDOF] = contr.active_contact(t, q[contr.qDOF])
-        return active_contacts
-
     def prox_r_N(self, t, q):
         M = self.M(t, q, csc_matrix)
         W_N = self.W_N(t, q, csc_matrix)

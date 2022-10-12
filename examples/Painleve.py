@@ -66,7 +66,7 @@ class Painleve_rod:
     def M(self, t, q, coo):
         coo.extend_diag(np.array([self.m, self.m, self.J_S]), (self.uDOF, self.uDOF))
 
-    def f_pot(self, t, q):
+    def h(self, t, q, u):
         return np.array([0, -self.m * self.g, 0])
 
     #####################

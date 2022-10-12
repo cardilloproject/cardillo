@@ -34,10 +34,10 @@ class HeavyTopQuaternion(RigidBodyQuaternion):
         # gravity
         self.f_g = np.array([0, 0, -self.m * self.grav])
 
-    def f_pot(self, t, q):
+    def h(self, t, q, u):
         return self.f_g @ self.J_P(t, q)
 
-    def f_pot_q(self, t, q, coo):
+    def h_q(self, t, q, u, coo):
         dense = np.einsum("i,ijk->jk", self.f_g, self.J_P_q(t, q))
         coo.extend(dense, (self.uDOF, self.qDOF))
 

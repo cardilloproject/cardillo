@@ -57,8 +57,8 @@ def add_inflated(Rope):
                     a += 0.5 * r @ r_xi_perp * qwi
             return a
 
-        def f_npot(self, t, q, u):
-            f = np.zeros(self.nu, dtype=q.dtype)
+        def h(self, t, q, u):
+            f = super().h(t, q, u)
             for el in range(self.nelement):
                 elDOF = self.elDOF[el]
                 f[elDOF] += self.f_npot_el(t, q[elDOF], u[elDOF], el)
@@ -87,7 +87,8 @@ def add_inflated(Rope):
                     )
             return f_el
 
-        def f_npot_q(self, t, q, u, coo):
+        def h_q(self, t, q, u, coo):
+            super().h_q(t, q, u, coo)
             for el in range(self.nelement):
                 elDOF = self.elDOF[el]
                 f_npot_q_el = self.f_npot_q_el(t, q[elDOF], u[elDOF], el)
@@ -139,7 +140,7 @@ def add_internal_fluid(Rope):
                     # a += 0.5 * max(0, r @ r_xi_perp) * qwi
             return a
 
-        def f_npot(self, t, q, u):
+        def h(self, t, q, u):
             # integrate current area
             a = self.area(q)
             pressure_fluid = self.potential_a.pot_g(a, self.A)
@@ -202,7 +203,7 @@ def add_internal_fluid(Rope):
 
             return f
 
-        def f_npot_q(self, t, q, u, coo):
+        def h_q(self, t, q, u, coo):
             dense = approx_fprime(
                 q,
                 lambda q: self.f_npot(t, q, u),
@@ -243,7 +244,7 @@ class InflatedRope(Rope):
                 a += 0.5 * r @ r_xi_perp * qwi
         return a
 
-    def f_npot(self, t, q, u):
+    def h(self, t, q, u):
         f = np.zeros(self.nu, dtype=q.dtype)
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
@@ -273,7 +274,7 @@ class InflatedRope(Rope):
                 )
         return f_el
 
-    def f_npot_q(self, t, q, u, coo):
+    def h_q(self, t, q, u, coo):
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             f_npot_q_el = self.f_npot_q_el(t, q[elDOF], u[elDOF], el)
@@ -321,7 +322,7 @@ class RopeInternalFluid(Rope):
                 # a += 0.5 * max(0, r @ r_xi_perp) * qwi
         return a
 
-    def f_npot(self, t, q, u):
+    def h(self, t, q, u):
         # integrate current area
         a = self.area(q)
         pressure_fluid = self.potential.pot_g(a, self.A)
@@ -366,7 +367,7 @@ class RopeInternalFluid(Rope):
             f[elDOF] += f_el
         return f
 
-    def f_npot_q(self, t, q, u, coo):
+    def h_q(self, t, q, u, coo):
         dense = approx_fprime(
             q,
             lambda q: self.f_npot(t, q, u),
@@ -406,7 +407,7 @@ class RopeHydrostaticPressure(Rope):
                 a += 0.5 * r @ r_xi_perp * qwi
         return a
 
-    def f_npot(self, t, q, u):
+    def h(self, t, q, u):
         f = np.zeros(self.nu, dtype=q.dtype)
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
@@ -441,7 +442,7 @@ class RopeHydrostaticPressure(Rope):
                 )
         return f_el
 
-    def f_npot_q(self, t, q, u, coo):
+    def h_q(self, t, q, u, coo):
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             f_npot_q_el = self.f_npot_q_el(t, q[elDOF], u[elDOF], el)
@@ -702,7 +703,7 @@ def inflated_quarter_circle():
     t = sol.t[:nt]
 
     # ratio of rope initial and deformed length
-    r = rope.r_OP(1, q[-1][rope.qDOF_P((1,))], (1,))[0]
+    r = rope.r_OP(1, q[-1][rope.local_qDOF_P((1,))], (1,))[0]
     l = 2 * pi * r
     L = 2 * pi * R
     print(f"l / L: {l / L}")
@@ -861,7 +862,7 @@ def inflated_quarter_circle_external_force():
     t = sol.t[:nt]
 
     # ratio of rope initial and deformed length
-    r = rope.r_OP(1, q[-1][rope.qDOF_P((1,))], (1,))[0]
+    r = rope.r_OP(1, q[-1][rope.local_qDOF_P((1,))], (1,))[0]
     l = 2 * pi * r
     L = 2 * pi * R
     print(f"l / L: {l / L}")
@@ -1119,7 +1120,7 @@ def inflated_circular_segment():
     t = sol.t[:nt]
 
     # ratio of rope initial and deformed length
-    r = rope.r_OP(1, q[-1][rope.qDOF_P((1,))], (1,))[0]
+    r = rope.r_OP(1, q[-1][rope.local_qDOF_P((1,))], (1,))[0]
     l = 2 * pi * r
     L = 2 * pi * R
     print(f"l / L: {l / L}")
@@ -1547,7 +1548,7 @@ def cable_inflated_circular_segment(case="rope"):
 
     # # dispalcement of node
     # frame_ID = (0.1,)
-    # r_OP20 = rope.r_OP(0, rope.q0[rope.qDOF_P(frame_ID)], frame_ID=frame_ID)
+    # r_OP20 = rope.r_OP(0, rope.q0[rope.local_qDOF_P(frame_ID)], frame_ID=frame_ID)
     # r_P0P2 = r_OP20 - r_OP0
     # r = norm(r_P0P2)
     # phi0 = np.arctan2(r_P0P2 @ e2, r_P0P2 @ e1)
@@ -1664,7 +1665,7 @@ def cable_inflated_circular_segment(case="rope"):
     t = sol.t[:nt]
 
     # ratio of rope initial and deformed length
-    r = rope.r_OP(1, q[-1][rope.qDOF_P((1,))], (1,))[0]
+    r = rope.r_OP(1, q[-1][rope.local_qDOF_P((1,))], (1,))[0]
     l = 2 * pi * r
     L = 2 * pi * R
     print(f"l / L: {l / L}")

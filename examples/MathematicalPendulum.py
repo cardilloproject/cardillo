@@ -30,11 +30,11 @@ class MathematicalPendulum:
         M = np.array([[self.m * self.l**2]])
         coo.extend(M, (self.uDOF, self.uDOF))
 
-    def f_pot(self, t, q):
+    def h(self, t, q, u):
         # return np.array([self.F_g @ q])
         return self.B_dense(q).T @ self.F_g
 
-    def f_pot_q(self, t, q, coo):
+    def h_q(self, t, q, u, coo):
         dense = np.array([self.F_g])
         coo.extend(dense, (self.uDOF, self.qDOF))
 

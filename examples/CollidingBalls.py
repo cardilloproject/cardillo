@@ -28,10 +28,10 @@ from cardillo.solver import (
 #         self.g = g
 #         super().__init__(m, theta * np.eye(3, dtype=float), q0=q0, u0=u0)
 
-#     def f_pot(self, t, q):
+#     def h(self, t, q, u):
 #         return np.array([0, -self.m * self.g, 0, 0, 0, 0])
 
-#     def f_pot_q(self, t, q, coo):
+#     def h_q(self, t, q, u, coo):
 #         coo.extend(np.zeros((self.nu, 1)), (self.uDOF, self.qDOF))
 
 #     def boundary(self, t, q, n=100):
@@ -46,10 +46,10 @@ class Ball(PointMass):
         self.g = g
         super().__init__(m, q0=q0[:3], u0=u0[:3])
 
-    def f_pot(self, t, q):
+    def h(self, t, q, u):
         return np.array([0, -self.m * self.g, 0])
 
-    def f_pot_q(self, t, q, coo):
+    def h_q(self, t, q, u, coo):
         coo.extend(np.zeros((self.nu, 1)), (self.uDOF, self.qDOF))
 
     def boundary(self, t, q, n=100):

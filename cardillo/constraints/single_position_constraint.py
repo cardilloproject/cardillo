@@ -26,8 +26,8 @@ class Single_position_y:
         self.A_IB = A_IB
 
     def assembler_callback(self):
-        qDOF1 = self.subsystem1.qDOF_P(self.frame_ID1)
-        qDOF2 = self.subsystem2.qDOF_P(self.frame_ID2)
+        qDOF1 = self.subsystem1.local_qDOF_P(self.frame_ID1)
+        qDOF2 = self.subsystem2.local_qDOF_P(self.frame_ID2)
         self.qDOF = np.concatenate(
             [self.subsystem1.qDOF[qDOF1], self.subsystem2.qDOF[qDOF2]]
         )
@@ -35,8 +35,8 @@ class Single_position_y:
         self.nq2 = len(qDOF2)
         self._nq = self.nq1 + self.nq2
 
-        uDOF1 = self.subsystem1.uDOF_P(self.frame_ID1)
-        uDOF2 = self.subsystem2.uDOF_P(self.frame_ID2)
+        uDOF1 = self.subsystem1.local_uDOF_P(self.frame_ID1)
+        uDOF2 = self.subsystem2.local_uDOF_P(self.frame_ID2)
         self.uDOF = np.concatenate(
             [self.subsystem1.uDOF[uDOF1], self.subsystem2.uDOF[uDOF2]]
         )
@@ -397,8 +397,8 @@ class Single_position_all_angles:
         self.A_IB = A_IB
 
     def assembler_callback(self):
-        qDOF1 = self.subsystem1.qDOF_P(self.frame_ID1)
-        qDOF2 = self.subsystem2.qDOF_P(self.frame_ID2)
+        qDOF1 = self.subsystem1.local_qDOF_P(self.frame_ID1)
+        qDOF2 = self.subsystem2.local_qDOF_P(self.frame_ID2)
         self.qDOF = np.concatenate(
             [self.subsystem1.qDOF[qDOF1], self.subsystem2.qDOF[qDOF2]]
         )
@@ -406,8 +406,8 @@ class Single_position_all_angles:
         self.nq2 = len(qDOF2)
         self._nq = self.nq1 + self.nq2
 
-        uDOF1 = self.subsystem1.uDOF_P(self.frame_ID1)
-        uDOF2 = self.subsystem2.uDOF_P(self.frame_ID2)
+        uDOF1 = self.subsystem1.local_uDOF_P(self.frame_ID1)
+        uDOF2 = self.subsystem2.local_uDOF_P(self.frame_ID2)
         self.uDOF = np.concatenate(
             [self.subsystem1.uDOF[uDOF1], self.subsystem2.uDOF[uDOF2]]
         )

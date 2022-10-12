@@ -301,7 +301,7 @@ def membrane_and_locking_Meier():
         solutions[triplet_idx, 0] = sol_ref
 
         t = sol_ref.t[-1]
-        q = sol_ref.q[-1][beam_ref.qDOF_P((1,))]
+        q = sol_ref.q[-1][beam_ref.local_qDOF_P((1,))]
         tip_displacement[triplet_idx, 0] = beam_ref.r_OP(t, q, (1,))
         tip_orientation[triplet_idx, 0] = Log_SO3(beam_ref.A_IK(t, q, (1,)))
 
@@ -359,7 +359,7 @@ def membrane_and_locking_Meier():
             solutions[triplet_idx, nelements_idx + 1] = sol
 
             t = sol.t[-1]
-            q = sol.q[-1][beam.qDOF_P((1,))]
+            q = sol.q[-1][beam.local_qDOF_P((1,))]
             tip_displacement[triplet_idx, nelements_idx + 1] = beam.r_OP(t, q, (1,))
             tip_orientation[triplet_idx, nelements_idx + 1] = Log_SO3(
                 beam.A_IK(t, q, (1,))
@@ -609,7 +609,7 @@ def convergence_quarter_circle():
     I_m = np.zeros((3, nxi))
     for i in range(nxi):
         frame_ID = (xis[i],)
-        elDOF = beam_ref.qDOF_P(frame_ID)
+        elDOF = beam_ref.local_qDOF_P(frame_ID)
 
         # length of reference tangent vector
         Qe = beam_ref.Q[elDOF]
@@ -977,7 +977,7 @@ def HelixIbrahimbegovic1997():
     #########################
     header = "t, x, y, z"
     frame_ID = (1,)
-    elDOF = beam.qDOF_P(frame_ID)
+    elDOF = beam.local_qDOF_P(frame_ID)
     r_OC_L = np.array([beam.r_OP(ti, qi[elDOF], frame_ID) for (ti, qi) in zip(t, q)])
     # export_data = np.vstack([t, *r_OC_L.T]).T
     export_data = np.vstack([np.arange(nt), *r_OC_L.T]).T
@@ -1017,7 +1017,7 @@ def HelixIbrahimbegovic1997():
     K_Gamma = np.zeros((3, nxi), dtype=float)
     K_Kappa = np.zeros((3, nxi), dtype=float)
     for i, xi in enumerate(xis):
-        elDOF = beam.qDOF_P((xi,))
+        elDOF = beam.local_qDOF_P((xi,))
 
         _, _, K_Gamma_bar, K_Kappa_bar = beam.eval(q[0, beam.qDOF[elDOF]], xi)
         J = norm(K_Gamma_bar)
@@ -1072,7 +1072,7 @@ def HelixIbrahimbegovic1997():
     # K_Kappa = np.zeros((3, nxi))
     # for i in range(nxi):
     #     frame_ID = (xis[i],)
-    #     elDOF = beam.qDOF_P(frame_ID)
+    #     elDOF = beam.local_qDOF_P(frame_ID)
     #     qe = q[-1, beam.qDOF][elDOF]
     #     _, _, K_Gamma[:, i], K_Kappa[:, i] = beam.eval(qe, xis[i])
     ax[0].plot(xis, K_Gamma[0], "-r", label="K_Gamma0")
@@ -1425,7 +1425,7 @@ def HeavyTop():
 
     # beam's
     frame_ID = (1,)
-    elDOF = beam_stiff.qDOF_P(frame_ID)
+    elDOF = beam_stiff.local_qDOF_P(frame_ID)
     r_OC_L_soft = np.array(
         [beam_soft.r_OP(ti, qi[elDOF], frame_ID) for (ti, qi) in zip(t, q_soft)]
     )
@@ -1804,7 +1804,7 @@ def Bathe1979():
     # K_m = np.zeros((3, nxi))
     # for i in range(nxi):
     #     frame_ID = (xis[i],)
-    #     elDOF = beam.qDOF_P(frame_ID)
+    #     elDOF = beam.local_qDOF_P(frame_ID)
 
     #     # length of reference tangent vector
     #     Qe = beam.Q[elDOF]
@@ -1867,7 +1867,7 @@ def Bathe1979():
     I_m = np.zeros((3, nxi))
     for i in range(nxi):
         frame_ID = (xis[i],)
-        elDOF = beam.qDOF_P(frame_ID)
+        elDOF = beam.local_qDOF_P(frame_ID)
 
         # length of reference tangent vector
         Qe = beam.Q[elDOF]
