@@ -155,13 +155,13 @@ class TranslationalSpring:
         g = self.__g(t, q)
         return self.material_model.potential(g, self.g0)
 
-    def f_pot(self, t, q):
+    def h(self, t, q, u):
         g = self.__g(t, q)
         potential_g = self.material_model.potential_g(g, self.g0)
         return -self.__W(t, q) * potential_g
         # return -potential_g * self.__g_q(t, q)
 
-    def f_pot_q(self, t, q, coo):
+    def h_q(self, t, q, u, coo):
         g = self.__g(t, q)
         potential_g = self.material_model.potential_g(g, self.g0)
         potential_gg = self.material_model.potential_gg(g, self.g0)
@@ -361,13 +361,13 @@ class TorsionalSpring3Point2D:
         g = self.__g(t, q)
         return self.material_model.potential(g, self.g0)
 
-    def f_pot(self, t, q):
+    def h(self, t, q, u):
         g = self.__g(t, q)
         potential_g = self.material_model.potential_g(g, self.g0)
         f_pot = -potential_g * self.__g_q(t, q)
         return f_pot
 
-    def f_pot_q(self, t, q, coo):
+    def h_q(self, t, q, u, coo):
         g = self.__g(t, q)
         potential_g = self.material_model.potential_g(g, self.g0)
         potential_gg = self.material_model.potential_gg(g, self.g0)

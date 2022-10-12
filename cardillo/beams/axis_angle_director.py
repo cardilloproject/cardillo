@@ -899,14 +899,14 @@ class DirectorAxisAngle:
 
         return E_pot_el
 
-    def f_pot(self, t, q):
-        f_pot = np.zeros(self.nu, dtype=q.dtype)
+    def h(self, t, q, u):
+        h = np.zeros(self.nu, dtype=q.dtype)
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
-            f_pot[elDOF] += self.f_pot_el(q[elDOF], el)
-        return f_pot
+            h[elDOF] += self.h_el(q[elDOF], el)
+        return h
 
-    def f_pot_el(self, qe, el):
+    def h_el(self, qe, el):
         f_pot_el = np.zeros(self.nq_element, dtype=qe.dtype)
 
         for i in range(self.nquadrature):
@@ -975,15 +975,15 @@ class DirectorAxisAngle:
 
         return f_pot_el
 
-    def f_pot_q(self, t, q, coo):
+    def h_q(self, t, q, u, coo):
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
-            f_pot_q_el = self.f_pot_q_el(q[elDOF], el)
+            h_q_el = self.h_q_el(q[elDOF], el)
 
             # sparse assemble element internal stiffness matrix
-            coo.extend(f_pot_q_el, (self.uDOF[elDOF], self.qDOF[elDOF]))
+            coo.extend(h_q_el, (self.uDOF[elDOF], self.qDOF[elDOF]))
 
-    def f_pot_q_el(self, qe, el):
+    def h_q_el(self, qe, el):
         f_pot_q_el = np.zeros((self.nq_element, self.nq_element), dtype=float)
 
         for i in range(self.nquadrature):

@@ -272,7 +272,7 @@ class Rope:
     def E_pot_el(self, qe, el):
         raise NotImplementedError
 
-    def f_pot(self, t, q):
+    def h(self, t, q, u):
         f_pot = np.zeros(self.nu, dtype=q.dtype)
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
@@ -314,7 +314,7 @@ class Rope:
 
         return f_pot_el
 
-    def f_pot_q(self, t, q, coo):
+    def h_q(self, t, q, u, coo):
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             f_pot_q_el = self.f_pot_q_el(q[elDOF], el)

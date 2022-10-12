@@ -1006,7 +1006,7 @@ class Kirchhoff:
 
         return E_pot_el
 
-    def f_pot(self, t, q):
+    def h(self, t, q, u):
         f_pot = np.zeros(self.nu)
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
@@ -1271,7 +1271,7 @@ class Kirchhoff:
         return f_pot_el_num
         # return f_pot_el
 
-    def f_pot_q(self, t, q, coo):
+    def h_q(self, t, q, u, coo):
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             elDOF = self.elDOF[el]
@@ -2721,7 +2721,7 @@ class KirchhoffSingularity:
 
         return E_pot_el
 
-    def f_pot(self, t, q):
+    def h(self, t, q, u):
         f_pot = np.zeros(self.nu)
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
@@ -2806,7 +2806,7 @@ class KirchhoffSingularity:
 
         return f_pot_el
 
-    def f_pot_q(self, t, q, coo):
+    def h_q(self, t, q, u, coo):
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             elDOF = self.elDOF[el]

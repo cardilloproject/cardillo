@@ -149,11 +149,11 @@ class Translational_f_pot:
     def pot(self, t, q):
         return self.force_law.pot(t, self.__g(t, q))
 
-    def f_pot(self, t, q):
+    def h(self, t, q, u):
         g = self.__g(t, q)
         return -self.__W(t, q) * self.force_law.pot_g(t, g)
 
-    def f_pot_q(self, t, q, coo):
+    def h_q(self, t, q, u, coo):
         g = self.__g(t, q)
         dense = -self.__W_q(t, q) * self.force_law.pot_g(t, g) - self.force_law.pot_gg(
             t, g

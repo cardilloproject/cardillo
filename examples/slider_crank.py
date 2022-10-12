@@ -164,7 +164,7 @@ class Slider_crank:
 
         coo.extend(dense, (self.uDOF, self.qDOF))
 
-    def f_npot(self, t, q, u):
+    def h(self, t, q, u):
         theta1, theta2, theta3 = q
         omega1, omega2, omega3 = u
         factor1 = (self.m2 / 2 + self.m3) * self.l1 * self.l2 * np.sin(theta2 - theta1)
@@ -181,7 +181,7 @@ class Slider_crank:
         h3 = 0
         return np.array([h1, h2, h3])
 
-    def f_npot_q(self, t, q, u, coo):
+    def h_q(self, t, q, u, coo):
         theta1, theta2, theta3 = q
         omega1, omega2, omega3 = u
 
@@ -189,13 +189,13 @@ class Slider_crank:
             (self.m2 / 2 + self.m3)
             * self.l1
             * self.l2
-            * (-sin(theta2) * np.sin(theta1) - np.cos(theta2) * np.cos(theta1))
+            * (-np.sin(theta2) * np.sin(theta1) - np.cos(theta2) * np.cos(theta1))
         )
         factor1_theta2 = (
             (self.m2 / 2 + self.m3)
             * self.l1
             * self.l2
-            * (cos(theta2) * np.cos(theta1) + np.sin(theta2) * np.sin(theta1))
+            * (np.cos(theta2) * np.cos(theta1) + np.sin(theta2) * np.sin(theta1))
         )
 
         dense = np.zeros((3, 3))
@@ -214,7 +214,7 @@ class Slider_crank:
 
         coo.extend(dense, (self.uDOF, self.qDOF))
 
-    def f_npot_u(self, t, q, u, coo):
+    def h_u(self, t, q, u, coo):
         theta1, theta2, theta3 = q
         omega1, omega2, omega3 = u
         factor1 = (self.m2 / 2 + self.m3) * self.l1 * self.l2 * np.sin(theta2 - theta1)

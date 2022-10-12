@@ -57,7 +57,7 @@ def add_inflated(Rope):
                     a += 0.5 * r @ r_xi_perp * qwi
             return a
 
-        def f_npot(self, t, q, u):
+        def h(self, t, q, u):
             f = np.zeros(self.nu, dtype=q.dtype)
             for el in range(self.nelement):
                 elDOF = self.elDOF[el]
@@ -87,7 +87,7 @@ def add_inflated(Rope):
                     )
             return f_el
 
-        def f_npot_q(self, t, q, u, coo):
+        def h_q(self, t, q, u, coo):
             for el in range(self.nelement):
                 elDOF = self.elDOF[el]
                 f_npot_q_el = self.f_npot_q_el(t, q[elDOF], u[elDOF], el)
@@ -139,7 +139,7 @@ def add_internal_fluid(Rope):
                     # a += 0.5 * max(0, r @ r_xi_perp) * qwi
             return a
 
-        def f_npot(self, t, q, u):
+        def h(self, t, q, u):
             # integrate current area
             a = self.area(q)
             pressure_fluid = self.potential_a.pot_g(a, self.A)
@@ -202,7 +202,7 @@ def add_internal_fluid(Rope):
 
             return f
 
-        def f_npot_q(self, t, q, u, coo):
+        def h_q(self, t, q, u, coo):
             dense = approx_fprime(
                 q,
                 lambda q: self.f_npot(t, q, u),
@@ -243,7 +243,7 @@ class InflatedRope(Rope):
                 a += 0.5 * r @ r_xi_perp * qwi
         return a
 
-    def f_npot(self, t, q, u):
+    def h(self, t, q, u):
         f = np.zeros(self.nu, dtype=q.dtype)
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
@@ -273,7 +273,7 @@ class InflatedRope(Rope):
                 )
         return f_el
 
-    def f_npot_q(self, t, q, u, coo):
+    def h_q(self, t, q, u, coo):
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             f_npot_q_el = self.f_npot_q_el(t, q[elDOF], u[elDOF], el)
@@ -321,7 +321,7 @@ class RopeInternalFluid(Rope):
                 # a += 0.5 * max(0, r @ r_xi_perp) * qwi
         return a
 
-    def f_npot(self, t, q, u):
+    def h(self, t, q, u):
         # integrate current area
         a = self.area(q)
         pressure_fluid = self.potential.pot_g(a, self.A)
@@ -366,7 +366,7 @@ class RopeInternalFluid(Rope):
             f[elDOF] += f_el
         return f
 
-    def f_npot_q(self, t, q, u, coo):
+    def h_q(self, t, q, u, coo):
         dense = approx_fprime(
             q,
             lambda q: self.f_npot(t, q, u),
@@ -406,7 +406,7 @@ class RopeHydrostaticPressure(Rope):
                 a += 0.5 * r @ r_xi_perp * qwi
         return a
 
-    def f_npot(self, t, q, u):
+    def h(self, t, q, u):
         f = np.zeros(self.nu, dtype=q.dtype)
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
@@ -441,7 +441,7 @@ class RopeHydrostaticPressure(Rope):
                 )
         return f_el
 
-    def f_npot_q(self, t, q, u, coo):
+    def h_q(self, t, q, u, coo):
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             f_npot_q_el = self.f_npot_q_el(t, q[elDOF], u[elDOF], el)

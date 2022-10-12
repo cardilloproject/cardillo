@@ -647,7 +647,7 @@ class Line2Line:
         else:
             raise RuntimeError('Chosen method "' + method + '" is not implemented!')
 
-    def f_pot(self, t, q):
+    def h(self, t, q, u):
         f = np.zeros(self.__nu)
         for el in range(self.subsystem1.nelement):
             for i in range(self.subsystem1.nquadrature):
@@ -771,7 +771,7 @@ class Line2Line:
     # TODO: Derive analytical derivative. This requires the derivatives of
     #       xi_c, eta_c w.r.t. changes of q's. See Meier2017, Appendix C
     #       for a derivation.
-    def f_pot_q(self, t, q, coo):
+    def h_q(self, t, q, u, coo):
         dense_num = approx_fprime(q, lambda q: self.f_pot(t, q))
         coo.extend(dense_num, (self.uDOF, self.qDOF))
 

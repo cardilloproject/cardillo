@@ -359,7 +359,7 @@ class Cable:
 
         return E
 
-    def f_pot(self, t, q):
+    def h(self, t, q, u):
         f = np.zeros(self.nu)
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
@@ -433,7 +433,7 @@ class Cable:
 
         # return f_pot_el_num
 
-    def f_pot_q(self, t, q, coo):
+    def h_q(self, t, q, u, coo):
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             f_pot_q_el = self.f_pot_q_el(t, q[elDOF], el)

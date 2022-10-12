@@ -197,9 +197,9 @@ class RigidBodyRelKinematics:
     def h(self, t, q, u):
         Omega = self.K_Omega(t, q, u)
         return -(
-                self.m * self.J_P(t, q).T @ self.kappa_P(t, q, u) + self.K_J_R(
-                t, q
-            ).T @ (self.theta @ self.K_kappa_R(t, q, u) + cross3(Omega, self.theta @ Omega))
+            self.m * self.J_P(t, q).T @ self.kappa_P(t, q, u)
+            + self.K_J_R(t, q).T
+            @ (self.theta @ self.K_kappa_R(t, q, u) + cross3(Omega, self.theta @ Omega))
         )
 
     def h_q(self, t, q, u, coo):
@@ -226,9 +226,8 @@ class RigidBodyRelKinematics:
         tmp2_u = (ax2skew(Omega) @ self.theta - ax2skew(self.theta @ Omega)) @ Omega_u
 
         h_u = -(
-            self.m * self.J_P(t, q).T @ self.kappa_P_u(t, q, u) + self.K_J_R(
-                t, q
-            ).T @ (tmp1_u + tmp2_u)
+            self.m * self.J_P(t, q).T @ self.kappa_P_u(t, q, u)
+            + self.K_J_R(t, q).T @ (tmp1_u + tmp2_u)
         )
         coo.extend(h_u, (self.uDOF, self.uDOF))
 

@@ -81,10 +81,10 @@ class BallOnParabola:
     def B(self, t, q, coo):
         coo.extend_diag(np.ones(self.nq), (self.qDOF, self.uDOF))
 
-    def f_pot(self, t, q):
+    def h(self, t, q, u):
         return np.array([0.0, -self.m * self.g])
 
-    def f_pot_q(self, t, q, coo):
+    def h_q(self, t, q, u, coo):
         coo.extend(np.zeros((self.nu, self.nq)), (self.uDOF, self.qDOF))
 
     #################

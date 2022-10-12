@@ -183,7 +183,7 @@ class SecondGradient:
 
         return f
 
-    def f_pot(self, t, q):
+    def h(self, t, q, u):
         z = self.z(t, q)
         f_pot = np.zeros(self.nz)
         for el in range(self.nel):
@@ -228,7 +228,7 @@ class SecondGradient:
 
         return Ke
 
-    def f_pot_q(self, t, q, coo):
+    def h_q(self, t, q, u, coo):
         # import time
         z = self.z(t, q)
         for el in range(self.nel):

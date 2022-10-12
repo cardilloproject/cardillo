@@ -167,12 +167,12 @@ class Translational_f_npot:
         return dense
 
     # public functions
-    def f_npot(self, t, q, u):
+    def h(self, t, q, u):
         g = self.__g(t, q)
         gamma = self.__gamma(t, q, u)
         return -self.__W(t, q) * self.force_law.F(t, g, gamma)
 
-    def f_npot_q(self, t, q, u, coo):
+    def h_q(self, t, q, u, coo):
         g = self.__g(t, q)
         gamma = self.__gamma(t, q, u)
         dense = (
@@ -184,7 +184,7 @@ class Translational_f_npot:
         )
         coo.extend(dense, (self.uDOF, self.qDOF))
 
-    def f_npot_u(self, t, q, u, coo):
+    def h_u(self, t, q, u, coo):
         g = self.__g(t, q)
         gamma = self.__gamma(t, q, u)
         dense = -self.force_law.F_gamma(t, g, gamma) * np.outer(
