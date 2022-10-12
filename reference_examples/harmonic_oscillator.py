@@ -5,7 +5,7 @@ from cardillo import System
 from cardillo.solver import ScipyIVP
 from cardillo.discrete import Frame, PointMass
 from cardillo.forces import Force
-from cardillo.scalar_force_interactions import (
+from cardillo.forces import (
     LinearDamper,
     LinearSpring,
     ScalarForceTranslational,

@@ -5,3 +5,6 @@ from .distributed_force_1D_continuum import DistributedForce1DContinuum
 from .distributed_force_2D_continuum import DistributedForce2DContinuum
 from .distributed_force_3D_continuum import DistributedForce3DContinuum
 from .distributed_doubleforce_2D_continuum import DistributedDoubleforce2DContinuum
+from .scalar_force_laws import *
+from .scalar_force_translational import ScalarForceTranslational
+from .rotational import add_rotational_forcelaw
