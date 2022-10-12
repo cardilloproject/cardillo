@@ -8,7 +8,7 @@ from cardillo.forces import Force
 from cardillo.scalar_force_interactions.force_laws import Linear_spring, Linear_damper
 from cardillo.scalar_force_interactions import (
     Translational_f_pot,
-    Translational_f_npot,
+    ScalarForceTranslational,
 )
 
 if __name__ == "__main__":
@@ -29,7 +29,7 @@ if __name__ == "__main__":
     spring_element = Translational_f_pot(linear_spring, frame, mass)
 
     linear_damper = Linear_damper(d)
-    damping_element = Translational_f_npot(linear_damper, frame, mass)
+    damping_element = ScalarForceTranslational(linear_damper, frame, mass)
 
     model = System()
     model.add(frame)
