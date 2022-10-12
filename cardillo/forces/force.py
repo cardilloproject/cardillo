@@ -22,10 +22,10 @@ class Force:
     def E_pot(self, t, q):
         return -(self.force(t) @ self.r_OP(t, q))
 
-    def f_pot(self, t, q):
+    def h(self, t, q, u):
         return self.force(t) @ self.J_P(t, q)
 
-    def f_pot_q(self, t, q, coo):
+    def h_q(self, t, q, u, coo):
         f_q = einsum("i,ijk->jk", self.force(t), self.J_P_q(t, q))
         coo.extend(f_q, (self.uDOF, self.qDOF))
 
@@ -53,10 +53,10 @@ class K_Force:
         self.qDOF = self.subsystem.qDOF[self.subsystem.local_qDOF_P(self.frame_ID)]
         self.uDOF = self.subsystem.uDOF[self.subsystem.local_uDOF_P(self.frame_ID)]
 
-    def f_npot(self, t, q, u):
+    def h(self, t, q, u):
         return (self.A_IK(t, q) @ self.force(t)) @ self.J_P(t, q)
 
-    def f_npot_q(self, t, q, u, coo):
+    def h_q(self, t, q, u, coo):
         f_q = einsum(
             "ijk,j,il->lk", self.A_IK_q(t, q), self.force(t), self.J_P(t, q)
         ) + einsum("i,ijk->jk", self.A_IK(t, q) @ self.force(t), self.J_P_q(t, q))

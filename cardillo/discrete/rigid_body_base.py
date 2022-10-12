@@ -30,6 +30,18 @@ class RigidBodyBase(ABC):
     def M(self, t, q, coo):
         coo.extend(self.__M, (self.uDOF, self.uDOF))
 
+    def h(self, t, q, u):
+        omega = u[3:]
+        f = np.zeros(self.nu, dtype=np.common_type(q, u))
+        f[3:] = -cross3(omega, self.K_theta_S @ omega)
+        return f
+
+    def h_u(self, t, q, u, coo):
+        omega = u[3:]
+        dense = np.zeros((self.nu, self.nu), dtype=np.common_type(q, u))
+        dense[3:, 3:] = ax2skew(self.K_theta_S @ omega) - ax2skew(omega) @ self.K_theta_S
+        coo.extend(dense, (self.uDOF, self.uDOF))
+
     def local_qDOF_P(self, frame_ID=None):
         return np.arange(self.nq)
 
@@ -76,35 +88,6 @@ class RigidBodyBase(ABC):
 
     def a_P_u(self, t, q, u, u_dot, frame_ID=None, K_r_SP=np.zeros(3, dtype=float)):
         return self.kappa_P_u(t, q, u, frame_ID=frame_ID, K_r_SP=K_r_SP)
-
-    def f_gyr(self, t, q, u):
-        omega = u[3:]
-        f = np.zeros(self.nu, dtype=np.common_type(q, u))
-        f[3:] = cross3(omega, self.K_theta_S @ omega)
-        return f
-
-    def f_gyr_u(self, t, q, u, coo):
-        omega = u[3:]
-        dense = np.zeros((self.nu, self.nu), dtype=np.common_type(q, u))
-        dense[3:, 3:] = ax2skew(omega) @ self.K_theta_S - ax2skew(
-            self.K_theta_S @ omega
-        )
-        coo.extend(dense, (self.uDOF, self.uDOF))
-
-    def kappa_P(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
-        return self.A_IK(t, q) @ (cross3(u[3:], cross3(u[3:], K_r_SP)))
-
-    def kappa_P_q(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
-        return np.einsum(
-            "ijk,j->ik", self.A_IK_q(t, q), cross3(u[3:], cross3(u[3:], K_r_SP))
-        )
-
-    def kappa_P_u(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3, dtype=float)):
-        kappa_P_u = np.zeros((3, self.nu), dtype=np.common_type(q, u))
-        kappa_P_u[:, 3:] = -self.A_IK(t, q) @ (
-            ax2skew(cross3(u[3:], K_r_SP)) + ax2skew(u[3:]) @ ax2skew(K_r_SP)
-        )
-        return kappa_P_u
 
     def J_P(self, t, q, frame_ID=None, K_r_SP=np.zeros(3, dtype=float)):
         J_P = np.zeros((3, self.nu), dtype=q.dtype)
