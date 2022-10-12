@@ -237,10 +237,10 @@ class Rigid_body_rel_kinematics:
     # helper functions
     #########################################
 
-    def qDOF_P(self, frame_ID=None):
+    def local_qDOF_P(self, frame_ID=None):
         return np.arange(self.__nq)
 
-    def uDOF_P(self, frame_ID=None):
+    def local_uDOF_P(self, frame_ID=None):
         return np.arange(self.__nu)
 
     def A_IK(self, t, q, frame_ID=None):

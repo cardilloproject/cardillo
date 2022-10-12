@@ -85,10 +85,10 @@ class RigidBodyAxisAngle:
         B[3:, 3:] = self.B_omega(q)
         coo.extend(B, (self.qDOF, self.uDOF))
 
-    def qDOF_P(self, frame_ID=None):
+    def local_qDOF_P(self, frame_ID=None):
         return np.arange(self.nq)
 
-    def uDOF_P(self, frame_ID=None):
+    def local_uDOF_P(self, frame_ID=None):
         return np.arange(self.nu)
 
     def A_IK(self, t, q, frame_ID=None):

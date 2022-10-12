@@ -271,10 +271,10 @@ class Rigid_body_director:
     #########################################
     # helper functions
     #########################################
-    def qDOF_P(self, frame_ID=None):
+    def local_qDOF_P(self, frame_ID=None):
         return np.arange(self.nq)
 
-    def uDOF_P(self, frame_ID=None):
+    def local_uDOF_P(self, frame_ID=None):
         return np.arange(self.nu)
 
     def A_IK(self, t, q, frame_ID=None):
@@ -555,10 +555,10 @@ class Rigid_body_director_angular_velocities:
     #########################################
     # helper functions
     #########################################
-    def qDOF_P(self, frame_ID=None):
+    def local_qDOF_P(self, frame_ID=None):
         return np.arange(self.nq)
 
-    def uDOF_P(self, frame_ID=None):
+    def local_uDOF_P(self, frame_ID=None):
         return np.arange(self.nu)
 
     def A_IK(self, t, q, frame_ID=None):

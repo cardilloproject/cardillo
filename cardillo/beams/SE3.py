@@ -1504,10 +1504,10 @@ class TimoshenkoAxisAngleSE3_K_delta_r_P:
         el = self.element_number(xi)
         return self.elDOF[el]
 
-    def qDOF_P(self, frame_ID):
+    def local_qDOF_P(self, frame_ID):
         return self.elDOF_P(frame_ID)
 
-    def uDOF_P(self, frame_ID):
+    def local_uDOF_P(self, frame_ID):
         return self.elDOF_P(frame_ID)
 
     ###################
@@ -2930,10 +2930,10 @@ class TimoshenkoAxisAngleSE3_I_delta_r_P:
         el = self.element_number(xi)
         return self.elDOF[el]
 
-    def qDOF_P(self, frame_ID):
+    def local_qDOF_P(self, frame_ID):
         return self.elDOF_P(frame_ID)
 
-    def uDOF_P(self, frame_ID):
+    def local_uDOF_P(self, frame_ID):
         return self.elDOF_P(frame_ID)
 
     ###################

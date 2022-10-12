@@ -1563,12 +1563,12 @@ class Kirchhoff:
     ####################################################
     # interactions with other bodies and the environment
     ####################################################
-    def qDOF_P(self, frame_ID):
+    def local_qDOF_P(self, frame_ID):
         xi = frame_ID[0]
         el = self.element_number(xi)
         return self.elDOF[el]
 
-    def uDOF_P(self, frame_ID):
+    def local_uDOF_P(self, frame_ID):
         xi = frame_ID[0]
         el = self.element_number(xi)
         return self.elDOF[el]
@@ -3096,12 +3096,12 @@ class KirchhoffSingularity:
     ####################################################
     # interactions with other bodies and the environment
     ####################################################
-    def qDOF_P(self, frame_ID):
+    def local_qDOF_P(self, frame_ID):
         xi = frame_ID[0]
         el = self.element_number(xi)
         return self.elDOF[el]
 
-    def uDOF_P(self, frame_ID):
+    def local_uDOF_P(self, frame_ID):
         xi = frame_ID[0]
         el = self.element_number(xi)
         return self.elDOF[el]

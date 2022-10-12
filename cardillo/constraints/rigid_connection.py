@@ -21,29 +21,29 @@ class RigidConnection:
         self.frame_ID2 = frame_ID2
 
     def assembler_callback(self):
-        qDOF1 = self.subsystem1.qDOF_P(self.frame_ID1)
-        qDOF2 = self.subsystem2.qDOF_P(self.frame_ID2)
-        self.qDOF = np.concatenate(
-            [self.subsystem1.qDOF[qDOF1], self.subsystem2.qDOF[qDOF2]]
-        )
-        self.nq1 = nq1 = len(qDOF1)
-        self.nq2 = len(qDOF2)
-        self._nq = self.nq1 + self.nq2
+        qDOF1 = self.subsystem1.qDOF
+        qDOF2 = self.subsystem2.qDOF
+        local_qDOF1 = self.subsystem1.local_qDOF_P(self.frame_ID1)
+        local_qDOF2 = self.subsystem2.local_qDOF_P(self.frame_ID2)
+        self.qDOF = np.concatenate((qDOF1[local_qDOF1], qDOF2[local_qDOF2]))
+        self.__nq1 = nq1 = len(local_qDOF1)
+        self.__nq2 = len(local_qDOF2)
+        self.__nq = self.__nq1 + self.__nq2
 
-        uDOF1 = self.subsystem1.uDOF_P(self.frame_ID1)
-        uDOF2 = self.subsystem2.uDOF_P(self.frame_ID2)
-        self.uDOF = np.concatenate(
-            [self.subsystem1.uDOF[uDOF1], self.subsystem2.uDOF[uDOF2]]
-        )
-        self.nu1 = nu1 = len(uDOF1)
-        self.nu2 = len(uDOF2)
-        self._nu = self.nu1 + self.nu2
+        uDOF1 = self.subsystem1.uDOF
+        uDOF2 = self.subsystem2.uDOF
+        local_uDOF1 = self.subsystem1.local_uDOF_P(self.frame_ID1)
+        local_uDOF2 = self.subsystem2.local_uDOF_P(self.frame_ID2)
+        self.uDOF = np.concatenate((uDOF1[local_uDOF1], uDOF2[local_uDOF2]))
+        self.__nu1 = nu1 = len(local_uDOF1)
+        self.__nu2 = len(local_uDOF2)
+        self.__nu = self.__nu1 + self.__nu2
 
         A_IK1 = self.subsystem1.A_IK(
-            self.subsystem1.t0, self.subsystem1.q0[qDOF1], frame_ID=self.frame_ID1
+            self.subsystem1.t0, self.subsystem1.q0[local_qDOF1], frame_ID=self.frame_ID1
         )
         A_IK2 = self.subsystem2.A_IK(
-            self.subsystem2.t0, self.subsystem2.q0[qDOF2], frame_ID=self.frame_ID2
+            self.subsystem2.t0, self.subsystem2.q0[local_qDOF2], frame_ID=self.frame_ID2
         )
 
         r_OS1 = self.subsystem1.r_OP(
@@ -237,8 +237,8 @@ class RigidConnection:
         return np.concatenate([r_OB2 - r_OB1, [ex1 @ ey2, ey1 @ ez2, ez1 @ ex2]])
 
     def g_q_dense(self, t, q):
-        nq1 = self.nq1
-        g_q = np.zeros((self.nla_g, self._nq))
+        nq1 = self.__nq1
+        g_q = np.zeros((self.nla_g, self.__nq))
         g_q[:3, :nq1] = -self.r_OB1_q1(t, q)
         g_q[:3, nq1:] = self.r_OB2_q2(t, q)
 
@@ -285,8 +285,8 @@ class RigidConnection:
         return g_dot
 
     def g_dot_q_dense(self, t, q, u):
-        nq1 = self.nq1
-        g_dot_q = np.zeros((self.nla_g, self._nq))
+        nq1 = self.__nq1
+        g_dot_q = np.zeros((self.nla_g, self.__nq))
 
         # position
         g_dot_q[:3, :nq1] = -self.v_B1_q1(t, q, u)
@@ -368,8 +368,8 @@ class RigidConnection:
 
     def g_ddot_q_dense(self, t, q, u, u_dot):
         print(RuntimeWarning("RigidConnection.g_ddot_q_dense is not tested yet!"))
-        nq1 = self.nq1
-        g_ddot_q = np.zeros((self.nla_g, self._nq))
+        nq1 = self.__nq1
+        g_ddot_q = np.zeros((self.nla_g, self.__nq))
 
         # position
         g_ddot_q[:3, :nq1] = -self.a_B1_q1(t, q, u, u_dot)
@@ -492,8 +492,8 @@ class RigidConnection:
 
     def g_ddot_u_dense(self, t, q, u, u_dot):
         print(RuntimeWarning("RigidConnection.g_ddot_u_dense is not tested yet!"))
-        nu1 = self.nu1
-        g_ddot_u = np.zeros((self.nla_g, self._nq))
+        nu1 = self.__nu1
+        g_ddot_u = np.zeros((self.nla_g, self.__nq))
 
         # position
         g_ddot_u[:3, :nu1] = -self.a_B1_u1(t, q, u, u_dot)
@@ -566,8 +566,8 @@ class RigidConnection:
         coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
 
     def W_g_dense(self, t, q):
-        nu1 = self.nu1
-        W_g = np.zeros((self._nu, self.nla_g))
+        nu1 = self.__nu1
+        W_g = np.zeros((self.__nu, self.nla_g))
 
         # position
         J_B1 = self.J_B1(t, q)
@@ -596,9 +596,9 @@ class RigidConnection:
         coo.extend(self.W_g_dense(t, q), (self.uDOF, self.la_gDOF))
 
     def Wla_g_q(self, t, q, la_g, coo):
-        nq1 = self.nq1
-        nu1 = self.nu1
-        dense = np.zeros((self._nu, self._nq))
+        nq1 = self.__nq1
+        nu1 = self.__nu1
+        dense = np.zeros((self.__nu, self.__nq))
 
         # position
         J_B1_q = self.J_B1_q1(t, q)
@@ -715,8 +715,8 @@ class RigidConnectionCable(RigidConnection):
 
     def g_q_dense(self, t, q):
         # return approx_fprime(q, lambda q: self.g(t, q))
-        nq1 = self.nq1
-        g_q = np.zeros((self.nla_g, self._nq))
+        nq1 = self.__nq1
+        g_q = np.zeros((self.nla_g, self.__nq))
         g_q[:3, :nq1] = -self.r_OB1_q1(t, q)
         g_q[:3, nq1:] = self.r_OB2_q2(t, q)
 
@@ -805,8 +805,8 @@ class RigidConnectionCable(RigidConnection):
 
     def W_g_dense(self, t, q):
         # return approx_fprime(np.zeros_like(q), lambda u: self.g_dot(t, q, u)).T
-        nu1 = self.nu1
-        W_g = np.zeros((self._nu, self.nla_g))
+        nu1 = self.__nu1
+        W_g = np.zeros((self.__nu, self.nla_g))
 
         # position
         J_B1 = self.J_B1(t, q)
@@ -827,9 +827,9 @@ class RigidConnectionCable(RigidConnection):
         coo.extend(self.W_g_dense(t, q), (self.uDOF, self.la_gDOF))
 
     def Wla_g_q(self, t, q, la_g, coo):
-        nq1 = self.nq1
-        nu1 = self.nu1
-        dense = np.zeros((self._nu, self._nq))
+        nq1 = self.__nq1
+        nu1 = self.__nu1
+        dense = np.zeros((self.__nu, self.__nq))
 
         # position
         J_B1_q = self.J_B1_q1(t, q)

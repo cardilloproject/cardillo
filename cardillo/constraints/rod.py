@@ -23,23 +23,23 @@ class Rod:
         self.K_r_SP2 = K_r_SP2
 
     def assembler_callback(self):
-        qDOF1 = self.subsystem1.qDOF_P(self.frame_ID1)
-        qDOF2 = self.subsystem2.qDOF_P(self.frame_ID2)
-        self.qDOF = np.concatenate(
-            [self.subsystem1.qDOF[qDOF1], self.subsystem2.qDOF[qDOF2]]
-        )
-        self.nq1 = nq1 = len(qDOF1)
-        self.nq2 = len(qDOF2)
-        self.__nq = self.nq1 + self.nq2
+        qDOF1 = self.subsystem1.qDOF
+        qDOF2 = self.subsystem2.qDOF
+        local_qDOF1 = self.subsystem1.local_qDOF_P(self.frame_ID1)
+        local_qDOF2 = self.subsystem2.local_qDOF_P(self.frame_ID2)
+        self.qDOF = np.concatenate((qDOF1[local_qDOF1], qDOF2[local_qDOF2]))
+        self.__nq1 = nq1 = len(local_qDOF1)
+        self.__nq2 = len(local_qDOF2)
+        self.__nq = self.__nq1 + self.__nq2
 
-        uDOF1 = self.subsystem1.uDOF_P(self.frame_ID1)
-        uDOF2 = self.subsystem2.uDOF_P(self.frame_ID2)
-        self.uDOF = np.concatenate(
-            [self.subsystem1.uDOF[uDOF1], self.subsystem2.uDOF[uDOF2]]
-        )
-        self.nu1 = nu1 = len(uDOF1)
-        self.nu2 = len(uDOF2)
-        self.__nu = self.nu1 + self.nu2
+        uDOF1 = self.subsystem1.uDOF
+        uDOF2 = self.subsystem2.uDOF
+        local_uDOF1 = self.subsystem1.local_uDOF_P(self.frame_ID1)
+        local_uDOF2 = self.subsystem2.local_uDOF_P(self.frame_ID2)
+        self.uDOF = np.concatenate((uDOF1[local_uDOF1], uDOF2[local_uDOF2]))
+        self.__nu1 = nu1 = len(local_uDOF1)
+        self.__nu2 = len(local_uDOF2)
+        self.__nu = self.__nu1 + self.__nu2
 
         self.r_OP1 = lambda t, q: self.subsystem1.r_OP(
             t, q[:nq1], self.frame_ID1, self.K_r_SP1
@@ -129,8 +129,8 @@ class Rod:
         coo.extend(self.W_g_dense(t, q), (self.uDOF, self.la_gDOF))
 
     def Wla_g_q(self, t, q, la_g, coo):
-        nq1 = self.nq1
-        nu1 = self.nu1
+        nq1 = self.__nq1
+        nu1 = self.__nu1
         r_P1P2 = self.r_OP2(t, q) - self.r_OP1(t, q)
         r_OP1_q = self.r_OP1_q(t, q)
         r_OP2_q = self.r_OP2_q(t, q)

@@ -112,10 +112,10 @@ class HeavyTop:
         # compute K_r_SQ for initial configuration
         self.K_r_SQ = self.A_IK(t0, q0).T @ (self.r_OQ - self.r_OP(t0, q0))
 
-    def qDOF_P(self, frame_ID=None):
+    def local_qDOF_P(self, frame_ID=None):
         return np.arange(self.nq)
 
-    def uDOF_P(self, frame_ID=None):
+    def local_uDOF_P(self, frame_ID=None):
         return np.arange(self.nu)
 
     @staticmethod

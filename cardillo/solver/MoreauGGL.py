@@ -3644,7 +3644,9 @@ class NonsmoothDecoupled:
         # friction
         ##########
         prox_r_F = self.model.prox_r_F(tk1, qk1)
-        gamma_Fk1_qk1 = self.model.gamma_F_q(tk1, qk1, uk1_free, scipy_matrix=csc_matrix)
+        gamma_Fk1_qk1 = self.model.gamma_F_q(
+            tk1, qk1, uk1_free, scipy_matrix=csc_matrix
+        )
         gamma_Fk1_uk1 = W_Fk1.T
 
         J_la_Fk1_qk1 = lil_matrix((self.nla_F, self.nq))
@@ -3671,11 +3673,23 @@ class NonsmoothDecoupled:
                         norm_gamma_Fi = norm(gamma_Fk1i)
                         norm_gamma_Fi2 = norm_gamma_Fi * norm_gamma_Fi
                         if norm_gamma_Fi > 0:
-                            J_la_Fk1_qk1[i_F] = (mu[i_N] * la_Nk1_free[i_N] / norm_gamma_Fi) * (
-                                gamma_Fk1_qk1i - np.outer(gamma_Fk1i / norm_gamma_Fi2, gamma_Fk1i @ gamma_Fk1_qk1i)
+                            J_la_Fk1_qk1[i_F] = (
+                                mu[i_N] * la_Nk1_free[i_N] / norm_gamma_Fi
+                            ) * (
+                                gamma_Fk1_qk1i
+                                - np.outer(
+                                    gamma_Fk1i / norm_gamma_Fi2,
+                                    gamma_Fk1i @ gamma_Fk1_qk1i,
+                                )
                             )
-                            J_la_Fk1_uk1_free[i_F] = (mu[i_N] * la_Nk1_free[i_N] / norm_gamma_Fi) * (
-                                gamma_Fk1_uk1i - np.outer(gamma_Fk1i / norm_gamma_Fi2, gamma_Fk1i @ gamma_Fk1_uk1i)
+                            J_la_Fk1_uk1_free[i_F] = (
+                                mu[i_N] * la_Nk1_free[i_N] / norm_gamma_Fi
+                            ) * (
+                                gamma_Fk1_uk1i
+                                - np.outer(
+                                    gamma_Fk1i / norm_gamma_Fi2,
+                                    gamma_Fk1i @ gamma_Fk1_uk1i,
+                                )
                             )
                             # TODO: derivative w.r.t. la_Nk1
                         else:

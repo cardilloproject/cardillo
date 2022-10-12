@@ -1,4 +1,4 @@
-from cardillo.math.numerical_derivative import Numerical_derivative
+from cardillo.math import approx_fprime
 import numpy as np
 from cardillo.math.algebra import cross3, ax2skew, e3
 
@@ -25,38 +25,38 @@ class RevoluteJoint:
         self.A_IB = A_IB
 
     def assembler_callback(self):
-        qDOF1 = self.subsystem1.qDOF_P(self.frame_ID1)
-        qDOF2 = self.subsystem2.qDOF_P(self.frame_ID2)
-        self.qDOF = np.concatenate(
-            [self.subsystem1.qDOF[qDOF1], self.subsystem2.qDOF[qDOF2]]
-        )
-        self.nq1 = nq1 = len(qDOF1)
-        self.nq2 = len(qDOF2)
-        self._nq = self.nq1 + self.nq2
+        qDOF1 = self.subsystem1.qDOF
+        qDOF2 = self.subsystem2.qDOF
+        local_qDOF1 = self.subsystem1.local_qDOF_P(self.frame_ID1)
+        local_qDOF2 = self.subsystem2.local_qDOF_P(self.frame_ID2)
+        self.qDOF = np.concatenate((qDOF1[local_qDOF1], qDOF2[local_qDOF2]))
+        self.__nq1 = nq1 = len(local_qDOF1)
+        self.__nq2 = len(local_qDOF2)
+        self.__nq = self.__nq1 + self.__nq2
 
-        uDOF1 = self.subsystem1.uDOF_P(self.frame_ID1)
-        uDOF2 = self.subsystem2.uDOF_P(self.frame_ID2)
-        self.uDOF = np.concatenate(
-            [self.subsystem1.uDOF[uDOF1], self.subsystem2.uDOF[uDOF2]]
-        )
-        self.nu1 = nu1 = len(uDOF1)
-        self.nu2 = len(uDOF2)
-        self._nu = self.nu1 + self.nu2
+        uDOF1 = self.subsystem1.uDOF
+        uDOF2 = self.subsystem2.uDOF
+        local_uDOF1 = self.subsystem1.local_uDOF_P(self.frame_ID1)
+        local_uDOF2 = self.subsystem2.local_uDOF_P(self.frame_ID2)
+        self.uDOF = np.concatenate((uDOF1[local_uDOF1], uDOF2[local_uDOF2]))
+        self.__nu1 = nu1 = len(local_uDOF1)
+        self.__nu2 = len(local_uDOF2)
+        self.__nu = self.__nu1 + self.__nu2
 
         A_IK1 = self.subsystem1.A_IK(
-            self.subsystem1.t0, self.subsystem1.q0[qDOF1], self.frame_ID1
+            self.subsystem1.t0, self.subsystem1.q0[local_qDOF1], self.frame_ID1
         )
         A_IK2 = self.subsystem2.A_IK(
-            self.subsystem2.t0, self.subsystem2.q0[qDOF2], self.frame_ID2
+            self.subsystem2.t0, self.subsystem2.q0[local_qDOF2], self.frame_ID2
         )
         A_K1B1 = A_IK1.T @ self.A_IB
         A_K2B2 = A_IK2.T @ self.A_IB
 
         r_OS1 = self.subsystem1.r_OP(
-            self.subsystem1.t0, self.subsystem1.q0[qDOF1], self.frame_ID1
+            self.subsystem1.t0, self.subsystem1.q0[local_qDOF1], self.frame_ID1
         )
         r_OS2 = self.subsystem2.r_OP(
-            self.subsystem2.t0, self.subsystem2.q0[qDOF2], self.frame_ID2
+            self.subsystem2.t0, self.subsystem2.q0[local_qDOF2], self.frame_ID2
         )
         K_r_SP1 = A_IK1.T @ (self.r_OB - r_OS1)
         K_r_SP2 = A_IK2.T @ (self.r_OB - r_OS2)
@@ -169,7 +169,7 @@ class RevoluteJoint:
             self.subsystem2.K_J_R_q(t, q[nq1:], self.frame_ID2),
         )
 
-        q0 = np.concatenate([self.subsystem1.q0[qDOF1], self.subsystem2.q0[qDOF2]])
+        q0 = np.concatenate([self.subsystem1.q0[local_qDOF1], self.subsystem2.q0[local_qDOF2]])
         self.angle0 = self.angle(self.t0, q0)
 
     def g(self, t, q):
@@ -180,8 +180,8 @@ class RevoluteJoint:
         return np.concatenate([r_OP2 - r_OP1, [ez1 @ ex2, ez1 @ ey2]])
 
     def g_q_dense(self, t, q):
-        nq1 = self.nq1
-        g_q = np.zeros((5, self._nq))
+        nq1 = self.__nq1
+        g_q = np.zeros((5, self.__nq))
         g_q[:3, :nq1] = -self.r_OP1_q(t, q)
         g_q[:3, nq1:] = self.r_OP2_q(t, q)
 
@@ -215,7 +215,7 @@ class RevoluteJoint:
         return g_dot
 
     def g_dot_q(self, t, q, u, coo):
-        dense = Numerical_derivative(self.g_dot, order=2)._x(t, q, u)
+        dense = approx_fprime(q, lambda q: self.g_dot(t, q, u))
         coo.extend(dense, (self.la_gDOF, self.qDOF))
 
     def g_dot_u(self, t, q, coo):
@@ -251,23 +251,19 @@ class RevoluteJoint:
         return g_ddot
 
     def g_ddot_q(self, t, q, u, u_dot, coo):
-        dense = Numerical_derivative(
-            lambda t, q: self.g_ddot(t, q, u, u_dot), order=2
-        )._x(t, q)
+        dense = approx_fprime(q, lambda q: self.g_ddot(t, q, u, u_dot))
         coo.extend(dense, (self.la_gDOF, self.qDOF))
 
     def g_ddot_u(self, t, q, u, u_dot, coo):
-        dense = Numerical_derivative(
-            lambda t, u: self.g_ddot(t, q, u, u_dot), order=2
-        )._x(t, u)
+        dense = approx_fprime(u, lambda u: self.g_ddot(t, q, u, u_dot))
         coo.extend(dense, (self.la_gDOF, self.uDOF))
 
     def g_q(self, t, q, coo):
         coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
 
     def W_g_dense(self, t, q):
-        nu1 = self.nu1
-        W_g = np.zeros((self._nu, self.nla_g))
+        nu1 = self.__nu1
+        W_g = np.zeros((self.__nu, self.nla_g))
 
         # position
         J_P1 = self.J_P1(t, q)
@@ -290,9 +286,9 @@ class RevoluteJoint:
         coo.extend(self.W_g_dense(t, q), (self.uDOF, self.la_gDOF))
 
     def Wla_g_q(self, t, q, la_g, coo):
-        nq1 = self.nq1
-        nu1 = self.nu1
-        dense = np.zeros((self._nu, self._nq))
+        nq1 = self.__nq1
+        nu1 = self.__nu1
+        dense = np.zeros((self.__nu, self.__nq))
 
         # position
         J_P1_q = self.J_P1_q(t, q)
@@ -385,13 +381,13 @@ class RevoluteJoint:
         return np.concatenate([-K_J_R1.T @ e3, K_J_R2.T @ e3])
 
     def W_angle_q(self, t, q):
-        nq1 = self.nq1
-        nu1 = self.nu1
+        nq1 = self.__nq1
+        nu1 = self.__nu1
         K_J_R1_q1 = self.K_J_R1_q(t, q)
         K_J_R2_q2 = self.K_J_R2_q(t, q)
 
         # dense blocks
-        dense = np.zeros((self._nu, self._nq))
+        dense = np.zeros((self.__nu, self.__nq))
         dense[:nu1, :nq1] = np.einsum("i,ijk->jk", -e3, K_J_R1_q1)
         dense[nu1:, nq1:] = np.einsum("i,ijk->jk", e3, K_J_R2_q2)
 

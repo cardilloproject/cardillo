@@ -1156,12 +1156,12 @@ class TimoshenkoQuarternionSE3:
     ####################################################
     # interactions with other bodies and the environment
     ####################################################
-    def qDOF_P(self, frame_ID):
+    def local_qDOF_P(self, frame_ID):
         xi = frame_ID[0]
         el = self.element_number(xi)
         return self.elDOF[el]
 
-    def uDOF_P(self, frame_ID):
+    def local_uDOF_P(self, frame_ID):
         xi = frame_ID[0]
         el = self.element_number(xi)
         return self.elDOF_u[el]
@@ -2339,10 +2339,10 @@ class TimoshenkoAxisAngleSE3Old:
         el = self.element_number(xi)
         return self.elDOF[el]
 
-    def qDOF_P(self, frame_ID):
+    def local_qDOF_P(self, frame_ID):
         return self.elDOF_P(frame_ID)
 
-    def uDOF_P(self, frame_ID):
+    def local_uDOF_P(self, frame_ID):
         return self.elDOF_P(frame_ID)
 
     ###################
@@ -4280,10 +4280,10 @@ class TimoshenkoAxisAngle:
         el = self.element_number(xi)
         return self.elDOF[el]
 
-    def qDOF_P(self, frame_ID):
+    def local_qDOF_P(self, frame_ID):
         return self.elDOF_P(frame_ID)
 
-    def uDOF_P(self, frame_ID):
+    def local_uDOF_P(self, frame_ID):
         return self.elDOF_P(frame_ID)
 
     def r_OC(self, t, q, frame_ID):
@@ -6154,12 +6154,12 @@ class TimoshenkoQuaternion:
     ####################################################
     # interactions with other bodies and the environment
     ####################################################
-    def qDOF_P(self, frame_ID):
+    def local_qDOF_P(self, frame_ID):
         xi = frame_ID[0]
         el = self.element_number(xi)
         return self.elDOF[el]
 
-    def uDOF_P(self, frame_ID):
+    def local_uDOF_P(self, frame_ID):
         xi = frame_ID[0]
         el = self.element_number(xi)
         return self.elDOF_u[el]

@@ -16,8 +16,8 @@ class Force:
         self.J_P_q = lambda t, q: subsystem.J_P_q(t, q, frame_ID, K_r_SP)
 
     def assembler_callback(self):
-        self.qDOF = self.subsystem.qDOF[self.subsystem.qDOF_P(self.frame_ID)]
-        self.uDOF = self.subsystem.uDOF[self.subsystem.uDOF_P(self.frame_ID)]
+        self.qDOF = self.subsystem.qDOF[self.subsystem.local_qDOF_P(self.frame_ID)]
+        self.uDOF = self.subsystem.uDOF[self.subsystem.local_uDOF_P(self.frame_ID)]
 
     def E_pot(self, t, q):
         return -(self.force(t) @ self.r_OP(t, q))
@@ -50,8 +50,8 @@ class K_Force:
         )
 
     def assembler_callback(self):
-        self.qDOF = self.subsystem.qDOF[self.subsystem.qDOF_P(self.frame_ID)]
-        self.uDOF = self.subsystem.uDOF[self.subsystem.uDOF_P(self.frame_ID)]
+        self.qDOF = self.subsystem.qDOF[self.subsystem.local_qDOF_P(self.frame_ID)]
+        self.uDOF = self.subsystem.uDOF[self.subsystem.local_uDOF_P(self.frame_ID)]
 
     def f_npot(self, t, q, u):
         return (self.A_IK(t, q) @ self.force(t)) @ self.J_P(t, q)

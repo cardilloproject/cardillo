@@ -1,5 +1,5 @@
 import numpy as np
-from cardillo.math import e1, e2, e3, cross3, ax2skew, norm, approx_fprime
+from cardillo.math import e1, e2, e3, cross3, norm, approx_fprime
 
 
 class RollingCondition:
@@ -10,8 +10,8 @@ class RollingCondition:
         self.la_gamma0 = np.zeros(self.nla_gamma) if la_gamma0 is None else la_gamma0
 
     def assembler_callback(self):
-        self.qDOF = self.subsystem.qDOF[self.subsystem.qDOF_P()]
-        self.uDOF = self.subsystem.qDOF[self.subsystem.uDOF_P()]
+        self.qDOF = self.subsystem.qDOF[self.subsystem.local_qDOF_P()]
+        self.uDOF = self.subsystem.qDOF[self.subsystem.local_uDOF_P()]
 
     def r_SC(self, t, q):
         e_K_y = self.subsystem.A_IK(t, q)[:, 1]
@@ -70,25 +70,25 @@ class RollingCondition:
 
 
 class RollingCondition_I_Frame:
-    def __init__(self, disc, la_gamma0=None):
-        self.disc = disc
+    def __init__(self, subsystem, la_gamma0=None):
+        self.subsystem = subsystem
 
         self.nla_gamma = 3
         self.la_gamma0 = np.zeros(self.nla_gamma) if la_gamma0 is None else la_gamma0
 
     def assembler_callback(self):
-        self.qDOF = self.disc.qDOF_P()
-        self.uDOF = self.disc.uDOF_P()
+        self.qDOF = self.subsystem.qDOF[self.subsystem.local_qDOF_P()]
+        self.uDOF = self.subsystem.qDOF[self.subsystem.local_uDOF_P()]
 
     def r_SA(self, t, q):
-        e_K_y = self.disc.A_IK(t, q)[:, 1]
+        e_K_y = self.subsystem.A_IK(t, q)[:, 1]
         g_K_x = cross3(e_K_y, np.array([0, 0, 1]))
         e_K_x = g_K_x / norm(g_K_x)
         e_K_z = cross3(e_K_x, e_K_y)
-        return -self.disc.r * e_K_z
+        return -self.subsystem.r * e_K_z
 
     def A_RI(self, t, q):
-        e_K_y = self.disc.A_IK(t, q)[:, 1]
+        e_K_y = self.subsystem.A_IK(t, q)[:, 1]
         g_R_x = cross3(e_K_y, np.array([0, 0, 1]))
         e_R_x = g_R_x / norm(g_R_x)
 
@@ -98,14 +98,14 @@ class RollingCondition_I_Frame:
         return np.vstack((e_R_x, e_R_y, e_R_z))
 
     def gamma(self, t, q, u):
-        return self.disc.v_P(t, q, u, K_r_SP=self.disc.A_IK(t, q).T @ self.r_SA(t, q))
+        return self.subsystem.v_P(t, q, u, K_r_SP=self.subsystem.A_IK(t, q).T @ self.r_SA(t, q))
 
     def gamma_q(self, t, q, u, coo):
         dense = approx_fprime(q, lambda q: self.gamma(t, q, u), method="2-point")
         coo.extend(dense, (self.la_gammaDOF, self.qDOF))
 
     def gamma_u_dense(self, t, q):
-        return self.disc.J_P(t, q, K_r_SP=self.disc.A_IK(t, q).T @ self.r_SA(t, q))
+        return self.subsystem.J_P(t, q, K_r_SP=self.subsystem.A_IK(t, q).T @ self.r_SA(t, q))
 
     def gamma_u(self, t, q, coo):
         coo.extend(self.gamma_u_dense(t, q), (self.la_gammaDOF, self.uDOF))
@@ -132,8 +132,8 @@ class RollingCondition_g_I_Frame_gamma:
         self.la_gamma0 = np.zeros(self.nla_gamma) if la_gamma0 is None else la_gamma0
 
     def assembler_callback(self):
-        self.qDOF = self.subsystem.qDOF_P()
-        self.uDOF = self.subsystem.uDOF_P()
+        self.qDOF = self.subsystem.qDOF[self.subsystem.local_qDOF_P()]
+        self.uDOF = self.subsystem.qDOF[self.subsystem.local_uDOF_P()]
 
     def r_SC(self, t, q):
         # evaluate body fixed frame

@@ -36,10 +36,10 @@ class PointMass:
     def B(self, t, q, coo):
         coo.extend_diag(np.ones(self.nq), (self.qDOF, self.uDOF))
 
-    def qDOF_P(self, frame_ID=None):
+    def local_qDOF_P(self, frame_ID=None):
         return np.arange(self.nq)
 
-    def uDOF_P(self, frame_ID=None):
+    def local_uDOF_P(self, frame_ID=None):
         return np.arange(self.nu)
 
     def r_OP(self, t, q, frame_ID=None, K_r_SP=None):

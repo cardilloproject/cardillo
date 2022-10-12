@@ -35,10 +35,10 @@ class Frame:
     # helper functions
     #########################################
 
-    def qDOF_P(self, frame_ID=None):
+    def local_qDOF_P(self, frame_ID=None):
         return np.array([], dtype=int)
 
-    def uDOF_P(self, frame_ID=None):
+    def local_uDOF_P(self, frame_ID=None):
         return np.array([], dtype=int)
 
     def q_dot(self, t, q, u):

@@ -1112,10 +1112,10 @@ class TimoshenkoBeamDirector(metaclass=ABCMeta):
         el = self.element_number(xi)
         return self.elDOF[el]
 
-    def qDOF_P(self, frame_ID):
+    def local_qDOF_P(self, frame_ID):
         return self.elDOF_P(frame_ID)
 
-    def uDOF_P(self, frame_ID):
+    def local_uDOF_P(self, frame_ID):
         return self.elDOF_P(frame_ID)
 
     def r_OP(self, t, q, frame_ID, K_r_SP=np.zeros(3)):

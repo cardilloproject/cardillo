@@ -121,10 +121,10 @@ class RigidBodyQuaternion:
         q[3:] = q[3:] / norm(q[3:])
         return q, u
 
-    def qDOF_P(self, frame_ID=None):
+    def local_qDOF_P(self, frame_ID=None):
         return np.arange(self.nq)
 
-    def uDOF_P(self, frame_ID=None):
+    def local_uDOF_P(self, frame_ID=None):
         return np.arange(self.nu)
 
     def A_IK(self, t, q, frame_ID=None):

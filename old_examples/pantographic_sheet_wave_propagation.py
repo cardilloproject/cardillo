@@ -54,15 +54,15 @@ class Junction:
         self.beam2_N_xi_perp = self.stack_shapefunctions_perp(N_xi, beam2.nq_el)
 
     def assembler_callback(self):
-        qDOF1 = self.beam1.qDOF_P(self.frame_ID1)
-        qDOF2 = self.beam2.qDOF_P(self.frame_ID2)
+        qDOF1 = self.beam1.local_qDOF_P(self.frame_ID1)
+        qDOF2 = self.beam2.local_qDOF_P(self.frame_ID2)
         self.qDOF = np.concatenate([self.beam1.qDOF[qDOF1], self.beam2.qDOF[qDOF2]])
         self.nq1 = nq1 = len(qDOF1)
         self.nq2 = len(qDOF2)
         self._nq = self.nq1 + self.nq2
 
-        uDOF1 = self.beam1.uDOF_P(self.frame_ID1)
-        uDOF2 = self.beam2.uDOF_P(self.frame_ID2)
+        uDOF1 = self.beam1.local_uDOF_P(self.frame_ID1)
+        uDOF2 = self.beam2.local_uDOF_P(self.frame_ID2)
         self.uDOF = np.concatenate([self.beam1.uDOF[uDOF1], self.beam2.uDOF[uDOF2]])
         self.nu1 = nu1 = len(uDOF1)
         self.nu2 = len(uDOF2)
@@ -159,15 +159,15 @@ class Pivot_w_spring:
         self.beam2_N_xi_perp = self.stack_shapefunctions_perp(N_xi, beam2.nq_el)
 
     def assembler_callback(self):
-        qDOF1 = self.beam1.qDOF_P(self.frame_ID1)
-        qDOF2 = self.beam2.qDOF_P(self.frame_ID2)
+        qDOF1 = self.beam1.local_qDOF_P(self.frame_ID1)
+        qDOF2 = self.beam2.local_qDOF_P(self.frame_ID2)
         self.qDOF = np.concatenate([self.beam1.qDOF[qDOF1], self.beam2.qDOF[qDOF2]])
         self.nq1 = nq1 = len(qDOF1)
         self.nq2 = len(qDOF2)
         self._nq = self.nq1 + self.nq2
 
-        uDOF1 = self.beam1.uDOF_P(self.frame_ID1)
-        uDOF2 = self.beam2.uDOF_P(self.frame_ID2)
+        uDOF1 = self.beam1.local_uDOF_P(self.frame_ID1)
+        uDOF2 = self.beam2.local_uDOF_P(self.frame_ID2)
         self.uDOF = np.concatenate([self.beam1.uDOF[uDOF1], self.beam2.uDOF[uDOF2]])
         self.nu1 = nu1 = len(uDOF1)
         self.nu2 = len(uDOF2)
@@ -411,12 +411,12 @@ def create_pantograph(
         for brow in range(0, nRow, 2):
             beam1 = beams[ID_mat[brow, bcol]]
             beam2 = beams[ID_mat[brow + 1, bcol + 1]]
-            r_OB = beam1.r_OP(0, beam1.q0[beam1.qDOF_P(frame_ID1)], frame_ID1)
+            r_OB = beam1.r_OP(0, beam1.q0[beam1.local_qDOF_P(frame_ID1)], frame_ID1)
             model.add(Junction(beam1, beam2))
 
             beam1 = beams[ID_mat[brow + 1, bcol]]
             beam2 = beams[ID_mat[brow, bcol + 1]]
-            r_OB = beam1.r_OP(0, beam1.q0[beam1.qDOF_P(frame_ID1)], frame_ID1)
+            r_OB = beam1.r_OP(0, beam1.q0[beam1.local_qDOF_P(frame_ID1)], frame_ID1)
             model.add(Junction(beam1, beam2))
 
     # even columns
@@ -424,12 +424,12 @@ def create_pantograph(
         for brow in range(1, nRow - 1, 2):
             beam1 = beams[ID_mat[brow, bcol]]
             beam2 = beams[ID_mat[brow + 1, bcol + 1]]
-            r_OB = beam1.r_OP(0, beam1.q0[beam1.qDOF_P(frame_ID1)], frame_ID1)
+            r_OB = beam1.r_OP(0, beam1.q0[beam1.local_qDOF_P(frame_ID1)], frame_ID1)
             model.add(Junction(beam1, beam2))
 
             beam1 = beams[ID_mat[brow + 1, bcol]]
             beam2 = beams[ID_mat[brow, bcol + 1]]
-            r_OB = beam1.r_OP(0, beam1.q0[beam1.qDOF_P(frame_ID1)], frame_ID1)
+            r_OB = beam1.r_OP(0, beam1.q0[beam1.local_qDOF_P(frame_ID1)], frame_ID1)
             model.add(Junction(beam1, beam2))
 
     ##########################################################
@@ -441,7 +441,7 @@ def create_pantograph(
         for bcol in range(0, nCol - 1):
             beam1 = beams[ID_mat[brow, bcol]]
             beam2 = beams[ID_mat[brow, bcol + 1]]
-            r_OB = beam1.r_OP(0, beam1.q0[beam1.qDOF_P(frame_ID1)], frame_ID1)
+            r_OB = beam1.r_OP(0, beam1.q0[beam1.local_qDOF_P(frame_ID1)], frame_ID1)
             spring = Linear_spring(GI)
             model.add(Pivot_w_spring(beam1, frame_ID1, beam2, frame_ID2, spring))
 
@@ -449,7 +449,7 @@ def create_pantograph(
     for bcol in range(1, nCol - 1, 2):
         beam1 = beams[ID_mat[-1, bcol]]
         beam2 = beams[ID_mat[-1, bcol + 1]]
-        r_OB = beam1.r_OP(0, beam1.q0[beam1.qDOF_P(frame_ID1)], frame_ID1)
+        r_OB = beam1.r_OP(0, beam1.q0[beam1.local_qDOF_P(frame_ID1)], frame_ID1)
         spring = Linear_spring(GI)
         model.add(Pivot_w_spring(beam1, frame_ID1, beam2, frame_ID2, spring))
 
@@ -458,7 +458,7 @@ def create_pantograph(
     for brow in range(1, nRow - 2, 2):
         beam1 = beams[ID_mat[brow, 0]]
         beam2 = beams[ID_mat[brow + 1, 0]]
-        r_OB = beam1.r_OP(0, beam1.q0[beam1.qDOF_P(frame_ID2)], frame_ID2)
+        r_OB = beam1.r_OP(0, beam1.q0[beam1.local_qDOF_P(frame_ID2)], frame_ID2)
         spring = Linear_spring(GI)
         model.add(Pivot_w_spring(beam1, frame_ID2, beam2, frame_ID2, spring))
 
@@ -466,7 +466,7 @@ def create_pantograph(
     for brow in range(1, nRow - 2, 2):
         beam1 = beams[ID_mat[brow, -1]]
         beam2 = beams[ID_mat[brow + 1, -1]]
-        r_OB = beam1.r_OP(0, beam1.q0[beam1.qDOF_P(frame_ID1)], frame_ID1)
+        r_OB = beam1.r_OP(0, beam1.q0[beam1.local_qDOF_P(frame_ID1)], frame_ID1)
         spring = Linear_spring(GI)
         model.add(Pivot_w_spring(beam1, frame_ID1, beam2, frame_ID1, spring))
 
@@ -479,7 +479,7 @@ def create_pantograph(
     model.add(frame_l)
     for i in range(0, nRow, 2):
         beam = beams[ID_mat[i, 0]]
-        r_OB = beam.r_OP(0, beam.q0[beam.qDOF_P(frame_ID2)], frame_ID=frame_ID2)
+        r_OB = beam.r_OP(0, beam.q0[beam.local_qDOF_P(frame_ID2)], frame_ID=frame_ID2)
         # model.add(Rigid_connection2D(frame_l, beam, r_OB, frame_ID2=frame_ID2))
         model.add(
             Linear_guidance_x_2D(
@@ -493,7 +493,7 @@ def create_pantograph(
 
     i = nRow - 1
     beam = beams[ID_mat[i, 0]]
-    r_OB = beam.r_OP(0, beam.q0[beam.qDOF_P(frame_ID2)], frame_ID=frame_ID2)
+    r_OB = beam.r_OP(0, beam.q0[beam.local_qDOF_P(frame_ID2)], frame_ID=frame_ID2)
     # model.add(Rigid_connection2D(frame_l, beam, r_OB, frame_ID2=frame_ID2))
     model.add(
         Linear_guidance_x_2D(
@@ -510,7 +510,7 @@ def create_pantograph(
     model.add(frame_r)
     for i in range(0, nRow, 2):
         beam = beams[ID_mat[i, -1]]
-        r_OB = beam.r_OP(0, beam.q0[beam.qDOF_P(frame_ID1)], frame_ID=frame_ID1)
+        r_OB = beam.r_OP(0, beam.q0[beam.local_qDOF_P(frame_ID1)], frame_ID=frame_ID1)
         # model.add(Rigid_connection2D(beam, frame_r, r_OB, frame_ID1=frame_ID1))
         model.add(
             Linear_guidance_x_2D(
@@ -524,7 +524,7 @@ def create_pantograph(
 
     i = nRow - 1
     beam = beams[ID_mat[i, -1]]
-    r_OB = beam.r_OP(0, beam.q0[beam.qDOF_P(frame_ID1)], frame_ID=frame_ID1)
+    r_OB = beam.r_OP(0, beam.q0[beam.local_qDOF_P(frame_ID1)], frame_ID=frame_ID1)
     # model.add(Rigid_connection2D(beam, frame_r, r_OB, frame_ID1=frame_ID1))
     model.add(
         Linear_guidance_x_2D(
@@ -543,7 +543,7 @@ def create_pantograph(
     #     exc_frames.append(Frame(r_OP=r_OP_l[ceil(i / 2)], A_IK=A_IK_l))
     #     model.add(exc_frames[ex_ID])
     #     beam = beams[ID_mat[i, 0]]
-    #     r_OB = beam.r_OP(0, beam.q0[beam.qDOF_P(frame_ID2)], frame_ID=frame_ID2)
+    #     r_OB = beam.r_OP(0, beam.q0[beam.local_qDOF_P(frame_ID2)], frame_ID=frame_ID2)
     #     # model.add(Rigid_connection2D(exc_frames[ex_ID], beam, r_OB, frame_ID2=frame_ID2))
     #     model.add(Linear_guidance_x_2D(exc_frames[ex_ID], beam, r_OB, np.array([[0, 1, 0], [1, 0, 0], [0, 0, 1]]), frame_ID2=frame_ID2))
     #     ex_ID += 1
@@ -552,7 +552,7 @@ def create_pantograph(
     # exc_frames.append(Frame(r_OP=r_OP_l[ceil(i / 2)], A_IK=A_IK_l))
     # model.add(exc_frames[ex_ID])
     # beam = beams[ID_mat[i, 0]]
-    # r_OB = beam.r_OP(0, beam.q0[beam.qDOF_P(frame_ID2)], frame_ID=frame_ID2)
+    # r_OB = beam.r_OP(0, beam.q0[beam.local_qDOF_P(frame_ID2)], frame_ID=frame_ID2)
     # # model.add(Rigid_connection2D(exc_frames[ex_ID], beam, r_OB, frame_ID2=frame_ID2))
     # model.add(Linear_guidance_x_2D(exc_frames[ex_ID], beam, r_OB, np.array([[0, 1, 0], [1, 0, 0], [0, 0, 1]]), frame_ID2=frame_ID2))
     # # # # # # # # # # #
@@ -767,9 +767,9 @@ if __name__ == "__main__":
             u_y = []
             beam = beams[ID_mat[i, cs_idx]]
 
-            pos_0 = beam.r_OP(0, sol.q[0, beam.qDOF[beam.qDOF_P((0,))]], (0,))
+            pos_0 = beam.r_OP(0, sol.q[0, beam.qDOF[beam.local_qDOF_P((0,))]], (0,))
             for k, t in enumerate(sol.t):
-                pos_t = beam.r_OP(t, sol.q[k, beam.qDOF[beam.qDOF_P((0,))]], (0,))
+                pos_t = beam.r_OP(t, sol.q[k, beam.qDOF[beam.local_qDOF_P((0,))]], (0,))
                 displacement = pos_t - pos_0 + pos_0[1]
                 u_x.append(displacement[0])
                 u_y.append(displacement[1])
@@ -786,9 +786,9 @@ if __name__ == "__main__":
         u_x = []
         u_y = []
         beam = beams[ID_mat[i, cs_idx]]
-        pos_0 = beam.r_OP(0, sol.q[0, beam.qDOF[beam.qDOF_P((0,))]], (0,))
+        pos_0 = beam.r_OP(0, sol.q[0, beam.qDOF[beam.local_qDOF_P((0,))]], (0,))
         for k, t in enumerate(sol.t):
-            pos_t = beam.r_OP(t, sol.q[k, beam.qDOF[beam.qDOF_P((0,))]], (0,))
+            pos_t = beam.r_OP(t, sol.q[k, beam.qDOF[beam.local_qDOF_P((0,))]], (0,))
             displacement = pos_t - pos_0 + pos_0[1]
             u_x.append(displacement[0])
             u_y.append(displacement[1])
@@ -853,16 +853,18 @@ if __name__ == "__main__":
 
             for i in range(0, nCol, 2):
                 beam = beams[ID_mat[10, i]]
-                pos_0 = beam.r_OP(0, qq[0, beam.qDOF[beam.qDOF_P((0,))]], (0,))
-                pos_t = beam.r_OP(t, qq[t_idx, beam.qDOF[beam.qDOF_P((0,))]], (0,))
+                pos_0 = beam.r_OP(0, qq[0, beam.qDOF[beam.local_qDOF_P((0,))]], (0,))
+                pos_t = beam.r_OP(
+                    t, qq[t_idx, beam.qDOF[beam.local_qDOF_P((0,))]], (0,)
+                )
                 displacement = pos_t - pos_0
                 u_x.append(displacement[0])
                 u_y.append(displacement[1])
                 X_0.append(pos_0[0])
 
             beam = beams[ID_mat[10, nCol - 1]]
-            pos_0 = beam.r_OP(0, qq[0, beam.qDOF[beam.qDOF_P((1,))]], (1,))
-            pos_t = beam.r_OP(t, qq[t_idx, beam.qDOF[beam.qDOF_P((1,))]], (1,))
+            pos_0 = beam.r_OP(0, qq[0, beam.qDOF[beam.local_qDOF_P((1,))]], (1,))
+            pos_t = beam.r_OP(t, qq[t_idx, beam.qDOF[beam.local_qDOF_P((1,))]], (1,))
             displacement = pos_t - pos_0
             u_x.append(displacement[0])
             u_y.append(displacement[1])
