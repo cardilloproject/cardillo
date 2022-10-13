@@ -11,7 +11,7 @@ from cardillo.solver import Solution
 class EulerBackward:
     def __init__(
         self,
-        model,
+        system,
         t1,
         dt,
         atol=1e-6,
@@ -21,10 +21,10 @@ class EulerBackward:
         debug=False,
     ):
 
-        self.model = model
+        self.model = system
 
         # integration time
-        t0 = model.t0
+        t0 = system.t0
         self.t1 = (
             t1 if t1 > t0 else ValueError("t1 must be larger than initial time t0.")
         )
@@ -46,10 +46,10 @@ class EulerBackward:
         self.la_gDOF = self.nu + self.nq + np.arange(self.nla_g)
         self.la_gammaDOF = self.nu + self.nq + self.nla_g + np.arange(self.nla_gamma)
 
-        self.model.pre_iteration_update(t0, model.q0, model.u0)
-        self.Mk1 = self.model.M(t0, model.q0)
-        self.W_gk1 = self.model.W_g(t0, model.q0)
-        self.W_gammak1 = self.model.W_gamma(t0, model.q0)
+        self.model.pre_iteration_update(t0, system.q0, system.u0)
+        self.Mk1 = self.model.M(t0, system.q0)
+        self.W_gk1 = self.model.W_g(t0, system.q0)
+        self.W_gammak1 = self.model.W_gamma(t0, system.q0)
 
         self.numerical_jacobian = numerical_jacobian
         if numerical_jacobian:
@@ -61,9 +61,9 @@ class EulerBackward:
             self.__R_x = self.__R_x_debug
 
         # initial conditions
-        self.tk = model.t0
-        self.qk = model.q0
-        self.uk = model.u0
+        self.tk = system.t0
+        self.qk = system.q0
+        self.uk = system.u0
         self.q_dotk = self.model.q_dot(self.tk, self.qk, self.uk)
 
         # solve for consistent initial accelerations and Lagrange mutlipliers
@@ -91,11 +91,11 @@ class EulerBackward:
 
         # check if initial conditions satisfy constraints on position, velocity
         # and acceleration level
-        g0 = model.g(self.tk, self.qk)
-        g_dot0 = model.g_dot(self.tk, self.qk, self.uk)
-        g_ddot0 = model.g_ddot(self.tk, self.qk, self.uk, self.u_dotk)
-        gamma0 = model.gamma(self.tk, self.qk, self.uk)
-        gamma_dot0 = model.gamma_dot(self.tk, self.qk, self.uk, self.u_dotk)
+        g0 = system.g(self.tk, self.qk)
+        g_dot0 = system.g_dot(self.tk, self.qk, self.uk)
+        g_ddot0 = system.g_ddot(self.tk, self.qk, self.uk, self.u_dotk)
+        gamma0 = system.gamma(self.tk, self.qk, self.uk)
+        gamma_dot0 = system.gamma_dot(self.tk, self.qk, self.uk, self.u_dotk)
 
         assert np.allclose(
             g0, np.zeros(self.nla_g)
@@ -153,7 +153,7 @@ class EulerBackward:
         xk1[self.la_gammaDOF] = la_gammak1
 
         R_x_num = approx_fprime(
-            xk1, lambda xk1: self.__R_wrappe(tk1, xk1, xk), method="2-point"
+            xk1, lambda xk1: self.__R_wrapper(tk1, xk1, xk), method="3-point"
         )
 
         return csc_matrix(R_x_num)
@@ -239,7 +239,7 @@ class EulerBackward:
             print(f"error_la_gammala_g jacobian: {error_la_gammala_g:.5e}")
             print(f"error_la_gammala_gamma jacobian: {error_la_gammala_gamma:.5e}")
 
-        print(f"total error jacobian: {np.linalg.norm(diff)/ self.n:.5e}")
+        print(f"\ntotal error jacobian: {np.linalg.norm(diff)/ self.n:.5e}")
 
         if self.numerical_jacobian:
             return R_x_num

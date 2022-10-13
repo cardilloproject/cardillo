@@ -2,13 +2,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from cardillo import System
-from cardillo.solver import ScipyIVP
+from cardillo.solver import ScipyIVP, EulerBackward
 from cardillo.discrete import Frame, PointMass
 from cardillo.forces import Force
-from cardillo.scalar_force_interactions.force_laws import Linear_spring, Linear_damper
-from cardillo.scalar_force_interactions import (
-    Translational_f_pot,
-    Translational_f_npot,
+from cardillo.forces import (
+    LinearDamper,
+    LinearSpring,
+    ScalarForceTranslational,
 )
 
 if __name__ == "__main__":
@@ -25,24 +25,26 @@ if __name__ == "__main__":
 
     f_g = Force(lambda t: np.array([0, 0, -m * g]), mass)
 
-    linear_spring = Linear_spring(k)
-    spring_element = Translational_f_pot(linear_spring, frame, mass)
-
-    linear_damper = Linear_damper(d)
-    damping_element = Translational_f_npot(linear_damper, frame, mass)
+    linear_spring = LinearSpring(k)
+    # linear_spring = None
+    linear_damper = LinearDamper(d)
+    # linear_damper = None
+    scalar_force_element = ScalarForceTranslational(
+        frame, mass, linear_spring, linear_damper
+    )
 
     model = System()
     model.add(frame)
     model.add(mass)
     model.add(f_g)
-    model.add(spring_element)
-    model.add(damping_element)
+    model.add(scalar_force_element)
     model.assemble()
 
     t0 = 0
     t1 = 2
     dt = 1.0e-2
     solver = ScipyIVP(model, t1, dt)
+    # solver = EulerBackward(model, t1, dt, debug=True)
     sol = solver.solve()
     t = sol.t
     q = sol.q
