@@ -22,8 +22,8 @@ import matplotlib.pyplot as plt
 
 # Beam = TimoshenkoAxisAngleSE3
 # Beam = DirectorAxisAngle
-# Beam = TimoshenkoDirectorDirac
-Beam = TimoshenkoDirectorIntegral
+Beam = TimoshenkoDirectorDirac
+# Beam = TimoshenkoDirectorIntegral
 
 
 if __name__ == "__main__":
@@ -31,7 +31,7 @@ if __name__ == "__main__":
     nelements = 10
 
     # used polynomial degree
-    polynomial_degree = 3
+    polynomial_degree = 1
     basis = "B-spline"
 
     # beam parameters found in Section 5.1 Ibrahimbegovic1997
