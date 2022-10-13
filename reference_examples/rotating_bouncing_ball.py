@@ -54,14 +54,14 @@ if __name__ == "__main__":
     y_dot0 = 0
     phi0 = 0
     phi_dot0 = 50
-    r_OS0 = np.array([x0, y0, 0])
-    vS0 = np.array([x_dot0, y_dot0, 0])
-    q0 = np.concatenate([r_OS0, np.array([phi0, 0, 0])])
-    u0 = np.concatenate([vS0, np.array([0, 0, phi_dot0])])
+    r_OS0 = np.array([x0, y0, 0], dtype=float)
+    vS0 = np.array([x_dot0, y_dot0, 0], dtype=float)
+    q0 = np.concatenate([r_OS0, np.array([phi0, 0, 0], dtype=float)])
+    u0 = np.concatenate([vS0, np.array([0, 0, phi_dot0], dtype=float)])
     RB = Ball(m, r, q0, u0)
 
-    e1, e2, e3 = np.eye(3)
-    frame = Frame(A_IK=np.vstack((e3, e1, e2)).T, r_OP=np.array([0, 0, 0]))
+    e1, e2, e3 = np.eye(3, dtype=float)
+    frame = Frame(A_IK=np.vstack((e3, e1, e2)).T, r_OP=np.zeros(3, dtype=float))
     # mu = 0.0  # no friction
     mu = 0.2
     # r_N = 0.1
@@ -70,7 +70,6 @@ if __name__ == "__main__":
     plane = Sphere2Plane(frame, RB, r, mu, prox_r_N=r_N, prox_r_F=r_N, e_N=e_N, e_F=0)
 
     alpha = pi / 4
-    # e1, e2, e3 = A_IK_basic_z(alpha)
     e1, e2, e3 = A_IK_basic(alpha).z()
     frame1 = Frame(A_IK=np.vstack((e3, e1, e2)).T)
     mu = 0.2
@@ -79,7 +78,6 @@ if __name__ == "__main__":
     plane_left = Sphere2Plane(frame1, RB, r, mu, prox_r_N=r_N, prox_r_F=r_N, e_N=e_N)
 
     beta = -pi / 4
-    # e1, e2, e3 = A_IK_basic_z(beta)
     e1, e2, e3 = A_IK_basic(beta).z()
     frame2 = Frame(A_IK=np.vstack((e3, e1, e2)).T)
     mu = 0.1
@@ -108,10 +106,10 @@ if __name__ == "__main__":
     # dt = 1e-4
 
     # solver_other = Moreau(model, t1, dt)
-    # solver_other = NonsmoothHalfExplicitEuler(model, t1, dt)
+    solver_other = NonsmoothHalfExplicitEuler(model, t1, dt)
     # solver_other = NonsmoothGeneralizedAlpha(model, t1, dt)
     # solver_other = NonsmoothEulerBackwardsGGL_V2(model, t1, dt)
-    solver_other = NonsmoothDecoupled(model, t1, dt)
+    # solver_other = NonsmoothDecoupled(model, t1, dt)
     # solver_other = DecoupledNonsmoothHalfExplicitRungeKutta(model, t1, dt)
     sol_other = solver_other.solve()
     t = sol_other.t
