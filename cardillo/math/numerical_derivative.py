@@ -1,4 +1,5 @@
 import numpy as np
+import warnings
 
 
 # TODO:
@@ -10,6 +11,10 @@ def approx_fprime(x0, f, eps=1.0e-6, method="2-point"):
     References:
     ===========
     scipy: https://github.com/scipy/scipy/blob/4cf21e753cf937d1c6c2d2a0e372fbc1dbbeea81/scipy/optimize/_numdiff.py#L275."""
+    warnings.warn(
+        "'approx_fprime' is used. Be careful since this can be a performance drawback."
+    )
+
     if method not in ["2-point", "3-point", "cs"]:
         raise ValueError(f"Unknown method '{method}'.")
 
