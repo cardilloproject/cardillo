@@ -2060,7 +2060,7 @@ class TimoshenkoAxisAngleSE3_I_delta_r_P:
         # we have to extract the rotation vector from the given rotation matrix
         # and set its value for each node
         psi = Log_SO3(A_IK)
-        q_psi = np.tile(psi, nn_psi)
+        q_psi = np.repeat(psi, nn_psi)
 
         return np.concatenate([q_r, q_psi])
 
@@ -2102,8 +2102,8 @@ class TimoshenkoAxisAngleSE3_I_delta_r_P:
         # reshape generalized coordinates to nodal ordering
         q_r = r_OC0.reshape(-1, order="C")
         u_r = v_C0.reshape(-1, order="C")
-        q_psi = np.tile(psi, nn_psi)
-        u_psi = np.tile(K_omega_IK0, nn_psi)
+        q_psi = np.repeat(psi, nn_psi)
+        u_psi = np.repeat(K_omega_IK0, nn_psi)
 
         return np.concatenate([q_r, q_psi]), np.concatenate([u_r, u_psi])
 
