@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from cardillo import System
-from cardillo.solver import ScipyIVP
+from cardillo.solver import ScipyIVP, EulerBackward
 from cardillo.discrete import Frame, PointMass
 from cardillo.forces import Force
 from cardillo.forces import (
@@ -43,7 +43,8 @@ if __name__ == "__main__":
     t0 = 0
     t1 = 2
     dt = 1.0e-2
-    solver = ScipyIVP(model, t1, dt)
+    # solver = ScipyIVP(model, t1, dt)
+    solver = EulerBackward(model, t1, dt)
     sol = solver.solve()
     t = sol.t
     q = sol.q

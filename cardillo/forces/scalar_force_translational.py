@@ -27,16 +27,15 @@ class ScalarForceTranslational:
                 self.h = lambda t, q, u: self.__f_spring(t, q) + self.__f_damper(
                     t, q, u
                 )
-                self.h_q = lambda t, q, u, coo: self.__f_spring_q(
-                    t, q, coo
-                ) + self.__f_damper_q(t, q, u, coo)
+                self.h_q = lambda t, q, u, coo: coo.extend(self.__f_spring_q(
+                    t, q) + self.__f_damper_q(t, q, u), (self.uDOF, self.qDOF))
                 self.h_u = lambda t, q, u, coo: self.__f_damper_u(t, q, u, coo)
             else:
                 self.h = lambda t, q, u: self.__f_spring(t, q)
-                self.h_q = lambda t, q, u, coo: self.__f_spring_q(t, q, coo)
+                self.h_q = lambda t, q, u, coo: coo.extend(self.__f_spring_q(t, q, coo), (self.uDOF, self.qDOF))
         else:
             self.h = lambda t, q, u: self.__f_damper(t, q, u)
-            self.h_q = lambda t, q, u, coo: self.__f_damper_q(t, q, u, coo)
+            self.h_q = lambda t, q, u, coo: coo.extend(self.__f_damper_q(t, q, u), (self.uDOF, self.qDOF))
             self.h_u = lambda t, q, u, coo: self.__f_damper_u(t, q, u, coo)
 
         self.subsystem1 = subsystem1
@@ -201,23 +200,24 @@ class ScalarForceTranslational:
         g = self.__g(t, q)
         return -self.__W(t, q) * self.force_law_spring.la(t, g)
 
-    def __f_spring_q(self, t, q, coo):
+    def __f_spring_q(self, t, q):
         g = self.__g(t, q)
         dense = -self.force_law_spring.la(t, g) * self.__W_q(
             t, q
         ) - self.force_law_spring.la_g(t, g) * np.outer(
             self.__W(t, q), self.__g_q(t, q)
         )
-        coo.extend(dense, (self.uDOF, self.qDOF))
+        return dense
 
     def __f_damper(self, t, q, u):
         g_dot = self.__g_dot(t, q, u)
         return -self.__W(t, q) * self.force_law_damper.la(t, g_dot)
 
-    def __f_damper_q(self, t, q, u, coo):
+    def __f_damper_q(self, t, q, u):
         g_dot = self.__g_dot(t, q, u)
         dense = -self.force_law_damper.la(t, g_dot) * self.__W_q(t, q)
-        coo.extend(dense, (self.uDOF, self.qDOF))
+        return dense
+        # coo.extend(dense, (self.uDOF, self.qDOF))
 
     def __f_damper_u(self, t, q, u, coo):
         gamma = self.__g_dot(t, q, u)
