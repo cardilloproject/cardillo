@@ -200,7 +200,7 @@ class TimoshenkoBeamDirector(metaclass=ABCMeta):
         if basis == "B-spline":
             nn_r = polynomial_degree_r + nelement
             nn_di = polynomial_degree_di + nelement
-        elif basis == "lagrange":
+        elif basis == "Lagrange":
             nn_r = polynomial_degree_r * nelement + 1
             nn_di = polynomial_degree_di * nelement + 1
         else:
@@ -220,11 +220,11 @@ class TimoshenkoBeamDirector(metaclass=ABCMeta):
             r0[:, i] = r_OP + A_IK @ r0[:, i]
 
         # reshape generalized coordinates to nodal ordering
-        q_r = r0.reshape(-1, order="F")
+        q_r = r0.reshape(-1, order="C")
 
         # linearize transformation matrix
         A_IK_node = A_IK.reshape(-1)
-        q_di = np.tile(A_IK_node, nn_di)
+        q_di = np.repeat(A_IK_node, nn_di)
 
         return np.concatenate([q_r, q_di])
 
@@ -393,34 +393,31 @@ class TimoshenkoBeamDirector(metaclass=ABCMeta):
             for node in range(self.nnodes_element_r):
                 r_xi += self.N_r_xi[el, i, node] * qe[self.nodalDOF_element_r[node]]
 
-            # interpoalte transformation matrix
-            A_IK = np.zeros((3, 3), dtype=float)
-            A_IK_xi = np.zeros((3, 3), dtype=float)
+            # interpoalte directors
+            d1d2d3 = np.zeros(9, dtype=qe.dtype)
+            d1d2d3_xi = np.zeros(9, dtype=qe.dtype)
             for node in range(self.nnodes_element_di):
-                A_IK_node = qe[self.nodalDOF_element_di[node]].reshape(3, 3)
-                A_IK += self.N_di[el, i, node] * A_IK_node
-                A_IK_xi += self.N_di_xi[el, i, node] * A_IK_node
+                nodalDOF = self.nodalDOF_element_di[node]
+                qe_node = qe[nodalDOF]
+                d1d2d3 += self.N_di[el, i, node] * qe_node
+                d1d2d3_xi += self.N_di_xi[el, i, node] * qe_node
 
-            # extract directors
-            d1, d2, d3 = A_IK.T
-            d1_xi, d2_xi, d3_xi = A_IK_xi.T
-
-            # compute derivatives w.r.t. the arc lenght parameter s
-            r_s = r_xi / J
-            d1_s = d1_xi / J
-            d2_s = d2_xi / J
-            d3_s = d3_xi / J
+            d1, d2, d3 = np.split(d1d2d3, 3)
+            d1_xi, d2_xi, d3_xi = np.split(d1d2d3_xi, 3)
 
             # axial and shear strains
-            K_Gamma = A_IK.T @ r_s
+            K_Gamma = np.array([r_xi @ d1, r_xi @ d2, r_xi @ d3]) / J
 
             # torsional and flexural strains
-            K_Kappa = np.array(
-                [
-                    0.5 * (d3 @ d2_s - d2 @ d3_s),
-                    0.5 * (d1 @ d3_s - d3 @ d1_s),
-                    0.5 * (d2 @ d1_s - d1 @ d2_s),
-                ]
+            K_Kappa = (
+                np.array(
+                    [
+                        0.5 * (d3 @ d2_xi - d2 @ d3_xi),
+                        0.5 * (d1 @ d3_xi - d3 @ d1_xi),
+                        0.5 * (d2 @ d1_xi - d1 @ d2_xi),
+                    ]
+                )
+                / J
             )
 
             # evaluate strain energy function
@@ -454,74 +451,74 @@ class TimoshenkoBeamDirector(metaclass=ABCMeta):
             for node in range(self.nnodes_element_r):
                 r_xi += self.N_r_xi[el, i, node] * qe[self.nodalDOF_element_r[node]]
 
-            # interpoalte transformation matrix
-            A_IK = np.zeros((3, 3), dtype=qe.dtype)
-            A_IK_xi = np.zeros((3, 3), dtype=qe.dtype)
+            # interpoalte directors
+            d1d2d3 = np.zeros(9, dtype=qe.dtype)
+            d1d2d3_xi = np.zeros(9, dtype=qe.dtype)
             for node in range(self.nnodes_element_di):
-                A_IK_node = qe[self.nodalDOF_element_di[node]].reshape(3, 3)
-                A_IK += self.N_di[el, i, node] * A_IK_node
-                A_IK_xi += self.N_di_xi[el, i, node] * A_IK_node
+                nodalDOF = self.nodalDOF_element_di[node]
+                qe_node = qe[nodalDOF]
+                d1d2d3 += self.N_di[el, i, node] * qe_node
+                d1d2d3_xi += self.N_di_xi[el, i, node] * qe_node
 
-            # extract directors
-            d1, d2, d3 = A_IK.T
-            d1_xi, d2_xi, d3_xi = A_IK_xi.T
-
-            # compute derivatives w.r.t. the arc lenght parameter s
-            r_s = r_xi / J
-            d1_s = d1_xi / J
-            d2_s = d2_xi / J
-            d3_s = d3_xi / J
+            d1, d2, d3 = np.split(d1d2d3, 3)
+            d1_xi, d2_xi, d3_xi = np.split(d1d2d3_xi, 3)
 
             # axial and shear strains
-            K_Gamma = A_IK.T @ r_s
+            K_Gamma = np.array([r_xi @ d1, r_xi @ d2, r_xi @ d3]) / J
 
             # torsional and flexural strains
-            K_Kappa = np.array(
-                [
-                    0.5 * (d3 @ d2_s - d2 @ d3_s),
-                    0.5 * (d1 @ d3_s - d3 @ d1_s),
-                    0.5 * (d2 @ d1_s - d1 @ d2_s),
-                ]
+            K_Kappa = (
+                np.array(
+                    [
+                        0.5 * (d3 @ d2_xi - d2 @ d3_xi),
+                        0.5 * (d1 @ d3_xi - d3 @ d1_xi),
+                        0.5 * (d2 @ d1_xi - d1 @ d2_xi),
+                    ]
+                )
+                / J
             )
 
             # compute contact forces and couples from partial derivatives of
             # the strain energy function w.r.t. strain measures
             K_n = self.material_model.K_n(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
             K_m = self.material_model.K_m(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
-            n1, n2, n3 = K_n
-            m1, m2, m3 = K_m
 
             # quadrature point contribution to element residual
             for node in range(self.nnodes_element_r):
                 fe[self.nodalDOF_element_r[node]] -= (
-                    self.N_r_xi[el, i, node] * A_IK @ K_n * qwi
+                    self.N_r_xi[el, i, node]
+                    * (K_n[0] * d1 + K_n[1] * d2 + K_n[2] * d3)
+                    * qwi
                 )
 
+            di = [d1, d2, d3]
+            di_xi = [d1_xi, d2_xi, d3_xi]
             for node in range(self.nnodes_element_di):
                 N_di = self.N_di[el, i, node]
                 N_di_xi = self.N_di_xi[el, i, node]
-                fe_d1 = N_di * (
-                    r_xi * n1 + 0.5 * (m2 * d3_xi - m3 * d2_xi)
-                ) + N_di_xi * 0.5 * (m3 * d2 - m2 * d3)
-                fe_d2 = N_di * (
-                    r_xi * n2 + 0.5 * (m3 * d1_xi - m1 * d3_xi)
-                ) + N_di_xi * 0.5 * (m1 * d3 - m3 * d1)
-                fe_d3 = N_di * (
-                    r_xi * n3 + 0.5 * (m1 * d2_xi - m2 * d1_xi)
-                ) + N_di_xi * 0.5 * (m2 * d1 - m1 * d2)
+
+                def fe_di(i1):
+                    i1, i2, i3 = np.roll([0, 1, 2], (i1 + 1, i1 + 2))
+                    return (
+                        N_di * K_n[i1] * r_xi
+                        + 0.5 * N_di * (K_m[i2] * di_xi[i3] - K_m[i3] * di_xi[i2])
+                        + 0.5 * N_di_xi * (K_m[i3] * di[i2] - K_m[i2] * di[i3])
+                    )
 
                 fe[self.nodalDOF_element_di[node]] -= (
-                    np.concatenate((fe_d1, fe_d2, fe_d3)) * qwi
+                    np.concatenate(list(map(fe_di, [0, 1, 2]))) * qwi
                 )
 
         return fe
 
-        # fe_num = approx_fprime(qe, lambda qe: self.E_pot_el(qe, el), method="3-point")
+        # fe_num = approx_fprime(
+        #     qe,
+        #     lambda qe: -self.E_pot_el(qe, el),
+        #     method="3-point",
+        # )
         # diff = fe - fe_num
-        # # error = np.linalg.norm(diff)
-        # # error = np.linalg.norm(diff[:self.nq_element_r])
-        # error = np.linalg.norm(diff[self.nq_element_r :])
-        # print(f"error f_pot_el: {error}")
+        # error = np.linalg.norm(diff)
+        # print(f"error: {error}")
         # return fe_num
 
     def h_q(self, t, q, u, coo):
@@ -533,9 +530,6 @@ class TimoshenkoBeamDirector(metaclass=ABCMeta):
             coo.extend(Ke, (self.uDOF[elDOF], self.qDOF[elDOF]))
 
     def f_pot_q_el(self, qe, el):
-        return approx_fprime(qe, lambda qe: self.f_pot_el(qe, el), method="2-point")
-        # return approx_fprime(qe, lambda qe: self.f_pot_el(qe, el), eps=1.0e-10, method="cs")
-
         Ke = np.zeros((self.nq_element, self.nq_element))
 
         for i in range(self.nquadrature):
@@ -555,541 +549,162 @@ class TimoshenkoBeamDirector(metaclass=ABCMeta):
                     3, dtype=float
                 )
 
-            # interpoalte transformation matrix
-            A_IK = np.zeros((3, 3), dtype=float)
-            A_IK_xi = np.zeros((3, 3), dtype=float)
-            A_IK_q = np.zeros((3, 3, self.nq_element), dtype=float)
-            A_IK_xi_q = np.zeros((3, 3, self.nq_element), dtype=float)
+            d1d2d3 = np.zeros(9, dtype=float)
+            d1d2d3_xi = np.zeros(9, dtype=float)
+            d1d2d3_q = np.zeros((9, self.nq_element), dtype=float)
+            d1d2d3_xi_q = np.zeros((9, self.nq_element), dtype=float)
             for node in range(self.nnodes_element_di):
-                nodalDOF_element_di = self.nodalDOF_element_di[node]
-                A_IK_node = qe[nodalDOF_element_di].reshape(3, 3)
-                A_IK += self.N_di[el, i, node] * A_IK_node
-                A_IK_xi += self.N_di_xi[el, i, node] * A_IK_node
-                for i in range(3):
-                    for j in range(3):
-                        k = i * 3 + j
-                        k = i + 3 * j
-                        A_IK_q[i, j, nodalDOF_element_di[k]] += self.N_di[el, i, node]
-                        A_IK_xi_q[i, j, nodalDOF_element_di[k]] += self.N_di_xi[
-                            el, i, node
-                        ]
+                nodalDOF = self.nodalDOF_element_di[node]
+                qe_node = qe[nodalDOF]
+                d1d2d3 += self.N_di[el, i, node] * qe_node
+                d1d2d3_xi += self.N_di_xi[el, i, node] * qe_node
+                d1d2d3_q[:, nodalDOF] += self.N_di[el, i, node] * np.eye(9, dtype=float)
+                d1d2d3_xi_q[:, nodalDOF] += self.N_di_xi[el, i, node] * np.eye(
+                    9, dtype=float
+                )
 
-            # extract directors
-            d1, d2, d3 = A_IK.T
-            d1_xi, d2_xi, d3_xi = A_IK_xi.T
-
-            # compute derivatives w.r.t. the arc lenght parameter s
-            r_s = r_xi / J
-            d1_s = d1_xi / J
-            d2_s = d2_xi / J
-            d3_s = d3_xi / J
+            d1, d2, d3 = np.split(d1d2d3, 3)
+            d1_xi, d2_xi, d3_xi = np.split(d1d2d3_xi, 3)
+            d1_q, d2_q, d3_q = np.split(d1d2d3_q, 3)
+            d1_xi_q, d2_xi_q, d3_xi_q = np.split(d1d2d3_xi_q, 3)
 
             # axial and shear strains
-            K_Gamma = A_IK.T @ r_s
+            K_Gamma = np.array([d1 @ r_xi, d2 @ r_xi, d3 @ r_xi]) / J
+
+            # derivative of axial and shear strains
+            K_Gamma_q = (
+                np.array(
+                    [
+                        d1 @ r_xi_q,
+                        d2 @ r_xi_q,
+                        d3 @ r_xi_q,
+                    ]
+                )
+                / J
+                + np.array(
+                    [
+                        r_xi @ d1_q,
+                        r_xi @ d2_q,
+                        r_xi @ d3_q,
+                    ]
+                )
+                / J
+            )
 
             # torsional and flexural strains
-            K_Kappa = np.array(
-                [
-                    0.5 * (d3 @ d2_s - d2 @ d3_s),
-                    0.5 * (d1 @ d3_s - d3 @ d1_s),
-                    0.5 * (d2 @ d1_s - d1 @ d2_s),
-                ]
+            K_Kappa = (
+                0.5
+                * np.array(
+                    [
+                        d3 @ d2_xi - d2 @ d3_xi,
+                        d1 @ d3_xi - d3 @ d1_xi,
+                        d2 @ d1_xi - d1 @ d2_xi,
+                    ]
+                )
+                / J
+            )
+            K_Kappa_q = (
+                0.5
+                * np.array(
+                    [
+                        d3 @ d2_xi_q + d2_xi @ d3_q - d2 @ d3_xi_q - d3_xi @ d2_q,
+                        d1 @ d3_xi_q + d3_xi @ d1_q - d3 @ d1_xi_q - d1_xi @ d3_q,
+                        d2 @ d1_xi_q + d1_xi @ d2_q - d1 @ d2_xi_q - d2_xi @ d1_q,
+                    ]
+                )
+                / J
             )
 
             # compute contact forces and couples from partial derivatives of
             # the strain energy function w.r.t. strain measures
             K_n = self.material_model.K_n(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
             K_m = self.material_model.K_m(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
-            n1, n2, n3 = K_n
-            m1, m2, m3 = K_m
+            K_n_K_Gamma = self.material_model.K_n_K_Gamma(
+                K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
+            )
+            K_n_K_Kappa = self.material_model.K_n_K_Kappa(
+                K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
+            )
+            K_m_K_Gamma = self.material_model.K_m_K_Gamma(
+                K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
+            )
+            K_m_K_Kappa = self.material_model.K_m_K_Kappa(
+                K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
+            )
+
+            K_n_q = K_n_K_Gamma @ K_Gamma_q + K_n_K_Kappa @ K_Kappa_q
+            K_m_q = K_m_K_Gamma @ K_Gamma_q + K_m_K_Kappa @ K_Kappa_q
 
             # quadrature point contribution to element residual
             for node in range(self.nnodes_element_r):
-                fe[self.nodalDOF_element_r[node]] -= (
-                    self.N_r_xi[el, i, node] * A_IK @ K_n * qwi
+                # fe[self.nodalDOF_element_r[node]] -= (
+                #     self.N_r_xi[el, i, node] * (
+                #         K_n[0] * d1 + K_n[1] * d2 + K_n[2] * d3
+                #     ) * qwi
+                # )
+                Ke[self.nodalDOF_element_r[node]] -= (
+                    self.N_r_xi[el, i, node]
+                    * (
+                        K_n[0] * d1_q
+                        + np.outer(d1, K_n_q[0])
+                        + K_n[1] * d2_q
+                        + np.outer(d2, K_n_q[1])
+                        + K_n[2] * d3_q
+                        + np.outer(d3, K_n_q[2])
+                    )
+                    * qwi
                 )
+
+            di = [d1, d2, d3]
+            di_xi = [d1_xi, d2_xi, d3_xi]
+            di_q = [d1_q, d2_q, d3_q]
+            di_xi_q = [d1_xi_q, d2_xi_q, d3_xi_q]
 
             for node in range(self.nnodes_element_di):
                 N_di = self.N_di[el, i, node]
                 N_di_xi = self.N_di_xi[el, i, node]
-                fe_d1 = N_di * (
-                    r_xi * n1 + 0.5 * (m2 * d3_xi - m3 * d2_xi)
-                ) + N_di_xi * 0.5 * (m3 * d2 - m2 * d3)
-                fe_d2 = N_di * (
-                    r_xi * n2 + 0.5 * (m3 * d1_xi - m1 * d3_xi)
-                ) + N_di_xi * 0.5 * (m1 * d3 - m3 * d1)
-                fe_d3 = N_di * (
-                    r_xi * n3 + 0.5 * (m1 * d2_xi - m2 * d1_xi)
-                ) + N_di_xi * 0.5 * (m2 * d1 - m1 * d2)
 
-                fe[self.nodalDOF_element_di[node]] -= (
-                    np.concatenate((fe_d1, fe_d2, fe_d3)) * qwi
+                def fe_di_q(i1):
+                    i1, i2, i3 = np.roll([0, 1, 2], (i1 + 1, i1 + 2))
+                    return (
+                        N_di * (K_n[i1] * r_xi_q + np.outer(r_xi, K_n_q[i1]))
+                        + 0.5
+                        * N_di
+                        * (
+                            K_m[i2] * di_xi_q[i3]
+                            + np.outer(di_xi[i3], K_m_q[i2])
+                            - K_m[i3] * di_xi_q[i2]
+                            - np.outer(di_xi[i2], K_m_q[i3])
+                        )
+                        + 0.5
+                        * N_di_xi
+                        * (
+                            K_m[i3] * di_q[i2]
+                            + np.outer(di[i2], K_m_q[i3])
+                            - K_m[i2] * di_q[i3]
+                            - np.outer(di[i3], K_m_q[i2])
+                        )
+                    )
+
+                # # fe[self.nodalDOF_element_di[node]] -= (
+                # #     np.concatenate((fe_di(0), fe_di(1), fe_di(2)))
+                # # ) * qwi
+                # Ke[self.nodalDOF_element_di[node]] -= (
+                #     np.concatenate((fe_di_q(0), fe_di_q(1), fe_di_q(2)))
+                # ) * qwi
+
+                Ke[self.nodalDOF_element_di[node]] -= (
+                    np.concatenate(list(map(fe_di_q, [0, 1, 2]))) * qwi
                 )
-
-        # # extract generalized coordinates for beam centerline and directors
-        # # in the current and reference configuration
-        # qe_r = qe[self.rDOF]
-        # qe_d1 = qe[self.d1DOF]
-        # qe_d2 = qe[self.d2DOF]
-        # qe_d3 = qe[self.d3DOF]
-
-        # for i in range(self.nquadrature):
-        #     # build matrix of shape function derivatives
-        #     # NN_r_i = self.stack3r(self.N_r[el, i])
-        #     NN_di_i = self.stack3di(self.N_di[el, i])
-        #     NN_r_xii = self.stack3r(self.N_r_xi[el, i])
-        #     NN_di_xii = self.stack3di(self.N_di_xi[el, i])
-
-        #     # extract reference state variables
-        #     Ji = self.J[el, i]
-        #     Gamma0_i = self.Gamma0[el, i]
-        #     Kappa0_i = self.Kappa0[el, i]
-        #     qwi = self.qw[el, i]
-
-        #     # Interpolate necessary quantities. The derivatives are evaluated w.r.t.
-        #     # the parameter space \xi and thus need to be transformed later
-        #     r_xi = NN_r_xii @ qe_r
-
-        #     d1 = NN_di_i @ qe_d1
-        #     d1_xi = NN_di_xii @ qe_d1
-
-        #     d2 = NN_di_i @ qe_d2
-        #     d2_xi = NN_di_xii @ qe_d2
-
-        #     d3 = NN_di_i @ qe_d3
-        #     d3_xi = NN_di_xii @ qe_d3
-
-        #     # compute derivatives w.r.t. the arc lenght parameter s
-        #     r_s = r_xi / Ji
-
-        #     d1_s = d1_xi / Ji
-        #     d2_s = d2_xi / Ji
-        #     d3_s = d3_xi / Ji
-
-        #     # build rotation matrices
-        #     R = np.vstack((d1, d2, d3)).T
-
-        #     # axial and shear strains
-        #     Gamma_i = R.T @ r_s
-
-        #     # derivative of axial and shear strains
-        #     Gamma_j_qr = R.T @ NN_r_xii / Ji
-        #     Gamma_1_qd1 = r_xi @ NN_di_i / Ji
-        #     Gamma_2_qd2 = r_xi @ NN_di_i / Ji
-        #     Gamma_3_qd3 = r_xi @ NN_di_i / Ji
-
-        #     #################################################################
-        #     # formulation of Harsch2020b
-        #     #################################################################
-
-        #     # torsional and flexural strains
-        #     Kappa_i = np.array(
-        #         [
-        #             0.5 * (d3 @ d2_s - d2 @ d3_s),
-        #             0.5 * (d1 @ d3_s - d3 @ d1_s),
-        #             0.5 * (d2 @ d1_s - d1 @ d2_s),
-        #         ]
-        #     )
-
-        #     # derivative of torsional and flexural strains
-        #     kappa_1_qe_d1 = np.zeros(3 * self.nn_el_di)
-        #     kappa_1_qe_d2 = 0.5 * (d3 @ NN_di_xii - d3_xi @ NN_di_i) / Ji
-        #     kappa_1_qe_d3 = 0.5 * (d2_xi @ NN_di_i - d2 @ NN_di_xii) / Ji
-
-        #     kappa_2_qe_d1 = 0.5 * (d3_xi @ NN_di_i - d3 @ NN_di_xii) / Ji
-        #     kappa_2_qe_d2 = np.zeros(3 * self.nn_el_di)
-        #     kappa_2_qe_d3 = 0.5 * (d1 @ NN_di_xii - d1_xi @ NN_di_i) / Ji
-
-        #     kappa_3_qe_d1 = 0.5 * (d2 @ NN_di_xii - d2_xi @ NN_di_i) / Ji
-        #     kappa_3_qe_d2 = 0.5 * (d1_xi @ NN_di_i - d1 @ NN_di_xii) / Ji
-        #     kappa_3_qe_d3 = np.zeros(3 * self.nn_el_di)
-
-        #     kappa_j_qe_d1 = np.vstack((kappa_1_qe_d1, kappa_2_qe_d1, kappa_3_qe_d1))
-        #     kappa_j_qe_d2 = np.vstack((kappa_1_qe_d2, kappa_2_qe_d2, kappa_3_qe_d2))
-        #     kappa_j_qe_d3 = np.vstack((kappa_1_qe_d3, kappa_2_qe_d3, kappa_3_qe_d3))
-
-        #     # compute contact forces and couples from partial derivatives of the strain energy function w.r.t. strain measures
-        #     # n1, n2, n3 = self.material_model.n_i(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
-        #     # n_i_Gamma_j = self.material_model.n_i_Gamma_j(
-        #     #     Gamma_i, Gamma0_i, Kappa_i, Kappa0_i
-        #     # )
-        #     # n_i_Kappa_j = self.material_model.n_i_K_j(
-        #     #     Gamma_i, Gamma0_i, Kappa_i, Kappa0_i
-        #     # )
-        #     n1, n2, n3 = self.material_model.K_n(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
-        #     n_i_Gamma_j = self.material_model.K_n_K_Gamma(
-        #         Gamma_i, Gamma0_i, Kappa_i, Kappa0_i
-        #     )
-        #     n_i_Kappa_j = self.material_model.K_n_K_Kappa(
-        #         Gamma_i, Gamma0_i, Kappa_i, Kappa0_i
-        #     )
-        #     n1_qr, n2_qr, n3_qr = n_i_Gamma_j @ Gamma_j_qr
-
-        #     n1_qd1, n2_qd1, n3_qd1 = (
-        #         np.outer(n_i_Gamma_j[0], Gamma_1_qd1) + n_i_Kappa_j @ kappa_j_qe_d1
-        #     )
-        #     n1_qd2, n2_qd2, n3_qd2 = (
-        #         np.outer(n_i_Gamma_j[1], Gamma_2_qd2) + n_i_Kappa_j @ kappa_j_qe_d2
-        #     )
-        #     n1_qd3, n2_qd3, n3_qd3 = (
-        #         np.outer(n_i_Gamma_j[2], Gamma_3_qd3) + n_i_Kappa_j @ kappa_j_qe_d3
-        #     )
-
-        #     # m1, m2, m3 = self.material_model.m_i(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
-        #     # m_i_Gamma_j = self.material_model.m_i_Gamma_j(
-        #     #     Gamma_i, Gamma0_i, Kappa_i, Kappa0_i
-        #     # )
-        #     # m_i_Kappa_j = self.material_model.m_i_K_j(
-        #     #     Gamma_i, Gamma0_i, Kappa_i, Kappa0_i
-        #     # )
-        #     m1, m2, m3 = self.material_model.K_m(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
-        #     m_i_Gamma_j = self.material_model.K_m_K_Gamma(
-        #         Gamma_i, Gamma0_i, Kappa_i, Kappa0_i
-        #     )
-        #     m_i_Kappa_j = self.material_model.K_m_K_Kappa(
-        #         Gamma_i, Gamma0_i, Kappa_i, Kappa0_i
-        #     )
-
-        #     m1_qr, m2_qr, m3_qr = m_i_Gamma_j @ Gamma_j_qr
-        #     m1_qd1, m2_qd1, m3_qd1 = (
-        #         np.outer(m_i_Gamma_j[0], Gamma_1_qd1) + m_i_Kappa_j @ kappa_j_qe_d1
-        #     )
-        #     m1_qd2, m2_qd2, m3_qd2 = (
-        #         np.outer(m_i_Gamma_j[1], Gamma_2_qd2) + m_i_Kappa_j @ kappa_j_qe_d2
-        #     )
-        #     m1_qd3, m2_qd3, m3_qd3 = (
-        #         np.outer(m_i_Gamma_j[2], Gamma_3_qd3) + m_i_Kappa_j @ kappa_j_qe_d3
-        #     )
-
-        #     Ke[self.rDOF[:, None], self.rDOF] -= (
-        #         NN_r_xii.T
-        #         @ (np.outer(d1, n1_qr) + np.outer(d2, n2_qr) + np.outer(d3, n3_qr))
-        #         * qwi
-        #     )
-        #     Ke[self.rDOF[:, None], self.d1DOF] -= (
-        #         NN_r_xii.T
-        #         @ (
-        #             np.outer(d1, n1_qd1)
-        #             + np.outer(d2, n2_qd1)
-        #             + np.outer(d3, n3_qd1)
-        #             + n1 * NN_di_i
-        #         )
-        #         * qwi
-        #     )
-        #     Ke[self.rDOF[:, None], self.d2DOF] -= (
-        #         NN_r_xii.T
-        #         @ (
-        #             np.outer(d1, n1_qd2)
-        #             + np.outer(d2, n2_qd2)
-        #             + np.outer(d3, n3_qd2)
-        #             + n2 * NN_di_i
-        #         )
-        #         * qwi
-        #     )
-        #     Ke[self.rDOF[:, None], self.d3DOF] -= (
-        #         NN_r_xii.T
-        #         @ (
-        #             np.outer(d1, n1_qd3)
-        #             + np.outer(d2, n2_qd3)
-        #             + np.outer(d3, n3_qd3)
-        #             + n3 * NN_di_i
-        #         )
-        #         * qwi
-        #     )
-
-        #     Ke[self.d1DOF[:, None], self.rDOF] -= (
-        #         NN_di_i.T
-        #         @ (
-        #             np.outer(r_xi, n1_qr)
-        #             + n1 * NN_r_xii
-        #             + np.outer(0.5 * d3_xi, m2_qr)
-        #             - np.outer(0.5 * d2_xi, m3_qr)
-        #         )
-        #         * qwi
-        #         + NN_di_xii.T
-        #         @ (np.outer(0.5 * d2, m3_qr) - np.outer(0.5 * d3, m2_qr))
-        #         * qwi
-        #     )
-        #     Ke[self.d1DOF[:, None], self.d1DOF] -= (
-        #         NN_di_i.T
-        #         @ (
-        #             np.outer(r_xi, n1_qd1)
-        #             + np.outer(0.5 * d3_xi, m2_qd1)
-        #             - np.outer(0.5 * d2_xi, m3_qd1)
-        #         )
-        #         * qwi
-        #         + NN_di_xii.T
-        #         @ (np.outer(0.5 * d2, m3_qd1) - np.outer(0.5 * d3, m2_qd1))
-        #         * qwi
-        #     )
-        #     Ke[self.d1DOF[:, None], self.d2DOF] -= (
-        #         NN_di_i.T
-        #         @ (
-        #             np.outer(r_xi, n1_qd2)
-        #             + np.outer(0.5 * d3_xi, m2_qd2)
-        #             - np.outer(0.5 * d2_xi, m3_qd2)
-        #             - 0.5 * m3 * NN_di_xii
-        #         )
-        #         * qwi
-        #         + NN_di_xii.T
-        #         @ (
-        #             np.outer(0.5 * d2, m3_qd2)
-        #             + 0.5 * m3 * NN_di_i
-        #             - np.outer(0.5 * d3, m2_qd2)
-        #         )
-        #         * qwi
-        #     )
-        #     Ke[self.d1DOF[:, None], self.d3DOF] -= (
-        #         NN_di_i.T
-        #         @ (
-        #             np.outer(r_xi, n1_qd3)
-        #             + np.outer(0.5 * d3_xi, m2_qd3)
-        #             + 0.5 * m2 * NN_di_xii
-        #             - np.outer(0.5 * d2_xi, m3_qd3)
-        #         )
-        #         * qwi
-        #         + NN_di_xii.T
-        #         @ (
-        #             np.outer(0.5 * d2, m3_qd3)
-        #             - np.outer(0.5 * d3, m2_qd3)
-        #             - 0.5 * m2 * NN_di_i
-        #         )
-        #         * qwi
-        #     )
-
-        #     Ke[self.d2DOF[:, None], self.rDOF] -= (
-        #         NN_di_i.T
-        #         @ (
-        #             np.outer(r_xi, n2_qr)
-        #             + n2 * NN_r_xii
-        #             + np.outer(0.5 * d1_xi, m3_qr)
-        #             - np.outer(0.5 * d3_xi, m1_qr)
-        #         )
-        #         * qwi
-        #         + NN_di_xii.T
-        #         @ (np.outer(0.5 * d3, m1_qr) - np.outer(0.5 * d1, m3_qr))
-        #         * qwi
-        #     )
-        #     Ke[self.d2DOF[:, None], self.d1DOF] -= (
-        #         NN_di_i.T
-        #         @ (
-        #             np.outer(r_xi, n2_qd1)
-        #             + np.outer(0.5 * d1_xi, m3_qd1)
-        #             + 0.5 * m3 * NN_di_xii
-        #             - np.outer(0.5 * d3_xi, m1_qd1)
-        #         )
-        #         * qwi
-        #         + NN_di_xii.T
-        #         @ (
-        #             np.outer(0.5 * d3, m1_qd1)
-        #             - np.outer(0.5 * d1, m3_qd1)
-        #             - 0.5 * m3 * NN_di_i
-        #         )
-        #         * qwi
-        #     )
-        #     Ke[self.d2DOF[:, None], self.d2DOF] -= (
-        #         NN_di_i.T
-        #         @ (
-        #             np.outer(r_xi, n2_qd2)
-        #             + np.outer(0.5 * d1_xi, m3_qd2)
-        #             - np.outer(0.5 * d3_xi, m1_qd2)
-        #         )
-        #         * qwi
-        #         + NN_di_xii.T
-        #         @ (np.outer(0.5 * d3, m1_qd2) - np.outer(0.5 * d1, m3_qd2))
-        #         * qwi
-        #     )
-        #     Ke[self.d2DOF[:, None], self.d3DOF] -= (
-        #         NN_di_i.T
-        #         @ (
-        #             np.outer(r_xi, n2_qd3)
-        #             + np.outer(0.5 * d1_xi, m3_qd3)
-        #             - np.outer(0.5 * d3_xi, m1_qd3)
-        #             - 0.5 * m1 * NN_di_xii
-        #         )
-        #         * qwi
-        #         + NN_di_xii.T
-        #         @ (
-        #             np.outer(0.5 * d3, m1_qd3)
-        #             + 0.5 * m1 * NN_di_i
-        #             - np.outer(0.5 * d1, m3_qd3)
-        #         )
-        #         * qwi
-        #     )
-
-        #     Ke[self.d3DOF[:, None], self.rDOF] -= (
-        #         NN_di_i.T
-        #         @ (
-        #             np.outer(r_xi, n3_qr)
-        #             + n3 * NN_r_xii
-        #             + np.outer(0.5 * d2_xi, m1_qr)
-        #             - np.outer(0.5 * d1_xi, m2_qr)
-        #         )
-        #         * qwi
-        #         + NN_di_xii.T
-        #         @ (np.outer(0.5 * d1, m2_qr) - np.outer(0.5 * d2, m1_qr))
-        #         * qwi
-        #     )
-        #     Ke[self.d3DOF[:, None], self.d1DOF] -= (
-        #         NN_di_i.T
-        #         @ (
-        #             np.outer(r_xi, n3_qd1)
-        #             + np.outer(0.5 * d2_xi, m1_qd1)
-        #             - np.outer(0.5 * d1_xi, m2_qd1)
-        #             - 0.5 * m2 * NN_di_xii
-        #         )
-        #         * qwi
-        #         + NN_di_xii.T
-        #         @ (
-        #             np.outer(0.5 * d1, m2_qd1)
-        #             + 0.5 * m2 * NN_di_i
-        #             - np.outer(0.5 * d2, m1_qd1)
-        #         )
-        #         * qwi
-        #     )
-        #     Ke[self.d3DOF[:, None], self.d2DOF] -= (
-        #         NN_di_i.T
-        #         @ (
-        #             np.outer(r_xi, n3_qd2)
-        #             + np.outer(0.5 * d2_xi, m1_qd2)
-        #             + 0.5 * m1 * NN_di_xii
-        #             - np.outer(0.5 * d1_xi, m2_qd2)
-        #         )
-        #         * qwi
-        #         + NN_di_xii.T
-        #         @ (
-        #             np.outer(0.5 * d1, m2_qd2)
-        #             - np.outer(0.5 * d2, m1_qd2)
-        #             - 0.5 * m1 * NN_di_i
-        #         )
-        #         * qwi
-        #     )
-        #     Ke[self.d3DOF[:, None], self.d3DOF] -= (
-        #         NN_di_i.T
-        #         @ (
-        #             np.outer(r_xi, n3_qd3)
-        #             + np.outer(0.5 * d2_xi, m1_qd3)
-        #             - np.outer(0.5 * d1_xi, m2_qd3)
-        #         )
-        #         * qwi
-        #         + NN_di_xii.T
-        #         @ (np.outer(0.5 * d1, m2_qd3) - np.outer(0.5 * d2, m1_qd3))
-        #         * qwi
-        #     )
-
-        # #################################################################
-        # # alternative formulation assuming orthogonality of the directors
-        # #################################################################
-
-        # # torsional and flexural strains
-        # Kappa_i = np.array([d3 @ d2_s, \
-        #                     d1 @ d3_s, \
-        #                     d2 @ d1_s])
-
-        # # derivative of torsional and flexural strains
-        # kappa_1_qe_d1 = np.zeros(3 * self.nn_el_di)
-        # kappa_1_qe_d2 = d3 @ NN_di_xii / Ji
-        # kappa_1_qe_d3 = d2_s @ NN_di_i
-
-        # kappa_2_qe_d1 = d3_s @ NN_di_i
-        # kappa_2_qe_d2 = np.zeros(3 * self.nn_el_di)
-        # kappa_2_qe_d3 = d1 @ NN_di_xii / Ji
-
-        # kappa_3_qe_d1 = d2 @ NN_di_xii / Ji
-        # kappa_3_qe_d2 = d1_s @ NN_di_i
-        # kappa_3_qe_d3 = np.zeros(3 * self.nn_el_di)
-
-        # kappa_j_qe_d1 = np.vstack((kappa_1_qe_d1, kappa_2_qe_d1, kappa_3_qe_d1))
-        # kappa_j_qe_d2 = np.vstack((kappa_1_qe_d2, kappa_2_qe_d2, kappa_3_qe_d2))
-        # kappa_j_qe_d3 = np.vstack((kappa_1_qe_d3, kappa_2_qe_d3, kappa_3_qe_d3))
-
-        # # compute contact forces and couples from partial derivatives of the strain energy function w.r.t. strain measures
-        # n1, n2, n3 = self.material_model.n_i(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
-        # n_i_Gamma_i_j = self.material_model.n_i_Gamma_i_j(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
-        # n_i_Kappa_i_j = self.material_model.n_i_Kappa_i_j(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
-        # n1_qr, n2_qr, n3_qr = n_i_Gamma_i_j @ Gamma_j_qr
-
-        # n1_qd1, n2_qd1, n3_qd1 = np.outer(n_i_Gamma_i_j[0], Gamma_1_qd1) + n_i_Kappa_i_j @ kappa_j_qe_d1
-        # n1_qd2, n2_qd2, n3_qd2 = np.outer(n_i_Gamma_i_j[1], Gamma_2_qd2) + n_i_Kappa_i_j @ kappa_j_qe_d2
-        # n1_qd3, n2_qd3, n3_qd3 = np.outer(n_i_Gamma_i_j[2], Gamma_3_qd3) + n_i_Kappa_i_j @ kappa_j_qe_d3
-
-        # m1, m2, m3 = self.material_model.m_i(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
-        # m_i_Gamma_i_j = self.material_model.m_i_Gamma_i_j(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
-        # m_i_Kappa_i_j = self.material_model.m_i_Kappa_i_j(Gamma_i, Gamma0_i, Kappa_i, Kappa0_i)
-
-        # m1_qr, m2_qr, m3_qr = m_i_Gamma_i_j @ Gamma_j_qr
-        # m1_qd1, m2_qd1, m3_qd1 = np.outer(m_i_Gamma_i_j[0], Gamma_1_qd1) + m_i_Kappa_i_j @ kappa_j_qe_d1
-        # m1_qd2, m2_qd2, m3_qd2 = np.outer(m_i_Gamma_i_j[1], Gamma_2_qd2) + m_i_Kappa_i_j @ kappa_j_qe_d2
-        # m1_qd3, m2_qd3, m3_qd3 = np.outer(m_i_Gamma_i_j[2], Gamma_3_qd3) + m_i_Kappa_i_j @ kappa_j_qe_d3
-
-        # # quadrature point contribution to element stiffness matrix
-
-        # # fe[self.rDOF] -=  NN_r_xii.T @ ( n1 * d1 + n2 * d2 + n3 * d3 ) * qwi # delta r'
-        # Ke[self.rDOF[:, None], self.rDOF] -= NN_r_xii.T @ (np.outer(d1, n1_qr) + np.outer(d2, n2_qr) + np.outer(d3, n3_qr)) * qwi
-        # Ke[self.rDOF[:, None], self.d1DOF] -= NN_r_xii.T @ (np.outer(d1, n1_qd1) + np.outer(d2, n2_qd1) + np.outer(d3, n3_qd1) + n1 * NN_di_i) * qwi
-        # Ke[self.rDOF[:, None], self.d2DOF] -= NN_r_xii.T @ (np.outer(d1, n1_qd2) + np.outer(d2, n2_qd2) + np.outer(d3, n3_qd2) + n2 * NN_di_i) * qwi
-        # Ke[self.rDOF[:, None], self.d3DOF] -= NN_r_xii.T @ (np.outer(d1, n1_qd3) + np.outer(d2, n2_qd3) + np.outer(d3, n3_qd3) + n3 * NN_di_i) * qwi
-
-        # # fe[self.d1DOF] -= ( NN_di_i.T @ ( r_xi * n1 + m2 * d3_xi ) # delta d1 \
-        # #                     + NN_di_xii.T @ ( m3 * d2 ) ) * qwi    # delta d1'
-        # Ke[self.d1DOF[:, None], self.rDOF] -= NN_di_i.T @ (np.outer(r_xi, n1_qr) + n1 * NN_r_xii + np.outer(d3_xi, m2_qr)) * qwi \
-        #                                       + NN_di_xii.T @ np.outer(d2, m3_qr) * qwi
-        # Ke[self.d1DOF[:, None], self.d1DOF] -= NN_di_i.T @ (np.outer(r_xi, n1_qd1) + np.outer(d3_xi, m2_qd1)) * qwi \
-        #                                        + NN_di_xii.T @ np.outer(d2, m3_qd1) * qwi
-        # Ke[self.d1DOF[:, None], self.d2DOF] -= NN_di_i.T @ (np.outer(r_xi, n1_qd2) + np.outer(d3_xi, m2_qd2)) * qwi \
-        #                                        + NN_di_xii.T @ (np.outer(d2, m3_qd2) + m3 * NN_di_i) * qwi
-        # Ke[self.d1DOF[:, None], self.d3DOF] -= NN_di_i.T @ (np.outer(r_xi, n1_qd3) + np.outer(d3_xi, m2_qd3) + m2 * NN_di_xii) * qwi \
-        #                                        + NN_di_xii.T @ np.outer(d2, m3_qd3) * qwi
-
-        # # fe[self.d2DOF] -= ( NN_di_i.T @ ( r_xi * n2 + m3 * d1_xi ) # delta d2 \
-        # #                     + NN_di_xii.T @ ( m1 * d3 ) ) * qwi    # delta d2'
-        # Ke[self.d2DOF[:, None], self.rDOF] -= NN_di_i.T @ (np.outer(r_xi, n2_qr) + n2 * NN_r_xii + np.outer(d1_xi, m3_qr)) * qwi \
-        #                                       + NN_di_xii.T @ np.outer(d3, m1_qr) * qwi
-        # Ke[self.d2DOF[:, None], self.d1DOF] -= NN_di_i.T @ (np.outer(r_xi, n2_qd1) + np.outer(d1_xi, m3_qd1) + m3 * NN_di_xii) * qwi \
-        #                                        + NN_di_xii.T @ np.outer(d3, m1_qd1) * qwi
-        # Ke[self.d2DOF[:, None], self.d2DOF] -= NN_di_i.T @ (np.outer(r_xi, n2_qd2) + np.outer(d1_xi, m3_qd2)) * qwi \
-        #                                        + NN_di_xii.T @ np.outer(d3, m1_qd2) * qwi
-        # Ke[self.d2DOF[:, None], self.d3DOF] -= NN_di_i.T @ (np.outer(r_xi, n2_qd3) + np.outer(d1_xi, m3_qd3)) * qwi \
-        #                                        + NN_di_xii.T @ (np.outer(d3, m1_qd3) + m1 * NN_di_i) * qwi
-
-        # # fe[self.d3DOF] -= ( NN_di_i.T @ ( r_xi * n3 + m1 * d2_xi ) # delta d3 \
-        # #                     + NN_di_xii.T @ ( m2 * d1 ) ) * qwi    # delta d3'
-        # Ke[self.d3DOF[:, None], self.rDOF] -= NN_di_i.T @ (np.outer(r_xi, n3_qr) + n3 * NN_r_xii + np.outer(d2_xi, m1_qr)) * qwi \
-        #                                       + NN_di_xii.T @ np.outer(d1, m2_qr) * qwi
-        # Ke[self.d3DOF[:, None], self.d1DOF] -= NN_di_i.T @ (np.outer(r_xi, n3_qd1) + np.outer(d2_xi, m1_qd1)) * qwi \
-        #                                        + NN_di_xii.T @ (np.outer(d1, m2_qd1) + m2 * NN_di_i) * qwi
-        # Ke[self.d3DOF[:, None], self.d2DOF] -= NN_di_i.T @ (np.outer(r_xi, n3_qd2) + np.outer(d2_xi, m1_qd2) + m1 * NN_di_xii) * qwi \
-        #                                        + NN_di_xii.T @ np.outer(d1, m2_qd2) * qwi
-        # Ke[self.d3DOF[:, None], self.d3DOF] -= NN_di_i.T @ (np.outer(r_xi, n3_qd3) + np.outer(d2_xi, m1_qd3)) * qwi \
-        #                                        + NN_di_xii.T @ np.outer(d1, m2_qd3) * qwi
 
         return Ke
 
-        # Ke_num = Numerical_derivative(lambda t, qe: self.f_pot_el(qe, el), order=2)._x(0, qe)
+        # Ke_num = approx_fprime(
+        #     qe, lambda qe: self.f_pot_el(qe, el), method="3-point", eps=1.0e-6
+        # )
         # diff = Ke_num - Ke
-        # error = np.max(np.abs(diff))
-        # print(f'max error f_pot_q_el: {error}')
-
-        # print(f'diff[self.rDOF[:, None], self.rDOF]: {np.max(np.abs(diff[self.rDOF[:, None], self.rDOF]))}')
-        # print(f'diff[self.rDOF[:, None], self.d1DOF]: {np.max(np.abs(diff[self.rDOF[:, None], self.d1DOF]))}')
-        # print(f'diff[self.rDOF[:, None], self.d2DOF]: {np.max(np.abs(diff[self.rDOF[:, None], self.d2DOF]))}')
-        # print(f'diff[self.rDOF[:, None], self.d3DOF]: {np.max(np.abs(diff[self.rDOF[:, None], self.d3DOF]))}')
-
-        # print(f'diff[self.d1DOF[:, None], self.rDOF]: {np.max(np.abs(diff[self.d1DOF[:, None], self.rDOF]))}')
-        # print(f'diff[self.d1DOF[:, None], self.d1DOF]: {np.max(np.abs(diff[self.d1DOF[:, None], self.d1DOF]))}')
-        # print(f'diff[self.d1DOF[:, None], self.d2DOF]: {np.max(np.abs(diff[self.d1DOF[:, None], self.d2DOF]))}')
-        # print(f'diff[self.d1DOF[:, None], self.d3DOF]: {np.max(np.abs(diff[self.d1DOF[:, None], self.d3DOF]))}')
-
-        # print(f'diff[self.d2DOF[:, None], self.rDOF]: {np.max(np.abs(diff[self.d2DOF[:, None], self.rDOF]))}')
-        # print(f'diff[self.d2DOF[:, None], self.d1DOF]: {np.max(np.abs(diff[self.d2DOF[:, None], self.d1DOF]))}')
-        # print(f'diff[self.d2DOF[:, None], self.d2DOF]: {np.max(np.abs(diff[self.d2DOF[:, None], self.d2DOF]))}')
-        # print(f'diff[self.d2DOF[:, None], self.d3DOF]: {np.max(np.abs(diff[self.d2DOF[:, None], self.d3DOF]))}')
-
-        # print(f'diff[self.d3DOF[:, None], self.rDOF]: {np.max(np.abs(diff[self.d3DOF[:, None], self.rDOF]))}')
-        # print(f'diff[self.d3DOF[:, None], self.d1DOF]: {np.max(np.abs(diff[self.d3DOF[:, None], self.d1DOF]))}')
-        # print(f'diff[self.d3DOF[:, None], self.d2DOF]: {np.max(np.abs(diff[self.d3DOF[:, None], self.d2DOF]))}')
-        # print(f'diff[self.d3DOF[:, None], self.d3DOF]: {np.max(np.abs(diff[self.d3DOF[:, None], self.d3DOF]))}')
-
+        # error = np.linalg.norm(diff)
+        # print(f"error: {error}")
         # return Ke_num
 
     #########################################
@@ -1138,61 +753,30 @@ class TimoshenkoBeamDirector(metaclass=ABCMeta):
         r_OP_q += np.einsum("ijk,j->ik", self.A_IK_q(t, q, frame_ID), K_r_SP)
         return r_OP_q
 
-        # r_OP_q_num = approx_fprime(q, lambda q: self.r_OP(t, q, frame_ID=frame_ID, K_r_SP=K_r_SP), method="3-point")
-        # error = np.linalg.norm(r_OP_q - r_OP_q_num)
-        # print(f'error in r_OP_q: {error}')
-        # return r_OP_q_num
-
     def A_IK(self, t, q, frame_ID):
         N_di, _ = self.basis_functions_di(frame_ID[0])
-        A_IK = np.zeros(9, dtype=float)
+        d1d2d3 = np.zeros(9, dtype=q.dtype)
         for node in range(self.nnodes_element_di):
-            A_IK += N_di[node] * q[self.nodalDOF_element_di[node]]
-        return A_IK.reshape(3, 3)
+            d1d2d3 += N_di[node] * q[self.nodalDOF_element_di[node]]
+        return d1d2d3.reshape(3, 3, order="F")
 
     def A_IK_q(self, t, q, frame_ID):
-        # eye3 = np.eye(3, dtype=float)
-        # N_di, _ = self.basis_functions_di(frame_ID[0])
-        # A_IK_q = np.zeros((9, self.nq_element), dtype=float)
-        # for node in range(self.nnodes_element_di):
-        #     nodalDOF = self.nodalDOF_element_di[node]
-        #     A_IK_q[:3, nodalDOF[:3]] += N_di[node] * eye3
-        #     A_IK_q[3:6, nodalDOF[3:6]] += N_di[node] * eye3
-        #     A_IK_q[6:9, nodalDOF[6:]] += N_di[node] * eye3
+        N_di, _ = self.basis_functions_di(frame_ID[0])
+        d1d2d3_q = np.zeros((9, self.nq_element), dtype=float)
+        for node in range(self.nnodes_element_di):
+            d1d2d3_q[:, self.nodalDOF_element_di[node]] += N_di[node] * np.eye(
+                9, dtype=float
+            )
 
-        # A_IK_q = A_IK_q.reshape(3, 3, -1)
-        # return A_IK_q
+        A_IK_q = d1d2d3_q.reshape(3, 3, -1, order="F")
+        return A_IK_q
 
-        A_IK_q_num = approx_fprime(
-            q, lambda q: self.A_IK(t, q, frame_ID=frame_ID), method="3-point"
-        )
-        # error = np.linalg.norm(A_IK_q - A_IK_q_num)
-        # print(f"error in A_IK_q: {error}")
-        return A_IK_q_num
-
-    # TODO: optimized implementation for boundaries
     def v_P(self, t, q, u, frame_ID, K_r_SP=np.zeros(3)):
-        raise NotImplementedError
-        # xi = frame_ID[0]
-        # if xi == 0:
-        #     NN = self.N_bdry[0]
-        # elif xi == 1:
-        #     NN = self.N_bdry[-1]
-        # else:
-        #     N, _ = self.basis_functions(frame_ID[0])
-        #     NN = self.stack3r(N)
-        N, _ = self.basis_functions_r(frame_ID[0])
-        NN = self.stack3r(N)
+        # Note: This is correct but confusing!
+        return self.r_OP(t, u, frame_ID, K_r_SP)
 
-        # v_P1 = NN @ u[self.rDOF] + self.A_IK(t, q, frame_ID) @ cross3(self.K_Omega(t, q, u, frame_ID=frame_ID), K_r_SP)
-        v_P2 = NN @ u[self.rDOF] + self.A_IK(t, u, frame_ID) @ K_r_SP
-        # print(v_P1 - v_P2)
-        return v_P2
-
-    # TODO:
     def v_P_q(self, t, q, u, frame_ID, K_r_SP=np.zeros(3)):
-        raise NotImplementedError
-        return np.zeros((3, self.nu_element))
+        return np.zeros((3, self.nq_element))
 
     def J_P(self, t, q, frame_ID, K_r_SP=np.zeros(3)):
         return self.r_OP_q(t, q, frame_ID=frame_ID, K_r_SP=K_r_SP)
@@ -1200,26 +784,9 @@ class TimoshenkoBeamDirector(metaclass=ABCMeta):
     def J_P_q(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
         return np.zeros((3, self.nu_element, self.nq_element))
 
-    # TODO:
     def a_P(self, t, q, u, u_dot, frame_ID, K_r_SP=np.zeros(3)):
-        raise NotImplementedError
-        # xi = frame_ID[0]
-        # if xi == 0:
-        #     NN = self.N_bdry[0]
-        # elif xi == 1:
-        #     NN = self.N_bdry[-1]
-        # else:
-        #     N, _ = self.basis_functions(frame_ID[0])
-        #     NN = self.stack3r(N)
-        N, _ = self.basis_functions_r(frame_ID[0])
-        NN = self.stack3r(N)
-
-        # K_Omega = self.K_Omega(t, q, u, frame_ID=frame_ID)
-        # K_Psi = self.K_Psi(t, q, u, u_dot, frame_ID=frame_ID)
-        # a_P1 = NN @ u_dot[self.rDOF] + self.A_IK(t, q, frame_ID=frame_ID) @ (cross3(K_Psi, K_r_SP) + cross3(K_Omega, cross3(K_Omega, K_r_SP)))
-        a_P2 = NN @ u_dot[self.rDOF] + self.A_IK(t, u_dot, frame_ID=frame_ID) @ K_r_SP
-        # print(a_P1 - a_P2)
-        return a_P2
+        # Note: This is correct but confusing!
+        return self.r_OP(t, u_dot, frame_ID, K_r_SP)
 
     def a_P_q(self, t, q, u, u_dot, frame_ID, K_r_SP=None):
         return np.zeros((3, self.nq_el))
@@ -1227,71 +794,59 @@ class TimoshenkoBeamDirector(metaclass=ABCMeta):
     def a_P_u(self, t, q, u, u_dot, frame_ID, K_r_SP=None):
         return np.zeros((3, self.nq_el))
 
-    # TODO: optimized implementation for boundaries
     def K_Omega(self, t, q, u, frame_ID):
         N_di, _ = self.basis_functions_di(frame_ID[0])
-        A_IK = np.zeros(9, dtype=float)
-        A_IK_dot = np.zeros(9, dtype=float)
+
+        d1d2d3 = np.zeros(9, dtype=q.dtype)
+        d1d2d3_dot = np.zeros(9, dtype=q.dtype)
         for node in range(self.nnodes_element_di):
-            A_IK += N_di[node] * q[self.nodalDOF_element_di[node]]
-            A_IK_dot += N_di[node] * u[self.nodalDOF_element_di[node]]
+            d1d2d3 += N_di[node] * q[self.nodalDOF_element_di[node]]
+            d1d2d3_dot += N_di[node] * u[self.nodalDOF_element_di[node]]
+        d1, d2, d3 = np.split(d1d2d3, 3)
+        d1_dot, d2_dot, d3_dot = np.split(d1d2d3_dot, 3)
 
-        A_IK = A_IK.reshape(3, 3)
-        A_IK_dot = A_IK_dot.reshape(3, 3)
-
-        return skew2ax(A_IK.T @ A_IK_dot)
-
-    # TODO:
-    def K_J_R(self, t, q, frame_ID):
-        # # old implementation
-        # N, _ = self.basis_functions_di(frame_ID[0])
-        # NN = self.stack3di(N)
-
-        # d1 = NN @ q[self.d1DOF]
-        # d2 = NN @ q[self.d2DOF]
-        # d3 = NN @ q[self.d3DOF]
-        # A_IK = np.vstack((d1, d2, d3)).T
-
-        # K_Omega_tilde_Omega_tilde = skew2ax_A()
-
-        # K_J_R = np.zeros((3, self.nq_el))
-        # K_J_R[:, self.d1DOF] = K_Omega_tilde_Omega_tilde[0] @ A_IK.T @ NN
-        # K_J_R[:, self.d2DOF] = K_Omega_tilde_Omega_tilde[1] @ A_IK.T @ NN
-        # K_J_R[:, self.d3DOF] = K_Omega_tilde_Omega_tilde[2] @ A_IK.T @ NN
-        # return K_J_R
-
-        # # new implementation
-        # N_di, _ = self.basis_functions_di(frame_ID[0])
-        # A_IK = np.zeros(9, dtype=float)
-        # for node in range(self.nnodes_element_di):
-        #     A_IK += N_di[node] * q[self.nodalDOF_element_di[node]]
-        # A_IK = A_IK.reshape(3, 3)
-
-        # K_Omega_tilde_Omega_tilde = skew2ax_A()
-        # tmp1 = K_Omega_tilde_Omega_tilde[0] @ A_IK.T
-        # tmp2 = K_Omega_tilde_Omega_tilde[1] @ A_IK.T
-        # tmp3 = K_Omega_tilde_Omega_tilde[2] @ A_IK.T
-
-        # K_J_R = np.zeros((3, self.nu_element), dtype=float)
-        # for node in range(self.nnodes_element_di):
-        #     nodalDOF = self.nodalDOF_element_di[node]
-        #     K_J_R[:, nodalDOF[:3]] += tmp1 * N_di[node]
-        #     K_J_R[:, nodalDOF[3:6]] += tmp2 * N_di[node]
-        #     K_J_R[:, nodalDOF[6:]] += tmp3 * N_di[node]
-        # # return K_J_R
-
-        K_J_R_num = approx_fprime(
-            np.zeros(self.nu_element),
-            lambda u: self.K_Omega(t, q, u, frame_ID=frame_ID),
-            method="3-point",
+        return 0.5 * np.array(
+            [
+                d3 @ d2_dot - d2 @ d3_dot,
+                d1 @ d3_dot - d3 @ d1_dot,
+                d2 @ d1_dot - d1 @ d2_dot,
+            ]
         )
+
+    def K_J_R(self, t, q, frame_ID):
+        N_di, _ = self.basis_functions_di(frame_ID[0])
+
+        d1d2d3 = np.zeros(9, dtype=q.dtype)
+        d1d2d3_dot_u = np.zeros((9, self.nq_element), dtype=q.dtype)
+        for node in range(self.nnodes_element_di):
+            nodalDOF = self.nodalDOF_element_di[node]
+            d1d2d3 += N_di[node] * q[nodalDOF]
+            d1d2d3_dot_u[:, nodalDOF] += N_di[node] * np.eye(9)
+        d1, d2, d3 = np.split(d1d2d3, 3)
+        d1_dot_u, d2_dot_u, d3_dot_u = np.split(d1d2d3_dot_u, 3)
+
+        K_J_R = 0.5 * np.array(
+            [
+                d3 @ d2_dot_u - d2 @ d3_dot_u,
+                d1 @ d3_dot_u - d3 @ d1_dot_u,
+                d2 @ d1_dot_u - d1 @ d2_dot_u,
+            ]
+        )
+        return K_J_R
+
+        # K_J_R_num = approx_fprime(
+        #     np.zeros(self.nu_element),
+        #     lambda u: self.K_Omega(t, q, u, frame_ID=frame_ID),
+        #     method="3-point",
+        # )
         # diff = K_J_R_num - K_J_R
         # diff_error = diff
         # error = np.linalg.norm(diff_error)
-        # print(f'error K_J_R: {error}')
-        return K_J_R_num
+        # if error > 1.0e-10:
+        #     print(f'error K_J_R: {error}')
+        # return K_J_R_num
 
-    # TODO:
+    # TODO: Implement derivative of K_J_R_q
     def K_J_R_q(self, t, q, frame_ID):
         # N, _ = self.basis_functions_di(frame_ID[0])
         # NN = self.stack3di(N)
@@ -1323,7 +878,7 @@ class TimoshenkoBeamDirector(metaclass=ABCMeta):
         # print(f'error K_J_R_q: {error}')
         return K_J_R_q_num
 
-    # TODO:
+    # TODO: Implement K_Psi as derivative of K_Omega
     def K_Psi(self, t, q, u, u_dot, frame_ID):
         raise NotImplementedError
         # xi = frame_ID[0]
@@ -1358,7 +913,6 @@ class TimoshenkoBeamDirector(metaclass=ABCMeta):
     ####################################################
     # body force
     ####################################################
-    # def body_force_el(self, force, t, el):
     def distributed_force1D_el(self, force, t, el):
         fe = np.zeros(self.nq_el)
         for i in range(self.nquadrature):
@@ -1368,15 +922,12 @@ class TimoshenkoBeamDirector(metaclass=ABCMeta):
             )
         return fe
 
-    # def body_force(self, t, q, force):
     def distributed_force1D(self, t, q, force):
         f = np.zeros(self.nq)
         for el in range(self.nelement):
-            # f[self.elDOF[el]] += self.body_force_el(force, t, el)
             f[self.elDOF[el]] += self.distributed_force1D_el(force, t, el)
         return f
 
-    # def body_force_q(self, t, q, coo, force):
     def distributed_force1D_q(self, t, q, coo, force):
         pass
 
@@ -1500,7 +1051,7 @@ class TimoshenkoBeamDirector(metaclass=ABCMeta):
         if self.basis == "B-spline":
             knot_vector_eta = BSplineKnotVector(polynomial_degree_eta, nEl_eta)
             knot_vector_zeta = BSplineKnotVector(polynomial_degree_zeta, nEl_zeta)
-        elif self.basis == "lagrange":
+        elif self.basis == "Lagrange":
             knot_vector_eta = LagrangeKnotVector(polynomial_degree_eta, nEl_eta)
             knot_vector_zeta = LagrangeKnotVector(polynomial_degree_zeta, nEl_zeta)
         knot_vector_objs = [self.knot_vector_r, knot_vector_eta, knot_vector_zeta]
@@ -1610,7 +1161,7 @@ class TimoshenkoBeamDirector(metaclass=ABCMeta):
         if self.basis == "B-spline":
             knot_vector_eta = BSplineKnotVector(polynomial_degree_eta, nEl_eta)
             knot_vector_zeta = BSplineKnotVector(polynomial_degree_zeta, nEl_zeta)
-        elif self.basis == "lagrange":
+        elif self.basis == "Lagrange":
             knot_vector_eta = LagrangeKnotVector(polynomial_degree_eta, nEl_eta)
             knot_vector_zeta = LagrangeKnotVector(polynomial_degree_zeta, nEl_zeta)
         knot_vector_objs = [self.knot_vector_r, knot_vector_eta, knot_vector_zeta]
@@ -2049,9 +1600,6 @@ class TimoshenkoDirectorDirac(TimoshenkoBeamDirector):
         return g
 
     def __g_q(self, qn):
-        # d1 = qn[:3]
-        # d2 = qn[3:6]
-        # d3 = qn[6:]
         d1 = qn[:3]
         d2 = qn[3:6]
         d3 = qn[6:]
@@ -2069,37 +1617,41 @@ class TimoshenkoDirectorDirac(TimoshenkoBeamDirector):
 
         return g_q
 
-        # # g_q_num = approx_fprime(qn, self.__g, method="3-point")
-        # g_q_num = approx_fprime(qn, self.__g, eps=1e-10, method="cs")
-        # diff = g_q - g_q_num
-        # error = np.linalg.norm(diff)
-        # print(f"error g_q: {error}")
-        # return g_q_num
-
-    def __g_qq(self):
+    def __Wla_g_q(self, la_g):
         eye3 = np.eye(3, dtype=float)
 
-        g_qq = np.zeros((6, 9, 9), dtype=float)
-        g_qq[0, :3, :3] = 2.0 * eye3
-        g_qq[1, 3:6, 3:6] = 2.0 * eye3
-        g_qq[2, 6:, 6:] = 2.0 * eye3
+        Wla_g_q = np.zeros((9, 9), dtype=float)
 
-        g_qq[3, :3, 3:6] = eye3
-        g_qq[3, 3:6, :3] = eye3
+        # g_q[0, :3] = 2.0 * d1
+        # g_q[3, :3] = d2
+        # g_q[4, :3] = d3
+        Wla_g_q[:3, :3] = 2.0 * la_g[0] * eye3
+        Wla_g_q[:3, 3:6] = la_g[3] * eye3
+        Wla_g_q[:3, 6:9] = la_g[4] * eye3
 
-        g_qq[4, :3, 6:] = eye3
-        g_qq[4, 6:, :3] = eye3
+        # g_q[1, 3:6] = 2.0 * d2
+        # g_q[3, 3:6] = d1
+        # g_q[5, 3:6] = d3
+        Wla_g_q[3:6, :3] = la_g[3] * eye3
+        Wla_g_q[3:6, 3:6] = 2.0 * la_g[1] * eye3
+        Wla_g_q[3:6, 6:9] = la_g[5] * eye3
 
-        g_qq[5, 3:6, 6:] = eye3
-        g_qq[5, 6:, 3:6] = eye3
+        # g_q[2, 6:] = 2.0 * d3
+        # g_q[4, 6:] = d1
+        # g_q[5, 6:] = d2
+        Wla_g_q[6:9, :3] = la_g[4] * eye3
+        Wla_g_q[6:9, 3:6] = la_g[5] * eye3
+        Wla_g_q[6:9, 6:9] = 2.0 * la_g[2] * eye3
 
-        return g_qq
-
-        # g_qq_num = approx_fprime(np.zeros(self.nq_node_di), self.__g_q, method="3-point")
-        # diff = g_qq - g_qq_num
+        # Wla_g_q_num = approx_fprime(
+        #     np.zeros(9),
+        #     lambda q: la_g @ self.__g_q(q),
+        # )
+        # diff = Wla_g_q_num - Wla_g_q
         # error = np.linalg.norm(diff)
-        # print(f"error g_qq: {error}")
-        # return g_qq_num
+        # print(f"error Wla_g_q: {error}")
+
+        return Wla_g_q
 
     # global constraint functions
     def g(self, t, q):
@@ -2134,7 +1686,7 @@ class TimoshenkoDirectorDirac(TimoshenkoBeamDirector):
             nodalDOF_la_g = self.nodalDOF_la_g[node]
             nodalDOF_di = self.nodalDOF_di[node]
             coo.extend(
-                np.einsum("i,ijk->jk", la_g[nodalDOF_la_g], self.__g_qq()),
+                self.__Wla_g_q(la_g[nodalDOF_la_g]),
                 (self.uDOF[nodalDOF_di], self.qDOF[nodalDOF_di]),
             )
 
@@ -2146,9 +1698,7 @@ class TimoshenkoDirectorIntegral(TimoshenkoBeamDirector):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.polynomial_degree_g = (
-            self.polynomial_degree_di
-        )  # if polynomial_degree_g is None else polynomial_degree_g
+        self.polynomial_degree_g = self.polynomial_degree_di
         self.nn_el_g = self.polynomial_degree_g + 1  # number of nodes per element
 
         if self.basis == "B-spline":
@@ -2163,10 +1713,6 @@ class TimoshenkoDirectorIntegral(TimoshenkoBeamDirector):
             self.nn_g = self.nelement * self.polynomial_degree_g + 1  # number of nodes
         else:
             raise NotImplementedError
-
-        # self.nq_n_g = 6  # number of degrees of freedom per node
-        # self.nla_g = self.nn_g * self.nq_n_g
-        # self.nla_g_element = self.nn_el_g * self.nq_n_g
 
         self.element_span_g = self.knot_vector_g.element_data
         self.mesh_g = Mesh1D(
@@ -2208,19 +1754,12 @@ class TimoshenkoDirectorIntegral(TimoshenkoBeamDirector):
         g = np.zeros(self.nla_g_element, dtype=qe.dtype)
 
         for i in range(self.nquadrature):
-            # interpoalte transformation matrix
-            # A_IK = np.zeros((3, 3), dtype=qe.dtype)
-            # for node in range(self.nnodes_element_di):
-            #     A_IK_node = qe[self.nodalDOF_element_di[node]].reshape(3, 3)
-            #     A_IK += self.N_di[el, i, node] * A_IK_node
-
-            A_IK = np.zeros(9, dtype=qe.dtype)
+            d1d2d3 = np.zeros(9, dtype=qe.dtype)
             for node in range(self.nnodes_element_di):
-                A_IK += self.N_di[el, i, node] * qe[self.nodalDOF_element_di[node]]
-            A_IK = A_IK.reshape(3, 3)
-
-            # extract directors
-            d1, d2, d3 = A_IK.T
+                d1d2d3 += self.N_di[el, i, node] * qe[self.nodalDOF_element_di[node]]
+            d1 = d1d2d3[:3]
+            d2 = d1d2d3[3:6]
+            d3 = d1d2d3[6:9]
 
             for node in range(self.nnodes_element_g):
                 factor = self.N_g[el, i, node] * self.J[el, i] * self.qw[el, i]
@@ -2235,136 +1774,96 @@ class TimoshenkoDirectorIntegral(TimoshenkoBeamDirector):
         return g
 
     def __g_q_el(self, qe, el):
-        return approx_fprime(
-            qe, lambda q: self.__g_el(qe, el), eps=1.0e-10, method="cs"
-        )
-
         g_q = np.zeros((self.nla_g_element, self.nq_element), dtype=float)
 
         for i in range(self.nquadrature):
-            # interpoalte transformation matrix
-            # A_IK = np.zeros((3, 3), dtype=float)
-            # A_IK_q = np.zeros((3, 3, self.nq_element), dtype=float)
-            # for node in range(self.nnodes_element_di):
-            #     nodalDOF = self.nodalDOF_element_di[node]
-            #     A_IK_node = qe[nodalDOF].reshape(3, 3)
-            #     A_IK += self.N_di[el, i, node] * A_IK_node
-            #     A_IK_q[:, :, nodalDOF] += self.N_di[el, i, node] * np.ones(
-            #         self.nq_node_di, dtype=float
-            #     )
+            d1d2d3 = np.zeros(9, dtype=qe.dtype)
+            d1d2d3_q = np.zeros((9, self.nq_element), dtype=qe.dtype)
+            for node in range(self.nnodes_element_di):
+                d1d2d3 += self.N_di[el, i, node] * qe[self.nodalDOF_element_di[node]]
+                d1d2d3_q[:, self.nodalDOF_element_di[node]] += self.N_di[
+                    el, i, node
+                ] * np.eye(9)
 
-            A_IK = np.zeros((3, 3), dtype=float)
-            A_IK_q = np.zeros((3, 3, self.nq_element), dtype=float)
-            for node_A in range(self.nnodes_element_di):
-                nodalDOF_element_di = self.nodalDOF_element_di[node_A]
-                A_IK_node = qe[nodalDOF_element_di].reshape(3, 3)
-                A_IK += self.N_di[el, i, node_A] * A_IK_node
+            d1 = d1d2d3[:3]
+            d2 = d1d2d3[3:6]
+            d3 = d1d2d3[6:9]
+            d1_q = d1d2d3_q[:3]
+            d2_q = d1d2d3_q[3:6]
+            d3_q = d1d2d3_q[6:9]
 
-                # TODO: ???
-                # for node_B in range(self.nnodes_element_di):
-                #     A_IK_q[a, b, nodalDOF_element_di[k]] += self.N_di[el, i, node_A]
-                # for a in range(3):
-                #     for b in range(3):
-                #         k = a * 3 + b
-                #         # k = a + 3 * b
-                #         A_IK_q[a, b, nodalDOF_element_di[k]] += self.N_di[el, i, node_A]
-
-            def A_IK_fun(qe):
-                A_IK = np.zeros((3, 3), dtype=float)
-                for node in range(self.nnodes_element_di):
-                    A_IK += self.N_di[el, i, node_A] * qe[
-                        self.nodalDOF_element_di[node]
-                    ].reshape(3, 3)
-                    return A_IK
-
-            A_IK_q = approx_fprime(qe, A_IK_fun)
-
-            # extract directors
-            d1, d2, d3 = A_IK.T
-            d1_q, d2_q, d3_q = A_IK_q.transpose(1, 0, 2)
-
-            for node_A in range(self.nnodes_element_g):
+            for node in range(self.nnodes_element_g):
                 factor = self.N_g[el, i, node] * self.J[el, i] * self.qw[el, i]
 
-                g_q[self.nodalDOF_element_g[node_A, 0]] += factor * (2.0 * d1 @ d1_q)
-                g_q[self.nodalDOF_element_g[node_A, 1]] += factor * (
+                g_q[self.nodalDOF_element_g[node, 0]] += factor * 2 * d1 @ d1_q
+                g_q[self.nodalDOF_element_g[node, 1]] += factor * (
                     d1 @ d2_q + d2 @ d1_q
                 )
-                g_q[self.nodalDOF_element_g[node_A, 2]] += factor * (
+                g_q[self.nodalDOF_element_g[node, 2]] += factor * (
                     d1 @ d3_q + d3 @ d1_q
                 )
-                g_q[self.nodalDOF_element_g[node_A, 3]] += factor * (2.0 * d2 @ d2_q)
-                g_q[self.nodalDOF_element_g[node_A, 4]] += factor * (
+                g_q[self.nodalDOF_element_g[node, 3]] += factor * 2 * d2 @ d2_q
+                g_q[self.nodalDOF_element_g[node, 4]] += factor * (
                     d2 @ d3_q + d3 @ d2_q
                 )
-                g_q[self.nodalDOF_element_g[node_A, 5]] += factor * (2.0 * d3 @ d3_q)
+                g_q[self.nodalDOF_element_g[node, 5]] += factor * 2 * d3 @ d3_q
 
-        # return g_q
+        return g_q
 
-        # g_q_num = approx_fprime(qe, lambda q: self.__g_el(qe, el), eps=1.0e-10, method="cs")
-        g_q_num = approx_fprime(
-            qe, lambda q: self.__g_el(qe, el), eps=1.0e-6, method="3-point"
-        )
-        diff = g_q_num - g_q
-        error = np.linalg.norm(diff)
-        # if error > 1.0e-8:
-        print(f"error g_q: {error}")
-        return g_q_num
-
-    def __g_qq_el(self, qe, el):
-        return approx_fprime(
-            np.zeros(self.nq_element),
-            lambda qe: self.__g_q_el(qe, el),
-            eps=1.0e-6,
-            method="2-point",
-        )
-
-        # return Numerical_derivative(lambda t, q: self.__g_q_el(q, el), order=order)._x(0, np.zeros(self.nq_el))
-
-        g_qq = np.zeros((self.nla_g_element, self.nq_el, self.nq_el))
+    def __Wla_g_q_el(self, qe, la_g, el):
+        Wla_g_q = np.zeros((self.nq_element, self.nq_element), dtype=float)
 
         for i in range(self.nquadrature):
-            NNi = self.stack3di(self.N_di[el, i])
-            factor = NNi.T @ NNi * self.J[el, i] * self.qw[el, i]
+            d1d2d3_q = np.zeros((9, self.nq_element), dtype=qe.dtype)
+            for node in range(self.nnodes_element_di):
+                d1d2d3_q[:, self.nodalDOF_element_di[node]] += self.N_di[
+                    el, i, node
+                ] * np.eye(9)
 
-            for j, N_gij in enumerate(self.N_g[el, i]):
-                N_gij_factor = N_gij * factor
+            d1_q = d1d2d3_q[:3]
+            d2_q = d1d2d3_q[3:6]
+            d3_q = d1d2d3_q[6:9]
 
-                # 2 * delta d1 * d1
-                g_qq[self.g11DOF[j], self.d1DOF[:, None], self.d1DOF] += (
-                    2 * N_gij_factor
-                )
-                # delta d1 * d2
-                g_qq[self.g12DOF[j], self.d1DOF[:, None], self.d2DOF] += N_gij_factor
-                # delta d2 * d1
-                g_qq[self.g12DOF[j], self.d2DOF[:, None], self.d1DOF] += N_gij_factor
-                # delta d1 * d3
-                g_qq[self.g13DOF[j], self.d1DOF[:, None], self.d3DOF] += N_gij_factor
-                # delta d3 * d1
-                g_qq[self.g13DOF[j], self.d3DOF[:, None], self.d1DOF] += N_gij_factor
+            for node in range(self.nnodes_element_g):
+                factor = self.N_g[el, i, node] * self.J[el, i] * self.qw[el, i]
 
-                # 2 * delta d2 * d2
-                g_qq[self.g22DOF[j], self.d2DOF[:, None], self.d2DOF] += (
-                    2 * N_gij_factor
-                )
-                # delta d2 * d3
-                g_qq[self.g23DOF[j], self.d2DOF[:, None], self.d3DOF] += N_gij_factor
-                # delta d3 * d2
-                g_qq[self.g23DOF[j], self.d3DOF[:, None], self.d2DOF] += N_gij_factor
-
-                # 2 * delta d3 * d3
-                g_qq[self.g33DOF[j], self.d3DOF[:, None], self.d3DOF] += (
-                    2 * N_gij_factor
+                # g_q[self.nodalDOF_element_g[node, 0]] += factor * 2 * d1 @ d1_q
+                Wla_g_q += (
+                    factor * la_g[self.nodalDOF_element_g[node, 0]] * 2 * d1_q.T @ d1_q
                 )
 
-        return g_qq
+                # g_q[self.nodalDOF_element_g[node, 1]] += factor * (d1 @ d2_q + d2 @ d1_q)
+                Wla_g_q += (
+                    factor
+                    * la_g[self.nodalDOF_element_g[node, 1]]
+                    * (d2_q.T @ d1_q + d1_q.T @ d2_q)
+                )
 
-        # g_qq_num = Numerical_derivative(lambda t, q: self.__g_q_el(q, el), order=2)._x(0, np.zeros(self.nq_el))
-        # diff = g_qq_num - g_qq
-        # error = np.linalg.norm(diff)
-        # if error > 1.0e-8:
-        #     print(f'error g_qq: {error}')
-        # return g_qq_num
+                # g_q[self.nodalDOF_element_g[node, 2]] += factor * (d1 @ d3_q + d3 @ d1_q)
+                Wla_g_q += (
+                    factor
+                    * la_g[self.nodalDOF_element_g[node, 2]]
+                    * (d3_q.T @ d1_q + d1_q.T @ d3_q)
+                )
+
+                # g_q[self.nodalDOF_element_g[node, 3]] += factor * 2 * d2 @ d2_q
+                Wla_g_q += (
+                    factor * la_g[self.nodalDOF_element_g[node, 3]] * 2 * d2_q.T @ d2_q
+                )
+
+                # g_q[self.nodalDOF_element_g[node, 4]] += factor * (d2 @ d3_q + d3 @ d2_q)
+                Wla_g_q += (
+                    factor
+                    * la_g[self.nodalDOF_element_g[node, 4]]
+                    * (d3_q.T @ d2_q + d2_q.T @ d3_q)
+                )
+
+                # g_q[self.nodalDOF_element_g[node, 5]] += factor * 2 * d3 @ d3_q
+                Wla_g_q += (
+                    factor * la_g[self.nodalDOF_element_g[node, 5]] * 2 * d3_q.T @ d3_q
+                )
+
+        return Wla_g_q
 
     def __g_dot_el(self, qe, ue, el):
         raise NotImplementedError
@@ -2605,9 +2104,8 @@ class TimoshenkoDirectorIntegral(TimoshenkoBeamDirector):
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             elDOF_g = self.elDOF_g[el]
-            g_qq = self.__g_qq_el(q[elDOF], el)
             coo.extend(
-                np.einsum("i,ijk->jk", la_g[elDOF_g], g_qq),
+                self.__Wla_g_q_el(q[elDOF], la_g[elDOF_g], el),
                 (self.uDOF[elDOF], self.qDOF[elDOF]),
             )
 
@@ -2671,7 +2169,7 @@ class EulerBernoulliDirectorIntegral(TimoshenkoBeamDirector):
                 self.polynomial_degree_g, self.nelement
             )
             self.nn_g = self.nelement + self.polynomial_degree_g  # number of nodes
-        elif self.basis == "lagrange":
+        elif self.basis == "Lagrange":
             self.knot_vector_g = LagrangeKnotVector(
                 self.polynomial_degree_g, self.nelement
             )
@@ -2972,7 +2470,7 @@ class InextensibleEulerBernoulliDirectorIntegral(TimoshenkoBeamDirector):
                 self.polynomial_degree_g, self.nelement
             )
             self.nn_g = self.nelement + self.polynomial_degree_g  # number of nodes
-        elif self.basis == "lagrange":
+        elif self.basis == "Lagrange":
             self.knot_vector_g = LagrangeKnotVector(
                 self.polynomial_degree_g, self.nelement
             )

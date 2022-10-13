@@ -1,4 +1,3 @@
-from re import A
 from cardillo.beams.SE3 import Log_SO3
 from cardillo.math import e1, e2, e3, sqrt, sin, cos, pi
 from cardillo.beams import (
@@ -2090,9 +2089,9 @@ def Bathe1979():
 if __name__ == "__main__":
     # membrane_and_locking_Meier()
     # convergence_quarter_circle()
-    # objectivity_quarter_circle()
+    objectivity_quarter_circle()
     # HelixIbrahimbegovic1997()
     # HeavyTop()
     # BucklingRightHingedFrame()
     # Bathe1979()
-    cantilever()
+    # cantilever()

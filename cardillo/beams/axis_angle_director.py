@@ -236,8 +236,8 @@ class DirectorAxisAngle:
         self.polynomial_degree_psi = polynomial_degree_psi
 
         p = max(polynomial_degree_r, polynomial_degree_psi)
-        self.nquadrature = nquadrature = int(np.ceil((p + 1) ** 2 / 2))
-        # self.nquadrature = nquadrature = p
+        # self.nquadrature = nquadrature = int(np.ceil((p + 1) ** 2 / 2))
+        self.nquadrature = nquadrature = p
         self.nelement = nelement
 
         # chose basis functions
@@ -463,7 +463,7 @@ class DirectorAxisAngle:
                 r0[3:, i] = t0
 
         # reshape generalized coordinates to nodal ordering
-        q_r = r0.reshape(-1, order="F")
+        q_r = r0.reshape(-1, order="C")
 
         # we have to extract the rotation vector from the given rotation matrix
         # and set its value for each node
@@ -497,7 +497,7 @@ class DirectorAxisAngle:
             r_OC0[:, i] = r_OP0 + A_IK0 @ r_OC0[:, i]
 
         # reshape generalized coordinates to nodal ordering
-        q_r = r_OC0.reshape(-1, order="F")
+        q_r = r_OC0.reshape(-1, order="C")
 
         # we have to extract the rotation vector from the given rotation matrix
         # and set its value for each node
@@ -509,8 +509,8 @@ class DirectorAxisAngle:
             v_C0[:, i] = v_P0 + cross3(A_IK0 @ K_omega_IK0, (r_OC0[:, i] - r_OC0[:, 0]))
 
         # reshape generalized coordinates to nodal ordering
-        q_r = r_OC0.reshape(-1, order="F")
-        u_r = v_C0.reshape(-1, order="F")
+        q_r = r_OC0.reshape(-1, order="C")
+        u_r = v_C0.reshape(-1, order="C")
         q_psi = np.tile(psi, nn_psi)
         u_psi = np.tile(K_omega_IK0, nn_psi)
 
