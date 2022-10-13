@@ -101,9 +101,6 @@ class Junction:
         coo.extend(self.g_q_dense(t, q).T, (self.uDOF, self.la_gDOF))
 
     def Wla_g_q(self, t, q, la_g, coo):
-        # dense_num = Numerical_derivative(lambda t, q: self.g_q_dense(t, q).T @ la_g, order=2)._x(t, q)
-        # [la_g[0], la_g[1]] @ (self.beam2_N - self.beam1_N) independent of q
-        # [la_g[2] * self.beam1_N_xi.T @ n , la_g[2] * self.beam2_N_xi_perp.T @ t]
         nq1 = self.nq1
         nu1 = self.nu1
 
@@ -252,7 +249,6 @@ class Pivot_w_spring:
         return W
 
     def h_q(self, t, q, u, coo):
-        # dense_num = Numerical_derivative(lambda t, q: self.f_pot(t, q), order=2)._x(t, q)
         dense = np.zeros((self._nu, self._nq))
 
         # current tangent vector

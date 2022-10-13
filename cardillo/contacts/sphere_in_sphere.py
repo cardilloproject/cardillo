@@ -1,6 +1,6 @@
 import numpy as np
 from cardillo.math.algebra import cross3, norm, e3, ax2skew
-from cardillo.math.numerical_derivative import Numerical_derivative, approx_fprime
+from cardillo.math.numerical_derivative import approx_fprime
 
 
 class SphereInSphere:
@@ -109,8 +109,9 @@ class SphereInSphere:
         return np.array([self.n(t, q) @ (self.v_P(t, q, u) - self.v_Q(t))])
 
     def g_N_ddot(self, t, q, u, u_dot):
-        # return np.array([self.n(t) @ (self.a_P(t, q, u, u_dot) - self.a_Q(t))])
-        g_N_dot_q = Numerical_derivative(self.g_N_dot, order=2)._x(t, q, u)
+        g_N_dot_q = approx_fprime(
+            q, lambda t, q, u, u_dot: self.g_N_dot(t, q, u, u_dot)
+        )
         g_N_dot_u = self.g_N_dot_u_dense(t, q)
         return g_N_dot_q @ self.subsystem.q_dot(t, q, u) + g_N_dot_u @ u_dot
 
@@ -124,14 +125,11 @@ class SphereInSphere:
         coo.extend(self.g_N_dot_u_dense(t, q).T, (self.uDOF, self.la_NDOF))
 
     def Wla_N_q(self, t, q, la_N, coo):
-        n_q = Numerical_derivative(self.n, order=2)._x(t, q)
+        n_q = approx_fprime(q, lambda t, q: self.n(t, q))
         dense = la_N[0] * (
             np.einsum("i,ijk->jk", self.n(t, q), self.J_P_q(t, q))
             + np.einsum("ik,ij->jk", n_q, self.J_P(t, q))
         )
-        # dense_num = np.einsum('i,ijk->jk', la_N, Numerical_derivative(self.g_N_dot_u_dense, order=2)._x(t, q))
-        # error = np.linalg.norm(dense - dense_num)
-        # print(f'error: {error}')
         coo.extend(dense, (self.uDOF, self.qDOF))
 
     def __gamma_F(self, t, q, u):
@@ -150,8 +148,7 @@ class SphereInSphere:
 
     def gamma_F_dot(self, t, q, u, u_dot):
         # TODO: t1t2_dot(t)
-        # return self.t1t2(t) @ (self.a_P(t, q, u, u_dot) - self.a_Q(t))
-        gamma_T_q = Numerical_derivative(self.gamma_F, order=2)._x(t, q, u)
+        gamma_T_q = approx_fprime(q, lambda t, q, u: self.gamma_F(t, q, u))
         gamma_T_u = self.gamma_F_u_dense(t, q)
         return gamma_T_q @ self.subsystem.q_dot(t, q, u) + gamma_T_u @ u_dot
 
@@ -173,7 +170,7 @@ class SphereInSphere:
         dense_num = np.einsum(
             "i,ijk->jk",
             la_T,
-            Numerical_derivative(self.gamma_F_u_dense, order=2)._x(t, q),
+            approx_fprime(q, lambda t, q, u: self.gamma_F_u_dense(t, q, u)),
         )
         # error = np.linalg.norm(dense - dense_num)
         # print(f'error: {error}')

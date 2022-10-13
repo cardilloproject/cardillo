@@ -1,6 +1,5 @@
 import numpy as np
 from cardillo.math.algebra import cross3, ax2skew
-from cardillo.math import Numerical_derivative
 
 
 class Single_position_y:
@@ -262,10 +261,6 @@ class Single_position_y:
         coo.extend(self.W_g_dense(t, q), (self.uDOF, self.la_gDOF))
 
     def Wla_g_q(self, t, q, la_g, coo):
-        dense_num = Numerical_derivative(
-            lambda t, q: self.W_g_dense(t, q) @ la_g, order=2
-        )._x(t, q)
-
         nu1 = self.nu1
         nq1 = self.nq1
         dense = np.zeros((self._nu, self._nq))
@@ -638,7 +633,6 @@ class Single_position_all_angles:
         coo.extend(self.W_g_dense(t, q), (self.uDOF, self.la_gDOF))
 
     def Wla_g_q(self, t, q, la_g, coo):
-        # dense_num = Numerical_derivative(lambda t, q: self.W_g_dense(t, q) @ la_g, order=2)._x(t, q)
         nu1 = self.nu1
         nq1 = self.nq1
         dense = np.zeros((self._nu, self._nq))

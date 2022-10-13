@@ -4,7 +4,6 @@ import os
 
 from cardillo.system import System
 from cardillo.utility.coo import Coo
-from cardillo.math.numerical_derivative import Numerical_derivative
 from cardillo.discretization.indexing import flat2D, flat3D, split2D, split3D
 from cardillo.discretization.b_spline import B_spline_basis3D
 from cardillo.math.algebra import det2D, inv3D, det3D
@@ -339,9 +338,6 @@ class FirstGradient:
         z = self.z(t, q)
         for el in range(self.nel):
             Ke = self.f_pot_q_el(z[self.elDOF[el]], el)
-            # Ke_num = Numerical_derivative(lambda t, z: self.f_pot_el(z, el), order=2)._x(t, z[self.elDOF[el]])
-            # error = np.linalg.norm(Ke - Ke_num)
-            # print(f'error: {error}')
 
             # sparse assemble element internal stiffness matrix
             elfDOF = self.elfDOF[el]

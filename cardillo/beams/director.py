@@ -1893,13 +1893,6 @@ class TimoshenkoDirectorIntegral(TimoshenkoBeamDirector):
 
         return g_dot
 
-        # g_dot_num = Numerical_derivative(lambda t, q, u: self.__g_el(q, el))._t(0, qe, ue)
-        # g_dot_num += Numerical_derivative(lambda t, q, u: self.__g_el(q, el))._x(0, qe, ue) @ ue
-        # diff = g_dot_num - g_dot
-        # error = np.linalg.norm(diff)
-        # print(f'error g_dot: {error}')
-        # return g_dot_num
-
     def __g_dot_q_el(self, qe, ue, el):
         raise NotImplementedError
         g_dot_q = np.zeros((self.nla_g_element, self.nq_el))
@@ -1937,12 +1930,6 @@ class TimoshenkoDirectorIntegral(TimoshenkoBeamDirector):
 
         return g_dot_q
 
-        # g_dot_q_num = Numerical_derivative(lambda t, q, u: self.__g_dot_el(q, u, el), order=2)._x(0, qe, ue)
-        # diff = g_dot_q - g_dot_q_num
-        # error = np.linalg.norm(diff)
-        # print(f'error g_dot_q: {error}')
-        # return g_dot_q_num
-
     def __g_ddot_el(self, qe, ue, ue_dot, el):
         raise NotImplementedError
         g_ddot = np.zeros(self.nla_g_element)
@@ -1978,14 +1965,6 @@ class TimoshenkoDirectorIntegral(TimoshenkoBeamDirector):
             g_ddot[self.g33DOF] += 2 * (d3 @ d3_ddot + d3_dot @ d3_dot) * factor
 
         return g_ddot
-
-        # g_ddot_num = Numerical_derivative(lambda t, q, u: self.__g_dot_el(q, u, el))._t(0, qe, ue)
-        # g_ddot_num += Numerical_derivative(lambda t, q, u: self.__g_dot_el(q, u, el))._x(0, qe, ue) @ ue
-        # g_ddot_num += Numerical_derivative(lambda t, q, u: self.__g_dot_el(q, u, el))._y(0, qe, ue) @ ue_dot
-        # diff = g_ddot_num - g_ddot
-        # error = np.linalg.norm(diff)
-        # print(f'error g_ddot: {error}')
-        # return g_ddot_num
 
     def __g_ddot_q_el(self, qe, ue, ue_dot, el):
         raise NotImplementedError
@@ -2025,13 +2004,6 @@ class TimoshenkoDirectorIntegral(TimoshenkoBeamDirector):
 
         return g_ddot_q
 
-        # g_ddot_q_num = Numerical_derivative(lambda t, q, u: self.__g_ddot_el(q, u, ue_dot, el), order=2)._x(0, qe, ue)
-        # diff = g_ddot_q - g_ddot_q_num
-        # diff_error = diff #[self.g11DOF]
-        # error = np.linalg.norm(diff_error)
-        # print(f'error g_ddot_q: {error}')
-        # return g_ddot_q_num
-
     def __g_ddot_u_el(self, qe, ue, ue_dot, el):
         raise NotImplementedError
         g_ddot_u = np.zeros((self.nla_g_element, self.nq_el))
@@ -2069,13 +2041,6 @@ class TimoshenkoDirectorIntegral(TimoshenkoBeamDirector):
             g_ddot_u[self.g33DOF[:, None], self.d3DOF] += 4 * d3_dot_N
 
         return g_ddot_u
-
-        # g_ddot_u_num = Numerical_derivative(lambda t, q, u: self.__g_ddot_el(q, u, ue_dot, el), order=2)._y(0, qe, ue)
-        # diff = g_ddot_u - g_ddot_u_num
-        # diff_error = diff
-        # error = np.linalg.norm(diff_error)
-        # print(f'error g_ddot_u: {error}')
-        # return g_ddot_u_num
 
     # global constraint functions
     def g(self, t, q):
@@ -2238,8 +2203,6 @@ class EulerBernoulliDirectorIntegral(TimoshenkoBeamDirector):
         return g
 
     def __g_q_el(self, qe, el):
-        # return Numerical_derivative(lambda t, q: self.__g_el(q, el), order=order)._x(0, qe)
-
         g_q = np.zeros((self.nla_g_element, self.nq_el))
 
         for i in range(self.nquadrature):
@@ -2293,14 +2256,7 @@ class EulerBernoulliDirectorIntegral(TimoshenkoBeamDirector):
 
         return g_q
 
-        # g_q_num = Numerical_derivative(lambda t, q: self.__g_el(q, el), order=2)._x(0, qe)
-        # diff = g_q_num - g_q
-        # error = np.linalg.norm(diff)
-        # print(f'error g_q: {error}')
-        # return g_q_num
-
     def __g_qq_el(self, qe, el):
-        # return Numerical_derivative(lambda t, q: self.__g_q_el(q, el), order=order)._x(0, np.zeros(self.nq_el))
 
         g_qq = np.zeros((self.nla_g_element, self.nq_el, self.nq_el))
 
@@ -2355,12 +2311,6 @@ class EulerBernoulliDirectorIntegral(TimoshenkoBeamDirector):
             g_qq[self.g3DOF[:, None, None], self.d3DOF[:, None], self.rDOF] += arg2
 
         return g_qq
-
-        # g_qq_num = Numerical_derivative(lambda t, q: self.__g_q_el(q, el), order=2)._x(0, np.zeros(self.nq_el))
-        # diff = g_qq_num - g_qq
-        # error = np.linalg.norm(diff)
-        # print(f'error g_qq: {error}')
-        # return g_qq_num
 
     def __g_dot_el(self, qe, ue, el):
         raise NotImplementedError("...")
@@ -2547,8 +2497,6 @@ class InextensibleEulerBernoulliDirectorIntegral(TimoshenkoBeamDirector):
         return g
 
     def __g_q_el(self, qe, el):
-        # return Numerical_derivative(lambda t, q: self.__g_el(q, el), order=order)._x(0, qe)
-
         g_q = np.zeros((self.nla_g_element, self.nq_el))
 
         for i in range(self.nquadrature):
@@ -2617,14 +2565,7 @@ class InextensibleEulerBernoulliDirectorIntegral(TimoshenkoBeamDirector):
 
         return g_q
 
-        # g_q_num = Numerical_derivative(lambda t, q: self.__g_el(q, el), order=order)._x(0, qe)
-        # diff = g_q_num - g_q
-        # error = np.linalg.norm(diff)
-        # print(f'error g_q: {error}')
-        # return g_q_num
-
     def __g_qq_el(self, qe, el):
-        # return Numerical_derivative(lambda t, q: self.__g_q_el(q, el), order=order)._x(0, np.zeros(self.nq_el))
 
         g_qq = np.zeros((self.nla_g_element, self.nq_el, self.nq_el))
 
@@ -2696,12 +2637,6 @@ class InextensibleEulerBernoulliDirectorIntegral(TimoshenkoBeamDirector):
             # g_qq[self.g1DOF[:, None, None], self.rDOF[:, None], self.rDOF] += np.einsum('i,jl,jk->ikl', 2 * factor2, NN_r_xii, NN_r_xii / self.J[el, i])
 
         return g_qq
-
-        # g_qq_num = Numerical_derivative(lambda t, q: self.__g_q_el(q, el), order=order)._x(0, np.zeros(self.nq_el))
-        # diff = g_qq_num - g_qq
-        # error = np.linalg.norm(diff)
-        # print(f'error g_qq: {error}')
-        # return g_qq_num
 
     def __g_dot_el(self, qe, ue, el):
         raise NotImplementedError("...")

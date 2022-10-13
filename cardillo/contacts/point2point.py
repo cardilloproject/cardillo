@@ -8,9 +8,10 @@ from cardillo.math.algebra import (
     e2,
     e3,
 )
-from cardillo.math.numerical_derivative import Numerical_derivative
 from scipy.optimize import fsolve
 from scipy.optimize import minimize
+
+from cardillo.math.numerical_derivative import approx_fprime
 
 # TODO: Use xi and eta as new generalized coordinates and make this a g_contr
 #       subsystem that enforces both to be such that they satisfy the
@@ -311,15 +312,6 @@ class Point2Point:
 
         return grad2_d2
 
-        # fun = lambda t, p: self.grad_distance2(t, q, p)
-        # grad2_d2_num = Numerical_derivative(fun, order=2)._x(t, p)
-
-        # diff = grad2_d2 - grad2_d2_num
-        # error = np.linalg.norm(diff)
-        # print(f'diff:\n{diff}')
-        # print(f'error grad2_distance2: {error}')
-        # return grad2_d2_num
-
     # TODO is this an old verion of the funtion below?
     # def closest_points_gradient_d2(self, t, q):
     #     p0 = np.array([self.xi_c, self.eta_c])
@@ -507,9 +499,6 @@ class Point2Point:
     #         #                  prox2,
     #         #                  prox3])
 
-    #     def hessian_fun(p):
-    #         return Numerical_derivative(lambda t, p: grad_fun(p))._x(0, p)
-
     #     # initial error
     #     grad = grad_fun(p)
     #     error = norm(grad)
@@ -596,7 +585,7 @@ class Point2Point:
             return np.array([p0, p1])
 
         def hessian_fun(p):
-            return Numerical_derivative(lambda t, p: grad_fun(p))._x(0, p)
+            return approx_fprime(p, lambda t, p: grad_fun(p))
 
         # initial error
         grad = grad_fun(p)
@@ -861,7 +850,7 @@ class Point2Point:
         if (self.jacobian_updates >= self.n_jacobian_update) or (
             self.f_npot_q_num is None
         ):
-            self.f_npot_q_num = Numerical_derivative(self.h)._x(t, q, u)
+            self.f_npot_q_num = approx_fprime(q, lambda t, q, u: self.h(t, q, u))
             self.jacobian_updates = 0
         coo.extend(self.f_npot_q_num, (self.uDOF, self.qDOF))
 

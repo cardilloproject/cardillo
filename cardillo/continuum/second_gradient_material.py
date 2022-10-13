@@ -4,7 +4,7 @@ from cardillo.math import (
     cross3,
     LeviCivita3,
 )
-from cardillo.math.numerical_derivative import Numerical_derivative
+from cardillo.math.numerical_derivative import approx_fprime
 
 num_order = 2
 G0 = np.zeros((3, 3, 3))
@@ -35,7 +35,6 @@ class PantosheetBeamNetwork:
 
     def P(self, F, G):
         """Piola-Lagrange stress tensor"""
-        # P_num = Numerical_derivative(lambda F: self.W(F, G), order=num_order)._X(F)
         # Parameters
         # Layer a
         d1 = F @ self.D1
@@ -191,7 +190,6 @@ class PantosheetBeamNetwork:
         tau1 = -na @ (g1 - singa * c1) / cosga
         tau2 = -na @ (g2 - singa * c2) / cosga
 
-        # bbP_num = Numerical_derivative(lambda G: self.W(F, G), order=num_order)._X(G)
         # normal
 
         # geodesic
@@ -228,33 +226,20 @@ class PantosheetBeamNetwork:
 
         return bbPn + bbPg + bbPt
 
-    # numerical derivatives
-    # def P_num(self, F, G, W=W):
-    #     P_num = Numerical_derivative(lambda F: W(F, G), order=2)._X(F)
-    #     return P_num
-
-    # def bbP_num(self, F, G, W=W):
-    #     bbP_num = Numerical_derivative(lambda G: W(F, G), order=2)._X(G)
-    #     return bbP_num
-
     def P_F_num(self, F, G):
-        P_F_num = Numerical_derivative(lambda F: self.P(F, G), order=2)._X(F)
+        P_F_num = approx_fprime(F, lambda F: self.P(F, G))
         return P_F_num
 
     def P_G_num(self, F, G):
-        P_G_num = Numerical_derivative(lambda G: self.P(F, G), order=2)._X(G)
+        P_G_num = approx_fprime(G, lambda G: self.P(F, G))
         return P_G_num
 
     def bbP_F_num(self, F, G):
-        bbP_F_num = Numerical_derivative(lambda F: self.bbP(F, G), order=num_order)._X(
-            F
-        )
+        bbP_F_num = approx_fprime(F, lambda F: self.bbP(F, G))
         return bbP_F_num
 
     def bbP_G_num(self, F, G):
-        bbP_G_num = Numerical_derivative(lambda G: self.bbP(F, G), order=num_order)._X(
-            G
-        )
+        bbP_G_num = approx_fprime(G, lambda G: self.bbP(F, G))
         return bbP_G_num
 
     def W(self, F, G):
@@ -1170,15 +1155,6 @@ class PantoboxBeamNetwork:
         )
 
         Pt_F = Pt1_F + Pt2_F + Pt3_F + Pt4_F
-        # num = Numerical_derivative(\
-        #     lambda F: self.na_F(F, G), order=2)._X(F)
-        # print(np.linalg.norm(num - na_F_F))
-        # print('a')
-
-        # [0, 0, 0]num2 = Numererical_derivative(lambda F :Numerical_derivative(\
-        #     lambda F: self.na_F(F, G), order=2)._X(F), order=2)._X(F)
-        # print(np.linalg.norm(num2 - tau1_F_F))
-        # print('a')
 
         return Pe_F + Psa_F + Psb_F + Pc_F + Pg_F + Pn_F + Pt_F
 
@@ -1488,16 +1464,6 @@ class PantoboxBeamNetwork:
 
         Pt_G = Pt1_G + Pt2_G + Pt3_G + Pt4_G
 
-        # num = Numerical_derivative(\
-        # lambda G: self.g(F, G)[0], order=2)._X(G)
-        # print(np.linalg.norm(num - g1_G))
-        # print('a')
-
-        # num = Numerical_derivative(\
-        # lambda F: - na @ (self.g(F, G)[0] - singa * self.c(F, G)[0]) / cosga, order=2)._X(F)
-        # print(np.linalg.norm(num - tau1_F))
-        # print('a')
-
         return Pn_G + Pg_G + Pt_G
 
     def bbP(self, F, G):
@@ -1553,7 +1519,6 @@ class PantoboxBeamNetwork:
         tau3 = -nb @ (g3 - singb * c3) / cosgb
         tau4 = -nb @ (g4 - singb * c4) / cosgb
 
-        # bbP_num = Numerical_derivative(lambda G: self.W(F, G), order=num_order)._X(G)
         # normal
 
         # geodesic
@@ -2640,7 +2605,7 @@ class PantoboxBeamNetwork:
         return g1_F, g2_F, g3_F, g4_F
 
     def v_F_num(self, F, G, v=e_F):
-        v_F_num = Numerical_derivative(lambda F: v(F, G), order=2)._X(F)
+        v_F_num = approx_fprime(F, lambda F: v(F, G))
         return v_F_num
 
     # def P_alt(self, F, G):
@@ -3006,11 +2971,6 @@ class PantoboxBeamNetwork:
             + np.outer(kn3 * Pn3D3 + kn4 * Pn4D3, self.D3)
             + np.outer(kn3 * Pn3D4 + kn4 * Pn4D4, self.D4)
         )
-
-        # num = Numerical_derivative(\
-        # lambda G: self.c_F(F, G), order=2)._X(G)
-        # print(np.linalg.norm(num - c_F_G))
-        # print('a')
 
         return Pn
 
@@ -3602,35 +3562,31 @@ class PantoboxBeamNetwork:
 
     # numerical derivatives
     def P_num(self, F, G, W=W):
-        P_num = Numerical_derivative(lambda F: W(F, G), order=2)._X(F)
+        P_num = approx_fprime(F, lambda F: W(F, G))
         return P_num
 
     def bbP_num(self, F, G, W=W):
-        bbP_num = Numerical_derivative(lambda G: self.W(F, G), order=2)._X(G)
+        bbP_num = approx_fprime(G, lambda G: W(F, G))
         return bbP_num
 
     def P_F_num(self, F, G, P=P):
-        P_F_num = Numerical_derivative(lambda F: P(F, G), order=2)._X(F)
+        P_F_num = approx_fprime(F, lambda F: P(F, G))
         return P_F_num
 
     def P_G_num(self, F, G, P=P):
-        P_G_num = Numerical_derivative(lambda G: P(F, G), order=2)._X(G)
+        P_G_num = approx_fprime(G, lambda G: P(F, G))
         return P_G_num
 
     def bbP_F_num(self, F, G):
-        bbP_F_num = Numerical_derivative(lambda F: self.bbP(F, G), order=num_order)._X(
-            F
-        )
+        bbP_F_num = approx_fprime(F, lambda F: self.bbP(F, G))
         return bbP_F_num
 
     def bbP_G_num(self, F, G):
-        bbP_G_num = Numerical_derivative(lambda G: self.bbP(F, G), order=num_order)._X(
-            G
-        )
+        bbP_G_num = approx_fprime(G, lambda G: self.bbP(F, G))
         return bbP_G_num
 
     def scalar_F_num(self, F, G, var):
-        return Numerical_derivative(lambda F: var(F, G), order=num_order)._X(F)
+        return approx_fprime(F, lambda F: var(F, G))
 
 
 def verify_derivatives():

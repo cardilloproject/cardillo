@@ -13,7 +13,7 @@ from cardillo.continuum import (
     PantoboxBeamNetwork,
     PantosheetBeamNetwork,
 )
-from cardillo.solver import Newton, EulerBackward, NewtonOld
+from cardillo.solver import Newton, EulerBackward
 from cardillo import System
 from cardillo.math import A_IK_basic
 
@@ -206,8 +206,8 @@ def test_cube():
         n_load_steps = 20
         tol = 1.0e-5
         max_iter = 10
-        # solver = Newton(model, n_load_steps=n_load_steps, atol=tol, max_iter=max_iter)
-        solver = NewtonOld(model, n_load_steps=n_load_steps, tol=tol, max_iter=max_iter)
+        solver = Newton(model, n_load_steps=n_load_steps, atol=tol, max_iter=max_iter)
+        # solver = NewtonOld(model, n_load_steps=n_load_steps, tol=tol, max_iter=max_iter)
 
     else:
         t1 = 10

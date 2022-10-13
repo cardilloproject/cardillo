@@ -173,7 +173,4 @@ class Point2Plane:
 
     def Wla_N_q(self, t, q, la_N, coo):
         dense = la_N[0] * np.einsum("i,ijk->jk", self.n(t), self.J_P_q(t, q))
-        # dense_num = np.einsum('i,ijk->jk', la_N, Numerical_derivative(self.g_N_dot_u_dense, order=2)._x(t, q))
-        # error = np.linalg.norm(dense - dense_num)
-        # print(f'error: {error}')
         coo.extend(dense, (self.uDOF, self.qDOF))

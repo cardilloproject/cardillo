@@ -50,12 +50,6 @@ class RollingCondition:
             t, q, K_r_SP=self.subsystem.A_IK(t, q).T @ self.r_SC(t, q)
         )
 
-        # gamma_u_dense = self.subsystem.J_P(t, q, K_r_SP=self.subsystem.A_IK(t, q).T @ self.r_SA(t, q))
-        # gamma_u_dense_num = Numerical_derivative(self.gamma)._y(t, q, np.zeros(self.subsystem.nu))
-        # error = np.max(np.abs(gamma_u_dense_num - gamma_u_dense))
-        # print(f'error gamma_u_dense: {error}')
-        # return gamma_u_dense_num
-
     def gamma_u(self, t, q, coo):
         coo.extend(self.gamma_u_dense(t, q), (self.la_gammaDOF, self.uDOF))
 

@@ -1,7 +1,6 @@
 import numpy as np
 from math import asin
 
-from cardillo.math.numerical_derivative import Numerical_derivative
 from cardillo.math.algebra import norm
 from cardillo.model.continuum import Pantographic_sheet, strain_measures
 
@@ -379,10 +378,6 @@ class Pantographic_lattice(Pantographic_sheet):
         z = self.z(t, q)
         for el in range(self.nel):
             Ke = self.f_pot_q_el(z[self.elDOF[el]], el)
-            # Ke_num = Numerical_derivative(lambda t, z: self.f_pot_el(z, el), order=2)._x(t, z[self.elDOF[el]])
-            # error = np.linalg.norm(Ke - Ke_num)
-            # print(f'error K: {error}')
-            # Ke = Numerical_derivative(lambda t, z: self.f_pot_el(z, el), order=2)._x(t, z[self.elDOF[el]])
 
             # sparse assemble element internal stiffness matrix
             elfDOF = self.elfDOF[el]

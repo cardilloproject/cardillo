@@ -1,4 +1,3 @@
-from cardillo.math.numerical_derivative import Numerical_derivative
 from cardillo.model.classical_beams.planar import Hooke, EulerBernoulli
 from cardillo.model.frame import Frame
 from cardillo.model.bilateral_constraints.implicit import (

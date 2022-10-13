@@ -3,7 +3,7 @@ from scipy.sparse.linalg import spsolve
 from scipy.sparse import csc_matrix, bmat
 from tqdm import tqdm
 
-from cardillo.math import Numerical_derivative
+from cardillo.math import approx_fprime
 from cardillo.utility.coo import Coo
 from cardillo.solver import Solution
 
@@ -267,7 +267,7 @@ class Generalized_alpha_5:
         return next(self.__R_gen_analytic(tk1, xk1))
 
     def __R_x_num(self, tk1, xk1):
-        return Numerical_derivative(self.__R, order=2)._x(tk1, xk1)
+        return approx_fprime(xk1, lambda t, x: self.__R(t, x))
 
     def step(self):
         nq = self.nq
@@ -1216,7 +1216,7 @@ class Generalized_alpha_5__:
         return next(self.__R_gen_analytic(tk1, xk1))
 
     def __R_x_num(self, tk1, xk1):
-        return Numerical_derivative(self.__R, order=2)._x(tk1, xk1)
+        return approx_fprime(xk1, lambda t, x: self.__R(t, x))
 
     def step(self):
         nq = self.nq

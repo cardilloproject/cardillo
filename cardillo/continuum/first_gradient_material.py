@@ -2,7 +2,7 @@
 import numpy as np
 from math import sqrt, log, isclose
 from cardillo.math.algebra import det2D, det3D, inv3D
-from cardillo.math.numerical_derivative import Numerical_derivative
+from cardillo.math.numerical_derivative import approx_fprime
 
 # class Material_model_ev(ABC):
 #     """Abstract base class for Ogden type material models.
@@ -137,13 +137,6 @@ class Ogden1997_compressible:
         )
         S_F = np.einsum("ijkl,klmn->ijmn", S_C, C_F)
 
-        # S_F_num = Numerical_derivative(self.S, order=2)._X(F)
-        # error = np.linalg.norm(S_F - S_F_num)
-        # # print(f'error: {error}')
-        # if error > 1.0e-5:
-        #     print(f'error: {error}')
-        # return S_F_num
-
         return S_F
 
     def P(self, F):
@@ -182,7 +175,7 @@ class Ogden1997_incompressible:
 
     # TODO
     def S_F(self, F):
-        S_F_num = Numerical_derivative(self.S, order=2)._X(F)
+        S_F_num = approx_fprime(F, self.S)
         return S_F_num
 
 
@@ -316,13 +309,6 @@ class Ogden1997_complete_2D_incompressible:
         )
         S_F = np.einsum("ijkl,klmn->ijmn", S_C, C_F)
 
-        # S_F_num = Numerical_derivative(self.S, order=2)._X(F)
-        # error = np.linalg.norm(S_F - S_F_num)
-        # # print(f'error: {error}')
-        # if error > 1.0e-5:
-        #     print(f'error: {error}')
-        # return S_F_num
-
         return S_F
 
     def P(self, F):
@@ -390,15 +376,13 @@ class Pantobox_linear:
 
     # TODO
     def S_F(self, F):
-        S_F_num = Numerical_derivative(self.S, order=2)._X(F)
+        S_F_num = approx_fprime(F, self.S)
         return S_F_num
 
     def P(self, F):
         return F @ self.S(F)
 
     def test_derivatives(self):
-        from cardillo.math.numerical_derivative import Numerical_derivative
-
         def W(La):
             J = sqrt(np.prod(La))
             W = 0
@@ -464,11 +448,11 @@ class Pantobox_linear:
             return W_La_La
 
         La_0 = np.array([2.0, 3.0])
-        W_La_num = Numerical_derivative(lambda La: W(La))._X(La_0)
+        W_La_num = approx_fprime(La_0, W)
         W_La_an = W_La(La_0)
 
         W_La_La_an = W_La_La(La_0)
-        W_La_La_num = Numerical_derivative(lambda La: W_La(La))._X(La_0)
+        W_La_La_num = approx_fprime(La_0, W_La)
         print(".")
 
 
