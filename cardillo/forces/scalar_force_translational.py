@@ -27,15 +27,21 @@ class ScalarForceTranslational:
                 self.h = lambda t, q, u: self.__f_spring(t, q) + self.__f_damper(
                     t, q, u
                 )
-                self.h_q = lambda t, q, u, coo: coo.extend(self.__f_spring_q(
-                    t, q) + self.__f_damper_q(t, q, u), (self.uDOF, self.qDOF))
+                self.h_q = lambda t, q, u, coo: coo.extend(
+                    self.__f_spring_q(t, q) + self.__f_damper_q(t, q, u),
+                    (self.uDOF, self.qDOF),
+                )
                 self.h_u = lambda t, q, u, coo: self.__f_damper_u(t, q, u, coo)
             else:
                 self.h = lambda t, q, u: self.__f_spring(t, q)
-                self.h_q = lambda t, q, u, coo: coo.extend(self.__f_spring_q(t, q, coo), (self.uDOF, self.qDOF))
+                self.h_q = lambda t, q, u, coo: coo.extend(
+                    self.__f_spring_q(t, q, coo), (self.uDOF, self.qDOF)
+                )
         else:
             self.h = lambda t, q, u: self.__f_damper(t, q, u)
-            self.h_q = lambda t, q, u, coo: coo.extend(self.__f_damper_q(t, q, u), (self.uDOF, self.qDOF))
+            self.h_q = lambda t, q, u, coo: coo.extend(
+                self.__f_damper_q(t, q, u), (self.uDOF, self.qDOF)
+            )
             self.h_u = lambda t, q, u, coo: self.__f_damper_u(t, q, u, coo)
 
         self.subsystem1 = subsystem1

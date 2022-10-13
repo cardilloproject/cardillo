@@ -381,7 +381,9 @@ class RevoluteJoint:
         ez1 = self.A_IB1(t, q)[:, 2]
         ez1_q1 = self.A_IB1_q(t, q)[:, 2]
 
-        return np.concatenate( [(Omega2 - Omega1) @ ez1_q1 - ez1 @ Omega1_q1, ez1 @ Omega2_q2])
+        return np.concatenate(
+            [(Omega2 - Omega1) @ ez1_q1 - ez1 @ Omega1_q1, ez1 @ Omega2_q2]
+        )
 
     def angle_dot_u(self, t, q, u):
         Omega1_u1 = self.J_R1(t, q)
