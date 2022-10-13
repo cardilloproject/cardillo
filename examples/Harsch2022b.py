@@ -1748,7 +1748,7 @@ def BucklingRightHingedFrame(follower=False):
     model.add(force)
     model.assemble()
 
-    # # n_load_steps = 2
+    # # n_load_steps = 1
     # n_load_steps = 20
     # solver = Newton(
     #     model,
@@ -2089,9 +2089,9 @@ def Bathe1979():
 if __name__ == "__main__":
     # membrane_and_locking_Meier()
     # convergence_quarter_circle()
-    objectivity_quarter_circle()
+    # objectivity_quarter_circle()
     # HelixIbrahimbegovic1997()
     # HeavyTop()
-    # BucklingRightHingedFrame()
+    BucklingRightHingedFrame()
     # Bathe1979()
     # cantilever()
