@@ -97,6 +97,15 @@ class RevoluteJoint:
         self.Omega1 = lambda t, q, u: self.subsystem1.A_IK(
             t, q[:nq1], self.frame_ID1
         ) @ self.subsystem1.K_Omega(t, q[:nq1], u[:nu1], self.frame_ID1)
+        self.Omega1_q1 = lambda t, q, u: np.einsum(
+            "ijk,j->ik",
+            self.subsystem1.A_IK_q(t, q[:nq1], frame_ID=self.frame_ID1),
+            self.subsystem1.K_Omega(t, q[:nq1], u[:nu1], self.frame_ID1),
+        ) + np.einsum(
+            "ij,jk->ik",
+            self.subsystem1.A_IK(t, q[:nq1], frame_ID=self.frame_ID1),
+            self.subsystem1.K_Omega_q(t, q[:nq1], u[:nu1], self.frame_ID1),
+        )
         self.Psi1 = lambda t, q, u, u_dot: self.subsystem1.A_IK(
             t, q[:nq1], self.frame_ID1
         ) @ self.subsystem1.K_Psi(t, q[:nq1], u[:nu1], u_dot[:nu1], self.frame_ID1)
@@ -151,6 +160,15 @@ class RevoluteJoint:
         self.Omega2 = lambda t, q, u: self.subsystem2.A_IK(
             t, q[nq1:], self.frame_ID2
         ) @ self.subsystem2.K_Omega(t, q[nq1:], u[nu1:], self.frame_ID2)
+        self.Omega2_q2 = lambda t, q, u: np.einsum(
+            "ijk,j->ik",
+            self.subsystem2.A_IK_q(t, q[nq1:], frame_ID=self.frame_ID2),
+            self.subsystem2.K_Omega(t, q[nq1:], u[nu1:], self.frame_ID2),
+        ) + np.einsum(
+            "ij,jk->ik",
+            self.subsystem2.A_IK(t, q[nq1:], frame_ID=self.frame_ID2),
+            self.subsystem2.K_Omega_q(t, q[nq1:], u[nu1:], self.frame_ID2),
+        )
         self.Psi2 = lambda t, q, u, u_dot: self.subsystem2.A_IK(
             t, q[nq1:], self.frame_ID2
         ) @ self.subsystem2.K_Psi(t, q[nq1:], u[nu1:], u_dot[nu1:], self.frame_ID2)
@@ -349,16 +367,27 @@ class RevoluteJoint:
         return np.arctan2(ex2 @ ey1, ex2 @ ex1)
 
     def angle_dot(self, t, q, u):
-        ex1, ey1, _ = self.A_IB1(t, q).T
-        ex2 = self.A_IB2(t, q)[:, 0]
-
-        arg = ex2 @ ey1, ex2 @ ex1
-
         Omega1 = self.Omega1(t, q, u)
         Omega2 = self.Omega2(t, q, u)
+        ez1 = self.A_IB1(t, q)[:, 2]
 
-        raise NotImplementedError("...")
-        # return 1 / (1 + arg**2) * (...)
+        return (Omega2 - Omega1) @ ez1
+
+    def angle_dot_q(self, t, q, u):
+        Omega1 = self.Omega1(t, q, u)
+        Omega2 = self.Omega2(t, q, u)
+        Omega1_q1 = self.Omega1_q1(t, q, u)
+        Omega2_q2 = self.Omega2_q2(t, q, u)
+        ez1 = self.A_IB1(t, q)[:, 2]
+        ez1_q1 = self.A_IB1_q(t, q)[:, 2]
+
+        return np.concatenate( [(Omega2 - Omega1) @ ez1_q1 - ez1 @ Omega1_q1, ez1 @ Omega2_q2])
+
+    def angle_dot_u(self, t, q, u):
+        Omega1_u1 = self.J_R1(t, q)
+        Omega2_u2 = self.J_R2(t, q)
+        ez1 = self.A_IB1(t, q)[:, 2]
+        return ez1 @ np.concatenate([-Omega1_u1, Omega2_u2], axis=1)
 
     def angle_q(self, t, q):
         ex1, ey1, _ = self.A_IB1(t, q).T
