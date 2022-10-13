@@ -21,8 +21,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Beam = TimoshenkoAxisAngleSE3
-# Beam = DirectorAxisAngle
-Beam = TimoshenkoDirectorDirac
+Beam = DirectorAxisAngle
+# Beam = TimoshenkoDirectorDirac
 # Beam = TimoshenkoDirectorIntegral
 
 

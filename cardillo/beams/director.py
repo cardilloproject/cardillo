@@ -393,34 +393,31 @@ class TimoshenkoBeamDirector(metaclass=ABCMeta):
             for node in range(self.nnodes_element_r):
                 r_xi += self.N_r_xi[el, i, node] * qe[self.nodalDOF_element_r[node]]
 
-            # interpoalte transformation matrix
-            A_IK = np.zeros((3, 3), dtype=float)
-            A_IK_xi = np.zeros((3, 3), dtype=float)
+            # interpoalte directors
+            d1d2d3 = np.zeros(9, dtype=qe.dtype)
+            d1d2d3_xi = np.zeros(9, dtype=qe.dtype)
             for node in range(self.nnodes_element_di):
-                A_IK_node = qe[self.nodalDOF_element_di[node]].reshape(3, 3, order="F")
-                A_IK += self.N_di[el, i, node] * A_IK_node
-                A_IK_xi += self.N_di_xi[el, i, node] * A_IK_node
+                nodalDOF = self.nodalDOF_element_di[node]
+                qe_node = qe[nodalDOF]
+                d1d2d3 += self.N_di[el, i, node] * qe_node
+                d1d2d3_xi += self.N_di_xi[el, i, node] * qe_node
 
-            # extract directors
-            d1, d2, d3 = A_IK.T
-            d1_xi, d2_xi, d3_xi = A_IK_xi.T
-
-            # compute derivatives w.r.t. the arc lenght parameter s
-            r_s = r_xi / J
-            d1_s = d1_xi / J
-            d2_s = d2_xi / J
-            d3_s = d3_xi / J
+            d1, d2, d3 = np.split(d1d2d3, 3)
+            d1_xi, d2_xi, d3_xi = np.split(d1d2d3_xi, 3)
 
             # axial and shear strains
-            K_Gamma = A_IK.T @ r_s
+            K_Gamma = np.array([r_xi @ d1, r_xi @ d2, r_xi @ d3]) / J
 
             # torsional and flexural strains
-            K_Kappa = np.array(
-                [
-                    0.5 * (d3 @ d2_s - d2 @ d3_s),
-                    0.5 * (d1 @ d3_s - d3 @ d1_s),
-                    0.5 * (d2 @ d1_s - d1 @ d2_s),
-                ]
+            K_Kappa = (
+                np.array(
+                    [
+                        0.5 * (d3 @ d2_xi - d2 @ d3_xi),
+                        0.5 * (d1 @ d3_xi - d3 @ d1_xi),
+                        0.5 * (d2 @ d1_xi - d1 @ d2_xi),
+                    ]
+                )
+                / J
             )
 
             # evaluate strain energy function
@@ -533,10 +530,6 @@ class TimoshenkoBeamDirector(metaclass=ABCMeta):
             coo.extend(Ke, (self.uDOF[elDOF], self.qDOF[elDOF]))
 
     def f_pot_q_el(self, qe, el):
-        return approx_fprime(qe, lambda qe: self.f_pot_el(qe, el), method="2-point")
-        # return approx_fprime(qe, lambda qe: self.f_pot_el(qe, el), method="3-point")
-        # return approx_fprime(qe, lambda qe: self.f_pot_el(qe, el), eps=1.0e-10, method="cs")
-
         Ke = np.zeros((self.nq_element, self.nq_element))
 
         for i in range(self.nquadrature):
@@ -575,100 +568,27 @@ class TimoshenkoBeamDirector(metaclass=ABCMeta):
             d1_q, d2_q, d3_q = np.split(d1d2d3_q, 3)
             d1_xi_q, d2_xi_q, d3_xi_q = np.split(d1d2d3_xi_q, 3)
 
-            # d1 = d1d2d3[:3]
-            # d2 = d1d2d3[3:6]
-            # d3 = d1d2d3[6:9]
-            # d1_xi = d1d2d3_xi[:3]
-            # d2_xi = d1d2d3_xi[3:6]
-            # d3_xi = d1d2d3_xi[6:9]
-            # d1_q = d1d2d3_q[:3]
-            # d2_q = d1d2d3_q[3:6]
-            # d3_q = d1d2d3_q[6:9]
-            # d1_xi_q = d1d2d3_xi_q[:3]
-            # d2_xi_q = d1d2d3_xi_q[3:6]
-            # d3_xi_q = d1d2d3_xi_q[6:9]
-
-            # A_IK_node = qe[self.nodalDOF_element_di[node]].reshape(3, 3, order="F")
-            # A_IK += self.N_di[el, i, node] * A_IK_node
-            # A_IK_xi += self.N_di_xi[el, i, node] * A_IK_node
-            # for kk in range(9):
-            #     ii = kk % 3
-            #     jj = kk // 3
-            #     A_IK_q[ii, jj, self.nodalDOF_element_di[node][kk]] = self.N_di[el, i, node]
-            #     A_IK_xi_q[ii, jj, self.nodalDOF_element_di[node][kk]] = self.N_di_xi[el, i, node]
-
-            # d1d2d3 = np.zeros(9, dtype=float)
-            # d1d2d3_xi = np.zeros(9, dtype=float)
-            # d1d2d3_q = np.zeros((9, self.nq_element), dtype=float)
-            # d1d2d3_xi_q = np.zeros((9, self.nq_element), dtype=float)
-            # for node in range(self.nnodes_element_di):
-            #     d1d2d3 += self.N_di[el, i, node] * qe[self.nodalDOF_element_di[node]]
-            #     d1d2d3_xi += (
-            #         self.N_di_xi[el, i, node] * qe[self.nodalDOF_element_di[node]]
-            #     )
-            #     d1d2d3_q[:, self.nodalDOF_element_di[node]] += self.N_di[
-            #         el, i, node
-            #     ] * np.eye(9)
-            #     d1d2d3_xi_q[:, self.nodalDOF_element_di[node]] += self.N_di_xi[
-            #         el, i, node
-            #     ] * np.eye(9)
-
-            # def A_IK_fun(qe):
-            #     A_IK = np.zeros((3, 3), dtype=float)
-            #     for node in range(self.nnodes_element_di):
-            #         A_IK_node = qe[self.nodalDOF_element_di[node]].reshape(3, 3, order="F")
-            #         A_IK += self.N_di[el, i, node] * A_IK_node
-            #     return A_IK
-
-            # A_IK_q_num = approx_fprime(
-            #     qe,
-            #     A_IK_fun
-            # )
-            # diff = A_IK_q - A_IK_q_num
-            # error = np.linalg.norm(diff)
-            # np.set_printoptions(3, suppress=True)
-            # print(f"A_IK_q:\n{A_IK_q}")
-            # print(f"A_IK_q_num:\n{A_IK_q_num}")
-            # print(f"diff:\n{diff}")
-            # print(f"error: {error}")
-
-            # d1 = A_IK[:, 0]
-            # d2 = A_IK[:, 1]
-            # d3 = A_IK[:, 2]
-            # d1_xi = A_IK_xi[:, 0]
-            # d2_xi = A_IK_xi[:, 1]
-            # d3_xi = A_IK_xi[:, 2]
-            # d1_q = A_IK_q[:, 0]
-            # d2_q = A_IK_q[:, 1]
-            # d3_q = A_IK_q[:, 2]
-            # d1_xi_q = A_IK_xi_q[:, 0]
-            # d2_xi_q = A_IK_xi_q[:, 1]
-            # d3_xi_q = A_IK_xi_q[:, 2]
-
-            # compute derivatives w.r.t. the arc lenght parameter s
-            r_s = r_xi / J
-            # d1_s = d1_xi / J
-            # d2_s = d2_xi / J
-            # d3_s = d3_xi / J
-
             # axial and shear strains
-            # K_Gamma = A_IK.T @ r_s
-            K_Gamma = np.array([d1 @ r_s, d2 @ r_s, d3 @ r_s])
+            K_Gamma = np.array([d1 @ r_xi, d2 @ r_xi, d3 @ r_xi]) / J
 
             # derivative of axial and shear strains
-            # K_Gamma_q = A_IK.T @ r_xi_q / J + np.einsum("ijk,i->jk", A_IK_q, r_s)
-            K_Gamma_q = np.array(
-                [
-                    d1 @ r_xi_q,
-                    d2 @ r_xi_q,
-                    d3 @ r_xi_q,
-                ]
-            ) / J + np.array(
-                [
-                    r_s @ d1_q,
-                    r_s @ d2_q,
-                    r_s @ d3_q,
-                ]
+            K_Gamma_q = (
+                np.array(
+                    [
+                        d1 @ r_xi_q,
+                        d2 @ r_xi_q,
+                        d3 @ r_xi_q,
+                    ]
+                )
+                / J
+                + np.array(
+                    [
+                        r_xi @ d1_q,
+                        r_xi @ d2_q,
+                        r_xi @ d3_q,
+                    ]
+                )
+                / J
             )
 
             # torsional and flexural strains
@@ -712,12 +632,8 @@ class TimoshenkoBeamDirector(metaclass=ABCMeta):
                 K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
             )
 
-            # n1, n2, n3 = K_n
-            # m1, m2, m3 = K_m
             K_n_q = K_n_K_Gamma @ K_Gamma_q + K_n_K_Kappa @ K_Kappa_q
             K_m_q = K_m_K_Gamma @ K_Gamma_q + K_m_K_Kappa @ K_Kappa_q
-            # n1_q, n2_q, n3_q = K_n_q
-            # m1_q, m2_q, m3_q = K_m_q
 
             # quadrature point contribution to element residual
             for node in range(self.nnodes_element_r):
@@ -747,16 +663,6 @@ class TimoshenkoBeamDirector(metaclass=ABCMeta):
             for node in range(self.nnodes_element_di):
                 N_di = self.N_di[el, i, node]
                 N_di_xi = self.N_di_xi[el, i, node]
-
-                def fe_di(i1):
-                    i1, i2, i3 = np.roll([0, 1, 2], (i1 + 1, i1 + 2))
-                    return np.array(
-                        [
-                            N_di * K_n[i] * r_xi
-                            + 0.5 * N_di * (K_m[i2] * di_xi[i3] - K_m[i3] * di_xi[i2])
-                            + 0.5 * N_di_xi * (K_m[i3] * di[i2] - K_m[i2] * di[i3])
-                        ]
-                    )
 
                 def fe_di_q(i1):
                     i1, i2, i3 = np.roll([0, 1, 2], (i1 + 1, i1 + 2))
@@ -791,21 +697,15 @@ class TimoshenkoBeamDirector(metaclass=ABCMeta):
                     np.concatenate(list(map(fe_di_q, [0, 1, 2]))) * qwi
                 )
 
-        Ke_num = approx_fprime(
-            qe, lambda qe: self.f_pot_el(qe, el), method="3-point", eps=1.0e-6
-        )
-        diff = Ke_num - Ke
-        # error = np.linalg.norm(diff)
-        error = np.linalg.norm(diff[: self.nq_element_r])
-        # error = np.linalg.norm(diff[:self.nq_element_r, :self.nq_element_r])
-        # error = np.linalg.norm(diff[: self.nq_element_r, self.nq_element_r :])
+        return Ke
 
-        # np.set_printoptions(3, suppress=True)
-        # # print(f"Ke_num:\n{Ke_num}")
-        # # print(f"Ke:\n{Ke}")
-        # # print(f"diff:\n{diff}")
+        # Ke_num = approx_fprime(
+        #     qe, lambda qe: self.f_pot_el(qe, el), method="3-point", eps=1.0e-6
+        # )
+        # diff = Ke_num - Ke
+        # error = np.linalg.norm(diff)
         # print(f"error: {error}")
-        return Ke_num
+        # return Ke_num
 
     #########################################
     # kinematic equation
@@ -853,66 +753,30 @@ class TimoshenkoBeamDirector(metaclass=ABCMeta):
         r_OP_q += np.einsum("ijk,j->ik", self.A_IK_q(t, q, frame_ID), K_r_SP)
         return r_OP_q
 
-        # r_OP_q_num = approx_fprime(q, lambda q: self.r_OP(t, q, frame_ID=frame_ID, K_r_SP=K_r_SP), method="3-point")
-        # error = np.linalg.norm(r_OP_q - r_OP_q_num)
-        # print(f'error in r_OP_q: {error}')
-        # return r_OP_q_num
-
     def A_IK(self, t, q, frame_ID):
         N_di, _ = self.basis_functions_di(frame_ID[0])
-        # A_IK = np.zeros(9, dtype=float)
-        # for node in range(self.nnodes_element_di):
-        #     A_IK += N_di[node] * q[self.nodalDOF_element_di[node]]
-        # return A_IK.reshape(3, 3, order="F")
-
         d1d2d3 = np.zeros(9, dtype=q.dtype)
         for node in range(self.nnodes_element_di):
             d1d2d3 += N_di[node] * q[self.nodalDOF_element_di[node]]
         return d1d2d3.reshape(3, 3, order="F")
 
     def A_IK_q(self, t, q, frame_ID):
-        # eye3 = np.eye(3, dtype=float)
-        # N_di, _ = self.basis_functions_di(frame_ID[0])
-        # A_IK_q = np.zeros((9, self.nq_element), dtype=float)
-        # for node in range(self.nnodes_element_di):
-        #     nodalDOF = self.nodalDOF_element_di[node]
-        #     A_IK_q[:3, nodalDOF[:3]] += N_di[node] * eye3
-        #     A_IK_q[3:6, nodalDOF[3:6]] += N_di[node] * eye3
-        #     A_IK_q[6:9, nodalDOF[6:]] += N_di[node] * eye3
+        N_di, _ = self.basis_functions_di(frame_ID[0])
+        d1d2d3_q = np.zeros((9, self.nq_element), dtype=float)
+        for node in range(self.nnodes_element_di):
+            d1d2d3_q[:, self.nodalDOF_element_di[node]] += N_di[node] * np.eye(
+                9, dtype=float
+            )
 
-        # A_IK_q = A_IK_q.reshape(3, 3, -1)
-        # return A_IK_q
+        A_IK_q = d1d2d3_q.reshape(3, 3, -1, order="F")
+        return A_IK_q
 
-        A_IK_q_num = approx_fprime(
-            q, lambda q: self.A_IK(t, q, frame_ID=frame_ID), method="3-point"
-        )
-        # error = np.linalg.norm(A_IK_q - A_IK_q_num)
-        # print(f"error in A_IK_q: {error}")
-        return A_IK_q_num
-
-    # TODO: optimized implementation for boundaries
     def v_P(self, t, q, u, frame_ID, K_r_SP=np.zeros(3)):
-        raise NotImplementedError
-        # xi = frame_ID[0]
-        # if xi == 0:
-        #     NN = self.N_bdry[0]
-        # elif xi == 1:
-        #     NN = self.N_bdry[-1]
-        # else:
-        #     N, _ = self.basis_functions(frame_ID[0])
-        #     NN = self.stack3r(N)
-        N, _ = self.basis_functions_r(frame_ID[0])
-        NN = self.stack3r(N)
+        # Note: This is correct but confusing!
+        return self.r_OP(t, u, frame_ID, K_r_SP)
 
-        # v_P1 = NN @ u[self.rDOF] + self.A_IK(t, q, frame_ID) @ cross3(self.K_Omega(t, q, u, frame_ID=frame_ID), K_r_SP)
-        v_P2 = NN @ u[self.rDOF] + self.A_IK(t, u, frame_ID) @ K_r_SP
-        # print(v_P1 - v_P2)
-        return v_P2
-
-    # TODO:
     def v_P_q(self, t, q, u, frame_ID, K_r_SP=np.zeros(3)):
-        raise NotImplementedError
-        return np.zeros((3, self.nu_element))
+        return np.zeros((3, self.nq_element))
 
     def J_P(self, t, q, frame_ID, K_r_SP=np.zeros(3)):
         return self.r_OP_q(t, q, frame_ID=frame_ID, K_r_SP=K_r_SP)
@@ -920,26 +784,9 @@ class TimoshenkoBeamDirector(metaclass=ABCMeta):
     def J_P_q(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
         return np.zeros((3, self.nu_element, self.nq_element))
 
-    # TODO:
     def a_P(self, t, q, u, u_dot, frame_ID, K_r_SP=np.zeros(3)):
-        raise NotImplementedError
-        # xi = frame_ID[0]
-        # if xi == 0:
-        #     NN = self.N_bdry[0]
-        # elif xi == 1:
-        #     NN = self.N_bdry[-1]
-        # else:
-        #     N, _ = self.basis_functions(frame_ID[0])
-        #     NN = self.stack3r(N)
-        N, _ = self.basis_functions_r(frame_ID[0])
-        NN = self.stack3r(N)
-
-        # K_Omega = self.K_Omega(t, q, u, frame_ID=frame_ID)
-        # K_Psi = self.K_Psi(t, q, u, u_dot, frame_ID=frame_ID)
-        # a_P1 = NN @ u_dot[self.rDOF] + self.A_IK(t, q, frame_ID=frame_ID) @ (cross3(K_Psi, K_r_SP) + cross3(K_Omega, cross3(K_Omega, K_r_SP)))
-        a_P2 = NN @ u_dot[self.rDOF] + self.A_IK(t, u_dot, frame_ID=frame_ID) @ K_r_SP
-        # print(a_P1 - a_P2)
-        return a_P2
+        # Note: This is correct but confusing!
+        return self.r_OP(t, u_dot, frame_ID, K_r_SP)
 
     def a_P_q(self, t, q, u, u_dot, frame_ID, K_r_SP=None):
         return np.zeros((3, self.nq_el))
@@ -947,80 +794,59 @@ class TimoshenkoBeamDirector(metaclass=ABCMeta):
     def a_P_u(self, t, q, u, u_dot, frame_ID, K_r_SP=None):
         return np.zeros((3, self.nq_el))
 
-    # TODO: optimized implementation for boundaries
     def K_Omega(self, t, q, u, frame_ID):
         N_di, _ = self.basis_functions_di(frame_ID[0])
-
-        # A_IK = np.zeros(9, dtype=float)
-        # A_IK_dot = np.zeros(9, dtype=float)
-        # for node in range(self.nnodes_element_di):
-        #     A_IK += N_di[node] * q[self.nodalDOF_element_di[node]]
-        #     A_IK_dot += N_di[node] * u[self.nodalDOF_element_di[node]]
-
-        # A_IK = A_IK.reshape(3, 3, order="F")
-        # A_IK_dot = A_IK_dot.reshape(3, 3, order="F")
 
         d1d2d3 = np.zeros(9, dtype=q.dtype)
         d1d2d3_dot = np.zeros(9, dtype=q.dtype)
         for node in range(self.nnodes_element_di):
             d1d2d3 += N_di[node] * q[self.nodalDOF_element_di[node]]
             d1d2d3_dot += N_di[node] * u[self.nodalDOF_element_di[node]]
-        A_IK = d1d2d3.reshape(3, 3, order="F")
-        A_IK_dot = d1d2d3_dot.reshape(3, 3, order="F")
+        d1, d2, d3 = np.split(d1d2d3, 3)
+        d1_dot, d2_dot, d3_dot = np.split(d1d2d3_dot, 3)
 
-        return skew2ax(A_IK.T @ A_IK_dot)
-
-    # TODO:
-    def K_J_R(self, t, q, frame_ID):
-        # # old implementation
-        # N, _ = self.basis_functions_di(frame_ID[0])
-        # NN = self.stack3di(N)
-
-        # d1 = NN @ q[self.d1DOF]
-        # d2 = NN @ q[self.d2DOF]
-        # d3 = NN @ q[self.d3DOF]
-        # A_IK = np.vstack((d1, d2, d3)).T
-
-        # K_Omega_tilde_Omega_tilde = skew2ax_A()
-
-        # K_J_R = np.zeros((3, self.nq_el))
-        # K_J_R[:, self.d1DOF] = K_Omega_tilde_Omega_tilde[0] @ A_IK.T @ NN
-        # K_J_R[:, self.d2DOF] = K_Omega_tilde_Omega_tilde[1] @ A_IK.T @ NN
-        # K_J_R[:, self.d3DOF] = K_Omega_tilde_Omega_tilde[2] @ A_IK.T @ NN
-        # return K_J_R
-
-        # # new implementation
-        # N_di, _ = self.basis_functions_di(frame_ID[0])
-        # A_IK = np.zeros(9, dtype=float)
-        # for node in range(self.nnodes_element_di):
-        #     A_IK += N_di[node] * q[self.nodalDOF_element_di[node]]
-        # A_IK = A_IK.reshape(3, 3)
-
-        # K_Omega_tilde_Omega_tilde = skew2ax_A()
-        # tmp1 = K_Omega_tilde_Omega_tilde[0] @ A_IK.T
-        # tmp2 = K_Omega_tilde_Omega_tilde[1] @ A_IK.T
-        # tmp3 = K_Omega_tilde_Omega_tilde[2] @ A_IK.T
-
-        # K_J_R = np.zeros((3, self.nu_element), dtype=float)
-        # for node in range(self.nnodes_element_di):
-        #     nodalDOF = self.nodalDOF_element_di[node]
-        #     K_J_R[:, nodalDOF[:3]] += tmp1 * N_di[node]
-        #     K_J_R[:, nodalDOF[3:6]] += tmp2 * N_di[node]
-        #     K_J_R[:, nodalDOF[6:]] += tmp3 * N_di[node]
-        # # return K_J_R
-
-        K_J_R_num = approx_fprime(
-            np.zeros(self.nu_element),
-            lambda u: self.K_Omega(t, q, u, frame_ID=frame_ID),
-            method="3-point",
+        return 0.5 * np.array(
+            [
+                d3 @ d2_dot - d2 @ d3_dot,
+                d1 @ d3_dot - d3 @ d1_dot,
+                d2 @ d1_dot - d1 @ d2_dot,
+            ]
         )
+
+    def K_J_R(self, t, q, frame_ID):
+        N_di, _ = self.basis_functions_di(frame_ID[0])
+
+        d1d2d3 = np.zeros(9, dtype=q.dtype)
+        d1d2d3_dot_u = np.zeros((9, self.nq_element), dtype=q.dtype)
+        for node in range(self.nnodes_element_di):
+            nodalDOF = self.nodalDOF_element_di[node]
+            d1d2d3 += N_di[node] * q[nodalDOF]
+            d1d2d3_dot_u[:, nodalDOF] += N_di[node] * np.eye(9)
+        d1, d2, d3 = np.split(d1d2d3, 3)
+        d1_dot_u, d2_dot_u, d3_dot_u = np.split(d1d2d3_dot_u, 3)
+
+        K_J_R = 0.5 * np.array(
+            [
+                d3 @ d2_dot_u - d2 @ d3_dot_u,
+                d1 @ d3_dot_u - d3 @ d1_dot_u,
+                d2 @ d1_dot_u - d1 @ d2_dot_u,
+            ]
+        )
+        return K_J_R
+
+        # K_J_R_num = approx_fprime(
+        #     np.zeros(self.nu_element),
+        #     lambda u: self.K_Omega(t, q, u, frame_ID=frame_ID),
+        #     method="3-point",
+        # )
         # diff = K_J_R_num - K_J_R
         # diff_error = diff
         # error = np.linalg.norm(diff_error)
-        # print(f'error K_J_R: {error}')
-        return K_J_R_num
+        # if error > 1.0e-10:
+        #     print(f'error K_J_R: {error}')
+        # return K_J_R_num
 
-    # TODO:
+    # TODO: Implement derivative of K_J_R_q
     def K_J_R_q(self, t, q, frame_ID):
         # N, _ = self.basis_functions_di(frame_ID[0])
         # NN = self.stack3di(N)
@@ -1052,7 +878,7 @@ class TimoshenkoBeamDirector(metaclass=ABCMeta):
         # print(f'error K_J_R_q: {error}')
         return K_J_R_q_num
 
-    # TODO:
+    # TODO: Implement K_Psi as derivative of K_Omega
     def K_Psi(self, t, q, u, u_dot, frame_ID):
         raise NotImplementedError
         # xi = frame_ID[0]
@@ -1087,7 +913,6 @@ class TimoshenkoBeamDirector(metaclass=ABCMeta):
     ####################################################
     # body force
     ####################################################
-    # def body_force_el(self, force, t, el):
     def distributed_force1D_el(self, force, t, el):
         fe = np.zeros(self.nq_el)
         for i in range(self.nquadrature):
@@ -1097,15 +922,12 @@ class TimoshenkoBeamDirector(metaclass=ABCMeta):
             )
         return fe
 
-    # def body_force(self, t, q, force):
     def distributed_force1D(self, t, q, force):
         f = np.zeros(self.nq)
         for el in range(self.nelement):
-            # f[self.elDOF[el]] += self.body_force_el(force, t, el)
             f[self.elDOF[el]] += self.distributed_force1D_el(force, t, el)
         return f
 
-    # def body_force_q(self, t, q, coo, force):
     def distributed_force1D_q(self, t, q, coo, force):
         pass
 
