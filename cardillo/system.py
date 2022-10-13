@@ -420,7 +420,10 @@ class System:
     def prox_r_N(self, t, q):
         M = self.M(t, q, csc_matrix)
         W_N = self.W_N(t, q, csc_matrix)
-        return 1.0 / csr_matrix(W_N.T @ spsolve(M, W_N)).diagonal()
+        try:
+            return 1.0 / csr_matrix(W_N.T @ spsolve(M, W_N)).diagonal()
+        except:
+            return np.ones(self.nla_N, dtype=float)
 
     def g_N(self, t, q):
         g_N = np.zeros(self.nla_N)
@@ -501,7 +504,10 @@ class System:
     def prox_r_F(self, t, q):
         M = self.M(t, q, csc_matrix)
         W_F = self.W_F(t, q, csc_matrix)
-        return 1.0 / csr_matrix(W_F.T @ spsolve(M, W_F)).diagonal()
+        try:
+            return 1.0 / csr_matrix(W_F.T @ spsolve(M, W_F)).diagonal()
+        except:
+            return np.ones(self.nla_N, dtype=float)
 
     def gamma_F(self, t, q, u):
         gamma_F = np.zeros(self.nla_F)
