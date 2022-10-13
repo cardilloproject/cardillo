@@ -51,7 +51,7 @@ class RectangularCrossSection(CrossSection):
     Note:
     -----
     * width denotes the dimension in d2-direction
-    * height defindenoteses the dimension in d3-direction
+    * height denotes the dimension in d3-direction
     """
 
     def __init__(self, density, width, height):
