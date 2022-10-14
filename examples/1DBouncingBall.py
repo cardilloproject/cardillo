@@ -20,7 +20,7 @@ from cardillo.solver import (
     Remco,
     RemcoOriginal,
     DecoupledNonsmoothHalfExplicitRungeKutta,
-    NonsmoothHalfExplicitEuler,
+    NonsmoothHalfExplicitRungeKutta,
     NonsmoothHalfExplicitEulerGGL,
     NonsmoothDecoupled,
 )
@@ -177,7 +177,7 @@ if __name__ == "__main__":
         NonsmoothEulerBackwardsGGL,
         NonsmoothEulerBackwardsGGL_V2,
         NonsmoothNewmarkGGL,
-        NonsmoothHalfExplicitEuler,
+        NonsmoothHalfExplicitRungeKutta,
         NonsmoothHalfExplicitEulerGGL,
     ]:
         a_other = np.zeros_like(u_other)

@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
-from cardillo.model import System
+from cardillo import System
 from cardillo.solver import (
     Moreau,
     NonsmoothThetaGGL,
@@ -13,7 +13,7 @@ from cardillo.solver import (
     NonsmoothGeneralizedAlpha,
     NonsmoothGenAlphaFirstOrder,
     NonsmoothNewmark,
-    NonsmoothHalfExplicitEuler,
+    NonsmoothHalfExplicitRungeKutta,
     NonsmoothHalfExplicitEulerGGL,
     NonsmoothDecoupled,
 )
@@ -193,9 +193,9 @@ if __name__ == "__main__":
     model.assemble()
 
     # end time and numerical dissipation of generalized-alpha solver
-    # t_end = 0.1
+    t_end = 0.75
     # t_end = 1
-    t_end = 3
+    # t_end = 3
     # dt = 5.0e-2
     # dt = 1.0e-2
     dt = 5.0e-3
@@ -212,8 +212,7 @@ if __name__ == "__main__":
     # sol1 = NonsmoothEulerBackwardsGGL_V3(model, t_end, dt).solve()
     # sol1 = NonsmoothNewmarkGGL(model, t_end, dt).solve()
     # sol1 = NonsmoothEulerBackwardsGGL_V3(model, t_end, dt).solve()
-    sol1 = NonsmoothHalfExplicitEuler(model, t_end, dt).solve()
-    # sol1 = NonsmoothHalfExplicitEulerGGL(model, t_end, dt).solve()
+    sol1 = NonsmoothHalfExplicitRungeKutta(model, t_end, dt).solve()
     # sol1 = NonsmoothDecoupled(model, t_end, dt).solve()
     t1 = sol1.t
     q1 = sol1.q
@@ -222,8 +221,8 @@ if __name__ == "__main__":
     P_N1 = sol1.P_N
 
     # solve with classical Moreau scheme
-    # sol2 = Moreau(model, t_end, dt).solve()
-    sol2 = NonsmoothGeneralizedAlpha(model, t_end, dt).solve()
+    sol2 = Moreau(model, t_end, dt).solve()
+    # sol2 = NonsmoothGeneralizedAlpha(model, t_end, dt).solve()
     t2 = sol2.t
     q2 = sol2.q
     u2 = sol2.u

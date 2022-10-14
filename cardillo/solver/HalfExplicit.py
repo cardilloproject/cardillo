@@ -8,6 +8,466 @@ from cardillo.math import approx_fprime
 from cardillo.solver import Solution
 
 
+class NonsmoothPartitionedHalfExplicitEuler:
+    def __init__(
+        self,
+        model,
+        t1,
+        dt,
+        atol=1e-6,
+        max_iter=50,
+        error_function=lambda x: np.max(np.abs(x)),
+    ):
+        self.model = model
+
+        # integration time
+        t0 = model.t0
+        self.t1 = (
+            t1 if t1 > t0 else ValueError("t1 must be larger than initial time t0.")
+        )
+        self.dt = dt
+        self.t = np.arange(t0, self.t1 + self.dt, self.dt)
+
+        self.error_function = error_function
+        self.atol = atol
+        self.max_iter = max_iter
+
+        self.nq = model.nq
+        self.nu = model.nu
+        self.nla_g = model.nla_g
+        self.nla_gamma = model.nla_gamma
+        self.nla_N = model.nla_N
+        self.nla_F = model.nla_F
+
+        # initial state
+        self.tk = t0
+        self.qk = model.q0
+        self.uk = model.u0
+
+        # initial accelerations
+        self.q_dotk = self.model.q_dot(self.tk, self.qk, self.uk)
+
+        def consistent_initial_values(t0, q0, u0):
+            """compute physically consistent initial values"""
+
+            # initial velocites
+            q_dot0 = self.model.q_dot(t0, q0, u0)
+
+            # solve for consistent initial accelerations and Lagrange mutlipliers
+            M0 = self.model.M(t0, q0, scipy_matrix=csr_matrix)
+            h0 = self.model.h(t0, q0, u0)
+            W_g0 = self.model.W_g(t0, q0, scipy_matrix=csr_matrix)
+            W_gamma0 = self.model.W_gamma(t0, q0, scipy_matrix=csr_matrix)
+            zeta_g0 = self.model.zeta_g(t0, q0, u0)
+            zeta_gamma0 = self.model.zeta_gamma(t0, q0, u0)
+            # fmt: off
+            A = bmat(
+                [
+                    [        M0, -W_g0, -W_gamma0],
+                    [    W_g0.T,  None,      None],
+                    [W_gamma0.T,  None,      None],
+                ],
+                format="csc",
+            )
+            # fmt: on
+            b = np.concatenate([h0, -zeta_g0, -zeta_gamma0])
+            u_dot_la_g_la_gamma = spsolve(A, b)
+            u_dot0 = u_dot_la_g_la_gamma[: self.nu]
+            la_g0 = u_dot_la_g_la_gamma[self.nu : self.nu + self.nla_g]
+            la_gamma0 = u_dot_la_g_la_gamma[self.nu + self.nla_g :]
+
+            return q_dot0, u_dot0, la_g0, la_gamma0
+
+        (
+            self.q_dotk,
+            self.u_dotk,
+            self.la_gk,
+            self.la_gammak,
+        ) = consistent_initial_values(model.t0, model.q0, model.u0)
+
+        # # TODO: Solve for initial Lagrange multipliers!
+        # M0 = self.model.M(self.tk, self.qk, scipy_matrix=csr_matrix)
+        # h0 = self.model.h(self.tk, self.qk, self.uk)
+        # W_g0 = self.model.W_g(self.tk, self.qk, scipy_matrix=csr_matrix)
+        # W_gamma0 = self.model.W_gamma(self.tk, self.qk, scipy_matrix=csr_matrix)
+        # W_N0 = self.model.W_N(self.tk, self.qk, scipy_matrix=csr_matrix)
+        # W_F0 = self.model.W_F(self.tk, self.qk, scipy_matrix=csr_matrix)
+        # self.u_dotk = spsolve(
+        #     M0,
+        #     h0
+        #     + W_g0 @ model.la_g0
+        #     + W_gamma0 @ model.la_gamma0
+        #     + W_N0 @ model.la_N0
+        #     + W_F0 @ model.la_F0,
+        # )
+
+        # TODO: Add solve for bilateral constraints!
+        self.tk = model.t0
+        self.qk = model.q0
+        self.uk = model.u0
+        self.P_gk = dt * self.la_gk
+        self.mu_gk = np.zeros(self.nla_g)
+        self.P_gammak = dt * self.la_gammak
+        self.P_Nk = dt * model.la_N0
+        self.mu_Nk = np.zeros(self.nla_N)
+        self.P_Fk = dt * model.la_F0
+
+        self.yk = np.concatenate((self.qk, self.uk))
+
+    def g(self, t, q, u, z, update_index_set=True):
+        # unpack percussions
+        la_g = z[: self.nla_g]
+        la_gamma = z[self.nla_g : self.nla_g + self.nla_gamma]
+        la_N = z[self.nla_g + self.nla_gamma : self.nla_g + self.nla_gamma + self.nla_N]
+        P_F = z[self.nla_g + self.nla_gamma + self.nla_N :]
+
+        # bilateral constraints
+        gk1 = self.model.g(t, q)
+        g_dotk1 = self.model.g_dot(t, q, u)
+        gammak1 = self.model.gamma(t, q, u)
+
+        # unilateral constraints
+        g_Nk1 = self.model.g_N(t, q)
+        g_N_dotk1 = self.model.g_N_dot(t, q, u)
+        gamma_Fk1 = self.model.gamma_F(t, q, u)
+        # xi_Nk1 = self.model.xi_N(t, q, self.uk, u)
+        # xi_Fk1 = self.model.xi_F(t, q, self.uk, u)
+
+        prox_r_N = self.model.prox_r_N(t, q)
+        prox_r_F = self.model.prox_r_F(t, q)
+
+        prox_arg_pos = g_Nk1 - prox_r_N * la_N
+        c_Nk1 = g_Nk1 - prox_R0_np(prox_arg_pos)
+
+        if update_index_set:
+            self.Ak1 = prox_arg_pos <= 0
+            # self.Ak1 = g_Nk1 <= 0
+
+        # c_Nk1 = np.where(
+        #     self.Ak1, xi_Nk1 - prox_R0_np(xi_Nk1 - prox_r_N * la_N), la_N
+        # )
+        # c_Nk1 = la_N
+        # c_Nk1 = np.where(
+        #     self.Ak1,
+        #     g_N_dotk1 - prox_R0_np(g_N_dotk1 - prox_r_N * la_N),
+        #     la_N,
+        # )
+
+        # c_Nk1 = np.where(
+        #     self.Ak1, xi_Nk1 - prox_R0_np(xi_Nk1 - self.model.prox_r_N * P_N), P_N
+        # )
+
+        # # c_Nk1 = np.where(
+        # #     self.Ak1, xi_Nk1 - prox_R0_np(xi_Nk1 - self.model.prox_r_N * P_N), P_N
+        # # )
+        # alpha = 1.0 - 1.0e-1
+        # g_N_bar = g_Nk1 / self.dt + (1.0 - alpha) * g_N_dotk1
+        # c_Nk1 = P_N - prox_R0_np(P_N - self.model.prox_r_N * g_N_bar)
+        # # c_Nk1 = P_N - prox_R0_np(P_N - self.model.prox_r_N * xi_Nk1)
+
+        # c_Nk1 = np.where(
+        #     self.Ak1, g_N_dotk1 - prox_R0_np(g_N_dotk1 - self.model.prox_r_N * P_N), P_N
+        # )
+
+        # #############
+        # # no friction
+        # #############
+        # c_Fk1 = P_F
+
+        ##########
+        # friction
+        ##########
+        mu = self.model.mu
+        c_Fk1 = P_F.copy()  # this is the else case => P_Fk1 = 0
+        for i_N, i_F in enumerate(self.model.NF_connectivity):
+            i_F = np.array(i_F)
+
+            if len(i_F) > 0:
+                # TODO: Is there a primal/ dual form?
+                if self.Ak1[i_N]:
+                    # c_Fk1[i_F] = -P_F[i_F] - prox_sphere(
+                    #     -P_F[i_F] + prox_r_F[i_N] * xi_Fk1[i_F],
+                    #     mu[i_N] * la_N[i_N],
+                    # )
+                    c_Fk1[i_F] = -P_F[i_F] - prox_sphere(
+                        -P_F[i_F] + prox_r_F[i_N] * gamma_Fk1[i_F],
+                        mu[i_N] * la_N[i_N],
+                    )
+
+        ck1 = np.concatenate((gk1, gammak1, c_Nk1, c_Fk1))
+
+        return ck1
+
+    def g_z(self, zk1):
+        return csr_matrix(
+            approx_fprime(zk1, lambda z: self.c(z, update_index_set=False))
+        )
+
+    def f(self, t, q, u):
+        return self.model.q_dot(t, q, u)
+
+    def k(self, t, q, u, z):
+        # unpack percussions
+        la_g = z[: self.nla_g]
+        la_gamma = z[self.nla_g : self.nla_g + self.nla_gamma]
+        la_N = z[self.nla_g + self.nla_gamma : self.nla_g + self.nla_gamma + self.nla_N]
+        la_F = z[self.nla_g + self.nla_gamma + self.nla_N :]
+
+        # evaluate quantities of previous time step
+        M = self.model.M(t, q, scipy_matrix=csr_matrix)
+        h = self.model.h(t, q, u)
+        W_g = self.model.W_g(t, q, scipy_matrix=csr_matrix)
+        W_gamma = self.model.W_gamma(t, q, scipy_matrix=csr_matrix)
+        W_N = self.model.W_N(t, q, scipy_matrix=csr_matrix)
+        W_F = self.model.W_F(t, q, scipy_matrix=csr_matrix)
+
+        return spsolve(
+            M,
+            h + W_g @ la_g + W_gamma @ la_gamma + W_N @ la_N + W_F @ la_F,
+        )
+
+    def unpack_y(self, yk1):
+        Uk1 = yk1[: self.nu]
+        La_gk1 = yk1[self.nu : self.nu + self.nla_g]
+        La_gammak1 = yk1[self.nu + self.nla_g : self.nu + self.nla_g + self.nla_gamma]
+        La_Nk1 = yk1[
+            self.nu
+            + self.nla_g
+            + self.nla_gamma : self.nu
+            + self.nla_g
+            + self.nla_gamma
+            + self.nla_N
+        ]
+        La_Fk1 = yk1[self.nu + self.nla_g + self.nla_gamma + self.nla_N :]
+
+        return Uk1, La_gk1, La_gammak1, La_Nk1, La_Fk1
+
+    def Ry(self, yk1):
+        nu = self.nu
+        nla_g = self.nla_g
+        nla_gamma = self.nla_gamma
+        nla_N = self.nla_N
+        mu = self.model.mu
+
+        # quantities of old time step
+        tk1 = self.tk1
+        qk1 = self.qk1
+        uk1_free = self.uk1_free
+
+        # unpack xk1
+        Uk1, La_gk1, La_gammak1, La_Nk1, La_Fk1 = self.unpack_y(yk1)
+
+        # update velocities
+        uk1 = uk1_free + Uk1
+
+        # evaluate repeatedly used quantities
+        Mk1 = self.model.M(tk1, qk1)
+        W_gk1 = self.model.W_g(tk1, qk1, scipy_matrix=csr_matrix)
+        W_gammak1 = self.model.W_gamma(tk1, qk1, scipy_matrix=csr_matrix)
+        W_Nk1 = self.model.W_N(tk1, qk1, scipy_matrix=csr_matrix)
+        W_Fk1 = self.model.W_F(tk1, qk1, scipy_matrix=csr_matrix)
+        g_dot = self.model.g_dot(tk1, qk1, uk1)
+        gamma = self.model.gamma(tk1, qk1, uk1)
+        xi_Nk1 = self.model.xi_N(tk1, qk1, self.uk, uk1)
+        xi_Fk1 = self.model.xi_F(tk1, qk1, self.uk, uk1)
+
+        ###################
+        # evaluate residual
+        ###################
+        Ry = np.zeros(self.nu + self.nla_g + self.nla_gamma + self.nla_N + self.nla_F)
+
+        #################
+        # impact equation
+        #################
+        Ry[:nu] = (
+            Mk1 @ Uk1
+            - W_gk1 @ La_gk1
+            - W_gammak1 @ La_gammak1
+            - W_Nk1 @ La_Nk1
+            - W_Fk1 @ La_Fk1
+        )
+
+        # bilateral constraints
+        Ry[nu : nu + nla_g] = g_dot
+        Ry[nu + nla_g : nu + nla_g + nla_gamma] = gamma
+
+        ###################
+        # normal impact law
+        ###################
+        prox_r_N = self.model.prox_r_N(tk1, qk1)
+        Ry[nu + nla_g + nla_gamma : nu + nla_g + nla_gamma + nla_N] = np.where(
+            self.Ak1,
+            xi_Nk1 - prox_R0_np(xi_Nk1 - prox_r_N * La_Nk1),
+            La_Nk1,
+        )
+
+        ####################
+        # tangent impact law
+        ####################
+        prox_r_F = self.model.prox_r_F(tk1, qk1)
+        for i_N, i_F in enumerate(self.model.NF_connectivity):
+            i_F = np.array(i_F)
+
+            if len(i_F) > 0:
+                Ry[nu + nla_g + nla_gamma + nla_N + i_F] = np.where(
+                    self.Ak1[i_N] * np.ones(len(i_F), dtype=bool),
+                    -La_Fk1[i_F]
+                    - prox_sphere(
+                        -La_Fk1[i_F] + prox_r_F[i_N] * xi_Fk1[i_F],
+                        mu[i_N] * La_Nk1[i_N],
+                    ),
+                    La_Fk1[i_F],
+                )
+
+        return Ry
+
+    def step(self):
+        ##############################
+        # simple two stage Runge-Kutta
+        ##############################
+        from scipy.optimize import fsolve
+
+        tk = self.tk
+        qk = self.qk.copy()
+        uk = self.uk.copy()
+        h = self.dt
+
+        u_dot = lambda z: self.k(tk, qk.copy(), uk.copy(), z)
+        q_dot = lambda z: self.f(tk, qk.copy(), uk.copy() + h * u_dot(z))
+
+        tk1 = tk + h
+        g = lambda z: self.g(tk1, qk.copy() + h * q_dot(z), uk.copy() + h * u_dot(z), z)
+
+        # solve for final Lagrange multipliers
+        z0 = np.concatenate([self.la_gk, self.la_gammak, self.P_Nk, self.P_Fk])
+        res = fsolve(g, z0, full_output=1)
+        zk1 = res[0]
+        converged = res[2]
+        j = res[1]["nfev"]
+
+        # compute final velocites
+        uk1_free = uk + h * u_dot(zk1)
+
+        # compute final positions
+        qk1 = qk + h * q_dot(zk1)
+
+        # #################
+        # # compute impacts
+        # #################
+        # self.tk1 = tk1
+        # self.qk1 = qk1
+        # self.uk1_free = uk1_free.copy()
+
+        # sk1 = np.concatenate(
+        #     (
+        #         np.zeros(self.nu),
+        #         np.zeros(self.nla_g),
+        #         np.zeros(self.nla_gamma),
+        #         np.zeros(self.nla_N),
+        #         np.zeros(self.nla_F),
+        #     )
+        # )
+
+        # res = fsolve(self.Ry, sk1, full_output=1)
+        # sk1 = res[0]
+        # converged *= res[2]
+        # j += res[1]["nfev"]
+
+        # Uk1, La_gk1, La_gammak1, La_Nk1, La_Fk1 = self.unpack_y(sk1)
+        # # print(f"Uk1: {Uk1}")
+
+        # uk1 = self.uk1_free + Uk1
+
+        ############
+        # no impacts
+        ############
+        uk1 = uk1_free
+
+        # unpack percussions
+        P_gk1 = zk1[: self.nla_g]
+        P_gammak1 = zk1[self.nla_g : self.nla_g + self.nla_gamma]
+        P_Nk1 = zk1[
+            self.nla_g + self.nla_gamma : self.nla_g + self.nla_gamma + self.nla_N
+        ]
+        P_Fk1 = zk1[self.nla_g + self.nla_gamma + self.nla_N :]
+
+        error = 0.0
+        return (
+            (converged, j, error),
+            tk1,
+            qk1,
+            uk1,
+            P_gk1,
+            P_gammak1,
+            P_Nk1,
+            P_Fk1,
+        )
+
+    def solve(self):
+        # lists storing output variables
+        q = [self.qk]
+        u = [self.uk]
+        P_g = [self.P_gk]
+        P_gamma = [self.P_gammak]
+        P_N = [self.P_Nk]
+        P_F = [self.P_Fk]
+
+        self.yk = np.concatenate((self.qk, self.uk))
+
+        pbar = tqdm(self.t[:-1])
+        for _ in pbar:
+            (
+                (converged, j, error),
+                tk1,
+                qk1,
+                uk1,
+                P_gk1,
+                P_gammak1,
+                P_Nk1,
+                P_Fk1,
+            ) = self.step()
+            pbar.set_description(
+                # f"t: {tk1:0.2e}; fixed-point iterations: {j+1}; error: {error:.3e}"
+                f"t: {tk1:0.2e}; Newton iterations: {j+1}; error: {error:.3e}"
+            )
+            if not converged:
+                # raise RuntimeError(
+                print(
+                    # f"fixed-point iteration not converged after {j+1} iterations with error: {error:.5e}"
+                    f"Newton iteration not converged after {j+1} iterations with error: {error:.5e}"
+                )
+
+            qk1, uk1 = self.model.step_callback(tk1, qk1, uk1)
+
+            q.append(qk1)
+            u.append(uk1)
+            P_g.append(P_gk1)
+            P_gamma.append(P_gammak1)
+            P_N.append(P_Nk1)
+            P_F.append(P_Fk1)
+
+            # update local variables for accepted time step
+            (
+                self.tk,
+                self.qk,
+                self.uk,
+                self.P_gk,
+                self.P_gammak,
+                self.P_Nk,
+                self.P_Fk,
+            ) = (tk1, qk1, uk1, P_gk1, P_gammak1, P_Nk1, P_Fk1)
+
+        return Solution(
+            t=np.array(self.t),
+            q=np.array(q),
+            u=np.array(u),
+            P_g=np.array(P_g),
+            P_gamma=np.array(P_gamma),
+            P_N=np.array(P_N),
+            P_F=np.array(P_F),
+        )
+
+
 class HalfExplicitEuler:
     def __init__(
         self,
@@ -350,7 +810,7 @@ class HalfExplicitEuler:
 # - Investigate formulation by Arnold and Murua.
 #   They should improve the interpolation order of the Lagrange multipliers.
 # - Why is RK4 with decoupled stages working perfectly?
-class NonsmoothHalfExplicitEuler:
+class NonsmoothHalfExplicitRungeKutta:
     def __init__(
         self,
         model,
@@ -485,8 +945,7 @@ class NonsmoothHalfExplicitEuler:
             ui = Yi[self.nq :]
 
             # bilateral constraints
-            # gk1 = self.model.g(ti, qi)
-            gk1 = mu_g
+            gk1 = self.model.g(ti, qi)
             g_dotk1 = self.model.g_dot(ti, qi, ui)
             gammak1 = self.model.gamma(ti, qi, ui)
 
@@ -785,34 +1244,34 @@ class NonsmoothHalfExplicitEuler:
         # ]
         # b = [0, 3 / 4, 1 / 4]
 
-        # # hem5
-        # from math import sqrt
+        # hem5
+        from math import sqrt
 
-        # sqrt6 = sqrt(6)
-        # c = [0, 3 / 10, (4 - sqrt6) / 10, (4 + sqrt6) / 10, 1]
-        # A = [
-        #     [0],
-        #     [3 / 10],
-        #     [(1 + sqrt6) / 30, (11 - 4 * sqrt6) / 30],
-        #     [(-79 - 31 * sqrt6) / 150, (-1 - 4 * sqrt6) / 30, (24 + 11 * sqrt6) / 25],
-        #     [
-        #         (14 + 5 * sqrt6) / 6,
-        #         (-8 + 7 * sqrt6) / 6,
-        #         (-9 - 7 * sqrt6) / 4,
-        #         (9 - sqrt6) / 4,
-        #     ],
-        # ]
-        # b = [0, 0, (16 - sqrt6) / 36, (16 + sqrt6) / 36, 1 / 9]
-
-        # RK4
-        c = [0.0, 0.5, 0.5, 1.0]
+        sqrt6 = sqrt(6)
+        c = [0, 3 / 10, (4 - sqrt6) / 10, (4 + sqrt6) / 10, 1]
         A = [
-            [0.0],
-            [0.0, 0.5],
-            [0.0, 0.0, 0.5],
-            [0.0, 0.0, 0.0, 1.0],
+            [0],
+            [3 / 10],
+            [(1 + sqrt6) / 30, (11 - 4 * sqrt6) / 30],
+            [(-79 - 31 * sqrt6) / 150, (-1 - 4 * sqrt6) / 30, (24 + 11 * sqrt6) / 25],
+            [
+                (14 + 5 * sqrt6) / 6,
+                (-8 + 7 * sqrt6) / 6,
+                (-9 - 7 * sqrt6) / 4,
+                (9 - sqrt6) / 4,
+            ],
         ]
-        b = [1 / 6, 1 / 3, 1 / 3, 1 / 6]
+        b = [0, 0, (16 - sqrt6) / 36, (16 + sqrt6) / 36, 1 / 9]
+
+        # # RK4
+        # c = [0.0, 0.5, 0.5, 1.0]
+        # A = [
+        #     [0.0],
+        #     [0.0, 0.5],
+        #     [0.0, 0.0, 0.5],
+        #     [0.0, 0.0, 0.0, 1.0],
+        # ]
+        # b = [1 / 6, 1 / 3, 1 / 3, 1 / 6]
 
         # first stage
         t1 = tk
@@ -1066,14 +1525,14 @@ class NonsmoothHalfExplicitEuler:
 
         # unpack (smooth) state
         qk1 = yk1[: self.nq].copy()
-        uk1 = yk1[self.nq :].copy()
+        uk1_free = yk1[self.nq :].copy()
 
         #################
         # compute impacts
         #################
         self.tk1 = tk1
         self.qk1 = qk1
-        self.uk1_free = uk1.copy()
+        self.uk1_free = uk1_free.copy()
 
         sk1 = np.concatenate(
             (
@@ -1091,20 +1550,17 @@ class NonsmoothHalfExplicitEuler:
         j += res[1]["nfev"]
 
         Uk1, La_gk1, La_gammak1, La_Nk1, La_Fk1 = self.unpack_y(sk1)
-        print(f"Uk1: {Uk1}")
+        # print(f"Uk1: {Uk1}")
 
         uk1 = self.uk1_free + Uk1
 
+        # ############
+        # # no impacts
+        # ############
+        # uk1 = uk1_free
+
         # use new velocity for next yk
         self.yk = np.concatenate((qk1, uk1))
-
-        # # unpack Lagrange multipliers
-        # P_gk1 = zk1[: self.nla_g]
-        # P_gammak1 = zk1[self.nla_g : self.nla_g + self.nla_gamma]
-        # P_Nk1 = zk1[
-        #     self.nla_g + self.nla_gamma : self.nla_g + self.nla_gamma + self.nla_N
-        # ]
-        # P_Fk1 = zk1[self.nla_g + self.nla_gamma + self.nla_N :]
 
         # unpack percussions
         P_gk1 = zk1[: self.nla_g]

@@ -15,7 +15,7 @@ from cardillo.solver import (
     NonsmoothEulerBackwardsGGL_V3,
     NonsmoothGeneralizedAlpha,
     Remco,
-    NonsmoothHalfExplicitEuler,
+    NonsmoothHalfExplicitRungeKutta,
     NonsmoothHalfExplicitEulerGGL,
     NonsmoothDecoupled,
 )
@@ -155,7 +155,7 @@ if __name__ == "__main__":
     # solve problem
     # solver_other = NonsmoothGeneralizedAlpha(model, t1, dt)
     # solver_other = NonsmoothEulerBackwardsGGL_V2(model, t1, dt, tol=1.0e-8)
-    solver_other = NonsmoothHalfExplicitEuler(model, t1, dt)
+    solver_other = NonsmoothHalfExplicitRungeKutta(model, t1, dt)
     # solver_other = NonsmoothHalfExplicitEulerGGL(model, t1, dt)
     # solver_other = Moreau(model, t1, dt)
     # solver_other = NonsmoothDecoupled(model, t1, dt)
@@ -170,7 +170,7 @@ if __name__ == "__main__":
     if type(solver_other) in [
         Moreau,
         NonsmoothEulerBackwardsGGL_V2,
-        NonsmoothHalfExplicitEuler,
+        NonsmoothHalfExplicitRungeKutta,
         NonsmoothHalfExplicitEulerGGL,
     ]:
         a_other = np.zeros_like(u_other)

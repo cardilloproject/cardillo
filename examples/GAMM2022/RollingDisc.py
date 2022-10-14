@@ -20,7 +20,7 @@ from cardillo.solver import (
     GenAlphaFirstOrderGGL2_V2,
     GenAlphaFirstOrderGGL2_V3,
     GeneralizedAlphaFirstOrderGGLGiuseppe,
-    NonsmoothHalfExplicitEuler,
+    NonsmoothHalfExplicitRungeKutta,
 )
 
 
@@ -145,7 +145,7 @@ def state():
     # see Arnodl2016, p. 118
     tol = 1.0e-10
 
-    sol = NonsmoothHalfExplicitEuler(model, t1, dt).solve()
+    sol = NonsmoothHalfExplicitRungeKutta(model, t1, dt).solve()
     # sol = GeneralizedAlphaFirstOrder(model, t1, dt, rho_inf=rho_inf, tol=tol).solve()
     # sol = GeneralizedAlphaFirstOrder(
     #     model,

@@ -21,15 +21,16 @@ from cardillo.solver import (
     # NonsmoothGeneralizedAlpha,
     # NonsmoothGenAlphaFirstOrder,
     # NonsmoothNewmark,
-    NonsmoothHalfExplicitEuler,
+    NonsmoothHalfExplicitRungeKutta,
     # NonsmoothHalfExplicitEulerGGL,
     # Remco,
     NonsmoothDecoupled,
     # DecoupledNonsmoothHalfExplicitRungeKutta,
+    NonsmoothPartitionedHalfExplicitEuler,
 )
 
-corner = True
-# corner = False
+# corner = True
+corner = False
 
 
 class Ball(RigidBodyEuler):
@@ -75,9 +76,8 @@ if __name__ == "__main__":
     frame = Frame(A_IK=np.vstack((e3, e1, e2)).T, r_OP=np.zeros(3, dtype=float))
     # mu = 0.0  # no friction
     mu = 0.2
-    r_N = 0.5
-    e_N = 0.0
-    plane = Sphere2Plane(frame, RB, r, mu, prox_r_N=r_N, prox_r_F=r_N, e_N=e_N, e_F=0)
+    e_N = 0.5
+    plane = Sphere2Plane(frame, RB, r, mu, e_N=e_N, e_F=0)
 
     alpha = pi / 4
     e1, e2, e3 = A_IK_basic(alpha).z()
@@ -107,7 +107,6 @@ if __name__ == "__main__":
     model.assemble()
 
     t0 = 0
-    # t1 = 2
     t1 = 2
     # dt = 1e-1
     # dt = 5e-2
@@ -118,11 +117,11 @@ if __name__ == "__main__":
     # dt = 1e-4
 
     # solver_other = Moreau(model, t1, dt)
-    # solver_other = NonsmoothHalfExplicitEuler(model, t1, dt)
+    # solver_other = NonsmoothHalfExplicitRungeKutta(model, t1, dt)
+    solver_other = NonsmoothPartitionedHalfExplicitEuler(model, t1, dt)
     # solver_other = NonsmoothGeneralizedAlpha(model, t1, dt)
     # solver_other = NonsmoothEulerBackwardsGGL_V2(model, t1, dt)
-    solver_other = NonsmoothDecoupled(model, t1, dt)
-    # solver_other = DecoupledNonsmoothHalfExplicitRungeKutta(model, t1, dt)
+    # solver_other = NonsmoothDecoupled(model, t1, dt)
     sol_other = solver_other.solve()
     t = sol_other.t
     q = sol_other.q
