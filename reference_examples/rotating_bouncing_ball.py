@@ -28,6 +28,9 @@ from cardillo.solver import (
     # DecoupledNonsmoothHalfExplicitRungeKutta,
 )
 
+corner = True
+# corner = False
+
 
 class Ball(RigidBodyEuler):
     def __init__(self, m, r, q0=None, u0=None):
@@ -48,12 +51,20 @@ if __name__ == "__main__":
     m = 1
     r = 0.1
     g = 9.81
-    x0 = -1
-    y0 = 1
-    x_dot0 = 1
-    y_dot0 = 0
-    phi0 = 0
-    phi_dot0 = 50
+    if corner:
+        x0 = -0.5
+        y0 = 1
+        phi0 = 0
+        x_dot0 = 0
+        y_dot0 = 0
+        phi_dot0 = 0
+    else:
+        x0 = -1
+        y0 = 1
+        phi0 = 0
+        x_dot0 = 1
+        y_dot0 = 0
+        phi_dot0 = 50
     r_OS0 = np.array([x0, y0, 0], dtype=float)
     vS0 = np.array([x_dot0, y_dot0, 0], dtype=float)
     q0 = np.concatenate([r_OS0, np.array([phi0, 0, 0], dtype=float)])
@@ -64,38 +75,39 @@ if __name__ == "__main__":
     frame = Frame(A_IK=np.vstack((e3, e1, e2)).T, r_OP=np.zeros(3, dtype=float))
     # mu = 0.0  # no friction
     mu = 0.2
-    # r_N = 0.1
     r_N = 0.5
-    e_N = 0.5
+    e_N = 0.0
     plane = Sphere2Plane(frame, RB, r, mu, prox_r_N=r_N, prox_r_F=r_N, e_N=e_N, e_F=0)
 
     alpha = pi / 4
     e1, e2, e3 = A_IK_basic(alpha).z()
-    frame1 = Frame(A_IK=np.vstack((e3, e1, e2)).T)
-    mu = 0.2
-    r_N = 0.2
-    e_N = 1
-    plane_left = Sphere2Plane(frame1, RB, r, mu, prox_r_N=r_N, prox_r_F=r_N, e_N=e_N)
+    frame_left = Frame(A_IK=np.vstack((e3, e1, e2)).T)
+    mu = 0.3
+    e_N = 0.0
+    e_F = 0.0
+    plane_left = Sphere2Plane(frame_left, RB, r, mu, e_N=e_N, e_F=e_F)
 
     beta = -pi / 4
     e1, e2, e3 = A_IK_basic(beta).z()
-    frame2 = Frame(A_IK=np.vstack((e3, e1, e2)).T)
-    mu = 0.1
-    # r_N = 0.2
-    r_N = 0.01
-    e_N = 1
-    plane_right = Sphere2Plane(frame2, RB, r, mu, prox_r_N=r_N, prox_r_F=r_N, e_N=e_N)
+    frame_right = Frame(A_IK=np.vstack((e3, e1, e2)).T)
+    mu = 0.3
+    e_N = 0.5
+    e_F = 0.0
+    plane_right = Sphere2Plane(frame_right, RB, r, mu, e_N=e_N, e_F=e_F)
 
     model = System()
     model.add(RB)
     model.add(Force(lambda t: np.array([0, -g * m, 0]), RB))
-    model.add(plane)
-    # model.add(plane_right)
-    # model.add(plane_left)
+    if corner:
+        model.add(plane_right)
+        model.add(plane_left)
+    else:
+        model.add(plane)
+
     model.assemble()
 
     t0 = 0
-    # t1 = 0.5
+    # t1 = 2
     t1 = 2
     # dt = 1e-1
     # dt = 5e-2
@@ -106,10 +118,10 @@ if __name__ == "__main__":
     # dt = 1e-4
 
     # solver_other = Moreau(model, t1, dt)
-    solver_other = NonsmoothHalfExplicitEuler(model, t1, dt)
+    # solver_other = NonsmoothHalfExplicitEuler(model, t1, dt)
     # solver_other = NonsmoothGeneralizedAlpha(model, t1, dt)
     # solver_other = NonsmoothEulerBackwardsGGL_V2(model, t1, dt)
-    # solver_other = NonsmoothDecoupled(model, t1, dt)
+    solver_other = NonsmoothDecoupled(model, t1, dt)
     # solver_other = DecoupledNonsmoothHalfExplicitRungeKutta(model, t1, dt)
     sol_other = solver_other.solve()
     t = sol_other.t
@@ -119,13 +131,14 @@ if __name__ == "__main__":
     u_other = sol_other.u
     P_N_other = sol_other.P_N
     P_F_other = sol_other.P_F
-    if type(solver_other) in [
-        # NonsmoothThetaGGL,
-        # NonsmoothEulerBackwardsGGL,
-        # NonsmoothEulerBackwardsGGL_V2,
-        NonsmoothHalfExplicitEuler,
-        # NonsmoothHalfExplicitEulerGGL,
-    ]:
+    # if type(solver_other) in [
+    #     # NonsmoothThetaGGL,
+    #     # NonsmoothEulerBackwardsGGL,
+    #     # NonsmoothEulerBackwardsGGL_V2,
+    #     NonsmoothHalfExplicitEuler,
+    #     # NonsmoothHalfExplicitEulerGGL,
+    # ]:
+    try:
         a_other = np.zeros_like(u_other)
         a_other[1:] = (u_other[1:] - u_other[:-1]) / dt
         la_N_other = np.zeros_like(P_N_other)
@@ -136,7 +149,7 @@ if __name__ == "__main__":
         # mu_N_other = sol_other.mu_N
         mu_g_other = np.zeros(model.nla_g)
         mu_N_other = np.zeros_like(P_N_other)
-    else:
+    except:
         a_other = sol_other.a
         la_N_other = sol_other.la_N
         # mu_N_other = sol_other.la_N
@@ -265,12 +278,13 @@ if __name__ == "__main__":
 
         # ax.plot([-2 * y0, 2 * y0], (y0-0.1)*np.array([1, 1]), '-k')
 
-        # horizontal plane
-        ax.plot([-2 * y0, 2 * y0], [0, 0], "-k")
-
-        # # inclined planes
-        # ax.plot([0, -y0 * np.cos(alpha)], [0, y0 * np.sin(alpha)], '-k')
-        # ax.plot([0, y0 * np.cos(beta)], [0, - y0 * np.sin(beta)], '-k')
+        if corner:
+            # inclined planes
+            ax.plot([0, -y0 * np.cos(alpha)], [0, y0 * np.sin(alpha)], "-k")
+            ax.plot([0, y0 * np.cos(beta)], [0, -y0 * np.sin(beta)], "-k")
+        else:
+            # horizontal plane
+            ax.plot([-2 * y0, 2 * y0], [0, 0], "-k")
 
         def create(t, q):
             x_S, y_S, _ = RB.r_OP(t, q)

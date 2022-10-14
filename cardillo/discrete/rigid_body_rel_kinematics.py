@@ -4,7 +4,8 @@ from cardillo.math.algebra import (
     cross3,
     ax2skew,
 )
-from cardillo.math.numerical_derivative import Numerical_derivative
+
+# from cardillo.math.numerical_derivative import Numerical_derivative
 
 
 class RigidBodyRelKinematics:

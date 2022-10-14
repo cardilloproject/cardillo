@@ -13,7 +13,7 @@ from cardillo.beams import (
     TimoshenkoDirectorDirac,
     TimoshenkoDirectorIntegral,
 )
-from cardillo.forces import K_Moment
+from cardillo.forces import K_Moment, K_Force, DistributedForce1DBeam
 from cardillo import System
 from cardillo.solver import Newton
 
@@ -28,14 +28,14 @@ Beam = DirectorAxisAngle
 
 if __name__ == "__main__":
     # number of elements
-    nelements = 10
+    nelements = 100
 
     # used polynomial degree
     polynomial_degree = 1
     basis = "B-spline"
 
     # beam parameters found in Section 5.1 Ibrahimbegovic1997
-    L = 10
+    L = np.pi
     EA = GA = 1.0e4
     GJ = EI = 1.0e2
 
@@ -139,12 +139,22 @@ if __name__ == "__main__":
     M = lambda t: (e3 * 2 * np.pi * Fi[2] / L * t) * 0.25
     moment = K_Moment(M, beam, (1,))
 
+    # force at the rght end
+    f = lambda t: t * e1 * 1.0e3
+    force = K_Force(f, beam, (1,))
+
+    # line distributed body force
+    l = lambda t, xi: t * e3 * 2e1
+    line_force = DistributedForce1DBeam(l, beam)
+
     # assemble the model
     model = System()
     model.add(beam)
     model.add(frame1)
     model.add(joint1)
-    model.add(moment)
+    # model.add(moment)
+    # model.add(force)
+    model.add(line_force)
     model.assemble()
 
     n_load_steps = int(10)
@@ -171,7 +181,6 @@ if __name__ == "__main__":
     r_OP = np.array([beam.r_OP(ti, qi[elDOF], (1,)) for (ti, qi) in zip(t, q)])
 
     fig, ax = plt.subplots()
-
     ax.plot(t, r_OP[:, 0], "-k", label="x")
     ax.plot(t, r_OP[:, 1], "--k", label="y")
     ax.plot(t, r_OP[:, 2], "-.k", label="z")
@@ -179,6 +188,35 @@ if __name__ == "__main__":
     ax.set_ylabel("tip displacement")
     ax.grid()
     ax.legend()
+
+    ######################################################
+    # visualize strain measures of the final configuration
+    ######################################################
+    num = 100
+    xis = np.linspace(0, 1, num=num)
+
+    K_Gammas = np.zeros((num, 3))
+    K_Kappas = np.zeros((num, 3))
+    for i in range(num):
+        K_Gammas[i], K_Kappas[i] = beam.strains(xis[i], sol.q[-1])
+
+    fig, ax = plt.subplots(2, 1)
+
+    ax[0].plot(xis, K_Gammas[:, 0] - 1, "-r", label="K_Gamma0 - 1")
+    ax[0].plot(xis, K_Gammas[:, 1], "--g", label="K_Gamma1")
+    ax[0].plot(xis, K_Gammas[:, 2], "-.b", label="K_Gamma2")
+    ax[0].set_xlabel("xi")
+    ax[0].set_ylabel("K_Gamma")
+    ax[0].grid()
+    ax[0].legend()
+
+    ax[1].plot(xis, K_Kappas[:, 0], "-r", label="K_Kappa0")
+    ax[1].plot(xis, K_Kappas[:, 1], "--g", label="K_Kappa1")
+    ax[1].plot(xis, K_Kappas[:, 2], "-.b", label="K_Kappa2")
+    ax[1].set_xlabel("xi")
+    ax[1].set_ylabel("K_Kappa")
+    ax[1].grid()
+    ax[1].legend()
 
     ###########
     # animation

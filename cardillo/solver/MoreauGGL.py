@@ -3534,6 +3534,8 @@ class NonsmoothDecoupled:
         return Rx
 
     def Jx(self, xk1):
+        return csr_matrix(approx_fprime(xk1, self.Rx, method="2-point"))
+
         nq = self.nq
         nu = self.nu
         nla_g = self.nla_g
@@ -4001,9 +4003,9 @@ class NonsmoothDecoupled:
                 # Newton update
                 j += 1
 
-                dx = spsolve(J, R, use_umfpack=True)
+                # dx = spsolve(J, R, use_umfpack=True)
 
-                # dx = lsqr(J, R, atol=1.0e-12, btol=1.0e-12)[0]
+                dx = lsqr(J, R, atol=1.0e-12, btol=1.0e-12)[0]
 
                 # # no underflow errors
                 # dx = np.linalg.lstsq(J.toarray(), R, rcond=None)[0]

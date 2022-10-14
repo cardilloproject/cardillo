@@ -1554,6 +1554,57 @@ class DirectorAxisAngle:
     ####################################################
     # visualization
     ####################################################
+    def strains(self, xi, q):
+        # get corresponding element generalized coordiantes
+        frame_ID = (xi,)
+        q_body = q[self.qDOF]
+        qe = q_body[self.local_qDOF_P(frame_ID)]
+        Qe = self.Q[self.local_qDOF_P(frame_ID)]
+
+        # evaluate shape functions
+        _, N_r_xi = self.basis_functions_r(frame_ID[0])
+        N_psi, N_psi_xi = self.basis_functions_psi(frame_ID[0])
+
+        # interpolate tangent vector
+        r_OP_xi = np.zeros(3, dtype=qe.dtype)
+        r_OP0_xi = np.zeros(3, dtype=qe.dtype)
+        for node in range(self.nnodes_element_r):
+            r_OP_xi += N_r_xi[node] * qe[self.nodalDOF_element_r[node]]
+            r_OP0_xi += N_r_xi[node] * Qe[self.nodalDOF_element_r[node]]
+
+        # interpolate transformation matrix and its derivative
+        A_IK = np.zeros((3, 3), dtype=qe.dtype)
+        A_IK_xi = np.zeros((3, 3), dtype=qe.dtype)
+        for node in range(self.nnodes_element_psi):
+            A_IK_node = Exp_SO3(qe[self.nodalDOF_element_psi[node]])
+            A_IK += N_psi[node] * A_IK_node
+            A_IK_xi += N_psi_xi[node] * A_IK_node
+
+        # length of reference tangent vector
+        J = norm(r_OP0_xi)
+
+        # axial and shear strains
+        K_Gamma_bar = A_IK.T @ r_OP_xi
+        K_Gamma = K_Gamma_bar / J
+
+        # torsional and flexural strains
+        d1, d2, d3 = A_IK.T
+        d1_xi, d2_xi, d3_xi = A_IK_xi.T
+        half_d = d1 @ cross3(d2, d3)
+        K_Kappa_bar = (
+            np.array(
+                [
+                    0.5 * (d3 @ d2_xi - d2 @ d3_xi),
+                    0.5 * (d1 @ d3_xi - d3 @ d1_xi),
+                    0.5 * (d2 @ d1_xi - d1 @ d2_xi),
+                ]
+            )
+            / half_d
+        )
+        K_Kappa = K_Kappa_bar / J
+
+        return K_Gamma, K_Kappa
+
     def nodes(self, q):
         q_body = q[self.qDOF]
         if self.basis_r == "Hermite":
