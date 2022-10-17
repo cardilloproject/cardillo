@@ -16,6 +16,7 @@ from cardillo.solver import (
     NonsmoothHalfExplicitRungeKutta,
     NonsmoothHalfExplicitEulerGGL,
     NonsmoothDecoupled,
+    NonsmoothPartitionedHalfExplicitEuler,
 )
 
 from cardillo.math.algebra import e1, norm
@@ -212,8 +213,9 @@ if __name__ == "__main__":
     # sol1 = NonsmoothEulerBackwardsGGL_V3(model, t_end, dt).solve()
     # sol1 = NonsmoothNewmarkGGL(model, t_end, dt).solve()
     # sol1 = NonsmoothEulerBackwardsGGL_V3(model, t_end, dt).solve()
-    sol1 = NonsmoothHalfExplicitRungeKutta(model, t_end, dt).solve()
+    # sol1 = NonsmoothHalfExplicitRungeKutta(model, t_end, dt).solve()
     # sol1 = NonsmoothDecoupled(model, t_end, dt).solve()
+    sol1 = NonsmoothPartitionedHalfExplicitEuler(model, t_end, dt).solve()
     t1 = sol1.t
     q1 = sol1.q
     u1 = sol1.u

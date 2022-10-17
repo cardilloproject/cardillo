@@ -23,6 +23,7 @@ from cardillo.solver import (
     # NonsmoothHalfExplicitEuler,
     # NonsmoothHalfExplicitEulerGGL,
     NonsmoothDecoupled,
+    NonsmoothPartitionedHalfExplicitEuler,
 )
 
 
@@ -185,8 +186,8 @@ if __name__ == "__main__":
     # t1 = 20
     # dt = 1e-1
     # dt = 5e-2
-    # dt = 1e-2
-    dt = 5e-3
+    dt = 1e-2
+    # dt = 5e-3
     # dt = 1e-3
     # dt = 5e-4
 
@@ -196,7 +197,8 @@ if __name__ == "__main__":
     # solver_other = NonsmoothHalfExplicitEuler(model, t1, dt)
     # solver_other = NonsmoothHalfExplicitEulerGGL(model, t1, dt)
     # solver_other = Remco(model, t1, dt)
-    solver_other = NonsmoothDecoupled(model, t1, dt)
+    # solver_other = NonsmoothDecoupled(model, t1, dt)
+    solver_other = NonsmoothPartitionedHalfExplicitEuler(model, t1, dt)
     sol_other = solver_other.solve()
     t = sol_other.t
     q = sol_other.q
@@ -207,6 +209,7 @@ if __name__ == "__main__":
     P_F_other = sol_other.P_F
     if type(solver_other) in [
         Moreau,
+        NonsmoothPartitionedHalfExplicitEuler,
         # NonsmoothThetaGGL,
         # NonsmoothEulerBackwardsGGL,
         # NonsmoothEulerBackwardsGGL_V2,
