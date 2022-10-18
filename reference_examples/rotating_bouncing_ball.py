@@ -13,9 +13,8 @@ from cardillo.forces import Force
 from cardillo.contacts import Sphere2Plane
 from cardillo.solver import (
     Moreau,
-    NonsmoothHalfExplicitRungeKutta,
-    NonsmoothDecoupled,
-    NonsmoothPartitionedHalfExplicitEuler,
+    NonsmoothBackwardEulerDecoupled,
+    NonsmoothGeneralizedAlpha,
 )
 
 # corner = True
@@ -105,12 +104,8 @@ if __name__ == "__main__":
     # dt = 5e-4
     # dt = 1e-4
 
-    # solver_other = Moreau(model, t1, dt)
-    # solver_other = NonsmoothHalfExplicitRungeKutta(model, t1, dt)
-    # solver_other = NonsmoothPartitionedHalfExplicitEuler(model, t1, dt)
-    # solver_other = NonsmoothGeneralizedAlpha(model, t1, dt)
-    # solver_other = NonsmoothEulerBackwardsGGL_V2(model, t1, dt)
-    solver_other = NonsmoothDecoupled(model, t1, dt)
+    # solver_other = NonsmoothGeneralizedAlpha(model, t1, dt, method="newton")
+    solver_other = NonsmoothBackwardEulerDecoupled(model, t1, dt)
     sol_other = solver_other.solve()
     t = sol_other.t
     q = sol_other.q
@@ -119,13 +114,6 @@ if __name__ == "__main__":
     u_other = sol_other.u
     P_N_other = sol_other.P_N
     P_F_other = sol_other.P_F
-    # if type(solver_other) in [
-    #     # NonsmoothThetaGGL,
-    #     # NonsmoothEulerBackwardsGGL,
-    #     # NonsmoothEulerBackwardsGGL_V2,
-    #     NonsmoothHalfExplicitEuler,
-    #     # NonsmoothHalfExplicitEulerGGL,
-    # ]:
     try:
         a_other = np.zeros_like(u_other)
         a_other[1:] = (u_other[1:] - u_other[:-1]) / dt
@@ -133,14 +121,11 @@ if __name__ == "__main__":
         la_F_other = np.zeros_like(P_F_other)
         La_N_other = np.zeros_like(P_N_other)
         La_F_other = np.zeros_like(P_F_other)
-        # mu_g_other = sol_other.mu_g
-        # mu_N_other = sol_other.mu_N
         mu_g_other = np.zeros(model.nla_g)
         mu_N_other = np.zeros_like(P_N_other)
     except:
         a_other = sol_other.a
         la_N_other = sol_other.la_N
-        # mu_N_other = sol_other.la_N
         la_F_other = sol_other.la_F
         La_N_other = sol_other.La_N
         La_F_other = sol_other.La_F

@@ -284,7 +284,11 @@ class RigidBodyRelKinematics:
         return v_B2 + v_B2P
 
     def v_P_q(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
-        return approx_fprime(q, lambda q: self.v_P(t, q, u, frame_ID=frame_ID, K_r_SP=K_r_SP), method="3-point")
+        return approx_fprime(
+            q,
+            lambda q: self.v_P(t, q, u, frame_ID=frame_ID, K_r_SP=K_r_SP),
+            method="3-point",
+        )
 
     def J_P(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
         # J_P_num = np.zeros((3, self.__nu))

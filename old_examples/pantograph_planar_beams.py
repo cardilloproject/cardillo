@@ -27,8 +27,8 @@ from cardillo.model.scalar_force_interactions.force_laws import (
     Power_spring,
 )
 from cardillo.model.scalar_force_interactions import add_rotational_forcelaw
-from cardillo.solver.Newton import Newton
-from cardillo.solver.EulerBackward import Euler_backward
+from cardillo.solver.statics import Newton
+from cardillo.solver.euler_backward import Euler_backward
 from cardillo.solver import (
     Generalized_alpha_1,
     Scipy_ivp,

@@ -2,23 +2,15 @@
 from .solution import Solution, save_solution, load_solution
 
 # dynamic solvers
-from .ScipyIVP import ScipyIVP
-from .Moreau import Moreau
-from .MoreauGGL import *
-from .EulerBackward import EulerBackward
-from .HalfExplicit import *
-from .SimplifiedGenAlpha import *
+from .scipy_ivp import ScipyIVP
+from .moreau import Moreau, NonsmoothBackwardEulerDecoupled
+from .euler_backward import EulerBackward
 
-from .genAlphaDAE import (
-    GenAlphaFirstOrderGGL2_V1,
-    GenAlphaFirstOrderGGL2_V2,
-    GenAlphaFirstOrderGGL2_V3,
-    GeneralizedAlphaFirstOrderGGLGiuseppe,
+from .generalized_alpha import (
     GeneralizedAlphaFirstOrder,
     GeneralizedAlphaSecondOrder,
 )
-from .NonsmoothGeneralizedAlpha import NonsmoothGeneralizedAlpha
+from .nonsmooth_generalized_alpha import NonsmoothGeneralizedAlpha
 
 # static solvers
-from .Newton import Newton
-from .Riks import Riks
+from .statics import Newton, Riks

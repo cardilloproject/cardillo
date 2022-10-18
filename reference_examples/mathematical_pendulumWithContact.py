@@ -5,7 +5,7 @@ import matplotlib.animation as animation
 from cardillo import System
 from cardillo.solver import (
     Moreau,
-    NonsmoothDecoupled,
+    NonsmoothBackwardEulerDecoupled,
     NonsmoothHalfExplicitRungeKutta,
     NonsmoothPartitionedHalfExplicitEuler,
 )

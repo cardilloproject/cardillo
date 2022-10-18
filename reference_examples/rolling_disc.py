@@ -17,7 +17,7 @@ from cardillo.solver import (
     ScipyIVP,
     EulerBackward,
     GeneralizedAlphaFirstOrder,
-    NonsmoothDecoupled,
+    NonsmoothBackwardEulerDecoupled,
     NonsmoothHalfExplicitRungeKutta,
     NonsmoothPartitionedHalfExplicitEuler,
 )

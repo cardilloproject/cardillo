@@ -13,7 +13,7 @@ from cardillo.solver import (
     Moreau,
     NonsmoothHalfExplicitRungeKutta,
     NonsmoothPartitionedHalfExplicitEuler,
-    NonsmoothDecoupled,
+    NonsmoothBackwardEulerDecoupled,
 )
 
 

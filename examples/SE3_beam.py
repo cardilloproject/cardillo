@@ -41,7 +41,7 @@ from cardillo.solver import (
     Riks,
 )
 
-from cardillo.solver.Fsolve import Fsolve
+from cardillo.solver.fsolve import Fsolve
 
 import numpy as np
 import matplotlib.pyplot as plt

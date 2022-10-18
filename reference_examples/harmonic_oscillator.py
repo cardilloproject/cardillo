@@ -25,8 +25,8 @@ if __name__ == "__main__":
 
     f_g = Force(lambda t: np.array([0, 0, -m * g]), mass)
 
-    linear_spring = LinearSpring(k)
-    # linear_spring = None
+    # linear_spring = LinearSpring(k)
+    linear_spring = None
     linear_damper = LinearDamper(d)
     # linear_damper = None
     scalar_force_element = ScalarForceTranslational(

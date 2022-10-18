@@ -6,6 +6,7 @@ from tqdm import tqdm
 from scipy.optimize import fsolve, root, least_squares
 
 
+# TODO: Implement me!
 class Fsolve:
     def __init__(
         self,
@@ -19,6 +20,8 @@ class Fsolve:
         numdiff_method="2-point",
         numdiff_eps=1.0e-6,
     ):
+        raise NotImplementedError
+
         self.model = model
 
         q0 = model.q0.copy()

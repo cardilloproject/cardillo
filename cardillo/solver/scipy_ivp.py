@@ -29,7 +29,7 @@ class ScipyIVP:
         self.dt = dt
         self.t = np.arange(t0, self.t1 + self.dt, self.dt)
 
-        self.frac = (t1 - t0) / 100
+        self.frac = (t1 - t0) / 101
         self.pbar = tqdm(total=100, leave=True)
         self.i = 0
 
@@ -43,10 +43,11 @@ class ScipyIVP:
         assert np.allclose(gamma, np.zeros(len(gamma)))
 
     def eqm(self, t, x):
-        if int(t // self.frac) == self.i:
-            self.pbar.update(1)
-            self.pbar.set_description(f"t: {t:0.2e}s < {self.t1:0.2e}s")
-            self.i += 1
+        # update progress bar
+        i1 = int(t // self.frac)
+        self.pbar.update(i1 - self.i)
+        self.pbar.set_description(f"t: {t:0.2e}s < {self.t1:0.2e}s")
+        self.i = i1
 
         q = x[: self.nq]
         u = x[self.nq :]

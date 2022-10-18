@@ -20,7 +20,7 @@ from cardillo.solver import (
     NonsmoothHalfExplicitRungeKutta,
     NonsmoothHalfExplicitEulerGGL,
     Remco,
-    NonsmoothDecoupled,
+    NonsmoothBackwardEulerDecoupled,
 )
 
 

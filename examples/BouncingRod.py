@@ -25,7 +25,7 @@ from cardillo.contacts import Sphere2Plane
 from cardillo.solver import (
     Moreau,
     NonsmoothGeneralizedAlpha,
-    NonsmoothDecoupled,
+    NonsmoothBackwardEulerDecoupled,
 )
 
 
@@ -150,7 +150,7 @@ if __name__ == "__main__":
     # dt = 1e-4
 
     # solver = NonsmoothGeneralizedAlpha(model, t1, dt, newton_max_iter=10)
-    solver = NonsmoothDecoupled(model, t1, dt)
+    solver = NonsmoothBackwardEulerDecoupled(model, t1, dt)
     # solver = Moreau(model, t1, dt, fix_point_max_iter=100)
     sol_other = solver.solve()
 
