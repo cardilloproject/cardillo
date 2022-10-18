@@ -9,7 +9,7 @@ from cardillo.solver import Solution
 
 
 def fsolve_(
-    x0, f, J, tol=1.0e-8, max_iter=20, error_function=lambda x: np.max(np.absolute(x))
+    x0, f, J, tol=1.0e-6, max_iter=20, error_function=lambda x: np.max(np.absolute(x))
 ):
     x = np.asarray(x0)
     f_ = f(x)
@@ -21,7 +21,18 @@ def fsolve_(
     while (not converged) and (i <= max_iter - 1):
         i += 1
         J_ = J(x)
+
+        # TODO: Why is spsolve getting singular?
         x -= spsolve(J_, f_)
+        # from scipy.sparse.linalg import lsqr
+        # x -= lsqr(J_, f_, atol=1.0e-12, btol=1.0e-12)[0]
+        # x -= np.linalg.lstsq(J_.toarray(), f_, rcond=None)[0]
+        # x -= spsolve(J_.T @ J_, J_.T @ f_)
+        # b = f_.copy()
+        # Q, R = np.linalg.qr(J_.toarray())
+        # z = Q.T @ b
+        # x -= np.linalg.solve(R, z)  # solving R*x = Q^T*b
+
         f_ = f(x)
         error = error_function(f_)
         converged = error <= tol
@@ -267,15 +278,15 @@ class NonsmoothPartitionedHalfExplicitEuler:
         tk1 = self.tk1
         qk1 = self.qk1
         uk1_free = self.uk1_free.copy()
-        la_Nk1 = self.la_Nk1
-        la_Fk1 = self.la_Fk1
+        # la_Nk1 = self.la_Nk1
+        # la_Fk1 = self.la_Fk1
 
         # unpack xk1
         Uk1, La_gk1, La_gammak1, La_Nk1, La_Fk1 = self.unpack_y(yk1)
 
-        # compute percussions
-        P_Nk1 = la_Nk1 * self.dt + La_Nk1
-        P_Fk1 = la_Fk1 * self.dt + La_Fk1
+        # # compute percussions
+        # P_Nk1 = la_Nk1 * self.dt + La_Nk1
+        # P_Fk1 = la_Fk1 * self.dt + La_Fk1
 
         # update velocities
         uk1 = uk1_free + Uk1
@@ -426,7 +437,7 @@ class NonsmoothPartitionedHalfExplicitEuler:
         j += res[3]
 
         Uk1, La_gk1, La_gammak1, La_Nk1, La_Fk1 = self.unpack_y(sk1)
-        print(f"Uk1: {Uk1}")
+        # print(f"Uk1: {Uk1}")
 
         uk1 = self.uk1_free + Uk1
 

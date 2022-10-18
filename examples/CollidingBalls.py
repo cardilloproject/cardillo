@@ -3,20 +3,16 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
-from cardillo.model import System
-from cardillo.model.point_mass import PointMass
-from cardillo.model.rigid_body import RigidBodyEuler
-from cardillo.model.frame import Frame
+from cardillo import System
+from cardillo.discrete import PointMass
+from cardillo.discrete import RigidBodyEuler
+from cardillo.discrete import Frame
 from cardillo.contacts import Sphere2Plane, Sphere2Sphere
 
 from cardillo.solver import (
     Moreau,
-    NonsmoothEulerBackwardsGGL_V2,
-    NonsmoothEulerBackwardsGGL_V3,
-    NonsmoothGeneralizedAlpha,
-    Remco,
     NonsmoothHalfExplicitRungeKutta,
-    NonsmoothHalfExplicitEulerGGL,
+    NonsmoothPartitionedHalfExplicitEuler,
     NonsmoothDecoupled,
 )
 
@@ -121,7 +117,8 @@ if __name__ == "__main__":
     #     1, 0.5, np.array([2.0 * (1.0 + eps), y0, 0]), np.array([0, 0, 0])
     # )
 
-    balls = [ball1, ball2, ball3, ball4]
+    # balls = [ball1, ball2, ball3, ball4]
+    balls = [ball1, ball2, ball3]
 
     # assemble model
     model = System()
@@ -141,22 +138,21 @@ if __name__ == "__main__":
     # solver setup
     t0 = 0
     # t1 = 0.05
-    # t1 = 0.1
-    t1 = 0.5
+    t1 = 0.1
+    # t1 = 0.5
     # t1 = 20
     # dt = 1e-1
     # dt = 5e-2
-    dt = 1e-2
-    # dt = 5e-3
+    # dt = 1e-2
+    dt = 5e-3
     # dt = 1e-3
     # dt = 5e-4
     # dt = 1e-4
 
     # solve problem
     # solver_other = NonsmoothGeneralizedAlpha(model, t1, dt)
-    # solver_other = NonsmoothEulerBackwardsGGL_V2(model, t1, dt, tol=1.0e-8)
-    solver_other = NonsmoothHalfExplicitRungeKutta(model, t1, dt)
-    # solver_other = NonsmoothHalfExplicitEulerGGL(model, t1, dt)
+    # solver_other = NonsmoothHalfExplicitRungeKutta(model, t1, dt)
+    solver_other = NonsmoothPartitionedHalfExplicitEuler(model, t1, dt)
     # solver_other = Moreau(model, t1, dt)
     # solver_other = NonsmoothDecoupled(model, t1, dt)
     sol_other = solver_other.solve()
@@ -167,18 +163,13 @@ if __name__ == "__main__":
     u_other = sol_other.u
     P_N_other = sol_other.P_N
     # P_F_other = sol_other.P_F
-    if type(solver_other) in [
-        Moreau,
-        NonsmoothEulerBackwardsGGL_V2,
-        NonsmoothHalfExplicitRungeKutta,
-        NonsmoothHalfExplicitEulerGGL,
-    ]:
+    try:
         a_other = np.zeros_like(u_other)
         a_other[1:] = (u_other[1:] - u_other[:-1]) / dt
         # la_N_other = sol_other.mu_N
         La_N_other = np.zeros_like(P_N_other)
         P_N_other = sol_other.P_N
-    else:
+    except:
         a_other = sol_other.a
         la_N_other = sol_other.la_N
         La_N_other = sol_other.La_N

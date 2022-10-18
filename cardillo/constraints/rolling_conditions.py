@@ -251,7 +251,7 @@ class RollingCondition_g_I_Frame_gamma:
 
         def gamma_dot(self, t, q, u, u_dot):
             gamma_q = approx_fprime(q, lambda q: self.gamma(t, q, u), method="2-point")
-            gamma_u = gamma_u = self.gamma_u_dense(t, q)
+            gamma_u = self.gamma_u_dense(t, q)
 
             return gamma_q @ self.subsystem.q_dot(t, q, u) + gamma_u @ u_dot
 

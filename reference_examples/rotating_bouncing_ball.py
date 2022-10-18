@@ -13,19 +13,8 @@ from cardillo.forces import Force
 from cardillo.contacts import Sphere2Plane
 from cardillo.solver import (
     Moreau,
-    # NonsmoothEulerBackwardsGGL,
-    # NonsmoothThetaGGL,
-    # NonsmoothEulerBackwardsGGL_V2,
-    # NonsmoothEulerBackwardsGGL_V3,
-    # NonsmoothTheta,
-    # NonsmoothGeneralizedAlpha,
-    # NonsmoothGenAlphaFirstOrder,
-    # NonsmoothNewmark,
     NonsmoothHalfExplicitRungeKutta,
-    # NonsmoothHalfExplicitEulerGGL,
-    # Remco,
     NonsmoothDecoupled,
-    # DecoupledNonsmoothHalfExplicitRungeKutta,
     NonsmoothPartitionedHalfExplicitEuler,
 )
 

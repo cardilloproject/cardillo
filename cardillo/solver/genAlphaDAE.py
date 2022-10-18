@@ -2504,6 +2504,12 @@ class GeneralizedAlphaFirstOrder:
                 la_g0_minus,
                 la_gamma0_minus,
             ) = consistent_initial_values(t0_minus, q0_minus, u0_minus)
+            (
+                q_dot0_minus,
+                u_dot0_minus,
+                la_g0_minus,
+                la_gamma0_minus,
+            ) = consistent_initial_values(t0_minus, q0, u0_minus)
             y0_minus = np.concatenate((q_dot0_minus, u_dot0_minus))
 
             y0 = x_dot0 + Delta_alpha * dt * (y0_plus - y0_minus) / (2.0 * s * dt)
@@ -2554,8 +2560,8 @@ class GeneralizedAlphaFirstOrder:
             self.sk = s0
 
         # compute consistent initial conditions
-        initial_values(t0, model.q0, model.u0)
-        # initial_values_Martin(t0, model.q0, model.u0)
+        # initial_values(t0, model.q0, model.u0)
+        initial_values_Martin(t0, model.q0, model.u0)
 
         # check if initial conditions satisfy constraints on position, velocity
         # and acceleration level

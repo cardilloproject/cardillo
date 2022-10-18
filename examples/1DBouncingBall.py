@@ -10,6 +10,7 @@ from cardillo.solver import (
     Moreau,
     NonsmoothDecoupled,
     NonsmoothPartitionedHalfExplicitEuler,
+    NonsmoothHalfExplicitRungeKutta,
 )
 
 
@@ -137,7 +138,8 @@ if __name__ == "__main__":
     # solve problem
     # solver_other = NonsmoothGeneralizedAlpha(model, t1, dt)
     # solver_other = NonsmoothDecoupled(system, t1, dt)
-    solver_other = NonsmoothPartitionedHalfExplicitEuler(system, t1, dt)
+    solver_other = NonsmoothHalfExplicitRungeKutta(system, t1, dt)
+    # solver_other = NonsmoothPartitionedHalfExplicitEuler(system, t1, dt)
     sol_other = solver_other.solve()
     t = sol_other.t
     q = sol_other.q
