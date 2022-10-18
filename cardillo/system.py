@@ -45,9 +45,6 @@ class System:
 
         self.contributions = []
 
-        for p in properties:
-            setattr(self, f"_{self.__class__.__name__}__{p}_contr", [])
-
     def add(self, contr):
         if not contr in self.contributions:
             self.contributions.append(contr)
@@ -87,6 +84,9 @@ class System:
         NF_connectivity = []
         N_has_friction = []
         Ncontr_connectivity = []
+
+        for p in properties:
+            setattr(self, f"_{self.__class__.__name__}__{p}_contr", [])
 
         n_laN_contr = 0
         for contr in self.contributions:

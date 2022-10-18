@@ -8,21 +8,21 @@ from cardillo.solver import Solution
 
 
 class ScipyIVP:
-    def __init__(self, model, t1, dt, method="RK45", rtol=1.0e-8, atol=1.0e-10):
-        self.model = model
+    def __init__(self, system, t1, dt, method="RK45", rtol=1.0e-8, atol=1.0e-10):
+        self.system = system
         self.rtol = rtol
         self.atol = atol
         self.method = method
 
-        self.nq = model.nq
-        self.nu = model.nu
+        self.nq = system.nq
+        self.nu = system.nu
         self.nx = self.nq + self.nu
-        self.nla_g = self.model.nla_g
-        self.nla_gamma = self.model.nla_gamma
-        self.x0 = np.concatenate([model.q0, model.u0])
+        self.nla_g = self.system.nla_g
+        self.nla_gamma = self.system.nla_gamma
+        self.x0 = np.concatenate([system.q0, system.u0])
 
         # integration time
-        t0 = model.t0
+        t0 = system.t0
         self.t1 = (
             t1 if t1 > t0 else ValueError("t1 must be larger than initial time t0.")
         )
@@ -35,11 +35,11 @@ class ScipyIVP:
 
         # check if initial state satisfies bilateral constraints on position and
         # velocity level
-        g = model.g(t0, model.q0)
+        g = system.g(t0, system.q0)
         assert np.allclose(g, np.zeros(len(g)))
-        g_dot = model.g_dot(t0, model.q0, model.u0)
+        g_dot = system.g_dot(t0, system.q0, system.u0)
         assert np.allclose(g_dot, np.zeros(len(g_dot)))
-        gamma = model.gamma(t0, model.q0, model.u0)
+        gamma = system.gamma(t0, system.q0, system.u0)
         assert np.allclose(gamma, np.zeros(len(gamma)))
 
     def eqm(self, t, x):
@@ -51,14 +51,14 @@ class ScipyIVP:
 
         q = x[: self.nq]
         u = x[self.nq :]
-        q, u = self.model.step_callback(t, q, u)
+        q, u = self.system.step_callback(t, q, u)
 
-        M = self.model.M(t, q)
-        h = self.model.h(t, q, u)
-        W_g = self.model.W_g(t, q)
-        W_gamma = self.model.W_gamma(t, q)
-        zeta_g = self.model.zeta_g(t, q, u)
-        zeta_gamma = self.model.zeta_gamma(t, q, u)
+        M = self.system.M(t, q)
+        h = self.system.h(t, q, u)
+        W_g = self.system.W_g(t, q)
+        W_gamma = self.system.W_gamma(t, q)
+        zeta_g = self.system.zeta_g(t, q, u)
+        zeta_gamma = self.system.zeta_gamma(t, q, u)
 
         # TODO: Can be use a sparse ldl decomposition here as done in C++?
         # fmt: off
@@ -70,17 +70,17 @@ class ScipyIVP:
         ula = spsolve(A, np.concatenate([h, -zeta_g, -zeta_gamma]))
 
         dx = np.zeros(self.nx)
-        dx[: self.nq] = self.model.q_dot(t, q, u)
+        dx[: self.nq] = self.system.q_dot(t, q, u)
         dx[self.nq :] = ula[: self.nu]
         return dx
 
     def la_g_la_gamma(self, t, q, u):
-        W_g = self.model.W_g(t, q, scipy_matrix=csc_matrix)
-        W_gamma = self.model.W_gamma(t, q, scipy_matrix=csc_matrix)
-        zeta_g = self.model.zeta_g(t, q, u)
-        zeta_gamma = self.model.zeta_gamma(t, q, u)
-        M = self.model.M(t, q, scipy_matrix=csc_matrix)
-        h = self.model.h(t, q, u)
+        W_g = self.system.W_g(t, q, scipy_matrix=csc_matrix)
+        W_gamma = self.system.W_gamma(t, q, scipy_matrix=csc_matrix)
+        zeta_g = self.system.zeta_g(t, q, u)
+        zeta_gamma = self.system.zeta_gamma(t, q, u)
+        M = self.system.M(t, q, scipy_matrix=csc_matrix)
+        h = self.system.h(t, q, u)
 
         if self.nla_g > 0:
             MW_g = (spsolve(M, W_g)).reshape((self.nu, self.nla_g))
