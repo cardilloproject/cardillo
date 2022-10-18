@@ -8,6 +8,30 @@ from cardillo.math import approx_fprime
 from cardillo.solver import Solution
 
 
+def fsolve_(
+    x0, f, J, tol=1.0e-8, max_iter=20, error_function=lambda x: np.max(np.absolute(x))
+):
+    x = np.asarray(x0)
+    f_ = f(x)
+    error = error_function(f_)
+    converged = error <= tol
+    i = 0
+    # if not converged:
+    # for i in range(max_iter):
+    while (not converged) and (i <= max_iter - 1):
+        i += 1
+        J_ = J(x)
+        x -= spsolve(J_, f_)
+        f_ = f(x)
+        error = error_function(f_)
+        converged = error <= tol
+        # if converged:
+        #     return x, error, i
+    # else:
+    #     return x, converged, error, i
+    return x, converged, error, i
+
+
 class NonsmoothPartitionedHalfExplicitEuler:
     def __init__(
         self,
@@ -122,13 +146,13 @@ class NonsmoothPartitionedHalfExplicitEuler:
         la_F = z[self.nla_g + self.nla_gamma + self.nla_N :]
 
         # bilateral constraints
-        gk1 = self.model.g(t, q)
-        g_dotk1 = self.model.g_dot(t, q, u)
-        gammak1 = self.model.gamma(t, q, u)
+        c_gk1 = self.model.g(t, q)
+        # c_gk1 = self.model.g_dot(t, q, u)
+        c_gammak1 = self.model.gamma(t, q, u)
 
         # unilateral constraints
         g_Nk1 = self.model.g_N(t, q)
-        g_N_dotk1 = self.model.g_N_dot(t, q, u)
+        # g_N_dotk1 = self.model.g_N_dot(t, q, u)
         gamma_Fk1 = self.model.gamma_F(t, q, u)
         # xi_Nk1 = self.model.xi_N(t, q, self.uk, u)
         # xi_Fk1 = self.model.xi_F(t, q, self.uk, u)
@@ -136,38 +160,28 @@ class NonsmoothPartitionedHalfExplicitEuler:
         prox_r_N = self.model.prox_r_N(t, q)
         prox_r_F = self.model.prox_r_F(t, q)
 
-        # prox_arg_pos = g_Nk1 - prox_r_N * la_N
-        # c_Nk1 = g_Nk1 - prox_R0_np(prox_arg_pos)
+        prox_arg_pos = g_Nk1 - prox_r_N * la_N
+        c_Nk1 = g_Nk1 - prox_R0_np(prox_arg_pos)
+        # c_Nk1 = np.minimum(g_Nk1, la_N)
 
         if update_index_set:
-            # self.Ak1 = prox_arg_pos <= 0
-            self.Ak1 = g_Nk1 <= 0
+            self.Ak1 = prox_arg_pos <= 0
+            # self.Ak1 = g_Nk1 <= 0
 
+        # c_Nk1 = la_N
+        # c_Nk1 = np.where(
+        #     self.Ak1,
+        #     g_N_dotk1 - prox_R0_np(g_N_dotk1 - prox_r_N * la_N),
+        #     la_N,
+        # )
         # c_Nk1 = np.where(
         #     self.Ak1, xi_Nk1 - prox_R0_np(xi_Nk1 - prox_r_N * la_N), la_N
         # )
-        # c_Nk1 = la_N
-        c_Nk1 = np.where(
-            self.Ak1,
-            g_N_dotk1 - prox_R0_np(g_N_dotk1 - prox_r_N * la_N),
-            la_N,
-        )
 
-        # c_Nk1 = np.where(
-        #     self.Ak1, xi_Nk1 - prox_R0_np(xi_Nk1 - self.model.prox_r_N * P_N), P_N
-        # )
-
-        # # c_Nk1 = np.where(
-        # #     self.Ak1, xi_Nk1 - prox_R0_np(xi_Nk1 - self.model.prox_r_N * P_N), P_N
-        # # )
-        # alpha = 1.0 - 1.0e-1
-        # g_N_bar = g_Nk1 / self.dt + (1.0 - alpha) * g_N_dotk1
-        # c_Nk1 = P_N - prox_R0_np(P_N - self.model.prox_r_N * g_N_bar)
-        # # c_Nk1 = P_N - prox_R0_np(P_N - self.model.prox_r_N * xi_Nk1)
-
-        # c_Nk1 = np.where(
-        #     self.Ak1, g_N_dotk1 - prox_R0_np(g_N_dotk1 - self.model.prox_r_N * P_N), P_N
-        # )
+        # # regularized normal contact
+        # alpha = 1 - 1.0e-3
+        # g_N_bar = g_Nk1 + (1 - alpha) * self.dt * g_N_dotk1
+        # c_Nk1 = g_N_bar - prox_R0_np(g_N_bar - prox_r_N * la_N)
 
         # #############
         # # no friction
@@ -194,8 +208,7 @@ class NonsmoothPartitionedHalfExplicitEuler:
                         mu[i_N] * la_N[i_N],
                     )
 
-        # ck1 = np.concatenate((gk1, gammak1, c_Nk1, c_Fk1))
-        ck1 = np.concatenate((g_dotk1, gammak1, c_Nk1, c_Fk1))
+        ck1 = np.concatenate((c_gk1, c_gammak1, c_Nk1, c_Fk1))
 
         return ck1
 
@@ -292,11 +305,15 @@ class NonsmoothPartitionedHalfExplicitEuler:
             - W_gammak1 @ La_gammak1
             - W_Nk1 @ La_Nk1
             - W_Fk1 @ La_Fk1
+            # - W_Nk1 @ P_Nk1
+            # - W_Fk1 @ P_Fk1
         )
 
         # bilateral constraints
         Ry[nu : nu + nla_g] = g_dot
         Ry[nu + nla_g : nu + nla_g + nla_gamma] = gamma
+        # Ry[nu : nu + nla_g] = La_gk1
+        # Ry[nu + nla_g : nu + nla_g + nla_gamma] = La_gammak1
 
         ###################
         # normal impact law
@@ -331,16 +348,17 @@ class NonsmoothPartitionedHalfExplicitEuler:
                     # -P_Fk1[i_F]
                     # - prox_sphere(
                     #     -P_Fk1[i_F] + prox_r_F[i_N] * xi_Fk1[i_F],
-                    #     mu[i_N] * P_Fk1[i_N],
+                    #     mu[i_N] * P_Nk1[i_N],
                     # ),
                     # P_Fk1[i_F],
                 )
 
         return Ry
 
-    def step(self):
-        from scipy.optimize import fsolve
+    def Jy(self, yk1):
+        return csr_matrix(approx_fprime(yk1, self.Ry))
 
+    def step(self):
         tk = self.tk
         qk = self.qk.copy()
         uk = self.uk.copy()
@@ -353,13 +371,22 @@ class NonsmoothPartitionedHalfExplicitEuler:
         u_dot = lambda z: self.k(tk, qk.copy(), uk.copy(), z)
         q_dot = lambda z: self.f(tk, qk.copy(), uk.copy() + h * u_dot(z))
         g = lambda z: self.g(tk1, qk.copy() + h * q_dot(z), uk.copy() + h * u_dot(z), z)
+        g_z = lambda z: csr_matrix(
+            approx_fprime(
+                z,
+                lambda z: self.g(
+                    tk1,
+                    qk.copy() + h * q_dot(z),
+                    uk.copy() + h * u_dot(z),
+                    z,
+                    update_index_set=False,
+                ),
+            )
+        )
 
         # solve for final Lagrange multipliers
         z0 = np.concatenate([self.la_gk, self.la_gammak, self.P_Nk, self.P_Fk])
-        res = fsolve(g, z0, full_output=1)
-        zk1 = res[0]
-        converged = res[2]
-        j = res[1]["nfev"]
+        zk1, converged, error, j = fsolve_(z0, g, g_z)
 
         # compute final velocites
         uk1_free = uk + h * u_dot(zk1)
@@ -392,10 +419,11 @@ class NonsmoothPartitionedHalfExplicitEuler:
             )
         )
 
-        res = fsolve(self.Ry, sk1, full_output=1)
+        res = fsolve_(sk1, self.Ry, self.Jy)
         sk1 = res[0]
-        converged *= res[2]
-        j += res[1]["nfev"]
+        converged *= res[1]
+        error += res[2]
+        j += res[3]
 
         Uk1, La_gk1, La_gammak1, La_Nk1, La_Fk1 = self.unpack_y(sk1)
         print(f"Uk1: {Uk1}")
@@ -408,14 +436,8 @@ class NonsmoothPartitionedHalfExplicitEuler:
         # uk1 = uk1_free
 
         # unpack percussions
-        La_gk1 = zk1[: self.nla_g]
-        La_gammak1 = zk1[self.nla_g : self.nla_g + self.nla_gamma]
-        La_Nk1 = zk1[
-            self.nla_g + self.nla_gamma : self.nla_g + self.nla_gamma + self.nla_N
-        ]
-        La_Fk1 = zk1[self.nla_g + self.nla_gamma + self.nla_N :]
+        Uk1, La_gk1, La_gammak1, La_Nk1, La_Fk1 = self.unpack_y(sk1)
 
-        error = 0.0
         return (
             (converged, j, error),
             tk1,
@@ -855,6 +877,8 @@ class HalfExplicitEuler:
 
 
 # TODO:
+# - Why is stabilization with g_NK1 destroying the solver?
+# - Invstigate order of convergence
 # - Investigate formulation by Arnold and Murua.
 #   They should improve the interpolation order of the Lagrange multipliers.
 # - Why is RK4 with decoupled stages working perfectly?
@@ -1008,37 +1032,24 @@ class NonsmoothHalfExplicitRungeKutta:
             prox_r_F = self.model.prox_r_F(ti, qi)
 
             prox_arg_pos = g_Nk1 - prox_r_N * mu_N
-            c_Nk1_stab = g_Nk1 - prox_R0_np(prox_arg_pos)
+            # c_Nk1_stab = g_Nk1 - prox_R0_np(prox_arg_pos)
+            c_Nk1_stab = np.minimum(g_Nk1, mu_N)
             # c_Nk1_stab = mu_N
 
             if update_index_set:
-                # self.Ak1 = g_Nk1 <= 0
-                self.Ak1 = prox_arg_pos <= 0
+                self.Ak1 = g_Nk1 <= 0
+                # self.Ak1 = prox_arg_pos <= 0
 
             # c_Nk1 = np.where(
             #     self.Ak1, xi_Nk1 - prox_R0_np(xi_Nk1 - prox_r_N * P_N), P_N
             # )
             c_Nk1 = np.where(
                 self.Ak1,
-                g_N_dotk1 - prox_R0_np(g_N_dotk1 - prox_r_N * P_N),
+                # g_N_dotk1 - prox_R0_np(g_N_dotk1 - prox_r_N * P_N),
+                np.minimum(g_N_dotk1, P_N),
+                # np.minimum(xi_Nk1, P_N),
                 P_N,
             )
-
-            # c_Nk1 = np.where(
-            #     self.Ak1, xi_Nk1 - prox_R0_np(xi_Nk1 - self.model.prox_r_N * P_N), P_N
-            # )
-
-            # # c_Nk1 = np.where(
-            # #     self.Ak1, xi_Nk1 - prox_R0_np(xi_Nk1 - self.model.prox_r_N * P_N), P_N
-            # # )
-            # alpha = 1.0 - 1.0e-1
-            # g_N_bar = g_Nk1 / self.dt + (1.0 - alpha) * g_N_dotk1
-            # c_Nk1 = P_N - prox_R0_np(P_N - self.model.prox_r_N * g_N_bar)
-            # # c_Nk1 = P_N - prox_R0_np(P_N - self.model.prox_r_N * xi_Nk1)
-
-            # c_Nk1 = np.where(
-            #     self.Ak1, g_N_dotk1 - prox_R0_np(g_N_dotk1 - self.model.prox_r_N * P_N), P_N
-            # )
 
             ##########
             # friction
@@ -1278,10 +1289,10 @@ class NonsmoothHalfExplicitRungeKutta:
         # Brasey 1993
         #############
 
-        # # forward Euler
-        # c = [0]
-        # A = [[0]]
-        # b = [1]
+        # forward Euler
+        c = [0]
+        A = [[0]]
+        b = [1]
 
         # # hem3
         # c = [0, 1 / 3, 1]
@@ -1292,24 +1303,24 @@ class NonsmoothHalfExplicitRungeKutta:
         # ]
         # b = [0, 3 / 4, 1 / 4]
 
-        # hem5
-        from math import sqrt
+        # # hem5
+        # from math import sqrt
 
-        sqrt6 = sqrt(6)
-        c = [0, 3 / 10, (4 - sqrt6) / 10, (4 + sqrt6) / 10, 1]
-        A = [
-            [0],
-            [3 / 10],
-            [(1 + sqrt6) / 30, (11 - 4 * sqrt6) / 30],
-            [(-79 - 31 * sqrt6) / 150, (-1 - 4 * sqrt6) / 30, (24 + 11 * sqrt6) / 25],
-            [
-                (14 + 5 * sqrt6) / 6,
-                (-8 + 7 * sqrt6) / 6,
-                (-9 - 7 * sqrt6) / 4,
-                (9 - sqrt6) / 4,
-            ],
-        ]
-        b = [0, 0, (16 - sqrt6) / 36, (16 + sqrt6) / 36, 1 / 9]
+        # sqrt6 = sqrt(6)
+        # c = [0, 3 / 10, (4 - sqrt6) / 10, (4 + sqrt6) / 10, 1]
+        # A = [
+        #     [0],
+        #     [3 / 10],
+        #     [(1 + sqrt6) / 30, (11 - 4 * sqrt6) / 30],
+        #     [(-79 - 31 * sqrt6) / 150, (-1 - 4 * sqrt6) / 30, (24 + 11 * sqrt6) / 25],
+        #     [
+        #         (14 + 5 * sqrt6) / 6,
+        #         (-8 + 7 * sqrt6) / 6,
+        #         (-9 - 7 * sqrt6) / 4,
+        #         (9 - sqrt6) / 4,
+        #     ],
+        # ]
+        # b = [0, 0, (16 - sqrt6) / 36, (16 + sqrt6) / 36, 1 / 9]
 
         # # RK4
         # c = [0.0, 0.5, 0.5, 1.0]
@@ -1367,8 +1378,8 @@ class NonsmoothHalfExplicitRungeKutta:
         j += res[1]["nfev"]
         yk1 = yk1_fun(Zs)
 
-        # zk1 = Zs
-        zk1 = sum([b[i] * Zis[i] for i in range(s)])
+        zk1 = Zs
+        # zk1 = sum([b[i] * Zis[i] for i in range(s)])
 
         # # second stage
         # t2 = tk + c[1] * h
@@ -1575,37 +1586,37 @@ class NonsmoothHalfExplicitRungeKutta:
         qk1 = yk1[: self.nq].copy()
         uk1_free = yk1[self.nq :].copy()
 
-        #################
-        # compute impacts
-        #################
-        self.tk1 = tk1
-        self.qk1 = qk1
-        self.uk1_free = uk1_free.copy()
+        # #################
+        # # compute impacts
+        # #################
+        # self.tk1 = tk1
+        # self.qk1 = qk1
+        # self.uk1_free = uk1_free.copy()
 
-        sk1 = np.concatenate(
-            (
-                np.zeros(self.nu),
-                np.zeros(self.nla_g),
-                np.zeros(self.nla_gamma),
-                np.zeros(self.nla_N),
-                np.zeros(self.nla_F),
-            )
-        )
+        # sk1 = np.concatenate(
+        #     (
+        #         np.zeros(self.nu),
+        #         np.zeros(self.nla_g),
+        #         np.zeros(self.nla_gamma),
+        #         np.zeros(self.nla_N),
+        #         np.zeros(self.nla_F),
+        #     )
+        # )
 
-        res = fsolve(self.Ry, sk1, full_output=1)
-        sk1 = res[0]
-        converged *= res[2]
-        j += res[1]["nfev"]
+        # res = fsolve(self.Ry, sk1, full_output=1)
+        # sk1 = res[0]
+        # converged *= res[2]
+        # j += res[1]["nfev"]
 
-        Uk1, La_gk1, La_gammak1, La_Nk1, La_Fk1 = self.unpack_y(sk1)
-        # print(f"Uk1: {Uk1}")
+        # Uk1, La_gk1, La_gammak1, La_Nk1, La_Fk1 = self.unpack_y(sk1)
+        # # print(f"Uk1: {Uk1}")
 
-        uk1 = self.uk1_free + Uk1
+        # uk1 = self.uk1_free + Uk1
 
-        # ############
-        # # no impacts
-        # ############
-        # uk1 = uk1_free
+        ############
+        # no impacts
+        ############
+        uk1 = uk1_free
 
         # use new velocity for next yk
         self.yk = np.concatenate((qk1, uk1))
