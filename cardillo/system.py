@@ -2,6 +2,7 @@ import numpy as np
 from cardillo.utility.coo import Coo
 from scipy.sparse import coo_matrix, csc_matrix, csr_matrix
 from scipy.sparse.linalg import spsolve
+from copy import deepcopy
 
 properties = []
 
@@ -62,6 +63,21 @@ class System:
 
     def extend(self, contr_list):
         list(map(self.add, contr_list))
+
+    def deepcopy(self, solution):
+        # create copy of the system
+        system_copy = deepcopy(self)
+
+        # extract final states and Lagrange multipliers
+        q0 = solution.q[-1]
+        # if hasattr(solution, "u"):
+        #     u0 = solution.u[-1]
+
+        for contr in self.contributions:
+            if hasattr(contr, "nq"):
+                contr.q0 = q0[contr.qDOF]
+
+        return system_copy
 
     def assemble(self):
         self.nq = 0

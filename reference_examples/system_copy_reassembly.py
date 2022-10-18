@@ -13,8 +13,8 @@ from cardillo.forces import (
 from cardillo.constraints import SphericalJoint
 from cardillo.math import norm
 
-# case = "force"
-case = "constraint"
+case = "force"
+# case = "constraint"
 
 if __name__ == "__main__":
     m = 1
@@ -65,18 +65,7 @@ if __name__ == "__main__":
     ax.grid()
     ax.legend()
 
-    from copy import deepcopy
-
-    system_statics = deepcopy(system)
-
-    q0 = sol_statics.q[-1]
-    # u0 = sol1.u[-1]
-
-    for contr in system.contributions:
-        if hasattr(contr, "nq"):
-            contr.q0 = q0[contr.qDOF]
-        # if hasattr(contr, "nu"):
-        #     contr.u0 = u0[contr.uDOF]
+    system_statics = system.deepcopy(sol_statics)
 
     # replace static gravity contribution with dynamic one
     if case == "force":
