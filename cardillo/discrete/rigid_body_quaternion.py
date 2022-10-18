@@ -42,11 +42,11 @@ class RigidBodyQuaternion(RigidBodyBase):
 
     def g_S(self, t, q):
         P = q[3:]
-        return np.array([P @ P - 1.0], dtype=float)
+        return np.array([P @ P - 1.0], dtype=q.dtype)
 
     def g_S_q(self, t, q, coo):
         P = q[3:]
-        dense = np.zeros((1, 7), dtype=float)
+        dense = np.zeros((1, 7), dtype=q.dtype)
         dense[0, 3:] = 2.0 * P
         coo.extend(dense, (self.la_SDOF, self.qDOF))
 
@@ -54,7 +54,7 @@ class RigidBodyQuaternion(RigidBodyBase):
         p = q[3:]
         Q = quat2mat(p) / (2 * p @ p)
 
-        q_dot = np.zeros(self.nq)
+        q_dot = np.zeros(self.nq, dtype=np.common_type(q, u))
         q_dot[:3] = u[:3]
         q_dot[3:] = Q[:, 1:] @ u[3:]
 
@@ -67,7 +67,7 @@ class RigidBodyQuaternion(RigidBodyBase):
             "ij,k->ijk", quat2mat(p), p / (p2**2)
         )
 
-        dense = np.zeros((self.nq, self.nq))
+        dense = np.zeros((self.nq, self.nq), dtype=np.common_type(q, u))
         dense[3:, 3:] = np.einsum("ijk,j->ik", Q_p[:, 1:, :], u[3:])
         coo.extend(dense, (self.qDOF, self.qDOF))
 
@@ -75,7 +75,7 @@ class RigidBodyQuaternion(RigidBodyBase):
         p = q[3:]
         Q = quat2mat(p) / (2 * p @ p)
 
-        B = np.zeros((self.nq, self.nu), dtype=float)
+        B = np.zeros((self.nq, self.nu), dtype=q.dtype)
         B[:3, :3] = np.eye(3, dtype=float)
         B[3:, 3:] = Q[:, 1:]
         coo.extend(B, (self.qDOF, self.uDOF))
@@ -89,7 +89,7 @@ class RigidBodyQuaternion(RigidBodyBase):
             "ij,k->ijk", quat2mat(p), p / (p2**2)
         )
 
-        q_ddot = np.zeros(self.nq, dtype=float)
+        q_ddot = np.zeros(self.nq, dtype=np.common_type(q, u, u_dot))
         q_ddot[:3] = u_dot[:3]
         q_ddot[3:] = Q[:, 1:] @ u_dot[3:] + np.einsum(
             "ijk,k,j->i", Q_p[:, 1:, :], p_dot, u[3:]
@@ -105,6 +105,6 @@ class RigidBodyQuaternion(RigidBodyBase):
         return quat2rot(q[3:])
 
     def A_IK_q(self, t, q, frame_ID=None):
-        A_IK_q = np.zeros((3, 3, self.nq), dtype=float)
+        A_IK_q = np.zeros((3, 3, self.nq), dtype=q.dtype)
         A_IK_q[:, :, 3:] = quat2rot_p(q[3:])
         return A_IK_q

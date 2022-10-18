@@ -3176,7 +3176,7 @@ class Remco:
 # TODO:
 # - analytical Jacobian
 # - alternative solution strategy (fixed-point iterations)
-#   is the lsqr aproach working?
+#   is the lsqr approach working?
 # - variable step-size with Richardson iteration, see Acary presentation/ Hairer
 class NonsmoothDecoupled:
     def __init__(
@@ -3433,21 +3433,17 @@ class NonsmoothDecoupled:
         gk1 = self.model.g(tk1, qk1)
         gammak1 = self.model.gamma(tk1, qk1, uk1_free)
         g_Nk1 = self.model.g_N(tk1, qk1)
-        # g_N_dotk1 = self.model.g_N_dot(tk1, qk1, uk1_free)
-        # g_N_ddotk1 = self.model.g_N_ddot(tk1, qk1, uk1_free, u_dotk1)
-        # xi_Fk1 = self.model.xi_F(tk1, qk1, self.uk, uk1_free)
         gamma_Fk1 = self.model.gamma_F(tk1, qk1, uk1_free)
 
         ###################
         # evaluate residual
         ###################
-        Rx = np.zeros(self.nx, dtype=float)
+        Rx = np.zeros(self.nx, dtype=xk1.dtype)
 
         ####################
         # kinematic equation
         ####################
         Rx[:nq] = q_dotk1 - self.model.q_dot(tk1, qk1, uk1_free)
-        # Rx[:nq] = q_dotk1
 
         ####################
         # euations of motion
@@ -3475,36 +3471,13 @@ class NonsmoothDecoupled:
         if update_index:
             self.I_Nk1 = prox_arg <= 0.0
             # self.I_Nk1 = g_Nk1 <= 0.0
-            # self.B_Nk1 = self.I_Nk1 * (g_N_dotk1 <= 0.0)
 
+        # Rx[
+        #     nq + nu + nla_g + nla_gamma : nq + nu + nla_g + nla_gamma + nla_N
+        # ] = g_Nk1 - prox_R0_np(prox_arg)
         Rx[
             nq + nu + nla_g + nla_gamma : nq + nu + nla_g + nla_gamma + nla_N
-        ] = g_Nk1 - prox_R0_np(prox_arg)
-        # Rx[
-        #     nq + nu + nla_g + nla_gamma : nq + nu + nla_g + nla_gamma + nla_N
-        # ] = np.where(
-        #     self.I_Nk1,
-        #     g_N_dotk1 - prox_R0_np(g_N_dotk1 - self.model.prox_r_N * la_Nk1_free),
-        #     la_Nk1_free
-        # )
-        # Rx[
-        #     nq + nu + nla_g + nla_gamma : nq + nu + nla_g + nla_gamma + nla_N
-        # ] = np.where(
-        #     self.B_Nk1,
-        #     g_N_ddotk1 - prox_R0_np(g_N_ddotk1 - self.model.prox_r_N * la_Nk1_free),
-        #     la_Nk1_free
-        # )
-
-        # a = 1.0e-1
-        # b = 1.0e-1
-        # g_bar = g_N_ddotk1 + a * g_N_dotk1 + b * g_Nk1
-        # Rx[
-        #     nq + nu + nla_g + nla_gamma : nq + nu + nla_g + nla_gamma + nla_N
-        # ] = np.where(
-        #     self.B_Nk1,
-        #     g_bar - prox_R0_np(g_bar - self.model.prox_r_N * la_Nk1_free),
-        #     la_Nk1_free
-        # )
+        ] = np.where(self.I_Nk1, g_Nk1, la_Nk1_free)
 
         ##########
         # friction
@@ -3516,15 +3489,39 @@ class NonsmoothDecoupled:
             i_F = np.array(i_F)
 
             if len(i_F) > 0:
-                Rx[nq + nu + nla_g + nla_gamma + nla_N + i_F] = np.where(
-                    self.I_Nk1[i_N] * np.ones(len(i_F), dtype=bool),
-                    -la_Fk1_free[i_F]
-                    - prox_sphere(
-                        -la_Fk1_free[i_F] + prox_r_F[i_N] * gamma_Fk1[i_F],
-                        mu[i_N] * la_Nk1_free[i_N],
-                    ),
-                    la_Fk1_free[i_F],
-                )
+                la_Fk1_free_local = la_Fk1_free[i_F]
+                if self.I_Nk1[i_N]:
+                    gamma_Fk1_local = gamma_Fk1[i_F]
+                    la_Nk1_free_local = la_Nk1_free[i_N]
+                    prox_arg_friction = (
+                        prox_r_F[i_F] * gamma_Fk1_local - la_Fk1_free_local
+                    )
+                    radius = mu[i_N] * la_Nk1_free_local
+                    if norm(prox_arg_friction) <= radius:
+                        Rx[nq + nu + nla_g + nla_gamma + nla_N + i_F] = gamma_Fk1_local
+                    else:
+                        gamma_Fk1_local_norm = norm(gamma_Fk1_local)
+                        if gamma_Fk1_local_norm > 0:
+                            Rx[nq + nu + nla_g + nla_gamma + nla_N + i_F] = (
+                                la_Fk1_free_local
+                                + radius * gamma_Fk1_local / gamma_Fk1_local_norm
+                            )
+                        else:
+                            Rx[nq + nu + nla_g + nla_gamma + nla_N + i_F] = (
+                                la_Fk1_free_local + radius * gamma_Fk1_local
+                            )
+                else:
+                    Rx[nq + nu + nla_g + nla_gamma + nla_N + i_F] = la_Fk1_free_local
+
+                # Rx[nq + nu + nla_g + nla_gamma + nla_N + i_F] = np.where(
+                #     self.I_Nk1[i_N] * np.ones(len(i_F), dtype=bool),
+                #     -la_Fk1_free[i_F]
+                #     - prox_sphere(
+                #         -la_Fk1_free[i_F] + prox_r_F[i_N] * gamma_Fk1[i_F],
+                #         mu[i_N] * la_Nk1_free[i_N],
+                #     ),
+                #     la_Fk1_free[i_F],
+                # )
 
         # update quantities of new time step
         self.tk1 = tk1
@@ -3534,7 +3531,9 @@ class NonsmoothDecoupled:
         return Rx
 
     def Jx(self, xk1):
-        return csr_matrix(approx_fprime(xk1, self.Rx, method="2-point"))
+        # return csr_matrix(approx_fprime(xk1, self.Rx, method="2-point"))
+        # return csr_matrix(approx_fprime(xk1, self.Rx, method="3-point"))
+        return csr_matrix(approx_fprime(xk1, self.Rx, method="cs", eps=1.0e-10))
 
         nq = self.nq
         nu = self.nu
@@ -3740,7 +3739,8 @@ class NonsmoothDecoupled:
         # diff = (Jx - Jx_num).toarray()[self.nq + self.nu + self.nla_g : self.nq + self.nu + self.nla_g + self.nla_gamma]
         # diff = (Jx - Jx_num).toarray()[self.nq + self.nu + self.nla_g + self.nla_gamma: self.nq + self.nu + self.nla_g + self.nla_gamma + self.nla_N, :self.nq]
         error = np.linalg.norm(diff)
-        print(f"error Jx: {error}")
+        if error > 1.0e-6:
+            print(f"error Jx: {error}")
         return Jx_num
         # return Jx
 
