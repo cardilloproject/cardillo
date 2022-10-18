@@ -10,17 +10,17 @@ from cardillo.math import prox_R0_np, prox_sphere, approx_fprime
 class Moreau:
     def __init__(
         self,
-        model,
+        system,
         t1,
         dt,
         fix_point_tol=1e-8,
         fix_point_max_iter=100,
         error_function=lambda x: np.max(np.abs(x)),
     ):
-        self.model = model
+        self.system = system
 
         # integration time
-        t0 = model.t0
+        t0 = system.t0
         self.t1 = (
             t1 if t1 > t0 else ValueError("t1 must be larger than initial time t0.")
         )
@@ -31,60 +31,73 @@ class Moreau:
         self.fix_point_tol = fix_point_tol
         self.fix_point_max_iter = fix_point_max_iter
 
-        self.nq = self.model.nq
-        self.nu = self.model.nu
-        self.nla_g = self.model.nla_g
-        self.nla_gamma = self.model.nla_gamma
-        self.nla_N = self.model.nla_N
-        self.nla_F = self.model.nla_F
+        self.nq = self.system.nq
+        self.nu = self.system.nu
+        self.nla_g = self.system.nla_g
+        self.nla_gamma = self.system.nla_gamma
+        self.nla_N = self.system.nla_N
+        self.nla_F = self.system.nla_F
         self.nR_smooth = self.nu + self.nla_g + self.nla_gamma
         self.nR = self.nR_smooth + self.nla_N + self.nla_F
 
         self.tk = t0
-        self.qk = model.q0
-        self.uk = model.u0
-        self.P_Nk = model.la_N0 * dt
-        self.P_Fk = model.la_F0 * dt
+        self.qk = system.q0
+        self.uk = system.u0
+        la_g0 = system.la_g0
+        la_gamma0 = system.la_gamma0
+        la_N0 = system.la_N0
+        la_F0 = system.la_F0
+        self.P_gk = la_g0 * dt
+        self.P_gammak = la_gamma0 * dt
+        self.P_Nk = la_N0 * dt
+        self.P_Fk = la_F0 * dt
 
         # connectivity matrix of normal force directions and friction force directions
-        self.NF_connectivity = self.model.NF_connectivity
+        self.NF_connectivity = self.system.NF_connectivity
 
-        if hasattr(model, "step_callback"):
-            self.step_callback = model.step_callback
+        if hasattr(system, "step_callback"):
+            self.step_callback = system.step_callback
         else:
             self.step_callback = self.__step_callback
 
         # initial velocites
-        self.q_dotk = self.model.q_dot(self.tk, self.qk, self.uk)
+        self.q_dotk = self.system.q_dot(self.tk, self.qk, self.uk)
 
         # solve for consistent initial accelerations and Lagrange mutlipliers
-        M0 = self.model.M(self.tk, self.qk, scipy_matrix=csr_matrix)
-        h0 = self.model.h(self.tk, self.qk, self.uk)
-        W_g0 = self.model.W_g(self.tk, self.qk, scipy_matrix=csr_matrix)
-        W_gamma0 = self.model.W_gamma(self.tk, self.qk, scipy_matrix=csr_matrix)
-        zeta_g0 = self.model.zeta_g(t0, self.qk, self.uk)
-        zeta_gamma0 = self.model.zeta_gamma(t0, self.qk, self.uk)
-        # fmt: off
-        A = bmat(
-            [[       M0, -W_g0, -W_gamma0], 
-             [    W_g0.T, None,      None], 
-             [W_gamma0.T, None,      None]],
-            format="csc",
+        M0 = self.system.M(self.tk, self.qk, scipy_matrix=csr_matrix)
+        h0 = self.system.h(self.tk, self.qk, self.uk)
+        W_g0 = self.system.W_g(self.tk, self.qk, scipy_matrix=csr_matrix)
+        W_gamma0 = self.system.W_gamma(self.tk, self.qk, scipy_matrix=csr_matrix)
+        W_N0 = self.system.W_N(self.tk, self.qk, scipy_matrix=csr_matrix)
+        W_F0 = self.system.W_F(self.tk, self.qk, scipy_matrix=csr_matrix)
+
+        self.u_dotk = spsolve(
+            M0, h0 + W_g0 @ la_g0 + W_gamma0 @ la_gamma0 + W_N0 @ la_N0 + W_F0 @ la_F0
         )
-        # fmt: on
-        b = np.concatenate([h0, -zeta_g0, -zeta_gamma0])
-        u_dot_la_g_la_gamma = splu(A).solve(b)
-        self.u_dotk = u_dot_la_g_la_gamma[: self.nu]
-        self.P_gk = u_dot_la_g_la_gamma[self.nu : self.nu + self.nla_g] * dt
-        self.P_gammak = u_dot_la_g_la_gamma[self.nu + self.nla_g :] * dt
+
+        # zeta_g0 = self.system.zeta_g(t0, self.qk, self.uk)
+        # zeta_gamma0 = self.system.zeta_gamma(t0, self.qk, self.uk)
+        # # fmt: off
+        # A = bmat(
+        #     [[       M0, -W_g0, -W_gamma0],
+        #      [    W_g0.T, None,      None],
+        #      [W_gamma0.T, None,      None]],
+        #     format="csc",
+        # )
+        # # fmt: on
+        # b = np.concatenate([h0, -zeta_g0, -zeta_gamma0])
+        # u_dot_la_g_la_gamma = splu(A).solve(b)
+        # self.u_dotk = u_dot_la_g_la_gamma[: self.nu]
+        # self.P_gk = u_dot_la_g_la_gamma[self.nu : self.nu + self.nla_g] * dt
+        # self.P_gammak = u_dot_la_g_la_gamma[self.nu + self.nla_g :] * dt
 
         # check if initial conditions satisfy constraints on position, velocity
         # and acceleration level
-        g0 = model.g(self.tk, self.qk)
-        g_dot0 = model.g_dot(self.tk, self.qk, self.uk)
-        g_ddot0 = model.g_ddot(self.tk, self.qk, self.uk, self.u_dotk)
-        gamma0 = model.gamma(self.tk, self.qk, self.uk)
-        gamma_dot0 = model.gamma_dot(self.tk, self.qk, self.uk, self.u_dotk)
+        g0 = system.g(self.tk, self.qk)
+        g_dot0 = system.g_dot(self.tk, self.qk, self.uk)
+        g_ddot0 = system.g_ddot(self.tk, self.qk, self.uk, self.u_dotk)
+        gamma0 = system.gamma(self.tk, self.qk, self.uk)
+        gamma_dot0 = system.gamma_dot(self.tk, self.qk, self.uk, self.u_dotk)
 
         assert np.allclose(
             g0, np.zeros(self.nla_g)
@@ -112,35 +125,35 @@ class Moreau:
         tk1 = self.tk + dt
 
         # position update
-        qk1 = self.qk + dt * self.model.q_dot(self.tk, self.qk, uk)
+        qk1 = self.qk + dt * self.system.q_dot(self.tk, self.qk, uk)
 
         # get quantities from model
-        M = self.model.M(tk1, qk1)
-        h = self.model.h(tk1, qk1, uk)
-        W_g = self.model.W_g(tk1, qk1)
-        W_gamma = self.model.W_gamma(tk1, qk1)
-        chi_g = self.model.g_dot(tk1, qk1, np.zeros_like(uk))
-        chi_gamma = self.model.gamma(tk1, qk1, np.zeros_like(uk))
-        W_N = self.model.W_N(
+        M = self.system.M(tk1, qk1)
+        h = self.system.h(tk1, qk1, uk)
+        W_g = self.system.W_g(tk1, qk1)
+        W_gamma = self.system.W_gamma(tk1, qk1)
+        chi_g = self.system.g_dot(tk1, qk1, np.zeros_like(uk))
+        chi_gamma = self.system.gamma(tk1, qk1, np.zeros_like(uk))
+        W_N = self.system.W_N(
             tk1, qk1, scipy_matrix=csr_matrix
         )  # csr for column slicing
-        W_F = self.model.W_F(
+        W_F = self.system.W_F(
             tk1, qk1, scipy_matrix=csr_matrix
         )  # csr for column slicing
 
-        prox_r_N = self.model.prox_r_N(tk1, qk1)
-        prox_r_F = self.model.prox_r_F(tk1, qk1)
-        mu = self.model.mu
+        prox_r_N = self.system.prox_r_N(tk1, qk1)
+        prox_r_F = self.system.prox_r_F(tk1, qk1)
+        mu = self.system.mu
 
         # identify active normal and tangential contacts
-        g_N = self.model.g_N(tk1, qk1)
+        g_N = self.system.g_N(tk1, qk1)
         I_N = g_N <= 0
         if np.any(I_N):
             I_F = np.array(
                 [
                     c
                     for i, I_N_i in enumerate(I_N)
-                    for c in self.model.NF_connectivity[i]
+                    for c in self.system.NF_connectivity[i]
                     if I_N_i
                 ],
                 dtype=int,
@@ -201,11 +214,11 @@ class Moreau:
                 # fixed-point update normal direction
                 P_Nk1_i1[I_N] = prox_R0_np(
                     P_Nk1_i[I_N]
-                    - prox_r_N[I_N] * self.model.xi_N(tk1, qk1, uk, uk1)[I_N]
+                    - prox_r_N[I_N] * self.system.xi_N(tk1, qk1, uk, uk1)[I_N]
                 )
 
                 # fixed-point update friction
-                xi_F = self.model.xi_F(tk1, qk1, uk, uk1)
+                xi_F = self.system.xi_F(tk1, qk1, uk, uk1)
                 for i_N, i_F in enumerate(self.NF_connectivity):
                     if I_N[i_N] and len(i_F):
                         P_Fk1_i1[i_F] = prox_sphere(
@@ -295,6 +308,20 @@ class Moreau:
                 self.P_Nk,
                 self.P_Fk,
             ) = (tk1, qk1, uk1, P_gk1, P_gammak1, P_Nk1, P_Fk1)
+
+        # tmp = {
+        #     "t": np.array(self.t),
+        #     "q": np.array(q),
+        #     "u": np.array(u),
+        #     "P_g": np.array(P_g),
+        #     "P_gamma": np.array(P_gamma),
+        #     "P_N": np.array(P_N),
+        #     "P_F": np.array(P_F),
+        #     # P_g=np.array(P_g),
+        #     # P_gamma=np.array(P_gamma),
+        #     # P_N=np.array(P_N),
+        #     # P_F=np.array(P_F),
+        # }
 
         return Solution(
             t=np.array(self.t),

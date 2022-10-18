@@ -17,7 +17,27 @@ def load_solution(filename):
 class Solution:
     """Class to store solver outputs."""
 
-    def __init__(self, **kwargs):
+    def __init__(
+        self,
+        t,
+        q,
+        u=None,
+        u_dot=None,
+        la_g=None,
+        la_gamma=None,
+        la_N=None,
+        la_F=None,
+        **kwargs
+    ):
+        self.t = t
+        self.q = q
+        self.u = u
+        self.u_dot = u_dot
+        self.la_g = la_g
+        self.la_gamma = la_gamma
+        self.la_N = la_N
+        self.la_F = la_F
+
         self.__dict__.update(**kwargs)
 
     def save(self, filename):

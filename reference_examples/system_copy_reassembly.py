@@ -26,7 +26,9 @@ if __name__ == "__main__":
     frame = Frame()
 
     q0 = np.array([0.01, 0.01, -L * 0.9])
-    mass = PointMass(m, q0=q0, u0=np.zeros(3))
+    u0 = np.zeros(3, dtype=float)
+    # u0 = np.array([0, 0, 1], dtype=float)
+    mass = PointMass(m, q0=q0, u0=u0)
 
     f_g_value = np.array([0, 0, -m * g])
     f_g_statics = Force(lambda t: t * f_g_value, mass)
