@@ -1,4 +1,4 @@
-from cardillo.solver.Solution import Solution
+from cardillo.solver.solution import Solution
 
 import numpy as np
 from scipy.sparse import csr_matrix, bmat, lil_matrix

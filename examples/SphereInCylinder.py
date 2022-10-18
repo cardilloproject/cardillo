@@ -17,7 +17,7 @@ from cardillo.solver import (
     NonsmoothGeneralizedAlpha,
     NonsmoothGenAlphaFirstOrder,
     NonsmoothNewmark,
-    NonsmoothHalfExplicitEuler,
+    NonsmoothHalfExplicitRungeKutta,
     NonsmoothHalfExplicitEulerGGL,
     Remco,
     NonsmoothDecoupled,
@@ -89,7 +89,7 @@ if __name__ == "__main__":
     # solver_n = NonsmoothTheta(model, t1, dt)
     # solver_n = NonsmoothGenAlphaFirstOrder(model, t1, dt, rho_inf=0.85)
     # solver_n = NonsmoothNewmark(model, t1, dt)
-    solver_n = NonsmoothHalfExplicitEuler(model, t1, dt)
+    solver_n = NonsmoothHalfExplicitRungeKutta(model, t1, dt)
     # solver_n = NonsmoothHalfExplicitEulerGGL(model, t1, dt)
     # solver_n = Remco(model, t1, dt)
     # solver_n = NonsmoothDecoupled(model, t1, dt)
@@ -104,7 +104,7 @@ if __name__ == "__main__":
         NonsmoothEulerBackwardsGGL,
         NonsmoothEulerBackwardsGGL_V2,
         NonsmoothEulerBackwardsGGL_V3,
-        NonsmoothHalfExplicitEuler,
+        NonsmoothHalfExplicitRungeKutta,
         NonsmoothHalfExplicitEulerGGL,
         Remco,
     ]:

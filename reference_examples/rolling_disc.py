@@ -18,7 +18,8 @@ from cardillo.solver import (
     EulerBackward,
     GeneralizedAlphaFirstOrder,
     NonsmoothDecoupled,
-    NonsmoothHalfExplicitEuler,
+    NonsmoothHalfExplicitRungeKutta,
+    NonsmoothPartitionedHalfExplicitEuler,
 )
 
 
@@ -128,7 +129,7 @@ def state():
     Lesaux2005: https://doi.org/10.1007/s00332-004-0655-4
     """
     t0 = 0
-    # t1 = 2 * np.pi / np.abs(alpha_dot0) * 0.05
+    # t1 = 2 * np.pi / np.abs(alpha_dot0) * 0.01
     t1 = 2 * np.pi / np.abs(alpha_dot0) * 0.25
     # t1 = 2 * np.pi / np.abs(alpha_dot0) * 0.3  # used for GAMM
     # t1 = 2 * np.pi / np.abs(alpha_dot0) * 0.5
@@ -140,19 +141,22 @@ def state():
     # dt = 1.0e-3
 
     # rho_inf = 0.99
-    # rho_inf = 0.96  # used for GAMM (high oszillations)
-    rho_inf = 0.85  # used for GAMM (low oszillations)
+    rho_inf = 0.96  # used for GAMM (high oszillations)
+    # rho_inf = 0.85  # used for GAMM (low oszillations)
     # rho_inf = 0.1
     # see Arnodl2016, p. 118
     tol = 1.0e-10
 
     # sol = ScipyIVP(model, t1, dt).solve()
     # sol = EulerBackward(model, t1, dt).solve()
-    # sol = NonsmoothHalfExplicitEuler(model, t1, dt).solve()
+    # sol = NonsmoothHalfExplicitRungeKutta(model, t1, dt).solve()
     sol = GeneralizedAlphaFirstOrder(model, t1, dt, rho_inf=rho_inf, tol=tol).solve()
-    # sol = GeneralizedAlphaFirstOrder(model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=1).solve()
+    # sol = GeneralizedAlphaFirstOrder(
+    #     model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=1
+    # ).solve()
     # sol = NonsmoothDecoupled(model, t1, dt).solve()
-    # sol = NonsmoothHalfExplicitEuler(model, t1, dt).solve()
+    # sol = NonsmoothHalfExplicitRungeKutta(model, t1, dt).solve()
+    # sol = NonsmoothPartitionedHalfExplicitEuler(model, t1, dt).solve()
 
     t = sol.t
     q = sol.q

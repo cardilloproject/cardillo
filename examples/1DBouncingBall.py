@@ -4,25 +4,13 @@ from math import pi
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
-from cardillo.model import System
+from cardillo import System
 
 from cardillo.solver import (
     Moreau,
-    NonsmoothEulerBackwardsGGL,
-    NonsmoothEulerBackwardsGGL_V2,
-    NonsmoothNewmarkGGL,
-    NonsmoothEulerBackwardsGGL_V3,
-    NonsmoothThetaGGL,
-    NonsmoothTheta,
-    NonsmoothGeneralizedAlpha,
-    NonsmoothGenAlphaFirstOrder,
-    NonsmoothNewmark,
-    Remco,
-    RemcoOriginal,
-    DecoupledNonsmoothHalfExplicitRungeKutta,
-    NonsmoothHalfExplicitEuler,
-    NonsmoothHalfExplicitEulerGGL,
     NonsmoothDecoupled,
+    NonsmoothPartitionedHalfExplicitEuler,
+    NonsmoothHalfExplicitRungeKutta,
 )
 
 
@@ -132,9 +120,9 @@ if __name__ == "__main__":
     ball = BouncingBall(m, g, radius, prox_r_N=prox_r_N, e_N=e_N, q0=q0, u0=u0)
 
     # assemble model
-    model = System()
-    model.add(ball)
-    model.assemble()
+    system = System()
+    system.add(ball)
+    system.assemble()
 
     # solver setup
     t0 = 0
@@ -142,28 +130,16 @@ if __name__ == "__main__":
     t1 = 2
     # dt = 1e-1
     # dt = 5e-2
-    # dt = 1e-2
-    dt = 5e-3
+    dt = 1e-2
+    # dt = 5e-3
     # dt = 1e-3
     # dt = 5e-4
 
     # solve problem
     # solver_other = NonsmoothGeneralizedAlpha(model, t1, dt)
-    # solver_other = Generalized_alpha_3(model, t1, dt, numerical_jacobian=True)
-    # solver_other = NonsmoothTheta(model, t1, dt, atol=1.0e-8)
-    # solver_other = NonsmoothThetaGGL(model, t1, dt)
-    # solver_other = NonsmoothEulerBackwardsGGL(model, t1, dt)
-    # solver_other = NonsmoothEulerBackwardsGGL_V2(model, t1, dt)
-    # solver_other = NonsmoothEulerBackwardsGGL_V3(model, t1, dt)
-    # solver_other = NonsmoothHalfExplicitEuler(model, t1, dt)
-    # solver_other = NonsmoothHalfExplicitEulerGGL(model, t1, dt)
-    # solver_other = NonsmoothNewmarkGGL(model, t1, dt)
-    # solver_other = NonsmoothGenAlphaFirstOrder(model, t1, dt, rho_inf=0.9)
-    # solver_other = NonsmoothNewmark(model, t1, dt)
-    # solver_other = RemcoOriginal(model, t1, dt)
-    # solver_other = Remco(model, t1, dt)
-    # solver_other = DecoupledNonsmoothHalfExplicitRungeKutta(model, t1, dt)
-    solver_other = NonsmoothDecoupled(model, t1, dt)
+    # solver_other = NonsmoothDecoupled(system, t1, dt)
+    solver_other = NonsmoothHalfExplicitRungeKutta(system, t1, dt)
+    # solver_other = NonsmoothPartitionedHalfExplicitEuler(system, t1, dt)
     sol_other = solver_other.solve()
     t = sol_other.t
     q = sol_other.q
@@ -172,26 +148,27 @@ if __name__ == "__main__":
     u_other = sol_other.u
     P_N_other = sol_other.P_N
     # P_F_other = sol_other.P_F
-    if type(solver_other) in [
-        NonsmoothThetaGGL,
-        NonsmoothEulerBackwardsGGL,
-        NonsmoothEulerBackwardsGGL_V2,
-        NonsmoothNewmarkGGL,
-        NonsmoothHalfExplicitEuler,
-        NonsmoothHalfExplicitEulerGGL,
-    ]:
+    # if type(solver_other) in [
+    #     NonsmoothThetaGGL,
+    #     NonsmoothEulerBackwardsGGL,
+    #     NonsmoothEulerBackwardsGGL_V2,
+    #     NonsmoothNewmarkGGL,
+    #     NonsmoothHalfExplicitRungeKutta,
+    #     NonsmoothHalfExplicitEulerGGL,
+    # ]:
+    try:
         a_other = np.zeros_like(u_other)
         a_other[1:] = (u_other[1:] - u_other[:-1]) / dt
         # la_N_other = sol_other.mu_N
         la_N_other = np.zeros_like(P_N_other)
         La_N_other = np.zeros_like(P_N_other)
         P_N_other = sol_other.P_N
-    else:
+    except:
         a_other = sol_other.a
         la_N_other = sol_other.la_N
         La_N_other = sol_other.La_N
 
-    sol_moreau = Moreau(model, t1, dt).solve()
+    sol_moreau = Moreau(system, t1, dt).solve()
     t_moreau = sol_moreau.t
     q_moreau = sol_moreau.q
     u_moreau = sol_moreau.u

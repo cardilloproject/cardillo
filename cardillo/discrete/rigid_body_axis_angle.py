@@ -40,7 +40,7 @@ class RigidBodyAxisAngle(RigidBodyBase):
         return q, u
 
     def q_dot(self, t, q, u):
-        q_dot = np.zeros(self.nq)
+        q_dot = np.zeros(self.nq, dtype=np.common_type(q, u))
         q_dot[:3] = u[:3]
         q_dot[3:] = self.B_omega(q) @ u[3:]
 
@@ -63,7 +63,7 @@ class RigidBodyAxisAngle(RigidBodyBase):
         coo.extend(self.q_dot_q_dense(t, q, u), (self.qDOF, self.qDOF))
 
     def q_ddot(self, t, q, u, u_dot):
-        q_ddot = np.zeros(self.nq)
+        q_ddot = np.zeros(self.nq, dtype=np.common_type(q, u, u_dot))
         q_ddot[:3] = u_dot[:3]
         q_ddot[3:] = self.B_omega(q) @ u_dot[3:]
 
@@ -71,7 +71,7 @@ class RigidBodyAxisAngle(RigidBodyBase):
         return q_ddot
 
     def B(self, t, q, coo):
-        B = np.zeros((self.nq, self.nu))
+        B = np.zeros((self.nq, self.nu), dtype=q.dtype)
         B[:3, :3] = np.eye(3)
         B[3:, 3:] = self.B_omega(q)
         coo.extend(B, (self.qDOF, self.uDOF))

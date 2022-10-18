@@ -37,7 +37,7 @@ class RigidBodyEuler(RigidBodyBase):
         super().__init__(m, K_theta_S, q0, u0)
 
     def q_dot(self, t, q, u):
-        q_dot = np.zeros(self.nq)
+        q_dot = np.zeros(self.nq, dtype=np.common_type(q, u))
         q_dot[:3] = u[:3]
         q_dot[3:] = self.Q(q) @ u[3:]
 
@@ -46,7 +46,7 @@ class RigidBodyEuler(RigidBodyBase):
     def Q(self, q):
         A_K2 = self.A_2K(q).T
         A_K1 = A_K2 @ self.A_12(q).T
-        H = np.zeros((3, 3))
+        H = np.zeros((3, 3), dtype=q.dtype)
         H[:, 0] = A_K1 @ self.e1
         H[:, 1] = A_K2 @ self.e2
         H[:, 2] = self.e3
@@ -60,12 +60,12 @@ class RigidBodyEuler(RigidBodyBase):
         A_K1_q = 0
         A_K2_q = 0
 
-        H = np.zeros((3, 3), dtype=float)
+        H = np.zeros((3, 3), dtype=q.dtype)
         H[:, 0] = A_K1 @ self.e1
         H[:, 1] = A_K2 @ self.e2
         H[:, 2] = self.e3
 
-        H_q = np.zeros((3, 3, self.nq), dtype=float)
+        H_q = np.zeros((3, 3, self.nq), dtype=q.dtype)
         H_q[:, 0] = np.einsum("ikj,k", A_K1_q, self.e1)
         H_q[:, 1] = np.einsum("ikj,k", A_K2_q, self.e1)
 
@@ -74,7 +74,7 @@ class RigidBodyEuler(RigidBodyBase):
         return np.einsum("il,lmk,mj->ijk", -Hinv, H_q, Hinv)
 
     def q_ddot(self, t, q, u, u_dot):
-        q_ddot = np.zeros(self.nq)
+        q_ddot = np.zeros(self.nq, dtype=np.common_type(q, u, u_dot))
         q_ddot[:3] = u_dot[:3]
         q_ddot[3:] = self.Q(q) @ u_dot[3:]
 
@@ -87,7 +87,7 @@ class RigidBodyEuler(RigidBodyBase):
         coo.extend(dense, (self.qDOF, self.qDOF))
 
     def B(self, t, q, coo):
-        B = np.zeros((self.nq, self.nu))
+        B = np.zeros((self.nq, self.nu), dtype=q.dtype)
         B[:3, :3] = np.eye(3)
         B[3:, 3:] = self.Q(q)
         coo.extend(B, (self.qDOF, self.uDOF))
@@ -96,7 +96,7 @@ class RigidBodyEuler(RigidBodyBase):
         return self.A_I1(q) @ self.A_12(q) @ self.A_2K(q)
 
     def A_IK_q(self, t, q, frame_ID=None):
-        A_IK_q = np.zeros((3, 3, self.nq))
+        A_IK_q = np.zeros((3, 3, self.nq), dtpe=q.dtype)
         A_IK_q[:, :, 3] = self.dA_I1(q) @ self.A_12(q) @ self.A_2K(q)
         A_IK_q[:, :, 4] = self.A_I1(q) @ self.dA_12(q) @ self.A_2K(q)
         A_IK_q[:, :, 5] = self.A_I1(q) @ self.A_12(q) @ self.dA_2K(q)

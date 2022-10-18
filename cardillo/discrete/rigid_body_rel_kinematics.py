@@ -4,7 +4,8 @@ from cardillo.math.algebra import (
     cross3,
     ax2skew,
 )
-from cardillo.math.numerical_derivative import Numerical_derivative
+
+from cardillo.math import approx_fprime
 
 
 class RigidBodyRelKinematics:
@@ -283,9 +284,7 @@ class RigidBodyRelKinematics:
         return v_B2 + v_B2P
 
     def v_P_q(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
-        return Numerical_derivative(
-            lambda t, q, u: self.v_P(t, q, u, frame_ID=frame_ID, K_r_SP=K_r_SP)
-        )._x(t, q, u)
+        return approx_fprime(q, lambda q: self.v_P(t, q, u, frame_ID=frame_ID, K_r_SP=K_r_SP), method="3-point")
 
     def J_P(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
         # J_P_num = np.zeros((3, self.__nu))
