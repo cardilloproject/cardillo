@@ -1,5 +1,5 @@
 from cardillo.math import approx_fprime
-from cardillo.solver.Solution import Solution
+from cardillo.solver.solution import Solution
 
 import numpy as np
 from scipy.sparse.linalg import spsolve

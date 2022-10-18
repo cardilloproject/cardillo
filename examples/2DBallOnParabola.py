@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from cardillo.math.algebra import norm
-from cardillo.math.numerical_derivative import approx_fprime
+from cardillo.math import approx_fprime
 
 from cardillo import System
 

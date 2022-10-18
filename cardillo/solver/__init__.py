@@ -1,5 +1,5 @@
 # solution class and IO
-from .Solution import Solution, save_solution, load_solution
+from .solution import Solution, save_solution, load_solution
 
 # dynamic solvers
 from .ScipyIVP import ScipyIVP
