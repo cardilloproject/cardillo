@@ -13,8 +13,8 @@ from cardillo.forces import (
 from cardillo.constraints import SphericalJoint
 from cardillo.math import norm
 
-case = "force"
-# case = "constraint"
+# case = "force"
+case = "constraint"
 
 if __name__ == "__main__":
     m = 1
@@ -31,6 +31,10 @@ if __name__ == "__main__":
     f_g_value = np.array([0, 0, -m * g])
     f_g_statics = Force(lambda t: t * f_g_value, mass)
 
+    r_OP = lambda t: np.array([0, 0, -L * (1 + 0.5 * t)])
+    frame2 = Frame(r_OP=r_OP)
+    joint = SphericalJoint(frame2, mass, r_OB=r_OP(0))
+
     linear_spring = LinearSpring(k, g_ref=L)
     linear_damper = LinearDamper(d)
     scalar_force_element = ScalarForceTranslational(
@@ -40,8 +44,11 @@ if __name__ == "__main__":
     system = System()
     system.add(frame)
     system.add(mass)
-    # if case == "force":
-    system.add(f_g_statics)
+    if case == "force":
+        system.add(f_g_statics)
+    if case == "constraint":
+        system.add(frame2)
+        system.add(joint)
     system.add(scalar_force_element)
     system.assemble()
 
@@ -72,9 +79,15 @@ if __name__ == "__main__":
         #     contr.u0 = u0[contr.uDOF]
 
     # replace static gravity contribution with dynamic one
-    system.remove(f_g_statics)
-    f_g_dynamics = Force(f_g_value, mass)
-    system.add(f_g_dynamics)
+    if case == "force":
+        system.remove(f_g_statics)
+        f_g_dynamics = Force(f_g_value, mass)
+        system.add(f_g_dynamics)
+
+    # remove joint contribution from the system
+    if case == "constraint":
+        system.remove(frame2)
+        system.remove(joint)
 
     # reassemble the model
     system.assemble()
