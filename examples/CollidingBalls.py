@@ -11,8 +11,6 @@ from cardillo.contacts import Sphere2Plane, Sphere2Sphere
 
 from cardillo.solver import (
     Moreau,
-    NonsmoothHalfExplicitRungeKutta,
-    NonsmoothPartitionedHalfExplicitEuler,
     NonsmoothBackwardEulerDecoupled,
 )
 
@@ -117,23 +115,23 @@ if __name__ == "__main__":
     #     1, 0.5, np.array([2.0 * (1.0 + eps), y0, 0]), np.array([0, 0, 0])
     # )
 
-    # balls = [ball1, ball2, ball3, ball4]
-    balls = [ball1, ball2, ball3]
+    balls = [ball1, ball2, ball3, ball4]
+    # balls = [ball1, ball2, ball3]
 
     # assemble model
-    model = System()
+    system = System()
     for ball in balls:
-        model.add(ball)
-        model.add(add_ground_contact(ball, 0, e_N))
+        system.add(ball)
+        system.add(add_ground_contact(ball, 0, e_N))
     n_balls = len(balls)
     for i in range(n_balls):
         for j in range(i + 1, n_balls):
-            model.add(
+            system.add(
                 Sphere2Sphere(
                     balls[i], balls[j], balls[i].radius, balls[j].radius, e_N, prox_r_N
                 )
             )
-    model.assemble()
+    system.assemble()
 
     # solver setup
     t0 = 0
@@ -150,11 +148,10 @@ if __name__ == "__main__":
     # dt = 1e-4
 
     # solve problem
-    # solver_other = NonsmoothGeneralizedAlpha(model, t1, dt)
-    # solver_other = NonsmoothHalfExplicitRungeKutta(model, t1, dt)
-    solver_other = NonsmoothPartitionedHalfExplicitEuler(model, t1, dt)
-    # solver_other = Moreau(model, t1, dt)
-    # solver_other = NonsmoothDecoupled(model, t1, dt)
+    # solver_other = NonsmoothGeneralizedAlpha(system, t1, dt)
+    # solver_other = NonsmoothHalfExplicitRungeKutta(system, t1, dt)
+    # solver_other = Moreau(system, t1, dt)
+    solver_other = NonsmoothBackwardEulerDecoupled(system, t1, dt)
     sol_other = solver_other.solve()
     t = sol_other.t
     q = sol_other.q

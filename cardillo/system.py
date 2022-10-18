@@ -2,6 +2,7 @@ import numpy as np
 from cardillo.utility.coo import Coo
 from scipy.sparse import coo_matrix, csc_matrix, csr_matrix
 from scipy.sparse.linalg import spsolve
+from copy import deepcopy
 
 properties = []
 
@@ -45,9 +46,6 @@ class System:
 
         self.contributions = []
 
-        for p in properties:
-            setattr(self, f"_{self.__class__.__name__}__{p}_contr", [])
-
     def add(self, contr):
         if not contr in self.contributions:
             self.contributions.append(contr)
@@ -65,6 +63,49 @@ class System:
 
     def extend(self, contr_list):
         list(map(self.add, contr_list))
+
+    def deepcopy(self, solution):
+        # create copy of the system
+        system_copy = deepcopy(self)
+
+        # extract final generalized coordiantes and distribute to subsystems
+        q0 = solution.q[-1]
+        for contr in self.contributions:
+            if hasattr(contr, "nq"):
+                contr.q0 = q0[contr.qDOF]
+
+        # optionally distribute all other solution fields
+        if solution.u is not None:
+            u0 = solution.u[-1]
+            for contr in self.contributions:
+                if hasattr(contr, "nu"):
+                    contr.u0 = u0[contr.uDOF]
+
+        if solution.la_g is not None:
+            la_g0 = solution.la_g[-1]
+            for contr in self.contributions:
+                if hasattr(contr, "nla_g"):
+                    contr.la_g0 = la_g0[contr.la_gDOF]
+
+        if solution.la_gamma is not None:
+            la_gamma0 = solution.la_gamma[-1]
+            for contr in self.contributions:
+                if hasattr(contr, "nla_gamma"):
+                    contr.la_gamma0 = la_gamma0[contr.la_gammaDOF]
+
+        if solution.la_N is not None:
+            la_N0 = solution.la_N[-1]
+            for contr in self.contributions:
+                if hasattr(contr, "nla_N"):
+                    contr.la_N0 = la_N0[contr.la_NDOF]
+
+        if solution.la_F is not None:
+            la_F0 = solution.la_F[-1]
+            for contr in self.contributions:
+                if hasattr(contr, "nla_F"):
+                    contr.la_F0 = la_F0[contr.la_FDOF]
+
+        return system_copy
 
     def assemble(self):
         self.nq = 0
@@ -87,6 +128,9 @@ class System:
         NF_connectivity = []
         N_has_friction = []
         Ncontr_connectivity = []
+
+        for p in properties:
+            setattr(self, f"_{self.__class__.__name__}__{p}_contr", [])
 
         n_laN_contr = 0
         for contr in self.contributions:
