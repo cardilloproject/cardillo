@@ -178,7 +178,7 @@ class System:
     # kinematic equations
     #####################
     def q_dot(self, t, q, u):
-        q_dot = np.zeros(self.nq)
+        q_dot = np.zeros(self.nq, dtype=np.common_type(q, u))
         for contr in self.__q_dot_contr:
             q_dot[contr.qDOF] = contr.q_dot(t, q[contr.qDOF], u[contr.uDOF])
         return q_dot
@@ -196,7 +196,7 @@ class System:
         return coo.tosparse(scipy_matrix)
 
     def q_ddot(self, t, q, u, u_dot):
-        q_ddot = np.zeros(self.nq)
+        q_ddot = np.zeros(self.nq, dtype=np.common_type(q, u, u_dot))
         for contr in self.__q_dot_contr:
             q_ddot[contr.qDOF] = contr.q_ddot(
                 t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF]
@@ -267,16 +267,16 @@ class System:
     # bilateral constraints on position level
     #########################################
     def g(self, t, q):
-        g = np.zeros(self.nla_g)
+        g = np.zeros(self.nla_g, dtype=q.dtype)
         for contr in self.__g_contr:
             g[contr.la_gDOF] = contr.g(t, q[contr.qDOF])
         return g
 
-    def g_t(self, t, q):
-        g_t = np.zeros(self.nla_g)
-        for contr in self.__g_t_contr:
-            g_t[contr.la_gDOF] = contr.g_t(t, q[contr.qDOF])
-        return g_t
+    # def g_t(self, t, q):
+    #     g_t = np.zeros(self.nla_g, dtype=q.dtype)
+    #     for contr in self.__g_t_contr:
+    #         g_t[contr.la_gDOF] = contr.g_t(t, q[contr.qDOF])
+    #     return g_t
 
     def g_q(self, t, q, scipy_matrix=coo_matrix):
         coo = Coo((self.nla_g, self.nq))
@@ -284,11 +284,11 @@ class System:
             contr.g_q(t, q[contr.qDOF], coo)
         return coo.tosparse(scipy_matrix)
 
-    def g_q_T_mu_g(self, t, q, mu_g, scipy_matrix=coo_matrix):
-        coo = Coo((self.nq, self.nq))
-        for contr in self.__g_contr:
-            contr.g_q_T_mu_g(t, q[contr.qDOF], mu_g[contr.la_gDOF], coo)
-        return coo.tosparse(scipy_matrix)
+    # def g_q_T_mu_g(self, t, q, mu_g, scipy_matrix=coo_matrix):
+    #     coo = Coo((self.nq, self.nq))
+    #     for contr in self.__g_contr:
+    #         contr.g_q_T_mu_g(t, q[contr.qDOF], mu_g[contr.la_gDOF], coo)
+    #     return coo.tosparse(scipy_matrix)
 
     def W_g(self, t, q, scipy_matrix=coo_matrix):
         coo = Coo((self.nu, self.nla_g))
@@ -303,11 +303,12 @@ class System:
         return coo.tosparse(scipy_matrix)
 
     def g_dot(self, t, q, u):
-        g_dot = np.zeros(self.nla_g)
+        g_dot = np.zeros(self.nla_g, dtype=np.common_type(q, u))
         for contr in self.__g_contr:
             g_dot[contr.la_gDOF] = contr.g_dot(t, q[contr.qDOF], u[contr.uDOF])
         return g_dot
 
+    # TODO: Assemble chi_g for efficiency
     def chi_g(self, t, q):
         return self.g_dot(t, q, np.zeros(self.nu))
 
@@ -324,7 +325,7 @@ class System:
         return coo.tosparse(scipy_matrix)
 
     def g_ddot(self, t, q, u, u_dot):
-        g_ddot = np.zeros(self.nla_g)
+        g_ddot = np.zeros(self.nla_g, dtype=np.common_type(q, u, u_dot))
         for contr in self.__g_contr:
             g_ddot[contr.la_gDOF] = contr.g_ddot(
                 t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF]
@@ -343,6 +344,7 @@ class System:
             contr.g_ddot_u(t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF], coo)
         return coo.tosparse(scipy_matrix)
 
+    # TODO: Assemble zetag for efficency
     def zeta_g(self, t, q, u):
         return self.g_ddot(t, q, u, np.zeros(self.nu))
 
@@ -350,22 +352,24 @@ class System:
     # bilateral constraints on velocity level
     #########################################
     def gamma(self, t, q, u):
-        gamma = np.zeros(self.nla_gamma)
+        gamma = np.zeros(self.nla_gamma, dtype=np.common_type(q, u))
         for contr in self.__gamma_contr:
             gamma[contr.la_gammaDOF] = contr.gamma(t, q[contr.qDOF], u[contr.uDOF])
         return gamma
 
+    # TODO: Assemble chi_gamma for efficency
     def chi_gamma(self, t, q):
         return self.gamma(t, q, np.zeros(self.nu))
 
     def gamma_dot(self, t, q, u, u_dot):
-        gamma_dot = np.zeros(self.nla_gamma)
+        gamma_dot = np.zeros(self.nla_gamma, dtype=np.common_type(q, u, u_dot))
         for contr in self.__gamma_contr:
             gamma_dot[contr.la_gammaDOF] = contr.gamma_dot(
                 t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF]
             )
         return gamma_dot
 
+    # TODO: Assemble zeta_gamma for efficency
     def zeta_gamma(self, t, q, u):
         return self.gamma_dot(t, q, u, np.zeros(self.nu))
 
@@ -403,7 +407,7 @@ class System:
     # stabilization conditions for the kinematic equation
     #####################################################
     def g_S(self, t, q):
-        g_S = np.zeros(self.nla_S)
+        g_S = np.zeros(self.nla_S, dtype=q.dtype)
         for contr in self.__g_S_contr:
             g_S[contr.la_SDOF] = contr.g_S(t, q[contr.qDOF])
         return g_S
@@ -423,10 +427,10 @@ class System:
         try:
             return 1.0 / csr_matrix(W_N.T @ spsolve(M, W_N)).diagonal()
         except:
-            return np.ones(self.nla_N, dtype=float)
+            return np.ones(self.nla_N, dtype=q.dtype)
 
     def g_N(self, t, q):
-        g_N = np.zeros(self.nla_N)
+        g_N = np.zeros(self.nla_N, dtype=q.dtype)
         for contr in self.__g_N_contr:
             g_N[contr.la_NDOF] = contr.g_N(t, q[contr.qDOF])
         return g_N
@@ -444,21 +448,21 @@ class System:
         return coo.tosparse(scipy_matrix)
 
     def g_N_dot(self, t, q, u):
-        g_N_dot = np.zeros(self.nla_N)
+        g_N_dot = np.zeros(self.nla_N, dtype=np.common_type(q, u))
         for contr in self.__g_N_contr:
             g_N_dot[contr.la_NDOF] = contr.g_N_dot(t, q[contr.qDOF], u[contr.uDOF])
         return g_N_dot
 
-    def g_N_ddot(self, t, q, u, a):
-        g_N_ddot = np.zeros(self.nla_N)
+    def g_N_ddot(self, t, q, u, u_dot):
+        g_N_ddot = np.zeros(self.nla_N, dtype=np.common_type(q, u, u_dot))
         for contr in self.__g_N_contr:
             g_N_ddot[contr.la_NDOF] = contr.g_N_ddot(
-                t, q[contr.qDOF], u[contr.uDOF], a[contr.uDOF]
+                t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF]
             )
         return g_N_ddot
 
     def xi_N(self, t, q, u_pre, u_post):
-        xi_N = np.zeros(self.nla_N)
+        xi_N = np.zeros(self.nla_N, dtype=np.common_type(q, u_pre, u_post))
         for contr in self.__g_N_contr:
             xi_N[contr.la_NDOF] = contr.g_N_dot(
                 t, q[contr.qDOF], u_post[contr.uDOF]
@@ -471,8 +475,9 @@ class System:
             contr.xi_N_q(t, q[contr.qDOF], u_pre[contr.uDOF], u_post[contr.uDOF], coo)
         return coo.tosparse(scipy_matrix)
 
+    # TODO: Assemble chi_N for efficency
     def chi_N(self, t, q):
-        return self.g_N_dot(t, q, np.zeros(self.nu))
+        return self.g_N_dot(t, q, np.zeros(self.nu), dtype=q.dtype)
 
     def g_N_dot_u(self, t, q, scipy_matrix=coo_matrix):
         coo = Coo((self.nla_N, self.nu))
@@ -507,24 +512,24 @@ class System:
         try:
             return 1.0 / csr_matrix(W_F.T @ spsolve(M, W_F)).diagonal()
         except:
-            return np.ones(self.nla_N, dtype=float)
+            return np.ones(self.nla_N, dtype=q.dtype)
 
     def gamma_F(self, t, q, u):
-        gamma_F = np.zeros(self.nla_F)
+        gamma_F = np.zeros(self.nla_F, dtype=np.common_type(q, u))
         for contr in self.__gamma_F_contr:
             gamma_F[contr.la_FDOF] = contr.gamma_F(t, q[contr.qDOF], u[contr.uDOF])
         return gamma_F
 
-    def gamma_F_dot(self, t, q, u, a):
-        gamma_F_dot = np.zeros(self.nla_F)
+    def gamma_F_dot(self, t, q, u, u_dot):
+        gamma_F_dot = np.zeros(self.nla_F, dtype=np.common_type(q, u, u_dot))
         for contr in self.__gamma_F_contr:
             gamma_F_dot[contr.la_FDOF] = contr.gamma_F_dot(
-                t, q[contr.qDOF], u[contr.uDOF], a[contr.uDOF]
+                t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF]
             )
         return gamma_F_dot
 
     def xi_F(self, t, q, u_pre, u_post):
-        xi_F = np.zeros(self.nla_F)
+        xi_F = np.zeros(self.nla_F, dtype=np.common_type(q, u_pre, u_post))
         for contr in self.__gamma_F_contr:
             xi_F[contr.la_FDOF] = contr.gamma_F(
                 t, q[contr.qDOF], u_post[contr.uDOF]
