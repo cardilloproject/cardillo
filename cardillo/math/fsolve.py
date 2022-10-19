@@ -1,7 +1,26 @@
 import numpy as np
+from warnings import warn
 from scipy.sparse import csc_matrix
-from scipy.sparse.linalg import spsolve
+from scipy.sparse.linalg import spsolve, lsqr
 from cardillo.math import approx_fprime
+
+# def linear__solver(A, b):
+#     return spsolve(A, b)
+
+#     # return lsqr(A, b, atol=1.0e-12, btol=1.0e-12)[0]
+
+#     # # no underflow errors
+#     # return np.linalg.lstsq(A.toarray(), b, rcond=None)[0]
+
+#     # # TODO: Can we get this sparse?
+#     # # using QR decomposition, see https://de.wikipedia.org/wiki/QR-Zerlegung#L%C3%B6sung_regul%C3%A4rer_oder_%C3%BCberbestimmter_Gleichungssysteme
+#     # Q, R = np.linalg.qr(A.toarray())
+#     # z = Q.T @ b
+#     # return np.linalg.solve(R, z)  # solving R*x = Q^T*b
+
+#     # # solve normal equation (should be independent of the conditioning
+#     # # number!)
+#     # return spsolve(A.T @ A, A.T @ b)
 
 
 def fsolve(
@@ -42,13 +61,12 @@ def fsolve(
         i += 1
         J = jac(x, *jac_args)
         x -= spsolve(J, f)
+        # x -= linear__solver(J, f)
         f = fun(x, *fun_args)
         error = error_function(f)
         converged = error <= atol
 
     if not converged:
-        raise RuntimeWarning(
-            "fsolve is not converged after {i} iterations with error {error:2.3f}"
-        )
+        warn(f"fsolve is not converged after {i} iterations with error {error:2.3f}")
 
     return x, converged, error, i, f

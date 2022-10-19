@@ -1,4 +1,5 @@
 import numpy as np
+from warnings import warn
 
 from cardillo.utility.coo import Coo
 from cardillo.discretization.lagrange import LagrangeKnotVector
@@ -1307,17 +1308,17 @@ class DirectorAxisAngle:
         N_psi, _ = self.basis_functions_psi(frame_ID[0])
 
         # interpolate orientation
-        A_IK = np.zeros((3, 3), dtype=q.dtype)
+        A_IK = np.zeros((3, 3), dtype=np.common_type(q, u))
         for node in range(self.nnodes_element_psi):
             A_IK += N_psi[node] * Exp_SO3(q[self.nodalDOF_element_psi[node]])
 
         # angular velocity in K-frame
-        K_Omega = np.zeros(3, dtype=float)
+        K_Omega = np.zeros(3, dtype=np.common_type(q, u))
         for node in range(self.nnodes_element_psi):
             K_Omega += N_psi[node] * u[self.nodalDOF_element_psi[node]]
 
         # centerline velocity
-        v = np.zeros(3, dtype=float)
+        v = np.zeros(3, dtype=np.common_type(q, u))
         for node in range(self.nnodes_element_r):
             v += N_r[node] * u[self.nodalDOF_element_r[node]]
 
@@ -1325,8 +1326,8 @@ class DirectorAxisAngle:
 
     # TODO:
     def v_P_q(self, t, q, u, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
-        raise RuntimeError(
-            "Implement this derivative since it requires known parts only!"
+        warn(
+            f"Implement {__class__.__name__}.v_P_q since it requires known parts only."
         )
         v_P_q_num = approx_fprime(
             q, lambda q: self.v_P(t, q, u, frame_ID, K_r_SP), method="3-point"
@@ -1461,7 +1462,7 @@ class DirectorAxisAngle:
         angular velocities in the K-frame.
         """
         N_psi, _ = self.basis_functions_psi(frame_ID[0])
-        K_Omega = np.zeros(3, dtype=float)
+        K_Omega = np.zeros(3, dtype=np.common_type(q, u))
         for node in range(self.nnodes_element_psi):
             K_Omega += N_psi[node] * u[self.nodalDOF_element_psi[node]]
         return K_Omega

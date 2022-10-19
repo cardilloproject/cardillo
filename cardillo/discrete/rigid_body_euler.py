@@ -96,7 +96,7 @@ class RigidBodyEuler(RigidBodyBase):
         return self.A_I1(q) @ self.A_12(q) @ self.A_2K(q)
 
     def A_IK_q(self, t, q, frame_ID=None):
-        A_IK_q = np.zeros((3, 3, self.nq), dtpe=q.dtype)
+        A_IK_q = np.zeros((3, 3, self.nq), dtype=q.dtype)
         A_IK_q[:, :, 3] = self.dA_I1(q) @ self.A_12(q) @ self.A_2K(q)
         A_IK_q[:, :, 4] = self.A_I1(q) @ self.dA_12(q) @ self.A_2K(q)
         A_IK_q[:, :, 5] = self.A_I1(q) @ self.A_12(q) @ self.dA_2K(q)
