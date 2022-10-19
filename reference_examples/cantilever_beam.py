@@ -164,7 +164,6 @@ if __name__ == "__main__":
         n_load_steps=n_load_steps,
         max_iter=30,
         atol=1.0e-8,
-        numerical_jacobian=False,
     )
     sol = solver.solve()
     q = sol.q
