@@ -1,10 +1,12 @@
 import numpy as np
-from scipy.sparse import csr_matrix, bmat
+from scipy.sparse import csr_matrix, csc_matrix, lil_matrix, bmat, eye
 from scipy.sparse.linalg import splu, spsolve, lsqr
 from tqdm import tqdm
 
 from cardillo.solver import Solution
-from cardillo.math import prox_R0_np, prox_sphere, approx_fprime
+from cardillo.math import prox_R0_np, prox_sphere, approx_fprime, norm
+
+EPS_GAMMA_F = 1.0e-10
 
 
 class Moreau:
@@ -309,24 +311,14 @@ class Moreau:
                 self.P_Fk,
             ) = (tk1, qk1, uk1, P_gk1, P_gammak1, P_Nk1, P_Fk1)
 
-        # tmp = {
-        #     "t": np.array(self.t),
-        #     "q": np.array(q),
-        #     "u": np.array(u),
-        #     "P_g": np.array(P_g),
-        #     "P_gamma": np.array(P_gamma),
-        #     "P_N": np.array(P_N),
-        #     "P_F": np.array(P_F),
-        #     # P_g=np.array(P_g),
-        #     # P_gamma=np.array(P_gamma),
-        #     # P_N=np.array(P_N),
-        #     # P_F=np.array(P_F),
-        # }
-
         return Solution(
             t=np.array(self.t),
             q=np.array(q),
             u=np.array(u),
+            la_g=np.array(P_g) / self.dt,
+            la_gamma=np.array(P_gamma) / self.dt,
+            la_N=np.array(P_N) / self.dt,
+            la_F=np.array(P_F) / self.dt,
             P_g=np.array(P_g),
             P_gamma=np.array(P_gamma),
             P_N=np.array(P_N),
@@ -670,42 +662,42 @@ class NonsmoothBackwardEulerDecoupled:
         for i_N, i_F in enumerate(self.model.NF_connectivity):
             i_F = np.array(i_F)
 
-            # if len(i_F) > 0:
-            #     la_Fk1_free_local = la_Fk1_free[i_F]
-            #     if self.I_Nk1[i_N]:
-            #         gamma_Fk1_local = gamma_Fk1[i_F]
-            #         la_Nk1_free_local = la_Nk1_free[i_N]
-            #         prox_arg_friction = (
-            #             prox_r_F[i_F] * gamma_Fk1_local - la_Fk1_free_local
-            #         )
-            #         radius = mu[i_N] * la_Nk1_free_local
-            #         if norm(prox_arg_friction) <= radius:
-            #             Rx[nq + nu + nla_g + nla_gamma + nla_N + i_F] = gamma_Fk1_local
-            #         else:
-            #             gamma_Fk1_local_norm = norm(gamma_Fk1_local)
-            #             if gamma_Fk1_local_norm > 0:
-            #                 Rx[nq + nu + nla_g + nla_gamma + nla_N + i_F] = (
-            #                     la_Fk1_free_local
-            #                     + radius * gamma_Fk1_local / gamma_Fk1_local_norm
-            #                 )
-            #             else:
-            #                 Rx[nq + nu + nla_g + nla_gamma + nla_N + i_F] = (
-            #                     la_Fk1_free_local + radius * gamma_Fk1_local
-            #                 )
-            #     else:
-            #         Rx[nq + nu + nla_g + nla_gamma + nla_N + i_F] = la_Fk1_free_local
-
             if len(i_F) > 0:
-                Rx[nq + nu + nla_g + nla_gamma + nla_N + i_F] = np.where(
-                    self.I_Nk1[i_N] * np.ones(len(i_F), dtype=bool),
-                    -la_Fk1_free[i_F]
-                    - prox_sphere(
-                        -la_Fk1_free[i_F] + prox_r_F[i_N] * gamma_Fk1[i_F],
-                        # -la_Fk1_free[i_F] + prox_r_F[i_N] * xi_Fk1[i_F],
-                        mu[i_N] * la_Nk1_free[i_N],
-                    ),
-                    la_Fk1_free[i_F],
-                )
+                la_Fk1_free_local = la_Fk1_free[i_F]
+                if self.I_Nk1[i_N]:
+                    gamma_Fk1_local = gamma_Fk1[i_F]
+                    la_Nk1_free_local = la_Nk1_free[i_N]
+                    prox_arg_friction = (
+                        prox_r_F[i_F] * gamma_Fk1_local - la_Fk1_free_local
+                    )
+                    radius = mu[i_N] * la_Nk1_free_local
+                    if norm(prox_arg_friction) <= radius:
+                        Rx[nq + nu + nla_g + nla_gamma + nla_N + i_F] = gamma_Fk1_local
+                    else:
+                        gamma_Fk1_local_norm = norm(gamma_Fk1_local)
+                        if gamma_Fk1_local_norm > EPS_GAMMA_F:
+                            Rx[nq + nu + nla_g + nla_gamma + nla_N + i_F] = (
+                                la_Fk1_free_local
+                                + radius * gamma_Fk1_local / gamma_Fk1_local_norm
+                            )
+                        else:
+                            Rx[nq + nu + nla_g + nla_gamma + nla_N + i_F] = (
+                                la_Fk1_free_local + radius * gamma_Fk1_local
+                            )
+                else:
+                    Rx[nq + nu + nla_g + nla_gamma + nla_N + i_F] = la_Fk1_free_local
+
+            # if len(i_F) > 0:
+            #     Rx[nq + nu + nla_g + nla_gamma + nla_N + i_F] = np.where(
+            #         self.I_Nk1[i_N] * np.ones(len(i_F), dtype=bool),
+            #         -la_Fk1_free[i_F]
+            #         - prox_sphere(
+            #             -la_Fk1_free[i_F] + prox_r_F[i_N] * gamma_Fk1[i_F],
+            #             # -la_Fk1_free[i_F] + prox_r_F[i_N] * xi_Fk1[i_F],
+            #             mu[i_N] * la_Nk1_free[i_N],
+            #         ),
+            #         la_Fk1_free[i_F],
+            #     )
 
         # update quantities of new time step
         self.tk1 = tk1
@@ -720,8 +712,8 @@ class NonsmoothBackwardEulerDecoupled:
 
     def Jx(self, xk1):
         # return csr_matrix(approx_fprime(xk1, self.Rx, method="2-point"))
-        # return csr_matrix(approx_fprime(xk1, self.Rx, method="3-point"))
-        return csr_matrix(approx_fprime(xk1, self.Rx, method="cs", eps=1.0e-10))
+        # # return csr_matrix(approx_fprime(xk1, self.Rx, method="3-point"))
+        # # return csr_matrix(approx_fprime(xk1, self.Rx, method="cs", eps=1.0e-10))
 
         nq = self.nq
         nu = self.nu
@@ -747,7 +739,8 @@ class NonsmoothBackwardEulerDecoupled:
         W_gk1 = self.model.W_g(tk1, qk1, scipy_matrix=csr_matrix)
         W_gammak1 = self.model.W_gamma(tk1, qk1, scipy_matrix=csr_matrix)
         W_Nk1 = self.model.W_N(tk1, qk1, scipy_matrix=csr_matrix)
-        W_Fk1 = self.model.W_F(tk1, qk1, scipy_matrix=csr_matrix)
+        # note: csc.T gives csr for efficient row slicing
+        W_Fk1 = self.model.W_F(tk1, qk1, scipy_matrix=csc_matrix)
         # gk1 = self.model.g(tk1, qk1)
         # gammak1 = self.model.gamma(tk1, qk1, uk1_free)
         # g_Nk1 = self.model.g_N(tk1, qk1)
@@ -814,7 +807,7 @@ class NonsmoothBackwardEulerDecoupled:
         #     + nla_N
         # ] = g_Nk1 - prox_R0_np(prox_arg)
 
-        prox_r_N = self.model.prox_r_N(tk1, qk1)
+        # prox_r_N = self.model.prox_r_N(tk1, qk1)
         # note: csr_matrix is best for row slicing, see
         # (https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csr_matrix.html#scipy.sparse.csr_matrix)
         g_Nk1_qk1 = self.model.g_N_q(tk1, qk1, scipy_matrix=csr_matrix)
@@ -822,10 +815,11 @@ class NonsmoothBackwardEulerDecoupled:
         J_la_Nk1_qk1 = lil_matrix((self.nla_N, self.nq))
         J_la_Nk1_la_Nk1 = lil_matrix((self.nla_N, self.nla_N))
         for i in range(self.nla_N):
-            if self.I_Nk1:
+            if self.I_Nk1[i]:
                 J_la_Nk1_qk1[i] = g_Nk1_qk1[i]
             else:
-                J_la_Nk1_la_Nk1[i, i] = prox_r_N[i]
+                # J_la_Nk1_la_Nk1[i, i] = prox_r_N[i]
+                J_la_Nk1_la_Nk1[i, i] = 1.0
 
         J_la_Nk1_q_dotk1 = J_la_Nk1_qk1 * qk1_q_dotk1
 
@@ -834,74 +828,60 @@ class NonsmoothBackwardEulerDecoupled:
         ##########
         prox_r_F = self.model.prox_r_F(tk1, qk1)
         gamma_Fk1_qk1 = self.model.gamma_F_q(
-            tk1, qk1, uk1_free, scipy_matrix=csc_matrix
+            tk1, qk1, uk1_free, scipy_matrix=csr_matrix
         )
         gamma_Fk1_uk1 = W_Fk1.T
 
         J_la_Fk1_qk1 = lil_matrix((self.nla_F, self.nq))
         J_la_Fk1_uk1_free = lil_matrix((self.nla_F, self.nu))
+        J_la_Fk1_la_Nk1 = lil_matrix((self.nla_F, self.nla_N))
         J_la_Fk1_la_Fk1 = lil_matrix((self.nla_F, self.nla_F))
         for i_N, i_F in enumerate(self.model.NF_connectivity):
             i_F = np.array(i_F)
 
-            if len(i_F) > 0:
-                if self.I_Nk1[i]:
-                    gamma_Fk1i = gamma_Fk1[i_F]
-                    gamma_Fk1_qk1i = gamma_Fk1_qk1[i_F]
-                    gamma_Fk1_uk1i = gamma_Fk1_uk1[i_F]
-                    prox_arg_sphere = -la_Fk1_free[i_F] + prox_r_F[i_N] * gamma_Fk1i
-                    norm_prox_arg_sphere = norm(prox_arg_sphere)
-                    prox_radius = mu[i_N] * la_Nk1_free[i_N]
+            n_F = len(i_F)
+            if n_F > 0:
+                la_Fk1_free_local = la_Fk1_free[i_F]
+                if self.I_Nk1[i_N]:
+                    gamma_Fk1_local = gamma_Fk1[i_F]
+                    la_Nk1_free_local = la_Nk1_free[i_N]
+                    prox_arg_friction = (
+                        prox_r_F[i_F] * gamma_Fk1_local - la_Fk1_free_local
+                    )
+                    radius = mu[i_N] * la_Nk1_free_local
 
-                    if norm_prox_arg_sphere <= prox_radius:
-                        # stick case
-                        J_la_Fk1_qk1[i_F] = prox_r_F[i_N] * gamma_Fk1_qk1i
-                        J_la_Fk1_uk1_free[i_F] = prox_r_F[i_N] * gamma_Fk1_uk1i
+                    eyeF = np.eye(n_F, dtype=float)
+                    if norm(prox_arg_friction) <= radius:
+                        factor = eyeF
                     else:
-                        # slip case
-                        norm_gamma_Fi = norm(gamma_Fk1i)
-                        norm_gamma_Fi2 = norm_gamma_Fi * norm_gamma_Fi
-                        if norm_gamma_Fi > 0:
-                            J_la_Fk1_qk1[i_F] = (
-                                mu[i_N] * la_Nk1_free[i_N] / norm_gamma_Fi
-                            ) * (
-                                gamma_Fk1_qk1i
-                                - np.outer(
-                                    gamma_Fk1i / norm_gamma_Fi2,
-                                    gamma_Fk1i @ gamma_Fk1_qk1i,
-                                )
-                            )
-                            J_la_Fk1_uk1_free[i_F] = (
-                                mu[i_N] * la_Nk1_free[i_N] / norm_gamma_Fi
-                            ) * (
-                                gamma_Fk1_uk1i
-                                - np.outer(
-                                    gamma_Fk1i / norm_gamma_Fi2,
-                                    gamma_Fk1i @ gamma_Fk1_uk1i,
-                                )
-                            )
-                            # TODO: derivative w.r.t. la_Nk1
-                        else:
-                            # TODO: zero velocity case
-                            pass
-                else:
-                    J_la_Fk1_la_Fk1[i_F, i_F] = la_Fk1_free[i_F]
+                        for j in i_F:
+                            J_la_Fk1_la_Fk1[j, j] = 1.0
 
-                # Rx[nq + nu + nla_g + nla_gamma + nla_N + i_F] = np.where(
-                #     self.I_Nk1[i_N] * np.ones(len(i_F), dtype=bool),
-                #     -la_Fk1_free[i_F]
-                #     - prox_sphere(
-                #         -la_Fk1_free[i_F] + prox_r_F[i_N] * xi_Fk1[i_F],
-                #         mu[i_N] * la_Nk1_free[i_N],
-                #     ),
-                #     la_Fk1_free[i_F],
-                # )
+                        gamma_Fk1_local_norm = norm(gamma_Fk1_local)
+                        if gamma_Fk1_local_norm > EPS_GAMMA_F:
+                            slip_dir = gamma_Fk1_local / gamma_Fk1_local_norm
+                            factor = (radius / gamma_Fk1_local_norm) * (
+                                eyeF - np.outer(slip_dir, slip_dir)
+                            )
+
+                            J_la_Fk1_la_Nk1[i_F, i_N] = mu[i_N] * slip_dir
+                        else:
+                            factor = radius * eyeF
+
+                            J_la_Fk1_la_Nk1[i_F, i_N] = mu[i_N] * gamma_Fk1_local
+
+                    # same chain rule for different factors
+                    J_la_Fk1_qk1[i_F] = factor @ gamma_Fk1_qk1[i_F]
+                    J_la_Fk1_uk1_free[i_F] = factor @ gamma_Fk1_uk1[i_F]
+                else:
+                    for j in i_F:
+                        J_la_Fk1_la_Fk1[j, j] = 1.0
 
         J_la_Fk1_q_dotk1 = J_la_Fk1_qk1 * qk1_q_dotk1
         J_la_Fk1_q_uotk1 = J_la_Fk1_uk1_free * uk1_free_u_dotk1
 
-        # TODO: Add friction!
-        J_la_Fk1_la_Fk1 = eye(self.nla_F, self.nla_F)
+        # # TODO: Add friction!
+        # J_la_Fk1_la_Fk1 = eye(self.nla_F, self.nla_F)
 
         # fmt: off
         Jx = bmat(
@@ -911,26 +891,31 @@ class NonsmoothBackwardEulerDecoupled:
                 [J_gk1_q_dotk1, None, None, None, None, None],
                 [J_gammak1_q_dotk1, J_gammak1_u_dotk1, None, None, None, None],
                 [J_la_Nk1_q_dotk1, None, None, None, J_la_Nk1_la_Nk1, None],
-                [None, None, None, None, None, J_la_Fk1_la_Fk1]
+                # [None, None, None, None, None, J_la_Fk1_la_Fk1]
+                [J_la_Fk1_q_dotk1, J_la_Fk1_q_uotk1, None, None, J_la_Fk1_la_Nk1, J_la_Fk1_la_Fk1]
             ],
             format="csr",
         )
         # fmt: on
 
-        Jx_num = csr_matrix(approx_fprime(xk1, self.Rx, method="2-point"))
+        # Jx_num = csr_matrix(approx_fprime(xk1, self.Rx, method="2-point"))
 
-        diff = (Jx - Jx_num).toarray()
-        # diff = (Jx - Jx_num).toarray()[:self.nq]
-        # diff = (Jx - Jx_num).toarray()[self.nq : self.nq + self.nu, :self.nq]
-        # diff = (Jx - Jx_num).toarray()[self.nq : self.nq + self.nu]
-        # diff = (Jx - Jx_num).toarray()[self.nq + self.nu : self.nq + self.nu + self.nla_g]
-        # diff = (Jx - Jx_num).toarray()[self.nq + self.nu + self.nla_g : self.nq + self.nu + self.nla_g + self.nla_gamma]
-        # diff = (Jx - Jx_num).toarray()[self.nq + self.nu + self.nla_g + self.nla_gamma: self.nq + self.nu + self.nla_g + self.nla_gamma + self.nla_N, :self.nq]
-        error = np.linalg.norm(diff)
-        if error > 1.0e-6:
-            print(f"error Jx: {error}")
-        return Jx_num
-        # return Jx
+        # diff = (Jx - Jx_num).toarray()
+        # # diff = (Jx - Jx_num).toarray()[:self.nq]
+        # # diff = (Jx - Jx_num).toarray()[self.nq : self.nq + self.nu, :self.nq]
+        # # diff = (Jx - Jx_num).toarray()[self.nq : self.nq + self.nu]
+        # # diff = (Jx - Jx_num).toarray()[self.nq + self.nu : self.nq + self.nu + self.nla_g]
+        # # diff = (Jx - Jx_num).toarray()[self.nq + self.nu + self.nla_g : self.nq + self.nu + self.nla_g + self.nla_gamma]
+        # # diff = (Jx - Jx_num).toarray()[self.nq + self.nu + self.nla_g + self.nla_gamma: self.nq + self.nu + self.nla_g + self.nla_gamma + self.nla_N, :self.nq]
+        # # diff = (Jx - Jx_num).toarray()[: -self.nla_F]
+        # # diff = (Jx - Jx_num).toarray()[-self.nla_F :]
+        # diff = (Jx - Jx_num).toarray()[-self.nla_F :, -self.nla_N - self.nla_F: - self.nla_F]
+        # # diff = (Jx - Jx_num).toarray()[-self.nla_F :, -self.nla_F :]
+        # error = np.linalg.norm(diff)
+        # if error > 1.0e-6:
+        #     print(f"error Jx: {error}")
+        # return Jx_num
+        return Jx
 
     def Ry(self, yk1, update_index=False):
         nu = self.nu
@@ -1202,21 +1187,19 @@ class NonsmoothBackwardEulerDecoupled:
         if not converged:
             while j < self.max_iter:
                 # jacobian
-                # J = csr_matrix(approx_fprime(xk1, f, method="2-point"))
-                # # J = csr_matrix(approx_fprime(xk1, f, method="3-point"))
                 J = G(xk1)
 
                 # Newton update
                 j += 1
 
-                # dx = spsolve(J, R, use_umfpack=True)
+                dx = spsolve(J, R, use_umfpack=True)
 
-                dx = lsqr(J, R, atol=1.0e-12, btol=1.0e-12)[0]
+                # dx = lsqr(J, R, atol=1.0e-12, btol=1.0e-12)[0]
 
                 # # no underflow errors
                 # dx = np.linalg.lstsq(J.toarray(), R, rcond=None)[0]
 
-                # # TODO: Can we get this sparse?
+                # # Can we get this sparse?
                 # # using QR decomposition, see https://de.wikipedia.org/wiki/QR-Zerlegung#L%C3%B6sung_regul%C3%A4rer_oder_%C3%BCberbestimmter_Gleichungssysteme
                 # b = R.copy()
                 # Q, R = np.linalg.qr(J.toarray())
@@ -1276,7 +1259,7 @@ class NonsmoothBackwardEulerDecoupled:
 
             # update progress bar and check convergence
             # pbar.set_description(
-            #     f"t: {tk1:0.2e}s < {self.t1:0.2e}s; ||R_x||: {error_x:0.2e} ({n_iter_x}/{self.max_iter});"
+            #     f"t: {tk1:0.2e}s < {self.t1:0.2e}s; ||R_x||: {error_x:0.2e} ({n_iter_x}/{self.max_iter})"
             # )
             pbar.set_description(
                 f"t: {tk1:0.2e}s < {self.t1:0.2e}s; ||R_x||: {error_x:0.2e} ({n_iter_x}/{self.max_iter}); ||R_y||: {error_y:0.2e} ({n_iter_y}/{self.max_iter})"
@@ -1284,6 +1267,7 @@ class NonsmoothBackwardEulerDecoupled:
             # pbar.set_description(
             #     f"t: {tk1:0.2e}s < {self.t1:0.2e}s; ||R||: {error:0.2e} ({n_iter}/{self.max_iter})"
             # )
+            # if not converged_x:
             if not (converged_x and converged_y):
                 # if not converged:
                 print(
