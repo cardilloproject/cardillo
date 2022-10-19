@@ -1347,11 +1347,9 @@ class DirectorAxisAngle:
         K_r_SP_tilde = ax2skew(K_r_SP)
 
         # interpolate centerline and axis angle contributions
-        J_P = np.zeros((3, self.nq_element), dtype=float)
+        J_P = np.zeros((3, self.nq_element), dtype=q.dtype)
         for node in range(self.nnodes_element_r):
-            J_P[:, self.nodalDOF_element_r[node]] += N_r[node] * np.eye(
-                3, dtype=q.dtype
-            )
+            J_P[:, self.nodalDOF_element_r[node]] += N_r[node] * np.eye(3)
         for node in range(self.nnodes_element_psi):
             J_P[:, self.nodalDOF_element_psi[node]] -= N_psi[node] * A_IK @ K_r_SP_tilde
 

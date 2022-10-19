@@ -32,7 +32,7 @@ from cardillo.beams import (
     TimoshenkoAxisAngleSE3,
 )
 from cardillo.forces import Force, K_Force, K_Moment, Moment, DistributedForce1DBeam
-from cardillo.model import System
+from cardillo import System
 from cardillo.solver import (
     Newton,
     ScipyIVP,
@@ -41,7 +41,6 @@ from cardillo.solver import (
     Riks,
 )
 
-from cardillo.solver.fsolve import Fsolve
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -762,7 +761,6 @@ def locking(case="helix"):
         atol=atol,
         rtol=rtol,
     )
-    # solver = Fsolve(model, n_load_steps=n_load_steps, atol=atol, rtol=rtol)
 
     sol = solver.solve()
     q = sol.q
@@ -1975,7 +1973,6 @@ def distributed_force():
         atol=atol,
         rtol=rtol,
     )
-    # solver = Fsolve(model, n_load_steps=n_load_steps, atol=atol, rtol=rtol)
 
     sol = solver.solve()
     q = sol.q

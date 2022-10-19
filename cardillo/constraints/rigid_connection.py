@@ -238,7 +238,7 @@ class RigidConnection:
 
     def g_q_dense(self, t, q):
         nq1 = self.__nq1
-        g_q = np.zeros((self.nla_g, self.__nq))
+        g_q = np.zeros((self.nla_g, self.__nq), dtype=q.dtype)
         g_q[:3, :nq1] = -self.r_OB1_q1(t, q)
         g_q[:3, nq1:] = self.r_OB2_q2(t, q)
 
@@ -262,15 +262,8 @@ class RigidConnection:
         g_q[5, nq1:] = ez1 @ ex2_q
         return g_q
 
-        # g_q_num = approx_fprime(q, lambda q: self.g(t, q))
-        # diff = g_q_num - g_q
-        # diff_error = diff
-        # error = np.linalg.norm(diff_error)
-        # print(f'error g_q: {error}')
-        # return g_q_num
-
     def g_dot(self, t, q, u):
-        g_dot = np.zeros(self.nla_g)
+        g_dot = np.zeros(self.nla_g, dtype=np.common_type(q, u))
 
         ex1, ey1, ez1 = self.A_IB1(t, q).T
         ex2, ey2, ez2 = self.A_IB2(t, q).T
@@ -286,7 +279,7 @@ class RigidConnection:
 
     def g_dot_q_dense(self, t, q, u):
         nq1 = self.__nq1
-        g_dot_q = np.zeros((self.nla_g, self.__nq))
+        g_dot_q = np.zeros((self.nla_g, self.__nq), dtype=np.common_type(q, u))
 
         # position
         g_dot_q[:3, :nq1] = -self.v_B1_q1(t, q, u)
@@ -323,12 +316,6 @@ class RigidConnection:
 
         return g_dot_q
 
-        # g_dot_q_num = approx_fprime(q, lambda q: self.g_dot(t, q, u), method="3-point")
-        # diff = g_dot_q_num - g_dot_q
-        # error = np.linalg.norm(diff)
-        # print(f"error g_dot_q: {error}")
-        # return g_dot_q_num
-
     def g_dot_q(self, t, q, u, coo):
         coo.extend(self.g_dot_q_dense(t, q, u), (self.la_gDOF, self.qDOF))
 
@@ -336,7 +323,7 @@ class RigidConnection:
         coo.extend(self.W_g_dense(t, q).T, (self.la_gDOF, self.uDOF))
 
     def g_ddot(self, t, q, u, u_dot):
-        g_ddot = np.zeros(self.nla_g)
+        g_ddot = np.zeros(self.nla_g, dtype=np.common_type(q, u, u_dot))
 
         ex1, ey1, ez1 = self.A_IB1(t, q).T
         ex2, ey2, ez2 = self.A_IB2(t, q).T
@@ -367,9 +354,9 @@ class RigidConnection:
         return g_ddot
 
     def g_ddot_q_dense(self, t, q, u, u_dot):
-        print(RuntimeWarning("RigidConnection.g_ddot_q_dense is not tested yet!"))
+        raise RuntimeWarning("RigidConnection.g_ddot_q_dense is not tested yet!")
         nq1 = self.__nq1
-        g_ddot_q = np.zeros((self.nla_g, self.__nq))
+        g_ddot_q = np.zeros((self.nla_g, self.__nq), dtype=np.common_type(q, u, u_dot))
 
         # position
         g_ddot_q[:3, :nq1] = -self.a_B1_q1(t, q, u, u_dot)
@@ -491,9 +478,9 @@ class RigidConnection:
         coo.extend(self.g_ddot_q_dense(t, q, u, u_dot), (self.la_gDOF, self.qDOF))
 
     def g_ddot_u_dense(self, t, q, u, u_dot):
-        print(RuntimeWarning("RigidConnection.g_ddot_u_dense is not tested yet!"))
+        raise RuntimeWarning("RigidConnection.g_ddot_u_dense is not tested yet!")
         nu1 = self.__nu1
-        g_ddot_u = np.zeros((self.nla_g, self.__nq))
+        g_ddot_u = np.zeros((self.nla_g, self.__nq), dtype=np.common_type(q, u, u_dot))
 
         # position
         g_ddot_u[:3, :nu1] = -self.a_B1_u1(t, q, u, u_dot)
@@ -567,7 +554,7 @@ class RigidConnection:
 
     def W_g_dense(self, t, q):
         nu1 = self.__nu1
-        W_g = np.zeros((self.__nu, self.nla_g))
+        W_g = np.zeros((self.__nu, self.nla_g), dtype=q.dtype)
 
         # position
         J_B1 = self.J_B1(t, q)
@@ -585,20 +572,13 @@ class RigidConnection:
         W_g[:, 5] = cross3(ez1, ex2) @ J
         return W_g
 
-        # W_g_num = approx_fprime(np.zeros(self._nu), lambda u: self.g_dot(t, q, u)).T
-        # diff = W_g_num - W_g
-        # diff_error = diff
-        # error = np.linalg.norm(diff_error)
-        # print(f'error W_g: {error}')
-        # return W_g_num
-
     def W_g(self, t, q, coo):
         coo.extend(self.W_g_dense(t, q), (self.uDOF, self.la_gDOF))
 
     def Wla_g_q(self, t, q, la_g, coo):
         nq1 = self.__nq1
         nu1 = self.__nu1
-        dense = np.zeros((self.__nu, self.__nq))
+        dense = np.zeros((self.__nu, self.__nq), dtype=np.common_type(q, la_g))
 
         # position
         J_B1_q = self.J_B1_q1(t, q)
@@ -665,14 +645,6 @@ class RigidConnection:
         )
 
         coo.extend(dense, (self.uDOF, self.qDOF))
-
-        # W_g_q = approx_fprime(q, lambda q: self.W_g_dense(t, q))
-        # dense_num = np.einsum('ijk,j->ik', W_g_q, la_g)
-        # diff = dense_num - dense
-        # diff_error = diff
-        # error = np.linalg.norm(diff_error)
-        # print(f'error Wla_g_q: {error}')
-        # coo.extend(dense_num, (self.uDOF, self.qDOF))
 
 
 class RigidConnectionCable(RigidConnection):
