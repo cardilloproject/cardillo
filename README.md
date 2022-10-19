@@ -15,6 +15,7 @@
   - [Documentation](#documentation)
   - [Developing](#developing)
     - [Pre-requisites](#pre-requisites)
+    - [Naming conventions](#naming-conventions)
     - [Useful links](#useful-links)
 
 ## Requirements
@@ -54,6 +55,17 @@ pip install -e .
 ```
 
 In doing so, the package is installed as a link to the current root folder. Consequently, changes in the root folder directly apply to the installed package and can be tested/run without installing the changes again.
+
+### Naming Conventions
+
+https://peps.python.org/pep-0008/#naming-conventions
+
+* modules, function, variable: `this_is_great`
+* classes: `MyClass`
+* constants: `ABS_TOL`
+
+**exceptions**:
+* mechanics beats convention, e.g., `A_IK`instead of `a_ik` or `Exp_SO3` instead of `eps_so3`
 
 ### Useful links
 [information for MATLAB users](https://docs.scipy.org/doc/numpy/user/numpy-for-matlab-users.html).
