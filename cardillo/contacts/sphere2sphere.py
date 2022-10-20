@@ -1,5 +1,5 @@
 import numpy as np
-from cardillo.math import norm
+from cardillo.math import norm, approx_fprime
 
 
 class Sphere2Sphere:
@@ -177,9 +177,6 @@ class Sphere2Sphere:
     #     dense = np.array([self.n(t) @ self.a_P_u(t, q, u, u_dot)])
     #     coo.extend(dense, (self.la_NDOF, self.uDOF))
 
-    # def Wla_N_q(self, t, q, la_N, coo):
-    #     dense = la_N[0] * np.einsum("i,ijk->jk", self.n(t), self.J_P_q(t, q))
-    #     # dense_num = np.einsum('i,ijk->jk', la_N, Numerical_derivative(self.g_N_dot_u_dense, order=2)._x(t, q))
-    #     # error = np.linalg.norm(dense - dense_num)
-    #     # print(f'error: {error}')
-    #     coo.extend(dense, (self.uDOF, self.qDOF))
+    def Wla_N_q(self, t, q, la_N, coo):
+        dense = approx_fprime(q, lambda q: la_N[0] * self.g_N_dot_u_dense(t, q))
+        coo.extend(dense, (self.uDOF, self.qDOF))

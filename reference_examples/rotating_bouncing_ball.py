@@ -123,6 +123,7 @@ if __name__ == "__main__":
         La_F_other = np.zeros_like(P_F_other)
         mu_g_other = np.zeros(model.nla_g)
         mu_N_other = np.zeros_like(P_N_other)
+        niter_other = sol_other.niter
     except:
         a_other = sol_other.a
         la_N_other = sol_other.la_N
@@ -139,6 +140,10 @@ if __name__ == "__main__":
     a_fp[1:] = (u_fp[1:] - u_fp[:-1]) / dt
     P_N_fp = sol_fp.P_N
     P_F_fp = sol_fp.P_F
+
+    fig, ax = plt.subplots()
+    ax.plot(t, niter_other, "-ok")
+    ax.grid()
 
     fig, ax = plt.subplots(2, 1)
     ax[0].set_title("x(t)")
