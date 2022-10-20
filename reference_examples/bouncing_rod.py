@@ -31,18 +31,15 @@ from cardillo.solver import (
 )
 
 
-# TODO:
-# - Visualize contact forces.
-# - Visualize friction forces - do we have stick slip transition?
 if __name__ == "__main__":
     animate = True
     # animate = False
 
     # discretization properties
-    nelements = 2
-    polynomial_degree_r = 3
+    nelements = 3
+    polynomial_degree_r = 2
     basis_r = "B-spline"
-    polynomial_degree_psi = 3
+    polynomial_degree_psi = 2
     basis_psi = "B-spline"
 
     # # nelements = 2
@@ -61,22 +58,16 @@ if __name__ == "__main__":
     # # basis_psi = "B-spline"
     # basis_psi = "Lagrange"
 
-    # starting point and corresponding orientation
-    # r_OP0 = np.zeros(3, dtype=float)
-    z0 = 0.25
-    r_OP0 = np.array([0, 0, z0], dtype=float)
-    A_IK0 = np.eye(3, dtype=float)
-
     # cross section and quadratic beam material
     L = np.pi
-    line_density = 1.0e-1
+    line_density = 1.0e-2
     radius_rod = 1.0e-1
     # E = 1.0e2
     # G = 0.5e2
     E = 1.0e2
     G = 0.5e2
-    E *= 1
-    G *= 1
+    E *= 2
+    G *= 2
     cross_section = CircularCrossSection(line_density, radius_rod)
     A_rho0 = line_density * cross_section.area
     K_S_rho0 = line_density * cross_section.first_moment
@@ -86,6 +77,12 @@ if __name__ == "__main__":
     Ei = np.array([E * A, G * A, G * A])
     Fi = np.array([G * Ip, E * I2, E * I3])
     material_model = Simo1986(Ei, Fi)
+
+    # starting point and corresponding orientation
+    # r_OP0 = np.zeros(3, dtype=float)
+    z0 = 0.25
+    r_OP0 = np.array([-L / 2, 0, z0], dtype=float)
+    A_IK0 = np.eye(3, dtype=float)
 
     Q = DirectorAxisAngle.straight_configuration(
         polynomial_degree_r,
@@ -97,6 +94,12 @@ if __name__ == "__main__":
         r_OP0,
         A_IK0,
     )
+
+    u0 = np.zeros_like(Q)
+    u_z0 = -2
+    n = int(len(Q) / 6)
+    u0[2 * n : 3 * n] = u_z0
+
     rod = DirectorAxisAngle(
         material_model,
         A_rho0,
@@ -107,6 +110,7 @@ if __name__ == "__main__":
         nelements,
         Q,
         q0=Q,
+        u0=u0,
         basis_r=basis_r,
         basis_psi=basis_psi,
     )
@@ -114,7 +118,10 @@ if __name__ == "__main__":
     # gravity
     g = 9.81
     __fg = -A_rho0 * g * e3
-    fg = lambda t, xi: __fg
+
+    def fg(t, xi):
+        return __fg
+
     gravity = DistributedForce1DBeam(fg, rod)
 
     mu = 0.1
@@ -143,20 +150,23 @@ if __name__ == "__main__":
 
     model = System()
     model.add(rod)
-    model.add(gravity)
+    # model.add(gravity)
     model.add(plane_left)
     model.add(plane_right)
     model.assemble()
 
     t0 = 0
-    # t1 = 0.01
-    t1 = 1
+    # t1 = 0.1
+    t1 = 0.5
+    # t1 = 1.0
+    # t1 = 2
 
     # dt = 5e-2
-    # dt = 1e-2
+    dt = 1e-2
     # dt = 5e-3
+    # dt = 2.5e-3
     # dt = 1e-3
-    dt = 5e-4
+    # dt = 5e-4 # Moreau
     # dt = 1e-4
 
     # solver = NonsmoothGeneralizedAlpha(model, t1, dt, newton_max_iter=10)
@@ -166,236 +176,147 @@ if __name__ == "__main__":
 
     t = sol.t
     q = sol.q
+    u = sol.u
     scale = L
-    _ = animate_beam(t, q, [rod], scale, show=False)
+    fig, ax, anim = animate_beam(t, q, [rod], scale, show=False)
 
-    # visualize contact forces
+    X = np.linspace(-L, L, num=2)
+    Y = np.linspace(-L, L, num=2)
+    X, Y = np.meshgrid(X, Y)
+    Z = np.zeros_like(X)
+    ax.plot_surface(X, Y, Z, alpha=0.5)
+
+    ########################
+    # extract contact forces
+    ########################
     la_N = sol.la_N
     la_F = sol.la_F
 
-    fig, ax = plt.subplots(2, 2)
+    la_N_left = la_N[:, plane_left.la_NDOF]
+    la_F_left = la_F[:, plane_left.la_FDOF]
+    la_N_right = la_N[:, plane_right.la_NDOF]
+    la_F_right = la_F[:, plane_right.la_FDOF]
 
-    ax[0, 0].plot(t, la_N[:, 0], label="la_N0 - left")
-    ax[0, 0].grid()
-    ax[0, 0].legend()
+    ##############
+    # compute gaps
+    ##############
+    g_N_left = np.array(
+        [plane_left.g_N(ti, qi[plane_left.qDOF]) for (ti, qi) in zip(t, q)]
+    )
+    g_N_right = np.array(
+        [plane_right.g_N(ti, qi[plane_right.qDOF]) for (ti, qi) in zip(t, q)]
+    )
 
-    ax[1, 0].plot(t, la_F[:, 0], "-r", label="la_F0 - left")
-    ax[1, 0].plot(t, la_F[:, 1], "--b", label="la_F1 - left")
-    ax[1, 0].grid()
-    ax[1, 0].legend()
+    gamma_F_left = np.array(
+        [
+            plane_left.gamma_F(ti, qi[plane_left.qDOF], ui[plane_left.uDOF])
+            for (ti, qi, ui) in zip(t, q, u)
+        ]
+    )
+    gamma_F_right = np.array(
+        [
+            plane_right.gamma_F(ti, qi[plane_right.qDOF], ui[plane_right.uDOF])
+            for (ti, qi, ui) in zip(t, q, u)
+        ]
+    )
 
-    ax[0, 1].plot(t, la_N[:, 1], label="la_N0 - right")
-    ax[0, 1].grid()
-    ax[0, 1].legend()
+    ################
+    # visualize gaps
+    ################
+    fig = plt.figure()
 
-    ax[1, 1].plot(t, la_F[:, 2], "-r", label="la_F0 - right")
-    ax[1, 1].plot(t, la_F[:, 3], "--b", label="la_F1 - right")
-    ax[1, 1].grid()
-    ax[1, 1].legend()
+    ax0 = fig.add_subplot(2, 2, 1)
+    ax0.plot(t, g_N_left, label="g_N_left")
+    ax0.grid()
+    ax0.legend()
 
-    plt.show()
+    ax1 = fig.add_subplot(2, 2, 2)
+    ax1.plot(t, g_N_right, label="g_N_right")
+    ax1.grid()
+    ax1.legend()
 
-    exit()
-    # t = sol_other.t
-    # q = sol_other.q
-    # t_other = sol_other.t
-    # q_other = sol_other.q
-    # u_other = sol_other.u
-    # P_N_other = sol_other.P_N
-    # P_F_other = sol_other.P_F
-    # if type(solver) in [
-    #     NonsmoothThetaGGL,
-    #     NonsmoothEulerBackwardsGGL,
-    #     NonsmoothEulerBackwardsGGL_V2,
-    #     NonsmoothHalfExplicitEuler,
-    #     NonsmoothHalfExplicitEulerGGL,
-    # ]:
-    #     a_other = np.zeros_like(u_other)
-    #     a_other[1:] = (u_other[1:] - u_other[:-1]) / dt
-    #     la_N_other = np.zeros_like(P_N_other)
-    #     la_F_other = np.zeros_like(P_F_other)
-    #     La_N_other = np.zeros_like(P_N_other)
-    #     La_F_other = np.zeros_like(P_F_other)
-    #     # mu_g_other = sol_other.mu_g
-    #     # mu_N_other = sol_other.mu_N
-    #     mu_g_other = np.zeros(model.nla_g)
-    #     mu_N_other = np.zeros_like(P_N_other)
-    # else:
-    #     a_other = sol_other.a
-    #     la_N_other = sol_other.la_N
-    #     # mu_N_other = sol_other.la_N
-    #     la_F_other = sol_other.la_F
-    #     La_N_other = sol_other.La_N
-    #     La_F_other = sol_other.La_F
+    ax2 = fig.add_subplot(2, 2, 3)
+    ax2.plot(t, gamma_F_left[:, 0], "-r", label="gamma_F_left0")
+    ax2.plot(t, gamma_F_left[:, 1], "--b", label="gamma_F_left1")
+    ax2.grid()
+    ax2.legend()
 
-    solver_fp = Moreau(model, t1, dt)
-    sol_fp = solver_fp.solve()
-    t_fp = sol_fp.t
-    q_fp = sol_fp.q
-    u_fp = sol_fp.u
-    a_fp = np.zeros_like(u_fp)
-    a_fp[1:] = (u_fp[1:] - u_fp[:-1]) / dt
-    P_N_fp = sol_fp.P_N
-    P_F_fp = sol_fp.P_F
+    ax3 = fig.add_subplot(2, 2, 4)
+    ax3.plot(t, gamma_F_right[:, 0], "-r", label="gamma_F_right0")
+    ax3.plot(t, gamma_F_right[:, 1], "--b", label="gamma_F_right1")
+    ax3.grid()
+    ax3.legend()
 
-    fig, ax = plt.subplots(2, 1)
-    ax[0].set_title("x(t)")
-    ax[0].plot(t_fp, q_fp[:, 0], "-r", label="Moreau")
-    ax[0].plot(t_other, q_other[:, 0], "--b", label="Other")
-    ax[0].legend()
+    ##########################
+    # visualize contact forces
+    ##########################
+    fig = plt.figure()
 
-    ax[1].set_title("u_x(t)")
-    ax[1].plot(t_fp, u_fp[:, 0], "-r", label="Moreau")
-    ax[1].plot(t_other, u_other[:, 0], "--b", label="Other")
-    ax[1].legend()
+    ax0 = fig.add_subplot(2, 2, 1)
+    # ax0.tick_params('x', labelbottom=False)
+    ax0.plot(t, la_N_left[:, 0], label="la_N0 - left")
+    ax0.grid()
+    ax0.legend()
 
-    # ax[2].set_title("a_x(t)")
-    # ax[2].plot(t_fp, a_fp[:, 0], "-r", label="Moreau")
-    # ax[2].plot(t_other, a_other[:, 0], "--b", label="Other")
-    # ax[2].legend()
+    ax1 = fig.add_subplot(2, 2, 3, sharex=ax0)
+    ax1.plot(t, la_F_left[:, 0], "-r", label="la_F0 - left")
+    ax1.plot(t, la_F_left[:, 1], "--b", label="la_F1 - left")
+    ax1.grid()
+    ax1.legend()
 
-    plt.tight_layout()
+    ax2 = fig.add_subplot(2, 2, 2)
+    # ax2.tick_params('x', labelbottom=False)
+    ax2.plot(t, la_N_right[:, 0], label="la_N0 - right")
+    ax2.grid()
+    ax2.legend()
 
-    fig, ax = plt.subplots(2, 1)
-    ax[0].set_title("y(t)")
-    ax[0].plot([t_fp[0], t_fp[-1]], [r, r], "-k", label="ground")
-    ax[0].plot(t_fp, q_fp[:, 1], "-r", label="y Moreau")
-    ax[0].plot(t_other, q_other[:, 1], "--b", label="y Other")
-    ax[0].legend()
-
-    ax[1].set_title("u_y(t)")
-    ax[1].plot(t_fp, u_fp[:, 1], "-r", label="Moreau")
-    ax[1].plot(t_other, u_other[:, 1], "--b", label="Other")
-    ax[1].legend()
-
-    # ax[2].set_title("a_y(t)")
-    # ax[2].plot(t_fp, a_fp[:, 1], "-r", label="Moreau")
-    # ax[2].plot(t_other, a_other[:, 1], "--b", label="Other")
-    # ax[2].legend()
-
-    plt.tight_layout()
-
-    fig, ax = plt.subplots(2, 1)
-    ax[0].set_title("phi(t)")
-    ax[0].plot(t_fp, q_fp[:, 3], "-r", label="Moreau")
-    ax[0].plot(t_other, q_other[:, 3], "--b", label="Other")
-    ax[0].legend()
-
-    ax[1].set_title("u_phi(t)")
-    ax[1].plot(t_fp, u_fp[:, -1], "-r", label="Moreau")
-    ax[1].plot(t_other, u_other[:, -1], "--b", label="Other")
-    ax[1].legend()
-
-    # ax[2].set_title("a_phi(t)")
-    # ax[2].plot(t_fp, a_fp[:, -1], "-r", label="Moreau")
-    # ax[2].plot(t_other, a_other[:, -1], "--b", label="Other")
-    # ax[2].legend()
-
-    plt.tight_layout()
-
-    fig, ax = plt.subplots(3, 1)
-
-    ax[0].set_title("P_N(t)")
-    ax[0].plot(t_fp, P_N_fp[:, 0], "-r", label="Moreau")
-    ax[0].plot(t_other, dt * la_N_other[:, 0], "--b", label="dt * Other_la_N")
-    ax[0].plot(t_other, La_N_other[:, 0], "--g", label="Other_La_N")
-    ax[0].plot(t_other, P_N_other[:, 0], "--k", label="Other_P_N")
-    # ax[0].plot(t_other, mu_N_other[:, 0], "--g", label="Other_mu_N")
-    ax[0].legend()
-
-    ax[1].set_title("P_Fx(t)")
-    ax[1].plot(t_fp, P_F_fp[:, 0], "-r", label="Moreau")
-    # ax[1].plot(t_other, la_F_other[:, 0], "--b", label="Other_la_F")
-    # ax[1].plot(t_other, La_F_other[:, 0], "--g", label="Other_La_F")
-    ax[1].plot(t_other, P_F_other[:, 0], "--k", label="Other_P_N")
-    ax[1].legend()
-
-    ax[2].set_title("P_Fy(t)")
-    ax[2].plot(t_fp, P_F_fp[:, 1], "-r", label="Moreau")
-    # ax[2].plot(t_other, la_F_other[:, 1], "--b", label="Other_la_F")
-    # ax[2].plot(t_other, La_F_other[:, 1], "--g", label="Other_La_F")
-    ax[2].plot(t_other, P_F_other[:, 1], "--k", label="Other_P_N")
-    ax[2].legend()
+    ax3 = fig.add_subplot(2, 2, 4)
+    ax3.plot(t, la_F_right[:, 0], "-r", label="la_F0 - right")
+    ax3.plot(t, la_F_right[:, 1], "--b", label="la_F1 - right")
+    ax3.grid()
+    ax3.legend()
 
     plt.tight_layout()
 
     plt.show()
 
-    if animate:
+    # fig, ax = plt.subplots(2, 2)
 
-        t = t_other
-        q = q_other
+    # ax[0, 0].plot(t, la_N[:, 0], label="la_N0 - left")
+    # ax[0, 0].grid()
+    # ax[0, 0].legend()
 
-        # animate configurations
-        fig = plt.figure()
-        ax = fig.add_subplot(111)
+    # ax[1, 0].plot(t, la_F[:, 0], "-r", label="la_F0 - left")
+    # ax[1, 0].plot(t, la_F[:, 1], "--b", label="la_F1 - left")
+    # ax[1, 0].grid()
+    # ax[1, 0].legend()
 
-        ax.set_xlabel("x [m]")
-        ax.set_ylabel("y [m]")
-        ax.axis("equal")
-        ax.set_xlim(-2 * y0, 2 * y0)
-        ax.set_ylim(-2 * y0, 2 * y0)
+    # ax[0, 1].plot(t, la_N[:, 1], label="la_N0 - right")
+    # ax[0, 1].grid()
+    # ax[0, 1].legend()
 
-        # prepare data for animation
-        frames = len(t)
-        target_frames = min(len(t), 200)
-        frac = int(frames / target_frames)
-        animation_time = 5
-        interval = animation_time * 1000 / target_frames
+    # ax[1, 1].plot(t, la_F[:, 2], "-r", label="la_F0 - right")
+    # ax[1, 1].plot(t, la_F[:, 3], "--b", label="la_F1 - right")
+    # ax[1, 1].grid()
+    # ax[1, 1].legend()
 
-        frames = target_frames
-        t = t[::frac]
-        q = q[::frac]
+    # plt.show()
 
-        # ax.plot([-2 * y0, 2 * y0], (y0-0.1)*np.array([1, 1]), '-k')
+    # fig, ax = plt.subplots(1, 2)
 
-        # horizontal plane
-        ax.plot([-2 * y0, 2 * y0], [0, 0], "-k")
+    # l1 = ax[0].plot(t, la_N[:, 0], "-r", label="la_N0 - left")
+    # ax0 = ax[0].twinx()
+    # l2 = ax0.plot(t, la_F[:, 0], "--g", label="la_F0 - left")
+    # l3 = ax0.plot(t, la_F[:, 1], "-.b", label="la_F1 - left")
+    # lns = l1 + l2 + l3
+    # labs = [l.get_label() for l in lns]
+    # ax[0].legend(lns, labs, loc=0)
+    # ax[0].grid()
 
-        # # inclined planes
-        # ax.plot([0, -y0 * np.cos(alpha)], [0, y0 * np.sin(alpha)], '-k')
-        # ax.plot([0, y0 * np.cos(beta)], [0, - y0 * np.sin(beta)], '-k')
+    # ax[1].plot(t, la_N[:, 1], "-r", label="la_N0 - right")
+    # ax[1].plot(t, la_F[:, 2], "--g", label="la_F0 - right")
+    # ax[1].plot(t, la_F[:, 3], "-.b", label="la_F1 - right")
+    # ax[1].grid()
+    # ax[1].legend()
 
-        def create(t, q):
-            x_S, y_S, _ = RB.r_OP(t, q)
-
-            A_IK = RB.A_IK(t, q)
-            d1 = A_IK[:, 0] * r
-            d2 = A_IK[:, 1] * r
-            # d3 = A_IK[:, 2] * r
-
-            (COM,) = ax.plot([x_S], [y_S], "ok")
-            (bdry,) = ax.plot([], [], "-k")
-            (d1_,) = ax.plot([x_S, x_S + d1[0]], [y_S, y_S + d1[1]], "-r")
-            (d2_,) = ax.plot([x_S, x_S + d2[0]], [y_S, y_S + d2[1]], "-g")
-            return COM, bdry, d1_, d2_
-
-        COM, bdry, d1_, d2_ = create(0, q[0])
-
-        def update(t, q, COM, bdry, d1_, d2_):
-
-            x_S, y_S, _ = RB.r_OP(t, q)
-
-            x_bdry, y_bdry, _ = RB.boundary(t, q)
-
-            A_IK = RB.A_IK(t, q)
-            d1 = A_IK[:, 0] * r
-            d2 = A_IK[:, 1] * r
-            # d3 = A_IK[:, 2] * r
-
-            COM.set_data([x_S], [y_S])
-            bdry.set_data(x_bdry, y_bdry)
-
-            d1_.set_data([x_S, x_S + d1[0]], [y_S, y_S + d1[1]])
-            d2_.set_data([x_S, x_S + d2[0]], [y_S, y_S + d2[1]])
-
-            return COM, bdry, d1_, d2_
-
-        def animate(i):
-            update(t[i], q[i], COM, bdry, d1_, d2_)
-
-        anim = animation.FuncAnimation(
-            fig, animate, frames=frames, interval=interval, blit=False
-        )
-
-        plt.show()
+    # plt.show()

@@ -424,7 +424,6 @@ class DirectorAxisAngle:
         elif basis_r == "B-spline":
             nnodes_r = polynomial_degree_r + nelement
         elif basis_r == "Hermite":
-            # nnodes_r = 2 * (nelement + 1)
             nnodes_r = nelement + 1
         else:
             raise RuntimeError(f'wrong basis_r: "{basis_r}" was chosen')
@@ -434,7 +433,6 @@ class DirectorAxisAngle:
         elif basis_psi == "B-spline":
             nnodes_psi = polynomial_degree_psi + nelement
         elif basis_psi == "Hermite":
-            # nnodes_psi = 2 * (nelement + 1)
             nnodes_psi = nelement + 1
         else:
             raise RuntimeError(f'wrong basis_psi: "{basis_psi}" was chosen')
@@ -477,7 +475,10 @@ class DirectorAxisAngle:
 
     @staticmethod
     def initial_configuration(
-        polynomial_degree,
+        polynomial_degree_r,
+        polynomial_degree_psi,
+        basis_r,
+        basis_psi,
         nelement,
         L,
         r_OP0=np.zeros(3, dtype=float),
