@@ -36,16 +36,19 @@ def fsolve(
 ):
     if not isinstance(fun_args, tuple):
         fun_args = (fun_args,)
-    if not isinstance(jac_args, tuple):
+    if not jac_args:
+        jac_args = fun_args
+    elif not isinstance(jac_args, tuple):
         jac_args = (jac_args,)
 
     # compute Jacobian matrix using finite differences
     if jac in ["2-point", "3-point", "cs"]:
-        jac = lambda x, jac_args: csc_matrix(
-            approx_fprime(lambda x: f(x, *jac_args), x, eps=eps, method=jac)
+        jacobian = lambda x, *args: csc_matrix(
+            approx_fprime(x, lambda y: fun(y, *args), eps=eps, method=jac)
         )
     else:
-        assert callable(jac)
+        jacobian = jac
+    assert callable(jacobian)
 
     # prepare solution vector
     x = np.asarray(x0)
@@ -59,7 +62,7 @@ def fsolve(
     i = 0
     while (not converged) and (i < max_iter):
         i += 1
-        J = jac(x, *jac_args)
+        J = jacobian(x, *jac_args)
         x -= spsolve(J, f)
         # x -= linear__solver(J, f)
         f = fun(x, *fun_args)

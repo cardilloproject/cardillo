@@ -25,13 +25,13 @@
 To install the package, clone or download the current repository, open a console, navigate to the root folder of the project and run `pip install .`.
 
 ```bash
-git clone https://gitlab.com/JonasHarsch/cardillo3.git
+git clone https://github.tik.uni-stuttgart.de/inm-cardillo/cardillo.git
 cd cardillo3
 pip install .
 ```
 
 ## Documentation
-You can access the documentation via [the following link](https://jonasharsch.gitlab.io/cardillo3).
+~~You can access the documentation via [the following link](https://jonasharsch.gitlab.io/cardillo3)~~.
  
 ## Developing
 
@@ -49,7 +49,7 @@ Now, `pre-commit` will run on every commit applying format to the files, and thu
 Moreover, it is advised to install the package in editable mode using `pip install -e .`, i.e.,
 
 ```bash
-git clone https://gitlab.com/JonasHarsch/cardillo3.git
+git clone https://github.tik.uni-stuttgart.de/inm-cardillo/cardillo.git
 cd cardillo3
 pip install -e .
 ```
@@ -68,8 +68,6 @@ https://peps.python.org/pep-0008/#naming-conventions
 * mechanics beats convention, e.g., `A_IK`instead of `a_ik` or `Exp_SO3` instead of `eps_so3`
 
 ### Useful links
-[information for MATLAB users](https://docs.scipy.org/doc/numpy/user/numpy-for-matlab-users.html).
+* [Information for MATLAB users](https://docs.scipy.org/doc/numpy/user/numpy-for-matlab-users.html).
 
-The [PEP 8 style guide](https://www.python.org/dev/peps/pep-0008/) should be complied.
-
-A nice and simple [git introduction](https://rogerdudler.github.io/git-guide/index.html) and a short [git cheat sheet](https://about.gitlab.com/images/press/git-cheat-sheet.pdf).
+* A nice and simple [git introduction](https://rogerdudler.github.io/git-guide/index.html) and a short [git cheat sheet](https://about.gitlab.com/images/press/git-cheat-sheet.pdf).
