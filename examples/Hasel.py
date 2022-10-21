@@ -9,7 +9,9 @@ from cardillo.beams import (
     animate_rope,
 )
 from cardillo.forces.scalar_force_laws import LinearSpring
-from cardillo.beams.cable import QuadraticMaterial, QuadraticMaterialDegraded
+from cardillo.beams.rope import QuadraticMaterial as QuadraticMaterialRope
+from cardillo.beams.cable import QuadraticMaterial as QuadraticMaterialCable
+from cardillo.beams.cable import QuadraticMaterialDegraded as QuadraticMaterialDegradedCable
 from cardillo.discrete import PointMass
 from cardillo.forces import DistributedForce1DBeam, Force
 from cardillo import System
@@ -113,8 +115,9 @@ def add_internal_fluid(Rope):
             self.h0 = args[1]
             self.k_a = args[2]
             self.k_c = args[3]
-            self.potential_a = LinearSpring(self.k_a)
             self.A = self.area(self.Q)
+            self.potential_a = LinearSpring(self.k_a, g_ref = self.A)
+            
 
         def area(self, q):
             a = np.zeros(1, dtype=q.dtype)[0]
@@ -143,9 +146,11 @@ def add_internal_fluid(Rope):
         def h(self, t, q, u):
             # integrate current area
             a = self.area(q)
-            pressure_fluid = self.potential_a.pot_g(a, self.A)
+            pressure_fluid = self.potential_a.la(t, a)
 
-            f = np.zeros(self.nu, dtype=q.dtype)
+
+            # f = np.zeros(self.nu, dtype=q.dtype)
+            f = super().h(t, q, u)
             for el in range(self.nelement):
                 elDOF = self.elDOF[el]
                 qe = q[elDOF]
@@ -204,14 +209,18 @@ def add_internal_fluid(Rope):
             return f
 
         def h_q(self, t, q, u, coo):
+            super().h_q(t, q, u, coo)
             dense = approx_fprime(
                 q,
-                lambda q: self.f_npot(t, q, u),
+                lambda q: self.h(t, q, u),
                 eps=1.0e-10,
-                method="cs"
+                method="2-point"
                 # q, lambda q: self.f_npot(t, q, u), eps=1.0e-6, method="3-point"
             )
             coo.extend(dense, (self.uDOF, self.qDOF))
+
+
+
 
     return RopeInternalFluid
 
@@ -295,7 +304,7 @@ class RopeInternalFluid(Rope):
         self.rho_g_fluid = args[0]
         self.h0 = args[1]
         self.k_a = args[2]
-        self.potential = LinearSpring(self.k_a)
+        self.potential = QuadraticMaterialRope(self.k_a)
         self.A = self.area(self.Q)
 
     def area(self, q):
@@ -964,7 +973,7 @@ def inflated_circular_segment():
     else:
         q0 = Q.copy()
 
-    material_model = LinearSpring(k_e)
+    material_model = QuadraticMaterialRope(k_e)
 
     # build rope class
     # rope = RopeHydrostaticPressure(
@@ -1144,8 +1153,8 @@ def inflated_circular_segment():
     animate_rope(t, q, [rope], R, show=True)
 
 
-# def cable_straight(case="rope"):
-def cable_straight(case="cable"):
+# def cable_straight(case="cable"):
+def cable_straight(case="rope"):
     # statics or dynamics?
     statics = True
     # statics = False
@@ -1165,10 +1174,10 @@ def cable_straight(case="cable"):
 
     # discretization properties
     nelements = 5
-    # polynomial_degree = 1
-    # basis = "Lagrange"
-    polynomial_degree = 3
-    basis = "B-spline"
+    polynomial_degree = 1
+    basis = "Lagrange"
+    # polynomial_degree = 3
+    # basis = "B-spline"
     # polynomial_degree = 3
     # basis = "Hermite"
 
@@ -1207,13 +1216,13 @@ def cable_straight(case="cable"):
         # configuration. Do not change first and last node, otherwise constraints
         # are violated!
         eps = 1.0e-4
-        q0 = Q.copy().reshape(-1, 3)
-        nn = len(q0)
+        r0 = Q.copy().reshape(3, -1, order="C")
+        nn = r0.shape[1]
         for i in range(1, nn - 1):
-            q0[i, :2] += eps * 0.5 * (2.0 * np.random.rand(2) - 1)
-        q0 = q0.reshape(-1)
+            r0[:2, i] += eps * 0.5 * (2.0 * np.random.rand(2) - 1)
+        q0 = r0.reshape(-1, order="C")
 
-        material_model = LinearSpring(k_e)
+        material_model = QuadraticMaterialRope(k_e)
         rope = ElementType(
             material_model,
             A_rho0,
@@ -1224,8 +1233,8 @@ def cable_straight(case="cable"):
             basis=basis,
         )
     else:
-        # material_model = QuadraticMaterial(k_e, k_b)
-        material_model = QuadraticMaterialDegraded(k_e, k_b)
+        material_model = QuadraticMaterialCable(k_e, k_b)
+        # material_model = QuadraticMaterialDegraded(k_e, k_b)
         rope = ElementType(
             material_model,
             A_rho0,
@@ -1264,9 +1273,8 @@ def cable_straight(case="cable"):
         solver = Newton(
             model,
             n_load_steps=n_load_steps,
-            max_iter=max_iter,
             atol=atol,
-            rtol=rtol,
+            max_iter=max_iter,
         )
     else:
         solver = ScipyIVP(
@@ -1309,10 +1317,10 @@ def cable_straight_inflated(case="cable"):
     nelements = 3
     # polynomial_degree = 2
     # basis = "Lagrange"
-    # polynomial_degree = 3
-    # basis = "B-spline"
     polynomial_degree = 3
-    basis = "Hermite"
+    basis = "B-spline"
+    # polynomial_degree = 3
+    # basis = "Hermite"
 
     # rope parameters
     L = 3.14
@@ -1357,10 +1365,10 @@ def cable_straight_inflated(case="cable"):
             q0[i, :2] += eps * 0.5 * (2.0 * np.random.rand(2) - 1)
         q0 = q0.reshape(-1)
 
-        materia_model = LinearSpring(k_e)
+        material_model = QuadraticMaterialRope(k_e)
         rope = InflatedCable(
             pressure,
-            materia_model,
+            material_model,
             A_rho0,
             polynomial_degree,
             nelements,
@@ -1369,10 +1377,10 @@ def cable_straight_inflated(case="cable"):
             basis=basis,
         )
     else:
-        materia_model = QuadraticMaterial(k_e, k_b)
+        material_model = QuadraticMaterialCable(k_e, k_b)
         rope = InflatedCable(
             pressure,
-            materia_model,
+            material_model,
             A_rho0,
             polynomial_degree,
             nelements,
@@ -1422,11 +1430,11 @@ def cable_straight_inflated(case="cable"):
     animate_rope(t, q, [rope], L, show=True)
 
 
-def cable_inflated_circular_segment(case="rope"):
-    # def cable_inflated_circular_segment(case="cable"):
+# def cable_inflated_circular_segment(case="rope"):
+def cable_inflated_circular_segment(case="cable"):
     # statics or dynamics?
-    # statics = True
-    statics = False
+    statics = True
+    # statics = False
 
     # solver parameter
     if statics:
@@ -1491,13 +1499,14 @@ def cable_inflated_circular_segment(case="rope"):
         # configuration. Do not change first and last node, otherwise constraints
         # are violated!
         eps = 1.0e-7
-        q0 = Q.copy().reshape(-1, 3)
-        nn = len(q0)
+        r0 = Q.copy().reshape(3, -1, order="C")
+        nn = r0.shape[1]
         for i in range(1, nn - 1):
-            q0[i, :2] += eps * 0.5 * (2.0 * np.random.rand(2) - 1)
-        q0 = q0.reshape(-1)
+            r0[:2, i] += eps * 0.5 * (2.0 * np.random.rand(2) - 1)
+        q0 = r0.reshape(-1, order="C")
 
-        materia_model = LinearSpring(k_e)
+
+        materia_model = QuadraticMaterialRope(k_e)
         rope = InflatedCable(
             rho_g,
             h0,
@@ -1513,7 +1522,7 @@ def cable_inflated_circular_segment(case="rope"):
         )
     else:
         # materia_model = QuadraticMaterial(k_e, k_b)
-        materia_model = QuadraticMaterialDegraded(k_e, k_b)
+        materia_model = QuadraticMaterialDegradedCable(k_e, k_b)
         rope = InflatedCable(
             rho_g,
             h0,
@@ -1537,8 +1546,8 @@ def cable_inflated_circular_segment(case="rope"):
     r_OP1 = Q.reshape(-1, 3)[-1]
     A_IK1 = np.eye(3, dtype=float)
     frame1 = Frame(r_OP=r_OP1, A_IK=A_IK1)
-    # joint1 = SphericalJoint(frame1, rope, r_OP1, frame_ID2=(1,))
-    joint1 = Linear_guidance_xyz(frame1, rope, r_OP1, A_IK1, frame_ID2=(1,))
+    joint1 = SphericalJoint(frame1, rope, r_OP1, frame_ID2=(1,))
+    # joint1 = Linear_guidance_xyz(frame1, rope, r_OP1, A_IK1, frame_ID2=(1,))
 
     # r_OP1 = lambda t: Q.reshape(-1, 3)[-1] + t * e1 * 0.01
     # A_IK1 = np.eye(3, dtype=float)
@@ -1612,11 +1621,14 @@ def cable_inflated_circular_segment(case="rope"):
     model.add(joint1)
     # model.add(frame2)
     # model.add(joint2)
-    model.add(gravity)
+    # model.add(gravity)
     model.add(pm)
     model.add(force)
     model.add(joint3)
     model.assemble()
+
+    animate_rope([0], [Q], [rope], R, show=True)
+
 
     if statics:
         solver = Newton(
@@ -1624,7 +1636,6 @@ def cable_inflated_circular_segment(case="rope"):
             n_load_steps=n_load_steps,
             max_iter=max_iter,
             atol=atol,
-            rtol=rtol,
         )
         # solver = Riks(
         #     model,
@@ -1694,5 +1705,5 @@ if __name__ == "__main__":
     # inflated_quarter_circle_external_force()
     # inflated_circular_segment()
     # cable_straight()
-    cable_straight_inflated()
-    # cable_inflated_circular_segment()
+    # cable_straight_inflated()
+    cable_inflated_circular_segment()

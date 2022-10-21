@@ -360,7 +360,7 @@ class Cable:
         return E
 
     def h(self, t, q, u):
-        f = np.zeros(self.nu)
+        f = np.zeros(self.nu, dtype=q.dtype)
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             f[elDOF] += self.f_pot_el(t, q[elDOF], el)
