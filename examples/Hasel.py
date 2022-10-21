@@ -8,7 +8,7 @@ from cardillo.beams import (
     Cable,
     animate_rope,
 )
-from cardillo.scalar_force_interactions import QuadraticPotential
+from cardillo.forces.scalar_force_laws import LinearSpring
 from cardillo.beams.cable import QuadraticMaterial, QuadraticMaterialDegraded
 from cardillo.discrete import PointMass
 from cardillo.forces import DistributedForce1DBeam, Force
@@ -113,7 +113,7 @@ def add_internal_fluid(Rope):
             self.h0 = args[1]
             self.k_a = args[2]
             self.k_c = args[3]
-            self.potential_a = QuadraticPotential(self.k_a)
+            self.potential_a = LinearSpring(self.k_a)
             self.A = self.area(self.Q)
 
         def area(self, q):
@@ -295,7 +295,7 @@ class RopeInternalFluid(Rope):
         self.rho_g_fluid = args[0]
         self.h0 = args[1]
         self.k_a = args[2]
-        self.potential = QuadraticPotential(self.k_a)
+        self.potential = LinearSpring(self.k_a)
         self.A = self.area(self.Q)
 
     def area(self, q):
@@ -964,7 +964,7 @@ def inflated_circular_segment():
     else:
         q0 = Q.copy()
 
-    material_model = QuadraticPotential(k_e)
+    material_model = LinearSpring(k_e)
 
     # build rope class
     # rope = RopeHydrostaticPressure(
@@ -1213,7 +1213,7 @@ def cable_straight(case="cable"):
             q0[i, :2] += eps * 0.5 * (2.0 * np.random.rand(2) - 1)
         q0 = q0.reshape(-1)
 
-        material_model = QuadraticPotential(k_e)
+        material_model = LinearSpring(k_e)
         rope = ElementType(
             material_model,
             A_rho0,
@@ -1357,7 +1357,7 @@ def cable_straight_inflated(case="cable"):
             q0[i, :2] += eps * 0.5 * (2.0 * np.random.rand(2) - 1)
         q0 = q0.reshape(-1)
 
-        materia_model = QuadraticPotential(k_e)
+        materia_model = LinearSpring(k_e)
         rope = InflatedCable(
             pressure,
             materia_model,
@@ -1403,7 +1403,6 @@ def cable_straight_inflated(case="cable"):
             n_load_steps=n_load_steps,
             max_iter=max_iter,
             atol=atol,
-            rtol=rtol,
         )
     else:
         solver = ScipyIVP(
@@ -1498,7 +1497,7 @@ def cable_inflated_circular_segment(case="rope"):
             q0[i, :2] += eps * 0.5 * (2.0 * np.random.rand(2) - 1)
         q0 = q0.reshape(-1)
 
-        materia_model = QuadraticPotential(k_e)
+        materia_model = LinearSpring(k_e)
         rope = InflatedCable(
             rho_g,
             h0,
