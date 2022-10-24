@@ -183,7 +183,7 @@ class Rope:
         nelement,
         R,
     ):
-        raise NotImplementedError
+        # raise NotImplementedError
         if basis == "Lagrange":
             nn = polynomial_degree * nelement + 1
         elif basis == "B-spline":
@@ -202,7 +202,7 @@ class Rope:
             r0[1, i] = R * np.cos(phi_i)
 
         # reshape generalized coordinates to nodal ordering
-        q = r0.reshape(-1, order="F")
+        q = r0.reshape(-1, order="C")
         return q
 
     @staticmethod
