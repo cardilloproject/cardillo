@@ -11,6 +11,7 @@ from cardillo.math import (
     e1,
 )
 
+
 class QuadraticMaterial:
     def __init__(self, k_e):
         self.k_e = k_e  # axial stiffness
@@ -23,6 +24,7 @@ class QuadraticMaterial:
 
     def n_lambda(self, t, xi, la, la0):
         return self.k_e
+
 
 class Rope:
     def __init__(
@@ -105,13 +107,6 @@ class Rope:
         # evaluate shape functions at specific xi
         self.basis_functions = self.mesh.eval_basis
 
-        # reference generalized coordinates, initial coordinates and initial velocities
-        self.Q = Q  # reference configuration
-        self.q0 = Q.copy() if q0 is None else q0  # initial configuration
-        self.u0 = (
-            np.zeros(self.nu, dtype=float) if u0 is None else u0
-        )  # initial velocities
-
         # precompute values of the reference configuration in order to save computation time
         # J in Harsch2020b (5)
         self.J = np.zeros((nelement, nquadrature), dtype=float)
@@ -183,10 +178,10 @@ class Rope:
         nelement,
         R,
     ):
-        # raise NotImplementedError
         if basis == "Lagrange":
             nn = polynomial_degree * nelement + 1
         elif basis == "B-spline":
+            # TODO: write fitting for parameterized curves
             print(f"quarter_circle_configuration is not correct for B-spline basis!")
             nn = polynomial_degree + nelement
         # elif basis == "Hermite":
@@ -284,7 +279,30 @@ class Rope:
         return E_pot
 
     def E_pot_el(self, qe, el):
-        raise NotImplementedError
+        E = np.zeros(1, dtype=qe.dtype)[0]
+        for i in range(self.nquadrature):
+            # extract reference state variables
+            qwi = self.qw[el, i]
+            Ji = self.J[el, i]
+
+            # interpolate tangent vector
+            r_xi = np.zeros(3, dtype=qe.dtype)
+            for node in range(self.nnodes_element):
+                r_xi += self.N_xi[el, i, node] * qe[self.nodalDOF_element[node]]
+
+            # length of the current tangent vector
+            ji2 = r_xi @ r_xi
+            ji = np.sqrt(ji2)
+
+            # axial strain
+            la = ji / Ji
+            la0 = 1.0
+
+            # compute contact forces and couples from partial derivatives of
+            # the strain energy function w.r.t. strain measures
+            E += self.material_model.potential(la, la0) * Ji * qwi
+
+        return E
 
     def h(self, t, q, u):
         f_pot = np.zeros(self.nu, dtype=q.dtype)

@@ -11,7 +11,9 @@ from cardillo.beams import (
 from cardillo.forces.scalar_force_laws import LinearSpring
 from cardillo.beams.rope import QuadraticMaterial as QuadraticMaterialRope
 from cardillo.beams.cable import QuadraticMaterial as QuadraticMaterialCable
-from cardillo.beams.cable import QuadraticMaterialDegraded as QuadraticMaterialDegradedCable
+from cardillo.beams.cable import (
+    QuadraticMaterialDegraded as QuadraticMaterialDegradedCable,
+)
 from cardillo.discrete import PointMass
 from cardillo.forces import DistributedForce1DBeam, Force
 from cardillo import System
@@ -116,8 +118,7 @@ def add_internal_fluid(Rope):
             self.k_a = args[2]
             self.k_c = args[3]
             self.A = self.area(self.Q)
-            self.potential_a = LinearSpring(self.k_a, g_ref = self.A)
-            
+            self.potential_a = LinearSpring(self.k_a, g_ref=self.A)
 
         def area(self, q):
             a = np.zeros(1, dtype=q.dtype)[0]
@@ -147,7 +148,6 @@ def add_internal_fluid(Rope):
             # integrate current area
             a = self.area(q)
             pressure_fluid = self.potential_a.la(t, a)
-
 
             # f = np.zeros(self.nu, dtype=q.dtype)
             f = super().h(t, q, u)
@@ -218,9 +218,6 @@ def add_internal_fluid(Rope):
                 # q, lambda q: self.f_npot(t, q, u), eps=1.0e-6, method="3-point"
             )
             coo.extend(dense, (self.uDOF, self.qDOF))
-
-
-
 
     return RopeInternalFluid
 
@@ -1505,7 +1502,6 @@ def cable_inflated_circular_segment(case="cable"):
             r0[:2, i] += eps * 0.5 * (2.0 * np.random.rand(2) - 1)
         q0 = r0.reshape(-1, order="C")
 
-
         materia_model = QuadraticMaterialRope(k_e)
         rope = InflatedCable(
             rho_g,
@@ -1629,7 +1625,6 @@ def cable_inflated_circular_segment(case="cable"):
 
     animate_rope([0], [Q], [rope], R, show=True)
 
-
     if statics:
         solver = Newton(
             model,
@@ -1701,9 +1696,9 @@ def cable_inflated_circular_segment(case="cable"):
 
 if __name__ == "__main__":
     # inflated_straight()
-    # inflated_quarter_circle()
+    inflated_quarter_circle()
     # inflated_quarter_circle_external_force()
     # inflated_circular_segment()
     # cable_straight()
     # cable_straight_inflated()
-    cable_inflated_circular_segment()
+    # cable_inflated_circular_segment()

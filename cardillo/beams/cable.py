@@ -158,13 +158,6 @@ class Cable:
         # evaluate shape functions at specific xi
         self.basis_functions = self.mesh.eval_basis
 
-        # reference generalized coordinates, initial coordinates and initial velocities
-        self.Q = Q  # reference configuration
-        self.q0 = Q.copy() if q0 is None else q0  # initial configuration
-        self.u0 = (
-            np.zeros(self.nu, dtype=float) if u0 is None else u0
-        )  # initial velocities
-
         # precompute values of the reference configuration in order to save computation time
         # J in Harsch2020b (5)
         self.J = np.zeros((nelement, nquadrature), dtype=float)
@@ -225,6 +218,7 @@ class Cable:
                 r0[:, i] = r_OP + A_IK @ r0[:, i]
 
         elif basis == "Hermite":
+            raise NotImplementedError
             xis = np.linspace(0, 1, num=nn)
 
             r0 = np.zeros((3, 2 * nn))

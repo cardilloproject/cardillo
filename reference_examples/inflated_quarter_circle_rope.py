@@ -1,11 +1,7 @@
 from cardillo.discrete import Frame
-from cardillo.constraints import (
-    Linear_guidance_xyz,
-    SphericalJoint
-)
+from cardillo.constraints import Linear_guidance_xyz, SphericalJoint
 from cardillo.beams import (
     Rope,
-    Cable,
     animate_rope,
 )
 
@@ -19,6 +15,7 @@ from cardillo.math import pi, e3, rodriguez, approx_fprime, norm
 
 import numpy as np
 import matplotlib.pyplot as plt
+
 
 class Inflated(Rope):
     def __init__(self, *args, **kwargs):
@@ -94,23 +91,23 @@ class Inflated(Rope):
         return f_npot_q_el_num
 
 
-def inflated_quarter_circle():
-    # statics or dynamics?
-    statics = True
-    # statics = False
+case = "statics"
+# case = "dynamics"
 
-    # solver parameter
-    if statics:
-        atol = 1.0e-8
-        rtol = 0.0
-        n_load_steps = 10
-        max_iter = 20
-    else:
-        atol = 1.0e-8
-        rtol = 1.0e-6
-        t1 = 1
-        dt = 1.0e-2
-        method = "RK45"
+if __name__ == "__main__":
+
+    # rope parameters
+    R = 1  # radius inflated circle
+    A_rho0 = 1.0e0  # reference density per unit length
+    pressure_level = 2.0e2  # max internal pressure
+
+    # material law rope
+    k_e = 1.0e3  # stiffness
+    material_law = QuadraticMaterial(k_e)  # quadratic potential
+
+    ############################################################################
+    #                   rope + boundary constraints
+    ############################################################################
 
     # discretization properties
     nelements = 10
@@ -118,17 +115,6 @@ def inflated_quarter_circle():
     basis = "Lagrange"
     # polynomial_degree = 3
     # basis = "B-spline"
-
-    # rope parameters
-    R = 1
-    rho_g = 2.0e1
-    k_e = 1.0e3
-    A_rho0 = 1.0e0
-
-    material_law = QuadraticMaterial(k_e)
-
-    # internal pressure function
-    pressure = lambda t: t * 5.0e2
 
     # initial configuration: quarter circle
     q0 = Rope.quarter_circle_configuration(
@@ -138,39 +124,41 @@ def inflated_quarter_circle():
         R,
     )
 
-    Q = q0
-    # # reference configuration: straight configuration
-    # Q = Rope.straight_configuration(
-    # basis,
-    # polynomial_degree,
-    # nelements,
-    # R * pi / 2,
-    # )
-
-    # Manipulate initial configuration in order to overcome singular initial
-    # configuration. Do not change first and last node, otherwise constraints
-    # are violated!
-    # random manipulation
-    # eps = 1.0e-6
-    # r0 = Q.copy().reshape(3, -1, order="C")
-    # nn = r0.shape[1]
-    # for i in range(1, nn - 1):
-    #     r0[:2, i] += eps * 0.5 * (2.0 * np.random.rand(2) - 1)
-    # q0 = r0.reshape(-1, order="C")
-
-    # radial initial displacement (more robust for linear Lagrange elements)
-    eps = 1.0e-6
+    # initial nodal positions
     r0 = q0.copy().reshape(3, -1, order="C")
-    nn = r0.shape[1]
-    for i in range(1, nn - 1):
-        radius = norm(r0[:2, i])
-        r0[0, i] += eps * r0[0, i] / radius
-        r0[1, i] += eps * r0[1, i] / radius
-    q0 = r0.reshape(-1, order="C")
 
-    # build rope class
-    # rope = InflatedRope(
-    #     pressure,
+    # reference configuration: corresponds to initial configuration
+    Q = q0
+
+    if case == "statics":
+        # internal pressure function
+        pressure = lambda t: t * pressure_level
+
+        # Manipulate initial configuration in order to overcome singular initial
+        # configuration. Do not change first and last node, otherwise constraints
+        # are violated!
+
+        # random manipulation
+        # eps = 1.0e-6
+        # r0 = Q.copy().reshape(3, -1, order="C")
+        # nn = r0.shape[1]
+        # for i in range(1, nn - 1):
+        #     r0[:2, i] += eps * 0.5 * (2.0 * np.random.rand(2) - 1)
+        # q0 = r0.reshape(-1, order="C")
+
+        # radial manipulation (more robust for linear Lagrange elements)
+        eps = 1.0e-6
+        nn = r0.shape[1]
+        for i in range(1, nn - 1):
+            radius = norm(r0[:2, i])
+            r0[0, i] += eps * r0[0, i] / radius
+            r0[1, i] += eps * r0[1, i] / radius
+        q0 = r0.reshape(-1, order="C")
+    elif case == "dynamics":
+        # internal pressure function
+        pressure = lambda t: pressure_level
+
+    # construct inflated rope
     rope = Inflated(
         pressure,
         material_law,
@@ -181,8 +169,6 @@ def inflated_quarter_circle():
         q0=q0,
         basis=basis,
     )
-
-
 
     # left joint
     r_OP0 = r0[:, 0]
@@ -198,7 +184,9 @@ def inflated_quarter_circle():
     # joint1 = SphericalJoint(frame1, rope, r_OP1, frame_ID2=(1,))
     joint1 = Linear_guidance_xyz(frame1, rope, r_OP1, A_IK1, frame_ID2=(1,))
 
-    # assemble the model
+    ############################################################################
+    #                   model
+    ############################################################################
     model = System()
     model.add(rope)
     model.add(frame0)
@@ -207,17 +195,28 @@ def inflated_quarter_circle():
     model.add(joint1)
     model.assemble()
 
-    # show initial configuration
-    animate_rope([0], [q0], [rope], R, show=True)
+    # # show initial configuration
+    # animate_rope([0], [q0], [rope], R, show=True)
 
-    if statics:
+    ############################################################################
+    #                   solver
+    ############################################################################
+    if case == "statics":
+        atol = 1.0e-8
+        n_load_steps = 10
+        max_iter = 20
         solver = Newton(
             model,
             n_load_steps=n_load_steps,
             max_iter=max_iter,
             atol=atol,
         )
-    else:
+    elif case == "dynamics":
+        atol = 1.0e-8
+        rtol = 1.0e-6
+        t1 = 1
+        dt = 1.0e-2
+        method = "RK45"
         solver = ScipyIVP(
             model,
             t1,
@@ -229,41 +228,75 @@ def inflated_quarter_circle():
 
     sol = solver.solve()
     q = sol.q
-    nt = len(q)
-    t = sol.t[:nt]
+    t = sol.t
+
+    ############################################################################
+    #                   compute analytical reference solutions
+    ############################################################################
+
+    # radius in final configuration
+    r = rope.r_OP(1, q[-1][rope.local_qDOF_P((1,))], (1,))[0]
+
+    # initial vs. current area
+    a0 = rope.area(q[0])
+    a = rope.area(q[-1])
+    a0_analytic = np.pi * R**2 / 4
+    a_analytic = np.pi * r**2 / 4
+    print(f"A: {a0}")
+    print(f"a: {a}")
+    print(f"A analytic: {a0_analytic}")
+    print(f"a analytic: {a_analytic}")
 
     # ratio of rope initial and deformed length
-    r = rope.r_OP(1, q[-1][rope.local_qDOF_P((1,))], (1,))[0]
-    l = 2 * pi * r
-    L = 2 * pi * R
+    l = pi * r / 2
+    L = pi * R / 2
     print(f"l / L: {l / L}")
 
     # analytical stretch
     la_analytic = pressure(1) * r / k_e + 1
     print(f"analytical stretch: {la_analytic}")
+    # stretch of the final configuration
+    n = 100
+    xis = np.linspace(0, 1, num=n)
+    la = rope.stretch(q[-1], n=n)
 
-    # initial vs. current area
-    A = rope.area(q[0])
-    a = rope.area(q[-1])
-    A_analytic = np.pi * R**2 / 4
-    a_analytic = np.pi * r**2 / 4
-    print(f"A: {A}")
-    print(f"a: {a}")
-    print(f"A analytic: {A_analytic}")
-    print(f"a analytic: {a_analytic}")
+    fig0, ax0 = plt.subplots()
+    ax0.set_ylabel(r"stretch $\lambda$")
+    ax0.set_xlabel(r"beam coordinate $\xi$")
+    ax0.plot(xis, la, "-r", label="FEM solution")
+    ax0.plot(
+        xis, np.ones_like(xis) * la_analytic, "--b", label="analytic static solution"
+    )
+    ax0.set_ylim(0, 2)
+    ax0.grid()
+    ax0.legend()
 
-    # # stretch of the final configuration
-    # n = 100
-    # xis = np.linspace(0, 1, num=n)
-    # la = rope.stretch(q[-1])
-    # # print(f"la: {la}")
-    # fig, ax = plt.subplots()
-    # ax.plot(xis, la)
-    # ax.set_ylim(0, 2)
-    # ax.grid()
+    scale_plane = R * la_analytic * 1.2
+    scale_z = 0.5
 
+    fig1, ax1, anim1 = animate_rope(t, q, [rope], scale_plane, show=False)
 
-    animate_rope(t, q, [rope], R, show=True)
+    #     fig, ax, anim = animate_beam(t, q, [rod], scale, show=False)
 
-if __name__ == "__main__":
-    inflated_quarter_circle()
+    # plane with x-direction as normal
+    Y_x = np.linspace(0, scale_plane, num=2)
+    Z_x = np.linspace(-scale_z, scale_z, num=2)
+    Y_x, Z_x = np.meshgrid(Y_x, Z_x)
+    X_x = np.zeros_like(Y_x)
+    ax1.plot_surface(X_x, Y_x, Z_x, alpha=0.5)
+
+    # plane with y-direction as normal
+    X_y = np.linspace(0, scale_plane, num=2)
+    Z_y = np.linspace(-scale_z, scale_z, num=2)
+    X_y, Z_y = np.meshgrid(X_y, Z_y)
+    Y_y = np.zeros_like(X_y)
+    ax1.plot_surface(X_y, Y_y, Z_y, alpha=0.5)
+
+    # plane with z-direction as normal
+    X_z = np.linspace(0, scale_plane, num=2)
+    Y_z = np.linspace(0, scale_plane, num=2)
+    X_z, Y_z = np.meshgrid(X_z, Y_z)
+    Z_z = np.zeros_like(X_z)
+    ax1.plot_surface(X_z, Y_z, Z_z, alpha=0.5)
+
+    plt.show()
