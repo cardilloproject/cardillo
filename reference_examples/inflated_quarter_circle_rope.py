@@ -238,23 +238,28 @@ if __name__ == "__main__":
     r = rope.r_OP(1, q[-1][rope.local_qDOF_P((1,))], (1,))[0]
 
     # initial vs. current area
-    a0 = rope.area(q[0])
-    a = rope.area(q[-1])
-    a0_analytic = np.pi * R**2 / 4
-    a_analytic = np.pi * r**2 / 4
-    print(f"A: {a0}")
-    print(f"a: {a}")
-    print(f"A analytic: {a0_analytic}")
-    print(f"a analytic: {a_analytic}")
+    a0_areafunction = rope.area(q[0])
+    a0_fromradius = np.pi * R**2 / 4
+    a_areafunction = rope.area(q[-1])
+    a_fromradius = np.pi * r**2 / 4
+    print(f"A from area function: {a0_areafunction}")
+    print(f"A computed from radius: {a0_fromradius}")
+    print(f"a from area function: {a_areafunction}")
+    print(f"a computed from radius: {a_fromradius}")
 
     # ratio of rope initial and deformed length
     l = pi * r / 2
     L = pi * R / 2
-    print(f"l / L: {l / L}")
-
     # analytical stretch
     la_analytic = pressure(1) * r / k_e + 1
+    r_analytic = R * la_analytic
+
+    print(f"stretch l / L: {l / L}")
     print(f"analytical stretch: {la_analytic}")
+
+    print(f"radius: {r}")
+    print(f"analytical radius: {r_analytic}")
+    
     # stretch of the final configuration
     n = 100
     xis = np.linspace(0, 1, num=n)
@@ -272,11 +277,10 @@ if __name__ == "__main__":
     ax0.legend()
 
     scale_plane = R * la_analytic * 1.2
-    scale_z = 0.5
+    scale_z = 0.2
 
-    fig1, ax1, anim1 = animate_rope(t, q, [rope], scale_plane, show=False)
-
-    #     fig, ax, anim = animate_beam(t, q, [rod], scale, show=False)
+    # TODO: resolve problem with last frame not showing
+    fig1, ax1, anim1 = animate_rope(t, q, [rope], scale_plane, show=False, repeat=False)
 
     # plane with x-direction as normal
     Y_x = np.linspace(0, scale_plane, num=2)
@@ -298,5 +302,21 @@ if __name__ == "__main__":
     X_z, Y_z = np.meshgrid(X_z, Y_z)
     Z_z = np.zeros_like(X_z)
     ax1.plot_surface(X_z, Y_z, Z_z, alpha=0.5)
+
+    # linear guidance x-direction
+    x_lg0 = np.linspace(0, scale_plane, num=2)
+    y_lg0 = z_lg0 = np.zeros_like(x_lg0)
+    ax1.plot(x_lg0, y_lg0, z_lg0, "-k")
+
+    # linear guidance y-direction
+    y_lg1 = np.linspace(0, scale_plane, num=2)
+    x_lg1 = z_lg1 = np.zeros_like(y_lg1)
+    ax1.plot(x_lg1, y_lg1, z_lg1, "-k")
+
+    # quarter circle analytic solution
+    x_qc = r_analytic * np.cos(0.5 * xis * pi)
+    y_qc = r_analytic * np.sin(0.5 * xis * pi)
+    z_qc = np.zeros_like(x_qc)
+    ax1.plot(x_qc, y_qc, z_qc, "-r")
 
     plt.show()

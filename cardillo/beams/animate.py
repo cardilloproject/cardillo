@@ -105,7 +105,7 @@ def animate_beam(t, q, beams, scale, scale_di=1, n_r=100, n_frames=10, show=True
     return fig, ax, anim
 
 
-def animate_rope(t, q, ropes, scale, n=100, show=True):
+def animate_rope(t, q, ropes, scale, n=100, show=True, repeat=True):
     fig, ax = plt.subplots(figsize=(8, 8), subplot_kw=dict(projection="3d"))
     ax.set_xlabel("x [m]")
     ax.set_ylabel("y [m]")
@@ -158,7 +158,7 @@ def animate_rope(t, q, ropes, scale, n=100, show=True):
         update(t[i], q[i])
 
     anim = FuncAnimation(
-        fig, animate, frames=target_frames, interval=interval, blit=False
+        fig, animate, frames=target_frames, interval=interval, blit=False, repeat=repeat
     )
     if show:
         plt.show()
