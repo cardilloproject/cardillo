@@ -39,3 +39,8 @@ eggs/
 jupyter_execute/
 
 .mypy_cache
+
+# vtk files
+*.vtk
+*.vtu
+*.pvd

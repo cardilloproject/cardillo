@@ -37,8 +37,6 @@ class ConvexRigidBody(RigidBodyQuaternion):
 
         super().__init__(mass, K_theta_S, q0=q0, u0=u0)
 
-        self.M_inv = np.diag(1 / np.diag(self.M_))
-
     def A_IK(self, t, q, frame_ID=None):
         return super().A_IK(t, q, frame_ID) @ self.A_KK0.T
 
