@@ -40,13 +40,13 @@ if __name__ == "__main__":
 
     m = 1
     pm0 = PointMass(m, np.zeros(3))
-    pm1 = PointMass(m, np.array([1,1,0]))
+    pm1 = PointMass(m, np.zeros(3))
     om = 2/3*np.pi
     force = Force(lambda t: np.array([np.sin(om*t), np.cos(om*t), 0]), pm0)
     system = System()
-    # system.extend([pm0, pm1])
     system.add(pm0)
     system.add(force)
+    system.add(pm1)
     system.assemble()
 
     t0 = 0
@@ -65,4 +65,5 @@ if __name__ == "__main__":
     # VtkExport.convex_body(path_vtk, sol_export, cube)
     
     # Export(path.parent, path.stem, True, 30, solution).export_contr([pm0, pm1])
-    Export(path.parent, path.stem, True, 30, solution).export_contr(pm0)
+    Export(path.parent, path.stem, True, 30, solution).export_contr([pm0, pm1])
+    # Export(path.parent, path.stem, True, 30, solution).export_contr([pm0])
