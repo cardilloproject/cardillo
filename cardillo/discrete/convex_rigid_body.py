@@ -60,6 +60,23 @@ class ConvexRigidBody(RigidBodyQuaternion):
     def K_J_R_q(self, t, q, frame_ID=None):
         return self.A_KK0 @ super().K_J_R_q(t, q, frame_ID)
 
+    def export(self, sol_i):
+        points, cells, cell_data = [], [], {}
+        cells_connectivity = self.mesh.simplices
+        for point in self.mesh.points:
+            points.append(self.r_OP(sol_i.t, sol_i.q[self.qDOF], K_r_SP=point))
+        cells.append(("triangle", cells_connectivity))
+
+        normals = self.A
+        normals = np.array(
+            [
+                self.A_IK(sol_i.t, sol_i.q[self.qDOF]) @ normals[j, :]
+                for j in range(normals.shape[0])
+            ]
+        )
+        cell_data = dict(normals=[normals])
+        return points, cells, None, cell_data
+
 
 class Mesh:
     def __init__(self, points: npt.ArrayLike) -> None:
