@@ -65,14 +65,21 @@ class PointMass:
         a_P[: self.nq] = u_dot
         return a_P
 
-    # export one point mass
+    # export one point mass with vtk
     def export(self, sol_i):
         points, vel, acc = [], [], []
         points.append(self.r_OP(sol_i.t, sol_i.q[self.qDOF]))
         vel.append(self.v_P(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.qDOF]))
         if sol_i.u_dot is not None:
-            acc.append(self.a_P(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF], sol_i.u_dot[self.uDOF]))
-        cells = [("vertex", [[0] ])]
+            acc.append(
+                self.a_P(
+                    sol_i.t,
+                    sol_i.q[self.qDOF],
+                    sol_i.u[self.uDOF],
+                    sol_i.u_dot[self.uDOF],
+                )
+            )
+        cells = [("vertex", [[0]])]
         if sol_i.u_dot is not None:
             cell_data = dict(velocity=[vel], acceleration=[acc])
         else:
