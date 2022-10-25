@@ -1,28 +1,34 @@
 import numpy as np
 from pathlib import Path
 
-from cardillo.discrete import PointMass
+from cardillo.discrete import PointMass, ConvexRigidBody, RigidBodyQuaternion
 from cardillo.forces import Force
 
 from cardillo.system import System
 from cardillo.math import axis_angle2quat, cross3
-from cardillo.discrete import ConvexRigidBody
 from cardillo.solver import ScipyIVP
 from cardillo.utility import Export
 
+class Ball(RigidBodyQuaternion):
+    def __init__(
+        self, m, r, q0, u0=None
+    ):
+        K_theta_S = 2 / 5 * m * r**2 * np.eye(3)
+        super().__init__(m, K_theta_S, q0, u0)
+
 if __name__ == "__main__":
-    points_cube = np.array(
-        [
-            [1, -0.5, -0.5],
-            [1, 0.5, -0.5],
-            [1, 0.5, 0.5],
-            [1, -0.5, 0.5],
-            [-1, -0.5, -0.5],
-            [-1, 0.5, -0.5],
-            [-1, 0.5, 0.5],
-            [-1, -0.5, 0.5],
-        ]
-    )
+    # points_cube = np.array(
+    #     [
+    #         [1, -0.5, -0.5],
+    #         [1, 0.5, -0.5],
+    #         [1, 0.5, 0.5],
+    #         [1, -0.5, 0.5],
+    #         [-1, -0.5, -0.5],
+    #         [-1, 0.5, -0.5],
+    #         [-1, 0.5, 0.5],
+    #         [-1, -0.5, 0.5],
+    #     ]
+    # )
 
     # create a convex body object
     m = 10
@@ -36,10 +42,13 @@ if __name__ == "__main__":
     q0 = np.concatenate([r_OS, p])
     u0 = np.concatenate([v_S, omega])
 
-    cube = ConvexRigidBody(points_cube, mass=m, u0=u0, q0=q0)
+    # cube = ConvexRigidBody(points_cube, mass=m, u0=u0, q0=q0)
+    r = 0.5
+    ball = Ball(m, r, q0, u0)
 
     system = System()
-    system.add(cube)
+    # system.add(cube)
+    system.add(ball)
     system.assemble()
 
     # m = 1
@@ -69,4 +78,5 @@ if __name__ == "__main__":
 
     # Export(path.parent, path.stem, True, 30, solution).export_contr([pm0, pm1])
     # Export(path.parent, path.stem, True, 30, solution).export_contr([pm0])
-    Export(path.parent, path.stem, True, 30, solution).export_contr(cube)
+    # Export(path.parent, path.stem, True, 30, solution).export_contr(cube)
+    Export(path.parent, path.stem, True, 30, solution).export_contr(ball)

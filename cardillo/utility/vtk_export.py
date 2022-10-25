@@ -172,27 +172,3 @@ class Export:
     #     point_data = cell_data = None # TODO add cell_data
 
     #     return points, cells, point_data, cell_data
-
-    # def _exportConvexBody(self, sol_i):
-    #     points, cells = [], []
-    #     offset = 0
-    #     for convex_body in self.contr:
-    #         cells_connectivity = offset + convex_body.mesh.simplices
-    #         normals = convex_body.A
-    #         for point in convex_body.mesh.points:
-    #             points.append(convex_body.r_OP(sol_i.t, sol_i.q[convex_body.qDOF], K_r_SP=point))
-
-    #         cells.append(("triangle", cells_connectivity))
-
-    #         normals = np.array(
-    #             [
-    #                 convex_body.A_IK(sol_i.t, sol_i.q[convex_body.qDOF]) @ normals[j, :]
-    #                 for j in range(normals.shape[0])
-    #             ]
-    #         )
-
-    #         offset = len(points)
-    #     points = np.array(points)
-    #     point_data = cell_data = None
-
-    #     return points, cells, point_data, cell_data
