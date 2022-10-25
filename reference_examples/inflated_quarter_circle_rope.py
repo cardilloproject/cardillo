@@ -259,7 +259,7 @@ if __name__ == "__main__":
 
     print(f"radius: {r}")
     print(f"analytical radius: {r_analytic}")
-    
+
     # stretch of the final configuration
     n = 100
     xis = np.linspace(0, 1, num=n)
