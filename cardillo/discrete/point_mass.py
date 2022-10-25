@@ -15,17 +15,13 @@ class PointMass:
         self.nq = dim
         self.nu = dim
 
-        self.M_ = m * np.eye(dim)
-        if m > 0:
-            self.M_inv = 1 / m * np.eye(dim)
-        else:
-            self.M_inv = np.zeros(3)
+        self.__M = m * np.eye(dim)
 
         self.q0 = np.asarray(q0)
         self.u0 = np.zeros(self.nu) if u0 is None else np.asarray(u0)
 
     def M(self, t, q, coo):
-        coo.extend(self.M_, (self.uDOF, self.uDOF))
+        coo.extend(self.__M, (self.uDOF, self.uDOF))
 
     def q_dot(self, t, q, u):
         return u
@@ -68,3 +64,17 @@ class PointMass:
         a_P = np.zeros(3)
         a_P[: self.nq] = u_dot
         return a_P
+
+    # export one point mass
+    def export(self, sol_i):
+        points, vel, acc = [], [], []
+        points.append(self.r_OP(sol_i.t, sol_i.q[self.qDOF]))
+        vel.append(self.v_P(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.qDOF]))
+        if sol_i.u_dot is not None:
+            acc.append(self.a_P(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF], sol_i.u_dot[self.uDOF]))
+        cells = [("vertex", [[0] ])]
+        if sol_i.u_dot is not None:
+            cell_data = dict(velocity=[vel], acceleration=[acc])
+        else:
+            cell_data = dict(velocity=[vel])
+        return points, cells, None, cell_data
