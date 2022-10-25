@@ -116,24 +116,25 @@ class Export:
             l = len(points)
             points.extend(p)
             cells.extend([(el[0], [[el[1][0][0] + l]]) for el in c])
+            if c_data is not None:
+                for key in c_data.keys():
+                    if not key in cell_data.keys():
+                        cell_data[key] = c_data[key]
+                    else:
+                        cell_data[key].extend(c_data[key])
+            if p_data is not None:
+                for key in p_data.keys():
+                    if not key in point_data.keys():
+                        point_data[key] = p_data[key]
+                    else:
+                        point_data[key].extend(p_data[key])
         
         return points, cells, point_data, cell_data
 
     def export_contr(
         self, 
-        # contr_name: str,
-        # contr = None
         contr
     ):
-        # # use contributions from system if none are given
-        # if contr is None:
-        #     self.contr = []
-        #     for c in self.system.contributions:
-        #         if c.__class__.__name__ is contr_name:
-        #             self.contr.append(c)
-        # check if given contribution is something like a list or a single object
-        # elif not isinstance(contr, (list, tuple, np.ndarray)):
-
         # export one contr
         if not isinstance(contr, (list, tuple, np.ndarray)):
             contr_name = contr.__class__.__name__
@@ -155,8 +156,8 @@ class Export:
                 filename=file_i,
                 points=points,
                 cells=cells,
-                # point_data=point_data,
-                # cell_data=cell_data,
+                point_data=point_data,
+                cell_data=cell_data,
                 binary=False
             )
         self._write_pvd_file(self.path / f'{file_name}.pvd')

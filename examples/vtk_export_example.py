@@ -64,6 +64,5 @@ if __name__ == "__main__":
     # sol_export = prepare_data(solution, t1, fps=60)
     # VtkExport.convex_body(path_vtk, sol_export, cube)
     
-    # Export(path.parent, path.stem, True, 30, solution).export_contr([pm0, pm1])
     Export(path.parent, path.stem, True, 30, solution).export_contr([pm0, pm1])
     # Export(path.parent, path.stem, True, 30, solution).export_contr([pm0])
