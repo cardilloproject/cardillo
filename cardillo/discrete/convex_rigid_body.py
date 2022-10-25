@@ -61,9 +61,7 @@ class ConvexRigidBody(RigidBodyQuaternion):
         return self.A_KK0 @ super().K_J_R_q(t, q, frame_ID)
 
     def export(self, sol_i):
-        points, cells = [], []
-        vel, acc = [], []
-        cells_connectivity = self.mesh.simplices
+        points, vel, acc = [], [], []
         for point in self.mesh.points:
             points.append(self.r_OP(sol_i.t, sol_i.q[self.qDOF], K_r_SP=point))
             vel.append(
@@ -79,20 +77,19 @@ class ConvexRigidBody(RigidBodyQuaternion):
                         K_r_SP=point,
                     )
                 )
-        cells.append(("triangle", cells_connectivity))
+        cells = [("triangle", self.mesh.simplices)]
 
-        normals = self.A
         normals = np.array(
             [
-                self.A_IK(sol_i.t, sol_i.q[self.qDOF]) @ normals[j, :]
-                for j in range(normals.shape[0])
+                self.A_IK(sol_i.t, sol_i.q[self.qDOF]) @ self.A[j, :]
+                for j in range(self.A.shape[0])
             ]
         )
         cell_data = dict(normals=[normals])
         if sol_i.u_dot is not None:
-            point_data = dict(velocity=vel, acceleration=acc)
+            point_data = dict(v=vel, a=acc)
         else:
-            point_data = dict(velocity=vel)
+            point_data = dict(v=vel)
         return points, cells, point_data, cell_data
 
 
