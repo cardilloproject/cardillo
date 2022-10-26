@@ -265,6 +265,10 @@ if __name__ == "__main__":
     xis = np.linspace(0, 1, num=n)
     la = rope.stretch(q[-1], n=n)
 
+    ############################################################################
+    #                   visualization
+    ############################################################################
+
     fig0, ax0 = plt.subplots()
     ax0.set_ylabel(r"stretch $\lambda$")
     ax0.set_xlabel(r"beam coordinate $\xi$")
@@ -280,7 +284,7 @@ if __name__ == "__main__":
     scale_z = 0.2
 
     # TODO: resolve problem with last frame not showing
-    fig1, ax1, anim1 = animate_rope(t, q, [rope], scale_plane, show=False, repeat=False)
+    fig1, ax1, anim1 = animate_rope(t, q, [rope], scale_plane, show=False, repeat=True)
 
     # plane with x-direction as normal
     Y_x = np.linspace(0, scale_plane, num=2)
