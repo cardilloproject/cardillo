@@ -68,7 +68,9 @@ class ConvexRigidBody(RigidBodyQuaternion):
             for point in self.mesh.points:
                 points.append(self.r_OP(sol_i.t, sol_i.q[self.qDOF], K_r_SP=point))
                 vel.append(
-                    self.v_P(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF], K_r_SP=point)
+                    self.v_P(
+                        sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF], K_r_SP=point
+                    )
                 )
                 if sol_i.u_dot is not None:
                     acc.append(
@@ -82,10 +84,12 @@ class ConvexRigidBody(RigidBodyQuaternion):
                     )
             cells = [("triangle", self.mesh.simplices)]
 
-            normals = np.array([
+            normals = np.array(
+                [
                     self.A_IK(sol_i.t, sol_i.q[self.qDOF]) @ self.A[j, :]
                     for j in range(self.A.shape[0])
-                ])
+                ]
+            )
 
             cell_data = dict(normals=[normals])
 

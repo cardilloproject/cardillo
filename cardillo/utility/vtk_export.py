@@ -3,6 +3,7 @@ from collections import namedtuple
 import meshio
 from xml.dom import minidom
 from pathlib import Path
+from shutil import rmtree
 
 from cardillo.solver import Solution
 
@@ -25,6 +26,8 @@ class Export:
         # self.system = system
         self._prepare_data(solution)
 
+    # helper functions
+    def _vtk_file(self):
         self.root = minidom.Document()
 
         self.vtk_file = self.root.createElement("VTKFile")
@@ -34,11 +37,8 @@ class Export:
         self.collection = self.root.createElement("Collection")
         self.vtk_file.appendChild(self.collection)
 
-    Data = namedtuple("Data", ["points", "cells", "point_data", "cell_data"])
-
-    # helper functions
     def _unique_file_name(self, file_name):
-        file_name_ = file_name
+        file_name_ = f"{file_name}0"
         i = 1
         while (self.path / f"{file_name_}.pvd").exists():
             file_name_ = f"{file_name}{i}"
@@ -95,7 +95,9 @@ class Export:
             while path.exists():
                 path = self.path / str(folder_name + f"_{i}")
                 i += 1
-        # TODO: delete existing files
+        else:
+            if path.exists():
+                rmtree(path)
         path.mkdir(parents=True, exist_ok=overwrite)
         self.path = path
 
@@ -123,6 +125,7 @@ class Export:
         return points, cells, point_data, cell_data
 
     def export_contr(self, contr, base_export=False):
+        self._vtk_file()
         # export one contr
         if not isinstance(contr, (list, tuple, np.ndarray)):
             contr_name = contr.__class__.__name__
