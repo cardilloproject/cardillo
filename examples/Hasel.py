@@ -209,7 +209,7 @@ def add_internal_fluid(Rope):
             return f
 
         def h_q(self, t, q, u, coo):
-            super().h_q(t, q, u, coo)
+            # super().h_q(t, q, u, coo)
             dense = approx_fprime(
                 q,
                 lambda q: self.h(t, q, u),
@@ -1171,10 +1171,10 @@ def cable_straight(case="rope"):
 
     # discretization properties
     nelements = 5
-    polynomial_degree = 1
-    basis = "Lagrange"
-    # polynomial_degree = 3
-    # basis = "B-spline"
+    # polynomial_degree = 1
+    # basis = "Lagrange"
+    polynomial_degree = 3
+    basis = "B-spline"
     # polynomial_degree = 3
     # basis = "Hermite"
 
@@ -1436,7 +1436,6 @@ def cable_inflated_circular_segment(case="cable"):
     # solver parameter
     if statics:
         atol = 1.0e-8
-        rtol = 0.0
         n_load_steps = 10
         max_iter = 20
     else:
@@ -1478,13 +1477,19 @@ def cable_inflated_circular_segment(case="cable"):
         InflatedCable = add_internal_fluid(Cable)
 
     # straight initial configuration
-    Q = InflatedCable.circular_segment_configuration(
+    q0 = InflatedCable.circular_segment_configuration(
         basis,
         polynomial_degree,
         nelements,
         R,
         phi,
     )
+
+    # initial nodal positions
+    r0 = q0.copy().reshape(3, -1, order="C")
+
+    # reference configuration: corresponds to initial configuration
+    Q = q0
 
     # hydrostatic pressure
     rho_g = 1.0e0
@@ -1496,7 +1501,7 @@ def cable_inflated_circular_segment(case="cable"):
         # configuration. Do not change first and last node, otherwise constraints
         # are violated!
         eps = 1.0e-7
-        r0 = Q.copy().reshape(3, -1, order="C")
+        # r0 = Q.copy().reshape(3, -1, order="C")
         nn = r0.shape[1]
         for i in range(1, nn - 1):
             r0[:2, i] += eps * 0.5 * (2.0 * np.random.rand(2) - 1)
@@ -1533,17 +1538,18 @@ def cable_inflated_circular_segment(case="cable"):
         )
 
     # left joint
-    r_OP0 = Q.reshape(-1, 3)[0]
+    # r_OP0 = Q.reshape(-1, 3)[0]
+    r_OP0 = r0[:, 0]
     A_IK0 = rodriguez(pi / 2 * e3)
     frame0 = Frame(r_OP=r_OP0, A_IK=A_IK0)
     joint0 = SphericalJoint(frame0, rope, r_OP0, frame_ID2=(0,))
 
     # left joint
-    r_OP1 = Q.reshape(-1, 3)[-1]
+    r_OP1 = r0[:, -1]
     A_IK1 = np.eye(3, dtype=float)
     frame1 = Frame(r_OP=r_OP1, A_IK=A_IK1)
-    joint1 = SphericalJoint(frame1, rope, r_OP1, frame_ID2=(1,))
-    # joint1 = Linear_guidance_xyz(frame1, rope, r_OP1, A_IK1, frame_ID2=(1,))
+    # joint1 = SphericalJoint(frame1, rope, r_OP1, frame_ID2=(1,))
+    joint1 = Linear_guidance_xyz(frame1, rope, r_OP1, A_IK1, frame_ID2=(1,))
 
     # r_OP1 = lambda t: Q.reshape(-1, 3)[-1] + t * e1 * 0.01
     # A_IK1 = np.eye(3, dtype=float)
@@ -1615,15 +1621,13 @@ def cable_inflated_circular_segment(case="cable"):
     model.add(joint0)
     model.add(frame1)
     model.add(joint1)
-    # model.add(frame2)
-    # model.add(joint2)
-    # model.add(gravity)
+    model.add(gravity)
     model.add(pm)
     model.add(force)
     model.add(joint3)
     model.assemble()
 
-    animate_rope([0], [Q], [rope], R, show=True)
+    # animate_rope([0], [Q], [rope], R, show=True)
 
     if statics:
         solver = Newton(
@@ -1696,9 +1700,9 @@ def cable_inflated_circular_segment(case="cable"):
 
 if __name__ == "__main__":
     # inflated_straight()
-    inflated_quarter_circle()
+    # inflated_quarter_circle()
     # inflated_quarter_circle_external_force()
     # inflated_circular_segment()
-    # cable_straight()
+    # cable_straight(case="rope")
     # cable_straight_inflated()
-    # cable_inflated_circular_segment()
+    cable_inflated_circular_segment(case="cable")
