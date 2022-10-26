@@ -2,14 +2,14 @@ import numpy as np
 from pathlib import Path
 
 from cardillo.discrete import (
-    PointMass, 
-    ConvexRigidBody, 
+    PointMass,
+    ConvexRigidBody,
     RigidBodyQuaternion,
     Frame,
 )
 from cardillo.forces import (
-    Force, 
-    ScalarForceTranslational, 
+    Force,
+    ScalarForceTranslational,
     LinearSpring,
 )
 
@@ -61,14 +61,14 @@ if __name__ == "__main__":
     pm0 = PointMass(m, np.zeros(3))
     r_OS1 = np.array([1, 0, 0])
     pm1 = PointMass(m, r_OS1)
-    om = 2/3*np.pi
-    force = Force(lambda t: np.array([np.sin(om*t), np.cos(om*t), 0]), pm0)
+    om = 2 / 3 * np.pi
+    force = Force(lambda t: np.array([np.sin(om * t), np.cos(om * t), 0]), pm0)
 
     k = 1e2
     spring = ScalarForceTranslational(pm0, pm1, LinearSpring(k))
     frame = Frame(r_OS1)
     joint = SphericalJoint(frame, pm1, r_OS1)
-    
+
     system = System()
     # system.add(cube)
     # system.add(ball)
