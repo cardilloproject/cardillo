@@ -20,14 +20,14 @@ class Export:
     ) -> None:
         super().__init__()
         self.path = path
-        self.folder = self._create_vtk_folder(folder_name, overwrite)
+        self.folder = self.__create_vtk_folder(folder_name, overwrite)
         self.fps = fps
 
         # self.system = system
-        self._prepare_data(solution)
+        self.__prepare_data(solution)
 
     # helper functions
-    def _vtk_file(self):
+    def __vtk_file(self):
         self.root = minidom.Document()
 
         self.vtk_file = self.root.createElement("VTKFile")
@@ -37,7 +37,7 @@ class Export:
         self.collection = self.root.createElement("Collection")
         self.vtk_file.appendChild(self.collection)
 
-    def _unique_file_name(self, file_name):
+    def __unique_file_name(self, file_name):
         file_name_ = f"{file_name}0"
         i = 1
         while (self.path / f"{file_name_}.pvd").exists():
@@ -45,7 +45,7 @@ class Export:
             i += 1
         return file_name_
 
-    def _write_time_step_and_name(self, t, file):
+    def __write_time_step_and_name(self, t, file):
         # write time step and file name in pvd file
         dataset = self.root.createElement("DataSet")
         dataset.setAttribute("timestep", f"{t:0.6f}")
@@ -57,7 +57,7 @@ class Export:
         with (path).open("w") as f:
             f.write(xml_str)
 
-    def _prepare_data(self, sol):
+    def __prepare_data(self, sol):
         frames = len(sol.t)
         # target_frames = min(len(t), 100)
         animation_time_ = sol.t[-1] - sol.t[0]
@@ -88,7 +88,7 @@ class Export:
             t=t, q=q, u=u, u_dot=u_dot, la_g=la_g, la_gamma=la_gamma, P_N=P_N, P_F=P_F
         )
 
-    def _create_vtk_folder(self, folder_name: str, overwrite: bool):
+    def __create_vtk_folder(self, folder_name: str, overwrite: bool):
         path = self.path / folder_name
         i = 0
         if not overwrite:
@@ -101,7 +101,7 @@ class Export:
         path.mkdir(parents=True, exist_ok=overwrite)
         self.path = path
 
-    def _export_list(self, sol_i):
+    def __export_list(self, sol_i):
         points, cells, point_data, cell_data = [], [], {}, {}
         l = 0
         for contr in self.contr_list:
@@ -125,7 +125,7 @@ class Export:
         return points, cells, point_data, cell_data
 
     def export_contr(self, contr, **kwargs):
-        self._vtk_file()
+        self.__vtk_file()
         # export one contr
         if not isinstance(contr, (list, tuple, np.ndarray)):
             contr_name = contr.__class__.__name__
@@ -134,12 +134,12 @@ class Export:
             # assume list of same contr types
             contr_name = contr[0].__class__.__name__
             self.contr_list = contr
-            export = self._export_list
+            export = self.__export_list
 
-        file_name = self._unique_file_name(contr_name)
+        file_name = self.__unique_file_name(contr_name)
         for i, sol_i in enumerate(self.solution):
             file_i = self.path / f"{file_name}_{i}.vtu"
-            self._write_time_step_and_name(sol_i.t, file_i)
+            self.__write_time_step_and_name(sol_i.t, file_i)
 
             points, cells, point_data, cell_data = export(sol_i, **kwargs)
 
@@ -152,26 +152,3 @@ class Export:
                 binary=False,
             )
         self._write_pvd_file(self.path / f"{file_name}.pvd")
-
-    def _exportTranslationalForce(self, sol_i):
-        points, cells = [], []
-        offset = 0
-        for force in self.contr:
-            if isinstance(force, TranslationalForceTri):
-                points.append(force.r_OBk(sol_i.t, sol_i.q[force.qDOF], 0))
-                points.append(points[-1] + force.median(sol_i.t, sol_i.q[force.qDOF]))
-                new_con = [np.array([offset, offset+1])]
-            elif isinstance(force, TranslationalForce_n):
-                for i, _ in enumerate(force.subsystems):
-                    points.append(force.r_OBk(sol_i.t, sol_i.q[force.qDOF], i))
-                new_con = [np.array(tup)+np.full((2), offset) for tup in force.connectivity]
-            else:
-                points.append(force.r_OP1(sol_i.t, sol_i.q[force.qDOF]))
-                points.append(force.r_OP2(sol_i.t, sol_i.q[force.qDOF]))
-                new_con = [np.array([offset, offset+1])]
-            offset = len(points)
-            cells.append(("line", np.array(new_con)))
-        points = np.array(points)
-        point_data = cell_data = None # TODO add cell_data
-
-        return points, cells, point_data, cell_data
