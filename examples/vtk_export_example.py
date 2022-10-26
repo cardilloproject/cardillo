@@ -1,8 +1,19 @@
 import numpy as np
 from pathlib import Path
 
-from cardillo.discrete import PointMass, ConvexRigidBody, RigidBodyQuaternion
-from cardillo.forces import Force
+from cardillo.discrete import (
+    PointMass, 
+    ConvexRigidBody, 
+    RigidBodyQuaternion,
+    Frame,
+)
+from cardillo.forces import (
+    Force, 
+    ScalarForceTranslational, 
+    LinearSpring,
+)
+
+from cardillo.constraints import SphericalJoint
 
 from cardillo.system import System
 from cardillo.math import axis_angle2quat, cross3
@@ -46,21 +57,32 @@ if __name__ == "__main__":
     # r = 0.5
     # ball = Ball(m, r, q0, u0)
 
-    system = System()
-    system.add(cube)
-    # system.add(ball)
-    system.assemble()
+    m = 1
+    pm0 = PointMass(m, np.zeros(3))
+    r_OS1 = np.array([1, 0, 0])
+    pm1 = PointMass(m, r_OS1)
+    om = 2/3*np.pi
+    force = Force(lambda t: np.array([np.sin(om*t), np.cos(om*t), 0]), pm0)
 
-    # m = 1
-    # pm0 = PointMass(m, np.zeros(3))
-    # pm1 = PointMass(m, np.zeros(3))
-    # om = 2/3*np.pi
-    # force = Force(lambda t: np.array([np.sin(om*t), np.cos(om*t), 0]), pm0)
+    k = 1e2
+    spring = ScalarForceTranslational(pm0, pm1, LinearSpring(k))
+    frame = Frame(r_OS1)
+    joint = SphericalJoint(frame, pm1, r_OS1)
+    
+    system = System()
+    # system.add(cube)
+    # system.add(ball)
+
     # system = System()
-    # system.add(pm0)
-    # system.add(force)
-    # system.add(pm1)
-    # system.assemble()
+    system.add(pm0)
+    system.add(force)
+    system.add(pm1)
+
+    system.add(spring)
+    system.add(frame)
+    system.add(joint)
+
+    system.assemble()
 
     t0 = 0
     t1 = 3
@@ -76,9 +98,10 @@ if __name__ == "__main__":
     # sol_export = prepare_data(solution, t1, fps=60)
     # VtkExport.convex_body(path_vtk, sol_export, cube)
 
-    # Export(path.parent, path.stem, True, 30, solution).export_contr([pm0, pm1])
-    # Export(path.parent, path.stem, True, 30, solution).export_contr([pm0])
     e = Export(path.parent, path.stem, True, 30, solution)
-    e.export_contr(cube)
-    e.export_contr(cube, base_export=True)
-    # Export(path.parent, path.stem, True, 30, solution).export_contr(ball)
+    e.export_contr([pm0, pm1])
+    # e.export_contr([pm0])
+    # e.export_contr(cube)
+    # e.export_contr(cube, base_export=True)
+    # e.export_contr(ball)
+    e.export_contr(spring)

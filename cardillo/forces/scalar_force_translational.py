@@ -231,3 +231,9 @@ class ScalarForceTranslational:
             self.__W(t, q), self.__W(t, q)
         )
         coo.extend(dense, (self.uDOF, self.uDOF))
+
+    def export(self, sol_i):
+        points = [self.r_OP1(sol_i.t, sol_i.q[self.qDOF]), self.r_OP2(sol_i.t, sol_i.q[self.qDOF])]
+        cells = [("line", [[0, 1]])]
+
+        return points, cells, None, None
