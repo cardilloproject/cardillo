@@ -62,7 +62,7 @@ class Export:
         # target_frames = min(len(t), 100)
         animation_time_ = sol.t[-1] - sol.t[0]
         target_frames = int(animation_time_ * self.fps)
-        frac = int(frames / target_frames)
+        frac = max(1, int(frames / target_frames))
 
         frames = target_frames
         t = sol.t[::frac]
@@ -122,7 +122,7 @@ class Export:
 
         return points, cells, point_data, cell_data
 
-    def export_contr(self, contr):
+    def export_contr(self, contr, base_export=False):
         # export one contr
         if not isinstance(contr, (list, tuple, np.ndarray)):
             contr_name = contr.__class__.__name__
@@ -138,7 +138,7 @@ class Export:
             file_i = self.path / f"{file_name}_{i}.vtu"
             self._write_time_step_and_name(sol_i.t, file_i)
 
-            points, cells, point_data, cell_data = export(sol_i)
+            points, cells, point_data, cell_data = export(sol_i, base_export)
 
             meshio.write_points_cells(
                 filename=file_i,
