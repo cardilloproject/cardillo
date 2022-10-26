@@ -9,12 +9,12 @@ from cardillo.math import axis_angle2quat, cross3
 from cardillo.solver import ScipyIVP
 from cardillo.utility import Export
 
+
 class Ball(RigidBodyQuaternion):
-    def __init__(
-        self, m, r, q0, u0=None
-    ):
+    def __init__(self, m, r, q0, u0=None):
         K_theta_S = 2 / 5 * m * r**2 * np.eye(3)
         super().__init__(m, K_theta_S, q0, u0)
+
 
 if __name__ == "__main__":
     points_cube = np.array(
@@ -78,6 +78,7 @@ if __name__ == "__main__":
 
     # Export(path.parent, path.stem, True, 30, solution).export_contr([pm0, pm1])
     # Export(path.parent, path.stem, True, 30, solution).export_contr([pm0])
-    Export(path.parent, path.stem, True, 30, solution).export_contr(cube)
-    Export(path.parent, path.stem, True, 30, solution).export_contr(cube, True)
+    e = Export(path.parent, path.stem, True, 30, solution)
+    e.export_contr(cube)
+    e.export_contr(cube, True)
     # Export(path.parent, path.stem, True, 30, solution).export_contr(ball)

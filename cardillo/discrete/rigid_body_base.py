@@ -145,12 +145,28 @@ class RigidBodyBase(ABC):
                 )
             ]
             psi = [
-                self.A_IK(sol_i.t, sol_i.q[self.qDOF]) @ self.K_Psi(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF], sol_i.u_dot[self.uDOF])
+                self.A_IK(sol_i.t, sol_i.q[self.qDOF])
+                @ self.K_Psi(
+                    sol_i.t,
+                    sol_i.q[self.qDOF],
+                    sol_i.u[self.uDOF],
+                    sol_i.u_dot[self.uDOF],
+                )
             ]
         A_IK = np.vsplit(self.A_IK(sol_i.t, sol_i.q[self.qDOF]).T, 3)
         cells = [("vertex", [[0]])]
         if sol_i.u_dot is not None:
-            cell_data = dict(v=[vel], omega=[omega], a=[acc], psi=[psi], ex=[A_IK[0]], ey=[A_IK[1]], ez=[A_IK[2]])
+            cell_data = dict(
+                v=[vel],
+                omega=[omega],
+                a=[acc],
+                psi=[psi],
+                ex=[A_IK[0]],
+                ey=[A_IK[1]],
+                ez=[A_IK[2]],
+            )
         else:
-            cell_data = dict(v=[vel], omega=[omega], ex=[A_IK[0]], ey=[A_IK[1]], ez=[A_IK[2]])
+            cell_data = dict(
+                v=[vel], omega=[omega], ex=[A_IK[0]], ey=[A_IK[1]], ez=[A_IK[2]]
+            )
         return points, cells, None, cell_data
