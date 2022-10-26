@@ -12,6 +12,20 @@ from cardillo.math import (
 )
 
 
+class QuadraticMaterial:
+    def __init__(self, k_e):
+        self.k_e = k_e  # axial stiffness
+
+    def potential(self, t, xi, la, la0):
+        return 0.5 * self.k_e * (la - la0) ** 2
+
+    def n(self, t, xi, la, la0):
+        return self.k_e * (la - la0)
+
+    def n_lambda(self, t, xi, la, la0):
+        return self.k_e
+
+
 class Rope:
     def __init__(
         self,
@@ -93,13 +107,6 @@ class Rope:
         # evaluate shape functions at specific xi
         self.basis_functions = self.mesh.eval_basis
 
-        # reference generalized coordinates, initial coordinates and initial velocities
-        self.Q = Q  # reference configuration
-        self.q0 = Q.copy() if q0 is None else q0  # initial configuration
-        self.u0 = (
-            np.zeros(self.nu, dtype=float) if u0 is None else u0
-        )  # initial velocities
-
         # precompute values of the reference configuration in order to save computation time
         # J in Harsch2020b (5)
         self.J = np.zeros((nelement, nquadrature), dtype=float)
@@ -150,6 +157,7 @@ class Rope:
                 r0[:, i] = r_OP + A_IK @ r0[:, i]
 
         elif basis == "Hermite":
+            raise NotImplementedError
             xis = np.linspace(0, 1, num=nn)
             r0 = np.zeros((6, nn))
             t0 = A_IK @ (L * e1)
@@ -159,7 +167,7 @@ class Rope:
                 r0[3:, i] = t0
 
         # reshape generalized coordinates to nodal ordering
-        q = r0.reshape(-1, order="F")
+        q = r0.reshape(-1, order="C")
 
         return q
 
@@ -173,6 +181,7 @@ class Rope:
         if basis == "Lagrange":
             nn = polynomial_degree * nelement + 1
         elif basis == "B-spline":
+            # TODO: write fitting for parameterized curves
             print(f"quarter_circle_configuration is not correct for B-spline basis!")
             nn = polynomial_degree + nelement
         # elif basis == "Hermite":
@@ -188,7 +197,7 @@ class Rope:
             r0[1, i] = R * np.cos(phi_i)
 
         # reshape generalized coordinates to nodal ordering
-        q = r0.reshape(-1, order="F")
+        q = r0.reshape(-1, order="C")
         return q
 
     @staticmethod
@@ -218,7 +227,7 @@ class Rope:
             r0[1, i] = R * np.cos(phi_i) - R * np.cos(phi)
 
         # reshape generalized coordinates to nodal ordering
-        q = r0.reshape(-1, order="F")
+        q = r0.reshape(-1, order="C")
         return q
 
     def element_number(self, xi):
@@ -270,20 +279,44 @@ class Rope:
         return E_pot
 
     def E_pot_el(self, qe, el):
-        raise NotImplementedError
+        E = np.zeros(1, dtype=qe.dtype)[0]
+        for i in range(self.nquadrature):
+            # extract reference state variables
+            qwi = self.qw[el, i]
+            Ji = self.J[el, i]
+
+            # interpolate tangent vector
+            r_xi = np.zeros(3, dtype=qe.dtype)
+            for node in range(self.nnodes_element):
+                r_xi += self.N_xi[el, i, node] * qe[self.nodalDOF_element[node]]
+
+            # length of the current tangent vector
+            ji2 = r_xi @ r_xi
+            ji = np.sqrt(ji2)
+
+            # axial strain
+            la = ji / Ji
+            la0 = 1.0
+
+            # compute contact forces and couples from partial derivatives of
+            # the strain energy function w.r.t. strain measures
+            E += self.material_model.potential(la, la0) * Ji * qwi
+
+        return E
 
     def h(self, t, q, u):
         f_pot = np.zeros(self.nu, dtype=q.dtype)
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
-            f_pot[elDOF] += self.f_pot_el(q[elDOF], el)
+            f_pot[elDOF] += self.f_pot_el(t, q[elDOF], el)
         return f_pot
 
-    def f_pot_el(self, qe, el):
+    def f_pot_el(self, t, qe, el):
         f_pot_el = np.zeros(self.nq_element, dtype=qe.dtype)
 
         for i in range(self.nquadrature):
             # extract reference state variables
+            xi = self.qp[el, i]
             qwi = self.qw[el, i]
             Ji = self.J[el, i]
 
@@ -301,8 +334,7 @@ class Rope:
 
             # compute contact forces and couples from partial derivatives of
             # the strain energy function w.r.t. strain measures
-            n = self.material_model.pot_g(la, la0)
-
+            n = self.material_model.n(t, xi, la, la0)
             # unit tangent vector
             e = r_xi / ji
 
@@ -317,16 +349,17 @@ class Rope:
     def h_q(self, t, q, u, coo):
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
-            f_pot_q_el = self.f_pot_q_el(q[elDOF], el)
+            f_pot_q_el = self.f_pot_q_el(t, q[elDOF], el)
 
             # sparse assemble element internal stiffness matrix
             coo.extend(f_pot_q_el, (self.uDOF[elDOF], self.qDOF[elDOF]))
 
-    def f_pot_q_el(self, qe, el):
+    def f_pot_q_el(self, t, qe, el):
         f_pot_q_el = np.zeros((self.nu_element, self.nq_element), dtype=float)
 
         for i in range(self.nquadrature):
             # extract reference state variables
+            xi = self.qp[el, i]
             qwi = self.qw[el, i]
             Ji = self.J[el, i]
 
@@ -348,8 +381,8 @@ class Rope:
 
             # compute contact forces and couples from partial derivatives of
             # the strain energy function w.r.t. strain measures
-            n = self.material_model.pot_g(la, la0)
-            n_la = self.material_model.pot_gg(la, la0)
+            n = self.material_model.n(t, xi, la, la0)
+            n_la = self.material_model.n_lambda(t, xi, la, la0)
 
             # unit tangent vector
             e = r_xi / ji

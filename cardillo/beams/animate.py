@@ -105,7 +105,7 @@ def animate_beam(t, q, beams, scale, scale_di=1, n_r=100, n_frames=10, show=True
     return fig, ax, anim
 
 
-def animate_rope(t, q, ropes, scale, n=100, show=True):
+def animate_rope(t, q, ropes, scale, n=100, show=True, repeat=True):
     fig, ax = plt.subplots(figsize=(8, 8), subplot_kw=dict(projection="3d"))
     ax.set_xlabel("x [m]")
     ax.set_ylabel("y [m]")
@@ -116,18 +116,17 @@ def animate_rope(t, q, ropes, scale, n=100, show=True):
     ax.set_zlim3d(bottom=-scale, top=scale)
 
     # prepare data for animation
-    frames = len(q) - 1
-    if frames > 0:
-        target_frames = min(frames, 100)
-        frac = max(1, int(np.ceil(frames / target_frames)))
-    else:
-        target_frames = 1
-        frac = 1
-    animation_time = 1
-    interval = animation_time * 1000 / target_frames
+    frames = len(q)
+    target_frames = min(frames, 100)
+    frac = max(1, int(frames / target_frames))
 
     t = t[::frac]
     q = q[::frac]
+
+    true_frames = len(t)
+
+    animation_time = 1
+    interval = animation_time * 1000 / true_frames
 
     # animated objects
     nodes = []
@@ -158,7 +157,7 @@ def animate_rope(t, q, ropes, scale, n=100, show=True):
         update(t[i], q[i])
 
     anim = FuncAnimation(
-        fig, animate, frames=target_frames, interval=interval, blit=False
+        fig, animate, frames=true_frames, interval=interval, blit=False, repeat=repeat
     )
     if show:
         plt.show()
