@@ -27,7 +27,7 @@ if __name__ == "__main__":
     # rope parameters
     g = 9.81  # gravity constant
     L = 3.14  # reference length rope
-    A_rho0 = 1.0e0  # reference density per unit length
+    A_rho0 = 1.0e1  # reference density per unit length
 
     # material law rope
     k_e = 1.0e2  # extensional stiffness
@@ -39,12 +39,10 @@ if __name__ == "__main__":
 
     # discretization properties
     nelements = 5
-    polynomial_degree = 1
-    basis = "Lagrange"
-    # polynomial_degree = 3
-    # basis = "B-spline"
-    # polynomial_degree = 3
-    # basis = "Hermite"
+    # polynomial_degree = 1
+    # basis = "Lagrange"
+    polynomial_degree = 3
+    basis = "B-spline"
 
     # left boundary condition
     r_OP0 = np.zeros(3, dtype=float)
@@ -63,7 +61,7 @@ if __name__ == "__main__":
         A_IK=A_IK0,
     )
 
-    # initial nodal positions
+    # initial nodal/control point positions
     r0 = q0.copy().reshape(3, -1, order="C")
 
     # reference configuration: corresponds to initial configuration

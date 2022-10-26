@@ -124,7 +124,7 @@ if __name__ == "__main__":
         R,
     )
 
-    # initial nodal positions
+    # initial nodal/control point positions
     r0 = q0.copy().reshape(3, -1, order="C")
 
     # reference configuration: corresponds to initial configuration
@@ -140,7 +140,7 @@ if __name__ == "__main__":
 
         # random manipulation
         # eps = 1.0e-6
-        # r0 = Q.copy().reshape(3, -1, order="C")
+        # r0 = q0.copy().reshape(3, -1, order="C")
         # nn = r0.shape[1]
         # for i in range(1, nn - 1):
         #     r0[:2, i] += eps * 0.5 * (2.0 * np.random.rand(2) - 1)
