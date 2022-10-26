@@ -80,5 +80,5 @@ if __name__ == "__main__":
     # Export(path.parent, path.stem, True, 30, solution).export_contr([pm0])
     e = Export(path.parent, path.stem, True, 30, solution)
     e.export_contr(cube)
-    e.export_contr(cube, True)
+    e.export_contr(cube, base_export=True)
     # Export(path.parent, path.stem, True, 30, solution).export_contr(ball)

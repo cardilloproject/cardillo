@@ -124,7 +124,7 @@ class Export:
 
         return points, cells, point_data, cell_data
 
-    def export_contr(self, contr, base_export=False):
+    def export_contr(self, contr, **kwargs):
         self._vtk_file()
         # export one contr
         if not isinstance(contr, (list, tuple, np.ndarray)):
@@ -141,7 +141,7 @@ class Export:
             file_i = self.path / f"{file_name}_{i}.vtu"
             self._write_time_step_and_name(sol_i.t, file_i)
 
-            points, cells, point_data, cell_data = export(sol_i, base_export)
+            points, cells, point_data, cell_data = export(sol_i, **kwargs)
 
             meshio.write_points_cells(
                 filename=file_i,
@@ -153,25 +153,25 @@ class Export:
             )
         self._write_pvd_file(self.path / f"{file_name}.pvd")
 
-    # def _exportTranslationalForce(self, sol_i):
-    #     points, cells = [], []
-    #     offset = 0
-    #     for force in self.contr:
-    #         if isinstance(force, TranslationalForceTri):
-    #             points.append(force.r_OBk(sol_i.t, sol_i.q[force.qDOF], 0))
-    #             points.append(points[-1] + force.median(sol_i.t, sol_i.q[force.qDOF]))
-    #             new_con = [np.array([offset, offset+1])]
-    #         elif isinstance(force, TranslationalForce_n):
-    #             for i, _ in enumerate(force.subsystems):
-    #                 points.append(force.r_OBk(sol_i.t, sol_i.q[force.qDOF], i))
-    #             new_con = [np.array(tup)+np.full((2), offset) for tup in force.connectivity]
-    #         else:
-    #             points.append(force.r_OP1(sol_i.t, sol_i.q[force.qDOF]))
-    #             points.append(force.r_OP2(sol_i.t, sol_i.q[force.qDOF]))
-    #             new_con = [np.array([offset, offset+1])]
-    #         offset = len(points)
-    #         cells.append(("line", np.array(new_con)))
-    #     points = np.array(points)
-    #     point_data = cell_data = None # TODO add cell_data
+    def _exportTranslationalForce(self, sol_i):
+        points, cells = [], []
+        offset = 0
+        for force in self.contr:
+            if isinstance(force, TranslationalForceTri):
+                points.append(force.r_OBk(sol_i.t, sol_i.q[force.qDOF], 0))
+                points.append(points[-1] + force.median(sol_i.t, sol_i.q[force.qDOF]))
+                new_con = [np.array([offset, offset+1])]
+            elif isinstance(force, TranslationalForce_n):
+                for i, _ in enumerate(force.subsystems):
+                    points.append(force.r_OBk(sol_i.t, sol_i.q[force.qDOF], i))
+                new_con = [np.array(tup)+np.full((2), offset) for tup in force.connectivity]
+            else:
+                points.append(force.r_OP1(sol_i.t, sol_i.q[force.qDOF]))
+                points.append(force.r_OP2(sol_i.t, sol_i.q[force.qDOF]))
+                new_con = [np.array([offset, offset+1])]
+            offset = len(points)
+            cells.append(("line", np.array(new_con)))
+        points = np.array(points)
+        point_data = cell_data = None # TODO add cell_data
 
-    #     return points, cells, point_data, cell_data
+        return points, cells, point_data, cell_data
