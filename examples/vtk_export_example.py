@@ -6,6 +6,7 @@ from cardillo.discrete import (
     ConvexRigidBody,
     RigidBodyQuaternion,
     Frame,
+    frame,
 )
 from cardillo.forces import (
     Force,
@@ -66,7 +67,8 @@ if __name__ == "__main__":
 
     k = 1e2
     spring = ScalarForceTranslational(pm0, pm1, LinearSpring(k))
-    frame = Frame(r_OS1)
+    # frame = Frame(r_OS1)
+    frame = frame.PlaneFixed(np.array([0, 1, 0]), r_OS1)
     joint = SphericalJoint(frame, pm1, r_OS1)
 
     system = System()
