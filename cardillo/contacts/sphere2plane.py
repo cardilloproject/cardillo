@@ -306,14 +306,16 @@ class Sphere2Plane:
             g_N_dot=[[self.g_N_dot(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF])]],
         )
         if sol_i.u_dot is not None:
-            cell_data["g_N_ddot"] = [[
-                self.g_N_ddot(
-                    sol_i.t,
-                    sol_i.q[self.qDOF],
-                    sol_i.u[self.uDOF],
-                    sol_i.u_dot[self.uDOF],
-                )
-            ]]
+            cell_data["g_N_ddot"] = [
+                [
+                    self.g_N_ddot(
+                        sol_i.t,
+                        sol_i.q[self.qDOF],
+                        sol_i.u[self.uDOF],
+                        sol_i.u_dot[self.uDOF],
+                    )
+                ]
+            ]
             point_data["a_Ci"] = [
                 self.subsystem.a_P(
                     sol_i.t,
@@ -335,17 +337,20 @@ class Sphere2Plane:
                 A_IK2 @ self.frame.K_Psi(sol_i.t),
             ]
         if hasattr(self, f"gamma_F"):
-            cell_data["gamma_F"] = [[
-                self.gamma_F(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF])
-            ]]
+            cell_data["gamma_F"] = [
+                [self.gamma_F(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF])]
+            ]
             if sol_i.u_dot is not None:
-                cell_data["gamma_F_dot"] = [[
-                    self.gamma_F_dot(
-                        sol_i.t,
-                        sol_i.q[self.qDOF],
-                        sol_i.u[self.uDOF],
-                        sol_i.u_dot[self.uDOF],
-                    )
-                ]]
+                cell_data["gamma_F_dot"] = [
+                    [
+                        self.gamma_F_dot(
+                            sol_i.t,
+                            sol_i.q[self.qDOF],
+                            sol_i.u[self.uDOF],
+                            sol_i.u_dot[self.uDOF],
+                        )
+                    ]
+                ]
+        # TODO: tangents for tripods and contact and friction force compare rockfallvtk export tripod
 
         return points, cells, point_data, cell_data

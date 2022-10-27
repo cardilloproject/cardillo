@@ -105,3 +105,4 @@ if __name__ == "__main__":
     # e.export_contr(cube, base_export=True)
     # e.export_contr(ball)
     e.export_contr(spring)
+    e.export_contr(frame)

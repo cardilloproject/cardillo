@@ -109,7 +109,7 @@ class Export:
             l = len(points)
             points.extend(p)
             # TODO test for line or triangle element
-            cells.extend([(el[0], [[i+l for i in el[1][0]]]) for el in c])
+            cells.extend([(el[0], [[i + l for i in el[1][0]]]) for el in c])
             if c_data is not None:
                 for key in c_data.keys():
                     if not key in cell_data.keys():

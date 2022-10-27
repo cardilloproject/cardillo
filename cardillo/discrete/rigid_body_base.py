@@ -158,7 +158,7 @@ class RigidBodyBase(ABC):
         if sol_i.u_dot is not None:
             cell_data = dict(
                 v=[vel],
-                omega=[omega],
+                Omega=[omega],
                 a=[acc],
                 psi=[psi],
                 ex=[A_IK[0]],
@@ -167,6 +167,6 @@ class RigidBodyBase(ABC):
             )
         else:
             cell_data = dict(
-                v=[vel], omega=[omega], ex=[A_IK[0]], ey=[A_IK[1]], ez=[A_IK[2]]
+                v=[vel], Omega=[omega], ex=[A_IK[0]], ey=[A_IK[1]], ez=[A_IK[2]]
             )
         return points, cells, None, cell_data

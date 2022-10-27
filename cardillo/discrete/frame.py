@@ -93,17 +93,33 @@ class Frame:
     def K_J_R(self, t, q, frame_ID=None):
         return np.array([]).reshape((3, 0))
 
-    def K_J_R_q(self, t, q, frame_ID=None):
+    def K_J_R_q(self, t, q=None, frame_ID=None):
         return np.array([]).reshape((3, 0, 0))
 
-    def K_Psi(self, t, q, u, u_dot, frame_ID=None):
+    def K_Psi(self, t, q=None, u=None, u_dot=None, frame_ID=None):
         K_psi_IK = self.A_IK_t__(t).T @ self.A_IK_t__(t) + self.A_IK__(
             t
         ).T @ self.A_IK_tt__(t)
         return skew2ax(K_psi_IK)
 
-    def K_Psi_q(self, t, q, u, u_dot, frame_ID=None):
+    def K_Psi_q(self, t, q=None, u=None, u_dot=None, frame_ID=None):
         return np.array([]).reshape((3, 0))
 
-    def K_Psi_u(self, t, q, u, u_dot, frame_ID=None):
+    def K_Psi_u(self, t, q=None, u=None, u_dot=None, frame_ID=None):
         return np.array([]).reshape((3, 0))
+
+    def export(self, sol_i):
+        points = [self.r_OP(sol_i.t)]
+        cells = [("vertex", [[0]])]
+        A_IK = np.vsplit(self.A_IK(sol_i.t).T, 3)
+        cell_data = dict(
+            v=[[self.v_P(sol_i.t)]],
+            Omega=[[self.A_IK(sol_i.t) @ self.K_Omega(sol_i.t)]],
+            ex=[A_IK[0]],
+            ey=[A_IK[1]],
+            ez=[A_IK[2]],
+        )
+        if sol_i.u_dot is not None:
+            cell_data["a"] = [[self.a_P(sol_i.t)]]
+            cell_data["Psi"] = [[self.A_IK(sol_i.t) @ self.K_Psi(sol_i.t)]]
+        return points, cells, None, cell_data
