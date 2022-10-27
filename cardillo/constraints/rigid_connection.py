@@ -722,7 +722,7 @@ class RigidConnectionCable(RigidConnection):
         g_dot[4] = cross3(ex1, ez2) @ Omega21
         return g_dot
 
-    # TODO:
+    # TODO: implement
     def g_dot_q(self, t, q, u, coo):
         dense = approx_fprime(q, lambda q: self.g_dot(t, q, u), method="3-point")
         coo.extend(dense, (self.la_gDOF, self.qDOF))
