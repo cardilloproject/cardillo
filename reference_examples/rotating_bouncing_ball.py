@@ -17,8 +17,8 @@ from cardillo.solver import (
     NonsmoothGeneralizedAlpha,
 )
 
-# corner = True
-corner = False
+corner = True
+# corner = False
 
 
 class Ball(RigidBodyEuler):
@@ -67,16 +67,17 @@ if __name__ == "__main__":
     e_N = 0.5
     plane = Sphere2Plane(frame, RB, r, mu, e_N=e_N, e_F=0)
 
-    alpha = pi / 4
-    e1, e2, e3 = A_IK_basic(alpha).z()
+    alpha = -pi / 4
+    # alpha = pi
+    e1, e2, e3 = A_IK_basic(alpha).z().T
     frame_left = Frame(A_IK=np.vstack((e3, e1, e2)).T)
     mu = 0.3
     e_N = 0.0
     e_F = 0.0
     plane_left = Sphere2Plane(frame_left, RB, r, mu, e_N=e_N, e_F=e_F)
 
-    beta = -pi / 4
-    e1, e2, e3 = A_IK_basic(beta).z()
+    beta = pi / 4
+    e1, e2, e3 = A_IK_basic(beta).z().T
     frame_right = Frame(A_IK=np.vstack((e3, e1, e2)).T)
     mu = 0.3
     e_N = 0.5
@@ -96,16 +97,12 @@ if __name__ == "__main__":
 
     t0 = 0
     t1 = 2
-    # dt = 1e-1
-    # dt = 5e-2
     dt = 1e-2
-    # dt = 5e-3
-    # dt = 1e-3
-    # dt = 5e-4
-    # dt = 1e-4
 
     # solver_other = NonsmoothGeneralizedAlpha(model, t1, dt, method="newton")
-    solver_other = NonsmoothBackwardEulerDecoupled(model, t1, dt)
+    solver_other = NonsmoothBackwardEulerDecoupled(
+        model, t1, dt, solve_monolythic=False
+    )
     sol_other = solver_other.solve()
     t = sol_other.t
     q = sol_other.q
@@ -115,21 +112,19 @@ if __name__ == "__main__":
     P_N_other = sol_other.P_N
     P_F_other = sol_other.P_F
     try:
+        a_other = sol_other.a
+        la_N_other = sol_other.la_N
+        la_F_other = sol_other.la_F
+        La_N_other = sol_other.La_N
+        La_F_other = sol_other.La_F
+        niter_other = sol_other.niter
+    except:
         a_other = np.zeros_like(u_other)
         a_other[1:] = (u_other[1:] - u_other[:-1]) / dt
         la_N_other = np.zeros_like(P_N_other)
         la_F_other = np.zeros_like(P_F_other)
         La_N_other = np.zeros_like(P_N_other)
         La_F_other = np.zeros_like(P_F_other)
-        mu_g_other = np.zeros(model.nla_g)
-        mu_N_other = np.zeros_like(P_N_other)
-        niter_other = sol_other.niter
-    except:
-        a_other = sol_other.a
-        la_N_other = sol_other.la_N
-        la_F_other = sol_other.la_F
-        La_N_other = sol_other.La_N
-        La_F_other = sol_other.La_F
 
     solver_fp = Moreau(model, t1, dt)
     sol_fp = solver_fp.solve()
@@ -156,11 +151,6 @@ if __name__ == "__main__":
     ax[1].plot(t_other, u_other[:, 0], "--b", label="Other")
     ax[1].legend()
 
-    # ax[2].set_title("a_x(t)")
-    # ax[2].plot(t_fp, a_fp[:, 0], "-r", label="Moreau")
-    # ax[2].plot(t_other, a_other[:, 0], "--b", label="Other")
-    # ax[2].legend()
-
     plt.tight_layout()
 
     fig, ax = plt.subplots(2, 1)
@@ -175,11 +165,6 @@ if __name__ == "__main__":
     ax[1].plot(t_other, u_other[:, 1], "--b", label="Other")
     ax[1].legend()
 
-    # ax[2].set_title("a_y(t)")
-    # ax[2].plot(t_fp, a_fp[:, 1], "-r", label="Moreau")
-    # ax[2].plot(t_other, a_other[:, 1], "--b", label="Other")
-    # ax[2].legend()
-
     plt.tight_layout()
 
     fig, ax = plt.subplots(2, 1)
@@ -193,11 +178,6 @@ if __name__ == "__main__":
     ax[1].plot(t_other, u_other[:, -1], "--b", label="Other")
     ax[1].legend()
 
-    # ax[2].set_title("a_phi(t)")
-    # ax[2].plot(t_fp, a_fp[:, -1], "-r", label="Moreau")
-    # ax[2].plot(t_other, a_other[:, -1], "--b", label="Other")
-    # ax[2].legend()
-
     plt.tight_layout()
 
     fig, ax = plt.subplots(3, 1)
@@ -207,26 +187,23 @@ if __name__ == "__main__":
     ax[0].plot(t_other, dt * la_N_other[:, 0], "--b", label="dt * Other_la_N")
     ax[0].plot(t_other, La_N_other[:, 0], "--g", label="Other_La_N")
     ax[0].plot(t_other, P_N_other[:, 0], "--k", label="Other_P_N")
-    # ax[0].plot(t_other, mu_N_other[:, 0], "--g", label="Other_mu_N")
     ax[0].legend()
 
     ax[1].set_title("P_Fx(t)")
     ax[1].plot(t_fp, P_F_fp[:, 0], "-r", label="Moreau")
-    # ax[1].plot(t_other, la_F_other[:, 0], "--b", label="Other_la_F")
-    # ax[1].plot(t_other, La_F_other[:, 0], "--g", label="Other_La_F")
-    ax[1].plot(t_other, P_F_other[:, 0], "--k", label="Other_P_N")
+    ax[1].plot(t_other, dt * la_F_other[:, 0], "--b", label="dt * Other_la_F0")
+    ax[1].plot(t_other, La_F_other[:, 0], "--g", label="Other_La_F0")
+    ax[1].plot(t_other, P_F_other[:, 0], "--k", label="Other_P_F0")
     ax[1].legend()
 
     ax[2].set_title("P_Fy(t)")
     ax[2].plot(t_fp, P_F_fp[:, 1], "-r", label="Moreau")
-    # ax[2].plot(t_other, la_F_other[:, 1], "--b", label="Other_la_F")
-    # ax[2].plot(t_other, La_F_other[:, 1], "--g", label="Other_La_F")
-    ax[2].plot(t_other, P_F_other[:, 1], "--k", label="Other_P_N")
+    ax[2].plot(t_other, dt * la_F_other[:, 1], "--b", label="dt * Other_la_F0")
+    ax[2].plot(t_other, La_F_other[:, 1], "--g", label="Other_La_F0")
+    ax[2].plot(t_other, P_F_other[:, 1], "--k", label="Other_P_F0")
     ax[2].legend()
 
     plt.tight_layout()
-
-    plt.show()
 
     if animate:
 
@@ -258,8 +235,11 @@ if __name__ == "__main__":
 
         if corner:
             # inclined planes
-            ax.plot([0, -y0 * np.cos(alpha)], [0, y0 * np.sin(alpha)], "-k")
-            ax.plot([0, y0 * np.cos(beta)], [0, -y0 * np.sin(beta)], "-k")
+            K_r_OPs = np.array([[-y0, 0, 0], [y0, 0, 0]]).T
+            r_OPs_left = A_IK_basic(alpha).z() @ K_r_OPs
+            r_OPs_right = A_IK_basic(beta).z() @ K_r_OPs
+            ax.plot(*r_OPs_left[:2], "-k")
+            ax.plot(*r_OPs_right[:2], "--k")
         else:
             # horizontal plane
             ax.plot([-2 * y0, 2 * y0], [0, 0], "-k")
