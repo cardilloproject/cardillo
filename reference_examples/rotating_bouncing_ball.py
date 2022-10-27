@@ -1,3 +1,4 @@
+from pathlib import Path
 import numpy as np
 from math import pi
 
@@ -16,6 +17,7 @@ from cardillo.solver import (
     NonsmoothBackwardEulerDecoupled,
     NonsmoothGeneralizedAlpha,
 )
+from cardillo.utility.vtk_export import Export
 
 corner = True
 # corner = False
@@ -84,16 +86,16 @@ if __name__ == "__main__":
     e_F = 0.0
     plane_right = Sphere2Plane(frame_right, RB, r, mu, e_N=e_N, e_F=e_F)
 
-    model = System()
-    model.add(RB)
-    model.add(Force(lambda t: np.array([0, -g * m, 0]), RB))
+    system = System()
+    system.add(RB)
+    system.add(Force(lambda t: np.array([0, -g * m, 0]), RB))
     if corner:
-        model.add(plane_right)
-        model.add(plane_left)
+        system.add(plane_right)
+        system.add(plane_left)
     else:
-        model.add(plane)
+        system.add(plane)
 
-    model.assemble()
+    system.assemble()
 
     t0 = 0
     t1 = 2
@@ -101,7 +103,7 @@ if __name__ == "__main__":
 
     # solver_other = NonsmoothGeneralizedAlpha(model, t1, dt, method="newton")
     solver_other = NonsmoothBackwardEulerDecoupled(
-        model, t1, dt, solve_monolythic=False
+        system, t1, dt, solve_monolythic=False
     )
     sol_other = solver_other.solve()
     t = sol_other.t
@@ -126,7 +128,7 @@ if __name__ == "__main__":
         La_N_other = np.zeros_like(P_N_other)
         La_F_other = np.zeros_like(P_F_other)
 
-    solver_fp = Moreau(model, t1, dt)
+    solver_fp = Moreau(system, t1, dt)
     sol_fp = solver_fp.solve()
     t_fp = sol_fp.t
     q_fp = sol_fp.q
@@ -135,6 +137,16 @@ if __name__ == "__main__":
     a_fp[1:] = (u_fp[1:] - u_fp[:-1]) / dt
     P_N_fp = sol_fp.P_N
     P_F_fp = sol_fp.P_F
+
+    path = Path(__file__)
+    e = Export(path.parent, path.stem, True, 30, sol_fp)
+    e.export_contr(RB)
+    if corner:
+        # e.export_contr(plane_left)
+        # e.export_contr(plane_right)
+        e.export_contr([plane_right, plane_left])
+    else:
+        e.export_contr(plane)
 
     fig, ax = plt.subplots()
     ax.plot(t, niter_other, "-ok")

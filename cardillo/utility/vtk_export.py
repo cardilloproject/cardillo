@@ -68,7 +68,7 @@ class Export:
         t = sol.t[::frac]
         q = sol.q[::frac]
         u = sol.u[::frac]
-        if hasattr(sol, "u_dot"):
+        if sol.u_dot is not None:
             u_dot = sol.u_dot[::frac]
         else:
             u_dot = None
@@ -101,14 +101,15 @@ class Export:
         path.mkdir(parents=True, exist_ok=overwrite)
         self.path = path
 
-    def __export_list(self, sol_i):
+    def __export_list(self, sol_i, **kwargs):
         points, cells, point_data, cell_data = [], [], {}, {}
         l = 0
         for contr in self.contr_list:
-            p, c, p_data, c_data = contr.export(sol_i)
+            p, c, p_data, c_data = contr.export(sol_i, **kwargs)
             l = len(points)
             points.extend(p)
-            cells.extend([(el[0], [[el[1][0][0] + l]]) for el in c])
+            # TODO test for line or triangle element
+            cells.extend([(el[0], [[i+l for i in el[1][0]]]) for el in c])
             if c_data is not None:
                 for key in c_data.keys():
                     if not key in cell_data.keys():

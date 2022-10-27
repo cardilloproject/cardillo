@@ -273,3 +273,79 @@ class Sphere2Plane:
     #     gamma_F_q_post = self.gamma_F_q_dense(t, q, u_post)
     #     dense = gamma_F_q_post + self.e_F * gamma_F_q_pre
     #     coo.extend(dense, (self.la_FDOF, self.qDOF))
+
+    def export(self, sol_i):
+        r_OP = self.r_OP(sol_i.t, sol_i.q[self.qDOF])
+        n = self.n(sol_i.t)
+        g_N = self.g_N(sol_i.t, sol_i.q[self.qDOF])
+        r_PC1 = -self.r * n
+        r_QC2 = r_OP - self.r_OQ(sol_i.t) - n * (g_N + self.r)
+        points = [r_OP + r_PC1, r_OP - n * (g_N + self.r)]
+        cells = [("line", [[0, 1]])]
+        A_IK1 = self.subsystem.A_IK(sol_i.t, sol_i.q[self.qDOF])
+        A_IK2 = self.frame.A_IK(sol_i.t)
+        point_data = dict(
+            v_Ci=[
+                self.subsystem.v_P(
+                    sol_i.t,
+                    sol_i.q[self.qDOF],
+                    sol_i.u[self.uDOF],
+                    self.frame_ID,
+                    A_IK1 @ r_PC1,
+                ),
+                self.frame.v_P(sol_i.t, K_r_SP=A_IK2 @ r_QC2),
+            ],
+            Omega=[
+                self.Omega(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF]),
+                A_IK2 @ self.frame.K_Omega(sol_i.t),
+            ],
+        )
+        cell_data = dict(
+            n=[[n]],
+            g_N=[[g_N]],
+            g_N_dot=[[self.g_N_dot(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF])]],
+        )
+        if sol_i.u_dot is not None:
+            cell_data["g_N_ddot"] = [[
+                self.g_N_ddot(
+                    sol_i.t,
+                    sol_i.q[self.qDOF],
+                    sol_i.u[self.uDOF],
+                    sol_i.u_dot[self.uDOF],
+                )
+            ]]
+            point_data["a_Ci"] = [
+                self.subsystem.a_P(
+                    sol_i.t,
+                    sol_i.q[self.qDOF],
+                    sol_i.u[self.uDOF],
+                    sol_i.u_dot[self.uDOF],
+                    self.frame_ID,
+                    A_IK1 @ r_PC1,
+                ),
+                self.frame.a_P(sol_i.t, K_r_SP=A_IK2 @ r_QC2),
+            ]
+            point_data["Psi"] = [
+                self.Psi(
+                    sol_i.t,
+                    sol_i.q[self.qDOF],
+                    sol_i.u[self.uDOF],
+                    sol_i.u_dot[self.uDOF],
+                ),
+                A_IK2 @ self.frame.K_Psi(sol_i.t),
+            ]
+        if hasattr(self, f"gamma_F"):
+            cell_data["gamma_F"] = [[
+                self.gamma_F(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF])
+            ]]
+            if sol_i.u_dot is not None:
+                cell_data["gamma_F_dot"] = [[
+                    self.gamma_F_dot(
+                        sol_i.t,
+                        sol_i.q[self.qDOF],
+                        sol_i.u[self.uDOF],
+                        sol_i.u_dot[self.uDOF],
+                    )
+                ]]
+
+        return points, cells, point_data, cell_data
