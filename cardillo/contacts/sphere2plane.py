@@ -12,8 +12,6 @@ class Sphere2Plane:
         subsystem,
         r,
         mu,
-        prox_r_N=None,
-        prox_r_F=None,
         e_N=None,
         e_F=None,
         frame_ID=np.zeros(3),
@@ -25,27 +23,6 @@ class Sphere2Plane:
         self.subsystem = subsystem
         self.r = r
         self.mu = np.array([mu])
-        # if prox_r_N is not None:
-        #     self.prox_r_N = lambda t, q: np.asarray(prox_r_N)
-        # else:
-        if True:
-
-            def prox_r_N(t, q):
-                M_coo = Coo((subsystem.nu, subsystem.nu))
-                self.subsystem.M(t, q, M_coo)
-                M = M_coo.tocsc()
-
-                W_N_coo = Coo((subsystem.nu, subsystem.nu))
-                self.subsystem.W_N(t, q, W_N_coo)
-                W_N = W_N_coo.tocsc()
-
-                G = W_N.T @ spsolve(M, W_N)
-                return np.array([G[0, 0]])
-
-            self.prox_r_N = prox_r_N
-        if prox_r_F is not None:
-            self.prox_r_F = lambda t, q: np.asarray(prox_r_F)
-
         self.nla_N = 1
 
         if mu == 0:

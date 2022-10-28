@@ -6,7 +6,6 @@ class Point2Plane:
         self,
         frame,
         subsystem,
-        prox_r_N,
         e_N=None,
         frame_ID=np.zeros(3),
         K_r_SP=np.zeros(3),
@@ -15,8 +14,6 @@ class Point2Plane:
 
         self.frame = frame
         self.subsystem = subsystem
-        self.prox_r_N = np.array([prox_r_N])
-        self.prox_r_F = np.array([prox_r_N])
         self.mu = np.array([0])
 
         self.nla_N = 1
@@ -31,9 +28,6 @@ class Point2Plane:
 
         self.r_OQ = lambda t: self.frame.r_OP(t)
         self.n = lambda t: self.frame.A_IK(t)[:, 2]
-        # self.n = lambda t: np.array([1., 0., 0.])
-        # self.n = lambda t: np.array([0., 1, 0.])
-        # self.n = lambda t: np.array([0., 0., 1.])
         self.v_Q = lambda t: self.frame.v_P(t)
         self.a_Q = lambda t: self.frame.a_P(t)
 
