@@ -135,15 +135,15 @@ class Export:
         self.__vtk_file()
         # export one contr
         if not isinstance(contr, (list, tuple, np.ndarray)):
-            if 'file_name'in kwargs:
-                contr_name = kwargs['file_name']
+            if "file_name" in kwargs:
+                contr_name = kwargs["file_name"]
             else:
                 contr_name = contr.__class__.__name__
             export = contr.export
         # export list of contributions of same type (mixing types is not useful)
         else:
-            if 'file_name'in kwargs:
-                contr_name = kwargs['file_name']
+            if "file_name" in kwargs:
+                contr_name = kwargs["file_name"]
             else:
                 contr_name = contr[0].__class__.__name__
             self.contr_list = contr
@@ -161,6 +161,6 @@ class Export:
                 cells=cells,
                 point_data=point_data,
                 cell_data=cell_data,
-                binary=False, # TODO set to True before merge
+                binary=False,  # TODO set to True before merge
             )
         self._write_pvd_file(self.path / f"{file_name}.pvd")

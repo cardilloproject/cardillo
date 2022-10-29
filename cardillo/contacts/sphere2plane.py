@@ -277,7 +277,9 @@ class Sphere2Plane:
     def export(self, sol_i, **kwargs):
         r_OP = self.r_OP(sol_i.t, sol_i.q[self.qDOF])
         n = self.n(sol_i.t)
+        t1, t2 = self.t1t2(sol_i.t)
         g_N = self.g_N(sol_i.t, sol_i.q[self.qDOF])
+        P_N = sol_i.P_N[self.la_NDOF]
         r_PC1 = -self.r * n
         r_QC2 = r_OP - self.r_OQ(sol_i.t) - n * (g_N + self.r)
         points = [r_OP + r_PC1, r_OP - n * (g_N + self.r)]
@@ -299,9 +301,12 @@ class Sphere2Plane:
                 self.Omega(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF]),
                 A_IK2 @ self.frame.K_Omega(sol_i.t),
             ],
+            n=[-n, n],
+            t1=[-t1, t1],
+            t2=[-t2, t2],
+            P_N=[P_N, P_N],
         )
         cell_data = dict(
-            n=[[n]],
             g_N=[[g_N]],
             g_N_dot=[[self.g_N_dot(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF])]],
         )
@@ -340,6 +345,9 @@ class Sphere2Plane:
             cell_data["gamma_F"] = [
                 [self.gamma_F(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF])]
             ]
+            P_F = sol_i.P_F[self.la_FDOF]
+            point_data["P_F1"] = [P_F[0], P_F[0]]
+            point_data["P_F2"] = [P_F[1], P_F[1]]
             if sol_i.u_dot is not None:
                 cell_data["gamma_F_dot"] = [
                     [
@@ -351,6 +359,5 @@ class Sphere2Plane:
                         )
                     ]
                 ]
-        # TODO: tangents for tripods and contact and friction force compare rockfallvtk export tripod
 
         return points, cells, point_data, cell_data
