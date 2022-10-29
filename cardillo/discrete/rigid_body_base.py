@@ -128,7 +128,7 @@ class RigidBodyBase(ABC):
     def K_J_R_q(self, t, q, frame_ID=None):
         return np.zeros((3, self.nu, self.nq), dtype=q.dtype)
 
-    def export(self, sol_i):
+    def export(self, sol_i, **kwargs):
         points = [self.r_OP(sol_i.t, sol_i.q[self.qDOF])]
         vel = [self.v_P(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF])]
         omega = [

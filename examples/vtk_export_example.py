@@ -101,10 +101,10 @@ if __name__ == "__main__":
     # VtkExport.convex_body(path_vtk, sol_export, cube)
 
     e = Export(path.parent, path.stem, True, 30, solution)
-    e.export_contr([pm0, pm1])
+    e.export_contr([pm0, pm1], file_name="points")
     # e.export_contr([pm0])
     # e.export_contr(cube)
     # e.export_contr(cube, base_export=True)
     # e.export_contr(ball)
     e.export_contr(spring)
-    e.export_contr(frame)
+    e.export_contr(frame, base_export=True)

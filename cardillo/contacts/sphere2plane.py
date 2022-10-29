@@ -274,7 +274,7 @@ class Sphere2Plane:
     #     dense = gamma_F_q_post + self.e_F * gamma_F_q_pre
     #     coo.extend(dense, (self.la_FDOF, self.qDOF))
 
-    def export(self, sol_i):
+    def export(self, sol_i, **kwargs):
         r_OP = self.r_OP(sol_i.t, sol_i.q[self.qDOF])
         n = self.n(sol_i.t)
         g_N = self.g_N(sol_i.t, sol_i.q[self.qDOF])

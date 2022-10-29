@@ -232,7 +232,7 @@ class ScalarForceTranslational:
         )
         coo.extend(dense, (self.uDOF, self.uDOF))
 
-    def export(self, sol_i):
+    def export(self, sol_i, **kwargs):
         points = [
             self.r_OP1(sol_i.t, sol_i.q[self.qDOF]),
             self.r_OP2(sol_i.t, sol_i.q[self.qDOF]),

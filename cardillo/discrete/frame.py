@@ -108,7 +108,7 @@ class Frame:
     def K_Psi_u(self, t, q=None, u=None, u_dot=None, frame_ID=None):
         return np.array([]).reshape((3, 0))
 
-    def export(self, sol_i):
+    def export(self, sol_i, **kwargs):
         points = [self.r_OP(sol_i.t)]
         cells = [("vertex", [[0]])]
         A_IK = np.vsplit(self.A_IK(sol_i.t).T, 3)
@@ -141,7 +141,7 @@ class PlaneFixed(Frame):
         A_IK = np.vstack([self.t1, self.t2, self.n]).T
         super().__init__(r_OP, None, None, A_IK, None, None)
 
-    def export(self, sol_i, base_export=False):
+    def export(self, sol_i, base_export=False, **kwargs):
         if base_export:
             return super().export(sol_i)
         else:

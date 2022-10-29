@@ -66,7 +66,7 @@ class PointMass:
         return a_P
 
     # export one point mass with vtk
-    def export(self, sol_i):
+    def export(self, sol_i, **kwargs):
         points = [self.r_OP(sol_i.t, sol_i.q[self.qDOF])]
         vel = [self.v_P(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.qDOF])]
         if sol_i.u_dot is not None:

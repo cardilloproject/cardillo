@@ -60,7 +60,7 @@ class ConvexRigidBody(RigidBodyQuaternion):
     def K_J_R_q(self, t, q, frame_ID=None):
         return self.A_KK0 @ super().K_J_R_q(t, q, frame_ID)
 
-    def export(self, sol_i, base_export=False):
+    def export(self, sol_i, base_export=False, **kwargs):
         if base_export:
             points, cells, point_data, cell_data = super().export(sol_i)
         else:

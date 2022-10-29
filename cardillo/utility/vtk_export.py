@@ -108,7 +108,6 @@ class Export:
             p, c, p_data, c_data = contr.export(sol_i, **kwargs)
             l = len(points)
             points.extend(p)
-            # TODO test for line or triangle element
             cells.extend([(el[0], [[i + l for i in el[1][0]]]) for el in c])
             if c_data is not None:
                 for key in c_data.keys():
@@ -126,17 +125,29 @@ class Export:
         return points, cells, point_data, cell_data
 
     def export_contr(self, contr, **kwargs):
+        """_summary_
+
+        Args:
+            contr (Any): one contribution or list, tuple, dict... of same type
+            base_export (bool): kwargs arg, decides if derived class uses export function of base class or overriden function in derived class
+            file_name (string): kwargs arg, set custom file name instead of class name of exported contr
+        """
         self.__vtk_file()
         # export one contr
         if not isinstance(contr, (list, tuple, np.ndarray)):
-            contr_name = contr.__class__.__name__
+            if 'file_name'in kwargs:
+                contr_name = kwargs['file_name']
+            else:
+                contr_name = contr.__class__.__name__
             export = contr.export
+        # export list of contributions of same type (mixing types is not useful)
         else:
-            # assume list of same contr types
-            contr_name = contr[0].__class__.__name__
+            if 'file_name'in kwargs:
+                contr_name = kwargs['file_name']
+            else:
+                contr_name = contr[0].__class__.__name__
             self.contr_list = contr
             export = self.__export_list
-
         file_name = self.__unique_file_name(contr_name)
         for i, sol_i in enumerate(self.solution):
             file_i = self.path / f"{file_name}_{i}.vtu"
@@ -150,6 +161,6 @@ class Export:
                 cells=cells,
                 point_data=point_data,
                 cell_data=cell_data,
-                binary=False,
+                binary=False, # TODO set to True before merge
             )
         self._write_pvd_file(self.path / f"{file_name}.pvd")
