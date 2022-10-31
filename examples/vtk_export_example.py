@@ -3,7 +3,8 @@ from pathlib import Path
 
 from cardillo.discrete import (
     PointMass,
-    ConvexRigidBody,
+    newConvexRigidBody,
+    newBall,
     RigidBodyQuaternion,
     Frame,
     frame,
@@ -54,9 +55,10 @@ if __name__ == "__main__":
     q0 = np.concatenate([r_OS, p])
     u0 = np.concatenate([v_S, omega])
 
-    cube = ConvexRigidBody(points_cube, mass=m, u0=u0, q0=q0)
-    # r = 0.5
-    # ball = Ball(m, r, q0, u0)
+    # cube = ConvexRigidBody(points_cube, mass=m, u0=u0, q0=q0)
+    # cube = newConvexRigidBody(RigidBodyQuaternion, points_cube, mass=m, u0=u0, q0=q0)
+    r = 0.5
+    ball = newBall(RigidBodyQuaternion, m, r, q0, u0)
 
     m = 1
     pm0 = PointMass(m, np.zeros(3))
@@ -73,16 +75,16 @@ if __name__ == "__main__":
 
     system = System()
     # system.add(cube)
-    # system.add(ball)
+    system.add(ball)
 
     # system = System()
-    system.add(pm0)
-    system.add(force)
-    system.add(pm1)
+    # system.add(pm0)
+    # system.add(force)
+    # system.add(pm1)
 
-    system.add(spring)
-    system.add(frame)
-    system.add(joint)
+    # system.add(spring)
+    # system.add(frame)
+    # system.add(joint)
 
     system.assemble()
 
@@ -101,10 +103,10 @@ if __name__ == "__main__":
     # VtkExport.convex_body(path_vtk, sol_export, cube)
 
     e = Export(path.parent, path.stem, True, 30, solution)
-    e.export_contr([pm0, pm1], file_name="points")
+    # e.export_contr([pm0, pm1c], file_name="points")
     # e.export_contr([pm0])
     # e.export_contr(cube)
     # e.export_contr(cube, base_export=True)
-    # e.export_contr(ball)
-    e.export_contr(spring)
-    e.export_contr(frame, base_export=True)
+    e.export_contr(ball, resolution=20)
+    # e.export_contr(spring)
+    # e.export_contr(frame, base_export=True)

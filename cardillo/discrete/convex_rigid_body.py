@@ -4,14 +4,15 @@ from scipy.spatial import ConvexHull
 
 from cardillo.math import norm, cross3
 
+
 def newConvexRigidBody(
-            rigid_body_base, 
-            points: npt.ArrayLike,
-            rho: float = None,
-            mass: float = None,
-            q0: np.ndarray = None,
-            u0: np.ndarray = None,
-        ):
+    rigid_body_base,
+    points: npt.ArrayLike,
+    rho: float = None,
+    mass: float = None,
+    q0: np.ndarray = None,
+    u0: np.ndarray = None,
+):
     class ConvexRigidBody(rigid_body_base):
         def __init__(
             self,
@@ -75,7 +76,10 @@ def newConvexRigidBody(
                     points.append(self.r_OP(sol_i.t, sol_i.q[self.qDOF], K_r_SP=point))
                     vel.append(
                         self.v_P(
-                            sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF], K_r_SP=point
+                            sol_i.t,
+                            sol_i.q[self.qDOF],
+                            sol_i.u[self.uDOF],
+                            K_r_SP=point,
                         )
                     )
                     if sol_i.u_dot is not None:
@@ -106,6 +110,7 @@ def newConvexRigidBody(
             return points, cells, point_data, cell_data
 
     return ConvexRigidBody(points, rho, mass, q0, u0)
+
 
 class Mesh:
     def __init__(self, points: npt.ArrayLike) -> None:

@@ -7,3 +7,4 @@ from .rigid_body_quaternion import RigidBodyQuaternion
 from .rigid_body_rel_kinematics import RigidBodyRelKinematics
 from .rigid_body_base import RigidBodyBase
 from .convex_rigid_body import newConvexRigidBody
+from .some_rigid_bodies import newBall
