@@ -8,8 +8,28 @@ def approx_fprime(x0, f, eps=1.0e-6, method="2-point"):
     """Inspired by scipy's approx_derivative method but extended to
     multidimensional function values and arguments.
 
+    Parameters
+    ----------
+    x0 : array_like of arbitrary shape or float
+        Point at which to estimate the derivatives. Float will be converted
+        to a 1-D array.
+    f : callable
+        Function of which to estimate the derivatives. The argument x
+        passed to this function is ndarray of arbitrary shape (never a scalar).
+    method : {'2-point', '3-point', 'cs'}, optional
+        Finite difference method to use:
+            - '2-point' - use the first order accuracy forward or backward
+                          difference.
+            - '3-point' - use central difference in interior points and the
+                          second order accuracy forward or backward difference
+                          near the boundary.
+            - 'cs' - use a complex-step finite difference scheme. This assumes
+                     that the user function is real-valued and can be
+                     analytically continued to the complex plane. Otherwise,
+                     produces bogus results.
+
     References:
-    ===========
+    ----------
     scipy: https://github.com/scipy/scipy/blob/4cf21e753cf937d1c6c2d2a0e372fbc1dbbeea81/scipy/optimize/_numdiff.py#L275."""
     warnings.warn(
         "'approx_fprime' is used. Be careful since this can be a performance drawback."
