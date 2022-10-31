@@ -60,6 +60,45 @@ class ConvexRigidBody(RigidBodyQuaternion):
     def K_J_R_q(self, t, q, frame_ID=None):
         return self.A_KK0 @ super().K_J_R_q(t, q, frame_ID)
 
+    def export(self, sol_i, base_export=False, **kwargs):
+        if base_export:
+            points, cells, point_data, cell_data = super().export(sol_i)
+        else:
+            points, vel, acc = [], [], []
+            for point in self.mesh.points:
+                points.append(self.r_OP(sol_i.t, sol_i.q[self.qDOF], K_r_SP=point))
+                vel.append(
+                    self.v_P(
+                        sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF], K_r_SP=point
+                    )
+                )
+                if sol_i.u_dot is not None:
+                    acc.append(
+                        self.a_P(
+                            sol_i.t,
+                            sol_i.q[self.qDOF],
+                            sol_i.u[self.uDOF],
+                            sol_i.u_dot[self.uDOF],
+                            K_r_SP=point,
+                        )
+                    )
+            cells = [("triangle", self.mesh.simplices)]
+
+            normals = np.array(
+                [
+                    self.A_IK(sol_i.t, sol_i.q[self.qDOF]) @ self.A[j, :]
+                    for j in range(self.A.shape[0])
+                ]
+            )
+
+            cell_data = dict(normals=[normals])
+
+            if sol_i.u_dot is not None:
+                point_data = dict(v=vel, a=acc)
+            else:
+                point_data = dict(v=vel)
+        return points, cells, point_data, cell_data
+
 
 class Mesh:
     def __init__(self, points: npt.ArrayLike) -> None:
