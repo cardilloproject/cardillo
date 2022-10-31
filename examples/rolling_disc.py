@@ -18,8 +18,6 @@ from cardillo.solver import (
     EulerBackward,
     GeneralizedAlphaFirstOrder,
     NonsmoothBackwardEulerDecoupled,
-    NonsmoothHalfExplicitRungeKutta,
-    NonsmoothPartitionedHalfExplicitEuler,
 )
 
 
@@ -189,25 +187,25 @@ def state():
     ########
     # export
     ########
-    header = "t, x, y, z, p0, p1, p2, p3, la_g, la_ga0, la_ga1"
-    export_data = np.vstack([t, *q.T, *la_g.T, *la_gamma.T]).T
-    np.savetxt(
-        "examples/GAMM2022/RollingDiscTrajectory.txt",
-        export_data,
-        delimiter=", ",
-        header=header,
-        comments="",
-    )
+    # header = "t, x, y, z, p0, p1, p2, p3, la_g, la_ga0, la_ga1"
+    # export_data = np.vstack([t, *q.T, *la_g.T, *la_gamma.T]).T
+    # np.savetxt(
+    #     "examples/GAMM2022/RollingDiscTrajectory.txt",
+    #     export_data,
+    #     delimiter=", ",
+    #     header=header,
+    #     comments="",
+    # )
 
-    header = "t, g, g_dot, g_ddot, gamma0, gamma1, gamma_dot0, gamma_dot1"
-    export_data = np.vstack([t, *g.T, *g_dot.T, *g_ddot.T, *gamma.T, *gamma_dot.T]).T
-    np.savetxt(
-        "examples/GAMM2022/RollingDiscGaps.txt",
-        export_data,
-        delimiter=", ",
-        header=header,
-        comments="",
-    )
+    # header = "t, g, g_dot, g_ddot, gamma0, gamma1, gamma_dot0, gamma_dot1"
+    # export_data = np.vstack([t, *g.T, *g_dot.T, *g_ddot.T, *gamma.T, *gamma_dot.T]).T
+    # np.savetxt(
+    #     "examples/GAMM2022/RollingDiscGaps.txt",
+    #     export_data,
+    #     delimiter=", ",
+    #     header=header,
+    #     comments="",
+    # )
 
     ###############
     # visualization
