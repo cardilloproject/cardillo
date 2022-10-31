@@ -3,8 +3,9 @@ from pathlib import Path
 
 from cardillo.discrete import (
     PointMass,
-    newConvexRigidBody,
-    newBall,
+    new_convex_rigid_body,
+    new_ball,
+    new_box,
     RigidBodyQuaternion,
     Frame,
     frame,
@@ -57,8 +58,9 @@ if __name__ == "__main__":
 
     # cube = ConvexRigidBody(points_cube, mass=m, u0=u0, q0=q0)
     # cube = newConvexRigidBody(RigidBodyQuaternion, points_cube, mass=m, u0=u0, q0=q0)
+    cube = new_box(RigidBodyQuaternion, 1, 2, 3, mass=m, q0=q0, u0=u0)
     r = 0.5
-    ball = newBall(RigidBodyQuaternion, m, r, q0, u0)
+    # ball = new_ball(RigidBodyQuaternion, m, r, q0, u0)
 
     m = 1
     pm0 = PointMass(m, np.zeros(3))
@@ -74,8 +76,8 @@ if __name__ == "__main__":
     joint = SphericalJoint(frame, pm1, r_OS1)
 
     system = System()
-    # system.add(cube)
-    system.add(ball)
+    system.add(cube)
+    # system.add(ball)
 
     # system = System()
     # system.add(pm0)
@@ -105,8 +107,8 @@ if __name__ == "__main__":
     e = Export(path.parent, path.stem, True, 30, solution)
     # e.export_contr([pm0, pm1c], file_name="points")
     # e.export_contr([pm0])
-    # e.export_contr(cube)
+    e.export_contr(cube)
     # e.export_contr(cube, base_export=True)
-    e.export_contr(ball, resolution=20)
+    # e.export_contr(ball, resolution=20)
     # e.export_contr(spring)
     # e.export_contr(frame, base_export=True)

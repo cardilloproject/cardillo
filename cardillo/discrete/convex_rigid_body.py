@@ -5,7 +5,7 @@ from scipy.spatial import ConvexHull
 from cardillo.math import norm, cross3
 
 
-def newConvexRigidBody(
+def new_convex_rigid_body(
     rigid_body_base,
     points: npt.ArrayLike,
     rho: float = None,

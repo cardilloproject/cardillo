@@ -1,8 +1,9 @@
 import numpy as np
 from meshzoo import uv_sphere
+from cardillo.discrete import new_convex_rigid_body
 
 
-def newBall(base_class, m, r, q0, u0=None):
+def new_ball(base_class, m, r, q0, u0=None):
     class Ball(base_class):
         def __init__(self, m, r, q0, u0=None):
             K_theta_S = 2 / 5 * m * r**2 * np.eye(3)
@@ -47,3 +48,19 @@ def newBall(base_class, m, r, q0, u0=None):
             return points, cells, point_data, None
 
     return Ball(m, r, q0, u0)
+
+
+def new_box(base_class, length, width, height, rho=None, mass=None, q0=None, u0=None):
+    points = np.array(
+        [
+            [0, 0, 0],
+            [length, 0, 0],
+            [length, width, 0],
+            [0, width, 0],
+            [0, 0, height],
+            [length, 0, height],
+            [length, width, height],
+            [0, width, height],
+        ]
+    )
+    return new_convex_rigid_body(base_class, points, rho, mass, q0, u0)
