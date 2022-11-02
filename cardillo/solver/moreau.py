@@ -4,7 +4,7 @@ from scipy.sparse.linalg import splu, spsolve, lsqr
 from tqdm import tqdm
 
 from cardillo.solver import Solution
-from cardillo.math import prox_R0_np, prox_sphere, approx_fprime, norm, fsolve
+from cardillo.math import prox_R0_np, prox_R0_nm, prox_sphere, approx_fprime, norm, fsolve
 
 # see https://gitlab.com/libeigen/eigen/-/blob/master/Eigen/src/Core/Dot.h#L126
 EPS_GAMMA_F = 0
@@ -521,32 +521,33 @@ class NonsmoothBackwardEulerDecoupled:
         #     uk1_free = self.uk + self.dt * u_dotk1
         #     qk1 = self.qk + self.dt * q_dotk1
         # else:
-        #     # BDF2
-        #     uk1_free = (4.0 * self.uk_free - self.uk_1_free + 2.0 * self.dt * u_dotk1) / 3.0
-        #     # uk1_free = (4.0 * self.uk - self.uk_1 + 2.0 * self.dt * u_dotk1) / 3.0 #- self.Uk * 4 / 3 - self.Uk_1 / 3
-        #     qk1 = (4.0 * self.qk - self.qk_1 + 2.0 * self.dt * q_dotk1) / 3.0
+        #     # # BDF2
+        #     # uk1_free = (4.0 * self.uk_free - self.uk_1_free + 2.0 * self.dt * u_dotk1) / 3.0
+        #     # # uk1_free = (4.0 * self.uk - self.uk_1 + 2.0 * self.dt * u_dotk1) / 3.0 #- self.Uk * 4 / 3 - self.Uk_1 / 3
+        #     # qk1 = (4.0 * self.qk - self.qk_1 + 2.0 * self.dt * q_dotk1) / 3.0
 
-        #     # # half step forward Euler
-        #     # # self.uk_free = self.uk_1_free + self.dt * self.u_dotk
-        #     # # self.qk = self.qk_1 + self.dt * self.q_dotk
-        #     # # self.uk_free = self.uk_1_free + self.dt * u_dotk1
-        #     # # self.uk_free = self.uk_1 + self.dt * u_dotk1
-        #     # # self.qk = self.qk_1 + self.dt * q_dotk1
+        #     # half step forward Euler
+        #     # self.uk_free = self.uk_1_free + self.dt * self.u_dotk
+        #     # self.qk = self.qk_1 + self.dt * self.q_dotk
+        #     # self.uk_free = self.uk_1_free + self.dt * u_dotk1
         #     # self.uk_free = self.uk_1 + self.dt * u_dotk1
         #     # self.qk = self.qk_1 + self.dt * q_dotk1
+        #     self.uk_free = self.uk_1 + self.dt * u_dotk1
+        #     self.qk = self.qk_1 + self.dt * q_dotk1
 
-        #     # # # half explicit trapezoidal rule
-        #     # # # self.uk_free = self.uk_1_free + 0.5 * self.dt * (self.u_dotk + u_dotk1)
-        #     # # # self.qk = self.qk_1 + 0.5 * self.dt * (self.q_dotk + q_dotk1)
-        #     # # self.uk_free = self.uk_1 + 0.5 * self.dt * (self.u_dotk + u_dotk1)
+        #     # # half explicit trapezoidal rule
+        #     # # self.uk_free = self.uk_1_free + 0.5 * self.dt * (self.u_dotk + u_dotk1)
         #     # # self.qk = self.qk_1 + 0.5 * self.dt * (self.q_dotk + q_dotk1)
-        #     # # # uk1_free = self.uk_free
-        #     # # # qk1 = self.qk
+        #     # self.uk_free = self.uk_1 + 0.5 * self.dt * (self.u_dotk + u_dotk1)
+        #     # self.qk = self.qk_1 + 0.5 * self.dt * (self.q_dotk + q_dotk1)
+        #     # # uk1_free = self.uk_free
+        #     # # qk1 = self.qk
 
-        #     # # haf step BDF2
-        #     # # uk1_free = (4.0 * self.uk_free - self.uk_1_free + 2.0 * self.dt * u_dotk1) / 3.0
-        #     # uk1_free = (4.0 * self.uk_free - self.uk_1 + 2.0 * self.dt * u_dotk1) / 3.0
-        #     # qk1 = (4.0 * self.qk - self.qk_1 + 2.0 * self.dt * q_dotk1) / 3.0
+        #     # half step BDF2
+        #     uk1_free = (4.0 * self.uk_free - self.uk_1_free + 2.0 * self.dt * u_dotk1) / 3.0
+        #     uk1_free = (4.0 * self.uk_free - self.uk_1 + 2.0 * self.dt * u_dotk1) / 3.0
+        #     qk1 = (4.0 * self.qk - self.qk_1 + 2.0 * self.dt * q_dotk1) / 3.0
+        #     # qk1 = self.qk_1 + self.dt * q_dotk1
 
         # ##############
         # # Newmark beta, see https://de.wikipedia.org/wiki/Newmark-beta-Verfahren
@@ -565,7 +566,7 @@ class NonsmoothBackwardEulerDecoupled:
         # # TODO: Works only with unilateral constraints on acceleration level!
         # ################
         # tk1 = self.tk + self.dt
-        # uk1_free = self.uk + 0.5 * self.dt * (self.u_dotk + u_dotk1) #- self.Uk
+        # uk1_free = self.uk + 0.5 * self.dt * (self.u_dotk + u_dotk1)
         # qk1 = self.qk + 0.5 * self.dt * (self.q_dotk + q_dotk1)
 
         return (
@@ -665,8 +666,9 @@ class NonsmoothBackwardEulerDecoupled:
         # Rx[
         #     nq + nu + nla_g + nla_gamma : nq + nu + nla_g + nla_gamma + nla_N
         # ] = np.where(
-        #     self.B_Nk1,
-        #     # la_Nk1 + prox_R0_np(prox_r_N * g_N_ddotk1 - la_Nk1),
+        #     # self.B_Nk1,
+        #     self.I_Nk1,
+        #     # la_Nk1 + prox_R0_nm(prox_r_N * g_N_ddotk1 - la_Nk1),
         #     g_N_ddotk1 - prox_R0_np(g_N_ddotk1 - prox_r_N * la_Nk1),
         #     la_Nk1
         # )
@@ -706,41 +708,41 @@ class NonsmoothBackwardEulerDecoupled:
                         + radius * prox_arg_friction / norm_prox_arg_friction
                     )
 
-            # if len(i_F) > 0:
-            #     la_Fk1_local = la_Fk1[i_F]
-            #     if self.I_Nk1[i_N]:
-            #         gamma_Fk1_local = gamma_Fk1[i_F]
-            #         la_Nk1_local = la_Nk1[i_N]
-            #         prox_arg_friction = prox_r_F[i_F] * gamma_Fk1_local - la_Fk1_local
-            #         radius = mu[i_N] * la_Nk1_local
-            #         norm_prox_arg_friction = norm(prox_arg_friction)
-            #         if norm_prox_arg_friction <= radius:
-            #             Rx[nq + nu + nla_g + nla_gamma + nla_N + i_F] = (
-            #                 # TODO: remove prox_r_F here and change derivative accordingly
-            #                 prox_r_F[i_F]
-            #                 * gamma_Fk1_local
-            #             )
-            #         else:
-            #             Rx[nq + nu + nla_g + nla_gamma + nla_N + i_F] = (
-            #                 la_Fk1_local
-            #                 + radius * prox_arg_friction / norm_prox_arg_friction
-            #             )
-            #             # gamma_Fk1_local_norm = norm(gamma_Fk1_local)
-            #             # # Rx[nq + nu + nla_g + nla_gamma + nla_N + i_F] = (
-            #             # #     la_Fk1_free_local
-            #             # #     + radius * gamma_Fk1_local / gamma_Fk1_local_norm
-            #             # # )
-            #             # if gamma_Fk1_local_norm > EPS_GAMMA_F:
-            #             #     Rx[nq + nu + nla_g + nla_gamma + nla_N + i_F] = (
-            #             #         la_Fk1_free_local
-            #             #         + radius * gamma_Fk1_local / gamma_Fk1_local_norm
-            #             #     )
-            #             # else:
-            #             #     Rx[nq + nu + nla_g + nla_gamma + nla_N + i_F] = (
-            #             #         la_Fk1_free_local + radius * gamma_Fk1_local
-            #             #     )
-            #     else:
-            #         Rx[nq + nu + nla_g + nla_gamma + nla_N + i_F] = la_Fk1_local
+        #     # if len(i_F) > 0:
+        #     #     la_Fk1_local = la_Fk1[i_F]
+        #     #     if self.I_Nk1[i_N]:
+        #     #         gamma_Fk1_local = gamma_Fk1[i_F]
+        #     #         la_Nk1_local = la_Nk1[i_N]
+        #     #         prox_arg_friction = prox_r_F[i_F] * gamma_Fk1_local - la_Fk1_local
+        #     #         radius = mu[i_N] * la_Nk1_local
+        #     #         norm_prox_arg_friction = norm(prox_arg_friction)
+        #     #         if norm_prox_arg_friction <= radius:
+        #     #             Rx[nq + nu + nla_g + nla_gamma + nla_N + i_F] = (
+        #     #                 # TODO: remove prox_r_F here and change derivative accordingly
+        #     #                 prox_r_F[i_F]
+        #     #                 * gamma_Fk1_local
+        #     #             )
+        #     #         else:
+        #     #             Rx[nq + nu + nla_g + nla_gamma + nla_N + i_F] = (
+        #     #                 la_Fk1_local
+        #     #                 + radius * prox_arg_friction / norm_prox_arg_friction
+        #     #             )
+        #     #             # gamma_Fk1_local_norm = norm(gamma_Fk1_local)
+        #     #             # # Rx[nq + nu + nla_g + nla_gamma + nla_N + i_F] = (
+        #     #             # #     la_Fk1_free_local
+        #     #             # #     + radius * gamma_Fk1_local / gamma_Fk1_local_norm
+        #     #             # # )
+        #     #             # if gamma_Fk1_local_norm > EPS_GAMMA_F:
+        #     #             #     Rx[nq + nu + nla_g + nla_gamma + nla_N + i_F] = (
+        #     #             #         la_Fk1_free_local
+        #     #             #         + radius * gamma_Fk1_local / gamma_Fk1_local_norm
+        #     #             #     )
+        #     #             # else:
+        #     #             #     Rx[nq + nu + nla_g + nla_gamma + nla_N + i_F] = (
+        #     #             #         la_Fk1_free_local + radius * gamma_Fk1_local
+        #     #             #     )
+        #     #     else:
+        #     #         Rx[nq + nu + nla_g + nla_gamma + nla_N + i_F] = la_Fk1_local
 
         # update quantities of new time step for projection step
         self.tk1 = tk1
