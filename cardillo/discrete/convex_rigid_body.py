@@ -3,101 +3,113 @@ import numpy.typing as npt
 from scipy.spatial import ConvexHull
 
 from cardillo.math import norm, cross3
-from cardillo.discrete import RigidBodyQuaternion
 
 
-class ConvexRigidBody(RigidBodyQuaternion):
-    def __init__(
-        self,
-        points: npt.ArrayLike,
-        rho: float = None,
-        mass: float = None,
-        q0: np.ndarray = None,
-        u0: np.ndarray = None,
-    ):
-        """body of type Rigid_body_quaternion with arbitrary convex surface described by a pointcloud
+def new_convex_rigid_body(
+    rigid_body_base,
+    points: npt.ArrayLike,
+    rho: float = None,
+    mass: float = None,
+    q0: np.ndarray = None,
+    u0: np.ndarray = None,
+):
+    class ConvexRigidBody(rigid_body_base):
+        def __init__(
+            self,
+            points: npt.ArrayLike,
+            rho: float = None,
+            mass: float = None,
+            q0: np.ndarray = None,
+            u0: np.ndarray = None,
+        ):
+            """body of type Rigid_body_quaternion with arbitrary convex surface described by a pointcloud
 
-        Args:
-            points (np.ndarray):        pointcloud which is used by a convex hull algorithm to determine the shape of the body. The algorithm ensures that all points lie on or within the convex hull
-            rho (float, optional):      density of the body in kg/m^3 (see https://numpy-stl.readthedocs.io/en/latest/_modules/stl/base.html#BaseMesh.get_mass_properties_with_density). Set either mass or rho. Defaults to None.
-            mass (float, optional):     total mass of the body. Set either mass or rho. Defaults to None.
-            q0 (np.ndarray, optional):  Initial position and rotation. Defaults to None.
-            u0 (np.ndarray, optional):  Initial velocity and angular velocity. Defaults to None.
+            Args:
+                points (np.ndarray):        pointcloud which is used by a convex hull algorithm to determine the shape of the body. The algorithm ensures that all points lie on or within the convex hull
+                rho (float, optional):      density of the body in kg/m^3 (see https://numpy-stl.readthedocs.io/en/latest/_modules/stl/base.html#BaseMesh.get_mass_properties_with_density). Set either mass or rho. Defaults to None.
+                mass (float, optional):     total mass of the body. Set either mass or rho. Defaults to None.
+                q0 (np.ndarray, optional):  Initial position and rotation. Defaults to None.
+                u0 (np.ndarray, optional):  Initial velocity and angular velocity. Defaults to None.
 
-        Raises:
-            TypeError: Either one of density and mass has to be of type None
-            TypeError: mass and density cannot both hav type None
-        """
-        self.mesh = Mesh(points)
-        mass, K_theta_S, self.A_KK0 = self.mesh.mass_properties(rho, mass)
-        self.volume = self.mesh.convex_hull.volume
+            Raises:
+                TypeError: Either one of density and mass has to be of type None
+                TypeError: mass and density cannot both hav type None
+            """
+            self.mesh = Mesh(points)
+            mass, K_theta_S, self.A_KK0 = self.mesh.mass_properties(rho, mass)
+            self.volume = self.mesh.convex_hull.volume
 
-        # halfplane equations defining polytope
-        self.A, self.b = self.mesh.get_halfplane_equations()
+            # halfplane equations defining polytope
+            self.A, self.b = self.mesh.get_halfplane_equations()
 
-        super().__init__(mass, K_theta_S, q0=q0, u0=u0)
+            super().__init__(mass, K_theta_S, q0=q0, u0=u0)
 
-    def A_IK(self, t, q, frame_ID=None):
-        return super().A_IK(t, q, frame_ID) @ self.A_KK0.T
+        def A_IK(self, t, q, frame_ID=None):
+            return super().A_IK(t, q, frame_ID) @ self.A_KK0.T
 
-    def A_IK_q(self, t, q, frame_ID=None):
-        A_IK_q = super().A_IK_q(t, q, frame_ID)
-        return np.einsum("ijk,jl->ilk", A_IK_q, self.A_KK0.T)
+        def A_IK_q(self, t, q, frame_ID=None):
+            A_IK_q = super().A_IK_q(t, q, frame_ID)
+            return np.einsum("ijk,jl->ilk", A_IK_q, self.A_KK0.T)
 
-    # transform into new K system
-    def K_Omega(self, t, q, u, frame_ID=None):
-        return self.A_KK0 @ super().K_Omega(t, q, u, frame_ID)
+        # transform into new K system
+        def K_Omega(self, t, q, u, frame_ID=None):
+            return self.A_KK0 @ super().K_Omega(t, q, u, frame_ID)
 
-    def K_Omega_q(self, t, q, u, frame_ID=None):
-        return self.A_KK0 @ super().K_Omega_q(t, q, u, frame_ID)
+        def K_Omega_q(self, t, q, u, frame_ID=None):
+            return self.A_KK0 @ super().K_Omega_q(t, q, u, frame_ID)
 
-    def K_Psi(self, t, q, u, u_dot, frame_ID=None):
-        return self.A_KK0 @ super().K_Psi(t, q, u, u_dot, frame_ID)
+        def K_Psi(self, t, q, u, u_dot, frame_ID=None):
+            return self.A_KK0 @ super().K_Psi(t, q, u, u_dot, frame_ID)
 
-    def K_J_R(self, t, q, frame_ID=None):
-        return self.A_KK0 @ super().K_J_R(t, q, frame_ID)
+        def K_J_R(self, t, q, frame_ID=None):
+            return self.A_KK0 @ super().K_J_R(t, q, frame_ID)
 
-    def K_J_R_q(self, t, q, frame_ID=None):
-        return self.A_KK0 @ super().K_J_R_q(t, q, frame_ID)
+        def K_J_R_q(self, t, q, frame_ID=None):
+            return self.A_KK0 @ super().K_J_R_q(t, q, frame_ID)
 
-    def export(self, sol_i, base_export=False, **kwargs):
-        if base_export:
-            points, cells, point_data, cell_data = super().export(sol_i)
-        else:
-            points, vel, acc = [], [], []
-            for point in self.mesh.points:
-                points.append(self.r_OP(sol_i.t, sol_i.q[self.qDOF], K_r_SP=point))
-                vel.append(
-                    self.v_P(
-                        sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF], K_r_SP=point
-                    )
-                )
-                if sol_i.u_dot is not None:
-                    acc.append(
-                        self.a_P(
+        def export(self, sol_i, base_export=False, **kwargs):
+            if base_export:
+                points, cells, point_data, cell_data = super().export(sol_i)
+            else:
+                points, vel, acc = [], [], []
+                for point in self.mesh.points:
+                    points.append(self.r_OP(sol_i.t, sol_i.q[self.qDOF], K_r_SP=point))
+                    vel.append(
+                        self.v_P(
                             sol_i.t,
                             sol_i.q[self.qDOF],
                             sol_i.u[self.uDOF],
-                            sol_i.u_dot[self.uDOF],
                             K_r_SP=point,
                         )
                     )
-            cells = [("triangle", self.mesh.simplices)]
+                    if sol_i.u_dot is not None:
+                        acc.append(
+                            self.a_P(
+                                sol_i.t,
+                                sol_i.q[self.qDOF],
+                                sol_i.u[self.uDOF],
+                                sol_i.u_dot[self.uDOF],
+                                K_r_SP=point,
+                            )
+                        )
+                cells = [("triangle", self.mesh.simplices.tolist())]
 
-            normals = np.array(
-                [
-                    self.A_IK(sol_i.t, sol_i.q[self.qDOF]) @ self.A[j, :]
-                    for j in range(self.A.shape[0])
-                ]
-            )
+                normals = np.array(
+                    [
+                        self.A_IK(sol_i.t, sol_i.q[self.qDOF]) @ self.A[j, :]
+                        for j in range(self.A.shape[0])
+                    ]
+                )
 
-            cell_data = dict(normals=[normals])
+                cell_data = dict(normals=[normals])
 
-            if sol_i.u_dot is not None:
-                point_data = dict(v=vel, a=acc)
-            else:
-                point_data = dict(v=vel)
-        return points, cells, point_data, cell_data
+                if sol_i.u_dot is not None:
+                    point_data = dict(v=vel, a=acc)
+                else:
+                    point_data = dict(v=vel)
+            return points, cells, point_data, cell_data
+
+    return ConvexRigidBody(points, rho, mass, q0, u0)
 
 
 class Mesh:
