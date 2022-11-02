@@ -231,3 +231,25 @@ class ScalarForceTranslational:
             self.__W(t, q), self.__W(t, q)
         )
         coo.extend(dense, (self.uDOF, self.uDOF))
+
+    def export(self, sol_i, **kwargs):
+        points = [
+            self.r_OP1(sol_i.t, sol_i.q[self.qDOF]),
+            self.r_OP2(sol_i.t, sol_i.q[self.qDOF]),
+        ]
+        cells = [("line", [[0, 1]])]
+        h = self.h(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF])
+        la = self.__W(sol_i.t, sol_i.q[self.qDOF]).T @ h
+        n = self.__n(sol_i.t, sol_i.q[self.qDOF])
+        point_data = dict(la=[la, la], n=[n, -n])
+        # cell_data = dict(h=[h])
+        cell_data = dict(
+            n=[[n]],
+            g=[[self.__g(sol_i.t, sol_i.q[self.qDOF])]],
+            g_dot=[[self.__g_dot(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF])]],
+        )
+        if hasattr(self, "E_pot"):
+            E_pot = [self.E_pot(sol_i.t, sol_i.q[self.qDOF])]
+            cell_data["E_pot"] = [E_pot]
+
+        return points, cells, point_data, cell_data

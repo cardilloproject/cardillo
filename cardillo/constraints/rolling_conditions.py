@@ -176,13 +176,13 @@ class RollingCondition_g_I_Frame_gamma:
 
         return g_dot_q @ self.subsystem.q_dot(t, q, u) + g_dot_u @ u_dot
 
-    # TODO:
+    # TODO: implement
     def g_q_dense(self, t, q):
         return approx_fprime(q, lambda q: self.g(t, q), method="2-point").reshape(
             self.nla_g, self.subsystem.nq
         )
 
-    # TODO:
+    # TODO: implement
     def g_qq_dense(self, t, q):
         return approx_fprime(
             q, lambda q: self.g_q_dense(t, q), method="3-point"
@@ -195,7 +195,7 @@ class RollingCondition_g_I_Frame_gamma:
     def g_q(self, t, q, coo):
         coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
 
-    # TODO:
+    # TODO: implement
     def g_dot_q(self, t, q, u, coo):
         coo.extend(
             approx_fprime(q, lambda q: self.g_dot(t, q, u), method="2-point").reshape(
@@ -204,7 +204,7 @@ class RollingCondition_g_I_Frame_gamma:
             (self.la_gDOF, self.qDOF),
         )
 
-    # TODO:
+    # TODO: implement
     def g_ddot_q(self, t, q, u, u_dot, coo):
         coo.extend(
             approx_fprime(
@@ -222,6 +222,7 @@ class RollingCondition_g_I_Frame_gamma:
     def W_g(self, t, q, coo):
         coo.extend(self.W_g_dense(t, q), (self.uDOF, self.la_gDOF))
 
+    # TODO implement
     def Wla_g_q(self, t, q, la_g, coo):
         # J_C_q = self.subsystem.J_P_q(
         #     t, q, K_r_SP=self.subsystem.A_IK(t, q).T @ self.r_SC(t, q)
@@ -260,7 +261,7 @@ class RollingCondition_g_I_Frame_gamma:
             # )
             # return np.array([a_C @ e1, a_C @ e2])
 
-        # TODO:
+        # TODO: implement
         def gamma_q(self, t, q, u, coo):
             # K_Omega = self.subsystem.K_Omega(t, q)
             # dense = (
@@ -278,7 +279,7 @@ class RollingCondition_g_I_Frame_gamma:
             # print(f"error gamma_q: {error}")
             coo.extend(dense_num, (self.la_gammaDOF, self.qDOF))
 
-        # TODO:
+        # TODO: implement
         def gamma_dot_q(self, t, q, u, u_dot, coo):
             raise NotImplementedError("")
             coo.extend(
@@ -299,7 +300,7 @@ class RollingCondition_g_I_Frame_gamma:
         def W_gamma(self, t, q, coo):
             coo.extend(self.gamma_u_dense(t, q).T, (self.uDOF, self.la_gammaDOF))
 
-        # TODO:
+        # TODO: implement
         def Wla_gamma_q(self, t, q, la_gamma, coo):
             dense = approx_fprime(
                 q, lambda q: self.gamma_u_dense(t, q).T @ la_gamma, method="2-point"
