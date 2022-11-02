@@ -324,9 +324,8 @@ class NonsmoothBackwardEulerDecoupled:
         tol=1e-6,
         max_iter=10,
         error_function=lambda x: np.max(np.abs(x)),
-        solve_monolythic=True,
+        solve_monolythic=False,
         with_elastic_impacts=True,
-        # with_elastic_impacts=False,
     ):
         self.model = model
         self.solve_monolythic = solve_monolythic
