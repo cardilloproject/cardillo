@@ -108,13 +108,13 @@ class Export:
             p, c, p_data, c_data = contr.export(sol_i, **kwargs)
             l = len(points)
             points.extend(p)
-            cells.extend([(el[0], [[i + l for i in el[1][0]]]) for el in c])
+            cells.extend([(tup[0], [[i+l for i in idx] for idx in tup[1]]) for tup in c])
             if c_data is not None:
                 for key in c_data.keys():
                     if not key in cell_data.keys():
                         cell_data[key] = c_data[key]
                     else:
-                        cell_data[key].extend(c_data[key])
+                        cell_data[key].append(c_data[key][0])
             if p_data is not None:
                 for key in p_data.keys():
                     if not key in point_data.keys():

@@ -59,6 +59,7 @@ if __name__ == "__main__":
     # cube = ConvexRigidBody(points_cube, mass=m, u0=u0, q0=q0)
     # cube = newConvexRigidBody(RigidBodyQuaternion, points_cube, mass=m, u0=u0, q0=q0)
     cube = new_box(RigidBodyQuaternion, 1, 2, 3, mass=m, q0=q0, u0=u0)
+    cube2 = new_box(RigidBodyQuaternion, 1, 2, 3, mass=m, q0=q0, u0=u0)
     r = 0.5
     # ball = new_ball(RigidBodyQuaternion, m, r, q0, u0)
 
@@ -77,6 +78,7 @@ if __name__ == "__main__":
 
     system = System()
     system.add(cube)
+    system.add(cube2)
     # system.add(ball)
 
     # system = System()
@@ -105,9 +107,10 @@ if __name__ == "__main__":
     # VtkExport.convex_body(path_vtk, sol_export, cube)
 
     e = Export(path.parent, path.stem, True, 30, solution)
-    # e.export_contr([pm0, pm1c], file_name="points")
-    # e.export_contr([pm0])
-    e.export_contr(cube)
+    # e.export_contr([pm0, pm1], file_name="points")
+    e.export_contr(pm0)
+    e.export_contr([cube, cube2])
+    # e.export_contr(cube)
     # e.export_contr(cube, base_export=True)
     # e.export_contr(ball, resolution=20)
     # e.export_contr(spring)

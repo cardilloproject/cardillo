@@ -92,7 +92,7 @@ def new_convex_rigid_body(
                                 K_r_SP=point,
                             )
                         )
-                cells = [("triangle", self.mesh.simplices)]
+                cells = [("triangle", self.mesh.simplices.tolist())]
 
                 normals = np.array(
                     [
