@@ -4,7 +4,14 @@ from scipy.sparse.linalg import splu, spsolve, lsqr
 from tqdm import tqdm
 
 from cardillo.solver import Solution
-from cardillo.math import prox_R0_np, prox_R0_nm, prox_sphere, approx_fprime, norm, fsolve
+from cardillo.math import (
+    prox_R0_np,
+    prox_R0_nm,
+    prox_sphere,
+    approx_fprime,
+    norm,
+    fsolve,
+)
 
 # see https://gitlab.com/libeigen/eigen/-/blob/master/Eigen/src/Core/Dot.h#L126
 EPS_GAMMA_F = 0

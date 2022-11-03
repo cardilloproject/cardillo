@@ -1,26 +1,66 @@
 import numpy as np
 from warnings import warn
 from scipy.sparse import csc_matrix
-from scipy.sparse.linalg import spsolve, lsqr
+from scipy.sparse.linalg import spsolve, lsqr, lsmr, LinearOperator
 from cardillo.math import approx_fprime
 
-# def linear__solver(A, b):
-#     return spsolve(A, b)
 
-#     # return lsqr(A, b, atol=1.0e-12, btol=1.0e-12)[0]
+def lu_solve(A, b):
+    """
+    Solve the sparse linear system Ax=b, where b may be a vector or a matrix.
 
-#     # # no underflow errors
-#     # return np.linalg.lstsq(A.toarray(), b, rcond=None)[0]
+    References:
+    -----------
+    Scipy: https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.spsolve.html#scipy.sparse.linalg.spsolve
+    """
+    return spsolve(A, b)
 
-#     # # TODO: Can we get this sparse?
-#     # # using QR decomposition, see https://de.wikipedia.org/wiki/QR-Zerlegung#L%C3%B6sung_regul%C3%A4rer_oder_%C3%BCberbestimmter_Gleichungssysteme
-#     # Q, R = np.linalg.qr(A.toarray())
-#     # z = Q.T @ b
-#     # return np.linalg.solve(R, z)  # solving R*x = Q^T*b
 
-#     # # solve normal equation (should be independent of the conditioning
-#     # # number!)
-#     # return spsolve(A.T @ A, A.T @ b)
+def lsqr_solve(A, b):
+    """
+    Find the least-squares solution to a large, sparse, linear system of
+    equations Ax=b.
+
+    References:
+    -----------
+    Scipy: https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.lsqr.html#scipy.sparse.linalg.lsqr
+    """
+    return lsqr(A, b, atol=0, btol=0, conlim=0)[0]
+
+
+def lsqr_operator_solve(A, b):
+    """
+    Find the least-squares solution to a large, sparse, linear system of
+    equations Ax=b using scipy's LinearOperator's. This can give us a huge
+    performance boost since we never have to assemble the sparse matrix if
+    this is provided by the system.
+
+    References:
+    -----------
+    Scipy: https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.LinearOperator.html
+    Scipy: https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.lsqr.html#scipy.sparse.linalg.lsqr
+    """
+
+    def Ax(x):
+        return A @ x
+
+    def ATx(x):
+        return A.T @ x
+
+    operator = LinearOperator(A.shape, matvec=Ax, rmatvec=ATx)
+    return lsqr(operator, b, atol=0, btol=0, conlim=0)[0]
+
+
+def lsmr_solve(A, b):
+    """
+    Find the least-squares solution to a large, sparse, linear system of
+    equations Ax=b.
+
+    References:
+    -----------
+    Scipy: https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.lsmr.html#scipy.sparse.linalg.lsmr
+    """
+    return lsmr(A, b, atol=0, btol=0, conlim=0)[0]
 
 
 def fsolve(
@@ -33,6 +73,8 @@ def fsolve(
     atol=1.0e-8,
     eps=1.0e-6,
     max_iter=20,
+    # linear_solver=lu_solve,
+    linear_solver=lsqr_solve,
 ):
     if not isinstance(fun_args, tuple):
         fun_args = (fun_args,)
@@ -63,8 +105,7 @@ def fsolve(
     while (not converged) and (i < max_iter):
         i += 1
         J = jacobian(x, *jac_args)
-        x -= spsolve(J, f)
-        # x -= linear__solver(J, f)
+        x -= linear_solver(J, f)
         f = fun(x, *fun_args)
         error = error_function(f)
         converged = error <= atol
