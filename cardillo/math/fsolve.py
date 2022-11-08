@@ -73,8 +73,7 @@ def fsolve(
     atol=1.0e-8,
     eps=1.0e-6,
     max_iter=20,
-    # linear_solver=lu_solve,
-    linear_solver=lsqr_solve,
+    linear_solver=lu_solve,
 ):
     if not isinstance(fun_args, tuple):
         fun_args = (fun_args,)
@@ -92,8 +91,8 @@ def fsolve(
         jacobian = jac
     assert callable(jacobian)
 
-    # prepare solution vector
-    x = np.asarray(x0)
+    # prepare solution vector; make a copy since we modify the value
+    x = np.asarray(x0).copy()
 
     # initial guess, error and convergence
     f = fun(x, *fun_args)
