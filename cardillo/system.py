@@ -67,6 +67,20 @@ class System:
     def deepcopy(self, solution):
         # create copy of the system
         system_copy = deepcopy(self)
+        # empty lists which were filled in assembler function to enforce reassembling
+        self.q0 = None
+        self.u0 = None
+        self.la_g0 = None
+        self.la_gamma0 = None
+        self.la_S0 = None
+        self.la_N0 = None
+        self.la_F0 = None
+        self.NF_connectivity = None
+        self.N_has_friction = None
+        self.Ncontr_connectivity = None
+        self.e_N = None
+        self.e_F = None
+        self.mu = None
 
         # extract final generalized coordiantes and distribute to subsystems
         q0 = solution.q[-1]
