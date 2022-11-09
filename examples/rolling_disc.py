@@ -128,11 +128,11 @@ def state():
     Lesaux2005: https://doi.org/10.1007/s00332-004-0655-4
     """
     t0 = 0
-    t1 = 2 * np.pi / np.abs(alpha_dot0) * 0.01
+    # t1 = 2 * np.pi / np.abs(alpha_dot0) * 0.01
     # t1 = 2 * np.pi / np.abs(alpha_dot0) * 0.25
     # t1 = 2 * np.pi / np.abs(alpha_dot0) * 0.3  # used for GAMM
     # t1 = 2 * np.pi / np.abs(alpha_dot0) * 0.5
-    # t1 = 2 * np.pi / np.abs(alpha_dot0) * 1.0
+    t1 = 2 * np.pi / np.abs(alpha_dot0) * 1.0
     # dt = 5e-3
     # dt = 5e-2
     # dt = 2.5e-2
