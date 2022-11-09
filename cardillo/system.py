@@ -65,22 +65,17 @@ class System:
         list(map(self.add, contr_list))
 
     def deepcopy(self, solution):
+        """
+        Create a deepcopy of the system and set the original system, which is accessed by `self`, to the state given by the passed Solution. Additionally reassemble the original system.
+
+        Args:
+            solution (Solution): previously calculated solution of system 
+
+        Returns:
+            system: deepcopy of original system
+        """
         # create copy of the system
         system_copy = deepcopy(self)
-        # empty lists which were filled in assembler function to enforce reassembling
-        self.q0 = None
-        self.u0 = None
-        self.la_g0 = None
-        self.la_gamma0 = None
-        self.la_S0 = None
-        self.la_N0 = None
-        self.la_F0 = None
-        self.NF_connectivity = None
-        self.N_has_friction = None
-        self.Ncontr_connectivity = None
-        self.e_N = None
-        self.e_F = None
-        self.mu = None
 
         # extract final generalized coordiantes and distribute to subsystems
         q0 = solution.q[-1]
@@ -118,7 +113,7 @@ class System:
             for contr in self.contributions:
                 if hasattr(contr, "nla_F"):
                     contr.la_F0 = la_F0[contr.la_FDOF]
-
+        self.assemble()
         return system_copy
 
     def assemble(self):
