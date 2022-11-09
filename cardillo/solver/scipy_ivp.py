@@ -27,7 +27,7 @@ class ScipyIVP:
             t1 if t1 > t0 else ValueError("t1 must be larger than initial time t0.")
         )
         self.dt = dt
-        self.t = np.arange(t0, self.t1 + self.dt, self.dt)
+        self.t_eval = np.arange(t0, self.t1 + self.dt, self.dt)
 
         self.frac = (t1 - t0) / 101
         self.pbar = tqdm(total=100, leave=True)
@@ -112,9 +112,9 @@ class ScipyIVP:
     def solve(self):
         sol = solve_ivp(
             self.eqm,
-            (self.t[0], self.t[-1]),
+            self.t_eval[[0, -1]],
             self.x0,
-            t_eval=self.t,
+            t_eval=self.t_eval,
             method=self.method,
             rtol=self.rtol,
             atol=self.atol,

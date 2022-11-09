@@ -18,6 +18,7 @@ from cardillo.solver import (
     EulerBackward,
     GeneralizedAlphaFirstOrder,
     NonsmoothBackwardEulerDecoupled,
+    RadauIIa,
 )
 
 
@@ -127,8 +128,8 @@ def state():
     Lesaux2005: https://doi.org/10.1007/s00332-004-0655-4
     """
     t0 = 0
-    # t1 = 2 * np.pi / np.abs(alpha_dot0) * 0.01
-    t1 = 2 * np.pi / np.abs(alpha_dot0) * 0.25
+    t1 = 2 * np.pi / np.abs(alpha_dot0) * 0.01
+    # t1 = 2 * np.pi / np.abs(alpha_dot0) * 0.25
     # t1 = 2 * np.pi / np.abs(alpha_dot0) * 0.3  # used for GAMM
     # t1 = 2 * np.pi / np.abs(alpha_dot0) * 0.5
     # t1 = 2 * np.pi / np.abs(alpha_dot0) * 1.0
@@ -148,13 +149,19 @@ def state():
     # sol = ScipyIVP(model, t1, dt).solve()
     # sol = EulerBackward(model, t1, dt).solve()
     # sol = NonsmoothHalfExplicitRungeKutta(model, t1, dt).solve()
-    sol = GeneralizedAlphaFirstOrder(model, t1, dt, rho_inf=rho_inf, tol=tol).solve()
+    # sol = GeneralizedAlphaFirstOrder(model, t1, dt, rho_inf=rho_inf, tol=tol).solve()
     # sol = GeneralizedAlphaFirstOrder(
     #     model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=1
     # ).solve()
     # sol = NonsmoothDecoupled(model, t1, dt).solve()
     # sol = NonsmoothHalfExplicitRungeKutta(model, t1, dt).solve()
     # sol = NonsmoothPartitionedHalfExplicitEuler(model, t1, dt).solve()
+
+    rtol = atol = 1.0e-4
+    # dae_index = 2
+    # dae_index = 3
+    dae_index = "GGL"
+    sol = RadauIIa(model, t1, dt, rtol=rtol, atol=atol, dae_index=dae_index).solve()
 
     t = sol.t
     q = sol.q
@@ -173,16 +180,16 @@ def state():
 
     g = np.array([model.g(ti, qi) for ti, qi in zip(t, q)])
     g_dot = np.array([model.g_dot(ti, qi, ui) for ti, qi, ui in zip(t, q, u)])
-    g_ddot = np.array(
-        [model.g_ddot(ti, qi, ui, u_doti) for ti, qi, ui, u_doti in zip(t, q, u, u_dot)]
-    )
+    # g_ddot = np.array(
+    #     [model.g_ddot(ti, qi, ui, u_doti) for ti, qi, ui, u_doti in zip(t, q, u, u_dot)]
+    # )
     gamma = np.array([model.gamma(ti, qi, ui) for ti, qi, ui in zip(t, q, u)])
-    gamma_dot = np.array(
-        [
-            model.gamma_dot(ti, qi, ui, u_doti)
-            for ti, qi, ui, u_doti in zip(t, q, u, u_dot)
-        ]
-    )
+    # gamma_dot = np.array(
+    #     [
+    #         model.gamma_dot(ti, qi, ui, u_doti)
+    #         for ti, qi, ui, u_doti in zip(t, q, u, u_dot)
+    #     ]
+    # )
 
     ########
     # export
@@ -226,12 +233,12 @@ def state():
     ax.set_ylabel("g_dot")
     ax.grid()
 
-    # g_ddot
-    ax = fig.add_subplot(3, 2, 5)
-    ax.plot(t, g_ddot)
-    ax.set_xlabel("t")
-    ax.set_ylabel("g_ddot")
-    ax.grid()
+    # # g_ddot
+    # ax = fig.add_subplot(3, 2, 5)
+    # ax.plot(t, g_ddot)
+    # ax.set_xlabel("t")
+    # ax.set_ylabel("g_ddot")
+    # ax.grid()
 
     # gamma
     ax = fig.add_subplot(3, 2, 2)
@@ -240,12 +247,12 @@ def state():
     ax.set_ylabel("gamma")
     ax.grid()
 
-    # gamma_dot
-    ax = fig.add_subplot(3, 2, 4)
-    ax.plot(t, gamma_dot)
-    ax.set_xlabel("t")
-    ax.set_ylabel("gamma_dot")
-    ax.grid()
+    # # gamma_dot
+    # ax = fig.add_subplot(3, 2, 4)
+    # ax.plot(t, gamma_dot)
+    # ax.set_xlabel("t")
+    # ax.set_ylabel("gamma_dot")
+    # ax.grid()
 
     fig = plt.figure(figsize=plt.figaspect(0.5))
 

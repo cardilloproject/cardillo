@@ -14,7 +14,7 @@ properties.extend(["h", "h_q", "h_u"])
 
 properties.extend(["q_dot", "q_dot_q", "B"])
 
-properties.extend(["g", "g_q", "g_t"])
+properties.extend(["g", "g_q"])
 properties.extend(["gamma", "gamma_q", "gamma_u"])
 properties.extend(["g_S"])
 
@@ -316,23 +316,17 @@ class System:
             g[contr.la_gDOF] = contr.g(t, q[contr.qDOF])
         return g
 
-    # def g_t(self, t, q):
-    #     g_t = np.zeros(self.nla_g, dtype=q.dtype)
-    #     for contr in self.__g_t_contr:
-    #         g_t[contr.la_gDOF] = contr.g_t(t, q[contr.qDOF])
-    #     return g_t
-
     def g_q(self, t, q, scipy_matrix=coo_matrix):
         coo = Coo((self.nla_g, self.nq))
         for contr in self.__g_contr:
             contr.g_q(t, q[contr.qDOF], coo)
         return coo.tosparse(scipy_matrix)
 
-    # def g_q_T_mu_g(self, t, q, mu_g, scipy_matrix=coo_matrix):
-    #     coo = Coo((self.nq, self.nq))
-    #     for contr in self.__g_contr:
-    #         contr.g_q_T_mu_g(t, q[contr.qDOF], mu_g[contr.la_gDOF], coo)
-    #     return coo.tosparse(scipy_matrix)
+    def g_q_T_mu_g(self, t, q, mu_g, scipy_matrix=coo_matrix):
+        coo = Coo((self.nq, self.nq))
+        for contr in self.__g_contr:
+            contr.g_q_T_mu_g(t, q[contr.qDOF], mu_g[contr.la_gDOF], coo)
+        return coo.tosparse(scipy_matrix)
 
     def W_g(self, t, q, scipy_matrix=coo_matrix):
         coo = Coo((self.nu, self.nla_g))
