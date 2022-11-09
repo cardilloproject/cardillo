@@ -21,7 +21,7 @@ class EulerBackward:
         debug=False,
     ):
 
-        self.model = system
+        self.system = system
 
         # integration time
         t0 = system.t0
@@ -35,10 +35,10 @@ class EulerBackward:
         self.max_iter = max_iter
         self.error_function = error_function
 
-        self.nq = self.model.nq
-        self.nu = self.model.nu
-        self.nla_g = self.model.nla_g
-        self.nla_gamma = self.model.nla_gamma
+        self.nq = self.system.nq
+        self.nu = self.system.nu
+        self.nla_g = self.system.nla_g
+        self.nla_gamma = self.system.nla_gamma
         self.n = self.nq + self.nu + self.nla_g + self.nla_gamma
 
         self.uDOF = np.arange(self.nu)
@@ -46,10 +46,10 @@ class EulerBackward:
         self.la_gDOF = self.nu + self.nq + np.arange(self.nla_g)
         self.la_gammaDOF = self.nu + self.nq + self.nla_g + np.arange(self.nla_gamma)
 
-        self.model.pre_iteration_update(t0, system.q0, system.u0)
-        self.Mk1 = self.model.M(t0, system.q0)
-        self.W_gk1 = self.model.W_g(t0, system.q0)
-        self.W_gammak1 = self.model.W_gamma(t0, system.q0)
+        self.system.pre_iteration_update(t0, system.q0, system.u0)
+        self.Mk1 = self.system.M(t0, system.q0)
+        self.W_gk1 = self.system.W_g(t0, system.q0)
+        self.W_gammak1 = self.system.W_gamma(t0, system.q0)
 
         self.numerical_jacobian = numerical_jacobian
         if numerical_jacobian:
@@ -64,15 +64,15 @@ class EulerBackward:
         self.tk = system.t0
         self.qk = system.q0
         self.uk = system.u0
-        self.q_dotk = self.model.q_dot(self.tk, self.qk, self.uk)
+        self.q_dotk = self.system.q_dot(self.tk, self.qk, self.uk)
 
         # solve for consistent initial accelerations and Lagrange mutlipliers
-        M0 = self.model.M(self.tk, self.qk, scipy_matrix=csr_matrix)
-        h0 = self.model.h(self.tk, self.qk, self.uk)
-        W_g0 = self.model.W_g(self.tk, self.qk, scipy_matrix=csr_matrix)
-        W_gamma0 = self.model.W_gamma(self.tk, self.qk, scipy_matrix=csr_matrix)
-        zeta_g0 = self.model.zeta_g(t0, self.qk, self.uk)
-        zeta_gamma0 = self.model.zeta_gamma(t0, self.qk, self.uk)
+        M0 = self.system.M(self.tk, self.qk, scipy_matrix=csr_matrix)
+        h0 = self.system.h(self.tk, self.qk, self.uk)
+        W_g0 = self.system.W_g(self.tk, self.qk, scipy_matrix=csr_matrix)
+        W_gamma0 = self.system.W_gamma(self.tk, self.qk, scipy_matrix=csr_matrix)
+        zeta_g0 = self.system.zeta_g(t0, self.qk, self.uk)
+        zeta_gamma0 = self.system.zeta_gamma(t0, self.qk, self.uk)
         # fmt: off
         A = bmat(
             [
@@ -114,19 +114,19 @@ class EulerBackward:
         ), "Initial conditions do not fulfill gamma_dot0!"
 
     def __R(self, qk, uk, tk1, qk1, uk1, la_gk1, la_gammak1):
-        self.Mk1 = self.model.M(tk1, qk1)
-        self.W_gk1 = self.model.W_g(tk1, qk1)
-        self.W_gammak1 = self.model.W_gamma(tk1, qk1)
+        self.Mk1 = self.system.M(tk1, qk1)
+        self.W_gk1 = self.system.W_g(tk1, qk1)
+        self.W_gammak1 = self.system.W_gamma(tk1, qk1)
 
         R = np.zeros(self.n)
         R[self.uDOF] = self.Mk1 @ (uk1 - uk) - self.dt * (
-            self.model.h(tk1, qk1, uk1)
+            self.system.h(tk1, qk1, uk1)
             + self.W_gk1 @ la_gk1
             + self.W_gammak1 @ la_gammak1
         )
-        R[self.qDOF] = qk1 - qk - self.dt * self.model.q_dot(tk1, qk1, uk1)
-        R[self.la_gDOF] = self.model.g(tk1, qk1)
-        R[self.la_gammaDOF] = self.model.gamma(tk1, qk1, uk1)
+        R[self.qDOF] = qk1 - qk - self.dt * self.system.q_dot(tk1, qk1, uk1)
+        R[self.la_gDOF] = self.system.g(tk1, qk1)
+        R[self.la_gammaDOF] = self.system.gamma(tk1, qk1, uk1)
 
         return R
 
@@ -160,23 +160,23 @@ class EulerBackward:
 
     def __R_x_analytic(self, qk, uk, tk1, qk1, uk1, la_gk1, la_gammak1):
         # equations of motion
-        Ru_u = self.Mk1 - self.dt * self.model.h_u(tk1, qk1, uk1)
-        Ru_q = self.model.Mu_q(tk1, qk1, uk1 - uk) - self.dt * (
-            self.model.h_q(tk1, qk1, uk1)
-            + self.model.Wla_g_q(tk1, qk1, la_gk1)
-            + self.model.Wla_gamma_q(tk1, qk1, la_gammak1)
+        Ru_u = self.Mk1 - self.dt * self.system.h_u(tk1, qk1, uk1)
+        Ru_q = self.system.Mu_q(tk1, qk1, uk1 - uk) - self.dt * (
+            self.system.h_q(tk1, qk1, uk1)
+            + self.system.Wla_g_q(tk1, qk1, la_gk1)
+            + self.system.Wla_gamma_q(tk1, qk1, la_gammak1)
         )
         Ru_la_g = -self.dt * self.W_gk1
         Ru_la_gamma = -self.dt * self.W_gammak1
 
         # kinematic equation
-        Rq_u = -self.dt * self.model.B(tk1, qk1)
-        Rq_q = identity(self.nq) - self.dt * self.model.q_dot_q(tk1, qk1, uk1)
+        Rq_u = -self.dt * self.system.B(tk1, qk1)
+        Rq_q = identity(self.nq) - self.dt * self.system.q_dot_q(tk1, qk1, uk1)
 
         # constrain equations
-        Rla_g_q = self.model.g_q(tk1, qk1)
-        Rla_gamma_q = self.model.gamma_q(tk1, qk1, uk1)
-        Rla_gamma_u = self.model.gamma_u(tk1, qk1)
+        Rla_g_q = self.system.g_q(tk1, qk1)
+        Rla_gamma_q = self.system.gamma_q(tk1, qk1, uk1)
+        Rla_gamma_u = self.system.gamma_u(tk1, qk1)
 
         return bmat(
             [
@@ -255,9 +255,9 @@ class EulerBackward:
         la_gammak1 = la_gammak
         uk1 = uk + dt * spsolve(
             self.Mk1.tocsc(),
-            self.model.h(tk, qk, uk) + self.W_gk1 @ la_gk + self.W_gammak1 @ la_gammak,
+            self.system.h(tk, qk, uk) + self.W_gk1 @ la_gk + self.W_gammak1 @ la_gammak,
         )
-        qk1 = qk + dt * self.model.q_dot(tk, qk, uk1)
+        qk1 = qk + dt * self.system.q_dot(tk, qk, uk1)
 
         # initial guess for Newton-Raphson solver
         xk1 = np.zeros(self.n)
@@ -267,7 +267,7 @@ class EulerBackward:
         xk1[self.la_gammaDOF] = la_gammak1
 
         # initial residual and error
-        self.model.pre_iteration_update(tk1, qk1, uk1)
+        self.system.pre_iteration_update(tk1, qk1, uk1)
         R = self.__R(qk, uk, tk1, qk1, uk1, la_gk1, la_gammak1)
         error = self.error_function(R)
         converged = error < self.atol
@@ -286,7 +286,7 @@ class EulerBackward:
                 la_gk1 = xk1[self.la_gDOF]
                 la_gammak1 = xk1[self.la_gammaDOF]
 
-                self.model.pre_iteration_update(tk1, qk1, uk1)
+                self.system.pre_iteration_update(tk1, qk1, uk1)
                 R = self.__R(qk, uk, tk1, qk1, uk1, la_gk1, la_gammak1)
                 error = self.error_function(R)
                 converged = error < self.atol
@@ -323,7 +323,7 @@ class EulerBackward:
                 f"t: {tk1:0.2e}; Newton: {n_iter}/{self.max_iter} iterations; error: {error:0.2e}"
             )
 
-            qk1, uk1 = self.model.step_callback(tk1, qk1, uk1)
+            qk1, uk1 = self.system.step_callback(tk1, qk1, uk1)
 
             q.append(qk1)
             u.append(uk1)
