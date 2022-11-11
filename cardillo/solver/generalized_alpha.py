@@ -2214,17 +2214,7 @@ class GeneralizedAlphaFirstOrderGGLGiuseppe:
 
 
 class GeneralizedAlphaFirstOrder:
-    """Generalized alpha solver for first order ODE's.
-    
-    To-Do:
-    -----
-    * Think about preconditioning according to Arnold2008 and Bottasso2008?
-
-    References
-    ----------
-    Arnold2008: https://doi.org/10.1007/s11044-007-9084-0 \\
-    Bottasso2008 https://doi.org/10.1007/s11044-007-9051-9
-    """
+    """Generalized alpha solver for first order ODE's."""
 
     def __init__(
         self,

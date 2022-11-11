@@ -4,8 +4,6 @@ import numpy as np
 from cardillo.discrete.rigid_body_base import RigidBodyBase
 from cardillo.math import (
     norm,
-    cross3,
-    ax2skew,
     quat2mat,
     quat2mat_p,
     quat2rot,

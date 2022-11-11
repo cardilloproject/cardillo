@@ -2,15 +2,13 @@ import numpy as np
 from math import pi
 import matplotlib.pyplot as plt
 
-from cardillo.model.frame.frame import Frame
-from cardillo.model.rigid_body import RigidBodyEuler
-from cardillo.model.bilateral_constraints.implicit import SphericalJoint
+from cardillo.discrete import Frame, RigidBodyEuler
+from cardillo.constraints import SphericalJoint
 from cardillo.math.algebra import cross3, ax2skew
 from cardillo.math import approx_fprime
-from cardillo.model import System
+from cardillo import System
 from cardillo.solver import (
     GeneralizedAlphaFirstOrder,
-    GenAlphaFirstOrderGGL2_V3,
     GeneralizedAlphaSecondOrder,
 )
 
@@ -80,7 +78,7 @@ model.assemble()
 
 
 def transient():
-    t1 = 10
+    t1 = 3
     tol = 1.0e-8
     h = 1.0e-2
 
@@ -208,7 +206,7 @@ def transient():
 def gaps():
     t1 = 0.1
     tol = 1.0e-8
-    h = 1.0e-3
+    h = 1.0e-2
 
     def export_gaps(sol, name):
         header = "t, g, g_dot, g_ddot"
@@ -257,9 +255,7 @@ def gaps():
     g_9_GGL, g_dot_9_GGL, g_ddot_9_GGL = export_gaps(sol_9_GGL, "g_9_GGL.txt")
 
     # solve GGL2 with rho_inf = 0.9
-    sol_9_GGL2 = GenAlphaFirstOrderGGL2_V3(
-        model, t1, h, rho_inf=0.9, tol=tol, unknowns="velocities"
-    ).solve()
+    sol_9_GGL2 = GeneralizedAlphaSecondOrder(model, t1, h, rho_inf=0.9, tol=tol).solve()
     g_9_GGL2, g_dot_9_GGL2, g_ddot_9_GGL2 = export_gaps(sol_9_GGL2, "g_9_GGL2.txt")
 
     ###################
@@ -641,6 +637,6 @@ def convergence():
 
 
 if __name__ == "__main__":
-    # transient()
-    gaps()
+    transient()
+    # gaps()
     # convergence()

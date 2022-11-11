@@ -80,10 +80,16 @@ class Rod:
         )
 
         r_OP10 = self.subsystem1.r_OP(
-            self.subsystem1.t0, self.subsystem1.q0[qDOF1], self.frame_ID1, self.K_r_SP1
+            self.subsystem1.t0,
+            self.subsystem1.q0[local_qDOF1],
+            self.frame_ID1,
+            self.K_r_SP1,
         )
         r_OP20 = self.subsystem2.r_OP(
-            self.subsystem2.t0, self.subsystem2.q0[qDOF2], self.frame_ID2, self.K_r_SP2
+            self.subsystem2.t0,
+            self.subsystem2.q0[local_qDOF2],
+            self.frame_ID2,
+            self.K_r_SP2,
         )
         self.dist = np.linalg.norm(r_OP20 - r_OP10)
         if self.dist < 1e-6:

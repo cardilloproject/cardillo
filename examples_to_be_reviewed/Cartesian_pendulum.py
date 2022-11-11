@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from cardillo.model import System
+from cardillo import System
 from cardillo.solver import (
     GeneralizedAlphaFirstOrder,
     GenAlphaFirstOrderGGL2_V3,

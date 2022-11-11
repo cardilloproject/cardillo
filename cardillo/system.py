@@ -69,7 +69,7 @@ class System:
         Create a deepcopy of the system and set the original system, which is accessed by `self`, to the state given by the passed Solution. Additionally reassemble the original system.
 
         Args:
-            solution (Solution): previously calculated solution of system 
+            solution (Solution): previously calculated solution of system
 
         Returns:
             system: deepcopy of original system
