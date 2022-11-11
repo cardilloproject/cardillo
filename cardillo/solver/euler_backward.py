@@ -290,7 +290,7 @@ class EulerBackward:
             raise NotImplementedError
         # fmt: on
 
-        # return J
+        return J
 
         # J_num = csc_matrix(approx_fprime(y, self._R, method="2-point"))
         # J_num = csc_matrix(approx_fprime(y, self._R, method="3-point"))

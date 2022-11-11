@@ -112,6 +112,12 @@ class RigidBodyBase(ABC):
     def K_Psi(self, t, q, u, u_dot, frame_ID=None):
         return u_dot[3:]
 
+    def K_Psi_q(self, t, q, u, u_dot, frame_ID=None):
+        return np.zeros((3, self.nq), dtype=np.common_type(q, u, u_dot))
+
+    def K_Psi_u(self, t, q, u, u_dot, frame_ID=None):
+        return np.zeros((3, self.nu), dtype=np.common_type(q, u, u_dot))
+
     def K_kappa_R(self, t, q, u, frame_ID=None):
         return np.zeros(3, dtype=np.common_type(q, u))
 
