@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.sparse.linalg import spsolve
-from scipy.sparse import coo_matrix, csc_matrix, csr_matrix, identity, bmat
+from scipy.sparse import coo_matrix, csc_matrix, csr_matrix, eye, bmat
 from tqdm import tqdm
 
 from cardillo.math import approx_fprime, fsolve
@@ -81,7 +81,8 @@ class EulerBackward:
         atol=1e-6,
         max_iter=10,
         error_function=lambda x: np.max(np.abs(x)),
-        method="index 2 GGL",
+        # method="index 2 GGL",
+        method="index 3",
     ):
         self.system = system
         assert method in ["index 1", "index 2", "index 3", "index 2 GGL"]
@@ -187,11 +188,11 @@ class EulerBackward:
         self.W_gamma = self.system.W_gamma(t, q, scipy_matrix=csr_matrix)
         R = np.zeros(self.ny, dtype=y.dtype)
 
-        R[:nq] = q_dot - self.system.q_dot(t, q, u)
+        self.g_S_q = self.system.g_S_q(t, q, scipy_matrix=csc_matrix)
+        R[:nq] = q_dot - self.system.q_dot(t, q, u) - self.g_S_q.T @ mu_S
         if self.method == "index 2 GGL":
             self.g_q = self.system.g_q(t, q, scipy_matrix=csc_matrix)
-            self.g_S_q = self.system.g_S_q(t, q, scipy_matrix=csc_matrix)
-            R[:nq] += self.g_q.T @ mu_g + self.g_S_q.T @ mu_S
+            R[:nq] -= self.g_q.T @ mu_g
 
         R[nq:nqu] = self.M @ u_dot - (
             self.system.h(t, q, u) + self.W_g @ la_g + self.W_gamma @ la_gamma
@@ -219,6 +220,43 @@ class EulerBackward:
         )
 
         return R
+
+    def _J(self, y):
+        # return csc_matrix(approx_fprime(y, self._R))
+
+        t = self.t
+        dt = self.dt
+        q_dot, u_dot, la_g, la_gamma, mu_S, mu_g = self._unpack(y)
+        q, u = self._update(y)
+
+        A = eye(self.nq, format="coo") - dt * self.system.q_dot_q(t, q, u) #- self.system.g_q_T_mu(t, q, mu_S)
+        B = self.system.B(t, q)
+        C = self.system.Mu_q(t, q, u_dot) - self.system.h_q(t, q, u) - self.system.Wla_g_q(t, q, la_g) - self.system.Wla_gamma_q(t, q, la_gamma)
+        D = self.M - dt * self.system.h_u(t, q, u)
+
+        g_q = self.system.g_q(t, q)
+        gamma_q = self.system.gamma_q(t, q, u)
+        g_S_q = self.g_S_q
+
+        # fmt: off
+        J = bmat([
+            [           A,             -dt * B,      None,          None, g_S_q.T],
+            [      dt * C,                   D, -self.W_g, -self.W_gamma,    None],
+            [    dt * g_q,                None,      None,          None,    None],
+            [dt * gamma_q, dt * self.W_gamma.T,      None,          None,    None],
+            [  dt * g_S_q,                None,      None,          None,    None],
+        ], format="csc")
+        # fmt: on
+
+        return J
+
+        J_num = csc_matrix(approx_fprime(y, self._R))
+        diff = (J - J_num).toarray()
+        # diff = diff[:self.nq]
+        # diff = diff[self.nq : ]
+        error = np.linalg.norm(diff)
+        print(f"error Jacobian: {error}")
+        return J_num
 
     if False:
 
@@ -422,7 +460,7 @@ class EulerBackward:
         pbar = tqdm(self.t_eval[:-1])
         for t in pbar:
             self.t = t
-            sol = fsolve(self._R, self.y)
+            sol = fsolve(self._R, self.y, jac=self._J)
             self.y = sol[0]
             converged = sol[1]
             error = sol[2]

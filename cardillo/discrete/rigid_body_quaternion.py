@@ -30,23 +30,23 @@ class RigidBodyQuaternion(RigidBodyBase):
     ):
         self.nq = 7
         self.nu = 6
-        self.nla_S = 1
+        # self.nla_S = 1
 
         q0 = np.array([0, 0, 0, 1, 0, 0, 0]) if q0 is None else np.asarray(q0)
         u0 = np.zeros(self.nu, dtype=float) if u0 is None else np.asarray(u0)
-        self.la_S0 = np.zeros(self.nla_S, dtype=float)
+        # self.la_S0 = np.zeros(self.nla_S, dtype=float)
 
         super().__init__(m, K_theta_S, q0, u0)
 
-    def g_S(self, t, q):
-        P = q[3:]
-        return np.array([P @ P - 1.0], dtype=q.dtype)
+    # def g_S(self, t, q):
+    #     P = q[3:]
+    #     return np.array([P @ P - 1.0], dtype=q.dtype)
 
-    def g_S_q(self, t, q, coo):
-        P = q[3:]
-        dense = np.zeros((1, 7), dtype=q.dtype)
-        dense[0, 3:] = 2.0 * P
-        coo.extend(dense, (self.la_SDOF, self.qDOF))
+    # def g_S_q(self, t, q, coo):
+    #     P = q[3:]
+    #     dense = np.zeros((1, 7), dtype=q.dtype)
+    #     dense[0, 3:] = 2.0 * P
+    #     coo.extend(dense, (self.la_SDOF, self.qDOF))
 
     def q_dot(self, t, q, u):
         p = q[3:]
