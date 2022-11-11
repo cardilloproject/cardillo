@@ -39,7 +39,7 @@ class PointMass:
         return np.arange(self.nu)
 
     def r_OP(self, t, q, frame_ID=None, K_r_SP=None):
-        r = np.zeros(3)
+        r = np.zeros(3, dtype=q.dtype)
         r[: self.nq] = q
         return r
 
@@ -47,13 +47,13 @@ class PointMass:
         return np.eye(3, self.nq)
 
     def J_P(self, t, q, frame_ID=None, K_r_SP=None):
-        return np.eye(3, self.nu)
+        return np.eye(3, self.nu, dtype=q.dtype)
 
     def J_P_q(self, t, q, frame_ID=None, K_r_SP=None):
         return np.zeros((3, self.nu, self.nq))
 
     def v_P(self, t, q, u, frame_ID=None, K_r_SP=None):
-        v_P = np.zeros(3)
+        v_P = np.zeros(3, dtype=np.common_type(q, u))
         v_P[: self.nq] = u
         return v_P
 
@@ -61,9 +61,15 @@ class PointMass:
         return np.zeros((3, self.nq))
 
     def a_P(self, t, q, u, u_dot, frame_ID=None, K_r_SP=None):
-        a_P = np.zeros(3)
+        a_P = np.zeros(3, dtype=np.common_type(q, u, u_dot))
         a_P[: self.nq] = u_dot
         return a_P
+
+    def a_P_q(self, t, q, u, u_dot, frame_ID=None, K_r_SP=None):
+        return np.zeros((3, self.nq), dtype=np.common_type(q, u, u_dot))
+
+    def a_P_u(self, t, q, u, u_dot, frame_ID=None, K_r_SP=None):
+        return np.zeros((3, self.nu), dtype=np.common_type(q, u, u_dot))
 
     # export one point mass with vtk
     def export(self, sol_i, **kwargs):

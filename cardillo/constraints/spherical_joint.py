@@ -109,7 +109,7 @@ class SphericalJoint:
         self.a_B2 = lambda t, q, u, u_dot: self.subsystem2.a_P(
             t, q[nq1:], u[nu1:], u_dot[nu1:], self.frame_ID2, K_r_S2B
         )
-        self.a_P2_q = lambda t, q, u, u_dot: self.subsystem2.a_P_q(
+        self.a_B2_q = lambda t, q, u, u_dot: self.subsystem2.a_P_q(
             t, q[nq1:], u[nu1:], u_dot[nu1:], self.frame_ID2, K_r_S2B
         )
         self.a_B2_u = lambda t, q, u, u_dot: self.subsystem2.a_P_u(
@@ -159,7 +159,7 @@ class SphericalJoint:
         nq1 = self.__nq1
         dense = np.zeros((self.nla_g, self.__nq))
         dense[:, :nq1] = -self.a_B1_q(t, q, u, u_dot)
-        dense[:, nq1:] = self.a_P2_q(t, q, u, u_dot)
+        dense[:, nq1:] = self.a_B2_q(t, q, u, u_dot)
         coo.extend(dense, (self.la_gDOF, self.qDOF))
 
     def g_ddot_u(self, t, q, u, u_dot, coo):
