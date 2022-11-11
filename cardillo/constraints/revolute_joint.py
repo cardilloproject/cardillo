@@ -201,7 +201,7 @@ class RevoluteJoint:
 
     def g_q_dense(self, t, q):
         nq1 = self.__nq1
-        g_q = np.zeros((5, self.__nq))
+        g_q = np.zeros((5, self.__nq), dtype=q.dtype)
         g_q[:3, :nq1] = -self.r_OP1_q(t, q)
         g_q[:3, nq1:] = self.r_OP2_q(t, q)
 
@@ -221,7 +221,7 @@ class RevoluteJoint:
         return g_q
 
     def g_dot(self, t, q, u):
-        g_dot = np.zeros(5)
+        g_dot = np.zeros(5, np.common_type(q, u))
 
         _, _, ez1 = self.A_IB1(t, q).T
         ex2, ey2, _ = self.A_IB2(t, q).T
@@ -239,10 +239,13 @@ class RevoluteJoint:
         coo.extend(dense, (self.la_gDOF, self.qDOF))
 
     def g_dot_u(self, t, q, coo):
+        raise RuntimeError(
+            "This is not tested yet. Run 'test/test_spherical_revolute_joint'."
+        )
         coo.extend(self.W_g_dense(t, q).T, (self.la_gDOF, self.uDOF))
 
     def g_ddot(self, t, q, u, u_dot):
-        g_ddot = np.zeros(5)
+        g_ddot = np.zeros(5, dtype=np.common_type(q, u, u_dot))
 
         _, _, ez1 = self.A_IB1(t, q).T
         ex2, ey2, _ = self.A_IB2(t, q).T
@@ -281,9 +284,13 @@ class RevoluteJoint:
     def g_q(self, t, q, coo):
         coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
 
+    def g_q_T_mu_q(self, t, q, mu, coo):
+        dense = approx_fprime(q, lambda q: self.g_q_dense(t, q).T @ mu)
+        coo.extend(dense, (self.qDOF, self.qDOF))
+
     def W_g_dense(self, t, q):
         nu1 = self.__nu1
-        W_g = np.zeros((self.__nu, self.nla_g))
+        W_g = np.zeros((self.__nu, self.nla_g), dtype=q.dtype)
 
         # position
         J_P1 = self.J_P1(t, q)
@@ -367,6 +374,9 @@ class RevoluteJoint:
         return np.arctan2(ex2 @ ey1, ex2 @ ex1)
 
     def angle_dot(self, t, q, u):
+        raise RuntimeError(
+            "This is not tested yet. Run 'test/test_spherical_revolute_joint'."
+        )
         Omega1 = self.Omega1(t, q, u)
         Omega2 = self.Omega2(t, q, u)
         ez1 = self.A_IB1(t, q)[:, 2]
@@ -374,6 +384,9 @@ class RevoluteJoint:
         return (Omega2 - Omega1) @ ez1
 
     def angle_dot_q(self, t, q, u):
+        raise RuntimeError(
+            "This is not tested yet. Run 'test/test_spherical_revolute_joint'."
+        )
         Omega1 = self.Omega1(t, q, u)
         Omega2 = self.Omega2(t, q, u)
         Omega1_q1 = self.Omega1_q1(t, q, u)
@@ -386,12 +399,18 @@ class RevoluteJoint:
         )
 
     def angle_dot_u(self, t, q, u):
+        raise RuntimeError(
+            "This is not tested yet. Run 'test/test_spherical_revolute_joint'."
+        )
         Omega1_u1 = self.J_R1(t, q)
         Omega2_u2 = self.J_R2(t, q)
         ez1 = self.A_IB1(t, q)[:, 2]
         return ez1 @ np.concatenate([-Omega1_u1, Omega2_u2], axis=1)
 
     def angle_q(self, t, q):
+        raise RuntimeError(
+            "This is not tested yet. Run 'test/test_spherical_revolute_joint'."
+        )
         ex1, ey1, _ = self.A_IB1(t, q).T
         ex2 = self.A_IB2(t, q)[:, 0]
         x = ex2 @ ex1
@@ -409,11 +428,17 @@ class RevoluteJoint:
         return (x * y_q - y * x_q) / (x**2 + y**2)
 
     def W_angle(self, t, q):
+        raise RuntimeError(
+            "This is not tested yet. Run 'test/test_spherical_revolute_joint'."
+        )
         K_J_R1 = self.K_J_R1(t, q)
         K_J_R2 = self.K_J_R2(t, q)
         return np.concatenate([-K_J_R1.T @ e3, K_J_R2.T @ e3])
 
     def W_angle_q(self, t, q):
+        raise RuntimeError(
+            "This is not tested yet. Run 'test/test_spherical_revolute_joint'."
+        )
         nq1 = self.__nq1
         nu1 = self.__nu1
         K_J_R1_q1 = self.K_J_R1_q(t, q)

@@ -81,8 +81,7 @@ class EulerBackward:
         atol=1e-6,
         max_iter=10,
         error_function=lambda x: np.max(np.abs(x)),
-        # method="index 2 GGL",
-        method="index 3",
+        method="index 2 GGL",
     ):
         self.system = system
         assert method in ["index 1", "index 2", "index 3", "index 2 GGL"]
@@ -222,227 +221,86 @@ class EulerBackward:
         return R
 
     def _J(self, y):
-        # return csc_matrix(approx_fprime(y, self._R))
-
         t = self.t
         dt = self.dt
         q_dot, u_dot, la_g, la_gamma, mu_S, mu_g = self._unpack(y)
         q, u = self._update(y)
 
-        A = eye(self.nq, format="coo") - dt * self.system.q_dot_q(t, q, u) #- self.system.g_q_T_mu(t, q, mu_S)
+        A = (
+            eye(self.nq, format="coo")
+            - dt * self.system.q_dot_q(t, q, u)
+            - dt * self.system.g_S_q_T_mu_q(t, q, mu_S)
+        )
         B = self.system.B(t, q)
-        C = self.system.Mu_q(t, q, u_dot) - self.system.h_q(t, q, u) - self.system.Wla_g_q(t, q, la_g) - self.system.Wla_gamma_q(t, q, la_gamma)
+        C = (
+            self.system.Mu_q(t, q, u_dot)
+            - self.system.h_q(t, q, u)
+            - self.system.Wla_g_q(t, q, la_g)
+            - self.system.Wla_gamma_q(t, q, la_gamma)
+        )
         D = self.M - dt * self.system.h_u(t, q, u)
 
-        g_q = self.system.g_q(t, q)
         gamma_q = self.system.gamma_q(t, q, u)
         g_S_q = self.g_S_q
 
         # fmt: off
-        J = bmat([
-            [           A,             -dt * B,      None,          None, g_S_q.T],
-            [      dt * C,                   D, -self.W_g, -self.W_gamma,    None],
-            [    dt * g_q,                None,      None,          None,    None],
-            [dt * gamma_q, dt * self.W_gamma.T,      None,          None,    None],
-            [  dt * g_S_q,                None,      None,          None,    None],
-        ], format="csc")
+        if self.method == "index 2 GGL":
+            g_q = self.g_q
+            g_dot_q = self.system.g_dot_q(t, q, u)
+            A -= dt * self.system.g_q_T_mu_q(t, q, mu_g)
+            J = bmat([
+                [           A,             -dt * B,      None,          None, -g_S_q.T, -g_q.T],
+                [      dt * C,                   D, -self.W_g, -self.W_gamma,     None,   None],
+                [dt * g_dot_q,     dt * self.W_g.T,      None,          None,     None,   None],
+                [dt * gamma_q, dt * self.W_gamma.T,      None,          None,     None,   None],
+                [  dt * g_S_q,                None,      None,          None,     None,   None],
+                [    dt * g_q,                None,      None,          None,     None,   None],
+            ], format="csc")
+        elif self.method == "index 3":
+            g_q = self.system.g_q(t, q)
+            J = bmat([
+                [           A,             -dt * B,      None,          None, -g_S_q.T],
+                [      dt * C,                   D, -self.W_g, -self.W_gamma,     None],
+                [    dt * g_q,                None,      None,          None,     None],
+                [dt * gamma_q, dt * self.W_gamma.T,      None,          None,     None],
+                [  dt * g_S_q,                None,      None,          None,     None],
+            ], format="csc")
+        elif self.method == "index 2":
+            g_dot_q = self.system.g_dot_q(t, q, u)
+            J = bmat([
+                [           A,             -dt * B,      None,          None, -g_S_q.T],
+                [      dt * C,                   D, -self.W_g, -self.W_gamma,     None],
+                [dt * g_dot_q,     dt * self.W_g.T,      None,          None,     None],
+                [dt * gamma_q, dt * self.W_gamma.T,      None,          None,     None],
+                [  dt * g_S_q,                None,      None,          None,     None],
+            ], format="csc")
+        elif self.method == "index 1":
+            g_ddot_q = self.system.g_ddot_q(t, q, u, u_dot)
+            g_ddot_u = self.system.g_ddot_u(t, q, u, u_dot)
+            gamma_dot_q = self.system.gamma_dot_q(t, q, u, u_dot)
+            gamma_dot_u = self.system.gamma_dot_u(t, q, u, u_dot)
+            J = bmat([
+                [               A,                           -dt * B,      None,          None, -g_S_q.T],
+                [          dt * C,                                 D, -self.W_g, -self.W_gamma,     None],
+                [   dt * g_ddot_q,        self.W_g.T + dt * g_ddot_u,      None,          None,     None],
+                [dt * gamma_dot_q, self.W_gamma.T + dt * gamma_dot_u,      None,          None,     None],
+                [      dt * g_S_q,                              None,      None,          None,     None],
+            ], format="csc")
+        else:
+            raise NotImplementedError
         # fmt: on
 
-        return J
+        # return J
 
-        J_num = csc_matrix(approx_fprime(y, self._R))
+        # J_num = csc_matrix(approx_fprime(y, self._R, method="2-point"))
+        # J_num = csc_matrix(approx_fprime(y, self._R, method="3-point"))
+        J_num = csc_matrix(approx_fprime(y, self._R, method="cs", eps=1.0e-12))
         diff = (J - J_num).toarray()
         # diff = diff[:self.nq]
         # diff = diff[self.nq : ]
         error = np.linalg.norm(diff)
         print(f"error Jacobian: {error}")
         return J_num
-
-    if False:
-
-        def __R_wrapper(self, tk1, xk1, xk):
-            qk1 = xk1[self.qDOF]
-            uk1 = xk1[self.uDOF]
-            la_gk1 = xk1[self.la_gDOF]
-            la_gammak1 = xk1[self.la_gammaDOF]
-
-            qk = xk[self.qDOF]
-            uk = xk[self.uDOF]
-
-            return self.__R(qk, uk, tk1, qk1, uk1, la_gk1, la_gammak1)
-
-        def __R_x_num(self, qk, uk, tk1, qk1, uk1, la_gk1, la_gammak1):
-            xk = np.zeros(self.ny)
-            xk[self.qDOF] = qk
-            xk[self.uDOF] = uk
-
-            xk1 = np.zeros(self.ny)
-            xk1[self.qDOF] = qk1
-            xk1[self.uDOF] = uk1
-            xk1[self.la_gDOF] = la_gk1
-            xk1[self.la_gammaDOF] = la_gammak1
-
-            R_x_num = approx_fprime(
-                xk1, lambda xk1: self.__R_wrapper(tk1, xk1, xk), method="3-point"
-            )
-
-            return csc_matrix(R_x_num)
-
-        def __R_x_analytic(self, qk, uk, tk1, qk1, uk1, la_gk1, la_gammak1):
-            # equations of motion
-            Ru_u = self.Mk1 - self.dt * self.system.h_u(tk1, qk1, uk1)
-            Ru_q = self.system.Mu_q(tk1, qk1, uk1 - uk) - self.dt * (
-                self.system.h_q(tk1, qk1, uk1)
-                + self.system.Wla_g_q(tk1, qk1, la_gk1)
-                + self.system.Wla_gamma_q(tk1, qk1, la_gammak1)
-            )
-            Ru_la_g = -self.dt * self.W_gk1
-            Ru_la_gamma = -self.dt * self.W_gammak1
-
-            # kinematic equation
-            Rq_u = -self.dt * self.system.B(tk1, qk1)
-            Rq_q = identity(self.nq) - self.dt * self.system.q_dot_q(tk1, qk1, uk1)
-
-            # constrain equations
-            Rla_g_q = self.system.g_q(tk1, qk1)
-            Rla_gamma_q = self.system.gamma_q(tk1, qk1, uk1)
-            Rla_gamma_u = self.system.gamma_u(tk1, qk1)
-
-            return bmat(
-                [
-                    [Ru_u, Ru_q, Ru_la_g, Ru_la_gamma],
-                    [Rq_u, Rq_q, None, None],
-                    [None, Rla_g_q, None, None],
-                    [Rla_gamma_u, Rla_gamma_q, None, None],
-                ]
-            ).tocsc()
-
-        def __R_x_debug(self, qk, uk, tk1, qk1, uk1, la_gk1, la_gammak1):
-            R_x_num = self.__R_x_num(qk, uk, tk1, qk1, uk1, la_gk1, la_gammak1)
-            R_x_analytic = self.__R_x_analytic(
-                qk, uk, tk1, qk1, uk1, la_gk1, la_gammak1
-            )
-            diff = R_x_num - R_x_analytic.toarray()
-
-            if self.debug > 1:
-                error_uu = np.linalg.norm(diff[self.uDOF[:, None], self.uDOF])
-                error_uq = np.linalg.norm(diff[self.uDOF[:, None], self.qDOF])
-                error_ula_g = np.linalg.norm(diff[self.uDOF[:, None], self.la_gDOF])
-                error_ula_gamma = np.linalg.norm(
-                    diff[self.uDOF[:, None], self.la_gammaDOF]
-                )
-
-                error_qu = np.linalg.norm(diff[self.qDOF[:, None], self.uDOF])
-                error_qq = np.linalg.norm(diff[self.qDOF[:, None], self.qDOF])
-                error_qla_g = np.linalg.norm(diff[self.qDOF[:, None], self.la_gDOF])
-                error_qla_gamma = np.linalg.norm(
-                    diff[self.qDOF[:, None], self.la_gammaDOF]
-                )
-
-                error_la_gu = np.linalg.norm(diff[self.la_gDOF[:, None], self.uDOF])
-                error_la_gq = np.linalg.norm(diff[self.la_gDOF[:, None], self.qDOF])
-                error_la_gla_g = np.linalg.norm(
-                    diff[self.la_gDOF[:, None], self.la_gDOF]
-                )
-                error_lala_gamma = np.linalg.norm(
-                    diff[self.la_gDOF[:, None], self.la_gammaDOF]
-                )
-
-                error_la_gammau = np.linalg.norm(
-                    diff[self.la_gammaDOF[:, None], self.uDOF]
-                )
-                error_la_gammaq = np.linalg.norm(
-                    diff[self.la_gammaDOF[:, None], self.qDOF]
-                )
-                error_la_gammala_g = np.linalg.norm(
-                    diff[self.la_gammaDOF[:, None], self.la_gDOF]
-                )
-                error_la_gammala_gamma = np.linalg.norm(
-                    diff[self.la_gammaDOF[:, None], self.la_gammaDOF]
-                )
-
-                print(f"error_uu jacobian: {error_uu:.5e}")
-                print(f"error_uq jacobian: {error_uq:.5e}")
-                print(f"error_ula_g jacobian: {error_ula_g:.5e}")
-                print(f"error_ula_gamma jacobian: {error_ula_gamma:.5e}")
-
-                print(f"error_qu jacobian: {error_qu:.5e}")
-                print(f"error_qq jacobian: {error_qq:.5e}")
-                print(f"error_qla_g jacobian: {error_qla_g:.5e}")
-                print(f"error_qla_gamma jacobian: {error_qla_gamma:.5e}")
-
-                print(f"error_lau jacobian: {error_la_gu:.5e}")
-                print(f"error_laq jacobian: {error_la_gq:.5e}")
-                print(f"error_la_gla_g jacobian: {error_la_gla_g:.5e}")
-                print(f"error_lala_gamma jacobian: {error_lala_gamma:.5e}")
-
-                print(f"error_la_gammau jacobian: {error_la_gammau:.5e}")
-                print(f"error_la_gammaq jacobian: {error_la_gammaq:.5e}")
-                print(f"error_la_gammala_g jacobian: {error_la_gammala_g:.5e}")
-                print(f"error_la_gammala_gamma jacobian: {error_la_gammala_gamma:.5e}")
-
-            print(f"\ntotal error jacobian: {np.linalg.norm(diff)/ self.ny:.5e}")
-
-            if self.numerical_jacobian:
-                return R_x_num
-            else:
-                return R_x_analytic
-
-        def step(self, tk, qk, uk, la_gk, la_gammak):
-            dt = self.dt
-            tk1 = tk + dt
-
-            # foward Euler predictor
-            la_gk1 = la_gk
-            la_gammak1 = la_gammak
-            uk1 = uk + dt * spsolve(
-                self.Mk1.tocsc(),
-                self.system.h(tk, qk, uk)
-                + self.W_gk1 @ la_gk
-                + self.W_gammak1 @ la_gammak,
-            )
-            qk1 = qk + dt * self.system.q_dot(tk, qk, uk1)
-
-            # initial guess for Newton-Raphson solver
-            xk1 = np.zeros(self.ny)
-            xk1[self.qDOF] = qk1
-            xk1[self.uDOF] = uk1
-            xk1[self.la_gDOF] = la_gk1
-            xk1[self.la_gammaDOF] = la_gammak1
-
-            # initial residual and error
-            self.system.pre_iteration_update(tk1, qk1, uk1)
-            R = self.__R(qk, uk, tk1, qk1, uk1, la_gk1, la_gammak1)
-            error = self.error_function(R)
-            converged = error < self.atol
-            j = 0
-            if not converged:
-                while j < self.max_iter:
-                    # jacobian
-                    R_x = self.__R_x(qk, uk, tk1, qk1, uk1, la_gk1, la_gammak1)
-
-                    # Newton update
-                    j += 1
-                    dx = spsolve(R_x, R)
-                    xk1 -= dx
-                    qk1 = xk1[self.qDOF]
-                    uk1 = xk1[self.uDOF]
-                    la_gk1 = xk1[self.la_gDOF]
-                    la_gammak1 = xk1[self.la_gammaDOF]
-
-                    self.system.pre_iteration_update(tk1, qk1, uk1)
-                    R = self.__R(qk, uk, tk1, qk1, uk1, la_gk1, la_gammak1)
-                    error = self.error_function(R)
-                    converged = error < self.atol
-                    if converged:
-                        break
-
-                if not converged:
-                    raise RuntimeError(
-                        f"internal Newton-Raphson method not converged after {j} steps with error: {error:.5e}"
-                    )
-
-            return (converged, j, error), tk1, qk1, uk1, la_gk1, la_gammak1
 
     def solve(self):
         q_dot, u_dot, la_g, la_gamma, mu_S, mu_g = self._unpack(self.y)

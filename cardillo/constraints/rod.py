@@ -1,4 +1,5 @@
 import numpy as np
+from cardillo.math import approx_fprime
 
 
 class Rod:
@@ -124,6 +125,10 @@ class Rod:
 
     def g_q(self, t, q, coo):
         coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
+
+    def g_q_T_mu_q(self, t, q, mu, coo):
+        dense = approx_fprime(q, lambda q: self.g_q_dense(t, q).T @ mu)
+        coo.extend(dense, (self.qDOF, self.qDOF))
 
     def W_g_dense(self, t, q):
         r_P1P2 = self.r_OP2(t, q) - self.r_OP1(t, q)

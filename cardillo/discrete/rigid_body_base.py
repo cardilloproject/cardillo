@@ -61,9 +61,6 @@ class RigidBodyBase(ABC):
     def r_OP(self, t, q, frame_ID=None, K_r_SP=np.zeros(3, dtype=float)):
         return q[:3] + self.A_IK(t, q) @ K_r_SP
 
-    def r_OP_t(self, t, q, frame_ID=None, K_r_SP=np.zeros(3, dtype=float)):
-        return np.zeros(3, dtype=q.dtype)
-
     def r_OP_q(self, t, q, frame_ID=None, K_r_SP=np.zeros(3, dtype=float)):
         r_OP_q = np.zeros((3, self.nq), dtype=q.dtype)
         r_OP_q[:, :3] = np.eye(3)
@@ -89,7 +86,11 @@ class RigidBodyBase(ABC):
         )
 
     def a_P_u(self, t, q, u, u_dot, frame_ID=None, K_r_SP=np.zeros(3, dtype=float)):
-        return self.kappa_P_u(t, q, u, frame_ID=frame_ID, K_r_SP=K_r_SP)
+        a_P_u = np.zeros((3, self.nu), dtype=float)
+        a_P_u[:, 3:] = -self.A_IK(t, q) @ (
+            ax2skew(cross3(u[3:], K_r_SP)) + ax2skew(u[3:]) @ ax2skew(K_r_SP)
+        )
+        return a_P_u
 
     def J_P(self, t, q, frame_ID=None, K_r_SP=np.zeros(3, dtype=float)):
         J_P = np.zeros((3, self.nu), dtype=q.dtype)
