@@ -1,7 +1,7 @@
 from cardillo.constraints import RigidConnection, RevoluteJoint, SphericalJoint
 from cardillo.discrete import Frame
 
-from cardillo.forces import LinearSpring, add_rotational_forcelaw
+from cardillo.forces import LinearSpring, PDRotationalJoint
 from cardillo.math import A_IK_basic
 from cardillo.beams import (
     TimoshenkoAxisAngleSE3,
@@ -659,7 +659,7 @@ def create_pantographic_sheet(model, pantographic_sheet):
                         #     frame_ID1=frameID_pivot,
                         #     frame_ID2=frameID_fiber,
                         # )
-                        junction = add_rotational_forcelaw(
+                        junction = PDRotationalJoint(
                             RevoluteJoint, force_law_spring=spring
                         )(
                             # junction = add_rotational_forcelaw(spring, RevoluteJoint)(

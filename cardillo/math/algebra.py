@@ -1,9 +1,30 @@
 import numpy as np
-from math import sqrt, sin, cos, tan, asin, acos, atan, pi, copysign
+from math import copysign, pi
 
 e1 = np.array([1, 0, 0])
 e2 = np.array([0, 1, 0])
 e3 = np.array([0, 0, 1])
+
+
+def complex_atan2(y, x):
+    """Atan2 implementation that can handle complex numbers,
+    see https://de.wikipedia.org/wiki/Arctan2#Formel.
+    It returns atan(y / x).
+    """
+    if x > 0:
+        return np.arctan(y / x)
+    elif x < 0:
+        if y > 0:
+            return np.arctan(y / x) + np.pi
+        elif y < 0:
+            return np.arctan(y / x) - np.pi
+        else:
+            return np.pi
+    else:
+        if y > 0:
+            return 0.5 * np.pi
+        else:
+            return -0.5 * np.pi
 
 
 def ei(i: int) -> np.ndarray:
@@ -302,7 +323,7 @@ def eig(C):
     else:
         q = (C[0, 0] + C[1, 1] + C[2, 2]) / 3  # trace(C)
         p2 = (C[0, 0] - q) ** 2 + (C[1, 1] - q) ** 2 + (C[2, 2] - q) ** 2 + 2 * p1
-        p = sqrt(p2 / 6)
+        p = np.sqrt(p2 / 6)
         B = (1 / p) * (C - q * np.eye(3))
         r = det3D(B) / 2
 
@@ -313,7 +334,7 @@ def eig(C):
         elif r >= 1:
             phi = 0
         else:
-            phi = acos(r) / 3
+            phi = np.arccos(r) / 3
 
         # the eigenvalues satisfy eig3 <= eig2 <= eig1
         eig1 = q + 2 * p * np.cos(phi)

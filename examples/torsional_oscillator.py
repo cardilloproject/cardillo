@@ -9,7 +9,7 @@ from cardillo.discrete import RigidBodyEuler
 from cardillo.forces import (
     LinearSpring,
     LinearDamper,
-    add_rotational_forcelaw,
+    PDRotationalJoint,
     K_Force,
     K_Moment,
 )
@@ -44,18 +44,30 @@ if __name__ == "__main__":
     rigid_body = RigidCylinder(m, r, l, q0, u0)
 
     origin = Frame()
-    spring = LinearSpring(k)
-    damper = LinearDamper(d)
-    ActuatedRevoluteJoint = add_rotational_forcelaw(
-        RevoluteJoint, force_law_spring=spring, force_law_damper=damper
-    )
-    # ActuatedRevoluteJoint = add_rotational_forcelaw(RevoluteJoint, force_law_damper=damper)
-    # ActuatedRevoluteJoint = add_rotational_forcelaw(RevoluteJoint, spring, damper)
-    joint = ActuatedRevoluteJoint(
+
+    # joint = PDRotationalJoint(RevoluteJoint, Spring=LinearSpring)(
+    #     origin,
+    #     rigid_body,
+    #     np.zeros(3),
+    #     np.eye(3),
+    #     k=k,
+    # )
+
+    # joint = PDRotationalJoint(RevoluteJoint, Damper=LinearDamper)(
+    #     origin,
+    #     rigid_body,
+    #     np.zeros(3),
+    #     np.eye(3),
+    #     d=d,
+    # )
+
+    joint = PDRotationalJoint(RevoluteJoint, Spring=LinearSpring, Damper=LinearDamper)(
         origin,
         rigid_body,
         np.zeros(3),
         np.eye(3),
+        k=k,
+        d=d,
     )
 
     F = K_Force(np.array([0, 0.2, 0]), rigid_body, K_r_SP=np.array([r, 0, 0]))
@@ -77,7 +89,10 @@ if __name__ == "__main__":
     t1 = 2
     dt = 1.0e-2
     solver = ScipyIVP(model, t1, dt)
-    # solver = EulerBackward(model, t1, dt, debug=True)
+    # solver = EulerBackward(model, t1, dt, method="index 1")
+    # solver = EulerBackward(model, t1, dt, method="index 2")
+    # solver = EulerBackward(model, t1, dt, method="index 3")
+    # solver = EulerBackward(model, t1, dt, method="index 2 GGL")
     sol = solver.solve()
     t = sol.t
     q = sol.q

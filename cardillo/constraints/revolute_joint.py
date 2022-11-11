@@ -1,6 +1,5 @@
-from cardillo.math import approx_fprime
 import numpy as np
-from cardillo.math.algebra import cross3, ax2skew, e3
+from cardillo.math import approx_fprime, complex_atan2, cross3, ax2skew, e3
 
 
 class RevoluteJoint:
@@ -371,12 +370,9 @@ class RevoluteJoint:
     def angle(self, t, q):
         ex1, ey1, _ = self.A_IB1(t, q).T
         ex2 = self.A_IB2(t, q)[:, 0]
-        return np.arctan2(ex2 @ ey1, ex2 @ ex1)
+        return complex_atan2(ex2 @ ey1, ex2 @ ex1)
 
     def angle_dot(self, t, q, u):
-        raise RuntimeError(
-            "This is not tested yet. Run 'test/test_spherical_revolute_joint'."
-        )
         Omega1 = self.Omega1(t, q, u)
         Omega2 = self.Omega2(t, q, u)
         ez1 = self.A_IB1(t, q)[:, 2]
@@ -384,9 +380,6 @@ class RevoluteJoint:
         return (Omega2 - Omega1) @ ez1
 
     def angle_dot_q(self, t, q, u):
-        raise RuntimeError(
-            "This is not tested yet. Run 'test/test_spherical_revolute_joint'."
-        )
         Omega1 = self.Omega1(t, q, u)
         Omega2 = self.Omega2(t, q, u)
         Omega1_q1 = self.Omega1_q1(t, q, u)
@@ -399,18 +392,12 @@ class RevoluteJoint:
         )
 
     def angle_dot_u(self, t, q, u):
-        raise RuntimeError(
-            "This is not tested yet. Run 'test/test_spherical_revolute_joint'."
-        )
         Omega1_u1 = self.J_R1(t, q)
         Omega2_u2 = self.J_R2(t, q)
         ez1 = self.A_IB1(t, q)[:, 2]
         return ez1 @ np.concatenate([-Omega1_u1, Omega2_u2], axis=1)
 
     def angle_q(self, t, q):
-        raise RuntimeError(
-            "This is not tested yet. Run 'test/test_spherical_revolute_joint'."
-        )
         ex1, ey1, _ = self.A_IB1(t, q).T
         ex2 = self.A_IB2(t, q)[:, 0]
         x = ex2 @ ex1
@@ -428,17 +415,11 @@ class RevoluteJoint:
         return (x * y_q - y * x_q) / (x**2 + y**2)
 
     def W_angle(self, t, q):
-        raise RuntimeError(
-            "This is not tested yet. Run 'test/test_spherical_revolute_joint'."
-        )
         K_J_R1 = self.K_J_R1(t, q)
         K_J_R2 = self.K_J_R2(t, q)
         return np.concatenate([-K_J_R1.T @ e3, K_J_R2.T @ e3])
 
     def W_angle_q(self, t, q):
-        raise RuntimeError(
-            "This is not tested yet. Run 'test/test_spherical_revolute_joint'."
-        )
         nq1 = self.__nq1
         nu1 = self.__nu1
         K_J_R1_q1 = self.K_J_R1_q(t, q)

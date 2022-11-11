@@ -6,14 +6,14 @@ from cardillo.math import norm, cross3
 
 
 def new_convex_rigid_body(
-    rigid_body_base,
+    RigidBodyBase,
     points: npt.ArrayLike,
     rho: float = None,
     mass: float = None,
     q0: np.ndarray = None,
     u0: np.ndarray = None,
 ):
-    class ConvexRigidBody(rigid_body_base):
+    class ConvexRigidBody(RigidBodyBase):
         def __init__(
             self,
             points: npt.ArrayLike,

@@ -1,11 +1,10 @@
 import numpy as np
 from math import pi
-
+from scipy.integrate import solve_ivp
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
 from cardillo.math import A_IK_basic, cross3, axis_angle2quat
-
 from cardillo import System
 from cardillo.discrete import Frame
 from cardillo.constraints import (
@@ -14,14 +13,7 @@ from cardillo.constraints import (
 )
 from cardillo.discrete import RigidBodyQuaternion
 from cardillo.forces import Force
-from cardillo.solver import (
-    ScipyIVP,
-    RadauIIa,
-    EulerBackward,
-    GeneralizedAlphaFirstOrder,
-)
-
-from scipy.integrate import solve_ivp
+from cardillo.solver import EulerBackward
 
 
 def run(use_spherical_joint, Solver, **solver_args):
@@ -283,13 +275,18 @@ def run(use_spherical_joint, Solver, **solver_args):
 
 
 if __name__ == "__main__":
+    #######################
     # spherical joint tests
-    # run(True, ScipyIVP)
-    # run(True, RadauIIa)
-    # run(True, EulerBackward)
-    # run(True, GeneralizedAlphaFirstOrder)
+    #######################
+    # run(True, EulerBackward, method="index 1")
+    # run(True, EulerBackward, method="index 2")
+    # run(True, EulerBackward, method="index 3")
+    run(True, EulerBackward, method="index 2 GGL")
 
+    ######################
     # revolute joint tests
-    # run(False, ScipyIVP)
-    run(False, EulerBackward)
-    # run(False, RadauIIa)
+    ######################
+    # run(False, EulerBackward, method="index 1")
+    # run(False, EulerBackward, method="index 2")
+    # run(False, EulerBackward, method="index 3")
+    # run(False, EulerBackward, method="index 2 GGL")
