@@ -73,7 +73,10 @@ class Export:
         else:
             u_dot = None
         la_g = sol.la_g[::frac]
-        la_gamma = sol.la_gamma[::frac]
+        if sol.la_gamma is not None:
+            la_gamma = sol.la_gamma[::frac]
+        else:
+            la_gamma = None
         if hasattr(sol, "P_N"):
             P_N = sol.P_N[::frac]
         else:
