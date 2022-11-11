@@ -464,7 +464,7 @@ def quat2rot_p(p):
     v_q_tilde_v_q = ax2skew_a()
     q_p = np.eye(4) / norm_p - np.outer(p, p) / (norm_p**3)
 
-    A_q = np.zeros((3, 3, 4))
+    A_q = np.zeros((3, 3, 4), dtype=p.dtype)
     A_q[:, :, 0] = 2 * v_q_tilde
     A_q[:, :, 1:] += np.einsum("ijk,jl->ilk", v_q_tilde_v_q, 2 * v_q_tilde)
     A_q[:, :, 1:] += np.einsum("ij,jkl->ikl", 2 * v_q_tilde, v_q_tilde_v_q)

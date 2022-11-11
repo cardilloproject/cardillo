@@ -1,4 +1,5 @@
 import numpy as np
+from cardillo.math import approx_fprime
 
 
 class Rod:
@@ -50,7 +51,16 @@ class Rod:
         self.v_P1 = lambda t, q, u: self.subsystem1.v_P(
             t, q[:nq1], u[:nu1], self.frame_ID1, self.K_r_SP1
         )
+        self.v_P1_q = lambda t, q, u: self.subsystem1.v_P_q(
+            t, q[:nq1], u[:nu1], self.frame_ID1, self.K_r_SP1
+        )
         self.a_P1 = lambda t, q, u, u_dot: self.subsystem1.a_P(
+            t, q[:nq1], u[:nu1], u_dot[:nu1], self.frame_ID1, self.K_r_SP1
+        )
+        self.a_P1_q = lambda t, q, u, u_dot: self.subsystem1.a_P_q(
+            t, q[:nq1], u[:nu1], u_dot[:nu1], self.frame_ID1, self.K_r_SP1
+        )
+        self.a_P1_u = lambda t, q, u, u_dot: self.subsystem1.a_P_u(
             t, q[:nq1], u[:nu1], u_dot[:nu1], self.frame_ID1, self.K_r_SP1
         )
         self.J_P1 = lambda t, q: self.subsystem1.J_P(
@@ -69,7 +79,16 @@ class Rod:
         self.v_P2 = lambda t, q, u: self.subsystem2.v_P(
             t, q[nq1:], u[nu1:], self.frame_ID2, self.K_r_SP2
         )
+        self.v_P2_q = lambda t, q, u: self.subsystem2.v_P_q(
+            t, q[nq1:], u[nu1:], self.frame_ID2, self.K_r_SP2
+        )
         self.a_P2 = lambda t, q, u, u_dot: self.subsystem2.a_P(
+            t, q[nq1:], u[nu1:], u_dot[nu1:], self.frame_ID2, self.K_r_SP2
+        )
+        self.a_P2_q = lambda t, q, u, u_dot: self.subsystem2.a_P_q(
+            t, q[nq1:], u[nu1:], u_dot[nu1:], self.frame_ID2, self.K_r_SP2
+        )
+        self.a_P2_u = lambda t, q, u, u_dot: self.subsystem2.a_P_u(
             t, q[nq1:], u[nu1:], u_dot[nu1:], self.frame_ID2, self.K_r_SP2
         )
         self.J_P2 = lambda t, q: self.subsystem2.J_P(
@@ -80,10 +99,16 @@ class Rod:
         )
 
         r_OP10 = self.subsystem1.r_OP(
-            self.subsystem1.t0, self.subsystem1.q0[qDOF1], self.frame_ID1, self.K_r_SP1
+            self.subsystem1.t0,
+            self.subsystem1.q0[local_qDOF1],
+            self.frame_ID1,
+            self.K_r_SP1,
         )
         r_OP20 = self.subsystem2.r_OP(
-            self.subsystem2.t0, self.subsystem2.q0[qDOF2], self.frame_ID2, self.K_r_SP2
+            self.subsystem2.t0,
+            self.subsystem2.q0[local_qDOF2],
+            self.frame_ID2,
+            self.K_r_SP2,
         )
         self.dist = np.linalg.norm(r_OP20 - r_OP10)
         if self.dist < 1e-6:
@@ -99,12 +124,28 @@ class Rod:
         r_OP2 = self.r_OP2(t, q)
         r_OP1_q = self.r_OP1_q(t, q)
         r_OP2_q = self.r_OP2_q(t, q)
-        return np.array([2 * (r_OP2 - r_OP1) @ np.hstack([-r_OP1_q, r_OP2_q])])
+        return np.array(
+            [2 * (r_OP2 - r_OP1) @ np.hstack([-r_OP1_q, r_OP2_q])], dtype=q.dtype
+        )
 
     def g_dot(self, t, q, u):
         r_P1P2 = self.r_OP2(t, q) - self.r_OP1(t, q)
         # (r_OP2 - r_OP1) @ (r_OP2 - r_OP1)  - self.dist ** 2
         return 2 * r_P1P2 @ (self.v_P2(t, q, u) - self.v_P1(t, q, u))
+
+    def g_dot_q(self, t, q, u, coo):
+        r_P1P2 = self.r_OP2(t, q) - self.r_OP1(t, q)
+        v_P1P2 = self.v_P2(t, q, u) - self.v_P1(t, q, u)
+
+        dense = np.zeros((self.nla_g, self.__nq))
+        dense[:, : self.__nq1] = -2 * (
+            r_P1P2 @ self.v_P1_q(t, q, u) + v_P1P2 @ self.r_OP1_q(t, q)
+        )
+        dense[:, self.__nq1 :] = 2 * (
+            r_P1P2 @ self.v_P2_q(t, q, u) + v_P1P2 @ self.r_OP2_q(t, q)
+        )
+
+        coo.extend(dense, (self.la_gDOF, self.qDOF))
 
     def g_dot_u(self, t, q, coo):
         coo.extend(self.W_g_dense(t, q).T, (self.la_gDOF, self.uDOF))
@@ -116,14 +157,57 @@ class Rod:
 
         return 2 * v_P1P2 @ v_P1P2 + 2 * r_P1P2 @ a_P1P2
 
+    def g_ddot_q(self, t, q, u, u_dot, coo):
+        r_P1P2 = self.r_OP2(t, q) - self.r_OP1(t, q)
+        v_P1P2 = self.v_P2(t, q, u) - self.v_P1(t, q, u)
+        a_P1P2 = self.a_P2(t, q, u, u_dot) - self.a_P1(t, q, u, u_dot)
+
+        dense = np.zeros((self.nla_g, self.__nq))
+        dense[:, : self.__nq1] = -2 * (
+            2 * v_P1P2 @ self.v_P1_q(t, q, u)
+            + a_P1P2 @ self.r_OP1_q(t, q)
+            + r_P1P2 @ self.a_P1_q(t, q, u, u_dot)
+        )
+        dense[:, self.__nq1 :] = 2 * (
+            2 * v_P1P2 @ self.v_P2_q(t, q, u)
+            + a_P1P2 @ self.r_OP2_q(t, q)
+            + r_P1P2 @ self.a_P2_q(t, q, u, u_dot)
+        )
+
+        coo.extend(dense, (self.la_gDOF, self.qDOF))
+
+    def g_ddot_u(self, t, q, u, u_dot, coo):
+        r_P1P2 = self.r_OP2(t, q) - self.r_OP1(t, q)
+        v_P1P2 = self.v_P2(t, q, u) - self.v_P1(t, q, u)
+        a_P1P2 = self.a_P2(t, q, u, u_dot) - self.a_P1(t, q, u, u_dot)
+
+        dense = np.zeros((self.nla_g, self.__nu))
+        dense[:, : self.__nu1] = -2 * (
+            2 * v_P1P2 @ self.J_P1(t, q) + r_P1P2 @ self.a_P1_u(t, q, u, u_dot)
+        )
+        dense[:, self.__nu1 :] = 2 * (
+            2 * v_P1P2 @ self.J_P2(t, q) + r_P1P2 @ self.a_P2_u(t, q, u, u_dot)
+        )
+
+        coo.extend(dense, (self.la_gDOF, self.uDOF))
+
     def g_q(self, t, q, coo):
         coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
+
+    def g_q_T_mu_q(self, t, q, mu, coo):
+        dense = approx_fprime(q, lambda q: self.g_q_dense(t, q).T @ mu)
+        coo.extend(dense, (self.qDOF, self.qDOF))
 
     def W_g_dense(self, t, q):
         r_P1P2 = self.r_OP2(t, q) - self.r_OP1(t, q)
         J_P1 = self.J_P1(t, q)
         J_P2 = self.J_P2(t, q)
-        return 2 * np.array([np.concatenate([-J_P1.T @ r_P1P2, J_P2.T @ r_P1P2])]).T
+        return (
+            2
+            * np.array(
+                [np.concatenate([-J_P1.T @ r_P1P2, J_P2.T @ r_P1P2])], dtype=q.dtype
+            ).T
+        )
 
     def W_g(self, t, q, coo):
         coo.extend(self.W_g_dense(t, q), (self.uDOF, self.la_gDOF))

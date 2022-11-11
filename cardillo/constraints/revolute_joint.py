@@ -1,6 +1,5 @@
-from cardillo.math import approx_fprime
 import numpy as np
-from cardillo.math.algebra import cross3, ax2skew, e3
+from cardillo.math import approx_fprime, complex_atan2, cross3, ax2skew, e3
 
 
 class RevoluteJoint:
@@ -201,7 +200,7 @@ class RevoluteJoint:
 
     def g_q_dense(self, t, q):
         nq1 = self.__nq1
-        g_q = np.zeros((5, self.__nq))
+        g_q = np.zeros((5, self.__nq), dtype=q.dtype)
         g_q[:3, :nq1] = -self.r_OP1_q(t, q)
         g_q[:3, nq1:] = self.r_OP2_q(t, q)
 
@@ -221,7 +220,7 @@ class RevoluteJoint:
         return g_q
 
     def g_dot(self, t, q, u):
-        g_dot = np.zeros(5)
+        g_dot = np.zeros(5, np.common_type(q, u))
 
         _, _, ez1 = self.A_IB1(t, q).T
         ex2, ey2, _ = self.A_IB2(t, q).T
@@ -239,10 +238,13 @@ class RevoluteJoint:
         coo.extend(dense, (self.la_gDOF, self.qDOF))
 
     def g_dot_u(self, t, q, coo):
+        raise RuntimeError(
+            "This is not tested yet. Run 'test/test_spherical_revolute_joint'."
+        )
         coo.extend(self.W_g_dense(t, q).T, (self.la_gDOF, self.uDOF))
 
     def g_ddot(self, t, q, u, u_dot):
-        g_ddot = np.zeros(5)
+        g_ddot = np.zeros(5, dtype=np.common_type(q, u, u_dot))
 
         _, _, ez1 = self.A_IB1(t, q).T
         ex2, ey2, _ = self.A_IB2(t, q).T
@@ -281,9 +283,13 @@ class RevoluteJoint:
     def g_q(self, t, q, coo):
         coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
 
+    def g_q_T_mu_q(self, t, q, mu, coo):
+        dense = approx_fprime(q, lambda q: self.g_q_dense(t, q).T @ mu)
+        coo.extend(dense, (self.qDOF, self.qDOF))
+
     def W_g_dense(self, t, q):
         nu1 = self.__nu1
-        W_g = np.zeros((self.__nu, self.nla_g))
+        W_g = np.zeros((self.__nu, self.nla_g), dtype=q.dtype)
 
         # position
         J_P1 = self.J_P1(t, q)
@@ -364,7 +370,7 @@ class RevoluteJoint:
     def angle(self, t, q):
         ex1, ey1, _ = self.A_IB1(t, q).T
         ex2 = self.A_IB2(t, q)[:, 0]
-        return np.arctan2(ex2 @ ey1, ex2 @ ex1)
+        return complex_atan2(ex2 @ ey1, ex2 @ ex1)
 
     def angle_dot(self, t, q, u):
         Omega1 = self.Omega1(t, q, u)

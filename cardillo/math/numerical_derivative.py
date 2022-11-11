@@ -2,9 +2,7 @@ import numpy as np
 import warnings
 
 
-# TODO:
-# * Can we implement second derivatives as done for _tt below?
-def approx_fprime(x0, f, eps=1.0e-6, method="2-point"):
+def approx_fprime(x0, f, eps=1.0e-12, method="cs"):
     """Inspired by scipy's approx_derivative method but extended to
     multidimensional function values and arguments.
 
@@ -16,7 +14,7 @@ def approx_fprime(x0, f, eps=1.0e-6, method="2-point"):
     f : callable
         Function of which to estimate the derivatives. The argument x
         passed to this function is ndarray of arbitrary shape (never a scalar).
-    method : {'2-point', '3-point', 'cs'}, optional
+    method : {'cs', '2-point', '3-point'}, optional
         Finite difference method to use:
             - '2-point' - use the first order accuracy forward or backward
                           difference.

@@ -906,8 +906,9 @@ class RadauIIa:
         # the Radau implementation. However, since we use only simplified Newton
         # iterations, numerical experiments have shown that good convergence
         # is obtained in all tested cases.
-        self.mass_matrix[self.nq : self.nq + self.nu, self.nq : self.nq + self.nu] = M
-        dy[self.nq : self.nq + self.nu] = self.rhs
+        # self.mass_matrix[self.nq : self.nq + self.nu, self.nq : self.nq + self.nu] = M
+        # dy[self.nq : self.nq + self.nu] = self.rhs
+        dy[self.nq : self.nq + self.nu] = spsolve(M, self.rhs)
 
         # bilateral constraints on velocity level
         dy[
@@ -934,6 +935,9 @@ class RadauIIa:
         return dy
 
     def jac(self, t, y):
+        return approx_derivative(
+            fun=lambda x: self.fun(t, x), x0=y, method="2-point", rel_step=1e-6
+        )
         q, u, la_g, la_gamma, mu_g = self.unpack(y)
 
         q_dot_q = self.system.q_dot_q(t, q, u)

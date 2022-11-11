@@ -4,8 +4,6 @@ import numpy as np
 from cardillo.discrete.rigid_body_base import RigidBodyBase
 from cardillo.math import (
     norm,
-    cross3,
-    ax2skew,
     quat2mat,
     quat2mat_p,
     quat2rot,
@@ -49,6 +47,11 @@ class RigidBodyQuaternion(RigidBodyBase):
         dense = np.zeros((1, 7), dtype=q.dtype)
         dense[0, 3:] = 2.0 * P
         coo.extend(dense, (self.la_SDOF, self.qDOF))
+
+    def g_S_q_T_mu_q(self, t, q, mu, coo):
+        dense = np.zeros((7, 7), dtype=q.dtype)
+        dense[3:, 3:] = 2.0 * mu[0] * np.eye(4, 4, dtype=float)
+        coo.extend(dense, (self.qDOF, self.qDOF))
 
     def q_dot(self, t, q, u):
         p = q[3:]

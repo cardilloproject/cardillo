@@ -354,7 +354,6 @@ class RigidConnection:
         return g_ddot
 
     def g_ddot_q_dense(self, t, q, u, u_dot):
-        raise RuntimeWarning("RigidConnection.g_ddot_q_dense is not tested yet!")
         nq1 = self.__nq1
         g_ddot_q = np.zeros((self.nla_g, self.__nq), dtype=np.common_type(q, u, u_dot))
 
@@ -478,9 +477,8 @@ class RigidConnection:
         coo.extend(self.g_ddot_q_dense(t, q, u, u_dot), (self.la_gDOF, self.qDOF))
 
     def g_ddot_u_dense(self, t, q, u, u_dot):
-        raise RuntimeWarning("RigidConnection.g_ddot_u_dense is not tested yet!")
         nu1 = self.__nu1
-        g_ddot_u = np.zeros((self.nla_g, self.__nq), dtype=np.common_type(q, u, u_dot))
+        g_ddot_u = np.zeros((self.nla_g, self.__nu), dtype=np.common_type(q, u, u_dot))
 
         # position
         g_ddot_u[:3, :nu1] = -self.a_B1_u1(t, q, u, u_dot)
@@ -551,6 +549,10 @@ class RigidConnection:
 
     def g_q(self, t, q, coo):
         coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
+
+    def g_q_T_mu_q(self, t, q, mu, coo):
+        dense = approx_fprime(q, lambda q: self.g_q_dense(t, q).T @ mu)
+        coo.extend(dense, (self.qDOF, self.qDOF))
 
     def W_g_dense(self, t, q):
         nu1 = self.__nu1

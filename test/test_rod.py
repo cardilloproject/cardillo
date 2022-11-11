@@ -1,33 +1,14 @@
 import numpy as np
-from math import pi
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.animation as animation
-
-from cardillo.math.algebra import (
-    inv2D,
-    A_IK_basic_x,
-    A_IK_basic_y,
-    A_IK_basic_z,
-    cross3,
-    axis_angle2quat,
-    ax2skew,
-)
 from scipy.integrate import solve_ivp
 
-from cardillo.model import System
-from cardillo.model.point_mass import PointMass
-from cardillo.model.bilateral_constraints.implicit import Rod
-from cardillo.model.frame import Frame
-from cardillo.model.force import Force
-from cardillo.solver import (
-    Scipy_ivp,
-    Generalized_alpha_1,
-    Moreau_sym,
-    Euler_backward,
-    Moreau,
-    Generalized_alpha_4_index3,
-)
+from cardillo import System
+from cardillo.discrete import Frame, PointMass
+from cardillo.constraints import Rod
+from cardillo.forces import Force
+from cardillo.solver import ScipyIVP, EulerBackward
+from cardillo.math import A_IK_basic, inv2D
 
 
 class Mathematical_pendulum3D_excited:
@@ -40,7 +21,7 @@ class Mathematical_pendulum3D_excited:
 
     def r_OP(self, t, q):
         L = self.L
-        return A_IK_basic_y(q[0]) @ np.array(
+        return A_IK_basic(q[0]).y() @ np.array(
             [L * np.cos(q[1]), L * np.sin(q[1]) + self.e(t), 0]
         )
 
@@ -53,7 +34,7 @@ class Mathematical_pendulum3D_excited:
                 L * np.cos(q[1]) * u[0],
             ]
         )
-        return A_IK_basic_y(q[0]) @ B_v_S
+        return A_IK_basic(q[0]).y() @ B_v_S
 
     def eqm(self, t, x):
         dx = np.zeros(4)
@@ -146,22 +127,22 @@ def comparison_mathematical_pendulum3D(
     PM = PointMass(m, q0=r_OS0[:dim], u0=v_S0[:dim], dim=dim)
 
     origin = Frame(r_OP, r_OP_t=v_P, r_OP_tt=a_P)
-    joint = Rod(origin, PM)
-    model = System()
-    model.add(origin)
-    model.add(PM)
-    model.add(joint)
-    model.add(Force(lambda t: np.array([0, -g * m, 0]), PM))
+    # joint = Rod(origin, PM)
+    joint = Rod(PM, origin)
 
-    model.assemble()
+    system = System()
+    system.add(origin)
+    system.add(PM)
+    system.add(joint)
+    system.add(Force(lambda t: np.array([0, -g * m, 0]), PM))
 
-    # solver = Euler_backward(model, t1, dt, numerical_jacobian=False, debug=False)
-    # solver = Moreau_sym(model, t1, dt)
-    # solver = Moreau(model, t1, dt)
-    # solver = Generalized_alpha_1(model, t1, dt, rho_inf=1, numerical_jacobian=False, debug=False)
-    # solver = Scipy_ivp(model, t1, dt)
-    # solver = Scipy_ivp(model, t1, dt, rtol = 1e-6, atol=1.0e-7)
-    solver = Generalized_alpha_4_index3(model, t1, dt, rho_inf=0.95)
+    system.assemble()
+
+    # solver = EulerBackward(system, t1, dt, method="index 1")
+    solver = EulerBackward(system, t1, dt, method="index 2")
+    # solver = EulerBackward(system, t1, dt, method="index 3")
+    # solver = EulerBackward(system, t1, dt, method="index 2 GGL")
+    # solver = ScipyIVP(model, t1, dt)
 
     sol = solver.solve()
     t = sol.t

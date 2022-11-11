@@ -66,12 +66,12 @@ def lsmr_solve(A, b):
 def fsolve(
     fun,
     x0,
-    jac="2-point",
+    jac="cs",
     fun_args=(),
     jac_args=(),
     error_function=lambda x: np.max(np.absolute(x)),
     atol=1.0e-8,
-    eps=1.0e-6,
+    eps=1.0e-12,
     max_iter=20,
     linear_solver=lu_solve,
 ):

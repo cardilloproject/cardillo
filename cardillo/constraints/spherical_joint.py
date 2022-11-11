@@ -109,7 +109,7 @@ class SphericalJoint:
         self.a_B2 = lambda t, q, u, u_dot: self.subsystem2.a_P(
             t, q[nq1:], u[nu1:], u_dot[nu1:], self.frame_ID2, K_r_S2B
         )
-        self.a_P2_q = lambda t, q, u, u_dot: self.subsystem2.a_P_q(
+        self.a_B2_q = lambda t, q, u, u_dot: self.subsystem2.a_P_q(
             t, q[nq1:], u[nu1:], u_dot[nu1:], self.frame_ID2, K_r_S2B
         )
         self.a_B2_u = lambda t, q, u, u_dot: self.subsystem2.a_P_u(
@@ -145,6 +145,9 @@ class SphericalJoint:
         coo.extend(dense, (self.la_gDOF, self.qDOF))
 
     def g_dot_u(self, t, q, coo):
+        raise RuntimeError(
+            "This is not tested yet. Run 'test/test_spherical_revolute_joint'."
+        )
         coo.extend(self.W_g_dense(t, q).T, (self.la_gDOF, self.uDOF))
 
     def g_ddot(self, t, q, u, u_dot):
@@ -156,12 +159,12 @@ class SphericalJoint:
         nq1 = self.__nq1
         dense = np.zeros((self.nla_g, self.__nq))
         dense[:, :nq1] = -self.a_B1_q(t, q, u, u_dot)
-        dense[:, nq1:] = self.a_P2_q(t, q, u, u_dot)
+        dense[:, nq1:] = self.a_B2_q(t, q, u, u_dot)
         coo.extend(dense, (self.la_gDOF, self.qDOF))
 
     def g_ddot_u(self, t, q, u, u_dot, coo):
         nu1 = self.__nu1
-        dense = np.zeros((self.nla_g, self.__nq))
+        dense = np.zeros((self.nla_g, self.__nu))
         dense[:, :nu1] = -self.a_B1_u(t, q, u, u_dot)
         dense[:, nu1:] = self.a_B2_u(t, q, u, u_dot)
         coo.extend(dense, (self.la_gDOF, self.uDOF))
@@ -169,18 +172,15 @@ class SphericalJoint:
     def g_q(self, t, q, coo):
         coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
 
-    # TODO: analytical derivative
-    def g_q_T_mu_g(self, t, q, mu_g, coo):
-        dense = approx_fprime(
-            q, lambda q: self.g_q_dense(t, q).T @ mu_g, method="2-point"
-        )
+    def g_q_T_mu_q(self, t, q, mu, coo):
+        dense = approx_fprime(q, lambda q: self.g_q_dense(t, q).T @ mu)
         coo.extend(dense, (self.qDOF, self.qDOF))
 
     def W_g_dense(self, t, q):
         nu1 = self.__nu1
         J_P1 = self.J_B1(t, q)
         J_P2 = self.J_B2(t, q)
-        W_g = np.zeros((self.__nu, self.nla_g))
+        W_g = np.zeros((self.__nu, self.nla_g), dtype=q.dtype)
         W_g[:nu1, :] = -J_P1.T
         W_g[nu1:, :] = J_P2.T
         return W_g
