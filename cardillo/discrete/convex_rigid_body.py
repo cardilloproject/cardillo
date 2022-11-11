@@ -5,15 +5,10 @@ from scipy.spatial import ConvexHull
 from cardillo.math import norm, cross3
 
 
-def new_convex_rigid_body(
-    RigidBodyBase,
-    points: npt.ArrayLike,
-    rho: float = None,
-    mass: float = None,
-    q0: np.ndarray = None,
-    u0: np.ndarray = None,
+def ConvexRigidBody(
+    RigidBodyParametrization,
 ):
-    class ConvexRigidBody(RigidBodyBase):
+    class _ConvexRigidBody(RigidBodyParametrization):
         def __init__(
             self,
             points: npt.ArrayLike,
@@ -109,7 +104,7 @@ def new_convex_rigid_body(
                     point_data = dict(v=vel)
             return points, cells, point_data, cell_data
 
-    return ConvexRigidBody(points, rho, mass, q0, u0)
+    return _ConvexRigidBody
 
 
 class Mesh:
