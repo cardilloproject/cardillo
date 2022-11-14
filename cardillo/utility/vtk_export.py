@@ -61,7 +61,7 @@ class Export:
         frames = len(sol.t)
         # target_frames = min(len(t), 100)
         animation_time_ = sol.t[-1] - sol.t[0]
-        target_frames = int(animation_time_ * self.fps)
+        target_frames = max(1, int(animation_time_ * self.fps))
         frac = max(1, int(frames / target_frames))
 
         frames = target_frames
@@ -73,7 +73,10 @@ class Export:
         else:
             u_dot = None
         la_g = sol.la_g[::frac]
-        la_gamma = sol.la_gamma[::frac]
+        if sol.la_gamma is not None:
+            la_gamma = sol.la_gamma[::frac]
+        else:
+            la_gamma = None
         if hasattr(sol, "P_N"):
             P_N = sol.P_N[::frac]
         else:
@@ -116,7 +119,7 @@ class Export:
                     if not key in cell_data.keys():
                         cell_data[key] = c_data[key]
                     else:
-                        cell_data[key].append(c_data[key][0])
+                        cell_data[key].extend(c_data[key])
             if p_data is not None:
                 for key in p_data.keys():
                     if not key in point_data.keys():
@@ -163,6 +166,6 @@ class Export:
                 cells=cells,
                 point_data=point_data,
                 cell_data=cell_data,
-                binary=False,  # TODO set to True before merge
+                # binary=False,  # TODO set to True before merge
             )
         self._write_pvd_file(self.path / f"{file_name}.pvd")
