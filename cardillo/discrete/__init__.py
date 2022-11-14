@@ -1,4 +1,4 @@
-from .frame import Frame
+from .frame import Frame, PlaneFixed
 from .point_mass import PointMass
 from .rigid_body_axis_angle import RigidBodyAxisAngle
 from .rigid_body_director import RigidBodyDirector, RigidBodyDirectorAngularVelocities
