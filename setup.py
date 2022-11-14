@@ -25,6 +25,7 @@ setup(
         "black>=22.1.0",
         "tqdm>=4.62.3",
         "meshio>=4.1.1",
+        "meshzoo>=0.9.14",
     ],
     packages=find_packages(),
     python_requires=">=3.8",
