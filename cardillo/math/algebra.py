@@ -1,9 +1,9 @@
 import numpy as np
 from math import copysign, pi
 
-e1 = np.array([1, 0, 0])
-e2 = np.array([0, 1, 0])
-e3 = np.array([0, 0, 1])
+e1 = np.array([1, 0, 0], dtype=float)
+e2 = np.array([0, 1, 0], dtype=float)
+e3 = np.array([0, 0, 1], dtype=float)
 
 
 def complex_atan2(y, x):
