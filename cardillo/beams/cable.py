@@ -5,6 +5,8 @@ from cardillo.discretization.b_spline import BSplineKnotVector
 from cardillo.discretization.hermite import HermiteNodeVector
 from cardillo.math import (
     e1,
+    e2,
+    e3,
     norm,
     cross3,
     skew2ax,
@@ -192,8 +194,8 @@ class Cable:
         polynomial_degree,
         nelement,
         L,
-        r_OP=np.zeros(3, dtype=float),
-        A_IK=np.eye(3, dtype=float),
+        r_OP0=np.zeros(3, dtype=float),
+        A_IK0=np.eye(3, dtype=float),
     ):
         if basis == "B-spline":
             nn = polynomial_degree + nelement
@@ -215,25 +217,16 @@ class Cable:
 
             r0 = np.vstack((x0, y0, z0))
             for i in range(nn):
-                r0[:, i] = r_OP + A_IK @ r0[:, i]
+                r0[:, i] = r_OP0 + A_IK0 @ r0[:, i]
 
         elif basis == "Hermite":
-            raise NotImplementedError
             xis = np.linspace(0, 1, num=nn)
-
             r0 = np.zeros((3, 2 * nn))
-            t0 = A_IK @ (L * e1)
+            t0 = A_IK0 @ (L * e1)
             for i, xi in enumerate(xis):
-                ri = r_OP + xi * t0
+                ri = r_OP0 + xi * t0
                 r0[:, 2 * i] = ri
                 r0[:, 2 * i + 1] = t0
-
-            # r0 = np.zeros((6, nn))
-            # t0 = A_IK @ (L * e1)
-            # for i, xi in enumerate(xis):
-            #     ri = r_OP + xi * t0
-            #     r0[:3, i] = ri
-            #     r0[3:, i] = t0
 
         # reshape generalized coordinates to nodal ordering
         q = r0.reshape(-1, order="C")
@@ -336,15 +329,12 @@ class Cable:
             ji2 = r_xi @ r_xi
             ji = np.sqrt(ji2)
 
-            # normalized tangent vector
-            d1 = r_xi / ji
-
             # axial strain
             la = ji / Ji
             la0 = 1.0
 
             # curvature
-            kappa_bar = cross3(d1, r_xixi) / ji
+            kappa_bar = cross3(r_xi, r_xixi) / ji2
             kappa = kappa_bar / Ji
 
             # compute contact forces and couples from partial derivatives of
@@ -389,7 +379,7 @@ class Cable:
             la0 = 1.0
 
             # curvature
-            kappa_bar = cross3(d1, r_xixi) / ji
+            kappa_bar = cross3(r_xi, r_xixi) / ji2
             kappa = kappa_bar / Ji
 
             # compute contact forces and couples from partial derivatives of
@@ -548,7 +538,7 @@ class Cable:
         N, _, _ = self.basis_functions(frame_ID[0])
 
         # interpolate tangent vector
-        v_P = np.zeros(3, dtype=q.dtype)
+        v_P = np.zeros(3, dtype=np.common_type(q, u))
         for node in range(self.nnodes_element):
             v_P += N[node] * u[self.nodalDOF_element[node]]
         return v_P
@@ -594,6 +584,45 @@ class Cable:
         for node in range(self.nnodes_element):
             r_xi += N_xi[node] * q[self.nodalDOF_element[node]]
         return r_xi
+
+    ###########
+    # rotations
+    ###########
+    # def A_IK(self, t, q, frame_ID):
+    #     # evaluate shape functions
+    #     _, N_xi, _ = self.basis_functions(frame_ID[0])
+
+    #     # interpolate tangent vector
+    #     r_xi = np.zeros(3, dtype=q.dtype)
+    #     for node in range(self.nnodes_element):
+    #         r_xi += N_xi[node] * q[self.nodalDOF_element[node]]
+
+    #     A_IK = np.eye(3, dtype=q.dtype)
+    #     A_IK[:, 0] = r_xi / norm(r_xi)
+    #     return A_IK
+
+    # def K_Omega(self, t, q, u, frame_ID):
+    #     # evaluate shape functions
+    #     _, N_xi, _ = self.basis_functions(frame_ID[0])
+
+    #     # interpolate tangent vector
+    #     r_xi = np.zeros(3, dtype=np.common_type(q, u))
+    #     r_xi_dot = np.zeros(3, dtype=np.common_type(q, u))
+    #     for node in range(self.nnodes_element):
+    #         r_xi += N_xi[node] * q[self.nodalDOF_element[node]]
+    #         r_xi_dot += N_xi[node] * u[self.nodalDOF_element[node]]
+
+    #     j = norm(r_xi)
+    #     d1 = r_xi / j
+    #     d1_dot = (1 / j) * (np.eye(3) - np.outer(d1, d1)) @ r_xi_dot
+
+    #     return np.array(
+    #         [
+    #             0.0,
+    #             -e3 @ d1_dot,
+    #             e2 @ d1_dot,
+    #         ]
+    #     )
 
     ####################################################
     # body force
