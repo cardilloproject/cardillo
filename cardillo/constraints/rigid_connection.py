@@ -35,9 +35,9 @@ class RigidConnection:
         local_uDOF1 = self.subsystem1.local_uDOF_P(self.frame_ID1)
         local_uDOF2 = self.subsystem2.local_uDOF_P(self.frame_ID2)
         self.uDOF = np.concatenate((uDOF1[local_uDOF1], uDOF2[local_uDOF2]))
-        self.__nu1 = nu1 = len(local_uDOF1)
-        self.__nu2 = len(local_uDOF2)
-        self.__nu = self.__nu1 + self.__nu2
+        self._nu1 = nu1 = len(local_uDOF1)
+        self._nu2 = len(local_uDOF2)
+        self._nu = self._nu1 + self._nu2
 
         A_IK1 = self.subsystem1.A_IK(
             self.subsystem1.t0, self.subsystem1.q0[local_qDOF1], frame_ID=self.frame_ID1
@@ -477,8 +477,8 @@ class RigidConnection:
         coo.extend(self.g_ddot_q_dense(t, q, u, u_dot), (self.la_gDOF, self.qDOF))
 
     def g_ddot_u_dense(self, t, q, u, u_dot):
-        nu1 = self.__nu1
-        g_ddot_u = np.zeros((self.nla_g, self.__nu), dtype=np.common_type(q, u, u_dot))
+        nu1 = self._nu1
+        g_ddot_u = np.zeros((self.nla_g, self._nu), dtype=np.common_type(q, u, u_dot))
 
         # position
         g_ddot_u[:3, :nu1] = -self.a_B1_u1(t, q, u, u_dot)
@@ -555,8 +555,8 @@ class RigidConnection:
         coo.extend(dense, (self.qDOF, self.qDOF))
 
     def W_g_dense(self, t, q):
-        nu1 = self.__nu1
-        W_g = np.zeros((self.__nu, self.nla_g), dtype=q.dtype)
+        nu1 = self._nu1
+        W_g = np.zeros((self._nu, self.nla_g), dtype=q.dtype)
 
         # position
         J_B1 = self.J_B1(t, q)
@@ -579,8 +579,8 @@ class RigidConnection:
 
     def Wla_g_q(self, t, q, la_g, coo):
         nq1 = self.__nq1
-        nu1 = self.__nu1
-        dense = np.zeros((self.__nu, self.__nq), dtype=np.common_type(q, la_g))
+        nu1 = self._nu1
+        dense = np.zeros((self._nu, self.__nq), dtype=np.common_type(q, la_g))
 
         # position
         J_B1_q = self.J_B1_q1(t, q)
@@ -778,9 +778,9 @@ class RigidConnectionCable(RigidConnection):
         coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
 
     def W_g_dense(self, t, q):
-        # return approx_fprime(np.zeros_like(q), lambda u: self.g_dot(t, q, u)).T
-        nu1 = self.__nu1
-        W_g = np.zeros((self.__nu, self.nla_g))
+        return approx_fprime(np.zeros_like(q), lambda u: self.g_dot(t, q, u)).T
+        nu1 = self._nu1
+        W_g = np.zeros((self._nu, self.nla_g))
 
         # position
         J_B1 = self.J_B1(t, q)
@@ -802,8 +802,8 @@ class RigidConnectionCable(RigidConnection):
 
     def Wla_g_q(self, t, q, la_g, coo):
         nq1 = self.__nq1
-        nu1 = self.__nu1
-        dense = np.zeros((self.__nu, self.__nq))
+        nu1 = self._nu1
+        dense = np.zeros((self._nu, self.__nq))
 
         # position
         J_B1_q = self.J_B1_q1(t, q)
