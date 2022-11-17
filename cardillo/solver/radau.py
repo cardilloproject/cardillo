@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.linalg import lu_factor, lu_solve
 from scipy.sparse import csc_matrix, csr_matrix, issparse, eye, bmat
-from scipy.sparse.linalg import spsolve, splu, inv
+from scipy.sparse.linalg import spsolve, splu
 from scipy.optimize._numdiff import group_columns
 from scipy.integrate._ivp.common import (
     validate_max_step,
@@ -954,9 +954,6 @@ class RadauIIa:
 
         gamma_q = self.system.gamma_q(t, q, u)
 
-        # M = self.system.M(t, q, scipy_matrix=csc_matrix)
-        # Minv = inv(M)
-
         W_g = self.system.W_g(t, q)
         W_gamma = self.system.W_gamma(t, q)
 
@@ -968,8 +965,6 @@ class RadauIIa:
                 [
                     [q_dot_q,         B, None,    None],
                     [  rhs_q,     rhs_u,  W_g, W_gamma],
-                    # [spsolve(M, rhs_q), spsolve(M, rhs_u),  spsolve(M, W_g).reshape(self.nu, self.nla_g), spsolve(M, W_gamma).reshape(self.nu, self.nla_gamma)],
-                    # [Minv @ rhs_q, Minv @ rhs_u, Minv @ W_g, Minv @ W_gamma],
                     [g_dot_q,     W_g.T, None,    None],
                     [gamma_q, W_gamma.T, None,    None],
                 ],
@@ -981,8 +976,6 @@ class RadauIIa:
                 [
                     [q_dot_q,         B, None,    None],
                     [  rhs_q,     rhs_u,  W_g, W_gamma],
-                    # [spsolve(M, rhs_q), spsolve(M, rhs_u), spsolve(M, W_g).reshape(self.nu, self.nla_g), spsolve(M, W_gamma).reshape(self.nu, self.nla_gamma)],
-                    # [Minv @ rhs_q, Minv @ rhs_u, Minv @ W_g, Minv @ W_gamma],
                     [    g_q,      None, None,    None],
                     [gamma_q, W_gamma.T, None,    None],
                 ],
