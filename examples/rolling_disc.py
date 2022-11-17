@@ -157,7 +157,7 @@ def state():
     # sol = NonsmoothHalfExplicitRungeKutta(model, t1, dt).solve()
     # sol = NonsmoothPartitionedHalfExplicitEuler(model, t1, dt).solve()
 
-    rtol = atol = 1.0e-4
+    rtol = atol = 1.0e-5
     # dae_index = 2
     # dae_index = 3
     dae_index = "GGL"

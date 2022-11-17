@@ -157,13 +157,13 @@ class RollingCondition_g_I_Frame_gamma:
         return r_OC @ e3
 
     def g_dot(self, t, q, u):
-        # v_C = self.subsystem.v_P(
-        #     t, q, u, K_r_SP=self.subsystem.A_IK(t, q).T @ self.r_SC(t, q)
-        # )
-        # return v_C @ e3
+        v_C = self.subsystem.v_P(
+            t, q, u, K_r_SP=self.subsystem.A_IK(t, q).T @ self.r_SC(t, q)
+        )
+        return v_C @ e3
 
-        g_q = self.g_q_dense(t, q)
-        return g_q @ self.subsystem.q_dot(t, q, u)
+        # g_q = self.g_q_dense(t, q)
+        # return g_q @ self.subsystem.q_dot(t, q, u)
 
     def g_ddot(self, t, q, u, u_dot):
         # a_C = self.subsystem.a_P(
@@ -171,16 +171,18 @@ class RollingCondition_g_I_Frame_gamma:
         # )
         # return a_C @ e3
 
-        g_dot_q = approx_fprime(q, lambda q: self.g_dot(t, q, u), method="2-point")
+        g_dot_q = approx_fprime(
+            q, lambda q: self.g_dot(t, q, u), method="cs", eps=1.0e-15
+        )
         g_dot_u = self.W_g_dense(t, q).T
 
         return g_dot_q @ self.subsystem.q_dot(t, q, u) + g_dot_u @ u_dot
 
     # TODO: implement
     def g_q_dense(self, t, q):
-        return approx_fprime(q, lambda q: self.g(t, q), method="2-point").reshape(
-            self.nla_g, self.subsystem.nq
-        )
+        return approx_fprime(
+            q, lambda q: self.g(t, q), method="cs", eps=1.0e-15
+        ).reshape(self.nla_g, self.subsystem.nq)
 
     # TODO: implement
     def g_qq_dense(self, t, q):
@@ -188,7 +190,7 @@ class RollingCondition_g_I_Frame_gamma:
             q, lambda q: self.g_q_dense(t, q), method="3-point"
         ).reshape(self.nla_g, self.subsystem.nq, self.subsystem.nq)
 
-    def g_q_T_mu_g(self, t, q, mu_g, coo):
+    def g_q_T_mu_q(self, t, q, mu_g, coo):
         dense = np.einsum("ijk,i", self.g_qq_dense(t, q), mu_g)
         coo.extend(dense, (self.qDOF, self.qDOF))
 
@@ -251,7 +253,9 @@ class RollingCondition_g_I_Frame_gamma:
             return np.array([v_C @ e1, v_C @ e2])
 
         def gamma_dot(self, t, q, u, u_dot):
-            gamma_q = approx_fprime(q, lambda q: self.gamma(t, q, u), method="2-point")
+            gamma_q = approx_fprime(
+                q, lambda q: self.gamma(t, q, u), method="cs", eps=1.0e-15
+            )
             gamma_u = self.gamma_u_dense(t, q)
 
             return gamma_q @ self.subsystem.q_dot(t, q, u) + gamma_u @ u_dot
@@ -272,7 +276,7 @@ class RollingCondition_g_I_Frame_gamma:
             # )
 
             dense_num = approx_fprime(
-                q, lambda q: self.gamma(t, q, u), method="3-point"
+                q, lambda q: self.gamma(t, q, u), method="cs", eps=1.0e-15
             )
             # diff = dense - dense_num
             # error = np.linalg.norm(diff)
@@ -303,6 +307,9 @@ class RollingCondition_g_I_Frame_gamma:
         # TODO: implement
         def Wla_gamma_q(self, t, q, la_gamma, coo):
             dense = approx_fprime(
-                q, lambda q: self.gamma_u_dense(t, q).T @ la_gamma, method="2-point"
+                q,
+                lambda q: self.gamma_u_dense(t, q).T @ la_gamma,
+                method="cs",
+                eps=1.0e-15,
             )
             coo.extend(dense, (self.uDOF, self.qDOF))

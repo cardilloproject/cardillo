@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.linalg import lu_factor, lu_solve
 from scipy.sparse import csc_matrix, csr_matrix, issparse, eye, bmat
-from scipy.sparse.linalg import spsolve, splu
+from scipy.sparse.linalg import spsolve, splu, inv
 from scipy.optimize._numdiff import group_columns
 from scipy.integrate._ivp.common import (
     validate_max_step,
@@ -19,6 +19,7 @@ from scipy.integrate import solve_ivp
 from tqdm import tqdm
 
 from cardillo.solver import Solution
+from cardillo.math import approx_fprime
 
 S6 = 6**0.5
 
@@ -889,8 +890,8 @@ class RadauIIa:
 
         M = self.system.M(t, q, scipy_matrix=csc_matrix)
         h = self.system.h(t, q, u)
-        self.W_g = self.system.W_g(t, q)
-        self.W_gamma = self.system.W_gamma(t, q)
+        W_g = self.system.W_g(t, q)
+        W_gamma = self.system.W_gamma(t, q)
 
         dy = np.zeros(self.ny, dtype=y.dtype)
 
@@ -900,15 +901,15 @@ class RadauIIa:
             dy[: self.nq] += self.system.g_q(t, q, scipy_matrix=csc_matrix).T @ mu_g
 
         # equations of motion
-        self.rhs = h + self.W_g @ la_g + self.W_gamma @ la_gamma
+        rhs = h + W_g @ la_g + W_gamma @ la_gamma
 
         # Note: This uses a non constant mass matrix which is not supported by
         # the Radau implementation. However, since we use only simplified Newton
         # iterations, numerical experiments have shown that good convergence
         # is obtained in all tested cases.
-        # self.mass_matrix[self.nq : self.nq + self.nu, self.nq : self.nq + self.nu] = M
-        # dy[self.nq : self.nq + self.nu] = self.rhs
-        dy[self.nq : self.nq + self.nu] = spsolve(M, self.rhs)
+        self.mass_matrix[self.nq : self.nq + self.nu, self.nq : self.nq + self.nu] = M
+        dy[self.nq : self.nq + self.nu] = rhs
+        # dy[self.nq : self.nq + self.nu] = spsolve(M, rhs)
 
         # bilateral constraints on velocity level
         dy[
@@ -935,9 +936,10 @@ class RadauIIa:
         return dy
 
     def jac(self, t, y):
-        return approx_derivative(
-            fun=lambda x: self.fun(t, x), x0=y, method="2-point", rel_step=1e-6
-        )
+        # return approx_derivative(
+        #     fun=lambda x: self.fun(t, x), x0=y, method="3-point", rel_step=1e-6
+        # )
+
         q, u, la_g, la_gamma, mu_g = self.unpack(y)
 
         q_dot_q = self.system.q_dot_q(t, q, u)
@@ -949,18 +951,25 @@ class RadauIIa:
             + self.system.Wla_gamma_q(t, q, la_gamma, scipy_matrix=csc_matrix)
         )
         rhs_u = self.system.h_u(t, q, u, scipy_matrix=csc_matrix)
-        W_g = self.W_g
-        W_gamma = self.W_gamma
 
         gamma_q = self.system.gamma_q(t, q, u)
 
+        # M = self.system.M(t, q, scipy_matrix=csc_matrix)
+        # Minv = inv(M)
+
+        W_g = self.system.W_g(t, q)
+        W_gamma = self.system.W_gamma(t, q)
+
         # fmt: off
         if self.dae_index == 2:
+            # raise NotImplementedError
             g_dot_q = self.system.g_dot_q(t, q, u)
             jac = bmat(
                 [
                     [q_dot_q,         B, None,    None],
                     [  rhs_q,     rhs_u,  W_g, W_gamma],
+                    # [spsolve(M, rhs_q), spsolve(M, rhs_u),  spsolve(M, W_g).reshape(self.nu, self.nla_g), spsolve(M, W_gamma).reshape(self.nu, self.nla_gamma)],
+                    # [Minv @ rhs_q, Minv @ rhs_u, Minv @ W_g, Minv @ W_gamma],
                     [g_dot_q,     W_g.T, None,    None],
                     [gamma_q, W_gamma.T, None,    None],
                 ],
@@ -972,18 +981,21 @@ class RadauIIa:
                 [
                     [q_dot_q,         B, None,    None],
                     [  rhs_q,     rhs_u,  W_g, W_gamma],
+                    # [spsolve(M, rhs_q), spsolve(M, rhs_u), spsolve(M, W_g).reshape(self.nu, self.nla_g), spsolve(M, W_gamma).reshape(self.nu, self.nla_gamma)],
+                    # [Minv @ rhs_q, Minv @ rhs_u, Minv @ W_g, Minv @ W_gamma],
                     [    g_q,      None, None,    None],
                     [gamma_q, W_gamma.T, None,    None],
                 ],
                 format="csr",
             )
         else:
+            # raise NotImplementedError
             g_dot_q = self.system.g_dot_q(t, q, u)
             g_q = self.system.g_q(t, q)
-            g_q_T_mu_g = self.system.g_q_T_mu_g(t, q, mu_g)
+            g_q_T_mu_q = self.system.g_q_T_mu_q(t, q, mu_g)
             jac = bmat(
                 [
-                    [q_dot_q + g_q_T_mu_g,         B, None,    None, g_q.T],
+                    [q_dot_q + g_q_T_mu_q,         B, None,    None, g_q.T],
                     [               rhs_q,     rhs_u,  W_g, W_gamma,  None],
                     [             g_dot_q,     W_g.T, None,    None,  None],
                     [             gamma_q, W_gamma.T, None,    None,  None],
@@ -996,21 +1008,24 @@ class RadauIIa:
         return jac
 
         # Note: Uncomment to check analytical Jacobian against numerical one
-        # jac_num = approx_derivative(
-        #     fun=lambda x: self.fun(t, x), x0=y, method="3-point", rel_step=1e-6
-        # )
+        jac_num = approx_derivative(
+            fun=lambda x: self.fun(t, x), x0=y, method="3-point", rel_step=1e-6
+        )
 
-        # diff = jac - jac_num
-        # error = np.linalg.norm(diff)
-        # # error = np.linalg.norm(diff[:self.nq])
-        # # error = np.linalg.norm(diff[self.nq : self.nq + self.nu])
-        # # error = np.linalg.norm(diff[self.nq : self.nq + self.nu, :self.nq])
-        # # error = np.linalg.norm(diff[self.nq : self.nq + self.nu, self.nq : self.nq + self.nu])
-        # # error = np.linalg.norm(diff[self.nq : self.nq + self.nu, self.nq + self.nu : self.nq + self.nu + self.nla_g])
-        # # error = np.linalg.norm(diff[self.nq + self.nu : ])
-        # if error > 1.0e-5:
-        #     print(f"error jac: {error}")
-        # return jac_num
+        diff = jac - jac_num
+        error = np.linalg.norm(diff)
+        # error = np.linalg.norm(diff[:self.nq])
+        # error = np.linalg.norm(diff[self.nq : self.nq + self.nu])
+        # error = np.linalg.norm(diff[self.nq : self.nq + self.nu, :self.nq])
+        # error = np.linalg.norm(diff[self.nq : self.nq + self.nu, self.nq : self.nq + self.nu])
+        # error = np.linalg.norm(diff[self.nq : self.nq + self.nu, self.nq + self.nu : self.nq + self.nu + self.nla_g])
+        # # error = np.linalg.norm(diff[self.nq : self.nq + self.nu, self.nq + self.nu + self.nla_g :])
+        # error = np.linalg.norm(diff[self.nq + self.nu :])
+        # error = np.linalg.norm(diff[self.nq + self.nu : self.nq + self.nu + self.nla_g, : self.nq])
+        # error = np.linalg.norm(diff[self.nq + self.nu : self.nq + self.nu + self.nla_g, self.nq : self.nq + self.nu])
+        if error > 1.0e-5:
+            print(f"error jac: {error}")
+        return jac_num
 
     def solve(self):
         sol = solve_ivp(
