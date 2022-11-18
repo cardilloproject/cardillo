@@ -215,21 +215,21 @@ class Cable:
                 x0[i] = np.sum(kv[i + 1 : i + polynomial_degree + 1])
             x0 = x0 * L / polynomial_degree
 
-            r0 = np.vstack((x0, y0, z0))
+            q = np.vstack((x0, y0, z0))
             for i in range(nn):
-                r0[:, i] = r_OP0 + A_IK0 @ r0[:, i]
+                q[:, i] = r_OP0 + A_IK0 @ q[:, i]
 
         elif basis == "Hermite":
             xis = np.linspace(0, 1, num=nn)
-            r0 = np.zeros((3, 2 * nn))
+            q = np.zeros((3, 2 * nn))
             t0 = A_IK0 @ (L * e1)
             for i, xi in enumerate(xis):
                 ri = r_OP0 + xi * t0
-                r0[:, 2 * i] = ri
-                r0[:, 2 * i + 1] = t0
+                q[:, 2 * i] = ri
+                q[:, 2 * i + 1] = t0
 
         # reshape generalized coordinates to nodal ordering
-        q = r0.reshape(-1, order="C")
+        q = q.reshape(-1, order="C")
 
         return q
 
