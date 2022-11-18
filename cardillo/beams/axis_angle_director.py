@@ -237,8 +237,7 @@ class DirectorAxisAngle:
         self.polynomial_degree_psi = polynomial_degree_psi
 
         p = max(polynomial_degree_r, polynomial_degree_psi)
-        # self.nquadrature = nquadrature = int(np.ceil((p + 1) ** 2 / 2))
-        self.nquadrature = nquadrature = p
+        self.nquadrature = nquadrature = int(np.ceil((p + 1) ** 2 / 2))
         self.nelement = nelement
 
         # chose basis functions
