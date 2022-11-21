@@ -29,7 +29,7 @@ if __name__ == "__main__":
     A = L / 10
 
     k = 1e2
-    d = 1e1
+    d = 2e1
 
     e = lambda t: A * np.cos(omega * t)
     e_t = lambda t: -A * omega * np.sin(omega * t)
@@ -142,6 +142,8 @@ if __name__ == "__main__":
         x_0, y_0, z_0 = r_OP(t)
         x_S1, y_S1, z_S1 = RB1.r_OP(t, q[RB1.qDOF])
         x_S2, y_S2, z_S2 = RB2.r_OP(t, q[RB2.qDOF])
+        x_RC, y_RC, z_RC = RB1.r_OP(t, q[RB1.qDOF], K_r_SP=K_r_SP1)
+        x_RB2, y_RB2, z_RB2 = RB2.r_OP(t, q[RB2.qDOF], K_r_SP=K_r_SP1)
 
         A_IK1 = RB1.A_IK(t, q[RB1.qDOF])
         d11 = A_IK1[:, 0]
@@ -152,8 +154,9 @@ if __name__ == "__main__":
         d12 = A_IK2[:, 0]
         d22 = A_IK2[:, 1]
         d32 = A_IK2[:, 2]
-
-        (COM,) = ax.plot([x_0, x_S1, x_S2], [y_0, y_S1, y_S2], [z_0, z_S1, z_S2], "-ok")
+        
+        (rb,) = ax.plot( [x_0, x_RC, x_RB2], [y_0, y_RC, y_RB2], [z_0, z_RC, z_RB2], "-k")
+        (COM,) = ax.plot([x_0, x_S1, x_S2], [y_0, y_S1, y_S2], [z_0, z_S1, z_S2], "ok")
         (d11_,) = ax.plot(
             [x_S1, x_S1 + d11[0]],
             [y_S1, y_S1 + d11[1]],
@@ -191,14 +194,16 @@ if __name__ == "__main__":
             "-b",
         )
 
-        return COM, d11_, d21_, d31_, d12_, d22_, d32_
+        return COM, rb, d11_, d21_, d31_, d12_, d22_, d32_
 
-    def update(t, q, COM, d11_, d21_, d31_, d12_, d22_, d32_):
+    def update(t, q, COM, rb, d11_, d21_, d31_, d12_, d22_, d32_):
         # def update(t, q, COM, d11_, d21_, d31_):
         x_0, y_0, z_0 = r_OP(t)
         # TODO is this -L/2?
         x_S1, y_S1, z_S1 = RB1.r_OP(t, q[RB1.qDOF], K_r_SP=np.array([0, -L / 2, 0]))
         x_S2, y_S2, z_S2 = RB2.r_OP(t, q[RB2.qDOF], K_r_SP=np.array([0, -L / 2, 0]))
+        x_RC, y_RC, z_RC = RB1.r_OP(t, q[RB1.qDOF], K_r_SP=K_r_SP1)
+        x_RB2, y_RB2, z_RB2 = RB2.r_OP(t, q[RB2.qDOF], K_r_SP=K_r_SP1)
 
         A_IK1 = RB1.A_IK(t, q[RB1.qDOF])
         d11 = A_IK1[:, 0]
@@ -210,6 +215,8 @@ if __name__ == "__main__":
         d22 = A_IK2[:, 1]
         d32 = A_IK2[:, 2]
 
+        rb.set_data([x_0, x_RC, x_RB2], [y_0, y_RC, y_RB2])
+        rb.set_3d_properties([z_0, z_RC, z_RB2])
         COM.set_data([x_0, x_S1, x_S2], [y_0, y_S1, y_S2])
         COM.set_3d_properties([z_0, z_S1, z_S2])
         # COM.set_data([x_0, x_S1], [y_0, y_S1])
@@ -235,10 +242,10 @@ if __name__ == "__main__":
 
         return COM, d11_, d21_, d31_, d12_, d22_, d32_
 
-    COM, d11_, d21_, d31_, d12_, d22_, d32_ = init(0, q[0])
+    COM, rb, d11_, d21_, d31_, d12_, d22_, d32_ = init(0, q[0])
 
     def animate(i):
-        update(t[i], q[i], COM, d11_, d21_, d31_, d12_, d22_, d32_)
+        update(t[i], q[i], COM, rb, d11_, d21_, d31_, d12_, d22_, d32_)
 
     # compute naimation interval according to te - ts = frames * interval / 1000
     frames = len(t)
@@ -291,11 +298,11 @@ if __name__ == "__main__":
     ax[0].plot(t, e(t) + L / 2 * np.sin(x[0]), "-r")
     ax[1].plot(t, -L / 2 * np.cos(x[0]), "-r")
 
-    fig, ax = plt.subplots(1, 1)
-    # delta_phi = [abs(norm(quat2axis_angle(qi[RB1.qDOF[3:]])) - norm(quat2axis_angle(qi[RB2.qDOF[3:]])) ) for qi in q]
-    n1 = [np.linalg.norm(RB1.A_IK(ti, qi[RB1.qDOF])) for ti, qi in zip(sol.t, q)]
-    n2 = [np.linalg.norm(RB2.A_IK(ti, qi[RB2.qDOF])) for ti, qi in zip(sol.t, q)]
-    ax.plot(sol.t, n1)
-    ax.plot(sol.t, n2)
+    # fig, ax = plt.subplots(1, 1)
+    # # delta_phi = [abs(norm(quat2axis_angle(qi[RB1.qDOF[3:]])) - norm(quat2axis_angle(qi[RB2.qDOF[3:]])) ) for qi in q]
+    # n1 = [np.linalg.norm(RB1.A_IK(ti, qi[RB1.qDOF])) for ti, qi in zip(sol.t, q)]
+    # n2 = [np.linalg.norm(RB2.A_IK(ti, qi[RB2.qDOF])) for ti, qi in zip(sol.t, q)]
+    # ax.plot(sol.t, n1)
+    # ax.plot(sol.t, n2)
 
     plt.show()
