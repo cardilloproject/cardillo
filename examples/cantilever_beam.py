@@ -16,23 +16,28 @@ from cardillo.beams import (
 from cardillo.forces import K_Moment, K_Force, DistributedForce1DBeam
 from cardillo import System
 from cardillo.solver import Newton
+from cardillo.utility import Export
 
 import numpy as np
 import matplotlib.pyplot as plt
+from pathlib import Path
 
-# Beam = TimoshenkoAxisAngleSE3
-Beam = DirectorAxisAngle
+Beam = TimoshenkoAxisAngleSE3
+# Beam = DirectorAxisAngle
 # Beam = TimoshenkoDirectorDirac
 # Beam = TimoshenkoDirectorIntegral
+# Beam = TimoshenkoAxisAngle
 
 
 if __name__ == "__main__":
     # number of elements
-    nelements = 100
+    nelements = 5
 
     # used polynomial degree
+    # polynomial_degree = 1
+    # basis = "B-spline"
     polynomial_degree = 1
-    basis = "B-spline"
+    basis = "Lagrange"
 
     # beam parameters found in Section 5.1 Ibrahimbegovic1997
     L = np.pi
@@ -125,6 +130,27 @@ if __name__ == "__main__":
             q0,
             basis=basis,
         )
+    elif Beam == TimoshenkoAxisAngle:
+        q0 = TimoshenkoAxisAngle.straight_configuration(
+            polynomial_degree,
+            polynomial_degree,
+            nelements,
+            L,
+            r_OP=r_OP0,
+            A_IK=A_IK0,
+            basis=basis,
+        )
+        beam = TimoshenkoAxisAngle(
+            material_model,
+            A_rho0,
+            K_I_rho0,
+            polynomial_degree,
+            polynomial_degree,
+            polynomial_degree + 1,
+            nelements,
+            q0,
+            basis=basis,
+        )
     else:
         raise NotImplementedError
 
@@ -136,7 +162,8 @@ if __name__ == "__main__":
 
     # moment at right end
     Fi = material_model.Fi
-    M = lambda t: (e3 * 2 * np.pi * Fi[2] / L * t) * 0.25
+    # M = lambda t: (e3 * 2 * np.pi * Fi[2] / L * t) * 0.25
+    M = lambda t: (e1 * Fi[0] + e3 * Fi[2]) * 0.5 * t * 2 * np.pi / L
     moment = K_Moment(M, beam, (1,))
 
     # force at the rght end
@@ -152,10 +179,13 @@ if __name__ == "__main__":
     model.add(beam)
     model.add(frame1)
     model.add(joint1)
-    # model.add(moment)
+    model.add(moment)
     # model.add(force)
-    model.add(line_force)
+    # model.add(line_force)
     model.assemble()
+
+    # animate_beam([0], [model.q0], [beam], L)
+    # exit()
 
     n_load_steps = int(10)
 
@@ -169,6 +199,15 @@ if __name__ == "__main__":
     q = sol.q
     nt = len(q)
     t = sol.t[:nt]
+
+    ############
+    # VTK export
+    ############
+    path = Path(__file__)
+    e = Export(path.parent, path.stem, True, 30, sol)
+    e.export_contr(beam)
+
+    exit()
 
     # t = [0]
     # q = [model.q0]
@@ -188,34 +227,34 @@ if __name__ == "__main__":
     ax.grid()
     ax.legend()
 
-    ######################################################
-    # visualize strain measures of the final configuration
-    ######################################################
-    num = 100
-    xis = np.linspace(0, 1, num=num)
+    # ######################################################
+    # # visualize strain measures of the final configuration
+    # ######################################################
+    # num = 100
+    # xis = np.linspace(0, 1, num=num)
 
-    K_Gammas = np.zeros((num, 3))
-    K_Kappas = np.zeros((num, 3))
-    for i in range(num):
-        K_Gammas[i], K_Kappas[i] = beam.strains(xis[i], sol.q[-1])
+    # K_Gammas = np.zeros((num, 3))
+    # K_Kappas = np.zeros((num, 3))
+    # for i in range(num):
+    #     K_Gammas[i], K_Kappas[i] = beam.strains(xis[i], sol.q[-1])
 
-    fig, ax = plt.subplots(2, 1)
+    # fig, ax = plt.subplots(2, 1)
 
-    ax[0].plot(xis, K_Gammas[:, 0] - 1, "-r", label="K_Gamma0 - 1")
-    ax[0].plot(xis, K_Gammas[:, 1], "--g", label="K_Gamma1")
-    ax[0].plot(xis, K_Gammas[:, 2], "-.b", label="K_Gamma2")
-    ax[0].set_xlabel("xi")
-    ax[0].set_ylabel("K_Gamma")
-    ax[0].grid()
-    ax[0].legend()
+    # ax[0].plot(xis, K_Gammas[:, 0] - 1, "-r", label="K_Gamma0 - 1")
+    # ax[0].plot(xis, K_Gammas[:, 1], "--g", label="K_Gamma1")
+    # ax[0].plot(xis, K_Gammas[:, 2], "-.b", label="K_Gamma2")
+    # ax[0].set_xlabel("xi")
+    # ax[0].set_ylabel("K_Gamma")
+    # ax[0].grid()
+    # ax[0].legend()
 
-    ax[1].plot(xis, K_Kappas[:, 0], "-r", label="K_Kappa0")
-    ax[1].plot(xis, K_Kappas[:, 1], "--g", label="K_Kappa1")
-    ax[1].plot(xis, K_Kappas[:, 2], "-.b", label="K_Kappa2")
-    ax[1].set_xlabel("xi")
-    ax[1].set_ylabel("K_Kappa")
-    ax[1].grid()
-    ax[1].legend()
+    # ax[1].plot(xis, K_Kappas[:, 0], "-r", label="K_Kappa0")
+    # ax[1].plot(xis, K_Kappas[:, 1], "--g", label="K_Kappa1")
+    # ax[1].plot(xis, K_Kappas[:, 2], "-.b", label="K_Kappa2")
+    # ax[1].set_xlabel("xi")
+    # ax[1].set_ylabel("K_Kappa")
+    # ax[1].grid()
+    # ax[1].legend()
 
     ###########
     # animation

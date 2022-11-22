@@ -286,7 +286,13 @@ class Mesh3D:
                             .reshape(srf.nqp, self.nn_el, 3, 3)
                         )
 
-            return Nb, Nb_xi, Nb_xixi
+            if self.derivative_order > 0:
+                if self.derivative_order > 1:
+                    return Nb, Nb_xi, Nb_xixi
+                else:
+                    return Nb, Nb_xi, None
+            else:
+                return Nb, None, None
 
         Nb0, Nb0_xi, Nb0_xixi = select_surface(self, 0)
         Nb1, Nb1_xi, Nb1_xixi = select_surface(self, 1)

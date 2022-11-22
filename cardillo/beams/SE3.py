@@ -459,6 +459,343 @@ def T_SE3(h: np.ndarray) -> np.ndarray:
     return T
 
 
+# TODO:
+# - move this to _base.py
+# - add function or class that defines the surface
+from abc import ABC, abstractmethod
+from cardillo.discretization.bezier import L2_projection_Bezier_curve
+
+
+class RodExportBase(ABC):
+    def __init__(self):
+        self.radius = 0.25
+        self.num_xi = 100
+        self.num_eta = 3
+        self.num_zeta = 25
+
+        self.xis = np.linspace(0, 1, num=self.num_xi)
+        self.etas = np.linspace(0, 1, num=self.num_eta)
+        self.zetas = np.linspace(0, 1, num=self.num_zeta)
+
+        def circular_cross_section(eta, zeta):
+            return self.radius * np.array(
+                [
+                    0.0,
+                    eta * np.sin(2 * np.pi * zeta),
+                    eta * np.cos(2 * np.pi * zeta),
+                ]
+            )
+
+        self.cross_section = circular_cross_section
+
+    @abstractmethod
+    def r_OP(self, t, q, frame_ID, K_r_SP):
+        ...
+
+    @abstractmethod
+    def A_IK(self, t, q, frame_ID):
+        ...
+
+    def export(self, sol_i, level=3, **kwargs):
+        t = sol_i.t
+        q = sol_i.q
+        q_body = q[self.qDOF]
+
+        if level == 0:
+            # #####################################
+            # simple export of points and directors
+            # #####################################
+
+            # points = self.centerline(q, n=self.num_xi).T
+            r_OPs, d1s, d2s, d3s = self.frames(q, n=self.num_xi)
+
+            vtk_points = r_OPs.T
+
+            cells = [("line", [[i, i + 1] for i in range(self.num_xi - 1)])]
+
+            cell_data = {}
+
+            point_data = {
+                "e_x0_K": d1s.T,
+                "e_y0_K": d2s.T,
+                "e_z0_K": d3s.T,
+            }
+
+        elif level == 1:
+
+            vtk_points = []
+            d1s = []
+            d2s = []
+            d3s = []
+            for xis in self.xis:
+                el = self.element_number(xis)
+                elDOF = self.elDOF[el]
+                r_OP = self.r_OP(t, q_body[elDOF], frame_ID=(xis,))
+                A_IK = self.A_IK(t, q_body[elDOF], frame_ID=(xis,))
+
+                for etas in self.etas:
+                    for zetas in self.zetas:
+                        vtk_points.append(r_OP + A_IK @ self.cross_section(etas, zetas))
+
+            n = len(vtk_points)
+            cells = [("vertex", [[i] for i in range(n)])]
+            point_data = {}
+            cell_data = {}
+
+        elif level == 2:
+            ###############################
+            # project on cubic Bezier curve
+            ###############################
+            n_segments = self.nelement
+
+            target_points_c = self.centerline(q, n=self.num_xi).T
+
+            (
+                unique_points,
+                vtk_points_weights,
+                points_segments,
+            ) = L2_projection_Bezier_curve(target_points_c, n_segments, case="C1")
+
+            vtk_points = []
+            for i in range(n_segments):
+                # VTK ordering, see https://coreform.com/papers/implementation-of-rational-bezier-cells-into-VTK-report.pdf:
+                # 1. vertices (corners)
+                # 2. edges
+                vtk_points.append(points_segments[i, 0])
+                vtk_points.append(points_segments[i, -1])
+                vtk_points.append(points_segments[i, 1])
+                vtk_points.append(points_segments[i, 2])
+
+            cells = [
+                ("VTK_BEZIER_CURVE", np.arange(i * 4, (i + 1) * 4)[None])
+                for i in range(n_segments)
+            ]
+
+            higher_order_degrees = [(np.array([3, 0, 0]),) for _ in range(n_segments)]
+
+            point_data = {}
+            cell_data = {"HigherOrderDegrees": higher_order_degrees}
+
+        elif level == 3:
+            ################################
+            # project on cubic Bezier volume
+            ################################
+            n_segments = 2
+
+            r_OPs, d1s, d2s, d3s = self.frames(q, n=self.num_xi)
+
+            target_points_r = r_OPs.T
+            target_points_d2 = np.array(
+                [
+                    r_OP + d2 * self.radius
+                    for i, (r_OP, d2) in enumerate(zip(r_OPs.T, d2s.T))
+                ]
+            )
+            target_points_d3 = np.array(
+                [
+                    r_OP + d3 * self.radius
+                    for i, (r_OP, d3) in enumerate(zip(r_OPs.T, d3s.T))
+                ]
+            )
+
+            _, _, points_segments_r = L2_projection_Bezier_curve(
+                target_points_r, n_segments, case="C1"
+            )
+            _, _, points_segments_d2 = L2_projection_Bezier_curve(
+                target_points_d2, n_segments, case="C1"
+            )
+            _, _, points_segments_d3 = L2_projection_Bezier_curve(
+                target_points_d3, n_segments, case="C1"
+            )
+
+            # VTK ordering, see https://coreform.com/papers/implementation-of-rational-bezier-cells-into-VTK-report.pdf:
+            from cardillo.discretization.b_spline import flat3D_vtk
+
+            def compute_missing_points(segment, layer):
+                P2 = points_segments_d3[segment, layer]
+                P1 = points_segments_d2[segment, layer]
+                P8 = points_segments_r[segment, layer]
+                P0 = 2 * P8 - P2
+                P3 = 2 * P8 - P1
+                P4 = (P0 + P1) - P8
+                P5 = (P1 + P2) - P8
+                P6 = (P2 + P3) - P8
+                P7 = (P3 + P0) - P8
+
+                s22 = np.sqrt(2) / 2
+                P0 = np.array([*P0, 1])
+                P1 = np.array([*P1, 1])
+                P2 = np.array([*P2, 1])
+                P3 = np.array([*P3, 1])
+                P4 = np.array([*P4, s22])
+                P5 = np.array([*P5, s22])
+                P6 = np.array([*P6, s22])
+                P7 = np.array([*P7, s22])
+                P8 = np.array([*P8, 1])
+
+                return P0, P1, P2, P3, P4, P5, P6, P7, P8
+
+            p_zeta = 3
+            vtk_points_weights = []
+            for i in range(n_segments):
+
+                #######################
+                # 1. vertices (corners)
+                #######################
+
+                # bottom
+                P0, P1, P2, P3, _, _, _, _, _ = compute_missing_points(i, 0)
+                vtk_points_weights.append(P0)
+                vtk_points_weights.append(P1)
+                vtk_points_weights.append(P2)
+                vtk_points_weights.append(P3)
+
+                # top
+                P4, P5, P6, P7, _, _, _, _, _ = compute_missing_points(i, -1)
+                vtk_points_weights.append(P4)
+                vtk_points_weights.append(P5)
+                vtk_points_weights.append(P6)
+                vtk_points_weights.append(P7)
+
+                ##########
+                # 2. edges
+                ##########
+
+                # bottom
+                _, _, _, _, P8, P9, P10, P11, _ = compute_missing_points(i, 0)
+                vtk_points_weights.append(P8)
+                vtk_points_weights.append(P9)
+                vtk_points_weights.append(P10)
+                vtk_points_weights.append(P11)
+
+                # top
+                _, _, _, _, P12, P13, P14, P15, _ = compute_missing_points(i, -1)
+                vtk_points_weights.append(P12)
+                vtk_points_weights.append(P13)
+                vtk_points_weights.append(P14)
+                vtk_points_weights.append(P15)
+
+                # first and second
+                P16, P18, P22, P20, _, _, _, _, _ = compute_missing_points(i, 1)
+                P17, P19, P23, P21, _, _, _, _, _ = compute_missing_points(i, 2)
+                vtk_points_weights.append(P16)
+                vtk_points_weights.append(P17)
+                vtk_points_weights.append(P18)
+                vtk_points_weights.append(P19)
+                vtk_points_weights.append(P20)
+                vtk_points_weights.append(P21)
+                vtk_points_weights.append(P22)
+                vtk_points_weights.append(P23)
+
+                ##########
+                # 3. faces
+                ##########
+
+                # first and second
+                _, _, _, _, P28, P26, P30, P24, _ = compute_missing_points(i, 1)
+                _, _, _, _, P29, P27, P31, P25, _ = compute_missing_points(i, 2)
+                vtk_points_weights.append(P24)
+                vtk_points_weights.append(P25)
+                vtk_points_weights.append(P26)
+                vtk_points_weights.append(P27)
+                vtk_points_weights.append(P28)
+                vtk_points_weights.append(P29)
+                vtk_points_weights.append(P30)
+                vtk_points_weights.append(P31)
+
+                # bottom and top
+                _, _, _, _, _, _, _, _, P32 = compute_missing_points(i, 0)
+                _, _, _, _, _, _, _, _, P33 = compute_missing_points(i, -1)
+                vtk_points_weights.append(P32)
+                vtk_points_weights.append(P33)
+
+                # first and second
+                _, _, _, _, _, _, _, _, P34 = compute_missing_points(i, 1)
+                _, _, _, _, _, _, _, _, P35 = compute_missing_points(i, 2)
+                vtk_points_weights.append(P34)
+                vtk_points_weights.append(P35)
+
+                # # 1. vertices (corners)
+                # vtk_vertices = []
+                # for j in range(p_zeta + 1):
+                #     # compute missing points
+                #     P2 = points_segments_d3[i, j]
+                #     P1 = points_segments_d2[i, j]
+                #     P8 = points_segments_r[i, j]
+
+                #     P0 = 2 * P8 - P2
+                #     P3 = 2 * P8 - P1
+
+                #     vtk_vertices.append(P0)
+                #     vtk_vertices.append(P1)
+                #     vtk_vertices.append(P2)
+                #     vtk_vertices.append(P3)
+
+                # # 2. edges
+                # vtk_edges = []
+                # for j in range(p_zeta + 1):
+                #     # compute missing points
+                #     P2 = points_segments_d3[i, j]
+                #     P1 = points_segments_d2[i, j]
+                #     P8 = points_segments_r[i, j]
+
+                #     P0 = 2 * P8 - P2
+                #     P3 = 2 * P8 - P1
+                #     P4 = (P0 + P1) - P8
+                #     P5 = (P1 + P2) - P8
+                #     P6 = (P2 + P3) - P8
+                #     P7 = (P3 + P0) - P8
+
+                #     vtk_edges.append(P4)
+                #     vtk_edges.append(P5)
+                #     vtk_edges.append(P6)
+                #     vtk_edges.append(P7)
+
+                # # 3. faces
+                # vtk_faces = []
+                # for j in [0, -1]:
+                #     P8 = points_segments_r[i, j]
+                #     vtk_faces.append(P8)
+
+                # # 4. volumes
+                # vtk_volumes = []
+                # for j in [1, 2]:
+                #     P8 = points_segments_r[i, j]
+                #     vtk_volumes.append(P8)
+
+                # vtk_points.extend(vtk_vertices)
+                # vtk_points.extend(vtk_edges)
+                # vtk_points.extend(vtk_faces)
+                # vtk_points.extend(vtk_volumes)
+
+            # cells = [("vertex", [[i] for i in range(len(vtk_points))])]
+            # point_data = {}
+            # cell_data = {}
+
+            vtk_points_weights = np.array(vtk_points_weights)
+            vtk_points = vtk_points_weights[:, :3]
+
+            n_cell = (p_zeta + 1) * 9
+            cells = [
+                # ("VTK_BEZIER_HEXAHEDRON", np.arange(i * 18, (i + 1) * 18)[None]) for i in range(n_segments)
+                # ("VTK_BEZIER_HEXAHEDRON", np.arange(i * 27, (i + 1) * 27)[None]) for i in range(n_segments)
+                ("VTK_BEZIER_HEXAHEDRON", np.arange(i * n_cell, (i + 1) * n_cell)[None])
+                for i in range(n_segments)
+            ]
+
+            higher_order_degrees = [
+                (np.array([2, 2, p_zeta]),) for _ in range(n_segments)
+            ]
+
+            point_data = {"RationalWeights": vtk_points_weights[:, 3]}
+            cell_data = {"HigherOrderDegrees": higher_order_degrees}
+
+        else:
+            raise NotImplementedError
+
+        return vtk_points, cells, point_data, cell_data
+
+
 class TimoshenkoAxisAngleSE3_K_delta_r_P:
     # class TimoshenkoAxisAngleSE3:
     def __init__(
@@ -1894,7 +2231,7 @@ class TimoshenkoAxisAngleSE3_K_delta_r_P:
         ax.quiver(*r, *d3, color="blue", length=length)
 
 
-class TimoshenkoAxisAngleSE3_I_delta_r_P:
+class TimoshenkoAxisAngleSE3_I_delta_r_P(RodExportBase):
     def __init__(
         self,
         polynomial_degree,
@@ -1907,6 +2244,8 @@ class TimoshenkoAxisAngleSE3_I_delta_r_P:
         q0=None,
         u0=None,
     ):
+        super().__init__()
+
         # beam properties
         self.materialModel = material_model  # material model
         self.A_rho0 = A_rho0  # line density

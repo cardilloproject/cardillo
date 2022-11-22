@@ -3645,13 +3645,13 @@ class TimoshenkoAxisAngle:
                 r0[3:, i] = t0
 
         # reshape generalized coordinates to nodal ordering
-        q_r = r0.reshape(-1, order="F")
+        q_r = r0.reshape(-1, order="C")
 
         # TODO: Relative interpolation case!
         # we have to extract the rotation vector from the given rotation matrix
         # and set its value for each node
         psi = rodriguez_inv(A_IK)
-        q_psi = np.tile(psi, nn_psi)
+        q_psi = np.repeat(psi, nn_psi)
 
         return np.concatenate([q_r, q_psi])
 
