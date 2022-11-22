@@ -580,7 +580,7 @@ class RodExportBase(ABC):
             ################################
             # project on cubic Bezier volume
             ################################
-            n_segments = 2
+            n_segments = 3
 
             r_OPs, d1s, d2s, d3s = self.frames(q, n=self.num_xi)
 
@@ -635,7 +635,6 @@ class RodExportBase(ABC):
 
                 return P0, P1, P2, P3, P4, P5, P6, P7, P8
 
-            p_zeta = 3
             vtk_points_weights = []
             for i in range(n_segments):
 
@@ -775,6 +774,7 @@ class RodExportBase(ABC):
             vtk_points_weights = np.array(vtk_points_weights)
             vtk_points = vtk_points_weights[:, :3]
 
+            p_zeta = 3
             n_cell = (p_zeta + 1) * 9
             cells = [
                 # ("VTK_BEZIER_HEXAHEDRON", np.arange(i * 18, (i + 1) * 18)[None]) for i in range(n_segments)
@@ -788,7 +788,10 @@ class RodExportBase(ABC):
             ]
 
             point_data = {"RationalWeights": vtk_points_weights[:, 3]}
-            cell_data = {"HigherOrderDegrees": higher_order_degrees}
+            cell_data = {
+                "HigherOrderDegrees": higher_order_degrees,
+                # "Test": [(1,) for _ in range(n_segments)],
+            }
 
         else:
             raise NotImplementedError
