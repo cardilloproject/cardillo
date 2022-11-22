@@ -12,11 +12,16 @@ from cardillo.constraints import (
     RevoluteJoint,
 )
 from cardillo.discrete import RigidBodyQuaternion
-from cardillo.forces import Force
-from cardillo.solver import EulerBackward
+from cardillo.forces import (
+    Force,
+    PDRotationalJoint,
+    LinearDamper,
+    LinearSpring,
+)
+from cardillo.solver import EulerBackward, RadauIIa
 
 
-def run(use_spherical_joint, Solver, **solver_args):
+def run(joint, Solver, k=None, d=None, **solver_args):
     m = 1
     r = 0.1
     l = 2
@@ -25,6 +30,8 @@ def run(use_spherical_joint, Solver, **solver_args):
     A = 1 / 4 * m * r**2 + 1 / 12 * m * l**2
     C = 1 / 2 * m * r**2
     K_theta_S = np.diag(np.array([A, C, A]))
+
+    use_spherical_joint = use_revolute_joint = use_pdrotational_joint = False
 
     ############################################################################
     #                   Rigid Body 1
@@ -45,15 +52,31 @@ def run(use_spherical_joint, Solver, **solver_args):
     q01 = np.concatenate([r_OS10, p01])
     RB1 = RigidBodyQuaternion(m, K_theta_S, q01, u01)
 
+    if joint == "SphericalJoint":
+        use_spherical_joint = True
+    elif joint == "RevoluteJoint":
+        use_revolute_joint = True
+    elif joint == "PDRotationalJoint":
+        use_pdrotational_joint = True
+        assert (k and d) is not None
+    else:
+        raise RuntimeError(
+            'Invalid Argument.\nPossible Arguments are "SphericalJoint", "RevoluteJoint", "PDRotationalJoint".'
+        )
+
     if use_spherical_joint:
         joint1 = SphericalJoint(origin, RB1, r_OB1)
-    else:
+    elif use_revolute_joint:
         joint1 = RevoluteJoint(origin, RB1, r_OB1, A_IB1)
+    elif use_pdrotational_joint:
+        joint1 = PDRotationalJoint(
+            RevoluteJoint, Spring=LinearSpring, Damper=LinearDamper
+        )(origin, RB1, r_OB1, A_IB1, k=k, d=d, g_ref=-alpha0)
 
     ############################################################################
     #                   Rigid Body 2
     ############################################################################
-    beta0 = 0
+    beta0 = -pi/4
     beta_dot0 = 0
 
     r_OB2 = -l * A_IK10[:, 1]
@@ -72,8 +95,12 @@ def run(use_spherical_joint, Solver, **solver_args):
 
     if use_spherical_joint:
         joint2 = SphericalJoint(RB1, RB2, r_OB2)
-    else:
+    elif use_revolute_joint:
         joint2 = RevoluteJoint(RB1, RB2, r_OB2, A_IB2)
+    elif use_pdrotational_joint:
+        joint2 = PDRotationalJoint(
+            RevoluteJoint, Spring=LinearSpring, Damper=LinearDamper
+        )(RB1, RB2, r_OB2, A_IB2, k=k, d=d, g_ref=-beta0)
 
     ############################################################################
     #                   model
@@ -94,7 +121,7 @@ def run(use_spherical_joint, Solver, **solver_args):
     ############################################################################
     t0 = 0
     t1 = 3
-    dt = 5e-2
+    dt = 1e-2
     # dt = 5e-3
     sol = Solver(model, t1, dt, **solver_args).solve()
     t = sol.t
@@ -113,6 +140,7 @@ def run(use_spherical_joint, Solver, **solver_args):
     ax.set_xlim3d(left=-scale, right=scale)
     ax.set_ylim3d(bottom=-scale, top=scale)
     ax.set_zlim3d(bottom=-scale, top=scale)
+    ax.view_init(vertical_axis="y")
 
     def init(t, q):
         x_0, y_0, z_0 = origin.r_OP(t)
@@ -223,7 +251,7 @@ def run(use_spherical_joint, Solver, **solver_args):
     )
 
     # compute reference solution
-    def eqm(t, x):
+    def _eqm(t, x):
         thetaA = A + 5 * m * (l**2) / 4
         thetaB = A + m * (l**2) / 4
 
@@ -247,6 +275,37 @@ def run(use_spherical_joint, Solver, **solver_args):
         dx[:2] = x[2:]
         dx[2:] = np.linalg.inv(M) @ h
         return dx
+    
+    def _eqm_pd_rotational(t, x):
+        thetaA = A + 5 * m * (l**2) / 4
+        thetaB = A + m * (l**2) / 4
+
+        M = np.array(
+            [
+                [thetaA, 0.5 * m * l * l * np.cos(x[0] - x[1])],
+                [0.5 * m * l * l * np.cos(x[0] - x[1]), thetaB],
+            ]
+        )
+
+        h = np.array(
+            [
+                -0.5 * m * l * l * (x[3] ** 2) * np.sin(x[0] - x[1])
+                - 1.5 * m * l * g * np.sin(x[0]) - k * (2 * x[0] - x[1]) - d * (2 * x[2] - x[3]),
+                0.5 * m * l * l * (x[2] ** 2) * np.sin(x[0] - x[1])
+                - 0.5 * m * l * g * np.sin(x[1]) - k * (x[1] - x[0]) - d * (x[3] - x[2]),
+            ]
+        )
+
+        dx = np.zeros(4)
+        dx[:2] = x[2:]
+        dx[2:] = np.linalg.inv(M) @ h
+        return dx
+    
+    
+    if use_pdrotational_joint:
+        eqm = _eqm_pd_rotational
+    else:
+        eqm = _eqm
 
     x0 = np.array([alpha0, alpha0 + beta0, alpha_dot0, alpha_dot0 + beta_dot0])
     ref = solve_ivp(eqm, [t0, t1], x0, method="RK45", rtol=1e-8, atol=1e-12)
@@ -278,15 +337,26 @@ if __name__ == "__main__":
     #######################
     # spherical joint tests
     #######################
-    # run(True, EulerBackward, method="index 1")
-    # run(True, EulerBackward, method="index 2")
-    # run(True, EulerBackward, method="index 3")
-    run(True, EulerBackward, method="index 2 GGL")
+    # run("SphericalJoint", EulerBackward, method="index 1")
+    # run("SphericalJoint", EulerBackward, method="index 2")
+    # run("SphericalJoint", EulerBackward, method="index 3")
+    # run("SphericalJoint", EulerBackward, method="index 2 GGL")
 
     ######################
     # revolute joint tests
     ######################
-    # run(False, EulerBackward, method="index 1")
-    # run(False, EulerBackward, method="index 2")
-    # run(False, EulerBackward, method="index 3")
-    # run(False, EulerBackward, method="index 2 GGL")
+    # run("RevoluteJoint", EulerBackward, method="index 1")
+    # run("RevoluteJoint", EulerBackward, method="index 2")
+    # run("RevoluteJoint", EulerBackward, method="index 3")
+    # run("RevoluteJoint", EulerBackward, method="index 2 GGL")
+    
+    ###########################
+    # PD rotational joint tests
+    ###########################
+    k = 1e2
+    d = 1e1
+    # run("PDRotationalJoint", EulerBackward, method="index 1", k=k, d=d)
+    # run("PDRotationalJoint", EulerBackward, method="index 2", k=k, d=d)
+    # run("PDRotationalJoint", EulerBackward, method="index 3", k=k, d=d)
+    # run("PDRotationalJoint", EulerBackward, method="index 2 GGL", k=k, d=d)
+    run("PDRotationalJoint", RadauIIa, k=k, d=d)

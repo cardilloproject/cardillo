@@ -87,7 +87,7 @@ if __name__ == "__main__":
         joint = RevoluteJoint(frame, RB1, r_OP(0), np.eye(3))
     else:
         joint = PDRotationalJoint(RevoluteJoint, LinearSpring, LinearDamper)(
-            frame, 
+            frame,
             RB1,
             r_OP(0),
             np.eye(3),
@@ -136,7 +136,7 @@ if __name__ == "__main__":
     ax.set_xlim3d(left=-scale, right=scale)
     ax.set_ylim3d(bottom=-scale, top=scale)
     ax.set_zlim3d(bottom=-scale, top=scale)
-    ax.view_init(vertical_axis='y')
+    ax.view_init(vertical_axis="y")
 
     def init(t, q):
         x_0, y_0, z_0 = r_OP(t)
@@ -154,8 +154,10 @@ if __name__ == "__main__":
         d12 = A_IK2[:, 0]
         d22 = A_IK2[:, 1]
         d32 = A_IK2[:, 2]
-        
-        (rb,) = ax.plot( [x_0, x_RC, x_RB2], [y_0, y_RC, y_RB2], [z_0, z_RC, z_RB2], "-k")
+
+        (rb,) = ax.plot(
+            [x_0, x_RC, x_RB2], [y_0, y_RC, y_RB2], [z_0, z_RC, z_RB2], "-k"
+        )
         (COM,) = ax.plot([x_0, x_S1, x_S2], [y_0, y_S1, y_S2], [z_0, z_S1, z_S2], "ok")
         (d11_,) = ax.plot(
             [x_S1, x_S1 + d11[0]],
@@ -254,7 +256,6 @@ if __name__ == "__main__":
         fig, animate, frames=frames, interval=interval, blit=False
     )
 
-
     # reference solution
     def eqm_revolute_joint(t, x):
         dx = np.zeros(2)
@@ -265,7 +266,11 @@ if __name__ == "__main__":
     def eqm_pd_rotational_joint(t, x):
         dx = np.zeros(2)
         dx[0] = x[1]
-        dx[1] = (-d * x[1] - k * x[0] -0.5 * m * L * (e_tt(t) * np.cos(x[0]) + g * np.sin(x[0]))) / theta_O
+        dx[1] = (
+            -d * x[1]
+            - k * x[0]
+            - 0.5 * m * L * (e_tt(t) * np.cos(x[0]) + g * np.sin(x[0]))
+        ) / theta_O
         return dx
 
     eqm = eqm_revolute_joint if revolute_joint_used else eqm_pd_rotational_joint
