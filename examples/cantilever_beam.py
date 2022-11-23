@@ -163,7 +163,7 @@ if __name__ == "__main__":
     # moment at right end
     Fi = material_model.Fi
     # M = lambda t: (e3 * 2 * np.pi * Fi[2] / L * t) * 0.25
-    M = lambda t: (e1 * Fi[0] + e3 * Fi[2]) * 0.5 * t * 2 * np.pi / L
+    M = lambda t: (e1 * Fi[0] + e3 * Fi[2]) * 1.0 * t * 2 * np.pi / L
     moment = K_Moment(M, beam, (1,))
 
     # force at the rght end

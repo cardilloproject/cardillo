@@ -1049,13 +1049,13 @@ def L2_projection_Bezier_curve(target_points, n, case="C1"):
         interval = knot_vector[[j, j + 1]]
         basis.append(BernsteinBasis(3, interval))
 
-    from scipy.optimize import minimize  # , least_squares
+    from scipy.optimize import minimize, least_squares
 
     x0 = unique_initial_guess.reshape(-1)
 
     dim = unique_initial_guess.shape[1]
 
-    def fun(x):
+    def residual(x):
         unique_points = x.reshape(-1, dim)
         if case == "C-1":
             points = unique_points
@@ -1083,10 +1083,118 @@ def L2_projection_Bezier_curve(target_points, n, case="C1"):
                     ci = basis[j](xi) @ points_segments[j]
                     R[i] = pi - ci
 
+        return R.reshape(-1)
+
+    def fun(x):
+        R = residual(x).reshape(-1, dim)
         K = sum([Ri @ Ri for Ri in R])
         return K
 
-    sol = minimize(fun, x0, method="SLSQP")
+    def solve_L2(x0):
+        # compute unique points depending on required continuity
+        unique_points = x0.reshape(-1, dim)
+        if case == "C-1":
+            points = unique_points
+        elif case == "C0":
+            points = C0_continous_control_points(unique_points)
+        elif case == "C1":
+            points = C1_continous_control_points(unique_points)
+
+        # # reshape point such that every curve segment has four points
+        # points_segments = points.reshape(-1, 4, dim)
+
+        # number of unknowns
+        # N = len(x0)
+        N = points.size
+
+        # quadratic shape function matrix and rhs
+        from scipy.sparse import lil_matrix
+
+        A = lil_matrix((N, N), dtype=float)
+        # A = np.zeros((N, N), dtype=float)
+        b = np.zeros(N, dtype=float)
+
+        # TODO: We have to define an elDOF matrix
+        elDOF = np.zeros((n, 4 * dim), dtype=int)
+        elDOF_el = np.arange(4 * dim)
+        for el in range(n):
+            elDOF[el] = elDOF_el + el * 4 * dim
+
+        # nodalDOF = np.arange(N).reshape(n * 4, dim)
+        nodalDOF = elDOF_el.reshape(-1, dim)
+
+        for k, xi_k in enumerate(xis_target_points):
+            for i in range(n):
+                interval = knot_vector[[i, i + 1]]
+                if (interval[0] <= xi_k) and (xi_k <= interval[1]):
+                    elDOF_i = elDOF[i]
+                    pi = target_points[k]
+                    basis_k = basis[i](xi_k)
+
+                    p1 = len(basis_k)
+                    for p in range(p1):
+                        elDOF_p = elDOF_i[nodalDOF[p]]
+                        b[elDOF_p] += pi * basis_k[p]
+                        for q in range(p1):
+                            elDOF_q = elDOF_i[nodalDOF[q]]
+                            A[elDOF_p[:, None], elDOF_q] += (
+                                np.eye(dim, dtype=float) * basis_k[p] * basis_k[q]
+                            )
+
+        # compute rhs contributions of boundary terms and assemble constraint
+        # degrees of freedom
+        cDOF1 = np.arange(0, dim)
+        b -= points[0].T @ A[cDOF1]
+        cDOF2 = np.arange(-dim, 0)
+        b -= points[-1].T @ A[cDOF2]
+
+        if case == "C-1":
+            pass
+        else:
+            raise NotImplementedError
+
+        # remove boundary equations from the system
+        cDOF = cDOF1 + cDOF2
+        qDOF = np.arange(N)
+        fDOF = np.setdiff1d(qDOF, cDOF)
+
+        # solve least square problem with eliminated first and last node
+        from scipy.sparse.linalg import spsolve
+
+        unique_points = np.zeros(N, dtype=float)
+        unique_points[fDOF] = spsolve(A.tocsc()[fDOF[:, None], fDOF], b[fDOF])
+
+        # set first and last node to given values
+        unique_points[cDOF1] = points[0]
+        unique_points[cDOF2] = points[-1]
+
+        # from scipy.linalg import lstsq
+        # # unique_points = lstsq(A.toarray(), b)[0]
+        # unique_points[fDOF] = lstsq(A.toarray()[fDOF[:, None], fDOF], b[fDOF])
+
+        # # TODO: We have to skipp some DOF's since we want to enforce continuity.
+        # # This can be done by removing the respective rows and columns from the the system
+        # qDOF = np.arange(N)
+        # if case == "C-1":
+        #     cDOF = np.array([0, 1, 2, -3, -2, -1], dtype=int)
+        # else:
+        #     raise NotImplementedError
+
+        # fDOF = np.setdiff1d(qDOF, cDOF)
+
+        # unique_points = np.zeros(N, dtype=float)
+        # unique_points[:dim] = points[0]
+        # unique_points[-dim:] = points[-1]
+        # unique_points[fDOF] = x
+
+        from scipy.optimize import OptimizeResult
+
+        return OptimizeResult(x=unique_points, success=True)
+
+    sol = least_squares(residual, x0)
+    # sol = minimize(fun, x0, method="SLSQP")
+    # sol = solve_L2(x0)
+
     success = sol.success
     assert success
     x = sol.x
@@ -1105,9 +1213,9 @@ def L2_projection_Bezier_curve(target_points, n, case="C1"):
     return unique_points, points, points_segments
 
 
-# def fit_Bezier(case="C-1"):
-# def fit_Bezier(case="C0"):
-def fit_Bezier(case="C1"):
+def fit_Bezier(case="C-1"):
+    # def fit_Bezier(case="C0"):
+    # def fit_Bezier(case="C1"):
     num = 200
     xis = np.linspace(0, 1, num=num)
 
@@ -1136,16 +1244,11 @@ def fit_Bezier(case="C1"):
     target_points = curve(xis)
 
     # number of segments
-    n = 2
+    n = 5
 
-    unique_points = L2_projection_Bezier_curve(target_points, n, case)
-
-    if case == "C-1":
-        points = unique_points
-    elif case == "C0":
-        points = C0_continous_control_points(unique_points)
-    elif case == "C1":
-        points = C1_continous_control_points(unique_points)
+    unique_points, points, points_segments = L2_projection_Bezier_curve(
+        target_points, n, case
+    )
 
     c = eval_cubic(n, points, 500)
 

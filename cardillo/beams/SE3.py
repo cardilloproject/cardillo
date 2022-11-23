@@ -468,25 +468,31 @@ from cardillo.discretization.bezier import L2_projection_Bezier_curve
 
 class RodExportBase(ABC):
     def __init__(self):
-        self.radius = 0.25
+        self.radius = 0.125
+        self.a = 0.1
+        self.b = 0.2
+
+        # self.cross_section = "circle"
+        self.cross_section = "rectangle"
+
         self.num_xi = 100
-        self.num_eta = 3
-        self.num_zeta = 25
+        # self.num_eta = 3
+        # self.num_zeta = 25
 
-        self.xis = np.linspace(0, 1, num=self.num_xi)
-        self.etas = np.linspace(0, 1, num=self.num_eta)
-        self.zetas = np.linspace(0, 1, num=self.num_zeta)
+        # self.xis = np.linspace(0, 1, num=self.num_xi)
+        # self.etas = np.linspace(0, 1, num=self.num_eta)
+        # self.zetas = np.linspace(0, 1, num=self.num_zeta)
 
-        def circular_cross_section(eta, zeta):
-            return self.radius * np.array(
-                [
-                    0.0,
-                    eta * np.sin(2 * np.pi * zeta),
-                    eta * np.cos(2 * np.pi * zeta),
-                ]
-            )
+        # def circular_cross_section(eta, zeta):
+        #     return self.radius * np.array(
+        #         [
+        #             0.0,
+        #             eta * np.sin(2 * np.pi * zeta),
+        #             eta * np.cos(2 * np.pi * zeta),
+        #         ]
+        #     )
 
-        self.cross_section = circular_cross_section
+        # self.cross_section = circular_cross_section
 
     @abstractmethod
     def r_OP(self, t, q, frame_ID, K_r_SP):
@@ -580,214 +586,203 @@ class RodExportBase(ABC):
             ################################
             # project on cubic Bezier volume
             ################################
-            n_segments = 3
+            n_segments = self.nelement
 
             r_OPs, d1s, d2s, d3s = self.frames(q, n=self.num_xi)
-
             target_points_r = r_OPs.T
+
+            if self.cross_section == "circle":
+                a = b = self.radius
+            elif self.cross_section == "rectangle":
+                a = self.a
+                b = self.b
+            else:
+                raise NotImplementedError
+
             target_points_d2 = np.array(
-                [
-                    r_OP + d2 * self.radius
-                    for i, (r_OP, d2) in enumerate(zip(r_OPs.T, d2s.T))
-                ]
+                [r_OP + d2 * a for i, (r_OP, d2) in enumerate(zip(r_OPs.T, d2s.T))]
             )
             target_points_d3 = np.array(
-                [
-                    r_OP + d3 * self.radius
-                    for i, (r_OP, d3) in enumerate(zip(r_OPs.T, d3s.T))
-                ]
+                [r_OP + d3 * b for i, (r_OP, d3) in enumerate(zip(r_OPs.T, d3s.T))]
             )
 
+            # Compute L2-optimal cubic Bezier spline from the given three curves
+            # case = "C-1"
+            # case = "C0"
+            case = "C1"
             _, _, points_segments_r = L2_projection_Bezier_curve(
-                target_points_r, n_segments, case="C1"
+                target_points_r, n_segments, case=case
             )
             _, _, points_segments_d2 = L2_projection_Bezier_curve(
-                target_points_d2, n_segments, case="C1"
+                target_points_d2, n_segments, case=case
             )
             _, _, points_segments_d3 = L2_projection_Bezier_curve(
-                target_points_d3, n_segments, case="C1"
+                target_points_d3, n_segments, case=case
             )
 
-            # VTK ordering, see https://coreform.com/papers/implementation-of-rational-bezier-cells-into-VTK-report.pdf:
-            from cardillo.discretization.b_spline import flat3D_vtk
+            if self.cross_section == "circle":
 
-            def compute_missing_points(segment, layer):
-                P2 = points_segments_d3[segment, layer]
-                P1 = points_segments_d2[segment, layer]
-                P8 = points_segments_r[segment, layer]
-                P0 = 2 * P8 - P2
-                P3 = 2 * P8 - P1
-                P4 = (P0 + P1) - P8
-                P5 = (P1 + P2) - P8
-                P6 = (P2 + P3) - P8
-                P7 = (P3 + P0) - P8
+                def compute_missing_points(segment, layer):
+                    P2 = points_segments_d3[segment, layer]
+                    P1 = points_segments_d2[segment, layer]
+                    P8 = points_segments_r[segment, layer]
+                    P0 = 2 * P8 - P2
+                    P3 = 2 * P8 - P1
+                    P4 = (P0 + P1) - P8
+                    P5 = (P1 + P2) - P8
+                    P6 = (P2 + P3) - P8
+                    P7 = (P3 + P0) - P8
 
-                s22 = np.sqrt(2) / 2
-                P0 = np.array([*P0, 1])
-                P1 = np.array([*P1, 1])
-                P2 = np.array([*P2, 1])
-                P3 = np.array([*P3, 1])
-                P4 = np.array([*P4, s22])
-                P5 = np.array([*P5, s22])
-                P6 = np.array([*P6, s22])
-                P7 = np.array([*P7, s22])
-                P8 = np.array([*P8, 1])
+                    dim = len(P0)
+                    s22 = np.sqrt(2) / 2
+                    points_weights = np.zeros((9, dim + 1))
+                    points_weights[0] = np.array([*P0, 1])
+                    points_weights[1] = np.array([*P1, 1])
+                    points_weights[2] = np.array([*P2, 1])
+                    points_weights[3] = np.array([*P3, 1])
+                    points_weights[4] = np.array([*P4, s22])
+                    points_weights[5] = np.array([*P5, s22])
+                    points_weights[6] = np.array([*P6, s22])
+                    points_weights[7] = np.array([*P7, s22])
+                    points_weights[8] = np.array([*P8, 1])
 
-                return P0, P1, P2, P3, P4, P5, P6, P7, P8
+                    return points_weights
 
-            vtk_points_weights = []
-            for i in range(n_segments):
+                # create correct VTK ordering, see
+                # https://coreform.com/papers/implementation-of-rational-bezier-cells-into-VTK-report.pdf:
+                vtk_points_weights = []
+                for i in range(n_segments):
+                    # compute all missing points of the layer
+                    points_layer0 = compute_missing_points(i, 0)
+                    points_layer1 = compute_missing_points(i, 1)
+                    points_layer2 = compute_missing_points(i, 2)
+                    points_layer3 = compute_missing_points(i, 3)
 
-                #######################
-                # 1. vertices (corners)
-                #######################
+                    #######################
+                    # 1. vertices (corners)
+                    #######################
 
-                # bottom
-                P0, P1, P2, P3, _, _, _, _, _ = compute_missing_points(i, 0)
-                vtk_points_weights.append(P0)
-                vtk_points_weights.append(P1)
-                vtk_points_weights.append(P2)
-                vtk_points_weights.append(P3)
+                    # bottom
+                    for j in range(4):
+                        vtk_points_weights.append(points_layer0[j])
 
-                # top
-                P4, P5, P6, P7, _, _, _, _, _ = compute_missing_points(i, -1)
-                vtk_points_weights.append(P4)
-                vtk_points_weights.append(P5)
-                vtk_points_weights.append(P6)
-                vtk_points_weights.append(P7)
+                    # top
+                    for j in range(4):
+                        vtk_points_weights.append(points_layer3[j])
 
-                ##########
-                # 2. edges
-                ##########
+                    ##########
+                    # 2. edges
+                    ##########
 
-                # bottom
-                _, _, _, _, P8, P9, P10, P11, _ = compute_missing_points(i, 0)
-                vtk_points_weights.append(P8)
-                vtk_points_weights.append(P9)
-                vtk_points_weights.append(P10)
-                vtk_points_weights.append(P11)
+                    # bottom
+                    for j in range(4, 8):
+                        vtk_points_weights.append(points_layer0[j])
 
-                # top
-                _, _, _, _, P12, P13, P14, P15, _ = compute_missing_points(i, -1)
-                vtk_points_weights.append(P12)
-                vtk_points_weights.append(P13)
-                vtk_points_weights.append(P14)
-                vtk_points_weights.append(P15)
+                    # top
+                    for j in range(4, 8):
+                        vtk_points_weights.append(points_layer3[j])
 
-                # first and second
-                P16, P18, P22, P20, _, _, _, _, _ = compute_missing_points(i, 1)
-                P17, P19, P23, P21, _, _, _, _, _ = compute_missing_points(i, 2)
-                vtk_points_weights.append(P16)
-                vtk_points_weights.append(P17)
-                vtk_points_weights.append(P18)
-                vtk_points_weights.append(P19)
-                vtk_points_weights.append(P20)
-                vtk_points_weights.append(P21)
-                vtk_points_weights.append(P22)
-                vtk_points_weights.append(P23)
+                    # first and second
+                    for j in [0, 1, 3, 2]:
+                        vtk_points_weights.append(points_layer1[j])
+                        vtk_points_weights.append(points_layer2[j])
 
-                ##########
-                # 3. faces
-                ##########
+                    ##########
+                    # 3. faces
+                    ##########
 
-                # first and second
-                _, _, _, _, P28, P26, P30, P24, _ = compute_missing_points(i, 1)
-                _, _, _, _, P29, P27, P31, P25, _ = compute_missing_points(i, 2)
-                vtk_points_weights.append(P24)
-                vtk_points_weights.append(P25)
-                vtk_points_weights.append(P26)
-                vtk_points_weights.append(P27)
-                vtk_points_weights.append(P28)
-                vtk_points_weights.append(P29)
-                vtk_points_weights.append(P30)
-                vtk_points_weights.append(P31)
+                    # first and second
+                    for j in [7, 5, 4, 6]:
+                        vtk_points_weights.append(points_layer1[j])
+                        vtk_points_weights.append(points_layer2[j])
 
-                # bottom and top
-                _, _, _, _, _, _, _, _, P32 = compute_missing_points(i, 0)
-                _, _, _, _, _, _, _, _, P33 = compute_missing_points(i, -1)
-                vtk_points_weights.append(P32)
-                vtk_points_weights.append(P33)
+                    # bottom and top
+                    vtk_points_weights.append(points_layer0[0])
+                    vtk_points_weights.append(points_layer3[-1])
 
-                # first and second
-                _, _, _, _, _, _, _, _, P34 = compute_missing_points(i, 1)
-                _, _, _, _, _, _, _, _, P35 = compute_missing_points(i, 2)
-                vtk_points_weights.append(P34)
-                vtk_points_weights.append(P35)
+                    ############
+                    # 3. volumes
+                    ############
 
-                # # 1. vertices (corners)
-                # vtk_vertices = []
-                # for j in range(p_zeta + 1):
-                #     # compute missing points
-                #     P2 = points_segments_d3[i, j]
-                #     P1 = points_segments_d2[i, j]
-                #     P8 = points_segments_r[i, j]
+                    # first and second
+                    vtk_points_weights.append(points_layer1[0])
+                    vtk_points_weights.append(points_layer2[-1])
 
-                #     P0 = 2 * P8 - P2
-                #     P3 = 2 * P8 - P1
+            elif self.cross_section == "rectangle":
 
-                #     vtk_vertices.append(P0)
-                #     vtk_vertices.append(P1)
-                #     vtk_vertices.append(P2)
-                #     vtk_vertices.append(P3)
+                def compute_missing_points(segment, layer):
+                    Q0 = points_segments_r[segment, layer]
+                    Q1 = points_segments_d2[segment, layer]
+                    Q2 = points_segments_d3[segment, layer]
+                    P0 = Q0 - (Q2 - Q0) - (Q1 - Q0)
+                    P1 = Q0 - (Q2 - Q0) + (Q1 - Q0)
+                    P2 = Q0 + (Q2 - Q0) + (Q1 - Q0)
+                    P3 = Q0 + (Q2 - Q0) - (Q1 - Q0)
 
-                # # 2. edges
-                # vtk_edges = []
-                # for j in range(p_zeta + 1):
-                #     # compute missing points
-                #     P2 = points_segments_d3[i, j]
-                #     P1 = points_segments_d2[i, j]
-                #     P8 = points_segments_r[i, j]
+                    dim = len(P0)
+                    points_weights = np.zeros((4, dim + 1))
+                    points_weights[0] = np.array([*P0, 1])
+                    points_weights[1] = np.array([*P1, 1])
+                    points_weights[2] = np.array([*P2, 1])
+                    points_weights[3] = np.array([*P3, 1])
 
-                #     P0 = 2 * P8 - P2
-                #     P3 = 2 * P8 - P1
-                #     P4 = (P0 + P1) - P8
-                #     P5 = (P1 + P2) - P8
-                #     P6 = (P2 + P3) - P8
-                #     P7 = (P3 + P0) - P8
+                    return points_weights
 
-                #     vtk_edges.append(P4)
-                #     vtk_edges.append(P5)
-                #     vtk_edges.append(P6)
-                #     vtk_edges.append(P7)
+                # create correct VTK ordering, see
+                # https://coreform.com/papers/implementation-of-rational-bezier-cells-into-VTK-report.pdf:
+                vtk_points_weights = []
+                for i in range(n_segments):
+                    # compute all missing points of the layer
+                    points_layer0 = compute_missing_points(i, 0)
+                    points_layer1 = compute_missing_points(i, 1)
+                    points_layer2 = compute_missing_points(i, 2)
+                    points_layer3 = compute_missing_points(i, 3)
 
-                # # 3. faces
-                # vtk_faces = []
-                # for j in [0, -1]:
-                #     P8 = points_segments_r[i, j]
-                #     vtk_faces.append(P8)
+                    #######################
+                    # 1. vertices (corners)
+                    #######################
 
-                # # 4. volumes
-                # vtk_volumes = []
-                # for j in [1, 2]:
-                #     P8 = points_segments_r[i, j]
-                #     vtk_volumes.append(P8)
+                    # bottom
+                    for j in range(4):
+                        vtk_points_weights.append(points_layer0[j])
 
-                # vtk_points.extend(vtk_vertices)
-                # vtk_points.extend(vtk_edges)
-                # vtk_points.extend(vtk_faces)
-                # vtk_points.extend(vtk_volumes)
+                    # top
+                    for j in range(4):
+                        vtk_points_weights.append(points_layer3[j])
 
-            # cells = [("vertex", [[i] for i in range(len(vtk_points))])]
-            # point_data = {}
-            # cell_data = {}
+                    ##########
+                    # 2. edges
+                    ##########
+
+                    # first and second
+                    for j in [0, 1, 3, 2]:
+                        vtk_points_weights.append(points_layer1[j])
+                        vtk_points_weights.append(points_layer2[j])
 
             vtk_points_weights = np.array(vtk_points_weights)
             vtk_points = vtk_points_weights[:, :3]
 
             p_zeta = 3
-            n_cell = (p_zeta + 1) * 9
+            if self.cross_section == "circle":
+                n_cell = (p_zeta + 1) * 9
+
+                higher_order_degrees = [
+                    (np.array([2, 2, p_zeta]),) for _ in range(n_segments)
+                ]
+            else:
+                n_cell = (p_zeta + 1) * 4
+
+                higher_order_degrees = [
+                    (np.array([1, 1, p_zeta]),) for _ in range(n_segments)
+                ]
+
             cells = [
-                # ("VTK_BEZIER_HEXAHEDRON", np.arange(i * 18, (i + 1) * 18)[None]) for i in range(n_segments)
-                # ("VTK_BEZIER_HEXAHEDRON", np.arange(i * 27, (i + 1) * 27)[None]) for i in range(n_segments)
                 ("VTK_BEZIER_HEXAHEDRON", np.arange(i * n_cell, (i + 1) * n_cell)[None])
                 for i in range(n_segments)
             ]
 
-            higher_order_degrees = [
-                (np.array([2, 2, p_zeta]),) for _ in range(n_segments)
-            ]
-
             point_data = {"RationalWeights": vtk_points_weights[:, 3]}
+
             cell_data = {
                 "HigherOrderDegrees": higher_order_degrees,
                 # "Test": [(1,) for _ in range(n_segments)],

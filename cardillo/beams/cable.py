@@ -307,13 +307,14 @@ class Cable:
         E = 0
         for el in range(self.nEl):
             elDOF = self.elDOF[el]
-            E += self.E_pot_el(q[elDOF], el)
+            E += self.E_pot_el(t, q[elDOF], el)
         return E
 
-    def E_pot_el(self, qe, el):
+    def E_pot_el(self, t, qe, el):
         E = np.zeros(1, dtype=qe.dtype)[0]
         for i in range(self.nquadrature):
             # extract reference state variables
+            qpi = self.qp[el, i]
             qwi = self.qw[el, i]
             Ji = self.J[el, i]
             kappa0 = self.kappa0[el, i]
@@ -339,7 +340,9 @@ class Cable:
 
             # compute contact forces and couples from partial derivatives of
             # the strain energy function w.r.t. strain measures
-            E += self.material_model.potential(la, la0, kappa, kappa0) * Ji * qwi
+            E += (
+                self.material_model.potential(t, qpi, la, la0, kappa, kappa0) * Ji * qwi
+            )
 
         return E
 
@@ -355,7 +358,7 @@ class Cable:
 
         for i in range(self.nquadrature):
             # extract reference state variables
-            xi = self.qp[el, i]
+            qpi = self.qp[el, i]
             qwi = self.qw[el, i]
             Ji = self.J[el, i]
             kappa0 = self.kappa0[el, i]
@@ -384,8 +387,8 @@ class Cable:
 
             # compute contact forces and couples from partial derivatives of
             # the strain energy function w.r.t. strain measures
-            n = self.material_model.n(t, xi, la, la0, kappa, kappa0)
-            m = self.material_model.m(t, xi, la, la0, kappa, kappa0)
+            n = self.material_model.n(t, qpi, la, la0, kappa, kappa0)
+            m = self.material_model.m(t, qpi, la, la0, kappa, kappa0)
 
             # assemble internal forces
             for node in range(self.nnodes_element):
@@ -397,7 +400,7 @@ class Cable:
                 # cruvature part 1
                 f_pot_el[self.nodalDOF_element[node]] -= (
                     self.N_xi[el, i, node]
-                    * (cross3(r_xixi, m) / ji - 2.0 * r_xi * (kappa_bar @ m) / ji2)
+                    * (cross3(r_xixi, m) / ji2 - 2.0 * r_xi * (kappa_bar @ m) / ji2)
                     * qwi
                 )
 
@@ -409,7 +412,7 @@ class Cable:
         return f_pot_el
 
         # f_pot_el_num = -approx_fprime(
-        #     qe, lambda qe: self.E_pot_el(qe, el), method="3-point"
+        #     qe, lambda qe: self.E_pot_el(t, qe, el), method="3-point"
         # )
         # diff = f_pot_el - f_pot_el_num
         # error = np.linalg.norm(diff)
@@ -550,7 +553,7 @@ class Cable:
         # evaluate shape functions
         N, _, _ = self.basis_functions(frame_ID[0])
 
-        # interpolate tangent vector
+        # interpolate Jacobian
         J_P = np.zeros((3, self.nu_element), dtype=float)
         for node in range(self.nnodes_element):
             J_P[:, self.nodalDOF_element[node]] += N[node] * np.eye(3, dtype=float)
