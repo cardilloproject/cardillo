@@ -15,26 +15,29 @@ from cardillo.beams import (
 )
 from cardillo.forces import K_Moment, K_Force, DistributedForce1DBeam
 from cardillo import System
-from cardillo.solver import Newton
+from cardillo.solver import Newton, EulerBackward
 from cardillo.utility import Export
 
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-Beam = TimoshenkoAxisAngleSE3
-# Beam = DirectorAxisAngle
+# Beam = TimoshenkoAxisAngleSE3
+Beam = DirectorAxisAngle
 # Beam = TimoshenkoDirectorDirac
 # Beam = TimoshenkoDirectorIntegral
 # Beam = TimoshenkoAxisAngle
 
+statics = True
+statics = False
+
 
 if __name__ == "__main__":
     # number of elements
-    nelements = 5
+    nelements = 20
 
     # used polynomial degree
-    # polynomial_degree = 1
+    # polynomial_degree = 3
     # basis = "B-spline"
     polynomial_degree = 1
     basis = "Lagrange"
@@ -171,30 +174,37 @@ if __name__ == "__main__":
     force = K_Force(f, beam, (1,))
 
     # line distributed body force
-    l = lambda t, xi: t * e3 * 2e1
+    l = lambda t, xi: e3 * 1e0
     line_force = DistributedForce1DBeam(l, beam)
 
-    # assemble the model
-    model = System()
-    model.add(beam)
-    model.add(frame1)
-    model.add(joint1)
-    model.add(moment)
-    # model.add(force)
-    # model.add(line_force)
-    model.assemble()
+    # assemble the system
+    system = System()
+    system.add(beam)
+    system.add(frame1)
+    system.add(joint1)
+    if statics:
+        system.add(moment)
+        # system.add(force)
+    else:
+        system.add(line_force)
+    system.assemble()
 
-    # animate_beam([0], [model.q0], [beam], L)
+    # animate_beam([0], [system.q0], [beam], L)
     # exit()
 
-    n_load_steps = int(10)
+    if statics:
+        n_load_steps = int(10)
+        solver = Newton(
+            system,
+            n_load_steps=n_load_steps,
+            max_iter=30,
+            atol=1.0e-8,
+        )
+    else:
+        t1 = 5
+        dt = 1.0e-1
+        solver = EulerBackward(system, t1, dt)
 
-    solver = Newton(
-        model,
-        n_load_steps=n_load_steps,
-        max_iter=30,
-        atol=1.0e-8,
-    )
     sol = solver.solve()
     q = sol.q
     nt = len(q)
@@ -208,7 +218,7 @@ if __name__ == "__main__":
     # e.export_contr(beam, level="r")
     e.export_contr(beam, level="centerline + directors", num=20)
     # e.export_contr(beam, level=2)
-    e.export_contr(beam, level="volume")
+    e.export_contr(beam, level="volume", n_segments=5, num=50)
 
     exit()
 

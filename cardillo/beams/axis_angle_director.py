@@ -13,198 +13,17 @@ from cardillo.math import (
     ax2skew,
     approx_fprime,
     tangent_map_s,
-    trace3,
-    LeviCivita3,
     e1,
+    Exp_SO3,
+    Log_SO3,
+    Exp_SO3_psi,
+    T_SO3_inv,
 )
-
-# for smaller angles we use first order approximations of the equations since
-# most of the SO(3) and SE(3) equations get singular for psi -> 0.
-angle_singular = 1.0e-6
+from cardillo.beams._base import TimoshenkoPetrovGalerkinBase
 
 
-def Exp_SO3(psi: np.ndarray) -> np.ndarray:
-    angle = norm(psi)
-    if angle > angle_singular:
-        # Park2005 (12)
-        sa = np.sin(angle)
-        ca = np.cos(angle)
-        alpha = sa / angle
-        beta2 = (1.0 - ca) / (angle * angle)
-        psi_tilde = ax2skew(psi)
-        return (
-            np.eye(3, dtype=float) + alpha * psi_tilde + beta2 * psi_tilde @ psi_tilde
-        )
-    else:
-        # first order approximation
-        return np.eye(3, dtype=float) + ax2skew(psi)
-
-
-def Exp_SO3_psi(psi: np.ndarray) -> np.ndarray:
-    """Derivative of the axis-angle rotation found in Crisfield1999 above (4.1). 
-    Derivations and final results are given in Gallego2015 (9).
-
-    References
-    ----------
-    Crisfield1999: https://doi.org/10.1098/rspa.1999.0352 \\
-    Gallego2015: https://doi.org/10.1007/s10851-014-0528-x
-    """
-    angle = norm(psi)
-
-    # # Gallego2015 (9)
-    # A_psi = np.zeros((3, 3, 3), dtype=float)
-    # if isclose(angle, 0.0):
-    #     # Derivative at the identity, see Gallego2015 Section 3.3
-    #     for i in range(3):
-    #         A_psi[:, :, i] = ax2skew(ei(i))
-    # else:
-    #     A = Exp_SO3(psi)
-    #     eye_A = np.eye(3) - A
-    #     psi_tilde = ax2skew(psi)
-    #     angle2 = angle * angle
-    #     for i in range(3):
-    #         A_psi[:, :, i] = (
-    #             (psi[i] * psi_tilde + ax2skew(cross3(psi, eye_A[:, i]))) @ A / angle2
-    #         )
-
-    A_psi = np.zeros((3, 3, 3), dtype=float)
-    if angle > angle_singular:
-        angle2 = angle * angle
-        sa = np.sin(angle)
-        ca = np.cos(angle)
-        alpha = sa / angle
-        alpha_psik = (ca - alpha) / angle2
-        beta = 2.0 * (1.0 - ca) / angle2
-        beta2_psik = (alpha - beta) / angle2
-
-        psi_tilde = ax2skew(psi)
-        psi_tilde2 = psi_tilde @ psi_tilde
-
-        ############################
-        # alpha * psi_tilde (part I)
-        ############################
-        A_psi[0, 2, 1] = A_psi[1, 0, 2] = A_psi[2, 1, 0] = alpha
-        A_psi[0, 1, 2] = A_psi[1, 2, 0] = A_psi[2, 0, 1] = -alpha
-
-        #############################
-        # alpha * psi_tilde (part II)
-        #############################
-        for i in range(3):
-            for j in range(3):
-                for k in range(3):
-                    A_psi[i, j, k] += psi_tilde[i, j] * psi[k] * alpha_psik
-
-        ###############################
-        # beta2 * psi_tilde @ psi_tilde
-        ###############################
-        for i in range(3):
-            for j in range(3):
-                for k in range(3):
-                    A_psi[i, j, k] += psi_tilde2[i, j] * psi[k] * beta2_psik
-                    for l in range(3):
-                        A_psi[i, j, k] += (
-                            0.5
-                            * beta
-                            * (
-                                LeviCivita3(k, l, i) * psi_tilde[l, j]
-                                + psi_tilde[l, i] * LeviCivita3(k, l, j)
-                            )
-                        )
-    else:
-        ###################
-        # alpha * psi_tilde
-        ###################
-        A_psi[0, 2, 1] = A_psi[1, 0, 2] = A_psi[2, 1, 0] = 1.0
-        A_psi[0, 1, 2] = A_psi[1, 2, 0] = A_psi[2, 0, 1] = -1.0
-
-    return A_psi
-
-    # A_psi_num = approx_fprime(psi, Exp_SO3, method="cs", eps=1.0e-10)
-    # diff = A_psi - A_psi_num
-    # error = np.linalg.norm(diff)
-    # if error > 1.0e-10:
-    #     print(f"error Exp_SO3_psi: {error}")
-    # return A_psi_num
-
-
-def Log_SO3(A: np.ndarray) -> np.ndarray:
-    ca = 0.5 * (trace3(A) - 1.0)
-    ca = np.clip(ca, -1, 1)  # clip to [-1, 1] for arccos!
-    angle = np.arccos(ca)
-
-    # fmt: off
-    psi = 0.5 * np.array([
-        A[2, 1] - A[1, 2],
-        A[0, 2] - A[2, 0],
-        A[1, 0] - A[0, 1]
-    ], dtype=A.dtype)
-    # fmt: on
-
-    if angle > angle_singular:
-        psi *= angle / np.sin(angle)
-    return psi
-
-
-def Log_SO3_A(A: np.ndarray) -> np.ndarray:
-    """Derivative of the SO(3) Log map. See Blanco2010 (10.11)
-
-    References:
-    ===========
-    Claraco2010: https://doi.org/10.48550/arXiv.2103.15980
-    """
-    ca = 0.5 * (trace3(A) - 1.0)
-    ca = np.clip(ca, -1, 1)  # clip to [-1, 1] for arccos!
-    angle = np.arccos(ca)
-
-    psi_A = np.zeros((3, 3, 3), dtype=float)
-    if angle > angle_singular:
-        sa = np.sin(angle)
-        b = 0.5 * angle / sa
-
-        # fmt: off
-        a = (angle * ca - sa) / (4.0 * sa**3) * np.array([
-            A[2, 1] - A[1, 2],
-            A[0, 2] - A[2, 0],
-            A[1, 0] - A[0, 1]
-        ], dtype=A.dtype)
-        # fmt: on
-
-        psi_A[0, 0, 0] = psi_A[0, 1, 1] = psi_A[0, 2, 2] = a[0]
-        psi_A[1, 0, 0] = psi_A[1, 1, 1] = psi_A[1, 2, 2] = a[1]
-        psi_A[2, 0, 0] = psi_A[2, 1, 1] = psi_A[2, 2, 2] = a[2]
-
-        psi_A[0, 2, 1] = psi_A[1, 0, 2] = psi_A[2, 1, 0] = b
-        psi_A[0, 1, 2] = psi_A[1, 2, 0] = psi_A[2, 0, 1] = -b
-    else:
-        psi_A[0, 2, 1] = psi_A[1, 0, 2] = psi_A[2, 1, 0] = 0.5
-        psi_A[0, 1, 2] = psi_A[1, 2, 0] = psi_A[2, 0, 1] = -0.5
-
-    return psi_A
-
-    # psi_A_num = approx_fprime(A, Log_SO3, method="cs", eps=1.0e-10)
-    # diff = psi_A - psi_A_num
-    # error = np.linalg.norm(diff)
-    # print(f"error Log_SO3_A: {error}")
-    # return psi_A_num
-
-
-def T_SO3_inv(psi: np.ndarray) -> np.ndarray:
-    angle = norm(psi)
-    psi_tilde = ax2skew(psi)
-    if angle > angle_singular:
-        # Park2005 (19), actually its the transposed!
-        gamma = 0.5 * angle / (np.tan(0.5 * angle))
-        return (
-            np.eye(3, dtype=float)
-            + 0.5 * psi_tilde
-            + ((1.0 - gamma) / (angle * angle)) * psi_tilde @ psi_tilde
-        )
-    else:
-        # first order approximation
-        return np.eye(3, dtype=float) + 0.5 * psi_tilde
-
-
-class DirectorAxisAngle:
+class DirectorAxisAngle(TimoshenkoPetrovGalerkinBase):
+    # class DirectorAxisAngle:
     def __init__(
         self,
         material_model,
@@ -220,6 +39,8 @@ class DirectorAxisAngle:
         basis_r="B-spline",
         basis_psi="B-spline",
     ):
+        super().__init__()
+
         # beam properties
         self.material_model = material_model  # material model
         self.A_rho0 = A_rho0
@@ -1308,10 +1129,12 @@ class DirectorAxisAngle:
         N_r, _ = self.basis_functions_r(frame_ID[0])
         N_psi, _ = self.basis_functions_psi(frame_ID[0])
 
-        # interpolate orientation
+        # interpolate A_IK and angular velocity in K-frame
         A_IK = np.zeros((3, 3), dtype=np.common_type(q, u))
+        K_Omega = np.zeros(3, dtype=np.common_type(q, u))
         for node in range(self.nnodes_element_psi):
             A_IK += N_psi[node] * Exp_SO3(q[self.nodalDOF_element_psi[node]])
+            K_Omega += N_psi[node] * u[self.nodalDOF_element_psi[node]]
 
         # angular velocity in K-frame
         K_Omega = np.zeros(3, dtype=np.common_type(q, u))
@@ -1325,15 +1148,32 @@ class DirectorAxisAngle:
 
         return v + A_IK @ cross3(K_Omega, K_r_SP)
 
-    # TODO:
     def v_P_q(self, t, q, u, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
-        warn(
-            f"Implement {__class__.__name__}.v_P_q since it requires known parts only."
+        # evaluate shape functions
+        N_psi, _ = self.basis_functions_psi(frame_ID[0])
+
+        # interpolate derivative of A_IK and angular velocity in K-frame
+        A_IK_q = np.zeros((3, 3, self.nq_element), dtype=q.dtype)
+        K_Omega = np.zeros(3, dtype=np.common_type(q, u))
+        for node in range(self.nnodes_element_psi):
+            nodalDOF_psi = self.nodalDOF_element_psi[node]
+            A_IK_q[:, :, nodalDOF_psi] += N_psi[node] * Exp_SO3_psi(q[nodalDOF_psi])
+            K_Omega += N_psi[node] * u[self.nodalDOF_element_psi[node]]
+
+        v_P_q = np.einsum(
+            "ijk,j->ik",
+            A_IK_q,
+            cross3(K_Omega, K_r_SP),
         )
-        v_P_q_num = approx_fprime(
-            q, lambda q: self.v_P(t, q, u, frame_ID, K_r_SP), method="3-point"
-        )
-        return v_P_q_num
+        return v_P_q
+
+        # v_P_q_num = approx_fprime(
+        #     q, lambda q: self.v_P(t, q, u, frame_ID, K_r_SP), method="3-point"
+        # )
+        # diff = v_P_q - v_P_q_num
+        # error = np.linalg.norm(diff)
+        # print(f"error v_P_q: {error}")
+        # return v_P_q_num
 
     def J_P(self, t, q, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
         # evaluate required nodal shape functions
@@ -1366,7 +1206,6 @@ class DirectorAxisAngle:
         # print(f"error J_P: {error}")
         # return J_P_num
 
-    # TODO:
     def J_P_q(self, t, q, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
         # evaluate required nodal shape functions
         N_psi, _ = self.basis_functions_psi(frame_ID[0])

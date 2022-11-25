@@ -60,7 +60,7 @@ def Exp_SO3_psi(psi: np.ndarray) -> np.ndarray:
     #             (psi[i] * psi_tilde + ax2skew(cross3(psi, eye_A[:, i]))) @ A / angle2
     #         )
 
-    A_psi = np.zeros((3, 3, 3), dtype=float)
+    A_psi = np.zeros((3, 3, 3), dtype=psi.dtype)
     if angle > angle_singular:
         angle2 = angle * angle
         sa = np.sin(angle)
