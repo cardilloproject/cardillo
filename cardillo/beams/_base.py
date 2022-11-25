@@ -152,11 +152,11 @@ class TimoshenkoPetrovGalerkinBase(ABC):
                 )
 
     def f_gyr_el(self, t, qe, ue, el):
-        f_gyr_el = np.zeros(self.nq_element, dtype=float)
+        f_gyr_el = np.zeros(self.nq_element, dtype=np.common_type(qe, ue))
 
         for i in range(self.nquadrature):
             # interpoalte angular velocity
-            K_Omega = np.zeros(3, dtype=float)
+            K_Omega = np.zeros(3, dtype=ue.dtype)
             for node in range(self.nnodes_element_psi):
                 K_Omega += self.N_psi[el, i, node] * ue[self.nodalDOF_element_psi[node]]
 

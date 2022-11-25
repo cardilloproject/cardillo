@@ -946,7 +946,7 @@ class DirectorAxisAngle(TimoshenkoPetrovGalerkinBase):
     def h_u(self, t, q, u, coo):
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
-            h_u_el = self.f_gyr_u_el(t, q[elDOF], u[elDOF], el)
+            h_u_el = -self.f_gyr_u_el(t, q[elDOF], u[elDOF], el)
             coo.extend(h_u_el, (self.uDOF[elDOF], self.uDOF[elDOF]))
 
     #########################################
