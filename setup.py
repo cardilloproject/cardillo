@@ -7,7 +7,7 @@ author_email = (
     "harsch@inm.uni-stuttgart.de, giuseppe.capobianco@fau.de, eugster@inm.uni-stuttgart.de",
 )
 url = ""
-description = "Python package for spatial nonlinear beam theories."
+description = "Python package for flexible multibody dynamic problems."
 long_description = ""
 license = "LICENSE"
 
@@ -24,7 +24,8 @@ setup(
         "matplotlib>=3.4.3",
         "black>=22.1.0",
         "tqdm>=4.62.3",
-        "meshio>=4.1.1",
+        # "meshio>=4.1.1",
+        "meshio @ git+https://github.com/JonasHarsch/meshio.git@master#egg=meshio",
     ],
     packages=find_packages(),
     python_requires=">=3.8",
