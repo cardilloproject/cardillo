@@ -205,7 +205,10 @@ if __name__ == "__main__":
     ############
     path = Path(__file__)
     e = Export(path.parent, path.stem, True, 30, sol)
-    e.export_contr(beam)
+    # e.export_contr(beam, level="r")
+    e.export_contr(beam, level="centerline + directors", num=20)
+    # e.export_contr(beam, level=2)
+    e.export_contr(beam, level="volume")
 
     exit()
 
