@@ -1213,6 +1213,20 @@ def L2_projection_Bezier_curve(target_points, n, case="C1"):
     return unique_points, points, points_segments
 
 
+def line2vtk(points_segments):
+    points_segments = np.atleast_2d(points_segments)
+    vtk_points = []
+    for i, points_i in enumerate(points_segments):
+        # VTK ordering, see https://coreform.com/papers/implementation-of-rational-bezier-cells-into-VTK-report.pdf:
+        # 1. vertices (corners)
+        # 2. edges
+        vtk_points.append(points_i[0])
+        vtk_points.append(points_i[-1])
+        vtk_points.extend(points_i[1:-1])
+
+    return vtk_points
+
+
 def fit_Bezier(case="C-1"):
     # def fit_Bezier(case="C0"):
     # def fit_Bezier(case="C1"):
