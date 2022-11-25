@@ -592,9 +592,10 @@ class RodExportBase(ABC):
 
             self.num_xi = self.nelement * 4
             r_OPs, d1s, d2s, d3s = self.frames(q, n=self.num_xi)
-            target_points_0 = r_OPs.T
+            target_points_centerline = r_OPs.T
 
             if self.cross_section == "circle":
+                target_points_0 = target_points_centerline
                 target_points_1 = np.array(
                     [
                         r_OP + d2 * self.radius
@@ -608,6 +609,7 @@ class RodExportBase(ABC):
                     ]
                 )
             elif self.cross_section == "rectangle":
+                target_points_0 = target_points_centerline
                 target_points_1 = np.array(
                     [
                         r_OP + d2 * self.a
@@ -646,6 +648,8 @@ class RodExportBase(ABC):
             # case = "C-1"
             # case = "C0"
             case = "C1"
+
+            # project three points on the cross section
             _, _, points_segments_0 = L2_projection_Bezier_curve(
                 target_points_0, n_segments, case=case
             )
@@ -866,12 +870,10 @@ class RodExportBase(ABC):
                         vtk_points_weights.append(points_layer1[j])
                         vtk_points_weights.append(points_layer2[j])
 
-            vtk_points_weights = np.array(vtk_points_weights)
-            vtk_points = vtk_points_weights[:, :3]
-
             p_zeta = 3
             if self.cross_section == "circle":
-                n_cell = (p_zeta + 1) * 9
+                n_layer = 9
+                n_cell = (p_zeta + 1) * n_layer
 
                 higher_order_degrees = [
                     (np.array([2, 2, p_zeta]),) for _ in range(n_segments)
@@ -885,7 +887,8 @@ class RodExportBase(ABC):
                     for i in range(n_segments)
                 ]
             elif self.cross_section == "rectangle":
-                n_cell = (p_zeta + 1) * 4
+                n_layer = 4
+                n_cell = (p_zeta + 1) * n_layer
 
                 higher_order_degrees = [
                     (np.array([1, 1, p_zeta]),) for _ in range(n_segments)
@@ -899,7 +902,8 @@ class RodExportBase(ABC):
                     for i in range(n_segments)
                 ]
             elif self.cross_section == "circle_wedge":
-                n_cell = (p_zeta + 1) * 6
+                n_layer = 6
+                n_cell = (p_zeta + 1) * n_layer
 
                 higher_order_degrees = [
                     (np.array([2, 2, p_zeta]),) for _ in range(n_segments)
@@ -910,11 +914,79 @@ class RodExportBase(ABC):
                     for i in range(n_segments)
                 ]
 
-            point_data = {"RationalWeights": vtk_points_weights[:, 3]}
+            # TODO: How can we add the centerline and the directors as two
+            # different sets of vtk cells?
+            if False:
+                # project centerline
+                _, _, points_segments_centerline = L2_projection_Bezier_curve(
+                    target_points_centerline, n_segments, case=case
+                )
+
+                # project directors
+                _, _, points_segments_d1 = L2_projection_Bezier_curve(
+                    d1s.T, n_segments, case=case
+                )
+                _, _, points_segments_d2 = L2_projection_Bezier_curve(
+                    d2s.T, n_segments, case=case
+                )
+                _, _, points_segments_d3 = L2_projection_Bezier_curve(
+                    d3s.T, n_segments, case=case
+                )
+
+                def curve2vtk(points):
+                    n, dim = points.shape
+
+                    # add rational weights and reshape
+                    vtk_points_weights = np.ones((n, dim + 1), dtype=float)
+                    vtk_points_weights[0, :3] = points[0]
+                    vtk_points_weights[-1, :3] = points[-1]
+                    vtk_points_weights[1:-1, :3] = points[1:-1]
+
+                    return vtk_points_weights
+
+                # vtk ordering
+                # vtk_points_weights_r = []
+                # vtk_points_weights_d1 = []
+                # vtk_points_weights_d2 = []
+                # vtk_points_weights_d3 = []
+                # for i in range(n_segments):
+                #     vtk_points_weights_r.extend(curve2vtk(points_segments_centerline[i]))
+                #     vtk_points_weights_d1.extend(curve2vtk(points_segments_d1[i]))
+                #     vtk_points_weights_d2.extend(curve2vtk(points_segments_d2[i]))
+                #     vtk_points_weights_d3.extend(curve2vtk(points_segments_d3[i]))
+
+                offset = cells[-1][1][0, -1]
+                for i in range(n_segments):
+                    vtk_points_weights.extend(curve2vtk(points_segments_centerline[i]))
+                    higher_order_degrees.append((np.array([p_zeta, 0, 0]),))
+                    cells.append(
+                        (
+                            "VTK_BEZIER_CURVE",
+                            offset
+                            + np.arange(i * (p_zeta + 1), (i + 1) * (p_zeta + 1))[None],
+                        )
+                    )
+                # for i in range(n_segments):
+                #     vtk_points_weights.extend(curve2vtk(points_segments_d1[i]))
+                #     higher_order_degrees.append((np.array([p_zeta, 0, 0]),))
+                # for i in range(n_segments):
+                #     vtk_points_weights.extend(curve2vtk(points_segments_d2[i]))
+                #     higher_order_degrees.append((np.array([p_zeta, 0, 0]),))
+                # for i in range(n_segments):
+                #     vtk_points_weights.extend(curve2vtk(points_segments_d3[i]))
+
+            vtk_points_weights = np.array(vtk_points_weights)
+            vtk_points = vtk_points_weights[:, :3]
+
+            point_data = {
+                # "d1": vtk_points_weights_d1,
+                # "d2": vtk_points_weights_d2,
+                # "d3": vtk_points_weights_d3,
+                "RationalWeights": vtk_points_weights[:, 3],
+            }
 
             cell_data = {
                 "HigherOrderDegrees": higher_order_degrees,
-                # "Test": [(1,) for _ in range(n_segments)],
             }
 
         else:
