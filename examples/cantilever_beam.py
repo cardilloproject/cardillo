@@ -28,13 +28,13 @@ Beam = DirectorAxisAngle
 # Beam = TimoshenkoDirectorIntegral
 # Beam = TimoshenkoAxisAngle
 
-statics = True
+# statics = True
 statics = False
 
 
 if __name__ == "__main__":
     # number of elements
-    nelements = 20
+    nelements = 10
 
     # used polynomial degree
     # polynomial_degree = 3
@@ -215,9 +215,7 @@ if __name__ == "__main__":
     ############
     path = Path(__file__)
     e = Export(path.parent, path.stem, True, 30, sol)
-    # e.export_contr(beam, level="r")
     e.export_contr(beam, level="centerline + directors", num=20)
-    # e.export_contr(beam, level=2)
     e.export_contr(beam, level="volume", n_segments=5, num=50)
 
     exit()

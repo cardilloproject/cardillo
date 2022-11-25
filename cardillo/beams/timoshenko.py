@@ -3429,6 +3429,8 @@ class TimoshenkoAxisAngle:
         objetive=True,
         # objetive=False,
     ):
+        raise RuntimeError("This rod is not refactored yet!")
+
         # beam properties
         self.materialModel = material_model  # material model
         self.A_rho0 = A_rho0  # line density
