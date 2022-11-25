@@ -1,8 +1,13 @@
 import numpy as np
-from cardillo.math import pi
 from abc import ABC, abstractmethod
 
+from cardillo.utility.coo import Coo
 from cardillo.discretization.bezier import L2_projection_Bezier_curve
+
+from cardillo.math import (
+    cross3,
+    ax2skew,
+)
 
 # # Timoshenko + Petrov-Galerkin:
 # # - *args for rod formulation
@@ -10,7 +15,8 @@ from cardillo.discretization.bezier import L2_projection_Bezier_curve
 #     class Rod:
 #         pass
 
-class RodExportBase(ABC):
+
+class TimoshenkoPetrovGalerkinBase(ABC):
     def __init__(self):
         self.radius = 0.125
         self.a = 0.1
@@ -20,26 +26,6 @@ class RodExportBase(ABC):
         # self.cross_section = "circle_wedge"
         self.cross_section = "rectangle"
 
-        # self.num_xi = 100
-        # self.num_xi = 20
-        # self.num_eta = 3
-        # self.num_zeta = 25
-
-        # self.xis = np.linspace(0, 1, num=self.num_xi)
-        # self.etas = np.linspace(0, 1, num=self.num_eta)
-        # self.zetas = np.linspace(0, 1, num=self.num_zeta)
-
-        # def circular_cross_section(eta, zeta):
-        #     return self.radius * np.array(
-        #         [
-        #             0.0,
-        #             eta * np.sin(2 * np.pi * zeta),
-        #             eta * np.cos(2 * np.pi * zeta),
-        #         ]
-        #     )
-
-        # self.cross_section = circular_cross_section
-
     @abstractmethod
     def r_OP(self, t, q, frame_ID, K_r_SP):
         ...
@@ -48,31 +34,174 @@ class RodExportBase(ABC):
     def A_IK(self, t, q, frame_ID):
         ...
 
-    # TODO: Move to bezier.py
-    @staticmethod
-    def line2vtk(target_points, n_segments):
-        (
-            _,
-            _,
-            points_segments,
-        ) = L2_projection_Bezier_curve(target_points, n_segments, case="C1")
+    def assembler_callback(self):
+        if self.constant_mass_matrix:
+            self._M_coo()
 
-        vtk_points = []
-        for i in range(n_segments):
-            # VTK ordering, see https://coreform.com/papers/implementation-of-rational-bezier-cells-into-VTK-report.pdf:
-            # 1. vertices (corners)
-            # 2. edges
-            vtk_points.append(points_segments[i, 0])
-            vtk_points.append(points_segments[i, -1])
-            vtk_points.append(points_segments[i, 1])
-            vtk_points.append(points_segments[i, 2])
+    #########################################
+    # equations of motion
+    #########################################
+    def M_el_constant(self, el):
+        M_el = np.zeros((self.nq_element, self.nq_element), dtype=float)
 
-        return vtk_points
+        for i in range(self.nquadrature):
+            # extract reference state variables
+            qwi = self.qw[el, i]
+            Ji = self.J[el, i]
 
+            # delta_r A_rho0 r_ddot part
+            M_el_r_r = np.eye(3) * self.A_rho0 * Ji * qwi
+            for node_a in range(self.nnodes_element):
+                nodalDOF_a = self.nodalDOF_element_r[node_a]
+                for node_b in range(self.nnodes_element):
+                    nodalDOF_b = self.nodalDOF_element_r[node_b]
+                    M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_r_r * (
+                        self.N[el, i, node_a] * self.N[el, i, node_b]
+                    )
+
+            # first part delta_phi (I_rho0 omega_dot + omega_tilde I_rho0 omega)
+            M_el_psi_psi = self.K_I_rho0 * Ji * qwi
+            for node_a in range(self.nnodes_element):
+                nodalDOF_a = self.nodalDOF_element_psi[node_a]
+                for node_b in range(self.nnodes_element):
+                    nodalDOF_b = self.nodalDOF_element_psi[node_b]
+                    M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_psi_psi * (
+                        self.N[el, i, node_a] * self.N[el, i, node_b]
+                    )
+
+        return M_el
+
+    def M_el(self, qe, el):
+        M_el = np.zeros((self.nq_element, self.nq_element), dtype=float)
+
+        for i in range(self.nquadrature):
+            # extract reference state variables
+            qwi = self.qw[el, i]
+            Ji = self.J[el, i]
+
+            # delta_r A_rho0 r_ddot part
+            M_el_r_r = np.eye(3) * self.A_rho0 * Ji * qwi
+            for node_a in range(self.nnodes_element):
+                nodalDOF_a = self.nodalDOF_element_r[node_a]
+                for node_b in range(self.nnodes_element):
+                    nodalDOF_b = self.nodalDOF_element_r[node_b]
+                    M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_r_r * (
+                        self.N[el, i, node_a] * self.N[el, i, node_b]
+                    )
+
+            # first part delta_phi (I_rho0 omega_dot + omega_tilde I_rho0 omega)
+            M_el_psi_psi = self.K_I_rho0 * Ji * qwi
+            for node_a in range(self.nnodes_element):
+                nodalDOF_a = self.nodalDOF_element_psi[node_a]
+                for node_b in range(self.nnodes_element):
+                    nodalDOF_b = self.nodalDOF_element_psi[node_b]
+                    M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_psi_psi * (
+                        self.N[el, i, node_a] * self.N[el, i, node_b]
+                    )
+
+            # For non symmetric cross sections there are also other parts
+            # involved in the mass matrix. These parts are configuration
+            # dependent and lead to configuration dependent mass matrix.
+            _, A_IK, _, _ = self.eval(qe, self.qp[el, i])
+            M_el_r_psi = A_IK @ self.K_S_rho0 * Ji * qwi
+            M_el_psi_r = A_IK @ self.K_S_rho0 * Ji * qwi
+
+            for node_a in range(self.nnodes_element):
+                nodalDOF_a = self.nodalDOF_element_r[node_a]
+                for node_b in range(self.nnodes_element):
+                    nodalDOF_b = self.nodalDOF_element_psi[node_b]
+                    M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_r_psi * (
+                        self.N[el, i, node_a] * self.N[el, i, node_b]
+                    )
+            for node_a in range(self.nnodes_element):
+                nodalDOF_a = self.nodalDOF_element_psi[node_a]
+                for node_b in range(self.nnodes_element):
+                    nodalDOF_b = self.nodalDOF_element_r[node_b]
+                    M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_psi_r * (
+                        self.N[el, i, node_a] * self.N[el, i, node_b]
+                    )
+
+        return M_el
+
+    def _M_coo(self):
+        self._M = Coo((self.nu, self.nu))
+        for el in range(self.nelement):
+            # extract element degrees of freedom
+            elDOF = self.elDOF[el]
+
+            # sparse assemble element mass matrix
+            self._M.extend(self.M_el_constant(el), (self.uDOF[elDOF], self.uDOF[elDOF]))
+
+    # TODO: Compute derivative of mass matrix for non constant mass matrix case!
+    def M(self, t, q, coo):
+        if self.constant_mass_matrix:
+            coo.extend_sparse(self._M)
+        else:
+            for el in range(self.nelement):
+                # extract element degrees of freedom
+                elDOF = self.elDOF[el]
+
+                # sparse assemble element mass matrix
+                coo.extend(
+                    self.M_el(q[elDOF], el), (self.uDOF[elDOF], self.uDOF[elDOF])
+                )
+
+    def f_gyr_el(self, t, qe, ue, el):
+        f_gyr_el = np.zeros(self.nq_element, dtype=np.common_type(qe, ue))
+
+        for i in range(self.nquadrature):
+            # interpoalte angular velocity
+            K_Omega = np.zeros(3, dtype=float)
+            for node in range(self.nnodes_element):
+                K_Omega += self.N[el, i, node] * ue[self.nodalDOF_element_psi[node]]
+
+            # vector of gyroscopic forces
+            f_gyr_el_psi = (
+                cross3(K_Omega, self.K_I_rho0 @ K_Omega)
+                * self.J[el, i]
+                * self.qw[el, i]
+            )
+
+            # multiply vector of gyroscopic forces with nodal virtual rotations
+            for node in range(self.nnodes_element):
+                f_gyr_el[self.nodalDOF_element_psi[node]] += (
+                    self.N[el, i, node] * f_gyr_el_psi
+                )
+
+        return f_gyr_el
+
+    def f_gyr_u_el(self, t, qe, ue, el):
+        f_gyr_u_el = np.zeros((self.nq_element, self.nq_element), dtype=float)
+
+        for i in range(self.nquadrature):
+            # interpoalte angular velocity
+            K_Omega = np.zeros(3, dtype=float)
+            for node in range(self.nnodes_element):
+                K_Omega += self.N[el, i, node] * ue[self.nodalDOF_element_psi[node]]
+
+            # derivative of vector of gyroscopic forces
+            f_gyr_u_el_psi = (
+                ((ax2skew(K_Omega) @ self.K_I_rho0 - ax2skew(self.K_I_rho0 @ K_Omega)))
+                * self.J[el, i]
+                * self.qw[el, i]
+            )
+
+            # multiply derivative of gyroscopic force vector with nodal virtual rotations
+            for node_a in range(self.nnodes_element):
+                nodalDOF_a = self.nodalDOF_element_psi[node_a]
+                for node_b in range(self.nnodes_element):
+                    nodalDOF_b = self.nodalDOF_element_psi[node_b]
+                    f_gyr_u_el[nodalDOF_a[:, None], nodalDOF_b] += f_gyr_u_el_psi * (
+                        self.N[el, i, node_a] * self.N[el, i, node_b]
+                    )
+
+        return f_gyr_u_el
+
+    ############
+    # vtk export
+    ############
     def export(self, sol_i, **kwargs):
-        t = sol_i.t
         q = sol_i.q
-        q_body = q[self.qDOF]
 
         level = kwargs["level"]
 
@@ -81,38 +210,18 @@ class RodExportBase(ABC):
             num = kwargs["num"]
         else:
             num = self.nelement * 4
-        num_xi = num
 
-        r_OPs, d1s, d2s, d3s = self.frames(q, n=num_xi)
-
-        if level in ["r", "d1", "d2", "d3"]:
-            vtk_points = RodExportBase.line2vtk(r_OPs.T, n_segments)
-            if level == "r":
-                point_data = {}
-            elif level == "d1":
-                point_data = {"d1": RodExportBase.line2vtk(d1s.T, n_segments)}
-            elif level == "d2":
-                point_data = {"d1": RodExportBase.line2vtk(d2s.T, n_segments)}
-            elif level == "d3":
-                point_data = {"d1": RodExportBase.line2vtk(d3s.T, n_segments)}
-
-            cells = [
-                ("VTK_BEZIER_CURVE", np.arange(i * 4, (i + 1) * 4)[None])
-                for i in range(n_segments)
-            ]
-
-            higher_order_degrees = [(np.array([3, 0, 0]),) for _ in range(n_segments)]
-            cell_data = {"HigherOrderDegrees": higher_order_degrees}
+        r_OPs, d1s, d2s, d3s = self.frames(q, n=num)
 
         if level == "centerline + directors":
             #######################################
             # simple export of points and directors
             #######################################
-            r_OPs, d1s, d2s, d3s = self.frames(q, n=num_xi)
+            r_OPs, d1s, d2s, d3s = self.frames(q, n=num)
 
             vtk_points = r_OPs.T
 
-            cells = [("line", [[i, i + 1] for i in range(num_xi - 1)])]
+            cells = [("line", [[i, i + 1] for i in range(num - 1)])]
 
             cell_data = {}
 
@@ -122,66 +231,15 @@ class RodExportBase(ABC):
                 "d3": d3s.T,
             }
 
-        elif level == 1:
-
-            vtk_points = []
-            d1s = []
-            d2s = []
-            d3s = []
-            for xis in self.xis:
-                el = self.element_number(xis)
-                elDOF = self.elDOF[el]
-                r_OP = self.r_OP(t, q_body[elDOF], frame_ID=(xis,))
-                A_IK = self.A_IK(t, q_body[elDOF], frame_ID=(xis,))
-
-                for etas in self.etas:
-                    for zetas in self.zetas:
-                        vtk_points.append(r_OP + A_IK @ self.cross_section(etas, zetas))
-
-            n = len(vtk_points)
-            cells = [("vertex", [[i] for i in range(n)])]
-            point_data = {}
-            cell_data = {}
-
-        elif level == 2:
-            ###############################
-            # project on cubic Bezier curve
-            ###############################
-            n_segments = self.nelement
-
-            num_xi = self.nelement * 4
-            # target_points_c = self.centerline(q, n=num_xi).T
-            r_OPs, d1s, d2s, d3s = self.frames(q, n=num_xi)
-
-            vtk_points = RodExportBase.line2vtk(r_OPs.T, n_segments)
-            vtk_points_d1 = RodExportBase.line2vtk(d1s.T, n_segments)
-            vtk_points_d2 = RodExportBase.line2vtk(d2s.T, n_segments)
-            vtk_points_d3 = RodExportBase.line2vtk(d3s.T, n_segments)
-
-            cells = [
-                ("VTK_BEZIER_CURVE", np.arange(i * 4, (i + 1) * 4)[None])
-                for i in range(n_segments)
-            ]
-
-            higher_order_degrees = [(np.array([3, 0, 0]),) for _ in range(n_segments)]
-
-            point_data = {
-                "d1": vtk_points_d1,
-                "d2": vtk_points_d2,
-                "d3": vtk_points_d3,
-            }
-            cell_data = {"HigherOrderDegrees": higher_order_degrees}
-
         elif level == "volume":
             ################################
             # project on cubic Bezier volume
             ################################
-            n_segments = self.nelement
-
-            num_xi = self.nelement * 4
-            r_OPs, d1s, d2s, d3s = self.frames(q, n=num_xi)
+            r_OPs, d1s, d2s, d3s = self.frames(q, n=num)
             target_points_centerline = r_OPs.T
 
+            # create points of the target curves (three characteristic points
+            # of the cross section)
             if self.cross_section == "circle":
                 target_points_0 = target_points_centerline
                 target_points_1 = np.array(
@@ -232,20 +290,15 @@ class RodExportBase(ABC):
             else:
                 raise NotImplementedError
 
-            # Compute L2-optimal cubic Bezier spline from the given three curves
-            # case = "C-1"
-            # case = "C0"
-            case = "C1"
-
-            # project three points on the cross section
+            # project target points on cubic C1 Bézier curve
             _, _, points_segments_0 = L2_projection_Bezier_curve(
-                target_points_0, n_segments, case=case
+                target_points_0, n_segments, case="C1"
             )
             _, _, points_segments_1 = L2_projection_Bezier_curve(
-                target_points_1, n_segments, case=case
+                target_points_1, n_segments, case="C1"
             )
             _, _, points_segments_2 = L2_projection_Bezier_curve(
-                target_points_2, n_segments, case=case
+                target_points_2, n_segments, case="C1"
             )
 
             if self.cross_section == "circle":
@@ -502,74 +555,10 @@ class RodExportBase(ABC):
                     for i in range(n_segments)
                 ]
 
-            # TODO: How can we add the centerline and the directors as two
-            # different sets of vtk cells?
-            if False:
-                # project centerline
-                _, _, points_segments_centerline = L2_projection_Bezier_curve(
-                    target_points_centerline, n_segments, case=case
-                )
-
-                # project directors
-                _, _, points_segments_d1 = L2_projection_Bezier_curve(
-                    d1s.T, n_segments, case=case
-                )
-                _, _, points_segments_d2 = L2_projection_Bezier_curve(
-                    d2s.T, n_segments, case=case
-                )
-                _, _, points_segments_d3 = L2_projection_Bezier_curve(
-                    d3s.T, n_segments, case=case
-                )
-
-                def curve2vtk(points):
-                    n, dim = points.shape
-
-                    # add rational weights and reshape
-                    vtk_points_weights = np.ones((n, dim + 1), dtype=float)
-                    vtk_points_weights[0, :3] = points[0]
-                    vtk_points_weights[-1, :3] = points[-1]
-                    vtk_points_weights[1:-1, :3] = points[1:-1]
-
-                    return vtk_points_weights
-
-                # vtk ordering
-                # vtk_points_weights_r = []
-                # vtk_points_weights_d1 = []
-                # vtk_points_weights_d2 = []
-                # vtk_points_weights_d3 = []
-                # for i in range(n_segments):
-                #     vtk_points_weights_r.extend(curve2vtk(points_segments_centerline[i]))
-                #     vtk_points_weights_d1.extend(curve2vtk(points_segments_d1[i]))
-                #     vtk_points_weights_d2.extend(curve2vtk(points_segments_d2[i]))
-                #     vtk_points_weights_d3.extend(curve2vtk(points_segments_d3[i]))
-
-                offset = cells[-1][1][0, -1]
-                for i in range(n_segments):
-                    vtk_points_weights.extend(curve2vtk(points_segments_centerline[i]))
-                    higher_order_degrees.append((np.array([p_zeta, 0, 0]),))
-                    cells.append(
-                        (
-                            "VTK_BEZIER_CURVE",
-                            offset
-                            + np.arange(i * (p_zeta + 1), (i + 1) * (p_zeta + 1))[None],
-                        )
-                    )
-                # for i in range(n_segments):
-                #     vtk_points_weights.extend(curve2vtk(points_segments_d1[i]))
-                #     higher_order_degrees.append((np.array([p_zeta, 0, 0]),))
-                # for i in range(n_segments):
-                #     vtk_points_weights.extend(curve2vtk(points_segments_d2[i]))
-                #     higher_order_degrees.append((np.array([p_zeta, 0, 0]),))
-                # for i in range(n_segments):
-                #     vtk_points_weights.extend(curve2vtk(points_segments_d3[i]))
-
             vtk_points_weights = np.array(vtk_points_weights)
             vtk_points = vtk_points_weights[:, :3]
 
             point_data = {
-                # "d1": vtk_points_weights_d1,
-                # "d2": vtk_points_weights_d2,
-                # "d3": vtk_points_weights_d3,
                 "RationalWeights": vtk_points_weights[:, 3],
             }
 
@@ -577,7 +566,7 @@ class RodExportBase(ABC):
                 "HigherOrderDegrees": higher_order_degrees,
             }
 
-        # else:
-        #     raise NotImplementedError
+        else:
+            raise NotImplementedError
 
         return vtk_points, cells, point_data, cell_data

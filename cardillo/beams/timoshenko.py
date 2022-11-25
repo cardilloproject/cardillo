@@ -18,14 +18,12 @@ from cardillo.math import (
     inverse_tangent_map,
     tangent_map_s,
     e1,
-    Rotor,
     Spurrier,
     quat2rot,
     quat2mat,
     quat2mat_p,
     ax2skew_a,
     pi,
-    inv3D,
 )
 
 

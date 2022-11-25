@@ -1,7 +1,453 @@
 from __future__ import annotations
 import numpy as np
-from math import tan, sqrt, atan2, acos
-from cardillo.math import norm, cross3, skew2ax, ax2skew, ax2skew_a, ei
+from math import tan, sqrt, atan2
+from cardillo.math import norm, cross3, ax2skew, trace3, ax2skew_a, ei, LeviCivita3
+
+# for small angles we use first order approximations of the equations since
+# most of the SO(3) and SE(3) equations get singular for psi -> 0.
+angle_singular = 1.0e-6
+
+
+def Exp_SO3(psi: np.ndarray) -> np.ndarray:
+    """SO(3) exponential function, see Crisfield1999 above (4.1) and 
+    Park2005 (12).
+
+    References
+    ----------
+    Crisfield1999: https://doi.org/10.1098/rspa.1999.0352 \\
+    Park2005: https://doi.org/10.1109/TRO.2005.852253
+    """
+    angle = norm(psi)
+    if angle > angle_singular:
+        # Park2005 (12)
+        sa = np.sin(angle)
+        ca = np.cos(angle)
+        alpha = sa / angle
+        beta2 = (1.0 - ca) / (angle * angle)
+        psi_tilde = ax2skew(psi)
+        return (
+            np.eye(3, dtype=float) + alpha * psi_tilde + beta2 * psi_tilde @ psi_tilde
+        )
+    else:
+        # first order approximation
+        return np.eye(3, dtype=float) + ax2skew(psi)
+
+
+def Exp_SO3_psi(psi: np.ndarray) -> np.ndarray:
+    """Derivative of the axis-angle rotation found in Crisfield1999 above (4.1). 
+    Derivations and final results are given in Gallego2015 (9).
+
+    References
+    ----------
+    Crisfield1999: https://doi.org/10.1098/rspa.1999.0352 \\
+    Gallego2015: https://doi.org/10.1007/s10851-014-0528-x
+    """
+    angle = norm(psi)
+
+    # # Gallego2015 (9)
+    # A_psi = np.zeros((3, 3, 3), dtype=float)
+    # if isclose(angle, 0.0):
+    #     # Derivative at the identity, see Gallego2015 Section 3.3
+    #     for i in range(3):
+    #         A_psi[:, :, i] = ax2skew(ei(i))
+    # else:
+    #     A = Exp_SO3(psi)
+    #     eye_A = np.eye(3) - A
+    #     psi_tilde = ax2skew(psi)
+    #     angle2 = angle * angle
+    #     for i in range(3):
+    #         A_psi[:, :, i] = (
+    #             (psi[i] * psi_tilde + ax2skew(cross3(psi, eye_A[:, i]))) @ A / angle2
+    #         )
+
+    A_psi = np.zeros((3, 3, 3), dtype=float)
+    if angle > angle_singular:
+        angle2 = angle * angle
+        sa = np.sin(angle)
+        ca = np.cos(angle)
+        alpha = sa / angle
+        alpha_psik = (ca - alpha) / angle2
+        beta = 2.0 * (1.0 - ca) / angle2
+        beta2_psik = (alpha - beta) / angle2
+
+        psi_tilde = ax2skew(psi)
+        psi_tilde2 = psi_tilde @ psi_tilde
+
+        ############################
+        # alpha * psi_tilde (part I)
+        ############################
+        A_psi[0, 2, 1] = A_psi[1, 0, 2] = A_psi[2, 1, 0] = alpha
+        A_psi[0, 1, 2] = A_psi[1, 2, 0] = A_psi[2, 0, 1] = -alpha
+
+        #############################
+        # alpha * psi_tilde (part II)
+        #############################
+        for i in range(3):
+            for j in range(3):
+                for k in range(3):
+                    A_psi[i, j, k] += psi_tilde[i, j] * psi[k] * alpha_psik
+
+        ###############################
+        # beta2 * psi_tilde @ psi_tilde
+        ###############################
+        for i in range(3):
+            for j in range(3):
+                for k in range(3):
+                    A_psi[i, j, k] += psi_tilde2[i, j] * psi[k] * beta2_psik
+                    for l in range(3):
+                        A_psi[i, j, k] += (
+                            0.5
+                            * beta
+                            * (
+                                LeviCivita3(k, l, i) * psi_tilde[l, j]
+                                + psi_tilde[l, i] * LeviCivita3(k, l, j)
+                            )
+                        )
+    else:
+        ###################
+        # alpha * psi_tilde
+        ###################
+        A_psi[0, 2, 1] = A_psi[1, 0, 2] = A_psi[2, 1, 0] = 1.0
+        A_psi[0, 1, 2] = A_psi[1, 2, 0] = A_psi[2, 0, 1] = -1.0
+
+    return A_psi
+
+    # A_psi_num = approx_fprime(psi, Exp_SO3, method="cs", eps=1.0e-10)
+    # diff = A_psi - A_psi_num
+    # error = np.linalg.norm(diff)
+    # if error > 1.0e-10:
+    #     print(f"error Exp_SO3_psi: {error}")
+    # return A_psi_num
+
+
+def Log_SO3(A: np.ndarray) -> np.ndarray:
+    ca = 0.5 * (trace3(A) - 1.0)
+    ca = np.clip(ca, -1, 1)  # clip to [-1, 1] for arccos!
+    angle = np.arccos(ca)
+
+    # fmt: off
+    psi = 0.5 * np.array([
+        A[2, 1] - A[1, 2],
+        A[0, 2] - A[2, 0],
+        A[1, 0] - A[0, 1]
+    ], dtype=A.dtype)
+    # fmt: on
+
+    if angle > angle_singular:
+        psi *= angle / np.sin(angle)
+    return psi
+
+
+def Log_SO3_A(A: np.ndarray) -> np.ndarray:
+    """Derivative of the SO(3) Log map. See Blanco2010 (10.11)
+
+    References:
+    ===========
+    Claraco2010: https://doi.org/10.48550/arXiv.2103.15980
+    """
+    ca = 0.5 * (trace3(A) - 1.0)
+    ca = np.clip(ca, -1, 1)  # clip to [-1, 1] for arccos!
+    angle = np.arccos(ca)
+
+    psi_A = np.zeros((3, 3, 3), dtype=float)
+    if angle > angle_singular:
+        sa = np.sin(angle)
+        b = 0.5 * angle / sa
+
+        # fmt: off
+        a = (angle * ca - sa) / (4.0 * sa**3) * np.array([
+            A[2, 1] - A[1, 2],
+            A[0, 2] - A[2, 0],
+            A[1, 0] - A[0, 1]
+        ], dtype=A.dtype)
+        # fmt: on
+
+        psi_A[0, 0, 0] = psi_A[0, 1, 1] = psi_A[0, 2, 2] = a[0]
+        psi_A[1, 0, 0] = psi_A[1, 1, 1] = psi_A[1, 2, 2] = a[1]
+        psi_A[2, 0, 0] = psi_A[2, 1, 1] = psi_A[2, 2, 2] = a[2]
+
+        psi_A[0, 2, 1] = psi_A[1, 0, 2] = psi_A[2, 1, 0] = b
+        psi_A[0, 1, 2] = psi_A[1, 2, 0] = psi_A[2, 0, 1] = -b
+    else:
+        psi_A[0, 2, 1] = psi_A[1, 0, 2] = psi_A[2, 1, 0] = 0.5
+        psi_A[0, 1, 2] = psi_A[1, 2, 0] = psi_A[2, 0, 1] = -0.5
+
+    return psi_A
+
+    # psi_A_num = approx_fprime(A, Log_SO3, method="cs", eps=1.0e-10)
+    # diff = psi_A - psi_A_num
+    # error = np.linalg.norm(diff)
+    # print(f"error Log_SO3_A: {error}")
+    # return psi_A_num
+
+
+def T_SO3(psi: np.ndarray) -> np.ndarray:
+    angle = norm(psi)
+    if angle > angle_singular:
+        # Park2005 (19), actually its the transposed!
+        sa = np.sin(angle)
+        ca = np.cos(angle)
+        psi_tilde = ax2skew(psi)
+        alpha = sa / angle
+        angle2 = angle * angle
+        beta2 = (1.0 - ca) / angle2
+        return (
+            np.eye(3, dtype=float)
+            - beta2 * psi_tilde
+            + ((1.0 - alpha) / angle2) * psi_tilde @ psi_tilde
+        )
+
+        # # Barfoot2014 (98), actually its the transposed!
+        # sa = np.sin(angle)
+        # ca = np.cos(angle)
+        # sinc = sa / angle
+        # n = psi / angle
+        # return (
+        #     sinc * np.eye(3, dtype=float)
+        #     - ((1.0 - ca) / angle) * ax2skew(n)
+        #     + (1.0 - sinc) * np.outer(n, n)
+        # )
+    else:
+        # first order approximation
+        return np.eye(3, dtype=float) - 0.5 * ax2skew(psi)
+
+
+def T_SO3_psi(psi: np.ndarray) -> np.ndarray:
+    T_SO3_psi = np.zeros((3, 3, 3), dtype=float)
+
+    angle = norm(psi)
+    if angle > angle_singular:
+        sa = np.sin(angle)
+        ca = np.cos(angle)
+        alpha = sa / angle
+        angle2 = angle * angle
+        angle4 = angle2 * angle2
+        beta2 = (1.0 - ca) / angle2
+        beta2_psik = (2.0 * beta2 - alpha) / angle2
+        c = (1.0 - alpha) / angle2
+        c_psik = (3.0 * alpha - 2.0 - ca) / angle4
+
+        psi_tilde = ax2skew(psi)
+        psi_tilde2 = psi_tilde @ psi_tilde
+
+        ####################
+        # -beta2 * psi_tilde
+        ####################
+        T_SO3_psi[0, 1, 2] = T_SO3_psi[1, 2, 0] = T_SO3_psi[2, 0, 1] = beta2
+        T_SO3_psi[0, 2, 1] = T_SO3_psi[1, 0, 2] = T_SO3_psi[2, 1, 0] = -beta2
+        for i in range(3):
+            for j in range(3):
+                for k in range(3):
+                    T_SO3_psi[i, j, k] += psi_tilde[i, j] * psi[k] * beta2_psik
+
+        ##################################################
+        # ((1.0 - alpha) / angle2) * psi_tilde @ psi_tilde
+        ##################################################
+        for i in range(3):
+            for j in range(3):
+                for k in range(3):
+                    T_SO3_psi[i, j, k] += psi_tilde2[i, j] * psi[k] * c_psik
+                    for l in range(3):
+                        T_SO3_psi[i, j, k] += c * (
+                            LeviCivita3(k, l, i) * psi_tilde[l, j]
+                            + psi_tilde[l, i] * LeviCivita3(k, l, j)
+                        )
+    else:
+        ####################
+        # -beta2 * psi_tilde
+        ####################
+        T_SO3_psi[0, 1, 2] = T_SO3_psi[1, 2, 0] = T_SO3_psi[2, 0, 1] = 0.5
+        T_SO3_psi[0, 2, 1] = T_SO3_psi[1, 0, 2] = T_SO3_psi[2, 1, 0] = -0.5
+
+    return T_SO3_psi
+
+    # T_SO3_psi_num = approx_fprime(psi, T_SO3, method="cs", eps=1.0e-10)
+    # diff = T_SO3_psi - T_SO3_psi_num
+    # error = np.linalg.norm(diff)
+    # if error > 1.0e-8:
+    #     print(f"error T_SO3_psi: {error}")
+    # return T_SO3_psi_num
+
+
+def T_SO3_inv(psi: np.ndarray) -> np.ndarray:
+    angle = norm(psi)
+    psi_tilde = ax2skew(psi)
+    if angle > angle_singular:
+        # Park2005 (19), actually its the transposed!
+        gamma = 0.5 * angle / (np.tan(0.5 * angle))
+        return (
+            np.eye(3, dtype=float)
+            + 0.5 * psi_tilde
+            + ((1.0 - gamma) / (angle * angle)) * psi_tilde @ psi_tilde
+        )
+
+        # # Barfoot2014 (98), actually its the transposed!
+        # angle2 = 0.5 * angle
+        # cot = 1.0 / tan(angle2)
+        # n = psi / angle
+        # return (
+        #     angle2 * cot * np.eye(3, dtype=float)
+        #     + angle2 * ax2skew(n)
+        #     + (1.0 - angle2 * cot) * np.outer(n, n)
+        # )
+    else:
+        # first order approximation
+        return np.eye(3, dtype=float) + 0.5 * psi_tilde
+
+
+def T_SO3_inv_psi(psi: np.ndarray) -> np.ndarray:
+    T_SO3_inv_psi = np.zeros((3, 3, 3), dtype=float)
+
+    #################
+    # 0.5 * psi_tilde
+    #################
+    T_SO3_inv_psi[0, 1, 2] = T_SO3_inv_psi[1, 2, 0] = T_SO3_inv_psi[2, 0, 1] = -0.5
+    T_SO3_inv_psi[0, 2, 1] = T_SO3_inv_psi[1, 0, 2] = T_SO3_inv_psi[2, 1, 0] = 0.5
+
+    angle = norm(psi)
+    if angle > angle_singular:
+        psi_tilde = ax2skew(psi)
+        psi_tilde2 = psi_tilde @ psi_tilde
+        cot = 1.0 / np.tan(0.5 * angle)
+        gamma = 0.5 * angle * cot
+        angle2 = angle * angle
+        c = (1.0 - gamma) / angle2
+        # c_psi_k = (
+        #     -2.0 * c / angle2
+        #     - cot / (2.0 * angle2 * angle)
+        #     + 1.0 / (4.0 * angle2 * np.sin(0.5 * angle) ** 2)
+        # )
+        c_psi_k = (
+            1.0 / (4.0 * np.sin(0.5 * angle) ** 2) - cot / (2.0 * angle) - 2.0 * c
+        ) / angle2
+
+        ###########################################################
+        # ((1.0 - gamma) / (angle * angle)) * psi_tilde @ psi_tilde
+        ###########################################################
+        for i in range(3):
+            for j in range(3):
+                for k in range(3):
+                    T_SO3_inv_psi[i, j, k] += psi_tilde2[i, j] * psi[k] * c_psi_k
+                    for l in range(3):
+                        T_SO3_inv_psi[i, j, k] += c * (
+                            LeviCivita3(i, k, l) * psi_tilde[l, j]
+                            + psi_tilde[i, l] * LeviCivita3(l, k, j)
+                        )
+
+    return T_SO3_inv_psi
+
+    # T_SO3_inv_psi_num = approx_fprime(psi, T_SO3_inv, eps=1.0e-10, method="cs")
+    # diff = T_SO3_inv_psi - T_SO3_inv_psi_num
+    # error = np.linalg.norm(diff)
+    # if error > 1.0e-10:
+    #     print(f"error T_SO3_inv_psi: {error}")
+    # return T_SO3_inv_psi_num
+
+
+def SE3(A_IK: np.ndarray, r_OP: np.ndarray) -> np.ndarray:
+    H = np.zeros((4, 4), dtype=np.common_type(A_IK, r_OP))
+    H[:3, :3] = A_IK
+    H[:3, 3] = r_OP
+    H[3, 3] = 1.0
+    return H
+
+
+def SE3inv(H: np.ndarray) -> np.ndarray:
+    A_IK = H[:3, :3]
+    r_OP = H[:3, 3]
+    return SE3(A_IK.T, -A_IK.T @ r_OP)
+
+
+def Exp_SE3(h: np.ndarray) -> np.ndarray:
+    r = h[:3]
+    psi = h[3:]
+
+    H = np.zeros((4, 4), dtype=h.dtype)
+    H[:3, :3] = Exp_SO3(psi)
+    H[:3, 3] = T_SO3(psi).T @ r
+    H[3, 3] = 1.0
+
+    return H
+
+
+def Exp_SE3_h(h: np.ndarray) -> np.ndarray:
+    r = h[:3]
+    psi = h[3:]
+
+    H_h = np.zeros((4, 4, 6), dtype=h.dtype)
+    H_h[:3, :3, 3:] = Exp_SO3_psi(psi)
+    H_h[:3, 3, 3:] = np.einsum("k,kij->ij", r, T_SO3_psi(psi))
+    H_h[:3, 3, :3] = T_SO3(psi).T
+    return H_h
+
+    # H_h_num =  approx_fprime(h, Exp_SE3, method="cs", eps=1.0e-10)
+    # diff = H_h - H_h_num
+    # error = np.linalg.norm(diff)
+    # if error > 1.0e-10:
+    #     print(f"error Exp_SE3_h: {error}")
+    # return H_h_num
+
+
+def Log_SE3(H: np.ndarray) -> np.ndarray:
+    A = H[:3, :3]
+    r = H[:3, 3]
+    psi = Log_SO3(A)
+    h = np.concatenate((T_SO3_inv(psi).T @ r, psi))
+    return h
+
+
+def Log_SE3_H(H: np.ndarray) -> np.ndarray:
+    A = H[:3, :3]
+    r = H[:3, 3]
+    psi = Log_SO3(A)
+    psi_A = Log_SO3_A(A)
+    h_H = np.zeros((6, 4, 4), dtype=H.dtype)
+    h_H[:3, :3, :3] = np.einsum("l,lim,mjk", r, T_SO3_inv_psi(psi), psi_A)
+    h_H[:3, :3, 3] = T_SO3_inv(psi).T
+    h_H[3:, :3, :3] = psi_A
+    return h_H
+
+    # h_H_num = approx_fprime(H, Log_SE3, method="cs", eps=1.0e-10)
+    # diff = h_H - h_H_num
+    # error = np.linalg.norm(diff)
+    # if error > 1.0e-10:
+    #     print(f"error Log_SE3_H: {error}")
+    # return h_H_num
+
+
+def U(a, b):
+    a_tilde = ax2skew(a)
+
+    b2 = b @ b
+    if b2 > 0:
+        abs_b = np.sqrt(b2)
+        alpha = np.sin(abs_b) / abs_b
+        beta = 2.0 * (1.0 - np.cos(abs_b)) / b2
+
+        b_tilde = ax2skew(b)
+
+        # Sonneville2014 (A.12); how is this related to Park2005 (20) and (21)?
+        return (
+            -0.5 * beta * a_tilde
+            + (1.0 - alpha) * (a_tilde @ b_tilde + b_tilde @ a_tilde) / b2
+            + ((b @ a) / b2)
+            * (
+                (beta - alpha) * b_tilde
+                + (0.5 * beta - 3.0 * (1.0 - alpha) / b2) * b_tilde @ b_tilde
+            )
+        )
+    else:
+        return -0.5 * a_tilde  # Soneville2014
+
+
+def T_SE3(h: np.ndarray) -> np.ndarray:
+    r = h[:3]
+    psi = h[3:]
+
+    T = np.zeros((6, 6), dtype=h.dtype)
+    T[:3, :3] = T[3:, 3:] = T_SO3(psi)
+    T[:3, 3:] = U(r, psi)
+    return T
 
 
 class A_IK_basic:
@@ -267,12 +713,11 @@ def smallest_rotation(
 ) -> np.ndarray:
     """Rotation matrix that rotates an unit vector a0 / ||a0|| to another unit vector
     a / ||a||, see Crisfield1996 16.13 and (16.104). This rotation is sometimes
-    referred to 'smallest rotation'. Can we use the SVD proposed by eigen3?
+    referred to 'smallest rotation'.
 
     References
     ----------
     Crisfield1996: http://inis.jinr.ru/sl/M_Mathematics/MN_Numerical%20methods/MNf_Finite%20elements/Crisfield%20M.A.%20Vol.2.%20Non-linear%20Finite%20Element%20Analysis%20of%20Solids%20and%20Structures..%20Advanced%20Topics%20(Wiley,1996)(ISBN%20047195649X)(509s).pdf
-    eigen3: https://gitlab.com/libeigen/eigen/-/blob/master/Eigen/src/Geometry/Quaternion.h#L633-669
     """
     if normalize:
         a0 = a0 / norm(a0)
@@ -293,114 +738,6 @@ def smallest_rotation(
     # return cos_psi * np.eye(3, dtype=e.dtype) + ax2skew(e) + np.outer(e, e) / denom
     e_tilde = ax2skew(e)
     return np.eye(3, dtype=e.dtype) + e_tilde + e_tilde @ e_tilde / denom
-    # if denom > 0:
-    #     e = cross3(a0_bar, a_bar)
-    #     return cos_psi * np.eye(3) + ax2skew(e) + np.outer(e, e) / denom
-    # else:
-    #     print("svd case")
-    #     M = np.vstack((a0_bar, a_bar))
-    #     U, S, Vh = np.linalg.svd(M)
-    #     axis = Vh[2]
-    #     psi = np.arccos(cos_psi)
-    #     return rodriguez(psi * axis)
-
-
-class Rotor:
-    """Rotor from geometric algebra, see https://marctenbosch.com/quaternions/#h_0."""
-
-    @staticmethod
-    def fromMatrix(A: np.ndarray):
-        return Rotor(Spurrier(A))
-
-    @staticmethod
-    def fromRotor(R: Rotor):
-        return Rotor(R.__data.copy())
-
-    @staticmethod
-    def fromVector(v: np.ndarray):
-        return Rotor(np.array([0, v]))
-
-    @staticmethod
-    def from2Vectors(u: np.ndarray, v: np.ndarray):
-        return Rotor(np.array([1.0 + u @ v, *cross3(u, v)]))
-
-    @staticmethod
-    def fromComponents(a: float, b: np.ndarray):
-        return Rotor(np.array([a, *b]))
-
-    def __init__(self, data=None) -> None:
-        if data is None:
-            self.__data = np.array([1, 0, 0, 0], dtype=float)
-        else:
-            # ensure float ndarray data
-            self.__data = np.asarray(data, dtype=float)
-
-            # normalize rotor
-            l = norm(self.__data)
-            if l > 0:
-                self.__data /= l
-
-    def __call__(self):
-        return self.__data
-
-    @property
-    def a(self) -> float:
-        return self.__data[0]
-
-    @a.setter
-    def a(self, value: float):
-        self.__data[0] = value
-
-    @property
-    def b(self) -> np.ndarray:
-        return self.__data[1:]
-
-    @b.setter
-    def b(self, value: np.ndarray):
-        self.__data[1:] = value
-
-    def __str__(self):
-        return f"{self.a} + " + f"{self.b}"
-
-    def __repr__(self):
-        return f'Rotor("{self.__str__}")'
-
-    def __mul__(self, scalar: float) -> Rotor:
-        """Scalar product."""
-        return Rotor(self() * scalar)
-
-    def __matmul__(self, other) -> Rotor:
-        """Inner product."""
-        return self() @ other()
-
-    def __xor__(self, other) -> np.ndarray:
-        """Outer product."""
-        return cross3(self.b, other.b)
-
-    def __mod__(self, other) -> Rotor:
-        """Geometric product."""
-        res = Rotor()
-        res.a = self * other
-        res.b = self ^ other
-        return res
-
-    def __invert__(self) -> Rotor:
-        """Reverse rotor."""
-        return Rotor.fromComponents(self.a, -self.b)
-
-    def rotate(self, r) -> Rotor:
-        """Rotate a vector or another rotor."""
-        if isinstance(r, Rotor):
-            return self @ r @ ~self
-        else:
-            return self @ Rotor.fromVector(r) @ ~self
-
-    # TODO: Is this correct?
-    def toMatrix(self) -> np.ndarray:
-        """Compute rotation matrix defined by rotor."""
-        a = self.a
-        b_tilde = ax2skew(self.b)
-        return np.eye(3) + 2 * (b_tilde @ b_tilde + a * b_tilde)
 
 
 ##########################################
@@ -509,24 +846,5 @@ def test_smallest_rotation():
     plt.show()
 
 
-def test_rotor():
-    from cardillo.math import e1, e2, e3
-
-    r1 = Rotor.from2Vectors(e1, e2)
-    # r1 = Rotor.from2Vectors(e1, e3)
-    r2 = Rotor()
-    # r2 = Rotor(u=e1, v=e1)
-    print(f"r1: {r1}")
-    print(f"r2: {r2}")
-
-    print(f"r1 * r2: {r1 * r2}")
-    print(f"r1 ^ r2: {r1 ^ r2}")
-    print(f"r1 @ r2: {r1 @ r2}")
-    print(f"r1.rotate(r2): {r1.rotate(r2)}")
-    print(f"r1.toMatrix():\n{r1.toMatrix()}")
-    print(f"r2.toMatrix():\n{r2.toMatrix()}")
-
-
 if __name__ == "__main__":
     test_smallest_rotation()
-    # test_rotor()
