@@ -14,6 +14,7 @@ from cardillo.beams import (
     TimoshenkoDirectorDirac,
     TimoshenkoDirectorIntegral,
 )
+from cardillo.beams._base import TimoshenkoPetrovGalerkinBase
 from cardillo.forces import K_Moment, K_Force, DistributedForce1DBeam
 from cardillo import System
 from cardillo.solver import Newton, EulerBackward
@@ -55,11 +56,11 @@ if __name__ == "__main__":
 
     # Note: This is never used in statics!
     line_density = 1.0
-    # radius = 0.1
-    # cross_section = CircularCrossSection(line_density, radius)
-    width = 0.1
-    height = 0.2
-    cross_section = RectangularCrossSection(line_density, width, height)
+    radius = 0.1
+    cross_section = CircularCrossSection(line_density, radius)
+    # width = 0.1
+    # height = 0.2
+    # cross_section = RectangularCrossSection(line_density, width, height)
     A_rho0 = line_density * cross_section.area
     K_S_rho0 = line_density * cross_section.first_moment
     K_I_rho0 = line_density * cross_section.second_moment
@@ -88,6 +89,7 @@ if __name__ == "__main__":
         )
     elif Beam == DirectorAxisAngle:
         q0 = DirectorAxisAngle.straight_configuration(
+            # q0 = TimoshenkoPetrovGalerkinBase.straight_configuration(
             polynomial_degree,
             polynomial_degree,
             basis,
@@ -106,7 +108,8 @@ if __name__ == "__main__":
             polynomial_degree,
             polynomial_degree,
             nelements,
-            q0,
+            Q=q0,
+            q0=q0,
             basis_r=basis,
             basis_psi=basis,
         )
@@ -150,6 +153,7 @@ if __name__ == "__main__":
             basis=basis,
         )
         beam = TimoshenkoAxisAngle(
+            cross_section,
             material_model,
             A_rho0,
             K_I_rho0,

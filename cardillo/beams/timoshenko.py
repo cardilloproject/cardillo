@@ -25,6 +25,7 @@ from cardillo.math import (
     ax2skew_a,
     pi,
 )
+from cardillo.beams._base import RodExportBase
 
 
 def SE3(A_IK, r_OP):
@@ -3412,9 +3413,10 @@ class BernoulliAxisAngleSE3(TimoshenkoAxisAngleSE3Old):
             coo.extend(Wla_g_q, (self.uDOF[elDOF], self.qDOF[elDOF]))
 
 
-class TimoshenkoAxisAngle:
+class TimoshenkoAxisAngle(RodExportBase):
     def __init__(
         self,
+        cross_section,
         material_model,
         A_rho0,
         I_rho0,
@@ -3429,7 +3431,7 @@ class TimoshenkoAxisAngle:
         objetive=True,
         # objetive=False,
     ):
-        raise RuntimeError("This rod is not refactored yet!")
+        super().__init__(cross_section)
 
         # beam properties
         self.materialModel = material_model  # material model
@@ -3594,50 +3596,114 @@ class TimoshenkoAxisAngle:
                 self.K_Gamma0[el, i] = K_Gamma
                 self.K_Kappa0[el, i] = K_Kappa
 
+    # @staticmethod
+    # def straight_configuration(
+    #     polynomial_degree_r,
+    #     polynomial_degree_psi,
+    #     nelement,
+    #     L,
+    #     greville_abscissae=True,
+    #     r_OP=np.zeros(3),
+    #     A_IK=np.eye(3),
+    #     basis="B-spline",
+    # ):
+    #     if basis == "B-spline":
+    #         nn_r = polynomial_degree_r + nelement
+    #         nn_psi = polynomial_degree_psi + nelement
+    #     elif basis == "Lagrange":
+    #         nn_r = polynomial_degree_r * nelement + 1
+    #         nn_psi = polynomial_degree_psi * nelement + 1
+    #     elif basis == "Hermite":
+    #         polynomial_degree_r = 3
+    #         nn_r = nelement + 1
+    #         polynomial_degree_psi = 1
+    #         # TODO:
+    #         nn_psi = polynomial_degree_psi + nelement  # B-spline
+    #         # nn_psi = polynomial_degree_psi * nelement + 1 # Lagrange
+    #     else:
+    #         raise RuntimeError(f'wrong basis: "{basis}" was chosen')
+
+    #     if (basis == "B-spline") or (basis == "Lagrange"):
+    #         x0 = np.linspace(0, L, num=nn_r)
+    #         y0 = np.zeros(nn_r)
+    #         z0 = np.zeros(nn_r)
+    #         if greville_abscissae and basis == "B-spline":
+    #             kv = BSplineKnotVector.uniform(polynomial_degree_r, nelement)
+    #             for i in range(nn_r):
+    #                 x0[i] = np.sum(kv[i + 1 : i + polynomial_degree_r + 1])
+    #             x0 = x0 * L / polynomial_degree_r
+
+    #         r0 = np.vstack((x0, y0, z0))
+    #         for i in range(nn_r):
+    #             r0[:, i] = r_OP + A_IK @ r0[:, i]
+
+    #     elif basis == "Hermite":
+    #         xis = np.linspace(0, 1, num=nn_r)
+    #         r0 = np.zeros((6, nn_r))
+    #         t0 = A_IK @ (L * e1)
+    #         for i, xi in enumerate(xis):
+    #             ri = r_OP + xi * t0
+    #             r0[:3, i] = ri
+    #             r0[3:, i] = t0
+
+    #     # reshape generalized coordinates to nodal ordering
+    #     q_r = r0.reshape(-1, order="C")
+
+    #     # TODO: Relative interpolation case!
+    #     # we have to extract the rotation vector from the given rotation matrix
+    #     # and set its value for each node
+    #     psi = rodriguez_inv(A_IK)
+    #     q_psi = np.repeat(psi, nn_psi)
+
+    #     return np.concatenate([q_r, q_psi])
+
     @staticmethod
     def straight_configuration(
         polynomial_degree_r,
         polynomial_degree_psi,
+        basis_r,
+        basis_psi,
         nelement,
         L,
-        greville_abscissae=True,
-        r_OP=np.zeros(3),
-        A_IK=np.eye(3),
-        basis="B-spline",
+        r_OP=np.zeros(3, dtype=float),
+        A_IK=np.eye(3, dtype=float),
     ):
-        if basis == "B-spline":
-            nn_r = polynomial_degree_r + nelement
-            nn_psi = polynomial_degree_psi + nelement
-        elif basis == "Lagrange":
-            nn_r = polynomial_degree_r * nelement + 1
-            nn_psi = polynomial_degree_psi * nelement + 1
-        elif basis == "Hermite":
-            polynomial_degree_r = 3
-            nn_r = nelement + 1
-            polynomial_degree_psi = 1
-            # TODO:
-            nn_psi = polynomial_degree_psi + nelement  # B-spline
-            # nn_psi = polynomial_degree_psi * nelement + 1 # Lagrange
+        if basis_r == "Lagrange":
+            nnodes_r = polynomial_degree_r * nelement + 1
+        elif basis_r == "B-spline":
+            nnodes_r = polynomial_degree_r + nelement
+        elif basis_r == "Hermite":
+            nnodes_r = nelement + 1
         else:
-            raise RuntimeError(f'wrong basis: "{basis}" was chosen')
+            raise RuntimeError(f'wrong basis_r: "{basis_r}" was chosen')
 
-        if (basis == "B-spline") or (basis == "Lagrange"):
-            x0 = np.linspace(0, L, num=nn_r)
-            y0 = np.zeros(nn_r)
-            z0 = np.zeros(nn_r)
-            if greville_abscissae and basis == "B-spline":
+        if basis_psi == "Lagrange":
+            nnodes_psi = polynomial_degree_psi * nelement + 1
+        elif basis_psi == "B-spline":
+            nnodes_psi = polynomial_degree_psi + nelement
+        elif basis_psi == "Hermite":
+            nnodes_psi = nelement + 1
+        else:
+            raise RuntimeError(f'wrong basis_psi: "{basis_psi}" was chosen')
+
+        if basis_r == "B-spline" or basis_r == "Lagrange":
+            x0 = np.linspace(0, L, num=nnodes_r)
+            y0 = np.zeros(nnodes_r)
+            z0 = np.zeros(nnodes_r)
+            if basis_r == "B-spline":
+                # build Greville abscissae for B-spline basis
                 kv = BSplineKnotVector.uniform(polynomial_degree_r, nelement)
-                for i in range(nn_r):
+                for i in range(nnodes_r):
                     x0[i] = np.sum(kv[i + 1 : i + polynomial_degree_r + 1])
                 x0 = x0 * L / polynomial_degree_r
 
             r0 = np.vstack((x0, y0, z0))
-            for i in range(nn_r):
+            for i in range(nnodes_r):
                 r0[:, i] = r_OP + A_IK @ r0[:, i]
 
-        elif basis == "Hermite":
-            xis = np.linspace(0, 1, num=nn_r)
-            r0 = np.zeros((6, nn_r))
+        elif basis_r == "Hermite":
+            xis = np.linspace(0, 1, num=nnodes_r)
+            r0 = np.zeros((6, nnodes_r))
             t0 = A_IK @ (L * e1)
             for i, xi in enumerate(xis):
                 ri = r_OP + xi * t0
@@ -3647,11 +3713,12 @@ class TimoshenkoAxisAngle:
         # reshape generalized coordinates to nodal ordering
         q_r = r0.reshape(-1, order="C")
 
-        # TODO: Relative interpolation case!
         # we have to extract the rotation vector from the given rotation matrix
         # and set its value for each node
-        psi = rodriguez_inv(A_IK)
-        q_psi = np.repeat(psi, nn_psi)
+        if basis_psi == "Hermite":
+            raise NotImplementedError
+        psi = Log_SO3(A_IK)
+        q_psi = np.repeat(psi, nnodes_psi)
 
         return np.concatenate([q_r, q_psi])
 
