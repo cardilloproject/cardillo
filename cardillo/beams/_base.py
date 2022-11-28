@@ -466,7 +466,6 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
         but quanternions can added without too much work."""
 
         super().__init__(cross_section)
-        # self.cross_section = cross_section
 
         # beam properties
         self.material_model = material_model  # material model

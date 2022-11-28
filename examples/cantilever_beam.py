@@ -9,12 +9,11 @@ from cardillo.constraints import RigidConnection
 from cardillo.beams import (
     animate_beam,
     TimoshenkoAxisAngleSE3,
-    TimoshenkoAxisAngle,
+    Crisfield1999,
     DirectorAxisAngle,
     TimoshenkoDirectorDirac,
     TimoshenkoDirectorIntegral,
 )
-from cardillo.beams._base import TimoshenkoPetrovGalerkinBase
 from cardillo.forces import K_Moment, K_Force, DistributedForce1DBeam
 from cardillo import System
 from cardillo.solver import Newton, EulerBackward
@@ -24,11 +23,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-# Beam = TimoshenkoAxisAngleSE3
-Beam = DirectorAxisAngle
+# Beam = DirectorAxisAngle
+# Beam = Crisfield1999
+Beam = TimoshenkoAxisAngleSE3
 # Beam = TimoshenkoDirectorDirac
 # Beam = TimoshenkoDirectorIntegral
-# Beam = TimoshenkoAxisAngle
 
 statics = True
 # statics = False
@@ -56,11 +55,11 @@ if __name__ == "__main__":
 
     # Note: This is never used in statics!
     line_density = 1.0
-    radius = 0.1
-    cross_section = CircularCrossSection(line_density, radius)
-    # width = 0.1
-    # height = 0.2
-    # cross_section = RectangularCrossSection(line_density, width, height)
+    # radius = 0.1
+    # cross_section = CircularCrossSection(line_density, radius)
+    width = 0.1
+    height = 0.2
+    cross_section = RectangularCrossSection(line_density, width, height)
     A_rho0 = line_density * cross_section.area
     K_S_rho0 = line_density * cross_section.first_moment
     K_I_rho0 = line_density * cross_section.second_moment
@@ -71,7 +70,10 @@ if __name__ == "__main__":
 
     if Beam == TimoshenkoAxisAngleSE3:
         q0 = TimoshenkoAxisAngleSE3.straight_configuration(
-            1,
+            polynomial_degree,
+            polynomial_degree,
+            basis,
+            basis,
             nelements,
             L,
             r_OP=r_OP0,
@@ -79,7 +81,6 @@ if __name__ == "__main__":
         )
         beam = TimoshenkoAxisAngleSE3(
             cross_section,
-            1,
             material_model,
             A_rho0,
             K_S_rho0,
@@ -89,7 +90,6 @@ if __name__ == "__main__":
         )
     elif Beam == DirectorAxisAngle:
         q0 = DirectorAxisAngle.straight_configuration(
-            # q0 = TimoshenkoPetrovGalerkinBase.straight_configuration(
             polynomial_degree,
             polynomial_degree,
             basis,
@@ -131,6 +131,7 @@ if __name__ == "__main__":
         nquadrature = polynomial_degree + 1
 
         beam = Beam(
+            cross_section,
             material_model,
             A_rho0,
             B_rho0,
@@ -142,27 +143,29 @@ if __name__ == "__main__":
             q0,
             basis=basis,
         )
-    elif Beam == TimoshenkoAxisAngle:
-        q0 = TimoshenkoAxisAngle.straight_configuration(
+    elif Beam == Crisfield1999:
+        q0 = Crisfield1999.straight_configuration(
             polynomial_degree,
             polynomial_degree,
+            basis,
+            basis,
             nelements,
             L,
             r_OP=r_OP0,
             A_IK=A_IK0,
-            basis=basis,
         )
-        beam = TimoshenkoAxisAngle(
+        beam = Crisfield1999(
             cross_section,
             material_model,
             A_rho0,
+            K_S_rho0,
             K_I_rho0,
             polynomial_degree,
             polynomial_degree,
-            polynomial_degree + 1,
             nelements,
             q0,
-            basis=basis,
+            basis_r=basis,
+            basis_psi=basis,
         )
     else:
         raise NotImplementedError
@@ -200,7 +203,7 @@ if __name__ == "__main__":
     system.add(joint1)
     system.add(moment)
     # system.add(force)
-    system.add(line_force)
+    # system.add(line_force)
     system.assemble()
 
     # animate_beam([0], [system.q0], [beam], L)

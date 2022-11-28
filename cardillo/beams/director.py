@@ -9,11 +9,13 @@ from cardillo.discretization.lagrange import LagrangeKnotVector
 from cardillo.math.algebra import norm, cross3, skew2ax, skew2ax_A
 from cardillo.math import approx_fprime
 from cardillo.discretization.mesh1D import Mesh1D
+from cardillo.beams._base import RodExportBase
 
 
-class TimoshenkoBeamDirector(metaclass=ABCMeta):
+class TimoshenkoBeamDirector(RodExportBase, metaclass=ABCMeta):
     def __init__(
         self,
+        cross_section,
         material_model,
         A_rho0,
         B_rho0,
@@ -27,6 +29,8 @@ class TimoshenkoBeamDirector(metaclass=ABCMeta):
         u0=None,
         basis="B-spline",
     ):
+        super().__init__(cross_section)
+
         # beam properties
         self.materialModel = material_model  # material model
         self.A_rho0 = A_rho0  # line density
@@ -914,12 +918,26 @@ class TimoshenkoBeamDirector(metaclass=ABCMeta):
     # body force
     ####################################################
     def distributed_force1D_el(self, force, t, el):
-        fe = np.zeros(self.nq_el)
+        # fe = np.zeros(self.nq_element)
+        # for i in range(self.nquadrature):
+        #     NNi = self.stack3r(self.N_r[el, i])
+        #     fe[self.rDOF] += (
+        #         NNi.T @ force(t, self.qp[el, i]) * self.J[el, i] * self.qw[el, i]
+        #     )
+        # return fe
+        fe = np.zeros(self.nq_element, dtype=float)
         for i in range(self.nquadrature):
-            NNi = self.stack3r(self.N_r[el, i])
-            fe[self.rDOF] += (
-                NNi.T @ force(t, self.qp[el, i]) * self.J[el, i] * self.qw[el, i]
-            )
+            # extract reference state variables
+            qwi = self.qw[el, i]
+            Ji = self.J[el, i]
+
+            # compute local force vector
+            fe_r = force(t, qwi) * Ji * qwi
+
+            # multiply local force vector with variation of centerline
+            for node in range(self.nnodes_element_r):
+                fe[self.nodalDOF_element_r[node]] += self.N_r[el, i, node] * fe_r
+
         return fe
 
     def distributed_force1D(self, t, q, force):
@@ -965,25 +983,6 @@ class TimoshenkoBeamDirector(metaclass=ABCMeta):
             qp = q_body[self.local_qDOF_P(frame_ID)]
             r.append(self.r_OP(1, qp, frame_ID))
         return np.array(r).T
-
-    def frames(self, q, n=10):
-        q_body = q[self.qDOF]
-        r = []
-        d1 = []
-        d2 = []
-        d3 = []
-
-        for xi in np.linspace(0, 1, n):
-            frame_ID = (xi,)
-            qp = q_body[self.local_qDOF_P(frame_ID)]
-            r.append(self.r_OP(1, qp, frame_ID))
-
-            d1i, d2i, d3i = self.A_IK(1, qp, frame_ID).T
-            d1.extend([d1i])
-            d2.extend([d2i])
-            d3.extend([d3i])
-
-        return np.array(r).T, np.array(d1).T, np.array(d2).T, np.array(d3).T
 
     def plot_centerline(self, ax, q, n=100, color="black"):
         ax.plot(*self.nodes(q), linestyle="dashed", marker="o", color=color)
