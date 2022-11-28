@@ -1,7 +1,6 @@
 import numpy as np
 from abc import ABC, abstractmethod
 
-# from cardillo.utility.coo import Coo
 from cardillo.discretization.bezier import L2_projection_Bezier_curve
 from cardillo.beams.cross_section import (
     CrossSection,
@@ -9,17 +8,9 @@ from cardillo.beams.cross_section import (
     RectangularCrossSection,
 )
 
-# from cardillo.math import (
-#     cross3,
-#     ax2skew,
-# )
-
 
 class RodExportBase(ABC):
     def __init__(self, cross_section: CrossSection):
-        self.radius = 0.125
-        self.a = 0.1
-        self.b = 0.2
         self.cross_section = cross_section
 
     @abstractmethod
@@ -53,192 +44,7 @@ class RodExportBase(ABC):
 
         return np.array(r).T, np.array(d1).T, np.array(d2).T, np.array(d3).T
 
-    # def assembler_callback(self):
-    #     if self.constant_mass_matrix:
-    #         self._M_coo()
-
-    # #########################################
-    # # equations of motion
-    # #########################################
-    # def assembler_callback(self):
-    #     if self.constant_mass_matrix:
-    #         self._M_coo()
-
-    # def M_el_constant(self, el):
-    #     M_el = np.zeros((self.nq_element, self.nq_element), dtype=float)
-
-    #     for i in range(self.nquadrature):
-    #         # extract reference state variables
-    #         qwi = self.qw[el, i]
-    #         Ji = self.J[el, i]
-
-    #         # delta_r A_rho0 r_ddot part
-    #         M_el_r_r = np.eye(3) * self.A_rho0 * Ji * qwi
-    #         for node_a in range(self.nnodes_element_r):
-    #             nodalDOF_a = self.nodalDOF_element_r[node_a]
-    #             for node_b in range(self.nnodes_element_r):
-    #                 nodalDOF_b = self.nodalDOF_element_r[node_b]
-    #                 M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_r_r * (
-    #                     self.N_r[el, i, node_a] * self.N_r[el, i, node_b]
-    #                 )
-
-    #         # first part delta_phi (I_rho0 omega_dot + omega_tilde I_rho0 omega)
-    #         M_el_psi_psi = self.K_I_rho0 * Ji * qwi
-    #         for node_a in range(self.nnodes_element_psi):
-    #             nodalDOF_a = self.nodalDOF_element_psi[node_a]
-    #             for node_b in range(self.nnodes_element_psi):
-    #                 nodalDOF_b = self.nodalDOF_element_psi[node_b]
-    #                 M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_psi_psi * (
-    #                     self.N_psi[el, i, node_a] * self.N_psi[el, i, node_b]
-    #                 )
-
-    #     return M_el
-
-    # def M_el(self, qe, el):
-    #     M_el = np.zeros((self.nq_element, self.nq_element), dtype=float)
-
-    #     for i in range(self.nquadrature):
-    #         # extract reference state variables
-    #         qwi = self.qw[el, i]
-    #         Ji = self.J[el, i]
-
-    #         # delta_r A_rho0 r_ddot part
-    #         M_el_r_r = np.eye(3) * self.A_rho0 * Ji * qwi
-    #         for node_a in range(self.nnodes_element_r):
-    #             nodalDOF_a = self.nodalDOF_element_r[node_a]
-    #             for node_b in range(self.nnodes_element_r):
-    #                 nodalDOF_b = self.nodalDOF_element_r[node_b]
-    #                 M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_r_r * (
-    #                     self.N_r[el, i, node_a] * self.N_r[el, i, node_b]
-    #                 )
-
-    #         # first part delta_phi (I_rho0 omega_dot + omega_tilde I_rho0 omega)
-    #         M_el_psi_psi = self.K_I_rho0 * Ji * qwi
-    #         for node_a in range(self.nnodes_element_psi):
-    #             nodalDOF_a = self.nodalDOF_element_psi[node_a]
-    #             for node_b in range(self.nnodes_element_psi):
-    #                 nodalDOF_b = self.nodalDOF_element_psi[node_b]
-    #                 M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_psi_psi * (
-    #                     self.N_psi[el, i, node_a] * self.N_psi[el, i, node_b]
-    #                 )
-
-    #         # For non symmetric cross sections there are also other parts
-    #         # involved in the mass matrix. These parts are configuration
-    #         # dependent and lead to configuration dependent mass matrix.
-    #         _, A_IK, _, _ = self.eval(qe, self.qp[el, i])
-    #         M_el_r_psi = A_IK @ self.K_S_rho0 * Ji * qwi
-    #         M_el_psi_r = A_IK @ self.K_S_rho0 * Ji * qwi
-
-    #         for node_a in range(self.nnodes_element_r):
-    #             nodalDOF_a = self.nodalDOF_element_r[node_a]
-    #             for node_b in range(self.nnodes_element_psi):
-    #                 nodalDOF_b = self.nodalDOF_element_psi[node_b]
-    #                 M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_r_psi * (
-    #                     self.N_r[el, i, node_a] * self.N_psi[el, i, node_b]
-    #                 )
-    #         for node_a in range(self.nnodes_element_psi):
-    #             nodalDOF_a = self.nodalDOF_element_psi[node_a]
-    #             for node_b in range(self.nnodes_element_r):
-    #                 nodalDOF_b = self.nodalDOF_element_r[node_b]
-    #                 M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_psi_r * (
-    #                     self.N_psi[el, i, node_a] * self.N_r[el, i, node_b]
-    #                 )
-
-    #     return M_el
-
-    # def _M_coo(self):
-    #     self.__M = Coo((self.nu, self.nu))
-    #     for el in range(self.nelement):
-    #         # extract element degrees of freedom
-    #         elDOF = self.elDOF[el]
-
-    #         # sparse assemble element mass matrix
-    #         self.__M.extend(
-    #             self.M_el_constant(el), (self.uDOF[elDOF], self.uDOF[elDOF])
-    #         )
-
-    # def M(self, t, q, coo):
-    #     if self.constant_mass_matrix:
-    #         coo.extend_sparse(self.__M)
-    #     else:
-    #         for el in range(self.nelement):
-    #             # extract element degrees of freedom
-    #             elDOF = self.elDOF[el]
-
-    #             # sparse assemble element mass matrix
-    #             coo.extend(
-    #                 self.M_el(q[elDOF], el), (self.uDOF[elDOF], self.uDOF[elDOF])
-    #             )
-
-    # def f_gyr_el(self, t, qe, ue, el):
-    #     f_gyr_el = np.zeros(self.nq_element, dtype=np.common_type(qe, ue))
-
-    #     for i in range(self.nquadrature):
-    #         # interpoalte angular velocity
-    #         K_Omega = np.zeros(3, dtype=ue.dtype)
-    #         for node in range(self.nnodes_element_psi):
-    #             K_Omega += self.N_psi[el, i, node] * ue[self.nodalDOF_element_psi[node]]
-
-    #         # vector of gyroscopic forces
-    #         f_gyr_el_psi = (
-    #             cross3(K_Omega, self.K_I_rho0 @ K_Omega)
-    #             * self.J[el, i]
-    #             * self.qw[el, i]
-    #         )
-
-    #         # multiply vector of gyroscopic forces with nodal virtual rotations
-    #         for node in range(self.nnodes_element_psi):
-    #             f_gyr_el[self.nodalDOF_element_psi[node]] += (
-    #                 self.N_psi[el, i, node] * f_gyr_el_psi
-    #             )
-
-    #     return f_gyr_el
-
-    # def f_gyr(self, t, q, u):
-    #     f_gyr = np.zeros(self.nu, dtype=float)
-    #     for el in range(self.nelement):
-    #         f_gyr[self.elDOF[el]] += self.f_gyr_el(
-    #             t, q[self.elDOF[el]], u[self.elDOF[el]], el
-    #         )
-    #     return f_gyr
-
-    # def f_gyr_u_el(self, t, qe, ue, el):
-    #     f_gyr_u_el = np.zeros((self.nq_element, self.nq_element), dtype=float)
-
-    #     for i in range(self.nquadrature):
-    #         # interpoalte angular velocity
-    #         K_Omega = np.zeros(3, dtype=float)
-    #         for node in range(self.nnodes_element_psi):
-    #             K_Omega += self.N_psi[el, i, node] * ue[self.nodalDOF_element_psi[node]]
-
-    #         # derivative of vector of gyroscopic forces
-    #         f_gyr_u_el_psi = (
-    #             ((ax2skew(K_Omega) @ self.K_I_rho0 - ax2skew(self.K_I_rho0 @ K_Omega)))
-    #             * self.J[el, i]
-    #             * self.qw[el, i]
-    #         )
-
-    #         # multiply derivative of gyroscopic force vector with nodal virtual rotations
-    #         for node_a in range(self.nnodes_element_psi):
-    #             nodalDOF_a = self.nodalDOF_element_psi[node_a]
-    #             for node_b in range(self.nnodes_element_psi):
-    #                 nodalDOF_b = self.nodalDOF_element_psi[node_b]
-    #                 f_gyr_u_el[nodalDOF_a[:, None], nodalDOF_b] += f_gyr_u_el_psi * (
-    #                     self.N_psi[el, i, node_a] * self.N_psi[el, i, node_b]
-    #                 )
-
-    #     return f_gyr_u_el
-
-    # def f_gyr_u(self, t, q, u, coo):
-    #     for el in range(self.nelement):
-    #         elDOF = self.elDOF[el]
-    #         f_gyr_u_el = self.f_gyr_u_el(t, q[elDOF], u[elDOF], el)
-    #         coo.extend(f_gyr_u_el, (self.uDOF[elDOF], self.uDOF[elDOF]))
-
-    ############
-    # vtk export
-    ############
-    def export(self, sol_i, **kwargs):
+    def export(self, sol_i, circle_as_wedge=True, **kwargs):
         q = sol_i.q
 
         level = kwargs["level"]
@@ -287,52 +93,52 @@ class RodExportBase(ABC):
             # create points of the target curves (three characteristic points
             # of the cross section)
             if isinstance(self.cross_section, CircularCrossSection):
-                target_points_0 = target_points_centerline
-                target_points_1 = np.array(
-                    [
-                        r_OP + d2 * self.cross_section.radius
-                        for i, (r_OP, d2) in enumerate(zip(r_OPs.T, d2s.T))
-                    ]
-                )
-                target_points_2 = np.array(
-                    [
-                        r_OP + d3 * self.cross_section.radius
-                        for i, (r_OP, d3) in enumerate(zip(r_OPs.T, d3s.T))
-                    ]
-                )
-            if isinstance(self.cross_section, RectangularCrossSection):
+                if circle_as_wedge:
+                    ri = self.cross_section.radius
+                    ru = 2 * ri
+                    a = 2 * np.sqrt(3) * ri
+
+                    target_points_0 = np.array(
+                        [r_OP - ri * d3 for (r_OP, d3) in zip(r_OPs.T, d3s.T)]
+                    )
+
+                    target_points_1 = np.array(
+                        [
+                            r_OP + d2 * a / 2 - ri * d3
+                            for (r_OP, d2, d3) in zip(r_OPs.T, d2s.T, d3s.T)
+                        ]
+                    )
+
+                    target_points_2 = np.array(
+                        [r_OP + d3 * ru for (r_OP, d3) in zip(r_OPs.T, d3s.T)]
+                    )
+                else:
+                    target_points_0 = target_points_centerline
+                    target_points_1 = np.array(
+                        [
+                            r_OP + d2 * self.cross_section.radius
+                            for (r_OP, d2) in zip(r_OPs.T, d2s.T)
+                        ]
+                    )
+                    target_points_2 = np.array(
+                        [
+                            r_OP + d3 * self.cross_section.radius
+                            for (r_OP, d3) in zip(r_OPs.T, d3s.T)
+                        ]
+                    )
+            elif isinstance(self.cross_section, RectangularCrossSection):
                 target_points_0 = target_points_centerline
                 target_points_1 = np.array(
                     [
                         r_OP + d2 * self.cross_section.width
-                        for i, (r_OP, d2) in enumerate(zip(r_OPs.T, d2s.T))
+                        for (r_OP, d2) in zip(r_OPs.T, d2s.T)
                     ]
                 )
                 target_points_2 = np.array(
                     [
                         r_OP + d3 * self.cross_section.height
-                        for i, (r_OP, d3) in enumerate(zip(r_OPs.T, d3s.T))
+                        for (r_OP, d3) in zip(r_OPs.T, d3s.T)
                     ]
-                )
-            elif self.cross_section == "circle_wedge":
-                raise NotImplementedError
-                ri = self.radius
-                ru = 2 * ri
-                a = 2 * np.sqrt(3) * ri
-
-                target_points_0 = np.array(
-                    [r_OP - ri * d3 for i, (r_OP, d3) in enumerate(zip(r_OPs.T, d3s.T))]
-                )
-
-                target_points_1 = np.array(
-                    [
-                        r_OP + d2 * a / 2 - ri * d3
-                        for i, (r_OP, d2, d3) in enumerate(zip(r_OPs.T, d2s.T, d3s.T))
-                    ]
-                )
-
-                target_points_2 = np.array(
-                    [r_OP + d3 * ru for i, (r_OP, d3) in enumerate(zip(r_OPs.T, d3s.T))]
                 )
             else:
                 raise NotImplementedError
@@ -349,95 +155,165 @@ class RodExportBase(ABC):
             )
 
             if isinstance(self.cross_section, CircularCrossSection):
-                # if self.cross_section == "circle":
+                if circle_as_wedge:
 
-                def compute_missing_points(segment, layer):
-                    P2 = points_segments_2[segment, layer]
-                    P1 = points_segments_1[segment, layer]
-                    P8 = points_segments_0[segment, layer]
-                    P0 = 2 * P8 - P2
-                    P3 = 2 * P8 - P1
-                    P4 = (P0 + P1) - P8
-                    P5 = (P1 + P2) - P8
-                    P6 = (P2 + P3) - P8
-                    P7 = (P3 + P0) - P8
+                    def compute_missing_points(segment, layer):
+                        P0 = points_segments_0[segment, layer]
+                        P3 = points_segments_1[segment, layer]
+                        P4 = points_segments_2[segment, layer]
 
-                    dim = len(P0)
-                    s22 = np.sqrt(2) / 2
-                    points_weights = np.zeros((9, dim + 1))
-                    points_weights[0] = np.array([*P0, 1])
-                    points_weights[1] = np.array([*P1, 1])
-                    points_weights[2] = np.array([*P2, 1])
-                    points_weights[3] = np.array([*P3, 1])
-                    points_weights[4] = np.array([*P4, s22])
-                    points_weights[5] = np.array([*P5, s22])
-                    points_weights[6] = np.array([*P6, s22])
-                    points_weights[7] = np.array([*P7, s22])
-                    points_weights[8] = np.array([*P8, 1])
+                        P5 = 2 * P0 - P3
+                        P1 = 0.5 * (P3 + P4)
+                        P0 = 0.5 * (P5 + P3)
+                        P2 = 0.5 * (P4 + P5)
 
-                    return points_weights
+                        dim = len(P0)
+                        points_weights = np.zeros((6, dim + 1))
+                        points_weights[0] = np.array([*P0, 1])
+                        points_weights[1] = np.array([*P1, 1])
+                        points_weights[2] = np.array([*P2, 1])
+                        points_weights[3] = np.array([*P3, 1 / 2])
+                        points_weights[4] = np.array([*P4, 1 / 2])
+                        points_weights[5] = np.array([*P5, 1 / 2])
 
-                # create correct VTK ordering, see
-                # https://coreform.com/papers/implementation-of-rational-bezier-cells-into-VTK-report.pdf:
-                vtk_points_weights = []
-                for i in range(n_segments):
-                    # compute all missing points of the layer
-                    points_layer0 = compute_missing_points(i, 0)
-                    points_layer1 = compute_missing_points(i, 1)
-                    points_layer2 = compute_missing_points(i, 2)
-                    points_layer3 = compute_missing_points(i, 3)
+                        return points_weights
 
-                    #######################
-                    # 1. vertices (corners)
-                    #######################
+                    # create correct VTK ordering, see
+                    # https://coreform.com/papers/implementation-of-rational-bezier-cells-into-VTK-report.pdf:
+                    vtk_points_weights = []
+                    for i in range(n_segments):
+                        # compute all missing points of the layer
+                        points_layer0 = compute_missing_points(i, 0)
+                        points_layer1 = compute_missing_points(i, 1)
+                        points_layer2 = compute_missing_points(i, 2)
+                        points_layer3 = compute_missing_points(i, 3)
 
-                    # bottom
-                    for j in range(4):
-                        vtk_points_weights.append(points_layer0[j])
+                        #######################
+                        # 1. vertices (corners)
+                        #######################
 
-                    # top
-                    for j in range(4):
-                        vtk_points_weights.append(points_layer3[j])
+                        # bottom
+                        for j in range(3):
+                            vtk_points_weights.append(points_layer0[j])
 
-                    ##########
-                    # 2. edges
-                    ##########
+                        # top
+                        for j in range(3):
+                            vtk_points_weights.append(points_layer3[j])
 
-                    # bottom
-                    for j in range(4, 8):
-                        vtk_points_weights.append(points_layer0[j])
+                        ##########
+                        # 2. edges
+                        ##########
 
-                    # top
-                    for j in range(4, 8):
-                        vtk_points_weights.append(points_layer3[j])
+                        # bottom
+                        for j in range(3, 6):
+                            vtk_points_weights.append(points_layer0[j])
 
-                    # first and second
-                    for j in [0, 1, 3, 2]:
-                        vtk_points_weights.append(points_layer1[j])
-                        vtk_points_weights.append(points_layer2[j])
+                        # top
+                        for j in range(3, 6):
+                            vtk_points_weights.append(points_layer3[j])
 
-                    ##########
-                    # 3. faces
-                    ##########
+                        # first and second
+                        for j in range(3):
+                            vtk_points_weights.append(points_layer1[j])
+                            vtk_points_weights.append(points_layer2[j])
 
-                    # first and second
-                    for j in [7, 5, 4, 6]:
-                        vtk_points_weights.append(points_layer1[j])
-                        vtk_points_weights.append(points_layer2[j])
+                        ##########
+                        # 3. faces
+                        ##########
 
-                    # bottom and top
-                    vtk_points_weights.append(points_layer0[0])
-                    vtk_points_weights.append(points_layer3[-1])
+                        # first and second
+                        for j in range(3, 6):
+                            vtk_points_weights.append(points_layer1[j])
+                            vtk_points_weights.append(points_layer2[j])
+                else:
 
-                    ############
-                    # 3. volumes
-                    ############
+                    def compute_missing_points(segment, layer):
+                        P2 = points_segments_2[segment, layer]
+                        P1 = points_segments_1[segment, layer]
+                        P8 = points_segments_0[segment, layer]
+                        P0 = 2 * P8 - P2
+                        P3 = 2 * P8 - P1
+                        P4 = (P0 + P1) - P8
+                        P5 = (P1 + P2) - P8
+                        P6 = (P2 + P3) - P8
+                        P7 = (P3 + P0) - P8
 
-                    # first and second
-                    vtk_points_weights.append(points_layer1[0])
-                    vtk_points_weights.append(points_layer2[-1])
+                        dim = len(P0)
+                        s22 = np.sqrt(2) / 2
+                        points_weights = np.zeros((9, dim + 1))
+                        points_weights[0] = np.array([*P0, 1])
+                        points_weights[1] = np.array([*P1, 1])
+                        points_weights[2] = np.array([*P2, 1])
+                        points_weights[3] = np.array([*P3, 1])
+                        points_weights[4] = np.array([*P4, s22])
+                        points_weights[5] = np.array([*P5, s22])
+                        points_weights[6] = np.array([*P6, s22])
+                        points_weights[7] = np.array([*P7, s22])
+                        points_weights[8] = np.array([*P8, 1])
 
-            if isinstance(self.cross_section, RectangularCrossSection):
+                        return points_weights
+
+                    # create correct VTK ordering, see
+                    # https://coreform.com/papers/implementation-of-rational-bezier-cells-into-VTK-report.pdf:
+                    vtk_points_weights = []
+                    for i in range(n_segments):
+                        # compute all missing points of the layer
+                        points_layer0 = compute_missing_points(i, 0)
+                        points_layer1 = compute_missing_points(i, 1)
+                        points_layer2 = compute_missing_points(i, 2)
+                        points_layer3 = compute_missing_points(i, 3)
+
+                        #######################
+                        # 1. vertices (corners)
+                        #######################
+
+                        # bottom
+                        for j in range(4):
+                            vtk_points_weights.append(points_layer0[j])
+
+                        # top
+                        for j in range(4):
+                            vtk_points_weights.append(points_layer3[j])
+
+                        ##########
+                        # 2. edges
+                        ##########
+
+                        # bottom
+                        for j in range(4, 8):
+                            vtk_points_weights.append(points_layer0[j])
+
+                        # top
+                        for j in range(4, 8):
+                            vtk_points_weights.append(points_layer3[j])
+
+                        # first and second
+                        for j in [0, 1, 3, 2]:
+                            vtk_points_weights.append(points_layer1[j])
+                            vtk_points_weights.append(points_layer2[j])
+
+                        ##########
+                        # 3. faces
+                        ##########
+
+                        # first and second
+                        for j in [7, 5, 4, 6]:
+                            vtk_points_weights.append(points_layer1[j])
+                            vtk_points_weights.append(points_layer2[j])
+
+                        # bottom and top
+                        vtk_points_weights.append(points_layer0[0])
+                        vtk_points_weights.append(points_layer3[-1])
+
+                        ############
+                        # 3. volumes
+                        ############
+
+                        # first and second
+                        vtk_points_weights.append(points_layer1[0])
+                        vtk_points_weights.append(points_layer2[-1])
+
+            elif isinstance(self.cross_section, RectangularCrossSection):
 
                 def compute_missing_points(segment, layer):
                     Q0 = points_segments_0[segment, layer]
@@ -488,95 +364,38 @@ class RodExportBase(ABC):
                         vtk_points_weights.append(points_layer1[j])
                         vtk_points_weights.append(points_layer2[j])
 
-            elif self.cross_section == "circle_wedge":
-                raise NotImplementedError
-
-                def compute_missing_points(segment, layer):
-                    P0 = points_segments_0[segment, layer]
-                    P3 = points_segments_1[segment, layer]
-                    P4 = points_segments_2[segment, layer]
-
-                    P5 = 2 * P0 - P3
-                    P1 = 0.5 * (P3 + P4)
-                    P0 = 0.5 * (P5 + P3)
-                    P2 = 0.5 * (P4 + P5)
-
-                    dim = len(P0)
-                    points_weights = np.zeros((6, dim + 1))
-                    points_weights[0] = np.array([*P0, 1])
-                    points_weights[1] = np.array([*P1, 1])
-                    points_weights[2] = np.array([*P2, 1])
-                    points_weights[3] = np.array([*P3, 1 / 2])
-                    points_weights[4] = np.array([*P4, 1 / 2])
-                    points_weights[5] = np.array([*P5, 1 / 2])
-
-                    return points_weights
-
-                # create correct VTK ordering, see
-                # https://coreform.com/papers/implementation-of-rational-bezier-cells-into-VTK-report.pdf:
-                vtk_points_weights = []
-                for i in range(n_segments):
-                    # compute all missing points of the layer
-                    points_layer0 = compute_missing_points(i, 0)
-                    points_layer1 = compute_missing_points(i, 1)
-                    points_layer2 = compute_missing_points(i, 2)
-                    points_layer3 = compute_missing_points(i, 3)
-
-                    #######################
-                    # 1. vertices (corners)
-                    #######################
-
-                    # bottom
-                    for j in range(3):
-                        vtk_points_weights.append(points_layer0[j])
-
-                    # top
-                    for j in range(3):
-                        vtk_points_weights.append(points_layer3[j])
-
-                    ##########
-                    # 2. edges
-                    ##########
-
-                    # bottom
-                    for j in range(3, 6):
-                        vtk_points_weights.append(points_layer0[j])
-
-                    # top
-                    for j in range(3, 6):
-                        vtk_points_weights.append(points_layer3[j])
-
-                    # first and second
-                    for j in range(3):
-                        vtk_points_weights.append(points_layer1[j])
-                        vtk_points_weights.append(points_layer2[j])
-
-                    ##########
-                    # 3. faces
-                    ##########
-
-                    # first and second
-                    for j in range(3, 6):
-                        vtk_points_weights.append(points_layer1[j])
-                        vtk_points_weights.append(points_layer2[j])
-
             p_zeta = 3
             if isinstance(self.cross_section, CircularCrossSection):
-                # if self.cross_section == "circle":
-                n_layer = 9
-                n_cell = (p_zeta + 1) * n_layer
+                if circle_as_wedge:
+                    n_layer = 6
+                    n_cell = (p_zeta + 1) * n_layer
 
-                higher_order_degrees = [
-                    (np.array([2, 2, p_zeta]),) for _ in range(n_segments)
-                ]
+                    higher_order_degrees = [
+                        (np.array([2, 2, p_zeta]),) for _ in range(n_segments)
+                    ]
 
-                cells = [
-                    (
-                        "VTK_BEZIER_HEXAHEDRON",
-                        np.arange(i * n_cell, (i + 1) * n_cell)[None],
-                    )
-                    for i in range(n_segments)
-                ]
+                    cells = [
+                        (
+                            "VTK_BEZIER_WEDGE",
+                            np.arange(i * n_cell, (i + 1) * n_cell)[None],
+                        )
+                        for i in range(n_segments)
+                    ]
+                else:
+                    n_layer = 9
+                    n_cell = (p_zeta + 1) * n_layer
+
+                    higher_order_degrees = [
+                        (np.array([2, 2, p_zeta]),) for _ in range(n_segments)
+                    ]
+
+                    cells = [
+                        (
+                            "VTK_BEZIER_HEXAHEDRON",
+                            np.arange(i * n_cell, (i + 1) * n_cell)[None],
+                        )
+                        for i in range(n_segments)
+                    ]
             if isinstance(self.cross_section, RectangularCrossSection):
                 n_layer = 4
                 n_cell = (p_zeta + 1) * n_layer
@@ -590,19 +409,6 @@ class RodExportBase(ABC):
                         "VTK_BEZIER_HEXAHEDRON",
                         np.arange(i * n_cell, (i + 1) * n_cell)[None],
                     )
-                    for i in range(n_segments)
-                ]
-            elif self.cross_section == "circle_wedge":
-                raise NotImplementedError
-                n_layer = 6
-                n_cell = (p_zeta + 1) * n_layer
-
-                higher_order_degrees = [
-                    (np.array([2, 2, p_zeta]),) for _ in range(n_segments)
-                ]
-
-                cells = [
-                    ("VTK_BEZIER_WEDGE", np.arange(i * n_cell, (i + 1) * n_cell)[None])
                     for i in range(n_segments)
                 ]
 

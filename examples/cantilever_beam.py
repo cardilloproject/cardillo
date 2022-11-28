@@ -55,7 +55,7 @@ if __name__ == "__main__":
 
     # Note: This is never used in statics!
     line_density = 1.0
-    radius = 0.1
+    # radius = 0.1
     # cross_section = CircularCrossSection(line_density, radius)
     width = 0.1
     height = 0.2
