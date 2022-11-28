@@ -32,13 +32,32 @@ class RodExportBase(ABC):
     def frames(self, q, num=10):
         ...
 
-    # @abstractmethod
-    # def r_OP(self, t, q, frame_ID, K_r_SP):
-    #     ...
+    @abstractmethod
+    def r_OP(self, t, q, frame_ID, K_r_SP):
+        ...
 
-    # @abstractmethod
-    # def A_IK(self, t, q, frame_ID):
-    #     ...
+    @abstractmethod
+    def A_IK(self, t, q, frame_ID):
+        ...
+
+    def frames(self, q, num=10):
+        q_body = q[self.qDOF]
+        r = []
+        d1 = []
+        d2 = []
+        d3 = []
+
+        for xi in np.linspace(0, 1, num=num):
+            frame_ID = (xi,)
+            qp = q_body[self.local_qDOF_P(frame_ID)]
+            r.append(self.r_OP(1, qp, frame_ID))
+
+            d1i, d2i, d3i = self.A_IK(1, qp, frame_ID).T
+            d1.extend([d1i])
+            d2.extend([d2i])
+            d3.extend([d3i])
+
+        return np.array(r).T, np.array(d1).T, np.array(d2).T, np.array(d3).T
 
     # def assembler_callback(self):
     #     if self.constant_mass_matrix:
@@ -256,6 +275,10 @@ class RodExportBase(ABC):
             }
 
         elif level == "volume":
+            assert isinstance(
+                self.cross_section, (CircularCrossSection, RectangularCrossSection)
+            ), "Volume export is only implemented for CircularCrossSection and RectangularCrossSection."
+
             ################################
             # project on cubic Bezier volume
             ################################

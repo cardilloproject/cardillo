@@ -77,6 +77,7 @@ if __name__ == "__main__":
             A_IK=A_IK0,
         )
         beam = TimoshenkoAxisAngleSE3(
+            cross_section,
             1,
             material_model,
             A_rho0,

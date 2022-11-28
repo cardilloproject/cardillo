@@ -20,7 +20,7 @@ from cardillo.math import (
     Exp_SE3_h,
     Log_SE3_H,
 )
-from cardillo.beams._base import TimoshenkoPetrovGalerkinBase
+from cardillo.beams._base import RodExportBase
 
 
 class TimoshenkoAxisAngleSE3_K_delta_r_P:
@@ -1458,9 +1458,10 @@ class TimoshenkoAxisAngleSE3_K_delta_r_P:
         ax.quiver(*r, *d3, color="blue", length=length)
 
 
-class TimoshenkoAxisAngleSE3_I_delta_r_P(TimoshenkoPetrovGalerkinBase):
+class TimoshenkoAxisAngleSE3_I_delta_r_P(RodExportBase):
     def __init__(
         self,
+        cross_section,
         polynomial_degree,
         material_model,
         A_rho0,
@@ -1471,7 +1472,7 @@ class TimoshenkoAxisAngleSE3_I_delta_r_P(TimoshenkoPetrovGalerkinBase):
         q0=None,
         u0=None,
     ):
-        super().__init__()
+        super().__init__(cross_section)
 
         # beam properties
         self.materialModel = material_model  # material model
@@ -2811,25 +2812,6 @@ class TimoshenkoAxisAngleSE3_I_delta_r_P(TimoshenkoPetrovGalerkinBase):
             r.append(self.r_OP(1, qe, frame_ID))
         return np.array(r).T
 
-    def frames(self, q, n=10):
-        q_body = q[self.qDOF]
-        r = []
-        d1 = []
-        d2 = []
-        d3 = []
-
-        for xi in np.linspace(0, 1, n):
-            frame_ID = (xi,)
-            qp = q_body[self.local_qDOF_P(frame_ID)]
-            r.append(self.r_OP(1, qp, frame_ID))
-
-            d1i, d2i, d3i = self.A_IK(1, qp, frame_ID).T
-            d1.extend([d1i])
-            d2.extend([d2i])
-            d3.extend([d3i])
-
-        return np.array(r).T, np.array(d1).T, np.array(d2).T, np.array(d3).T
-
     def cover(self, q, radius, n_xi=20, n_alpha=100):
         q_body = q[self.qDOF]
         points = []
@@ -2881,7 +2863,7 @@ TimoshenkoAxisAngleSE3 = TimoshenkoAxisAngleSE3_I_delta_r_P
 
 if False:
 
-    class TimoshenkoAxisAngleSE3(TimoshenkoPetrovGalerkinBase):
+    class TimoshenkoAxisAngleSE3(RodExportBase):
         def __init__(
             self,
             polynomial_degree,  # TODO: remove again
