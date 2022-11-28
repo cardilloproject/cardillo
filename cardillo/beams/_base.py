@@ -1,7 +1,7 @@
 import numpy as np
 from abc import ABC, abstractmethod
 
-from cardillo.utility.coo import Coo
+# from cardillo.utility.coo import Coo
 from cardillo.discretization.bezier import L2_projection_Bezier_curve
 from cardillo.beams.cross_section import (
     CrossSection,
@@ -9,16 +9,10 @@ from cardillo.beams.cross_section import (
     RectangularCrossSection,
 )
 
-from cardillo.math import (
-    cross3,
-    ax2skew,
-)
-
-# # Timoshenko + Petrov-Galerkin:
-# # - *args for rod formulation
-# def make_rod(material_model, cross_section, RodFormulation):
-#     class Rod:
-#         pass
+# from cardillo.math import (
+#     cross3,
+#     ax2skew,
+# )
 
 
 class RodExportBase(ABC):
