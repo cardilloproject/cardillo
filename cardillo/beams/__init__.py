@@ -2,7 +2,6 @@ from .cross_section import (
     UserDefinedCrossSection,
     CircularCrossSection,
     RectangularCrossSection,
-    QuadraticCrossSection,
 )
 
 from .material_models import *

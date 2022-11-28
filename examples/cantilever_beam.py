@@ -1,6 +1,7 @@
 from cardillo.math import e1, e2, e3
 from cardillo.beams import (
     CircularCrossSection,
+    RectangularCrossSection,
     Simo1986,
 )
 from cardillo.discrete import Frame
@@ -28,8 +29,8 @@ Beam = DirectorAxisAngle
 # Beam = TimoshenkoDirectorIntegral
 # Beam = TimoshenkoAxisAngle
 
-# statics = True
-statics = False
+statics = True
+# statics = False
 
 
 if __name__ == "__main__":
@@ -54,8 +55,11 @@ if __name__ == "__main__":
 
     # Note: This is never used in statics!
     line_density = 1.0
-    radius = 1.0
-    cross_section = CircularCrossSection(line_density, radius)
+    radius = 0.1
+    # cross_section = CircularCrossSection(line_density, radius)
+    width = 0.1
+    height = 0.2
+    cross_section = RectangularCrossSection(line_density, width, height)
     A_rho0 = line_density * cross_section.area
     K_S_rho0 = line_density * cross_section.first_moment
     K_I_rho0 = line_density * cross_section.second_moment
@@ -93,6 +97,7 @@ if __name__ == "__main__":
             A_IK=A_IK0,
         )
         beam = DirectorAxisAngle(
+            cross_section,
             material_model,
             A_rho0,
             K_S_rho0,
@@ -166,7 +171,10 @@ if __name__ == "__main__":
     # moment at right end
     Fi = material_model.Fi
     # M = lambda t: (e3 * 2 * np.pi * Fi[2] / L * t) * 0.25
-    M = lambda t: (e1 * Fi[0] + e3 * Fi[2]) * 1.0 * t * 2 * np.pi / L
+    if statics:
+        M = lambda t: (e1 * Fi[0] + e3 * Fi[2]) * 1.0 * t * 2 * np.pi / L
+    else:
+        M = lambda t: (e1 * Fi[0] + e3 * Fi[2]) * 1.0 * 2 * np.pi / L * 0.05
     moment = K_Moment(M, beam, (1,))
 
     # force at the rght end
@@ -174,7 +182,10 @@ if __name__ == "__main__":
     force = K_Force(f, beam, (1,))
 
     # line distributed body force
-    l = lambda t, xi: e3 * 1e0
+    if statics:
+        l = lambda t, xi: t * e3 * 1e0
+    else:
+        l = lambda t, xi: e3 * 1e0
     line_force = DistributedForce1DBeam(l, beam)
 
     # assemble the system
@@ -182,11 +193,9 @@ if __name__ == "__main__":
     system.add(beam)
     system.add(frame1)
     system.add(joint1)
-    if statics:
-        system.add(moment)
-        # system.add(force)
-    else:
-        system.add(line_force)
+    system.add(moment)
+    # system.add(force)
+    system.add(line_force)
     system.assemble()
 
     # animate_beam([0], [system.q0], [beam], L)
@@ -202,7 +211,7 @@ if __name__ == "__main__":
         )
     else:
         t1 = 5
-        dt = 1.0e-1
+        dt = 5.0e-2
         solver = EulerBackward(system, t1, dt)
 
     sol = solver.solve()

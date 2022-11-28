@@ -417,17 +417,29 @@ class RevoluteJoint:
     def W_angle(self, t, q):
         K_J_R1 = self.K_J_R1(t, q)
         K_J_R2 = self.K_J_R2(t, q)
-        return np.concatenate([-K_J_R1.T @ e3, K_J_R2.T @ e3])
+        ez1 = self.A_IB1(t, q)[:, 2]
+        return np.concatenate([-K_J_R1.T @ ez1, K_J_R2.T @ ez1])
 
     def W_angle_q(self, t, q):
         nq1 = self.__nq1
         nu1 = self.__nu1
+        K_J_R1 = self.K_J_R1(t, q)
+        K_J_R2 = self.K_J_R2(t, q)
+
         K_J_R1_q1 = self.K_J_R1_q(t, q)
         K_J_R2_q2 = self.K_J_R2_q(t, q)
 
+        ez1 = self.A_IB1(t, q)[:, 2]
+        ez1_q1 = self.A_IB1_q(t, q)[:, 2]
+
         # dense blocks
         dense = np.zeros((self.__nu, self.__nq))
-        dense[:nu1, :nq1] = np.einsum("i,ijk->jk", -e3, K_J_R1_q1)
-        dense[nu1:, nq1:] = np.einsum("i,ijk->jk", e3, K_J_R2_q2)
+        dense[:nu1, :nq1] = np.einsum("i,ijk->jk", -ez1, K_J_R1_q1) - K_J_R1.T @ ez1_q1
+        dense[nu1:, :nq1] = K_J_R2.T @ ez1_q1
+        dense[nu1:, nq1:] = np.einsum("i,ijk->jk", ez1, K_J_R2_q2)
+
+        # dense_num = approx_fprime(q, lambda q: self.W_angle(t, q))
+        # print(f"dense_num={np.linalg.norm(dense_num - dense)}")
+        # print(f"dense_num={np.linalg.norm(dense_num[nu1:, nq1:] - dense[nu1:, nq1:])}")
 
         return dense

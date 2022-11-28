@@ -19,12 +19,13 @@ from cardillo.math import (
     Exp_SO3_psi,
     T_SO3_inv,
 )
-from cardillo.beams._base import TimoshenkoPetrovGalerkinBase
+from cardillo.beams._base import RodExportBase
 
 
-class DirectorAxisAngle(TimoshenkoPetrovGalerkinBase):
+class DirectorAxisAngle(RodExportBase):
     def __init__(
         self,
+        cross_section,
         material_model,
         A_rho0,
         K_S_rho0,
@@ -38,7 +39,7 @@ class DirectorAxisAngle(TimoshenkoPetrovGalerkinBase):
         basis_r="B-spline",
         basis_psi="B-spline",
     ):
-        super().__init__()
+        super().__init__(cross_section)
 
         # beam properties
         self.material_model = material_model  # material model
@@ -484,183 +485,169 @@ class DirectorAxisAngle(TimoshenkoPetrovGalerkinBase):
     def element_number(self, xi):
         return self.knot_vector_r.element_number(xi)[0]
 
-    # #########################################
-    # # equations of motion
-    # #########################################
-    # def assembler_callback(self):
-    #     if self.constant_mass_matrix:
-    #         self._M_coo()
+    #########################################
+    # equations of motion
+    #########################################
+    def assembler_callback(self):
+        if self.constant_mass_matrix:
+            self._M_coo()
 
-    # def M_el_constant(self, el):
-    #     M_el = np.zeros((self.nq_element, self.nq_element), dtype=float)
+    def M_el_constant(self, el):
+        M_el = np.zeros((self.nq_element, self.nq_element), dtype=float)
 
-    #     for i in range(self.nquadrature):
-    #         # extract reference state variables
-    #         qwi = self.qw[el, i]
-    #         Ji = self.J[el, i]
+        for i in range(self.nquadrature):
+            # extract reference state variables
+            qwi = self.qw[el, i]
+            Ji = self.J[el, i]
 
-    #         # delta_r A_rho0 r_ddot part
-    #         M_el_r_r = np.eye(3) * self.A_rho0 * Ji * qwi
-    #         for node_a in range(self.nnodes_element_r):
-    #             nodalDOF_a = self.nodalDOF_element_r[node_a]
-    #             for node_b in range(self.nnodes_element_r):
-    #                 nodalDOF_b = self.nodalDOF_element_r[node_b]
-    #                 M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_r_r * (
-    #                     self.N_r[el, i, node_a] * self.N_r[el, i, node_b]
-    #                 )
+            # delta_r A_rho0 r_ddot part
+            M_el_r_r = np.eye(3) * self.A_rho0 * Ji * qwi
+            for node_a in range(self.nnodes_element_r):
+                nodalDOF_a = self.nodalDOF_element_r[node_a]
+                for node_b in range(self.nnodes_element_r):
+                    nodalDOF_b = self.nodalDOF_element_r[node_b]
+                    M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_r_r * (
+                        self.N_r[el, i, node_a] * self.N_r[el, i, node_b]
+                    )
 
-    #         # first part delta_phi (I_rho0 omega_dot + omega_tilde I_rho0 omega)
-    #         M_el_psi_psi = self.K_I_rho0 * Ji * qwi
-    #         for node_a in range(self.nnodes_element_psi):
-    #             nodalDOF_a = self.nodalDOF_element_psi[node_a]
-    #             for node_b in range(self.nnodes_element_psi):
-    #                 nodalDOF_b = self.nodalDOF_element_psi[node_b]
-    #                 M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_psi_psi * (
-    #                     self.N_psi[el, i, node_a] * self.N_psi[el, i, node_b]
-    #                 )
+            # first part delta_phi (I_rho0 omega_dot + omega_tilde I_rho0 omega)
+            M_el_psi_psi = self.K_I_rho0 * Ji * qwi
+            for node_a in range(self.nnodes_element_psi):
+                nodalDOF_a = self.nodalDOF_element_psi[node_a]
+                for node_b in range(self.nnodes_element_psi):
+                    nodalDOF_b = self.nodalDOF_element_psi[node_b]
+                    M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_psi_psi * (
+                        self.N_psi[el, i, node_a] * self.N_psi[el, i, node_b]
+                    )
 
-    #     return M_el
+        return M_el
 
-    # def M_el(self, qe, el):
-    #     M_el = np.zeros((self.nq_element, self.nq_element), dtype=float)
+    def M_el(self, qe, el):
+        M_el = np.zeros((self.nq_element, self.nq_element), dtype=float)
 
-    #     for i in range(self.nquadrature):
-    #         # extract reference state variables
-    #         qwi = self.qw[el, i]
-    #         Ji = self.J[el, i]
+        for i in range(self.nquadrature):
+            # extract reference state variables
+            qwi = self.qw[el, i]
+            Ji = self.J[el, i]
 
-    #         # delta_r A_rho0 r_ddot part
-    #         M_el_r_r = np.eye(3) * self.A_rho0 * Ji * qwi
-    #         for node_a in range(self.nnodes_element_r):
-    #             nodalDOF_a = self.nodalDOF_element_r[node_a]
-    #             for node_b in range(self.nnodes_element_r):
-    #                 nodalDOF_b = self.nodalDOF_element_r[node_b]
-    #                 M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_r_r * (
-    #                     self.N_r[el, i, node_a] * self.N_r[el, i, node_b]
-    #                 )
+            # delta_r A_rho0 r_ddot part
+            M_el_r_r = np.eye(3) * self.A_rho0 * Ji * qwi
+            for node_a in range(self.nnodes_element_r):
+                nodalDOF_a = self.nodalDOF_element_r[node_a]
+                for node_b in range(self.nnodes_element_r):
+                    nodalDOF_b = self.nodalDOF_element_r[node_b]
+                    M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_r_r * (
+                        self.N_r[el, i, node_a] * self.N_r[el, i, node_b]
+                    )
 
-    #         # first part delta_phi (I_rho0 omega_dot + omega_tilde I_rho0 omega)
-    #         M_el_psi_psi = self.K_I_rho0 * Ji * qwi
-    #         for node_a in range(self.nnodes_element_psi):
-    #             nodalDOF_a = self.nodalDOF_element_psi[node_a]
-    #             for node_b in range(self.nnodes_element_psi):
-    #                 nodalDOF_b = self.nodalDOF_element_psi[node_b]
-    #                 M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_psi_psi * (
-    #                     self.N_psi[el, i, node_a] * self.N_psi[el, i, node_b]
-    #                 )
+            # first part delta_phi (I_rho0 omega_dot + omega_tilde I_rho0 omega)
+            M_el_psi_psi = self.K_I_rho0 * Ji * qwi
+            for node_a in range(self.nnodes_element_psi):
+                nodalDOF_a = self.nodalDOF_element_psi[node_a]
+                for node_b in range(self.nnodes_element_psi):
+                    nodalDOF_b = self.nodalDOF_element_psi[node_b]
+                    M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_psi_psi * (
+                        self.N_psi[el, i, node_a] * self.N_psi[el, i, node_b]
+                    )
 
-    #         # For non symmetric cross sections there are also other parts
-    #         # involved in the mass matrix. These parts are configuration
-    #         # dependent and lead to configuration dependent mass matrix.
-    #         _, A_IK, _, _ = self.eval(qe, self.qp[el, i])
-    #         M_el_r_psi = A_IK @ self.K_S_rho0 * Ji * qwi
-    #         M_el_psi_r = A_IK @ self.K_S_rho0 * Ji * qwi
+            # For non symmetric cross sections there are also other parts
+            # involved in the mass matrix. These parts are configuration
+            # dependent and lead to configuration dependent mass matrix.
+            _, A_IK, _, _ = self.eval(qe, self.qp[el, i])
+            M_el_r_psi = A_IK @ self.K_S_rho0 * Ji * qwi
+            M_el_psi_r = A_IK @ self.K_S_rho0 * Ji * qwi
 
-    #         for node_a in range(self.nnodes_element_r):
-    #             nodalDOF_a = self.nodalDOF_element_r[node_a]
-    #             for node_b in range(self.nnodes_element_psi):
-    #                 nodalDOF_b = self.nodalDOF_element_psi[node_b]
-    #                 M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_r_psi * (
-    #                     self.N_r[el, i, node_a] * self.N_psi[el, i, node_b]
-    #                 )
-    #         for node_a in range(self.nnodes_element_psi):
-    #             nodalDOF_a = self.nodalDOF_element_psi[node_a]
-    #             for node_b in range(self.nnodes_element_r):
-    #                 nodalDOF_b = self.nodalDOF_element_r[node_b]
-    #                 M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_psi_r * (
-    #                     self.N_psi[el, i, node_a] * self.N_r[el, i, node_b]
-    #                 )
+            for node_a in range(self.nnodes_element_r):
+                nodalDOF_a = self.nodalDOF_element_r[node_a]
+                for node_b in range(self.nnodes_element_psi):
+                    nodalDOF_b = self.nodalDOF_element_psi[node_b]
+                    M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_r_psi * (
+                        self.N_r[el, i, node_a] * self.N_psi[el, i, node_b]
+                    )
+            for node_a in range(self.nnodes_element_psi):
+                nodalDOF_a = self.nodalDOF_element_psi[node_a]
+                for node_b in range(self.nnodes_element_r):
+                    nodalDOF_b = self.nodalDOF_element_r[node_b]
+                    M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_psi_r * (
+                        self.N_psi[el, i, node_a] * self.N_r[el, i, node_b]
+                    )
 
-    #     return M_el
+        return M_el
 
-    # def _M_coo(self):
-    #     self.__M = Coo((self.nu, self.nu))
-    #     for el in range(self.nelement):
-    #         # extract element degrees of freedom
-    #         elDOF = self.elDOF[el]
+    def _M_coo(self):
+        self.__M = Coo((self.nu, self.nu))
+        for el in range(self.nelement):
+            # extract element degrees of freedom
+            elDOF = self.elDOF[el]
 
-    #         # sparse assemble element mass matrix
-    #         self.__M.extend(
-    #             self.M_el_constant(el), (self.uDOF[elDOF], self.uDOF[elDOF])
-    #         )
+            # sparse assemble element mass matrix
+            self.__M.extend(
+                self.M_el_constant(el), (self.uDOF[elDOF], self.uDOF[elDOF])
+            )
 
-    # def M(self, t, q, coo):
-    #     if self.constant_mass_matrix:
-    #         coo.extend_sparse(self.__M)
-    #     else:
-    #         for el in range(self.nelement):
-    #             # extract element degrees of freedom
-    #             elDOF = self.elDOF[el]
+    def M(self, t, q, coo):
+        if self.constant_mass_matrix:
+            coo.extend_sparse(self.__M)
+        else:
+            for el in range(self.nelement):
+                # extract element degrees of freedom
+                elDOF = self.elDOF[el]
 
-    #             # sparse assemble element mass matrix
-    #             coo.extend(
-    #                 self.M_el(q[elDOF], el), (self.uDOF[elDOF], self.uDOF[elDOF])
-    #             )
+                # sparse assemble element mass matrix
+                coo.extend(
+                    self.M_el(q[elDOF], el), (self.uDOF[elDOF], self.uDOF[elDOF])
+                )
 
-    # def f_gyr_el(self, t, qe, ue, el):
-    #     f_gyr_el = np.zeros(self.nq_element, dtype=float)
+    def f_gyr_el(self, t, qe, ue, el):
+        f_gyr_el = np.zeros(self.nq_element, dtype=float)
 
-    #     for i in range(self.nquadrature):
-    #         # interpoalte angular velocity
-    #         K_Omega = np.zeros(3, dtype=float)
-    #         for node in range(self.nnodes_element_psi):
-    #             K_Omega += self.N_psi[el, i, node] * ue[self.nodalDOF_element_psi[node]]
+        for i in range(self.nquadrature):
+            # interpoalte angular velocity
+            K_Omega = np.zeros(3, dtype=float)
+            for node in range(self.nnodes_element_psi):
+                K_Omega += self.N_psi[el, i, node] * ue[self.nodalDOF_element_psi[node]]
 
-    #         # vector of gyroscopic forces
-    #         f_gyr_el_psi = (
-    #             cross3(K_Omega, self.K_I_rho0 @ K_Omega)
-    #             * self.J[el, i]
-    #             * self.qw[el, i]
-    #         )
+            # vector of gyroscopic forces
+            f_gyr_el_psi = (
+                cross3(K_Omega, self.K_I_rho0 @ K_Omega)
+                * self.J[el, i]
+                * self.qw[el, i]
+            )
 
-    #         # multiply vector of gyroscopic forces with nodal virtual rotations
-    #         for node in range(self.nnodes_element_psi):
-    #             f_gyr_el[self.nodalDOF_element_psi[node]] += (
-    #                 self.N_psi[el, i, node] * f_gyr_el_psi
-    #             )
+            # multiply vector of gyroscopic forces with nodal virtual rotations
+            for node in range(self.nnodes_element_psi):
+                f_gyr_el[self.nodalDOF_element_psi[node]] += (
+                    self.N_psi[el, i, node] * f_gyr_el_psi
+                )
 
-    #     return f_gyr_el
+        return f_gyr_el
 
-    # def f_gyr(self, t, q, u):
-    #     f_gyr = np.zeros(self.nu, dtype=float)
-    #     for el in range(self.nelement):
-    #         f_gyr[self.elDOF[el]] += self.f_gyr_el(
-    #             t, q[self.elDOF[el]], u[self.elDOF[el]], el
-    #         )
-    #     return f_gyr
+    def f_gyr_u_el(self, t, qe, ue, el):
+        f_gyr_u_el = np.zeros((self.nq_element, self.nq_element), dtype=float)
 
-    # def f_gyr_u_el(self, t, qe, ue, el):
-    #     f_gyr_u_el = np.zeros((self.nq_element, self.nq_element), dtype=float)
+        for i in range(self.nquadrature):
+            # interpoalte angular velocity
+            K_Omega = np.zeros(3, dtype=float)
+            for node in range(self.nnodes_element_psi):
+                K_Omega += self.N_psi[el, i, node] * ue[self.nodalDOF_element_psi[node]]
 
-    #     for i in range(self.nquadrature):
-    #         # interpoalte angular velocity
-    #         K_Omega = np.zeros(3, dtype=float)
-    #         for node in range(self.nnodes_element_psi):
-    #             K_Omega += self.N_psi[el, i, node] * ue[self.nodalDOF_element_psi[node]]
+            # derivative of vector of gyroscopic forces
+            f_gyr_u_el_psi = (
+                ((ax2skew(K_Omega) @ self.K_I_rho0 - ax2skew(self.K_I_rho0 @ K_Omega)))
+                * self.J[el, i]
+                * self.qw[el, i]
+            )
 
-    #         # derivative of vector of gyroscopic forces
-    #         f_gyr_u_el_psi = (
-    #             ((ax2skew(K_Omega) @ self.K_I_rho0 - ax2skew(self.K_I_rho0 @ K_Omega)))
-    #             * self.J[el, i]
-    #             * self.qw[el, i]
-    #         )
+            # multiply derivative of gyroscopic force vector with nodal virtual rotations
+            for node_a in range(self.nnodes_element_psi):
+                nodalDOF_a = self.nodalDOF_element_psi[node_a]
+                for node_b in range(self.nnodes_element_psi):
+                    nodalDOF_b = self.nodalDOF_element_psi[node_b]
+                    f_gyr_u_el[nodalDOF_a[:, None], nodalDOF_b] += f_gyr_u_el_psi * (
+                        self.N_psi[el, i, node_a] * self.N_psi[el, i, node_b]
+                    )
 
-    #         # multiply derivative of gyroscopic force vector with nodal virtual rotations
-    #         for node_a in range(self.nnodes_element_psi):
-    #             nodalDOF_a = self.nodalDOF_element_psi[node_a]
-    #             for node_b in range(self.nnodes_element_psi):
-    #                 nodalDOF_b = self.nodalDOF_element_psi[node_b]
-    #                 f_gyr_u_el[nodalDOF_a[:, None], nodalDOF_b] += f_gyr_u_el_psi * (
-    #                     self.N_psi[el, i, node_a] * self.N_psi[el, i, node_b]
-    #                 )
-
-    #     return f_gyr_u_el
-
-    # def f_gyr_u(self, t, q, u, coo):
-    #     for el in range(self.nelement):
-    #         elDOF = self.elDOF[el]
-    #         f_gyr_u_el = self.f_gyr_u_el(t, q[elDOF], u[elDOF], el)
-    #         coo.extend(f_gyr_u_el, (self.uDOF[elDOF], self.uDOF[elDOF]))
+        return f_gyr_u_el
 
     def E_pot(self, t, q):
         E_pot = 0
@@ -954,7 +941,7 @@ class DirectorAxisAngle(TimoshenkoPetrovGalerkinBase):
     #########################################
     def q_dot(self, t, q, u):
         # centerline part
-        q_dot = u
+        q_dot = u.copy()
 
         # correct axis angle vector part
         for node in range(self.nnodes_psi):
@@ -1471,14 +1458,14 @@ class DirectorAxisAngle(TimoshenkoPetrovGalerkinBase):
             r.append(self.r_OP(1, qe, frame_ID))
         return np.array(r).T
 
-    def frames(self, q, n=10):
+    def frames(self, q, num=10):
         q_body = q[self.qDOF]
         r = []
         d1 = []
         d2 = []
         d3 = []
 
-        for xi in np.linspace(0, 1, n):
+        for xi in np.linspace(0, 1, num=num):
             frame_ID = (xi,)
             qp = q_body[self.local_qDOF_P(frame_ID)]
             r.append(self.r_OP(1, qp, frame_ID))
@@ -1529,7 +1516,7 @@ class DirectorAxisAngle(TimoshenkoPetrovGalerkinBase):
         ax.plot(*self.centerline(q, n=n), linestyle="solid", color=color)
 
     def plot_frames(self, ax, q, n=10, length=1):
-        r, d1, d2, d3 = self.frames(q, n=n)
+        r, d1, d2, d3 = self.frames(q, num=n)
         ax.quiver(*r, *d1, color="red", length=length)
         ax.quiver(*r, *d2, color="green", length=length)
         ax.quiver(*r, *d3, color="blue", length=length)
