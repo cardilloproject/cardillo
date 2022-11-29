@@ -23,9 +23,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-# Beam = DirectorAxisAngle
+Beam = DirectorAxisAngle
 # Beam = Crisfield1999
-Beam = TimoshenkoAxisAngleSE3
+# Beam = TimoshenkoAxisAngleSE3
 # Beam = TimoshenkoDirectorDirac
 # Beam = TimoshenkoDirectorIntegral
 

@@ -14,7 +14,7 @@ from cardillo.math import (
 )
 
 from cardillo.discretization.bezier import L2_projection_Bezier_curve
-from cardillo.beams.cross_section import (
+from cardillo.beams._cross_section import (
     CrossSection,
     CircularCrossSection,
     RectangularCrossSection,
