@@ -417,9 +417,7 @@ class RevoluteJoint:
     def W_angle(self, t, q):
         K_J_R1 = self.K_J_R1(t, q)
         K_J_R2 = self.K_J_R2(t, q)
-        
         ez1 = self.A_IB1(t, q)[:, 2]
-
         return np.concatenate([-K_J_R1.T @ ez1, K_J_R2.T @ ez1])
 
     def W_angle_q(self, t, q):

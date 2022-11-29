@@ -1,6 +1,7 @@
 from cardillo.math import e1, e2, e3
 from cardillo.beams import (
     CircularCrossSection,
+    RectangularCrossSection,
     Simo1986,
 )
 from cardillo.discrete import Frame
@@ -8,31 +9,39 @@ from cardillo.constraints import RigidConnection
 from cardillo.beams import (
     animate_beam,
     TimoshenkoAxisAngleSE3,
-    TimoshenkoAxisAngle,
+    Crisfield1999,
     DirectorAxisAngle,
     TimoshenkoDirectorDirac,
     TimoshenkoDirectorIntegral,
 )
 from cardillo.forces import K_Moment, K_Force, DistributedForce1DBeam
 from cardillo import System
-from cardillo.solver import Newton
+from cardillo.solver import Newton, EulerBackward
+from cardillo.utility import Export
 
 import numpy as np
 import matplotlib.pyplot as plt
+from pathlib import Path
 
-# Beam = TimoshenkoAxisAngleSE3
 Beam = DirectorAxisAngle
+# Beam = Crisfield1999
+# Beam = TimoshenkoAxisAngleSE3
 # Beam = TimoshenkoDirectorDirac
 # Beam = TimoshenkoDirectorIntegral
+
+statics = True
+# statics = False
 
 
 if __name__ == "__main__":
     # number of elements
-    nelements = 100
+    nelements = 10
 
     # used polynomial degree
+    # polynomial_degree = 3
+    # basis = "B-spline"
     polynomial_degree = 1
-    basis = "B-spline"
+    basis = "Lagrange"
 
     # beam parameters found in Section 5.1 Ibrahimbegovic1997
     L = np.pi
@@ -46,8 +55,11 @@ if __name__ == "__main__":
 
     # Note: This is never used in statics!
     line_density = 1.0
-    radius = 1.0
-    cross_section = CircularCrossSection(line_density, radius)
+    # radius = 0.1
+    # cross_section = CircularCrossSection(line_density, radius)
+    width = 0.1
+    height = 0.2
+    cross_section = RectangularCrossSection(line_density, width, height)
     A_rho0 = line_density * cross_section.area
     K_S_rho0 = line_density * cross_section.first_moment
     K_I_rho0 = line_density * cross_section.second_moment
@@ -58,14 +70,17 @@ if __name__ == "__main__":
 
     if Beam == TimoshenkoAxisAngleSE3:
         q0 = TimoshenkoAxisAngleSE3.straight_configuration(
-            1,
+            polynomial_degree,
+            polynomial_degree,
+            basis,
+            basis,
             nelements,
             L,
             r_OP=r_OP0,
             A_IK=A_IK0,
         )
         beam = TimoshenkoAxisAngleSE3(
-            1,
+            cross_section,
             material_model,
             A_rho0,
             K_S_rho0,
@@ -85,6 +100,7 @@ if __name__ == "__main__":
             A_IK=A_IK0,
         )
         beam = DirectorAxisAngle(
+            cross_section,
             material_model,
             A_rho0,
             K_S_rho0,
@@ -92,7 +108,8 @@ if __name__ == "__main__":
             polynomial_degree,
             polynomial_degree,
             nelements,
-            q0,
+            Q=q0,
+            q0=q0,
             basis_r=basis,
             basis_psi=basis,
         )
@@ -114,6 +131,7 @@ if __name__ == "__main__":
         nquadrature = polynomial_degree + 1
 
         beam = Beam(
+            cross_section,
             material_model,
             A_rho0,
             B_rho0,
@@ -124,6 +142,30 @@ if __name__ == "__main__":
             nelements,
             q0,
             basis=basis,
+        )
+    elif Beam == Crisfield1999:
+        q0 = Crisfield1999.straight_configuration(
+            polynomial_degree,
+            polynomial_degree,
+            basis,
+            basis,
+            nelements,
+            L,
+            r_OP=r_OP0,
+            A_IK=A_IK0,
+        )
+        beam = Crisfield1999(
+            cross_section,
+            material_model,
+            A_rho0,
+            K_S_rho0,
+            K_I_rho0,
+            polynomial_degree,
+            polynomial_degree,
+            nelements,
+            q0,
+            basis_r=basis,
+            basis_psi=basis,
         )
     else:
         raise NotImplementedError
@@ -136,7 +178,11 @@ if __name__ == "__main__":
 
     # moment at right end
     Fi = material_model.Fi
-    M = lambda t: (e3 * 2 * np.pi * Fi[2] / L * t) * 0.25
+    # M = lambda t: (e3 * 2 * np.pi * Fi[2] / L * t) * 0.25
+    if statics:
+        M = lambda t: (e1 * Fi[0] + e3 * Fi[2]) * 1.0 * t * 2 * np.pi / L
+    else:
+        M = lambda t: (e1 * Fi[0] + e3 * Fi[2]) * 1.0 * 2 * np.pi / L * 0.05
     moment = K_Moment(M, beam, (1,))
 
     # force at the rght end
@@ -144,31 +190,52 @@ if __name__ == "__main__":
     force = K_Force(f, beam, (1,))
 
     # line distributed body force
-    l = lambda t, xi: t * e3 * 2e1
+    if statics:
+        l = lambda t, xi: t * e3 * 1e0
+    else:
+        l = lambda t, xi: e3 * 1e0
     line_force = DistributedForce1DBeam(l, beam)
 
-    # assemble the model
-    model = System()
-    model.add(beam)
-    model.add(frame1)
-    model.add(joint1)
-    # model.add(moment)
-    # model.add(force)
-    model.add(line_force)
-    model.assemble()
+    # assemble the system
+    system = System()
+    system.add(beam)
+    system.add(frame1)
+    system.add(joint1)
+    system.add(moment)
+    # system.add(force)
+    # system.add(line_force)
+    system.assemble()
 
-    n_load_steps = int(10)
+    # animate_beam([0], [system.q0], [beam], L)
+    # exit()
 
-    solver = Newton(
-        model,
-        n_load_steps=n_load_steps,
-        max_iter=30,
-        atol=1.0e-8,
-    )
+    if statics:
+        n_load_steps = int(10)
+        solver = Newton(
+            system,
+            n_load_steps=n_load_steps,
+            max_iter=30,
+            atol=1.0e-8,
+        )
+    else:
+        t1 = 5
+        dt = 5.0e-2
+        solver = EulerBackward(system, t1, dt)
+
     sol = solver.solve()
     q = sol.q
     nt = len(q)
     t = sol.t[:nt]
+
+    ############
+    # VTK export
+    ############
+    path = Path(__file__)
+    e = Export(path.parent, path.stem, True, 30, sol)
+    e.export_contr(beam, level="centerline + directors", num=20)
+    e.export_contr(beam, level="volume", n_segments=5, num=50)
+
+    exit()
 
     # t = [0]
     # q = [model.q0]
@@ -188,34 +255,34 @@ if __name__ == "__main__":
     ax.grid()
     ax.legend()
 
-    ######################################################
-    # visualize strain measures of the final configuration
-    ######################################################
-    num = 100
-    xis = np.linspace(0, 1, num=num)
+    # ######################################################
+    # # visualize strain measures of the final configuration
+    # ######################################################
+    # num = 100
+    # xis = np.linspace(0, 1, num=num)
 
-    K_Gammas = np.zeros((num, 3))
-    K_Kappas = np.zeros((num, 3))
-    for i in range(num):
-        K_Gammas[i], K_Kappas[i] = beam.strains(xis[i], sol.q[-1])
+    # K_Gammas = np.zeros((num, 3))
+    # K_Kappas = np.zeros((num, 3))
+    # for i in range(num):
+    #     K_Gammas[i], K_Kappas[i] = beam.strains(xis[i], sol.q[-1])
 
-    fig, ax = plt.subplots(2, 1)
+    # fig, ax = plt.subplots(2, 1)
 
-    ax[0].plot(xis, K_Gammas[:, 0] - 1, "-r", label="K_Gamma0 - 1")
-    ax[0].plot(xis, K_Gammas[:, 1], "--g", label="K_Gamma1")
-    ax[0].plot(xis, K_Gammas[:, 2], "-.b", label="K_Gamma2")
-    ax[0].set_xlabel("xi")
-    ax[0].set_ylabel("K_Gamma")
-    ax[0].grid()
-    ax[0].legend()
+    # ax[0].plot(xis, K_Gammas[:, 0] - 1, "-r", label="K_Gamma0 - 1")
+    # ax[0].plot(xis, K_Gammas[:, 1], "--g", label="K_Gamma1")
+    # ax[0].plot(xis, K_Gammas[:, 2], "-.b", label="K_Gamma2")
+    # ax[0].set_xlabel("xi")
+    # ax[0].set_ylabel("K_Gamma")
+    # ax[0].grid()
+    # ax[0].legend()
 
-    ax[1].plot(xis, K_Kappas[:, 0], "-r", label="K_Kappa0")
-    ax[1].plot(xis, K_Kappas[:, 1], "--g", label="K_Kappa1")
-    ax[1].plot(xis, K_Kappas[:, 2], "-.b", label="K_Kappa2")
-    ax[1].set_xlabel("xi")
-    ax[1].set_ylabel("K_Kappa")
-    ax[1].grid()
-    ax[1].legend()
+    # ax[1].plot(xis, K_Kappas[:, 0], "-r", label="K_Kappa0")
+    # ax[1].plot(xis, K_Kappas[:, 1], "--g", label="K_Kappa1")
+    # ax[1].plot(xis, K_Kappas[:, 2], "-.b", label="K_Kappa2")
+    # ax[1].set_xlabel("xi")
+    # ax[1].set_ylabel("K_Kappa")
+    # ax[1].grid()
+    # ax[1].legend()
 
     ###########
     # animation

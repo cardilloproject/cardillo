@@ -8,7 +8,7 @@ from cardillo.beams import (
 from cardillo.beams.cable import QuadraticMaterial
 from cardillo.forces import DistributedForce1DBeam
 from cardillo import System
-from cardillo.solver import RadauIIa, EulerBackward
+from cardillo.solver import RadauIIa, EulerBackward, Newton
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -68,7 +68,8 @@ if __name__ == "__main__":
     joint_right = SphericalJoint(frame_right, beam, r_OB=r_OP1, frame_ID2=(1,))
 
     # line distributed body force
-    l = lambda t, xi: -e3 * 2e1
+    # l = lambda t, xi: -e3 * 2e1
+    l = lambda t, xi: -t * e3 * 2e3
     line_force = DistributedForce1DBeam(l, beam)
 
     # assemble the system
@@ -81,13 +82,15 @@ if __name__ == "__main__":
     system.add(line_force)
     system.assemble()
 
-    t1 = 1
-    dt = 1.0e-2
-    rtol = 1.0e-2
-    atol = 1.0e-2
-    dae_index = "GGL"
-    # sol = RadauIIa(system, t1, dt, rtol, atol, dae_index).solve()
-    sol = EulerBackward(system, t1, dt).solve()
+    # t1 = 1
+    # dt = 1.0e-2
+    # rtol = 1.0e-2
+    # atol = 1.0e-2
+    # dae_index = "GGL"
+    # # sol = RadauIIa(system, t1, dt, rtol, atol, dae_index).solve()
+    # sol = EulerBackward(system, t1, dt).solve()
+
+    sol = Newton(system, n_load_steps=10).solve()
 
     t = sol.t
     q = sol.q

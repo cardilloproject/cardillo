@@ -67,16 +67,26 @@ class Export:
         frames = target_frames
         t = sol.t[::frac]
         q = sol.q[::frac]
-        u = sol.u[::frac]
+        if sol.u is not None:
+            u = sol.u[::frac]
+        else:
+            u = None
         if sol.u_dot is not None:
             u_dot = sol.u_dot[::frac]
         else:
             u_dot = None
-        la_g = sol.la_g[::frac]
+        if sol.la_g is not None:
+            la_g = sol.la_g[::frac]
+        else:
+            la_g = None
         if sol.la_gamma is not None:
             la_gamma = sol.la_gamma[::frac]
         else:
             la_gamma = None
+        if hasattr(sol, "q_dot"):
+            q_dot = sol.q_dot[::frac]
+        else:
+            q_dot = None
         if hasattr(sol, "P_N"):
             P_N = sol.P_N[::frac]
         else:
@@ -88,7 +98,15 @@ class Export:
 
         # TODO default values + not None values of solution object
         self.solution = Solution(
-            t=t, q=q, u=u, u_dot=u_dot, la_g=la_g, la_gamma=la_gamma, P_N=P_N, P_F=P_F
+            t=t,
+            q=q,
+            u=u,
+            q_dot=q_dot,
+            u_dot=u_dot,
+            la_g=la_g,
+            la_gamma=la_gamma,
+            P_N=P_N,
+            P_F=P_F,
         )
 
     def __create_vtk_folder(self, folder_name: str, overwrite: bool):

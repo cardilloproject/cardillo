@@ -3,8 +3,6 @@ from cardillo.math import pi
 
 
 class CrossSection:
-    # TODO: Is this a property of the cross section? Or should we move it to
-    # the beam class?
     @property
     def density(self):
         """Density of the material."""
@@ -44,6 +42,10 @@ class CircularCrossSection(CrossSection):
         # https://en.wikipedia.org/wiki/List_of_second_moments_of_area
         self._second_moment = np.diag([2, 1, 1]) / 4 * pi * radius**4
 
+    @property
+    def radius(self):
+        return self._radius
+
 
 class RectangularCrossSection(CrossSection):
     """Rectangular cross section.
@@ -73,7 +75,10 @@ class RectangularCrossSection(CrossSection):
             / 12.0
         )
 
+    @property
+    def width(self):
+        return self._width
 
-class QuadraticCrossSection(RectangularCrossSection):
-    def __init__(self, density, width):
-        super().__init__(density, width, width)
+    @property
+    def height(self):
+        return self._height
