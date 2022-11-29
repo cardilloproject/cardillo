@@ -83,6 +83,10 @@ class Export:
             la_gamma = sol.la_gamma[::frac]
         else:
             la_gamma = None
+        if hasattr(sol, "q_dot"):
+            q_dot = sol.q_dot[::frac]
+        else:
+            q_dot = None
         if hasattr(sol, "P_N"):
             P_N = sol.P_N[::frac]
         else:
@@ -94,7 +98,15 @@ class Export:
 
         # TODO default values + not None values of solution object
         self.solution = Solution(
-            t=t, q=q, u=u, u_dot=u_dot, la_g=la_g, la_gamma=la_gamma, P_N=P_N, P_F=P_F
+            t=t,
+            q=q,
+            u=u,
+            q_dot=q_dot,
+            u_dot=u_dot,
+            la_g=la_g,
+            la_gamma=la_gamma,
+            P_N=P_N,
+            P_F=P_F,
         )
 
     def __create_vtk_folder(self, folder_name: str, overwrite: bool):
