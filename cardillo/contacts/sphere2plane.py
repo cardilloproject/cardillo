@@ -132,24 +132,26 @@ class Sphere2Plane:
         return np.array([self.n(t) @ (self.r_OP(t, q) - self.r_OQ(t))]) - self.r
 
     def g_N_q_dense(self, t, q):
-        return np.array([self.n(t) @ self.r_OP_q(t, q)])
+        return np.array([self.n(t) @ self.r_OP_q(t, q)], dtype=q.dtype)
 
     def g_N_q(self, t, q, coo):
         coo.extend(self.g_N_q_dense(t, q), (self.la_NDOF, self.qDOF))
 
     def g_N_dot(self, t, q, u):
         # TODO: n_dot(t)
-        return np.array([self.n(t) @ (self.v_P(t, q, u) - self.v_Q(t))])
+        return np.array(
+            [self.n(t) @ (self.v_P(t, q, u) - self.v_Q(t))], dtype=np.common_type(q, u)
+        )
 
     def g_N_dot_q_dense(self, t, q, u):
-        return np.array([self.n(t) @ self.v_P_q(t, q, u)])
+        return np.array([self.n(t) @ self.v_P_q(t, q, u)], dtype=np.common_type(q, u))
 
     def g_N_dot_q(self, t, q, u, coo):
         coo.extend(self.g_N_dot_q_dense(t, q, u), (self.la_NDOF, self.qDOF))
 
     def g_N_dot_u_dense(self, t, q):
         # TODO: n_dot(t)
-        return np.array([self.n(t) @ self.J_P(t, q)])
+        return np.array([self.n(t) @ self.J_P(t, q)], dtype=q.dtype)
 
     def g_N_dot_u(self, t, q, coo):
         coo.extend(self.g_N_dot_u_dense(t, q), (self.la_NDOF, self.uDOF))
@@ -158,14 +160,21 @@ class Sphere2Plane:
         coo.extend(self.g_N_dot_u_dense(t, q).T, (self.uDOF, self.la_NDOF))
 
     def g_N_ddot(self, t, q, u, u_dot):
-        return np.array([self.n(t) @ (self.a_P(t, q, u, u_dot) - self.a_Q(t))])
+        return np.array(
+            [self.n(t) @ (self.a_P(t, q, u, u_dot) - self.a_Q(t))],
+            dtype=np.common_type(q, u, u_dot),
+        )
 
     def g_N_ddot_q(self, t, q, u, u_dot, coo):
-        dense = np.array([self.n(t) @ self.a_P_q(t, q, u, u_dot)])
+        dense = np.array(
+            [self.n(t) @ self.a_P_q(t, q, u, u_dot)], dtype=np.common_type(q, u, u_dot)
+        )
         coo.extend(dense, (self.la_NDOF, self.qDOF))
 
     def g_N_ddot_u(self, t, q, u, u_dot, coo):
-        dense = np.array([self.n(t) @ self.a_P_u(t, q, u, u_dot)])
+        dense = np.array(
+            [self.n(t) @ self.a_P_u(t, q, u, u_dot)], dtype=np.common_type(q, u, u_dot)
+        )
         coo.extend(dense, (self.la_NDOF, self.uDOF))
 
     def Wla_N_q(self, t, q, la_N, coo):

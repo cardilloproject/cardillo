@@ -3,12 +3,10 @@ from pathlib import Path
 
 from cardillo.discrete import (
     PointMass,
-    new_convex_rigid_body,
-    new_ball,
-    new_box,
+    Ball,
+    Box,
     RigidBodyQuaternion,
-    Frame,
-    frame,
+    PlaneFixed
 )
 from cardillo.forces import (
     Force,
@@ -58,10 +56,10 @@ if __name__ == "__main__":
 
     # cube = ConvexRigidBody(points_cube, mass=m, u0=u0, q0=q0)
     # cube = newConvexRigidBody(RigidBodyQuaternion, points_cube, mass=m, u0=u0, q0=q0)
-    cube = new_box(RigidBodyQuaternion, 1, 2, 3, mass=m, q0=q0, u0=u0)
-    cube2 = new_box(RigidBodyQuaternion, 1, 2, 3, mass=m, q0=q0, u0=u0)
+    cube = Box(RigidBodyQuaternion)(1, 2, 3, mass=m, q0=q0, u0=u0)
+    cube2 = Box(RigidBodyQuaternion)(1, 2, 3, mass=m, q0=q0, u0=u0)
     r = 0.5
-    # ball = new_ball(RigidBodyQuaternion, m, r, q0, u0)
+    # ball = Ball(RigidBodyQuaternion)(m, r, q0, u0)
 
     m = 1
     pm0 = PointMass(m, np.zeros(3))
@@ -73,7 +71,7 @@ if __name__ == "__main__":
     k = 1e2
     spring = ScalarForceTranslational(pm0, pm1, LinearSpring(k))
     # frame = Frame(r_OS1)
-    frame = frame.PlaneFixed(np.array([0, 1, 0]), r_OS1)
+    frame = PlaneFixed(np.array([0, 1, 0]), r_OS1)
     joint = SphericalJoint(frame, pm1, r_OS1)
 
     system = System()
@@ -87,7 +85,7 @@ if __name__ == "__main__":
     # system.add(pm1)
 
     # system.add(spring)
-    # system.add(frame)
+    system.add(frame)
     # system.add(joint)
 
     system.assemble()
@@ -108,10 +106,11 @@ if __name__ == "__main__":
 
     e = Export(path.parent, path.stem, True, 30, solution)
     # e.export_contr([pm0, pm1], file_name="points")
-    e.export_contr(pm0)
+    # e.export_contr(pm0)
     e.export_contr([cube, cube2])
     # e.export_contr(cube)
     # e.export_contr(cube, base_export=True)
     # e.export_contr(ball, resolution=20)
     # e.export_contr(spring)
     # e.export_contr(frame, base_export=True)
+    e.export_contr(frame)

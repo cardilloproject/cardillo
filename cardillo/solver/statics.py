@@ -166,7 +166,7 @@ class Newton:
             if self.verbose:
                 pbar.set_description(self.__pbar_text(i, k, error))
 
-            # perform netwon step if necessary
+            # perform newton step if necessary
             while (not converged) and (k < self.max_iter):
                 k += 1
 
@@ -221,6 +221,7 @@ class Newton:
         return Solution(
             t=self.load_steps,
             q=self.x[: i + 1, : self.nq],
+            u=np.zeros((len(self.load_steps), self.nu)),
             la_g=self.x[: i + 1, self.nq :],
             la_N=self.x[: i + 1, self.nq + self.nla_g :],
         )
