@@ -23,9 +23,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-Beam = DirectorAxisAngle
+# Beam = DirectorAxisAngle
 # Beam = Crisfield1999
-# Beam = TimoshenkoAxisAngleSE3
+Beam = TimoshenkoAxisAngleSE3
 # Beam = TimoshenkoDirectorDirac
 # Beam = TimoshenkoDirectorIntegral
 
@@ -216,7 +216,7 @@ if __name__ == "__main__":
     else:
         t1 = 1
         dt = 2.5e-2
-        solver = EulerBackward(system, t1, dt)
+        solver = EulerBackward(system, t1, dt, method="index 3")
         # solver = ScipyIVP(system, t1, dt, rtol=1.0e-2, atol=1.0e-2)
 
     sol = solver.solve()

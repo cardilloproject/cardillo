@@ -1,6 +1,6 @@
 from __future__ import annotations
 import numpy as np
-from math import tan, sqrt, atan2
+from math import sin, cos, tan, sqrt, atan2
 from cardillo.math import norm, cross3, ax2skew, trace3, ax2skew_a, ei, LeviCivita3
 
 # for small angles we use first order approximations of the equations since

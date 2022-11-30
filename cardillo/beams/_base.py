@@ -981,6 +981,9 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
     # TODO:
     def f_pot_el_q(self, qe, el):
         if not hasattr(self, "_deval"):
+            warnings.warn(
+                "Class derived from TimoshenkoPetrovGalerkinBase does not implement _deval. We use a numerical Jacobian!"
+            )
             return approx_fprime(
                 # qe, lambda qe: self.f_pot_el(qe, el), eps=1.0e-6, method="3-point"
                 qe,
