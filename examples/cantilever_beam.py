@@ -16,7 +16,7 @@ from cardillo.beams import (
 )
 from cardillo.forces import K_Moment, K_Force, DistributedForce1DBeam
 from cardillo import System
-from cardillo.solver import Newton, EulerBackward
+from cardillo.solver import Newton, EulerBackward, ScipyIVP
 from cardillo.utility import Export
 
 import numpy as np
@@ -187,7 +187,7 @@ if __name__ == "__main__":
 
     # line distributed body force
     if statics:
-        l = lambda t, xi: t * e3 * 1e0
+        l = lambda t, xi: t * e3 * 5e1
     else:
         l = lambda t, xi: e3 * 1e0
     line_force = DistributedForce1DBeam(l, beam)
@@ -214,9 +214,10 @@ if __name__ == "__main__":
             atol=1.0e-8,
         )
     else:
-        t1 = 5
-        dt = 5.0e-2
+        t1 = 1
+        dt = 2.5e-2
         solver = EulerBackward(system, t1, dt)
+        # solver = ScipyIVP(system, t1, dt, rtol=1.0e-2, atol=1.0e-2)
 
     sol = solver.solve()
     q = sol.q

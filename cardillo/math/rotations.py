@@ -269,6 +269,37 @@ def T_SO3_psi(psi: np.ndarray) -> np.ndarray:
     # return T_SO3_psi_num
 
 
+def T_SO3_dot(psi: np.ndarray, psi_dot: np.ndarray) -> np.ndarray:
+    """Derivative of tangent map w.r.t. scalar argument of rotationv ector, see
+    Ibrahimbegović1995 (71). Actually in Ibrahimbegovic1995 (28) T_s^{T}
+    is shown!
+
+    References
+    ----------
+    Ibrahimbegovic1995: https://doi.org/10.1002/nme.1620382107
+    """
+    angle = norm(psi)
+    if angle > 0:
+        sa = np.sin(angle)
+        ca = np.cos(angle)
+        c1 = (angle * ca - sa) / angle**3
+        c2 = (angle * sa + 2 * ca - 2) / angle**4
+        c3 = (3 * sa - 2 * angle - angle * ca) / angle**5
+        c4 = (1 - ca) / angle**2
+        c5 = (angle - sa) / angle**3
+
+        return (
+            c1 * np.outer(psi_dot, psi)
+            + c2 * np.outer(cross3(psi, psi_dot), psi)
+            + c3 * (psi @ psi_dot) * np.outer(psi, psi)
+            - c4 * ax2skew(psi_dot)
+            + c5 * (psi @ psi_dot) * np.eye(3)
+            + c5 * np.outer(psi, psi_dot)
+        ).T  #  transpose of Ibrahimbegović1995 (71)
+    else:
+        return np.zeros((3, 3), dtype=float)  # Cardona1988 after (46)
+
+
 def T_SO3_inv(psi: np.ndarray) -> np.ndarray:
     angle = norm(psi)
     psi_tilde = ax2skew(psi)
