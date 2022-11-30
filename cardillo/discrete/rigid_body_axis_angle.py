@@ -1,10 +1,9 @@
-from optparse import Option
 from typing import Optional
 import numpy as np
 import numpy.typing as npt
 from cardillo.discrete.rigid_body_base import RigidBodyBase
-from cardillo.math import cross3, ax2skew, norm, approx_fprime
-from cardillo.math import rodriguez, inverse_tangent_map, pi
+from cardillo.math import norm, approx_fprime
+from cardillo.math import Exp_SO3, T_SO3_inv, pi
 
 
 class RigidBodyAxisAngle(RigidBodyBase):
@@ -47,7 +46,7 @@ class RigidBodyAxisAngle(RigidBodyBase):
         return q_dot
 
     def B_omega(self, q):
-        T_inv = inverse_tangent_map(q[3:])
+        T_inv = T_SO3_inv(q[3:])
         return T_inv
         # T = tangent_map(q[3:])
         # T_inv_num = np.linalg.inv(T)
@@ -77,7 +76,7 @@ class RigidBodyAxisAngle(RigidBodyBase):
         coo.extend(B, (self.qDOF, self.uDOF))
 
     def A_IK(self, t, q, frame_ID=None):
-        return rodriguez(q[3:])
+        return Exp_SO3(q[3:])
 
     # TODO: analytical derivative
     def A_IK_q(self, t, q, frame_ID=None):

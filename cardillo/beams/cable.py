@@ -11,7 +11,6 @@ from cardillo.math import (
     cross3,
     skew2ax,
     smallest_rotation,
-    rodriguez,
     approx_fprime,
     sign,
 )

@@ -8,7 +8,7 @@ from cardillo.math import (
     ax2skew,
     Log_SO3,
     T_SO3_inv,
-    tangent_map_s,
+    # tangent_map_s,
     approx_fprime,
 )
 
@@ -782,6 +782,8 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
             )
 
     def q_ddot(self, t, q, u, u_dot):
+        raise NotImplementedError("Check implementation!")
+
         # centerline part
         q_ddot = u_dot
 
@@ -928,103 +930,110 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
 
     # TODO:
     def f_pot_el_q(self, qe, el):
-        return approx_fprime(
-            # qe, lambda qe: self.f_pot_el(qe, el), eps=1.0e-6, method="3-point"
-            qe,
-            lambda qe: self.f_pot_el(qe, el),
-            eps=1.0e-10,
-            method="cs",
-        )
-
-        f_pot_q_el = np.zeros((self.nq_element, self.nq_element), dtype=float)
-
-        for i in range(self.nquadrature):
-            # extract reference state variables
-            qpi = self.qp[el, i]
-            qwi = self.qw[el, i]
-            J = self.J[el, i]
-            K_Gamma0 = self.K_Gamma0[el, i]
-            K_Kappa0 = self.K_Kappa0[el, i]
-
-            # evaluate required quantities
-            (
-                r_OP,
-                A_IK,
-                K_Gamma_bar,
-                K_Kappa_bar,
-                r_OP_qe,
-                A_IK_qe,
-                K_Gamma_bar_qe,
-                K_Kappa_bar_qe,
-            ) = self._deval(qe, qpi)
-
-            # axial and shear strains
-            K_Gamma = K_Gamma_bar / J
-            K_Gamma_qe = K_Gamma_bar_qe / J
-
-            # torsional and flexural strains
-            K_Kappa = K_Kappa_bar / J
-            K_Kappa_qe = K_Kappa_bar_qe / J
-
-            # compute contact forces and couples from partial derivatives of
-            # the strain energy function w.r.t. strain measures
-            K_n = self.material_model.K_n(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
-            K_n_K_Gamma = self.material_model.K_n_K_Gamma(
-                K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
+        if not hasattr(self, "_deval"):
+            return approx_fprime(
+                # qe, lambda qe: self.f_pot_el(qe, el), eps=1.0e-6, method="3-point"
+                qe,
+                lambda qe: self.f_pot_el(qe, el),
+                eps=1.0e-10,
+                method="cs",
             )
-            K_n_K_Kappa = self.material_model.K_n_K_Kappa(
-                K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
-            )
-            K_n_qe = K_n_K_Gamma @ K_Gamma_qe + K_n_K_Kappa @ K_Kappa_qe
+        else:
+            f_pot_q_el = np.zeros((self.nq_element, self.nq_element), dtype=float)
 
-            K_m = self.material_model.K_m(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
-            K_m_K_Gamma = self.material_model.K_m_K_Gamma(
-                K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
-            )
-            K_m_K_Kappa = self.material_model.K_m_K_Kappa(
-                K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
-            )
-            K_m_qe = K_m_K_Gamma @ K_Gamma_qe + K_m_K_Kappa @ K_Kappa_qe
+            for i in range(self.nquadrature):
+                # extract reference state variables
+                qpi = self.qp[el, i]
+                qwi = self.qw[el, i]
+                J = self.J[el, i]
+                K_Gamma0 = self.K_Gamma0[el, i]
+                K_Kappa0 = self.K_Kappa0[el, i]
 
-            ############################
-            # virtual work contributions
-            ############################
-            for node in range(self.nnodes_element_r):
-                f_pot_q_el[self.nodalDOF_element_r[node], :] -= (
-                    self.N_r_xi[el, i, node]
-                    * qwi
-                    * (np.einsum("ikj,k->ij", A_IK_qe, K_n) + A_IK @ K_n_qe)
+                # evaluate required quantities
+                (
+                    r_OP,
+                    A_IK,
+                    K_Gamma_bar,
+                    K_Kappa_bar,
+                    r_OP_qe,
+                    A_IK_qe,
+                    K_Gamma_bar_qe,
+                    K_Kappa_bar_qe,
+                ) = self._deval(qe, qpi)
+
+                # axial and shear strains
+                K_Gamma = K_Gamma_bar / J
+                K_Gamma_qe = K_Gamma_bar_qe / J
+
+                # torsional and flexural strains
+                K_Kappa = K_Kappa_bar / J
+                K_Kappa_qe = K_Kappa_bar_qe / J
+
+                # compute contact forces and couples from partial derivatives of
+                # the strain energy function w.r.t. strain measures
+                K_n = self.material_model.K_n(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
+                K_n_K_Gamma = self.material_model.K_n_K_Gamma(
+                    K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
                 )
-
-            for node in range(self.nnodes_element_psi):
-                f_pot_q_el[self.nodalDOF_element_psi[node], :] += (
-                    self.N_psi[el, i, node]
-                    * qwi
-                    * (ax2skew(K_Gamma_bar) @ K_n_qe - ax2skew(K_n) @ K_Gamma_bar_qe)
+                K_n_K_Kappa = self.material_model.K_n_K_Kappa(
+                    K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
                 )
+                K_n_qe = K_n_K_Gamma @ K_Gamma_qe + K_n_K_Kappa @ K_Kappa_qe
 
-                f_pot_q_el[self.nodalDOF_element_psi[node], :] -= (
-                    self.N_psi_xi[el, i, node] * qwi * K_m_qe
+                K_m = self.material_model.K_m(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
+                K_m_K_Gamma = self.material_model.K_m_K_Gamma(
+                    K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
                 )
-
-                f_pot_q_el[self.nodalDOF_element_psi[node], :] += (
-                    self.N_psi[el, i, node]
-                    * qwi
-                    * (ax2skew(K_Kappa_bar) @ K_m_qe - ax2skew(K_m) @ K_Kappa_bar_qe)
+                K_m_K_Kappa = self.material_model.K_m_K_Kappa(
+                    K_Gamma, K_Gamma0, K_Kappa, K_Kappa0
                 )
+                K_m_qe = K_m_K_Gamma @ K_Gamma_qe + K_m_K_Kappa @ K_Kappa_qe
 
-        return f_pot_q_el
+                ############################
+                # virtual work contributions
+                ############################
+                for node in range(self.nnodes_element_r):
+                    f_pot_q_el[self.nodalDOF_element_r[node], :] -= (
+                        self.N_r_xi[el, i, node]
+                        * qwi
+                        * (np.einsum("ikj,k->ij", A_IK_qe, K_n) + A_IK @ K_n_qe)
+                    )
 
-        # f_pot_q_el_num = approx_fprime(
-        #     qe, lambda qe: self.f_pot_el(qe, el), eps=1.0e-10, method="cs"
-        # )
-        # # f_pot_q_el_num = approx_fprime(
-        # #     qe, lambda qe: self.f_pot_el(qe, el), eps=5.0e-6, method="2-point"
-        # # )
-        # diff = f_pot_q_el - f_pot_q_el_num
-        # error = np.linalg.norm(diff)
-        # print(f"error f_pot_q_el: {error}")
-        # return f_pot_q_el_num
+                for node in range(self.nnodes_element_psi):
+                    f_pot_q_el[self.nodalDOF_element_psi[node], :] += (
+                        self.N_psi[el, i, node]
+                        * qwi
+                        * (
+                            ax2skew(K_Gamma_bar) @ K_n_qe
+                            - ax2skew(K_n) @ K_Gamma_bar_qe
+                        )
+                    )
+
+                    f_pot_q_el[self.nodalDOF_element_psi[node], :] -= (
+                        self.N_psi_xi[el, i, node] * qwi * K_m_qe
+                    )
+
+                    f_pot_q_el[self.nodalDOF_element_psi[node], :] += (
+                        self.N_psi[el, i, node]
+                        * qwi
+                        * (
+                            ax2skew(K_Kappa_bar) @ K_m_qe
+                            - ax2skew(K_m) @ K_Kappa_bar_qe
+                        )
+                    )
+
+            return f_pot_q_el
+
+            # f_pot_q_el_num = approx_fprime(
+            #     qe, lambda qe: self.f_pot_el(qe, el), eps=1.0e-10, method="cs"
+            # )
+            # # f_pot_q_el_num = approx_fprime(
+            # #     qe, lambda qe: self.f_pot_el(qe, el), eps=5.0e-6, method="2-point"
+            # # )
+            # diff = f_pot_q_el - f_pot_q_el_num
+            # error = np.linalg.norm(diff)
+            # print(f"error f_pot_q_el: {error}")
+            # return f_pot_q_el_num
 
     #########################################
     # equations of motion

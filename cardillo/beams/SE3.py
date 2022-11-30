@@ -9,7 +9,6 @@ from cardillo.math import (
     cross3,
     ax2skew,
     approx_fprime,
-    tangent_map_s,
     Log_SO3,
     SE3,
     SE3inv,
