@@ -507,135 +507,136 @@ class A_IK_basic:
         # fmt: on
 
 
-def rodriguez(psi: np.ndarray) -> np.ndarray:
-    """Axis-angle rotation, see Crisfield1999 above (4.1).
+# TODO: Remove these function since they are already replaced by the ones above.
+if False:
 
-    References
-    ----------
-    Crisfield1999: https://doi.org/10.1098/rspa.1999.0352
-    """
-    angle = norm(psi)
-    if angle > 0:
-        sa = np.sin(angle)
-        ca = np.cos(angle)
-        psi_tilde = ax2skew(psi)
-        return (
-            np.eye(3)
-            + (sa / angle) * psi_tilde
-            + ((1.0 - ca) / (angle**2)) * psi_tilde @ psi_tilde
-        )
-    else:
-        return np.eye(3)
+    def rodriguez(psi: np.ndarray) -> np.ndarray:
+        """Axis-angle rotation, see Crisfield1999 above (4.1).
 
-
-def rodriguez_der(psi: np.ndarray) -> np.ndarray:
-    """Derivative of the axis-angle rotation, see Crisfield1999 above (4.1). 
-    Derivations and final results are given in 
-
-    References
-    ----------
-    Crisfield1999: https://doi.org/10.1098/rspa.1999.0352 \\
-    Gallego2015: https://doi.org/10.1007/s10851-014-0528-x
-    """
-    angle = norm(psi)
-
-    # Gallego2015 (9)
-    R_psi = np.zeros((3, 3, 3))
-    if angle > 0:
-        R = rodriguez(psi)
-        eye_R = np.eye(3) - R
-        psi_tilde = ax2skew(psi)
-        angle2 = angle * angle
-        for i in range(3):
-            R_psi[:, :, i] = (
-                (psi[i] * psi_tilde + ax2skew(cross3(psi, eye_R[:, i]))) @ R / angle2
+        References
+        ----------
+        Crisfield1999: https://doi.org/10.1098/rspa.1999.0352
+        """
+        angle = norm(psi)
+        if angle > 0:
+            sa = np.sin(angle)
+            ca = np.cos(angle)
+            psi_tilde = ax2skew(psi)
+            return (
+                np.eye(3)
+                + (sa / angle) * psi_tilde
+                + ((1.0 - ca) / (angle**2)) * psi_tilde @ psi_tilde
             )
-    else:
-        # Derivative at the identity, see Gallego2015 Section 3.3
-        for i in range(3):
-            R_psi[:, :, i] = ax2skew(ei(i))
+        else:
+            return np.eye(3)
 
-    return R_psi
+    def rodriguez_der(psi: np.ndarray) -> np.ndarray:
+        """Derivative of the axis-angle rotation, see Crisfield1999 above (4.1). 
+        Derivations and final results are given in 
 
+        References
+        ----------
+        Crisfield1999: https://doi.org/10.1098/rspa.1999.0352 \\
+        Gallego2015: https://doi.org/10.1007/s10851-014-0528-x
+        """
+        angle = norm(psi)
 
-def tangent_map(psi: np.ndarray) -> np.ndarray:
-    """Tangent map, see Crisfield1999 (4.2). Different forms are found in 
-    Cardona1988 (38), Ibrahimbegovic1995 (14b) and Barfoot2014 (98). Actually 
-    in Ibrahimbegovic1995 and Barfoot2014 T^T is shown!
+        # Gallego2015 (9)
+        R_psi = np.zeros((3, 3, 3))
+        if angle > 0:
+            R = rodriguez(psi)
+            eye_R = np.eye(3) - R
+            psi_tilde = ax2skew(psi)
+            angle2 = angle * angle
+            for i in range(3):
+                R_psi[:, :, i] = (
+                    (psi[i] * psi_tilde + ax2skew(cross3(psi, eye_R[:, i])))
+                    @ R
+                    / angle2
+                )
+        else:
+            # Derivative at the identity, see Gallego2015 Section 3.3
+            for i in range(3):
+                R_psi[:, :, i] = ax2skew(ei(i))
 
-    References
-    ----------
-    Crisfield1999: https://doi.org/10.1098/rspa.1999.0352 \\
-    Cardona1988: https://doi.org/10.1002/nme.1620261105 \\
-    Ibrahimbegovic1995: https://doi.org/10.1002/nme.1620382107 \\
-    Barfoot2014: https://doi.org/10.1109/TRO.2014.2298059
-    """
-    angle = norm(psi)
-    if angle > 0:
-        sa = np.sin(angle)
-        ca = np.cos(angle)
-        T = (
-            (sa / angle) * np.eye(3)
-            - ((1.0 - ca) / angle**2) * ax2skew(psi)
-            + ((1.0 - sa / angle) / angle**2) * np.outer(psi, psi)
-        )
-        return T
-    else:
-        return np.eye(3)
+        return R_psi
 
+    def tangent_map(psi: np.ndarray) -> np.ndarray:
+        """Tangent map, see Crisfield1999 (4.2). Different forms are found in 
+        Cardona1988 (38), Ibrahimbegovic1995 (14b) and Barfoot2014 (98). Actually 
+        in Ibrahimbegovic1995 and Barfoot2014 T^T is shown!
 
-def inverse_tangent_map(psi: np.ndarray) -> np.ndarray:
-    """Inverse tangent map, see Cardona1988 (45), Ibrahimbegovic1995 (28) and Barfoot2014 (99).
-    Actually in Ibrahimbegovic1995 and Barfoot2014 T^{-T} is shown!
+        References
+        ----------
+        Crisfield1999: https://doi.org/10.1098/rspa.1999.0352 \\
+        Cardona1988: https://doi.org/10.1002/nme.1620261105 \\
+        Ibrahimbegovic1995: https://doi.org/10.1002/nme.1620382107 \\
+        Barfoot2014: https://doi.org/10.1109/TRO.2014.2298059
+        """
+        angle = norm(psi)
+        if angle > 0:
+            sa = np.sin(angle)
+            ca = np.cos(angle)
+            T = (
+                (sa / angle) * np.eye(3)
+                - ((1.0 - ca) / angle**2) * ax2skew(psi)
+                + ((1.0 - sa / angle) / angle**2) * np.outer(psi, psi)
+            )
+            return T
+        else:
+            return np.eye(3)
 
-    References
-    ----------
-    Cardona1988: https://doi.org/10.1002/nme.1620261105 \\
-    Ibrahimbegovic1995: https://doi.org/10.1002/nme.1620382107 \\
-    Barfoot2014: https://doi.org/10.1109/TRO.2014.2298059
-    """
-    angle = norm(psi)
-    if angle > 0:
-        ta = tan(angle / 2)
-        T_inv = (
-            (angle / (2 * ta)) * np.eye(3)
-            + 0.5 * ax2skew(psi)
-            + (1 - (angle / 2) / ta) * np.outer(psi / angle, psi / angle)
-        )
-        return T_inv
-    else:
-        return np.eye(3)  # Cardona1988 after (46)
+    def inverse_tangent_map(psi: np.ndarray) -> np.ndarray:
+        """Inverse tangent map, see Cardona1988 (45), Ibrahimbegovic1995 (28) and Barfoot2014 (99).
+        Actually in Ibrahimbegovic1995 and Barfoot2014 T^{-T} is shown!
 
+        References
+        ----------
+        Cardona1988: https://doi.org/10.1002/nme.1620261105 \\
+        Ibrahimbegovic1995: https://doi.org/10.1002/nme.1620382107 \\
+        Barfoot2014: https://doi.org/10.1109/TRO.2014.2298059
+        """
+        angle = norm(psi)
+        if angle > 0:
+            ta = tan(angle / 2)
+            T_inv = (
+                (angle / (2 * ta)) * np.eye(3)
+                + 0.5 * ax2skew(psi)
+                + (1 - (angle / 2) / ta) * np.outer(psi / angle, psi / angle)
+            )
+            return T_inv
+        else:
+            return np.eye(3)  # Cardona1988 after (46)
 
-def tangent_map_s(psi: np.ndarray, psi_s: np.ndarray) -> np.ndarray:
-    """Derivative of tangent map w.r.t. arc length coordinate s, see
-    Ibrahimbegović1995 (71). Actually in Ibrahimbegovic1995 (28) T_s^{T}
-    is shown!
+    def tangent_map_s(psi: np.ndarray, psi_s: np.ndarray) -> np.ndarray:
+        """Derivative of tangent map w.r.t. arc length coordinate s, see
+        Ibrahimbegović1995 (71). Actually in Ibrahimbegovic1995 (28) T_s^{T}
+        is shown!
 
-    References
-    ----------
-    Ibrahimbegovic1995: https://doi.org/10.1002/nme.1620382107
-    """
-    angle = norm(psi)
-    if angle > 0:
-        sa = np.sin(angle)
-        ca = np.cos(angle)
-        c1 = (angle * ca - sa) / angle**3
-        c2 = (angle * sa + 2 * ca - 2) / angle**4
-        c3 = (3 * sa - 2 * angle - angle * ca) / angle**5
-        c4 = (1 - ca) / angle**2
-        c5 = (angle - sa) / angle**3
+        References
+        ----------
+        Ibrahimbegovic1995: https://doi.org/10.1002/nme.1620382107
+        """
+        angle = norm(psi)
+        if angle > 0:
+            sa = np.sin(angle)
+            ca = np.cos(angle)
+            c1 = (angle * ca - sa) / angle**3
+            c2 = (angle * sa + 2 * ca - 2) / angle**4
+            c3 = (3 * sa - 2 * angle - angle * ca) / angle**5
+            c4 = (1 - ca) / angle**2
+            c5 = (angle - sa) / angle**3
 
-        return (
-            c1 * np.outer(psi_s, psi)
-            + c2 * np.outer(cross3(psi, psi_s), psi)
-            + c3 * (psi @ psi_s) * np.outer(psi, psi)
-            - c4 * ax2skew(psi_s)
-            + c5 * (psi @ psi_s) * np.eye(3)
-            + c5 * np.outer(psi, psi_s)
-        ).T  #  transpose of Ibrahimbegović1995 (71)
-    else:
-        return np.zeros((3, 3))  # Cardona1988 after (46)
+            return (
+                c1 * np.outer(psi_s, psi)
+                + c2 * np.outer(cross3(psi, psi_s), psi)
+                + c3 * (psi @ psi_s) * np.outer(psi, psi)
+                - c4 * ax2skew(psi_s)
+                + c5 * (psi @ psi_s) * np.eye(3)
+                + c5 * np.outer(psi, psi_s)
+            ).T  #  transpose of Ibrahimbegović1995 (71)
+        else:
+            return np.zeros((3, 3))  # Cardona1988 after (46)
 
 
 def Spurrier(R: np.ndarray) -> np.ndarray:
