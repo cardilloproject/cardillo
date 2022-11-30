@@ -1,21 +1,8 @@
 import numpy as np
-
-from cardillo.utility.coo import Coo
-from cardillo.discretization.lagrange import LagrangeKnotVector
-from cardillo.discretization.b_spline import BSplineKnotVector
-from cardillo.discretization.hermite import HermiteNodeVector
-from cardillo.discretization.mesh1D import Mesh1D
 from cardillo.math import (
-    pi,
-    norm,
     cross3,
-    ax2skew,
-    approx_fprime,
-    e1,
     Exp_SO3,
-    Log_SO3,
     Exp_SO3_psi,
-    T_SO3_inv,
 )
 from cardillo.beams._base import TimoshenkoPetrovGalerkinBase
 

@@ -149,7 +149,7 @@ def Log_SO3_A(A: np.ndarray) -> np.ndarray:
     ca = np.clip(ca, -1, 1)  # clip to [-1, 1] for arccos!
     angle = np.arccos(ca)
 
-    psi_A = np.zeros((3, 3, 3), dtype=float)
+    psi_A = np.zeros((3, 3, 3), dtype=A.dtype)
     if angle > angle_singular:
         sa = np.sin(angle)
         b = 0.5 * angle / sa
@@ -327,7 +327,7 @@ def T_SO3_inv(psi: np.ndarray) -> np.ndarray:
 
 
 def T_SO3_inv_psi(psi: np.ndarray) -> np.ndarray:
-    T_SO3_inv_psi = np.zeros((3, 3, 3), dtype=float)
+    T_SO3_inv_psi = np.zeros((3, 3, 3), dtype=psi.dtype)
 
     #################
     # 0.5 * psi_tilde

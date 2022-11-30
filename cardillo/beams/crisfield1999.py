@@ -107,16 +107,17 @@ class Crisfield1999(TimoshenkoPetrovGalerkinBase):
         return r_OP, A_IK, K_Gamma_bar, K_Kappa_bar
 
     def A_IK(self, t, q, frame_ID):
-        return self._eval(q, frame_ID[0])[1]
         # evaluate shape functions
-        N_psi, _ = self.basis_functions_psi(frame_ID[0])
+        N_psi, N_psi_xi = self.basis_functions_psi(frame_ID[0])
 
-        # interpolate orientation
-        A_IK = np.zeros((3, 3), dtype=q.dtype)
-        for node in range(self.nnodes_element_psi):
-            A_IK += N_psi[node] * Exp_SO3(q[self.nodalDOF_element_psi[node]])
+        # reference rotation, see. Crisfield1999 (5.8)
+        A_IR = self._reference_rotation(q)
 
-        return A_IK
+        # relative interpolation of the rotation vector and it first derivative
+        psi_rel, _ = self._relative_interpolation(A_IR, q, N_psi, N_psi_xi)
+
+        # objective rotation
+        return A_IR @ Exp_SO3(psi_rel)
 
     def A_IK_q(self, t, q, frame_ID):
         return approx_fprime(q, lambda q: self.A_IK(t, q, frame_ID))
