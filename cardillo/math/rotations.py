@@ -742,9 +742,17 @@ if False:
 def smallest_rotation(
     a0: np.ndarray, a: np.ndarray, normalize: bool = True
 ) -> np.ndarray:
-    """Rotation matrix that rotates an unit vector a0 / ||a0|| to another unit vector
-    a / ||a||, see Crisfield1996 16.13 and (16.104). This rotation is sometimes
-    referred to 'smallest rotation'.
+    """In Crisfield1996 16.13 (16.103) and (16.104) the rotation matrix R is
+    introduced that rotates an unit vector a0 / ||a0|| to another unit vector
+    a / ||a||, i.e.,
+
+        (a / ||a||) = R @ (a0 / ||a0||).
+
+    Let e_x^J := a0 / ||a0|| and e_x^K := a / ||a||. The corresponding
+    transformation matrix to R is given by A_JK = J_R.T. Thus, this implements
+    the transposed of Crisfield1996.
+
+    This rotation is sometimes referred to 'smallest rotation'.
 
     References
     ----------
@@ -757,8 +765,9 @@ def smallest_rotation(
     # ########################
     # # Crisfield1996 (16.104)
     # ########################
+    # e = cross3(a0, a)
     # e_tilde = ax2skew(e)
-    # return np.eye(3) + e_tilde + (e_tilde @ e_tilde) / (1 + a0_bar @ a_bar)
+    # return np.eye(3) - e_tilde + (e_tilde @ e_tilde) / (1 + a0 @ a)
 
     ########################
     # Crisfield1996 (16.105)
@@ -766,9 +775,7 @@ def smallest_rotation(
     cos_psi = a0 @ a
     denom = 1.0 + cos_psi
     e = cross3(a0, a)
-    # return cos_psi * np.eye(3, dtype=e.dtype) + ax2skew(e) + np.outer(e, e) / denom
-    e_tilde = ax2skew(e)
-    return np.eye(3, dtype=e.dtype) + e_tilde + e_tilde @ e_tilde / denom
+    return cos_psi * np.eye(3, dtype=e.dtype) - ax2skew(e) + np.outer(e, e) / denom
 
 
 ##########################################
