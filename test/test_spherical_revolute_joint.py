@@ -76,7 +76,7 @@ def run(joint, Solver, k=None, d=None, **solver_args):
     ############################################################################
     #                   Rigid Body 2
     ############################################################################
-    beta0 = -pi/4
+    beta0 = -pi / 4
     beta_dot0 = 0
 
     r_OB2 = -l * A_IK10[:, 1]
@@ -275,7 +275,7 @@ def run(joint, Solver, k=None, d=None, **solver_args):
         dx[:2] = x[2:]
         dx[2:] = np.linalg.inv(M) @ h
         return dx
-    
+
     def _eqm_pd_rotational(t, x):
         thetaA = A + 5 * m * (l**2) / 4
         thetaB = A + m * (l**2) / 4
@@ -290,9 +290,13 @@ def run(joint, Solver, k=None, d=None, **solver_args):
         h = np.array(
             [
                 -0.5 * m * l * l * (x[3] ** 2) * np.sin(x[0] - x[1])
-                - 1.5 * m * l * g * np.sin(x[0]) - k * (2 * x[0] - x[1]) - d * (2 * x[2] - x[3]),
+                - 1.5 * m * l * g * np.sin(x[0])
+                - k * (2 * x[0] - x[1])
+                - d * (2 * x[2] - x[3]),
                 0.5 * m * l * l * (x[2] ** 2) * np.sin(x[0] - x[1])
-                - 0.5 * m * l * g * np.sin(x[1]) - k * (x[1] - x[0]) - d * (x[3] - x[2]),
+                - 0.5 * m * l * g * np.sin(x[1])
+                - k * (x[1] - x[0])
+                - d * (x[3] - x[2]),
             ]
         )
 
@@ -300,8 +304,7 @@ def run(joint, Solver, k=None, d=None, **solver_args):
         dx[:2] = x[2:]
         dx[2:] = np.linalg.inv(M) @ h
         return dx
-    
-    
+
     if use_pdrotational_joint:
         eqm = _eqm_pd_rotational
     else:
@@ -349,7 +352,7 @@ if __name__ == "__main__":
     # run("RevoluteJoint", EulerBackward, method="index 2")
     # run("RevoluteJoint", EulerBackward, method="index 3")
     # run("RevoluteJoint", EulerBackward, method="index 2 GGL")
-    
+
     ###########################
     # PD rotational joint tests
     ###########################

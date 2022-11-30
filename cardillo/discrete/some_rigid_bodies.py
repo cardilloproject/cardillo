@@ -53,15 +53,18 @@ def Ball(RigidBodyParametrization):
 def Box(RigidBodyParametrization):
     class _Box(ConvexRigidBody(RigidBodyParametrization)):
         def __init__(self, length, width, height, q0, u0, rho=None, mass=None):
-            points = np.array([
-                [0, 0, 0],
-                [length, 0, 0],
-                [length, width, 0],
-                [0, width, 0],
-                [0, 0, height],
-                [length, 0, height],
-                [length, width, height],
-                [0, width, height],
-            ])
+            points = np.array(
+                [
+                    [0, 0, 0],
+                    [length, 0, 0],
+                    [length, width, 0],
+                    [0, width, 0],
+                    [0, 0, height],
+                    [length, 0, height],
+                    [length, width, height],
+                    [0, width, height],
+                ]
+            )
             super().__init__(points, rho, mass, q0, u0)
+
     return _Box
