@@ -507,6 +507,61 @@ class A_IK_basic:
         # fmt: on
 
 
+def Spurrier(R: np.ndarray) -> np.ndarray:
+    """
+    Spurrier's algorithm to extract the unit quaternion from a given rotation
+    matrix, see Spurrier19978, Simo1986 Table 12 and Crisfield1997 Section 16.10.
+
+    References
+    ----------
+    Spurrier19978: https://arc.aiaa.org/doi/10.2514/3.57311 \\
+    Simo1986: https://doi.org/10.1016/0045-7825(86)90079-4 \\
+    Crisfield1997: http://inis.jinr.ru/sl/M_Mathematics/MN_Numerical%20methods/MNf_Finite%20elements/Crisfield%20M.A.%20Vol.2.%20Non-linear%20Finite%20Element%20Analysis%20of%20Solids%20and%20Structures..%20Advanced%20Topics%20(Wiley,1996)(ISBN%20047195649X)(509s).pdf
+    """
+    trace = R[0, 0] + R[1, 1] + R[2, 2]
+
+    A = np.array([trace, R[0, 0], R[1, 1], R[2, 2]])
+    idx = A.argmax()
+    a = A[idx]
+
+    if idx > 0:
+        i = idx - 1
+        # make i, j, k a cyclic permutation of 0, 1, 2
+        i, j, k = np.roll(np.arange(3), -i)
+
+        q = np.zeros(4)
+        q[i + 1] = sqrt(0.5 * a + 0.25 * (1 - trace))
+        q[0] = 0.25 * (R[k, j] - R[j, k]) / q[i + 1]
+        q[j + 1] = 0.25 * (R[j, i] + R[i, j]) / q[i + 1]
+        q[k + 1] = 0.25 * (R[k, i] + R[i, k]) / q[i + 1]
+    else:
+        q0 = 0.5 * sqrt(1 + trace)
+        q1 = 0.25 * (R[2, 1] - R[1, 2]) / q0
+        q2 = 0.25 * (R[0, 2] - R[2, 0]) / q0
+        q3 = 0.25 * (R[1, 0] - R[0, 1]) / q0
+        q = np.array([q0, q1, q2, q3])
+
+    return q
+
+
+def quat2axis_angle(Q: np.ndarray) -> np.ndarray:
+    """Extract the rotation vector psi for a given quaterion Q = [q0, q] in
+    accordance with Wiki2021.
+
+    References
+    ----------
+    Wiki2021: https://en.wikipedia.org/wiki/Quaternions_and_spatial_rotation#Recovering_the_axis-angle_representation
+    """
+    q0, vq = Q[0], Q[1:]
+    q = norm(vq)
+    if q > 0:
+        axis = vq / q
+        angle = 2 * atan2(q, q0)
+        return angle * axis
+    else:
+        return np.zeros(3)
+
+
 # TODO: Remove these function since they are already replaced by the ones above.
 if False:
 
@@ -638,75 +693,19 @@ if False:
         else:
             return np.zeros((3, 3))  # Cardona1988 after (46)
 
+    def rodriguez_inv(R: np.ndarray) -> np.ndarray:
+        # trace = R[0, 0] + R[1, 1] + R[2, 2]
+        # psi = acos(0.5 * (trace - 1.))
+        # if psi > 0:
+        #     return skew2ax(0.5 * psi / np.sin(psi) * (R - R.T))
+        # else:
+        #     return np.zeros(3, dtype=float)
 
-def Spurrier(R: np.ndarray) -> np.ndarray:
-    """
-    Spurrier's algorithm to extract the unit quaternion from a given rotation
-    matrix, see Spurrier19978, Simo1986 Table 12 and Crisfield1997 Section 16.10.
+        return quat2axis_angle(Spurrier(R))
 
-    References
-    ----------
-    Spurrier19978: https://arc.aiaa.org/doi/10.2514/3.57311 \\
-    Simo1986: https://doi.org/10.1016/0045-7825(86)90079-4 \\
-    Crisfield1997: http://inis.jinr.ru/sl/M_Mathematics/MN_Numerical%20methods/MNf_Finite%20elements/Crisfield%20M.A.%20Vol.2.%20Non-linear%20Finite%20Element%20Analysis%20of%20Solids%20and%20Structures..%20Advanced%20Topics%20(Wiley,1996)(ISBN%20047195649X)(509s).pdf
-    """
-    trace = R[0, 0] + R[1, 1] + R[2, 2]
-
-    A = np.array([trace, R[0, 0], R[1, 1], R[2, 2]])
-    idx = A.argmax()
-    a = A[idx]
-
-    if idx > 0:
-        i = idx - 1
-        # make i, j, k a cyclic permutation of 0, 1, 2
-        i, j, k = np.roll(np.arange(3), -i)
-
-        q = np.zeros(4)
-        q[i + 1] = sqrt(0.5 * a + 0.25 * (1 - trace))
-        q[0] = 0.25 * (R[k, j] - R[j, k]) / q[i + 1]
-        q[j + 1] = 0.25 * (R[j, i] + R[i, j]) / q[i + 1]
-        q[k + 1] = 0.25 * (R[k, i] + R[i, k]) / q[i + 1]
-    else:
-        q0 = 0.5 * sqrt(1 + trace)
-        q1 = 0.25 * (R[2, 1] - R[1, 2]) / q0
-        q2 = 0.25 * (R[0, 2] - R[2, 0]) / q0
-        q3 = 0.25 * (R[1, 0] - R[0, 1]) / q0
-        q = np.array([q0, q1, q2, q3])
-
-    return q
-
-
-def quat2axis_angle(Q: np.ndarray) -> np.ndarray:
-    """Extract the rotation vector psi for a given quaterion Q = [q0, q] in
-    accordance with Wiki2021.
-
-    References
-    ----------
-    Wiki2021: https://en.wikipedia.org/wiki/Quaternions_and_spatial_rotation#Recovering_the_axis-angle_representation
-    """
-    q0, vq = Q[0], Q[1:]
-    q = norm(vq)
-    if q > 0:
-        axis = vq / q
-        angle = 2 * atan2(q, q0)
-        return angle * axis
-    else:
-        return np.zeros(3)
-
-
-def rodriguez_inv(R: np.ndarray) -> np.ndarray:
-    # trace = R[0, 0] + R[1, 1] + R[2, 2]
-    # psi = acos(0.5 * (trace - 1.))
-    # if psi > 0:
-    #     return skew2ax(0.5 * psi / np.sin(psi) * (R - R.T))
-    # else:
-    #     return np.zeros(3, dtype=float)
-
-    return quat2axis_angle(Spurrier(R))
-
-    # # alternative formulation using scipy's Rotation module
-    # from scipy.spatial.transform import Rotation
-    # return Rotation.from_matrix(R).as_rotvec()
+        # # alternative formulation using scipy's Rotation module
+        # from scipy.spatial.transform import Rotation
+        # return Rotation.from_matrix(R).as_rotvec()
 
 
 def smallest_rotation(
@@ -814,38 +813,3 @@ def quat2rot_p(p):
 def axis_angle2quat(axis, angle):
     n = axis / norm(axis)
     return np.concatenate([[np.cos(angle / 2)], np.sin(angle / 2) * n])
-
-
-def test_smallest_rotation():
-    from cardillo.math import e1, e2, e3, pi
-
-    a0 = e1
-    a_fun = lambda t: np.cos(t) * e1 + np.sin(t) * e2
-
-    # random rotation axis
-    psi = np.random.rand(3)
-    psi = psi / norm(psi)
-    print(f"psi: {psi}")
-
-    def a_fun(t):
-        R = rodriguez(t * pi * psi)
-        return R @ e1
-
-    num = 100
-    ts = np.linspace(0, 1.0 * pi, num=num)
-
-    as_ = np.array([a_fun(t) for t in ts])
-
-    Rs = np.array([smallest_rotation(a0, a) for a in as_]).transpose(1, 2, 0)
-
-    import matplotlib.pyplot as plt
-
-    fig, ax = plt.subplots(figsize=(8, 8), subplot_kw=dict(projection="3d"))
-    ax.quiver(*np.zeros((3, num)), *Rs[:, 0], color="red")
-    ax.quiver(*np.zeros((3, num)), *Rs[:, 1], color="green")
-    ax.quiver(*np.zeros((3, num)), *Rs[:, 2], color="blue")
-    plt.show()
-
-
-if __name__ == "__main__":
-    test_smallest_rotation()
