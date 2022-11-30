@@ -71,3 +71,4 @@ https://peps.python.org/pep-0008/#naming-conventions
 * [Information for MATLAB users](https://docs.scipy.org/doc/numpy/user/numpy-for-matlab-users.html).
 
 * A nice and simple [git introduction](https://rogerdudler.github.io/git-guide/index.html) and a short [git cheat sheet](https://about.gitlab.com/images/press/git-cheat-sheet.pdf).
+* Conversation of LaTeX expressions to unicode: [https://www.unicodeit.net/](https://www.unicodeit.net/)
