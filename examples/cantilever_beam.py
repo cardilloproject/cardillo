@@ -70,10 +70,6 @@ if __name__ == "__main__":
 
     if Beam == TimoshenkoAxisAngleSE3:
         q0 = TimoshenkoAxisAngleSE3.straight_configuration(
-            polynomial_degree,
-            polynomial_degree,
-            basis,
-            basis,
             nelements,
             L,
             r_OP=r_OP0,
