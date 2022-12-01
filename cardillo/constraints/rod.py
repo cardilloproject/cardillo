@@ -231,3 +231,12 @@ class Rod:
         dense[nu1:, nq1:] = J_P2.T @ r_OP2_q - np.einsum("i,ijk->jk", r_P1P2, J_P2_q)
 
         coo.extend(2 * la_g[0] * dense, (self.uDOF, self.qDOF))
+
+    def export(self, sol_i, **kwargs):
+        points = [
+            self.r_OP1(sol_i.t, sol_i.q[self.qDOF]),
+            self.r_OP2(sol_i.t, sol_i.q[self.qDOF]),
+        ]
+        cells = [("line", [[0, 1]])]
+
+        return points, cells, None, None
