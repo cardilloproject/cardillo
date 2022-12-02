@@ -11,6 +11,7 @@ from cardillo.beams import (
     TimoshenkoAxisAngleSE3,
     Crisfield1999,
     DirectorAxisAngle,
+    I_DirectorAxisAngle,
     TimoshenkoDirectorDirac,
     TimoshenkoDirectorIntegral,
 )
@@ -25,9 +26,10 @@ from pathlib import Path
 
 # Beam = DirectorAxisAngle
 # Beam = Crisfield1999
-Beam = TimoshenkoAxisAngleSE3
+# Beam = TimoshenkoAxisAngleSE3
 # Beam = TimoshenkoDirectorDirac
 # Beam = TimoshenkoDirectorIntegral
+Beam = I_DirectorAxisAngle
 
 statics = True
 # statics = False
@@ -96,6 +98,31 @@ if __name__ == "__main__":
             A_IK=A_IK0,
         )
         beam = DirectorAxisAngle(
+            cross_section,
+            material_model,
+            A_rho0,
+            K_S_rho0,
+            K_I_rho0,
+            polynomial_degree,
+            polynomial_degree,
+            nelements,
+            Q=q0,
+            q0=q0,
+            basis_r=basis,
+            basis_psi=basis,
+        )
+    elif Beam == I_DirectorAxisAngle:
+        q0 = I_DirectorAxisAngle.straight_configuration(
+            polynomial_degree,
+            polynomial_degree,
+            basis,
+            basis,
+            nelements,
+            L,
+            r_OP=r_OP0,
+            A_IK=A_IK0,
+        )
+        beam = I_DirectorAxisAngle(
             cross_section,
             material_model,
             A_rho0,
@@ -187,9 +214,9 @@ if __name__ == "__main__":
 
     # line distributed body force
     if statics:
-        l = lambda t, xi: t * e3 * 5e1
+        l = lambda t, xi: t * (0.5 * e2 - e3) * 5e1
     else:
-        l = lambda t, xi: e3 * 1e0
+        l = lambda t, xi: (0.5 * e2 - e3) * 1e0
     line_force = DistributedForce1DBeam(l, beam)
 
     # assemble the system

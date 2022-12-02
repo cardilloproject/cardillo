@@ -52,6 +52,19 @@ class TimoshenkoAxisAngleSE3(TimoshenkoPetrovGalerkinBase):
             1, 1, "Lagrange", "Lagrange", nelement, L, r_OP, A_IK
         )
 
+    @staticmethod
+    def straight_initial_configuration(
+        nelement,
+        L,
+        r_OP=np.zeros(3, dtype=float),
+        A_IK=np.eye(3, dtype=float),
+        v_P=np.zeros(3, dtype=float),
+        K_omega_IK=np.zeros(3, dtype=float),
+    ):
+        return TimoshenkoPetrovGalerkinBase.straight_initial_configuration(
+            1, 1, "Lagrange", "Lagrange", nelement, L, r_OP, A_IK, v_P, K_omega_IK
+        )
+
     def _eval(self, qe, xi):
         # extract nodal screws
         nodalDOF0 = np.concatenate(

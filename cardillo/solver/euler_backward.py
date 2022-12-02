@@ -1,75 +1,9 @@
 import numpy as np
-from scipy.sparse.linalg import spsolve
-from scipy.sparse import coo_matrix, csc_matrix, csr_matrix, eye, bmat
+from scipy.sparse import csc_matrix, csr_matrix, eye, bmat
 from tqdm import tqdm
 
 from cardillo.math import approx_fprime, fsolve
-from cardillo.solver import Solution
-
-
-def consistent_initial_conditions(system, rtol=1.0e-5, atol=1.0e-8):
-    t0 = system.t0
-    q0 = system.q0
-    u0 = system.u0
-
-    q_dot0 = system.q_dot(t0, q0, u0)
-
-    M0 = system.M(t0, q0, scipy_matrix=coo_matrix)
-    h0 = system.h(t0, q0, u0)
-    W_g0 = system.W_g(t0, q0, scipy_matrix=coo_matrix)
-    W_gamma0 = system.W_gamma(t0, q0, scipy_matrix=coo_matrix)
-    zeta_g0 = system.zeta_g(t0, q0, u0)
-    zeta_gamma0 = system.zeta_gamma(t0, q0, u0)
-    # fmt: off
-    A = bmat(
-        [
-            [        M0, -W_g0, -W_gamma0],
-            [    W_g0.T,  None,      None],
-            [W_gamma0.T,  None,      None],
-        ],
-        format="csc",
-    )
-    b = np.concatenate([
-        h0, 
-        -zeta_g0, 
-        -zeta_gamma0
-    ])
-    # fmt: on
-
-    u_dot_la_g_la_gamma = spsolve(A, b)
-    u_dot0 = u_dot_la_g_la_gamma[: system.nu]
-    la_g0 = u_dot_la_g_la_gamma[system.nu : system.nu + system.nla_g]
-    la_gamma0 = u_dot_la_g_la_gamma[system.nu + system.nla_g :]
-
-    # check if initial conditions satisfy constraints on position, velocity
-    # and acceleration level
-    g0 = system.g(t0, q0)
-    g_dot0 = system.g_dot(t0, q0, u0)
-    g_ddot0 = system.g_ddot(t0, q0, u0, u_dot0)
-    gamma0 = system.gamma(t0, q0, u0)
-    gamma_dot0 = system.gamma_dot(t0, q0, u0, u_dot0)
-    g_S0 = system.g_S(t0, q0)
-
-    assert np.allclose(
-        g0, np.zeros(system.nla_g), rtol, atol
-    ), "Initial conditions do not fulfill g0!"
-    assert np.allclose(
-        g_dot0, np.zeros(system.nla_g), rtol, atol
-    ), "Initial conditions do not fulfill g_dot0!"
-    assert np.allclose(
-        g_ddot0, np.zeros(system.nla_g), rtol, atol
-    ), "Initial conditions do not fulfill g_ddot0!"
-    assert np.allclose(
-        gamma0, np.zeros(system.nla_gamma), rtol, atol
-    ), "Initial conditions do not fulfill gamma0!"
-    assert np.allclose(
-        gamma_dot0, np.zeros(system.nla_gamma), rtol, atol
-    ), "Initial conditions do not fulfill gamma_dot0!"
-    assert np.allclose(
-        g_S0, np.zeros(system.nla_S), rtol, atol
-    ), "Initial conditions do not fulfill g_S0!"
-
-    return t0, q0, u0, q_dot0, u_dot0, la_g0, la_gamma0
+from cardillo.solver import Solution, consistent_initial_conditions
 
 
 class EulerBackward:
@@ -93,12 +27,16 @@ class EulerBackward:
         #######################################################################
         # integration time
         #######################################################################
-        t0 = system.t0
+        self.t0 = t0 = system.t0
         self.t1 = (
             t1 if t1 > t0 else ValueError("t1 must be larger than initial time t0.")
         )
         self.dt = dt
         self.t_eval = np.arange(t0, self.t1 + self.dt, self.dt)
+
+        self.frac = (t1 - t0) / 101
+        self.pbar = tqdm(total=100, leave=True)
+        self.i = 0
 
         #######################################################################
         # dimensions
@@ -315,9 +253,19 @@ class EulerBackward:
         mu_S_list = [mu_S]
         mu_g_list = [mu_g]
 
-        pbar = tqdm(self.t_eval[:-1])
-        for t in pbar:
-            self.t = t
+        # update progress bar
+        self.t = self.t0
+
+        # pbar = tqdm(self.t_eval[:-1])
+        # for t in pbar:
+        #     self.t = t
+        while self.t < self.t1:
+            self.t += self.dt
+            i1 = int(self.t // self.frac)
+            self.pbar.update(i1 - self.i)
+            self.pbar.set_description(f"t: {self.t:0.2e}s < {self.t1:0.2e}s")
+            self.i = i1
+
             sol = fsolve(self._R, self.y, jac=self._J)
             self.y = sol[0]
             converged = sol[1]
@@ -325,12 +273,15 @@ class EulerBackward:
             n_iter = sol[3]
             assert converged
 
-            pbar.set_description(
-                f"t: {t:0.2e}; {n_iter}/{self.max_iter} iterations; error: {error:0.2e}"
+            # pbar.set_description(
+            #     f"t: {t:0.2e}; {n_iter}/{self.max_iter} iterations; error: {error:0.2e}"
+            # )
+            self.pbar.set_description(
+                f"t: {self.t:0.2e}; {n_iter}/{self.max_iter} iterations; error: {error:0.2e}"
             )
 
             q, u = self._update(self.y)
-            self.qn, self.un = self.system.step_callback(t, q, u)
+            self.qn, self.un = self.system.step_callback(self.t, q, u)
             q_dot, u_dot, la_g, la_gamma, mu_S, mu_g = self._unpack(self.y)
 
             q_list.append(self.qn)
@@ -341,6 +292,15 @@ class EulerBackward:
             la_gamma_list.append(la_gamma)
             mu_S_list.append(mu_S)
             mu_g_list.append(mu_g)
+
+            # # update step size
+            # min_factor = 0.2
+            # max_factor = 5
+            # target_iter = 1
+            # factor = target_iter / n_iter
+            # factor = max(min_factor, min(max_factor, factor))
+            # print(f"factor: {factor}")
+            # self.dt *= factor
 
         # write solution
         return Solution(

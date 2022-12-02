@@ -615,6 +615,8 @@ class NonsmoothBackwardEulerDecoupled:
         return Rx
 
     def J_contact(self, xk1, update_index=False):
+        # return csr_matrix(approx_fprime(xk1, self.R_contact, eps=1.0e-6, method="3-point"))
+
         nq = self.nq
         nu = self.nu
         nla_g = self.nla_g
@@ -832,7 +834,8 @@ class NonsmoothBackwardEulerDecoupled:
         prox_r_N = self.model.prox_r_N(tk1, qk1)
         Ry[nu + nla_g + nla_gamma : nu + nla_g + nla_gamma + nla_N] = np.where(
             self.I_Nk1,
-            xi_Nk1 - prox_R0_np(xi_Nk1 - prox_r_N * La_Nk1),
+            # xi_Nk1 - prox_R0_np(xi_Nk1 - prox_r_N * La_Nk1),
+            La_Nk1 + prox_R0_nm(prox_r_N * xi_Nk1 - La_Nk1),
             La_Nk1,
         )
 
@@ -858,9 +861,11 @@ class NonsmoothBackwardEulerDecoupled:
 
     # TODO: Implement analytical Jacobian
     def J_impact(self, yk1, update_index=False):
-        return csr_matrix(approx_fprime(yk1, self.R_impact, method="2-point"))
-        # return csr_matrix(approx_fprime(yk1, self.Ry, method="3-point"))
-        # return csr_matrix(approx_fprime(yk1, self.Ry, method="cs"))
+        # return csr_matrix(approx_fprime(yk1, self.R_impact, eps=1.0e-6, method="2-point"))
+        return csr_matrix(
+            approx_fprime(yk1, self.R_impact, eps=1.0e-6, method="3-point")
+        )
+        # return csr_matrix(approx_fprime(yk1, self.R_impact, method="cs"))
 
     def unpack_s(self, sk1):
         nq = self.nq
@@ -1019,8 +1024,10 @@ class NonsmoothBackwardEulerDecoupled:
         return R
 
     def J_monolytic(self, sk1, update_index=False):
-        return csc_matrix(approx_fprime(sk1, self.R_monolytic, method="2-point"))
-        # return csc_matrix(approx_fprime(sk1, self.R_monolytic, method="3-point"))
+        # return csc_matrix(approx_fprime(sk1, self.R_monolytic, eps=1.0e-6, method="2-point"))
+        return csc_matrix(
+            approx_fprime(sk1, self.R_monolytic, eps=1.0e-6, method="3-point")
+        )
         # return csc_matrix(approx_fprime(sk1, self.R_monolytic, method="cs"))
 
     def step(self, xk1, f, G):

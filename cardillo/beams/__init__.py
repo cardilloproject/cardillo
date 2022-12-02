@@ -15,7 +15,7 @@ from .director import (
 
 from .rope import Rope
 from .cable import Cable
-from .axis_angle_director import DirectorAxisAngle
+from .axis_angle_director import DirectorAxisAngle, I_DirectorAxisAngle
 from .crisfield1999 import Crisfield1999
 from .SE3 import TimoshenkoAxisAngleSE3
 
