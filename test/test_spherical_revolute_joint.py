@@ -4,7 +4,7 @@ from scipy.integrate import solve_ivp
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
-from cardillo.math import A_IK_basic, cross3, axis_angle2quat
+from cardillo.math import A_IK_basic, cross3, axis_angle2quat, Spurrier, Exp_SO3
 from cardillo import System
 from cardillo.discrete import Frame
 from cardillo.constraints import (
@@ -33,6 +33,12 @@ def run(joint, Solver, k=None, d=None, **solver_args):
 
     use_spherical_joint = use_revolute_joint = use_pdrotational_joint = False
 
+    # random rotation
+    psi = np.random.rand(3)
+    # psi = np.array((np.pi / 2, 0, 0))
+    # psi = np.array((0, 0, 0))
+    A_IprimeI = Exp_SO3(psi)
+
     ############################################################################
     #                   Rigid Body 1
     ############################################################################
@@ -41,15 +47,16 @@ def run(joint, Solver, k=None, d=None, **solver_args):
 
     r_OB1 = np.zeros(3)
     A_IB1 = np.eye(3)
-    origin = Frame(r_OP=r_OB1, A_IK=A_IB1)
     A_IK10 = A_IK_basic(alpha0).z()
     r_OS10 = -0.5 * l * A_IK10[:, 1]
-    omega01 = np.array([0, 0, alpha_dot0])
-    vS1 = cross3(omega01, r_OS10)
-    u01 = np.concatenate([vS1, omega01])
+    K1_omega01 = np.array([0, 0, alpha_dot0])
+    vS1 = cross3(K1_omega01, r_OS10)
 
-    p01 = axis_angle2quat(np.array([0, 0, 1]), alpha0)
-    q01 = np.concatenate([r_OS10, p01])
+    p01 = Spurrier(A_IprimeI @ A_IK10)
+    q01 = np.concatenate([A_IprimeI @ r_OS10, p01])
+    u01 = np.concatenate([A_IprimeI @ vS1, K1_omega01])
+    origin = Frame(r_OP=A_IprimeI @ r_OB1, A_IK=A_IprimeI @ A_IB1)
+    # origin = Frame(r_OP=r_OB1, A_IK=A_IB1)
     RB1 = RigidBodyQuaternion(m, K_theta_S, q01, u01)
 
     if joint == "SphericalJoint":
@@ -65,18 +72,19 @@ def run(joint, Solver, k=None, d=None, **solver_args):
         )
 
     if use_spherical_joint:
-        joint1 = SphericalJoint(origin, RB1, r_OB1)
+        joint1 = SphericalJoint(origin, RB1, A_IprimeI @ r_OB1)
     elif use_revolute_joint:
-        joint1 = RevoluteJoint(origin, RB1, r_OB1, A_IB1)
+        joint1 = RevoluteJoint(origin, RB1, A_IprimeI @ r_OB1, A_IprimeI @ A_IB1)
     elif use_pdrotational_joint:
         joint1 = PDRotationalJoint(
             RevoluteJoint, Spring=LinearSpring, Damper=LinearDamper
-        )(origin, RB1, r_OB1, A_IB1, k=k, d=d, g_ref=-alpha0)
+        )(origin, RB1, A_IprimeI @ r_OB1, A_IprimeI @ A_IB1, k=k, d=d, g_ref=-alpha0)
+    # joint1 = SphericalJoint(origin, RB1, A_IprimeI @ r_OB1)
 
     ############################################################################
     #                   Rigid Body 2
     ############################################################################
-    beta0 = -pi/4
+    beta0 = -pi / 4
     beta_dot0 = 0
 
     r_OB2 = -l * A_IK10[:, 1]
@@ -84,37 +92,37 @@ def run(joint, Solver, k=None, d=None, **solver_args):
     A_IK20 = A_IK10 @ A_IK_basic(beta0).z()
     r_B2S2 = -0.5 * l * A_IK20[:, 1]
     r_OS20 = r_OB2 + r_B2S2
-    omega02 = np.array([0, 0, alpha_dot0 + beta_dot0])
-    vB2 = cross3(omega01, r_OB2)
-    vS2 = vB2 + cross3(omega02, r_B2S2)
-    u02 = np.concatenate([vS2, omega02])
+    K2_omega02 = np.array([0, 0, alpha_dot0 + beta_dot0])
+    vB2 = cross3(K1_omega01, r_OB2)
+    vS2 = vB2 + cross3(K2_omega02, r_B2S2)
 
-    p02 = axis_angle2quat(np.array([0, 0, 1]), alpha0 + beta0)
-    q02 = np.concatenate([r_OS20, p02])
+    p02 = Spurrier(A_IprimeI @ A_IK20)
+    q02 = np.concatenate([A_IprimeI @ r_OS20, p02])
+    u02 = np.concatenate([A_IprimeI @ vS2, K2_omega02])
     RB2 = RigidBodyQuaternion(m, K_theta_S, q02, u02)
 
     if use_spherical_joint:
-        joint2 = SphericalJoint(RB1, RB2, r_OB2)
+        joint2 = SphericalJoint(RB1, RB2, A_IprimeI @ r_OB2)
     elif use_revolute_joint:
-        joint2 = RevoluteJoint(RB1, RB2, r_OB2, A_IB2)
+        joint2 = RevoluteJoint(RB1, RB2, A_IprimeI @ r_OB2, A_IprimeI @ A_IB2)
     elif use_pdrotational_joint:
         joint2 = PDRotationalJoint(
             RevoluteJoint, Spring=LinearSpring, Damper=LinearDamper
-        )(RB1, RB2, r_OB2, A_IB2, k=k, d=d, g_ref=-beta0)
+        )(RB1, RB2, A_IprimeI @ r_OB2, A_IprimeI @ A_IB2, k=k, d=d, g_ref=-beta0)
 
     ############################################################################
     #                   model
     ############################################################################
-    model = System()
-    model.add(origin)
-    model.add(RB1)
-    model.add(joint1)
-    model.add(RB2)
-    model.add(joint2)
-    model.add(Force(lambda t: np.array([0, -g * m, 0]), RB1))
-    model.add(Force(lambda t: np.array([0, -g * m, 0]), RB2))
+    system = System()
+    system.add(origin)
+    system.add(RB1)
+    system.add(joint1)
+    system.add(RB2)
+    system.add(joint2)
+    system.add(Force(lambda t: A_IprimeI @ np.array([0, -g * m, 0]), RB1))
+    system.add(Force(lambda t: A_IprimeI @ np.array([0, -g * m, 0]), RB2))
 
-    model.assemble()
+    system.assemble()
 
     ############################################################################
     #                   solver
@@ -123,7 +131,7 @@ def run(joint, Solver, k=None, d=None, **solver_args):
     t1 = 3
     dt = 1e-2
     # dt = 5e-3
-    sol = Solver(model, t1, dt, **solver_args).solve()
+    sol = Solver(system, t1, dt, **solver_args).solve()
     t = sol.t
     q = sol.q
 
@@ -275,7 +283,7 @@ def run(joint, Solver, k=None, d=None, **solver_args):
         dx[:2] = x[2:]
         dx[2:] = np.linalg.inv(M) @ h
         return dx
-    
+
     def _eqm_pd_rotational(t, x):
         thetaA = A + 5 * m * (l**2) / 4
         thetaB = A + m * (l**2) / 4
@@ -290,9 +298,13 @@ def run(joint, Solver, k=None, d=None, **solver_args):
         h = np.array(
             [
                 -0.5 * m * l * l * (x[3] ** 2) * np.sin(x[0] - x[1])
-                - 1.5 * m * l * g * np.sin(x[0]) - k * (2 * x[0] - x[1]) - d * (2 * x[2] - x[3]),
+                - 1.5 * m * l * g * np.sin(x[0])
+                - k * (2 * x[0] - x[1])
+                - d * (2 * x[2] - x[3]),
                 0.5 * m * l * l * (x[2] ** 2) * np.sin(x[0] - x[1])
-                - 0.5 * m * l * g * np.sin(x[1]) - k * (x[1] - x[0]) - d * (x[3] - x[2]),
+                - 0.5 * m * l * g * np.sin(x[1])
+                - k * (x[1] - x[0])
+                - d * (x[3] - x[2]),
             ]
         )
 
@@ -300,8 +312,7 @@ def run(joint, Solver, k=None, d=None, **solver_args):
         dx[:2] = x[2:]
         dx[2:] = np.linalg.inv(M) @ h
         return dx
-    
-    
+
     if use_pdrotational_joint:
         eqm = _eqm_pd_rotational
     else:
@@ -315,10 +326,15 @@ def run(joint, Solver, k=None, d=None, **solver_args):
     alpha_ref = x[0]
     phi_ref = x[1]
 
-    alpha = np.arctan2(sol.q[:, 0], -sol.q[:, 1])
-    x_B2 = 2 * sol.q[:, 0]
-    y_B2 = 2 * sol.q[:, 1]
-    phi = np.arctan2(sol.q[:, 7] - x_B2, -(sol.q[:, 8] - y_B2))
+    # q = (A_IprimeI.T @ sol.q[:, :3].T).T
+    sol_q1 = sol.q[:, :3] @ A_IprimeI
+    sol_q2 = sol.q[:, 7:10] @ A_IprimeI
+    alpha = np.arctan2(sol_q1[:, 0], -sol_q1[:, 1])
+    # alpha = np.arctan2(sol.q[:, 0], -sol.q[:, 1])
+    x_B2 = 2 * sol_q1[:, 0]
+    y_B2 = 2 * sol_q1[:, 1]
+    # phi = np.arctan2(sol.q[:, 7] - x_B2, -(sol.q[:, 8] - y_B2))
+    phi = np.arctan2(sol_q2[:, 0] - x_B2, -(sol_q2[:, 1] - y_B2))
 
     fig, ax = plt.subplots()
     ax.plot(t_ref, alpha_ref, "-.r", label="alpha ref")
@@ -341,6 +357,7 @@ if __name__ == "__main__":
     # run("SphericalJoint", EulerBackward, method="index 2")
     # run("SphericalJoint", EulerBackward, method="index 3")
     # run("SphericalJoint", EulerBackward, method="index 2 GGL")
+    # run("SphericalJoint", RadauIIa)
 
     ######################
     # revolute joint tests
@@ -349,10 +366,12 @@ if __name__ == "__main__":
     # run("RevoluteJoint", EulerBackward, method="index 2")
     # run("RevoluteJoint", EulerBackward, method="index 3")
     # run("RevoluteJoint", EulerBackward, method="index 2 GGL")
-    
+    # run("RevoluteJoint", RadauIIa)
+
     ###########################
     # PD rotational joint tests
     ###########################
+    # k = 1e2
     k = 1e2
     d = 1e1
     # run("PDRotationalJoint", EulerBackward, method="index 1", k=k, d=d)

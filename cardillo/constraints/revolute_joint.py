@@ -29,18 +29,18 @@ class RevoluteJoint:
         local_qDOF1 = self.subsystem1.local_qDOF_P(self.frame_ID1)
         local_qDOF2 = self.subsystem2.local_qDOF_P(self.frame_ID2)
         self.qDOF = np.concatenate((qDOF1[local_qDOF1], qDOF2[local_qDOF2]))
-        self.__nq1 = nq1 = len(local_qDOF1)
-        self.__nq2 = len(local_qDOF2)
-        self.__nq = self.__nq1 + self.__nq2
+        self._nq1 = nq1 = len(local_qDOF1)
+        self._nq2 = len(local_qDOF2)
+        self._nq = self._nq1 + self._nq2
 
         uDOF1 = self.subsystem1.uDOF
         uDOF2 = self.subsystem2.uDOF
         local_uDOF1 = self.subsystem1.local_uDOF_P(self.frame_ID1)
         local_uDOF2 = self.subsystem2.local_uDOF_P(self.frame_ID2)
         self.uDOF = np.concatenate((uDOF1[local_uDOF1], uDOF2[local_uDOF2]))
-        self.__nu1 = nu1 = len(local_uDOF1)
-        self.__nu2 = len(local_uDOF2)
-        self.__nu = self.__nu1 + self.__nu2
+        self._nu1 = nu1 = len(local_uDOF1)
+        self._nu2 = len(local_uDOF2)
+        self._nu = self._nu1 + self._nu2
 
         A_IK1 = self.subsystem1.A_IK(
             self.subsystem1.t0, self.subsystem1.q0[local_qDOF1], self.frame_ID1
@@ -90,6 +90,8 @@ class RevoluteJoint:
         self.A_IB1 = (
             lambda t, q: self.subsystem1.A_IK(t, q[:nq1], self.frame_ID1) @ A_K1B1
         )
+        self.A_IK1 = lambda t, q: self.subsystem1.A_IK(t, q[:nq1], self.frame_ID1)
+        self.A_IK1_q = lambda t, q: self.subsystem1.A_IK_q(t, q[:nq1], self.frame_ID1)
         self.A_IB1_q = lambda t, q: np.einsum(
             "ijl,jk->ikl", self.subsystem1.A_IK_q(t, q[:nq1], self.frame_ID1), A_K1B1
         )
@@ -153,6 +155,8 @@ class RevoluteJoint:
         self.A_IB2 = (
             lambda t, q: self.subsystem2.A_IK(t, q[nq1:], self.frame_ID2) @ A_K2B2
         )
+        self.A_IK2 = lambda t, q: self.subsystem2.A_IK(t, q[nq1:], self.frame_ID2)
+        self.A_IK2_q = lambda t, q: self.subsystem2.A_IK_q(t, q[nq1:], self.frame_ID2)
         self.A_IB2_q = lambda t, q: np.einsum(
             "ijk,jl->ilk", self.subsystem2.A_IK_q(t, q[nq1:], self.frame_ID2), A_K2B2
         )
@@ -199,8 +203,8 @@ class RevoluteJoint:
         return np.concatenate([r_OP2 - r_OP1, [ez1 @ ex2, ez1 @ ey2]])
 
     def g_q_dense(self, t, q):
-        nq1 = self.__nq1
-        g_q = np.zeros((5, self.__nq), dtype=q.dtype)
+        nq1 = self._nq1
+        g_q = np.zeros((5, self._nq), dtype=q.dtype)
         g_q[:3, :nq1] = -self.r_OP1_q(t, q)
         g_q[:3, nq1:] = self.r_OP2_q(t, q)
 
@@ -288,8 +292,8 @@ class RevoluteJoint:
         coo.extend(dense, (self.qDOF, self.qDOF))
 
     def W_g_dense(self, t, q):
-        nu1 = self.__nu1
-        W_g = np.zeros((self.__nu, self.nla_g), dtype=q.dtype)
+        nu1 = self._nu1
+        W_g = np.zeros((self._nu, self.nla_g), dtype=q.dtype)
 
         # position
         J_P1 = self.J_P1(t, q)
@@ -312,9 +316,9 @@ class RevoluteJoint:
         coo.extend(self.W_g_dense(t, q), (self.uDOF, self.la_gDOF))
 
     def Wla_g_q(self, t, q, la_g, coo):
-        nq1 = self.__nq1
-        nu1 = self.__nu1
-        dense = np.zeros((self.__nu, self.__nq))
+        nq1 = self._nq1
+        nu1 = self._nu1
+        dense = np.zeros((self._nu, self._nq))
 
         # position
         J_P1_q = self.J_P1_q(t, q)
@@ -415,28 +419,34 @@ class RevoluteJoint:
         return (x * y_q - y * x_q) / (x**2 + y**2)
 
     def W_angle(self, t, q):
-        K_J_R1 = self.K_J_R1(t, q)
-        K_J_R2 = self.K_J_R2(t, q)
+        J_R1 = self.A_IK1(t, q) @ self.K_J_R1(t, q)
+        J_R2 = self.A_IK2(t, q) @ self.K_J_R2(t, q)
         ez1 = self.A_IB1(t, q)[:, 2]
-        return np.concatenate([-K_J_R1.T @ ez1, K_J_R2.T @ ez1])
+        return np.concatenate([-J_R1.T @ ez1, J_R2.T @ ez1])
 
     def W_angle_q(self, t, q):
-        nq1 = self.__nq1
-        nu1 = self.__nu1
+        nq1 = self._nq1
+        nu1 = self._nu1
         K_J_R1 = self.K_J_R1(t, q)
         K_J_R2 = self.K_J_R2(t, q)
+        J_R1 = self.A_IK1(t, q) @ K_J_R1  # ij, jk -> ik
+        J_R2 = self.A_IK2(t, q) @ K_J_R2
 
-        K_J_R1_q1 = self.K_J_R1_q(t, q)
-        K_J_R2_q2 = self.K_J_R2_q(t, q)
+        J_R1_q1 = np.einsum(
+            "ij,jkl->ikl", self.A_IK1(t, q), self.K_J_R1_q(t, q)
+        ) + np.einsum("ijl,jk->ikl", self.A_IK1_q(t, q), K_J_R1)
+        J_R2_q2 = np.einsum(
+            "ij,jkl->ikl", self.A_IK2(t, q), self.K_J_R2_q(t, q)
+        ) + np.einsum("ijl,jk->ikl", self.A_IK2_q(t, q), K_J_R2)
 
         ez1 = self.A_IB1(t, q)[:, 2]
         ez1_q1 = self.A_IB1_q(t, q)[:, 2]
 
         # dense blocks
-        dense = np.zeros((self.__nu, self.__nq))
-        dense[:nu1, :nq1] = np.einsum("i,ijk->jk", -ez1, K_J_R1_q1) - K_J_R1.T @ ez1_q1
-        dense[nu1:, :nq1] = K_J_R2.T @ ez1_q1
-        dense[nu1:, nq1:] = np.einsum("i,ijk->jk", ez1, K_J_R2_q2)
+        dense = np.zeros((self._nu, self._nq))
+        dense[:nu1, :nq1] = np.einsum("i,ijk->jk", -ez1, J_R1_q1) - J_R1.T @ ez1_q1
+        dense[nu1:, :nq1] = J_R2.T @ ez1_q1
+        dense[nu1:, nq1:] = np.einsum("i,ijk->jk", ez1, J_R2_q2)
 
         # dense_num = approx_fprime(q, lambda q: self.W_angle(t, q))
         # print(f"dense_num={np.linalg.norm(dense_num - dense)}")

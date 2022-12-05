@@ -1,13 +1,7 @@
 import numpy as np
 from pathlib import Path
 
-from cardillo.discrete import (
-    PointMass,
-    Ball,
-    Box,
-    RigidBodyQuaternion,
-    PlaneFixed
-)
+from cardillo.discrete import PointMass, Ball, Box, RigidBodyQuaternion, PlaneFixed
 from cardillo.forces import (
     Force,
     ScalarForceTranslational,
