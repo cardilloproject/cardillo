@@ -26,10 +26,10 @@ from pathlib import Path
 
 # Beam = DirectorAxisAngle
 # Beam = Crisfield1999
-# Beam = TimoshenkoAxisAngleSE3
+Beam = TimoshenkoAxisAngleSE3
 # Beam = TimoshenkoDirectorDirac
 # Beam = TimoshenkoDirectorIntegral
-Beam = I_DirectorAxisAngle
+# Beam = I_DirectorAxisAngle
 
 statics = True
 # statics = False
@@ -251,6 +251,11 @@ if __name__ == "__main__":
     nt = len(q)
     t = sol.t[:nt]
 
+    ###########
+    # animation
+    ###########
+    animate_beam(t, q, [beam], L, show=True)
+
     ############
     # VTK export
     ############
@@ -307,8 +312,3 @@ if __name__ == "__main__":
     # ax[1].set_ylabel("K_Kappa")
     # ax[1].grid()
     # ax[1].legend()
-
-    ###########
-    # animation
-    ###########
-    animate_beam(t, q, [beam], L, show=True)

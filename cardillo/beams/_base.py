@@ -1023,7 +1023,7 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
     # potential and internal forces
     ###############################
     def E_pot(self, t, q):
-        E_pot = 0
+        E_pot = 0.0
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             E_pot += self.E_pot_el(q[elDOF], el)
@@ -1036,7 +1036,7 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
             # extract reference state variables
             qpi = self.qp[el, i]
             qwi = self.qw[el, i]
-            J = self.J[el, i]
+            Ji = self.J[el, i]
             K_Gamma0 = self.K_Gamma0[el, i]
             K_Kappa0 = self.K_Kappa0[el, i]
 
@@ -1044,15 +1044,15 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
             _, _, K_Gamma_bar, K_Kappa_bar = self._eval(qe, qpi)
 
             # axial and shear strains
-            K_Gamma = K_Gamma_bar / J
+            K_Gamma = K_Gamma_bar / Ji
 
             # torsional and flexural strains
-            K_Kappa = K_Kappa_bar / J
+            K_Kappa = K_Kappa_bar / Ji
 
             # evaluate strain energy function
             E_pot_el += (
                 self.material_model.potential(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
-                * J
+                * Ji
                 * qwi
             )
 
@@ -1337,6 +1337,114 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
                     self.M_el(q[elDOF], el), (self.uDOF[elDOF], self.uDOF[elDOF])
                 )
 
+    def E_kin(self, t, q, u):
+        E_kin = 0.0
+        for el in range(self.nelement):
+            elDOF = self.elDOF[el]
+            qe = q[elDOF]
+            ue = u[elDOF]
+
+            E_kin += self.E_kin_el(qe, ue, el)
+
+        return E_kin
+
+    def E_kin_el(self, qe, ue, el):
+        E_kin_el = 0.0
+
+        for i in range(self.nquadrature_dyn):
+            # extract reference state variables
+            qwi = self.qw_dyn[el, i]
+            Ji = self.J_dyn[el, i]
+
+            v_P = np.zeros(3, dtype=float)
+            for node in range(self.nnodes_element_r):
+                v_P += self.N_r_dyn[el, i, node] * ue[self.nodalDOF_element_r[node]]
+
+            K_omega_IK = np.zeros(3, dtype=float)
+            for node in range(self.nnodes_element_psi):
+                K_omega_IK += (
+                    self.N_psi_dyn[el, i, node] * ue[self.nodalDOF_element_psi[node]]
+                )
+
+            # delta_r A_rho0 r_ddot part
+            E_kin_el += 0.5 * (v_P @ v_P) * self.A_rho0 * Ji * qwi
+
+            # first part delta_phi (I_rho0 omega_dot + omega_tilde I_rho0 omega)
+            E_kin_el += 0.5 * (K_omega_IK @ self.K_I_rho0 @ K_omega_IK) * Ji * qwi
+
+        # E_kin_el = ue @ self.M_el_constant(el) @ ue
+
+        return E_kin_el
+
+    def linear_momentum(self, t, q, u):
+        linear_momentum = np.zeros(3, dtype=float)
+        for el in range(self.nelement):
+            elDOF = self.elDOF[el]
+            qe = q[elDOF]
+            ue = u[elDOF]
+
+            linear_momentum += self.linear_momentum_el(qe, ue, el)
+
+        return linear_momentum
+
+    def linear_momentum_el(self, qe, ue, el):
+        linear_momentum_el = np.zeros(3, dtype=float)
+
+        for i in range(self.nquadrature_dyn):
+            # extract reference state variables
+            qwi = self.qw_dyn[el, i]
+            Ji = self.J_dyn[el, i]
+
+            v_P = np.zeros(3, dtype=float)
+            for node in range(self.nnodes_element_r):
+                v_P += self.N_r_dyn[el, i, node] * ue[self.nodalDOF_element_r[node]]
+
+            linear_momentum_el += v_P * self.A_rho0 * Ji * qwi
+
+        return linear_momentum_el
+
+    def angular_momentum(self, t, q, u):
+        angular_momentum = np.zeros(3, dtype=float)
+        for el in range(self.nelement):
+            elDOF = self.elDOF[el]
+            qe = q[elDOF]
+            ue = u[elDOF]
+
+            angular_momentum += self.angular_momentum_el(t, qe, ue, el)
+
+        return angular_momentum
+
+    def angular_momentum_el(self, t, qe, ue, el):
+        angular_momentum_el = np.zeros(3, dtype=float)
+
+        for i in range(self.nquadrature_dyn):
+            # extract reference state variables
+            qpi = self.qp_dyn[el, i]
+            qwi = self.qw_dyn[el, i]
+            Ji = self.J_dyn[el, i]
+
+            r_OP = np.zeros(3, dtype=float)
+            v_P = np.zeros(3, dtype=float)
+            for node in range(self.nnodes_element_r):
+                r_OP += self.N_r_dyn[el, i, node] * qe[self.nodalDOF_element_r[node]]
+                v_P += self.N_r_dyn[el, i, node] * ue[self.nodalDOF_element_r[node]]
+
+            K_omega_IK = np.zeros(3, dtype=float)
+            for node in range(self.nnodes_element_psi):
+                K_omega_IK += (
+                    self.N_psi_dyn[el, i, node] * ue[self.nodalDOF_element_psi[node]]
+                )
+
+            A_IK = self.A_IK(t, qe, (qpi,))
+
+            angular_momentum_el += (
+                (cross3(r_OP, v_P) * self.A_rho0 + A_IK @ (self.K_I_rho0 @ K_omega_IK))
+                * Ji
+                * qwi
+            )
+
+        return angular_momentum_el
+
     def f_gyr_el(self, t, qe, ue, el):
         if not self.constant_mass_matrix:
             raise NotImplementedError(
@@ -1398,7 +1506,7 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
         return f_gyr_u_el
 
     def h(self, t, q, u):
-        h = np.zeros(self.nu, dtype=q.dtype)
+        h = np.zeros(self.nu, dtype=np.common_type(q, u))
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             h[elDOF] += self.f_pot_el(q[elDOF], el) - self.f_gyr_el(
@@ -1682,9 +1790,11 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
     # body force
     ####################################################
     def distributed_force1D_pot_el(self, force, t, qe, el):
-        Ve = 0
+        Ve = 0.0
+
         for i in range(self.nquadrature):
             # extract reference state variables
+            qpi = self.qp[el, i]
             qwi = self.qw[el, i]
             Ji = self.J[el, i]
 
@@ -1694,7 +1804,21 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
                 r_C += self.N_r[el, i, node] * qe[self.nodalDOF_element_r[node]]
 
             # compute potential value at given quadrature point
-            Ve += (r_C @ force(t, qwi)) * Ji * qwi
+            Ve -= (r_C @ force(t, qpi)) * Ji * qwi
+
+        # for i in range(self.nquadrature_dyn):
+        #     # extract reference state variables
+        #     qpi = self.qp_dyn[el, i]
+        #     qwi = self.qw_dyn[el, i]
+        #     Ji = self.J_dyn[el, i]
+
+        #     # interpolate centerline position
+        #     r_C = np.zeros(3, dtype=float)
+        #     for node in range(self.nnodes_element_r):
+        #         r_C += self.N_r_dyn[el, i, node] * qe[self.nodalDOF_element_r[node]]
+
+        #     # compute potential value at given quadrature point
+        #     Ve -= (r_C @ force(t, qpi)) * Ji * qwi
 
         return Ve
 
@@ -1705,24 +1829,40 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
             V += self.distributed_force1D_pot_el(force, t, qe, el)
         return V
 
+    # TODO: Decide which number of quadrature points shoul dbe used here?
     def distributed_force1D_el(self, force, t, el):
-        fe = np.zeros(self.nq_element, dtype=float)
+        fe = np.zeros(self.nu_element, dtype=float)
+
         for i in range(self.nquadrature):
             # extract reference state variables
+            qpi = self.qp[el, i]
             qwi = self.qw[el, i]
             Ji = self.J[el, i]
 
             # compute local force vector
-            fe_r = force(t, qwi) * Ji * qwi
+            fe_r = force(t, qpi) * Ji * qwi
 
             # multiply local force vector with variation of centerline
             for node in range(self.nnodes_element_r):
                 fe[self.nodalDOF_element_r[node]] += self.N_r[el, i, node] * fe_r
 
+        # for i in range(self.nquadrature_dyn):
+        #     # extract reference state variables
+        #     qpi = self.qp_dyn[el, i]
+        #     qwi = self.qw_dyn[el, i]
+        #     Ji = self.J_dyn[el, i]
+
+        #     # compute local force vector
+        #     fe_r = force(t, qpi) * Ji * qwi
+
+        #     # multiply local force vector with variation of centerline
+        #     for node in range(self.nnodes_element_r):
+        #         fe[self.nodalDOF_element_r[node]] += self.N_r_dyn[el, i, node] * fe_r
+
         return fe
 
     def distributed_force1D(self, t, q, force):
-        f = np.zeros(self.nq, dtype=float)
+        f = np.zeros(self.nu, dtype=float)
         for el in range(self.nelement):
             f[self.elDOF[el]] += self.distributed_force1D_el(force, t, el)
         return f
