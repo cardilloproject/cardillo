@@ -781,6 +781,52 @@ def smallest_rotation(
 ##########################################
 # TODO: Refactor these and add references!
 ##########################################
+def Exp_SO3_quat(p):
+    """Exponential mapping defined by (non unit) quaternion, see Egeland2002 (6.199).
+
+    References:
+    -----------
+    Egenland2002: https://folk.ntnu.no/oe/Modeling%20and%20Simulation.pdf
+    """
+    p_ = p / norm(p)
+    v_p_tilde = ax2skew(p_[1:])
+    return np.eye(3, dtype=p.dtype) + 2.0 * (v_p_tilde @ v_p_tilde + p_[0] * v_p_tilde)
+
+
+def Exp_SO3_quat_p(p):
+    norm_p = norm(p)
+    q = p / norm_p
+    v_q_tilde = ax2skew(q[1:])
+    v_q_tilde_v_q = ax2skew_a()
+    q_p = np.eye(4) / norm_p - np.outer(p, p) / (norm_p**3)
+
+    A_q = np.zeros((3, 3, 4), dtype=p.dtype)
+    A_q[:, :, 0] = 2 * v_q_tilde
+    A_q[:, :, 1:] += np.einsum("ijk,jl->ilk", v_q_tilde_v_q, 2 * v_q_tilde)
+    A_q[:, :, 1:] += np.einsum("ij,jkl->ikl", 2 * v_q_tilde, v_q_tilde_v_q)
+    A_q[:, :, 1:] += 2 * (q[0] * v_q_tilde_v_q)
+
+    return np.einsum("ijk,kl->ijl", A_q, q_p)
+
+
+Log_SO3_quat = Spurrier
+
+
+def T_SO3_inv_quat(P):
+    """Inverse tangent map for unit quaternion."""
+    p0 = P[0]
+    p = P[1:]
+    return np.vstack((-p.T, p0 * np.eye(3, dtype=P.dtype) + ax2skew(p)))
+
+
+def T_SO3_inv_quat_P():
+    Q_p = np.zeros((4, 3, 4), dtype=float)
+    Q_p[1:, :, 0] = np.eye(3, dtype=float)
+    Q_p[0, :, 1:] = -np.eye(3, dtype=float)
+    Q_p[1:, :, 1:] = ax2skew_a()
+    return Q_p
+
+
 def quatprod(P, Q):
     """Quaternion product, see Egeland2002 (6.190).
 
@@ -796,6 +842,18 @@ def quatprod(P, Q):
     z0 = p0 * q0 - p @ q
     z = p0 * q + q0 * p + cross3(p, q)
     return np.array([z0, *z])
+
+
+def quat2mat(p):
+    p0, p1, p2, p3 = p
+    # fmt: off
+    return np.array([
+        [p0, -p1, -p2, -p3], 
+        [p1,  p0, -p3,  p2], 
+        [p2,  p3,  p0, -p1], 
+        [p3, -p2,  p1,  p0]]
+    )
+    # fmt: on
 
 
 def quat2mat(p):

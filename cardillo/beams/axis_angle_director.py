@@ -61,7 +61,9 @@ def make_DirectorAxisAngle(Base):
             A_IK = np.zeros((3, 3), dtype=qe.dtype)
             A_IK_xi = np.zeros((3, 3), dtype=qe.dtype)
             for node in range(self.nnodes_element_psi):
-                A_IK_node = Exp_SO3(qe[self.nodalDOF_element_psi[node]])
+                A_IK_node = self.rotation_parameterization.Exp_SO3(
+                    qe[self.nodalDOF_element_psi[node]]
+                )
                 A_IK += N_psi[node] * A_IK_node
                 A_IK_xi += N_psi_xi[node] * A_IK_node
 
@@ -113,8 +115,8 @@ def make_DirectorAxisAngle(Base):
             for node in range(self.nnodes_element_psi):
                 nodalDOF_psi = self.nodalDOF_element_psi[node]
                 psi_node = qe[nodalDOF_psi]
-                A_IK_node = Exp_SO3(psi_node)
-                A_IK_q_node = Exp_SO3_psi(psi_node)
+                A_IK_node = self.rotation_parameterization.Exp_SO3(psi_node)
+                A_IK_q_node = self.rotation_parameterization.Exp_SO3_psi(psi_node)
 
                 A_IK += N_psi[node] * A_IK_node
                 A_IK_qe[:, :, nodalDOF_psi] += N_psi[node] * A_IK_q_node
@@ -176,11 +178,16 @@ def make_DirectorAxisAngle(Base):
             # interpolate orientation
             A_IK = np.zeros((3, 3), dtype=q.dtype)
             for node in range(self.nnodes_element_psi):
-                A_IK += N_psi[node] * Exp_SO3(q[self.nodalDOF_element_psi[node]])
+                # A_IK += N_psi[node] * Exp_SO3(q[self.nodalDOF_element_psi[node]])
+                A_IK += N_psi[node] * self.rotation_parameterization.Exp_SO3(
+                    q[self.nodalDOF_element_psi[node]]
+                )
 
             return A_IK
 
         def A_IK_q(self, t, q, frame_ID):
+            # from cardillo.math import approx_fprime
+            # return approx_fprime(q, lambda q: self.A_IK(t, q, frame_ID))
             # evaluate shape functions
             N_psi, _ = self.basis_functions_psi(frame_ID[0])
 
@@ -188,7 +195,10 @@ def make_DirectorAxisAngle(Base):
             A_IK_q = np.zeros((3, 3, self.nq_element), dtype=q.dtype)
             for node in range(self.nnodes_element_psi):
                 nodalDOF_psi = self.nodalDOF_element_psi[node]
-                A_IK_q[:, :, nodalDOF_psi] += N_psi[node] * Exp_SO3_psi(q[nodalDOF_psi])
+                # A_IK_q[:, :, nodalDOF_psi] += N_psi[node] * Exp_SO3_psi(q[nodalDOF_psi])
+                A_IK_q[:, :, nodalDOF_psi] += N_psi[
+                    node
+                ] * self.rotation_parameterization.Exp_SO3_psi(q[nodalDOF_psi])
 
             return A_IK_q
 

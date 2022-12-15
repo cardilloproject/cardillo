@@ -11,6 +11,7 @@ from cardillo.math import (
     ax2skew_a,
     Exp_SO3,
     Log_SO3,
+    Exp_SO3_psi,
     T_SO3_inv,
     T_SO3_inv_psi,
     T_SO3_dot,
@@ -456,42 +457,43 @@ class RodExportBase(ABC):
         return vtk_points, cells, point_data, cell_data
 
 
+# TODO: Should they all be static methods?
 class RotationParameterizationBase(ABC):
-    def __init__(self):
-        pass
-
     @property
     @abstractmethod
     def dim(self):
         ...
 
     @abstractmethod
-    def Exp_SO3(self, q):
+    def Exp_SO3(self, psi):
         ...
 
     @abstractmethod
-    def Log_SO3(self, q):
+    def Exp_SO3_psi(self, psi):
         ...
 
     @abstractmethod
-    def q_dot(self, t, q, u):
-        # psi_dot = T_SO3_inv(psi) @ K_omega_IK
+    def Log_SO3(self, A_IK):
         ...
 
     @abstractmethod
-    def q_dot_q(self, t, q, u):
+    def q_dot(self, psi, K_omega_IK):
         ...
 
     @abstractmethod
-    def B(self, q):
+    def q_dot_q(self, psi, K_omega_IK):
         ...
 
     @abstractmethod
-    def q_ddot(self, t, q, u):
+    def B(self, psi):
         ...
 
     @abstractmethod
-    def step_callback(self, t, q, u):
+    def q_ddot(self, psi, K_omega_IK, K_omega_IK_dot):
+        ...
+
+    @abstractmethod
+    def step_callback(self, psi):
         ...
 
 
@@ -503,26 +505,32 @@ class AxisAngleRotationParameterization(RotationParameterizationBase):
     def dim(self):
         return 3
 
-    def Exp_SO3(self, q):
-        return Exp_SO3(q)
+    def Exp_SO3(self, psi):
+        return Exp_SO3(psi)
 
-    def Log_SO3(self, A):
-        return Log_SO3(A)
+    def Exp_SO3_psi(self, psi):
+        return Exp_SO3_psi(psi)
 
-    def q_dot(self, t, q, u):
-        return T_SO3_inv(q) @ u
+    def Log_SO3(self, A_IK):
+        return Log_SO3(A_IK)
 
-    def q_dot_q(self, t, q, u):
+    def q_dot(self, psi, K_omega_IK):
+        return T_SO3_inv(psi) @ K_omega_IK
+
+    def q_dot_q(self, psi, K_omega_IK):
+        return np.einsum(
+            "ijk,j->ik",
+            T_SO3_inv_psi(psi),
+            K_omega_IK,
+        )
+
+    def B(self, psi):
+        return T_SO3_inv(psi)
+
+    def q_ddot(self, t, psi, K_omega_IK, K_omega_IK_dot):
         raise NotImplementedError
 
-    def B(self, q):
-        raise NotImplementedError
-
-    def q_ddot(self, t, q, u):
-        raise NotImplementedError
-
-    @staticmethod
-    def psi_C(psi):
+    def psi_C(self, psi):
         angle = norm(psi)
         if angle < pi:
             return psi
@@ -532,15 +540,57 @@ class AxisAngleRotationParameterization(RotationParameterizationBase):
             print(f"complement rotation vector chosen")
             return psi_C
 
-    def step_callback(self, t, q, u):
-        for node in range(self.nnodes_psi):
-            psi = q[self.nodalDOF_psi[node]]
-            q[self.nodalDOF_psi[node]] = self.psi_C(psi)
-        return q, u
+    def step_callback(self, psi):
+        return self.psi_C(psi)
 
-    def step_callback(self, t, q, u):
-        q = AxisAngleRotationParameterization.psi_C(q)
-        return q, u
+
+from cardillo.math import (
+    Exp_SO3_quat,
+    Exp_SO3_quat_p,
+    Log_SO3_quat,
+    T_SO3_inv_quat,
+    T_SO3_inv_quat_P,
+)
+
+
+class QuaternionRotationParameterization(RotationParameterizationBase):
+    def __init__(self):
+        super().__init__()
+
+    @property
+    def dim(self):
+        return 4
+
+    def Exp_SO3(self, psi):
+        return Exp_SO3_quat(psi)
+
+    def Exp_SO3_psi(self, psi):
+        return Exp_SO3_quat_p(psi)
+
+    def Log_SO3(self, A_IK):
+        return Log_SO3_quat(A_IK)
+
+    def q_dot(self, psi, K_omega_IK):
+        psi = psi / norm(psi)
+        return T_SO3_inv_quat(psi) @ K_omega_IK
+
+    def q_dot_q(self, psi, K_omega_IK):
+        raise NotImplementedError
+        # return np.einsum(
+        #     "ijk,j->ik",
+        #     T_SO3_inv_psi(psi),
+        #     K_omega_IK,
+        # )
+
+    def B(self, psi):
+        psi = psi / norm(psi)
+        return T_SO3_inv_quat(psi)
+
+    def q_ddot(self, t, psi, K_omega_IK, K_omega_IK_dot):
+        raise NotImplementedError
+
+    def step_callback(self, psi):
+        return psi / norm(psi)
 
 
 class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
@@ -559,6 +609,8 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
         u0=None,
         basis_r="Lagrange",
         basis_psi="Lagrange",
+        # rotation_parameterization=AxisAngleRotationParameterization(),
+        rotation_parameterization=QuaternionRotationParameterization(),
     ):
         """Base class for Petrov-Galerkin spatial Timoshenko rod formulations.
 
@@ -566,6 +618,7 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
         but quanternions can added without too much work."""
 
         super().__init__(cross_section)
+        self.rotation_parameterization = rotation_parameterization
 
         # beam properties
         self.material_model = material_model  # material model
@@ -587,6 +640,8 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
         p = max(polynomial_degree_r, polynomial_degree_psi)
         self.nquadrature_dyn = nquadrature_dyn = int(np.ceil((p + 1) ** 2 / 2))
         self.nquadrature = nquadrature = p
+        # # TODO: Remove this later!
+        # self.nquadrature = nquadrature = nquadrature_dyn
         self.nelement = nelement
 
         # chose basis functions
@@ -638,18 +693,20 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
         self.mesh_psi = Mesh1D(
             self.knot_vector_psi,
             nquadrature,
-            dim_q=3,
+            dim_q=self.rotation_parameterization.dim,
             derivative_order=1,
             basis=basis_psi,
             quadrature="Gauss",
+            dim_u=3,
         )
         self.mesh_psi_dyn = Mesh1D(
             self.knot_vector_psi,
             nquadrature_dyn,
-            dim_q=3,
+            dim_q=self.rotation_parameterization.dim,
             derivative_order=1,
             basis=basis_psi,
             quadrature="Gauss",
+            dim_u=3,
         )
 
         # total number of nodes
@@ -661,35 +718,52 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
         self.nnodes_element_psi = self.mesh_psi.nnodes_per_element
 
         # total number of generalized coordinates and velocities
-        self.nq_r = self.nu_r = self.mesh_r.nq
-        self.nq_psi = self.nu_psi = self.mesh_psi.nq
-        self.nq = self.nu = self.nq_r + self.nq_psi
+        self.nq_r = self.mesh_r.nq
+        self.nq_psi = self.mesh_psi.nq
+        self.nq = self.nq_r + self.nq_psi
+        self.nu_r = self.mesh_r.nu
+        self.nu_psi = self.mesh_psi.nu
+        self.nu = self.nu_r + self.nu_psi
 
         # number of generalized coordiantes and velocities per element
-        self.nq_element_r = self.nu_element_r = self.mesh_r.nq_per_element
-        self.nq_element_psi = self.nu_element_psi = self.mesh_psi.nq_per_element
-        self.nq_element = self.nu_element = self.nq_element_r + self.nq_element_psi
+        self.nq_element_r = self.mesh_r.nq_per_element
+        self.nq_element_psi = self.mesh_psi.nq_per_element
+        self.nq_element = self.nq_element_r + self.nq_element_psi
+        self.nu_element_r = self.mesh_r.nu_per_element
+        self.nu_element_psi = self.mesh_psi.nu_per_element
+        self.nu_element = self.nu_element_r + self.nu_element_psi
 
         # global element connectivity
         self.elDOF_r = self.mesh_r.elDOF
         self.elDOF_psi = self.mesh_psi.elDOF + self.nq_r
+        self.elDOF_r_u = self.mesh_r.elDOF_u
+        self.elDOF_psi_u = self.mesh_psi.elDOF_u + self.nu_r
         # qe = q[elDOF[e]] "q^e = C_e,q q"
 
         # global nodal
         self.nodalDOF_r = self.mesh_r.nodalDOF
         self.nodalDOF_psi = self.mesh_psi.nodalDOF + self.nq_r
+        self.nodalDOF_r_u = self.mesh_r.nodalDOF_u
+        self.nodalDOF_psi_u = self.mesh_psi.nodalDOF_u + self.nu_r
 
         # nodal connectivity on element level
         self.nodalDOF_element_r = self.mesh_r.nodalDOF_element
         self.nodalDOF_element_psi = self.mesh_psi.nodalDOF_element + self.nq_element_r
+        self.nodalDOF_element_r_u = self.mesh_r.nodalDOF_element_u
+        self.nodalDOF_element_psi_u = (
+            self.mesh_psi.nodalDOF_element_u + self.nu_element_r
+        )
         # r_OP_i^e = C_r,i^e * C_e,q q = C_r,i^e * q^e
         # r_OPi = qe[nodelDOF_element_r[i]]
 
         # build global elDOF connectivity matrix
         self.elDOF = np.zeros((nelement, self.nq_element), dtype=int)
+        self.elDOF_u = np.zeros((nelement, self.nu_element), dtype=int)
         for el in range(nelement):
             self.elDOF[el, : self.nq_element_r] = self.elDOF_r[el]
             self.elDOF[el, self.nq_element_r :] = self.elDOF_psi[el]
+            self.elDOF_u[el, : self.nu_element_r] = self.elDOF_r_u[el]
+            self.elDOF_u[el, self.nu_element_r :] = self.elDOF_psi_u[el]
 
         # shape functions and their first derivatives
         self.N_r = self.mesh_r.N
@@ -775,6 +849,8 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
         L,
         r_OP=np.zeros(3, dtype=float),
         A_IK=np.eye(3, dtype=float),
+        # rotation_parameterization=AxisAngleRotationParameterization(),
+        rotation_parameterization=QuaternionRotationParameterization(),
     ):
         if basis_r == "Lagrange":
             nnodes_r = polynomial_degree_r * nelement + 1
@@ -825,7 +901,8 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
         # and set its value for each node
         if basis_psi == "Hermite":
             raise NotImplementedError
-        psi = Log_SO3(A_IK)
+        # psi = Log_SO3(A_IK)
+        psi = rotation_parameterization.Log_SO3(A_IK)
         q_psi = np.repeat(psi, nnodes_psi)
 
         return np.concatenate([q_r, q_psi])
@@ -842,6 +919,8 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
         A_IK=np.eye(3, dtype=float),
         v_P=np.zeros(3, dtype=float),
         K_omega_IK=np.zeros(3, dtype=float),
+        # rotation_parameterization=AxisAngleRotationParameterization(),
+        rotation_parameterization=QuaternionRotationParameterization(),
     ):
         if basis_r == "Lagrange":
             nnodes_r = polynomial_degree_r * nelement + 1
@@ -895,7 +974,8 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
         # and set its value for each node
         if basis_psi == "Hermite":
             raise NotImplementedError
-        psi = Log_SO3(A_IK)
+        # psi = Log_SO3(A_IK)
+        psi = rotation_parameterization.Log_SO3(A_IK)
         q_psi = np.repeat(psi, nnodes_psi)
 
         ################################
@@ -910,7 +990,6 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
         u_r = v_C0.reshape(-1, order="C")
 
         # all nodes share the same angular velocity
-        # u_psi = np.tile(K_omega_IK, nnodes_psi)
         u_psi = np.repeat(K_omega_IK, nnodes_psi)
 
         q0 = np.concatenate([q_r, q_psi])
@@ -1011,48 +1090,50 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
     #########################################
     def q_dot(self, t, q, u):
         # centerline part
-        q_dot = u.copy()
+        q_dot = np.zeros_like(q)
 
-        # correct axis angle vector part
+        # centerline part
+        for node in range(self.nnodes_r):
+            nodalDOF_r = self.nodalDOF_r[node]
+            q_dot[nodalDOF_r] = u[nodalDOF_r]
+
+        # axis angle vector part
         for node in range(self.nnodes_psi):
             nodalDOF_psi = self.nodalDOF_psi[node]
+            nodalDOF_psi_u = self.nodalDOF_psi_u[node]
             psi = q[nodalDOF_psi]
-            K_omega_IK = u[nodalDOF_psi]
-
-            psi_dot = T_SO3_inv(psi) @ K_omega_IK
-            q_dot[nodalDOF_psi] = psi_dot
+            K_omega_IK = u[nodalDOF_psi_u]
+            q_dot[nodalDOF_psi] = self.rotation_parameterization.q_dot(psi, K_omega_IK)
 
         return q_dot
 
     def B(self, t, q, coo):
         # trivial kinematic equation for centerline
         coo.extend_diag(
-            np.ones(self.nq_r), (self.qDOF[: self.nq_r], self.uDOF[: self.nq_r])
+            np.ones(self.nq_r), (self.qDOF[: self.nq_r], self.uDOF[: self.nu_r])
         )
 
         # axis angle vector part
         for node in range(self.nnodes_psi):
             nodalDOF_psi = self.nodalDOF_psi[node]
+            nodalDOF_psi_u = self.nodalDOF_psi_u[node]
 
             psi = q[nodalDOF_psi]
             coo.extend(
-                T_SO3_inv(psi),
-                (self.qDOF[nodalDOF_psi], self.uDOF[nodalDOF_psi]),
+                self.rotation_parameterization.B(psi),
+                (self.qDOF[nodalDOF_psi], self.uDOF[nodalDOF_psi_u]),
             )
 
     def q_dot_q(self, t, q, u, coo):
         # axis angle vector part
         for node in range(self.nnodes_psi):
             nodalDOF_psi = self.nodalDOF_psi[node]
+            nodalDOF_psi_u = self.nodalDOF_psi_u[node]
             psi = q[nodalDOF_psi]
-            K_omega_IK = u[nodalDOF_psi]
+            K_omega_IK = u[nodalDOF_psi_u]
 
             coo.extend(
-                np.einsum(
-                    "ijk,j->ik",
-                    T_SO3_inv_psi(psi),
-                    K_omega_IK,
-                ),
+                self.rotation_parameterization.q_dot_q(psi, K_omega_IK),
                 (self.qDOF[nodalDOF_psi], self.qDOF[nodalDOF_psi]),
             )
 
@@ -1065,47 +1146,52 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
         # correct axis angle vector part
         for node in range(self.nnodes_psi):
             nodalDOF_psi = self.nodalDOF_psi[node]
+            nodalDOF_psi_u = self.nodalDOF_psi_u[node]
 
             psi = q[nodalDOF_psi]
-            K_omega_IK = u[nodalDOF_psi]
-            K_omega_IK_dot = u_dot[nodalDOF_psi]
+            K_omega_IK = u[nodalDOF_psi_u]
+            K_omega_IK_dot = u_dot[nodalDOF_psi_u]
 
-            T_inv = T_SO3_inv(psi)
-            psi_dot = T_inv @ K_omega_IK
+            # T_inv = T_SO3_inv(psi)
+            # psi_dot = T_inv @ K_omega_IK
 
-            T_dot = T_SO3_dot(psi, psi_dot)
-            Tinv_dot = -T_inv @ T_dot @ T_inv
-            psi_ddot = T_inv @ K_omega_IK_dot + Tinv_dot @ K_omega_IK
+            # T_dot = T_SO3_dot(psi, psi_dot)
+            # Tinv_dot = -T_inv @ T_dot @ T_inv
+            # psi_ddot = T_inv @ K_omega_IK_dot + Tinv_dot @ K_omega_IK
 
-            # psi_ddot = (
-            #     T_inv @ K_omega_IK_dot
-            #     + np.einsum("ijk,j,k",
-            #         approx_fprime(psi, T_SO3_inv, eps=1.0e-10, method="cs"),
-            #         K_omega_IK,
-            #         psi_dot
-            #     )
-            # )
+            # # psi_ddot = (
+            # #     T_inv @ K_omega_IK_dot
+            # #     + np.einsum("ijk,j,k",
+            # #         approx_fprime(psi, T_SO3_inv, eps=1.0e-10, method="cs"),
+            # #         K_omega_IK,
+            # #         psi_dot
+            # #     )
+            # # )
 
-            q_ddot[nodalDOF_psi] = psi_ddot
+            # q_ddot[nodalDOF_psi] = psi_ddot
+            q_ddot[nodalDOF_psi] = self.q_ddot(psi, K_omega_IK, K_omega_IK_dot)
 
         return q_ddot
 
-    # change between rotation vector and its complement in order to circumvent
-    # singularities of the rotation vector
-    def psi_C(self, psi):
-        angle = norm(psi)
-        if angle < pi:
-            return psi
-        else:
-            # Ibrahimbegovic1995 after (62)
-            psi_C = (1.0 - 2.0 * pi / angle) * psi
-            print(f"complement rotation vector chosen")
-            return psi_C
+    # # change between rotation vector and its complement in order to circumvent
+    # # singularities of the rotation vector
+    # def psi_C(self, psi):
+    #     angle = norm(psi)
+    #     if angle < pi:
+    #         return psi
+    #     else:
+    #         # Ibrahimbegovic1995 after (62)
+    #         psi_C = (1.0 - 2.0 * pi / angle) * psi
+    #         print(f"complement rotation vector chosen")
+    #         return psi_C
 
     def step_callback(self, t, q, u):
         for node in range(self.nnodes_psi):
             psi = q[self.nodalDOF_psi[node]]
-            q[self.nodalDOF_psi[node]] = self.psi_C(psi)
+            # q[self.nodalDOF_psi[node]] = self.psi_C(psi)
+            q[self.nodalDOF_psi[node]] = self.rotation_parameterization.step_callback(
+                psi
+            )
         return q, u
 
     ###############################
@@ -1148,7 +1234,7 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
         return E_pot_el
 
     def f_pot_el(self, qe, el):
-        f_pot_el = np.zeros(self.nq_element, dtype=qe.dtype)
+        f_pot_el = np.zeros(self.nu_element, dtype=qe.dtype)
 
         for i in range(self.nquadrature):
             # extract reference state variables
@@ -1181,11 +1267,11 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
                 )
 
             for node in range(self.nnodes_element_psi):
-                f_pot_el[self.nodalDOF_element_psi[node]] -= (
+                f_pot_el[self.nodalDOF_element_psi_u[node]] -= (
                     self.N_psi_xi[el, i, node] * K_m * qwi
                 )
 
-                f_pot_el[self.nodalDOF_element_psi[node]] += (
+                f_pot_el[self.nodalDOF_element_psi_u[node]] += (
                     self.N_psi[el, i, node]
                     * (cross3(K_Gamma_bar, K_n) + cross3(K_Kappa_bar, K_m))
                     * qwi
@@ -1217,7 +1303,7 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
                 method="cs",
             )
         else:
-            f_pot_q_el = np.zeros((self.nq_element, self.nq_element), dtype=float)
+            f_pot_q_el = np.zeros((self.nu_element, self.nq_element), dtype=float)
 
             for i in range(self.nquadrature):
                 # extract reference state variables
@@ -1278,7 +1364,7 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
                     )
 
                 for node in range(self.nnodes_element_psi):
-                    f_pot_q_el[self.nodalDOF_element_psi[node], :] += (
+                    f_pot_q_el[self.nodalDOF_element_psi_u[node], :] += (
                         self.N_psi[el, i, node]
                         * qwi
                         * (
@@ -1287,11 +1373,11 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
                         )
                     )
 
-                    f_pot_q_el[self.nodalDOF_element_psi[node], :] -= (
+                    f_pot_q_el[self.nodalDOF_element_psi_u[node], :] -= (
                         self.N_psi_xi[el, i, node] * qwi * K_m_qe
                     )
 
-                    f_pot_q_el[self.nodalDOF_element_psi[node], :] += (
+                    f_pot_q_el[self.nodalDOF_element_psi_u[node], :] += (
                         self.N_psi[el, i, node]
                         * qwi
                         * (
@@ -1321,7 +1407,7 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
             self._M_coo()
 
     def M_el_constant(self, el):
-        M_el = np.zeros((self.nq_element, self.nq_element), dtype=float)
+        M_el = np.zeros((self.nu_element, self.nu_element), dtype=float)
 
         for i in range(self.nquadrature_dyn):
             # extract reference state variables
@@ -1341,9 +1427,9 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
             # first part delta_phi (I_rho0 omega_dot + omega_tilde I_rho0 omega)
             M_el_psi_psi = self.K_I_rho0 * Ji * qwi
             for node_a in range(self.nnodes_element_psi):
-                nodalDOF_a = self.nodalDOF_element_psi[node_a]
+                nodalDOF_a = self.nodalDOF_element_psi_u[node_a]
                 for node_b in range(self.nnodes_element_psi):
-                    nodalDOF_b = self.nodalDOF_element_psi[node_b]
+                    nodalDOF_b = self.nodalDOF_element_psi_u[node_b]
                     M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_psi_psi * (
                         self.N_psi_dyn[el, i, node_a] * self.N_psi_dyn[el, i, node_b]
                     )
@@ -1351,7 +1437,7 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
         return M_el
 
     def M_el(self, qe, el):
-        M_el = np.zeros((self.nq_element, self.nq_element), dtype=float)
+        M_el = np.zeros((self.nu_element, self.nu_element), dtype=float)
 
         for i in range(self.nquadrature_dyn):
             # extract reference state variables
@@ -1371,9 +1457,9 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
             # first part delta_phi (I_rho0 omega_dot + omega_tilde I_rho0 omega)
             M_el_psi_psi = self.K_I_rho0 * Ji * qwi
             for node_a in range(self.nnodes_element_psi):
-                nodalDOF_a = self.nodalDOF_element_psi[node_a]
+                nodalDOF_a = self.nodalDOF_element_psi_u[node_a]
                 for node_b in range(self.nnodes_element_psi):
-                    nodalDOF_b = self.nodalDOF_element_psi[node_b]
+                    nodalDOF_b = self.nodalDOF_element_psi_u[node_b]
                     M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_psi_psi * (
                         self.N_psi_dyn[el, i, node_a] * self.N_psi_dyn[el, i, node_b]
                     )
@@ -1388,12 +1474,12 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
             for node_a in range(self.nnodes_element_r):
                 nodalDOF_a = self.nodalDOF_element_r[node_a]
                 for node_b in range(self.nnodes_element_psi):
-                    nodalDOF_b = self.nodalDOF_element_psi[node_b]
+                    nodalDOF_b = self.nodalDOF_element_psi_u[node_b]
                     M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_r_psi * (
                         self.N_r_dyn[el, i, node_a] * self.N_psi_dyn[el, i, node_b]
                     )
             for node_a in range(self.nnodes_element_psi):
-                nodalDOF_a = self.nodalDOF_element_psi[node_a]
+                nodalDOF_a = self.nodalDOF_element_psi_u[node_a]
                 for node_b in range(self.nnodes_element_r):
                     nodalDOF_b = self.nodalDOF_element_r[node_b]
                     M_el[nodalDOF_a[:, None], nodalDOF_b] += M_el_psi_r * (
@@ -1406,11 +1492,11 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
         self.__M = Coo((self.nu, self.nu))
         for el in range(self.nelement):
             # extract element degrees of freedom
-            elDOF = self.elDOF[el]
+            elDOF_u = self.elDOF_u[el]
 
             # sparse assemble element mass matrix
             self.__M.extend(
-                self.M_el_constant(el), (self.uDOF[elDOF], self.uDOF[elDOF])
+                self.M_el_constant(el), (self.uDOF[elDOF_u], self.uDOF[elDOF_u])
             )
 
     def M(self, t, q, coo):
@@ -1420,18 +1506,20 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
             for el in range(self.nelement):
                 # extract element degrees of freedom
                 elDOF = self.elDOF[el]
+                elDOF_u = self.elDOF_u[el]
 
                 # sparse assemble element mass matrix
                 coo.extend(
-                    self.M_el(q[elDOF], el), (self.uDOF[elDOF], self.uDOF[elDOF])
+                    self.M_el(q[elDOF], el), (self.uDOF[elDOF_u], self.uDOF[elDOF_u])
                 )
 
     def E_kin(self, t, q, u):
         E_kin = 0.0
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
+            elDOF_u = self.elDOF_u[el]
             qe = q[elDOF]
-            ue = u[elDOF]
+            ue = u[elDOF_u]
 
             E_kin += self.E_kin_el(qe, ue, el)
 
@@ -1447,12 +1535,12 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
 
             v_P = np.zeros(3, dtype=float)
             for node in range(self.nnodes_element_r):
-                v_P += self.N_r_dyn[el, i, node] * ue[self.nodalDOF_element_r[node]]
+                v_P += self.N_r_dyn[el, i, node] * ue[self.nodalDOF_element_r_u[node]]
 
             K_omega_IK = np.zeros(3, dtype=float)
             for node in range(self.nnodes_element_psi):
                 K_omega_IK += (
-                    self.N_psi_dyn[el, i, node] * ue[self.nodalDOF_element_psi[node]]
+                    self.N_psi_dyn[el, i, node] * ue[self.nodalDOF_element_psi_u[node]]
                 )
 
             # delta_r A_rho0 r_ddot part
@@ -1469,8 +1557,9 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
         linear_momentum = np.zeros(3, dtype=float)
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
+            elDOF_u = self.elDOF_u[el]
             qe = q[elDOF]
-            ue = u[elDOF]
+            ue = u[elDOF_u]
 
             linear_momentum += self.linear_momentum_el(qe, ue, el)
 
@@ -1496,8 +1585,9 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
         angular_momentum = np.zeros(3, dtype=float)
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
+            elDOF_u = self.elDOF_u[el]
             qe = q[elDOF]
-            ue = u[elDOF]
+            ue = u[elDOF_u]
 
             angular_momentum += self.angular_momentum_el(t, qe, ue, el)
 
@@ -1516,12 +1606,12 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
             v_P = np.zeros(3, dtype=float)
             for node in range(self.nnodes_element_r):
                 r_OP += self.N_r_dyn[el, i, node] * qe[self.nodalDOF_element_r[node]]
-                v_P += self.N_r_dyn[el, i, node] * ue[self.nodalDOF_element_r[node]]
+                v_P += self.N_r_dyn[el, i, node] * ue[self.nodalDOF_element_r_u[node]]
 
             K_omega_IK = np.zeros(3, dtype=float)
             for node in range(self.nnodes_element_psi):
                 K_omega_IK += (
-                    self.N_psi_dyn[el, i, node] * ue[self.nodalDOF_element_psi[node]]
+                    self.N_psi_dyn[el, i, node] * ue[self.nodalDOF_element_psi_u[node]]
                 )
 
             A_IK = self.A_IK(t, qe, (qpi,))
@@ -1540,14 +1630,14 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
                 "Gyroscopic forces are not implemented for nonzero K_S_rho0."
             )
 
-        f_gyr_el = np.zeros(self.nq_element, dtype=np.common_type(qe, ue))
+        f_gyr_el = np.zeros(self.nu_element, dtype=np.common_type(qe, ue))
 
         for i in range(self.nquadrature_dyn):
             # interpoalte angular velocity
             K_Omega = np.zeros(3, dtype=np.common_type(qe, ue))
             for node in range(self.nnodes_element_psi):
                 K_Omega += (
-                    self.N_psi_dyn[el, i, node] * ue[self.nodalDOF_element_psi[node]]
+                    self.N_psi_dyn[el, i, node] * ue[self.nodalDOF_element_psi_u[node]]
                 )
 
             # vector of gyroscopic forces
@@ -1559,21 +1649,21 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
 
             # multiply vector of gyroscopic forces with nodal virtual rotations
             for node in range(self.nnodes_element_psi):
-                f_gyr_el[self.nodalDOF_element_psi[node]] += (
+                f_gyr_el[self.nodalDOF_element_psi_u[node]] += (
                     self.N_psi_dyn[el, i, node] * f_gyr_el_psi
                 )
 
         return f_gyr_el
 
     def f_gyr_u_el(self, t, qe, ue, el):
-        f_gyr_u_el = np.zeros((self.nq_element, self.nq_element), dtype=float)
+        f_gyr_u_el = np.zeros((self.nu_element, self.nu_element), dtype=float)
 
         for i in range(self.nquadrature_dyn):
             # interpoalte angular velocity
             K_Omega = np.zeros(3, dtype=float)
             for node in range(self.nnodes_element_psi):
                 K_Omega += (
-                    self.N_psi_dyn[el, i, node] * ue[self.nodalDOF_element_psi[node]]
+                    self.N_psi_dyn[el, i, node] * ue[self.nodalDOF_element_psi_u[node]]
                 )
 
             # derivative of vector of gyroscopic forces
@@ -1585,9 +1675,9 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
 
             # multiply derivative of gyroscopic force vector with nodal virtual rotations
             for node_a in range(self.nnodes_element_psi):
-                nodalDOF_a = self.nodalDOF_element_psi[node_a]
+                nodalDOF_a = self.nodalDOF_element_psi_u[node_a]
                 for node_b in range(self.nnodes_element_psi):
-                    nodalDOF_b = self.nodalDOF_element_psi[node_b]
+                    nodalDOF_b = self.nodalDOF_element_psi_u[node_b]
                     f_gyr_u_el[nodalDOF_a[:, None], nodalDOF_b] += f_gyr_u_el_psi * (
                         self.N_psi_dyn[el, i, node_a] * self.N_psi_dyn[el, i, node_b]
                     )
@@ -1598,22 +1688,25 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
         h = np.zeros(self.nu, dtype=np.common_type(q, u))
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
-            h[elDOF] += self.f_pot_el(q[elDOF], el) - self.f_gyr_el(
-                t, q[elDOF], u[elDOF], el
+            elDOF_u = self.elDOF_u[el]
+            h[elDOF_u] += self.f_pot_el(q[elDOF], el) - self.f_gyr_el(
+                t, q[elDOF], u[elDOF_u], el
             )
         return h
 
     def h_q(self, t, q, u, coo):
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
+            elDOF_u = self.elDOF_u[el]
             h_q_el = self.f_pot_el_q(q[elDOF], el)
-            coo.extend(h_q_el, (self.uDOF[elDOF], self.qDOF[elDOF]))
+            coo.extend(h_q_el, (self.uDOF[elDOF_u], self.qDOF[elDOF]))
 
     def h_u(self, t, q, u, coo):
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
-            h_u_el = -self.f_gyr_u_el(t, q[elDOF], u[elDOF], el)
-            coo.extend(h_u_el, (self.uDOF[elDOF], self.uDOF[elDOF]))
+            elDOF_u = self.elDOF_u[el]
+            h_u_el = -self.f_gyr_u_el(t, q[elDOF], u[elDOF_u], el)
+            coo.extend(h_u_el, (self.uDOF[elDOF_u], self.uDOF[elDOF_u]))
 
     ####################################################
     # interactions with other bodies and the environment
@@ -1623,11 +1716,16 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
         el = self.element_number(xi)
         return self.elDOF[el]
 
+    def elDOF_P_u(self, frame_ID):
+        xi = frame_ID[0]
+        el = self.element_number(xi)
+        return self.elDOF_u[el]
+
     def local_qDOF_P(self, frame_ID):
         return self.elDOF_P(frame_ID)
 
     def local_uDOF_P(self, frame_ID):
-        return self.elDOF_P(frame_ID)
+        return self.elDOF_P_u(frame_ID)
 
     #########################
     # r_OP/ A_IK contribution
@@ -1678,12 +1776,7 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
         A_IK = self.A_IK(t, q, frame_ID)
         K_Omega = np.zeros(3, dtype=np.common_type(q, u))
         for node in range(self.nnodes_element_psi):
-            K_Omega += N_psi[node] * u[self.nodalDOF_element_psi[node]]
-
-        # angular velocity in K-frame
-        K_Omega = np.zeros(3, dtype=np.common_type(q, u))
-        for node in range(self.nnodes_element_psi):
-            K_Omega += N_psi[node] * u[self.nodalDOF_element_psi[node]]
+            K_Omega += N_psi[node] * u[self.nodalDOF_element_psi_u[node]]
 
         # centerline velocity
         v = np.zeros(3, dtype=np.common_type(q, u))
@@ -1700,7 +1793,7 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
         A_IK_q = self.A_IK_q(t, q, frame_ID)
         K_Omega = np.zeros(3, dtype=np.common_type(q, u))
         for node in range(self.nnodes_element_psi):
-            K_Omega += N_psi[node] * u[self.nodalDOF_element_psi[node]]
+            K_Omega += N_psi[node] * u[self.nodalDOF_element_psi_u[node]]
 
         v_P_q = np.einsum(
             "ijk,j->ik",
@@ -1729,11 +1822,13 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
         K_r_SP_tilde = ax2skew(K_r_SP)
 
         # interpolate centerline and axis angle contributions
-        J_P = np.zeros((3, self.nq_element), dtype=q.dtype)
+        J_P = np.zeros((3, self.nu_element), dtype=q.dtype)
         for node in range(self.nnodes_element_r):
             J_P[:, self.nodalDOF_element_r[node]] += N_r[node] * np.eye(3)
         for node in range(self.nnodes_element_psi):
-            J_P[:, self.nodalDOF_element_psi[node]] -= N_psi[node] * A_IK @ K_r_SP_tilde
+            J_P[:, self.nodalDOF_element_psi_u[node]] -= (
+                N_psi[node] * A_IK @ K_r_SP_tilde
+            )
 
         return J_P
 
@@ -1756,10 +1851,10 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
 
         # interpolate axis angle contributions since centerline contributon is
         # zero
-        J_P_q = np.zeros((3, self.nq_element, self.nq_element), dtype=float)
+        J_P_q = np.zeros((3, self.nu_element, self.nq_element), dtype=float)
         for node in range(self.nnodes_element_psi):
-            nodalDOF_psi = self.nodalDOF_element_psi[node]
-            J_P_q[:, nodalDOF_psi] -= N_psi[node] * prod
+            nodalDOF_psi_u = self.nodalDOF_element_psi_u[node]
+            J_P_q[:, nodalDOF_psi_u] -= N_psi[node] * prod
 
         return J_P_q
 
@@ -1778,7 +1873,7 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
         A_IK = self.A_IK(t, q, frame_ID)
 
         # centerline acceleration
-        a = np.zeros(3, dtype=float)
+        a = np.zeros(3, dtype=np.common_type(q, u, u_dot))
         for node in range(self.nnodes_element_r):
             a += N_r[node] * u_dot[self.nodalDOF_element_r[node]]
 
@@ -1841,17 +1936,17 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
         N_psi, _ = self.basis_functions_psi(frame_ID[0])
         K_Omega = np.zeros(3, dtype=np.common_type(q, u))
         for node in range(self.nnodes_element_psi):
-            K_Omega += N_psi[node] * u[self.nodalDOF_element_psi[node]]
+            K_Omega += N_psi[node] * u[self.nodalDOF_element_psi_u[node]]
         return K_Omega
 
     def K_Omega_q(self, t, q, u, frame_ID):
-        return np.zeros((3, self.nq_element), dtype=float)
+        return np.zeros((3, self.nu_element), dtype=float)
 
     def K_J_R(self, t, q, frame_ID):
         N_psi, _ = self.basis_functions_psi(frame_ID[0])
         K_J_R = np.zeros((3, self.nu_element), dtype=float)
         for node in range(self.nnodes_element_psi):
-            K_J_R[:, self.nodalDOF_element_psi[node]] += N_psi[node] * np.eye(
+            K_J_R[:, self.nodalDOF_element_psi_u[node]] += N_psi[node] * np.eye(
                 3, dtype=float
             )
         return K_J_R
@@ -1864,9 +1959,9 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
         time derivative of the angular velocities in the K-frame.
         """
         N_psi, _ = self.basis_functions_psi(frame_ID[0])
-        K_Psi = np.zeros(3, dtype=float)
+        K_Psi = np.zeros(3, dtype=np.common_type(q, u, u_dot))
         for node in range(self.nnodes_element_psi):
-            K_Psi += N_psi[node] * u_dot[self.nodalDOF_element_psi[node]]
+            K_Psi += N_psi[node] * u_dot[self.nodalDOF_element_psi_u[node]]
         return K_Psi
 
     def K_Psi_q(self, t, q, u, u_dot, frame_ID):
@@ -1953,7 +2048,7 @@ class TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
     def distributed_force1D(self, t, q, force):
         f = np.zeros(self.nu, dtype=float)
         for el in range(self.nelement):
-            f[self.elDOF[el]] += self.distributed_force1D_el(force, t, el)
+            f[self.elDOF_u[el]] += self.distributed_force1D_el(force, t, el)
         return f
 
     def distributed_force1D_q(self, t, q, coo, force):
@@ -2997,11 +3092,11 @@ class I_TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
         tilde = ax2skew(A_IK @ K_r_SP)
 
         # interpolate centerline and axis angle contributions
-        J_P = np.zeros((3, self.nq_element), dtype=q.dtype)
+        J_P = np.zeros((3, self.nu_element), dtype=q.dtype)
         for node in range(self.nnodes_element_r):
             J_P[:, self.nodalDOF_element_r[node]] += N_r[node] * np.eye(3)
         for node in range(self.nnodes_element_psi):
-            J_P[:, self.nodalDOF_element_psi[node]] -= N_psi[node] * tilde
+            J_P[:, self.nodalDOF_element_psi_u[node]] -= N_psi[node] * tilde
 
         return J_P
 
@@ -3028,7 +3123,7 @@ class I_TimoshenkoPetrovGalerkinBase(RodExportBase, ABC):
         # zero
         J_P_q = np.zeros((3, self.nq_element, self.nq_element), dtype=float)
         for node in range(self.nnodes_element_psi):
-            nodalDOF_psi = self.nodalDOF_element_psi[node]
+            nodalDOF_psi = self.nodalDOF_element_psi_u[node]
             J_P_q[:, nodalDOF_psi] -= N_psi[node] * prod2
 
         return J_P_q

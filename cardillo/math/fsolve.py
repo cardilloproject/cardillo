@@ -5,6 +5,52 @@ from scipy.sparse.linalg import spsolve, lsqr, lsmr, LinearOperator
 from cardillo.math import approx_fprime
 
 
+def qr_solve(A, b):
+    """
+    Solve the sparse linear system Ax=b, using numpy's wrapper to dense Lapack
+    functions lstsq_m/ lstsq_n.
+
+    References:
+    -----------
+    numpy: https://numpy.org/doc/stable/reference/generated/numpy.linalg.lstsq.html
+    """
+    return np.linalg.lstsq(A.toarray(), b, rcond=None)[0]
+
+
+def qr_overdetermined_solve(A, b):
+    """Solve the sparse (overdetermined) linear system Ax=b using dense 
+    QR-decomposition.
+    
+    References:
+    Wiki1: https://en.wikipedia.org/wiki/QR_decomposition#Using_for_solution_to_linear_inverse_problems \\
+    Wiki2: https://en.wikipedia.org/wiki/Triangular_matrix#Forward_and_back_substitution
+    """
+    # QR decomposition of A
+    Q, R = np.linalg.qr(A.toarray())
+
+    # solve triangular system
+    from scipy.linalg import solve_triangular
+
+    return solve_triangular(R, Q.T @ b)
+
+
+def qr_underdetermined_solve(A, b):
+    """Solve the sparse (underdetermined) linear system Ax=b using dense 
+    QR-decomposition.
+    
+    References:
+    Wiki1: https://en.wikipedia.org/wiki/QR_decomposition#Using_for_solution_to_linear_inverse_problems \\
+    Wiki2: https://en.wikipedia.org/wiki/Triangular_matrix#Forward_and_back_substitution
+    """
+    # QR decomposition of A
+    Q, R = np.linalg.qr(A.toarray().T)
+
+    # solve triangular system
+    from scipy.linalg import solve_triangular
+
+    return Q @ solve_triangular(R.T, b, lower=True)
+
+
 def lu_solve(A, b):
     """
     Solve the sparse linear system Ax=b, where b may be a vector or a matrix.
@@ -74,6 +120,10 @@ def fsolve(
     eps=1.0e-12,
     max_iter=20,
     linear_solver=lu_solve,
+    # linear_solver=lsqr_solve,
+    # linear_solver=qr_solve,
+    # linear_solver=qr_overdetermined_solve,
+    # linear_solver=qr_underdetermined_solve,
 ):
     if not isinstance(fun_args, tuple):
         fun_args = (fun_args,)

@@ -81,8 +81,12 @@ class TimoshenkoAxisAngleSE3(TimoshenkoPetrovGalerkinBase):
         psi1 = h1[3:]
 
         # nodal transformations
-        H_IK0 = SE3(Exp_SO3(psi0), r_OP0)
-        H_IK1 = SE3(Exp_SO3(psi1), r_OP1)
+        # A_IK0 = Exp_SO3(psi0)
+        # A_IK1 = Exp_SO3(psi1)
+        A_IK0 = self.rotation_parameterization.Exp_SO3(psi0)
+        A_IK1 = self.rotation_parameterization.Exp_SO3(psi1)
+        H_IK0 = SE3(A_IK0, r_OP0)
+        H_IK1 = SE3(A_IK1, r_OP1)
 
         # inverse transformation of first node
         H_IK0_inv = SE3inv(H_IK0)
@@ -137,23 +141,27 @@ class TimoshenkoAxisAngleSE3(TimoshenkoPetrovGalerkinBase):
         psi1 = h1[3:]
 
         # nodal transformations
-        A_IK0 = Exp_SO3(psi0)
-        A_IK1 = Exp_SO3(psi1)
+        A_IK0 = self.rotation_parameterization.Exp_SO3(psi0)
+        A_IK1 = self.rotation_parameterization.Exp_SO3(psi1)
         H_IK0 = SE3(A_IK0, r_OP0)
         H_IK1 = SE3(A_IK1, r_OP1)
-        A_IK0_psi0 = Exp_SO3_psi(psi0)
-        A_IK1_psi1 = Exp_SO3_psi(psi1)
+        A_IK0_psi0 = self.rotation_parameterization.Exp_SO3_psi(psi0)
+        A_IK1_psi1 = self.rotation_parameterization.Exp_SO3_psi(psi1)
 
-        H_IK0_h0 = np.zeros((4, 4, 6), dtype=float)
+        # H_IK0_h0 = np.zeros((4, 4, 6), dtype=float)
+        n_psi = self.rotation_parameterization.dim
+        H_IK0_h0 = np.zeros((4, 4, 3 + n_psi), dtype=float)
         H_IK0_h0[:3, :3, 3:] = A_IK0_psi0
         H_IK0_h0[:3, 3, :3] = np.eye(3, dtype=float)
-        H_IK1_h1 = np.zeros((4, 4, 6), dtype=float)
+        # H_IK1_h1 = np.zeros((4, 4, 6), dtype=float)
+        H_IK1_h1 = np.zeros((4, 4, 3 + n_psi), dtype=float)
         H_IK1_h1[:3, :3, 3:] = A_IK1_psi1
         H_IK1_h1[:3, 3, :3] = np.eye(3, dtype=float)
 
         # inverse transformation of first node
         H_IK0_inv = SE3inv(H_IK0)
-        H_IK0_inv_h0 = np.zeros((4, 4, 6), dtype=float)
+        # H_IK0_inv_h0 = np.zeros((4, 4, 6), dtype=float)
+        H_IK0_inv_h0 = np.zeros((4, 4, 3 + n_psi), dtype=float)
         H_IK0_inv_h0[:3, :3, 3:] = A_IK0_psi0.transpose(1, 0, 2)
         H_IK0_inv_h0[:3, 3, 3:] = -np.einsum("k,kij->ij", r_OP0, A_IK0_psi0)
         H_IK0_inv_h0[:3, 3, :3] = -A_IK0.T

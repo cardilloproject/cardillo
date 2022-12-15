@@ -8,18 +8,60 @@ from cardillo.solver import Solution
 
 
 class ScipyIVP:
-    def __init__(self, system, t1, dt, method="RK45", rtol=1.0e-8, atol=1.0e-10):
+    def __init__(
+        self,
+        system,
+        t1,
+        dt,
+        method="RK45",
+        rtol=1.0e-8,
+        atol=1.0e-10,
+        cDOF_q=np.array([], dtype=int),
+        b_q=lambda t: np.array([]),
+        cDOF_u=np.array([], dtype=int),
+        b_u=lambda t: np.array([]),
+    ):
         self.system = system
         self.rtol = rtol
         self.atol = atol
         self.method = method
 
-        self.nq = system.nq
-        self.nu = system.nu
-        self.nx = self.nq + self.nu
+        # handle redundtant coordinates using cDOF/fDOF for q and u
+        z0 = system.q0.copy()
+        v0 = system.u0.copy()
+
+        self.nz = len(z0)
+        self.nv = len(v0)
+
+        nc_q = len(cDOF_q)
+        nc_u = len(cDOF_u)
+
+        self.nq = self.nz - nc_q
+        self.nu = self.nv - nc_u
+
+        self.cDOF_q = cDOF_q
+        self.cDOF_u = cDOF_u
+        self.zDOF = np.arange(self.nz)
+        self.vDOF = np.arange(self.nv)
+        self.fDOF_q = np.setdiff1d(self.zDOF, cDOF_q)
+        self.fDOF_u = np.setdiff1d(self.vDOF, cDOF_u)
+
+        q0 = z0[self.fDOF_q]
+        u0 = v0[self.fDOF_u]
+
+        if callable(b_q):
+            self.b_q = b_q
+        else:
+            self.b_q = lambda t: b_q
+        if callable(b_u):
+            self.b_u = b_u
+        else:
+            self.b_u = lambda t: b_u
+
+        self.x0 = np.concatenate([q0, u0])
+        self.nx = len(self.x0)
         self.nla_g = self.system.nla_g
         self.nla_gamma = self.system.nla_gamma
-        self.x0 = np.concatenate([system.q0, system.u0])
 
         # integration time
         t0 = system.t0
@@ -42,6 +84,18 @@ class ScipyIVP:
         gamma = system.gamma(t0, system.q0, system.u0)
         assert np.allclose(gamma, np.zeros(len(gamma)))
 
+    def z(self, t, q):
+        z = np.zeros(self.nz)
+        z[self.fDOF_q] = q
+        z[self.cDOF_q] = self.b_q(t)
+        return z
+
+    def v(self, t, u):
+        v = np.zeros(self.nv)
+        v[self.fDOF_u] = u
+        v[self.cDOF_u] = self.b_u(t)
+        return v
+
     def eqm(self, t, x):
         # update progress bar
         i1 = int(t // self.frac)
@@ -50,15 +104,18 @@ class ScipyIVP:
         self.i = i1
 
         q = x[: self.nq]
+        z = self.z(t, q)
         u = x[self.nq :]
-        q, u = self.system.step_callback(t, q, u)
+        v = self.v(t, u)
 
-        M = self.system.M(t, q)
-        h = self.system.h(t, q, u)
-        W_g = self.system.W_g(t, q)
-        W_gamma = self.system.W_gamma(t, q)
-        zeta_g = self.system.zeta_g(t, q, u)
-        zeta_gamma = self.system.zeta_gamma(t, q, u)
+        z, v = self.system.step_callback(t, z, v)
+
+        M = self.system.M(t, z)
+        h = self.system.h(t, z, v)
+        W_g = self.system.W_g(t, z)
+        W_gamma = self.system.W_gamma(t, z)
+        zeta_g = self.system.zeta_g(t, z, v)
+        zeta_gamma = self.system.zeta_gamma(t, z, v)
 
         # TODO: Can be use a sparse ldl decomposition here as done in C++?
         # fmt: off
@@ -67,11 +124,11 @@ class ScipyIVP:
                   [W_gamma.T, None,     None]], format="csc")
         # fmt: on
 
-        ula = spsolve(A, np.concatenate([h, -zeta_g, -zeta_gamma]))
+        v_dot_la = spsolve(A, np.concatenate([h, -zeta_g, -zeta_gamma]))
 
         dx = np.zeros(self.nx)
-        dx[: self.nq] = self.system.q_dot(t, q, u)
-        dx[self.nq :] = ula[: self.nu]
+        dx[: self.nq] = self.system.q_dot(t, z, v)[self.fDOF_q]
+        dx[self.nq :] = v_dot_la[: self.nv][self.fDOF_u]
         return dx
 
     def la_g_la_gamma(self, t, q, u):
@@ -126,6 +183,11 @@ class ScipyIVP:
         nt = len(t)
         q = sol.y[: self.nq, :].T
         u = sol.y[self.nq :, :].T
+
+        # reconstruct redundant coordinates
+        z = np.array([self.z(t[i], q[i]) for i in range(nt)])
+        v = np.array([self.v(t[i], u[i]) for i in range(nt)])
+
         # u_dot = np.zeros((nt, self.nu))
         # la_g = np.zeros((nt, self.nla_g))
         # la_gamma = np.zeros((nt, self.nla_gamma))
@@ -133,4 +195,4 @@ class ScipyIVP:
         #     u_dot[i], la_g[i], la_gamma[i] = self.la_g_la_gamma(ti, qi, ui)
 
         # return Solution(t=t, q=q, u=u, u_dot=u_dot, la_g=la_g, la_gamma=la_gamma)
-        return Solution(t=t, q=q, u=u)
+        return Solution(t=t, q=z, u=v)
