@@ -1,11 +1,9 @@
 import numpy as np
 from cardillo.math import (
     cross3,
-    Exp_SO3,
-    Exp_SO3_psi,
 )
 from cardillo.beams._base import (
-    TimoshenkoPetrovGalerkinBase,
+    TimoshenkoPetrovGalerkinBaseAxisAngle,
     I_TimoshenkoPetrovGalerkinBase,
 )
 
@@ -28,6 +26,10 @@ def make_DirectorAxisAngle(Base):
             basis_r="Lagrange",
             basis_psi="Lagrange",
         ):
+            p = max(polynomial_degree_r, polynomial_degree_psi)
+            nquadrature = p
+            nquadrature_dyn = int(np.ceil((p + 1) ** 2 / 2))
+
             super().__init__(
                 cross_section,
                 material_model,
@@ -37,6 +39,8 @@ def make_DirectorAxisAngle(Base):
                 polynomial_degree_r,
                 polynomial_degree_psi,
                 nelement,
+                nquadrature,
+                nquadrature_dyn,
                 Q,
                 q0=q0,
                 u0=u0,
@@ -61,7 +65,7 @@ def make_DirectorAxisAngle(Base):
             A_IK = np.zeros((3, 3), dtype=qe.dtype)
             A_IK_xi = np.zeros((3, 3), dtype=qe.dtype)
             for node in range(self.nnodes_element_psi):
-                A_IK_node = self.rotation_parameterization.Exp_SO3(
+                A_IK_node = self.RotationBase.Exp_SO3(
                     qe[self.nodalDOF_element_psi[node]]
                 )
                 A_IK += N_psi[node] * A_IK_node
@@ -115,8 +119,8 @@ def make_DirectorAxisAngle(Base):
             for node in range(self.nnodes_element_psi):
                 nodalDOF_psi = self.nodalDOF_element_psi[node]
                 psi_node = qe[nodalDOF_psi]
-                A_IK_node = self.rotation_parameterization.Exp_SO3(psi_node)
-                A_IK_q_node = self.rotation_parameterization.Exp_SO3_psi(psi_node)
+                A_IK_node = self.RotationBase.Exp_SO3(psi_node)
+                A_IK_q_node = self.RotationBase.Exp_SO3_psi(psi_node)
 
                 A_IK += N_psi[node] * A_IK_node
                 A_IK_qe[:, :, nodalDOF_psi] += N_psi[node] * A_IK_q_node
@@ -178,8 +182,7 @@ def make_DirectorAxisAngle(Base):
             # interpolate orientation
             A_IK = np.zeros((3, 3), dtype=q.dtype)
             for node in range(self.nnodes_element_psi):
-                # A_IK += N_psi[node] * Exp_SO3(q[self.nodalDOF_element_psi[node]])
-                A_IK += N_psi[node] * self.rotation_parameterization.Exp_SO3(
+                A_IK += N_psi[node] * self.RotationBase.Exp_SO3(
                     q[self.nodalDOF_element_psi[node]]
                 )
 
@@ -195,15 +198,14 @@ def make_DirectorAxisAngle(Base):
             A_IK_q = np.zeros((3, 3, self.nq_element), dtype=q.dtype)
             for node in range(self.nnodes_element_psi):
                 nodalDOF_psi = self.nodalDOF_element_psi[node]
-                # A_IK_q[:, :, nodalDOF_psi] += N_psi[node] * Exp_SO3_psi(q[nodalDOF_psi])
                 A_IK_q[:, :, nodalDOF_psi] += N_psi[
                     node
-                ] * self.rotation_parameterization.Exp_SO3_psi(q[nodalDOF_psi])
+                ] * self.RotationBase.Exp_SO3_psi(q[nodalDOF_psi])
 
             return A_IK_q
 
     return Derived
 
 
-DirectorAxisAngle = make_DirectorAxisAngle(TimoshenkoPetrovGalerkinBase)
+DirectorAxisAngle = make_DirectorAxisAngle(TimoshenkoPetrovGalerkinBaseAxisAngle)
 I_DirectorAxisAngle = make_DirectorAxisAngle(I_TimoshenkoPetrovGalerkinBase)

@@ -17,7 +17,7 @@ from .rope import Rope
 from .cable import Cable
 from .axis_angle_director import DirectorAxisAngle, I_DirectorAxisAngle
 from .crisfield1999 import Crisfield1999
-from .SE3 import TimoshenkoAxisAngleSE3
+from .SE3 import K_TimoshenkoAxisAngleSE3
 
 
 from ._animate import animate_beam, animate_rope

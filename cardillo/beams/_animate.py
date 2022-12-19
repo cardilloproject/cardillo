@@ -105,7 +105,7 @@ def animate_beam(t, q, beams, scale, scale_di=1, n_r=100, n_frames=10, show=True
     return fig, ax, anim
 
 
-def animate_rope(t, q, ropes, scale, n=100, show=True, repeat=True):
+def animate_rope(t, q, ropes, scale, num=100, show=True, repeat=True):
     fig, ax = plt.subplots(figsize=(8, 8), subplot_kw=dict(projection="3d"))
     ax.set_xlabel("x [m]")
     ax.set_ylabel("y [m]")
@@ -139,7 +139,7 @@ def animate_rope(t, q, ropes, scale, n=100, show=True, repeat=True):
         nodes.extend(ax.plot(*rope.nodes(q[0]), "--ob"))
 
         # beam centerline
-        center_lines.extend(ax.plot(*rope.centerline(q[0], n=n), "-k"))
+        center_lines.extend(ax.plot(*rope.centerline(q[0], num=num), "-k"))
 
     def update(t, q):
         for i, beam in enumerate(ropes):
@@ -149,7 +149,7 @@ def animate_rope(t, q, ropes, scale, n=100, show=True, repeat=True):
             nodes[i].set_3d_properties(z)
 
             # beam centerline
-            x, y, z = beam.centerline(q, n=n)
+            x, y, z = beam.centerline(q, num=num)
             center_lines[i].set_data(x, y)
             center_lines[i].set_3d_properties(z)
 

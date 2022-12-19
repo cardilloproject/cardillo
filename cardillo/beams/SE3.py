@@ -2,17 +2,15 @@ import numpy as np
 from cardillo.math import (
     SE3,
     SE3inv,
-    Exp_SO3,
     Exp_SE3,
     Log_SE3,
-    Exp_SO3_psi,
     Exp_SE3_h,
     Log_SE3_H,
 )
-from cardillo.beams._base import TimoshenkoPetrovGalerkinBase
+from cardillo.beams._base import TimoshenkoPetrovGalerkinBaseAxisAngle
 
 
-class TimoshenkoAxisAngleSE3(TimoshenkoPetrovGalerkinBase):
+class K_TimoshenkoAxisAngleSE3(TimoshenkoPetrovGalerkinBaseAxisAngle):
     def __init__(
         self,
         cross_section,
@@ -34,6 +32,8 @@ class TimoshenkoAxisAngleSE3(TimoshenkoPetrovGalerkinBase):
             1,
             1,
             nelement,
+            2,
+            2,
             Q,
             q0=q0,
             u0=u0,
@@ -48,7 +48,7 @@ class TimoshenkoAxisAngleSE3(TimoshenkoPetrovGalerkinBase):
         r_OP=np.zeros(3, dtype=float),
         A_IK=np.eye(3, dtype=float),
     ):
-        return TimoshenkoPetrovGalerkinBase.straight_configuration(
+        return TimoshenkoPetrovGalerkinBaseAxisAngle.straight_configuration(
             1, 1, "Lagrange", "Lagrange", nelement, L, r_OP, A_IK
         )
 
@@ -61,7 +61,7 @@ class TimoshenkoAxisAngleSE3(TimoshenkoPetrovGalerkinBase):
         v_P=np.zeros(3, dtype=float),
         K_omega_IK=np.zeros(3, dtype=float),
     ):
-        return TimoshenkoPetrovGalerkinBase.straight_initial_configuration(
+        return TimoshenkoPetrovGalerkinBaseAxisAngle.straight_initial_configuration(
             1, 1, "Lagrange", "Lagrange", nelement, L, r_OP, A_IK, v_P, K_omega_IK
         )
 
@@ -81,10 +81,8 @@ class TimoshenkoAxisAngleSE3(TimoshenkoPetrovGalerkinBase):
         psi1 = h1[3:]
 
         # nodal transformations
-        # A_IK0 = Exp_SO3(psi0)
-        # A_IK1 = Exp_SO3(psi1)
-        A_IK0 = self.rotation_parameterization.Exp_SO3(psi0)
-        A_IK1 = self.rotation_parameterization.Exp_SO3(psi1)
+        A_IK0 = self.RotationBase.Exp_SO3(psi0)
+        A_IK1 = self.RotationBase.Exp_SO3(psi1)
         H_IK0 = SE3(A_IK0, r_OP0)
         H_IK1 = SE3(A_IK1, r_OP1)
 
@@ -141,26 +139,23 @@ class TimoshenkoAxisAngleSE3(TimoshenkoPetrovGalerkinBase):
         psi1 = h1[3:]
 
         # nodal transformations
-        A_IK0 = self.rotation_parameterization.Exp_SO3(psi0)
-        A_IK1 = self.rotation_parameterization.Exp_SO3(psi1)
+        A_IK0 = self.RotationBase.Exp_SO3(psi0)
+        A_IK1 = self.RotationBase.Exp_SO3(psi1)
         H_IK0 = SE3(A_IK0, r_OP0)
         H_IK1 = SE3(A_IK1, r_OP1)
-        A_IK0_psi0 = self.rotation_parameterization.Exp_SO3_psi(psi0)
-        A_IK1_psi1 = self.rotation_parameterization.Exp_SO3_psi(psi1)
+        A_IK0_psi0 = self.RotationBase.Exp_SO3_psi(psi0)
+        A_IK1_psi1 = self.RotationBase.Exp_SO3_psi(psi1)
 
-        # H_IK0_h0 = np.zeros((4, 4, 6), dtype=float)
-        n_psi = self.rotation_parameterization.dim
+        n_psi = self.RotationBase.dim()
         H_IK0_h0 = np.zeros((4, 4, 3 + n_psi), dtype=float)
         H_IK0_h0[:3, :3, 3:] = A_IK0_psi0
         H_IK0_h0[:3, 3, :3] = np.eye(3, dtype=float)
-        # H_IK1_h1 = np.zeros((4, 4, 6), dtype=float)
         H_IK1_h1 = np.zeros((4, 4, 3 + n_psi), dtype=float)
         H_IK1_h1[:3, :3, 3:] = A_IK1_psi1
         H_IK1_h1[:3, 3, :3] = np.eye(3, dtype=float)
 
         # inverse transformation of first node
         H_IK0_inv = SE3inv(H_IK0)
-        # H_IK0_inv_h0 = np.zeros((4, 4, 6), dtype=float)
         H_IK0_inv_h0 = np.zeros((4, 4, 3 + n_psi), dtype=float)
         H_IK0_inv_h0[:3, :3, 3:] = A_IK0_psi0.transpose(1, 0, 2)
         H_IK0_inv_h0[:3, 3, 3:] = -np.einsum("k,kij->ij", r_OP0, A_IK0_psi0)
