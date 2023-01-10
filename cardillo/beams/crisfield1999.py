@@ -1,9 +1,11 @@
 import numpy as np
 from cardillo.math import Exp_SO3, Log_SO3, T_SO3, approx_fprime
-from cardillo.beams._base import TimoshenkoPetrovGalerkinBase
+
+# from cardillo.beams._base import TimoshenkoPetrovGalerkinBase
+from cardillo.beams._base import TimoshenkoPetrovGalerkinBaseAxisAngle
 
 
-class Crisfield1999(TimoshenkoPetrovGalerkinBase):
+class Crisfield1999(TimoshenkoPetrovGalerkinBaseAxisAngle):
     def __init__(
         self,
         cross_section,
@@ -20,6 +22,10 @@ class Crisfield1999(TimoshenkoPetrovGalerkinBase):
         basis_r="Lagrange",
         basis_psi="Lagrange",
     ):
+        p = max(polynomial_degree_r, polynomial_degree_psi)
+        nquadrature = p
+        nquadrature_dyn = int(np.ceil((p + 1) ** 2 / 2))
+
         # reference rotation for relative rotation proposed by Crisfield1999 (5.8)
         nnodes_element_psi = polynomial_degree_psi + 1
         self.node_A = int(0.5 * (nnodes_element_psi + 1)) - 1
@@ -34,6 +40,8 @@ class Crisfield1999(TimoshenkoPetrovGalerkinBase):
             polynomial_degree_r,
             polynomial_degree_psi,
             nelement,
+            nquadrature,
+            nquadrature_dyn,
             Q,
             q0=q0,
             u0=u0,

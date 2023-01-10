@@ -4,6 +4,25 @@ from scipy.sparse import csc_matrix
 from scipy.sparse.linalg import spsolve, lsqr, lsmr, LinearOperator
 from cardillo.math import approx_fprime
 
+try:
+
+    def sparse_qr_solve(A, b):
+        """
+        Solve the sparse linear system Ax=b, using PySPQR wrapper to SuitSparse's sparse QR-solve
+        function.
+
+        References:
+        -----------
+        PySPQR: https://github.com/yig/PySPQR \\
+        SuiteSparseQR: http://faculty.cse.tamu.edu/davis/suitesparse.html
+        """
+        import sparseqr
+
+        return sparseqr.solve(A, b, tolerance=0)
+
+except:
+    pass
+
 
 def qr_solve(A, b):
     """
@@ -122,6 +141,7 @@ def fsolve(
     linear_solver=lu_solve,
     # linear_solver=lsqr_solve,
     # linear_solver=qr_solve,
+    # linear_solver=sparse_qr_solve,
     # linear_solver=qr_overdetermined_solve,
     # linear_solver=qr_underdetermined_solve,
 ):

@@ -785,95 +785,6 @@ def split_vtk(points):
     return vtk_points
 
 
-# class CubicBezierCurve:
-#     def __init__(self):
-#         self.vtk_cell_type = "VTK_BEZIER_CURVE"
-
-#     def split_vtk(self, points):
-#         """
-#         References:
-#         -----------
-
-#         VTKa: https://blog.kitware.com/modeling-arbitrary-order-lagrange-finite-elements-in-the-visualization-toolkit/ \\
-#         VTKb: https://coreform.com/papers/implementation-of-rational-bezier-cells-into-VTK-report.pdf
-#         """
-#         # extract dimensions
-#         np, dim = points.shape
-
-#         # reshape to segents
-#         points_segents = points.reshape(-1, 4, dim)
-#         n = len(points_segents)
-
-#         vtk_points = np.zeros_like(points_segents)
-#         for i in range(n):
-#             # VTK ordering, see https://coreform.com/papers/implementation-of-rational-bezier-cells-into-VTK-report.pdf:
-#             # 1. vertices (corners)
-#             # 2. edges
-#             vtk_points[i] = np.array([
-#                 points_segents[i, 0],
-#                 points_segents[i, 3],
-#                 points_segents[i, 1],
-#                 points_segents[i, 2],
-#             ], dtype=float)
-
-#         print(f"")
-#         return vtk_points
-
-
-#     def points_vtk(self, P):
-#         vertices, edges, faces, volume = self.split_vtk(P)
-#         return np.array(vertices + edges + faces + volume)
-
-#     # TODO: This is only a single Bezier element!
-#     def export(self, P, file):
-#         # points = self.points_vtk(P)
-#         points = self.split_vtk(P)
-
-#         cells = [(self.vtk_cell_type, np.arange(len(points))[None])]
-
-#         higher_order_degrees = [
-#             np.array([p, q, r])[None],
-#         ]
-
-#         # return points, cells, None, None
-#         point_data = None
-#         cell_data = {"HigherOrderDegrees": higher_order_degrees}
-
-#         meshio.write_points_cells(
-#             filename=file,
-#             points=points,
-#             cells=cells,
-#             point_data=point_data,
-#             cell_data=cell_data,
-#             binary=False,
-#         )
-
-# mesh = BezierMesh(p, q, r)
-
-# vertices, edges, faces, volume = mesh.split_vtk(Ps)
-# print(f"vertices:\n{vertices}")
-# print(f"edges:\n{edges}")
-# print(f"faces:\n{faces}")
-# print(f"volume:\n{volume}")
-
-# fig, ax = plt.subplots(figsize=(8, 8), subplot_kw=dict(projection="3d"))
-# ax.scatter(*Ps.T, color="black", label="points")
-# ax.scatter(*np.array(vertices).T, color="red", s=100, label="vertices")
-# if edges:
-#     ax.scatter(*np.array(edges).T, color="green", s=100, label="edges")
-# if faces:
-#     ax.scatter(*np.array(faces).T, color="blue", s=100, label="faces")
-# if volume:
-#     ax.scatter(*np.array(volume).T, color="black", s=100, label="volume")
-# ax.grid()
-# ax.legend()
-# plt.show()
-
-# here = Path(__file__)
-# path = here.parent / str(here.stem + ".vtu")
-# mesh.export(Ps, path)
-
-
 def test_C0_continous_composite_cubic_line():
     # number of Bezier segments
     n = 2
@@ -1017,7 +928,10 @@ def test_C2_continous_composite_cubic_line():
     plt.show()
 
 
-def L2_projection_Bezier_curve(target_points, n, case="C1"):
+def L2_projection_Bezier_curve(target_points, n, case="C1", cDOF=[0, -1]):
+    # extract dimension of points
+    dim = target_points.shape[1]
+
     # number of points of the target curve
     n_target_points = len(target_points)
 
@@ -1031,6 +945,7 @@ def L2_projection_Bezier_curve(target_points, n, case="C1"):
     idx_target_points = (np.abs(xis[:, None] - xis_target_points)).argmin(axis=1)
     initial_guess = target_points[idx_target_points]
 
+    # remove redundant points of Bezier patches depending on chosen continuity
     if case == "C-1":
         unique_initial_guess = initial_guess
     elif case == "C0":
@@ -1039,6 +954,16 @@ def L2_projection_Bezier_curve(target_points, n, case="C1"):
         unique_initial_guess = unique_points_C1_continous(initial_guess)
     else:
         raise NotImplementedError
+
+    # define constraint points
+    zDOF = np.arange(unique_initial_guess.shape[0])
+    # TODO: Is there a nicer solution to get index "-1" working?
+    cDOF = np.asarray(cDOF, dtype=int)
+    cDOF = zDOF[cDOF]
+    fDOF = np.setdiff1d(zDOF, cDOF)
+
+    # linearize unconstrainte points
+    x0 = unique_initial_guess[fDOF].reshape(-1)
 
     # knot vector
     knot_vector = np.array([i / (n) for i in range(n + 1)])
@@ -1051,12 +976,15 @@ def L2_projection_Bezier_curve(target_points, n, case="C1"):
 
     from scipy.optimize import minimize, least_squares
 
-    x0 = unique_initial_guess.reshape(-1)
-
-    dim = unique_initial_guess.shape[1]
-
     def residual(x):
-        unique_points = x.reshape(-1, dim)
+        # reshape vector to list of points
+        unknown_points = x.reshape(-1, dim)
+
+        # set constraint points
+        unique_points = unique_initial_guess.copy()
+        unique_points[fDOF] = unknown_points
+
+        # extend redundant points depending on chosen continuity
         if case == "C-1":
             points = unique_points
         elif case == "C0":
@@ -1090,9 +1018,15 @@ def L2_projection_Bezier_curve(target_points, n, case="C1"):
         K = sum([Ri @ Ri for Ri in R])
         return K
 
-    def solve_L2(x0):
+    def solve_L2(z0):
+        raise NotImplementedError
+        # # set constraint points
+        # z = np.zeros(nz, dtype=z0.dtype)
+        # z[fDOF] = x
+        # z[cDOF] = z0[cDOF]
+
         # compute unique points depending on required continuity
-        unique_points = x0.reshape(-1, dim)
+        unique_points = z0.reshape(-1, dim)
         if case == "C-1":
             points = unique_points
         elif case == "C0":
@@ -1191,14 +1125,20 @@ def L2_projection_Bezier_curve(target_points, n, case="C1"):
 
         return OptimizeResult(x=unique_points, success=True)
 
+    # solve optimization problem
     sol = least_squares(residual, x0)
     # sol = minimize(fun, x0, method="SLSQP")
     # sol = solve_L2(x0)
-
     success = sol.success
     assert success
     x = sol.x
-    unique_points = x.reshape(-1, dim)
+
+    # reshape solution to list of points
+    unknown_points = x.reshape(-1, dim)
+
+    # set constraint points
+    unique_points = unique_initial_guess.copy()
+    unique_points[fDOF] = unknown_points
 
     if case == "C-1":
         points = unique_points

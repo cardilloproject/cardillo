@@ -54,8 +54,8 @@ class RodExportBase(ABC):
         r = []
         for xi in np.linspace(0, 1, num):
             frame_ID = (xi,)
-            qe = q_body[self.local_qDOF_P(frame_ID)]
-            r.append(self.r_OP(1, qe, frame_ID))
+            qp = q_body[self.local_qDOF_P(frame_ID)]
+            r.append(self.r_OP(1, qp, frame_ID))
         return np.array(r).T
 
     def frames(self, q, num=10):
@@ -1125,7 +1125,7 @@ def make_TimoshenkoPetrovGalerkinBase(RotationBase):
         #########################################
         def q_dot(self, t, q, u):
             # centerline part
-            q_dot = np.zeros_like(q)
+            q_dot = np.zeros_like(q, dtype=np.common_type(q, u))
 
             # centerline part
             for node in range(self.nnodes_r):
@@ -1776,34 +1776,58 @@ def make_TimoshenkoPetrovGalerkinBase(RotationBase):
         # r_OP/ A_IK contribution
         #########################
         def r_OP(self, t, q, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
-            # evaluate shape functions
-            N_r, _ = self.basis_functions_r(frame_ID[0])
+            # # evaluate shape functions
+            # N_r, _ = self.basis_functions_r(frame_ID[0])
 
-            # interpolate centerline
-            r = np.zeros(3, dtype=q.dtype)
-            for node in range(self.nnodes_element_r):
-                r += N_r[node] * q[self.nodalDOF_element_r[node]]
+            # # interpolate centerline
+            # r = np.zeros(3, dtype=q.dtype)
+            # for node in range(self.nnodes_element_r):
+            #     r += N_r[node] * q[self.nodalDOF_element_r[node]]
 
-            # interpolate orientation
-            A_IK = self.A_IK(t, q, frame_ID)
+            # # interpolate orientation
+            # A_IK = self.A_IK(t, q, frame_ID)
 
-            return r + A_IK @ K_r_SP
+            r_OP, A_IK, _, _ = self._eval(q, frame_ID[0])
+
+            return r_OP + A_IK @ K_r_SP
 
         def r_OP_q(self, t, q, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
-            # evaluate shape functions
-            N_r, _ = self.basis_functions_r(frame_ID[0])
+            # # evaluate shape functions
+            # N_r, _ = self.basis_functions_r(frame_ID[0])
 
-            # interpolate centerline position
-            r_q = np.zeros((3, self.nq_element), dtype=q.dtype)
-            for node in range(self.nnodes_element_r):
-                nodalDOF_r = self.nodalDOF_element_r[node]
-                r_q[:, nodalDOF_r] += N_r[node] * np.eye(3, dtype=float)
+            # # interpolate centerline position
+            # r_q = np.zeros((3, self.nq_element), dtype=q.dtype)
+            # for node in range(self.nnodes_element_r):
+            #     nodalDOF_r = self.nodalDOF_element_r[node]
+            #     r_q[:, nodalDOF_r] += N_r[node] * np.eye(3, dtype=float)
 
-            # interpolate orientation
-            A_IK_q = self.A_IK_q(t, q, frame_ID)
+            # # interpolate orientation
+            # A_IK_q = self.A_IK_q(t, q, frame_ID)
 
-            r_OP_q = r_q + np.einsum("k,kij", K_r_SP, A_IK_q)
-            return r_OP_q
+            if not hasattr(self, "_deval"):
+                warnings.warn(
+                    "Class derived from TimoshenkoPetrovGalerkinBase does not implement _deval. We use a numerical Jacobian!"
+                )
+                return approx_fprime(
+                    qe,
+                    lambda qe: self.r_OP(t, q, frame_ID=frame_ID, K_r_SP=K_r_SP),
+                    eps=1.0e-10,
+                    method="cs",
+                )
+            else:
+                # evaluate required quantities
+                (
+                    r_OP,
+                    A_IK,
+                    _,
+                    _,
+                    r_OP_q,
+                    A_IK_q,
+                    _,
+                    _,
+                ) = self._deval(q, frame_ID[0])
+
+            return r_OP_q + np.einsum("k,kij", K_r_SP, A_IK_q)
 
             # r_OP_q_num = approx_fprime(
             #     q, lambda q: self.r_OP(t, q, frame_ID, K_r_SP), eps=1.0e-10, method="cs"

@@ -6,6 +6,7 @@ from cardillo.math import norm, cross3, ax2skew, trace3, ax2skew_a, ei, LeviCivi
 # for small angles we use first order approximations of the equations since
 # most of the SO(3) and SE(3) equations get singular for psi -> 0.
 angle_singular = 1.0e-6
+# angle_singular = 0.0
 
 
 def Exp_SO3(psi: np.ndarray) -> np.ndarray:
@@ -112,11 +113,12 @@ def Exp_SO3_psi(psi: np.ndarray) -> np.ndarray:
 
     return A_psi
 
+    # from cardillo.math import approx_fprime
     # A_psi_num = approx_fprime(psi, Exp_SO3, method="cs", eps=1.0e-10)
     # diff = A_psi - A_psi_num
     # error = np.linalg.norm(diff)
-    # if error > 1.0e-10:
-    #     print(f"error Exp_SO3_psi: {error}")
+    # # if error > 1.0e-10:
+    # print(f"error Exp_SO3_psi: {error}")
     # return A_psi_num
 
 
@@ -133,17 +135,26 @@ def Log_SO3(A: np.ndarray) -> np.ndarray:
     ], dtype=A.dtype)
     # fmt: on
 
+    # print(f"Remove this again!")
+    # psi = np.random.rand(3)
+    # psi *= np.pi / norm(psi)
+    # A = Exp_SO3(psi)
+    # P = Spurrier(A)
+    # psi_extracted1 = quat2axis_angle(P)
+    # psi_extracted2 = Log_SO3(A)
+
     if angle > angle_singular:
-        psi *= angle / np.sin(angle)
+        # psi *= angle / np.sin(angle)
+        psi *= angle / np.sqrt(1.0 - ca * ca)
     return psi
 
 
 def Log_SO3_A(A: np.ndarray) -> np.ndarray:
-    """Derivative of the SO(3) Log map. See Blanco2010 (10.11)
+    """Derivative of the SO(3) Log map. See Blanco-Claraco2010 (10.11)
 
     References:
     ===========
-    Claraco2010: https://doi.org/10.48550/arXiv.2103.15980
+    Blanco-Claraco2010: https://doi.org/10.48550/arXiv.2103.15980
     """
     ca = 0.5 * (trace3(A) - 1.0)
     ca = np.clip(ca, -1, 1)  # clip to [-1, 1] for arccos!
@@ -182,14 +193,14 @@ def Log_SO3_A(A: np.ndarray) -> np.ndarray:
 
 
 def T_SO3(psi: np.ndarray) -> np.ndarray:
-    angle = norm(psi)
+    angle2 = psi @ psi
+    angle = np.sqrt(angle2)
     if angle > angle_singular:
         # Park2005 (19), actually its the transposed!
         sa = np.sin(angle)
         ca = np.cos(angle)
         psi_tilde = ax2skew(psi)
         alpha = sa / angle
-        angle2 = angle * angle
         beta2 = (1.0 - ca) / angle2
         return (
             np.eye(3, dtype=float)
@@ -261,11 +272,14 @@ def T_SO3_psi(psi: np.ndarray) -> np.ndarray:
 
     return T_SO3_psi
 
+    # from cardillo.math import approx_fprime
     # T_SO3_psi_num = approx_fprime(psi, T_SO3, method="cs", eps=1.0e-10)
+    # # T_SO3_psi_num = approx_fprime(psi, T_SO3, method="3-point", eps=1.0e-6)
     # diff = T_SO3_psi - T_SO3_psi_num
     # error = np.linalg.norm(diff)
     # if error > 1.0e-8:
     #     print(f"error T_SO3_psi: {error}")
+    #     # print(f"error psi: {psi}")
     # return T_SO3_psi_num
 
 
@@ -301,7 +315,8 @@ def T_SO3_dot(psi: np.ndarray, psi_dot: np.ndarray) -> np.ndarray:
 
 
 def T_SO3_inv(psi: np.ndarray) -> np.ndarray:
-    angle = norm(psi)
+    angle2 = psi @ psi
+    angle = np.sqrt(angle2)
     psi_tilde = ax2skew(psi)
     if angle > angle_singular:
         # Park2005 (19), actually its the transposed!
@@ -309,7 +324,7 @@ def T_SO3_inv(psi: np.ndarray) -> np.ndarray:
         return (
             np.eye(3, dtype=float)
             + 0.5 * psi_tilde
-            + ((1.0 - gamma) / (angle * angle)) * psi_tilde @ psi_tilde
+            + ((1.0 - gamma) / angle2) * psi_tilde @ psi_tilde
         )
 
         # # Barfoot2014 (98), actually its the transposed!
@@ -344,13 +359,10 @@ def T_SO3_inv_psi(psi: np.ndarray) -> np.ndarray:
         angle2 = angle * angle
         c = (1.0 - gamma) / angle2
         # c_psi_k = (
-        #     -2.0 * c / angle2
-        #     - cot / (2.0 * angle2 * angle)
-        #     + 1.0 / (4.0 * angle2 * np.sin(0.5 * angle) ** 2)
-        # )
-        c_psi_k = (
-            1.0 / (4.0 * np.sin(0.5 * angle) ** 2) - cot / (2.0 * angle) - 2.0 * c
-        ) / angle2
+        #     1.0 / (4.0 * np.sin(0.5 * angle) ** 2) - cot / (2.0 * angle) - 2.0 * c
+        # ) / angle2
+        gamma_psi_k = gamma / angle2 * (1.0 - gamma) - 1.0 / 4.0
+        c_psi_k = (-2.0 * c - gamma_psi_k) / angle2
 
         ###########################################################
         # ((1.0 - gamma) / (angle * angle)) * psi_tilde @ psi_tilde
@@ -367,11 +379,12 @@ def T_SO3_inv_psi(psi: np.ndarray) -> np.ndarray:
 
     return T_SO3_inv_psi
 
+    # from cardillo.math import approx_fprime
     # T_SO3_inv_psi_num = approx_fprime(psi, T_SO3_inv, eps=1.0e-10, method="cs")
     # diff = T_SO3_inv_psi - T_SO3_inv_psi_num
     # error = np.linalg.norm(diff)
-    # if error > 1.0e-10:
-    #     print(f"error T_SO3_inv_psi: {error}")
+    # # if error > 1.0e-10:
+    # print(f"error T_SO3_inv_psi: {error}")
     # return T_SO3_inv_psi_num
 
 
@@ -407,10 +420,11 @@ def Exp_SE3_h(h: np.ndarray) -> np.ndarray:
 
     H_h = np.zeros((4, 4, 6), dtype=h.dtype)
     H_h[:3, :3, 3:] = Exp_SO3_psi(psi)
-    H_h[:3, 3, 3:] = np.einsum("k,kij->ij", r, T_SO3_psi(psi))
+    H_h[:3, 3, 3:] = np.einsum("l,lik->ik", r, T_SO3_psi(psi))
     H_h[:3, 3, :3] = T_SO3(psi).T
     return H_h
 
+    # from cardillo.math import approx_fprime
     # H_h_num =  approx_fprime(h, Exp_SE3, method="cs", eps=1.0e-10)
     # diff = H_h - H_h_num
     # error = np.linalg.norm(diff)
@@ -767,7 +781,7 @@ def smallest_rotation(
     # ########################
     # e = cross3(a0, a)
     # e_tilde = ax2skew(e)
-    # return np.eye(3) - e_tilde + (e_tilde @ e_tilde) / (1 + a0 @ a)
+    # return np.eye(3) + e_tilde + (e_tilde @ e_tilde) / (1 + a0 @ a)
 
     ########################
     # Crisfield1996 (16.105)
@@ -775,7 +789,7 @@ def smallest_rotation(
     cos_psi = a0 @ a
     denom = 1.0 + cos_psi
     e = cross3(a0, a)
-    return cos_psi * np.eye(3, dtype=e.dtype) - ax2skew(e) + np.outer(e, e) / denom
+    return cos_psi * np.eye(3, dtype=e.dtype) + ax2skew(e) + np.outer(e, e) / denom
 
 
 ##########################################
@@ -813,10 +827,16 @@ Log_SO3_quat = Spurrier
 
 
 def T_SO3_inv_quat(P):
-    """Inverse tangent map for unit quaternion."""
+    """Inverse tangent map for unit quaternion. See Egeland2002, (6.329) and
+    (6.330).
+
+    References:
+    -----------
+    Egenland2002: https://folk.ntnu.no/oe/Modeling%20and%20Simulation.pdf
+    """
     p0 = P[0]
     p = P[1:]
-    return np.vstack((-p.T, p0 * np.eye(3, dtype=P.dtype) + ax2skew(p)))
+    return 0.5 * np.vstack((-p.T, p0 * np.eye(3, dtype=P.dtype) + ax2skew(p)))
 
 
 def T_SO3_inv_quat_P():
@@ -888,6 +908,13 @@ def quat2rot(p):
     p_ = p / norm(p)
     v_p_tilde = ax2skew(p_[1:])
     return np.eye(3, dtype=p.dtype) + 2.0 * (v_p_tilde @ v_p_tilde + p_[0] * v_p_tilde)
+    skew = ax2skew(p[1:])
+    A_IK = np.eye(3, dtype=p.dtype) + (p_[0] * skew + skew @ skew) * 2.0 / (p @ p)
+
+
+if __name__ == "__main__":
+    Q = np.random.rand(4)
+    A_IK = quat2rot(Q)
 
 
 def quat2rot_p(p):
