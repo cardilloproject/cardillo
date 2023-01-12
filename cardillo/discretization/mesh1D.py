@@ -191,13 +191,15 @@ class Mesh1D:
                 squeeze=False,
             )
         elif self.basis == "Lagrange":
-            # return lagrange_basis1D(
-            #     self.degree, xis, self.derivative_order, self.knot_vector
-            # )
             return lagrange_basis1D(
-                self.degree, xis, self.derivative_order, self.knot_vector
+                self.degree,
+                xis,
+                self.derivative_order,
+                self.knot_vector,
+                squeeze=False,
             )
         elif self.basis == "Hermite":
+            raise RuntimeWarning("Do we have to use 'squeeze=False' here as well?")
             return cubic_Hermite_basis_1D(xis, self.knot_vector, self.derivative_order)
 
     def eval_basis(self, xi):
