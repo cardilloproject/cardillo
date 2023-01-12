@@ -841,9 +841,9 @@ def T_SO3_inv_quat(P):
 
 def T_SO3_inv_quat_P():
     Q_p = np.zeros((4, 3, 4), dtype=float)
-    Q_p[1:, :, 0] = np.eye(3, dtype=float)
-    Q_p[0, :, 1:] = -np.eye(3, dtype=float)
-    Q_p[1:, :, 1:] = ax2skew_a()
+    Q_p[0, :, 1:] = -0.5 * np.eye(3, dtype=float)
+    Q_p[1:, :, 0] = 0.5 * np.eye(3, dtype=float)
+    Q_p[1:, :, 1:] = 0.5 * ax2skew_a()
     return Q_p
 
 

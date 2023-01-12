@@ -32,7 +32,11 @@ class RigidBodyQuaternion(RigidBodyBase):
         self.nu = 6
         self.nla_S = 1
 
-        q0 = np.array([0, 0, 0, 1, 0, 0, 0]) if q0 is None else np.asarray(q0)
+        q0 = (
+            np.array([0, 0, 0, 1, 0, 0, 0], dtype=float)
+            if q0 is None
+            else np.asarray(q0)
+        )
         u0 = np.zeros(self.nu, dtype=float) if u0 is None else np.asarray(u0)
         self.la_S0 = np.zeros(self.nla_S, dtype=float)
 
@@ -53,34 +57,61 @@ class RigidBodyQuaternion(RigidBodyBase):
         dense[3:, 3:] = 2.0 * mu[0] * np.eye(4, 4, dtype=float)
         coo.extend(dense, (self.qDOF, self.qDOF))
 
-    def q_dot(self, t, q, u):
-        p = q[3:]
-        Q = quat2mat(p) / (2 * p @ p)
+    # def q_dot(self, t, q, u):
+    #     p = q[3:]
+    #     Q = quat2mat(p) / (2 * p @ p)
 
+    #     q_dot = np.zeros(self.nq, dtype=np.common_type(q, u))
+    #     q_dot[:3] = u[:3]
+    #     q_dot[3:] = Q[:, 1:] @ u[3:]
+    #     return q_dot
+
+    def q_dot(self, t, q, u):
+        from cardillo.math import T_SO3_inv_quat
+
+        p = q[3:]
         q_dot = np.zeros(self.nq, dtype=np.common_type(q, u))
         q_dot[:3] = u[:3]
-        q_dot[3:] = Q[:, 1:] @ u[3:]
-
+        q_dot[3:] = (T_SO3_inv_quat(p) @ u[3:]) / (p @ p)
         return q_dot
 
+    # def q_dot_q(self, t, q, u, coo):
+    #     p = q[3:]
+    #     p2 = p @ p
+    #     Q_p = quat2mat_p(p) / (2 * p2) - np.einsum(
+    #         "ij,k->ijk", quat2mat(p), p / (p2**2)
+    #     )
+
+    #     dense = np.zeros((self.nq, self.nq), dtype=np.common_type(q, u))
+    #     dense[3:, 3:] = np.einsum("ijk,j->ik", Q_p[:, 1:, :], u[3:])
+    #     coo.extend(dense, (self.qDOF, self.qDOF))
+
     def q_dot_q(self, t, q, u, coo):
+        from cardillo.math import T_SO3_inv_quat, T_SO3_inv_quat_P, approx_fprime
         p = q[3:]
         p2 = p @ p
-        Q_p = quat2mat_p(p) / (2 * p2) - np.einsum(
-            "ij,k->ijk", quat2mat(p), p / (p2**2)
-        )
-
+        K_omega_IK = u[3:]
         dense = np.zeros((self.nq, self.nq), dtype=np.common_type(q, u))
-        dense[3:, 3:] = np.einsum("ijk,j->ik", Q_p[:, 1:, :], u[3:])
+        dense[3:, 3:] = np.einsum(
+            "ijk,j", T_SO3_inv_quat_P() / p2, K_omega_IK
+        ) - np.outer(T_SO3_inv_quat(p) @ K_omega_IK, 2 * p / (p2**2))
         coo.extend(dense, (self.qDOF, self.qDOF))
 
-    def B(self, t, q, coo):
-        p = q[3:]
-        Q = quat2mat(p) / (2 * p @ p)
+    # def B(self, t, q, coo):
+    #     p = q[3:]
+    #     Q = quat2mat(p) / (2 * p @ p)
 
+    #     B = np.zeros((self.nq, self.nu), dtype=q.dtype)
+    #     B[:3, :3] = np.eye(3, dtype=float)
+    #     B[3:, 3:] = Q[:, 1:]
+    #     coo.extend(B, (self.qDOF, self.uDOF))
+
+    def B(self, t, q, coo):
+        from cardillo.math import T_SO3_inv_quat
+        p = q[3:]
         B = np.zeros((self.nq, self.nu), dtype=q.dtype)
         B[:3, :3] = np.eye(3, dtype=float)
-        B[3:, 3:] = Q[:, 1:]
+        B[3:, 3:] = T_SO3_inv_quat(p) / (p @ p)
         coo.extend(B, (self.qDOF, self.uDOF))
 
     def q_ddot(self, t, q, u, u_dot):
