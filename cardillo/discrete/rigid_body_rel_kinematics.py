@@ -1,9 +1,6 @@
 import numpy as np
 
-from cardillo.math.algebra import (
-    cross3,
-    ax2skew,
-)
+from cardillo.math.algebra import cross3, ax2skew, ax2skew_a
 
 from cardillo.math import approx_fprime
 
@@ -286,7 +283,9 @@ class RigidBodyRelKinematics:
 
     def v_P(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
         # v_B1 + A_IB1 B1_v_B1B2 + A_IK ( K_Omega x (K_r_SP - self.K_r_SB2) )
-        v_B2 = self.v_B1(t, q, u) + self.A_IB1(t, q) @ self.B1_v_B1B2(t, q, u)
+        v_B2 = self.v_B1(t, q, u) + self.A_IB1(t, q) @ (
+            self.B1_v_B1B2(t, q, u) + cross3(self.B1_Omegap(t, q), self.B1_r_B1B2(t, q))
+        )
         v_B2P = self.A_IK(t, q) @ cross3(self.K_Omega(t, q, u), K_r_SP - self.K_r_SB2)
         return v_B2 + v_B2P
 
@@ -307,7 +306,9 @@ class RigidBodyRelKinematics:
 
         K_r_B2P = K_r_SP - self.K_r_SB2
         J_P = -self.A_IK(t, q) @ ax2skew(K_r_B2P) @ self.K_J_R(t, q)
-        J_P[:, : self.nup] += self.J_B1(t, q)
+        J_P[:, : self.nup] += self.J_B1(t, q) - self.A_IB1(t, q) @ ax2skew(
+            self.B1_r_B1B2(t, q)
+        ) @ self.B1_J_Rp(t, q)
         J_P[:, self.nup :] += self.A_IB1(t, q) @ self.B1_J_B1B2(t, q)
         return J_P
 
@@ -321,7 +322,27 @@ class RigidBodyRelKinematics:
         J_P_q -= np.einsum(
             "ijk,jl->ilk", self.A_IK_q(t, q), ax2skew(K_r_B2P) @ self.K_J_R(t, q)
         )
-        J_P_q[:, : self.nup, : self.nqp] += self.J_B1_qp(t, q)
+        J_P_q[:, : self.nup, : self.nqp] += (
+            self.J_B1_qp(t, q)
+            - np.einsum(
+                "ij,jkl->ikl",
+                self.A_IB1(t, q) @ ax2skew(self.B1_r_B1B2(t, q)),
+                self.B1_J_Rp_qp(t, q),
+            )
+            - np.einsum(
+                "ijl,jk->ikl",
+                self.A_IB1_qp(t, q),
+                ax2skew(self.B1_r_B1B2(t, q)) @ self.B1_J_Rp(t, q),
+            )
+        )
+
+        J_P_q[:, : self.nup, self.nqp :] -= np.einsum(
+            "ijk,km,jl->ilm",
+            self.A_IB1(t, q) @ ax2skew_a(),
+            self.B1_r_B1B2_q2(t, q),
+            self.B1_J_Rp(t, q),
+        )
+
         J_P_q[:, self.nup :, : self.nqp] += np.einsum(
             "ijk,jl->ilk", self.A_IB1_qp(t, q), self.B1_J_B1B2(t, q)
         )
@@ -333,12 +354,19 @@ class RigidBodyRelKinematics:
 
     def a_P(self, t, q, u, u_dot, frame_ID=None, K_r_SP=np.zeros(3)):
         K_r_B2P = K_r_SP - self.K_r_SB2
-        a_B2 = self.a_B1(t, q, u, u_dot) + self.A_IB1(t, q) @ self.B1_a_B1B2(
-            t, q, u, u_dot
+        B1_r_B1B2 = self.B1_r_B1B2(t, q)
+        B1_Omegap = self.B1_Omegap(t, q, u)
+        K_Omega = self.K_Omega(t, q, u)
+        a_B2 = self.a_B1(t, q, u, u_dot) + self.A_IB1(t, q) @ (
+            self.B1_a_B1B2(t, q, u, u_dot)
+            + cross3(self.B1_Psip(t, q, u, u_dot), B1_r_B1B2)
+            + cross3(
+                B1_Omegap, 2 * self.B1_v_B1B2(t, q, u) + cross3(B1_Omegap, B1_r_B1B2)
+            )
         )
         a_B2P = self.A_IK(t, q) @ (
             cross3(self.K_Psi(t, q, u, u_dot), K_r_B2P)
-            + cross3(self.K_Omega(t, q, u), cross3(self.K_Omega(t, q, u), K_r_B2P))
+            + cross3(K_Omega, cross3(K_Omega, K_r_B2P))
         )
         return a_B2 + a_B2P
 
@@ -356,17 +384,25 @@ class RigidBodyRelKinematics:
         # return self.a_P(t, q, u, np.zeros(self.__nu), K_r_SP=K_r_SP)
 
         K_r_B2P = K_r_SP - self.K_r_SB2
-        kappa_P = self.kappa_B1(t, q, u) + self.A_IB1(t, q) @ self.B1_kappa_B1B2(
-            t, q, u
+        B1_r_B1B2 = self.B1_r_B1B2(t, q)
+        B1_Omegap = self.B1_Omegap(t, q, u)
+        K_Omega = self.K_Omega(t, q, u)
+        kappa_P = self.kappa_B1(t, q, u) + self.A_IB1(t, q) @ (
+            self.B1_kappa_B1B2(t, q, u)
+            + cross3(self.B1_kappa_Rp(t, q, u), B1_r_B1B2)
+            + cross3(
+                B1_Omegap, 2 * self.B1_v_B1B2(t, q, u) + cross3(B1_Omegap, B1_r_B1B2)
+            )
         )
         kappa_P += self.A_IK(t, q) @ (
             cross3(self.K_kappa_R(t, q, u), K_r_B2P)
-            + cross3(self.K_Omega(t, q, u), cross3(self.K_Omega(t, q, u), K_r_B2P))
+            + cross3(K_Omega, cross3(K_Omega, K_r_B2P))
         )
 
         return kappa_P
 
     def kappa_P_q(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
+        raise RuntimeError("Some terms are still missing!")
         K_r_B2P = K_r_SP - self.K_r_SB2
         K_Omega = self.K_Omega(t, q, u)
         K_Omega_q = self.K_Omega_q(t, q, u)
@@ -389,6 +425,7 @@ class RigidBodyRelKinematics:
         return kappa_P_q
 
     def kappa_P_u(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
+        raise RuntimeError("Some terms are still missing!")
         K_r_B2P = K_r_SP - self.K_r_SB2
         K_Omega = self.K_Omega(t, q, u)
         K_Omega_u = self.K_J_R(t, q)
