@@ -20,7 +20,7 @@ class RigidBodyRelKinematics:
         A_IK0=np.eye(3),
     ):
         self.m = m
-        self.theta = K_theta_S
+        self.K_theta_S = K_theta_S
         self.r_OS0 = r_OS0
         self.A_IK0 = A_IK0
 
@@ -177,7 +177,7 @@ class RigidBodyRelKinematics:
     def M(self, t, q, coo):
         J_S = self.J_P(t, q)
         J_R = self.K_J_R(t, q)
-        M = self.m * J_S.T @ J_S + J_R.T @ self.theta @ J_R
+        M = self.m * J_S.T @ J_S + J_R.T @ self.K_theta_S @ J_R
         coo.extend(M, (self.uDOF, self.uDOF))
 
     def Mu_q(self, t, q, u, coo):
@@ -189,8 +189,8 @@ class RigidBodyRelKinematics:
         Mu_q = (
             np.einsum("ijl,ik,k->jl", J_S_q, J_S, self.m * u)
             + np.einsum("ij,ikl,k->jl", J_S, J_S_q, self.m * u)
-            + np.einsum("ijl,ik,k->jl", J_R_q, self.theta @ J_R, u)
-            + np.einsum("ij,jkl,k->il", J_R.T @ self.theta, J_R_q, u)
+            + np.einsum("ijl,ik,k->jl", J_R_q, self.K_theta_S @ J_R, u)
+            + np.einsum("ij,jkl,k->il", J_R.T @ self.K_theta_S, J_R_q, u)
         )
 
         coo.extend(Mu_q, (self.uDOF, self.qDOF))
@@ -200,16 +200,21 @@ class RigidBodyRelKinematics:
         return -(
             self.m * self.J_P(t, q).T @ self.kappa_P(t, q, u)
             + self.K_J_R(t, q).T
-            @ (self.theta @ self.K_kappa_R(t, q, u) + cross3(Omega, self.theta @ Omega))
+            @ (
+                self.K_theta_S @ self.K_kappa_R(t, q, u)
+                + cross3(Omega, self.K_theta_S @ Omega)
+            )
         )
 
     def h_q(self, t, q, u, coo):
         Omega = self.K_Omega(t, q, u)
         Omega_q = self.K_Omega_q(t, q, u)
-        tmp1 = self.theta @ self.K_kappa_R(t, q, u)
-        tmp1_q = self.theta @ self.K_kappa_R_q(t, q, u)
-        tmp2 = cross3(Omega, self.theta @ Omega)
-        tmp2_q = (ax2skew(Omega) @ self.theta - ax2skew(self.theta @ Omega)) @ Omega_q
+        tmp1 = self.K_theta_S @ self.K_kappa_R(t, q, u)
+        tmp1_q = self.K_theta_S @ self.K_kappa_R_q(t, q, u)
+        tmp2 = cross3(Omega, self.K_theta_S @ Omega)
+        tmp2_q = (
+            ax2skew(Omega) @ self.K_theta_S - ax2skew(self.K_theta_S @ Omega)
+        ) @ Omega_q
 
         f_gyr_q = -(
             np.einsum("jik,j->ik", self.J_P_q(t, q), self.m * self.kappa_P(t, q, u))
@@ -223,8 +228,10 @@ class RigidBodyRelKinematics:
     def h_u(self, t, q, u, coo):
         Omega = self.K_Omega(t, q, u)
         Omega_u = self.K_J_R(t, q)
-        tmp1_u = self.theta @ self.K_kappa_R_u(t, q, u)
-        tmp2_u = (ax2skew(Omega) @ self.theta - ax2skew(self.theta @ Omega)) @ Omega_u
+        tmp1_u = self.K_theta_S @ self.K_kappa_R_u(t, q, u)
+        tmp2_u = (
+            ax2skew(Omega) @ self.K_theta_S - ax2skew(self.K_theta_S @ Omega)
+        ) @ Omega_u
 
         h_u = -(
             self.m * self.J_P(t, q).T @ self.kappa_P_u(t, q, u)

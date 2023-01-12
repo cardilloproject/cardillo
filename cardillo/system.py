@@ -46,11 +46,12 @@ class System:
 
         self.contributions = []
 
-    def add(self, contr):
-        if not contr in self.contributions:
-            self.contributions.append(contr)
-        else:
-            raise ValueError(f"contribution {str(contr)} already added")
+    def add(self, *contrs):
+        for contr in contrs:
+            if not contr in self.contributions:
+                self.contributions.append(contr)
+            else:
+                raise ValueError(f"contribution {str(contr)} already added")
 
     def remove(self, contr):
         if contr in self.contributions:

@@ -27,6 +27,11 @@ class RigidBodyBase(ABC):
         self.u0 = u0
         self.q0 = q0
 
+        self.is_assembled = False
+
+    def assembler_callback(self):
+        self.is_assembled = True
+
     def M(self, t, q, coo):
         coo.extend(self.__M, (self.uDOF, self.uDOF))
 
@@ -102,6 +107,21 @@ class RigidBodyBase(ABC):
         J_P_q = np.zeros((3, self.nu, self.nq), dtype=q.dtype)
         J_P_q[:, 3:, :] = np.einsum("ijk,jl->ilk", self.A_IK_q(t, q), -ax2skew(K_r_SP))
         return J_P_q
+
+    def kappa_P(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
+        return self.A_IK(t, q) @ (cross3(u[3:], cross3(u[3:], K_r_SP)))
+
+    def kappa_P_q(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
+        return np.einsum(
+            "ijk,j->ik", self.A_IK_q(t, q), cross3(u[3:], cross3(u[3:], K_r_SP))
+        )
+
+    def kappa_P_u(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
+        kappa_P_u = np.zeros((3, self.nu))
+        kappa_P_u[:, 3:] = -self.A_IK(t, q) @ (
+            ax2skew(cross3(u[3:], K_r_SP)) + ax2skew(u[3:]) @ ax2skew(K_r_SP)
+        )
+        return kappa_P_u
 
     def K_Omega(self, t, q, u, frame_ID=None):
         return u[3:]

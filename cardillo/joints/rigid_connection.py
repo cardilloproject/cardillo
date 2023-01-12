@@ -2,14 +2,14 @@ import numpy as np
 
 
 class RigidConnection:
-    def __init__(self, r_OB1, A_IB1):
+    def __init__(self):
         self.nq = 0
         self.nu = 0
         self.q0 = np.array([])
         self.u0 = np.array([])
 
-        self.r_OB1 = r_OB1
-        self.A_IB1 = A_IB1
+        self.r_OB1 = np.zeros(3)
+        self.A_IB1 = np.eye(3)
 
         self.is_assembled = False
 
