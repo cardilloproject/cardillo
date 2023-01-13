@@ -3,19 +3,20 @@ from scipy.integrate import solve_ivp
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
-from cardillo.math import A_IK_basic, axis_angle2quat, cross3, quat2axis_angle, norm
+from cardillo.math import A_IK_basic, axis_angle2quat, cross3
 from cardillo import System
 from cardillo.discrete import (
     Frame,
     RigidBodyQuaternion,
+    RigidBodyRelKinematics,
 )
 from cardillo.constraints import RevoluteJoint, RigidConnection
+from cardillo.joints import RigidConnection as RigidJoint
 from cardillo.forces import Force, PDRotationalJoint, LinearSpring, LinearDamper
 from cardillo.solver import EulerBackward, ScipyIVP
 
-revolute_joint_used = False
 
-if __name__ == "__main__":
+def run(revolute_joint_used=False, use_relative_kinematics=False):
     # parameters
     m = 1
     L = 2
@@ -81,7 +82,13 @@ if __name__ == "__main__":
     u10 = np.concatenate((v_S10, K_omega0))
     u20 = np.concatenate((v_S20, K_omega0))
     RB1 = RigidBodyQuaternion(m / 2, K_theta_S1, q0=q10, u0=u10)
-    RB2 = RigidBodyQuaternion(m / 2, K_theta_S2, q0=q20, u0=u20)
+    if use_relative_kinematics:
+        rigid_joint = RigidJoint()
+        RB2 = RigidBodyRelKinematics(
+            m / 2, K_theta_S2, rigid_joint, RB1, r_OS0=r_OS20, A_IK0=A_IK0
+        )
+    else:
+        RB2 = RigidBodyQuaternion(m / 2, K_theta_S2, q0=q20, u0=u20)
 
     if revolute_joint_used:
         joint = RevoluteJoint(frame, RB1, r_OP(0), np.eye(3))
@@ -97,13 +104,17 @@ if __name__ == "__main__":
         )
 
     system.add(RB1)
-    system.add(RB2)
+    if use_relative_kinematics:
+        system.add(rigid_joint, RB2)
+    else:
+        system.add(RB2)
     gravity1 = Force(np.array([0, -m / 2 * g, 0]), RB1)
     system.add(gravity1)
     gravity2 = Force(np.array([0, -m / 2 * g, 0]), RB2)
     system.add(gravity2)
     system.add(joint)
-    system.add(RigidConnection(RB1, RB2, r_OS0))
+    if not use_relative_kinematics:
+        system.add(RigidConnection(RB1, RB2, r_OS0))
     system.assemble()
 
     ############################################################################
@@ -311,3 +322,10 @@ if __name__ == "__main__":
     # ax.plot(sol.t, n2)
 
     plt.show()
+
+
+if __name__ == "__main__":
+    # run(False, False)
+    # run(True, False)
+    # run(False, True)
+    run(True, True)
