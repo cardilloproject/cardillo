@@ -1,6 +1,9 @@
 # solution class and IO
 from .solution import Solution, save_solution, load_solution
 
+# common solver functionality
+from ._base import consistent_initial_conditions
+
 # dynamic solvers
 from .scipy_ivp import ScipyIVP
 from .radau import RadauIIa
