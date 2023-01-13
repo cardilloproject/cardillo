@@ -23,6 +23,8 @@ properties.extend(["gamma_F"])
 
 properties.extend(["assembler_callback", "pre_iteration_update", "step_callback"])
 
+from cardillo.discrete.frame import Frame
+
 
 class System:
     """Sparse model implementation which assembles all global objects without copying on body and element level.
@@ -45,6 +47,9 @@ class System:
         self.nla_F = 0
 
         self.contributions = []
+
+        self.origin = Frame()
+        self.add(self.origin)
 
     def add(self, contr):
         if not contr in self.contributions:

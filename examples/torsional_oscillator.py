@@ -3,7 +3,6 @@ import matplotlib.pyplot as plt
 
 from cardillo import System
 from cardillo.solver import ScipyIVP, EulerBackward
-from cardillo.discrete import Frame
 from cardillo.constraints import RevoluteJoint
 from cardillo.discrete import RigidBodyEuler
 from cardillo.forces import (
@@ -41,9 +40,9 @@ if __name__ == "__main__":
     alpha_dot0 = 10
     u0[5] = alpha_dot0
 
-    rigid_body = RigidCylinder(m, r, l, q0, u0)
+    model = System()
 
-    origin = Frame()
+    rigid_body = RigidCylinder(m, r, l, q0, u0)
 
     # joint = PDRotationalJoint(RevoluteJoint, Spring=LinearSpring)(
     #     origin,
@@ -62,7 +61,7 @@ if __name__ == "__main__":
     # )
 
     joint = PDRotationalJoint(RevoluteJoint, Spring=LinearSpring, Damper=LinearDamper)(
-        origin,
+        model.origin,
         rigid_body,
         np.zeros(3),
         np.eye(3),
@@ -76,8 +75,6 @@ if __name__ == "__main__":
     # M = K_Moment(np.array([0, 1, 0]), rigid_body)
     M = K_Moment(np.array([0, 0, 1]), rigid_body)
 
-    model = System()
-    model.add(origin)
     model.add(rigid_body)
     model.add(joint)
     # model.add(F)
