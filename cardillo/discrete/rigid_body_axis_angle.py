@@ -1,10 +1,9 @@
-from optparse import Option
 from typing import Optional
 import numpy as np
 import numpy.typing as npt
 from cardillo.discrete.rigid_body_base import RigidBodyBase
-from cardillo.math import cross3, ax2skew, norm, approx_fprime
-from cardillo.math import rodriguez, inverse_tangent_map, pi
+from cardillo.math import norm
+from cardillo.math import Exp_SO3, Exp_SO3_psi, T_SO3_inv, T_SO3_inv_psi, pi
 
 
 class RigidBodyAxisAngle(RigidBodyBase):
@@ -47,17 +46,13 @@ class RigidBodyAxisAngle(RigidBodyBase):
         return q_dot
 
     def B_omega(self, q):
-        T_inv = inverse_tangent_map(q[3:])
+        T_inv = T_SO3_inv(q[3:])
         return T_inv
-        # T = tangent_map(q[3:])
-        # T_inv_num = np.linalg.inv(T)
-        # # error = np.linalg.norm(T_inv - T_inv_num)
-        # # print(f'error T_inv: {error}')
-        # return T_inv_num
 
-    # TODO: analytical derivative
     def q_dot_q_dense(self, t, q, u):
-        return approx_fprime(q, lambda q: self.q_dot(t, q, u))
+        dense = np.zeros((self.nq, self.nq), dtype=float)
+        dense[3:, 3:] = np.einsum("ijk,j->ik", T_SO3_inv_psi(q[3:]), u[3:])
+        return dense
 
     def q_dot_q(self, t, q, u, coo):
         coo.extend(self.q_dot_q_dense(t, q, u), (self.qDOF, self.qDOF))
@@ -77,8 +72,9 @@ class RigidBodyAxisAngle(RigidBodyBase):
         coo.extend(B, (self.qDOF, self.uDOF))
 
     def A_IK(self, t, q, frame_ID=None):
-        return rodriguez(q[3:])
+        return Exp_SO3(q[3:])
 
-    # TODO: analytical derivative
     def A_IK_q(self, t, q, frame_ID=None):
-        return approx_fprime(q, lambda q: self.A_IK(t, q))
+        dense = np.zeros((3, 3, self.nq), dtype=float)
+        dense[:, :, 3:] = Exp_SO3_psi(q[3:])
+        return dense
