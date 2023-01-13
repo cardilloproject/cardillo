@@ -45,6 +45,9 @@ class LinearGuidance:
     def B1_v_B1B2(self, t, q, u):
         return np.array([u[0], 0, 0])
 
+    def B1_v_B1B2_q(self, t, q, u):
+        return np.zeros((3, 1))
+
     def B1_J_B1B2(self, t, q):
         J = np.zeros((3, 1))
         J[0, 0] = 1
@@ -60,6 +63,9 @@ class LinearGuidance:
         return np.zeros(3)
 
     def B1_kappa_B1B2_q(self, t, q, u):
+        return np.zeros((3, 1))
+
+    def B1_kappa_B1B2_u(self, t, q, u):
         return np.zeros((3, 1))
 
     def B1_Omega_B1B2(self, t, q, u):

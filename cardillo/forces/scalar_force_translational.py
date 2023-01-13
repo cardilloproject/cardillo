@@ -35,7 +35,7 @@ class ScalarForceTranslational:
             else:
                 self.h = lambda t, q, u: self.__f_spring(t, q)
                 self.h_q = lambda t, q, u, coo: coo.extend(
-                    self.__f_spring_q(t, q, coo), (self.uDOF, self.qDOF)
+                    self.__f_spring_q(t, q), (self.uDOF, self.qDOF)
                 )
         else:
             self.h = lambda t, q, u: self.__f_damper(t, q, u)
