@@ -23,7 +23,7 @@ if __name__ == "__main__":
     k = 1.0e2
     d = 4
 
-    frame = Frame()
+    system = System()
 
     q0 = np.array([0.01, 0.01, -L * 0.9])
     u0 = np.zeros(3, dtype=float)
@@ -40,11 +40,9 @@ if __name__ == "__main__":
     linear_spring = LinearSpring(k, g_ref=L)
     linear_damper = LinearDamper(d)
     scalar_force_element = ScalarForceTranslational(
-        frame, mass, linear_spring, linear_damper
+        system.origin, mass, linear_spring, linear_damper
     )
 
-    system = System()
-    system.add(frame)
     system.add(mass)
     if case == "force":
         system.add(f_g_statics)

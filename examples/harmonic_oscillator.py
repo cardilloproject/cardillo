@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 
 from cardillo import System
 from cardillo.solver import ScipyIVP, EulerBackward
-from cardillo.discrete import Frame, PointMass
+from cardillo.discrete import PointMass
 from cardillo.forces import Force
 from cardillo.forces import (
     LinearDamper,
@@ -18,23 +18,21 @@ if __name__ == "__main__":
     k = 2.0e2
     d = 4
 
-    frame = Frame()
+    model = System()
 
     q0 = np.array([0, 0, -l0])
     mass = PointMass(m, q0=q0, u0=np.zeros(3))
 
     f_g = Force(lambda t: np.array([0, 0, -m * g]), mass)
 
-    # linear_spring = LinearSpring(k)
-    linear_spring = None
+    linear_spring = LinearSpring(k)
+    # linear_spring = None
     linear_damper = LinearDamper(d)
     # linear_damper = None
     scalar_force_element = ScalarForceTranslational(
-        frame, mass, linear_spring, linear_damper
+        model.origin, mass, linear_spring, linear_damper
     )
 
-    model = System()
-    model.add(frame)
     model.add(mass)
     model.add(f_g)
     model.add(scalar_force_element)

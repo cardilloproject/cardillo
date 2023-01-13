@@ -1,5 +1,6 @@
 import numpy as np
 from cardillo.utility.coo import Coo
+from cardillo.discrete.frame import Frame
 from scipy.sparse import coo_matrix, csc_matrix, csr_matrix
 from scipy.sparse.linalg import spsolve
 from copy import deepcopy
@@ -45,6 +46,9 @@ class System:
         self.nla_F = 0
 
         self.contributions = []
+
+        self.origin = Frame()
+        self.add(self.origin)
 
     def add(self, *contrs):
         for contr in contrs:

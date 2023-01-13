@@ -4,7 +4,6 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from cardillo.math.rotations import Spurrier
 
-from cardillo.discrete import Frame
 from cardillo.discrete import (
     RigidBodyQuaternion,
 )
@@ -12,10 +11,9 @@ from cardillo.constraints import SphericalJoint
 from cardillo.math.algebra import cross3
 from cardillo import System
 from cardillo.solver import (
+    EulerBackward,
     GeneralizedAlphaFirstOrder,
     GeneralizedAlphaSecondOrder,
-    GeneralizedAlphaFirstOrderGGLGiuseppe,
-    HalfExplicitEuler,
 )
 
 
@@ -89,16 +87,15 @@ v_S0 = A_IK0 @ cross3(K_Omega0, K_r_OS0)
 u0 = np.concatenate((v_S0, K_Omega0))
 
 #################
-# build the model
+# build the system
 #################
+system = System()
+
 top = HeavyTopQuaternion(A, B, grav, q0, u0)
-frame = Frame()
-spherical_joint = SphericalJoint(frame, top, np.zeros(3, dtype=float))
-model = System()
-model.add(top)
-model.add(frame)
-model.add(spherical_joint)
-model.assemble()
+spherical_joint = SphericalJoint(system.origin, top, np.zeros(3, dtype=float))
+system.add(top)
+system.add(spherical_joint)
+system.assemble()
 
 
 def show_animation(top, t, q, scale=1, show=False):
@@ -185,33 +182,26 @@ def show_animation(top, t, q, scale=1, show=False):
 def state():
     rho_inf = 0.9
     tol = 1.0e-8
-    # t1 = 1
     t1 = 0.25
     dt = 1.0e-3
 
-    # sol = HalfExplicitEuler(model, t1, dt, tol).solve()
+    sol = EulerBackward(system, t1, dt, atol=tol).solve()
 
-    sol = GeneralizedAlphaFirstOrder(
-        model,
-        t1,
-        dt,
-        rho_inf=rho_inf,
-        tol=tol,
-        unknowns="velocities",
-        GGL=False,
-        # GGL=True,
-        numerical_jacobian=False,
-        # numerical_jacobian=True,
-    ).solve()
-
-    # sol = GeneralizedAlphaFirstOrderGGLGiuseppe(
-    #     model, t1, dt, rho_inf=rho_inf, tol=tol
+    # sol = GeneralizedAlphaFirstOrder(
+    #     system,
+    #     t1,
+    #     dt,
+    #     rho_inf=rho_inf,
+    #     tol=tol,
+    #     unknowns="velocities",
+    #     GGL=False,
+    #     # GGL=True,
+    #     # numerical_jacobian=False,
+    #     numerical_jacobian=True,
     # ).solve()
 
-    # sol = HalfExplicitEulerFixedPoint(model, t1, dt, atol=tol).solve()
-
     # sol = GeneralizedAlphaSecondOrder(
-    #     model, t1, dt, rho_inf=rho_inf, tol=tol
+    #     system, t1, dt, rho_inf=rho_inf, tol=tol
     # ).solve()
 
     t = sol.t
@@ -314,40 +304,40 @@ def transient():
 
     # solve index 3 problem with rho_inf = 0.9
     # sol_9 = GeneralizedAlphaFirstOrder(
-    #     model, t1, h, rho_inf=0.9, tol=tol, unknowns="velocities", GGL=False
+    #     system, t1, h, rho_inf=0.9, tol=tol, unknowns="velocities", GGL=False
     # ).solve()
     sol_9 = GeneralizedAlphaFirstOrderGGLGiuseppe(
-        model, t1, h, rho_inf=0.9, tol=tol
+        system, t1, h, rho_inf=0.9, tol=tol
     ).solve()
     export_la_g(sol_9, "la_g_9.txt")
 
     # solve index 3 problem with rho_inf = 0.6
     sol_6 = GeneralizedAlphaFirstOrder(
-        model, t1, h, rho_inf=0.6, tol=tol, unknowns="velocities", GGL=False
+        system, t1, h, rho_inf=0.6, tol=tol, unknowns="velocities", GGL=False
     ).solve()
     export_la_g(sol_6, "la_g_6.txt")
 
     # solve GGL with rho_inf = 0.9
     sol_9_GGL = GeneralizedAlphaFirstOrder(
-        model, t1, h, rho_inf=0.9, tol=tol, unknowns="velocities", GGL=True
+        system, t1, h, rho_inf=0.9, tol=tol, unknowns="velocities", GGL=True
     ).solve()
     export_la_g(sol_9_GGL, "la_g_9_GGL.txt")
 
     # solve GGL with rho_inf = 0.6
     sol_6_GGL = GeneralizedAlphaFirstOrder(
-        model, t1, h, rho_inf=0.6, tol=tol, unknowns="velocities", GGL=True
+        system, t1, h, rho_inf=0.6, tol=tol, unknowns="velocities", GGL=True
     ).solve()
     export_la_g(sol_6_GGL, "la_g_6_GGL.txt")
 
     # # solve GGL with rho_inf = 0.9
     # sol_9_GGL2 = GenAlphaFirstOrderGGL2_V3(
-    #     model, t1, h, rho_inf=0.9, tol=tol, unknowns="velocities"
+    #     system, t1, h, rho_inf=0.9, tol=tol, unknowns="velocities"
     # ).solve()
     # export_la_g(sol_9_GGL2, "la_g_9_GGL2.txt")
 
     # # solve GGL with rho_inf = 0.6
     # sol_6_GGL2 = GenAlphaFirstOrderGGL2_V3(
-    #     model, t1, h, rho_inf=0.6, tol=tol, unknowns="velocities"
+    #     system, t1, h, rho_inf=0.6, tol=tol, unknowns="velocities"
     # ).solve()
     # export_la_g(sol_6_GGL2, "la_g_6_GGL2.txt")
 
@@ -455,15 +445,15 @@ def gaps():
         #     u_dot = sol.u_dot  # other solvers
         u_dot = sol.u_dot  # other solvers
 
-        g = np.array([np.linalg.norm(model.g(ti, qi)) for ti, qi in zip(t, q)])
+        g = np.array([np.linalg.norm(system.g(ti, qi)) for ti, qi in zip(t, q)])
 
         g_dot = np.array(
-            [np.linalg.norm(model.g_dot(ti, qi, ui)) for ti, qi, ui in zip(t, q, u)]
+            [np.linalg.norm(system.g_dot(ti, qi, ui)) for ti, qi, ui in zip(t, q, u)]
         )
 
         g_ddot = np.array(
             [
-                np.linalg.norm(model.g_ddot(ti, qi, ui, u_doti))
+                np.linalg.norm(system.g_ddot(ti, qi, ui, u_doti))
                 for ti, qi, ui, u_doti in zip(t, q, u, u_dot)
             ]
         )
@@ -481,22 +471,22 @@ def gaps():
 
     # solve index 3 problem with rho_inf = 0.9
     sol_9 = GeneralizedAlphaFirstOrder(
-        model, t1, h, rho_inf=0.9, tol=tol, unknowns="velocities", GGL=False
+        system, t1, h, rho_inf=0.9, tol=tol, unknowns="velocities", GGL=False
     ).solve()
     g_9, g_dot_9, g_ddot_9 = export_gaps(sol_9, "g_9.txt")
 
     # solve GGL with rho_inf = 0.9
     sol_9_GGL = GeneralizedAlphaFirstOrder(
-        model, t1, h, rho_inf=0.9, tol=tol, unknowns="velocities", GGL=True
+        system, t1, h, rho_inf=0.9, tol=tol, unknowns="velocities", GGL=True
     ).solve()
     g_9_GGL, g_dot_9_GGL, g_ddot_9_GGL = export_gaps(sol_9_GGL, "g_9_GGL.txt")
 
     # solve GGL2 with rho_inf = 0.9
     # sol_9_GGL2 = GenAlphaFirstOrderGGL2_V3(
-    #     model, t1, h, rho_inf=0.9, tol=tol, unknowns="velocities"
+    #     system, t1, h, rho_inf=0.9, tol=tol, unknowns="velocities"
     # ).solve()
     sol_9_GGL2 = GeneralizedAlphaFirstOrderGGLGiuseppe(
-        model, t1, h, rho_inf=0.9, tol=tol
+        system, t1, h, rho_inf=0.9, tol=tol
     ).solve()
     g_9_GGL2, g_dot_9_GGL2, g_ddot_9_GGL2 = export_gaps(sol_9_GGL2, "g_9_GGL2.txt")
 
@@ -602,22 +592,28 @@ def convergence():
     ###################################################################
     # print(f"compute reference solution with first order method:")
     # reference1 = GeneralizedAlphaFirstOrder(
-    #     model, t1, dt_ref, rho_inf=rho_inf, tol=tol_ref, unknowns="velocities", GGL=False
+    #     system, t1, dt_ref, rho_inf=rho_inf, tol=tol_ref, unknowns="velocities", GGL=False
     # ).solve()
 
     print(f"compute reference solution with first order method + GGL:")
     reference1_GGL = GeneralizedAlphaFirstOrder(
-        model, t1, dt_ref, rho_inf=rho_inf, tol=tol_ref, unknowns="velocities", GGL=True
+        system,
+        t1,
+        dt_ref,
+        rho_inf=rho_inf,
+        tol=tol_ref,
+        unknowns="velocities",
+        GGL=True,
     ).solve()
 
     # print(f"compute reference solution with second order method:")
     # reference2 = GeneralizedAlphaSecondOrder(
-    #     model, t1, dt_ref, rho_inf=rho_inf, tol=tol_ref, GGL=False
+    #     system, t1, dt_ref, rho_inf=rho_inf, tol=tol_ref, GGL=False
     # ).solve()
 
     # print(f"compute reference solution with second order method + GGL:")
     # reference2_GGL = GeneralizedAlphaSecondOrder(
-    #     model, t1, dt_ref, rho_inf=rho_inf, tol=tol_ref, GGL=True
+    #     system, t1, dt_ref, rho_inf=rho_inf, tol=tol_ref, GGL=True
     # ).solve()
 
     print(f"done")
@@ -779,7 +775,7 @@ def convergence():
 
         # generalized alpha for mechanical systems in second order form
         sol = GeneralizedAlphaSecondOrder(
-            model, t1, dt, rho_inf=rho_inf, tol=tol
+            system, t1, dt, rho_inf=rho_inf, tol=tol
         ).solve()
         (
             q_errors_transient[0, i],
@@ -792,7 +788,7 @@ def convergence():
 
         # generalized alpha for mechanical systems in first order form (velocity formulation)
         sol = GeneralizedAlphaFirstOrder(
-            model, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="velocities", GGL=False
+            system, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="velocities", GGL=False
         ).solve()
         (
             q_errors_transient[1, i],
@@ -805,7 +801,7 @@ def convergence():
 
         # generalized alpha for mechanical systems in first order form (velocity formulation - GGL)
         sol = GeneralizedAlphaFirstOrder(
-            model, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="velocities", GGL=True
+            system, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="velocities", GGL=True
         ).solve()
         (
             q_errors_transient[2, i],
