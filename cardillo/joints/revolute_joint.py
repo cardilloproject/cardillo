@@ -46,7 +46,7 @@ class RevoluteJoint:
 
     def B1_v_B1B2(self, t, q, u):
         return np.zeros(3)
-    
+
     def B1_v_B1B2_q(self, t, q, u):
         return np.zeros((3, self.nq))
 

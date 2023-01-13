@@ -15,7 +15,7 @@ if __name__ == "__main__":
     # parameters
     m1 = 1
     theta1 = 1
-    K_Theta_S1 =theta1 * np.eye(3)
+    K_Theta_S1 = theta1 * np.eye(3)
     m2 = 1
     theta2 = 1
     K_Theta_S2 = theta2 * np.eye(3)
@@ -39,14 +39,18 @@ if __name__ == "__main__":
     origin = Frame()
     system.add(origin)
 
-    revolute_joint = RevoluteJoint(np.zeros(3), np.eye(3), q0=np.array([phi0]), u0=np.array([phi_dot0]))
+    revolute_joint = RevoluteJoint(
+        np.zeros(3), np.eye(3), q0=np.array([phi0]), u0=np.array([phi_dot0])
+    )
     r_OS10 = a1 * np.array([np.cos(phi0), np.sin(phi0), 0])
     RB1 = RigidBodyRelKinematics(
         m1, K_Theta_S1, revolute_joint, origin, r_OS0=r_OS10, A_IK0=A_IK_basic(phi0).z()
     )
     system.add(revolute_joint, RB1)
 
-    lin_guidance = LinearGuidance(np.zeros(3), A_IK_basic(phi0).z(), q0=np.array([x0]), u0=np.array([x_dot0]))
+    lin_guidance = LinearGuidance(
+        np.zeros(3), A_IK_basic(phi0).z(), q0=np.array([x0]), u0=np.array([x_dot0])
+    )
     r_OS10 = x0 * np.array([np.cos(phi0), np.sin(phi0), 0])
     RB2 = RigidBodyRelKinematics(
         m2, K_Theta_S2, lin_guidance, RB1, r_OS0=r_OS10, A_IK0=A_IK_basic(phi0).z()
@@ -56,7 +60,6 @@ if __name__ == "__main__":
     spring = ScalarForceTranslational(RB1, RB2, LinearSpring(stiffness), None)
     system.add(spring)
 
-    
     gravity1 = Force(np.array([0, -m1 * g, 0]), RB1)
     system.add(gravity1)
     gravity2 = Force(np.array([0, -m2 * g, 0]), RB2)
@@ -86,10 +89,11 @@ if __name__ == "__main__":
         dy = np.zeros(4)
         dy[0] = phi_dot
         dy[1] = x_dot
-        dy[2] = - ( 2 * m2 * x * x_dot * phi_dot + g * np.cos(phi) * (a1 * m1 + x * m2)) / (m1 * a1**2 + m2 * x**2 + theta1 + theta2)
-        dy[3] = - stiffness * (x - x0) / m2 + x * phi_dot**2 - g * np.sin(phi)
+        dy[2] = -(
+            2 * m2 * x * x_dot * phi_dot + g * np.cos(phi) * (a1 * m1 + x * m2)
+        ) / (m1 * a1**2 + m2 * x**2 + theta1 + theta2)
+        dy[3] = -stiffness * (x - x0) / m2 + x * phi_dot**2 - g * np.sin(phi)
         return dy
-
 
     y0 = np.array([phi0, x0, phi_dot0, x_dot0])
     ref = solve_ivp(
@@ -104,10 +108,10 @@ if __name__ == "__main__":
     y_ref = ref.y
     t_ref = ref.t
 
-    plt.plot(t, q, 'x')
+    plt.plot(t, q, "x")
     plt.plot(t_ref, y_ref[:2].T)
     plt.show()
-    
+
     ############################################################################
     #                   animation
     ############################################################################
@@ -167,7 +171,7 @@ if __name__ == "__main__":
         )
 
         return COM, d11_, d21_, d31_, d12_, d22_, d32_
-    
+
     def update(t, q, COM, d11_, d21_, d31_, d12_, d22_, d32_):
         x_0, y_0, z_0 = np.zeros(3)
         x_S1, y_S1, z_S1 = RB1.r_OP(t, q[RB1.qDOF])
@@ -212,4 +216,3 @@ if __name__ == "__main__":
         fig, animate, frames=frames, interval=interval, blit=False
     )
     plt.show()
-   
