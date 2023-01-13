@@ -119,8 +119,8 @@ if __name__ == "__main__":
     # solver = EulerBackward(system, t1, dt, method="index 1")
     # solver = EulerBackward(system, t1, dt, method="index 2")
     # solver = EulerBackward(system, t1, dt, method="index 3")
-    # solver = EulerBackward(system, t1, dt, method="index 2 GGL")
-    solver = ScipyIVP(system, t1, dt)
+    solver = EulerBackward(system, t1, dt, method="index 2 GGL")
+    # solver = ScipyIVP(system, t1, dt)
 
     sol = solver.solve()
     t = sol.t
