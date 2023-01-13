@@ -154,6 +154,9 @@ class RigidBodyRelKinematics:
         self.B1_kappa_B1B2_q2 = lambda t, q, u: self.joint.B1_kappa_B1B2_q(
             t, q[nqp:], u[nup:]
         )
+        self.B1_kappa_B1B2_u2 = lambda t, q, u: self.joint.B1_kappa_B1B2_u(
+            t, q[nqp:], u[nup:]
+        )
         self.B1_Psi_B1B2 = lambda t, q, u, u_dot: self.joint.B1_Psi_B1B2(
             t, q[nqp:], u[nup:], u_dot[nup:]
         )
@@ -402,10 +405,14 @@ class RigidBodyRelKinematics:
         return kappa_P
 
     def kappa_P_q(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
-        raise RuntimeError("Some terms are still missing!")
+        # raise RuntimeError("Some terms are still missing!")
         K_r_B2P = K_r_SP - self.K_r_SB2
         K_Omega = self.K_Omega(t, q, u)
         K_Omega_q = self.K_Omega_q(t, q, u)
+        B1_r_B1B2 = self.B1_r_B1B2(t, q)
+        B1_r_B1B2_q2 = self.B1_r_B1B2_q2(t, q)
+        B1_Omegap = self.B1_Omegap(t, q, u)
+        B1_Omegap_qp = self.B1_Omegap_qp(t, q, u)
 
         tmp1 = cross3(self.K_kappa_R(t, q, u), K_r_B2P)
         tmp1_q = -ax2skew(K_r_B2P) @ self.K_kappa_R_q(t, q, u)
@@ -418,27 +425,76 @@ class RigidBodyRelKinematics:
         kappa_P_q = np.einsum("ijk,j->ik", self.A_IK_q(t, q), tmp1 + tmp2) + self.A_IK(
             t, q
         ) @ (tmp1_q + tmp2_q)
-        kappa_P_q[:, : self.nqp] += self.kappa_B1_qp(t, q, u) + np.einsum(
-            "ijk,j->ik", self.A_IB1_qp(t, q), self.B1_kappa_B1B2(t, q, u)
+
+        tmp3 = (
+            self.B1_kappa_B1B2(t, q, u)
+            + cross3(self.B1_kappa_Rp(t, q, u), B1_r_B1B2)
+            + cross3(
+                B1_Omegap, 2 * self.B1_v_B1B2(t, q, u) + cross3(B1_Omegap, B1_r_B1B2)
+            )
         )
-        kappa_P_q[:, self.nqp :] += self.A_IB1(t, q) @ self.B1_kappa_B1B2_q2(t, q, u)
+        tmp3_qp = (
+            -ax2skew(B1_r_B1B2) @ self.B1_kappa_Rp_qp(t, q, u)
+            - (
+                ax2skew(2 * self.B1_v_B1B2(t, q, u) + cross3(B1_Omegap, B1_r_B1B2))
+                + ax2skew(B1_Omegap) @ ax2skew(B1_r_B1B2)
+            )
+            @ B1_Omegap_qp
+        )
+        tmp3_q2 = (
+            self.B1_kappa_B1B2_q2(t, q, u)
+            + ax2skew(self.B1_kappa_Rp(t, q, u)) @ B1_r_B1B2_q2
+            + ax2skew(B1_Omegap)
+            @ (2 * self.B1_v_B1B2_q2(t, q, u) + ax2skew(B1_Omegap) @ B1_r_B1B2_q2)
+        )
+
+        kappa_P_q[:, : self.nqp] += (
+            self.kappa_B1_qp(t, q, u)
+            + np.einsum("ijk,j->ik", self.A_IB1_qp(t, q), tmp3)
+            + self.A_IB1(t, q) @ tmp3_qp
+        )
+        kappa_P_q[:, self.nqp :] += self.A_IB1(t, q) @ tmp3_q2
         return kappa_P_q
 
     def kappa_P_u(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
-        raise RuntimeError("Some terms are still missing!")
         K_r_B2P = K_r_SP - self.K_r_SB2
         K_Omega = self.K_Omega(t, q, u)
         K_Omega_u = self.K_J_R(t, q)
+        B1_r_B1B2 = self.B1_r_B1B2(t, q)
+        B1_Omegap = self.B1_Omegap(t, q, u)
+        B1_Omegap_up = self.B1_J_Rp(t, q)
 
         tmp1_u = -ax2skew(K_r_B2P) @ self.K_kappa_R_u(t, q, u)
         tmp2_u = (
             -(ax2skew(cross3(K_Omega, K_r_B2P)) + ax2skew(K_Omega) @ ax2skew(K_r_B2P))
             @ K_Omega_u
         )
-
+        kappa_P = self.kappa_B1(t, q, u) + self.A_IB1(t, q) @ (
+            self.B1_kappa_B1B2(t, q, u)
+            + cross3(self.B1_kappa_Rp(t, q, u), B1_r_B1B2)
+            + cross3(
+                B1_Omegap, 2 * self.B1_v_B1B2(t, q, u) + cross3(B1_Omegap, B1_r_B1B2)
+            )
+        )
+        tmp3 = (
+            self.B1_kappa_B1B2(t, q, u)
+            + cross3(self.B1_kappa_Rp(t, q, u), B1_r_B1B2)
+            + cross3(
+                B1_Omegap, 2 * self.B1_v_B1B2(t, q, u) + cross3(B1_Omegap, B1_r_B1B2)
+            )
+        )
+        tmp3_up = (
+            -ax2skew(B1_r_B1B2) @ self.B1_kappa_Rp_up(t, q, u)
+            - (
+                ax2skew(B1_Omegap) @ ax2skew(B1_r_B1B2)
+                + ax2skew(2 * self.B1_v_B1B2(t, q, u) + cross3(B1_Omegap, B1_r_B1B2))
+            )
+            @ B1_Omegap_up
+        )
+        tmp3_u2 = self.B1_kappa_B1B2_u2(t, q, u) + 2 * ax2skew(B1_Omegap) @ self.B1_J_B1B2(t, q)
         kappa_P_u = self.A_IK(t, q) @ (tmp1_u + tmp2_u)
-        kappa_P_u[:, : self.nup] += self.kappa_B1_up(t, q, u)
-        kappa_P_u[:, self.nup :] += self.A_IB1(t, q) @ self.B1_kappa_R_B1B2_u2(t, q, u)
+        kappa_P_u[:, : self.nup] += self.kappa_B1_up(t, q, u) + self.A_IB1(t, q) @ tmp3_up
+        kappa_P_u[:, self.nup :] += self.A_IB1(t, q) @ tmp3_u2
         return kappa_P_u
 
     def K_Omega(self, t, q, u, frame_ID=None):
