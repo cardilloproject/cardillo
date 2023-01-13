@@ -47,6 +47,9 @@ class RevoluteJoint:
     def B1_v_B1B2(self, t, q, u):
         return np.zeros(3)
 
+    def B1_v_B1B2_q(self, t, q, u):
+        return np.zeros((3, self.nq))
+
     def B1_J_B1B2(self, t, q):
         return np.zeros((3, 1))
 
@@ -60,6 +63,9 @@ class RevoluteJoint:
         return np.zeros(3)
 
     def B1_kappa_B1B2_q(self, t, q, u):
+        return np.zeros((3, 1))
+
+    def B1_kappa_B1B2_u(self, t, q, u):
         return np.zeros((3, 1))
 
     def B1_Omega_B1B2(self, t, q, u):

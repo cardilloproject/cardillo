@@ -1,9 +1,6 @@
 import numpy as np
 
-from cardillo.math.algebra import (
-    cross3,
-    ax2skew,
-)
+from cardillo.math.algebra import cross3, ax2skew, ax2skew_a
 
 from cardillo.math import approx_fprime
 
@@ -20,7 +17,7 @@ class RigidBodyRelKinematics:
         A_IK0=np.eye(3),
     ):
         self.m = m
-        self.theta = K_theta_S
+        self.K_theta_S = K_theta_S
         self.r_OS0 = r_OS0
         self.A_IK0 = A_IK0
 
@@ -73,7 +70,7 @@ class RigidBodyRelKinematics:
         self.r_OB1 = lambda t, q: self.predecessor.r_OP(
             t, q[:nqp], self.frame_IDp, K_r_SpB1
         )
-        self.r_OB1_q1 = lambda t, q: self.predecessor.r_OP_q(
+        self.r_OB1_qp = lambda t, q: self.predecessor.r_OP_q(
             t, q[:nqp], self.frame_IDp, K_r_SpB1
         )
         self.v_B1 = lambda t, q, u: self.predecessor.v_P(
@@ -157,6 +154,9 @@ class RigidBodyRelKinematics:
         self.B1_kappa_B1B2_q2 = lambda t, q, u: self.joint.B1_kappa_B1B2_q(
             t, q[nqp:], u[nup:]
         )
+        self.B1_kappa_B1B2_u2 = lambda t, q, u: self.joint.B1_kappa_B1B2_u(
+            t, q[nqp:], u[nup:]
+        )
         self.B1_Psi_B1B2 = lambda t, q, u, u_dot: self.joint.B1_Psi_B1B2(
             t, q[nqp:], u[nup:], u_dot[nup:]
         )
@@ -177,7 +177,7 @@ class RigidBodyRelKinematics:
     def M(self, t, q, coo):
         J_S = self.J_P(t, q)
         J_R = self.K_J_R(t, q)
-        M = self.m * J_S.T @ J_S + J_R.T @ self.theta @ J_R
+        M = self.m * J_S.T @ J_S + J_R.T @ self.K_theta_S @ J_R
         coo.extend(M, (self.uDOF, self.uDOF))
 
     def Mu_q(self, t, q, u, coo):
@@ -189,8 +189,8 @@ class RigidBodyRelKinematics:
         Mu_q = (
             np.einsum("ijl,ik,k->jl", J_S_q, J_S, self.m * u)
             + np.einsum("ij,ikl,k->jl", J_S, J_S_q, self.m * u)
-            + np.einsum("ijl,ik,k->jl", J_R_q, self.theta @ J_R, u)
-            + np.einsum("ij,jkl,k->il", J_R.T @ self.theta, J_R_q, u)
+            + np.einsum("ijl,ik,k->jl", J_R_q, self.K_theta_S @ J_R, u)
+            + np.einsum("ij,jkl,k->il", J_R.T @ self.K_theta_S, J_R_q, u)
         )
 
         coo.extend(Mu_q, (self.uDOF, self.qDOF))
@@ -200,21 +200,27 @@ class RigidBodyRelKinematics:
         return -(
             self.m * self.J_P(t, q).T @ self.kappa_P(t, q, u)
             + self.K_J_R(t, q).T
-            @ (self.theta @ self.K_kappa_R(t, q, u) + cross3(Omega, self.theta @ Omega))
+            @ (
+                self.K_theta_S @ self.K_kappa_R(t, q, u)
+                + cross3(Omega, self.K_theta_S @ Omega)
+            )
         )
 
     def h_q(self, t, q, u, coo):
         Omega = self.K_Omega(t, q, u)
         Omega_q = self.K_Omega_q(t, q, u)
-        tmp1 = self.theta @ self.K_kappa_R(t, q, u)
-        tmp1_q = self.theta @ self.K_kappa_R_q(t, q, u)
-        tmp2 = cross3(Omega, self.theta @ Omega)
-        tmp2_q = (ax2skew(Omega) @ self.theta - ax2skew(self.theta @ Omega)) @ Omega_q
+        J_P_q = self.J_P_q(t, q)
+        tmp1 = self.K_theta_S @ self.K_kappa_R(t, q, u)
+        tmp1_q = self.K_theta_S @ self.K_kappa_R_q(t, q, u)
+        tmp2 = cross3(Omega, self.K_theta_S @ Omega)
+        tmp2_q = (
+            ax2skew(Omega) @ self.K_theta_S - ax2skew(self.K_theta_S @ Omega)
+        ) @ Omega_q
 
         f_gyr_q = -(
-            np.einsum("jik,j->ik", self.J_P_q(t, q), self.m * self.kappa_P(t, q, u))
+            np.einsum("jik,j->ik", J_P_q, self.m * self.kappa_P(t, q, u))
             + self.m * self.J_P(t, q).T @ self.kappa_P_q(t, q, u)
-            + np.einsum("jik,j->ik", self.J_P_q(t, q), tmp1 + tmp2)
+            + np.einsum("jik,j->ik", J_P_q, tmp1 + tmp2)
             + self.K_J_R(t, q).T @ (tmp1_q + tmp2_q)
         )
 
@@ -223,8 +229,10 @@ class RigidBodyRelKinematics:
     def h_u(self, t, q, u, coo):
         Omega = self.K_Omega(t, q, u)
         Omega_u = self.K_J_R(t, q)
-        tmp1_u = self.theta @ self.K_kappa_R_u(t, q, u)
-        tmp2_u = (ax2skew(Omega) @ self.theta - ax2skew(self.theta @ Omega)) @ Omega_u
+        tmp1_u = self.K_theta_S @ self.K_kappa_R_u(t, q, u)
+        tmp2_u = (
+            ax2skew(Omega) @ self.K_theta_S - ax2skew(self.K_theta_S @ Omega)
+        ) @ Omega_u
 
         h_u = -(
             self.m * self.J_P(t, q).T @ self.kappa_P_u(t, q, u)
@@ -268,7 +276,7 @@ class RigidBodyRelKinematics:
 
     def r_OP_q(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
         r_OP_q = np.einsum("ijk,j->ik", self.A_IK_q(t, q), (K_r_SP - self.K_r_SB2))
-        r_OP_q[:, : self.nqp] += self.r_OB1_q1(t, q) + np.einsum(
+        r_OP_q[:, : self.nqp] += self.r_OB1_qp(t, q) + np.einsum(
             "ijk,j->ik", self.A_IB1_qp(t, q), self.B1_r_B1B2(t, q)
         )
         r_OP_q[:, self.nqp :] += self.A_IB1(t, q) @ self.B1_r_B1B2_q2(t, q)
@@ -279,7 +287,9 @@ class RigidBodyRelKinematics:
 
     def v_P(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
         # v_B1 + A_IB1 B1_v_B1B2 + A_IK ( K_Omega x (K_r_SP - self.K_r_SB2) )
-        v_B2 = self.v_B1(t, q, u) + self.A_IB1(t, q) @ self.B1_v_B1B2(t, q, u)
+        v_B2 = self.v_B1(t, q, u) + self.A_IB1(t, q) @ (
+            self.B1_v_B1B2(t, q, u) + cross3(self.B1_Omegap(t, q), self.B1_r_B1B2(t, q))
+        )
         v_B2P = self.A_IK(t, q) @ cross3(self.K_Omega(t, q, u), K_r_SP - self.K_r_SB2)
         return v_B2 + v_B2P
 
@@ -299,70 +309,125 @@ class RigidBodyRelKinematics:
         # return J_P_num
 
         K_r_B2P = K_r_SP - self.K_r_SB2
+        A_IB1 = self.A_IB1(t, q)
         J_P = -self.A_IK(t, q) @ ax2skew(K_r_B2P) @ self.K_J_R(t, q)
-        J_P[:, : self.nup] += self.J_B1(t, q)
-        J_P[:, self.nup :] += self.A_IB1(t, q) @ self.B1_J_B1B2(t, q)
+        J_P[:, : self.nup] += self.J_B1(t, q) - A_IB1 @ ax2skew(
+            self.B1_r_B1B2(t, q)
+        ) @ self.B1_J_Rp(t, q)
+        J_P[:, self.nup :] += A_IB1 @ self.B1_J_B1B2(t, q)
         return J_P
 
     def J_P_q(self, t, q, frame_ID=None, K_r_SP=np.zeros(3)):
         # return Numerical_derivative(lambda t, q: self.J_P(t, q, K_r_SP=K_r_SP))._x(t, q)
 
         K_r_B2P = K_r_SP - self.K_r_SB2
+        A_IB1 = self.A_IB1(t, q)
+        B1_r_B1B2 = self.B1_r_B1B2(t, q)
+        A_IB1_qp = self.A_IB1_qp(t, q)
+        B1_J_Rp = self.B1_J_Rp(t, q)
+
         J_P_q = np.einsum(
             "ij,jkl->ikl", -self.A_IK(t, q) @ ax2skew(K_r_B2P), self.K_J_R_q(t, q)
         )
         J_P_q -= np.einsum(
             "ijk,jl->ilk", self.A_IK_q(t, q), ax2skew(K_r_B2P) @ self.K_J_R(t, q)
         )
-        J_P_q[:, : self.nup, : self.nqp] += self.J_B1_qp(t, q)
+        J_P_q[:, : self.nup, : self.nqp] += (
+            self.J_B1_qp(t, q)
+            - np.einsum(
+                "ij,jkl->ikl",
+                A_IB1 @ ax2skew(B1_r_B1B2),
+                self.B1_J_Rp_qp(t, q),
+            )
+            - np.einsum(
+                "ijl,jk->ikl",
+                A_IB1_qp,
+                ax2skew(B1_r_B1B2) @ B1_J_Rp,
+            )
+        )
+
+        J_P_q[:, : self.nup, self.nqp :] -= np.einsum(
+            "ijk,km,jl->ilm",
+            A_IB1 @ ax2skew_a(),
+            self.B1_r_B1B2_q2(t, q),
+            B1_J_Rp,
+        )
+
         J_P_q[:, self.nup :, : self.nqp] += np.einsum(
-            "ijk,jl->ilk", self.A_IB1_qp(t, q), self.B1_J_B1B2(t, q)
+            "ijk,jl->ilk", A_IB1_qp, self.B1_J_B1B2(t, q)
         )
         J_P_q[:, self.nup :, self.nqp :] += np.einsum(
-            "ij,jlk->ilk", self.A_IB1(t, q), self.B1_J_B1B2_q2(t, q)
+            "ij,jlk->ilk", A_IB1, self.B1_J_B1B2_q2(t, q)
         )
 
         return J_P_q
 
     def a_P(self, t, q, u, u_dot, frame_ID=None, K_r_SP=np.zeros(3)):
         K_r_B2P = K_r_SP - self.K_r_SB2
-        a_B2 = self.a_B1(t, q, u, u_dot) + self.A_IB1(t, q) @ self.B1_a_B1B2(
-            t, q, u, u_dot
+        B1_r_B1B2 = self.B1_r_B1B2(t, q)
+        B1_Omegap = self.B1_Omegap(t, q, u)
+        K_Omega = self.K_Omega(t, q, u)
+
+        a_B2 = self.a_B1(t, q, u, u_dot) + self.A_IB1(t, q) @ (
+            self.B1_a_B1B2(t, q, u, u_dot)
+            + cross3(self.B1_Psip(t, q, u, u_dot), B1_r_B1B2)
+            + cross3(
+                B1_Omegap, 2 * self.B1_v_B1B2(t, q, u) + cross3(B1_Omegap, B1_r_B1B2)
+            )
         )
         a_B2P = self.A_IK(t, q) @ (
             cross3(self.K_Psi(t, q, u, u_dot), K_r_B2P)
-            + cross3(self.K_Omega(t, q, u), cross3(self.K_Omega(t, q, u), K_r_B2P))
+            + cross3(K_Omega, cross3(K_Omega, K_r_B2P))
         )
         return a_B2 + a_B2P
 
     def a_P_q(self, t, q, u, u_dot, frame_ID=None, K_r_SP=np.zeros(3)):
-        return Numerical_derivative(
-            lambda t, q, u: self.a_P(t, q, u, u_dot, frame_ID=frame_ID, K_r_SP=K_r_SP)
-        )._x(t, q, u)
+        return approx_fprime(
+            q,
+            lambda q: self.a_P(t, q, u, u_dot, frame_ID=frame_ID, K_r_SP=K_r_SP),
+            method="3-point",
+        )
 
     def a_P_u(self, t, q, u, u_dot, frame_ID=None, K_r_SP=np.zeros(3)):
-        return Numerical_derivative(
-            lambda t, q, u: self.a_P(t, q, u, u_dot, frame_ID=frame_ID, K_r_SP=K_r_SP)
-        )._y(t, q, u)
+        return approx_fprime(
+            u,
+            lambda u: self.a_P(t, q, u, u_dot, frame_ID=frame_ID, K_r_SP=K_r_SP),
+            method="3-point",
+        )
 
     def kappa_P(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
         # return self.a_P(t, q, u, np.zeros(self.__nu), K_r_SP=K_r_SP)
 
         K_r_B2P = K_r_SP - self.K_r_SB2
-        kappa_P = self.kappa_B1(t, q, u) + self.A_IB1(t, q) @ self.B1_kappa_B1B2(
-            t, q, u
+        B1_r_B1B2 = self.B1_r_B1B2(t, q)
+        B1_Omegap = self.B1_Omegap(t, q, u)
+        K_Omega = self.K_Omega(t, q, u)
+
+        kappa_P = self.kappa_B1(t, q, u) + self.A_IB1(t, q) @ (
+            self.B1_kappa_B1B2(t, q, u)
+            + cross3(self.B1_kappa_Rp(t, q, u), B1_r_B1B2)
+            + cross3(
+                B1_Omegap, 2 * self.B1_v_B1B2(t, q, u) + cross3(B1_Omegap, B1_r_B1B2)
+            )
         )
         kappa_P += self.A_IK(t, q) @ (
             cross3(self.K_kappa_R(t, q, u), K_r_B2P)
-            + cross3(self.K_Omega(t, q, u), cross3(self.K_Omega(t, q, u), K_r_B2P))
+            + cross3(K_Omega, cross3(K_Omega, K_r_B2P))
         )
 
         return kappa_P
 
     def kappa_P_q(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
+        # raise RuntimeError("Some terms are still missing!")
         K_r_B2P = K_r_SP - self.K_r_SB2
         K_Omega = self.K_Omega(t, q, u)
         K_Omega_q = self.K_Omega_q(t, q, u)
+        B1_r_B1B2 = self.B1_r_B1B2(t, q)
+        B1_r_B1B2_q2 = self.B1_r_B1B2_q2(t, q)
+        B1_Omegap = self.B1_Omegap(t, q, u)
+        B1_Omegap_qp = self.B1_Omegap_qp(t, q, u)
+        B1_kappa_Rp = self.B1_kappa_Rp(t, q, u)
+        A_IB1 = self.A_IB1(t, q)
 
         tmp1 = cross3(self.K_kappa_R(t, q, u), K_r_B2P)
         tmp1_q = -ax2skew(K_r_B2P) @ self.K_kappa_R_q(t, q, u)
@@ -375,26 +440,69 @@ class RigidBodyRelKinematics:
         kappa_P_q = np.einsum("ijk,j->ik", self.A_IK_q(t, q), tmp1 + tmp2) + self.A_IK(
             t, q
         ) @ (tmp1_q + tmp2_q)
-        kappa_P_q[:, : self.nqp] += self.kappa_B1_qp(t, q, u) + np.einsum(
-            "ijk,j->ik", self.A_IB1_qp(t, q), self.B1_kappa_B1B2(t, q, u)
+
+        tmp4 = 2 * self.B1_v_B1B2(t, q, u) + cross3(B1_Omegap, B1_r_B1B2)
+        tmp3 = (
+            self.B1_kappa_B1B2(t, q, u)
+            + cross3(B1_kappa_Rp, B1_r_B1B2)
+            + cross3(B1_Omegap, tmp4)
         )
-        kappa_P_q[:, self.nqp :] += self.A_IB1(t, q) @ self.B1_kappa_B1B2_q2(t, q, u)
+        tmp3_qp = (
+            -ax2skew(B1_r_B1B2) @ self.B1_kappa_Rp_qp(t, q, u)
+            - (ax2skew(tmp4) + ax2skew(B1_Omegap) @ ax2skew(B1_r_B1B2)) @ B1_Omegap_qp
+        )
+        tmp3_q2 = (
+            self.B1_kappa_B1B2_q2(t, q, u)
+            + ax2skew(B1_kappa_Rp) @ B1_r_B1B2_q2
+            + ax2skew(B1_Omegap)
+            @ (2 * self.B1_v_B1B2_q2(t, q, u) + ax2skew(B1_Omegap) @ B1_r_B1B2_q2)
+        )
+
+        kappa_P_q[:, : self.nqp] += (
+            self.kappa_B1_qp(t, q, u)
+            + np.einsum("ijk,j->ik", self.A_IB1_qp(t, q), tmp3)
+            + A_IB1 @ tmp3_qp
+        )
+        kappa_P_q[:, self.nqp :] += A_IB1 @ tmp3_q2
         return kappa_P_q
 
     def kappa_P_u(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
         K_r_B2P = K_r_SP - self.K_r_SB2
         K_Omega = self.K_Omega(t, q, u)
         K_Omega_u = self.K_J_R(t, q)
+        B1_r_B1B2 = self.B1_r_B1B2(t, q)
+        B1_Omegap = self.B1_Omegap(t, q, u)
+        A_IB1 = self.A_IB1(t, q)
 
         tmp1_u = -ax2skew(K_r_B2P) @ self.K_kappa_R_u(t, q, u)
         tmp2_u = (
             -(ax2skew(cross3(K_Omega, K_r_B2P)) + ax2skew(K_Omega) @ ax2skew(K_r_B2P))
             @ K_Omega_u
         )
-
+        # kappa_P = self.kappa_B1(t, q, u) + A_IB1 @ (
+        #     self.B1_kappa_B1B2(t, q, u)
+        #     + cross3(self.B1_kappa_Rp(t, q, u), B1_r_B1B2)
+        #     + cross3(
+        #         B1_Omegap, 2 * self.B1_v_B1B2(t, q, u) + cross3(B1_Omegap, B1_r_B1B2)
+        #     )
+        # )
+        # tmp3 = (
+        #     self.B1_kappa_B1B2(t, q, u)
+        #     + cross3(self.B1_kappa_Rp(t, q, u), B1_r_B1B2)
+        #     + cross3(
+        #         B1_Omegap, 2 * self.B1_v_B1B2(t, q, u) + cross3(B1_Omegap, B1_r_B1B2)
+        #     )
+        # )
+        tmp3_up = -ax2skew(B1_r_B1B2) @ self.B1_kappa_Rp_up(t, q, u) - (
+            ax2skew(B1_Omegap) @ ax2skew(B1_r_B1B2)
+            + ax2skew(2 * self.B1_v_B1B2(t, q, u) + cross3(B1_Omegap, B1_r_B1B2))
+        ) @ self.B1_J_Rp(t, q)
+        tmp3_u2 = self.B1_kappa_B1B2_u2(t, q, u) + 2 * ax2skew(
+            B1_Omegap
+        ) @ self.B1_J_B1B2(t, q)
         kappa_P_u = self.A_IK(t, q) @ (tmp1_u + tmp2_u)
-        kappa_P_u[:, : self.nup] += self.kappa_B1_up(t, q, u)
-        kappa_P_u[:, self.nup :] += self.A_IB1(t, q) @ self.B1_kappa_R_B1B2_u2(t, q, u)
+        kappa_P_u[:, : self.nup] += self.kappa_B1_up(t, q, u) + A_IB1 @ tmp3_up
+        kappa_P_u[:, self.nup :] += A_IB1 @ tmp3_u2
         return kappa_P_u
 
     def K_Omega(self, t, q, u, frame_ID=None):

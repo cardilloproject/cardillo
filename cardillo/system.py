@@ -1,5 +1,6 @@
 import numpy as np
 from cardillo.utility.coo import Coo
+from cardillo.discrete.frame import Frame
 from scipy.sparse import coo_matrix, csc_matrix, csr_matrix
 from scipy.sparse.linalg import spsolve
 from copy import deepcopy
@@ -22,8 +23,6 @@ properties.extend(["g_N"])
 properties.extend(["gamma_F"])
 
 properties.extend(["assembler_callback", "pre_iteration_update", "step_callback"])
-
-from cardillo.discrete.frame import Frame
 
 
 class System:
@@ -51,11 +50,12 @@ class System:
         self.origin = Frame()
         self.add(self.origin)
 
-    def add(self, contr):
-        if not contr in self.contributions:
-            self.contributions.append(contr)
-        else:
-            raise ValueError(f"contribution {str(contr)} already added")
+    def add(self, *contrs):
+        for contr in contrs:
+            if not contr in self.contributions:
+                self.contributions.append(contr)
+            else:
+                raise ValueError(f"contribution {str(contr)} already added")
 
     def remove(self, contr):
         if contr in self.contributions:
