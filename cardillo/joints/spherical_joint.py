@@ -1,6 +1,11 @@
 import numpy as np
 
-from cardillo.math.rotations import quat2mat, quat2mat_p, quat2rot, quat2rot_p
+from cardillo.math.rotations import (
+    Exp_SO3_quat,
+    Exp_SO3_quat_p,
+    T_SO3_inv_quat,
+    T_SO3_inv_quat_P,
+)
 
 
 class SphericalJoint:
@@ -22,34 +27,35 @@ class SphericalJoint:
         return self.B_dense(t, q) @ u
 
     def q_ddot(self, t, q, u, u_dot):
+        raise RuntimeWarning("SphericalJoint.q_ddot is not tested yet!")
         q2 = q @ q
-        B_q = quat2mat_p(q) / (2 * q2) - np.einsum(
-            "ij,k->ijk", quat2mat(q), q / (q2**2)
-        )
-        return self.B_dense(t, q) @ u_dot + np.einsum(
-            "ijk,k,j->i", B_q[:, 1:], self.q_dot(t, q, u), u
+        B = self.B_dense(t, q)
+        q_dot = B @ u
+        return (
+            B @ u_dot
+            + np.einsum("ijk,k,j->i", T_SO3_inv_quat_P(q), q_dot, u)
+            + 2 * q_dot * (q @ q_dot) / q2
         )
 
     def B_dense(self, t, q):
-        Q = quat2mat(q) / (2 * q @ q)
-        return Q[:, 1:]
+        return T_SO3_inv_quat(q) / (q @ q)
 
     def B(self, t, q, coo):
         coo.extend(self.B_dense(t, q), (self.qDOF, self.uDOF))
 
     def q_dot_q(self, t, q, u, coo):
         q2 = q @ q
-        B_q = quat2mat_p(q) / (2 * q2) - np.einsum(
-            "ij,k->ijk", quat2mat(q), q / (q2**2)
+        dense = np.einsum("ijk,j", T_SO3_inv_quat_P() / q2, u) - np.outer(
+            T_SO3_inv_quat(q) @ u, 2 * q / (q2**2)
         )
-        coo.extend(np.einsum("ijk,j->ik", B_q[:, 1:], u), (self.qDOF, self.qDOF))
+        coo.extend(dense, (self.qDOF, self.qDOF))
 
     # other functions
     def A_B1B2(self, t, q):
-        return quat2rot(q)
+        return Exp_SO3_quat(q)
 
     def A_B1B2_q(self, t, q):
-        return quat2rot_p(q)
+        return Exp_SO3_quat_p(q)
 
     def B1_r_B1B2(self, t, q):
         return np.zeros(3)
@@ -59,6 +65,9 @@ class SphericalJoint:
 
     def B1_v_B1B2(self, t, q, u):
         return np.zeros(3)
+
+    def B1_v_B1B2_q(self, t, q, u):
+        return np.zeros((3, self.nq))
 
     def B1_J_B1B2(self, t, q):
         return np.zeros((3, self.nu))
@@ -74,6 +83,9 @@ class SphericalJoint:
 
     def B1_kappa_B1B2_q(self, t, q, u):
         return np.zeros((3, self.nq))
+
+    def B1_kappa_B1B2_u(self, t, q, u):
+        return np.zeros((3, self.nu))
 
     def B1_Omega_B1B2(self, t, q, u):
         return u

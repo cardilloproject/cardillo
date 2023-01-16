@@ -645,9 +645,6 @@ def smallest_rotation(
     return cos_psi * np.eye(3, dtype=e.dtype) + ax2skew(e) + np.outer(e, e) / denom
 
 
-##########################################
-# TODO: Refactor these and add references!
-##########################################
 def Exp_SO3_quat(p):
     """Exponential mapping defined by (non unit) quaternion, see Egeland2002 (6.199).
 
@@ -715,75 +712,6 @@ def quatprod(P, Q):
     z0 = p0 * q0 - p @ q
     z = p0 * q + q0 * p + cross3(p, q)
     return np.array([z0, *z])
-
-
-def quat2mat(p):
-    p0, p1, p2, p3 = p
-    # fmt: off
-    return np.array([
-        [p0, -p1, -p2, -p3], 
-        [p1,  p0, -p3,  p2], 
-        [p2,  p3,  p0, -p1], 
-        [p3, -p2,  p1,  p0]]
-    )
-    # fmt: on
-
-
-def quat2mat(p):
-    p0, p1, p2, p3 = p
-    # fmt: off
-    return np.array([
-        [p0, -p1, -p2, -p3], 
-        [p1,  p0, -p3,  p2], 
-        [p2,  p3,  p0, -p1], 
-        [p3, -p2,  p1,  p0]]
-    )
-    # fmt: on
-
-
-def quat2mat_p(p):
-    A_p = np.zeros((4, 4, 4))
-    A_p[:, :, 0] = np.eye(4)
-    A_p[0, 1:, 1:] = -np.eye(3)
-    A_p[1:, 0, 1:] = np.eye(3)
-    A_p[1:, 1:, 1:] = ax2skew_a()
-
-    return A_p
-
-
-def quat2rot(p):
-    """Rotation matrix defined by (non unit) quaternion, see Egeland2002 (6.199).
-
-    References:
-    -----------
-    Egenland2002: https://folk.ntnu.no/oe/Modeling%20and%20Simulation.pdf
-    """
-    p_ = p / norm(p)
-    v_p_tilde = ax2skew(p_[1:])
-    return np.eye(3, dtype=p.dtype) + 2.0 * (v_p_tilde @ v_p_tilde + p_[0] * v_p_tilde)
-    skew = ax2skew(p[1:])
-    A_IK = np.eye(3, dtype=p.dtype) + (p_[0] * skew + skew @ skew) * 2.0 / (p @ p)
-
-
-if __name__ == "__main__":
-    Q = np.random.rand(4)
-    A_IK = quat2rot(Q)
-
-
-def quat2rot_p(p):
-    norm_p = norm(p)
-    q = p / norm_p
-    v_q_tilde = ax2skew(q[1:])
-    v_q_tilde_v_q = ax2skew_a()
-    q_p = np.eye(4) / norm_p - np.outer(p, p) / (norm_p**3)
-
-    A_q = np.zeros((3, 3, 4), dtype=p.dtype)
-    A_q[:, :, 0] = 2 * v_q_tilde
-    A_q[:, :, 1:] += np.einsum("ijk,jl->ilk", v_q_tilde_v_q, 2 * v_q_tilde)
-    A_q[:, :, 1:] += np.einsum("ij,jkl->ikl", 2 * v_q_tilde, v_q_tilde_v_q)
-    A_q[:, :, 1:] += 2 * (q[0] * v_q_tilde_v_q)
-
-    return np.einsum("ijk,kl->ijl", A_q, q_p)
 
 
 def axis_angle2quat(axis, angle):

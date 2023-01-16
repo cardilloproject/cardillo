@@ -90,21 +90,20 @@ class RigidBodyQuaternion(RigidBodyBase):
         coo.extend(B, (self.qDOF, self.uDOF))
 
     def q_ddot(self, t, q, u, u_dot):
-        raise RuntimeWarning("RigidBodyQuaternion.q_ddot is not refactored yet!")
+        raise RuntimeWarning("RigidBodyQuaternion.q_ddot is not tested yet!")
         p = q[3:]
         p2 = p @ p
-        Q = quat2mat(p) / (2 * p2)
-        p_dot = Q[:, 1:] @ u[3:]
-        Q_p = quat2mat_p(p) / (2 * p2) - np.einsum(
-            "ij,k->ijk", quat2mat(p), p / (p2**2)
+        B = T_SO3_inv_quat(p) / (p @ p)
+        p_dot = B @ u[3:]
+        p_ddot = (
+            B @ u_dot
+            + np.einsum("ijk,k,j->i", T_SO3_inv_quat_P(q), p_dot, u)
+            + 2 * p_dot * (p @ p_dot) / p2
         )
 
         q_ddot = np.zeros(self.nq, dtype=np.common_type(q, u, u_dot))
         q_ddot[:3] = u_dot[:3]
-        q_ddot[3:] = Q[:, 1:] @ u_dot[3:] + np.einsum(
-            "ijk,k,j->i", Q_p[:, 1:, :], p_dot, u[3:]
-        )
-
+        q_ddot[3:] = p_ddot
         return q_ddot
 
     def step_callback(self, t, q, u):
