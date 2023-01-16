@@ -9,11 +9,12 @@ from cardillo.math import (
     cross3,
     ax2skew,
     Exp_SO3,
+    Exp_SO3_psi,
     A_IK_basic,
-    # Exp_SO3_psi,
     Log_SO3,
     smallest_rotation,
     T_SO3,
+    T_SO3_psi,
     # T_SO3_inv,
     # T_SO3_inv_psi,
     # T_SO3_dot,
@@ -413,7 +414,7 @@ class Kirchhoff(RodExportBase):
 
         # rotate to K0-basis
         K0_e_x_J = A_IK0.T @ e_x_J
-        K0_e_x_K1 = A_IK0.T @ e_x_K1
+        # K0_e_x_K1 = A_IK0.T @ e_x_K1
 
         # smallest rotation from K0_e_x^K0 to K0_r_x_J
         A_K0J = smallest_rotation(e1, K0_e_x_J)
@@ -907,49 +908,31 @@ class Kirchhoff(RodExportBase):
         )
 
     def v_P(self, t, q, u, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
-        raise NotImplementedError
+        xi = frame_ID[0]
+        assert xi == 0 or xi == 1.0
 
-        N_r, _ = self.basis_functions_r(frame_ID[0])
-        N_psi, _ = self.basis_functions_la(frame_ID[0])
+        v_P = np.zeros(3, dtype=q.dtype)
+        if xi == 0.0:
+            nodalDOFr0 = self.nodalDOF_element_r[0]
+            nodalDOFpsi0 = self.nodalDOF_element_r[1]
+            v_r0 = u[nodalDOFr0]
+            psi_dot0 = u[nodalDOFpsi0]
+            psi0 = q[nodalDOFpsi0]
+            A_IK0 = Exp_SO3(psi0)
+            v_P = v_r0 - A_IK0 @ cross3(K_r_SP, T_SO3(psi0) @ psi_dot0)
+        elif xi == 1.0:
+            nodalDOFr1 = self.nodalDOF_element_r[2]
+            nodalDOFpsi1 = self.nodalDOF_element_r[3]
+            v_r1 = u[nodalDOFr1]
+            psi_dot1 = u[nodalDOFpsi1]
+            psi1 = q[nodalDOFpsi1]
+            A_IK1 = Exp_SO3(psi1)
+            v_P = v_r1 - A_IK1 @ cross3(K_r_SP, T_SO3(psi1) @ psi_dot1)
 
-        # interpolate A_IK and angular velocity in K-frame
-        A_IK = self.A_IK(t, q, frame_ID)
-        K_Omega = np.zeros(3, dtype=np.common_type(q, u))
-        for node in range(self.nnodes_element_la):
-            K_Omega += N_psi[node] * u[self.nodalDOF_element_la_u[node]]
-
-        # centerline velocity
-        v = np.zeros(3, dtype=np.common_type(q, u))
-        for node in range(self.nnodes_element_r):
-            v += N_r[node] * u[self.nodalDOF_element_r[node]]
-
-        return v + A_IK @ cross3(K_Omega, K_r_SP)
+        return v_P
 
     def v_P_q(self, t, q, u, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
         raise NotImplementedError
-        # evaluate shape functions
-        N_psi, _ = self.basis_functions_la(frame_ID[0])
-
-        # interpolate derivative of A_IK and angular velocity in K-frame
-        A_IK_q = self.A_IK_q(t, q, frame_ID)
-        K_Omega = np.zeros(3, dtype=np.common_type(q, u))
-        for node in range(self.nnodes_element_la):
-            K_Omega += N_psi[node] * u[self.nodalDOF_element_la_u[node]]
-
-        v_P_q = np.einsum(
-            "ijk,j->ik",
-            A_IK_q,
-            cross3(K_Omega, K_r_SP),
-        )
-        return v_P_q
-
-        # v_P_q_num = approx_fprime(
-        #     q, lambda q: self.v_P(t, q, u, frame_ID, K_r_SP), method="3-point"
-        # )
-        # diff = v_P_q - v_P_q_num
-        # error = np.linalg.norm(diff)
-        # print(f"error v_P_q: {error}")
-        # return v_P_q_num
 
     def J_P(self, t, q, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
         xi = frame_ID[0]
@@ -962,30 +945,61 @@ class Kirchhoff(RodExportBase):
             psi0 = q[nodalDOFpsi0]
             A_IK0 = Exp_SO3(psi0)
 
-            J_P[:, nodalDOFr0] += np.eye(3)
-            J_P[:, nodalDOFpsi0] -= A_IK0 @ (ax2skew(K_r_SP) @ T_SO3(psi0))
+            J_P[:, nodalDOFr0] = np.eye(3)
+            J_P[:, nodalDOFpsi0] = -A_IK0 @ (ax2skew(K_r_SP) @ T_SO3(psi0))
         elif xi == 1.0:
             nodalDOFr1 = self.nodalDOF_element_r[2]
             nodalDOFpsi1 = self.nodalDOF_element_r[3]
             psi1 = q[nodalDOFpsi1]
             A_IK1 = Exp_SO3(psi1)
 
-            J_P[:, nodalDOFr1] += np.eye(3)
-            J_P[:, nodalDOFpsi1] -= A_IK1 @ (ax2skew(K_r_SP) @ T_SO3(psi1))
+            J_P[:, nodalDOFr1] = np.eye(3)
+            J_P[:, nodalDOFpsi1] = -A_IK1 @ (ax2skew(K_r_SP) @ T_SO3(psi1))
 
         return J_P
 
+        # J_P_num = approx_fprime(
+        #     np.zeros(self.nu_element, dtype=float),
+        #     lambda u: self.v_P(t, q, u, frame_ID, K_r_SP),
+        #     method="2-point",
+        #     eps=1e-3,
+        # )
+        # diff = J_P_num - J_P
+        # error = np.linalg.norm(diff)
+        # print(f"error J_P: {error}")
+        # return J_P_num
+
     def J_P_q(self, t, q, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
-        J_P_q_num = approx_fprime(
-            q,
-            lambda q: self.J_P(t, q, frame_ID, K_r_SP),
-            method="2-point",
-            eps=1e-6,
-        )
+        xi = frame_ID[0]
+        assert xi == 0 or xi == 1.0
+
+        K_r_SP_skew = ax2skew(K_r_SP)
+        J_P_q = np.zeros((3, self.nu_element, self.nq_element), dtype=q.dtype)
+        if xi == 0.0:
+            nodalDOFpsi0 = self.nodalDOF_element_r[1]
+            psi0 = q[nodalDOFpsi0]
+            J_P_q[:, nodalDOFpsi0[:, None], nodalDOFpsi0] = np.einsum(
+                "ijl,jk->ikl", Exp_SO3_psi(psi0), K_r_SP_skew @ T_SO3(psi0)
+            ) + np.einsum("ij,jkl->ikl", Exp_SO3(psi0), K_r_SP_skew @ T_SO3_psi(psi0))
+        elif xi == 1.0:
+            nodalDOFpsi1 = self.nodalDOF_element_r[3]
+            psi1 = q[nodalDOFpsi1]
+            J_P_q[:, nodalDOFpsi1[:, None], nodalDOFpsi1] = np.einsum(
+                "ijl,jk->ikl", Exp_SO3_psi(psi1), K_r_SP_skew @ T_SO3(psi1)
+            ) + np.einsum("ij,jkl->ikl", Exp_SO3(psi1), K_r_SP_skew @ T_SO3_psi(psi1))
+
+        return J_P_q
+
+        # J_P_q_num = approx_fprime(
+        #     q,
+        #     lambda q: self.J_P(t, q, frame_ID, K_r_SP),
+        #     method="2-point",
+        #     eps=1e-3,
+        # )
         # diff = J_P_q_num - J_P_q
         # error = np.linalg.norm(diff)
         # print(f"error J_P_q: {error}")
-        return J_P_q_num
+        # return J_P_q_num
 
     def a_P(self, t, q, u, u_dot, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
         raise NotImplementedError
@@ -1056,15 +1070,22 @@ class Kirchhoff(RodExportBase):
         return a_P_u_num
 
     def K_Omega(self, t, q, u, frame_ID):
-        """Since we use Petrov-Galerkin method we only interpoalte the nodal
-        angular velocities in the K-frame.
-        """
-        raise NotImplementedError
-        N_psi, _ = self.basis_functions_la(frame_ID[0])
-        K_Omega = np.zeros(3, dtype=np.common_type(q, u))
-        for node in range(self.nnodes_element_la):
-            K_Omega += N_psi[node] * u[self.nodalDOF_element_la_u[node]]
-        return K_Omega
+        xi = frame_ID[0]
+        assert xi == 0 or xi == 1.0
+
+        K_omega_IK = np.zeros((3, self.nu_element), dtype=q.dtype)
+        if xi == 0.0:
+            nodalDOFpsi0 = self.nodalDOF_element_r[1]
+            psi_dot0 = u[nodalDOFpsi0]
+            psi0 = q[nodalDOFpsi0]
+            K_omega_IK = T_SO3(psi0) @ psi_dot0
+        elif xi == 1.0:
+            nodalDOFpsi1 = self.nodalDOF_element_r[3]
+            psi_dot1 = u[nodalDOFpsi1]
+            psi1 = q[nodalDOFpsi1]
+            K_omega_IK = T_SO3(psi1) @ psi_dot1
+
+        return K_omega_IK
 
     def K_Omega_q(self, t, q, u, frame_ID):
         raise NotImplementedError
@@ -1078,21 +1099,58 @@ class Kirchhoff(RodExportBase):
         if xi == 0.0:
             nodalDOFpsi0 = self.nodalDOF_element_r[1]
             psi0 = q[nodalDOFpsi0]
-            J_R[:, nodalDOFpsi0] += T_SO3(psi0)
+            J_R[:, nodalDOFpsi0] = T_SO3(psi0)
         elif xi == 1.0:
             nodalDOFpsi1 = self.nodalDOF_element_r[3]
             psi1 = q[nodalDOFpsi1]
-            J_R[:, nodalDOFpsi1] += T_SO3(psi1)
+            J_R[:, nodalDOFpsi1] = T_SO3(psi1)
 
         return J_R
 
+        # J_R_num = approx_fprime(
+        #     np.zeros(self.nu_element, dtype=float),
+        #     lambda u: self.K_Omega(t, q, u, frame_ID),
+        #     method="2-point",
+        #     eps=1e-6,
+        # )
+        # diff = J_R_num - J_R
+        # error = np.linalg.norm(diff)
+        # print(f"error J_R: {error}")
+        # return J_R_num
+
     def K_J_R_q(self, t, q, frame_ID):
-        return approx_fprime(
-            q,
-            lambda q: self.K_J_R(t, q, frame_ID),
-            method="2-point",
-            eps=1e-6,
-        )
+        # return approx_fprime(
+        #     q,
+        #     lambda q: self.K_J_R(t, q, frame_ID),
+        #     method="2-point",
+        #     eps=1e-6,
+        # )
+
+        xi = frame_ID[0]
+        assert xi == 0 or xi == 1.0
+
+        J_R_q = np.zeros((3, self.nu_element, self.nq_element), dtype=q.dtype)
+        if xi == 0.0:
+            nodalDOFpsi0 = self.nodalDOF_element_r[1]
+            psi0 = q[nodalDOFpsi0]
+            J_R_q[:, nodalDOFpsi0[:, None], nodalDOFpsi0] = T_SO3_psi(psi0)
+        elif xi == 1.0:
+            nodalDOFpsi1 = self.nodalDOF_element_r[3]
+            psi1 = q[nodalDOFpsi1]
+            J_R_q[:, nodalDOFpsi1[:, None], nodalDOFpsi1] = T_SO3_psi(psi1)
+
+        return J_R_q
+
+        # J_R_q_num = approx_fprime(
+        #     q,
+        #     lambda q: self.K_J_R(t, q, frame_ID),
+        #     method="2-point",
+        #     eps=1e-6,
+        # )
+        # diff = J_R_q_num - J_R_q
+        # error = np.linalg.norm(diff)
+        # print(f"error J_R_q: {error}")
+        # return J_R_q_num
 
     def K_Psi(self, t, q, u, u_dot, frame_ID):
         """Since we use Petrov-Galerkin method we only interpoalte the nodal
@@ -1117,6 +1175,7 @@ class Kirchhoff(RodExportBase):
     # body force
     ####################################################
     def distributed_force1D_pot_el(self, force, t, qe, el):
+        raise NotImplementedError
         Ve = 0.0
 
         for i in range(self.nquadrature):
@@ -1150,6 +1209,7 @@ class Kirchhoff(RodExportBase):
         return Ve
 
     def distributed_force1D_pot(self, t, q, force):
+        raise NotImplementedError
         V = 0
         for el in range(self.nelement):
             qe = q[self.elDOF[el]]
@@ -1158,6 +1218,7 @@ class Kirchhoff(RodExportBase):
 
     # TODO: Decide which number of quadrature points shoul dbe used here?
     def distributed_force1D_el(self, force, t, el):
+        raise NotImplementedError
         fe = np.zeros(self.nu_element, dtype=float)
 
         for i in range(self.nquadrature):
@@ -1189,10 +1250,12 @@ class Kirchhoff(RodExportBase):
         return fe
 
     def distributed_force1D(self, t, q, force):
+        raise NotImplementedError
         f = np.zeros(self.nu, dtype=float)
         for el in range(self.nelement):
             f[self.elDOF_u[el]] += self.distributed_force1D_el(force, t, el)
         return f
 
     def distributed_force1D_q(self, t, q, coo, force):
+        raise NotImplementedError
         pass
