@@ -597,7 +597,7 @@ class System:
         for contr in self.__gamma_F_contr:
             xi_F[contr.la_FDOF] = contr.gamma_F(
                 t, q[contr.qDOF], u_post[contr.uDOF]
-            ) + self.e_F[contr.la_NDOF] * contr.gamma_F(
+            ) + self.e_F[contr.la_FDOF] * contr.gamma_F(
                 t, q[contr.qDOF], u_pre[contr.uDOF]
             )
         return xi_F
