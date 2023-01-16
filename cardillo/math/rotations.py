@@ -776,20 +776,20 @@ def smallest_rotation(
         a0 = a0 / norm(a0)
         a = a / norm(a)
 
-    # ########################
-    # # Crisfield1996 (16.104)
-    # ########################
-    # e = cross3(a0, a)
-    # e_tilde = ax2skew(e)
-    # return np.eye(3) + e_tilde + (e_tilde @ e_tilde) / (1 + a0 @ a)
-
     ########################
-    # Crisfield1996 (16.105)
+    # Crisfield1996 (16.104)
     ########################
-    cos_psi = a0 @ a
-    denom = 1.0 + cos_psi
     e = cross3(a0, a)
-    return cos_psi * np.eye(3, dtype=e.dtype) + ax2skew(e) + np.outer(e, e) / denom
+    e_tilde = ax2skew(e)
+    return np.eye(3) + e_tilde + (e_tilde @ e_tilde) / (1 + a0 @ a)
+
+    # ########################
+    # # Crisfield1996 (16.105)
+    # ########################
+    # cos_psi = a0 @ a
+    # denom = 1.0 + cos_psi
+    # e = cross3(a0, a)
+    # return cos_psi * np.eye(3, dtype=e.dtype) + ax2skew(e) + np.outer(e, e) / denom
 
 
 ##########################################

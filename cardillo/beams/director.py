@@ -975,10 +975,10 @@ class TimoshenkoBeamDirector(RodExportBase, metaclass=ABCMeta):
         q_body = q[self.qDOF]
         return np.array([q_body[nodalDOF] for nodalDOF in self.nodalDOF_r]).T
 
-    def centerline(self, q, n=100):
+    def centerline(self, q, num=100):
         q_body = q[self.qDOF]
         r = []
-        for xi in np.linspace(0, 1, n):
+        for xi in np.linspace(0, 1, num):
             frame_ID = (xi,)
             qp = q_body[self.local_qDOF_P(frame_ID)]
             r.append(self.r_OP(1, qp, frame_ID))
@@ -1576,11 +1576,9 @@ class TimoshenkoDirectorDirac(TimoshenkoBeamDirector):
         )  # we enforce constraints on every director node
         la_g0 = kwargs.get("la_g0")
         self.la_g0 = np.zeros(self.nla_g) if la_g0 is None else la_g0
-
-        nodalDOF = np.arange(self.nnode_la_g)
-        self.nodalDOF_la_g = np.zeros((self.nnode_di, self.nnode_la_g), dtype=int)
-        for node in range(self.nnode_di):
-            self.nodalDOF_la_g[node] = nodalDOF + node * self.nnode_la_g
+        self.nodalDOF_la_g = np.arange(self.nla_g).reshape(
+            self.nnode_di, self.nnode_la_g, order="F"
+        )
 
     # constraints on a single node
     def __g(self, qn):
@@ -1613,6 +1611,11 @@ class TimoshenkoDirectorDirac(TimoshenkoBeamDirector):
         g_q[4, 6:] = d1
         g_q[5, 3:6] = d3
         g_q[5, 6:] = d2
+
+        # g_q_num = approx_fprime(qn, self.__g)
+        # diff = g_q - g_q_num
+        # error = np.linalg.norm(diff)
+        # print(f"error g_q: {error}")
 
         return g_q
 

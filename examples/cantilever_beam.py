@@ -8,7 +8,7 @@ from cardillo.discrete import Frame
 from cardillo.constraints import RigidConnection
 from cardillo.beams import (
     animate_beam,
-    TimoshenkoAxisAngleSE3,
+    K_TimoshenkoAxisAngleSE3,
     Crisfield1999,
     DirectorAxisAngle,
     I_DirectorAxisAngle,
@@ -26,8 +26,8 @@ from pathlib import Path
 
 # Beam = DirectorAxisAngle
 # Beam = Crisfield1999
-Beam = TimoshenkoAxisAngleSE3
-# Beam = TimoshenkoDirectorDirac
+# Beam = K_TimoshenkoAxisAngleSE3
+Beam = TimoshenkoDirectorDirac
 # Beam = TimoshenkoDirectorIntegral
 # Beam = I_DirectorAxisAngle
 
@@ -42,7 +42,7 @@ if __name__ == "__main__":
     # used polynomial degree
     # polynomial_degree = 3
     # basis = "B-spline"
-    polynomial_degree = 1
+    polynomial_degree = 3
     basis = "Lagrange"
 
     # beam parameters found in Section 5.1 Ibrahimbegovic1997
@@ -70,14 +70,14 @@ if __name__ == "__main__":
     r_OP0 = np.zeros(3, dtype=float)
     A_IK0 = np.eye(3, dtype=float)
 
-    if Beam == TimoshenkoAxisAngleSE3:
-        q0 = TimoshenkoAxisAngleSE3.straight_configuration(
+    if Beam == K_TimoshenkoAxisAngleSE3:
+        q0 = K_TimoshenkoAxisAngleSE3.straight_configuration(
             nelements,
             L,
             r_OP=r_OP0,
             A_IK=A_IK0,
         )
-        beam = TimoshenkoAxisAngleSE3(
+        beam = K_TimoshenkoAxisAngleSE3(
             cross_section,
             material_model,
             A_rho0,
@@ -152,6 +152,7 @@ if __name__ == "__main__":
         B_rho0 = K_S_rho0
         C_rho0 = np.diag(np.array([0.0, K_I_rho0[2, 2], K_I_rho0[1, 1]]))
         nquadrature = polynomial_degree + 1
+        # nquadrature = polynomial_degree
 
         beam = Beam(
             cross_section,
@@ -203,7 +204,7 @@ if __name__ == "__main__":
     Fi = material_model.Fi
     # M = lambda t: (e3 * 2 * np.pi * Fi[2] / L * t) * 0.25
     if statics:
-        M = lambda t: (e1 * Fi[0] + e3 * Fi[2]) * 1.0 * t * 2 * np.pi / L
+        M = lambda t: (e1 * Fi[0] + e3 * Fi[2]) * 1.0 * t * 2 * np.pi / L * 0.5
     else:
         M = lambda t: (e1 * Fi[0] + e3 * Fi[2]) * 1.0 * 2 * np.pi / L * 0.05
     moment = K_Moment(M, beam, (1,))
@@ -233,7 +234,7 @@ if __name__ == "__main__":
     # exit()
 
     if statics:
-        n_load_steps = int(10)
+        n_load_steps = int(50)
         solver = Newton(
             system,
             n_load_steps=n_load_steps,

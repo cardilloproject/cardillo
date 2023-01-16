@@ -199,8 +199,9 @@ class Mesh1D:
                 squeeze=False,
             )
         elif self.basis == "Hermite":
-            raise RuntimeWarning("Do we have to use 'squeeze=False' here as well?")
-            return cubic_Hermite_basis_1D(xis, self.knot_vector, self.derivative_order)
+            return cubic_Hermite_basis_1D(
+                xis, self.knot_vector, self.derivative_order, squeeze=False
+            )
 
     def eval_basis(self, xi):
         if self.basis == "B-spline":
