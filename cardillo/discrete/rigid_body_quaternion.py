@@ -11,15 +11,22 @@ from cardillo.math import (
 )
 
 
-# TODO: Update bad references!
 class RigidBodyQuaternion(RigidBodyBase):
-    """Rigid body parametrized by center of mass in inertial system and unit 
-    quaternions for rotation.
+    """Rigid body parametrized by center of mass in inertial base and unit 
+    quaternions for rotation. The angular velocities expressed in the 
+    body-fixed base are used as minimal velcoties.
+    
+    Exponential function and kinematic differential equation are found in 
+    Egeland2002 (6.199), (6.329) and (6.330). The implementation below 
+    handles non-unit quaternions. After each successfull time step they are 
+    projected to be of unit length. Alternatively, the constraint can be added 
+    to the kinematic differential equations using g_S.
 
     References
     ----------
     Nuetzi2016: https://www.research-collection.ethz.ch/handle/20.500.11850/117165 \\
-    Schweizer2015: https://www.research-collection.ethz.ch/handle/20.500.11850/101867
+    Schweizer2015: https://www.research-collection.ethz.ch/handle/20.500.11850/101867 \\
+    Egenland2002: https://folk.ntnu.no/oe/Modeling%20and%20Simulation.pdf
     """
 
     def __init__(
