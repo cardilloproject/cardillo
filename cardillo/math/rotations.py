@@ -754,42 +754,38 @@ if False:
 
 
 def smallest_rotation(
-    a0: np.ndarray, a: np.ndarray, normalize: bool = True
+    J_a: np.ndarray, J_b: np.ndarray, normalize: bool = True
 ) -> np.ndarray:
-    """In Crisfield1996 16.13 (16.103) and (16.104) the rotation matrix R is
-    introduced that rotates an unit vector a0 / ||a0|| to another unit vector
-    a / ||a||, i.e.,
+    """Compute the transformation matrix A_JK in accordance with 
+    {}_J a = A_JK {}_J b. This is sometimes referred to 'smallest rotation',
+    see Crisield1996 Section 16.13. Both vectors are normalized if 
+    normalize=True is used.
 
-        (a / ||a||) = R @ (a0 / ||a0||).
-
-    Let e_x^J := a0 / ||a0|| and e_x^K := a / ||a||. The corresponding
-    transformation matrix to R is given by A_JK = J_R.T. Thus, this implements
-    the transposed of Crisfield1996.
-
-    This rotation is sometimes referred to 'smallest rotation'.
+    This tranformation has a singularity for {}_J b = -{}_J a. This can be 
+    overcome using a singular value decomposition that determines the rotation 
+    axis, see Eigen3.
 
     References
     ----------
-    Crisfield1996: http://inis.jinr.ru/sl/M_Mathematics/MN_Numerical%20methods/MNf_Finite%20elements/Crisfield%20M.A.%20Vol.2.%20Non-linear%20Finite%20Element%20Analysis%20of%20Solids%20and%20Structures..%20Advanced%20Topics%20(Wiley,1996)(ISBN%20047195649X)(509s).pdf
+    Crisfield1996: http://inis.jinr.ru/sl/M_Mathematics/MN_Numerical%20methods/MNf_Finite%20elements/Crisfield%20M.A.%20Vol.2.%20Non-linear%20Finite%20Element%20Analysis%20of%20Solids%20and%20Structures..%20Advanced%20Topics%20(Wiley,1996)(ISBN%20047195649X)(509s).pdf \\
+    Eigen3: https://gitlab.com/libeigen/eigen/-/blob/master/Eigen/src/Geometry/Quaternion.h#L633-669
     """
     if normalize:
-        a0 = a0 / norm(a0)
-        a = a / norm(a)
+        J_a = J_a / norm(J_a)
+        J_b = J_b / norm(J_b)
 
-    ########################
-    # Crisfield1996 (16.104)
-    ########################
-    e = cross3(a0, a)
-    e_tilde = ax2skew(e)
-    return np.eye(3) + e_tilde + (e_tilde @ e_tilde) / (1 + a0 @ a)
-
-    # ########################
-    # # Crisfield1996 (16.105)
-    # ########################
-    # cos_psi = a0 @ a
-    # denom = 1.0 + cos_psi
-    # e = cross3(a0, a)
-    # return cos_psi * np.eye(3, dtype=e.dtype) + ax2skew(e) + np.outer(e, e) / denom
+    cos_psi = J_a @ J_b
+    denom = 1.0 + cos_psi
+    if denom > 0:
+        e = cross3(J_a, J_b)
+        return cos_psi * np.eye(3) + ax2skew(e) + np.outer(e, e) / denom
+    else:
+        M = np.vstack((J_a, J_b))
+        _, _, Vh = np.linalg.svd(M)
+        axis = Vh[2]
+        cos_psi = np.clip(cos_psi, -1, 1)
+        psi = np.arccos(cos_psi)
+        return Exp_SO3(psi * axis)
 
 
 ##########################################
