@@ -1,7 +1,20 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from cardillo.beams.SE3 import Exp_SO3, Log_SO3, Exp_SE3, Log_SE3, SE3, SE3inv
+from cardillo.math import (
+    Exp_SO3,
+    Log_SO3,
+    Exp_SE3,
+    Log_SE3,
+    SE3,
+    SE3inv,
+    Exp_SO3_quat,
+    Log_SO3_quat,
+)
+
+# TODO: Add linear interpolation of dual quaternions: https://en.wikipedia.org/wiki/Dual_quaternion
+def interpolate_SE3_dual_quaternion(s, r_OP0, A_IK0, r_OP1, A_IK1):
+    raise NotImplementedError
 
 
 def interpolate_R3_x_R3(s, r_OP0, A_IK0, r_OP1, A_IK1):
@@ -10,6 +23,28 @@ def interpolate_R3_x_R3(s, r_OP0, A_IK0, r_OP1, A_IK1):
     psi1 = Log_SO3(A_IK1)
     psi01 = (1.0 - s) * psi0 + s * psi1
     A_IK = Exp_SO3(psi01)
+    return r_OP, A_IK
+
+
+def interpolate_R3_x_R4(s, r_OP0, A_IK0, r_OP1, A_IK1):
+    r_OP = (1.0 - s) * r_OP0 + s * r_OP1
+    psi0 = Log_SO3_quat(A_IK0)
+    psi1 = Log_SO3_quat(A_IK1)
+
+    # lerp
+    psi01 = (1.0 - s) * psi0 + s * psi1
+    # normalization
+    psi01 = psi01 / np.sqrt(psi01 @ psi01)
+
+    # # slerp
+    # angle = np.arccos(psi0 @ psi1)
+    # sa = np.sin(angle)
+    # psi01 = (
+    #     np.sin((1 - s) *  angle) * psi0
+    #     + np.sin(s * angle) * psi1
+    # ) / sa
+
+    A_IK = Exp_SO3_quat(psi01)
     return r_OP, A_IK
 
 
@@ -80,7 +115,8 @@ def comp(s, H_IK0, H_IK1, H_JI, interpolate):
 if __name__ == "__main__":
     # first node
     r_OP0 = np.zeros(3, dtype=float)
-    psi0 = np.zeros(3, dtype=float)
+    # psi0 = np.zeros(3, dtype=float)
+    psi0 = np.random.rand(3)
     A_IK0 = Exp_SO3(psi0)
     H_IK0 = SE3(A_IK0, r_OP0)
 
@@ -89,7 +125,8 @@ if __name__ == "__main__":
     # psi1 = np.array([0, 0, np.pi/2], dtype=float)
     # psi1 = np.array([0, np.pi/2, np.pi/2], dtype=float)
     # A_IK1 = Exp_SO3(psi1)
-    A_IK1 = Exp_SO3(np.array([0, 0, np.pi / 2])) @ Exp_SO3(np.array([0, -np.pi / 2, 0]))
+    # A_IK1 = Exp_SO3(np.array([0, 0, np.pi / 2])) @ Exp_SO3(np.array([0, -np.pi / 2, 0]))
+    A_IK1 = Exp_SO3(np.random.rand(3)) @ Exp_SO3(np.random.rand(3))
     # A_IK1 = Exp_SO3(np.array([0, 0, np.pi / 2]))
     H_IK1 = SE3(A_IK1, r_OP1)
 
@@ -118,7 +155,8 @@ if __name__ == "__main__":
     # A_JK1 = H_JK1[:3, :3]
 
     # interpoalte value in between both nodes
-    s = 0.5
+    # s = 0.5
+    s = np.random.rand(1)[0]
 
     np.set_printoptions(5, suppress=True)
 
@@ -130,6 +168,11 @@ if __name__ == "__main__":
     print(f"h_K_K_bar_R3_x_R3:\n{h_K_K_bar_R3_x_R3}")
     print(f"psi_R3_x_R3: {np.linalg.norm(h_K_K_bar_R3_x_R3[3:])}")
     print(f"psi_R3_x_R3 [°]: {np.linalg.norm(h_K_K_bar_R3_x_R3[3:]) * 180 / np.pi}")
+
+    H_R3_R4, H_bar_R3_R4, h_K_K_bar_R3_R4 = comp(
+        s, H_IK0, H_IK1, H_JI, interpolate_R3_x_R4
+    )
+    print(f"h_K_K_bar_R3_R4:\n{h_K_K_bar_R3_R4}")
 
     H_R3_R9, H_bar_R3_R9, h_K_K_bar_R3_R9 = comp(
         s, H_IK0, H_IK1, H_JI, interpolate_R3_x_R9

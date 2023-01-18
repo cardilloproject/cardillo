@@ -15,6 +15,7 @@ from cardillo.beams import (
     TimoshenkoDirectorDirac,
     TimoshenkoDirectorIntegral,
     K_Cardona,
+    K_TimoshenkoLerp,
 )
 from cardillo.forces import K_Moment, K_Force, DistributedForce1DBeam
 from cardillo import System
@@ -31,7 +32,8 @@ from pathlib import Path
 # Beam = TimoshenkoDirectorDirac
 # Beam = TimoshenkoDirectorIntegral
 # Beam = I_DirectorAxisAngle
-Beam = K_Cardona
+# Beam = K_Cardona
+Beam = K_TimoshenkoLerp
 
 statics = True
 # statics = False
@@ -39,13 +41,13 @@ statics = True
 
 if __name__ == "__main__":
     # number of elements
-    nelements = 1
+    nelements = 5
 
     # used polynomial degree
     # polynomial_degree = 3
     # basis = "B-spline"
     # polynomial_degree = 3
-    polynomial_degree = 1
+    polynomial_degree = 2
     basis = "Lagrange"
 
     # beam parameters found in Section 5.1 Ibrahimbegovic1997
@@ -194,8 +196,8 @@ if __name__ == "__main__":
             basis_r=basis,
             basis_psi=basis,
         )
-    elif Beam == K_Cardona:
-        q0 = K_Cardona.straight_configuration(
+    elif Beam in [K_Cardona, K_TimoshenkoLerp]:
+        q0 = Beam.straight_configuration(
             polynomial_degree,
             polynomial_degree,
             basis,
@@ -205,7 +207,7 @@ if __name__ == "__main__":
             r_OP=r_OP0,
             A_IK=A_IK0,
         )
-        beam = K_Cardona(
+        beam = Beam(
             cross_section,
             material_model,
             A_rho0,

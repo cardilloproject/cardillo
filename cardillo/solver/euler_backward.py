@@ -230,15 +230,15 @@ class EulerBackward:
 
         return J
 
-        # J_num = csc_matrix(approx_fprime(y, self._R, method="2-point"))
-        # J_num = csc_matrix(approx_fprime(y, self._R, method="3-point"))
-        J_num = csc_matrix(approx_fprime(y, self._R, method="cs", eps=1.0e-12))
-        diff = (J - J_num).toarray()
-        # diff = diff[:self.nq]
-        # diff = diff[self.nq : ]
-        error = np.linalg.norm(diff)
-        print(f"error Jacobian: {error}")
-        return J_num
+        # J_num = csc_matrix(approx_fprime(y, self._R, method="2-point", eps=1e-6))
+        # # J_num = csc_matrix(approx_fprime(y, self._R, method="3-point", eps=1e-6))
+        # # J_num = csc_matrix(approx_fprime(y, self._R, method="cs", eps=1.0e-12))
+        # diff = (J - J_num).toarray()
+        # # diff = diff[:self.nq]
+        # # diff = diff[self.nq : ]
+        # error = np.linalg.norm(diff)
+        # print(f"error Jacobian: {error}")
+        # return J_num
 
     def solve(self):
         q_dot, u_dot, la_g, la_gamma, mu_S, mu_g = self._unpack(self.y)
@@ -253,18 +253,9 @@ class EulerBackward:
         mu_S_list = [mu_S]
         mu_g_list = [mu_g]
 
-        # update progress bar
-        self.t = self.t0
-
-        # pbar = tqdm(self.t_eval[:-1])
-        # for t in pbar:
-        #     self.t = t
-        while self.t < self.t1:
-            self.t += self.dt
-            i1 = int(self.t // self.frac)
-            self.pbar.update(i1 - self.i)
-            self.pbar.set_description(f"t: {self.t:0.2e}s < {self.t1:0.2e}s")
-            self.i = i1
+        pbar = tqdm(self.t_eval[:-1])
+        for t in pbar:
+            self.t = t
 
             sol = fsolve(self._R, self.y, jac=self._J)
             self.y = sol[0]
@@ -273,11 +264,8 @@ class EulerBackward:
             n_iter = sol[3]
             assert converged
 
-            # pbar.set_description(
-            #     f"t: {t:0.2e}; {n_iter}/{self.max_iter} iterations; error: {error:0.2e}"
-            # )
-            self.pbar.set_description(
-                f"t: {self.t:0.2e}; {n_iter}/{self.max_iter} iterations; error: {error:0.2e}"
+            pbar.set_description(
+                f"t: {t:0.2e}; {n_iter}/{self.max_iter} iterations; error: {error:0.2e}"
             )
 
             q, u = self._update(self.y)

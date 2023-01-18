@@ -826,6 +826,18 @@ def Exp_SO3_quat_p(p):
 Log_SO3_quat = Spurrier
 
 
+def T_SO3_quat(P):
+    """Tangent map for unit quaternion. See Egeland2002, (6.327).
+
+    References:
+    -----------
+    Egenland2002: https://folk.ntnu.no/oe/Modeling%20and%20Simulation.pdf
+    """
+    p0 = P[0]
+    p = P[1:]
+    return 2 * np.hstack((-p[:, None], p0 * np.eye(3) - ax2skew(p)))
+
+
 def T_SO3_inv_quat(P):
     """Inverse tangent map for unit quaternion. See Egeland2002, (6.329) and
     (6.330).

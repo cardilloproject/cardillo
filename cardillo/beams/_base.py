@@ -744,6 +744,14 @@ def make_TimoshenkoPetrovGalerkinBase(RotationBase):
             self.nnodes_r = self.mesh_r.nnodes
             self.nnodes_psi = self.mesh_psi.nnodes
 
+            # number of constraints for quaternion length
+            if RotationBase == QuaternionRotationParameterization:
+                self.nla_S = self.nnodes_psi
+                self.la_S0 = np.zeros(self.nla_S)
+                self.g_S = self.__g_S
+                self.g_S_q = self.__g_S_q
+                self.g_S_q_T_mu_q = self.__g_S_q_T_mu_q
+
             # number of nodes per element
             self.nnodes_element_r = self.mesh_r.nnodes_per_element
             self.nnodes_element_psi = self.mesh_psi.nnodes_per_element
@@ -882,8 +890,7 @@ def make_TimoshenkoPetrovGalerkinBase(RotationBase):
             L,
             r_OP=np.zeros(3, dtype=float),
             A_IK=np.eye(3, dtype=float),
-            rotation_parameterization=AxisAngleRotationParameterization(),
-            # rotation_parameterization=QuaternionRotationParameterization(),
+            rotation_parameterization=RotationBase(),
         ):
             if basis_r == "Lagrange":
                 nnodes_r = polynomial_degree_r * nelement + 1
@@ -1119,6 +1126,25 @@ def make_TimoshenkoPetrovGalerkinBase(RotationBase):
         @abstractmethod
         def A_IK_q(self, t, q, frame_ID):
             ...
+
+        ################################################
+        # constraint equations without constraint forces
+        ################################################
+        def __g_S(self, t, q):
+            g_S = np.zeros(self.nnodes_psi, dtype=q.dtype)
+            for node in range(self.nnodes_psi):
+                P = q[self.nodalDOF_psi[node]]
+                g_S[node] = P @ P - 1
+            return g_S
+
+        def __g_S_q(self, t, q, coo):
+            for node in range(self.nnodes_psi):
+                nodalDOF = self.nodalDOF_psi[node]
+                P = q[nodalDOF]
+                coo.extend(2 * P, (self.la_SDOF[node], self.qDOF[nodalDOF]))
+
+        def __g_S_q_T_mu_q(self, t, q, mu, coo):
+            raise NotImplementedError
 
         #########################################
         # kinematic equation
@@ -1809,8 +1835,8 @@ def make_TimoshenkoPetrovGalerkinBase(RotationBase):
                     "Class derived from TimoshenkoPetrovGalerkinBase does not implement _deval. We use a numerical Jacobian!"
                 )
                 return approx_fprime(
-                    qe,
-                    lambda qe: self.r_OP(t, q, frame_ID=frame_ID, K_r_SP=K_r_SP),
+                    q,
+                    lambda q: self.r_OP(t, q, frame_ID=frame_ID, K_r_SP=K_r_SP),
                     eps=1.0e-10,
                     method="cs",
                 )
