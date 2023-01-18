@@ -14,7 +14,7 @@ from cardillo.math import (
 class RigidBodyQuaternion(RigidBodyBase):
     """Rigid body parametrized by center of mass in inertial base and unit 
     quaternions for rotation. The angular velocities expressed in the 
-    body-fixed base are used as minimal velcoties.
+    body-fixed base are used as minimal velocities.
     
     Exponential function and kinematic differential equation are found in 
     Egeland2002 (6.199), (6.329) and (6.330). The implementation below 
@@ -78,7 +78,7 @@ class RigidBodyQuaternion(RigidBodyBase):
         K_omega_IK = u[3:]
         dense = np.zeros((self.nq, self.nq), dtype=np.common_type(q, u))
         dense[3:, 3:] = np.einsum(
-            "ijk,j", T_SO3_inv_quat_P() / p2, K_omega_IK
+            "ijk,j->ik", T_SO3_inv_quat_P() / p2, K_omega_IK
         ) - np.outer(T_SO3_inv_quat(p) @ K_omega_IK, 2 * p / (p2**2))
         coo.extend(dense, (self.qDOF, self.qDOF))
 

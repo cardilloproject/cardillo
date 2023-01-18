@@ -1,7 +1,7 @@
 from __future__ import annotations
 import numpy as np
 from math import sqrt, atan2
-from cardillo.math import norm, cross3, ax2skew, trace3, ax2skew_a, ei, LeviCivita3
+from cardillo.math import norm, cross3, ax2skew, trace3, ax2skew_a, LeviCivita3
 
 # for small angles we use first order approximations of the equations since
 # most of the SO(3) and SE(3) equations get singular for psi -> 0.
@@ -283,7 +283,7 @@ def T_SO3_psi(psi: np.ndarray) -> np.ndarray:
 
 
 def T_SO3_dot(psi: np.ndarray, psi_dot: np.ndarray) -> np.ndarray:
-    """Derivative of tangent map w.r.t. scalar argument of rotationv ector, see
+    """Derivative of tangent map w.r.t. scalar argument of rotation vector, see
     Ibrahimbegović1995 (71). Actually in Ibrahimbegovic1995 (28) T_s^{T}
     is shown!
 

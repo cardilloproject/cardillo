@@ -1,6 +1,6 @@
 import numpy as np
 
-from cardillo.math.rotations import (
+from cardillo.math import (
     Exp_SO3_quat,
     Exp_SO3_quat_p,
     T_SO3_inv_quat,
@@ -45,7 +45,7 @@ class SphericalJoint:
 
     def q_dot_q(self, t, q, u, coo):
         q2 = q @ q
-        dense = np.einsum("ijk,j", T_SO3_inv_quat_P() / q2, u) - np.outer(
+        dense = np.einsum("ijk,j->ik", T_SO3_inv_quat_P() / q2, u) - np.outer(
             T_SO3_inv_quat(q) @ u, 2 * q / (q2**2)
         )
         coo.extend(dense, (self.qDOF, self.qDOF))
