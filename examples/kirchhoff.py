@@ -22,7 +22,7 @@ statics = True
 
 if __name__ == "__main__":
     # number of elements
-    nelements = 4
+    nelements = 2
 
     # number of quadrature points
     nquadrature = 4
@@ -76,8 +76,8 @@ if __name__ == "__main__":
     # moment at right end
     Fi = material_model.Fi
     # M = lambda t: (e1 * 2 * np.pi * Fi[0] / L * t) * 0.25
-    # M = lambda t: (e3 * 2 * np.pi * Fi[2] / L * t) * 1.0
-    M = lambda t: (e1 * Fi[0] + e3 * Fi[2]) * t * 2 * np.pi / L * 0.25
+    M = lambda t: (e3 * 2 * np.pi * Fi[2] / L * t) * 0.25
+    # M = lambda t: (e1 * Fi[0] + e3 * Fi[2]) * t * 2 * np.pi / L * 0.25
     # M = lambda t: (e2 * Fi[1] + e3 * Fi[2]) * t * 2 * np.pi / L * 1.0
     # if statics:
     #     M = lambda t: (e1 * Fi[0] + e3 * Fi[2]) * 1.0 * t * 2 * np.pi / L * 0.1
@@ -111,7 +111,7 @@ if __name__ == "__main__":
     # exit()
 
     if statics:
-        n_load_steps = int(20)
+        n_load_steps = 5
         solver = Newton(
             system,
             n_load_steps=n_load_steps,
@@ -134,15 +134,14 @@ if __name__ == "__main__":
     ###########
     animate_beam(t, q, [beam], L, show=True)
 
-    ############
-    # VTK export
-    ############
-    path = Path(__file__)
-    e = Export(path.parent, path.stem, True, 30, sol)
-    # e.export_contr(beam, level="centerline + directors", num=20)
-    e.export_contr(beam, level="volume", n_segments=5, num=50)
+    # ############
+    # # VTK export
+    # ############
+    # path = Path(__file__)
+    # e = Export(path.parent, path.stem, True, 30, sol)
+    # e.export_contr(beam, level="volume", n_segments=5, num=50)
 
-    exit()
+    # exit()
 
     # t = [0]
     # q = [model.q0]
@@ -161,32 +160,3 @@ if __name__ == "__main__":
     ax.set_ylabel("tip displacement")
     ax.grid()
     ax.legend()
-
-    # ######################################################
-    # # visualize strain measures of the final configuration
-    # ######################################################
-    # num = 100
-    # xis = np.linspace(0, 1, num=num)
-
-    # K_Gammas = np.zeros((num, 3))
-    # K_Kappas = np.zeros((num, 3))
-    # for i in range(num):
-    #     K_Gammas[i], K_Kappas[i] = beam.strains(xis[i], sol.q[-1])
-
-    # fig, ax = plt.subplots(2, 1)
-
-    # ax[0].plot(xis, K_Gammas[:, 0] - 1, "-r", label="K_Gamma0 - 1")
-    # ax[0].plot(xis, K_Gammas[:, 1], "--g", label="K_Gamma1")
-    # ax[0].plot(xis, K_Gammas[:, 2], "-.b", label="K_Gamma2")
-    # ax[0].set_xlabel("xi")
-    # ax[0].set_ylabel("K_Gamma")
-    # ax[0].grid()
-    # ax[0].legend()
-
-    # ax[1].plot(xis, K_Kappas[:, 0], "-r", label="K_Kappa0")
-    # ax[1].plot(xis, K_Kappas[:, 1], "--g", label="K_Kappa1")
-    # ax[1].plot(xis, K_Kappas[:, 2], "-.b", label="K_Kappa2")
-    # ax[1].set_xlabel("xi")
-    # ax[1].set_ylabel("K_Kappa")
-    # ax[1].grid()
-    # ax[1].legend()

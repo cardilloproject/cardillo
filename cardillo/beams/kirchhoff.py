@@ -555,17 +555,17 @@ class Kirchhoff(RodExportBase):
                 self.material_model.potential(lambda_, K_Kappa, K_Kappa0) * Ji * qwi
             )
 
-            alpha, alpha_q = self._alpha_KeJ(qe, qpi)
-            alpha_q_num = approx_fprime(
-                qe,
-                lambda qe: self._alpha_KeJ(qe, qpi)[0],
-                method="2-point",
-                eps=1e-6,
-            )
-            diff = alpha_q - alpha_q_num
-            error = np.linalg.norm(diff)
-            print(f"error alpha_q: {error}")
-            print(f"alpha: {alpha}")
+            # alpha, alpha_q = self._alpha_KeJ(qe, qpi)
+            # alpha_q_num = approx_fprime(
+            #     qe,
+            #     lambda qe: self._alpha_KeJ(qe, qpi)[0],
+            #     method="2-point",
+            #     eps=1e-6,
+            # )
+            # diff = alpha_q - alpha_q_num
+            # error = np.linalg.norm(diff)
+            # print(f"error alpha_q: {error}")
+            # print(f"alpha: {alpha}")
 
         return E_pot_el
 
