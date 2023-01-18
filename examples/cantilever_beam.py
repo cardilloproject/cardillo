@@ -14,6 +14,7 @@ from cardillo.beams import (
     I_DirectorAxisAngle,
     TimoshenkoDirectorDirac,
     TimoshenkoDirectorIntegral,
+    K_Cardona,
 )
 from cardillo.forces import K_Moment, K_Force, DistributedForce1DBeam
 from cardillo import System
@@ -27,9 +28,10 @@ from pathlib import Path
 # Beam = DirectorAxisAngle
 # Beam = Crisfield1999
 # Beam = K_TimoshenkoAxisAngleSE3
-Beam = TimoshenkoDirectorDirac
+# Beam = TimoshenkoDirectorDirac
 # Beam = TimoshenkoDirectorIntegral
 # Beam = I_DirectorAxisAngle
+Beam = K_Cardona
 
 statics = True
 # statics = False
@@ -37,12 +39,13 @@ statics = True
 
 if __name__ == "__main__":
     # number of elements
-    nelements = 10
+    nelements = 1
 
     # used polynomial degree
     # polynomial_degree = 3
     # basis = "B-spline"
-    polynomial_degree = 3
+    # polynomial_degree = 3
+    polynomial_degree = 1
     basis = "Lagrange"
 
     # beam parameters found in Section 5.1 Ibrahimbegovic1997
@@ -191,6 +194,30 @@ if __name__ == "__main__":
             basis_r=basis,
             basis_psi=basis,
         )
+    elif Beam == K_Cardona:
+        q0 = K_Cardona.straight_configuration(
+            polynomial_degree,
+            polynomial_degree,
+            basis,
+            basis,
+            nelements,
+            L,
+            r_OP=r_OP0,
+            A_IK=A_IK0,
+        )
+        beam = K_Cardona(
+            cross_section,
+            material_model,
+            A_rho0,
+            K_S_rho0,
+            K_I_rho0,
+            polynomial_degree,
+            polynomial_degree,
+            nelements,
+            q0,
+            basis_r=basis,
+            basis_psi=basis,
+        )
     else:
         raise NotImplementedError
 
@@ -202,11 +229,11 @@ if __name__ == "__main__":
 
     # moment at right end
     Fi = material_model.Fi
-    # M = lambda t: (e3 * 2 * np.pi * Fi[2] / L * t) * 0.25
-    if statics:
-        M = lambda t: (e1 * Fi[0] + e3 * Fi[2]) * 1.0 * t * 2 * np.pi / L * 0.5
-    else:
-        M = lambda t: (e1 * Fi[0] + e3 * Fi[2]) * 1.0 * 2 * np.pi / L * 0.05
+    M = lambda t: (e3 * 2 * np.pi * Fi[2] / L * t) * 0.25
+    # if statics:
+    #     M = lambda t: (e1 * Fi[0] + e3 * Fi[2]) * 1.0 * t * 2 * np.pi / L * 0.5
+    # else:
+    #     M = lambda t: (e1 * Fi[0] + e3 * Fi[2]) * 1.0 * 2 * np.pi / L * 0.05
     moment = K_Moment(M, beam, (1,))
 
     # force at the rght end

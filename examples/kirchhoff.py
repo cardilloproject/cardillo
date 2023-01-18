@@ -22,7 +22,7 @@ statics = True
 
 if __name__ == "__main__":
     # number of elements
-    nelements = 2
+    nelements = 4
 
     # number of quadrature points
     nquadrature = 4
@@ -75,7 +75,10 @@ if __name__ == "__main__":
 
     # moment at right end
     Fi = material_model.Fi
-    M = lambda t: (e3 * 2 * np.pi * Fi[2] / L * t) * 0.25
+    # M = lambda t: (e1 * 2 * np.pi * Fi[0] / L * t) * 0.25
+    # M = lambda t: (e3 * 2 * np.pi * Fi[2] / L * t) * 1.0
+    M = lambda t: (e1 * Fi[0] + e3 * Fi[2]) * t * 2 * np.pi / L * 0.25
+    # M = lambda t: (e2 * Fi[1] + e3 * Fi[2]) * t * 2 * np.pi / L * 1.0
     # if statics:
     #     M = lambda t: (e1 * Fi[0] + e3 * Fi[2]) * 1.0 * t * 2 * np.pi / L * 0.1
     # else:
@@ -108,12 +111,12 @@ if __name__ == "__main__":
     # exit()
 
     if statics:
-        n_load_steps = int(10)
+        n_load_steps = int(20)
         solver = Newton(
             system,
             n_load_steps=n_load_steps,
             max_iter=30,
-            atol=1.0e-8,
+            atol=1.0e-5,
         )
     else:
         t1 = 1
@@ -136,7 +139,7 @@ if __name__ == "__main__":
     ############
     path = Path(__file__)
     e = Export(path.parent, path.stem, True, 30, sol)
-    e.export_contr(beam, level="centerline + directors", num=20)
+    # e.export_contr(beam, level="centerline + directors", num=20)
     e.export_contr(beam, level="volume", n_segments=5, num=50)
 
     exit()
