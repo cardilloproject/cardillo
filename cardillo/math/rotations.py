@@ -776,7 +776,9 @@ def smallest_rotation(
 
     cos_psi = J_a @ J_b
     denom = 1.0 + cos_psi
-    if denom > 0:
+    # TODO: What is a good singular value her?
+    # if denom > 0:
+    if denom > 1e-6:
         e = cross3(J_a, J_b)
         return cos_psi * np.eye(3) + ax2skew(e) + np.outer(e, e) / denom
     else:
@@ -798,7 +800,8 @@ def Exp_SO3_quat(p):
     -----------
     Egenland2002: https://folk.ntnu.no/oe/Modeling%20and%20Simulation.pdf
     """
-    p_ = p / norm(p)
+    # p_ = p / norm(p)
+    p_ = p
     v_p_tilde = ax2skew(p_[1:])
     return np.eye(3, dtype=p.dtype) + 2.0 * (v_p_tilde @ v_p_tilde + p_[0] * v_p_tilde)
 
@@ -870,6 +873,16 @@ def quatprod(P, Q):
     z0 = p0 * q0 - p @ q
     z = p0 * q + q0 * p + cross3(p, q)
     return np.array([z0, *z])
+
+
+def quat_conjugate(P):
+    """Conjugate or inverse quaternion, see Egeland2002 (6.188).
+
+    References:
+    -----------
+    Egenland2002: https://folk.ntnu.no/oe/Modeling%20and%20Simulation.pdf
+    """
+    return np.array([P[0], *(-P[1:])])
 
 
 def quat2mat(p):

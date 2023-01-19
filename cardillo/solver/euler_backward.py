@@ -34,10 +34,6 @@ class EulerBackward:
         self.dt = dt
         self.t_eval = np.arange(t0, self.t1 + self.dt, self.dt)
 
-        self.frac = (t1 - t0) / 101
-        self.pbar = tqdm(total=100, leave=True)
-        self.i = 0
-
         #######################################################################
         # dimensions
         #######################################################################
@@ -257,7 +253,14 @@ class EulerBackward:
         for t in pbar:
             self.t = t
 
-            sol = fsolve(self._R, self.y, jac=self._J)
+            sol = fsolve(
+                self._R,
+                self.y,
+                jac=self._J,
+                error_function=self.error_function,
+                atol=self.atol,
+                max_iter=self.max_iter,
+            )
             self.y = sol[0]
             converged = sol[1]
             error = sol[2]
