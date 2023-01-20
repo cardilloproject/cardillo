@@ -591,11 +591,7 @@ class System:
         xi_F = np.zeros(self.nla_F, dtype=np.common_type(q, u_pre, u_post))
         for contr in self.__gamma_F_contr:
             xi_F[contr.la_FDOF] = contr.gamma_F(
-                t,
-                q[contr.qDOF],
-                u_post[contr.uDOF]
-                # TODO: Is this a bug???
-                # ) + self.e_F[contr.la_NDOF] * contr.gamma_F(
+                t, q[contr.qDOF], u_post[contr.uDOF]
             ) + self.e_F[contr.la_FDOF] * contr.gamma_F(
                 t, q[contr.qDOF], u_pre[contr.uDOF]
             )

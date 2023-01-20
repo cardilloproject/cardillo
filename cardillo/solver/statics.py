@@ -94,23 +94,23 @@ class Newton:
         R[:nu] = self.system.h(t, q, self.u0) + W_g @ la_g + W_N @ la_N
         R[nu : nu + nla_g] = self.system.g(t, q)
         R[nu + nla_g : nu + nla_g + nla_S] = self.system.g_S(t, q)
-        # R[nu + nla_g + nla_S :] = np.minimum(la_N, g_N)
-        def fb(a, b):
-            # return np.minimum(a, b)
+        R[nu + nla_g + nla_S :] = np.minimum(la_N, g_N)
+        # def fb(a, b):
+        #     # return np.minimum(a, b)
 
-            return a + b - np.sqrt(a * a + b * b)
+        #     return a + b - np.sqrt(a * a + b * b)
 
-            # from cardillo.math import prox_R0_np
-            # r = 1.0e-2
-            # return a - prox_R0_np(a - r * b)
+        #     # from cardillo.math import prox_R0_np
+        #     # r = 1.0e-2
+        #     # return a - prox_R0_np(a - r * b)
 
-        R[nu + nla_g + nla_S :] = fb(la_N, g_N)
+        # R[nu + nla_g + nla_S :] = fb(la_N, g_N)
 
-        def fb_a(a, b):
-            return coo_matrix(approx_fprime(a, lambda a: fb(a, b)))
+        # def fb_a(a, b):
+        #     return coo_matrix(approx_fprime(a, lambda a: fb(a, b)))
 
-        def fb_b(a, b):
-            return csr_matrix(approx_fprime(b, lambda b: fb(a, b)))
+        # def fb_b(a, b):
+        #     return csr_matrix(approx_fprime(b, lambda b: fb(a, b)))
 
         yield R
 
@@ -125,15 +125,15 @@ class Newton:
         # (https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csr_matrix.html#scipy.sparse.csr_matrix)
         g_N_q = self.system.g_N_q(t, q, scipy_matrix=csr_matrix)
 
-        # Rla_N_q = lil_matrix((self.nla_N, self.nq), dtype=float)
-        # Rla_N_la_N = lil_matrix((self.nla_N, self.nla_N), dtype=float)
-        # for i in range(self.nla_N):
-        #     if la_N[i] < g_N[i]:
-        #         Rla_N_la_N[i, i] = 1.0
-        #     else:
-        #         Rla_N_q[i] = g_N_q[i]
-        Rla_N_la_N = fb_a(la_N, g_N)
-        Rla_N_q = fb_b(la_N, g_N) @ g_N_q
+        Rla_N_q = lil_matrix((self.nla_N, self.nq), dtype=float)
+        Rla_N_la_N = lil_matrix((self.nla_N, self.nla_N), dtype=float)
+        for i in range(self.nla_N):
+            if la_N[i] < g_N[i]:
+                Rla_N_la_N[i, i] = 1.0
+            else:
+                Rla_N_q[i] = g_N_q[i]
+        # Rla_N_la_N = fb_a(la_N, g_N)
+        # Rla_N_q = fb_b(la_N, g_N) @ g_N_q
 
         # fmt: off
         # TODO: What is more efficient together with spsolve: Using csr or csc format?

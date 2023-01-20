@@ -778,7 +778,6 @@ class RigidConnectionCable(RigidConnection):
         coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
 
     def W_g_dense(self, t, q):
-        return approx_fprime(np.zeros_like(q), lambda u: self.g_dot(t, q, u)).T
         nu1 = self._nu1
         W_g = np.zeros((self._nu, self.nla_g))
 

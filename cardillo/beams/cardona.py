@@ -90,6 +90,14 @@ class K_TimoshenkoLerp(TimoshenkoPetrovGalerkinBaseQuaternion):
         # curvature
         K_Kappa_bar = T_SO3_quat(psi) @ psi_xi
 
+        # # Egeland2002 (6.325), this is exactly T_SO3_quat(psi) @ psi_xi
+        # from cardillo.math import quatprod, quat_conjugate
+        # K_Kappa_bar2 = 2 * quatprod(quat_conjugate(psi), psi_xi)[1:]
+
+        # # Egeland2002 (6.327), this is exactly T_SO3_quat(psi) @ psi_xi
+        # from cardillo.math import cross3
+        # K_Kappa_bar3 = 2 * (psi[0] * psi_xi[1:] - psi_xi[0] * psi[1:] - cross3(psi[1:], psi_xi[1:]))
+
         return r_OP, A_IK, K_Gamma_bar, K_Kappa_bar
 
     def A_IK(self, t, q, frame_ID):

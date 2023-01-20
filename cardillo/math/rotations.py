@@ -5,8 +5,8 @@ from cardillo.math import norm, cross3, ax2skew, trace3, ax2skew_a, ei, LeviCivi
 
 # for small angles we use first order approximations of the equations since
 # most of the SO(3) and SE(3) equations get singular for psi -> 0.
-angle_singular = 1.0e-6
-# angle_singular = 0.0
+# angle_singular = 1.0e-6
+angle_singular = 0.0
 
 
 def Exp_SO3(psi: np.ndarray) -> np.ndarray:

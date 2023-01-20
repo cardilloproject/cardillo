@@ -162,10 +162,10 @@ def fsolve(
     assert callable(jacobian)
 
     # prepare solution vector; make a copy since we modify the value
-    x = np.asarray(x0).copy()
+    x = np.atleast_1d(x0).copy()
 
     # initial guess, error and convergence
-    f = fun(x, *fun_args)
+    f = np.atleast_1d(fun(x, *fun_args))
     error = error_function(f)
     converged = error <= atol
 
@@ -175,7 +175,7 @@ def fsolve(
         i += 1
         J = jacobian(x, *jac_args)
         x -= linear_solver(J, f)
-        f = fun(x, *fun_args)
+        f = np.atleast_1d(fun(x, *fun_args))
         error = error_function(f)
         converged = error <= atol
 

@@ -1235,11 +1235,10 @@ def make_TimoshenkoPetrovGalerkinBase(RotationBase):
             return q_ddot
 
         def step_callback(self, t, q, u):
-            q_out = q.copy()
             for node in range(self.nnodes_psi):
                 psi = q[self.nodalDOF_psi[node]]
-                q_out[self.nodalDOF_psi[node]] = RotationBase.step_callback(psi)
-            return q_out, u
+                q[self.nodalDOF_psi[node]] = RotationBase.step_callback(psi)
+            return q, u
 
         ###############################
         # potential and internal forces
@@ -1326,16 +1325,6 @@ def make_TimoshenkoPetrovGalerkinBase(RotationBase):
 
             return f_pot_el
 
-            # f_pot_el_num = approx_fprime(
-            #     qe, lambda qe: -self.E_pot_el(qe, el), eps=1.0e-10, method="cs"
-            #     # qe, lambda qe: -self.E_pot_el(qe, el), eps=1.0e-6, method="3-point"
-            # )
-            # diff = f_pot_el - f_pot_el_num
-            # error = np.linalg.norm(diff)
-            # print(f"error: {error}")
-            # # return f_pot_el
-            # return f_pot_el_num
-
         # TODO:
         def f_pot_el_q(self, qe, el):
             if not hasattr(self, "_deval"):
@@ -1346,8 +1335,10 @@ def make_TimoshenkoPetrovGalerkinBase(RotationBase):
                     # qe, lambda qe: self.f_pot_el(qe, el), eps=1.0e-6, method="3-point"
                     qe,
                     lambda qe: self.f_pot_el(qe, el),
-                    eps=1.0e-10,
-                    method="cs",
+                    # method="cs",
+                    # eps=1.0e-12,
+                    method="3-point",
+                    eps=1e-6,
                 )
             else:
                 f_pot_q_el = np.zeros((self.nu_element, self.nq_element), dtype=float)
@@ -1837,8 +1828,10 @@ def make_TimoshenkoPetrovGalerkinBase(RotationBase):
                 return approx_fprime(
                     q,
                     lambda q: self.r_OP(t, q, frame_ID=frame_ID, K_r_SP=K_r_SP),
-                    eps=1.0e-10,
-                    method="cs",
+                    # method="cs",
+                    # eps=1.0e-12,
+                    method="3-point",
+                    eps=1e-6,
                 )
             else:
                 # evaluate required quantities
