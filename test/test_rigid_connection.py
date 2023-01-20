@@ -127,8 +127,8 @@ def run(revolute_joint_used=False, use_relative_kinematics=False):
     # solver = EulerBackward(system, t1, dt, method="index 1")
     # solver = EulerBackward(system, t1, dt, method="index 2")
     # solver = EulerBackward(system, t1, dt, method="index 3")
-    # solver = EulerBackward(system, t1, dt, method="index 2 GGL")
-    solver = ScipyIVP(system, t1, dt)
+    solver = EulerBackward(system, t1, dt, method="index 2 GGL")
+    # solver = ScipyIVP(system, t1, dt)
 
     sol = solver.solve()
     t = sol.t
@@ -325,7 +325,7 @@ def run(revolute_joint_used=False, use_relative_kinematics=False):
 
 
 if __name__ == "__main__":
-    # run(False, False)
+    run(False, False)
     # run(True, False)
     # run(False, True)
-    run(True, True)
+    # run(True, True)

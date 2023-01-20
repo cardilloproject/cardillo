@@ -1,8 +1,5 @@
 import numpy as np
-
-from cardillo.math.algebra import cross3, ax2skew, ax2skew_a
-
-from cardillo.math import approx_fprime
+from cardillo.math import cross3, ax2skew, ax2skew_a, approx_fprime
 
 
 class RigidBodyRelKinematics:
