@@ -79,8 +79,8 @@ def helix():
     if Beam == Crisfield1999:
         triplets = [
             # (1.0e1, 1.0e-8, 100),
-            (1e2, 1e-10, 1000),
-            # (1e3, 1e-12, 1000),
+            # (1e2, 1e-10, 750),
+            (1e3, 1e-12, 1000),
             # (1e4, 1e-14, 1000),
         ]
     elif Beam == K_TimoshenkoAxisAngleSE3:
@@ -277,7 +277,8 @@ def helix():
     from cardillo.utility import Export
 
     path = Path(__file__)
-    e = Export(path.parent, path.stem, True, 30, sol)
+    fps = 60
+    e = Export(path.parent, path.stem, True, fps, sol)
     e.export_contr(beam, level="centerline + directors", num=50)
     e.export_contr(beam, level="volume", n_segments=5, num=50)
 
@@ -316,7 +317,7 @@ def helix():
         [xis, K_Gamma[0], K_Gamma[0] - 1.0, K_Gamma[1], K_Gamma[2], *K_Kappa]
     ).T
     np.savetxt(
-        f"Simon/helix_strain_measures_{Beam.__name__}_slenderness_{slenderness}.txt",
+        f"examples/Simon/helix_strain_measures_{Beam.__name__}_slenderness_{slenderness}.txt",
         export_data,
         delimiter=", ",
         header=header,
@@ -511,7 +512,7 @@ def SE3_vs_Crisfield(r_OP0, psi0, r_OP1, psi1, L, cross_section):
         [xis, *K_Gamma_SE3, *K_Kappa_SE3, *K_Gamma_Crisfield, *K_Kappa_Crisfield]
     ).T
     np.savetxt(
-        "Simon/CrisfieldvsSE3StrainMeasures.txt",
+        "examples/Simon/CrisfieldvsSE3StrainMeasures.txt",
         export_data,
         delimiter=", ",
         header=header,
@@ -553,39 +554,39 @@ if __name__ == "__main__":
 
     # L = 1
 
-    # # K_kappa_IK = np.array([0, 0, 0])
-    # K_kappa_IK = np.array([1, 0, 1]) * 0.5 * np.pi
+    # # # # K_kappa_IK = np.array([0, 0, 0])
+    # K_kappa_IK = np.array([1, 0.5, 0]) * 0.5 * np.pi
     # K_gamma = np.array([1, 0, 0])
 
-    # # ##############
-    # # # 1. extension
-    # # ##############
-    # # K_kappa_IK = np.zeros(3)
-    # # K_gamma = np.array([1.25, 0, 0])
+    # # # ##############
+    # # # # 1. extension
+    # # # ##############
+    # # # K_kappa_IK = np.zeros(3)
+    # # # K_gamma = np.array([1.25, 0, 0])
 
-    # # ##############
-    # # # 2. shear2
-    # # ##############
-    # # K_kappa_IK = np.zeros(3)
-    # # K_gamma = np.array([1.0, 0.3, 0])
+    # # # ##############
+    # # # # 2. shear2
+    # # # ##############
+    # # # K_kappa_IK = np.zeros(3)
+    # # # K_gamma = np.array([1.0, 0.3, 0])
 
-    # # ##############
-    # # # 3. shear3
-    # # ##############
-    # # K_kappa_IK = np.zeros(3)
-    # # K_gamma = np.array([1.0, 0, 0.3])
+    # # # ##############
+    # # # # 3. shear3
+    # # # ##############
+    # # # K_kappa_IK = np.zeros(3)
+    # # # K_gamma = np.array([1.0, 0, 0.3])
 
-    # # ##############
-    # # # 4. torsion
-    # # ##############
-    # # K_kappa_IK = np.array([np.pi / (2 * L), 0, 0])
-    # # K_gamma = np.array([1.0, 0, 0])
+    # # # ##############
+    # # # # 4. torsion
+    # # # ##############
+    # # # K_kappa_IK = np.array([np.pi / (2 * L), 0, 0])
+    # # # K_gamma = np.array([1.0, 0, 0])
 
-    # # ##############
-    # # # 5. bending2
-    # # ##############
-    # # K_kappa_IK = np.array([0, -np.pi / (4 * L), 0])
-    # # K_gamma = np.array([1.0, 0, 0])
+    # # # ##############
+    # # # # 5. bending2
+    # # # ##############
+    # # # K_kappa_IK = np.array([0, -np.pi / (4 * L), 0])
+    # # # K_gamma = np.array([1.0, 0, 0])
 
     # ##############
     # # 6. bending3
@@ -596,8 +597,34 @@ if __name__ == "__main__":
     # A_IK1 = A_IK0 @ Exp_SO3(L * K_kappa_IK)
     # psi1 = Log_SO3(A_IK1)
 
-    # r_OP1 = r_OP0 + L * A_IK0 @ T_SO3(L * K_kappa_IK).T @ K_gamma
+    # ##################
+    # # 7. quarter-helix
+    # ##################
+    
+    # # solve for helix length
+    # n = 2 / 8  # number of helix coils
+    # scale = 1.0e1
+    # R0 = 1 * scale  # helix radius
+    # h = 5 * scale / 8  # helix height
+    # c = h / (R0 * 2 * np.pi * n)
+    # L = np.sqrt(1 + c**2) * R0 * 2 * np.pi * n
 
-    # # cross_section = "circle"
-    # cross_section = "square"
+    # # compute initial configuration of beam
+    # r_OP0 = R0 * np.array([0, -1, 0], dtype=float)
+    # D1 = np.array([1, 0, c], dtype=float) / np.sqrt(1.0 + c**2)
+    # D2 = np.array([0, 1, 0], dtype=float)
+    # D3 = np.array([-c, 0, 1], dtype=float) / np.sqrt(1.0 + c**2)
+    # A_IK0 = np.vstack((D1, D2, D3)).T
+    # psi0 = Log_SO3(A_IK0)
+
+    # K_kappa_IK = R0 * ((2 * np.pi * n) / L)**2 * np.array([c, 0, 1])
+    # K_gamma = np.array([1.0, 0, 0])
+
+
+    # ##########################33
+    # A_IK1 = A_IK0 @ Exp_SO3(L * K_kappa_IK)
+    # psi1 = Log_SO3(A_IK1)
+    # r_OP1 = r_OP0 + L * A_IK0 @ T_SO3(L * K_kappa_IK).T @ K_gamma
+    # cross_section = "circle"
+    # # cross_section = "square"
     # SE3_vs_Crisfield(r_OP0, psi0, r_OP1, psi1, L, cross_section)
