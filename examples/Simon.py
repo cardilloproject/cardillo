@@ -78,9 +78,9 @@ def helix():
     # Crisfield1999
     if Beam == Crisfield1999:
         triplets = [
-            # (1.0e1, 1.0e-8, 100),
+            (1.0e1, 1.0e-8, 100),
             # (1e2, 1e-10, 750),
-            (1e3, 1e-12, 1000),
+            # (1e3, 1e-12, 1000),
             # (1e4, 1e-14, 1000),
         ]
     elif Beam == K_TimoshenkoAxisAngleSE3:
@@ -208,68 +208,6 @@ def helix():
                 beam.A_IK(t1, q1_p, (1,))
             )
 
-    # # sample centerline deflection of reference solution
-    # num = 100
-    # position_errors = np.zeros((len(triplets), len(nelements_list) + 1), dtype=float)
-    # rotation_errors = np.zeros((len(triplets), len(nelements_list) + 1), dtype=float)
-    # tip_position_errors = np.zeros(
-    #     (len(triplets), len(nelements_list) + 1), dtype=float
-    # )
-    # tip_rotation_errors = np.zeros(
-    #     (len(triplets), len(nelements_list) + 1), dtype=float
-    # )
-    # for i in range(len(triplets)):
-    #     sol_ref = solutions[i, 0]
-    #     beam_ref = beams[i, 0]
-
-    #     r_OP_ref = beam_ref.centerline(sol_ref.q[-1], num=num)
-    #     A_IK_ref = np.array(beam_ref.frames(sol_ref.q[-1], num=num)[1:])
-    #     for j in range(len(nelements_list) + 1):
-    #         beam = beams[i, j]
-    #         sol = solutions[i, j]
-
-    #         # centerline errors
-    #         r_OPi = beam.centerline(sol.q[-1], num=num)
-    #         diff = r_OPi - r_OP_ref
-    #         error = sqrt(sum([d @ d for d in diff])) / num
-    #         position_errors[i, j] = error
-
-    #         # tip displacement errors
-    #         tip_position_errors[i, j] = norm(diff[-1]) / norm(r_OP_ref[-1])
-
-    #         # rotation errors
-    #         A_IKi = np.array(beam.frames(sol.q[-1], num=num)[1:])
-    #         diff = []
-    #         for k in range(num):
-    #             diff.append(Log_SO3(A_IKi[:, :, k].T @ A_IK_ref[:, :, k]))
-    #         diff = np.array(diff)
-    #         error = sqrt(sum([d @ d for d in diff]))
-    #         rotation_errors[i, j] = error
-
-    #         # tip orientation errors
-    #         tip_rotation_errors[i, j] = norm(diff[-1]) / norm(r_OP_ref[-1])
-
-    # print(f"e_r_100:\n{position_errors}")
-    # print(f"e_psi_100:\n{rotation_errors}")
-    # print(f"tip_position_errors:\n{tip_position_errors}")
-    # print(f"tip_rotation_errors:\n{tip_rotation_errors}")
-
-    # header = "ref, nel_1, nel_64"
-    # np.savetxt(
-    #     "code/results/HelixLocking_e_r_100.txt",
-    #     position_errors,
-    #     delimiter=", ",
-    #     header=header,
-    #     comments="",
-    # )
-    # np.savetxt(
-    #     "code/results/HelixLocking_e_psi_100.txt",
-    #     rotation_errors,
-    #     delimiter=", ",
-    #     header=header,
-    #     comments="",
-    # )
-
     ############
     # VTK export
     ############
@@ -280,7 +218,7 @@ def helix():
     fps = 60
     e = Export(path.parent, path.stem, True, fps, sol)
     e.export_contr(beam, level="centerline + directors", num=50)
-    e.export_contr(beam, level="volume", n_segments=5, num=50)
+    e.export_contr(beam, continuity="C0", level="volume", num=50)
 
     #################
     # strain measures
@@ -554,39 +492,39 @@ if __name__ == "__main__":
 
     # L = 1
 
-    # # # # K_kappa_IK = np.array([0, 0, 0])
-    # K_kappa_IK = np.array([1, 0.5, 0]) * 0.5 * np.pi
-    # K_gamma = np.array([1, 0, 0])
+    # # # # # K_kappa_IK = np.array([0, 0, 0])
+    # # K_kappa_IK = np.array([1, 0.5, 0]) * 0.5 * np.pi
+    # # K_gamma = np.array([1, 0, 0])
 
-    # # # ##############
-    # # # # 1. extension
-    # # # ##############
-    # # # K_kappa_IK = np.zeros(3)
-    # # # K_gamma = np.array([1.25, 0, 0])
+    # # ##############
+    # # # 1. extension
+    # # ##############
+    # # K_kappa_IK = np.zeros(3)
+    # # K_gamma = np.array([1.25, 0, 0])
 
-    # # # ##############
-    # # # # 2. shear2
-    # # # ##############
-    # # # K_kappa_IK = np.zeros(3)
-    # # # K_gamma = np.array([1.0, 0.3, 0])
+    # # ##############
+    # # # 2. shear2
+    # # ##############
+    # # K_kappa_IK = np.zeros(3)
+    # # K_gamma = np.array([1.0, 0.3, 0])
 
-    # # # ##############
-    # # # # 3. shear3
-    # # # ##############
-    # # # K_kappa_IK = np.zeros(3)
-    # # # K_gamma = np.array([1.0, 0, 0.3])
+    # # ##############
+    # # # 3. shear3
+    # # ##############
+    # # K_kappa_IK = np.zeros(3)
+    # # K_gamma = np.array([1.0, 0, 0.3])
 
-    # # # ##############
-    # # # # 4. torsion
-    # # # ##############
-    # # # K_kappa_IK = np.array([np.pi / (2 * L), 0, 0])
-    # # # K_gamma = np.array([1.0, 0, 0])
+    # # ##############
+    # # # 4. torsion
+    # # ##############
+    # # K_kappa_IK = np.array([np.pi / (2 * L), 0, 0])
+    # # K_gamma = np.array([1.0, 0, 0])
 
-    # # # ##############
-    # # # # 5. bending2
-    # # # ##############
-    # # # K_kappa_IK = np.array([0, -np.pi / (4 * L), 0])
-    # # # K_gamma = np.array([1.0, 0, 0])
+    # # ##############
+    # # # 5. bending2
+    # # ##############
+    # # K_kappa_IK = np.array([0, -np.pi / (4 * L), 0])
+    # # K_gamma = np.array([1.0, 0, 0])
 
     # ##############
     # # 6. bending3
@@ -597,31 +535,30 @@ if __name__ == "__main__":
     # A_IK1 = A_IK0 @ Exp_SO3(L * K_kappa_IK)
     # psi1 = Log_SO3(A_IK1)
 
-    # ##################
-    # # 7. quarter-helix
-    # ##################
-    
-    # # solve for helix length
-    # n = 2 / 8  # number of helix coils
-    # scale = 1.0e1
-    # R0 = 1 * scale  # helix radius
-    # h = 5 * scale / 8  # helix height
-    # c = h / (R0 * 2 * np.pi * n)
-    # L = np.sqrt(1 + c**2) * R0 * 2 * np.pi * n
+    # # ##################
+    # # # 7. quarter-helix
+    # # ##################
 
-    # # compute initial configuration of beam
-    # r_OP0 = R0 * np.array([0, -1, 0], dtype=float)
-    # D1 = np.array([1, 0, c], dtype=float) / np.sqrt(1.0 + c**2)
-    # D2 = np.array([0, 1, 0], dtype=float)
-    # D3 = np.array([-c, 0, 1], dtype=float) / np.sqrt(1.0 + c**2)
-    # A_IK0 = np.vstack((D1, D2, D3)).T
-    # psi0 = Log_SO3(A_IK0)
+    # # # solve for helix length
+    # # n = 2 / 8  # number of helix coils
+    # # scale = 1.0e1
+    # # R0 = 1 * scale  # helix radius
+    # # h = 5 * scale / 8  # helix height
+    # # c = h / (R0 * 2 * np.pi * n)
+    # # L = np.sqrt(1 + c**2) * R0 * 2 * np.pi * n
 
-    # K_kappa_IK = R0 * ((2 * np.pi * n) / L)**2 * np.array([c, 0, 1])
-    # K_gamma = np.array([1.0, 0, 0])
+    # # # compute initial configuration of beam
+    # # r_OP0 = R0 * np.array([0, -1, 0], dtype=float)
+    # # D1 = np.array([1, 0, c], dtype=float) / np.sqrt(1.0 + c**2)
+    # # D2 = np.array([0, 1, 0], dtype=float)
+    # # D3 = np.array([-c, 0, 1], dtype=float) / np.sqrt(1.0 + c**2)
+    # # A_IK0 = np.vstack((D1, D2, D3)).T
+    # # psi0 = Log_SO3(A_IK0)
 
+    # # K_kappa_IK = R0 * ((2 * np.pi * n) / L)**2 * np.array([c, 0, 1])
+    # # K_gamma = np.array([1.0, 0, 0])
 
-    # ##########################33
+    # ##########################
     # A_IK1 = A_IK0 @ Exp_SO3(L * K_kappa_IK)
     # psi1 = Log_SO3(A_IK1)
     # r_OP1 = r_OP0 + L * A_IK0 @ T_SO3(L * K_kappa_IK).T @ K_gamma

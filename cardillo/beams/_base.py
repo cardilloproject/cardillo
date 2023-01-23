@@ -77,7 +77,7 @@ class RodExportBase(ABC):
 
         return np.array(r).T, np.array(d1).T, np.array(d2).T, np.array(d3).T
 
-    def export(self, sol_i, circle_as_wedge=True, **kwargs):
+    def export(self, sol_i, continuity="C1", circle_as_wedge=True, **kwargs):
         q = sol_i.q
 
         level = kwargs["level"]
@@ -119,6 +119,8 @@ class RodExportBase(ABC):
                 n_segments = kwargs["n_segments"]
             else:
                 n_segments = self.nelement
+
+            assert num >= 2 * n_segments
 
             r_OPs, d1s, d2s, d3s = self.frames(q, num=num)
             target_points_centerline = r_OPs.T
@@ -178,13 +180,13 @@ class RodExportBase(ABC):
 
             # project target points on cubic C1 Bézier curve
             _, _, points_segments_0 = L2_projection_Bezier_curve(
-                target_points_0, n_segments, case="C1"
+                target_points_0, n_segments, case=continuity
             )
             _, _, points_segments_1 = L2_projection_Bezier_curve(
-                target_points_1, n_segments, case="C1"
+                target_points_1, n_segments, case=continuity
             )
             _, _, points_segments_2 = L2_projection_Bezier_curve(
-                target_points_2, n_segments, case="C1"
+                target_points_2, n_segments, case=continuity
             )
 
             if isinstance(self.cross_section, CircularCrossSection):
