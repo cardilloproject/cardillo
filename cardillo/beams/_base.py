@@ -1795,34 +1795,10 @@ def make_TimoshenkoPetrovGalerkinBase(RotationBase):
         # r_OP/ A_IK contribution
         #########################
         def r_OP(self, t, q, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
-            # # evaluate shape functions
-            # N_r, _ = self.basis_functions_r(frame_ID[0])
-
-            # # interpolate centerline
-            # r = np.zeros(3, dtype=q.dtype)
-            # for node in range(self.nnodes_element_r):
-            #     r += N_r[node] * q[self.nodalDOF_element_r[node]]
-
-            # # interpolate orientation
-            # A_IK = self.A_IK(t, q, frame_ID)
-
             r_OP, A_IK, _, _ = self._eval(q, frame_ID[0])
-
             return r_OP + A_IK @ K_r_SP
 
         def r_OP_q(self, t, q, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
-            # # evaluate shape functions
-            # N_r, _ = self.basis_functions_r(frame_ID[0])
-
-            # # interpolate centerline position
-            # r_q = np.zeros((3, self.nq_element), dtype=q.dtype)
-            # for node in range(self.nnodes_element_r):
-            #     nodalDOF_r = self.nodalDOF_element_r[node]
-            #     r_q[:, nodalDOF_r] += N_r[node] * np.eye(3, dtype=float)
-
-            # # interpolate orientation
-            # A_IK_q = self.A_IK_q(t, q, frame_ID)
-
             if not hasattr(self, "_deval"):
                 warnings.warn(
                     "Class derived from TimoshenkoPetrovGalerkinBase does not implement _deval. We use a numerical Jacobian!"
@@ -1848,15 +1824,7 @@ def make_TimoshenkoPetrovGalerkinBase(RotationBase):
                     _,
                 ) = self._deval(q, frame_ID[0])
 
-            return r_OP_q + np.einsum("k,kij", K_r_SP, A_IK_q)
-
-            # r_OP_q_num = approx_fprime(
-            #     q, lambda q: self.r_OP(t, q, frame_ID, K_r_SP), eps=1.0e-10, method="cs"
-            # )
-            # diff = r_OP_q - r_OP_q_num
-            # error = np.linalg.norm(diff)
-            # print(f"error r_OP_q: {error}")
-            # return r_OP_q_num
+            return r_OP_q + np.einsum("ijk,j->ik", A_IK_q, K_r_SP)
 
         def v_P(self, t, q, u, frame_ID, K_r_SP=np.zeros(3, dtype=float)):
             N_r, _ = self.basis_functions_r(frame_ID[0])
