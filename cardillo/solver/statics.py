@@ -99,9 +99,11 @@ class Newton:
         yield R
 
         # evaluate additionally required quantites for computing the jacobian
-        K = self.system.h_q(
-            t, q, self.u0, scipy_matrix=csr_matrix
-        ) + self.system.Wla_g_q(t, q, la_g, scipy_matrix=csr_matrix)
+        K = (
+            self.system.h_q(t, q, self.u0, scipy_matrix=csr_matrix)
+            + self.system.Wla_g_q(t, q, la_g, scipy_matrix=csr_matrix)
+            + self.system.Wla_N_q(t, q, la_N, scipy_matrix=csr_matrix)
+        )
         g_q = self.system.g_q(t, q, scipy_matrix=csr_matrix)
         g_S_q = self.system.g_S_q(t, q, scipy_matrix=csr_matrix)
 
@@ -118,11 +120,10 @@ class Newton:
                 Rla_N_q[i] = g_N_q[i]
 
         # fmt: off
-        # TODO: What is more efficient together with spsolve: Using csr or csc format?
-        yield bmat([[  K,     W_g,         W_N], 
-                    [g_q,     None,       None],
-                    [g_S_q,   None,       None],
-                    [Rla_N_q, None, Rla_N_la_N]], format="csr")
+        yield bmat([[      K,  W_g,        W_N], 
+                    [    g_q, None,       None],
+                    [  g_S_q, None,       None],
+                    [Rla_N_q, None, Rla_N_la_N]], format="csc")
         # fmt: on
 
     def __residual(self, t, x):
@@ -230,7 +231,7 @@ class Newton:
 # TODO: Understand predictor of Feng mentioned in Neto1999.
 # TODO: automatic increment cutting: Crisfield1991 section 9.5.1
 # TODO: read Crisfield1996 section 21 Branch switching and further advanced solution procedures
-# TODO: implement line searcher technique mention in Crisfield1991 and Crisfield1996
+# TODO: implement line searcher technique mentioned in Crisfield1991 and Crisfield1996
 # TODO: implement dense output
 class Riks:
     """Linear arc-length solver close to Riks method as dervied in Crisfield1991 
