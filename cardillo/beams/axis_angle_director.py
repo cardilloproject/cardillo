@@ -25,7 +25,11 @@ def make_DirectorAxisAngle(Base):
             u0=None,
             basis_r="Lagrange",
             basis_psi="Lagrange",
+            volume_correction=True,
+            # volume_correction=False,
         ):
+            self.volume_correction = volume_correction
+
             p = max(polynomial_degree_r, polynomial_degree_psi)
             nquadrature = p
             nquadrature_dyn = int(np.ceil((p + 1) ** 2 / 2))
@@ -77,7 +81,6 @@ def make_DirectorAxisAngle(Base):
             # torsional and flexural strains
             d1, d2, d3 = A_IK.T
             d1_xi, d2_xi, d3_xi = A_IK_xi.T
-            half_d = d1 @ cross3(d2, d3)
             K_Kappa_bar = (
                 np.array(
                     [
@@ -86,8 +89,11 @@ def make_DirectorAxisAngle(Base):
                         0.5 * (d2 @ d1_xi - d1 @ d2_xi),
                     ]
                 )
-                / half_d
             )
+
+            if self.volume_correction:
+                half_d = d1 @ cross3(d2, d3)
+                K_Kappa_bar /= half_d
 
             return r_OP, A_IK, K_Gamma_bar, K_Kappa_bar
 
@@ -139,10 +145,6 @@ def make_DirectorAxisAngle(Base):
             K_Gamma_bar_qe = np.einsum("k,kij", r_OP_xi, A_IK_qe) + A_IK.T @ r_OP_xi_qe
 
             # torsional and flexural strains
-            half_d = d1 @ cross3(d2, d3)
-            half_d_qe = (
-                cross3(d2, d3) @ d1_qe + cross3(d3, d1) @ d2_qe + cross3(d1, d2) @ d3_qe
-            )
             K_Kappa_bar = (
                 np.array(
                     [
@@ -151,7 +153,6 @@ def make_DirectorAxisAngle(Base):
                         0.5 * (d2 @ d1_xi - d1 @ d2_xi),
                     ]
                 )
-                / half_d
             )
             K_Kappa_bar_qe = np.array(
                 [
@@ -162,7 +163,17 @@ def make_DirectorAxisAngle(Base):
                     0.5
                     * (d2 @ d1_xi_qe + d1_xi @ d2_qe - d1 @ d2_xi_qe - d2_xi @ d1_qe),
                 ]
-            ) / half_d - np.outer(K_Kappa_bar / half_d, half_d_qe)
+            )
+
+            if self.volume_correction:
+                half_d = d1 @ cross3(d2, d3)
+                half_d_qe = (
+                    cross3(d2, d3) @ d1_qe + cross3(d3, d1) @ d2_qe + cross3(d1, d2) @ d3_qe
+                )
+
+                K_Kappa_bar /= half_d
+                K_Kappa_bar_qe /= half_d
+                K_Kappa_bar_qe -= np.outer(K_Kappa_bar / half_d, half_d_qe) 
 
             return (
                 r_OP,
