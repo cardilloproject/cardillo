@@ -10,12 +10,14 @@ from cardillo.math import (
     pi,
 )
 from cardillo.beams._base import (
-    TimoshenkoPetrovGalerkinBaseAxisAngle,
-    TimoshenkoPetrovGalerkinBaseQuaternion,
+    I_TimoshenkoPetrovGalerkinBaseAxisAngle,
+    I_TimoshenkoPetrovGalerkinBaseQuaternion,
+    K_TimoshenkoPetrovGalerkinBaseAxisAngle,
+    K_TimoshenkoPetrovGalerkinBaseQuaternion,
 )
 
 
-class K_TimoshenkoLerp(TimoshenkoPetrovGalerkinBaseQuaternion):
+class K_TimoshenkoLerp(K_TimoshenkoPetrovGalerkinBaseQuaternion):
     def __init__(
         self,
         cross_section,
@@ -141,7 +143,7 @@ class K_TimoshenkoLerp(TimoshenkoPetrovGalerkinBaseQuaternion):
         return A_IK_q_num
 
 
-class K_Cardona(TimoshenkoPetrovGalerkinBaseAxisAngle):
+class K_Cardona(K_TimoshenkoPetrovGalerkinBaseAxisAngle):
     def __init__(
         self,
         cross_section,

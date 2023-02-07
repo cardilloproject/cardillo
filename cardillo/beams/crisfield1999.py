@@ -1,10 +1,14 @@
 import numpy as np
+import warnings
+
 from cardillo.math import Exp_SO3, Log_SO3, T_SO3, approx_fprime
+from cardillo.beams._base import (
+    I_TimoshenkoPetrovGalerkinBaseAxisAngle,
+    K_TimoshenkoPetrovGalerkinBaseAxisAngle,
+)
 
-from cardillo.beams._base import TimoshenkoPetrovGalerkinBaseAxisAngle
 
-
-class Crisfield1999(TimoshenkoPetrovGalerkinBaseAxisAngle):
+class Crisfield1999(K_TimoshenkoPetrovGalerkinBaseAxisAngle):
     def __init__(
         self,
         cross_section,
@@ -24,6 +28,9 @@ class Crisfield1999(TimoshenkoPetrovGalerkinBaseAxisAngle):
         p = max(polynomial_degree_r, polynomial_degree_psi)
         nquadrature = p
         nquadrature_dyn = int(np.ceil((p + 1) ** 2 / 2))
+
+        # warnings.warn("'Crisfield1999: Full integration is used!")
+        # nquadrature = nquadrature_dyn
 
         # reference rotation for relative rotation proposed by Crisfield1999 (5.8)
         nnodes_element_psi = polynomial_degree_psi + 1

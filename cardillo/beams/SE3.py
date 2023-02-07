@@ -7,10 +7,13 @@ from cardillo.math import (
     Exp_SE3_h,
     Log_SE3_H,
 )
-from cardillo.beams._base import TimoshenkoPetrovGalerkinBaseAxisAngle
+from cardillo.beams._base import (
+    I_TimoshenkoPetrovGalerkinBaseAxisAngle,
+    K_TimoshenkoPetrovGalerkinBaseAxisAngle,
+)
 
 
-class K_TimoshenkoAxisAngleSE3(TimoshenkoPetrovGalerkinBaseAxisAngle):
+class K_TimoshenkoAxisAngleSE3(K_TimoshenkoPetrovGalerkinBaseAxisAngle):
     def __init__(
         self,
         cross_section,
@@ -48,7 +51,7 @@ class K_TimoshenkoAxisAngleSE3(TimoshenkoPetrovGalerkinBaseAxisAngle):
         r_OP=np.zeros(3, dtype=float),
         A_IK=np.eye(3, dtype=float),
     ):
-        return TimoshenkoPetrovGalerkinBaseAxisAngle.straight_configuration(
+        return K_TimoshenkoPetrovGalerkinBaseAxisAngle.straight_configuration(
             1, 1, "Lagrange", "Lagrange", nelement, L, r_OP, A_IK
         )
 

@@ -28,12 +28,12 @@ from pathlib import Path
 
 # Beam = DirectorAxisAngle
 # Beam = Crisfield1999
-# Beam = K_TimoshenkoAxisAngleSE3
+Beam = K_TimoshenkoAxisAngleSE3
 # Beam = TimoshenkoDirectorDirac
 # Beam = TimoshenkoDirectorIntegral
 # Beam = I_DirectorAxisAngle
 # Beam = K_Cardona
-Beam = K_TimoshenkoLerp
+# Beam = K_TimoshenkoLerp
 
 statics = True
 # statics = False
@@ -41,7 +41,7 @@ statics = True
 
 if __name__ == "__main__":
     # number of elements
-    nelements = 5
+    nelements = 10
 
     # used polynomial degree
     # polynomial_degree = 3
@@ -231,7 +231,8 @@ if __name__ == "__main__":
 
     # moment at right end
     Fi = material_model.Fi
-    M = lambda t: (e3 * 2 * np.pi * Fi[2] / L * t) * 0.25
+    # M = lambda t: (e3 * 2 * np.pi * Fi[2] / L * t) * 2
+    M = lambda t: 2 * np.pi / L * (e1 * Fi[0] + e3 * Fi[2]) * t * 2
     # if statics:
     #     M = lambda t: (e1 * Fi[0] + e3 * Fi[2]) * 1.0 * t * 2 * np.pi / L * 0.5
     # else:

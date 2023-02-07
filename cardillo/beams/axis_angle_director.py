@@ -1,10 +1,13 @@
 import numpy as np
+
 from cardillo.math import (
     cross3,
 )
 from cardillo.beams._base import (
-    TimoshenkoPetrovGalerkinBaseAxisAngle,
-    I_TimoshenkoPetrovGalerkinBase,
+    I_TimoshenkoPetrovGalerkinBaseAxisAngle,
+    K_TimoshenkoPetrovGalerkinBaseAxisAngle,
+    I_TimoshenkoPetrovGalerkinBaseQuaternion,
+    K_TimoshenkoPetrovGalerkinBaseQuaternion,
 )
 
 
@@ -26,13 +29,16 @@ def make_DirectorAxisAngle(Base):
             basis_r="Lagrange",
             basis_psi="Lagrange",
             volume_correction=True,
-            # volume_correction=False,
         ):
             self.volume_correction = volume_correction
 
             p = max(polynomial_degree_r, polynomial_degree_psi)
             nquadrature = p
             nquadrature_dyn = int(np.ceil((p + 1) ** 2 / 2))
+
+            # import warnings
+            # warnings.warn("'DirectorAxisAngle: Full integration is used!")
+            # nquadrature = nquadrature_dyn
 
             super().__init__(
                 cross_section,
@@ -81,14 +87,12 @@ def make_DirectorAxisAngle(Base):
             # torsional and flexural strains
             d1, d2, d3 = A_IK.T
             d1_xi, d2_xi, d3_xi = A_IK_xi.T
-            K_Kappa_bar = (
-                np.array(
-                    [
-                        0.5 * (d3 @ d2_xi - d2 @ d3_xi),
-                        0.5 * (d1 @ d3_xi - d3 @ d1_xi),
-                        0.5 * (d2 @ d1_xi - d1 @ d2_xi),
-                    ]
-                )
+            K_Kappa_bar = np.array(
+                [
+                    0.5 * (d3 @ d2_xi - d2 @ d3_xi),
+                    0.5 * (d1 @ d3_xi - d3 @ d1_xi),
+                    0.5 * (d2 @ d1_xi - d1 @ d2_xi),
+                ]
             )
 
             if self.volume_correction:
@@ -145,14 +149,12 @@ def make_DirectorAxisAngle(Base):
             K_Gamma_bar_qe = np.einsum("k,kij", r_OP_xi, A_IK_qe) + A_IK.T @ r_OP_xi_qe
 
             # torsional and flexural strains
-            K_Kappa_bar = (
-                np.array(
-                    [
-                        0.5 * (d3 @ d2_xi - d2 @ d3_xi),
-                        0.5 * (d1 @ d3_xi - d3 @ d1_xi),
-                        0.5 * (d2 @ d1_xi - d1 @ d2_xi),
-                    ]
-                )
+            K_Kappa_bar = np.array(
+                [
+                    0.5 * (d3 @ d2_xi - d2 @ d3_xi),
+                    0.5 * (d1 @ d3_xi - d3 @ d1_xi),
+                    0.5 * (d2 @ d1_xi - d1 @ d2_xi),
+                ]
             )
             K_Kappa_bar_qe = np.array(
                 [
@@ -168,12 +170,32 @@ def make_DirectorAxisAngle(Base):
             if self.volume_correction:
                 half_d = d1 @ cross3(d2, d3)
                 half_d_qe = (
-                    cross3(d2, d3) @ d1_qe + cross3(d3, d1) @ d2_qe + cross3(d1, d2) @ d3_qe
+                    cross3(d2, d3) @ d1_qe
+                    + cross3(d3, d1) @ d2_qe
+                    + cross3(d1, d2) @ d3_qe
                 )
 
                 K_Kappa_bar /= half_d
                 K_Kappa_bar_qe /= half_d
-                K_Kappa_bar_qe -= np.outer(K_Kappa_bar / half_d, half_d_qe) 
+                K_Kappa_bar_qe -= np.outer(K_Kappa_bar / half_d, half_d_qe)
+
+            # from cardillo.math import approx_fprime
+
+            # K_Kappa_bar_qe_num = approx_fprime(
+            #     qe,
+            #     lambda qe: self._eval(qe, xi)[3],
+            # )
+            # diff = K_Kappa_bar_qe - K_Kappa_bar_qe_num
+            # error = np.linalg.norm(diff)
+            # print(f"error K_Kappa_bar_qe: {error}")
+
+            # K_Gamma_bar_qe_num = approx_fprime(
+            #     qe,
+            #     lambda qe: self._eval(qe, xi)[2],
+            # )
+            # diff = K_Gamma_bar_qe - K_Gamma_bar_qe_num
+            # error = np.linalg.norm(diff)
+            # print(f"error K_Gamma_bar_qe: {error}")
 
             return (
                 r_OP,
@@ -200,8 +222,6 @@ def make_DirectorAxisAngle(Base):
             return A_IK
 
         def A_IK_q(self, t, q, frame_ID):
-            # from cardillo.math import approx_fprime
-            # return approx_fprime(q, lambda q: self.A_IK(t, q, frame_ID))
             # evaluate shape functions
             N_psi, _ = self.basis_functions_psi(frame_ID[0])
 
@@ -218,5 +238,7 @@ def make_DirectorAxisAngle(Base):
     return Derived
 
 
-DirectorAxisAngle = make_DirectorAxisAngle(TimoshenkoPetrovGalerkinBaseAxisAngle)
-I_DirectorAxisAngle = make_DirectorAxisAngle(I_TimoshenkoPetrovGalerkinBase)
+I_DirectorAxisAngle = make_DirectorAxisAngle(I_TimoshenkoPetrovGalerkinBaseAxisAngle)
+K_DirectorAxisAngle = make_DirectorAxisAngle(K_TimoshenkoPetrovGalerkinBaseAxisAngle)
+I_DirectorQuaternion = make_DirectorAxisAngle(I_TimoshenkoPetrovGalerkinBaseQuaternion)
+K_DirectorQuaternion = make_DirectorAxisAngle(K_TimoshenkoPetrovGalerkinBaseQuaternion)
