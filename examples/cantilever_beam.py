@@ -10,7 +10,7 @@ from cardillo.beams import (
     animate_beam,
     K_TimoshenkoAxisAngleSE3,
     Crisfield1999,
-    DirectorAxisAngle,
+    K_DirectorAxisAngle,
     I_DirectorAxisAngle,
     TimoshenkoDirectorDirac,
     TimoshenkoDirectorIntegral,
@@ -26,9 +26,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-# Beam = DirectorAxisAngle
+Beam = K_DirectorAxisAngle
 # Beam = Crisfield1999
-Beam = K_TimoshenkoAxisAngleSE3
+# Beam = K_TimoshenkoAxisAngleSE3
 # Beam = TimoshenkoDirectorDirac
 # Beam = TimoshenkoDirectorIntegral
 # Beam = I_DirectorAxisAngle
@@ -91,8 +91,8 @@ if __name__ == "__main__":
             nelements,
             q0,
         )
-    elif Beam == DirectorAxisAngle:
-        q0 = DirectorAxisAngle.straight_configuration(
+    elif Beam == K_DirectorAxisAngle:
+        q0 = K_DirectorAxisAngle.straight_configuration(
             polynomial_degree,
             polynomial_degree,
             basis,
@@ -102,7 +102,7 @@ if __name__ == "__main__":
             r_OP=r_OP0,
             A_IK=A_IK0,
         )
-        beam = DirectorAxisAngle(
+        beam = K_DirectorAxisAngle(
             cross_section,
             material_model,
             A_rho0,
