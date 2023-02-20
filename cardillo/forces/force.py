@@ -28,6 +28,13 @@ class Force:
     def h_q(self, t, q, u, coo):
         f_q = einsum("i,ijk->jk", self.force(t), self.J_P_q(t, q))
         coo.extend(f_q, (self.uDOF, self.qDOF))
+    
+    def export(self, sol_i, **kwargs):
+        points = [self.r_OP(sol_i.t, sol_i.q[self.qDOF])]
+        cells = [("vertex", [[0]])]
+        F = [self.force(sol_i.t)]
+        cell_data = dict(F=[F])
+        return points, cells, None, cell_data
 
 
 class K_Force:

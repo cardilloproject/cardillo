@@ -184,6 +184,6 @@ class Export:
                 cells=cells,
                 point_data=point_data,
                 cell_data=cell_data,
-                # binary=False,  # TODO set to True before merge
+                # binary=False,
             )
         self._write_pvd_file(self.path / f"{file_name}.pvd")
