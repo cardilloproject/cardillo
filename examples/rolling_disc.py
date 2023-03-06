@@ -143,7 +143,7 @@ def state():
     rho_inf = 0.96  # used for GAMM (high oszillations)
     # rho_inf = 0.85  # used for GAMM (low oszillations)
     # rho_inf = 0.1
-    # see Arnodl2016, p. 118
+    # see Arnold2016, p. 118
     tol = 1.0e-10
 
     # sol = ScipyIVP(model, t1, dt).solve()
