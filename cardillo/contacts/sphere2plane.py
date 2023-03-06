@@ -33,8 +33,8 @@ class Sphere2Plane:
             self.NF_connectivity = [[0, 1]]
             self.gamma_F = self.__gamma_F
 
-        self.e_N = np.zeros(self.nla_N) if e_N is None else np.array([e_N])
-        self.e_F = np.zeros(self.nla_N) if e_F is None else np.array([e_F])
+        self.e_N = np.zeros(self.nla_N) if e_N is None else e_N * np.ones(self.nla_N)
+        self.e_F = np.zeros(self.nla_F) if e_F is None else e_F * np.ones(self.nla_F)
         self.frame_ID = frame_ID
 
         self.r_OQ = lambda t: self.frame.r_OP(t)
