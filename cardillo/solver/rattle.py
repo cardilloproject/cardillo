@@ -7,6 +7,8 @@ from cardillo.math.prox import prox_R0_nm, prox_R0_np, prox_sphere
 from cardillo.math import fsolve
 from cardillo.solver import Solution, consistent_initial_conditions
 
+import warnings
+
 class Rattle:
     def __init__(
         self,
@@ -506,19 +508,71 @@ class Rattle:
                 qn1, un1 = self.system.step_callback(tn1, qn1, un1)
 
             elif self.method=="fixed point":
-                y1, converged1, error1, i1, _ = fsolve(
-                    self.R1,
-                    self.y1n,
-                    jac="3-point",  # TODO: keep this, otherwise sinuglairites arise
-                    eps=1.0e-6,
-                    atol=self.atol,
-                    fun_args=(True,),
-                    jac_args=(False,),
+                #################
+                # first stage
+                #################
+                qn = self.qn
+                tn = self.tn
+                un = self.un
+                qn1 = self.qn
+                un12 = self.un
+
+                P_g1 = np.zeros(self.nla_g, dtype=float)
+                P_N1 = np.zeros(self.nla_N, dtype=float)
+                P_F1 = np.zeros(self.nla_F, dtype=float)
+
+                # get quantities from model
+                Bn = self.system.B(tn, qn)
+                M = self.system.M(tn, qn)
+                W_gn = self.system.W_g(tn, qn)
+                W_gamman = self.system.W_gamma(tn, qn)
+                # note: we use csc_matrix for efficient column slicing later,
+                # see https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csc_array.html#scipy.sparse.csc_array
+                W_Fn = self.system.W_F(tn, qn, scipy_matrix=csc_matrix)
+                W_Nn = self.system.W_N(tn, qn, scipy_matrix=csc_matrix)
+
+                hn12 = self.system.h(tn, qn, un12)
+                Bn1 = self.system.B(tn1, qn1)
+                g_qn1 = self.system.g_q(tn1, qn1)
+                W_gamman1 = self.system.W_gamma(tn1, qn1)
+                # TODO: This should be dg/dt!!!
+                chi_gn1 = self.system.g_dot(tn1, qn1, np.zeros_like(un12))
+                chi_gamman1 = self.system.gamma(tn1, qn1, np.zeros_like(un12))
+                
+                # maybe with Bn instead of Bn1 this converges?
+                B = 0.5 * self.dt * (Bn + Bn1)
+                A = bmat([[         M, None, -W_gn, -W_gamman], \
+                          [    -B, np.eye(self.system.eye()),     None, None], \
+                          [    -g_qn1.T, None,     None, None], \
+                          [-W_gamman1.T, None,     None, None]], format="csc")
+                
+                lu = splu(A)
+
+                # initial right hand side
+                rhs = M @ un 
+
+                # update rhs
+                b = np.concatenate(
+                        (
+                        rhs + 0.5 * (self.dt * hn12 + W_N @ P_N + W_F @ P_F2),
+                        chi_gn1,
+                        chi_gamman1,
+                    )
                 )
 
-                qn1, un12, P_g1, P_N1, P_F1 = self.unpack_y1(
-                    y1
-                )
+
+                # solve for initial velocities and percussions of the bilateral
+                # constraints for the fixed point iteration
+                x = lu.solve(b)
+                un1 = x[: self.nu]
+                P_g2 = 2 * x[self.nu : self.nu + self.nla_g]
+                P_gamma2 = 2 * x[self.nu + self.nla_g :]
+
+                # qn1, un12, P_g1, P_N1, P_F1
+
+                #################
+                # second stage
+                #################
 
                 # get quantities from model
                 M = self.system.M(tn1, qn1)

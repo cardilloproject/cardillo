@@ -622,7 +622,8 @@ if __name__ == "__main__":
     system.add(slider_crank)
     system.assemble()
 
-    t1 = 0.5
+    t1 = 2 * np.pi / 150
+    # t1 = 0.5
     # dt = 1e-5
     dt = 1e-4
     # dt = 2.5e-4
