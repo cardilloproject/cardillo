@@ -1,98 +1,164 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.integrate import solve_ivp
 
 from cardillo import System
 from cardillo.solver import ScipyIVP, EulerBackward
 from cardillo.constraints import RevoluteJoint
-from cardillo.discrete import RigidBodyEuler
+from cardillo.discrete import RigidBodyAxisAngle, RigidBodyQuaternion
 from cardillo.forces import (
     LinearSpring,
     LinearDamper,
     PDRotationalJoint,
-    K_Force,
-    K_Moment,
 )
+from cardillo.math import Exp_SO3, axis_angle2quat, norm
 
 
-class RigidCylinder(RigidBodyEuler):
-    def __init__(self, m, r, l, q0=None, u0=None):
-        A = 1 / 4 * m * r**2 + 1 / 12 * m * l**2
-        C = 1 / 2 * m * r**2
-        K_theta_S = np.diag(np.array([A, A, C]))
+def RigidCylinder(RigidBodyParametrization):
+    class _RigidCylinder(RigidBodyParametrization):
+        def __init__(self, m, r, l, q0=None, u0=None):
+            A = 1 / 4 * m * r**2 + 1 / 12 * m * l**2
+            C = 1 / 2 * m * r**2
+            K_theta_S = np.diag(np.array([A, A, C]))
 
-        super().__init__(m, K_theta_S, q0=q0, u0=u0)
+            super().__init__(m, K_theta_S, q0=q0, u0=u0)
+
+    return _RigidCylinder
 
 
-def run(Spring=LinearSpring, Damper=LinearDamper, alpha0=0, alpha_dot0=0, g_ref=0):
+def run(
+    k,
+    d,
+    psi,
+    alpha_dot0,
+    g_ref=0,
+    RigidBodyParametrization=RigidBodyQuaternion,
+    plot=True,
+):
+    l = 0.1
     m = 1
     r = 0.2
-    l = 0.1
-
-    k = 1
-    d = 0.025
-    g_ref = g_ref
-    alpha0 = alpha0
 
     r_OP0 = np.zeros(3)
-    p0_euler = np.array((alpha0, 0, 0))
-    q0 = np.hstack((r_OP0, p0_euler))
     v_P0 = np.zeros(3)
-    alpha_dot0 = alpha_dot0
-    Omega0 = np.array((0, 0, alpha_dot0))
-    u0 = np.hstack((v_P0, Omega0))
+    K_Omega0 = np.array((0, 0, alpha_dot0))
+    u0 = np.hstack((v_P0, K_Omega0))
+
+    if type(RigidBodyParametrization) is type(RigidBodyAxisAngle):
+        q0 = np.hstack((r_OP0, psi))
+        rigid_body = RigidCylinder(RigidBodyAxisAngle)(m, r, l, q0, u0)
+    elif type(RigidBodyParametrization) is type(RigidBodyQuaternion):
+        n_psi = norm(psi)
+        p = axis_angle2quat(psi / n_psi, n_psi)
+        q0 = np.hstack((r_OP0, p))
+        rigid_body = RigidCylinder(RigidBodyQuaternion)(m, r, l, q0, u0)
+    else:
+        raise (TypeError)
 
     system = System()
-
-    rigid_body = RigidCylinder(m, r, l, q0, u0)
-
-    joint = PDRotationalJoint(RevoluteJoint, Spring=Spring, Damper=Damper)(
+    joint = PDRotationalJoint(RevoluteJoint, Spring=LinearSpring, Damper=LinearDamper)(
         subsystem1=system.origin,
         subsystem2=rigid_body,
         r_OB0=np.zeros(3),
-        A_IB0=np.eye(3),
+        A_IB0=A_IK0,
         k=k,
         d=d,
         g_ref=g_ref,
     )
 
-    # F = K_Force(np.array([0, 0.2, 0]), rigid_body, K_r_SP=np.array([r, 0, 0]))
-    # # M = K_Moment(np.array([0, 0, -0.04]), rigid_body)
-    # # M = K_Moment(np.array([1, 0, 0]), rigid_body)
-    # # M = K_Moment(np.array([0, 1, 0]), rigid_body)
-    # M = K_Moment(np.array([0, 0, 1]), rigid_body)
-
     system.add(rigid_body, joint)
-    # system.add(F)
-    # system.add(M)
-
     system.assemble()
 
+    ############################################################################
+    #                   solver
+    ############################################################################
     t1 = 2
     dt = 1.0e-2
-    solver = ScipyIVP(system, t1, dt)
+    solver = ScipyIVP(system, t1, dt, atol=1e-8)
+    # solver = EulerBackward(system, t1, dt)
     sol = solver.solve()
     t = sol.t
     q = sol.q
-    u = sol.u
 
-    fig, ax = plt.subplots(1, 2)
+    ############################################################################
+    #                   plot
+    ############################################################################
+    if plot:
+        joint.reset()
+        alpha_cmp = [joint.angle(ti, qi[joint.qDOF]) for ti, qi in zip(t, q)]
 
-    ax[0].plot(t, q[:, 0], "-r", label="x")
-    ax[0].plot(t, q[:, 1], "-g", label="y")
-    ax[0].plot(t, q[:, 2], "-b", label="z")
-    ax[0].legend()
+        def eqm(t, x):
+            dx = np.zeros(2)
+            dx[0] = x[1]
+            dx[1] = -2 / (m * r**2) * (d * x[1] + k * (x[0] - g_ref))
+            return dx
 
-    ax[1].plot(t, q[:, 3], "-r", label="alpha")
-    ax[1].plot(t, q[:, 4], "-g", label="beta")
-    ax[1].plot(t, q[:, 5], "-b", label="gamma")
-    ax[1].legend()
+        x0 = np.array((0, alpha_dot0))
+        ref = solve_ivp(eqm, [0, t1], x0, method="RK45", rtol=1e-8, atol=1e-12)
+        x = ref.y
+        t_ref = ref.t
+        alpha_ref = x[0]
 
-    plt.show()
+        fig, ax = plt.subplots(1, 1)
+
+        ax.plot(t, alpha_cmp, "-k", label="alpha")
+        ax.plot(t_ref, alpha_ref, "-.r", label="alpha_ref")
+        ax.legend()
+
+        plt.show()
 
 
 if __name__ == "__main__":
-    alpha0 = np.pi / 10
+    profiling = False
+
+    # initial rotational velocity e_z^K axis
     alpha_dot0 = 25
-    # run(Spring=LinearSpring, Damper=None, alpha0=alpha0, alpha_dot0=alpha_dot0)
-    # run(Spring=LinearSpring, Damper=LinearDamper, g_ref=-np.pi/2)
-    run(Spring=LinearSpring, Damper=LinearDamper, g_ref=4 * np.pi)
+    # axis angle rotation
+    # psi = np.random.rand(3)
+    # psi = np.array((0, 1, 0))
+    # psi = np.array((1, 0, 0))
+    psi = np.array((0, 0, 1))
+    # psi = np.array((0, np.pi/2, 0))
+    A_IK0 = Exp_SO3(psi)
+
+    # spring stiffness and damper parameter
+    k = 1
+    d = 0.025
+    # k=d=0
+
+    # Rigid body parametrization
+    # RigidBodyParametrization = RigidBodyQuaternion
+    RigidBodyParametrization = RigidBodyAxisAngle
+
+    if profiling:
+        import cProfile, pstats
+
+        profiler = cProfile.Profile()
+
+        profiler.enable()
+        run(
+            k=k,
+            d=d,
+            psi=psi,
+            alpha_dot0=alpha_dot0,
+            g_ref=4 * np.pi,
+            RigidBodyParametrization=RigidBodyParametrization,
+            plot=False,
+        )
+        profiler.disable()
+
+        stats = pstats.Stats(profiler)
+        # stats.print_stats(20)
+        stats.sort_stats(pstats.SortKey.TIME, pstats.SortKey.CUMULATIVE).print_stats(
+            0.5, "cardillo"
+        )
+    else:
+        run(
+            k=k,
+            d=d,
+            psi=psi,
+            alpha_dot0=alpha_dot0,
+            g_ref=4 * np.pi,
+            RigidBodyParametrization=RigidBodyParametrization,
+            plot=True,
+        )
