@@ -121,6 +121,7 @@ class Export:
                 rmtree(path)
         path.mkdir(parents=True, exist_ok=overwrite)
         self.path = path
+        return path.stem
 
     def __export_list(self, sol_i, **kwargs):
         points, cells, point_data, cell_data = [], [], {}, {}

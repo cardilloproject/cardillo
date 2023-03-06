@@ -7,8 +7,8 @@ class RevoluteJoint:
         self,
         subsystem1,
         subsystem2,
-        r_OB,
-        A_IB,
+        r_OB0,
+        A_IB0,
         frame_ID1=np.zeros(3),
         frame_ID2=np.zeros(3),
         la_g0=None,
@@ -20,8 +20,8 @@ class RevoluteJoint:
         self.frame_ID1 = frame_ID1
         self.subsystem2 = subsystem2
         self.frame_ID2 = frame_ID2
-        self.r_OB = r_OB
-        self.A_IB = A_IB
+        self.r_OB0 = r_OB0
+        self.A_IB0 = A_IB0
 
     def assembler_callback(self):
         qDOF1 = self.subsystem1.qDOF
@@ -48,8 +48,8 @@ class RevoluteJoint:
         A_IK2 = self.subsystem2.A_IK(
             self.subsystem2.t0, self.subsystem2.q0[local_qDOF2], self.frame_ID2
         )
-        A_K1B1 = A_IK1.T @ self.A_IB
-        A_K2B2 = A_IK2.T @ self.A_IB
+        A_K1B1 = A_IK1.T @ self.A_IB0
+        A_K2B2 = A_IK2.T @ self.A_IB0
 
         r_OS1 = self.subsystem1.r_OP(
             self.subsystem1.t0, self.subsystem1.q0[local_qDOF1], self.frame_ID1
@@ -57,35 +57,35 @@ class RevoluteJoint:
         r_OS2 = self.subsystem2.r_OP(
             self.subsystem2.t0, self.subsystem2.q0[local_qDOF2], self.frame_ID2
         )
-        K_r_SP1 = A_IK1.T @ (self.r_OB - r_OS1)
-        K_r_SP2 = A_IK2.T @ (self.r_OB - r_OS2)
+        K1_r_S1B = A_IK1.T @ (self.r_OB0 - r_OS1)
+        K2_r_S2B = A_IK2.T @ (self.r_OB0 - r_OS2)
 
         self.r_OP1 = lambda t, q: self.subsystem1.r_OP(
-            t, q[:nq1], self.frame_ID1, K_r_SP1
+            t, q[:nq1], self.frame_ID1, K1_r_S1B
         )
         self.r_OP1_q = lambda t, q: self.subsystem1.r_OP_q(
-            t, q[:nq1], self.frame_ID1, K_r_SP1
+            t, q[:nq1], self.frame_ID1, K1_r_S1B
         )
         self.v_P1 = lambda t, q, u: self.subsystem1.v_P(
-            t, q[:nq1], u[:nu1], self.frame_ID1, K_r_SP1
+            t, q[:nq1], u[:nu1], self.frame_ID1, K1_r_S1B
         )
         self.v_P1_q = lambda t, q, u: self.subsystem1.v_P_q(
-            t, q[:nq1], u[:nu1], self.frame_ID1, K_r_SP1
+            t, q[:nq1], u[:nu1], self.frame_ID1, K1_r_S1B
         )
         self.a_P1 = lambda t, q, u, u_dot: self.subsystem1.a_P(
-            t, q[:nq1], u[:nu1], u_dot[:nu1], self.frame_ID1, K_r_SP1
+            t, q[:nq1], u[:nu1], u_dot[:nu1], self.frame_ID1, K1_r_S1B
         )
         self.a_P1_q = lambda t, q, u, u_dot: self.subsystem1.a_P_q(
-            t, q[:nq1], u[:nu1], u_dot[:nu1], self.frame_ID1, K_r_SP1
+            t, q[:nq1], u[:nu1], u_dot[:nu1], self.frame_ID1, K1_r_S1B
         )
         self.a_P1_u = lambda t, q, u, u_dot: self.subsystem1.a_P_u(
-            t, q[:nq1], u[:nu1], u_dot[:nu1], self.frame_ID1, K_r_SP1
+            t, q[:nq1], u[:nu1], u_dot[:nu1], self.frame_ID1, K1_r_S1B
         )
         self.J_P1 = lambda t, q: self.subsystem1.J_P(
-            t, q[:nq1], self.frame_ID1, K_r_SP1
+            t, q[:nq1], self.frame_ID1, K1_r_S1B
         )
         self.J_P1_q = lambda t, q: self.subsystem1.J_P_q(
-            t, q[:nq1], self.frame_ID1, K_r_SP1
+            t, q[:nq1], self.frame_ID1, K1_r_S1B
         )
         self.A_IB1 = (
             lambda t, q: self.subsystem1.A_IK(t, q[:nq1], self.frame_ID1) @ A_K1B1
@@ -126,31 +126,31 @@ class RevoluteJoint:
         )
 
         self.r_OP2 = lambda t, q: self.subsystem2.r_OP(
-            t, q[nq1:], self.frame_ID2, K_r_SP2
+            t, q[nq1:], self.frame_ID2, K2_r_S2B
         )
         self.r_OP2_q = lambda t, q: self.subsystem2.r_OP_q(
-            t, q[nq1:], self.frame_ID2, K_r_SP2
+            t, q[nq1:], self.frame_ID2, K2_r_S2B
         )
         self.v_P2 = lambda t, q, u: self.subsystem2.v_P(
-            t, q[nq1:], u[nu1:], self.frame_ID2, K_r_SP2
+            t, q[nq1:], u[nu1:], self.frame_ID2, K2_r_S2B
         )
         self.v_P2_q = lambda t, q, u: self.subsystem2.v_P_q(
-            t, q[nq1:], u[nu1:], self.frame_ID2, K_r_SP2
+            t, q[nq1:], u[nu1:], self.frame_ID2, K2_r_S2B
         )
         self.a_P2 = lambda t, q, u, u_dot: self.subsystem2.a_P(
-            t, q[nq1:], u[nu1:], u_dot[nu1:], self.frame_ID2, K_r_SP2
+            t, q[nq1:], u[nu1:], u_dot[nu1:], self.frame_ID2, K2_r_S2B
         )
         self.a_P2_q = lambda t, q, u, u_dot: self.subsystem2.a_P_q(
-            t, q[nq1:], u[nu1:], u_dot[nu1:], self.frame_ID2, K_r_SP2
+            t, q[nq1:], u[nu1:], u_dot[nu1:], self.frame_ID2, K2_r_S2B
         )
         self.a_P2_u = lambda t, q, u, u_dot: self.subsystem2.a_P_u(
-            t, q[nq1:], u[nu1:], u_dot[nu1:], self.frame_ID2, K_r_SP2
+            t, q[nq1:], u[nu1:], u_dot[nu1:], self.frame_ID2, K2_r_S2B
         )
         self.J_P2 = lambda t, q: self.subsystem2.J_P(
-            t, q[nq1:], self.frame_ID2, K_r_SP2
+            t, q[nq1:], self.frame_ID2, K2_r_S2B
         )
         self.J_P2_q = lambda t, q: self.subsystem2.J_P_q(
-            t, q[nq1:], self.frame_ID2, K_r_SP2
+            t, q[nq1:], self.frame_ID2, K2_r_S2B
         )
         self.A_IB2 = (
             lambda t, q: self.subsystem2.A_IK(t, q[nq1:], self.frame_ID2) @ A_K2B2
@@ -190,10 +190,9 @@ class RevoluteJoint:
             self.subsystem2.K_J_R_q(t, q[nq1:], self.frame_ID2),
         )
 
-        q0 = np.concatenate(
-            [self.subsystem1.q0[local_qDOF1], self.subsystem2.q0[local_qDOF2]]
-        )
-        self.angle0 = self.angle(self.t0, q0)
+        # computations for the scalar force element
+        self.n_full_rotations = 0
+        self.previous_quadrant = 1
 
     def g(self, t, q):
         r_OP1 = self.r_OP1(t, q)
@@ -371,10 +370,47 @@ class RevoluteJoint:
 
         coo.extend(dense, (self.uDOF, self.qDOF))
 
+    def _compute_quadrant(self, x, y):
+        if x > 0 and y >= 0:
+            return 1
+        elif x <= 0 and y > 0:
+            return 2
+        elif x < 0 and y <= 0:
+            return 3
+        elif x >= 0 and y < 0:
+            return 4
+        else:
+            raise RuntimeError("You should never be here!")
+
     def angle(self, t, q):
         ex1, ey1, _ = self.A_IB1(t, q).T
         ex2 = self.A_IB2(t, q)[:, 0]
-        return complex_atan2(ex2 @ ey1, ex2 @ ex1)
+
+        # projections
+        y = ex2 @ ey1
+        x = ex2 @ ex1
+
+        quadrant = self._compute_quadrant(x, y)
+
+        # check if a full rotation happens
+        if self.previous_quadrant == 4 and quadrant == 1:
+            self.n_full_rotations += 1
+        elif self.previous_quadrant == 1 and quadrant == 4:
+            self.n_full_rotations -= 1
+        self.previous_quadrant = quadrant
+
+        # compute rotation angle without singularities
+        angle = self.n_full_rotations * 2 * np.pi
+        if quadrant == 1:
+            angle += np.arctan(y / x)
+        elif quadrant == 2:
+            angle += 0.5 * np.pi + np.arctan(-x / y)
+        elif quadrant == 3:
+            angle += np.pi + np.arctan(-y / -x)
+        else:
+            angle += 1.5 * np.pi + np.arctan(x / -y)
+
+        return angle
 
     def angle_dot(self, t, q, u):
         Omega1 = self.Omega1(t, q, u)

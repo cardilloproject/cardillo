@@ -23,73 +23,53 @@ class RigidCylinder(RigidBodyEuler):
         super().__init__(m, K_theta_S, q0=q0, u0=u0)
 
 
-if __name__ == "__main__":
+def run(Spring=LinearSpring, Damper=LinearDamper, alpha0=0, alpha_dot0=0, g_ref=0):
     m = 1
     r = 0.2
     l = 0.1
-    A = 1 / 4 * m * r**2 + 1 / 12 * m * l**2
-    C = 1 / 2 * m * r**2
-    K_theta_S = np.diag(np.array([A, A, C]))
 
     k = 1
     d = 0.025
-    alpha0 = np.pi / 10
+    g_ref = g_ref
+    alpha0 = alpha0
 
-    q0 = np.array([0, 0, 0, alpha0, 0, 0])
-    u0 = np.zeros(6)
-    alpha_dot0 = 10
-    u0[5] = alpha_dot0
+    r_OP0 = np.zeros(3)
+    p0_euler = np.array((alpha0, 0, 0))
+    q0 = np.hstack((r_OP0, p0_euler))
+    v_P0 = np.zeros(3)
+    alpha_dot0 = alpha_dot0
+    Omega0 = np.array((0, 0, alpha_dot0))
+    u0 = np.hstack((v_P0, Omega0))
 
-    model = System()
+    system = System()
 
     rigid_body = RigidCylinder(m, r, l, q0, u0)
 
-    # joint = PDRotationalJoint(RevoluteJoint, Spring=LinearSpring)(
-    #     origin,
-    #     rigid_body,
-    #     np.zeros(3),
-    #     np.eye(3),
-    #     k=k,
-    # )
-
-    # joint = PDRotationalJoint(RevoluteJoint, Damper=LinearDamper)(
-    #     origin,
-    #     rigid_body,
-    #     np.zeros(3),
-    #     np.eye(3),
-    #     d=d,
-    # )
-
-    joint = PDRotationalJoint(RevoluteJoint, Spring=LinearSpring, Damper=LinearDamper)(
-        model.origin,
-        rigid_body,
-        np.zeros(3),
-        np.eye(3),
+    joint = PDRotationalJoint(RevoluteJoint, Spring=Spring, Damper=Damper)(
+        subsystem1=system.origin,
+        subsystem2=rigid_body,
+        r_OB0=np.zeros(3),
+        A_IB0=np.eye(3),
         k=k,
         d=d,
+        g_ref=g_ref,
     )
 
-    F = K_Force(np.array([0, 0.2, 0]), rigid_body, K_r_SP=np.array([r, 0, 0]))
-    # M = K_Moment(np.array([0, 0, -0.04]), rigid_body)
-    # M = K_Moment(np.array([1, 0, 0]), rigid_body)
-    # M = K_Moment(np.array([0, 1, 0]), rigid_body)
-    M = K_Moment(np.array([0, 0, 1]), rigid_body)
+    # F = K_Force(np.array([0, 0.2, 0]), rigid_body, K_r_SP=np.array([r, 0, 0]))
+    # # M = K_Moment(np.array([0, 0, -0.04]), rigid_body)
+    # # M = K_Moment(np.array([1, 0, 0]), rigid_body)
+    # # M = K_Moment(np.array([0, 1, 0]), rigid_body)
+    # M = K_Moment(np.array([0, 0, 1]), rigid_body)
 
-    model.add(rigid_body)
-    model.add(joint)
-    # model.add(F)
-    # model.add(M)
+    system.add(rigid_body, joint)
+    # system.add(F)
+    # system.add(M)
 
-    model.assemble()
+    system.assemble()
 
-    t0 = 0
     t1 = 2
     dt = 1.0e-2
-    solver = ScipyIVP(model, t1, dt)
-    # solver = EulerBackward(model, t1, dt, method="index 1")
-    # solver = EulerBackward(model, t1, dt, method="index 2")
-    # solver = EulerBackward(model, t1, dt, method="index 3")
-    # solver = EulerBackward(model, t1, dt, method="index 2 GGL")
+    solver = ScipyIVP(system, t1, dt)
     sol = solver.solve()
     t = sol.t
     q = sol.q
@@ -108,3 +88,11 @@ if __name__ == "__main__":
     ax[1].legend()
 
     plt.show()
+
+
+if __name__ == "__main__":
+    alpha0 = np.pi / 10
+    alpha_dot0 = 25
+    # run(Spring=LinearSpring, Damper=None, alpha0=alpha0, alpha_dot0=alpha_dot0)
+    # run(Spring=LinearSpring, Damper=LinearDamper, g_ref=-np.pi/2)
+    run(Spring=LinearSpring, Damper=LinearDamper, g_ref=4 * np.pi)
