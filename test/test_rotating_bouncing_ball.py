@@ -11,12 +11,8 @@ from cardillo.contacts import Sphere2Plane
 from cardillo.solver import (
     Moreau,
     NonsmoothGeneralizedAlpha,
-    # Rattle,
+    Rattle,
 )
-
-# corner = True
-corner = False
-
 
 class Ball(RigidBodyEuler):
     def __init__(self, m, R, q0=None, u0=None):
@@ -46,7 +42,7 @@ def run(case):
 
     y0 = 1
     y_dot0 = 0
-    dt = 1e-2
+    dt = 5e-3
 
     if case == 1:
         e_N, e_F, mu = 0.5, 0, 0
@@ -110,8 +106,9 @@ def run(case):
     P_N1 = sol1.P_N
     P_F1 = sol1.P_F
 
-    solver2, label2 = NonsmoothGeneralizedAlpha(system, t_final, dt), "Gen-alpha"
+    # solver2, label2 = NonsmoothGeneralizedAlpha(system, t_final, dt), "Gen-alpha"
     # solver2, label2 = Moreau(system, t_final, dt), "Moreau"
+    solver2, label2 = Rattle(system, t_final, dt), "Rattle"
     sol2 = solver2.solve()
     t2 = sol2.t
     q2 = sol2.q
