@@ -14,6 +14,7 @@ from cardillo.solver import (
     Rattle,
 )
 
+
 class Ball(RigidBodyEuler):
     def __init__(self, m, R, q0=None, u0=None):
         theta = 2 / 5 * m * R**2
@@ -72,6 +73,9 @@ def run(case):
     else:
         raise AssertionError("Case not found!")
 
+    # dt = 5e-2
+    # t_final = 0.75
+
     q0 = np.array([x0, y0, 0, 0, 0, 0], dtype=float)
     u0 = np.array([x_dot0, y_dot0, 0, 0, 0, omega], dtype=float)
 
@@ -92,8 +96,8 @@ def run(case):
     system.assemble()
 
     # solver1, label1 = NonsmoothGeneralizedAlpha(system, t_final, dt, method="newton"), "Gen-alpha"
-    # solver1, label1 = Rattle(system, t_final, dt), "Rattle"
-    solver1, label1 = Moreau(system, t_final, dt), "Moreau"
+    solver1, label1 = Rattle(system, t_final, dt), "Rattle"
+    # solver1, label1 = Moreau(system, t_final, dt), "Moreau"
 
     sol1 = solver1.solve()
     t1 = sol1.t
@@ -107,8 +111,8 @@ def run(case):
     P_F1 = sol1.P_F
 
     # solver2, label2 = NonsmoothGeneralizedAlpha(system, t_final, dt), "Gen-alpha"
-    # solver2, label2 = Moreau(system, t_final, dt), "Moreau"
-    solver2, label2 = Rattle(system, t_final, dt), "Rattle"
+    solver2, label2 = Moreau(system, t_final, dt), "Moreau"
+    # solver2, label2 = Rattle(system, t_final, dt), "Rattle"
     sol2 = solver2.solve()
     t2 = sol2.t
     q2 = sol2.q
@@ -248,7 +252,7 @@ def run(case):
 
 
 if __name__ == "__main__":
-    # run(1)
+    run(1)
     # run(2)
     # run(3)
-    run(4)
+    # run(4)

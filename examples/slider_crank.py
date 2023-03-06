@@ -1,4 +1,3 @@
-
 import numpy as np
 
 import matplotlib.pyplot as plt
@@ -7,14 +6,13 @@ import matplotlib.animation as animation
 from cardillo.math import approx_fprime
 
 from cardillo import System
-from cardillo.solver import (
-    Moreau
-)
+from cardillo.solver import Moreau
+
 
 class SliderCrankFlores:
     def __init__(self, q0=None, u0=None):
         """Flores2011, Section 4: Demonstrative Application to a Slider-Crank Mechanism.
-        
+
         References:
         -----------
         Flores2011:  https://doi.org/10.1007/978-90-481-9971-6_6
@@ -68,8 +66,8 @@ class SliderCrankFlores:
         theta30 = 0
         # theta30 = 0.01
 
-        omega10 = 150 # / 180 * np.pi
-        omega20 = -75 # / 180 * np.pi
+        omega10 = 150  # / 180 * np.pi
+        omega20 = -75  # / 180 * np.pi
         omega30 = 0
         # omega30 = 5
 
@@ -183,7 +181,9 @@ class SliderCrankFlores:
         ) * self.g * self.l1 * np.cos(
             theta1
         )  # (95)
-        h2 = -factor1 * omega1**2 - (self.m2 / 2 + self.m3) * self.g * self.l2 * np.cos(
+        h2 = -factor1 * omega1**2 - (
+            self.m2 / 2 + self.m3
+        ) * self.g * self.l2 * np.cos(
             theta2
         )  # (96)
         h3 = 0
@@ -259,32 +259,16 @@ class SliderCrankFlores:
         sth3 = np.sin(theta3)
         cth3 = np.cos(theta3)
         g_N1 = (
-            self.d / 2
-            - self.l1 * sth1
-            - self.l2 * sth2
-            + self.a * sth3
-            - self.b * cth3
+            self.d / 2 - self.l1 * sth1 - self.l2 * sth2 + self.a * sth3 - self.b * cth3
         )
         g_N2 = (
-            self.d / 2
-            - self.l1 * sth1
-            - self.l2 * sth2
-            - self.a * sth3
-            - self.b * cth3
+            self.d / 2 - self.l1 * sth1 - self.l2 * sth2 - self.a * sth3 - self.b * cth3
         )
         g_N3 = (
-            self.d / 2
-            + self.l1 * sth1
-            + self.l2 * sth2
-            - self.a * sth3
-            - self.b * cth3
+            self.d / 2 + self.l1 * sth1 + self.l2 * sth2 - self.a * sth3 - self.b * cth3
         )
         g_N4 = (
-            self.d / 2
-            + self.l1 * sth1
-            + self.l2 * sth2
-            + self.a * sth3
-            - self.b * cth3
+            self.d / 2 + self.l1 * sth1 + self.l2 * sth2 + self.a * sth3 - self.b * cth3
         )
         return np.array([g_N1, g_N2, g_N3, g_N4])
 
@@ -365,7 +349,9 @@ class SliderCrankFlores:
 
     # TODO!
     def g_N_dot_q_dense(self, t, q, u):
-        return approx_fprime(q, lambda q: self.g_N_dot(t, q, u), method="2-point", eps=1e-6)
+        return approx_fprime(
+            q, lambda q: self.g_N_dot(t, q, u), method="2-point", eps=1e-6
+        )
 
     def g_N_dot_q(self, t, q, u, coo):
         coo.extend(self.g_N_dot_q_dense(t, q, u), (self.la_NDOF, self.qDOF))
@@ -437,12 +423,16 @@ class SliderCrankFlores:
 
     # TODO:
     def g_N_ddot_q(self, t, q, u, u_dot, coo):
-        dense = approx_fprime(q, lambda q: self.g_N_ddot(t, q, u, u_dot), method="2-point", eps=1e-6)
+        dense = approx_fprime(
+            q, lambda q: self.g_N_ddot(t, q, u, u_dot), method="2-point", eps=1e-6
+        )
         coo.extend(dense, (self.la_NDOF, self.qDOF))
 
     # TODO:
     def g_N_ddot_u(self, t, q, u, u_dot, coo):
-        dense = approx_fprime(u, lambda u: self.g_N_ddot(t, q, u, u_dot), method="2-point", eps=1e-6)
+        dense = approx_fprime(
+            u, lambda u: self.g_N_ddot(t, q, u, u_dot), method="2-point", eps=1e-6
+        )
         coo.extend(dense, (self.la_NDOF, self.uDOF))
 
     # TODO:
@@ -488,7 +478,9 @@ class SliderCrankFlores:
         return np.array([gamma_1, gamma_2, gamma_3, gamma_4])
 
     def gamma_F_q_dense(self, t, q, u):
-        return approx_fprime(q, lambda q: self.__gamma_F(t, q, u), method="2-point", eps=1e-6)
+        return approx_fprime(
+            q, lambda q: self.__gamma_F(t, q, u), method="2-point", eps=1e-6
+        )
 
     def gamma_F_q(self, t, q, u, coo):
         coo.extend(self.gamma_F_q_dense(t, q, u), (self.la_FDOF, self.qDOF))
@@ -509,9 +501,9 @@ class SliderCrankFlores:
         )
         w_F2 = np.array(
             [
-            -self.l1 * sth1,
-            -self.l2 * sth2,
-            -self.a * sth3 - self.b * cth3,
+                -self.l1 * sth1,
+                -self.l2 * sth2,
+                -self.a * sth3 - self.b * cth3,
             ]
         )
         w_F3 = np.array(
@@ -524,8 +516,8 @@ class SliderCrankFlores:
         w_F4 = np.array(
             [
                 -self.l1 * sth1,
-                - self.l2 * sth2,
-                - self.a * sth3 + self.b * cth3,
+                -self.l2 * sth2,
+                -self.a * sth3 + self.b * cth3,
             ]
         )
 
@@ -596,11 +588,15 @@ class SliderCrankFlores:
         return np.array([gamma_1_dot, gamma_2_dot, gamma_3_dot, gamma_4_dot])
 
     def gamma_F_dot_q(self, t, q, u, u_dot, coo):
-        dense = approx_fprime(q, lambda q: self.gamma_F_dot(t, q, u, u_dot), method="2-point", eps=1e-6)
+        dense = approx_fprime(
+            q, lambda q: self.gamma_F_dot(t, q, u, u_dot), method="2-point", eps=1e-6
+        )
         coo.extend(dense, (self.la_FDOF, self.qDOF))
 
     def gamma_F_dot_u(self, t, q, u, u_dot, coo):
-        dense = approx_fprime(u, lambda u: self.gamma_F_dot(t, q, u, u_dot), method="2-point", eps=1e-6)
+        dense = approx_fprime(
+            u, lambda u: self.gamma_F_dot(t, q, u, u_dot), method="2-point", eps=1e-6
+        )
         coo.extend(dense, (self.la_FDOF, self.uDOF))
 
     def xi_F(self, t, q, u_pre, u_post):
@@ -760,6 +756,3 @@ if __name__ == "__main__":
 
         # writer = animation.writers['ffmpeg'](fps=fps, bitrate=1800)
         # anim.save('slider_crank.mp4', writer=writer)
-
-
-
