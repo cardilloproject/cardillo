@@ -3,8 +3,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
-from cardillo.math import A_IK_basic
-
 from cardillo import System
 from cardillo.discrete import RigidBodyEuler
 from cardillo.discrete import Frame
