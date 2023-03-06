@@ -723,12 +723,14 @@ class RadauIIa:
         rtol=1.0e-3,
         atol=1.0e-3,
         dae_index="GGL",
+        **kwargs,
     ):
         self.system = system
         self.rtol = rtol
         self.atol = atol
         assert dae_index in [2, 3, "GGL"]
         self.dae_index = dae_index
+        self.kwargs = kwargs
 
         #######################################################################
         # integration time
@@ -1033,6 +1035,7 @@ class RadauIIa:
             dense_output=True,
             mass_matrix=self.mass_matrix,
             index_array=self.index_array,
+            **self.kwargs,
         )
 
         assert sol.success, "solve_ivp failed"

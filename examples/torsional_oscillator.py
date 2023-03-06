@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
 
 from cardillo import System
-from cardillo.solver import ScipyIVP, EulerBackward
+from cardillo.solver import ScipyIVP, EulerBackward, RadauIIa
 from cardillo.constraints import RevoluteJoint
 from cardillo.discrete import RigidBodyAxisAngle, RigidBodyQuaternion
 from cardillo.forces import (
@@ -74,18 +74,25 @@ def run(
     ############################################################################
     t1 = 2
     dt = 1.0e-2
+    # dt = 5.0e-3
     solver = ScipyIVP(system, t1, dt, atol=1e-8)
     # solver = EulerBackward(system, t1, dt)
+    # solver = RadauIIa(system, t1, dt, atol=1e-3, rtol=1e-3, max_step=dt)
     sol = solver.solve()
     t = sol.t
     q = sol.q
+    u = sol.u
 
     ############################################################################
     #                   plot
     ############################################################################
     if plot:
         joint.reset()
-        alpha_cmp = [joint.angle(ti, qi[joint.qDOF]) for ti, qi in zip(t, q)]
+        alpha_cmp = []
+        for ti, qi, ui in zip(t, q, u):
+            alpha_cmp.append(joint.angle(ti, qi[joint.qDOF]))
+            # joint.step_callback(ti, qi[joint.qDOF], ui[joint.uDOF])
+        # alpha_cmp = [joint.angle(ti, qi[joint.qDOF]) for ti, qi in zip(t, q)]
 
         def eqm(t, x):
             dx = np.zeros(2)
@@ -112,23 +119,26 @@ if __name__ == "__main__":
     profiling = False
 
     # initial rotational velocity e_z^K axis
-    alpha_dot0 = 25
+    alpha_dot0 = 0
     # axis angle rotation
     # psi = np.random.rand(3)
-    # psi = np.array((0, 1, 0))
+    psi = np.array((0, 1, 0))
     # psi = np.array((1, 0, 0))
-    psi = np.array((0, 0, 1))
+    # psi = np.array((0, 0, 1))
     # psi = np.array((0, np.pi/2, 0))
+    # psi = np.zeros(3)
     A_IK0 = Exp_SO3(psi)
+    print(A_IK0)
 
     # spring stiffness and damper parameter
-    k = 1
-    d = 0.025
+    k = 1e1
+    d = 0.05
     # k=d=0
+    g_ref = 2 * np.pi
 
     # Rigid body parametrization
-    # RigidBodyParametrization = RigidBodyQuaternion
-    RigidBodyParametrization = RigidBodyAxisAngle
+    RigidBodyParametrization = RigidBodyQuaternion
+    # RigidBodyParametrization = RigidBodyAxisAngle
 
     if profiling:
         import cProfile, pstats
@@ -141,7 +151,7 @@ if __name__ == "__main__":
             d=d,
             psi=psi,
             alpha_dot0=alpha_dot0,
-            g_ref=4 * np.pi,
+            g_ref=g_ref,
             RigidBodyParametrization=RigidBodyParametrization,
             plot=False,
         )
@@ -158,7 +168,7 @@ if __name__ == "__main__":
             d=d,
             psi=psi,
             alpha_dot0=alpha_dot0,
-            g_ref=4 * np.pi,
+            g_ref=g_ref,
             RigidBodyParametrization=RigidBodyParametrization,
             plot=True,
         )
