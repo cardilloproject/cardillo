@@ -487,6 +487,48 @@ class Rattle:
 
         return R
 
+    def g(self, z):
+        P_N1 = z[: self.nla_N]
+        P_F1 = z[self.nla_N :]
+
+        self.x, converged, error, i, _ = fsolve(
+            self.f,
+            self.x.copy(),
+            jac="2-point",
+            eps=1e-6,
+            fun_args=(P_N1.copy(), P_F1.copy()),
+            jac_args=(P_N1.copy(), P_F1.copy()),
+        )
+
+        assert converged
+
+        qn1 = self.x[: self.nq]
+        un12 = self.x[self.nq : self.nq + self.nu]
+        P_g1 = self.x[self.nq + self.nu : self.nq + self.nu + self.nla_g]
+        P_gamma1 = self.x[self.nq + self.nu + self.nla_g :]
+
+        tn1 = self.tn + self.dt
+
+        prox_r_N = self.system.prox_r_N(tn1, qn1)
+        prox_r_F = self.system.prox_r_F(tn1, qn1)
+        mu = self.system.mu
+
+        R = np.zeros(self.nla_N + self.nla_F)
+
+        # fixed-point update normal direction
+        R[: self.nla_N] = prox_R0_np(P_N1 - prox_r_N * self.system.g_N(tn1, qn1))
+
+        # fixed-point update friction
+        gamma_F = self.system.gamma_F(tn1, qn1, un12)
+        for i_N, i_F in enumerate(self.system.NF_connectivity):
+            if len(i_F):
+                R[self.nla_N + np.array(i_F)] = prox_sphere(
+                    P_F1[i_F] - prox_r_F[i_N] * gamma_F[i_F],
+                    mu[i_N] * P_N1[i_N],
+                )
+
+        return R
+
     def solve(self):
         # lists storing output variables
         q = [self.qn]
@@ -553,175 +595,196 @@ class Rattle:
                 qn1, un1 = self.system.step_callback(tn1, qn1, un1)
 
             elif self.method == "fixed point":
-                #################
-                # first stage
-                #################
-                dt = self.dt
-                qn = self.qn
-                tn = self.tn
-                un = self.un
-                qn1 = self.qn
-                un12 = self.un
+                # #################
+                # # first stage
+                # #################
+                # dt = self.dt
+                # qn = self.qn
+                # tn = self.tn
+                # un = self.un
+                # qn1 = self.qn
+                # un12 = self.un
 
-                # TODO: Warmstart with percussions of the previous step?
-                P_g1 = np.zeros(self.nla_g, dtype=float)
-                P_N1 = np.zeros(self.nla_N, dtype=float)
-                P_F1 = np.zeros(self.nla_F, dtype=float)
-                # P_g1 = self.P_g1
-                # P_N1 = self.P_N1
-                # P_F1 = self.P_F1
+                # # TODO: Warmstart with percussions of the previous step?
+                # P_g1 = np.zeros(self.nla_g, dtype=float)
+                # P_N1 = np.zeros(self.nla_N, dtype=float)
+                # P_F1 = np.zeros(self.nla_F, dtype=float)
+                # # P_g1 = self.P_g1
+                # # P_N1 = self.P_N1
+                # # P_F1 = self.P_F1
 
-                # # get quantities from system
-                # Bn = self.system.B(tn, qn)
-                # Mn = self.system.M(tn, qn)
-                # W_gn = self.system.W_g(tn, qn)
-                # W_gamman = self.system.W_gamma(tn, qn)
-                # # note: we use csr_matrix for efficient of matrix vector product
-                # # (no slicing is required),
-                # # see https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csr_matrix.html#scipy.sparse.csr_matrix
-                # W_Fn = self.system.W_F(tn, qn, scipy_matrix=csr_matrix)
-                # W_Nn = self.system.W_N(tn, qn, scipy_matrix=csr_matrix)
+                # # # get quantities from system
+                # # Bn = self.system.B(tn, qn)
+                # # Mn = self.system.M(tn, qn)
+                # # W_gn = self.system.W_g(tn, qn)
+                # # W_gamman = self.system.W_gamma(tn, qn)
+                # # # note: we use csr_matrix for efficient of matrix vector product
+                # # # (no slicing is required),
+                # # # see https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csr_matrix.html#scipy.sparse.csr_matrix
+                # # W_Fn = self.system.W_F(tn, qn, scipy_matrix=csr_matrix)
+                # # W_Nn = self.system.W_N(tn, qn, scipy_matrix=csr_matrix)
 
-                # hn12 = self.system.h(tn, qn, un12)
-                # h_un12 = self.system.h_u(tn, qn, un12)
-                # Bn1 = self.system.B(tn1, qn1)
-                # q_dot_qn1 = self.system.q_dot_q(tn1, qn1, un12)
-                # g_qn1 = self.system.g_q(tn1, qn1)
-                # W_gamman1 = self.system.W_gamma(tn1, qn1)
-                # # TODO: This should be dg/dt!!!
-                # chi_gn1 = self.system.g_dot(tn1, qn1, np.zeros_like(un12))
-                # chi_gamman1 = self.system.gamma(tn1, qn1, np.zeros_like(un12))
+                # # hn12 = self.system.h(tn, qn, un12)
+                # # h_un12 = self.system.h_u(tn, qn, un12)
+                # # Bn1 = self.system.B(tn1, qn1)
+                # # q_dot_qn1 = self.system.q_dot_q(tn1, qn1, un12)
+                # # g_qn1 = self.system.g_q(tn1, qn1)
+                # # W_gamman1 = self.system.W_gamma(tn1, qn1)
+                # # # TODO: This should be dg/dt!!!
+                # # chi_gn1 = self.system.g_dot(tn1, qn1, np.zeros_like(un12))
+                # # chi_gamman1 = self.system.gamma(tn1, qn1, np.zeros_like(un12))
 
-                # # maybe with Bn instead of Bn1 this converges?
-                # B = 0.5 * dt * (Bn + Bn1)
-                # # fmt: off
-                # eye_nq = eye(self.nq, format="coo")
-                # A = bmat([[Mn - 0.5 * dt * h_un12,                          None, -0.5 * W_gn, -0.5 * W_gamman], \
-                #           [               -dt * B, eye_nq + 0.5 * dt * q_dot_qn1,        None,            None], \
-                #           [    -g_qn1.T, None,     None, None], \
-                #           [-W_gamman1.T, None,     None, None]], format="csc")
-                # # fmt: off
+                # # # maybe with Bn instead of Bn1 this converges?
+                # # B = 0.5 * dt * (Bn + Bn1)
+                # # # fmt: off
+                # # eye_nq = eye(self.nq, format="coo")
+                # # A = bmat([[Mn - 0.5 * dt * h_un12,                          None, -0.5 * W_gn, -0.5 * W_gamman], \
+                # #           [               -dt * B, eye_nq + 0.5 * dt * q_dot_qn1,        None,            None], \
+                # #           [    -g_qn1.T, None,     None, None], \
+                # #           [-W_gamman1.T, None,     None, None]], format="csc")
+                # # # fmt: off
 
-                # # initial right hand side
-                # rhs = Mn @ un
+                # # # initial right hand side
+                # # rhs = Mn @ un
 
-                # # update rhs
-                # b = np.concatenate(
-                #         (
-                #         rhs + 0.5 * (dt * hn12 + W_N @ P_N + W_F @ P_F2),
-                #         chi_gn1,
-                #         chi_gamman1,
-                #     )
+                # # # update rhs
+                # # b = np.concatenate(
+                # #         (
+                # #         rhs + 0.5 * (dt * hn12 + W_N @ P_N + W_F @ P_F2),
+                # #         chi_gn1,
+                # #         chi_gamman1,
+                # #     )
+                # # )
+
+                # ################################
+                # # test with numerical derivative
+                # ################################
+                # x = np.concatenate((qn, un, P_g1))
+                # # A = approx_fprime(x, f, method="2-point", eps=1e-6)
+                # # lu = splu(A)
+
+                # # # note: we use csr_matrix for efficient of matrix vector product
+                # # # (no slicing is required),
+                # # # see https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csr_matrix.html#scipy.sparse.csr_matrix
+                # # W_Fn = self.system.W_F(tn, qn, scipy_matrix=csr_matrix)
+                # # W_Nn = self.system.W_N(tn, qn, scipy_matrix=csr_matrix)
+
+                # # b = f(x)
+                # # b[self.nq : self.nq + self.nu] -= 0.5 * (W_Nn @ P_N1 + W_Fn @ P_F1)
+
+                # # # solve for initial velocities and percussions of the bilateral
+                # # # constraints for the fixed point iteration
+                # # x -= lu.solve(b)
+
+                # # solve nonlinear system
+                # x, converged1, error1, i, _ = fsolve(
+                #     self.f,
+                #     x,
+                #     jac="2-point",
+                #     eps=1e-6,
+                #     fun_args=(P_N1, P_F1),
+                #     jac_args=(P_N1, P_F1),
                 # )
 
-                ################################
-                # test with numerical derivative
-                ################################
-                x = np.concatenate((qn, un, P_g1))
-                # A = approx_fprime(x, f, method="2-point", eps=1e-6)
-                # lu = splu(A)
+                # qn1 = x[: self.nq]
+                # un12 = x[self.nq : self.nq + self.nu]
+                # P_g1 = x[self.nq + self.nu : self.nq + self.nu + self.nla_g]
+                # P_gamma1 = x[self.nq + self.nu + self.nla_g :]
 
-                # # note: we use csr_matrix for efficient of matrix vector product
-                # # (no slicing is required),
-                # # see https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csr_matrix.html#scipy.sparse.csr_matrix
-                # W_Fn = self.system.W_F(tn, qn, scipy_matrix=csr_matrix)
-                # W_Nn = self.system.W_N(tn, qn, scipy_matrix=csr_matrix)
+                # q_fixed_point = qn1.copy()
+                # u_fixed_point = un12.copy()
+                # P_N1_fixed_point = P_N1.copy()
+                # P_F1_fixed_point = P_F1.copy()
 
-                # b = f(x)
-                # b[self.nq : self.nq + self.nu] -= 0.5 * (W_Nn @ P_N1 + W_Fn @ P_F1)
+                # # compute new estimates for prox parameters and get friction coefficient
+                # prox_r_N = self.system.prox_r_N(tn1, qn1)
+                # prox_r_F = self.system.prox_r_F(tn1, qn1)
+                # mu = self.system.mu
+                # # r = 1e-1
+                # # prox_r_N = np.ones_like(prox_r_N) * r
+                # # prox_r_F = np.ones_like(prox_r_F) * r
+                # # P_Nn1_i1 = P_N1.copy()
+                # # P_Fn1_i1 = P_F1.copy()
 
-                # # solve for initial velocities and percussions of the bilateral
-                # # constraints for the fixed point iteration
-                # x -= lu.solve(b)
+                # converged1 = False
+                # for i1 in range(self.fix_point_max_iter):
 
-                # solve nonlinear system
-                x, converged1, error1, i, _ = fsolve(
-                    self.f,
-                    x,
-                    jac="2-point",
-                    eps=1e-6,
-                    fun_args=(P_N1, P_F1),
-                    jac_args=(P_N1, P_F1),
-                )
+                #     # fixed-point update normal direction
+                #     P_N1 = prox_R0_np(P_N1 - prox_r_N * self.system.g_N(tn1, qn1))
+                #     # P_N1 = prox_R0_np(P_N1 - 5.0e-4 * self.system.g_N(tn1, qn1))
 
-                qn1 = x[: self.nq]
-                un12 = x[self.nq : self.nq + self.nu]
-                P_g1 = x[self.nq + self.nu : self.nq + self.nu + self.nla_g]
-                P_gamma1 = x[self.nq + self.nu + self.nla_g :]
+                #     # fixed-point update friction
+                #     gamma_F = self.system.gamma_F(tn1, qn1, un12)
+                #     for i_N, i_F in enumerate(self.system.NF_connectivity):
+                #         if len(i_F):
+                #             P_F1[i_F] = prox_sphere(
+                #                 P_F1[i_F] - prox_r_F[i_N] * gamma_F[i_F],
+                #                 mu[i_N] * P_N1[i_N],
+                #             )
 
-                q_fixed_point = qn1.copy()
-                u_fixed_point = un12.copy()
-                P_N1_fixed_point = P_N1.copy()
-                P_F1_fixed_point = P_F1.copy()
+                #     # # # update Jacobi
+                #     # # A = approx_fprime(x, f, method="2-point", eps=1e-6)
+                #     # # lu = splu(A)
 
-                # compute new estimates for prox parameters and get friction coefficient
-                prox_r_N = self.system.prox_r_N(tn1, qn1)
-                prox_r_F = self.system.prox_r_F(tn1, qn1)
-                # r = 1e-1
-                # prox_r_N = np.ones_like(prox_r_N) * r
-                # prox_r_F = np.ones_like(prox_r_F) * r
-                mu = self.system.mu
-                # P_Nn1_i1 = P_N1.copy()
-                # P_Fn1_i1 = P_F1.copy()
+                #     # # update rhs
+                #     # b = f(x)
+                #     # b[self.nq : self.nq + self.nu] -= 0.5 * (W_Nn @ P_N1 + W_Fn @ P_F1)
 
-                converged1 = False
-                for i1 in range(self.fix_point_max_iter):
+                #     # # solve
+                #     # x -= lu.solve(b)
 
-                    # fixed-point update normal direction
-                    P_N1 = prox_R0_np(P_N1 - prox_r_N * self.system.g_N(tn1, qn1))
-                    # P_N1 = prox_R0_np(P_N1 - 5.0e-4 * self.system.g_N(tn1, qn1))
+                #     # solve nonlinear system
+                #     x, converged1, error1, i, _ = fsolve(
+                #         self.f,
+                #         x,
+                #         jac="2-point",
+                #         eps=1e-6,
+                #         fun_args=(P_N1.copy(), P_F1.copy()),
+                #         jac_args=(P_N1.copy(), P_F1.copy()),
+                #     )
 
-                    # fixed-point update friction
-                    gamma_F = self.system.gamma_F(tn1, qn1, un12)
-                    for i_N, i_F in enumerate(self.system.NF_connectivity):
-                        if len(i_F):
-                            P_F1[i_F] = prox_sphere(
-                                P_F1[i_F] - prox_r_F[i_N] * gamma_F[i_F],
-                                mu[i_N] * P_N1[i_N],
-                            )
+                #     qn1 = x[: self.nq]
+                #     un12 = x[self.nq : self.nq + self.nu]
+                #     P_g1 = 2 * x[self.nq + self.nu : self.nq + self.nu + self.nla_g]
+                #     P_gamma1 = 2 * x[self.nq + self.nu + self.nla_g :]
 
-                    # # # update Jacobi
-                    # # A = approx_fprime(x, f, method="2-point", eps=1e-6)
-                    # # lu = splu(A)
+                #     # check for convergence
+                #     # g_Nn1 = self.system.g_N(tn1, qn1)
+                #     error1 = self.fix_point_error_function(
+                #         np.concatenate((un12 - u_fixed_point, qn1 - q_fixed_point))
+                #         # np.concatenate((P_N1 - P_N1_fixed_point, P_F1 - P_F1_fixed_point))
+                #         # qn1 - q_fixed_point
+                #         # P_N1 - prox_R0_np(P_N1 - prox_r_N * self.system.g_N(tn1, qn1))
+                #     )
+                #     q_fixed_point = qn1.copy()
+                #     u_fixed_point = un12.copy()
+                #     P_N1_fixed_point = P_N1.copy()
+                #     P_F1_fixed_point = P_F1.copy()
+                #     converged1 = error1 < self.fix_point_tol
 
-                    # # update rhs
-                    # b = f(x)
-                    # b[self.nq : self.nq + self.nu] -= 0.5 * (W_Nn @ P_N1 + W_Fn @ P_F1)
+                #     if converged1:
+                #         break
 
-                    # # solve
-                    # x -= lu.solve(b)
+                self.x = np.concatenate((self.qn, self.un, np.zeros(self.nla_g)))
 
-                    # solve nonlinear system
-                    x, converged1, error1, i, _ = fsolve(
-                        self.f,
-                        x,
-                        jac="2-point",
-                        eps=1e-6,
-                        fun_args=(P_N1.copy(), P_F1.copy()),
-                        jac_args=(P_N1.copy(), P_F1.copy()),
-                    )
+                from scipy.optimize import fixed_point
 
-                    qn1 = x[: self.nq]
-                    un12 = x[self.nq : self.nq + self.nu]
-                    P_g1 = 2 * x[self.nq + self.nu : self.nq + self.nu + self.nla_g]
-                    P_gamma1 = 2 * x[self.nq + self.nu + self.nla_g :]
+                z0 = np.zeros(self.nla_N + self.nla_F)
+                # z0 = np.concatenate((self.P_Nn, self.P_Fn))
+                # z = fixed_point(self.g, z0, method="iteration", xtol=1e-4, maxiter=5000)
+                z = fixed_point(self.g, z0, method="del2", xtol=1e-8, maxiter=500)
 
-                    # check for convergence
-                    # g_Nn1 = self.system.g_N(tn1, qn1)
-                    error1 = self.fix_point_error_function(
-                        np.concatenate((un12 - u_fixed_point, qn1 - q_fixed_point))
-                        # np.concatenate((P_N1 - P_N1_fixed_point, P_F1 - P_F1_fixed_point))
-                        # qn1 - q_fixed_point
-                        # P_N1 - prox_R0_np(P_N1 - prox_r_N * self.system.g_N(tn1, qn1))
-                    )
-                    q_fixed_point = qn1.copy()
-                    u_fixed_point = un12.copy()
-                    P_N1_fixed_point = P_N1.copy()
-                    P_F1_fixed_point = P_F1.copy()
-                    converged1 = error1 < self.fix_point_tol
+                P_N1 = z[: self.nla_N]
+                P_F1 = z[self.nla_N :]
 
-                    if converged1:
-                        break
+                qn1 = self.x[: self.nq]
+                un12 = self.x[self.nq : self.nq + self.nu]
+                P_g1 = self.x[self.nq + self.nu : self.nq + self.nu + self.nla_g]
+                P_gamma1 = self.x[self.nq + self.nu + self.nla_g :]
+
+                converged1 = True
+                error1 = 0
+                i1 = 0
 
                 self.I_Nn1 = self.system.g_N(tn1, qn1) <= 0
                 # self.I_Nn1 = P_N1 - prox_r_N * self.system.g_N(tn1, qn1) >= 0

@@ -73,7 +73,7 @@ def run(case):
     else:
         raise AssertionError("Case not found!")
 
-    # dt = 5e-2
+    dt = 1e-2
     # t_final = 0.75
 
     q0 = np.array([x0, y0, 0, 0, 0, 0], dtype=float)
@@ -252,7 +252,7 @@ def run(case):
 
 
 if __name__ == "__main__":
-    run(1)
+    # run(1)
     # run(2)
     # run(3)
-    # run(4)
+    run(4)
