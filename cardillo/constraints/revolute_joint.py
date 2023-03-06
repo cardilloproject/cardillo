@@ -489,3 +489,7 @@ class RevoluteJoint:
         # print(f"dense_num={np.linalg.norm(dense_num[nu1:, nq1:] - dense[nu1:, nq1:])}")
 
         return dense
+
+    def reset(self):
+        self.n_full_rotations = 0
+        self.previous_quadrant = 1
