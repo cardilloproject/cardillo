@@ -238,9 +238,6 @@ class RigidConnection:
 
     def g_q_dense(self, t, q):
         nq1 = self.__nq1
-        g_q = np.zeros((self.nla_g, self.__nq), dtype=q.dtype)
-        g_q[:3, :nq1] = -self.r_OB1_q1(t, q)
-        g_q[:3, nq1:] = self.r_OB2_q2(t, q)
 
         ex1, ey1, ez1 = self.A_IB1(t, q).T
         ex2, ey2, ez2 = self.A_IB2(t, q).T
@@ -254,6 +251,10 @@ class RigidConnection:
         ey2_q = A_IB2_q2[:, 1]
         ez2_q = A_IB2_q2[:, 2]
 
+        # np.concatenate([r_OB2 - r_OB1, [ex1 @ ey2, ey1 @ ez2, ez1 @ ex2]])
+        g_q = np.zeros((self.nla_g, self.__nq), dtype=q.dtype)
+        g_q[:3, :nq1] = -self.r_OB1_q1(t, q)
+        g_q[:3, nq1:] = self.r_OB2_q2(t, q)
         g_q[3, :nq1] = ey2 @ ex1_q
         g_q[3, nq1:] = ex1 @ ey2_q
         g_q[4, :nq1] = ez2 @ ey1_q

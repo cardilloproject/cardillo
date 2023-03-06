@@ -64,7 +64,7 @@ class K_TimoshenkoAxisAngleSE3(K_TimoshenkoPetrovGalerkinBaseAxisAngle):
         v_P=np.zeros(3, dtype=float),
         K_omega_IK=np.zeros(3, dtype=float),
     ):
-        return TimoshenkoPetrovGalerkinBaseAxisAngle.straight_initial_configuration(
+        return K_TimoshenkoPetrovGalerkinBaseAxisAngle.straight_initial_configuration(
             1, 1, "Lagrange", "Lagrange", nelement, L, r_OP, A_IK, v_P, K_omega_IK
         )
 

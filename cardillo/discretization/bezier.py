@@ -1125,8 +1125,14 @@ def L2_projection_Bezier_curve(target_points, n, case="C1", cDOF=[0, -1]):
 
         return OptimizeResult(x=unique_points, success=True)
 
+    # # Note: Since the Jacobian is constant we only compute it once per projection step.
+    # from cardillo.math import approx_fprime
+    # J = approx_fprime(x0, residual, method="2-point", eps=1e-6)
+    # jac = lambda x: J
+
     # solve optimization problem
-    sol = least_squares(residual, x0)
+    sol = least_squares(residual, x0, method="lm")
+    # sol = least_squares(residual, x0, jac=jac)
     # sol = minimize(fun, x0, method="SLSQP")
     # sol = solve_L2(x0)
     success = sol.success

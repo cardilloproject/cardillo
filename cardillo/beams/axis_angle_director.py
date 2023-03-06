@@ -28,7 +28,7 @@ def make_DirectorAxisAngle(Base):
             u0=None,
             basis_r="Lagrange",
             basis_psi="Lagrange",
-            volume_correction=True,
+            volume_correction=False,
         ):
             self.volume_correction = volume_correction
 

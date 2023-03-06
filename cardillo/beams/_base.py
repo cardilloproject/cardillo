@@ -2420,7 +2420,6 @@ def make_K_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
             # and set its value for each node
             if basis_psi == "Hermite":
                 raise NotImplementedError
-            # psi = Log_SO3(A_IK)
             psi = rotation_parameterization.Log_SO3(A_IK)
             q_psi = np.repeat(psi, nnodes_psi)
 
@@ -2438,8 +2437,7 @@ def make_K_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
             A_IK=np.eye(3, dtype=float),
             v_P=np.zeros(3, dtype=float),
             K_omega_IK=np.zeros(3, dtype=float),
-            rotation_parameterization=AxisAngleRotationParameterization(),
-            # rotation_parameterization=QuaternionRotationParameterization(),
+            rotation_parameterization=RotationBase(),
         ):
             if basis_r == "Lagrange":
                 nnodes_r = polynomial_degree_r * nelement + 1
@@ -2493,7 +2491,6 @@ def make_K_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
             # and set its value for each node
             if basis_psi == "Hermite":
                 raise NotImplementedError
-            # psi = Log_SO3(A_IK)
             psi = rotation_parameterization.Log_SO3(A_IK)
             q_psi = np.repeat(psi, nnodes_psi)
 
@@ -2517,53 +2514,6 @@ def make_K_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
             u0 = np.concatenate([u_r, u_psi])
 
             return q0, u0
-
-        # @staticmethod
-        # def circular_segment_configuration(
-        #     polynomial_degree,
-        #     nelement,
-        #     radius,
-        #     max_angle,
-        #     r_OP0=np.zeros(3, dtype=float),
-        #     A_IK0=np.eye(3, dtype=float),
-        # ):
-        #     nn = polynomial_degree * nelement + 1
-
-        #     # rotation of reference frame
-        #     e_x0, e_y0, e_z0 = A_IK0.T
-
-        #     r_OPs = np.zeros((3, nn), dtype=float)
-        #     psis = np.zeros((3, nn), dtype=float)
-        #     for i in range(nn):
-        #         xi = i / (nn - 1)
-        #         phi_i = max_angle * xi
-        #         sph = np.sin(phi_i)
-        #         cph = np.cos(phi_i)
-
-        #         # centerline position
-        #         r_OP = r_OP0 + radius * cph * e_x0 + radius * sph * e_y0
-
-        #         # compute orientation
-        #         e_x = -sph * e_x0 + cph * e_y0
-        #         e_y = -cph * e_x0 - sph * e_y0
-        #         e_z = e_z0
-        #         A_IK = np.vstack((e_x, e_y, e_z)).T
-
-        #         # compute SE(3) object
-        #         H_IK = SE3(A_IK, r_OP)
-        #         h_IK = Log_SE3(H_IK)
-
-        #         r_OPs[:, i] = h_IK[:3]
-        #         psis[:, i] = h_IK[3:]
-
-        #         # r_OPs[:, i] = r_OP
-        #         # psis[:, i] = Log_SO3(A_IK)
-
-        #     # reshape generalized coordinates to nodal ordering
-        #     q_r = r_OPs.reshape(-1, order="F")
-        #     q_psi = psis.reshape(-1, order="F")
-
-        #     return np.concatenate([q_r, q_psi])
 
         def element_number(self, xi):
             """Compute element number from given xi."""

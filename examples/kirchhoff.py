@@ -5,7 +5,10 @@ from cardillo.beams import (
 )
 from cardillo.discrete import Frame
 from cardillo.constraints import RigidConnection
-from cardillo.beams import animate_beam, Kirchhoff
+
+# from cardillo.beams import animate_beam, Kirchhoff
+from cardillo.beams import animate_beam
+from Kirchhoff.kirchhoff import KirchhoffPetrovGalerkin as Kirchhoff
 from cardillo.forces import K_Moment, K_Force, DistributedForce1DBeam
 from cardillo import System
 from cardillo.solver import Newton, EulerBackward, ScipyIVP
@@ -22,7 +25,7 @@ statics = True
 
 if __name__ == "__main__":
     # number of elements
-    nelements = 2
+    nelements = 10
 
     # number of quadrature points
     nquadrature = 4
@@ -76,8 +79,8 @@ if __name__ == "__main__":
     # moment at right end
     Fi = material_model.Fi
     # M = lambda t: (e1 * 2 * np.pi * Fi[0] / L * t) * 0.25
-    M = lambda t: (e3 * 2 * np.pi * Fi[2] / L * t) * 0.25
-    # M = lambda t: (e1 * Fi[0] + e3 * Fi[2]) * t * 2 * np.pi / L * 0.25
+    M = lambda t: (e3 * 2 * np.pi * Fi[2] / L * t) * 0.9
+    # M = lambda t: (e1 * Fi[0] + e3 * Fi[2]) * t * 2 * np.pi / L * 0.5
     # M = lambda t: (e2 * Fi[1] + e3 * Fi[2]) * t * 2 * np.pi / L * 1.0
     # if statics:
     #     M = lambda t: (e1 * Fi[0] + e3 * Fi[2]) * 1.0 * t * 2 * np.pi / L * 0.1
@@ -111,7 +114,7 @@ if __name__ == "__main__":
     # exit()
 
     if statics:
-        n_load_steps = 5
+        n_load_steps = 20
         solver = Newton(
             system,
             n_load_steps=n_load_steps,

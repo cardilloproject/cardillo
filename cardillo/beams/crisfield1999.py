@@ -1,5 +1,4 @@
 import numpy as np
-import warnings
 
 from cardillo.math import Exp_SO3, Log_SO3, T_SO3, approx_fprime
 from cardillo.beams._base import (
@@ -29,6 +28,7 @@ class Crisfield1999(K_TimoshenkoPetrovGalerkinBaseAxisAngle):
         nquadrature = p
         nquadrature_dyn = int(np.ceil((p + 1) ** 2 / 2))
 
+        # import warnings
         # warnings.warn("'Crisfield1999: Full integration is used!")
         # nquadrature = nquadrature_dyn
 

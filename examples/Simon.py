@@ -37,8 +37,8 @@ def helix():
     ===========
     Harsch2020: https://doi.org/10.1177/1081286521100079
     """
-    Beam = Crisfield1999
-    # Beam = K_TimoshenkoAxisAngleSE3
+    # Beam = Crisfield1999
+    Beam = K_TimoshenkoAxisAngleSE3
 
     # number of points for normalized L2 error
     nxi = 200
@@ -85,10 +85,10 @@ def helix():
         ]
     elif Beam == K_TimoshenkoAxisAngleSE3:
         triplets = [
-            (1.0e1, 1e-8, 70),
+            # (1.0e1, 1e-8, 70),
             # (1e2, 1e-10, 200),
             # (1e3, 1e-12, 200),
-            # (1e4, 1e-14, 600),
+            (1e4, 1e-14, 500),
         ]
 
     solutions = np.zeros((len(triplets), len(nelements_list)), dtype=object)

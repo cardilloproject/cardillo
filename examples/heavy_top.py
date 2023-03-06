@@ -14,8 +14,8 @@ from cardillo import System
 from cardillo.solver import (
     GeneralizedAlphaFirstOrder,
     GeneralizedAlphaSecondOrder,
-    GeneralizedAlphaFirstOrderGGLGiuseppe,
-    HalfExplicitEuler,
+    # GeneralizedAlphaFirstOrderGGLGiuseppe,
+    # HalfExplicitEuler,
 )
 
 
@@ -186,23 +186,29 @@ def state():
     rho_inf = 0.9
     tol = 1.0e-8
     # t1 = 1
-    t1 = 0.25
+    # t1 = 0.25
+    t1 = 0.01
     dt = 1.0e-3
+
+    from spook.solver import Jansen2000, SimplifiedNonsmoothGeneralizedAlphaNoAcceleration, SimplifiedNonsmoothGeneralizedFirstOrderAlphaNoAcceleration
+    sol = Jansen2000(model, t1, dt, rho_inf=rho_inf, atol=tol).solve()
+    # sol = SimplifiedNonsmoothGeneralizedAlphaNoAcceleration(model, t1, dt, rho_inf=rho_inf, atol=tol).solve()
+    # sol = SimplifiedNonsmoothGeneralizedFirstOrderAlphaNoAcceleration(model, t1, dt, rho_inf=rho_inf, atol=tol).solve()
 
     # sol = HalfExplicitEuler(model, t1, dt, tol).solve()
 
-    sol = GeneralizedAlphaFirstOrder(
-        model,
-        t1,
-        dt,
-        rho_inf=rho_inf,
-        tol=tol,
-        unknowns="velocities",
-        GGL=False,
-        # GGL=True,
-        numerical_jacobian=False,
-        # numerical_jacobian=True,
-    ).solve()
+    # sol = GeneralizedAlphaFirstOrder(
+    #     model,
+    #     t1,
+    #     dt,
+    #     rho_inf=rho_inf,
+    #     tol=tol,
+    #     unknowns="velocities",
+    #     GGL=False,
+    #     GGL=True,
+    #     numerical_jacobian=False,
+    #     numerical_jacobian=True,
+    # ).solve()
 
     # sol = GeneralizedAlphaFirstOrderGGLGiuseppe(
     #     model, t1, dt, rho_inf=rho_inf, tol=tol

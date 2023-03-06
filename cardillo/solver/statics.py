@@ -90,6 +90,9 @@ class Newton:
         W_N = self.system.W_N(t, q, scipy_matrix=csr_matrix)
         g_N = self.system.g_N(t, q)
 
+        if np.any(g_N <= 0):
+            print(f"active contacts")
+
         R = np.zeros(self.nf, dtype=x.dtype)
         R[:nu] = self.system.h(t, q, self.u0) + W_g @ la_g + W_N @ la_N
         R[nu : nu + nla_g] = self.system.g(t, q)
@@ -115,9 +118,11 @@ class Newton:
         yield R
 
         # evaluate additionally required quantites for computing the jacobian
-        K = self.system.h_q(
-            t, q, self.u0, scipy_matrix=csr_matrix
-        ) + self.system.Wla_g_q(t, q, la_g, scipy_matrix=csr_matrix)
+        K = (
+            self.system.h_q(t, q, self.u0, scipy_matrix=csr_matrix)
+            + self.system.Wla_g_q(t, q, la_g, scipy_matrix=csr_matrix)
+            + self.system.Wla_N_q(t, q, la_N, scipy_matrix=csr_matrix)
+        )
         g_q = self.system.g_q(t, q, scipy_matrix=csr_matrix)
         g_S_q = self.system.g_S_q(t, q, scipy_matrix=csr_matrix)
 
@@ -136,12 +141,32 @@ class Newton:
         # Rla_N_q = fb_b(la_N, g_N) @ g_N_q
 
         # fmt: off
-        # TODO: What is more efficient together with spsolve: Using csr or csc format?
-        yield bmat([[  K,     W_g,         W_N], 
-                    [g_q,     None,       None],
-                    [g_S_q,   None,       None],
-                    [Rla_N_q, None, Rla_N_la_N]], format="csr")
-        # fmt: on
+        J = bmat([[  K,     W_g,         W_N], 
+                  [g_q,     None,       None],
+                  [g_S_q,   None,       None],
+                  [Rla_N_q, None, Rla_N_la_N]], format="csc")
+
+        yield J
+
+        # J_num = approx_fprime(
+        #     x,
+        #     lambda x: self.__residual(t, x),
+        #     eps=1e-6,
+        #     method="3-point",
+        # )
+
+        # diff = J - J_num
+        # # diff = diff[:nu]
+        # # diff = diff[:nu, :nq]
+        # # diff = diff[:nu, nq :]
+        # # diff = diff[nu : nu + nla_g]
+        # # diff = diff[nu : nu + nla_g, :nu]
+        # # diff = diff[nu + nla_g : nu + nla_g + nla_S]
+        # # diff = diff[nu + nla_g + nla_S :]
+        # error = np.linalg.norm(diff)
+        # print(f"error J: {error}")
+
+        # yield J_num
 
     def __residual(self, t, x):
         return next(self.__eval__(t, x))
@@ -248,7 +273,7 @@ class Newton:
 # TODO: Understand predictor of Feng mentioned in Neto1999.
 # TODO: automatic increment cutting: Crisfield1991 section 9.5.1
 # TODO: read Crisfield1996 section 21 Branch switching and further advanced solution procedures
-# TODO: implement line searcher technique mention in Crisfield1991 and Crisfield1996
+# TODO: implement line searcher technique mentioned in Crisfield1991 and Crisfield1996
 # TODO: implement dense output
 class Riks:
     """Linear arc-length solver close to Riks method as dervied in Crisfield1991 
