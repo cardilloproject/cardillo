@@ -79,10 +79,10 @@ def PDRotationalJoint(Joint, Spring=None, Damper=None):
         def h(self, t, q, u):
             return self._h(t, q, u)
 
-        def _h_q(self, t, q, u, coo):
+        def h_q(self, t, q, u, coo):
             self._h_q(t, q, u, coo)
 
-        def _h_u(self, t, q, u, coo):
+        def h_u(self, t, q, u, coo):
             self._h_u(t, q, u, coo)
 
     return _PDRotationalJoint
