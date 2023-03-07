@@ -843,5 +843,5 @@ def convergence():
 
 
 if __name__ == "__main__":
-    # state()
-    convergence()
+    state()
+    # convergence()
