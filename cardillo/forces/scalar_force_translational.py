@@ -31,7 +31,7 @@ class ScalarForceTranslational:
                     self.__f_spring_q(t, q) + self.__f_damper_q(t, q, u),
                     (self.uDOF, self.qDOF),
                 )
-                self._h_u = lambda t, q, u, coo: self.__f_damper_u(t, q, u, coo)
+                self.h_u = lambda t, q, u, coo: self.__f_damper_u(t, q, u, coo)
             else:
                 self._h = lambda t, q, u: self.__f_spring(t, q)
                 self._h_q = lambda t, q, u, coo: coo.extend(
@@ -42,7 +42,7 @@ class ScalarForceTranslational:
             self._h_q = lambda t, q, u, coo: coo.extend(
                 self.__f_damper_q(t, q, u), (self.uDOF, self.qDOF)
             )
-            self._h_u = lambda t, q, u, coo: self.__f_damper_u(t, q, u, coo)
+            self.h_u = lambda t, q, u, coo: self.__f_damper_u(t, q, u, coo)
 
         self.subsystem1 = subsystem1
         self.frame_ID1 = frame_ID1
@@ -233,12 +233,11 @@ class ScalarForceTranslational:
     # public functions
     def h(self, t, q):
         return self._h(t, q)
-
+    
     def h_q(self, t, q, u, coo):
         self._h_q(t, q, u, coo)
-
-    def h_u(self, t, q, u, coo):
-        self._h_u(t, q, u, coo)
+    
+    # E_pot and h_u defined in init if necessary
 
     def export(self, sol_i, **kwargs):
         points = [
