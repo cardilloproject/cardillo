@@ -64,12 +64,11 @@ class SliderCrankFlores:
         theta10 = 0
         theta20 = 0
         theta30 = 0
-        # theta30 = 0.01
+        # theta30 = 5 * np.pi / 180
 
-        omega10 = 150  # / 180 * np.pi
-        omega20 = -75  # / 180 * np.pi
+        omega10 = 150
+        omega20 = -75
         omega30 = 0
-        # omega30 = 5
 
         self.q0 = np.array([theta10, theta20, theta30]) if q0 is None else q0
         self.u0 = np.array([omega10, omega20, omega30]) if u0 is None else u0
@@ -187,7 +186,7 @@ class SliderCrankFlores:
             theta2
         )  # (96)
         h3 = 0
-        return -np.array([h1, h2, h3])
+        return np.array([h1, h2, h3])
 
     def h_q(self, t, q, u, coo):
         theta1, theta2, theta3 = q
@@ -618,7 +617,7 @@ if __name__ == "__main__":
     system.add(slider_crank)
     system.assemble()
 
-    t1 = 2 * np.pi / 150
+    t1 = 4 * np.pi / 150
     # t1 = 0.5
     # dt = 1e-5
     dt = 1e-4
