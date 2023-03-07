@@ -104,10 +104,10 @@ class nElScalarForceTranslational:
             t, q[self.nq_fun(k)], self.frame_IDs[k], self.Ki_r_SPis[k]
         )
         self.v_Pk = lambda t, q, u, k: self.subsystems[k].v_P(
-            t, q[self.nq_fun(k)], u[self._nu(k)], self.frame_IDs[k], self.Ki_r_SPis[k]
+            t, q[self.nq_fun(k)], u[self.nu_fun(k)], self.frame_IDs[k], self.Ki_r_SPis[k]
         )
         self.v_Pk_qk = lambda t, q, u, k: self.subsystems[k].v_P_q(
-            t, q[self.nq_fun(k)], u[self._nu(k)], self.frame_IDs[k], self.Ki_r_SPis[k]
+            t, q[self.nq_fun(k)], u[self.nu_fun(k)], self.frame_IDs[k], self.Ki_r_SPis[k]
         )
         self.J_Pk = lambda t, q, k: self.subsystems[k].J_P(
             t, q[self.nq_fun(k)], self.frame_IDs[k], self.Ki_r_SPis[k]
@@ -210,7 +210,7 @@ class nElScalarForceTranslational:
         return f_spring_q
 
     def _f_damper(self, t, q, u):
-        return -self._W(t, q) * self.force_law_damper.la(t, self._gamma(t, q))
+        return -self._W(t, q) * self.force_law_damper.la(t, self._gamma(t, q, u))
 
     def _f_damper_q(self, t, q, u):
         gamma = self._gamma(t, q, u)

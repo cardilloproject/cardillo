@@ -231,8 +231,8 @@ class ScalarForceTranslational:
         coo.extend(dense, (self.uDOF, self.uDOF))
 
     # public functions
-    def h(self, t, q):
-        return self._h(t, q)
+    def h(self, t, q, u):
+        return self._h(t, q, u)
     
     def h_q(self, t, q, u, coo):
         self._h_q(t, q, u, coo)
