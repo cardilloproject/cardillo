@@ -378,4 +378,4 @@ if __name__ == "__main__":
     # run("PDRotationalJoint", EulerBackward, method="index 2", k=k, d=d)
     # run("PDRotationalJoint", EulerBackward, method="index 3", k=k, d=d)
     # run("PDRotationalJoint", EulerBackward, method="index 2 GGL", k=k, d=d)
-    run("PDRotationalJoint", RadauIIa, k=k, d=d)
+    run("PDRotationalJoint", RadauIIa, k=k, d=d, atol=1e-5, rtol=1e-5, dae_index=3)
