@@ -73,9 +73,6 @@ def run(case):
     else:
         raise AssertionError("Case not found!")
 
-    dt = 1e-2
-    # t_final = 0.75
-
     q0 = np.array([x0, y0, 0, 0, 0, 0], dtype=float)
     u0 = np.array([x_dot0, y_dot0, 0, 0, 0, omega], dtype=float)
 
