@@ -22,8 +22,8 @@ class Rattle:
         fix_point_max_iter=500,
         error_function=lambda x: np.max(np.abs(x)),
         # method="Newton_decoupled",
-        # method="Newton_full",
-        method="fixed point",
+        method="Newton_full",
+        # method="fixed point",
     ):
         """
         Nonsmooth extension of RATTLE.
@@ -68,8 +68,14 @@ class Rattle:
         self.la_Nn = system.la_N0
         self.la_Fn = system.la_F0
 
+        # fully coupled scheme
         self.ny = (
-            self.nq + 2 * self.nu + 2 * self.nla_g + 2 * self.nla_N + 2 * system.nla_F
+            self.nq
+            + 2 * self.nu
+            + 2 * self.nla_g
+            + 2 * self.nla_gamma
+            + 2 * self.nla_N
+            + 2 * system.nla_F
         )
         self.yn = np.concatenate(
             (
@@ -78,12 +84,32 @@ class Rattle:
                 self.un,
                 self.la_gn * 0.5 * dt,
                 self.la_gn * 0.5 * dt,
+                self.la_gamman * 0.5 * dt,
+                self.la_gamman * 0.5 * dt,
                 self.la_Nn * 0.5 * dt,
                 self.la_Nn * 0.5 * dt,
                 self.la_Fn * 0.5 * dt,
                 self.la_Fn * 0.5 * dt,
             )
         )
+        self.split_y = np.array(
+            [
+                self.nq,
+                self.nq + self.nu,
+                self.nq + 2 * self.nu,
+                self.nq + 2 * self.nu + self.nla_g,
+                self.nq + 2 * (self.nu + self.nla_g),
+                self.nq + 2 * (self.nu + self.nla_g) + self.nla_gamma,
+                self.nq + 2 * (self.nu + self.nla_g + self.nla_gamma),
+                self.nq + 2 * (self.nu + self.nla_g + self.nla_gamma) + self.nla_N,
+                self.nq + 2 * (self.nu + self.nla_g + self.nla_gamma + self.nla_N),
+                self.nq
+                + 2 * (self.nu + self.nla_g + self.nla_gamma + self.nla_N)
+                + self.nla_F,
+            ],
+            dtype=int,
+        )
+
         self.y1n = np.concatenate(
             (
                 self.qn,
@@ -104,61 +130,24 @@ class Rattle:
         )
         self.ny2 = len(self.y2n)
 
-    def unpack_y(self, y):
-        q = y[: self.nq]
-        u12 = y[self.nq : self.nq + self.nu]
-        u = y[self.nq + self.nu : self.nq + 2 * self.nu]
-        P_g1 = y[self.nq + 2 * self.nu : self.nq + 2 * self.nu + self.nla_g]
-        P_g2 = y[
-            self.nq + 2 * self.nu + self.nla_g : self.nq + 2 * self.nu + 2 * self.nla_g
-        ]
-        P_N1 = y[
-            self.nq
-            + 2 * self.nu
-            + 2 * self.nla_g : self.nq
-            + 2 * self.nu
-            + 2 * self.nla_g
-            + self.nla_N
-        ]
-        P_N2 = y[
-            self.nq
-            + 2 * self.nu
-            + 2 * self.nla_g
-            + self.nla_N : self.nq
-            + 2 * self.nu
-            + 2 * self.nla_g
-            + 2 * self.nla_N
-        ]
-        P_F1 = y[
-            self.nq
-            + 2 * self.nu
-            + 2 * self.nla_g
-            + 2 * self.nla_N : self.nq
-            + 2 * self.nu
-            + 2 * self.nla_g
-            + 2 * self.nla_N
-            + self.nla_F
-        ]
-        P_F2 = y[
-            self.nq
-            + 2 * self.nu
-            + 2 * self.nla_g
-            + 2 * self.nla_N
-            + self.nla_F : self.nq
-            + 2 * self.nu
-            + 2 * self.nla_g
-            + 2 * self.nla_N
-            + 2 * self.nla_F
-        ]
-
-        return q, u12, u, P_g1, P_g2, P_N1, P_N2, P_F1, P_F2
-
     def R(self, y, update_index=False):
         tn = self.tn
-        qn, _, un, _, _, _, _, _, _ = self.unpack_y(self.yn.copy())
-        h = self.dt
-        tn1 = tn + h
-        qn1, un12, un1, P_g1, P_g2, P_N1, P_N2, P_F1, P_F2 = self.unpack_y(y)
+        dt = self.dt
+        tn1 = tn + dt
+        qn, _, un, _, _, _, _, _, _, _, _ = np.array_split(self.yn, self.split_y)
+        (
+            qn1,
+            un12,
+            un1,
+            P_g1,
+            P_g2,
+            P_gamma1,
+            P_gamma2,
+            P_N1,
+            P_N2,
+            P_F1,
+            P_F2,
+        ) = np.array_split(y, self.split_y)
 
         P_N = 0.5 * (P_N1 + P_N2)
         P_F = 0.5 * (P_F2 + P_F1)
@@ -168,22 +157,23 @@ class Rattle:
         ####################
         # kinematic equation
         ####################
-        R[: self.nq] = (
+        R[: self.split_y[0]] = (
             qn1
             - qn
             - 0.5
-            * h
+            * dt
             * (self.system.q_dot(tn, qn, un12) + self.system.q_dot(tn1, qn1, un12))
         )
 
         ########################
         # euations of motion (1)
         ########################
-        R[self.nq : self.nq + self.nu] = self.system.M(
+        R[self.split_y[0] : self.split_y[1]] = self.system.M(
             tn, qn, scipy_matrix=csr_matrix
         ) @ (un12 - un) - 0.5 * (
-            h * self.system.h(tn, qn, un12)
+            dt * self.system.h(tn, qn, un12)
             + self.system.W_g(tn, qn) @ P_g1
+            + self.system.W_gamma(tn, qn) @ P_gamma1
             + self.system.W_N(tn, qn) @ P_N1
             + self.system.W_F(tn, qn) @ P_F1
         )
@@ -191,11 +181,12 @@ class Rattle:
         ########################
         # euations of motion (2)
         ########################
-        R[self.nq + self.nu : self.nq + 2 * self.nu] = self.system.M(
+        R[self.split_y[1] : self.split_y[2]] = self.system.M(
             tn1, qn1, scipy_matrix=csr_matrix
         ) @ (un1 - un12) - 0.5 * (
-            h * self.system.h(tn1, qn1, un12)
+            dt * self.system.h(tn1, qn1, un12)
             + self.system.W_g(tn1, qn1) @ P_g2
+            + self.system.W_gamma(tn1, qn1) @ P_gamma2
             + self.system.W_N(tn1, qn1) @ P_N2
             + self.system.W_F(tn1, qn1) @ P_F2
         )
@@ -203,12 +194,11 @@ class Rattle:
         #######################
         # bilateral constraints
         #######################
-        R[self.nq + 2 * self.nu : self.nq + 2 * self.nu + self.nla_g] = self.system.g(
-            tn1, qn1
-        )
-        R[
-            self.nq + 2 * self.nu + self.nla_g : self.nq + 2 * self.nu + 2 * self.nla_g
-        ] = self.system.g_dot(tn1, qn1, un1)
+        R[self.split_y[2] : self.split_y[3]] = self.system.g(tn1, qn1)
+        R[self.split_y[3] : self.split_y[4]] = self.system.g_dot(tn1, qn1, un1)
+
+        R[self.split_y[4] : self.split_y[5]] = self.system.gamma(tn1, qn1, un12)
+        R[self.split_y[5] : self.split_y[6]] = self.system.gamma(tn1, qn1, un1)
 
         ###########
         # Signorini
@@ -219,28 +209,13 @@ class Rattle:
         if update_index:
             self.I_Nn1 = prox_arg <= 0.0
 
-        R[
-            self.nq
-            + 2 * self.nu
-            + 2 * self.nla_g : self.nq
-            + 2 * self.nu
-            + 2 * self.nla_g
-            + self.nla_N
-        ] = np.where(self.I_Nn1, g_Nn1, P_N1)
+        R[self.split_y[6] : self.split_y[7]] = np.where(self.I_Nn1, g_Nn1, P_N1)
 
         ##################################################
         # mixed Singorini on velocity level and impact law
         ##################################################
         xi_Nn1 = self.system.xi_N(tn1, qn1, un, un1)
-        R[
-            self.nq
-            + 2 * self.nu
-            + 2 * self.nla_g
-            + self.nla_N : self.nq
-            + 2 * self.nu
-            + 2 * self.nla_g
-            + 2 * self.nla_N
-        ] = np.where(
+        R[self.split_y[7] : self.split_y[8]] = np.where(
             self.I_Nn1,
             P_N + prox_R0_nm(prox_r_N * xi_Nn1 - P_N),
             P_N,
@@ -256,21 +231,12 @@ class Rattle:
             i_F = np.array(i_F)
 
             if len(i_F) > 0:
-                R[self.nq + 2 * self.nu + 2 * self.nla_g + 2 * self.nla_N + i_F] = P_F1[
-                    i_F
-                ] + prox_sphere(
+                R[self.split_y[8] + i_F] = P_F1[i_F] + prox_sphere(
                     prox_r_F[i_N] * gamma_Fn1[i_F] - P_F1[i_F],
                     self.system.mu[i_N] * P_N1[i_N],
                 )
 
-                R[
-                    self.nq
-                    + 2 * self.nu
-                    + 2 * self.nla_g
-                    + 2 * self.nla_N
-                    + self.nla_F
-                    + i_F
-                ] = P_F[i_F] + prox_sphere(
+                R[self.split_y[9] + i_F] = P_F[i_F] + prox_sphere(
                     prox_r_F[i_N] * xi_Fn1[i_F] - P_F[i_F],
                     self.system.mu[i_N] * P_N[i_N],
                 )
@@ -536,6 +502,7 @@ class Rattle:
         q = [self.qn]
         u = [self.un]
         P_g = [self.dt * self.la_gn]
+        P_gamma = [self.dt * self.la_gamman]
         P_N = [self.dt * self.la_Nn]
         P_F = [self.dt * self.la_Fn]
 
@@ -588,9 +555,22 @@ class Rattle:
                     jac_args=(False,),
                 )
 
-                qn1, un12, un1, P_g1, P_g2, P_N1, P_N2, P_F1, P_F2 = self.unpack_y(y)
+                (
+                    qn1,
+                    un12,
+                    un1,
+                    P_g1,
+                    P_g2,
+                    P_gamma1,
+                    P_gamma2,
+                    P_N1,
+                    P_N2,
+                    P_F1,
+                    P_F2,
+                ) = np.array_split(y, self.split_y)
 
                 P_gn1 = 0.5 * (P_g1 + P_g2)
+                P_gamman1 = 0.5 * (P_gamma1 + P_gamma2)
                 P_N_bar = 0.5 * (P_N1 + P_N2)
                 P_F_bar = 0.5 * (P_F1 + P_F2)
 
@@ -775,6 +755,7 @@ class Rattle:
             q.append(qn1)
             u.append(un1)
             P_g.append(P_gn1)
+            P_gamma.append(P_gamman1)
             P_N.append(P_N_bar)
             P_F.append(P_F_bar)
 
@@ -794,7 +775,10 @@ class Rattle:
             t=np.array(self.t),
             q=np.array(q),
             u=np.array(u),
+            la_g=np.array(P_g) / self.dt,
+            la_gamma=np.array(P_gamma) / self.dt,
             P_g=np.array(P_g),
+            P_gamma=np.array(P_gamma),
             P_N=np.array(P_N),
             P_F=np.array(P_F),
         )

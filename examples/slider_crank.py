@@ -6,7 +6,7 @@ import matplotlib.animation as animation
 from cardillo.math import approx_fprime
 
 from cardillo import System
-from cardillo.solver import Moreau
+from cardillo.solver import Moreau, Rattle
 
 
 class SliderCrankFlores:
@@ -608,7 +608,355 @@ class SliderCrankFlores:
         coo.extend(dense, (self.la_FDOF, self.qDOF))
 
 
-if __name__ == "__main__":
+class SliderCrankDAE:
+    def __init__(self):
+        """TODO: Inspired by Flores2011, Section 4: Demonstrative Application to a Slider-Crank Mechanism.
+
+        References:
+        -----------
+        Flores2011:  https://doi.org/10.1007/978-90-481-9971-6_6
+        """
+        self.nq = 9
+        self.nu = 9
+        self.nla_g = 6
+        self.nla_N = 4
+
+        # geometric characteristics
+        self.l1 = 0.1530
+        self.l2 = 0.306
+        self.a = 0.05
+        self.b = 0.025
+        self.c = 0.001
+        self.d = 2 * self.c + 2 * self.b
+
+        # inertial properties
+        self.m1 = self.m2 = 0.038
+        self.m3 = 0.076
+        self.J1 = 7.4e-5
+        self.J2 = 5.9e-4
+        self.J3 = 2.7e-6
+
+        # gravity
+        self.grav = 9.81
+
+        # contact parameters
+        self.e_N = 0.4 * np.ones(4)
+        self.e_F = np.zeros(4)
+        mu = 0.01
+        self.mu = mu * np.ones(4)
+
+        if mu == 0:
+            self.nla_F = 0
+            self.NF_connectivity = [[], [], [], []]
+        else:
+            self.nla_F = 4
+            self.NF_connectivity = [[0], [1], [2], [3]]
+            self.gamma_F = self.__gamma_F
+
+        # initial conditions
+        theta10 = 0
+        theta20 = 0
+        theta30 = 0
+        # theta30 = 5 * np.pi / 180
+
+        r_OP10 = self.l1 * np.array([np.cos(theta10), np.sin(theta10)])
+        r_P1P20 = self.l2 * np.array([np.cos(theta20), np.sin(theta20)])
+        x10, y10 = 0.5 * r_OP10
+        x20, y20 = r_OP10 + 0.5 * r_P1P20
+        x30, y30 = r_OP10 + r_P1P20
+
+        omega10 = 150
+        omega20 = -75
+        omega30 = 0
+
+        v_P10 = self.l1 * np.array([-np.sin(theta10), np.cos(theta10)]) * omega10
+        v_P1P20 = self.l2 * np.array([-np.sin(theta20), np.cos(theta20)]) * omega20
+        x1_dot0, y1_dot0 = 0.5 * v_P10
+        x2_dot0, y2_dot0 = v_P10 + 0.5 * v_P1P20
+        x3_dot0, y3_dot0 = v_P10 + v_P1P20
+
+        self.q0 = np.array([x10, y10, theta10, x20, y20, theta20, x30, y30, theta30])
+        self.u0 = np.array(
+            [
+                x1_dot0,
+                y1_dot0,
+                omega10,
+                x2_dot0,
+                y2_dot0,
+                omega20,
+                x3_dot0,
+                y3_dot0,
+                omega30,
+            ]
+        )
+        self.la_N0 = np.zeros(self.nla_N)
+        self.la_F0 = np.zeros(self.nla_F)
+        self.la_g0 = np.zeros(self.nla_g)
+
+    def contour_crank(self, q):
+        x1, y1, theta1, _, _, _, _, _, _ = q
+        x = x1 + 0.5 * self.l1 * np.array([-1, 1]) * np.cos(theta1)
+        y = y1 + 0.5 * self.l1 * np.array([-1, 1]) * np.sin(theta1)
+        return x, y
+
+    def contour_connecting_rod(self, q):
+        _, _, _, x2, y2, theta2, _, _, _ = q
+        x = x2 + 0.5 * self.l2 * np.array([-1, 1]) * np.cos(theta2)
+        y = y2 + 0.5 * self.l2 * np.array([-1, 1]) * np.sin(theta2)
+        return x, y
+
+    def contour_slider(self, q):
+        K_r_SP1 = np.array([-self.a, self.b])
+        K_r_SP2 = np.array([self.a, self.b])
+        K_r_SP3 = np.array([-self.a, -self.b])
+        K_r_SP4 = np.array([self.a, -self.b])
+
+        _, _, _, _, _, _, x3, y3, theta3 = q
+        # fmt: off
+        A_IK = np.array([
+            [np.cos(theta3), -np.sin(theta3)], 
+            [np.sin(theta3),  np.cos(theta3)]
+        ])
+        # fmt: on
+
+        r_OS = np.array([x3, y3])
+        r_SP1 = r_OS + A_IK @ K_r_SP1
+        r_SP2 = r_OS + A_IK @ K_r_SP2
+        r_SP3 = r_OS + A_IK @ K_r_SP3
+        r_SP4 = r_OS + A_IK @ K_r_SP4
+
+        x = np.array([r_OS[0], r_SP1[0], r_SP2[0], r_SP4[0], r_SP3[0], r_SP1[0]])
+        y = np.array([r_OS[1], r_SP1[1], r_SP2[1], r_SP4[1], r_SP3[1], r_SP1[1]])
+        return x, y
+
+    #####################
+    # equations of motion
+    #####################
+    def M_dense(self, t, q):
+        return np.diag(
+            [
+                self.m1,
+                self.m1,
+                self.J1,
+                self.m2,
+                self.m2,
+                self.J2,
+                self.m3,
+                self.m3,
+                self.J3,
+            ]
+        )
+
+    def M(self, t, q, coo):
+        coo.extend(self.M_dense(t, q), (self.uDOF, self.uDOF))
+
+    def h(self, t, q, u):
+        return -np.array([0, self.m1, 0, 0, self.m2, 0, 0, self.m3, 0]) * self.grav
+
+    #####################
+    # kinematic equations
+    #####################
+    def q_dot(self, t, q, u):
+        return u
+
+    def q_ddot(self, t, q, u, u_dot):
+        return u_dot
+
+    def B(self, t, q, coo):
+        coo.extend_diag(np.ones(self.nq), (self.qDOF, self.uDOF))
+
+    #######################
+    # bilateral constraints
+    #######################
+    def g(self, t, q):
+        x1, y1, theta1, x2, y2, theta2, x3, y3, theta3 = q
+        sin1 = np.sin(theta1)
+        cos1 = np.cos(theta1)
+        sin2 = np.sin(theta2)
+        cos2 = np.cos(theta2)
+        return np.array(
+            [
+                x1 - 0.5 * self.l1 * cos1,
+                y1 - 0.5 * self.l1 * sin1,
+                x1 + 0.5 * self.l1 * cos1 - (x2 - 0.5 * self.l2 * cos2),
+                y1 + 0.5 * self.l1 * sin1 - (y2 - 0.5 * self.l2 * sin2),
+                x2 + 0.5 * self.l2 * cos2 - x3,
+                y2 + 0.5 * self.l2 * sin2 - y3,
+            ]
+        )
+
+    def g_dot(self, t, q, u):
+        x1, y1, theta1, x2, y2, theta2, x3, y3, theta3 = q
+        u1, v1, omega1, u2, v2, omega2, u3, v3, omega3 = u
+        sin1 = np.sin(theta1)
+        cos1 = np.cos(theta1)
+        sin2 = np.sin(theta2)
+        cos2 = np.cos(theta2)
+        # fmt: off
+        g_dot = np.array([
+            u1 + 0.5 * self.l1 * sin1 * omega1,
+            v1 - 0.5 * self.l1 * cos1 * omega1,
+            u1 - 0.5 * self.l1 * sin1 * omega1 - (u2 + 0.5 * self.l2 * sin2 * omega2),
+            v1 + 0.5 * self.l1 * cos1 * omega1 - (v2 - 0.5 * self.l2 * cos2 * omega2),
+            u2 - 0.5 * self.l2 * sin2 * omega2 - u3,
+            v2 + 0.5 * self.l2 * cos2 * omega2 - v3,
+        ])
+        # fmt: on
+        return g_dot
+
+        # g_dot_num = self.g_q_dense(t, q) @ u
+        # diff = g_dot - g_dot_num
+        # error = np.linalg.norm(diff)
+        # print(f"error g_dot: {error}")
+
+        # return g_dot_num
+
+    def g_ddot(self, t, q, u, u_dot):
+        x1, y1, theta1, x2, y2, theta2, x3, y3, theta3 = q
+        u1, v1, omega1, u2, v2, omega2, u3, v3, omega3 = u
+        u_dot1, v_dot1, psi1, u_dot2, v_dot2, psi2, u_dot3, v_dot3, psi3 = u_dot
+        sin1 = np.sin(theta1)
+        cos1 = np.cos(theta1)
+        sin2 = np.sin(theta2)
+        cos2 = np.cos(theta2)
+        # fmt: off
+        g_ddot = np.array([
+            # u1 + 0.5 * self.l1 * sin1 * omega1,
+            # v1 - 0.5 * self.l1 * cos1 * omega1,
+            # u1 - 0.5 * self.l1 * sin1 * omega1 - (u2 + 0.5 * self.l2 * sin2 * omega2),
+            # v1 + 0.5 * self.l1 * cos1 * omega1 - (v2 - 0.5 * self.l2 * cos2 * omega2),
+            # u2 - 0.5 * self.l2 * sin2 * omega2 - u3,
+            # v2 + 0.5 * self.l2 * cos2 * omega2 - v3,
+            u_dot1 + 0.5 * self.l1 * sin1 * psi1 + 0.5 * self.l1 * cos1 * omega1**2,
+            v_dot1 - 0.5 * self.l1 * cos1 * psi1 + 0.5 * self.l1 * sin1 * omega1**2,
+            u_dot1 - 0.5 * self.l1 * sin1 * psi1 - 0.5 * self.l1 * cos1 * omega1**2 - (u_dot2 + 0.5 * self.l2 * sin2 * psi2 + 0.5 * self.l2 * cos2 * omega2**2),
+            v_dot1 + 0.5 * self.l1 * cos1 * psi1 - 0.5 * self.l1 * sin1 * omega1**2 - (v_dot2 - 0.5 * self.l2 * cos2 * psi2 + 0.5 * self.l2 * sin2 * omega2**2),
+            u_dot2 - 0.5 * self.l2 * sin2 * psi2 - 0.5 * self.l2 * cos2 * omega2**2 - u_dot3,
+            v_dot2 + 0.5 * self.l2 * cos2 * psi2 - 0.5 * self.l2 * sin2 * omega2**2 - v_dot3,
+        ])
+        # fmt: on
+        return g_ddot
+
+        # g_ddot_num = self.g_q_dense(t, q) @ u_dot + approx_fprime(q, lambda q: self.g_dot(t, q, u), method="3-point", eps=1e-6) @ u
+        # diff = g_ddot - g_ddot_num
+        # error = np.linalg.norm(diff)
+        # print(f"error g_ddot: {error}")
+
+        # return g_ddot_num
+
+    def g_q_dense(self, t, q):
+        x1, y1, theta1, x2, y2, theta2, x3, y3, theta3 = q
+        sin1 = np.sin(theta1)
+        cos1 = np.cos(theta1)
+        sin2 = np.sin(theta2)
+        cos2 = np.cos(theta2)
+
+        g_q = np.zeros((self.nla_g, self.nq), dtype=float)
+        g_q[0, 0] = 1
+        g_q[0, 2] = 0.5 * self.l1 * sin1
+
+        g_q[1, 1] = 1
+        g_q[1, 2] = -0.5 * self.l1 * cos1
+
+        g_q[2, 0] = 1
+        g_q[2, 2] = -0.5 * self.l1 * sin1
+        g_q[2, 3] = -1
+        g_q[2, 5] = -0.5 * self.l2 * sin2
+
+        g_q[3, 1] = 1
+        g_q[3, 2] = 0.5 * self.l1 * cos1
+        g_q[3, 4] = -1
+        g_q[3, 5] = 0.5 * self.l2 * cos2
+
+        g_q[4, 3] = 1
+        g_q[4, 5] = -0.5 * self.l2 * sin2
+        g_q[4, 6] = -1
+
+        g_q[5, 4] = 1
+        g_q[5, 5] = 0.5 * self.l2 * cos2
+        g_q[5, 7] = -1
+
+        return g_q
+
+        # g_q_num = approx_fprime(q, lambda q: self.g(t, q), method="2-point", eps=1e-6)
+        # diff = g_q - g_q_num
+        # error = np.linalg.norm(diff)
+        # print(f"error g_q: {error}")
+        # return g_q_num
+
+    def g_q(self, t, q, coo):
+        coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
+
+    def W_g(self, t, q, coo):
+        coo.extend(self.g_q_dense(t, q).T, (self.uDOF, self.la_gDOF))
+
+    #################
+    # normal contacts
+    #################
+    def g_N(self, t, q):
+        _, _, _, _, _, _, x3, y3, theta3 = q
+        sin = np.sin(theta3)
+        cos = np.cos(theta3)
+        g_N1 = 0.5 * self.d - (y3 - self.a * sin + self.b * cos)
+        g_N2 = 0.5 * self.d - (y3 + self.a * sin + self.b * cos)
+        g_N3 = 0.5 * self.d + (y3 - self.a * sin - self.b * cos)
+        g_N4 = 0.5 * self.d + (y3 + self.a * sin - self.b * cos)
+        return np.array([g_N1, g_N2, g_N3, g_N4])
+
+    def g_N_q_dense(self, t, q):
+        _, _, _, _, _, _, x3, y3, theta3 = q
+        sin = np.sin(theta3)
+        cos = np.cos(theta3)
+
+        g_N_q = np.zeros((self.nla_N, self.nq), dtype=float)
+        g_N_q[0, -2:] = -np.array([1, -self.a * cos - self.b * sin])
+        g_N_q[1, -2:] = -np.array([1, self.a * cos - self.b * sin])
+        g_N_q[2, -2:] = np.array([1, -self.a * cos + self.b * sin])
+        g_N_q[3, -2:] = np.array([1, self.a * cos + self.b * sin])
+
+        return g_N_q
+
+    def g_N_q(self, t, q, coo):
+        coo.extend(self.g_N_q_dense(t, q), (self.la_NDOF, self.qDOF))
+
+    def g_N_dot(self, t, q, u):
+        return self.g_N_q_dense(t, q) @ u
+
+    def W_N(self, t, q, coo):
+        dense = self.g_N_q_dense(t, q).T
+        coo.extend(dense, (self.uDOF, self.la_NDOF))
+
+    #################
+    # tanget contacts
+    #################
+    def __gamma_F(self, t, q, u):
+        _, _, _, _, _, _, _, _, theta3 = q
+        _, _, _, _, _, _, u3, _, omega3 = u
+        sin = np.sin(theta3)
+        cos = np.cos(theta3)
+        gamma_1 = u3 + omega3 * (self.a * sin - self.b * cos)
+        gamma_2 = u3 + omega3 * (-self.a * sin - self.b * cos)
+        gamma_3 = u3 + omega3 * (self.a * sin + self.b * cos)
+        gamma_4 = u3 + omega3 * (-self.a * sin + self.b * cos)
+        return np.array([gamma_1, gamma_2, gamma_3, gamma_4])
+
+    def W_F_dense(self, t, q):
+        _, _, _, _, _, _, x3, y3, theta3 = q
+        sin = np.sin(theta3)
+        cos = np.cos(theta3)
+
+        W_F = np.zeros((self.nu, self.nla_F), dtype=float)
+        W_F[-2:, 0] = np.array([1, self.a * sin - self.b * cos])
+        W_F[-2:, 1] = np.array([1, -self.a * sin - self.b * cos])
+        W_F[-2:, 2] = np.array([1, self.a * sin + self.b * cos])
+        W_F[-2:, 3] = np.array([1, -self.a * sin + self.b * cos])
+        return W_F
+
+    def W_F(self, t, q, coo):
+        coo.extend(self.W_F_dense(t, q), (self.uDOF, self.la_FDOF))
+
+
+def run_Flores():
     animate = True
     # animate = False
 
@@ -755,3 +1103,182 @@ if __name__ == "__main__":
 
         # writer = animation.writers['ffmpeg'](fps=fps, bitrate=1800)
         # anim.save('slider_crank.mp4', writer=writer)
+
+
+def run_DAE():
+    animate = True
+    # animate = False
+
+    system = System()
+    slider_crank = SliderCrankDAE()
+    system.add(slider_crank)
+    system.assemble()
+
+    t1 = 4 * np.pi / 150
+    # t1 = 0.01
+    # dt = 1e-5
+    # dt = 1e-4
+    # dt = 2.5e-4
+    # dt = 5e-4
+    dt = 1e-3
+
+    # solver = Moreau(system, t1, dt, fix_point_max_iter=5000)
+    solver = Rattle(system, t1, dt)
+
+    sol = solver.solve()
+    t = sol.t
+    q = sol.q
+    u = sol.u
+
+    fig, ax = plt.subplots(2, 3)
+
+    # positions
+    ax[0, 0].set_xlabel("t [s]")
+    ax[0, 0].set_ylabel("theta1 [rad]")
+    ax[0, 0].plot(t, q[:, 2], "-k")
+    ax[0, 0].grid()
+
+    ax[0, 1].set_xlabel("t [s]")
+    ax[0, 1].set_ylabel("theta2 [rad]")
+    ax[0, 1].plot(t, q[:, 5], "-k")
+    ax[0, 1].grid()
+
+    ax[0, 2].set_xlabel("t [s]")
+    ax[0, 2].set_ylabel("theta3 [rad]")
+    ax[0, 2].plot(t, q[:, 8], "-k")
+    ax[0, 2].grid()
+
+    # velocities
+    ax[1, 0].set_xlabel("t [s]")
+    ax[1, 0].set_ylabel("omega1 [rad/s]")
+    ax[1, 0].plot(t, u[:, 2], "-k")
+    ax[1, 0].grid()
+
+    ax[1, 1].set_xlabel("t [s]")
+    ax[1, 1].set_ylabel("omega2 [rad/s]")
+    ax[1, 1].plot(t, u[:, 5], "-k")
+    ax[1, 1].grid()
+
+    ax[1, 2].set_xlabel("t [s]")
+    ax[1, 2].set_ylabel("omega3 [rad/s]")
+    ax[1, 2].plot(t, u[:, 8], "-k")
+    ax[1, 2].grid()
+
+    plt.tight_layout()
+
+    # bilateral constraints
+    fig, ax = plt.subplots(2, 3)
+    g = np.array([system.g(ti, qi) for (ti, qi) in zip(t, q)])
+    for i in range(2):
+        for j in range(3):
+            idx = 3 * i + j
+            ax[i, j].plot(t, g[:, idx], "-k")
+            ax[i, j].grid()
+            ax[i, j].set_xlabel("t [s]")
+            ax[i, j].set_ylabel(f"g{idx + 1} [m]")
+
+    plt.tight_layout()
+    fig, ax = plt.subplots(2, 3)
+    g_dot = np.array([system.g_dot(ti, qi, ui) for (ti, qi, ui) in zip(t, q, u)])
+    for i in range(2):
+        for j in range(3):
+            idx = 3 * i + j
+            ax[i, j].plot(t, g_dot[:, idx], "-k")
+            ax[i, j].grid()
+            ax[i, j].set_xlabel("t [s]")
+            ax[i, j].set_ylabel(f"g_dot{idx + 1} [m]")
+
+    plt.tight_layout()
+
+    # contacts
+    fig, ax = plt.subplots(3, 4)
+    g_N = np.array([system.g_N(ti, qi) for (ti, qi) in zip(t, q)])
+    g_N_dot = np.array([system.g_N_dot(ti, qi, ui) for (ti, qi, ui) in zip(t, q, u)])
+    gamma_F = np.array([system.gamma_F(ti, qi, ui) for (ti, qi, ui) in zip(t, q, u)])
+    for i in range(4):
+        ax[0, i].plot(t, g_N[:, i], "-k")
+        ax[0, i].grid()
+        ax[0, i].set_xlabel("t [s]")
+        ax[0, i].set_ylabel(f"g_N{i + 1} [m]")
+
+        ax[1, i].plot(t, g_N_dot[:, i], "-k")
+        ax[1, i].grid()
+        ax[1, i].set_xlabel("t [s]")
+        ax[1, i].set_ylabel(f"g_N_dot{i + 1} [m/s]")
+
+        ax[2, i].plot(t, gamma_F[:, i], "-k")
+        ax[2, i].grid()
+        ax[2, i].set_xlabel("t [s]")
+        ax[2, i].set_ylabel(f"gamma_F_dot{i + 1} [m/s]")
+
+    plt.tight_layout()
+
+    if not animate:
+        plt.show()
+
+    if animate:
+        fig_anim, ax_anim = plt.subplots()
+
+        ax_anim.set_xlabel("x [m]")
+        ax_anim.set_ylabel("y [m]")
+        ax_anim.axis("equal")
+        ax_anim.set_xlim(-0.2, 0.6)
+        ax_anim.set_ylim(-0.4, 0.4)
+
+        # prepare data for animation
+        slowmotion = 10
+        fps = 25
+        animation_time = slowmotion * t1
+        target_frames = int(fps * animation_time)
+        frac = max(1, int(len(t) / target_frames))
+        if frac == 1:
+            target_frames = len(t)
+        interval = 1000 / fps
+
+        frames = target_frames
+        t = t[::frac]
+        q = q[::frac]
+
+        ax_anim.plot(
+            np.array([0, slider_crank.l1 + slider_crank.l2 + 4 * slider_crank.b]),
+            +slider_crank.d / 2 * np.ones(2),
+            "-k",
+        )
+        ax_anim.plot(
+            np.array([0, slider_crank.l1 + slider_crank.l2 + 4 * slider_crank.b]),
+            -slider_crank.d / 2 * np.ones(2),
+            "-k",
+        )
+
+        (line1,) = ax_anim.plot(
+            *slider_crank.contour_crank(slider_crank.q0), "-ok", linewidth=2
+        )
+        (line2,) = ax_anim.plot(
+            *slider_crank.contour_connecting_rod(slider_crank.q0), "-ob", linewidth=2
+        )
+        (line3,) = ax_anim.plot(
+            *slider_crank.contour_slider(slider_crank.q0), "-or", linewidth=2
+        )
+
+        def animate(i):
+            line1.set_data(*slider_crank.contour_crank(q[i]))
+            line2.set_data(*slider_crank.contour_connecting_rod(q[i]))
+            line3.set_data(*slider_crank.contour_slider(q[i]))
+            return (
+                line1,
+                line2,
+                line3,
+            )
+
+        anim = animation.FuncAnimation(
+            fig_anim, animate, frames=frames, interval=interval, blit=False
+        )
+        plt.show()
+
+        # writer = animation.writers['ffmpeg'](fps=fps, bitrate=1800)
+        # anim.save('slider_crank.mp4', writer=writer)
+
+
+if __name__ == "__main__":
+    # run_Flores()
+    run_DAE()

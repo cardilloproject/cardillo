@@ -43,7 +43,8 @@ def run(case):
 
     y0 = 1
     y_dot0 = 0
-    dt = 5e-3
+    # dt = 5e-3
+    dt = 1e-2
 
     if case == 1:
         e_N, e_F, mu = 0.5, 0, 0

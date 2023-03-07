@@ -19,6 +19,7 @@ from cardillo.solver import (
     GeneralizedAlphaFirstOrder,
     NonsmoothBackwardEulerDecoupled,
     RadauIIa,
+    Rattle,
 )
 
 
@@ -129,14 +130,14 @@ def state():
     """
     t0 = 0
     # t1 = 2 * np.pi / np.abs(alpha_dot0) * 0.01
-    # t1 = 2 * np.pi / np.abs(alpha_dot0) * 0.25
+    t1 = 2 * np.pi / np.abs(alpha_dot0) * 0.25
     # t1 = 2 * np.pi / np.abs(alpha_dot0) * 0.3  # used for GAMM
     # t1 = 2 * np.pi / np.abs(alpha_dot0) * 0.5
-    t1 = 2 * np.pi / np.abs(alpha_dot0) * 1.0
+    # t1 = 2 * np.pi / np.abs(alpha_dot0) * 1.0
     # dt = 5e-3
-    # dt = 5e-2
+    dt = 5e-2
     # dt = 2.5e-2
-    dt = 1.0e-2  # used for GAMM with R = 10 * r
+    # dt = 1.0e-2  # used for GAMM with R = 10 * r
     # dt = 1.0e-3
 
     # rho_inf = 0.99
@@ -157,11 +158,13 @@ def state():
     # sol = NonsmoothHalfExplicitRungeKutta(model, t1, dt).solve()
     # sol = NonsmoothPartitionedHalfExplicitEuler(model, t1, dt).solve()
 
-    rtol = atol = 1.0e-5
-    # dae_index = 2
-    # dae_index = 3
-    dae_index = "GGL"
-    sol = RadauIIa(model, t1, dt, rtol=rtol, atol=atol, dae_index=dae_index).solve()
+    # rtol = atol = 1.0e-5
+    # # dae_index = 2
+    # # dae_index = 3
+    # dae_index = "GGL"
+    # sol = RadauIIa(model, t1, dt, rtol=rtol, atol=atol, dae_index=dae_index).solve()
+
+    sol = Rattle(model, t1, dt, atol=tol).solve()
 
     t = sol.t
     q = sol.q
@@ -431,9 +434,12 @@ def convergence():
     # dts = (2.0 ** np.arange(4, 1, -1)) * dt_ref  # [5.12e-2, ..., 1.28e-2]
     # t1 = (2.0**11) * dt_ref  # 6.5536s
 
-    # dt_ref = 1.6e-3
-    # dts = (2.0 ** np.arange(5, 1, -1)) * dt_ref  # [5.12e-2, ..., 6.4e-3]
-    # t1 = (2.0**12) * dt_ref  # 6.5536s
+    dt_ref = 1.6e-3
+    dts = (2.0 ** np.arange(5, 1, -1)) * dt_ref  # [5.12e-2, ..., 6.4e-3]
+    t1 = (2.0**12) * dt_ref  # 6.5536s
+    # print(f"t1: {t1}")
+    # print(f"dts: {dts}")
+    # exit()
 
     # dt_ref = 8e-4
     # dts = (2.0 ** np.arange(6, 1, -1)) * dt_ref  # [5.12e-2, ..., 3.2e-3]
@@ -443,10 +449,10 @@ def convergence():
     # dts = (2.0 ** np.arange(7, 1, -1)) * dt_ref  # [5.12e-2, ..., 1.6e-3]
     # t1 = (2.0**14) * dt_ref # 6.5536s
 
-    # TODO: This is used for GAMM presentation!
-    dt_ref = 2e-4
-    dts = (2.0 ** np.arange(8, 1, -1)) * dt_ref  # [5.12e-2, ..., 8e-4]
-    t1 = (2.0**15) * dt_ref  # 6.5536s
+    # # TODO: This is used for GAMM presentation!
+    # dt_ref = 2e-4
+    # dts = (2.0 ** np.arange(8, 1, -1)) * dt_ref  # [5.12e-2, ..., 8e-4]
+    # t1 = (2.0**15) * dt_ref  # 6.5536s
 
     # # TODO: Why this setup gets killed!
     # dt_ref = 1e-4
@@ -480,71 +486,73 @@ def convergence():
     la_g_errors_longterm = np.inf * np.ones((4, len(dts)), dtype=float)
     la_gamma_errors_longterm = np.inf * np.ones((4, len(dts)), dtype=float)
 
-    #####################
-    # create export files
-    #####################
-    file_transient_q = "examples/GAMM2022/TransientErrorRollingDisc_q.txt"
-    file_transient_u = "examples/GAMM2022/TransientErrorRollingDisc_u.txt"
-    file_transient_la_g = "examples/GAMM2022/TransientErrorRollingDisc_la_g.txt"
-    file_transient_la_gamma = "examples/GAMM2022/TransientErrorRollingDisc_la_gamma.txt"
-    file_longterm_q = "examples/GAMM2022/LongtermErrorRollingDisc_q.txt"
-    file_longterm_u = "examples/GAMM2022/LongtermErrorRollingDisc_u.txt"
-    file_longterm_la_g = "examples/GAMM2022/LongtermErrorRollingDisc_la_g.txt"
-    file_longterm_la_gamma = "examples/GAMM2022/LongtermErrorRollingDisc_la_gamma.txt"
-    header = "dt, dt2, 2nd, 1st, 2nd_GGL, 1st_GGL"
+    # #####################
+    # # create export files
+    # #####################
+    # file_transient_q = "examples/GAMM2022/TransientErrorRollingDisc_q.txt"
+    # file_transient_u = "examples/GAMM2022/TransientErrorRollingDisc_u.txt"
+    # file_transient_la_g = "examples/GAMM2022/TransientErrorRollingDisc_la_g.txt"
+    # file_transient_la_gamma = "examples/GAMM2022/TransientErrorRollingDisc_la_gamma.txt"
+    # file_longterm_q = "examples/GAMM2022/LongtermErrorRollingDisc_q.txt"
+    # file_longterm_u = "examples/GAMM2022/LongtermErrorRollingDisc_u.txt"
+    # file_longterm_la_g = "examples/GAMM2022/LongtermErrorRollingDisc_la_g.txt"
+    # file_longterm_la_gamma = "examples/GAMM2022/LongtermErrorRollingDisc_la_gamma.txt"
+    # header = "dt, dt2, 2nd, 1st, 2nd_GGL, 1st_GGL"
 
-    def create(name):
-        with open(name, "w") as file:
-            file.write(header)
-        with open(name, "ab") as file:
-            file.write(b"\n")
+    # def create(name):
+    #     with open(name, "w") as file:
+    #         file.write(header)
+    #     with open(name, "ab") as file:
+    #         file.write(b"\n")
 
-    def append(name, data):
-        with open(name, "ab") as file:
-            np.savetxt(
-                file,
-                data,
-                delimiter=", ",
-                comments="",
-            )
+    # def append(name, data):
+    #     with open(name, "ab") as file:
+    #         np.savetxt(
+    #             file,
+    #             data,
+    #             delimiter=", ",
+    #             comments="",
+    #         )
 
-    create(file_transient_q)
-    create(file_transient_u)
-    create(file_transient_la_g)
-    create(file_transient_la_gamma)
-    create(file_longterm_q)
-    create(file_longterm_u)
-    create(file_longterm_la_g)
-    create(file_longterm_la_gamma)
+    # create(file_transient_q)
+    # create(file_transient_u)
+    # create(file_transient_la_g)
+    # create(file_transient_la_gamma)
+    # create(file_longterm_q)
+    # create(file_longterm_u)
+    # create(file_longterm_la_g)
+    # create(file_longterm_la_gamma)
 
     ###################################################################
     # compute reference solution as described in Arnold2015 Section 3.3
     ###################################################################
-    print(f"compute reference solution with second order method:")
-    reference2 = GeneralizedAlphaSecondOrder(
-        model, t1, dt_ref, rho_inf=rho_inf, tol=tol_ref, GGL=False
-    ).solve()
+    # print(f"compute reference solution with second order method:")
+    # reference2 = GeneralizedAlphaSecondOrder(
+    #     model, t1, dt_ref, rho_inf=rho_inf, tol=tol_ref, GGL=False
+    # ).solve()
 
     print(f"compute reference solution with first order method:")
-    reference1 = GeneralizedAlphaFirstOrder(
-        model,
-        t1,
-        dt_ref,
-        rho_inf=rho_inf,
-        tol=tol_ref,
-        unknowns="velocities",
-        GGL=False,
-    ).solve()
+    # reference1 = GeneralizedAlphaFirstOrder(
+    #     model,
+    #     t1,
+    #     dt_ref,
+    #     rho_inf=rho_inf,
+    #     tol=tol_ref,
+    #     unknowns="velocities",
+    #     GGL=False,
+    # ).solve()
 
-    print(f"compute reference solution with second order method + GGL:")
-    reference2_GGL = GeneralizedAlphaSecondOrder(
-        model, t1, dt_ref, rho_inf=rho_inf, tol=tol_ref, GGL=True
-    ).solve()
+    reference1 = Rattle(model, t1, dt_ref, atol=tol_ref).solve()
 
-    print(f"compute reference solution with first order method + GGL:")
-    reference1_GGL = GeneralizedAlphaFirstOrder(
-        model, t1, dt_ref, rho_inf=rho_inf, tol=tol_ref, unknowns="velocities", GGL=True
-    ).solve()
+    # print(f"compute reference solution with second order method + GGL:")
+    # reference2_GGL = GeneralizedAlphaSecondOrder(
+    #     model, t1, dt_ref, rho_inf=rho_inf, tol=tol_ref, GGL=True
+    # ).solve()
+
+    # print(f"compute reference solution with first order method + GGL:")
+    # reference1_GGL = GeneralizedAlphaFirstOrder(
+    #     model, t1, dt_ref, rho_inf=rho_inf, tol=tol_ref, unknowns="velocities", GGL=True
+    # ).solve()
 
     print(f"done")
 
@@ -552,8 +560,8 @@ def convergence():
     plot_state = False
     # TODO:
     if plot_state:
-        # reference = reference1
-        reference = reference1_GGL
+        reference = reference1
+        # reference = reference1_GGL
         # reference = reference2
         # reference = reference2_GGL
         t_ref = reference.t
@@ -621,6 +629,7 @@ def convergence():
         plt.show()
 
     def errors(sol, sol_ref, t_transient=2, t_longterm=2):
+        # def errors(sol, sol_ref, t_transient=0.01, t_longterm=0.01):
         # def errors(sol, sol_ref, t_transient=4, t_longterm=4):
         t = sol.t
         q = sol.q
@@ -714,9 +723,10 @@ def convergence():
         print(f"i: {i}, dt: {dt:1.1e}")
 
         # generalized alpha for mechanical systems in second order form
-        sol = GeneralizedAlphaSecondOrder(
-            model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=False
-        ).solve()
+        # sol = GeneralizedAlphaSecondOrder(
+        #     model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=False
+        # ).solve()
+        sol = Rattle(model, t1, dt, atol=tol).solve()
         (
             q_errors_transient[0, i],
             u_errors_transient[0, i],
@@ -726,172 +736,112 @@ def convergence():
             u_errors_longterm[0, i],
             la_g_errors_longterm[0, i],
             la_gamma_errors_longterm[0, i],
-        ) = errors(sol, reference2)
-
-        # generalized alpha for mechanical systems in first order form (velocity formulation)
-        sol = GeneralizedAlphaFirstOrder(
-            model, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="velocities", GGL=False
-        ).solve()
-        (
-            q_errors_transient[1, i],
-            u_errors_transient[1, i],
-            la_g_errors_transient[1, i],
-            la_gamma_errors_transient[1, i],
-            q_errors_longterm[1, i],
-            u_errors_longterm[1, i],
-            la_g_errors_longterm[1, i],
-            la_gamma_errors_longterm[1, i],
         ) = errors(sol, reference1)
 
-        # generalized alpha for mechanical systems in second order form + GGL
-        sol = GeneralizedAlphaSecondOrder(
-            model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=True
-        ).solve()
-        (
-            q_errors_transient[2, i],
-            u_errors_transient[2, i],
-            la_g_errors_transient[2, i],
-            la_gamma_errors_transient[2, i],
-            q_errors_longterm[2, i],
-            u_errors_longterm[2, i],
-            la_g_errors_longterm[2, i],
-            la_gamma_errors_longterm[2, i],
-        ) = errors(sol, reference2_GGL)
+        # # generalized alpha for mechanical systems in first order form (velocity formulation)
+        # sol = GeneralizedAlphaFirstOrder(
+        #     model, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="velocities", GGL=False
+        # ).solve()
+        # (
+        #     q_errors_transient[1, i],
+        #     u_errors_transient[1, i],
+        #     la_g_errors_transient[1, i],
+        #     la_gamma_errors_transient[1, i],
+        #     q_errors_longterm[1, i],
+        #     u_errors_longterm[1, i],
+        #     la_g_errors_longterm[1, i],
+        #     la_gamma_errors_longterm[1, i],
+        # ) = errors(sol, reference1)
 
-        # generalized alpha for mechanical systems in first order form (velocity formulation - GGL)
-        sol = GeneralizedAlphaFirstOrder(
-            model, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="velocities", GGL=True
-        ).solve()
-        (
-            q_errors_transient[3, i],
-            u_errors_transient[3, i],
-            la_g_errors_transient[3, i],
-            la_gamma_errors_transient[3, i],
-            q_errors_longterm[3, i],
-            u_errors_longterm[3, i],
-            la_g_errors_longterm[3, i],
-            la_gamma_errors_longterm[3, i],
-        ) = errors(sol, reference1_GGL)
+        # # generalized alpha for mechanical systems in second order form + GGL
+        # sol = GeneralizedAlphaSecondOrder(
+        #     model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=True
+        # ).solve()
+        # (
+        #     q_errors_transient[2, i],
+        #     u_errors_transient[2, i],
+        #     la_g_errors_transient[2, i],
+        #     la_gamma_errors_transient[2, i],
+        #     q_errors_longterm[2, i],
+        #     u_errors_longterm[2, i],
+        #     la_g_errors_longterm[2, i],
+        #     la_gamma_errors_longterm[2, i],
+        # ) = errors(sol, reference2_GGL)
 
-        append(
-            file_transient_q,
-            np.array([[dts_1[i], dts_2[i], *q_errors_transient[:, i]]]),
-        )
-        append(
-            file_transient_u,
-            np.array([[dts_1[i], dts_2[i], *u_errors_transient[:, i]]]),
-        )
-        append(
-            file_transient_la_g,
-            np.array([[dts_1[i], dts_2[i], *la_g_errors_transient[:, i]]]),
-        )
-        append(
-            file_transient_la_gamma,
-            np.array([[dts_1[i], dts_2[i], *la_gamma_errors_transient[:, i]]]),
-        )
-        append(
-            file_longterm_q, np.array([[dts_1[i], dts_2[i], *q_errors_longterm[:, i]]])
-        )
-        append(
-            file_longterm_u, np.array([[dts_1[i], dts_2[i], *u_errors_longterm[:, i]]])
-        )
-        append(
-            file_longterm_la_g,
-            np.array([[dts_1[i], dts_2[i], *la_g_errors_longterm[:, i]]]),
-        )
-        append(
-            file_longterm_la_gamma,
-            np.array([[dts_1[i], dts_2[i], *la_gamma_errors_longterm[:, i]]]),
-        )
+        # # generalized alpha for mechanical systems in first order form (velocity formulation - GGL)
+        # sol = GeneralizedAlphaFirstOrder(
+        #     model, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="velocities", GGL=True
+        # ).solve()
+        # (
+        #     q_errors_transient[3, i],
+        #     u_errors_transient[3, i],
+        #     la_g_errors_transient[3, i],
+        #     la_gamma_errors_transient[3, i],
+        #     q_errors_longterm[3, i],
+        #     u_errors_longterm[3, i],
+        #     la_g_errors_longterm[3, i],
+        #     la_gamma_errors_longterm[3, i],
+        # ) = errors(sol, reference1_GGL)
+
+        # append(
+        #     file_transient_q,
+        #     np.array([[dts_1[i], dts_2[i], *q_errors_transient[:, i]]]),
+        # )
+        # append(
+        #     file_transient_u,
+        #     np.array([[dts_1[i], dts_2[i], *u_errors_transient[:, i]]]),
+        # )
+        # append(
+        #     file_transient_la_g,
+        #     np.array([[dts_1[i], dts_2[i], *la_g_errors_transient[:, i]]]),
+        # )
+        # append(
+        #     file_transient_la_gamma,
+        #     np.array([[dts_1[i], dts_2[i], *la_gamma_errors_transient[:, i]]]),
+        # )
+        # append(
+        #     file_longterm_q, np.array([[dts_1[i], dts_2[i], *q_errors_longterm[:, i]]])
+        # )
+        # append(
+        #     file_longterm_u, np.array([[dts_1[i], dts_2[i], *u_errors_longterm[:, i]]])
+        # )
+        # append(
+        #     file_longterm_la_g,
+        #     np.array([[dts_1[i], dts_2[i], *la_g_errors_longterm[:, i]]]),
+        # )
+        # append(
+        #     file_longterm_la_gamma,
+        #     np.array([[dts_1[i], dts_2[i], *la_gamma_errors_longterm[:, i]]]),
+        # )
 
     ##################
     # visualize errors
     ##################
-    fig, ax = plt.subplots(4, 2)
+    fig, ax = plt.subplots(1, 2)
 
-    ax[0, 0].set_title("transient: gen alpha 2nd order")
-    ax[0, 0].loglog(dts, dts_1, "-k", label="dt")
-    ax[0, 0].loglog(dts, dts_2, "--k", label="dt^2")
-    ax[0, 0].loglog(dts, q_errors_transient[0], "-.ro", label="q")
-    ax[0, 0].loglog(dts, u_errors_transient[0], "-.go", label="u")
-    ax[0, 0].loglog(dts, la_g_errors_transient[0], "-.bo", label="la_g")
-    ax[0, 0].loglog(dts, la_gamma_errors_transient[0], "-.ko", label="la_ga")
-    ax[0, 0].grid()
-    ax[0, 0].legend()
+    ax[0].set_title("transient")
+    ax[0].loglog(dts, dts_1, "-k", label="dt")
+    ax[0].loglog(dts, dts_2, "--k", label="dt^2")
+    ax[0].loglog(dts, q_errors_transient[0], "-.ro", label="q")
+    ax[0].loglog(dts, u_errors_transient[0], "-.go", label="u")
+    ax[0].loglog(dts, la_g_errors_transient[0], "-.bo", label="la_g")
+    ax[0].loglog(dts, la_gamma_errors_transient[0], "-.ko", label="la_ga")
+    ax[0].grid()
+    ax[0].legend()
 
-    ax[1, 0].set_title("transient: gen alpha 1st order (velocity form.)")
-    ax[1, 0].loglog(dts, dts_1, "-k", label="dt")
-    ax[1, 0].loglog(dts, dts_2, "--k", label="dt^2")
-    ax[1, 0].loglog(dts, q_errors_transient[1], "-.ro", label="q")
-    ax[1, 0].loglog(dts, u_errors_transient[1], "-.go", label="u")
-    ax[1, 0].loglog(dts, la_g_errors_transient[1], "-.bo", label="la_g")
-    ax[1, 0].loglog(dts, la_gamma_errors_transient[1], "-.ko", label="la_ga")
-    ax[1, 0].grid()
-    ax[1, 0].legend()
-
-    ax[2, 0].set_title("transient: gen alpha 2nd order + GGL")
-    ax[2, 0].loglog(dts, dts_1, "-k", label="dt")
-    ax[2, 0].loglog(dts, dts_2, "--k", label="dt^2")
-    ax[2, 0].loglog(dts, q_errors_transient[2], "-.ro", label="q")
-    ax[2, 0].loglog(dts, u_errors_transient[2], "-.go", label="u")
-    ax[2, 0].loglog(dts, la_g_errors_transient[2], "-.bo", label="la_g")
-    ax[2, 0].loglog(dts, la_gamma_errors_transient[2], "-.ko", label="la_ga")
-    ax[2, 0].grid()
-    ax[2, 0].legend()
-
-    ax[3, 0].set_title("transient: gen alpha 1st order (velocity form. + GGL)")
-    ax[3, 0].loglog(dts, dts_1, "-k", label="dt")
-    ax[3, 0].loglog(dts, dts_2, "--k", label="dt^2")
-    ax[3, 0].loglog(dts, q_errors_transient[3], "-.ro", label="q")
-    ax[3, 0].loglog(dts, u_errors_transient[3], "-.go", label="u")
-    ax[3, 0].loglog(dts, la_g_errors_transient[3], "-.bo", label="la_g")
-    ax[3, 0].loglog(dts, la_gamma_errors_transient[3], "-.ko", label="la_ga")
-    ax[3, 0].grid()
-    ax[3, 0].legend()
-
-    ax[0, 1].set_title("long term: gen alpha 2nd order")
-    ax[0, 1].loglog(dts, dts_1, "-k", label="dt")
-    ax[0, 1].loglog(dts, dts_2, "--k", label="dt^2")
-    ax[0, 1].loglog(dts, q_errors_longterm[0], "-.ro", label="q")
-    ax[0, 1].loglog(dts, u_errors_longterm[0], "-.go", label="u")
-    ax[0, 1].loglog(dts, la_g_errors_longterm[0], "-.bo", label="la_g")
-    ax[0, 1].loglog(dts, la_gamma_errors_longterm[0], "-.ko", label="la_ga")
-    ax[0, 1].grid()
-    ax[0, 1].legend()
-
-    ax[1, 1].set_title("long term: gen alpha 1st order (velocity form.)")
-    ax[1, 1].loglog(dts, dts_1, "-k", label="dt")
-    ax[1, 1].loglog(dts, dts_2, "--k", label="dt^2")
-    ax[1, 1].loglog(dts, q_errors_longterm[1], "-.ro", label="q")
-    ax[1, 1].loglog(dts, u_errors_longterm[1], "-.go", label="u")
-    ax[1, 1].loglog(dts, la_g_errors_longterm[1], "-.bo", label="la_g")
-    ax[1, 1].loglog(dts, la_gamma_errors_longterm[1], "-.ko", label="la_ga")
-    ax[1, 1].grid()
-    ax[1, 1].legend()
-
-    ax[2, 1].set_title("long term: gen alpha 2nd order + GGL")
-    ax[2, 1].loglog(dts, dts_1, "-k", label="dt")
-    ax[2, 1].loglog(dts, dts_2, "--k", label="dt^2")
-    ax[2, 1].loglog(dts, q_errors_longterm[2], "-.ro", label="q")
-    ax[2, 1].loglog(dts, u_errors_longterm[2], "-.go", label="u")
-    ax[2, 1].loglog(dts, la_g_errors_longterm[2], "-.bo", label="la_g")
-    ax[2, 1].loglog(dts, la_gamma_errors_longterm[2], "-.ko", label="la_ga")
-    ax[2, 1].grid()
-    ax[2, 1].legend()
-
-    ax[3, 1].set_title("long term: gen alpha 1st order (velocity form. + GGL)")
-    ax[3, 1].loglog(dts, dts_1, "-k", label="dt")
-    ax[3, 1].loglog(dts, dts_2, "--k", label="dt^2")
-    ax[3, 1].loglog(dts, q_errors_longterm[3], "-.ro", label="q")
-    ax[3, 1].loglog(dts, u_errors_longterm[3], "-.go", label="u")
-    ax[3, 1].loglog(dts, la_g_errors_longterm[3], "-.bo", label="la_g")
-    ax[3, 1].loglog(dts, la_gamma_errors_longterm[3], "-.ko", label="la_ga")
-    ax[3, 1].grid()
-    ax[3, 1].legend()
+    ax[1].set_title("long term")
+    ax[1].loglog(dts, dts_1, "-k", label="dt")
+    ax[1].loglog(dts, dts_2, "--k", label="dt^2")
+    ax[1].loglog(dts, q_errors_longterm[0], "-.ro", label="q")
+    ax[1].loglog(dts, u_errors_longterm[0], "-.go", label="u")
+    ax[1].loglog(dts, la_g_errors_longterm[0], "-.bo", label="la_g")
+    ax[1].loglog(dts, la_gamma_errors_longterm[0], "-.ko", label="la_ga")
+    ax[1].grid()
+    ax[1].legend()
 
     plt.show()
 
 
 if __name__ == "__main__":
-    state()
-    # convergence()
+    # state()
+    convergence()
