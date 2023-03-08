@@ -29,7 +29,13 @@ def concatenate_uDOF(object):
     return local_uDOF1, local_uDOF2
 
 
-def auxiliary_functions(object, K1_r_P1B0, K2_r_P2B0, A_K1B0, A_K2B0):
+def auxiliary_functions(
+    object,
+    K1_r_P1B0,
+    K2_r_P2B0,
+    A_K1B0=None,
+    A_K2B0=None,
+):
     nq1 = object._nq1
     nu1 = object._nu1
 

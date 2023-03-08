@@ -17,8 +17,8 @@ class RigidConnection:
         frame_ID2=np.zeros(3),
     ):
         self.subsystem1 = subsystem1
-        self.frame_ID1 = frame_ID1
         self.subsystem2 = subsystem2
+        self.frame_ID1 = frame_ID1
         self.frame_ID2 = frame_ID2
 
         self.nla_g = 6
@@ -26,7 +26,7 @@ class RigidConnection:
 
     def assembler_callback(self):
         local_qDOF1, local_qDOF2 = concatenate_qDOF(self)
-        local_uDOF1, local_uDOF2 = concatenate_uDOF(self)
+        concatenate_uDOF(self)
 
         r_OP10 = self.subsystem1.r_OP(
             self.subsystem1.t0, self.subsystem1.q0[local_qDOF1], self.frame_ID1

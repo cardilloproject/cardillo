@@ -1,4 +1,4 @@
-from .spherical_joint import SphericalJoint
+from .spherical import Spherical
 from .rigid_connection import (
     RigidConnection,
     RigidConnectionCable,

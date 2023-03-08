@@ -8,7 +8,7 @@ from cardillo.math import A_IK_basic, cross3, axis_angle2quat, Spurrier, Exp_SO3
 from cardillo import System
 from cardillo.discrete import Frame
 from cardillo.constraints import (
-    SphericalJoint,
+    Spherical,
     RevoluteJoint,
 )
 from cardillo.discrete import RigidBodyQuaternion
@@ -59,7 +59,7 @@ def run(joint, Solver, k=None, d=None, **solver_args):
     # origin = Frame(r_OP=r_OB1, A_IK=A_IB1)
     RB1 = RigidBodyQuaternion(m, K_theta_S, q01, u01)
 
-    if joint == "SphericalJoint":
+    if joint == "Spherical":
         use_spherical_joint = True
     elif joint == "RevoluteJoint":
         use_revolute_joint = True
@@ -68,18 +68,17 @@ def run(joint, Solver, k=None, d=None, **solver_args):
         assert (k and d) is not None
     else:
         raise RuntimeError(
-            'Invalid Argument.\nPossible Arguments are "SphericalJoint", "RevoluteJoint", "PDRotationalJoint".'
+            'Invalid Argument.\nPossible Arguments are "Spherical", "RevoluteJoint", "PDRotationalJoint".'
         )
 
     if use_spherical_joint:
-        joint1 = SphericalJoint(origin, RB1, A_IprimeI @ r_OB1)
+        joint1 = Spherical(origin, RB1, A_IprimeI @ r_OB1)
     elif use_revolute_joint:
         joint1 = RevoluteJoint(origin, RB1, A_IprimeI @ r_OB1, A_IprimeI @ A_IB1)
     elif use_pdrotational_joint:
         joint1 = PDRotationalJoint(
             RevoluteJoint, Spring=LinearSpring, Damper=LinearDamper
         )(origin, RB1, A_IprimeI @ r_OB1, A_IprimeI @ A_IB1, k=k, d=d, g_ref=-alpha0)
-    # joint1 = SphericalJoint(origin, RB1, A_IprimeI @ r_OB1)
 
     ############################################################################
     #                   Rigid Body 2
@@ -102,7 +101,7 @@ def run(joint, Solver, k=None, d=None, **solver_args):
     RB2 = RigidBodyQuaternion(m, K_theta_S, q02, u02)
 
     if use_spherical_joint:
-        joint2 = SphericalJoint(RB1, RB2, A_IprimeI @ r_OB2)
+        joint2 = Spherical(RB1, RB2, A_IprimeI @ r_OB2)
     elif use_revolute_joint:
         joint2 = RevoluteJoint(RB1, RB2, A_IprimeI @ r_OB2, A_IprimeI @ A_IB2)
     elif use_pdrotational_joint:
@@ -353,11 +352,11 @@ if __name__ == "__main__":
     #######################
     # spherical joint tests
     #######################
-    # run("SphericalJoint", EulerBackward, method="index 1")
-    # run("SphericalJoint", EulerBackward, method="index 2")
-    # run("SphericalJoint", EulerBackward, method="index 3")
-    # run("SphericalJoint", EulerBackward, method="index 2 GGL")
-    # run("SphericalJoint", RadauIIa)
+    # run("Spherical", EulerBackward, method="index 1")
+    # run("Spherical", EulerBackward, method="index 2")
+    # run("Spherical", EulerBackward, method="index 3")
+    run("Spherical", EulerBackward, method="index 2 GGL")
+    # run("Spherical", RadauIIa)
 
     ######################
     # revolute joint tests
@@ -387,7 +386,7 @@ if __name__ == "__main__":
     rtol = 1e-2
     # run("PDRotationalJoint", RadauIIa, k=k, d=d, atol=atol, rtol=rtol, dae_index=2)
     # run("PDRotationalJoint", RadauIIa, k=k, d=d, atol=atol, rtol=rtol, dae_index=3)
-    run("PDRotationalJoint", RadauIIa, k=k, d=d, atol=atol, rtol=rtol, dae_index="GGL")
+    # run("PDRotationalJoint", RadauIIa, k=k, d=d, atol=atol, rtol=rtol, dae_index="GGL")
 
     # atol = 1e-5
     # rtol = 1e-5
