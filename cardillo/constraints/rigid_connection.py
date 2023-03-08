@@ -1,12 +1,7 @@
 import numpy as np
 from cardillo.math import approx_fprime
 from cardillo.math.algebra import cross3, ax2skew
-from cardillo.constraints._base import (
-    concatenate_qDOF,
-    concatenate_uDOF,
-    auxiliary_functions,
-    PositionOrientationBase,
-)
+from cardillo.constraints._base import PositionOrientationBase
 
 
 class RigidConnection(PositionOrientationBase):
@@ -20,14 +15,11 @@ class RigidConnection(PositionOrientationBase):
         super().__init__(
             subsystem1,
             subsystem2,
-            None,
-            None,
-            [0, 1, 2],
-            frame_ID1,
-            frame_ID2
-            # subsystem1, subsystem2, None, None, [0, 1], frame_ID1, frame_ID2
-            # subsystem1, subsystem2, None, None, [], frame_ID1, frame_ID2
-            # subsystem1, subsystem2, None, None, [2, 0, 1], frame_ID1, frame_ID2
+            r_OB0=None,
+            A_IB0=None,
+            constrained_axes=[0, 1, 2],
+            frame_ID1=frame_ID1,
+            frame_ID2=frame_ID2,
         )
 
 
