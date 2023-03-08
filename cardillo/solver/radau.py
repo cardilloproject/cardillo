@@ -755,7 +755,8 @@ class RadauIIa:
         self.nu = system.nu
         self.nla_g = system.nla_g
         self.nla_gamma = system.nla_gamma
-        self.ny = self.nq + self.nu + self.nla_g + self.nla_gamma
+        self.nla_S = system.nla_S
+        self.ny = self.nq + self.nu + self.nla_g + self.nla_gamma + self.nla_S
         if dae_index == "GGL":
             self.ny += self.nla_g
 
@@ -774,6 +775,7 @@ class RadauIIa:
                     np.zeros(self.nq + self.nu, dtype=int),
                     2 * np.ones(self.nla_g, dtype=int),
                     2 * np.ones(self.nla_gamma, dtype=int),
+                    3 * np.ones(self.nla_S, dtype=int),
                 )
             )
         elif dae_index == 3:
@@ -782,6 +784,7 @@ class RadauIIa:
                     np.zeros(self.nq + self.nu, dtype=int),
                     3 * np.ones(self.nla_g, dtype=int),
                     2 * np.ones(self.nla_gamma, dtype=int),
+                    3 * np.ones(self.nla_S, dtype=int),
                 )
             )
         else:
@@ -790,6 +793,7 @@ class RadauIIa:
                     np.zeros(self.nq + self.nu, dtype=int),
                     2 * np.ones(self.nla_g, dtype=int),
                     2 * np.ones(self.nla_gamma, dtype=int),
+                    3 * np.ones(self.nla_S, dtype=int),
                     3 * np.ones(self.nla_g, dtype=int),
                 )
             )
@@ -827,8 +831,18 @@ class RadauIIa:
             + self.nla_g
             + self.nla_gamma
         ]
-        mu_g = y[self.nq + self.nu + self.nla_g + self.nla_gamma :]
-        return q, u, la_g, la_gamma, mu_g
+        mu_S = y[
+            self.nq
+            + self.nu
+            + self.nla_g
+            + self.nla_gamma : self.nq
+            + self.nu
+            + self.nla_g
+            + self.nla_gamma
+            + self.nla_S
+        ]
+        mu_g = y[self.nq + self.nu + self.nla_g + self.nla_gamma + self.nla_S :]
+        return q, u, la_g, la_gamma, mu_S, mu_g
 
     def fun(self, t, y):
         # update progress bar
@@ -838,8 +852,7 @@ class RadauIIa:
             self.pbar.set_description(f"t: {t:0.2e}s < {self.t1:0.2e}s")
             self.i = i1
 
-        q, u, la_g, la_gamma, mu_g = self.unpack(y)
-        q, u = self.system.step_callback(t, q, u)
+        q, u, la_g, la_gamma, mu_S, mu_g = self.unpack(y)
 
         M = self.system.M(t, q, scipy_matrix=csc_matrix)
         h = self.system.h(t, q, u)
@@ -849,7 +862,8 @@ class RadauIIa:
         dy = np.zeros(self.ny, dtype=y.dtype)
 
         # kinematic equation
-        dy[: self.nq] = self.system.q_dot(t, q, u)
+        self.g_S_q = self.system.g_S_q(t, q, scipy_matrix=csc_matrix)
+        dy[: self.nq] = self.system.q_dot(t, q, u) + self.g_S_q.T @ mu_S
         if self.dae_index == "GGL":
             dy[: self.nq] += self.system.g_q(t, q, scipy_matrix=csc_matrix).T @ mu_g
 
@@ -878,7 +892,17 @@ class RadauIIa:
             + self.nla_gamma
         ] = self.system.gamma(t, q, u)
 
-        # bilateral constraints on position level
+        # bilateral constraints
+        dy[
+            self.nq
+            + self.nu
+            + self.nla_g
+            + self.nla_gamma : self.nq
+            + self.nu
+            + self.nla_g
+            + self.nla_gamma
+            + self.nla_S
+        ] = self.system.g_S(t, q)
         if self.dae_index == 2:
             dy[self.nq + self.nu : self.nq + self.nu + self.nla_g] = self.system.g_dot(
                 t, q, u
@@ -889,20 +913,24 @@ class RadauIIa:
             dy[self.nq + self.nu : self.nq + self.nu + self.nla_g] = self.system.g_dot(
                 t, q, u
             )
-            dy[self.nq + self.nu + self.nla_g + self.nla_gamma :] = self.system.g(t, q)
+            dy[
+                self.nq + self.nu + self.nla_g + self.nla_gamma + self.nla_S :
+            ] = self.system.g(t, q)
         return dy
 
     def jac(self, t, y):
-        return approx_fprime(y, lambda x: self.fun(t, x), method="2-point", eps=1e-6)
         if not self.lazy_mass_matrix:
             return approx_fprime(
                 y, lambda x: self.fun(t, x), method="2-point", eps=1e-6
             )
         else:
-            q, u, la_g, la_gamma, mu_g = self.unpack(y)
+            q, u, la_g, la_gamma, mu_S, mu_g = self.unpack(y)
 
             q_dot_q = self.system.q_dot_q(t, q, u)
             B = self.system.B(t, q)
+
+            g_S_q = self.system.g_S_q(t, q)
+            A = q_dot_q + self.system.g_S_q_T_mu_q(t, q, mu_S)
 
             rhs_q = (
                 self.system.h_q(t, q, u, scipy_matrix=csc_matrix)
@@ -920,12 +948,14 @@ class RadauIIa:
             if self.dae_index == 2:
                 # raise NotImplementedError
                 g_dot_q = self.system.g_dot_q(t, q, u)
+                g_S_q = self.system.g_S_q(t, q)
                 jac = bmat(
                     [
-                        [q_dot_q,         B, None,    None],
-                        [  rhs_q,     rhs_u,  W_g, W_gamma],
-                        [g_dot_q,     W_g.T, None,    None],
-                        [gamma_q, W_gamma.T, None,    None],
+                        [      A,         B, None,    None, g_S_q.T],
+                        [  rhs_q,     rhs_u,  W_g, W_gamma,    None],
+                        [g_dot_q,     W_g.T, None,    None,    None],
+                        [gamma_q, W_gamma.T, None,    None,    None],
+                        [  g_S_q,      None, None,    None,    None],
                     ],
                     format="csr",
                 )
@@ -933,10 +963,11 @@ class RadauIIa:
                 g_q = self.system.g_q(t, q)
                 jac = bmat(
                     [
-                        [q_dot_q,         B, None,    None],
-                        [  rhs_q,     rhs_u,  W_g, W_gamma],
-                        [    g_q,      None, None,    None],
-                        [gamma_q, W_gamma.T, None,    None],
+                        [      A,         B, None,    None, g_S_q.T],
+                        [  rhs_q,     rhs_u,  W_g, W_gamma,    None],
+                        [    g_q,      None, None,    None,    None],
+                        [gamma_q, W_gamma.T, None,    None,    None],
+                        [  g_S_q,      None, None,    None,    None],
                     ],
                     format="csr",
                 )
@@ -945,32 +976,30 @@ class RadauIIa:
                 g_dot_q = self.system.g_dot_q(t, q, u)
                 g_q = self.system.g_q(t, q)
                 g_q_T_mu_q = self.system.g_q_T_mu_q(t, q, mu_g)
+                A += g_q_T_mu_q
                 jac = bmat(
                     [
-                        [q_dot_q + g_q_T_mu_q,         B, None,    None, g_q.T],
-                        [               rhs_q,     rhs_u,  W_g, W_gamma,  None],
-                        [             g_dot_q,     W_g.T, None,    None,  None],
-                        [             gamma_q, W_gamma.T, None,    None,  None],
-                        [                 g_q,      None, None,    None,  None],
+                        [      A,         B, None,    None, g_S_q.T, g_q.T],
+                        [  rhs_q,     rhs_u,  W_g, W_gamma,    None,  None],
+                        [g_dot_q,     W_g.T, None,    None,    None,  None],
+                        [gamma_q, W_gamma.T, None,    None,    None,  None],
+                        [  g_S_q,      None, None,    None,    None,  None],
+                        [    g_q,      None, None,    None,    None,  None],
                     ],
                     format="csr",
                 )
             # fmt: on
 
-            # return jac
+            return jac
 
             # Note: Uncomment to check analytical Jacobian against numerical one
-            # jac_num = approx_derivative(
-            #     fun=lambda x: self.fun(t, x), x0=y, method="3-point", rel_step=1e-6
-            # )
             jac_num = approx_fprime(
-                y, lambda x: self.fun(t, x), method="2-point", eps=1e-6
+                y, lambda x: self.fun(t, x), method="3-point", eps=1e-6
             )
 
             diff = jac.toarray() - jac_num
-            # error = np.linalg.norm(diff)
-            # error = np.linalg.norm(diff[:self.nq]) # TODO: Spot error here!
-            error = np.linalg.norm(diff[: self.nq, : self.nq])
+            error = np.linalg.norm(diff)
+            # error = np.linalg.norm(diff[:self.nq])
             # error = np.linalg.norm(diff[self.nq : ])
             # error = np.linalg.norm(diff[self.nq : self.nq + self.nu])
             # error = np.linalg.norm(diff[self.nq : self.nq + self.nu, :self.nq])
@@ -1012,6 +1041,6 @@ class RadauIIa:
         la_g = np.zeros((nt, self.nla_g), dtype=float)
         la_gamma = np.zeros((nt, self.nla_gamma), dtype=float)
         for i in range(nt):
-            q[i], u[i], la_g[i], la_gamma[i], _ = self.unpack(sol.y[:, i])
+            q[i], u[i], la_g[i], la_gamma[i], _, _ = self.unpack(sol.y[:, i])
 
         return Solution(t=t, q=q, u=u, la_g=la_g, la_gamma=la_gamma)
