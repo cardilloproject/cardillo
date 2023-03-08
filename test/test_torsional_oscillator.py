@@ -33,6 +33,7 @@ def run(
     alpha_dot0,
     g_ref=0,
     RigidBodyParametrization=RigidBodyQuaternion,
+    solver_type="EulerBackward",
     plot=True,
 ):
     l = 0.1
@@ -75,11 +76,18 @@ def run(
     t1 = 2
     dt = 1.0e-2
     # dt = 5.0e-3
-    # solver = ScipyIVP(system, t1, dt, atol=1e-8)
-    # solver = EulerBackward(system, t1, dt)
-    # solver = RadauIIa(system, t1, dt, atol=1e-2, rtol=1e-2, dae_index=2, max_step=dt)
-    solver = RadauIIa(system, t1, dt, atol=1e-4, rtol=1e-4, dae_index=3, max_step=dt)
-    # solver = RadauIIa(system, t1, dt, atol=1e-3, rtol=1e-3, dae_index="GGL", max_step=dt)
+    match solver_type:
+        case "ScipyIVP":
+            solver = ScipyIVP(system, t1, dt, atol=1e-8)
+        case "RadauIIaDAE2":
+            solver = RadauIIa(system, t1, dt, atol=1e-2, rtol=1e-2, dae_index=2, max_step=dt)
+        case "RadauIIaDAE3":
+            solver = RadauIIa(system, t1, dt, atol=1e-4, rtol=1e-4, dae_index=3, max_step=dt)
+        case "RaudauIIaGGL":
+            solver = RadauIIa(system, t1, dt, atol=1e-3, rtol=1e-3, dae_index="GGL", max_step=dt)
+        case "EulerBackward" | _:
+            solver = EulerBackward(system, t1, dt)
+        
     sol = solver.solve()
     t = sol.t
     q = sol.q
@@ -89,12 +97,8 @@ def run(
     #                   plot
     ############################################################################
     if plot:
-        joint.reset()
-        alpha_cmp = []
-        for ti, qi, ui in zip(t, q, u):
-            alpha_cmp.append(joint.angle(ti, qi[joint.qDOF]))
-            # joint.step_callback(ti, qi[joint.qDOF], ui[joint.uDOF])
-        # alpha_cmp = [joint.angle(ti, qi[joint.qDOF]) for ti, qi in zip(t, q)]
+        joint.reset()         
+        alpha_cmp = [joint.angle(ti, qi[joint.qDOF]) for ti, qi in zip(t, q)]
 
         def eqm(t, x):
             dx = np.zeros(2)
@@ -122,15 +126,17 @@ if __name__ == "__main__":
 
     # initial rotational velocity e_z^K axis
     alpha_dot0 = 0
+
     # axis angle rotation
     psi = np.random.rand(3)
     # psi = np.array((0, 1, 0))
     # psi = np.array((1, 0, 0))
+    # Following rotations result in linear eqms, Radau Solver without max step argument set rotates more than 360° in one time step.
     # psi = np.array((0, 0, 1))
-    # psi = np.array((0, np.pi/2, 0))
     # psi = np.zeros(3)
+
     A_IK0 = Exp_SO3(psi)
-    print(A_IK0)
+    print(f"A_IK0:\n{A_IK0}")
 
     # spring stiffness and damper parameter
     k = 1e1
@@ -141,6 +147,9 @@ if __name__ == "__main__":
     # Rigid body parametrization
     RigidBodyParametrization = RigidBodyQuaternion
     # RigidBodyParametrization = RigidBodyAxisAngle
+
+    # Solver
+    solver = ["ScipyIVP", "RadauIIaDAE2", "RadauIIaDAE3", "RaudauIIaGGL", "EulerBackward"]
 
     if profiling:
         import cProfile, pstats
@@ -155,6 +164,7 @@ if __name__ == "__main__":
             alpha_dot0=alpha_dot0,
             g_ref=g_ref,
             RigidBodyParametrization=RigidBodyParametrization,
+            solver_type=solver[2],
             plot=False,
         )
         profiler.disable()
@@ -172,5 +182,6 @@ if __name__ == "__main__":
             alpha_dot0=alpha_dot0,
             g_ref=g_ref,
             RigidBodyParametrization=RigidBodyParametrization,
+            solver_type=solver[1],
             plot=True,
         )
