@@ -13,9 +13,6 @@ from cardillo.math import (
     fsolve,
 )
 
-# see https://gitlab.com/libeigen/eigen/-/blob/master/Eigen/src/Core/Dot.h#L126
-EPS_GAMMA_F = 0.0
-
 
 class Moreau:
     def __init__(

@@ -1114,77 +1114,99 @@ def run_DAE():
     system.add(slider_crank)
     system.assemble()
 
-    t1 = 4 * np.pi / 150
-    # t1 = 0.01
-    # dt = 1e-5
-    # dt = 1e-4
-    # dt = 2.5e-4
-    # dt = 5e-4
-    dt = 1e-3
+    # approx. two crank revolutions
+    t_final = 7 * np.pi / 150
+    # t_final *= 0.1
+    dt1 = 5e-4  # Rattle
+    dt2 = 1e-5  # Moreau
 
-    # solver = Moreau(system, t1, dt, fix_point_max_iter=5000)
-    solver = Rattle(system, t1, dt)
+    sol1, label1 = Rattle(system, t_final, dt1).solve(), "Rattle"
+    sol2, label2 = (
+        Moreau(system, t_final, dt2, fix_point_max_iter=5000).solve(),
+        "Moreau",
+    )
 
-    sol = solver.solve()
-    t = sol.t
-    q = sol.q
-    u = sol.u
+    t1 = sol1.t
+    q1 = sol1.q
+    u1 = sol1.u
+    t2 = sol2.t
+    q2 = sol2.q
+    u2 = sol2.u
 
     fig, ax = plt.subplots(2, 3)
 
     # positions
     ax[0, 0].set_xlabel("t [s]")
     ax[0, 0].set_ylabel("theta1 [rad]")
-    ax[0, 0].plot(t, q[:, 2], "-k")
+    ax[0, 0].plot(t1, q1[:, 2], "-k", label=label1)
+    ax[0, 0].plot(t2, q2[:, 2], "--r", label=label2)
     ax[0, 0].grid()
+    ax[0, 0].legend()
 
     ax[0, 1].set_xlabel("t [s]")
     ax[0, 1].set_ylabel("theta2 [rad]")
-    ax[0, 1].plot(t, q[:, 5], "-k")
+    ax[0, 1].plot(t1, q1[:, 5], "-k", label=label1)
+    ax[0, 1].plot(t2, q2[:, 5], "--r", label=label2)
     ax[0, 1].grid()
+    ax[0, 1].legend()
 
     ax[0, 2].set_xlabel("t [s]")
     ax[0, 2].set_ylabel("theta3 [rad]")
-    ax[0, 2].plot(t, q[:, 8], "-k")
+    ax[0, 2].plot(t1, q1[:, 8], "-k", label=label1)
+    ax[0, 2].plot(t2, q2[:, 8], "--r", label=label2)
     ax[0, 2].grid()
+    ax[0, 2].legend()
 
     # velocities
     ax[1, 0].set_xlabel("t [s]")
     ax[1, 0].set_ylabel("omega1 [rad/s]")
-    ax[1, 0].plot(t, u[:, 2], "-k")
+    ax[1, 0].plot(t1, u1[:, 2], "-k", label=label1)
+    ax[1, 0].plot(t2, u2[:, 2], "--r", label=label2)
     ax[1, 0].grid()
+    ax[1, 0].legend()
 
     ax[1, 1].set_xlabel("t [s]")
     ax[1, 1].set_ylabel("omega2 [rad/s]")
-    ax[1, 1].plot(t, u[:, 5], "-k")
+    ax[1, 1].plot(t1, u1[:, 5], "-k", label=label1)
+    ax[1, 1].plot(t2, u2[:, 5], "--r", label=label2)
     ax[1, 1].grid()
+    ax[1, 1].legend()
 
     ax[1, 2].set_xlabel("t [s]")
     ax[1, 2].set_ylabel("omega3 [rad/s]")
-    ax[1, 2].plot(t, u[:, 8], "-k")
+    ax[1, 2].plot(t1, u1[:, 8], "-k", label=label1)
+    ax[1, 2].plot(t2, u2[:, 8], "--r", label=label2)
     ax[1, 2].grid()
+    ax[1, 2].legend()
 
     plt.tight_layout()
 
     # bilateral constraints
     fig, ax = plt.subplots(2, 3)
-    g = np.array([system.g(ti, qi) for (ti, qi) in zip(t, q)])
+    g1 = np.array([system.g(ti, qi) for (ti, qi) in zip(t1, q1)])
+    g2 = np.array([system.g(ti, qi) for (ti, qi) in zip(t2, q2)])
     for i in range(2):
         for j in range(3):
             idx = 3 * i + j
-            ax[i, j].plot(t, g[:, idx], "-k")
+            ax[i, j].plot(t1, g1[:, idx], "-k", label=label1)
+            ax[i, j].plot(t2, g2[:, idx], "--r", label=label2)
             ax[i, j].grid()
+            ax[i, j].legend()
             ax[i, j].set_xlabel("t [s]")
             ax[i, j].set_ylabel(f"g{idx + 1} [m]")
 
     plt.tight_layout()
+
     fig, ax = plt.subplots(2, 3)
-    g_dot = np.array([system.g_dot(ti, qi, ui) for (ti, qi, ui) in zip(t, q, u)])
+    g_dot1 = np.array([system.g_dot(ti, qi, ui) for (ti, qi, ui) in zip(t1, q1, u1)])
+    g_dot2 = np.array([system.g_dot(ti, qi, ui) for (ti, qi, ui) in zip(t2, q2, u2)])
     for i in range(2):
         for j in range(3):
             idx = 3 * i + j
-            ax[i, j].plot(t, g_dot[:, idx], "-k")
+            ax[i, j].plot(t1, g_dot1[:, idx], "-k", label=label1)
+            ax[i, j].plot(t2, g_dot2[:, idx], "--r", label=label2)
             ax[i, j].grid()
+            ax[i, j].legend()
             ax[i, j].set_xlabel("t [s]")
             ax[i, j].set_ylabel(f"g_dot{idx + 1} [m]")
 
@@ -1192,22 +1214,39 @@ def run_DAE():
 
     # contacts
     fig, ax = plt.subplots(3, 4)
-    g_N = np.array([system.g_N(ti, qi) for (ti, qi) in zip(t, q)])
-    g_N_dot = np.array([system.g_N_dot(ti, qi, ui) for (ti, qi, ui) in zip(t, q, u)])
-    gamma_F = np.array([system.gamma_F(ti, qi, ui) for (ti, qi, ui) in zip(t, q, u)])
+    g_N1 = np.array([system.g_N(ti, qi) for (ti, qi) in zip(t1, q1)])
+    g_N_dot1 = np.array(
+        [system.g_N_dot(ti, qi, ui) for (ti, qi, ui) in zip(t1, q1, u1)]
+    )
+    gamma_F1 = np.array(
+        [system.gamma_F(ti, qi, ui) for (ti, qi, ui) in zip(t1, q1, u1)]
+    )
+    g_N2 = np.array([system.g_N(ti, qi) for (ti, qi) in zip(t2, q2)])
+    g_N_dot2 = np.array(
+        [system.g_N_dot(ti, qi, ui) for (ti, qi, ui) in zip(t2, q2, u2)]
+    )
+    gamma_F2 = np.array(
+        [system.gamma_F(ti, qi, ui) for (ti, qi, ui) in zip(t2, q2, u2)]
+    )
     for i in range(4):
-        ax[0, i].plot(t, g_N[:, i], "-k")
+        ax[0, i].plot(t1, g_N1[:, i], "-k", label=label1)
+        ax[0, i].plot(t2, g_N2[:, i], "--r", label=label2)
         ax[0, i].grid()
+        ax[0, i].legend()
         ax[0, i].set_xlabel("t [s]")
         ax[0, i].set_ylabel(f"g_N{i + 1} [m]")
 
-        ax[1, i].plot(t, g_N_dot[:, i], "-k")
+        ax[1, i].plot(t1, g_N_dot1[:, i], "-k", label=label1)
+        ax[1, i].plot(t2, g_N_dot2[:, i], "--r", label=label2)
         ax[1, i].grid()
+        ax[1, i].legend()
         ax[1, i].set_xlabel("t [s]")
         ax[1, i].set_ylabel(f"g_N_dot{i + 1} [m/s]")
 
-        ax[2, i].plot(t, gamma_F[:, i], "-k")
+        ax[2, i].plot(t1, gamma_F1[:, i], "-k", label=label1)
+        ax[2, i].plot(t2, gamma_F2[:, i], "--r", label=label2)
         ax[2, i].grid()
+        ax[2, i].legend()
         ax[2, i].set_xlabel("t [s]")
         ax[2, i].set_ylabel(f"gamma_F_dot{i + 1} [m/s]")
 
@@ -1226,18 +1265,18 @@ def run_DAE():
         ax_anim.set_ylim(-0.4, 0.4)
 
         # prepare data for animation
-        slowmotion = 10
+        slowmotion = 100
         fps = 25
-        animation_time = slowmotion * t1
-        target_frames = int(fps * animation_time)
-        frac = max(1, int(len(t) / target_frames))
+        animation_time = slowmotion * t_final
+        target_frames = max(len(t1), int(fps * animation_time))
+        frac = max(1, int(len(t1) / target_frames))
         if frac == 1:
-            target_frames = len(t)
+            target_frames = len(t1)
         interval = 1000 / fps
 
         frames = target_frames
-        t = t[::frac]
-        q = q[::frac]
+        t1 = t1[::frac]
+        q1 = q1[::frac]
 
         ax_anim.plot(
             np.array([0, slider_crank.l1 + slider_crank.l2 + 4 * slider_crank.b]),
@@ -1261,9 +1300,9 @@ def run_DAE():
         )
 
         def animate(i):
-            line1.set_data(*slider_crank.contour_crank(q[i]))
-            line2.set_data(*slider_crank.contour_connecting_rod(q[i]))
-            line3.set_data(*slider_crank.contour_slider(q[i]))
+            line1.set_data(*slider_crank.contour_crank(q1[i]))
+            line2.set_data(*slider_crank.contour_connecting_rod(q1[i]))
+            line3.set_data(*slider_crank.contour_slider(q1[i]))
             return (
                 line1,
                 line2,
