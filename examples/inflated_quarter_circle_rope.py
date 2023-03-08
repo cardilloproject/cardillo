@@ -1,5 +1,5 @@
 from cardillo.discrete import Frame
-from cardillo.constraints import Linear_guidance_xyz, SphericalJoint
+from cardillo.constraints import Linear_guidance_xyz, Spherical
 from cardillo.beams import (
     Rope,
     animate_rope,

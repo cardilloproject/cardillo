@@ -9,7 +9,7 @@ from cardillo.math import A_IK_basic, cross3, axis_angle2quat
 from cardillo import System
 from cardillo.discrete import Frame
 from cardillo.constraints import (
-    SphericalJoint,
+    Spherical,
     RevoluteJoint,
 )
 from cardillo.discrete import (
@@ -70,7 +70,7 @@ if __name__ == "__main__":
         RB1 = RigidBodyAxisAngle(m, K_theta_S, q01, u01)
 
     if use_spherical_joint:
-        joint1 = SphericalJoint(origin, RB1, r_OB1)
+        joint1 = Spherical(origin, RB1, r_OB1)
     else:
         joint1 = RevoluteJoint(origin, RB1, r_OB1, A_IB1)
 
@@ -103,7 +103,7 @@ if __name__ == "__main__":
         RB2 = RigidBodyAxisAngle(m, K_theta_S, q02, u02)
 
     if use_spherical_joint:
-        joint2 = SphericalJoint(RB1, RB2, r_OB2)
+        joint2 = Spherical(RB1, RB2, r_OB2)
     else:
         joint2 = RevoluteJoint(RB1, RB2, r_OB2, A_IB2)
 

@@ -1,6 +1,6 @@
 from cardillo.math import e3
 from cardillo.discrete import Frame
-from cardillo.constraints import SphericalJoint
+from cardillo.constraints import Spherical
 from cardillo.beams import (
     animate_beam,
     Cable,
@@ -64,8 +64,8 @@ if __name__ == "__main__":
     frame_right = Frame(r_OP=r_OP1)
 
     # left and right joint
-    joint_left = SphericalJoint(frame_left, beam, r_OB0=r_OP0, frame_ID2=(0,))
-    joint_right = SphericalJoint(frame_right, beam, r_OB0=r_OP1, frame_ID2=(1,))
+    joint_left = Spherical(frame_left, beam, r_OB0=r_OP0, frame_ID2=(0,))
+    joint_right = Spherical(frame_right, beam, r_OB0=r_OP1, frame_ID2=(1,))
 
     # line distributed body force
     # l = lambda t, xi: -e3 * 2e1
