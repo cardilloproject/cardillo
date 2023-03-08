@@ -7,8 +7,8 @@ class Linear_guidance_x:
         self,
         subsystem1,
         subsystem2,
-        r_OB,
-        A_IB,
+        r_OB0,
+        A_IB0,
         frame_ID1=np.zeros(3),
         frame_ID2=np.zeros(3),
         la_g0=None,
@@ -21,8 +21,8 @@ class Linear_guidance_x:
         self.frame_ID1 = frame_ID1
         self.subsystem2 = subsystem2
         self.frame_ID2 = frame_ID2
-        self.r_OB = r_OB
-        self.A_IB = A_IB
+        self.r_OB0 = r_OB0
+        self.A_IB0 = A_IB0
 
     def assembler_callback(self):
         qDOF1 = self.subsystem1.qDOF
@@ -49,8 +49,8 @@ class Linear_guidance_x:
         A_IK2 = self.subsystem2.A_IK(
             self.subsystem2.t0, self.subsystem2.q0[local_qDOF2], self.frame_ID2
         )
-        A_K1B1 = A_IK1.T @ self.A_IB
-        A_K2B2 = A_IK2.T @ self.A_IB
+        A_K1B1 = A_IK1.T @ self.A_IB0
+        A_K2B2 = A_IK2.T @ self.A_IB0
 
         r_OS1 = self.subsystem1.r_OP(
             self.subsystem1.t0, self.subsystem1.q0[local_qDOF1], self.frame_ID1
@@ -58,8 +58,8 @@ class Linear_guidance_x:
         r_OS2 = self.subsystem2.r_OP(
             self.subsystem2.t0, self.subsystem2.q0[local_qDOF2], self.frame_ID2
         )
-        K_r_SP1 = A_IK1.T @ (self.r_OB - r_OS1)
-        K_r_SP2 = A_IK2.T @ (self.r_OB - r_OS2)
+        K_r_SP1 = A_IK1.T @ (self.r_OB0 - r_OS1)
+        K_r_SP2 = A_IK2.T @ (self.r_OB0 - r_OS2)
 
         self.r_OP1 = lambda t, q: self.subsystem1.r_OP(
             t, q[:nq1], self.frame_ID1, K_r_SP1
@@ -393,8 +393,8 @@ class Linear_guidance_xyz:
         self,
         subsystem1,
         subsystem2,
-        r_OB,
-        A_IB,
+        r_OB0,
+        A_IB0,
         frame_ID1=np.zeros(3),
         frame_ID2=np.zeros(3),
         la_g0=None,
@@ -407,8 +407,8 @@ class Linear_guidance_xyz:
         self.frame_ID1 = frame_ID1
         self.subsystem2 = subsystem2
         self.frame_ID2 = frame_ID2
-        self.r_OB = r_OB
-        self.A_IB = A_IB
+        self.r_OB = r_OB0
+        self.A_IB = A_IB0
 
     def assembler_callback(self):
         qDOF1 = self.subsystem1.qDOF

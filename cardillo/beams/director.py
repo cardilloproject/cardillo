@@ -2256,7 +2256,6 @@ class EulerBernoulliDirectorIntegral(TimoshenkoBeamDirector):
         return g_q
 
     def __g_qq_el(self, qe, el):
-
         g_qq = np.zeros((self.nla_g_element, self.nq_el, self.nq_el))
 
         for i in range(self.nquadrature):
@@ -2565,7 +2564,6 @@ class InextensibleEulerBernoulliDirectorIntegral(TimoshenkoBeamDirector):
         return g_q
 
     def __g_qq_el(self, qe, el):
-
         g_qq = np.zeros((self.nla_g_element, self.nq_el, self.nq_el))
 
         for i in range(self.nquadrature):

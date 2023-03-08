@@ -207,7 +207,6 @@ class Moreau:
             P_Nk1_i1 = self.P_Nk.copy()
             P_Fk1_i1 = self.P_Fk.copy()
             for j in range(self.fix_point_max_iter):
-
                 # fixed-point update normal direction
                 P_Nk1_i1[I_N] = prox_R0_np(
                     P_Nk1_i1[I_N]
@@ -700,7 +699,6 @@ class NonsmoothBackwardEulerDecoupled:
             i_F = np.array(i_F)
             n_F = len(i_F)
             if n_F > 0:
-
                 la_Fk1_local = la_Fk1[i_F]
                 gamma_Fk1_local = gamma_Fk1[i_F]
                 la_Nk1_local = la_Nk1[i_N]
@@ -967,7 +965,6 @@ class NonsmoothBackwardEulerDecoupled:
                 )
 
         if self.with_elastic_impacts:
-
             ################
             # normal impacts
             ################

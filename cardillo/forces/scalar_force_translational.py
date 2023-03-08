@@ -233,10 +233,10 @@ class ScalarForceTranslational:
     # public functions
     def h(self, t, q, u):
         return self._h(t, q, u)
-    
+
     def h_q(self, t, q, u, coo):
         self._h_q(t, q, u, coo)
-    
+
     # E_pot and h_u defined in init if necessary
 
     def export(self, sol_i, **kwargs):

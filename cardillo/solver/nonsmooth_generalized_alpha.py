@@ -41,7 +41,6 @@ class NonsmoothGeneralizedAlpha:
         fixed_point_tol=1e-6,
         fixed_point_max_iter=1000,
     ):
-
         self.model = model
 
         # initial time, final time, time step
@@ -912,7 +911,9 @@ class NonsmoothGeneralizedAlpha:
                         f"step not converged after {n_iter} steps with error: {error:.5e}"
                     )
                 iter.append(n_iter + 1)
-            except RuntimeError:  # if method specified does not converge, use fixed-point iterations in time step.
+            except (
+                RuntimeError
+            ):  # if method specified does not converge, use fixed-point iterations in time step.
                 print("\nSwitched to fixed-point step.\n")
                 (
                     (converged, n_iter, error),
@@ -1529,7 +1530,6 @@ class NonsmoothGeneralizedAlphaOriginal:
         numerical_jacobian=False,
         debug=False,
     ):
-
         self.model = model
 
         # integration time

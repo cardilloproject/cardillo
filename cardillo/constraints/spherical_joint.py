@@ -7,7 +7,7 @@ class SphericalJoint:
         self,
         subsystem1,
         subsystem2,
-        r_OB,
+        r_OB0,
         frame_ID1=np.zeros(3),
         frame_ID2=np.zeros(3),
         la_g0=None,
@@ -19,7 +19,7 @@ class SphericalJoint:
         self.frame_ID1 = frame_ID1
         self.subsystem2 = subsystem2
         self.frame_ID2 = frame_ID2
-        self.r_OB = r_OB
+        self.r_OB0 = r_OB0
 
     def assembler_callback(self):
         qDOF1 = self.subsystem1.qDOF
@@ -48,7 +48,7 @@ class SphericalJoint:
                 self.subsystem1.t0, self.subsystem1.q0[local_qDOF1], self.frame_ID1
             )
             # subsystem-fixed vector from subsystem 1 frame origins to B
-            K_r_S1B = A_IK1.T @ (self.r_OB - r_OS1)
+            K_r_S1B = A_IK1.T @ (self.r_OB0 - r_OS1)
         else:
             K_r_S1B = np.zeros(3)
 
@@ -60,7 +60,7 @@ class SphericalJoint:
                 self.subsystem2.t0, self.subsystem2.q0[local_qDOF2], self.frame_ID2
             )
             # subsystem-fixed vector from subsystem 2 frame origins to B
-            K_r_S2B = A_IK2.T @ (self.r_OB - r_OS2)
+            K_r_S2B = A_IK2.T @ (self.r_OB0 - r_OS2)
         else:
             K_r_S2B = np.zeros(3)
 

@@ -95,7 +95,6 @@ case = "statics"
 # case = "dynamics"
 
 if __name__ == "__main__":
-
     # rope parameters
     R = 1  # radius inflated circle
     A_rho0 = 1.0e0  # reference density per unit length

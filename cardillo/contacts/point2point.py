@@ -13,6 +13,7 @@ from scipy.optimize import minimize
 
 from cardillo.math.numerical_derivative import approx_fprime
 
+
 # TODO: Use xi and eta as new generalized coordinates and make this a g_contr
 #       subsystem that enforces both to be such that they satisfy the
 #       orthogonality conditions.
@@ -20,7 +21,6 @@ class Point2Point:
     def __init__(
         self, eps, R1, R2, subsystem1, subsystem2, q0=None, u0=None, xi_c=0.5, eta_c=0.5
     ):
-
         # constact stiffness
         self.eps = eps
 

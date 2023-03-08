@@ -2,6 +2,7 @@ import numpy as np
 from cardillo.math.numerical_derivative import approx_fprime
 from cardillo.math.algebra import ax2skew, ax2skew_a, cross3, skew2ax
 
+
 # TODO: enable construction with standard inertia tensor
 class RigidBodyDirector:
     def __init__(self, V_rho, B_rho0, C_rho0, q0=None, u0=None, la0=None):
@@ -204,7 +205,6 @@ class RigidBodyDirector:
         coo.extend(g_ddot_u, (self.la_gDOF, self.uDOF))
 
     def g_q_dense(self, t, q):
-
         d1 = q[3:6]
         d2 = q[6:9]
         d3 = q[9:]
@@ -233,7 +233,6 @@ class RigidBodyDirector:
         return gap_q
 
     def g_qq_dense(self, t, q):
-
         gap_qq = np.zeros((self.nla_g, self.nq, self.nq))
         gap_qq[0, 3:6, 3:6] = 2 * np.eye(3)
         gap_qq[1, 6:9, 6:9] = 2 * np.eye(3)

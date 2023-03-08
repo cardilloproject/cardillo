@@ -11,7 +11,7 @@ from cardillo.math import (
     cross3,
     ax2skew,
     approx_fprime,
-    tangent_map_s,
+    # tangent_map_s,
     e1,
     Exp_SO3,
     Log_SO3,

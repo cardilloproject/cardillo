@@ -23,7 +23,6 @@ class ContactPotential:
 
 class Line2Line:
     def __init__(self, eps, R1, R2, subsystem1, subsystem2, eta_c=0.5):
-
         # constact stiffness
         self.eps = eps
 

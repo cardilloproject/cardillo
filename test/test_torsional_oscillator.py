@@ -80,14 +80,20 @@ def run(
         case "ScipyIVP":
             solver = ScipyIVP(system, t1, dt, atol=1e-8)
         case "RadauIIaDAE2":
-            solver = RadauIIa(system, t1, dt, atol=1e-2, rtol=1e-2, dae_index=2, max_step=dt)
+            solver = RadauIIa(
+                system, t1, dt, atol=1e-2, rtol=1e-2, dae_index=2, max_step=dt
+            )
         case "RadauIIaDAE3":
-            solver = RadauIIa(system, t1, dt, atol=1e-4, rtol=1e-4, dae_index=3, max_step=dt)
+            solver = RadauIIa(
+                system, t1, dt, atol=1e-4, rtol=1e-4, dae_index=3, max_step=dt
+            )
         case "RaudauIIaGGL":
-            solver = RadauIIa(system, t1, dt, atol=1e-3, rtol=1e-3, dae_index="GGL", max_step=dt)
+            solver = RadauIIa(
+                system, t1, dt, atol=1e-3, rtol=1e-3, dae_index="GGL", max_step=dt
+            )
         case "EulerBackward" | _:
             solver = EulerBackward(system, t1, dt)
-        
+
     sol = solver.solve()
     t = sol.t
     q = sol.q
@@ -97,7 +103,7 @@ def run(
     #                   plot
     ############################################################################
     if plot:
-        joint.reset()         
+        joint.reset()
         alpha_cmp = [joint.angle(ti, qi[joint.qDOF]) for ti, qi in zip(t, q)]
 
         def eqm(t, x):
@@ -149,7 +155,13 @@ if __name__ == "__main__":
     # RigidBodyParametrization = RigidBodyAxisAngle
 
     # Solver
-    solver = ["ScipyIVP", "RadauIIaDAE2", "RadauIIaDAE3", "RaudauIIaGGL", "EulerBackward"]
+    solver = [
+        "ScipyIVP",
+        "RadauIIaDAE2",
+        "RadauIIaDAE3",
+        "RaudauIIaGGL",
+        "EulerBackward",
+    ]
 
     if profiling:
         import cProfile, pstats
