@@ -8,3 +8,4 @@ from .distributed_doubleforce_2D_continuum import DistributedDoubleforce2DContin
 from .scalar_force_laws import *
 from .scalar_force_translational import ScalarForceTranslational
 from .scalar_force_rotational import PDRotationalJoint
+from .scalar_force_translational_nel import nElScalarForceTranslational

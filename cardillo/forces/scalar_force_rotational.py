@@ -25,7 +25,7 @@ def PDRotationalJoint(Joint, Spring=None, Damper=None):
                         self.__f_spring_q(t, q) + self.__f_damper_q(t, q, u),
                         (self.uDOF, self.qDOF),
                     )
-                    self._h_u = lambda t, q, u, coo: self.__f_damper_u(t, q, u, coo)
+                    self.h_u = lambda t, q, u, coo: self.__f_damper_u(t, q, u, coo)
                 # case just a spring
                 else:
                     self._h = lambda t, q, u: self.__f_spring(t, q)
@@ -82,7 +82,6 @@ def PDRotationalJoint(Joint, Spring=None, Damper=None):
         def h_q(self, t, q, u, coo):
             self._h_q(t, q, u, coo)
 
-        def h_u(self, t, q, u, coo):
-            self._h_u(t, q, u, coo)
+        # E_pot and h_u defined in init if necessary
 
     return _PDRotationalJoint
