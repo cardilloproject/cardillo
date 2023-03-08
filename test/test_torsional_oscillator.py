@@ -13,14 +13,17 @@ from cardillo.forces import (
 )
 from cardillo.math import Exp_SO3, axis_angle2quat, norm
 
+l = 0.1
+m = 1
+r = 0.2
+A = 1 / 4 * m * r**2 + 1 / 12 * m * l**2
+C = 1 / 2 * m * r**2
+K_theta_S = np.diag(np.array([A, A, C]))
+
 
 def RigidCylinder(RigidBodyParametrization):
     class _RigidCylinder(RigidBodyParametrization):
-        def __init__(self, m, r, l, q0=None, u0=None):
-            A = 1 / 4 * m * r**2 + 1 / 12 * m * l**2
-            C = 1 / 2 * m * r**2
-            K_theta_S = np.diag(np.array([A, A, C]))
-
+        def __init__(self, q0=None, u0=None):
             super().__init__(m, K_theta_S, q0=q0, u0=u0)
 
     return _RigidCylinder
@@ -35,11 +38,8 @@ def run(
     RigidBodyParametrization=RigidBodyQuaternion,
     solver_type="EulerBackward",
     plot=True,
+    rotation_axis=2,
 ):
-    l = 0.1
-    m = 1
-    r = 0.2
-
     r_OP0 = np.zeros(3)
     v_P0 = np.zeros(3)
     K_Omega0 = np.array((0, 0, alpha_dot0))
@@ -47,12 +47,12 @@ def run(
 
     if type(RigidBodyParametrization) is type(RigidBodyAxisAngle):
         q0 = np.hstack((r_OP0, psi))
-        rigid_body = RigidCylinder(RigidBodyAxisAngle)(m, r, l, q0, u0)
+        rigid_body = RigidCylinder(RigidBodyAxisAngle)(q0, u0)
     elif type(RigidBodyParametrization) is type(RigidBodyQuaternion):
         n_psi = norm(psi)
         p = axis_angle2quat(psi / n_psi, n_psi)
         q0 = np.hstack((r_OP0, p))
-        rigid_body = RigidCylinder(RigidBodyQuaternion)(m, r, l, q0, u0)
+        rigid_body = RigidCylinder(RigidBodyQuaternion)(q0, u0)
     else:
         raise (TypeError)
 
@@ -62,6 +62,7 @@ def run(
         subsystem2=rigid_body,
         r_OB0=np.zeros(3),
         A_IB0=A_IK0,
+        rotation_axis=rotation_axis,
         k=k,
         d=d,
         g_ref=g_ref,
@@ -106,10 +107,12 @@ def run(
         joint.reset()
         alpha_cmp = [joint.angle(ti, qi[joint.qDOF]) for ti, qi in zip(t, q)]
 
+        Theta = K_theta_S[rotation_axis, rotation_axis]
+
         def eqm(t, x):
             dx = np.zeros(2)
             dx[0] = x[1]
-            dx[1] = -2 / (m * r**2) * (d * x[1] + k * (x[0] - g_ref))
+            dx[1] = -1 / Theta * (d * x[1] + k * (x[0] - g_ref))
             return dx
 
         x0 = np.array((0, alpha_dot0))
@@ -149,6 +152,7 @@ if __name__ == "__main__":
     d = 0.05
     # k=d=0
     g_ref = 2 * np.pi
+    rotation_axis = 1
 
     # Rigid body parametrization
     RigidBodyParametrization = RigidBodyQuaternion
@@ -178,6 +182,7 @@ if __name__ == "__main__":
             RigidBodyParametrization=RigidBodyParametrization,
             solver_type=solver[2],
             plot=False,
+            rotation_axis=rotation_axis,
         )
         profiler.disable()
 
@@ -196,4 +201,5 @@ if __name__ == "__main__":
             RigidBodyParametrization=RigidBodyParametrization,
             solver_type=solver[1],
             plot=True,
+            rotation_axis=rotation_axis,
         )
