@@ -75,9 +75,11 @@ def run(
     t1 = 2
     dt = 1.0e-2
     # dt = 5.0e-3
-    solver = ScipyIVP(system, t1, dt, atol=1e-8)
+    # solver = ScipyIVP(system, t1, dt, atol=1e-8)
     # solver = EulerBackward(system, t1, dt)
-    # solver = RadauIIa(system, t1, dt, atol=1e-3, rtol=1e-3, max_step=dt)
+    # solver = RadauIIa(system, t1, dt, atol=1e-2, rtol=1e-2, dae_index=2, max_step=dt)
+    solver = RadauIIa(system, t1, dt, atol=1e-4, rtol=1e-4, dae_index=3, max_step=dt)
+    # solver = RadauIIa(system, t1, dt, atol=1e-3, rtol=1e-3, dae_index="GGL", max_step=dt)
     sol = solver.solve()
     t = sol.t
     q = sol.q
@@ -121,8 +123,8 @@ if __name__ == "__main__":
     # initial rotational velocity e_z^K axis
     alpha_dot0 = 0
     # axis angle rotation
-    # psi = np.random.rand(3)
-    psi = np.array((0, 1, 0))
+    psi = np.random.rand(3)
+    # psi = np.array((0, 1, 0))
     # psi = np.array((1, 0, 0))
     # psi = np.array((0, 0, 1))
     # psi = np.array((0, np.pi/2, 0))
