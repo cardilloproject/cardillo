@@ -10,7 +10,7 @@ from cardillo.discrete import (
     RigidBodyQuaternion,
     RigidBodyRelKinematics,
 )
-from cardillo.constraints import RevoluteJoint, RigidConnection
+from cardillo.constraints import Revolute, RigidConnection
 from cardillo.joints import RigidConnection as RigidJoint
 from cardillo.forces import Force, PDRotationalJoint, LinearSpring, LinearDamper
 from cardillo.solver import EulerBackward, ScipyIVP
@@ -91,9 +91,9 @@ def run(revolute_joint_used=False, use_relative_kinematics=False):
         RB2 = RigidBodyQuaternion(m / 2, K_theta_S2, q0=q20, u0=u20)
 
     if revolute_joint_used:
-        joint = RevoluteJoint(frame, RB1, r_OP(0), np.eye(3))
+        joint = Revolute(frame, RB1, r_OP(0), np.eye(3))
     else:
-        joint = PDRotationalJoint(RevoluteJoint, LinearSpring, LinearDamper)(
+        joint = PDRotationalJoint(Revolute, LinearSpring, LinearDamper)(
             frame,
             RB1,
             r_OP(0),

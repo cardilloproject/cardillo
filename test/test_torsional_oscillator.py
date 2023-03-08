@@ -4,7 +4,7 @@ from scipy.integrate import solve_ivp
 
 from cardillo import System
 from cardillo.solver import ScipyIVP, EulerBackward, RadauIIa
-from cardillo.constraints import RevoluteJoint
+from cardillo.constraints import Revolute
 from cardillo.discrete import RigidBodyAxisAngle, RigidBodyQuaternion
 from cardillo.forces import (
     LinearSpring,
@@ -57,7 +57,7 @@ def run(
         raise (TypeError)
 
     system = System()
-    joint = PDRotationalJoint(RevoluteJoint, Spring=LinearSpring, Damper=LinearDamper)(
+    joint = PDRotationalJoint(Revolute, Spring=LinearSpring, Damper=LinearDamper)(
         subsystem1=system.origin,
         subsystem2=rigid_body,
         r_OB0=np.zeros(3),

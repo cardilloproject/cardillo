@@ -1,8 +1,156 @@
 import numpy as np
-from cardillo.math import approx_fprime, complex_atan2, cross3, ax2skew, e3
+from cardillo.math import approx_fprime, cross3, ax2skew, e3
+from cardillo.constraints._base import PositionOrientationBase
 
 
-class RevoluteJoint:
+class RevoluteNew(PositionOrientationBase):
+    def __init__(
+        self,
+        subsystem1,
+        subsystem2,
+        r_OB0,
+        A_IB0,
+        rotation_axis=2,
+        frame_ID1=np.zeros(3),
+        frame_ID2=np.zeros(3),
+    ):
+        self.rotation_axis = rotation_axis
+        self.plane_axes = np.delete(np.array([0, 1, 2]), rotation_axis)
+        projection_pairs = [
+            (rotation_axis, self.plane_axes[0]),
+            (rotation_axis, self.plane_axes[1]),
+        ]
+
+        super().__init__(
+            subsystem1,
+            subsystem2,
+            r_OB0=r_OB0,
+            A_IB0=A_IB0,
+            projection_pairs=projection_pairs,
+            frame_ID1=frame_ID1,
+            frame_ID2=frame_ID2,
+        )
+
+    def assembler_callback(self):
+        self.n_full_rotations = 0
+        self.previous_quadrant = 1
+        super().assembler_callback()
+
+    def _compute_quadrant(self, x, y):
+        if x > 0 and y >= 0:
+            return 1
+        elif x <= 0 and y > 0:
+            return 2
+        elif x < 0 and y <= 0:
+            return 3
+        elif x >= 0 and y < 0:
+            return 4
+        else:
+            raise RuntimeError("You should never be here!")
+
+    def angle(self, t, q):
+        ex1, ey1, _ = self.A_IB1(t, q).T
+        ex2 = self.A_IB2(t, q)[:, 0]
+
+        # projections
+        y = ex2 @ ey1
+        x = ex2 @ ex1
+
+        quadrant = self._compute_quadrant(x, y)
+
+        # check if a full rotation happens
+        if self.previous_quadrant == 4 and quadrant == 1:
+            self.n_full_rotations += 1
+        elif self.previous_quadrant == 1 and quadrant == 4:
+            self.n_full_rotations -= 1
+        self.previous_quadrant = quadrant
+
+        # compute rotation angle without singularities
+        angle = self.n_full_rotations * 2 * np.pi
+        if quadrant == 1:
+            angle += np.arctan(y / x)
+        elif quadrant == 2:
+            angle += 0.5 * np.pi + np.arctan(-x / y)
+        elif quadrant == 3:
+            angle += np.pi + np.arctan(-y / -x)
+        else:
+            angle += 1.5 * np.pi + np.arctan(x / -y)
+
+        return angle
+
+    def angle_dot(self, t, q, u):
+        ez1 = self.A_IB1(t, q)[:, 2]
+        return (self.Omega2(t, q, u) - self.Omega1(t, q, u)) @ ez1
+
+    def angle_dot_q(self, t, q, u):
+        ez1 = self.A_IB1(t, q)[:, 2]
+        ez1_q1 = self.A_IB1_q1(t, q)[:, 2]
+
+        return np.concatenate(
+            [
+                (self.Omega2(t, q, u) - self.Omega1(t, q, u)) @ ez1_q1
+                - ez1 @ self.Omega1_q1(t, q, u),
+                ez1 @ self.Omega2_q2(t, q, u),
+            ]
+        )
+
+    def angle_dot_u(self, t, q, u):
+        ez1 = self.A_IB1(t, q)[:, 2]
+        return ez1 @ np.concatenate([-self.J_R1(t, q), self.J_R2(t, q)], axis=1)
+
+    def angle_q(self, t, q):
+        ex1, ey1, _ = self.A_IB1(t, q).T
+        ex2 = self.A_IB2(t, q)[:, 0]
+        x = ex2 @ ex1
+        y = ex2 @ ey1
+
+        A_IB1_q1 = self.A_IB1_q1(t, q)
+        ex1_q1 = A_IB1_q1[:, 0]
+        ey1_q1 = A_IB1_q1[:, 1]
+        A_IB2_q2 = self.A_IB2_q2(t, q)
+        ex2_q2 = A_IB2_q2[:, 0]
+
+        x_q = np.concatenate((ex2 @ ex1_q1, ex1 @ ex2_q2))
+        y_q = np.concatenate((ex2 @ ey1_q1, ey1 @ ex2_q2))
+
+        return (x * y_q - y * x_q) / (x**2 + y**2)
+
+    def W_angle(self, t, q):
+        J_R1 = self.J_R1(t, q)
+        J_R2 = self.J_R2(t, q)
+        ez1 = self.A_IB1(t, q)[:, 2]
+        return np.concatenate([-J_R1.T @ ez1, J_R2.T @ ez1])
+
+    def W_angle_q(self, t, q):
+        nq1 = self._nq1
+        nu1 = self._nu1
+
+        J_R1 = self.J_R1(t, q)
+        J_R2 = self.J_R2(t, q)
+        J_R1_q1 = self.J_R1_q1(t, q)
+        J_R2_q2 = self.J_R2_q2(t, q)
+
+        ez1 = self.A_IB1(t, q)[:, 2]
+        ez1_q1 = self.A_IB1_q1(t, q)[:, 2]
+
+        # dense blocks
+        dense = np.zeros((self._nu, self._nq))
+        dense[:nu1, :nq1] = np.einsum("i,ijk->jk", -ez1, J_R1_q1) - J_R1.T @ ez1_q1
+        dense[nu1:, :nq1] = J_R2.T @ ez1_q1
+        dense[nu1:, nq1:] = np.einsum("i,ijk->jk", ez1, J_R2_q2)
+
+        # dense_num = approx_fprime(q, lambda q: self.W_angle(t, q))
+        # print(f"dense_num={np.linalg.norm(dense_num - dense)}")
+        # print(f"dense_num={np.linalg.norm(dense_num[nu1:, nq1:] - dense[nu1:, nq1:])}")
+
+        return dense
+
+    def reset(self):
+        self.n_full_rotations = 0
+        self.previous_quadrant = 1
+
+
+class RevoluteJointOld:
     def __init__(
         self,
         subsystem1,
@@ -455,8 +603,10 @@ class RevoluteJoint:
         return (x * y_q - y * x_q) / (x**2 + y**2)
 
     def W_angle(self, t, q):
-        J_R1 = self.A_IK1(t, q) @ self.K_J_R1(t, q)
-        J_R2 = self.A_IK2(t, q) @ self.K_J_R2(t, q)
+        J_R1 = self.J_R1(t, q)
+        J_R2 = self.J_R2(t, q)
+        # J_R1 = self.A_IK1(t, q) @ self.K_J_R1(t, q)
+        # J_R2 = self.A_IK2(t, q) @ self.K_J_R2(t, q)
         ez1 = self.A_IB1(t, q)[:, 2]
         return np.concatenate([-J_R1.T @ ez1, J_R2.T @ ez1])
 
@@ -493,3 +643,7 @@ class RevoluteJoint:
     def reset(self):
         self.n_full_rotations = 0
         self.previous_quadrant = 1
+
+
+# Revolute = RevoluteJointOld
+Revolute = RevoluteNew

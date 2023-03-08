@@ -202,7 +202,7 @@ class PositionOrientationBase:
         subsystem2,
         r_OB0,
         A_IB0,
-        constrained_axes,
+        projection_pairs,
         frame_ID1=np.zeros(3),
         frame_ID2=np.zeros(3),
     ):
@@ -214,13 +214,14 @@ class PositionOrientationBase:
         self.A_IB0 = A_IB0
 
         # guard against flawed constrained_axes input
-        self.naxes = len(constrained_axes)
-        assert self.naxes == len(np.unique(constrained_axes))
-        for i in constrained_axes:
-            assert i in [0, 1, 2]
+        self.naxes = len(projection_pairs)
+        for pair in projection_pairs:
+            assert len(np.unique(pair)) == 2
+            for i in pair:
+                assert i in [0, 1, 2]
 
         self.nla_g = 3 + self.naxes
-        self.roll_index = np.array([(1, 2), (2, 0), (0, 1)])[constrained_axes]
+        self.projection_pairs = projection_pairs
 
         if self.naxes == 0:
             self.spherical = True
@@ -279,7 +280,7 @@ class PositionOrientationBase:
         if not self.spherical:
             A_IB1 = self.A_IB1(t, q)
             A_IB2 = self.A_IB2(t, q)
-            for i, (a, b) in enumerate(self.roll_index):
+            for i, (a, b) in enumerate(self.projection_pairs):
                 g[3 + i] = A_IB1[:, a] @ A_IB2[:, b]
 
         return g
@@ -298,7 +299,7 @@ class PositionOrientationBase:
             A_IB1_q1 = self.A_IB1_q1(t, q)
             A_IB2_q2 = self.A_IB2_q2(t, q)
 
-            for i, (a, b) in enumerate(self.roll_index):
+            for i, (a, b) in enumerate(self.projection_pairs):
                 g_q[3 + i, :nq1] = A_IB2[:, b] @ A_IB1_q1[:, a]
                 g_q[3 + i, nq1:] = A_IB1[:, a] @ A_IB2_q2[:, b]
 
@@ -317,7 +318,7 @@ class PositionOrientationBase:
 
             Omega21 = self.Omega1(t, q, u) - self.Omega2(t, q, u)
 
-            for i, (a, b) in enumerate(self.roll_index):
+            for i, (a, b) in enumerate(self.projection_pairs):
                 n = cross3(A_IB1[:, a], A_IB2[:, b])
                 g_dot[3 + i] = n @ Omega21
 
@@ -341,7 +342,7 @@ class PositionOrientationBase:
             Omega1_q1 = self.Omega1_q1(t, q, u)
             Omega2_q2 = self.Omega2_q2(t, q, u)
 
-            for i, (a, b) in enumerate(self.roll_index):
+            for i, (a, b) in enumerate(self.projection_pairs):
                 e_a, e_b = A_IB1[:, a], A_IB2[:, b]
                 n = cross3(e_a, e_b)
                 g_dot_q[3 + i, :nq1] = (
@@ -372,7 +373,7 @@ class PositionOrientationBase:
             Omega21 = Omega1 - Omega2
             Psi21 = self.Psi1(t, q, u, u_dot) - self.Psi2(t, q, u, u_dot)
 
-            for i, (a, b) in enumerate(self.roll_index):
+            for i, (a, b) in enumerate(self.projection_pairs):
                 e_a, e_b = A_IB1[:, a], A_IB2[:, b]
                 n = cross3(e_a, e_b)
                 g_ddot[3 + i] = (
@@ -405,7 +406,7 @@ class PositionOrientationBase:
             Psi1_q1 = self.Psi1_q1(t, q, u, u_dot)
             Psi2_q2 = self.Psi2_q2(t, q, u, u_dot)
 
-            for i, (a, b) in enumerate(self.roll_index):
+            for i, (a, b) in enumerate(self.projection_pairs):
                 e_a, e_b = A_IB1[:, a], A_IB2[:, b]
                 e_a_q1, e_b_q2 = A_IB1_q1[:, a], A_IB2_q2[:, b]
                 n = cross3(e_a, e_b)
@@ -461,7 +462,7 @@ class PositionOrientationBase:
             Psi1_u1 = self.Psi1_u1(t, q, u, u_dot)
             Psi2_u2 = self.Psi2_u2(t, q, u, u_dot)
 
-            for i, (a, b) in enumerate(self.roll_index):
+            for i, (a, b) in enumerate(self.projection_pairs):
                 e_a, e_b = A_IB1[:, a], A_IB2[:, b]
                 n = cross3(e_a, e_b)
                 Omega1_e_a = cross3(Omega1, e_a)
@@ -490,7 +491,7 @@ class PositionOrientationBase:
             A_IB2 = self.A_IB2(t, q)
             J = np.hstack([self.J_R1(t, q), -self.J_R2(t, q)])
 
-            for i, (a, b) in enumerate(self.roll_index):
+            for i, (a, b) in enumerate(self.projection_pairs):
                 n = cross3(A_IB1[:, a], A_IB2[:, b])
                 W_g[:, 3 + i] = n @ J
 
@@ -519,7 +520,7 @@ class PositionOrientationBase:
             J_R1_q1 = self.J_R1_q1(t, q)
             J_R2_q2 = self.J_R2_q2(t, q)
 
-            for i, (a, b) in enumerate(self.roll_index):
+            for i, (a, b) in enumerate(self.projection_pairs):
                 e_a, e_b = A_IB1[:, a], A_IB2[:, b]
                 n = cross3(e_a, e_b)
                 n_q1 = -ax2skew(e_b) @ A_IB1_q1[:, a]
