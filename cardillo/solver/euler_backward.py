@@ -226,9 +226,9 @@ class EulerBackward:
 
         return J
 
-        # J_num = csc_matrix(approx_fprime(y, self._R, method="2-point"))
-        # J_num = csc_matrix(approx_fprime(y, self._R, method="3-point"))
-        J_num = csc_matrix(approx_fprime(y, self._R, method="cs", eps=1.0e-12))
+        # J_num = csc_matrix(approx_fprime(y, self._R, method="2-point", eps=1.0e-6))
+        J_num = csc_matrix(approx_fprime(y, self._R, method="3-point", eps=1.0e-6))
+        # J_num = csc_matrix(approx_fprime(y, self._R, method="cs", eps=1.0e-12))
         diff = (J - J_num).toarray()
         # diff = diff[:self.nq]
         # diff = diff[self.nq : ]

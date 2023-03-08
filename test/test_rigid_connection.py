@@ -114,7 +114,7 @@ def run(revolute_joint_used=False, use_relative_kinematics=False):
     system.add(gravity2)
     system.add(joint)
     if not use_relative_kinematics:
-        system.add(RigidConnection(RB1, RB2, r_OS0))
+        system.add(RigidConnection(RB1, RB2))
     system.assemble()
 
     ############################################################################
@@ -126,8 +126,8 @@ def run(revolute_joint_used=False, use_relative_kinematics=False):
 
     # solver = EulerBackward(system, t1, dt, method="index 1")
     # solver = EulerBackward(system, t1, dt, method="index 2")
-    # solver = EulerBackward(system, t1, dt, method="index 3")
-    solver = EulerBackward(system, t1, dt, method="index 2 GGL")
+    solver = EulerBackward(system, t1, dt, method="index 3")
+    # solver = EulerBackward(system, t1, dt, method="index 2 GGL")
     # solver = ScipyIVP(system, t1, dt)
 
     sol = solver.solve()

@@ -1,11 +1,15 @@
 import numpy as np
 from cardillo.math import approx_fprime
 from cardillo.math.algebra import cross3, ax2skew
-from cardillo.constraints import concatenate_qDOF, concatenate_uDOF, auxiliary_functions
+from cardillo.constraints._base import (
+    concatenate_qDOF,
+    concatenate_uDOF,
+    auxiliary_functions,
+)
 
 
 class RigidConnection:
-    def _init_(
+    def __init__(
         self,
         subsystem1,
         subsystem2,
@@ -24,17 +28,17 @@ class RigidConnection:
         local_qDOF1, local_qDOF2 = concatenate_qDOF(self)
         local_uDOF1, local_uDOF2 = concatenate_uDOF(self)
 
-        r_OP10 = object.subsystem1.r_OP(
-            object.subsystem1.t0, object.subsystem1.q0[local_qDOF1], object.frame_ID1
+        r_OP10 = self.subsystem1.r_OP(
+            self.subsystem1.t0, self.subsystem1.q0[local_qDOF1], self.frame_ID1
         )
-        r_OP20 = object.subsystem2.r_OP(
-            object.subsystem2.t0, object.subsystem2.q0[local_qDOF2], object.frame_ID2
+        r_OP20 = self.subsystem2.r_OP(
+            self.subsystem2.t0, self.subsystem2.q0[local_qDOF2], self.frame_ID2
         )
-        A_IK10 = object.subsystem1.A_IK(
-            object.subsystem1.t0, object.subsystem1.q0[local_qDOF1], object.frame_ID1
+        A_IK10 = self.subsystem1.A_IK(
+            self.subsystem1.t0, self.subsystem1.q0[local_qDOF1], self.frame_ID1
         )
-        A_IK20 = object.subsystem2.A_IK(
-            object.subsystem2.t0, object.subsystem2.q0[local_qDOF2], object.frame_ID2
+        A_IK20 = self.subsystem2.A_IK(
+            self.subsystem2.t0, self.subsystem2.q0[local_qDOF2], self.frame_ID2
         )
 
         # use orientation and position of first subsystem
