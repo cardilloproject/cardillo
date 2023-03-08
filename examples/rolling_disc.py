@@ -157,10 +157,11 @@ def state():
     # sol = NonsmoothHalfExplicitRungeKutta(model, t1, dt).solve()
     # sol = NonsmoothPartitionedHalfExplicitEuler(model, t1, dt).solve()
 
-    rtol = atol = 1.0e-5
+    # rtol = atol = 1.0e-5
+    rtol = atol = 1.0e-6
     # dae_index = 2
-    # dae_index = 3
-    dae_index = "GGL"
+    dae_index = 3
+    # dae_index = "GGL"
     sol = RadauIIa(model, t1, dt, rtol=rtol, atol=atol, dae_index=dae_index).solve()
 
     t = sol.t

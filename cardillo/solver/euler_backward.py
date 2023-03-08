@@ -249,7 +249,7 @@ class EulerBackward:
         mu_S_list = [mu_S]
         mu_g_list = [mu_g]
 
-        pbar = tqdm(self.t_eval[:-1])
+        pbar = tqdm(self.t_eval[1:])
         for t in pbar:
             self.t = t
             sol = fsolve(self._R, self.y, jac=self._J)

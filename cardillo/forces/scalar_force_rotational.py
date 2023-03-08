@@ -18,24 +18,24 @@ def PDRotationalJoint(Joint, Spring=None, Damper=None):
                 self.E_pot = lambda t, q: self.spring.E_pot(t, self.angle(t, q))
                 # case spring and damper
                 if Damper is not None:
-                    self.h = lambda t, q, u: self.__f_spring(t, q) + self.__f_damper(
+                    self._h = lambda t, q, u: self.__f_spring(t, q) + self.__f_damper(
                         t, q, u
                     )
-                    self.h_q = lambda t, q, u, coo: coo.extend(
+                    self._h_q = lambda t, q, u, coo: coo.extend(
                         self.__f_spring_q(t, q) + self.__f_damper_q(t, q, u),
                         (self.uDOF, self.qDOF),
                     )
                     self.h_u = lambda t, q, u, coo: self.__f_damper_u(t, q, u, coo)
                 # case just a spring
                 else:
-                    self.h = lambda t, q, u: self.__f_spring(t, q)
-                    self.h_q = lambda t, q, u, coo: coo.extend(
+                    self._h = lambda t, q, u: self.__f_spring(t, q)
+                    self._h_q = lambda t, q, u, coo: coo.extend(
                         self.__f_spring_q(t, q), (self.uDOF, self.qDOF)
                     )
             # just a damper
             else:
-                self.h = lambda t, q, u: self.__f_damper(t, q, u)
-                self.h_q = lambda t, q, u, coo: coo.extend(
+                self._h = lambda t, q, u: self.__f_damper(t, q, u)
+                self._h_q = lambda t, q, u, coo: coo.extend(
                     self.__f_damper_q(t, q, u), (self.uDOF, self.qDOF)
                 )
                 self.h_u = lambda t, q, u, coo: self.__f_damper_u(t, q, u, coo)
@@ -44,7 +44,7 @@ def PDRotationalJoint(Joint, Spring=None, Damper=None):
             super().assembler_callback()
 
             if (Spring is not None) and (self.spring.g_ref is None):
-                self.spring.g_ref = self.angle0
+                self.spring.g_ref = 0
 
         def __f_spring(self, t, q):
             return -self.W_angle(t, q) * self.spring.la(t, self.angle(t, q))
@@ -75,5 +75,13 @@ def PDRotationalJoint(Joint, Spring=None, Damper=None):
             W = self.W_angle(t, q)
             dense = -self.damper.la_gamma(t, gamma) * np.outer(W, W)
             coo.extend(dense, (self.uDOF, self.uDOF))
+
+        def h(self, t, q, u):
+            return self._h(t, q, u)
+
+        def h_q(self, t, q, u, coo):
+            self._h_q(t, q, u, coo)
+
+        # E_pot and h_u defined in init if necessary
 
     return _PDRotationalJoint
