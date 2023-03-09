@@ -558,7 +558,7 @@ class Rattle:
 
         return F2
 
-    def p2(self, z1, z2):
+    def p2(self, z1, z2, lu_A, b, W_N, W_F):
         P_N1 = z1[: self.nla_N]
         P_F1 = z1[self.nla_N :]
         P_N_bar = z2[: self.nla_N]
@@ -568,15 +568,18 @@ class Rattle:
 
         self.x20 = self.x2.copy()
 
-        self.x2, converged, error, i, _ = fsolve(
-            self.F2,
-            self.x20,
-            jac="2-point",
-            eps=1e-6,
-            fun_args=(P_N2, P_F2),
-            jac_args=(P_N2, P_F2),
-        )
-        assert converged
+        # self.x2, converged, error, i, _ = fsolve(
+        #     self.F2,
+        #     self.x20,
+        #     jac="2-point",
+        #     eps=1e-6,
+        #     fun_args=(P_N2, P_F2),
+        #     jac_args=(P_N2, P_F2),
+        # )
+        # assert converged
+        bb = b.copy()
+        bb[: self.nu] += 0.5 * (W_N @ P_N2 + W_F @ P_F2)
+        self.x2 = lu_A.solve(bb)
 
         qn1, un12, _, _ = np.array_split(self.x1, self.split_x1)
         un1, _, _ = np.array_split(self.x2, self.split_x2)
@@ -716,59 +719,64 @@ class Rattle:
                         break
                     z10 = z1
 
+                qn1, un12, P_g1, P_gamma1 = np.array_split(self.x1, self.split_x1)
+
                 # P_N1 = z1[: self.nla_N]
                 # P_F1 = z1[self.nla_N :]
-
-                # qn1 = self.x1[: self.nq]
-                # un12 = self.x1[self.nq : self.nq + self.nu]
-                # P_g1 = self.x1[self.nq + self.nu : self.nq + self.nu + self.nla_g]
-                # P_gamma1 = self.x1[self.nq + self.nu + self.nla_g :]
 
                 #################
                 # second stage
                 #################
 
-                # # get quantities from system
-                # Mn = self.system.M(tn1, qn1)
-                # h = self.system.h(tn1, qn1, un12)
-                # W_g = self.system.W_g(tn1, qn1)
-                # W_gamma = self.system.W_gamma(tn1, qn1)
-                # chi_g = self.system.g_dot(tn1, qn1, np.zeros_like(un12))
-                # chi_gamma = self.system.gamma(tn1, qn1, np.zeros_like(un12))
-                # # note: we use csc_matrix for efficient column slicing later,
-                # # see https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csc_array.html#scipy.sparse.csc_array
-                # W_N = self.system.W_N(tn1, qn1, scipy_matrix=csc_matrix)
-                # W_F = self.system.W_F(tn1, qn1, scipy_matrix=csc_matrix)
+                # get quantities from system
+                Mn = self.system.M(tn1, qn1)
+                h = self.system.h(tn1, qn1, un12)
+                W_g = self.system.W_g(tn1, qn1)
+                W_gamma = self.system.W_gamma(tn1, qn1)
+                chi_g = self.system.g_dot(tn1, qn1, np.zeros_like(un12))
+                chi_gamma = self.system.gamma(tn1, qn1, np.zeros_like(un12))
+                # note: we use csc_matrix for efficient column slicing later,
+                # see https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csc_array.html#scipy.sparse.csc_array
+                W_N = self.system.W_N(tn1, qn1, scipy_matrix=csc_matrix)
+                W_F = self.system.W_F(tn1, qn1, scipy_matrix=csc_matrix)
 
-                # I_N = self.I_N
+                I_N = self.I_N
 
-                # # identify active tangent contacts based on active normal contacts and
-                # # NF-connectivity lists
-                # if np.any(I_N):
-                #     I_F = np.array(
-                #         [
-                #             c
-                #             for i, I_N_i in enumerate(I_N)
-                #             for c in self.system.NF_connectivity[i]
-                #             if I_N_i
-                #         ],
-                #         dtype=int,
-                #     )
-                # else:
-                #     I_F = np.array([], dtype=int)
+                # identify active tangent contacts based on active normal contacts and
+                # NF-connectivity lists
+                if np.any(I_N):
+                    I_F = np.array(
+                        [
+                            c
+                            for i, I_N_i in enumerate(I_N)
+                            for c in self.system.NF_connectivity[i]
+                            if I_N_i
+                        ],
+                        dtype=int,
+                    )
+                else:
+                    I_F = np.array([], dtype=int)
 
-                # A = bmat(
-                #     [
-                #         [Mn, -W_g, -W_gamma],
-                #         [-W_g.T, None, None],
-                #         [-W_gamma.T, None, None],
-                #     ],
-                #     format="csc",
-                # )
+                A = bmat(
+                    [
+                        [Mn, -0.5 * W_g, -0.5 * W_gamma],
+                        [-W_g.T, None, None],
+                        [-W_gamma.T, None, None],
+                    ],
+                    format="csc",
+                )
 
-                # lu = splu(A)
+                lu_A = splu(A)
 
-                # # initial right hand side
+                # initial right hand side
+                b = np.concatenate(
+                    (
+                        Mn @ un12 + 0.5 * self.dt * h,
+                        chi_g,
+                        chi_gamma,
+                    )
+                )
+
                 # rhs = Mn @ un12 + 0.5 * self.dt * h
                 # P_N2 = np.zeros_like(P_N1)
                 # P_F2 = np.zeros_like(P_F1)
@@ -784,7 +792,7 @@ class Rattle:
 
                 # # solve for initial velocities and percussions of the bilateral
                 # # constraints for the fixed point iteration
-                # x = lu.solve(b)
+                # x = lu_A.solve(b)
                 # un1 = x[: self.nu]
                 # P_g2 = 2 * x[self.nu : self.nu + self.nla_g]
                 # P_gamma2 = 2 * x[self.nu + self.nla_g :]
@@ -839,7 +847,7 @@ class Rattle:
                 #         )
 
                 #         # solve for new velocities and Lagrange multipliers of bilateral constraints
-                #         x = lu.solve(b)
+                #         x = lu_A.solve(b)
                 #         un1 = x[: self.nu]
                 #         P_g2 = 2 * x[self.nu : self.nu + self.nla_g]
                 #         P_gamma2 = 2 * x[self.nu + self.nla_g :]
@@ -855,7 +863,8 @@ class Rattle:
 
                 z20 = self.z2n.copy()
                 for i2 in range(self.fix_point_max_iter):
-                    z2 = self.p2(z1, z20)
+                    # z2 = self.p2(z1, z20)
+                    z2 = self.p2(z1, z20, lu_A, b, W_N, W_F)
 
                     # convergence percussions
                     # error2 = self.fix_point_error_function(z2 - z20)
@@ -875,7 +884,6 @@ class Rattle:
                 i = i1 + i2
                 print(f"i: {i}, i1: {i1}, i2: {i2}")
 
-                qn1, un12, P_g1, P_gamma1 = np.array_split(self.x1, self.split_x1)
                 (
                     un1,
                     P_g2,
