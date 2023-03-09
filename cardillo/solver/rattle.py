@@ -178,7 +178,6 @@ class Rattle:
             [
                 self.nu,
                 self.nu + self.nla_g,
-                self.nu + self.nla_g + self.nla_gamma,
             ],
             dtype=int,
         )
@@ -190,6 +189,7 @@ class Rattle:
             )
         )
         self.x20 = self.x2.copy()
+        self.z2n = np.concatenate((self.la_Nn * dt, self.la_Fn * dt))
 
     def R(self, y, update_index=False):
         tn = self.tn
@@ -268,16 +268,16 @@ class Rattle:
         g_Nn1 = self.system.g_N(tn1, qn1)
         prox_arg = prox_r_N * g_Nn1 - P_N1
         if update_index:
-            self.I_Nn1 = prox_arg <= 0.0
+            self.I_N = prox_arg <= 0.0
 
-        R[self.split_y[6] : self.split_y[7]] = np.where(self.I_Nn1, g_Nn1, P_N1)
+        R[self.split_y[6] : self.split_y[7]] = np.where(self.I_N, g_Nn1, P_N1)
 
         ##################################################
         # mixed Singorini on velocity level and impact law
         ##################################################
         xi_Nn1 = self.system.xi_N(tn1, qn1, un, un1)
         R[self.split_y[7] : self.split_y[8]] = np.where(
-            self.I_Nn1,
+            self.I_N,
             P_N + prox_R0_nm(prox_r_N * xi_Nn1 - P_N),
             P_N,
         )
@@ -352,9 +352,9 @@ class Rattle:
         g_Nn1 = self.system.g_N(tn1, qn1)
         prox_arg = prox_r_N * g_Nn1 - P_N1
         if update_index:
-            self.I_Nn1 = prox_arg <= 0.0
+            self.I_N = prox_arg <= 0.0
 
-        R[self.split_y1[3] : self.split_y1[4]] = np.where(self.I_Nn1, g_Nn1, P_N1)
+        R[self.split_y1[3] : self.split_y1[4]] = np.where(self.I_N, g_Nn1, P_N1)
 
         ##############################
         # friction and tangent impacts
@@ -415,7 +415,7 @@ class Rattle:
         prox_r_N = self.system.prox_r_N(tn1, qn1)
         xi_Nn1 = self.system.xi_N(tn1, qn1, un, un1)
         R[self.split_y2[2] : self.split_y2[3]] = np.where(
-            self.I_Nn1,
+            self.I_N,
             P_N + prox_R0_nm(prox_r_N * xi_Nn1 - P_N),
             P_N,
         )
@@ -506,7 +506,7 @@ class Rattle:
 
         # fixed-point update normal direction
         prox_arg = P_N1 - (prox_r_N / self.dt) * self.system.g_N(tn1, qn1)
-        self.I_Nn1 = prox_arg >= 0
+        self.I_N = prox_arg >= 0
         P_N1 = prox_R0_np(prox_arg)  # Gauss-Seidel
         p1[: self.nla_N] = P_N1
         # z1[: self.nla_N] = prox_R0_np(prox_arg) # Jacobi
@@ -522,54 +522,26 @@ class Rattle:
 
         return p1
 
-    def f(self, x, P_N1, P_F1, P_N2, P_F2):
+    def F2(self, x2, P_N2, P_F2):
         tn = self.tn
         dt = self.dt
         tn1 = tn + dt
-        qn = self.qn
-        un = self.un
+
+        qn1, un12, _, _ = np.array_split(self.x1, self.split_x1)
         (
-            qn1,
-            un12,
             un1,
-            P_g1,
             P_g2,
-            P_gamma1,
             P_gamma2,
-        ) = np.array_split(x, self.split_x)
+        ) = np.array_split(x2, self.split_x2)
 
-        R = np.zeros_like(x)
-
-        ####################
-        # kinematic equation
-        ####################
-        R[: self.split_x[0]] = (
-            qn1
-            - qn
-            - 0.5
-            * dt
-            * (self.system.q_dot(tn, qn, un12) + self.system.q_dot(tn1, qn1, un12))
-        )
-
-        ########################
-        # euations of motion (1)
-        ########################
-        R[self.split_x[0] : self.split_x[1]] = self.system.M(
-            tn, qn, scipy_matrix=csr_matrix
-        ) @ (un12 - un) - 0.5 * (
-            dt * self.system.h(tn, qn, un12)
-            + self.system.W_g(tn, qn) @ P_g1
-            + self.system.W_gamma(tn, qn) @ P_gamma1
-            + self.system.W_N(tn, qn) @ P_N1
-            + self.system.W_F(tn, qn) @ P_F1
-        )
+        F2 = np.zeros_like(x2)
 
         ########################
         # euations of motion (2)
         ########################
-        R[self.split_x[1] : self.split_x[2]] = self.system.M(
-            tn1, qn1, scipy_matrix=csr_matrix
-        ) @ (un1 - un12) - 0.5 * (
+        F2[: self.split_x2[0]] = self.system.M(tn1, qn1, scipy_matrix=csr_matrix) @ (
+            un1 - un12
+        ) - 0.5 * (
             dt * self.system.h(tn1, qn1, un12)
             + self.system.W_g(tn1, qn1) @ P_g2
             + self.system.W_gamma(tn1, qn1) @ P_gamma2
@@ -580,41 +552,34 @@ class Rattle:
         #######################
         # bilateral constraints
         #######################
-        R[self.split_x[2] : self.split_x[3]] = self.system.g(tn1, qn1)
-        R[self.split_x[3] : self.split_x[4]] = self.system.g_dot(tn1, qn1, un1)
+        F2[self.split_x2[0] : self.split_x2[1]] = self.system.g_dot(tn1, qn1, un1)
 
-        R[self.split_x[4] : self.split_x[5]] = self.system.gamma(tn1, qn1, un12)
-        R[self.split_x[5] :] = self.system.gamma(tn1, qn1, un1)
+        F2[self.split_x2[1] :] = self.system.gamma(tn1, qn1, un1)
 
-        return R
+        return F2
 
-    def p(self, z0):
-        P_N1 = z0[: self.nla_N]
-        P_N_bar = z0[self.nla_N : 2 * self.nla_N]
-        P_F1 = z0[2 * self.nla_N : 2 * self.nla_N + self.nla_F]
-        P_F_bar = z0[2 * self.nla_N + self.nla_F :]
+    def p2(self, z1, z2):
+        P_N1 = z1[: self.nla_N]
+        P_F1 = z1[self.nla_N :]
+        P_N_bar = z2[: self.nla_N]
+        P_F_bar = z2[self.nla_N :]
         P_N2 = 2 * P_N_bar - P_N1
         P_F2 = 2 * P_F_bar - P_F1
 
-        self.x, converged, error, i, _ = fsolve(
-            self.f,
-            self.x.copy(),
+        self.x20 = self.x2.copy()
+
+        self.x2, converged, error, i, _ = fsolve(
+            self.F2,
+            self.x20,
             jac="2-point",
             eps=1e-6,
-            fun_args=(P_N1, P_F1, P_N2, P_F2),
-            jac_args=(P_N1, P_F1, P_N2, P_F2),
+            fun_args=(P_N2, P_F2),
+            jac_args=(P_N2, P_F2),
         )
         assert converged
 
-        (
-            qn1,
-            un12,
-            un1,
-            _,
-            _,
-            _,
-            _,
-        ) = np.array_split(self.x, self.split_x)
+        qn1, un12, _, _ = np.array_split(self.x1, self.split_x1)
+        un1, _, _ = np.array_split(self.x2, self.split_x2)
 
         tn1 = self.tn + self.dt
 
@@ -622,44 +587,31 @@ class Rattle:
         prox_r_F = self.system.prox_r_F(tn1, qn1)
         mu = self.system.mu
 
-        z = np.zeros_like(z0)
-
-        ###########
-        # Signorini
-        ###########
-        # prox_r_N /= self.dt
-        prox_arg = P_N1 - prox_r_N / self.dt * self.system.g_N(tn1, qn1)
-        self.I_N = prox_arg >= 0
-        z[: self.nla_N] = prox_R0_np(prox_arg)
+        p2 = np.zeros_like(z2)
 
         ##################################################
         # mixed Singorini on velocity level and impact law
         ##################################################
-        z[self.nla_N : 2 * self.nla_N] = np.where(
+        P_N_bar = np.where(
             self.I_N,
             prox_R0_np(P_N_bar - prox_r_N * self.system.xi_N(tn1, qn1, self.un, un1)),
             np.zeros(self.nla_N),
-            # P_N_bar,
         )
+        p2[: self.nla_N] = P_N_bar
 
         ##############################
         # friction and tangent impacts
         ##############################
-        gamma_F = self.system.gamma_F(tn1, qn1, un12)
         xi_F = self.system.xi_F(tn1, qn1, self.un, un1)
         for i_N, i_F in enumerate(self.system.NF_connectivity):
             if len(i_F):
-                z[2 * self.nla_N + np.array(i_F)] = prox_sphere(
-                    P_F1[i_F] - prox_r_F[i_N] * gamma_F[i_F],
-                    mu[i_N] * P_N1[i_N],
-                )
                 if self.I_N[i_N]:
-                    z[2 * self.nla_N + self.nla_F + np.array(i_F)] = prox_sphere(
+                    p2[self.nla_N + np.array(i_F)] = prox_sphere(
                         P_F_bar[i_F] - prox_r_F[i_N] * xi_F[i_F],
                         mu[i_N] * P_N_bar[i_N],
                     )
 
-        return z
+        return p2
 
     def solve(self):
         # lists storing output variables
@@ -764,149 +716,177 @@ class Rattle:
                         break
                     z10 = z1
 
-                P_N1 = z1[: self.nla_N]
-                P_F1 = z1[self.nla_N :]
+                # P_N1 = z1[: self.nla_N]
+                # P_F1 = z1[self.nla_N :]
 
-                qn1 = self.x1[: self.nq]
-                un12 = self.x1[self.nq : self.nq + self.nu]
-                P_g1 = self.x1[self.nq + self.nu : self.nq + self.nu + self.nla_g]
-                P_gamma1 = self.x1[self.nq + self.nu + self.nla_g :]
+                # qn1 = self.x1[: self.nq]
+                # un12 = self.x1[self.nq : self.nq + self.nu]
+                # P_g1 = self.x1[self.nq + self.nu : self.nq + self.nu + self.nla_g]
+                # P_gamma1 = self.x1[self.nq + self.nu + self.nla_g :]
 
                 #################
                 # second stage
                 #################
 
-                # get quantities from system
-                Mn = self.system.M(tn1, qn1)
-                h = self.system.h(tn1, qn1, un12)
-                W_g = self.system.W_g(tn1, qn1)
-                W_gamma = self.system.W_gamma(tn1, qn1)
-                chi_g = self.system.g_dot(tn1, qn1, np.zeros_like(un12))
-                chi_gamma = self.system.gamma(tn1, qn1, np.zeros_like(un12))
-                # note: we use csc_matrix for efficient column slicing later,
-                # see https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csc_array.html#scipy.sparse.csc_array
-                W_N = self.system.W_N(tn1, qn1, scipy_matrix=csc_matrix)
-                W_F = self.system.W_F(tn1, qn1, scipy_matrix=csc_matrix)
+                # # get quantities from system
+                # Mn = self.system.M(tn1, qn1)
+                # h = self.system.h(tn1, qn1, un12)
+                # W_g = self.system.W_g(tn1, qn1)
+                # W_gamma = self.system.W_gamma(tn1, qn1)
+                # chi_g = self.system.g_dot(tn1, qn1, np.zeros_like(un12))
+                # chi_gamma = self.system.gamma(tn1, qn1, np.zeros_like(un12))
+                # # note: we use csc_matrix for efficient column slicing later,
+                # # see https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csc_array.html#scipy.sparse.csc_array
+                # W_N = self.system.W_N(tn1, qn1, scipy_matrix=csc_matrix)
+                # W_F = self.system.W_F(tn1, qn1, scipy_matrix=csc_matrix)
 
-                I_N = self.I_Nn1
+                # I_N = self.I_N
 
-                # identify active tangent contacts based on active normal contacts and
-                # NF-connectivity lists
-                if np.any(I_N):
-                    I_F = np.array(
-                        [
-                            c
-                            for i, I_N_i in enumerate(I_N)
-                            for c in self.system.NF_connectivity[i]
-                            if I_N_i
-                        ],
-                        dtype=int,
+                # # identify active tangent contacts based on active normal contacts and
+                # # NF-connectivity lists
+                # if np.any(I_N):
+                #     I_F = np.array(
+                #         [
+                #             c
+                #             for i, I_N_i in enumerate(I_N)
+                #             for c in self.system.NF_connectivity[i]
+                #             if I_N_i
+                #         ],
+                #         dtype=int,
+                #     )
+                # else:
+                #     I_F = np.array([], dtype=int)
+
+                # A = bmat(
+                #     [
+                #         [Mn, -W_g, -W_gamma],
+                #         [-W_g.T, None, None],
+                #         [-W_gamma.T, None, None],
+                #     ],
+                #     format="csc",
+                # )
+
+                # lu = splu(A)
+
+                # # initial right hand side
+                # rhs = Mn @ un12 + 0.5 * self.dt * h
+                # P_N2 = np.zeros_like(P_N1)
+                # P_F2 = np.zeros_like(P_F1)
+
+                # # update rhs
+                # b = np.concatenate(
+                #     (
+                #         rhs + 0.5 * (W_N[:, I_N] @ P_N2[I_N] + W_F[:, I_F] @ P_F2[I_F]),
+                #         chi_g,
+                #         chi_gamma,
+                #     )
+                # )
+
+                # # solve for initial velocities and percussions of the bilateral
+                # # constraints for the fixed point iteration
+                # x = lu.solve(b)
+                # un1 = x[: self.nu]
+                # P_g2 = 2 * x[self.nu : self.nu + self.nla_g]
+                # P_gamma2 = 2 * x[self.nu + self.nla_g :]
+
+                # P_N_bar = np.zeros(self.nla_N, dtype=float)
+                # P_F_bar = np.zeros(self.nla_F, dtype=float)
+
+                # converged2 = True
+                # error2 = 0
+                # i2 = 0
+                # un_fixed_point = un12.copy()
+
+                # # only enter fixed-point loop if any contact is active
+                # if np.any(I_N):
+                #     # compute new estimates for prox parameters and get friction coefficient
+                #     prox_r_N = self.system.prox_r_N(tn1, qn1)
+                #     prox_r_F = self.system.prox_r_F(tn1, qn1)
+                #     mu = self.system.mu
+                #     converged2 = False
+                #     P_N_bar_i1 = P_N1.copy() + P_N2.copy()
+                #     P_F_bar_i1 = P_F1.copy() + P_F2.copy()
+                #     for i2 in range(self.fix_point_max_iter):
+
+                #         # fixed-point update normal direction
+                #         P_N_bar_i1[I_N] = prox_R0_np(
+                #             P_N_bar_i1[I_N]
+                #             - prox_r_N[I_N]
+                #             * self.system.xi_N(tn1, qn1, self.un, un1)[I_N]
+                #         )
+
+                #         # fixed-point update friction
+                #         xi_F = self.system.xi_F(tn1, qn1, self.un, un1)
+                #         for i_N, i_F in enumerate(self.system.NF_connectivity):
+                #             if I_N[i_N] and len(i_F):
+                #                 P_F_bar_i1[i_F] = prox_sphere(
+                #                     P_F_bar_i1[i_F] - prox_r_F[i_N] * xi_F[i_F],
+                #                     mu[i_N] * P_N_bar_i1[i_N],
+                #                 )
+
+                #         P_N2 = 2 * P_N_bar_i1 - P_N1
+                #         P_F2 = 2 * P_F_bar_i1 - P_F1
+
+                #         # update rhs
+                #         b = np.concatenate(
+                #             (
+                #                 rhs
+                #                 + 0.5
+                #                 * (W_N[:, I_N] @ P_N2[I_N] + W_F[:, I_F] @ P_F2[I_F]),
+                #                 chi_g,
+                #                 chi_gamma,
+                #             )
+                #         )
+
+                #         # solve for new velocities and Lagrange multipliers of bilateral constraints
+                #         x = lu.solve(b)
+                #         un1 = x[: self.nu]
+                #         P_g2 = 2 * x[self.nu : self.nu + self.nla_g]
+                #         P_gamma2 = 2 * x[self.nu + self.nla_g :]
+
+                #         # check for convergence
+                #         error2 = self.fix_point_error_function(un1 - un_fixed_point)
+                #         un_fixed_point = un1
+                #         converged2 = error2 < self.fix_point_tol
+                #         if converged2:
+                #             P_N_bar[I_N] = P_N_bar_i1[I_N]
+                #             P_F_bar[I_F] = P_F_bar_i1[I_F]
+                #             break
+
+                z20 = self.z2n.copy()
+                for i2 in range(self.fix_point_max_iter):
+                    z2 = self.p2(z1, z20)
+
+                    # convergence percussions
+                    # error2 = self.fix_point_error_function(z2 - z20)
+
+                    # convergence positions and velocities
+                    error2 = self.fix_point_error_function(
+                        self.x2[: self.nu] - self.x20[: self.nu]
                     )
-                else:
-                    I_F = np.array([], dtype=int)
 
-                A = bmat(
-                    [
-                        [Mn, -W_g, -W_gamma],
-                        [-W_g.T, None, None],
-                        [-W_gamma.T, None, None],
-                    ],
-                    format="csc",
-                )
-
-                lu = splu(A)
-
-                # initial right hand side
-                rhs = Mn @ un12 + 0.5 * self.dt * h
-                P_N2 = np.zeros_like(P_N1)
-                P_F2 = np.zeros_like(P_F1)
-
-                # update rhs
-                b = np.concatenate(
-                    (
-                        rhs + 0.5 * (W_N[:, I_N] @ P_N2[I_N] + W_F[:, I_F] @ P_F2[I_F]),
-                        chi_g,
-                        chi_gamma,
-                    )
-                )
-
-                # solve for initial velocities and percussions of the bilateral
-                # constraints for the fixed point iteration
-                x = lu.solve(b)
-                un1 = x[: self.nu]
-                P_g2 = 2 * x[self.nu : self.nu + self.nla_g]
-                P_gamma2 = 2 * x[self.nu + self.nla_g :]
-
-                P_N_bar = np.zeros(self.nla_N, dtype=float)
-                P_F_bar = np.zeros(self.nla_F, dtype=float)
-
-                converged2 = True
-                error2 = 0
-                i2 = 0
-                un_fixed_point = un12.copy()
-
-                # only enter fixed-point loop if any contact is active
-                if np.any(I_N):
-                    # compute new estimates for prox parameters and get friction coefficient
-                    prox_r_N = self.system.prox_r_N(tn1, qn1)
-                    prox_r_F = self.system.prox_r_F(tn1, qn1)
-                    mu = self.system.mu
-                    converged2 = False
-                    P_N_bar_i1 = P_N1.copy() + P_N2.copy()
-                    P_F_bar_i1 = P_F1.copy() + P_F2.copy()
-                    for i2 in range(self.fix_point_max_iter):
-
-                        # fixed-point update normal direction
-                        P_N_bar_i1[I_N] = prox_R0_np(
-                            P_N_bar_i1[I_N]
-                            - prox_r_N[I_N]
-                            * self.system.xi_N(tn1, qn1, self.un, un1)[I_N]
-                        )
-
-                        # fixed-point update friction
-                        xi_F = self.system.xi_F(tn1, qn1, self.un, un1)
-                        for i_N, i_F in enumerate(self.system.NF_connectivity):
-                            if I_N[i_N] and len(i_F):
-                                P_F_bar_i1[i_F] = prox_sphere(
-                                    P_F_bar_i1[i_F] - prox_r_F[i_N] * xi_F[i_F],
-                                    mu[i_N] * P_N_bar_i1[i_N],
-                                )
-
-                        P_N2 = 2 * P_N_bar_i1 - P_N1
-                        P_F2 = 2 * P_F_bar_i1 - P_F1
-
-                        # update rhs
-                        b = np.concatenate(
-                            (
-                                rhs
-                                + 0.5
-                                * (W_N[:, I_N] @ P_N2[I_N] + W_F[:, I_F] @ P_F2[I_F]),
-                                chi_g,
-                                chi_gamma,
-                            )
-                        )
-
-                        # solve for new velocities and Lagrange multipliers of bilateral constraints
-                        x = lu.solve(b)
-                        un1 = x[: self.nu]
-                        P_g2 = 2 * x[self.nu : self.nu + self.nla_g]
-                        P_gamma2 = 2 * x[self.nu + self.nla_g :]
-
-                        # check for convergence
-                        error2 = self.fix_point_error_function(un1 - un_fixed_point)
-                        un_fixed_point = un1
-                        converged2 = error2 < self.fix_point_tol
-                        if converged2:
-                            P_N_bar[I_N] = P_N_bar_i1[I_N]
-                            P_F_bar[I_F] = P_F_bar_i1[I_F]
-                            break
+                    converged2 = error2 < self.fix_point_tol
+                    if converged2:
+                        break
+                    z20 = z2
 
                 converged = converged1 and converged2
                 error = error1 + error2
                 i = i1 + i2
                 print(f"i: {i}, i1: {i1}, i2: {i2}")
 
+                qn1, un12, P_g1, P_gamma1 = np.array_split(self.x1, self.split_x1)
+                (
+                    un1,
+                    P_g2,
+                    P_gamma2,
+                ) = np.array_split(self.x2, self.split_x2)
+
+                P_N_bar = z2[: self.nla_N]
+                P_F_bar = z2[self.nla_N :]
+
                 P_gn1 = 0.5 * (P_g1 + P_g2)
+                P_gamman1 = 0.5 * (P_gamma1 + P_gamma2)
 
                 qn1, un1 = self.system.step_callback(tn1, qn1, un1)
 
@@ -923,7 +903,7 @@ class Rattle:
             q.append(qn1)
             u.append(un1)
             P_g.append(P_gn1)
-            # P_gamma.append(P_gamman1)
+            P_gamma.append(P_gamman1)
             P_N.append(P_N_bar)
             P_F.append(P_F_bar)
 
