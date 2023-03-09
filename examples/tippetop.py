@@ -6,7 +6,7 @@ from cardillo import System
 from cardillo.discrete import RigidBodyQuaternion, RigidBodyEuler
 from cardillo.math import axis_angle2quat, cross3, ax2skew, approx_fprime
 from cardillo.forces import Force
-from cardillo.solver import Moreau  # , Rattle
+from cardillo.solver import Moreau, Rattle
 
 
 class Sphere2PlaneCoulombContensouMoeller:
@@ -347,20 +347,19 @@ def run():
     t0 = 0
     # t1 = 8
     t_final = 2
-    dt = 1e-4
+    # t_final = 0.1
+    dt1 = 1e-4
+    dt2 = 1e-4
 
-    solver1, label1 = Moreau(system, t_final, dt, fix_point_tol=1e-6), "Moreau"
+    sol1, label1 = Rattle(system, t_final, dt1, atol=1e-8).solve(), "Rattle"
+    sol2, label2 = Moreau(system, t_final, dt2, fix_point_tol=1e-6).solve(), "Moreau"
 
-    solver2, label2 = Moreau(system, t_final, 2 * dt, fix_point_tol=1e-6), "Moreau"
-
-    sol1 = solver1.solve()
     t1 = sol1.t
     q1 = sol1.q
     u1 = sol1.u
     P_N1 = sol1.P_N
     P_F1 = sol1.P_F
 
-    sol2 = solver2.solve()
     t2 = sol2.t
     q2 = sol2.q
     u2 = sol2.u
@@ -370,38 +369,38 @@ def run():
     fig, ax = plt.subplots(2, 3)
 
     ax[0, 0].set_title("x(t)")
-    ax[0, 0].plot(t2, q2[:, 0], "-k", label=label2)
-    ax[0, 0].plot(t1, q1[:, 0], "--r", label=label1)
+    ax[0, 0].plot(t1, q1[:, 0], "-k", label=label1)
+    ax[0, 0].plot(t2, q2[:, 0], "--r", label=label2)
     ax[0, 0].grid()
     ax[0, 0].legend()
 
     ax[0, 1].set_title("y(t)")
-    ax[0, 1].plot(t2, q2[:, 1], "-k", label=label2)
-    ax[0, 1].plot(t1, q1[:, 1], "--r", label=label1)
+    ax[0, 1].plot(t1, q1[:, 1], "-k", label=label1)
+    ax[0, 1].plot(t2, q2[:, 1], "--r", label=label2)
     ax[0, 1].grid()
     ax[0, 1].legend()
 
     ax[0, 2].set_title("z(t)")
-    ax[0, 2].plot(t2, q2[:, 2], "-k", label=label2)
-    ax[0, 2].plot(t1, q1[:, 2], "--r", label=label1)
+    ax[0, 2].plot(t1, q1[:, 2], "-k", label=label1)
+    ax[0, 2].plot(t2, q2[:, 2], "--r", label=label2)
     ax[0, 2].grid()
     ax[0, 2].legend()
 
     ax[1, 0].set_title("u_x(t)")
-    ax[1, 0].plot(t2, u2[:, 0], "-k", label=label2)
-    ax[1, 0].plot(t1, u1[:, 0], "--r", label=label1)
+    ax[1, 0].plot(t1, u1[:, 0], "-k", label=label1)
+    ax[1, 0].plot(t2, u2[:, 0], "--r", label=label2)
     ax[1, 0].grid()
     ax[1, 0].legend()
 
     ax[1, 1].set_title("u_y(t)")
-    ax[1, 1].plot(t2, u2[:, 1], "-k", label=label2)
-    ax[1, 1].plot(t1, u1[:, 1], "--r", label=label1)
+    ax[1, 1].plot(t1, u1[:, 1], "-k", label=label1)
+    ax[1, 1].plot(t2, u2[:, 1], "--r", label=label2)
     ax[1, 1].grid()
     ax[1, 1].legend()
 
     ax[1, 2].set_title("u_z(t)")
-    ax[1, 2].plot(t2, u2[:, 2], "-k", label=label2)
-    ax[1, 2].plot(t1, u1[:, 2], "--r", label=label1)
+    ax[1, 2].plot(t1, u1[:, 2], "-k", label=label1)
+    ax[1, 2].plot(t2, u2[:, 2], "--r", label=label2)
     ax[1, 2].grid()
     ax[1, 2].legend()
 
@@ -422,38 +421,38 @@ def run():
         angles2[i] = Rotation.from_matrix(A_IK).as_euler("zxz")
 
     ax[0, 0].set_title("psi(t)")
-    ax[0, 0].plot(t2, angles2[:, 0], "-k", label=label2)
-    ax[0, 0].plot(t1, angles1[:, 0], "--r", label=label1)
+    ax[0, 0].plot(t1, angles1[:, 0], "-k", label=label1)
+    ax[0, 0].plot(t2, angles2[:, 0], "--r", label=label2)
     ax[0, 0].grid()
     ax[0, 0].legend()
 
     ax[0, 1].set_title("theta(t)")
-    ax[0, 1].plot(t2, angles2[:, 1], "-k", label=label2)
-    ax[0, 1].plot(t1, angles1[:, 1], "--r", label=label1)
+    ax[0, 1].plot(t1, angles1[:, 1], "-k", label=label1)
+    ax[0, 1].plot(t2, angles2[:, 1], "--r", label=label2)
     ax[0, 1].grid()
     ax[0, 1].legend()
 
     ax[0, 2].set_title("phi(t)")
-    ax[0, 2].plot(t2, angles2[:, 2], "-k", label=label2)
-    ax[0, 2].plot(t1, angles1[:, 2], "--r", label=label1)
+    ax[0, 2].plot(t1, angles1[:, 2], "-k", label=label1)
+    ax[0, 2].plot(t2, angles2[:, 2], "--r", label=label2)
     ax[0, 2].legend()
     ax[0, 2].grid()
 
     ax[1, 0].set_title("omega1(t)")
-    ax[1, 0].plot(t2, u2[:, 3], "-k", label=label2)
-    ax[1, 0].plot(t1, u1[:, 3], "--r", label=label1)
+    ax[1, 0].plot(t1, u1[:, 3], "-k", label=label1)
+    ax[1, 0].plot(t2, u2[:, 3], "--r", label=label2)
     ax[1, 0].legend()
     ax[1, 0].grid()
 
     ax[1, 1].set_title("omega2(t)")
-    ax[1, 1].plot(t2, u2[:, 4], "-k", label=label2)
-    ax[1, 1].plot(t1, u1[:, 4], "--r", label=label1)
+    ax[1, 1].plot(t1, u1[:, 4], "-k", label=label1)
+    ax[1, 1].plot(t2, u2[:, 4], "--r", label=label2)
     ax[1, 1].grid()
     ax[1, 1].legend()
 
     ax[1, 2].set_title("omega3(t)")
-    ax[1, 2].plot(t2, u2[:, 5], "-k", label=label2)
-    ax[1, 2].plot(t1, u1[:, 5], "--r", label=label1)
+    ax[1, 2].plot(t1, u1[:, 5], "-k", label=label1)
+    ax[1, 2].plot(t2, u2[:, 5], "--r", label=label2)
     ax[1, 2].grid()
     ax[1, 2].legend()
 
@@ -462,26 +461,26 @@ def run():
     fig, ax = plt.subplots(4)
 
     ax[0].set_title("P_N(t)")
-    ax[0].plot(t2, P_N2[:, 0], "-k", label=label2)
-    ax[0].plot(t1, P_N1[:, 0], "--r", label=label1)
+    ax[0].plot(t1, P_N1[:, 0], "-k", label=label1)
+    ax[0].plot(t2, P_N2[:, 0], "--r", label=label2)
     ax[0].grid()
     ax[0].legend()
 
     ax[1].set_title("P_Fx(t)")
-    ax[1].plot(t2, P_F2[:, 0], "-k", label=label2)
-    ax[1].plot(t1, P_F1[:, 0], "--r", label=label1)
+    ax[1].plot(t1, P_F1[:, 0], "-k", label=label1)
+    ax[1].plot(t2, P_F2[:, 0], "--r", label=label2)
     ax[1].grid()
     ax[1].legend()
 
     ax[2].set_title("P_Fy(t)")
-    ax[2].plot(t2, P_F2[:, 1], "-k", label=label2)
-    ax[2].plot(t1, P_F1[:, 1], "--r", label=label1)
+    ax[2].plot(t1, P_F1[:, 1], "-k", label=label1)
+    ax[2].plot(t2, P_F2[:, 1], "--r", label=label2)
     ax[2].grid()
     ax[2].legend()
 
     ax[3].set_title("P_drill(t)")
-    ax[3].plot(t2, P_F2[:, 2], "-k", label=label2)
-    ax[3].plot(t1, P_F1[:, 2], "--r", label=label1)
+    ax[3].plot(t1, P_F1[:, 2], "-k", label=label1)
+    ax[3].plot(t2, P_F2[:, 2], "--r", label=label2)
     ax[3].grid()
     ax[3].legend()
 
