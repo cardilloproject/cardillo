@@ -1116,7 +1116,7 @@ def run_DAE():
 
     # approx. two crank revolutions
     t_final = 7 * np.pi / 150
-    # t_final *= 0.1
+    t_final *= 0.1
     dt1 = 5e-4  # Rattle
     dt2 = 1e-5  # Moreau
 
