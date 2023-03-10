@@ -329,6 +329,7 @@ class Moreau_new:
         atol=1e-8,
         max_iter=100,
         error_function=lambda x: np.max(np.abs(x)),
+        continue_with_unconverged=True,
     ):
         self.system = system
 
@@ -343,6 +344,7 @@ class Moreau_new:
         self.fix_point_error_function = error_function
         self.atol = atol
         self.max_iter = max_iter
+        self.continue_with_unconverged = continue_with_unconverged
 
         self.nq = self.system.nq
         self.nu = self.system.nu
@@ -463,18 +465,11 @@ class Moreau_new:
                   [-W_gamma.T, None,     None]], format="csc")
         # fmt: on
 
-        # # TODO: Discuss this tests for damping with stiffness matrix.
-        # beta = 5.0e-6
-        # K = -beta * self.system.h_q(tk1, qk1, uk) @ self.system.B(tk1, qk1)
-        # A = bmat([[         M + K, -W_g, -W_gamma], \
-        #           [    -W_g.T, None,     None], \
-        #           [-W_gamma.T, None,     None]], format="csc")
-
         # perform LU decomposition only once since matrix A is constant in
         # each time step saves alot work in the fixed point iteration
         lu_A = splu(A)
 
-        # initial right hand side
+        # initial right hand side without contact forces
         b = np.concatenate(
             (
                 M @ un + dt * h,
@@ -516,7 +511,7 @@ class Moreau_new:
                 # check for convergence of percussions
                 # error = self.fix_point_error_function(z - z0)
 
-                # check for convergence of percussions
+                # check for convergence of velocities
                 error = self.fix_point_error_function(
                     self.x[: self.nu] - self.x0[: self.nu]
                 )
@@ -557,12 +552,14 @@ class Moreau_new:
                 f"t: {tn1:0.2e}; fixed-point iterations: {j+1}; error: {error:.3e}"
             )
             if not converged:
-                # raise RuntimeError(
-                #     f"fixed-point iteration not converged after {j+1} iterations with error: {error:.5e}"
-                # )
-                print(
-                    f"fixed-point iteration not converged after {j+1} iterations with error: {error:.5e}"
-                )
+                if self.continue_with_unconverged:
+                    print(
+                        f"fixed-point iteration not converged after {j+1} iterations with error: {error:.5e}"
+                    )
+                else:
+                    raise RuntimeError(
+                        f"fixed-point iteration not converged after {j+1} iterations with error: {error:.5e}"
+                    )
 
             qn1, un1 = self.system.step_callback(tn1, qn1, un1)
 
