@@ -28,7 +28,8 @@ def approx_fprime(x0, f, eps=1.0e-12, method="cs"):
 
     References:
     ----------
-    scipy: https://github.com/scipy/scipy/blob/4cf21e753cf937d1c6c2d2a0e372fbc1dbbeea81/scipy/optimize/_numdiff.py#L275."""
+    scipy: https://github.com/scipy/scipy/blob/4cf21e753cf937d1c6c2d2a0e372fbc1dbbeea81/scipy/optimize/_numdiff.py#L275.
+    """
     warnings.warn(
         "'approx_fprime' is used. Be careful since this can be a performance drawback."
     )

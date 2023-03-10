@@ -106,7 +106,6 @@ class FirstGradient:
                     )  # Bonet 1997 (7.6b)
 
         if return_strain == False:
-
             F_vtk = self.mesh.field_to_vtk(F)
             point_data.update({"F": F_vtk})
 

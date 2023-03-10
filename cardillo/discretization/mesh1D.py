@@ -441,7 +441,7 @@ class MultifieldMesh1D:
 
         # build simple mesh for each field
         self.meshes = []
-        for (kv, dim_q, dim_u, derivative_order, basis_function) in zip(
+        for kv, dim_q, dim_u, derivative_order, basis_function in zip(
             knot_vectors, dim_qs, dim_us, derivative_orders, basis_functions
         ):
             self.meshes.append(

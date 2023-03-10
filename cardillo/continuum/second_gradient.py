@@ -434,7 +434,6 @@ class SecondGradient:
                 We[el, i] = self.mat.We(F[el, i], G[el, i])
 
         if return_strain == False:
-
             F_vtk = self.mesh.field_to_vtk(F)
             G_vtk = self.mesh.field_to_vtk(G)
             point_data.update({"F": F_vtk, "G": G_vtk})
@@ -543,7 +542,6 @@ class SecondGradient:
     def post_processing_la_single_configuration(
         self, t, la_mesh, la, q, z_range, filename, binary=True
     ):
-
         la_q = self.z(t, q)[z_range]
 
         # generalized coordinates, connectivity and polynomial degree

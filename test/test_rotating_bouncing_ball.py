@@ -218,7 +218,6 @@ def run(case):
     COM, bdry, d1_, d2_ = create(0, q[0])
 
     def update(t, q, COM, bdry, d1_, d2_):
-
         x_S, y_S, _ = RB.r_OP(t, q)
 
         x_bdry, y_bdry, _ = RB.boundary(t, q)

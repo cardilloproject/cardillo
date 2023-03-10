@@ -6,7 +6,7 @@ from cardillo import System
 from cardillo.discrete import RigidBodyQuaternion, RigidBodyEuler
 from cardillo.math import axis_angle2quat, cross3, ax2skew, approx_fprime
 from cardillo.forces import Force
-from cardillo.solver import Moreau, Rattle
+from cardillo.solver import Moreau, Rattle, Moreau_new
 
 
 class Sphere2PlaneCoulombContensouMoeller:
@@ -351,7 +351,8 @@ def run():
     dt1 = 1e-4
     dt2 = 1e-4
 
-    sol1, label1 = Rattle(system, t_final, dt1, atol=1e-8).solve(), "Rattle"
+    # sol1, label1 = Rattle(system, t_final, dt1, atol=1e-8).solve(), "Rattle"
+    sol1, label1 = Moreau_new(system, t_final, dt2, atol=1e-6).solve(), "Moreau_new"
     sol2, label2 = Moreau(system, t_final, dt2, fix_point_tol=1e-6).solve(), "Moreau"
 
     t1 = sol1.t

@@ -99,7 +99,6 @@ system.assemble()
 
 
 def show_animation(top, t, q, scale=1, show=False):
-
     fig = plt.figure()
     ax = fig.add_subplot(111, projection="3d")
 

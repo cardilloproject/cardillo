@@ -28,7 +28,6 @@ class GenAlphaFirstOrderGGL2_V1:
         unknowns="velocities",
         # unknowns="auxiliary",
     ):
-
         self.model = model
         self.unknowns = unknowns
 
@@ -579,7 +578,6 @@ class GenAlphaFirstOrderGGL2_V2:
         # unknowns="velocities",
         unknowns="auxiliary",
     ):
-
         self.model = model
         self.unknowns = unknowns
 
@@ -1162,7 +1160,6 @@ class GenAlphaFirstOrderGGL2_V3:
         unknowns="velocities",
         # unknowns="auxiliary",
     ):
-
         self.model = model
         self.unknowns = unknowns
         assert unknowns in [
@@ -1658,7 +1655,6 @@ class GeneralizedAlphaFirstOrderGGLGiuseppe:
         # numerical_jacobian=False,
         numerical_jacobian=True,
     ):
-
         self.model = model
 
         #######################################################################
@@ -2237,7 +2233,6 @@ class GeneralizedAlphaFirstOrder:
         # # GGL=True,
         GGL=0,
     ):
-
         self.model = model
         assert DAE_index >= 1 and DAE_index <= 3, "DAE_index hast to be in [1, 3]!"
         self.DAE_index = DAE_index
@@ -3047,7 +3042,6 @@ class GeneralizedAlphaSecondOrder:
         preconditioning=False,
         GGL=False,
     ):
-
         self.model = model
         self.GGL = GGL
 

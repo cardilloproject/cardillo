@@ -25,6 +25,7 @@ class Rattle:
         method="Newton_decoupled",
         # method="Newton_full",
         # method="fixed_point",
+        continue_with_unconverged=False,
     ):
         """
         Nonsmooth extension of RATTLE.
@@ -35,6 +36,7 @@ class Rattle:
         self.fix_point_error_function = error_function
         self.fix_point_tol = fix_point_tol
         self.fix_point_max_iter = fix_point_max_iter
+        self.continue_with_unconverged = continue_with_unconverged
 
         # integration time
         t0 = system.t0
@@ -629,6 +631,8 @@ class Rattle:
             self.x10,
             jac="2-point",
             eps=1e-6,
+            atol=self.atol,
+            max_iter=self.max_iter,
             fun_args=(P_N1, P_F1),
             jac_args=(P_N1, P_F1),
         )
@@ -787,6 +791,7 @@ class Rattle:
                     # jac="3-point",  # TODO: keep this, otherwise sinuglairites arise
                     eps=1.0e-6,
                     atol=self.atol,
+                    max_iter=self.max_iter,
                     fun_args=(True,),
                     jac_args=(False,),
                 )
@@ -806,6 +811,7 @@ class Rattle:
                     jac="3-point",  # TODO: keep this, otherwise sinuglairites arise
                     eps=1.0e-6,
                     atol=self.atol,
+                    max_iter=self.max_iter,
                 )
 
                 un1, P_g2, P_gamma2, P_N2, P_F2 = np.array_split(y2, self.split_y2)
@@ -828,6 +834,7 @@ class Rattle:
                     jac="3-point",  # TODO: keep this, otherwise sinuglairites arise
                     eps=1.0e-6,
                     atol=self.atol,
+                    max_iter=self.max_iter,
                     fun_args=(True,),
                     jac_args=(False,),
                 )
@@ -852,6 +859,9 @@ class Rattle:
                 P_F_bar = 0.5 * (P_F1 + P_F2)
 
                 qn1, un1 = self.system.step_callback(tn1, qn1, un1)
+
+                i1, i2 = i, "-"
+                error1, error2 = error, np.nan
 
             elif self.method == "fixed_point":
                 z10 = self.z1n.copy()
@@ -949,12 +959,18 @@ class Rattle:
             else:
                 raise NotImplementedError
 
-            pbar.set_description(f"t: {tn1:0.2e}; step: {i+1}; error: {error:.3e}")
+            pbar.set_description(
+                f"t: {tn1:0.2e}; step: {i1},{i2}; error: {error1:.3e}, {error2:.3e}"
+            )
             if not converged:
-                # raise RuntimeError(
-                print(
-                    f"step is not converged after {i+1} iterations with error: {error:.5e}"
-                )
+                if self.continue_with_unconverged:
+                    print(
+                        f"step is not converged after i1: {i1}, i2: {i2} iterations with error:  err1 = {error1:.3e}, err2 = {error2:.3e}"
+                    )
+                else:
+                    raise RuntimeError(
+                        f"step is not converged after i1: {i1}, i2: {i2} iterations with error:  err1 = {error1:.3e}, err2 = {error2:.3e}"
+                    )
 
             q.append(qn1.copy())
             u.append(un1.copy())

@@ -1,6 +1,7 @@
 import numpy as np
 from cardillo.math.algebra import det, inv
 
+
 # TODO: F_qp nur einmal berechnen
 class Incompressibility:
     def __init__(self, subsystem, la_mesh):
