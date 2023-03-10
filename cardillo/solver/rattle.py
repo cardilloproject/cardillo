@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.sparse.linalg import spsolve, splu
-from scipy.sparse import csr_matrix, csc_matrix, bmat, eye
+from scipy.sparse import csr_matrix, csc_matrix, lil_matrix, bmat, eye, diags
 from tqdm import tqdm
 
 from cardillo.math.prox import prox_R0_nm, prox_R0_np, prox_sphere
@@ -10,6 +10,7 @@ from cardillo.solver import Solution, consistent_initial_conditions
 import warnings
 
 
+# TODO: Keep prox_r_N constant during each Newton-iteration since it is an expensive expression!
 class Rattle:
     def __init__(
         self,
@@ -372,6 +373,145 @@ class Rattle:
 
         return R
 
+    def J1(self, y1, *args, **kwargs):
+        tn = self.tn
+        qn = self.qn
+        un = self.un
+        h = self.dt
+        tn1 = tn + h
+
+        qn1, un12, P_g1, P_gamma1, P_N1, P_F1 = np.array_split(y1, self.split_y1)
+
+        ####################
+        # kinematic equation
+        ####################
+        Rq_q = eye(self.nq) - (0.5 * h) * self.system.q_dot_q(tn1, qn1, un12)
+        Rq_u = -(0.5 * h) * (self.system.B(tn, qn) + self.system.B(tn1, qn1))
+
+        ########################
+        # euations of motion (1)
+        ########################
+        # TODO: Compute generalized force directions in advance and pass them
+        #       as function kwargs. Same holds for the mass matrix.
+        M = self.system.M(tn, qn)
+        W_g = self.system.W_g(tn, qn)
+        W_gamma = self.system.W_gamma(tn, qn)
+        W_N = self.system.W_N(tn, qn)
+        W_F = self.system.W_F(tn, qn)
+
+        Ru_u = M - 0.5 * h * self.system.h_u(tn, qn, un12)
+
+        #######################
+        # bilateral constraints
+        #######################
+        Rla_g_q = self.system.g_q(tn1, qn1)
+        Rla_gamma_q = self.system.gamma_q(tn1, qn1, un12)
+        Rla_gamma_u = self.system.W_gamma(tn1, qn1).T
+
+        ###########
+        # Signorini
+        ###########
+        if np.any(self.I_N):
+            # note: csr_matrix is best for row slicing, see
+            # (https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csr_matrix.html#scipy.sparse.csr_matrix)
+            g_N_q = self.system.g_N_q(tn1, qn1, scipy_matrix=csr_matrix)
+
+        Rla_N_q = lil_matrix((self.nla_N, self.nq))
+        Rla_N_la_N = lil_matrix((self.nla_N, self.nla_N))
+        # TODO: Can we use np.where here?
+        for i in range(self.nla_N):
+            if self.I_N[i]:
+                Rla_N_q[i] = g_N_q[i]
+            else:
+                Rla_N_la_N[i, i] = 1.0
+
+        ##############################
+        # friction and tangent impacts
+        ##############################
+        # TODO: Keep prox_r_F constant during each Newton iteration since it is an expensive expression.
+        # if np.any(self.I_N):
+        mu = self.system.mu
+        prox_r_F = self.system.prox_r_F(tn1, qn1)
+        gamma_F = self.system.gamma_F(tn1, qn1, un12)
+
+        # note: csr_matrix is best for row slicing, see
+        # (https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csr_matrix.html#scipy.sparse.csr_matrix)
+        gamma_F_q = self.system.gamma_F_q(tn1, qn1, un12, scipy_matrix=csr_matrix)
+
+        # note: we use csc_matrix sicne its transpose is a csr_matrix that is best for row slicing, see,
+        # (https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csr_matrix.html#scipy.sparse.csr_matrix)
+        gamma_F_u = self.system.W_F(tn1, qn1, scipy_matrix=csc_matrix).T
+
+        Rla_F_q = lil_matrix((self.nla_F, self.nq))
+        Rla_F_u = lil_matrix((self.nla_F, self.nu))
+        Rla_F_la_N = lil_matrix((self.nla_F, self.nla_N))
+        Rla_F_la_F = lil_matrix((self.nla_F, self.nla_F))
+
+        for i_N, i_F in enumerate(self.system.NF_connectivity):
+            i_F = np.array(i_F)
+            n_F = len(i_F)
+            if n_F > 0:
+                P_Ni = P_N1[i_N]
+                P_Fi = P_F1[i_F]
+                gamma_Fi = gamma_F[i_F]
+                arg_F = prox_r_F[i_F] * gamma_Fi - P_Fi
+                mui = mu[i_N]
+                radius = mui * P_Ni
+                norm_arg_F = np.linalg.norm(arg_F)
+
+                if norm_arg_F <= radius:
+                    Rla_F_q[i_F] = diags(prox_r_F[i_F]) @ gamma_F_q[i_F]
+                    Rla_F_u[i_F] = diags(prox_r_F[i_F]) @ gamma_F_u[i_F]
+                else:
+                    if norm_arg_F > 0:
+                        slip_dir = arg_F / norm_arg_F
+                        factor = np.eye(n_F) - np.outer(slip_dir, slip_dir)
+                        Rla_F_q[i_F] = (
+                            radius * factor @ diags(prox_r_F[i_F]) @ gamma_F_q[i_F]
+                        )
+                        Rla_F_u[i_F] = (
+                            radius * factor @ diags(prox_r_F[i_F]) @ gamma_F_u[i_F]
+                        )
+                        Rla_F_la_N[i_F[:, None], i_N] = mui * slip_dir
+                        Rla_F_la_F[i_F[:, None], i_F] = np.eye(n_F) - radius * factor
+                    else:
+                        slip_dir = arg_F
+                        Rla_F_q[i_F] = radius * diags(prox_r_F[i_F]) @ gamma_F_q[i_F]
+                        Rla_F_u[i_F] = radius * diags(prox_r_F[i_F]) @ gamma_F_u[i_F]
+                        Rla_F_la_N[i_F[:, None], i_N] = mui * slip_dir
+                        Rla_F_la_F[i_F[:, None], i_F] = (1 - radius) * eye(n_F)
+
+        # fmt: off
+        J1 = bmat(
+            [
+                [Rq_q, Rq_u, None, None, None, None],
+                [None, Ru_u, -0.5 * -W_g, -0.5 * W_gamma, -0.5 * W_N, -0.5 * W_F],
+                [Rla_g_q, None, None, None, None, None],
+                [Rla_gamma_q, Rla_gamma_u, None, None, None, None],
+                [Rla_N_q, None, None, None, Rla_N_la_N, None],
+                [Rla_F_q, Rla_F_u, None, None, Rla_F_la_N, Rla_F_la_F],
+            ],
+            format="csr",
+        )
+        # fmt: on
+
+        return J1
+
+        J1_num = csr_matrix(approx_fprime(y1, self.R1, method="3-point", eps=1e-6))
+
+        diff = (J1 - J1_num).toarray()
+        # diff = diff[:self.split_y1[0]]
+        # diff = diff[self.split_y1[0]:self.split_y1[1]]
+        # diff = diff[self.split_y1[1]:self.split_y1[2]]
+        # diff = diff[self.split_y1[2]:self.split_y1[3]]
+        # diff = diff[self.split_y1[3]:self.split_y1[4]]
+        diff = diff[self.split_y1[4] :]
+        error = np.linalg.norm(diff)
+        if error > 1.0e-6:
+            print(f"error J1: {error}")
+
+        return J1_num
+
     def R2(self, y2):
         tn = self.tn
         un = self.un
@@ -643,7 +783,8 @@ class Rattle:
                 y1, converged1, error1, i1, _ = fsolve(
                     self.R1,
                     self.y1n,
-                    jac="3-point",  # TODO: keep this, otherwise sinuglairites arise
+                    jac=self.J1,
+                    # jac="3-point",  # TODO: keep this, otherwise sinuglairites arise
                     eps=1.0e-6,
                     atol=self.atol,
                     fun_args=(True,),
