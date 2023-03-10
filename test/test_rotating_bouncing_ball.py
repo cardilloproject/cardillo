@@ -12,6 +12,7 @@ from cardillo.solver import (
     Moreau,
     NonsmoothGeneralizedAlpha,
     Rattle,
+    Moreau_new
 )
 
 
@@ -94,8 +95,9 @@ def run(case):
     system.assemble()
 
     # solver1, label1 = NonsmoothGeneralizedAlpha(system, t_final, dt, method="newton"), "Gen-alpha"
-    solver1, label1 = Rattle(system, t_final, dt), "Rattle"
+    # solver1, label1 = Rattle(system, t_final, dt), "Rattle"
     # solver1, label1 = Moreau(system, t_final, dt), "Moreau"
+    solver1, label1 = Moreau_new(system, t_final, dt), "Moreau_new"
 
     sol1 = solver1.solve()
     t1 = sol1.t
@@ -250,7 +252,7 @@ def run(case):
 
 
 if __name__ == "__main__":
-    # run(1)
+    run(1)
     # run(2)
     # run(3)
-    run(4)
+    # run(4)

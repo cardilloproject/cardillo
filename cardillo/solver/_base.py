@@ -16,6 +16,11 @@ def consistent_initial_conditions(system, rtol=1.0e-5, atol=1.0e-8):
     W_gamma0 = system.W_gamma(t0, q0, scipy_matrix=coo_matrix)
     zeta_g0 = system.zeta_g(t0, q0, u0)
     zeta_gamma0 = system.zeta_gamma(t0, q0, u0)
+
+    la_N0 = system.la_N0
+    la_F0 = system.la_F0
+    W_N0 = system.W_N(t0, q0, scipy_matrix=coo_matrix)
+    W_F0 = system.W_F(t0, q0, scipy_matrix=coo_matrix)
     # fmt: off
     A = bmat(
         [
@@ -26,7 +31,7 @@ def consistent_initial_conditions(system, rtol=1.0e-5, atol=1.0e-8):
         format="csc",
     )
     b = np.concatenate([
-        h0, 
+        h0 + W_N0 @ la_N0 + W_F0 @ la_F0, 
         -zeta_g0, 
         -zeta_gamma0
     ])

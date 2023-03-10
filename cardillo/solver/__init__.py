@@ -7,7 +7,7 @@ from ._base import consistent_initial_conditions
 # dynamic solvers
 from .scipy_ivp import ScipyIVP
 from .radau import RadauIIa
-from .moreau import Moreau, NonsmoothBackwardEulerDecoupled
+from .moreau import Moreau, NonsmoothBackwardEulerDecoupled, Moreau_new
 from .euler_backward import EulerBackward
 
 from .generalized_alpha import (
