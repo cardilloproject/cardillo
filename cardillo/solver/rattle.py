@@ -10,7 +10,11 @@ from cardillo.solver import Solution, consistent_initial_conditions
 import warnings
 
 
-# TODO: Keep prox_r_N constant during each Newton-iteration since it is an expensive expression!
+# TODO:
+# - Keep prox_r_N constant during each Newton-iteration since it is an expensive expression!
+# - Improve Jacobian by passing evaluated quantities depending on (tn, qn, un)
+# - Recycle already computed quantities of the LGS of step 2
+# - Implement iteration matrix for step 2
 class Rattle:
     def __init__(
         self,
