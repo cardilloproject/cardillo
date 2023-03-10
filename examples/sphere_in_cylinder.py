@@ -8,11 +8,7 @@ from cardillo.discrete import RigidBodyEuler
 from cardillo.discrete import Frame
 from cardillo.forces import Force
 from cardillo.contacts import SphereInSphere
-from cardillo.solver import (
-    Moreau,
-    NonsmoothBackwardEulerDecoupled,
-    Rattle
-)
+from cardillo.solver import Moreau, NonsmoothBackwardEulerDecoupled, Rattle
 
 
 class Ball(RigidBodyEuler):
@@ -160,12 +156,11 @@ if __name__ == "__main__":
     ax[1].legend()
 
     plt.tight_layout()
-    
+
     if not animate:
         plt.show()
 
     if animate:
-
         # animate configurations
         fig = plt.figure()
         ax = fig.add_subplot(111)
@@ -224,7 +219,6 @@ if __name__ == "__main__":
         def update(
             t, q_n, q_fp, COM_n, bdry_n, d1_n, d2_n, COM_fp, bdry_fp, d1_fp, d2_fp
         ):
-
             x_S, y_S, _ = RB.r_OP(t, q_n)
 
             x_bdry, y_bdry, _ = RB.boundary(t, q_n)

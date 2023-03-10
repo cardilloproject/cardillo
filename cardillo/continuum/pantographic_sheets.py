@@ -626,7 +626,6 @@ class Dummy_pantograph(Pantographic_sheet):
 
             # internal forces
             for a in range(self.nn_el):
-
                 # delta rho_s
                 rho1_q = N_Theta[a, 0] * e1
                 rho2_q = N_Theta[a, 1] * e2

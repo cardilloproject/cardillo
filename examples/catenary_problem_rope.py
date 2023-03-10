@@ -23,7 +23,6 @@ case = "statics"
 
 # TODO: add inextensibility constraint and compare solution with catenary
 if __name__ == "__main__":
-
     # rope parameters
     g = 9.81  # gravity constant
     L = 3.14  # reference length rope

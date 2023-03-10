@@ -1,5 +1,6 @@
 import numpy as np
 
+
 # special cases of the smooth step function,
 # see https://en.wikipedia.org/wiki/Smoothstep#Generalization_to_higher-order_equations
 def smoothstep0(x, x_min=0, x_max=1):

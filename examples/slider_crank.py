@@ -141,7 +141,6 @@ class SliderCrankFlores:
         coo.extend(self.M_dense(t, q), (self.uDOF, self.uDOF))
 
     def Mu_q(self, t, q, u, coo):
-
         M_q = np.zeros((3, 3, 3))
 
         theta1, theta2, theta3 = q
@@ -1126,7 +1125,7 @@ def run_DAE():
         "Moreau",
     )
     sol2, label2 = (
-        Moreau_new(system, t_final, dt2, fix_point_max_iter=5000).solve(),
+        Moreau_new(system, t_final, dt2, max_iter=5000).solve(),
         "Moreau",
     )
 

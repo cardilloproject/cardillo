@@ -8,7 +8,6 @@ from cardillo.solver import RadauIIa, EulerBackward
 from cardillo.utility import Export
 
 if __name__ == "__main__":
-
     l = 1
     w = 2
     h = 3

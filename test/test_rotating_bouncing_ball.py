@@ -8,12 +8,7 @@ from cardillo.discrete import RigidBodyEuler
 from cardillo.discrete import Frame
 from cardillo.forces import Force
 from cardillo.contacts import Sphere2Plane
-from cardillo.solver import (
-    Moreau,
-    NonsmoothGeneralizedAlpha,
-    Rattle,
-    Moreau_new
-)
+from cardillo.solver import Moreau, NonsmoothGeneralizedAlpha, Rattle, Moreau_new
 
 
 class Ball(RigidBodyEuler):
@@ -223,7 +218,6 @@ def run(case):
     COM, bdry, d1_, d2_ = create(0, q[0])
 
     def update(t, q, COM, bdry, d1_, d2_):
-
         x_S, y_S, _ = RB.r_OP(t, q)
 
         x_bdry, y_bdry, _ = RB.boundary(t, q)
@@ -252,7 +246,7 @@ def run(case):
 
 
 if __name__ == "__main__":
-    run(1)
+    # run(1)
     # run(2)
     # run(3)
-    # run(4)
+    run(4)

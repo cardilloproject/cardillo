@@ -1,6 +1,7 @@
 import numpy as np
 from cardillo.math.algebra import cross3, ax2skew
 
+
 # TODO: Derive linear guidance from this joint by removing the third constraint.
 class PrismaticJoint:
     def __init__(

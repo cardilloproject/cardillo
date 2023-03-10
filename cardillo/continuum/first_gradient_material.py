@@ -403,7 +403,6 @@ class Pantobox_linear:
             J = sqrt(np.prod(La))
             W_La = np.zeros(len(La))
             for i in range(len(La)):
-
                 for k in range(len(self.mu)):
                     W_La[i] += (
                         self.mu[k]
@@ -419,7 +418,6 @@ class Pantobox_linear:
             J = sqrt(np.prod(La))
             W_La_La = np.zeros((len(La), len(La)))
             for i in range(len(La)):
-
                 for k in range(len(self.mu)):
                     W_La_La[i, i] += (
                         self.mu[k]

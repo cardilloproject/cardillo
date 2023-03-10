@@ -314,7 +314,6 @@ def VTK_LAGRANGE_WEDGE():
 
 
 def VTK_BEZIER_WEDGE_cylinder():
-
     s33 = np.sqrt(3) / 3
 
     h = 3
@@ -373,7 +372,6 @@ def VTK_BEZIER_WEDGE_cylinder():
 
 
 def VTK_BEZIER_HEXAHEDRON_cylinder(radius=1):
-
     s22 = np.sqrt(2) / 2
 
     vertices = [
@@ -440,7 +438,6 @@ def VTK_BEZIER_HEXAHEDRON_cylinder(radius=1):
 
 
 def VTK_BEZIER_HEXAHEDRON_quarter_torous():
-
     phis = np.linspace(0, 1, num=4) * np.pi / 2
     A_IKs = np.array([A_IK_basic(phi).z() for phi in phis])
 
@@ -522,7 +519,6 @@ def VTK_BEZIER_HEXAHEDRON_quarter_torous():
 
 
 def VTK_BEZIER_HEXAHEDRON_quarter_circle():
-
     s33 = np.sqrt(3) / 3
 
     vertices = [
