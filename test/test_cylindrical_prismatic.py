@@ -6,7 +6,7 @@ from scipy.spatial.transform import Rotation
 
 from cardillo import System
 from cardillo.solver import ScipyIVP, EulerBackward, RadauIIa
-from cardillo.constraints import Cylindrical, RigidConnection
+from cardillo.constraints import RigidConnection, Cylindrical, Prismatic
 from cardillo.discrete import Frame, RigidBodyQuaternion
 from cardillo.forces import Force
 from cardillo.math import e1, e2, e3, Exp_SO3, Log_SO3, Spurrier, cross3
@@ -57,7 +57,7 @@ def run(
     z_dot0 = 10
 
     alpha0 = 0
-    alpha_dot0 = 1
+    alpha_dot0 = 0  # has to be zero for prismatic example
 
     ##############
     # DAE solution
@@ -88,7 +88,11 @@ def run(
             free_axis=2,
         )
     elif joint == "Prismatic":
-        raise NotImplementedError
+        constraint = Prismatic(
+            subsystem1=RB1,
+            subsystem2=RB2,
+            free_axis=2,
+        )
     else:
         raise NotImplementedError
 
@@ -98,12 +102,6 @@ def run(
     system.add(constraint)
     system.assemble()
 
-    # TODO: Make solver choice a function argument
-    # sol = ScipyIVP(system, t1, dt).solve()
-    # sol = EulerBackward(system, t1, dt, method="index 3").solve()
-    # sol = EulerBackward(system, t1, dt, method="index 2").solve()
-    # sol = EulerBackward(system, t1, dt, method="index 1").solve()
-    # sol = EulerBackward(system, t1, dt, method="index 2 GGL").solve()
     sol = Solver(system, t1, dt, **solver_kwargs).solve()
 
     t, q, u = sol.t, sol.q, sol.u
@@ -133,14 +131,19 @@ def run(
 
         # equations of motion
         dy[2] = -g * e_zB[-1]
-        dy[3] = (
-            -0.5
-            * m
-            * g
-            * l
-            * (np.cos(alpha) * e_yB[-1] - np.sin(alpha) * e_xB[-1])
-            / (m * l**2 / 4 + theta)
-        )
+
+        if joint == "Cylindrical":
+            dy[3] = (
+                -0.5
+                * m
+                * g
+                * l
+                * (np.cos(alpha) * e_yB[-1] - np.sin(alpha) * e_xB[-1])
+                / (m * l**2 / 4 + theta)
+            )
+        else:
+            # note: this is a very lazy solution
+            dy[3] = 0
 
         return dy
 
@@ -214,6 +217,9 @@ def run(
 
 
 if __name__ == "__main__":
+    #############
+    # Cylindrical
+    #############
     # run("Cylindrical", ScipyIVP)
 
     # run("Cylindrical", EulerBackward, method="index 1")
@@ -222,5 +228,19 @@ if __name__ == "__main__":
     # run("Cylindrical", EulerBackward, method="index 2 GGL")
 
     # run("Cylindrical", RadauIIa, dae_index=2)
-    # run("Cylindrical", RadauIIa, dae_index=3, rtol=1e-2, atol=1e-2) # not working!
-    run("Cylindrical", RadauIIa, dae_index="GGL")
+    run("Cylindrical", RadauIIa, dae_index=3)
+    # run("Cylindrical", RadauIIa, dae_index="GGL")
+
+    ###########
+    # Prismatic
+    ###########
+    # run("Prismatic", ScipyIVP)
+
+    # run("Prismatic", EulerBackward, method="index 1")
+    # run("Prismatic", EulerBackward, method="index 2")
+    # run("Prismatic", EulerBackward, method="index 3")
+    # run("Prismatic", EulerBackward, method="index 2 GGL")
+
+    # run("Prismatic", RadauIIa, dae_index=2)
+    # run("Prismatic", RadauIIa, dae_index=3)
+    # run("Prismatic", RadauIIa, dae_index="GGL")

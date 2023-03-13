@@ -19,7 +19,7 @@ class Prismatic(ProjectedPositionOrientationBase):
         constrained_axes_displacement = np.delete((0, 1, 2), free_axis)
 
         # all orientations are constrained
-        projection_pairs_rotation = [(0, 1), (1, 2), (2, 3)]
+        projection_pairs_rotation = [(0, 1), (1, 2), (2, 0)]
 
         super().__init__(
             subsystem1,
