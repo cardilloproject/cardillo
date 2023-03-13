@@ -60,7 +60,7 @@ def ConvexRigidBody(
             return self.A_KK0 @ super().K_J_R(t, q, frame_ID)
 
         def K_J_R_q(self, t, q, frame_ID=None):
-            return self.A_KK0 @ super().K_J_R_q(t, q, frame_ID)
+            return np.einsum("ij,jkl->ikl", self.A_KK0, super().K_J_R_q(t, q, frame_ID))
 
         def export(self, sol_i, base_export=False, **kwargs):
             if base_export:

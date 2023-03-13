@@ -5,8 +5,12 @@ from pathlib import Path
 from cardillo.discrete import Box, RigidBodyQuaternion
 from cardillo.math import axis_angle2quat, Log_SO3
 from cardillo.system import System
+from cardillo.constraints import Planarizer
 from cardillo.solver import ScipyIVP, RadauIIa, EulerBackward
 from cardillo.utility import Export
+
+# planarize = True
+planarize = False
 
 if __name__ == "__main__":
     l = 1
@@ -16,10 +20,9 @@ if __name__ == "__main__":
     v_P0 = np.zeros(3)
     phi0 = 0
     phi_dot0 = 20
-    # K_Omega_disturbance = np.array((1e-5, 0, 0))
-    K_Omega_disturbance = np.array((1, 1, 1)) * 1
+    # K_Omega_disturbance = np.zeros(3)
+    K_Omega_disturbance = np.array((1e-10, 0, 0))
     K_Omega = np.array((0, phi_dot0, 0))
-    # K_Omega = np.array((phi_dot0, 0, 0))
     q0 = np.concatenate((r_OP0, axis_angle2quat(np.array((0, 0, 1)), phi0)))
     u0 = np.concatenate((v_P0, K_Omega + K_Omega_disturbance))
     m = 5
@@ -27,13 +30,15 @@ if __name__ == "__main__":
 
     system = System()
     system.add(box)
+    if planarize:
+        system.add(Planarizer(system.origin, box, axis=1))
     system.assemble()
 
-    t1 = 2
-    dt = 1e-3
-    # solver = RadauIIa(system, t1, dt)
-    # solver = EulerBackward(system, t1, dt)
-    solver = ScipyIVP(system, t1, dt)
+    t1 = 5
+    dt = 1e-2
+    # solver = RadauIIa(system, t1, dt, dae_index=3)
+    solver = EulerBackward(system, t1, dt, method="index 3")
+    # solver = ScipyIVP(system, t1, dt)
     sol = solver.solve()
 
     ###############
