@@ -18,7 +18,7 @@ class Planarizer(ProjectedPositionOrientationBase):
         # plane axes
         plane_axes = np.delete((0, 1, 2), axis)
 
-        # project free axis onto both constrained axes
+        # project plane normal on both plane axes
         projection_pairs_rotation = [
             (axis, plane_axes[0]),
             (axis, plane_axes[1]),

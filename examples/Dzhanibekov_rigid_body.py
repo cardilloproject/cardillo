@@ -9,8 +9,8 @@ from cardillo.constraints import Planarizer
 from cardillo.solver import ScipyIVP, RadauIIa, EulerBackward
 from cardillo.utility import Export
 
-# planarize = True
-planarize = False
+planarize = True
+# planarize = False
 
 if __name__ == "__main__":
     l = 1
