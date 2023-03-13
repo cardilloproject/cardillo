@@ -4,6 +4,8 @@ from cardillo.math.algebra import cross3, ax2skew
 from cardillo.constraints._base import PositionOrientationBase
 
 
+# TODO: Add RigidConnection derived from ProjectedPositionOrientationBase and
+# benchmark performance.
 class RigidConnection(PositionOrientationBase):
     def __init__(
         self,

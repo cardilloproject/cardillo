@@ -538,6 +538,7 @@ class PositionOrientationBase:
         dense = approx_fprime(q, lambda q: self.g_q_dense(t, q).T @ mu)
         coo.extend(dense, (self.qDOF, self.qDOF))
 
+
 class ProjectedPositionOrientationBase:
     def __init__(
         self,
@@ -545,9 +546,8 @@ class ProjectedPositionOrientationBase:
         subsystem2,
         r_OB0,
         A_IB0,
+        constrained_axes_displacement,
         projection_pairs_rotation,
-        free_displacement_axes_B,
-        # free_rotation_axes,
         frame_ID1=np.zeros(3),
         frame_ID2=np.zeros(3),
     ):
@@ -557,28 +557,29 @@ class ProjectedPositionOrientationBase:
         self.frame_ID2 = frame_ID2
         self.r_OB0 = r_OB0
         self.A_IB0 = A_IB0
-        self.free_displacement_axes = free_displacement_axes_B
-        # self.free_rotation_axes = free_rotation_axes
 
-        # guard against flawed constrained_axes input
+        # guard against flawed input
         self.naxes_rotation = len(projection_pairs_rotation)
         for pair in projection_pairs_rotation:
             assert len(np.unique(pair)) == 2
             for i in pair:
                 assert i in [0, 1, 2]
-        for i in free_displacement_axes_B:
-            assert i in [0, 1, 2]
-        self.naxes_displacement = 3 - len(free_displacement_axes_B)
-        
+
+        # for i in free_displacement_axes_B:
+        #     assert i in [0, 1, 2]
+        # self.naxes_displacement = 3 - len(free_displacement_axes_B)
+        self.naxes_displacement = len(constrained_axes_displacement)
 
         self.nla_g = self.naxes_displacement + self.naxes_rotation
         assert self.nla_g > 0
-        self.projection_pairs = projection_pairs_rotation
-        self.constrained_axes = np.delete((0, 1, 2), self.free_displacement_axes) 
 
+        self.constrained_axes_displacement = constrained_axes_displacement
+        # self.constrained_axes_displacement = np.delete((0, 1, 2), self.free_displacement_axes)
+        self.projection_pairs_rotation = projection_pairs_rotation
+
+        # TODO: Is translational a good name?
         self.translational = self.naxes_displacement == 0
         self.spherical = self.naxes_rotation == 0
-
 
     def assembler_callback(self):
         local_qDOF1, local_qDOF2 = concatenate_qDOF(self)
@@ -591,37 +592,23 @@ class ProjectedPositionOrientationBase:
             self.subsystem2.t0, self.subsystem2.q0[local_qDOF2], self.frame_ID2
         )
 
-        # check for A_IK of subsystem 1
-        if hasattr(self.subsystem1, "A_IK"):
-            A_IK10 = self.subsystem1.A_IK(
-                self.subsystem1.t0, self.subsystem1.q0[local_qDOF1], self.frame_ID1
-            )
+        A_IK10 = self.subsystem1.A_IK(
+            self.subsystem1.t0, self.subsystem1.q0[local_qDOF1], self.frame_ID1
+        )
+        A_IK20 = self.subsystem2.A_IK(
+            self.subsystem2.t0, self.subsystem2.q0[local_qDOF2], self.frame_ID2
+        )
 
-            if self.r_OB0 is None:
-                self.r_OB0 = r_OP10
+        if self.r_OB0 is None:
+            self.r_OB0 = r_OP10
 
-            if self.A_IB0 is None:
-                self.A_IB0 = A_IK10
+        if self.A_IB0 is None:
+            self.A_IB0 = A_IK10
 
-            K1_r_P1B0 = A_IK10.T @ (self.r_OB0 - r_OP10)
-            A_K1B0 = A_IK10.T @ self.A_IB0
-        else:
-            K1_r_P1B0 = np.zeros(3)
-            A_K1B0 = None  # unused
-            assert self.naxes_rotation == 0  # Spherical case
-
-        # check for A_IK of subsystem 2
-        if hasattr(self.subsystem2, "A_IK"):
-            A_IK20 = self.subsystem2.A_IK(
-                self.subsystem2.t0, self.subsystem2.q0[local_qDOF2], self.frame_ID2
-            )
-
-            K2_r_P2B0 = A_IK20.T @ (self.r_OB0 - r_OP20)
-            A_K2B0 = A_IK20.T @ self.A_IB0
-        else:
-            K2_r_P2B0 = np.zeros(3)
-            A_K2B0 = None  # unused
-            assert self.naxes_rotation == 0  # Spherical case
+        K1_r_P1B0 = A_IK10.T @ (self.r_OB0 - r_OP10)
+        A_K1B0 = A_IK10.T @ self.A_IB0
+        K2_r_P2B0 = A_IK20.T @ (self.r_OB0 - r_OP20)
+        A_K2B0 = A_IK20.T @ self.A_IB0
 
         auxiliary_functions(self, K1_r_P1B0, K2_r_P2B0, A_K1B0, A_K2B0)
 
@@ -631,12 +618,12 @@ class ProjectedPositionOrientationBase:
         A_IB1 = self.A_IB1(t, q)
         if not self.translational:
             r_B1B2 = self.r_OB2(t, q) - self.r_OB1(t, q)
-            for i, ax in enumerate(self.constrained_axes):
-                g[i] = r_B1B2 @ self.A_IB1[:, ax]
+            for i, ax in enumerate(self.constrained_axes_displacement):
+                g[i] = r_B1B2 @ A_IB1[:, ax]
 
         if not self.spherical:
             A_IB2 = self.A_IB2(t, q)
-            for i, (a, b) in enumerate(self.projection_pairs):
+            for i, (a, b) in enumerate(self.projection_pairs_rotation):
                 g[self.naxes_displacement + i] = A_IB1[:, a] @ A_IB2[:, b]
         return g
 
@@ -651,15 +638,15 @@ class ProjectedPositionOrientationBase:
             r_B1B2 = self.r_OB2(t, q) - self.r_OB1(t, q)
             r_OB1_q1 = self.r_OB1_q1(t, q)
             r_OB2_q2 = self.r_OB2_q2(t, q)
-            for i, ax in enumerate(self.constrained_axes):
-                g_q[i, :nq1] = - A_IB1[:, ax] @ r_OB1_q1 + r_B1B2 @ self.A_IB1_q1[:, ax]
+            for i, ax in enumerate(self.constrained_axes_displacement):
+                g_q[i, :nq1] = -A_IB1[:, ax] @ r_OB1_q1 + r_B1B2 @ A_IB1_q1[:, ax]
                 g_q[i, nq1:] = A_IB1[:, ax] @ r_OB2_q2
 
         if not self.spherical:
             A_IB2 = self.A_IB2(t, q)
             A_IB2_q2 = self.A_IB2_q2(t, q)
 
-            for i, (a, b) in enumerate(self.projection_pairs):
+            for i, (a, b) in enumerate(self.projection_pairs_rotation):
                 g_q[self.naxes_displacement + i, :nq1] = A_IB2[:, b] @ A_IB1_q1[:, a]
                 g_q[self.naxes_displacement + i, nq1:] = A_IB1[:, a] @ A_IB2_q2[:, b]
 
@@ -675,63 +662,70 @@ class ProjectedPositionOrientationBase:
         Omega1 = self.Omega1(t, q, u)
         if not self.translational:
             r_B1B2 = self.r_OB2(t, q) - self.r_OB1(t, q)
-            v_B1B2 = self.v_B2(t, q) - self.v_B1(t, q)
-            for i, ax in enumerate(self.constrained_axes):
-                g_dot[i] = v_B1B2 @ self.A_IB1[:, ax] + cross3(A_IB1[:, ax], r_B1B2) @ Omega1
+            v_B1B2 = self.v_B2(t, q, u) - self.v_B1(t, q, u)
+            for i, ax in enumerate(self.constrained_axes_displacement):
+                g_dot[i] = A_IB1[:, ax] @ v_B1B2 + cross3(A_IB1[:, ax], r_B1B2) @ Omega1
 
         if not self.spherical:
             A_IB2 = self.A_IB2(t, q)
             Omega21 = Omega1 - self.Omega2(t, q, u)
 
-            for i, (a, b) in enumerate(self.projection_pairs):
+            for i, (a, b) in enumerate(self.projection_pairs_rotation):
                 n = cross3(A_IB1[:, a], A_IB2[:, b])
                 g_dot[self.naxes_displacement + i] = n @ Omega21
 
         return g_dot
 
-    def g_dot_q_dense(self, t, q, u):
-        nq1 = self._nq1
-        g_dot_q = np.zeros((self.nla_g, self._nq), dtype=np.common_type(q, u))
+    # def g_dot_q_dense(self, t, q, u):
+    #     nq1 = self._nq1
+    #     g_dot_q = np.zeros((self.nla_g, self._nq), dtype=np.common_type(q, u))
 
-        A_IB1 = self.A_IB1(t, q)
-        A_IB1_q1 = self.A_IB1_q1(t, q)
-        Omega1 = self.Omega1(t, q, u)
-        Omega1_q1 = self.Omega1_q1(t, q, u)
-        if not self.translational:
-            r_B1B2 = self.r_OB2(t, q) - self.r_OB1(t, q)
-            v_B1B2 = self.v_B2(t, q) - self.v_B1(t, q)
-            r_OB1_q1 = self.r_OB1_q1(t, q)
-            r_OB2_q2 = self.r_OB2_q2(t, q)
-            v_B1_q1 = self.v_B1_q1(self, t, q, u)
-            v_B2_q2 = self.v_B2_q2(self, t, q, u)
-            for i, ax in enumerate(self.constrained_axes):
-                g_dot_q[i, :nq1] = - A_IB1[:, ax] @ v_B1_q1 + cross3(A_IB1[:,ax], r_B1B2) @ Omega1_q1 + (v_B1B2 + cross3(r_B1B2, Omega1)) @ A_IB1_q1[:,ax] - cross3(Omega1, A_IB1[:,ax]) @ r_OB1_q1
-                g_dot_q[i, nq1:] = A_IB1[:,ax] @ v_B2_q2 + cross3(Omega1, A_IB1[:,ax]) @ r_OB2_q2
+    #     A_IB1 = self.A_IB1(t, q)
+    #     A_IB1_q1 = self.A_IB1_q1(t, q)
+    #     Omega1 = self.Omega1(t, q, u)
+    #     Omega1_q1 = self.Omega1_q1(t, q, u)
+    #     if not self.translational:
+    #         r_B1B2 = self.r_OB2(t, q) - self.r_OB1(t, q)
+    #         v_B1B2 = self.v_B2(t, q) - self.v_B1(t, q)
+    #         r_OB1_q1 = self.r_OB1_q1(t, q)
+    #         r_OB2_q2 = self.r_OB2_q2(t, q)
+    #         v_B1_q1 = self.v_B1_q1(self, t, q, u)
+    #         v_B2_q2 = self.v_B2_q2(self, t, q, u)
+    #         for i, ax in enumerate(self.constrained_axes_displacement):
+    #             g_dot_q[i, :nq1] = (
+    #                 -A_IB1[:, ax] @ v_B1_q1
+    #                 + cross3(A_IB1[:, ax], r_B1B2) @ Omega1_q1
+    #                 + (v_B1B2 + cross3(r_B1B2, Omega1)) @ A_IB1_q1[:, ax]
+    #                 - cross3(Omega1, A_IB1[:, ax]) @ r_OB1_q1
+    #             )
+    #             g_dot_q[i, nq1:] = (
+    #                 A_IB1[:, ax] @ v_B2_q2 + cross3(Omega1, A_IB1[:, ax]) @ r_OB2_q2
+    #             )
 
-        if not self.spherical:
-            A_IB2 = self.A_IB2(t, q)
-            A_IB2_q2 = self.A_IB2_q2(t, q)
+    #     if not self.spherical:
+    #         A_IB2 = self.A_IB2(t, q)
+    #         A_IB2_q2 = self.A_IB2_q2(t, q)
 
-            Omega21 = Omega1 - self.Omega2(t, q, u)
-            Omega2_q2 = self.Omega2_q2(t, q, u)
+    #         Omega21 = Omega1 - self.Omega2(t, q, u)
+    #         Omega2_q2 = self.Omega2_q2(t, q, u)
 
-            for i, (a, b) in enumerate(self.projection_pairs):
-                e_a, e_b = A_IB1[:, a], A_IB2[:, b]
-                n = cross3(e_a, e_b)
-                g_dot_q[3 + i, :nq1] = (
-                    n @ Omega1_q1 - Omega21 @ ax2skew(e_b) @ A_IB1_q1[:, a]
-                )
-                g_dot_q[3 + i, nq1:] = (
-                    -n @ Omega2_q2 + Omega21 @ ax2skew(e_a) @ A_IB2_q2[:, b]
-                )
+    #         for i, (a, b) in enumerate(self.projection_pairs_rotation):
+    #             e_a, e_b = A_IB1[:, a], A_IB2[:, b]
+    #             n = cross3(e_a, e_b)
+    #             g_dot_q[3 + i, :nq1] = (
+    #                 n @ Omega1_q1 - Omega21 @ ax2skew(e_b) @ A_IB1_q1[:, a]
+    #             )
+    #             g_dot_q[3 + i, nq1:] = (
+    #                 -n @ Omega2_q2 + Omega21 @ ax2skew(e_a) @ A_IB2_q2[:, b]
+    #             )
 
-        return g_dot_q
+    #     return g_dot_q
 
-    def g_dot_q(self, t, q, u, coo):
-        coo.extend(self.g_dot_q_dense(t, q, u), (self.la_gDOF, self.qDOF))
+    # def g_dot_q(self, t, q, u, coo):
+    #     coo.extend(self.g_dot_q_dense(t, q, u), (self.la_gDOF, self.qDOF))
 
-    def g_dot_u(self, t, q, coo):
-        coo.extend(self.W_g_dense(t, q).T, (self.la_gDOF, self.uDOF))
+    # def g_dot_u(self, t, q, coo):
+    #     coo.extend(self.W_g_dense(t, q).T, (self.la_gDOF, self.uDOF))
 
     def g_ddot(self, t, q, u, u_dot):
         g_ddot = np.zeros(self.nla_g, dtype=np.common_type(q, u, u_dot))
@@ -742,14 +736,14 @@ class ProjectedPositionOrientationBase:
         Psi1 = self.Psi1(t, q, u, u_dot)
         if not self.translational:
             r_B1B2 = self.r_OB2(t, q) - self.r_OB1(t, q)
-            v_B1B2 = self.v_B2(t, q) - self.v_B1(t, q)
+            v_B1B2 = self.v_B2(t, q, u) - self.v_B1(t, q, u)
             a_B1B2 = self.a_B2(t, q, u, u_dot) - self.a_B1(t, q, u, u_dot)
-            for i, ax in enumerate(self.constrained_axes):
-                g_ddot[i] = a_B1B2 @ self.A_IB1[:, ax] 
-                + v_B1B2 @ cross3(Omega1, A_IB1[:, ax])
-                + cross3(cross3(Omega1, A_IB1[:,ax]), r_B1B2) @Omega1
-                + cross3(A_IB1[:,ax], v_B1B2) @ Omega1
-                + cross3(A_IB1[:,ax], r_B1B2) @ Psi1
+            for i, ax in enumerate(self.constrained_axes_displacement):
+                g_ddot[i] = a_B1B2 @ A_IB1[:, ax]
+                +v_B1B2 @ cross3(Omega1, A_IB1[:, ax])
+                +cross3(cross3(Omega1, A_IB1[:, ax]), r_B1B2) @ Omega1
+                +cross3(A_IB1[:, ax], v_B1B2) @ Omega1
+                +cross3(A_IB1[:, ax], r_B1B2) @ Psi1
 
         if not self.spherical:
             A_IB2 = self.A_IB2(t, q)
@@ -757,112 +751,116 @@ class ProjectedPositionOrientationBase:
             Omega21 = Omega1 - Omega2
             Psi21 = Psi1 - self.Psi2(t, q, u, u_dot)
 
-            for i, (a, b) in enumerate(self.projection_pairs):
+            for i, (a, b) in enumerate(self.projection_pairs_rotation):
                 e_a, e_b = A_IB1[:, a], A_IB2[:, b]
                 n = cross3(e_a, e_b)
-                g_ddot[self.naxes_displacement  + i] = (
+                g_ddot[self.naxes_displacement + i] = (
                     cross3(cross3(Omega1, e_a), e_b) + cross3(e_a, cross3(Omega2, e_b))
                 ) @ Omega21 + n @ Psi21
 
         return g_ddot
 
-    def g_ddot_q_dense(self, t, q, u, u_dot):
-        nq1 = self._nq1
-        g_ddot_q = np.zeros((self.nla_g, self._nq), dtype=np.common_type(q, u, u_dot))
+    # def g_ddot_q_dense(self, t, q, u, u_dot):
+    #     nq1 = self._nq1
+    #     g_ddot_q = np.zeros((self.nla_g, self._nq), dtype=np.common_type(q, u, u_dot))
 
-        # TODO analytical derivative
-        g_ddot_q[:self.naxes_displacement] = approx_fprime(q, lambda q: self.g_ddot(t, q, u, u_dot)[self.naxes_displacement])
+    #     # TODO analytical derivative
+    #     g_ddot_q[: self.naxes_displacement] = approx_fprime(
+    #         q, lambda q: self.g_ddot(t, q, u, u_dot)[self.naxes_displacement]
+    #     )
 
-        if not self.spherical:
-            A_IB1 = self.A_IB1(t, q)
-            A_IB2 = self.A_IB2(t, q)
+    #     if not self.spherical:
+    #         A_IB1 = self.A_IB1(t, q)
+    #         A_IB2 = self.A_IB2(t, q)
 
-            A_IB1_q1 = self.A_IB1_q1(t, q)
-            A_IB2_q2 = self.A_IB2_q2(t, q)
+    #         A_IB1_q1 = self.A_IB1_q1(t, q)
+    #         A_IB2_q2 = self.A_IB2_q2(t, q)
 
-            Omega1 = self.Omega1(t, q, u)
-            Omega2 = self.Omega2(t, q, u)
-            Omega21 = Omega1 - Omega2
-            Omega1_q1 = self.Omega1_q1(t, q, u)
-            Omega2_q2 = self.Omega2_q2(t, q, u)
+    #         Omega1 = self.Omega1(t, q, u)
+    #         Omega2 = self.Omega2(t, q, u)
+    #         Omega21 = Omega1 - Omega2
+    #         Omega1_q1 = self.Omega1_q1(t, q, u)
+    #         Omega2_q2 = self.Omega2_q2(t, q, u)
 
-            Psi21 = self.Psi1(t, q, u, u_dot) - self.Psi2(t, q, u, u_dot)
-            Psi1_q1 = self.Psi1_q1(t, q, u, u_dot)
-            Psi2_q2 = self.Psi2_q2(t, q, u, u_dot)
+    #         Psi21 = self.Psi1(t, q, u, u_dot) - self.Psi2(t, q, u, u_dot)
+    #         Psi1_q1 = self.Psi1_q1(t, q, u, u_dot)
+    #         Psi2_q2 = self.Psi2_q2(t, q, u, u_dot)
 
-            for i, (a, b) in enumerate(self.projection_pairs):
-                e_a, e_b = A_IB1[:, a], A_IB2[:, b]
-                e_a_q1, e_b_q2 = A_IB1_q1[:, a], A_IB2_q2[:, b]
-                n = cross3(e_a, e_b)
-                Omega1_e_a = cross3(Omega1, e_a)
-                Omega2_e_b = cross3(Omega2, e_b)
-                tmp = cross3(Omega1_e_a, e_b) - cross3(Omega2_e_b, e_a)
-                g_ddot_q[self.naxes_displacement + i, :nq1] = (
-                    -Omega21
-                    @ (
-                        ax2skew(e_b)
-                        @ (ax2skew(Omega1) @ e_a_q1 - ax2skew(e_a) @ Omega1_q1)
-                        + ax2skew(Omega2_e_b) @ e_a_q1
-                    )
-                    + tmp @ Omega1_q1
-                    + n @ Psi1_q1
-                    - Psi21 @ ax2skew(e_b) @ e_a_q1
-                )
+    #         for i, (a, b) in enumerate(self.projection_pairs_rotation):
+    #             e_a, e_b = A_IB1[:, a], A_IB2[:, b]
+    #             e_a_q1, e_b_q2 = A_IB1_q1[:, a], A_IB2_q2[:, b]
+    #             n = cross3(e_a, e_b)
+    #             Omega1_e_a = cross3(Omega1, e_a)
+    #             Omega2_e_b = cross3(Omega2, e_b)
+    #             tmp = cross3(Omega1_e_a, e_b) - cross3(Omega2_e_b, e_a)
+    #             g_ddot_q[self.naxes_displacement + i, :nq1] = (
+    #                 -Omega21
+    #                 @ (
+    #                     ax2skew(e_b)
+    #                     @ (ax2skew(Omega1) @ e_a_q1 - ax2skew(e_a) @ Omega1_q1)
+    #                     + ax2skew(Omega2_e_b) @ e_a_q1
+    #                 )
+    #                 + tmp @ Omega1_q1
+    #                 + n @ Psi1_q1
+    #                 - Psi21 @ ax2skew(e_b) @ e_a_q1
+    #             )
 
-                g_ddot_q[3 + i, nq1:] = (
-                    Omega21
-                    @ (
-                        ax2skew(e_a)
-                        @ (ax2skew(Omega2) @ e_b_q2 - ax2skew(e_b) @ Omega2_q2)
-                        + ax2skew(Omega1_e_a) @ e_b_q2
-                    )
-                    - tmp @ Omega2_q2
-                    - n @ Psi2_q2
-                    + Psi21 @ ax2skew(e_a) @ e_b_q2
-                )
+    #             g_ddot_q[3 + i, nq1:] = (
+    #                 Omega21
+    #                 @ (
+    #                     ax2skew(e_a)
+    #                     @ (ax2skew(Omega2) @ e_b_q2 - ax2skew(e_b) @ Omega2_q2)
+    #                     + ax2skew(Omega1_e_a) @ e_b_q2
+    #                 )
+    #                 - tmp @ Omega2_q2
+    #                 - n @ Psi2_q2
+    #                 + Psi21 @ ax2skew(e_a) @ e_b_q2
+    #             )
 
-        return g_ddot_q
+    #     return g_ddot_q
 
-    def g_ddot_q(self, t, q, u, u_dot, coo):
-        coo.extend(self.g_ddot_q_dense(t, q, u, u_dot), (self.la_gDOF, self.qDOF))
+    # def g_ddot_q(self, t, q, u, u_dot, coo):
+    #     coo.extend(self.g_ddot_q_dense(t, q, u, u_dot), (self.la_gDOF, self.qDOF))
 
-    def g_ddot_u_dense(self, t, q, u, u_dot):
-        nu1 = self._nu1
-        g_ddot_u = np.zeros((self.nla_g, self._nu), dtype=np.common_type(q, u, u_dot))
+    # def g_ddot_u_dense(self, t, q, u, u_dot):
+    #     nu1 = self._nu1
+    #     g_ddot_u = np.zeros((self.nla_g, self._nu), dtype=np.common_type(q, u, u_dot))
 
-        # TODO analytical derivative
-        g_ddot_u[:self.naxes_displacement] = approx_fprime(u, lambda q: self.g_ddot(t, q, u, u_dot)[self.naxes_displacement])
+    #     # TODO analytical derivative
+    #     g_ddot_u[: self.naxes_displacement] = approx_fprime(
+    #         u, lambda q: self.g_ddot(t, q, u, u_dot)[self.naxes_displacement]
+    #     )
 
-        if not self.spherical:
-            A_IB1 = self.A_IB1(t, q)
-            A_IB2 = self.A_IB2(t, q)
+    #     if not self.spherical:
+    #         A_IB1 = self.A_IB1(t, q)
+    #         A_IB2 = self.A_IB2(t, q)
 
-            Omega1 = self.Omega1(t, q, u)
-            Omega2 = self.Omega2(t, q, u)
-            Omega21 = Omega1 - Omega2
-            J_R1 = self.J_R1(t, q)
-            J_R2 = self.J_R2(t, q)
+    #         Omega1 = self.Omega1(t, q, u)
+    #         Omega2 = self.Omega2(t, q, u)
+    #         Omega21 = Omega1 - Omega2
+    #         J_R1 = self.J_R1(t, q)
+    #         J_R2 = self.J_R2(t, q)
 
-            Psi1_u1 = self.Psi1_u1(t, q, u, u_dot)
-            Psi2_u2 = self.Psi2_u2(t, q, u, u_dot)
+    #         Psi1_u1 = self.Psi1_u1(t, q, u, u_dot)
+    #         Psi2_u2 = self.Psi2_u2(t, q, u, u_dot)
 
-            for i, (a, b) in enumerate(self.projection_pairs):
-                e_a, e_b = A_IB1[:, a], A_IB2[:, b]
-                n = cross3(e_a, e_b)
-                Omega1_e_a = cross3(Omega1, e_a)
-                Omega2_e_b = cross3(Omega2, e_b)
-                tmp = (
-                    cross3(Omega1_e_a, e_b)
-                    - cross3(Omega2_e_b, e_a)
-                    + Omega21 @ ax2skew(e_a) @ ax2skew(e_b)
-                )
-                g_ddot_u[self.naxes_displacement + i, :nu1] = tmp @ J_R1 + n @ Psi1_u1
-                g_ddot_u[self.naxes_displacement + i, nu1:] = -tmp @ J_R2 - n @ Psi2_u2
+    #         for i, (a, b) in enumerate(self.projection_pairs_rotation):
+    #             e_a, e_b = A_IB1[:, a], A_IB2[:, b]
+    #             n = cross3(e_a, e_b)
+    #             Omega1_e_a = cross3(Omega1, e_a)
+    #             Omega2_e_b = cross3(Omega2, e_b)
+    #             tmp = (
+    #                 cross3(Omega1_e_a, e_b)
+    #                 - cross3(Omega2_e_b, e_a)
+    #                 + Omega21 @ ax2skew(e_a) @ ax2skew(e_b)
+    #             )
+    #             g_ddot_u[self.naxes_displacement + i, :nu1] = tmp @ J_R1 + n @ Psi1_u1
+    #             g_ddot_u[self.naxes_displacement + i, nu1:] = -tmp @ J_R2 - n @ Psi2_u2
 
-        return g_ddot_u
+    #     return g_ddot_u
 
-    def g_ddot_u(self, t, q, u, u_dot, coo):
-        coo.extend(self.g_ddot_u_dense(t, q, u, u_dot), (self.la_gDOF, self.uDOF))
+    # def g_ddot_u(self, t, q, u, u_dot, coo):
+    #     coo.extend(self.g_ddot_u_dense(t, q, u, u_dot), (self.la_gDOF, self.uDOF))
 
     def W_g_dense(self, t, q):
         nu1 = self._nu1
@@ -874,15 +872,17 @@ class ProjectedPositionOrientationBase:
             r_B1B2 = self.r_OB2(t, q) - self.r_OB1(t, q)
             J_B1 = self.J_B1(t, q)
             J_B2 = self.J_B2(t, q)
-            for i, ax in enumerate(self.constrained_axes):
-                W_g[:nu1, i] = -A_IB1[:,ax] @ J_B1 + cross3(A_IB1[:,ax], r_B1B2) @ J_R1
-                W_g[nu1:, i] = A_IB1[:,ax] @ J_B2
+            for i, ax in enumerate(self.constrained_axes_displacement):
+                W_g[:nu1, i] = (
+                    -A_IB1[:, ax] @ J_B1 + cross3(A_IB1[:, ax], r_B1B2) @ J_R1
+                )
+                W_g[nu1:, i] = A_IB1[:, ax] @ J_B2
 
         if not self.spherical:
             A_IB2 = self.A_IB2(t, q)
             J = np.hstack([J_R1, -self.J_R2(t, q)])
 
-            for i, (a, b) in enumerate(self.projection_pairs):
+            for i, (a, b) in enumerate(self.projection_pairs_rotation):
                 n = cross3(A_IB1[:, a], A_IB2[:, b])
                 W_g[:, self.naxes_displacement + i] = n @ J
 
@@ -891,57 +891,67 @@ class ProjectedPositionOrientationBase:
     def W_g(self, t, q, coo):
         coo.extend(self.W_g_dense(t, q), (self.uDOF, self.la_gDOF))
 
-    def Wla_g_q(self, t, q, la_g, coo):
-        nq1 = self._nq1
-        nu1 = self._nu1
-        dense = np.zeros((self._nu, self._nq), dtype=np.common_type(q, la_g))
+    # def Wla_g_q(self, t, q, la_g, coo):
+    #     nq1 = self._nq1
+    #     nu1 = self._nu1
+    #     dense = np.zeros((self._nu, self._nq), dtype=np.common_type(q, la_g))
 
-        # dense[:nu1, :nq1] += np.einsum("i,ijk->jk", -la_g[:3], self.J_B1_q1(t, q))
-        # dense[nu1:, nq1:] += np.einsum("i,ijk->jk", la_g[:3], self.J_B2_q2(t, q))
-        A_IB1 = self.A_IB1(t, q)
-        A_IB1_q1 = self.A_IB1_q1(t, q)
-        J_R1 = self.J_R1(t, q)
-        if not self.translational:
-            J_B1 = self.J_B1(t, q)
-            J_B2 = self.J_B2(t, q)
-            J_B1_q1 = self.J_B1_q1(t, q) 
-            J_B2_q2 = self.J_B2_q2(t, q) 
-            for i, ax in enumerate(self.constrained_axes):
-                dense[:nu1, :nq1] += np.einsum("i,ijk->jk", -la_g[i] * A_IB1[:,ax], J_B1_q1)
-                + np.einsum("ij,ik->kj", -la_g[i] * A_IB1_q1[:,ax], J_B1)
-                dense[nu1:, :nq1] += np.einsum("ij,ik->kj", la_g[i] * A_IB1[:,ax], J_B2)
-                dense[nu1:, nq1:] += np.einsum("i,ijk->jk", la_g[i] * A_IB1[:,ax], J_B2_q2)
+    #     # dense[:nu1, :nq1] += np.einsum("i,ijk->jk", -la_g[:3], self.J_B1_q1(t, q))
+    #     # dense[nu1:, nq1:] += np.einsum("i,ijk->jk", la_g[:3], self.J_B2_q2(t, q))
+    #     A_IB1 = self.A_IB1(t, q)
+    #     A_IB1_q1 = self.A_IB1_q1(t, q)
+    #     J_R1 = self.J_R1(t, q)
+    #     if not self.translational:
+    #         J_B1 = self.J_B1(t, q)
+    #         J_B2 = self.J_B2(t, q)
+    #         J_B1_q1 = self.J_B1_q1(t, q)
+    #         J_B2_q2 = self.J_B2_q2(t, q)
+    #         for i, ax in enumerate(self.constrained_axes_displacement):
+    #             dense[:nu1, :nq1] += np.einsum(
+    #                 "i,ijk->jk", -la_g[i] * A_IB1[:, ax], J_B1_q1
+    #             )
+    #             +np.einsum("ij,ik->kj", -la_g[i] * A_IB1_q1[:, ax], J_B1)
+    #             dense[nu1:, :nq1] += np.einsum(
+    #                 "ij,ik->kj", la_g[i] * A_IB1[:, ax], J_B2
+    #             )
+    #             dense[nu1:, nq1:] += np.einsum(
+    #                 "i,ijk->jk", la_g[i] * A_IB1[:, ax], J_B2_q2
+    #             )
 
-        if not self.spherical:
-            A_IB1 = self.A_IB1(t, q)
-            A_IB2 = self.A_IB2(t, q)
+    #     if not self.spherical:
+    #         A_IB1 = self.A_IB1(t, q)
+    #         A_IB2 = self.A_IB2(t, q)
 
-            A_IB1_q1 = self.A_IB1_q1(t, q)
-            A_IB2_q2 = self.A_IB2_q2(t, q)
+    #         A_IB1_q1 = self.A_IB1_q1(t, q)
+    #         A_IB2_q2 = self.A_IB2_q2(t, q)
 
-            J_R1 = self.J_R1(t, q)
-            J_R2 = self.J_R2(t, q)
-            J_R1_q1 = self.J_R1_q1(t, q)
-            J_R2_q2 = self.J_R2_q2(t, q)
+    #         J_R1 = self.J_R1(t, q)
+    #         J_R2 = self.J_R2(t, q)
+    #         J_R1_q1 = self.J_R1_q1(t, q)
+    #         J_R2_q2 = self.J_R2_q2(t, q)
 
-            for i, (a, b) in enumerate(self.projection_pairs):
-                nla_gpos = self.naxes_displacement
-                e_a, e_b = A_IB1[:, a], A_IB2[:, b]
-                n = cross3(e_a, e_b)
-                n_q1 = -ax2skew(e_b) @ A_IB1_q1[:, a]
-                n_q2 = ax2skew(e_a) @ A_IB2_q2[:, b]
-                dense[:nu1, :nq1] += np.einsum(
-                    "i,ijk->jk", la_g[nla_gpos + i] * n, J_R1_q1
-                ) + np.einsum("ij,ik->kj", la_g[nla_gpos + i] * n_q1, J_R1)
-                dense[:nu1, nq1:] += np.einsum("ij,ik->kj", la_g[nla_gpos + i] * n_q2, J_R1)
-                dense[nu1:, :nq1] += np.einsum("ij,ik->kj", -la_g[nla_gpos + i] * n_q1, J_R2) # TODO check this?
-                dense[nu1:, nq1:] += np.einsum(
-                    "i,ijk->jk", -la_g[nla_gpos + i] * n, J_R2_q2
-                ) + np.einsum("ij,ik->kj", -la_g[nla_gpos + i] * n_q2, J_R2)
+    #         for i, (a, b) in enumerate(self.projection_pairs_rotation):
+    #             nla_gpos = self.naxes_displacement
+    #             e_a, e_b = A_IB1[:, a], A_IB2[:, b]
+    #             n = cross3(e_a, e_b)
+    #             n_q1 = -ax2skew(e_b) @ A_IB1_q1[:, a]
+    #             n_q2 = ax2skew(e_a) @ A_IB2_q2[:, b]
+    #             dense[:nu1, :nq1] += np.einsum(
+    #                 "i,ijk->jk", la_g[nla_gpos + i] * n, J_R1_q1
+    #             ) + np.einsum("ij,ik->kj", la_g[nla_gpos + i] * n_q1, J_R1)
+    #             dense[:nu1, nq1:] += np.einsum(
+    #                 "ij,ik->kj", la_g[nla_gpos + i] * n_q2, J_R1
+    #             )
+    #             dense[nu1:, :nq1] += np.einsum(
+    #                 "ij,ik->kj", -la_g[nla_gpos + i] * n_q1, J_R2
+    #             )  # TODO check this?
+    #             dense[nu1:, nq1:] += np.einsum(
+    #                 "i,ijk->jk", -la_g[nla_gpos + i] * n, J_R2_q2
+    #             ) + np.einsum("ij,ik->kj", -la_g[nla_gpos + i] * n_q2, J_R2)
 
-        coo.extend(dense, (self.uDOF, self.qDOF))
+    #     coo.extend(dense, (self.uDOF, self.qDOF))
 
-    # TODO analytical derivative
-    def g_q_T_mu_q(self, t, q, mu, coo):
-        dense = approx_fprime(q, lambda q: self.g_q_dense(t, q).T @ mu)
-        coo.extend(dense, (self.qDOF, self.qDOF))
+    # # TODO analytical derivative
+    # def g_q_T_mu_q(self, t, q, mu, coo):
+    #     dense = approx_fprime(q, lambda q: self.g_q_dense(t, q).T @ mu)
+    #     coo.extend(dense, (self.qDOF, self.qDOF))

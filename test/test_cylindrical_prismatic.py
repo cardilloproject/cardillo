@@ -2,20 +2,28 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from scipy.integrate import solve_ivp
+from scipy.spatial.transform import Rotation
 
-# from cardillo import System
-# from cardillo.solver import ScipyIVP, EulerBackward, RadauIIa
-# from cardillo.constraints import Revolute
-from cardillo.discrete import RigidBodyAxisAngle, RigidBodyQuaternion
+from cardillo import System
+from cardillo.solver import ScipyIVP, EulerBackward, RadauIIa
+from cardillo.constraints import Cylindrical
+from cardillo.discrete import Frame, RigidBodyAxisAngle, RigidBodyQuaternion
+from cardillo.forces import Force
 
 # from cardillo.forces import (
 #     LinearSpring,
 #     LinearDamper,
 #     PDRotationalJoint,
 # )
-from cardillo.math import e1, e2, e3, Exp_SO3, axis_angle2quat, norm
+from cardillo.math import e1, e2, e3, Exp_SO3, Log_SO3, Spurrier, cross3
 
-# parameters of cylinder
+# setup solver
+t_span = (0.0, 5.0)
+t0, t1 = t_span
+dt = 1.0e-2
+
+# parameters
+g = 9.81
 l = 10
 m = 1
 r = 0.2
@@ -24,8 +32,8 @@ A = 1 / 4 * m * r**2 + 1 / 12 * m * l**2
 K_theta_S = np.diag(np.array([C, A, A]))
 
 
-def RigidCylinder(RigidBodyParametrization):
-    class _RigidCylinder(RigidBodyParametrization):
+def RigidCylinder(RigidBody):
+    class _RigidCylinder(RigidBody):
         def __init__(self, q0=None, u0=None):
             super().__init__(m, K_theta_S, q0=q0, u0=u0)
 
@@ -35,7 +43,7 @@ def RigidCylinder(RigidBodyParametrization):
 def run(
     # x0,
     # alpha_dot0,
-    # RigidBodyParametrization=RigidBodyQuaternion,
+    RigidBody=RigidBodyQuaternion,
     # solver_type="EulerBackward",
     # plot=True,
     # rotation_axis=2,
@@ -55,10 +63,49 @@ def run(
     e_xB, e_yB, e_zB = A_IB0.T
 
     z0 = 0
-    z_dot0 = 0
+    z_dot0 = 10
 
     alpha0 = 0
-    alpha_dot0 = 0
+    alpha_dot0 = 1
+
+    ##############
+    # DAE solution
+    ##############
+    r_OS0 = r_OB0 + A_IB0 @ np.array([0.5 * l, 0, z0])
+    A_IK0 = A_IB0
+    p0 = Spurrier(A_IK0)
+    q0 = np.array([*r_OS0, *p0])
+    K0_omega_IK0 = np.array([0, 0, alpha_dot0])
+    v_P0 = A_IB0 @ np.array([0, 0, z_dot0])
+    v_S0 = v_P0 + A_IK0 @ cross3(K0_omega_IK0, np.array([0.5 * l, 0, 0]))
+    u0 = np.array([*v_S0, *K0_omega_IK0])
+    RB = RigidBody(m, K_theta_S, q0, u0)
+
+    f_g = Force(np.array([0, 0, -m * g]), RB)
+
+    frame = Frame(r_OP=r_OB0, A_IK=A_IB0)
+
+    constraint = Cylindrical(
+        subsystem1=frame,
+        subsystem2=RB,
+        free_axis=2,
+    )
+
+    system = System()
+    system.add(RB, f_g)
+    system.add(frame, constraint)
+    system.assemble()
+
+    sol = ScipyIVP(system, t1, dt).solve()
+    t, q, u = sol.t, sol.q, sol.u
+
+    zs = np.array([A_IB0[:, 2] @ RB.r_OP(ti, qi) for (ti, qi) in zip(t, q)])
+    A_IK = np.array([RB.A_IK(ti, qi) for (ti, qi) in zip(t, q)])
+    Delta_alpha = np.zeros(len(t), dtype=float)
+    Delta_alpha[0] = alpha0
+    for i in range(1, len(t)):
+        Delta_alpha[i] = Log_SO3(A_IK[i - 1].T @ A_IK[i])[-1]
+    alphas = np.cumsum(Delta_alpha)
 
     ##############
     # ODE solution
@@ -76,9 +123,11 @@ def run(
         dy[:2] = y[2:]
 
         # equations of motion
-        dy[2] = -e_zB[-1] / m
+        dy[2] = -g * e_zB[-1]
         dy[3] = (
             -0.5
+            * m
+            * g
             * l
             * (np.cos(alpha) * e_yB[-1] - np.sin(alpha) * e_xB[-1])
             / (m * l**2 / 4 + theta)
@@ -86,11 +135,8 @@ def run(
 
         return dy
 
-    t_span = (0, 5)
-    t0, t1 = t_span
-    dt = 1.0e-2
-    t_eval = np.arange(t0, t1, dt)
     y0 = np.array([z0, alpha0, z_dot0, alpha_dot0], dtype=float)
+    t_eval = np.arange(t0, t1, dt)
     sol = solve_ivp(eqm, t_span, y0, t_eval=t_eval)
 
     t_ref, y_ref = sol.t, sol.y
@@ -98,16 +144,26 @@ def run(
     fig, ax = plt.subplots(2, 2)
 
     ax[0, 0].set_title("z")
-    ax[0, 0].plot(t_ref, y_ref[0])
+    ax[0, 0].plot(t_ref, y_ref[0], "-k", label="reference")
+    ax[0, 0].plot(t, zs, "--r", label="DAE")
+    ax[0, 0].grid()
+    ax[0, 0].legend()
 
     ax[0, 1].set_title("alpha")
-    ax[0, 1].plot(t_ref, y_ref[1])
+    ax[0, 1].plot(t_ref, y_ref[1], "-k", label="reference")
+    ax[0, 1].plot(t, alphas, "--r", label="DAE")
+    ax[0, 1].grid()
+    ax[0, 1].legend()
 
     ax[1, 0].set_title("z_dot")
-    ax[1, 0].plot(t_ref, y_ref[2])
+    ax[1, 0].plot(t_ref, y_ref[2], "-k", label="reference")
+    ax[1, 0].grid()
+    ax[1, 0].legend()
 
     ax[1, 1].set_title("alpha_dot")
-    ax[1, 1].plot(t_ref, y_ref[3])
+    ax[1, 1].plot(t_ref, y_ref[3], "-k", label="reference")
+    ax[1, 1].grid()
+    ax[1, 1].legend()
 
     # plt.show()
 
@@ -118,7 +174,7 @@ def run(
     ax.set_xlabel("x [m]")
     ax.set_ylabel("y [m]")
     ax.set_zlabel("z [m]")
-    z1 = y_ref[0, -1]
+    z1 = max(l, y_ref[0, -1])
     diff = abs(z1 - z0)
     scale = diff
     ax.set_xlim3d(left=-scale, right=scale)
@@ -344,7 +400,7 @@ if __name__ == "__main__":
             psi=psi,
             alpha_dot0=alpha_dot0,
             g_ref=g_ref,
-            RigidBodyParametrization=RigidBodyParametrization,
+            RigidBody=RigidBodyParametrization,
             solver_type=solver[2],
             plot=False,
             rotation_axis=rotation_axis,
@@ -363,7 +419,7 @@ if __name__ == "__main__":
             psi=psi,
             alpha_dot0=alpha_dot0,
             g_ref=g_ref,
-            RigidBodyParametrization=RigidBodyParametrization,
+            RigidBody=RigidBodyParametrization,
             solver_type=solver[1],
             plot=True,
             rotation_axis=rotation_axis,
