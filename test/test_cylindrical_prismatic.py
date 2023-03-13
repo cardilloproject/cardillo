@@ -2,14 +2,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from scipy.integrate import solve_ivp
-from scipy.spatial.transform import Rotation
 
 from cardillo import System
 from cardillo.solver import ScipyIVP, EulerBackward, RadauIIa
 from cardillo.constraints import RigidConnection, Cylindrical, Prismatic
 from cardillo.discrete import Frame, RigidBodyQuaternion
 from cardillo.forces import Force
-from cardillo.math import e1, e2, e3, Exp_SO3, Log_SO3, Spurrier, cross3
+from cardillo.math import e1, Exp_SO3, Log_SO3, Spurrier, cross3
 
 # setup solver
 t_span = (0.0, 5.0)
@@ -57,7 +56,12 @@ def run(
     z_dot0 = 10
 
     alpha0 = 0
-    alpha_dot0 = 0  # has to be zero for prismatic example
+    if joint == "Cylindrical":
+        alpha_dot0 = 2
+    elif joint == "Prismatic":
+        alpha_dot0 = 0  # has to be zero for prismatic example
+    else:
+        raise NotImplementedError
 
     ##############
     # DAE solution
@@ -93,8 +97,6 @@ def run(
             subsystem2=RB2,
             free_axis=2,
         )
-    else:
-        raise NotImplementedError
 
     system = System()
     system.add(frame, RB1, rigid_connection)
@@ -117,9 +119,7 @@ def run(
     ##############
     # ODE solution
     ##############
-    # TODO: Use arbitrary rotation axis
     theta = A
-    # theta = K_theta_S[rotation_axis, rotation_axis]
 
     def eqm(t, y):
         z, alpha = y[:2]
@@ -228,8 +228,8 @@ if __name__ == "__main__":
     # run("Cylindrical", EulerBackward, method="index 2 GGL")
 
     # run("Cylindrical", RadauIIa, dae_index=2)
-    run("Cylindrical", RadauIIa, dae_index=3)
-    # run("Cylindrical", RadauIIa, dae_index="GGL")
+    # run("Cylindrical", RadauIIa, dae_index=3, rtol=1e-2, atol=1e-2) # this is not working for alpha_dot0 != 0
+    run("Cylindrical", RadauIIa, dae_index="GGL")
 
     ###########
     # Prismatic
