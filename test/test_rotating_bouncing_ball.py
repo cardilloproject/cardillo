@@ -105,8 +105,11 @@ def run(case):
     P_N1 = sol1.P_N
     P_F1 = sol1.P_F
 
-    # solver2, label2 = NonsmoothGeneralizedAlpha(system, t_final, dt), "Gen-alpha"
-    solver2, label2 = Moreau(system, t_final, dt), "Moreau"
+    solver2, label2 = (
+        NonsmoothGeneralizedAlpha(system, t_final, dt),
+        "Gen-alpha",
+    )
+    # solver2, label2 = Moreau(system, t_final, dt), "Moreau"
     # solver2, label2 = Rattle(system, t_final, dt), "Rattle"
     sol2 = solver2.solve()
     t2 = sol2.t

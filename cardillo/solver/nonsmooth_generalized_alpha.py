@@ -119,6 +119,50 @@ class NonsmoothGeneralizedAlpha:
         self.Di1_st = np.zeros(self.nla_N, dtype=bool)
         self.Ei1_st = np.zeros(self.nla_N, dtype=bool)
 
+        # initialize arrays for splitting operation
+        self.split_x = np.array(
+            [
+                self.nu,
+                2 * self.nu,
+                3 * self.nu,
+                3 * self.nu + self.nla_g,
+                3 * self.nu + 2 * self.nla_g,
+                3 * (self.nu + self.nla_g),
+                3 * (self.nu + self.nla_g) + self.nla_gamma,
+                3 * (self.nu + self.nla_g) + 2 * self.nla_gamma,
+                3 * (self.nu + self.nla_g) + 2 * self.nla_gamma + self.nla_N,
+                3 * (self.nu + self.nla_g) + 2 * (self.nla_gamma + self.nla_N),
+                3 * (self.nu + self.nla_g + self.nla_N) + 2 * self.nla_gamma,
+                3 * (self.nu + self.nla_g + self.nla_N)
+                + 2 * self.nla_gamma
+                + self.nla_F,
+            ],
+            dtype=int,
+        )
+
+        self.split_y = np.array(
+            [
+                self.nu,
+                2 * self.nu,
+                3 * self.nu,
+                3 * self.nu + self.nla_g,
+                3 * self.nu + 2 * self.nla_g,
+                3 * (self.nu + self.nla_g),
+                3 * (self.nu + self.nla_g) + self.nla_gamma,
+            ],
+            dtype=int,
+        )
+
+        self.split_z = np.array(
+            [
+                self.nla_N,
+                2 * self.nla_N,
+                3 * self.nla_N,
+                3 * self.nla_N + self.nla_F,
+            ],
+            dtype=int,
+        )
+
         if method == "fixed-point":
             self.step = self.step_fixed_point
             self.max_iter = self.fixed_point_max_iter
@@ -148,21 +192,21 @@ class NonsmoothGeneralizedAlpha:
         ti1 = self.ti + dt
 
         # eqn. (126): unpack vector x
-        ai1 = x[:nu]
-        Ui1 = x[nu : 2 * nu]
-        Qi1 = x[2 * nu : 3 * nu]
-        kappa_gi1 = x[3 * nu : 3 * nu + nla_g]
-        La_gi1 = x[3 * nu + nla_g : 3 * nu + 2 * nla_g]
-        la_gi1 = x[3 * nu + 2 * nla_g : 3 * nu + 3 * nla_g]
-        La_gammai1 = x[3 * nu + 3 * nla_g : 3 * nu + 3 * nla_g + nla_gamma]
-        la_gammai1 = x[
-            3 * nu + 3 * nla_g + nla_gamma : 3 * nu + 3 * nla_g + 2 * nla_gamma
-        ]
-        kappa_Ni1 = x[nR_s : nR_s + nla_N]
-        La_Ni1 = x[nR_s + nla_N : nR_s + 2 * nla_N]
-        la_Ni1 = x[nR_s + 2 * nla_N : nR_s + 3 * nla_N]
-        La_Fi1 = x[nR_s + 3 * nla_N : nR_s + 3 * nla_N + nla_F]
-        la_Fi1 = x[nR_s + 3 * nla_N + nla_F : nR_s + 3 * nla_N + 2 * nla_F]
+        (
+            ai1,
+            Ui1,
+            Qi1,
+            kappa_gi1,
+            La_gi1,
+            la_gi1,
+            La_gammai1,
+            la_gammai1,
+            kappa_Ni1,
+            La_Ni1,
+            la_Ni1,
+            La_Fi1,
+            la_Fi1,
+        ) = np.array_split(x, self.split_x)
 
         # ----- kinematic variables -----
         # eqn. (71): compute auxiliary acceleration variables
@@ -239,7 +283,7 @@ class NonsmoothGeneralizedAlpha:
         R = np.zeros(self.nR)
 
         # eqn. (127): R_s
-        R[:nu] = (
+        R[: self.split_x[0]] = (
             Mi1 @ ai1
             - self.model.h(ti1, qi1, ui1)
             - W_gi1 @ la_gi1
@@ -247,30 +291,24 @@ class NonsmoothGeneralizedAlpha:
             - W_Ni1 @ la_Ni1
             - W_Fi1 @ la_Fi1
         )
-        R[nu : 2 * nu] = (
+        R[self.split_x[0] : self.split_x[1]] = (
             Mi1 @ Ui1
             - W_gi1 @ La_gi1
             - W_gammai1 @ La_gammai1
             - W_Ni1 @ La_Ni1
             - W_Fi1 @ La_Fi1
         )
-        R[2 * nu : 3 * nu] = (
+        R[self.split_x[1] : self.split_x[2]] = (
             Mi1 @ Qi1
             - W_gi1 @ kappa_gi1
             - W_Ni1 @ kappa_Ni1
             - 0.5 * dt * (W_gammai1 @ La_gammai1 + W_Fi1 @ La_Fi1)
         )
-        R[3 * nu : 3 * nu + nla_g] = self.model.g(ti1, qi1)
-        R[3 * nu + nla_g : 3 * nu + 2 * nla_g] = self.model.g_dot(ti1, qi1, ui1)
-        R[3 * nu + 2 * nla_g : 3 * nu + 3 * nla_g] = self.model.g_ddot(
-            ti1, qi1, ui1, ai1
-        )
-        R[3 * nu + 3 * nla_g : 3 * nu + 3 * nla_g + nla_gamma] = self.model.gamma(
-            ti1, qi1, ui1
-        )
-        R[
-            3 * nu + 3 * nla_g + nla_gamma : 3 * nu + 3 * nla_g + 2 * nla_gamma
-        ] = self.model.gamma_dot(ti1, qi1, ui1, ai1)
+        R[self.split_x[2] : self.split_x[3]] = self.model.g(ti1, qi1)
+        R[self.split_x[3] : self.split_x[4]] = self.model.g_dot(ti1, qi1, ui1)
+        R[self.split_x[4] : self.split_x[5]] = self.model.g_ddot(ti1, qi1, ui1, ai1)
+        R[self.split_x[5] : self.split_x[6]] = self.model.gamma(ti1, qi1, ui1)
+        R[self.split_x[6] : self.split_x[7]] = self.model.gamma_dot(ti1, qi1, ui1, ai1)
 
         # update index sets
         if update_index_set:
@@ -302,22 +340,22 @@ class NonsmoothGeneralizedAlpha:
         Ai1 = self.Ai1
         Ai1_ind = np.where(Ai1)[0]
         _Ai1_ind = np.where(~Ai1)[0]
-        R[nR_s + Ai1_ind] = g_Ni1[Ai1]
-        R[nR_s + _Ai1_ind] = kappa_hatNi1[~Ai1]
+        R[self.split_x[7] + Ai1_ind] = g_Ni1[Ai1]
+        R[self.split_x[7] + _Ai1_ind] = kappa_hatNi1[~Ai1]
 
         # eqn. (132):
         Bi1 = self.Bi1
         Bi1_ind = np.where(Bi1)[0]
         _Bi1_ind = np.where(~Bi1)[0]
-        R[nR_s + nla_N + Bi1_ind] = xi_Ni1[Bi1]
-        R[nR_s + nla_N + _Bi1_ind] = P_Ni1[~Bi1]
+        R[self.split_x[8] + Bi1_ind] = xi_Ni1[Bi1]
+        R[self.split_x[8] + _Bi1_ind] = P_Ni1[~Bi1]
 
         # eqn. (135):
         Ci1 = self.Ci1
         Ci1_ind = np.where(Ci1)[0]
         _Ci1_ind = np.where(~Ci1)[0]
-        R[nR_s + 2 * nla_N + Ci1_ind] = g_N_ddoti1[Ci1]
-        R[nR_s + 2 * nla_N + _Ci1_ind] = la_Ni1[~Ci1]
+        R[self.split_x[9] + Ci1_ind] = g_N_ddoti1[Ci1]
+        R[self.split_x[9] + _Ci1_ind] = la_Ni1[~Ci1]
 
         # eqn. (138) and (142):
         Di1_st = self.Di1_st
@@ -329,16 +367,16 @@ class NonsmoothGeneralizedAlpha:
                 if Ai1[i_N]:
                     if Di1_st[i_N]:
                         # eqn. (138a)
-                        R[nR_s + 3 * nla_N + i_F] = xi_Fi1[i_F]
+                        R[self.split_x[10] + i_F] = xi_Fi1[i_F]
 
                         if Ei1_st[i_N]:
                             # eqn. (142a)
-                            R[nR_s + 3 * nla_N + nla_F + i_F] = gamma_F_doti1[i_F]
+                            R[self.split_x[11] + i_F] = gamma_F_doti1[i_F]
                         else:
                             # eqn. (142b)
                             norm_gamma_Fdoti1 = norm(gamma_F_doti1[i_F])
                             if norm_gamma_Fdoti1 > 0:
-                                R[nR_s + 3 * nla_N + nla_F + i_F] = (
+                                R[self.split_x[10] + i_F] = (
                                     la_Fi1[i_F]
                                     + mu[i_N]
                                     * la_Ni1[i_N]
@@ -346,7 +384,7 @@ class NonsmoothGeneralizedAlpha:
                                     / norm_gamma_Fdoti1
                                 )
                             else:
-                                R[nR_s + 3 * nla_N + nla_F + i_F] = (
+                                R[self.split_x[11] + i_F] = (
                                     la_Fi1[i_F]
                                     + mu[i_N] * la_Ni1[i_N] * gamma_F_doti1[i_F]
                                 )
@@ -354,19 +392,19 @@ class NonsmoothGeneralizedAlpha:
                         # eqn. (138b)
                         norm_xi_Fi1 = norm(xi_Fi1[i_F])
                         if norm_xi_Fi1 > 0:
-                            R[nR_s + 3 * nla_N + i_F] = (
+                            R[self.split_x[10] + i_F] = (
                                 P_Fi1[i_F]
                                 + mu[i_N] * P_Ni1[i_N] * xi_Fi1[i_F] / norm_xi_Fi1
                             )
                         else:
-                            R[nR_s + 3 * nla_N + i_F] = (
+                            R[self.split_x[10] + i_F] = (
                                 P_Fi1[i_F] + mu[i_N] * P_Ni1[i_N] * xi_Fi1[i_F]
                             )
 
                         # eqn. (142c)
                         norm_gamma_Fi1 = norm(gamma_Fi1[i_F])
                         if norm_gamma_Fi1 > 0:
-                            R[nR_s + 3 * nla_N + nla_F + i_F] = (
+                            R[self.split_x[11] + i_F] = (
                                 la_Fi1[i_F]
                                 + mu[i_N]
                                 * la_Ni1[i_N]
@@ -374,14 +412,14 @@ class NonsmoothGeneralizedAlpha:
                                 / norm_gamma_Fi1
                             )
                         else:
-                            R[nR_s + 3 * nla_N + nla_F + i_F] = (
+                            R[self.split_x[11] + i_F] = (
                                 la_Fi1[i_F] + mu[i_N] * la_Ni1[i_N] * gamma_Fi1[i_F]
                             )
                 else:
                     # eqn. (138c)
-                    R[nR_s + 3 * nla_N + i_F] = P_Fi1[i_F]
+                    R[self.split_x[10] + i_F] = P_Fi1[i_F]
                     # eqn. (142d)
-                    R[nR_s + 3 * nla_N + nla_F + i_F] = la_Fi1[i_F]
+                    R[self.split_x[11] + i_F] = la_Fi1[i_F]
 
         return R
 
@@ -398,21 +436,17 @@ class NonsmoothGeneralizedAlpha:
         ti1 = self.ti + dt
 
         # eqn. (144): unpack vectors y and z
-        ai1 = y[:nu]
-        Ui1 = y[nu : 2 * nu]
-        Qi1 = y[2 * nu : 3 * nu]
-        kappa_gi1 = y[3 * nu : 3 * nu + nla_g]
-        La_gi1 = y[3 * nu + nla_g : 3 * nu + 2 * nla_g]
-        la_gi1 = y[3 * nu + 2 * nla_g : 3 * nu + 3 * nla_g]
-        La_gammai1 = y[3 * nu + 3 * nla_g : 3 * nu + 3 * nla_g + nla_gamma]
-        la_gammai1 = y[
-            3 * nu + 3 * nla_g + nla_gamma : 3 * nu + 3 * nla_g + 2 * nla_gamma
-        ]
-        kappa_Ni1 = z[:nla_N]
-        La_Ni1 = z[nla_N : 2 * nla_N]
-        la_Ni1 = z[2 * nla_N : 3 * nla_N]
-        La_Fi1 = z[3 * nla_N : 3 * nla_N + nla_F]
-        la_Fi1 = z[3 * nla_N + nla_F : 3 * nla_N + 2 * nla_F]
+        (
+            ai1,
+            Ui1,
+            Qi1,
+            kappa_gi1,
+            La_gi1,
+            la_gi1,
+            La_gammai1,
+            la_gammai1,
+        ) = np.array_split(y, self.split_y)
+        kappa_Ni1, La_Ni1, la_Ni1, La_Fi1, la_Fi1 = np.array_split(z, self.split_z)
 
         # ----- kinematic variables -----
         # eqn. (71): compute auxiliary acceleration variables
@@ -447,39 +481,30 @@ class NonsmoothGeneralizedAlpha:
         W_Fi1 = self.model.W_F(ti1, qi1)
 
         # ----- compute residual -----
-        R_s = np.zeros(self.nR_s)
-        R_s[:nu] = (
-            Mi1 @ ai1
-            - self.model.h(ti1, qi1, ui1)
-            - W_gi1 @ la_gi1
-            - W_gammai1 @ la_gammai1
-            - W_Ni1 @ la_Ni1
-            - W_Fi1 @ la_Fi1
+        R_s = np.concatenate(
+            (
+                Mi1 @ ai1
+                - self.model.h(ti1, qi1, ui1)
+                - W_gi1 @ la_gi1
+                - W_gammai1 @ la_gammai1
+                - W_Ni1 @ la_Ni1
+                - W_Fi1 @ la_Fi1,
+                Mi1 @ Ui1
+                - W_gi1 @ La_gi1
+                - W_gammai1 @ La_gammai1
+                - W_Ni1 @ La_Ni1
+                - W_Fi1 @ La_Fi1,
+                Mi1 @ Qi1
+                - W_gi1 @ kappa_gi1
+                - W_Ni1 @ kappa_Ni1
+                - 0.5 * dt * (W_gammai1 @ La_gammai1 + W_Fi1 @ La_Fi1),
+                self.model.g(ti1, qi1),
+                self.model.g_dot(ti1, qi1, ui1),
+                self.model.g_ddot(ti1, qi1, ui1, ai1),
+                self.model.gamma(ti1, qi1, ui1),
+                self.model.gamma_dot(ti1, qi1, ui1, ai1),
+            )
         )
-        R_s[nu : 2 * nu] = (
-            Mi1 @ Ui1
-            - W_gi1 @ La_gi1
-            - W_gammai1 @ La_gammai1
-            - W_Ni1 @ La_Ni1
-            - W_Fi1 @ La_Fi1
-        )
-        R_s[2 * nu : 3 * nu] = (
-            Mi1 @ Qi1
-            - W_gi1 @ kappa_gi1
-            - W_Ni1 @ kappa_Ni1
-            - 0.5 * dt * (W_gammai1 @ La_gammai1 + W_Fi1 @ La_Fi1)
-        )
-        R_s[3 * nu : 3 * nu + nla_g] = self.model.g(ti1, qi1)
-        R_s[3 * nu + nla_g : 3 * nu + 2 * nla_g] = self.model.g_dot(ti1, qi1, ui1)
-        R_s[3 * nu + 2 * nla_g : 3 * nu + 3 * nla_g] = self.model.g_ddot(
-            ti1, qi1, ui1, ai1
-        )
-        R_s[3 * nu + 3 * nla_g : 3 * nu + 3 * nla_g + nla_gamma] = self.model.gamma(
-            ti1, qi1, ui1
-        )
-        R_s[
-            3 * nu + 3 * nla_g + nla_gamma : 3 * nu + 3 * nla_g + 2 * nla_gamma
-        ] = self.model.gamma_dot(ti1, qi1, ui1, ai1)
 
         return R_s
 
@@ -496,9 +521,7 @@ class NonsmoothGeneralizedAlpha:
         ti1 = self.ti + dt
 
         # eqn. (144): read kinematic variables from y
-        ai1 = y[:nu]
-        Ui1 = y[nu : 2 * nu]
-        Qi1 = y[2 * nu : 3 * nu]
+        ai1, Ui1, Qi1, _, _, _, _, _ = np.array_split(y, self.split_y)
 
         # ----- kinematic variables -----
         # eqn. (71): compute auxiliary acceleration variables
@@ -535,11 +558,9 @@ class NonsmoothGeneralizedAlpha:
         # For convenience, we call the iteration index j instead of mu.
 
         # eqn. (144): unpack vector z
-        kappa_Ni1_j = z[:nla_N]
-        La_Ni1_j = z[nla_N : 2 * nla_N]
-        la_Ni1_j = z[2 * nla_N : 3 * nla_N]
-        La_Fi1_j = z[3 * nla_N : 3 * nla_N + nla_F]
-        la_Fi1_j = z[3 * nla_N + nla_F : 3 * nla_N + 2 * nla_F]
+        kappa_Ni1_j, La_Ni1_j, la_Ni1_j, La_Fi1_j, la_Fi1_j = np.array_split(
+            z, self.split_z
+        )
 
         # eqn. (96): compute auxiliary normal contact forces
         la_Nbari1 = (
@@ -646,12 +667,7 @@ class NonsmoothGeneralizedAlpha:
         )
 
         # eqn. (144): pack z vector
-        z = np.zeros(self.nR_c)
-        z[:nla_N] = kappa_Ni1_j1
-        z[nla_N : 2 * nla_N] = La_Ni1_j1
-        z[2 * nla_N : 3 * nla_N] = la_Ni1_j1
-        z[3 * nla_N : 3 * nla_N + nla_F] = La_Fi1_j1
-        z[3 * nla_N + nla_F : 3 * nla_N + 2 * nla_F] = la_Fi1_j1
+        z = np.concatenate((kappa_Ni1_j1, La_Ni1_j1, la_Ni1_j1, La_Fi1_j1, la_Fi1_j1))
 
         return z
 
@@ -667,23 +683,23 @@ class NonsmoothGeneralizedAlpha:
         ti1 = self.ti + dt
 
         # eqn. (126): initialize x vector with quanitites from previous time step
-        x = np.zeros(self.nR)
-        x[:nu] = self.ai
-        x[nu : 2 * nu] = self.Ui
-        x[2 * nu : 3 * nu] = self.Qi
-        x[3 * nu : 3 * nu + nla_g] = self.kappa_gi
-        x[3 * nu + nla_g : 3 * nu + 2 * nla_g] = self.La_gi
-        x[3 * nu + 2 * nla_g : 3 * nu + 3 * nla_g] = self.la_gi
-        x[3 * nu + 3 * nla_g : 3 * nu + 3 * nla_g + nla_gamma] = self.La_gammai
-        x[
-            3 * nu + 3 * nla_g + nla_gamma : 3 * nu + 3 * nla_g + 2 * nla_gamma
-        ] = self.la_gammai
-        x[nR_s : nR_s + nla_N] = self.kappa_Ni
-        x[nR_s + nla_N : nR_s + 2 * nla_N] = self.La_Ni
-        x[nR_s + 2 * nla_N : nR_s + 3 * nla_N] = self.la_Ni
-        x[nR_s + 3 * nla_N : nR_s + 3 * nla_N + nla_F] = self.La_Fi
-        x[nR_s + 3 * nla_N + nla_F : nR_s + 3 * nla_N + 2 * nla_F] = self.la_Fi
-
+        x = np.concatenate(
+            (
+                self.ai,
+                self.Ui,
+                self.Qi,
+                self.kappa_gi,
+                self.La_gi,
+                self.la_gi,
+                self.La_gammai,
+                self.la_gammai,
+                self.kappa_Ni,
+                self.La_Ni,
+                self.la_Ni,
+                self.La_Fi,
+                self.la_Fi,
+            )
+        )
         # initial residual and error
         R = self.R(x, update_index_set=True)
         error = self.newton_error_function(R)
@@ -710,21 +726,21 @@ class NonsmoothGeneralizedAlpha:
                     break
 
         # eqn. (126): unpack converged vector x
-        ai1 = x[:nu]
-        Ui1 = x[nu : 2 * nu]
-        Qi1 = x[2 * nu : 3 * nu]
-        kappa_gi1 = x[3 * nu : 3 * nu + nla_g]
-        La_gi1 = x[3 * nu + nla_g : 3 * nu + 2 * nla_g]
-        la_gi1 = x[3 * nu + 2 * nla_g : 3 * nu + 3 * nla_g]
-        La_gammai1 = x[3 * nu + 3 * nla_g : 3 * nu + 3 * nla_g + nla_gamma]
-        la_gammai1 = x[
-            3 * nu + 3 * nla_g + nla_gamma : 3 * nu + 3 * nla_g + 2 * nla_gamma
-        ]
-        kappa_Ni1 = x[nR_s : nR_s + nla_N]
-        La_Ni1 = x[nR_s + nla_N : nR_s + 2 * nla_N]
-        la_Ni1 = x[nR_s + 2 * nla_N : nR_s + 3 * nla_N]
-        La_Fi1 = x[nR_s + 3 * nla_N : nR_s + 3 * nla_N + nla_F]
-        la_Fi1 = x[nR_s + 3 * nla_N + nla_F : nR_s + 3 * nla_N + 2 * nla_F]
+        (
+            ai1,
+            Ui1,
+            Qi1,
+            kappa_gi1,
+            La_gi1,
+            la_gi1,
+            La_gammai1,
+            la_gammai1,
+            kappa_Ni1,
+            La_Ni1,
+            la_Ni1,
+            La_Fi1,
+            la_Fi1,
+        ) = np.array_split(x, self.split_x)
 
         return (
             (converged, j, error),
@@ -755,27 +771,28 @@ class NonsmoothGeneralizedAlpha:
         dt = self.dt
         ti1 = self.ti + dt
 
-        # eqn. (126): initialize x vector with quanitites from previous time step
-        x = np.zeros(self.nR)
-        x[:nu] = self.ai
-        x[nu : 2 * nu] = self.Ui
-        x[2 * nu : 3 * nu] = self.Qi
-        x[3 * nu : 3 * nu + nla_g] = self.kappa_gi
-        x[3 * nu + nla_g : 3 * nu + 2 * nla_g] = self.La_gi
-        x[3 * nu + 2 * nla_g : 3 * nu + 3 * nla_g] = self.la_gi
-        x[3 * nu + 3 * nla_g : 3 * nu + 3 * nla_g + nla_gamma] = self.La_gammai
-        x[
-            3 * nu + 3 * nla_g + nla_gamma : 3 * nu + 3 * nla_g + 2 * nla_gamma
-        ] = self.la_gammai
-        x[nR_s : nR_s + nla_N] = self.kappa_Ni
-        x[nR_s + nla_N : nR_s + 2 * nla_N] = self.La_Ni
-        x[nR_s + 2 * nla_N : nR_s + 3 * nla_N] = self.la_Ni
-        x[nR_s + 3 * nla_N : nR_s + 3 * nla_N + nla_F] = self.La_Fi
-        x[nR_s + 3 * nla_N + nla_F : nR_s + 3 * nla_N + 2 * nla_F] = self.la_Fi
-
-        # eqn. (144): split variables
-        y = x[:nR_s]
-        z = x[nR_s:]
+        # eqn. (144): initialize split variables
+        y = np.concatenate(
+            (
+                self.ai,
+                self.Ui,
+                self.Qi,
+                self.kappa_gi,
+                self.La_gi,
+                self.la_gi,
+                self.La_gammai,
+                self.la_gammai,
+            )
+        )
+        z = np.concatenate(
+            (
+                self.kappa_Ni,
+                self.La_Ni,
+                self.la_Ni,
+                self.La_Fi,
+                self.la_Fi,
+            )
+        )
 
         # eqn. (145): Newton iterations for update of non-contact variables
         fixed_point_error = None
@@ -817,22 +834,17 @@ class NonsmoothGeneralizedAlpha:
                 break
 
         # eqn. (144): unpack converged y and z vectors
-        ai1 = y[:nu]
-        Ui1 = y[nu : 2 * nu]
-        Qi1 = y[2 * nu : 3 * nu]
-        kappa_gi1 = y[3 * nu : 3 * nu + nla_g]
-        La_gi1 = y[3 * nu + nla_g : 3 * nu + 2 * nla_g]
-        la_gi1 = y[3 * nu + 2 * nla_g : 3 * nu + 3 * nla_g]
-        La_gammai1 = y[3 * nu + 3 * nla_g : 3 * nu + 3 * nla_g + nla_gamma]
-        la_gammai1 = y[
-            3 * nu + 3 * nla_g + nla_gamma : 3 * nu + 3 * nla_g + 2 * nla_gamma
-        ]
-
-        kappa_Ni1 = z[:nla_N]
-        La_Ni1 = z[nla_N : 2 * nla_N]
-        la_Ni1 = z[2 * nla_N : 3 * nla_N]
-        La_Fi1 = z[3 * nla_N : 3 * nla_N + nla_F]
-        la_Fi1 = z[3 * nla_N + nla_F : 3 * nla_N + 2 * nla_F]
+        (
+            ai1,
+            Ui1,
+            Qi1,
+            kappa_gi1,
+            La_gi1,
+            la_gi1,
+            La_gammai1,
+            la_gammai1,
+        ) = np.array_split(y, self.split_y)
+        kappa_Ni1, La_Ni1, la_Ni1, La_Fi1, la_Fi1 = np.array_split(z, self.split_z)
 
         return (
             (fixed_point_converged, j, fixed_point_error),
@@ -942,8 +954,6 @@ class NonsmoothGeneralizedAlpha:
                 fixpt_iter.append(n_iter + 1)
 
             # ----- compute variables for output -----
-            # eqn. (121): get matrix B from model
-            Bi = self.model.B(self.ti, self.qi)
 
             # eqn. (71): compute auxiliary acceleration variables
             a_bari1 = (
