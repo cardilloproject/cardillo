@@ -1,10 +1,11 @@
 import numpy as np
+import matplotlib.pyplot as plt
 from pathlib import Path
 
 from cardillo.discrete import Box, RigidBodyQuaternion
-from cardillo.math import axis_angle2quat
+from cardillo.math import axis_angle2quat, Log_SO3
 from cardillo.system import System
-from cardillo.solver import RadauIIa, EulerBackward
+from cardillo.solver import ScipyIVP, RadauIIa, EulerBackward
 from cardillo.utility import Export
 
 if __name__ == "__main__":
@@ -28,13 +29,50 @@ if __name__ == "__main__":
     system.add(box)
     system.assemble()
 
-    t1 = 4
-    dt = 1e-2
+    t1 = 2
+    dt = 1e-3
     # solver = RadauIIa(system, t1, dt)
-    solver = EulerBackward(system, t1, dt)
+    # solver = EulerBackward(system, t1, dt)
+    solver = ScipyIVP(system, t1, dt)
     sol = solver.solve()
 
+    ###############
+    # visualization
+    ###############
+    t, q = sol.t, sol.q
+    r_OP = np.array([box.r_OP(ti, qi) for (ti, qi) in zip(t, q)])
+    A_IK = np.array([box.A_IK(ti, qi) for (ti, qi) in zip(t, q)])
+    Delta_angles = np.zeros((len(t), 3), dtype=float)
+    for i in range(1, len(t)):
+        Delta_angles[i] = Log_SO3(A_IK[i - 1].T @ A_IK[i])
+    angles = np.cumsum(Delta_angles, axis=0)
+
+    fig, ax = plt.subplots(2, 3)
+
+    ax[0, 0].set_title("x")
+    ax[0, 0].plot(t, r_OP[:, 0], "-k")
+
+    ax[0, 1].set_title("y")
+    ax[0, 1].plot(t, r_OP[:, 1], "-k")
+
+    ax[0, 2].set_title("z")
+    ax[0, 2].plot(t, r_OP[:, 2], "-k")
+
+    ax[1, 0].set_title("psi0")
+    ax[1, 0].plot(t, angles[:, 0], "-k")
+
+    ax[1, 1].set_title("psi1")
+    ax[1, 1].plot(t, angles[:, 1], "-k")
+
+    ax[1, 2].set_title("psi2")
+    ax[1, 2].plot(t, angles[:, 2], "-k")
+
+    plt.show()
+
+    ############
+    # vtk export
+    ############
     path = Path(__file__)
-    e = Export(path.parent, path.stem, overwrite=True, fps=30, solution=sol)
+    e = Export(path.parent, path.stem, overwrite=True, fps=100, solution=sol)
     e.export_contr(box)
     e.export_contr(box, base_export=True)
