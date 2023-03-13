@@ -2,7 +2,7 @@ import numpy as np
 from cardillo.constraints._base import ProjectedPositionOrientationBase
 
 
-class Prismatic(ProjectedPositionOrientationBase):
+class Slider(ProjectedPositionOrientationBase):
     def __init__(
         self,
         subsystem1,
@@ -13,13 +13,12 @@ class Prismatic(ProjectedPositionOrientationBase):
         frame_ID1=np.zeros(3),
         frame_ID2=np.zeros(3),
     ):
+        raise RuntimeError("This is not tested!")
+
         assert axis in (0, 1, 2)
 
         # remove free axis
         constrained_axes_displacement = np.delete((0, 1, 2), axis)
-
-        # all orientations are constrained
-        projection_pairs_rotation = [(0, 1), (1, 2), (2, 0)]
 
         super().__init__(
             subsystem1,
@@ -27,7 +26,7 @@ class Prismatic(ProjectedPositionOrientationBase):
             r_OB0=r_OB0,
             A_IB0=A_IB0,
             constrained_axes_displacement=constrained_axes_displacement,
-            projection_pairs_rotation=projection_pairs_rotation,
+            projection_pairs_rotation=[],
             frame_ID1=frame_ID1,
             frame_ID2=frame_ID2,
         )

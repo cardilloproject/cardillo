@@ -89,13 +89,13 @@ def run(
         constraint = Cylindrical(
             subsystem1=RB1,
             subsystem2=RB2,
-            free_axis=2,
+            axis=2,
         )
     elif joint == "Prismatic":
         constraint = Prismatic(
             subsystem1=RB1,
             subsystem2=RB2,
-            free_axis=2,
+            axis=2,
         )
 
     system = System()
@@ -220,7 +220,7 @@ if __name__ == "__main__":
     #############
     # Cylindrical
     #############
-    # run("Cylindrical", ScipyIVP)
+    run("Cylindrical", ScipyIVP)
 
     # run("Cylindrical", EulerBackward, method="index 1")
     # run("Cylindrical", EulerBackward, method="index 2")
@@ -229,12 +229,12 @@ if __name__ == "__main__":
 
     # run("Cylindrical", RadauIIa, dae_index=2)
     # run("Cylindrical", RadauIIa, dae_index=3, rtol=1e-2, atol=1e-2) # this is not working for alpha_dot0 != 0
-    run("Cylindrical", RadauIIa, dae_index="GGL")
+    # run("Cylindrical", RadauIIa, dae_index="GGL")
 
     ###########
     # Prismatic
     ###########
-    # run("Prismatic", ScipyIVP)
+    run("Prismatic", ScipyIVP)
 
     # run("Prismatic", EulerBackward, method="index 1")
     # run("Prismatic", EulerBackward, method="index 2")
