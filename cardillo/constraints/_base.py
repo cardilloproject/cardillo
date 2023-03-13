@@ -546,10 +546,10 @@ class ProjectedPositionOrientationBase:
         self,
         subsystem1,
         subsystem2,
-        r_OB0,
-        A_IB0,
         constrained_axes_displacement,
         projection_pairs_rotation,
+        r_OB0=None,
+        A_IB0=None,
         frame_ID1=np.zeros(3),
         frame_ID2=np.zeros(3),
     ):
