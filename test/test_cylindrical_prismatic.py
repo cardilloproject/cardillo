@@ -96,7 +96,10 @@ def run(
     system.add(frame, constraint)
     system.assemble()
 
-    sol = ScipyIVP(system, t1, dt).solve()
+    # TODO: Make solver choice a function argument
+    # sol = ScipyIVP(system, t1, dt).solve()
+    sol = EulerBackward(system, t1, dt, method="index 3").solve()
+
     t, q, u = sol.t, sol.q, sol.u
 
     zs = np.array([A_IB0[:, 2] @ RB.r_OP(ti, qi) for (ti, qi) in zip(t, q)])
