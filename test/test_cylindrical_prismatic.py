@@ -6,7 +6,7 @@ from scipy.spatial.transform import Rotation
 
 from cardillo import System
 from cardillo.solver import ScipyIVP, EulerBackward, RadauIIa
-from cardillo.constraints import Cylindrical
+from cardillo.constraints import Cylindrical, RigidConnection
 from cardillo.discrete import Frame, RigidBodyAxisAngle, RigidBodyQuaternion
 from cardillo.forces import Force
 
@@ -71,6 +71,13 @@ def run(
     ##############
     # DAE solution
     ##############
+    frame = Frame(r_OP=r_OB0, A_IK=A_IB0)
+
+    q0 = np.array([*r_OB0, *Spurrier(A_IB0)])
+    RB1 = RigidBody(m, K_theta_S, q0)
+
+    rigid_connection = RigidConnection(frame, RB1)
+
     r_OS0 = r_OB0 + A_IB0 @ np.array([0.5 * l, 0, z0])
     A_IK0 = A_IB0
     p0 = Spurrier(A_IK0)
@@ -79,21 +86,20 @@ def run(
     v_P0 = A_IB0 @ np.array([0, 0, z_dot0])
     v_S0 = v_P0 + A_IK0 @ cross3(K0_omega_IK0, np.array([0.5 * l, 0, 0]))
     u0 = np.array([*v_S0, *K0_omega_IK0])
-    RB = RigidBody(m, K_theta_S, q0, u0)
+    RB2 = RigidBody(m, K_theta_S, q0, u0)
 
-    f_g = Force(np.array([0, 0, -m * g]), RB)
+    f_g = Force(np.array([0, 0, -m * g]), RB2)
 
-    frame = Frame(r_OP=r_OB0, A_IK=A_IB0)
-
-    constraint = Cylindrical(
-        subsystem1=frame,
-        subsystem2=RB,
+    cylindrical = Cylindrical(
+        subsystem1=RB1,
+        subsystem2=RB2,
         free_axis=2,
     )
 
     system = System()
-    system.add(RB, f_g)
-    system.add(frame, constraint)
+    system.add(frame, RB1, rigid_connection)
+    system.add(RB2, f_g)
+    system.add(cylindrical)
     system.assemble()
 
     # TODO: Make solver choice a function argument
@@ -102,8 +108,8 @@ def run(
 
     t, q, u = sol.t, sol.q, sol.u
 
-    zs = np.array([A_IB0[:, 2] @ RB.r_OP(ti, qi) for (ti, qi) in zip(t, q)])
-    A_IK = np.array([RB.A_IK(ti, qi) for (ti, qi) in zip(t, q)])
+    zs = np.array([A_IB0[:, 2] @ RB2.r_OP(ti, qi[RB2.qDOF]) for (ti, qi) in zip(t, q)])
+    A_IK = np.array([RB2.A_IK(ti, qi[RB2.qDOF]) for (ti, qi) in zip(t, q)])
     Delta_alpha = np.zeros(len(t), dtype=float)
     Delta_alpha[0] = alpha0
     for i in range(1, len(t)):

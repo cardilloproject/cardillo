@@ -223,7 +223,7 @@ class PositionOrientationBase:
         self.nla_g = 3 + self.naxes
         self.projection_pairs = projection_pairs
 
-        self.spherical = self.naxes_rotation == 0
+        self.spherical = self.naxes == 0
 
     def assembler_callback(self):
         local_qDOF1, local_qDOF2 = concatenate_qDOF(self)
@@ -652,6 +652,14 @@ class ProjectedPositionOrientationBase:
 
         return g_q
 
+        # g_q_num = approx_fprime(
+        #     q, lambda q: self.g(t, q), method="cs", eps=1e-12
+        # )
+        # diff = g_q - g_q_num
+        # error = np.linalg.norm(diff)
+        # print(f"error g_q: {error}")
+        # return g_q_num
+
     def g_q(self, t, q, coo):
         coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
 
@@ -889,6 +897,14 @@ class ProjectedPositionOrientationBase:
 
         return W_g
 
+        # W_g_num = approx_fprime(
+        #     np.zeros(self._nu), lambda u: self.g_dot(t, q, u), method="3-point", eps=1e-6
+        # ).T
+        # diff = W_g - W_g_num
+        # error = np.linalg.norm(diff)
+        # print(f"error W_g: {error}")
+        # return W_g_num
+
     def W_g(self, t, q, coo):
         coo.extend(self.W_g_dense(t, q), (self.uDOF, self.la_gDOF))
 
@@ -967,12 +983,13 @@ class ProjectedPositionOrientationBase:
         coo.extend(dense, (self.uDOF, self.qDOF))
 
         # dense_num = approx_fprime(
-        #     q, lambda q: self.W_g_dense(t, q) @ la_g, method="3-point", eps=1e-6
+        #     # q, lambda q: self.W_g_dense(t, q) @ la_g, method="3-point", eps=1e-6
+        #     q, lambda q: self.W_g_dense(t, q) @ la_g, method="cs", eps=1e-12
         # )
         # diff = dense - dense_num
         # error = np.linalg.norm(diff)
-        # if error > 1.0e-8:
-        #     print(f"error Wla_g_q: {error}")
+        # # if error > 1.0e-8:
+        # print(f"error Wla_g_q: {error}")
 
         # coo.extend(dense_num, (self.uDOF, self.qDOF))
 
