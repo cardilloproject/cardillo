@@ -7,14 +7,8 @@ from scipy.spatial.transform import Rotation
 from cardillo import System
 from cardillo.solver import ScipyIVP, EulerBackward, RadauIIa
 from cardillo.constraints import Cylindrical, RigidConnection
-from cardillo.discrete import Frame, RigidBodyAxisAngle, RigidBodyQuaternion
+from cardillo.discrete import Frame, RigidBodyQuaternion
 from cardillo.forces import Force
-
-# from cardillo.forces import (
-#     LinearSpring,
-#     LinearDamper,
-#     PDRotationalJoint,
-# )
 from cardillo.math import e1, e2, e3, Exp_SO3, Log_SO3, Spurrier, cross3
 
 # setup solver
@@ -41,12 +35,9 @@ def RigidCylinder(RigidBody):
 
 
 def run(
-    # x0,
-    # alpha_dot0,
-    RigidBody=RigidBodyQuaternion,
-    # solver_type="EulerBackward",
-    # plot=True,
-    # rotation_axis=2,
+    joint,
+    Solver,
+    **solver_kwargs,
 ):
     # axis origin
     r_OB0 = np.zeros(3)
@@ -74,7 +65,7 @@ def run(
     frame = Frame(r_OP=r_OB0, A_IK=A_IB0)
 
     q0 = np.array([*r_OB0, *Spurrier(A_IB0)])
-    RB1 = RigidBody(m, K_theta_S, q0)
+    RB1 = RigidBodyQuaternion(m, K_theta_S, q0)
 
     rigid_connection = RigidConnection(frame, RB1)
 
@@ -86,25 +77,34 @@ def run(
     v_P0 = A_IB0 @ np.array([0, 0, z_dot0])
     v_S0 = v_P0 + A_IK0 @ cross3(K0_omega_IK0, np.array([0.5 * l, 0, 0]))
     u0 = np.array([*v_S0, *K0_omega_IK0])
-    RB2 = RigidBody(m, K_theta_S, q0, u0)
+    RB2 = RigidBodyQuaternion(m, K_theta_S, q0, u0)
 
     f_g = Force(np.array([0, 0, -m * g]), RB2)
 
-    cylindrical = Cylindrical(
-        subsystem1=RB1,
-        subsystem2=RB2,
-        free_axis=2,
-    )
+    if joint == "Cylindrical":
+        constraint = Cylindrical(
+            subsystem1=RB1,
+            subsystem2=RB2,
+            free_axis=2,
+        )
+    elif joint == "Prismatic":
+        raise NotImplementedError
+    else:
+        raise NotImplementedError
 
     system = System()
     system.add(frame, RB1, rigid_connection)
     system.add(RB2, f_g)
-    system.add(cylindrical)
+    system.add(constraint)
     system.assemble()
 
     # TODO: Make solver choice a function argument
     # sol = ScipyIVP(system, t1, dt).solve()
-    sol = EulerBackward(system, t1, dt, method="index 3").solve()
+    # sol = EulerBackward(system, t1, dt, method="index 3").solve()
+    # sol = EulerBackward(system, t1, dt, method="index 2").solve()
+    # sol = EulerBackward(system, t1, dt, method="index 1").solve()
+    # sol = EulerBackward(system, t1, dt, method="index 2 GGL").solve()
+    sol = Solver(system, t1, dt, **solver_kwargs).solve()
 
     t, q, u = sol.t, sol.q, sol.u
 
@@ -211,225 +211,16 @@ def run(
     )
 
     plt.show()
-    exit()
-
-    def update(t, q, COM, d11_, d21_, d31_, d12_, d22_, d32_):
-        # def update(t, q, COM, d11_, d21_, d31_):
-        x_0, y_0, z_0 = origin.r_OP(t)
-        x_S1, y_S1, z_S1 = RB1.r_OP(t, q[RB1.qDOF], K_r_SP=np.array([0, -l / 2, 0]))
-        x_S2, y_S2, z_S2 = RB2.r_OP(t, q[RB2.qDOF], K_r_SP=np.array([0, -l / 2, 0]))
-
-        A_IK1 = RB1.A_IK(t, q[RB1.qDOF])
-        d11 = A_IK1[:, 0]
-        d21 = A_IK1[:, 1]
-        d31 = A_IK1[:, 2]
-
-        A_IK2 = RB2.A_IK(t, q[RB2.qDOF])
-        d12 = A_IK2[:, 0]
-        d22 = A_IK2[:, 1]
-        d32 = A_IK2[:, 2]
-
-        COM.set_data([x_0, x_S1, x_S2], [y_0, y_S1, y_S2])
-        COM.set_3d_properties([z_0, z_S1, z_S2])
-        # COM.set_data([x_0, x_S1], [y_0, y_S1])
-        # COM.set_3d_properties([z_0, z_S1])
-
-        d11_.set_data([x_S1, x_S1 + d11[0]], [y_S1, y_S1 + d11[1]])
-        d11_.set_3d_properties([z_S1, z_S1 + d11[2]])
-
-        d21_.set_data([x_S1, x_S1 + d21[0]], [y_S1, y_S1 + d21[1]])
-        d21_.set_3d_properties([z_S1, z_S1 + d21[2]])
-
-        d31_.set_data([x_S1, x_S1 + d31[0]], [y_S1, y_S1 + d31[1]])
-        d31_.set_3d_properties([z_S1, z_S1 + d31[2]])
-
-        d12_.set_data([x_S2, x_S2 + d12[0]], [y_S2, y_S2 + d12[1]])
-        d12_.set_3d_properties([z_S2, z_S2 + d12[2]])
-
-        d22_.set_data([x_S2, x_S2 + d22[0]], [y_S2, y_S2 + d22[1]])
-        d22_.set_3d_properties([z_S2, z_S2 + d22[2]])
-
-        d32_.set_data([x_S2, x_S2 + d32[0]], [y_S2, y_S2 + d32[1]])
-        d32_.set_3d_properties([z_S2, z_S2 + d32[2]])
-
-        return COM, d11_, d21_, d31_, d12_, d22_, d32_
-
-    COM, d11_, d21_, d31_, d12_, d22_, d32_ = init(0, q[0])
-
-    def animate(i):
-        update(t[i], q[i], COM, d11_, d21_, d31_, d12_, d22_, d32_)
-
-    # compute naimation interval according to te - ts = frames * interval / 1000
-    frames = len(t)
-    interval = dt * 1000
-    anim = animation.FuncAnimation(
-        fig, animate, frames=frames, interval=interval, blit=False
-    )
-
-    exit()
-
-    # r_OP0 = np.zeros(3)
-    # v_P0 = np.zeros(3)
-    # K_Omega0 = np.array((0, 0, alpha_dot0))
-    # u0 = np.hstack((v_P0, K_Omega0))
-
-    # if type(RigidBodyParametrization) is type(RigidBodyAxisAngle):
-    #     q0 = np.hstack((r_OP0, psi))
-    #     rigid_body = RigidCylinder(RigidBodyAxisAngle)(q0, u0)
-    # elif type(RigidBodyParametrization) is type(RigidBodyQuaternion):
-    #     n_psi = norm(psi)
-    #     p = axis_angle2quat(psi / n_psi, n_psi)
-    #     q0 = np.hstack((r_OP0, p))
-    #     rigid_body = RigidCylinder(RigidBodyQuaternion)(q0, u0)
-    # else:
-    #     raise (TypeError)
-
-    # system = System()
-    # joint = PDRotationalJoint(Revolute, Spring=LinearSpring, Damper=LinearDamper)(
-    #     subsystem1=system.origin,
-    #     subsystem2=rigid_body,
-    #     r_OB0=np.zeros(3),
-    #     A_IB0=A_IK0,
-    #     rotation_axis=rotation_axis,
-    #     k=k,
-    #     d=d,
-    #     g_ref=g_ref,
-    # )
-
-    # system.add(rigid_body, joint)
-    # system.assemble()
-
-    # ############################################################################
-    # #                   solver
-    # ############################################################################
-    # t1 = 2
-    # dt = 1.0e-2
-    # # dt = 5.0e-3
-    # match solver_type:
-    #     case "ScipyIVP":
-    #         solver = ScipyIVP(system, t1, dt, atol=1e-8)
-    #     case "RadauIIaDAE2":
-    #         solver = RadauIIa(
-    #             system, t1, dt, atol=1e-2, rtol=1e-2, dae_index=2, max_step=dt
-    #         )
-    #     case "RadauIIaDAE3":
-    #         solver = RadauIIa(
-    #             system, t1, dt, atol=1e-4, rtol=1e-4, dae_index=3, max_step=dt
-    #         )
-    #     case "RaudauIIaGGL":
-    #         solver = RadauIIa(
-    #             system, t1, dt, atol=1e-3, rtol=1e-3, dae_index="GGL", max_step=dt
-    #         )
-    #     case "EulerBackward" | _:
-    #         solver = EulerBackward(system, t1, dt)
-
-    # sol = solver.solve()
-    # t = sol.t
-    # q = sol.q
-    # u = sol.u
-
-    ############################################################################
-    #                   plot
-    ############################################################################
-    if plot:
-        # joint.reset()
-        # alpha_cmp = [joint.angle(ti, qi[joint.qDOF]) for ti, qi in zip(t, q)]
-
-        theta = K_theta_S[rotation_axis, rotation_axis]
-
-        def eqm(t, x):
-            dx = np.zeros(2)
-            dx[0] = x[1]
-            dx[1] = -1 / theta * (d * x[1] + k * (x[0] - g_ref))
-            return dx
-
-        x0 = np.array((0, alpha_dot0))
-        ref = solve_ivp(eqm, [0, t1], x0, method="RK45", rtol=1e-8, atol=1e-12)
-        x = ref.y
-        t_ref = ref.t
-        alpha_ref = x[0]
-
-        fig, ax = plt.subplots(1, 1)
-
-        ax.plot(t, alpha_cmp, "-k", label="alpha")
-        ax.plot(t_ref, alpha_ref, "-.r", label="alpha_ref")
-        ax.legend()
-
-        plt.show()
 
 
 if __name__ == "__main__":
-    run()
-    exit()
-    profiling = False
+    # run("Cylindrical", ScipyIVP)
 
-    # initial rotational velocity e_z^K axis
-    alpha_dot0 = 0
+    # run("Cylindrical", EulerBackward, method="index 1")
+    # run("Cylindrical", EulerBackward, method="index 2")
+    # run("Cylindrical", EulerBackward, method="index 3")
+    # run("Cylindrical", EulerBackward, method="index 2 GGL")
 
-    # axis angle rotation
-    psi = np.random.rand(3)
-    # psi = np.array((0, 1, 0))
-    # psi = np.array((1, 0, 0))
-    # Following rotations result in linear eqms, Radau Solver without max step argument set rotates more than 360° in one time step.
-    # psi = np.array((0, 0, 1))
-    # psi = np.zeros(3)
-
-    A_IK0 = Exp_SO3(psi)
-    print(f"A_IK0:\n{A_IK0}")
-
-    # spring stiffness and damper parameter
-    k = 1e1
-    d = 0.05
-    # k=d=0
-    g_ref = 2 * np.pi
-    rotation_axis = 1
-
-    # Rigid body parametrization
-    RigidBodyParametrization = RigidBodyQuaternion
-    # RigidBodyParametrization = RigidBodyAxisAngle
-
-    # Solver
-    solver = [
-        "ScipyIVP",
-        "RadauIIaDAE2",
-        "RadauIIaDAE3",
-        "RaudauIIaGGL",
-        "EulerBackward",
-    ]
-
-    if profiling:
-        import cProfile, pstats
-
-        profiler = cProfile.Profile()
-
-        profiler.enable()
-        run(
-            k=k,
-            d=d,
-            psi=psi,
-            alpha_dot0=alpha_dot0,
-            g_ref=g_ref,
-            RigidBody=RigidBodyParametrization,
-            solver_type=solver[2],
-            plot=False,
-            rotation_axis=rotation_axis,
-        )
-        profiler.disable()
-
-        stats = pstats.Stats(profiler)
-        # stats.print_stats(20)
-        stats.sort_stats(pstats.SortKey.TIME, pstats.SortKey.CUMULATIVE).print_stats(
-            0.5, "cardillo"
-        )
-    else:
-        run(
-            k=k,
-            d=d,
-            psi=psi,
-            alpha_dot0=alpha_dot0,
-            g_ref=g_ref,
-            RigidBody=RigidBodyParametrization,
-            solver_type=solver[1],
-            plot=True,
-            rotation_axis=rotation_axis,
-        )
+    # run("Cylindrical", RadauIIa, dae_index=2)
+    # run("Cylindrical", RadauIIa, dae_index=3, rtol=1e-2, atol=1e-2) # not working!
+    run("Cylindrical", RadauIIa, dae_index="GGL")

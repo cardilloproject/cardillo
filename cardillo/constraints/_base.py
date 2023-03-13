@@ -1,4 +1,5 @@
 import numpy as np
+import warnings
 
 from cardillo.math import approx_fprime
 from cardillo.math.algebra import cross3, ax2skew
@@ -535,6 +536,7 @@ class PositionOrientationBase:
 
     # TODO analytical derivative
     def g_q_T_mu_q(self, t, q, mu, coo):
+        warnings.warn("'PositionOrientationBase.g_q_T_mu_q' uses numerical derivative.")
         dense = approx_fprime(q, lambda q: self.g_q_dense(t, q).T @ mu)
         coo.extend(dense, (self.qDOF, self.qDOF))
 
@@ -684,61 +686,68 @@ class ProjectedPositionOrientationBase:
 
         return g_dot
 
-    # def g_dot_q_dense(self, t, q, u):
-    #     nq1 = self._nq1
-    #     g_dot_q = np.zeros((self.nla_g, self._nq), dtype=np.common_type(q, u))
+    def g_dot_q_dense(self, t, q, u):
+        nq1 = self._nq1
+        g_dot_q = np.zeros((self.nla_g, self._nq), dtype=np.common_type(q, u))
 
-    #     A_IB1 = self.A_IB1(t, q)
-    #     A_IB1_q1 = self.A_IB1_q1(t, q)
-    #     Omega1 = self.Omega1(t, q, u)
-    #     Omega1_q1 = self.Omega1_q1(t, q, u)
-    #     if not self.translational:
-    #         r_B1B2 = self.r_OB2(t, q) - self.r_OB1(t, q)
-    #         v_B1B2 = self.v_B2(t, q) - self.v_B1(t, q)
-    #         r_OB1_q1 = self.r_OB1_q1(t, q)
-    #         r_OB2_q2 = self.r_OB2_q2(t, q)
-    #         v_B1_q1 = self.v_B1_q1(self, t, q, u)
-    #         v_B2_q2 = self.v_B2_q2(self, t, q, u)
-    #         for i, ax in enumerate(self.constrained_axes_displacement):
-    #             g_dot_q[i, :nq1] = (
-    #                 -A_IB1[:, ax] @ v_B1_q1
-    #                 + cross3(A_IB1[:, ax], r_B1B2) @ Omega1_q1
-    #                 + (v_B1B2 + cross3(r_B1B2, Omega1)) @ A_IB1_q1[:, ax]
-    #                 - cross3(Omega1, A_IB1[:, ax]) @ r_OB1_q1
-    #             )
-    #             g_dot_q[i, nq1:] = (
-    #                 A_IB1[:, ax] @ v_B2_q2 + cross3(Omega1, A_IB1[:, ax]) @ r_OB2_q2
-    #             )
+        A_IB1 = self.A_IB1(t, q)
+        A_IB1_q1 = self.A_IB1_q1(t, q)
+        Omega1 = self.Omega1(t, q, u)
+        Omega1_q1 = self.Omega1_q1(t, q, u)
+        if not self.translational:
+            r_B1B2 = self.r_OB2(t, q) - self.r_OB1(t, q)
+            v_B1B2 = self.v_B2(t, q, u) - self.v_B1(t, q, u)
+            r_OB1_q1 = self.r_OB1_q1(t, q)
+            r_OB2_q2 = self.r_OB2_q2(t, q)
+            v_B1_q1 = self.v_B1_q1(t, q, u)
+            v_B2_q2 = self.v_B2_q2(t, q, u)
+            for i, ax in enumerate(self.constrained_axes_displacement):
+                g_dot_q[i, :nq1] = (
+                    -A_IB1[:, ax] @ v_B1_q1
+                    + cross3(A_IB1[:, ax], r_B1B2) @ Omega1_q1
+                    + (v_B1B2 + cross3(r_B1B2, Omega1)) @ A_IB1_q1[:, ax]
+                    - cross3(Omega1, A_IB1[:, ax]) @ r_OB1_q1
+                )
+                g_dot_q[i, nq1:] = (
+                    A_IB1[:, ax] @ v_B2_q2 + cross3(Omega1, A_IB1[:, ax]) @ r_OB2_q2
+                )
 
-    #     if not self.spherical:
-    #         A_IB2 = self.A_IB2(t, q)
-    #         A_IB2_q2 = self.A_IB2_q2(t, q)
+        if not self.spherical:
+            A_IB2 = self.A_IB2(t, q)
+            A_IB2_q2 = self.A_IB2_q2(t, q)
 
-    #         Omega21 = Omega1 - self.Omega2(t, q, u)
-    #         Omega2_q2 = self.Omega2_q2(t, q, u)
+            Omega21 = Omega1 - self.Omega2(t, q, u)
+            Omega2_q2 = self.Omega2_q2(t, q, u)
 
-    #         for i, (a, b) in enumerate(self.projection_pairs_rotation):
-    #             e_a, e_b = A_IB1[:, a], A_IB2[:, b]
-    #             n = cross3(e_a, e_b)
-    #             g_dot_q[3 + i, :nq1] = (
-    #                 n @ Omega1_q1 - Omega21 @ ax2skew(e_b) @ A_IB1_q1[:, a]
-    #             )
-    #             g_dot_q[3 + i, nq1:] = (
-    #                 -n @ Omega2_q2 + Omega21 @ ax2skew(e_a) @ A_IB2_q2[:, b]
-    #             )
+            naxes_displacement = self.naxes_displacement
+            for i, (a, b) in enumerate(self.projection_pairs_rotation):
+                e_a, e_b = A_IB1[:, a], A_IB2[:, b]
+                n = cross3(e_a, e_b)
+                g_dot_q[naxes_displacement + i, :nq1] = (
+                    n @ Omega1_q1 - Omega21 @ ax2skew(e_b) @ A_IB1_q1[:, a]
+                )
+                g_dot_q[naxes_displacement + i, nq1:] = (
+                    -n @ Omega2_q2 + Omega21 @ ax2skew(e_a) @ A_IB2_q2[:, b]
+                )
 
-    #     return g_dot_q
+        return g_dot_q
 
-    # def g_dot_q(self, t, q, u, coo):
-    #     coo.extend(self.g_dot_q_dense(t, q, u), (self.la_gDOF, self.qDOF))
+        # g_dot_q_num = approx_fprime(
+        #     q, lambda q: self.g_dot(t, q, u), method="cs", eps=1e-12
+        # )
+        # diff = g_dot_q - g_dot_q_num
+        # error = np.linalg.norm(diff)
+        # print(f"error g_dot_q: {error}")
+        # return g_dot_q_num
 
-    # def g_dot_u(self, t, q, coo):
-    #     coo.extend(self.W_g_dense(t, q).T, (self.la_gDOF, self.uDOF))
+    def g_dot_q(self, t, q, u, coo):
+        coo.extend(self.g_dot_q_dense(t, q, u), (self.la_gDOF, self.qDOF))
 
-    # TODO: Review implementation
+    def g_dot_u(self, t, q, coo):
+        coo.extend(self.W_g_dense(t, q).T, (self.la_gDOF, self.uDOF))
+
     def g_ddot(self, t, q, u, u_dot):
         g_ddot = np.zeros(self.nla_g, dtype=np.common_type(q, u, u_dot))
-        g_ddot[:3] = self.a_B2(t, q, u, u_dot) - self.a_B1(t, q, u, u_dot)
 
         A_IB1 = self.A_IB1(t, q)
         Omega1 = self.Omega1(t, q, u)
@@ -748,11 +757,14 @@ class ProjectedPositionOrientationBase:
             v_B1B2 = self.v_B2(t, q, u) - self.v_B1(t, q, u)
             a_B1B2 = self.a_B2(t, q, u, u_dot) - self.a_B1(t, q, u, u_dot)
             for i, ax in enumerate(self.constrained_axes_displacement):
-                g_ddot[i] = a_B1B2 @ A_IB1[:, ax]
-                +v_B1B2 @ cross3(Omega1, A_IB1[:, ax])
-                +cross3(cross3(Omega1, A_IB1[:, ax]), r_B1B2) @ Omega1
-                +cross3(A_IB1[:, ax], v_B1B2) @ Omega1
-                +cross3(A_IB1[:, ax], r_B1B2) @ Psi1
+                e_dot = cross3(Omega1, A_IB1[:, ax])
+                g_ddot[i] = (
+                    A_IB1[:, ax] @ a_B1B2
+                    + v_B1B2 @ e_dot
+                    + cross3(A_IB1[:, ax], r_B1B2) @ Psi1
+                    + cross3(A_IB1[:, ax], v_B1B2) @ Omega1
+                    + cross3(e_dot, r_B1B2) @ Omega1
+                )
 
         if not self.spherical:
             A_IB2 = self.A_IB2(t, q)
@@ -769,7 +781,14 @@ class ProjectedPositionOrientationBase:
 
         return g_ddot
 
-    # def g_ddot_q_dense(self, t, q, u, u_dot):
+    def g_ddot_q_dense(self, t, q, u, u_dot):
+        warnings.warn(
+            "'ProjectedPositionOrientationBase.g_ddot_q' uses numerical derivative."
+        )
+        return approx_fprime(
+            q, lambda q: self.g_ddot(t, q, u, u_dot), method="cs", eps=1e-12
+        )
+
     #     nq1 = self._nq1
     #     g_ddot_q = np.zeros((self.nla_g, self._nq), dtype=np.common_type(q, u, u_dot))
 
@@ -828,10 +847,17 @@ class ProjectedPositionOrientationBase:
 
     #     return g_ddot_q
 
-    # def g_ddot_q(self, t, q, u, u_dot, coo):
-    #     coo.extend(self.g_ddot_q_dense(t, q, u, u_dot), (self.la_gDOF, self.qDOF))
+    def g_ddot_q(self, t, q, u, u_dot, coo):
+        coo.extend(self.g_ddot_q_dense(t, q, u, u_dot), (self.la_gDOF, self.qDOF))
 
-    # def g_ddot_u_dense(self, t, q, u, u_dot):
+    def g_ddot_u_dense(self, t, q, u, u_dot):
+        warnings.warn(
+            "'ProjectedPositionOrientationBase.g_ddot_u' uses numerical derivative."
+        )
+        return approx_fprime(
+            u, lambda u: self.g_ddot(t, q, u, u_dot), method="cs", eps=1e-12
+        )
+
     #     nu1 = self._nu1
     #     g_ddot_u = np.zeros((self.nla_g, self._nu), dtype=np.common_type(q, u, u_dot))
 
@@ -868,8 +894,8 @@ class ProjectedPositionOrientationBase:
 
     #     return g_ddot_u
 
-    # def g_ddot_u(self, t, q, u, u_dot, coo):
-    #     coo.extend(self.g_ddot_u_dense(t, q, u, u_dot), (self.la_gDOF, self.uDOF))
+    def g_ddot_u(self, t, q, u, u_dot, coo):
+        coo.extend(self.g_ddot_u_dense(t, q, u, u_dot), (self.la_gDOF, self.uDOF))
 
     def W_g_dense(self, t, q):
         nu1 = self._nu1
@@ -993,7 +1019,9 @@ class ProjectedPositionOrientationBase:
 
         # coo.extend(dense_num, (self.uDOF, self.qDOF))
 
-    # # TODO analytical derivative
-    # def g_q_T_mu_q(self, t, q, mu, coo):
-    #     dense = approx_fprime(q, lambda q: self.g_q_dense(t, q).T @ mu)
-    #     coo.extend(dense, (self.qDOF, self.qDOF))
+    def g_q_T_mu_q(self, t, q, mu, coo):
+        warnings.warn(
+            "'ProjectedPositionOrientationBase.g_q_T_mu_q' uses numerical derivative."
+        )
+        dense = approx_fprime(q, lambda q: self.g_q_dense(t, q).T @ mu)
+        coo.extend(dense, (self.qDOF, self.qDOF))
