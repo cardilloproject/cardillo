@@ -3,8 +3,8 @@ from .rigid_connection import (
     RigidConnection,
     RigidConnectionCable,
 )
-from .revolute import Revolute  # , RevoluteJoint
-from .prismatic_joint import PrismaticJoint
+from .revolute import Revolute
+from .prismatic import Prismatic
 from .cylindrical import Cylindrical
 from .rolling_conditions import *
 from .rod import Rod
