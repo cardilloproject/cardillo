@@ -703,32 +703,33 @@ class Moreau_classical:
         dt = self.dt
         un = self.un
         tn1 = self.tn + dt
+        tn12 = self.tn + 0.5 * dt
 
         # explicit position update (midpoint)
         qn12 = self.qn + 0.5 * dt * self.system.q_dot(self.tn, self.qn, un)
 
         # get quantities from model
-        M = self.system.M(tn1, qn12)
-        h = self.system.h(tn1, qn12, un)
-        W_g = self.system.W_g(tn1, qn12)
-        W_gamma = self.system.W_gamma(tn1, qn12)
-        chi_g = self.system.g_dot(tn1, qn12, np.zeros_like(un))
-        chi_gamma = self.system.gamma(tn1, qn12, np.zeros_like(un))
+        M = self.system.M(tn12, qn12)
+        h = self.system.h(tn12, qn12, un)
+        W_g = self.system.W_g(tn12, qn12)
+        W_gamma = self.system.W_gamma(tn12, qn12)
+        chi_g = self.system.g_dot(tn12, qn12, np.zeros_like(un))
+        chi_gamma = self.system.gamma(tn12, qn12, np.zeros_like(un))
         # note: we use csc_matrix for efficient column slicing later,
         # see https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csc_array.html#scipy.sparse.csc_array
-        W_N = self.system.W_N(tn1, qn12, scipy_matrix=csc_matrix)
-        W_F = self.system.W_F(tn1, qn12, scipy_matrix=csc_matrix)
+        W_N = self.system.W_N(tn12, qn12, scipy_matrix=csc_matrix)
+        W_F = self.system.W_F(tn12, qn12, scipy_matrix=csc_matrix)
 
         # identify active contacts
-        I_N = self.system.g_N(tn1, qn12) <= 0
+        I_N = self.system.g_N(tn12, qn12) <= 0
 
         # identify active tangent contacts based on active normal contacts and
         # NF-connectivity lists
         I_F = compute_I_F(I_N, self.system.NF_connectivity)
 
         # compute new estimates for prox parameters and get friction coefficient
-        prox_r_N = self.system.prox_r_N(tn1, qn12)
-        prox_r_F = self.system.prox_r_F(tn1, qn12)
+        prox_r_N = self.system.prox_r_N(tn12, qn12)
+        prox_r_F = self.system.prox_r_F(tn12, qn12)
         mu = self.system.mu
 
         # Build matrix A for computation of new velocities and bilateral constraint percussions
@@ -802,7 +803,7 @@ class Moreau_classical:
         un1, P_gn1, P_gamman1 = np.array_split(self.x, self.split_x)
 
         # second half step
-        qn1 = qn12 + 0.5 * dt * self.system.q_dot(tn1, qn12, un1)
+        qn1 = qn12 + 0.5 * dt * self.system.q_dot(tn12, qn12, un1)
 
         return (converged, j, error), tn1, qn1, un1, P_gn1, P_gamman1, P_Nn1, P_Fn1
 
