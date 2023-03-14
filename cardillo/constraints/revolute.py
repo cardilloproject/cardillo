@@ -1,5 +1,4 @@
 import numpy as np
-from cardillo.math import approx_fprime, cross3, ax2skew, e3
 from cardillo.constraints._base import PositionOrientationBase
 
 
@@ -8,25 +7,25 @@ class Revolute(PositionOrientationBase):
         self,
         subsystem1,
         subsystem2,
-        r_OB0,
-        A_IB0,
-        rotation_axis=2,
+        axis,
+        r_OB0=None,
+        A_IB0=None,
         frame_ID1=np.zeros(3),
         frame_ID2=np.zeros(3),
     ):
-        self.rotation_axis = rotation_axis
-        self.plane_axes = np.roll([0, 1, 2], -rotation_axis)[1:]
-        projection_pairs = [
-            (rotation_axis, self.plane_axes[0]),
-            (rotation_axis, self.plane_axes[1]),
+        self.axis = axis
+        self.plane_axes = np.roll([0, 1, 2], -axis)[1:]
+        projection_pairs_rotation = [
+            (axis, self.plane_axes[0]),
+            (axis, self.plane_axes[1]),
         ]
 
         super().__init__(
             subsystem1,
             subsystem2,
+            projection_pairs_rotation=projection_pairs_rotation,
             r_OB0=r_OB0,
             A_IB0=A_IB0,
-            projection_pairs=projection_pairs,
             frame_ID1=frame_ID1,
             frame_ID2=frame_ID2,
         )
@@ -85,12 +84,12 @@ class Revolute(PositionOrientationBase):
         return angle
 
     def angle_dot(self, t, q, u):
-        e_c1 = self.A_IB1(t, q)[:, self.rotation_axis]
+        e_c1 = self.A_IB1(t, q)[:, self.axis]
         return (self.Omega2(t, q, u) - self.Omega1(t, q, u)) @ e_c1
 
     def angle_dot_q(self, t, q, u):
-        e_c1 = self.A_IB1(t, q)[:, self.rotation_axis]
-        e_c1_q1 = self.A_IB1_q1(t, q)[:, self.rotation_axis]
+        e_c1 = self.A_IB1(t, q)[:, self.axis]
+        e_c1_q1 = self.A_IB1_q1(t, q)[:, self.axis]
 
         return np.concatenate(
             [
@@ -101,7 +100,7 @@ class Revolute(PositionOrientationBase):
         )
 
     def angle_dot_u(self, t, q, u):
-        e_c1 = self.A_IB1(t, q)[:, self.rotation_axis]
+        e_c1 = self.A_IB1(t, q)[:, self.axis]
         return e_c1 @ np.concatenate([-self.J_R1(t, q), self.J_R2(t, q)], axis=1)
 
     def angle_q(self, t, q):
@@ -132,7 +131,7 @@ class Revolute(PositionOrientationBase):
     def W_angle(self, t, q):
         J_R1 = self.J_R1(t, q)
         J_R2 = self.J_R2(t, q)
-        e_c1 = self.A_IB1(t, q)[:, self.rotation_axis]
+        e_c1 = self.A_IB1(t, q)[:, self.axis]
         return np.concatenate([-J_R1.T @ e_c1, J_R2.T @ e_c1])
 
     def W_angle_q(self, t, q):
@@ -144,8 +143,8 @@ class Revolute(PositionOrientationBase):
         J_R1_q1 = self.J_R1_q1(t, q)
         J_R2_q2 = self.J_R2_q2(t, q)
 
-        e_c1 = self.A_IB1(t, q)[:, self.rotation_axis]
-        e_c1_q1 = self.A_IB1_q1(t, q)[:, self.rotation_axis]
+        e_c1 = self.A_IB1(t, q)[:, self.axis]
+        e_c1_q1 = self.A_IB1_q1(t, q)[:, self.axis]
 
         # dense blocks
         dense = np.zeros((self._nu, self._nq))

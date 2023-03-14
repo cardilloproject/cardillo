@@ -16,7 +16,7 @@ class Spherical(PositionOrientationBase):
             subsystem2,
             r_OB0=r_OB0,
             A_IB0=None,
-            projection_pairs=[],
+            projection_pairs_rotation=[],
             frame_ID1=frame_ID1,
             frame_ID2=frame_ID2,
         )

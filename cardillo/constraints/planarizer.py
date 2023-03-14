@@ -29,7 +29,7 @@ class Planarizer(ProjectedPositionOrientationBase):
             subsystem2,
             r_OB0=r_OB0,
             A_IB0=A_IB0,
-            constrained_axes_displacement=[axis],
+            constrained_axes_translation=[axis],
             projection_pairs_rotation=projection_pairs_rotation,
             frame_ID1=frame_ID1,
             frame_ID2=frame_ID2,

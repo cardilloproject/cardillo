@@ -201,9 +201,9 @@ class PositionOrientationBase:
         self,
         subsystem1,
         subsystem2,
-        r_OB0,
-        A_IB0,
-        projection_pairs,
+        projection_pairs_rotation,
+        r_OB0=None,
+        A_IB0=None,
         frame_ID1=np.zeros(3),
         frame_ID2=np.zeros(3),
     ):
@@ -215,16 +215,16 @@ class PositionOrientationBase:
         self.A_IB0 = A_IB0
 
         # guard against flawed constrained_axes input
-        self.naxes = len(projection_pairs)
-        for pair in projection_pairs:
+        self.nla_g_rot = len(projection_pairs_rotation)
+        for pair in projection_pairs_rotation:
             assert len(np.unique(pair)) == 2
             for i in pair:
                 assert i in [0, 1, 2]
 
-        self.nla_g = 3 + self.naxes
-        self.projection_pairs = projection_pairs
+        self.nla_g = 3 + self.nla_g_rot
+        self.projection_pairs = projection_pairs_rotation
 
-        self.spherical = self.naxes == 0
+        self.constrain_orientation = self.nla_g_rot > 0
 
     def assembler_callback(self):
         local_qDOF1, local_qDOF2 = concatenate_qDOF(self)
@@ -254,7 +254,7 @@ class PositionOrientationBase:
         else:
             K1_r_P1B0 = np.zeros(3)
             A_K1B0 = None  # unused
-            assert self.naxes == 0  # Spherical case
+            assert self.nla_g_rot == 0  # Spherical case
 
         # check for A_IK of subsystem 2
         if hasattr(self.subsystem2, "A_IK"):
@@ -267,7 +267,7 @@ class PositionOrientationBase:
         else:
             K2_r_P2B0 = np.zeros(3)
             A_K2B0 = None  # unused
-            assert self.naxes == 0  # Spherical case
+            assert self.nla_g_rot == 0  # Spherical case
 
         auxiliary_functions(self, K1_r_P1B0, K2_r_P2B0, A_K1B0, A_K2B0)
 
@@ -275,7 +275,7 @@ class PositionOrientationBase:
         g = np.zeros(self.nla_g, dtype=q.dtype)
         g[:3] = self.r_OB2(t, q) - self.r_OB1(t, q)
 
-        if not self.spherical:
+        if self.constrain_orientation:
             A_IB1 = self.A_IB1(t, q)
             A_IB2 = self.A_IB2(t, q)
             for i, (a, b) in enumerate(self.projection_pairs):
@@ -290,7 +290,7 @@ class PositionOrientationBase:
         g_q[:3, :nq1] = -self.r_OB1_q1(t, q)
         g_q[:3, nq1:] = self.r_OB2_q2(t, q)
 
-        if not self.spherical:
+        if self.constrain_orientation:
             A_IB1 = self.A_IB1(t, q)
             A_IB2 = self.A_IB2(t, q)
 
@@ -310,7 +310,7 @@ class PositionOrientationBase:
         g_dot = np.zeros(self.nla_g, dtype=np.common_type(q, u))
         g_dot[:3] = self.v_B2(t, q, u) - self.v_B1(t, q, u)
 
-        if not self.spherical:
+        if self.constrain_orientation:
             A_IB1 = self.A_IB1(t, q)
             A_IB2 = self.A_IB2(t, q)
 
@@ -329,7 +329,7 @@ class PositionOrientationBase:
         g_dot_q[:3, :nq1] = -self.v_B1_q1(t, q, u)
         g_dot_q[:3, nq1:] = self.v_B2_q2(t, q, u)
 
-        if not self.spherical:
+        if self.constrain_orientation:
             A_IB1 = self.A_IB1(t, q)
             A_IB2 = self.A_IB2(t, q)
 
@@ -362,7 +362,7 @@ class PositionOrientationBase:
         g_ddot = np.zeros(self.nla_g, dtype=np.common_type(q, u, u_dot))
         g_ddot[:3] = self.a_B2(t, q, u, u_dot) - self.a_B1(t, q, u, u_dot)
 
-        if not self.spherical:
+        if self.constrain_orientation:
             A_IB1 = self.A_IB1(t, q)
             A_IB2 = self.A_IB2(t, q)
 
@@ -387,7 +387,7 @@ class PositionOrientationBase:
         g_ddot_q[:3, :nq1] = -self.a_B1_q1(t, q, u, u_dot)
         g_ddot_q[:3, nq1:] = self.a_B2_q2(t, q, u, u_dot)
 
-        if not self.spherical:
+        if self.constrain_orientation:
             A_IB1 = self.A_IB1(t, q)
             A_IB2 = self.A_IB2(t, q)
 
@@ -447,7 +447,7 @@ class PositionOrientationBase:
         g_ddot_u[:3, :nu1] = -self.a_B1_u1(t, q, u, u_dot)
         g_ddot_u[:3, nu1:] = self.a_B2_u2(t, q, u, u_dot)
 
-        if not self.spherical:
+        if self.constrain_orientation:
             A_IB1 = self.A_IB1(t, q)
             A_IB2 = self.A_IB2(t, q)
 
@@ -484,7 +484,7 @@ class PositionOrientationBase:
         W_g[:nu1, :3] = -self.J_B1(t, q).T
         W_g[nu1:, :3] = self.J_B2(t, q).T
 
-        if not self.spherical:
+        if self.constrain_orientation:
             A_IB1 = self.A_IB1(t, q)
             A_IB2 = self.A_IB2(t, q)
             J = np.hstack([self.J_R1(t, q), -self.J_R2(t, q)])
@@ -506,7 +506,7 @@ class PositionOrientationBase:
         dense[:nu1, :nq1] += np.einsum("i,ijk->jk", -la_g[:3], self.J_B1_q1(t, q))
         dense[nu1:, nq1:] += np.einsum("i,ijk->jk", la_g[:3], self.J_B2_q2(t, q))
 
-        if not self.spherical:
+        if self.constrain_orientation:
             A_IB1 = self.A_IB1(t, q)
             A_IB2 = self.A_IB2(t, q)
 
@@ -546,7 +546,7 @@ class ProjectedPositionOrientationBase:
         self,
         subsystem1,
         subsystem2,
-        constrained_axes_displacement,
+        constrained_axes_translation,
         projection_pairs_rotation,
         r_OB0=None,
         A_IB0=None,
@@ -560,28 +560,23 @@ class ProjectedPositionOrientationBase:
         self.r_OB0 = r_OB0
         self.A_IB0 = A_IB0
 
+        self.nla_g_trans = len(constrained_axes_translation)
+
         # guard against flawed input
-        self.naxes_rotation = len(projection_pairs_rotation)
+        self.nla_g_rot = len(projection_pairs_rotation)
         for pair in projection_pairs_rotation:
             assert len(np.unique(pair)) == 2
             for i in pair:
                 assert i in [0, 1, 2]
 
-        # for i in free_displacement_axes_B:
-        #     assert i in [0, 1, 2]
-        # self.naxes_displacement = 3 - len(free_displacement_axes_B)
-        self.naxes_displacement = len(constrained_axes_displacement)
-
-        self.nla_g = self.naxes_displacement + self.naxes_rotation
+        self.nla_g = self.nla_g_trans + self.nla_g_rot
         assert self.nla_g > 0
 
-        self.constrained_axes_displacement = constrained_axes_displacement
-        # self.constrained_axes_displacement = np.delete((0, 1, 2), self.free_displacement_axes)
+        self.constrained_axes_displacement = constrained_axes_translation
         self.projection_pairs_rotation = projection_pairs_rotation
 
-        # TODO: Is translational a good name?
-        self.translational = self.naxes_displacement == 0
-        self.spherical = self.naxes_rotation == 0
+        self.constrain_translation = self.nla_g_trans > 0
+        self.constrain_orientation = self.nla_g_rot > 0
 
     def assembler_callback(self):
         local_qDOF1, local_qDOF2 = concatenate_qDOF(self)
@@ -618,15 +613,15 @@ class ProjectedPositionOrientationBase:
         g = np.zeros(self.nla_g, dtype=q.dtype)
 
         A_IB1 = self.A_IB1(t, q)
-        if not self.translational:
+        if self.constrain_translation:
             r_B1B2 = self.r_OB2(t, q) - self.r_OB1(t, q)
             for i, ax in enumerate(self.constrained_axes_displacement):
                 g[i] = r_B1B2 @ A_IB1[:, ax]
 
-        if not self.spherical:
+        if self.constrain_orientation:
             A_IB2 = self.A_IB2(t, q)
             for i, (a, b) in enumerate(self.projection_pairs_rotation):
-                g[self.naxes_displacement + i] = A_IB1[:, a] @ A_IB2[:, b]
+                g[self.nla_g_trans + i] = A_IB1[:, a] @ A_IB2[:, b]
         return g
 
     def g_q_dense(self, t, q):
@@ -636,7 +631,7 @@ class ProjectedPositionOrientationBase:
         A_IB1 = self.A_IB1(t, q)
         A_IB1_q1 = self.A_IB1_q1(t, q)
 
-        if not self.translational:
+        if self.constrain_translation:
             r_B1B2 = self.r_OB2(t, q) - self.r_OB1(t, q)
             r_OB1_q1 = self.r_OB1_q1(t, q)
             r_OB2_q2 = self.r_OB2_q2(t, q)
@@ -644,13 +639,13 @@ class ProjectedPositionOrientationBase:
                 g_q[i, :nq1] = -A_IB1[:, ax] @ r_OB1_q1 + r_B1B2 @ A_IB1_q1[:, ax]
                 g_q[i, nq1:] = A_IB1[:, ax] @ r_OB2_q2
 
-        if not self.spherical:
+        if self.constrain_orientation:
             A_IB2 = self.A_IB2(t, q)
             A_IB2_q2 = self.A_IB2_q2(t, q)
 
             for i, (a, b) in enumerate(self.projection_pairs_rotation):
-                g_q[self.naxes_displacement + i, :nq1] = A_IB2[:, b] @ A_IB1_q1[:, a]
-                g_q[self.naxes_displacement + i, nq1:] = A_IB1[:, a] @ A_IB2_q2[:, b]
+                g_q[self.nla_g_trans + i, :nq1] = A_IB2[:, b] @ A_IB1_q1[:, a]
+                g_q[self.nla_g_trans + i, nq1:] = A_IB1[:, a] @ A_IB2_q2[:, b]
 
         return g_q
 
@@ -670,19 +665,19 @@ class ProjectedPositionOrientationBase:
 
         A_IB1 = self.A_IB1(t, q)
         Omega1 = self.Omega1(t, q, u)
-        if not self.translational:
+        if self.constrain_translation:
             r_B1B2 = self.r_OB2(t, q) - self.r_OB1(t, q)
             v_B1B2 = self.v_B2(t, q, u) - self.v_B1(t, q, u)
             for i, ax in enumerate(self.constrained_axes_displacement):
                 g_dot[i] = A_IB1[:, ax] @ v_B1B2 + cross3(A_IB1[:, ax], r_B1B2) @ Omega1
 
-        if not self.spherical:
+        if self.constrain_orientation:
             A_IB2 = self.A_IB2(t, q)
             Omega21 = Omega1 - self.Omega2(t, q, u)
 
             for i, (a, b) in enumerate(self.projection_pairs_rotation):
                 n = cross3(A_IB1[:, a], A_IB2[:, b])
-                g_dot[self.naxes_displacement + i] = n @ Omega21
+                g_dot[self.nla_g_trans + i] = n @ Omega21
 
         return g_dot
 
@@ -694,7 +689,7 @@ class ProjectedPositionOrientationBase:
         A_IB1_q1 = self.A_IB1_q1(t, q)
         Omega1 = self.Omega1(t, q, u)
         Omega1_q1 = self.Omega1_q1(t, q, u)
-        if not self.translational:
+        if self.constrain_translation:
             r_B1B2 = self.r_OB2(t, q) - self.r_OB1(t, q)
             v_B1B2 = self.v_B2(t, q, u) - self.v_B1(t, q, u)
             r_OB1_q1 = self.r_OB1_q1(t, q)
@@ -712,21 +707,20 @@ class ProjectedPositionOrientationBase:
                     A_IB1[:, ax] @ v_B2_q2 + cross3(Omega1, A_IB1[:, ax]) @ r_OB2_q2
                 )
 
-        if not self.spherical:
+        if self.constrain_orientation:
             A_IB2 = self.A_IB2(t, q)
             A_IB2_q2 = self.A_IB2_q2(t, q)
 
             Omega21 = Omega1 - self.Omega2(t, q, u)
             Omega2_q2 = self.Omega2_q2(t, q, u)
 
-            naxes_displacement = self.naxes_displacement
             for i, (a, b) in enumerate(self.projection_pairs_rotation):
                 e_a, e_b = A_IB1[:, a], A_IB2[:, b]
                 n = cross3(e_a, e_b)
-                g_dot_q[naxes_displacement + i, :nq1] = (
+                g_dot_q[self.nla_g_trans + i, :nq1] = (
                     n @ Omega1_q1 - Omega21 @ ax2skew(e_b) @ A_IB1_q1[:, a]
                 )
-                g_dot_q[naxes_displacement + i, nq1:] = (
+                g_dot_q[self.nla_g_trans + i, nq1:] = (
                     -n @ Omega2_q2 + Omega21 @ ax2skew(e_a) @ A_IB2_q2[:, b]
                 )
 
@@ -752,7 +746,7 @@ class ProjectedPositionOrientationBase:
         A_IB1 = self.A_IB1(t, q)
         Omega1 = self.Omega1(t, q, u)
         Psi1 = self.Psi1(t, q, u, u_dot)
-        if not self.translational:
+        if self.constrain_translation:
             r_B1B2 = self.r_OB2(t, q) - self.r_OB1(t, q)
             v_B1B2 = self.v_B2(t, q, u) - self.v_B1(t, q, u)
             a_B1B2 = self.a_B2(t, q, u, u_dot) - self.a_B1(t, q, u, u_dot)
@@ -766,7 +760,7 @@ class ProjectedPositionOrientationBase:
                     + cross3(e_dot, r_B1B2) @ Omega1
                 )
 
-        if not self.spherical:
+        if self.constrain_orientation:
             A_IB2 = self.A_IB2(t, q)
             Omega2 = self.Omega2(t, q, u)
             Omega21 = Omega1 - Omega2
@@ -775,7 +769,7 @@ class ProjectedPositionOrientationBase:
             for i, (a, b) in enumerate(self.projection_pairs_rotation):
                 e_a, e_b = A_IB1[:, a], A_IB2[:, b]
                 n = cross3(e_a, e_b)
-                g_ddot[self.naxes_displacement + i] = (
+                g_ddot[self.nla_g_trans + i] = (
                     cross3(cross3(Omega1, e_a), e_b) + cross3(e_a, cross3(Omega2, e_b))
                 ) @ Omega21 + n @ Psi21
 
@@ -903,7 +897,7 @@ class ProjectedPositionOrientationBase:
 
         A_IB1 = self.A_IB1(t, q)
         J_R1 = self.J_R1(t, q)
-        if not self.translational:
+        if self.constrain_translation:
             r_B1B2 = self.r_OB2(t, q) - self.r_OB1(t, q)
             J_B1 = self.J_B1(t, q)
             J_B2 = self.J_B2(t, q)
@@ -913,13 +907,13 @@ class ProjectedPositionOrientationBase:
                 )
                 W_g[nu1:, i] = A_IB1[:, ax] @ J_B2
 
-        if not self.spherical:
+        if self.constrain_orientation:
             A_IB2 = self.A_IB2(t, q)
             J = np.hstack([J_R1, -self.J_R2(t, q)])
 
             for i, (a, b) in enumerate(self.projection_pairs_rotation):
                 n = cross3(A_IB1[:, a], A_IB2[:, b])
-                W_g[:, self.naxes_displacement + i] = n @ J
+                W_g[:, self.nla_g_trans + i] = n @ J
 
         return W_g
 
@@ -943,7 +937,7 @@ class ProjectedPositionOrientationBase:
         A_IB1_q1 = self.A_IB1_q1(t, q)
         J_R1 = self.J_R1(t, q)
         J_R1_q1 = self.J_R1_q1(t, q)
-        if not self.translational:
+        if self.constrain_translation:
             r_B1B2 = self.r_OB2(t, q) - self.r_OB1(t, q)
             r_OB1_q1 = self.r_OB1_q1(t, q)
             r_OB2_q2 = self.r_OB2_q2(t, q)
@@ -977,7 +971,7 @@ class ProjectedPositionOrientationBase:
                 )
 
         # TODO: Compare with PositionOrientationBase
-        if not self.spherical:
+        if self.constrain_orientation:
             A_IB1 = self.A_IB1(t, q)
             A_IB2 = self.A_IB2(t, q)
 
@@ -988,23 +982,23 @@ class ProjectedPositionOrientationBase:
             J_R2_q2 = self.J_R2_q2(t, q)
 
             for i, (a, b) in enumerate(self.projection_pairs_rotation):
-                nla_gpos = self.naxes_displacement
+                nla_g_trans = self.nla_g_trans
                 e_a, e_b = A_IB1[:, a], A_IB2[:, b]
                 n = cross3(e_a, e_b)
                 n_q1 = -ax2skew(e_b) @ A_IB1_q1[:, a]
                 n_q2 = ax2skew(e_a) @ A_IB2_q2[:, b]
                 dense[:nu1, :nq1] += np.einsum(
-                    "i,ijk->jk", la_g[nla_gpos + i] * n, J_R1_q1
-                ) + np.einsum("ij,ik->kj", la_g[nla_gpos + i] * n_q1, J_R1)
+                    "i,ijk->jk", la_g[nla_g_trans + i] * n, J_R1_q1
+                ) + np.einsum("ij,ik->kj", la_g[nla_g_trans + i] * n_q1, J_R1)
                 dense[:nu1, nq1:] += np.einsum(
-                    "ij,ik->kj", la_g[nla_gpos + i] * n_q2, J_R1
+                    "ij,ik->kj", la_g[nla_g_trans + i] * n_q2, J_R1
                 )
                 dense[nu1:, :nq1] += np.einsum(
-                    "ij,ik->kj", -la_g[nla_gpos + i] * n_q1, J_R2
+                    "ij,ik->kj", -la_g[nla_g_trans + i] * n_q1, J_R2
                 )
                 dense[nu1:, nq1:] += np.einsum(
-                    "i,ijk->jk", -la_g[nla_gpos + i] * n, J_R2_q2
-                ) + np.einsum("ij,ik->kj", -la_g[nla_gpos + i] * n_q2, J_R2)
+                    "i,ijk->jk", -la_g[nla_g_trans + i] * n, J_R2_q2
+                ) + np.einsum("ij,ik->kj", -la_g[nla_g_trans + i] * n_q2, J_R2)
 
         coo.extend(dense, (self.uDOF, self.qDOF))
 

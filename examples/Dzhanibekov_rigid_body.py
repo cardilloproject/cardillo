@@ -20,8 +20,7 @@ if __name__ == "__main__":
     v_P0 = np.zeros(3)
     phi0 = 0
     phi_dot0 = 20
-    # K_Omega_disturbance = np.zeros(3)
-    K_Omega_disturbance = np.array((1e-10, 0, 0))
+    K_Omega_disturbance = np.array((1e-10, 0, 0))  # disturbance is required
     K_Omega = np.array((0, phi_dot0, 0))
     q0 = np.concatenate((r_OP0, axis_angle2quat(np.array((0, 0, 1)), phi0)))
     u0 = np.concatenate((v_P0, K_Omega + K_Omega_disturbance))

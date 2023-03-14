@@ -9,7 +9,7 @@ from cardillo.discrete import RigidBodyAxisAngle, RigidBodyQuaternion
 from cardillo.forces import (
     LinearSpring,
     LinearDamper,
-    PDRotationalJoint,
+    PDRotational,
 )
 from cardillo.math import Exp_SO3, axis_angle2quat, norm
 
@@ -57,7 +57,7 @@ def run(
         raise (TypeError)
 
     system = System()
-    joint = PDRotationalJoint(Revolute, Spring=LinearSpring, Damper=LinearDamper)(
+    joint = PDRotational(Revolute, Spring=LinearSpring, Damper=LinearDamper)(
         subsystem1=system.origin,
         subsystem2=rigid_body,
         r_OB0=np.zeros(3),

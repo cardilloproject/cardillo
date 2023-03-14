@@ -19,7 +19,7 @@ class RigidConnection(PositionOrientationBase):
             subsystem2,
             r_OB0=None,
             A_IB0=None,
-            projection_pairs=[(0, 1), (1, 2), (2, 0)],
+            projection_pairs_rotation=[(0, 1), (1, 2), (2, 0)],
             frame_ID1=frame_ID1,
             frame_ID2=frame_ID2,
         )

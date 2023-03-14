@@ -26,7 +26,7 @@ class Prismatic(ProjectedPositionOrientationBase):
             subsystem2,
             r_OB0=r_OB0,
             A_IB0=A_IB0,
-            constrained_axes_displacement=constrained_axes_displacement,
+            constrained_axes_translation=constrained_axes_displacement,
             projection_pairs_rotation=projection_pairs_rotation,
             frame_ID1=frame_ID1,
             frame_ID2=frame_ID2,

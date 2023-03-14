@@ -1,8 +1,8 @@
 import numpy as np
 
 
-def PDRotationalJoint(Joint, Spring=None, Damper=None):
-    class _PDRotationalJoint(Joint):
+def PDRotational(Joint, Spring=None, Damper=None):
+    class _PDRotational(Joint):
         def __init__(self, *args, k=None, g_ref=None, d=None, **kwargs):
             super().__init__(*args, **kwargs)
 
@@ -84,4 +84,4 @@ def PDRotationalJoint(Joint, Spring=None, Damper=None):
 
         # E_pot and h_u defined in init if necessary
 
-    return _PDRotationalJoint
+    return _PDRotational
