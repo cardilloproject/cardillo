@@ -8,11 +8,14 @@ from cardillo.solver import Solution, consistent_initial_conditions
 
 
 class ScipyIVP:
-    def __init__(self, system, t1, dt, method="RK45", rtol=1.0e-8, atol=1.0e-10):
+    def __init__(
+        self, system, t1, dt, method="RK45", rtol=1.0e-8, atol=1.0e-10, **kwargs
+    ):
         self.system = system
         self.rtol = rtol
         self.atol = atol
         self.method = method
+        self.kwargs = kwargs
 
         self.nq = system.nq
         self.nu = system.nu
@@ -114,6 +117,7 @@ class ScipyIVP:
             rtol=self.rtol,
             atol=self.atol,
             dense_output=True,
+            **self.kwargs,
         )
 
         # compute Lagrange multipliers a posteriori at given t's

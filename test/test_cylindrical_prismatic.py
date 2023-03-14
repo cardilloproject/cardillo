@@ -20,14 +20,14 @@ from cardillo.math import (
 )
 
 # setup solver
-t_span = (0.0, 1.0)
+t_span = (0.0, 2.0)
 t0, t1 = t_span
 dt = 1.0e-3
 
 # parameters
 g = 9.81
-g = 0
 l = 10
+# l = 0 # TODO: This is already a problem!
 m = 1
 r = 0.2
 C = 1 / 2 * m * r**2
@@ -239,7 +239,7 @@ def run(
     # e_t = lambda t: 2 * t
     # e_tt = lambda t: 2
 
-    omega = 2 * np.pi
+    omega = np.pi * 2
     amplitude = l / 10
     e = lambda t: amplitude * np.cos(omega * t)
     e_t = lambda t: -amplitude * omega * np.sin(omega * t)
@@ -253,43 +253,61 @@ def run(
 
     r_OB0 = r_OB(0)
 
-    # psi = np.random.rand(3)
-    # psi_dot = np.random.rand(3)
-    # A_IB = Exp_SO3(psi)
-    # B_omega_IB = T_SO3(psi) @ psi_dot
-    # omega_IB = A_IB @ B_omega_IB
-    # print(f"omega_IB: {omega_IB}")
-    # print(f"T_SO3(psi).T @ psi_dot: {T_SO3(psi).T @ psi_dot}")
-    # print(f"A_IB @ T_SO3(psi) @ psi_dot - T_SO3(psi).T @ psi_dot: {A_IB @ T_SO3(psi) @ psi_dot - T_SO3(psi).T @ psi_dot}")
-    # exit()
-
     # axis orientation
     n2 = np.random.rand(3)
+    # n2 = np.array([0, 0, 1])
+    # n2 = np.array([0, 1, 0])
 
-    psi = lambda t: e(t) * n2
-    psi_t = lambda t: e_t(t) * n2
-    psi_tt = lambda t: e_tt(t) * n2
+    e2 = lambda t: amplitude * np.cos(omega * t)
+    e2_t = lambda t: -amplitude * omega * np.sin(omega * t)
+    e2_tt = lambda t: -amplitude * omega * omega * np.cos(omega * t)
+    psi = lambda t: e2(t) * n2
+    psi_t = lambda t: e2_t(t) * n2
+    psi_tt = lambda t: e2_tt(t) * n2
 
-    psi = lambda t: n2
-    psi_t = lambda t: 0 * n2
-    psi_tt = lambda t: 0 * n2
+    # psi = lambda t: n2
+    # psi_t = lambda t: 0 * n2
+    # psi_tt = lambda t: 0 * n2
+
+    # psi = lambda t: t * n2
+    # psi_t = lambda t: n2
+    # psi_tt = lambda t: 0 * n2
+
+    # psi = lambda t: t**2 * n2
+    # psi_t = lambda t: 2 * t * n2
+    # psi_tt = lambda t: 2 * n2
+
+    # psi = lambda t: t**3 * n2
+    # psi_t = lambda t: 3 * t**2 * n2
+    # psi_tt = lambda t: 6 * t * n2
 
     B_omega_IB = lambda t: T_SO3(psi(t)) @ psi_t(t)
-    B_omega_IB_t = lambda t: T_SO3(psi(t)) @ psi_tt(t) + T_SO3_dot(
-        psi(t), psi_t(t)
-    ) @ psi_t(t)
-    omega_IB = lambda t: T_SO3(psi(t)).T @ psi_t(t)
-    omega_IB_t = lambda t: T_SO3(psi(t)).T @ psi_tt(t) + T_SO3_dot(
-        psi(t), psi_t(t)
-    ).T @ psi_t(t)
-    # omega_IB = lambda t: A_IB(t) @ B_omega_IB(t)
-    # omega_IB_t = lambda t: A_IB(t) @ B_omega_IB_t(t)
+    # from cardillo.math import T_SO3_psi
+    # def T_SO3_dot(psi, psi_dot):
+    #     return np.einsum("ijk,k->ij", T_SO3_psi(psi), psi_dot)
+
+    from cardillo.math import T_SO3_psi
+
+    # def tmp(psi, psi_dot):
+    #     return np.einsum("ijk,j,k->i", T_SO3_psi(psi), psi_dot, psi_dot)
+
+    # B_omega_IB_t = lambda t: T_SO3(psi(t)) @ psi_tt(t) + T_SO3_dot(
+    #     psi(t), psi_t(t)
+    # ) @ psi_t(t)
+    B_omega_IB_t = lambda t: T_SO3(psi(t)) @ psi_tt(t) + np.einsum(
+        "ijk,j,k->i", T_SO3_psi(psi(t)), psi_t(t), psi_t(t)
+    )
+    # omega_IB = lambda t: T_SO3(psi(t)).T @ psi_t(t)
+    # # omega_IB_t = lambda t: T_SO3(psi(t)).T @ psi_tt(t) + T_SO3_dot(
+    # #     psi(t), psi_t(t)
+    # # ).T @ psi_t(t)
+    # omega_IB_t = lambda t: T_SO3(psi(t)).T @ psi_tt(t) + np.einsum(
+    #     "jik,j,k->i", T_SO3_psi(psi(t)), psi_t(t), psi_t(t)
+    # )
+    omega_IB = lambda t: A_IB(t) @ B_omega_IB(t)
+    omega_IB_t = lambda t: A_IB(t) @ B_omega_IB_t(t)
 
     A_IB = lambda t: Exp_SO3(psi(t))
-    # A_IB_t = lambda t: A_IB(t) @ ax2skew(B_omega_IB(t))
-    # A_IB_tt = lambda t: A_IB_t(t) @ ax2skew(B_omega_IB(t)) + A_IB(t) @ ax2skew(
-    #     B_omega_IB_t(t)
-    # )
     A_IB_t = lambda t: ax2skew(omega_IB(t)) @ A_IB(t)
     A_IB_tt = lambda t: ax2skew(omega_IB_t(t)) @ A_IB(t) + ax2skew(
         omega_IB(t)
@@ -298,7 +316,7 @@ def run(
     A_IB0 = A_IB(0)
 
     z0 = 0
-    z_dot0 = 10
+    z_dot0 = 1
 
     alpha0 = 0
     if joint == "Cylindrical":
@@ -388,8 +406,6 @@ def run(
     ##############
     # ODE solution
     ##############
-    theta = A
-
     def eqm(t, y):
         z, alpha = y[:2]
         z_dot, alpha_dot = y[2:]
@@ -435,7 +451,7 @@ def run(
             + cross3(_omega_IB, cross3(_omega_IB, r_BS))
         )
 
-        K_nu_R_dot = A_KB @ (B_omega_IB_t(t) + alpha_dot * cross3(B_omega_IB(t), e3))
+        K_nu_R_dot = A_KB @ B_omega_IB_t(t) + alpha_dot * cross3(B_omega_IB(t), e3)
 
         h = -J_S.T @ (m * nu_S_dot + m * g * e3) - K_J_R.T @ K_theta_S @ K_nu_R_dot
 
@@ -457,7 +473,7 @@ def run(
 
     y0 = np.array([z0, alpha0, z_dot0, alpha_dot0], dtype=float)
     t_eval = np.arange(t0, t1, dt)
-    sol = solve_ivp(eqm, t_span, y0, t_eval=t_eval)
+    sol = solve_ivp(eqm, t_span, y0, t_eval=t_eval, rtol=1e-10, atol=1e-10)
 
     t_ref, y_ref = sol.t, sol.y
 
@@ -542,15 +558,15 @@ if __name__ == "__main__":
     #############
     # Cylindrical
     #############
-    run("Cylindrical", ScipyIVP, rtol=1e-8, atol=1e-8)
+    run("Cylindrical", ScipyIVP, rtol=1e-10, atol=1e-10, max_step=dt)
 
     # run("Cylindrical", EulerBackward, method="index 1")
     # run("Cylindrical", EulerBackward, method="index 2")
     # run("Cylindrical", EulerBackward, method="index 3")
     # run("Cylindrical", EulerBackward, method="index 2 GGL")
 
-    # run("Cylindrical", RadauIIa, dae_index=2, rtol=1e-8, atol=1e-8, max_step=dt)
-    # run("Cylindrical", RadauIIa, dae_index=3, rtol=1e-2, atol=1e-2, max_step=dt) # this is not working for alpha_dot0 != 0
+    # run("Cylindrical", RadauIIa, dae_index=2, rtol=1e-6, atol=1e-6, max_step=dt)
+    # run("Cylindrical", RadauIIa, dae_index=3, rtol=1e-2, atol=1e-2, max_step=dt) # this is not working
     # run("Cylindrical", RadauIIa, dae_index="GGL", rtol=1e-4, atol=1e-4, max_step=dt)
 
     ###########
