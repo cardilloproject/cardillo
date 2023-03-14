@@ -4,7 +4,7 @@ from scipy.sparse import bmat, csc_matrix
 from scipy.integrate import solve_ivp
 from tqdm import tqdm
 
-from cardillo.solver import Solution
+from cardillo.solver import Solution, consistent_initial_conditions
 
 
 class ScipyIVP:
@@ -35,12 +35,7 @@ class ScipyIVP:
 
         # check if initial state satisfies bilateral constraints on position and
         # velocity level
-        g = system.g(t0, system.q0)
-        assert np.allclose(g, np.zeros(len(g)))
-        g_dot = system.g_dot(t0, system.q0, system.u0)
-        assert np.allclose(g_dot, np.zeros(len(g_dot)))
-        gamma = system.gamma(t0, system.q0, system.u0)
-        assert np.allclose(gamma, np.zeros(len(gamma)))
+        consistent_initial_conditions(system)
 
     def eqm(self, t, x):
         # update progress bar

@@ -8,15 +8,25 @@ from cardillo.solver import ScipyIVP, EulerBackward, RadauIIa
 from cardillo.constraints import RigidConnection, Cylindrical, Prismatic
 from cardillo.discrete import Frame, RigidBodyQuaternion
 from cardillo.forces import Force
-from cardillo.math import e1, Exp_SO3, Log_SO3, Spurrier, cross3
+from cardillo.math import (
+    e1,
+    Exp_SO3,
+    T_SO3,
+    T_SO3_dot,
+    Log_SO3,
+    Spurrier,
+    cross3,
+    ax2skew,
+)
 
 # setup solver
-t_span = (0.0, 5.0)
+t_span = (0.0, 1.0)
 t0, t1 = t_span
-dt = 1.0e-2
+dt = 1.0e-3
 
 # parameters
 g = 9.81
+g = 0
 l = 10
 m = 1
 r = 0.2
@@ -33,7 +43,7 @@ def RigidCylinder(RigidBody):
     return _RigidCylinder
 
 
-def run(
+def run_old(
     joint,
     Solver,
     **solver_kwargs,
@@ -216,25 +226,337 @@ def run(
     plt.show()
 
 
+def run(
+    joint,
+    Solver,
+    **solver_kwargs,
+):
+    # e = lambda t: 0
+    # e_t = lambda t: 0
+    # e_tt = lambda t: 0
+
+    # e = lambda t: t**2
+    # e_t = lambda t: 2 * t
+    # e_tt = lambda t: 2
+
+    omega = 2 * np.pi
+    amplitude = l / 10
+    e = lambda t: amplitude * np.cos(omega * t)
+    e_t = lambda t: -amplitude * omega * np.sin(omega * t)
+    e_tt = lambda t: -amplitude * omega * omega * np.cos(omega * t)
+
+    # axis origin
+    n1 = np.random.rand(3)
+    r_OB = lambda t: e(t) * n1
+    r_OB_t = lambda t: e_t(t) * n1
+    r_OB_tt = lambda t: e_tt(t) * n1
+
+    r_OB0 = r_OB(0)
+
+    # psi = np.random.rand(3)
+    # psi_dot = np.random.rand(3)
+    # A_IB = Exp_SO3(psi)
+    # B_omega_IB = T_SO3(psi) @ psi_dot
+    # omega_IB = A_IB @ B_omega_IB
+    # print(f"omega_IB: {omega_IB}")
+    # print(f"T_SO3(psi).T @ psi_dot: {T_SO3(psi).T @ psi_dot}")
+    # print(f"A_IB @ T_SO3(psi) @ psi_dot - T_SO3(psi).T @ psi_dot: {A_IB @ T_SO3(psi) @ psi_dot - T_SO3(psi).T @ psi_dot}")
+    # exit()
+
+    # axis orientation
+    n2 = np.random.rand(3)
+
+    psi = lambda t: e(t) * n2
+    psi_t = lambda t: e_t(t) * n2
+    psi_tt = lambda t: e_tt(t) * n2
+
+    psi = lambda t: n2
+    psi_t = lambda t: 0 * n2
+    psi_tt = lambda t: 0 * n2
+
+    B_omega_IB = lambda t: T_SO3(psi(t)) @ psi_t(t)
+    B_omega_IB_t = lambda t: T_SO3(psi(t)) @ psi_tt(t) + T_SO3_dot(
+        psi(t), psi_t(t)
+    ) @ psi_t(t)
+    omega_IB = lambda t: T_SO3(psi(t)).T @ psi_t(t)
+    omega_IB_t = lambda t: T_SO3(psi(t)).T @ psi_tt(t) + T_SO3_dot(
+        psi(t), psi_t(t)
+    ).T @ psi_t(t)
+    # omega_IB = lambda t: A_IB(t) @ B_omega_IB(t)
+    # omega_IB_t = lambda t: A_IB(t) @ B_omega_IB_t(t)
+
+    A_IB = lambda t: Exp_SO3(psi(t))
+    # A_IB_t = lambda t: A_IB(t) @ ax2skew(B_omega_IB(t))
+    # A_IB_tt = lambda t: A_IB_t(t) @ ax2skew(B_omega_IB(t)) + A_IB(t) @ ax2skew(
+    #     B_omega_IB_t(t)
+    # )
+    A_IB_t = lambda t: ax2skew(omega_IB(t)) @ A_IB(t)
+    A_IB_tt = lambda t: ax2skew(omega_IB_t(t)) @ A_IB(t) + ax2skew(
+        omega_IB(t)
+    ) @ A_IB_t(t)
+
+    A_IB0 = A_IB(0)
+
+    z0 = 0
+    z_dot0 = 10
+
+    alpha0 = 0
+    if joint == "Cylindrical":
+        alpha_dot0 = 2
+    elif joint == "Prismatic":
+        alpha_dot0 = 0  # has to be zero for prismatic example
+    else:
+        raise NotImplementedError
+
+    ##############
+    # DAE solution
+    ##############
+    frame = Frame(
+        r_OP=r_OB,
+        r_OP_t=r_OB_t,
+        r_OP_tt=r_OB_tt,
+        A_IK=A_IB,
+        A_IK_t=A_IB_t,
+        A_IK_tt=A_IB_tt,
+    )
+
+    # q0 = np.array([*r_OB0, *Spurrier(A_IB0)])
+    # RB1 = RigidBodyQuaternion(m, K_theta_S, q0)
+
+    # rigid_connection = RigidConnection(frame, RB1)
+
+    A_IK0 = A_IB0
+    r_OS0 = r_OB0 + A_IK0 @ np.array([0.5 * l, 0, z0])
+    p0 = Spurrier(A_IK0)
+    q0 = np.array([*r_OS0, *p0])
+
+    K0_omega_IK0 = A_IK0.T @ omega_IB(0) + np.array([0, 0, alpha_dot0])
+    v_P0 = (
+        r_OB_t(0) + A_IB0 @ np.array([0, 0, z_dot0]) + A_IB_t(0) @ np.array([0, 0, z0])
+    )
+    v_S0 = v_P0 + A_IK0 @ cross3(K0_omega_IK0, np.array([0.5 * l, 0, 0]))
+
+    u0 = np.array([*v_S0, *K0_omega_IK0])
+    RB2 = RigidBodyQuaternion(m, K_theta_S, q0, u0)
+
+    f_g = Force(np.array([0, 0, -m * g]), RB2)
+
+    if joint == "Cylindrical":
+        constraint = Cylindrical(
+            # subsystem1=RB1,
+            subsystem1=frame,
+            subsystem2=RB2,
+            axis=2,
+        )
+    elif joint == "Prismatic":
+        constraint = Prismatic(
+            # subsystem1=RB1,
+            subsystem1=frame,
+            subsystem2=RB2,
+            axis=2,
+        )
+
+    system = System()
+    # system.add(frame, RB1, rigid_connection)
+    system.add(RB2, f_g)
+    # system.add(constraint)
+    system.add(frame, constraint)
+    system.assemble()
+
+    sol = Solver(system, t1, dt, **solver_kwargs).solve()
+
+    t, q, u = sol.t, sol.q, sol.u
+
+    zs = np.array(
+        [
+            A_IB(ti)[:, 2] @ (RB2.r_OP(ti, qi[RB2.qDOF]) - r_OB(ti))
+            for (ti, qi) in zip(t, q)
+        ]
+    )
+
+    A_BK = np.array([A_IB(ti).T @ RB2.A_IK(ti, qi[RB2.qDOF]) for (ti, qi) in zip(t, q)])
+    Delta_alpha = np.zeros(len(t), dtype=float)
+    Delta_alpha[0] = alpha0
+    for i in range(1, len(t)):
+        Delta_psi = Log_SO3(A_BK[i - 1].T @ A_BK[i])
+        # Delta_psi = Log_SO3(A_BK[i])
+        # print(f"Delta_psi: {Delta_psi}")
+        Delta_alpha[i] = Delta_psi[-1]
+    alphas = np.cumsum(Delta_alpha)
+    # alphas = Delta_alpha
+
+    ##############
+    # ODE solution
+    ##############
+    theta = A
+
+    def eqm(t, y):
+        z, alpha = y[:2]
+        z_dot, alpha_dot = y[2:]
+
+        sa = np.sin(alpha)
+        ca = np.cos(alpha)
+
+        e1, e2, e3 = np.eye(3)
+
+        _A_IB = A_IB(t)
+        e_x_B, e_y_B, e_z_B = _A_IB.T
+
+        A_BK = np.array(
+            [
+                [ca, -sa, 0],
+                [sa, ca, 0],
+                [0, 0, 1],
+            ],
+            dtype=float,
+        )
+        A_KB = A_BK.T
+
+        J_S = np.zeros((3, 2), dtype=float)
+        J_S[:, 0] = e_z_B
+        J_S[:, 1] = 0.5 * l * (ca * e_y_B - sa * e_x_B)
+
+        K_J_R = np.zeros((3, 2), dtype=float)
+        K_J_R[:, 1] = e3
+
+        M = m * (J_S.T @ J_S) + K_J_R.T @ K_theta_S @ K_J_R
+
+        _omega_IB = omega_IB(t)
+
+        B_r_BS = z * e3 + 0.5 * l * (ca * e1 + sa * e2)
+        r_BS = _A_IB @ B_r_BS
+        B_r_BS_dot = z_dot * e3 + 0.5 * l * alpha_dot * (ca * e2 - sa * e1)
+
+        nu_S_dot = (
+            r_OB_tt(t)
+            + 2 * cross3(_omega_IB, _A_IB @ B_r_BS_dot)
+            - _A_IB @ (0.5 * l * alpha_dot**2 * (ca * e1 + sa * e2))
+            + cross3(omega_IB_t(t), r_BS)
+            + cross3(_omega_IB, cross3(_omega_IB, r_BS))
+        )
+
+        K_nu_R_dot = A_KB @ (B_omega_IB_t(t) + alpha_dot * cross3(B_omega_IB(t), e3))
+
+        h = -J_S.T @ (m * nu_S_dot + m * g * e3) - K_J_R.T @ K_theta_S @ K_nu_R_dot
+
+        dy = np.zeros_like(y)
+
+        # trivial kinematic equation
+
+        # equations of motion
+        u_dot = np.linalg.solve(M, h)
+
+        if joint == "Cylindrical":
+            dy[:2] = y[2:]
+            dy[2:] = u_dot
+        else:
+            dy[0] = y[2]
+            dy[2] = u_dot[0]
+
+        return dy
+
+    y0 = np.array([z0, alpha0, z_dot0, alpha_dot0], dtype=float)
+    t_eval = np.arange(t0, t1, dt)
+    sol = solve_ivp(eqm, t_span, y0, t_eval=t_eval)
+
+    t_ref, y_ref = sol.t, sol.y
+
+    fig, ax = plt.subplots(2, 2)
+
+    ax[0, 0].set_title("z")
+    ax[0, 0].plot(t_ref, y_ref[0], "-k", label="reference")
+    ax[0, 0].plot(t, zs, "--r", label="DAE")
+    ax[0, 0].grid()
+    ax[0, 0].legend()
+
+    ax[0, 1].set_title("alpha")
+    ax[0, 1].plot(t_ref, y_ref[1], "-k", label="reference")
+    ax[0, 1].plot(t, alphas, "--r", label="DAE")
+    ax[0, 1].grid()
+    ax[0, 1].legend()
+
+    ax[1, 0].set_title("z_dot")
+    ax[1, 0].plot(t_ref, y_ref[2], "-k", label="reference")
+    ax[1, 0].grid()
+    ax[1, 0].legend()
+
+    ax[1, 1].set_title("alpha_dot")
+    ax[1, 1].plot(t_ref, y_ref[3], "-k", label="reference")
+    ax[1, 1].grid()
+    ax[1, 1].legend()
+
+    # animation
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection="3d")
+
+    ax.set_xlabel("x [m]")
+    ax.set_ylabel("y [m]")
+    ax.set_zlabel("z [m]")
+    z_min = min(-l, min(y_ref[0]))
+    z_max = max(l, max(y_ref[0]))
+    diff = z_max - z_min
+    scale = diff
+    ax.set_xlim3d(left=-scale, right=scale)
+    ax.set_ylim3d(bottom=-scale, top=scale)
+    ax.set_zlim3d(bottom=-scale, top=scale)
+
+    (axis,) = ax.plot([], [], [], "-ok")
+    (rod,) = ax.plot([], [], [], "-ob")
+
+    def animate(i):
+        ti = t_ref[i]
+        z, alpha = y_ref[:2, i]
+
+        _r_OB = r_OB(ti)
+
+        _A_IB = A_IB(ti)
+        e_x_B, e_y_B, e_z_B = _A_IB.T
+
+        r_OP = _r_OB + z * e_z_B
+        r_OS = r_OP + 0.5 * l * (np.cos(alpha) * e_x_B + np.sin(alpha) * e_y_B)
+        r_OQ = r_OP + l * (np.cos(alpha) * e_x_B + np.sin(alpha) * e_y_B)
+        x, y, z = np.array([r_OP, r_OS, r_OQ]).T
+
+        rod.set_xdata(x)
+        rod.set_ydata(y)
+        rod.set_3d_properties(z)
+
+        r0 = _r_OB + diff * e_z_B
+        r1 = _r_OB - diff * e_z_B
+        x, y, z = np.array([r0, _r_OB, r1]).T
+
+        axis.set_xdata(x)
+        axis.set_ydata(y)
+        axis.set_3d_properties(z)
+
+    frames = len(t_ref)
+    interval = dt * 1000
+    anim = animation.FuncAnimation(
+        fig, animate, frames=frames, interval=interval, blit=False
+    )
+
+    plt.show()
+
+
 if __name__ == "__main__":
     #############
     # Cylindrical
     #############
-    run("Cylindrical", ScipyIVP)
+    run("Cylindrical", ScipyIVP, rtol=1e-8, atol=1e-8)
 
     # run("Cylindrical", EulerBackward, method="index 1")
     # run("Cylindrical", EulerBackward, method="index 2")
     # run("Cylindrical", EulerBackward, method="index 3")
     # run("Cylindrical", EulerBackward, method="index 2 GGL")
 
-    # run("Cylindrical", RadauIIa, dae_index=2)
-    # run("Cylindrical", RadauIIa, dae_index=3, rtol=1e-2, atol=1e-2) # this is not working for alpha_dot0 != 0
-    # run("Cylindrical", RadauIIa, dae_index="GGL")
+    # run("Cylindrical", RadauIIa, dae_index=2, rtol=1e-8, atol=1e-8, max_step=dt)
+    # run("Cylindrical", RadauIIa, dae_index=3, rtol=1e-2, atol=1e-2, max_step=dt) # this is not working for alpha_dot0 != 0
+    # run("Cylindrical", RadauIIa, dae_index="GGL", rtol=1e-4, atol=1e-4, max_step=dt)
 
     ###########
     # Prismatic
     ###########
-    run("Prismatic", ScipyIVP)
+    # run("Prismatic", ScipyIVP)
 
     # run("Prismatic", EulerBackward, method="index 1")
     # run("Prismatic", EulerBackward, method="index 2")
