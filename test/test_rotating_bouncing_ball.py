@@ -8,7 +8,7 @@ from cardillo.discrete import RigidBodyEuler
 from cardillo.discrete import Frame
 from cardillo.forces import Force
 from cardillo.contacts import Sphere2Plane
-from cardillo.solver import Moreau, NonsmoothGeneralizedAlpha, Rattle, Moreau_new
+from cardillo.solver import Moreau, NonsmoothGeneralizedAlpha, Rattle, Moreau_new, Moreau_classical
 
 
 class Ball(RigidBodyEuler):
@@ -93,6 +93,7 @@ def run(case):
     solver1, label1 = Rattle(system, t_final, dt), "Rattle"
     # solver1, label1 = Moreau(system, t_final, dt), "Moreau"
     # solver1, label1 = Moreau_new(system, t_final, dt), "Moreau_new"
+    # solver1, label1 = Moreau_classical(system, t_final, dt), "Moreau_classical"
 
     sol1 = solver1.solve()
     t1 = sol1.t
@@ -105,11 +106,11 @@ def run(case):
     P_N1 = sol1.P_N
     P_F1 = sol1.P_F
 
-    solver2, label2 = (
-        NonsmoothGeneralizedAlpha(system, t_final, dt),
-        "Gen-alpha",
-    )
-    # solver2, label2 = Moreau(system, t_final, dt), "Moreau"
+    # solver2, label2 = (
+    #     NonsmoothGeneralizedAlpha(system, t_final, dt),
+    #     "Gen-alpha",
+    # )
+    solver2, label2 = Moreau(system, t_final, dt), "Moreau"
     # solver2, label2 = Rattle(system, t_final, dt), "Rattle"
     sol2 = solver2.solve()
     t2 = sol2.t
