@@ -315,8 +315,8 @@ class Rattle:
         tn = self.tn
         qn = self.qn
         un = self.un
-        h = self.dt
-        tn1 = tn + h
+        dt = self.dt
+        tn1 = tn + dt
 
         qn1, un12, P_g1, P_gamma1, P_N1, P_F1 = np.array_split(y1, self.split_y1)
 
@@ -329,7 +329,7 @@ class Rattle:
             qn1
             - qn
             - 0.5
-            * h
+            * dt
             * (self.system.q_dot(tn, qn, un12) + self.system.q_dot(tn1, qn1, un12))
         )
 
@@ -339,7 +339,7 @@ class Rattle:
         R[self.split_y1[0] : self.split_y1[1]] = self.system.M(
             tn, qn, scipy_matrix=csr_matrix
         ) @ (un12 - un) - 0.5 * (
-            h * self.system.h(tn, qn, un12)
+            dt * self.system.h(tn, qn, un12)
             + self.system.W_g(tn, qn) @ P_g1
             + self.system.W_gamma(tn, qn) @ P_gamma1
             + self.system.W_N(tn, qn) @ P_N1
@@ -491,7 +491,7 @@ class Rattle:
         J1 = bmat(
             [
                 [Rq_q, Rq_u, None, None, None, None],
-                [None, Ru_u, -0.5 * -W_g, -0.5 * W_gamma, -0.5 * W_N, -0.5 * W_F],
+                [None, Ru_u, -0.5 * W_g, -0.5 * W_gamma, -0.5 * W_N, -0.5 * W_F],
                 [Rla_g_q, None, None, None, None, None],
                 [Rla_gamma_q, Rla_gamma_u, None, None, None, None],
                 [Rla_N_q, None, None, None, Rla_N_la_N, None],
@@ -511,7 +511,7 @@ class Rattle:
         # diff = diff[self.split_y1[1]:self.split_y1[2]]
         # diff = diff[self.split_y1[2]:self.split_y1[3]]
         # diff = diff[self.split_y1[3]:self.split_y1[4]]
-        diff = diff[self.split_y1[4] :]
+        # diff = diff[self.split_y1[4] :]
         error = np.linalg.norm(diff)
         if error > 1.0e-6:
             print(f"error J1: {error}")
@@ -785,7 +785,7 @@ class Rattle:
         P_F = [self.dt * self.la_Fn]
 
         pbar = tqdm(self.t[:-1])
-        for _ in pbar:
+        for n in pbar:
             tn1 = self.tn + self.dt
             if self.method == "Newton_decoupled":
                 y1, converged1, error1, i1, _ = fsolve(
@@ -964,16 +964,16 @@ class Rattle:
                 raise NotImplementedError
 
             pbar.set_description(
-                f"t: {tn1:0.2e}; step: {i1},{i2}; error: {error1:.3e}, {error2:.3e}"
+                f"t: {tn1:0.2e}; iter: {i1},{i2}; error: {error1:.3e}, {error2:.3e}"
             )
             if not converged:
                 if self.continue_with_unconverged:
                     print(
-                        f"step is not converged after i1: {i1}, i2: {i2} iterations with error:  err1 = {error1:.3e}, err2 = {error2:.3e}"
+                        f"step {n:.0f} is not converged after i1: {i1}, i2: {i2} iterations with error:  err1 = {error1:.3e}, err2 = {error2:.3e}"
                     )
                 else:
                     raise RuntimeError(
-                        f"step is not converged after i1: {i1}, i2: {i2} iterations with error:  err1 = {error1:.3e}, err2 = {error2:.3e}"
+                        f"step {n:.0f} is not converged after i1: {i1}, i2: {i2} iterations with error:  err1 = {error1:.3e}, err2 = {error2:.3e}"
                     )
 
             q.append(qn1.copy())
