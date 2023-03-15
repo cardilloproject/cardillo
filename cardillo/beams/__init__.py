@@ -21,7 +21,6 @@ from .R12_petrov_galerkin import (
 )
 from .R3_SO3_petrov_galerkin import Crisfield1999
 from .SE3_petrov_galerkin import K_TimoshenkoAxisAngleSE3
-from .kirchhoff import Kirchhoff
 from .cardona import K_Cardona, K_TimoshenkoLerp
 
 
