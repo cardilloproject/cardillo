@@ -65,6 +65,12 @@ class ScipyIVP:
                   [W_gamma.T, None,     None]], format="csc")
         # fmt: on
 
+        # K = self.system.h_q(t, q, u) @ self.system.B(t, q)
+        # alpha = 1.0e-4
+        # beta = 1.0e-4
+        # f_d = -(alpha * M + beta * K) @ u
+        # ula = spsolve(A, np.concatenate([h + f_d, -zeta_g, -zeta_gamma]))
+
         ula = spsolve(A, np.concatenate([h, -zeta_g, -zeta_gamma]))
 
         dx = np.zeros(self.nx)

@@ -27,7 +27,7 @@ class Solution:
         la_gamma=None,
         la_N=None,
         la_F=None,
-        **kwargs
+        **kwargs,
     ):
         self.t = t
         self.q = q
@@ -54,14 +54,17 @@ class Solution:
 
         def __next__(self):
             if self._index < len(self._solution.t):
-                result = self._retVal(
-                    *(
-                        self._solution.__getattribute__(key)[self._index]
-                        if self._solution.__getattribute__(key) is not None
-                        else None
-                        for key in self._solution.__dict__
+                try:
+                    result = self._retVal(
+                        *(
+                            self._solution.__getattribute__(key)[self._index]
+                            if self._solution.__getattribute__(key) is not None
+                            else None
+                            for key in self._solution.__dict__
+                        )
                     )
-                )
+                except:
+                    print(f"here!")
                 # result = self._retVal(*(eval(f'self._solution.{key}[{self._index}]') \
                 # for key in self._solution.__dict__))
                 self._index += 1

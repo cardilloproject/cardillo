@@ -15,9 +15,11 @@ from .director import (
 
 from .rope import Rope
 from .cable import Cable
-from .axis_angle_director import DirectorAxisAngle
+from .axis_angle_director import K_DirectorAxisAngle, I_DirectorAxisAngle
 from .crisfield1999 import Crisfield1999
-from .SE3 import TimoshenkoAxisAngleSE3
+from .SE3 import K_TimoshenkoAxisAngleSE3
+from .kirchhoff import Kirchhoff
+from .cardona import K_Cardona, K_TimoshenkoLerp
 
 
 from ._animate import animate_beam, animate_rope

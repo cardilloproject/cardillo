@@ -8,26 +8,32 @@ from cardillo.discrete import Frame
 from cardillo.constraints import RigidConnection
 from cardillo.beams import (
     animate_beam,
-    TimoshenkoAxisAngleSE3,
+    K_TimoshenkoAxisAngleSE3,
     Crisfield1999,
-    DirectorAxisAngle,
+    K_DirectorAxisAngle,
+    I_DirectorAxisAngle,
     TimoshenkoDirectorDirac,
     TimoshenkoDirectorIntegral,
+    K_Cardona,
+    K_TimoshenkoLerp,
 )
 from cardillo.forces import K_Moment, K_Force, DistributedForce1DBeam
 from cardillo import System
-from cardillo.solver import Newton, EulerBackward
+from cardillo.solver import Newton, EulerBackward, ScipyIVP
 from cardillo.utility import Export
 
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-Beam = DirectorAxisAngle
+Beam = K_DirectorAxisAngle
 # Beam = Crisfield1999
-# Beam = TimoshenkoAxisAngleSE3
+# Beam = K_TimoshenkoAxisAngleSE3
 # Beam = TimoshenkoDirectorDirac
 # Beam = TimoshenkoDirectorIntegral
+# Beam = I_DirectorAxisAngle
+# Beam = K_Cardona
+# Beam = K_TimoshenkoLerp
 
 statics = True
 # statics = False
@@ -40,7 +46,8 @@ if __name__ == "__main__":
     # used polynomial degree
     # polynomial_degree = 3
     # basis = "B-spline"
-    polynomial_degree = 1
+    # polynomial_degree = 3
+    polynomial_degree = 2
     basis = "Lagrange"
 
     # beam parameters found in Section 5.1 Ibrahimbegovic1997
@@ -68,18 +75,14 @@ if __name__ == "__main__":
     r_OP0 = np.zeros(3, dtype=float)
     A_IK0 = np.eye(3, dtype=float)
 
-    if Beam == TimoshenkoAxisAngleSE3:
-        q0 = TimoshenkoAxisAngleSE3.straight_configuration(
-            polynomial_degree,
-            polynomial_degree,
-            basis,
-            basis,
+    if Beam == K_TimoshenkoAxisAngleSE3:
+        q0 = K_TimoshenkoAxisAngleSE3.straight_configuration(
             nelements,
             L,
             r_OP=r_OP0,
             A_IK=A_IK0,
         )
-        beam = TimoshenkoAxisAngleSE3(
+        beam = K_TimoshenkoAxisAngleSE3(
             cross_section,
             material_model,
             A_rho0,
@@ -88,8 +91,8 @@ if __name__ == "__main__":
             nelements,
             q0,
         )
-    elif Beam == DirectorAxisAngle:
-        q0 = DirectorAxisAngle.straight_configuration(
+    elif Beam == K_DirectorAxisAngle:
+        q0 = K_DirectorAxisAngle.straight_configuration(
             polynomial_degree,
             polynomial_degree,
             basis,
@@ -99,7 +102,32 @@ if __name__ == "__main__":
             r_OP=r_OP0,
             A_IK=A_IK0,
         )
-        beam = DirectorAxisAngle(
+        beam = K_DirectorAxisAngle(
+            cross_section,
+            material_model,
+            A_rho0,
+            K_S_rho0,
+            K_I_rho0,
+            polynomial_degree,
+            polynomial_degree,
+            nelements,
+            Q=q0,
+            q0=q0,
+            basis_r=basis,
+            basis_psi=basis,
+        )
+    elif Beam == I_DirectorAxisAngle:
+        q0 = I_DirectorAxisAngle.straight_configuration(
+            polynomial_degree,
+            polynomial_degree,
+            basis,
+            basis,
+            nelements,
+            L,
+            r_OP=r_OP0,
+            A_IK=A_IK0,
+        )
+        beam = I_DirectorAxisAngle(
             cross_section,
             material_model,
             A_rho0,
@@ -129,6 +157,7 @@ if __name__ == "__main__":
         B_rho0 = K_S_rho0
         C_rho0 = np.diag(np.array([0.0, K_I_rho0[2, 2], K_I_rho0[1, 1]]))
         nquadrature = polynomial_degree + 1
+        # nquadrature = polynomial_degree
 
         beam = Beam(
             cross_section,
@@ -167,6 +196,30 @@ if __name__ == "__main__":
             basis_r=basis,
             basis_psi=basis,
         )
+    elif Beam in [K_Cardona, K_TimoshenkoLerp]:
+        q0 = Beam.straight_configuration(
+            polynomial_degree,
+            polynomial_degree,
+            basis,
+            basis,
+            nelements,
+            L,
+            r_OP=r_OP0,
+            A_IK=A_IK0,
+        )
+        beam = Beam(
+            cross_section,
+            material_model,
+            A_rho0,
+            K_S_rho0,
+            K_I_rho0,
+            polynomial_degree,
+            polynomial_degree,
+            nelements,
+            q0,
+            basis_r=basis,
+            basis_psi=basis,
+        )
     else:
         raise NotImplementedError
 
@@ -178,11 +231,12 @@ if __name__ == "__main__":
 
     # moment at right end
     Fi = material_model.Fi
-    # M = lambda t: (e3 * 2 * np.pi * Fi[2] / L * t) * 0.25
-    if statics:
-        M = lambda t: (e1 * Fi[0] + e3 * Fi[2]) * 1.0 * t * 2 * np.pi / L
-    else:
-        M = lambda t: (e1 * Fi[0] + e3 * Fi[2]) * 1.0 * 2 * np.pi / L * 0.05
+    # M = lambda t: (e3 * 2 * np.pi * Fi[2] / L * t) * 2
+    M = lambda t: 2 * np.pi / L * (e1 * Fi[0] + e3 * Fi[2]) * t * 2
+    # if statics:
+    #     M = lambda t: (e1 * Fi[0] + e3 * Fi[2]) * 1.0 * t * 2 * np.pi / L * 0.5
+    # else:
+    #     M = lambda t: (e1 * Fi[0] + e3 * Fi[2]) * 1.0 * 2 * np.pi / L * 0.05
     moment = K_Moment(M, beam, (1,))
 
     # force at the rght end
@@ -191,9 +245,9 @@ if __name__ == "__main__":
 
     # line distributed body force
     if statics:
-        l = lambda t, xi: t * e3 * 1e0
+        l = lambda t, xi: t * (0.5 * e2 - e3) * 5e1
     else:
-        l = lambda t, xi: e3 * 1e0
+        l = lambda t, xi: (0.5 * e2 - e3) * 1e0
     line_force = DistributedForce1DBeam(l, beam)
 
     # assemble the system
@@ -210,7 +264,7 @@ if __name__ == "__main__":
     # exit()
 
     if statics:
-        n_load_steps = int(10)
+        n_load_steps = int(50)
         solver = Newton(
             system,
             n_load_steps=n_load_steps,
@@ -218,14 +272,20 @@ if __name__ == "__main__":
             atol=1.0e-8,
         )
     else:
-        t1 = 5
-        dt = 5.0e-2
-        solver = EulerBackward(system, t1, dt)
+        t1 = 1
+        dt = 2.5e-2
+        solver = EulerBackward(system, t1, dt, method="index 3")
+        # solver = ScipyIVP(system, t1, dt, rtol=1.0e-2, atol=1.0e-2)
 
     sol = solver.solve()
     q = sol.q
     nt = len(q)
     t = sol.t[:nt]
+
+    ###########
+    # animation
+    ###########
+    animate_beam(t, q, [beam], L, show=True)
 
     ############
     # VTK export
@@ -283,8 +343,3 @@ if __name__ == "__main__":
     # ax[1].set_ylabel("K_Kappa")
     # ax[1].grid()
     # ax[1].legend()
-
-    ###########
-    # animation
-    ###########
-    animate_beam(t, q, [beam], L, show=True)

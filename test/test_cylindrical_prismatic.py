@@ -4,7 +4,7 @@ import matplotlib.animation as animation
 from scipy.integrate import solve_ivp
 
 from cardillo import System
-from cardillo.solver import ScipyIVP, EulerBackward, RadauIIa
+from cardillo.solver import ScipyIVP, EulerBackward, RadauIIa, Moreau
 from cardillo.constraints import RigidConnection, Cylindrical, Prismatic
 from cardillo.discrete import Frame, RigidBodyQuaternion, RigidBodyAxisAngle
 from cardillo.forces import Force, ScalarForceTranslational, LinearSpring, LinearDamper
@@ -360,6 +360,8 @@ if __name__ == "__main__":
     #############
     run("Cylindrical", ScipyIVP)
 
+    # run("Cylindrical", Moreau)
+
     # run("Cylindrical", EulerBackward, method="index 1")
     # run("Cylindrical", EulerBackward, method="index 2")
     # run("Cylindrical", EulerBackward, method="index 3")
@@ -373,6 +375,8 @@ if __name__ == "__main__":
     # Prismatic
     ###########
     # run("Prismatic", ScipyIVP)
+
+    # run("Prismatic", Moreau)
 
     # run("Prismatic", EulerBackward, method="index 1")
     # run("Prismatic", EulerBackward, method="index 2")

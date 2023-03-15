@@ -26,16 +26,9 @@ class RigidBodyAxisAngle(RigidBodyBase):
         psi = q[3:]
         angle = norm(psi)
         # Ibrahimbegovic1995 after (62)
-        # TODO check this
         if angle > pi:
-            # print(f"complement rotation vector is used")
             n = int((angle + pi) / (2 * pi))
-            # n = 1
             e = psi / angle
-            # if angle > 0:
-            #     e = psi / angle
-            # else:
-            #     e = psi.copy()
             psi_C = psi - 2 * n * pi * e
             q[3:] = psi_C
         return q, u

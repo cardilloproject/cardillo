@@ -3,7 +3,7 @@ from cardillo.solver.solution import Solution
 
 import numpy as np
 from scipy.sparse.linalg import spsolve
-from scipy.sparse import csr_matrix, bmat, lil_matrix
+from scipy.sparse import csr_matrix, coo_matrix, bmat, lil_matrix
 from tqdm import tqdm
 
 
@@ -90,11 +90,30 @@ class Newton:
         W_N = self.system.W_N(t, q, scipy_matrix=csr_matrix)
         g_N = self.system.g_N(t, q)
 
+        if np.any(g_N <= 0):
+            print(f"active contacts")
+
         R = np.zeros(self.nf, dtype=x.dtype)
         R[:nu] = self.system.h(t, q, self.u0) + W_g @ la_g + W_N @ la_N
         R[nu : nu + nla_g] = self.system.g(t, q)
         R[nu + nla_g : nu + nla_g + nla_S] = self.system.g_S(t, q)
         R[nu + nla_g + nla_S :] = np.minimum(la_N, g_N)
+        # def fb(a, b):
+        #     # return np.minimum(a, b)
+
+        #     return a + b - np.sqrt(a * a + b * b)
+
+        #     # from cardillo.math import prox_R0_np
+        #     # r = 1.0e-2
+        #     # return a - prox_R0_np(a - r * b)
+
+        # R[nu + nla_g + nla_S :] = fb(la_N, g_N)
+
+        # def fb_a(a, b):
+        #     return coo_matrix(approx_fprime(a, lambda a: fb(a, b)))
+
+        # def fb_b(a, b):
+        #     return csr_matrix(approx_fprime(b, lambda b: fb(a, b)))
 
         yield R
 
@@ -118,6 +137,8 @@ class Newton:
                 Rla_N_la_N[i, i] = 1.0
             else:
                 Rla_N_q[i] = g_N_q[i]
+        # Rla_N_la_N = fb_a(la_N, g_N)
+        # Rla_N_q = fb_b(la_N, g_N) @ g_N_q
 
         # fmt: off
         yield bmat([[      K,  W_g,        W_N], 

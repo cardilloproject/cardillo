@@ -11,6 +11,7 @@ from cardillo.math import (
 )
 
 
+# TODO: Discuss usage of unit quaternion inside this class.
 class RigidBodyQuaternion(RigidBodyBase):
     """Rigid body parametrized by center of mass in inertial base and unit 
     quaternions for rotation. The angular velocities expressed in the 
@@ -66,27 +67,21 @@ class RigidBodyQuaternion(RigidBodyBase):
         coo.extend(dense, (self.qDOF, self.qDOF))
 
     def q_dot(self, t, q, u):
-        p = q[3:]
+        P = q[3:]
         q_dot = np.zeros(self.nq, dtype=np.common_type(q, u))
         q_dot[:3] = u[:3]
-        q_dot[3:] = (T_SO3_inv_quat(p) @ u[3:]) / (p @ p)
+        q_dot[3:] = T_SO3_inv_quat(P) @ u[3:]
         return q_dot
 
     def q_dot_q(self, t, q, u, coo):
-        p = q[3:]
-        p2 = p @ p
-        K_omega_IK = u[3:]
         dense = np.zeros((self.nq, self.nq), dtype=np.common_type(q, u))
-        dense[3:, 3:] = np.einsum(
-            "ijk,j->ik", T_SO3_inv_quat_P() / p2, K_omega_IK
-        ) - np.outer(T_SO3_inv_quat(p) @ K_omega_IK, 2 * p / (p2**2))
+        dense[3:, 3:] = np.einsum("ijk,j->ik", T_SO3_inv_quat_P(), u[3:])
         coo.extend(dense, (self.qDOF, self.qDOF))
 
     def B(self, t, q, coo):
-        p = q[3:]
         B = np.zeros((self.nq, self.nu), dtype=q.dtype)
-        B[:3, :3] = np.eye(3, dtype=float)
-        B[3:, 3:] = T_SO3_inv_quat(p) / (p @ p)
+        B[:3, :3] = np.eye(3, dtype=q.dtype)
+        B[3:, 3:] = T_SO3_inv_quat(q[3:])
         coo.extend(B, (self.qDOF, self.uDOF))
 
     def q_ddot(self, t, q, u, u_dot):

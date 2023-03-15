@@ -1,9 +1,13 @@
 import numpy as np
+
 from cardillo.math import Exp_SO3, Log_SO3, T_SO3, approx_fprime
-from cardillo.beams._base import TimoshenkoPetrovGalerkinBase
+from cardillo.beams._base import (
+    I_TimoshenkoPetrovGalerkinBaseAxisAngle,
+    K_TimoshenkoPetrovGalerkinBaseAxisAngle,
+)
 
 
-class Crisfield1999(TimoshenkoPetrovGalerkinBase):
+class Crisfield1999(K_TimoshenkoPetrovGalerkinBaseAxisAngle):
     def __init__(
         self,
         cross_section,
@@ -20,6 +24,14 @@ class Crisfield1999(TimoshenkoPetrovGalerkinBase):
         basis_r="Lagrange",
         basis_psi="Lagrange",
     ):
+        p = max(polynomial_degree_r, polynomial_degree_psi)
+        nquadrature = p
+        nquadrature_dyn = int(np.ceil((p + 1) ** 2 / 2))
+
+        # import warnings
+        # warnings.warn("'Crisfield1999: Full integration is used!")
+        # nquadrature = nquadrature_dyn
+
         # reference rotation for relative rotation proposed by Crisfield1999 (5.8)
         nnodes_element_psi = polynomial_degree_psi + 1
         self.node_A = int(0.5 * (nnodes_element_psi + 1)) - 1
@@ -34,6 +46,8 @@ class Crisfield1999(TimoshenkoPetrovGalerkinBase):
             polynomial_degree_r,
             polynomial_degree_psi,
             nelement,
+            nquadrature,
+            nquadrature_dyn,
             Q,
             q0=q0,
             u0=u0,
@@ -41,13 +55,16 @@ class Crisfield1999(TimoshenkoPetrovGalerkinBase):
             basis_psi=basis_psi,
         )
 
-    def _reference_rotation(self, qe: np.ndarray):
+    def _reference_rotation(self, qe: np.ndarray, symmetric=False):
         """Reference rotation proposed by Crisfield1999 (5.8)."""
-        A_0I = Exp_SO3(qe[self.nodalDOF_element_psi[self.node_A]])
-        A_0J = Exp_SO3(qe[self.nodalDOF_element_psi[self.node_B]])
-        A_IJ = A_0I.T @ A_0J  # Crisfield1999 (5.8)
-        phi_IJ = Log_SO3(A_IJ)
-        return A_0I @ Exp_SO3(0.5 * phi_IJ)
+        if symmetric:
+            A_0I = Exp_SO3(qe[self.nodalDOF_element_psi[self.node_A]])
+            A_0J = Exp_SO3(qe[self.nodalDOF_element_psi[self.node_B]])
+            A_IJ = A_0I.T @ A_0J  # Crisfield1999 (5.8)
+            phi_IJ = Log_SO3(A_IJ)
+            return A_0I @ Exp_SO3(0.5 * phi_IJ)
+        else:
+            return Exp_SO3(qe[self.nodalDOF_element_psi[0]])
 
     def _relative_interpolation(
         self, A_IR: np.ndarray, qe: np.ndarray, N_psi: np.ndarray, N_psi_xi: np.ndarray
@@ -107,19 +124,25 @@ class Crisfield1999(TimoshenkoPetrovGalerkinBase):
         return r_OP, A_IK, K_Gamma_bar, K_Kappa_bar
 
     def A_IK(self, t, q, frame_ID):
-        return self._eval(q, frame_ID[0])[1]
         # evaluate shape functions
-        N_psi, _ = self.basis_functions_psi(frame_ID[0])
+        N_psi, N_psi_xi = self.basis_functions_psi(frame_ID[0])
 
-        # interpolate orientation
-        A_IK = np.zeros((3, 3), dtype=q.dtype)
-        for node in range(self.nnodes_element_psi):
-            A_IK += N_psi[node] * Exp_SO3(q[self.nodalDOF_element_psi[node]])
+        # reference rotation, see. Crisfield1999 (5.8)
+        A_IR = self._reference_rotation(q)
 
-        return A_IK
+        # relative interpolation of the rotation vector and it first derivative
+        psi_rel, _ = self._relative_interpolation(A_IR, q, N_psi, N_psi_xi)
+
+        # objective rotation
+        return A_IR @ Exp_SO3(psi_rel)
 
     def A_IK_q(self, t, q, frame_ID):
-        return approx_fprime(q, lambda q: self.A_IK(t, q, frame_ID))
+        return approx_fprime(
+            q,
+            lambda q: self.A_IK(t, q, frame_ID),
+            method="3-point",
+            eps=1e-6,
+        )
 
         # evaluate shape functions
         N_psi, _ = self.basis_functions_psi(frame_ID[0])
