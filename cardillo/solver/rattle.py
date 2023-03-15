@@ -271,7 +271,7 @@ class Rattle:
         ###########
         # Signorini
         ###########
-        prox_r_N = self.system.prox_r_N(tn1, qn1)
+        prox_r_N = self.prox_r_N
         g_Nn1 = self.system.g_N(tn1, qn1)
         prox_arg = prox_r_N * g_Nn1 - P_N1
         if update_index:
@@ -292,7 +292,7 @@ class Rattle:
         ##############################
         # friction and tangent impacts
         ##############################
-        prox_r_F = self.system.prox_r_F(tn1, qn1)
+        prox_r_F = self.prox_r_F
         gamma_Fn1 = self.system.gamma_F(tn1, qn1, un12)
         xi_Fn1 = self.system.xi_F(tn1, qn1, un, un1)
         for i_N, i_F in enumerate(self.system.NF_connectivity):
@@ -355,7 +355,7 @@ class Rattle:
         ###########
         # Signorini
         ###########
-        prox_r_N = self.system.prox_r_N(tn1, qn1)
+        prox_r_N = self.prox_r_N
         g_Nn1 = self.system.g_N(tn1, qn1)
         prox_arg = prox_r_N * g_Nn1 - P_N1
         if update_index:
@@ -366,7 +366,7 @@ class Rattle:
         ##############################
         # friction and tangent impacts
         ##############################
-        prox_r_F = self.system.prox_r_F(tn1, qn1)
+        prox_r_F = self.prox_r_F
         gamma_Fn1 = self.system.gamma_F(tn1, qn1, un12)
         for i_N, i_F in enumerate(self.system.NF_connectivity):
             i_F = np.array(i_F)
@@ -434,10 +434,8 @@ class Rattle:
         ##############################
         # friction and tangent impacts
         ##############################
-        # TODO: Keep prox_r_F constant during each Newton iteration since it is an expensive expression.
-        # if np.any(self.I_N):
         mu = self.system.mu
-        prox_r_F = self.system.prox_r_F(tn1, qn1)
+        prox_r_F = self.prox_r_F
         gamma_F = self.system.gamma_F(tn1, qn1, un12)
 
         # note: csr_matrix is best for row slicing, see
@@ -558,7 +556,7 @@ class Rattle:
         ##################################################
         # mixed Singorini on velocity level and impact law
         ##################################################
-        prox_r_N = self.system.prox_r_N(tn1, qn1)
+        prox_r_N = self.prox_r_N
         xi_Nn1 = self.system.xi_N(tn1, qn1, un, un1)
         R[self.split_y2[2] : self.split_y2[3]] = np.where(
             self.I_N,
@@ -569,7 +567,7 @@ class Rattle:
         ##############################
         # friction and tangent impacts
         ##############################
-        prox_r_F = self.system.prox_r_F(tn1, qn1)
+        prox_r_F = self.prox_r_F
         xi_Fn1 = self.system.xi_F(tn1, qn1, un, un1)
         for i_N, i_F in enumerate(self.system.NF_connectivity):
             i_F = np.array(i_F)
@@ -657,8 +655,8 @@ class Rattle:
 
         tn1 = self.tn + self.dt
 
-        prox_r_N = self.system.prox_r_N(tn1, qn1)
-        prox_r_F = self.system.prox_r_F(tn1, qn1)
+        prox_r_N = self.prox_r_N
+        prox_r_F = self.prox_r_F
         mu = self.system.mu
 
         p1 = np.zeros_like(z1)
@@ -745,8 +743,8 @@ class Rattle:
 
         tn1 = self.tn + self.dt
 
-        prox_r_N = self.system.prox_r_N(tn1, qn1)
-        prox_r_F = self.system.prox_r_F(tn1, qn1)
+        prox_r_N = self.prox_r_N
+        prox_r_F = self.prox_r_F
         mu = self.system.mu
 
         p2 = np.zeros_like(z2)
@@ -786,6 +784,9 @@ class Rattle:
 
         pbar = tqdm(self.t[:-1])
         for n in pbar:
+            # only compute optimized proxparameters once per time step
+            self.prox_r_N = self.system.prox_r_N(self.tn, self.qn)
+            self.prox_r_F = self.system.prox_r_F(self.tn, self.qn)
             tn1 = self.tn + self.dt
             if self.method == "Newton_decoupled":
                 y1, converged1, error1, i1, _ = fsolve(
