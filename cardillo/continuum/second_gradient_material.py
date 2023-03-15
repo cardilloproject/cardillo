@@ -9,6 +9,7 @@ from cardillo.math.numerical_derivative import approx_fprime
 num_order = 2
 G0 = np.zeros((3, 3, 3))
 
+
 # TODO: untested!
 class PantosheetBeamNetwork:
     """Giorgio et al 2017 Surface embedded in 3D space"""
@@ -279,7 +280,6 @@ class PantosheetBeamNetwork:
         return W
 
     def We(self, F, G):
-
         d1 = F @ self.D1
         d2 = F @ self.D2
         rho1 = norm(d1)
@@ -1159,7 +1159,6 @@ class PantoboxBeamNetwork:
         return Pe_F + Psa_F + Psb_F + Pc_F + Pg_F + Pn_F + Pt_F
 
     def P_G(self, F, G=G0):
-
         # layer a
         d1 = F @ self.D1
         d2 = F @ self.D2
@@ -2190,7 +2189,6 @@ class PantoboxBeamNetwork:
         return e_F_F
 
     def ga(self, F, G):
-
         d1 = F @ self.D1
         d2 = F @ self.D2
         rho1 = norm(d1)
@@ -2797,7 +2795,6 @@ class PantoboxBeamNetwork:
         return W
 
     def We(self, F, G=G0):
-
         d1 = F @ self.D1
         d2 = F @ self.D2
         rho1 = norm(d1)
@@ -2818,7 +2815,6 @@ class PantoboxBeamNetwork:
         return We
 
     def Pe(self, F, G=G0):
-
         d1 = F @ self.D1
         d2 = F @ self.D2
         rho1 = norm(d1)
@@ -2882,7 +2878,6 @@ class PantoboxBeamNetwork:
         return Wn1 + Wn2 + Wn3 + Wn4
 
     def Pn(self, F, G=G0):
-
         d1 = F @ self.D1
         d2 = F @ self.D2
         rho1 = norm(d1)

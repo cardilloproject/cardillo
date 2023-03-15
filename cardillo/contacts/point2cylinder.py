@@ -15,7 +15,6 @@ class Point2Cylinder:
         K_r_SP=np.zeros(3),
         la_N0=None,
     ):
-
         self.frame = frame
         self.subsystem = subsystem
         self.radius = radius

@@ -11,7 +11,6 @@ class Point2Plane:
         K_r_SP=np.zeros(3),
         la_N0=None,
     ):
-
         self.frame = frame
         self.subsystem = subsystem
         self.mu = np.array([0])

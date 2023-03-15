@@ -3,19 +3,20 @@ import numpy.typing as npt
 
 from cardillo.math import norm
 
+
 class nElScalarForceTranslational:
     def __init__(
         self,
         subsystem_list: list,
         connectivity: list[tuple[int, int]],
-        force_law_spring = None,
-        force_law_damper = None,
+        force_law_spring=None,
+        force_law_damper=None,
         frame_ID_list: list[npt.ArrayLike] = None,
-        K_r_SP_list: list[npt.ArrayLike] = None
+        K_r_SP_list: list[npt.ArrayLike] = None,
     ) -> None:
         self.force_law_spring = force_law_spring
-        self.force_law_damper = force_law_damper        
-        
+        self.force_law_damper = force_law_damper
+
         assert (self.force_law_spring is not None) or (
             self.force_law_damper is not None
         )
@@ -43,8 +44,16 @@ class nElScalarForceTranslational:
 
         self.subsystems = subsystem_list
         self.n_subsystems = len(subsystem_list)
-        self.frame_IDs = frame_ID_list if frame_ID_list is not None else self.n_subsystems*[np.zeros(3)]
-        self.Ki_r_SPis = K_r_SP_list if K_r_SP_list is not None else self.n_subsystems*[np.zeros(3)]
+        self.frame_IDs = (
+            frame_ID_list
+            if frame_ID_list is not None
+            else self.n_subsystems * [np.zeros(3)]
+        )
+        self.Ki_r_SPis = (
+            K_r_SP_list
+            if K_r_SP_list is not None
+            else self.n_subsystems * [np.zeros(3)]
+        )
 
         self.connectivity = connectivity
 
@@ -78,13 +87,13 @@ class nElScalarForceTranslational:
                         sysj.t0,
                         sysj.q0[sysj.local_qDOF_P(frame_IDj)],
                         frame_IDj,
-                        self.Ki_r_SPis[j]
+                        self.Ki_r_SPis[j],
                     )
                     - sysi.r_OP(
                         sysi.t0,
                         sysi.q0[sysi.local_qDOF_P(frame_IDi)],
                         frame_IDi,
-                        self.Ki_r_SPis[i]
+                        self.Ki_r_SPis[i],
                     )
                 )
             self.force_law_spring.g_ref = g_ref
@@ -104,10 +113,18 @@ class nElScalarForceTranslational:
             t, q[self.nq_fun(k)], self.frame_IDs[k], self.Ki_r_SPis[k]
         )
         self.v_Pk = lambda t, q, u, k: self.subsystems[k].v_P(
-            t, q[self.nq_fun(k)], u[self.nu_fun(k)], self.frame_IDs[k], self.Ki_r_SPis[k]
+            t,
+            q[self.nq_fun(k)],
+            u[self.nu_fun(k)],
+            self.frame_IDs[k],
+            self.Ki_r_SPis[k],
         )
         self.v_Pk_qk = lambda t, q, u, k: self.subsystems[k].v_P_q(
-            t, q[self.nq_fun(k)], u[self.nu_fun(k)], self.frame_IDs[k], self.Ki_r_SPis[k]
+            t,
+            q[self.nq_fun(k)],
+            u[self.nu_fun(k)],
+            self.frame_IDs[k],
+            self.Ki_r_SPis[k],
         )
         self.J_Pk = lambda t, q, k: self.subsystems[k].J_P(
             t, q[self.nq_fun(k)], self.frame_IDs[k], self.Ki_r_SPis[k]
@@ -214,19 +231,23 @@ class nElScalarForceTranslational:
 
     def _f_damper_q(self, t, q, u):
         gamma = self._gamma(t, q, u)
-        f_damper_q = - self._W_q(t, q) * self.force_law_damper.la(t, gamma) - self.force_law_damper.la_gamma(t, gamma) * np.outer(
+        f_damper_q = -self._W_q(t, q) * self.force_law_damper.la(
+            t, gamma
+        ) - self.force_law_damper.la_gamma(t, gamma) * np.outer(
             self._W(t, q), self._gamma_q(t, q, u)
         )
         return f_damper_q
 
     def _f_damper_u(self, t, q, u, coo):
         W = self._W(t, q)
-        f_npot_u = -self.force_law_damper.la_gamma(t, self._gamma(t, q, u)) * np.outer(W, W)
+        f_npot_u = -self.force_law_damper.la_gamma(t, self._gamma(t, q, u)) * np.outer(
+            W, W
+        )
         coo.extend(f_npot_u, (self.uDOF, self.uDOF))
 
     def h(self, t, q, u):
         return self._h(t, q, u)
-    
+
     def h_q(self, t, q, u, coo):
         return self._h_q(t, q, u, coo)
 

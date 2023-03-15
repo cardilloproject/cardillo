@@ -4,23 +4,26 @@ from scipy.integrate import solve_ivp
 
 from cardillo import System
 from cardillo.solver import ScipyIVP, EulerBackward, RadauIIa
-from cardillo.constraints import RevoluteJoint
+from cardillo.constraints import Revolute
 from cardillo.discrete import RigidBodyAxisAngle, RigidBodyQuaternion
 from cardillo.forces import (
     LinearSpring,
     LinearDamper,
-    PDRotationalJoint,
+    PDRotational,
 )
 from cardillo.math import Exp_SO3, axis_angle2quat, norm
+
+l = 0.1
+m = 1
+r = 0.2
+A = 1 / 4 * m * r**2 + 1 / 12 * m * l**2
+C = 1 / 2 * m * r**2
+K_theta_S = np.diag(np.array([A, A, C]))
 
 
 def RigidCylinder(RigidBodyParametrization):
     class _RigidCylinder(RigidBodyParametrization):
-        def __init__(self, m, r, l, q0=None, u0=None):
-            A = 1 / 4 * m * r**2 + 1 / 12 * m * l**2
-            C = 1 / 2 * m * r**2
-            K_theta_S = np.diag(np.array([A, A, C]))
-
+        def __init__(self, q0=None, u0=None):
             super().__init__(m, K_theta_S, q0=q0, u0=u0)
 
     return _RigidCylinder
@@ -35,11 +38,8 @@ def run(
     RigidBodyParametrization=RigidBodyQuaternion,
     solver_type="EulerBackward",
     plot=True,
+    rotation_axis=2,
 ):
-    l = 0.1
-    m = 1
-    r = 0.2
-
     r_OP0 = np.zeros(3)
     v_P0 = np.zeros(3)
     K_Omega0 = np.array((0, 0, alpha_dot0))
@@ -47,21 +47,22 @@ def run(
 
     if type(RigidBodyParametrization) is type(RigidBodyAxisAngle):
         q0 = np.hstack((r_OP0, psi))
-        rigid_body = RigidCylinder(RigidBodyAxisAngle)(m, r, l, q0, u0)
+        rigid_body = RigidCylinder(RigidBodyAxisAngle)(q0, u0)
     elif type(RigidBodyParametrization) is type(RigidBodyQuaternion):
         n_psi = norm(psi)
         p = axis_angle2quat(psi / n_psi, n_psi)
         q0 = np.hstack((r_OP0, p))
-        rigid_body = RigidCylinder(RigidBodyQuaternion)(m, r, l, q0, u0)
+        rigid_body = RigidCylinder(RigidBodyQuaternion)(q0, u0)
     else:
         raise (TypeError)
 
     system = System()
-    joint = PDRotationalJoint(RevoluteJoint, Spring=LinearSpring, Damper=LinearDamper)(
+    joint = PDRotational(Revolute, Spring=LinearSpring, Damper=LinearDamper)(
         subsystem1=system.origin,
         subsystem2=rigid_body,
         r_OB0=np.zeros(3),
         A_IB0=A_IK0,
+        rotation_axis=rotation_axis,
         k=k,
         d=d,
         g_ref=g_ref,
@@ -80,14 +81,20 @@ def run(
         case "ScipyIVP":
             solver = ScipyIVP(system, t1, dt, atol=1e-8)
         case "RadauIIaDAE2":
-            solver = RadauIIa(system, t1, dt, atol=1e-2, rtol=1e-2, dae_index=2, max_step=dt)
+            solver = RadauIIa(
+                system, t1, dt, atol=1e-2, rtol=1e-2, dae_index=2, max_step=dt
+            )
         case "RadauIIaDAE3":
-            solver = RadauIIa(system, t1, dt, atol=1e-4, rtol=1e-4, dae_index=3, max_step=dt)
+            solver = RadauIIa(
+                system, t1, dt, atol=1e-4, rtol=1e-4, dae_index=3, max_step=dt
+            )
         case "RaudauIIaGGL":
-            solver = RadauIIa(system, t1, dt, atol=1e-3, rtol=1e-3, dae_index="GGL", max_step=dt)
+            solver = RadauIIa(
+                system, t1, dt, atol=1e-3, rtol=1e-3, dae_index="GGL", max_step=dt
+            )
         case "EulerBackward" | _:
             solver = EulerBackward(system, t1, dt)
-        
+
     sol = solver.solve()
     t = sol.t
     q = sol.q
@@ -97,13 +104,15 @@ def run(
     #                   plot
     ############################################################################
     if plot:
-        joint.reset()         
+        joint.reset()
         alpha_cmp = [joint.angle(ti, qi[joint.qDOF]) for ti, qi in zip(t, q)]
+
+        Theta = K_theta_S[rotation_axis, rotation_axis]
 
         def eqm(t, x):
             dx = np.zeros(2)
             dx[0] = x[1]
-            dx[1] = -2 / (m * r**2) * (d * x[1] + k * (x[0] - g_ref))
+            dx[1] = -1 / Theta * (d * x[1] + k * (x[0] - g_ref))
             return dx
 
         x0 = np.array((0, alpha_dot0))
@@ -143,13 +152,20 @@ if __name__ == "__main__":
     d = 0.05
     # k=d=0
     g_ref = 2 * np.pi
+    rotation_axis = 1
 
     # Rigid body parametrization
     RigidBodyParametrization = RigidBodyQuaternion
     # RigidBodyParametrization = RigidBodyAxisAngle
 
     # Solver
-    solver = ["ScipyIVP", "RadauIIaDAE2", "RadauIIaDAE3", "RaudauIIaGGL", "EulerBackward"]
+    solver = [
+        "ScipyIVP",
+        "RadauIIaDAE2",
+        "RadauIIaDAE3",
+        "RaudauIIaGGL",
+        "EulerBackward",
+    ]
 
     if profiling:
         import cProfile, pstats
@@ -166,6 +182,7 @@ if __name__ == "__main__":
             RigidBodyParametrization=RigidBodyParametrization,
             solver_type=solver[2],
             plot=False,
+            rotation_axis=rotation_axis,
         )
         profiler.disable()
 
@@ -184,4 +201,5 @@ if __name__ == "__main__":
             RigidBodyParametrization=RigidBodyParametrization,
             solver_type=solver[1],
             plot=True,
+            rotation_axis=rotation_axis,
         )

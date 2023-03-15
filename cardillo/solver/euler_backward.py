@@ -72,30 +72,11 @@ class EulerBackward:
             + self.nla_gamma
         ] = la_gamma0
 
-    def _unpack(self, y):
-        q_dot = y[: self.nq]
-        u_dot = y[self.nq : self.nq + self.nu]
-        la_g = y[self.nq + self.nu : self.nq + self.nu + self.nla_g]
-        la_gamma = y[
-            self.nq
-            + self.nu
-            + self.nla_g : self.nq
-            + self.nu
-            + self.nla_g
-            + self.nla_gamma
-        ]
-        mu_S = y[
-            self.nq
-            + self.nu
-            + self.nla_g
-            + self.nla_gamma : self.nq
-            + self.nu
-            + self.nla_g
-            + self.nla_gamma
-            + self.nla_S
-        ]
-        mu_g = y[self.nq + self.nu + self.nla_g + self.nla_gamma + self.nla_S :]
-        return q_dot, u_dot, la_g, la_gamma, mu_S, mu_g
+        self.split_y = np.cumsum(
+            np.array(
+                [self.nq, self.nu, self.nla_g, self.nla_gamma, self.nla_S], dtype=int
+            )
+        )
 
     def _update(self, y):
         q_dot = y[: self.nq]
@@ -113,7 +94,7 @@ class EulerBackward:
         nqu = nq + nu
 
         t = self.t
-        q_dot, u_dot, la_g, la_gamma, mu_S, mu_g = self._unpack(y)
+        q_dot, u_dot, la_g, la_gamma, mu_S, mu_g = a = np.array_split(y, self.split_y)
         q, u = self._update(y)
 
         self.M = self.system.M(t, q, scipy_matrix=csr_matrix)
@@ -157,7 +138,7 @@ class EulerBackward:
     def _J(self, y):
         t = self.t
         dt = self.dt
-        q_dot, u_dot, la_g, la_gamma, mu_S, mu_g = self._unpack(y)
+        q_dot, u_dot, la_g, la_gamma, mu_S, mu_g = np.array_split(y, self.split_y)
         q, u = self._update(y)
 
         A = (
@@ -226,18 +207,21 @@ class EulerBackward:
 
         return J
 
-        # J_num = csc_matrix(approx_fprime(y, self._R, method="2-point"))
-        # J_num = csc_matrix(approx_fprime(y, self._R, method="3-point"))
-        J_num = csc_matrix(approx_fprime(y, self._R, method="cs", eps=1.0e-12))
-        diff = (J - J_num).toarray()
-        # diff = diff[:self.nq]
-        # diff = diff[self.nq : ]
-        error = np.linalg.norm(diff)
-        print(f"error Jacobian: {error}")
-        return J_num
+        # # J_num = csc_matrix(approx_fprime(y, self._R, method="2-point", eps=1.0e-6))
+        # J_num = csc_matrix(approx_fprime(y, self._R, method="3-point", eps=1.0e-5))
+        # # J_num = csc_matrix(approx_fprime(y, self._R, method="cs", eps=1.0e-12))
+        # diff = (J - J_num).toarray()
+        # # diff = diff[: self.split_y[0]]
+        # # diff = diff[self.split_y[0] : self.split_y[1]]
+        # # diff = diff[self.split_y[0] : self.split_y[1], : self.split_y[0]]
+        # # diff = diff[self.split_y[0] : self.split_y[1], self.split_y[0] :]
+        # # diff = diff[self.split_y[1] :]
+        # error = np.linalg.norm(diff)
+        # print(f"error Jacobian: {error}")
+        # return J_num
 
     def solve(self):
-        q_dot, u_dot, la_g, la_gamma, mu_S, mu_g = self._unpack(self.y)
+        q_dot, u_dot, la_g, la_gamma, mu_S, mu_g = np.array_split(self.y, self.split_y)
 
         # lists storing output variables
         q_list = [self.qn]
@@ -265,7 +249,9 @@ class EulerBackward:
 
             q, u = self._update(self.y)
             self.qn, self.un = self.system.step_callback(t, q, u)
-            q_dot, u_dot, la_g, la_gamma, mu_S, mu_g = self._unpack(self.y)
+            q_dot, u_dot, la_g, la_gamma, mu_S, mu_g = np.array_split(
+                self.y, self.split_y
+            )
 
             q_list.append(self.qn)
             u_list.append(self.un)

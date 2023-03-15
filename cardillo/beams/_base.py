@@ -9,7 +9,7 @@ from cardillo.math import (
     Exp_SO3,
     Log_SO3,
     T_SO3_inv,
-    tangent_map_s,
+    # tangent_map_s,
     approx_fprime,
 )
 

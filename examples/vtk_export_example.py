@@ -8,7 +8,7 @@ from cardillo.forces import (
     LinearSpring,
 )
 
-from cardillo.constraints import SphericalJoint
+from cardillo.constraints import Spherical
 
 from cardillo.system import System
 from cardillo.math import axis_angle2quat, cross3
@@ -66,7 +66,7 @@ if __name__ == "__main__":
     spring = ScalarForceTranslational(pm0, pm1, LinearSpring(k))
     # frame = Frame(r_OS1)
     frame = PlaneFixed(np.array([0, 1, 0]), r_OS1)
-    joint = SphericalJoint(frame, pm1, r_OS1)
+    joint = Spherical(frame, pm1, r_OS1)
 
     system = System()
     system.add(cube)

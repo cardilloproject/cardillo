@@ -44,3 +44,6 @@ jupyter_execute/
 *.vtk
 *.vtu
 *.pvd
+
+# virtual environment
+myvenv

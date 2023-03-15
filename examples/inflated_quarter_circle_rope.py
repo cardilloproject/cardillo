@@ -1,5 +1,5 @@
 from cardillo.discrete import Frame
-from cardillo.constraints import Linear_guidance_xyz, SphericalJoint
+from cardillo.constraints import Linear_guidance_xyz, Spherical
 from cardillo.beams import (
     Rope,
     animate_rope,
@@ -95,7 +95,6 @@ case = "statics"
 # case = "dynamics"
 
 if __name__ == "__main__":
-
     # rope parameters
     R = 1  # radius inflated circle
     A_rho0 = 1.0e0  # reference density per unit length

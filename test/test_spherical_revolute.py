@@ -8,13 +8,13 @@ from cardillo.math import A_IK_basic, cross3, axis_angle2quat, Spurrier, Exp_SO3
 from cardillo import System
 from cardillo.discrete import Frame
 from cardillo.constraints import (
-    SphericalJoint,
-    RevoluteJoint,
+    Spherical,
+    Revolute,
 )
 from cardillo.discrete import RigidBodyQuaternion
 from cardillo.forces import (
     Force,
-    PDRotationalJoint,
+    PDRotational,
     LinearDamper,
     LinearSpring,
 )
@@ -59,27 +59,35 @@ def run(joint, Solver, k=None, d=None, **solver_args):
     # origin = Frame(r_OP=r_OB1, A_IK=A_IB1)
     RB1 = RigidBodyQuaternion(m, K_theta_S, q01, u01)
 
-    if joint == "SphericalJoint":
+    if joint == "Spherical":
         use_spherical_joint = True
-    elif joint == "RevoluteJoint":
+    elif joint == "Revolute":
         use_revolute_joint = True
-    elif joint == "PDRotationalJoint":
+    elif joint == "PDRotational":
         use_pdrotational_joint = True
         assert (k and d) is not None
     else:
         raise RuntimeError(
-            'Invalid Argument.\nPossible Arguments are "SphericalJoint", "RevoluteJoint", "PDRotationalJoint".'
+            'Invalid Argument.\nPossible Arguments are "Spherical", "Revolute", "PDRotational".'
         )
 
     if use_spherical_joint:
-        joint1 = SphericalJoint(origin, RB1, A_IprimeI @ r_OB1)
+        joint1 = Spherical(origin, RB1, r_OB0=A_IprimeI @ r_OB1)
     elif use_revolute_joint:
-        joint1 = RevoluteJoint(origin, RB1, A_IprimeI @ r_OB1, A_IprimeI @ A_IB1)
+        joint1 = Revolute(
+            origin, RB1, axis=2, r_OB0=A_IprimeI @ r_OB1, A_IB0=A_IprimeI @ A_IB1
+        )
     elif use_pdrotational_joint:
-        joint1 = PDRotationalJoint(
-            RevoluteJoint, Spring=LinearSpring, Damper=LinearDamper
-        )(origin, RB1, A_IprimeI @ r_OB1, A_IprimeI @ A_IB1, k=k, d=d, g_ref=-alpha0)
-    # joint1 = SphericalJoint(origin, RB1, A_IprimeI @ r_OB1)
+        joint1 = PDRotational(Revolute, Spring=LinearSpring, Damper=LinearDamper)(
+            origin,
+            RB1,
+            axis=2,
+            r_OB0=A_IprimeI @ r_OB1,
+            A_IB0=A_IprimeI @ A_IB1,
+            k=k,
+            d=d,
+            g_ref=-alpha0,
+        )
 
     ############################################################################
     #                   Rigid Body 2
@@ -102,13 +110,22 @@ def run(joint, Solver, k=None, d=None, **solver_args):
     RB2 = RigidBodyQuaternion(m, K_theta_S, q02, u02)
 
     if use_spherical_joint:
-        joint2 = SphericalJoint(RB1, RB2, A_IprimeI @ r_OB2)
+        joint2 = Spherical(RB1, RB2, r_OB0=A_IprimeI @ r_OB2)
     elif use_revolute_joint:
-        joint2 = RevoluteJoint(RB1, RB2, A_IprimeI @ r_OB2, A_IprimeI @ A_IB2)
+        joint2 = Revolute(
+            RB1, RB2, axis=2, r_OB0=A_IprimeI @ r_OB2, A_IB0=A_IprimeI @ A_IB2
+        )
     elif use_pdrotational_joint:
-        joint2 = PDRotationalJoint(
-            RevoluteJoint, Spring=LinearSpring, Damper=LinearDamper
-        )(RB1, RB2, A_IprimeI @ r_OB2, A_IprimeI @ A_IB2, k=k, d=d, g_ref=-beta0)
+        joint2 = PDRotational(Revolute, Spring=LinearSpring, Damper=LinearDamper)(
+            RB1,
+            RB2,
+            axis=2,
+            r_OB0=A_IprimeI @ r_OB2,
+            A_IB0=A_IprimeI @ A_IB2,
+            k=k,
+            d=d,
+            g_ref=-beta0,
+        )
 
     ############################################################################
     #                   model
@@ -353,42 +370,45 @@ if __name__ == "__main__":
     #######################
     # spherical joint tests
     #######################
-    # run("SphericalJoint", EulerBackward, method="index 1")
-    # run("SphericalJoint", EulerBackward, method="index 2")
-    # run("SphericalJoint", EulerBackward, method="index 3")
-    # run("SphericalJoint", EulerBackward, method="index 2 GGL")
-    # run("SphericalJoint", RadauIIa)
+    # run("Spherical", EulerBackward, method="index 1")
+    # run("Spherical", EulerBackward, method="index 2")
+    # run("Spherical", EulerBackward, method="index 3")
+    # run("Spherical", EulerBackward, method="index 2 GGL")
+    # run("Spherical", RadauIIa)
+    # run("Spherical", ScipyIVP)
 
     ######################
     # revolute joint tests
     ######################
-    # run("RevoluteJoint", EulerBackward, method="index 1")
-    # run("RevoluteJoint", EulerBackward, method="index 2")
-    # run("RevoluteJoint", EulerBackward, method="index 3")
-    # run("RevoluteJoint", EulerBackward, method="index 2 GGL")
-    # run("RevoluteJoint", RadauIIa)
+    # run("Revolute", EulerBackward, method="index 1")
+    # run("Revolute", EulerBackward, method="index 2")
+    # run("Revolute", EulerBackward, method="index 3")
+    # run("Revolute", EulerBackward, method="index 2 GGL")
+    # run("Revolute", RadauIIa)
+    # run("Revolute", ScipyIVP)
 
     ###########################
     # PD rotational joint tests
     ###########################
     # k = 1e2
     k = 1e2
-    d = 1e1
-    # run("PDRotationalJoint", EulerBackward, method="index 1", k=k, d=d)
-    # run("PDRotationalJoint", EulerBackward, method="index 2", k=k, d=d)
-    # run("PDRotationalJoint", EulerBackward, method="index 3", k=k, d=d)
-    # run("PDRotationalJoint", EulerBackward, method="index 2 GGL", k=k, d=d)
+    d = 3e1
+
+    # run("PDRotational", EulerBackward, method="index 1", k=k, d=d)
+    # run("PDRotational", EulerBackward, method="index 2", k=k, d=d)
+    # run("PDRotational", EulerBackward, method="index 3", k=k, d=d)
+    # run("PDRotational", EulerBackward, method="index 2 GGL", k=k, d=d)
 
     # # accurate
-    # atol = 1e-6
-    # rtol = 1e-6
-    # fast
-    atol = 1e-2
-    rtol = 1e-2
-    # run("PDRotationalJoint", RadauIIa, k=k, d=d, atol=atol, rtol=rtol, dae_index=2)
-    # run("PDRotationalJoint", RadauIIa, k=k, d=d, atol=atol, rtol=rtol, dae_index=3)
-    run("PDRotationalJoint", RadauIIa, k=k, d=d, atol=atol, rtol=rtol, dae_index="GGL")
+    # atol = 1e-4
+    # rtol = 1e-4
+    # # # fast
+    # # atol = 1e-2
+    # # rtol = 1e-2
+    # run("PDRotational", RadauIIa, k=k, d=d, atol=atol, rtol=rtol, dae_index=2)
+    # # run("PDRotational", RadauIIa, k=k, d=d, atol=atol, rtol=rtol, dae_index=3)
+    # # run("PDRotational", RadauIIa, k=k, d=d, atol=atol, rtol=rtol, dae_index="GGL")
 
-    # atol = 1e-5
-    # rtol = 1e-5
-    # run("PDRotationalJoint", ScipyIVP, k=k, d=d, atol=atol, rtol=rtol)
+    atol = 1e-8
+    rtol = 1e-8
+    run("PDRotational", ScipyIVP, k=k, d=d, atol=atol, rtol=rtol)

@@ -4,15 +4,18 @@ from scipy.sparse import bmat, csc_matrix
 from scipy.integrate import solve_ivp
 from tqdm import tqdm
 
-from cardillo.solver import Solution
+from cardillo.solver import Solution, consistent_initial_conditions
 
 
 class ScipyIVP:
-    def __init__(self, system, t1, dt, method="RK45", rtol=1.0e-8, atol=1.0e-10):
+    def __init__(
+        self, system, t1, dt, method="RK45", rtol=1.0e-8, atol=1.0e-10, **kwargs
+    ):
         self.system = system
         self.rtol = rtol
         self.atol = atol
         self.method = method
+        self.kwargs = kwargs
 
         self.nq = system.nq
         self.nu = system.nu
@@ -35,12 +38,7 @@ class ScipyIVP:
 
         # check if initial state satisfies bilateral constraints on position and
         # velocity level
-        g = system.g(t0, system.q0)
-        assert np.allclose(g, np.zeros(len(g)))
-        g_dot = system.g_dot(t0, system.q0, system.u0)
-        assert np.allclose(g_dot, np.zeros(len(g_dot)))
-        gamma = system.gamma(t0, system.q0, system.u0)
-        assert np.allclose(gamma, np.zeros(len(gamma)))
+        consistent_initial_conditions(system)
 
     def eqm(self, t, x):
         # update progress bar
@@ -119,6 +117,7 @@ class ScipyIVP:
             rtol=self.rtol,
             atol=self.atol,
             dense_output=True,
+            **self.kwargs,
         )
 
         # compute Lagrange multipliers a posteriori at given t's

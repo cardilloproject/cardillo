@@ -645,6 +645,7 @@ def smallest_rotation(
     return cos_psi * np.eye(3, dtype=e.dtype) + ax2skew(e) + np.outer(e, e) / denom
 
 
+# TODO: This function should not normalize!
 def Exp_SO3_quat(p):
     """Exponential mapping defined by (non unit) quaternion, see Egeland2002 (6.199).
 
@@ -657,6 +658,7 @@ def Exp_SO3_quat(p):
     return np.eye(3, dtype=p.dtype) + 2.0 * (v_p_tilde @ v_p_tilde + p_[0] * v_p_tilde)
 
 
+# TODO: This function should not normalize!
 def Exp_SO3_quat_p(p):
     norm_p = norm(p)
     q = p / norm_p
@@ -670,7 +672,15 @@ def Exp_SO3_quat_p(p):
     A_q[:, :, 1:] += np.einsum("ij,jkl->ikl", 2 * v_q_tilde, v_q_tilde_v_q)
     A_q[:, :, 1:] += 2 * (q[0] * v_q_tilde_v_q)
 
-    return np.einsum("ijk,kl->ijl", A_q, q_p)
+    Exp_SO3_quat_p = np.einsum("ijk,kl->ijl", A_q, q_p)
+    return Exp_SO3_quat_p
+
+    # from cardillo.math import approx_fprime
+    # Exp_SO3_quat_p_num = approx_fprime(p, Exp_SO3_quat, method="3-point", eps=1e-6)
+    # diff = Exp_SO3_quat_p - Exp_SO3_quat_p_num
+    # error = np.linalg.norm(diff)
+    # print(f"error Exp_SO3_quat_p: {error}")
+    # return Exp_SO3_quat_p_num
 
 
 Log_SO3_quat = Spurrier
