@@ -48,6 +48,7 @@ def run(
     joint,
     Solver,
     RigidBody=RigidBodyQuaternion,
+    # RigidBody=RigidBodyAxisAngle,
     **solver_kwargs,
 ):
     #############
@@ -119,18 +120,27 @@ def run(
         A_IK_tt=A_IB_tt,
     )
 
-    # q0 = np.array([*r_OB0, *Spurrier(A_IB0)])
-    # RB1 = RigidBodyQuaternion(m, K_theta_S, q0)
+    B0_omega_IB0 = A_IB0.T @ omega_IB(0)
+    v_P0 = (
+        r_OB_t(0) + A_IB0 @ np.array([0, 0, z_dot0]) + A_IB_t(0) @ np.array([0, 0, z0])
+    )
 
-    # rigid_connection = RigidConnection(frame, RB1)
+    u0 = np.array([*v_P0, *B0_omega_IB0])
+
+    if RigidBody is RigidBodyAxisAngle:
+        q0 = np.array([*r_OB0, *Log_SO3(A_IB0)])
+    elif RigidBody is RigidBodyQuaternion:
+        q0 = np.array([*r_OB0, *Spurrier(A_IB0)])
+    else:
+        raise NotImplementedError
+    RB1 = RigidBody(m, K_theta_S, q0, u0)
+
+    rigid_connection = RigidConnection(frame, RB1)
 
     A_IK0 = A_IB0
     r_OS0 = r_OB0 + A_IK0 @ np.array([0.5 * l, 0, z0])
 
     K0_omega_IK0 = A_IK0.T @ omega_IB(0) + np.array([0, 0, alpha_dot0])
-    v_P0 = (
-        r_OB_t(0) + A_IB0 @ np.array([0, 0, z_dot0]) + A_IB_t(0) @ np.array([0, 0, z0])
-    )
     v_S0 = v_P0 + A_IK0 @ cross3(K0_omega_IK0, np.array([0.5 * l, 0, 0]))
 
     u0 = np.array([*v_S0, *K0_omega_IK0])
@@ -146,15 +156,13 @@ def run(
 
     if joint == "Cylindrical":
         constraint = Cylindrical(
-            # subsystem1=RB1,
-            subsystem1=frame,
+            subsystem1=RB1,
             subsystem2=RB2,
             axis=2,
         )
     elif joint == "Prismatic":
         constraint = Prismatic(
-            # subsystem1=RB1,
-            subsystem1=frame,
+            subsystem1=RB1,
             subsystem2=RB2,
             axis=2,
         )
@@ -169,10 +177,9 @@ def run(
     )
 
     system = System()
-    # system.add(frame, RB1, rigid_connection)
+    system.add(frame, RB1, rigid_connection)
     system.add(RB2, f_g)
-    # system.add(constraint)
-    system.add(frame, constraint)
+    system.add(constraint)
     system.add(spring)
     system.assemble()
 
