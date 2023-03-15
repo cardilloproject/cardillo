@@ -28,7 +28,7 @@ from cardillo.beams._cross_section import (
     CircularCrossSection,
     RectangularCrossSection,
 )
-from cardillo.beams._base import RodExportBase
+from cardillo.beams._base_export import RodExportBase
 
 from cardillo.utility.coo import Coo
 from cardillo.discretization.hermite import HermiteNodeVector

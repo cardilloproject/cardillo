@@ -9,9 +9,10 @@ from cardillo.discretization.lagrange import LagrangeKnotVector
 from cardillo.math.algebra import norm, cross3, skew2ax, skew2ax_A
 from cardillo.math import approx_fprime
 from cardillo.discretization.mesh1D import Mesh1D
-from cardillo.beams._base import RodExportBase
+from cardillo.beams._base_petrov_galerkin import RodExportBase
 
 
+# TODO: This is something like BubnovGalerkinDirector
 class TimoshenkoBeamDirector(RodExportBase, metaclass=ABCMeta):
     def __init__(
         self,

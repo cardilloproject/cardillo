@@ -10,8 +10,8 @@ from cardillo.beams import (
     animate_beam,
     K_TimoshenkoAxisAngleSE3,
     Crisfield1999,
-    K_DirectorAxisAngle,
-    I_DirectorAxisAngle,
+    K_R12_PetrovGalerkin_AxisAngle,
+    I_R12_PetrovGalerkin_AxisAngle,
     TimoshenkoDirectorDirac,
     TimoshenkoDirectorIntegral,
     K_Cardona,
@@ -26,7 +26,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-Beam = K_DirectorAxisAngle
+Beam = K_R12_PetrovGalerkin_AxisAngle
 # Beam = Crisfield1999
 # Beam = K_TimoshenkoAxisAngleSE3
 # Beam = TimoshenkoDirectorDirac
@@ -91,8 +91,8 @@ if __name__ == "__main__":
             nelements,
             q0,
         )
-    elif Beam == K_DirectorAxisAngle:
-        q0 = K_DirectorAxisAngle.straight_configuration(
+    elif Beam == K_R12_PetrovGalerkin_AxisAngle:
+        q0 = K_R12_PetrovGalerkin_AxisAngle.straight_configuration(
             polynomial_degree,
             polynomial_degree,
             basis,
@@ -102,7 +102,7 @@ if __name__ == "__main__":
             r_OP=r_OP0,
             A_IK=A_IK0,
         )
-        beam = K_DirectorAxisAngle(
+        beam = K_R12_PetrovGalerkin_AxisAngle(
             cross_section,
             material_model,
             A_rho0,
@@ -116,8 +116,8 @@ if __name__ == "__main__":
             basis_r=basis,
             basis_psi=basis,
         )
-    elif Beam == I_DirectorAxisAngle:
-        q0 = I_DirectorAxisAngle.straight_configuration(
+    elif Beam == I_R12_PetrovGalerkin_AxisAngle:
+        q0 = I_R12_PetrovGalerkin_AxisAngle.straight_configuration(
             polynomial_degree,
             polynomial_degree,
             basis,
@@ -127,7 +127,7 @@ if __name__ == "__main__":
             r_OP=r_OP0,
             A_IK=A_IK0,
         )
-        beam = I_DirectorAxisAngle(
+        beam = I_R12_PetrovGalerkin_AxisAngle(
             cross_section,
             material_model,
             A_rho0,

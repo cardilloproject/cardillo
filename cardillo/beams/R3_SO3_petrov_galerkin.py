@@ -1,9 +1,29 @@
 import numpy as np
 
 from cardillo.math import Exp_SO3, Log_SO3, T_SO3, approx_fprime
-from cardillo.beams._base import (
+from cardillo.beams._base_petrov_galerkin import (
     I_TimoshenkoPetrovGalerkinBaseAxisAngle,
     K_TimoshenkoPetrovGalerkinBaseAxisAngle,
+    I_TimoshenkoPetrovGalerkinBaseQuaternion,
+    K_TimoshenkoPetrovGalerkinBaseQuaternion,
+)
+
+
+def __make_R3_SE3(Base):
+    pass
+
+
+I_R3_SO3_PetrovGalerkin_AxisAngle = __make_R3_SE3(
+    I_TimoshenkoPetrovGalerkinBaseAxisAngle
+)
+K_R3_SO3_PetrovGalerkin_AxisAngle = __make_R3_SE3(
+    K_TimoshenkoPetrovGalerkinBaseAxisAngle
+)
+I_R3_SO3_PetrovGalerkin_Quaternion = __make_R3_SE3(
+    I_TimoshenkoPetrovGalerkinBaseQuaternion
+)
+I_R3_SO3_PetrovGalerkin_Quaternion = __make_R3_SE3(
+    K_TimoshenkoPetrovGalerkinBaseQuaternion
 )
 
 

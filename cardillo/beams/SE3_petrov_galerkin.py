@@ -7,10 +7,22 @@ from cardillo.math import (
     Exp_SE3_h,
     Log_SE3_H,
 )
-from cardillo.beams._base import (
+from cardillo.beams._base_petrov_galerkin import (
     I_TimoshenkoPetrovGalerkinBaseAxisAngle,
     K_TimoshenkoPetrovGalerkinBaseAxisAngle,
+    I_TimoshenkoPetrovGalerkinBaseQuaternion,
+    K_TimoshenkoPetrovGalerkinBaseQuaternion,
 )
+
+
+def __make_SE3(Base):
+    pass
+
+
+I_SE3_PetrovGalerkin_AxisAngle = __make_SE3(I_TimoshenkoPetrovGalerkinBaseAxisAngle)
+K_SE3_PetrovGalerkin_AxisAngle = __make_SE3(K_TimoshenkoPetrovGalerkinBaseAxisAngle)
+I_SE3_PetrovGalerkin_Quaternion = __make_SE3(I_TimoshenkoPetrovGalerkinBaseQuaternion)
+I_SE3_PetrovGalerkin_Quaternion = __make_SE3(K_TimoshenkoPetrovGalerkinBaseQuaternion)
 
 
 class K_TimoshenkoAxisAngleSE3(K_TimoshenkoPetrovGalerkinBaseAxisAngle):

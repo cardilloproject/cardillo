@@ -9,7 +9,7 @@ from cardillo.math import (
     norm,
     pi,
 )
-from cardillo.beams._base import (
+from cardillo.beams._base_petrov_galerkin import (
     I_TimoshenkoPetrovGalerkinBaseAxisAngle,
     I_TimoshenkoPetrovGalerkinBaseQuaternion,
     K_TimoshenkoPetrovGalerkinBaseAxisAngle,
@@ -17,6 +17,7 @@ from cardillo.beams._base import (
 )
 
 
+# TODO: Do we want to keep this?
 class K_TimoshenkoLerp(K_TimoshenkoPetrovGalerkinBaseQuaternion):
     def __init__(
         self,

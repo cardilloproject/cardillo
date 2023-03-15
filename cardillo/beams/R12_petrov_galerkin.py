@@ -1,7 +1,7 @@
 import numpy as np
 
 from cardillo.math import cross3
-from cardillo.beams._base import (
+from cardillo.beams._base_petrov_galerkin import (
     I_TimoshenkoPetrovGalerkinBaseAxisAngle,
     K_TimoshenkoPetrovGalerkinBaseAxisAngle,
     I_TimoshenkoPetrovGalerkinBaseQuaternion,
@@ -9,7 +9,7 @@ from cardillo.beams._base import (
 )
 
 
-def make_DirectorAxisAngle(Base):
+def __make_R12(Base):
     class Derived(Base):
         def __init__(
             self,
@@ -236,7 +236,7 @@ def make_DirectorAxisAngle(Base):
     return Derived
 
 
-I_DirectorAxisAngle = make_DirectorAxisAngle(I_TimoshenkoPetrovGalerkinBaseAxisAngle)
-K_DirectorAxisAngle = make_DirectorAxisAngle(K_TimoshenkoPetrovGalerkinBaseAxisAngle)
-I_DirectorQuaternion = make_DirectorAxisAngle(I_TimoshenkoPetrovGalerkinBaseQuaternion)
-K_DirectorQuaternion = make_DirectorAxisAngle(K_TimoshenkoPetrovGalerkinBaseQuaternion)
+I_R12_PetrovGalerkin_AxisAngle = __make_R12(I_TimoshenkoPetrovGalerkinBaseAxisAngle)
+K_R12_PetrovGalerkin_AxisAngle = __make_R12(K_TimoshenkoPetrovGalerkinBaseAxisAngle)
+I_R12_PetrovGalerkin_Quaternion = __make_R12(I_TimoshenkoPetrovGalerkinBaseQuaternion)
+I_R12_PetrovGalerkin_Quaternion = __make_R12(K_TimoshenkoPetrovGalerkinBaseQuaternion)
