@@ -1,5 +1,5 @@
 import numpy as np
-from cardillo.math.algebra import norm
+from numpy.linalg import norm
 
 
 class ScalarForceTranslational:
@@ -130,9 +130,6 @@ class ScalarForceTranslational:
             t, q[self._nq1 :], u[self._nu1 :], self.frame_ID2, self.K_r_SP2
         )
 
-        self._n = self._n
-        self._n_q = self._n_q
-
     # auxiliary functions
     def _g(self, t, q):
         return norm(self.r_OP2(t, q) - self.r_OP1(t, q))
@@ -152,11 +149,12 @@ class ScalarForceTranslational:
         n = self._n(t, q)
         v_P1 = self.v_P1(t, q, u)
         v_P2 = self.v_P2(t, q, u)
+        v_P1P2 = v_P2 - v_P1
 
         nq1 = self._nq1
         gamma_q = np.zeros(self._nq)
-        gamma_q[:nq1] = -n @ self.v_P1_q(t, q, u) + (v_P2 - v_P1) @ n_q1
-        gamma_q[nq1:] = n @ self.v_P2_q(t, q, u) + (v_P2 - v_P1) @ n_q2
+        gamma_q[:nq1] = -n @ self.v_P1_q(t, q, u) + v_P1P2 @ n_q1
+        gamma_q[nq1:] = n @ self.v_P2_q(t, q, u) + v_P1P2 @ n_q2
         return gamma_q
 
     def _n(self, t, q):
@@ -170,9 +168,10 @@ class ScalarForceTranslational:
 
         r_P1P2 = self.r_OP2(t, q) - self.r_OP1(t, q)
         g = norm(r_P1P2)
-        tmp = np.outer(r_P1P2, r_P1P2) / (g**3)
-        n_q1 = -r_OP1_q / g + tmp @ r_OP1_q
-        n_q2 = r_OP2_q / g - tmp @ r_OP2_q
+        n = r_P1P2 / g
+        P = (np.eye(3) - np.outer(n, n)) / g
+        n_q1 = -P @ r_OP1_q
+        n_q2 = P @ r_OP2_q
 
         return n_q1, n_q2
 
@@ -219,9 +218,11 @@ class ScalarForceTranslational:
 
     def __f_damper_q(self, t, q, u):
         g_dot = self._g_dot(t, q, u)
-        dense = -self.force_law_damper.la(t, g_dot) * self._W_q(t, q)
+        dense = -self.force_law_damper.la(t, g_dot) * self._W_q(t, q) - np.outer(
+            self._W(t, q),
+            self.force_law_damper.la_gamma(t, g_dot) * self._g_dot_q(t, q, u),
+        )
         return dense
-        # coo.extend(dense, (self.uDOF, self.qDOF))
 
     def __f_damper_u(self, t, q, u, coo):
         gamma = self._g_dot(t, q, u)
