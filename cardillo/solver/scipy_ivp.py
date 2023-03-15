@@ -40,6 +40,12 @@ class ScipyIVP:
         # velocity level
         consistent_initial_conditions(system)
 
+    def event(self, t, x):
+        q = x[: self.nq]
+        u = x[self.nq :]
+        q, u = self.system.step_callback(t, q, u)
+        return 1
+
     def eqm(self, t, x):
         # update progress bar
         i1 = int(t // self.frac)
@@ -49,7 +55,7 @@ class ScipyIVP:
 
         q = x[: self.nq]
         u = x[self.nq :]
-        q, u = self.system.step_callback(t, q, u)
+        # q, u = self.system.step_callback(t, q, u)
 
         M = self.system.M(t, q)
         h = self.system.h(t, q, u)
@@ -64,12 +70,6 @@ class ScipyIVP:
                   [    W_g.T, None,     None], \
                   [W_gamma.T, None,     None]], format="csc")
         # fmt: on
-
-        # K = self.system.h_q(t, q, u) @ self.system.B(t, q)
-        # alpha = 1.0e-4
-        # beta = 1.0e-4
-        # f_d = -(alpha * M + beta * K) @ u
-        # ula = spsolve(A, np.concatenate([h + f_d, -zeta_g, -zeta_gamma]))
 
         ula = spsolve(A, np.concatenate([h, -zeta_g, -zeta_gamma]))
 
@@ -123,6 +123,7 @@ class ScipyIVP:
             rtol=self.rtol,
             atol=self.atol,
             dense_output=True,
+            events=[self.event],
             **self.kwargs,
         )
 

@@ -8,10 +8,12 @@ from cardillo.discrete import Frame
 from cardillo.constraints import RigidConnection
 from cardillo.beams import (
     animate_beam,
-    K_TimoshenkoAxisAngleSE3,
-    Crisfield1999,
-    K_R12_PetrovGalerkin_AxisAngle,
     I_R12_PetrovGalerkin_AxisAngle,
+    K_R12_PetrovGalerkin_AxisAngle,
+    K_R12_PetrovGalerkin_Quaternion,
+    K_SE3_PetrovGalerkin_AxisAngle,
+    K_SE3_PetrovGalerkin_Quaternion,
+    Crisfield1999,
     TimoshenkoDirectorDirac,
     TimoshenkoDirectorIntegral,
     K_Cardona,
@@ -27,8 +29,10 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 Beam = K_R12_PetrovGalerkin_AxisAngle
+# Beam = K_R12_PetrovGalerkin_Quaternion
+# Beam = K_SE3_PetrovGalerkin_AxisAngle
+# Beam = K_SE3_PetrovGalerkin_Quaternion
 # Beam = Crisfield1999
-# Beam = K_TimoshenkoAxisAngleSE3
 # Beam = TimoshenkoDirectorDirac
 # Beam = TimoshenkoDirectorIntegral
 # Beam = I_DirectorAxisAngle
@@ -41,7 +45,8 @@ statics = True
 
 if __name__ == "__main__":
     # number of elements
-    nelements = 10
+    # nelements = 10
+    nelements = 7
 
     # used polynomial degree
     # polynomial_degree = 3
@@ -75,14 +80,15 @@ if __name__ == "__main__":
     r_OP0 = np.zeros(3, dtype=float)
     A_IK0 = np.eye(3, dtype=float)
 
-    if Beam == K_TimoshenkoAxisAngleSE3:
-        q0 = K_TimoshenkoAxisAngleSE3.straight_configuration(
+    if Beam in [K_SE3_PetrovGalerkin_AxisAngle, K_SE3_PetrovGalerkin_Quaternion]:
+        # if Beam in [K_SE3_PetrovGalerkin_AxisAngle]:
+        q0 = Beam.straight_configuration(
             nelements,
             L,
             r_OP=r_OP0,
             A_IK=A_IK0,
         )
-        beam = K_TimoshenkoAxisAngleSE3(
+        beam = Beam(
             cross_section,
             material_model,
             A_rho0,
@@ -91,8 +97,8 @@ if __name__ == "__main__":
             nelements,
             q0,
         )
-    elif Beam == K_R12_PetrovGalerkin_AxisAngle:
-        q0 = K_R12_PetrovGalerkin_AxisAngle.straight_configuration(
+    elif Beam in [K_R12_PetrovGalerkin_AxisAngle, K_R12_PetrovGalerkin_Quaternion]:
+        q0 = Beam.straight_configuration(
             polynomial_degree,
             polynomial_degree,
             basis,
@@ -102,7 +108,7 @@ if __name__ == "__main__":
             r_OP=r_OP0,
             A_IK=A_IK0,
         )
-        beam = K_R12_PetrovGalerkin_AxisAngle(
+        beam = Beam(
             cross_section,
             material_model,
             A_rho0,
@@ -231,8 +237,8 @@ if __name__ == "__main__":
 
     # moment at right end
     Fi = material_model.Fi
-    # M = lambda t: (e3 * 2 * np.pi * Fi[2] / L * t) * 2
-    M = lambda t: 2 * np.pi / L * (e1 * Fi[0] + e3 * Fi[2]) * t * 2
+    M = lambda t: (e3 * 2 * np.pi * Fi[2] / L * t) * 2
+    # M = lambda t: 2 * np.pi / L * (e1 * Fi[0] + e3 * Fi[2]) * t * 2
     # if statics:
     #     M = lambda t: (e1 * Fi[0] + e3 * Fi[2]) * 1.0 * t * 2 * np.pi / L * 0.5
     # else:
@@ -287,59 +293,10 @@ if __name__ == "__main__":
     ###########
     animate_beam(t, q, [beam], L, show=True)
 
-    ############
-    # VTK export
-    ############
-    path = Path(__file__)
-    e = Export(path.parent, path.stem, True, 30, sol)
-    e.export_contr(beam, level="centerline + directors", num=20)
-    e.export_contr(beam, level="volume", n_segments=5, num=50)
-
-    exit()
-
-    # t = [0]
-    # q = [model.q0]
-
-    ############################
-    # Visualize tip displacement
-    ############################
-    elDOF = beam.qDOF[beam.elDOF[-1]]
-    r_OP = np.array([beam.r_OP(ti, qi[elDOF], (1,)) for (ti, qi) in zip(t, q)])
-
-    fig, ax = plt.subplots()
-    ax.plot(t, r_OP[:, 0], "-k", label="x")
-    ax.plot(t, r_OP[:, 1], "--k", label="y")
-    ax.plot(t, r_OP[:, 2], "-.k", label="z")
-    ax.set_xlabel("t")
-    ax.set_ylabel("tip displacement")
-    ax.grid()
-    ax.legend()
-
-    # ######################################################
-    # # visualize strain measures of the final configuration
-    # ######################################################
-    # num = 100
-    # xis = np.linspace(0, 1, num=num)
-
-    # K_Gammas = np.zeros((num, 3))
-    # K_Kappas = np.zeros((num, 3))
-    # for i in range(num):
-    #     K_Gammas[i], K_Kappas[i] = beam.strains(xis[i], sol.q[-1])
-
-    # fig, ax = plt.subplots(2, 1)
-
-    # ax[0].plot(xis, K_Gammas[:, 0] - 1, "-r", label="K_Gamma0 - 1")
-    # ax[0].plot(xis, K_Gammas[:, 1], "--g", label="K_Gamma1")
-    # ax[0].plot(xis, K_Gammas[:, 2], "-.b", label="K_Gamma2")
-    # ax[0].set_xlabel("xi")
-    # ax[0].set_ylabel("K_Gamma")
-    # ax[0].grid()
-    # ax[0].legend()
-
-    # ax[1].plot(xis, K_Kappas[:, 0], "-r", label="K_Kappa0")
-    # ax[1].plot(xis, K_Kappas[:, 1], "--g", label="K_Kappa1")
-    # ax[1].plot(xis, K_Kappas[:, 2], "-.b", label="K_Kappa2")
-    # ax[1].set_xlabel("xi")
-    # ax[1].set_ylabel("K_Kappa")
-    # ax[1].grid()
-    # ax[1].legend()
+    # ############
+    # # VTK export
+    # ############
+    # path = Path(__file__)
+    # e = Export(path.parent, path.stem, True, 30, sol)
+    # e.export_contr(beam, level="centerline + directors", num=20)
+    # e.export_contr(beam, level="volume", n_segments=5, num=50)

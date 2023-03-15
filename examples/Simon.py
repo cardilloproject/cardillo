@@ -18,7 +18,7 @@ from cardillo.constraints import (
 )
 from cardillo.beams import (
     animate_beam,
-    K_TimoshenkoAxisAngleSE3,
+    K_SE3_PetrovGalerkin_AxisAngle,
     DirectorAxisAngle,
     Crisfield1999,
 )
@@ -38,7 +38,7 @@ def helix():
     Harsch2020: https://doi.org/10.1177/1081286521100079
     """
     # Beam = Crisfield1999
-    Beam = K_TimoshenkoAxisAngleSE3
+    Beam = K_SE3_PetrovGalerkin_AxisAngle
 
     # number of points for normalized L2 error
     nxi = 200
@@ -83,7 +83,7 @@ def helix():
             # (1e3, 1e-12, 1000),
             # (1e4, 1e-14, 1000),
         ]
-    elif Beam == K_TimoshenkoAxisAngleSE3:
+    elif Beam == K_SE3_PetrovGalerkin_AxisAngle:
         triplets = [
             # (1.0e1, 1e-8, 70),
             # (1e2, 1e-10, 200),
@@ -134,14 +134,14 @@ def helix():
         A_IK0 = np.vstack((D1, D2, D3)).T
 
         for nelements_idx, nelements in enumerate(nelements_list):
-            if Beam == K_TimoshenkoAxisAngleSE3:
-                q0 = K_TimoshenkoAxisAngleSE3.straight_configuration(
+            if Beam == K_SE3_PetrovGalerkin_AxisAngle:
+                q0 = K_SE3_PetrovGalerkin_AxisAngle.straight_configuration(
                     nelements,
                     L,
                     r_OP=r_OP0,
                     A_IK=A_IK0,
                 )
-                beam = K_TimoshenkoAxisAngleSE3(
+                beam = K_SE3_PetrovGalerkin_AxisAngle(
                     cross_section,
                     material_model,
                     A_rho0,
@@ -334,12 +334,12 @@ def SE3_vs_Crisfield(r_OP0, psi0, r_OP1, psi1, L, cross_section):
     q_psi = np.vstack((psi0, psi1)).T.reshape(-1, order="C")
 
     A_IK0 = Exp_SO3(psi0)
-    q0 = K_TimoshenkoAxisAngleSE3.straight_configuration(1, L, A_IK=A_IK0)
+    q0 = K_SE3_PetrovGalerkin_AxisAngle.straight_configuration(1, L, A_IK=A_IK0)
 
     q_rod = np.concatenate((q_r, q_psi))
     q = np.concatenate((q_rod, q_rod))
 
-    rod_SE3 = K_TimoshenkoAxisAngleSE3(
+    rod_SE3 = K_SE3_PetrovGalerkin_AxisAngle(
         cross_section,
         material_model,
         A_rho0,

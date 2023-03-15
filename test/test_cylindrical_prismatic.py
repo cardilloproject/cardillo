@@ -47,8 +47,8 @@ def RigidCylinder(RigidBody):
 def run(
     joint,
     Solver,
-    RigidBody=RigidBodyQuaternion,
-    # RigidBody=RigidBodyAxisAngle,
+    # RigidBody=RigidBodyQuaternion,
+    RigidBody=RigidBodyAxisAngle,
     **solver_kwargs,
 ):
     #############

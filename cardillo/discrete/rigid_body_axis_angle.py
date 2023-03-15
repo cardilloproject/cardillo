@@ -27,6 +27,7 @@ class RigidBodyAxisAngle(RigidBodyBase):
         angle = norm(psi)
         # Ibrahimbegovic1995 after (62)
         if angle > pi:
+            print(f"complement rotation vector chosen")
             n = int((angle + pi) / (2 * pi))
             e = psi / angle
             psi_C = psi - 2 * n * pi * e
@@ -70,6 +71,6 @@ class RigidBodyAxisAngle(RigidBodyBase):
         return Exp_SO3(q[3:])
 
     def A_IK_q(self, t, q, frame_ID=None):
-        dense = np.zeros((3, 3, self.nq), dtype=float)
+        dense = np.zeros((3, 3, self.nq), dtype=q.dtype)
         dense[:, :, 3:] = Exp_SO3_psi(q[3:])
         return dense
