@@ -1,4 +1,4 @@
-from cardillo.math import e1, e2, e3
+from cardillo.math import e3
 from cardillo.beams import (
     RectangularCrossSection,
     Simo1986,
@@ -22,8 +22,10 @@ from cardillo.beams import (
     K_R3_SO3_PetrovGalerkin_R9,
 )
 from cardillo.beams import (
-    TimoshenkoDirectorDirac,
-    TimoshenkoDirectorIntegral,
+    I_R12_BubonvGalerkin_R12_Dirac,
+    I_R12_BubonvGalerkin_R12_Integral,
+)
+from cardillo.beams import (
     K_Cardona,
     K_TimoshenkoLerp,
 )
@@ -53,25 +55,25 @@ from pathlib import Path
 ##########################
 # R3 x SO(3)-interpolation
 ##########################
-Rod = K_R3_SO3_PetrovGalerkin_AxisAngle
+# Rod = K_R3_SO3_PetrovGalerkin_AxisAngle
 # Rod = K_R3_SO3_PetrovGalerkin_Quaternion
 # Rod = K_R3_SO3_PetrovGalerkin_R9
 
 ####################
 # other formulations
 ####################
-# Rod = TimoshenkoDirectorDirac
-# Rod = TimoshenkoDirectorIntegral
+Rod = I_R12_BubonvGalerkin_R12_Dirac
+# Rod = I_R12_BubonvGalerkin_R12_Integral
 # Rod = K_Cardona
 # Rod = K_TimoshenkoLerp
 
 ###################
 # chose slenderness
 ###################
-slenderness = 1.0e1
-atol = 1.0e-8
-# slenderness = 1.0e2
-# atol = 1.0e-10
+# slenderness = 1.0e1
+# atol = 1.0e-8
+slenderness = 1.0e2
+atol = 1.0e-10
 # slenderness = 1.0e3
 # atol = 1.0e-12
 # slenderness = 1.0e4
@@ -201,8 +203,7 @@ if __name__ == "__main__":
             q0=q0,
             basis_r=basis,
         )
-    elif Rod in [TimoshenkoDirectorDirac, TimoshenkoDirectorIntegral]:
-        raise RuntimeError("This is not refactored")
+    elif Rod in [I_R12_BubonvGalerkin_R12_Dirac, I_R12_BubonvGalerkin_R12_Integral]:
         q0 = Rod.straight_configuration(
             polynomial_degree,
             polynomial_degree,
@@ -217,8 +218,8 @@ if __name__ == "__main__":
         A_rho0 = A_rho0
         B_rho0 = K_S_rho0
         C_rho0 = np.diag(np.array([0.0, K_I_rho0[2, 2], K_I_rho0[1, 1]]))
-        nquadrature = polynomial_degree + 1
-        # nquadrature = polynomial_degree
+        # nquadrature = polynomial_degree + 1
+        nquadrature = polynomial_degree
 
         rod = Rod(
             cross_section,
@@ -288,7 +289,8 @@ if __name__ == "__main__":
     system.assemble()
 
     # solve static system
-    n_load_steps = 50
+    # n_load_steps = 50
+    n_load_steps = 150
     solver = Newton(
         system,
         n_load_steps=n_load_steps,

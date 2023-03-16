@@ -18,8 +18,8 @@ from cardillo.beams import (
 )
 from cardillo.beams import (
     Crisfield1999,
-    TimoshenkoDirectorDirac,
-    TimoshenkoDirectorIntegral,
+    I_R12_BubonvGalerkin_R12_Dirac,
+    I_R12_BubonvGalerkin_R12_Integral,
     K_Cardona,
     K_TimoshenkoLerp,
 )
@@ -158,7 +158,7 @@ if __name__ == "__main__":
             basis_r=basis,
             basis_psi=basis,
         )
-    elif Rod in [TimoshenkoDirectorDirac, TimoshenkoDirectorIntegral]:
+    elif Rod in [I_R12_BubonvGalerkin_R12_Dirac, I_R12_BubonvGalerkin_R12_Integral]:
         q0 = Rod.straight_configuration(
             polynomial_degree,
             polynomial_degree,

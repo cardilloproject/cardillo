@@ -12,8 +12,7 @@ from cardillo.discretization.mesh1D import Mesh1D
 from cardillo.beams._base_petrov_galerkin import RodExportBase
 
 
-# TODO: This is something like BubnovGalerkinDirector
-class TimoshenkoBeamDirector(RodExportBase, metaclass=ABCMeta):
+class I_R12_BubonvGalerkin_R12(RodExportBase, metaclass=ABCMeta):
     def __init__(
         self,
         cross_section,
@@ -28,7 +27,7 @@ class TimoshenkoBeamDirector(RodExportBase, metaclass=ABCMeta):
         Q,
         q0=None,
         u0=None,
-        basis="B-spline",
+        basis="Lagrange",
     ):
         super().__init__(cross_section)
 
@@ -1567,7 +1566,7 @@ class TimoshenkoBeamDirector(RodExportBase, metaclass=ABCMeta):
 ####################################################
 # constraint beam using nodal constraints
 ####################################################
-class TimoshenkoDirectorDirac(TimoshenkoBeamDirector):
+class I_R12_BubonvGalerkin_R12_Dirac(I_R12_BubonvGalerkin_R12):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -1592,8 +1591,8 @@ class TimoshenkoDirectorDirac(TimoshenkoBeamDirector):
         g[1] = d2 @ d2 - 1.0
         g[2] = d3 @ d3 - 1.0
         g[3] = d1 @ d2
-        g[4] = d1 @ d3
-        g[5] = d2 @ d3
+        g[4] = d2 @ d3
+        g[5] = d3 @ d1
 
         return g
 
@@ -1608,17 +1607,17 @@ class TimoshenkoDirectorDirac(TimoshenkoBeamDirector):
         g_q[2, 6:] = 2.0 * d3
         g_q[3, :3] = d2
         g_q[3, 3:6] = d1
-        g_q[4, :3] = d3
-        g_q[4, 6:] = d1
-        g_q[5, 3:6] = d3
-        g_q[5, 6:] = d2
+        g_q[4, 3:6] = d3
+        g_q[4, 6:] = d2
+        g_q[5, :3] = d3
+        g_q[5, 6:] = d1
+        return g_q
 
         # g_q_num = approx_fprime(qn, self.__g)
         # diff = g_q - g_q_num
         # error = np.linalg.norm(diff)
         # print(f"error g_q: {error}")
-
-        return g_q
+        # return g_q_num
 
     def __Wla_g_q(self, la_g):
         eye3 = np.eye(3, dtype=float)
@@ -1627,24 +1626,26 @@ class TimoshenkoDirectorDirac(TimoshenkoBeamDirector):
 
         # g_q[0, :3] = 2.0 * d1
         # g_q[3, :3] = d2
-        # g_q[4, :3] = d3
+        # g_q[5, :3] = d3
         Wla_g_q[:3, :3] = 2.0 * la_g[0] * eye3
         Wla_g_q[:3, 3:6] = la_g[3] * eye3
-        Wla_g_q[:3, 6:9] = la_g[4] * eye3
+        Wla_g_q[:3, 6:9] = la_g[5] * eye3
 
         # g_q[1, 3:6] = 2.0 * d2
         # g_q[3, 3:6] = d1
-        # g_q[5, 3:6] = d3
-        Wla_g_q[3:6, :3] = la_g[3] * eye3
+        # g_q[4, 3:6] = d3
         Wla_g_q[3:6, 3:6] = 2.0 * la_g[1] * eye3
-        Wla_g_q[3:6, 6:9] = la_g[5] * eye3
+        Wla_g_q[3:6, :3] = la_g[3] * eye3
+        Wla_g_q[3:6, 6:9] = la_g[4] * eye3
 
         # g_q[2, 6:] = 2.0 * d3
-        # g_q[4, 6:] = d1
-        # g_q[5, 6:] = d2
-        Wla_g_q[6:9, :3] = la_g[4] * eye3
-        Wla_g_q[6:9, 3:6] = la_g[5] * eye3
+        # g_q[4, 6:] = d2
+        # g_q[5, 6:] = d1
         Wla_g_q[6:9, 6:9] = 2.0 * la_g[2] * eye3
+        Wla_g_q[6:9, 3:6] = la_g[4] * eye3
+        Wla_g_q[6:9, :3] = la_g[5] * eye3
+
+        return Wla_g_q
 
         # Wla_g_q_num = approx_fprime(
         #     np.zeros(9),
@@ -1653,8 +1654,7 @@ class TimoshenkoDirectorDirac(TimoshenkoBeamDirector):
         # diff = Wla_g_q_num - Wla_g_q
         # error = np.linalg.norm(diff)
         # print(f"error Wla_g_q: {error}")
-
-        return Wla_g_q
+        # return Wla_g_q_num
 
     # global constraint functions
     def g(self, t, q):
@@ -1697,7 +1697,7 @@ class TimoshenkoDirectorDirac(TimoshenkoBeamDirector):
 ####################################################
 # constraint beam using integral constraints
 ####################################################
-class TimoshenkoDirectorIntegral(TimoshenkoBeamDirector):
+class I_R12_BubonvGalerkin_R12_Integral(I_R12_BubonvGalerkin_R12):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -2123,7 +2123,7 @@ class TimoshenkoDirectorIntegral(TimoshenkoBeamDirector):
 
 
 # TODO: implement time derivatives of constraint functions
-class EulerBernoulliDirectorIntegral(TimoshenkoBeamDirector):
+class EulerBernoulliDirectorIntegral(I_R12_BubonvGalerkin_R12):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -2408,7 +2408,7 @@ class EulerBernoulliDirectorIntegral(TimoshenkoBeamDirector):
 
 
 # TODO: implement time derivatives of constraint functions
-class InextensibleEulerBernoulliDirectorIntegral(TimoshenkoBeamDirector):
+class InextensibleEulerBernoulliDirectorIntegral(I_R12_BubonvGalerkin_R12):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
