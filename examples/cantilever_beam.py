@@ -11,6 +11,7 @@ from cardillo.beams import (
     I_R12_PetrovGalerkin_AxisAngle,
     K_R12_PetrovGalerkin_AxisAngle,
     K_R12_PetrovGalerkin_Quaternion,
+    K_R12_PetrovGalerkin_R9,
     K_SE3_PetrovGalerkin_AxisAngle,
     K_SE3_PetrovGalerkin_Quaternion,
     Crisfield1999,
@@ -28,8 +29,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-Beam = K_R12_PetrovGalerkin_AxisAngle
-# Beam = K_R12_PetrovGalerkin_Quaternion
+# Beam = K_R12_PetrovGalerkin_AxisAngle
+Beam = K_R12_PetrovGalerkin_Quaternion
+# Beam = K_R12_PetrovGalerkin_R9
+
 # Beam = K_SE3_PetrovGalerkin_AxisAngle
 # Beam = K_SE3_PetrovGalerkin_Quaternion
 # Beam = Crisfield1999
@@ -46,7 +49,7 @@ statics = True
 if __name__ == "__main__":
     # number of elements
     # nelements = 10
-    nelements = 7
+    nelements = 5
 
     # used polynomial degree
     # polynomial_degree = 3
@@ -57,6 +60,7 @@ if __name__ == "__main__":
 
     # beam parameters found in Section 5.1 Ibrahimbegovic1997
     L = np.pi
+    # EA = GA = 1.0e6
     EA = GA = 1.0e4
     GJ = EI = 1.0e2
 
@@ -81,7 +85,6 @@ if __name__ == "__main__":
     A_IK0 = np.eye(3, dtype=float)
 
     if Beam in [K_SE3_PetrovGalerkin_AxisAngle, K_SE3_PetrovGalerkin_Quaternion]:
-        # if Beam in [K_SE3_PetrovGalerkin_AxisAngle]:
         q0 = Beam.straight_configuration(
             nelements,
             L,
@@ -97,7 +100,11 @@ if __name__ == "__main__":
             nelements,
             q0,
         )
-    elif Beam in [K_R12_PetrovGalerkin_AxisAngle, K_R12_PetrovGalerkin_Quaternion]:
+    elif Beam in [
+        K_R12_PetrovGalerkin_AxisAngle,
+        K_R12_PetrovGalerkin_Quaternion,
+        K_R12_PetrovGalerkin_R9,
+    ]:
         q0 = Beam.straight_configuration(
             polynomial_degree,
             polynomial_degree,
@@ -237,8 +244,8 @@ if __name__ == "__main__":
 
     # moment at right end
     Fi = material_model.Fi
-    M = lambda t: (e3 * 2 * np.pi * Fi[2] / L * t) * 2
-    # M = lambda t: 2 * np.pi / L * (e1 * Fi[0] + e3 * Fi[2]) * t * 2
+    # M = lambda t: (e3 * 2 * np.pi * Fi[2] / L * t) * 2
+    M = lambda t: 2 * np.pi / L * (e1 * Fi[0] + e3 * Fi[2]) * t
     # if statics:
     #     M = lambda t: (e1 * Fi[0] + e3 * Fi[2]) * 1.0 * t * 2 * np.pi / L * 0.5
     # else:
@@ -270,7 +277,9 @@ if __name__ == "__main__":
     # exit()
 
     if statics:
-        n_load_steps = int(50)
+        # n_load_steps = 50
+        # n_load_steps = 75
+        n_load_steps = 100
         solver = Newton(
             system,
             n_load_steps=n_load_steps,

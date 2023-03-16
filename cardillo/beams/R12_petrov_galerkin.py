@@ -4,8 +4,10 @@ from cardillo.math import cross3
 from cardillo.beams._base_petrov_galerkin import (
     I_TimoshenkoPetrovGalerkinBaseAxisAngle,
     K_TimoshenkoPetrovGalerkinBaseAxisAngle,
+    I_TimoshenkoPetrovGalerkinR9,
     I_TimoshenkoPetrovGalerkinBaseQuaternion,
     K_TimoshenkoPetrovGalerkinBaseQuaternion,
+    K_TimoshenkoPetrovGalerkinR9,
 )
 
 
@@ -179,6 +181,22 @@ def __make_R12(Base):
 
             # from cardillo.math import approx_fprime
 
+            # r_OP_qe_num = approx_fprime(
+            #     qe,
+            #     lambda qe: self._eval(qe, xi)[0],
+            # )
+            # diff = r_OP_qe - r_OP_qe_num
+            # error = np.linalg.norm(diff)
+            # print(f"error r_OP_qe: {error}")
+
+            # A_IK_qe_num = approx_fprime(
+            #     qe,
+            #     lambda qe: self._eval(qe, xi)[1],
+            # )
+            # diff = A_IK_qe - A_IK_qe_num
+            # error = np.linalg.norm(diff)
+            # print(f"error A_IK_qe: {error}")
+
             # K_Kappa_bar_qe_num = approx_fprime(
             #     qe,
             #     lambda qe: self._eval(qe, xi)[3],
@@ -239,4 +257,6 @@ def __make_R12(Base):
 I_R12_PetrovGalerkin_AxisAngle = __make_R12(I_TimoshenkoPetrovGalerkinBaseAxisAngle)
 K_R12_PetrovGalerkin_AxisAngle = __make_R12(K_TimoshenkoPetrovGalerkinBaseAxisAngle)
 I_R12_PetrovGalerkin_Quaternion = __make_R12(I_TimoshenkoPetrovGalerkinBaseQuaternion)
-I_R12_PetrovGalerkin_Quaternion = __make_R12(K_TimoshenkoPetrovGalerkinBaseQuaternion)
+K_R12_PetrovGalerkin_Quaternion = __make_R12(K_TimoshenkoPetrovGalerkinBaseQuaternion)
+I_R12_PetrovGalerkin_R9 = __make_R12(I_TimoshenkoPetrovGalerkinR9)
+K_R12_PetrovGalerkin_R9 = __make_R12(K_TimoshenkoPetrovGalerkinR9)
