@@ -607,35 +607,64 @@ def Exp_SO3_quat_p(P, normalize=True):
 Log_SO3_quat = Spurrier
 
 
-def T_SO3_quat(P):
-    """Tangent map for unit quaternion. See Egeland2002, (6.327).
+def T_SO3_quat(P, normalize=True):
+    """Tangent map for unit quaternion. See Egeland2002 (6.327).
 
     References:
     -----------
     Egenland2002: https://folk.ntnu.no/oe/Modeling%20and%20Simulation.pdf
     """
     p0, p = np.array_split(P, [1])
-    return 2 * np.hstack((-p.T, p0 * np.eye(3, dtype=P.dtype) - ax2skew(p)))
+    if normalize:
+        s = P @ P
+        raise NotImplementedError
+    else:
+        return 2 * np.hstack((-p.T, p0 * np.eye(3, dtype=P.dtype) - ax2skew(p)))
 
 
-def T_SO3_inv_quat(P):
-    """Inverse tangent map for unit quaternion. See Egeland2002, (6.329) and
-    (6.330).
+def T_SO3_inv_quat(P, normalize=True):
+    """Inverse tangent map for unit quaternion. See Egeland2002 (6.329) and
+    (6.330) as well as Nuetzi2016 (3.11), (3.12) and (4.19).
 
     References:
     -----------
-    Egenland2002: https://folk.ntnu.no/oe/Modeling%20and%20Simulation.pdf
+    Egenland2002: https://folk.ntnu.no/oe/Modeling%20and%20Simulation.pdf \\
+    Nuetzi2016: https://www.research-collection.ethz.ch/handle/20.500.11850/117165
     """
     p0, p = np.array_split(P, [1])
-    return 0.5 * np.vstack((-p.T, p0 * np.eye(3, dtype=P.dtype) + ax2skew(p)))
+    if normalize:
+        s = P @ P
+        return (0.5 / s) * np.vstack((-p.T, p0 * np.eye(3, dtype=P.dtype) + ax2skew(p)))
+    else:
+        return 0.5 * np.vstack((-p.T, p0 * np.eye(3, dtype=P.dtype) + ax2skew(p)))
 
 
-def T_SO3_inv_quat_P():
-    Q_p = np.zeros((4, 3, 4), dtype=float)
-    Q_p[0, :, 1:] = -0.5 * np.eye(3, dtype=float)
-    Q_p[1:, :, 0] = 0.5 * np.eye(3, dtype=float)
-    Q_p[1:, :, 1:] = 0.5 * ax2skew_a()
-    return Q_p
+def T_SO3_inv_quat_P(P, normalize=True):
+    if normalize:
+        p0, p = np.array_split(P, [1])
+        s = P @ P
+        T_inv_P = np.einsum(
+            "ij,k->ijk",
+            np.vstack((-p.T, p0 * np.eye(3, dtype=P.dtype) + ax2skew(p))),
+            -P / (s * s),
+        )
+        s2 = 0.5 / s
+        T_inv_P[0, :, 1:] -= s2 * np.eye(3, dtype=float)
+        T_inv_P[1:, :, 0] += s2 * np.eye(3, dtype=float)
+        T_inv_P[1:, :, 1:] += s2 * ax2skew_a()
+    else:
+        T_inv_P = np.zeros((4, 3, 4), dtype=float)
+        T_inv_P[0, :, 1:] = -0.5 * np.eye(3, dtype=float)
+        T_inv_P[1:, :, 0] = 0.5 * np.eye(3, dtype=float)
+        T_inv_P[1:, :, 1:] = 0.5 * ax2skew_a()
+    return T_inv_P
+
+    # from cardillo.math import approx_fprime
+    # T_inv_P_num = approx_fprime(P, T_SO3_inv_quat, method="3-point", eps=1e-6)
+    # diff = T_inv_P - T_inv_P_num
+    # error = np.linalg.norm(diff)
+    # print(f"error T_inv_P: {error}")
+    # return T_inv_P_num
 
 
 def quatprod(P, Q):
