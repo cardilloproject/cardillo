@@ -25,7 +25,7 @@ from cardillo.beams import (
 )
 from cardillo.forces import K_Moment, Force
 from cardillo import System
-from cardillo.solver import Newton, EulerBackward, ScipyIVP
+from cardillo.solver import Newton
 from cardillo.utility import Export
 
 import numpy as np
@@ -36,8 +36,8 @@ from pathlib import Path
 # R12 interpolation
 ###################
 # Rod = K_R12_PetrovGalerkin_AxisAngle
-Rod = K_R12_PetrovGalerkin_Quaternion
-# Rod = K_R12_PetrovGalerkin_R9
+# Rod = K_R12_PetrovGalerkin_Quaternion
+Rod = K_R12_PetrovGalerkin_R9
 
 #####################
 # SE(3)-interpolation
@@ -56,9 +56,9 @@ Rod = K_R12_PetrovGalerkin_Quaternion
 # Rod = K_Cardona
 # Rod = K_TimoshenkoLerp
 
-statics = True
-# statics = False
-
+###################
+# chose slenderness
+###################
 # slenderness = 1.0e1
 # atol = 1.0e-8
 # slenderness = 1.0e2
@@ -68,11 +68,14 @@ statics = True
 slenderness = 1.0e4
 atol = 1.0e-14
 
+####################
 # number of elements
+####################
 nelements = 10
-# nelements = 5
 
+########################
 # used polynomial degree
+########################
 polynomial_degree = 1
 # polynomial_degree = 2
 basis = "Lagrange"
@@ -257,27 +260,6 @@ if __name__ == "__main__":
     print(f"f_max: {F(1)}")
     force = Force(F, rod, frame_ID=(1,))
 
-    # # moment at right end
-    # Fi = material_model.Fi
-    # # M = lambda t: (e3 * 2 * np.pi * Fi[2] / L * t) * 2
-    # M = lambda t: 2 * np.pi / L * (e1 * Fi[0] + e3 * Fi[2]) * t * 2
-    # # if statics:
-    # #     M = lambda t: (e1 * Fi[0] + e3 * Fi[2]) * 1.0 * t * 2 * np.pi / L * 0.5
-    # # else:
-    # #     M = lambda t: (e1 * Fi[0] + e3 * Fi[2]) * 1.0 * 2 * np.pi / L * 0.05
-    # moment = K_Moment(M, beam, (1,))
-
-    # # force at the rght end
-    # f = lambda t: t * e1 * 1.0e3
-    # force = K_Force(f, beam, (1,))
-
-    # # line distributed body force
-    # if statics:
-    #     l = lambda t, xi: t * (0.5 * e2 - e3) * 5e1
-    # else:
-    #     l = lambda t, xi: (0.5 * e2 - e3) * 5e0
-    # line_force = DistributedForce1DBeam(l, beam)
-
     # assemble the system
     system = System()
     system.add(rod)
@@ -287,23 +269,14 @@ if __name__ == "__main__":
     system.add(force)
     system.assemble()
 
-    if statics:
-        n_load_steps = 50
-        solver = Newton(
-            system,
-            n_load_steps=n_load_steps,
-            max_iter=30,
-            atol=atol,
-        )
-    else:
-        t1 = 1
-        dt = 2.5e-2
-        solver = EulerBackward(system, t1, dt, method="index 1")
-        # solver = EulerBackward(system, t1, dt, method="index 2")
-        # solver = EulerBackward(system, t1, dt, method="index 3")
-        # solver = EulerBackward(system, t1, dt, method="index 2 GGL")
-        # solver = ScipyIVP(system, t1, dt, rtol=1.0e-2, atol=1.0e-2)
-        # solver = ScipyIVP(system, t1, dt, rtol=1.0e-2, atol=1.0e-2, method="Radau")
+    # solve static system
+    n_load_steps = 50
+    solver = Newton(
+        system,
+        n_load_steps=n_load_steps,
+        max_iter=30,
+        atol=atol,
+    )
 
     sol = solver.solve()
     q = sol.q

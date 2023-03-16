@@ -207,18 +207,18 @@ class EulerBackward:
 
         return J
 
-        # # J_num = csc_matrix(approx_fprime(y, self._R, method="2-point", eps=1.0e-6))
-        # J_num = csc_matrix(approx_fprime(y, self._R, method="3-point", eps=1.0e-5))
-        # # J_num = csc_matrix(approx_fprime(y, self._R, method="cs", eps=1.0e-12))
-        # diff = (J - J_num).toarray()
-        # # diff = diff[: self.split_y[0]]
-        # # diff = diff[self.split_y[0] : self.split_y[1]]
-        # # diff = diff[self.split_y[0] : self.split_y[1], : self.split_y[0]]
-        # # diff = diff[self.split_y[0] : self.split_y[1], self.split_y[0] :]
-        # # diff = diff[self.split_y[1] :]
-        # error = np.linalg.norm(diff)
-        # print(f"error Jacobian: {error}")
-        # return J_num
+        # J_num = csc_matrix(approx_fprime(y, self._R, method="2-point", eps=1.0e-6))
+        J_num = csc_matrix(approx_fprime(y, self._R, method="3-point", eps=1.0e-6))
+        # J_num = csc_matrix(approx_fprime(y, self._R, method="cs", eps=1.0e-12))
+        diff = (J - J_num).toarray()
+        # diff = diff[: self.split_y[0]]
+        # diff = diff[self.split_y[0] : self.split_y[1]]
+        # diff = diff[self.split_y[0] : self.split_y[1], : self.split_y[0]]
+        # diff = diff[self.split_y[0] : self.split_y[1], self.split_y[0] :]
+        # diff = diff[self.split_y[1] :]
+        error = np.linalg.norm(diff)
+        print(f"error Jacobian: {error}")
+        return J_num
 
     def solve(self):
         q_dot, u_dot, la_g, la_gamma, mu_S, mu_g = np.array_split(self.y, self.split_y)

@@ -28,9 +28,15 @@ def __make_R12(Base):
             u0=None,
             basis_r="Lagrange",
             basis_psi="Lagrange",
-            volume_correction=False,
+            # volume_correction=False,
+            volume_correction=True,
         ):
             self.volume_correction = volume_correction
+
+            if polynomial_degree_psi == 1 and not volume_correction:
+                print(
+                    f"For polynomial_degree_psi == 1 volume_correction is recommended!"
+                )
 
             p = max(polynomial_degree_r, polynomial_degree_psi)
             nquadrature = p

@@ -124,8 +124,6 @@ class AxisAngleRotationParameterization(RotationParameterizationBase):
             return psi_C
 
 
-# TODO: Normalization is crucial. So we have to add this to all functions
-# below and should also implement them in math.rotations.
 class QuaternionRotationParameterization(RotationParameterizationBase):
     def __init__(self):
         super().__init__()
@@ -141,13 +139,9 @@ class QuaternionRotationParameterization(RotationParameterizationBase):
     @staticmethod
     def Exp_SO3(psi):
         return Exp_SO3_quat(psi)
-        # P = psi / norm(psi)
-        # return Exp_SO3_quat(P)
 
     @staticmethod
     def Exp_SO3_psi(psi):
-        # from cardillo.math import approx_fprime
-        # return approx_fprime(psi, QuaternionRotationParameterization.Exp_SO3, method="3-point", eps=1e-6)
         return Exp_SO3_quat_p(psi)
 
     @staticmethod
