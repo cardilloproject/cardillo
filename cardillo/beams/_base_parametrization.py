@@ -156,12 +156,10 @@ class QuaternionRotationParameterization(RotationParameterizationBase):
 
     @staticmethod
     def q_dot(psi, K_omega_IK):
-        psi = psi / norm(psi)
         return T_SO3_inv_quat(psi) @ K_omega_IK
 
     @staticmethod
     def q_dot_q(psi, K_omega_IK):
-        raise NotImplementedError
         return np.einsum(
             "ijk,j->ik",
             T_SO3_inv_quat_P(psi),
@@ -189,8 +187,11 @@ class QuaternionRotationParameterization(RotationParameterizationBase):
     def g_S_q(psi):
         return 2 * psi
 
+    @staticmethod
+    def g_S_q_T_mu_q(psi, mu):
+        return 2 * mu * np.eye(4)
 
-# TODO: Add orthonormalization
+
 class R9RotationParameterization(RotationParameterizationBase):
     def __init__(self):
         super().__init__()
@@ -291,3 +292,7 @@ class R9RotationParameterization(RotationParameterizationBase):
         g_S_q[5, 6:] = ex
 
         return g_S_q
+
+    @staticmethod
+    def g_S_q_T_mu_q(psi, mu):
+        raise NotImplementedError

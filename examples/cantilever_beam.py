@@ -42,8 +42,8 @@ Beam = K_R12_PetrovGalerkin_Quaternion
 # Beam = K_Cardona
 # Beam = K_TimoshenkoLerp
 
-statics = True
-# statics = False
+# statics = True
+statics = False
 
 
 if __name__ == "__main__":
@@ -57,8 +57,8 @@ if __name__ == "__main__":
     # basis = "B-spline"
 
     L = np.pi
-    EA = GA = 1.0e6  # leads to problems with redundant rotation parametrization
-    # EA = GA = 1.0e4
+    # EA = GA = 1.0e6  # leads to problems with redundant rotation parametrization
+    EA = GA = 1.0e4
     # EA = GA = 1.0e2
     GJ = EI = 1.0e2
 
@@ -235,7 +235,9 @@ if __name__ == "__main__":
         raise NotImplementedError
 
     # junctions
-    frame1 = Frame(r_OP=r_OP0, A_IK=A_IK0)
+    from cardillo.math import Exp_SO3
+
+    frame1 = Frame(r_OP=np.random.rand(3), A_IK=Exp_SO3(np.random.rand(3)))
 
     # left and right joint
     joint1 = RigidConnection(frame1, beam, frame_ID2=(0,))
@@ -290,9 +292,9 @@ if __name__ == "__main__":
     else:
         t1 = 1
         dt = 2.5e-2
-        # solver = EulerBackward(system, t1, dt, method="index 1")
+        solver = EulerBackward(system, t1, dt, method="index 1")
         # solver = EulerBackward(system, t1, dt, method="index 2")
-        solver = EulerBackward(system, t1, dt, method="index 3")
+        # solver = EulerBackward(system, t1, dt, method="index 3")
         # solver = EulerBackward(system, t1, dt, method="index 2 GGL")
         # solver = ScipyIVP(system, t1, dt, rtol=1.0e-2, atol=1.0e-2)
         # solver = ScipyIVP(system, t1, dt, rtol=1.0e-2, atol=1.0e-2, method="Radau")

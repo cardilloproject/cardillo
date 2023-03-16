@@ -1,7 +1,7 @@
 from typing import Optional
 import numpy as np
 import numpy.typing as npt
-from cardillo.discrete.rigid_body_base import RigidBodyBase
+from cardillo.discrete._base import RigidBodyBase
 from cardillo.math import norm
 from cardillo.math import Exp_SO3, Exp_SO3_psi, T_SO3_inv, T_SO3_inv_psi, pi
 

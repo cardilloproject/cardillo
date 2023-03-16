@@ -1,7 +1,7 @@
 from typing import Optional
 import numpy.typing as npt
 import numpy as np
-from cardillo.discrete.rigid_body_base import RigidBodyBase
+from cardillo.discrete._base import RigidBodyBase
 from cardillo.math import (
     norm,
     Exp_SO3_quat,
@@ -11,7 +11,6 @@ from cardillo.math import (
 )
 
 
-# TODO: Discuss usage of unit quaternion inside this class.
 class RigidBodyQuaternion(RigidBodyBase):
     """Rigid body parametrized by center of mass in inertial base and unit 
     quaternions for rotation. The angular velocities expressed in the 

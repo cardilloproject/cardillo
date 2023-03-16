@@ -24,10 +24,7 @@ from cardillo.discretization.hermite import HermiteNodeVector
 from cardillo.discretization.mesh1D import Mesh1D
 
 
-# TODO:
-# - Implement this for virtual rotations in I-basis
-# - propagate the changes to the derived classes
-# - finally remove old implementations
+# TODO: Requires refactoring.
 def make_I_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
     class Derived(RodExportBase, ABC):
         def __init__(
@@ -52,6 +49,10 @@ def make_I_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
 
             Up to now we restrict oursleves to rotations vector parametrization,
             but quanternions can added without too much work."""
+
+            raise RuntimeError(
+                "Refactoring for this formulation is nof finished. Be careful!"
+            )
 
             super().__init__(cross_section)
             self.RotationBase = RotationBase
@@ -1498,6 +1499,9 @@ def make_I_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
     return Derived
 
 
+# TODO:
+# - a_P_q, see RigidBodyBase
+# - a_P_u, see RigidBodyBase
 def make_K_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
     class Derived(RodExportBase, ABC):
         def __init__(
@@ -1624,9 +1628,8 @@ def make_K_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
             self.nnodes_r = self.mesh_r.nnodes
             self.nnodes_psi = self.mesh_psi.nnodes
 
-            # number of constraints for quaternion length
+            # constraint equations for redundant rotation parametrization
             if hasattr(RotationBase, "g_S"):
-                print(f"has g_S")
                 dim_g_S = RotationBase.dim_g_S()
                 self.nla_S = self.nnodes_psi * dim_g_S
                 self.nodal_la_SDOF = np.arange(self.nla_S).reshape(
@@ -1977,8 +1980,6 @@ def make_K_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
         def __g_S_q(self, t, q, coo):
             for node in range(self.nnodes_psi):
                 nodalDOF = self.nodalDOF_psi[node]
-                # P = q[nodalDOF]
-                # coo.extend(2 * P, (self.la_SDOF[node], self.qDOF[nodalDOF]))
                 psi = q[nodalDOF]
                 coo.extend(
                     self.RotationBase.g_S_q(psi),
@@ -1986,7 +1987,13 @@ def make_K_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
                 )
 
         def __g_S_q_T_mu_q(self, t, q, mu, coo):
-            raise NotImplementedError
+            for node in range(self.nnodes_psi):
+                nodalDOF = self.nodalDOF_psi[node]
+                nodalDOF_S = self.nodal_la_SDOF[node]
+                coo.extend(
+                    self.RotationBase.g_S_q_T_mu_q(q[nodalDOF], mu[nodalDOF_S]),
+                    (self.qDOF[nodalDOF], self.qDOF[nodalDOF]),
+                )
 
         #########################################
         # kinematic equation
@@ -2792,9 +2799,7 @@ def make_K_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
                 cross3(K_Psi, K_r_SP) + cross3(K_Omega, cross3(K_Omega, K_r_SP))
             )
 
-        # TODO: Analytical derivative.
         def a_P_q(self, t, q, u, u_dot, frame_ID, K_r_SP=None):
-            raise NotImplementedError
             K_Omega = self.K_Omega(t, q, u, frame_ID)
             K_Psi = self.K_Psi(t, q, u, u_dot, frame_ID)
             a_P_q = np.einsum(
@@ -2802,42 +2807,40 @@ def make_K_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
                 self.A_IK_q(t, q, frame_ID),
                 cross3(K_Psi, K_r_SP) + cross3(K_Omega, cross3(K_Omega, K_r_SP)),
             )
-            # return a_P_q
+            return a_P_q
 
-            a_P_q_num = approx_fprime(
-                q,
-                lambda q: self.a_P(t, q, u, u_dot, frame_ID, K_r_SP),
-                method="3-point",
-            )
-            diff = a_P_q_num - a_P_q
-            error = np.linalg.norm(diff)
-            print(f"error a_P_q: {error}")
-            return a_P_q_num
+            # a_P_q_num = approx_fprime(
+            #     q,
+            #     lambda q: self.a_P(t, q, u, u_dot, frame_ID, K_r_SP),
+            #     method="3-point",
+            # )
+            # diff = a_P_q_num - a_P_q
+            # error = np.linalg.norm(diff)
+            # print(f"error a_P_q: {error}")
+            # return a_P_q_num
 
-        # TODO: Analytical derivative.
         def a_P_u(self, t, q, u, u_dot, frame_ID, K_r_SP=None):
-            raise NotImplementedError
             K_Omega = self.K_Omega(t, q, u, frame_ID)
             local = -self.A_IK(t, q, frame_ID) @ (
                 ax2skew(cross3(K_Omega, K_r_SP)) + ax2skew(K_Omega) @ ax2skew(K_r_SP)
             )
 
             N, _ = self.basis_functions_r(frame_ID[0])
-            a_P_u = np.zeros((3, self.nq_element), dtype=float)
+            a_P_u = np.zeros((3, self.nu_element), dtype=float)
             for node in range(self.nnodes_element_r):
-                a_P_u[:, self.nodalDOF_element_psi[node]] += N[node] * local
+                a_P_u[:, self.nodalDOF_element_psi_u[node]] += N[node] * local
 
-            # return a_P_u
+            return a_P_u
 
-            a_P_u_num = approx_fprime(
-                u,
-                lambda u: self.a_P(t, q, u, u_dot, frame_ID, K_r_SP),
-                method="3-point",
-            )
-            diff = a_P_u_num - a_P_u
-            error = np.linalg.norm(diff)
-            print(f"error a_P_u: {error}")
-            return a_P_u_num
+            # a_P_u_num = approx_fprime(
+            #     u,
+            #     lambda u: self.a_P(t, q, u, u_dot, frame_ID, K_r_SP),
+            #     method="3-point",
+            # )
+            # diff = a_P_u_num - a_P_u
+            # error = np.linalg.norm(diff)
+            # print(f"error a_P_u: {error}")
+            # return a_P_u_num
 
         def K_Omega(self, t, q, u, frame_ID):
             """Since we use Petrov-Galerkin method we only interpoalte the nodal
@@ -2850,7 +2853,7 @@ def make_K_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
             return K_Omega
 
         def K_Omega_q(self, t, q, u, frame_ID):
-            return np.zeros((3, self.nu_element), dtype=float)
+            return np.zeros((3, self.nq_element), dtype=float)
 
         def K_J_R(self, t, q, frame_ID):
             N_psi, _ = self.basis_functions_psi(frame_ID[0])
