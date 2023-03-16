@@ -65,7 +65,6 @@ class RotationParameterizationBase(ABC):
         ...
 
 
-# TODO: Implement q_dot, B, q_dot_q, q_ddot for angular velocity in inertial frame
 class AxisAngleRotationParameterization(RotationParameterizationBase):
     def __init__(self):
         super().__init__()
@@ -125,7 +124,8 @@ class AxisAngleRotationParameterization(RotationParameterizationBase):
             return psi_C
 
 
-# TODO: Implement q_dot, B, q_dot_q, q_ddot for angular velocity in inertial frame
+# TODO: Normalization is crucial. So we have to add this to all functions
+# below and should also implement them in math.rotations.
 class QuaternionRotationParameterization(RotationParameterizationBase):
     def __init__(self):
         super().__init__()
@@ -141,9 +141,13 @@ class QuaternionRotationParameterization(RotationParameterizationBase):
     @staticmethod
     def Exp_SO3(psi):
         return Exp_SO3_quat(psi)
+        # P = psi / norm(psi)
+        # return Exp_SO3_quat(P)
 
     @staticmethod
     def Exp_SO3_psi(psi):
+        # from cardillo.math import approx_fprime
+        # return approx_fprime(psi, QuaternionRotationParameterization.Exp_SO3, method="3-point", eps=1e-6)
         return Exp_SO3_quat_p(psi)
 
     @staticmethod
@@ -184,6 +188,71 @@ class QuaternionRotationParameterization(RotationParameterizationBase):
     @staticmethod
     def g_S_q(psi):
         return 2 * psi
+
+
+class QuaternionRotationParameterizationUnconstrained(RotationParameterizationBase):
+    def __init__(self):
+        super().__init__()
+
+    @staticmethod
+    def dim():
+        return 3
+
+    @staticmethod
+    def Exp_SO3(psi):
+        angle = norm(psi)
+        if angle > 0:
+            axis = psi / angle
+            # n = axis / norm(axis)
+            P = np.concatenate([[np.cos(angle / 2)], np.sin(angle / 2) * axis])
+        else:
+            P = np.array([1, 0, 0, 0])
+        #     axis = psi
+        # from cardillo.math.rotations import axis_angle2quat
+        # P = axis_angle2quat(axis, angle)
+        return Exp_SO3_quat(P)
+
+    @staticmethod
+    def Exp_SO3_psi(psi):
+        from cardillo.math import approx_fprime
+
+        return approx_fprime(
+            psi, QuaternionRotationParameterization.Exp_SO3, method="3-point", eps=1e-6
+        )
+        return Exp_SO3_quat_p(psi)
+
+    @staticmethod
+    def Log_SO3(A_IK):
+        return Log_SO3(A_IK)
+
+    @staticmethod
+    def q_dot(psi, K_omega_IK):
+        raise NotImplementedError
+        psi = psi / norm(psi)
+        return T_SO3_inv_quat(psi) @ K_omega_IK
+
+    @staticmethod
+    def q_dot_q(psi, K_omega_IK):
+        raise NotImplementedError
+        return np.einsum(
+            "ijk,j->ik",
+            T_SO3_inv_quat_P(psi),
+            K_omega_IK,
+        )
+
+    @staticmethod
+    def B(psi):
+        raise NotImplementedError
+        psi = psi / norm(psi)
+        return T_SO3_inv_quat(psi)
+
+    @staticmethod
+    def q_ddot(psi, K_omega_IK, K_omega_IK_dot):
+        raise NotImplementedError
+
+    @staticmethod
+    def step_callback(psi):
+        return psi
 
 
 class R9RotationParameterization(RotationParameterizationBase):

@@ -52,16 +52,14 @@ if __name__ == "__main__":
     nelements = 5
 
     # used polynomial degree
-    # polynomial_degree = 3
-    # basis = "B-spline"
-    # polynomial_degree = 3
-    polynomial_degree = 2
+    polynomial_degree = 3
     basis = "Lagrange"
+    # basis = "B-spline"
 
-    # beam parameters found in Section 5.1 Ibrahimbegovic1997
     L = np.pi
-    # EA = GA = 1.0e6
-    EA = GA = 1.0e4
+    EA = GA = 1.0e6  # leads to problems with redundant rotation parametrization
+    # EA = GA = 1.0e4
+    # EA = GA = 1.0e2
     GJ = EI = 1.0e2
 
     # build quadratic material model
@@ -245,7 +243,7 @@ if __name__ == "__main__":
     # moment at right end
     Fi = material_model.Fi
     # M = lambda t: (e3 * 2 * np.pi * Fi[2] / L * t) * 2
-    M = lambda t: 2 * np.pi / L * (e1 * Fi[0] + e3 * Fi[2]) * t
+    M = lambda t: 2 * np.pi / L * (e1 * Fi[0] + e3 * Fi[2]) * t * 2
     # if statics:
     #     M = lambda t: (e1 * Fi[0] + e3 * Fi[2]) * 1.0 * t * 2 * np.pi / L * 0.5
     # else:
@@ -260,7 +258,7 @@ if __name__ == "__main__":
     if statics:
         l = lambda t, xi: t * (0.5 * e2 - e3) * 5e1
     else:
-        l = lambda t, xi: (0.5 * e2 - e3) * 1e0
+        l = lambda t, xi: (0.5 * e2 - e3) * 5e0
     line_force = DistributedForce1DBeam(l, beam)
 
     # assemble the system
@@ -268,18 +266,21 @@ if __name__ == "__main__":
     system.add(beam)
     system.add(frame1)
     system.add(joint1)
-    system.add(moment)
-    # system.add(force)
-    # system.add(line_force)
+    if statics:
+        system.add(moment)
+        # system.add(force)
+    else:
+        system.add(line_force)
     system.assemble()
 
     # animate_beam([0], [system.q0], [beam], L)
     # exit()
 
     if statics:
-        # n_load_steps = 50
+        n_load_steps = 50
         # n_load_steps = 75
-        n_load_steps = 100
+        # n_load_steps = 100
+        # n_load_steps = 500
         solver = Newton(
             system,
             n_load_steps=n_load_steps,
@@ -289,8 +290,12 @@ if __name__ == "__main__":
     else:
         t1 = 1
         dt = 2.5e-2
+        # solver = EulerBackward(system, t1, dt, method="index 1")
+        # solver = EulerBackward(system, t1, dt, method="index 2")
         solver = EulerBackward(system, t1, dt, method="index 3")
+        # solver = EulerBackward(system, t1, dt, method="index 2 GGL")
         # solver = ScipyIVP(system, t1, dt, rtol=1.0e-2, atol=1.0e-2)
+        # solver = ScipyIVP(system, t1, dt, rtol=1.0e-2, atol=1.0e-2, method="Radau")
 
     sol = solver.solve()
     q = sol.q

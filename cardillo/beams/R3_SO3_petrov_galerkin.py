@@ -27,6 +27,8 @@ I_R3_SO3_PetrovGalerkin_Quaternion = __make_R3_SE3(
 )
 
 
+# TODO: Use two node rotation element with left node as reference according
+# to SE(3) implementation.
 class Crisfield1999(K_TimoshenkoPetrovGalerkinBaseAxisAngle):
     def __init__(
         self,

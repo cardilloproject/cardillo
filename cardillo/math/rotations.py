@@ -548,32 +548,60 @@ def smallest_rotation(
         return Exp_SO3(psi * axis)
 
 
-def Exp_SO3_quat(p):
-    """Exponential mapping defined by unit quaternion, see Egeland2002 (6.199).
+def Exp_SO3_quat(P, normalize=True):
+    """Exponential mapping defined by (unit) quaternion, see 
+    Egeland2002 (6.199) and Nuetzi2016 (3.31).
 
     References:
     -----------
-    Egenland2002: https://folk.ntnu.no/oe/Modeling%20and%20Simulation.pdf
+    Egenland2002: https://folk.ntnu.no/oe/Modeling%20and%20Simulation.pdf \\
+    Nuetzi2016: https://www.research-collection.ethz.ch/handle/20.500.11850/117165
     """
-    v_p_tilde = ax2skew(p[1:])
-    return np.eye(3, dtype=p.dtype) + 2.0 * (v_p_tilde @ v_p_tilde + p[0] * v_p_tilde)
+    p0, p = np.array_split(P, [1])
+    p_tilde = ax2skew(p)
+    if normalize:
+        s = P @ P
+        return np.eye(3, dtype=P.dtype) + (2 / s) * (p0 * p_tilde + p_tilde @ p_tilde)
+    else:
+        return np.eye(3, dtype=P.dtype) + 2 * (p0 * p_tilde + p_tilde @ p_tilde)
 
 
-def Exp_SO3_quat_p(P):
+def Exp_SO3_quat_p(P, normalize=True):
     """Derivative of Exp_SO3_quat with respect to P."""
     p0, p = np.array_split(P, [1])
     p_tilde = ax2skew(p)
-    p_tilde_v_p = ax2skew_a()
+    p_tilde_p = ax2skew_a()
 
-    A_P = np.zeros((3, 3, 4), dtype=P.dtype)
-    A_P[:, :, 0] = 2 * p_tilde
-    A_P[:, :, 1:] = (
-        2 * p0 * p_tilde_v_p
-        + np.einsum("ijl,jk->ikl", p_tilde_v_p, 2 * p_tilde)
-        + np.einsum("ij,jkl->ikl", 2 * p_tilde, p_tilde_v_p)
-    )
+    if normalize:
+        s = P @ P
+        A_P = np.einsum(
+            "ij,k->ijk", p0 * p_tilde + p_tilde @ p_tilde, -(4 / (s * s)) * P
+        )
+        s2 = 2 / s
+        A_P[:, :, 0] += s2 * p_tilde
+        A_P[:, :, 1:] += (
+            s2 * p0 * p_tilde_p
+            + np.einsum("ijl,jk->ikl", p_tilde_p, s2 * p_tilde)
+            + np.einsum("ij,jkl->ikl", s2 * p_tilde, p_tilde_p)
+        )
+    else:
+        A_P = np.zeros((3, 3, 4), dtype=P.dtype)
+        A_P[:, :, 0] = 2 * p_tilde
+        A_P[:, :, 1:] = (
+            2 * p0 * p_tilde_p
+            + np.einsum("ijl,jk->ikl", p_tilde_p, 2 * p_tilde)
+            + np.einsum("ij,jkl->ikl", 2 * p_tilde, p_tilde_p)
+        )
 
     return A_P
+
+    # from cardillo.math import approx_fprime
+    # A_P_num = approx_fprime(P, Exp_SO3_quat, method="3-point", eps=1e-6)
+    # diff = A_P - A_P_num
+    # error = np.linalg.norm(diff)
+    # # if error > 1e-7:
+    # print(f"error Exp_SO3_quat_psi: {error}")
+    # return A_P_num
 
 
 Log_SO3_quat = Spurrier
