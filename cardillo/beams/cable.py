@@ -5,14 +5,9 @@ from cardillo.discretization.b_spline import BSplineKnotVector
 from cardillo.discretization.hermite import HermiteNodeVector
 from cardillo.math import (
     e1,
-    e2,
-    e3,
     norm,
     cross3,
-    skew2ax,
-    smallest_rotation,
     approx_fprime,
-    sign,
 )
 from cardillo.discretization.mesh1D import Mesh1D
 

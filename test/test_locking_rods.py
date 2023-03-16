@@ -17,7 +17,11 @@ from cardillo.beams import (
     K_SE3_PetrovGalerkin_R9,
 )
 from cardillo.beams import (
-    Crisfield1999,
+    K_R3_SO3_PetrovGalerkin_AxisAngle,
+    K_R3_SO3_PetrovGalerkin_Quaternion,
+    K_R3_SO3_PetrovGalerkin_R9,
+)
+from cardillo.beams import (
     TimoshenkoDirectorDirac,
     TimoshenkoDirectorIntegral,
     K_Cardona,
@@ -37,7 +41,7 @@ from pathlib import Path
 ###################
 # Rod = K_R12_PetrovGalerkin_AxisAngle
 # Rod = K_R12_PetrovGalerkin_Quaternion
-Rod = K_R12_PetrovGalerkin_R9
+# Rod = K_R12_PetrovGalerkin_R9
 
 #####################
 # SE(3)-interpolation
@@ -46,32 +50,38 @@ Rod = K_R12_PetrovGalerkin_R9
 # Rod = K_SE3_PetrovGalerkin_Quaternion
 # Rod = K_SE3_PetrovGalerkin_R9
 
+##########################
+# R3 x SO(3)-interpolation
+##########################
+Rod = K_R3_SO3_PetrovGalerkin_AxisAngle
+# Rod = K_R3_SO3_PetrovGalerkin_Quaternion
+# Rod = K_R3_SO3_PetrovGalerkin_R9
+
 ####################
 # other formulations
 ####################
-# Rod = Crisfield1999
 # Rod = TimoshenkoDirectorDirac
 # Rod = TimoshenkoDirectorIntegral
-# Rod = I_DirectorAxisAngle
 # Rod = K_Cardona
 # Rod = K_TimoshenkoLerp
 
 ###################
 # chose slenderness
 ###################
-# slenderness = 1.0e1
-# atol = 1.0e-8
+slenderness = 1.0e1
+atol = 1.0e-8
 # slenderness = 1.0e2
 # atol = 1.0e-10
 # slenderness = 1.0e3
 # atol = 1.0e-12
-slenderness = 1.0e4
-atol = 1.0e-14
+# slenderness = 1.0e4
+# atol = 1.0e-14
 
 ####################
 # number of elements
 ####################
-nelements = 10
+# nelements = 10
+nelements = 5
 
 ########################
 # used polynomial degree
@@ -79,6 +89,11 @@ nelements = 10
 polynomial_degree = 1
 # polynomial_degree = 2
 basis = "Lagrange"
+# Note: Using smooth shape functions results in locking!
+# polynomial_degree = 3
+# basis = "Hermite"
+# polynomial_degree = 3
+# basis = "B-spline"
 
 
 if __name__ == "__main__":
@@ -161,7 +176,33 @@ if __name__ == "__main__":
             basis_r=basis,
             basis_psi=basis,
         )
+    elif Rod in [
+        K_R3_SO3_PetrovGalerkin_AxisAngle,
+        K_R3_SO3_PetrovGalerkin_Quaternion,
+        K_R3_SO3_PetrovGalerkin_R9,
+    ]:
+        q0 = Rod.straight_configuration(
+            polynomial_degree,
+            basis,
+            nelements,
+            L,
+            r_OP=r_OP0,
+            A_IK=A_IK0,
+        )
+        rod = Rod(
+            cross_section,
+            material_model,
+            A_rho0,
+            K_S_rho0,
+            K_I_rho0,
+            polynomial_degree,
+            nelements,
+            Q=q0,
+            q0=q0,
+            basis_r=basis,
+        )
     elif Rod in [TimoshenkoDirectorDirac, TimoshenkoDirectorIntegral]:
+        raise RuntimeError("This is not refactored")
         q0 = Rod.straight_configuration(
             polynomial_degree,
             polynomial_degree,
@@ -192,31 +233,8 @@ if __name__ == "__main__":
             q0,
             basis=basis,
         )
-    elif Rod == Crisfield1999:
-        q0 = Crisfield1999.straight_configuration(
-            polynomial_degree,
-            polynomial_degree,
-            basis,
-            basis,
-            nelements,
-            L,
-            r_OP=r_OP0,
-            A_IK=A_IK0,
-        )
-        rod = Crisfield1999(
-            cross_section,
-            material_model,
-            A_rho0,
-            K_S_rho0,
-            K_I_rho0,
-            polynomial_degree,
-            polynomial_degree,
-            nelements,
-            q0,
-            basis_r=basis,
-            basis_psi=basis,
-        )
     elif Rod in [K_Cardona, K_TimoshenkoLerp]:
+        raise RuntimeError("This is not refactored")
         q0 = Rod.straight_configuration(
             polynomial_degree,
             polynomial_degree,

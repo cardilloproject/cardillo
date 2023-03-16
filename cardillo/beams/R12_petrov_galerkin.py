@@ -1,4 +1,5 @@
 import numpy as np
+import warnings
 
 from cardillo.math import cross3
 from cardillo.beams._base_petrov_galerkin import (
@@ -28,21 +29,19 @@ def __make_R12(Base):
             u0=None,
             basis_r="Lagrange",
             basis_psi="Lagrange",
-            # volume_correction=False,
-            volume_correction=True,
+            volume_correction=False,
         ):
             self.volume_correction = volume_correction
 
             if polynomial_degree_psi == 1 and not volume_correction:
-                print(
-                    f"For polynomial_degree_psi == 1 volume_correction is recommended!"
+                warnings.warn(
+                    "For polynomial_degree_psi == 1 volume_correction is recommended!"
                 )
 
             p = max(polynomial_degree_r, polynomial_degree_psi)
             nquadrature = p
             nquadrature_dyn = int(np.ceil((p + 1) ** 2 / 2))
 
-            # import warnings
             # warnings.warn("'DirectorAxisAngle: Full integration is used!")
             # nquadrature = nquadrature_dyn
 

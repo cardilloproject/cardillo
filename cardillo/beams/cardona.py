@@ -2,7 +2,6 @@ import numpy as np
 import warnings
 from cardillo.math import (
     Exp_SO3,
-    Exp_SO3_psi,
     T_SO3,
     Exp_SO3_quat,
     T_SO3_quat,
@@ -10,8 +9,6 @@ from cardillo.math import (
     pi,
 )
 from cardillo.beams._base_petrov_galerkin import (
-    I_TimoshenkoPetrovGalerkinBaseAxisAngle,
-    I_TimoshenkoPetrovGalerkinBaseQuaternion,
     K_TimoshenkoPetrovGalerkinBaseAxisAngle,
     K_TimoshenkoPetrovGalerkinBaseQuaternion,
 )
