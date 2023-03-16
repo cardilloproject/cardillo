@@ -6,14 +6,24 @@ from cardillo.beams import (
 )
 from cardillo.discrete import Frame
 from cardillo.constraints import RigidConnection
+from cardillo.beams import animate_beam
 from cardillo.beams import (
-    animate_beam,
     I_R12_PetrovGalerkin_AxisAngle,
     K_R12_PetrovGalerkin_AxisAngle,
+    I_R12_PetrovGalerkin_Quaternion,
     K_R12_PetrovGalerkin_Quaternion,
+    I_R12_PetrovGalerkin_R9,
     K_R12_PetrovGalerkin_R9,
+)
+from cardillo.beams import (
+    I_SE3_PetrovGalerkin_AxisAngle,
     K_SE3_PetrovGalerkin_AxisAngle,
+    I_SE3_PetrovGalerkin_Quaternion,
     K_SE3_PetrovGalerkin_Quaternion,
+    I_SE3_PetrovGalerkin_R9,
+    K_SE3_PetrovGalerkin_R9,
+)
+from cardillo.beams import (
     Crisfield1999,
     TimoshenkoDirectorDirac,
     TimoshenkoDirectorIntegral,
@@ -32,15 +42,26 @@ from pathlib import Path
 ###################
 # R12 interpolation
 ###################
+# Beam = I_R12_PetrovGalerkin_AxisAngle
 # Beam = K_R12_PetrovGalerkin_AxisAngle
+# Beam = I_R12_PetrovGalerkin_Quaternion
 # Beam = K_R12_PetrovGalerkin_Quaternion
+# Beam = I_R12_PetrovGalerkin_R9
 # Beam = K_R12_PetrovGalerkin_R9
 
 #####################
 # SE(3)-interpolation
 #####################
-# Beam = K_SE3_PetrovGalerkin_AxisAngle
-Beam = K_SE3_PetrovGalerkin_Quaternion
+# Beam = I_SE3_PetrovGalerkin_AxisAngle
+Beam = K_SE3_PetrovGalerkin_AxisAngle
+# Beam = I_SE3_PetrovGalerkin_Quaternion
+# Beam = K_SE3_PetrovGalerkin_Quaternion
+# Beam = I_SE3_PetrovGalerkin_R9
+# Beam = K_SE3_PetrovGalerkin_R9
+
+####################
+# other formulations
+####################
 # Beam = Crisfield1999
 # Beam = TimoshenkoDirectorDirac
 # Beam = TimoshenkoDirectorIntegral
@@ -64,8 +85,8 @@ if __name__ == "__main__":
 
     L = np.pi
     # EA = GA = 1.0e6
-    EA = GA = 1.0e4
-    # EA = GA = 1.0e2
+    # EA = GA = 1.0e4
+    EA = GA = 1.0e2
     GJ = EI = 1.0e2
 
     # build quadratic material model
@@ -88,7 +109,14 @@ if __name__ == "__main__":
     r_OP0 = np.zeros(3, dtype=float)
     A_IK0 = np.eye(3, dtype=float)
 
-    if Beam in [K_SE3_PetrovGalerkin_AxisAngle, K_SE3_PetrovGalerkin_Quaternion]:
+    if Beam in [
+        I_SE3_PetrovGalerkin_AxisAngle,
+        K_SE3_PetrovGalerkin_AxisAngle,
+        I_SE3_PetrovGalerkin_Quaternion,
+        K_SE3_PetrovGalerkin_Quaternion,
+        I_SE3_PetrovGalerkin_R9,
+        K_SE3_PetrovGalerkin_R9,
+    ]:
         q0 = Beam.straight_configuration(
             nelements,
             L,
@@ -105,8 +133,11 @@ if __name__ == "__main__":
             q0,
         )
     elif Beam in [
+        I_R12_PetrovGalerkin_AxisAngle,
         K_R12_PetrovGalerkin_AxisAngle,
+        I_R12_PetrovGalerkin_Quaternion,
         K_R12_PetrovGalerkin_Quaternion,
+        I_R12_PetrovGalerkin_R9,
         K_R12_PetrovGalerkin_R9,
     ]:
         q0 = Beam.straight_configuration(
