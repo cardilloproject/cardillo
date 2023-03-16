@@ -190,71 +190,7 @@ class QuaternionRotationParameterization(RotationParameterizationBase):
         return 2 * psi
 
 
-class QuaternionRotationParameterizationUnconstrained(RotationParameterizationBase):
-    def __init__(self):
-        super().__init__()
-
-    @staticmethod
-    def dim():
-        return 3
-
-    @staticmethod
-    def Exp_SO3(psi):
-        angle = norm(psi)
-        if angle > 0:
-            axis = psi / angle
-            # n = axis / norm(axis)
-            P = np.concatenate([[np.cos(angle / 2)], np.sin(angle / 2) * axis])
-        else:
-            P = np.array([1, 0, 0, 0])
-        #     axis = psi
-        # from cardillo.math.rotations import axis_angle2quat
-        # P = axis_angle2quat(axis, angle)
-        return Exp_SO3_quat(P)
-
-    @staticmethod
-    def Exp_SO3_psi(psi):
-        from cardillo.math import approx_fprime
-
-        return approx_fprime(
-            psi, QuaternionRotationParameterization.Exp_SO3, method="3-point", eps=1e-6
-        )
-        return Exp_SO3_quat_p(psi)
-
-    @staticmethod
-    def Log_SO3(A_IK):
-        return Log_SO3(A_IK)
-
-    @staticmethod
-    def q_dot(psi, K_omega_IK):
-        raise NotImplementedError
-        psi = psi / norm(psi)
-        return T_SO3_inv_quat(psi) @ K_omega_IK
-
-    @staticmethod
-    def q_dot_q(psi, K_omega_IK):
-        raise NotImplementedError
-        return np.einsum(
-            "ijk,j->ik",
-            T_SO3_inv_quat_P(psi),
-            K_omega_IK,
-        )
-
-    @staticmethod
-    def B(psi):
-        raise NotImplementedError
-        psi = psi / norm(psi)
-        return T_SO3_inv_quat(psi)
-
-    @staticmethod
-    def q_ddot(psi, K_omega_IK, K_omega_IK_dot):
-        raise NotImplementedError
-
-    @staticmethod
-    def step_callback(psi):
-        return psi
-
-
+# TODO: Add orthonormalization
 class R9RotationParameterization(RotationParameterizationBase):
     def __init__(self):
         super().__init__()
@@ -271,10 +207,23 @@ class R9RotationParameterization(RotationParameterizationBase):
     def Exp_SO3(psi):
         return psi.reshape(3, 3, order="F")
 
+        # # orthonormalization, see https://de.wikipedia.org/wiki/Gram-Schmidtsches_Orthogonalisierungsverfahren#Algorithmus_des_Orthonormalisierungsverfahrens
+        # w1, w2, w3 = psi.reshape(3, 3, order="F").T
+        # ex = w1 / norm(w1)
+        # v2 = w2 - (w2 @ ex) * ex
+        # ey = v2 / norm(v2)
+        # v3 = w3 - (w3 @ ex) * ex - (w3 @ ey) * ey
+        # ez = v3 / norm(v3)
+
+        # return np.vstack((ex, ey, ez)).T
+
     @staticmethod
     def Exp_SO3_psi(psi):
         A_IK_psi = np.eye(9, 9, dtype=float).reshape(3, 3, -1, order="F")
         return A_IK_psi
+
+        # from cardillo.math import approx_fprime
+        # return approx_fprime(psi, R9RotationParameterization.Exp_SO3, method="3-point", eps=1e-6)
 
     @staticmethod
     def Log_SO3(A_IK):
