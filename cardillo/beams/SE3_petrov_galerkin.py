@@ -129,8 +129,8 @@ def __make_SE3(Base):
 
             return r_OP, A_IK, K_Gamma_bar, K_Kappa_bar
 
-        # if False:
-        if True:
+        if False:
+            # if True:
 
             def _deval(self, qe, xi):
                 # extract nodal screws

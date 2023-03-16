@@ -29,12 +29,18 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
+###################
+# R12 interpolation
+###################
 # Beam = K_R12_PetrovGalerkin_AxisAngle
-Beam = K_R12_PetrovGalerkin_Quaternion
+# Beam = K_R12_PetrovGalerkin_Quaternion
 # Beam = K_R12_PetrovGalerkin_R9
 
+#####################
+# SE(3)-interpolation
+#####################
 # Beam = K_SE3_PetrovGalerkin_AxisAngle
-# Beam = K_SE3_PetrovGalerkin_Quaternion
+Beam = K_SE3_PetrovGalerkin_Quaternion
 # Beam = Crisfield1999
 # Beam = TimoshenkoDirectorDirac
 # Beam = TimoshenkoDirectorIntegral
@@ -42,14 +48,14 @@ Beam = K_R12_PetrovGalerkin_Quaternion
 # Beam = K_Cardona
 # Beam = K_TimoshenkoLerp
 
-# statics = True
-statics = False
+statics = True
+# statics = False
 
 
 if __name__ == "__main__":
     # number of elements
-    # nelements = 10
-    nelements = 5
+    nelements = 10
+    # nelements = 5
 
     # used polynomial degree
     polynomial_degree = 3
@@ -57,7 +63,7 @@ if __name__ == "__main__":
     # basis = "B-spline"
 
     L = np.pi
-    # EA = GA = 1.0e6  # leads to problems with redundant rotation parametrization
+    # EA = GA = 1.0e6
     EA = GA = 1.0e4
     # EA = GA = 1.0e2
     GJ = EI = 1.0e2
@@ -279,8 +285,8 @@ if __name__ == "__main__":
     # exit()
 
     if statics:
-        n_load_steps = 50
-        # n_load_steps = 75
+        # n_load_steps = 50
+        n_load_steps = 75
         # n_load_steps = 100
         # n_load_steps = 500
         solver = Newton(
