@@ -290,6 +290,7 @@ class EulerBackward:
         )
 
 
+# TODO: Add stabilization and constraints g_S
 class NonsmoothBackwardEuler:
     def __init__(
         self,
