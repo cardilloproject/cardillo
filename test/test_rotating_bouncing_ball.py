@@ -14,6 +14,7 @@ from cardillo.solver import (
     Rattle,
     Moreau_new,
     MoreauClassical,
+    NonsmoothBackwardEuler,
 )
 
 
@@ -45,7 +46,7 @@ def run(case):
 
     y0 = 1
     y_dot0 = 0
-    # dt = 5e-3
+    # dt = 5e-4
     dt = 1e-2
 
     if case == 1:
@@ -96,10 +97,11 @@ def run(case):
     system.assemble()
 
     # solver1, label1 = NonsmoothGeneralizedAlpha(system, t_final, dt, method="newton"), "Gen-alpha"
-    solver1, label1 = Rattle(system, t_final, dt), "Rattle"
+    # solver1, label1 = Rattle(system, t_final, dt), "Rattle"
     # solver1, label1 = Moreau(system, t_final, dt), "Moreau"
     # solver1, label1 = Moreau_new(system, t_final, dt), "Moreau_new"
     # solver1, label1 = Moreau_classical(system, t_final, dt), "Moreau_classical"
+    solver1, label1 = NonsmoothBackwardEuler(system, t_final, dt), "Euler backward"
 
     sol1 = solver1.solve()
     t1 = sol1.t
@@ -257,6 +259,6 @@ def run(case):
 
 if __name__ == "__main__":
     # run(1)
-    # run(2)
+    run(2)
     # run(3)
-    run(4)
+    # run(4)

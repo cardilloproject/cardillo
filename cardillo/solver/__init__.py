@@ -12,7 +12,7 @@ from .moreau import (
     Moreau_new,
     MoreauClassical,
 )
-from .euler_backward import EulerBackward
+from .euler_backward import EulerBackward, NonsmoothBackwardEuler
 
 from .generalized_alpha import (
     GeneralizedAlphaFirstOrder,
