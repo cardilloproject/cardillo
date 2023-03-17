@@ -245,7 +245,7 @@ if __name__ == "__main__":
     system.assemble()
 
     t_final = 1.5
-    dt1 = 5e-3
+    dt1 = 1e-2
     dt2 = 5e-3
 
     sol1, label1 = Rattle(system, t_final, dt1, atol=1e-10).solve(), "Rattle"

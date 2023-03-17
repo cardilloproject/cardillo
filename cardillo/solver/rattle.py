@@ -27,8 +27,9 @@ class Rattle:
         fix_point_max_iter=500,
         error_function=lambda x: np.max(np.abs(x)),
         # method="Newton_decoupled",
-        method="Newton_full",
+        # method="Newton_full",
         # method="fixed_point",
+        method="fixed_point_nonlinear_full",
         continue_with_unconverged=False,
     ):
         """
@@ -75,7 +76,9 @@ class Rattle:
         self.la_Nn = system.la_N0
         self.la_Fn = system.la_F0
 
+        #####################
         # full coupled Newton
+        #####################
         self.ny = (
             self.nq
             + 2 * self.nu
@@ -117,7 +120,52 @@ class Rattle:
             dtype=int,
         )
 
+        ############################
+        # nonlinear fixed-point full
+        ############################
+        self.split_x = np.cumsum(
+            np.array(
+                [
+                    self.nq,
+                    self.nu,
+                    self.nu,
+                    self.nla_g,
+                    self.nla_g,
+                    self.nla_gamma,
+                ],
+                dtype=int,
+            )
+        )
+        self.x = np.concatenate(
+            (
+                self.qn,
+                self.un,
+                self.un,
+                self.la_gn * 0.5 * dt,
+                self.la_gn * 0.5 * dt,
+                self.la_gamman * 0.5 * dt,
+                self.la_gamman * 0.5 * dt,
+            )
+        )
+        self.x0 = self.x.copy()
+        self.split_z = np.cumsum(
+            np.array(
+                [self.nla_N, self.nla_N, self.nla_F],
+                dtype=int,
+            )
+        )
+        self.zn = np.concatenate(
+            (
+                self.la_Nn * 0.5 * dt,
+                self.la_Nn * 0.5 * dt,
+                self.la_Fn * 0.5 * dt,
+                self.la_Fn * 0.5 * dt,
+            )
+        )
+
+        ##################
         # decoupled Newton
+        ##################
         self.ny1 = (
             self.nq + self.nu + self.nla_g + self.nla_gamma + self.nla_N + system.nla_F
         )
@@ -161,7 +209,9 @@ class Rattle:
             dtype=int,
         )
 
+        ################################
         # decouple fixed point iteration
+        ################################
         self.split_x1 = np.array(
             [
                 self.nq,
@@ -310,6 +360,137 @@ class Rattle:
                 )
 
         return R
+
+    def F(self, x, P_N1, P_N2, P_F1, P_F2):
+        tn = self.tn
+        qn = self.qn
+        un = self.un
+        dt = self.dt
+        tn1 = tn + dt
+
+        qn1, un12, un1, P_g1, P_g2, P_gamma1, P_gamma2 = np.array_split(x, self.split_x)
+
+        F = np.zeros_like(x)
+
+        ####################
+        # kinematic equation
+        ####################
+        F[: self.split_x[0]] = (
+            qn1
+            - qn
+            - 0.5
+            * dt
+            * (self.system.q_dot(tn, qn, un12) + self.system.q_dot(tn1, qn1, un12))
+        )
+
+        ######################################################
+        # euations of motion (1) without contacts and friction
+        ######################################################
+        F[self.split_x[0] : self.split_x[1]] = self.system.M(
+            tn, qn, scipy_matrix=csr_matrix
+        ) @ (un12 - un) - 0.5 * (
+            dt * self.system.h(tn, qn, un12)
+            + self.system.W_g(tn, qn) @ P_g1
+            + self.system.W_gamma(tn, qn) @ P_gamma1
+            + self.system.W_N(tn, qn) @ P_N1
+            + self.system.W_F(tn, qn) @ P_F1
+        )
+
+        ########################
+        # euations of motion (2)
+        ########################
+        F[self.split_x[1] : self.split_x[2]] = self.system.M(
+            tn1, qn1, scipy_matrix=csr_matrix
+        ) @ (un1 - un12) - 0.5 * (
+            dt * self.system.h(tn1, qn1, un12)
+            + self.system.W_g(tn1, qn1) @ P_g2
+            + self.system.W_gamma(tn1, qn1) @ P_gamma2
+            + self.system.W_N(tn1, qn1) @ P_N2
+            + self.system.W_F(tn1, qn1) @ P_F2
+        )
+
+        #######################
+        # bilateral constraints
+        #######################
+        F[self.split_x[2] : self.split_x[3]] = self.system.g(tn1, qn1)
+        F[self.split_x[3] : self.split_x[4]] = self.system.g_dot(tn1, qn1, un1)
+
+        F[self.split_x[4] : self.split_x[5]] = self.system.gamma(tn1, qn1, un12)
+        F[self.split_x[5] :] = self.system.gamma(tn1, qn1, un1)
+
+        return F
+
+    def p(self, z):
+        P_N1, P_N_bar, P_F1, P_F_bar = np.array_split(z, self.split_z)
+        P_N2 = 2 * P_N_bar - P_N1
+        P_F2 = 2 * P_F_bar - P_F1
+
+        self.x0 = self.x.copy()
+
+        self.x, converged, error, i, _ = fsolve(
+            self.F,
+            self.x0,
+            jac="2-point",
+            eps=1e-6,
+            atol=self.atol,
+            max_iter=self.max_iter,
+            fun_args=(P_N1, P_N2, P_F1, P_F2),
+            jac_args=(P_N1, P_N2, P_F1, P_F2),
+        )
+        assert converged
+
+        qn1, un12, un1, _, _, _, _ = np.array_split(self.x, self.split_x)
+
+        tn1 = self.tn + self.dt
+
+        prox_r_N = self.prox_r_N
+        prox_r_F = self.prox_r_F
+        mu = self.system.mu
+
+        p = np.zeros_like(z)
+
+        ##############################
+        # fixed-point update Signorini
+        ##############################
+        prox_arg = P_N1 - (prox_r_N / self.dt) * self.system.g_N(tn1, qn1)
+        self.I_N = prox_arg >= 0
+        P_N1 = prox_R0_np(prox_arg)  # Gauss-Seidel
+        p[: self.split_z[0]] = P_N1
+
+        ############################################################
+        # fixed-point update mixed Signorini and Newton's impact law
+        ############################################################
+        P_N_bar = np.where(
+            self.I_N,
+            prox_R0_np(P_N_bar - prox_r_N * self.system.xi_N(tn1, qn1, self.un, un1)),
+            np.zeros(self.nla_N),
+        )
+        p[self.split_z[0] : self.split_z[1]] = P_N_bar
+
+        #############################
+        # fixed-point update friction
+        #############################
+        gamma_F = self.system.gamma_F(tn1, qn1, un12)
+        for i_N, i_F in enumerate(self.system.NF_connectivity):
+            if len(i_F):
+                p[self.split_z[1] + np.array(i_F)] = prox_sphere(
+                    P_F1[i_F] - prox_r_F[i_N] * gamma_F[i_F],
+                    mu[i_N] * P_N1[i_N],
+                )
+
+        ###########################################################
+        # fixed-point update mixed friction and Newton's impact law
+        ###########################################################
+        xi_F = self.system.xi_F(tn1, qn1, self.un, un1)
+        for i_N, i_F in enumerate(self.system.NF_connectivity):
+            if len(i_F):
+                if self.I_N[i_N]:
+                    p[self.split_z[2] + np.array(i_F)] = prox_sphere(
+                        P_F_bar[i_F] - prox_r_F[i_N] * xi_F[i_F],
+                        mu[i_N] * P_N_bar[i_N],
+                    )
+
+        return p
 
     def R1(self, y1, update_index=False):
         tn = self.tn
@@ -787,7 +968,9 @@ class Rattle:
             # only compute optimized proxparameters once per time step
             self.prox_r_N = self.system.prox_r_N(self.tn, self.qn)
             self.prox_r_F = self.system.prox_r_F(self.tn, self.qn)
+
             tn1 = self.tn + self.dt
+
             if self.method == "Newton_decoupled":
                 y1, converged1, error1, i1, _ = fsolve(
                     self.R1,
@@ -961,6 +1144,37 @@ class Rattle:
 
                 qn1, un1 = self.system.step_callback(tn1, qn1, un1)
 
+            elif self.method == "fixed_point_nonlinear_full":
+                z0 = self.zn.copy()
+                for i1 in range(self.fix_point_max_iter):
+                    z = self.p(z0)
+
+                    # convergence percussions
+                    # error1 = self.fix_point_error_function(z - z0)
+
+                    # convergence positions and both velocities
+                    error1 = self.fix_point_error_function(
+                        self.x[: self.split_x[2]] - self.x0[: self.split_x[2]]
+                    )
+
+                    converged1 = error1 < self.fix_point_tol
+                    if converged1:
+                        break
+                    z0 = z
+
+                qn1, un12, un1, P_g1, P_g2, P_gamma1, P_gamma2 = np.array_split(
+                    self.x, self.split_x
+                )
+                _, P_N_bar, _, P_F_bar = np.array_split(z, self.split_z)
+
+                P_gn1 = 0.5 * (P_g1 + P_g2)
+                P_gamman1 = 0.5 * (P_gamma1 + P_gamma2)
+
+                i2 = np.nan
+                error2 = np.nan
+                converged = converged1
+                error = error1
+                i = i1
             else:
                 raise NotImplementedError
 
@@ -995,6 +1209,10 @@ class Rattle:
             elif self.method == "fixed_point":
                 self.z1n = z1.copy()
                 self.z2n = z2.copy()
+                self.qn = qn1.copy()
+                self.un = un1.copy()
+            elif self.method == "fixed_point_nonlinear_full":
+                self.zn = z.copy()
                 self.qn = qn1.copy()
                 self.un = un1.copy()
             else:
