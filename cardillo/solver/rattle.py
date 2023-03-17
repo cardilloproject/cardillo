@@ -7,8 +7,6 @@ from cardillo.math.prox import prox_R0_nm, prox_R0_np, prox_sphere
 from cardillo.math import fsolve, approx_fprime
 from cardillo.solver import Solution, consistent_initial_conditions
 
-import warnings
-
 
 # TODO:
 # - Keep prox_r_N constant during each Newton-iteration since it is an expensive expression!
@@ -21,16 +19,16 @@ class Rattle:
         system,
         t1,
         dt,
-        atol=1e-8,
+        atol=1e-6,
         max_iter=50,
         fix_point_tol=1e-6,
         fix_point_max_iter=1000,
         error_function=lambda x: np.max(np.abs(x)),
         # method="Newton_decoupled",
         # method="Newton_full",
-        # method="fixed_point",
-        method="fixed_point_nonlinear_full",
-        continue_with_unconverged=False,
+        method="fixed_point",
+        # method="fixed_point_nonlinear_full",
+        continue_with_unconverged=True,
     ):
         """
         Nonsmooth extension of RATTLE.
@@ -147,6 +145,7 @@ class Rattle:
                 self.la_gamman * 0.5 * dt,
             )
         )
+        self.nx = len(self.x)
         self.x0 = self.x.copy()
         self.split_z = np.cumsum(
             np.array(
@@ -496,6 +495,62 @@ class Rattle:
                     )
 
         return p
+
+    def c(self, x, z):
+        tn1 = self.tn + self.dt
+
+        qn, un = self.qn, self.un
+        qn1, un12, un1, _, _, _, _ = np.array_split(x, self.split_x)
+
+        P_N1, P_N2, P_F1, P_F2 = np.array_split(z, self.split_z)
+        P_N = 0.5 * (P_N1 + P_N2)
+        P_F = 0.5 * (P_F2 + P_F1)
+
+        c = np.zeros_like(z)
+
+        ###########
+        # Signorini
+        ###########
+        prox_r_N = self.prox_r_N
+        g_Nn1 = self.system.g_N(tn1, qn1)
+        prox_arg = prox_r_N * g_Nn1 - P_N1
+        # if update_index:
+        #     self.I_N = prox_arg <= 0.0
+        self.I_N = prox_arg <= 0.0
+
+        c[: self.split_z[0]] = np.where(self.I_N, g_Nn1, P_N1)
+
+        ##################################################
+        # mixed Singorini on velocity level and impact law
+        ##################################################
+        xi_Nn1 = self.system.xi_N(tn1, qn1, un, un1)
+        c[self.split_z[0] : self.split_z[1]] = np.where(
+            self.I_N,
+            P_N + prox_R0_nm(prox_r_N * xi_Nn1 - P_N),
+            P_N,
+        )
+
+        ##############################
+        # friction and tangent impacts
+        ##############################
+        prox_r_F = self.prox_r_F
+        gamma_Fn1 = self.system.gamma_F(tn1, qn1, un12)
+        xi_Fn1 = self.system.xi_F(tn1, qn1, un, un1)
+        for i_N, i_F in enumerate(self.system.NF_connectivity):
+            i_F = np.array(i_F)
+
+            if len(i_F) > 0:
+                c[self.split_z[1] + i_F] = P_F1[i_F] + prox_sphere(
+                    prox_r_F[i_N] * gamma_Fn1[i_F] - P_F1[i_F],
+                    self.system.mu[i_N] * P_N1[i_N],
+                )
+
+                c[self.split_z[2] + i_F] = P_F[i_F] + prox_sphere(
+                    prox_r_F[i_N] * xi_Fn1[i_F] - P_F[i_F],
+                    self.system.mu[i_N] * P_N[i_N],
+                )
+
+        return c
 
     def R1(self, y1, update_index=False):
         tn = self.tn
@@ -987,7 +1042,8 @@ class Rattle:
                     self.R1,
                     self.y1n,
                     # jac=self.J1,
-                    jac="3-point",  # TODO: keep this, otherwise sinuglairites arise
+                    jac="2-point",
+                    # jac="3-point",  # TODO: keep this, otherwise sinuglairites arise
                     eps=1.0e-6,
                     atol=self.atol,
                     max_iter=self.max_iter,
@@ -1030,6 +1086,7 @@ class Rattle:
                 y, converged, error, i, _ = fsolve(
                     self.R,
                     self.yn,
+                    # jac="2-point",
                     jac="3-point",  # TODO: keep this, otherwise sinuglairites arise
                     eps=1.0e-6,
                     atol=self.atol,
@@ -1156,6 +1213,9 @@ class Rattle:
                 qn1, un1 = self.system.step_callback(tn1, qn1, un1)
 
             elif self.method == "fixed_point_nonlinear_full":
+                #######################
+                # fixed-point iteration
+                #######################
                 z0 = self.zn.copy()
                 for i2 in range(self.fix_point_max_iter):
                     z = self.p(z0)
@@ -1185,6 +1245,36 @@ class Rattle:
                 error1 = self.error1
                 converged = self.converged1 and converged2
                 i = i1
+
+                ##########################
+                # constrained optimization
+                ##########################
+                from scipy.optimize import minimize, NonlinearConstraint
+
+                def fun(y):
+                    x = y[: self.nx]
+                    z = y[self.nx :]
+                    F = self.F(x, *np.array_split(z, self.split_z))
+                    return F @ F
+
+                def fun_c(y):
+                    x = y[: self.nx]
+                    z = y[self.nx :]
+                    return self.c(x, z)
+
+                lb = ub = np.zeros(2 * self.nla_N + 2 * self.nla_F)
+                constraints = NonlinearConstraint(fun_c, lb, ub)
+
+                y0 = self.yn
+                sol = minimize(fun, y0, method="SLSQP", constraints=[constraints])
+                converged = sol.success
+                y = sol.x
+                x = y[: self.nx]
+                z = y[self.nx :]
+                i1 = sol.nit
+                i2 = np.nan
+                error1 = sol.fun
+                error2 = np.nan
             else:
                 raise NotImplementedError
 
