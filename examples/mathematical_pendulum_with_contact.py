@@ -2,9 +2,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
-from cardillo.math.algebra import e1, norm
+from cardillo.math import e1, norm, approx_fprime
 from cardillo import System
-from cardillo.solver import MoreauShifted, Rattle, NonsmoothGeneralizedAlpha
+from cardillo.solver import (
+    MoreauShifted,
+    Rattle,
+    NonsmoothGeneralizedAlpha,
+    NonsmoothBackwardEuler,
+)
 
 
 bilateral_constrained = True
@@ -13,10 +18,11 @@ bilateral_constrained = True
 quadratic_length = True
 # quadratic_length = False
 
-with_contact = True
-# with_contact = False
+# with_contact = True
+with_contact = False
 
-Solver1, label1, dt1, kwargs1 = Rattle, "Rattle", 1e-2, {}
+Solver1, label1, dt1, kwargs1 = NonsmoothBackwardEuler, "Backward Euler", 1e-2, {}
+# Solver1, label1, dt1, kwargs1 = Rattle, "Rattle", 1e-2, {}NonsmoothBackwardEuler
 Solver2, label2, dt2, kwargs2 = MoreauShifted, "Moreau", 1e-2, {}
 # Solver2, label2, dt2, kwargs2 = NonsmoothGeneralizedAlpha, "Gen-alpha", 1e-2, {}
 
@@ -163,15 +169,17 @@ class MathematicalPendulumCartesianContact:
                 coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
 
             def W_g_dense(self, t, q):
-                return self.g_q_dense(t, q).T
+                return self.g_q_dense(t, q).T.reshape(self.nu, self.nla_g)
 
             def W_g(self, t, q, coo):
                 coo.extend(self.W_g_dense(t, q), (self.uDOF, self.la_gDOF))
 
             def Wla_g_q(self, t, q, la_g, coo):
-                coo.extend(
-                    np.eye(self.nu, self.nq) * 2 * la_g[0], (self.uDOF, self.qDOF)
-                )
+                dense = approx_fprime(q, lambda q: self.W_g_dense(t, q) @ la_g)
+                coo.extend(dense, (self.uDOF, self.qDOF))
+                # coo.extend(
+                #     np.eye(self.nu, self.nq) * 2 * la_g[0], (self.uDOF, self.qDOF)
+                # )
 
         else:
             raise NotImplementedError
@@ -255,6 +263,10 @@ class MathematicalPendulumCartesianContact:
 
         def W_N(self, t, q, coo):
             coo.extend(self.W_N_dense(t, q), (self.uDOF, self.la_NDOF))
+
+        def Wla_N_q(self, t, q, la_N, coo):
+            dense = approx_fprime(q, lambda q: self.W_N_dense(t, q) @ la_N)
+            coo.extend(dense, (self.uDOF, self.qDOF))
 
         def xi_N(self, t, q, u_pre, u_post):
             return self.g_N_dot(t, q, u_post) + self.e_N * self.g_N_dot(t, q, u_pre)
