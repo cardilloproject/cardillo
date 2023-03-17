@@ -2,7 +2,7 @@ import numpy as np
 import warnings
 
 
-def approx_fprime(x0, f, eps=1.0e-12, method="cs"):
+def approx_fprime(x0, f, method="3-point", eps=1.0e-6):
     """Inspired by scipy's approx_derivative method but extended to
     multidimensional function values and arguments.
 

@@ -66,12 +66,12 @@ def lsmr_solve(A, b):
 def fsolve(
     fun,
     x0,
-    jac="cs",
+    jac="3-point",
     fun_args=(),
     jac_args=(),
     error_function=lambda x: np.max(np.absolute(x)),
     atol=1.0e-8,
-    eps=1.0e-12,
+    eps=1.0e-6,
     max_iter=20,
     linear_solver=lu_solve,
 ):
@@ -85,7 +85,7 @@ def fsolve(
     # compute Jacobian matrix using finite differences
     if jac in ["2-point", "3-point", "cs"]:
         jacobian = lambda x, *args: csc_matrix(
-            approx_fprime(x, lambda y: fun(y, *args), eps=eps, method=jac)
+            approx_fprime(x, lambda y: fun(y, *args), method=jac, eps=eps)
         )
     else:
         jacobian = jac
