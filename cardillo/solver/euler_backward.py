@@ -27,7 +27,7 @@ class EulerBackward:
         #######################################################################
         # integration time
         #######################################################################
-        t0 = system.t0
+        self.t0 = t0 = system.t0
         self.t1 = (
             t1 if t1 > t0 else ValueError("t1 must be larger than initial time t0.")
         )
@@ -207,18 +207,18 @@ class EulerBackward:
 
         return J
 
-        # # J_num = csc_matrix(approx_fprime(y, self._R, method="2-point", eps=1.0e-6))
-        # J_num = csc_matrix(approx_fprime(y, self._R, method="3-point", eps=1.0e-5))
-        # # J_num = csc_matrix(approx_fprime(y, self._R, method="cs", eps=1.0e-12))
-        # diff = (J - J_num).toarray()
-        # # diff = diff[: self.split_y[0]]
-        # # diff = diff[self.split_y[0] : self.split_y[1]]
-        # # diff = diff[self.split_y[0] : self.split_y[1], : self.split_y[0]]
-        # # diff = diff[self.split_y[0] : self.split_y[1], self.split_y[0] :]
-        # # diff = diff[self.split_y[1] :]
-        # error = np.linalg.norm(diff)
-        # print(f"error Jacobian: {error}")
-        # return J_num
+        # J_num = csc_matrix(approx_fprime(y, self._R, method="2-point", eps=1.0e-6))
+        J_num = csc_matrix(approx_fprime(y, self._R, method="3-point", eps=1.0e-6))
+        # J_num = csc_matrix(approx_fprime(y, self._R, method="cs", eps=1.0e-12))
+        diff = (J - J_num).toarray()
+        # diff = diff[: self.split_y[0]]
+        # diff = diff[self.split_y[0] : self.split_y[1]]
+        # diff = diff[self.split_y[0] : self.split_y[1], : self.split_y[0]]
+        # diff = diff[self.split_y[0] : self.split_y[1], self.split_y[0] :]
+        # diff = diff[self.split_y[1] :]
+        error = np.linalg.norm(diff)
+        print(f"error Jacobian: {error}")
+        return J_num
 
     def solve(self):
         q_dot, u_dot, la_g, la_gamma, mu_S, mu_g = np.array_split(self.y, self.split_y)
@@ -236,7 +236,15 @@ class EulerBackward:
         pbar = tqdm(self.t_eval[1:])
         for t in pbar:
             self.t = t
-            sol = fsolve(self._R, self.y, jac=self._J)
+
+            sol = fsolve(
+                self._R,
+                self.y,
+                jac=self._J,
+                error_function=self.error_function,
+                atol=self.atol,
+                max_iter=self.max_iter,
+            )
             self.y = sol[0]
             converged = sol[1]
             error = sol[2]
@@ -261,6 +269,15 @@ class EulerBackward:
             la_gamma_list.append(la_gamma)
             mu_S_list.append(mu_S)
             mu_g_list.append(mu_g)
+
+            # # update step size
+            # min_factor = 0.2
+            # max_factor = 5
+            # target_iter = 1
+            # factor = target_iter / n_iter
+            # factor = max(min_factor, min(max_factor, factor))
+            # print(f"factor: {factor}")
+            # self.dt *= factor
 
         # write solution
         return Solution(

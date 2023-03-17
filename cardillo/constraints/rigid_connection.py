@@ -1,5 +1,4 @@
 import numpy as np
-from cardillo.math import approx_fprime
 from cardillo.constraints._base import (
     PositionOrientationBase,
     ProjectedPositionOrientationBase,
