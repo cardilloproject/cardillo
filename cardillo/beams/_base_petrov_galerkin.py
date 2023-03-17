@@ -1499,9 +1499,6 @@ def make_I_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
     return Derived
 
 
-# TODO:
-# - a_P_q, see RigidBodyBase
-# - a_P_u, see RigidBodyBase
 def make_K_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
     class Derived(RodExportBase, ABC):
         def __init__(
@@ -2976,7 +2973,7 @@ I_TimoshenkoPetrovGalerkinBaseAxisAngle = make_I_basis_TimoshenkoPetrovGalerkinB
 I_TimoshenkoPetrovGalerkinBaseQuaternion = make_I_basis_TimoshenkoPetrovGalerkinBase(
     QuaternionRotationParameterization
 )
-I_TimoshenkoPetrovGalerkinR9 = make_I_basis_TimoshenkoPetrovGalerkinBase(
+I_TimoshenkoPetrovGalerkinBaseR9 = make_I_basis_TimoshenkoPetrovGalerkinBase(
     R9RotationParameterization
 )
 K_TimoshenkoPetrovGalerkinBaseAxisAngle = make_K_basis_TimoshenkoPetrovGalerkinBase(
@@ -2985,6 +2982,6 @@ K_TimoshenkoPetrovGalerkinBaseAxisAngle = make_K_basis_TimoshenkoPetrovGalerkinB
 K_TimoshenkoPetrovGalerkinBaseQuaternion = make_K_basis_TimoshenkoPetrovGalerkinBase(
     QuaternionRotationParameterization
 )
-K_TimoshenkoPetrovGalerkinR9 = make_K_basis_TimoshenkoPetrovGalerkinBase(
+K_TimoshenkoPetrovGalerkinBaseR9 = make_K_basis_TimoshenkoPetrovGalerkinBase(
     R9RotationParameterization
 )

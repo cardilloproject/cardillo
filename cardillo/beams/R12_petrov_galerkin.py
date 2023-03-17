@@ -5,10 +5,10 @@ from cardillo.math import cross3
 from cardillo.beams._base_petrov_galerkin import (
     I_TimoshenkoPetrovGalerkinBaseAxisAngle,
     K_TimoshenkoPetrovGalerkinBaseAxisAngle,
-    I_TimoshenkoPetrovGalerkinR9,
+    I_TimoshenkoPetrovGalerkinBaseR9,
     I_TimoshenkoPetrovGalerkinBaseQuaternion,
     K_TimoshenkoPetrovGalerkinBaseQuaternion,
-    K_TimoshenkoPetrovGalerkinR9,
+    K_TimoshenkoPetrovGalerkinBaseR9,
 )
 
 
@@ -263,5 +263,5 @@ I_R12_PetrovGalerkin_AxisAngle = __make_R12(I_TimoshenkoPetrovGalerkinBaseAxisAn
 K_R12_PetrovGalerkin_AxisAngle = __make_R12(K_TimoshenkoPetrovGalerkinBaseAxisAngle)
 I_R12_PetrovGalerkin_Quaternion = __make_R12(I_TimoshenkoPetrovGalerkinBaseQuaternion)
 K_R12_PetrovGalerkin_Quaternion = __make_R12(K_TimoshenkoPetrovGalerkinBaseQuaternion)
-I_R12_PetrovGalerkin_R9 = __make_R12(I_TimoshenkoPetrovGalerkinR9)
-K_R12_PetrovGalerkin_R9 = __make_R12(K_TimoshenkoPetrovGalerkinR9)
+I_R12_PetrovGalerkin_R9 = __make_R12(I_TimoshenkoPetrovGalerkinBaseR9)
+K_R12_PetrovGalerkin_R9 = __make_R12(K_TimoshenkoPetrovGalerkinBaseR9)

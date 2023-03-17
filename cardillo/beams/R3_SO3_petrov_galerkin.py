@@ -6,8 +6,8 @@ from cardillo.beams._base_petrov_galerkin import (
     K_TimoshenkoPetrovGalerkinBaseAxisAngle,
     I_TimoshenkoPetrovGalerkinBaseQuaternion,
     K_TimoshenkoPetrovGalerkinBaseQuaternion,
-    I_TimoshenkoPetrovGalerkinR9,
-    K_TimoshenkoPetrovGalerkinR9,
+    I_TimoshenkoPetrovGalerkinBaseR9,
+    K_TimoshenkoPetrovGalerkinBaseR9,
 )
 
 
@@ -166,8 +166,8 @@ I_R3_SO3_PetrovGalerkin_Quaternion = __make_R3_SO3(
 K_R3_SO3_PetrovGalerkin_Quaternion = __make_R3_SO3(
     K_TimoshenkoPetrovGalerkinBaseQuaternion
 )
-I_R3_SO3_PetrovGalerkin_R9 = __make_R3_SO3(I_TimoshenkoPetrovGalerkinR9)
-K_R3_SO3_PetrovGalerkin_R9 = __make_R3_SO3(K_TimoshenkoPetrovGalerkinR9)
+I_R3_SO3_PetrovGalerkin_R9 = __make_R3_SO3(I_TimoshenkoPetrovGalerkinBaseR9)
+K_R3_SO3_PetrovGalerkin_R9 = __make_R3_SO3(K_TimoshenkoPetrovGalerkinBaseR9)
 
 
 if False:
