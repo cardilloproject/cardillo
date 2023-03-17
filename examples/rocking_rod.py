@@ -155,15 +155,16 @@ class RockingRod:
         return self.W_F_dense(t, q).T @ a + self.zeta_F(t, q, u)
 
 
+Solver1, label1, dt1, kwargs1 = Rattle, "Rattle", 1e-2, {}
+Solver2, label2, dt2, kwargs2 = Moreau, "Moreau", 5e-3, {}
+
+
 if __name__ == "__main__":
     mass = 1
     l = 1
     eN, eF, mu = 0, 0, 1
 
     phi0 = 30 / 180 * np.pi
-
-    Solver1, label1, dt1, kwargs1 = Rattle, "Rattle", 1e-2, {}
-    Solver2, label2, dt2, kwargs2 = Moreau, "Moreau", 5e-3, {}
 
     rods = []
 

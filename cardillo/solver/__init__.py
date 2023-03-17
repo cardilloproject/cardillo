@@ -9,7 +9,6 @@ from .scipy_ivp import ScipyIVP
 from .radau import RadauIIa
 from .moreau import (
     Moreau,
-    NonsmoothBackwardEulerDecoupled,
     Moreau_new,
     Moreau_classical,
 )
