@@ -155,7 +155,7 @@ class RockingRod:
         return self.W_F_dense(t, q).T @ a + self.zeta_F(t, q, u)
 
 
-Solver1, label1, dt1, kwargs1 = Rattle, "Rattle", 1e-2, {}
+Solver1, label1, dt1, kwargs1 = Rattle, "Rattle", 5e-3, {}
 Solver2, label2, dt2, kwargs2 = MoreauShifted, "Moreau", 5e-3, {}
 
 
@@ -168,21 +168,21 @@ if __name__ == "__main__":
 
     rods = []
 
-    # case 1
-    a = 0.2
-    x0 = a * (np.cos(phi0) - 1)
-    y0 = a * np.sin(phi0)
-    q0 = np.array([x0, y0, phi0])
-    u0 = np.array([0, 0, 0])
-    rods.append(RockingRod(mass, a, l, eN, eF, mu, q0, u0))
+    # # case 1
+    # a = 0.2
+    # x0 = a * (np.cos(phi0) - 1)
+    # y0 = a * np.sin(phi0)
+    # q0 = np.array([x0, y0, phi0])
+    # u0 = np.array([0, 0, 0])
+    # rods.append(RockingRod(mass, a, l, eN, eF, mu, q0, u0))
 
-    # case 2
-    a = 0.3
-    x0 = a * (np.cos(phi0) - 1)
-    y0 = a * np.sin(phi0)
-    q0 = np.array([x0, y0, phi0])
-    u0 = np.array([0, 0, 0])
-    rods.append(RockingRod(mass, a, l, eN, eF, mu, q0, u0))
+    # # case 2
+    # a = 0.3
+    # x0 = a * (np.cos(phi0) - 1)
+    # y0 = a * np.sin(phi0)
+    # q0 = np.array([x0, y0, phi0])
+    # u0 = np.array([0, 0, 0])
+    # rods.append(RockingRod(mass, a, l, eN, eF, mu, q0, u0))
 
     # case 3
     a = 0.6

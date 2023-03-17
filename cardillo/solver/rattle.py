@@ -24,7 +24,7 @@ class Rattle:
         atol=1e-8,
         max_iter=50,
         fix_point_tol=1e-6,
-        fix_point_max_iter=500,
+        fix_point_max_iter=1000,
         error_function=lambda x: np.max(np.abs(x)),
         # method="Newton_decoupled",
         # method="Newton_full",
@@ -427,7 +427,7 @@ class Rattle:
 
         self.x0 = self.x.copy()
 
-        self.x, converged, error, i, _ = fsolve(
+        self.x, self.converged1, self.error1, self.i1, _ = fsolve(
             self.F,
             self.x0,
             jac="2-point",
@@ -437,7 +437,7 @@ class Rattle:
             fun_args=(P_N1, P_N2, P_F1, P_F2),
             jac_args=(P_N1, P_N2, P_F1, P_F2),
         )
-        assert converged
+        assert self.converged1
 
         qn1, un12, un1, _, _, _, _ = np.array_split(self.x, self.split_x)
 
@@ -454,12 +454,14 @@ class Rattle:
         ##############################
         prox_arg = P_N1 - (prox_r_N / self.dt) * self.system.g_N(tn1, qn1)
         self.I_N = prox_arg >= 0
-        P_N1 = prox_R0_np(prox_arg)  # Gauss-Seidel
-        p[: self.split_z[0]] = P_N1
+        # P_N1 = prox_R0_np(prox_arg)  # Gauss-Seidel
+        # p[: self.split_z[0]] = P_N1
+        p[: self.split_z[0]] = prox_R0_np(prox_arg)  # Jacobi
 
         ############################################################
         # fixed-point update mixed Signorini and Newton's impact law
         ############################################################
+        # P_N_bar = 0.5 * (P_N1 + P_N2) # Gauss-Seidel
         P_N_bar = np.where(
             self.I_N,
             prox_R0_np(P_N_bar - prox_r_N * self.system.xi_N(tn1, qn1, self.un, un1)),
@@ -478,9 +480,12 @@ class Rattle:
                     mu[i_N] * P_N1[i_N],
                 )
 
+        # P_F1 = p[self.split_z[1] : self.split_z[2]]  # Gauss-Seidel
+
         ###########################################################
         # fixed-point update mixed friction and Newton's impact law
         ###########################################################
+        # P_F_bar = 0.5 * (P_F1 + P_F2) # Gauss-Seidel
         xi_F = self.system.xi_F(tn1, qn1, self.un, un1)
         for i_N, i_F in enumerate(self.system.NF_connectivity):
             if len(i_F):
@@ -969,6 +974,12 @@ class Rattle:
             self.prox_r_N = self.system.prox_r_N(self.tn, self.qn)
             self.prox_r_F = self.system.prox_r_F(self.tn, self.qn)
 
+            # TODO: We need a possibility to set prox parameters on system level!
+            # print(f"prox_r_N: {self.prox_r_N}")
+            # print(f"prox_r_F: {self.prox_r_F}")
+            # self.prox_r_N = np.ones(self.nla_N) * 0.5
+            # self.prox_r_F = np.ones(self.nla_F) * 0.5
+
             tn1 = self.tn + self.dt
 
             if self.method == "Newton_decoupled":
@@ -1146,19 +1157,19 @@ class Rattle:
 
             elif self.method == "fixed_point_nonlinear_full":
                 z0 = self.zn.copy()
-                for i1 in range(self.fix_point_max_iter):
+                for i2 in range(self.fix_point_max_iter):
                     z = self.p(z0)
 
                     # convergence percussions
-                    # error1 = self.fix_point_error_function(z - z0)
+                    # error2 = self.fix_point_error_function(z - z0)
 
                     # convergence positions and both velocities
-                    error1 = self.fix_point_error_function(
+                    error2 = self.fix_point_error_function(
                         self.x[: self.split_x[2]] - self.x0[: self.split_x[2]]
                     )
 
-                    converged1 = error1 < self.fix_point_tol
-                    if converged1:
+                    converged2 = error2 < self.fix_point_tol
+                    if converged2:
                         break
                     z0 = z
 
@@ -1170,10 +1181,9 @@ class Rattle:
                 P_gn1 = 0.5 * (P_g1 + P_g2)
                 P_gamman1 = 0.5 * (P_gamma1 + P_gamma2)
 
-                i2 = np.nan
-                error2 = np.nan
-                converged = converged1
-                error = error1
+                i1 = self.i1
+                error1 = self.error1
+                converged = self.converged1 and converged2
                 i = i1
             else:
                 raise NotImplementedError
