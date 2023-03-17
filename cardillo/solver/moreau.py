@@ -1,20 +1,13 @@
 import numpy as np
-from scipy.sparse import csr_matrix, csc_matrix, lil_matrix, bmat, eye, diags
-from scipy.sparse.linalg import splu, spsolve, lsqr
+from scipy.sparse import csr_matrix, csc_matrix, bmat
+from scipy.sparse.linalg import splu
 from tqdm import tqdm
 
 from cardillo.solver import Solution, consistent_initial_conditions, compute_I_F
-from cardillo.math import (
-    prox_R0_np,
-    prox_R0_nm,
-    prox_sphere,
-    approx_fprime,
-    norm,
-    fsolve,
-)
+from cardillo.math import prox_R0_np, prox_sphere
 
 
-class Moreau:
+class MoreauShifted:
     def __init__(
         self,
         system,
@@ -589,7 +582,7 @@ class Moreau_new:
         )
 
 
-class Moreau_classical:
+class MoreauClassical:
     def __init__(
         self,
         system,

@@ -8,7 +8,7 @@ from cardillo.discrete import RigidBodyEuler
 from cardillo.discrete import Frame
 from cardillo.forces import Force
 from cardillo.contacts import SphereInSphere
-from cardillo.solver import Moreau, Rattle
+from cardillo.solver import MoreauShifted, Rattle
 
 
 class Ball(RigidBodyEuler):
@@ -62,7 +62,10 @@ if __name__ == "__main__":
     dt = 1e-2
 
     sol1, label1 = Rattle(system, t_final, dt, atol=1e-8).solve(), "Rattle"
-    sol2, label2 = Moreau(system, t_final, dt, fix_point_tol=1e-6).solve(), "Moreau"
+    sol2, label2 = (
+        MoreauShifted(system, t_final, dt, fix_point_tol=1e-6).solve(),
+        "Moreau",
+    )
 
     t1 = sol1.t
     q1 = sol1.q

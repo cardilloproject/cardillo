@@ -8,9 +8,9 @@ from ._base import consistent_initial_conditions, compute_I_F
 from .scipy_ivp import ScipyIVP
 from .radau import RadauIIa
 from .moreau import (
-    Moreau,
+    MoreauShifted,
     Moreau_new,
-    Moreau_classical,
+    MoreauClassical,
 )
 from .euler_backward import EulerBackward
 

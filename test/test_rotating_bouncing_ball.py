@@ -9,11 +9,11 @@ from cardillo.discrete import Frame
 from cardillo.forces import Force
 from cardillo.contacts import Sphere2Plane
 from cardillo.solver import (
-    Moreau,
+    MoreauShifted,
     NonsmoothGeneralizedAlpha,
     Rattle,
     Moreau_new,
-    Moreau_classical,
+    MoreauClassical,
 )
 
 
@@ -116,7 +116,7 @@ def run(case):
     #     NonsmoothGeneralizedAlpha(system, t_final, dt),
     #     "Gen-alpha",
     # )
-    solver2, label2 = Moreau(system, t_final, dt), "Moreau"
+    solver2, label2 = MoreauShifted(system, t_final, dt), "Moreau"
     # solver2, label2 = Rattle(system, t_final, dt), "Rattle"
     sol2 = solver2.solve()
     t2 = sol2.t

@@ -6,7 +6,7 @@ import matplotlib.animation as animation
 
 from cardillo import System
 from cardillo.solver import (
-    Moreau,
+    MoreauShifted,
     NonsmoothGeneralizedAlpha,
     Rattle,
 )
@@ -245,12 +245,15 @@ if __name__ == "__main__":
     system.assemble()
 
     t_final = 1.5
-    # t_final = 0.1
     dt1 = 5e-3
     dt2 = 5e-3
 
     sol1, label1 = Rattle(system, t_final, dt1, atol=1e-10).solve(), "Rattle"
-    sol2, label2 = Moreau(system, t_final, dt2, fix_point_tol=1e-6).solve(), "Moreau"
+
+    sol2, label2 = (
+        MoreauShifted(system, t_final, dt2, fix_point_tol=1e-6).solve(),
+        "Moreau",
+    )
 
     t1 = sol1.t
     q1 = sol1.q

@@ -6,7 +6,7 @@ import matplotlib.animation as animation
 from cardillo.math import approx_fprime
 
 from cardillo import System
-from cardillo.solver import Moreau, Rattle, Moreau_new
+from cardillo.solver import MoreauShifted, Rattle, Moreau_new
 
 
 class SliderCrankFlores:
@@ -973,7 +973,7 @@ def run_Flores():
     # dt = 1e-3
     # dt = 5e-3
 
-    solver = Moreau(system, t1, dt, fix_point_max_iter=5000)
+    solver = MoreauShifted(system, t1, dt, fix_point_max_iter=5000)
 
     sol = solver.solve()
     t = sol.t

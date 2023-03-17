@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 
 from cardillo.math import approx_fprime
 from cardillo import System
-from cardillo.solver import Moreau, Rattle
+from cardillo.solver import MoreauShifted, Rattle
 
 
 class RockingRod:
@@ -156,7 +156,7 @@ class RockingRod:
 
 
 Solver1, label1, dt1, kwargs1 = Rattle, "Rattle", 1e-2, {}
-Solver2, label2, dt2, kwargs2 = Moreau, "Moreau", 5e-3, {}
+Solver2, label2, dt2, kwargs2 = MoreauShifted, "Moreau", 5e-3, {}
 
 
 if __name__ == "__main__":

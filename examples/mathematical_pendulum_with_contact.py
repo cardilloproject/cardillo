@@ -4,7 +4,7 @@ import matplotlib.animation as animation
 
 from cardillo.math.algebra import e1, norm
 from cardillo import System
-from cardillo.solver import Moreau, Rattle, NonsmoothGeneralizedAlpha
+from cardillo.solver import MoreauShifted, Rattle, NonsmoothGeneralizedAlpha
 
 
 bilateral_constrained = True
@@ -17,7 +17,7 @@ with_contact = True
 # with_contact = False
 
 Solver1, label1, dt1, kwargs1 = Rattle, "Rattle", 1e-2, {}
-Solver2, label2, dt2, kwargs2 = Moreau, "Moreau", 1e-2, {}
+Solver2, label2, dt2, kwargs2 = MoreauShifted, "Moreau", 1e-2, {}
 # Solver2, label2, dt2, kwargs2 = NonsmoothGeneralizedAlpha, "Gen-alpha", 1e-2, {}
 
 
