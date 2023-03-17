@@ -133,7 +133,7 @@ class SphereInSphere:
         coo.extend(dense, (self.uDOF, self.qDOF))
 
     def __gamma_F(self, t, q, u):
-        t1t2 = np.zeros((2, 3))
+        t1t2 = np.zeros((2, 3), dtype=np.common_type(q, u))
         n = self.n(t, q)
         t1t2[0] = e3
         t1t2[1] = cross3(n, t1t2[0])

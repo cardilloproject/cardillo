@@ -8,7 +8,7 @@ from cardillo.discrete import RigidBodyEuler
 from cardillo.discrete import Frame
 from cardillo.forces import Force
 from cardillo.contacts import SphereInSphere
-from cardillo.solver import Moreau, NonsmoothBackwardEulerDecoupled, Rattle
+from cardillo.solver import Moreau, Rattle
 
 
 class Ball(RigidBodyEuler):
@@ -112,47 +112,56 @@ if __name__ == "__main__":
     fig, ax = plt.subplots(3, 1)
 
     ax[0].set_title("P_N(t)")
-    ax[0].plot(t1, P_N1[:, 0], "--r", label=label1)
     ax[0].plot(t2, P_N2[:, 0], "-k", label=label2)
+    ax[0].plot(t1, P_N1[:, 0], "--r", label=label1)
     ax[0].legend()
 
     ax[1].set_title("P_Fx(t)")
-    ax[1].plot(t1, P_F1[:, 0], "--r", label=label1)
     ax[1].plot(t2, P_F2[:, 0], "-k", label=label2)
+    ax[1].plot(t1, P_F1[:, 0], "--r", label=label1)
     ax[1].legend()
 
     ax[2].set_title("P_Fy(t)")
-    ax[2].plot(t1, P_F1[:, 1], "--r", label=label1)
     ax[2].plot(t2, P_F2[:, 1], "-k", label=label2)
+    ax[2].plot(t1, P_F1[:, 1], "--r", label=label1)
     ax[2].legend()
 
     plt.tight_layout()
 
     # gaps
-    nt1 = len(t1)
-    g_N1 = np.zeros(nt1)
-    g_N_dot1 = np.zeros(nt1)
-    nt2 = len(t2)
-    g_N2 = np.zeros(nt2)
-    g_N_dot2 = np.zeros(nt2)
+    # nt1 = len(t1)
+    # g_N1 = np.zeros(nt1)
+    # g_N_dot1 = np.zeros(nt1)
+    # nt2 = len(t2)
+    # g_N2 = np.zeros(nt2)
+    # g_N_dot2 = np.zeros(nt2)
 
-    for i, ti in enumerate(t1):
-        g_N1[i] = system.g_N(ti, q1[i])
-        g_N_dot1[i] = system.g_N_dot(ti, q1[i], u1[i])
-    for i, ti in enumerate(t2):
-        g_N2[i] = system.g_N(ti, q2[i])
-        g_N_dot2[i] = system.g_N_dot(ti, q2[i], u2[i])
+    # for i, ti in enumerate(t1):
+    #     g_N1[i] = system.g_N(ti, q1[i])
+    #     g_N_dot1[i] = system.g_N_dot(ti, q1[i], u1[i])
+    # for i, ti in enumerate(t2):
+    #     g_N2[i] = system.g_N(ti, q2[i])
+    #     g_N_dot2[i] = system.g_N_dot(ti, q2[i], u2[i])
+
+    g_N1 = np.array([system.g_N(ti, qi) for (ti, qi) in zip(sol1.t, sol1.q)])
+    g_N_dot1 = np.array(
+        [system.g_N_dot(ti, qi, ui) for (ti, qi, ui) in zip(sol1.t, sol1.q, sol1.u)]
+    )
+    g_N2 = np.array([system.g_N(ti, qi) for (ti, qi) in zip(sol2.t, sol2.q)])
+    g_N_dot2 = np.array(
+        [system.g_N_dot(ti, qi, ui) for (ti, qi, ui) in zip(sol2.t, sol2.q, sol2.u)]
+    )
 
     fig, ax = plt.subplots(2, 1)
 
     ax[0].set_title("g_N(t)")
-    ax[0].plot(t1, g_N1, "--r", label=label1)
     ax[0].plot(t2, g_N2, "-k", label=label2)
+    ax[0].plot(t1, g_N1, "--r", label=label1)
     ax[0].legend()
 
     ax[1].set_title("g_N_dot_Fx(t)")
-    ax[1].plot(t1, g_N_dot1, "--r", label=label1)
     ax[1].plot(t2, g_N_dot2, "-k", label=label2)
+    ax[1].plot(t1, g_N_dot1, "--r", label=label1)
     ax[1].legend()
 
     plt.tight_layout()
