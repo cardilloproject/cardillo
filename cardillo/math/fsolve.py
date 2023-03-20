@@ -82,7 +82,6 @@ def qr_overdetermined_solve(A, b):
     Wiki1: https://en.wikipedia.org/wiki/QR_decomposition#Using_for_solution_to_linear_inverse_problems \\
     Wiki2: https://en.wikipedia.org/wiki/Triangular_matrix#Forward_and_back_substitution
     """
-    # TODO: Test https://github.com/scipy/scipy/pull/18097/files
 
     # solve triangular system
     from scipy.linalg import qr, solve_triangular
