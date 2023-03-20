@@ -39,7 +39,7 @@ class SphereInSphere:
             self.gamma_F = self.__gamma_F
 
         self.e_N = np.zeros(self.nla_N) if e_N is None else np.array([e_N])
-        self.e_F = np.zeros(self.nla_F) if e_F is None else np.array([e_F])
+        self.e_F = np.zeros(self.nla_F) if e_F is None else np.array([e_F, e_F])
         self.frame_ID = frame_ID
 
         self.r_OQ = lambda t: self.frame.r_OP(t)
@@ -133,7 +133,7 @@ class SphereInSphere:
         coo.extend(dense, (self.uDOF, self.qDOF))
 
     def __gamma_F(self, t, q, u):
-        t1t2 = np.zeros((2, 3))
+        t1t2 = np.zeros((2, 3), dtype=np.common_type(q, u))
         n = self.n(t, q)
         t1t2[0] = e3
         t1t2[1] = cross3(n, t1t2[0])

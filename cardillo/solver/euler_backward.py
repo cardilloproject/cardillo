@@ -1,8 +1,8 @@
 import numpy as np
-from scipy.sparse import csc_matrix, csr_matrix, eye, bmat
+from scipy.sparse import csc_matrix, csr_matrix, lil_matrix, eye, diags, bmat
 from tqdm import tqdm
 
-from cardillo.math import approx_fprime, fsolve
+from cardillo.math import prox_sphere, fsolve, approx_fprime
 from cardillo.solver import Solution, consistent_initial_conditions
 
 
@@ -142,7 +142,7 @@ class EulerBackward:
         q, u = self._update(y)
 
         A = (
-            eye(self.nq, format="coo")
+            eye(self.nq, format="csc")
             - dt * self.system.q_dot_q(t, q, u)
             - dt * self.system.g_S_q_T_mu_q(t, q, mu_S)
         )
@@ -290,4 +290,443 @@ class EulerBackward:
             la_gamma=np.array(la_gamma_list),
             mu_s=np.array(mu_S_list),
             mu_g=np.array(mu_g_list),
+        )
+
+
+# TODO: Add stabilization and constraints g_S
+class NonsmoothBackwardEuler:
+    def __init__(
+        self,
+        system,
+        t1,
+        dt,
+        tol=1e-6,
+        max_iter=10,
+    ):
+        self.system = system
+
+        #######################################################################
+        # integration time
+        #######################################################################
+        self.t0 = t0 = system.t0
+        self.t1 = (
+            t1 if t1 > t0 else ValueError("t1 must be larger than initial time t0.")
+        )
+        self.dt = dt
+
+        #######################################################################
+        # newton settings
+        #######################################################################
+        self.tol = tol
+        self.max_iter = max_iter
+
+        #######################################################################
+        # dimensions
+        #######################################################################
+        self.nq = system.nq
+        self.nu = system.nu
+        self.nla_g = system.nla_g
+        self.nla_gamma = system.nla_gamma
+        self.nla_N = system.nla_N
+        self.nla_F = system.nla_F
+        self.ny = (
+            self.nq + self.nu + self.nla_g + self.nla_gamma + self.nla_N + self.nla_F
+        )
+        self.split = np.cumsum(
+            np.array(
+                [
+                    self.nq,
+                    self.nu,
+                    self.nla_g,
+                    self.nla_gamma,
+                    self.nla_N,
+                ],
+                dtype=int,
+            )
+        )
+
+        #######################################################################
+        # consistent initial conditions
+        #######################################################################
+        (
+            self.tn,
+            self.qn,
+            self.un,
+            self.q_dotn,
+            self.u_dotn,
+            self.la_gn,
+            self.la_gamman,
+        ) = consistent_initial_conditions(system)
+
+        self.la_Nn = system.la_N0
+        self.la_Fn = system.la_F0
+
+        #######################################################################
+        # initial values
+        #######################################################################
+        self.yn = np.concatenate(
+            (
+                self.q_dotn,
+                self.u_dotn,
+                self.la_gn,
+                self.la_gamman,
+                self.la_Nn,
+                self.la_Fn,
+            )
+        )
+
+        # initialize index sets
+        self.I_N = np.zeros(self.nla_N, dtype=bool)
+
+    def R(self, yn1, update_index=False):
+        tn, dt, qn, un = self.tn, self.dt, self.qn, self.un
+
+        q_dotn1, u_dotn1, la_gn1, la_gamman1, la_Nn1, la_Fn1 = np.array_split(
+            yn1, self.split
+        )
+        tn1 = tn + dt
+        qn1 = qn + dt * q_dotn1
+        un1 = un + dt * u_dotn1
+
+        ###################
+        # evaluate residual
+        ###################
+        R = np.zeros(self.ny, dtype=yn1.dtype)
+
+        ####################
+        # kinematic equation
+        ####################
+        R[: self.split[0]] = q_dotn1 - self.system.q_dot(tn1, qn1, un1)
+
+        ####################
+        # euations of motion
+        ####################
+        R[self.split[0] : self.split[1]] = (
+            self.system.M(tn1, qn1, scipy_matrix=csr_matrix) @ u_dotn1
+            - self.system.h(tn1, qn1, un1)
+            - self.system.W_g(tn1, qn1, scipy_matrix=csr_matrix) @ la_gn1
+            - self.system.W_gamma(tn1, qn1, scipy_matrix=csr_matrix) @ la_gamman1
+            - self.system.W_N(tn1, qn1, scipy_matrix=csr_matrix) @ la_Nn1
+            - self.system.W_F(tn1, qn1, scipy_matrix=csr_matrix) @ la_Fn1
+        )
+
+        #######################
+        # bilateral constraints
+        #######################
+        R[self.split[1] : self.split[2]] = self.system.g(tn1, qn1)
+        R[self.split[2] : self.split[3]] = self.system.gamma(tn1, qn1, un1)
+
+        ###########
+        # Signorini
+        ###########
+        g_Nn1 = self.system.g_N(tn1, qn1)
+        prox_arg = g_Nn1 - self.prox_r_N * la_Nn1
+        if update_index:
+            self.I_N = prox_arg <= 0.0
+
+        R[self.split[3] : self.split[4]] = np.where(self.I_N, g_Nn1, la_Nn1)
+
+        ##########
+        # friction
+        ##########
+        gamma_Fn1 = self.system.gamma_F(tn1, qn1, un1)
+        mu = self.system.mu
+        prox_r_F = self.prox_r_F
+        for i_N, i_F in enumerate(self.system.NF_connectivity):
+            i_F = np.array(i_F)
+
+            if len(i_F) > 0:
+                # Note: This is the simplest formulation for friction but we
+                # subsequently decompose the function it into both cases of
+                # the prox_sphere function for easy derivation
+                R[self.split[4] + i_F] = la_Fn1[i_F] + prox_sphere(
+                    prox_r_F[i_N] * gamma_Fn1[i_F] - la_Fn1[i_F],
+                    mu[i_N] * la_Nn1[i_N],
+                )
+
+        return R
+
+    def J(self, yn1, *args, **kwargs):
+        tn, dt, qn, un = self.tn, self.dt, self.qn, self.un
+
+        q_dotn1, u_dotn1, la_gn1, la_gamman1, la_Nn1, la_Fn1 = np.array_split(
+            yn1, self.split
+        )
+        tn1 = tn + dt
+        qn1 = qn + dt * q_dotn1
+        un1 = un + dt * u_dotn1
+
+        ####################
+        # kinematic equation
+        ####################
+        Rq_q = eye(self.nq) - dt * self.system.q_dot_q(tn1, qn1, un1)
+        Rq_u = -dt * self.system.B(tn1, qn1)
+
+        ########################
+        # euations of motion (1)
+        ########################
+        M = self.system.M(tn1, qn1)
+        W_g = self.system.W_g(tn1, qn1)
+        W_gamma = self.system.W_gamma(tn1, qn1)
+        W_N = self.system.W_N(tn1, qn1)
+        W_F = self.system.W_F(tn1, qn1)
+
+        Ru_q = dt * (
+            self.system.Mu_q(tn1, qn1, u_dotn1)
+            - self.system.h_q(tn1, qn1, un1)
+            - self.system.Wla_g_q(tn1, qn1, la_gn1)
+            - self.system.Wla_gamma_q(tn1, qn1, la_gamman1)
+            - self.system.Wla_N_q(tn1, qn1, la_Nn1)
+            - self.system.Wla_F_q(tn1, qn1, la_Fn1)
+        )
+        Ru_u = M - dt * self.system.h_u(tn1, qn1, un1)
+
+        #######################
+        # bilateral constraints
+        #######################
+        Rla_g_q = dt * self.system.g_q(tn1, qn1)
+        Rla_gamma_q = dt * self.system.gamma_q(tn1, qn1, un1)
+        Rla_gamma_u = dt * self.system.W_gamma(tn1, qn1).T
+
+        ###########
+        # Signorini
+        ###########
+        if np.any(self.I_N):
+            # note: csr_matrix is best for row slicing, see
+            # (https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csr_matrix.html#scipy.sparse.csr_matrix)
+            g_N_q = dt * self.system.g_N_q(tn1, qn1, scipy_matrix=csr_matrix)
+
+        Rla_N_q = lil_matrix((self.nla_N, self.nq))
+        Rla_N_la_N = lil_matrix((self.nla_N, self.nla_N))
+        for i in range(self.nla_N):
+            if self.I_N[i]:
+                Rla_N_q[i] = g_N_q[i]
+            else:
+                Rla_N_la_N[i, i] = 1.0
+
+        ##############################
+        # friction and tangent impacts
+        ##############################
+        mu = self.system.mu
+        prox_r_F = self.prox_r_F
+        gamma_F = self.system.gamma_F(tn1, qn1, un1)
+
+        # note: csr_matrix is best for row slicing, see
+        # (https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csr_matrix.html#scipy.sparse.csr_matrix)
+        gamma_F_q = self.system.gamma_F_q(tn1, qn1, un1, scipy_matrix=csr_matrix)
+
+        # note: we use csc_matrix sicne its transpose is a csr_matrix that is best for row slicing, see,
+        # (https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csr_matrix.html#scipy.sparse.csr_matrix)
+        gamma_F_u = W_F.tocsc().T
+
+        Rla_F_q = lil_matrix((self.nla_F, self.nq))
+        Rla_F_u = lil_matrix((self.nla_F, self.nu))
+        Rla_F_la_N = lil_matrix((self.nla_F, self.nla_N))
+        Rla_F_la_F = lil_matrix((self.nla_F, self.nla_F))
+
+        for i_N, i_F in enumerate(self.system.NF_connectivity):
+            i_F = np.array(i_F)
+            n_F = len(i_F)
+            if n_F > 0:
+                la_Ni = la_Nn1[i_N]
+                la_Fi = la_Fn1[i_F]
+                gamma_Fi = gamma_F[i_F]
+                arg_F = prox_r_F[i_F] * gamma_Fi - la_Fi
+                mui = mu[i_N]
+                radius = mui * la_Ni
+                norm_arg_F = np.linalg.norm(arg_F)
+
+                if norm_arg_F <= radius:
+                    Rla_F_q[i_F] = diags(prox_r_F[i_F]) @ gamma_F_q[i_F]
+                    Rla_F_u[i_F] = diags(prox_r_F[i_F]) @ gamma_F_u[i_F]
+                else:
+                    if norm_arg_F > 0:
+                        slip_dir = arg_F / norm_arg_F
+                        factor = np.eye(n_F) - np.outer(slip_dir, slip_dir)
+                        Rla_F_q[i_F] = (
+                            radius * factor @ diags(prox_r_F[i_F]) @ gamma_F_q[i_F]
+                        )
+                        Rla_F_u[i_F] = (
+                            radius * factor @ diags(prox_r_F[i_F]) @ gamma_F_u[i_F]
+                        )
+                        Rla_F_la_N[i_F[:, None], i_N] = mui * slip_dir
+                        Rla_F_la_F[i_F[:, None], i_F] = np.eye(n_F) - radius * factor
+                    else:
+                        slip_dir = arg_F
+                        Rla_F_q[i_F] = radius * diags(prox_r_F[i_F]) @ gamma_F_q[i_F]
+                        Rla_F_u[i_F] = radius * diags(prox_r_F[i_F]) @ gamma_F_u[i_F]
+                        Rla_F_la_N[i_F[:, None], i_N] = mui * slip_dir
+                        Rla_F_la_F[i_F[:, None], i_F] = (1 - radius) * eye(n_F)
+
+        # fmt: off
+        J = bmat(
+            [
+                [Rq_q, Rq_u, None, None, None, None],
+                [Ru_q, Ru_u, -W_g, -W_gamma, -W_N, -W_F],
+                [Rla_g_q, None, None, None, None, None],
+                [Rla_gamma_q, Rla_gamma_u, None, None, None, None],
+                [Rla_N_q, None, None, None, Rla_N_la_N, None],
+                [dt * Rla_F_q, dt * Rla_F_u, None, None, Rla_F_la_N, Rla_F_la_F],
+            ],
+            format="csr",
+        )
+        # fmt: on
+
+        return J
+
+        J_num = csr_matrix(approx_fprime(yn1, self.R))
+
+        diff = (J - J_num).toarray()
+        # diff = diff[:self.split[0]]
+        diff = diff[self.split[0] : self.split[1]]
+        # diff = diff[self.split[0]:self.split[1], : self.split[0]]
+        # diff = diff[self.split[1]:self.split[2]]
+        # diff = diff[self.split[2]:self.split[3]]
+        # diff = diff[self.split[3]:self.split[4]]
+        # diff = diff[self.split[4] :]
+        # diff = diff[self.split[4] :, : self.split[0]]
+        # diff = diff[self.split[4] :, self.split[0] : self.split[1]]
+        error = np.linalg.norm(diff)
+        if error > 1.0e-8:
+            print(f"error J: {error}")
+
+        return J_num
+
+    def step(self, xn1, f, G):
+        # only compute optimized proxparameters once per time step
+        self.prox_r_N = self.system.prox_r_N(self.tn, self.qn)
+        self.prox_r_F = self.system.prox_r_F(self.tn, self.qn)
+
+        # initial residual and error
+        R = f(xn1, update_index=True)
+        error = self.error_function(R)
+        converged = error < self.tol
+
+        # print(f"initial error: {error}")
+        j = 0
+        if not converged:
+            while j < self.max_iter:
+                # jacobian
+                J = G(xn1)
+
+                # Newton update
+                j += 1
+
+                # dx = spsolve(J, R, use_umfpack=True)
+                dx = spsolve(J, R, use_umfpack=False)
+
+                # dx = lsqr(J, R, atol=1.0e-12, btol=1.0e-12)[0]
+
+                # # no underflow errors
+                # dx = np.linalg.lstsq(J.toarray(), R, rcond=None)[0]
+
+                # # Can we get this sparse?
+                # # using QR decomposition, see https://de.wikipedia.org/wiki/QR-Zerlegung#L%C3%B6sung_regul%C3%A4rer_oder_%C3%BCberbestimmter_Gleichungssysteme
+                # b = R.copy()
+                # Q, R = np.linalg.qr(J.toarray())
+                # z = Q.T @ b
+                # dx = np.linalg.solve(R, z)  # solving R*x = Q^T*b
+
+                # # solve normal equation (should be independent of the conditioning
+                # # number!)
+                # dx = spsolve(J.T @ J, J.T @ R)
+
+                xn1 -= dx
+
+                R = f(xn1, update_index=True)
+                error = self.error_function(R)
+                converged = error < self.tol
+                if converged:
+                    break
+
+            if not converged:
+                # raise RuntimeError("internal Newton-Raphson not converged")
+                print(f"not converged!")
+
+        return converged, j, error, xn1
+
+    def solve(self):
+        # lists storing output variables
+        t = [self.tn]
+        q = [self.qn]
+        u = [self.un]
+        q_dot = [self.q_dotn]
+        u_dot = [self.u_dotn]
+        P_g = [self.dt * self.la_gn]
+        P_gamma = [self.dt * self.la_gamman]
+        P_N = [self.dt * self.la_Nn]
+        P_F = [self.dt * self.la_Fn]
+
+        # prox_r_N = []
+        # prox_r_F = []
+        # error = []
+        niter = [0]
+
+        pbar = tqdm(np.arange(self.t0, self.t1, self.dt))
+        for _ in pbar:
+            # only compute optimized proxparameters once per time step
+            self.prox_r_N = self.system.prox_r_N(self.tn, self.qn)
+            self.prox_r_F = self.system.prox_r_F(self.tn, self.qn)
+
+            # perform a sovler step
+            tn1 = self.tn + self.dt
+
+            yn1, converged, error, n_iter, _ = fsolve(
+                self.R,
+                self.yn,
+                jac=self.J,
+                fun_args=(True,),
+                jac_args=(False,),
+            )
+            niter.append(n_iter)
+
+            # update progress bar and check convergence
+            pbar.set_description(
+                f"t: {tn1:0.2e}s < {self.t1:0.2e}s; ||R||: {error:0.2e} ({n_iter}/{self.max_iter})"
+            )
+            if not converged:
+                print(
+                    f"internal Newton-Raphson method not converged after {n_iter} steps with error: {error:.5e}"
+                )
+
+                break
+
+            q_dotn1, u_dotn1, la_gn1, la_gamman1, la_Nn1, la_Fn1 = np.array_split(
+                yn1, self.split
+            )
+            qn1 = self.qn + self.dt * q_dotn1
+            un1 = self.un + self.dt * u_dotn1
+
+            # modify converged quantities
+            qn1, un1 = self.system.step_callback(tn1, qn1, un1)
+
+            # store soltuion fields
+            t.append(tn1)
+            q.append(qn1)
+            u.append(un1)
+            q_dot.append(q_dotn1)
+            u_dot.append(u_dotn1)
+            P_g.append(self.dt * la_gn1)
+            P_gamma.append(self.dt * la_gamman1)
+            P_N.append(self.dt * la_Nn1)
+            P_F.append(self.dt * la_Fn1)
+
+            # update local variables for accepted time step
+            self.yn = yn1.copy()
+            self.tn = tn1
+            self.qn = qn1
+            self.un = un1
+
+        # write solution
+        return Solution(
+            t=np.array(t),
+            q=np.array(q),
+            u=np.array(u),
+            q_dot=np.array(q_dot),
+            u_dot=np.array(u_dot),
+            P_g=np.array(P_g),
+            P_gamma=np.array(P_gamma),
+            P_N=np.array(P_N),
+            P_F=np.array(P_F),
+            niter=np.array(niter),
         )

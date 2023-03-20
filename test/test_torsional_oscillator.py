@@ -60,9 +60,9 @@ def run(
     joint = PDRotational(Revolute, Spring=LinearSpring, Damper=LinearDamper)(
         subsystem1=system.origin,
         subsystem2=rigid_body,
+        axis=rotation_axis,
         r_OB0=np.zeros(3),
         A_IB0=A_IK0,
-        rotation_axis=rotation_axis,
         k=k,
         d=d,
         g_ref=g_ref,

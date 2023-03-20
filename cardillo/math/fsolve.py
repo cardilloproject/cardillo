@@ -128,15 +128,110 @@ def lsmr_solve(A, b):
     return lsmr(A, b, atol=0, btol=0, conlim=0)[0]
 
 
+def qr_solve(A, b):
+    """
+    Solve the sparse linear system Ax=b, using numpy's wrapper to dense Lapack
+    functions lstsq_m/ lstsq_n.
+    References:
+    -----------
+    numpy: https://numpy.org/doc/stable/reference/generated/numpy.linalg.lstsq.html
+    """
+    return np.linalg.lstsq(A.toarray(), b, rcond=None)[0]
+
+
+def qr_overdetermined_solve(A, b):
+    """Solve the sparse (overdetermined) linear system Ax=b using dense 
+    QR-decomposition.
+    
+    References:
+    Wiki1: https://en.wikipedia.org/wiki/QR_decomposition#Using_for_solution_to_linear_inverse_problems \\
+    Wiki2: https://en.wikipedia.org/wiki/Triangular_matrix#Forward_and_back_substitution
+    """
+
+    # solve triangular system
+    from scipy.linalg import qr, solve_triangular
+
+    # get shape of A
+    m, n = A.shape
+
+    # QR decomposition of A
+    Q, R, p = qr(A.toarray(), pivoting=True, mode="full")
+
+    x2 = np.zeros(n, dtype=float)
+    x2[p] = solve_triangular(R, Q.T @ b)
+    return x2
+
+
+def qr_underdetermined_solve(A, b):
+    """Solve the sparse (underdetermined) linear system Ax=b using dense 
+    QR-decomposition.
+    
+    References:
+    Wiki1: https://en.wikipedia.org/wiki/QR_decomposition#Using_for_solution_to_linear_inverse_problems \\
+    Wiki2: https://en.wikipedia.org/wiki/Triangular_matrix#Forward_and_back_substitution
+    """
+    # QR decomposition of A
+    Q, R = np.linalg.qr(A.toarray().T)
+
+    # solve triangular system
+    from scipy.linalg import solve_triangular
+
+    return Q @ solve_triangular(R.T, b, lower=True)
+
+
+def svd_solve(A, b):
+    """See https://stackoverflow.com/a/59292892/7280763 and Lee2012 section 6.
+
+    References:
+    -----------
+    Lee2012: http://math.uchicago.edu/~may/REU2012/REUPapers/Lee.pdf
+    """
+    # compute svd of A
+    U, s, Vh = np.linalg.svd(A.toarray(), full_matrices=False)
+
+    # from scipy.linalg import svd
+    # U, s, Vh = svd(A.toarray())
+
+    # U diag(s) Vh x = b <=> diag(s) Vh x = U.T b = c
+    c = np.dot(U.T, b)
+    # diag(s) Vh x = c <=> Vh x = diag(1/s) c = w (trivial inversion of a diagonal matrix)
+    w = np.dot(np.diag(1 / s), c)
+    # Vh x = w <=> x = Vh.H w (where .H stands for hermitian = conjugate transpose)
+    x = np.dot(Vh.conj().T, w)
+    return x
+
+
+def normal_equation_solve(A, b):
+    # from scipy.linalg import solve
+    # A = A.toarray()
+    # return solve(A.T @ A, A.T @ b, assume_a="sym")
+
+    A = A.toarray()
+    AA = A.T @ A
+    Ab = A.T @ b
+
+    # # compute svd of A
+    # U, s, Vh = np.linalg.svd(AA)
+
+    from scipy.linalg import svd
+
+    U, s, Vh = svd(AA)
+
+    c = np.dot(U.T, Ab)
+    w = np.dot(np.diag(1 / s), c)
+    x = np.dot(Vh.conj().T, w)
+    return x
+
+
 def fsolve(
     fun,
     x0,
-    jac="cs",
+    jac="3-point",
     fun_args=(),
     jac_args=(),
     error_function=lambda x: np.max(np.absolute(x)),
     atol=1.0e-8,
-    eps=1.0e-12,
+    eps=1.0e-6,
     max_iter=20,
     linear_solver=lu_solve,
     # linear_solver=lsqr_solve,
@@ -155,7 +250,7 @@ def fsolve(
     # compute Jacobian matrix using finite differences
     if jac in ["2-point", "3-point", "cs"]:
         jacobian = lambda x, *args: csc_matrix(
-            approx_fprime(x, lambda y: fun(y, *args), eps=eps, method=jac)
+            approx_fprime(x, lambda y: fun(y, *args), method=jac, eps=eps)
         )
     else:
         jacobian = jac

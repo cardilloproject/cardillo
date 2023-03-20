@@ -91,11 +91,12 @@ def run(revolute_joint_used=False, use_relative_kinematics=False):
         RB2 = RigidBodyQuaternion(m / 2, K_theta_S2, q0=q20, u0=u20)
 
     if revolute_joint_used:
-        joint = Revolute(frame, RB1, r_OP(0), np.eye(3))
+        joint = Revolute(frame, RB1, 2, r_OP(0), np.eye(3))
     else:
         joint = PDRotational(Revolute, LinearSpring, LinearDamper)(
             frame,
             RB1,
+            2,
             r_OP(0),
             np.eye(3),
             k=k,
@@ -326,6 +327,6 @@ def run(revolute_joint_used=False, use_relative_kinematics=False):
 
 if __name__ == "__main__":
     run(False, False)
-    # run(True, False)
-    # run(False, True)
-    # run(True, True)
+    run(True, False)
+    run(False, True)
+    run(True, True)
