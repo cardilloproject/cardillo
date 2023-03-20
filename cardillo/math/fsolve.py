@@ -92,29 +92,6 @@ def qr_overdetermined_solve(A, b):
 
     # QR decomposition of A
     Q, R, p = qr(A.toarray(), pivoting=True, mode="full")
-    # Q, R, p = qr(A.toarray(), pivoting=True, mode="economic")
-
-    # # create permutation matrix; it can order A by rank for *rank revealing*
-    # P = np.eye(len(p), dtype=float)[:, p]
-
-    # # rank is the number of linearly independent columns & rows in A
-    # # TODO: How to chose tolerance?
-    # rank = sum(np.around(np.diag(R), 12) != 0)
-
-    # # Q_1 is the left m x r block of Q
-    # Q_1 = Q[:, :rank]
-
-    # # R_1 is the r x r upper left block of R
-    # R_1 = R[:rank, :rank]
-
-    # # pad x with r - m zeros at the bottom for a solution vector
-    # xp = np.zeros(n, dtype=float)
-    # xp[:rank] = solve_triangular(R_1, Q_1.T @ b)
-
-    # # apply permutation
-    # # x = P @ xp
-    # # print(f"x: {x}")
-    # return P @ xp
 
     x2 = np.zeros(n, dtype=float)
     x2[p] = solve_triangular(R, Q.T @ b)
