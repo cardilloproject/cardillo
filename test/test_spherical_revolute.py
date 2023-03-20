@@ -375,7 +375,7 @@ if __name__ == "__main__":
     # run("Spherical", EulerBackward, method="index 3")
     # run("Spherical", EulerBackward, method="index 2 GGL")
     # run("Spherical", RadauIIa)
-    # run("Spherical", ScipyIVP)
+    run("Spherical", ScipyIVP)
 
     ######################
     # revolute joint tests
@@ -385,7 +385,7 @@ if __name__ == "__main__":
     # run("Revolute", EulerBackward, method="index 3")
     # run("Revolute", EulerBackward, method="index 2 GGL")
     # run("Revolute", RadauIIa)
-    # run("Revolute", ScipyIVP)
+    run("Revolute", ScipyIVP)
 
     ###########################
     # PD rotational joint tests

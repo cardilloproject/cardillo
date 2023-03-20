@@ -156,7 +156,7 @@ class RockingRod:
 
 
 Solver1, label1, dt1, kwargs1 = Rattle, "Rattle", 5e-3, {}
-Solver2, label2, dt2, kwargs2 = MoreauShifted, "Moreau", 5e-3, {}
+Solver2, label2, dt2, kwargs2 = MoreauShifted, "MoreauShifted", 5e-3, {}
 
 
 if __name__ == "__main__":

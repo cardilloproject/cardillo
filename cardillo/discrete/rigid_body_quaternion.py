@@ -66,15 +66,14 @@ class RigidBodyQuaternion(RigidBodyBase):
         coo.extend(dense, (self.qDOF, self.qDOF))
 
     def q_dot(self, t, q, u):
-        P = q[3:]
         q_dot = np.zeros(self.nq, dtype=np.common_type(q, u))
         q_dot[:3] = u[:3]
-        q_dot[3:] = T_SO3_inv_quat(P) @ u[3:]
+        q_dot[3:] = T_SO3_inv_quat(q[3:]) @ u[3:]
         return q_dot
 
     def q_dot_q(self, t, q, u, coo):
         dense = np.zeros((self.nq, self.nq), dtype=np.common_type(q, u))
-        dense[3:, 3:] = np.einsum("ijk,j->ik", T_SO3_inv_quat_P(), u[3:])
+        dense[3:, 3:] = np.einsum("ijk,j->ik", T_SO3_inv_quat_P(q[3:]), u[3:])
         coo.extend(dense, (self.qDOF, self.qDOF))
 
     def B(self, t, q, coo):

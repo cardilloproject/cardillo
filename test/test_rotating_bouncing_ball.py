@@ -98,10 +98,10 @@ def run(case):
 
     # solver1, label1 = NonsmoothGeneralizedAlpha(system, t_final, dt, method="newton"), "Gen-alpha"
     # solver1, label1 = Rattle(system, t_final, dt), "Rattle"
-    # solver1, label1 = Moreau(system, t_final, dt), "Moreau"
-    # solver1, label1 = Moreau_new(system, t_final, dt), "Moreau_new"
-    # solver1, label1 = Moreau_classical(system, t_final, dt), "Moreau_classical"
-    solver1, label1 = NonsmoothBackwardEuler(system, t_final, dt), "Euler backward"
+    # solver1, label1 = MoreauShifted(system, t_final, dt), "MoreauShifted"
+    # solver1, label1 = MoreauShiftedNew(system, t_final, dt), "MoreauShiftedNew"
+    solver1, label1 = MoreauClassical(system, t_final, dt), "MoreauClassical"
+    # solver1, label1 = NonsmoothBackwardEuler(system, t_final, dt), "Euler backward"
 
     sol1 = solver1.solve()
     t1 = sol1.t
