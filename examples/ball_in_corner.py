@@ -11,10 +11,11 @@ from cardillo.discrete import RigidBodyEuler
 from cardillo.discrete import Frame
 from cardillo.forces import Force
 from cardillo.contacts import Sphere2Plane
-from cardillo.solver import MoreauShifted, Rattle
+from cardillo.solver import MoreauShifted, Rattle, NonsmoothBackwardEuler
 
 
-Solver1, label1, dt1, kwargs1 = Rattle, "Rattle", 1e-2, {}
+Solver1, label1, dt1, kwargs1 = NonsmoothBackwardEuler, "Euler backward", 1e-2, {}
+# Solver1, label1, dt1, kwargs1 = Rattle, "Rattle", 1e-2, {}
 # Solver1, label1, dt1, kwargs1 = MoreauShifted, "Moreau", 2e-2, {}
 Solver2, label2, dt2, kwargs2 = MoreauShifted, "Moreau", 1e-2, {}
 
@@ -68,6 +69,7 @@ def run():
     frame_right = Frame(A_IK=np.vstack((e3, e1, e2)).T)
     mu = 0.3
     e_N = 0.5
+    # e_N = 0.0  # TODO: Remove this
     e_F = 0.0
     plane_right = Sphere2Plane(frame_right, RB, r, mu, e_N=e_N, e_F=e_F)
 
