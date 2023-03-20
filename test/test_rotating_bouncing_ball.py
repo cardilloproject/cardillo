@@ -12,7 +12,7 @@ from cardillo.solver import (
     MoreauShifted,
     NonsmoothGeneralizedAlpha,
     Rattle,
-    Moreau_new,
+    MoreauShiftedNew,
     MoreauClassical,
     NonsmoothBackwardEuler,
 )

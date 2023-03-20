@@ -12,6 +12,7 @@
   - [Table of Contents](#table-of-contents)
   - [Requirements](#requirements)
   - [Installation](#installation)
+  - [Virtual environments](#virtual-environments)
   - [Documentation](#documentation)
   - [Developing](#developing)
     - [Pre-requisites](#pre-requisites)
@@ -30,6 +31,29 @@ cd cardillo3
 pip install .
 ```
 
+## Virtual environments
+We recommend to work with virtual environments. These provide a Python environment that is isolated from the global Python installation. It can be set up using the following steps.
+
+1. Create a virtual environment with the name `myvenv`
+```bash
+python -m venv myvenv
+```
+2. Activate the virtual environment by executing the `activate` script
+
+macOS/Linux:
+```bash
+source ./myvenv/bin/activate
+```
+
+Windows:
+```bash
+myvenv/Scripts/activate
+```
+3. The Python path of your shell is now set to the Python installation in the virtual environment. Proceed to install cardillo as ususal.
+
+```bash
+pip install -e .
+```
 ## Documentation
 ~~You can access the documentation via [the following link](https://jonasharsch.gitlab.io/cardillo3)~~.
  

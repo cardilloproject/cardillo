@@ -3,7 +3,7 @@ from cardillo.solver.solution import Solution
 
 import numpy as np
 from scipy.sparse.linalg import spsolve
-from scipy.sparse import csr_matrix, bmat, lil_matrix
+from scipy.sparse import csr_matrix, coo_matrix, bmat, lil_matrix
 from tqdm import tqdm
 
 
@@ -72,7 +72,7 @@ class Newton:
     def __error_function(self, x):
         return np.max(np.absolute(x))
 
-    def __eval__analytic(self, t, x):
+    def fun(self, t, x):
         nq = self.nq
         nu = self.nu
         nla_g = self.nla_g
@@ -95,6 +95,50 @@ class Newton:
         R[nu : nu + nla_g] = self.system.g(t, q)
         R[nu + nla_g : nu + nla_g + nla_S] = self.system.g_S(t, q)
         R[nu + nla_g + nla_S :] = np.minimum(la_N, g_N)
+        return R
+
+    def __eval__analytic(self, t, x):
+        nq = self.nq
+        nu = self.nu
+        nla_g = self.nla_g
+        nla_S = self.nla_S
+
+        q = x[:nq]
+        la_g = x[nq : nq + nla_g]
+        la_N = x[nq + nla_g :]
+
+        self.system.pre_iteration_update(t, q, self.u0)
+
+        # evaluate quantites that are required for computing the residual and
+        # the jacobian
+        W_g = self.system.W_g(t, q, scipy_matrix=csr_matrix)
+        W_N = self.system.W_N(t, q, scipy_matrix=csr_matrix)
+        g_N = self.system.g_N(t, q)
+
+        if np.any(g_N <= 0):
+            print(f"active contacts")
+
+        R = np.zeros(self.nf, dtype=x.dtype)
+        R[:nu] = self.system.h(t, q, self.u0) + W_g @ la_g + W_N @ la_N
+        R[nu : nu + nla_g] = self.system.g(t, q)
+        R[nu + nla_g : nu + nla_g + nla_S] = self.system.g_S(t, q)
+        R[nu + nla_g + nla_S :] = np.minimum(la_N, g_N)
+        # def fb(a, b):
+        #     # return np.minimum(a, b)
+
+        #     return a + b - np.sqrt(a * a + b * b)
+
+        #     # from cardillo.math import prox_R0_np
+        #     # r = 1.0e-2
+        #     # return a - prox_R0_np(a - r * b)
+
+        # R[nu + nla_g + nla_S :] = fb(la_N, g_N)
+
+        # def fb_a(a, b):
+        #     return coo_matrix(approx_fprime(a, lambda a: fb(a, b)))
+
+        # def fb_b(a, b):
+        #     return csr_matrix(approx_fprime(b, lambda b: fb(a, b)))
 
         yield R
 
@@ -118,13 +162,31 @@ class Newton:
                 Rla_N_la_N[i, i] = 1.0
             else:
                 Rla_N_q[i] = g_N_q[i]
+        # Rla_N_la_N = fb_a(la_N, g_N)
+        # Rla_N_q = fb_b(la_N, g_N) @ g_N_q
 
         # fmt: off
-        yield bmat([[      K,  W_g,        W_N], 
+        yield bmat([[      K,  W_g.copy(),        W_N.copy()], 
                     [    g_q, None,       None],
                     [  g_S_q, None,       None],
                     [Rla_N_q, None, Rla_N_la_N]], format="csc")
         # fmt: on
+
+        # J = bmat([[      K,  W_g,        W_N],
+        #             [    g_q, None,       None],
+        #             [  g_S_q, None,       None],
+        #             [Rla_N_q, None, Rla_N_la_N]], format="csc")
+
+        # # J_num = approx_fprime(x, lambda x: self.fun(t, x), method="3-point", eps=1e-6)
+        # J_num = approx_fprime(x, lambda x: self.fun(t, x), method="cs", eps=1e-12)
+        # diff = J - J_num
+        # # diff = diff[: self.nu]
+        # # diff = diff[: self.nu, : self.nu]
+        # # diff = diff[: self.nu, self.nu :]
+        # # diff = diff[self.nu :]
+        # error = np.linalg.norm(diff)
+        # print(f"error J: {error}")
+        # yield J_num
 
     def __residual(self, t, x):
         return next(self.__eval__(t, x))

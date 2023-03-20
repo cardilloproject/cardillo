@@ -274,35 +274,35 @@ def state():
     ax.grid()
     ax.legend()
 
-    # nonpenetrating contact point
-    ax = fig.add_subplot(2, 2, 2)
-    if Constraint is RollingCondition_g_I_Frame_gamma:
-        ax.plot(t[:], la_g[:, 0], "-r", label="la_g")
-    elif Constraint is RollingCondition:
-        ax.plot(t[:], la_gamma[:, 0], "--g", label="la_gamma0")
-    ax.set_xlabel("t")
-    ax.grid()
-    ax.legend()
+    # # nonpenetrating contact point
+    # ax = fig.add_subplot(2, 2, 2)
+    # if Constraint is RollingCondition_g_I_Frame_gamma:
+    #     ax.plot(t[:], la_g[:, 0], "-r", label="la_g")
+    # elif Constraint is RollingCondition:
+    #     ax.plot(t[:], la_gamma[:, 0], "--g", label="la_gamma0")
+    # ax.set_xlabel("t")
+    # ax.grid()
+    # ax.legend()
 
-    # no lateral velocities 1
-    ax = fig.add_subplot(2, 2, 3)
-    if Constraint is RollingCondition_g_I_Frame_gamma:
-        ax.plot(t[:], la_gamma[:, 0], "-r", label="la_gamma[0]")
-    elif Constraint is RollingCondition:
-        ax.plot(t[:], la_gamma[:, 1], "-r", label="la_gamma[1]")
-    ax.set_xlabel("t")
-    ax.grid()
-    ax.legend()
+    # # no lateral velocities 1
+    # ax = fig.add_subplot(2, 2, 3)
+    # if Constraint is RollingCondition_g_I_Frame_gamma:
+    #     ax.plot(t[:], la_gamma[:, 0], "-r", label="la_gamma[0]")
+    # elif Constraint is RollingCondition:
+    #     ax.plot(t[:], la_gamma[:, 1], "-r", label="la_gamma[1]")
+    # ax.set_xlabel("t")
+    # ax.grid()
+    # ax.legend()
 
-    # no lateral velocities 2
-    ax = fig.add_subplot(2, 2, 4)
-    if Constraint is RollingCondition_g_I_Frame_gamma:
-        ax.plot(t[:], la_gamma[:, 1], "-r", label="la_gamma[1]")
-    elif Constraint is RollingCondition:
-        ax.plot(t[:], la_gamma[:, 2], "-r", label="la_gamma[2]")
-    ax.set_xlabel("t")
-    ax.grid()
-    ax.legend()
+    # # no lateral velocities 2
+    # ax = fig.add_subplot(2, 2, 4)
+    # if Constraint is RollingCondition_g_I_Frame_gamma:
+    #     ax.plot(t[:], la_gamma[:, 1], "-r", label="la_gamma[1]")
+    # elif Constraint is RollingCondition:
+    #     ax.plot(t[:], la_gamma[:, 2], "-r", label="la_gamma[2]")
+    # ax.set_xlabel("t")
+    # ax.grid()
+    # ax.legend()
 
     ########################
     # animate configurations
@@ -428,11 +428,13 @@ def convergence():
     #####################################
     # dt_ref = 6.4e-3
     # dts = (2.0 ** np.arange(3, 1, -1)) * dt_ref  # [5.12e-2, ..., 2.56e-2]
-    # t1 = (2.0**10) * dt_ref  # 6.5536s
+    # # t1 = (2.0**10) * dt_ref  # 6.5536s
+    # t1 = (2.0**4) * dt_ref  # 0.1024s
 
-    # dt_ref = 3.2e-3
-    # dts = (2.0 ** np.arange(4, 1, -1)) * dt_ref  # [5.12e-2, ..., 1.28e-2]
+    dt_ref = 3.2e-3
+    dts = (2.0 ** np.arange(4, 1, -1)) * dt_ref  # [5.12e-2, ..., 1.28e-2]
     # t1 = (2.0**11) * dt_ref  # 6.5536s
+    t1 = (2.0**5) * dt_ref  # 0.1024s
 
     dt_ref = 1.6e-3
     dts = (2.0 ** np.arange(5, 1, -1)) * dt_ref  # [5.12e-2, ..., 6.4e-3]
@@ -558,7 +560,6 @@ def convergence():
 
     # plot_state = True
     plot_state = False
-    # TODO:
     if plot_state:
         reference = reference1
         # reference = reference1_GGL
@@ -634,14 +635,18 @@ def convergence():
         t = sol.t
         q = sol.q
         u = sol.u
-        la_g = sol.la_g
-        la_gamma = sol.la_gamma
+        # la_g = sol.la_g
+        # la_gamma = sol.la_gamma
+        la_g = sol.P_g
+        la_gamma = sol.P_gamma
 
         t_ref = sol_ref.t
         q_ref = sol_ref.q
         u_ref = sol_ref.u
-        la_g_ref = sol_ref.la_g
-        la_gamma_ref = sol_ref.la_gamma
+        # la_g_ref = sol_ref.la_g
+        # la_gamma_ref = sol_ref.la_gamma
+        la_g_ref = sol_ref.P_g
+        la_gamma_ref = sol_ref.P_gamma
 
         # distinguish between transient and long term time steps
         t_idx_transient = np.where(t <= t_transient)[0]
@@ -843,5 +848,5 @@ def convergence():
 
 
 if __name__ == "__main__":
-    state()
-    # convergence()
+    # state()
+    convergence()

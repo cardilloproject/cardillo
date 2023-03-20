@@ -2,7 +2,7 @@ from typing import Optional
 from unicodedata import ucd_3_2_0
 import numpy as np
 import numpy.typing as npt
-from cardillo.discrete.rigid_body_base import RigidBodyBase
+from cardillo.discrete._base import RigidBodyBase
 from cardillo.math import cross3, ax2skew, inv3D, A_IK_basic, approx_fprime
 
 

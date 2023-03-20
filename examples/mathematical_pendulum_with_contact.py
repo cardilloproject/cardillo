@@ -124,7 +124,6 @@ class MathematicalPendulumCartesianContact:
         coo.extend(dense, (self.uDOF, self.uDOF))
 
     if bilateral_constrained:
-
         if quadratic_length:
 
             def g(self, t, q):

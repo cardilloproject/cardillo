@@ -6,18 +6,15 @@ from ._cross_section import (
 
 from ._material_models import *
 
-from .director import (
-    TimoshenkoDirectorDirac,
-    TimoshenkoDirectorIntegral,
-    EulerBernoulliDirectorIntegral,
-    InextensibleEulerBernoulliDirectorIntegral,
-)
+from .R12_bubnov_galerkin import *
+
+from .R12_petrov_galerkin import *
+from .R3_SO3_petrov_galerkin import *
+from .SE3_petrov_galerkin import *
 
 from .rope import Rope
 from .cable import Cable
-from .axis_angle_director import DirectorAxisAngle
-from .crisfield1999 import Crisfield1999
-from .SE3 import TimoshenkoAxisAngleSE3
+from .cardona import K_Cardona, K_TimoshenkoLerp
 
 
 from ._animate import animate_beam, animate_rope

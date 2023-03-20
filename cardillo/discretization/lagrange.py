@@ -33,6 +33,8 @@ class LagrangeKnotVector:
             nodes = [nodes]
         lenxi = len(nodes)
 
+        assert np.all(np.isfinite(nodes))
+
         element = np.zeros(lenxi, dtype=int)
         for j in range(lenxi):
             element[j] = (

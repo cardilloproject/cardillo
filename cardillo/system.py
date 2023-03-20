@@ -174,19 +174,16 @@ class System:
             if hasattr(contr, "nla_g"):
                 contr.la_gDOF = np.arange(0, contr.nla_g) + self.nla_g
                 self.nla_g += contr.nla_g
-                la_g0.extend(contr.la_g0.tolist())
 
             # if contribution has constraints on velocity level address constraint coordinates
             if hasattr(contr, "nla_gamma"):
                 contr.la_gammaDOF = np.arange(0, contr.nla_gamma) + self.nla_gamma
                 self.nla_gamma += contr.nla_gamma
-                la_gamma0.extend(contr.la_gamma0.tolist())
 
             # if contribution has stabilization conditions for the kinematic equation
             if hasattr(contr, "nla_S"):
                 contr.la_SDOF = np.arange(0, contr.nla_S) + self.nla_S
                 self.nla_S += contr.nla_S
-                la_S0.extend(contr.la_S0.tolist())
 
             # if contribution has contacts address constraint coordinates
             if hasattr(contr, "nla_N"):
@@ -213,9 +210,10 @@ class System:
 
         self.q0 = np.array(q0)
         self.u0 = np.array(u0)
-        self.la_g0 = np.array(la_g0)
-        self.la_gamma0 = np.array(la_gamma0)
-        self.la_S0 = np.array(la_S0)
+        # TODO remove la_g, la_gamma, la_S
+        self.la_g0 = np.zeros(self.nla_g)
+        self.la_gamma0 = np.zeros(self.nla_gamma)
+        self.la_S0 = np.zeros(self.nla_S)
         self.la_N0 = np.array(la_N0)
         self.la_F0 = np.array(la_F0)
         self.NF_connectivity = NF_connectivity

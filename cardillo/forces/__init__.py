@@ -7,4 +7,5 @@ from .distributed_force_3D_continuum import DistributedForce3DContinuum
 from .distributed_doubleforce_2D_continuum import DistributedDoubleforce2DContinuum
 from .scalar_force_laws import *
 from .scalar_force_translational import ScalarForceTranslational
-from .scalar_force_rotational import PDRotationalJoint
+from .scalar_force_rotational import PDRotational
+from .scalar_force_translational_nel import nElScalarForceTranslational

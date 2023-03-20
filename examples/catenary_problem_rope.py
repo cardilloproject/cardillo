@@ -1,6 +1,6 @@
 from cardillo.discrete import Frame
 from cardillo.constraints import (
-    SphericalJoint,
+    Spherical,
 )
 from cardillo.beams import (
     Rope,
@@ -96,11 +96,11 @@ if __name__ == "__main__":
 
     # left joint
     frame1 = Frame(r_OP=r_OP0, A_IK=A_IK0)
-    joint1 = SphericalJoint(frame1, rope, r_OP0, frame_ID2=(0,))
+    joint1 = Spherical(frame1, rope, r_OP0, frame_ID2=(0,))
 
     # left joint
     frame2 = Frame(r_OP=r_OP1, A_IK=A_IK0)
-    joint2 = SphericalJoint(frame2, rope, r_OP1, frame_ID2=(1,))
+    joint2 = Spherical(frame2, rope, r_OP1, frame_ID2=(1,))
 
     # gravitational line force density
     gravity = DistributedForce1DBeam(fg, rope)

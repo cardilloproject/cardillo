@@ -9,7 +9,7 @@ from .scipy_ivp import ScipyIVP
 from .radau import RadauIIa
 from .moreau import (
     MoreauShifted,
-    Moreau_new,
+    MoreauShiftedNew,
     MoreauClassical,
 )
 from .euler_backward import EulerBackward, NonsmoothBackwardEuler

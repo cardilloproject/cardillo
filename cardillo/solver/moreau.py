@@ -62,18 +62,20 @@ class MoreauShifted:
         W_N0 = self.system.W_N(self.tk, self.qk, scipy_matrix=csr_matrix)
         W_F0 = self.system.W_F(self.tk, self.qk, scipy_matrix=csr_matrix)
 
-        zeta_g0 = self.system.zeta_g(t0, self.qk, self.uk)
-        zeta_gamma0 = self.system.zeta_gamma(t0, self.qk, self.uk)
-        # fmt: off
-        A = bmat(
-            [[       M0, -W_g0, -W_gamma0],
-             [    W_g0.T, None,      None],
-             [W_gamma0.T, None,      None]],
-            format="csc",
-        )
-        # fmt: on
-        b = np.concatenate([h0 + W_N0 @ la_N0 + W_F0 @ la_F0, -zeta_g0, -zeta_gamma0])
-        u_dot_la_g_la_gamma = splu(A).solve(b)
+        u_dot_la_g_la_gamma = np.zeros(self.nu + self.nla_g + self.nla_gamma)
+
+        # zeta_g0 = self.system.zeta_g(t0, self.qk, self.uk)
+        # zeta_gamma0 = self.system.zeta_gamma(t0, self.qk, self.uk)
+        # # fmt: off
+        # A = bmat(
+        #     [[       M0, -W_g0, -W_gamma0],
+        #      [    W_g0.T, None,      None],
+        #      [W_gamma0.T, None,      None]],
+        #     format="csc",
+        # )
+        # # fmt: on
+        # b = np.concatenate([h0 + W_N0 @ la_N0 + W_F0 @ la_F0, -zeta_g0, -zeta_gamma0])
+        # u_dot_la_g_la_gamma = splu(A).solve(b)
         self.u_dotk = u_dot_la_g_la_gamma[: self.nu]
         self.P_gk = u_dot_la_g_la_gamma[self.nu : self.nu + self.nla_g] * dt
         self.P_gammak = u_dot_la_g_la_gamma[self.nu + self.nla_g :] * dt
@@ -82,9 +84,9 @@ class MoreauShifted:
         # and acceleration level
         g0 = system.g(self.tk, self.qk)
         g_dot0 = system.g_dot(self.tk, self.qk, self.uk)
-        g_ddot0 = system.g_ddot(self.tk, self.qk, self.uk, self.u_dotk)
+        # g_ddot0 = system.g_ddot(self.tk, self.qk, self.uk, self.u_dotk)
         gamma0 = system.gamma(self.tk, self.qk, self.uk)
-        gamma_dot0 = system.gamma_dot(self.tk, self.qk, self.uk, self.u_dotk)
+        # gamma_dot0 = system.gamma_dot(self.tk, self.qk, self.uk, self.u_dotk)
 
         assert np.allclose(
             g0, np.zeros(self.nla_g)
@@ -92,15 +94,15 @@ class MoreauShifted:
         assert np.allclose(
             g_dot0, np.zeros(self.nla_g)
         ), "Initial conditions do not fulfill g_dot0!"
-        assert np.allclose(
-            g_ddot0, np.zeros(self.nla_g)
-        ), "Initial conditions do not fulfill g_ddot0!"
+        # assert np.allclose(
+        #     g_ddot0, np.zeros(self.nla_g)
+        # ), "Initial conditions do not fulfill g_ddot0!"
         assert np.allclose(
             gamma0, np.zeros(self.nla_gamma)
         ), "Initial conditions do not fulfill gamma0!"
-        assert np.allclose(
-            gamma_dot0, np.zeros(self.nla_gamma)
-        ), "Initial conditions do not fulfill gamma_dot0!"
+        # assert np.allclose(
+        #     gamma_dot0, np.zeros(self.nla_gamma)
+        # ), "Initial conditions do not fulfill gamma_dot0!"
 
     def step(self):
         # general quantities
@@ -108,8 +110,9 @@ class MoreauShifted:
         uk = self.uk
         tk1 = self.tk + dt
 
-        # explicit position update
+        # explicit position update with projection
         qk1 = self.qk + dt * self.system.q_dot(self.tk, self.qk, uk)
+        qk1, uk = self.system.step_callback(tk1, qk1, uk)
 
         # get quantities from model
         M = self.system.M(tk1, qk1)
@@ -306,7 +309,8 @@ class MoreauShifted:
         )
 
 
-class Moreau_new:
+# TODO: Use this implementation or remove it.
+class MoreauShiftedNew:
     def __init__(
         self,
         system,

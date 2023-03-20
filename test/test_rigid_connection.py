@@ -10,9 +10,9 @@ from cardillo.discrete import (
     RigidBodyQuaternion,
     RigidBodyRelKinematics,
 )
-from cardillo.constraints import RevoluteJoint, RigidConnection
+from cardillo.constraints import Revolute, RigidConnection
 from cardillo.joints import RigidConnection as RigidJoint
-from cardillo.forces import Force, PDRotationalJoint, LinearSpring, LinearDamper
+from cardillo.forces import Force, PDRotational, LinearSpring, LinearDamper
 from cardillo.solver import EulerBackward, ScipyIVP
 
 
@@ -91,9 +91,9 @@ def run(revolute_joint_used=False, use_relative_kinematics=False):
         RB2 = RigidBodyQuaternion(m / 2, K_theta_S2, q0=q20, u0=u20)
 
     if revolute_joint_used:
-        joint = RevoluteJoint(frame, RB1, r_OP(0), np.eye(3))
+        joint = Revolute(frame, RB1, r_OP(0), np.eye(3))
     else:
-        joint = PDRotationalJoint(RevoluteJoint, LinearSpring, LinearDamper)(
+        joint = PDRotational(Revolute, LinearSpring, LinearDamper)(
             frame,
             RB1,
             r_OP(0),
@@ -114,7 +114,7 @@ def run(revolute_joint_used=False, use_relative_kinematics=False):
     system.add(gravity2)
     system.add(joint)
     if not use_relative_kinematics:
-        system.add(RigidConnection(RB1, RB2, r_OS0))
+        system.add(RigidConnection(RB1, RB2))
     system.assemble()
 
     ############################################################################
@@ -126,8 +126,8 @@ def run(revolute_joint_used=False, use_relative_kinematics=False):
 
     # solver = EulerBackward(system, t1, dt, method="index 1")
     # solver = EulerBackward(system, t1, dt, method="index 2")
-    # solver = EulerBackward(system, t1, dt, method="index 3")
-    solver = EulerBackward(system, t1, dt, method="index 2 GGL")
+    solver = EulerBackward(system, t1, dt, method="index 3")
+    # solver = EulerBackward(system, t1, dt, method="index 2 GGL")
     # solver = ScipyIVP(system, t1, dt)
 
     sol = solver.solve()

@@ -5,15 +5,9 @@ from cardillo.discretization.b_spline import BSplineKnotVector
 from cardillo.discretization.hermite import HermiteNodeVector
 from cardillo.math import (
     e1,
-    e2,
-    e3,
     norm,
     cross3,
-    skew2ax,
-    smallest_rotation,
-    rodriguez,
     approx_fprime,
-    sign,
 )
 from cardillo.discretization.mesh1D import Mesh1D
 
@@ -691,23 +685,23 @@ class Cable:
         else:
             return np.array([q_body[nodalDOF] for nodalDOF in self.nodalDOF]).T
 
-    def centerline(self, q, n=100):
+    def centerline(q, num=100):
         q_body = q[self.qDOF]
         r = []
-        for xi in np.linspace(0, 1, n):
+        for xi in np.linspace(0, 1, num):
             frame_ID = (xi,)
             qe = q_body[self.local_qDOF_P(frame_ID)]
             r.append(self.r_OP(1, qe, frame_ID))
         return np.array(r).T
 
-    def plot_centerline(self, ax, q, n=100, color="black"):
+    def plot_centerline(self, ax, q, num=100, color="black"):
         ax.plot(*self.nodes(q), linestyle="dashed", marker="o", color=color)
-        ax.plot(*self.centerline(q, n=n), linestyle="solid", color=color)
+        ax.plot(*self.centerline(q, num=num), linestyle="solid", color=color)
 
-    def stretch(self, q, n=100):
+    def stretch(self, q, num=100):
         q_body = q[self.qDOF]
         la = []
-        for xi in np.linspace(0, 1, n):
+        for xi in np.linspace(0, 1, num):
             frame_ID = (xi,)
             qe = q_body[self.local_qDOF_P(frame_ID)]
             Qe = self.Q[self.local_qDOF_P(frame_ID)]

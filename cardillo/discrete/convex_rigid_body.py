@@ -60,7 +60,7 @@ def ConvexRigidBody(
             return self.A_KK0 @ super().K_J_R(t, q, frame_ID)
 
         def K_J_R_q(self, t, q, frame_ID=None):
-            return self.A_KK0 @ super().K_J_R_q(t, q, frame_ID)
+            return np.einsum("ij,jkl->ikl", self.A_KK0, super().K_J_R_q(t, q, frame_ID))
 
         def export(self, sol_i, base_export=False, **kwargs):
             if base_export:
@@ -122,6 +122,7 @@ class Mesh:
         self.normals = self.convex_hull.equations[:, :-1]
         self.offsets = self.convex_hull.equations[:, -1]
         self.neighbors = self.convex_hull.neighbors
+        self.volume = self.convex_hull.volume
 
     def __counterclockwise_ordering(self):
         """convex hull creates outward pointing unit normals as part of the hyperplane equations but does not ensure, that the points in a simplex are ordered counterclockwise. As this is important for contact detection, this is done manually here."""

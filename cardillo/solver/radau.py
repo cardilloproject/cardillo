@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.linalg import lu_factor, lu_solve
-from scipy.sparse import csc_matrix, csr_matrix, issparse, eye, bmat
+from scipy.sparse import csc_matrix, issparse, eye, bmat
 from scipy.sparse.linalg import spsolve, splu
 from scipy.optimize._numdiff import group_columns
 from scipy.integrate._ivp.common import (
@@ -14,11 +14,10 @@ from scipy.integrate._ivp.common import (
     validate_first_step,
 )
 from scipy.integrate._ivp.base import OdeSolver, DenseOutput
-from scipy.optimize._numdiff import approx_derivative
 from scipy.integrate import solve_ivp
 from tqdm import tqdm
 
-from cardillo.solver import Solution
+from cardillo.solver import Solution, consistent_initial_conditions
 from cardillo.math import approx_fprime
 
 S6 = 6**0.5
@@ -723,12 +722,16 @@ class RadauIIa:
         rtol=1.0e-3,
         atol=1.0e-3,
         dae_index="GGL",
+        lazy_mass_matrix=True,
+        **kwargs,
     ):
         self.system = system
         self.rtol = rtol
         self.atol = atol
         assert dae_index in [2, 3, "GGL"]
         self.dae_index = dae_index
+        self.lazy_mass_matrix = lazy_mass_matrix
+        self.kwargs = kwargs
 
         #######################################################################
         # integration time
@@ -740,8 +743,9 @@ class RadauIIa:
         self.dt = dt
         self.t_eval = np.arange(t0, self.t1 + self.dt, self.dt)
 
-        self.frac = (t1 - t0) / 101
-        self.pbar = tqdm(total=100, leave=True)
+        nfrac = 100
+        self.frac = (t1 - t0) / (nfrac + 1)
+        self.pbar = tqdm(total=nfrac, leave=True)
         self.i = 0
 
         #######################################################################
@@ -751,7 +755,8 @@ class RadauIIa:
         self.nu = system.nu
         self.nla_g = system.nla_g
         self.nla_gamma = system.nla_gamma
-        self.ny = self.nq + self.nu + self.nla_g + self.nla_gamma
+        self.nla_S = system.nla_S
+        self.ny = self.nq + self.nu + self.nla_g + self.nla_gamma + self.nla_S
         if dae_index == "GGL":
             self.ny += self.nla_g
 
@@ -770,6 +775,7 @@ class RadauIIa:
                     np.zeros(self.nq + self.nu, dtype=int),
                     2 * np.ones(self.nla_g, dtype=int),
                     2 * np.ones(self.nla_gamma, dtype=int),
+                    3 * np.ones(self.nla_S, dtype=int),
                 )
             )
         elif dae_index == 3:
@@ -778,6 +784,7 @@ class RadauIIa:
                     np.zeros(self.nq + self.nu, dtype=int),
                     3 * np.ones(self.nla_g, dtype=int),
                     2 * np.ones(self.nla_gamma, dtype=int),
+                    3 * np.ones(self.nla_S, dtype=int),
                 )
             )
         else:
@@ -786,6 +793,7 @@ class RadauIIa:
                     np.zeros(self.nq + self.nu, dtype=int),
                     2 * np.ones(self.nla_g, dtype=int),
                     2 * np.ones(self.nla_gamma, dtype=int),
+                    3 * np.ones(self.nla_S, dtype=int),
                     3 * np.ones(self.nla_g, dtype=int),
                 )
             )
@@ -793,61 +801,9 @@ class RadauIIa:
         #######################################################################
         # consistent initial conditions
         #######################################################################
-        t0 = system.t0
-        q0 = system.q0
-        u0 = system.u0
-
-        # solve for consistent initial accelerations and Lagrange mutlipliers
-        M0 = self.system.M(t0, q0, scipy_matrix=csr_matrix)
-        h0 = self.system.h(t0, q0, u0)
-        W_g0 = self.system.W_g(t0, q0, scipy_matrix=csr_matrix)
-        W_gamma0 = self.system.W_gamma(t0, q0, scipy_matrix=csr_matrix)
-        zeta_g0 = self.system.zeta_g(t0, q0, u0)
-        zeta_gamma0 = self.system.zeta_gamma(t0, q0, u0)
-        # fmt: off
-        A = bmat(
-            [
-                [        M0, -W_g0, -W_gamma0],
-                [    W_g0.T,  None,      None],
-                [W_gamma0.T,  None,      None],
-            ],
-            format="csc",
+        t0, q0, u0, q_dot0, u_dot0, la_g0, la_gamma0 = consistent_initial_conditions(
+            system
         )
-        b = np.concatenate([
-            h0, 
-            -zeta_g0, 
-            -zeta_gamma0
-        ])
-        # fmt: on
-
-        u_dot_la_g_la_gamma = spsolve(A, b)
-        u_dot0 = u_dot_la_g_la_gamma[: self.nu]
-        la_g0 = u_dot_la_g_la_gamma[self.nu : self.nu + self.nla_g]
-        la_gamma0 = u_dot_la_g_la_gamma[self.nu + self.nla_g :]
-
-        # check if initial conditions satisfy constraints on position, velocity
-        # and acceleration level
-        g0 = system.g(t0, q0)
-        g_dot0 = system.g_dot(t0, q0, u0)
-        g_ddot0 = system.g_ddot(t0, q0, u0, u_dot0)
-        gamma0 = system.gamma(t0, q0, u0)
-        gamma_dot0 = system.gamma_dot(t0, q0, u0, u_dot0)
-
-        assert np.allclose(
-            g0, np.zeros(self.nla_g)
-        ), "Initial conditions do not fulfill g0!"
-        assert np.allclose(
-            g_dot0, np.zeros(self.nla_g)
-        ), "Initial conditions do not fulfill g_dot0!"
-        assert np.allclose(
-            g_ddot0, np.zeros(self.nla_g)
-        ), "Initial conditions do not fulfill g_ddot0!"
-        assert np.allclose(
-            gamma0, np.zeros(self.nla_gamma)
-        ), "Initial conditions do not fulfill gamma0!"
-        assert np.allclose(
-            gamma_dot0, np.zeros(self.nla_gamma)
-        ), "Initial conditions do not fulfill gamma_dot0!"
 
         # consistent initial conditions
         self.y0 = np.zeros(self.ny, dtype=float)
@@ -875,18 +831,28 @@ class RadauIIa:
             + self.nla_g
             + self.nla_gamma
         ]
-        mu_g = y[self.nq + self.nu + self.nla_g + self.nla_gamma :]
-        return q, u, la_g, la_gamma, mu_g
+        mu_S = y[
+            self.nq
+            + self.nu
+            + self.nla_g
+            + self.nla_gamma : self.nq
+            + self.nu
+            + self.nla_g
+            + self.nla_gamma
+            + self.nla_S
+        ]
+        mu_g = y[self.nq + self.nu + self.nla_g + self.nla_gamma + self.nla_S :]
+        return q, u, la_g, la_gamma, mu_S, mu_g
 
     def fun(self, t, y):
         # update progress bar
         i1 = int(t // self.frac)
-        self.pbar.update(i1 - self.i)
-        self.pbar.set_description(f"t: {t:0.2e}s < {self.t1:0.2e}s")
-        self.i = i1
+        if i1 > self.i:
+            self.pbar.update(i1 - self.i)
+            self.pbar.set_description(f"t: {t:0.2e}s < {self.t1:0.2e}s")
+            self.i = i1
 
-        q, u, la_g, la_gamma, mu_g = self.unpack(y)
-        q, u = self.system.step_callback(t, q, u)
+        q, u, la_g, la_gamma, mu_S, mu_g = self.unpack(y)
 
         M = self.system.M(t, q, scipy_matrix=csc_matrix)
         h = self.system.h(t, q, u)
@@ -896,7 +862,8 @@ class RadauIIa:
         dy = np.zeros(self.ny, dtype=y.dtype)
 
         # kinematic equation
-        dy[: self.nq] = self.system.q_dot(t, q, u)
+        self.g_S_q = self.system.g_S_q(t, q, scipy_matrix=csc_matrix)
+        dy[: self.nq] = self.system.q_dot(t, q, u) + self.g_S_q.T @ mu_S
         if self.dae_index == "GGL":
             dy[: self.nq] += self.system.g_q(t, q, scipy_matrix=csc_matrix).T @ mu_g
 
@@ -907,9 +874,13 @@ class RadauIIa:
         # the Radau implementation. However, since we use only simplified Newton
         # iterations, numerical experiments have shown that good convergence
         # is obtained in all tested cases.
-        self.mass_matrix[self.nq : self.nq + self.nu, self.nq : self.nq + self.nu] = M
-        dy[self.nq : self.nq + self.nu] = rhs
-        # dy[self.nq : self.nq + self.nu] = spsolve(M, rhs)
+        if self.lazy_mass_matrix:
+            self.mass_matrix[
+                self.nq : self.nq + self.nu, self.nq : self.nq + self.nu
+            ] = M
+            dy[self.nq : self.nq + self.nu] = rhs
+        else:
+            dy[self.nq : self.nq + self.nu] = spsolve(M, rhs)
 
         # bilateral constraints on velocity level
         dy[
@@ -921,7 +892,17 @@ class RadauIIa:
             + self.nla_gamma
         ] = self.system.gamma(t, q, u)
 
-        # bilateral constraints on position level
+        # bilateral constraints
+        dy[
+            self.nq
+            + self.nu
+            + self.nla_g
+            + self.nla_gamma : self.nq
+            + self.nu
+            + self.nla_g
+            + self.nla_gamma
+            + self.nla_S
+        ] = self.system.g_S(t, q)
         if self.dae_index == 2:
             dy[self.nq + self.nu : self.nq + self.nu + self.nla_g] = self.system.g_dot(
                 t, q, u
@@ -932,93 +913,108 @@ class RadauIIa:
             dy[self.nq + self.nu : self.nq + self.nu + self.nla_g] = self.system.g_dot(
                 t, q, u
             )
-            dy[self.nq + self.nu + self.nla_g + self.nla_gamma :] = self.system.g(t, q)
+            dy[
+                self.nq + self.nu + self.nla_g + self.nla_gamma + self.nla_S :
+            ] = self.system.g(t, q)
         return dy
 
     def jac(self, t, y):
-        # return approx_derivative(
-        #     fun=lambda x: self.fun(t, x), x0=y, method="3-point", rel_step=1e-6
-        # )
-
-        q, u, la_g, la_gamma, mu_g = self.unpack(y)
-
-        q_dot_q = self.system.q_dot_q(t, q, u)
-        B = self.system.B(t, q)
-
-        rhs_q = (
-            self.system.h_q(t, q, u, scipy_matrix=csc_matrix)
-            + self.system.Wla_g_q(t, q, la_g, scipy_matrix=csc_matrix)
-            + self.system.Wla_gamma_q(t, q, la_gamma, scipy_matrix=csc_matrix)
-        )
-        rhs_u = self.system.h_u(t, q, u, scipy_matrix=csc_matrix)
-
-        gamma_q = self.system.gamma_q(t, q, u)
-
-        W_g = self.system.W_g(t, q)
-        W_gamma = self.system.W_gamma(t, q)
-
-        # fmt: off
-        if self.dae_index == 2:
-            # raise NotImplementedError
-            g_dot_q = self.system.g_dot_q(t, q, u)
-            jac = bmat(
-                [
-                    [q_dot_q,         B, None,    None],
-                    [  rhs_q,     rhs_u,  W_g, W_gamma],
-                    [g_dot_q,     W_g.T, None,    None],
-                    [gamma_q, W_gamma.T, None,    None],
-                ],
-                format="csr",
-            )
-        elif self.dae_index == 3:
-            g_q = self.system.g_q(t, q)
-            jac = bmat(
-                [
-                    [q_dot_q,         B, None,    None],
-                    [  rhs_q,     rhs_u,  W_g, W_gamma],
-                    [    g_q,      None, None,    None],
-                    [gamma_q, W_gamma.T, None,    None],
-                ],
-                format="csr",
+        if not self.lazy_mass_matrix:
+            return approx_fprime(
+                y, lambda x: self.fun(t, x), method="2-point", eps=1e-6
             )
         else:
-            # raise NotImplementedError
-            g_dot_q = self.system.g_dot_q(t, q, u)
-            g_q = self.system.g_q(t, q)
-            g_q_T_mu_q = self.system.g_q_T_mu_q(t, q, mu_g)
-            jac = bmat(
-                [
-                    [q_dot_q + g_q_T_mu_q,         B, None,    None, g_q.T],
-                    [               rhs_q,     rhs_u,  W_g, W_gamma,  None],
-                    [             g_dot_q,     W_g.T, None,    None,  None],
-                    [             gamma_q, W_gamma.T, None,    None,  None],
-                    [                 g_q,      None, None,    None,  None],
-                ],
-                format="csr",
+            q, u, la_g, la_gamma, mu_S, mu_g = self.unpack(y)
+
+            q_dot_q = self.system.q_dot_q(t, q, u)
+            B = self.system.B(t, q)
+
+            g_S_q = self.system.g_S_q(t, q)
+            A = q_dot_q + self.system.g_S_q_T_mu_q(t, q, mu_S)
+
+            rhs_q = (
+                self.system.h_q(t, q, u, scipy_matrix=csc_matrix)
+                + self.system.Wla_g_q(t, q, la_g, scipy_matrix=csc_matrix)
+                + self.system.Wla_gamma_q(t, q, la_gamma, scipy_matrix=csc_matrix)
             )
-        # fmt: on
+            rhs_u = self.system.h_u(t, q, u, scipy_matrix=csc_matrix)
 
-        return jac
+            gamma_q = self.system.gamma_q(t, q, u)
 
-        # Note: Uncomment to check analytical Jacobian against numerical one
-        jac_num = approx_derivative(
-            fun=lambda x: self.fun(t, x), x0=y, method="3-point", rel_step=1e-6
-        )
+            W_g = self.system.W_g(t, q)
+            W_gamma = self.system.W_gamma(t, q)
 
-        diff = jac - jac_num
-        error = np.linalg.norm(diff)
-        # error = np.linalg.norm(diff[:self.nq])
-        # error = np.linalg.norm(diff[self.nq : self.nq + self.nu])
-        # error = np.linalg.norm(diff[self.nq : self.nq + self.nu, :self.nq])
-        # error = np.linalg.norm(diff[self.nq : self.nq + self.nu, self.nq : self.nq + self.nu])
-        # error = np.linalg.norm(diff[self.nq : self.nq + self.nu, self.nq + self.nu : self.nq + self.nu + self.nla_g])
-        # # error = np.linalg.norm(diff[self.nq : self.nq + self.nu, self.nq + self.nu + self.nla_g :])
-        # error = np.linalg.norm(diff[self.nq + self.nu :])
-        # error = np.linalg.norm(diff[self.nq + self.nu : self.nq + self.nu + self.nla_g, : self.nq])
-        # error = np.linalg.norm(diff[self.nq + self.nu : self.nq + self.nu + self.nla_g, self.nq : self.nq + self.nu])
-        if error > 1.0e-5:
-            print(f"error jac: {error}")
-        return jac_num
+            # fmt: off
+            if self.dae_index == 2:
+                # raise NotImplementedError
+                g_dot_q = self.system.g_dot_q(t, q, u)
+                g_S_q = self.system.g_S_q(t, q)
+                jac = bmat(
+                    [
+                        [      A,         B, None,    None, g_S_q.T],
+                        [  rhs_q,     rhs_u,  W_g, W_gamma,    None],
+                        [g_dot_q,     W_g.T, None,    None,    None],
+                        [gamma_q, W_gamma.T, None,    None,    None],
+                        [  g_S_q,      None, None,    None,    None],
+                    ],
+                    format="csr",
+                )
+            elif self.dae_index == 3:
+                g_q = self.system.g_q(t, q)
+                jac = bmat(
+                    [
+                        [      A,         B, None,    None, g_S_q.T],
+                        [  rhs_q,     rhs_u,  W_g, W_gamma,    None],
+                        [    g_q,      None, None,    None,    None],
+                        [gamma_q, W_gamma.T, None,    None,    None],
+                        [  g_S_q,      None, None,    None,    None],
+                    ],
+                    format="csr",
+                )
+            else:
+                # raise NotImplementedError
+                g_dot_q = self.system.g_dot_q(t, q, u)
+                g_q = self.system.g_q(t, q)
+                g_q_T_mu_q = self.system.g_q_T_mu_q(t, q, mu_g)
+                A += g_q_T_mu_q
+                jac = bmat(
+                    [
+                        [      A,         B, None,    None, g_S_q.T, g_q.T],
+                        [  rhs_q,     rhs_u,  W_g, W_gamma,    None,  None],
+                        [g_dot_q,     W_g.T, None,    None,    None,  None],
+                        [gamma_q, W_gamma.T, None,    None,    None,  None],
+                        [  g_S_q,      None, None,    None,    None,  None],
+                        [    g_q,      None, None,    None,    None,  None],
+                    ],
+                    format="csr",
+                )
+            # fmt: on
+
+            return jac
+
+            # Note: Uncomment to check analytical Jacobian against numerical one
+            jac_num = approx_fprime(
+                y, lambda x: self.fun(t, x), method="3-point", eps=1e-6
+            )
+
+            diff = jac.toarray() - jac_num
+            error = np.linalg.norm(diff)
+            # error = np.linalg.norm(diff[:self.nq])
+            # error = np.linalg.norm(diff[self.nq : ])
+            # error = np.linalg.norm(diff[self.nq : self.nq + self.nu])
+            # error = np.linalg.norm(diff[self.nq : self.nq + self.nu, :self.nq])
+            # error = np.linalg.norm(diff[self.nq : self.nq + self.nu, self.nq : self.nq + self.nu])
+            # error = np.linalg.norm(diff[self.nq : self.nq + self.nu, self.nq + self.nu : self.nq + self.nu + self.nla_g])
+            # # error = np.linalg.norm(diff[self.nq : self.nq + self.nu, self.nq + self.nu + self.nla_g :])
+            # error = np.linalg.norm(diff[self.nq + self.nu :])
+            # error = np.linalg.norm(diff[self.nq + self.nu : self.nq + self.nu + self.nla_g, : self.nq])
+            # error = np.linalg.norm(diff[self.nq + self.nu : self.nq + self.nu + self.nla_g, self.nq : self.nq + self.nu])
+            if error > 1.0e-5:
+                np.set_printoptions(3, suppress=True)
+                print(jac_num[: self.nq, : self.nq])
+                print(jac.toarray()[: self.nq, : self.nq])
+                print(f"error jac: {error}")
+            return jac_num
 
     def solve(self):
         sol = solve_ivp(
@@ -1033,6 +1029,7 @@ class RadauIIa:
             dense_output=True,
             mass_matrix=self.mass_matrix,
             index_array=self.index_array,
+            **self.kwargs,
         )
 
         assert sol.success, "solve_ivp failed"
@@ -1044,6 +1041,6 @@ class RadauIIa:
         la_g = np.zeros((nt, self.nla_g), dtype=float)
         la_gamma = np.zeros((nt, self.nla_gamma), dtype=float)
         for i in range(nt):
-            q[i], u[i], la_g[i], la_gamma[i], _ = self.unpack(sol.y[:, i])
+            q[i], u[i], la_g[i], la_gamma[i], _, _ = self.unpack(sol.y[:, i])
 
         return Solution(t=t, q=q, u=u, la_g=la_g, la_gamma=la_gamma)

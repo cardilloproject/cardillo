@@ -7,7 +7,7 @@ from cardillo.math.rotations import Spurrier
 from cardillo.discrete import (
     RigidBodyQuaternion,
 )
-from cardillo.constraints import SphericalJoint
+from cardillo.constraints import Spherical
 from cardillo.math.algebra import cross3
 from cardillo import System
 from cardillo.solver import (
@@ -92,7 +92,7 @@ u0 = np.concatenate((v_S0, K_Omega0))
 system = System()
 
 top = HeavyTopQuaternion(A, B, grav, q0, u0)
-spherical_joint = SphericalJoint(system.origin, top, np.zeros(3, dtype=float))
+spherical_joint = Spherical(system.origin, top, np.zeros(3, dtype=float))
 system.add(top)
 system.add(spherical_joint)
 system.assemble()
