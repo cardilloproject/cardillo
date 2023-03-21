@@ -47,6 +47,7 @@ def run(case):
     y0 = 1
     y_dot0 = 0
     # dt = 5e-4
+    # dt = 1e-3
     dt = 1e-2
 
     if case == 1:
@@ -96,11 +97,15 @@ def run(case):
 
     system.assemble()
 
+    from spook.solver.runge_kutta import RadauIIATableau, NonsmoothPIRK
+
+    solver1, label1 = NonsmoothPIRK(system, t_final, dt, RadauIIATableau(1)), "NPIRK"
+
     # solver1, label1 = NonsmoothGeneralizedAlpha(system, t_final, dt, method="newton"), "Gen-alpha"
     # solver1, label1 = Rattle(system, t_final, dt), "Rattle"
     # solver1, label1 = MoreauShifted(system, t_final, dt), "MoreauShifted"
     # solver1, label1 = MoreauShiftedNew(system, t_final, dt), "MoreauShiftedNew"
-    solver1, label1 = MoreauClassical(system, t_final, dt), "MoreauClassical"
+    # solver1, label1 = MoreauClassical(system, t_final, dt), "MoreauClassical"
     # solver1, label1 = NonsmoothBackwardEuler(system, t_final, dt), "Euler backward"
 
     sol1 = solver1.solve()

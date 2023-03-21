@@ -24,18 +24,6 @@ except:
     pass
 
 
-def qr_solve(A, b):
-    """
-    Solve the sparse linear system Ax=b, using numpy's wrapper to dense Lapack
-    functions lstsq_m/ lstsq_n.
-
-    References:
-    -----------
-    numpy: https://numpy.org/doc/stable/reference/generated/numpy.linalg.lstsq.html
-    """
-    return np.linalg.lstsq(A.toarray(), b, rcond=None)[0]
-
-
 def qr_overdetermined_solve(A, b):
     """Solve the sparse (overdetermined) linear system Ax=b using dense 
     QR-decomposition.
@@ -91,6 +79,7 @@ def lsqr_solve(A, b):
     Scipy: https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.lsqr.html#scipy.sparse.linalg.lsqr
     """
     return lsqr(A, b, atol=0, btol=0, conlim=0)[0]
+    # return lsqr(A, b, damp=1e-4, atol=0, btol=0, conlim=0)[0]
 
 
 def lsqr_operator_solve(A, b):
@@ -126,20 +115,10 @@ def lsmr_solve(A, b):
     Scipy: https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.lsmr.html#scipy.sparse.linalg.lsmr
     """
     return lsmr(A, b, atol=0, btol=0, conlim=0)[0]
+    # return lsmr(A, b, damp=1e-4, atol=0, btol=0, conlim=0)[0]
 
 
-def qr_solve(A, b):
-    """
-    Solve the sparse linear system Ax=b, using numpy's wrapper to dense Lapack
-    functions lstsq_m/ lstsq_n.
-    References:
-    -----------
-    numpy: https://numpy.org/doc/stable/reference/generated/numpy.linalg.lstsq.html
-    """
-    return np.linalg.lstsq(A.toarray(), b, rcond=None)[0]
-
-
-def qr_overdetermined_solve(A, b):
+def qr_overdetermined_solve(A, b, rank_precision=12):
     """Solve the sparse (overdetermined) linear system Ax=b using dense 
     QR-decomposition.
     
@@ -156,10 +135,37 @@ def qr_overdetermined_solve(A, b):
 
     # QR decomposition of A
     Q, R, p = qr(A.toarray(), pivoting=True, mode="full")
+    # Q, R, p = qr(A.toarray(), pivoting=True, mode="economic")
 
-    x2 = np.zeros(n, dtype=float)
-    x2[p] = solve_triangular(R, Q.T @ b)
-    return x2
+    # x2 = np.zeros_like(b)
+    # x2[p] = solve_triangular(R, Q.T @ b)
+    # error = np.linalg.norm(A @ x2 - b)
+    # print(f"error qr_solve: {error}")
+    # return x2
+
+    # compute matrix rank of R with given precision
+    rank = sum(np.around(np.diag(R), rank_precision) != 0)
+
+    print(f"n: {n}; rank: {rank}")
+
+    # extract left columns of Q
+    Q1 = Q[:, :rank]
+
+    # extract upper left block of R
+    R11 = R[:rank, :rank]
+
+    # padd solution with zeros
+    xp = np.zeros_like(b)
+    xp[:rank] = solve_triangular(R11, Q1.T @ b)
+
+    # apply permutation
+    P = np.eye(len(p))[:, p]
+    x = P @ xp
+
+    # compute error
+    error = np.linalg.norm(A @ x - b)
+    print(f"error qr_solve: {error}")
+    return x
 
 
 def qr_underdetermined_solve(A, b):
@@ -201,26 +207,147 @@ def svd_solve(A, b):
     return x
 
 
-def normal_equation_solve(A, b):
-    # from scipy.linalg import solve
-    # A = A.toarray()
-    # return solve(A.T @ A, A.T @ b, assume_a="sym")
-
+def normal_equation_solve(A, b, use_svd=True):
     A = A.toarray()
     AA = A.T @ A
     Ab = A.T @ b
 
-    # # compute svd of A
-    # U, s, Vh = np.linalg.svd(AA)
+    if use_svd:
+        from scipy.linalg import svd
+
+        U, s, Vh = svd(AA)
+
+        c = np.dot(U.T, Ab)
+        w = np.dot(np.diag(1 / s), c)
+        x = np.dot(Vh.conj().T, w)
+        return x
+    else:
+        from scipy.linalg import solve
+
+        return solve(A.T @ A, A.T @ b, assume_a="sym")
+
+
+def normal_equation_tikhonov_solve(A, b):
+    A = A.toarray()
+    AA = A.T @ A
+    Ab = A.T @ b
+
+    alpha = 1e-7
+    G = alpha * np.eye(len(b))
+    GG = G.T @ G
+
+    from scipy.linalg import solve
+
+    return solve(AA + GG, Ab, assume_a="sym")
 
     from scipy.linalg import svd
 
-    U, s, Vh = svd(AA)
+    U, s, Vh = svd(AA + GG)
 
     c = np.dot(U.T, Ab)
     w = np.dot(np.diag(1 / s), c)
     x = np.dot(Vh.conj().T, w)
     return x
+
+
+# see https://github.com/scipy/scipy/blob/f74bbcef8e382e0d5c4277babeeb558ca6f91714/scipy/linalg/_qr_solve.py
+def qr_solve2(A, y, silent=True):
+    """
+    Solves over-determined and underdetemined linar systems :math:`y=Ax`.
+    Parameters
+    ----------
+    A : (M, N) array_like
+        Any matrix.
+
+    y : ndarray
+        A column vector to solve for with `M` rows.
+
+    silent : {'True', 'False'}, optional
+        To log if the solution is a true solution.
+    Returns
+    -------
+    x : ndarray
+        Solution to the linear system equation
+    Notes
+    -----
+    This uses QR-Decomposition using the permutation matrix to find a soultion to the
+    given linear system `y=Ax` through back substitution.
+    References
+    ----------
+    .. [1] https://inst.eecs.berkeley.edu/~ee127/sp21/livebook/l_lineqs_solving.html
+    Examples
+    --------
+    Given `A` is `m\times n`, `x \in \mathbb{R}^{n}` `y\in\mathbb{R}^m` in the equation `y=Ax`, solve for `x`:
+    >>> import numpy as np
+    >>> from scipy import linalg
+    >>> A = np.random.rand( m, n )
+    >>> x = np.random.rand( n )
+    >>> y = A@x
+    >>> x_0 = _qr_solve.qr_solve(A, y)
+    >>> np.allclose(y, A@x_0)
+    True
+    """
+
+    A = np.asarray(A.toarray())
+    y = np.asarray(y)
+
+    # Solving y=Ax for an x_0
+    # A has m rows and n columns -> y has m rows and x has n rows
+    m, n = A.shape
+
+    # QR decomposition
+    from scipy.linalg import qr
+
+    Q, R, P = qr(A, pivoting=True)
+    # Q is an m by m orthogonal matrix
+    # R is an m by n upper right triangle matrix
+
+    # P is a permuntation matrix with n rows and n columns
+    # P can order A by rank for *rank revealing*
+    P = np.eye(len(P))[:, P]
+
+    # Let r be the number of linearly independent columns & rows in A (the rank)
+    rank = r = sum(np.around(np.diag(R), 12) != 0)
+
+    # Q is a m by m square orthogonal matrix
+    # Q_1 has m rows and r columns
+    Q_1 = Q[:, :rank]
+
+    # R_1 is an r by r upper right triangular matrix
+    R_1 = R[:rank, :rank]
+
+    # R_2 is an r by m-r matrix
+    R_2 = R[:, : -(rank - m)]
+
+    # z_1 is a column vector with r elements
+    # z_1 = scipy.linalg.solve(R_1,Q_1.T@y)
+    z_1 = np.linalg.solve(R_1, Q_1.T @ y)
+
+    # We pad z_1 with r-m zeros at the bottom for a solution vector
+    padding = np.zeros(n - r)  # zero padding
+    x_0 = P @ np.hstack([z_1, padding])  # Add padding
+
+    # if not silent:
+    #     #Log if there was a solution
+    #     is_solution = np.allclose(y,A@x_0)
+    #     logging.info("Solution Found!") if is_solution else loggin.info("No Solution!")
+
+    return x_0
+
+
+def lm_solve(A, b):
+    from scipy.optimize import least_squares
+
+    # fun = lambda x: A @ x - b
+    # jac = lambda x: A.toarray()
+
+    AA = A.T @ A
+    Ab = A.T @ b
+    fun = lambda x: AA @ x - Ab
+    jac = lambda x: AA.toarray()
+
+    sol = least_squares(fun, np.zeros_like(b), jac=jac, method="lm")
+    return sol.x
 
 
 def fsolve(
@@ -232,13 +359,18 @@ def fsolve(
     error_function=lambda x: np.max(np.absolute(x)),
     atol=1.0e-8,
     eps=1.0e-6,
+    # max_iter=5,
     max_iter=20,
-    linear_solver=lu_solve,
+    # linear_solver=lu_solve,
     # linear_solver=lsqr_solve,
-    # linear_solver=qr_solve,
+    # linear_solver=lsmr_solve,
     # linear_solver=sparse_qr_solve,
-    # linear_solver=qr_overdetermined_solve,
+    linear_solver=qr_overdetermined_solve,
     # linear_solver=qr_underdetermined_solve,
+    # linear_solver=normal_equation_tikhonov_solve,
+    # linear_solver=qr_solve2,
+    # linear_solver=lm_solve,
+    # linear_solver=normal_equation_solve,
 ):
     if not isinstance(fun_args, tuple):
         fun_args = (fun_args,)

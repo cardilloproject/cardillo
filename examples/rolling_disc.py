@@ -72,9 +72,9 @@ K_Omega0 = np.array(
 # TODO: Derive these equations!
 v_S0 = np.array([-R * alpha_dot0 + r * alpha_dot0 * np.sin(beta0), 0, 0])
 
-# RigidBody = RigidBodyQuaternion
+RigidBody = RigidBodyQuaternion
 # RigidBody = RigidBodyAxisAngle
-RigidBody = RigidBodyEuler
+# RigidBody = RigidBodyEuler
 
 # initial conditions
 u0 = np.concatenate((v_S0, K_Omega0))
@@ -134,9 +134,9 @@ def state():
     # t1 = 2 * np.pi / np.abs(alpha_dot0) * 0.5
     # t1 = 2 * np.pi / np.abs(alpha_dot0) * 1.0
     # dt = 5e-3
-    dt = 5e-2
+    # dt = 5e-2
     # dt = 2.5e-2
-    # dt = 1.0e-2  # used for GAMM with R = 10 * r
+    dt = 1.0e-2  # used for GAMM with R = 10 * r
     # dt = 1.0e-3
 
     # rho_inf = 0.99
@@ -163,7 +163,11 @@ def state():
     # dae_index = "GGL"
     # sol = RadauIIa(model, t1, dt, rtol=rtol, atol=atol, dae_index=dae_index).solve()
 
-    sol = Rattle(model, t1, dt, atol=tol).solve()
+    # sol = Rattle(model, t1, dt, atol=tol).solve()
+
+    from spook.solver.runge_kutta import RadauIIATableau, NonsmoothPIRK
+
+    sol = NonsmoothPIRK(model, t1, dt, RadauIIATableau(2)).solve()
 
     t = sol.t
     q = sol.q
@@ -847,5 +851,5 @@ def convergence():
 
 
 if __name__ == "__main__":
-    # state()
-    convergence()
+    state()
+    # convergence()

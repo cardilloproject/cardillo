@@ -13,8 +13,15 @@ from cardillo.forces import Force
 from cardillo.contacts import Sphere2Plane
 from cardillo.solver import MoreauShifted, Rattle, NonsmoothBackwardEuler
 
+from spook.solver.runge_kutta import *
 
-Solver1, label1, dt1, kwargs1 = NonsmoothBackwardEuler, "Euler backward", 1e-2, {}
+Solver1, label1, dt1, kwargs1 = (
+    NonsmoothPIRK,
+    "NPIRK",
+    1e-2,
+    {"butcher_tableau": RadauIIATableau(1)},
+)
+# Solver1, label1, dt1, kwargs1 = NonsmoothBackwardEuler, "Euler backward", 1e-2, {}
 # Solver1, label1, dt1, kwargs1 = Rattle, "Rattle", 1e-2, {}
 # Solver1, label1, dt1, kwargs1 = MoreauShifted, "MoreauShifted", 2e-2, {}
 Solver2, label2, dt2, kwargs2 = MoreauShifted, "MoreauShifted", 1e-2, {}

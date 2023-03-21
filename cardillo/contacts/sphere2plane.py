@@ -248,17 +248,17 @@ class Sphere2Plane:
     def xi_F(self, t, q, u_pre, u_post):
         return self.gamma_F(t, q, u_post) + self.e_F * self.gamma_F(t, q, u_pre)
 
-    # def xi_N_q(self, t, q, u_pre, u_post, coo):
-    #     g_N_q_pre = self.g_N_dot_q_dense(t, q, u_pre)
-    #     g_N_q_post = self.g_N_dot_q_dense(t, q, u_post)
-    #     dense = g_N_q_post + self.e_N * g_N_q_pre
-    #     coo.extend(dense, (self.la_NDOF, self.qDOF))
+    def xi_N_q(self, t, q, u_pre, u_post, coo):
+        g_N_q_pre = self.g_N_dot_q_dense(t, q, u_pre)
+        g_N_q_post = self.g_N_dot_q_dense(t, q, u_post)
+        dense = g_N_q_post + self.e_N * g_N_q_pre
+        coo.extend(dense, (self.la_NDOF, self.qDOF))
 
-    # def xi_F_q(self, t, q, u_pre, u_post, coo):
-    #     gamma_F_q_pre = self.gamma_F_q_dense(t, q, u_pre)
-    #     gamma_F_q_post = self.gamma_F_q_dense(t, q, u_post)
-    #     dense = gamma_F_q_post + self.e_F * gamma_F_q_pre
-    #     coo.extend(dense, (self.la_FDOF, self.qDOF))
+    def xi_F_q(self, t, q, u_pre, u_post, coo):
+        gamma_F_q_pre = self.gamma_F_q_dense(t, q, u_pre)
+        gamma_F_q_post = self.gamma_F_q_dense(t, q, u_post)
+        dense = gamma_F_q_post + self.e_F * gamma_F_q_pre
+        coo.extend(dense, (self.la_FDOF, self.qDOF))
 
     def export(self, sol_i, **kwargs):
         r_OP = self.r_OP(sol_i.t, sol_i.q[self.qDOF])
