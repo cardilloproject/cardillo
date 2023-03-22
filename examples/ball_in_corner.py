@@ -18,8 +18,8 @@ from spook.solver.runge_kutta import *
 Solver1, label1, dt1, kwargs1 = (
     NonsmoothPIRK,
     "NPIRK",
-    1e-2,
-    {"butcher_tableau": RadauIIATableau(1)},
+    5e-2,
+    {"butcher_tableau": RadauIIATableau(2)},
 )
 # Solver1, label1, dt1, kwargs1 = NonsmoothBackwardEuler, "Euler backward", 1e-2, {}
 # Solver1, label1, dt1, kwargs1 = Rattle, "Rattle", 1e-2, {}
@@ -119,7 +119,6 @@ def run():
     ax[1, 0].legend()
 
     ax[0, 1].set_title("y(t)")
-    ax[0, 1].plot([t2[0], t2[-1]], [r, r], "-k", label="ground")
     ax[0, 1].plot(t1, q1[:, 1], "--k", label=label1)
     ax[0, 1].plot(t2, q2[:, 1], "--r", label=label2)
     ax[0, 1].legend()

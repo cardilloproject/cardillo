@@ -245,10 +245,17 @@ if __name__ == "__main__":
     system.assemble()
 
     t_final = 1.5
-    dt1 = 1e-2
+    dt1 = 5e-3
     dt2 = 5e-3
 
-    sol1, label1 = Rattle(system, t_final, dt1, atol=1e-10).solve(), "Rattle"
+    from spook.solver.runge_kutta import RadauIIATableau, NonsmoothPIRK
+
+    sol1, label1 = (
+        NonsmoothPIRK(system, t_final, dt1, RadauIIATableau(2)).solve(),
+        "NPIRK",
+    )
+
+    # sol1, label1 = Rattle(system, t_final, dt1, atol=1e-10).solve(), "Rattle"
 
     sol2, label2 = (
         MoreauShifted(system, t_final, dt2, fix_point_tol=1e-6).solve(),
