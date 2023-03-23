@@ -237,7 +237,7 @@ def svd_solve(A, b, xk):
     return xk1
 
 
-def MNGN_svd(J, rx, xk):
+def MNGN_svd(J, rx, xk, x0):
     """Minimal norm Gauss-Newton (MNGN) solved with svd decomposition,
     see Pes2020, section 3."""
     # compute svd of A with matlab default driver "gesvd",
@@ -259,12 +259,15 @@ def MNGN_svd(J, rx, xk):
     # print(f"nonzero_idx: {nonzero_idx}")
     # print(f"zero_idx: {zero_idx}")
     # print(f"rank: {rank}")
+    if rank < n:
+        print(f"rank deficency!")
 
     b = U.T @ rx
 
     y = np.zeros_like(rx)
     y[nonzero_idx] = b[nonzero_idx] / s[nonzero_idx]
     # y[zero_idx] = Vh[zero_idx] @ xk
+    # y[zero_idx] = Vh[zero_idx] @ (xk - x0)
     # return Vh.conj().T @ y
     return Vh.T @ y
 
@@ -277,7 +280,7 @@ def MNGN_svd(J, rx, xk):
     return -Delta_x
 
 
-def MNGN_qr(A, b, xk=None, rank_precision=12):
+def MNGN_qr(A, b, xk=None, x0=None, rank_precision=12):
     """Solve the sparse (overdetermined) linear system Ax=b with rank
     deficiency using column pivoted QR decomposition.
     """
@@ -288,6 +291,7 @@ def MNGN_qr(A, b, xk=None, rank_precision=12):
 
     # QR decomposition of A
     Q, R, p = qr(A.toarray(), pivoting=True, mode="full")
+    # Q, R, p = qr(A.toarray(), pivoting=True, mode="economic")
     # print(f"Q.shape: {Q.shape}, R.shape: {R.shape}")
 
     # build permutation matrix
@@ -316,15 +320,17 @@ def MNGN_qr(A, b, xk=None, rank_precision=12):
 
     # # use guess form last iteration
     # z = xk[p][rank :]
+    # print(f"z: {z}")
 
-    # compute z part that minimizes ||(R11 y , z)||^2
-    z = np.linalg.solve(R12.T @ R12 + np.eye(n - rank), -c.T @ R12)
+    # # compute z part that minimizes ||(R11 y , z)||^2
+    # z = np.linalg.solve(R12.T @ R12 + np.eye(n - rank), -c.T @ R12)
     # print(f"z: {z}")
 
     # # compute z part that minimizes ||(y , z)||^2
     # R11_inv = np.linalg.inv(R11)
     # M = R11_inv.T @ R11_inv
     # z = np.linalg.solve(R12.T @ M @ R12 + np.eye(n - rank), - c.T @ M @ R12)
+    # print(f"z: {z}")
 
     # padd solution with zeros
     # xp = np.zeros_like(b)
@@ -491,7 +497,7 @@ def fsolve(
     fun_args=(),
     jac_args=(),
     error_function=lambda x: np.max(np.absolute(x)),
-    atol=1.0e-4,
+    atol=1.0e-8,
     eps=1.0e-6,
     max_iter=20,
     # linear_solver=lu_solve,
@@ -532,10 +538,10 @@ def fsolve(
         # f = np.atleast_1d(fun(x, *fun_args))
         # error = error_function(f)
 
-        # dx = linear_solver(J, f, x)
-        dx = linear_solver(J, f, x0)
+        dx = linear_solver(J, f, x, x0)
         x -= dx
         f = np.atleast_1d(fun(x, *fun_args))
+        # TODO: Does ||f|| work in all cases?
         error = error_function(dx)
         # error = error_function(f)
 
