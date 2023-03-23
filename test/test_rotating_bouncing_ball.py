@@ -97,12 +97,11 @@ def run(case):
 
     system.assemble()
 
-    from spook.solver.runge_kutta import RadauIIATableau, NonsmoothPIRK
-
-    solver1, label1 = NonsmoothPIRK(system, t_final, dt, RadauIIATableau(1)), "NPIRK"
+    # from spook.solver.runge_kutta import RadauIIATableau, NonsmoothPIRK
+    # solver1, label1 = NonsmoothPIRK(system, t_final, dt, RadauIIATableau(1)), "NPIRK"
 
     # solver1, label1 = NonsmoothGeneralizedAlpha(system, t_final, dt, method="newton"), "Gen-alpha"
-    # solver1, label1 = Rattle(system, t_final, dt), "Rattle"
+    solver1, label1 = Rattle(system, t_final, dt), "Rattle"
     # solver1, label1 = MoreauShifted(system, t_final, dt), "MoreauShifted"
     # solver1, label1 = MoreauShiftedNew(system, t_final, dt), "MoreauShiftedNew"
     # solver1, label1 = MoreauClassical(system, t_final, dt), "MoreauClassical"
@@ -123,7 +122,7 @@ def run(case):
     #     NonsmoothGeneralizedAlpha(system, t_final, dt),
     #     "Gen-alpha",
     # )
-    solver2, label2 = MoreauShifted(system, t_final, dt), "Moreau"
+    solver2, label2 = MoreauClassical(system, t_final, dt), "Moreau"
     # solver2, label2 = Rattle(system, t_final, dt), "Rattle"
     sol2 = solver2.solve()
     t2 = sol2.t
@@ -263,7 +262,7 @@ def run(case):
 
 
 if __name__ == "__main__":
-    # run(1)
+    run(1)
     # run(2)
     # run(3)
-    run(4)
+    # run(4)

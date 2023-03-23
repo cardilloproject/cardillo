@@ -25,8 +25,8 @@ class Rattle:
         fix_point_max_iter=1000,
         error_function=lambda x: np.max(np.abs(x)),
         # method="Newton_decoupled",
-        # method="Newton_full",
-        method="fixed_point",
+        method="Newton_full",
+        # method="fixed_point",
         # method="fixed_point_nonlinear_full",
         continue_with_unconverged=True,
     ):

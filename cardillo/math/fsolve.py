@@ -280,6 +280,7 @@ def MNGN_svd(J, rx, xk, x0):
     return -Delta_x
 
 
+# TODO: Use sparse QR decomposition.
 def MNGN_qr(A, b, xk=None, x0=None, rank_precision=12):
     """Solve the sparse (overdetermined) linear system Ax=b with rank
     deficiency using column pivoted QR decomposition.
@@ -320,17 +321,17 @@ def MNGN_qr(A, b, xk=None, x0=None, rank_precision=12):
 
     # # use guess form last iteration
     # z = xk[p][rank :]
-    # print(f"z: {z}")
+    # # print(f"z: {z}")
 
     # # compute z part that minimizes ||(R11 y , z)||^2
     # z = np.linalg.solve(R12.T @ R12 + np.eye(n - rank), -c.T @ R12)
-    # print(f"z: {z}")
+    # # print(f"z: {z}")
 
     # # compute z part that minimizes ||(y , z)||^2
     # R11_inv = np.linalg.inv(R11)
     # M = R11_inv.T @ R11_inv
     # z = np.linalg.solve(R12.T @ M @ R12 + np.eye(n - rank), - c.T @ M @ R12)
-    # print(f"z: {z}")
+    # # print(f"z: {z}")
 
     # padd solution with zeros
     # xp = np.zeros_like(b)
@@ -542,8 +543,8 @@ def fsolve(
         x -= dx
         f = np.atleast_1d(fun(x, *fun_args))
         # TODO: Does ||f|| work in all cases?
-        error = error_function(dx)
-        # error = error_function(f)
+        # error = error_function(dx)
+        error = error_function(f)
 
         converged = error <= atol
 

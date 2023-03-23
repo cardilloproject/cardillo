@@ -6,7 +6,7 @@ import matplotlib.animation as animation
 from cardillo.math import approx_fprime
 
 from cardillo import System
-from cardillo.solver import MoreauShifted, Rattle, MoreauShiftedNew
+from cardillo.solver import MoreauShifted, Rattle, MoreauClassical
 
 
 class SliderCrankFlores:
@@ -641,8 +641,8 @@ class SliderCrankDAE:
         # contact parameters
         self.e_N = 0.4 * np.ones(4)
         self.e_F = np.zeros(4)
-        # mu = 0.01
-        mu = 0  # TODO: Delete this!
+        mu = 0.01
+        # mu = 0  # TODO: Delete this!
         self.mu = mu * np.ones(4)
 
         if mu == 0:
@@ -1120,21 +1120,21 @@ def run_DAE():
     dt1 = 5e-4  # Rattle
     dt2 = 1e-5  # Moreau
 
-    from spook.solver.runge_kutta import RadauIIATableau, NonsmoothPIRK
+    # from spook.solver.runge_kutta import RadauIIATableau, NonsmoothPIRK
 
-    sol1, label1 = (
-        NonsmoothPIRK(system, t_final, dt1, RadauIIATableau(2)).solve(),
-        "NPIRK",
-    )
-
-    # sol1, label1 = Rattle(system, t_final, dt1).solve(), "Rattle"
     # sol1, label1 = (
-    #     Moreau(system, t_final, dt2, fix_point_max_iter=5).solve(),
-    #     "Moreau",
+    #     NonsmoothPIRK(system, t_final, dt1, RadauIIATableau(2)).solve(),
+    #     "NPIRK",
+    # )
+
+    sol1, label1 = Rattle(system, t_final, dt1).solve(), "Rattle"
+    # sol1, label1 = (
+    #     MoreauShifted(system, t_final, dt2, fix_point_max_iter=5).solve(),
+    #     "MoreauShifted",
     # )
     sol2, label2 = (
-        MoreauShiftedNew(system, t_final, dt2, max_iter=500).solve(),
-        "Moreau",
+        MoreauClassical(system, t_final, dt2, max_iter=500).solve(),
+        "MoreauClassical",
     )
 
     t1 = sol1.t

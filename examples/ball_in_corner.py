@@ -63,11 +63,11 @@ def run():
     u0 = np.concatenate([vS0, np.array([0, 0, phi_dot0], dtype=float)])
     RB = Ball(m, r, q0, u0)
 
-    alpha = -pi / 4
+    alpha = -pi / 4 * 1.1
     e1, e2, e3 = A_IK_basic(alpha).z().T
     frame_left = Frame(A_IK=np.vstack((e3, e1, e2)).T)
-    # mu = 0.3
-    mu = 0  # TODO: Remove this
+    mu = 0.3
+    # mu = 0  # TODO: Remove this
     e_N = 0.0
     e_F = 0.0
     plane_left = Sphere2Plane(frame_left, RB, r, mu, e_N=e_N, e_F=e_F)
@@ -75,8 +75,8 @@ def run():
     beta = pi / 4
     e1, e2, e3 = A_IK_basic(beta).z().T
     frame_right = Frame(A_IK=np.vstack((e3, e1, e2)).T)
-    # mu = 0.3
-    mu = 0  # TODO: Remove this
+    mu = 0.3
+    # mu = 0  # TODO: Remove this
     e_N = 0.5
     # e_N = 0.0  # TODO: Remove this
     e_F = 0.0
