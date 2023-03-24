@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 
 from cardillo.math import approx_fprime
 from cardillo import System
-from cardillo.solver import MoreauShifted, Rattle
+from cardillo.solver import MoreauShifted, Rattle, NonsmoothPIRK, RadauIIATableau
 
 
 class RockingRod:
@@ -155,8 +155,6 @@ class RockingRod:
         return self.W_F_dense(t, q).T @ a + self.zeta_F(t, q, u)
 
 
-from spook.solver.runge_kutta import RadauIIATableau, NonsmoothPIRK
-
 Solver1, label1, dt1, kwargs1 = (
     NonsmoothPIRK,
     "NPIRK",
@@ -180,22 +178,22 @@ if __name__ == "__main__":
 
     rods = []
 
-    # # case 1
-    # a = 0.2
-    # x0 = a * (np.cos(phi0) - 1)
-    # y0 = a * np.sin(phi0)
-    # q0 = np.array([x0, y0, phi0])
-    # u0 = np.array([0, 0, 0])
-    # rods.append(RockingRod(mass, a, l, eN, eF, mu, q0, u0))
-
-    # case 2
-    a = 0.3
+    # case 1
+    a = 0.2
     x0 = a * (np.cos(phi0) - 1)
     y0 = a * np.sin(phi0)
     q0 = np.array([x0, y0, phi0])
-    # u0 = np.array([0, 0, 0])
-    u0 = -np.ones(3) * 5e-1
+    u0 = np.array([0, 0, 0])
     rods.append(RockingRod(mass, a, l, eN, eF, mu, q0, u0))
+
+    # # case 2
+    # a = 0.3
+    # x0 = a * (np.cos(phi0) - 1)
+    # y0 = a * np.sin(phi0)
+    # q0 = np.array([x0, y0, phi0])
+    # # u0 = np.array([0, 0, 0])
+    # u0 = -np.ones(3) * 5e-1
+    # rods.append(RockingRod(mass, a, l, eN, eF, mu, q0, u0))
 
     # # case 3
     # a = 0.6

@@ -1,12 +1,13 @@
 import numpy as np
 from warnings import warn
-from scipy.sparse import csc_matrix
-from scipy.sparse.linalg import spsolve, lsqr, lsmr, LinearOperator
+from scipy.sparse import csc_matrix, diags
+from scipy.sparse.linalg import spsolve, lsqr, lsmr, LinearOperator, spsolve_triangular
 from cardillo.math import approx_fprime
 
 try:
+    import sparseqr
 
-    def sparse_qr_solve(A, b):
+    def sparse_qr_solve(A, b, *args):
         """
         Solve the sparse linear system Ax=b, using PySPQR wrapper to SuitSparse's sparse QR-solve
         function.
@@ -16,9 +17,52 @@ try:
         PySPQR: https://github.com/yig/PySPQR \\
         SuiteSparseQR: http://faculty.cse.tamu.edu/davis/suitesparse.html
         """
-        import sparseqr
-
         return sparseqr.solve(A, b, tolerance=0)
+
+    # TODO:
+    # - add reference of Fabia's book
+    # - remove other implementations than basic solution
+    def MNGN_sparse_qr(A, b, *args, rank_precision=12):
+        """Solve the sparse (overdetermined) linear system Ax=b with rank 
+        deficiency using column pivoted sparse QR decomposition from PySPQR 
+        wrapper to SuitSparse's sparse QR-decomposition.
+
+        References:
+        -----------
+        PySPQR: https://github.com/yig/PySPQR \\
+        SuiteSparseQR: http://faculty.cse.tamu.edu/davis/suitesparse.html
+        """
+        # QR-decomposition with column pivoting
+        Q, R, p, rank = sparseqr.qr(A)
+
+        # compute matrix rank of R with given precision
+        rank = sum(np.around(R.diagonal(), rank_precision) != 0)
+
+        # detect rank deficiency
+        m, n = A.shape
+        if n - rank > 0:
+            print(f"rank deficiency!")
+
+        # new rhs
+        c = Q.T @ b
+        c1 = c[:rank]
+
+        # extract upper left block of R
+        R = R.tocsr()
+        R11 = R[:rank, :rank]
+
+        # basic solution
+        z = np.zeros(n - rank)
+        y = spsolve_triangular(R11, c1, lower=False)
+
+        # concatenate both solutions
+        xp = np.concatenate((y, z))
+
+        # apply permutation
+        x = np.zeros_like(b)
+        x[p] = xp
+
+        return x
 
 except:
     pass
@@ -69,7 +113,7 @@ def lu_solve(A, b, *args):
     return spsolve(A, b)
 
 
-def lsqr_solve(A, b):
+def lsqr_solve(A, b, *args):
     """
     Find the least-squares solution to a large, sparse, linear system of
     equations Ax=b.
@@ -245,16 +289,14 @@ def MNGN_svd(J, rx, xk, x0):
     from scipy.linalg import svd
 
     U, s, Vh = svd(J.toarray(), lapack_driver="gesvd")
-    # U, s, Vh = svd(J.toarray(), lapack_driver="gesdd")
 
     # shape of input matrix
     m, n = J.shape
 
     # compute matrix rank of R with given precision
-    # s[3:5] = 0
     positive = s > 1.0e-12
     nonzero_idx = np.where(positive)[0]
-    zero_idx = np.where(~positive)[0]
+    # zero_idx = np.where(~positive)[0]
     rank = len(nonzero_idx)
     # print(f"nonzero_idx: {nonzero_idx}")
     # print(f"zero_idx: {zero_idx}")
@@ -271,16 +313,7 @@ def MNGN_svd(J, rx, xk, x0):
     # return Vh.conj().T @ y
     return Vh.T @ y
 
-    # Delta_x = -(
-    #     Vh.T[:, nonzero_idx] @ (b[nonzero_idx] / s[nonzero_idx])
-    #     # + Vh.T[:, zero_idx] @ (Vh.T[:, zero_idx].T @ xk) # TODO: Is this correct?
-    #     + (np.eye(m) - Vh.T[:, nonzero_idx] @ Vh.T[:, nonzero_idx].T) @ xk
-    # )
 
-    return -Delta_x
-
-
-# TODO: Use sparse QR decomposition.
 def MNGN_qr(A, b, xk=None, x0=None, rank_precision=12):
     """Solve the sparse (overdetermined) linear system Ax=b with rank
     deficiency using column pivoted QR decomposition.
@@ -503,7 +536,9 @@ def fsolve(
     max_iter=20,
     # linear_solver=lu_solve,
     # linear_solver=MNGN_svd,
-    linear_solver=MNGN_qr,
+    # linear_solver=MNGN_qr,
+    # linear_solver=MNGN_sparse_qr,
+    linear_solver=sparse_qr_solve,
 ):
     if not isinstance(fun_args, tuple):
         fun_args = (fun_args,)

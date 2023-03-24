@@ -20,6 +20,7 @@ from .generalized_alpha import (
 )
 from .nonsmooth_generalized_alpha import NonsmoothGeneralizedAlpha
 from .rattle import Rattle
+from .runge_kutta import *
 
 # static solvers
 from .statics import Newton, Riks

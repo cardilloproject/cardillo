@@ -11,9 +11,14 @@ from cardillo.discrete import RigidBodyEuler
 from cardillo.discrete import Frame
 from cardillo.forces import Force
 from cardillo.contacts import Sphere2Plane
-from cardillo.solver import MoreauShifted, Rattle, NonsmoothBackwardEuler
+from cardillo.solver import (
+    MoreauShifted,
+    Rattle,
+    NonsmoothBackwardEuler,
+    NonsmoothPIRK,
+    RadauIIATableau,
+)
 
-from spook.solver.runge_kutta import *
 
 Solver1, label1, dt1, kwargs1 = (
     NonsmoothPIRK,
@@ -67,7 +72,6 @@ def run():
     e1, e2, e3 = A_IK_basic(alpha).z().T
     frame_left = Frame(A_IK=np.vstack((e3, e1, e2)).T)
     mu = 0.3
-    # mu = 0  # TODO: Remove this
     e_N = 0.0
     e_F = 0.0
     plane_left = Sphere2Plane(frame_left, RB, r, mu, e_N=e_N, e_F=e_F)
@@ -76,7 +80,6 @@ def run():
     e1, e2, e3 = A_IK_basic(beta).z().T
     frame_right = Frame(A_IK=np.vstack((e3, e1, e2)).T)
     mu = 0.3
-    # mu = 0  # TODO: Remove this
     e_N = 0.5
     # e_N = 0.0  # TODO: Remove this
     e_F = 0.0

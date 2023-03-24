@@ -9,6 +9,8 @@ from cardillo.solver import (
     MoreauShifted,
     NonsmoothGeneralizedAlpha,
     Rattle,
+    NonsmoothPIRK,
+    RadauIIATableau,
 )
 
 
@@ -247,8 +249,6 @@ if __name__ == "__main__":
     t_final = 1.5
     dt1 = 5e-3
     dt2 = 5e-3
-
-    from spook.solver.runge_kutta import RadauIIATableau, NonsmoothPIRK
 
     sol1, label1 = (
         NonsmoothPIRK(system, t_final, dt1, RadauIIATableau(2)).solve(),

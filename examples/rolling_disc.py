@@ -19,6 +19,8 @@ from cardillo.solver import (
     GeneralizedAlphaFirstOrder,
     RadauIIa,
     Rattle,
+    NonsmoothPIRK,
+    RadauIIATableau,
 )
 
 
@@ -164,8 +166,6 @@ def state():
     # sol = RadauIIa(model, t1, dt, rtol=rtol, atol=atol, dae_index=dae_index).solve()
 
     # sol = Rattle(model, t1, dt, atol=tol).solve()
-
-    from spook.solver.runge_kutta import RadauIIATableau, NonsmoothPIRK
 
     sol = NonsmoothPIRK(model, t1, dt, RadauIIATableau(2)).solve()
 

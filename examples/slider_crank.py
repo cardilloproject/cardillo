@@ -6,7 +6,13 @@ import matplotlib.animation as animation
 from cardillo.math import approx_fprime
 
 from cardillo import System
-from cardillo.solver import MoreauShifted, Rattle, MoreauClassical
+from cardillo.solver import (
+    MoreauShifted,
+    Rattle,
+    MoreauClassical,
+    NonsmoothPIRK,
+    RadauIIATableau,
+)
 
 
 class SliderCrankFlores:
@@ -1120,14 +1126,12 @@ def run_DAE():
     dt1 = 5e-4  # Rattle
     dt2 = 1e-5  # Moreau
 
-    # from spook.solver.runge_kutta import RadauIIATableau, NonsmoothPIRK
+    sol1, label1 = (
+        NonsmoothPIRK(system, t_final, dt1, RadauIIATableau(2)).solve(),
+        "NPIRK",
+    )
 
-    # sol1, label1 = (
-    #     NonsmoothPIRK(system, t_final, dt1, RadauIIATableau(2)).solve(),
-    #     "NPIRK",
-    # )
-
-    sol1, label1 = Rattle(system, t_final, dt1).solve(), "Rattle"
+    # sol1, label1 = Rattle(system, t_final, dt1).solve(), "Rattle"
     # sol1, label1 = (
     #     MoreauShifted(system, t_final, dt2, fix_point_max_iter=5).solve(),
     #     "MoreauShifted",
