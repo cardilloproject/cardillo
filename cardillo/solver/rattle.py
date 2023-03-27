@@ -757,7 +757,7 @@ class Rattle:
 
         return J1_num
 
-    def R2(self, y2):
+    def R2(self, y2, update_index=False):
         tn = self.tn
         un = self.un
         h = self.dt
@@ -799,9 +799,13 @@ class Rattle:
         ##################################################
         prox_r_N = self.prox_r_N
         xi_Nn1 = self.system.xi_N(tn1, qn1, un, un1)
+        prox_arg = prox_r_N * xi_Nn1 - P_N
+        if update_index:
+            self.B_N = self.I_N * (prox_arg <= 0)
+
         R2[self.split_y2[2] : self.split_y2[3]] = np.where(
-            self.I_N,
-            P_N + prox_R0_nm(prox_r_N * xi_Nn1 - P_N),
+            self.B_N,
+            xi_Nn1,
             P_N,
         )
 
@@ -809,16 +813,159 @@ class Rattle:
         # friction and tangent impacts
         ##############################
         prox_r_F = self.prox_r_F
-        xi_Fn1 = self.system.xi_F(tn1, qn1, un, un1)
+        mu = self.system.mu
+        xi_F = self.system.xi_F(tn1, qn1, un, un1)
         for i_N, i_F in enumerate(self.system.NF_connectivity):
+            # i_F = np.array(i_F)
+            # if len(i_F) > 0:
+            #     R2[self.split_y2[3] + i_F] = P_F[i_F] + prox_sphere(
+            #         prox_r_F[i_N] * xi_F[i_F] - P_F[i_F],
+            #         self.system.mu[i_N] * P_N[i_N],
+            #     )
+
             i_F = np.array(i_F)
-            if len(i_F) > 0:
-                R2[self.split_y2[3] + i_F] = P_F[i_F] + prox_sphere(
-                    prox_r_F[i_N] * xi_Fn1[i_F] - P_F[i_F],
-                    self.system.mu[i_N] * P_N[i_N],
-                )
+            n_F = len(i_F)
+            if n_F > 0:
+                P_Ni = P_N[i_N]
+                P_Fi = P_F[i_F]
+                xi_Fi = xi_F[i_F]
+                arg_F = prox_r_F[i_F] * xi_Fi - P_Fi
+                mui = mu[i_N]
+                radius = mui * P_Ni
+                norm_arg_F = np.linalg.norm(arg_F)
+
+                if norm_arg_F <= radius:
+                    R2[self.split_y2[3] + i_F] = xi_F[i_F]
+                else:
+                    if norm_arg_F > 0:
+                        R2[self.split_y2[3] + i_F] = (
+                            P_F[i_F] + radius * arg_F / norm_arg_F
+                        )
+                    else:
+                        R2[self.split_y2[3] + i_F] = P_F[i_F] + radius * arg_F
 
         return R2
+
+    def J2(self, y2, *args, **kwargs):
+        tn = self.tn
+        qn = self.qn
+        un = self.un
+        h = self.dt
+        tn1 = tn + h
+
+        qn1 = self.qn1
+        un12 = self.un12
+        P_N1 = self.P_N1
+        P_F1 = self.P_F1
+
+        un1, P_g2, P_gamma2, P_N2, P_F2 = np.array_split(y2, self.split_y2)
+
+        P_N = 0.5 * (P_N1 + P_N2)
+        P_F = 0.5 * (P_F1 + P_F2)
+
+        ########################
+        # euations of motion (2)
+        ########################
+        M = self.system.M(tn1, qn1)
+        W_g = self.system.W_g(tn1, qn1)
+        W_gamma = self.system.W_gamma(tn1, qn1)
+        W_N = self.system.W_N(tn1, qn1, scipy_matrix=csr_matrix)
+        W_F = self.system.W_F(tn1, qn1)
+
+        Ru_u = M - 0.5 * h * self.system.h_u(tn1, qn1, un12)
+
+        ##################################################
+        # mixed Singorini on velocity level and impact law
+        ##################################################
+        Rla_N_u = lil_matrix((self.nla_N, self.nu))
+        Rla_N_la_N = lil_matrix((self.nla_N, self.nla_N))
+        for i in range(self.nla_N):
+            if self.B_N[i]:
+                Rla_N_u[i] = W_N.T[i]
+            else:
+                Rla_N_la_N[i, i] = 0.5
+
+        ##############################
+        # friction and tangent impacts
+        ##############################
+        mu = self.system.mu
+        prox_r_F = self.prox_r_F
+        xi_F = self.system.xi_F(tn1, qn1, un, un1)
+        xi_F_u = W_F.tocsr().T
+
+        Rla_F_u = lil_matrix((self.nla_F, self.nu))
+        Rla_F_la_N = lil_matrix((self.nla_F, self.nla_N))
+        Rla_F_la_F = lil_matrix((self.nla_F, self.nla_F))
+
+        for i_N, i_F in enumerate(self.system.NF_connectivity):
+            i_F = np.array(i_F)
+            n_F = len(i_F)
+            if n_F > 0:
+                P_Ni = P_N[i_N]
+                P_Fi = P_F[i_F]
+                xi_Fi = xi_F[i_F]
+                arg_F = prox_r_F[i_F] * xi_Fi - P_Fi
+                mui = mu[i_N]
+                radius = mui * P_Ni
+                norm_arg_F = np.linalg.norm(arg_F)
+
+                if norm_arg_F <= radius:
+                    Rla_F_u[i_F] = xi_F_u[i_F]
+                else:
+                    if norm_arg_F > 0:
+                        # print(f"slip ||x|| > 0")
+                        slip_dir = arg_F / norm_arg_F
+                        factor = (
+                            np.eye(n_F) - np.outer(slip_dir, slip_dir)
+                        ) / norm_arg_F
+                        Rla_F_u[i_F] = (
+                            radius * factor @ diags(prox_r_F[i_F]) @ xi_F_u[i_F]
+                        )
+                        Rla_F_la_N[i_F[:, None], i_N] = 0.5 * mui * slip_dir
+                        Rla_F_la_F[i_F[:, None], i_F] = 0.5 * (
+                            np.eye(n_F) - radius * factor
+                        )
+                    else:
+                        # print(f"slip ||x|| = 0")
+                        slip_dir = arg_F
+                        Rla_F_u[i_F] = radius * diags(prox_r_F[i_F]) @ xi_F_u[i_F]
+                        Rla_F_la_N[i_F[:, None], i_N] = mui * slip_dir
+                        Rla_F_la_F[i_F[:, None], i_F] = (1 - radius) * eye(n_F)
+
+        # fmt: off
+        J2 = bmat(
+            [
+                [Ru_u, -0.5 * W_g, -0.5 * W_gamma, -0.5 * W_N, -0.5 * W_F],
+                [W_g.T, None, None, None, None],
+                [W_gamma.T, None, None, None, None],
+                [Rla_N_u, None, None, Rla_N_la_N, None],
+                [Rla_F_u, None, None, Rla_F_la_N, Rla_F_la_F],
+            ],
+            format="csr",
+        )
+        # fmt: on
+
+        return J2
+
+        J2_num = csr_matrix(approx_fprime(y2, self.R2, method="3-point", eps=1e-6))
+
+        diff = (J2 - J2_num).toarray()
+        # diff = diff[:self.split_y2[0]]
+        # diff = diff[self.split_y2[0]:self.split_y2[1]]
+        # diff = diff[self.split_y2[1]:self.split_y2[2]]
+        # diff = diff[self.split_y2[2]:self.split_y2[3]]
+        # diff = diff[self.split_y2[3]:]
+        # diff = diff[self.split_y2[3]:, :self.split_y2[0]]
+        # diff = diff[self.split_y2[3]:, self.split_y2[0] : self.split_y2[1]]
+        # diff = diff[self.split_y2[3]:, self.split_y2[1] : self.split_y2[2]]
+        # diff = diff[self.split_y2[3]:, self.split_y2[2] : self.split_y2[3]]
+        # diff = diff[self.split_y2[3]:, self.split_y2[3] :]
+        error = np.linalg.norm(diff)
+        if error > 1.0e-6:
+            print(f"error J1: {error}")
+        # print(f"error J1: {error}")
+
+        return J2_num
 
     def F1(self, x1, P_N1, P_F1):
         tn = self.tn
@@ -1042,9 +1189,6 @@ class Rattle:
                     self.R1,
                     self.y1n,
                     jac=self.J1,
-                    # jac="2-point",
-                    # jac="3-point",  # TODO: keep this, otherwise sinuglairites arise
-                    eps=1.0e-6,
                     atol=self.atol,
                     max_iter=self.max_iter,
                     fun_args=(True,),
@@ -1063,10 +1207,13 @@ class Rattle:
                 y2, converged2, error2, i2, _ = fsolve(
                     self.R2,
                     self.y2n,
-                    jac="3-point",  # TODO: keep this, otherwise sinuglairites arise
+                    jac=self.J2,
+                    # jac="3-point",  # TODO: keep this, otherwise sinuglairites arise
                     eps=1.0e-6,
                     atol=self.atol,
                     max_iter=self.max_iter,
+                    fun_args=(True,),
+                    jac_args=(False,),
                 )
 
                 un1, P_g2, P_gamma2, P_N2, P_F2 = np.array_split(y2, self.split_y2)
