@@ -1,12 +1,13 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.spatial.transform import Rotation
+from pathlib import Path
 
 from cardillo import System
 from cardillo.discrete import RigidBodyQuaternion, RigidBodyEuler
 from cardillo.math import axis_angle2quat, cross3, ax2skew, approx_fprime
 from cardillo.forces import Force
-from cardillo.solver import MoreauShifted, Rattle, MoreauShiftedNew
+from cardillo.solver import MoreauShifted, Rattle, MoreauClassical
 
 
 class Sphere2PlaneCoulombContensouMoeller:
@@ -332,7 +333,7 @@ def make_system(RigidBodyBase):
     return system, top, contact1, contact2
 
 
-def run():
+def run(export=True):
     """Example 10.6 of Capobianco2021.
 
     References:
@@ -345,19 +346,20 @@ def run():
     system, top, contact1, contact2 = make_system(RigidBodyQuaternion)
 
     t0 = 0
-    # t1 = 8
-    t_final = 2
-    # t_final = 0.1
+    t_final = 8
+    # t_final = 2
+    # t_final = 0.5
+    # t_final = 0.01
     dt1 = 1e-4
-    dt2 = 1e-4
+    dt2 = 5e-4
 
-    # sol1, label1 = Rattle(system, t_final, dt1, atol=1e-8).solve(), "Rattle"
-    sol1, label1 = (
-        MoreauShiftedNew(system, t_final, dt2, atol=1e-6).solve(),
-        "Moreau_new",
-    )
+    sol1, label1 = Rattle(system, t_final, dt1, atol=1e-8).solve(), "Rattle"
+    # sol1, label1 = (
+    #     MoreauShiftedNew(system, t_final, dt2, atol=1e-6).solve(),
+    #     "Moreau_new",
+    # )
     sol2, label2 = (
-        MoreauShifted(system, t_final, dt2, fix_point_tol=1e-6).solve(),
+        MoreauClassical(system, t_final, dt2, atol=1e-6).solve(),
         "Moreau",
     )
 
@@ -492,6 +494,25 @@ def run():
     ax[3].legend()
 
     plt.tight_layout()
+
+    if export:
+        path = Path(__file__)
+
+        np.savetxt(
+            path.parent / "state1.dat",
+            np.hstack((sol1.t[:, None], q1[:, :3], angles1)),
+            delimiter=", ",
+            header="t, x, y, z, psi, theta, phi",
+            comments="",
+        )
+
+        np.savetxt(
+            path.parent / "state2.dat",
+            np.hstack((sol2.t[:, None], q2[:, :3], angles2)),
+            delimiter=", ",
+            header="t, x, y, z, psi, theta, phi",
+            comments="",
+        )
 
     plt.show()
 

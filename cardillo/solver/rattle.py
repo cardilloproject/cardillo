@@ -19,14 +19,14 @@ class Rattle:
         system,
         t1,
         dt,
-        atol=1e-6,
+        atol=1e-8,
         max_iter=50,
         fix_point_tol=1e-6,
         fix_point_max_iter=1000,
         error_function=lambda x: np.max(np.abs(x)),
-        # method="Newton_decoupled",
+        method="Newton_decoupled",
         # method="Newton_full",
-        method="fixed_point",
+        # method="fixed_point",
         # method="fixed_point_nonlinear_full",
         continue_with_unconverged=True,
     ):
@@ -1025,15 +1025,15 @@ class Rattle:
 
         pbar = tqdm(self.t[:-1])
         for n in pbar:
-            # only compute optimized proxparameters once per time step
-            self.prox_r_N = self.system.prox_r_N(self.tn, self.qn)
-            self.prox_r_F = self.system.prox_r_F(self.tn, self.qn)
-
-            # TODO: We need a possibility to set prox parameters on system level!
+            # # only compute optimized proxparameters once per time step
+            # self.prox_r_N = self.system.prox_r_N(self.tn, self.qn)
+            # self.prox_r_F = self.system.prox_r_F(self.tn, self.qn)
             # print(f"prox_r_N: {self.prox_r_N}")
             # print(f"prox_r_F: {self.prox_r_F}")
-            # self.prox_r_N = np.ones(self.nla_N) * 0.5
-            # self.prox_r_F = np.ones(self.nla_F) * 0.5
+
+            # # TODO: We need a possibility to set prox parameters on system level!
+            self.prox_r_N = np.ones(self.nla_N) * 0.5
+            self.prox_r_F = np.ones(self.nla_F) * 0.5
 
             tn1 = self.tn + self.dt
 
@@ -1041,8 +1041,8 @@ class Rattle:
                 y1, converged1, error1, i1, _ = fsolve(
                     self.R1,
                     self.y1n,
-                    # jac=self.J1,
-                    jac="2-point",
+                    jac=self.J1,
+                    # jac="2-point",
                     # jac="3-point",  # TODO: keep this, otherwise sinuglairites arise
                     eps=1.0e-6,
                     atol=self.atol,
