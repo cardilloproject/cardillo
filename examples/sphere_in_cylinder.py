@@ -70,13 +70,13 @@ if __name__ == "__main__":
     t1 = sol1.t
     q1 = sol1.q
     u1 = sol1.u
-    P_N1 = sol1.P_N
+    R_N1 = sol1.P_N
     P_F1 = sol1.P_F
 
     t2 = sol2.t
     q2 = sol2.q
     u2 = sol2.u
-    P_N2 = sol2.P_N
+    R_N2 = sol2.P_N
     P_F2 = sol2.P_F
 
     fig, ax = plt.subplots(2, 3)
@@ -115,8 +115,8 @@ if __name__ == "__main__":
     fig, ax = plt.subplots(3, 1)
 
     ax[0].set_title("P_N(t)")
-    ax[0].plot(t2, P_N2[:, 0], "-k", label=label2)
-    ax[0].plot(t1, P_N1[:, 0], "--r", label=label1)
+    ax[0].plot(t2, R_N2[:, 0], "-k", label=label2)
+    ax[0].plot(t1, R_N1[:, 0], "--r", label=label1)
     ax[0].legend()
 
     ax[1].set_title("P_Fx(t)")

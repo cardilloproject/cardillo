@@ -539,11 +539,17 @@ class NonsmoothPIRK:
                 np.tile(self.la_gamman, self.stages),
                 np.tile(self.la_Nn, self.stages),
                 np.tile(self.la_Fn, self.stages),
-                self.un,
-                self.la_gn,
-                self.la_gamman,
-                self.la_Nn,
-                self.la_Fn,
+                # np.outer(self.q_dotn, self.b).reshape(-1, order="F"),
+                # np.outer(self.u_dotn, self.b).reshape(-1, order="F"),
+                # np.outer(self.la_gn, self.b).reshape(-1, order="F"),
+                # np.outer(self.la_gamman, self.b).reshape(-1, order="F"),
+                # np.outer(self.la_Nn, self.b).reshape(-1, order="F"),
+                # np.outer(self.la_Fn, self.b).reshape(-1, order="F"),
+                0 * self.un,
+                0 * self.la_gn,
+                0 * self.la_gamman,
+                0 * self.la_Nn,
+                0 * self.la_Fn,
             )
         )
         self.ny = len(self.yn)
@@ -1452,8 +1458,7 @@ class NonsmoothPIRK:
                 # jac="2-point",
                 jac="3-point",  # TODO: keep this, otherwise sinuglairites arise if g_N0=0!
                 eps=1.0e-6,
-                # atol=self.atol,
-                atol=1e-4,
+                atol=self.atol,
                 fun_args=(True,),
                 jac_args=(False,),
             )

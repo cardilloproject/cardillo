@@ -1,6 +1,6 @@
 import numpy as np
 from warnings import warn
-from scipy.sparse import csc_matrix, diags
+from scipy.sparse import csc_matrix, diags, eye
 from scipy.sparse.linalg import spsolve, lsqr, lsmr, LinearOperator, spsolve_triangular
 from cardillo.math import approx_fprime
 
@@ -21,7 +21,6 @@ try:
 
     # TODO:
     # - add reference of Fabia's book
-    # - remove other implementations than basic solution
     def MNGN_sparse_qr(A, b, *args, rank_precision=12):
         """Solve the sparse (overdetermined) linear system Ax=b with rank 
         deficiency using column pivoted sparse QR decomposition from PySPQR 
@@ -32,14 +31,20 @@ try:
         PySPQR: https://github.com/yig/PySPQR \\
         SuiteSparseQR: http://faculty.cse.tamu.edu/davis/suitesparse.html
         """
+        # shape of input matrix
+        m, n = A.shape
+
+        # apply Tikhonov regularization, see https://en.wikipedia.org/wiki/Ridge_regression#Tikhonov_regularization
+        alpha = 1e-6
+        A += eye(m, n) * alpha
+
         # QR-decomposition with column pivoting
         Q, R, p, rank = sparseqr.qr(A)
 
-        # compute matrix rank of R with given precision
-        rank = sum(np.around(R.diagonal(), rank_precision) != 0)
+        # # compute matrix rank of R with given precision
+        # rank = sum(np.around(R.diagonal(), rank_precision) != 0)
 
         # detect rank deficiency
-        m, n = A.shape
         if n - rank > 0:
             print(f"rank deficiency!")
 
@@ -323,6 +328,9 @@ def MNGN_qr(A, b, xk=None, x0=None, rank_precision=12):
     # get shape of A
     m, n = A.shape
 
+    alpha = 1e-6
+    A += eye(m, n) * alpha
+
     # QR decomposition of A
     Q, R, p = qr(A.toarray(), pivoting=True, mode="full")
     # Q, R, p = qr(A.toarray(), pivoting=True, mode="economic")
@@ -335,12 +343,10 @@ def MNGN_qr(A, b, xk=None, x0=None, rank_precision=12):
     rank = sum(np.around(np.diag(R), rank_precision) != 0)
     # print(f"n: {n}; rank: {rank}")
 
-    # extract left columns of Q
-    Q1 = Q[:, :rank]
-    Q2 = Q[:, rank:]
-    # TODO: Use Q @ b and split with rank will be more efficient
-    c = Q1.T @ b
-    d = Q2.T @ b
+    # new rhs
+    c = Q.T @ b
+    c = c[:rank]
+    # d = c[rank:]
 
     # extract upper left block of R
     R11 = R[:rank, :rank]
@@ -537,8 +543,8 @@ def fsolve(
     # linear_solver=lu_solve,
     # linear_solver=MNGN_svd,
     # linear_solver=MNGN_qr,
-    # linear_solver=MNGN_sparse_qr,
-    linear_solver=sparse_qr_solve,
+    linear_solver=MNGN_sparse_qr,
+    # linear_solver=sparse_qr_solve,
 ):
     if not isinstance(fun_args, tuple):
         fun_args = (fun_args,)
@@ -574,7 +580,7 @@ def fsolve(
         # f = np.atleast_1d(fun(x, *fun_args))
         # error = error_function(f)
 
-        dx = linear_solver(J, f, x, x0)
+        dx = linear_solver(J, f, x, x0, i)
         x -= dx
         f = np.atleast_1d(fun(x, *fun_args))
         # TODO: Does ||f|| work in all cases?

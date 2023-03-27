@@ -9,7 +9,6 @@ from cardillo.solver import Solution, consistent_initial_conditions
 
 
 # TODO:
-# - Keep prox_r_N constant during each Newton-iteration since it is an expensive expression!
 # - Improve Jacobian by passing evaluated quantities depending on (tn, qn, un)
 # - Recycle already computed quantities of the LGS of step 2
 # - Implement iteration matrix for step 2
@@ -24,8 +23,8 @@ class Rattle:
         fix_point_tol=1e-6,
         fix_point_max_iter=1000,
         error_function=lambda x: np.max(np.abs(x)),
-        # method="Newton_decoupled",
-        method="Newton_full",
+        method="Newton_decoupled",
+        # method="Newton_full",
         # method="fixed_point",
         # method="fixed_point_nonlinear_full",
         continue_with_unconverged=True,

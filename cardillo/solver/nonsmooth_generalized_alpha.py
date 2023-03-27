@@ -21,8 +21,8 @@ from scipy.sparse import csc_matrix
 from scipy.sparse.linalg import spsolve
 from tqdm import tqdm
 
-from cardillo.math import prox_R0_nm, prox_sphere, approx_fprime
-from cardillo.solver import Solution
+from cardillo.math import prox_R0_nm, prox_R0_np, prox_sphere, approx_fprime, fsolve
+from cardillo.solver import Solution, consistent_initial_conditions
 
 
 class NonsmoothGeneralizedAlpha:
@@ -1080,446 +1080,407 @@ class NonsmoothGeneralizedAlpha:
         )
 
 
-class NonsmoothGeneralizedAlpha2:
-    """Generalized-alpha solver for mechanical systems with frictional contact."""
+class SimplifiedNonsmoothGeneralizedAlphaNoAcceleration:
+    """Simplified version of the nonsmooth generalized-alpha solver for
+    mechanical systems with frictional contact presented in Capobianco2020.
+
+    References
+    ----------
+    Capobianco2020: https://doi.org/10.1002/nme.6801
+    """
 
     def __init__(
         self,
-        model,
-        t0,
+        system,
         t1,
-        dt,
+        h,
+        rho_inf=0.8,
         atol=1e-6,
-        max_iter=100,
+        max_iter=10,
     ):
-        self.model = model
+        self.system = system
 
         # initial time, final time, time step
-        self.t0 = t0
+        self.t0 = t0 = system.t0
         self.t1 = (
             t1 if t1 > t0 else ValueError("t1 must be larger than initial time t0.")
         )
-        self.dt = dt
+        self.t = np.arange(t0, t1 + h, h)
+        self.h = h
+
+        # eqn. (72): parameters
+        self.rho_inf = rho_inf
+        self.alpha_m = (2 * rho_inf - 1) / (rho_inf + 1)
+        self.alpha_f = rho_inf / (rho_inf + 1)
+        self.gamma = 0.5 + self.alpha_f - self.alpha_m
+        self.beta = 0.25 * (0.5 + self.gamma) ** 2
 
         # newton settings
         self.atol = atol
         self.max_iter = max_iter
 
         # dimensions (nq = number of coordinates q, etc.)
-        self.nq = model.nq
-        self.nu = model.nu
-        self.nla_N = model.nla_N
-        self.nla_F = model.nla_F
+        self.nq = system.nq
+        self.nu = system.nu
+        self.nla_g = system.nla_g
+        self.nla_gamma = system.nla_gamma
+        self.nla_N = system.nla_N
+        self.nla_F = system.nla_F
 
-        # eqn. (127): dimensions of residual
-        self.nR_s = 3 * self.nu
-        self.nR_c = 3 * self.nla_N + 2 * self.nla_F
-        self.nR = self.nR_s + self.nR_c
-
-        # set initial conditions
-        self.tk = t0
-        self.qk = model.q0
-        self.uk = model.u0
-        self.kappa_Nk = np.zeros_like(model.la_N0)
-        self.la_Nk = model.la_N0
-        self.La_Nk = np.zeros_like(model.la_N0)
-        self.la_Fk = model.la_F0
-        self.La_Fk = np.zeros_like(model.la_F0)
-        self.Qk = np.zeros(self.nu)
-        self.Uk = np.zeros(self.nu)
-
-        # solve for initial accelerations
-        self.ak = solve(
-            model.M(t0, model.q0),
-            self.model.h(t0, model.q0, model.u0)
-            + self.model.W_N(t0, model.q0) @ self.model.la_N0
-            + self.model.W_F(t0, model.q0) @ self.model.la_F0,
+        self.split_y = np.cumsum(
+            np.array(
+                [
+                    self.nu,
+                    self.nla_g,
+                    self.nla_gamma,
+                    self.nla_N,
+                    self.nla_F,
+                    self.nu,
+                    self.nla_g,
+                    self.nla_gamma,
+                    self.nla_N,
+                ],
+                dtype=int,
+            )
         )
 
-        self.xk = np.concatenate(
+        # eqn. (127): dimensions of residual
+        self.nR = (
+            2 * self.nu
+            + 2 * self.nla_g
+            + 2 * self.nla_gamma
+            + 2 * self.nla_N
+            + 2 * self.nla_F
+        )
+
+        # consistent initial conditions
+        (
+            self.tn,
+            self.qn,
+            self.un,
+            self.q_dotn,
+            self.u_dotn,
+            self.la_gn,
+            self.la_gamman,
+        ) = consistent_initial_conditions(system)
+        self.la_Nn = self.system.la_N0
+        self.la_Fn = self.system.la_F0
+
+        # initialize auxilary variables
+        self.an = self.u_dotn.copy()
+
+        # initialize y vector of unknowns
+        self.yn = np.concatenate(
             (
-                self.ak,
-                self.Uk,
-                self.Qk,
-                self.kappa_Nk,
-                self.La_Nk,
-                self.la_Nk,
-                self.La_Fk,
-                self.la_Fk,
+                self.u_dotn,
+                0.5 * h * self.la_gn,
+                0.5 * h * self.la_gamman,
+                0.5 * h * self.la_Nn,
+                0.5 * h * self.la_Fn,
+                np.zeros(self.nu),
+                0.5 * h * self.la_gn,
+                0.5 * h * self.la_gamman,
+                0.5 * h * self.la_Nn,
+                0.5 * h * self.la_Fn,
             )
         )
 
         # initialize index sets
-        self.Ak1 = np.zeros(self.nla_N, dtype=bool)
-        self.Bk1 = np.zeros(self.nla_N, dtype=bool)
-        self.Ck1 = np.zeros(self.nla_N, dtype=bool)
-        self.Dk1_st = np.zeros(self.nla_N, dtype=bool)
-        self.Ek1_st = np.zeros(self.nla_N, dtype=bool)
+        self.I = np.zeros(self.nla_N, dtype=bool)
+        self.B = np.zeros(self.nla_N, dtype=bool)
 
-        # function called at the end of each time step. Can for example be
-        # used to norm quaternions at the end of each time step.
-        if hasattr(model, "step_callback"):
-            self.step_callback = model.step_callback
-        else:
-            self.step_callback = self.__step_callback
+    def _update(self, y, store=False):
+        h = self.h
+        tn1 = self.tn + h
+        gamma = self.gamma
+        beta = self.beta
+        alpha_f = self.alpha_f
+        alpha_m = self.alpha_m
 
-    # identity map as standard callback function
-    def __step_callback(self, q, u):
-        return q, u
+        # unpack unknowns
+        (
+            u_dotn1,
+            R_g1,
+            R_gamma1,
+            R_N1,
+            R_F1,
+            U,
+            R_g2,
+            R_gamma2,
+            R_N2,
+            R_F2,
+        ) = np.array_split(y, self.split_y)
 
-    def unpack(self, x):
-        nu = self.nu
-        nla_N = self.nla_N
-        nla_F = self.nla_F
-        nR_s = self.nR_s
+        # eqn. (71): compute auxiliary acceleration variables
+        an1 = (alpha_f * self.u_dotn + (1 - alpha_f) * u_dotn1 - alpha_m * self.an) / (
+            1 - alpha_m
+        )
 
-        a = x[:nu]
-        U = x[nu : 2 * nu]
-        Q = x[2 * nu : 3 * nu]
-        kappa_N = x[nR_s : nR_s + nla_N]
-        La_N = x[nR_s + nla_N : nR_s + 2 * nla_N]
-        la_N = x[nR_s + 2 * nla_N : nR_s + 3 * nla_N]
-        La_F = x[nR_s + 3 * nla_N : nR_s + 3 * nla_N + nla_F]
-        la_F = x[nR_s + 3 * nla_N + nla_F : nR_s + 3 * nla_N + 2 * nla_F]
+        # eqn. (73): velocity update formula
+        un12 = self.un + h * ((1 - gamma) * self.an + gamma * an1)
+        un1 = un12 + U
 
-        return a, U, Q, kappa_N, La_N, la_N, La_F, la_F
+        # position update, see GAMM2022 Harsch
+        Delta_u = self.un + h * ((0.5 - beta) * self.an + beta * an1)
+        qn1 = self.qn + h * self.system.q_dot(self.tn, self.qn, Delta_u)
 
-    def update(self, xk1):
-        dt = self.dt
-        dt2 = dt * dt
+        if store:
+            # update local variables for accepted time step
+            self.tn = tn1
+            self.qn = qn1.copy()
+            self.un = un1.copy()
+            self.u_dotn = u_dotn1.copy()
+            self.an = an1.copy()
 
-        ak1, Uk1, Qk1, kappa_Nk1, La_Nk1, la_Nk1, La_Fk1, la_Fk1 = self.unpack(xk1)
+        return (
+            tn1,
+            qn1,
+            un12,
+            un1,
+            u_dotn1,
+            R_g1,
+            R_gamma1,
+            R_N1,
+            R_F1,
+            U,
+            R_g2,
+            R_gamma2,
+            R_N2,
+            R_F2,
+        )
 
-        uk1 = self.uk + dt * ak1 + Uk1
-        qk1 = self.qk + dt * self.uk + 0.5 * dt2 * ak1 + Qk1 + dt * Uk1
-        # qk1 = self.qk + dt * self.uk + 0.5 * dt2 * ak1 + Qk1
-        P_Nk1 = La_Nk1 + dt * la_Nk1
-        kappa_hat_Nk1 = kappa_Nk1 + dt * La_Nk1 + 0.5 * dt2 * la_Nk1
-        P_Fk1 = La_Fk1 + dt * la_Fk1
+    def _R(self, y, update_index=False):
+        (
+            tn1,
+            qn1,
+            un12,
+            un1,
+            u_dotn1,
+            R_g1,
+            R_gamma1,
+            R_N1,
+            R_F1,
+            U,
+            R_g2,
+            R_gamma2,
+            R_N2,
+            R_F2,
+        ) = self._update(y)
 
-        return qk1, uk1, P_Nk1, kappa_hat_Nk1, P_Fk1
+        P_gn1 = R_g1 + R_g2
+        P_gamman1 = R_gamma1 + R_gamma2
+        P_Nn1 = R_N1 + R_N2
+        P_Fn1 = R_F1 + R_F2
 
-    def residual(self, tk1, xk1, update_index_set=False):
-        mu = self.model.mu
-        dt = self.dt
+        R = np.zeros_like(y)
 
-        ###########################
-        # unpack vector of unknowns
-        ###########################
-        ak1, Uk1, Qk1, kappak1, La_Nk1, la_Nk1, La_Fk1, la_Fk1 = self.unpack(xk1)
+        ####################
+        # eqations of motion
+        ####################
+        M = self.system.M(tn1, qn1)
+        W_g = self.system.W_g(tn1, qn1)
+        W_gamma = self.system.W_gamma(tn1, qn1)
+        W_N = self.system.W_N(tn1, qn1)
+        W_F = self.system.W_F(tn1, qn1)
+        R[: self.split_y[0]] = (
+            M @ u_dotn1
+            - self.system.h(tn1, qn1, un12)
+            - W_g @ R_g1
+            - W_gamma @ R_gamma1
+            - W_N @ R_N1
+            - W_F @ R_F1
+        )
 
-        #############################
-        # compute dependent variables
-        #############################
-        qk1, uk1, P_Nk1, kappa_hat_Nk1, P_Fk1 = self.update(xk1)
+        #######################
+        # bilateral constraints
+        #######################
+        R[self.split_y[0] : self.split_y[1]] = self.system.g(tn1, qn1)
+        R[self.split_y[1] : self.split_y[2]] = self.system.gamma(tn1, qn1, un12)
 
-        ##############################
-        # evaluate required quantities
-        ##############################
-        # mass matrix
-        Mk1 = self.model.M(tk1, qk1)
+        ###########
+        # Signorini
+        ###########
+        g_N = self.system.g_N(tn1, qn1)
+        prox_arg = g_N - self.prox_r_N * R_N1
 
-        # vector of smooth generalized forces
-        hk1 = self.model.h(tk1, qk1, uk1)
+        if update_index:
+            self.I = prox_arg <= 0.0
 
-        # generalized force directions
-        W_Nk1 = self.model.W_N(tk1, qk1)
-        W_Fk1 = self.model.W_F(tk1, qk1)
+        R[self.split_y[2] : self.split_y[3]] = np.where(
+            self.I,
+            g_N,
+            R_N1,
+        )
 
-        # kinematic quantities of normal contacts
-        g_Nk1 = self.model.g_N(tk1, qk1)
-        g_N_ddotk1 = self.model.g_N_ddot(tk1, qk1, uk1, ak1)
-        xi_Nk1 = self.model.xi_N(tk1, qk1, self.uk, uk1)
+        ##################
+        # Coulomb friction
+        ##################
+        prox_r_F = self.prox_r_F
+        mu = self.system.mu
+        gamma_F = self.system.gamma_F(tn1, qn1, un12)
 
-        # kinematic quantities of frictional contacts
-        gamma_Fk1 = self.model.gamma_F(tk1, qk1, uk1)
-        gamma_F_dotk1 = self.model.gamma_F_dot(tk1, qk1, uk1, ak1)
-        xi_Fk1 = self.model.xi_F(tk1, qk1, self.uk, uk1)
-
-        #########################
-        # compute residual vector
-        #########################
-        nu = self.nu
-        nla_N = self.nla_N
-        nR_s = self.nR_s
-        R = np.empty(self.nR, dtype=xk1.dtype)
-
-        # equations of motion
-        R[:nu] = Mk1 @ ak1 - hk1 - W_Nk1 @ la_Nk1 - W_Fk1 @ la_Fk1
-
-        # impact equation
-        R[nu : 2 * nu] = Mk1 @ Uk1 - W_Nk1 @ La_Nk1 - W_Fk1 @ La_Fk1
-
-        # position correction
-        R[2 * nu : 3 * nu] = Mk1 @ Qk1 - W_Nk1 @ kappak1 - 0.5 * dt * W_Fk1 @ La_Fk1
-        # R[2 * nu : 3 * nu] = Mk1 @ (Qk1 + dt * Uk1) - W_Nk1 @ kappak1
-
-        prox_N_arg_position = g_Nk1 - self.model.prox_r_N * kappa_hat_Nk1
-        prox_N_arg_velocity = xi_Nk1 - self.model.prox_r_N * P_Nk1
-        prox_N_arg_acceleration = g_N_ddotk1 - self.model.prox_r_N * la_Nk1
-        # prox_F_arg_velocity = xi_Fk1 - self.model.prox_r_F * P_Fk1
-        # prox_F_arg_acceleration = gamma_F_dotk1 - self.model.prox_r_N * la_Fk1
-        if update_index_set:
-            self.Ak1 = prox_N_arg_position <= 0
-            self.Bk1 = self.Ak1 * (prox_N_arg_velocity <= 0)
-            self.Ck1 = self.Bk1 * (prox_N_arg_acceleration <= 0)
-
-            for i_N, i_F in enumerate(self.model.NF_connectivity):
-                i_F = np.array(i_F)
-                if len(i_F) > 0:
-                    # eqn. (139):
-                    self.Dk1_st[i_N] = self.Ak1[i_N] and (
-                        norm(self.model.prox_r_F[i_N] * xi_Fk1[i_F] - P_Fk1[i_F])
-                        <= mu[i_N] * P_Nk1[i_N]
-                    )
-                    # eqn. (141):
-                    self.Ek1_st[i_N] = self.Dk1_st[i_N] and (
-                        norm(
-                            self.model.prox_r_F[i_N] * gamma_F_dotk1[i_F] - la_Fk1[i_F]
-                        )
-                        <= mu[i_N] * la_Nk1[i_N]
-                    )
-
-        ###################################
-        # complementarity on position level
-        ###################################
-        Ak1 = self.Ak1
-        Ak1_ind = np.where(Ak1)[0]
-        _Ak1_ind = np.where(~Ak1)[0]
-        R[nR_s + Ak1_ind] = g_Nk1[Ak1]
-        R[nR_s + _Ak1_ind] = kappa_hat_Nk1[~Ak1]
-        # R[nR_s : nR_s + nla_N] = g_Nk1 - prox_R0_np(prox_arg_position)
-
-        ###################################
-        # complementarity on velocity level
-        ###################################
-        Bk1 = self.Bk1
-        Bk1_ind = np.where(Bk1)[0]
-        _Bk1_ind = np.where(~Bk1)[0]
-        R[nR_s + nla_N + Bk1_ind] = xi_Nk1[Bk1]
-        R[nR_s + nla_N + _Bk1_ind] = P_Nk1[~Bk1]
-
-        # R[nR_s + nla_N : nR_s + 2 * nla_N] = np.select(
-        #     self.Ak1, xi_Nk1 - prox_R0_np(prox_arg_velocity), Pk1
-        # )
-
-        # R[nR_s + nla_N + Ak1_ind] = (xi_Nk1 - prox_R0_np(prox_arg_velocity))[Ak1]
-        # R[nR_s + nla_N + _Ak1_ind] = Pk1[~Ak1]
-
-        #######################################
-        # complementarity on acceleration level
-        #######################################
-        Ck1 = self.Ck1
-        Ck1_ind = np.where(Ck1)[0]
-        _Ck1_ind = np.where(~Ck1)[0]
-        R[nR_s + 2 * nla_N + Ck1_ind] = g_N_ddotk1[Ck1]
-        R[nR_s + 2 * nla_N + _Ck1_ind] = la_Nk1[~Ck1]
-
-        # R[nR_s + 2 * nla_N : nR_s + 3 * nla_N] = np.select(
-        #     self.Bk1, g_N_ddotk1 - prox_R0_np(prox_arg_acceleration), lak1
-        # )
-
-        # R[nR_s + 2 * nla_N + Bk1_ind] = (g_N_ddotk1 - prox_R0_np(prox_arg_acceleration))[Bk1]
-        # R[nR_s + 2 * nla_N + _Bk1_ind] = lak1[~Bk1]
-
-        ##########
-        # friction
-        ##########
-        Dk1_st = self.Dk1_st
-        Ek1_st = self.Ek1_st
-        nla_F = self.nla_F
-
-        for i_N, i_F in enumerate(self.model.NF_connectivity):
+        for i_N, i_F in enumerate(self.system.NF_connectivity):
             i_F = np.array(i_F)
             if len(i_F) > 0:
-                if Ak1[i_N]:
-                    if Dk1_st[i_N]:
-                        # eqn. (138a)
-                        R[nR_s + 3 * nla_N + i_F] = xi_Fk1[i_F]
+                R[self.split_y[3] + i_F] = R_F1[i_F] + prox_sphere(
+                    prox_r_F[i_N] * gamma_F[i_F] - R_F1[i_F],
+                    mu[i_N] * R_N1[i_N],
+                )
 
-                        if Ek1_st[i_N]:
-                            # eqn. (142a)
-                            R[nR_s + 3 * nla_N + nla_F + i_F] = gamma_F_dotk1[i_F]
-                        else:
-                            # eqn. (142b)
-                            norm_gamma_Fdoti1 = norm(gamma_F_dotk1[i_F])
-                            if norm_gamma_Fdoti1 > 0:
-                                R[nR_s + 3 * nla_N + nla_F + i_F] = (
-                                    la_Fk1[i_F]
-                                    + mu[i_N]
-                                    * la_Nk1[i_N]
-                                    * gamma_F_dotk1[i_F]
-                                    / norm_gamma_Fdoti1
-                                )
-                            else:
-                                R[nR_s + 3 * nla_N + nla_F + i_F] = (
-                                    la_Fk1[i_F]
-                                    + mu[i_N] * la_Nk1[i_N] * gamma_F_dotk1[i_F]
-                                )
-                    else:
-                        # eqn. (138b)
-                        norm_xi_Fi1 = norm(xi_Fk1[i_F])
-                        if norm_xi_Fi1 > 0:
-                            R[nR_s + 3 * nla_N + i_F] = (
-                                P_Fk1[i_F]
-                                + mu[i_N] * P_Nk1[i_N] * xi_Fk1[i_F] / norm_xi_Fi1
-                            )
-                        else:
-                            R[nR_s + 3 * nla_N + i_F] = (
-                                P_Fk1[i_F] + mu[i_N] * P_Nk1[i_N] * xi_Fk1[i_F]
-                            )
+        #################
+        # impact equation
+        #################
+        # R[self.split_y[4] : self.split_y[5]] = (
+        #     M @ U
+        #     - self.system.h(tn1, qn1, un1)
+        #     - W_g @ P_gn1
+        #     - W_gamma @ P_gamman1
+        #     - W_N @ P_Nn1
+        #     - W_F @ P_Fn1
+        # )
+        R[self.split_y[4] : self.split_y[5]] = (
+            M @ U - W_g @ R_g2 - W_gamma @ R_gamma2 - W_N @ R_N2 - W_F @ R_F2
+        )
 
-                        # eqn. (142c)
-                        norm_gamma_Fi1 = norm(gamma_Fk1[i_F])
-                        if norm_gamma_Fi1 > 0:
-                            R[nR_s + 3 * nla_N + nla_F + i_F] = (
-                                la_Fk1[i_F]
-                                + mu[i_N]
-                                * la_Nk1[i_N]
-                                * gamma_Fk1[i_F]
-                                / norm_gamma_Fi1
-                            )
-                        else:
-                            R[nR_s + 3 * nla_N + nla_F + i_F] = (
-                                la_Fk1[i_F] + mu[i_N] * la_Nk1[i_N] * gamma_Fk1[i_F]
-                            )
-                else:
-                    # eqn. (138c)
-                    R[nR_s + 3 * nla_N + i_F] = P_Fk1[i_F]
-                    # eqn. (142d)
-                    R[nR_s + 3 * nla_N + nla_F + i_F] = la_Fk1[i_F]
+        #################################
+        # impulsive bilateral constraints
+        #################################
+        R[self.split_y[5] : self.split_y[6]] = self.system.g_dot(tn1, qn1, un1)
+        R[self.split_y[6] : self.split_y[7]] = self.system.gamma(tn1, qn1, un1)
+
+        ##################################################
+        # mixed Singorini on velocity level and impact law
+        ##################################################
+        xi_Nn1 = self.system.xi_N(tn1, qn1, self.un, un1)
+        prox_arg = xi_Nn1 - self.prox_r_N * P_Nn1
+        if update_index:
+            self.B = self.I * (prox_arg <= 0)
+
+        R[self.split_y[7] : self.split_y[8]] = np.where(
+            self.B,
+            xi_Nn1,
+            P_Nn1,
+        )
+
+        # R[self.split_y[7] : self.split_y[8]] = np.where(
+        #     self.I,
+        #     xi_Nn1 - prox_R0_np(xi_Nn1 - self.prox_r_N * P_Nn1),
+        #     P_Nn1,
+        # )
+
+        ##################################################
+        # mixed Coulomb friction and tangent impact law
+        ##################################################
+        xi_Fn1 = self.system.xi_F(tn1, qn1, self.un, un1)
+        for i_N, i_F in enumerate(self.system.NF_connectivity):
+            i_F = np.array(i_F)
+            if len(i_F) > 0:
+                R[self.split_y[8] + i_F] = P_Fn1[i_F] + prox_sphere(
+                    prox_r_F[i_N] * xi_Fn1[i_F] - P_Fn1[i_F],
+                    mu[i_N] * P_Nn1[i_N],
+                )
 
         return R
 
-    def Jacobian(self, tk1, xk1):
-        return approx_fprime(xk1, lambda x: self.residual(tk1, x), method="2-point")
-        # return approx_fprime(xk1, lambda x: self.residual(tk1, x), method="cs")
-
     def solve(self):
-        q = []
-        u = []
-        a = []
-        Q = []
-        U = []
+        # lists storing output variables
+        # sol_q = [self.qn]
+        # sol_u = [self.un]
+        # sol_P_g = [self.h * self.la_gn]
+        # sol_P_gamma = [self.h * self.la_gamman]
+        # sol_P_N = [self.h * self.la_Nn]
+        # sol_P_F = [self.h * self.la_Fn]
+        sol_q = []
+        sol_u = []
+        sol_P_g = []
+        sol_P_gamma = []
+        sol_P_N = []
+        sol_P_F = []
 
-        la_N = []
-        La_N = []
-        P_N = []
-        kappa_N = []
-        kappa_hat_N = []
+        # initialize progress bar
+        pbar = tqdm(self.t)
 
-        la_F = []
-        La_F = []
-        P_F = []
+        iter = []
+        for _ in pbar:
+            # only compute optimized proxparameters once per time step
+            self.prox_r_N = self.system.prox_r_N(self.tn, self.qn)
+            self.prox_r_F = self.system.prox_r_F(self.tn, self.qn)
+            # print(f"self.prox_r_N: {self.prox_r_N}")
+            # print(f"self.prox_r_F: {self.prox_r_F}")
+            # self.prox_r_N = np.ones(self.nla_N) * 0.2
+            # self.prox_r_F = np.ones(self.nla_F) * 0.2
 
-        def write_solution(xk1):
-            ak1, Uk1, Qk1, kappa_Nk1, La_Nk1, la_Nk1, La_Fk1, la_Fk1 = self.unpack(xk1)
-            qk1, uk1, P_Nk1, kappa_hat_Nk1, P_Fk1 = self.update(xk1)
+            yn1, converged, error, n_iter, _ = fsolve(
+                self._R,
+                self.yn,
+                jac="2-point",
+                eps=1.0e-6,
+                fun_args=(True,),
+                jac_args=(False,),
+                atol=self.atol,
+                max_iter=self.max_iter,
+            )
+            if not converged:
+                raise RuntimeError(
+                    f"internal Newton-Raphson method not converged after {n_iter} steps with error: {error:.5e}"
+                )
+            iter.append(n_iter + 1)
 
-            self.qk = qk1.copy()
-            self.uk = uk1.copy()
+            (
+                tn1,
+                qn1,
+                un12,
+                un1,
+                u_dotn1,
+                R_g1,
+                R_gamma1,
+                R_N1,
+                R_F1,
+                U,
+                R_g2,
+                R_gamma2,
+                R_N2,
+                R_F2,
+            ) = self._update(yn1, store=True)
 
-            q.append(qk1.copy())
-            u.append(uk1.copy())
-            a.append(ak1.copy())
-            Q.append(Qk1.copy())
-            U.append(Uk1.copy())
+            P_gn1 = R_g1 + R_g2
+            P_gamman1 = R_gamma1 + R_gamma2
+            P_Nn1 = R_N1 + R_N2
+            P_Fn1 = R_F1 + R_F2
 
-            la_N.append(la_Nk1.copy())
-            La_N.append(La_Nk1.copy())
-            P_N.append(P_Nk1.copy())
-            kappa_N.append(kappa_Nk1.copy())
-            kappa_hat_N.append(kappa_hat_Nk1.copy())
-
-            la_F.append(la_Fk1.copy())
-            La_F.append(La_Fk1.copy())
-            P_F.append(P_Fk1.copy())
-
-        t = np.arange(self.t0, self.t1, self.dt)
-        pbar = tqdm(t)
-
-        xk1 = self.xk.copy()
-        # for k, tk1 in enumerate(t):
-        k = 0
-        for tk1 in pbar:
-            k += 1
-            # print(f"k: {k}; tk1: {tk1:2.3f}")
-
-            # initial residual and error; update active contact set during each
-            # redidual computation
-            R = self.residual(tk1, xk1, update_index_set=True)
-            error = np.max(np.abs(R))
-
-            j = 0
-            if error < self.atol:
-                write_solution(xk1)
-            else:
-                # Newton-Raphson loop
-                for _ in range(self.max_iter):
-                    j += 1
-
-                    # compute Jacobian matrix with same index set
-                    J = self.Jacobian(tk1, xk1)
-
-                    # compute updated state
-                    xk1 -= np.linalg.solve(J, R)
-
-                    # new residual and error; update active contact set during
-                    # each redidual computation
-                    R = self.residual(tk1, xk1, update_index_set=True)
-                    error = np.max(np.abs(R))
-
-                    if error < self.atol:
-                        pbar.set_description(
-                            f"t: {tk1:0.2e}s < {self.t1:0.2e}s; {j}/{self.max_iter} iterations; error: {error:0.2e}"
-                        )
-                        write_solution(xk1)
-                        break
-            if j >= self.max_iter - 1:
+            pbar.set_description(f"t: {tn1:0.2e}; step: {n_iter}; error: {error:.3e}")
+            if not converged:
                 print(
-                    f"Newton-Raphson not converged after {j+1} steps with error {error:2.4f}"
-                )
-                n = len(q)
-                return Solution(
-                    t=t[:n],
-                    q=np.array(q),
-                    u=np.array(u),
-                    a=np.array(a),
-                    Q=np.array(Q),
-                    U=np.array(U),
-                    la_N=np.array(la_N),
-                    La_N=np.array(La_N),
-                    P_N=np.array(P_N),
-                    kappa_N=np.array(kappa_N),
-                    kappa_hat_N=np.array(kappa_hat_N),
-                    la_F=np.array(la_F),
-                    La_F=np.array(La_F),
-                    P_F=np.array(P_F),
-                )
-            else:
-                # print(
-                #     f"Newton-Raphson converged after {j+1} steps with error {error:2.4f}"
-                # )
-                pbar.set_description(
-                    f"t: {tk1:0.2e}s < {self.t1:0.2e}s; {j}/{self.max_iter} iterations; error: {error:0.2e}"
+                    f"step is not converged after {n_iter} iterations with error: {error:.5e}"
                 )
 
-        n = len(q)
+            qn1, un1 = self.system.step_callback(tn1, qn1, un1)
+
+            sol_q.append(qn1)
+            sol_u.append(un1)
+            sol_P_g.append(P_gn1)
+            sol_P_gamma.append(P_gamman1)
+            sol_P_N.append(P_Nn1)
+            sol_P_F.append(P_Fn1)
+
+            # warmstart for next iteration
+            self.tn = tn1
+            self.yn = yn1.copy()
+
+        # print statistics
+        print("-----------------")
+        print(
+            f"Iterations per time step: max = {max(iter)}, avg={sum(iter) / float(len(iter))}"
+        )
+        print("-----------------")
         return Solution(
-            t=t[:n],
-            q=np.array(q),
-            u=np.array(u),
-            a=np.array(a),
-            Q=np.array(Q),
-            U=np.array(U),
-            la_N=np.array(la_N),
-            La_N=np.array(La_N),
-            P_N=np.array(P_N),
-            kappa_N=np.array(kappa_N),
-            kappa_hat_N=np.array(kappa_hat_N),
-            la_F=np.array(la_F),
-            La_F=np.array(La_F),
-            P_F=np.array(P_F),
+            t=np.array(self.t),
+            q=np.array(sol_q),
+            u=np.array(sol_u),
+            P_g=np.array(sol_P_g),
+            P_gamma=np.array(sol_P_gamma),
+            P_N=np.array(sol_P_N),
+            P_F=np.array(sol_P_F),
         )
 
 

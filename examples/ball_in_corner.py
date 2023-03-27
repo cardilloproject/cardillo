@@ -23,7 +23,7 @@ from cardillo.solver import (
 Solver1, label1, dt1, kwargs1 = (
     NonsmoothPIRK,
     "NPIRK",
-    1e-2,
+    5e-2,
     {"butcher_tableau": RadauIIATableau(2)},
 )
 # Solver1, label1, dt1, kwargs1 = NonsmoothBackwardEuler, "Euler backward", 1e-2, {}

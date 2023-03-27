@@ -18,7 +18,10 @@ from .generalized_alpha import (
     GeneralizedAlphaFirstOrder,
     GeneralizedAlphaSecondOrder,
 )
-from .nonsmooth_generalized_alpha import NonsmoothGeneralizedAlpha
+from .nonsmooth_generalized_alpha import (
+    NonsmoothGeneralizedAlpha,
+    SimplifiedNonsmoothGeneralizedAlphaNoAcceleration,
+)
 from .rattle import Rattle
 from .runge_kutta import *
 

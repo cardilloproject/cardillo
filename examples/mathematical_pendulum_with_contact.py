@@ -300,23 +300,23 @@ if __name__ == "__main__":
     u1 = sol1.u
     if bilateral_constrained:
         try:
-            P_g1 = sol1.P_g
+            R_g1 = sol1.P_g
         except:
-            P_g1 = dt1 * sol1.la_g
+            R_g1 = dt1 * sol1.la_g
             # P_g1 = sol1.La_g
     if with_contact:
-        P_N1 = sol1.P_N
+        R_N1 = sol1.P_N
 
     t2 = sol2.t
     q2 = sol2.q
     u2 = sol2.u
     if bilateral_constrained:
         try:
-            P_g2 = sol2.P_g
+            R_g2 = sol2.P_g
         except:
             la_g2 = sol2.la_g
             La_g2 = sol2.La_g
-            P_g2 = la_g2 * dt2 + La_g2
+            R_g2 = la_g2 * dt2 + La_g2
     if with_contact:
         P_N2 = sol2.P_N
 
@@ -363,8 +363,8 @@ if __name__ == "__main__":
 
     # bilateral constraints
     try:
-        ax[1, 0].plot(t1, P_g1[:, 0], "-xb", label="P_g - " + label1)
-        ax[1, 0].plot(t2, P_g2[:, 0], "-xr", label="P_g - " + label2)
+        ax[1, 0].plot(t1, R_g1[:, 0], "-xb", label="P_g - " + label1)
+        ax[1, 0].plot(t2, R_g2[:, 0], "-xr", label="P_g - " + label2)
         ax[1, 0].grid()
         ax[1, 0].legend()
     except:
@@ -372,7 +372,7 @@ if __name__ == "__main__":
 
     # normal percussions
     if with_contact:
-        ax[1, 1].plot(t1, P_N1[:, 0], "-xb", label="P_N - " + label1)
+        ax[1, 1].plot(t1, R_N1[:, 0], "-xb", label="P_N - " + label1)
         ax[1, 1].plot(t2, P_N2[:, 0], "-xr", label="P_N - " + label2)
         ax[1, 1].grid()
         ax[1, 1].legend()
