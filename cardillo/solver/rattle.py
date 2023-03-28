@@ -1245,8 +1245,6 @@ class Rattle:
                     self.R2,
                     self.y2n,
                     jac=self.J2,
-                    # jac="3-point",  # TODO: keep this, otherwise sinuglairites arise
-                    # eps=1.0e-6,
                     atol=self.atol,
                     max_iter=self.max_iter,
                     fun_args=(True,),
