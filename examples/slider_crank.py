@@ -1,5 +1,5 @@
 import numpy as np
-
+from pathlib import Path
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
@@ -655,8 +655,9 @@ class SliderCrankDAE:
         # initial conditions
         theta10 = 0
         theta20 = 0
-        theta30 = 0
-        # theta30 = 5 * np.pi / 180
+        # theta30 = 0
+        # theta30 = 1 * np.pi / 180
+        theta30 = 0.017  # approx. 1 * np.pi / 180
 
         r_OP10 = self.l1 * np.array([np.cos(theta10), np.sin(theta10)])
         r_P1P20 = self.l2 * np.array([np.cos(theta20), np.sin(theta20)])
@@ -691,6 +692,10 @@ class SliderCrankDAE:
         self.la_N0 = np.zeros(self.nla_N)
         self.la_F0 = np.zeros(self.nla_F)
         self.la_g0 = np.zeros(self.nla_g)
+
+        print(f"q0: {self.q0}")
+        print(f"u0: {self.u0}")
+        # exit()
 
     def contour_crank(self, q):
         x1, y1, theta1, _, _, _, _, _, _ = q
@@ -939,6 +944,10 @@ class SliderCrankDAE:
         gamma_4 = u3 + omega3 * (-self.a * sin + self.b * cos)
         return np.array([gamma_1, gamma_2, gamma_3, gamma_4])
 
+    def gamma_F_q(self, t, q, u, coo):
+        dense = approx_fprime(q, lambda q: self.__gamma_F(t, q, u))
+        coo.extend(dense, (self.la_FDOF, self.qDOF))
+
     def W_F_dense(self, t, q):
         _, _, _, _, _, _, x3, y3, theta3 = q
         sin = np.sin(theta3)
@@ -1104,7 +1113,7 @@ def run_Flores():
         # anim.save('slider_crank.mp4', writer=writer)
 
 
-def run_DAE():
+def run_DAE(export=True):
     animate = True
     # animate = False
 
@@ -1115,9 +1124,11 @@ def run_DAE():
 
     # approx. two crank revolutions
     t_final = 7 * np.pi / 150
-    t_final *= 0.1
-    dt1 = 5e-4  # Rattle
-    dt2 = 1e-5  # Moreau
+    # t_final *= 0.1
+    # dt1 = 5e-4  # Rattle
+    # dt2 = 1e-5  # Moreau
+    dt1 = 1e-3  # Rattle
+    dt2 = 1e-3  # Moreau
 
     sol1, label1 = Rattle(system, t_final, dt1).solve(), "Rattle"
     # sol1, label1 = (
@@ -1254,6 +1265,65 @@ def run_DAE():
         ax[2, i].set_ylabel(f"gamma_F_dot{i + 1} [m/s]")
 
     plt.tight_layout()
+
+    if export:
+        path = Path(__file__)
+
+        np.savetxt(
+            path.parent / "state1.dat",
+            np.hstack((sol1.t[:, None], q1, u1)),
+            delimiter=", ",
+            header="t, x1, y1, phi1, x2, y2, phi2, x3, y3, phi3, u1, v1, omega1, u2, v2, omega2, u3, v3, omega3",
+            comments="",
+        )
+
+        np.savetxt(
+            path.parent / "g1.dat",
+            np.hstack((sol1.t[:, None], g1)),
+            delimiter=", ",
+            header="t, g1, g2, g3, g4, g5, g6",
+            comments="",
+        )
+
+        np.savetxt(
+            path.parent / "g_N1.dat",
+            np.hstack((sol1.t[:, None], g_N1)),
+            delimiter=", ",
+            header="t, g_N1, g_N2, g_N3, g_N4",
+            comments="",
+        )
+
+        np.savetxt(
+            path.parent / "g_N_dot1.dat",
+            np.hstack((sol1.t[:, None], g_N_dot1)),
+            delimiter=", ",
+            header="t, g_N_dot1, g_N_dot2, g_N_dot3, g_N_dot4",
+            comments="",
+        )
+
+        # np.savetxt(
+        #     path.parent / "state2.dat",
+        #     np.hstack((sol2.t[:, None], q2, u2)),
+        #     delimiter=", ",
+        #     header="t, x1, y1, phi1, x2, y2, phi2, x3, y3, phi3, u1, v1, omega1, u2, v2, omega2, u3, v3, omega3",
+        #     comments="",
+        # )
+
+        # np.savetxt(
+        #     path.parent / "g2.dat",
+        #     np.hstack((sol1.t[:, None], g2)),
+        #     delimiter=", ",
+        #     header="t, g1, g2, g3, g4, g5, g6",
+        #     comments="",
+        # )
+
+        # np.savetxt(
+        #     path.parent / "g_N2.dat",
+        #     np.hstack((sol1.t[:, None], g_N2)),
+        #     delimiter=", ",
+        #     header="t, g_N1, g_N2, g_N3, g_N4",
+        #     comments="",
+        # )
 
     if not animate:
         plt.show()

@@ -347,11 +347,9 @@ def run(export=True):
 
     t0 = 0
     t_final = 8
-    # t_final = 2
-    # t_final = 0.5
-    # t_final = 0.01
-    dt1 = 1e-4
-    dt2 = 5e-4
+    # t_final = 1.5
+    dt1 = 1e-3
+    dt2 = 1e-4
 
     sol1, label1 = Rattle(system, t_final, dt1, atol=1e-8).solve(), "Rattle"
     # sol1, label1 = (

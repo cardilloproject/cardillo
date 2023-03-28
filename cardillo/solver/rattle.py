@@ -608,16 +608,30 @@ class Rattle:
         # friction and tangent impacts
         ##############################
         prox_r_F = self.prox_r_F
-        gamma_Fn1 = self.system.gamma_F(tn1, qn1, un12)
+        mu = self.system.mu
+        gamma_F = self.system.gamma_F(tn1, qn1, un12)
+
         for i_N, i_F in enumerate(self.system.NF_connectivity):
             i_F = np.array(i_F)
+            n_F = len(i_F)
+            if n_F > 0:
+                P_Ni = P_N1[i_N]
+                P_Fi = P_F1[i_F]
+                gamma_Fi = gamma_F[i_F]
+                arg_F = prox_r_F[i_F] * gamma_Fi - P_Fi
+                mui = mu[i_N]
+                radius = mui * P_Ni
+                norm_arg_F = np.linalg.norm(arg_F)
 
-            if len(i_F) > 0:
-                R1[self.split_y1[4] + i_F] = P_F1[i_F] + prox_sphere(
-                    prox_r_F[i_N] * gamma_Fn1[i_F] - P_F1[i_F],
-                    self.system.mu[i_N] * P_N1[i_N],
-                )
-
+                if norm_arg_F < radius:
+                    R1[self.split_y1[4] + i_F] = gamma_Fi
+                else:
+                    if norm_arg_F > 0:
+                        R1[self.split_y1[4] + i_F] = (
+                            P_F1[i_F] + radius * arg_F / norm_arg_F
+                        )
+                    else:
+                        R1[self.split_y1[4] + i_F] = P_F1[i_F] + radius * arg_F
         return R1
 
     def J1(self, y1, *args, **kwargs):
@@ -665,7 +679,6 @@ class Rattle:
 
         Rla_N_q = lil_matrix((self.nla_N, self.nq))
         Rla_N_la_N = lil_matrix((self.nla_N, self.nla_N))
-        # TODO: Can we use np.where here?
         for i in range(self.nla_N):
             if self.I_N[i]:
                 Rla_N_q[i] = g_N_q[i]
@@ -704,13 +717,15 @@ class Rattle:
                 radius = mui * P_Ni
                 norm_arg_F = np.linalg.norm(arg_F)
 
-                if norm_arg_F <= radius:
-                    Rla_F_q[i_F] = diags(prox_r_F[i_F]) @ gamma_F_q[i_F]
-                    Rla_F_u[i_F] = diags(prox_r_F[i_F]) @ gamma_F_u[i_F]
+                if norm_arg_F < radius:
+                    Rla_F_q[i_F] = gamma_F_q[i_F]
+                    Rla_F_u[i_F] = gamma_F_u[i_F]
                 else:
                     if norm_arg_F > 0:
                         slip_dir = arg_F / norm_arg_F
-                        factor = np.eye(n_F) - np.outer(slip_dir, slip_dir)
+                        factor = (
+                            np.eye(n_F) - np.outer(slip_dir, slip_dir)
+                        ) / norm_arg_F
                         Rla_F_q[i_F] = (
                             radius * factor @ diags(prox_r_F[i_F]) @ gamma_F_q[i_F]
                         )
@@ -751,6 +766,12 @@ class Rattle:
         # diff = diff[self.split_y1[2]:self.split_y1[3]]
         # diff = diff[self.split_y1[3]:self.split_y1[4]]
         # diff = diff[self.split_y1[4] :]
+        # diff = diff[self.split_y1[4] :, :self.split_y1[0]]
+        # diff = diff[self.split_y1[4] :, self.split_y1[0] : self.split_y1[1]]
+        # diff = diff[self.split_y1[4] :, self.split_y1[1] : self.split_y1[2]]
+        # diff = diff[self.split_y1[4] :, self.split_y1[2] : self.split_y1[3]]
+        # diff = diff[self.split_y1[4] :, self.split_y1[3] : self.split_y1[4]]
+        # diff = diff[self.split_y1[4] :, self.split_y1[4] :]
         error = np.linalg.norm(diff)
         if error > 1.0e-6:
             print(f"error J1: {error}")
@@ -834,7 +855,7 @@ class Rattle:
                 radius = mui * P_Ni
                 norm_arg_F = np.linalg.norm(arg_F)
 
-                if norm_arg_F <= radius:
+                if norm_arg_F < radius:
                     R2[self.split_y2[3] + i_F] = xi_F[i_F]
                 else:
                     if norm_arg_F > 0:
@@ -909,7 +930,8 @@ class Rattle:
                 radius = mui * P_Ni
                 norm_arg_F = np.linalg.norm(arg_F)
 
-                if norm_arg_F <= radius:
+                if norm_arg_F < radius:
+                    # print(f"stick")
                     Rla_F_u[i_F] = xi_F_u[i_F]
                 else:
                     if norm_arg_F > 0:
@@ -929,8 +951,8 @@ class Rattle:
                         # print(f"slip ||x|| = 0")
                         slip_dir = arg_F
                         Rla_F_u[i_F] = radius * diags(prox_r_F[i_F]) @ xi_F_u[i_F]
-                        Rla_F_la_N[i_F[:, None], i_N] = mui * slip_dir
-                        Rla_F_la_F[i_F[:, None], i_F] = (1 - radius) * eye(n_F)
+                        Rla_F_la_N[i_F[:, None], i_N] = 0.5 * mui * slip_dir
+                        Rla_F_la_F[i_F[:, None], i_F] = 0.5 * (1 - radius) * eye(n_F)
 
         # fmt: off
         J2 = bmat(
@@ -962,8 +984,7 @@ class Rattle:
         # diff = diff[self.split_y2[3]:, self.split_y2[3] :]
         error = np.linalg.norm(diff)
         if error > 1.0e-6:
-            print(f"error J1: {error}")
-        # print(f"error J1: {error}")
+            print(f"error J2: {error}")
 
         return J2_num
 
@@ -1178,9 +1199,25 @@ class Rattle:
             # print(f"prox_r_N: {self.prox_r_N}")
             # print(f"prox_r_F: {self.prox_r_F}")
 
-            # # TODO: We need a possibility to set prox parameters on system level!
-            self.prox_r_N = np.ones(self.nla_N) * 0.5
-            self.prox_r_F = np.ones(self.nla_F) * 0.5
+            # TODO: We need a possibility to set prox parameters on system level!
+
+            # ########################
+            # # rotating bouncing ball
+            # ########################
+            # self.prox_r_N = np.ones(self.nla_N) * 0.5
+            # self.prox_r_F = np.ones(self.nla_F) * 0.5
+
+            # ##########
+            # # tippetop
+            # ##########
+            # self.prox_r_N = np.ones(self.nla_N) * 0.001
+            # self.prox_r_F = np.ones(self.nla_F) * 0.001
+
+            ##############
+            # slider crank
+            ##############
+            self.prox_r_N = np.ones(self.nla_N) * 0.001
+            self.prox_r_F = np.ones(self.nla_F) * 0.001
 
             tn1 = self.tn + self.dt
 
@@ -1209,7 +1246,7 @@ class Rattle:
                     self.y2n,
                     jac=self.J2,
                     # jac="3-point",  # TODO: keep this, otherwise sinuglairites arise
-                    eps=1.0e-6,
+                    # eps=1.0e-6,
                     atol=self.atol,
                     max_iter=self.max_iter,
                     fun_args=(True,),
