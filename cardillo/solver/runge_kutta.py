@@ -533,12 +533,12 @@ class NonsmoothPIRK:
         # TODO: How do we initialized contact forces/ percussions?
         self.yn = np.concatenate(
             (
-                np.tile(self.q_dotn, self.stages),
-                np.tile(self.u_dotn, self.stages),
-                np.tile(self.la_gn, self.stages),
-                np.tile(self.la_gamman, self.stages),
-                np.tile(self.la_Nn, self.stages),
-                np.tile(self.la_Fn, self.stages),
+                0 * np.tile(self.q_dotn, self.stages),
+                0 * np.tile(self.u_dotn, self.stages),
+                0 * np.tile(self.la_gn, self.stages),
+                0 * np.tile(self.la_gamman, self.stages),
+                0 * np.tile(self.la_Nn, self.stages),
+                0 * np.tile(self.la_Fn, self.stages),
                 # np.outer(self.q_dotn, self.b).reshape(-1, order="F"),
                 # np.outer(self.u_dotn, self.b).reshape(-1, order="F"),
                 # np.outer(self.la_gn, self.b).reshape(-1, order="F"),
@@ -572,7 +572,7 @@ class NonsmoothPIRK:
             )
         )
 
-        self.I = np.zeros((self.stages, self.nla_N), dtype=bool)
+        self.I_N = np.zeros((self.stages, self.nla_N), dtype=bool)
         self.A_N = np.zeros(self.nla_N, dtype=bool)
         self.B_N = np.zeros(self.nla_N, dtype=bool)
 
@@ -714,21 +714,17 @@ class NonsmoothPIRK:
             Qi = qn + dq @ self.A[i]
             P_Ni = dP_N @ self.A[i]
             g_Ni = self.system.g_N(ti, Qi)
-            # Note: Primal form results in contstraint g_N = for contact. In
-            # contrast, the dual form enforces r_N * g_N = 0.
-            prox_arg = g_Ni - prox_r_N * P_Ni
-            # prox_arg = prox_r_N * g_Ni - P_Ni
-            # prox_arg = prox_r_N / h * g_Ni - P_Ni
 
+            prox_arg = g_Ni - prox_r_N * P_Ni
             if update_index:
-                self.I[i] = prox_arg <= 0.0
+                self.I_N[i] = prox_arg <= 0.0
 
             R[
                 self.split_y[3]
                 + i * self.nla_N : self.split_y[3]
                 + (i + 1) * self.nla_N
             ] = np.where(
-                self.I[i],
+                self.I_N[i],
                 g_Ni,
                 P_Ni,
             )
@@ -737,6 +733,7 @@ class NonsmoothPIRK:
         # Coulomb friction
         ##################
         prox_r_F = self.prox_r_F
+        mu = self.system.mu
         for i in range(self.stages):
             ti = tn + self.c[i] * h
             Qi = qn + dq @ self.A[i]
@@ -748,11 +745,24 @@ class NonsmoothPIRK:
 
             for i_N, i_F in enumerate(self.system.NF_connectivity):
                 i_F = np.array(i_F)
-                if len(i_F) > 0:
-                    R[self.split_y[4] + i * self.nla_F + i_F] = P_Fi[i_F] + prox_sphere(
-                        prox_r_F[i_N] * gamma_Fi[i_F] - P_Fi[i_F],
-                        self.system.mu[i_N] * P_Ni[i_N],
-                    )
+                n_F = len(i_F)
+                if n_F > 0:
+                    arg_F = prox_r_F[i_F] * gamma_Fi[i_F] - P_Fi[i_F]
+                    norm_arg_F = np.linalg.norm(arg_F)
+                    radius = mu[i_N] * P_Ni[i_N]
+
+                    # TODO: Investigate why strict smaller is important!
+                    if norm_arg_F < radius:
+                        R[self.split_y[4] + i * self.nla_F + i_F] = gamma_Fi[i_F]
+                    else:
+                        if norm_arg_F > 0:
+                            R[self.split_y[4] + i * self.nla_F + i_F] = (
+                                P_Fi[i_F] + radius * arg_F / norm_arg_F
+                            )
+                        else:
+                            R[self.split_y[4] + i * self.nla_F + i_F] = (
+                                P_Fi[i_F] + radius * arg_F
+                            )
 
         #################
         # impact equation
@@ -789,7 +799,7 @@ class NonsmoothPIRK:
         xi_Nn1 = self.system.xi_N(tn1, qn1, un, un1)
         prox_arg = xi_Nn1 - prox_r_N * P_Nn1
         if update_index:
-            self.A_N = np.any(self.I, axis=0)
+            self.A_N = np.any(self.I_N, axis=0)
             self.B_N = self.A_N * (prox_arg <= 0)
 
         R[self.split_y[8] : self.split_y[9]] = np.where(
@@ -814,11 +824,22 @@ class NonsmoothPIRK:
 
         for i_N, i_F in enumerate(self.system.NF_connectivity):
             i_F = np.array(i_F)
-            if len(i_F) > 0:
-                R[self.split_y[9] + i_F] = P_Fn1[i_F] + prox_sphere(
-                    prox_r_F[i_N] * xi_Fn1[i_F] - P_Fn1[i_F],
-                    self.system.mu[i_N] * P_Nn1[i_N],
-                )
+            n_F = len(i_F)
+            if n_F > 0:
+                arg_F = prox_r_F[i_F] * xi_Fn1[i_F] - P_Fn1[i_F]
+                norm_arg_F = np.linalg.norm(arg_F)
+                radius = mu[i_N] * P_Nn1[i_N]
+
+                # TODO: Investigate why strict smaller is important!
+                if norm_arg_F < radius:
+                    R[self.split_y[9] + i_F] = xi_Fn1[i_F]
+                else:
+                    if norm_arg_F > 0:
+                        R[self.split_y[9] + i_F] = (
+                            P_Fn1[i_F] + radius * arg_F / norm_arg_F
+                        )
+                    else:
+                        R[self.split_y[9] + i_F] = P_Fn1[i_F] + radius * arg_F
 
         # save integrated solutions
         # TODO: This is inefficient; unpack yn1 if it is converged.
@@ -861,8 +882,9 @@ class NonsmoothPIRK:
         un1 = un + du @ self.b + Delta_U
 
         # quadrature for percussions
-        P_gn1 = dP_g @ self.b + Delta_P_g
-        P_gamman1 = dP_gamma @ self.b + Delta_P_gamma
+        # # TODO: Are they required?
+        # P_gn1 = dP_g @ self.b + Delta_P_g
+        # P_gamman1 = dP_gamma @ self.b + Delta_P_gamma
         P_Nn1 = dP_N @ self.b + Delta_P_N
         P_Fn1 = dP_F @ self.b + Delta_P_F
 
@@ -982,32 +1004,87 @@ class NonsmoothPIRK:
 
             J[idxi:idxi1, : self.split_y[0]] = kron(
                 self.A[i],
-                diags(np.asarray(self.I[i], dtype=float)) @ self.system.g_N_q(ti, Qi),
+                diags(np.asarray(self.I_N[i], dtype=float)) @ self.system.g_N_q(ti, Qi),
             )
             J[idxi:idxi1, self.split_y[3] : self.split_y[4]] = kron(
-                self.A[i], diags(np.asarray(~self.I[i], dtype=float))
+                self.A[i], diags(np.asarray(~self.I_N[i], dtype=float))
             )
 
-        # ##################
-        # # Coulomb friction
-        # ##################
-        # prox_r_F = self.prox_r_F
-        # for i in range(self.stages):
-        #     ti = tn + self.c[i] * h
-        #     Qi = qn + dq @ self.A[i]
-        #     Ui = un + du @ self.A[i]
-        #     P_Ni = dP_N @ self.A[i]
-        #     P_Fi = dP_F @ self.A[i]
+        ##################
+        # Coulomb friction
+        ##################
+        prox_r_F = self.prox_r_F
+        mu = self.system.mu
 
-        #     gamma_Fi = self.system.gamma_F(ti, Qi, Ui)
+        for i in range(self.stages):
+            ti = tn + self.c[i] * h
+            Qi = qn + dq @ self.A[i]
+            Ui = un + du @ self.A[i]
+            P_Ni = dP_N @ self.A[i]
+            P_Fi = dP_F @ self.A[i]
 
-        #     for i_N, i_F in enumerate(self.system.NF_connectivity):
-        #         i_F = np.array(i_F)
-        #         if len(i_F) > 0:
-        #             R[self.split_y[4] + i * self.nla_F + i_F] = P_Fi[i_F] + prox_sphere(
-        #                 prox_r_F[i_N] * gamma_Fi[i_F] - P_Fi[i_F],
-        #                 self.system.mu[i_N] * P_Ni[i_N],
-        #             )
+            gamma_Fi = self.system.gamma_F(ti, Qi, Ui)
+            gamma_Fi_q = self.system.gamma_F_q(ti, Qi, Ui, scipy_matrix=csr_matrix)
+            gamma_Fi_u = self.system.W_F(ti, Qi, scipy_matrix=csc_matrix).T
+
+            # local derivatives that have to be distributed with kron
+            Rla_F_q = lil_matrix((self.nla_F, self.nq))
+            Rla_F_u = lil_matrix((self.nla_F, self.nu))
+            Rla_F_la_N = lil_matrix((self.nla_F, self.nla_N))
+            Rla_F_la_F = lil_matrix((self.nla_F, self.nla_F))
+
+            for i_N, i_F in enumerate(self.system.NF_connectivity):
+                i_F = np.array(i_F)
+                n_F = len(i_F)
+                if n_F > 0:
+                    arg_F = prox_r_F[i_F] * gamma_Fi[i_F] - P_Fi[i_F]
+                    norm_arg_F = np.linalg.norm(arg_F)
+                    radius = mu[i_N] * P_Ni[i_N]
+
+                    # TODO: Investigate why strict smaller is important!
+                    if norm_arg_F < radius:
+                        # print(f"stick")
+                        Rla_F_q[i_F] = gamma_Fi_q[i_F]
+                        Rla_F_u[i_F] = gamma_Fi_u[i_F]
+                    else:
+                        if norm_arg_F > 0:
+                            # print(f"slip norm_arg_F > 0")
+                            slip_dir = arg_F / norm_arg_F
+                            factor = (
+                                np.eye(n_F) - np.outer(slip_dir, slip_dir)
+                            ) / norm_arg_F
+                            Rla_F_q[i_F] = (
+                                radius * factor @ diags(prox_r_F[i_F]) @ gamma_Fi_q[i_F]
+                            )
+                            Rla_F_u[i_F] = (
+                                radius * factor @ diags(prox_r_F[i_F]) @ gamma_Fi_u[i_F]
+                            )
+                            Rla_F_la_N[i_F[:, None], i_N] = mu[i_N] * slip_dir
+                            Rla_F_la_F[i_F[:, None], i_F] = (
+                                np.eye(n_F) - radius * factor
+                            )
+                        else:
+                            # print(f"slip norm_arg_F = 0")
+                            Rla_F_q[i_F] = (
+                                radius * diags(prox_r_F[i_F]) @ gamma_Fi_q[i_F]
+                            )
+                            Rla_F_u[i_F] = (
+                                radius * diags(prox_r_F[i_F]) @ gamma_Fi_u[i_F]
+                            )
+                            Rla_F_la_N[i_F[:, None], i_N] = mu[i_N] * arg_F
+                            Rla_F_la_F[i_F[:, None], i_F] = (1 - radius) * eye(n_F)
+
+            idxi = self.split_y[4] + i * self.nla_F
+            idxi1 = self.split_y[4] + (i + 1) * self.nla_F
+
+            J[idxi:idxi1, : self.split_y[0]] = kron(self.A[i], Rla_F_q)
+            J[idxi:idxi1, self.split_y[0] : self.split_y[1]] = kron(self.A[i], Rla_F_u)
+            J[idxi:idxi1, self.split_y[3] : self.split_y[4]] = kron(
+                self.A[i], Rla_F_la_N
+            )
+            J[idxi:idxi1, self.split_y[4] : self.split_y[5]] = kron(
+                self.A[i], Rla_F_la_F
+            )
 
         #################
         # impact equation
@@ -1097,18 +1174,72 @@ class NonsmoothPIRK:
             self.split_y[8] : self.split_y[9], self.split_y[8] : self.split_y[9]
         ] = B_N_bar
 
-        # ##################################################
-        # # mixed Coulomb friction and tangent impact law
-        # ##################################################
-        # xi_Fn1 = self.system.xi_F(tn1, qn1, un, un1)
+        ##################################################
+        # mixed Coulomb friction and tangent impact law
+        ##################################################
+        xi_Fn1 = self.system.xi_F(tn1, qn1, un, un1)
+        xi_Fn1_q = self.system.xi_F_q(tn1, qn1, un, un1, scipy_matrix=csr_matrix)
+        xi_Fn1_u = self.system.W_F(tn1, qn1, scipy_matrix=csc_matrix).T
 
-        # for i_N, i_F in enumerate(self.system.NF_connectivity):
-        #     i_F = np.array(i_F)
-        #     if len(i_F) > 0:
-        #         R[self.split_y[9] + i_F] = P_Fn1[i_F] + prox_sphere(
-        #             prox_r_F[i_N] * xi_Fn1[i_F] - P_Fn1[i_F],
-        #             self.system.mu[i_N] * P_Nn1[i_N],
-        #         )
+        # local derivatives that have to be distributed with kron
+        Rla_F_q = lil_matrix((self.nla_F, self.nq))
+        Rla_F_u = lil_matrix((self.nla_F, self.nu))
+        Rla_F_la_N = lil_matrix((self.nla_F, self.nla_N))
+        Rla_F_la_F = lil_matrix((self.nla_F, self.nla_F))
+
+        for i_N, i_F in enumerate(self.system.NF_connectivity):
+            i_F = np.array(i_F)
+            n_F = len(i_F)
+            if n_F > 0:
+                arg_F = prox_r_F[i_F] * xi_Fn1[i_F] - P_Fn1[i_F]
+                norm_arg_F = np.linalg.norm(arg_F)
+                radius = mu[i_N] * P_Nn1[i_N]
+
+                # TODO: Investigate why strict smaller is important!
+                if norm_arg_F < radius:
+                    # print(f"stick")
+                    Rla_F_q[i_F] = xi_Fn1_q[i_F]
+                    Rla_F_u[i_F] = xi_Fn1_u[i_F]
+                else:
+                    if norm_arg_F > 0:
+                        # print(f"slip norm_arg_F > 0")
+                        slip_dir = arg_F / norm_arg_F
+                        factor = (
+                            np.eye(n_F) - np.outer(slip_dir, slip_dir)
+                        ) / norm_arg_F
+                        Rla_F_q[i_F] = (
+                            radius * factor @ diags(prox_r_F[i_F]) @ xi_Fn1_q[i_F]
+                        )
+                        Rla_F_u[i_F] = (
+                            radius * factor @ diags(prox_r_F[i_F]) @ xi_Fn1_u[i_F]
+                        )
+                        Rla_F_la_N[i_F[:, None], i_N] = mu[i_N] * slip_dir
+                        Rla_F_la_F[i_F[:, None], i_F] = np.eye(n_F) - radius * factor
+                    else:
+                        # print(f"slip norm_arg_F = 0")
+                        Rla_F_q[i_F] = radius * diags(prox_r_F[i_F]) @ xi_Fn1_q[i_F]
+                        Rla_F_u[i_F] = radius * diags(prox_r_F[i_F]) @ xi_Fn1_u[i_F]
+                        Rla_F_la_N[i_F[:, None], i_N] = mu[i_N] * arg_F
+                        Rla_F_la_F[i_F[:, None], i_F] = (1 - radius) * eye(n_F)
+
+            J[self.split_y[9] :, : self.split_y[0]] = kron(self.b, Rla_F_q)
+
+            J[self.split_y[9] :, self.split_y[0] : self.split_y[1]] = kron(
+                self.b, Rla_F_u
+            )
+            J[self.split_y[9] :, self.split_y[5] : self.split_y[6]] = Rla_F_u
+
+            J[self.split_y[9] :, self.split_y[3] : self.split_y[4]] = kron(
+                self.b,
+                Rla_F_la_N
+                # Rla_F_la_N, self.b
+            )
+            J[self.split_y[9] :, self.split_y[8] : self.split_y[9]] = Rla_F_la_N
+
+            J[self.split_y[9] :, self.split_y[4] : self.split_y[5]] = kron(
+                self.b, Rla_F_la_F
+            )
+            J[self.split_y[9] :, self.split_y[9] :] = Rla_F_la_F
 
         return J.tocsc()
 
@@ -1119,12 +1250,25 @@ class NonsmoothPIRK:
         # diff = diff[self.split_y[1] : self.split_y[2]]
         # diff = diff[self.split_y[2] : self.split_y[3]]
         # diff = diff[self.split_y[3] : self.split_y[4]]
-        # diff = diff[self.split_y[4] : self.split_y[5]] # TODO:
+
+        # diff = diff[self.split_y[4] : self.split_y[5]]  # TODO:
+        # diff = diff[self.split_y[4] : self.split_y[5], : self.split_y[0]]
+        # diff = diff[self.split_y[4] : self.split_y[5], self.split_y[0] : self.split_y[1]]
+        # diff = diff[self.split_y[4] : self.split_y[5], self.split_y[3] : self.split_y[4]]
+        # diff = diff[self.split_y[4] : self.split_y[5], self.split_y[4] : self.split_y[5]]
+
         # diff = diff[self.split_y[5] : self.split_y[6]]
         # diff = diff[self.split_y[6] : self.split_y[7]]
         # diff = diff[self.split_y[7] : self.split_y[8]]
         # diff = diff[self.split_y[8] : self.split_y[9]]
+
         # diff = diff[self.split_y[9] :] # TODO:
+        # diff = diff[self.split_y[9] :, : self.split_y[0]]
+        # diff = diff[self.split_y[9] :, self.split_y[0] : self.split_y[1]]
+        diff = diff[self.split_y[9] :, self.split_y[3] : self.split_y[4]]
+        # diff = diff[self.split_y[9] :, self.split_y[4] : self.split_y[5]]
+        # diff = diff[self.split_y[9] :, self.split_y[5] : self.split_y[6]]
+        # diff = diff[self.split_y[9] :, self.split_y[8] : self.split_y[9]]
         error = np.linalg.norm(diff)
         if error > 1.0e-10:
             print(f"error J: {error}")
@@ -1425,6 +1569,7 @@ class NonsmoothPIRK:
         sol_P_gamma = [self.h * self.la_gamman]
         sol_P_N = [self.h * self.la_Nn]
         sol_P_F = [self.h * self.la_Fn]
+        iterations = []
 
         pbar = tqdm(self.t[:-1])
         for _ in pbar:
@@ -1451,70 +1596,16 @@ class NonsmoothPIRK:
             # self.yn[self.split_y[8] : ] = 0
 
             yn1, converged, error, i, _ = fsolve(
-                # yn1, converged, error, i, _ = mngn(
                 self.R,
                 self.yn,
-                # jac=self.J,
-                # jac="2-point",
-                jac="3-point",  # TODO: keep this, otherwise sinuglairites arise if g_N0=0!
-                eps=1.0e-6,
+                jac=self.J,
+                # # jac="2-point",
+                # jac="3-point",  # TODO: keep this, otherwise sinuglairites arise if g_N0=0!
+                # eps=1.0e-6,
                 atol=self.atol,
                 fun_args=(True,),
                 jac_args=(False,),
             )
-
-            # from scipy.optimize import least_squares
-            # fun = lambda x: self.R(x, True)
-            # jac = lambda x: approx_fprime(x, self.R)
-            # sol = least_squares(fun, self.yn.copy(), jac=jac, method="lm")
-            # yn1 = sol.x
-            # converged = sol.success
-            # error = np.max(np.abs(sol.fun))
-            # i = sol.nfev
-
-            # ##############################
-            # # compute damped least squares
-            # ##############################
-            # def fun1(y):
-            #     R = self.R(y)
-            #     # rho = 1e-3
-            #     rho = 0
-            #     Delta_y = y - self.yn
-            #     # return np.concatenate((R, rho * Delta_y))
-            #     return R
-
-            # def fun2(y):
-            #     f = fun1(y)
-            #     return f @ f
-
-            # from scipy.optimize import minimize, least_squares
-            # # sol = least_squares(fun1, self.yn.copy())
-            # sol = minimize(fun2, self.yn.copy(), method="SLSQP")
-            # yn1 = sol.x
-            # converged = sol.success
-            # # i = sol.nfev
-            # i = sol.nit
-            # # error = sol.optimality
-            # error = np.max(np.abs(sol.fun))
-            # # print(f"")
-
-            # from scipy.optimize import fixed_point
-
-            # # yn1 = fixed_point(self.R_fixed_point, self.yn, method="del2") # This is not working!
-            # yn1 = fixed_point(self.R_fixed_point, self.yn, method="iteration")
-            # error = self.error_function(self.R(yn1.copy()) - yn1)
-            # converged = True
-            # i = 0
-
-            # yn1, converged, error, i, _ = fsolve(
-            #     self.R_GGL,
-            #     self.yn,
-            #     jac="3-point",  # TODO: keep this, otherwise sinuglairites arise if g_N0=0!
-            #     eps=1.0e-6,
-            #     atol=self.atol,
-            #     fun_args=(True,),
-            #     jac_args=(False,),
-            # )
 
             tn1 = self.tn1
 
@@ -1533,6 +1624,7 @@ class NonsmoothPIRK:
             sol_P_gamma.append(self.P_gamman1)
             sol_P_N.append(self.P_Nn1)
             sol_P_F.append(self.P_Fn1)
+            iterations.append(i)
 
             # update local variables for accepted time step
             self.qn = self.qn1.copy()
@@ -1541,6 +1633,12 @@ class NonsmoothPIRK:
             # warmstart for next iteration
             self.tn = tn1
             self.yn = yn1.copy()
+
+        print("-----------------")
+        print(
+            f"Iterations per time step: max = {max(iterations)}, avg={sum(iterations) / float(len(iterations))}"
+        )
+        print("-----------------")
 
         return Solution(
             t=np.array(self.t),

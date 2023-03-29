@@ -540,10 +540,10 @@ def fsolve(
     atol=1.0e-8,
     eps=1.0e-6,
     max_iter=20,
-    # linear_solver=lu_solve,
+    linear_solver=lu_solve,
     # linear_solver=MNGN_svd,
     # linear_solver=MNGN_qr,
-    linear_solver=MNGN_sparse_qr,
+    # linear_solver=MNGN_sparse_qr,
     # linear_solver=sparse_qr_solve,
 ):
     if not isinstance(fun_args, tuple):

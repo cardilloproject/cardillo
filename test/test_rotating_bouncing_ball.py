@@ -50,8 +50,10 @@ def run(case):
     y0 = 1
     y_dot0 = 0
     # dt = 5e-4
-    dt = 1e-3
+    # dt = 1e-3
+    dt = 5e-3
     # dt = 1e-2
+    # dt = 5e-2
 
     if case == 1:
         e_N, e_F, mu = 0.5, 0, 0
@@ -100,11 +102,11 @@ def run(case):
 
     system.assemble()
 
-    # solver1, label1 = NonsmoothPIRK(system, t_final, dt, RadauIIATableau(2)), "NPIRK"
-    solver1, label1 = (
-        SimplifiedNonsmoothGeneralizedAlphaNoAcceleration(system, t_final, dt),
-        "Gen-alpha simplified",
-    )
+    solver1, label1 = NonsmoothPIRK(system, t_final, dt, RadauIIATableau(2)), "NPIRK"
+    # solver1, label1 = (
+    #     SimplifiedNonsmoothGeneralizedAlphaNoAcceleration(system, t_final, dt),
+    #     "Gen-alpha simplified",
+    # )
 
     # solver1, label1 = NonsmoothGeneralizedAlpha(system, t_final, dt, method="newton"), "Gen-alpha"
     # solver1, label1 = Rattle(system, t_final, dt), "Rattle"
