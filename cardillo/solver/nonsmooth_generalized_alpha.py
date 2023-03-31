@@ -1144,15 +1144,6 @@ class SimplifiedNonsmoothGeneralizedAlphaNoAcceleration:
             )
         )
 
-        # eqn. (127): dimensions of residual
-        self.nR = (
-            2 * self.nu
-            + 2 * self.nla_g
-            + 2 * self.nla_gamma
-            + 2 * self.nla_N
-            + 2 * self.nla_F
-        )
-
         # consistent initial conditions
         (
             self.tn,
@@ -1163,11 +1154,13 @@ class SimplifiedNonsmoothGeneralizedAlphaNoAcceleration:
             self.la_gn,
             self.la_gamman,
         ) = consistent_initial_conditions(system)
-        self.la_Nn = self.system.la_N0
-        self.la_Fn = self.system.la_F0
+        self.R_Nn = h * self.system.la_N0
+        self.R_Fn = h * self.system.la_F0
 
         # initialize auxilary variables
         self.an = self.u_dotn.copy()
+        self.P_Nn = h * self.R_Nn.copy()
+        self.P_Fn = h * self.R_Fn.copy()
 
         # initialize y vector of unknowns
         self.yn = np.concatenate(
@@ -1175,13 +1168,13 @@ class SimplifiedNonsmoothGeneralizedAlphaNoAcceleration:
                 self.u_dotn,
                 0.5 * h * self.la_gn,
                 0.5 * h * self.la_gamman,
-                0.5 * h * self.la_Nn,
-                0.5 * h * self.la_Fn,
+                0.5 * h * self.R_Nn,
+                0.5 * h * self.R_Fn,
                 np.zeros(self.nu),
                 0.5 * h * self.la_gn,
                 0.5 * h * self.la_gamman,
-                0.5 * h * self.la_Nn,
-                0.5 * h * self.la_Fn,
+                0.5 * h * self.R_Nn,
+                0.5 * h * self.R_Fn,
             )
         )
 
@@ -1200,29 +1193,42 @@ class SimplifiedNonsmoothGeneralizedAlphaNoAcceleration:
         # unpack unknowns
         (
             u_dotn1,
-            R_g1,
-            R_gamma1,
-            R_N1,
-            R_F1,
-            U,
-            R_g2,
-            R_gamma2,
-            R_N2,
-            R_F2,
+            R_gn1,
+            R_gamman1,
+            R_Nn1,
+            R_Fn1,
+            Delta_U,
+            Delta_R_gn2,
+            Delta_R_gamman2,
+            Delta_R_Nn2,
+            Delta_R_Fn2,
         ) = np.array_split(y, self.split_y)
 
-        # eqn. (71): compute auxiliary acceleration variables
+        # eqn. (71): compute new auxiliary variables
         an1 = (alpha_f * self.u_dotn + (1 - alpha_f) * u_dotn1 - alpha_m * self.an) / (
+            1 - alpha_m
+        )
+        P_Nn1 = (alpha_f * self.R_Nn + (1 - alpha_f) * R_Nn1 - alpha_m * self.P_Nn) / (
+            1 - alpha_m
+        )
+        P_Fn1 = (alpha_f * self.R_Fn + (1 - alpha_f) * R_Fn1 - alpha_m * self.P_Fn) / (
             1 - alpha_m
         )
 
         # eqn. (73): velocity update formula
         un12 = self.un + h * ((1 - gamma) * self.an + gamma * an1)
-        un1 = un12 + U
+        un1 = un12 + Delta_U
 
         # position update, see GAMM2022 Harsch
-        Delta_u = self.un + h * ((0.5 - beta) * self.an + beta * an1)
-        qn1 = self.qn + h * self.system.q_dot(self.tn, self.qn, Delta_u)
+        Delta_un12 = self.un + h * ((0.5 - beta) * self.an + beta * an1)
+        qn1 = self.qn + h * self.system.q_dot(self.tn, self.qn, Delta_un12)
+
+        # P_gn1 = R_gn1 + R_gn2
+        # P_gamman1 = R_gamman1 + R_gamman2
+        # P_Nn1 = R_Nn1 + R_Nn2
+        # P_Fn1 = R_Fn1 + R_Fn2
+        P_Nn2 = P_Nn1 + Delta_R_Nn2
+        P_Fn2 = P_Fn1 + Delta_R_Fn2
 
         if store:
             # update local variables for accepted time step
@@ -1231,6 +1237,9 @@ class SimplifiedNonsmoothGeneralizedAlphaNoAcceleration:
             self.un = un1.copy()
             self.u_dotn = u_dotn1.copy()
             self.an = an1.copy()
+            self.R_Nn = R_Nn1.copy()
+            self.R_Fn = R_Fn1.copy()
+            self.P_Fn = P_Fn1.copy()
 
         return (
             tn1,
@@ -1238,15 +1247,19 @@ class SimplifiedNonsmoothGeneralizedAlphaNoAcceleration:
             un12,
             un1,
             u_dotn1,
-            R_g1,
-            R_gamma1,
-            R_N1,
-            R_F1,
-            U,
-            R_g2,
-            R_gamma2,
-            R_N2,
-            R_F2,
+            R_gn1,
+            R_gamman1,
+            R_Nn1,
+            R_Fn1,
+            Delta_U,
+            Delta_R_gn2,
+            Delta_R_gamman2,
+            Delta_R_Nn2,
+            Delta_R_Fn2,
+            P_Nn1,
+            P_Fn1,
+            P_Nn2,
+            P_Fn2,
         )
 
     def _R(self, y, update_index=False):
@@ -1256,23 +1269,23 @@ class SimplifiedNonsmoothGeneralizedAlphaNoAcceleration:
             un12,
             un1,
             u_dotn1,
-            R_g1,
-            R_gamma1,
-            R_N1,
-            R_F1,
-            U,
-            R_g2,
-            R_gamma2,
-            R_N2,
-            R_F2,
+            R_gn1,
+            R_gamman1,
+            R_Nn1,
+            R_Fn1,
+            Delta_U,
+            Delta_R_gn2,
+            Delta_R_gamman2,
+            Delta_R_Nn2,
+            Delta_R_Fn2,
+            P_Nn1,
+            P_Fn1,
+            P_Nn2,
+            P_Fn2,
         ) = self._update(y)
 
-        P_gn1 = R_g1 + R_g2
-        P_gamman1 = R_gamma1 + R_gamma2
-        P_Nn1 = R_N1 + R_N2
-        P_Fn1 = R_F1 + R_F2
-
         R = np.zeros_like(y)
+        R = y.copy()
 
         ####################
         # eqations of motion
@@ -1285,10 +1298,10 @@ class SimplifiedNonsmoothGeneralizedAlphaNoAcceleration:
         R[: self.split_y[0]] = (
             M @ u_dotn1
             - self.system.h(tn1, qn1, un12)
-            - W_g @ R_g1
-            - W_gamma @ R_gamma1
-            - W_N @ R_N1
-            - W_F @ R_F1
+            - W_g @ R_gn1
+            - W_gamma @ R_gamman1
+            - W_N @ R_Nn1
+            - W_F @ R_Fn1
         )
 
         #######################
@@ -1301,7 +1314,8 @@ class SimplifiedNonsmoothGeneralizedAlphaNoAcceleration:
         # Signorini
         ###########
         g_N = self.system.g_N(tn1, qn1)
-        prox_arg = g_N - self.prox_r_N * R_N1
+        # prox_arg = g_N - self.prox_r_N * R_Nn1
+        prox_arg = g_N - self.prox_r_N * P_Nn1
 
         if update_index:
             self.I = prox_arg <= 0.0
@@ -1309,23 +1323,24 @@ class SimplifiedNonsmoothGeneralizedAlphaNoAcceleration:
         R[self.split_y[2] : self.split_y[3]] = np.where(
             self.I,
             g_N,
-            R_N1,
+            # R_Nn1,
+            P_Nn1,
         )
 
-        ##################
-        # Coulomb friction
-        ##################
-        prox_r_F = self.prox_r_F
-        mu = self.system.mu
-        gamma_F = self.system.gamma_F(tn1, qn1, un12)
+        # ##################
+        # # Coulomb friction
+        # ##################
+        # prox_r_F = self.prox_r_F
+        # mu = self.system.mu
+        # gamma_F = self.system.gamma_F(tn1, qn1, un12)
 
-        for i_N, i_F in enumerate(self.system.NF_connectivity):
-            i_F = np.array(i_F)
-            if len(i_F) > 0:
-                R[self.split_y[3] + i_F] = R_F1[i_F] + prox_sphere(
-                    prox_r_F[i_N] * gamma_F[i_F] - R_F1[i_F],
-                    mu[i_N] * R_N1[i_N],
-                )
+        # for i_N, i_F in enumerate(self.system.NF_connectivity):
+        #     i_F = np.array(i_F)
+        #     if len(i_F) > 0:
+        #         R[self.split_y[3] + i_F] = R_F1[i_F] + prox_sphere(
+        #             prox_r_F[i_N] * gamma_F[i_F] - R_F1[i_F],
+        #             mu[i_N] * R_N1[i_N],
+        #         )
 
         #################
         # impact equation
@@ -1339,7 +1354,11 @@ class SimplifiedNonsmoothGeneralizedAlphaNoAcceleration:
         #     - W_F @ P_Fn1
         # )
         R[self.split_y[4] : self.split_y[5]] = (
-            M @ U - W_g @ R_g2 - W_gamma @ R_gamma2 - W_N @ R_N2 - W_F @ R_F2
+            M @ Delta_U
+            - W_g @ Delta_R_gn2
+            - W_gamma @ Delta_R_gamman2
+            - W_N @ Delta_R_Nn2
+            - W_F @ Delta_R_Fn2
         )
 
         #################################
@@ -1352,14 +1371,14 @@ class SimplifiedNonsmoothGeneralizedAlphaNoAcceleration:
         # mixed Singorini on velocity level and impact law
         ##################################################
         xi_Nn1 = self.system.xi_N(tn1, qn1, self.un, un1)
-        prox_arg = xi_Nn1 - self.prox_r_N * P_Nn1
+        prox_arg = xi_Nn1 - self.prox_r_N * P_Nn2
         if update_index:
             self.B = self.I * (prox_arg <= 0)
 
         R[self.split_y[7] : self.split_y[8]] = np.where(
             self.B,
             xi_Nn1,
-            P_Nn1,
+            P_Nn2,
         )
 
         # R[self.split_y[7] : self.split_y[8]] = np.where(
@@ -1368,17 +1387,17 @@ class SimplifiedNonsmoothGeneralizedAlphaNoAcceleration:
         #     P_Nn1,
         # )
 
-        ##################################################
-        # mixed Coulomb friction and tangent impact law
-        ##################################################
-        xi_Fn1 = self.system.xi_F(tn1, qn1, self.un, un1)
-        for i_N, i_F in enumerate(self.system.NF_connectivity):
-            i_F = np.array(i_F)
-            if len(i_F) > 0:
-                R[self.split_y[8] + i_F] = P_Fn1[i_F] + prox_sphere(
-                    prox_r_F[i_N] * xi_Fn1[i_F] - P_Fn1[i_F],
-                    mu[i_N] * P_Nn1[i_N],
-                )
+        # ##################################################
+        # # mixed Coulomb friction and tangent impact law
+        # ##################################################
+        # xi_Fn1 = self.system.xi_F(tn1, qn1, self.un, un1)
+        # for i_N, i_F in enumerate(self.system.NF_connectivity):
+        #     i_F = np.array(i_F)
+        #     if len(i_F) > 0:
+        #         R[self.split_y[8] + i_F] = P_Fn1[i_F] + prox_sphere(
+        #             prox_r_F[i_N] * xi_Fn1[i_F] - P_Fn1[i_F],
+        #             mu[i_N] * P_Nn1[i_N],
+        #         )
 
         return R
 
@@ -1432,21 +1451,30 @@ class SimplifiedNonsmoothGeneralizedAlphaNoAcceleration:
                 un12,
                 un1,
                 u_dotn1,
-                R_g1,
-                R_gamma1,
-                R_N1,
-                R_F1,
-                U,
-                R_g2,
-                R_gamma2,
-                R_N2,
-                R_F2,
+                R_gn1,
+                R_gamman1,
+                R_Nn1,
+                R_Fn1,
+                Delta_U,
+                Delta_R_gn2,
+                Delta_R_gamman2,
+                Delta_R_Nn2,
+                Delta_R_Fn2,
+                P_Nn1,
+                P_Fn1,
+                P_Nn2,
+                P_Fn2,
             ) = self._update(yn1, store=True)
 
-            P_gn1 = R_g1 + R_g2
-            P_gamman1 = R_gamma1 + R_gamma2
-            P_Nn1 = R_N1 + R_N2
-            P_Fn1 = R_F1 + R_F2
+            # P_gn1 = R_g1 + R_g2
+            # P_gamman1 = R_gamma1 + R_gamma2
+            # P_Nn1 = R_N1 + R_N2
+            # P_Fn1 = R_F1 + R_F2
+            # TODO:
+            P_gn1 = R_gn1
+            P_gamman1 = R_gamman1
+            P_Nn1 = P_Nn2
+            P_Fn1 = P_Fn2
 
             pbar.set_description(f"t: {tn1:0.2e}; step: {n_iter}; error: {error:.3e}")
             if not converged:
