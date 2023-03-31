@@ -498,17 +498,27 @@ def make_I_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
             g_S = np.zeros(self.nnodes_psi, dtype=q.dtype)
             for node in range(self.nnodes_psi):
                 P = q[self.nodalDOF_psi[node]]
-                g_S[node] = P @ P - 1
+                g_S[self.nodalDOF_la_S[node]] = P @ P - 1
             return g_S
 
         def __g_S_q(self, t, q, coo):
             for node in range(self.nnodes_psi):
                 nodalDOF = self.nodalDOF_psi[node]
-                P = q[nodalDOF]
-                coo.extend(2 * P, (self.la_SDOF[node], self.qDOF[nodalDOF]))
+                nodalDOF_S = self.nodalDOF_la_S[node]
+                psi = q[nodalDOF]
+                coo.extend(
+                    self.RotationBase.g_S_q(psi),
+                    (self.la_SDOF[nodalDOF_S], self.qDOF[nodalDOF]),
+                )
 
         def __g_S_q_T_mu_q(self, t, q, mu, coo):
-            raise NotImplementedError
+            for node in range(self.nnodes_psi):
+                nodalDOF = self.nodalDOF_psi[node]
+                nodalDOF_S = self.nodalDOF_la_S[node]
+                coo.extend(
+                    self.RotationBase.g_S_q_T_mu_q(q[nodalDOF], mu[nodalDOF_S]),
+                    (self.qDOF[nodalDOF], self.qDOF[nodalDOF]),
+                )
 
         #########################################
         # kinematic equation
@@ -810,9 +820,6 @@ def make_I_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
         # equations of motion
         #########################################
         # def assembler_callback(self):
-        #     if hasattr(RotationBase, "g_S"):
-        #         self.nodal_la_SDOF = self.nodal_la_SDOF_local + self.la_SDOF[0]
-
         #     if self.constant_mass_matrix:
         #         self._M_coo()
 
@@ -1632,7 +1639,7 @@ def make_K_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
             if hasattr(RotationBase, "g_S"):
                 dim_g_S = RotationBase.dim_g_S()
                 self.nla_S = self.nnodes_psi * dim_g_S
-                self.nodal_la_SDOF_local = np.arange(self.nla_S).reshape(
+                self.nodalDOF_la_S = np.arange(self.nla_S).reshape(
                     self.nnodes_psi, dim_g_S
                 )
                 self.la_S0 = np.zeros(self.nla_S, dtype=float)
@@ -1971,25 +1978,24 @@ def make_K_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
         def __g_S(self, t, q):
             g_S = np.zeros(self.nla_S, dtype=q.dtype)
             for node in range(self.nnodes_psi):
-                # P = q[self.nodalDOF_psi[node]]
-                # g_S[self.nodal_la_SDOF] = P @ P - 1
                 psi = q[self.nodalDOF_psi[node]]
-                g_S[self.nodal_la_SDOF_local[node]] = self.RotationBase.g_S(psi)
+                g_S[self.nodalDOF_la_S[node]] = self.RotationBase.g_S(psi)
             return g_S
 
         def __g_S_q(self, t, q, coo):
             for node in range(self.nnodes_psi):
                 nodalDOF = self.nodalDOF_psi[node]
+                nodalDOF_S = self.nodalDOF_la_S[node]
                 psi = q[nodalDOF]
                 coo.extend(
                     self.RotationBase.g_S_q(psi),
-                    (self.nodal_la_SDOF[node], self.qDOF[nodalDOF]),
+                    (self.la_SDOF[nodalDOF_S], self.qDOF[nodalDOF]),
                 )
 
         def __g_S_q_T_mu_q(self, t, q, mu, coo):
             for node in range(self.nnodes_psi):
                 nodalDOF = self.nodalDOF_psi[node]
-                nodalDOF_S = self.nodal_la_SDOF[node]
+                nodalDOF_S = self.nodalDOF_la_S[node]
                 coo.extend(
                     self.RotationBase.g_S_q_T_mu_q(q[nodalDOF], mu[nodalDOF_S]),
                     (self.qDOF[nodalDOF], self.qDOF[nodalDOF]),
@@ -2283,9 +2289,6 @@ def make_K_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
         # equations of motion
         #########################################
         def assembler_callback(self):
-            if hasattr(RotationBase, "g_S"):
-                self.nodal_la_SDOF = self.nodal_la_SDOF_local + self.la_SDOF[0]
-
             if self.constant_mass_matrix:
                 self._M_coo()
 
