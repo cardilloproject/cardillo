@@ -52,8 +52,8 @@ def run(case):
     y_dot0 = 0
     # dt = 5e-4
     # dt = 1e-3
-    dt = 5e-3
-    # dt = 1e-2
+    # dt = 5e-3
+    dt = 1e-2
     # dt = 5e-2
 
     if case == 1:
@@ -272,7 +272,7 @@ def run(case):
 
 
 if __name__ == "__main__":
-    run(1)
+    # run(1)
     # run(2)
     # run(3)
-    # run(4)
+    run(4)
