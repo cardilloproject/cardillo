@@ -1154,13 +1154,15 @@ class SimplifiedNonsmoothGeneralizedAlphaNoAcceleration:
             self.la_gn,
             self.la_gamman,
         ) = consistent_initial_conditions(system)
+        self.la_Nn = self.system.la_N0
+        self.la_Fn = self.system.la_F0
         self.R_Nn = h * self.system.la_N0
         self.R_Fn = h * self.system.la_F0
 
         # initialize auxilary variables
         self.an = self.u_dotn.copy()
-        self.P_Nn = h * self.R_Nn.copy()
-        self.P_Fn = h * self.R_Fn.copy()
+        self.P_Nn = h * self.la_Nn.copy()
+        self.P_Fn = h * self.la_Fn.copy()
 
         # initialize y vector of unknowns
         self.yn = np.concatenate(
@@ -1168,13 +1170,13 @@ class SimplifiedNonsmoothGeneralizedAlphaNoAcceleration:
                 self.u_dotn,
                 0.5 * h * self.la_gn,
                 0.5 * h * self.la_gamman,
-                0.5 * h * self.R_Nn,
-                0.5 * h * self.R_Fn,
+                0.5 * h * self.la_Nn,
+                0.5 * h * self.la_Fn,
                 np.zeros(self.nu),
                 0.5 * h * self.la_gn,
                 0.5 * h * self.la_gamman,
-                0.5 * h * self.R_Nn,
-                0.5 * h * self.R_Fn,
+                0.5 * h * self.la_Nn,
+                0.5 * h * self.la_Fn,
             )
         )
 
@@ -1208,27 +1210,26 @@ class SimplifiedNonsmoothGeneralizedAlphaNoAcceleration:
         an1 = (alpha_f * self.u_dotn + (1 - alpha_f) * u_dotn1 - alpha_m * self.an) / (
             1 - alpha_m
         )
-        P_Nn1 = (alpha_f * self.R_Nn + (1 - alpha_f) * R_Nn1 - alpha_m * self.P_Nn) / (
-            1 - alpha_m
-        )
-        P_Fn1 = (alpha_f * self.R_Fn + (1 - alpha_f) * R_Fn1 - alpha_m * self.P_Fn) / (
-            1 - alpha_m
-        )
+        la_Nn1 = (
+            alpha_f * self.R_Nn + (1 - alpha_f) * R_Nn1 - alpha_m * self.la_Nn
+        ) / (1 - alpha_m)
+        la_Fn1 = (
+            alpha_f * self.R_Fn + (1 - alpha_f) * R_Fn1 - alpha_m * self.la_Fn
+        ) / (1 - alpha_m)
 
         # eqn. (73): velocity update formula
         un12 = self.un + h * ((1 - gamma) * self.an + gamma * an1)
         un1 = un12 + Delta_U
+        # P_Nn12 = self.P_Nn + h * ((1 - gamma) * self.la_Nn + gamma * la_Nn1)
+        P_Nn12 = h * ((1 - gamma) * self.la_Nn + gamma * la_Nn1)
+        P_Nn1 = P_Nn12 + Delta_R_Nn2
+        # P_Fn12 = self.P_Fn + h * ((1 - gamma) * self.la_Fn + gamma * la_Fn1)
+        P_Fn12 = h * ((1 - gamma) * self.la_Fn + gamma * la_Fn1)
+        P_Fn1 = P_Fn12 + Delta_R_Fn2
 
         # position update, see GAMM2022 Harsch
         Delta_un12 = self.un + h * ((0.5 - beta) * self.an + beta * an1)
         qn1 = self.qn + h * self.system.q_dot(self.tn, self.qn, Delta_un12)
-
-        # P_gn1 = R_gn1 + R_gn2
-        # P_gamman1 = R_gamman1 + R_gamman2
-        # P_Nn1 = R_Nn1 + R_Nn2
-        # P_Fn1 = R_Fn1 + R_Fn2
-        P_Nn2 = P_Nn1 + Delta_R_Nn2
-        P_Fn2 = P_Fn1 + Delta_R_Fn2
 
         if store:
             # update local variables for accepted time step
@@ -1237,7 +1238,10 @@ class SimplifiedNonsmoothGeneralizedAlphaNoAcceleration:
             self.un = un1.copy()
             self.u_dotn = u_dotn1.copy()
             self.an = an1.copy()
+            self.la_Nn = la_Nn1.copy()
             self.R_Nn = R_Nn1.copy()
+            self.P_Nn = P_Nn1.copy()
+            self.la_Fn = la_Fn1.copy()
             self.R_Fn = R_Fn1.copy()
             self.P_Fn = P_Fn1.copy()
 
@@ -1256,10 +1260,10 @@ class SimplifiedNonsmoothGeneralizedAlphaNoAcceleration:
             Delta_R_gamman2,
             Delta_R_Nn2,
             Delta_R_Fn2,
+            P_Nn12,
+            P_Fn12,
             P_Nn1,
             P_Fn1,
-            P_Nn2,
-            P_Fn2,
         )
 
     def _R(self, y, update_index=False):
@@ -1278,10 +1282,10 @@ class SimplifiedNonsmoothGeneralizedAlphaNoAcceleration:
             Delta_R_gamman2,
             Delta_R_Nn2,
             Delta_R_Fn2,
+            P_Nn12,
+            P_Fn12,
             P_Nn1,
             P_Fn1,
-            P_Nn2,
-            P_Fn2,
         ) = self._update(y)
 
         R = np.zeros_like(y)
@@ -1315,7 +1319,7 @@ class SimplifiedNonsmoothGeneralizedAlphaNoAcceleration:
         ###########
         g_N = self.system.g_N(tn1, qn1)
         # prox_arg = g_N - self.prox_r_N * R_Nn1
-        prox_arg = g_N - self.prox_r_N * P_Nn1
+        prox_arg = g_N - self.prox_r_N * P_Nn12
 
         if update_index:
             self.I = prox_arg <= 0.0
@@ -1324,7 +1328,7 @@ class SimplifiedNonsmoothGeneralizedAlphaNoAcceleration:
             self.I,
             g_N,
             # R_Nn1,
-            P_Nn1,
+            P_Nn12,
         )
 
         # ##################
@@ -1371,14 +1375,14 @@ class SimplifiedNonsmoothGeneralizedAlphaNoAcceleration:
         # mixed Singorini on velocity level and impact law
         ##################################################
         xi_Nn1 = self.system.xi_N(tn1, qn1, self.un, un1)
-        prox_arg = xi_Nn1 - self.prox_r_N * P_Nn2
+        prox_arg = xi_Nn1 - self.prox_r_N * P_Nn1
         if update_index:
             self.B = self.I * (prox_arg <= 0)
 
         R[self.split_y[7] : self.split_y[8]] = np.where(
             self.B,
             xi_Nn1,
-            P_Nn2,
+            P_Nn1,
         )
 
         # R[self.split_y[7] : self.split_y[8]] = np.where(
@@ -1460,10 +1464,10 @@ class SimplifiedNonsmoothGeneralizedAlphaNoAcceleration:
                 Delta_R_gamman2,
                 Delta_R_Nn2,
                 Delta_R_Fn2,
+                P_Nn12,
+                P_Fn12,
                 P_Nn1,
                 P_Fn1,
-                P_Nn2,
-                P_Fn2,
             ) = self._update(yn1, store=True)
 
             # P_gn1 = R_g1 + R_g2
@@ -1473,8 +1477,8 @@ class SimplifiedNonsmoothGeneralizedAlphaNoAcceleration:
             # TODO:
             P_gn1 = R_gn1
             P_gamman1 = R_gamman1
-            P_Nn1 = P_Nn2
-            P_Fn1 = P_Fn2
+            # P_Nn1 = P_Nn2
+            # P_Fn1 = P_Fn2
 
             pbar.set_description(f"t: {tn1:0.2e}; step: {n_iter}; error: {error:.3e}")
             if not converged:
