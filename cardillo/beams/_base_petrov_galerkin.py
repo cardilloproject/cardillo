@@ -810,6 +810,9 @@ def make_I_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
         # equations of motion
         #########################################
         # def assembler_callback(self):
+        #     if hasattr(RotationBase, "g_S"):
+        #         self.nodal_la_SDOF = self.nodal_la_SDOF_local + self.la_SDOF[0]
+
         #     if self.constant_mass_matrix:
         #         self._M_coo()
 
@@ -1629,7 +1632,7 @@ def make_K_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
             if hasattr(RotationBase, "g_S"):
                 dim_g_S = RotationBase.dim_g_S()
                 self.nla_S = self.nnodes_psi * dim_g_S
-                self.nodal_la_SDOF = np.arange(self.nla_S).reshape(
+                self.nodal_la_SDOF_local = np.arange(self.nla_S).reshape(
                     self.nnodes_psi, dim_g_S
                 )
                 self.la_S0 = np.zeros(self.nla_S, dtype=float)
@@ -1971,7 +1974,7 @@ def make_K_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
                 # P = q[self.nodalDOF_psi[node]]
                 # g_S[self.nodal_la_SDOF] = P @ P - 1
                 psi = q[self.nodalDOF_psi[node]]
-                g_S[self.nodal_la_SDOF[node]] = self.RotationBase.g_S(psi)
+                g_S[self.nodal_la_SDOF_local[node]] = self.RotationBase.g_S(psi)
             return g_S
 
         def __g_S_q(self, t, q, coo):
@@ -2280,6 +2283,9 @@ def make_K_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
         # equations of motion
         #########################################
         def assembler_callback(self):
+            if hasattr(RotationBase, "g_S"):
+                self.nodal_la_SDOF = self.nodal_la_SDOF_local + self.la_SDOF[0]
+
             if self.constant_mass_matrix:
                 self._M_coo()
 
