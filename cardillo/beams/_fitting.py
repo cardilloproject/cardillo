@@ -1,6 +1,6 @@
 import numpy as np
 
-# from scipy.optimize import minimize
+from scipy.optimize import minimize
 from scipy.optimize import least_squares
 from cardillo.math import SE3, SE3inv, Log_SE3
 
@@ -34,7 +34,7 @@ def fit_configuration(
     # xis[1:] = cord_lengths / cord_lengths[-1]
 
     # initial vector of generalized coordinates
-    Q = np.zeros(rod.nq, dtype=float)
+    Q0 = np.zeros(rod.nq, dtype=float)
 
     ###########
     # warmstart
@@ -54,9 +54,9 @@ def fit_configuration(
     )
 
     for node, xi_idx in enumerate(xi_idx_r):
-        Q[rod.nodalDOF_r[node]] = r_OPs[xi_idx]
+        Q0[rod.nodalDOF_r[node]] = r_OPs[xi_idx]
     for node, xi_idx in enumerate(xi_idx_psi):
-        Q[rod.nodalDOF_psi[node]] = rod.RotationBase.Log_SO3(A_IKs[xi_idx])
+        Q0[rod.nodalDOF_psi[node]] = rod.RotationBase.Log_SO3(A_IKs[xi_idx])
 
     # TODO: We should always use the axis-angle rotation parametrization for
     # this fitting since it converges very good. Sadly, this breaks with the
@@ -135,28 +135,29 @@ def fit_configuration(
 
     #     return J
 
-    res = least_squares(
-        residual,
-        Q,
-        # jac="cs",
-        # jac=jacobian,
-        # jac="2-point",
-        # ftol=1e-3,
-        # xtol=1e-3,
-        # gtol=1e-3,
-        # method="lm",
-        method="trf",
-        verbose=2,
-    )
+    # res = least_squares(
+    #     residual,
+    #     Q0,
+    #     # method="lm",
+    #     method="trf",
+    #     verbose=2,
+    # )
+    # Q0 = res.x
+    # print(f"res: {res}")
 
-    # from scipy.optimize import leastsq
-    # res = leastsq(residual, q0)
+    def fun(q):
+        r = residual(q)
+        return 0.5 * (r @ r)
 
-    Q = res.x
-    rod.set_initial_strains(Q)
+    # method = "SLSQP"
+    method = "trust-constr"
+    sol = minimize(fun, Q0, jac=residual, method=method, options={"verbose": 2})
+    print(f"sol: {sol}")
+    Q0 = sol.x
 
-    print(f"res: {res}")
-    return Q
+    rod.set_initial_strains(Q0)
+
+    return Q0
     # return res.x
     # exit()
 

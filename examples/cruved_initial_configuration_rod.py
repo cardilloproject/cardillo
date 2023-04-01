@@ -60,7 +60,7 @@ if __name__ == "__main__":
     material_model = Simo1986(Ei, Fi)
 
     # left rod
-    Q = Rod.straight_configuration(
+    Q0 = Rod.straight_configuration(
         polynomial_degree,
         polynomial_degree,
         basis,
@@ -77,8 +77,8 @@ if __name__ == "__main__":
         polynomial_degree,
         polynomial_degree,
         nelements,
-        Q=Q,
-        q0=Q,
+        Q=Q0,
+        q0=Q0,
         basis_r=basis,
         basis_psi=basis,
     )
@@ -118,8 +118,8 @@ if __name__ == "__main__":
     r_OPs = np.array([r(xi) for xi in xis])
     A_IKs = np.array([A_IK(xi) for xi in xis])
 
-    Q = fit_configuration(rod, r_OPs, A_IKs)
-    rod.q0 = Q.copy()
+    Q0 = fit_configuration(rod, r_OPs, A_IKs)
+    rod.q0 = Q0.copy()
 
     # joint between origin and left rod
     system = System()
