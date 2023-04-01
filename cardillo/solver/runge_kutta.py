@@ -639,24 +639,21 @@ class NonsmoothPIRK:
             Delta_P_F,
         ) = self.unpack_reshape(yn1)
 
-        # # quadrature for internal stages
-        # ti = np.tile(tn, self.stages) + h * self.c
-        # Qi = np.tile(qn, (self.stages, 1)).T + h * dq @ self.A.T
-        # Ui = np.tile(un, (self.stages, 1)).T + h * du @ self.A.T
-        # P_gi = h * dP_g @ self.A.T
-        # P_gammai = h * dP_gamma @ self.A.T
-        # P_Ni = h * dP_N @ self.A.T
-        # P_Fi = h * dP_F @ self.A.T
-
         # quadrature for position and velocity
-        qn1 = qn + h * dq @ self.b
-        un1 = un + h * du @ self.b + Delta_U
+        # qn1 = qn + h * dq @ self.b
+        # un1 = un + h * du @ self.b + Delta_U
+        qn1 = qn + dq @ self.b
+        un1 = un + du @ self.b + Delta_U
 
         # quadrature for percussions
-        P_gn1 = h * dP_g @ self.b + Delta_P_g
-        P_gamman1 = h * dP_gamma @ self.b + Delta_P_gamma
-        P_Nn1 = h * dP_N @ self.b + Delta_P_N
-        P_Fn1 = h * dP_F @ self.b + Delta_P_F
+        # P_gn1 = h * dP_g @ self.b + Delta_P_g
+        # P_gamman1 = h * dP_gamma @ self.b + Delta_P_gamma
+        # P_Nn1 = h * dP_N @ self.b + Delta_P_N
+        # P_Fn1 = h * dP_F @ self.b + Delta_P_F
+        P_gn1 = dP_g @ self.b + Delta_P_g
+        P_gamman1 = dP_gamma @ self.b + Delta_P_gamma
+        P_Nn1 = dP_N @ self.b + Delta_P_N
+        P_Fn1 = dP_F @ self.b + Delta_P_F
 
         # initialize residual
         R = np.zeros(self.ny, dtype=yn1.dtype)
@@ -667,25 +664,30 @@ class NonsmoothPIRK:
         #####################
         for i in range(self.stages):
             ti = tn + self.c[i] * h
-            Qi = qn + h * dq @ self.A[i]
-            Ui = un + h * du @ self.A[i]
-            R[i * self.nq : (i + 1) * self.nq] = dq[:, i] - self.system.q_dot(
+            # Qi = qn + h * dq @ self.A[i]
+            # Ui = un + h * du @ self.A[i]
+            Qi = qn + dq @ self.A[i]
+            Ui = un + du @ self.A[i]
+            # R[i * self.nq : (i + 1) * self.nq] = dq[:, i] - self.system.q_dot(
+            #     ti, Qi, Ui
+            # )
+            R[i * self.nq : (i + 1) * self.nq] = dq[:, i] - h * self.system.q_dot(
                 ti, Qi, Ui
             )
-            # R[i * self.nq : (i + 1) * self.nq] = dq[:, i] - self.system.q_dot(
-            #     ti[i], Qi[:, i], Ui[:, i]
-            # )
 
         ####################
         # eqations of motion
         ####################
         for i in range(self.stages):
             ti = tn + self.c[i] * h
+            # Qi = qn + h * dq @ self.A[i]
+            # Ui = un + h * du @ self.A[i]
             Qi = qn + dq @ self.A[i]
             Ui = un + du @ self.A[i]
             R[self.split_y[0] + i * self.nu : self.split_y[0] + (i + 1) * self.nu] = (
                 self.system.M(ti, Qi, scipy_matrix=csr_matrix) @ du[:, i]
-                - self.system.h(ti, Qi, Ui)
+                # - self.system.h(ti, Qi, Ui)
+                - h * self.system.h(ti, Qi, Ui)
                 - self.system.W_g(ti, Qi) @ dP_g[:, i]
                 - self.system.W_gamma(ti, Qi) @ dP_gamma[:, i]
                 - self.system.W_N(ti, Qi) @ dP_N[:, i]
@@ -697,6 +699,7 @@ class NonsmoothPIRK:
         #########################################
         for i in range(self.stages):
             ti = tn + self.c[i] * h
+            # Qi = qn + h * dq @ self.A[i]
             Qi = qn + dq @ self.A[i]
             R[
                 self.split_y[1]
@@ -709,8 +712,10 @@ class NonsmoothPIRK:
         #########################################
         for i in range(self.stages):
             ti = tn + self.c[i] * h
-            Qi = qn + h * dq @ self.A[i]
-            Ui = un + h * du @ self.A[i]
+            # Qi = qn + h * dq @ self.A[i]
+            # Ui = un + h * du @ self.A[i]
+            Qi = qn + dq @ self.A[i]
+            Ui = un + du @ self.A[i]
             R[
                 self.split_y[2]
                 + i * self.nla_gamma : self.split_y[2]
@@ -723,9 +728,13 @@ class NonsmoothPIRK:
         prox_r_N = self.prox_r_N
         for i in range(self.stages):
             ti = tn + self.c[i] * h
-            Qi = qn + h * dq @ self.A[i]
-            P_Ni = h * dP_N @ self.A[i]
-            # P_Ni = dP_N[:, i]
+            # Qi = qn + h * dq @ self.A[i]
+            # Ui = un + h * du @ self.A[i]
+            # P_Ni = h * dP_N @ self.A[i]
+            Qi = qn + dq @ self.A[i]
+            Ui = un + du @ self.A[i]
+            P_Ni = dP_N @ self.A[i]
+
             g_Ni = self.system.g_N(ti, Qi)
 
             prox_arg = g_Ni - prox_r_N * P_Ni
@@ -749,10 +758,14 @@ class NonsmoothPIRK:
         mu = self.system.mu
         for i in range(self.stages):
             ti = tn + self.c[i] * h
-            Qi = qn + h * dq @ self.A[i]
-            Ui = un + h * du @ self.A[i]
-            P_Ni = h * dP_N @ self.A[i]
-            P_Fi = h * dP_F @ self.A[i]
+            # Qi = qn + h * dq @ self.A[i]
+            # Ui = un + h * du @ self.A[i]
+            # P_Ni = h * dP_N @ self.A[i]
+            # P_Fi = h * dP_F @ self.A[i]
+            Qi = qn + dq @ self.A[i]
+            Ui = un + du @ self.A[i]
+            P_Ni = dP_N @ self.A[i]
+            P_Fi = dP_F @ self.A[i]
 
             gamma_Fi = self.system.gamma_F(ti, Qi, Ui)
 
@@ -781,8 +794,7 @@ class NonsmoothPIRK:
         # impact equation
         #################
         # # nonlinear projection with h vector
-        # # TODO: What is wrong here?
-        # R[off : off + self.nu] = (
+        # R[self.split_y[5] : self.split_y[6]] = (
         #     self.system.M(tn1, qn1) @ (un1 - un)
         #     - h * self.system.h(tn1, qn1, un1)
         #     - self.system.W_g(tn1, qn1) @ P_gn1
@@ -823,8 +835,6 @@ class NonsmoothPIRK:
 
         # R[self.split_y[8] : self.split_y[9]] = np.where(
         #     np.any(self.I, axis=0),
-        #     # Note: Primal form enforces xi_N = 0 in case of contact i
-        #     # contrast, the dual form enforces r_N * xi_N = 0.
         #     xi_Nn1 - prox_R0_np(xi_Nn1 - prox_r_N * P_Nn1),
         #     # P_Nn1 + prox_R0_nm(prox_r_N * xi_Nn1 - P_Nn1),
         #     P_Nn1,
