@@ -559,7 +559,7 @@ class Rattle:
         dt = self.dt
         tn1 = tn + dt
 
-        qn1, un12, P_g1, P_gamma1, P_N1, P_F1 = np.array_split(y1, self.split_y1)
+        qn1, un12, R_g1, R_gamma1, R_N1, R_F1 = np.array_split(y1, self.split_y1)
 
         R1 = np.zeros(self.ny1, dtype=y1.dtype)
 
@@ -578,13 +578,17 @@ class Rattle:
         # euations of motion (1)
         ########################
         R1[self.split_y1[0] : self.split_y1[1]] = self.system.M(
-            tn, qn, scipy_matrix=csr_matrix
-        ) @ (un12 - un) - 0.5 * (
-            dt * self.system.h(tn, qn, un12)
-            + self.system.W_g(tn, qn) @ P_g1
-            + self.system.W_gamma(tn, qn) @ P_gamma1
-            + self.system.W_N(tn, qn) @ P_N1
-            + self.system.W_F(tn, qn) @ P_F1
+            tn,
+            qn,
+            scipy_matrix=csr_matrix
+            # ) @ (un12 - un) - 0.5 * (
+            #     dt * self.system.h(tn, qn, un12)
+        ) @ (un12 - un) - 0.5 * dt * (
+            self.system.h(tn, qn, un12)
+            + self.system.W_g(tn, qn) @ R_g1
+            + self.system.W_gamma(tn, qn) @ R_gamma1
+            + self.system.W_N(tn, qn) @ R_N1
+            + self.system.W_F(tn, qn) @ R_F1
         )
 
         #######################
@@ -598,11 +602,11 @@ class Rattle:
         ###########
         prox_r_N = self.prox_r_N
         g_Nn1 = self.system.g_N(tn1, qn1)
-        prox_arg = prox_r_N * g_Nn1 - P_N1
+        prox_arg = prox_r_N * g_Nn1 - R_N1
         if update_index:
             self.I_N = prox_arg <= 0.0
 
-        R1[self.split_y1[3] : self.split_y1[4]] = np.where(self.I_N, g_Nn1, P_N1)
+        R1[self.split_y1[3] : self.split_y1[4]] = np.where(self.I_N, g_Nn1, R_N1)
 
         ##############################
         # friction and tangent impacts
@@ -615,12 +619,12 @@ class Rattle:
             i_F = np.array(i_F)
             n_F = len(i_F)
             if n_F > 0:
-                P_Ni = P_N1[i_N]
-                P_Fi = P_F1[i_F]
+                R_Ni = R_N1[i_N]
+                R_Fi = R_F1[i_F]
                 gamma_Fi = gamma_F[i_F]
-                arg_F = prox_r_F[i_F] * gamma_Fi - P_Fi
+                arg_F = prox_r_F[i_F] * gamma_Fi - R_Fi
                 mui = mu[i_N]
-                radius = mui * P_Ni
+                radius = mui * R_Ni
                 norm_arg_F = np.linalg.norm(arg_F)
 
                 if norm_arg_F < radius:
@@ -628,10 +632,10 @@ class Rattle:
                 else:
                     if norm_arg_F > 0:
                         R1[self.split_y1[4] + i_F] = (
-                            P_F1[i_F] + radius * arg_F / norm_arg_F
+                            R_F1[i_F] + radius * arg_F / norm_arg_F
                         )
                     else:
-                        R1[self.split_y1[4] + i_F] = P_F1[i_F] + radius * arg_F
+                        R1[self.split_y1[4] + i_F] = R_F1[i_F] + radius * arg_F
         return R1
 
     def J1(self, y1, *args, **kwargs):
@@ -639,15 +643,16 @@ class Rattle:
         qn = self.qn
         un = self.un
         h = self.dt
+        h2 = 0.5 * h
         tn1 = tn + h
 
-        qn1, un12, P_g1, P_gamma1, P_N1, P_F1 = np.array_split(y1, self.split_y1)
+        qn1, un12, R_g1, R_gamma1, R_N1, R_F1 = np.array_split(y1, self.split_y1)
 
         ####################
         # kinematic equation
         ####################
-        Rq_q = eye(self.nq) - (0.5 * h) * self.system.q_dot_q(tn1, qn1, un12)
-        Rq_u = -(0.5 * h) * (self.system.B(tn, qn) + self.system.B(tn1, qn1))
+        Rq_q = eye(self.nq) - h2 * self.system.q_dot_q(tn1, qn1, un12)
+        Rq_u = -h2 * (self.system.B(tn, qn) + self.system.B(tn1, qn1))
 
         ########################
         # euations of motion (1)
@@ -660,7 +665,7 @@ class Rattle:
         W_N = self.system.W_N(tn, qn)
         W_F = self.system.W_F(tn, qn)
 
-        Ru_u = M - 0.5 * h * self.system.h_u(tn, qn, un12)
+        Ru_u = M - h2 * self.system.h_u(tn, qn, un12)
 
         #######################
         # bilateral constraints
@@ -709,12 +714,12 @@ class Rattle:
             i_F = np.array(i_F)
             n_F = len(i_F)
             if n_F > 0:
-                P_Ni = P_N1[i_N]
-                P_Fi = P_F1[i_F]
+                R_Ni = R_N1[i_N]
+                R_Fi = R_F1[i_F]
                 gamma_Fi = gamma_F[i_F]
-                arg_F = prox_r_F[i_F] * gamma_Fi - P_Fi
+                arg_F = prox_r_F[i_F] * gamma_Fi - R_Fi
                 mui = mu[i_N]
-                radius = mui * P_Ni
+                radius = mui * R_Ni
                 norm_arg_F = np.linalg.norm(arg_F)
 
                 if norm_arg_F < radius:
@@ -745,7 +750,8 @@ class Rattle:
         J1 = bmat(
             [
                 [Rq_q, Rq_u, None, None, None, None],
-                [None, Ru_u, -0.5 * W_g, -0.5 * W_gamma, -0.5 * W_N, -0.5 * W_F],
+                # [None, Ru_u, -0.5 * W_g, -0.5 * W_gamma, -0.5 * W_N, -0.5 * W_F],
+                [None, Ru_u, -h2 * W_g, -h2 * W_gamma, -h2 * W_N, -h2 * W_F],
                 [Rla_g_q, None, None, None, None, None],
                 [Rla_gamma_q, Rla_gamma_u, None, None, None, None],
                 [Rla_N_q, None, None, None, Rla_N_la_N, None],
@@ -782,17 +788,20 @@ class Rattle:
         tn = self.tn
         un = self.un
         h = self.dt
+        h2 = 0.5 * h
         tn1 = tn + h
 
         qn1 = self.qn1
         un12 = self.un12
-        P_N1 = self.P_N1
-        P_F1 = self.P_F1
+        R_N1 = self.R_N1
+        R_F1 = self.R_F1
 
-        un1, P_g2, P_gamma2, P_N2, P_F2 = np.array_split(y2, self.split_y2)
+        un1, R_g2, R_gamma2, R_N2, R_F2 = np.array_split(y2, self.split_y2)
 
-        P_N = 0.5 * (P_N1 + P_N2)
-        P_F = 0.5 * (P_F1 + P_F2)
+        # P_N = 0.5 * (R_N1 + R_N2)
+        # P_F = 0.5 * (R_F1 + R_F2)
+        P_N = h2 * (R_N1 + R_N2)
+        P_F = h2 * (R_F1 + R_F2)
 
         R2 = np.zeros(self.ny2, dtype=y2.dtype)
 
@@ -800,13 +809,16 @@ class Rattle:
         # euations of motion (2)
         ########################
         R2[: self.split_y2[0]] = self.system.M(tn1, qn1, scipy_matrix=csr_matrix) @ (
-            un1 - un12
-        ) - 0.5 * (
-            h * self.system.h(tn1, qn1, un12)
-            + self.system.W_g(tn1, qn1) @ P_g2
-            + self.system.W_gamma(tn1, qn1) @ P_gamma2
-            + self.system.W_N(tn1, qn1) @ P_N2
-            + self.system.W_F(tn1, qn1) @ P_F2
+            un1
+            - un12
+            # ) - 0.5 * (
+            #     h * self.system.h(tn1, qn1, un12)
+        ) - h2 * (
+            self.system.h(tn1, qn1, un12)
+            + self.system.W_g(tn1, qn1) @ R_g2
+            + self.system.W_gamma(tn1, qn1) @ R_gamma2
+            + self.system.W_N(tn1, qn1) @ R_N2
+            + self.system.W_F(tn1, qn1) @ R_F2
         )
 
         #######################
@@ -872,17 +884,20 @@ class Rattle:
         qn = self.qn
         un = self.un
         h = self.dt
+        h2 = 0.5 * h
         tn1 = tn + h
 
         qn1 = self.qn1
         un12 = self.un12
-        P_N1 = self.P_N1
-        P_F1 = self.P_F1
+        P_N1 = self.R_N1
+        P_F1 = self.R_F1
 
-        un1, P_g2, P_gamma2, P_N2, P_F2 = np.array_split(y2, self.split_y2)
+        un1, R_g2, R_gamma2, R_N2, R_F2 = np.array_split(y2, self.split_y2)
 
-        P_N = 0.5 * (P_N1 + P_N2)
-        P_F = 0.5 * (P_F1 + P_F2)
+        # P_N = 0.5 * (P_N1 + R_N2)
+        # P_F = 0.5 * (P_F1 + R_F2)
+        P_N = h2 * (P_N1 + R_N2)
+        P_F = h2 * (P_F1 + R_F2)
 
         ########################
         # euations of motion (2)
@@ -893,7 +908,7 @@ class Rattle:
         W_N = self.system.W_N(tn1, qn1, scipy_matrix=csr_matrix)
         W_F = self.system.W_F(tn1, qn1)
 
-        Ru_u = M - 0.5 * h * self.system.h_u(tn1, qn1, un12)
+        Ru_u = M - h2 * self.system.h_u(tn1, qn1, un12)
 
         ##################################################
         # mixed Singorini on velocity level and impact law
@@ -904,7 +919,7 @@ class Rattle:
             if self.B_N[i]:
                 Rla_N_u[i] = W_N.T[i]
             else:
-                Rla_N_la_N[i, i] = 0.5
+                Rla_N_la_N[i, i] = h2
 
         ##############################
         # friction and tangent impacts
@@ -943,21 +958,22 @@ class Rattle:
                         Rla_F_u[i_F] = (
                             radius * factor @ diags(prox_r_F[i_F]) @ xi_F_u[i_F]
                         )
-                        Rla_F_la_N[i_F[:, None], i_N] = 0.5 * mui * slip_dir
-                        Rla_F_la_F[i_F[:, None], i_F] = 0.5 * (
+                        Rla_F_la_N[i_F[:, None], i_N] = h2 * mui * slip_dir
+                        Rla_F_la_F[i_F[:, None], i_F] = h2 * (
                             np.eye(n_F) - radius * factor
                         )
                     else:
                         # print(f"slip ||x|| = 0")
                         slip_dir = arg_F
                         Rla_F_u[i_F] = radius * diags(prox_r_F[i_F]) @ xi_F_u[i_F]
-                        Rla_F_la_N[i_F[:, None], i_N] = 0.5 * mui * slip_dir
-                        Rla_F_la_F[i_F[:, None], i_F] = 0.5 * (1 - radius) * eye(n_F)
+                        Rla_F_la_N[i_F[:, None], i_N] = h2 * mui * slip_dir
+                        Rla_F_la_F[i_F[:, None], i_F] = h2 * (1 - radius) * eye(n_F)
 
         # fmt: off
         J2 = bmat(
             [
-                [Ru_u, -0.5 * W_g, -0.5 * W_gamma, -0.5 * W_N, -0.5 * W_F],
+                # [Ru_u, -0.5 * W_g, -0.5 * W_gamma, -0.5 * W_N, -0.5 * W_F],
+                [Ru_u, -h2 * W_g, -h2 * W_gamma, -h2 * W_N, -h2 * W_F],
                 [W_g.T, None, None, None, None],
                 [W_gamma.T, None, None, None, None],
                 [Rla_N_u, None, None, Rla_N_la_N, None],
@@ -1237,8 +1253,8 @@ class Rattle:
                     self.un12,
                     self.P_g1,
                     self.P_gamma1,
-                    self.P_N1,
-                    self.P_F1,
+                    self.R_N1,
+                    self.R_F1,
                 ) = np.array_split(y1, self.split_y1)
 
                 y2, converged2, error2, i2, _ = fsolve(
@@ -1257,10 +1273,14 @@ class Rattle:
                 error = error1 + error2
                 i = i1 + i2
 
-                P_gn1 = 0.5 * (self.P_g1 + P_g2)
-                P_gamman1 = 0.5 * (self.P_gamma1 + P_gamma2)
-                P_N_bar = 0.5 * (self.P_N1 + P_N2)
-                P_F_bar = 0.5 * (self.P_F1 + P_F2)
+                # P_gn1 = 0.5 * (self.P_g1 + P_g2)
+                # P_gamman1 = 0.5 * (self.P_gamma1 + P_gamma2)
+                # P_N_bar = 0.5 * (self.R_N1 + P_N2)
+                # P_F_bar = 0.5 * (self.R_F1 + P_F2)
+                P_gn1 = 0.5 * self.dt * (self.P_g1 + P_g2)
+                P_gamman1 = 0.5 * self.dt * (self.P_gamma1 + P_gamma2)
+                P_N_bar = 0.5 * self.dt * (self.R_N1 + P_N2)
+                P_F_bar = 0.5 * self.dt * (self.R_F1 + P_F2)
 
                 qn1, un1 = self.system.step_callback(tn1, self.qn1, un1)
 
