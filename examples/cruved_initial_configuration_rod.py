@@ -25,7 +25,7 @@ import numpy as np
 
 if __name__ == "__main__":
     # number of elements
-    nelements = 5
+    nelements = 4
 
     # used polynomial degree
     polynomial_degree = 2

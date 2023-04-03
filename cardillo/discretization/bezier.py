@@ -1005,7 +1005,7 @@ def L2_projection_Bezier_curve(target_points, n, case="C1", cDOF=[0, -1]):
                 # interpolated, see Piegl1997 (9.6.3), p. 411
                 pi = target_points[i]
 
-                # Note: For simplicity we compite c[i] twice if it is exaclty on
+                # Note: For simplicity we compute c[i] twice if it is exaclty on
                 # the interval boundaries.
                 if (interval[0] <= xi) and (xi <= interval[1]):
                     ci = basis[j](xi) @ points_segments[j]
