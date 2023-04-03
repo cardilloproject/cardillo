@@ -1253,9 +1253,7 @@ class NonsmoothPIRK:
             J[self.split_y[9] :, self.split_y[5] : self.split_y[6]] = Rla_F_u
 
             J[self.split_y[9] :, self.split_y[3] : self.split_y[4]] = kron(
-                self.b,
-                Rla_F_la_N
-                # Rla_F_la_N, self.b
+                self.b, Rla_F_la_N
             )
             J[self.split_y[9] :, self.split_y[8] : self.split_y[9]] = Rla_F_la_N
 
@@ -1287,11 +1285,12 @@ class NonsmoothPIRK:
 
         # diff = diff[self.split_y[9] :] # TODO:
         # diff = diff[self.split_y[9] :, : self.split_y[0]]
-        # diff = diff[self.split_y[9] :, self.split_y[0] : self.split_y[1]]
-        diff = diff[self.split_y[9] :, self.split_y[3] : self.split_y[4]]
-        # diff = diff[self.split_y[9] :, self.split_y[4] : self.split_y[5]]
-        # diff = diff[self.split_y[9] :, self.split_y[5] : self.split_y[6]]
-        # diff = diff[self.split_y[9] :, self.split_y[8] : self.split_y[9]]
+        diff = diff[self.split_y[9] :, self.split_y[0] : self.split_y[1]]
+        # diff = diff[self.split_y[9] :, self.split_y[3] : self.split_y[4]]
+        # # diff = diff[self.split_y[9] :, self.split_y[4] : self.split_y[5]]
+        # # diff = diff[self.split_y[9] :, self.split_y[5] : self.split_y[6]]
+        # # diff = diff[self.split_y[9] :, self.split_y[8] : self.split_y[9]]
+
         error = np.linalg.norm(diff)
         if error > 1.0e-10:
             print(f"error J: {error}")
@@ -1601,8 +1600,8 @@ class NonsmoothPIRK:
             # self.prox_r_F = self.system.prox_r_F(self.tn, self.qn)
             # print(f"self.prox_r_N: {self.prox_r_N}")
             # print(f"self.prox_r_F: {self.prox_r_F}")
-            self.prox_r_N = np.ones(self.nla_N) * 0.2
-            self.prox_r_F = np.ones(self.nla_F) * 0.2
+            self.prox_r_N = np.ones(self.nla_N) * 1.0
+            self.prox_r_F = np.ones(self.nla_F) * 0.285
             # self.prox_r_N = np.ones(self.nla_N) * 0.1
             # self.prox_r_F = np.ones(self.nla_F) * 0.1
             # self.prox_r_N = np.ones(self.nla_N) * 0.01
@@ -1621,8 +1620,8 @@ class NonsmoothPIRK:
             yn1, converged, error, i, _ = fsolve(
                 self.R,
                 self.yn,
-                # jac=self.J,
-                jac="2-point",
+                jac=self.J,
+                # jac="2-point",
                 # jac="3-point",  # TODO: keep this, otherwise sinuglairites arise if g_N0=0!
                 eps=1.0e-6,
                 atol=self.atol,

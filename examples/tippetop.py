@@ -6,7 +6,13 @@ from cardillo import System
 from cardillo.discrete import RigidBodyQuaternion, RigidBodyEuler
 from cardillo.math import axis_angle2quat, cross3, ax2skew, approx_fprime
 from cardillo.forces import Force
-from cardillo.solver import MoreauShifted, Rattle, MoreauShiftedNew
+from cardillo.solver import (
+    MoreauShifted,
+    Rattle,
+    MoreauShiftedNew,
+    NonsmoothPIRK,
+    RadauIIATableau,
+)
 
 
 class Sphere2PlaneCoulombContensouMoeller:
@@ -190,6 +196,12 @@ class Sphere2PlaneCoulombContensouMoeller:
         dense = la_N[0] * np.einsum("i,ijk->jk", self.n(t), self.J_P_q(t, q))
         coo.extend(dense, (self.uDOF, self.qDOF))
 
+    def xi_N_q(self, t, q, u_pre, u_post, coo):
+        g_N_q_pre = self.g_N_dot_q_dense(t, q, u_pre)
+        g_N_q_post = self.g_N_dot_q_dense(t, q, u_post)
+        dense = g_N_q_post + np.diag(self.e_N) @ g_N_q_pre
+        coo.extend(dense, (self.la_NDOF, self.qDOF))
+
     ########################################
     # tangent contacts and drilling frcition
     ########################################
@@ -256,13 +268,23 @@ class Sphere2PlaneCoulombContensouMoeller:
         coo.extend(self.gamma_F_u_dense(t, q).T, (self.uDOF, self.la_FDOF))
 
     def Wla_F_q(self, t, q, la_F, coo):
-        raise NotImplementedError
+        Wla_F = lambda q: self.gamma_F_u_dense(t, q).T @ la_F
+        dense = approx_fprime(q, Wla_F)
+        coo.extend(dense, (self.uDOF, self.qDOF))
+
+        # raise NotImplementedError
         # J_C_q = self.J_P_q(t, q) + self.R_sphere * np.einsum(
         #     "ij,jkl->ikl", ax2skew(self.n(t)), self.J_R_q(t, q)
         # )
         # dense = np.einsum("i,ij,jkl->kl", la_F, self.t1t2(t), J_C_q)
         # dense
         # coo.extend(dense, (self.uDOF, self.qDOF))
+
+    def xi_F_q(self, t, q, u_pre, u_post, coo):
+        gamma_T_q_pre = self.gamma_F_q_dense(t, q, u_pre)
+        gamma_T_q_post = self.gamma_F_q_dense(t, q, u_post)
+        dense = gamma_T_q_post + np.diag(self.e_F) @ gamma_T_q_pre
+        coo.extend(dense, (self.la_FDOF, self.qDOF))
 
 
 def make_system(RigidBodyBase):
@@ -344,18 +366,24 @@ def run():
 
     system, top, contact1, contact2 = make_system(RigidBodyQuaternion)
 
-    t0 = 0
     # t1 = 8
     t_final = 2
     # t_final = 0.1
-    dt1 = 1e-4
-    dt2 = 1e-4
+    # dt1 = 1e-4
+    dt1 = 5e-4
+    dt2 = 1e-4  # Moreau
+    dt2 = 5e-5
 
     # sol1, label1 = Rattle(system, t_final, dt1, atol=1e-8).solve(), "Rattle"
+    # sol1, label1 = (
+    #     MoreauShiftedNew(system, t_final, dt2, atol=1e-6).solve(),
+    #     "Moreau_new",
+    # )
     sol1, label1 = (
-        MoreauShiftedNew(system, t_final, dt2, atol=1e-6).solve(),
-        "Moreau_new",
+        NonsmoothPIRK(system, t_final, dt1, RadauIIATableau(2)).solve(),
+        "NPIRK",
     )
+
     sol2, label2 = (
         MoreauShifted(system, t_final, dt2, fix_point_tol=1e-6).solve(),
         "Moreau",
