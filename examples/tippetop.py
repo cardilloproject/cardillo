@@ -295,7 +295,8 @@ def make_system(RigidBodyBase):
     # Initial conditions
     # all zeros exept:
     # Leine2003
-    z0 = 1.2015e-2  # m
+    # z0 = 1.2015e-2  # m
+    z0 = 0
     theta0 = 0.1  # rad
     psi_dot0 = 180  # rad / s
 
@@ -346,10 +347,14 @@ def run(export=True):
     system, top, contact1, contact2 = make_system(RigidBodyQuaternion)
 
     t0 = 0
-    t_final = 8
-    # t_final = 1.5
-    dt1 = 1e-3
-    dt2 = 1e-4
+    # t_final = 8
+    # t_final = 2
+    t_final = 0.1
+    # dt1 = 1e-3
+    # dt1 = 1e-4
+    # dt2 = 1e-4
+    dt1 = 1e-2
+    dt2 = 1e-2
 
     sol1, label1 = Rattle(system, t_final, dt1, atol=1e-8).solve(), "Rattle"
     # sol1, label1 = (
@@ -515,5 +520,368 @@ def run(export=True):
     plt.show()
 
 
+def convergence(export=True):
+    system, top, contact1, contact2 = make_system(RigidBodyQuaternion)
+
+    tol_ref = 1.0e-8
+    tol = 1.0e-8
+
+    # compute step sizes with powers of 2
+    dt_ref = 2.5e-5  # Arnold2015b
+    dts = (2.0 ** np.arange(7, 1, -1)) * dt_ref  # [3.2e-3, ..., 2e-4, 1e-4]
+    # dts = (2.0 ** np.arange(7, 4, -1)) * dt_ref  # [3.2e-3, 1.6e-3, 8e-4]
+
+    # end time (note this has to be > 0.5, otherwise long term error throws ans error)
+    # t1 = (2.0**9) * dt_ref  # this yields 0.256 for dt_ref = 5e-4
+    # t1 = (2.0**10) * dt_ref  # this yields 0.512 for dt_ref = 5e-4
+    # t1 = (2.0**11) * dt_ref  # this yields 0.2048 for dt_ref = 1e-4
+    # t1 = (2.0**13) * dt_ref  # this yields 0.8192 for dt_ref = 1e-4
+    t1 = (2.0**15) * dt_ref  # this yields 0.8192 for dt_ref = 2.5e-5
+    # # t1 = (2.0**16) * dt_ref # this yields 1.6384 for dt_ref = 2.5e-5
+
+    # # TODO: Only for debugging!
+    # dt_ref = 2.5e-3
+    # dts = np.array([5.0e-3, 1e-2])
+    # # t1 = (2.0**8) * dt_ref
+    # t1 = (2.0**6) * dt_ref
+
+    # compute step sizes with powers of 2
+    dt_ref = 1e-4
+    # t1 = (2.0**12) * dt_ref # 0.4096 s
+    # t1 = (2.0**10) * dt_ref # 0.1024 s
+    t1 = (2.0**9) * dt_ref  # 0.0512 s
+    dts = (2.0 ** np.arange(6, 4, -1)) * dt_ref
+
+    print(f"t1: {t1}")
+    print(f"dts: {dts}")
+    # exit()
+
+    # errors for possible solvers
+    q_errors_transient = np.inf * np.ones((2, len(dts)), dtype=float)
+    u_errors_transient = np.inf * np.ones((2, len(dts)), dtype=float)
+    P_N_errors_transient = np.inf * np.ones((2, len(dts)), dtype=float)
+    P_F_errors_transient = np.inf * np.ones((2, len(dts)), dtype=float)
+    q_errors_longterm = np.inf * np.ones((2, len(dts)), dtype=float)
+    u_errors_longterm = np.inf * np.ones((2, len(dts)), dtype=float)
+    P_N_errors_longterm = np.inf * np.ones((2, len(dts)), dtype=float)
+    P_F_errors_longterm = np.inf * np.ones((2, len(dts)), dtype=float)
+
+    ###################################################################
+    # compute reference solution as described in Arnold2015 Section 3.3
+    ###################################################################
+    # print(f"compute reference solution with classical Moreau:")
+    # reference = MoreauClassical(
+    #     system,
+    #     t1,
+    #     dt_ref,
+    #     atol=tol_ref
+    # ).solve()
+    print(f"compute reference solution with rattle:")
+    reference = Rattle(system, t1, dt_ref, atol=tol_ref).solve()
+    print(f"done")
+
+    plot_state = True
+    if plot_state:
+        t_ref = reference.t
+        q_ref = reference.q
+        u_ref = reference.u
+        P_N_ref = reference.P_N
+        P_F_ref = reference.P_F
+
+        ###################
+        # visualize results
+        ###################
+        fig = plt.figure(figsize=plt.figaspect(0.5))
+
+        # center of mass
+        ax = fig.add_subplot(2, 3, 1)
+        ax.plot(t_ref, q_ref[:, 0], "-r", label="x")
+        ax.plot(t_ref, q_ref[:, 1], "-g", label="y")
+        ax.plot(t_ref, q_ref[:, 2], "-b", label="z")
+        ax.grid()
+        ax.legend()
+
+        # alpha, beta, gamma
+        nt_ref = len(t_ref)
+        angles_ref = np.zeros((nt_ref, 3), dtype=float)
+        for i in range(nt_ref):
+            A_IK = top.A_IK(t_ref[i], q_ref[i])
+            angles_ref[i] = Rotation.from_matrix(A_IK).as_euler("zxz")
+
+        ax = fig.add_subplot(2, 3, 2)
+        ax.plot(t_ref, angles_ref[:, 0], "-r", label="alpha")
+        ax.plot(t_ref, angles_ref[:, 1], "-g", label="beta")
+        ax.plot(t_ref, angles_ref[:, 2], "-b", label="gamma")
+        ax.grid()
+        ax.legend()
+
+        # x-y-z trajectory
+        ax = fig.add_subplot(2, 3, 3, projection="3d")
+        ax.plot3D(
+            q_ref[:, 0],
+            q_ref[:, 1],
+            q_ref[:, 2],
+            "-r",
+            label="x-y-z trajectory",
+        )
+        ax.grid()
+        ax.legend()
+
+        # x_dot, y_dot, z_dot
+        ax = fig.add_subplot(2, 3, 4)
+        ax.plot(t_ref, u_ref[:, 0], "-r", label="x_dot")
+        ax.plot(t_ref, u_ref[:, 1], "-g", label="y_dot")
+        ax.plot(t_ref, u_ref[:, 2], "-b", label="z_dot")
+        ax.grid()
+        ax.legend()
+
+        # omega_x, omega_y, omega_z
+        ax = fig.add_subplot(2, 3, 5)
+        ax.plot(t_ref, u_ref[:, 3], "-r", label="omega_x")
+        ax.plot(t_ref, u_ref[:, 4], "-g", label="omega_y")
+        ax.plot(t_ref, u_ref[:, 5], "-b", label="omega_z")
+        ax.grid()
+        ax.legend()
+
+        # percussions
+        ax = fig.add_subplot(2, 3, 6)
+        ax.plot(t_ref, P_N_ref[:, 0], "-r", label="P_N")
+        ax.plot(t_ref, P_F_ref[:, 0], "-g", label="P_F0")
+        ax.plot(t_ref, P_F_ref[:, 1], "-b", label="P_F1")
+        ax.grid()
+        ax.legend()
+
+        plt.show()
+
+    exit()
+
+    # TODO: Adapt bounds
+    # def errors(sol, sol_ref, t_transient=0.01, t_longterm=0.05):
+    def errors(sol, sol_ref, t_transient=0.5 * t1, t_longterm=0.5 * t1):
+        t = sol.t
+        q = sol.q
+        u = sol.u
+        P_N = sol.P_N
+        P_F = sol.P_F
+
+        t_ref = sol_ref.t
+        q_ref = sol_ref.q
+        u_ref = sol_ref.u
+        P_N_ref = sol_ref.P_N
+        P_F_ref = sol_ref.P_F
+
+        # distinguish between transient and long term time steps
+        t_idx_transient = np.where(t <= t_transient)[0]
+        t_idx_longterm = np.where(t >= t_longterm)[0]
+
+        # compute difference between computed solution and reference solution
+        # for identical time instants
+        t_ref_idx_transient = np.where(
+            np.abs(t[t_idx_transient, None] - t_ref) < 1.0e-8
+        )[1]
+        t_ref_idx_longterm = np.where(np.abs(t[t_idx_longterm, None] - t_ref) < 1.0e-8)[
+            1
+        ]
+
+        # differences
+        q_transient = q[t_idx_transient]
+        u_transient = u[t_idx_transient]
+        P_N_transient = P_N[t_idx_transient]
+        P_F_transient = P_F[t_idx_transient]
+        diff_transient_q = q_transient - q_ref[t_ref_idx_transient]
+        diff_transient_u = u_transient - u_ref[t_ref_idx_transient]
+        diff_transient_P_N = P_N_transient - P_N_ref[t_ref_idx_transient]
+        diff_transient_P_F = P_F_transient - P_F_ref[t_ref_idx_transient]
+
+        q_longterm = q[t_idx_longterm]
+        u_longterm = u[t_idx_longterm]
+        P_N_longterm = P_N[t_idx_longterm]
+        P_F_longterm = P_F[t_idx_longterm]
+        diff_longterm_q = q_longterm - q_ref[t_ref_idx_longterm]
+        diff_longterm_u = u_longterm - u_ref[t_ref_idx_longterm]
+        diff_longterm_P_N = P_N_longterm - P_N_ref[t_ref_idx_longterm]
+        diff_longterm_P_F = P_F_longterm - P_F_ref[t_ref_idx_longterm]
+
+        # max relative error
+        q_error_transient = np.max(
+            np.linalg.norm(diff_transient_q, axis=1)
+            / np.linalg.norm(q_transient, axis=1)
+        )
+        u_error_transient = np.max(
+            np.linalg.norm(diff_transient_u, axis=1)
+            / np.linalg.norm(u_transient, axis=1)
+        )
+        P_N_error_transient = np.max(
+            np.linalg.norm(diff_transient_P_N, axis=1)
+            / np.linalg.norm(P_N_transient, axis=1)
+        )
+        P_F_error_transient = np.max(
+            np.linalg.norm(diff_transient_P_F, axis=1)
+            / np.linalg.norm(P_F_transient, axis=1)
+        )
+
+        q_error_longterm = np.max(
+            np.linalg.norm(diff_longterm_q, axis=1) / np.linalg.norm(q_longterm, axis=1)
+        )
+        u_error_longterm = np.max(
+            np.linalg.norm(diff_longterm_u, axis=1) / np.linalg.norm(u_longterm, axis=1)
+        )
+        P_N_error_longterm = np.max(
+            np.linalg.norm(diff_longterm_P_N, axis=1)
+            / np.linalg.norm(P_N_longterm, axis=1)
+        )
+        P_F_error_longterm = np.max(
+            np.linalg.norm(diff_longterm_P_F, axis=1)
+            / np.linalg.norm(P_F_longterm, axis=1)
+        )
+
+        return (
+            q_error_transient,
+            u_error_transient,
+            P_N_error_transient,
+            P_F_error_transient,
+            q_error_longterm,
+            u_error_longterm,
+            P_N_error_longterm,
+            P_F_error_longterm,
+        )
+
+    for i, dt in enumerate(dts):
+        print(f"i: {i}, dt: {dt:1.1e}")
+
+        sol = MoreauClassical(system, t1, dt, atol=tol).solve()
+        (
+            q_errors_transient[0, i],
+            u_errors_transient[0, i],
+            P_N_errors_transient[0, i],
+            P_F_errors_transient[0, i],
+            q_errors_longterm[0, i],
+            u_errors_longterm[0, i],
+            P_N_errors_longterm[0, i],
+            P_F_errors_longterm[0, i],
+        ) = errors(sol, reference)
+
+        sol = Rattle(system, t1, dt, atol=tol).solve()
+        (
+            q_errors_transient[1, i],
+            u_errors_transient[1, i],
+            P_N_errors_transient[1, i],
+            P_F_errors_transient[1, i],
+            q_errors_longterm[1, i],
+            u_errors_longterm[1, i],
+            P_N_errors_longterm[1, i],
+            P_F_errors_longterm[1, i],
+        ) = errors(sol, reference)
+
+    # #############################
+    # # export errors and dt, dt**2
+    # #############################
+    # header = "dt, dt2, 2nd, 1st, 1st_GGL"
+
+    # # transient errors
+    # export_data = np.vstack((dts, dts**2, *q_errors_transient)).T
+    # np.savetxt(
+    #     "transient_error_heavy_top_q.txt",
+    #     export_data,
+    #     delimiter=", ",
+    #     header=header,
+    #     comments="",
+    # )
+
+    # export_data = np.vstack((dts, dts**2, *u_errors_transient)).T
+    # np.savetxt(
+    #     "transient_error_heavy_top_u.txt",
+    #     export_data,
+    #     delimiter=", ",
+    #     header=header,
+    #     comments="",
+    # )
+
+    # export_data = np.vstack((dts, dts**2, *P_N_errors_transient)).T
+    # np.savetxt(
+    #     "transient_error_heavy_top_la_g.txt",
+    #     export_data,
+    #     delimiter=", ",
+    #     header=header,
+    #     comments="",
+    # )
+
+    # # longterm errors
+    # export_data = np.vstack((dts, dts**2, *q_errors_longterm)).T
+    # np.savetxt(
+    #     "longterm_error_heavy_top_q.txt",
+    #     export_data,
+    #     delimiter=", ",
+    #     header=header,
+    #     comments="",
+    # )
+
+    # export_data = np.vstack((dts, dts**2, *u_errors_longterm)).T
+    # np.savetxt(
+    #     "longterm_error_heavy_top_u.txt",
+    #     export_data,
+    #     delimiter=", ",
+    #     header=header,
+    #     comments="",
+    # )
+
+    # export_data = np.vstack((dts, dts**2, *P_N_errors_longterm)).T
+    # np.savetxt(
+    #     "longterm_error_heavy_top_la_g.txt",
+    #     export_data,
+    #     delimiter=", ",
+    #     header=header,
+    #     comments="",
+    # )
+
+    ##################
+    # visualize errors
+    ##################
+    fig, ax = plt.subplots(2, 2)
+
+    ax[0, 0].set_title("transient: Moreau")
+    ax[0, 0].loglog(dts, dts, "-k", label="dt")
+    ax[0, 0].loglog(dts, dts**2, "--k", label="dt^2")
+    ax[0, 0].loglog(dts, q_errors_transient[0], "-.ro", label="q")
+    ax[0, 0].loglog(dts, u_errors_transient[0], "-.go", label="u")
+    ax[0, 0].loglog(dts, P_N_errors_transient[0], "-.bo", label="P_N")
+    ax[0, 0].loglog(dts, P_F_errors_transient[0], "-.mo", label="P_F")
+    ax[0, 0].grid()
+    ax[0, 0].legend()
+
+    ax[1, 0].set_title("transient: Rattle")
+    ax[1, 0].loglog(dts, dts, "-k", label="dt")
+    ax[1, 0].loglog(dts, dts**2, "--k", label="dt^2")
+    ax[1, 0].loglog(dts, q_errors_transient[1], "-.ro", label="q")
+    ax[1, 0].loglog(dts, u_errors_transient[1], "-.go", label="u")
+    ax[1, 0].loglog(dts, P_N_errors_transient[1], "-.bo", label="P_N")
+    ax[1, 0].loglog(dts, P_F_errors_transient[1], "-.mo", label="P_F")
+    ax[1, 0].grid()
+    ax[1, 0].legend()
+
+    ax[0, 1].set_title("long term: Moreau")
+    ax[0, 1].loglog(dts, dts, "-k", label="dt")
+    ax[0, 1].loglog(dts, dts**2, "--k", label="dt^2")
+    ax[0, 1].loglog(dts, q_errors_longterm[0], "-.ro", label="q")
+    ax[0, 1].loglog(dts, u_errors_longterm[0], "-.go", label="u")
+    ax[0, 1].loglog(dts, P_N_errors_longterm[0], "-.bo", label="P_N")
+    ax[0, 1].loglog(dts, P_F_errors_longterm[0], "-.mo", label="P_F")
+    ax[0, 1].grid()
+    ax[0, 1].legend()
+
+    ax[1, 1].set_title("long term: Rattle")
+    ax[1, 1].loglog(dts, dts, "-k", label="dt")
+    ax[1, 1].loglog(dts, dts**2, "--k", label="dt^2")
+    ax[1, 1].loglog(dts, q_errors_longterm[1], "-.ro", label="q")
+    ax[1, 1].loglog(dts, u_errors_longterm[1], "-.go", label="u")
+    ax[1, 1].loglog(dts, P_N_errors_longterm[1], "-.bo", label="P_N")
+    ax[1, 1].loglog(dts, P_F_errors_longterm[1], "-.mo", label="P_F")
+    ax[1, 1].grid()
+    ax[1, 1].legend()
+
+    plt.show()
+
+
 if __name__ == "__main__":
-    run()
+    # run()
+    convergence()

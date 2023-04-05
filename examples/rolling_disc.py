@@ -430,16 +430,18 @@ def convergence():
     # # t1 = (2.0**10) * dt_ref  # 6.5536s
     # t1 = (2.0**4) * dt_ref  # 0.1024s
 
-    dt_ref = 3.2e-3
-    dts = (2.0 ** np.arange(4, 1, -1)) * dt_ref  # [5.12e-2, ..., 1.28e-2]
-    # t1 = (2.0**11) * dt_ref  # 6.5536s
-    t1 = (2.0**5) * dt_ref  # 0.1024s
+    # dt_ref = 3.2e-3
+    # dts = (2.0 ** np.arange(4, 1, -1)) * dt_ref  # [5.12e-2, ..., 1.28e-2]
+    # # t1 = (2.0**11) * dt_ref  # 6.5536s
+    # t1 = (2.0**5) * dt_ref  # 0.1024s
 
     dt_ref = 1.6e-3
     dts = (2.0 ** np.arange(5, 1, -1)) * dt_ref  # [5.12e-2, ..., 6.4e-3]
-    t1 = (2.0**12) * dt_ref  # 6.5536s
-    # print(f"t1: {t1}")
-    # print(f"dts: {dts}")
+    # t1 = (2.0**12) * dt_ref  # 6.5536s
+    # t1 = (2.0**7) * dt_ref  # 0.2048
+    t1 = (2.0**6) * dt_ref  # 0.1024
+    print(f"t1: {t1}")
+    print(f"dts: {dts}")
     # exit()
 
     # dt_ref = 8e-4
@@ -474,8 +476,8 @@ def convergence():
     dts_1 = dts
     dts_2 = dts**2
 
-    print(f"t1: {t1}")
-    print(f"dts: {dts}")
+    # print(f"t1: {t1}")
+    # print(f"dts: {dts}")
 
     # errors for possible solvers
     q_errors_transient = np.inf * np.ones((4, len(dts)), dtype=float)
@@ -628,9 +630,8 @@ def convergence():
 
         plt.show()
 
-    def errors(sol, sol_ref, t_transient=2, t_longterm=2):
-        # def errors(sol, sol_ref, t_transient=0.01, t_longterm=0.01):
-        # def errors(sol, sol_ref, t_transient=4, t_longterm=4):
+    # def errors(sol, sol_ref, t_transient=2, t_longterm=2):
+    def errors(sol, sol_ref, t_transient=0.4 * t1, t_longterm=0.5 * t1):
         t = sol.t
         q = sol.q
         u = sol.u

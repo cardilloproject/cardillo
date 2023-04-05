@@ -33,7 +33,7 @@ class NonsmoothGeneralizedAlpha:
         model,
         t1,
         dt,
-        rho_inf=1,
+        rho_inf=0.9,
         method="newton",
         newton_tol=1e-6,
         newton_max_iter=100,
