@@ -13,6 +13,7 @@ def consistent_initial_conditions(system, rtol=1.0e-5, atol=1.0e-8):
 
     I_N = g_N <= 0.0
     g_N_dot = system.g_N_dot(t0, q0, u0)
+    B_N = I_N * (g_N_dot <= 0)
     assert np.all(I_N * g_N_dot >= 0)
 
     q_dot0 = system.q_dot(t0, q0, u0)
@@ -33,21 +34,21 @@ def consistent_initial_conditions(system, rtol=1.0e-5, atol=1.0e-8):
     # fmt: off
     A = bmat(
         [
-            [        M0, -W_g0, -W_gamma0],
-            [    W_g0.T,  None,      None],
-            [W_gamma0.T,  None,      None],
-            # [        M0, -W_g0, -W_gamma0, -W_N0[:, I_N]],
-            # [    W_g0.T,  None,      None,  None],
-            # [W_gamma0.T,  None,      None,  None],
-            # [W_N0[:, I_N].T,      None,      None,  None],
+            # [        M0, -W_g0, -W_gamma0],
+            # [    W_g0.T,  None,      None],
+            # [W_gamma0.T,  None,      None],
+            [        M0, -W_g0, -W_gamma0, -W_N0[:, B_N]],
+            [    W_g0.T,  None,      None,  None],
+            [W_gamma0.T,  None,      None,  None],
+            [W_N0[:, B_N].T,      None,      None,  None],
         ],
         format="csc",
     )
     b = np.concatenate([
-        h0 + W_N0 @ la_N0 + W_F0 @ la_F0, 
+        h0, # + W_N0 @ la_N0, # + W_F0 @ la_F0, 
         -zeta_g0, 
         -zeta_gamma0,
-        # -zeta_N0[I_N],
+        -zeta_N0[B_N],
     ])
     # fmt: on
 
@@ -58,9 +59,9 @@ def consistent_initial_conditions(system, rtol=1.0e-5, atol=1.0e-8):
         system.nu + system.nla_g : system.nu + system.nla_g + system.nla_gamma
     ]
 
-    # la_N0_ = u_dot_la_g_la_gamma[system.nu + system.nla_g + system.nla_gamma :]
-    # la_N0 = np.zeros(system.nla_N)
-    # la_N0[I_N] = la_N0_
+    la_N0_ = u_dot_la_g_la_gamma[system.nu + system.nla_g + system.nla_gamma :]
+    la_N0 = np.zeros(system.nla_N)
+    la_N0[I_N] = la_N0_
 
     # check if initial conditions satisfy constraints on position, velocity
     # and acceleration level
@@ -71,7 +72,6 @@ def consistent_initial_conditions(system, rtol=1.0e-5, atol=1.0e-8):
     gamma_dot0 = system.gamma_dot(t0, q0, u0, u_dot0)
     g_S0 = system.g_S(t0, q0)
 
-    B_N = I_N * (g_N_dot <= 0)
     g_N_ddot = system.g_N_ddot(t0, q0, u0, u_dot0)
     assert np.all(B_N * g_N_ddot >= 0)
 

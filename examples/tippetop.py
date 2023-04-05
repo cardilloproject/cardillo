@@ -36,13 +36,13 @@ class Sphere2PlaneCoulombContensouMoeller:
         self.mu = np.array([mu])
         self.nla_N = 1
 
-        if mu == 0:
-            self.nla_F = 0
-            self.NF_connectivity = [[]]
-        else:
+        if mu > 0:
             self.nla_F = 3 * self.nla_N
             self.NF_connectivity = [[0, 1, 2]]
             self.gamma_F = self.__gamma_F
+        else:
+            self.nla_F = 0
+            self.NF_connectivity = [[]]
 
         self.e_N = np.zeros(self.nla_N) if e_N is None else e_N * np.ones(self.nla_N)
         self.e_F = np.zeros(self.nla_F) if e_F is None else e_F * np.ones(self.nla_F)
@@ -57,7 +57,7 @@ class Sphere2PlaneCoulombContensouMoeller:
         self.K_r_SP = K_r_SP
 
         self.la_N0 = np.zeros(self.nla_N) if la_N0 is None else la_N0
-        self.la_F0 = np.zeros(self.nla_F) if la_F0 is None else la_F0
+        self.la_F0 = np.zeros(self.nla_F) #if la_F0 is None else la_F0
 
     def assembler_callback(self):
         qDOF = self.subsystem.local_qDOF_P(self.frame_ID)
@@ -286,7 +286,8 @@ def make_system(RigidBodyBase):
     K_r_SC1 = np.array([0, 0, a1])
     K_r_SC2 = np.array([0, 0, a2])
 
-    mu = 0.3  # = mu1 = mu2
+    # mu = 0.3  # = mu1 = mu2
+    mu = 0
     e_N = 0  # = eN1 = eN2
     e_F = 0
     R = 5e-4  # m
