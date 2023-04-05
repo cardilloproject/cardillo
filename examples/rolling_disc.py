@@ -72,9 +72,9 @@ K_Omega0 = np.array(
 # TODO: Derive these equations!
 v_S0 = np.array([-R * alpha_dot0 + r * alpha_dot0 * np.sin(beta0), 0, 0])
 
-# RigidBody = RigidBodyQuaternion
+RigidBody = RigidBodyQuaternion
 # RigidBody = RigidBodyAxisAngle
-RigidBody = RigidBodyEuler
+# RigidBody = RigidBodyEuler
 
 # initial conditions
 u0 = np.concatenate((v_S0, K_Omega0))
@@ -438,8 +438,8 @@ def convergence():
     dt_ref = 1.6e-3
     dts = (2.0 ** np.arange(5, 1, -1)) * dt_ref  # [5.12e-2, ..., 6.4e-3]
     # t1 = (2.0**12) * dt_ref  # 6.5536s
-    # t1 = (2.0**7) * dt_ref  # 0.2048
-    t1 = (2.0**6) * dt_ref  # 0.1024
+    t1 = (2.0**7) * dt_ref  # 0.2048
+    # t1 = (2.0**6) * dt_ref  # 0.1024
     print(f"t1: {t1}")
     print(f"dts: {dts}")
     # exit()

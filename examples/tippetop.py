@@ -290,37 +290,68 @@ def make_system(RigidBodyBase):
     e_N = 0  # = eN1 = eN2
     e_F = 0
     R = 5e-4  # m
-    prox_r = 0.001
 
     # Initial conditions
     # all zeros exept:
     # Leine2003
     # z0 = 1.2015e-2  # m
-    z0 = 0
-    theta0 = 0.1  # rad
-    psi_dot0 = 180  # rad / s
+    # theta0 = 0.1  # rad
+    # z0 = 0
+    # theta0 = 0.0  # rad
+    # psi_dot0 = 180  # rad / s
 
-    # initial conditions:
+    # initial coordinates
+    z0 = R1 - a1
     if RigidBodyBase is RigidBodyQuaternion:
         q0 = np.zeros(7, dtype=float)
         q0[2] = z0
-        q0[3:] = axis_angle2quat(np.array([1, 0, 0]), theta0)
+        # q0[3:] = axis_angle2quat(np.array([1, 0, 0]), theta0)
+        q0[3] = 1
     elif RigidBodyBase is RigidBodyEuler:
-        axis = "zxz"
+        # axis = "zxz" # original
+        axis = "zxy"
         q0 = np.zeros(6, dtype=float)
         q0[2] = z0
-        q0[4] = theta0
+        # q0[4] = theta0
+
+    # initial velocities
+    gamma = 1e-0  # rad / s
+    omega = 180  # rad / s
+    K_omega_IK = np.array([gamma, 0, omega])
+    A_IK = np.eye(3)
+    K_r_PS = np.array([0, 0, R1 - a1])
+    v_S = A_IK @ cross3(K_omega_IK, K_r_PS)
+
+    print(f"v_S = {v_S}")
+    print(
+        f"v_C = {v_S + A_IK @ cross3(K_omega_IK, np.array([0, 0, a1]) + np.array([0, 0, -R1]))}"
+    )
+    # exit()
 
     u0 = np.zeros(6, dtype=float)
-    u0[5] = psi_dot0
+    u0[:3] = v_S
+    u0[3:] = K_omega_IK
+    # u0[5] = psi_dot0
 
     if RigidBodyBase is RigidBodyQuaternion:
         top = RigidBodyQuaternion(m, K_theta_S, q0=q0, u0=u0)
     elif RigidBodyBase is RigidBodyEuler:
         top = RigidBodyEuler(m, K_theta_S, axis=axis, q0=q0, u0=u0)
 
+    la_N0 = np.array([m * g], dtype=float)
+    R_bar = (3 * np.pi / 16) * R
+    la_F0 = np.array([0, 0, -m * g * mu], dtype=float)
     contact1 = Sphere2PlaneCoulombContensouMoeller(
-        system.origin, top, R1, R, mu, e_N, e_F, K_r_SP=K_r_SC1
+        system.origin,
+        top,
+        R1,
+        R,
+        mu,
+        e_N,
+        e_F,
+        K_r_SP=K_r_SC1,
+        la_N0=la_N0,
+        la_F0=la_F0,
     )
     contact2 = Sphere2PlaneCoulombContensouMoeller(
         system.origin, top, R2, R, mu, e_N, e_F, K_r_SP=K_r_SC2
@@ -346,23 +377,22 @@ def run(export=True):
 
     system, top, contact1, contact2 = make_system(RigidBodyQuaternion)
 
-    t0 = 0
     # t_final = 8
     # t_final = 2
-    t_final = 0.1
+    t_final = 1e-3
     # dt1 = 1e-3
-    # dt1 = 1e-4
-    # dt2 = 1e-4
-    dt1 = 1e-2
-    dt2 = 1e-2
+    dt1 = 1e-4
+    dt2 = 1e-4
+    # dt1 = 1e-3
+    # dt2 = 1e-3
 
-    sol1, label1 = Rattle(system, t_final, dt1, atol=1e-8).solve(), "Rattle"
+    sol1, label1 = Rattle(system, t_final, dt1, atol=1e-10).solve(), "Rattle"
     # sol1, label1 = (
     #     MoreauShiftedNew(system, t_final, dt2, atol=1e-6).solve(),
     #     "Moreau_new",
     # )
     sol2, label2 = (
-        MoreauClassical(system, t_final, dt2, atol=1e-6).solve(),
+        MoreauClassical(system, t_final, dt2, atol=1e-10).solve(),
         "Moreau",
     )
 
@@ -473,26 +503,29 @@ def run(export=True):
     fig, ax = plt.subplots(4)
 
     ax[0].set_title("P_N(t)")
-    ax[0].plot(t1, P_N1[:, 0], "-k", label=label1)
-    ax[0].plot(t2, P_N2[:, 0], "--r", label=label2)
+    ax[0].plot(t1, P_N1[:, 0], "-ok", label=label1)
+    ax[0].plot(t2, P_N2[:, 0], "--or", label=label2)
+    m = 6e-3  # kg
+    g = 9.81  # kg m / s2
+    ax[0].plot([0, t_final], [m * g, m * g], "--b", label=label1)
     ax[0].grid()
     ax[0].legend()
 
     ax[1].set_title("P_Fx(t)")
-    ax[1].plot(t1, P_F1[:, 0], "-k", label=label1)
-    ax[1].plot(t2, P_F2[:, 0], "--r", label=label2)
+    ax[1].plot(t1, P_F1[:, 0], "-ok", label=label1)
+    ax[1].plot(t2, P_F2[:, 0], "--or", label=label2)
     ax[1].grid()
     ax[1].legend()
 
     ax[2].set_title("P_Fy(t)")
-    ax[2].plot(t1, P_F1[:, 1], "-k", label=label1)
-    ax[2].plot(t2, P_F2[:, 1], "--r", label=label2)
+    ax[2].plot(t1, P_F1[:, 1], "-ok", label=label1)
+    ax[2].plot(t2, P_F2[:, 1], "--or", label=label2)
     ax[2].grid()
     ax[2].legend()
 
     ax[3].set_title("P_drill(t)")
-    ax[3].plot(t1, P_F1[:, 2], "-k", label=label1)
-    ax[3].plot(t2, P_F2[:, 2], "--r", label=label2)
+    ax[3].plot(t1, P_F1[:, 2], "-ok", label=label1)
+    ax[3].plot(t2, P_F2[:, 2], "--or", label=label2)
     ax[3].grid()
     ax[3].legend()
 
@@ -522,35 +555,22 @@ def run(export=True):
 
 def convergence(export=True):
     system, top, contact1, contact2 = make_system(RigidBodyQuaternion)
+    # system, top, contact1, contact2 = make_system(RigidBodyEuler)
 
-    tol_ref = 1.0e-8
-    tol = 1.0e-8
-
-    # compute step sizes with powers of 2
-    dt_ref = 2.5e-5  # Arnold2015b
-    dts = (2.0 ** np.arange(7, 1, -1)) * dt_ref  # [3.2e-3, ..., 2e-4, 1e-4]
-    # dts = (2.0 ** np.arange(7, 4, -1)) * dt_ref  # [3.2e-3, 1.6e-3, 8e-4]
-
-    # end time (note this has to be > 0.5, otherwise long term error throws ans error)
-    # t1 = (2.0**9) * dt_ref  # this yields 0.256 for dt_ref = 5e-4
-    # t1 = (2.0**10) * dt_ref  # this yields 0.512 for dt_ref = 5e-4
-    # t1 = (2.0**11) * dt_ref  # this yields 0.2048 for dt_ref = 1e-4
-    # t1 = (2.0**13) * dt_ref  # this yields 0.8192 for dt_ref = 1e-4
-    t1 = (2.0**15) * dt_ref  # this yields 0.8192 for dt_ref = 2.5e-5
-    # # t1 = (2.0**16) * dt_ref # this yields 1.6384 for dt_ref = 2.5e-5
-
-    # # TODO: Only for debugging!
-    # dt_ref = 2.5e-3
-    # dts = np.array([5.0e-3, 1e-2])
-    # # t1 = (2.0**8) * dt_ref
-    # t1 = (2.0**6) * dt_ref
+    # tol_ref = 1.0e-8
+    # tol = 1.0e-8
+    tol_ref = 1.0e-14
+    tol = 1.0e-14
 
     # compute step sizes with powers of 2
-    dt_ref = 1e-4
+    # dt_ref = 1e-4
+    dt_ref = 1e-5
     # t1 = (2.0**12) * dt_ref # 0.4096 s
     # t1 = (2.0**10) * dt_ref # 0.1024 s
-    t1 = (2.0**9) * dt_ref  # 0.0512 s
-    dts = (2.0 ** np.arange(6, 4, -1)) * dt_ref
+    # t1 = (2.0**9) * dt_ref  # 0.0512 s
+    t1 = (2.0**8) * dt_ref  # 0.0256 s
+    # dts = (2.0 ** np.arange(6, 1, -1)) * dt_ref
+    dts = (2.0 ** np.arange(8, 2, -1)) * dt_ref
 
     print(f"t1: {t1}")
     print(f"dts: {dts}")
@@ -580,7 +600,7 @@ def convergence(export=True):
     reference = Rattle(system, t1, dt_ref, atol=tol_ref).solve()
     print(f"done")
 
-    plot_state = True
+    plot_state = False
     if plot_state:
         t_ref = reference.t
         q_ref = reference.q
@@ -653,7 +673,7 @@ def convergence(export=True):
 
         plt.show()
 
-    exit()
+    # exit()
 
     # TODO: Adapt bounds
     # def errors(sol, sol_ref, t_transient=0.01, t_longterm=0.05):
