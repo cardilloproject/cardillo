@@ -300,7 +300,7 @@ class NonsmoothBackwardEuler:
         system,
         t1,
         dt,
-        tol=1e-6,
+        atol=1e-5,
         max_iter=10,
     ):
         self.system = system
@@ -317,7 +317,7 @@ class NonsmoothBackwardEuler:
         #######################################################################
         # newton settings
         #######################################################################
-        self.tol = tol
+        self.atol = atol
         self.max_iter = max_iter
 
         #######################################################################
@@ -429,20 +429,46 @@ class NonsmoothBackwardEuler:
         ##########
         # friction
         ##########
-        gamma_Fn1 = self.system.gamma_F(tn1, qn1, un1)
-        mu = self.system.mu
+        # gamma_Fn1 = self.system.gamma_F(tn1, qn1, un1)
+        # mu = self.system.mu
+        # prox_r_F = self.prox_r_F
+        # for i_N, i_F in enumerate(self.system.NF_connectivity):
+        #     i_F = np.array(i_F)
+
+        #     if len(i_F) > 0:
+        #         # Note: This is the simplest formulation for friction but we
+        #         # subsequently decompose the function it into both cases of
+        #         # the prox_sphere function for easy derivation
+        #         R[self.split[4] + i_F] = la_Fn1[i_F] + prox_sphere(
+        #             prox_r_F[i_N] * gamma_Fn1[i_F] - la_Fn1[i_F],
+        #             mu[i_N] * la_Nn1[i_N],
+        #         )
+
         prox_r_F = self.prox_r_F
+        mu = self.system.mu
+        gamma_F = self.system.gamma_F(tn1, qn1, un1)
+
         for i_N, i_F in enumerate(self.system.NF_connectivity):
             i_F = np.array(i_F)
+            n_F = len(i_F)
+            if n_F > 0:
+                la_Ni = la_Nn1[i_N]
+                la_Fi = la_Fn1[i_F]
+                gamma_Fi = gamma_F[i_F]
+                arg_F = prox_r_F[i_F] * gamma_Fi - la_Fi
+                mui = mu[i_N]
+                radius = mui * la_Ni
+                norm_arg_F = np.linalg.norm(arg_F)
 
-            if len(i_F) > 0:
-                # Note: This is the simplest formulation for friction but we
-                # subsequently decompose the function it into both cases of
-                # the prox_sphere function for easy derivation
-                R[self.split[4] + i_F] = la_Fn1[i_F] + prox_sphere(
-                    prox_r_F[i_N] * gamma_Fn1[i_F] - la_Fn1[i_F],
-                    mu[i_N] * la_Nn1[i_N],
-                )
+                if norm_arg_F < radius:
+                    R[self.split[4] + i_F] = gamma_Fi
+                else:
+                    if norm_arg_F > 0:
+                        R[self.split[4] + i_F] = (
+                            la_Fi + radius * arg_F / norm_arg_F
+                        )
+                    else:
+                        R[self.split[4] + i_F] = la_Fi + radius * arg_F
 
         return R
 
@@ -517,7 +543,7 @@ class NonsmoothBackwardEuler:
 
         # note: we use csc_matrix sicne its transpose is a csr_matrix that is best for row slicing, see,
         # (https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csr_matrix.html#scipy.sparse.csr_matrix)
-        gamma_F_u = W_F.tocsc().T
+        gamma_F_u = self.system.W_F(tn1, qn1, scipy_matrix=csc_matrix).T
 
         Rla_F_q = lil_matrix((self.nla_F, self.nq))
         Rla_F_u = lil_matrix((self.nla_F, self.nu))
@@ -536,13 +562,15 @@ class NonsmoothBackwardEuler:
                 radius = mui * la_Ni
                 norm_arg_F = np.linalg.norm(arg_F)
 
-                if norm_arg_F <= radius:
-                    Rla_F_q[i_F] = diags(prox_r_F[i_F]) @ gamma_F_q[i_F]
-                    Rla_F_u[i_F] = diags(prox_r_F[i_F]) @ gamma_F_u[i_F]
+                if norm_arg_F < radius:
+                    Rla_F_q[i_F] = gamma_F_q[i_F]
+                    Rla_F_u[i_F] = gamma_F_u[i_F]
                 else:
                     if norm_arg_F > 0:
                         slip_dir = arg_F / norm_arg_F
-                        factor = np.eye(n_F) - np.outer(slip_dir, slip_dir)
+                        factor = (
+                            np.eye(n_F) - np.outer(slip_dir, slip_dir)
+                        ) / norm_arg_F
                         Rla_F_q[i_F] = (
                             radius * factor @ diags(prox_r_F[i_F]) @ gamma_F_q[i_F]
                         )
@@ -572,14 +600,17 @@ class NonsmoothBackwardEuler:
         )
         # fmt: on
 
-        return J
+        # return J
 
-        J_num = csr_matrix(approx_fprime(yn1, self.R))
+        # J_num = csr_matrix(approx_fprime(yn1, self.R))
+        J_num = csr_matrix(approx_fprime(yn1, self.R, method="2-point", eps=1e-6))
+        # J_num = csr_matrix(approx_fprime(yn1, self.R, method="cs", eps=1e-12))
 
         diff = (J - J_num).toarray()
         # diff = diff[:self.split[0]]
-        diff = diff[self.split[0] : self.split[1]]
-        # diff = diff[self.split[0]:self.split[1], : self.split[0]]
+        # diff = diff[self.split[0] : self.split[1]]
+        diff = diff[self.split[0] : self.split[1], : self.split[0]] # TODO: spot error
+        # diff = diff[self.split[0] : self.split[1], self.split[0] :]
         # diff = diff[self.split[1]:self.split[2]]
         # diff = diff[self.split[2]:self.split[3]]
         # diff = diff[self.split[3]:self.split[4]]
@@ -591,59 +622,6 @@ class NonsmoothBackwardEuler:
             print(f"error J: {error}")
 
         return J_num
-
-    def step(self, xn1, f, G):
-        # only compute optimized proxparameters once per time step
-        self.prox_r_N = self.system.prox_r_N(self.tn, self.qn)
-        self.prox_r_F = self.system.prox_r_F(self.tn, self.qn)
-
-        # initial residual and error
-        R = f(xn1, update_index=True)
-        error = self.error_function(R)
-        converged = error < self.tol
-
-        # print(f"initial error: {error}")
-        j = 0
-        if not converged:
-            while j < self.max_iter:
-                # jacobian
-                J = G(xn1)
-
-                # Newton update
-                j += 1
-
-                # dx = spsolve(J, R, use_umfpack=True)
-                dx = spsolve(J, R, use_umfpack=False)
-
-                # dx = lsqr(J, R, atol=1.0e-12, btol=1.0e-12)[0]
-
-                # # no underflow errors
-                # dx = np.linalg.lstsq(J.toarray(), R, rcond=None)[0]
-
-                # # Can we get this sparse?
-                # # using QR decomposition, see https://de.wikipedia.org/wiki/QR-Zerlegung#L%C3%B6sung_regul%C3%A4rer_oder_%C3%BCberbestimmter_Gleichungssysteme
-                # b = R.copy()
-                # Q, R = np.linalg.qr(J.toarray())
-                # z = Q.T @ b
-                # dx = np.linalg.solve(R, z)  # solving R*x = Q^T*b
-
-                # # solve normal equation (should be independent of the conditioning
-                # # number!)
-                # dx = spsolve(J.T @ J, J.T @ R)
-
-                xn1 -= dx
-
-                R = f(xn1, update_index=True)
-                error = self.error_function(R)
-                converged = error < self.tol
-                if converged:
-                    break
-
-            if not converged:
-                # raise RuntimeError("internal Newton-Raphson not converged")
-                print(f"not converged!")
-
-        return converged, j, error, xn1
 
     def solve(self):
         # lists storing output variables
@@ -677,6 +655,8 @@ class NonsmoothBackwardEuler:
                 jac=self.J,
                 fun_args=(True,),
                 jac_args=(False,),
+                atol=self.atol,
+                max_iter=self.max_iter,
             )
             niter.append(n_iter)
 
