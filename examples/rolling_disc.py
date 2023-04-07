@@ -421,10 +421,12 @@ def state():
 
 
 def convergence():
-    rho_inf = 0.85
+    # rho_inf = 0.85
     # see Arnodl2016, p. 118
-    tol_ref = 1.0e-10
-    tol = 1.0e-10
+    # tol_ref = 1.0e-10
+    # tol = 1.0e-10
+    tol_ref = 1.0e-14
+    tol = 1.0e-14
 
     #####################################
     # compute step sizes with powers of 2
@@ -434,17 +436,17 @@ def convergence():
     # # t1 = (2.0**10) * dt_ref  # 6.5536s
     # t1 = (2.0**4) * dt_ref  # 0.1024s
 
-    dt_ref = 3.2e-3
-    dts = (2.0 ** np.arange(4, 1, -1)) * dt_ref  # [5.12e-2, ..., 1.28e-2]
-    # t1 = (2.0**11) * dt_ref  # 6.5536s
-    t1 = (2.0**5) * dt_ref  # 0.1024s
+    # dt_ref = 3.2e-3
+    # dts = (2.0 ** np.arange(4, 1, -1)) * dt_ref  # [5.12e-2, ..., 1.28e-2]
+    # # t1 = (2.0**11) * dt_ref  # 6.5536s
+    # t1 = (2.0**5) * dt_ref  # 0.1024s
 
     dt_ref = 1.6e-3
     dts = (2.0 ** np.arange(5, 1, -1)) * dt_ref  # [5.12e-2, ..., 6.4e-3]
-    t1 = (2.0**12) * dt_ref  # 6.5536s
-    # print(f"t1: {t1}")
-    # print(f"dts: {dts}")
-    # exit()
+    # t1 = (2.0**12) * dt_ref  # 6.5536s
+    # t1 = (2.0**8) * dt_ref
+    # t1 = (2.0**6) * dt_ref
+    t1 = (2.0**5) * dt_ref
 
     # dt_ref = 8e-4
     # dts = (2.0 ** np.arange(6, 1, -1)) * dt_ref  # [5.12e-2, ..., 3.2e-3]
@@ -475,11 +477,9 @@ def convergence():
     # dts = (2.0 ** np.arange(11, 1, -1)) * dt_ref  # [5.12e-2, ..., 1e-4]
     # t1 = (2.0**18) * dt_ref # 6.5536s
 
-    dts_1 = dts
-    dts_2 = dts**2
-
     print(f"t1: {t1}")
     print(f"dts: {dts}")
+    # exit()
 
     # errors for possible solvers
     q_errors_transient = np.inf * np.ones((4, len(dts)), dtype=float)
@@ -547,7 +547,18 @@ def convergence():
     #     GGL=False,
     # ).solve()
 
-    reference1 = Rattle(model, t1, dt_ref, atol=tol_ref).solve()
+    # Solver, label, kwargs = NonsmoothPIRK, "Radau IIa(1)", {"butcher_tableau": RadauIIATableau(1)}
+    Solver, label, kwargs = (
+        NonsmoothPIRK,
+        "Radau IIa(2)",
+        {"butcher_tableau": RadauIIATableau(2)},
+    )
+    # Solver, label, kwargs = NonsmoothPIRK, "Radau IIa(3)", {"butcher_tableau": RadauIIATableau(3)}
+    # Solver, label, kwargs = NonsmoothPIRK, "Radau IIa(4)", {"butcher_tableau": RadauIIATableau(4)}
+
+    # reference1 = Rattle(model, t1, dt_ref, atol=tol_ref).solve()
+    # reference = NonsmoothPIRK(model, t1, dt_ref, RadauIIATableau(2), atol=tol_ref).solve()
+    reference = Solver(model, t1, dt_ref, atol=tol_ref, **kwargs).solve()
 
     # print(f"compute reference solution with second order method + GGL:")
     # reference2_GGL = GeneralizedAlphaSecondOrder(
@@ -564,7 +575,7 @@ def convergence():
     # plot_state = True
     plot_state = False
     if plot_state:
-        reference = reference1
+        reference = reference
         # reference = reference1_GGL
         # reference = reference2
         # reference = reference2_GGL
@@ -632,7 +643,8 @@ def convergence():
 
         plt.show()
 
-    def errors(sol, sol_ref, t_transient=2, t_longterm=2):
+    def errors(sol, sol_ref, t_transient=0.1 * t1, t_longterm=0.1 * t1):
+        # def errors(sol, sol_ref, t_transient=2, t_longterm=2)
         # def errors(sol, sol_ref, t_transient=0.01, t_longterm=0.01):
         # def errors(sol, sol_ref, t_transient=4, t_longterm=4):
         t = sol.t
@@ -734,7 +746,20 @@ def convergence():
         # sol = GeneralizedAlphaSecondOrder(
         #     model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=False
         # ).solve()
-        sol = Rattle(model, t1, dt, atol=tol).solve()
+        # sol = Rattle(model, t1, dt, atol=tol).solve()
+        # (
+        #     q_errors_transient[0, i],
+        #     u_errors_transient[0, i],
+        #     la_g_errors_transient[0, i],
+        #     la_gamma_errors_transient[0, i],
+        #     q_errors_longterm[0, i],
+        #     u_errors_longterm[0, i],
+        #     la_g_errors_longterm[0, i],
+        #     la_gamma_errors_longterm[0, i],
+        # ) = errors(sol, reference1)
+
+        # sol = NonsmoothPIRK(model, t1, dt, RadauIIATableau(2), atol=tol).solve()
+        sol = Solver(model, t1, dt, atol=tol, **kwargs).solve()
         (
             q_errors_transient[0, i],
             u_errors_transient[0, i],
@@ -744,7 +769,7 @@ def convergence():
             u_errors_longterm[0, i],
             la_g_errors_longterm[0, i],
             la_gamma_errors_longterm[0, i],
-        ) = errors(sol, reference1)
+        ) = errors(sol, reference)
 
         # # generalized alpha for mechanical systems in first order form (velocity formulation)
         # sol = GeneralizedAlphaFirstOrder(
@@ -828,8 +853,13 @@ def convergence():
     fig, ax = plt.subplots(1, 2)
 
     ax[0].set_title("transient")
-    ax[0].loglog(dts, dts_1, "-k", label="dt")
-    ax[0].loglog(dts, dts_2, "--k", label="dt^2")
+    ax[0].loglog(dts, dts, "-k", label="dt")
+    ax[0].loglog(dts, dts**2, "--k", label="dt^2")
+    ax[0].loglog(dts, dts**3, "-.k", label="dt^3")
+    ax[0].loglog(dts, dts**4, ":k", label="dt^4")
+    ax[0].loglog(dts, dts**5, "-ok", label="dt^5")
+    ax[0].loglog(dts, dts**6, "-xk", label="dt^6")
+    ax[0].loglog(dts, dts**7, "-sk", label="dt^7")
     ax[0].loglog(dts, q_errors_transient[0], "-.ro", label="q")
     ax[0].loglog(dts, u_errors_transient[0], "-.go", label="u")
     ax[0].loglog(dts, la_g_errors_transient[0], "-.bo", label="la_g")
@@ -838,8 +868,13 @@ def convergence():
     ax[0].legend()
 
     ax[1].set_title("long term")
-    ax[1].loglog(dts, dts_1, "-k", label="dt")
-    ax[1].loglog(dts, dts_2, "--k", label="dt^2")
+    ax[1].loglog(dts, dts, "-k", label="dt")
+    ax[1].loglog(dts, dts**2, "--k", label="dt^2")
+    ax[1].loglog(dts, dts**3, "-.k", label="dt^3")
+    ax[1].loglog(dts, dts**4, ":k", label="dt^4")
+    ax[1].loglog(dts, dts**5, "-ok", label="dt^5")
+    ax[1].loglog(dts, dts**6, "-xk", label="dt^6")
+    ax[1].loglog(dts, dts**7, "-sk", label="dt^7")
     ax[1].loglog(dts, q_errors_longterm[0], "-.ro", label="q")
     ax[1].loglog(dts, u_errors_longterm[0], "-.go", label="u")
     ax[1].loglog(dts, la_g_errors_longterm[0], "-.bo", label="la_g")
@@ -851,5 +886,5 @@ def convergence():
 
 
 if __name__ == "__main__":
-    state()
-    # convergence()
+    # state()
+    convergence()
