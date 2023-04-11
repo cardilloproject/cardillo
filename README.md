@@ -16,11 +16,12 @@
   - [Documentation](#documentation)
   - [Developing](#developing)
     - [Pre-requisites](#pre-requisites)
-    - [Naming conventions](#naming-conventions)
+    - [Naming Conventions](#naming-conventions)
     - [Useful links](#useful-links)
+    - [Further information](#further-information)
 
 ## Requirements
-* Python 3.x (tested on Python 3.8 for Ubuntu 20.04.4 LTS)
+* Python 3.x (tested on Python 3.10 for Ubuntu 22.04.2 LTS)
 
 ## Installation
 To install the package, clone or download the current repository, open a console, navigate to the root folder of the project and run `pip install .`.
@@ -28,7 +29,7 @@ To install the package, clone or download the current repository, open a console
 ```bash
 git clone https://github.tik.uni-stuttgart.de/inm-cardillo/cardillo.git
 cd cardillo3
-pip install .
+pip install -e .
 ```
 
 ## Virtual environments
@@ -96,3 +97,6 @@ https://peps.python.org/pep-0008/#naming-conventions
 
 * A nice and simple [git introduction](https://rogerdudler.github.io/git-guide/index.html) and a short [git cheat sheet](https://about.gitlab.com/images/press/git-cheat-sheet.pdf).
 * Conversation of LaTeX expressions to unicode: [https://www.unicodeit.net/](https://www.unicodeit.net/)
+
+### Further information
+go to [this folder](man)

@@ -89,8 +89,8 @@ class RigidBodyQuaternion(RigidBodyBase):
         B = T_SO3_inv_quat(p) / (p @ p)
         p_dot = B @ u[3:]
         p_ddot = (
-            B @ u_dot
-            + np.einsum("ijk,k,j->i", T_SO3_inv_quat_P(q), p_dot, u)
+            B @ u_dot[3:]
+            + np.einsum("ijk,k,j->i", T_SO3_inv_quat_P(q[3:]), p_dot, u[3:])
             + 2 * p_dot * (p @ p_dot) / p2
         )
 

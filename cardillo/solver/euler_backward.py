@@ -572,13 +572,13 @@ class NonsmoothBackwardEuler:
         )
         # fmt: on
 
-        return J
+        # return J
 
         J_num = csr_matrix(approx_fprime(yn1, self.R))
 
         diff = (J - J_num).toarray()
         # diff = diff[:self.split[0]]
-        diff = diff[self.split[0] : self.split[1]]
+        # diff = diff[self.split[0] : self.split[1]]
         # diff = diff[self.split[0]:self.split[1], : self.split[0]]
         # diff = diff[self.split[1]:self.split[2]]
         # diff = diff[self.split[2]:self.split[3]]
@@ -591,59 +591,6 @@ class NonsmoothBackwardEuler:
             print(f"error J: {error}")
 
         return J_num
-
-    def step(self, xn1, f, G):
-        # only compute optimized proxparameters once per time step
-        self.prox_r_N = self.system.prox_r_N(self.tn, self.qn)
-        self.prox_r_F = self.system.prox_r_F(self.tn, self.qn)
-
-        # initial residual and error
-        R = f(xn1, update_index=True)
-        error = self.error_function(R)
-        converged = error < self.tol
-
-        # print(f"initial error: {error}")
-        j = 0
-        if not converged:
-            while j < self.max_iter:
-                # jacobian
-                J = G(xn1)
-
-                # Newton update
-                j += 1
-
-                # dx = spsolve(J, R, use_umfpack=True)
-                dx = spsolve(J, R, use_umfpack=False)
-
-                # dx = lsqr(J, R, atol=1.0e-12, btol=1.0e-12)[0]
-
-                # # no underflow errors
-                # dx = np.linalg.lstsq(J.toarray(), R, rcond=None)[0]
-
-                # # Can we get this sparse?
-                # # using QR decomposition, see https://de.wikipedia.org/wiki/QR-Zerlegung#L%C3%B6sung_regul%C3%A4rer_oder_%C3%BCberbestimmter_Gleichungssysteme
-                # b = R.copy()
-                # Q, R = np.linalg.qr(J.toarray())
-                # z = Q.T @ b
-                # dx = np.linalg.solve(R, z)  # solving R*x = Q^T*b
-
-                # # solve normal equation (should be independent of the conditioning
-                # # number!)
-                # dx = spsolve(J.T @ J, J.T @ R)
-
-                xn1 -= dx
-
-                R = f(xn1, update_index=True)
-                error = self.error_function(R)
-                converged = error < self.tol
-                if converged:
-                    break
-
-            if not converged:
-                # raise RuntimeError("internal Newton-Raphson not converged")
-                print(f"not converged!")
-
-        return converged, j, error, xn1
 
     def solve(self):
         # lists storing output variables
@@ -677,6 +624,7 @@ class NonsmoothBackwardEuler:
                 jac=self.J,
                 fun_args=(True,),
                 jac_args=(False,),
+                max_iter=self.max_iter,
             )
             niter.append(n_iter)
 

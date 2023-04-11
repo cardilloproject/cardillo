@@ -1,4 +1,5 @@
 import numpy as np
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
@@ -34,7 +35,7 @@ class Ball(RigidBodyEuler):
         return np.repeat(self.r_OP(t, q), n).reshape(3, n) + self.A_IK(t, q) @ K_r_SP
 
 
-def run(case):
+def run(case, export=True):
     """Example 10.1 of Capobianco2021.
 
     Three different cases are implemented:
@@ -145,6 +146,95 @@ def run(case):
     # La_F2 = sol2.La_F
     P_N2 = sol2.P_N
     P_F2 = sol2.P_F
+
+    if export:
+        path = Path(__file__)
+
+        ###############
+        # gap functions
+        ###############
+        g_N1 = np.array([system.g_N(ti, qi) for ti, qi in zip(sol1.t, sol1.q)])
+        np.savetxt(
+            path.parent / "g_N1.dat",
+            np.hstack((sol1.t[:, None], g_N1)),
+            delimiter=", ",
+            header="t, g_N",
+            comments="",
+        )
+
+        g_N2 = np.array([system.g_N(ti, qi) for ti, qi in zip(sol2.t, sol2.q)])
+        np.savetxt(
+            path.parent / "g_N2.dat",
+            np.hstack((sol2.t[:, None], g_N2)),
+            delimiter=", ",
+            header="t, g_N",
+            comments="",
+        )
+
+        ################
+        # contact forces
+        ################
+        np.savetxt(
+            path.parent / "P_N1.dat",
+            np.hstack((sol1.t[:, None], P_N1)),
+            delimiter=", ",
+            header="t, P_N",
+            comments="",
+        )
+        np.savetxt(
+            path.parent / "P_N2.dat",
+            np.hstack((sol2.t[:, None], P_N2)),
+            delimiter=", ",
+            header="t, P_N",
+            comments="",
+        )
+        np.savetxt(
+            path.parent / "int_P_N1.dat",
+            np.hstack((sol1.t[:, None], np.cumsum(P_N1, axis=0))),
+            delimiter=", ",
+            header="t, P_N",
+            comments="",
+        )
+        np.savetxt(
+            path.parent / "int_P_N2.dat",
+            np.hstack((sol2.t[:, None], np.cumsum(P_N2, axis=0))),
+            delimiter=", ",
+            header="t, P_N",
+            comments="",
+        )
+
+        #################
+        # friction forces
+        #################
+        if mu > 0:
+            np.savetxt(
+                path.parent / "P_F1.dat",
+                np.hstack((sol1.t[:, None], P_F1)),
+                delimiter=", ",
+                header="t, P_F1, P_F2",
+                comments="",
+            )
+            np.savetxt(
+                path.parent / "P_F2.dat",
+                np.hstack((sol2.t[:, None], P_F2)),
+                delimiter=", ",
+                header="t, P_F1, P_F2",
+                comments="",
+            )
+            np.savetxt(
+                path.parent / "int_P_F1.dat",
+                np.hstack((sol1.t[:, None], np.cumsum(P_F1, axis=0))),
+                delimiter=", ",
+                header="t, P_F1, P_F2",
+                comments="",
+            )
+            np.savetxt(
+                path.parent / "int_P_F2.dat",
+                np.hstack((sol2.t[:, None], np.cumsum(P_F2, axis=0))),
+                delimiter=", ",
+                header="t, P_F1, P_F2",
+                comments="",
+            )
 
     fig, ax = plt.subplots(2, 3)
 

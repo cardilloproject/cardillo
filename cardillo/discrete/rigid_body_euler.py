@@ -1,9 +1,8 @@
 from typing import Optional
-from unicodedata import ucd_3_2_0
 import numpy as np
 import numpy.typing as npt
 from cardillo.discrete._base import RigidBodyBase
-from cardillo.math import cross3, ax2skew, inv3D, A_IK_basic, approx_fprime
+from cardillo.math import inv3D, approx_fprime, A_IK_basic
 
 
 class RigidBodyEuler(RigidBodyBase):

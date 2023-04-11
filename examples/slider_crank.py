@@ -1,5 +1,5 @@
 import numpy as np
-
+from pathlib import Path
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
@@ -658,8 +658,9 @@ class SliderCrankDAE:
         # initial conditions
         theta10 = 0
         theta20 = 0
-        theta30 = 0
-        # theta30 = 5 * np.pi / 180
+        # theta30 = 0
+        # theta30 = 1 * np.pi / 180
+        theta30 = 0.017  # approx. 1 * np.pi / 180
 
         r_OP10 = self.l1 * np.array([np.cos(theta10), np.sin(theta10)])
         r_P1P20 = self.l2 * np.array([np.cos(theta20), np.sin(theta20)])
@@ -694,6 +695,10 @@ class SliderCrankDAE:
         self.la_N0 = np.zeros(self.nla_N)
         self.la_F0 = np.zeros(self.nla_F)
         self.la_g0 = np.zeros(self.nla_g)
+
+        print(f"q0: {self.q0}")
+        print(f"u0: {self.u0}")
+        # exit()
 
     def contour_crank(self, q):
         x1, y1, theta1, _, _, _, _, _, _ = q
@@ -1156,7 +1161,7 @@ def run_Flores():
         # anim.save('slider_crank.mp4', writer=writer)
 
 
-def run_DAE():
+def run_DAE(export=True):
     animate = True
     # animate = False
 
@@ -1316,6 +1321,65 @@ def run_DAE():
         ax[2, i].set_ylabel(f"gamma_F_dot{i + 1} [m/s]")
 
     plt.tight_layout()
+
+    if export:
+        path = Path(__file__)
+
+        np.savetxt(
+            path.parent / "state1.dat",
+            np.hstack((sol1.t[:, None], q1, u1)),
+            delimiter=", ",
+            header="t, x1, y1, phi1, x2, y2, phi2, x3, y3, phi3, u1, v1, omega1, u2, v2, omega2, u3, v3, omega3",
+            comments="",
+        )
+
+        np.savetxt(
+            path.parent / "g1.dat",
+            np.hstack((sol1.t[:, None], g1)),
+            delimiter=", ",
+            header="t, g1, g2, g3, g4, g5, g6",
+            comments="",
+        )
+
+        np.savetxt(
+            path.parent / "g_N1.dat",
+            np.hstack((sol1.t[:, None], g_N1)),
+            delimiter=", ",
+            header="t, g_N1, g_N2, g_N3, g_N4",
+            comments="",
+        )
+
+        np.savetxt(
+            path.parent / "g_N_dot1.dat",
+            np.hstack((sol1.t[:, None], g_N_dot1)),
+            delimiter=", ",
+            header="t, g_N_dot1, g_N_dot2, g_N_dot3, g_N_dot4",
+            comments="",
+        )
+
+        # np.savetxt(
+        #     path.parent / "state2.dat",
+        #     np.hstack((sol2.t[:, None], q2, u2)),
+        #     delimiter=", ",
+        #     header="t, x1, y1, phi1, x2, y2, phi2, x3, y3, phi3, u1, v1, omega1, u2, v2, omega2, u3, v3, omega3",
+        #     comments="",
+        # )
+
+        # np.savetxt(
+        #     path.parent / "g2.dat",
+        #     np.hstack((sol1.t[:, None], g2)),
+        #     delimiter=", ",
+        #     header="t, g1, g2, g3, g4, g5, g6",
+        #     comments="",
+        # )
+
+        # np.savetxt(
+        #     path.parent / "g_N2.dat",
+        #     np.hstack((sol1.t[:, None], g_N2)),
+        #     delimiter=", ",
+        #     header="t, g_N1, g_N2, g_N3, g_N4",
+        #     comments="",
+        # )
 
     if not animate:
         plt.show()
