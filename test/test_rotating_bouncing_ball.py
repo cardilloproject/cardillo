@@ -273,7 +273,7 @@ def run(case):
 
 
 if __name__ == "__main__":
-    # run(1)
+    run(1)
     # run(2)
     # run(3)
-    run(4)
+    # run(4)

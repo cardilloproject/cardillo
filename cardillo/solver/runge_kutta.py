@@ -667,6 +667,14 @@ class NonsmoothPIRK:
         P_gamman1 = h * dP_gamma @ self.b + Delta_P_gamma
         P_Nn1 = h * dP_N @ self.b + Delta_P_N
         P_Fn1 = h * dP_F @ self.b + Delta_P_F
+        # P_gn1 =  dP_g @ self.b + Delta_P_g
+        # P_gamman1 = dP_gamma @ self.b + Delta_P_gamma
+        # P_Nn1 = dP_N @ self.b + Delta_P_N
+        # P_Fn1 = dP_F @ self.b + Delta_P_F
+        # P_gn1 = dP_g[:, -1] + Delta_P_g
+        # P_gamman1 = dP_gamma[:, -1] + Delta_P_gamma
+        # P_Nn1 = h * dP_N[:, -1] + Delta_P_N
+        # P_Fn1 = h * dP_F[:, -1] + Delta_P_F
 
         # P_gn1 = self.P_gn + h * dP_g @ self.b + Delta_P_g
         # P_gamman1 = self.P_gamman + h * dP_gamma @ self.b + Delta_P_gamma
@@ -728,7 +736,6 @@ class NonsmoothPIRK:
                 - self.system.W_g(ti, Qi) @ dP_g[:, i]
                 - self.system.W_gamma(ti, Qi) @ dP_gamma[:, i]
                 - self.system.W_N(ti, Qi) @ dP_N[:, i]
-                # - self.system.W_N(ti, Qi) @ (self.P_Nn + h * dP_N @ self.A[i])
                 - self.system.W_F(ti, Qi) @ dP_F[:, i]
             )
 
@@ -884,6 +891,7 @@ class NonsmoothPIRK:
         prox_arg = xi_Nn1 - prox_r_N * P_Nn1
         if update_index:
             self.A_N = np.any(self.I_N, axis=0)
+            # self.A_N = self.I_N[-1]
             self.B_N = self.A_N * (prox_arg <= 0)
 
         R[self.split_y[8] : self.split_y[9]] = np.where(
@@ -923,10 +931,12 @@ class NonsmoothPIRK:
         self.un1 = un1.copy()
         # self.P_gn1 = P_gn1.copy()
         # self.P_gamman1 = P_gamman1.copy()
-        self.P_gn1 = dP_g[:, -1]  # results in s - 1 convergence, see Jay1995
-        self.P_gamman1 = dP_gamma[:, -1]  # results in s - 1 convergence, see Jay1995
-        # self.P_gn1 = dP_g[:, -1] + Delta_P_g  # results in s - 1 convergence
-        # self.P_gamman1 = dP_gamma[:, -1] + Delta_P_gamma  # results in s - 1 convergence
+        # self.P_gn1 = dP_g[:, -1]  # results in s - 1 convergence, see Jay1995
+        # self.P_gamman1 = dP_gamma[:, -1]  # results in s - 1 convergence, see Jay1995
+        # TODO: The formualtion below fits perfectly into the interpretation of
+        #       a right limit of the Lagrange multipliers.
+        self.P_gn1 = dP_g[:, -1] + Delta_P_g  # results in s - 1 convergence
+        self.P_gamman1 = dP_gamma[:, -1] + Delta_P_gamma  # results in s - 1 convergence
         # self.P_gn1 = dP_g @ self.b # no convergence
         # self.P_gamman1 = dP_gamma @ self.b # no convergence
         self.P_Nn1 = P_Nn1.copy()

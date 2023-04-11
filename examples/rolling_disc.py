@@ -461,16 +461,6 @@ def convergence():
     # dts = (2.0 ** np.arange(8, 1, -1)) * dt_ref  # [5.12e-2, ..., 8e-4]
     # t1 = (2.0**15) * dt_ref  # 6.5536s
 
-    # # TODO: Why this setup gets killed!
-    # dt_ref = 1e-4
-    # dts = (2.0 ** np.arange(9, 1, -1)) * dt_ref  # [5.12e-2, ..., 4e-4]
-    # t1 = (2.0**16) * dt_ref  # 6.5536s
-
-    # # TODO: Why this setup gets killed!
-    # dt_ref = 5e-5
-    # dts = (2.0 ** np.arange(10, 1, -1)) * dt_ref  # [5.12e-2, ..., 2e-4]
-    # t1 = (2.0**17) * dt_ref # 6.5536s
-
     # # TODO:
     # # Final version used by Martin
     # dt_ref = 2.5e-5
@@ -536,7 +526,7 @@ def convergence():
     #     model, t1, dt_ref, rho_inf=rho_inf, tol=tol_ref, GGL=False
     # ).solve()
 
-    print(f"compute reference solution with first order method:")
+    print(f"compute reference solution:")
     # reference1 = GeneralizedAlphaFirstOrder(
     #     model,
     #     t1,
@@ -547,14 +537,19 @@ def convergence():
     #     GGL=False,
     # ).solve()
 
-    # Solver, label, kwargs = NonsmoothPIRK, "Radau IIa(1)", {"butcher_tableau": RadauIIATableau(1)}
     Solver, label, kwargs = (
         NonsmoothPIRK,
+        # "Radau IIa(1)",
+        # {"butcher_tableau": RadauIIATableau(1)},
         "Radau IIa(2)",
         {"butcher_tableau": RadauIIATableau(2)},
+        # "Radau IIa(3)",
+        # {"butcher_tableau": RadauIIATableau(3)},
+        # "Radau IIa(4)",
+        # {"butcher_tableau": RadauIIATableau(4)},
+        # "Radau IIa(5)",
+        # {"butcher_tableau": RadauIIATableau(5)},
     )
-    # Solver, label, kwargs = NonsmoothPIRK, "Radau IIa(3)", {"butcher_tableau": RadauIIATableau(3)}
-    # Solver, label, kwargs = NonsmoothPIRK, "Radau IIa(4)", {"butcher_tableau": RadauIIATableau(4)}
 
     # reference1 = Rattle(model, t1, dt_ref, atol=tol_ref).solve()
     # reference = NonsmoothPIRK(model, t1, dt_ref, RadauIIATableau(2), atol=tol_ref).solve()
