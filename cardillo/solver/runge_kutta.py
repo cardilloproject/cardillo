@@ -189,6 +189,19 @@ class RadauIA3Tableau(ButcherTableau):
         super().__init__(A, b, c)
 
 
+def is_positive_definite(A):
+    A = np.asarray(A)
+    rows, cols = A.shape
+    assert rows == cols
+    for i in range(rows):
+        det = np.linalg.det(A[:i, :i])
+        if det > 0:
+            continue
+        else:
+            return False
+    return True
+
+
 class RadauIIATableau(ButcherTableau):
     def __init__(self, s=2):
         """
@@ -529,8 +542,10 @@ class NonsmoothPIRK:
 
         self.la_Nn = system.la_N0
         self.la_Fn = system.la_F0
-        self.Delta_P_g = self.la_gn
-        self.Delta_P_gamma = self.la_gamman
+        self.P_gn = self.la_gn
+        self.P_gamman = self.la_gamman
+        self.P_Nn = self.la_Nn
+        self.P_Fn = self.la_Fn
 
         # TODO: How do we initialized contact forces/ percussions?
         self.yn = np.concatenate(
@@ -652,6 +667,26 @@ class NonsmoothPIRK:
         P_gamman1 = h * dP_gamma @ self.b + Delta_P_gamma
         P_Nn1 = h * dP_N @ self.b + Delta_P_N
         P_Fn1 = h * dP_F @ self.b + Delta_P_F
+
+        # P_gn1 = self.P_gn + h * dP_g @ self.b + Delta_P_g
+        # P_gamman1 = self.P_gamman + h * dP_gamma @ self.b + Delta_P_gamma
+        # P_Nn1 = self.P_Nn + h * dP_N @ self.b + Delta_P_N
+        # P_Fn1 = self.P_Fn + h * dP_F @ self.b + Delta_P_F
+
+        # P_gn1 = self.P_gn + h * dP_g @ self.b + Delta_P_g
+        # P_gamman1 = self.P_gamman + h * dP_gamma @ self.b + Delta_P_gamma
+        # # P_Nn1 = (1 - d @ np.ones(self.stages)) * self.P_Nn + dP_N @ d + Delta_P_N
+        # # P_Fn1 = (1 - d @ np.ones(self.stages)) * self.P_Nn + dP_F @ d + Delta_P_F
+        # # P_Nn1 = self.P_Nn + h * (dP_N @ d - self.P_Nn) + Delta_P_N
+        # # P_Fn1 = self.P_Fn + h * (dP_F @ d - self.P_Fn) + Delta_P_F
+        # # d = self.b.T @ np.linalg.inv(self.A)
+        # # P_Nn1 = self.P_Nn + h * (dP_N @ self.b - self.P_Nn) + Delta_P_N
+        # # P_Fn1 = self.P_Fn + h * (dP_F @ self.b - self.P_Fn) + Delta_P_F
+        # P_Nn1 = self.P_Nn + h * dP_N @ self.b + Delta_P_N
+        # P_Fn1 = self.P_Fn + h * dP_F @ self.b + Delta_P_F
+
+        # P_Nn1 = Delta_P_N
+        # P_Fn1 = Delta_P_F
         # P_gn1 = dP_g @ self.b + Delta_P_g
         # P_gamman1 = dP_gamma @ self.b + Delta_P_gamma
         # P_Nn1 = dP_N @ self.b + Delta_P_N
@@ -693,6 +728,7 @@ class NonsmoothPIRK:
                 - self.system.W_g(ti, Qi) @ dP_g[:, i]
                 - self.system.W_gamma(ti, Qi) @ dP_gamma[:, i]
                 - self.system.W_N(ti, Qi) @ dP_N[:, i]
+                # - self.system.W_N(ti, Qi) @ (self.P_Nn + h * dP_N @ self.A[i])
                 - self.system.W_F(ti, Qi) @ dP_F[:, i]
             )
 
@@ -732,14 +768,17 @@ class NonsmoothPIRK:
             ti = tn + self.c[i] * h
             Qi = qn + h * dq @ self.A[i]
             Ui = un + h * du @ self.A[i]
-            # P_Ni = h * dP_N @ self.A[i]
+            P_Ni = h * dP_N @ self.A[i]
             # Qi = qn + dq @ self.A[i]
             # Ui = un + du @ self.A[i]
-            P_Ni = dP_N @ self.A[i]
+            # P_Ni = self.P_Nn + h * dP_N @ self.A[i]
+            # P_Ni = dP_N[:, i]
+            # P_Ni = dP_N @ self.A[i]
 
             g_Ni = self.system.g_N(ti, Qi)
 
             prox_arg = g_Ni - prox_r_N * P_Ni
+            # prox_arg = prox_r_N * g_Ni - P_Ni
             if update_index:
                 self.I_N[i] = prox_arg <= 0.0
 
@@ -752,6 +791,12 @@ class NonsmoothPIRK:
                 g_Ni,
                 P_Ni,
             )
+            # R[
+            #     self.split_y[3]
+            #     + i * self.nla_N : self.split_y[3]
+            #     + (i + 1) * self.nla_N
+            # ] = P_Ni + prox_R0_nm(prox_r_N * g_Ni - P_Ni)
+            # # ] = g_Ni - prox_R0_nm(-prox_r_N * P_Ni + g_Ni)
 
         ##################
         # Coulomb friction
@@ -762,12 +807,12 @@ class NonsmoothPIRK:
             ti = tn + self.c[i] * h
             Qi = qn + h * dq @ self.A[i]
             Ui = un + h * du @ self.A[i]
-            # P_Ni = h * dP_N @ self.A[i]
-            # P_Fi = h * dP_F @ self.A[i]
+            P_Ni = h * dP_N @ self.A[i]
+            P_Fi = h * dP_F @ self.A[i]
             # Qi = qn + dq @ self.A[i]
             # Ui = un + du @ self.A[i]
-            P_Ni = dP_N @ self.A[i]
-            P_Fi = dP_F @ self.A[i]
+            # P_Ni = dP_N @ self.A[i]
+            # P_Fi = dP_F @ self.A[i]
 
             gamma_Fi = self.system.gamma_F(ti, Qi, Ui)
 
@@ -837,7 +882,6 @@ class NonsmoothPIRK:
         ##################################################
         xi_Nn1 = self.system.xi_N(tn1, qn1, un, un1)
         prox_arg = xi_Nn1 - prox_r_N * P_Nn1
-        # prox_arg = xi_Nn1 - prox_r_N * Delta_P_N
         if update_index:
             self.A_N = np.any(self.I_N, axis=0)
             self.B_N = self.A_N * (prox_arg <= 0)
@@ -846,15 +890,7 @@ class NonsmoothPIRK:
             self.B_N,
             xi_Nn1,
             P_Nn1,
-            # Delta_P_N,
         )
-
-        # # R[self.split_y[8] : self.split_y[9]] = np.where(
-        # #     np.any(self.I, axis=0),
-        # #     xi_Nn1 - prox_R0_np(xi_Nn1 - prox_r_N * P_Nn1),
-        # #     # P_Nn1 + prox_R0_nm(prox_r_N * xi_Nn1 - P_Nn1),
-        # #     P_Nn1,
-        # # )
 
         ##################################################
         # mixed Coulomb friction and tangent impact law
@@ -1678,6 +1714,10 @@ class NonsmoothPIRK:
             # update local variables for accepted time step
             self.qn = self.qn1.copy()
             self.un = self.un1.copy()
+            self.P_gn = self.P_gn1.copy()
+            self.P_gamman = self.P_gamman1.copy()
+            self.P_Nn = self.P_Nn1.copy()
+            self.P_Fn = self.P_Fn1.copy()
 
             # warmstart for next iteration
             self.tn = tn1
