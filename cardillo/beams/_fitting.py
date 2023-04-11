@@ -2,7 +2,7 @@ import numpy as np
 
 from scipy.optimize import minimize
 from scipy.optimize import least_squares
-from cardillo.math import SE3, SE3inv, Log_SE3
+from cardillo.math import SE3, SE3inv, Log_SE3, Log_SE3_H
 
 
 # TODO: Add clamping for first and last node
@@ -110,6 +110,7 @@ def fit_configuration(
             el = rod.element_number(xi)
             elDOF = rod.elDOF[el]
             qe = q[elDOF]
+            H_qe = np.zeros((4, 4, len(qe)))
 
             # interpolate position and orientation
             # r_OP, A_IK, _, _ = rod._eval(qe, xi)
@@ -124,14 +125,24 @@ def fit_configuration(
                 K_Kappa_bar_qe,
             ) = rod._deval(qe, xi)
 
-            H_qe = SE
+            # compute homogeneous transformation
+            H = SE3(A_IK, r_OP)
+
+            Log_invHsH_H = Log_SE3_H(SE3inv(Hs[i]) @ H)
+
+
+
+            H_qe[:3, :3, :] = A_IK_qe
+            H_qe[:3, 3, :] = r_OP_qe
 
             # compute relative rotation vector
-            psi_rel_A_rel = Log_SO3_A(r_OPs[i].T @ A_IK)
-            psi_rel_qe = np.einsum("ikl,mk,mlj->ij", psi_rel_A_rel, r_OPs[i], A_IK_qe)
+            # psi_rel_A_rel = Log_SO3_A(r_OPs[i].T @ A_IK)
+            # psi_rel_qe = np.einsum("ikl,mk,mlj->ij", psi_rel_A_rel, r_OPs[i], A_IK_qe)
+
+            invHsH_H = np.einsum('ij,jl,km->iklm', SE3inv(Hs[i]), np.eye(4), np.eye(4))
 
             # insert to residual
-            J[3 * i : 3 * (i + 1), elDOF] = psi_rel_qe
+            J[6 * i : 6 * (i + 1), elDOF] = np.einsum('ikl,klmn,mno->io', Log_invHsH_H, invHsH_H,  H_qe)
 
             # def psi_rel(qe):
             #     # evaluate shape functions
@@ -155,18 +166,19 @@ def fit_configuration(
 
         # return J
 
-        from cardillo.math import approx_fprime
+        # from cardillo.math import approx_fprime
 
-        J_num = approx_fprime(q, residual)
-        diff = J - J_num
-        error = np.linalg.norm(diff)
-        print(f"error J: {error}")
-        return J_num
+        # J_num = approx_fprime(q, residual)
+        # diff = J - J_num
+        # error = np.linalg.norm(diff)
+        # print(f"error J: {error}")
+        # return J_num
+        return J
 
     res = least_squares(
         residual,
         Q0,
-        # jac=jac,
+        jac=jac,
         method="trf",
         verbose=2,
     )
