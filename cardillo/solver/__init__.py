@@ -2,7 +2,7 @@
 from .solution import Solution, save_solution, load_solution
 
 # common solver functionality
-from ._base import consistent_initial_conditions, compute_I_F
+from ._base import consistent_initial_conditions, compute_I_F, constraint_forces
 
 # dynamic solvers
 from .scipy_ivp import ScipyIVP

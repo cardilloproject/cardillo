@@ -592,12 +592,15 @@ def convergence():
     ###################################################################
     # compute reference solution as described in Arnold2015 Section 3.3
     ###################################################################
+    Solver, label, kwargs = Rattle, "Rattle", {}
+
     print(f"compute reference solution with rattle:")
-    reference = Rattle(
+    reference = Solver(
         system,
         t1,
         dt_ref,
         atol=tol_ref,
+        **kwargs,
     ).solve()
 
     # print(f"compute reference solution with first order method:")
@@ -702,7 +705,7 @@ def convergence():
     # exit()
 
     def errors(sol, sol_ref, t_transient=0.5 * t1, t_longterm=0.5 * t1):
-    # def errors(sol, sol_ref, t_transient=0.1, t_longterm=0.5):
+        # def errors(sol, sol_ref, t_transient=0.1, t_longterm=0.5):
         t = sol.t
         q = sol.q
         u = sol.u
@@ -780,11 +783,12 @@ def convergence():
     for i, dt in enumerate(dts):
         print(f"i: {i}, dt: {dt:1.1e}")
 
-        sol = Rattle(
+        sol = Solver(
             system,
             t1,
             dt,
             atol=tol,
+            **kwargs,
         ).solve()
         (
             q_errors_transient[0, i],
@@ -898,61 +902,25 @@ def convergence():
     ##################
     # visualize errors
     ##################
-    fig, ax = plt.subplots(3, 2)
+    fig, ax = plt.subplots(1, 2)
 
-    ax[0, 0].set_title("transient: Rattle")
-    ax[0, 0].loglog(dts, dts_1, "-k", label="dt")
-    ax[0, 0].loglog(dts, dts_2, "--k", label="dt^2")
-    ax[0, 0].loglog(dts, q_errors_transient[0], "-.ro", label="q")
-    ax[0, 0].loglog(dts, u_errors_transient[0], "-.go", label="u")
-    ax[0, 0].loglog(dts, la_g_errors_transient[0], "-.bo", label="la_g")
-    ax[0, 0].grid()
-    ax[0, 0].legend()
+    ax[0].set_title("transient: Rattle")
+    ax[0].loglog(dts, dts_1, "-k", label="dt")
+    ax[0].loglog(dts, dts_2, "--k", label="dt^2")
+    ax[0].loglog(dts, q_errors_transient[0], "-.ro", label="q")
+    ax[0].loglog(dts, u_errors_transient[0], "-.go", label="u")
+    ax[0].loglog(dts, la_g_errors_transient[0], "-.bo", label="la_g")
+    ax[0].grid()
+    ax[0].legend()
 
-    # ax[1, 0].set_title("transient: gen alpha 1st order (velocity form.)")
-    # ax[1, 0].loglog(dts, dts_1, "-k", label="dt")
-    # ax[1, 0].loglog(dts, dts_2, "--k", label="dt^2")
-    # ax[1, 0].loglog(dts, q_errors_transient[1], "-.ro", label="q")
-    # ax[1, 0].loglog(dts, u_errors_transient[1], "-.go", label="u")
-    # ax[1, 0].loglog(dts, la_g_errors_transient[1], "-.bo", label="la_g")
-    # ax[1, 0].grid()
-    # ax[1, 0].legend()
-
-    # ax[2, 0].set_title("transient: gen alpha 1st order (velocity form. + GGL)")
-    # ax[2, 0].loglog(dts, dts_1, "-k", label="dt")
-    # ax[2, 0].loglog(dts, dts_2, "--k", label="dt^2")
-    # ax[2, 0].loglog(dts, q_errors_transient[2], "-.ro", label="q")
-    # ax[2, 0].loglog(dts, u_errors_transient[2], "-.go", label="u")
-    # ax[2, 0].loglog(dts, la_g_errors_transient[2], "-.bo", label="la_g")
-    # ax[2, 0].grid()
-    # ax[2, 0].legend()
-
-    ax[0, 1].set_title("long term: Rattle")
-    ax[0, 1].loglog(dts, dts_1, "-k", label="dt")
-    ax[0, 1].loglog(dts, dts_2, "--k", label="dt^2")
-    ax[0, 1].loglog(dts, q_errors_longterm[0], "-.ro", label="q")
-    ax[0, 1].loglog(dts, u_errors_longterm[0], "-.go", label="u")
-    ax[0, 1].loglog(dts, la_g_errors_longterm[0], "-.bo", label="la_g")
-    ax[0, 1].grid()
-    ax[0, 1].legend()
-
-    # ax[1, 1].set_title("long term: gen alpha 1st order (velocity form.)")
-    # ax[1, 1].loglog(dts, dts_1, "-k", label="dt")
-    # ax[1, 1].loglog(dts, dts_2, "--k", label="dt^2")
-    # ax[1, 1].loglog(dts, q_errors_longterm[1], "-.ro", label="q")
-    # ax[1, 1].loglog(dts, u_errors_longterm[1], "-.go", label="u")
-    # ax[1, 1].loglog(dts, la_g_errors_longterm[1], "-.bo", label="la_g")
-    # ax[1, 1].grid()
-    # ax[1, 1].legend()
-
-    # ax[2, 1].set_title("long term: gen alpha 1st order (velocity form. + GGL)")
-    # ax[2, 1].loglog(dts, dts_1, "-k", label="dt")
-    # ax[2, 1].loglog(dts, dts_2, "--k", label="dt^2")
-    # ax[2, 1].loglog(dts, q_errors_longterm[2], "-.ro", label="q")
-    # ax[2, 1].loglog(dts, u_errors_longterm[2], "-.go", label="u")
-    # ax[2, 1].loglog(dts, la_g_errors_longterm[2], "-.bo", label="la_g")
-    # ax[2, 1].grid()
-    # ax[2, 1].legend()
+    ax[1].set_title("long term: Rattle")
+    ax[1].loglog(dts, dts_1, "-k", label="dt")
+    ax[1].loglog(dts, dts_2, "--k", label="dt^2")
+    ax[1].loglog(dts, q_errors_longterm[0], "-.ro", label="q")
+    ax[1].loglog(dts, u_errors_longterm[0], "-.go", label="u")
+    ax[1].loglog(dts, la_g_errors_longterm[0], "-.bo", label="la_g")
+    ax[1].grid()
+    ax[1].legend()
 
     plt.show()
 

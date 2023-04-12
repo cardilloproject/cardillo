@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.sparse.linalg import spsolve
-from scipy.sparse import coo_matrix, csr_matrix, bmat
+from scipy.sparse import coo_matrix, csc_matrix, csr_matrix, bmat
 
 
 def consistent_initial_conditions(system, rtol=1.0e-5, atol=1.0e-8):
@@ -14,7 +14,9 @@ def consistent_initial_conditions(system, rtol=1.0e-5, atol=1.0e-8):
     I_N = g_N <= 0.0
     g_N_dot = system.g_N_dot(t0, q0, u0)
     B_N = I_N * (g_N_dot <= 0)
-    assert np.all(I_N * g_N_dot >= 0)
+    assert np.all(I_N * g_N_dot >= 0) or np.allclose(
+        I_N * g_N_dot, np.zeros(system.nla_N), rtol, atol
+    ), "Initial conditions do not fulfill g_N_dot0!"
 
     q_dot0 = system.q_dot(t0, q0, u0)
 
@@ -34,21 +36,21 @@ def consistent_initial_conditions(system, rtol=1.0e-5, atol=1.0e-8):
     # fmt: off
     A = bmat(
         [
-            # [        M0, -W_g0, -W_gamma0],
-            # [    W_g0.T,  None,      None],
-            # [W_gamma0.T,  None,      None],
-            [        M0, -W_g0, -W_gamma0, -W_N0[:, B_N]],
-            [    W_g0.T,  None,      None,  None],
-            [W_gamma0.T,  None,      None,  None],
-            [W_N0[:, B_N].T,      None,      None,  None],
+            [        M0, -W_g0, -W_gamma0],
+            [    W_g0.T,  None,      None],
+            [W_gamma0.T,  None,      None],
+            # [        M0, -W_g0, -W_gamma0, -W_N0[:, B_N]],
+            # [    W_g0.T,  None,      None,  None],
+            # [W_gamma0.T,  None,      None,  None],
+            # [W_N0[:, B_N].T,      None,      None,  None],
         ],
         format="csc",
     )
     b = np.concatenate([
-        h0, # + W_N0 @ la_N0, # + W_F0 @ la_F0, 
+        h0 + W_N0 @ la_N0 + W_F0 @ la_F0, 
         -zeta_g0, 
         -zeta_gamma0,
-        -zeta_N0[B_N],
+        # -zeta_N0[B_N],
     ])
     # fmt: on
 
@@ -59,9 +61,10 @@ def consistent_initial_conditions(system, rtol=1.0e-5, atol=1.0e-8):
         system.nu + system.nla_g : system.nu + system.nla_g + system.nla_gamma
     ]
 
-    la_N0_ = u_dot_la_g_la_gamma[system.nu + system.nla_g + system.nla_gamma :]
-    la_N0 = np.zeros(system.nla_N)
-    la_N0[I_N] = la_N0_
+    # la_N0_ = u_dot_la_g_la_gamma[system.nu + system.nla_g + system.nla_gamma :]
+    # la_N0 = np.zeros(system.nla_N)
+    # la_N0[I_N] = la_N0_
+    la_N0 = system.la_N0
 
     # check if initial conditions satisfy constraints on position, velocity
     # and acceleration level
@@ -73,7 +76,12 @@ def consistent_initial_conditions(system, rtol=1.0e-5, atol=1.0e-8):
     g_S0 = system.g_S(t0, q0)
 
     g_N_ddot = system.g_N_ddot(t0, q0, u0, u_dot0)
-    assert np.all(B_N * g_N_ddot >= 0)
+    assert np.all(g_N_ddot >= 0) or np.allclose(
+        B_N * g_N_ddot, np.zeros(system.nla_N), rtol, atol
+    ), "Initial conditions do not fulfill g_N_ddot0!"
+    # assert np.allclose(
+    #     B_N * g_N_ddot, np.zeros(system.nla_N), rtol, atol
+    # ), "Initial conditions do not fulfill g_N_ddot0!"
 
     assert np.allclose(
         g0, np.zeros(system.nla_g), rtol, atol
@@ -109,3 +117,39 @@ def compute_I_F(I_N, NF_connectivity):
         I_F = np.array([], dtype=int)
 
     return I_F
+
+
+def constraint_forces(system, t, q, u):
+    W_g = system.W_g(t, q, scipy_matrix=csc_matrix)
+    W_gamma = system.W_gamma(t, q, scipy_matrix=csc_matrix)
+    zeta_g = system.zeta_g(t, q, u)
+    zeta_gamma = system.zeta_gamma(t, q, u)
+    M = system.M(t, q, scipy_matrix=csc_matrix)
+    h = system.h(t, q, u)
+
+    if system.nla_g > 0:
+        MW_g = (spsolve(M, W_g)).reshape((system.nu, system.nla_g))
+    else:
+        MW_g = csc_matrix((system.nu, system.nla_g))
+    if system.nla_gamma > 0:
+        MW_gamma = (spsolve(M, W_gamma)).reshape((system.nu, system.nla_gamma))
+    else:
+        MW_gamma = csc_matrix((system.nu, system.nla_gamma))
+    Mh = spsolve(M, h)
+
+    # fmt: off
+    G = bmat([[    W_g.T @ MW_g,     W_g.T @ MW_gamma], \
+                [W_gamma.T @ MW_g, W_gamma.T @ MW_gamma]], format="csc")
+    # fmt: on
+
+    mu = np.concatenate(
+        (
+            zeta_g + W_g.T @ Mh,
+            zeta_gamma + W_gamma.T @ Mh,
+        )
+    )
+    la = spsolve(G, -mu)
+    la_g = la[: system.nla_g]
+    la_gamma = la[system.nla_g :]
+    u_dot = spsolve(M, h + W_g @ la_g + W_gamma @ la_gamma)
+    return u_dot, la_g, la_gamma

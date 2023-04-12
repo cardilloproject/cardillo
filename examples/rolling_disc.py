@@ -537,21 +537,22 @@ def convergence():
     #     GGL=False,
     # ).solve()
 
-    Solver, label, kwargs = (
-        NonsmoothPIRK,
-        # "Radau IIa(1)",
-        # {"butcher_tableau": RadauIIATableau(1)},
-        "Radau IIa(2)",
-        {"butcher_tableau": RadauIIATableau(2)},
-        # "Radau IIa(3)",
-        # {"butcher_tableau": RadauIIATableau(3)},
-        # "Radau IIa(4)",
-        # {"butcher_tableau": RadauIIATableau(4)},
-        # "Radau IIa(5)",
-        # {"butcher_tableau": RadauIIATableau(5)},
-    )
+    # Solver, label, kwargs = (
+    #     NonsmoothPIRK,
+    #     # "Radau IIa(1)",
+    #     # {"butcher_tableau": RadauIIATableau(1)},
+    #     "Radau IIa(2)",
+    #     {"butcher_tableau": RadauIIATableau(2)},
+    #     # "Radau IIa(3)",
+    #     # {"butcher_tableau": RadauIIATableau(3)},
+    #     # "Radau IIa(4)",
+    #     # {"butcher_tableau": RadauIIATableau(4)},
+    #     # "Radau IIa(5)",
+    #     # {"butcher_tableau": RadauIIATableau(5)},
+    # )
 
-    # reference1 = Rattle(model, t1, dt_ref, atol=tol_ref).solve()
+    Solver, label, kwargs = Rattle, "Rattle", {}
+
     # reference = NonsmoothPIRK(model, t1, dt_ref, RadauIIATableau(2), atol=tol_ref).solve()
     reference = Solver(model, t1, dt_ref, atol=tol_ref, **kwargs).solve()
 

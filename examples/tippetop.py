@@ -14,6 +14,7 @@ from cardillo.solver import (
     MoreauShiftedNew,
     NonsmoothPIRK,
     RadauIIATableau,
+    NonsmoothGeneralizedAlpha,
 )
 from cardillo.contacts import Sphere2Plane
 from cardillo.constraints._base import ProjectedPositionOrientationBase
@@ -66,7 +67,7 @@ class Sphere2PlaneCoulombContensouMoeller:
         self.K_r_SP = K_r_SP
 
         self.la_N0 = np.zeros(self.nla_N) if la_N0 is None else la_N0
-        self.la_F0 = np.zeros(self.nla_F) #if la_F0 is None else la_F0
+        self.la_F0 = np.zeros(self.nla_F)  # if la_F0 is None else la_F0
 
     def assembler_callback(self):
         qDOF = self.subsystem.local_qDOF_P(self.frame_ID)
@@ -223,18 +224,33 @@ class Sphere2PlaneCoulombContensouMoeller:
     def gamma_F_q(self, t, q, u, coo):
         coo.extend(self.gamma_F_q_dense(t, q, u), (self.la_FDOF, self.qDOF))
 
-    def gamma_F_dot(self, t, q, u, u_dot):
-        raise NotImplementedError
-        # #TODO: t1t2_dot(t) & n_dot(t)
-        Omega = self.Omega(t, q, u)
-        r_PC = -self.R_sphere * self.n(t)
-        a_C = (
-            self.a_P(t, q, u, u_dot)
-            + cross3(self.Psi(t, q, u, u_dot), r_PC)
-            + cross3(Omega, cross3(Omega, r_PC))
-        )
-        gamma_F_dot = self.t1t2(t) @ (a_C - self.a_Q(t))
-        return gamma_F_dot
+    # def gamma_F_dot(self, t, q, u, u_dot):
+    #     # raise NotImplementedError
+    #     # #TODO: t1t2_dot(t) & n_dot(t)
+    #     Omega = self.Omega(t, q, u)
+    #     r_PC = -self.R_sphere * self.n(t)
+    #     a_C = (
+    #         self.a_P(t, q, u, u_dot)
+    #         + cross3(self.Psi(t, q, u, u_dot), r_PC)
+    #         + cross3(Omega, cross3(Omega, r_PC))
+    #     )
+    #     gamma_F_dot = self.t1t2(t) @ (a_C - self.a_Q(t))
+    #     return gamma_F_dot
+
+    def gamma_F_dot(self, t, q, u, a):
+        # A_IK = self.A_IK(t, q)
+        # v_C = self.v_P(t, q, u) + self.R_sphere * cross3(self.n(t), self.Omega(t, q, u))
+        Psi = self.Psi(t, q, u, a)
+        a_C = self.a_P(t, q, u, a) + self.R_sphere * cross3(self.n(t), Psi)
+        # K_r_SP1 = self.K_r_SC1 + A_IK.T @ np.array([0, 0, -self.R_sphere])
+        # a_C1 = self.a_P(t, q, u, a, self.K_r_SP)
+        # Psi = A_IK @ self.K_Psi(t, q, u, a)
+
+        ga_F_dot = np.zeros(3)
+        ga_F_dot[:2] = self.t1t2(t) @ a_C
+        ga_F_dot[2] = Psi[2]
+
+        return self.A.T @ ga_F_dot
 
     def gamma_F_dot_q(self, t, q, u, u_dot, coo):
         # #TODO: t1t2_dot(t) & n_dot(t)
@@ -491,7 +507,7 @@ class Sphere2PlaneDAE:
         gamma_u = self.gamma_u_dense(t, q)
 
         return gamma_q @ self.subsystem.q_dot(t, q, u) + gamma_u @ u_dot
-    
+
         # raise NotImplementedError
         # # #TODO: t1t2_dot(t) & n_dot(t)
         # Omega = self.Omega(t, q, u)
@@ -631,27 +647,27 @@ def make_system(RigidBodyBase):
     else:
         la_F0 = np.zeros(0, dtype=float)
     # contact1 = Sphere2Plane(
-    # # contact1 = Sphere2PlaneCoulombContensouMoeller(
+    contact1 = Sphere2PlaneCoulombContensouMoeller(
+        system.origin,
+        top,
+        R1,
+        R,
+        mu,
+        e_N,
+        e_F,
+        K_r_SP=K_r_SC1,
+        la_N0=la_N0,
+        la_F0=la_F0,
+    )
+    # contact2 = Sphere2Plane(
+    # # contact2 = Sphere2PlaneCoulombContensouMoeller(
     #     system.origin,
     #     top,
-    #     R1,
+    #     R2,
     #     # R,
     #     mu,
     #     e_N,
     #     e_F,
-    #     K_r_SP=K_r_SC1,
-    #     la_N0=la_N0,
-    #     la_F0=la_F0,
-    # )
-    # contact2 = Sphere2Plane(
-    # # contact2 = Sphere2PlaneCoulombContensouMoeller(
-    #     system.origin, 
-    #     top, 
-    #     R2, 
-    #     # R, 
-    #     mu, 
-    #     e_N, 
-    #     e_F, 
     #     K_r_SP=K_r_SC2,
     # )
     # contact1 = ProjectedPositionOrientationBase(
@@ -662,16 +678,18 @@ def make_system(RigidBodyBase):
     #     r_OB0=np.zeros(3, dtype=float),
     #     A_IB0=np.eye(3, dtype=float)
     # )
-    contact1 = Sphere2PlaneDAE(
-        system.origin,
-        top,
-        R1,
-        R,
-        mu,
-        e_N=None,
-        e_F=None,
-        K_r_SP=K_r_SC1
-    )
+
+    # # DAE case without friction
+    # contact1 = Sphere2PlaneDAE(
+    #     system.origin,
+    #     top,
+    #     R1,
+    #     R,
+    #     mu,
+    #     e_N=None,
+    #     e_F=None,
+    #     K_r_SP=K_r_SC1
+    # )
 
     gravity = Force(np.array([0, 0, -m * g]), top)
 
@@ -901,9 +919,11 @@ def convergence(export=True):
     # t1 = (2.0**12) * dt_ref # 0.4096 s
     # t1 = (2.0**10) * dt_ref # 0.1024 s
     # t1 = (2.0**9) * dt_ref  # 0.0512 s
-    t1 = (2.0**8) * dt_ref  # 0.0256 s
+    # t1 = (2.0**8) * dt_ref  # 0.0256 s
+    t1 = (2.0**6) * dt_ref  # 0.0256 s
     # dts = (2.0 ** np.arange(6, 1, -1)) * dt_ref
-    dts = (2.0 ** np.arange(8, 2, -1)) * dt_ref
+    # dts = (2.0 ** np.arange(8, 2, -1)) * dt_ref
+    dts = (2.0 ** np.arange(5, 2, -1)) * dt_ref
 
     print(f"t1: {t1}")
     print(f"dts: {dts}")
@@ -924,15 +944,19 @@ def convergence(export=True):
     ###################################################################
     # compute reference solution as described in Arnold2015 Section 3.3
     ###################################################################
-    # print(f"compute reference solution with classical Moreau:")
-    # reference = MoreauClassical(
-    #     system,
-    #     t1,
-    #     dt_ref,
-    #     atol=tol_ref
-    # ).solve()
-    print(f"compute reference solution with rattle:")
-    reference = Rattle(system, t1, dt_ref, atol=tol_ref).solve()
+    Solver, label, kwargs = Rattle, "Rattle", {}
+
+    # Solver, label, kwargs = (
+    #     NonsmoothPIRK,
+    #     "Radau IIa(2)",
+    #     {"butcher_tableau": RadauIIATableau(2)},
+    # )
+
+    Solver, label, kwargs = NonsmoothGeneralizedAlpha, "Gen-alpha", {}
+
+    print(f"compute reference solution with " + label)
+    # reference = Solver(system, t1, dt_ref, atol=tol_ref, **kwargs).solve()
+    reference = Solver(system, t1, dt_ref, **kwargs).solve()
     print(f"done")
 
     plot_state = False
@@ -1016,14 +1040,14 @@ def convergence(export=True):
         t = sol.t
         q = sol.q
         u = sol.u
-        P_g = sol.P_g
+        # P_g = sol.P_g
         P_N = sol.P_N
         P_F = sol.P_F
 
         t_ref = sol_ref.t
         q_ref = sol_ref.q
         u_ref = sol_ref.u
-        P_g_ref = sol_ref.P_g
+        # P_g_ref = sol_ref.P_g
         P_N_ref = sol_ref.P_N
         P_F_ref = sol_ref.P_F
 
@@ -1043,23 +1067,23 @@ def convergence(export=True):
         # differences
         q_transient = q[t_idx_transient]
         u_transient = u[t_idx_transient]
-        P_g_transient = P_g[t_idx_transient]
+        # P_g_transient = P_g[t_idx_transient]
         P_N_transient = P_N[t_idx_transient]
         P_F_transient = P_F[t_idx_transient]
         diff_transient_q = q_transient - q_ref[t_ref_idx_transient]
         diff_transient_u = u_transient - u_ref[t_ref_idx_transient]
-        diff_transient_P_g = P_g_transient - P_g_ref[t_ref_idx_transient]
+        # diff_transient_P_g = P_g_transient - P_g_ref[t_ref_idx_transient]
         diff_transient_P_N = P_N_transient - P_N_ref[t_ref_idx_transient]
         diff_transient_P_F = P_F_transient - P_F_ref[t_ref_idx_transient]
 
         q_longterm = q[t_idx_longterm]
         u_longterm = u[t_idx_longterm]
-        P_g_longterm = P_g[t_idx_longterm]
+        # P_g_longterm = P_g[t_idx_longterm]
         P_N_longterm = P_N[t_idx_longterm]
         P_F_longterm = P_F[t_idx_longterm]
         diff_longterm_q = q_longterm - q_ref[t_ref_idx_longterm]
         diff_longterm_u = u_longterm - u_ref[t_ref_idx_longterm]
-        diff_longterm_P_g = P_g_longterm - P_g_ref[t_ref_idx_longterm]
+        # diff_longterm_P_g = P_g_longterm - P_g_ref[t_ref_idx_longterm]
         diff_longterm_P_N = P_N_longterm - P_N_ref[t_ref_idx_longterm]
         diff_longterm_P_F = P_F_longterm - P_F_ref[t_ref_idx_longterm]
 
@@ -1072,10 +1096,11 @@ def convergence(export=True):
             np.linalg.norm(diff_transient_u, axis=1)
             / np.linalg.norm(u_transient, axis=1)
         )
-        P_g_error_transient = np.max(
-            np.linalg.norm(diff_transient_P_g, axis=1)
-            / np.linalg.norm(P_g_transient, axis=1)
-        )
+        P_g_error_transient = np.zeros_like(u_error_transient)
+        # P_g_error_transient = np.max(
+        #     np.linalg.norm(diff_transient_P_g, axis=1)
+        #     / np.linalg.norm(P_g_transient, axis=1)
+        # )
         P_N_error_transient = np.max(
             np.linalg.norm(diff_transient_P_N, axis=1)
             / np.linalg.norm(P_N_transient, axis=1)
@@ -1091,10 +1116,11 @@ def convergence(export=True):
         u_error_longterm = np.max(
             np.linalg.norm(diff_longterm_u, axis=1) / np.linalg.norm(u_longterm, axis=1)
         )
-        P_g_error_longterm = np.max(
-            np.linalg.norm(diff_longterm_P_g, axis=1)
-            / np.linalg.norm(P_g_longterm, axis=1)
-        )
+        P_g_error_longterm = np.zeros_like(u_error_longterm)
+        # P_g_error_longterm = np.max(
+        #     np.linalg.norm(diff_longterm_P_g, axis=1)
+        #     / np.linalg.norm(P_g_longterm, axis=1)
+        # )
         P_N_error_longterm = np.max(
             np.linalg.norm(diff_longterm_P_N, axis=1)
             / np.linalg.norm(P_N_longterm, axis=1)
@@ -1134,7 +1160,8 @@ def convergence(export=True):
             P_F_errors_longterm[0, i],
         ) = errors(sol, reference)
 
-        sol = Rattle(system, t1, dt, atol=tol).solve()
+        # sol = Solver(system, t1, dt, atol=tol, **kwargs).solve()
+        sol = Solver(system, t1, dt, **kwargs).solve()
         (
             q_errors_transient[1, i],
             u_errors_transient[1, i],
@@ -1217,6 +1244,8 @@ def convergence(export=True):
     ax[0, 0].set_title("transient: Moreau")
     ax[0, 0].loglog(dts, dts, "-k", label="dt")
     ax[0, 0].loglog(dts, dts**2, "--k", label="dt^2")
+    # ax[0, 0].loglog(dts, dts**3, "-.k", label="dt^3")
+    # ax[0, 0].loglog(dts, dts**4, ":k", label="dt^4")
     ax[0, 0].loglog(dts, q_errors_transient[0], "-.ro", label="q")
     ax[0, 0].loglog(dts, u_errors_transient[0], "-.go", label="u")
     ax[0, 0].loglog(dts, P_g_errors_transient[0], "-.yo", label="P_g")
@@ -1225,9 +1254,11 @@ def convergence(export=True):
     ax[0, 0].grid()
     ax[0, 0].legend()
 
-    ax[1, 0].set_title("transient: Rattle")
+    ax[1, 0].set_title("transient: " + label)
     ax[1, 0].loglog(dts, dts, "-k", label="dt")
     ax[1, 0].loglog(dts, dts**2, "--k", label="dt^2")
+    # ax[1, 0].loglog(dts, dts**3, "-.k", label="dt^3")
+    # ax[1, 0].loglog(dts, dts**4, ":k", label="dt^4")
     ax[1, 0].loglog(dts, q_errors_transient[1], "-.ro", label="q")
     ax[1, 0].loglog(dts, u_errors_transient[1], "-.go", label="u")
     ax[1, 0].loglog(dts, P_g_errors_transient[1], "-.yo", label="P_g")
@@ -1239,6 +1270,8 @@ def convergence(export=True):
     ax[0, 1].set_title("long term: Moreau")
     ax[0, 1].loglog(dts, dts, "-k", label="dt")
     ax[0, 1].loglog(dts, dts**2, "--k", label="dt^2")
+    # ax[0, 1].loglog(dts, dts**3, "-.k", label="dt^3")
+    # ax[0, 1].loglog(dts, dts**4, ":k", label="dt^4")
     ax[0, 1].loglog(dts, q_errors_longterm[0], "-.ro", label="q")
     ax[0, 1].loglog(dts, u_errors_longterm[0], "-.go", label="u")
     ax[0, 1].loglog(dts, P_g_errors_longterm[0], "-.yo", label="P_g")
@@ -1247,9 +1280,11 @@ def convergence(export=True):
     ax[0, 1].grid()
     ax[0, 1].legend()
 
-    ax[1, 1].set_title("long term: Rattle")
+    ax[1, 1].set_title("long term: " + label)
     ax[1, 1].loglog(dts, dts, "-k", label="dt")
     ax[1, 1].loglog(dts, dts**2, "--k", label="dt^2")
+    # ax[1, 1].loglog(dts, dts**3, "-.k", label="dt^3")
+    # ax[1, 1].loglog(dts, dts**4, ":k", label="dt^4")
     ax[1, 1].loglog(dts, q_errors_longterm[1], "-.ro", label="q")
     ax[1, 1].loglog(dts, u_errors_longterm[1], "-.go", label="u")
     ax[1, 1].loglog(dts, P_g_errors_longterm[1], "-.yo", label="P_g")
@@ -1262,5 +1297,5 @@ def convergence(export=True):
 
 
 if __name__ == "__main__":
-    run()
-    # convergence()
+    # run()
+    convergence()

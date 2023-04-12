@@ -83,7 +83,7 @@ class RigidBodyQuaternion(RigidBodyBase):
         coo.extend(B, (self.qDOF, self.uDOF))
 
     def q_ddot(self, t, q, u, u_dot):
-        raise RuntimeWarning("RigidBodyQuaternion.q_ddot is not tested yet!")
+        # raise RuntimeWarning("RigidBodyQuaternion.q_ddot is not tested yet!")
         p = q[3:]
         p2 = p @ p
         B = T_SO3_inv_quat(p) / (p @ p)
