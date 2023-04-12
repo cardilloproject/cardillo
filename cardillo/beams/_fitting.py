@@ -10,7 +10,7 @@ def fit_configuration(
     rod,
     r_OPs,
     A_IKs,
-    use_cord_length=True,
+    use_cord_length=False,
     # nodal_cDOF=[0, -1],
 ):
     # # constrained nodes

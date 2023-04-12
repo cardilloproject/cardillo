@@ -17,11 +17,11 @@ from cardillo.beams import animate_beam
 from cardillo.forces import K_Moment
 from cardillo import System
 from cardillo.solver import Newton
-
+from cardillo.discrete import Frame
 from cardillo.beams._fitting import fit_configuration
 
 import numpy as np
-
+import pickle
 
 if __name__ == "__main__":
     # number of elements
@@ -83,65 +83,124 @@ if __name__ == "__main__":
         basis_psi=basis,
     )
 
+    # pivot
+    hp = 5 # pivot height
+
     # helix
-    n = 1  # number of helix coils
+    n_coils = 1  # number of helix coils
     scale = 1.0e1
-    R0 = 1 * scale  # helix radius
-    h = 5 * scale  # helix height
-    c = h / (R0 * 2 * np.pi * n)
-    L = np.sqrt(1 + c**2) * R0 * 2 * np.pi * n
-    print(f"R0: {R0}")
+    RO = 1 * scale  # helix outer radius
+    RI = 1 * scale - hp
+    h = 1 * scale  # helix height
+    cO = h / (RO * 2 * np.pi * n_coils)
+    LO = np.sqrt(1 + cO**2) * RO * 2 * np.pi * n_coils
+    cI = h / (RI * 2 * np.pi * n_coils)
+    LI = np.sqrt(1 + cI**2) * RI * 2 * np.pi * n_coils
+    # print(f"R0: {R0}")
     print(f"h: {h}")
-    print(f"c: {c}")
-    print(f"n: {n}")
-    print(f"L: {L}")
+    #print(f"c: {c}")
+    print(f"n: {n_coils}")
+    #print(f"L: {L}")
 
     # reference solution
-    def r(xi):
-        alpha = 2 * np.pi * n * xi
-        return R0 * np.array([np.sin(alpha), -np.cos(alpha), c * alpha])
+    def r(xi, R=RO, phi0=0, dor=1, c=cO):
+        alpha = dor * 2 * np.pi * n_coils * xi + phi0
+        return R * np.array([np.sin(alpha), -np.cos(alpha), dor * c * alpha])
 
-    def A_IK(xi):
-        alpha = 2 * np.pi * n * xi
+    def A_IK(xi, phi0=0, dor=1, c=cO):
+        alpha = 2 * np.pi * n_coils * xi + phi0
         sa = np.sin(alpha)
         ca = np.cos(alpha)
 
-        e_x = np.array([ca, sa, c]) / np.sqrt(1 + c**2)
-        e_y = np.array([-sa, ca, 0])
-        e_z = np.array([-c * ca, -c * sa, 1]) / np.sqrt(1 + c**2)
+        e_x = np.array([dor*ca, sa, c]) / np.sqrt(1 + c**2)
+        e_y = np.array([-sa, dor*ca, 0])
+        e_z = np.array([-dor*c * ca, -c * sa, 1]) / np.sqrt(1 + c**2)
 
         return np.vstack((e_x, e_y, e_z)).T
+
+
 
     nxi = 30
     xis = np.linspace(0, 1, num=nxi)
 
-    r_OPs = np.array([r(xi) for xi in xis])
-    A_IKs = np.array([A_IK(xi) for xi in xis])
+    import matplotlib.pyplot as plt
+    ax = plt.axes(projection='3d')
+    for xi in xis:
+        ax.plot3D(*r(xi,dor=-1,R=RI,c=cI))
+        ax.quiver(*r(xi,dor=-1,R=RI,c=cI),*A_IK(xi,dor=-1,c=cI).T[0])
+        ax.quiver(*r(xi,dor=-1,R=RI,c=cI),*A_IK(xi,dor=-1,c=cI).T[1])
+        ax.quiver(*r(xi,dor=-1,R=RI,c=cI),*A_IK(xi,dor=-1,c=cI).T[2])
 
-    Q0 = fit_configuration(rod, r_OPs, A_IKs)
-    rod.q0 = Q0.copy()
+        ax.plot3D(*r(xi,dor=1))
+        ax.quiver(*r(xi,dor=1),*A_IK(xi,dor=1).T[0])
+        ax.quiver(*r(xi,dor=1),*A_IK(xi,dor=1).T[1])
+        ax.quiver(*r(xi,dor=1),*A_IK(xi,dor=1).T[2])
+    plt.show()
 
-    # joint between origin and left rod
+    # individual rods
+    n_rod = 1 # number of rods per layer
+    Q0_list = []
+    rod_list = []
+    joint_list = []
+
+    # load config
+    load_config = False
+    from pathlib import Path
+    path = Path(Path.cwd(), "examples/pantographic_cylinder")
+    # path.mkdir()
+    filename = Path(path, "initial_config")
+    if load_config:
+        Q0_list = pickle.load(open(filename, 'rb'))
+    else:
+        for n in range(n_rod):
+            phi0 = 2 * np.pi * n / (n_rod + 1)
+            r_OPs = np.array([r(xi, R=RO, dor=1, c=cO) for xi in xis])
+            A_IKs = np.array([A_IK(xi, dor=1) for xi in xis])
+            Q0_helix = fit_configuration(rod, r_OPs, A_IKs)
+            Q0_list.append(Q0_helix)
+            r_OPs = np.array([r(xi, R=RI, dor=-1, c=cI) for xi in xis])
+            A_IKs = np.array([A_IK(xi, dor=-1, c=cI) for xi in xis])
+            Q0_helix = fit_configuration(rod, r_OPs, A_IKs)
+            Q0_list.append(Q0_helix)
+
+    file = open(filename, 'wb')
+    pickle.dump(Q0_list, file)
+
+    import copy
+    for Q0_helix in Q0_list:
+        rod_list.append(copy.deepcopy(rod))
+        rod_list[-1].q0 = Q0_helix.copy()
+
+    # joints between frames and rods
     system = System()
-    joint1 = RigidConnection(system.origin, rod, frame_ID2=(0,))
+    Z_max = r(1)[-1]
+    r_OP_top = lambda t: np.array([0, 0, Z_max - 1*t])
+    frame_top = Frame(r_OP=r_OP_top, A_IK=np.eye(3))
+    for rod in rod_list:
+        joint_bottom = RigidConnection(system.origin, rod, frame_ID2=(0,))
+        joint_top = RigidConnection(frame_top, rod, frame_ID2=(1,))
+        joint_list.extend((joint_bottom, joint_top))
 
     # moment at right beam's tip
-    Fi = material_model.Fi
-    m = Fi[2] * 2 * np.pi / (2 * L) * 0.25 * 0.1
-    M = lambda t: t * e3 * m
-    moment = K_Moment(M, rod, (1,))
+    # Fi = material_model.Fi
+    # m = Fi[2] * 2 * np.pi / (2 * L) * 0.25 * 0.1
+    # M = lambda t: t * e3 * m
+    # moment = K_Moment(M, rod, (1,))
 
     # assemble the system
-    system.add(rod, joint1)
-    system.add(moment)
+    system.add(*rod_list)
+    system.add(*joint_list)
+    system.add(frame_top)
+    # system.add(moment)
     system.assemble()
 
     # solve static system
-    n_load_steps = 3
+    n_load_steps = 5
     solver = Newton(
         system,
         n_load_steps=n_load_steps,
         atol=atol,
+        max_iter=10,
     )
     sol = solver.solve()
     q = sol.q
@@ -154,4 +213,4 @@ if __name__ == "__main__":
     ###########
     # animation
     ###########
-    animate_beam(t, q, [rod], 2 * scale, show=True)
+    animate_beam(t, q, rod_list, 2 * scale, show=True)
