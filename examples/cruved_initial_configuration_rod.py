@@ -67,6 +67,7 @@ if __name__ == "__main__":
         basis,
         nelements,
         L,
+        #A_IK=np.array([[-1,0,0],[0,-1,0],[0,0,1]],dtype=float)
     )
     rod = Rod(
         cross_section,
@@ -97,14 +98,14 @@ if __name__ == "__main__":
     print(f"L: {L}")
 
     # reference solution
-    def r(xi):
+    def r(xi, phi0=0.):
         alpha = 2 * np.pi * n * xi
-        return R0 * np.array([np.sin(alpha), -np.cos(alpha), c * alpha])
+        return R0 * np.array([np.sin(alpha + phi0), -np.cos(alpha + phi0), c * alpha])
 
-    def A_IK(xi):
+    def A_IK(xi, phi0=0.):
         alpha = 2 * np.pi * n * xi
-        sa = np.sin(alpha)
-        ca = np.cos(alpha)
+        sa = np.sin(alpha + phi0)
+        ca = np.cos(alpha + phi0)
 
         e_x = np.array([ca, sa, c]) / np.sqrt(1 + c**2)
         e_y = np.array([-sa, ca, 0])
@@ -115,8 +116,8 @@ if __name__ == "__main__":
     nxi = 30
     xis = np.linspace(0, 1, num=nxi)
 
-    r_OPs = np.array([r(xi) for xi in xis])
-    A_IKs = np.array([A_IK(xi) for xi in xis])
+    r_OPs = np.array([r(xi, phi0=np.pi) for xi in xis])
+    A_IKs = np.array([A_IK(xi, phi0=np.pi) for xi in xis])
 
     Q0 = fit_configuration(rod, r_OPs, A_IKs)
     rod.q0 = Q0.copy()

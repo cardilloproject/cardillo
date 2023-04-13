@@ -20,12 +20,14 @@ from cardillo.solver import Newton
 from cardillo.discrete import Frame
 from cardillo.beams._fitting import fit_configuration
 
+from cardillo.utility import Export
+
 import numpy as np
 import pickle
 
 if __name__ == "__main__":
     # number of elements
-    nelements = 4
+    nelements = 8
 
     # used polynomial degree
     polynomial_degree = 2
@@ -59,7 +61,7 @@ if __name__ == "__main__":
     Fi = np.array([G * Ip, E * I2, E * I3])
     material_model = Simo1986(Ei, Fi)
 
-    # left rod
+    # ccw rod
     Q0 = Rod.straight_configuration(
         polynomial_degree,
         polynomial_degree,
@@ -84,61 +86,60 @@ if __name__ == "__main__":
     )
 
     # pivot
-    hp = 5 # pivot height
+    hp = 1  # pivot height
 
     # helix
-    n_coils = 1  # number of helix coils
+    n_coils = 2  # number of helix coils
     scale = 1.0e1
     RO = 1 * scale  # helix outer radius
     RI = 1 * scale - hp
-    h = 1 * scale  # helix height
+    h = 2 * scale  # helix height
     cO = h / (RO * 2 * np.pi * n_coils)
     LO = np.sqrt(1 + cO**2) * RO * 2 * np.pi * n_coils
     cI = h / (RI * 2 * np.pi * n_coils)
     LI = np.sqrt(1 + cI**2) * RI * 2 * np.pi * n_coils
     # print(f"R0: {R0}")
     print(f"h: {h}")
-    #print(f"c: {c}")
+    # print(f"c: {c}")
     print(f"n: {n_coils}")
-    #print(f"L: {L}")
+    # print(f"L: {L}")
 
     # reference solution
-    def r(xi, R=RO, phi0=0, dor=1, c=cO):
-        alpha = dor * 2 * np.pi * n_coils * xi + phi0
-        return R * np.array([np.sin(alpha), -np.cos(alpha), dor * c * alpha])
+    def r(xi, R=RO, phi0=0., dor=1, c=cO):
+        alpha = dor * 2 * np.pi * n_coils * xi 
+        return R * np.array([np.sin(alpha + phi0), -np.cos(alpha + phi0), dor * c * alpha])
 
-    def A_IK(xi, phi0=0, dor=1, c=cO):
-        alpha = 2 * np.pi * n_coils * xi + phi0
-        sa = np.sin(alpha)
-        ca = np.cos(alpha)
+    def A_IK(xi, phi0=0., dor=1, c=cO):
+        alpha = dor * 2 * np.pi * n_coils * xi
+        sa = np.sin(alpha + phi0)
+        ca = np.cos(alpha + phi0)
 
-        e_x = np.array([dor*ca, sa, c]) / np.sqrt(1 + c**2)
-        e_y = np.array([-sa, dor*ca, 0])
-        e_z = np.array([-dor*c * ca, -c * sa, 1]) / np.sqrt(1 + c**2)
+        e_x = np.array([ca, sa, dor * c]) / np.sqrt(1 + c**2)
+        e_y = np.array([-sa, ca, 0])
+        e_z = np.array([-c * dor * ca, -dor * c * sa, 1]) / np.sqrt(1 + c**2)
 
         return np.vstack((e_x, e_y, e_z)).T
-
-
 
     nxi = 30
     xis = np.linspace(0, 1, num=nxi)
 
     import matplotlib.pyplot as plt
-    ax = plt.axes(projection='3d')
-    for xi in xis:
-        ax.plot3D(*r(xi,dor=-1,R=RI,c=cI))
-        ax.quiver(*r(xi,dor=-1,R=RI,c=cI),*A_IK(xi,dor=-1,c=cI).T[0])
-        ax.quiver(*r(xi,dor=-1,R=RI,c=cI),*A_IK(xi,dor=-1,c=cI).T[1])
-        ax.quiver(*r(xi,dor=-1,R=RI,c=cI),*A_IK(xi,dor=-1,c=cI).T[2])
 
-        ax.plot3D(*r(xi,dor=1))
-        ax.quiver(*r(xi,dor=1),*A_IK(xi,dor=1).T[0])
-        ax.quiver(*r(xi,dor=1),*A_IK(xi,dor=1).T[1])
-        ax.quiver(*r(xi,dor=1),*A_IK(xi,dor=1).T[2])
-    plt.show()
+    # ax = plt.axes(projection="3d")
+    # for xi in xis:
+    #     ax.plot3D(*r(xi, dor=-1, R=RI, c=cI))
+    #     ax.quiver(*r(xi, dor=-1, R=RI, c=cI), *A_IK(xi, dor=-1, c=cI).T[0])
+    #     ax.quiver(*r(xi, dor=-1, R=RI, c=cI), *A_IK(xi, dor=-1, c=cI).T[1])
+    #     ax.quiver(*r(xi, dor=-1, R=RI, c=cI), *A_IK(xi, dor=-1, c=cI).T[2])
+
+    #     ax.plot3D(*r(xi, dor=1))
+    #     ax.quiver(*r(xi, dor=1), *A_IK(xi, dor=1).T[0])
+    #     ax.quiver(*r(xi, dor=1), *A_IK(xi, dor=1).T[1])
+    #     ax.quiver(*r(xi, dor=1), *A_IK(xi, dor=1).T[2])
+    # plt.show()
 
     # individual rods
-    n_rod = 1 # number of rods per layer
+    n_rod = 4  # number of rods per layer
     Q0_list = []
     rod_list = []
     joint_list = []
@@ -146,35 +147,45 @@ if __name__ == "__main__":
     # load config
     load_config = False
     from pathlib import Path
-    path = Path(Path.cwd(), "examples/pantographic_cylinder")
+    import copy
+
+    path = Path(__file__)
     # path.mkdir()
-    filename = Path(path, "initial_config")
+    filename = Path(path.parent, "initial_config")
     if load_config:
-        Q0_list = pickle.load(open(filename, 'rb'))
+        rod_list = pickle.load(open(filename, "rb"))
+        # for n in range(n_rod):
+        #     rod_ccw = copy.deepcopy(rod)
+        #     rod_ccw.q0 = Q0_list[2*n].copy()
+        #     rod_cw = copy.deepcopy(rod)
+        #     rod_cw.q0 = Q0_list[2*n+1].copy()
+        #     rod_list.extend((rod_ccw,rod_cw))
     else:
         for n in range(n_rod):
-            phi0 = 2 * np.pi * n / (n_rod + 1)
-            r_OPs = np.array([r(xi, R=RO, dor=1, c=cO) for xi in xis])
-            A_IKs = np.array([A_IK(xi, dor=1) for xi in xis])
-            Q0_helix = fit_configuration(rod, r_OPs, A_IKs)
-            Q0_list.append(Q0_helix)
-            r_OPs = np.array([r(xi, R=RI, dor=-1, c=cI) for xi in xis])
-            A_IKs = np.array([A_IK(xi, dor=-1, c=cI) for xi in xis])
-            Q0_helix = fit_configuration(rod, r_OPs, A_IKs)
-            Q0_list.append(Q0_helix)
+            rod_ccw = copy.deepcopy(rod)
+            phi0 = 2 * np.pi * n / (n_rod)
+            r_OP_ccw = np.array([r(xi, R=RO, dor=1, c=cO, phi0=phi0) for xi in xis])
+            A_IK_ccw = np.array([A_IK(xi, dor=1, phi0=phi0) for xi in xis])
+            Q0_ccw = fit_configuration(rod_ccw, r_OP_ccw, A_IK_ccw)
+            rod_ccw.q0 = Q0_ccw.copy()
+            Q0_list.append(Q0_ccw)
+            rod_list.append(rod_ccw)
 
-    file = open(filename, 'wb')
-    pickle.dump(Q0_list, file)
+            rod_cw = copy.deepcopy(rod)
+            r_OP_cw = np.array([r(xi, R=RI, dor=-1, c=cI, phi0=phi0) for xi in xis])
+            A_IK_cw = np.array([A_IK(xi, dor=-1, c=cI, phi0=phi0) for xi in xis])
+            Q0_cw = fit_configuration(rod_cw, r_OP_cw, A_IK_cw)
+            Q0_list.append(Q0_cw)
+            rod_cw.q0 = Q0_cw.copy()
+            rod_list.append(rod_cw)
 
-    import copy
-    for Q0_helix in Q0_list:
-        rod_list.append(copy.deepcopy(rod))
-        rod_list[-1].q0 = Q0_helix.copy()
+        # file = open(filename, "wb")
+        # pickle.dump(rod_list, file)
 
     # joints between frames and rods
     system = System()
     Z_max = r(1)[-1]
-    r_OP_top = lambda t: np.array([0, 0, Z_max - 1*t])
+    r_OP_top = lambda t: np.array([0, 0, Z_max - 2 * t])
     frame_top = Frame(r_OP=r_OP_top, A_IK=np.eye(3))
     for rod in rod_list:
         joint_bottom = RigidConnection(system.origin, rod, frame_ID2=(0,))
@@ -195,12 +206,12 @@ if __name__ == "__main__":
     system.assemble()
 
     # solve static system
-    n_load_steps = 5
+    n_load_steps = 10
     solver = Newton(
         system,
         n_load_steps=n_load_steps,
         atol=atol,
-        max_iter=10,
+        max_iter=50,
     )
     sol = solver.solve()
     q = sol.q
@@ -213,4 +224,11 @@ if __name__ == "__main__":
     ###########
     # animation
     ###########
-    animate_beam(t, q, rod_list, 2 * scale, show=True)
+    # animate_beam(t, q, rod_list, 2 * scale, show=True)
+
+    ###########
+    # export
+    ########### 
+    e = Export(path.parent, path.stem, True, 10, sol)
+    for rod in rod_list:
+        e.export_contr(rod, level="centerline + directors", num=20)
