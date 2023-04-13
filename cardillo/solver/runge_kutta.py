@@ -538,10 +538,10 @@ class NonsmoothPIRK:
             self.u_dotn,
             self.la_gn,
             self.la_gamman,
+            self.la_Nn,
+            self.la_Fn,
         ) = consistent_initial_conditions(system)
 
-        self.la_Nn = system.la_N0
-        self.la_Fn = system.la_F0
         self.P_gn = self.la_gn
         self.P_gamman = self.la_gamman
         self.P_Nn = self.la_Nn

@@ -1266,13 +1266,6 @@ class Rattle:
         P_gamma = [self.la_gamman]
         P_N = [self.dt * self.la_Nn]
         P_F = [self.dt * self.la_Fn]
-        # t = []
-        # q = []
-        # u = []
-        # P_g = []
-        # P_gamma = []
-        # P_N = []
-        # P_F = []
 
         pbar = tqdm(self.t[:-1])
         # pbar = tqdm(self.t)

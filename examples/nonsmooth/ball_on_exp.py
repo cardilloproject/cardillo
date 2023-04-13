@@ -52,73 +52,7 @@ class BallOnExp:
         self.q0 = self.f(x0)
         self.u0 = self.tangent(x0) * self.x_dot0
 
-        # ##################################
-        # # solve for initial contact forces
-        # ##################################
-        # M = m * np.eye(self.nu, dtype=float)
-        # w_N = self.normal(self.q0[0]).reshape((self.nu, self.nla_N))
-        # w_F = self.tangent(self.q0[0]).reshape((self.nu, self.nla_F))
-
-        # from cardillo.math import prox_sphere, prox_R0_nm, fsolve
-
-        # # TODO: Move this to solver._base.py
-        # def R(x):
-        #     *u_dot, la_N, la_F = x
-        #     R = np.zeros_like(x)
-
-        #     #####################
-        #     # equations of motion
-        #     #####################
-        #     R[:2] = (
-        #         M @ u_dot - np.array([0, -m * g]) - w_N[:, 0] * la_N - w_F[:, 0] * la_F
-        #     )
-
-        #     #################################
-        #     # Signorini on acceleration level
-        #     #################################
-        #     prox_r_N = 0.1
-        #     g_N = self.g_N(0, self.q0)
-        #     g_N_dot = self.g_N_dot(0, self.q0, self.u0)
-        #     g_N_ddot = self.g_N_ddot(0, self.q0, self.u0, u_dot)
-        #     # I_N = g_N <= 0
-        #     # B_N = I_N * (g_N_dot <= 0)
-        #     # C_N = B_N * (g_N_ddot <= 0)
-        #     I_N = prox_r_N * g_N - la_N <= 0
-        #     B_N = I_N * (prox_r_N * g_N_dot - la_N <= 0)
-        #     C_N = B_N * (prox_r_N * g_N_ddot - la_N <= 0)
-        #     # R[2] = la_N + B_N * prox_R0_nm(prox_r_N * g_N_ddot - la_N)
-        #     R[2] = np.where(
-        #         C_N,
-        #         g_N_ddot,
-        #         la_N,
-        #     )
-
-        #     ################################
-        #     # friction on acceleration level
-        #     ################################
-        #     prox_r_F = 0.1
-        #     gamma_F = self.__gamma_F(0, self.q0, self.u0)
-        #     gamma_F_dot = self.gamma_F_dot(0, self.q0, self.u0, u_dot)
-
-        #     if norm(gamma_F) > 0:
-        #         print(f"slip")
-        #         R[3] = la_F + mu * la_N * gamma_F / norm(gamma_F)
-        #     else:
-        #         print(f"stick")
-        #         R[3] = la_F + prox_sphere(prox_r_F * gamma_F_dot - la_F, mu * la_N)
-
-        #     return R
-
-        # x0 = np.ones(4)
-        # x0, converged, error, i, f = fsolve(R, x0, atol=1e-14)
-        # assert converged
-        # *u_dot, la_N, la_F = x0
-
-        # self.la_N0 = np.array([la_N])
-        # self.la_F0 = np.array([la_F])
-
-        # self.la_N0 = np.zeros(self.nla_N)
-        # self.la_F0 = np.zeros(self.nla_F)
+        # self.q0 = np.array([0, 1.25])
 
     ####################
     # kinematic equation
@@ -257,9 +191,8 @@ e_F = 0.0
 mu = 0.3
 # mu = 3
 # mu = 0.0
-# x0 = -1
-# x0 = 1
-x0 = 0
+x0 = -2
+# x0 = 0
 # x0 = 3
 # x_dot0 = 0
 x_dot0 = 1
@@ -453,9 +386,9 @@ def convergence():
     # dts = (2.0 ** np.arange(3, 1, -1)) * dt_ref  # [5.12e-2, ..., 2.56e-2]
     # t1 = (2.0**9) * dt_ref  # 3.2768s
 
-    # dt_ref = 3.2e-3
-    # dts = (2.0 ** np.arange(4, 1, -1)) * dt_ref  # [5.12e-2, ..., 1.28e-2]
-    # t1 = (2.0**10) * dt_ref  # 3.2768s
+    dt_ref = 3.2e-3
+    dts = (2.0 ** np.arange(4, 1, -1)) * dt_ref  # [5.12e-2, ..., 1.28e-2]
+    t1 = (2.0**10) * dt_ref  # 3.2768s
 
     # dt_ref = 1.6e-3
     # dts = (2.0 ** np.arange(5, 1, -1)) * dt_ref  # [5.12e-2, ..., 6.4e-3]
@@ -465,13 +398,17 @@ def convergence():
     # dts = (2.0 ** np.arange(6, 1, -1)) * dt_ref  # [5.12e-2, ..., 3.2e-3]
     # t1 = (2.0**12) * dt_ref  # 3.2768s
 
-    dt_ref = 4e-4
-    dts = (2.0 ** np.arange(7, 1, -1)) * dt_ref  # [5.12e-2, ..., 1.6e-3]
-    t1 = (2.0**13) * dt_ref  # 3.2768s
+    # dt_ref = 4e-4
+    # dts = (2.0 ** np.arange(7, 1, -1)) * dt_ref  # [5.12e-2, ..., 1.6e-3]
+    # t1 = (2.0**13) * dt_ref  # 3.2768s
 
     # dt_ref = 2e-4
     # dts = (2.0 ** np.arange(8, 1, -1)) * dt_ref  # [5.12e-2, ..., 8e-4]
     # t1 = (2.0**14) * dt_ref  # 3.2768s
+
+    # dt_ref = 1e-4
+    # dts = (2.0 ** np.arange(9, 1, -1)) * dt_ref  # [5.12e-2, ..., 8e-4]
+    # t1 = (2.0**15) * dt_ref  # 3.2768s
 
     print(f"t1: {t1}")
     print(f"dts: {dts}")
@@ -485,27 +422,6 @@ def convergence():
     # get_solver = lambda dt: NonsmoothGeneralizedAlpha(model, t1, dt, newton_tol=tol)
     # get_solver = lambda dt: NonsmoothPIRK(model, t1, dt, RadauIIATableau(2), atol=tol)
     # get_solver = lambda dt: NonsmoothPIRK(model, t1, dt, RadauIIATableau(3), atol=tol)
-
-    # get_solver = lambda dt: NonsmoothBackwardEulerDecoupled(model, t1, dt, atol=tol)
-    # get_solver = lambda dt: IRK(model, t1, dt, TRBDF2Tableau(), atol=tol)
-    # get_solver = lambda dt: IRK(model, t1, dt, RadauIIATableau(order=3), atol=tol)
-    # get_solver = lambda dt: Rattle(model, t1, dt, atol=tol)
-    # get_solver = lambda dt: SymplecticPartitionedRungeKutta(
-    #     model, t1, dt, TRBDF2Tableau(), atol=tol
-    # )
-    # get_solver = lambda dt: SymplecticPartitionedRungeKutta(
-    #     model, t1, dt, LobattoIIIATableau(order=2), atol=tol
-    # )
-    # get_solver = lambda dt: SymplecticPartitionedRungeKutta(
-    #     model, t1, dt, LobattoIIIATableau(order=4), atol=tol
-    # )
-    # get_solver = lambda dt: SymplecticPartitionedRungeKutta(
-    #     model, t1, dt, LobattoIIIATableau(order=6), atol=tol
-    # )
-
-    # get_solver = lambda dt: SimplifiedNonsmoothGeneralizedAlpha(model, t1, dt, atol=tol)
-    # get_solver = lambda dt: SimplifiedNonsmoothGeneralizedAlphaNoAcceleration(model, t1, dt, atol=tol)
-    # get_solver = lambda dt: SimplifiedNonsmoothGeneralizedFirstOrderAlphaNoAcceleration(model, t1, dt, atol=tol)
 
     #############################
     # errors for possible solvers
@@ -593,43 +509,112 @@ def convergence():
             diff = f - f_ref
             return np.max(np.linalg.norm(diff, axis=1) / np.linalg.norm(f_ref, axis=1))
 
-        def l1_error(t, t_ref, f, f_ref):
-            """https://de.wikipedia.org/wiki/Summennorm"""
-            return np.sum(dt * np.abs(f - f_ref[t_ref_idx]))
+        # def l1_error(t, t_ref, f, f_ref):
+        #     """https://de.wikipedia.org/wiki/Summennorm"""
+        #     dt = t[1] - t[0]
+        #     return np.sum(dt * np.abs(f - f_ref[t_ref_idx]))
 
-        def lp_error(t, t_ref, f, f_ref, p=2):
-            """https://de.wikipedia.org/wiki/Lp-Raum"""
-            return np.sum(dt * np.abs(f - f_ref[t_ref_idx]) ** p) ** (1 / p)
+        def max_lp_error(t, t_ref, f, f_ref, p=1):
+            """See https://numpy.org/doc/stable/reference/generated/numpy.linalg.norm.html
+            and https://de.wikipedia.org/wiki/Lp-Raum."""
+            dt = t[1] - t[0]
+            # return np.max(np.sum(dt * np.abs(f - f_ref[t_ref_idx]) ** p, axis=0) ** (1 / p))
+            return np.max(np.linalg.norm(dt * (f - f_ref[t_ref_idx]), ord=p, axis=0))
 
-        # TODO: Test this for different norms
-        def matrix_norm_error(t, t_ref, f, f_ref, p):
-            return np.linalg.norm(f - f_ref[t_ref_idx], ord=p)
+        def distance_function(x, y):
+            # return np.linalg.norm(x[1:] - y[1:], ord=2)
+            # return max(np.abs(x[0] - y[0]), np.linalg.norm(x[1:] - y[1:], ord=2))
+            return max(np.abs(x[0] - y[0]), norm(x[1:] - y[1:]))
 
-        def trapezoid_error(t, t_ref, f, f_ref):
-            from scipy.integrate import trapezoid
+        def hausdorff_distance_error(t, t_ref, f, f_ref):
+            """See https://en.wikipedia.org/wiki/Hausdorff_distance,
+            https://github.com/mavillan/py-hausdorff/blob/master/hausdorff/hausdorff.py,
+            https://github.com/scipy/scipy/blob/v1.10.1/scipy/spatial/_hausdorff.pyx."""
+            # dt = t[1] - t[0]
+            # X = np.hstack((t[:, None], dt * f))
+            # dt_ref = t_ref[1] - t_ref[0]
+            # Y = np.hstack((t_ref[:, None], dt_ref * f_ref))
+            # X = np.hstack((t[:, None], f))
+            # Y = np.hstack((t_ref[:, None], f_ref))
+            Y = np.hstack((t[:, None], f))
+            X = np.hstack((t_ref[:, None], f_ref))
 
-            F = trapezoid(f, t, axis=0)
-            F_ref = trapezoid(f_ref, t_ref, axis=0)
-            return np.max(np.abs(F - F_ref))
+            # def supremal_distance(A, B):
+            #     cmax = 0.0
+            #     for a in A:
+            #         cmin = np.inf
+            #         for b in B:
+            #             d = distance_function(a, b)
+            #             if d < cmin:
+            #                 cmin = d
+            #             if cmin < cmax:
+            #                 break
+            #         if cmin > cmax and np.inf > cmin:
+            #             cmax = cmin
+            #     return cmax
 
-        def p_var_error(t, t_ref, f, f_ref, p=1):
-            """https://en.wikipedia.org/wiki/P-variation"""
+            def supremal_distance(A, B):
+                """See https://github.com/scipy/scipy/blob/v1.10.1/scipy/spatial/_hausdorff.pyx."""
+                cmax = 0.0
+                for a in A:
+                    cmin = np.inf
+                    for b in B:
+                        d = distance_function(a, b)
+                        if d < cmax:  # break out of `for j` loop
+                            break
 
-            def p_var(x, p):
-                cum_p_var = np.zeros_like(x)
-                for i in range(1, len(x)):
-                    for j in range(i):
-                        cum_p_var[i] = np.maximum(
-                            cum_p_var[i], cum_p_var[j] + np.abs(x[i] - x[j]) ** p
-                        )
-                return cum_p_var
+                        if d < cmin:  # always true on first iteration of for-j loop
+                            cmin = d
 
-            cum_p_var = p_var(f, p)
-            cum_p_var_ref = p_var(f_ref, p)
-            return np.max(np.abs(cum_p_var[-1] - cum_p_var_ref[-1]))
+                    # Note: The reference paper by A. A. Taha and A. Hanbury has this line
+                    # (Algorithm 2, line 16) as:
+                    #
+                    # if cmin > cmax:
+                    #
+                    # That logic is incorrect, as cmin could still be np.inf if breaking early.
+                    # The logic here accounts for that case.
+                    if cmin >= cmax and d >= cmax:
+                        cmax = cmin
+
+                return cmax
+
+            return max(supremal_distance(X, Y), supremal_distance(Y, X))
+
+        # # TODO: Test this for different norms
+        # # def matrix_norm_error(t, t_ref, f, f_ref, p=1):
+        # def matrix_norm_error(t, t_ref, f, f_ref, p=3):
+        #     """https://numpy.org/doc/stable/reference/generated/numpy.linalg.norm.html"""
+        #     dt = t[1] - t[0]
+        #     return np.linalg.norm(dt * (f - f_ref[t_ref_idx]), ord=p)
+
+        # def trapezoid_error(t, t_ref, f, f_ref):
+        #     from scipy.integrate import trapezoid
+
+        #     F = trapezoid(f, t, axis=0)
+        #     F_ref = trapezoid(f_ref, t_ref, axis=0)
+        #     return np.max(np.abs(F - F_ref))
+
+        # def p_var_error(t, t_ref, f, f_ref, p=1):
+        #     """https://en.wikipedia.org/wiki/P-variation"""
+
+        #     def p_var(x, p):
+        #         cum_p_var = np.zeros_like(x)
+        #         for i in range(1, len(x)):
+        #             for j in range(i):
+        #                 cum_p_var[i] = np.maximum(
+        #                     cum_p_var[i], cum_p_var[j] + np.abs(x[i] - x[j]) ** p
+        #                 )
+        #         return cum_p_var
+
+        #     cum_p_var = p_var(f, p)
+        #     cum_p_var_ref = p_var(f_ref, p)
+        #     return np.max(np.abs(cum_p_var[-1] - cum_p_var_ref[-1]))
+
+        integral_error = max_lp_error
+        # integral_error = matrix_norm_error
+        # integral_error = hausdorff_distance_error
 
         # integral_error = l1_error
-        integral_error = lp_error
         # integral_error = trapezoid_error
         # integral_error = p_var_error
 
@@ -808,5 +793,5 @@ def convergence():
 
 
 if __name__ == "__main__":
-    state()
-    # convergence()
+    # state()
+    convergence()
