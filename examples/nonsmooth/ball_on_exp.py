@@ -51,205 +51,74 @@ class BallOnExp:
         self.x_dot0 = x_dot0
         self.q0 = self.f(x0)
         self.u0 = self.tangent(x0) * self.x_dot0
-        # vg = g * np.array([0, -1])
-        # self.la_N0 = np.array([-self.normal(x0) @ vg])
-        # print(f"initial contact forces are not correct yet!")
-        # if mu > 0:
-        #     self.la_F0 = np.array([-self.tangent(x0) @ vg])
-        # else:
-        #     self.la_F0 = np.zeros(self.nla_F)
 
-        ##################################
-        # solve for initial contact forces
-        ##################################
-        M = m * np.eye(self.nu, dtype=float)
-        w_N = self.normal(self.q0[0]).reshape((self.nu, self.nla_N))
-        w_F = self.tangent(self.q0[0]).reshape((self.nu, self.nla_F))
-        # w_F = np.zeros((self.nu, self.nla_F))
+        # ##################################
+        # # solve for initial contact forces
+        # ##################################
+        # M = m * np.eye(self.nu, dtype=float)
+        # w_N = self.normal(self.q0[0]).reshape((self.nu, self.nla_N))
+        # w_F = self.tangent(self.q0[0]).reshape((self.nu, self.nla_F))
 
-        from cardillo.math import prox_sphere, prox_R0_nm, fsolve
+        # from cardillo.math import prox_sphere, prox_R0_nm, fsolve
 
-        def R(x):
-            *u_dot, la_N, la_F = x
-            R = np.zeros_like(x)
+        # # TODO: Move this to solver._base.py
+        # def R(x):
+        #     *u_dot, la_N, la_F = x
+        #     R = np.zeros_like(x)
 
-            #####################
-            # equations of motion
-            #####################
-            R[:2] = (
-                M @ u_dot - np.array([0, -m * g]) - w_N[:, 0] * la_N - w_F[:, 0] * la_F
-            )
+        #     #####################
+        #     # equations of motion
+        #     #####################
+        #     R[:2] = (
+        #         M @ u_dot - np.array([0, -m * g]) - w_N[:, 0] * la_N - w_F[:, 0] * la_F
+        #     )
 
-            #################################
-            # Signorini on acceleration level
-            #################################
-            prox_r_N = 0.1
-            g_N = self.g_N(0, self.q0)
-            g_N_dot = self.g_N_dot(0, self.q0, self.u0)
-            g_N_ddot = self.g_N_ddot(0, self.q0, self.u0, u_dot)
-            I_N = g_N <= 0
-            # B_N = I_N * (g_N_dot <= 0)
-            # C_N = B_N * (g_N_ddot <= 0)
-            B_N = I_N * (prox_r_N * g_N_dot - la_N <= 0)
-            C_N = B_N * (prox_r_N * g_N_ddot - la_N <= 0)
-            # R[2] = np.where(
-            #     B_N,
-            #     la_N + prox_R0_nm(prox_r_N * g_N_ddot - la_N),
-            #     # np.minimum(g_N_ddot, la_N),
-            #     la_N,
-            # )
-            R[2] = np.minimum(g_N_ddot, la_N)  # always start with contact
-            # R[2] = np.where(
-            #     C_N,
-            #     g_N_ddot,
-            #     # la_N + prox_R0_nm(prox_r_N * g_N_ddot - la_N),
-            #     la_N,
-            # )
-            # R[2] = la_N + B_N * prox_R0_nm(prox_r_N * g_N_ddot - la_N)
-            # R[2] = la_N + prox_R0_nm(prox_r_N * g_N_ddot - la_N)
-            # R[2] = g_N_ddot
+        #     #################################
+        #     # Signorini on acceleration level
+        #     #################################
+        #     prox_r_N = 0.1
+        #     g_N = self.g_N(0, self.q0)
+        #     g_N_dot = self.g_N_dot(0, self.q0, self.u0)
+        #     g_N_ddot = self.g_N_ddot(0, self.q0, self.u0, u_dot)
+        #     # I_N = g_N <= 0
+        #     # B_N = I_N * (g_N_dot <= 0)
+        #     # C_N = B_N * (g_N_ddot <= 0)
+        #     I_N = prox_r_N * g_N - la_N <= 0
+        #     B_N = I_N * (prox_r_N * g_N_dot - la_N <= 0)
+        #     C_N = B_N * (prox_r_N * g_N_ddot - la_N <= 0)
+        #     # R[2] = la_N + B_N * prox_R0_nm(prox_r_N * g_N_ddot - la_N)
+        #     R[2] = np.where(
+        #         C_N,
+        #         g_N_ddot,
+        #         la_N,
+        #     )
 
-            ################################
-            # friction on acceleration level
-            ################################
-            prox_r_F = 0.1
-            gamma_F = self.__gamma_F(0, self.q0, self.u0)
-            gamma_F_dot = self.gamma_F_dot(0, self.q0, self.u0, u_dot)
+        #     ################################
+        #     # friction on acceleration level
+        #     ################################
+        #     prox_r_F = 0.1
+        #     gamma_F = self.__gamma_F(0, self.q0, self.u0)
+        #     gamma_F_dot = self.gamma_F_dot(0, self.q0, self.u0, u_dot)
 
-            if norm(gamma_F) > 0:
-                # TODO: Why this case is wrong?
-                print(f"slip")
-                R[3] = la_F + mu * la_N * gamma_F / norm(gamma_F)
-                # R[3] = la_F + prox_sphere(prox_r_F * gamma_F - la_F, mu * la_N)
-            else:
-                print(f"stick")
-                R[3] = la_F + prox_sphere(prox_r_F * gamma_F_dot - la_F, mu * la_N)
+        #     if norm(gamma_F) > 0:
+        #         print(f"slip")
+        #         R[3] = la_F + mu * la_N * gamma_F / norm(gamma_F)
+        #     else:
+        #         print(f"stick")
+        #         R[3] = la_F + prox_sphere(prox_r_F * gamma_F_dot - la_F, mu * la_N)
 
-            # # norm_gamma_F_dot = norm(gamma_F_dot)
-            # # if norm_gamma_F_dot > 0:
-            # #     R[3] = la_F + mu * la_N * gamma_F_dot / norm_gamma_F_dot
-            # # else:
-            # #     R[3] = la_F
-            # R[3] = la_F + prox_sphere(prox_r_F * gamma_F_dot - la_F, mu * la_N)
-            # R[3] = la_F + prox_sphere(prox_r_F * gamma_F - la_F, mu * la_N)
-            # R[3] = la_F + mu * la_N * gamma_F_dot / norm(gamma_F_dot)
-            # R[3] = gamma_F_dot
+        #     return R
 
-            # # eps = 1e-6
-            # # R[3] = la_F + mu * la_N * gamma_F / (eps + norm(gamma_F))
-            # R[3] = la_F + prox_sphere(prox_r_F * gamma_F_dot - la_F, mu * la_N)
-            # # R[3] = la_F + prox_sphere(prox_r_F * gamma_F - la_F, mu * la_N)
+        # x0 = np.ones(4)
+        # x0, converged, error, i, f = fsolve(R, x0, atol=1e-14)
+        # assert converged
+        # *u_dot, la_N, la_F = x0
 
-            # radius = mu * la_N
-            # prox_arg_F_velocity = prox_r_F * gamma_F - la_F
-            # norm_prox_arg_F_velocity = norm(prox_arg_F_velocity)
-            # prox_arg_F_acceleration = prox_r_F * gamma_F_dot - la_F
-            # norm_prox_arg_F_acceleration = norm(prox_arg_F_acceleration)
-
-            # if C_N:
-            #     print(f"acceleration")
-            #     R[3] = la_F + prox_sphere(prox_r_F * gamma_F_dot - la_F, mu * la_N)
-            # elif B_N:
-            #     print(f"velocity")
-            #     R[3] = la_F + prox_sphere(prox_r_F * gamma_F - la_F, mu * la_N)
-            # else:
-            #     R[3] = la_F
-
-            # # # if norm_prox_arg_F_velocity < radius:
-            # # # if norm_prox_arg_F_acceleration < radius:
-            # if radius < norm_prox_arg_F_velocity:
-            # # if radius < norm_prox_arg_F_acceleration:
-            #     print(f"slip")
-            #     # R[3] = la_F + prox_sphere(prox_r_F * gamma_F - la_F, mu * la_N)
-            #     # R[3] = la_F + mu * la_N * gamma_F / norm(gamma_F)
-            #     R[3] = la_F + mu * la_N * prox_arg_F_velocity / norm_prox_arg_F_velocity
-            # else:
-            #     print(f"stick")
-            #     # R[3] = gamma_F_dot
-            #     R[3] = la_F + prox_sphere(prox_r_F * gamma_F_dot - la_F, mu * la_N)
-            #     # R[3] = la_F + mu * la_N * gamma_F / norm(gamma_F)
-            #     # R[3] = la_F + prox_sphere(prox_r_F * gamma_F - la_F, mu * la_N)
-
-            # R[3] = la_F + prox_sphere(prox_r_F * gamma_F_dot - la_F, mu * la_N)
-            # # R[3] = la_F + prox_sphere(prox_r_F * gamma_F - la_F, mu * la_N)
-
-            # # R[3] = la_F + mu * la_N * gamma_F / norm(gamma_F)
-            # # R[2] = la_N - 53.16
-
-            return R
-
-        # x0 = np.random.rand(4)
-        x0 = np.ones(4)
-        x0, converged, error, i, f = fsolve(R, x0, atol=1e-14)
-        assert converged
-        *u_dot, la_N, la_F = x0
-        # x0 = np.random.rand(3)
-        # x0, converged, error, i, f = fsolve(R, x0)
-        # *u_dot, la_N = x0
-        # print(f"")
-        # exit()
-
-        # gamma_F = self.__gamma_F(0, self.q0, self.u0)
-        # if norm(gamma_F) > 0:
-        #     W_NF = w_N - w_F * gamma_F / norm(gamma_F) * mu
-        #     A = np.block([
-        #         [M, -W_NF],
-        #         [W_NF.T, np.zeros((self.nla_N, self.nla_N))],
-        #     ])
-        #     b = np.array([
-        #         0,
-        #         -m * g,
-        #         0,
-        #     ])
-        #     *u_dot, la_N = np.linalg.solve(A, b)
-        #     la_F = -gamma_F[0] / norm(gamma_F) * mu * la_N
-        # else:
-        #     A = np.block([
-        #         [M, -w_N, -w_F],
-        #         [w_N.T, np.zeros((self.nla_N, self.nla_N)), np.zeros((self.nla_N, self.nla_F))],
-        #         [w_F.T, np.zeros((self.nla_F, self.nla_N)), np.zeros((self.nla_F, self.nla_F))],
-        #     ])
-        #     b = np.array([
-        #         0,
-        #         -m * g,
-        #         0,
-        #         0
-        #     ])
-        #     *u_dot, la_N, la_F = np.linalg.solve(A, b)
-        #     la_F = -mu * la_N
-
-        # gamma_F = w_F.T @ self.u0
-        # W_NF = w_N - w_F * mu
-        # # if norm(gamma_F) > 0:
-        # #     W_NF = w_N - w_F * gamma_F / norm(gamma_F) * mu
-        # # else:
-        # #     W_NF = w_N - w_F * gamma_F * mu
-        # A = np.block([
-        #     [M, -W_NF],
-        #     [W_NF.T, np.zeros((self.nla_N, self.nla_N))],
-        # ])
-        # b = np.array([
-        #     0,
-        #     -m * g,
-        #     0,
-        # ])
-        # *u_dot, la_N = np.linalg.solve(A, b)
-        # la_F = -mu * la_N
-        # # if norm(gamma_F) > 0:
-        # #     la_F = -gamma_F[0] / norm(gamma_F) * mu * la_N
-        # # else:
-        # #     la_F = -gamma_F[0] * mu * la_N
-
-        self.la_N0 = np.array([la_N])
-        self.la_F0 = np.array([la_F])
-        # self.la_F0 = np.zeros(self.nla_F)
-        print(f"")
+        # self.la_N0 = np.array([la_N])
+        # self.la_F0 = np.array([la_F])
 
         # self.la_N0 = np.zeros(self.nla_N)
         # self.la_F0 = np.zeros(self.nla_F)
-
-        # self.q0 = np.array([0, 1.25])
-        # self.u0 = np.array([0.0, 0.0])
 
     ####################
     # kinematic equation
@@ -285,68 +154,52 @@ class BallOnExp:
         return np.array([0, np.exp(-x)])
 
     def tangent(self, x):
-        # return np.array([1, -np.exp(-x)]) / np.sqrt(1 + np.exp(-2 * x))
-        f_x = self.f_x(x)
-        return f_x / norm(f_x)
+        return np.array([1, -np.exp(-x)]) / np.sqrt(1 + np.exp(-2 * x))
+        # f_x = self.f_x(x)
+        # return f_x / norm(f_x)
+
+    def tangent_x(self, x):
+        ex = np.exp(-x)
+        ex2 = np.exp(-2 * x)
+        denom = 1 + ex2
+        return np.array([1, -ex]) * ex2 / (denom) ** (3 / 2) + np.array(
+            [0, ex]
+        ) / np.sqrt(denom)
 
     def normal(self, x):
-        # return np.array([np.exp(-x), 1]) / np.sqrt(1 + np.exp(-2 * x))
-        t = self.tangent(x)
-        return np.array([-t[1], t[0]])
+        return np.array([np.exp(-x), 1]) / np.sqrt(1 + np.exp(-2 * x))
+        # t = self.tangent(x)
+        # return np.array([-t[1], t[0]])
+
+    def normal_x(self, x):
+        ex = np.exp(-x)
+        ex2 = np.exp(-2 * x)
+        denom = 1 + ex2
+        return np.array([ex, 1]) * ex2 / (denom) ** (3 / 2) + np.array(
+            [-ex, 0]
+        ) / np.sqrt(denom)
 
     #################
     # normal contacts
     #################
-    def r_OQ(self, t, q):
-        x, y = q
-        return self.f(x)
-
-        # def fun(x):
-        #     r_PQ = self.f(x[0]) - q
-        #     return r_PQ @ r_PQ
-
-        # from scipy.optimize import minimize
-        # res = minimize(fun, [q[0]])
-        # assert res.success
-        # x = res.x[0]
-        # return self.f(x)
-
-        # def J(x):
-        #     x = x[0]
-        #     n = self.normal(x)
-        #     r_OQ = self.f(x)
-        #     r_OP = np.array([x, q[1]])
-        #     return n @ (r_OQ - r_OP)
-
-        # from cardillo.math import fsolve
-        # x, converged, error, i, f = fsolve(J, q[0])
-        # assert converged
-        # return self.f(x[0])
-
     def g_N(self, t, q):
-        x, y = q
-        n = self.normal(x)
-        r_OQ = self.r_OQ(t, q)
-        g_N = n @ (q - r_OQ)
-        return g_N
+        n = self.normal(q[0])
+        r_OQ = self.f(q[0])
+        return np.array([n @ (q - r_OQ)])
 
     def g_N_dot(self, t, q, u):
-        x, y = q
-        n = self.normal(x)
+        n = self.normal(q[0])
+        return np.array([n @ u])
 
-        return n @ u
-
-        g_N_q = approx_fprime(q, lambda q: self.g_N(t, q), method="3-point")
-        return g_N_q @ u + n @ u
+        # # Note: This is unnecessary, since q - r_OQ = 0 for closed contacts!
+        # r_OQ = self.f(q[0])
+        # n_x = self.normal_x(q[0])
+        # return n @ u + (q - r_OQ) @ n_x * u[0]
 
     def g_N_ddot(self, t, q, u, u_dot):
-        x, y = q
-        n = self.normal(x)
-
-        # return n @ u_dot
-
-        g_N_dot_q = approx_fprime(q, lambda q: self.g_N_dot(t, q, u))
-        return g_N_dot_q @ u + n @ u_dot
+        n = self.normal(q[0])
+        n_x = self.normal_x(q[0])
+        return np.array([n @ u_dot + u @ n_x * u[0]])
 
     def g_N_q(self, t, q, coo):
         dense = approx_fprime(q, lambda q: self.g_N(t, q))
@@ -375,8 +228,9 @@ class BallOnExp:
         t = self.tangent(q[0])
         return np.array([t @ u_dot])
 
-        gamma_F_q = approx_fprime(q, lambda q: self.__gamma_F(t, q, u))
-        return gamma_F_q @ u + t @ u_dot
+        # # Note: This is unnecessary, since u @ t_dot = alpha * g_N_dot = 0!
+        # t_x = self.tangent_x(q[0])
+        # return np.array([t @ u_dot + u @ t_x * u[0]])
 
     def gamma_F_q(self, t, q, u, coo):
         dense = approx_fprime(q, lambda q: self.__gamma_F(t, q, u))
@@ -404,10 +258,12 @@ mu = 0.3
 # mu = 3
 # mu = 0.0
 # x0 = -1
-x0 = 1
+# x0 = 1
+x0 = 0
 # x0 = 3
 # x_dot0 = 0
-x_dot0 = -5
+x_dot0 = 1
+# x_dot0 = -1
 
 # create bouncing ball subsystem
 ball = BallOnExp(m, g, mu, x0, x_dot0, e_N, e_F)
@@ -458,19 +314,17 @@ def plot(sol):
 
 def state():
     # solver setup
+    # t_final = 0.1
     t_final = 3
-    # dt = 5e-3
     dt = 1e-2
+    # dt = 5e-3
+    # dt = 1e-3
 
     # solve problem
-    # solver1, label1 = MoreauClassical(model, t_final, dt), "Moreau classical"
-    solver1, label1 = Rattle(model, t_final, dt), "Rattle"
+    solver1, label1 = MoreauClassical(model, t_final, dt), "Moreau classical"
+    # solver1, label1 = Rattle(model, t_final, dt), "Rattle"
     # solver1, label1 = NonsmoothGeneralizedAlpha(model, t_final, dt), "Gen-alpha"
     # solver1, label1 = NonsmoothPIRK(model, t_final, dt, RadauIIATableau(2)), "NPRIK"
-
-    print(f"la_N0: {model.la_N0}; la_F0: {model.la_F0}")
-    print(f"dt * la_N0: {dt * model.la_N0}; dt * la_F0: {dt * model.la_F0}")
-    # exit()
 
     sol1 = solver1.solve()
     t1 = sol1.t
@@ -585,11 +439,8 @@ def state():
     plt.show()
 
 
-def convergence(use_analytical_solution=False):
-    tol = 1.0e-15
-    # tol = 1.0e-12
-    # tol = 1.0e-10
-    # tol = 1.0e-8
+def convergence():
+    tol = 1.0e-12
 
     #####################################
     # compute step sizes with powers of 2
@@ -602,9 +453,9 @@ def convergence(use_analytical_solution=False):
     # dts = (2.0 ** np.arange(3, 1, -1)) * dt_ref  # [5.12e-2, ..., 2.56e-2]
     # t1 = (2.0**9) * dt_ref  # 3.2768s
 
-    dt_ref = 3.2e-3
-    dts = (2.0 ** np.arange(4, 1, -1)) * dt_ref  # [5.12e-2, ..., 1.28e-2]
-    t1 = (2.0**10) * dt_ref  # 3.2768s
+    # dt_ref = 3.2e-3
+    # dts = (2.0 ** np.arange(4, 1, -1)) * dt_ref  # [5.12e-2, ..., 1.28e-2]
+    # t1 = (2.0**10) * dt_ref  # 3.2768s
 
     # dt_ref = 1.6e-3
     # dts = (2.0 ** np.arange(5, 1, -1)) * dt_ref  # [5.12e-2, ..., 6.4e-3]
@@ -614,9 +465,9 @@ def convergence(use_analytical_solution=False):
     # dts = (2.0 ** np.arange(6, 1, -1)) * dt_ref  # [5.12e-2, ..., 3.2e-3]
     # t1 = (2.0**12) * dt_ref  # 3.2768s
 
-    # dt_ref = 4e-4
-    # dts = (2.0 ** np.arange(7, 1, -1)) * dt_ref  # [5.12e-2, ..., 1.6e-3]
-    # t1 = (2.0**13) * dt_ref  # 3.2768s
+    dt_ref = 4e-4
+    dts = (2.0 ** np.arange(7, 1, -1)) * dt_ref  # [5.12e-2, ..., 1.6e-3]
+    t1 = (2.0**13) * dt_ref  # 3.2768s
 
     # dt_ref = 2e-4
     # dts = (2.0 ** np.arange(8, 1, -1)) * dt_ref  # [5.12e-2, ..., 8e-4]
@@ -629,17 +480,13 @@ def convergence(use_analytical_solution=False):
     ################
     # chose a solver
     ################
-    # from spook.solver.lobatto import NonsmoothPIRK
-
-    # # get_solver = lambda dt: NonsmoothPIRK(model, t1, dt, RadauIIATableau(3))
-    # get_solver = lambda dt: NonsmoothPIRK(model, t1, dt, RadauIIATableau(5))
-    # # solver_other = NonsmoothPIRK(model, t1, dt, AlexanderTableau())
-    # # solver_other = NonsmoothPIRK(model, t1, dt, LobattoIIIDTableau(4))
-
     # get_solver = lambda dt: MoreauClassical(model, t1, dt, atol=tol)
-    get_solver = lambda dt: Rattle(model, t1, dt)
-    # get_solver = lambda dt: NonsmoothBackwardEulerDecoupled(model, t1, dt, atol=tol)
+    get_solver = lambda dt: Rattle(model, t1, dt, atol=tol)
     # get_solver = lambda dt: NonsmoothGeneralizedAlpha(model, t1, dt, newton_tol=tol)
+    # get_solver = lambda dt: NonsmoothPIRK(model, t1, dt, RadauIIATableau(2), atol=tol)
+    # get_solver = lambda dt: NonsmoothPIRK(model, t1, dt, RadauIIATableau(3), atol=tol)
+
+    # get_solver = lambda dt: NonsmoothBackwardEulerDecoupled(model, t1, dt, atol=tol)
     # get_solver = lambda dt: IRK(model, t1, dt, TRBDF2Tableau(), atol=tol)
     # get_solver = lambda dt: IRK(model, t1, dt, RadauIIATableau(order=3), atol=tol)
     # get_solver = lambda dt: Rattle(model, t1, dt, atol=tol)
@@ -710,215 +557,172 @@ def convergence(use_analytical_solution=False):
     ###################################################################
     # compute reference solution as described in Arnold2015 Section 3.3
     ###################################################################
-    if not use_analytical_solution:
-        print(f"compute reference solution:")
-        reference = get_solver(dt_ref).solve()
-        # reference = Moreau(model, t1, dt_ref, fix_point_tol=tol).solve()
-        print(f"done")
+    print(f"compute reference solution:")
+    reference = get_solver(dt_ref).solve()
+    print(f"done")
 
-        def errors(sol, sol_ref, t_transient=1.1, t_longterm=1.5):
-            # extract solution an remove first time step
-            t = sol.t[1:]
-            q = sol.q[1:]
-            u = sol.u[1:]
-            P_N = sol.P_N[1:]
-            P_F = sol.P_F[1:]
+    def errors(sol, sol_ref, t_transient=1.5, t_longterm=2.5):
+        # extract solution an remove first time step
+        t = sol.t  # [1:]
+        q = sol.q  # [1:]
+        u = sol.u  # [1:]
+        P_N = sol.P_N  # [1:]
+        P_F = sol.P_F  # [1:]
 
-            t_ref = sol_ref.t[1:]
-            q_ref = sol_ref.q[1:]
-            u_ref = sol_ref.u[1:]
-            P_N_ref = sol_ref.P_N[1:]
-            P_F_ref = sol_ref.P_F[1:]
+        t_ref = sol_ref.t  # [1:]
+        q_ref = sol_ref.q  # [1:]
+        u_ref = sol_ref.u  # [1:]
+        P_N_ref = sol_ref.P_N  # [1:]
+        P_F_ref = sol_ref.P_F  # [1:]
 
-            # distinguish between transient and long term time steps
-            t_idx_transient = np.where(t <= t_transient)[0]
-            t_idx_longterm = np.where(t >= t_longterm)[0]
+        # distinguish between transient and long term time steps
+        t_idx_transient = np.where(t <= t_transient)[0]
+        t_idx_longterm = np.where(t >= t_longterm)[0]
 
-            # compute difference between computed solution and reference solution
-            # for identical time instants
-            t_ref_idx = np.where(np.abs(t[:, None] - t_ref) < 1.0e-8)[1]
-            t_ref_idx_transient = np.where(
-                np.abs(t[t_idx_transient, None] - t_ref) < 1.0e-8
-            )[1]
-            t_ref_idx_longterm = np.where(
-                np.abs(t[t_idx_longterm, None] - t_ref) < 1.0e-8
-            )[1]
+        # compute difference between computed solution and reference solution
+        # for identical time instants
+        t_ref_idx = np.where(np.abs(t[:, None] - t_ref) < 1.0e-8)[1]
+        t_ref_idx_transient = np.where(
+            np.abs(t[t_idx_transient, None] - t_ref) < 1.0e-8
+        )[1]
+        t_ref_idx_longterm = np.where(np.abs(t[t_idx_longterm, None] - t_ref) < 1.0e-8)[
+            1
+        ]
 
-            def max_relative_error(f, f_ref):
-                diff = f - f_ref
-                return np.max(
-                    np.linalg.norm(diff, axis=1) / np.linalg.norm(f_ref, axis=1)
-                )
+        def max_relative_error(f, f_ref):
+            diff = f - f_ref
+            return np.max(np.linalg.norm(diff, axis=1) / np.linalg.norm(f_ref, axis=1))
 
-            def integral_error(f, f_ref):
-                diff = f - f_ref
-                diff2 = np.linalg.norm(diff, axis=1) ** 2
-                # diff2 = np.array([d @ d for d in diff])
+        def l1_error(t, t_ref, f, f_ref):
+            """https://de.wikipedia.org/wiki/Summennorm"""
+            return np.sum(dt * np.abs(f - f_ref[t_ref_idx]))
 
-                # integral = np.trapz(diff2, t, dx=dt, axis=0)
-                integral = dt * np.sum(diff2)
+        def lp_error(t, t_ref, f, f_ref, p=2):
+            """https://de.wikipedia.org/wiki/Lp-Raum"""
+            return np.sum(dt * np.abs(f - f_ref[t_ref_idx]) ** p) ** (1 / p)
 
-                error = np.sqrt(integral)
-                return error
+        # TODO: Test this for different norms
+        def matrix_norm_error(t, t_ref, f, f_ref, p):
+            return np.linalg.norm(f - f_ref[t_ref_idx], ord=p)
 
-            # pre stick
-            q_error_transient = max_relative_error(
-                q[t_idx_transient], q_ref[t_ref_idx_transient]
-            )
-            u_error_transient = max_relative_error(
-                u[t_idx_transient], u_ref[t_ref_idx_transient]
-            )
-            P_N_error_transient = max_relative_error(
-                P_N[t_idx_transient], P_N_ref[t_ref_idx_transient]
-            )
-            P_F_error_transient = max_relative_error(
-                P_F[t_idx_transient], P_F_ref[t_ref_idx_transient]
-            )
+        def trapezoid_error(t, t_ref, f, f_ref):
+            from scipy.integrate import trapezoid
 
-            # post stick
-            q_error_longterm = max_relative_error(
-                q[t_idx_longterm], q_ref[t_ref_idx_longterm]
-            )
-            u_error_longterm = max_relative_error(
-                u[t_idx_longterm], u_ref[t_ref_idx_longterm]
-            )
-            P_N_error_longterm = max_relative_error(
-                P_N[t_idx_longterm], P_N_ref[t_ref_idx_longterm]
-            )
-            P_F_error_longterm = max_relative_error(
-                P_F[t_idx_longterm], P_F_ref[t_ref_idx_longterm]
-            )
+            F = trapezoid(f, t, axis=0)
+            F_ref = trapezoid(f_ref, t_ref, axis=0)
+            return np.max(np.abs(F - F_ref))
 
-            # integral
-            q_error_integral = integral_error(q, q_ref[t_ref_idx])
-            u_error_integral = integral_error(u, u_ref[t_ref_idx])
-            P_N_error_integral = integral_error(P_N, P_N_ref[t_ref_idx])
-            P_F_error_integral = integral_error(P_F, P_F_ref[t_ref_idx])
+        def p_var_error(t, t_ref, f, f_ref, p=1):
+            """https://en.wikipedia.org/wiki/P-variation"""
 
-            return (
-                q_error_transient,
-                u_error_transient,
-                P_N_error_transient,
-                P_F_error_transient,
-                q_error_longterm,
-                u_error_longterm,
-                P_N_error_longterm,
-                P_F_error_longterm,
-                q_error_integral,
-                u_error_integral,
-                P_N_error_integral,
-                P_F_error_integral,
-            )
+            def p_var(x, p):
+                cum_p_var = np.zeros_like(x)
+                for i in range(1, len(x)):
+                    for j in range(i):
+                        cum_p_var[i] = np.maximum(
+                            cum_p_var[i], cum_p_var[j] + np.abs(x[i] - x[j]) ** p
+                        )
+                return cum_p_var
 
-    else:
-        raise NotImplementedError
+            cum_p_var = p_var(f, p)
+            cum_p_var_ref = p_var(f_ref, p)
+            return np.max(np.abs(cum_p_var[-1] - cum_p_var_ref[-1]))
 
-        def errors(sol, t_transient=1.1, t_longterm=1.5):
-            t = sol.t
-            q = sol.q
-            u = sol.u
-            P_N = sol.P_N
-            P_F = sol.P_F
+        # integral_error = l1_error
+        integral_error = lp_error
+        # integral_error = trapezoid_error
+        # integral_error = p_var_error
 
-            # analytical solution
-            r_OP, v_P = ball.solution(t)
+        # def integral_error(f, f_ref):
+        #     # diff = f - f_ref
 
-            # distinguish between transient and long term time steps
-            t_idx_transient = np.where(t <= t_transient)[0]
-            t_idx_longterm = np.where(t >= t_longterm)[0]
+        #     # # # diff2 = np.linalg.norm(diff, axis=1) ** 2
+        #     # # diff2 = np.array([d @ d for d in diff])
 
-            # differences
-            q_transient = q[t_idx_transient]
-            u_transient = u[t_idx_transient]
-            # P_N_transient = P_N[t_idx_transient]
-            # P_F_transient = P_F[t_idx_transient]
-            diff_transient_q = q_transient - r_OP[t_idx_transient]
-            diff_transient_u = u_transient - v_P[t_idx_transient]
-            # diff_transient_P_N = P_N_transient - P_N_ref[t_idx_transient]
-            # diff_transient_P_F = P_F_transient - P_F_ref[t_idx_transient]
+        #     # # # integral = np.trapz(diff2, t, dx=dt, axis=0)
+        #     # # # TODO: why dt not dt**2?
+        #     # # integral = dt * np.sum(diff2)
+        #     # # error = np.sqrt(integral)
 
-            q_longterm = q[t_idx_longterm]
-            u_longterm = u[t_idx_longterm]
-            # P_N_longterm = P_N[t_idx_longterm]
-            # P_F_longterm = P_F[t_idx_longterm]
-            diff_longterm_q = q_longterm - r_OP[t_idx_longterm]
-            diff_longterm_u = u_longterm - v_P[t_idx_longterm]
-            # diff_longterm_P_N = P_N_longterm - P_N_ref[t_idx_longterm]
-            # diff_longterm_P_F = P_F_longterm - P_F_ref[t_idx_longterm]
+        #     # # integral = np.sum(diff2)
+        #     # integral = np.sum(diff)
+        #     # error = dt * np.sqrt(integral)
+        #     # return error
 
-            # max relative error
-            q_error_transient = np.max(
-                np.linalg.norm(diff_transient_q, axis=1)
-                / np.linalg.norm(q_transient, axis=1)
-            )
-            u_error_transient = np.max(
-                np.linalg.norm(diff_transient_u, axis=1)
-                / np.linalg.norm(u_transient, axis=1)
-            )
-            # P_N_error_transient = np.max(
-            #     np.linalg.norm(diff_transient_P_N, axis=1)
-            #     / np.linalg.norm(P_N_transient, axis=1)
-            # )
-            # P_F_error_transient = np.max(
-            #     np.linalg.norm(diff_transient_P_F, axis=1)
-            #     / np.linalg.norm(P_F_transient, axis=1)
-            # )
+        #     return np.sum(dt * (f - f_ref))
 
-            q_error_longterm = np.max(
-                np.linalg.norm(diff_longterm_q, axis=1)
-                / np.linalg.norm(q_longterm, axis=1)
-            )
-            u_error_longterm = np.max(
-                np.linalg.norm(diff_longterm_u, axis=1)
-                / np.linalg.norm(u_longterm, axis=1)
-            )
-            # P_N_error_longterm = np.max(
-            #     np.linalg.norm(diff_longterm_P_N, axis=1)
-            #     / np.linalg.norm(P_N_longterm, axis=1)
-            # )
-            # P_F_error_longterm = np.max(
-            #     np.linalg.norm(diff_longterm_P_F, axis=1)
-            #     / np.linalg.norm(P_F_longterm, axis=1)
-            # )
+        # pre stick
+        q_error_transient = max_relative_error(
+            q[t_idx_transient], q_ref[t_ref_idx_transient]
+        )
+        u_error_transient = max_relative_error(
+            u[t_idx_transient], u_ref[t_ref_idx_transient]
+        )
+        P_N_error_transient = max_relative_error(
+            P_N[t_idx_transient], P_N_ref[t_ref_idx_transient]
+        )
+        P_F_error_transient = max_relative_error(
+            P_F[t_idx_transient], P_F_ref[t_ref_idx_transient]
+        )
 
-            return (
-                q_error_transient,
-                u_error_transient,
-                # P_N_error_transient,
-                # P_F_error_transient,
-                q_error_longterm,
-                u_error_longterm,
-                # P_N_error_longterm,
-                # P_F_error_longterm,
-            )
+        # post stick
+        q_error_longterm = max_relative_error(
+            q[t_idx_longterm], q_ref[t_ref_idx_longterm]
+        )
+        u_error_longterm = max_relative_error(
+            u[t_idx_longterm], u_ref[t_ref_idx_longterm]
+        )
+        P_N_error_longterm = max_relative_error(
+            P_N[t_idx_longterm], P_N_ref[t_ref_idx_longterm]
+        )
+        P_F_error_longterm = max_relative_error(
+            P_F[t_idx_longterm], P_F_ref[t_ref_idx_longterm]
+        )
+
+        # integral
+        # q_error_integral = integral_error(t, t_ref[t_ref_idx], q, q_ref[t_ref_idx])
+        # u_error_integral = integral_error(t, t_ref[t_ref_idx], u, u_ref[t_ref_idx])
+        # P_N_error_integral = integral_error(t, t_ref[t_ref_idx], P_N, P_N_ref[t_ref_idx])
+        # P_F_error_integral = integral_error(t, t_ref[t_ref_idx], P_F, P_F_ref[t_ref_idx])
+        q_error_integral = integral_error(t, t_ref, q, q_ref)
+        u_error_integral = integral_error(t, t_ref, u, u_ref)
+        P_N_error_integral = integral_error(t, t_ref, P_N, P_N_ref)
+        P_F_error_integral = integral_error(t, t_ref, P_F, P_F_ref)
+
+        return (
+            q_error_transient,
+            u_error_transient,
+            P_N_error_transient,
+            P_F_error_transient,
+            q_error_longterm,
+            u_error_longterm,
+            P_N_error_longterm,
+            P_F_error_longterm,
+            q_error_integral,
+            u_error_integral,
+            P_N_error_integral,
+            P_F_error_integral,
+        )
 
     for i, dt in enumerate(dts):
         print(f"i: {i}, dt: {dt:1.1e}")
 
         # solve problem with current time step
         sol = get_solver(dt).solve()
-        if use_analytical_solution:
-            (
-                q_errors_transient[i],
-                u_errors_transient[i],
-                q_errors_longterm[i],
-                u_errors_longterm[i],
-            ) = errors(sol)
-        else:
-            (
-                q_errors_transient[i],
-                u_errors_transient[i],
-                P_N_errors_transient[i],
-                P_F_errors_transient[i],
-                q_errors_longterm[i],
-                u_errors_longterm[i],
-                P_N_errors_longterm[i],
-                P_F_errors_longterm[i],
-                q_errors_integral[i],
-                u_errors_integral[i],
-                P_N_errors_integral[i],
-                P_F_errors_integral[i],
-            ) = errors(sol, reference)
+        (
+            q_errors_transient[i],
+            u_errors_transient[i],
+            P_N_errors_transient[i],
+            P_F_errors_transient[i],
+            q_errors_longterm[i],
+            u_errors_longterm[i],
+            P_N_errors_longterm[i],
+            P_F_errors_longterm[i],
+            q_errors_integral[i],
+            u_errors_integral[i],
+            P_N_errors_integral[i],
+            P_F_errors_integral[i],
+        ) = errors(sol, reference)
 
         # # append(
         # #     file_transient_q,

@@ -131,11 +131,6 @@ class System:
         self.nla_F = 0
         q0 = []
         u0 = []
-        la_g0 = []
-        la_gamma0 = []
-        la_S0 = []
-        la_N0 = []
-        la_F0 = []
         e_N = []
         e_F = []
         mu = []
@@ -190,12 +185,11 @@ class System:
                 # normal
                 contr.la_NDOF = np.arange(0, contr.nla_N) + self.nla_N
                 self.nla_N += contr.nla_N
-                la_N0.extend(contr.la_N0.tolist())
                 e_N.extend(contr.e_N.tolist())
+
                 # tangential
                 contr.la_FDOF = np.arange(0, contr.nla_F) + self.nla_F
                 self.nla_F += contr.nla_F
-                la_F0.extend(contr.la_F0.tolist())
                 e_F.extend(contr.e_F.tolist())
                 mu.extend(contr.mu.tolist())
                 for i in range(contr.nla_N):
@@ -210,12 +204,12 @@ class System:
 
         self.q0 = np.array(q0)
         self.u0 = np.array(u0)
-        # TODO remove la_g, la_gamma, la_S
+        # TODO: Whe should compute consisten initial conditions here!
         self.la_g0 = np.zeros(self.nla_g)
         self.la_gamma0 = np.zeros(self.nla_gamma)
         self.la_S0 = np.zeros(self.nla_S)
-        self.la_N0 = np.array(la_N0)
-        self.la_F0 = np.array(la_F0)
+        self.la_N0 = np.zeros(self.nla_N)
+        self.la_F0 = np.zeros(self.nla_F)
         self.NF_connectivity = NF_connectivity
         self.N_has_friction = np.array(N_has_friction, dtype=bool)
         self.Ncontr_connectivity = np.array(Ncontr_connectivity, dtype=int)

@@ -40,69 +40,27 @@ class MoreauShifted:
         self.nR_smooth = self.nu + self.nla_g + self.nla_gamma
         self.nR = self.nR_smooth + self.nla_N + self.nla_F
 
-        self.tk = t0
-        self.qk = system.q0
-        self.uk = system.u0
-        la_N0 = system.la_N0
-        la_F0 = system.la_F0
+        # consistent initial conditions
+        (
+            self.tk,
+            self.qk,
+            self.uk,
+            self.q_dotk,
+            self.u_dotk,
+            la_g0,
+            la_gamma0,
+            la_N0,
+            la_F0,
+        ) = consistent_initial_conditions(system)
+
+        # consistent initial percussion
+        self.P_gk = la_g0 * dt
+        self.P_gammak = la_gamma0 * dt
         self.P_Nk = la_N0 * dt
         self.P_Fk = la_F0 * dt
 
         # connectivity matrix of normal force directions and friction force directions
         self.NF_connectivity = self.system.NF_connectivity
-
-        # initial velocites
-        self.q_dotk = self.system.q_dot(self.tk, self.qk, self.uk)
-
-        # solve for consistent initial accelerations and Lagrange mutlipliers
-        M0 = self.system.M(self.tk, self.qk, scipy_matrix=csr_matrix)
-        h0 = self.system.h(self.tk, self.qk, self.uk)
-        W_g0 = self.system.W_g(self.tk, self.qk, scipy_matrix=csr_matrix)
-        W_gamma0 = self.system.W_gamma(self.tk, self.qk, scipy_matrix=csr_matrix)
-        W_N0 = self.system.W_N(self.tk, self.qk, scipy_matrix=csr_matrix)
-        W_F0 = self.system.W_F(self.tk, self.qk, scipy_matrix=csr_matrix)
-
-        u_dot_la_g_la_gamma = np.zeros(self.nu + self.nla_g + self.nla_gamma)
-
-        # zeta_g0 = self.system.zeta_g(t0, self.qk, self.uk)
-        # zeta_gamma0 = self.system.zeta_gamma(t0, self.qk, self.uk)
-        # # fmt: off
-        # A = bmat(
-        #     [[       M0, -W_g0, -W_gamma0],
-        #      [    W_g0.T, None,      None],
-        #      [W_gamma0.T, None,      None]],
-        #     format="csc",
-        # )
-        # # fmt: on
-        # b = np.concatenate([h0 + W_N0 @ la_N0 + W_F0 @ la_F0, -zeta_g0, -zeta_gamma0])
-        # u_dot_la_g_la_gamma = splu(A).solve(b)
-        self.u_dotk = u_dot_la_g_la_gamma[: self.nu]
-        self.P_gk = u_dot_la_g_la_gamma[self.nu : self.nu + self.nla_g] * dt
-        self.P_gammak = u_dot_la_g_la_gamma[self.nu + self.nla_g :] * dt
-
-        # check if initial conditions satisfy constraints on position, velocity
-        # and acceleration level
-        g0 = system.g(self.tk, self.qk)
-        g_dot0 = system.g_dot(self.tk, self.qk, self.uk)
-        # g_ddot0 = system.g_ddot(self.tk, self.qk, self.uk, self.u_dotk)
-        gamma0 = system.gamma(self.tk, self.qk, self.uk)
-        # gamma_dot0 = system.gamma_dot(self.tk, self.qk, self.uk, self.u_dotk)
-
-        assert np.allclose(
-            g0, np.zeros(self.nla_g)
-        ), "Initial conditions do not fulfill g0!"
-        assert np.allclose(
-            g_dot0, np.zeros(self.nla_g)
-        ), "Initial conditions do not fulfill g_dot0!"
-        # assert np.allclose(
-        #     g_ddot0, np.zeros(self.nla_g)
-        # ), "Initial conditions do not fulfill g_ddot0!"
-        assert np.allclose(
-            gamma0, np.zeros(self.nla_gamma)
-        ), "Initial conditions do not fulfill gamma0!"
-        # assert np.allclose(
-        #     gamma_dot0, np.zeros(self.nla_gamma)
-        # ), "Initial conditions do not fulfill gamma_dot0!"
 
     def step(self):
         # general quantities
@@ -348,7 +306,7 @@ class MoreauShiftedNew:
         # connectivity matrix of normal force directions and friction force directions
         self.NF_connectivity = self.system.NF_connectivity
 
-        # set consistent initial conditions
+        # consistent initial conditions
         (
             self.tn,
             self.qn,
@@ -357,12 +315,13 @@ class MoreauShiftedNew:
             self.u_dotn,
             la_g0,
             la_gamma0,
+            la_N0,
+            la_F0,
         ) = consistent_initial_conditions(system)
 
+        # consistent initial percussion
         self.P_gn = la_g0 * dt
         self.P_gamman = la_gamma0 * dt
-        la_N0 = system.la_N0
-        la_F0 = system.la_F0
         self.P_Nn = la_N0 * dt
         self.P_Fn = la_F0 * dt
 
@@ -624,7 +583,7 @@ class MoreauClassical:
         # connectivity matrix of normal force directions and friction force directions
         self.NF_connectivity = self.system.NF_connectivity
 
-        # set consistent initial conditions
+        # consistent initial conditions
         (
             self.tn,
             self.qn,
@@ -633,12 +592,13 @@ class MoreauClassical:
             self.u_dotn,
             la_g0,
             la_gamma0,
+            la_N0,
+            la_F0,
         ) = consistent_initial_conditions(system)
 
+        # consistent initial percussion
         self.P_gn = la_g0 * dt
         self.P_gamman = la_gamma0 * dt
-        la_N0 = system.la_N0
-        la_F0 = system.la_F0
         self.P_Nn = la_N0 * dt
         self.P_Fn = la_F0 * dt
 
