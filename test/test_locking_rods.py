@@ -32,7 +32,7 @@ from cardillo.beams import (
 from cardillo.forces import K_Moment, Force
 from cardillo import System
 from cardillo.solver import Newton
-from cardillo.utility import Export
+from cardillo.visualization import Export
 
 import numpy as np
 import matplotlib.pyplot as plt

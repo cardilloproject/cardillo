@@ -13,7 +13,7 @@ from cardillo.constraints import Spherical
 from cardillo.system import System
 from cardillo.math import axis_angle2quat, cross3
 from cardillo.solver import ScipyIVP
-from cardillo.utility import Export
+from cardillo.visualization import Export
 
 
 class Ball(RigidBodyQuaternion):

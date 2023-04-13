@@ -7,7 +7,7 @@ from cardillo.math import axis_angle2quat, Log_SO3
 from cardillo.system import System
 from cardillo.constraints import Planarizer
 from cardillo.solver import ScipyIVP, RadauIIa, EulerBackward
-from cardillo.utility import Export
+from cardillo.visualization import Export
 
 planarize = True
 # planarize = False

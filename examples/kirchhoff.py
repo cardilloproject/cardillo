@@ -12,7 +12,7 @@ from Kirchhoff.kirchhoff import KirchhoffPetrovGalerkin as Kirchhoff
 from cardillo.forces import K_Moment, K_Force, DistributedForce1DBeam
 from cardillo import System
 from cardillo.solver import Newton, EulerBackward, ScipyIVP
-from cardillo.utility import Export
+from cardillo.visualization import Export
 
 import numpy as np
 import matplotlib.pyplot as plt
