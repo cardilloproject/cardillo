@@ -27,7 +27,7 @@ import pickle
 
 if __name__ == "__main__":
     # number of elements
-    nelements = 8
+    nelements = 16
 
     # used polynomial degree
     polynomial_degree = 2
@@ -41,7 +41,7 @@ if __name__ == "__main__":
     L = 1.0e3
 
     # slenderness and corresponding absolute tolerance for Newton-Raphson solver
-    slenderness = 1.0e2
+    slenderness = 1.0e4 / 2
     atol = 1.0e-10
 
     # used cross section
@@ -89,11 +89,12 @@ if __name__ == "__main__":
     hp = 1  # pivot height
 
     # helix
-    n_coils = 2  # number of helix coils
+    n_coils = 1  # number of helix coils
     scale = 1.0e1
     RO = 1 * scale  # helix outer radius
-    RI = 1 * scale - hp
+    RI = 1 * scale - hp # helix inner radius
     h = 2 * scale  # helix height
+    h = (RO * 2 * np.pi * n_coils)
     cO = h / (RO * 2 * np.pi * n_coils)
     LO = np.sqrt(1 + cO**2) * RO * 2 * np.pi * n_coils
     cI = h / (RI * 2 * np.pi * n_coils)
@@ -120,7 +121,7 @@ if __name__ == "__main__":
 
         return np.vstack((e_x, e_y, e_z)).T
 
-    nxi = 30
+    nxi = 100
     xis = np.linspace(0, 1, num=nxi)
 
     import matplotlib.pyplot as plt
@@ -139,13 +140,13 @@ if __name__ == "__main__":
     # plt.show()
 
     # individual rods
-    n_rod = 4  # number of rods per layer
+    n_rod = 8  # number of rods per layer
     Q0_list = []
     rod_list = []
     joint_list = []
 
     # load config
-    load_config = False
+    load_config = True
     from pathlib import Path
     import copy
 
@@ -189,7 +190,7 @@ if __name__ == "__main__":
     # joints between frames and rods
     system = System()
     Z_max = r(1)[-1]
-    r_OP_top = lambda t: np.array([0, 0, Z_max - 2 * t])
+    r_OP_top = lambda t: np.array([0, 0, Z_max - h/2 * t])
     frame_top = Frame(r_OP=r_OP_top, A_IK=np.eye(3))
     for rod in rod_list:
         joint_bottom = RigidConnection(system.origin, rod, frame_ID2=(0,))
@@ -210,7 +211,7 @@ if __name__ == "__main__":
     system.assemble()
 
     # solve static system
-    n_load_steps = 10
+    n_load_steps = 20
     solver = Newton(
         system,
         n_load_steps=n_load_steps,
@@ -228,11 +229,12 @@ if __name__ == "__main__":
     ###########
     # animation
     ###########
-    # animate_beam(t, q, rod_list, 2 * scale, show=True)
+    animate_beam(t, q, rod_list, 2 * scale, show=True)
 
     ###########
     # export
     ########### 
     e = Export(path.parent, path.stem, True, 10, sol)
     for rod in rod_list:
-        e.export_contr(rod, level="centerline + directors", num=50)
+        # e.export_contr(rod, level="centerline + directors", num=100)
+        e.export_contr(rod, level="volume")
