@@ -14,7 +14,7 @@ from cardillo.beams import K_R12_PetrovGalerkin_AxisAngle as Rod
 # from cardillo.beams import K_SE3_PetrovGalerkin_R9 as Rod
 # from cardillo.beams import K_R3_SO3_PetrovGalerkin_AxisAngle as Rod
 from cardillo.beams import animate_beam
-from cardillo.forces import K_Moment
+# from cardillo.forces import K_Moment
 from cardillo import System
 from cardillo.solver import Newton
 from cardillo.discrete import Frame
@@ -114,8 +114,8 @@ if __name__ == "__main__":
         sa = np.sin(alpha + phi0)
         ca = np.cos(alpha + phi0)
 
-        e_x = np.array([ca, sa, dor * c]) / np.sqrt(1 + c**2)
-        e_y = np.array([-sa, ca, 0])
+        e_x = dor * np.array([ca, sa, dor * c]) / np.sqrt(1 + c**2)
+        e_y = dor * np.array([-sa, ca, 0])
         e_z = np.array([-c * dor * ca, -dor * c * sa, 1]) / np.sqrt(1 + c**2)
 
         return np.vstack((e_x, e_y, e_z)).T
@@ -153,13 +153,17 @@ if __name__ == "__main__":
     # path.mkdir()
     filename = Path(path.parent, "initial_config")
     if load_config:
-        rod_list = pickle.load(open(filename, "rb"))
-        # for n in range(n_rod):
-        #     rod_ccw = copy.deepcopy(rod)
-        #     rod_ccw.q0 = Q0_list[2*n].copy()
-        #     rod_cw = copy.deepcopy(rod)
-        #     rod_cw.q0 = Q0_list[2*n+1].copy()
-        #     rod_list.extend((rod_ccw,rod_cw))
+        Q0_list = pickle.load(open(filename, "rb"))
+        for n in range(n_rod):
+            rod_ccw = copy.deepcopy(rod)
+            rod_ccw.q0 = Q0_list[2*n].copy()
+            rod_ccw.set_initial_strains(rod_ccw.q0)
+            
+            rod_cw = copy.deepcopy(rod)
+            rod_cw.q0 = Q0_list[2*n+1].copy()
+            rod_cw.set_initial_strains(rod_cw.q0)
+            
+            rod_list.extend((rod_ccw,rod_cw))
     else:
         for n in range(n_rod):
             rod_ccw = copy.deepcopy(rod)
@@ -179,8 +183,8 @@ if __name__ == "__main__":
             rod_cw.q0 = Q0_cw.copy()
             rod_list.append(rod_cw)
 
-        # file = open(filename, "wb")
-        # pickle.dump(rod_list, file)
+        file = open(filename, "wb")
+        pickle.dump(Q0_list, file)
 
     # joints between frames and rods
     system = System()
@@ -231,4 +235,4 @@ if __name__ == "__main__":
     ########### 
     e = Export(path.parent, path.stem, True, 10, sol)
     for rod in rod_list:
-        e.export_contr(rod, level="centerline + directors", num=20)
+        e.export_contr(rod, level="centerline + directors", num=50)
