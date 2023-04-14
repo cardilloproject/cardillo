@@ -667,6 +667,7 @@ class NonsmoothPIRK:
         P_gamman1 = h * dP_gamma @ self.b + Delta_P_gamma
         P_Nn1 = h * dP_N @ self.b + Delta_P_N
         P_Fn1 = h * dP_F @ self.b + Delta_P_F
+
         # P_gn1 =  dP_g @ self.b + Delta_P_g
         # P_gamman1 = dP_gamma @ self.b + Delta_P_gamma
         # P_Nn1 = dP_N @ self.b + Delta_P_N
@@ -775,7 +776,20 @@ class NonsmoothPIRK:
             ti = tn + self.c[i] * h
             Qi = qn + h * dq @ self.A[i]
             Ui = un + h * du @ self.A[i]
+
+            #################
+            # single integral
+            #################
             P_Ni = h * dP_N @ self.A[i]
+
+            # #################
+            # # double integral
+            # #################
+            # kappa_Ni = np.zeros_like(dP_N)
+            # for j in range(self.stages):
+            #     kappa_Ni[:, j] = h * dP_N @ self.A[j]
+            # P_Ni = h * kappa_Ni @ self.A[i]
+
             # Qi = qn + dq @ self.A[i]
             # Ui = un + du @ self.A[i]
             # P_Ni = self.P_Nn + h * dP_N @ self.A[i]
