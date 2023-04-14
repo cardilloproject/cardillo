@@ -436,22 +436,22 @@ def __error(t1, t2, f1, f2, measure="lp", kwargs={"p": 1}):
 
 def convergence_analysis(
     get_solver,
-    dt_ref=3.2e-3,
+    # dt_ref=3.2e-3,
     # final_power=10,
-    final_power=6,
-    power_span=(1, 5),
-    # dt_ref=1.6e-3,
-    # # final_power=11,
+    # # final_power=6,
+    # power_span=(1, 4),
+    dt_ref=1.6e-3,
+    final_power=11,
     # final_power=7,
-    # power_span=(1, 6),
+    power_span=(1, 5),
     # dt_ref=8e-4,
     # # final_power=12,
     # final_power=8,
-    # power_span=(1, 7),
+    # power_span=(1, 6),
     # dt_ref=4e-4,
-    # # final_power=13,
-    # final_power=9,
-    # power_span=(1, 8),
+    # final_power=13,
+    # # final_power=9,
+    # power_span=(1, 7),
     states=["q", "u", "P_N", "P_F"],
     split_fractions=[0.0, 0.5, 1.0],
     atol=1e-12,
@@ -528,21 +528,21 @@ def convergence_analysis(
             f = getattr(sol, field)
             errors[field]["global"].append(__error(t_ref, t, f_ref, f))
 
-            # ###########
-            # # 2. splits
-            # ###########
-            # for j in range(1, len(split_fractions)):
-            #     lower = t.searchsorted(split_fractions[j - 1] * t_final, side="left")
-            #     upper = t.searchsorted(split_fractions[j] * t_final, side="left")
+            ###########
+            # 2. splits
+            ###########
+            for j in range(1, len(split_fractions)):
+                lower = t.searchsorted(split_fractions[j - 1] * t_final, side="left")
+                upper = t.searchsorted(split_fractions[j] * t_final, side="left")
 
-            #     errors[field][f"{split_fractions[j-1]}-{split_fractions[j]}"].append(
-            #         __error(
-            #             t_ref[lower:upper],
-            #             t[lower:upper],
-            #             f_ref[lower:upper],
-            #             f[lower:upper],
-            #         )
-            #     )
+                errors[field][f"{split_fractions[j-1]}-{split_fractions[j]}"].append(
+                    __error(
+                        t_ref[lower:upper],
+                        t[lower:upper],
+                        f_ref[lower:upper],
+                        f[lower:upper],
+                    )
+                )
 
     if visualize:
         ##################
@@ -562,23 +562,23 @@ def convergence_analysis(
         ax[0].grid()
         ax[0].legend()
 
-        # for j in range(1, len(split_fractions)):
-        #     ax[j].set_title(f"{split_fractions[j-1]}-{split_fractions[j]}")
-        #     ax[j].loglog(dts, dts, "-k", label="dt")
-        #     ax[j].loglog(dts, dts**2, "--k", label="dt^2")
-        #     ax[j].loglog(dts, dts**3, "-.k", label="dt^3")
-        #     ax[j].loglog(dts, dts**4, ":k", label="dt^4")
-        #     ax[j].loglog(dts, dts**5, "-ok", label="dt^5")
-        #     ax[j].loglog(dts, dts**6, "-sk", label="dt^6")
-        #     for field in states:
-        #         ax[j].loglog(
-        #             dts,
-        #             errors[field][f"{split_fractions[j-1]}-{split_fractions[j]}"],
-        #             label=field,
-        #             marker="x",
-        #         )
-        #     ax[j].grid()
-        #     ax[j].legend()
+        for j in range(1, len(split_fractions)):
+            ax[j].set_title(f"{split_fractions[j-1]}-{split_fractions[j]}")
+            ax[j].loglog(dts, dts, "-k", label="dt")
+            ax[j].loglog(dts, dts**2, "--k", label="dt^2")
+            ax[j].loglog(dts, dts**3, "-.k", label="dt^3")
+            ax[j].loglog(dts, dts**4, ":k", label="dt^4")
+            ax[j].loglog(dts, dts**5, "-ok", label="dt^5")
+            ax[j].loglog(dts, dts**6, "-sk", label="dt^6")
+            for field in states:
+                ax[j].loglog(
+                    dts,
+                    errors[field][f"{split_fractions[j-1]}-{split_fractions[j]}"],
+                    label=field,
+                    marker="x",
+                )
+            ax[j].grid()
+            ax[j].legend()
 
         plt.show()
 
@@ -589,11 +589,11 @@ def convergence():
     # get_solver = lambda t_final, dt, atol: MoreauClassical(
     #     model, t_final, dt, atol=atol
     # )
-    # get_solver = lambda t_final, dt, atol: Rattle(model, t_final, dt, atol=atol)
+    get_solver = lambda t_final, dt, atol: Rattle(model, t_final, dt, atol=atol)
     # get_solver = lambda t_final, dt, atol: NonsmoothGeneralizedAlpha(model, t_final, dt, newton_tol=atol)
-    get_solver = lambda t_final, dt, atol: NonsmoothPIRK(
-        model, t_final, dt, RadauIIATableau(2), atol=atol
-    )
+    # get_solver = lambda t_final, dt, atol: NonsmoothPIRK(
+    #     model, t_final, dt, RadauIIATableau(2), atol=atol
+    # )
 
     errors = convergence_analysis(get_solver)
 
