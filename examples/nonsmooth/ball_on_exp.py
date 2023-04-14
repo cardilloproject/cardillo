@@ -52,7 +52,7 @@ class BallOnExp:
         self.q0 = self.f(x0)
         self.u0 = self.tangent(x0) * self.x_dot0
 
-        # self.q0 = np.array([0, 1.25])
+        # self.q0 = np.array([0, 1.1])
 
     ####################
     # kinematic equation
@@ -383,11 +383,18 @@ def __error(t1, t2, f1, f2, measure="lp", kwargs={"p": 1}):
     dt = t1[1] - t1[0]
 
     def distance_function(x, y):
+        """Distance measure for graphs, see Acary2010 and MonteiroMarques1987.
+        
+        References:
+        -----------
+        Acary2010: https://doi.org/10.1016/j.apnum.2012.06.026 \\
+        MonteiroMarques1987: https://doi.org/10.1016/0022-0396(87)90143-4
+        """
         # return np.linalg.norm(x[1:] - y[1:], ord=2)
         # return norm(x[1:] - y[1:])
         # return max(np.abs(x[0] - y[0]), np.linalg.norm(x[1:] - y[1:], ord=2))
-        # return max(np.abs(x[0] - y[0]), norm(x[1:] - y[1:]))
-        return norm(x - y)
+        return max(np.abs(x[0] - y[0]), norm(x[1:] - y[1:]))
+        # return norm(x - y)
 
     def directed_hausdorff_distance(A, B):
         return np.max([np.min([distance_function(a, b) for b in B]) for a in A])
@@ -429,12 +436,22 @@ def __error(t1, t2, f1, f2, measure="lp", kwargs={"p": 1}):
 
 def convergence_analysis(
     get_solver,
-    # dt_ref=3.2e-3,
+    dt_ref=3.2e-3,
     # final_power=10,
-    # power_span=(1, 5),
-    dt_ref=1.6e-3,
-    final_power=11,
-    power_span=(1, 6),
+    final_power=6,
+    power_span=(1, 5),
+    # dt_ref=1.6e-3,
+    # # final_power=11,
+    # final_power=7,
+    # power_span=(1, 6),
+    # dt_ref=8e-4,
+    # # final_power=12,
+    # final_power=8,
+    # power_span=(1, 7),
+    # dt_ref=4e-4,
+    # # final_power=13,
+    # final_power=9,
+    # power_span=(1, 8),
     states=["q", "u", "P_N", "P_F"],
     split_fractions=[0.0, 0.5, 1.0],
     atol=1e-12,
