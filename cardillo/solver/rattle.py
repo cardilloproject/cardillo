@@ -77,9 +77,6 @@ class Rattle:
             self.la_Fn,
         ) = consistent_initial_conditions(system)
 
-        # self.la_Nn = system.la_N0
-        # self.la_Fn = system.la_F0
-
         #####################
         # full coupled Newton
         #####################

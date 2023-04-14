@@ -191,8 +191,8 @@ e_F = 0.0
 mu = 0.3
 # mu = 3
 # mu = 0.0
-x0 = -2
-# x0 = 0
+# x0 = -2
+x0 = 0
 # x0 = 3
 # x_dot0 = 0
 x_dot0 = 1
@@ -372,53 +372,284 @@ def state():
     plt.show()
 
 
+def __error(t1, t2, f1, f2, measure="lp", kwargs={"p": 1}):
+    # def __error(t1, t2, f1, f2, measure="lp", kwargs={"p": 2}):
+    # def __error(t1, t2, f1, f2, measure="lp", kwargs={"p": 3}):
+    # def __error(t1, t2, f1, f2, measure="lp", kwargs={"p": 4}):
+    # def __error(t1, t2, f1, f2, measure="lp", kwargs={"p": np.inf}):
+    # def __error(t1, t2, f1, f2, measure="uniform", kwargs={}):
+    # def __error(t1, t2, f1, f2, measure="directed_hausdorff", kwargs={}):
+    # def __error(t1, t2, f1, f2, measure="hausdorff", kwargs={}):
+    dt = t1[1] - t1[0]
+
+    def distance_function(x, y):
+        # return np.linalg.norm(x[1:] - y[1:], ord=2)
+        # return norm(x[1:] - y[1:])
+        # return max(np.abs(x[0] - y[0]), np.linalg.norm(x[1:] - y[1:], ord=2))
+        # return max(np.abs(x[0] - y[0]), norm(x[1:] - y[1:]))
+        return norm(x - y)
+
+    def directed_hausdorff_distance(A, B):
+        return np.max([np.min([distance_function(a, b) for b in B]) for a in A])
+
+    match measure:
+        case "uniform":
+            # https://en.wikipedia.org/wiki/Uniform_norm
+            return np.abs(f1 - f2).max()
+            # return np.abs(dt * (f1 - f2)).max()
+        case "lp":
+            # https://numpy.org/doc/stable/reference/generated/numpy.linalg.norm.html
+            # https://de.wikipedia.org/wiki/Lp-Raum
+            p = kwargs["p"]
+            # return np.max(np.sum(np.abs(f1 - f2) ** p, axis=0) ** (1 / p))
+            # return np.max(np.linalg.norm((f1 - f2), ord=p, axis=0))
+            # return np.max(np.sum(dt * np.abs(f1 - f2) ** p, axis=0) ** (1 / p))
+            return np.max(np.linalg.norm(dt * (f1 - f2), ord=p, axis=0))
+        case "directed_hausdorff":
+            # https://en.wikipedia.org/wiki/Hausdorff_distance
+            # https://github.com/mavillan/py-hausdorff/blob/master/hausdorff/hausdorff.py
+            # https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.distance.directed_hausdorff.html
+            # https://github.com/scipy/scipy/blob/v1.10.1/scipy/spatial/_hausdorff.pyx
+            X1 = np.hstack((t1[:, None], f1))
+            X2 = np.hstack((t2[:, None], f2))
+            return directed_hausdorff_distance(X2, X1)
+        case "hausdorff":
+            # https://en.wikipedia.org/wiki/Hausdorff_distance
+            # https://github.com/mavillan/py-hausdorff/blob/master/hausdorff/hausdorff.py
+            # https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.distance.directed_hausdorff.html
+            # https://github.com/scipy/scipy/blob/v1.10.1/scipy/spatial/_hausdorff.pyx
+            X1 = np.hstack((t1[:, None], f1))
+            X2 = np.hstack((t2[:, None], f2))
+            return max(
+                directed_hausdorff_distance(X1, X2), directed_hausdorff_distance(X2, X1)
+            )
+        case _:
+            raise NotImplementedError(f"method '{measure}' is not implemented")
+
+
+def convergence_analysis(
+    get_solver,
+    # dt_ref=3.2e-3,
+    # final_power=10,
+    # power_span=(1, 5),
+    dt_ref=1.6e-3,
+    final_power=11,
+    power_span=(1, 6),
+    states=["q", "u", "P_N", "P_F"],
+    split_fractions=[0.0, 0.5, 1.0],
+    atol=1e-12,
+    visualize=True,
+):
+    #####################################
+    # compute step sizes with powers of 2
+    #####################################
+    # simulation time
+    t_final = (2**final_power) * dt_ref
+
+    # reference time steps
+    t_ref = np.arange(0, t_final + dt_ref, step=dt_ref)
+    nt_ref = len(t_ref)
+
+    # powers of the reference time step in descending order
+    powers_of_2 = range(max(power_span), min(power_span), -1)
+
+    # corresponding indices in reference time steps
+    dt_idx = [np.arange(0, nt_ref, int(2**i)) for i in powers_of_2]
+
+    # extract corresponding subsets from reference time steps
+    ts = [t_ref[idx] for idx in dt_idx]
+
+    # generate used time steps
+    dts = np.array([dt_ref * 2**i for i in powers_of_2])
+
+    # ensure correctness
+    assert t_ref[-1] == t_final
+    for i in range(len(ts)):
+        assert np.allclose(ts[i][1] - ts[i][0], dts[i])
+
+    # debug information
+    print(f"dt_ref: {dt_ref}")
+    print(f"dts: {dts}")
+    print(f"t_final: {t_final}")
+
+    #############################
+    # build error data structures
+    #############################
+    errors = {}
+    for field in states:
+        errors[field] = {}
+        errors[field]["global"] = []
+        for j in range(1, len(split_fractions)):
+            errors[field][f"{split_fractions[j-1]}-{split_fractions[j]}"] = []
+
+    ############################
+    # compute reference solution
+    ############################
+    print(f"compute reference solution:")
+    reference = get_solver(t_final, dt_ref, atol).solve()
+    print(f"done")
+
+    #########################
+    # compute other solutions
+    #########################
+    for i, dt in enumerate(dts):
+        print(f" - i: {i}, dt: {dt:1.1e}")
+        sol = get_solver(t_final, dt, atol).solve()
+
+        # comute conforming time grid
+        t_ref = reference.t[dt_idx[i]]
+        # t_ref = reference.t
+        t = sol.t
+        assert np.allclose(t_ref, t)
+
+        for field in states:
+            ###########
+            # 1. global
+            ###########
+            f_ref = getattr(reference, field)[dt_idx[i]]
+            # f_ref = getattr(reference, field)
+            f = getattr(sol, field)
+            errors[field]["global"].append(__error(t_ref, t, f_ref, f))
+
+            # ###########
+            # # 2. splits
+            # ###########
+            # for j in range(1, len(split_fractions)):
+            #     lower = t.searchsorted(split_fractions[j - 1] * t_final, side="left")
+            #     upper = t.searchsorted(split_fractions[j] * t_final, side="left")
+
+            #     errors[field][f"{split_fractions[j-1]}-{split_fractions[j]}"].append(
+            #         __error(
+            #             t_ref[lower:upper],
+            #             t[lower:upper],
+            #             f_ref[lower:upper],
+            #             f[lower:upper],
+            #         )
+            #     )
+
+    if visualize:
+        ##################
+        # visualize errors
+        ##################
+        fig, ax = plt.subplots(1, len(split_fractions))
+
+        ax[0].set_title("global")
+        ax[0].loglog(dts, dts, "-k", label="dt")
+        ax[0].loglog(dts, dts**2, "--k", label="dt^2")
+        ax[0].loglog(dts, dts**3, "-.k", label="dt^3")
+        ax[0].loglog(dts, dts**4, ":k", label="dt^4")
+        ax[0].loglog(dts, dts**5, "-ok", label="dt^5")
+        ax[0].loglog(dts, dts**6, "-sk", label="dt^6")
+        for field in states:
+            ax[0].loglog(dts, errors[field]["global"], label=field, marker="x")
+        ax[0].grid()
+        ax[0].legend()
+
+        # for j in range(1, len(split_fractions)):
+        #     ax[j].set_title(f"{split_fractions[j-1]}-{split_fractions[j]}")
+        #     ax[j].loglog(dts, dts, "-k", label="dt")
+        #     ax[j].loglog(dts, dts**2, "--k", label="dt^2")
+        #     ax[j].loglog(dts, dts**3, "-.k", label="dt^3")
+        #     ax[j].loglog(dts, dts**4, ":k", label="dt^4")
+        #     ax[j].loglog(dts, dts**5, "-ok", label="dt^5")
+        #     ax[j].loglog(dts, dts**6, "-sk", label="dt^6")
+        #     for field in states:
+        #         ax[j].loglog(
+        #             dts,
+        #             errors[field][f"{split_fractions[j-1]}-{split_fractions[j]}"],
+        #             label=field,
+        #             marker="x",
+        #         )
+        #     ax[j].grid()
+        #     ax[j].legend()
+
+        plt.show()
+
+    return errors
+
+
 def convergence():
+    # get_solver = lambda t_final, dt, atol: MoreauClassical(
+    #     model, t_final, dt, atol=atol
+    # )
+    # get_solver = lambda t_final, dt, atol: Rattle(model, t_final, dt, atol=atol)
+    # get_solver = lambda t_final, dt, atol: NonsmoothGeneralizedAlpha(model, t_final, dt, newton_tol=atol)
+    get_solver = lambda t_final, dt, atol: NonsmoothPIRK(
+        model, t_final, dt, RadauIIATableau(2), atol=atol
+    )
+
+    errors = convergence_analysis(get_solver)
+
+    exit()
+
     tol = 1.0e-12
 
     #####################################
     # compute step sizes with powers of 2
     #####################################
-    # dt_ref = 1.28e-2
-    # dts = (2.0 ** np.arange(3, 1, -1)) * dt_ref  # [5.12e-2, ..., 2.56e-2]
-    # t1 = (2.0**8) * dt_ref  # 3.2768s
-
-    # dt_ref = 6.4e-3
-    # dts = (2.0 ** np.arange(3, 1, -1)) * dt_ref  # [5.12e-2, ..., 2.56e-2]
-    # t1 = (2.0**9) * dt_ref  # 3.2768s
-
     dt_ref = 3.2e-3
-    dts = (2.0 ** np.arange(4, 1, -1)) * dt_ref  # [5.12e-2, ..., 1.28e-2]
-    t1 = (2.0**10) * dt_ref  # 3.2768s
+    final_power = 10  # TODO: Move to function argument
+    t1 = (2**final_power) * dt_ref  # 3.2768s
+    t_ref = np.arange(0, t1 + dt_ref, step=dt_ref)
 
-    # dt_ref = 1.6e-3
-    # dts = (2.0 ** np.arange(5, 1, -1)) * dt_ref  # [5.12e-2, ..., 6.4e-3]
-    # t1 = (2.0**11) * dt_ref  # 3.2768s
+    nt_ref = len(t_ref)
+    powers_of_2 = range(4, 1, -1)  # TODO: Move to function argument
+    dt_idx = [np.arange(0, nt_ref, int(2**i)) for i in powers_of_2]
+    ts = [t_ref[idx] for idx in dt_idx]
+    dts = [dt_ref * 2**i for i in powers_of_2]
 
-    # dt_ref = 8e-4
-    # dts = (2.0 ** np.arange(6, 1, -1)) * dt_ref  # [5.12e-2, ..., 3.2e-3]
-    # t1 = (2.0**12) * dt_ref  # 3.2768s
+    # perform some checks
+    assert t_ref[-1] == t1
+    for i in range(len(ts)):
+        assert np.allclose(ts[i][1] - ts[i][0], dts[i])
 
-    # dt_ref = 4e-4
-    # dts = (2.0 ** np.arange(7, 1, -1)) * dt_ref  # [5.12e-2, ..., 1.6e-3]
-    # t1 = (2.0**13) * dt_ref  # 3.2768s
-
-    # dt_ref = 2e-4
-    # dts = (2.0 ** np.arange(8, 1, -1)) * dt_ref  # [5.12e-2, ..., 8e-4]
-    # t1 = (2.0**14) * dt_ref  # 3.2768s
-
-    # dt_ref = 1e-4
-    # dts = (2.0 ** np.arange(9, 1, -1)) * dt_ref  # [5.12e-2, ..., 8e-4]
-    # t1 = (2.0**15) * dt_ref  # 3.2768s
-
-    print(f"t1: {t1}")
+    print(f"dt_ref: {dt_ref}")
     print(f"dts: {dts}")
+    print(f"t1: {t1}")
+
     # exit()
+
+    # # dt_ref = 1.28e-2
+    # # dts = (2.0 ** np.arange(3, 1, -1)) * dt_ref  # [5.12e-2, ..., 2.56e-2]
+    # # t1 = (2.0**8) * dt_ref  # 3.2768s
+
+    # # dt_ref = 6.4e-3
+    # # dts = (2.0 ** np.arange(3, 1, -1)) * dt_ref  # [5.12e-2, ..., 2.56e-2]
+    # # t1 = (2.0**9) * dt_ref  # 3.2768s
+
+    # dt_ref = 3.2e-3
+    # dts = (2.0 ** np.arange(4, 1, -1)) * dt_ref  # [5.12e-2, ..., 1.28e-2]
+    # t1 = (2.0**10) * dt_ref  # 3.2768s
+
+    # # dt_ref = 1.6e-3
+    # # dts = (2.0 ** np.arange(5, 1, -1)) * dt_ref  # [5.12e-2, ..., 6.4e-3]
+    # # t1 = (2.0**11) * dt_ref  # 3.2768s
+
+    # # dt_ref = 8e-4
+    # # dts = (2.0 ** np.arange(6, 1, -1)) * dt_ref  # [5.12e-2, ..., 3.2e-3]
+    # # t1 = (2.0**12) * dt_ref  # 3.2768s
+
+    # # dt_ref = 4e-4
+    # # dts = (2.0 ** np.arange(7, 1, -1)) * dt_ref  # [5.12e-2, ..., 1.6e-3]
+    # # t1 = (2.0**13) * dt_ref  # 3.2768s
+
+    # # dt_ref = 2e-4
+    # # dts = (2.0 ** np.arange(8, 1, -1)) * dt_ref  # [5.12e-2, ..., 8e-4]
+    # # t1 = (2.0**14) * dt_ref  # 3.2768s
+
+    # # dt_ref = 1e-4
+    # # dts = (2.0 ** np.arange(9, 1, -1)) * dt_ref  # [5.12e-2, ..., 8e-4]
+    # # t1 = (2.0**15) * dt_ref  # 3.2768s
+
+    # print(f"t1: {t1}")
+    # print(f"dts: {dts}")
+    # # exit()
 
     ################
     # chose a solver
     ################
-    # get_solver = lambda dt: MoreauClassical(model, t1, dt, atol=tol)
-    get_solver = lambda dt: Rattle(model, t1, dt, atol=tol)
+    get_solver = lambda dt: MoreauClassical(model, t1, dt, atol=tol)
+    # get_solver = lambda dt: Rattle(model, t1, dt, atol=tol)
     # get_solver = lambda dt: NonsmoothGeneralizedAlpha(model, t1, dt, newton_tol=tol)
     # get_solver = lambda dt: NonsmoothPIRK(model, t1, dt, RadauIIATableau(2), atol=tol)
     # get_solver = lambda dt: NonsmoothPIRK(model, t1, dt, RadauIIATableau(3), atol=tol)
@@ -426,6 +657,7 @@ def convergence():
     #############################
     # errors for possible solvers
     #############################
+    # TODO: Build these errors from given dict of possible states
     q_errors_transient = np.inf * np.ones(len(dts), dtype=float)
     u_errors_transient = np.inf * np.ones(len(dts), dtype=float)
     P_N_errors_transient = np.inf * np.ones(len(dts), dtype=float)
@@ -525,6 +757,7 @@ def convergence():
             # return np.linalg.norm(x[1:] - y[1:], ord=2)
             # return max(np.abs(x[0] - y[0]), np.linalg.norm(x[1:] - y[1:], ord=2))
             return max(np.abs(x[0] - y[0]), norm(x[1:] - y[1:]))
+            # return norm(x[1:] - y[1:])
 
         def hausdorff_distance_error(t, t_ref, f, f_ref):
             """See https://en.wikipedia.org/wiki/Hausdorff_distance,
@@ -537,7 +770,16 @@ def convergence():
             # X = np.hstack((t[:, None], f))
             # Y = np.hstack((t_ref[:, None], f_ref))
             Y = np.hstack((t[:, None], f))
-            X = np.hstack((t_ref[:, None], f_ref))
+            X = np.hstack(
+                (t_ref[:, None], f_ref)
+            )  # only linear convergence (of "time")
+            # X = np.hstack((t_ref[t_ref_idx, None], f_ref[t_ref_idx])) # this yields the desired convergence
+
+            # TODO: Move this outside
+            idx = np.searchsorted(t_ref, t)
+            idx = np.where(np.abs(t[:, None] - t_ref) < 1.0e-8)[1]
+            np.argmin(np.abs(t - t_ref))
+            idx = [[np.argmin(ti, tj) for j, tj in enumerate(t_ref)] for ti in t]
 
             # def supremal_distance(A, B):
             #     cmax = 0.0
@@ -552,6 +794,13 @@ def convergence():
             #         if cmin > cmax and np.inf > cmin:
             #             cmax = cmin
             #     return cmax
+
+            def directed_hausdorff_distance(A, B):
+                return np.max([np.min([distance_function(a, b) for b in B]) for a in A])
+
+            return max(
+                directed_hausdorff_distance(X, Y), directed_hausdorff_distance(Y, X)
+            )
 
             def supremal_distance(A, B):
                 """See https://github.com/scipy/scipy/blob/v1.10.1/scipy/spatial/_hausdorff.pyx."""
@@ -610,9 +859,9 @@ def convergence():
         #     cum_p_var_ref = p_var(f_ref, p)
         #     return np.max(np.abs(cum_p_var[-1] - cum_p_var_ref[-1]))
 
-        integral_error = max_lp_error
+        # integral_error = max_lp_error
         # integral_error = matrix_norm_error
-        # integral_error = hausdorff_distance_error
+        integral_error = hausdorff_distance_error
 
         # integral_error = l1_error
         # integral_error = trapezoid_error
