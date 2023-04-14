@@ -7,6 +7,7 @@ from cardillo.math import approx_fprime
 from cardillo.solver import Solution, consistent_initial_conditions
 
 
+# TODO: Refactor me!
 class GeneralizedAlphaFirstOrder:
     """Generalized alpha solver for first order ODE's."""
 
@@ -873,9 +874,17 @@ class GeneralizedAlphaSecondOrder:
             self.nR += self.nla_g
 
         # compute consistent initial conditions
-        t0, q0, u0, q_dot0, u_dot0, la_g0, la_gamma0 = consistent_initial_conditions(
-            model
-        )
+        (
+            t0,
+            q0,
+            u0,
+            q_dot0,
+            u_dot0,
+            la_g0,
+            la_gamma0,
+            la_N0,
+            la_F0,
+        ) = consistent_initial_conditions(model)
 
         # set initial conditions
         self.tk = t0

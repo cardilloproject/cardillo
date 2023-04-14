@@ -801,9 +801,17 @@ class RadauIIa:
         #######################################################################
         # consistent initial conditions
         #######################################################################
-        t0, q0, u0, q_dot0, u_dot0, la_g0, la_gamma0 = consistent_initial_conditions(
-            system
-        )
+        (
+            t0,
+            q0,
+            u0,
+            q_dot0,
+            u_dot0,
+            la_g0,
+            la_gamma0,
+            la_N0,
+            la_F0,
+        ) = consistent_initial_conditions(system)
 
         # consistent initial conditions
         self.y0 = np.zeros(self.ny, dtype=float)

@@ -2,7 +2,7 @@ import numpy as np
 from scipy.sparse import csc_matrix, csr_matrix, lil_matrix, eye, diags, bmat
 from tqdm import tqdm
 
-from cardillo.math import prox_sphere, fsolve, approx_fprime
+from cardillo.math import fsolve, approx_fprime
 from cardillo.solver import Solution, consistent_initial_conditions
 
 
@@ -57,6 +57,8 @@ class EulerBackward:
             u_dot0,
             la_g0,
             la_gamma0,
+            la_N0,
+            la_F0,
         ) = consistent_initial_conditions(system)
 
         self.y = np.zeros(self.ny, dtype=float)
@@ -293,7 +295,6 @@ class EulerBackward:
         )
 
 
-# TODO: Add stabilization and constraints g_S
 class NonsmoothBackwardEuler:
     def __init__(
         self,
@@ -364,10 +365,9 @@ class NonsmoothBackwardEuler:
             self.u_dotn,
             self.la_gn,
             self.la_gamman,
+            self.la_Nn,
+            self.la_Fn,
         ) = consistent_initial_conditions(system)
-
-        self.la_Nn = system.la_N0
-        self.la_Fn = system.la_F0
 
         #######################################################################
         # initial values

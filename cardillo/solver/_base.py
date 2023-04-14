@@ -1,46 +1,108 @@
 import numpy as np
-from scipy.sparse.linalg import spsolve
-from scipy.sparse import coo_matrix, bmat
+from scipy.sparse import csr_matrix
+from cardillo.math import prox_sphere, prox_R0_nm, fsolve, norm
 
 
-def consistent_initial_conditions(system, rtol=1.0e-5, atol=1.0e-8):
+def consistent_initial_conditions(
+    system, rtol=1.0e-5, atol=1.0e-8, neton_atol=1e-10, newton_max_iter=10
+):
     t0 = system.t0
     q0 = system.q0
     u0 = system.u0
-
     q_dot0 = system.q_dot(t0, q0, u0)
 
-    M0 = system.M(t0, q0, scipy_matrix=coo_matrix)
-    h0 = system.h(t0, q0, u0)
-    W_g0 = system.W_g(t0, q0, scipy_matrix=coo_matrix)
-    W_gamma0 = system.W_gamma(t0, q0, scipy_matrix=coo_matrix)
-    zeta_g0 = system.zeta_g(t0, q0, u0)
-    zeta_gamma0 = system.zeta_gamma(t0, q0, u0)
+    g_N = system.g_N(t0, q0)
+    g_N_dot = system.g_N_dot(t0, q0, u0)
+    I_N = np.allclose(g_N, np.zeros(system.nla_N), rtol, atol)
+    B_N = I_N * np.allclose(g_N_dot, np.zeros(system.nla_N), rtol, atol)
 
-    la_N0 = system.la_N0
-    la_F0 = system.la_F0
-    W_N0 = system.W_N(t0, q0, scipy_matrix=coo_matrix)
-    W_F0 = system.W_F(t0, q0, scipy_matrix=coo_matrix)
-    # fmt: off
-    A = bmat(
+    assert np.all(g_N >= 0) or np.allclose(
+        g_N, np.zeros(system.nla_N), rtol, atol
+    ), "Initial conditions do not fulfill g_N0!"
+    assert np.all(I_N * g_N_dot >= 0) or np.allclose(
+        I_N * g_N_dot, np.zeros(system.nla_N), rtol, atol
+    ), "Initial conditions do not fulfill g_N_dot0!"
+
+    M = system.M(t0, q0, scipy_matrix=csr_matrix)
+    h = system.h(t0, q0, u0)
+    W_g = system.W_g(t0, q0, scipy_matrix=csr_matrix)
+    W_gamma = system.W_gamma(t0, q0, scipy_matrix=csr_matrix)
+    W_N = system.W_N(t0, q0, scipy_matrix=csr_matrix)
+    W_F = system.W_F(t0, q0, scipy_matrix=csr_matrix)
+    gamma_F = system.gamma_F(t0, q0, u0)
+
+    prox_r_N = system.prox_r_N(t0, q0)
+    prox_r_F = system.prox_r_F(t0, q0)
+    mu = system.mu
+
+    split = np.cumsum(
         [
-            [        M0, -W_g0, -W_gamma0],
-            [    W_g0.T,  None,      None],
-            [W_gamma0.T,  None,      None],
-        ],
-        format="csc",
+            system.nu,
+            system.nla_g,
+            system.nla_gamma,
+            system.nla_N,
+        ]
     )
-    b = np.concatenate([
-        h0 + W_N0 @ la_N0 + W_F0 @ la_F0, 
-        -zeta_g0, 
-        -zeta_gamma0
-    ])
-    # fmt: on
 
-    u_dot_la_g_la_gamma = spsolve(A, b)
-    u_dot0 = u_dot_la_g_la_gamma[: system.nu]
-    la_g0 = u_dot_la_g_la_gamma[system.nu : system.nu + system.nla_g]
-    la_gamma0 = u_dot_la_g_la_gamma[system.nu + system.nla_g :]
+    def R(x):
+        u_dot, la_g, la_gamma, la_N, la_F = np.array_split(x, split)
+
+        R = np.zeros_like(x)
+
+        #####################
+        # equations of motion
+        #####################
+        R[: split[0]] = (
+            M @ u_dot - h - W_g @ la_g - W_gamma @ la_gamma - W_N @ la_N - W_F @ la_F
+        )
+
+        #############################################
+        # bilateral constraints on acceleration level
+        #############################################
+        R[split[0] : split[1]] = system.g_ddot(t0, q0, u0, u_dot)
+        R[split[1] : split[2]] = system.gamma_dot(t0, q0, u0, u_dot)
+
+        #################################
+        # Signorini on acceleration level
+        #################################
+        g_N_ddot = system.g_N_ddot(t0, q0, u0, u_dot)
+        R[split[2] : split[3]] = la_N + B_N * prox_R0_nm(prox_r_N * g_N_ddot - la_N)
+
+        ################################
+        # friction on acceleration level
+        ################################
+        gamma_F_dot = system.gamma_F_dot(t0, q0, u0, u_dot)
+
+        for i_N, i_F in enumerate(system.NF_connectivity):
+            i_F = np.array(i_F)
+            n_F = len(i_F)
+            if n_F > 0:
+                gamma_Fi = gamma_F[i_F]
+                norm_gamma_Fi = norm(gamma_Fi)
+                if norm_gamma_Fi > 0:
+                    # slip
+                    R[split[3] + i_F] = (
+                        la_F[i_F] + mu[i_N] * la_N[i_N] * gamma_Fi / norm_gamma_Fi
+                    )
+                else:
+                    # possibly stick
+                    R[split[3] + i_F] = la_F[i_F] + prox_sphere(
+                        prox_r_F[i_F] * gamma_F_dot[i_F] - la_F[i_F],
+                        mu[i_N] * la_N[i_N],
+                    )
+
+        return R
+
+    x0 = np.zeros(
+        system.nu + system.nla_g + system.nla_gamma + system.nla_N + system.nla_F
+    )
+    x0, converged, error, i, f = fsolve(
+        R, x0, atol=neton_atol, max_iter=newton_max_iter
+    )
+    assert (
+        converged
+    ), "Solving for consistent initial conditions does not converge after {i} iterations with error {error}."
+    u_dot0, la_g0, la_gamma0, la_N0, la_F0 = np.array_split(x0, split)
 
     # check if initial conditions satisfy constraints on position, velocity
     # and acceleration level
@@ -50,6 +112,11 @@ def consistent_initial_conditions(system, rtol=1.0e-5, atol=1.0e-8):
     gamma0 = system.gamma(t0, q0, u0)
     gamma_dot0 = system.gamma_dot(t0, q0, u0, u_dot0)
     g_S0 = system.g_S(t0, q0)
+
+    g_N_ddot = system.g_N_ddot(t0, q0, u0, u_dot0)
+    assert np.all(g_N_ddot >= 0) or np.allclose(
+        B_N * g_N_ddot, np.zeros(system.nla_N), rtol, atol
+    ), "Initial conditions do not fulfill g_N_ddot0!"
 
     assert np.allclose(
         g0, np.zeros(system.nla_g), rtol, atol
@@ -70,7 +137,7 @@ def consistent_initial_conditions(system, rtol=1.0e-5, atol=1.0e-8):
         g_S0, np.zeros(system.nla_S), rtol, atol
     ), "Initial conditions do not fulfill g_S0!"
 
-    return t0, q0, u0, q_dot0, u_dot0, la_g0, la_gamma0
+    return t0, q0, u0, q_dot0, u_dot0, la_g0, la_gamma0, la_N0, la_F0
 
 
 def compute_I_F(I_N, NF_connectivity):
