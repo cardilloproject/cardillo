@@ -11,10 +11,13 @@ from cardillo.constraints import Spherical
 from cardillo.math.algebra import cross3
 from cardillo import System
 from cardillo.solver import (
+    convergence_analysis,
     EulerBackward,
     GeneralizedAlphaFirstOrder,
     GeneralizedAlphaSecondOrder,
     Rattle,
+    NonsmoothPIRK,
+    RadauIIATableau,
 )
 
 
@@ -549,9 +552,40 @@ def gaps():
 
 
 def convergence():
-    # rho_inf = 0.9
-    tol_ref = 1.0e-8
-    tol = 1.0e-8
+    get_solver = lambda t_final, dt, atol: Rattle(system, t_final, dt, atol=atol)
+    # get_solver = lambda t_final, dt, atol: NonsmoothGeneralizedAlpha(system, t_final, dt, newton_tol=atol)
+    # get_solver = lambda t_final, dt, atol: NonsmoothPIRK(
+    #     system, t_final, dt, RadauIIATableau(2), atol=atol
+    # )
+
+    errors = convergence_analysis(
+        get_solver,
+        # dt_ref=1.6e-3,
+        # # final_power=11,
+        # final_power=7,
+        # power_span=(1, 3),
+        # dt_ref=8e-4,
+        # # final_power=12,
+        # final_power=8,
+        # power_span=(1, 4),
+        dt_ref=4e-4,
+        final_power=7,
+        power_span=(1, 5),
+        # final_power=6,
+        # power_span=(1, 4),
+        # final_power=5,
+        # power_span=(1, 3),
+        states=["q", "u", "P_g"],
+        split_fractions=[0.0, 0.5, 1.0],
+        atol=1e-8,
+        measure="lp",
+        # measure="uniform",
+        visualize=True,
+        export=True,
+        kwargs={"p": 1},
+    )
+
+    exit()
 
     # compute step sizes with powers of 2
     dt_ref = 2.5e-5  # Arnold2015b

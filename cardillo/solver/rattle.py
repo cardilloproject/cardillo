@@ -284,8 +284,6 @@ class Rattle:
             R_F2,
         ) = np.array_split(y, self.split_y)
 
-        # P_N = 0.5 * (R_N1 + R_N2)
-        # P_F = 0.5 * (R_F2 + R_F1)
         P_N = self.dt * 0.5 * (R_N1 + R_N2)
         P_F = self.dt * 0.5 * (R_F2 + R_F1)
 
@@ -601,19 +599,6 @@ class Rattle:
         ########################
         # euations of motion (1)
         ########################
-        # R1[self.split_y1[0] : self.split_y1[1]] = self.system.M(
-        #     tn,
-        #     qn,
-        #     scipy_matrix=csr_matrix
-        #     # ) @ (un12 - un) - 0.5 * (
-        #     #     dt * self.system.h(tn, qn, un12)
-        # ) @ (un12 - un) - 0.5 * dt * (
-        #     self.system.h(tn, qn, un12)
-        #     + self.system.W_g(tn, qn) @ R_g1
-        #     + self.system.W_gamma(tn, qn) @ R_gamma1
-        #     + self.system.W_N(tn, qn) @ R_N1
-        #     + self.system.W_F(tn, qn) @ R_F1
-        # )
         R1[self.split_y1[0] : self.split_y1[1]] = self.Mn1 @ (un12 - un) - 0.5 * dt * (
             self.system.h(tn, qn, un12)
             + self.W_gn1 @ R_g1
@@ -688,13 +673,6 @@ class Rattle:
         ########################
         # euations of motion (1)
         ########################
-        # TODO: Compute generalized force directions in advance and pass them
-        #       as function kwargs. Same holds for the mass matrix.
-        # M = self.system.M(tn, qn)
-        # W_g = self.system.W_g(tn, qn)
-        # W_gamma = self.system.W_gamma(tn, qn)
-        # W_N = self.system.W_N(tn, qn)
-        # W_F = self.system.W_F(tn, qn)
         M = self.Mn1
         W_g = self.W_gn1
         W_gamma = self.W_gamman1
@@ -834,8 +812,6 @@ class Rattle:
 
         un1, R_g2, R_gamma2, R_N2, R_F2 = np.array_split(y2, self.split_y2)
 
-        # P_N = 0.5 * (R_N1 + R_N2)
-        # P_F = 0.5 * (R_F1 + R_F2)
         P_N = h2 * (R_N1 + R_N2)
         P_F = h2 * (R_F1 + R_F2)
 
@@ -844,18 +820,6 @@ class Rattle:
         ########################
         # euations of motion (2)
         ########################
-        # R2[: self.split_y2[0]] = self.system.M(tn1, qn1, scipy_matrix=csr_matrix) @ (
-        #     un1
-        #     - un12
-        #     # ) - 0.5 * (
-        #     #     h * self.system.h(tn1, qn1, un12)
-        # ) - h2 * (
-        #     self.system.h(tn1, qn1, un12)
-        #     + self.system.W_g(tn1, qn1) @ R_g2
-        #     + self.system.W_gamma(tn1, qn1) @ R_gamma2
-        #     + self.system.W_N(tn1, qn1) @ R_N2
-        #     + self.system.W_F(tn1, qn1) @ R_F2
-        # )
         R2[: self.split_y2[0]] = self.Mn1 @ (un1 - un12) - h2 * (
             self.system.h(tn1, qn1, un12)
             + self.W_gn1 @ R_g2
@@ -876,7 +840,6 @@ class Rattle:
         prox_r_N = self.prox_r_N
         xi_Nn1 = self.system.xi_N(tn1, qn1, un, un1)
         prox_arg = prox_r_N * xi_Nn1 - P_N
-        # prox_arg = prox_r_N * xi_Nn1 - R_N2
         if update_index:
             self.B_N = self.I_N * (prox_arg <= 0)
 
@@ -884,7 +847,6 @@ class Rattle:
             self.B_N,
             xi_Nn1,
             P_N,
-            # R_N2,
         )
 
         ##############################
@@ -894,20 +856,11 @@ class Rattle:
         mu = self.system.mu
         xi_F = self.system.xi_F(tn1, qn1, un, un1)
         for i_N, i_F in enumerate(self.system.NF_connectivity):
-            # i_F = np.array(i_F)
-            # if len(i_F) > 0:
-            #     R2[self.split_y2[3] + i_F] = P_F[i_F] + prox_sphere(
-            #         prox_r_F[i_N] * xi_F[i_F] - P_F[i_F],
-            #         self.system.mu[i_N] * P_N[i_N],
-            #     )
-
             i_F = np.array(i_F)
             n_F = len(i_F)
             if n_F > 0:
                 P_Ni = P_N[i_N]
                 P_Fi = P_F[i_F]
-                # P_Ni = R_N2[i_N]
-                # P_Fi = R_F2[i_F]
                 xi_Fi = xi_F[i_F]
                 arg_F = prox_r_F[i_F] * xi_Fi - P_Fi
                 mui = mu[i_N]
@@ -1264,6 +1217,9 @@ class Rattle:
         P_N = [self.dt * self.la_Nn]
         P_F = [self.dt * self.la_Fn]
 
+        self.R_g2 = self.la_gn
+        self.R_gamma2 = self.la_gamman
+
         pbar = tqdm(self.t[:-1])
         # pbar = tqdm(self.t)
         for n in pbar:
@@ -1340,24 +1296,11 @@ class Rattle:
                 error = error1 + error2
                 i = i1 + i2
 
-                # P_gn1 = self.dt * 0.5 * (self.R_g1 + R_g2)
-                # P_gamman1 = self.dt * 0.5 * (self.R_gamma1 + R_gamma2)
+                P_gn1 = self.dt * 0.5 * (self.R_g1 + R_g2)
+                P_gamman1 = self.dt * 0.5 * (self.R_gamma1 + R_gamma2)
                 P_Nn1 = self.dt * 0.5 * (self.R_N1 + R_N2)
                 P_Fn1 = self.dt * 0.5 * (self.R_F1 + R_F2)
-                P_gn1 = 0.5 * (self.R_g1 + R_g2)
-                P_gamman1 = 0.5 * (self.R_gamma1 + R_gamma2)
-                # P_Nn1 = 0.5 * (self.R_N1 + R_N2)
-                # P_Fn1 = 0.5 * (self.R_F1 + R_F2)
-                # P_gn1 = self.R_g1
-                # P_gamman1 = self.R_gamma1
-                # P_Nn1 = self.R_N1
-                # P_Fn1 = self.R_F1
-                # P_gn1 = R_g2
-                # P_gamman1 = R_gamma2
-                # P_Nn1 = R_N2
-                # P_Fn1 = R_F2
 
-                # qn1 = self.qn1
                 qn1, un1 = self.system.step_callback(tn1, self.qn1, un1)
 
             elif self.method == "Newton_full":
@@ -1387,14 +1330,29 @@ class Rattle:
                     R_F2,
                 ) = np.array_split(y, self.split_y)
 
-                # P_gn1 = self.dt * 0.5 * (R_g1 + R_g2)
-                # P_gamman1 = self.dt * 0.5 * (R_gamma1 + R_gamma2)
+                P_gn1 = self.dt * 0.5 * (R_g1 + R_g2)
+                P_gamman1 = self.dt * 0.5 * (R_gamma1 + R_gamma2)
                 P_Nn1 = self.dt * 0.5 * (R_N1 + R_N2)
                 P_Fn1 = self.dt * 0.5 * (R_F1 + R_F2)
-                P_gn1 = 0.5 * (R_g1 + R_g2)
-                P_gamman1 = 0.5 * (R_gamma1 + R_gamma2)
-                # P_Nn1 = 0.5 * (R_N1 + R_N2)
-                # P_Fn1 = 0.5 * (R_F1 + R_F2)
+
+                # P_gn1 = R_g2
+                # P_gamman1 = R_gamma2
+                # P_Nn1 = R_N2
+                # P_Fn1 = R_F2
+
+                # # P_gn1 = 0.5 * (R_g1 + R_g2)
+                # # P_gamman1 = 0.5 * (R_gamma1 + R_gamma2)
+                # # P_gn1 = self.dt * 0.5 * (R_g1 + R_g2)
+                # # P_gamman1 = self.dt * 0.5 * (R_gamma1 + R_gamma2)
+                # # P_gn1 = R_g1
+                # # P_gamman1 = R_gamma1
+                # P_gn1 = R_g2
+                # P_gamman1 = R_gamma2
+                # # P_gn1 = 0.5 * (R_g1 + self.R_g2)
+                # # P_gamman1 = 0.5 * (R_gamma1 + self.R_gamma2)
+
+                self.R_g2 = R_g2.copy()
+                self.R_gamma2 = R_gamma2.copy()
 
                 qn1, un1 = self.system.step_callback(tn1, qn1, un1)
 
@@ -1613,7 +1571,6 @@ class Rattle:
 
         return Solution(
             t=np.array(self.t),
-            # t=np.array(t),
             q=np.array(q),
             u=np.array(u),
             P_g=np.array(P_g),
