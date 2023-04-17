@@ -3,6 +3,7 @@ from .solution import Solution, save_solution, load_solution
 
 # common solver functionality
 from ._base import consistent_initial_conditions, compute_I_F
+from ._common import convergence_analysis
 
 # dynamic solvers
 from .scipy_ivp import ScipyIVP
