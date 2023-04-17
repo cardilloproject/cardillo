@@ -1,6 +1,7 @@
 from cardillo.math import e1, e2, e3
 from cardillo.beams import (
     RectangularCrossSection,
+    CircularCrossSection,
     Simo1986,
 )
 from cardillo.discrete import Frame
@@ -17,7 +18,7 @@ from cardillo.beams import (
     K_SE3_PetrovGalerkin_R9,
 )
 from cardillo.beams import (
-    Crisfield1999,
+    # Crisfield1999,
     I_R12_BubonvGalerkin_R12_Dirac,
     I_R12_BubonvGalerkin_R12_Integral,
     K_Cardona,
@@ -59,22 +60,22 @@ Rod = K_R12_PetrovGalerkin_Quaternion
 statics = True
 # statics = False
 
-# slenderness = 1.0e1
-# atol = 1.0e-8
+slenderness = 1.0e1
+atol = 1.0e-8
 # slenderness = 1.0e2
 # atol = 1.0e-10
 # slenderness = 1.0e3
 # atol = 1.0e-12
-slenderness = 1.0e4
-atol = 1.0e-14
+# slenderness = 1.0e4
+# atol = 1.0e-14
 
 # number of elements
 nelements = 10
-# nelements = 5
+# nelements = 1
 
 # used polynomial degree
-polynomial_degree = 1
-# polynomial_degree = 2
+# polynomial_degree = 1
+polynomial_degree = 2
 basis = "Lagrange"
 
 
@@ -95,7 +96,8 @@ if __name__ == "__main__":
 
     # cross section and quadratic beam material
     line_density = 1
-    cross_section = RectangularCrossSection(line_density, width, width)
+    # cross_section = RectangularCrossSection(line_density, width, width)
+    cross_section = CircularCrossSection(line_density, width)
     A_rho0 = line_density * cross_section.area
     K_S_rho0 = line_density * cross_section.first_moment
     K_I_rho0 = line_density * cross_section.second_moment
@@ -288,7 +290,7 @@ if __name__ == "__main__":
     system.assemble()
 
     if statics:
-        n_load_steps = 50
+        n_load_steps = 1
         solver = Newton(
             system,
             n_load_steps=n_load_steps,
@@ -310,15 +312,19 @@ if __name__ == "__main__":
     nt = len(q)
     t = sol.t[:nt]
 
-    ###########
-    # animation
-    ###########
-    animate_beam(t, q, [rod], L, show=True)
+    # ###########
+    # # animation
+    # ###########
+    # animate_beam(t, q, [rod], L, show=True)
 
-    # ############
-    # # VTK export
-    # ############
-    # path = Path(__file__)
-    # e = Export(path.parent, path.stem, True, 30, sol)
-    # e.export_contr(beam, level="centerline + directors", num=20)
-    # e.export_contr(beam, level="volume", n_segments=5, num=50)
+    # from cardillo.solver import Solution
+    # sol = Solution(t=[0], q=[q0])
+
+    ############
+    # VTK export
+    ############
+    path = Path(__file__)
+    e = Export(path.parent, path.stem, True, 30, sol)
+    # e.export_contr(rod, level="centerline + directors", num=20)
+    # e.export_contr(rod, level="volume", n_segments=5, num=50)
+    e.export_contr(rod, level="volume", n_segments=1, num=50)

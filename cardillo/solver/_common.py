@@ -2,13 +2,6 @@ import numpy as np
 
 
 def __error(t1, t2, f1, f2, measure="lp", kwargs={"p": 1}):
-    # def __error(t1, t2, f1, f2, measure="lp", kwargs={"p": 2}):
-    # def __error(t1, t2, f1, f2, measure="lp", kwargs={"p": 3}):
-    # def __error(t1, t2, f1, f2, measure="lp", kwargs={"p": 4}):
-    # def __error(t1, t2, f1, f2, measure="lp", kwargs={"p": np.inf}):
-    # def __error(t1, t2, f1, f2, measure="uniform", kwargs={}):
-    # def __error(t1, t2, f1, f2, measure="directed_hausdorff", kwargs={}):
-    # def __error(t1, t2, f1, f2, measure="hausdorff", kwargs={}):
     dt = t1[1] - t1[0]
 
     def distance_function(x, y):
@@ -71,6 +64,7 @@ def convergence_analysis(
     export=True,
     kwargs={"p": 1},
 ):
+    assert final_power >= max(power_span)
     #####################################
     # compute step sizes with powers of 2
     #####################################
