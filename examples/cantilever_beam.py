@@ -17,7 +17,6 @@ from cardillo.beams import (
     K_SE3_PetrovGalerkin_R9,
 )
 from cardillo.beams import (
-    Crisfield1999,
     I_R12_BubonvGalerkin_R12_Dirac,
     I_R12_BubonvGalerkin_R12_Integral,
     K_Cardona,
@@ -59,14 +58,14 @@ Rod = K_R12_PetrovGalerkin_Quaternion
 statics = True
 # statics = False
 
-# slenderness = 1.0e1
-# atol = 1.0e-8
+slenderness = 1.0e1
+atol = 1.0e-8
 # slenderness = 1.0e2
 # atol = 1.0e-10
 # slenderness = 1.0e3
 # atol = 1.0e-12
-slenderness = 1.0e4
-atol = 1.0e-14
+# slenderness = 1.0e4
+# atol = 1.0e-14
 
 # number of elements
 nelements = 10
@@ -315,10 +314,10 @@ if __name__ == "__main__":
     ###########
     animate_beam(t, q, [rod], L, show=True)
 
-    # ############
-    # # VTK export
-    # ############
-    # path = Path(__file__)
-    # e = Export(path.parent, path.stem, True, 30, sol)
-    # e.export_contr(beam, level="centerline + directors", num=20)
-    # e.export_contr(beam, level="volume", n_segments=5, num=50)
+    ############
+    # VTK export
+    ############
+    path = Path(__file__)
+    e = Export(path.parent, path.stem, True, 30, sol)
+    e.export_contr(rod, level="centerline + directors", num=20)
+    e.export_contr(rod, level="volume", n_segments=5, num=50)
