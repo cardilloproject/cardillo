@@ -668,6 +668,11 @@ class NonsmoothPIRK:
         P_Nn1 = h * dP_N @ self.b + Delta_P_N
         P_Fn1 = h * dP_F @ self.b + Delta_P_F
 
+        # P_gn1 = dP_g[:, -1] + Delta_P_g
+        # P_gamman1 = dP_gamma[:, -1] + Delta_P_gamma
+        # P_Nn1 = dP_N[:, -1] + Delta_P_N
+        # P_Fn1 = dP_F[:, -1] + Delta_P_F
+
         # P_gn1 =  dP_g @ self.b + Delta_P_g
         # P_gamman1 = dP_gamma @ self.b + Delta_P_gamma
         # P_Nn1 = dP_N @ self.b + Delta_P_N
@@ -703,7 +708,7 @@ class NonsmoothPIRK:
 
         # initialize residual
         R = np.zeros(self.ny, dtype=yn1.dtype)
-        R = yn1.copy()  # TODO: Remove this!
+        # R = yn1.copy()  # TODO: Remove this!
 
         #####################
         # kinematic equations
@@ -712,14 +717,9 @@ class NonsmoothPIRK:
             ti = tn + self.c[i] * h
             Qi = qn + h * dq @ self.A[i]
             Ui = un + h * du @ self.A[i]
-            # Qi = qn + dq @ self.A[i]
-            # Ui = un + du @ self.A[i]
             R[i * self.nq : (i + 1) * self.nq] = dq[:, i] - self.system.q_dot(
                 ti, Qi, Ui
             )
-            # R[i * self.nq : (i + 1) * self.nq] = dq[:, i] - h * self.system.q_dot(
-            #     ti, Qi, Ui
-            # )
 
         ####################
         # eqations of motion
@@ -728,12 +728,9 @@ class NonsmoothPIRK:
             ti = tn + self.c[i] * h
             Qi = qn + h * dq @ self.A[i]
             Ui = un + h * du @ self.A[i]
-            # Qi = qn + dq @ self.A[i]
-            # Ui = un + du @ self.A[i]
             R[self.split_y[0] + i * self.nu : self.split_y[0] + (i + 1) * self.nu] = (
                 self.system.M(ti, Qi, scipy_matrix=csr_matrix) @ du[:, i]
                 - self.system.h(ti, Qi, Ui)
-                # - h * self.system.h(ti, Qi, Ui)
                 - self.system.W_g(ti, Qi) @ dP_g[:, i]
                 - self.system.W_gamma(ti, Qi) @ dP_gamma[:, i]
                 - self.system.W_N(ti, Qi) @ dP_N[:, i]
@@ -746,7 +743,6 @@ class NonsmoothPIRK:
         for i in range(self.stages):
             ti = tn + self.c[i] * h
             Qi = qn + h * dq @ self.A[i]
-            # Qi = qn + dq @ self.A[i]
             R[
                 self.split_y[1]
                 + i * self.nla_g : self.split_y[1]
@@ -760,8 +756,6 @@ class NonsmoothPIRK:
             ti = tn + self.c[i] * h
             Qi = qn + h * dq @ self.A[i]
             Ui = un + h * du @ self.A[i]
-            # Qi = qn + dq @ self.A[i]
-            # Ui = un + du @ self.A[i]
             R[
                 self.split_y[2]
                 + i * self.nla_gamma : self.split_y[2]
@@ -830,10 +824,6 @@ class NonsmoothPIRK:
             Ui = un + h * du @ self.A[i]
             P_Ni = h * dP_N @ self.A[i]
             P_Fi = h * dP_F @ self.A[i]
-            # Qi = qn + dq @ self.A[i]
-            # Ui = un + du @ self.A[i]
-            # P_Ni = dP_N @ self.A[i]
-            # P_Fi = dP_F @ self.A[i]
 
             gamma_Fi = self.system.gamma_F(ti, Qi, Ui)
 
@@ -861,7 +851,7 @@ class NonsmoothPIRK:
         #################
         # impact equation
         #################
-        # # nonlinear projection with h vector
+        # nonlinear projection with h vector
         # R[self.split_y[5] : self.split_y[6]] = (
         #     self.system.M(tn1, qn1) @ (un1 - un)
         #     - (
@@ -943,22 +933,26 @@ class NonsmoothPIRK:
         self.tn1 = tn1
         self.qn1 = qn1.copy()
         self.un1 = un1.copy()
-        # self.P_gn1 = P_gn1.copy()
-        # self.P_gamman1 = P_gamman1.copy()
-        # self.P_gn1 = dP_g[:, -1]  # results in s - 1 convergence, see Jay1995
-        # self.P_gamman1 = dP_gamma[:, -1]  # results in s - 1 convergence, see Jay1995
-        # TODO: The formualtion below fits perfectly into the interpretation of
-        #       a right limit of the Lagrange multipliers.
-        self.P_gn1 = dP_g[:, -1] + Delta_P_g  # results in s - 1 convergence
-        self.P_gamman1 = dP_gamma[:, -1] + Delta_P_gamma  # results in s - 1 convergence
-        # self.P_gn1 = dP_g @ self.b # no convergence
-        # self.P_gamman1 = dP_gamma @ self.b # no convergence
+
+        self.P_gn1 = P_gn1.copy()
+        self.P_gamman1 = P_gamman1.copy()
         self.P_Nn1 = P_Nn1.copy()
         self.P_Fn1 = P_Fn1.copy()
 
-        # self.P_Nn1 = dP_N[:, -1]
-        # self.P_Nn1 = dP_N @ self.b
-        # self.P_Nn1 = Delta_P_N.copy()
+        # # self.P_gn1 = P_gn1.copy()
+        # # self.P_gamman1 = P_gamman1.copy()
+        # # self.P_gn1 = dP_g[:, -1]  # results in s - 1 convergence, see Jay1995
+        # # self.P_gamman1 = dP_gamma[:, -1]  # results in s - 1 convergence, see Jay1995
+        # # TODO: The formualtion below fits perfectly into the interpretation of
+        # #       a right limit of the Lagrange multipliers.
+        # self.P_gn1 = dP_g[:, -1] + Delta_P_g  # results in s - 1 convergence
+        # self.P_gamman1 = dP_gamma[:, -1] + Delta_P_gamma  # results in s - 1 convergence
+        # # self.P_gn1 = dP_g @ self.b # no convergence
+        # # self.P_gamman1 = dP_gamma @ self.b # no convergence
+
+        # # self.P_Nn1 = dP_N[:, -1]
+        # # self.P_Nn1 = dP_N @ self.b
+        # # self.P_Nn1 = Delta_P_N.copy()
 
         return R
 

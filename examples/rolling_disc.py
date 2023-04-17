@@ -14,6 +14,7 @@ from cardillo.constraints import (
 )
 from cardillo.forces import Force
 from cardillo.solver import (
+    convergence_analysis,
     ScipyIVP,
     EulerBackward,
     GeneralizedAlphaFirstOrder,
@@ -21,6 +22,8 @@ from cardillo.solver import (
     Rattle,
     NonsmoothPIRK,
     RadauIIATableau,
+    MoreauShifted,
+    NonsmoothGeneralizedAlpha,
 )
 
 
@@ -421,6 +424,47 @@ def state():
 
 
 def convergence():
+    # get_solver = lambda t_final, dt, atol: MoreauShifted(model, t_final, dt, fix_point_tol=atol)
+    # get_solver = lambda t_final, dt, atol: Rattle(model, t_final, dt, atol=atol)
+    # get_solver = lambda t_final, dt, atol: NonsmoothGeneralizedAlpha(model, t_final, dt, newton_tol=atol)
+    get_solver = lambda t_final, dt, atol: NonsmoothPIRK(
+        model, t_final, dt, RadauIIATableau(3), atol=atol
+    )
+
+    errors = convergence_analysis(
+        get_solver,
+        # dt_ref=1.6e-3,
+        # # final_power=11,
+        # final_power=7,
+        # power_span=(1, 3),
+        # dt_ref=8e-4,
+        # # final_power=12,
+        # final_power=8,
+        # power_span=(1, 4),
+        dt_ref=4e-4,
+        final_power=6,
+        power_span=(1, 4),
+        # dt_ref=2e-4,
+        # final_power=7,
+        # power_span=(1, 5),
+        # dt_ref=1e-4,
+        # final_power=9,
+        # power_span=(1, 6),
+        # states=["q", "u"],
+        states=["q", "u", "P_g", "P_gamma"],
+        # states=["q", "u", "la_g", "la_gamma"],
+        split_fractions=[],
+        atol=1e-12,
+        # measure="lp",
+        measure="uniform",
+        # measure="hausdorff",
+        visualize=True,
+        export=True,
+        kwargs={"p": 1},
+    )
+
+    exit()
+
     # rho_inf = 0.85
     # see Arnodl2016, p. 118
     # tol_ref = 1.0e-10

@@ -53,9 +53,9 @@ def run(case, export=True):
     y_dot0 = 0
     # dt = 5e-4
     # dt = 1e-3
-    dt = 5e-3
+    # dt = 5e-3
     # dt = 1e-2
-    # dt = 5e-2
+    dt = 5e-2
 
     if case == 1:
         e_N, e_F, mu = 0.5, 0, 0
@@ -105,7 +105,7 @@ def run(case, export=True):
 
     system.assemble()
 
-    # solver1, label1 = NonsmoothPIRK(system, t_final, dt, RadauIIATableau(2)), "NPIRK"
+    solver1, label1 = NonsmoothPIRK(system, t_final, dt, RadauIIATableau(2)), "NPIRK"
     # solver1, label1 = NonsmoothPIRK(system, t_final, dt, AlexanderTableau(3)), "NPIRK"
     # solver1, label1 = (
     #     SimplifiedNonsmoothGeneralizedAlphaNoAcceleration(system, t_final, dt),
@@ -113,7 +113,7 @@ def run(case, export=True):
     # )
 
     # solver1, label1 = NonsmoothGeneralizedAlpha(system, t_final, dt, method="newton"), "Gen-alpha"
-    solver1, label1 = Rattle(system, t_final, dt), "Rattle"
+    # solver1, label1 = Rattle(system, t_final, dt), "Rattle"
     # solver1, label1 = MoreauShifted(system, t_final, dt), "MoreauShifted"
     # solver1, label1 = MoreauShiftedNew(system, t_final, dt), "MoreauShiftedNew"
     # solver1, label1 = MoreauClassical(system, t_final, dt), "MoreauClassical"

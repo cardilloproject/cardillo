@@ -15,6 +15,8 @@ def __error(t1, t2, f1, f2, measure="lp", kwargs={"p": 1}):
         return max(np.abs(x[0] - y[0]), np.linalg.norm(x[1:] - y[1:], ord=2))
 
     def directed_hausdorff_distance(A, B):
+        # from scipy.spatial.distance import directed_hausdorff
+        # return directed_hausdorff(A, B)[0]
         return np.max([np.min([distance_function(a, b) for b in B]) for a in A])
 
     match measure:
@@ -22,13 +24,9 @@ def __error(t1, t2, f1, f2, measure="lp", kwargs={"p": 1}):
             # https://en.wikipedia.org/wiki/Uniform_norm
             return np.abs(f1 - f2).max()
         case "lp":
-            # https://numpy.org/doc/stable/reference/generated/numpy.linalg.norm.html
             # https://de.wikipedia.org/wiki/Lp-Raum
             p = kwargs["p"]
-            # return np.max(np.sum(np.abs(f1 - f2) ** p, axis=0) ** (1 / p))
-            # return np.max(np.linalg.norm((f1 - f2), ord=p, axis=0))
-            # return np.max(np.sum(dt * np.abs(f1 - f2) ** p, axis=0) ** (1 / p))
-            return np.max(np.linalg.norm(dt * (f1 - f2), ord=p, axis=0))
+            return np.max(np.sum(dt * np.abs(f1 - f2) ** p, axis=0) ** (1 / p))
         case "directed_hausdorff":
             # https://en.wikipedia.org/wiki/Hausdorff_distance
             # https://github.com/mavillan/py-hausdorff/blob/master/hausdorff/hausdorff.py
@@ -57,7 +55,7 @@ def convergence_analysis(
     final_power,
     power_span,
     states=["q", "u"],
-    split_fractions=[0.0, 0.5, 1.0],
+    split_fractions=[],
     atol=1e-12,
     measure="lp",
     visualize=True,
@@ -100,12 +98,14 @@ def convergence_analysis(
     #############################
     # build error data structures
     #############################
+    nsplit = len(split_fractions)
     errors = {}
     for field in states:
         errors[field] = {}
         errors[field]["global"] = []
-        for j in range(1, len(split_fractions)):
-            errors[field][f"{split_fractions[j-1]}-{split_fractions[j]}"] = []
+        if nsplit > 1:
+            for j in range(1, nsplit):
+                errors[field][f"{split_fractions[j-1]}-{split_fractions[j]}"] = []
 
     ############################
     # compute reference solution
@@ -139,20 +139,25 @@ def convergence_analysis(
             ###########
             # 2. splits
             ###########
-            for j in range(1, len(split_fractions)):
-                lower = t.searchsorted(split_fractions[j - 1] * t_final, side="left")
-                upper = t.searchsorted(split_fractions[j] * t_final, side="left")
-
-                errors[field][f"{split_fractions[j-1]}-{split_fractions[j]}"].append(
-                    __error(
-                        t_ref[lower:upper],
-                        t[lower:upper],
-                        f_ref[lower:upper],
-                        f[lower:upper],
-                        measure,
-                        kwargs,
+            if nsplit > 1:
+                for j in range(1, nsplit):
+                    lower = t.searchsorted(
+                        split_fractions[j - 1] * t_final, side="left"
                     )
-                )
+                    upper = t.searchsorted(split_fractions[j] * t_final, side="left")
+
+                    errors[field][
+                        f"{split_fractions[j-1]}-{split_fractions[j]}"
+                    ].append(
+                        __error(
+                            t_ref[lower:upper],
+                            t[lower:upper],
+                            f_ref[lower:upper],
+                            f[lower:upper],
+                            measure,
+                            kwargs,
+                        )
+                    )
 
     if visualize:
         import matplotlib.pyplot as plt
@@ -160,7 +165,11 @@ def convergence_analysis(
         ##################
         # visualize errors
         ##################
-        fig, ax = plt.subplots(1, len(split_fractions))
+        if nsplit > 1:
+            fig, ax = plt.subplots(1, len(split_fractions))
+        else:
+            fig, ax = plt.subplots(1, 1)
+            ax = [ax]
 
         ax[0].set_title("global")
         ax[0].loglog(dts, dts, "-k", label="dt")
@@ -174,23 +183,24 @@ def convergence_analysis(
         ax[0].grid()
         ax[0].legend()
 
-        for j in range(1, len(split_fractions)):
-            ax[j].set_title(f"{split_fractions[j-1]}-{split_fractions[j]}")
-            ax[j].loglog(dts, dts, "-k", label="dt")
-            ax[j].loglog(dts, dts**2, "--k", label="dt^2")
-            ax[j].loglog(dts, dts**3, "-.k", label="dt^3")
-            ax[j].loglog(dts, dts**4, ":k", label="dt^4")
-            ax[j].loglog(dts, dts**5, "-ok", label="dt^5")
-            ax[j].loglog(dts, dts**6, "-sk", label="dt^6")
-            for field in states:
-                ax[j].loglog(
-                    dts,
-                    errors[field][f"{split_fractions[j-1]}-{split_fractions[j]}"],
-                    label=field,
-                    marker="x",
-                )
-            ax[j].grid()
-            ax[j].legend()
+        if nsplit > 1:
+            for j in range(1, nsplit):
+                ax[j].set_title(f"{split_fractions[j-1]}-{split_fractions[j]}")
+                ax[j].loglog(dts, dts, "-k", label="dt")
+                ax[j].loglog(dts, dts**2, "--k", label="dt^2")
+                ax[j].loglog(dts, dts**3, "-.k", label="dt^3")
+                ax[j].loglog(dts, dts**4, ":k", label="dt^4")
+                ax[j].loglog(dts, dts**5, "-ok", label="dt^5")
+                ax[j].loglog(dts, dts**6, "-sk", label="dt^6")
+                for field in states:
+                    ax[j].loglog(
+                        dts,
+                        errors[field][f"{split_fractions[j-1]}-{split_fractions[j]}"],
+                        label=field,
+                        marker="x",
+                    )
+                ax[j].grid()
+                ax[j].legend()
 
         plt.show()
 
@@ -221,24 +231,27 @@ def convergence_analysis(
         ##############
         # split errors
         ##############
-        for j in range(1, len(split_fractions)):
-            export_data = np.vstack(
-                (dts, dts**2, dts**3, dts**4, dts**5, dts**6)
-            )
-            for field in states:
+        if nsplit > 1:
+            for j in range(1, nsplit):
                 export_data = np.vstack(
-                    (
-                        export_data,
-                        errors[field][f"{split_fractions[j-1]}-{split_fractions[j]}"],
-                    )
+                    (dts, dts**2, dts**3, dts**4, dts**5, dts**6)
                 )
-            np.savetxt(
-                path.parent
-                / f"{path.stem}_{split_fractions[j-1]}-{split_fractions[j]}.dat",
-                export_data.T,
-                delimiter=", ",
-                header=header,
-                comments="",
-            )
+                for field in states:
+                    export_data = np.vstack(
+                        (
+                            export_data,
+                            errors[field][
+                                f"{split_fractions[j-1]}-{split_fractions[j]}"
+                            ],
+                        )
+                    )
+                np.savetxt(
+                    path.parent
+                    / f"{path.stem}_{split_fractions[j-1]}-{split_fractions[j]}.dat",
+                    export_data.T,
+                    delimiter=", ",
+                    header=header,
+                    comments="",
+                )
 
     return errors

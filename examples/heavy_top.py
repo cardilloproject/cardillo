@@ -18,6 +18,8 @@ from cardillo.solver import (
     Rattle,
     NonsmoothPIRK,
     RadauIIATableau,
+    NonsmoothGeneralizedAlpha,
+    MoreauShifted,
 )
 
 
@@ -98,7 +100,7 @@ system = System()
 top = HeavyTopQuaternion(A, B, grav, q0, u0)
 spherical_joint = Spherical(system.origin, top, np.zeros(3, dtype=float))
 system.add(top)
-system.add(spherical_joint)
+# system.add(spherical_joint)
 system.assemble()
 
 
@@ -212,7 +214,7 @@ def state():
     q = sol.q
     u = sol.u
     # la_g = sol.la_g
-    la_g = sol.P_g
+    # la_g = sol.P_g
 
     # def export_q(sol, name):
     #     header = "t, x, y, z, al, be, ga, la_g"
@@ -276,13 +278,13 @@ def state():
     ax.grid()
     ax.legend()
 
-    # la_g
-    ax = fig.add_subplot(2, 3, 6)
-    ax.plot(t, la_g[:, 0], "-r", label="la_g0")
-    ax.plot(t, la_g[:, 1], "-g", label="la_g1")
-    ax.plot(t, la_g[:, 2], "-b", label="la_g2")
-    ax.grid()
-    ax.legend()
+    # # la_g
+    # ax = fig.add_subplot(2, 3, 6)
+    # ax.plot(t, la_g[:, 0], "-r", label="la_g0")
+    # ax.plot(t, la_g[:, 1], "-g", label="la_g1")
+    # ax.plot(t, la_g[:, 2], "-b", label="la_g2")
+    # ax.grid()
+    # ax.legend()
 
     anim = show_animation(top, t, q)
 
@@ -552,6 +554,7 @@ def gaps():
 
 
 def convergence():
+    # get_solver = lambda t_final, dt, atol: MoreauShifted(system, t_final, dt, fix_point_tol=atol)
     get_solver = lambda t_final, dt, atol: Rattle(system, t_final, dt, atol=atol)
     # get_solver = lambda t_final, dt, atol: NonsmoothGeneralizedAlpha(system, t_final, dt, newton_tol=atol)
     # get_solver = lambda t_final, dt, atol: NonsmoothPIRK(
@@ -568,18 +571,27 @@ def convergence():
         # # final_power=12,
         # final_power=8,
         # power_span=(1, 4),
-        dt_ref=4e-4,
-        final_power=7,
-        power_span=(1, 5),
-        # final_power=6,
-        # power_span=(1, 4),
-        # final_power=5,
-        # power_span=(1, 3),
+        # dt_ref=4e-4,
+        # final_power=7,
+        # power_span=(1, 5),
+        # # final_power=6,
+        # # power_span=(1, 4),
+        # # final_power=5,
+        # # power_span=(1, 3),
+        # dt_ref=2e-4,
+        # final_power=7,
+        # power_span=(1, 5),
+        dt_ref=1e-4,
+        final_power=9,
+        power_span=(1, 6),
+        # states=["q", "u"],
         states=["q", "u", "P_g"],
+        # states=["q", "u", "la_g"],
         split_fractions=[0.0, 0.5, 1.0],
-        atol=1e-8,
-        measure="lp",
+        atol=1e-12,
+        # measure="lp",
         # measure="uniform",
+        measure="hausdorff",
         visualize=True,
         export=True,
         kwargs={"p": 1},
