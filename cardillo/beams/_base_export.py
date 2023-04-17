@@ -295,7 +295,8 @@ class RodExportBase(ABC):
                             vtk_points_weights.append(points_layer3[j])
 
                         # first and second
-                        for j in [0, 1, 3, 2]:
+                        # for j in [0, 1, 3, 2]:  # ordering for vtu file version<2.0, e.g. 0.1
+                        for j in range(4):  # ordering for vtu file version>=2.0
                             vtk_points_weights.append(points_layer1[j])
                             vtk_points_weights.append(points_layer2[j])
 
@@ -367,7 +368,8 @@ class RodExportBase(ABC):
                     ##########
 
                     # first and second
-                    for j in [0, 1, 3, 2]:
+                    # for j in [0, 1, 3, 2]:  # ordering for vtu file version<2.0, e.g. 0.1
+                    for j in range(4):  # ordering for vtu file version>=2.0
                         vtk_points_weights.append(points_layer1[j])
                         vtk_points_weights.append(points_layer2[j])
 
