@@ -119,10 +119,26 @@ def trace3(A: np.ndarray) -> float:
     return A[0, 0] + A[1, 1] + A[2, 2]
 
 
+def is_positive_definite(A):
+    A = np.asarray(A)
+    rows, cols = A.shape
+    assert rows == cols
+    for i in range(rows):
+        det = np.linalg.det(A[:i, :i])
+        if det > 0:
+            continue
+        else:
+            return False
+    return True
+
+
 ###############################################################################
 # TODO: move on here!
 ###############################################################################
 def trace(J):
+    # How about
+    # return np.sum(np.diagonal(J))
+    # return J.trace()
     ndim = len(J)
     if ndim == 1:
         return J

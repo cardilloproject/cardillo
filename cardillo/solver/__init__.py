@@ -24,7 +24,8 @@ from .nonsmooth_generalized_alpha import (
     SimplifiedNonsmoothGeneralizedAlphaNoAcceleration,
 )
 from .rattle import Rattle
-from .runge_kutta import *
+from .runge_kutta import NonsmoothPIRK
+from .lobatto import LobattoIIIAB
 
 # static solvers
 from .statics import Newton, Riks

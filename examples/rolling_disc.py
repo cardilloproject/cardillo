@@ -428,7 +428,7 @@ def convergence():
     # get_solver = lambda t_final, dt, atol: Rattle(model, t_final, dt, atol=atol)
     # get_solver = lambda t_final, dt, atol: NonsmoothGeneralizedAlpha(model, t_final, dt, newton_tol=atol)
     get_solver = lambda t_final, dt, atol: NonsmoothPIRK(
-        model, t_final, dt, RadauIIATableau(3), atol=atol
+        model, t_final, dt, RadauIIATableau(2), atol=atol
     )
 
     errors = convergence_analysis(
@@ -441,12 +441,12 @@ def convergence():
         # # final_power=12,
         # final_power=8,
         # power_span=(1, 4),
-        dt_ref=4e-4,
-        final_power=6,
-        power_span=(1, 4),
-        # dt_ref=2e-4,
-        # final_power=7,
-        # power_span=(1, 5),
+        # dt_ref=4e-4,
+        # final_power=6,
+        # power_span=(1, 4),
+        dt_ref=2e-4,
+        final_power=7,
+        power_span=(1, 5),
         # dt_ref=1e-4,
         # final_power=9,
         # power_span=(1, 6),
@@ -455,8 +455,8 @@ def convergence():
         # states=["q", "u", "la_g", "la_gamma"],
         split_fractions=[],
         atol=1e-12,
-        # measure="lp",
-        measure="uniform",
+        measure="lp",
+        # measure="uniform",
         # measure="hausdorff",
         visualize=True,
         export=True,

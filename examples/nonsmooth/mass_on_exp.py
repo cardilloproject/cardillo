@@ -195,8 +195,8 @@ mu = 0.3
 # x0 = -2
 x0 = 0
 # x0 = 3
-x_dot0 = 0
-# x_dot0 = 1
+# x_dot0 = 0
+x_dot0 = 1
 # x_dot0 = -1
 
 # create bouncing ball subsystem
@@ -377,11 +377,11 @@ def convergence():
     # get_solver = lambda t_final, dt, atol: MoreauClassical(
     #     model, t_final, dt, atol=atol
     # )
-    # get_solver = lambda t_final, dt, atol: Rattle(model, t_final, dt, atol=atol)
+    get_solver = lambda t_final, dt, atol: Rattle(model, t_final, dt, atol=atol)
     # get_solver = lambda t_final, dt, atol: NonsmoothGeneralizedAlpha(model, t_final, dt, newton_tol=atol)
-    get_solver = lambda t_final, dt, atol: NonsmoothPIRK(
-        model, t_final, dt, RadauIIATableau(2), atol=atol
-    )
+    # get_solver = lambda t_final, dt, atol: NonsmoothPIRK(
+    #     model, t_final, dt, RadauIIATableau(2), atol=atol
+    # )
 
     errors = convergence_analysis(
         get_solver,
@@ -390,23 +390,26 @@ def convergence():
         # final_power=6,
         # power_span=(1, 4),
         # dt_ref=1.6e-3,
-        # # final_power=11,
-        # final_power=7,
+        # final_power=11,
+        # # final_power=7,
         # power_span=(1, 5),
-        dt_ref=8e-4,
-        # final_power=12,
-        final_power=8,
-        power_span=(1, 6),
+        # dt_ref=8e-4,
+        # # final_power=12,
+        # final_power=8,
+        # power_span=(1, 6),
         # dt_ref=4e-4,
         # final_power=13,
         # # final_power=9,
         # power_span=(1, 7),
-        # #############
-        # # final setup
-        # #############
+        #############
+        # final setup
+        #############
         # dt_ref=1e-4,
         # final_power=15,
         # power_span=(1, 9),
+        dt_ref=5e-5,
+        final_power=16,
+        power_span=(1, 10),
         #
         states=["q", "u", "P_N", "P_F"],
         atol=1e-12,
