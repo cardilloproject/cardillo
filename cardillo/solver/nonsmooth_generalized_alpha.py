@@ -80,32 +80,28 @@ class NonsmoothGeneralizedAlpha:
         self.nR_c = 3 * self.nla_N + 2 * self.nla_F
         self.nR = self.nR_s + self.nR_c
 
-        # set initial conditions
-        self.ti = t0
-        self.qi = model.q0
-        self.ui = model.u0
+        # consistent initial conditions
+        (
+            self.ti,
+            self.qi,
+            self.ui,
+            self.q_doti,
+            self.ai,
+            self.la_gi,
+            self.la_gammai,
+            self.la_Ni,
+            self.la_Fi,
+        ) = consistent_initial_conditions(model)
+
+        # other initial conditions
         self.kappa_gi = np.zeros_like(model.la_g0)
-        self.la_gi = model.la_g0
         self.La_gi = np.zeros_like(model.la_g0)
-        self.la_gammai = model.la_gamma0
         self.La_gammai = np.zeros_like(model.la_gamma0)
         self.kappa_Ni = np.zeros_like(model.la_N0)
-        self.la_Ni = model.la_N0
         self.La_Ni = np.zeros_like(model.la_N0)
-        self.la_Fi = model.la_F0
         self.La_Fi = np.zeros_like(model.la_F0)
         self.Qi = np.zeros(self.nu)
         self.Ui = np.zeros(self.nu)
-
-        # solve for initial accelerations
-        self.ai = spsolve(
-            model.M(t0, model.q0, scipy_matrix=csc_matrix),
-            self.model.h(t0, model.q0, model.u0)
-            + self.model.W_g(t0, model.q0) @ model.la_g0
-            + self.model.W_gamma(t0, model.q0) @ model.la_gamma0
-            + self.model.W_N(t0, model.q0) @ model.la_N0
-            + self.model.W_F(t0, model.q0) @ model.la_F0,
-        )
 
         # initialize auxilary variables
         self.a_bari = self.ai.copy()
@@ -229,6 +225,15 @@ class NonsmoothGeneralizedAlpha:
             + dt2 / 2 * self.model.q_ddot(self.ti, self.qi, self.ui, a_beta)
             + self.model.B(self.ti, self.qi) @ Qi1
         )
+
+        # # TODO: Add this to all updates of generalized coordinates
+        # # GAMM2022 Harsch
+        # Delta_u = self.ui + dt * ((0.5 - self.beta) * self.a_bari + self.beta * a_bari1)
+        # qi1 = (
+        #     self.qi
+        #     + dt * self.model.q_dot(self.ti, self.qi, Delta_u)
+        #     + self.model.B(self.ti, self.qi) @ Qi1
+        # )
 
         # ----- normal contact forces -----
         # eqn. (96): compute auxiliary normal contact forces
@@ -1144,6 +1149,19 @@ class SimplifiedNonsmoothGeneralizedAlphaNoAcceleration:
             )
         )
 
+        # # consistent initial conditions
+        # (
+        #     self.tn,
+        #     self.qn,
+        #     self.un,
+        #     self.q_dotn,
+        #     self.u_dotn,
+        #     self.la_gn,
+        #     self.la_gamman,
+        # ) = consistent_initial_conditions(system)
+        # self.R_Nn = self.system.la_N0
+        # self.R_Fn = self.system.la_F0
+
         # consistent initial conditions
         (
             self.tn,
@@ -1153,9 +1171,11 @@ class SimplifiedNonsmoothGeneralizedAlphaNoAcceleration:
             self.u_dotn,
             self.la_gn,
             self.la_gamman,
+            self.la_Nn,
+            self.la_Fn,
         ) = consistent_initial_conditions(system)
-        self.R_Nn = self.system.la_N0
-        self.R_Fn = self.system.la_F0
+        self.R_Nn = self.la_Nn
+        self.R_Fn = self.la_Fn
 
         # initialize auxilary variables
         self.an = self.u_dotn.copy()

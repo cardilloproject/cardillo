@@ -4,7 +4,7 @@ from cardillo.math import prox_sphere, prox_R0_nm, fsolve, norm
 
 
 def consistent_initial_conditions(
-    system, rtol=1.0e-5, atol=1.0e-8, neton_atol=1e-10, newton_max_iter=10
+    system, rtol=1.0e-5, atol=1.0e-8, newton_atol=1e-10, newton_max_iter=10
 ):
     t0 = system.t0
     q0 = system.q0
@@ -13,8 +13,8 @@ def consistent_initial_conditions(
 
     g_N = system.g_N(t0, q0)
     g_N_dot = system.g_N_dot(t0, q0, u0)
-    I_N = np.allclose(g_N, np.zeros(system.nla_N), rtol, atol)
-    B_N = I_N * np.allclose(g_N_dot, np.zeros(system.nla_N), rtol, atol)
+    I_N = np.isclose(g_N, np.zeros(system.nla_N), rtol, atol)
+    B_N = I_N * np.isclose(g_N_dot, np.zeros(system.nla_N), rtol, atol)
 
     assert np.all(g_N >= 0) or np.allclose(
         g_N, np.zeros(system.nla_N), rtol, atol
@@ -81,8 +81,12 @@ def consistent_initial_conditions(
                 norm_gamma_Fi = norm(gamma_Fi)
                 if norm_gamma_Fi > 0:
                     # slip
-                    R[split[3] + i_F] = (
-                        la_F[i_F] + mu[i_N] * la_N[i_N] * gamma_Fi / norm_gamma_Fi
+                    # R[split[3] + i_F] = (
+                    #     la_F[i_F] + mu[i_N] * la_N[i_N] * gamma_Fi / norm_gamma_Fi
+                    # )
+                    R[split[3] + i_F] = la_F[i_F] + prox_sphere(
+                        prox_r_F[i_F] * gamma_Fi - la_F[i_F],
+                        mu[i_N] * la_N[i_N],
                     )
                 else:
                     # possibly stick
@@ -91,13 +95,24 @@ def consistent_initial_conditions(
                         mu[i_N] * la_N[i_N],
                     )
 
+                    # arg_F = prox_r_F[i_F] * gamma_F_dot[i_F] - la_F[i_F]
+                    # norm_arg_F = norm(arg_F)
+                    # radius = mu[i_N] * la_N[i_N]
+                    # if norm_arg_F < radius:
+                    #     R[split[3] + i_F] = gamma_F_dot[i_F]
+                    # else:
+                    #     if norm_arg_F > 0:
+                    #         R[split[3] + i_F] = la_F[i_F] + radius * arg_F / norm_arg_F
+                    #     else:
+                    #         R[split[3] + i_F] = la_F[i_F]
+
         return R
 
     x0 = np.zeros(
         system.nu + system.nla_g + system.nla_gamma + system.nla_N + system.nla_F
     )
     x0, converged, error, i, f = fsolve(
-        R, x0, atol=neton_atol, max_iter=newton_max_iter
+        R, x0, atol=newton_atol, max_iter=newton_max_iter
     )
     assert (
         converged

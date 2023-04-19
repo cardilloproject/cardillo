@@ -1243,7 +1243,7 @@ class NonsmoothPIRK:
                 atol=self.atol,
                 fun_args=(True,),
                 jac_args=(False,),
-                max_iter=5,
+                max_iter=20,
             )
 
             tn1 = self.tn1

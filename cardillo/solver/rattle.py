@@ -65,8 +65,6 @@ class Rattle:
         self.nla_F = system.nla_F
 
         # consistent initial conditions
-
-        # consistent initial conditions
         (
             self.tn,
             self.qn,
@@ -287,7 +285,9 @@ class Rattle:
         ) = np.array_split(y, self.split_y)
 
         P_N = self.dt * 0.5 * (R_N1 + R_N2)
-        P_F = self.dt * 0.5 * (R_F2 + R_F1)
+        P_F = self.dt * 0.5 * (R_F1 + R_F2)
+        # P_N = R_N2
+        # P_F = R_F2
 
         R = np.zeros(self.ny, dtype=y.dtype)
 
@@ -377,10 +377,6 @@ class Rattle:
                     prox_r_F[i_N] * xi_Fn1[i_F] - P_F[i_F],
                     self.system.mu[i_N] * P_N[i_N],
                 )
-                # R[self.split_y[9] + i_F] = R_F2[i_F] + prox_sphere(
-                #     prox_r_F[i_N] * xi_Fn1[i_F] - R_F2[i_F],
-                #     self.system.mu[i_N] * R_N2[i_N],
-                # )
 
         return R
 
