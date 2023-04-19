@@ -211,7 +211,7 @@ def helix():
     # VTK export
     ############
     from pathlib import Path
-    from cardillo.utility import Export
+    from cardillo.visualization import Export
 
     path = Path(__file__)
     fps = 60
@@ -378,7 +378,7 @@ def SE3_vs_Crisfield(r_OP0, psi0, r_OP1, psi1, L, cross_section):
     # VTK export
     ############
     from pathlib import Path
-    from cardillo.utility import Export
+    from cardillo.visualization import Export
 
     path = Path(__file__)
     fps = 60

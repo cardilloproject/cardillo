@@ -85,7 +85,7 @@ def consistent_initial_conditions(
                         la_F[i_F] + mu[i_N] * la_N[i_N] * gamma_Fi / norm_gamma_Fi
                     )
                 else:
-                    # stick
+                    # possibly stick
                     R[split[3] + i_F] = la_F[i_F] + prox_sphere(
                         prox_r_F[i_F] * gamma_F_dot[i_F] - la_F[i_F],
                         mu[i_N] * la_N[i_N],

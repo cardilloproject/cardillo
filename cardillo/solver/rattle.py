@@ -65,6 +65,8 @@ class Rattle:
         self.nla_F = system.nla_F
 
         # consistent initial conditions
+
+        # consistent initial conditions
         (
             self.tn,
             self.qn,

@@ -4,9 +4,9 @@ import warnings
 from cardillo.math import cross3
 from cardillo.beams._base_petrov_galerkin import (
     I_TimoshenkoPetrovGalerkinBaseAxisAngle,
-    K_TimoshenkoPetrovGalerkinBaseAxisAngle,
     I_TimoshenkoPetrovGalerkinBaseR9,
     I_TimoshenkoPetrovGalerkinBaseQuaternion,
+    K_TimoshenkoPetrovGalerkinBaseAxisAngle,
     K_TimoshenkoPetrovGalerkinBaseQuaternion,
     K_TimoshenkoPetrovGalerkinBaseR9,
 )

@@ -3,7 +3,7 @@ import numpy as np
 from math import comb
 import matplotlib.pyplot as plt
 
-from cardillo.utility import Export
+from cardillo.visualization import Export
 from cardillo.solver import Solution
 from pathlib import Path
 import meshio
