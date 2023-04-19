@@ -8,14 +8,15 @@ from cardillo.discrete import RigidBodyQuaternion, RigidBodyEuler
 from cardillo.math import axis_angle2quat, cross3, ax2skew, approx_fprime
 from cardillo.forces import Force
 from cardillo.solver import (
+    convergence_analysis,
     MoreauShifted,
     MoreauClassical,
     Rattle,
     MoreauShiftedNew,
     NonsmoothPIRK,
-    RadauIIATableau,
     NonsmoothGeneralizedAlpha,
 )
+from cardillo.solver._butcher_tableaus import RadauIIATableau
 from cardillo.contacts import Sphere2Plane
 from cardillo.constraints._base import ProjectedPositionOrientationBase
 
@@ -907,6 +908,38 @@ def run(export=True):
 def convergence(export=True):
     system, top, contact1, contact2 = make_system(RigidBodyQuaternion)
     # system, top, contact1, contact2 = make_system(RigidBodyEuler)
+
+    # get_solver = lambda t_final, dt, atol: MoreauShifted(system, t_final, dt, fix_point_tol=atol)
+    get_solver = lambda t_final, dt, atol: Rattle(system, t_final, dt, atol=atol)
+    # get_solver = lambda t_final, dt, atol: NonsmoothGeneralizedAlpha(system, t_final, dt, newton_tol=atol)
+    # get_solver = lambda t_final, dt, atol: NonsmoothPIRK(
+    #     system, t_final, dt, RadauIIATableau(2), atol=atol
+    # )
+
+    convergence_analysis(
+        get_solver,
+        # dt_ref=1.6e-3,
+        # final_power=7,
+        # power_span=(1, 5),
+        dt_ref=8e-4,
+        final_power=8,
+        power_span=(1, 6),
+        # dt_ref=4e-4,
+        # final_power=6,
+        # power_span=(1, 4),
+        # dt_ref=2e-4,
+        # final_power=7,
+        # power_span=(2, 5),
+        # states=["q", "u", "P_g", "P_gamma"],
+        split_fractions=[],
+        atol=1e-12,
+        measure="lp",
+        visualize=True,
+        export=False,
+        kwargs={"p": 1},
+    )
+
+    exit()
 
     # tol_ref = 1.0e-8
     # tol = 1.0e-8

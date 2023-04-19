@@ -62,8 +62,8 @@ class LobattoIIIAB:
             self.la_Fn,
         ) = consistent_initial_conditions(system)
 
-        self.R_gn = self.la_gn
-        self.R_gamman = self.la_gamman
+        self.P_gn = self.la_gn
+        self.P_gamman = self.la_gamman
         self.P_Nn = self.la_Nn
         self.P_Fn = self.la_Fn
         self.I = np.zeros((stages, self.nla_N), dtype=bool)
@@ -72,10 +72,10 @@ class LobattoIIIAB:
             (
                 np.tile(self.un, stages),
                 self.un,
-                # np.tile(self.la_gn, stages),
-                # np.tile(self.la_gamman, stages),
-                np.tile(system.la_N0, stages),
-                np.tile(system.la_F0, stages),
+                np.tile(self.la_gn, stages),
+                np.tile(self.la_gamman, stages),
+                np.tile(self.la_Nn, stages),
+                np.tile(self.la_Fn, stages),
             )
         )
 
@@ -84,6 +84,8 @@ class LobattoIIIAB:
                 [
                     self.nu * stages,
                     self.nu,
+                    self.nla_g * stages,
+                    self.nla_gamma * stages,
                     self.nla_N * stages,
                 ],
                 dtype=int,
@@ -91,11 +93,13 @@ class LobattoIIIAB:
         )
 
     def unpack_y(self, y):
-        U_list, u, R_N_list, R_F_list = np.array_split(y, self.split_y)
-        U = U_list.reshape(self.stages, self.nu, order="F")
-        R_N = R_N_list.reshape(self.stages, self.nla_N, order="F")
-        R_F = R_F_list.reshape(self.stages, self.nla_F, order="F")
-        return U, u, R_N, R_F
+        U, u, R_g, R_gamma, R_N, R_F = np.array_split(y, self.split_y)
+        U = U.reshape(self.stages, self.nu, order="F")
+        R_g = R_g.reshape(self.stages, self.nla_g, order="F")
+        R_gamma = R_gamma.reshape(self.stages, self.nla_gamma, order="F")
+        R_N = R_N.reshape(self.stages, self.nla_N, order="F")
+        R_F = R_F.reshape(self.stages, self.nla_F, order="F")
+        return U, u, R_g, R_gamma, R_N, R_F
 
     def R(self, y, update_indexset=True):
         # time step
@@ -107,7 +111,7 @@ class LobattoIIIAB:
         un = self.un
 
         # unpack quantities
-        U, un1, R_N, R_F = self.unpack_y(y)
+        U, un1, R_g, R_gamma, R_N, R_F = self.unpack_y(y)
 
         # this scaling fixes problem of the singular jacobian. It appears to be a conditioning problem.
         # With that scaling, the Lagrange multipliers in the eqm. and in the constraints have the same order of magnitude.
@@ -115,29 +119,33 @@ class LobattoIIIAB:
         # V = V * dt
 
         # compute position update
-        # Q = np.tile(qn, (self.stages, 1)).T + dt * U @ self.A.T
         Q = np.array([qn + dt * self.system.q_dot(tn, qn, Ui) for Ui in self.A @ U])
         qn1 = Q[-1]
 
         # compute momenta, forces and percussions
         Pi = np.zeros((self.stages, self.nu))
         F = np.zeros((self.stages, self.nu))
-        R2 = np.zeros((self.stages, self.nla_N))
-        R3 = np.zeros((self.stages, self.nla_F))
+        R2 = np.zeros((self.stages, self.nla_g))
+        R3 = np.zeros((self.stages, self.nla_gamma))
+        R4 = np.zeros((self.stages, self.nla_N))
+        R5 = np.zeros((self.stages, self.nla_F))
 
         tn1 = tn + dt
         pin = self.system.M(tn, qn) @ un
         pi = self.system.M(tn1, qn1) @ un1
-        # P_N = dt * self.A_hat @ R_N
+        p_g = dt * self.b_hat @ R_g
+        p_gamma = dt * self.b_hat @ R_gamma
         p_N = dt * self.b_hat @ R_N
-
-        # P_F = dt * self.A_hat @ R_F
         p_F = dt * self.b_hat @ R_F
+        # p_N = dt * R_N[-1]
+        # p_F = dt * R_F[-1]
 
         # store for next time step
         self.tn1 = tn1
         self.qn1 = qn1
         self.un1 = un1
+        self.P_gn1 = p_g
+        self.P_gamman1 = p_gamma
         self.P_Nn1 = p_N
         self.P_Fn1 = p_F
 
@@ -153,54 +161,69 @@ class LobattoIIIAB:
 
         for i in range(self.stages):
             ti = tn + self.c[i] * dt
+
             Pi[i] = self.system.M(ti, Q[i]) @ U[i]
+
             F[i] = (
                 self.system.h(ti, Q[i], U[i])
-                # + self.system.W_g(ti, Q[i]) @ R_g[i]
-                # + self.system.W_gamma(ti, Q[i]) @ R_gamma[i]
+                + self.system.W_g(ti, Q[i]) @ R_g[i]
+                + self.system.W_gamma(ti, Q[i]) @ R_gamma[i]
                 + self.system.W_N(ti, Q[i]) @ R_N[i]
                 + self.system.W_F(ti, Q[i]) @ R_F[i]
             )
+
             if i > 0:
                 prox_arg = self.system.g_N(ti, Q[i]) - prox_r_N * R_N[i - 1]
                 if update_indexset:
                     self.I[i] = prox_arg <= 0
-                R2[i - 1] = np.where(
+
+                R2[i - 1] = self.system.g(ti, Q[i])
+                R3[i - 1] = self.system.gamma(ti, Q[i], U[i])
+
+                R4[i - 1] = np.where(
                     self.I[i],
                     self.system.g_N(ti, Q[i]),
                     R_N[i - 1],
                 )
+
                 gamma_F = self.system.gamma_F(ti, Q[i], U[i])
                 for i_N, i_F in enumerate(NF_connectivity):
                     i_F = np.array(i_F)
-                    R3[i - 1, i_F] = R_F[i - 1, i_F] + prox_sphere(
+                    R5[i - 1, i_F] = R_F[i - 1, i_F] + prox_sphere(
                         prox_r_F[i_N] * gamma_F[i_F] - R_F[i - 1, i_F],
                         mu[i_N] * R_N[i - 1, i_N],
                     )
 
-        xi_N = self.system.xi_N(ti, qn1, un, un1)
-        xi_F = self.system.xi_F(ti, qn1, un, un1)
+        R2[-1] = self.system.g_dot(tn1, qn1, un1)
+        R3[-1] = self.system.gamma(tn1, qn1, un1)
 
-        R2[-1] = np.where(
-            # TODO: What dof you prefer?
-            # self.I[-1],
+        xi_N = self.system.xi_N(tn1, qn1, un, un1)
+        R4[-1] = np.where(
             np.any(self.I, axis=0),
             xi_N - prox_R0_np(xi_N - prox_r_N * p_N),
             p_N,
         )
+
+        xi_F = self.system.xi_F(tn1, qn1, un, un1)
         for i_N, i_F in enumerate(NF_connectivity):
             i_F = np.array(i_F)
-            R3[-1, i_F] = p_F[i_F] + prox_sphere(
+            R5[-1, i_F] = p_F[i_F] + prox_sphere(
                 prox_r_F[i_N] * xi_F[i_F] - p_F[i_F],
                 mu[i_N] * p_N[i_N],
             )
 
-        # R1 = Pi - (np.tile(pin, (self.stages, 1)).T + dt * F @ self.A_hat.T)
         R1 = Pi - np.array([pin + dt * Fi for Fi in self.A_hat @ F])
         r1 = pi - (pin + dt * self.b_hat @ F)
 
         return np.concatenate(
-            (R1.flatten(order="F"), r1, R2.flatten(order="F"), R3.flatten(order="F"))
+            (
+                R1.flatten(order="F"),
+                r1,
+                R2.flatten(order="F"),
+                R3.flatten(order="F"),
+                R4.flatten(order="F"),
+                R5.flatten(order="F"),
+            )
         )
 
     def solve(self):
@@ -208,8 +231,8 @@ class LobattoIIIAB:
         # lists storing output variables
         q = [self.qn]
         u = [self.un]
-        # la_g = [self.R_gn]
-        # la_gamma = [self.R_gamman]
+        P_g = [self.P_gn]
+        P_gamma = [self.P_gamman]
         P_N = [self.P_Nn]
         P_F = [self.P_Fn]
 
@@ -232,15 +255,6 @@ class LobattoIIIAB:
 
             self.yn = yn1.copy()
 
-            # U, un1, R_N, R_F = self.unpack_y(yn1)
-            # # R_N = R_N / self.dt
-            # # V = V * self.dt
-            # tn1 = self.tn + self.dt
-            # # TODO: Kinematic equation
-            # qn1 = self.qn + self.dt * U @ self.b
-            # P_Nn1 = self.dt * R_N @ self.b_hat
-            # P_Fn1 = self.dt * R_F @ self.b_hat
-
             pbar.set_description(
                 f"t: {self.tn1:0.2e}; iterations: {i+1}; error: {error:.3e}"
             )
@@ -253,8 +267,8 @@ class LobattoIIIAB:
 
             q.append(self.qn1)
             u.append(self.un1)
-            # la_g.append(self.P_gn1)
-            # la_gamma.append(self.P_gamman1)
+            P_g.append(self.P_gn1)
+            P_gamma.append(self.P_gamman1)
             P_N.append(self.P_Nn1)
             P_F.append(self.P_Fn1)
 
@@ -263,18 +277,26 @@ class LobattoIIIAB:
                 self.tn,
                 self.qn,
                 self.un,
-                # self.la_gk,
-                # self.la_gammak,
+                self.P_gn,
+                self.P_gamman,
                 self.P_Nn,
                 self.P_Fn,
-            ) = (self.tn1, self.qn1, self.un1, self.P_Nn1, self.P_Fn1)
+            ) = (
+                self.tn1,
+                self.qn1,
+                self.un1,
+                self.P_gn1,
+                self.P_gamman1,
+                self.P_Nn1,
+                self.P_Fn1,
+            )
 
         return Solution(
             t=np.array(self.t),
             q=np.array(q),
             u=np.array(u),
-            # la_g=np.array(la_g),
-            # la_gamma=np.array(la_gamma),
+            P_g=np.array(P_g),
+            P_gamma=np.array(P_gamma),
             P_N=np.array(P_N),
             P_F=np.array(P_F),
         )

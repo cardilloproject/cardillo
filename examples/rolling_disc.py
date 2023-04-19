@@ -21,10 +21,11 @@ from cardillo.solver import (
     RadauIIa,
     Rattle,
     NonsmoothPIRK,
-    RadauIIATableau,
     MoreauShifted,
     NonsmoothGeneralizedAlpha,
+    LobattoIIIAB,
 )
+from cardillo.solver._butcher_tableaus import RadauIIATableau
 
 
 ############
@@ -119,7 +120,7 @@ f_g = Force(lambda t: np.array([0, 0, -m * g]), disc)
 
 model = System()
 model.add(disc)
-model.add(rolling)
+# model.add(rolling)
 model.add(f_g)
 model.assemble()
 
@@ -427,8 +428,11 @@ def convergence():
     # get_solver = lambda t_final, dt, atol: MoreauShifted(model, t_final, dt, fix_point_tol=atol)
     # get_solver = lambda t_final, dt, atol: Rattle(model, t_final, dt, atol=atol)
     # get_solver = lambda t_final, dt, atol: NonsmoothGeneralizedAlpha(model, t_final, dt, newton_tol=atol)
-    get_solver = lambda t_final, dt, atol: NonsmoothPIRK(
-        model, t_final, dt, RadauIIATableau(2), atol=atol
+    # get_solver = lambda t_final, dt, atol: NonsmoothPIRK(
+    #     model, t_final, dt, RadauIIATableau(2), atol=atol
+    # )
+    get_solver = lambda t_final, dt, atol: LobattoIIIAB(
+        model, t_final, dt, atol=atol, stages=3
     )
 
     errors = convergence_analysis(
@@ -446,12 +450,12 @@ def convergence():
         # power_span=(1, 4),
         dt_ref=2e-4,
         final_power=7,
-        power_span=(1, 5),
+        power_span=(2, 5),
         # dt_ref=1e-4,
         # final_power=9,
         # power_span=(1, 6),
-        # states=["q", "u"],
-        states=["q", "u", "P_g", "P_gamma"],
+        states=["q", "u"],
+        # states=["q", "u", "P_g", "P_gamma"],
         # states=["q", "u", "la_g", "la_gamma"],
         split_fractions=[],
         atol=1e-12,

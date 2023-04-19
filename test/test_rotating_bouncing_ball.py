@@ -17,10 +17,10 @@ from cardillo.solver import (
     MoreauClassical,
     NonsmoothBackwardEuler,
     NonsmoothPIRK,
-    RadauIIATableau,
-    AlexanderTableau,
     SimplifiedNonsmoothGeneralizedAlphaNoAcceleration,
+    LobattoIIIAB,
 )
+from cardillo.solver._butcher_tableaus import RadauIIATableau, AlexanderTableau
 
 
 class Ball(RigidBodyEuler):
@@ -54,8 +54,8 @@ def run(case, export=True):
     # dt = 5e-4
     # dt = 1e-3
     # dt = 5e-3
-    # dt = 1e-2
-    dt = 5e-2
+    dt = 1e-2
+    # dt = 5e-2
 
     if case == 1:
         e_N, e_F, mu = 0.5, 0, 0
@@ -105,7 +105,8 @@ def run(case, export=True):
 
     system.assemble()
 
-    solver1, label1 = NonsmoothPIRK(system, t_final, dt, RadauIIATableau(2)), "NPIRK"
+    solver1, label1 = LobattoIIIAB(system, t_final, dt, stages=3), "LobattoIIIAB"
+    # solver1, label1 = NonsmoothPIRK(system, t_final, dt, RadauIIATableau(2)), "NPIRK"
     # solver1, label1 = NonsmoothPIRK(system, t_final, dt, AlexanderTableau(3)), "NPIRK"
     # solver1, label1 = (
     #     SimplifiedNonsmoothGeneralizedAlphaNoAcceleration(system, t_final, dt),

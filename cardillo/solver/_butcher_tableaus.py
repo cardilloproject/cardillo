@@ -218,41 +218,61 @@ class LobattoIIIATableau(ButcherTableau):
         -----------
         Hairer1996: https://doi.org/10.1007/978-3-642-05221-7
         """
-        assert stages in [2, 3, 4]
+        # solve zeros for Lobatto coefficients, see Hairer2006 (1.17)
+        from numpy.polynomial import Polynomial as P
 
-        if stages == 2:
-            # fmt: off
-            A = np.array([
-                [0.0, 0.0],
-                [0.5, 0.5],
-            ], dtype=float)
-            # fmt: on
-            b = np.array([0.5, 0.5], dtype=float)
-            c = np.array([0.0, 1.0], dtype=float)
-        elif stages == 3:
-            # fmt: off
-            A = np.array([
-                [   0,   0,     0],
-                [5/24, 1/3, -1/24],
-                [ 1/6, 2/3,   1/6],
-            ], dtype=float)
-            # fmt: on
-            b = A[-1, :]
-            c = np.array([0, 0.5, 1], dtype=float)
-        else:
-            s5 = np.sqrt(5)
-            # fmt: off
-            A = np.array([
-                [   0,   0,     0, 0],
-                [11 + s5, 25 - s5, 25 - 13 * s5, -1 + s5],
-                [11 - s5, 25 + 13 * s5, 25 + s5, -1 - s5],
-                [10, 50, 50, 10],
-            ], dtype=float) / 120
-            # fmt: on
-            b = A[-1, :]
-            c = np.array([0, (5 - s5) / 10, (5 + s5) / 10, 1], dtype=float)
+        s = stages
+        poly = P([0, 1]) ** (s - 1) * P([-1, 1]) ** (s - 1)
+        poly_der = poly.deriv(s - 2)
+        c = poly_der.roots()
 
-        super().__init__(A, b, c)
+        # compute coefficients a_ij, see Hairer1999 (11)
+        A = np.zeros((s, s), dtype=float)
+        for i in range(s):
+            Mi = np.zeros((s, s), dtype=float)
+            ri = np.zeros(s, dtype=float)
+            for q in range(s):
+                Mi[q] = c**q
+                ri[q] = c[i] ** (q + 1) / (q + 1)
+            A[i] = np.linalg.solve(Mi, ri)
+
+        super().__init__(A, A[-1, :], c)
+
+        # assert stages in [2, 3, 4]
+
+        # if stages == 2:
+        #     # fmt: off
+        #     A = np.array([
+        #         [0.0, 0.0],
+        #         [0.5, 0.5],
+        #     ], dtype=float)
+        #     # fmt: on
+        #     b = np.array([0.5, 0.5], dtype=float)
+        #     c = np.array([0.0, 1.0], dtype=float)
+        # elif stages == 3:
+        #     # fmt: off
+        #     A = np.array([
+        #         [   0,   0,     0],
+        #         [5/24, 1/3, -1/24],
+        #         [ 1/6, 2/3,   1/6],
+        #     ], dtype=float)
+        #     # fmt: on
+        #     b = A[-1, :]
+        #     c = np.array([0, 0.5, 1], dtype=float)
+        # else:
+        #     s5 = np.sqrt(5)
+        #     # fmt: off
+        #     A = np.array([
+        #         [   0,   0,     0, 0],
+        #         [11 + s5, 25 - s5, 25 - 13 * s5, -1 + s5],
+        #         [11 - s5, 25 + 13 * s5, 25 + s5, -1 - s5],
+        #         [10, 50, 50, 10],
+        #     ], dtype=float) / 120
+        #     # fmt: on
+        #     b = A[-1, :]
+        #     c = np.array([0, (5 - s5) / 10, (5 + s5) / 10, 1], dtype=float)
+
+        # super().__init__(A, b, c)
 
 
 def LobattoIIIBTableau(stages=2):
