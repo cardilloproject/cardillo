@@ -939,7 +939,10 @@ class SliderCrankDAE:
         return self.g_N_q_dense(t, q) @ u
 
     def g_N_ddot(self, t, q, u, u_dot):
-        return self.g_N_q_dense(t, q) @ u_dot + approx_fprime(q, lambda q: self.g_N_dot(t, q, u)) @ u
+        return (
+            self.g_N_q_dense(t, q) @ u_dot
+            + approx_fprime(q, lambda q: self.g_N_dot(t, q, u)) @ u
+        )
 
     def g_N_dot_q_dense(self, t, q, u):
         return approx_fprime(q, lambda q: self.g_N_dot(t, q, u))
@@ -981,7 +984,10 @@ class SliderCrankDAE:
         return np.array([gamma_1, gamma_2, gamma_3, gamma_4])
 
     def gamma_F_dot(self, t, q, u, u_dot):
-        return self.W_F_dense(t, q).T @ u_dot + approx_fprime(q, lambda q: self.gamma_F(t, q, u)) @ u
+        return (
+            self.W_F_dense(t, q).T @ u_dot
+            + approx_fprime(q, lambda q: self.gamma_F(t, q, u)) @ u
+        )
 
     def gamma_F_q_dense(self, t, q, u):
         return approx_fprime(q, lambda q: self.__gamma_F(t, q, u))

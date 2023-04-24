@@ -77,8 +77,8 @@ def make_system(RigidBodyBase):
     # v_S = A_IK @ cross3(K_omega_IK, K_r_PS)
 
     omega = 180  # rad / s
-    gamma = 1  # rad / s
-    # gamma = 0  # rad / s
+    # gamma = 1  # rad / s
+    gamma = 0  # rad / s
     K_omega_IK = np.array([gamma, 0, omega])
     v_S = np.zeros(3)
 
@@ -154,10 +154,12 @@ def run(export=True):
     # system, top, contact1, contact2 = make_system(RigidBodyEuler)
 
     t_final = 8
+    dt1 = 1e-3
+    dt2 = 1e-3
     # dt1 = 1e-4
     # dt2 = 1e-4
-    dt1 = 5e-5
-    dt2 = 5e-5
+    # dt1 = 5e-5
+    # dt2 = 5e-5
 
     sol1, label1 = Rattle(system, t_final, dt1, atol=1e-8).solve(), "Rattle"
     # sol1, label1 = (

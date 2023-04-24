@@ -287,7 +287,7 @@ def state():
     # export
     ########
     export_txt(
-        model, 
+        model,
         sol1,
         ["q", "u", "P_N", "P_F"],
         ["g_N", "g_N_dot", "gamma_F"],
