@@ -49,8 +49,8 @@ from pathlib import Path
 # SE(3)-interpolation
 #####################
 # Rod = K_SE3_PetrovGalerkin_AxisAngle
-Rod = K_SE3_PetrovGalerkin_Quaternion
-# Rod = K_SE3_PetrovGalerkin_R9
+# Rod = K_SE3_PetrovGalerkin_Quaternion
+Rod = K_SE3_PetrovGalerkin_R9
 
 ##########################
 # R3 x SO(3)-interpolation

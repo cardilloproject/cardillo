@@ -56,7 +56,7 @@ class CooMatrix:
             else:
                 ndim = value.ndim
                 if ndim > 1:
-                    # dense matrix
+                    # 2D array
                     # - fast version
                     self.__data.fromlist(value.ravel(order="C").tolist())
                     self.__row.fromlist(repeat(rows, len(cols)).tolist())
@@ -66,7 +66,7 @@ class CooMatrix:
                     # self.__row.extend(repeat(rows, len(cols)))
                     # self.__col.extend(tile(cols, len(rows)))
                 else:
-                    # array (we assume diagonal matrix)
+                    # 1D array
                     self.__data.fromlist(value.tolist())
                     self.__row.fromlist(rows.tolist())
                     self.__col.fromlist(cols.tolist())

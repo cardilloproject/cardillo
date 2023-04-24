@@ -1956,7 +1956,6 @@ def make_K_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
                 nodalDOF = self.nodalDOF_psi[node]
                 nodalDOF_S = self.nodalDOF_la_S[node]
                 psi = q[nodalDOF]
-                # TODO: Spot problem here!
                 coo[nodalDOF_S, nodalDOF] = self.RotationBase.g_S_q(psi)
             return coo
 
