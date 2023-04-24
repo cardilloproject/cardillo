@@ -374,8 +374,8 @@ class I_R12_BubonvGalerkin_R12(RodExportBase, metaclass=ABCMeta):
             # sparse assemble element mass matrix
             self.__M.extend(self.M_el(el), (self.uDOF[elDOF], self.uDOF[elDOF]))
 
-    def M(self, t, q, coo):
-        coo.extend_sparse(self.__M)
+    def M(self, t, q):
+        return self.__M
 
     def E_pot(self, t, q):
         E = 0
@@ -525,13 +525,14 @@ class I_R12_BubonvGalerkin_R12(RodExportBase, metaclass=ABCMeta):
         # print(f"error: {error}")
         # return fe_num
 
-    def h_q(self, t, q, u, coo):
+    def h_q(self, t, q, u):
+        coo = CooMatrix((self.nu, self.nq))
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             Ke = self.f_pot_q_el(q[elDOF], el)
-
-            # sparse assemble element internal stiffness matrix
             coo.extend(Ke, (self.uDOF[elDOF], self.qDOF[elDOF]))
+
+        return coo
 
     def f_pot_q_el(self, qe, el):
         Ke = np.zeros((self.nq_element, self.nq_element))
@@ -717,8 +718,8 @@ class I_R12_BubonvGalerkin_R12(RodExportBase, metaclass=ABCMeta):
     def q_dot(self, t, q, u):
         return u
 
-    def B(self, t, q, coo):
-        coo.extend_diag(np.ones(self.nq), (self.qDOF, self.uDOF))
+    def B(self, t, q):
+        return np.ones(self.nq)
 
     def q_ddot(self, t, q, u, u_dot):
         return u_dot
@@ -946,7 +947,7 @@ class I_R12_BubonvGalerkin_R12(RodExportBase, metaclass=ABCMeta):
             f[self.elDOF[el]] += self.distributed_force1D_el(force, t, el)
         return f
 
-    def distributed_force1D_q(self, t, q, coo, force):
+    def distributed_force1D_q(self, t, q, force):
         pass
 
     ##############################################################
@@ -957,15 +958,23 @@ class I_R12_BubonvGalerkin_R12(RodExportBase, metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def g_q(self, t, q, coo):
+    def g_dot(self, t, q):
         pass
 
     @abstractmethod
-    def W_g(self, t, q, coo):
+    def g_ddot(self, t, q):
         pass
 
     @abstractmethod
-    def Wla_g_q(self, t, q, la_g, coo):
+    def g_q(self, t, q):
+        pass
+
+    @abstractmethod
+    def W_g(self, t, q):
+        pass
+
+    @abstractmethod
+    def Wla_g_q(self, t, q, la_g):
         pass
 
     ####################################################
@@ -1666,7 +1675,8 @@ class I_R12_BubonvGalerkin_R12_Dirac(I_R12_BubonvGalerkin_R12):
 
         return g
 
-    def g_q(self, t, q, coo):
+    def g_q(self, t, q):
+        coo = CooMatrix((self.nla_g, self.nq))
         for node in range(self.nnode_di):
             nodalDOF_la_g = self.nodalDOF_la_g[node]
             nodalDOF_di = self.nodalDOF_di[node]
@@ -1675,7 +1685,10 @@ class I_R12_BubonvGalerkin_R12_Dirac(I_R12_BubonvGalerkin_R12):
                 (self.la_gDOF[nodalDOF_la_g], self.qDOF[nodalDOF_di]),
             )
 
-    def W_g(self, t, q, coo):
+        return coo
+
+    def W_g(self, t, q):
+        coo = CooMatrix((self.nu, self.nla_g))
         for node in range(self.nnode_di):
             nodalDOF_la_g = self.nodalDOF_la_g[node]
             nodalDOF_di = self.nodalDOF_di[node]
@@ -1684,7 +1697,10 @@ class I_R12_BubonvGalerkin_R12_Dirac(I_R12_BubonvGalerkin_R12):
                 (self.uDOF[nodalDOF_di], self.la_gDOF[nodalDOF_la_g]),
             )
 
-    def Wla_g_q(self, t, q, la_g, coo):
+        return coo
+
+    def Wla_g_q(self, t, q, la_g):
+        coo = CooMatrix((self.nu, self.nq))
         for node in range(self.nnode_di):
             nodalDOF_la_g = self.nodalDOF_la_g[node]
             nodalDOF_di = self.nodalDOF_di[node]
@@ -1692,6 +1708,8 @@ class I_R12_BubonvGalerkin_R12_Dirac(I_R12_BubonvGalerkin_R12):
                 self.__Wla_g_q(la_g[nodalDOF_la_g]),
                 (self.uDOF[nodalDOF_di], self.qDOF[nodalDOF_di]),
             )
+
+        return coo
 
 
 ####################################################
@@ -2054,21 +2072,28 @@ class I_R12_BubonvGalerkin_R12_Integral(I_R12_BubonvGalerkin_R12):
             g[elDOF_g] += self.__g_el(q[elDOF], el)
         return g
 
-    def g_q(self, t, q, coo):
+    def g_q(self, t, q):
+        coo = CooMatrix((self.nla_g, self.nq))
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             elDOF_g = self.elDOF_g[el]
             g_q = self.__g_q_el(q[elDOF], el)
             coo.extend(g_q, (self.la_gDOF[elDOF_g], self.qDOF[elDOF]))
 
-    def W_g(self, t, q, coo):
+        return coo
+
+    def W_g(self, t, q):
+        coo = CooMatrix((self.nu, self.nla_g))
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             elDOF_g = self.elDOF_g[el]
             g_q = self.__g_q_el(q[elDOF], el)
             coo.extend(g_q.T, (self.uDOF[elDOF], self.la_gDOF[elDOF_g]))
 
-    def Wla_g_q(self, t, q, la_g, coo):
+        return coo
+
+    def Wla_g_q(self, t, q, la_g):
+        coo = CooMatrix((self.nu, self.nq))
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             elDOF_g = self.elDOF_g[el]
@@ -2076,6 +2101,8 @@ class I_R12_BubonvGalerkin_R12_Integral(I_R12_BubonvGalerkin_R12):
                 self.__Wla_g_q_el(q[elDOF], la_g[elDOF_g], el),
                 (self.uDOF[elDOF], self.qDOF[elDOF]),
             )
+
+        return coo
 
     def g_dot(self, t, q, u):
         g_dot = np.zeros(self.nla_g)
@@ -2085,19 +2112,25 @@ class I_R12_BubonvGalerkin_R12_Integral(I_R12_BubonvGalerkin_R12):
             g_dot[elDOF_g] += self.__g_dot_el(q[elDOF], u[elDOF], el)
         return g_dot
 
-    def g_dot_q(self, t, q, u, coo):
+    def g_dot_q(self, t, q, u):
+        coo = CooMatrix((self.nla_g, self.nq))
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             elDOF_g = self.elDOF_g[el]
             g_dot_q = self.__g_dot_q_el(q[elDOF], u[elDOF], el)
             coo.extend(g_dot_q, (self.la_gDOF[elDOF_g], self.qDOF[elDOF]))
 
-    def g_dot_u(self, t, q, coo):
+        return coo
+
+    def g_dot_u(self, t, q):
+        coo = CooMatrix((self.nla_g, self.nu))
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             elDOF_g = self.elDOF_g[el]
             g_dot_u = self.__g_q_el(q[elDOF], el)
             coo.extend(g_dot_u, (self.la_gDOF[elDOF_g], self.uDOF[elDOF]))
+
+        return coo
 
     def g_ddot(self, t, q, u, u_dot):
         g_ddot = np.zeros(self.nla_g)
@@ -2107,19 +2140,25 @@ class I_R12_BubonvGalerkin_R12_Integral(I_R12_BubonvGalerkin_R12):
             g_ddot[elDOF_g] += self.__g_ddot_el(q[elDOF], u[elDOF], u_dot[elDOF], el)
         return g_ddot
 
-    def g_ddot_q(self, t, q, u, u_dot, coo):
+    def g_ddot_q(self, t, q, u, u_dot):
+        coo = CooMatrix((self.nla_g, self.nq))
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             elDOF_g = self.elDOF_g[el]
             g_ddot_q = self.__g_ddot_q_el(q[elDOF], u[elDOF], u_dot[elDOF], el)
             coo.extend(g_ddot_q, (self.la_gDOF[elDOF_g], self.qDOF[elDOF]))
 
-    def g_ddot_u(self, t, q, u, u_dot, coo):
+        return coo
+
+    def g_ddot_u(self, t, q, u, u_dot):
+        coo = CooMatrix((self.nla_g, self.nu))
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             elDOF_g = self.elDOF_g[el]
             g_ddot_u = self.__g_ddot_u_el(q[elDOF], u[elDOF], u_dot[elDOF], el)
             coo.extend(g_ddot_u, (self.la_gDOF[elDOF_g], self.uDOF[elDOF]))
+
+        return coo
 
 
 # TODO: implement time derivatives of constraint functions
@@ -2338,21 +2377,28 @@ class EulerBernoulliDirectorIntegral(I_R12_BubonvGalerkin_R12):
             g[elDOF_g] += self.__g_el(q[elDOF], el)
         return g
 
-    def g_q(self, t, q, coo):
+    def g_q(self, t, q):
+        coo = CooMatrix((self.nla_g, self.nq))
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             elDOF_g = self.elDOF_g[el]
             g_q = self.__g_q_el(q[elDOF], el)
             coo.extend(g_q, (self.la_gDOF[elDOF_g], self.qDOF[elDOF]))
 
-    def W_g(self, t, q, coo):
+        return coo
+
+    def W_g(self, t, q):
+        coo = CooMatrix((self.nu, self.nla_g))
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             elDOF_g = self.elDOF_g[el]
             g_q = self.__g_q_el(q[elDOF], el)
             coo.extend(g_q.T, (self.uDOF[elDOF], self.la_gDOF[elDOF_g]))
 
-    def Wla_g_q(self, t, q, la_g, coo):
+        return coo
+
+    def Wla_g_q(self, t, q, la_g):
+        coo = CooMatrix((self.nu, self.nq))
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             elDOF_g = self.elDOF_g[el]
@@ -2362,6 +2408,8 @@ class EulerBernoulliDirectorIntegral(I_R12_BubonvGalerkin_R12):
                 (self.uDOF[elDOF], self.qDOF[elDOF]),
             )
 
+        return coo
+
     def g_dot(self, t, q, u):
         g_dot = np.zeros(self.nla_g)
         for el in range(self.nelement):
@@ -2370,19 +2418,25 @@ class EulerBernoulliDirectorIntegral(I_R12_BubonvGalerkin_R12):
             g_dot[elDOF_g] += self.__g_dot_el(q[elDOF], u[elDOF], el)
         return g_dot
 
-    def g_dot_q(self, t, q, u, coo):
+    def g_dot_q(self, t, q, u):
+        coo = CooMatrix((self.nla_g, self.nq))
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             elDOF_g = self.elDOF_g[el]
             g_dot_q = self.__g_dot_q_el(q[elDOF], u[elDOF], el)
             coo.extend(g_dot_q, (self.la_gDOF[elDOF_g], self.qDOF[elDOF]))
 
-    def g_dot_u(self, t, q, coo):
+        return coo
+
+    def g_dot_u(self, t, q):
+        coo = CooMatrix((self.nla_g, self.nu))
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             elDOF_g = self.elDOF_g[el]
             g_dot_u = self.__g_q_el(q[elDOF], el)
             coo.extend(g_dot_u, (self.la_gDOF[elDOF_g], self.uDOF[elDOF]))
+
+        return coo
 
     def g_ddot(self, t, q, u, u_dot):
         g_ddot = np.zeros(self.nla_g)
@@ -2392,19 +2446,25 @@ class EulerBernoulliDirectorIntegral(I_R12_BubonvGalerkin_R12):
             g_ddot[elDOF_g] += self.__g_ddot_el(q[elDOF], u[elDOF], u_dot[elDOF], el)
         return g_ddot
 
-    def g_ddot_q(self, t, q, u, u_dot, coo):
+    def g_ddot_q(self, t, q, u, u_dot):
+        coo = CooMatrix((self.nla_g, self.nq))
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             elDOF_g = self.elDOF_g[el]
             g_ddot_q = self.__g_ddot_q_el(q[elDOF], u[elDOF], u_dot[elDOF], el)
             coo.extend(g_ddot_q, (self.la_gDOF[elDOF_g], self.qDOF[elDOF]))
 
-    def g_ddot_u(self, t, q, u, u_dot, coo):
+        return coo
+
+    def g_ddot_u(self, t, q, u, u_dot):
+        coo = CooMatrix((self.nla_g, self.nu))
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             elDOF_g = self.elDOF_g[el]
             g_ddot_u = self.__g_ddot_u_el(q[elDOF], u[elDOF], u_dot[elDOF], el)
             coo.extend(g_ddot_u, (self.la_gDOF[elDOF_g], self.uDOF[elDOF]))
+
+        return coo
 
 
 # TODO: implement time derivatives of constraint functions
@@ -2663,21 +2723,28 @@ class InextensibleEulerBernoulliDirectorIntegral(I_R12_BubonvGalerkin_R12):
             g[elDOF_g] += self.__g_el(q[elDOF], el)
         return g
 
-    def g_q(self, t, q, coo):
+    def g_q(self, t, q):
+        coo = CooMatrix((self.nla_g, self.nq))
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             elDOF_g = self.elDOF_g[el]
             g_q = self.__g_q_el(q[elDOF], el)
             coo.extend(g_q, (self.la_gDOF[elDOF_g], self.qDOF[elDOF]))
 
-    def W_g(self, t, q, coo):
+        return coo
+
+    def W_g(self, t, q):
+        coo = CooMatrix((self.nq, self.nla_g))
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             elDOF_g = self.elDOF_g[el]
             g_q = self.__g_q_el(q[elDOF], el)
             coo.extend(g_q.T, (self.uDOF[elDOF], self.la_gDOF[elDOF_g]))
 
-    def Wla_g_q(self, t, q, la_g, coo):
+        return coo
+
+    def Wla_g_q(self, t, q, la_g):
+        coo = CooMatrix((self.nu, self.nq))
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             elDOF_g = self.elDOF_g[el]
@@ -2687,6 +2754,8 @@ class InextensibleEulerBernoulliDirectorIntegral(I_R12_BubonvGalerkin_R12):
                 (self.uDOF[elDOF], self.qDOF[elDOF]),
             )
 
+        return coo
+
     def g_dot(self, t, q, u):
         g_dot = np.zeros(self.nla_g)
         for el in range(self.nelement):
@@ -2695,19 +2764,25 @@ class InextensibleEulerBernoulliDirectorIntegral(I_R12_BubonvGalerkin_R12):
             g_dot[elDOF_g] += self.__g_dot_el(q[elDOF], u[elDOF], el)
         return g_dot
 
-    def g_dot_q(self, t, q, u, coo):
+    def g_dot_q(self, t, q, u):
+        coo = CooMatrix((self.nla_g, self.nq))
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             elDOF_g = self.elDOF_g[el]
             g_dot_q = self.__g_dot_q_el(q[elDOF], u[elDOF], el)
             coo.extend(g_dot_q, (self.la_gDOF[elDOF_g], self.qDOF[elDOF]))
 
-    def g_dot_u(self, t, q, coo):
+        return coo
+
+    def g_dot_u(self, t, q):
+        coo = CooMatrix((self.nla_g, self.nu))
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             elDOF_g = self.elDOF_g[el]
             g_dot_u = self.__g_q_el(q[elDOF], el)
             coo.extend(g_dot_u, (self.la_gDOF[elDOF_g], self.uDOF[elDOF]))
+
+        return coo
 
     def g_ddot(self, t, q, u, u_dot):
         g_ddot = np.zeros(self.nla_g)
@@ -2717,16 +2792,22 @@ class InextensibleEulerBernoulliDirectorIntegral(I_R12_BubonvGalerkin_R12):
             g_ddot[elDOF_g] += self.__g_ddot_el(q[elDOF], u[elDOF], u_dot[elDOF], el)
         return g_ddot
 
-    def g_ddot_q(self, t, q, u, u_dot, coo):
+    def g_ddot_q(self, t, q, u, u_dot):
+        coo = CooMatrix((self.nla_g, self.nq))
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             elDOF_g = self.elDOF_g[el]
             g_ddot_q = self.__g_ddot_q_el(q[elDOF], u[elDOF], u_dot[elDOF], el)
             coo.extend(g_ddot_q, (self.la_gDOF[elDOF_g], self.qDOF[elDOF]))
 
-    def g_ddot_u(self, t, q, u, u_dot, coo):
+        return coo
+
+    def g_ddot_u(self, t, q, u, u_dot):
+        coo = CooMatrix((self.nla_g, self.nu))
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             elDOF_g = self.elDOF_g[el]
             g_ddot_u = self.__g_ddot_u_el(q[elDOF], u[elDOF], u_dot[elDOF], el)
             coo.extend(g_ddot_u, (self.la_gDOF[elDOF_g], self.uDOF[elDOF]))
+
+        return coo

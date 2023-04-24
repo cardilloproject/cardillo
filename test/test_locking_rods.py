@@ -50,7 +50,7 @@ from pathlib import Path
 #####################
 # Rod = K_SE3_PetrovGalerkin_AxisAngle
 # Rod = K_SE3_PetrovGalerkin_Quaternion
-Rod = K_SE3_PetrovGalerkin_R9
+# Rod = K_SE3_PetrovGalerkin_R9
 
 ##########################
 # R3 x SO(3)-interpolation
@@ -62,7 +62,7 @@ Rod = K_SE3_PetrovGalerkin_R9
 ####################
 # other formulations
 ####################
-# Rod = I_R12_BubonvGalerkin_R12_Dirac
+Rod = I_R12_BubonvGalerkin_R12_Dirac
 # Rod = I_R12_BubonvGalerkin_R12_Integral
 # Rod = K_Cardona
 # Rod = K_TimoshenkoLerp
