@@ -17,7 +17,7 @@ from cardillo.math import (
     approx_fprime,
 )
 
-from cardillo.utility.coo import Coo
+from cardillo.utility.coo import CooMatrix
 from cardillo.discretization.lagrange import LagrangeKnotVector
 from cardillo.discretization.b_spline import BSplineKnotVector
 from cardillo.discretization.hermite import HermiteNodeVector
@@ -911,7 +911,7 @@ def make_I_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
 
         def _M_coo(self):
             raise NotImplementedError
-            self.__M = Coo((self.nu, self.nu))
+            self.__M = CooMatrix((self.nu, self.nu))
             for el in range(self.nelement):
                 # extract element degrees of freedom
                 elDOF_u = self.elDOF_u[el]
@@ -2377,7 +2377,7 @@ def make_K_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
             return M_el
 
         def _M_coo(self):
-            self.__M = Coo((self.nu, self.nu))
+            self.__M = CooMatrix((self.nu, self.nu))
             for el in range(self.nelement):
                 # extract element degrees of freedom
                 elDOF_u = self.elDOF_u[el]

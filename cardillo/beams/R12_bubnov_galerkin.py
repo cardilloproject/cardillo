@@ -3,7 +3,7 @@ from abc import ABCMeta, abstractmethod
 import meshio
 import os
 
-from cardillo.utility.coo import Coo
+from cardillo.utility.coo import CooMatrix
 from cardillo.discretization.b_spline import BSplineKnotVector
 from cardillo.discretization.lagrange import LagrangeKnotVector
 from cardillo.math.algebra import norm, cross3, skew2ax, skew2ax_A
@@ -366,7 +366,7 @@ class I_R12_BubonvGalerkin_R12(RodExportBase, metaclass=ABCMeta):
         return Me
 
     def __M_coo(self):
-        self.__M = Coo((self.nu, self.nu))
+        self.__M = CooMatrix((self.nu, self.nu))
         for el in range(self.nelement):
             # extract element degrees of freedom
             elDOF = self.elDOF[el]

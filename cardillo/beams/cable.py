@@ -1,6 +1,6 @@
 import numpy as np
 
-from cardillo.utility.coo import Coo
+from cardillo.utility.coo import CooMatrix
 from cardillo.discretization.b_spline import BSplineKnotVector
 from cardillo.discretization.hermite import HermiteNodeVector
 from cardillo.math import (
@@ -286,7 +286,7 @@ class Cable:
         return M_el
 
     def __M_coo(self):
-        self.__M = Coo((self.nu, self.nu))
+        self.__M = CooMatrix((self.nu, self.nu))
         for el in range(self.nelement):
             # extract element degrees of freedom
             elDOF = self.elDOF[el]

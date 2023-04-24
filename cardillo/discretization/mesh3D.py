@@ -12,7 +12,7 @@ from cardillo.math.algebra import inv3D, det3D
 from cardillo.discretization.indexing import flat3D, split3D
 from cardillo.discretization.mesh2D import Mesh2D
 from cardillo.discretization.gauss import gauss
-from cardillo.utility.coo import Coo
+from cardillo.utility.coo import CooMatrix
 
 
 def cube(shape, mesh, Greville=False, Fuzz=None):
@@ -438,7 +438,7 @@ class Mesh3D:
         return x
 
     def L2_projection_A(self, knots):
-        A = Coo((self.nn, self.nn))
+        A = CooMatrix((self.nn, self.nn))
         for xi, eta, zeta in knots:
             el_xi = self.Xi.element_number(xi)[0]
             el_eta = self.Eta.element_number(eta)[0]
@@ -557,7 +557,7 @@ class Mesh3D:
     # functions for vtk export
     def ensure_L2_projection_A(self):
         if not hasattr(self, "A"):
-            A = Coo((self.nn, self.nn))
+            A = CooMatrix((self.nn, self.nn))
             for el in range(self.nel):
                 elDOF_el = self.elDOF[el, : self.nn_el]
                 Ae = np.zeros((self.nn_el, self.nn_el))

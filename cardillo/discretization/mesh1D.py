@@ -8,7 +8,7 @@ from cardillo.discretization.b_spline import (
 from cardillo.discretization.lagrange import lagrange_basis1D
 from cardillo.discretization.hermite import cubic_Hermite_basis_1D
 from cardillo.discretization.gauss import gauss, lobatto
-from cardillo.utility.coo import Coo
+from cardillo.utility.coo import CooMatrix
 
 
 def line2D(L, mesh, Greville=False, Fuzz=None):
@@ -294,7 +294,7 @@ class Mesh1D:
     # functions for vtk export
     def ensure_L2_projection_A(self):
         if not hasattr(self, "A"):
-            A = Coo((self.nnodes, self.nnodes))
+            A = CooMatrix((self.nnodes, self.nnodes))
             for el in range(self.nelement):
                 elDOF_el = self.elDOF[el, : self.nnodes_per_element]
                 Ae = np.zeros((self.nnodes_per_element, self.nnodes_per_element))
@@ -745,7 +745,7 @@ class MultifieldMesh1D:
     # functions for vtk export
     def ensure_L2_projection_A(self):
         if not hasattr(self, "A"):
-            A = Coo((self.nnodes, self.nnodes))
+            A = CooMatrix((self.nnodes, self.nnodes))
             for el in range(self.nelement):
                 elDOF_el = self.elDOF[el, : self.nnodes_per_element]
                 Ae = np.zeros((self.nnodes_per_element, self.nnodes_per_element))
