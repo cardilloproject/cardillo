@@ -9,7 +9,7 @@ from cardillo.solver import (
     MoreauShifted,
     NonsmoothGeneralizedAlpha,
     Rattle,
-    NonsmoothPIRK,
+    NPIRK,
 )
 from cardillo.solver._butcher_tableaus import RadauIIATableau
 
@@ -251,7 +251,7 @@ if __name__ == "__main__":
     dt2 = 5e-3
 
     sol1, label1 = (
-        NonsmoothPIRK(system, t_final, dt1, RadauIIATableau(2)).solve(),
+        NPIRK(system, t_final, dt1, RadauIIATableau(2)).solve(),
         "NPIRK",
     )
 

@@ -13,7 +13,7 @@ from cardillo.solver import (
     MoreauClassical,
     MoreauShifted,
     Rattle,
-    NonsmoothPIRK,
+    NPIRK,
     NonsmoothGeneralizedAlpha,
     SimplifiedNonsmoothGeneralizedAlpha,
     LobattoIIIAB,
@@ -259,7 +259,7 @@ def state():
     # solver1, label1 = MoreauClassical(model, t_final, dt), "Moreau classical"
     solver1, label1 = Rattle(system, t_final, dt), "Rattle"
     # solver1, label1 = NonsmoothGeneralizedAlpha(model, t_final, dt), "Gen-alpha"
-    # solver1, label1 = NonsmoothPIRK(model, t_final, dt, RadauIIATableau(2)), "NPRIK"
+    # solver1, label1 = NPIRK(model, t_final, dt, RadauIIATableau(2)), "NPRIK"
     # solver1, label1 = (
     #     SimplifiedNonsmoothGeneralizedAlphaNoAcceleration(model, t_final, dt),
     #     "Simplified gen-alpha",
@@ -397,7 +397,7 @@ def convergence():
     #     model, t_final, dt, atol=atol, stages=3
     # )
     # get_solver = lambda t_final, dt, atol: NonsmoothGeneralizedAlpha(model, t_final, dt, newton_tol=atol)
-    # get_solver = lambda t_final, dt, atol: NonsmoothPIRK(
+    # get_solver = lambda t_final, dt, atol: NPIRK(
     #     model, t_final, dt, RadauIIATableau(2), atol=atol
     # )
     get_solver = lambda t_final, dt, atol: SimplifiedNonsmoothGeneralizedAlpha(

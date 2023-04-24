@@ -13,7 +13,7 @@ from cardillo.solver import (
     MoreauClassical,
     Rattle,
     MoreauShiftedNew,
-    NonsmoothPIRK,
+    NPIRK,
     NonsmoothGeneralizedAlpha,
 )
 from cardillo.solver._butcher_tableaus import RadauIIATableau
@@ -167,7 +167,7 @@ def run(export=True):
     #     "Moreau_new",
     # )
     # sol1, label1 = (
-    #     NonsmoothPIRK(system, t_final, dt1, RadauIIATableau(2)).solve(),
+    #     NPIRK(system, t_final, dt1, RadauIIATableau(2)).solve(),
     #     "NPIRK",
     # )
 
@@ -180,7 +180,7 @@ def run(export=True):
     #     "Gen-alpha",
     # )
     # sol2, label2 = (
-    #     NonsmoothPIRK(system, t_final, dt2, RadauIIATableau(2)).solve(),
+    #     NPIRK(system, t_final, dt2, RadauIIATableau(2)).solve(),
     #     "NPIRK",
     # )
 
@@ -356,7 +356,7 @@ def convergence(export=True):
     # get_solver = lambda t_final, dt, atol: MoreauShifted(system, t_final, dt, fix_point_tol=atol)
     get_solver = lambda t_final, dt, atol: Rattle(system, t_final, dt, atol=atol)
     # get_solver = lambda t_final, dt, atol: NonsmoothGeneralizedAlpha(system, t_final, dt, newton_tol=atol)
-    # get_solver = lambda t_final, dt, atol: NonsmoothPIRK(
+    # get_solver = lambda t_final, dt, atol: NPIRK(
     #     system, t_final, dt, RadauIIATableau(3), atol=atol
     # )
 
@@ -421,7 +421,7 @@ def convergence(export=True):
     Solver, label, kwargs = Rattle, "Rattle", {}
 
     # Solver, label, kwargs = (
-    #     NonsmoothPIRK,
+    #     NPIRK,
     #     "Radau IIa(2)",
     #     {"butcher_tableau": RadauIIATableau(2)},
     # )

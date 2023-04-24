@@ -15,13 +15,13 @@ from cardillo.solver import (
     MoreauShifted,
     Rattle,
     NonsmoothBackwardEuler,
-    NonsmoothPIRK,
+    NPIRK,
 )
 from cardillo.solver._butcher_tableaus import RadauIIATableau
 
 
 Solver1, label1, dt1, kwargs1 = (
-    NonsmoothPIRK,
+    NPIRK,
     "NPIRK",
     5e-2,
     {"butcher_tableau": RadauIIATableau(2)},

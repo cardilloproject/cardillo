@@ -13,7 +13,7 @@ from cardillo.solver._butcher_tableaus import *
 # - analytical Jacobian
 # - uncouple projection stage
 # - implement fixed point iteration as done in rattle
-class NonsmoothPIRK:
+class NPIRK:
     def __init__(
         self,
         system,
@@ -23,7 +23,7 @@ class NonsmoothPIRK:
         atol=1e-8,
         max_iter=50,
     ):
-        """Nonsmooth projected implicit Runge-Kutta (N-PIRK) methods.
+        """Nonsmooth projected implicit Runge-Kutta (N-NPIRK) methods.
         See Ascher1991, Haierer1996 p. 502-503, Hairer2006 Section IV.4.
 
         References:

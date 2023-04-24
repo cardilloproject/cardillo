@@ -16,7 +16,7 @@ from cardillo.solver import (
     MoreauShiftedNew,
     MoreauClassical,
     NonsmoothBackwardEuler,
-    NonsmoothPIRK,
+    NPIRK,
     SimplifiedNonsmoothGeneralizedAlpha,
     SimplifiedNonsmoothGeneralizedAlphaFirstOrder,
     LobattoIIIAB,
@@ -107,12 +107,12 @@ def run(case, export=True):
     system.assemble()
 
     # solver1, label1 = LobattoIIIAB(system, t_final, dt, stages=3), "LobattoIIIAB"
-    # solver1, label1 = NonsmoothPIRK(system, t_final, dt, RadauIIATableau(2)), "NPIRK"
-    # solver1, label1 = NonsmoothPIRK(system, t_final, dt, AlexanderTableau(3)), "NPIRK"
-    solver1, label1 = (
-        SimplifiedNonsmoothGeneralizedAlpha(system, t_final, dt),
-        "Gen-alpha simplified",
-    )
+    solver1, label1 = NPIRK(system, t_final, dt, RadauIIATableau(2)), "NPIRK"
+    # solver1, label1 = NPIRK(system, t_final, dt, AlexanderTableau(3)), "NPIRK"
+    # solver1, label1 = (
+    #     SimplifiedNonsmoothGeneralizedAlpha(system, t_final, dt),
+    #     "Gen-alpha simplified",
+    # )
     # solver1, label1 = (
     #     SimplifiedNonsmoothGeneralizedAlphaFirstOrder(system, t_final, dt),
     #     "Gen-alpha simplified first order",

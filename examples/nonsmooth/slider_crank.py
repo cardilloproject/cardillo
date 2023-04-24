@@ -10,7 +10,7 @@ from cardillo.solver import (
     MoreauShifted,
     Rattle,
     MoreauClassical,
-    NonsmoothPIRK,
+    NPIRK,
 )
 from cardillo.solver._butcher_tableaus import RadauIIATableau
 
@@ -1189,7 +1189,7 @@ def run_DAE(export=True):
     dt2 = 1e-3
 
     # sol1, label1 = (
-    #     NonsmoothPIRK(system, t_final, dt1, RadauIIATableau(2)).solve(),
+    #     NPIRK(system, t_final, dt1, RadauIIATableau(2)).solve(),
     #     "NPIRK",
     # )
 
@@ -1203,7 +1203,7 @@ def run_DAE(export=True):
         "MoreauClassical",
     )
     # sol2, label2 = (
-    #     NonsmoothPIRK(system, t_final, 0.1 * dt1, RadauIIATableau(2)).solve(),
+    #     NPIRK(system, t_final, 0.1 * dt1, RadauIIATableau(2)).solve(),
     #     "NPIRK",
     # )
 

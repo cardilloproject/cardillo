@@ -20,7 +20,7 @@ from cardillo.solver import (
     GeneralizedAlphaFirstOrder,
     RadauIIa,
     Rattle,
-    NonsmoothPIRK,
+    NPIRK,
     MoreauShifted,
     NonsmoothGeneralizedAlpha,
     LobattoIIIAB,
@@ -171,7 +171,7 @@ def state():
 
     # sol = Rattle(model, t1, dt, atol=tol).solve()
 
-    sol = NonsmoothPIRK(system, t1, dt, RadauIIATableau(2)).solve()
+    sol = NPIRK(system, t1, dt, RadauIIATableau(2)).solve()
 
     t = sol.t
     q = sol.q
@@ -428,7 +428,7 @@ def convergence():
     # get_solver = lambda t_final, dt, atol: MoreauShifted(model, t_final, dt, fix_point_tol=atol)
     # get_solver = lambda t_final, dt, atol: Rattle(model, t_final, dt, atol=atol)
     # get_solver = lambda t_final, dt, atol: NonsmoothGeneralizedAlpha(model, t_final, dt, newton_tol=atol)
-    # get_solver = lambda t_final, dt, atol: NonsmoothPIRK(
+    # get_solver = lambda t_final, dt, atol: NPIRK(
     #     model, t_final, dt, RadauIIATableau(2), atol=atol
     # )
     get_solver = lambda t_final, dt, atol: LobattoIIIAB(
@@ -586,7 +586,7 @@ def convergence():
     # ).solve()
 
     # Solver, label, kwargs = (
-    #     NonsmoothPIRK,
+    #     NPIRK,
     #     # "Radau IIa(1)",
     #     # {"butcher_tableau": RadauIIATableau(1)},
     #     "Radau IIa(2)",
@@ -601,7 +601,7 @@ def convergence():
 
     Solver, label, kwargs = Rattle, "Rattle", {}
 
-    # reference = NonsmoothPIRK(model, t1, dt_ref, RadauIIATableau(2), atol=tol_ref).solve()
+    # reference = NPIRK(model, t1, dt_ref, RadauIIATableau(2), atol=tol_ref).solve()
     reference = Solver(system, t1, dt_ref, atol=tol_ref, **kwargs).solve()
 
     # print(f"compute reference solution with second order method + GGL:")
@@ -802,7 +802,7 @@ def convergence():
         #     la_gamma_errors_longterm[0, i],
         # ) = errors(sol, reference1)
 
-        # sol = NonsmoothPIRK(model, t1, dt, RadauIIATableau(2), atol=tol).solve()
+        # sol = NPIRK(model, t1, dt, RadauIIATableau(2), atol=tol).solve()
         sol = Solver(system, t1, dt, atol=tol, **kwargs).solve()
         (
             q_errors_transient[0, i],

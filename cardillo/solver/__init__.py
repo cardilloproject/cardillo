@@ -14,19 +14,15 @@ from .moreau import (
     MoreauClassical,
 )
 from .euler_backward import EulerBackward, NonsmoothBackwardEuler
-
 from .generalized_alpha import (
-    GeneralizedAlphaFirstOrder,
     GeneralizedAlphaSecondOrder,
-)
-from .nonsmooth_generalized_alpha import (
     NonsmoothGeneralizedAlpha,
     SimplifiedNonsmoothGeneralizedAlpha,
     SimplifiedNonsmoothGeneralizedAlphaFirstOrder,
 )
 from .rattle import Rattle
-from .runge_kutta import NonsmoothPIRK
-from .lobatto import LobattoIIIAB
+from .NPIRK import NPIRK
+from .lobattoIIIAB import LobattoIIIAB
 
 # static solvers
 from .statics import Newton, Riks

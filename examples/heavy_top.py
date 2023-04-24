@@ -16,7 +16,7 @@ from cardillo.solver import (
     GeneralizedAlphaFirstOrder,
     GeneralizedAlphaSecondOrder,
     Rattle,
-    NonsmoothPIRK,
+    NPIRK,
     RadauIIATableau,
     NonsmoothGeneralizedAlpha,
     MoreauShifted,
@@ -557,7 +557,7 @@ def convergence():
     # get_solver = lambda t_final, dt, atol: MoreauShifted(system, t_final, dt, fix_point_tol=atol)
     get_solver = lambda t_final, dt, atol: Rattle(system, t_final, dt, atol=atol)
     # get_solver = lambda t_final, dt, atol: NonsmoothGeneralizedAlpha(system, t_final, dt, newton_tol=atol)
-    # get_solver = lambda t_final, dt, atol: NonsmoothPIRK(
+    # get_solver = lambda t_final, dt, atol: NPIRK(
     #     system, t_final, dt, RadauIIATableau(2), atol=atol
     # )
 

@@ -342,7 +342,7 @@ def convergence(export=True):
     Solver, label, kwargs = Rattle, "Rattle", {}
 
     # Solver, label, kwargs = (
-    #     NonsmoothPIRK,
+    #     NPIRK,
     #     "Radau IIa(2)",
     #     {"butcher_tableau": RadauIIATableau(2)},
     # )
