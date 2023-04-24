@@ -317,14 +317,10 @@ if __name__ == "__main__":
     # ###########
     # animate_beam(t, q, [rod], L, show=True)
 
-    # from cardillo.solver import Solution
-    # sol = Solution(t=[0], q=[q0])
-
     ############
     # VTK export
     ############
     path = Path(__file__)
     e = Export(path.parent, path.stem, True, 30, sol)
-    # e.export_contr(rod, level="centerline + directors", num=20)
-    # e.export_contr(rod, level="volume", n_segments=5, num=50)
-    e.export_contr(rod, level="volume", n_segments=1, num=50)
+    e.export_contr(rod, level="centerline + directors", num=20)
+    e.export_contr(rod, level="volume", n_segments=5, num=50)
