@@ -179,7 +179,7 @@ class QuaternionRotationParameterization(RotationParameterizationBase):
 
     @staticmethod
     def g_S_q(psi):
-        return 2 * psi
+        return 2 * psi.reshape(1, -1)
 
     @staticmethod
     def g_S_q_T_mu_q(psi, mu):

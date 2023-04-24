@@ -47,28 +47,29 @@ class CooMatrix:
         self.__col = array("I", [])  # unsigned int
 
     def __setitem__(self, key, value):
-        rows, cols = key
-        ndim = value.ndim
-        if ndim > 1:
+        if value is not None:
+            rows, cols = key
             if isinstance(value, CooMatrix):
-                self.__data.extend(value.data)
-                self.__row.extend(value.row)
-                self.__col.extend(value.col)
+                self.__data.extend(value.__data)
+                self.__row.extend(value.__row)
+                self.__col.extend(value.__col)
             else:
-                # dense matrix
-                # - fast version
-                self.__data.fromlist(value.ravel(order="C").tolist())
-                self.__row.fromlist(repeat(rows, len(cols)).tolist())
-                self.__col.fromlist(tile(cols, len(rows)).tolist())
-                # - slow version
-                # self.__data.extend(value.ravel(order="C"))
-                # self.__row.extend(repeat(rows, len(cols)))
-                # self.__col.extend(tile(cols, len(rows)))
-        else:
-            # array (we assume diagonal matrix)
-            self.__data.fromlist(value.tolist())
-            self.__row.fromlist(rows.tolist())
-            self.__col.fromlist(cols.tolist())
+                ndim = value.ndim
+                if ndim > 1:
+                    # dense matrix
+                    # - fast version
+                    self.__data.fromlist(value.ravel(order="C").tolist())
+                    self.__row.fromlist(repeat(rows, len(cols)).tolist())
+                    self.__col.fromlist(tile(cols, len(rows)).tolist())
+                    # - slow version
+                    # self.__data.extend(value.ravel(order="C"))
+                    # self.__row.extend(repeat(rows, len(cols)))
+                    # self.__col.extend(tile(cols, len(rows)))
+                else:
+                    # array (we assume diagonal matrix)
+                    self.__data.fromlist(value.tolist())
+                    self.__row.fromlist(rows.tolist())
+                    self.__col.fromlist(cols.tolist())
 
     def extend(self, matrix, DOF):
         self[DOF[0], DOF[1]] = matrix
@@ -130,7 +131,7 @@ if __name__ == "__main__":
     from profilehooks import profile
     import numpy as np
 
-    @profile(entries=10)
+    @profile(entries=50)
     def run(local_size, nlocal):
         global_size = nlocal * local_size
         coo = CooMatrix((global_size, global_size))
