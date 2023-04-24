@@ -10,8 +10,8 @@ from cardillo.solver import (
     NonsmoothGeneralizedAlpha,
     Rattle,
     NonsmoothPIRK,
-    RadauIIATableau,
 )
+from cardillo.solver._butcher_tableaus import RadauIIATableau
 
 
 class Painleve_rod:

@@ -603,7 +603,7 @@ class NonsmoothBackwardEuler:
         )
         # fmt: on
 
-        # return J
+        return J
 
         # J_num = csr_matrix(approx_fprime(yn1, self.R))
         J_num = csr_matrix(approx_fprime(yn1, self.R, method="2-point", eps=1e-6))

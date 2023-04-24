@@ -159,8 +159,7 @@ class RockingRod:
 Solver1, label1, dt1, kwargs1 = (
     NonsmoothPIRK,
     "NPIRK",
-    # 5e-3,
-    1e-2,
+    5e-3,
     {"butcher_tableau": RadauIIATableau(2)},
 )
 # Solver1, label1, dt1, kwargs1 = Rattle, "Rattle", 5e-3, {}

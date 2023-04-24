@@ -221,7 +221,7 @@ def fsolve(
     while (not converged) and (i < max_iter):
         i += 1
         J = jacobian(x, *jac_args)
-        x -= linear_solver(J, f, x)
+        x -= linear_solver(J, f)
         f = np.atleast_1d(fun(x, *fun_args))
         error = error_function(f)
         converged = error <= atol
