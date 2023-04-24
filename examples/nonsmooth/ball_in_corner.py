@@ -16,8 +16,8 @@ from cardillo.solver import (
     Rattle,
     NonsmoothBackwardEuler,
     NonsmoothPIRK,
-    RadauIIATableau,
 )
+from cardillo.solver._butcher_tableaus import RadauIIATableau
 
 
 Solver1, label1, dt1, kwargs1 = (

@@ -4,7 +4,7 @@ from scipy.sparse import csr_matrix, csc_matrix, lil_matrix, eye, diags, kron
 from tqdm import tqdm
 
 from cardillo.math.prox import prox_R0_nm, prox_R0_np, prox_sphere
-from cardillo.math import approx_fprime, fsolve, mngn
+from cardillo.math import approx_fprime, fsolve
 from cardillo.solver import Solution, consistent_initial_conditions
 from cardillo.solver._butcher_tableaus import *
 

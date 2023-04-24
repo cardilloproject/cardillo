@@ -3,7 +3,8 @@ import matplotlib.pyplot as plt
 
 from cardillo.math import approx_fprime
 from cardillo import System
-from cardillo.solver import MoreauShifted, Rattle, NonsmoothPIRK, RadauIIATableau
+from cardillo.solver import MoreauShifted, Rattle, NonsmoothPIRK
+from cardillo.solver._butcher_tableaus import RadauIIATableau
 
 
 class RockingRod:
@@ -158,7 +159,8 @@ class RockingRod:
 Solver1, label1, dt1, kwargs1 = (
     NonsmoothPIRK,
     "NPIRK",
-    5e-3,
+    # 5e-3,
+    1e-2,
     {"butcher_tableau": RadauIIATableau(2)},
 )
 # Solver1, label1, dt1, kwargs1 = Rattle, "Rattle", 5e-3, {}
@@ -191,8 +193,7 @@ if __name__ == "__main__":
     x0 = a * (np.cos(phi0) - 1)
     y0 = a * np.sin(phi0)
     q0 = np.array([x0, y0, phi0])
-    # u0 = np.array([0, 0, 0])
-    u0 = -np.ones(3) * 5e-1
+    u0 = np.array([0, 0, 0])
     rods.append(RockingRod(mass, a, l, eN, eF, mu, q0, u0))
 
     # # case 3

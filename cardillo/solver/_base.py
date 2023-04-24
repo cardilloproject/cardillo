@@ -19,8 +19,8 @@ def consistent_initial_conditions(
     assert np.all(g_N >= 0) or np.allclose(
         g_N, np.zeros(system.nla_N), rtol, atol
     ), "Initial conditions do not fulfill g_N0!"
-    assert np.all(I_N * g_N_dot >= 0) or np.allclose(
-        I_N * g_N_dot, np.zeros(system.nla_N), rtol, atol
+    assert np.all(g_N_dot[I_N] >= 0) or np.allclose(
+        g_N_dot[I_N], np.zeros(system.nla_N), rtol, atol
     ), "Initial conditions do not fulfill g_N_dot0!"
 
     M = system.M(t0, q0, scipy_matrix=csr_matrix)
@@ -81,9 +81,6 @@ def consistent_initial_conditions(
                 norm_gamma_Fi = norm(gamma_Fi)
                 if norm_gamma_Fi > 0:
                     # slip
-                    # R[split[3] + i_F] = (
-                    #     la_F[i_F] + mu[i_N] * la_N[i_N] * gamma_Fi / norm_gamma_Fi
-                    # )
                     R[split[3] + i_F] = la_F[i_F] + prox_sphere(
                         prox_r_F[i_F] * gamma_Fi - la_F[i_F],
                         mu[i_N] * la_N[i_N],

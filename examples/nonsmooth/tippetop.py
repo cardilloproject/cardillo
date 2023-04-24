@@ -154,10 +154,10 @@ def run(export=True):
     # system, top, contact1, contact2 = make_system(RigidBodyEuler)
 
     t_final = 8
-    dt1 = 1e-3
-    dt2 = 1e-3
-    # dt1 = 1e-4
-    # dt2 = 1e-4
+    # dt1 = 1e-3
+    # dt2 = 1e-3
+    dt1 = 1e-4
+    dt2 = 1e-4
     # dt1 = 5e-5
     # dt2 = 5e-5
 
