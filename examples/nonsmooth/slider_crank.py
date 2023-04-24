@@ -11,8 +11,8 @@ from cardillo.solver import (
     Rattle,
     MoreauClassical,
     NonsmoothPIRK,
-    RadauIIATableau,
 )
+from cardillo.solver._butcher_tableaus import RadauIIATableau
 
 
 class SliderCrankFlores:
@@ -611,7 +611,7 @@ class SliderCrankFlores:
 
 class SliderCrankDAE:
     def __init__(self):
-        """TODO: Inspired by Flores2011, Section 4: Demonstrative Application to a Slider-Crank Mechanism.
+        """Inspired by Flores2011, Section 4: Demonstrative Application to a Slider-Crank Mechanism.
 
         References:
         -----------
@@ -644,7 +644,6 @@ class SliderCrankDAE:
         self.e_N = 0.4 * np.ones(4)
         self.e_F = np.zeros(4)
         mu = 0.01
-        # mu = 0  # TODO: Delete this!
         self.mu = mu * np.ones(4)
 
         if mu == 0:
@@ -939,6 +938,9 @@ class SliderCrankDAE:
     def g_N_dot(self, t, q, u):
         return self.g_N_q_dense(t, q) @ u
 
+    def g_N_ddot(self, t, q, u, u_dot):
+        return self.g_N_q_dense(t, q) @ u_dot + approx_fprime(q, lambda q: self.g_N_dot(t, q, u)) @ u
+
     def g_N_dot_q_dense(self, t, q, u):
         return approx_fprime(q, lambda q: self.g_N_dot(t, q, u))
 
@@ -977,6 +979,9 @@ class SliderCrankDAE:
         gamma_3 = u3 + omega3 * (self.a * sin + self.b * cos)
         gamma_4 = u3 + omega3 * (-self.a * sin + self.b * cos)
         return np.array([gamma_1, gamma_2, gamma_3, gamma_4])
+
+    def gamma_F_dot(self, t, q, u, u_dot):
+        return self.W_F_dense(t, q).T @ u_dot + approx_fprime(q, lambda q: self.gamma_F(t, q, u)) @ u
 
     def gamma_F_q_dense(self, t, q, u):
         return approx_fprime(q, lambda q: self.__gamma_F(t, q, u))
@@ -1173,28 +1178,28 @@ def run_DAE(export=True):
     # approx. two crank revolutions
     t_final = 7 * np.pi / 150
     # t_final *= 0.1
-    # dt1 = 5e-4  # Rattle
-    dt1 = 1e-4  # NPIRK
-    dt2 = 1e-5  # Moreau
+    # dt1 = 1e-4
+    dt1 = 1e-3
+    dt2 = 1e-3
 
-    sol1, label1 = (
-        NonsmoothPIRK(system, t_final, dt1, RadauIIATableau(2)).solve(),
-        "NPIRK",
-    )
+    # sol1, label1 = (
+    #     NonsmoothPIRK(system, t_final, dt1, RadauIIATableau(2)).solve(),
+    #     "NPIRK",
+    # )
 
-    # sol1, label1 = Rattle(system, t_final, dt1).solve(), "Rattle"
+    sol1, label1 = Rattle(system, t_final, dt1, atol=1e-8).solve(), "Rattle"
     # sol1, label1 = (
     #     MoreauShifted(system, t_final, dt2, fix_point_max_iter=5).solve(),
     #     "MoreauShifted",
     # )
-    # sol2, label2 = (
-    #     MoreauClassical(system, t_final, dt2, max_iter=500).solve(),
-    #     "MoreauClassical",
-    # )
     sol2, label2 = (
-        NonsmoothPIRK(system, t_final, 0.1 * dt1, RadauIIATableau(2)).solve(),
-        "NPIRK",
+        MoreauClassical(system, t_final, dt2, max_iter=500).solve(),
+        "MoreauClassical",
     )
+    # sol2, label2 = (
+    #     NonsmoothPIRK(system, t_final, 0.1 * dt1, RadauIIATableau(2)).solve(),
+    #     "NPIRK",
+    # )
 
     t1 = sol1.t
     q1 = sol1.q
@@ -1343,9 +1348,9 @@ def run_DAE(export=True):
 
         np.savetxt(
             path.parent / "g_N1.dat",
-            np.hstack((sol1.t[:, None], g_N1)),
+            np.hstack((sol1.t[:, None], g_N1, g_N1 * 1e3)),
             delimiter=", ",
-            header="t, g_N1, g_N2, g_N3, g_N4",
+            header="t, g_N1, g_N2, g_N3, g_N4, g_N1_1000, g_N2_1000, g_N3_1000, g_N4_1000",
             comments="",
         )
 

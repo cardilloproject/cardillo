@@ -105,13 +105,13 @@ def run(case, export=True):
 
     system.assemble()
 
-    solver1, label1 = LobattoIIIAB(system, t_final, dt, stages=3), "LobattoIIIAB"
+    # solver1, label1 = LobattoIIIAB(system, t_final, dt, stages=3), "LobattoIIIAB"
     # solver1, label1 = NonsmoothPIRK(system, t_final, dt, RadauIIATableau(2)), "NPIRK"
     # solver1, label1 = NonsmoothPIRK(system, t_final, dt, AlexanderTableau(3)), "NPIRK"
-    # solver1, label1 = (
-    #     SimplifiedNonsmoothGeneralizedAlphaNoAcceleration(system, t_final, dt),
-    #     "Gen-alpha simplified",
-    # )
+    solver1, label1 = (
+        SimplifiedNonsmoothGeneralizedAlphaNoAcceleration(system, t_final, dt),
+        "Gen-alpha simplified",
+    )
 
     # solver1, label1 = NonsmoothGeneralizedAlpha(system, t_final, dt, method="newton"), "Gen-alpha"
     # solver1, label1 = Rattle(system, t_final, dt), "Rattle"

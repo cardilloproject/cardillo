@@ -1149,19 +1149,6 @@ class SimplifiedNonsmoothGeneralizedAlphaNoAcceleration:
             )
         )
 
-        # # consistent initial conditions
-        # (
-        #     self.tn,
-        #     self.qn,
-        #     self.un,
-        #     self.q_dotn,
-        #     self.u_dotn,
-        #     self.la_gn,
-        #     self.la_gamman,
-        # ) = consistent_initial_conditions(system)
-        # self.R_Nn = self.system.la_N0
-        # self.R_Fn = self.system.la_F0
-
         # consistent initial conditions
         (
             self.tn,
@@ -1230,12 +1217,6 @@ class SimplifiedNonsmoothGeneralizedAlphaNoAcceleration:
         an1 = (alpha_f * self.u_dotn + (1 - alpha_f) * u_dotn1 - alpha_m * self.an) / (
             1 - alpha_m
         )
-        # la_Nn1 = (
-        #     alpha_f * self.R_Nn + (1 - alpha_f) * R_Nn1 - alpha_m * self.la_Nn
-        # ) / (1 - alpha_m)
-        # la_Fn1 = (
-        #     alpha_f * self.R_Fn + (1 - alpha_f) * R_Fn1 - alpha_m * self.la_Fn
-        # ) / (1 - alpha_m)
         R_N_barn1 = (
             alpha_f * self.R_Nn + (1 - alpha_f) * R_Nn1 - alpha_m * self.R_N_barn
         ) / (1 - alpha_m)
@@ -1252,6 +1233,14 @@ class SimplifiedNonsmoothGeneralizedAlphaNoAcceleration:
         # P_Fn12 = self.P_Fn + h * ((1 - gamma) * self.R_F_barn + gamma * R_F_barn1)
         P_Fn12 = h * ((1 - gamma) * self.R_F_barn + gamma * R_F_barn1)
         P_Fn1 = P_Fn12 + Delta_R_Fn2
+
+        # # position update Capobianco2021
+        # a_beta = (1 - 2 * beta) * self.an + 2 * beta * an1
+        # qn1 = (
+        #     self.qn
+        #     + h * self.system.q_dot(self.tn, self.qn, self.un)
+        #     + h**2 / 2 * self.system.q_ddot(self.tn, self.qn, self.un, a_beta)
+        # )
 
         # position update, see GAMM2022 Harsch
         Delta_un12 = self.un + h * ((0.5 - beta) * self.an + beta * an1)
@@ -1328,6 +1317,7 @@ class SimplifiedNonsmoothGeneralizedAlphaNoAcceleration:
         R[: self.split_y[0]] = (
             M @ u_dotn1
             - self.system.h(tn1, qn1, un12)
+            # - self.system.h(tn1, qn1, un1)
             - W_g @ R_gn1
             - W_gamma @ R_gamman1
             - W_N @ R_Nn1
@@ -1423,21 +1413,15 @@ class SimplifiedNonsmoothGeneralizedAlphaNoAcceleration:
 
     def solve(self):
         # lists storing output variables
-        # sol_q = [self.qn]
-        # sol_u = [self.un]
-        # sol_P_g = [self.h * self.la_gn]
-        # sol_P_gamma = [self.h * self.la_gamman]
-        # sol_P_N = [self.h * self.la_Nn]
-        # sol_P_F = [self.h * self.la_Fn]
-        sol_q = []
-        sol_u = []
-        sol_P_g = []
-        sol_P_gamma = []
-        sol_P_N = []
-        sol_P_F = []
+        sol_q = [self.qn]
+        sol_u = [self.un]
+        sol_P_g = [self.h * self.la_gn]
+        sol_P_gamma = [self.h * self.la_gamman]
+        sol_P_N = [self.h * self.la_Nn]
+        sol_P_F = [self.h * self.la_Fn]
 
         # initialize progress bar
-        pbar = tqdm(self.t)
+        pbar = tqdm(self.t[1:])
 
         iter = []
         for _ in pbar:
@@ -1522,7 +1506,7 @@ class SimplifiedNonsmoothGeneralizedAlphaNoAcceleration:
         )
         print("-----------------")
         return Solution(
-            t=np.array(self.t),
+            t=self.t,
             q=np.array(sol_q),
             u=np.array(sol_u),
             P_g=np.array(sol_P_g),

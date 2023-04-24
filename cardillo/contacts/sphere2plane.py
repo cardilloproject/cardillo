@@ -91,9 +91,6 @@ class Sphere2Plane:
             self.subsystem.A_IK_q(t, q, frame_ID=self.frame_ID),
             self.subsystem.K_Omega(t, q, u, frame_ID=self.frame_ID),
         )
-        self.Omega_u = lambda t, q, u: self.subsystem.A_IK(
-            t, q, frame_ID=self.frame_ID
-        ) @ self.subsystem.K_Omega_u(t, q, u, frame_ID=self.frame_ID)
         self.J_R = lambda t, q: self.subsystem.A_IK(
             t, q, frame_ID=self.frame_ID
         ) @ self.subsystem.K_J_R(t, q, frame_ID=self.frame_ID)
@@ -330,11 +327,9 @@ class Sphere2PlaneCoulombContensouMoeller:
         self.R_drilling = R_drilling
 
         self.R_bar = (3 * np.pi / 16) * R_drilling
-        # self.A = np.diag([1, 1, self.R_bar])
-        # self.A = np.diag([1, 1, 1])
-        self.A = np.eye(3)
+        self.A = np.diag([1, 1, self.R_bar])
 
-        self.mu = np.array([mu])
+        self.mu = np.array([mu, mu, mu])
         self.nla_N = 1
 
         if mu > 0:
@@ -355,8 +350,8 @@ class Sphere2PlaneCoulombContensouMoeller:
 
         self.K_r_SP = K_r_SP
 
-        self.la_N0 = np.zeros(self.nla_N)
-        self.la_F0 = np.zeros(self.nla_F)
+        # self.la_N0 = np.zeros(self.nla_N)
+        # self.la_F0 = np.zeros(self.nla_F)
 
     def assembler_callback(self):
         qDOF = self.subsystem.local_qDOF_P(self.frame_ID)
@@ -405,9 +400,6 @@ class Sphere2PlaneCoulombContensouMoeller:
             self.subsystem.A_IK_q(t, q, frame_ID=self.frame_ID),
             self.subsystem.K_Omega(t, q, u, frame_ID=self.frame_ID),
         )
-        self.Omega_u = lambda t, q, u: self.subsystem.A_IK(
-            t, q, frame_ID=self.frame_ID
-        ) @ self.subsystem.K_Omega_u(t, q, u, frame_ID=self.frame_ID)
         self.J_R = lambda t, q: self.subsystem.A_IK(
             t, q, frame_ID=self.frame_ID
         ) @ self.subsystem.K_J_R(t, q, frame_ID=self.frame_ID)
@@ -486,70 +478,39 @@ class Sphere2PlaneCoulombContensouMoeller:
         dense = la_N[0] * np.einsum("i,ijk->jk", self.n, self.J_P_q(t, q))
         coo.extend(dense, (self.uDOF, self.qDOF))
 
-    def xi_N_q(self, t, q, u_pre, u_post, coo):
-        g_N_q_pre = self.g_N_dot_q_dense(t, q, u_pre)
-        g_N_q_post = self.g_N_dot_q_dense(t, q, u_post)
-        dense = g_N_q_post + np.diag(self.e_N) @ g_N_q_pre
-        coo.extend(dense, (self.la_NDOF, self.qDOF))
-
     ########################################
     # tangent contacts and drilling frcition
     ########################################
     def __gamma_F(self, t, q, u):
         Omega = self.Omega(t, q, u)
-        v_C = self.v_P(t, q, u) + self.R_sphere * cross3(self.n, Omega)
+        r_PC = -self.R_sphere * self.n
+        v_C = self.v_P(t, q, u) + cross3(Omega, r_PC)
         gamma_F = self.t1t2 @ v_C
         omega = self.n @ Omega
         return self.A.T @ np.array([*gamma_F, omega])
 
     def gamma_F_q_dense(self, t, q, u):
-        return approx_fprime(
-            q, lambda q: self.__gamma_F(t, q, u), method="2-point", eps=1e-6
-        )
+        return approx_fprime(q, lambda q: self.__gamma_F(t, q, u))
 
     def gamma_F_q(self, t, q, u, coo):
         coo.extend(self.gamma_F_q_dense(t, q, u), (self.la_FDOF, self.qDOF))
 
     def gamma_F_dot(self, t, q, u, u_dot):
-        Omega = self.Omega(t, q, u)
         Psi = self.Psi(t, q, u, u_dot)
         r_PC = -self.R_sphere * self.n
-        a_C = (
-            self.a_P(t, q, u, u_dot)
-            + cross3(Psi, r_PC)
-            + cross3(Omega, cross3(Omega, r_PC))
-        )
+        a_C = self.a_P(t, q, u, u_dot) + cross3(Psi, r_PC)
         gamma_F_dot = self.t1t2 @ a_C
         psi = self.n @ Psi
         # gamma_F_dot_num = approx_fprime(q, lambda q: self.gamma_F(t, q, u)) @ self.subsystem.q_dot(t, q, u) + approx_fprime(u, lambda u: self.gamma_F(t, q, u)) @ u_dot
         return self.A.T @ np.array([*gamma_F_dot, psi])
         # return gamma_F_dot_num
 
-    # def gamma_F_dot(self, t, q, u, a):
-    #     # A_IK = self.A_IK(t, q)
-    #     # v_C = self.v_P(t, q, u) + self.R_sphere * cross3(self.n(t), self.Omega(t, q, u))
-    #     Psi = self.Psi(t, q, u, a)
-    #     a_C = self.a_P(t, q, u, a) + self.R_sphere * cross3(self.n(t), Psi)
-    #     # K_r_SP1 = self.K_r_SC1 + A_IK.T @ np.array([0, 0, -self.R_sphere])
-    #     # a_C1 = self.a_P(t, q, u, a, self.K_r_SP)
-    #     # Psi = A_IK @ self.K_Psi(t, q, u, a)
-
-    #     ga_F_dot = np.zeros(3)
-    #     ga_F_dot[:2] = self.t1t2(t) @ a_C
-    #     ga_F_dot[2] = Psi[2]
-
-    #     return self.A.T @ ga_F_dot
-
     def gamma_F_dot_q(self, t, q, u, u_dot, coo):
-        gamma_F_dot_q_num = approx_fprime(
-            q, lambda q: self.gamma_F_dot(t, q, u, u_dot), method="2-point"
-        )
+        gamma_F_dot_q_num = approx_fprime(q, lambda q: self.gamma_F_dot(t, q, u, u_dot))
         coo.extend(gamma_F_dot_q_num, (self.la_FDOF, self.qDOF))
 
     def gamma_F_dot_u(self, t, q, u, u_dot, coo):
-        gamma_F_dot_u_num = approx_fprime(
-            u, lambda u: self.gamma_F_dot(t, q, u, u_dot), method="2-point"
-        )
+        gamma_F_dot_u_num = approx_fprime(u, lambda u: self.gamma_F_dot(t, q, u, u_dot))
         coo.extend(gamma_F_dot_u_num, (self.la_FDOF, self.uDOF))
 
     def gamma_F_u_dense(self, t, q):
@@ -568,17 +529,3 @@ class Sphere2PlaneCoulombContensouMoeller:
         Wla_F = lambda q: self.gamma_F_u_dense(t, q).T @ la_F
         dense = approx_fprime(q, Wla_F)
         coo.extend(dense, (self.uDOF, self.qDOF))
-
-        # raise NotImplementedError
-        # J_C_q = self.J_P_q(t, q) + self.R_sphere * np.einsum(
-        #     "ij,jkl->ikl", ax2skew(self.n(t)), self.J_R_q(t, q)
-        # )
-        # dense = np.einsum("i,ij,jkl->kl", la_F, self.t1t2(t), J_C_q)
-        # dense
-        # coo.extend(dense, (self.uDOF, self.qDOF))
-
-    def xi_F_q(self, t, q, u_pre, u_post, coo):
-        gamma_T_q_pre = self.gamma_F_q_dense(t, q, u_pre)
-        gamma_T_q_post = self.gamma_F_q_dense(t, q, u_post)
-        dense = gamma_T_q_post + np.diag(self.e_F) @ gamma_T_q_pre
-        coo.extend(dense, (self.la_FDOF, self.qDOF))

@@ -32,11 +32,6 @@ def make_system(RigidBodyBase):
     K_theta_S = np.diag([I1, I1, I3])
     g = 9.81  # kg m / s2
 
-    # print(f"manipulated masses!")
-    # scale = 1e3
-    # m *= scale
-    # K_theta_S *= scale
-
     # Geometry:
     a1 = 3e-3  # m
     a2 = 1.6e-2  # m
@@ -46,7 +41,6 @@ def make_system(RigidBodyBase):
     K_r_SC2 = np.array([0, 0, a2])
 
     mu = 0.3  # = mu1 = mu2
-    # mu = 0
     e_N = 0  # = eN1 = eN2
     e_F = 0
     R = 5e-4  # m
@@ -54,43 +48,45 @@ def make_system(RigidBodyBase):
     # Initial conditions
     # all zeros exept:
     # Leine2003
-    # z0 = 1.2015e-2  # m
-    # theta0 = 0.1  # rad
-    # z0 = 0
-    # theta0 = 0.0  # rad
-    # psi_dot0 = 180  # rad / s
+    z0 = 1.2015e-2  # m
+    theta0 = 0.1  # rad
+    psi_dot0 = 180  # rad / s
 
     # initial coordinates
-    z0 = R1 - a1
-    # z0 += 1e-7
-    # z0 += 1e-8
+    # z0 = R1 - a1
     if RigidBodyBase is RigidBodyQuaternion:
         q0 = np.zeros(7, dtype=float)
         q0[2] = z0
-        # q0[3:] = axis_angle2quat(np.array([1, 0, 0]), theta0)
-        q0[3] = 1
+        q0[3:] = axis_angle2quat(np.array([1, 0, 0]), theta0)
+        # q0[3] = 1
     elif RigidBodyBase is RigidBodyEuler:
         # axis = "zxz" # original
         axis = "zxy"
         q0 = np.zeros(6, dtype=float)
         q0[2] = z0
-        # q0[4] = theta0
+        q0[4] = theta0
 
-    # initial velocities
-    # gamma = 1e-0  # rad / s
-    gamma = 1
-    # gamma = 0
+    # # initial velocities
+    # # gamma = 1e-0  # rad / s
+    # gamma = 1
+    # # gamma = 0
+    # omega = 180  # rad / s
+    # K_omega_IK = np.array([gamma, 0, omega])
+    # A_IK = np.eye(3)
+    # K_r_PS = np.array([0, 0, R1 - a1])
+    # v_S = A_IK @ cross3(K_omega_IK, K_r_PS)
+
     omega = 180  # rad / s
+    gamma = 1  # rad / s
+    # gamma = 0  # rad / s
     K_omega_IK = np.array([gamma, 0, omega])
-    A_IK = np.eye(3)
-    K_r_PS = np.array([0, 0, R1 - a1])
-    v_S = A_IK @ cross3(K_omega_IK, K_r_PS)
+    v_S = np.zeros(3)
 
-    print(f"v_S = {v_S}")
-    print(
-        f"v_C = {v_S + A_IK @ cross3(K_omega_IK, np.array([0, 0, a1]) + np.array([0, 0, -R1]))}"
-    )
-    # exit()
+    # print(f"v_S = {v_S}")
+    # print(
+    #     f"v_C = {v_S + A_IK @ cross3(K_omega_IK, np.array([0, 0, a1]) + np.array([0, 0, -R1]))}"
+    # )
+    # # exit()
 
     u0 = np.zeros(6, dtype=float)
     u0[:3] = v_S
@@ -110,23 +106,23 @@ def make_system(RigidBodyBase):
     # else:
     #     la_F0 = np.zeros(0, dtype=float)
 
-    contact1 = Sphere2Plane(
-        # contact1 = Sphere2PlaneCoulombContensouMoeller(
+    # contact1 = Sphere2Plane(
+    contact1 = Sphere2PlaneCoulombContensouMoeller(
         system.origin,
         top,
         R1,
-        # R,
+        R,
         mu,
         e_N,
         e_F,
         K_r_SP=K_r_SC1,
     )
-    contact2 = Sphere2Plane(
-        # contact2 = Sphere2PlaneCoulombContensouMoeller(
+    # contact2 = Sphere2Plane(
+    contact2 = Sphere2PlaneCoulombContensouMoeller(
         system.origin,
         top,
         R2,
-        # R,
+        R,
         mu,
         e_N,
         e_F,
@@ -155,30 +151,26 @@ def run(export=True):
     """
 
     system, top, contact1, contact2 = make_system(RigidBodyQuaternion)
+    # system, top, contact1, contact2 = make_system(RigidBodyEuler)
 
-    # t1 = 8
-    # t_final = 3
-    # t_final = 0.1
-    # t_final = 1.28e-2
-    # t_final *= 2
-    t_final = 2e-4
-    # dt1 = 1e-3
-    # dt2 = 1e-3
-    dt1 = 1e-4
-    dt2 = 1e-4
+    t_final = 8
+    # dt1 = 1e-4
+    # dt2 = 1e-4
+    dt1 = 5e-5
+    dt2 = 5e-5
 
-    # sol1, label1 = Rattle(system, t_final, dt1, atol=1e-8).solve(), "Rattle"
-    sol1, label1 = (
-        MoreauShiftedNew(system, t_final, dt2, atol=1e-6).solve(),
-        "Moreau_new",
-    )
+    sol1, label1 = Rattle(system, t_final, dt1, atol=1e-8).solve(), "Rattle"
+    # sol1, label1 = (
+    #     MoreauShiftedNew(system, t_final, dt2, atol=1e-10).solve(),
+    #     "Moreau_new",
+    # )
     # sol1, label1 = (
     #     NonsmoothPIRK(system, t_final, dt1, RadauIIATableau(2)).solve(),
     #     "NPIRK",
     # )
 
     sol2, label2 = (
-        MoreauClassical(system, t_final, dt2, atol=1e-10).solve(),
+        MoreauClassical(system, t_final, dt2, atol=1e-8).solve(),
         "Moreau",
     )
     # sol2, label2 = (
@@ -371,12 +363,12 @@ def convergence(export=True):
         # dt_ref=4e-4,
         # final_power=5,
         # power_span=(1, 3),
-        dt_ref=2e-4,
-        final_power=7,
-        power_span=(1, 4),
-        # dt_ref=1e-4,
+        # dt_ref=2e-4,
         # final_power=7,
-        # power_span=(1, 5),
+        # power_span=(1, 4),
+        dt_ref=1e-4,
+        final_power=8,
+        power_span=(1, 5),
         # states=["q", "u", "P_g", "P_gamma"],
         split_fractions=[],
         atol=1e-12,
@@ -777,5 +769,5 @@ def convergence(export=True):
 
 
 if __name__ == "__main__":
-    # run()
-    convergence()
+    run()
+    # convergence()

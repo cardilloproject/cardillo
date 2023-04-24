@@ -1235,17 +1235,19 @@ class Rattle:
             # self.prox_r_N = np.ones(self.nla_N) * 0.5
             # self.prox_r_F = np.ones(self.nla_F) * 0.5
 
-            # ##########
-            # # tippetop
-            # ##########
+            ##########
+            # tippetop
+            ##########
             # self.prox_r_N = np.ones(self.nla_N) * 0.001
             # self.prox_r_F = np.ones(self.nla_F) * 0.001
+            self.prox_r_N = np.ones(self.nla_N) * 1
+            self.prox_r_F = np.ones(self.nla_F) * 1
 
-            ##############
-            # slider crank
-            ##############
-            self.prox_r_N = np.ones(self.nla_N) * 0.001
-            self.prox_r_F = np.ones(self.nla_F) * 0.001
+            # ##############
+            # # slider crank
+            # ##############
+            # self.prox_r_N = np.ones(self.nla_N) * 1
+            # self.prox_r_F = np.ones(self.nla_F) * 1
 
             tn1 = self.tn + self.dt
 
