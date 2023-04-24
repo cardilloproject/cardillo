@@ -1,13 +1,15 @@
 import numpy as np
 from warnings import warn
-from scipy.sparse import csc_matrix, diags, eye
-from scipy.sparse.linalg import spsolve, lsqr, lsmr, LinearOperator, spsolve_triangular
+from scipy.sparse import csc_matrix
+from scipy.sparse.linalg import spsolve
+from scipy.linalg import qr, solve_triangular, svd
 from cardillo.math import approx_fprime
 
 try:
     import sparseqr
+    from scipy.sparse.linalg import spsolve_triangular
 
-    def sparse_qr_solve(A, b, *args):
+    def sparse_qr_solve(A, b):
         """
         Solve the sparse linear system Ax=b, using PySPQR wrapper to SuitSparse's sparse QR-solve
         function.
@@ -19,9 +21,7 @@ try:
         """
         return sparseqr.solve(A, b, tolerance=0)
 
-    # TODO:
-    # - add reference of Fabia's book
-    def rank_revealing_qr_spsolve(A, b, *args):
+    def rank_revealing_qr_spsolve(A, b):
         """Solve the sparse (overdetermined) linear system Ax=b with rank 
         deficiency using column pivoted sparse QR decomposition from PySPQR 
         wrapper to SuitSparse's sparse QR-decomposition.
@@ -33,10 +33,6 @@ try:
         """
         # shape of input matrix
         m, n = A.shape
-
-        # # apply Tikhonov regularization, see https://en.wikipedia.org/wiki/Ridge_regression#Tikhonov_regularization
-        # alpha = 1e-6
-        # A += eye(m, n) * alpha
 
         # QR-decomposition with column pivoting
         Q, R, p, rank = sparseqr.qr(A)
@@ -70,7 +66,7 @@ except:
     pass
 
 
-def lu_solve(A, b, *args):
+def lu_solve(A, b):
     """
     Solve the sparse linear system Ax=b, where b may be a vector or a matrix.
 
@@ -81,7 +77,7 @@ def lu_solve(A, b, *args):
     return spsolve(A, b)
 
 
-def rank_revealing_qr_solve(A, b, *args, singular_decimals=12, verbose=True):
+def rank_revealing_qr_solve(A, b, singular_decimals=12, verbose=True):
     """
     Solves over-determined and underdetemined linar systems :math:`Ax=b`, see [1] and [2].
 
@@ -119,8 +115,6 @@ def rank_revealing_qr_solve(A, b, *args, singular_decimals=12, verbose=True):
     m, n = A.shape
 
     # dense QR-decomposition with column pivoting
-    from scipy.linalg import qr, solve_triangular
-
     Q, R, p = qr(A, pivoting=True)
 
     # the number of linearly independent columns & rows in A (the rank)
@@ -151,7 +145,7 @@ def rank_revealing_qr_solve(A, b, *args, singular_decimals=12, verbose=True):
     return x
 
 
-def svd_solve(A, b, *args, verbose=True):
+def svd_solve(A, b, verbose=True):
     """See https://stackoverflow.com/a/59292892/7280763 and Lee2012 section 6.
 
     References:
@@ -160,8 +154,6 @@ def svd_solve(A, b, *args, verbose=True):
     """
     # compute svd of A with matlab default driver "gesvd",
     # see https://docs.scipy.org/doc/scipy/reference/generated/scipy.linalg.svd.html
-    from scipy.linalg import svd
-
     U, s, Vh = svd(A.toarray(), lapack_driver="gesvd")
 
     # shape of input matrix
@@ -198,14 +190,7 @@ def fsolve(
     atol=1.0e-8,
     eps=1.0e-6,
     max_iter=20,
-    # linear_solver=lu_solve,
-    # linear_solver=rank_revealing_qr_solve,
-    # linear_solver=rank_revealing_qr_spsolve,
-    linear_solver=svd_solve,
-    # linear_solver=MNGN_svd,
-    # linear_solver=MNGN_qr,
-    # linear_solver=MNGN_sparse_qr,
-    # linear_solver=sparse_qr_solve,
+    linear_solver=lu_solve,
 ):
     if not isinstance(fun_args, tuple):
         fun_args = (fun_args,)
