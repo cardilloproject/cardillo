@@ -14,12 +14,18 @@ from cardillo.constraints import (
 )
 from cardillo.forces import Force
 from cardillo.solver import (
+    convergence_analysis,
     ScipyIVP,
     EulerBackward,
     GeneralizedAlphaFirstOrder,
     RadauIIa,
     Rattle,
+    NPIRK,
+    MoreauShifted,
+    NonsmoothGeneralizedAlpha,
+    LobattoIIIAB,
 )
+from cardillo.solver._butcher_tableaus import RadauIIATableau
 
 
 ############
@@ -72,9 +78,9 @@ K_Omega0 = np.array(
 # TODO: Derive these equations!
 v_S0 = np.array([-R * alpha_dot0 + r * alpha_dot0 * np.sin(beta0), 0, 0])
 
-# RigidBody = RigidBodyQuaternion
+RigidBody = RigidBodyQuaternion
 # RigidBody = RigidBodyAxisAngle
-RigidBody = RigidBodyEuler
+# RigidBody = RigidBodyEuler
 
 # initial conditions
 u0 = np.concatenate((v_S0, K_Omega0))
@@ -112,11 +118,11 @@ Constraint = RollingCondition_g_I_Frame_gamma
 rolling = Constraint(disc)
 f_g = Force(lambda t: np.array([0, 0, -m * g]), disc)
 
-model = System()
-model.add(disc)
-model.add(rolling)
-model.add(f_g)
-model.assemble()
+system = System()
+system.add(disc)
+# model.add(rolling)
+system.add(f_g)
+system.assemble()
 
 
 def state():
@@ -134,9 +140,9 @@ def state():
     # t1 = 2 * np.pi / np.abs(alpha_dot0) * 0.5
     # t1 = 2 * np.pi / np.abs(alpha_dot0) * 1.0
     # dt = 5e-3
-    dt = 5e-2
+    # dt = 5e-2
     # dt = 2.5e-2
-    # dt = 1.0e-2  # used for GAMM with R = 10 * r
+    dt = 1.0e-2  # used for GAMM with R = 10 * r
     # dt = 1.0e-3
 
     # rho_inf = 0.99
@@ -163,7 +169,9 @@ def state():
     # dae_index = "GGL"
     # sol = RadauIIa(model, t1, dt, rtol=rtol, atol=atol, dae_index=dae_index).solve()
 
-    sol = Rattle(model, t1, dt, atol=tol).solve()
+    # sol = Rattle(model, t1, dt, atol=tol).solve()
+
+    sol = NPIRK(system, t1, dt, RadauIIATableau(2)).solve()
 
     t = sol.t
     q = sol.q
@@ -180,12 +188,12 @@ def state():
         la_g = sol.P_g
         la_gamma = sol.P_gamma
 
-    g = np.array([model.g(ti, qi) for ti, qi in zip(t, q)])
-    g_dot = np.array([model.g_dot(ti, qi, ui) for ti, qi, ui in zip(t, q, u)])
+    g = np.array([system.g(ti, qi) for ti, qi in zip(t, q)])
+    g_dot = np.array([system.g_dot(ti, qi, ui) for ti, qi, ui in zip(t, q, u)])
     # g_ddot = np.array(
     #     [model.g_ddot(ti, qi, ui, u_doti) for ti, qi, ui, u_doti in zip(t, q, u, u_dot)]
     # )
-    gamma = np.array([model.gamma(ti, qi, ui) for ti, qi, ui in zip(t, q, u)])
+    gamma = np.array([system.gamma(ti, qi, ui) for ti, qi, ui in zip(t, q, u)])
     # gamma_dot = np.array(
     #     [
     #         model.gamma_dot(ti, qi, ui, u_doti)
@@ -417,10 +425,56 @@ def state():
 
 
 def convergence():
-    rho_inf = 0.85
+    # get_solver = lambda t_final, dt, atol: MoreauShifted(model, t_final, dt, fix_point_tol=atol)
+    # get_solver = lambda t_final, dt, atol: Rattle(model, t_final, dt, atol=atol)
+    # get_solver = lambda t_final, dt, atol: NonsmoothGeneralizedAlpha(model, t_final, dt, newton_tol=atol)
+    # get_solver = lambda t_final, dt, atol: NPIRK(
+    #     model, t_final, dt, RadauIIATableau(2), atol=atol
+    # )
+    get_solver = lambda t_final, dt, atol: LobattoIIIAB(
+        system, t_final, dt, atol=atol, stages=3
+    )
+
+    errors = convergence_analysis(
+        get_solver,
+        # dt_ref=1.6e-3,
+        # # final_power=11,
+        # final_power=7,
+        # power_span=(1, 3),
+        # dt_ref=8e-4,
+        # # final_power=12,
+        # final_power=8,
+        # power_span=(1, 4),
+        # dt_ref=4e-4,
+        # final_power=6,
+        # power_span=(1, 4),
+        dt_ref=2e-4,
+        final_power=7,
+        power_span=(2, 5),
+        # dt_ref=1e-4,
+        # final_power=9,
+        # power_span=(1, 6),
+        states=["q", "u"],
+        # states=["q", "u", "P_g", "P_gamma"],
+        # states=["q", "u", "la_g", "la_gamma"],
+        split_fractions=[],
+        atol=1e-12,
+        measure="lp",
+        # measure="uniform",
+        # measure="hausdorff",
+        visualize=True,
+        export=True,
+        kwargs={"p": 1},
+    )
+
+    exit()
+
+    # rho_inf = 0.85
     # see Arnodl2016, p. 118
-    tol_ref = 1.0e-10
-    tol = 1.0e-10
+    # tol_ref = 1.0e-10
+    # tol = 1.0e-10
+    tol_ref = 1.0e-14
+    tol = 1.0e-14
 
     #####################################
     # compute step sizes with powers of 2
@@ -430,17 +484,17 @@ def convergence():
     # # t1 = (2.0**10) * dt_ref  # 6.5536s
     # t1 = (2.0**4) * dt_ref  # 0.1024s
 
-    dt_ref = 3.2e-3
-    dts = (2.0 ** np.arange(4, 1, -1)) * dt_ref  # [5.12e-2, ..., 1.28e-2]
-    # t1 = (2.0**11) * dt_ref  # 6.5536s
-    t1 = (2.0**5) * dt_ref  # 0.1024s
+    # dt_ref = 3.2e-3
+    # dts = (2.0 ** np.arange(4, 1, -1)) * dt_ref  # [5.12e-2, ..., 1.28e-2]
+    # # t1 = (2.0**11) * dt_ref  # 6.5536s
+    # t1 = (2.0**5) * dt_ref  # 0.1024s
 
     dt_ref = 1.6e-3
     dts = (2.0 ** np.arange(5, 1, -1)) * dt_ref  # [5.12e-2, ..., 6.4e-3]
-    t1 = (2.0**12) * dt_ref  # 6.5536s
-    # print(f"t1: {t1}")
-    # print(f"dts: {dts}")
-    # exit()
+    # t1 = (2.0**12) * dt_ref  # 6.5536s
+    # t1 = (2.0**8) * dt_ref
+    # t1 = (2.0**6) * dt_ref
+    t1 = (2.0**5) * dt_ref
 
     # dt_ref = 8e-4
     # dts = (2.0 ** np.arange(6, 1, -1)) * dt_ref  # [5.12e-2, ..., 3.2e-3]
@@ -455,27 +509,15 @@ def convergence():
     # dts = (2.0 ** np.arange(8, 1, -1)) * dt_ref  # [5.12e-2, ..., 8e-4]
     # t1 = (2.0**15) * dt_ref  # 6.5536s
 
-    # # TODO: Why this setup gets killed!
-    # dt_ref = 1e-4
-    # dts = (2.0 ** np.arange(9, 1, -1)) * dt_ref  # [5.12e-2, ..., 4e-4]
-    # t1 = (2.0**16) * dt_ref  # 6.5536s
-
-    # # TODO: Why this setup gets killed!
-    # dt_ref = 5e-5
-    # dts = (2.0 ** np.arange(10, 1, -1)) * dt_ref  # [5.12e-2, ..., 2e-4]
-    # t1 = (2.0**17) * dt_ref # 6.5536s
-
     # # TODO:
     # # Final version used by Martin
     # dt_ref = 2.5e-5
     # dts = (2.0 ** np.arange(11, 1, -1)) * dt_ref  # [5.12e-2, ..., 1e-4]
     # t1 = (2.0**18) * dt_ref # 6.5536s
 
-    dts_1 = dts
-    dts_2 = dts**2
-
     print(f"t1: {t1}")
     print(f"dts: {dts}")
+    # exit()
 
     # errors for possible solvers
     q_errors_transient = np.inf * np.ones((4, len(dts)), dtype=float)
@@ -532,7 +574,7 @@ def convergence():
     #     model, t1, dt_ref, rho_inf=rho_inf, tol=tol_ref, GGL=False
     # ).solve()
 
-    print(f"compute reference solution with first order method:")
+    print(f"compute reference solution:")
     # reference1 = GeneralizedAlphaFirstOrder(
     #     model,
     #     t1,
@@ -543,7 +585,24 @@ def convergence():
     #     GGL=False,
     # ).solve()
 
-    reference1 = Rattle(model, t1, dt_ref, atol=tol_ref).solve()
+    # Solver, label, kwargs = (
+    #     NPIRK,
+    #     # "Radau IIa(1)",
+    #     # {"butcher_tableau": RadauIIATableau(1)},
+    #     "Radau IIa(2)",
+    #     {"butcher_tableau": RadauIIATableau(2)},
+    #     # "Radau IIa(3)",
+    #     # {"butcher_tableau": RadauIIATableau(3)},
+    #     # "Radau IIa(4)",
+    #     # {"butcher_tableau": RadauIIATableau(4)},
+    #     # "Radau IIa(5)",
+    #     # {"butcher_tableau": RadauIIATableau(5)},
+    # )
+
+    Solver, label, kwargs = Rattle, "Rattle", {}
+
+    # reference = NPIRK(model, t1, dt_ref, RadauIIATableau(2), atol=tol_ref).solve()
+    reference = Solver(system, t1, dt_ref, atol=tol_ref, **kwargs).solve()
 
     # print(f"compute reference solution with second order method + GGL:")
     # reference2_GGL = GeneralizedAlphaSecondOrder(
@@ -560,7 +619,7 @@ def convergence():
     # plot_state = True
     plot_state = False
     if plot_state:
-        reference = reference1
+        reference = reference
         # reference = reference1_GGL
         # reference = reference2
         # reference = reference2_GGL
@@ -628,7 +687,8 @@ def convergence():
 
         plt.show()
 
-    def errors(sol, sol_ref, t_transient=2, t_longterm=2):
+    def errors(sol, sol_ref, t_transient=0.1 * t1, t_longterm=0.1 * t1):
+        # def errors(sol, sol_ref, t_transient=2, t_longterm=2)
         # def errors(sol, sol_ref, t_transient=0.01, t_longterm=0.01):
         # def errors(sol, sol_ref, t_transient=4, t_longterm=4):
         t = sol.t
@@ -730,7 +790,20 @@ def convergence():
         # sol = GeneralizedAlphaSecondOrder(
         #     model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=False
         # ).solve()
-        sol = Rattle(model, t1, dt, atol=tol).solve()
+        # sol = Rattle(model, t1, dt, atol=tol).solve()
+        # (
+        #     q_errors_transient[0, i],
+        #     u_errors_transient[0, i],
+        #     la_g_errors_transient[0, i],
+        #     la_gamma_errors_transient[0, i],
+        #     q_errors_longterm[0, i],
+        #     u_errors_longterm[0, i],
+        #     la_g_errors_longterm[0, i],
+        #     la_gamma_errors_longterm[0, i],
+        # ) = errors(sol, reference1)
+
+        # sol = NPIRK(model, t1, dt, RadauIIATableau(2), atol=tol).solve()
+        sol = Solver(system, t1, dt, atol=tol, **kwargs).solve()
         (
             q_errors_transient[0, i],
             u_errors_transient[0, i],
@@ -740,7 +813,7 @@ def convergence():
             u_errors_longterm[0, i],
             la_g_errors_longterm[0, i],
             la_gamma_errors_longterm[0, i],
-        ) = errors(sol, reference1)
+        ) = errors(sol, reference)
 
         # # generalized alpha for mechanical systems in first order form (velocity formulation)
         # sol = GeneralizedAlphaFirstOrder(
@@ -824,8 +897,13 @@ def convergence():
     fig, ax = plt.subplots(1, 2)
 
     ax[0].set_title("transient")
-    ax[0].loglog(dts, dts_1, "-k", label="dt")
-    ax[0].loglog(dts, dts_2, "--k", label="dt^2")
+    ax[0].loglog(dts, dts, "-k", label="dt")
+    ax[0].loglog(dts, dts**2, "--k", label="dt^2")
+    ax[0].loglog(dts, dts**3, "-.k", label="dt^3")
+    ax[0].loglog(dts, dts**4, ":k", label="dt^4")
+    ax[0].loglog(dts, dts**5, "-ok", label="dt^5")
+    ax[0].loglog(dts, dts**6, "-xk", label="dt^6")
+    ax[0].loglog(dts, dts**7, "-sk", label="dt^7")
     ax[0].loglog(dts, q_errors_transient[0], "-.ro", label="q")
     ax[0].loglog(dts, u_errors_transient[0], "-.go", label="u")
     ax[0].loglog(dts, la_g_errors_transient[0], "-.bo", label="la_g")
@@ -834,8 +912,13 @@ def convergence():
     ax[0].legend()
 
     ax[1].set_title("long term")
-    ax[1].loglog(dts, dts_1, "-k", label="dt")
-    ax[1].loglog(dts, dts_2, "--k", label="dt^2")
+    ax[1].loglog(dts, dts, "-k", label="dt")
+    ax[1].loglog(dts, dts**2, "--k", label="dt^2")
+    ax[1].loglog(dts, dts**3, "-.k", label="dt^3")
+    ax[1].loglog(dts, dts**4, ":k", label="dt^4")
+    ax[1].loglog(dts, dts**5, "-ok", label="dt^5")
+    ax[1].loglog(dts, dts**6, "-xk", label="dt^6")
+    ax[1].loglog(dts, dts**7, "-sk", label="dt^7")
     ax[1].loglog(dts, q_errors_longterm[0], "-.ro", label="q")
     ax[1].loglog(dts, u_errors_longterm[0], "-.go", label="u")
     ax[1].loglog(dts, la_g_errors_longterm[0], "-.bo", label="la_g")

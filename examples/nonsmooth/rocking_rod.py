@@ -3,7 +3,8 @@ import matplotlib.pyplot as plt
 
 from cardillo.math import approx_fprime
 from cardillo import System
-from cardillo.solver import MoreauShifted, Rattle
+from cardillo.solver import MoreauShifted, Rattle, NPIRK
+from cardillo.solver._butcher_tableaus import RadauIIATableau
 
 
 class RockingRod:
@@ -123,7 +124,7 @@ class RockingRod:
     def W_F_dense(self, t, q):
         x, y, phi = q
         sp, cp = np.sin(phi), np.cos(phi)
-        W_F = np.zeros((self.nu, self.nla_N))
+        W_F = np.zeros((self.nu, self.nla_F))
         W_F[0, 0] = cp
         W_F[1, 0] = sp
         W_F[0, 1] = cp
@@ -155,10 +156,20 @@ class RockingRod:
         return self.W_F_dense(t, q).T @ a + self.zeta_F(t, q, u)
 
 
-Solver1, label1, dt1, kwargs1 = Rattle, "Rattle", 5e-3, {}
+Solver1, label1, dt1, kwargs1 = (
+    NPIRK,
+    "NPIRK",
+    5e-3,
+    {"butcher_tableau": RadauIIATableau(2)},
+)
+# Solver1, label1, dt1, kwargs1 = Rattle, "Rattle", 5e-3, {}
+# Solver1, label1, dt1, kwargs1 = MoreauShifted, "MoreauShifted", 5e-3, {}
 Solver2, label2, dt2, kwargs2 = MoreauShifted, "MoreauShifted", 5e-3, {}
 
 
+# This file implements the rocking rod system, see Section 5.2.2 in "Dynamik
+# von Starrkörpersystemen mit Reibung und Stößen", Christoph Glocker, PhD
+# thesis, TU Munich, 1995
 if __name__ == "__main__":
     mass = 1
     l = 1
@@ -176,21 +187,21 @@ if __name__ == "__main__":
     # u0 = np.array([0, 0, 0])
     # rods.append(RockingRod(mass, a, l, eN, eF, mu, q0, u0))
 
-    # # case 2
-    # a = 0.3
-    # x0 = a * (np.cos(phi0) - 1)
-    # y0 = a * np.sin(phi0)
-    # q0 = np.array([x0, y0, phi0])
-    # u0 = np.array([0, 0, 0])
-    # rods.append(RockingRod(mass, a, l, eN, eF, mu, q0, u0))
-
-    # case 3
-    a = 0.6
+    # case 2
+    a = 0.3
     x0 = a * (np.cos(phi0) - 1)
     y0 = a * np.sin(phi0)
     q0 = np.array([x0, y0, phi0])
     u0 = np.array([0, 0, 0])
     rods.append(RockingRod(mass, a, l, eN, eF, mu, q0, u0))
+
+    # # case 3
+    # a = 0.6
+    # x0 = a * (np.cos(phi0) - 1)
+    # y0 = a * np.sin(phi0)
+    # q0 = np.array([x0, y0, phi0])
+    # u0 = np.array([0, 0, 0])
+    # rods.append(RockingRod(mass, a, l, eN, eF, mu, q0, u0))
 
     t0 = 0  # initial simulation time
     t1 = 2  # end time

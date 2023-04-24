@@ -109,9 +109,7 @@ class SphereInSphere:
         return np.array([self.n(t, q) @ (self.v_P(t, q, u) - self.v_Q(t))])
 
     def g_N_ddot(self, t, q, u, u_dot):
-        g_N_dot_q = approx_fprime(
-            q, lambda t, q, u, u_dot: self.g_N_dot(t, q, u, u_dot)
-        )
+        g_N_dot_q = approx_fprime(q, lambda q: self.g_N_dot(t, q, u))
         g_N_dot_u = self.g_N_dot_u_dense(t, q)
         return g_N_dot_q @ self.subsystem.q_dot(t, q, u) + g_N_dot_u @ u_dot
 
@@ -148,7 +146,7 @@ class SphereInSphere:
 
     def gamma_F_dot(self, t, q, u, u_dot):
         # TODO: t1t2_dot(t)
-        gamma_T_q = approx_fprime(q, lambda t, q, u: self.gamma_F(t, q, u))
+        gamma_T_q = approx_fprime(q, lambda q: self.gamma_F(t, q, u))
         gamma_T_u = self.gamma_F_u_dense(t, q)
         return gamma_T_q @ self.subsystem.q_dot(t, q, u) + gamma_T_u @ u_dot
 

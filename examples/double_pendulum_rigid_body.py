@@ -110,16 +110,16 @@ if __name__ == "__main__":
     ############################################################################
     #                   model
     ############################################################################
-    model = System()
-    model.add(origin)
-    model.add(RB1)
-    model.add(joint1)
-    model.add(RB2)
-    model.add(joint2)
-    model.add(Force(lambda t: np.array([0, -g * m, 0]), RB1))
-    model.add(Force(lambda t: np.array([0, -g * m, 0]), RB2))
+    system = System()
+    system.add(origin)
+    system.add(RB1)
+    system.add(joint1)
+    system.add(RB2)
+    system.add(joint2)
+    system.add(Force(lambda t: np.array([0, -g * m, 0]), RB1))
+    system.add(Force(lambda t: np.array([0, -g * m, 0]), RB2))
 
-    model.assemble()
+    system.assemble()
 
     ############################################################################
     #                   solver
@@ -127,7 +127,7 @@ if __name__ == "__main__":
     t0 = 0
     t1 = 3
     dt = 5e-3
-    solver = ScipyIVP(model, t1, dt)
+    solver = ScipyIVP(system, t1, dt)
     # solver = EulerBackward(model, t1, dt)
 
     sol = solver.solve()
@@ -284,11 +284,11 @@ if __name__ == "__main__":
 
     x0 = np.array([alpha0, alpha0 + beta0, alpha_dot0, alpha_dot0 + beta_dot0])
     ref = solve_ivp(eqm, [t0, t1], x0, method="RK45", rtol=1e-8, atol=1e-12)
-    x = ref.y
+    y = ref.y
     t_ref = ref.t
 
-    alpha_ref = x[0]
-    phi_ref = x[1]
+    alpha_ref = y[0]
+    phi_ref = y[1]
 
     alpha = np.arctan2(sol.q[:, 0], -sol.q[:, 1])
     x_B2 = 2 * sol.q[:, 0]

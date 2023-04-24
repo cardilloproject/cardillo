@@ -4,7 +4,7 @@ from scipy.sparse import bmat, csc_matrix
 from scipy.integrate import solve_ivp
 from tqdm import tqdm
 
-from cardillo.solver import Solution, consistent_initial_conditions
+from cardillo.solver import Solution
 
 
 class ScipyIVP:
@@ -35,10 +35,6 @@ class ScipyIVP:
         self.frac = (t1 - t0) / 101
         self.pbar = tqdm(total=100, leave=True)
         self.i = 0
-
-        # check if initial state satisfies bilateral constraints on position and
-        # velocity level
-        consistent_initial_conditions(system)
 
     def event(self, t, x):
         q = x[: self.nq]

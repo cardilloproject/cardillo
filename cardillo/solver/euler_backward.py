@@ -2,8 +2,8 @@ import numpy as np
 from scipy.sparse import csc_matrix, csr_matrix, lil_matrix, eye, diags, bmat
 from tqdm import tqdm
 
-from cardillo.math import prox_sphere, fsolve, approx_fprime
-from cardillo.solver import Solution, consistent_initial_conditions
+from cardillo.math import fsolve, approx_fprime
+from cardillo.solver import Solution
 
 
 class EulerBackward:
@@ -47,17 +47,15 @@ class EulerBackward:
             self.ny += self.nla_g
 
         #######################################################################
-        # consistent initial conditions
+        # initial conditions
         #######################################################################
-        (
-            t0,
-            self.qn,
-            self.un,
-            q_dot0,
-            u_dot0,
-            la_g0,
-            la_gamma0,
-        ) = consistent_initial_conditions(system)
+        t0 = system.t0
+        self.qn = system.q0
+        self.un = system.u0
+        q_dot0 = system.q_dot0
+        u_dot0 = system.u_dot0
+        la_g0 = system.la_g0
+        la_gamma0 = system.la_gamma0
 
         self.y = np.zeros(self.ny, dtype=float)
         self.y[: self.nq] = q_dot0
@@ -293,7 +291,6 @@ class EulerBackward:
         )
 
 
-# TODO: Add stabilization and constraints g_S
 class NonsmoothBackwardEuler:
     def __init__(
         self,
@@ -354,18 +351,15 @@ class NonsmoothBackwardEuler:
         )
 
         #######################################################################
-        # consistent initial conditions
+        # initial conditions
         #######################################################################
-        (
-            self.tn,
-            self.qn,
-            self.un,
-            self.q_dotn,
-            self.u_dotn,
-            self.la_gn,
-            self.la_gamman,
-        ) = consistent_initial_conditions(system)
-
+        self.tn = system.t0
+        self.qn = system.q0
+        self.un = system.u0
+        self.q_dotn = system.q_dot0
+        self.u_dotn = system.u_dot0
+        self.la_gn = system.la_g0
+        self.la_gamman = system.la_gamma0
         self.la_Nn = system.la_N0
         self.la_Fn = system.la_F0
 
@@ -612,7 +606,7 @@ class NonsmoothBackwardEuler:
         diff = (J - J_num).toarray()
         # diff = diff[:self.split[0]]
         # diff = diff[self.split[0] : self.split[1]]
-        # diff = diff[self.split[0] : self.split[1], : self.split[0]]  # TODO: spot error
+        # diff = diff[self.split[0]:self.split[1], : self.split[0]]
         # diff = diff[self.split[0] : self.split[1], self.split[0] :]
         # diff = diff[self.split[1]:self.split[2]]
         # diff = diff[self.split[2]:self.split[3]]

@@ -1,4 +1,5 @@
 import numpy as np
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
@@ -15,7 +16,12 @@ from cardillo.solver import (
     MoreauShiftedNew,
     MoreauClassical,
     NonsmoothBackwardEuler,
+    NPIRK,
+    SimplifiedNonsmoothGeneralizedAlpha,
+    SimplifiedNonsmoothGeneralizedAlphaFirstOrder,
+    LobattoIIIAB,
 )
+from cardillo.solver._butcher_tableaus import RadauIIATableau, AlexanderTableau
 
 
 class Ball(RigidBodyEuler):
@@ -30,7 +36,7 @@ class Ball(RigidBodyEuler):
         return np.repeat(self.r_OP(t, q), n).reshape(3, n) + self.A_IK(t, q) @ K_r_SP
 
 
-def run(case):
+def run(case, export=True):
     """Example 10.1 of Capobianco2021.
 
     Three different cases are implemented:
@@ -47,7 +53,10 @@ def run(case):
     y0 = 1
     y_dot0 = 0
     # dt = 5e-4
+    # dt = 1e-3
+    # dt = 5e-3
     dt = 1e-2
+    # dt = 5e-2
 
     if case == 1:
         e_N, e_F, mu = 0.5, 0, 0
@@ -73,7 +82,8 @@ def run(case):
         x0 = -0.5
         x_dot0 = 1
         omega = 50
-        t_final = 1.5
+        # t_final = 1.5
+        t_final = 2
     else:
         raise AssertionError("Case not found!")
 
@@ -96,11 +106,23 @@ def run(case):
 
     system.assemble()
 
+    # solver1, label1 = LobattoIIIAB(system, t_final, dt, stages=3), "LobattoIIIAB"
+    solver1, label1 = NPIRK(system, t_final, dt, RadauIIATableau(2)), "NPIRK"
+    # solver1, label1 = NPIRK(system, t_final, dt, AlexanderTableau(3)), "NPIRK"
+    # solver1, label1 = (
+    #     SimplifiedNonsmoothGeneralizedAlpha(system, t_final, dt),
+    #     "Gen-alpha simplified",
+    # )
+    # solver1, label1 = (
+    #     SimplifiedNonsmoothGeneralizedAlphaFirstOrder(system, t_final, dt),
+    #     "Gen-alpha simplified first order",
+    # )
+
     # solver1, label1 = NonsmoothGeneralizedAlpha(system, t_final, dt, method="newton"), "Gen-alpha"
     # solver1, label1 = Rattle(system, t_final, dt), "Rattle"
     # solver1, label1 = MoreauShifted(system, t_final, dt), "MoreauShifted"
     # solver1, label1 = MoreauShiftedNew(system, t_final, dt), "MoreauShiftedNew"
-    solver1, label1 = MoreauClassical(system, t_final, dt), "MoreauClassical"
+    # solver1, label1 = MoreauClassical(system, t_final, dt), "MoreauClassical"
     # solver1, label1 = NonsmoothBackwardEuler(system, t_final, dt), "Euler backward"
 
     sol1 = solver1.solve()
@@ -114,11 +136,11 @@ def run(case):
     P_N1 = sol1.P_N
     P_F1 = sol1.P_F
 
-    # solver2, label2 = (
-    #     NonsmoothGeneralizedAlpha(system, t_final, dt),
-    #     "Gen-alpha",
-    # )
-    solver2, label2 = MoreauShifted(system, t_final, dt), "Moreau"
+    solver2, label2 = (
+        NonsmoothGeneralizedAlpha(system, t_final, dt),
+        "Gen-alpha",
+    )
+    # solver2, label2 = MoreauClassical(system, t_final, dt), "Moreau"
     # solver2, label2 = Rattle(system, t_final, dt), "Rattle"
     sol2 = solver2.solve()
     t2 = sol2.t
@@ -130,6 +152,95 @@ def run(case):
     # La_F2 = sol2.La_F
     P_N2 = sol2.P_N
     P_F2 = sol2.P_F
+
+    if export:
+        path = Path(__file__)
+
+        ###############
+        # gap functions
+        ###############
+        g_N1 = np.array([system.g_N(ti, qi) for ti, qi in zip(sol1.t, sol1.q)])
+        np.savetxt(
+            path.parent / "g_N1.dat",
+            np.hstack((sol1.t[:, None], g_N1)),
+            delimiter=", ",
+            header="t, g_N",
+            comments="",
+        )
+
+        g_N2 = np.array([system.g_N(ti, qi) for ti, qi in zip(sol2.t, sol2.q)])
+        np.savetxt(
+            path.parent / "g_N2.dat",
+            np.hstack((sol2.t[:, None], g_N2)),
+            delimiter=", ",
+            header="t, g_N",
+            comments="",
+        )
+
+        ################
+        # contact forces
+        ################
+        np.savetxt(
+            path.parent / "P_N1.dat",
+            np.hstack((sol1.t[:, None], P_N1)),
+            delimiter=", ",
+            header="t, P_N",
+            comments="",
+        )
+        np.savetxt(
+            path.parent / "P_N2.dat",
+            np.hstack((sol2.t[:, None], P_N2)),
+            delimiter=", ",
+            header="t, P_N",
+            comments="",
+        )
+        np.savetxt(
+            path.parent / "int_P_N1.dat",
+            np.hstack((sol1.t[:, None], np.cumsum(P_N1, axis=0))),
+            delimiter=", ",
+            header="t, P_N",
+            comments="",
+        )
+        np.savetxt(
+            path.parent / "int_P_N2.dat",
+            np.hstack((sol2.t[:, None], np.cumsum(P_N2, axis=0))),
+            delimiter=", ",
+            header="t, P_N",
+            comments="",
+        )
+
+        #################
+        # friction forces
+        #################
+        if mu > 0:
+            np.savetxt(
+                path.parent / "P_F1.dat",
+                np.hstack((sol1.t[:, None], P_F1)),
+                delimiter=", ",
+                header="t, P_F1, P_F2",
+                comments="",
+            )
+            np.savetxt(
+                path.parent / "P_F2.dat",
+                np.hstack((sol2.t[:, None], P_F2)),
+                delimiter=", ",
+                header="t, P_F1, P_F2",
+                comments="",
+            )
+            np.savetxt(
+                path.parent / "int_P_F1.dat",
+                np.hstack((sol1.t[:, None], np.cumsum(P_F1, axis=0))),
+                delimiter=", ",
+                header="t, P_F1, P_F2",
+                comments="",
+            )
+            np.savetxt(
+                path.parent / "int_P_F2.dat",
+                np.hstack((sol2.t[:, None], np.cumsum(P_F2, axis=0))),
+                delimiter=", ",
+                header="t, P_F1, P_F2",
+                comments="",
+            )
 
     fig, ax = plt.subplots(2, 3)
 

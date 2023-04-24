@@ -9,7 +9,9 @@ from cardillo.solver import (
     MoreauShifted,
     NonsmoothGeneralizedAlpha,
     Rattle,
+    NPIRK,
 )
+from cardillo.solver._butcher_tableaus import RadauIIATableau
 
 
 class Painleve_rod:
@@ -245,10 +247,15 @@ if __name__ == "__main__":
     system.assemble()
 
     t_final = 1.5
-    dt1 = 1e-2
+    dt1 = 5e-3
     dt2 = 5e-3
 
-    sol1, label1 = Rattle(system, t_final, dt1, atol=1e-10).solve(), "Rattle"
+    sol1, label1 = (
+        NPIRK(system, t_final, dt1, RadauIIATableau(2)).solve(),
+        "NPIRK",
+    )
+
+    # sol1, label1 = Rattle(system, t_final, dt1, atol=1e-10).solve(), "Rattle"
 
     sol2, label2 = (
         MoreauShifted(system, t_final, dt2, fix_point_tol=1e-6).solve(),
@@ -258,13 +265,13 @@ if __name__ == "__main__":
     t1 = sol1.t
     q1 = sol1.q
     u1 = sol1.u
-    P_N1 = sol1.P_N
-    P_F1 = sol1.P_F
+    R_N1 = sol1.P_N
+    R_F1 = sol1.P_F
     t2 = sol2.t
     q2 = sol2.q
     u2 = sol2.u
     P_N2 = sol2.P_N
-    P_F2 = sol2.P_F
+    R_F2 = sol2.P_F
 
     t_a = 0.83
 
@@ -369,17 +376,17 @@ if __name__ == "__main__":
 
     ax[1, 0].set_xlabel("t [s]")
     ax[1, 0].set_ylabel("P_N")
-    ax[1, 0].plot(t1, P_N1[:, 0], "-k", label=label1)
+    ax[1, 0].plot(t1, R_N1[:, 0], "-k", label=label1)
     ax[1, 0].plot(t2, P_N2[:, 0], "--r", label=label2)
-    ax[1, 0].plot([t_a, t_a], [min(P_N1), max(P_N1)], "--k")
+    ax[1, 0].plot([t_a, t_a], [min(R_N1), max(R_N1)], "--k")
     ax[1, 0].grid()
     ax[1, 0].legend()
 
     ax[1, 2].set_xlabel("t [s]")
     ax[1, 2].set_ylabel("P_F1")
-    ax[1, 2].plot(t1, P_F1[:, 0], "-k", label=label1)
-    ax[1, 2].plot(t2, P_F2[:, 0], "--r", label=label2)
-    ax[1, 2].plot([t_a, t_a], [min(P_F1[:, 0]), max(P_F1[:, 0])], "--k")
+    ax[1, 2].plot(t1, R_F1[:, 0], "-k", label=label1)
+    ax[1, 2].plot(t2, R_F2[:, 0], "--r", label=label2)
+    ax[1, 2].plot([t_a, t_a], [min(R_F1[:, 0]), max(R_F1[:, 0])], "--k")
     ax[1, 2].grid()
     ax[1, 2].legend()
 

@@ -11,10 +11,22 @@ from cardillo.discrete import RigidBodyEuler
 from cardillo.discrete import Frame
 from cardillo.forces import Force
 from cardillo.contacts import Sphere2Plane
-from cardillo.solver import MoreauShifted, Rattle, NonsmoothBackwardEuler
+from cardillo.solver import (
+    MoreauShifted,
+    Rattle,
+    NonsmoothBackwardEuler,
+    NPIRK,
+)
+from cardillo.solver._butcher_tableaus import RadauIIATableau
 
 
-Solver1, label1, dt1, kwargs1 = NonsmoothBackwardEuler, "Euler backward", 1e-2, {}
+Solver1, label1, dt1, kwargs1 = (
+    NPIRK,
+    "NPIRK",
+    5e-2,
+    {"butcher_tableau": RadauIIATableau(2)},
+)
+# Solver1, label1, dt1, kwargs1 = NonsmoothBackwardEuler, "Euler backward", 1e-2, {}
 # Solver1, label1, dt1, kwargs1 = Rattle, "Rattle", 1e-2, {}
 # Solver1, label1, dt1, kwargs1 = MoreauShifted, "MoreauShifted", 2e-2, {}
 Solver2, label2, dt2, kwargs2 = MoreauShifted, "MoreauShifted", 1e-2, {}
@@ -56,7 +68,7 @@ def run():
     u0 = np.concatenate([vS0, np.array([0, 0, phi_dot0], dtype=float)])
     RB = Ball(m, r, q0, u0)
 
-    alpha = -pi / 4
+    alpha = -pi / 4 * 1.1
     e1, e2, e3 = A_IK_basic(alpha).z().T
     frame_left = Frame(A_IK=np.vstack((e3, e1, e2)).T)
     mu = 0.3
@@ -72,12 +84,14 @@ def run():
     # e_N = 0.0  # TODO: Remove this
     e_F = 0.0
     plane_right = Sphere2Plane(frame_right, RB, r, mu, e_N=e_N, e_F=e_F)
+    # plane_right2 = Sphere2Plane(frame_right, RB, r, mu, e_N=e_N, e_F=e_F)
 
     system = System()
     system.add(RB)
     system.add(Force(lambda t: np.array([0, -g * m, 0]), RB))
     system.add(plane_right)
     system.add(plane_left)
+    # system.add(plane_right2)
 
     system.assemble()
 
@@ -112,7 +126,6 @@ def run():
     ax[1, 0].legend()
 
     ax[0, 1].set_title("y(t)")
-    ax[0, 1].plot([t2[0], t2[-1]], [r, r], "-k", label="ground")
     ax[0, 1].plot(t1, q1[:, 1], "--k", label=label1)
     ax[0, 1].plot(t2, q2[:, 1], "--r", label=label2)
     ax[0, 1].legend()
@@ -134,23 +147,38 @@ def run():
 
     plt.tight_layout()
 
-    fig, ax = plt.subplots(1, 3)
+    fig, ax = plt.subplots(2, 3)
 
-    ax[0].set_title("P_N(t)")
-    ax[0].plot(t1, P_N1[:, 0], "-k", label=label1)
-    ax[0].plot(t2, P_N2[:, 0], "--r", label=label2)
-    ax[0].legend()
+    ax[0, 0].set_title("P_N_left(t)")
+    ax[0, 0].plot(t1, P_N1[:, 0], "-k", label=label1)
+    ax[0, 0].plot(t2, P_N2[:, 0], "--r", label=label2)
+    ax[0, 0].legend()
+
+    ax[1, 0].set_title("P_N_right(t)")
+    ax[1, 0].plot(t1, P_N1[:, 1], "-k", label=label1)
+    ax[1, 0].plot(t2, P_N2[:, 1], "--r", label=label2)
+    ax[1, 0].legend()
 
     if mu > 0:
-        ax[1].set_title("P_Fx(t)")
-        ax[1].plot(t1, P_F1[:, 0], "-k", label=label1)
-        ax[1].plot(t2, P_F2[:, 0], "--r", label=label2)
-        ax[1].legend()
+        ax[0, 1].set_title("P_Fx_left(t)")
+        ax[0, 1].plot(t1, P_F1[:, 0], "-k", label=label1)
+        ax[0, 1].plot(t2, P_F2[:, 0], "--r", label=label2)
+        ax[0, 1].legend()
 
-        ax[2].set_title("P_Fy(t)")
-        ax[2].plot(t1, P_F1[:, 1], "-k", label=label1)
-        ax[2].plot(t2, P_F2[:, 1], "--r", label=label2)
-        ax[2].legend()
+        ax[0, 2].set_title("P_Fy_left(t)")
+        ax[0, 2].plot(t1, P_F1[:, 1], "-k", label=label1)
+        ax[0, 2].plot(t2, P_F2[:, 1], "--r", label=label2)
+        ax[0, 2].legend()
+
+        ax[1, 1].set_title("P_Fx_right(t)")
+        ax[1, 1].plot(t1, P_F1[:, 2], "-k", label=label1)
+        ax[1, 1].plot(t2, P_F2[:, 2], "--r", label=label2)
+        ax[1, 1].legend()
+
+        ax[1, 2].set_title("P_Fy_right(t)")
+        ax[1, 2].plot(t1, P_F1[:, 3], "-k", label=label1)
+        ax[1, 2].plot(t2, P_F2[:, 3], "--r", label=label2)
+        ax[1, 2].legend()
 
     plt.tight_layout()
 

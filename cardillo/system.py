@@ -1,6 +1,7 @@
 import numpy as np
 from cardillo.utility.coo import Coo
 from cardillo.discrete.frame import Frame
+from cardillo.solver import consistent_initial_conditions
 from scipy.sparse import coo_matrix, csc_matrix, csr_matrix
 from scipy.sparse.linalg import spsolve
 from copy import deepcopy
@@ -131,11 +132,6 @@ class System:
         self.nla_F = 0
         q0 = []
         u0 = []
-        la_g0 = []
-        la_gamma0 = []
-        la_S0 = []
-        la_N0 = []
-        la_F0 = []
         e_N = []
         e_F = []
         mu = []
@@ -190,12 +186,11 @@ class System:
                 # normal
                 contr.la_NDOF = np.arange(0, contr.nla_N) + self.nla_N
                 self.nla_N += contr.nla_N
-                la_N0.extend(contr.la_N0.tolist())
                 e_N.extend(contr.e_N.tolist())
+
                 # tangential
                 contr.la_FDOF = np.arange(0, contr.nla_F) + self.nla_F
                 self.nla_F += contr.nla_F
-                la_F0.extend(contr.la_F0.tolist())
                 e_F.extend(contr.e_F.tolist())
                 mu.extend(contr.mu.tolist())
                 for i in range(contr.nla_N):
@@ -208,14 +203,6 @@ class System:
                     Ncontr_connectivity.append(n_laN_contr)
                 n_laN_contr += 1
 
-        self.q0 = np.array(q0)
-        self.u0 = np.array(u0)
-        # TODO remove la_g, la_gamma, la_S
-        self.la_g0 = np.zeros(self.nla_g)
-        self.la_gamma0 = np.zeros(self.nla_gamma)
-        self.la_S0 = np.zeros(self.nla_S)
-        self.la_N0 = np.array(la_N0)
-        self.la_F0 = np.array(la_F0)
         self.NF_connectivity = NF_connectivity
         self.N_has_friction = np.array(N_has_friction, dtype=bool)
         self.Ncontr_connectivity = np.array(Ncontr_connectivity, dtype=int)
@@ -225,6 +212,21 @@ class System:
 
         # call assembler callback: call methods that require first an assembly of the system
         self.assembler_callback()
+
+        # compute consisten initial conditions
+        self.q0 = np.array(q0)
+        self.u0 = np.array(u0)
+        (
+            self.t0,
+            self.q0,
+            self.u0,
+            self.q_dot0,
+            self.u_dot0,
+            self.la_g0,
+            self.la_gamma0,
+            self.la_N0,
+            self.la_F0,
+        ) = consistent_initial_conditions(self)
 
     def assembler_callback(self):
         for contr in self.__assembler_callback_contr:
