@@ -52,6 +52,7 @@ class RigidBodyEuler(RigidBodyBase):
         return inv3D(H)
 
     def Q_q(self, q):
+        raise NotImplementedError
         A_K2 = self.A_2K(q).T
         A_K1 = A_K2 @ self.A_12(q).T
 
@@ -81,15 +82,14 @@ class RigidBodyEuler(RigidBodyBase):
         q_ddot += q_dot_q @ self.q_dot(t, q, u)
         return q_ddot
 
-    def q_dot_q(self, t, q, u, coo):
-        dense = approx_fprime(q, lambda q: self.q_dot(t, q, u))
-        coo.extend(dense, (self.qDOF, self.qDOF))
+    def q_dot_q(self, t, q, u):
+        return approx_fprime(q, lambda q: self.q_dot(t, q, u))
 
-    def B(self, t, q, coo):
+    def B(self, t, q):
         B = np.zeros((self.nq, self.nu), dtype=q.dtype)
         B[:3, :3] = np.eye(3)
         B[3:, 3:] = self.Q(q)
-        coo.extend(B, (self.qDOF, self.uDOF))
+        return B
 
     def A_IK(self, t, q, frame_ID=None):
         return self.A_I1(q) @ self.A_12(q) @ self.A_2K(q)

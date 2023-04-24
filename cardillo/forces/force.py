@@ -25,9 +25,8 @@ class Force:
     def h(self, t, q, u):
         return self.force(t) @ self.J_P(t, q)
 
-    def h_q(self, t, q, u, coo):
-        f_q = einsum("i,ijk->jk", self.force(t), self.J_P_q(t, q))
-        coo.extend(f_q, (self.uDOF, self.qDOF))
+    def h_q(self, t, q, u):
+        return einsum("i,ijk->jk", self.force(t), self.J_P_q(t, q))
 
     def export(self, sol_i, **kwargs):
         points = [self.r_OP(sol_i.t, sol_i.q[self.qDOF])]
@@ -63,8 +62,7 @@ class K_Force:
     def h(self, t, q, u):
         return (self.A_IK(t, q) @ self.force(t)) @ self.J_P(t, q)
 
-    def h_q(self, t, q, u, coo):
-        f_q = einsum(
+    def h_q(self, t, q, u):
+        return einsum(
             "ijk,j,il->lk", self.A_IK_q(t, q), self.force(t), self.J_P(t, q)
         ) + einsum("i,ijk->jk", self.A_IK(t, q) @ self.force(t), self.J_P_q(t, q))
-        coo.extend(f_q, (self.uDOF, self.qDOF))
