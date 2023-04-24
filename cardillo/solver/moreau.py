@@ -3,7 +3,7 @@ from scipy.sparse import csr_matrix, csc_matrix, bmat
 from scipy.sparse.linalg import splu
 from tqdm import tqdm
 
-from cardillo.solver import Solution, consistent_initial_conditions, compute_I_F
+from cardillo.solver import Solution, compute_I_F
 from cardillo.math import prox_R0_np, prox_sphere
 
 
@@ -40,18 +40,16 @@ class MoreauShifted:
         self.nR_smooth = self.nu + self.nla_g + self.nla_gamma
         self.nR = self.nR_smooth + self.nla_N + self.nla_F
 
-        # consistent initial conditions
-        (
-            self.tk,
-            self.qk,
-            self.uk,
-            self.q_dotk,
-            self.u_dotk,
-            la_g0,
-            la_gamma0,
-            la_N0,
-            la_F0,
-        ) = consistent_initial_conditions(system)
+        # initial conditions
+        self.tk = system.t0
+        self.qk = system.q0
+        self.uk = system.u0
+        self.q_dotk = system.q_dot0
+        self.u_dotk = system.u_dot0
+        la_g0 = system.la_g0
+        la_gamma0 = system.la_gamma0
+        la_N0 = system.la_N0
+        la_F0 = system.la_F0
 
         # consistent initial percussion
         self.P_gk = la_g0 * dt
@@ -306,18 +304,16 @@ class MoreauShiftedNew:
         # connectivity matrix of normal force directions and friction force directions
         self.NF_connectivity = self.system.NF_connectivity
 
-        # consistent initial conditions
-        (
-            self.tn,
-            self.qn,
-            self.un,
-            self.q_dotn,
-            self.u_dotn,
-            la_g0,
-            la_gamma0,
-            la_N0,
-            la_F0,
-        ) = consistent_initial_conditions(system)
+        # initial conditions
+        self.tn = system.t0
+        self.qn = system.q0
+        self.un = system.u0
+        self.q_dotn = system.q_dot0
+        self.u_dotn = system.u_dot0
+        la_g0 = system.la_g0
+        la_gamma0 = system.la_gamma0
+        la_N0 = system.la_N0
+        la_F0 = system.la_F0
 
         # consistent initial percussion
         self.P_gn = la_g0 * dt
@@ -583,18 +579,16 @@ class MoreauClassical:
         # connectivity matrix of normal force directions and friction force directions
         self.NF_connectivity = self.system.NF_connectivity
 
-        # consistent initial conditions
-        (
-            self.tn,
-            self.qn,
-            self.un,
-            self.q_dotn,
-            self.u_dotn,
-            la_g0,
-            la_gamma0,
-            la_N0,
-            la_F0,
-        ) = consistent_initial_conditions(system)
+        # initial conditions
+        self.tn = system.t0
+        self.qn = system.q0
+        self.un = system.u0
+        self.q_dotn = system.q_dot0
+        self.u_dotn = system.u_dot0
+        la_g0 = system.la_g0
+        la_gamma0 = system.la_gamma0
+        la_N0 = system.la_N0
+        la_F0 = system.la_F0
 
         # consistent initial percussion
         self.P_gn = la_g0 * dt

@@ -15,7 +15,7 @@ from cardillo.solver import (
     Rattle,
     NonsmoothPIRK,
     NonsmoothGeneralizedAlpha,
-    SimplifiedNonsmoothGeneralizedAlphaNoAcceleration,
+    SimplifiedNonsmoothGeneralizedAlpha,
     LobattoIIIAB,
 )
 from cardillo.solver._butcher_tableaus import RadauIIATableau
@@ -204,9 +204,9 @@ x_dot0 = 0
 ball = BallOnExp(m, g, mu, x0, x_dot0, e_N, e_F)
 
 # assemble model
-model = System()
-model.add(ball)
-model.assemble()
+system = System()
+system.add(ball)
+system.assemble()
 
 
 def plot(sol):
@@ -257,7 +257,7 @@ def state():
 
     # solve problem
     # solver1, label1 = MoreauClassical(model, t_final, dt), "Moreau classical"
-    solver1, label1 = Rattle(model, t_final, dt), "Rattle"
+    solver1, label1 = Rattle(system, t_final, dt), "Rattle"
     # solver1, label1 = NonsmoothGeneralizedAlpha(model, t_final, dt), "Gen-alpha"
     # solver1, label1 = NonsmoothPIRK(model, t_final, dt, RadauIIATableau(2)), "NPRIK"
     # solver1, label1 = (
@@ -272,7 +272,7 @@ def state():
     P_N1 = sol1.P_N
     P_F1 = sol1.P_F
 
-    solver2, label2 = MoreauShifted(model, t_final, dt), "Moreau shifted"
+    solver2, label2 = MoreauShifted(system, t_final, dt), "Moreau shifted"
 
     sol2 = solver2.solve()
     t2 = sol2.t
@@ -287,7 +287,7 @@ def state():
     # export
     ########
     export_txt(
-        model,
+        system,
         sol1,
         ["q", "u", "P_N", "P_F"],
         ["g_N", "g_N_dot", "gamma_F"],
@@ -400,10 +400,8 @@ def convergence():
     # get_solver = lambda t_final, dt, atol: NonsmoothPIRK(
     #     model, t_final, dt, RadauIIATableau(2), atol=atol
     # )
-    get_solver = (
-        lambda t_final, dt, atol: SimplifiedNonsmoothGeneralizedAlphaNoAcceleration(
-            model, t_final, dt, atol=atol
-        )
+    get_solver = lambda t_final, dt, atol: SimplifiedNonsmoothGeneralizedAlpha(
+        system, t_final, dt, atol=atol
     )
 
     errors = convergence_analysis(

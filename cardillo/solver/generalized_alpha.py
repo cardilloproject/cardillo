@@ -4,7 +4,7 @@ from scipy.sparse import csr_matrix, bmat, eye, block_diag
 from tqdm import tqdm
 
 from cardillo.math import approx_fprime
-from cardillo.solver import Solution, consistent_initial_conditions
+from cardillo.solver import Solution
 
 
 # TODO: Refactor me!
@@ -829,7 +829,7 @@ class GeneralizedAlphaFirstOrder:
 class GeneralizedAlphaSecondOrder:
     def __init__(
         self,
-        model,
+        system,
         t1,
         dt,
         rho_inf=0.9,
@@ -839,11 +839,11 @@ class GeneralizedAlphaSecondOrder:
         numerical_jacobian=False,
         GGL=False,
     ):
-        self.model = model
+        self.system = system
         self.GGL = GGL
 
         # initial time, final time, time step
-        self.t0 = t0 = model.t0
+        self.t0 = t0 = system.t0
         self.t1 = (
             t1 if t1 > t0 else ValueError("t1 must be larger than initial time t0.")
         )
@@ -863,106 +863,87 @@ class GeneralizedAlphaSecondOrder:
         self.error_function = error_function
 
         # dimensions (nq = number of coordinates q, etc.)
-        self.nq = model.nq
-        self.nu = model.nu
-        self.nla_g = model.nla_g
-        self.nla_gamma = model.nla_gamma
+        self.nq = system.nq
+        self.nu = system.nu
+        self.nla_g = system.nla_g
+        self.nla_gamma = system.nla_gamma
 
         # dimensions of residual
         self.nR = self.nu + self.nla_g + self.nla_gamma
         if self.GGL:
             self.nR += self.nla_g
 
-        # compute consistent initial conditions
-        (
-            t0,
-            q0,
-            u0,
-            q_dot0,
-            u_dot0,
-            la_g0,
-            la_gamma0,
-            la_N0,
-            la_F0,
-        ) = consistent_initial_conditions(model)
-
         # set initial conditions
-        self.tk = t0
-        self.qk = q0
-        self.uk = u0
-        self.q_dotk = q_dot0
-        self.u_dotk = u_dot0
-        self.ak = u_dot0
-        self.la_gk = la_g0
-        self.la_gammak = la_gamma0
+        self.tn = system.t0
+        self.qn = system.q0
+        self.un = system.u0
+        self.q_dotn = system.q_dot0
+        self.u_dotn = system.u_dot0
+        self.la_gn = system.la_g0
+        self.la_gamman = system.la_gamma0
         if self.GGL:
-            self.mu_gk = np.zeros_like(la_g0)
+            self.mu_gn = np.zeros_like(self.la_gn)
 
         # initial state
         if self.GGL:
-            self.xk = np.concatenate(
-                (self.u_dotk, self.la_gk, self.la_gammak, self.mu_gk)
+            self.xn = np.concatenate(
+                (self.u_dotn, self.la_gn, self.la_gamman, self.mu_gn)
             )
         else:
-            self.xk = np.concatenate((self.u_dotk, self.la_gk, self.la_gammak))
+            self.xn = np.concatenate((self.u_dotn, self.la_gn, self.la_gamman))
 
         if numerical_jacobian:
             self.__R_gen = self.__R_gen_num
         else:
             self.__R_gen = self.__R_gen_analytic
 
-    def update(self, xk1, store=False):
+    def update(self, xn1, store=False):
         """Update dependent variables."""
         nu = self.nu
         nla_g = self.nla_g
 
         # constants
         dt = self.dt
-        dt2 = dt * dt
         gamma = self.gamma
         alpha_f = self.alpha_f
         alpha_m = self.alpha_m
         beta = self.beta
 
         # extract accelerations
-        u_dotk1 = xk1[:nu]
+        u_dotn1 = xn1[:nu]
 
         # eqn. (71): compute auxiliary acceleration variables
-        ak1 = (
-            alpha_f * self.u_dotk + (1.0 - alpha_f) * u_dotk1 - alpha_m * self.ak
+        an1 = (
+            alpha_f * self.u_dotn + (1.0 - alpha_f) * u_dotn1 - alpha_m * self.an
         ) / (1.0 - alpha_m)
 
         # eqn. (73): velocity update formula
-        uk1 = self.uk + dt * ((1.0 - gamma) * self.ak + gamma * ak1)
+        un1 = self.un + dt * ((1.0 - gamma) * self.an + gamma * an1)
 
         # # eqn. (125): generalized position update formula
+        # dt2 = dt * dt
         # u_dot_beta = (1.0 - 2.0 * beta) * self.ak + 2.0 * beta * ak1
-        # qk1 = (
-        #     self.qk
-        #     + dt * self.model.q_dot(self.tk, self.qk, self.uk)
-        #     + 0.5 * dt2 * self.model.q_ddot(self.tk, self.qk, self.uk, u_dot_beta)
+        # qn1 = (
+        #     self.qn
+        #     + dt * self.model.q_dot(self.tn, self.qn, self.un)
+        #     + 0.5 * dt2 * self.model.q_ddot(self.tn, self.qn, self.un, u_dot_beta)
         # )
 
         # kinematic update proposed by Arnold2017, (56a) and (56b)
-        Delta_uk1 = self.uk + dt * ((0.5 - beta) * self.ak + beta * ak1)
-        qk1 = self.qk + dt * self.model.q_dot(self.tk, self.qk, Delta_uk1)
+        Delta_un1 = self.un + dt * ((0.5 - beta) * self.an + beta * an1)
+        qn1 = self.qn + dt * self.system.q_dot(self.tn, self.qn, Delta_un1)
 
         if self.GGL:
-            mu_gk1 = xk1[-nla_g:]
-            qk1 += self.model.g_q(self.tk, self.qk).T @ mu_gk1
-
-            # def fun(q):
-            #     return q - self.qk - dt * self.model.q_dot(self.tk, q, Delta_uk1) - self.model.g_q(self.tk, q).T @ mu_gk1
-            # from scipy.optimize import fsolve
-            # qk1 = fsolve(fun, qk1)
+            mu_gn1 = xn1[-nla_g:]
+            qn1 += self.system.g_q(self.tn, self.qn).T @ mu_gn1
 
         if store:
-            self.u_dotk = u_dotk1
-            self.uk = uk1
-            self.qk = qk1
-            self.ak = ak1
+            self.u_dotn = u_dotn1
+            self.un = un1
+            self.qn = qn1
+            self.an = an1
 
-        return qk1, uk1
+        return qn1, un1
 
     def pack(self, *args):
         return np.concatenate([*args])
@@ -985,24 +966,24 @@ class GeneralizedAlphaSecondOrder:
         yield self.__R(tk1, sk1)
         yield csr_matrix(self.__J_num(tk1, sk1))
 
-    def __R_gen_analytic(self, tk1, xk1):
+    def __R_gen_analytic(self, tn1, xn1):
         nu = self.nu
         nla_g = self.nla_g
         nla_gamma = self.nla_gamma
 
-        # extract vector of nknowns
+        # extract vector of unknowns
         if self.GGL:
-            u_dotk1, la_gk1, la_gammak1, mu_gk1 = self.unpack(xk1)
+            u_dotn1, la_gn1, la_gamman1, mu_gn1 = self.unpack(xn1)
         else:
-            u_dotk1, la_gk1, la_gammak1 = self.unpack(xk1)
+            u_dotn1, la_gn1, la_gamman1 = self.unpack(xn1)
 
         # update dependent variables
-        qk1, uk1 = self.update(xk1, store=False)
+        qn1, un1 = self.update(xn1, store=False)
 
         # evaluate repeated used quantities
-        Mk1 = self.model.M(tk1, qk1, scipy_matrix=csr_matrix)
-        W_gk1 = self.model.W_g(tk1, qk1, scipy_matrix=csr_matrix)
-        W_gammak1 = self.model.W_gamma(tk1, qk1, scipy_matrix=csr_matrix)
+        Mn1 = self.system.M(tn1, qn1, scipy_matrix=csr_matrix)
+        W_gn1 = self.system.W_g(tn1, qn1, scipy_matrix=csr_matrix)
+        W_gamman1 = self.system.W_gamma(tn1, qn1, scipy_matrix=csr_matrix)
 
         ###################
         # evaluate residual
@@ -1011,17 +992,17 @@ class GeneralizedAlphaSecondOrder:
 
         # equations of motion
         R[:nu] = (
-            Mk1 @ u_dotk1
-            - self.model.h(tk1, qk1, uk1)
-            - W_gk1 @ la_gk1
-            - W_gammak1 @ la_gammak1
+            Mn1 @ u_dotn1
+            - self.system.h(tn1, qn1, un1)
+            - W_gn1 @ la_gn1
+            - W_gamman1 @ la_gamman1
         )
 
         # bilateral constraints
-        R[nu : nu + nla_g] = self.model.g(tk1, qk1)
-        R[nu + nla_g : nu + nla_g + nla_gamma] = self.model.gamma(tk1, qk1, uk1)
+        R[nu : nu + nla_g] = self.system.g(tn1, qn1)
+        R[nu + nla_g : nu + nla_g + nla_gamma] = self.system.gamma(tn1, qn1, un1)
         if self.GGL:
-            R[nu + nla_g + nla_gamma :] = self.model.g_dot(tk1, qk1, uk1)
+            R[nu + nla_g + nla_gamma :] = self.system.g_dot(tn1, qn1, un1)
 
         yield R
 
@@ -1030,45 +1011,45 @@ class GeneralizedAlphaSecondOrder:
         ###################
 
         # chain rules
-        ak1_u_dotk1 = (1.0 - self.alpha_f) / (1.0 - self.alpha_m)
-        uk1_ak1 = self.dt * self.gamma
-        uk1_u_dotk1 = uk1_ak1 * ak1_u_dotk1
-        qk1_ak1 = self.dt**2 * self.beta * self.model.B(self.tk, self.qk)
-        qk1_u_dotk1 = qk1_ak1 * ak1_u_dotk1
-        qk1_muk1 = self.model.g_q(self.tk, self.qk).T
+        an1_u_dotn1 = (1.0 - self.alpha_f) / (1.0 - self.alpha_m)
+        un1_an1 = self.dt * self.gamma
+        un1_u_dotn1 = un1_an1 * an1_u_dotn1
+        qn1_an1 = self.dt**2 * self.beta * self.system.B(self.tn, self.qn)
+        qn1_u_dotn1 = qn1_an1 * an1_u_dotn1
+        qn1_mun1 = self.system.g_q(self.tn, self.qn).T
 
         K = (
-            self.model.Mu_q(tk1, qk1, u_dotk1)
-            - self.model.h_q(tk1, qk1, uk1)
-            - self.model.Wla_g_q(tk1, qk1, la_gk1)
-            - self.model.Wla_gamma_q(tk1, qk1, la_gammak1)
+            self.system.Mu_q(tn1, qn1, u_dotn1)
+            - self.system.h_q(tn1, qn1, un1)
+            - self.system.Wla_g_q(tn1, qn1, la_gn1)
+            - self.system.Wla_gamma_q(tn1, qn1, la_gamman1)
         )
-        h_uk1 = self.model.h_u(tk1, qk1, uk1)
+        h_un1 = self.system.h_u(tn1, qn1, un1)
 
-        g_qk1 = self.model.g_q(tk1, qk1)
-        gamma_qk1 = self.model.gamma_q(tk1, qk1, uk1)
+        g_qn1 = self.system.g_q(tn1, qn1)
+        gamma_qn1 = self.system.gamma_q(tn1, qn1, un1)
 
-        g_u_dotk1 = g_qk1 @ qk1_u_dotk1
-        gamma_u_dotk1 = gamma_qk1 @ qk1_u_dotk1 + W_gammak1.T * uk1_u_dotk1
+        g_u_dotn1 = g_qn1 @ qn1_u_dotn1
+        gamma_u_dotn1 = gamma_qn1 @ qn1_u_dotn1 + W_gamman1.T * un1_u_dotn1
 
         if self.GGL:
-            g_muk1 = g_qk1 @ qk1_muk1
+            g_mun1 = g_qn1 @ qn1_mun1
 
-            gamma_muk1 = gamma_qk1 @ qk1_muk1
+            gamma_mun1 = gamma_qn1 @ qn1_mun1
 
-            g_dot_qk1 = self.model.g_dot_q(tk1, qk1, uk1)
-            g_dot_u_dotk1 = g_dot_qk1 @ qk1_u_dotk1 + W_gk1.T * uk1_u_dotk1
-            g_dot_muk1 = g_dot_qk1 @ qk1_muk1
+            g_dot_qn1 = self.system.g_dot_q(tn1, qn1, un1)
+            g_dot_u_dotn1 = g_dot_qn1 @ qn1_u_dotn1 + W_gn1.T * un1_u_dotn1
+            g_dot_mun1 = g_dot_qn1 @ qn1_mun1
 
         # sparse assemble global tangent matrix
         if self.GGL:
             # fmt: off
             J = bmat(
                 [
-                    [Mk1 + K @ qk1_u_dotk1 - h_uk1 * uk1_u_dotk1, -W_gk1, -W_gammak1, K @ qk1_muk1],
-                    [                                  g_u_dotk1,   None,       None,       g_muk1],
-                    [                              gamma_u_dotk1,   None,       None,   gamma_muk1],
-                    [                              g_dot_u_dotk1,   None,       None,   g_dot_muk1],
+                    [Mn1 + K @ qn1_u_dotn1 - h_un1 * un1_u_dotn1, -W_gn1, -W_gamman1, K @ qn1_mun1],
+                    [                                  g_u_dotn1,   None,       None,       g_mun1],
+                    [                              gamma_u_dotn1,   None,       None,   gamma_mun1],
+                    [                              g_dot_u_dotn1,   None,       None,   g_dot_mun1],
                 ],
                 format="csr",
             )
@@ -1077,9 +1058,9 @@ class GeneralizedAlphaSecondOrder:
             # fmt: off
             J = bmat(
                 [
-                    [Mk1 + K @ qk1_u_dotk1 - h_uk1 * uk1_u_dotk1, -W_gk1, -W_gammak1],
-                    [                                  g_u_dotk1,   None,       None],
-                    [                              gamma_u_dotk1,   None,       None],
+                    [Mn1 + K @ qn1_u_dotn1 - h_un1 * un1_u_dotn1, -W_gn1, -W_gamman1],
+                    [                                  g_u_dotn1,   None,       None],
+                    [                              gamma_u_dotn1,   None,       None],
                 ],
                 format="csr",
             )
@@ -1111,9 +1092,9 @@ class GeneralizedAlphaSecondOrder:
             # approx_fprime(xk1, lambda x: self.__R(tk1, x), method="3-point")
         )
 
-    def step(self, tk1, xk1):
+    def step(self, tn1, xn1):
         # initial residual and error
-        R_gen = self.__R_gen(tk1, xk1)
+        R_gen = self.__R_gen(tn1, xn1)
         R = next(R_gen)
         error = self.error_function(R)
         converged = error < self.tol
@@ -1126,9 +1107,9 @@ class GeneralizedAlphaSecondOrder:
                 # Newton update
                 j += 1
                 dx = spsolve(J, R, use_umfpack=True)
-                xk1 -= dx
+                xn1 -= dx
 
-                R_gen = self.__R_gen(tk1, xk1)
+                R_gen = self.__R_gen(tn1, xn1)
                 R = next(R_gen)
 
                 error = self.error_function(R)
@@ -1136,28 +1117,28 @@ class GeneralizedAlphaSecondOrder:
                 if converged:
                     break
 
-        return converged, j, error, xk1
+        return converged, j, error, xn1
 
     def solve(self):
         # lists storing output variables
-        t = [self.tk]
-        q = [self.qk]
-        u = [self.uk]
-        u_dot = [self.u_dotk]
-        la_g = [self.la_gk]
-        la_gamma = [self.la_gammak]
+        t = [self.tn]
+        q = [self.qn]
+        u = [self.un]
+        u_dot = [self.u_dotn]
+        la_g = [self.la_gn]
+        la_gamma = [self.la_gamman]
 
         pbar = tqdm(np.arange(self.t0, self.t1, self.dt))
         for _ in pbar:
             # perform a sovler step
-            tk1 = self.tk + self.dt
-            xk1 = self.xk.copy()  # This copy is mandatory since we modify sk1
+            tn1 = self.tn + self.dt
+            xn1 = self.xn.copy()  # This copy is mandatory since we modify sk1
             # in the step function
-            converged, n_iter, error, xk1 = self.step(tk1, xk1)
+            converged, n_iter, error, xn1 = self.step(tn1, xn1)
 
             # update progress bar and check convergence
             pbar.set_description(
-                f"t: {tk1:0.2e}s < {self.t1:0.2e}s; Newton: {n_iter}/{self.max_iter} iterations; error: {error:0.2e}"
+                f"t: {tn1:0.2e}s < {self.t1:0.2e}s; Newton: {n_iter}/{self.max_iter} iterations; error: {error:0.2e}"
             )
             if not converged:
                 raise RuntimeError(
@@ -1166,25 +1147,25 @@ class GeneralizedAlphaSecondOrder:
 
             # update dependent variables
             if self.GGL:
-                ak1, la_gk1, la_gammak1, mu_gk1 = self.unpack(xk1)
+                an1, la_gn1, la_gamman1, mu_gn1 = self.unpack(xn1)
             else:
-                ak1, la_gk1, la_gammak1 = self.unpack(xk1)
-            qk1, uk1 = self.update(xk1, store=True)
+                an1, la_gn1, la_gamman1 = self.unpack(xn1)
+            qn1, un1 = self.update(xn1, store=True)
 
             # modify converged quantities
-            qk1, uk1 = self.model.step_callback(tk1, qk1, uk1)
+            qn1, un1 = self.system.step_callback(tn1, qn1, un1)
 
             # store soltuion fields
-            t.append(tk1)
-            q.append(qk1)
-            u.append(uk1)
-            u_dot.append(ak1)
-            la_g.append(la_gk1)
-            la_gamma.append(la_gammak1)
+            t.append(tn1)
+            q.append(qn1)
+            u.append(un1)
+            u_dot.append(an1)
+            la_g.append(la_gn1)
+            la_gamma.append(la_gamman1)
 
             # update local variables for accepted time step
-            self.tk = tk1
-            self.xk = xk1.copy()
+            self.tn = tn1
+            self.xn = xn1.copy()
 
             # # update step size
             # min_factor = 0.2

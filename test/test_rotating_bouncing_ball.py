@@ -17,7 +17,8 @@ from cardillo.solver import (
     MoreauClassical,
     NonsmoothBackwardEuler,
     NonsmoothPIRK,
-    SimplifiedNonsmoothGeneralizedAlphaNoAcceleration,
+    SimplifiedNonsmoothGeneralizedAlpha,
+    SimplifiedNonsmoothGeneralizedAlphaFirstOrder,
     LobattoIIIAB,
 )
 from cardillo.solver._butcher_tableaus import RadauIIATableau, AlexanderTableau
@@ -109,9 +110,13 @@ def run(case, export=True):
     # solver1, label1 = NonsmoothPIRK(system, t_final, dt, RadauIIATableau(2)), "NPIRK"
     # solver1, label1 = NonsmoothPIRK(system, t_final, dt, AlexanderTableau(3)), "NPIRK"
     solver1, label1 = (
-        SimplifiedNonsmoothGeneralizedAlphaNoAcceleration(system, t_final, dt),
+        SimplifiedNonsmoothGeneralizedAlpha(system, t_final, dt),
         "Gen-alpha simplified",
     )
+    # solver1, label1 = (
+    #     SimplifiedNonsmoothGeneralizedAlphaFirstOrder(system, t_final, dt),
+    #     "Gen-alpha simplified first order",
+    # )
 
     # solver1, label1 = NonsmoothGeneralizedAlpha(system, t_final, dt, method="newton"), "Gen-alpha"
     # solver1, label1 = Rattle(system, t_final, dt), "Rattle"

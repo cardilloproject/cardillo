@@ -118,11 +118,11 @@ Constraint = RollingCondition_g_I_Frame_gamma
 rolling = Constraint(disc)
 f_g = Force(lambda t: np.array([0, 0, -m * g]), disc)
 
-model = System()
-model.add(disc)
+system = System()
+system.add(disc)
 # model.add(rolling)
-model.add(f_g)
-model.assemble()
+system.add(f_g)
+system.assemble()
 
 
 def state():
@@ -171,7 +171,7 @@ def state():
 
     # sol = Rattle(model, t1, dt, atol=tol).solve()
 
-    sol = NonsmoothPIRK(model, t1, dt, RadauIIATableau(2)).solve()
+    sol = NonsmoothPIRK(system, t1, dt, RadauIIATableau(2)).solve()
 
     t = sol.t
     q = sol.q
@@ -188,12 +188,12 @@ def state():
         la_g = sol.P_g
         la_gamma = sol.P_gamma
 
-    g = np.array([model.g(ti, qi) for ti, qi in zip(t, q)])
-    g_dot = np.array([model.g_dot(ti, qi, ui) for ti, qi, ui in zip(t, q, u)])
+    g = np.array([system.g(ti, qi) for ti, qi in zip(t, q)])
+    g_dot = np.array([system.g_dot(ti, qi, ui) for ti, qi, ui in zip(t, q, u)])
     # g_ddot = np.array(
     #     [model.g_ddot(ti, qi, ui, u_doti) for ti, qi, ui, u_doti in zip(t, q, u, u_dot)]
     # )
-    gamma = np.array([model.gamma(ti, qi, ui) for ti, qi, ui in zip(t, q, u)])
+    gamma = np.array([system.gamma(ti, qi, ui) for ti, qi, ui in zip(t, q, u)])
     # gamma_dot = np.array(
     #     [
     #         model.gamma_dot(ti, qi, ui, u_doti)
@@ -432,7 +432,7 @@ def convergence():
     #     model, t_final, dt, RadauIIATableau(2), atol=atol
     # )
     get_solver = lambda t_final, dt, atol: LobattoIIIAB(
-        model, t_final, dt, atol=atol, stages=3
+        system, t_final, dt, atol=atol, stages=3
     )
 
     errors = convergence_analysis(
@@ -602,7 +602,7 @@ def convergence():
     Solver, label, kwargs = Rattle, "Rattle", {}
 
     # reference = NonsmoothPIRK(model, t1, dt_ref, RadauIIATableau(2), atol=tol_ref).solve()
-    reference = Solver(model, t1, dt_ref, atol=tol_ref, **kwargs).solve()
+    reference = Solver(system, t1, dt_ref, atol=tol_ref, **kwargs).solve()
 
     # print(f"compute reference solution with second order method + GGL:")
     # reference2_GGL = GeneralizedAlphaSecondOrder(
@@ -803,7 +803,7 @@ def convergence():
         # ) = errors(sol, reference1)
 
         # sol = NonsmoothPIRK(model, t1, dt, RadauIIATableau(2), atol=tol).solve()
-        sol = Solver(model, t1, dt, atol=tol, **kwargs).solve()
+        sol = Solver(system, t1, dt, atol=tol, **kwargs).solve()
         (
             q_errors_transient[0, i],
             u_errors_transient[0, i],

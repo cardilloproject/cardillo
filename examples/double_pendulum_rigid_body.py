@@ -110,16 +110,16 @@ if __name__ == "__main__":
     ############################################################################
     #                   model
     ############################################################################
-    model = System()
-    model.add(origin)
-    model.add(RB1)
-    model.add(joint1)
-    model.add(RB2)
-    model.add(joint2)
-    model.add(Force(lambda t: np.array([0, -g * m, 0]), RB1))
-    model.add(Force(lambda t: np.array([0, -g * m, 0]), RB2))
+    system = System()
+    system.add(origin)
+    system.add(RB1)
+    system.add(joint1)
+    system.add(RB2)
+    system.add(joint2)
+    system.add(Force(lambda t: np.array([0, -g * m, 0]), RB1))
+    system.add(Force(lambda t: np.array([0, -g * m, 0]), RB2))
 
-    model.assemble()
+    system.assemble()
 
     ############################################################################
     #                   solver
@@ -127,7 +127,7 @@ if __name__ == "__main__":
     t0 = 0
     t1 = 3
     dt = 5e-3
-    solver = ScipyIVP(model, t1, dt)
+    solver = ScipyIVP(system, t1, dt)
     # solver = EulerBackward(model, t1, dt)
 
     sol = solver.solve()

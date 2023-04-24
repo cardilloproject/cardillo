@@ -21,7 +21,8 @@ from .generalized_alpha import (
 )
 from .nonsmooth_generalized_alpha import (
     NonsmoothGeneralizedAlpha,
-    SimplifiedNonsmoothGeneralizedAlphaNoAcceleration,
+    SimplifiedNonsmoothGeneralizedAlpha,
+    SimplifiedNonsmoothGeneralizedAlphaFirstOrder,
 )
 from .rattle import Rattle
 from .runge_kutta import NonsmoothPIRK

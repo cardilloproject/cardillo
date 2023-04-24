@@ -17,7 +17,7 @@ from scipy.integrate._ivp.base import OdeSolver, DenseOutput
 from scipy.integrate import solve_ivp
 from tqdm import tqdm
 
-from cardillo.solver import Solution, consistent_initial_conditions
+from cardillo.solver import Solution
 from cardillo.math import approx_fprime
 
 S6 = 6**0.5
@@ -799,19 +799,13 @@ class RadauIIa:
             )
 
         #######################################################################
-        # consistent initial conditions
+        # initial conditions
         #######################################################################
-        (
-            t0,
-            q0,
-            u0,
-            q_dot0,
-            u_dot0,
-            la_g0,
-            la_gamma0,
-            la_N0,
-            la_F0,
-        ) = consistent_initial_conditions(system)
+        t0 = system.t0
+        q0 = system.q0
+        u0 = system.u0
+        la_g0 = system.la_g0
+        la_gamma0 = system.la_gamma0
 
         # consistent initial conditions
         self.y0 = np.zeros(self.ny, dtype=float)

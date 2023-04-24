@@ -186,13 +186,13 @@ if __name__ == "__main__":
     ############################################################################
     #                   model
     ############################################################################
-    model = System()
-    model.add(rope)
-    model.add(frame0)
-    model.add(joint0)
-    model.add(frame1)
-    model.add(joint1)
-    model.assemble()
+    system = System()
+    system.add(rope)
+    system.add(frame0)
+    system.add(joint0)
+    system.add(frame1)
+    system.add(joint1)
+    system.assemble()
 
     # # show initial configuration
     # animate_rope([0], [q0], [rope], R, show=True)
@@ -205,7 +205,7 @@ if __name__ == "__main__":
         n_load_steps = 10
         max_iter = 20
         solver = Newton(
-            model,
+            system,
             n_load_steps=n_load_steps,
             max_iter=max_iter,
             atol=atol,
@@ -217,7 +217,7 @@ if __name__ == "__main__":
         dt = 1.0e-2
         method = "RK45"
         solver = ScipyIVP(
-            model,
+            system,
             t1,
             dt,
             method=method,

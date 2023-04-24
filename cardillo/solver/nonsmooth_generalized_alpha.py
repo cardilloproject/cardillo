@@ -22,7 +22,7 @@ from scipy.sparse.linalg import spsolve
 from tqdm import tqdm
 
 from cardillo.math import prox_R0_nm, prox_R0_np, prox_sphere, approx_fprime, fsolve
-from cardillo.solver import Solution, consistent_initial_conditions
+from cardillo.solver import Solution
 
 
 class NonsmoothGeneralizedAlpha:
@@ -30,7 +30,7 @@ class NonsmoothGeneralizedAlpha:
 
     def __init__(
         self,
-        model,
+        system,
         t1,
         dt,
         rho_inf=0.9,
@@ -41,10 +41,10 @@ class NonsmoothGeneralizedAlpha:
         fixed_point_tol=1e-6,
         fixed_point_max_iter=1000,
     ):
-        self.model = model
+        self.system = system
 
         # initial time, final time, time step
-        self.t0 = t0 = model.t0
+        self.t0 = t0 = system.t0
         self.t1 = (
             t1 if t1 > t0 else ValueError("t1 must be larger than initial time t0.")
         )
@@ -68,38 +68,36 @@ class NonsmoothGeneralizedAlpha:
         self.fixed_point_error_function = error_function
 
         # dimensions (nq = number of coordinates q, etc.)
-        self.nq = model.nq
-        self.nu = model.nu
-        self.nla_g = model.nla_g
-        self.nla_gamma = model.nla_gamma
-        self.nla_N = model.nla_N
-        self.nla_F = model.nla_F
+        self.nq = system.nq
+        self.nu = system.nu
+        self.nla_g = system.nla_g
+        self.nla_gamma = system.nla_gamma
+        self.nla_N = system.nla_N
+        self.nla_F = system.nla_F
 
         # eqn. (127): dimensions of residual
         self.nR_s = 3 * self.nu + 3 * self.nla_g + 2 * self.nla_gamma
         self.nR_c = 3 * self.nla_N + 2 * self.nla_F
         self.nR = self.nR_s + self.nR_c
 
-        # consistent initial conditions
-        (
-            self.ti,
-            self.qi,
-            self.ui,
-            self.q_doti,
-            self.ai,
-            self.la_gi,
-            self.la_gammai,
-            self.la_Ni,
-            self.la_Fi,
-        ) = consistent_initial_conditions(model)
+        # initial conditions
+        self.ti = system.t0
+        self.qi = system.q0
+        self.ui = system.u0
+        self.q_doti = system.q_dot0
+        self.ai = system.u_dot0
+        self.la_gi = system.la_g0
+        self.la_gammai = system.la_gamma0
+        self.la_Ni = system.la_N0
+        self.la_Fi = system.la_F0
 
         # other initial conditions
-        self.kappa_gi = np.zeros_like(model.la_g0)
-        self.La_gi = np.zeros_like(model.la_g0)
-        self.La_gammai = np.zeros_like(model.la_gamma0)
-        self.kappa_Ni = np.zeros_like(model.la_N0)
-        self.La_Ni = np.zeros_like(model.la_N0)
-        self.La_Fi = np.zeros_like(model.la_F0)
+        self.kappa_gi = np.zeros_like(system.la_g0)
+        self.La_gi = np.zeros_like(system.la_g0)
+        self.La_gammai = np.zeros_like(system.la_gamma0)
+        self.kappa_Ni = np.zeros_like(system.la_N0)
+        self.La_Ni = np.zeros_like(system.la_N0)
+        self.La_Fi = np.zeros_like(system.la_F0)
         self.Qi = np.zeros(self.nu)
         self.Ui = np.zeros(self.nu)
 
@@ -168,8 +166,8 @@ class NonsmoothGeneralizedAlpha:
 
         # function called at the end of each time step. Can for example be
         # used to norm quaternions at the end of each time step.
-        if hasattr(model, "step_callback"):
-            self.step_callback = model.step_callback
+        if hasattr(system, "step_callback"):
+            self.step_callback = system.step_callback
         else:
             self.step_callback = self.__step_callback
 
@@ -182,7 +180,7 @@ class NonsmoothGeneralizedAlpha:
         nla_F = self.nla_F
         nR_s = self.nR_s
 
-        mu = self.model.mu
+        mu = self.system.mu
         dt = self.dt
         dt2 = self.dt**2
         ti1 = self.ti + dt
@@ -221,9 +219,9 @@ class NonsmoothGeneralizedAlpha:
         a_beta = (1 - 2 * self.beta) * self.a_bari + 2 * self.beta * a_bari1
         qi1 = (
             self.qi
-            + dt * self.model.q_dot(self.ti, self.qi, self.ui)
-            + dt2 / 2 * self.model.q_ddot(self.ti, self.qi, self.ui, a_beta)
-            + self.model.B(self.ti, self.qi) @ Qi1
+            + dt * self.system.q_dot(self.ti, self.qi, self.ui)
+            + dt2 / 2 * self.system.q_ddot(self.ti, self.qi, self.ui, a_beta)
+            + self.system.B(self.ti, self.qi) @ Qi1
         )
 
         # # TODO: Add this to all updates of generalized coordinates
@@ -268,21 +266,21 @@ class NonsmoothGeneralizedAlpha:
 
         # ----- get quantities from model -----
         # Mass matrix
-        Mi1 = self.model.M(ti1, qi1)
+        Mi1 = self.system.M(ti1, qi1)
 
         # generalized force directions
-        W_gi1 = self.model.W_g(ti1, qi1)
-        W_gammai1 = self.model.W_gamma(ti1, qi1)
-        W_Ni1 = self.model.W_N(ti1, qi1)
-        W_Fi1 = self.model.W_F(ti1, qi1)
+        W_gi1 = self.system.W_g(ti1, qi1)
+        W_gammai1 = self.system.W_gamma(ti1, qi1)
+        W_Ni1 = self.system.W_N(ti1, qi1)
+        W_Fi1 = self.system.W_F(ti1, qi1)
 
         # kinematic quantities of contacts
-        g_Ni1 = self.model.g_N(ti1, qi1)
-        xi_Ni1 = self.model.xi_N(ti1, qi1, self.ui, ui1)
-        xi_Fi1 = self.model.xi_F(ti1, qi1, self.ui, ui1)
-        g_N_ddoti1 = self.model.g_N_ddot(ti1, qi1, ui1, ai1)
-        gamma_Fi1 = self.model.gamma_F(ti1, qi1, ui1)
-        gamma_F_doti1 = self.model.gamma_F_dot(ti1, qi1, ui1, ai1)
+        g_Ni1 = self.system.g_N(ti1, qi1)
+        xi_Ni1 = self.system.xi_N(ti1, qi1, self.ui, ui1)
+        xi_Fi1 = self.system.xi_F(ti1, qi1, self.ui, ui1)
+        g_N_ddoti1 = self.system.g_N_ddot(ti1, qi1, ui1, ai1)
+        gamma_Fi1 = self.system.gamma_F(ti1, qi1, ui1)
+        gamma_F_doti1 = self.system.gamma_F_dot(ti1, qi1, ui1, ai1)
 
         # ----- compute residual -----
         R = np.zeros(self.nR)
@@ -290,7 +288,7 @@ class NonsmoothGeneralizedAlpha:
         # eqn. (127): R_s
         R[: self.split_x[0]] = (
             Mi1 @ ai1
-            - self.model.h(ti1, qi1, ui1)
+            - self.system.h(ti1, qi1, ui1)
             - W_gi1 @ la_gi1
             - W_gammai1 @ la_gammai1
             - W_Ni1 @ la_Ni1
@@ -309,16 +307,16 @@ class NonsmoothGeneralizedAlpha:
             - W_Ni1 @ kappa_Ni1
             - 0.5 * dt * (W_gammai1 @ La_gammai1 + W_Fi1 @ La_Fi1)
         )
-        R[self.split_x[2] : self.split_x[3]] = self.model.g(ti1, qi1)
-        R[self.split_x[3] : self.split_x[4]] = self.model.g_dot(ti1, qi1, ui1)
-        R[self.split_x[4] : self.split_x[5]] = self.model.g_ddot(ti1, qi1, ui1, ai1)
-        R[self.split_x[5] : self.split_x[6]] = self.model.gamma(ti1, qi1, ui1)
-        R[self.split_x[6] : self.split_x[7]] = self.model.gamma_dot(ti1, qi1, ui1, ai1)
+        R[self.split_x[2] : self.split_x[3]] = self.system.g(ti1, qi1)
+        R[self.split_x[3] : self.split_x[4]] = self.system.g_dot(ti1, qi1, ui1)
+        R[self.split_x[4] : self.split_x[5]] = self.system.g_ddot(ti1, qi1, ui1, ai1)
+        R[self.split_x[5] : self.split_x[6]] = self.system.gamma(ti1, qi1, ui1)
+        R[self.split_x[6] : self.split_x[7]] = self.system.gamma_dot(ti1, qi1, ui1, ai1)
 
         # update index sets
         if update_index_set:
-            prox_r_N = self.model.prox_r_N(ti1, qi1)
-            prox_r_F = self.model.prox_r_F(ti1, qi1)
+            prox_r_N = self.system.prox_r_N(ti1, qi1)
+            prox_r_F = self.system.prox_r_F(ti1, qi1)
 
             # eqn. (130):
             self.Ai1 = prox_r_N * g_Ni1 - kappa_hatNi1 <= 0
@@ -327,7 +325,7 @@ class NonsmoothGeneralizedAlpha:
             # eqn. (136):
             self.Ci1 = self.Bi1 * ((prox_r_N * g_N_ddoti1 - la_Ni1) <= 0)
 
-            for i_N, i_F in enumerate(self.model.NF_connectivity):
+            for i_N, i_F in enumerate(self.system.NF_connectivity):
                 i_F = np.array(i_F)
                 if len(i_F) > 0:
                     # eqn. (139):
@@ -366,7 +364,7 @@ class NonsmoothGeneralizedAlpha:
         Di1_st = self.Di1_st
         Ei1_st = self.Ei1_st
 
-        for i_N, i_F in enumerate(self.model.NF_connectivity):
+        for i_N, i_F in enumerate(self.system.NF_connectivity):
             i_F = np.array(i_F)
             if len(i_F) > 0:
                 if Ai1[i_N]:
@@ -470,26 +468,26 @@ class NonsmoothGeneralizedAlpha:
         a_beta = (1 - 2 * self.beta) * self.a_bari + 2 * self.beta * a_bari1
         qi1 = (
             self.qi
-            + dt * self.model.q_dot(self.ti, self.qi, self.ui)
-            + dt2 / 2 * self.model.q_ddot(self.ti, self.qi, self.ui, a_beta)
-            + self.model.B(self.ti, self.qi) @ Qi1
+            + dt * self.system.q_dot(self.ti, self.qi, self.ui)
+            + dt2 / 2 * self.system.q_ddot(self.ti, self.qi, self.ui, a_beta)
+            + self.system.B(self.ti, self.qi) @ Qi1
         )
 
         # ----- get quantities from model -----
         # Mass matrix
-        Mi1 = self.model.M(ti1, qi1)
+        Mi1 = self.system.M(ti1, qi1)
 
         # generalized force directions
-        W_gi1 = self.model.W_g(ti1, qi1)
-        W_gammai1 = self.model.W_gamma(ti1, qi1)
-        W_Ni1 = self.model.W_N(ti1, qi1)
-        W_Fi1 = self.model.W_F(ti1, qi1)
+        W_gi1 = self.system.W_g(ti1, qi1)
+        W_gammai1 = self.system.W_gamma(ti1, qi1)
+        W_Ni1 = self.system.W_N(ti1, qi1)
+        W_Fi1 = self.system.W_F(ti1, qi1)
 
         # ----- compute residual -----
         R_s = np.concatenate(
             (
                 Mi1 @ ai1
-                - self.model.h(ti1, qi1, ui1)
+                - self.system.h(ti1, qi1, ui1)
                 - W_gi1 @ la_gi1
                 - W_gammai1 @ la_gammai1
                 - W_Ni1 @ la_Ni1
@@ -503,11 +501,11 @@ class NonsmoothGeneralizedAlpha:
                 - W_gi1 @ kappa_gi1
                 - W_Ni1 @ kappa_Ni1
                 - 0.5 * dt * (W_gammai1 @ La_gammai1 + W_Fi1 @ La_Fi1),
-                self.model.g(ti1, qi1),
-                self.model.g_dot(ti1, qi1, ui1),
-                self.model.g_ddot(ti1, qi1, ui1, ai1),
-                self.model.gamma(ti1, qi1, ui1),
-                self.model.gamma_dot(ti1, qi1, ui1, ai1),
+                self.system.g(ti1, qi1),
+                self.system.g_dot(ti1, qi1, ui1),
+                self.system.g_ddot(ti1, qi1, ui1, ai1),
+                self.system.gamma(ti1, qi1, ui1),
+                self.system.gamma_dot(ti1, qi1, ui1, ai1),
             )
         )
 
@@ -519,7 +517,7 @@ class NonsmoothGeneralizedAlpha:
         nla_N = self.nla_N
         nla_F = self.nla_F
 
-        mu = self.model.mu
+        mu = self.system.mu
 
         dt = self.dt
         dt2 = self.dt**2
@@ -545,19 +543,19 @@ class NonsmoothGeneralizedAlpha:
         a_beta = (1 - 2 * self.beta) * self.a_bari + 2 * self.beta * a_bari1
         qi1 = (
             self.qi
-            + dt * self.model.q_dot(self.ti, self.qi, self.ui)
-            + dt2 / 2 * self.model.q_ddot(self.ti, self.qi, self.ui, a_beta)
-            + self.model.B(self.ti, self.qi) @ Qi1
+            + dt * self.system.q_dot(self.ti, self.qi, self.ui)
+            + dt2 / 2 * self.system.q_ddot(self.ti, self.qi, self.ui, a_beta)
+            + self.system.B(self.ti, self.qi) @ Qi1
         )
 
         # ----- get quantities from model -----
         # kinematic quantities of contacts
-        g_N = self.model.g_N(ti1, qi1)
-        xi_N = self.model.xi_N(ti1, qi1, self.ui, ui1)
-        g_N_ddot = self.model.g_N_ddot(ti1, qi1, ui1, ai1)
-        gamma_F = self.model.gamma_F(ti1, qi1, ui1)
-        xi_F = self.model.xi_F(ti1, qi1, self.ui, ui1)
-        gamma_F_dot = self.model.gamma_F_dot(ti1, qi1, ui1, ai1)
+        g_N = self.system.g_N(ti1, qi1)
+        xi_N = self.system.xi_N(ti1, qi1, self.ui, ui1)
+        g_N_ddot = self.system.g_N_ddot(ti1, qi1, ui1, ai1)
+        gamma_F = self.system.gamma_F(ti1, qi1, ui1)
+        xi_F = self.system.xi_F(ti1, qi1, self.ui, ui1)
+        gamma_F_dot = self.system.gamma_F_dot(ti1, qi1, ui1, ai1)
 
         # ----- eqn. (146): fixed point update -----
         # For convenience, we call the iteration index j instead of mu.
@@ -594,8 +592,8 @@ class NonsmoothGeneralizedAlpha:
         )
 
         # evaluate prox parameters
-        prox_r_N = self.model.prox_r_N(ti1, qi1)
-        prox_r_F = self.model.prox_r_F(ti1, qi1)
+        prox_r_N = self.system.prox_r_N(ti1, qi1)
+        prox_r_F = self.system.prox_r_F(ti1, qi1)
 
         # -- prox normal direction --
         P_N_j1 = np.zeros(self.nla_N)
@@ -620,7 +618,7 @@ class NonsmoothGeneralizedAlpha:
         P_F_j1 = np.zeros(self.nla_F)
         la_Fi1_j1 = np.zeros(self.nla_F)
 
-        for i_N, i_F in enumerate(self.model.NF_connectivity):
+        for i_N, i_F in enumerate(self.system.NF_connectivity):
             i_F = np.array(i_F)
             if Ai1[i_N]:
                 # eqn. (137):
@@ -978,9 +976,9 @@ class NonsmoothGeneralizedAlpha:
             a_beta = (1 - 2 * self.beta) * self.a_bari + 2 * self.beta * a_bari1
             qi1 = (
                 self.qi
-                + dt * self.model.q_dot(self.ti, self.qi, self.ui)
-                + dt2 / 2 * self.model.q_ddot(self.ti, self.qi, self.ui, a_beta)
-                + self.model.B(self.ti, self.qi) @ Qi1
+                + dt * self.system.q_dot(self.ti, self.qi, self.ui)
+                + dt2 / 2 * self.system.q_ddot(self.ti, self.qi, self.ui, a_beta)
+                + self.system.B(self.ti, self.qi) @ Qi1
             )
 
             # eqn. (96): compute auxiliary normal contact forces
@@ -1085,7 +1083,7 @@ class NonsmoothGeneralizedAlpha:
         )
 
 
-class SimplifiedNonsmoothGeneralizedAlphaNoAcceleration:
+class SimplifiedNonsmoothGeneralizedAlpha:
     """Simplified version of the nonsmooth generalized-alpha solver for
     mechanical systems with frictional contact presented in Capobianco2020.
 
@@ -1149,18 +1147,16 @@ class SimplifiedNonsmoothGeneralizedAlphaNoAcceleration:
             )
         )
 
-        # consistent initial conditions
-        (
-            self.tn,
-            self.qn,
-            self.un,
-            self.q_dotn,
-            self.u_dotn,
-            self.la_gn,
-            self.la_gamman,
-            self.la_Nn,
-            self.la_Fn,
-        ) = consistent_initial_conditions(system)
+        # initial conditions
+        self.tn = system.t0
+        self.qn = system.q0
+        self.un = system.u0
+        self.q_dotn = system.q_dot0
+        self.u_dotn = system.u_dot0
+        self.la_gn = system.la_g0
+        self.la_gamman = system.la_gamma0
+        self.la_Nn = system.la_N0
+        self.la_Fn = system.la_F0
         self.R_Nn = self.la_Nn
         self.R_Fn = self.la_Fn
 
@@ -1454,6 +1450,439 @@ class SimplifiedNonsmoothGeneralizedAlphaNoAcceleration:
                 qn1,
                 un12,
                 un1,
+                u_dotn1,
+                R_gn1,
+                R_gamman1,
+                R_Nn1,
+                R_Fn1,
+                Delta_U,
+                Delta_R_gn2,
+                Delta_R_gamman2,
+                Delta_R_Nn2,
+                Delta_R_Fn2,
+                P_Nn12,
+                P_Fn12,
+                P_Nn1,
+                P_Fn1,
+            ) = self._update(yn1, store=True)
+
+            # P_gn1 = R_g1 + R_g2
+            # P_gamman1 = R_gamma1 + R_gamma2
+            # P_Nn1 = R_N1 + R_N2
+            # P_Fn1 = R_F1 + R_F2
+            # TODO:
+            P_gn1 = R_gn1
+            P_gamman1 = R_gamman1
+            # P_Nn1 = P_Nn2
+            # P_Fn1 = P_Fn2
+
+            pbar.set_description(f"t: {tn1:0.2e}; step: {n_iter}; error: {error:.3e}")
+            if not converged:
+                print(
+                    f"step is not converged after {n_iter} iterations with error: {error:.5e}"
+                )
+
+            qn1, un1 = self.system.step_callback(tn1, qn1, un1)
+
+            sol_q.append(qn1)
+            sol_u.append(un1)
+            sol_P_g.append(P_gn1)
+            sol_P_gamma.append(P_gamman1)
+            sol_P_N.append(P_Nn1)
+            sol_P_F.append(P_Fn1)
+
+            # warmstart for next iteration
+            self.tn = tn1
+            self.yn = yn1.copy()
+
+        # print statistics
+        print("-----------------")
+        print(
+            f"Iterations per time step: max = {max(iter)}, avg={sum(iter) / float(len(iter))}"
+        )
+        print("-----------------")
+        return Solution(
+            t=self.t,
+            q=np.array(sol_q),
+            u=np.array(sol_u),
+            P_g=np.array(sol_P_g),
+            P_gamma=np.array(sol_P_gamma),
+            P_N=np.array(sol_P_N),
+            P_F=np.array(sol_P_F),
+        )
+
+
+class SimplifiedNonsmoothGeneralizedAlphaFirstOrder:
+    """Simplified version of the nonsmooth generalized-alpha solver for
+    mechanical systems with frictional contact presented in Capobianco2020.
+    The implementation applies the first order formulation of Jansen2000.
+
+    References
+    ----------
+    Capobianco2020: https://doi.org/10.1002/nme.6801
+    """
+
+    def __init__(
+        self,
+        system,
+        t1,
+        h,
+        rho_inf=0.8,
+        atol=1e-6,
+        max_iter=10,
+    ):
+        self.system = system
+
+        # initial time, final time, time step
+        self.t0 = t0 = system.t0
+        self.t1 = (
+            t1 if t1 > t0 else ValueError("t1 must be larger than initial time t0.")
+        )
+        self.t = np.arange(t0, t1 + h, h)
+        self.h = h
+
+        # eqn. (72): parameters
+        self.rho_inf = rho_inf
+        self.alpha_m = 0.5 * (3.0 * rho_inf - 1.0) / (rho_inf + 1.0)
+        self.alpha_f = rho_inf / (rho_inf + 1.0)
+        self.gamma = 0.5 + self.alpha_f - self.alpha_m
+
+        # newton settings
+        self.atol = atol
+        self.max_iter = max_iter
+
+        # dimensions (nq = number of coordinates q, etc.)
+        self.nq = system.nq
+        self.nu = system.nu
+        self.nla_g = system.nla_g
+        self.nla_gamma = system.nla_gamma
+        self.nla_N = system.nla_N
+        self.nla_F = system.nla_F
+
+        self.split_y = np.cumsum(
+            np.array(
+                [
+                    self.nq,
+                    self.nu,
+                    self.nla_g,
+                    self.nla_gamma,
+                    self.nla_N,
+                    self.nla_F,
+                    self.nu,
+                    self.nla_g,
+                    self.nla_gamma,
+                    self.nla_N,
+                ],
+                dtype=int,
+            )
+        )
+
+        # initial conditions
+        self.tn = system.t0
+        self.qn = system.q0
+        self.un = system.u0
+        self.q_dotn = system.q_dot0
+        self.u_dotn = system.u_dot0
+        self.la_gn = system.la_g0
+        self.la_gamman = system.la_gamma0
+        self.la_Nn = system.la_N0
+        self.la_Fn = system.la_F0
+        self.R_Nn = self.la_Nn
+        self.R_Fn = self.la_Fn
+
+        # initialize auxilary variables
+        self.vn = self.q_dotn.copy()
+        self.an = self.u_dotn.copy()
+        self.R_N_barn = self.R_Nn.copy()
+        self.R_F_barn = self.R_Fn.copy()
+        self.P_Nn = h * self.R_Nn.copy()
+        self.P_Fn = h * self.R_Fn.copy()
+
+        # initialize y vector of unknowns
+        self.yn = np.concatenate(
+            (
+                self.q_dotn,
+                self.u_dotn,
+                h * self.la_gn,
+                h * self.la_gamman,
+                self.R_Nn,
+                self.R_Fn,
+                np.zeros(self.nu),
+                0 * self.la_gn,
+                0 * self.la_gamman,
+                0 * self.R_Nn,
+                0 * self.R_Fn,
+            )
+        )
+
+        # initialize index sets
+        self.I = np.zeros(self.nla_N, dtype=bool)
+        self.B = np.zeros(self.nla_N, dtype=bool)
+
+    def _update(self, y, store=False):
+        h = self.h
+        tn1 = self.tn + h
+        gamma = self.gamma
+        alpha_f = self.alpha_f
+        alpha_m = self.alpha_m
+
+        # unpack unknowns
+        (
+            q_dotn1,
+            u_dotn1,
+            R_gn1,
+            R_gamman1,
+            R_Nn1,
+            R_Fn1,
+            Delta_U,
+            Delta_R_gn2,
+            Delta_R_gamman2,
+            Delta_R_Nn2,
+            Delta_R_Fn2,
+        ) = np.array_split(y, self.split_y)
+
+        # eqn. (71): compute auxiliary acceleration variables
+        vn1 = (alpha_f * self.q_dotn + (1 - alpha_f) * q_dotn1 - alpha_m * self.vn) / (
+            1 - alpha_m
+        )
+        an1 = (alpha_f * self.u_dotn + (1 - alpha_f) * u_dotn1 - alpha_m * self.an) / (
+            1 - alpha_m
+        )
+        R_N_barn1 = (
+            alpha_f * self.R_Nn + (1 - alpha_f) * R_Nn1 - alpha_m * self.R_N_barn
+        ) / (1 - alpha_m)
+        R_F_barn1 = (
+            alpha_f * self.R_Fn + (1 - alpha_f) * R_Fn1 - alpha_m * self.R_F_barn
+        ) / (1 - alpha_m)
+
+        # eqn. (73): velocity update formula
+        qn1 = self.qn + h * ((1 - gamma) * self.vn + gamma * vn1)
+        un12 = self.un + h * ((1 - gamma) * self.an + gamma * an1)
+        un1 = un12 + Delta_U
+        # P_Nn12 = self.P_Nn + h * ((1 - gamma) * self.R_N_barn + gamma * R_N_barn1)
+        P_Nn12 = h * ((1 - gamma) * self.R_N_barn + gamma * R_N_barn1)
+        P_Nn1 = P_Nn12 + Delta_R_Nn2
+        # P_Fn12 = self.P_Fn + h * ((1 - gamma) * self.R_F_barn + gamma * R_F_barn1)
+        P_Fn12 = h * ((1 - gamma) * self.R_F_barn + gamma * R_F_barn1)
+        P_Fn1 = P_Fn12 + Delta_R_Fn2
+
+        if store:
+            # update local variables for accepted time step
+            self.tn = tn1
+            self.qn = qn1.copy()
+            self.un = un1.copy()
+            self.q_dotn = q_dotn1.copy()
+            self.u_dotn = u_dotn1.copy()
+            self.vn = vn1.copy()
+            self.an = an1.copy()
+            self.R_Nn = R_Nn1.copy()
+            self.R_N_barn = R_N_barn1.copy()
+            # self.P_Nn = P_Nn1.copy()
+            self.R_Fn = R_Fn1.copy()
+            self.R_F_barn = R_F_barn1.copy()
+            # self.P_Fn = P_Fn1.copy()
+
+        return (
+            tn1,
+            qn1,
+            un12,
+            un1,
+            q_dotn1,
+            u_dotn1,
+            R_gn1,
+            R_gamman1,
+            R_Nn1,
+            R_Fn1,
+            Delta_U,
+            Delta_R_gn2,
+            Delta_R_gamman2,
+            Delta_R_Nn2,
+            Delta_R_Fn2,
+            P_Nn12,
+            P_Fn12,
+            P_Nn1,
+            P_Fn1,
+        )
+
+    def _R(self, y, update_index=False):
+        (
+            tn1,
+            qn1,
+            un12,
+            un1,
+            q_dotn1,
+            u_dotn1,
+            R_gn1,
+            R_gamman1,
+            R_Nn1,
+            R_Fn1,
+            Delta_U,
+            Delta_R_gn2,
+            Delta_R_gamman2,
+            Delta_R_Nn2,
+            Delta_R_Fn2,
+            P_Nn12,
+            P_Fn12,
+            P_Nn1,
+            P_Fn1,
+        ) = self._update(y)
+
+        R = np.zeros_like(y)
+
+        #################################
+        # kinematic differential equation
+        #################################
+        R[: self.split_y[0]] = q_dotn1 - self.system.q_dot(tn1, qn1, un12)
+
+        ####################
+        # eqations of motion
+        ####################
+        M = self.system.M(tn1, qn1)
+        W_g = self.system.W_g(tn1, qn1)
+        W_gamma = self.system.W_gamma(tn1, qn1)
+        W_N = self.system.W_N(tn1, qn1)
+        W_F = self.system.W_F(tn1, qn1)
+        R[self.split_y[0] : self.split_y[1]] = (
+            M @ u_dotn1
+            - self.system.h(tn1, qn1, un12)
+            # - self.system.h(tn1, qn1, un1)
+            - W_g @ R_gn1
+            - W_gamma @ R_gamman1
+            - W_N @ R_Nn1
+            - W_F @ R_Fn1
+        )
+
+        #######################
+        # bilateral constraints
+        #######################
+        R[self.split_y[1] : self.split_y[2]] = self.system.g(tn1, qn1)
+        R[self.split_y[2] : self.split_y[3]] = self.system.gamma(tn1, qn1, un12)
+
+        ###########
+        # Signorini
+        ###########
+        g_N = self.system.g_N(tn1, qn1)
+        prox_arg = g_N - self.prox_r_N * P_Nn12
+
+        if update_index:
+            self.I = prox_arg <= 0.0
+
+        R[self.split_y[3] : self.split_y[4]] = np.where(
+            self.I,
+            g_N,
+            P_Nn12,
+        )
+
+        ##################
+        # Coulomb friction
+        ##################
+        prox_r_F = self.prox_r_F
+        mu = self.system.mu
+        gamma_F = self.system.gamma_F(tn1, qn1, un12)
+
+        for i_N, i_F in enumerate(self.system.NF_connectivity):
+            i_F = np.array(i_F)
+            if len(i_F) > 0:
+                R[self.split_y[4] + i_F] = P_Fn12[i_F] + prox_sphere(
+                    prox_r_F[i_N] * gamma_F[i_F] - P_Fn12[i_F],
+                    mu[i_N] * P_Nn12[i_N],
+                )
+
+        #################
+        # impact equation
+        #################
+        R[self.split_y[5] : self.split_y[6]] = (
+            M @ Delta_U
+            - W_g @ Delta_R_gn2
+            - W_gamma @ Delta_R_gamman2
+            - W_N @ Delta_R_Nn2
+            - W_F @ Delta_R_Fn2
+        )
+
+        #################################
+        # impulsive bilateral constraints
+        #################################
+        R[self.split_y[6] : self.split_y[7]] = self.system.g_dot(tn1, qn1, un1)
+        R[self.split_y[7] : self.split_y[8]] = self.system.gamma(tn1, qn1, un1)
+
+        ##################################################
+        # mixed Singorini on velocity level and impact law
+        ##################################################
+        xi_Nn1 = self.system.xi_N(tn1, qn1, self.un, un1)
+        prox_arg = xi_Nn1 - self.prox_r_N * P_Nn1
+        if update_index:
+            self.B = self.I * (prox_arg <= 0)
+
+        R[self.split_y[8] : self.split_y[9]] = np.where(
+            self.B,
+            xi_Nn1,
+            P_Nn1,
+        )
+
+        # R[self.split_y[8] : self.split_y[9]] = np.where(
+        #     self.I,
+        #     xi_Nn1 - prox_R0_np(xi_Nn1 - self.prox_r_N * P_Nn1),
+        #     P_Nn1,
+        # )
+
+        ##################################################
+        # mixed Coulomb friction and tangent impact law
+        ##################################################
+        xi_Fn1 = self.system.xi_F(tn1, qn1, self.un, un1)
+        for i_N, i_F in enumerate(self.system.NF_connectivity):
+            i_F = np.array(i_F)
+            if len(i_F) > 0:
+                R[self.split_y[9] + i_F] = P_Fn1[i_F] + prox_sphere(
+                    prox_r_F[i_N] * xi_Fn1[i_F] - P_Fn1[i_F],
+                    mu[i_N] * P_Nn1[i_N],
+                )
+
+        return R
+
+    def solve(self):
+        # lists storing output variables
+        sol_q = [self.qn]
+        sol_u = [self.un]
+        sol_P_g = [self.h * self.la_gn]
+        sol_P_gamma = [self.h * self.la_gamman]
+        sol_P_N = [self.h * self.la_Nn]
+        sol_P_F = [self.h * self.la_Fn]
+
+        # initialize progress bar
+        pbar = tqdm(self.t[1:])
+
+        iter = []
+        for _ in pbar:
+            # only compute optimized proxparameters once per time step
+            self.prox_r_N = self.system.prox_r_N(self.tn, self.qn)
+            self.prox_r_F = self.system.prox_r_F(self.tn, self.qn)
+            # print(f"self.prox_r_N: {self.prox_r_N}")
+            # print(f"self.prox_r_F: {self.prox_r_F}")
+            # self.prox_r_N = np.ones(self.nla_N) * 0.2
+            # self.prox_r_F = np.ones(self.nla_F) * 0.2
+
+            yn1, converged, error, n_iter, _ = fsolve(
+                self._R,
+                self.yn,
+                jac="2-point",
+                eps=1.0e-6,
+                fun_args=(True,),
+                jac_args=(False,),
+                atol=self.atol,
+                max_iter=self.max_iter,
+            )
+            if not converged:
+                raise RuntimeError(
+                    f"internal Newton-Raphson method not converged after {n_iter} steps with error: {error:.5e}"
+                )
+            iter.append(n_iter + 1)
+
+            (
+                tn1,
+                qn1,
+                un12,
+                un1,
+                q_dotn1,
                 u_dotn1,
                 R_gn1,
                 R_gamman1,

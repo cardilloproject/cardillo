@@ -3,7 +3,7 @@ from tqdm import tqdm
 
 from cardillo.math import fsolve, prox_R0_np, prox_sphere
 from cardillo.solver._butcher_tableaus import LobattoIIIATableau, LobattoIIIBTableau
-from cardillo.solver import Solution, consistent_initial_conditions
+from cardillo.solver import Solution
 
 
 class LobattoIIIAB:
@@ -49,18 +49,16 @@ class LobattoIIIAB:
         self.nla_N = self.system.nla_N
         self.nla_F = self.system.nla_F
 
-        # consistent initial conditions
-        (
-            self.tn,
-            self.qn,
-            self.un,
-            self.q_dotn,
-            self.u_dotn,
-            self.la_gn,
-            self.la_gamman,
-            self.la_Nn,
-            self.la_Fn,
-        ) = consistent_initial_conditions(system)
+        # initial conditions
+        self.tn = system.t0
+        self.qn = system.q0
+        self.un = system.u0
+        self.q_dotn = system.q_dot0
+        self.u_dotn = system.u_dot0
+        self.la_gn = system.la_g0
+        self.la_gamman = system.la_gamma0
+        self.la_Nn = system.la_N0
+        self.la_Fn = system.la_F0
 
         self.P_gn = self.la_gn
         self.P_gamman = self.la_gamman

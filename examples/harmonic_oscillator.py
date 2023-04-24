@@ -18,7 +18,7 @@ if __name__ == "__main__":
     k = 2.0e2
     d = 4
 
-    model = System()
+    system = System()
 
     q0 = np.array([0, 0, -l0])
     mass = PointMass(m, q0=q0, u0=np.zeros(3))
@@ -30,18 +30,18 @@ if __name__ == "__main__":
     linear_damper = LinearDamper(d)
     # linear_damper = None
     scalar_force_element = ScalarForceTranslational(
-        model.origin, mass, linear_spring, linear_damper
+        system.origin, mass, linear_spring, linear_damper
     )
 
-    model.add(mass)
-    model.add(f_g)
-    model.add(scalar_force_element)
-    model.assemble()
+    system.add(mass)
+    system.add(f_g)
+    system.add(scalar_force_element)
+    system.assemble()
 
     t0 = 0
     t1 = 2
     dt = 1.0e-2
-    solver = ScipyIVP(model, t1, dt)
+    solver = ScipyIVP(system, t1, dt)
     # solver = EulerBackward(model, t1, dt, debug=True)
     sol = solver.solve()
     t = sol.t

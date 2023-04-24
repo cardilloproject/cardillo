@@ -5,7 +5,7 @@ from tqdm import tqdm
 
 from cardillo.math.prox import prox_R0_nm, prox_R0_np, prox_sphere
 from cardillo.math import approx_fprime, fsolve
-from cardillo.solver import Solution, consistent_initial_conditions
+from cardillo.solver import Solution
 from cardillo.solver._butcher_tableaus import *
 
 
@@ -65,18 +65,16 @@ class NonsmoothPIRK:
         self.nla_N = system.nla_N
         self.nla_F = system.nla_F
 
-        # consistent initial conditions
-        (
-            self.tn,
-            self.qn,
-            self.un,
-            self.q_dotn,
-            self.u_dotn,
-            self.la_gn,
-            self.la_gamman,
-            self.la_Nn,
-            self.la_Fn,
-        ) = consistent_initial_conditions(system)
+        # initial conditions
+        self.tn = system.t0
+        self.qn = system.q0
+        self.un = system.u0
+        self.q_dotn = system.q_dot0
+        self.u_dotn = system.u_dot0
+        self.la_gn = system.la_g0
+        self.la_gamman = system.la_gamma0
+        self.la_Nn = system.la_N0
+        self.la_Fn = system.la_F0
 
         self.P_gn = self.la_gn
         self.P_gamman = self.la_gamman
@@ -203,6 +201,10 @@ class NonsmoothPIRK:
         P_gamman1 = h * dP_gamma @ self.b + Delta_P_gamma
         P_Nn1 = h * dP_N @ self.b + Delta_P_N
         P_Fn1 = h * dP_F @ self.b + Delta_P_F
+        # P_gn1 = self.P_gn + h * dP_g @ self.b + Delta_P_g
+        # P_gamman1 = self.P_gamman + h * dP_gamma @ self.b + Delta_P_gamma
+        # P_Nn1 = self.P_Nn + h * dP_N @ self.b + Delta_P_N
+        # P_Fn1 = self.P_Fn + h * dP_F @ self.b + Delta_P_F
 
         # P_gn1 = dP_g[:, -1] + Delta_P_g
         # P_gamman1 = dP_gamma[:, -1] + Delta_P_gamma
@@ -311,6 +313,7 @@ class NonsmoothPIRK:
             # single integral
             #################
             P_Ni = h * dP_N @ self.A[i]
+            # P_Ni = self.P_Nn + h * dP_N @ self.A[i]
 
             # #################
             # # double integral
@@ -360,6 +363,8 @@ class NonsmoothPIRK:
             Ui = un + h * du @ self.A[i]
             P_Ni = h * dP_N @ self.A[i]
             P_Fi = h * dP_F @ self.A[i]
+            # P_Ni = self.P_Nn + h * dP_N @ self.A[i]
+            # P_Fi = self.P_Fn + h * dP_F @ self.A[i]
 
             gamma_Fi = self.system.gamma_F(ti, Qi, Ui)
 
@@ -387,7 +392,7 @@ class NonsmoothPIRK:
         #################
         # impact equation
         #################
-        # nonlinear projection with h vector
+        # # nonlinear projection with h vector
         # R[self.split_y[5] : self.split_y[6]] = (
         #     self.system.M(tn1, qn1) @ (un1 - un)
         #     - (
