@@ -4,7 +4,7 @@ from cardillo.constraints import (
 )
 from cardillo.beams import (
     Rope,
-    animate_rope,
+    animate_beam,
 )
 from cardillo.forces.scalar_force_laws import LinearSpring
 from cardillo.beams.rope import QuadraticMaterial as QuadraticMaterialRope
@@ -118,7 +118,7 @@ if __name__ == "__main__":
     system.assemble()
 
     # # show initial configuration
-    # animate_rope([0], [q0], [rope], L, show=True)
+    # animate_beam([0], [q0], [rope], L, show=True, n_frames=0)
 
     ############################################################################
     #                   solver
@@ -158,4 +158,4 @@ if __name__ == "__main__":
     #                   visualization
     ############################################################################
 
-    animate_rope(t, q, [rope], L, show=True)
+    animate_beam(t, q, [rope], L, show=True, n_frames=0)

@@ -2,7 +2,7 @@ from cardillo.discrete import Frame
 from cardillo.constraints import Linear_guidance_xyz, Spherical
 from cardillo.beams import (
     Rope,
-    animate_rope,
+    animate_beam,
 )
 
 from cardillo.beams.rope import QuadraticMaterial
@@ -195,7 +195,7 @@ if __name__ == "__main__":
     system.assemble()
 
     # # show initial configuration
-    # animate_rope([0], [q0], [rope], R, show=True)
+    # animate_beam([0], [q0], [rope], R, show=True, n_frames=0)
 
     ############################################################################
     #                   solver
@@ -283,7 +283,9 @@ if __name__ == "__main__":
     scale_z = 0.2
 
     # TODO: resolve problem with last frame not showing
-    fig1, ax1, anim1 = animate_rope(t, q, [rope], scale_plane, show=False, repeat=True)
+    fig1, ax1, anim1 = animate_beam(
+        t, q, [rope], scale_plane, show=False, repeat=True, n_frames=0
+    )
 
     # plane with x-direction as normal
     Y_x = np.linspace(0, scale_plane, num=2)
