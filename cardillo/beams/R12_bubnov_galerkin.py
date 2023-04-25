@@ -6,7 +6,7 @@ import os
 from cardillo.utility.coo_matrix import CooMatrix
 from cardillo.discretization.b_spline import BSplineKnotVector
 from cardillo.discretization.lagrange import LagrangeKnotVector
-from cardillo.math.algebra import norm, cross3, skew2ax, skew2ax_A
+from cardillo.math.algebra import norm
 from cardillo.math import approx_fprime
 from cardillo.discretization.mesh1D import Mesh1D
 from cardillo.beams._base_petrov_galerkin import RodExportBase
@@ -368,11 +368,8 @@ class I_R12_BubonvGalerkin_R12(RodExportBase, metaclass=ABCMeta):
     def __M_coo(self):
         self.__M = CooMatrix((self.nu, self.nu))
         for el in range(self.nelement):
-            # extract element degrees of freedom
             elDOF = self.elDOF[el]
-
-            # sparse assemble element mass matrix
-            self.__M.extend(self.M_el(el), (self.uDOF[elDOF], self.uDOF[elDOF]))
+            self.__M[elDOF, elDOF] = self.M_el(el)
 
     def M(self, t, q):
         return self.__M
@@ -529,8 +526,7 @@ class I_R12_BubonvGalerkin_R12(RodExportBase, metaclass=ABCMeta):
         coo = CooMatrix((self.nu, self.nq))
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
-            Ke = self.f_pot_q_el(q[elDOF], el)
-            coo.extend(Ke, (self.uDOF[elDOF], self.qDOF[elDOF]))
+            coo[elDOF, elDOF] = self.f_pot_q_el(q[elDOF], el)
 
         return coo
 
@@ -885,35 +881,26 @@ class I_R12_BubonvGalerkin_R12(RodExportBase, metaclass=ABCMeta):
 
     # TODO: Implement K_Psi as derivative of K_Omega
     def K_Psi(self, t, q, u, u_dot, frame_ID):
-        raise NotImplementedError
-        # xi = frame_ID[0]
-        # if xi == 0:
-        #     NN = self.N_bdry[0]
-        # elif xi == 1:
-        #     NN = self.N_bdry[-1]
-        # else:
-        #     N, _ = self.basis_functions(frame_ID[0])
-        #     NN = self.stack3r(N)
-        N, _ = self.basis_functions_di(frame_ID[0])
-        NN = self.stack3di(N)
+        N_di, _ = self.basis_functions_di(frame_ID[0])
 
-        d1 = NN @ q[self.d1DOF]
-        d2 = NN @ q[self.d2DOF]
-        d3 = NN @ q[self.d3DOF]
-        A_IK = np.vstack((d1, d2, d3)).T
+        d1d2d3 = np.zeros(9, dtype=q.dtype)
+        d1d2d3_dot = np.zeros(9, dtype=q.dtype)
+        d1d2d3_ddot = np.zeros(9, dtype=q.dtype)
+        for node in range(self.nnodes_element_di):
+            d1d2d3 += N_di[node] * q[self.nodalDOF_element_di[node]]
+            d1d2d3_dot += N_di[node] * u[self.nodalDOF_element_di[node]]
+            d1d2d3_dot += N_di[node] * u_dot[self.nodalDOF_element_di[node]]
+        d1, d2, d3 = np.split(d1d2d3, 3)
+        d1_dot, d2_dot, d3_dot = np.split(d1d2d3_dot, 3)
+        d1_ddot, d2_ddot, d3_ddot = np.split(d1d2d3_ddot, 3)
 
-        d1_dot = NN @ u[self.d1DOF]
-        d2_dot = NN @ u[self.d2DOF]
-        d3_dot = NN @ u[self.d3DOF]
-        A_IK_dot = np.vstack((d1_dot, d2_dot, d3_dot)).T
-
-        d1_ddot = NN @ u_dot[self.d1DOF]
-        d2_ddot = NN @ u_dot[self.d2DOF]
-        d3_ddot = NN @ u_dot[self.d3DOF]
-        A_IK_ddot = np.vstack((d1_ddot, d2_ddot, d3_ddot)).T
-
-        K_Psi_tilde = A_IK_dot.T @ A_IK_dot + A_IK.T @ A_IK_ddot
-        return skew2ax(K_Psi_tilde)
+        return 0.5 * np.array(
+            [
+                d3 @ d2_ddot - d2 @ d3_ddot + d3_dot @ d2_dot - d2_dot @ d3_dot,
+                d1 @ d3_ddot - d3 @ d1_ddot + d1_dot @ d3_dot - d3_dot @ d1_dot,
+                d2 @ d1_ddot - d1 @ d2_ddot + d2_dot @ d1_dot - d1_dot @ d2_dot,
+            ]
+        )
 
     ####################################################
     # body force
@@ -1591,9 +1578,7 @@ class I_R12_BubonvGalerkin_R12_Dirac(I_R12_BubonvGalerkin_R12):
 
     # constraints on a single node
     def __g(self, qn):
-        d1 = qn[:3]
-        d2 = qn[3:6]
-        d3 = qn[6:]
+        d1, d2, d3 = np.split(qn, 3)
 
         g = np.zeros(6, dtype=qn.dtype)
         g[0] = d1 @ d1 - 1.0
@@ -1605,10 +1590,37 @@ class I_R12_BubonvGalerkin_R12_Dirac(I_R12_BubonvGalerkin_R12):
 
         return g
 
+    def __g_dot(self, qn, un):
+        d1, d2, d3 = np.split(qn, 3)
+        d1_dot, d2_dot, d3_dot = np.split(un, 3)
+
+        g_dot = np.zeros(6, dtype=qn.dtype)
+        g_dot[0] = 2 * d1 @ d1_dot
+        g_dot[1] = 2 * d2 @ d2_dot
+        g_dot[2] = 2 * d3 @ d3_dot
+        g_dot[3] = d1 @ d2_dot + d2 @ d1_dot
+        g_dot[4] = d2 @ d3_dot + d3 @ d2_dot
+        g_dot[5] = d3 @ d1_dot + d1 @ d3_dot
+
+        return g_dot
+
+    def __g_ddot(self, qn, un, un_dot):
+        d1, d2, d3 = np.split(qn, 3)
+        d1_dot, d2_dot, d3_dot = np.split(un, 3)
+        d1_ddot, d2_ddot, d3_ddot = np.split(un_dot, 3)
+
+        g_ddot = np.zeros(6, dtype=qn.dtype)
+        g_ddot[0] = 2 * d1 @ d1_ddot + 2 * d1_dot @ d1_dot
+        g_ddot[1] = 2 * d2 @ d2_ddot + 2 * d2_dot @ d2_dot
+        g_ddot[2] = 2 * d3 @ d3_ddot + 2 * d3_dot @ d3_dot
+        g_ddot[3] = d1 @ d2_ddot + d2_dot @ d1_dot + d1 @ d2_ddot + d2_dot @ d1_dot
+        g_ddot[4] = d2 @ d3_ddot + d3_dot @ d2_dot + d2 @ d3_ddot + d3_dot @ d2_dot
+        g_ddot[5] = d3 @ d1_ddot + d1_dot @ d3_dot + d3 @ d1_ddot + d1_dot @ d3_dot
+
+        return g_ddot
+
     def __g_q(self, qn):
-        d1 = qn[:3]
-        d2 = qn[3:6]
-        d3 = qn[6:]
+        d1, d2, d3 = np.split(qn, 3)
 
         g_q = np.zeros((6, 9), dtype=qn.dtype)
         g_q[0, :3] = 2.0 * d1
@@ -1675,15 +1687,32 @@ class I_R12_BubonvGalerkin_R12_Dirac(I_R12_BubonvGalerkin_R12):
 
         return g
 
+    def g_dot(self, t, q, u):
+        g_dot = np.zeros(self.nla_g)
+        for node in range(self.nnode_di):
+            nodalDOF_la_g = self.nodalDOF_la_g[node]
+            nodalDOF_di = self.nodalDOF_di[node]
+            g_dot[nodalDOF_la_g] = self.__g_dot(q[nodalDOF_di], u[nodalDOF_di])
+
+        return g_dot
+
+    def g_ddot(self, t, q, u, u_dot):
+        g_ddot = np.zeros(self.nla_g)
+        for node in range(self.nnode_di):
+            nodalDOF_la_g = self.nodalDOF_la_g[node]
+            nodalDOF_di = self.nodalDOF_di[node]
+            g_ddot[nodalDOF_la_g] = self.__g_ddot(
+                q[nodalDOF_di], u[nodalDOF_di], u[nodalDOF_di]
+            )
+
+        return g_ddot
+
     def g_q(self, t, q):
         coo = CooMatrix((self.nla_g, self.nq))
         for node in range(self.nnode_di):
             nodalDOF_la_g = self.nodalDOF_la_g[node]
             nodalDOF_di = self.nodalDOF_di[node]
-            coo.extend(
-                self.__g_q(q[nodalDOF_di]),
-                (self.la_gDOF[nodalDOF_la_g], self.qDOF[nodalDOF_di]),
-            )
+            coo[nodalDOF_la_g, nodalDOF_di] = self.__g_q(q[nodalDOF_di])
 
         return coo
 
@@ -1692,10 +1721,7 @@ class I_R12_BubonvGalerkin_R12_Dirac(I_R12_BubonvGalerkin_R12):
         for node in range(self.nnode_di):
             nodalDOF_la_g = self.nodalDOF_la_g[node]
             nodalDOF_di = self.nodalDOF_di[node]
-            coo.extend(
-                self.__g_q(q[nodalDOF_di]).T,
-                (self.uDOF[nodalDOF_di], self.la_gDOF[nodalDOF_la_g]),
-            )
+            coo[nodalDOF_di, nodalDOF_la_g] = self.__g_q(q[nodalDOF_di]).T
 
         return coo
 
@@ -1704,10 +1730,7 @@ class I_R12_BubonvGalerkin_R12_Dirac(I_R12_BubonvGalerkin_R12):
         for node in range(self.nnode_di):
             nodalDOF_la_g = self.nodalDOF_la_g[node]
             nodalDOF_di = self.nodalDOF_di[node]
-            coo.extend(
-                self.__Wla_g_q(la_g[nodalDOF_la_g]),
-                (self.uDOF[nodalDOF_di], self.qDOF[nodalDOF_di]),
-            )
+            coo[nodalDOF_di, nodalDOF_di] = self.__Wla_g_q(la_g[nodalDOF_la_g])
 
         return coo
 
@@ -1717,6 +1740,7 @@ class I_R12_BubonvGalerkin_R12_Dirac(I_R12_BubonvGalerkin_R12):
 ####################################################
 class I_R12_BubonvGalerkin_R12_Integral(I_R12_BubonvGalerkin_R12):
     def __init__(self, *args, **kwargs):
+        raise RuntimeError("Refactor me!")
         super().__init__(*args, **kwargs)
 
         self.polynomial_degree_g = self.polynomial_degree_di
@@ -1778,9 +1802,7 @@ class I_R12_BubonvGalerkin_R12_Integral(I_R12_BubonvGalerkin_R12):
             d1d2d3 = np.zeros(9, dtype=qe.dtype)
             for node in range(self.nnodes_element_di):
                 d1d2d3 += self.N_di[el, i, node] * qe[self.nodalDOF_element_di[node]]
-            d1 = d1d2d3[:3]
-            d2 = d1d2d3[3:6]
-            d3 = d1d2d3[6:9]
+            d1, d2, d3 = np.split(d1d2d3, 3)
 
             for node in range(self.nnodes_element_g):
                 factor = self.N_g[el, i, node] * self.J[el, i] * self.qw[el, i]
@@ -1806,12 +1828,8 @@ class I_R12_BubonvGalerkin_R12_Integral(I_R12_BubonvGalerkin_R12):
                     el, i, node
                 ] * np.eye(9)
 
-            d1 = d1d2d3[:3]
-            d2 = d1d2d3[3:6]
-            d3 = d1d2d3[6:9]
-            d1_q = d1d2d3_q[:3]
-            d2_q = d1d2d3_q[3:6]
-            d3_q = d1d2d3_q[6:9]
+            d1, d2, d3 = np.split(d1d2d3, 3)
+            d1_q, d2_q, d3_q = np.split(d1d2d3_q, 3)
 
             for node in range(self.nnodes_element_g):
                 factor = self.N_g[el, i, node] * self.J[el, i] * self.qw[el, i]
@@ -2077,8 +2095,7 @@ class I_R12_BubonvGalerkin_R12_Integral(I_R12_BubonvGalerkin_R12):
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             elDOF_g = self.elDOF_g[el]
-            g_q = self.__g_q_el(q[elDOF], el)
-            coo.extend(g_q, (self.la_gDOF[elDOF_g], self.qDOF[elDOF]))
+            coo[elDOF_g, elDOF] = self.__g_q_el(q[elDOF], el)
 
         return coo
 
@@ -2087,8 +2104,7 @@ class I_R12_BubonvGalerkin_R12_Integral(I_R12_BubonvGalerkin_R12):
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             elDOF_g = self.elDOF_g[el]
-            g_q = self.__g_q_el(q[elDOF], el)
-            coo.extend(g_q.T, (self.uDOF[elDOF], self.la_gDOF[elDOF_g]))
+            coo[elDOF, elDOF_g] = self.__g_q_el(q[elDOF], el).T
 
         return coo
 
@@ -2097,10 +2113,7 @@ class I_R12_BubonvGalerkin_R12_Integral(I_R12_BubonvGalerkin_R12):
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             elDOF_g = self.elDOF_g[el]
-            coo.extend(
-                self.__Wla_g_q_el(q[elDOF], la_g[elDOF_g], el),
-                (self.uDOF[elDOF], self.qDOF[elDOF]),
-            )
+            coo[elDOF, elDOF] = self.__Wla_g_q_el(q[elDOF], la_g[elDOF_g], el)
 
         return coo
 
@@ -2117,8 +2130,7 @@ class I_R12_BubonvGalerkin_R12_Integral(I_R12_BubonvGalerkin_R12):
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             elDOF_g = self.elDOF_g[el]
-            g_dot_q = self.__g_dot_q_el(q[elDOF], u[elDOF], el)
-            coo.extend(g_dot_q, (self.la_gDOF[elDOF_g], self.qDOF[elDOF]))
+            coo[elDOF_g, elDOF] = self.__g_dot_q_el(q[elDOF], u[elDOF], el)
 
         return coo
 
@@ -2127,8 +2139,7 @@ class I_R12_BubonvGalerkin_R12_Integral(I_R12_BubonvGalerkin_R12):
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             elDOF_g = self.elDOF_g[el]
-            g_dot_u = self.__g_q_el(q[elDOF], el)
-            coo.extend(g_dot_u, (self.la_gDOF[elDOF_g], self.uDOF[elDOF]))
+            coo[elDOF_g, elDOF] = self.__g_q_el(q[elDOF], el)
 
         return coo
 
@@ -2145,8 +2156,9 @@ class I_R12_BubonvGalerkin_R12_Integral(I_R12_BubonvGalerkin_R12):
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             elDOF_g = self.elDOF_g[el]
-            g_ddot_q = self.__g_ddot_q_el(q[elDOF], u[elDOF], u_dot[elDOF], el)
-            coo.extend(g_ddot_q, (self.la_gDOF[elDOF_g], self.qDOF[elDOF]))
+            coo[elDOF_g, elDOF] = self.__g_ddot_q_el(
+                q[elDOF], u[elDOF], u_dot[elDOF], el
+            )
 
         return coo
 
@@ -2155,8 +2167,9 @@ class I_R12_BubonvGalerkin_R12_Integral(I_R12_BubonvGalerkin_R12):
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             elDOF_g = self.elDOF_g[el]
-            g_ddot_u = self.__g_ddot_u_el(q[elDOF], u[elDOF], u_dot[elDOF], el)
-            coo.extend(g_ddot_u, (self.la_gDOF[elDOF_g], self.uDOF[elDOF]))
+            coo[elDOF_g, elDOF] = self.__g_ddot_u_el(
+                q[elDOF], u[elDOF], u_dot[elDOF], el
+            )
 
         return coo
 
@@ -2164,6 +2177,7 @@ class I_R12_BubonvGalerkin_R12_Integral(I_R12_BubonvGalerkin_R12):
 # TODO: implement time derivatives of constraint functions
 class EulerBernoulliDirectorIntegral(I_R12_BubonvGalerkin_R12):
     def __init__(self, *args, **kwargs):
+        raise RuntimeError("Refactor me!")
         super().__init__(*args, **kwargs)
 
         self.polynomial_degree_g = (
@@ -2470,6 +2484,7 @@ class EulerBernoulliDirectorIntegral(I_R12_BubonvGalerkin_R12):
 # TODO: implement time derivatives of constraint functions
 class InextensibleEulerBernoulliDirectorIntegral(I_R12_BubonvGalerkin_R12):
     def __init__(self, *args, **kwargs):
+        raise RuntimeError("Refactor me!")
         super().__init__(*args, **kwargs)
 
         self.polynomial_degree_g = (
