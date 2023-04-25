@@ -11,6 +11,7 @@ from cardillo.discretization.b_spline import B_spline_basis3D
 from cardillo.math.algebra import det2D, inv3D, det3D, norm
 from cardillo.math.rotations import A_IK_basic
 from cardillo.discretization.mesh2D import Mesh2D
+from cardillo.utility.coo_matrix import CooMatrix
 
 
 def strain_measures(F, G):
@@ -395,8 +396,8 @@ class Pantographic_sheet:
     def q_dot(self, t, q, u):
         return u
 
-    def B(self, t, q, coo):
-        coo.extend_diag(np.ones(self.nq), (self.qDOF, self.uDOF))
+    def B(self, t, q):
+        return np.ones(self.nq)
 
     def q_ddot(self, t, q, u, u_dot):
         return u_dot
@@ -419,14 +420,17 @@ class Pantographic_sheet:
 
         return M_el
 
-    def M(self, t, q, coo):
+    def M(self, t, q):
+        coo = CooMatrix((self.nu, self.nu))
         for el in range(self.nel):
             M_el = self.M_el(el)
 
             # sparse assemble element internal stiffness matrix
             elfDOF = self.elfDOF[el]
             eluDOF = self.eluDOF[el]
-            coo.extend(M_el[elfDOF[:, None], elfDOF], (eluDOF, eluDOF))
+            coo[eluDOF, eluDOF] = M_el[elfDOF[:, None], elfDOF]
+
+        return coo
 
     ####################################################
     # surface forces
@@ -463,7 +467,7 @@ class Pantographic_sheet:
             )
         return f[self.fDOF]
 
-    def force_distr2D_q(self, t, q, coo, force, srf_idx):
+    def force_distr2D_q(self, t, q, force, srf_idx):
         pass
 
     ####################################################
@@ -497,7 +501,7 @@ class Pantographic_sheet:
             f[self.elDOF[el]] += self.force_distr3D_el(force, t, el)
         return f[self.fDOF]
 
-    def force_distr3D_q(self, t, q, coo, force):
+    def force_distr3D_q(self, t, q, force):
         pass
 
 
@@ -1009,8 +1013,9 @@ class Dummy_pantograph(Pantographic_sheet):
 
         return Ke
 
-    def h_q(self, t, q, u, coo):
+    def h_q(self, t, q, u):
         z = self.z(t, q)
+        coo = CooMatrix((self.nu, self.nq))
         for el in range(self.nel):
             Ke = self.f_pot_q_el(z[self.elDOF[el]], el)
             # Ke_num = Numerical_derivative(lambda t, z: self.f_pot_el(z, el), order=2)._x(t, z[self.elDOF[el]])
@@ -1022,7 +1027,9 @@ class Dummy_pantograph(Pantographic_sheet):
             elfDOF = self.elfDOF[el]
             eluDOF = self.eluDOF[el]
             elqDOF = self.elqDOF[el]
-            coo.extend(Ke[elfDOF[:, None], elfDOF], (eluDOF, elqDOF))
+            coo[eluDOF, elqDOF] = Ke[elfDOF[:, None], elfDOF]
+
+        return coo
 
 
 def test_gradients():

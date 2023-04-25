@@ -2,6 +2,7 @@ import numpy as np
 import meshio
 from cardillo.discretization.indexing import flat2D, flat3D, split2D, split3D
 from cardillo.math import det2D, det3D
+from cardillo.utility.coo_matrix import CooMatrix
 
 
 class SecondGradient:
@@ -119,8 +120,8 @@ class SecondGradient:
     def q_dot(self, t, q, u):
         return u
 
-    def B(self, t, q, coo):
-        coo.extend_diag(np.ones(self.nq), (self.qDOF, self.uDOF))
+    def B(self, t, q):
+        return np.ones(self.nq)
 
     def q_ddot(self, t, q, u, u_dot):
         return u_dot
@@ -143,14 +144,17 @@ class SecondGradient:
 
         return M_el
 
-    def M(self, t, q, coo):
+    def M(self, t, q):
+        coo = CooMatrix((self.nu, self.nu))
         for el in range(self.nel):
             M_el = self.M_el(el)
 
             # sparse assemble element internal stiffness matrix
             elfDOF = self.elfDOF[el]
             eluDOF = self.eluDOF[el]
-            coo.extend(M_el[elfDOF[:, None], elfDOF], (eluDOF, eluDOF))
+            coo[eluDOF, eluDOF] = M_el[elfDOF[:, None], elfDOF]
+
+        return coo
 
     def f_pot_el(self, ze, el):
         f = np.zeros(self.nq_el)
@@ -228,9 +232,10 @@ class SecondGradient:
 
         return Ke
 
-    def h_q(self, t, q, u, coo):
+    def h_q(self, t, q, u):
         # import time
         z = self.z(t, q)
+        coo = CooMatrix((self.nu, self.nq))
         for el in range(self.nel):
             # t0 = time.time()
             Ke = self.f_pot_q_el(z[self.elDOF[el]], el)
@@ -239,7 +244,9 @@ class SecondGradient:
             elfDOF = self.elfDOF[el]
             eluDOF = self.eluDOF[el]
             elqDOF = self.elqDOF[el]
-            coo.extend(Ke[elfDOF[:, None], elfDOF], (eluDOF, elqDOF))
+            coo[eluDOF, elqDOF] = Ke[elfDOF[:, None], elfDOF]
+
+        return coo
 
     ####################################################
     # Line forces
@@ -274,7 +281,7 @@ class SecondGradient:
             )
         return f[self.fDOF]
 
-    def force_distr1D_q(self, t, q, coo, force, edge_idx, edge_w_J0):
+    def force_distr1D_q(self, t, q, force, edge_idx, edge_w_J0):
         pass
 
     ####################################################
@@ -312,7 +319,7 @@ class SecondGradient:
             )
         return f[self.fDOF]
 
-    def force_distr2D_q(self, t, q, coo, force, srf_idx):
+    def force_distr2D_q(self, t, q, force, srf_idx):
         pass
 
     ####################################################
@@ -359,7 +366,7 @@ class SecondGradient:
             )
         return f[self.fDOF]
 
-    def doubleforce_distr2D_q(self, t, q, coo, doubleforce_distr2D, srf_idx, srf_w_J0):
+    def doubleforce_distr2D_q(self, t, q, doubleforce_distr2D, srf_idx, srf_w_J0):
         pass
 
     ####################################################
@@ -393,7 +400,7 @@ class SecondGradient:
             f[self.elDOF[el]] += self.force_distr3D_el(force, t, el)
         return f[self.fDOF]
 
-    def force_distr3D_q(self, t, q, coo, force):
+    def force_distr3D_q(self, t, q, force):
         pass
 
     # TODO: Include global data in vtk file

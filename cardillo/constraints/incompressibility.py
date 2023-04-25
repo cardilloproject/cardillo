@@ -66,7 +66,8 @@ class Incompressibility:
 
         return ge_q
 
-    def g_q_dense(self, t, q):
+    # TODO: Make this sparse!
+    def g_q(self, t, q):
         g_q = np.zeros((self.nla_g, self.subsystem.nz))
         z = self.subsystem.z(t, q)
         for el in range(self.mesh.nel):
@@ -76,11 +77,8 @@ class Incompressibility:
             g_q[np.ix_(la_elDOF_el, elDOF_el)] += self.g_el_q(t, qe, el)
         return g_q[:, self.subsystem.fDOF]
 
-    def g_q(self, t, q, coo):
-        coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
-
-    def W_g(self, t, q, coo):
-        coo.extend(self.g_q_dense(t, q).T, (self.qDOF, self.la_gDOF))
+    def W_g(self, t, q):
+        return self.g_q(t, q).T
 
     def Wla_g_q_el(self, t, qel, lael, el):
         Wla_g_q_el = np.zeros((qel.shape[0], qel.shape[0]))
@@ -128,7 +126,8 @@ class Incompressibility:
 
         return Wla_g_q_el
 
-    def Wla_g_q(self, t, q, la_g, coo):
+    # TODO: Make this sparse!
+    def Wla_g_q(self, t, q, la_g):
         Wla_g_q = np.zeros((self.subsystem.nz, self.subsystem.nz))
         z = self.subsystem.z(t, q)
         for el in range(self.mesh.nel):
@@ -139,7 +138,4 @@ class Incompressibility:
                 np.ix_(self.mesh.elDOF[el], self.mesh.elDOF[el])
             ] += self.Wla_g_q_el(t, qel, lael, el)
 
-        coo.extend(
-            Wla_g_q[np.ix_(self.subsystem.fDOF, self.subsystem.fDOF)],
-            (self.qDOF, self.qDOF),
-        )
+        return Wla_g_q[np.ix_(self.subsystem.fDOF, self.subsystem.fDOF)]
