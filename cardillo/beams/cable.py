@@ -288,11 +288,8 @@ class Cable:
     def __M_coo(self):
         self.__M = CooMatrix((self.nu, self.nu))
         for el in range(self.nelement):
-            # extract element degrees of freedom
             elDOF = self.elDOF[el]
-
-            # sparse assemble element mass matrix
-            self.__M[self.uDOF[elDOF], self.uDOF[elDOF]] = self.M_el(el)
+            self.__M[elDOF, elDOF] = self.M_el(el)
 
     def M(self, t, q):
         return self.__M
@@ -418,10 +415,7 @@ class Cable:
         coo = CooMatrix((self.nu, self.nq))
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
-            f_pot_q_el = self.f_pot_q_el(t, q[elDOF], el)
-
-            # sparse assemble element internal stiffness matrix
-            coo[self.uDOF[elDOF], self.qDOF[elDOF]] = f_pot_q_el
+            coo[elDOF, elDOF] = self.f_pot_q_el(t, q[elDOF], el)
 
         return coo
 

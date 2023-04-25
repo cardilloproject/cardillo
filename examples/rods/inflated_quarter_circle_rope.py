@@ -80,18 +80,12 @@ class Inflated(Rope):
         coo = super().h_q(t, q, u)
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
-            f_npot_q_el = self.f_npot_q_el(t, q[elDOF], u[elDOF], el)
-
-            # sparse assemble element internal stiffness matrix
-            coo[self.uDOF[elDOF], self.qDOF[elDOF]] = f_npot_q_el
+            coo[elDOF, elDOF] = self.f_npot_q_el(t, q[elDOF], u[elDOF], el)
 
         return coo
 
     def f_npot_q_el(self, t, qe, ue, el):
-        f_npot_q_el_num = approx_fprime(
-            qe, lambda qe: self.f_npot_el(t, qe, ue, el), eps=1.0e-10, method="cs"
-        )
-        return f_npot_q_el_num
+        return approx_fprime(qe, lambda qe: self.f_npot_el(t, qe, ue, el))
 
 
 case = "statics"

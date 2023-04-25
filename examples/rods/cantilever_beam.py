@@ -18,7 +18,6 @@ from cardillo.beams import (
     K_SE3_PetrovGalerkin_R9,
 )
 from cardillo.beams import (
-    # Crisfield1999,
     I_R12_BubonvGalerkin_R12_Dirac,
     I_R12_BubonvGalerkin_R12_Integral,
     K_Cardona,
@@ -36,8 +35,8 @@ from pathlib import Path
 ###################
 # R12 interpolation
 ###################
-# Rod = K_R12_PetrovGalerkin_AxisAngle
-Rod = K_R12_PetrovGalerkin_Quaternion
+Rod = K_R12_PetrovGalerkin_AxisAngle
+# Rod = K_R12_PetrovGalerkin_Quaternion
 # Rod = K_R12_PetrovGalerkin_R9
 
 #####################
@@ -50,15 +49,14 @@ Rod = K_R12_PetrovGalerkin_Quaternion
 ####################
 # other formulations
 ####################
-# Rod = Crisfield1999
 # Rod = TimoshenkoDirectorDirac
 # Rod = TimoshenkoDirectorIntegral
 # Rod = I_DirectorAxisAngle
 # Rod = K_Cardona
 # Rod = K_TimoshenkoLerp
 
-statics = True
-# statics = False
+# statics = True
+statics = False
 
 slenderness = 1.0e1
 atol = 1.0e-8
