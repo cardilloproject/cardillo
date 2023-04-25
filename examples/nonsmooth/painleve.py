@@ -60,8 +60,8 @@ class Painleve_rod:
     #####################
     # equations of motion
     #####################
-    def M(self, t, q, coo):
-        coo.extend_diag(np.array([self.m, self.m, self.J_S]), (self.uDOF, self.uDOF))
+    def M(self, t, q):
+        return np.array([self.m, self.m, self.J_S])
 
     def h(self, t, q, u):
         return np.array([0, -self.m * self.g, 0])
@@ -75,8 +75,8 @@ class Painleve_rod:
     def q_ddot(self, t, q, u, u_dot):
         return u_dot
 
-    def B(self, t, q, coo):
-        coo.extend_diag(np.ones(3), (self.qDOF, self.uDOF))
+    def B(self, t, q):
+        return np.ones(3)
 
     #################
     # normal contacts
@@ -85,44 +85,34 @@ class Painleve_rod:
         x, y, phi = q
         return np.array([y - self.s * np.sin(phi)])
 
-    def g_N_q_dense(self, t, q):
+    def g_N_q(self, t, q):
         x, y, phi = q
         return np.array([[0, 1, -self.s * np.cos(phi)]])
-
-    def g_N_q(self, t, q, coo):
-        coo.extend(self.g_N_q_dense(t, q), (self.la_NDOF, self.qDOF))
 
     def g_N_dot(self, t, q, u):
         x, y, phi = q
         x_dot, y_dot, phi_dot = u
         return np.array([y_dot - self.s * np.cos(phi) * phi_dot])
 
-    def g_N_dot_q_dense(self, t, q, u):
+    def g_N_dot_q(self, t, q, u):
         x, y, phi = q
         x_dot, y_dot, phi_dot = u
         return np.array([0, 0, self.s * np.sin(phi) * phi_dot])
 
-    def g_N_dot_q(self, t, q, u, coo):
-        coo.extend(self.g_N_dot_q_dense(t, q, u), (self.la_NDOF, self.qDOF))
-
-    def g_N_dot_u_dense(self, t, q):
+    def g_N_dot_u(self, t, q):
         x, y, phi = q
-        return np.array([0, 1, -self.s * np.cos(phi)])
-
-    def g_N_dot_u(self, t, q, coo):
-        coo.extend(self.g_N_dot_u_dense(t, q), (self.la_NDOF, self.uDOF))
+        return np.array([[0, 1, -self.s * np.cos(phi)]])
 
     def xi_N(self, t, q, u_pre, u_post):
         return self.g_N_dot(t, q, u_post) + self.e_N * self.g_N_dot(t, q, u_pre)
 
-    def xi_N_q(self, t, q, u_pre, u_post, coo):
-        g_N_q_pre = self.g_N_dot_q_dense(t, q, u_pre)
-        g_N_q_post = self.g_N_dot_q_dense(t, q, u_post)
-        dense = g_N_q_post + self.e_N * g_N_q_pre
-        coo.extend(dense, (self.la_NDOF, self.qDOF))
+    def xi_N_q(self, t, q, u_pre, u_post):
+        g_N_q_pre = self.g_N_dot_q(t, q, u_pre)
+        g_N_q_post = self.g_N_dot_q(t, q, u_post)
+        return g_N_q_post + self.e_N * g_N_q_pre
 
-    def W_N(self, t, q, coo):
-        coo.extend(self.g_N_dot_u_dense(t, q).T, (self.uDOF, self.la_NDOF))
+    def W_N(self, t, q):
+        return self.g_N_dot_u(t, q).T
 
     def g_N_ddot(self, t, q, u, u_dot):
         x, y, phi = q
@@ -136,29 +126,26 @@ class Painleve_rod:
             ]
         )
 
-    def g_N_ddot_q(self, t, q, u, u_dot, coo):
+    def g_N_ddot_q(self, t, q, u, u_dot):
         x, y, phi = q
         x_dot, y_dot, phi_dot = u
         x_ddot, y_ddot, phi_ddot = u_dot
-        dense = np.array(
+        return np.array(
             [
                 0,
                 0,
                 self.s * np.cos(phi) * phi_dot**2 + self.s * np.sin(phi) * phi_ddot,
             ]
         )
-        coo.extend(dense, (self.la_NDOF, self.qDOF))
 
-    def g_N_ddot_u(self, t, q, u, u_dot, coo):
+    def g_N_ddot_u(self, t, q, u, u_dot):
         x, y, phi = q
         x_dot, y_dot, phi_dot = u
-        dense = np.array([0, 0, 2 * self.s * np.sin(phi) * phi_dot])
-        coo.extend(dense, (self.la_NDOF, self.uDOF))
+        return np.array([0, 0, 2 * self.s * np.sin(phi) * phi_dot])
 
-    def Wla_N_q(self, t, q, la_N, coo):
+    def Wla_N_q(self, t, q, la_N):
         x, y, phi = q
-        dense = la_N[0] * np.array([[0, 0, 0], [0, 0, 0], [0, 0, self.s * np.sin(phi)]])
-        coo.extend(dense, (self.uDOF, self.qDOF))
+        return la_N[0] * np.array([[0, 0, 0], [0, 0, 0], [0, 0, self.s * np.sin(phi)]])
 
     #################
     # tanget contacts
@@ -168,30 +155,21 @@ class Painleve_rod:
         x_dot, y_dot, phi_dot = u
         return np.array([x_dot - self.s * np.sin(phi) * phi_dot])
 
-    def gamma_F_q_dense(self, t, q, u):
+    def gamma_F_q(self, t, q, u):
         x, y, phi = q
         x_dot, y_dot, phi_dot = u
         return np.array([[0, 0, -self.s * np.cos(phi) * phi_dot]])
 
-    def gamma_F_q(self, t, q, u, coo):
-        coo.extend(self.gamma_F_q_dense(t, q, u), (self.la_FDOF, self.qDOF))
-
-    def gamma_F_u_dense(self, t, q):
+    def gamma_F_u(self, t, q):
         x, y, phi = q
         return np.array([[1, 0, -self.s * np.sin(phi)]])
 
-    def gamma_F_u(self, t, q, coo):
-        coo.extend(self.gamma_F_u_dense(t, q), (self.la_FDOF, self.uDOF))
+    def W_F(self, t, q):
+        return self.gamma_F_u(t, q).T
 
-    def W_F(self, t, q, coo):
-        coo.extend(self.gamma_F_u_dense(t, q).T, (self.uDOF, self.la_FDOF))
-
-    def Wla_T_q(self, t, q, la_T, coo):
+    def Wla_T_q(self, t, q, la_T):
         x, y, phi = q
-        dense = la_T[0] * np.array(
-            [[0, 0, 0], [0, 0, 0], [0, 0, -self.s * np.cos(phi)]]
-        )
-        coo.extend(dense, (self.uDOF, self.qDOF))
+        return la_T[0] * np.array([[0, 0, 0], [0, 0, 0], [0, 0, -self.s * np.cos(phi)]])
 
     def gamma_F_dot(self, t, q, u, u_dot):
         x, y, phi = q
@@ -205,11 +183,11 @@ class Painleve_rod:
             ]
         )
 
-    def gamma_F_dot_q(self, t, q, u, u_dot, coo):
+    def gamma_F_dot_q(self, t, q, u, u_dot):
         x, y, phi = q
         x_dot, y_dot, phi_dot = u
         x_ddot, y_ddot, phi_ddot = u_dot
-        dense = np.array(
+        return np.array(
             [
                 [
                     0,
@@ -219,23 +197,20 @@ class Painleve_rod:
                 ]
             ]
         )
-        coo.extend(dense, (self.la_FDOF, self.qDOF))
 
-    def gamma_F_dot_u(self, t, q, u, u_dot, coo):
+    def gamma_F_dot_u(self, t, q, u, u_dot):
         x, y, phi = q
         x_dot, y_dot, phi_dot = u
         x_ddot, y_ddot, phi_ddot = u_dot
-        dense = np.array([[0, 0, -2 * self.s * np.cos(phi) * phi_dot]])
-        coo.extend(dense, (self.la_FDOF, self.uDOF))
+        return np.array([[0, 0, -2 * self.s * np.cos(phi) * phi_dot]])
 
     def xi_F(self, t, q, u_pre, u_post):
         return self.gamma_T(t, q, u_post) + self.e_F * self.gamma_T(t, q, u_pre)
 
-    def xi_F_q(self, t, q, u_pre, u_post, coo):
+    def xi_F_q(self, t, q, u_pre, u_post):
         gamma_T_q_pre = self.gamma_T_q_dense(t, q, u_pre)
         gamma_T_q_post = self.gamma_T_q_dense(t, q, u_post)
-        dense = gamma_T_q_post + self.e_F * gamma_T_q_pre
-        coo.extend(dense, (self.la_FDOF, self.qDOF))
+        return gamma_T_q_post + self.e_F * gamma_T_q_pre
 
 
 if __name__ == "__main__":
