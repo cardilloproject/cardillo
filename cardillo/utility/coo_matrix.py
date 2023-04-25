@@ -47,8 +47,12 @@ class CooMatrix:
         self.__col = array("I", [])  # unsigned int
 
     def __setitem__(self, key, value):
+        # None is returned by every function that does not return. Hence, we
+        # can use this to add no contribution to the matrix.
         if value is not None:
             rows, cols = key
+
+            # extend arrays from given CooMatrix
             if isinstance(value, CooMatrix):
                 self.__data.extend(value.__data)
                 self.__row.extend(value.__row)
@@ -71,8 +75,9 @@ class CooMatrix:
                     self.__row.fromlist(rows.tolist())
                     self.__col.fromlist(cols.tolist())
 
-    def extend(self, matrix, DOF):
-        self[DOF[0], DOF[1]] = matrix
+    # # TODO: Remove this!
+    # def extend(self, matrix, DOF):
+    #     self[DOF[0], DOF[1]] = matrix
 
     def asformat(self, format, copy=False):
         """Return this matrix in the passed format.
