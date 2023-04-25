@@ -314,7 +314,13 @@ if __name__ == "__main__":
     ###########
     # export
     ###########
+    import cProfile
+    pr = cProfile.Profile()
+    pr.enable()
     e = Export(path.parent, path.stem, True, 20, sol)
-    for rod in rod_list:
+    for rod in rod_list[:2]:
         # e.export_contr(rod, level="centerline + directors", num=100)
         e.export_contr(rod, level="volume")
+
+    pr.disable()
+    pr.print_stats()

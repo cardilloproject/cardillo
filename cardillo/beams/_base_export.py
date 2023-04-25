@@ -161,6 +161,16 @@ class RodExportBase(ABC):
                 target_points_2, n_segments, case=continuity
             )
 
+            # project directors on cubic C1 bezier curve
+            _, _, d1_segments = L2_projection_Bezier_curve(
+                d1s.T, n_segments, case=continuity
+            )
+            _, _, d2_segments = L2_projection_Bezier_curve(
+                d2s.T, n_segments, case=continuity
+            )
+            _, _, d3_segments = L2_projection_Bezier_curve(
+                d3s.T, n_segments, case=continuity
+            )
             if isinstance(self.cross_section, CircularCrossSection):
                 if circle_as_wedge:
 
@@ -343,12 +353,29 @@ class RodExportBase(ABC):
                 # create correct VTK ordering, see
                 # https://coreform.com/papers/implementation-of-rational-bezier-cells-into-VTK-report.pdf:
                 vtk_points_weights = []
+                vtk_d1_weights = []
+                vtk_d2_weights = []
+                vtk_d3_weights = []
                 for i in range(n_segments):
                     # compute all missing points of the layer
                     points_layer0 = compute_missing_points(i, 0)
                     points_layer1 = compute_missing_points(i, 1)
                     points_layer2 = compute_missing_points(i, 2)
                     points_layer3 = compute_missing_points(i, 3)
+
+                    # set all values the same per layer for directors
+                    d1_layer0 = np.repeat([d1_segments[i, 0]], 4, axis=0)
+                    d1_layer1 = np.repeat([d1_segments[i, 1]], 4, axis=0)
+                    d1_layer2 = np.repeat([d1_segments[i, 2]], 4, axis=0)
+                    d1_layer3 = np.repeat([d1_segments[i, 3]], 4, axis=0)
+                    d2_layer0 = np.repeat([d2_segments[i, 0]], 4, axis=0)
+                    d2_layer1 = np.repeat([d2_segments[i, 1]], 4, axis=0)
+                    d2_layer2 = np.repeat([d2_segments[i, 2]], 4, axis=0)
+                    d2_layer3 = np.repeat([d2_segments[i, 3]], 4, axis=0)
+                    d3_layer0 = np.repeat([d3_segments[i, 0]], 4, axis=0)
+                    d3_layer1 = np.repeat([d3_segments[i, 1]], 4, axis=0)
+                    d3_layer2 = np.repeat([d3_segments[i, 2]], 4, axis=0)
+                    d3_layer3 = np.repeat([d3_segments[i, 3]], 4, axis=0)
 
                     #######################
                     # 1. vertices (corners)
@@ -357,10 +384,16 @@ class RodExportBase(ABC):
                     # bottom
                     for j in range(4):
                         vtk_points_weights.append(points_layer0[j])
+                        vtk_d1_weights.append(d1_layer0[j])
+                        vtk_d2_weights.append(d2_layer0[j])
+                        vtk_d3_weights.append(d3_layer0[j])
 
                     # top
                     for j in range(4):
                         vtk_points_weights.append(points_layer3[j])
+                        vtk_d1_weights.append(d1_layer3[j])
+                        vtk_d2_weights.append(d2_layer3[j])
+                        vtk_d3_weights.append(d3_layer3[j])
 
                     ##########
                     # 2. edges
@@ -370,7 +403,12 @@ class RodExportBase(ABC):
                     for j in [0, 1, 3, 2]:
                         vtk_points_weights.append(points_layer1[j])
                         vtk_points_weights.append(points_layer2[j])
-
+                        vtk_d1_weights.append(d1_layer1[j])
+                        vtk_d1_weights.append(d1_layer2[j])
+                        vtk_d2_weights.append(d2_layer1[j])
+                        vtk_d2_weights.append(d2_layer2[j])
+                        vtk_d3_weights.append(d3_layer1[j])
+                        vtk_d3_weights.append(d3_layer2[j])
             p_zeta = 3
             if isinstance(self.cross_section, CircularCrossSection):
                 if circle_as_wedge:
@@ -424,6 +462,9 @@ class RodExportBase(ABC):
 
             point_data = {
                 "RationalWeights": vtk_points_weights[:, 3],
+                "d1": vtk_d1_weights,
+                "d2": vtk_d2_weights,
+                "d3": vtk_d3_weights,
             }
 
             cell_data = {
