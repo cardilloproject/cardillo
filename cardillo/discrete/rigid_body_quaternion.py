@@ -54,16 +54,16 @@ class RigidBodyQuaternion(RigidBodyBase):
         P = q[3:]
         return np.array([P @ P - 1.0], dtype=q.dtype)
 
-    def g_S_q(self, t, q, coo):
+    def g_S_q(self, t, q):
         P = q[3:]
         dense = np.zeros((1, 7), dtype=q.dtype)
         dense[0, 3:] = 2.0 * P
-        coo.extend(dense, (self.la_SDOF, self.qDOF))
+        return dense
 
-    def g_S_q_T_mu_q(self, t, q, mu, coo):
+    def g_S_q_T_mu_q(self, t, q, mu):
         dense = np.zeros((7, 7), dtype=q.dtype)
         dense[3:, 3:] = 2.0 * mu[0] * np.eye(4, 4, dtype=float)
-        coo.extend(dense, (self.qDOF, self.qDOF))
+        return dense
 
     def q_dot(self, t, q, u):
         q_dot = np.zeros(self.nq, dtype=np.common_type(q, u))
@@ -71,16 +71,16 @@ class RigidBodyQuaternion(RigidBodyBase):
         q_dot[3:] = T_SO3_inv_quat(q[3:]) @ u[3:]
         return q_dot
 
-    def q_dot_q(self, t, q, u, coo):
+    def q_dot_q(self, t, q, u):
         dense = np.zeros((self.nq, self.nq), dtype=np.common_type(q, u))
         dense[3:, 3:] = np.einsum("ijk,j->ik", T_SO3_inv_quat_P(q[3:]), u[3:])
-        coo.extend(dense, (self.qDOF, self.qDOF))
+        return dense
 
-    def B(self, t, q, coo):
+    def B(self, t, q):
         B = np.zeros((self.nq, self.nu), dtype=q.dtype)
         B[:3, :3] = np.eye(3, dtype=q.dtype)
         B[3:, 3:] = T_SO3_inv_quat(q[3:])
-        coo.extend(B, (self.qDOF, self.uDOF))
+        return B
 
     def q_ddot(self, t, q, u, u_dot):
         # raise RuntimeWarning("RigidBodyQuaternion.q_ddot is not tested yet!")
