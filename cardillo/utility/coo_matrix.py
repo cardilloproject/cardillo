@@ -1,3 +1,4 @@
+import warnings
 from scipy.sparse import csc_array, csr_array, coo_array
 from scipy.sparse.sputils import isshape, check_shape
 from numpy import repeat, tile
@@ -75,9 +76,13 @@ class CooMatrix:
                     self.__row.fromlist(rows.tolist())
                     self.__col.fromlist(cols.tolist())
 
-    # # TODO: Remove this!
-    # def extend(self, matrix, DOF):
-    #     self[DOF[0], DOF[1]] = matrix
+    def extend(self, matrix, DOF):
+        warnings.warn(
+            "Usage of `CooMatrix.extend` is deprecated. "
+            "You can simply index the object, e.g., coo[rows, cols] = value",
+            category=DeprecationWarning,
+        )
+        self[DOF[0], DOF[1]] = matrix
 
     def asformat(self, format, copy=False):
         """Return this matrix in the passed format.
