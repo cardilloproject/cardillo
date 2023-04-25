@@ -1,6 +1,7 @@
 import warnings
 from scipy.sparse import csc_array, csr_array, coo_array
 from scipy.sparse.sputils import isshape, check_shape
+from scipy.sparse import spmatrix
 from numpy import repeat, tile
 from array import array
 
@@ -47,34 +48,73 @@ class CooMatrix:
         self.__row = array("I", [])  # unsigned int
         self.__col = array("I", [])  # unsigned int
 
+    @property
+    def data(self):
+        return self.__data
+
+    @data.setter
+    def data(self, value):
+        self.__data = value
+
+    @property
+    def row(self):
+        return self.__row
+
+    @row.setter
+    def row(self, value):
+        self.__row = value
+
+    @property
+    def col(self):
+        return self.__col
+
+    @col.setter
+    def col(self, value):
+        self.__col = value
+
     def __setitem__(self, key, value):
         # None is returned by every function that does not return. Hence, we
         # can use this to add no contribution to the matrix.
         if value is not None:
+            # extract rows and columns to assign
             rows, cols = key
 
-            # extend arrays from given CooMatrix
             if isinstance(value, CooMatrix):
-                self.__data.extend(value.__data)
-                self.__row.extend(value.__row)
-                self.__col.extend(value.__col)
+                # extend arrays from given CooMatrix
+                self.data.extend(value.data)
+                self.row.extend(rows[value.row])
+                self.col.extend(cols[value.col])
+                # self.data.fromlist(value.data.tolist())
+                # self.row.fromlist(rows[value.row].tolist())
+                # self.col.fromlist(cols[value.col].tolist())
+            elif isinstance(value, spmatrix):
+                # all scipy sparse matrices are converted to coo_matrix, their
+                # data, row and column lists are subsequently appended
+                coo = value.tocoo()
+                self.data.extend(coo.data)
+                self.row.extend(rows[coo.row])
+                self.col.extend(cols[coo.col])
+                # self.data.fromlist(coo.data.tolist())
+                # self.row.fromlist(rows[coo.row].tolist())
+                # self.col.fromlist(cols[coo.col].tolist())
             else:
                 ndim = value.ndim
                 if ndim > 1:
-                    # 2D array
-                    # - fast version
-                    self.__data.fromlist(value.ravel(order="C").tolist())
-                    self.__row.fromlist(repeat(rows, len(cols)).tolist())
-                    self.__col.fromlist(tile(cols, len(rows)).tolist())
-                    # - slow version
-                    # self.__data.extend(value.ravel(order="C"))
-                    # self.__row.extend(repeat(rows, len(cols)))
-                    # self.__col.extend(tile(cols, len(rows)))
+                    # # 2D array
+                    self.data.extend(value.ravel(order="C"))
+                    self.row.extend(repeat(rows, len(cols)))
+                    self.col.extend(tile(cols, len(rows)))
+                    # self.data.fromlist(value.ravel(order="C").tolist())
+                    # self.row.fromlist(repeat(rows, len(cols)).tolist())
+                    # self.col.fromlist(tile(cols, len(rows)).tolist())
                 else:
                     # 1D array
-                    self.__data.fromlist(value.tolist())
-                    self.__row.fromlist(rows.tolist())
-                    self.__col.fromlist(cols.tolist())
+                    self.data.extend(value)
+                    self.row.extend(rows)
+                    self.col.extend(cols)
+                    # self.data.fromlist(value.tolist())
+                    # self.row.fromlist(rows.tolist())
+                    # self.col.fromlist(cols.tolist())
 
     def extend(self, matrix, DOF):
         warnings.warn(
@@ -117,7 +157,7 @@ class CooMatrix:
             scipy sparse matrix format that should be returned
         """
         return scipy_matrix(
-            (self.__data, (self.__row, self.__col)), shape=self.shape, copy=copy
+            (self.data, (self.row, self.col)), shape=self.shape, copy=copy
         )
 
     def tocoo(self, copy=False):
@@ -140,9 +180,15 @@ class CooMatrix:
 if __name__ == "__main__":
     from profilehooks import profile
     import numpy as np
+    from scipy.sparse import random
 
-    @profile(entries=50)
-    def run(local_size, nlocal):
+    entries = 1
+    density = 1
+    local_size = 10
+    nlocal = 100
+
+    @profile(entries=entries)
+    def run_dense_matrix():
         global_size = nlocal * local_size
         coo = CooMatrix((global_size, global_size))
 
@@ -152,7 +198,48 @@ if __name__ == "__main__":
             coo[idx, idx] = dense
 
         return coo.tocsr()
-        # return coo.asformat("coo")
-        # return coo.asformat("csr")
 
-    run(100, 1000)
+    @profile(entries=entries)
+    def run_dense_vector():
+        global_size = nlocal * local_size
+        coo = CooMatrix((global_size, global_size))
+
+        for i in range(nlocal):
+            dense = np.random.rand(local_size)
+            idx = np.arange(i * local_size, (i + 1) * local_size)
+            coo[idx, idx] = dense
+
+        return coo.tocsr()
+
+    @profile(entries=entries)
+    def run_scipy_sparse():
+        global_size = nlocal * local_size
+        coo = CooMatrix((global_size, global_size))
+
+        for i in range(nlocal):
+            dense = random(local_size, local_size, density=density)
+            idx = np.arange(i * local_size, (i + 1) * local_size)
+            coo[idx, idx] = dense
+
+        return coo.tocsr()
+
+    @profile(entries=entries)
+    def run_coo_sparse():
+        global_size = nlocal * local_size
+        coo = CooMatrix((global_size, global_size))
+
+        for i in range(nlocal):
+            dense = random(local_size, local_size, density=density)
+            dense_coo = CooMatrix((local_size, local_size))
+            dense_coo.data = array("d", dense.data)
+            dense_coo.row = array("I", dense.row)
+            dense_coo.col = array("I", dense.col)
+            idx = np.arange(i * local_size, (i + 1) * local_size)
+            coo[idx, idx] = dense_coo
+
+        return coo.tocsr()
+
+    run_dense_matrix()
+    run_dense_vector()
+    run_scipy_sparse()
+    run_coo_sparse()

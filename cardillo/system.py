@@ -489,9 +489,14 @@ class System:
         return g_S
 
     def g_S_q(self, t, q, scipy_matrix=coo_matrix):
+        # from cardillo.math import approx_fprime
+        # return scipy_matrix(approx_fprime(q, lambda q: self.g_S(t, q)))
         coo = CooMatrix((self.nla_S, self.nq))
+        # print(f"len(coo.data): {len(coo.data)}")
         for contr in self.__g_S_contr:
             coo[contr.la_SDOF, contr.qDOF] = contr.g_S_q(t, q[contr.qDOF])
+            # print(f"len(coo.data): {len(coo.data)}")
+        # exit()
         return coo.tosparse(scipy_matrix)
 
     def g_S_q_T_mu_q(self, t, q, mu, scipy_matrix=coo_matrix):

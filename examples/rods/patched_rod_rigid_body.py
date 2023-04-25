@@ -5,9 +5,13 @@ from cardillo.beams import (
 )
 from cardillo.constraints import RigidConnection
 
-from cardillo.beams import K_R12_PetrovGalerkin_Quaternion as Rod
+# from cardillo.beams import K_R12_PetrovGalerkin_Quaternion as Rod
+# from cardillo.beams import K_R12_PetrovGalerkin_AxisAngle as Rod
+from cardillo.beams import K_R12_PetrovGalerkin_R9 as Rod
 from cardillo.beams import animate_beam
-from cardillo.discrete import RigidBodyQuaternion as RigidBody
+
+# from cardillo.discrete import RigidBodyQuaternion as RigidBody
+from cardillo.discrete import RigidBodyAxisAngle as RigidBody
 from cardillo.forces import K_Moment, Force
 from cardillo import System
 from cardillo.solver import Newton
@@ -17,10 +21,10 @@ import numpy as np
 
 if __name__ == "__main__":
     # number of elements
-    nelements = 3
+    nelements = 2
 
     # used polynomial degree
-    polynomial_degree = 2
+    polynomial_degree = 1
     basis = "Lagrange"
 
     # Young's and shear modulus
@@ -80,7 +84,8 @@ if __name__ == "__main__":
     joint1 = RigidConnection(system.origin, rod_left, frame_ID2=(0,))
 
     # intermediate rigid body
-    rb = RigidBody(1, np.eye(3), np.array([L, 0, 0, 1, 0, 0, 0]))
+    # rb = RigidBody(1, np.eye(3), np.array([L, 0, 0, 1, 0, 0, 0]))
+    rb = RigidBody(1, np.eye(3), np.array([0, 0, 0, 0, 0, 0]))
     joint2 = RigidConnection(rod_left, rb, frame_ID1=(1,))
 
     # right rod
@@ -124,8 +129,8 @@ if __name__ == "__main__":
 
     # assemble the system
     system.add(rod_left, joint1)
-    system.add(rb, joint2)
     system.add(rod_right, joint3)
+    system.add(rb, joint2)
     system.add(moment)
     system.add(force)
     system.assemble()
@@ -136,6 +141,8 @@ if __name__ == "__main__":
         system,
         n_load_steps=n_load_steps,
         atol=atol,
+        # numerical_jacobian=True,
+        numerical_jacobian=False,
     )
     sol = solver.solve()
     q = sol.q
