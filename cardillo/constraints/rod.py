@@ -119,7 +119,7 @@ class Rod:
         r_OP2 = self.r_OP2(t, q)
         return (r_OP2 - r_OP1) @ (r_OP2 - r_OP1) - self.dist**2
 
-    def g_q_dense(self, t, q):
+    def g_q(self, t, q):
         r_OP1 = self.r_OP1(t, q)
         r_OP2 = self.r_OP2(t, q)
         r_OP1_q = self.r_OP1_q(t, q)
@@ -133,7 +133,7 @@ class Rod:
         # (r_OP2 - r_OP1) @ (r_OP2 - r_OP1)  - self.dist ** 2
         return 2 * r_P1P2 @ (self.v_P2(t, q, u) - self.v_P1(t, q, u))
 
-    def g_dot_q(self, t, q, u, coo):
+    def g_dot_q(self, t, q, u):
         r_P1P2 = self.r_OP2(t, q) - self.r_OP1(t, q)
         v_P1P2 = self.v_P2(t, q, u) - self.v_P1(t, q, u)
 
@@ -145,10 +145,10 @@ class Rod:
             r_P1P2 @ self.v_P2_q(t, q, u) + v_P1P2 @ self.r_OP2_q(t, q)
         )
 
-        coo.extend(dense, (self.la_gDOF, self.qDOF))
+        return dense
 
-    def g_dot_u(self, t, q, coo):
-        coo.extend(self.W_g_dense(t, q).T, (self.la_gDOF, self.uDOF))
+    def g_dot_u(self, t, q):
+        return self.W_g(t, q).T
 
     def g_ddot(self, t, q, u, u_dot):
         r_P1P2 = self.r_OP2(t, q) - self.r_OP1(t, q)
@@ -157,7 +157,7 @@ class Rod:
 
         return 2 * v_P1P2 @ v_P1P2 + 2 * r_P1P2 @ a_P1P2
 
-    def g_ddot_q(self, t, q, u, u_dot, coo):
+    def g_ddot_q(self, t, q, u, u_dot):
         r_P1P2 = self.r_OP2(t, q) - self.r_OP1(t, q)
         v_P1P2 = self.v_P2(t, q, u) - self.v_P1(t, q, u)
         a_P1P2 = self.a_P2(t, q, u, u_dot) - self.a_P1(t, q, u, u_dot)
@@ -174,12 +174,11 @@ class Rod:
             + r_P1P2 @ self.a_P2_q(t, q, u, u_dot)
         )
 
-        coo.extend(dense, (self.la_gDOF, self.qDOF))
+        return dense
 
-    def g_ddot_u(self, t, q, u, u_dot, coo):
+    def g_ddot_u(self, t, q, u, u_dot):
         r_P1P2 = self.r_OP2(t, q) - self.r_OP1(t, q)
         v_P1P2 = self.v_P2(t, q, u) - self.v_P1(t, q, u)
-        a_P1P2 = self.a_P2(t, q, u, u_dot) - self.a_P1(t, q, u, u_dot)
 
         dense = np.zeros((self.nla_g, self.__nu))
         dense[:, : self.__nu1] = -2 * (
@@ -189,16 +188,12 @@ class Rod:
             2 * v_P1P2 @ self.J_P2(t, q) + r_P1P2 @ self.a_P2_u(t, q, u, u_dot)
         )
 
-        coo.extend(dense, (self.la_gDOF, self.uDOF))
+        return dense
 
-    def g_q(self, t, q, coo):
-        coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
+    def g_q_T_mu_q(self, t, q, mu):
+        return approx_fprime(q, lambda q: self.g_q(t, q).T @ mu)
 
-    def g_q_T_mu_q(self, t, q, mu, coo):
-        dense = approx_fprime(q, lambda q: self.g_q_dense(t, q).T @ mu)
-        coo.extend(dense, (self.qDOF, self.qDOF))
-
-    def W_g_dense(self, t, q):
+    def W_g(self, t, q):
         r_P1P2 = self.r_OP2(t, q) - self.r_OP1(t, q)
         J_P1 = self.J_P1(t, q)
         J_P2 = self.J_P2(t, q)
@@ -209,10 +204,7 @@ class Rod:
             ).T
         )
 
-    def W_g(self, t, q, coo):
-        coo.extend(self.W_g_dense(t, q), (self.uDOF, self.la_gDOF))
-
-    def Wla_g_q(self, t, q, la_g, coo):
+    def Wla_g_q(self, t, q, la_g):
         nq1 = self.__nq1
         nu1 = self.__nu1
         r_P1P2 = self.r_OP2(t, q) - self.r_OP1(t, q)
@@ -230,7 +222,7 @@ class Rod:
         dense[nu1:, :nq1] = -J_P2.T @ r_OP1_q
         dense[nu1:, nq1:] = J_P2.T @ r_OP2_q - np.einsum("i,ijk->jk", r_P1P2, J_P2_q)
 
-        coo.extend(2 * la_g[0] * dense, (self.uDOF, self.qDOF))
+        return dense
 
     def export(self, sol_i, **kwargs):
         points = [
