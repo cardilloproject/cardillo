@@ -3,7 +3,7 @@ from cardillo.beams import (
     RectangularCrossSection,
     Simo1986,
 )
-from cardillo.constraints import RigidConnection
+from cardillo.constraints import RigidConnection, Revolute
 
 # from cardillo.beams import K_R12_PetrovGalerkin_Quaternion as Rod
 
@@ -14,6 +14,7 @@ from cardillo.beams import K_R12_PetrovGalerkin_AxisAngle as Rod
 # from cardillo.beams import K_SE3_PetrovGalerkin_R9 as Rod
 # from cardillo.beams import K_R3_SO3_PetrovGalerkin_AxisAngle as Rod
 from cardillo.beams import animate_beam
+
 # from cardillo.forces import K_Moment
 from cardillo import System
 from cardillo.solver import Newton
@@ -22,34 +23,40 @@ from cardillo.beams._fitting import fit_configuration
 
 from cardillo.utility import Export
 
+import matplotlib.pyplot as plt
+from mpl_toolkits import mplot3d
+
 import numpy as np
 import pickle
 
 if __name__ == "__main__":
     # number of elements
-    nelements = 16
+    nelements = 20
 
     # used polynomial degree
     polynomial_degree = 2
     basis = "Lagrange"
 
+    scale = 1.0e0
+
     # Young's and shear modulus
-    E = 1.0
-    G = 0.5
+    E = 1.7
+    G = E / (2+0.8)
 
     # length of the rod
-    L = 1.0e3
+    L = 1.0e2
 
     # slenderness and corresponding absolute tolerance for Newton-Raphson solver
     slenderness = 1.0e4 / 2
     atol = 1.0e-10
 
     # used cross section
-    width = L / slenderness
+    width_z = 3.4 * scale
+    width_r = 2.8 * scale
 
     # cross section
     line_density = 1
-    cross_section = RectangularCrossSection(line_density, width, width)
+    cross_section = RectangularCrossSection(line_density, width_z, width_r)
     A_rho0 = line_density * cross_section.area
     K_S_rho0 = line_density * cross_section.first_moment
     K_I_rho0 = line_density * cross_section.second_moment
@@ -86,15 +93,14 @@ if __name__ == "__main__":
     )
 
     # pivot
-    hp = 1  # pivot height
+    hp = 0.25  # pivot height
 
     # helix
     n_coils = 1  # number of helix coils
-    scale = 1.0e1
-    RO = 1 * scale  # helix outer radius
-    RI = 1 * scale - hp # helix inner radius
-    h = 2 * scale  # helix height
-    h = (RO * 2 * np.pi * n_coils)
+    RO = (35.0 - width_r/2) * scale  # helix outer radius
+    RI = (RO - hp - width_r) * scale  # helix inner radius
+    h = 150.0 * scale  # helix height
+    # h = RO * 2 * np.pi * n_coils
     cO = h / (RO * 2 * np.pi * n_coils)
     LO = np.sqrt(1 + cO**2) * RO * 2 * np.pi * n_coils
     cI = h / (RI * 2 * np.pi * n_coils)
@@ -106,75 +112,70 @@ if __name__ == "__main__":
     # print(f"L: {L}")
 
     # reference solution
-    def r(xi, R=RO, phi0=0., dor=1, c=cO):
-        alpha = dor * 2 * np.pi * n_coils * xi 
-        return R * np.array([np.sin(alpha + phi0), -np.cos(alpha + phi0), dor * c * alpha])
+    def r(xi, R=RO, phi0=0.0, dor=1, c=cO):
+        alpha = dor * 2 * np.pi * n_coils * xi
+        return R * np.array(
+            [np.sin(alpha + phi0), -np.cos(alpha + phi0), dor * c * alpha]
+        )
 
-    def A_IK(xi, phi0=0., dor=1, c=cO):
+    def A_IK(xi, phi0=0.0, dor=1, c=cO):
         alpha = dor * 2 * np.pi * n_coils * xi
         sa = np.sin(alpha + phi0)
         ca = np.cos(alpha + phi0)
 
+        # e_x = dor * np.array([ca, sa, dor * c]) / np.sqrt(1 + c**2)
+        # e_y = dor * np.array([-sa, ca, 0])
+        # e_z = np.array([-c * dor * ca, -dor * c * sa, 1]) / np.sqrt(1 + c**2)
+
         e_x = dor * np.array([ca, sa, dor * c]) / np.sqrt(1 + c**2)
-        e_y = dor * np.array([-sa, ca, 0])
-        e_z = np.array([-c * dor * ca, -dor * c * sa, 1]) / np.sqrt(1 + c**2)
+        e_y = np.array([-c * ca, -c * sa, dor]) / np.sqrt(1 + c**2)
+        e_z = -np.array([-sa, ca, 0])
 
         return np.vstack((e_x, e_y, e_z)).T
 
     nxi = 100
     xis = np.linspace(0, 1, num=nxi)
 
-    import matplotlib.pyplot as plt
-
-    # ax = plt.axes(projection="3d")
-    # for xi in xis:
-    #     ax.plot3D(*r(xi, dor=-1, R=RI, c=cI))
-    #     ax.quiver(*r(xi, dor=-1, R=RI, c=cI), *A_IK(xi, dor=-1, c=cI).T[0])
-    #     ax.quiver(*r(xi, dor=-1, R=RI, c=cI), *A_IK(xi, dor=-1, c=cI).T[1])
-    #     ax.quiver(*r(xi, dor=-1, R=RI, c=cI), *A_IK(xi, dor=-1, c=cI).T[2])
-
-    #     ax.plot3D(*r(xi, dor=1))
-    #     ax.quiver(*r(xi, dor=1), *A_IK(xi, dor=1).T[0])
-    #     ax.quiver(*r(xi, dor=1), *A_IK(xi, dor=1).T[1])
-    #     ax.quiver(*r(xi, dor=1), *A_IK(xi, dor=1).T[2])
-    # plt.show()
-
     # individual rods
-    n_rod = 8  # number of rods per layer
+    n_rod = 10  # number of rods per layer
     Q0_list = []
     rod_list = []
+    rod_ccw_list = []
     joint_list = []
 
-    # load config
+    # load config and sol
     load_config = True
+    load_sol = True
     from pathlib import Path
     import copy
 
     path = Path(__file__)
     # path.mkdir()
-    filename = Path(path.parent, "initial_config")
+    filename = Path(path.parent, 'results', path.stem, "initial_config")
     if load_config:
         Q0_list = pickle.load(open(filename, "rb"))
         for n in range(n_rod):
             rod_ccw = copy.deepcopy(rod)
-            rod_ccw.q0 = Q0_list[2*n].copy()
+            rod_ccw.q0 = Q0_list[2 * n].copy()
             rod_ccw.set_initial_strains(rod_ccw.q0)
-            
+            rod_ccw_list.append(rod_ccw)
+
             rod_cw = copy.deepcopy(rod)
-            rod_cw.q0 = Q0_list[2*n+1].copy()
+            rod_cw.q0 = Q0_list[2 * n + 1].copy()
             rod_cw.set_initial_strains(rod_cw.q0)
-            
-            rod_list.extend((rod_ccw,rod_cw))
+
+            rod_list.extend((rod_ccw, rod_cw))
     else:
         for n in range(n_rod):
             rod_ccw = copy.deepcopy(rod)
-            phi0 = 2 * np.pi * n / (n_rod)
+            phi0 = 2 * np.pi * n / n_rod
             r_OP_ccw = np.array([r(xi, R=RO, dor=1, c=cO, phi0=phi0) for xi in xis])
             A_IK_ccw = np.array([A_IK(xi, dor=1, phi0=phi0) for xi in xis])
             Q0_ccw = fit_configuration(rod_ccw, r_OP_ccw, A_IK_ccw)
             rod_ccw.q0 = Q0_ccw.copy()
             Q0_list.append(Q0_ccw)
             rod_list.append(rod_ccw)
+            rod_ccw_list.append(rod_ccw)
 
             rod_cw = copy.deepcopy(rod)
             r_OP_cw = np.array([r(xi, R=RI, dor=-1, c=cI, phi0=phi0) for xi in xis])
@@ -186,11 +187,80 @@ if __name__ == "__main__":
 
         file = open(filename, "wb")
         pickle.dump(Q0_list, file)
+        file.close()
+
+    # joints between ccw and cw rods
+    revolute_joint_list = []
+    for n in range(n_rod):
+        phi0 = 2 * np.pi * n / n_rod
+        rod_ccw = rod_list[2 * n]
+        for nn in range(n_rod):
+            for nc in range(n_coils * 2):
+                dphi0 = (np.pi * (nn - n) / n_rod + nc * np.pi) % (2 * np.pi)
+                xi = dphi0 / (2 * np.pi * n_coils)
+                if 0 < xi < 1:
+                    r_OP_joint = r(xi, phi0=phi0)
+                    A_IK_ccw = A_IK(xi, phi0=phi0)
+                    frame_ID_ccw = (xi,)
+                    frame_ID_cw = frame_ID_ccw
+                    rod_cw = rod_list[2 * nn + 1]
+                    joint = Revolute(
+                        rod_ccw,
+                        rod_cw,
+                        axis=2,
+                        r_OB0=r_OP_joint,
+                        # A_IB0=A_IK_ccw,
+                        frame_ID1=frame_ID_ccw,
+                        frame_ID2=frame_ID_cw,
+                    )
+                    # joint = RigidConnection(
+                    #     rod_ccw,
+                    #     rod_cw,
+                    #     frame_ID1=frame_ID_ccw,
+                    #     frame_ID2=frame_ID_cw,)
+                    revolute_joint_list.append(joint)
+
+    # test plot
+    # ax = plt.axes(projection="3d")
+    # for n in range(n_rod):
+    #     phi0 = 2 * np.pi * n / n_rod
+    #     r_OP_ccw = np.array([r(xi, R=RO, dor=1, c=cO, phi0=phi0) for xi in xis])
+    #     A_IK_ccw = np.array([A_IK(xi, dor=1, phi0=phi0) for xi in xis])
+    #     r_OP_cw = np.array([r(xi, R=RI, dor=-1, c=cI, phi0=phi0) for xi in xis])
+    #     A_IK_cw = np.array([A_IK(xi, dor=-1, phi0=phi0, c=cI) for xi in xis])
+    #     # for i,xi in enumerate(xis):
+    #     ax.plot3D(*r_OP_ccw.T, color="k")
+    #     # ax.quiver(*r_OP_ccw[0].T, *A_IK_ccw[0].T[0],color='r')
+    #     # ax.quiver(*r_OP_ccw[0].T, *A_IK_ccw[0].T[1],color='b')
+    #     # ax.quiver(*r_OP_ccw[0].T, *A_IK_ccw[0].T[2],color='g')
+
+    #     ax.plot3D(*r_OP_cw.T, color="b")
+    #     # ax.quiver(*r_OP_cw[0].T, *A_IK_cw[0].T[0],color='r')
+    #     # ax.quiver(*r_OP_cw[0].T, *A_IK_cw[0].T[1],color='b')
+    #     # ax.quiver(*r_OP_cw[0].T, *A_IK_cw[0].T[2],color='g')
+    # for n in range(n_rod):
+    #     phi0 = 2 * np.pi * n / n_rod
+    #     for nn in range(n_rod):
+    #         for nc in range(n_coils * 2):
+    #             # phi0 = 2 * np.pi * n / n_rod
+    #             dphi0 = (np.pi * (nn - n) / n_rod + nc * np.pi) % (2 * np.pi)
+    #             xi = dphi0 / (2 * np.pi * n_coils)
+    #             if 0 < xi < 1:
+    #                 r_OP_joint = r(xi, phi0=phi0)
+    #                 A_IK_ccw = A_IK(xi, phi0=phi0)
+    #                 ax.quiver(*r_OP_joint, *A_IK_ccw.T[2], color="r")
+    #                 plt.show(block=False)
+    #                 print(n,nn,nc,xi)
+    #                 print("\n")
+
+    # ax.set_xlim3d(0, 15)
+    # ax.set_ylim3d(0, 15)
+    # ax.set_zlim3d(0, 15)
 
     # joints between frames and rods
     system = System()
     Z_max = r(1)[-1]
-    r_OP_top = lambda t: np.array([0, 0, Z_max - h/2 * t])
+    r_OP_top = lambda t: np.array([0, 0, Z_max - h / 3 * t])
     frame_top = Frame(r_OP=r_OP_top, A_IK=np.eye(3))
     for rod in rod_list:
         joint_bottom = RigidConnection(system.origin, rod, frame_ID2=(0,))
@@ -207,18 +277,28 @@ if __name__ == "__main__":
     system.add(*rod_list)
     system.add(*joint_list)
     system.add(frame_top)
+    system.add(*revolute_joint_list)
     # system.add(moment)
     system.assemble()
 
     # solve static system
-    n_load_steps = 20
-    solver = Newton(
-        system,
-        n_load_steps=n_load_steps,
-        atol=atol,
-        max_iter=50,
-    )
-    sol = solver.solve()
+    if load_sol == False:
+        n_load_steps = 30
+        solver = Newton(
+            system,
+            n_load_steps=n_load_steps,
+            atol=atol,
+            max_iter=50,
+        )
+        sol = solver.solve()
+        filename = Path(path.parent,'results', path.stem, "sol")
+        file = open(filename, "wb")
+        pickle.dump(sol, file)
+        file.close()
+    elif load_sol:
+        filename = Path(path.parent,'results', path.stem, "sol")
+        sol = pickle.load(open(filename, "rb"))
+
     q = sol.q
     nt = len(q)
     t = sol.t[:nt]
@@ -229,12 +309,12 @@ if __name__ == "__main__":
     ###########
     # animation
     ###########
-    animate_beam(t, q, rod_list, 2 * scale, show=True)
+    # animate_beam(t, q, rod_list, 2 * scale, show=True)
 
     ###########
     # export
-    ########### 
-    e = Export(path.parent, path.stem, True, 10, sol)
+    ###########
+    e = Export(path.parent, path.stem, True, 20, sol)
     for rod in rod_list:
         # e.export_contr(rod, level="centerline + directors", num=100)
         e.export_contr(rod, level="volume")

@@ -47,7 +47,6 @@ jupyter_execute/
 
 # results
 examples/results
-examples/pantographic_cylinder
 
 # virtual environment
 myvenv

@@ -137,13 +137,13 @@ class RodExportBase(ABC):
                 target_points_0 = target_points_centerline
                 target_points_1 = np.array(
                     [
-                        r_OP + d2 * self.cross_section.width
+                        r_OP + d2 * self.cross_section.width / 2
                         for (r_OP, d2) in zip(r_OPs.T, d2s.T)
                     ]
                 )
                 target_points_2 = np.array(
                     [
-                        r_OP + d3 * self.cross_section.height
+                        r_OP + d3 * self.cross_section.height / 2
                         for (r_OP, d3) in zip(r_OPs.T, d3s.T)
                     ]
                 )
