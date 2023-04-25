@@ -83,7 +83,7 @@ class Inflated(Rope):
             f_npot_q_el = self.f_npot_q_el(t, q[elDOF], u[elDOF], el)
 
             # sparse assemble element internal stiffness matrix
-            coo.extend(f_npot_q_el, (self.uDOF[elDOF], self.qDOF[elDOF]))
+            coo[self.uDOF[elDOF], self.qDOF[elDOF]] = f_npot_q_el
 
         return coo
 

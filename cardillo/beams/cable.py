@@ -292,7 +292,7 @@ class Cable:
             elDOF = self.elDOF[el]
 
             # sparse assemble element mass matrix
-            self.__M.extend(self.M_el(el), (self.uDOF[elDOF], self.uDOF[elDOF]))
+            self.__M[self.uDOF[elDOF], self.uDOF[elDOF]] = self.M_el(el)
 
     def M(self, t, q):
         return self.__M
@@ -421,7 +421,7 @@ class Cable:
             f_pot_q_el = self.f_pot_q_el(t, q[elDOF], el)
 
             # sparse assemble element internal stiffness matrix
-            coo.extend(f_pot_q_el, (self.uDOF[elDOF], self.qDOF[elDOF]))
+            coo[self.uDOF[elDOF], self.qDOF[elDOF]] = f_pot_q_el
 
         return coo
 

@@ -101,7 +101,7 @@ class SphereInSphere:
         return np.array([self.R - self.r - norm(self.r_OP(t, q) - self.r_OQ(t))])
 
     def g_N_q(self, t, q):
-        return approx_fprime(q, lambda q: self.g_N(t, q))
+        return approx_fprime(q, lambda q: self.g_N(t, q)).reshape((self.nla_N, self.nq))
 
     def g_N_dot(self, t, q, u):
         return np.array([self.n(t, q) @ (self.v_P(t, q, u) - self.v_Q(t))])

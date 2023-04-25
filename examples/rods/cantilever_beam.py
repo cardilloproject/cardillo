@@ -290,7 +290,7 @@ if __name__ == "__main__":
     system.assemble()
 
     if statics:
-        n_load_steps = 1
+        n_load_steps = 10
         solver = Newton(
             system,
             n_load_steps=n_load_steps,
