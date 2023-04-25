@@ -2355,9 +2355,7 @@ def make_K_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
                 elDOF_u = self.elDOF_u[el]
 
                 # sparse assemble element mass matrix
-                self.__M.extend(
-                    self.M_el_constant(el), (self.uDOF[elDOF_u], self.uDOF[elDOF_u])
-                )
+                self.__M[self.uDOF[elDOF_u], self.uDOF[elDOF_u]] = self.M_el_constant(el)
 
         def M(self, t, q):
             if self.constant_mass_matrix:
