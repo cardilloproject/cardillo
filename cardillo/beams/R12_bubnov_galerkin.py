@@ -3,7 +3,7 @@ from abc import ABCMeta, abstractmethod
 import meshio
 import os
 
-from cardillo.utility.coo import CooMatrix
+from cardillo.utility.coo_matrix import CooMatrix
 from cardillo.discretization.b_spline import BSplineKnotVector
 from cardillo.discretization.lagrange import LagrangeKnotVector
 from cardillo.math.algebra import norm, cross3, skew2ax, skew2ax_A

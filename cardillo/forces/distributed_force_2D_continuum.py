@@ -23,5 +23,5 @@ class DistributedForce2DContinuum:
             t, q, self.force_distr2D, self.srf_idx, self.srf_w_J0
         )
 
-    def h_q(self, t, q, u, coo):
-        self.subsystem.force_distr2D_q(t, q, coo, self.force_distr2D, self.srf_idx)
+    def h_q(self, t, q, u):
+        return self.subsystem.force_distr2D_q(t, q, self.force_distr2D, self.srf_idx)

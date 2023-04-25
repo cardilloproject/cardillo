@@ -3,7 +3,7 @@ import meshio
 import os
 
 from cardillo.system import System
-from cardillo.utility.coo import CooMatrix
+from cardillo.utility.coo_matrix import CooMatrix
 from cardillo.discretization.indexing import flat2D, flat3D, split2D, split3D
 from cardillo.discretization.b_spline import B_spline_basis3D
 from cardillo.math.algebra import det2D, inv3D, det3D

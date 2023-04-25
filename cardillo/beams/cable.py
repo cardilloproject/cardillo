@@ -1,6 +1,6 @@
 import numpy as np
 
-from cardillo.utility.coo import CooMatrix
+from cardillo.utility.coo_matrix import CooMatrix
 from cardillo.discretization.b_spline import BSplineKnotVector
 from cardillo.discretization.hermite import HermiteNodeVector
 from cardillo.math import (

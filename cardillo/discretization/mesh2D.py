@@ -11,7 +11,7 @@ from cardillo.math import inv2D, det2D, inv3D, norm, cross3
 from cardillo.discretization.indexing import flat2D, split2D
 from cardillo.discretization.mesh1D import Mesh1D
 from cardillo.discretization.gauss import gauss
-from cardillo.utility.coo import CooMatrix
+from cardillo.utility.coo_matrix import CooMatrix
 
 
 def rectangle(shape, mesh, Greville=False, Fuzz=None):

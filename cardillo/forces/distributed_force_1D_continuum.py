@@ -32,7 +32,7 @@ class DistributedForce1DContinuum:
             t, q, self.force_distr1D, self.edge_idx, self.edge_qDOF, self.edge_w_J0
         )
 
-    def h_q(self, t, q, coo):
-        self.subsystem.force_distr1D_q(
-            t, q, coo, self.force_distr1D, self.edge_idx, self.edge_w_J0
+    def h_q(self, t, q):
+        return self.subsystem.force_distr1D_q(
+            t, q, self.force_distr1D, self.edge_idx, self.edge_w_J0
         )

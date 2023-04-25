@@ -8,7 +8,7 @@ from cardillo.discretization.b_spline import (
 from cardillo.discretization.lagrange import lagrange_basis1D
 from cardillo.discretization.hermite import cubic_Hermite_basis_1D
 from cardillo.discretization.gauss import gauss, lobatto
-from cardillo.utility.coo import CooMatrix
+from cardillo.utility.coo_matrix import CooMatrix
 
 
 def line2D(L, mesh, Greville=False, Fuzz=None):

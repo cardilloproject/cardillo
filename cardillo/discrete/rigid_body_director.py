@@ -48,8 +48,8 @@ class RigidBodyDirector:
     #########################################
     # equations of motion
     #########################################
-    def M(self, t, q, coo):
-        coo.extend(self.M_, (self.uDOF, self.uDOF))
+    def M(self, t, q):
+        return self.M_
 
     #########################################
     # kinematic equation
@@ -57,8 +57,8 @@ class RigidBodyDirector:
     def q_dot(self, t, q, u):
         return u
 
-    def B(self, t, q, coo):
-        coo.extend_diag(np.ones(self.nq), (self.qDOF, self.uDOF))
+    def B(self, t, q):
+        return np.ones(self.nq)
 
     def q_ddot(self, t, q, u, u_dot):
         return u_dot
@@ -99,7 +99,7 @@ class RigidBodyDirector:
 
         return g_dot
 
-    def g_dot_q(self, t, q, u, coo):
+    def g_dot_q(self, t, q, u):
         d1_dot = u[3:6]
         d2_dot = u[6:9]
         d3_dot = u[9:]
@@ -121,10 +121,10 @@ class RigidBodyDirector:
         g_dot_q[5, 9:12] = d2_dot
         g_dot_q[5, 6:9] = d3_dot
 
-        coo.extend(g_dot_q, (self.la_gDOF, self.qDOF))
+        return g_dot_q
 
-    def g_dot_u(self, t, q, coo):
-        coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.uDOF))
+    def g_dot_u(self, t, q):
+        return self.g_q(t, q)
 
     def g_ddot(self, t, q, u, u_dot):
         d1 = q[3:6]
@@ -146,7 +146,7 @@ class RigidBodyDirector:
         g_ddot[5] = d2_ddot @ d3 + d2 @ d3_ddot + 2 * d2_dot @ d3_dot
         return g_ddot
 
-    def g_ddot_q(self, t, q, u, u_dot, coo):
+    def g_ddot_q(self, t, q, u, u_dot):
         d1_ddot = u_dot[3:6]
         d2_ddot = u_dot[6:9]
         d3_ddot = u_dot[9:]
@@ -173,9 +173,9 @@ class RigidBodyDirector:
         g_ddot_q[5, 9:12] = d2_ddot
         g_ddot_q[5, 6:9] = d3_ddot
 
-        coo.extend(g_ddot_q, (self.la_gDOF, self.qDOF))
+        return g_ddot_q
 
-    def g_ddot_u(self, t, q, u, u_dot, coo):
+    def g_ddot_u(self, t, q, u, u_dot):
         d1_dot = u[3:6]
         d2_dot = u[6:9]
         d3_dot = u[9:]
@@ -202,9 +202,9 @@ class RigidBodyDirector:
         g_ddot_u[5, 9:12] = 2 * d2_dot
         g_ddot_u[5, 6:9] = 2 * d3_dot
 
-        coo.extend(g_ddot_u, (self.la_gDOF, self.uDOF))
+        return g_ddot_u
 
-    def g_q_dense(self, t, q):
+    def g_q(self, t, q):
         d1 = q[3:6]
         d2 = q[6:9]
         d3 = q[9:]
@@ -232,7 +232,7 @@ class RigidBodyDirector:
 
         return gap_q
 
-    def g_qq_dense(self, t, q):
+    def g_qq(self, t, q):
         gap_qq = np.zeros((self.nla_g, self.nq, self.nq))
         gap_qq[0, 3:6, 3:6] = 2 * np.eye(3)
         gap_qq[1, 6:9, 6:9] = 2 * np.eye(3)
@@ -256,15 +256,11 @@ class RigidBodyDirector:
 
         return gap_qq
 
-    def g_q(self, t, q, coo):
-        coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
+    def W_g(self, t, q):
+        return self.g_q(t, q).T
 
-    def W_g(self, t, q, coo):
-        coo.extend(self.g_q_dense(t, q).T, (self.uDOF, self.la_gDOF))
-
-    def Wla_g_q(self, t, q, la_g, coo):
-        dense = np.einsum("ijk,i->jk", self.g_qq_dense(t, q), la_g)
-        coo.extend(dense, (self.uDOF, self.qDOF))
+    def Wla_g_q(self, t, q, la_g):
+        return np.einsum("ijk,i->jk", self.g_qq(t, q), la_g)
 
     #########################################
     # helper functions
@@ -390,8 +386,8 @@ class RigidBodyDirectorAngularVelocities:
     #########################################
     # equations of motion
     #########################################
-    def M(self, t, q, coo):
-        coo.extend(self.M_, (self.uDOF, self.uDOF))
+    def M(self, t, q):
+        return self.M_
 
     def h(self, t, q, u):
         omega = u[3:]
@@ -399,23 +395,22 @@ class RigidBodyDirectorAngularVelocities:
         h[3:] = -cross3(omega, self.theta @ omega)
         return h
 
-    def h_u(self, t, q, u, coo):
+    def h_u(self, t, q, u):
         omega = u[3:]
         dense = np.zeros((self.nu, self.nu))
         dense[3:, 3:] = ax2skew(self.theta @ omega) - ax2skew(omega) @ self.theta
-        coo.extend(dense, (self.uDOF, self.uDOF))
+        return dense
 
     #########################################
     # kinematic equation
     #########################################
     def q_dot(self, t, q, u):
-        return self.__B_dense(q) @ u
+        return self.B(q) @ u
 
-    def q_dot_q(self, t, q, u, coo):
-        dense = approx_fprime(q, lambda q: self.q_dot(t, q, u))
-        coo.extend(dense, (self.qDOF, self.qDOF))
+    def q_dot_q(self, t, q, u):
+        return approx_fprime(q, lambda q: self.q_dot(t, q, u))
 
-    def __B_dense(self, q):
+    def B(self, q):
         d1 = q[3:6]
         d2 = q[6:9]
         d3 = q[9:]
@@ -429,9 +424,6 @@ class RigidBodyDirectorAngularVelocities:
         B[9:12, 3:] = -ax2skew(d3) @ A_IK
 
         return B
-
-    def B(self, t, q, coo):
-        coo.extend(self.__B_dense(q), (self.qDOF, self.uDOF))
 
     def q_ddot(self, t, q, u, u_dot):
         d1 = q[3:6]
@@ -453,7 +445,7 @@ class RigidBodyDirectorAngularVelocities:
         # I_omega = A_IK @ K_Omega
         # tmp = (A_IK_q @ self.q_dot(t, q, u)) @ K_Omega
 
-        q_ddot = self.__B_dense(q) @ u_dot
+        q_ddot = self.B(q) @ u_dot
         q_ddot[3:6] += I_Omega_tilde2 @ d1
         q_ddot[6:9] += I_Omega_tilde2 @ d2
         q_ddot[9:12] += I_Omega_tilde2 @ d3
@@ -485,7 +477,7 @@ class RigidBodyDirectorAngularVelocities:
 
         return c
 
-    def __g_S_q_dense(self, t, q):
+    def g_S_q(self, t, q):
         d1 = q[3:6]
         d2 = q[6:9]
         d3 = q[9:]
@@ -504,9 +496,6 @@ class RigidBodyDirectorAngularVelocities:
         c_q[5, 6:9] = d3
         c_q[5, 9:12] = d2
         return c_q
-
-    def g_S_q(self, t, q, coo):
-        coo.extend(self.__g_S_q_dense(t, q), (self.ka_cDOF, self.qDOF))
 
     #########################################
     # helper functions

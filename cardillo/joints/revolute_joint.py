@@ -26,8 +26,8 @@ class RevoluteJoint:
     def q_ddot(self, t, q, u, u_dot):
         return u_dot
 
-    def B(self, t, q, coo):
-        coo.extend_diag(np.ones(self.nq), (self.qDOF, self.uDOF))
+    def B(self, t, q):
+        return np.ones(self.nq)
 
     # other functions
     def A_B1B2(self, t, q):

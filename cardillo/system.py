@@ -1,5 +1,5 @@
 import numpy as np
-from cardillo.utility.coo import CooMatrix
+from cardillo.utility.coo_matrix import CooMatrix
 from cardillo.discrete.frame import Frame
 from cardillo.solver import consistent_initial_conditions
 from scipy.sparse import coo_matrix, csc_matrix, csr_matrix

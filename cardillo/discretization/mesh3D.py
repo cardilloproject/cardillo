@@ -12,7 +12,7 @@ from cardillo.math.algebra import inv3D, det3D
 from cardillo.discretization.indexing import flat3D, split3D
 from cardillo.discretization.mesh2D import Mesh2D
 from cardillo.discretization.gauss import gauss
-from cardillo.utility.coo import CooMatrix
+from cardillo.utility.coo_matrix import CooMatrix
 
 
 def cube(shape, mesh, Greville=False, Fuzz=None):
