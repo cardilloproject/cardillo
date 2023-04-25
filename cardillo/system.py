@@ -27,12 +27,26 @@ properties.extend(["assembler_callback", "pre_iteration_update", "step_callback"
 
 
 class System:
-    """Sparse model implementation which assembles all global objects without copying on body and element level.
+    """Sparse model implementation which assembles all global objects without
+    copying on body and element level.
 
     Notes
     -----
 
-    All model functions which return matrices have :py:class:`scipy.sparse.coo_matrix` as default scipy sparse matrix type (:py:class:`scipy.sparse.spmatrix`). This is due to the fact that the assembling of global iteration matrices is done using :py:func:`scipy.sparse.bmat` which in a first step transforms all matrices to :py:class:`scipy.sparse.coo_matrix`. A :py:class:`scipy.sparse.coo_matrix`, inherits form :py:class:`scipy.sparse._data_matrix` `[1] <https://github.com/scipy/scipy/blob/adc4f4f7bab120ccfab9383aba272954a0a12fb0/scipy/sparse/data.py#L21-L126>`_, have limited support for arithmetic operations, only a few operations as :py:func:`__neg__`, :py:func:`__imul__`, :py:func:`__itruediv__` are implemented. For all other operations the matrix is first transformed to a :py:class:`scipy.sparse.csr_matrix` `[2] <https://github.com/scipy/scipy/blob/adc4f4f7bab120ccfab9383aba272954a0a12fb0/scipy/sparse/base.py#L330-L335>`_. Slicing is also not supported for matrices of type :py:class:`scipy.sparse.coo_matrix`, we have to use other formats as :py:class:`scipy.sparse.csr_matrix` or :py:class:`scipy.sparse.csc_matrix` for that.
+    All model functions which return matrices have :py:class:`scipy.sparse.coo_matrix`
+    as default scipy sparse matrix type (:py:class:`scipy.sparse.spmatrix`).
+    This is due to the fact that the assembling of global iteration matrices
+    is done using :py:func:`scipy.sparse.bmat` which in a first step transforms
+    all matrices to :py:class:`scipy.sparse.coo_matrix`. A :py:class:`scipy.sparse.coo_matrix`,
+    inherits form :py:class:`scipy.sparse._data_matrix`
+    `[1] <https://github.com/scipy/scipy/blob/adc4f4f7bab120ccfab9383aba272954a0a12fb0/scipy/sparse/data.py#L21-L126>`_,
+    have limited support for arithmetic operations, only a few operations as
+    :py:func:`__neg__`, :py:func:`__imul__`, :py:func:`__itruediv__` are implemented.
+    For all other operations the matrix is first transformed to a :py:class:`scipy.sparse.csr_matrix`
+    `[2] <https://github.com/scipy/scipy/blob/adc4f4f7bab120ccfab9383aba272954a0a12fb0/scipy/sparse/base.py#L330-L335>`_.
+    Slicing is also not supported for matrices of type :py:class:`scipy.sparse.coo_matrix`,
+    we have to use other formats as :py:class:`scipy.sparse.csr_matrix` or
+    :py:class:`scipy.sparse.csc_matrix` for that.
 
     """
 
@@ -72,7 +86,9 @@ class System:
 
     def deepcopy(self, solution):
         """
-        Create a deepcopy of the system and set the original system, which is accessed by `self`, to the state given by the passed Solution. Additionally reassemble the original system.
+        Create a deepcopy of the system and set the original system, which is
+        accessed by `self`, to the state given by the passed Solution.
+        Additionally reassemble the original system.
 
         Args:
             solution (Solution): previously calculated solution of system
@@ -489,14 +505,9 @@ class System:
         return g_S
 
     def g_S_q(self, t, q, scipy_matrix=coo_matrix):
-        # from cardillo.math import approx_fprime
-        # return scipy_matrix(approx_fprime(q, lambda q: self.g_S(t, q)))
         coo = CooMatrix((self.nla_S, self.nq))
-        # print(f"len(coo.data): {len(coo.data)}")
         for contr in self.__g_S_contr:
             coo[contr.la_SDOF, contr.qDOF] = contr.g_S_q(t, q[contr.qDOF])
-            # print(f"len(coo.data): {len(coo.data)}")
-        # exit()
         return coo.tosparse(scipy_matrix)
 
     def g_S_q_T_mu_q(self, t, q, mu, scipy_matrix=coo_matrix):
