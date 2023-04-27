@@ -236,9 +236,6 @@ class MathematicalPendulumCartesianContact:
         def Wla_N_q(self, t, q, la_N):
             return approx_fprime(q, lambda q: self.W_N(t, q) @ la_N)
 
-        def xi_N(self, t, q, u_pre, u_post):
-            return self.g_N_dot(t, q, u_post) + self.e_N * self.g_N_dot(t, q, u_pre)
-
 
 if __name__ == "__main__":
     # system parameters

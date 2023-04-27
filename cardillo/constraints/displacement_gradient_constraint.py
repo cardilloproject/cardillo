@@ -87,7 +87,6 @@ class DisplacementConstraint:
         return g_z[:, self.subsystem.fDOF]  # g_q = g_z[:, self.subsystem.fDOF]
 
     def W_g(self, t, q):
-        # TODO: uDOF instead of qDOF!
         return self.g_q(t, q).T
 
     # def Wla_g_q_el(self, t, qel, lael, el):

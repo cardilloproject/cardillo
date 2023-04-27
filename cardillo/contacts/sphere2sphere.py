@@ -10,13 +10,16 @@ class Sphere2Sphere:
         radius1,
         radius2,
         e_N,
-        # e_F,
-        # mu,
-        prox_r_N,
+        e_F,
+        mu,
+        # prox_r_N,
         # prox_r_F,
         frame_ID1=np.zeros(3, dtype=float),
         frame_ID2=np.zeros(3, dtype=float),
     ):
+        raise NotImplementedError(
+            "Refactor me. There is no example or test in cardillo."
+        )
         self.subsystem1 = subsystem1
         self.frame_ID1 = frame_ID1
         self.radius1 = radius1
@@ -25,14 +28,14 @@ class Sphere2Sphere:
         self.radius2 = radius2
 
         self.e_N = np.array([e_N])
-        self.prox_r_N = np.array([prox_r_N])
+        # self.prox_r_N = np.array([prox_r_N])
 
-        # # self.e_F = np.array([e_F])
-        # # self.mu = np.array([mu])
+        self.e_F = np.array([e_F, e_F])
+        self.mu = np.array([mu])
         # self.prox_r_F = np.array([prox_r_F])
-        self.e_F = np.array([0])
-        self.mu = np.array([0])
-        self.prox_r_F = np.array([0])
+        # self.e_F = np.array([0])
+        # self.mu = np.array([0])
+        # self.prox_r_F = np.array([0])
 
         self.nla_N = 1
         # self.nla_F = 2
@@ -153,7 +156,6 @@ class Sphere2Sphere:
 
     # def g_N_ddot_q(self, t, q, u, u_dot):
     #     return np.array([self.n(t) @ self.a_P_q(t, q, u, u_dot)])
-    #     coo.extend(dense, (self.la_NDOF, self.qDOF))
 
     # def g_N_ddot_u(self, t, q, u, u_dot):
     #     return np.array([self.n(t) @ self.a_P_u(t, q, u, u_dot)])
