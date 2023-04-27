@@ -164,9 +164,3 @@ class SphereInSphere:
         # error = np.linalg.norm(Wla_F_q - Wla_F_q_num)
         # print(f'error: {error}')
         return Wla_F_q_num
-
-    def xi_N(self, t, q, u_pre, u_post):
-        return self.g_N_dot(t, q, u_post) + self.e_N * self.g_N_dot(t, q, u_pre)
-
-    def xi_F(self, t, q, u_pre, u_post):
-        return self.gamma_F(t, q, u_post) + self.e_F * self.gamma_F(t, q, u_pre)

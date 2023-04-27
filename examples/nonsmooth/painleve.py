@@ -103,9 +103,6 @@ class Painleve_rod:
         x, y, phi = q
         return np.array([[0, 1, -self.s * np.cos(phi)]])
 
-    def xi_N(self, t, q, u_pre, u_post):
-        return self.g_N_dot(t, q, u_post) + self.e_N * self.g_N_dot(t, q, u_pre)
-
     def xi_N_q(self, t, q, u_pre, u_post):
         g_N_q_pre = self.g_N_dot_q(t, q, u_pre)
         g_N_q_post = self.g_N_dot_q(t, q, u_post)
@@ -203,14 +200,6 @@ class Painleve_rod:
         x_dot, y_dot, phi_dot = u
         x_ddot, y_ddot, phi_ddot = u_dot
         return np.array([[0, 0, -2 * self.s * np.cos(phi) * phi_dot]])
-
-    def xi_F(self, t, q, u_pre, u_post):
-        return self.gamma_T(t, q, u_post) + self.e_F * self.gamma_T(t, q, u_pre)
-
-    def xi_F_q(self, t, q, u_pre, u_post):
-        gamma_T_q_pre = self.gamma_T_q_dense(t, q, u_pre)
-        gamma_T_q_post = self.gamma_T_q_dense(t, q, u_post)
-        return gamma_T_q_post + self.e_F * gamma_T_q_pre
 
 
 if __name__ == "__main__":

@@ -140,14 +140,6 @@ class Sphere2Sphere:
         J_S2 = self.J_S2(t, q)
         return np.concatenate((-n @ J_S1, n @ J_S2))
 
-    def xi_N(self, t, q, u_pre, u_post):
-        return self.g_N_dot(t, q, u_post) + self.e_N * self.g_N_dot(t, q, u_pre)
-
-    # def xi_N_q(self, t, q, u_pre, u_post):
-    #     g_N_q_pre = self.g_N_dot_q(t, q, u_pre)
-    #     g_N_q_post = self.g_N_dot_q(t, q, u_post)
-    #     return g_N_q_post + self.e_N * g_N_q_pre
-
     def W_N(self, t, q):
         return self.g_N_dot_u(t, q).T
 

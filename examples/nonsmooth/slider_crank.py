@@ -351,9 +351,6 @@ class SliderCrankFlores:
     def g_N_dot_u(self, t, q):
         return self.g_N_q(t, q)
 
-    def xi_N(self, t, q, u_pre, u_post):
-        return self.g_N_dot(t, q, u_post) + self.e_N * self.g_N_dot(t, q, u_pre)
-
     def xi_N_q(self, t, q, u_pre, u_post):
         g_N_q_pre = self.g_N_dot_q(t, q, u_pre)
         g_N_q_post = self.g_N_dot_q(t, q, u_post)
@@ -563,14 +560,6 @@ class SliderCrankFlores:
 
     def gamma_F_dot_u(self, t, q, u, u_dot):
         return approx_fprime(u, lambda u: self.gamma_F_dot(t, q, u, u_dot))
-
-    def xi_F(self, t, q, u_pre, u_post):
-        return self.gamma_F(t, q, u_post) + self.e_F * self.gamma_F(t, q, u_pre)
-
-    def xi_F_q(self, t, q, u_pre, u_post):
-        gamma_T_q_pre = self.gamma_F_q(t, q, u_pre)
-        gamma_T_q_post = self.gamma_F_q(t, q, u_post)
-        return gamma_T_q_post + np.diag(self.e_F) @ gamma_T_q_pre
 
 
 class SliderCrankDAE:
@@ -910,14 +899,6 @@ class SliderCrankDAE:
     def Wla_N_q(self, t, q, la_N):
         Wla_N = lambda q: self.g_N_q(t, q).T @ la_N
         return approx_fprime(q, Wla_N)
-
-    def xi_N(self, t, q, u_pre, u_post):
-        return self.g_N_dot(t, q, u_post) + self.e_N * self.g_N_dot(t, q, u_pre)
-
-    def xi_N_q(self, t, q, u_pre, u_post):
-        g_N_q_pre = self.g_N_dot_q(t, q, u_pre)
-        g_N_q_post = self.g_N_dot_q(t, q, u_post)
-        return g_N_q_post + np.diag(self.e_N) @ g_N_q_pre
 
     #################
     # tanget contacts

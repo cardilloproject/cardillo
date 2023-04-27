@@ -142,9 +142,6 @@ class BallOnExp:
     def g_N_q(self, t, q):
         return approx_fprime(q, lambda q: self.g_N(t, q)).reshape(self.nla_N, self.nq)
 
-    def xi_N(self, t, q, u_pre, u_post):
-        return self.g_N_dot(t, q, u_post) + self.e_N * self.g_N_dot(t, q, u_pre)
-
     def W_N(self, t, q):
         return self.normal(q[0])[np.newaxis, :]
 
@@ -172,9 +169,6 @@ class BallOnExp:
         return approx_fprime(q, lambda q: self.__gamma_F(t, q, u)).reshape(
             self.nla_F, self.nq
         )
-
-    def xi_F(self, t, q, u_pre, u_post):
-        return self.__gamma_F(t, q, u_post) + self.e_N * self.__gamma_F(t, q, u_pre)
 
     def W_F(self, t, q):
         return self.tangent(q[0])[np.newaxis, :]
