@@ -26,7 +26,7 @@ from cardillo.beams import (
 )
 from cardillo.forces import K_Moment, Force
 from cardillo import System
-from cardillo.solver import Newton, EulerBackward, ScipyIVP
+from cardillo.solver import Newton, Riks, EulerBackward, ScipyIVP
 from cardillo.visualization import Export
 
 import numpy as np
@@ -290,13 +290,17 @@ if __name__ == "__main__":
     system.assemble()
 
     if statics:
-        n_load_steps = 1
+        n_load_steps = 10
         solver = Newton(
             system,
             n_load_steps=n_load_steps,
             max_iter=30,
             atol=atol,
         )
+        # solver = Riks(
+        #     system,
+        #     atol=1e-8,
+        # )
     else:
         t1 = 1
         dt = 2.5e-2
