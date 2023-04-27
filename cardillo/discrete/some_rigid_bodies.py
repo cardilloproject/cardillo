@@ -13,7 +13,7 @@ def Ball(RigidBodyParametrization):
             if base_export:
                 points, cells, point_data, cell_data = super().export(sol_i)
             else:
-                raise RuntimeError("find alternative to uv_sphere")
+                raise RuntimeError("Use vtk sphere export.")
                 points_sphere, cells_sphere = uv_sphere(
                     num_points_per_circle=resolution,
                     num_circles=resolution,
