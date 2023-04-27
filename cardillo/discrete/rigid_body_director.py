@@ -397,9 +397,9 @@ class RigidBodyDirectorAngularVelocities:
 
     def h_u(self, t, q, u):
         omega = u[3:]
-        dense = np.zeros((self.nu, self.nu))
-        dense[3:, 3:] = ax2skew(self.theta @ omega) - ax2skew(omega) @ self.theta
-        return dense
+        h_u = np.zeros((self.nu, self.nu))
+        h_u[3:, 3:] = ax2skew(self.theta @ omega) - ax2skew(omega) @ self.theta
+        return h_u
 
     #########################################
     # kinematic equation

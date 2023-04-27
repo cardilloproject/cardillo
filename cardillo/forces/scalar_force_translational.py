@@ -187,13 +187,13 @@ class ScalarForceTranslational:
         J_P2_q = self.J_P2_q(t, q)
 
         # dense blocks
-        dense = np.zeros((self._nu, self._nq))
-        dense[:nu1, :nq1] = -J_P1.T @ n_q1 + np.einsum("i,ijk->jk", -n, J_P1_q)
-        dense[:nu1, nq1:] = -J_P1.T @ n_q2
-        dense[nu1:, :nq1] = J_P2.T @ n_q1
-        dense[nu1:, nq1:] = J_P2.T @ n_q2 + np.einsum("i,ijk->jk", n, J_P2_q)
+        W_q = np.zeros((self._nu, self._nq))
+        W_q[:nu1, :nq1] = -J_P1.T @ n_q1 + np.einsum("i,ijk->jk", -n, J_P1_q)
+        W_q[:nu1, nq1:] = -J_P1.T @ n_q2
+        W_q[nu1:, :nq1] = J_P2.T @ n_q1
+        W_q[nu1:, nq1:] = J_P2.T @ n_q2 + np.einsum("i,ijk->jk", n, J_P2_q)
 
-        return dense
+        return W_q
 
     # private functions
     def __f_spring(self, t, q):
@@ -202,10 +202,9 @@ class ScalarForceTranslational:
 
     def __f_spring_q(self, t, q):
         g = self._g(t, q)
-        dense = -self.force_law_spring.la(t, g) * self._W_q(
+        return -self.force_law_spring.la(t, g) * self._W_q(
             t, q
         ) - self.force_law_spring.la_g(t, g) * np.outer(self._W(t, q), self._g_q(t, q))
-        return dense
 
     def __f_damper(self, t, q, u):
         g_dot = self._g_dot(t, q, u)
@@ -213,11 +212,10 @@ class ScalarForceTranslational:
 
     def __f_damper_q(self, t, q, u):
         g_dot = self._g_dot(t, q, u)
-        dense = -self.force_law_damper.la(t, g_dot) * self._W_q(t, q) - np.outer(
+        return -self.force_law_damper.la(t, g_dot) * self._W_q(t, q) - np.outer(
             self._W(t, q),
             self.force_law_damper.la_gamma(t, g_dot) * self._g_dot_q(t, q, u),
         )
-        return dense
 
     def __f_damper_u(self, t, q, u):
         gamma = self._g_dot(t, q, u)

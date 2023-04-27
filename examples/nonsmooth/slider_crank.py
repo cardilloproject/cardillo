@@ -164,12 +164,12 @@ class SliderCrankFlores:
         M_q[0, 1, 1] = M12_theta2
         M_q[1, 0, 1] = M12_theta2
 
-        dense = np.einsum("ijk,j->ik", M_q, u)
-        return dense
+        Mu_q = np.einsum("ijk,j->ik", M_q, u)
+        return Mu_q
 
-        # Mu = lambda t, q: self.M_dense(t, q) @ u
-        # dense_num = Numerical_derivative(Mu, order=2)._x(t, q)
-        # error = np.linalg.norm(dense_num - dense)
+        # Mu = lambda t, q: self.M(t, q) @ u
+        # Mu_q_num = Numerical_derivative(Mu, order=2)._x(t, q)
+        # error = np.linalg.norm(Mu_q_num - Mu_q)
         # print(f'error Mu_q: {error}')
 
     def h(self, t, q, u):
@@ -206,36 +206,36 @@ class SliderCrankFlores:
             * (np.cos(theta2) * np.cos(theta1) + np.sin(theta2) * np.sin(theta1))
         )
 
-        dense = np.zeros((3, 3))
-        dense[0, 0] = factor1_theta1 * omega2**2 + (
+        h_q = np.zeros((3, 3))
+        h_q[0, 0] = factor1_theta1 * omega2**2 + (
             self.m1 / 2 + self.m2 + self.m3
         ) * self.g * self.l1 * np.sin(theta1)
-        dense[0, 1] = factor1_theta2 * omega2**2
-        dense[1, 0] = -factor1_theta1 * omega1**2
-        dense[1, 1] = -factor1_theta2 * omega1**2 + (
+        h_q[0, 1] = factor1_theta2 * omega2**2
+        h_q[1, 0] = -factor1_theta1 * omega1**2
+        h_q[1, 1] = -factor1_theta2 * omega1**2 + (
             self.m2 / 2 + self.m3
         ) * self.g * self.l2 * np.sin(theta2)
 
-        # dense_num = Numerical_derivative(self.f_npot, order=2)._x(t, q, u)
-        # error = np.linalg.norm(dense_num - dense)
+        # h_q_num = Numerical_derivative(self.f_npot, order=2)._x(t, q, u)
+        # error = np.linalg.norm(h_q_num - h_q)
         # print(f'error f_npot_q: {error}')
 
-        return dense
+        return h_q
 
     def h_u(self, t, q, u):
         theta1, theta2, theta3 = q
         omega1, omega2, omega3 = u
         factor1 = (self.m2 / 2 + self.m3) * self.l1 * self.l2 * np.sin(theta2 - theta1)
 
-        dense = np.zeros((3, 3))
-        dense[0, 1] = 2 * factor1 * omega2
-        dense[1, 0] = -2 * factor1 * omega1
+        h_u = np.zeros((3, 3))
+        h_u[0, 1] = 2 * factor1 * omega2
+        h_u[1, 0] = -2 * factor1 * omega1
 
-        # dense_num = Numerical_derivative(self.f_npot, order=2)._y(t, q, u)
-        # error = np.linalg.norm(dense_num - dense)
+        # h_u_num = Numerical_derivative(self.f_npot, order=2)._y(t, q, u)
+        # error = np.linalg.norm(h_u_num - h_u)
         # print(f'error f_npot_u: {error}')
 
-        return dense
+        return h_u
 
     #####################
     # kinematic equations

@@ -282,7 +282,7 @@ class SecondGradient:
         return f[self.fDOF]
 
     def force_distr1D_q(self, t, q, force, edge_idx, edge_w_J0):
-        pass
+        return None
 
     ####################################################
     # surface forces
@@ -320,7 +320,7 @@ class SecondGradient:
         return f[self.fDOF]
 
     def force_distr2D_q(self, t, q, force, srf_idx):
-        pass
+        return None
 
     ####################################################
     # surface double forces
@@ -367,7 +367,7 @@ class SecondGradient:
         return f[self.fDOF]
 
     def doubleforce_distr2D_q(self, t, q, doubleforce_distr2D, srf_idx, srf_w_J0):
-        pass
+        return None
 
     ####################################################
     # volume forces
@@ -401,7 +401,7 @@ class SecondGradient:
         return f[self.fDOF]
 
     def force_distr3D_q(self, t, q, force):
-        pass
+        return None
 
     # TODO: Include global data in vtk file
     def post_processing_single_configuration(

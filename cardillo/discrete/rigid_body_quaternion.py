@@ -56,14 +56,14 @@ class RigidBodyQuaternion(RigidBodyBase):
 
     def g_S_q(self, t, q):
         P = q[3:]
-        dense = np.zeros((1, 7), dtype=q.dtype)
-        dense[0, 3:] = 2.0 * P
-        return dense
+        g_S_q = np.zeros((1, 7), dtype=q.dtype)
+        g_S_q[0, 3:] = 2.0 * P
+        return g_S_q
 
     def g_S_q_T_mu_q(self, t, q, mu):
-        dense = np.zeros((7, 7), dtype=q.dtype)
-        dense[3:, 3:] = 2.0 * mu[0] * np.eye(4, 4, dtype=float)
-        return dense
+        g_S_q_T_mu_q = np.zeros((7, 7), dtype=q.dtype)
+        g_S_q_T_mu_q[3:, 3:] = 2.0 * mu[0] * np.eye(4, 4, dtype=float)
+        return g_S_q_T_mu_q
 
     def q_dot(self, t, q, u):
         q_dot = np.zeros(self.nq, dtype=np.common_type(q, u))
@@ -72,9 +72,9 @@ class RigidBodyQuaternion(RigidBodyBase):
         return q_dot
 
     def q_dot_q(self, t, q, u):
-        dense = np.zeros((self.nq, self.nq), dtype=np.common_type(q, u))
-        dense[3:, 3:] = np.einsum("ijk,j->ik", T_SO3_inv_quat_P(q[3:]), u[3:])
-        return dense
+        q_dot_q = np.zeros((self.nq, self.nq), dtype=np.common_type(q, u))
+        q_dot_q[3:, 3:] = np.einsum("ijk,j->ik", T_SO3_inv_quat_P(q[3:]), u[3:])
+        return q_dot_q
 
     def B(self, t, q):
         B = np.zeros((self.nq, self.nu), dtype=q.dtype)

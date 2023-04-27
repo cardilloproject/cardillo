@@ -566,7 +566,7 @@ class Rope:
         return f
 
     def distributed_force1D_q(self, t, q, force):
-        pass
+        return None
 
     ####################################################
     # visualization

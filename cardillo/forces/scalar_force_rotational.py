@@ -46,10 +46,9 @@ def PDRotational(Joint, Spring=None, Damper=None):
 
         def __f_spring_q(self, t, q):
             angle = self.angle(t, q)
-            dense = -self.spring.la(t, angle) * self.W_angle_q(t, q) - self.spring.la_g(
+            return -self.spring.la(t, angle) * self.W_angle_q(t, q) - self.spring.la_g(
                 t, angle
             ) * np.outer(self.W_angle(t, q), self.angle_q(t, q))
-            return dense
 
         def __f_damper(self, t, q, u):
             gamma = self.angle_dot(t, q, u)
@@ -59,14 +58,12 @@ def PDRotational(Joint, Spring=None, Damper=None):
             gamma = self.angle_dot(t, q, u)
             gamma_q = self.angle_dot_q(t, q, u)
             W = self.W_angle(t, q)
-            dense = -self.damper.la(t, gamma) * self.W_angle_q(
+            return -self.damper.la(t, gamma) * self.W_angle_q(
                 t, q
             ) - self.damper.la_gamma(t, gamma) * np.outer(W, gamma_q)
-            return dense
 
         def __f_damper_u(self, t, q, u):
             gamma = self.angle_dot(t, q, u)
-            gamma_u = self.angle_dot_u(t, q, u)
             W = self.W_angle(t, q)
             return -self.damper.la_gamma(t, gamma) * np.outer(W, W)
 

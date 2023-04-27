@@ -468,7 +468,7 @@ class Pantographic_sheet:
         return f[self.fDOF]
 
     def force_distr2D_q(self, t, q, force, srf_idx):
-        pass
+        return None
 
     ####################################################
     # volume forces
@@ -502,7 +502,7 @@ class Pantographic_sheet:
         return f[self.fDOF]
 
     def force_distr3D_q(self, t, q, force):
-        pass
+        return None
 
 
 class Dummy_pantograph(Pantographic_sheet):

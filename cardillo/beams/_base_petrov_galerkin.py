@@ -1468,7 +1468,7 @@ def make_I_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
             return f
 
         def distributed_force1D_q(self, t, q, force):
-            pass
+            return None
 
     return Derived
 
@@ -2937,7 +2937,7 @@ def make_K_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
             return f
 
         def distributed_force1D_q(self, t, q, force):
-            pass
+            return None
 
     return Derived
 

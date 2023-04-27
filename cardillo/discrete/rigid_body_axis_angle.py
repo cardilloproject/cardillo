@@ -46,9 +46,9 @@ class RigidBodyAxisAngle(RigidBodyBase):
         return T_inv
 
     def q_dot_q(self, t, q, u):
-        dense = np.zeros((self.nq, self.nq), dtype=float)
-        dense[3:, 3:] = np.einsum("ijk,j->ik", T_SO3_inv_psi(q[3:]), u[3:])
-        return dense
+        q_dot_q = np.zeros((self.nq, self.nq), dtype=float)
+        q_dot_q[3:, 3:] = np.einsum("ijk,j->ik", T_SO3_inv_psi(q[3:]), u[3:])
+        return q_dot_q
 
     def q_ddot(self, t, q, u, u_dot):
         q_ddot = np.zeros(self.nq, dtype=np.common_type(q, u, u_dot))
@@ -68,6 +68,6 @@ class RigidBodyAxisAngle(RigidBodyBase):
         return Exp_SO3(q[3:])
 
     def A_IK_q(self, t, q, frame_ID=None):
-        dense = np.zeros((3, 3, self.nq), dtype=q.dtype)
-        dense[:, :, 3:] = Exp_SO3_psi(q[3:])
-        return dense
+        A_IK_q = np.zeros((3, 3, self.nq), dtype=q.dtype)
+        A_IK_q[:, :, 3:] = Exp_SO3_psi(q[3:])
+        return A_IK_q

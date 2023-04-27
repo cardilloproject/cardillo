@@ -486,10 +486,10 @@ class PositionOrientationBase:
     def Wla_g_q(self, t, q, la_g):
         nq1 = self._nq1
         nu1 = self._nu1
-        dense = np.zeros((self._nu, self._nq), dtype=np.common_type(q, la_g))
+        Wla_g_q = np.zeros((self._nu, self._nq), dtype=np.common_type(q, la_g))
 
-        dense[:nu1, :nq1] += np.einsum("i,ijk->jk", -la_g[:3], self.J_B1_q1(t, q))
-        dense[nu1:, nq1:] += np.einsum("i,ijk->jk", la_g[:3], self.J_B2_q2(t, q))
+        Wla_g_q[:nu1, :nq1] += np.einsum("i,ijk->jk", -la_g[:3], self.J_B1_q1(t, q))
+        Wla_g_q[nu1:, nq1:] += np.einsum("i,ijk->jk", la_g[:3], self.J_B2_q2(t, q))
 
         if self.constrain_orientation:
             A_IB1 = self.A_IB1(t, q)
@@ -508,16 +508,16 @@ class PositionOrientationBase:
                 n = cross3(e_a, e_b)
                 n_q1 = -ax2skew(e_b) @ A_IB1_q1[:, a]
                 n_q2 = ax2skew(e_a) @ A_IB2_q2[:, b]
-                dense[:nu1, :nq1] += np.einsum(
+                Wla_g_q[:nu1, :nq1] += np.einsum(
                     "i,ijk->jk", la_g[3 + i] * n, J_R1_q1
                 ) + np.einsum("ij,ik->kj", la_g[3 + i] * n_q1, J_R1)
-                dense[:nu1, nq1:] += np.einsum("ij,ik->kj", la_g[3 + i] * n_q2, J_R1)
-                dense[nu1:, :nq1] += np.einsum("ij,ik->kj", -la_g[3 + i] * n_q1, J_R2)
-                dense[nu1:, nq1:] += np.einsum(
+                Wla_g_q[:nu1, nq1:] += np.einsum("ij,ik->kj", la_g[3 + i] * n_q2, J_R1)
+                Wla_g_q[nu1:, :nq1] += np.einsum("ij,ik->kj", -la_g[3 + i] * n_q1, J_R2)
+                Wla_g_q[nu1:, nq1:] += np.einsum(
                     "i,ijk->jk", -la_g[3 + i] * n, J_R2_q2
                 ) + np.einsum("ij,ik->kj", -la_g[3 + i] * n_q2, J_R2)
 
-        return dense
+        return Wla_g_q
 
     # TODO analytical derivative
     def g_q_T_mu_q(self, t, q, mu):
@@ -900,7 +900,7 @@ class ProjectedPositionOrientationBase:
     def Wla_g_q(self, t, q, la_g):
         nq1 = self._nq1
         nu1 = self._nu1
-        dense = np.zeros((self._nu, self._nq), dtype=np.common_type(q, la_g))
+        Wla_g_q = np.zeros((self._nu, self._nq), dtype=np.common_type(q, la_g))
 
         A_IB1 = self.A_IB1(t, q)
         A_IB1_q1 = self.A_IB1_q1(t, q)
@@ -915,7 +915,7 @@ class ProjectedPositionOrientationBase:
             J_B1_q1 = self.J_B1_q1(t, q)
             J_B2_q2 = self.J_B2_q2(t, q)
             for i, ax in enumerate(self.constrained_axes_displacement):
-                dense[:nu1, :nq1] += (
+                Wla_g_q[:nu1, :nq1] += (
                     np.einsum("i,ijk->jk", -la_g[i] * A_IB1[:, ax], J_B1_q1)
                     + np.einsum("ik,ij->jk", -la_g[i] * A_IB1_q1[:, ax], J_B1)
                     + np.einsum(
@@ -928,14 +928,14 @@ class ProjectedPositionOrientationBase:
                         "ik,ij->jk", -la_g[i] * ax2skew(r_B1B2) @ A_IB1_q1[:, ax], J_R1
                     )
                 )
-                dense[:nu1, nq1:] += np.einsum(
+                Wla_g_q[:nu1, nq1:] += np.einsum(
                     "ik,ij->jk", la_g[i] * ax2skew(A_IB1[:, ax]) @ r_OB2_q2, J_R1
                 )
 
-                dense[nu1:, :nq1] += np.einsum(
+                Wla_g_q[nu1:, :nq1] += np.einsum(
                     "ij,ik->kj", la_g[i] * A_IB1_q1[:, ax], J_B2
                 )
-                dense[nu1:, nq1:] += np.einsum(
+                Wla_g_q[nu1:, nq1:] += np.einsum(
                     "i,ijk->jk", la_g[i] * A_IB1[:, ax], J_B2_q2
                 )
 
@@ -956,31 +956,31 @@ class ProjectedPositionOrientationBase:
                 n = cross3(e_a, e_b)
                 n_q1 = -ax2skew(e_b) @ A_IB1_q1[:, a]
                 n_q2 = ax2skew(e_a) @ A_IB2_q2[:, b]
-                dense[:nu1, :nq1] += np.einsum(
+                Wla_g_q[:nu1, :nq1] += np.einsum(
                     "i,ijk->jk", la_g[nla_g_trans + i] * n, J_R1_q1
                 ) + np.einsum("ij,ik->kj", la_g[nla_g_trans + i] * n_q1, J_R1)
-                dense[:nu1, nq1:] += np.einsum(
+                Wla_g_q[:nu1, nq1:] += np.einsum(
                     "ij,ik->kj", la_g[nla_g_trans + i] * n_q2, J_R1
                 )
-                dense[nu1:, :nq1] += np.einsum(
+                Wla_g_q[nu1:, :nq1] += np.einsum(
                     "ij,ik->kj", -la_g[nla_g_trans + i] * n_q1, J_R2
                 )
-                dense[nu1:, nq1:] += np.einsum(
+                Wla_g_q[nu1:, nq1:] += np.einsum(
                     "i,ijk->jk", -la_g[nla_g_trans + i] * n, J_R2_q2
                 ) + np.einsum("ij,ik->kj", -la_g[nla_g_trans + i] * n_q2, J_R2)
 
-        return dense
+        return Wla_g_q
 
-        # dense_num = approx_fprime(
-        #     # q, lambda q: self.W_g_dense(t, q) @ la_g, method="3-point", eps=1e-6
-        #     q, lambda q: self.W_g_dense(t, q) @ la_g, method="cs", eps=1e-12
+        # Wla_g_q_num = approx_fprime(
+        #     # q, lambda q: self.W_g(t, q) @ la_g, method="3-point", eps=1e-6
+        #     q, lambda q: self.W_g(t, q) @ la_g, method="cs", eps=1e-12
         # )
-        # diff = dense - dense_num
+        # diff = Wla_g_q - Wla_g_q_num
         # error = np.linalg.norm(diff)
         # # if error > 1.0e-8:
         # print(f"error Wla_g_q: {error}")
 
-        # return dense_num
+        # return Wla_g_q_num
 
     def g_q_T_mu_q(self, t, q, mu):
         warnings.warn(

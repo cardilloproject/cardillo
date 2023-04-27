@@ -154,16 +154,16 @@ class SphereInSphere:
 
     def Wla_F_q(self, t, q, la_T):
         # J_C_q = self.J_P_q(t, q) + self.r * np.einsum('ij,jkl->ikl', ax2skew(self.n(t)), self.J_R_q(t, q))
-        # dense = np.einsum('i,ij,jkl->kl', la_T, self.t1t2(t), J_C_q)
-        # return dense
-        dense_num = np.einsum(
+        # Wla_F_q = np.einsum('i,ij,jkl->kl', la_T, self.t1t2(t), J_C_q)
+        # return Wla_F_q
+        Wla_F_q_num = np.einsum(
             "i,ijk->jk",
             la_T,
             approx_fprime(q, lambda t, q, u: self.gamma_F_u(t, q, u)),
         )
-        # error = np.linalg.norm(dense - dense_num)
+        # error = np.linalg.norm(Wla_F_q - Wla_F_q_num)
         # print(f'error: {error}')
-        return dense_num
+        return Wla_F_q_num
 
     def xi_N(self, t, q, u_pre, u_post):
         return self.g_N_dot(t, q, u_post) + self.e_N * self.g_N_dot(t, q, u_pre)

@@ -386,7 +386,7 @@ class FirstGradient:
         return f[self.fDOF]
 
     def force_distr2D_q(self, t, q, force, srf_idx):
-        pass
+        return None
 
     ####################################################
     # volume forces
@@ -420,7 +420,7 @@ class FirstGradient:
         return f[self.fDOF]
 
     def force_distr3D_q(self, t, q, force):
-        pass
+        return None
 
 
 def test_gradient():

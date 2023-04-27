@@ -879,7 +879,6 @@ class I_R12_BubonvGalerkin_R12(RodExportBase, metaclass=ABCMeta):
         # print(f'error K_J_R_q: {error}')
         return K_J_R_q_num
 
-    # TODO: Implement K_Psi as derivative of K_Omega
     def K_Psi(self, t, q, u, u_dot, frame_ID):
         N_di, _ = self.basis_functions_di(frame_ID[0])
 
@@ -935,7 +934,7 @@ class I_R12_BubonvGalerkin_R12(RodExportBase, metaclass=ABCMeta):
         return f
 
     def distributed_force1D_q(self, t, q, force):
-        pass
+        return None
 
     ##############################################################
     # abstract methods for bilateral constraints on position level
@@ -1575,63 +1574,98 @@ class I_R12_BubonvGalerkin_R12_Dirac(I_R12_BubonvGalerkin_R12):
         self.nodalDOF_la_g = np.arange(self.nla_g).reshape(
             self.nnode_di, self.nnode_la_g, order="F"
         )
+        self.projection_pairs = [(0, 1), (1, 2), (2, 0)]
 
     # constraints on a single node
     def __g(self, qn):
-        d1, d2, d3 = np.split(qn, 3)
+        A_IK = qn.reshape(3, 3, order="F")
 
         g = np.zeros(6, dtype=qn.dtype)
-        g[0] = d1 @ d1 - 1.0
-        g[1] = d2 @ d2 - 1.0
-        g[2] = d3 @ d3 - 1.0
-        g[3] = d1 @ d2
-        g[4] = d2 @ d3
-        g[5] = d3 @ d1
+        for i in range(3):
+            di = A_IK[:, i]
+            g[i] = di @ di - 1
+        for i, (a, b) in enumerate(self.projection_pairs):
+            g[3 + i] = A_IK[:, a] @ A_IK[:, b]
+
+        # d1, d2, d3 = np.split(qn, 3)
+        # g = np.zeros(6, dtype=qn.dtype)
+        # g[0] = d1 @ d1 - 1.0
+        # g[1] = d2 @ d2 - 1.0
+        # g[2] = d3 @ d3 - 1.0
+        # g[3] = d1 @ d2
+        # g[4] = d2 @ d3
+        # g[5] = d3 @ d1
 
         return g
 
     def __g_dot(self, qn, un):
-        d1, d2, d3 = np.split(qn, 3)
-        d1_dot, d2_dot, d3_dot = np.split(un, 3)
+        # d1, d2, d3 = np.split(qn, 3)
+        # d1_dot, d2_dot, d3_dot = np.split(un, 3)
+
+        # g_dot = np.zeros(6, dtype=qn.dtype)
+        # g_dot[0] = 2 * d1 @ d1_dot
+        # g_dot[1] = 2 * d2 @ d2_dot
+        # g_dot[2] = 2 * d3 @ d3_dot
+        # g_dot[3] = d1 @ d2_dot + d2 @ d1_dot
+        # g_dot[4] = d2 @ d3_dot + d3 @ d2_dot
+        # g_dot[5] = d3 @ d1_dot + d1 @ d3_dot
+
+        A_IK = qn.reshape(3, 3, order="F")
+        A_IK_dot = un.reshape(3, 3, order="F")
 
         g_dot = np.zeros(6, dtype=qn.dtype)
-        g_dot[0] = 2 * d1 @ d1_dot
-        g_dot[1] = 2 * d2 @ d2_dot
-        g_dot[2] = 2 * d3 @ d3_dot
-        g_dot[3] = d1 @ d2_dot + d2 @ d1_dot
-        g_dot[4] = d2 @ d3_dot + d3 @ d2_dot
-        g_dot[5] = d3 @ d1_dot + d1 @ d3_dot
+        for i in range(3):
+            g_dot[i] = 2 * A_IK[:, i] @ A_IK_dot[:, i]
+        for i, (a, b) in enumerate(self.projection_pairs):
+            g_dot[3 + i] = A_IK[:, a] @ A_IK_dot[:, b] + A_IK[:, b] @ A_IK_dot[:, a]
 
         return g_dot
 
     def __g_ddot(self, qn, un, un_dot):
-        d1, d2, d3 = np.split(qn, 3)
-        d1_dot, d2_dot, d3_dot = np.split(un, 3)
-        d1_ddot, d2_ddot, d3_ddot = np.split(un_dot, 3)
+        A_IK = qn.reshape(3, 3, order="F")
+        A_IK_dot = un.reshape(3, 3, order="F")
+        A_IK_ddot = un_dot.reshape(3, 3, order="F")
 
         g_ddot = np.zeros(6, dtype=qn.dtype)
-        g_ddot[0] = 2 * d1 @ d1_ddot + 2 * d1_dot @ d1_dot
-        g_ddot[1] = 2 * d2 @ d2_ddot + 2 * d2_dot @ d2_dot
-        g_ddot[2] = 2 * d3 @ d3_ddot + 2 * d3_dot @ d3_dot
-        g_ddot[3] = d1 @ d2_ddot + d2_dot @ d1_dot + d1 @ d2_ddot + d2_dot @ d1_dot
-        g_ddot[4] = d2 @ d3_ddot + d3_dot @ d2_dot + d2 @ d3_ddot + d3_dot @ d2_dot
-        g_ddot[5] = d3 @ d1_ddot + d1_dot @ d3_dot + d3 @ d1_ddot + d1_dot @ d3_dot
+        for i in range(3):
+            g_ddot[i] = (
+                2 * A_IK[:, i] @ A_IK_ddot[:, i] + 2 * A_IK_dot[:, i] @ A_IK_dot[:, i]
+            )
+        for i, (a, b) in enumerate(self.projection_pairs):
+            g_ddot[3 + i] = (
+                A_IK[:, a] @ A_IK_ddot[:, b]
+                + A_IK_dot[:, a] @ A_IK_dot[:, b]
+                + A_IK[:, b] @ A_IK_ddot[:, a]
+                + A_IK_dot[:, b] @ A_IK_dot[:, a]
+            )
 
         return g_ddot
 
     def __g_q(self, qn):
-        d1, d2, d3 = np.split(qn, 3)
+        # d1, d2, d3 = np.split(qn, 3)
+
+        # g_q = np.zeros((6, 9), dtype=qn.dtype)
+        # g_q[0, :3] = 2.0 * d1
+        # g_q[1, 3:6] = 2.0 * d2
+        # g_q[2, 6:] = 2.0 * d3
+        # g_q[3, :3] = d2
+        # g_q[3, 3:6] = d1
+        # g_q[4, 3:6] = d3
+        # g_q[4, 6:] = d2
+        # g_q[5, :3] = d3
+        # g_q[5, 6:] = d1
+        # return g_q
+
+        A_IK = qn.reshape(3, 3, order="F")
 
         g_q = np.zeros((6, 9), dtype=qn.dtype)
-        g_q[0, :3] = 2.0 * d1
-        g_q[1, 3:6] = 2.0 * d2
-        g_q[2, 6:] = 2.0 * d3
-        g_q[3, :3] = d2
-        g_q[3, 3:6] = d1
-        g_q[4, 3:6] = d3
-        g_q[4, 6:] = d2
-        g_q[5, :3] = d3
-        g_q[5, 6:] = d1
+        for i in range(3):
+            di = A_IK[:, i]
+            g_q[i, 3 * i : 3 * (i + 1)] = 2 * di
+        for i, (a, b) in enumerate(self.projection_pairs):
+            g_q[3 + i, 3 * b : 3 * (b + 1)] = A_IK[:, a]
+            g_q[3 + i, 3 * a : 3 * (a + 1)] = A_IK[:, b]
+
         return g_q
 
         # g_q_num = approx_fprime(qn, self.__g)
