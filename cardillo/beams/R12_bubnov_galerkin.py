@@ -1587,29 +1587,9 @@ class I_R12_BubonvGalerkin_R12_Dirac(I_R12_BubonvGalerkin_R12):
         for i, (a, b) in enumerate(self.projection_pairs):
             g[3 + i] = A_IK[:, a] @ A_IK[:, b]
 
-        # d1, d2, d3 = np.split(qn, 3)
-        # g = np.zeros(6, dtype=qn.dtype)
-        # g[0] = d1 @ d1 - 1.0
-        # g[1] = d2 @ d2 - 1.0
-        # g[2] = d3 @ d3 - 1.0
-        # g[3] = d1 @ d2
-        # g[4] = d2 @ d3
-        # g[5] = d3 @ d1
-
         return g
 
     def __g_dot(self, qn, un):
-        # d1, d2, d3 = np.split(qn, 3)
-        # d1_dot, d2_dot, d3_dot = np.split(un, 3)
-
-        # g_dot = np.zeros(6, dtype=qn.dtype)
-        # g_dot[0] = 2 * d1 @ d1_dot
-        # g_dot[1] = 2 * d2 @ d2_dot
-        # g_dot[2] = 2 * d3 @ d3_dot
-        # g_dot[3] = d1 @ d2_dot + d2 @ d1_dot
-        # g_dot[4] = d2 @ d3_dot + d3 @ d2_dot
-        # g_dot[5] = d3 @ d1_dot + d1 @ d3_dot
-
         A_IK = qn.reshape(3, 3, order="F")
         A_IK_dot = un.reshape(3, 3, order="F")
 
@@ -1678,27 +1658,11 @@ class I_R12_BubonvGalerkin_R12_Dirac(I_R12_BubonvGalerkin_R12):
         eye3 = np.eye(3, dtype=float)
 
         Wla_g_q = np.zeros((9, 9), dtype=float)
-
-        # g_q[0, :3] = 2.0 * d1
-        # g_q[3, :3] = d2
-        # g_q[5, :3] = d3
-        Wla_g_q[:3, :3] = 2.0 * la_g[0] * eye3
-        Wla_g_q[:3, 3:6] = la_g[3] * eye3
-        Wla_g_q[:3, 6:9] = la_g[5] * eye3
-
-        # g_q[1, 3:6] = 2.0 * d2
-        # g_q[3, 3:6] = d1
-        # g_q[4, 3:6] = d3
-        Wla_g_q[3:6, 3:6] = 2.0 * la_g[1] * eye3
-        Wla_g_q[3:6, :3] = la_g[3] * eye3
-        Wla_g_q[3:6, 6:9] = la_g[4] * eye3
-
-        # g_q[2, 6:] = 2.0 * d3
-        # g_q[4, 6:] = d2
-        # g_q[5, 6:] = d1
-        Wla_g_q[6:9, 6:9] = 2.0 * la_g[2] * eye3
-        Wla_g_q[6:9, 3:6] = la_g[4] * eye3
-        Wla_g_q[6:9, :3] = la_g[5] * eye3
+        for i in range(3):
+            Wla_g_q[3 * i : 3 * (i + 1), 3 * i : 3 * (i + 1)] = 2 * la_g[i] * eye3
+        for i, (a, b) in enumerate(self.projection_pairs):
+            Wla_g_q[3 * b : 3 * (b + 1), 3 * a : 3 * (a + 1)] = la_g[3 + i] * eye3
+            Wla_g_q[3 * a : 3 * (a + 1), 3 * b : 3 * (b + 1)] = la_g[3 + i] * eye3
 
         return Wla_g_q
 
