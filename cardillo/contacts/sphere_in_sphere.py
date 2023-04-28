@@ -100,35 +100,29 @@ class SphereInSphere:
     def g_N(self, t, q):
         return np.array([self.R - self.r - norm(self.r_OP(t, q) - self.r_OQ(t))])
 
-    def g_N_q(self, t, q, coo):
-        coo.extend(
-            approx_fprime(q, lambda q: self.g_N(t, q)), (self.la_NDOF, self.qDOF)
-        )
+    def g_N_q(self, t, q):
+        return approx_fprime(q, lambda q: self.g_N(t, q)).reshape((self.nla_N, self.nq))
 
     def g_N_dot(self, t, q, u):
         return np.array([self.n(t, q) @ (self.v_P(t, q, u) - self.v_Q(t))])
 
     def g_N_ddot(self, t, q, u, u_dot):
         g_N_dot_q = approx_fprime(q, lambda q: self.g_N_dot(t, q, u))
-        g_N_dot_u = self.g_N_dot_u_dense(t, q)
+        g_N_dot_u = self.g_N_dot_u(t, q)
         return g_N_dot_q @ self.subsystem.q_dot(t, q, u) + g_N_dot_u @ u_dot
 
-    def g_N_dot_u(self, t, q, coo):
-        coo.extend(self.g_N_dot_u_dense(t, q), (self.la_NDOF, self.uDOF))
-
-    def g_N_dot_u_dense(self, t, q):
+    def g_N_dot_u(self, t, q):
         return np.array([self.n(t, q) @ self.J_P(t, q)])
 
-    def W_N(self, t, q, coo):
-        coo.extend(self.g_N_dot_u_dense(t, q).T, (self.uDOF, self.la_NDOF))
+    def W_N(self, t, q):
+        return self.g_N_dot_u(t, q).T
 
-    def Wla_N_q(self, t, q, la_N, coo):
+    def Wla_N_q(self, t, q, la_N):
         n_q = approx_fprime(q, lambda t, q: self.n(t, q))
-        dense = la_N[0] * (
+        return la_N[0] * (
             np.einsum("i,ijk->jk", self.n(t, q), self.J_P_q(t, q))
             + np.einsum("ik,ij->jk", n_q, self.J_P(t, q))
         )
-        coo.extend(dense, (self.uDOF, self.qDOF))
 
     def __gamma_F(self, t, q, u):
         t1t2 = np.zeros((2, 3), dtype=np.common_type(q, u))
@@ -138,19 +132,16 @@ class SphereInSphere:
         v_C = self.v_P(t, q, u) + self.r * cross3(n, self.Omega(t, q, u))
         return t1t2 @ (v_C - self.v_Q(t))
 
-    def gamma_F_q(self, t, q, u, coo):
-        coo.extend(
-            approx_fprime(q, lambda q: self.__gamma_F(t, q, u)),
-            (self.la_FDOF, self.qDOF),
-        )
+    def gamma_F_q(self, t, q, u):
+        return approx_fprime(q, lambda q: self.__gamma_F(t, q, u))
 
     def gamma_F_dot(self, t, q, u, u_dot):
         # TODO: t1t2_dot(t)
         gamma_T_q = approx_fprime(q, lambda q: self.gamma_F(t, q, u))
-        gamma_T_u = self.gamma_F_u_dense(t, q)
+        gamma_T_u = self.gamma_F_u(t, q)
         return gamma_T_q @ self.subsystem.q_dot(t, q, u) + gamma_T_u @ u_dot
 
-    def gamma_F_u_dense(self, t, q):
+    def gamma_F_u(self, t, q):
         t1t2 = np.zeros((2, 3))
         n = self.n(t, q)
         t1t2[0] = e3
@@ -158,24 +149,18 @@ class SphereInSphere:
         J_C = self.J_P(t, q) + self.r * ax2skew(n) @ self.J_R(t, q)
         return t1t2 @ J_C
 
-    def W_F(self, t, q, coo):
-        coo.extend(self.gamma_F_u_dense(t, q).T, (self.uDOF, self.la_FDOF))
+    def W_F(self, t, q):
+        return self.gamma_F_u(t, q).T
 
-    def Wla_F_q(self, t, q, la_T, coo):
+    def Wla_F_q(self, t, q, la_T):
         # J_C_q = self.J_P_q(t, q) + self.r * np.einsum('ij,jkl->ikl', ax2skew(self.n(t)), self.J_R_q(t, q))
-        # dense = np.einsum('i,ij,jkl->kl', la_T, self.t1t2(t), J_C_q)
-        # coo.extend(dense, (self.uDOF, self.qDOF))
-        dense_num = np.einsum(
+        # Wla_F_q = np.einsum('i,ij,jkl->kl', la_T, self.t1t2(t), J_C_q)
+        # return Wla_F_q
+        Wla_F_q_num = np.einsum(
             "i,ijk->jk",
             la_T,
-            approx_fprime(q, lambda t, q, u: self.gamma_F_u_dense(t, q, u)),
+            approx_fprime(q, lambda t, q, u: self.gamma_F_u(t, q, u)),
         )
-        # error = np.linalg.norm(dense - dense_num)
+        # error = np.linalg.norm(Wla_F_q - Wla_F_q_num)
         # print(f'error: {error}')
-        coo.extend(dense_num, (self.uDOF, self.qDOF))
-
-    def xi_N(self, t, q, u_pre, u_post):
-        return self.g_N_dot(t, q, u_post) + self.e_N * self.g_N_dot(t, q, u_pre)
-
-    def xi_F(self, t, q, u_pre, u_post):
-        return self.gamma_F(t, q, u_post) + self.e_F * self.gamma_F(t, q, u_pre)
+        return Wla_F_q_num

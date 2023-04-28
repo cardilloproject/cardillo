@@ -147,12 +147,14 @@ class Revolute(PositionOrientationBase):
         e_c1_q1 = self.A_IB1_q1(t, q)[:, self.axis]
 
         # dense blocks
-        dense = np.zeros((self._nu, self._nq))
-        dense[:nu1, :nq1] = np.einsum("i,ijk->jk", -e_c1, J_R1_q1) - J_R1.T @ e_c1_q1
-        dense[nu1:, :nq1] = J_R2.T @ e_c1_q1
-        dense[nu1:, nq1:] = np.einsum("i,ijk->jk", e_c1, J_R2_q2)
+        W_angle_q = np.zeros((self._nu, self._nq))
+        W_angle_q[:nu1, :nq1] = (
+            np.einsum("i,ijk->jk", -e_c1, J_R1_q1) - J_R1.T @ e_c1_q1
+        )
+        W_angle_q[nu1:, :nq1] = J_R2.T @ e_c1_q1
+        W_angle_q[nu1:, nq1:] = np.einsum("i,ijk->jk", e_c1, J_R2_q2)
 
-        return dense
+        return W_angle_q
 
     def reset(self):
         self.n_full_rotations = 0

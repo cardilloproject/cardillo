@@ -25,22 +25,17 @@ class nElScalarForceTranslational:
             self.E_pot = lambda t, q: self.force_law_spring.E_pot(t, self._g(t, q))
             if self.force_law_damper is not None:
                 self._h = lambda t, q, u: self._f_spring(t, q) + self._f_damper(t, q, u)
-                self._h_q = lambda t, q, u, coo: coo.extend(
-                    self._f_spring_q(t, q) + self._f_damper_q(t, q, u),
-                    (self.uDOF, self.qDOF),
+                self._h_q = lambda t, q, u: self._f_spring_q(t, q) + self._f_damper_q(
+                    t, q, u
                 )
-                self.h_u = lambda t, q, u, coo: self._f_damper_u(t, q, u, coo)
+                self.h_u = lambda t, q, u: self._f_damper_u(t, q, u)
             else:
                 self._h = lambda t, q, u: self._f_spring(t, q)
-                self._h_q = lambda t, q, u, coo: coo.extend(
-                    self._f_spring_q(t, q), (self.uDOF, self.qDOF)
-                )
+                self._h_q = lambda t, q, u: self._f_spring_q(t, q)
         else:
             self._h = lambda t, q, u: self._f_damper(t, q, u)
-            self._h_q = lambda t, q, u, coo: coo.extend(
-                self._f_damper_q(t, q, u), (self.uDOF, self.qDOF)
-            )
-            self.h_u = lambda t, q, u, coo: self._f_damper_u(t, q, u, coo)
+            self._h_q = lambda t, q, u: self._f_damper_q(t, q, u)
+            self.h_u = lambda t, q, u: self._f_damper_u(t, q, u)
 
         self.subsystems = subsystem_list
         self.n_subsystems = len(subsystem_list)
@@ -238,18 +233,15 @@ class nElScalarForceTranslational:
         )
         return f_damper_q
 
-    def _f_damper_u(self, t, q, u, coo):
+    def _f_damper_u(self, t, q, u):
         W = self._W(t, q)
-        f_npot_u = -self.force_law_damper.la_gamma(t, self._gamma(t, q, u)) * np.outer(
-            W, W
-        )
-        coo.extend(f_npot_u, (self.uDOF, self.uDOF))
+        return -self.force_law_damper.la_gamma(t, self._gamma(t, q, u)) * np.outer(W, W)
 
     def h(self, t, q, u):
         return self._h(t, q, u)
 
-    def h_q(self, t, q, u, coo):
-        return self._h_q(t, q, u, coo)
+    def h_q(self, t, q, u):
+        return self._h_q(t, q, u)
 
     # E_pot and h_u defined in init if necessary
 

@@ -10,13 +10,16 @@ class Sphere2Sphere:
         radius1,
         radius2,
         e_N,
-        # e_F,
-        # mu,
-        prox_r_N,
+        e_F,
+        mu,
+        # prox_r_N,
         # prox_r_F,
         frame_ID1=np.zeros(3, dtype=float),
         frame_ID2=np.zeros(3, dtype=float),
     ):
+        raise NotImplementedError(
+            "Refactor me. There is no example or test in cardillo."
+        )
         self.subsystem1 = subsystem1
         self.frame_ID1 = frame_ID1
         self.radius1 = radius1
@@ -25,14 +28,14 @@ class Sphere2Sphere:
         self.radius2 = radius2
 
         self.e_N = np.array([e_N])
-        self.prox_r_N = np.array([prox_r_N])
+        # self.prox_r_N = np.array([prox_r_N])
 
-        # # self.e_F = np.array([e_F])
-        # # self.mu = np.array([mu])
+        self.e_F = np.array([e_F, e_F])
+        self.mu = np.array([mu])
         # self.prox_r_F = np.array([prox_r_F])
-        self.e_F = np.array([0])
-        self.mu = np.array([0])
-        self.prox_r_F = np.array([0])
+        # self.e_F = np.array([0])
+        # self.mu = np.array([0])
+        # self.prox_r_F = np.array([0])
 
         self.nla_N = 1
         # self.nla_F = 2
@@ -118,14 +121,11 @@ class Sphere2Sphere:
         r_S1S2 = self.r_OS2(t, q) - self.r_OS1(t, q)
         return np.array([norm(r_S1S2) - self.radius1 - self.radius2])
 
-    def g_N_q_dense(self, t, q):
+    def g_N_q(self, t, q):
         n = self.normal(t, q)
         r_OS1 = self.J_S1(t, q)
         r_OS2 = self.J_S2(t, q)
         return np.concatenate((-n @ r_OS1, n @ r_OS2))
-
-    def g_N_q(self, t, q, coo):
-        coo.extend(self.g_N_q_dense(t, q), (self.la_NDOF, self.qDOF))
 
     def normal(self, t, q):
         r_S1S2 = self.r_OS2(t, q) - self.r_OS1(t, q)
@@ -134,32 +134,17 @@ class Sphere2Sphere:
     def g_N_dot(self, t, q, u):
         return np.array([self.normal(t, q) @ (self.v_S2(t, q, u) - self.v_S1(t, q, u))])
 
-    # def g_N_dot_q_dense(self, t, q, u):
+    # def g_N_dot_q(self, t, q, u):
     #     return np.array([self.n(t) @ self.v_P_q(t, q, u)])
 
-    # def g_N_dot_q(self, t, q, u, coo):
-    #     coo.extend(self.g_N_dot_q_dense(t, q, u), (self.la_NDOF, self.qDOF))
-
-    def g_N_dot_u_dense(self, t, q):
+    def g_N_dot_u(self, t, q):
         n = self.normal(t, q)
         J_S1 = self.J_S1(t, q)
         J_S2 = self.J_S2(t, q)
         return np.concatenate((-n @ J_S1, n @ J_S2))
 
-    def g_N_dot_u(self, t, q, coo):
-        coo.extend(self.g_N_dot_u_dense(t, q), (self.la_NDOF, self.uDOF))
-
-    def xi_N(self, t, q, u_pre, u_post):
-        return self.g_N_dot(t, q, u_post) + self.e_N * self.g_N_dot(t, q, u_pre)
-
-    # def xi_N_q(self, t, q, u_pre, u_post, coo):
-    #     g_N_q_pre = self.g_N_dot_q_dense(t, q, u_pre)
-    #     g_N_q_post = self.g_N_dot_q_dense(t, q, u_post)
-    #     dense = g_N_q_post + self.e_N * g_N_q_pre
-    #     coo.extend(dense, (self.la_NDOF, self.qDOF))
-
-    def W_N(self, t, q, coo):
-        coo.extend(self.g_N_dot_u_dense(t, q).T, (self.uDOF, self.la_NDOF))
+    def W_N(self, t, q):
+        return self.g_N_dot_u(t, q).T
 
     def g_N_ddot(self, t, q, u, u_dot):
         return np.array(
@@ -169,14 +154,11 @@ class Sphere2Sphere:
             ]
         )
 
-    # def g_N_ddot_q(self, t, q, u, u_dot, coo):
-    #     dense = np.array([self.n(t) @ self.a_P_q(t, q, u, u_dot)])
-    #     coo.extend(dense, (self.la_NDOF, self.qDOF))
+    # def g_N_ddot_q(self, t, q, u, u_dot):
+    #     return np.array([self.n(t) @ self.a_P_q(t, q, u, u_dot)])
 
-    # def g_N_ddot_u(self, t, q, u, u_dot, coo):
-    #     dense = np.array([self.n(t) @ self.a_P_u(t, q, u, u_dot)])
-    #     coo.extend(dense, (self.la_NDOF, self.uDOF))
+    # def g_N_ddot_u(self, t, q, u, u_dot):
+    #     return np.array([self.n(t) @ self.a_P_u(t, q, u, u_dot)])
 
-    def Wla_N_q(self, t, q, la_N, coo):
-        dense = approx_fprime(q, lambda q: la_N[0] * self.g_N_dot_u_dense(t, q))
-        coo.extend(dense, (self.uDOF, self.qDOF))
+    def Wla_N_q(self, t, q, la_N):
+        return approx_fprime(q, lambda q: la_N[0] * self.g_N_dot_u(t, q))

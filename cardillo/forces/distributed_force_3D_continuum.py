@@ -16,5 +16,5 @@ class DistributedForce3DContinuum:
     def h(self, t, q, u):
         return self.subsystem.distributed_force3D(t, q, self.force)
 
-    def h_q(self, t, q, u, coo):
-        self.subsystem.distributed_force3D_q(t, q, coo, self.force)
+    def h_q(self, t, q, u):
+        return self.subsystem.distributed_force3D_q(t, q, self.force)

@@ -22,9 +22,8 @@ class K_Moment:
     def h(self, t, q, u):
         return self.K_M(t) @ self.K_J_R(t, q)
 
-    def h_q(self, t, q, u, coo):
-        f_q = einsum("i,ijk->jk", self.K_M(t), self.K_J_R_q(t, q))
-        coo.extend(f_q, (self.uDOF, self.qDOF))
+    def h_q(self, t, q, u):
+        return einsum("i,ijk->jk", self.K_M(t), self.K_J_R_q(t, q))
 
 
 class Moment:
@@ -50,9 +49,8 @@ class Moment:
     def h(self, t, q, u):
         return (self.I_M(t) @ self.A_IK(t, q)) @ self.K_J_R(t, q)
 
-    def h_q(self, t, q, u, coo):
+    def h_q(self, t, q, u):
         I_M = self.I_M(t)
-        f_q = einsum("i,ijl,jk->kl", I_M, self.A_IK_q(t, q), self.K_J_R(t, q)) + einsum(
-            "i,ijk->jk", I_M @ self.A_IK(t, q), self.K_J_R_q(t, q)
-        )
-        coo.extend(f_q, (self.uDOF, self.qDOF))
+        return einsum(
+            "i,ijl,jk->kl", I_M, self.A_IK_q(t, q), self.K_J_R(t, q)
+        ) + einsum("i,ijk->jk", I_M @ self.A_IK(t, q), self.K_J_R_q(t, q))

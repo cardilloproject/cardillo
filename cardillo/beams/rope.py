@@ -1,6 +1,6 @@
 import numpy as np
 
-from cardillo.utility.coo import Coo
+from cardillo.utility.coo_matrix import CooMatrix
 from cardillo.discretization.lagrange import LagrangeKnotVector
 from cardillo.discretization.b_spline import BSplineKnotVector
 from cardillo.discretization.hermite import HermiteNodeVector
@@ -260,16 +260,16 @@ class Rope:
         return M_el
 
     def __M_coo(self):
-        self.__M = Coo((self.nu, self.nu))
+        self.__M = CooMatrix((self.nu, self.nu))
         for el in range(self.nelement):
             # extract element degrees of freedom
             elDOF = self.elDOF[el]
 
             # sparse assemble element mass matrix
-            self.__M.extend(self.M_el(el), (self.uDOF[elDOF], self.uDOF[elDOF]))
+            self.__M[elDOF, elDOF] = self.M_el(el)
 
-    def M(self, t, q, coo):
-        coo.extend_sparse(self.__M)
+    def M(self, t, q):
+        return self.__M
 
     def E_pot(self, t, q):
         E_pot = 0
@@ -346,13 +346,16 @@ class Rope:
 
         return f_pot_el
 
-    def h_q(self, t, q, u, coo):
+    def h_q(self, t, q, u):
+        coo = CooMatrix((self.nu, self.nq))
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
             f_pot_q_el = self.f_pot_q_el(t, q[elDOF], el)
 
             # sparse assemble element internal stiffness matrix
-            coo.extend(f_pot_q_el, (self.uDOF[elDOF], self.qDOF[elDOF]))
+            coo[elDOF, elDOF] = f_pot_q_el
+
+        return coo
 
     def f_pot_q_el(self, t, qe, el):
         f_pot_q_el = np.zeros((self.nu_element, self.nq_element), dtype=float)
@@ -416,8 +419,8 @@ class Rope:
     def q_dot(self, t, q, u):
         return u
 
-    def B(self, t, q, coo):
-        coo.extend_diag(np.ones(self.nq), (self.qDOF, self.uDOF))
+    def B(self, t, q):
+        return np.ones(self.nq)
 
     def q_ddot(self, t, q, u, u_dot):
         return u_dot
@@ -562,8 +565,8 @@ class Rope:
             f[self.elDOF[el]] += self.distributed_force1D_el(force, t, el)
         return f
 
-    def distributed_force1D_q(self, t, q, coo, force):
-        pass
+    def distributed_force1D_q(self, t, q, force):
+        return None
 
     ####################################################
     # visualization
@@ -572,18 +575,18 @@ class Rope:
         q_body = q[self.qDOF]
         return np.array([q_body[nodalDOF] for nodalDOF in self.nodalDOF]).T
 
-    def centerline(self, q, n=100):
+    def centerline(self, q, num=100):
         q_body = q[self.qDOF]
         r = []
-        for xi in np.linspace(0, 1, n):
+        for xi in np.linspace(0, 1, num):
             frame_ID = (xi,)
             qe = q_body[self.local_qDOF_P(frame_ID)]
             r.append(self.r_OP(1, qe, frame_ID))
         return np.array(r).T
 
-    def plot_centerline(self, ax, q, n=100, color="black"):
+    def plot_centerline(self, ax, q, num=100, color="black"):
         ax.plot(*self.nodes(q), linestyle="dashed", marker="o", color=color)
-        ax.plot(*self.centerline(q, n=n), linestyle="solid", color=color)
+        ax.plot(*self.centerline(q, num=num), linestyle="solid", color=color)
 
     def stretch(self, q, n=100):
         q_body = q[self.qDOF]

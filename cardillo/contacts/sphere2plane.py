@@ -120,29 +120,20 @@ class Sphere2Plane:
     def g_N(self, t, q):
         return np.array([self.n @ (self.r_OP(t, q) - self.r_OQ)]) - self.r
 
-    def g_N_q_dense(self, t, q):
+    def g_N_q(self, t, q):
         return np.array([self.n @ self.r_OP_q(t, q)], dtype=q.dtype)
-
-    def g_N_q(self, t, q, coo):
-        coo.extend(self.g_N_q_dense(t, q), (self.la_NDOF, self.qDOF))
 
     def g_N_dot(self, t, q, u):
         return np.array([self.n @ self.v_P(t, q, u)], dtype=np.common_type(q, u))
 
-    def g_N_dot_q_dense(self, t, q, u):
+    def g_N_dot_q(self, t, q, u):
         return np.array([self.n @ self.v_P_q(t, q, u)], dtype=np.common_type(q, u))
 
-    def g_N_dot_q(self, t, q, u, coo):
-        coo.extend(self.g_N_dot_q_dense(t, q, u), (self.la_NDOF, self.qDOF))
-
-    def g_N_dot_u_dense(self, t, q):
+    def g_N_dot_u(self, t, q):
         return np.array([self.n @ self.J_P(t, q)], dtype=q.dtype)
 
-    def g_N_dot_u(self, t, q, coo):
-        coo.extend(self.g_N_dot_u_dense(t, q), (self.la_NDOF, self.uDOF))
-
-    def W_N(self, t, q, coo):
-        coo.extend(self.g_N_dot_u_dense(t, q).T, (self.uDOF, self.la_NDOF))
+    def W_N(self, t, q):
+        return self.g_N_dot_u(t, q).T
 
     def g_N_ddot(self, t, q, u, u_dot):
         return np.array(
@@ -150,74 +141,60 @@ class Sphere2Plane:
             dtype=np.common_type(q, u, u_dot),
         )
 
-    def g_N_ddot_q(self, t, q, u, u_dot, coo):
-        dense = np.array(
+    def g_N_ddot_q(self, t, q, u, u_dot):
+        return np.array(
             [self.n @ self.a_P_q(t, q, u, u_dot)], dtype=np.common_type(q, u, u_dot)
         )
-        coo.extend(dense, (self.la_NDOF, self.qDOF))
 
-    def g_N_ddot_u(self, t, q, u, u_dot, coo):
-        dense = np.array(
+    def g_N_ddot_u(self, t, q, u, u_dot):
+        return np.array(
             [self.n @ self.a_P_u(t, q, u, u_dot)], dtype=np.common_type(q, u, u_dot)
         )
-        coo.extend(dense, (self.la_NDOF, self.uDOF))
 
-    def Wla_N_q(self, t, q, la_N, coo):
-        dense = la_N[0] * np.einsum("i,ijk->jk", self.n, self.J_P_q(t, q))
-        coo.extend(dense, (self.uDOF, self.qDOF))
+    def Wla_N_q(self, t, q, la_N):
+        return la_N[0] * np.einsum("i,ijk->jk", self.n, self.J_P_q(t, q))
 
     def __gamma_F(self, t, q, u):
         v_C = self.v_P(t, q, u) + self.r * cross3(self.n, self.Omega(t, q, u))
         return self.t1t2 @ v_C
 
-    def gamma_F_q_dense(self, t, q, u):
+    def gamma_F_q(self, t, q, u):
         return approx_fprime(q, lambda q: self.gamma_F(t, q, u))
         v_C_q = self.v_P_q(t, q, u) + self.r * ax2skew(self.n) @ self.Omega_q(t, q, u)
         return self.t1t2 @ v_C_q
-
-    def gamma_F_q(self, t, q, u, coo):
-        coo.extend(self.gamma_F_q_dense(t, q, u), (self.la_FDOF, self.qDOF))
 
     def gamma_F_dot(self, t, q, u, u_dot):
         r_PC = -self.r * self.n
         a_C = self.a_P(t, q, u, u_dot) + cross3(self.Psi(t, q, u, u_dot), r_PC)
         return self.t1t2 @ a_C
 
-    def gamma_F_dot_q(self, t, q, u, u_dot, coo):
-        # gamma_F_dot_q_num = approx_fprime(q, lambda q: self.gamma_F_dot(t, q, u, u_dot))
-        # coo.extend(gamma_F_dot_q_num, (self.la_FDOF, self.qDOF))
+    def gamma_F_dot_q(self, t, q, u, u_dot):
+        # return approx_fprime(q, lambda q: self.gamma_F_dot(t, q, u, u_dot))
         r_PC = -self.r * self.n
         a_C_q = self.a_P_q(t, q, u, u_dot) - ax2skew(r_PC) @ self.Psi_q(t, q, u, u_dot)
-        gamma_F_dot_q = self.t1t2 @ a_C_q
-        coo.extend(gamma_F_dot_q, (self.la_FDOF, self.qDOF))
+        return self.t1t2 @ a_C_q
 
-    def gamma_F_dot_u(self, t, q, u, u_dot, coo):
-        # gamma_F_dot_u_num = approx_fprime(u, lambda u: self.gamma_F_dot(t, q, u, u_dot))
-        # coo.extend(gamma_F_dot_u_num, (self.la_FDOF, self.uDOF))
+    def gamma_F_dot_u(self, t, q, u, u_dot):
+        # return approx_fprime(u, lambda u: self.gamma_F_dot(t, q, u, u_dot))
         r_PC = -self.r * self.n
         a_C_u = self.a_P_u(t, q, u, u_dot) - ax2skew(r_PC) @ self.Psi_u(t, q, u, u_dot)
-        gamma_F_dot_u = self.t1t2 @ a_C_u
-        coo.extend(gamma_F_dot_u, (self.la_FDOF, self.uDOF))
+        return self.t1t2 @ a_C_u
 
-    def gamma_F_u_dense(self, t, q):
+    def gamma_F_u(self, t, q):
         # return approx_fprime(np.zeros(self.nu), lambda u: self.gamma_F(t, q, u))
         J_C = self.J_P(t, q) + self.r * ax2skew(self.n) @ self.J_R(t, q)
         gamma_F_u = self.t1t2 @ J_C
         return gamma_F_u
 
-    def gamma_F_u(self, t, q, coo):
-        coo.extend(self.gamma_F_u_dense(t, q), (self.la_FDOF, self.uDOF))
+    def W_F(self, t, q):
+        return self.gamma_F_u(t, q).T
 
-    def W_F(self, t, q, coo):
-        coo.extend(self.gamma_F_u_dense(t, q).T, (self.uDOF, self.la_FDOF))
-
-    def Wla_F_q(self, t, q, la_F, coo):
-        dense = approx_fprime(q, lambda q: self.gamma_F_u_dense(t, q).T @ la_F)
+    def Wla_F_q(self, t, q, la_F):
+        return approx_fprime(q, lambda q: self.gamma_F_u(t, q).T @ la_F)
         # J_C_q = self.J_P_q(t, q) + self.r * np.einsum(
         #     "ij,jkl->ikl", ax2skew(self.n), self.J_R_q(t, q)
         # )
         # dense = np.einsum("i,ij,jkl->kl", la_F, self.t1t2, J_C_q)
-        coo.extend(dense, (self.uDOF, self.qDOF))
 
     def export(self, sol_i, **kwargs):
         r_OP = self.r_OP(sol_i.t, sol_i.q[self.qDOF])
@@ -432,29 +409,20 @@ class Sphere2PlaneCoulombContensouMoeller:
     def g_N(self, t, q):
         return np.array([self.n @ (self.r_OP(t, q) - self.r_OQ)]) - self.R_sphere
 
-    def g_N_q_dense(self, t, q):
+    def g_N_q(self, t, q):
         return np.array([self.n @ self.r_OP_q(t, q)], dtype=q.dtype)
-
-    def g_N_q(self, t, q, coo):
-        coo.extend(self.g_N_q_dense(t, q), (self.la_NDOF, self.qDOF))
 
     def g_N_dot(self, t, q, u):
         return np.array([self.n @ self.v_P(t, q, u)], dtype=np.common_type(q, u))
 
-    def g_N_dot_q_dense(self, t, q, u):
+    def g_N_dot_q(self, t, q, u):
         return np.array([self.n @ self.v_P_q(t, q, u)], dtype=np.common_type(q, u))
 
-    def g_N_dot_q(self, t, q, u, coo):
-        coo.extend(self.g_N_dot_q_dense(t, q, u), (self.la_NDOF, self.qDOF))
-
-    def g_N_dot_u_dense(self, t, q):
+    def g_N_dot_u(self, t, q):
         return np.array([self.n @ self.J_P(t, q)], dtype=q.dtype)
 
-    def g_N_dot_u(self, t, q, coo):
-        coo.extend(self.g_N_dot_u_dense(t, q), (self.la_NDOF, self.uDOF))
-
-    def W_N(self, t, q, coo):
-        coo.extend(self.g_N_dot_u_dense(t, q).T, (self.uDOF, self.la_NDOF))
+    def W_N(self, t, q):
+        return self.g_N_dot_u(t, q).T
 
     def g_N_ddot(self, t, q, u, u_dot):
         return np.array(
@@ -462,21 +430,18 @@ class Sphere2PlaneCoulombContensouMoeller:
             dtype=np.common_type(q, u, u_dot),
         )
 
-    def g_N_ddot_q(self, t, q, u, u_dot, coo):
-        dense = np.array(
+    def g_N_ddot_q(self, t, q, u, u_dot):
+        return np.array(
             [self.n @ self.a_P_q(t, q, u, u_dot)], dtype=np.common_type(q, u, u_dot)
         )
-        coo.extend(dense, (self.la_NDOF, self.qDOF))
 
-    def g_N_ddot_u(self, t, q, u, u_dot, coo):
-        dense = np.array(
+    def g_N_ddot_u(self, t, q, u, u_dot):
+        return np.array(
             [self.n @ self.a_P_u(t, q, u, u_dot)], dtype=np.common_type(q, u, u_dot)
         )
-        coo.extend(dense, (self.la_NDOF, self.uDOF))
 
-    def Wla_N_q(self, t, q, la_N, coo):
-        dense = la_N[0] * np.einsum("i,ijk->jk", self.n, self.J_P_q(t, q))
-        coo.extend(dense, (self.uDOF, self.qDOF))
+    def Wla_N_q(self, t, q, la_N):
+        return la_N[0] * np.einsum("i,ijk->jk", self.n, self.J_P_q(t, q))
 
     ########################################
     # tangent contacts and drilling frcition
@@ -489,11 +454,8 @@ class Sphere2PlaneCoulombContensouMoeller:
         omega = self.n @ Omega
         return self.A.T @ np.array([*gamma_F, omega])
 
-    def gamma_F_q_dense(self, t, q, u):
+    def gamma_F_q(self, t, q, u):
         return approx_fprime(q, lambda q: self.__gamma_F(t, q, u))
-
-    def gamma_F_q(self, t, q, u, coo):
-        coo.extend(self.gamma_F_q_dense(t, q, u), (self.la_FDOF, self.qDOF))
 
     def gamma_F_dot(self, t, q, u, u_dot):
         Psi = self.Psi(t, q, u, u_dot)
@@ -505,27 +467,21 @@ class Sphere2PlaneCoulombContensouMoeller:
         return self.A.T @ np.array([*gamma_F_dot, psi])
         # return gamma_F_dot_num
 
-    def gamma_F_dot_q(self, t, q, u, u_dot, coo):
-        gamma_F_dot_q_num = approx_fprime(q, lambda q: self.gamma_F_dot(t, q, u, u_dot))
-        coo.extend(gamma_F_dot_q_num, (self.la_FDOF, self.qDOF))
+    def gamma_F_dot_q(self, t, q, u, u_dot):
+        return approx_fprime(q, lambda q: self.gamma_F_dot(t, q, u, u_dot))
 
-    def gamma_F_dot_u(self, t, q, u, u_dot, coo):
-        gamma_F_dot_u_num = approx_fprime(u, lambda u: self.gamma_F_dot(t, q, u, u_dot))
-        coo.extend(gamma_F_dot_u_num, (self.la_FDOF, self.uDOF))
+    def gamma_F_dot_u(self, t, q, u, u_dot):
+        return approx_fprime(u, lambda u: self.gamma_F_dot(t, q, u, u_dot))
 
-    def gamma_F_u_dense(self, t, q):
+    def gamma_F_u(self, t, q):
         J_R = self.J_R(t, q)
         J_C = self.J_P(t, q) + self.R_sphere * ax2skew(self.n) @ J_R
         # gamma_F_u_num = approx_fprime(np.zeros(self.nu), lambda u: self.gamma_F(t, q, u))
         return self.A.T @ np.concatenate((self.t1t2 @ J_C, (self.n @ J_R)[None, :]))
 
-    def gamma_F_u(self, t, q, coo):
-        coo.extend(self.gamma_F_u_dense(t, q), (self.la_FDOF, self.uDOF))
+    def W_F(self, t, q):
+        return self.gamma_F_u(t, q).T
 
-    def W_F(self, t, q, coo):
-        coo.extend(self.gamma_F_u_dense(t, q).T, (self.uDOF, self.la_FDOF))
-
-    def Wla_F_q(self, t, q, la_F, coo):
-        Wla_F = lambda q: self.gamma_F_u_dense(t, q).T @ la_F
-        dense = approx_fprime(q, Wla_F)
-        coo.extend(dense, (self.uDOF, self.qDOF))
+    def Wla_F_q(self, t, q, la_F):
+        Wla_F = lambda q: self.gamma_F_u(t, q).T @ la_F
+        return approx_fprime(q, Wla_F)

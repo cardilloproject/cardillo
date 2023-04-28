@@ -20,15 +20,14 @@ setup(
     long_description=long_description,
     install_requires=[
         "numpy>=1.21.3",
-        "scipy>=1.6.1",
+        "scipy>=1.10.1",
         "matplotlib>=3.4.3",
         "black>=22.1.0",
         "tqdm>=4.62.3",
         "meshio @ git+https://github.com/JonasHarsch/meshio.git@master#egg=meshio",  # may cause problems with "rich" -> quick fix it by installing "rich"
         # "meshio>=5.0.0", # beam export may not work with this!
-        # "meshzoo>=0.9.14",
         "sparseqr>=1.2",  # TODO: Is this working on windows an mac?
     ],
     packages=find_packages(),
-    python_requires=">=3.8",
+    python_requires=">=3.10",
 )

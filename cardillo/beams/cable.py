@@ -1,6 +1,6 @@
 import numpy as np
 
-from cardillo.utility.coo import Coo
+from cardillo.utility.coo_matrix import CooMatrix
 from cardillo.discretization.b_spline import BSplineKnotVector
 from cardillo.discretization.hermite import HermiteNodeVector
 from cardillo.math import (
@@ -286,16 +286,13 @@ class Cable:
         return M_el
 
     def __M_coo(self):
-        self.__M = Coo((self.nu, self.nu))
+        self.__M = CooMatrix((self.nu, self.nu))
         for el in range(self.nelement):
-            # extract element degrees of freedom
             elDOF = self.elDOF[el]
+            self.__M[elDOF, elDOF] = self.M_el(el)
 
-            # sparse assemble element mass matrix
-            self.__M.extend(self.M_el(el), (self.uDOF[elDOF], self.uDOF[elDOF]))
-
-    def M(self, t, q, coo):
-        coo.extend_sparse(self.__M)
+    def M(self, t, q):
+        return self.__M
 
     def E_pot(self, t, q):
         E = 0
@@ -414,13 +411,13 @@ class Cable:
 
         # return f_pot_el_num
 
-    def h_q(self, t, q, u, coo):
+    def h_q(self, t, q, u):
+        coo = CooMatrix((self.nu, self.nq))
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
-            f_pot_q_el = self.f_pot_q_el(t, q[elDOF], el)
+            coo[elDOF, elDOF] = self.f_pot_q_el(t, q[elDOF], el)
 
-            # sparse assemble element internal stiffness matrix
-            coo.extend(f_pot_q_el, (self.uDOF[elDOF], self.qDOF[elDOF]))
+        return coo
 
     def f_pot_q_el(self, t, qe, el):
         # f_pot_q_el = np.zeros((self.nu_element, self.nq_element), dtype=float)
@@ -487,8 +484,8 @@ class Cable:
     def q_dot(self, t, q, u):
         return u
 
-    def B(self, t, q, coo):
-        coo.extend_diag(np.ones(self.nq), (self.qDOF, self.uDOF))
+    def B(self, t, q):
+        return np.ones(self.nq)
 
     def q_ddot(self, t, q, u, u_dot):
         return u_dot
@@ -672,8 +669,8 @@ class Cable:
             f[self.elDOF[el]] += self.distributed_force1D_el(force, t, el)
         return f
 
-    def distributed_force1D_q(self, t, q, coo, force):
-        pass
+    def distributed_force1D_q(self, t, q, force):
+        return None
 
     ####################################################
     # visualization
@@ -685,7 +682,7 @@ class Cable:
         else:
             return np.array([q_body[nodalDOF] for nodalDOF in self.nodalDOF]).T
 
-    def centerline(q, num=100):
+    def centerline(self, q, num=100):
         q_body = q[self.qDOF]
         r = []
         for xi in np.linspace(0, 1, num):

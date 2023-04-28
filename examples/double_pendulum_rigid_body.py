@@ -10,7 +10,7 @@ from cardillo import System
 from cardillo.discrete import Frame
 from cardillo.constraints import (
     Spherical,
-    RevoluteJoint,
+    Revolute,
 )
 from cardillo.discrete import (
     RigidBodyQuaternion,
@@ -72,7 +72,7 @@ if __name__ == "__main__":
     if use_spherical_joint:
         joint1 = Spherical(origin, RB1, r_OB1)
     else:
-        joint1 = RevoluteJoint(origin, RB1, r_OB1, A_IB1)
+        joint1 = Revolute(origin, RB1, r_OB1, A_IB1)
 
     ############################################################################
     #                   Rigid Body 2
@@ -105,7 +105,7 @@ if __name__ == "__main__":
     if use_spherical_joint:
         joint2 = Spherical(RB1, RB2, r_OB2)
     else:
-        joint2 = RevoluteJoint(RB1, RB2, r_OB2, A_IB2)
+        joint2 = Revolute(RB1, RB2, r_OB2, A_IB2)
 
     ############################################################################
     #                   model

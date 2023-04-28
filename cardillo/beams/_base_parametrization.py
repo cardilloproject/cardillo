@@ -14,6 +14,8 @@ from cardillo.math import (
     Log_SO3_quat,
     T_SO3_inv_quat,
     T_SO3_inv_quat_P,
+    ax2skew,
+    ax2skew_a,
 )
 
 
@@ -179,7 +181,7 @@ class QuaternionRotationParameterization(RotationParameterizationBase):
 
     @staticmethod
     def g_S_q(psi):
-        return 2 * psi
+        return 2 * psi.reshape(1, -1)
 
     @staticmethod
     def g_S_q_T_mu_q(psi, mu):
@@ -226,24 +228,27 @@ class R9RotationParameterization(RotationParameterizationBase):
 
     @staticmethod
     def q_dot(psi, K_omega_IK):
-        raise NotImplementedError
-        psi = psi / norm(psi)
-        return T_SO3_inv_quat(psi) @ K_omega_IK
+        A_IK = R9RotationParameterization.Exp_SO3(psi)
+        A_IK_dot = A_IK @ ax2skew(K_omega_IK)
+        return R9RotationParameterization.Log_SO3(A_IK_dot)
 
     @staticmethod
     def q_dot_q(psi, K_omega_IK):
-        raise NotImplementedError
+        A_IK_q = R9RotationParameterization.Exp_SO3_psi(psi)
         return np.einsum(
-            "ijk,j->ik",
-            T_SO3_inv_quat_P(psi),
-            K_omega_IK,
-        )
+            "ijl,jk->ikl",
+            A_IK_q,
+            ax2skew(K_omega_IK),
+        ).reshape(9, -1, oder="F")
 
     @staticmethod
     def B(psi):
-        raise NotImplementedError
-        psi = psi / norm(psi)
-        return T_SO3_inv_quat(psi)
+        A_IK = R9RotationParameterization.Exp_SO3(psi)
+        return np.einsum(
+            "ij,jkl->ikl",
+            A_IK,
+            ax2skew_a(),
+        ).reshape(9, -1, order="F")
 
     @staticmethod
     def q_ddot(psi, K_omega_IK, K_omega_IK_dot):

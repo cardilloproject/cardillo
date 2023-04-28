@@ -88,9 +88,9 @@ if __name__ == "__main__":
     atol = 1.0e-2
     dae_index = "GGL"
     # sol = RadauIIa(system, t1, dt, rtol, atol, dae_index).solve()
-    sol = EulerBackward(system, t1, dt).solve()
+    # sol = EulerBackward(system, t1, dt).solve()
 
-    # sol = Newton(system, n_load_steps=10).solve()
+    sol = Newton(system, n_load_steps=10).solve()
 
     t = sol.t
     q = sol.q
@@ -98,4 +98,4 @@ if __name__ == "__main__":
     ###########
     # animation
     ###########
-    animate_beam(t, q, [beam], L, show=True)
+    animate_beam(t, q, [beam], L, show=True, n_frames=0)

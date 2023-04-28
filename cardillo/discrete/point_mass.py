@@ -20,8 +20,8 @@ class PointMass:
         self.q0 = np.asarray(q0)
         self.u0 = np.zeros(self.nu) if u0 is None else np.asarray(u0)
 
-    def M(self, t, q, coo):
-        coo.extend(self.__M, (self.uDOF, self.uDOF))
+    def M(self, t, q):
+        return self.__M
 
     def q_dot(self, t, q, u):
         return u
@@ -29,8 +29,8 @@ class PointMass:
     def q_ddot(self, t, q, u, u_dot):
         return u_dot
 
-    def B(self, t, q, coo):
-        coo.extend_diag(np.ones(self.nq), (self.qDOF, self.uDOF))
+    def B(self, t, q):
+        return np.ones(self.nq)
 
     def local_qDOF_P(self, frame_ID=None):
         return np.arange(self.nq)
