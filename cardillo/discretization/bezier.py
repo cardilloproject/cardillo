@@ -8,6 +8,7 @@ from cardillo.solver import Solution
 from pathlib import Path
 import meshio
 
+from scipy.sparse import lil_matrix
 
 class BernsteinBasis:
     def __init__(self, degree, interval=[0, 1]):
@@ -685,6 +686,35 @@ def C2_continous_control_points(unique_points):
 
     return points
 
+def reduced_matrix_C1_continous(A, dim):
+    # 
+    N_p = A.shape[0]
+    n_first = 4 * dim
+    n_other = (N_p - n_first) // (4 * dim)
+    N_up = (4 + 2 * n_other) * dim
+
+    n = n_other + 1
+
+    A_red = np.zeros((N_p, N_up), dtype=float)
+    A_red[:, :n_first] = A[:, :n_first]
+
+    for j in range(1,n):
+        for d in range(dim):
+
+            # C0 continuity
+            A_red[:, n_first + (j-1) * 2 * dim + d - dim] = A[:, j * n_first + d - dim] + A[:, j * n_first + d]
+
+            # C1 continuity
+            A_red[:, n_first + (j-1) * 2 * dim + d - dim] += 2 * A[:, j * n_first + d + dim] 
+            A_red[:, n_first + (j-1) * 2 * dim + d - 2 * dim] = A[:, j * n_first + d - 2 * dim] - A[:, j * n_first + d + dim]
+
+            # Third and fourth point
+            A_red[:, n_first + (j-1) * 2 * dim + d] = A[:, j * n_first + d + 2 * dim]
+            A_red[:, n_first + (j-1) * 2 * dim + d + dim] = A[:, j * n_first + d + 3 * dim]
+
+
+    return A_red
+
 
 def eval_cubic(n, points, num_per_segment=50):
     # knot vector
@@ -963,6 +993,7 @@ def L2_projection_Bezier_curve(target_points, n, case="C1", cDOF=[0, -1]):
     fDOF = np.setdiff1d(zDOF, cDOF)
 
     # linearize unconstrainte points
+    z0 = unique_initial_guess.reshape(-1) # inkl. constraint points
     x0 = unique_initial_guess[fDOF].reshape(-1)
 
     # knot vector
@@ -1019,7 +1050,7 @@ def L2_projection_Bezier_curve(target_points, n, case="C1", cDOF=[0, -1]):
         return K
 
     def solve_L2(z0):
-        raise NotImplementedError
+        # raise NotImplementedError
         # # set constraint points
         # z = np.zeros(nz, dtype=z0.dtype)
         # z[fDOF] = x
@@ -1039,16 +1070,18 @@ def L2_projection_Bezier_curve(target_points, n, case="C1", cDOF=[0, -1]):
 
         # number of unknowns
         # N = len(x0)
+        # points = unique_points
         N = points.size
+        N_up = unique_points.size
 
         # quadratic shape function matrix and rhs
         from scipy.sparse import lil_matrix
 
-        A = lil_matrix((N, N), dtype=float)
-        # A = np.zeros((N, N), dtype=float)
+        # A = lil_matrix((N, N), dtype=float)
+        A = np.zeros((N, N), dtype=float)
         b = np.zeros(N, dtype=float)
 
-        # TODO: We have to define an elDOF matrix
+        # elDOF matrix
         elDOF = np.zeros((n, 4 * dim), dtype=int)
         elDOF_el = np.arange(4 * dim)
         for el in range(n):
@@ -1083,24 +1116,32 @@ def L2_projection_Bezier_curve(target_points, n, case="C1", cDOF=[0, -1]):
         b -= points[-1].T @ A[cDOF2]
 
         if case == "C-1":
-            pass
+            A_red = A
+        elif case == "C1":
+            A_red = reduced_matrix_C1_continous(A, dim)
         else:
             raise NotImplementedError
 
         # remove boundary equations from the system
-        cDOF = cDOF1 + cDOF2
+        cDOF = np.concatenate((cDOF1,cDOF2))
         qDOF = np.arange(N)
-        fDOF = np.setdiff1d(qDOF, cDOF)
+        qDOF_up = np.arange(N_up)
+        fDOF = np.setdiff1d(qDOF, qDOF[cDOF])
+        fDOF_up = np.setdiff1d(qDOF_up, qDOF_up[cDOF])
 
         # solve least square problem with eliminated first and last node
-        from scipy.sparse.linalg import spsolve
+        # from scipy.sparse.linalg import spsolve
+        from scipy.sparse.linalg import lsqr
 
-        unique_points = np.zeros(N, dtype=float)
-        unique_points[fDOF] = spsolve(A.tocsc()[fDOF[:, None], fDOF], b[fDOF])
+        # unique_points = np.zeros(N_up, dtype=float)
+        # unique_points[fDOF] = spsolve(A.tocsc()[fDOF[:, None], fDOF_up], b[fDOF])
+        # unkown_points,*_ = lsqr(A_red.tocsc()[fDOF[:, None], fDOF_up], b[fDOF])
+        unkown_points,*_ = lsqr(A_red[fDOF[:, None], fDOF_up], b[fDOF])
+
 
         # set first and last node to given values
-        unique_points[cDOF1] = points[0]
-        unique_points[cDOF2] = points[-1]
+        # unique_points[cDOF1] = points[0]
+        # unique_points[cDOF2] = points[-1]
 
         # from scipy.linalg import lstsq
         # # unique_points = lstsq(A.toarray(), b)[0]
@@ -1123,7 +1164,7 @@ def L2_projection_Bezier_curve(target_points, n, case="C1", cDOF=[0, -1]):
 
         from scipy.optimize import OptimizeResult
 
-        return OptimizeResult(x=unique_points, success=True)
+        return OptimizeResult(x=unkown_points, success=True)
 
     # # Note: Since the Jacobian is constant we only compute it once per projection step.
     # from cardillo.math import approx_fprime
@@ -1131,10 +1172,10 @@ def L2_projection_Bezier_curve(target_points, n, case="C1", cDOF=[0, -1]):
     # jac = lambda x: J
 
     # solve optimization problem
-    sol = least_squares(residual, x0, method="lm")
+    # sol = least_squares(residual, x0, method="lm")
     # sol = least_squares(residual, x0, jac=jac)
     # sol = minimize(fun, x0, method="SLSQP")
-    # sol = solve_L2(x0)
+    sol = solve_L2(z0)
     success = sol.success
     assert success
     x = sol.x
@@ -1173,9 +1214,9 @@ def line2vtk(points_segments):
     return vtk_points
 
 
-def fit_Bezier(case="C-1"):
+# def fit_Bezier(case="C-1"):
     # def fit_Bezier(case="C0"):
-    # def fit_Bezier(case="C1"):
+def fit_Bezier(case="C1"):
     num = 200
     xis = np.linspace(0, 1, num=num)
 
@@ -1204,7 +1245,7 @@ def fit_Bezier(case="C-1"):
     target_points = curve(xis)
 
     # number of segments
-    n = 5
+    n = 3
 
     unique_points, points, points_segments = L2_projection_Bezier_curve(
         target_points, n, case
