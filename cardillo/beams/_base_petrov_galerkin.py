@@ -1732,7 +1732,7 @@ def make_K_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
                 np.zeros(self.nu, dtype=float) if u0 is None else u0
             )  # initial velocities
 
-            self.set_initial_strains(q0)
+            self.set_initial_strains(self.q0)
 
         def set_initial_strains(self, Q):
             self.Q = Q.copy()
