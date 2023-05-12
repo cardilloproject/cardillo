@@ -1,5 +1,7 @@
 import numpy as np
 from cardillo.visualization import vtk_sphere
+from stl import mesh
+import meshio
 
 
 def Ball(RigidBodyParametrization):
@@ -124,31 +126,82 @@ def Box(RigidBodyParametrization):
     return _Box
 
 
-if __name__ == "__main__":
-    from cardillo.discrete import RigidBodyQuaternion
+def Cylinder(RigidBodyParametrization):
+    class _Cylinder(RigidBodyParametrization):
+        def __init__(self, length, radius, density, q0=None, u0=None):
+            volume = length * np.pi * radius**2
+            mass = volume * density
+            K_theta_S = (mass / 12) * np.diag(
+                [
+                    3 * radius**2 + length**2,
+                    3 * radius**2 + length**2,
+                    6 * radius**2,
+                ]
+            )
 
-    dimensions = np.array([3, 1, 2])
-    box = Box(RigidBodyQuaternion)(dimensions=dimensions, density=1)
-    q0 = np.array([*(0.5 * dimensions), 1, 0, 0, 0], dtype=float)
-    ball = Ball(RigidBodyQuaternion)(mass=1, radius=0.2, q0=q0)
+            super().__init__(mass, K_theta_S, q0, u0)
 
-    from cardillo import System
+        def export(self, sol_i, base_export=False, **kwargs):
+            if base_export:
+                points, cells, point_data, cell_data = super().export(sol_i)
+                return points, cells, point_data, cell_data
+            else:
+                raise NotImplementedError
 
-    system = System()
-    system.add(ball, box)
-    system.assemble()
+    return _Cylinder
 
-    from cardillo.solver import Solution
 
-    t = [0]
-    q = [system.q0]
-    u = [system.u0]
-    sol = Solution(t=t, q=q, u=u)
+def FromSTL(RigidBodyParametrization):
+    class _FromSTL(RigidBodyParametrization):
+        def __init__(self, path, density, q0=None, u0=None):
+            self.path = path
+            self.mesh = mesh.Mesh.from_file(path)
+            volume, cog, inertia = self.mesh.get_mass_properties()
+            mass = density * volume
 
-    from pathlib import Path
-    from cardillo.visualization import Export
+            # TODO: Compute correct K_theta_S using cog!
+            K_theta_S = density * inertia
 
-    path = Path(__file__)
-    e = Export(path.parent, path.stem, True, 30, sol)
-    e.export_contr(ball)
-    e.export_contr(box)
+            self.meshio_mesh = meshio.read(path)
+
+            super().__init__(mass, K_theta_S, q0, u0)
+
+        def export(self, sol_i, base_export=False, **kwargs):
+            if base_export:
+                points, cells, point_data, cell_data = super().export(sol_i)
+                return points, cells, point_data, cell_data
+            else:
+                points, vel, acc = [], [], []
+                for i, point in enumerate(self.meshio_mesh.points):
+                    points.append(self.r_OP(sol_i.t, sol_i.q[self.qDOF], K_r_SP=point))
+
+                    vel.append(
+                        self.v_P(
+                            sol_i.t,
+                            sol_i.q[self.qDOF],
+                            sol_i.u[self.uDOF],
+                            K_r_SP=point,
+                        )
+                    )
+
+                    if sol_i.u_dot is not None:
+                        acc.append(
+                            self.a_P(
+                                sol_i.t,
+                                sol_i.q[self.qDOF],
+                                sol_i.u[self.uDOF],
+                                sol_i.u_dot[self.uDOF],
+                                K_r_SP=point,
+                            )
+                        )
+
+                if sol_i.u_dot is not None:
+                    point_data = dict(v=vel, a=acc)
+                else:
+                    point_data = dict(v=vel)
+
+                cells = self.meshio_mesh.cells
+
+            return points, cells, point_data, None
+
+    return _FromSTL
