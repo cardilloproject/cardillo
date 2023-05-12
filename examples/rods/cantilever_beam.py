@@ -35,8 +35,8 @@ from pathlib import Path
 ###################
 # R12 interpolation
 ###################
-Rod = K_R12_PetrovGalerkin_AxisAngle
-# Rod = K_R12_PetrovGalerkin_Quaternion
+# Rod = K_R12_PetrovGalerkin_AxisAngle
+Rod = K_R12_PetrovGalerkin_Quaternion
 # Rod = K_R12_PetrovGalerkin_R9
 
 #####################
