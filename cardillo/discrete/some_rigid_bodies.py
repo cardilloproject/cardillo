@@ -1,7 +1,6 @@
 import numpy as np
 from cardillo.visualization import vtk_sphere
-from stl import mesh
-import meshio
+import warnings
 
 
 def Ball(RigidBodyParametrization):
@@ -263,9 +262,16 @@ def Cylinder(RigidBodyParametrization):
     return _Cylinder
 
 
+# TODO:
+# - review implementation
+# - remove numpy-stl dependency
 def FromSTL(RigidBodyParametrization):
+    from stl import mesh
+    import meshio
+
     class _FromSTL(RigidBodyParametrization):
         def __init__(self, path, density, q0=None, u0=None):
+            warnings.warn("Use this with caution. This is not ready for serious usage!")
             self.path = path
             self.mesh = mesh.Mesh.from_file(path)
             volume, cog, inertia = self.mesh.get_mass_properties()
