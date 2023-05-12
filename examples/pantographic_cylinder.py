@@ -40,11 +40,11 @@ if __name__ == "__main__":
     scale = 1.0e0
 
     # Young's and shear modulus
-    E = 1.7 # GPa
-    G = E / (2+0.8)
+    E = 1.7  # GPa
+    G = E / (2 + 0.8)
 
     # length of the rod
-    L = 1.0e2 
+    L = 5.0e2
 
     # slenderness and corresponding absolute tolerance for Newton-Raphson solver
     slenderness = 1.0e4 / 2
@@ -93,11 +93,11 @@ if __name__ == "__main__":
     )
 
     # pivot
-    hp = 3.0  # pivot height
+    hp = 3.0 # pivot height
 
     # helix
     n_coils = 1  # number of helix coils
-    RO = (35.0 - width_r/2) * scale  # helix outer radius
+    RO = (35.0 - width_r / 2) * scale  # helix outer radius
     RI = (RO - hp - width_r) * scale  # helix inner radius
     h = 150.0 * scale  # helix height
     # h = RO * 2 * np.pi * n_coils
@@ -110,6 +110,12 @@ if __name__ == "__main__":
     # print(f"c: {c}")
     print(f"n: {n_coils}")
     # print(f"L: {L}")
+
+    # joint_type = "revolute"
+    # joint_type = "rigid"
+    joint_type = "no_joint"
+    # test = "compression"
+    test = "extension"
 
     # reference solution
     def r(xi, R=RO, phi0=0.0, dor=1, c=cO):
@@ -133,7 +139,7 @@ if __name__ == "__main__":
 
         return np.vstack((e_x, e_y, e_z)).T
 
-    nxi = 100
+    nxi = 41
     xis = np.linspace(0, 1, num=nxi)
 
     # individual rods
@@ -150,7 +156,7 @@ if __name__ == "__main__":
     import copy
 
     path = Path(__file__)
-    folder = Path(path.parent, 'results', path.stem, 'hp=%s' % hp)
+    folder = Path(path.parent, "results", path.stem, "hp=%s" % hp)
     Path(folder).mkdir(exist_ok=True)
     filename = Path(folder, "initial_config")
     if load_config:
@@ -205,21 +211,27 @@ if __name__ == "__main__":
                     frame_ID_ccw = (xi,)
                     frame_ID_cw = frame_ID_ccw
                     rod_cw = rod_list[2 * nn + 1]
-                    # joint = Revolute(
-                    #     rod_ccw,
-                    #     rod_cw,
-                    #     axis=2,
-                    #     r_OB0=r_OP_joint,
-                    #     # A_IB0=A_IK_ccw,
-                    #     frame_ID1=frame_ID_ccw,
-                    #     frame_ID2=frame_ID_cw,
-                    # )
-                    joint = RigidConnection(
-                        rod_ccw,
-                        rod_cw,
-                        frame_ID1=frame_ID_ccw,
-                        frame_ID2=frame_ID_cw,)
-                    revolute_joint_list.append(joint)
+                    if joint_type == "revolute":
+                        joint = Revolute(
+                            rod_ccw,
+                            rod_cw,
+                            axis=2,
+                            r_OB0=r_OP_joint,
+                            # A_IB0=A_IK_ccw,
+                            frame_ID1=frame_ID_ccw,
+                            frame_ID2=frame_ID_cw,
+                        )
+                        revolute_joint_list.append(joint)
+
+                    elif joint_type == "rigid":
+                        joint = RigidConnection(
+                            rod_ccw,
+                            rod_cw,
+                            frame_ID1=frame_ID_ccw,
+                            frame_ID2=frame_ID_cw,
+                        )
+
+                        revolute_joint_list.append(joint)
 
     # test plot
     # ax = plt.axes(projection="3d")
@@ -261,11 +273,13 @@ if __name__ == "__main__":
     # joints between frames and rods
     system = System()
     Z_max = r(1)[-1]
-    test = 'extension'
-    Path(folder, test).mkdir(exist_ok=True)
-    if test == 'compression' or test == 'extension':
+    folder_test = Path(folder, test + "_" + joint_type)
+    Path(folder_test).mkdir(exist_ok=True)
+    if test == "compression":
+        r_OP_top = lambda t: np.array([0, 0, Z_max - h / 3 * t])
+    elif test == "extension":
         r_OP_top = lambda t: np.array([0, 0, Z_max + h / 3 * t])
-    elif test == 'shear':
+    elif test == "shear":
         r_OP_top = lambda t: np.array([0, 2 * RO * t, Z_max])
     frame_top = Frame(r_OP=r_OP_top, A_IK=np.eye(3))
     for rod in rod_list:
@@ -288,8 +302,6 @@ if __name__ == "__main__":
     system.assemble()
 
     # solve static system
-    joint_type = '_rigid'
-    folder_test = Path(folder, test, joint_type)
     if load_sol == False:
         n_load_steps = 30
         solver = Newton(
@@ -323,32 +335,29 @@ if __name__ == "__main__":
     # pr = cProfile.Profile()
     # pr.enable()
 
-    
-    # export centerline and solution
-    centerlines = []
-    file_centerlines = open(Path(folder_test, 'centerlines'), "wb")
-    for i,rod in enumerate(rod_list):
-        r_OP = np.zeros([len(sol.t), 3, 100])
+    # export centerline with directors and solution
+    size = (len(sol.t), 3, 101)
+    centerlines = np.zeros((2 * n_rod, 4, len(sol.t), 3, 101))
+    file_centerlines = open(Path(folder_test, "centerlines"), "wb")
+    for i, rod in enumerate(rod_list):
+        r_OP = np.zeros([len(sol.t), 3, 101])
+        d1 = np.zeros([len(sol.t), 3, 101])
+        d2 = np.zeros([len(sol.t), 3, 101])
+        d3 = np.zeros([len(sol.t), 3, 101])
         for ti in range(len(sol.t)):
-            r_OP[ti] = rod.centerline(sol.q[ti])
-        centerlines.append(r_OP)
+            r_OP[ti], d1[ti], d2[ti], d3[ti] = rod.frames(sol.q[ti], 101)
+        centerlines[i] = r_OP, d1, d2, d3
 
     pickle.dump(centerlines, file_centerlines)
     filename = Path(folder_test, "sol")
     file_sol = open(filename, "wb")
     pickle.dump(sol, file_sol)
 
-
-    folder_vtk = Path(folder_test, 'vtk_files')
+    folder_vtk = Path(folder_test, "vtk_files")
     e = Export(folder_vtk.parent, folder_vtk.stem, True, nt, sol)
     for rod in rod_list:
         # e.export_contr(rod, level="centerline + directors", num=100)
         e.export_contr(rod, level="volume")
-
-
-
-
-
 
     # pr.disable()
     # s = io.StringIO()
