@@ -11,7 +11,8 @@ if __name__ == "__main__":
 
     dimensions = np.array([3, 1, 2])
     box = Box(RigidBodyQuaternion)(dimensions=dimensions, density=1)
-    cylinder = Cylinder(RigidBodyQuaternion)(length=3, radius=1, density=1)
+    q0 = np.array([0, 0, -dimensions[-1], 1, 0, 0, 0], dtype=float)
+    cylinder = Cylinder(RigidBodyQuaternion)(length=3, radius=1, density=1, q0=q0)
     q0 = np.array([*(0.5 * dimensions), 1, 0, 0, 0], dtype=float)
     ball = Ball(RigidBodyQuaternion)(mass=1, radius=0.2, q0=q0)
     stl = FromSTL(RigidBodyQuaternion)(path.parent / "Suzanne.stl", density=1)

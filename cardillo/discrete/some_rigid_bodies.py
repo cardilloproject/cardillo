@@ -156,10 +156,11 @@ def Cylinder(RigidBodyParametrization):
                 ##################################
                 # compute position and orientation
                 ##################################
-                r_OP0 = self.r_OP(sol_i.t, sol_i.q[self.qDOF])
+                r_OS = self.r_OP(sol_i.t, sol_i.q[self.qDOF])
                 A_IK0 = self.A_IK(sol_i.t, sol_i.q[self.qDOF])
                 d1, d2, d3 = np.roll(A_IK0, shift=self.axis, axis=0).T
-                r_OP1 = r_OP0 + d1 * self.length
+                r_OP0 = r_OS - 0.5 * d1 * self.length
+                r_OP1 = r_OS + 0.5 * d1 * self.length
 
                 ##################################
                 # build Bezier volume
