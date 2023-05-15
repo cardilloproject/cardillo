@@ -2596,7 +2596,7 @@ def make_K_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
             for el in range(self.nelement):
                 elDOF = self.elDOF[el]
                 elDOF_u = self.elDOF_u[el]
-                coo[elDOF_u, elDOF] = -self.f_gyr_u_el(t, q[elDOF], u[elDOF_u], el)
+                coo[elDOF_u, elDOF_u] = -self.f_gyr_u_el(t, q[elDOF], u[elDOF_u], el)
             return coo
 
         ####################################################

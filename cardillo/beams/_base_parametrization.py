@@ -239,7 +239,7 @@ class R9RotationParameterization(RotationParameterizationBase):
             "ijl,jk->ikl",
             A_IK_q,
             ax2skew(K_omega_IK),
-        ).reshape(9, -1, oder="F")
+        ).reshape(9, -1, order="F")
 
     @staticmethod
     def B(psi):
@@ -294,4 +294,8 @@ class R9RotationParameterization(RotationParameterizationBase):
 
     @staticmethod
     def g_S_q_T_mu_q(psi, mu):
-        raise NotImplementedError
+        from cardillo.math import approx_fprime
+
+        return approx_fprime(
+            psi, lambda psi: R9RotationParameterization.g_S_q(psi).T @ mu
+        )
