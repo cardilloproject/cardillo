@@ -1,5 +1,6 @@
 import numpy as np
 from cardillo.visualization import vtk_sphere
+from cardillo.math import ax2skew
 import warnings
 
 
@@ -267,23 +268,29 @@ def Cylinder(RigidBodyParametrization):
 # - review implementation
 # - remove numpy-stl dependency
 def FromSTL(RigidBodyParametrization):
-    from stl import mesh
+    # from stl import mesh
     import meshio
 
     class _FromSTL(RigidBodyParametrization):
-        def __init__(self, path, density, q0=None, u0=None):
+        def __init__(self, path, mass, r_PS, K_Theta_P, q0=None, u0=None):
             warnings.warn("Use this with caution. This is not ready for serious usage!")
             self.path = path
-            self.mesh = mesh.Mesh.from_file(path)
-            volume, cog, inertia = self.mesh.get_mass_properties()
-            mass = density * volume
 
-            # TODO: Compute correct K_theta_S using cog!
-            K_theta_S = density * inertia
+            K_Theta_S = K_Theta_P + mass * ax2skew(r_PS) @ ax2skew(r_PS).T
+
+            # print(f"")
+            # # self.mesh = mesh.Mesh.from_file(path)
+            # # volume, cog, inertia = self.mesh.get_mass_properties()
+            # # mass = density * volume
+
+            # # # TODO: Compute correct K_theta_S using cog!
+            # # K_theta_S = density * inertia
 
             self.meshio_mesh = meshio.read(path)
 
-            super().__init__(mass, K_theta_S, q0, u0)
+            super().__init__(mass, K_Theta_S, q0, u0)
+
+            self.K_r_SP = -self.A_IK(0, self.q0).T @ r_PS
 
         def export(self, sol_i, base_export=False, **kwargs):
             if base_export:
@@ -292,7 +299,8 @@ def FromSTL(RigidBodyParametrization):
             else:
                 points, vel, acc = [], [], []
                 for i, point in enumerate(self.meshio_mesh.points):
-                    points.append(self.r_OP(sol_i.t, sol_i.q[self.qDOF], K_r_SP=point))
+                    K_r_SP = self.K_r_SP + point
+                    points.append(self.r_OP(sol_i.t, sol_i.q[self.qDOF], K_r_SP=K_r_SP))
 
                     vel.append(
                         self.v_P(
