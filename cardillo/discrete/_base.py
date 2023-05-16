@@ -32,8 +32,8 @@ class RigidBodyBase(ABC):
     def assembler_callback(self):
         self.is_assembled = True
 
-    def M(self, t, q, coo):
-        coo.extend(self.__M, (self.uDOF, self.uDOF))
+    def M(self, t, q):
+        return self.__M
 
     def h(self, t, q, u):
         omega = u[3:]
@@ -41,13 +41,11 @@ class RigidBodyBase(ABC):
         f[3:] = -cross3(omega, self.K_theta_S @ omega)
         return f
 
-    def h_u(self, t, q, u, coo):
+    def h_u(self, t, q, u):
         omega = u[3:]
-        dense = np.zeros((self.nu, self.nu), dtype=np.common_type(q, u))
-        dense[3:, 3:] = (
-            ax2skew(self.K_theta_S @ omega) - ax2skew(omega) @ self.K_theta_S
-        )
-        coo.extend(dense, (self.uDOF, self.uDOF))
+        h_u = np.zeros((self.nu, self.nu), dtype=np.common_type(q, u))
+        h_u[3:, 3:] = ax2skew(self.K_theta_S @ omega) - ax2skew(omega) @ self.K_theta_S
+        return h_u
 
     def local_qDOF_P(self, frame_ID=None):
         return np.arange(self.nq)

@@ -52,17 +52,16 @@ class RockingRod:
     def q_ddot(self, t, q, u, u_dot):
         return u_dot
 
-    def B(self, t, q, coo):
-        coo.extend(np.eye(self.nu), (self.qDOF, self.uDOF))
+    def B(self, t, q):
+        return np.ones(self.nq)
 
     #####################
     # equations of motion
     #####################
 
     # mass matrix
-    def M(self, t, q, coo):
-        dense = np.diag([self.m, self.m, self.thetaS])
-        coo.extend(dense, (self.uDOF, self.uDOF))
+    def M(self, t, q):
+        return np.diag([self.m, self.m, self.thetaS])
 
     # total force vector
     def h(self, t, q, u):
@@ -81,11 +80,10 @@ class RockingRod:
             ]
         )
 
-    def g_N_q(self, t, q, coo):
-        dense = approx_fprime(q, lambda q: self.g_N(t, q))
-        coo.extend(dense, (self.la_NDOF, self.qDOF))
+    def g_N_q(self, t, q):
+        return approx_fprime(q, lambda q: self.g_N(t, q))
 
-    def W_N_dense(self, t, q):
+    def W_N(self, t, q):
         x, y, phi = q
         sp, cp = np.sin(phi), np.cos(phi)
         W_N = np.zeros((self.nu, self.nla_N))
@@ -96,9 +94,6 @@ class RockingRod:
         W_N[1, 1] = cp
         W_N[2, 1] = (self.a - x) * cp - y * sp
         return W_N
-
-    def W_N(self, t, q, coo):
-        coo.extend(self.W_N_dense(t, q), (self.uDOF, self.la_NDOF))
 
     def zeta_N(self, t, q, u):
         x, y, phi = q
@@ -113,15 +108,15 @@ class RockingRod:
         return np.array([zeta_N1, zeta_N2])
 
     def g_N_dot(self, t, q, u):
-        return self.W_N_dense(t, q).T @ u
+        return self.W_N(t, q).T @ u
 
     def g_N_ddot(self, t, q, u, u_dot):
-        return self.W_N_dense(t, q).T @ u_dot + self.zeta_N(t, q, u)
+        return self.W_N(t, q).T @ u_dot + self.zeta_N(t, q, u)
 
     #################
     # friction
     #################
-    def W_F_dense(self, t, q):
+    def W_F(self, t, q):
         x, y, phi = q
         sp, cp = np.sin(phi), np.cos(phi)
         W_F = np.zeros((self.nu, self.nla_F))
@@ -131,15 +126,11 @@ class RockingRod:
         W_F[1, 1] = sp
         return W_F
 
-    def W_F(self, t, q, coo):
-        coo.extend(self.W_F_dense(t, q), (self.uDOF, self.la_FDOF))
-
     def gamma_F(self, t, q, u):
-        return self.W_F_dense(t, q).T @ u
+        return self.W_F(t, q).T @ u
 
-    def gamma_F_q(self, t, q, u, coo):
-        dense = approx_fprime(q, lambda q: self.gamma_F(t, q, u))
-        coo.extend(dense, (self.la_FDOF, self.qDOF))
+    def gamma_F_q(self, t, q, u):
+        return approx_fprime(q, lambda q: self.gamma_F(t, q, u))
 
     def zeta_F(self, t, q, u):
         x, y, phi = q
@@ -153,17 +144,17 @@ class RockingRod:
         )
 
     def gamma_F_dot(self, t, q, u, a):
-        return self.W_F_dense(t, q).T @ a + self.zeta_F(t, q, u)
+        return self.W_F(t, q).T @ a + self.zeta_F(t, q, u)
 
 
-Solver1, label1, dt1, kwargs1 = (
-    NPIRK,
-    "NPIRK",
-    5e-3,
-    {"butcher_tableau": RadauIIATableau(2)},
-)
+# Solver1, label1, dt1, kwargs1 = (
+#     NPIRK,
+#     "NPIRK",
+#     5e-3,
+#     {"butcher_tableau": RadauIIATableau(2)},
+# )
 # Solver1, label1, dt1, kwargs1 = Rattle, "Rattle", 5e-3, {}
-# Solver1, label1, dt1, kwargs1 = MoreauShifted, "MoreauShifted", 5e-3, {}
+Solver1, label1, dt1, kwargs1 = MoreauShifted, "MoreauShifted", 5e-3, {}
 Solver2, label2, dt2, kwargs2 = MoreauShifted, "MoreauShifted", 5e-3, {}
 
 

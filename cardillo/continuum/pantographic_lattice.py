@@ -3,6 +3,7 @@ from math import asin
 
 from cardillo.math.algebra import norm
 from cardillo.model.continuum import Pantographic_sheet, strain_measures
+from cardillo.utility.coo_matrix import CooMatrix
 
 
 class Pantographic_lattice(Pantographic_sheet):
@@ -373,8 +374,9 @@ class Pantographic_lattice(Pantographic_sheet):
 
         return Ke
 
-    def h_q(self, t, q, u, coo):
+    def h_q(self, t, q, u):
         z = self.z(t, q)
+        coo = CooMatrix((self.nu, self.nq))
         for el in range(self.nel):
             Ke = self.f_pot_q_el(z[self.elDOF[el]], el)
 
@@ -382,4 +384,6 @@ class Pantographic_lattice(Pantographic_sheet):
             elfDOF = self.elfDOF[el]
             eluDOF = self.eluDOF[el]
             elqDOF = self.elqDOF[el]
-            coo.extend(Ke[elfDOF[:, None], elfDOF], (eluDOF, elqDOF))
+            coo[eluDOF, elqDOF] = Ke[elfDOF[:, None], elfDOF]
+
+        return coo

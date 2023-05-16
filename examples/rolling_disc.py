@@ -17,7 +17,6 @@ from cardillo.solver import (
     convergence_analysis,
     ScipyIVP,
     EulerBackward,
-    GeneralizedAlphaFirstOrder,
     RadauIIa,
     Rattle,
     NPIRK,
@@ -109,7 +108,7 @@ class Disc(RigidBody):
         return np.repeat(self.r_OP(t, q), n).reshape(3, n) + self.A_IK(t, q) @ K_r_SP
 
 
-# create the model
+# create the system
 disc = Disc(m, r, q0, u0)
 
 Constraint = RollingCondition_g_I_Frame_gamma
@@ -120,7 +119,7 @@ f_g = Force(lambda t: np.array([0, 0, -m * g]), disc)
 
 system = System()
 system.add(disc)
-# model.add(rolling)
+system.add(rolling)
 system.add(f_g)
 system.assemble()
 
@@ -152,26 +151,26 @@ def state():
     # see Arnold2016, p. 118
     tol = 1.0e-10
 
-    # sol = ScipyIVP(model, t1, dt).solve()
-    # sol = EulerBackward(model, t1, dt).solve()
-    # sol = NonsmoothHalfExplicitRungeKutta(model, t1, dt).solve()
-    # sol = GeneralizedAlphaFirstOrder(model, t1, dt, rho_inf=rho_inf, tol=tol).solve()
+    # sol = ScipyIVP(system, t1, dt).solve()
+    # sol = EulerBackward(system, t1, dt).solve()
+    # sol = NonsmoothHalfExplicitRungeKutta(system, t1, dt).solve()
+    # sol = GeneralizedAlphaFirstOrder(system, t1, dt, rho_inf=rho_inf, tol=tol).solve()
     # sol = GeneralizedAlphaFirstOrder(
-    #     model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=1
+    #     system, t1, dt, rho_inf=rho_inf, tol=tol, GGL=1
     # ).solve()
-    # sol = NonsmoothDecoupled(model, t1, dt).solve()
-    # sol = NonsmoothHalfExplicitRungeKutta(model, t1, dt).solve()
-    # sol = NonsmoothPartitionedHalfExplicitEuler(model, t1, dt).solve()
+    # sol = NonsmoothDecoupled(system, t1, dt).solve()
+    # sol = NonsmoothHalfExplicitRungeKutta(system, t1, dt).solve()
+    # sol = NonsmoothPartitionedHalfExplicitEuler(system, t1, dt).solve()
 
     # rtol = atol = 1.0e-5
     # # dae_index = 2
     # # dae_index = 3
     # dae_index = "GGL"
-    # sol = RadauIIa(model, t1, dt, rtol=rtol, atol=atol, dae_index=dae_index).solve()
+    # sol = RadauIIa(system, t1, dt, rtol=rtol, atol=atol, dae_index=dae_index).solve()
 
-    # sol = Rattle(model, t1, dt, atol=tol).solve()
+    sol = Rattle(system, t1, dt, atol=tol).solve()
 
-    sol = NPIRK(system, t1, dt, RadauIIATableau(2)).solve()
+    # sol = NPIRK(system, t1, dt, RadauIIATableau(2)).solve()
 
     t = sol.t
     q = sol.q
@@ -191,12 +190,12 @@ def state():
     g = np.array([system.g(ti, qi) for ti, qi in zip(t, q)])
     g_dot = np.array([system.g_dot(ti, qi, ui) for ti, qi, ui in zip(t, q, u)])
     # g_ddot = np.array(
-    #     [model.g_ddot(ti, qi, ui, u_doti) for ti, qi, ui, u_doti in zip(t, q, u, u_dot)]
+    #     [system.g_ddot(ti, qi, ui, u_doti) for ti, qi, ui, u_doti in zip(t, q, u, u_dot)]
     # )
     gamma = np.array([system.gamma(ti, qi, ui) for ti, qi, ui in zip(t, q, u)])
     # gamma_dot = np.array(
     #     [
-    #         model.gamma_dot(ti, qi, ui, u_doti)
+    #         system.gamma_dot(ti, qi, ui, u_doti)
     #         for ti, qi, ui, u_doti in zip(t, q, u, u_dot)
     #     ]
     # )
@@ -425,11 +424,11 @@ def state():
 
 
 def convergence():
-    # get_solver = lambda t_final, dt, atol: MoreauShifted(model, t_final, dt, fix_point_tol=atol)
-    # get_solver = lambda t_final, dt, atol: Rattle(model, t_final, dt, atol=atol)
-    # get_solver = lambda t_final, dt, atol: NonsmoothGeneralizedAlpha(model, t_final, dt, newton_tol=atol)
+    # get_solver = lambda t_final, dt, atol: MoreauShifted(system, t_final, dt, fix_point_tol=atol)
+    # get_solver = lambda t_final, dt, atol: Rattle(system, t_final, dt, atol=atol)
+    # get_solver = lambda t_final, dt, atol: NonsmoothGeneralizedAlpha(system, t_final, dt, newton_tol=atol)
     # get_solver = lambda t_final, dt, atol: NPIRK(
-    #     model, t_final, dt, RadauIIATableau(2), atol=atol
+    #     system, t_final, dt, RadauIIATableau(2), atol=atol
     # )
     get_solver = lambda t_final, dt, atol: LobattoIIIAB(
         system, t_final, dt, atol=atol, stages=3
@@ -571,12 +570,12 @@ def convergence():
     ###################################################################
     # print(f"compute reference solution with second order method:")
     # reference2 = GeneralizedAlphaSecondOrder(
-    #     model, t1, dt_ref, rho_inf=rho_inf, tol=tol_ref, GGL=False
+    #     system, t1, dt_ref, rho_inf=rho_inf, tol=tol_ref, GGL=False
     # ).solve()
 
     print(f"compute reference solution:")
     # reference1 = GeneralizedAlphaFirstOrder(
-    #     model,
+    #     system,
     #     t1,
     #     dt_ref,
     #     rho_inf=rho_inf,
@@ -601,17 +600,17 @@ def convergence():
 
     Solver, label, kwargs = Rattle, "Rattle", {}
 
-    # reference = NPIRK(model, t1, dt_ref, RadauIIATableau(2), atol=tol_ref).solve()
+    # reference = NPIRK(system, t1, dt_ref, RadauIIATableau(2), atol=tol_ref).solve()
     reference = Solver(system, t1, dt_ref, atol=tol_ref, **kwargs).solve()
 
     # print(f"compute reference solution with second order method + GGL:")
     # reference2_GGL = GeneralizedAlphaSecondOrder(
-    #     model, t1, dt_ref, rho_inf=rho_inf, tol=tol_ref, GGL=True
+    #     system, t1, dt_ref, rho_inf=rho_inf, tol=tol_ref, GGL=True
     # ).solve()
 
     # print(f"compute reference solution with first order method + GGL:")
     # reference1_GGL = GeneralizedAlphaFirstOrder(
-    #     model, t1, dt_ref, rho_inf=rho_inf, tol=tol_ref, unknowns="velocities", GGL=True
+    #     system, t1, dt_ref, rho_inf=rho_inf, tol=tol_ref, unknowns="velocities", GGL=True
     # ).solve()
 
     print(f"done")
@@ -788,9 +787,9 @@ def convergence():
 
         # generalized alpha for mechanical systems in second order form
         # sol = GeneralizedAlphaSecondOrder(
-        #     model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=False
+        #     system, t1, dt, rho_inf=rho_inf, tol=tol, GGL=False
         # ).solve()
-        # sol = Rattle(model, t1, dt, atol=tol).solve()
+        # sol = Rattle(system, t1, dt, atol=tol).solve()
         # (
         #     q_errors_transient[0, i],
         #     u_errors_transient[0, i],
@@ -802,7 +801,7 @@ def convergence():
         #     la_gamma_errors_longterm[0, i],
         # ) = errors(sol, reference1)
 
-        # sol = NPIRK(model, t1, dt, RadauIIATableau(2), atol=tol).solve()
+        # sol = NPIRK(system, t1, dt, RadauIIATableau(2), atol=tol).solve()
         sol = Solver(system, t1, dt, atol=tol, **kwargs).solve()
         (
             q_errors_transient[0, i],
@@ -817,7 +816,7 @@ def convergence():
 
         # # generalized alpha for mechanical systems in first order form (velocity formulation)
         # sol = GeneralizedAlphaFirstOrder(
-        #     model, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="velocities", GGL=False
+        #     system, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="velocities", GGL=False
         # ).solve()
         # (
         #     q_errors_transient[1, i],
@@ -832,7 +831,7 @@ def convergence():
 
         # # generalized alpha for mechanical systems in second order form + GGL
         # sol = GeneralizedAlphaSecondOrder(
-        #     model, t1, dt, rho_inf=rho_inf, tol=tol, GGL=True
+        #     system, t1, dt, rho_inf=rho_inf, tol=tol, GGL=True
         # ).solve()
         # (
         #     q_errors_transient[2, i],
@@ -847,7 +846,7 @@ def convergence():
 
         # # generalized alpha for mechanical systems in first order form (velocity formulation - GGL)
         # sol = GeneralizedAlphaFirstOrder(
-        #     model, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="velocities", GGL=True
+        #     system, t1, dt, rho_inf=rho_inf, tol=tol, unknowns="velocities", GGL=True
         # ).solve()
         # (
         #     q_errors_transient[3, i],
@@ -930,5 +929,5 @@ def convergence():
 
 
 if __name__ == "__main__":
-    # state()
-    convergence()
+    state()
+    # convergence()

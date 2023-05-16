@@ -18,8 +18,8 @@ bilateral_constrained = True
 quadratic_length = True
 # quadratic_length = False
 
-with_contact = True
-# with_contact = False
+# with_contact = True
+with_contact = False
 
 # Solver1, label1, dt1, kwargs1 = NonsmoothBackwardEuler, "Backward Euler", 1e-2, {}
 Solver1, label1, dt1, kwargs1 = Rattle, "Rattle", 1e-2, {}
@@ -87,20 +87,17 @@ class MathematicalPendulumCartesianContact:
     def q_dot(self, t, q, u):
         return u
 
-    def q_dot_q(self, t, q, u, coo):
+    def q_dot_q(self, t, q, u):
         pass
 
-    def B(self, t, q, coo):
-        coo.extend(np.eye(self.nq, self.nu), (self.qDOF, self.uDOF))
+    def B(self, t, q):
+        return np.ones(self.nq)
 
     def q_ddot(self, t, q, u, u_dot):
         return u_dot
 
-    def M_dense(self, t, q):
-        return np.eye(self.nu, self.nu) * self.m
-
-    def M(self, t, q, coo):
-        coo.extend(self.M_dense(t, q), (self.uDOF, self.uDOF))
+    def M(self, t, q):
+        return np.ones(self.nu) * self.m
 
     def h(self, t, q, u):
         f_g = np.array([0, -self.m * self.grav], dtype=np.common_type(q, u))
@@ -116,13 +113,11 @@ class MathematicalPendulumCartesianContact:
         f_spring = n * la
         return f_g + f_spring
 
-    def h_q(self, t, q, u, coo):
-        dense = approx_fprime(q, lambda q: self.h(t, q, u))
-        coo.extend(dense, (self.uDOF, self.qDOF))
+    def h_q(self, t, q, u):
+        return approx_fprime(q, lambda q: self.h(t, q, u))
 
-    def h_u(self, t, q, u, coo):
-        dense = approx_fprime(u, lambda u: self.h(t, q, u))
-        coo.extend(dense, (self.uDOF, self.uDOF))
+    def h_u(self, t, q, u):
+        return approx_fprime(u, lambda u: self.h(t, q, u))
 
     if bilateral_constrained:
         if quadratic_length:
@@ -136,16 +131,13 @@ class MathematicalPendulumCartesianContact:
                 u_x, u_y = u
                 return np.array([2 * x * u_x + 2 * y * u_y], dtype=np.common_type(q, u))
 
-            def g_dot_q_dense(self, t, q, u):
+            def g_dot_q(self, t, q, u):
                 x, y = q
                 u_x, u_y = u
                 return np.array([2 * u_x, 2 * u_y], dtype=np.common_type(q, u))
 
-            def g_dot_q(self, t, q, u, coo):
-                coo.extend(self.g_dot_q_dense(t, q, u), (self.la_gDOF, self.qDOF))
-
-            def g_dot_u(self, t, q, coo):
-                coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
+            def g_dot_u(self, t, q):
+                return self.g_q(t, q)
 
             def g_ddot(self, t, q, u, a):
                 x, y = q
@@ -156,33 +148,22 @@ class MathematicalPendulumCartesianContact:
                     dtype=np.common_type(q, u, a),
                 )
 
-            def g_q_dense(self, t, q):
+            def g_q(self, t, q):
                 x, y = q
-                return np.array([2 * x, 2 * y], dtype=q.dtype)
+                return np.array([[2 * x, 2 * y]], dtype=q.dtype)
 
-            def g_q_T_mu_g(self, t, q, mu_g, coo):
+            def g_q_T_mu_g(self, t, q, mu_g):
                 x, y = q
-                dense = 2 * mu_g[0] * np.eye(2, dtype=np.common_type(q, mu_g))
-                return coo.extend(dense, (self.qDOF, self.qDOF))
+                return 2 * mu_g[0] * np.eye(2, dtype=np.common_type(q, mu_g))
 
-            def g_q(self, t, q, coo):
-                coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
+            def W_g(self, t, q):
+                return self.g_q(t, q).T.reshape(self.nu, self.nla_g)
 
-            def W_g_dense(self, t, q):
-                return self.g_q_dense(t, q).T.reshape(self.nu, self.nla_g)
-
-            def W_g(self, t, q, coo):
-                coo.extend(self.W_g_dense(t, q), (self.uDOF, self.la_gDOF))
-
-            def Wla_g_q(self, t, q, la_g, coo):
-                dense = approx_fprime(q, lambda q: self.W_g_dense(t, q) @ la_g)
-                coo.extend(dense, (self.uDOF, self.qDOF))
-                # coo.extend(
-                #     np.eye(self.nu, self.nq) * 2 * la_g[0], (self.uDOF, self.qDOF)
-                # )
+            def Wla_g_q(self, t, q, la_g):
+                return approx_fprime(q, lambda q: self.W_g(t, q) @ la_g)
 
         else:
-            raise NotImplementedError
+            # raise NotImplementedError
 
             def g(self, t, q):
                 x, y = q
@@ -204,27 +185,18 @@ class MathematicalPendulumCartesianContact:
                     [(u @ u) / l + (q @ u_dot) / l + (q @ u) * (q @ u) / (l * l)]
                 )
 
-            def g_q_dense(self, t, q):
-                x, y = q
-                l = np.sqrt(x * x + y * y)
-                return np.array([x / l, y / l])
-
-            def g_q(self, t, q, coo):
-                coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
-
-            def g_dot_u_dense(self, t, q):
+            def g_q(self, t, q):
                 x, y = q
                 l = np.sqrt(x * x + y * y)
                 return np.array([[x / l, y / l]])
 
-            def g_dot_u(self, t, q, coo):
-                coo.extend(self.g_dot_u_dense(t, q), (self.la_gDOF, self.qDOF))
+            def g_dot_u(self, t, q):
+                x, y = q
+                l = np.sqrt(x * x + y * y)
+                return np.array([[x / l, y / l]])
 
-            def W_g(self, t, q, coo):
-                coo.extend(self.g_dot_u_dense(t, q).T, (self.uDOF, self.la_gDOF))
-
-            # def Wla_g_q(self, t, q, la_g, coo):
-            #     coo.extend(np.eye(self.nu, self.nq) * 2 * la_g[0], (self.uDOF, self.qDOF))
+            def W_g(self, t, q):
+                return self.g_dot_u(t, q).T
 
     # def G(self, t, q):
     #     W = self.W_g_dense(t, q)
@@ -249,8 +221,8 @@ class MathematicalPendulumCartesianContact:
         def g_N(self, t, q):
             return e1[:2] @ q
 
-        def g_N_q(self, t, q, coo):
-            coo.extend(e1[:2], (self.la_NDOF, self.qDOF))
+        def g_N_q(self, t, q):
+            return e1[np.newaxis, :2]
 
         def g_N_dot(self, t, q, u):
             return e1[:2] @ u
@@ -258,18 +230,11 @@ class MathematicalPendulumCartesianContact:
         def g_N_ddot(self, t, q, u, a):
             return e1[:2] @ a
 
-        def W_N_dense(self, t, q):
+        def W_N(self, t, q):
             return e1[:2, np.newaxis]
 
-        def W_N(self, t, q, coo):
-            coo.extend(self.W_N_dense(t, q), (self.uDOF, self.la_NDOF))
-
-        def Wla_N_q(self, t, q, la_N, coo):
-            dense = approx_fprime(q, lambda q: self.W_N_dense(t, q) @ la_N)
-            coo.extend(dense, (self.uDOF, self.qDOF))
-
-        def xi_N(self, t, q, u_pre, u_post):
-            return self.g_N_dot(t, q, u_post) + self.e_N * self.g_N_dot(t, q, u_pre)
+        def Wla_N_q(self, t, q, la_N):
+            return approx_fprime(q, lambda q: self.W_N(t, q) @ la_N)
 
 
 if __name__ == "__main__":

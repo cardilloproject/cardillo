@@ -24,12 +24,12 @@ class SphericalJoint:
 
     # kinematic equation
     def q_dot(self, t, q, u):
-        return self.B_dense(t, q) @ u
+        return self.B(t, q) @ u
 
     def q_ddot(self, t, q, u, u_dot):
         raise RuntimeWarning("SphericalJoint.q_ddot is not tested yet!")
         q2 = q @ q
-        B = self.B_dense(t, q)
+        B = self.B(t, q)
         q_dot = B @ u
         return (
             B @ u_dot
@@ -37,18 +37,14 @@ class SphericalJoint:
             + 2 * q_dot * (q @ q_dot) / q2
         )
 
-    def B_dense(self, t, q):
+    def B(self, t, q):
         return T_SO3_inv_quat(q) / (q @ q)
 
-    def B(self, t, q, coo):
-        coo.extend(self.B_dense(t, q), (self.qDOF, self.uDOF))
-
-    def q_dot_q(self, t, q, u, coo):
+    def q_dot_q(self, t, q, u):
         q2 = q @ q
-        dense = np.einsum("ijk,j->ik", T_SO3_inv_quat_P() / q2, u) - np.outer(
+        return np.einsum("ijk,j->ik", T_SO3_inv_quat_P() / q2, u) - np.outer(
             T_SO3_inv_quat(q) @ u, 2 * q / (q2**2)
         )
-        coo.extend(dense, (self.qDOF, self.qDOF))
 
     # other functions
     def A_B1B2(self, t, q):

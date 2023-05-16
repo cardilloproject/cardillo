@@ -17,7 +17,7 @@ from cardillo.math import (
     approx_fprime,
 )
 
-from cardillo.utility.coo import Coo
+from cardillo.utility.coo_matrix import CooMatrix
 from cardillo.discretization.lagrange import LagrangeKnotVector
 from cardillo.discretization.b_spline import BSplineKnotVector
 from cardillo.discretization.hermite import HermiteNodeVector
@@ -501,24 +501,18 @@ def make_I_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
                 g_S[self.nodalDOF_la_S[node]] = P @ P - 1
             return g_S
 
-        def __g_S_q(self, t, q, coo):
+        def __g_S_q(self, t, q):
             for node in range(self.nnodes_psi):
                 nodalDOF = self.nodalDOF_psi[node]
                 nodalDOF_S = self.nodalDOF_la_S[node]
                 psi = q[nodalDOF]
-                coo.extend(
-                    self.RotationBase.g_S_q(psi),
-                    (self.la_SDOF[nodalDOF_S], self.qDOF[nodalDOF]),
-                )
+                return self.RotationBase.g_S_q(psi)
 
-        def __g_S_q_T_mu_q(self, t, q, mu, coo):
+        def __g_S_q_T_mu_q(self, t, q, mu):
             for node in range(self.nnodes_psi):
                 nodalDOF = self.nodalDOF_psi[node]
                 nodalDOF_S = self.nodalDOF_la_S[node]
-                coo.extend(
-                    self.RotationBase.g_S_q_T_mu_q(q[nodalDOF], mu[nodalDOF_S]),
-                    (self.qDOF[nodalDOF], self.qDOF[nodalDOF]),
-                )
+                return self.RotationBase.g_S_q_T_mu_q(q[nodalDOF], mu[nodalDOF_S])
 
         #########################################
         # kinematic equation
@@ -543,25 +537,10 @@ def make_I_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
 
             return q_dot
 
-        def B(self, t, q, coo):
-            # trivial kinematic equation for centerline
-            coo.extend_diag(
-                np.ones(self.nq_r), (self.qDOF[: self.nq_r], self.uDOF[: self.nu_r])
-            )
+        def B(self, t, q):
+            raise NotImplementedError
 
-            # axis angle vector part
-            for node in range(self.nnodes_psi):
-                nodalDOF_psi = self.nodalDOF_psi[node]
-                nodalDOF_psi_u = self.nodalDOF_psi_u[node]
-
-                raise NotImplementedError
-                psi = q[nodalDOF_psi]
-                coo.extend(
-                    RotationBase.B(psi),
-                    (self.qDOF[nodalDOF_psi], self.uDOF[nodalDOF_psi_u]),
-                )
-
-        def q_dot_q(self, t, q, u, coo):
+        def q_dot_q(self, t, q, u):
             # axis angle vector part
             for node in range(self.nnodes_psi):
                 nodalDOF_psi = self.nodalDOF_psi[node]
@@ -570,10 +549,7 @@ def make_I_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
                 K_omega_IK = u[nodalDOF_psi_u]
 
                 raise NotImplementedError
-                coo.extend(
-                    RotationBase.q_dot_q(psi, K_omega_IK),
-                    (self.qDOF[nodalDOF_psi], self.qDOF[nodalDOF_psi]),
-                )
+                return RotationBase.q_dot_q(psi, K_omega_IK)
 
         def q_ddot(self, t, q, u, u_dot):
             warnings.warn("'TimoshenkoPetrovGalerkinBase.q_ddot' is not tested yet!")
@@ -911,7 +887,7 @@ def make_I_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
 
         def _M_coo(self):
             raise NotImplementedError
-            self.__M = Coo((self.nu, self.nu))
+            self.__M = CooMatrix((self.nu, self.nu))
             for el in range(self.nelement):
                 # extract element degrees of freedom
                 elDOF_u = self.elDOF_u[el]
@@ -921,10 +897,10 @@ def make_I_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
                     self.M_el_constant(el), (self.uDOF[elDOF_u], self.uDOF[elDOF_u])
                 )
 
-        def M(self, t, q, coo):
+        def M(self, t, q):
             raise NotImplementedError
             if self.constant_mass_matrix:
-                coo.extend_sparse(self.__M)
+                return self.__M
             else:
                 for el in range(self.nelement):
                     # extract element degrees of freedom
@@ -932,10 +908,7 @@ def make_I_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
                     elDOF_u = self.elDOF_u[el]
 
                     # sparse assemble element mass matrix
-                    coo.extend(
-                        self.M_el(q[elDOF], el),
-                        (self.uDOF[elDOF_u], self.uDOF[elDOF_u]),
-                    )
+                    return self.M_el(q[elDOF], el)
 
         def E_kin(self, t, q, u):
             raise NotImplementedError
@@ -1137,30 +1110,21 @@ def make_I_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
 
             return f_gyr_u_el
 
-        def h(self, t, q, u):
-            h = np.zeros(self.nu, dtype=np.common_type(q, u))
+        def h_q(self, t, q, u):
+            coo = CooMatrix((self.nu, self.nq))
             for el in range(self.nelement):
                 elDOF = self.elDOF[el]
                 elDOF_u = self.elDOF_u[el]
-                h[elDOF_u] += self.f_pot_el(q[elDOF], el)
-                # - self.f_gyr_el(
-                #     t, q[elDOF], u[elDOF_u], el
-                # )
-            return h
+                coo[elDOF_u, elDOF] = self.f_pot_el_q(q[elDOF], el)
+            return coo
 
-        def h_q(self, t, q, u, coo):
+        def h_u(self, t, q, u):
+            coo = CooMatrix((self.nu, self.nu))
             for el in range(self.nelement):
                 elDOF = self.elDOF[el]
                 elDOF_u = self.elDOF_u[el]
-                h_q_el = self.f_pot_el_q(q[elDOF], el)
-                coo.extend(h_q_el, (self.uDOF[elDOF_u], self.qDOF[elDOF]))
-
-        # def h_u(self, t, q, u, coo):
-        #     for el in range(self.nelement):
-        #         elDOF = self.elDOF[el]
-        #         elDOF_u = self.elDOF_u[el]
-        #         h_u_el = -self.f_gyr_u_el(t, q[elDOF], u[elDOF_u], el)
-        #         coo.extend(h_u_el, (self.uDOF[elDOF_u], self.uDOF[elDOF_u]))
+                coo[elDOF_u, elDOF] = -self.f_gyr_u_el(t, q[elDOF], u[elDOF_u], el)
+            return coo
 
         ####################################################
         # interactions with other bodies and the environment
@@ -1503,8 +1467,8 @@ def make_I_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
                 f[self.elDOF_u[el]] += self.distributed_force1D_el(force, t, el)
             return f
 
-        def distributed_force1D_q(self, t, q, coo, force):
-            pass
+        def distributed_force1D_q(self, t, q, force):
+            return None
 
     return Derived
 
@@ -1982,24 +1946,24 @@ def make_K_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
                 g_S[self.nodalDOF_la_S[node]] = self.RotationBase.g_S(psi)
             return g_S
 
-        def __g_S_q(self, t, q, coo):
+        def __g_S_q(self, t, q):
+            coo = CooMatrix((self.nla_S, self.nq))
             for node in range(self.nnodes_psi):
                 nodalDOF = self.nodalDOF_psi[node]
                 nodalDOF_S = self.nodalDOF_la_S[node]
                 psi = q[nodalDOF]
-                coo.extend(
-                    self.RotationBase.g_S_q(psi),
-                    (self.la_SDOF[nodalDOF_S], self.qDOF[nodalDOF]),
-                )
+                coo[nodalDOF_S, nodalDOF] = self.RotationBase.g_S_q(psi)
+            return coo
 
-        def __g_S_q_T_mu_q(self, t, q, mu, coo):
+        def __g_S_q_T_mu_q(self, t, q, mu):
+            coo = CooMatrix((self.nq, self.nq))
             for node in range(self.nnodes_psi):
                 nodalDOF = self.nodalDOF_psi[node]
                 nodalDOF_S = self.nodalDOF_la_S[node]
-                coo.extend(
-                    self.RotationBase.g_S_q_T_mu_q(q[nodalDOF], mu[nodalDOF_S]),
-                    (self.qDOF[nodalDOF], self.qDOF[nodalDOF]),
+                coo[nodalDOF, nodalDOF] = self.RotationBase.g_S_q_T_mu_q(
+                    q[nodalDOF], mu[nodalDOF_S]
                 )
+            return coo
 
         #########################################
         # kinematic equation
@@ -2023,11 +1987,11 @@ def make_K_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
 
             return q_dot
 
-        def B(self, t, q, coo):
+        def B(self, t, q):
+            coo = CooMatrix((self.nq, self.nu))
+
             # trivial kinematic equation for centerline
-            coo.extend_diag(
-                np.ones(self.nq_r), (self.qDOF[: self.nq_r], self.uDOF[: self.nu_r])
-            )
+            coo[range(self.nq_r), range(self.nu_r)] = np.ones(self.nq_r)
 
             # axis angle vector part
             for node in range(self.nnodes_psi):
@@ -2035,12 +1999,13 @@ def make_K_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
                 nodalDOF_psi_u = self.nodalDOF_psi_u[node]
 
                 psi = q[nodalDOF_psi]
-                coo.extend(
-                    RotationBase.B(psi),
-                    (self.qDOF[nodalDOF_psi], self.uDOF[nodalDOF_psi_u]),
-                )
+                coo[nodalDOF_psi, nodalDOF_psi_u] = RotationBase.B(psi)
 
-        def q_dot_q(self, t, q, u, coo):
+            return coo
+
+        def q_dot_q(self, t, q, u):
+            coo = CooMatrix((self.nq, self.nq))
+
             # axis angle vector part
             for node in range(self.nnodes_psi):
                 nodalDOF_psi = self.nodalDOF_psi[node]
@@ -2048,10 +2013,9 @@ def make_K_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
                 psi = q[nodalDOF_psi]
                 K_omega_IK = u[nodalDOF_psi_u]
 
-                coo.extend(
-                    RotationBase.q_dot_q(psi, K_omega_IK),
-                    (self.qDOF[nodalDOF_psi], self.qDOF[nodalDOF_psi]),
-                )
+                coo[nodalDOF_psi, nodalDOF_psi] = RotationBase.q_dot_q(psi, K_omega_IK)
+
+            return coo
 
         def q_ddot(self, t, q, u, u_dot):
             warnings.warn("'TimoshenkoPetrovGalerkinBase.q_ddot' is not tested yet!")
@@ -2377,30 +2341,31 @@ def make_K_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
             return M_el
 
         def _M_coo(self):
-            self.__M = Coo((self.nu, self.nu))
+            self.__M = CooMatrix((self.nu, self.nu))
             for el in range(self.nelement):
                 # extract element degrees of freedom
                 elDOF_u = self.elDOF_u[el]
 
                 # sparse assemble element mass matrix
-                self.__M.extend(
-                    self.M_el_constant(el), (self.uDOF[elDOF_u], self.uDOF[elDOF_u])
-                )
+                # self.__M[self.uDOF[elDOF_u], self.uDOF[elDOF_u]] = self.M_el_constant(
+                #     el
+                # )
+                self.__M[elDOF_u, elDOF_u] = self.M_el_constant(el)
 
-        def M(self, t, q, coo):
+        def M(self, t, q):
             if self.constant_mass_matrix:
-                coo.extend_sparse(self.__M)
+                return self.__M
             else:
+                coo = CooMatrix((self.nu, self.nu))
                 for el in range(self.nelement):
                     # extract element degrees of freedom
                     elDOF = self.elDOF[el]
                     elDOF_u = self.elDOF_u[el]
 
                     # sparse assemble element mass matrix
-                    coo.extend(
-                        self.M_el(q[elDOF], el),
-                        (self.uDOF[elDOF_u], self.uDOF[elDOF_u]),
-                    )
+                    coo[elDOF_u, elDOF_u] = self.M_el(q[elDOF], el)
+
+                return coo
 
         def E_kin(self, t, q, u):
             E_kin = 0.0
@@ -2618,20 +2583,21 @@ def make_K_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
         #     print(f"error h_q: {error}")
         #     return h_q_num
 
-        def h_q(self, t, q, u, coo):
-            # coo.extend(self.h_q_dense(t, q, u), (self.uDOF, self.qDOF))
+        def h_q(self, t, q, u):
+            coo = CooMatrix((self.nu, self.nq))
             for el in range(self.nelement):
                 elDOF = self.elDOF[el]
                 elDOF_u = self.elDOF_u[el]
-                h_q_el = self.f_pot_el_q(q[elDOF], el)
-                coo.extend(h_q_el, (self.uDOF[elDOF_u], self.qDOF[elDOF]))
+                coo[elDOF_u, elDOF] = self.f_pot_el_q(q[elDOF], el)
+            return coo
 
-        def h_u(self, t, q, u, coo):
+        def h_u(self, t, q, u):
+            coo = CooMatrix((self.nu, self.nu))
             for el in range(self.nelement):
                 elDOF = self.elDOF[el]
                 elDOF_u = self.elDOF_u[el]
-                h_u_el = -self.f_gyr_u_el(t, q[elDOF], u[elDOF_u], el)
-                coo.extend(h_u_el, (self.uDOF[elDOF_u], self.uDOF[elDOF_u]))
+                coo[elDOF_u, elDOF_u] = -self.f_gyr_u_el(t, q[elDOF], u[elDOF_u], el)
+            return coo
 
         ####################################################
         # interactions with other bodies and the environment
@@ -2970,8 +2936,8 @@ def make_K_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
                 f[self.elDOF_u[el]] += self.distributed_force1D_el(force, t, el)
             return f
 
-        def distributed_force1D_q(self, t, q, coo, force):
-            pass
+        def distributed_force1D_q(self, t, q, force):
+            return None
 
     return Derived
 

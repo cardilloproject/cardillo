@@ -17,4 +17,4 @@ from .cable import Cable
 from .cardona import K_Cardona, K_TimoshenkoLerp
 
 
-from ._animate import animate_beam, animate_rope
+from ._animate import animate_beam

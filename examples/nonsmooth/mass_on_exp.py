@@ -67,14 +67,14 @@ class BallOnExp:
     def q_ddot(self, t, q, u, u_dot):
         return u_dot
 
-    def B(self, t, q, coo):
-        coo.extend_diag(np.ones(self.nq), (self.qDOF, self.uDOF))
+    def B(self, t, q):
+        return np.ones(self.nq)
 
     #####################
     # equations of motion
     #####################
-    def M(self, t, q, coo):
-        coo.extend(m * np.eye(self.nu, dtype=float), (self.uDOF, self.uDOF))
+    def M(self, t, q):
+        return m * np.ones(self.nu, dtype=float)
 
     def h(self, t, q, u):
         return np.array([0.0, -self.m * self.g])
@@ -139,21 +139,16 @@ class BallOnExp:
         n_x = self.normal_x(q[0])
         return np.array([n @ u_dot + u @ n_x * u[0]])
 
-    def g_N_q(self, t, q, coo):
-        dense = approx_fprime(q, lambda q: self.g_N(t, q))
-        coo.extend(dense, (self.la_NDOF, self.qDOF))
+    def g_N_q(self, t, q):
+        return approx_fprime(q, lambda q: self.g_N(t, q)).reshape(self.nla_N, self.nq)
 
-    def xi_N(self, t, q, u_pre, u_post):
-        return self.g_N_dot(t, q, u_post) + self.e_N * self.g_N_dot(t, q, u_pre)
+    def W_N(self, t, q):
+        return self.normal(q[0])[np.newaxis, :]
 
-    def W_N(self, t, q, coo):
-        coo.extend(self.normal(q[0]), (self.uDOF, self.la_NDOF))
-
-    def Wla_N_q(self, t, q, la_N, coo):
-        dense = approx_fprime(
+    def Wla_N_q(self, t, q, la_N):
+        return approx_fprime(
             q, lambda q: la_N[0] * self.normal(q[0]).reshape(self.nu, self.nla_N)
         )
-        coo.extend(dense, (self.uDOF, self.la_NDOF))
 
     ##################
     # tangent contacts
@@ -170,21 +165,18 @@ class BallOnExp:
         # t_x = self.tangent_x(q[0])
         # return np.array([t @ u_dot + u @ t_x * u[0]])
 
-    def gamma_F_q(self, t, q, u, coo):
-        dense = approx_fprime(q, lambda q: self.__gamma_F(t, q, u))
-        coo.extend(dense, (self.la_FDOF, self.qDOF))
+    def gamma_F_q(self, t, q, u):
+        return approx_fprime(q, lambda q: self.__gamma_F(t, q, u)).reshape(
+            self.nla_F, self.nq
+        )
 
-    def xi_F(self, t, q, u_pre, u_post):
-        return self.__gamma_F(t, q, u_post) + self.e_N * self.__gamma_F(t, q, u_pre)
+    def W_F(self, t, q):
+        return self.tangent(q[0])[np.newaxis, :]
 
-    def W_F(self, t, q, coo):
-        coo.extend(self.tangent(q[0]), (self.uDOF, self.la_FDOF))
-
-    def Wla_F_q(self, t, q, la_F, coo):
-        dense = approx_fprime(
+    def Wla_F_q(self, t, q, la_F):
+        return approx_fprime(
             q, lambda q: la_F[0] * self.tangent(q[0]).reshape(self.nu, self.nla_F)
         )
-        coo.extend(dense, (self.uDOF, self.la_FDOF))
 
 
 # system definition

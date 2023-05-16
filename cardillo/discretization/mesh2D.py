@@ -11,7 +11,7 @@ from cardillo.math import inv2D, det2D, inv3D, norm, cross3
 from cardillo.discretization.indexing import flat2D, split2D
 from cardillo.discretization.mesh1D import Mesh1D
 from cardillo.discretization.gauss import gauss
-from cardillo.utility.coo import Coo
+from cardillo.utility.coo_matrix import CooMatrix
 
 
 def rectangle(shape, mesh, Greville=False, Fuzz=None):
@@ -298,7 +298,7 @@ class Mesh2D:
         return x
 
     def L2_projection_A(self, knots):
-        A = Coo((self.nn, self.nn))
+        A = CooMatrix((self.nn, self.nn))
         for xi, eta in knots:
             el_xi = self.Xi.element_number(xi)[0]
             el_eta = self.Eta.element_number(eta)[0]
@@ -425,7 +425,7 @@ class Mesh2D:
     # functions for vtk export
     def ensure_L2_projection_A(self):
         if not hasattr(self, "A"):
-            A = Coo((self.nn, self.nn))
+            A = CooMatrix((self.nn, self.nn))
             for el in range(self.nel):
                 elDOF_el = self.elDOF[el, : self.nn_el]
                 Ae = np.zeros((self.nn_el, self.nn_el))

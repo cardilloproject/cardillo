@@ -124,7 +124,7 @@ class SliderCrankFlores:
     #####################
     # equations of motion
     #####################
-    def M_dense(self, t, q):
+    def M(self, t, q):
         theta1, theta2, theta3 = q
 
         M11 = self.J1 + (self.m1 / 4 + self.m2 + self.m3) * self.l1**2  # (90)
@@ -143,10 +143,7 @@ class SliderCrankFlores:
         ])
         # fmt: on
 
-    def M(self, t, q, coo):
-        coo.extend(self.M_dense(t, q), (self.uDOF, self.uDOF))
-
-    def Mu_q(self, t, q, u, coo):
+    def Mu_q(self, t, q, u):
         M_q = np.zeros((3, 3, 3))
 
         theta1, theta2, theta3 = q
@@ -167,14 +164,13 @@ class SliderCrankFlores:
         M_q[0, 1, 1] = M12_theta2
         M_q[1, 0, 1] = M12_theta2
 
-        dense = np.einsum("ijk,j->ik", M_q, u)
+        Mu_q = np.einsum("ijk,j->ik", M_q, u)
+        return Mu_q
 
-        # Mu = lambda t, q: self.M_dense(t, q) @ u
-        # dense_num = Numerical_derivative(Mu, order=2)._x(t, q)
-        # error = np.linalg.norm(dense_num - dense)
+        # Mu = lambda t, q: self.M(t, q) @ u
+        # Mu_q_num = Numerical_derivative(Mu, order=2)._x(t, q)
+        # error = np.linalg.norm(Mu_q_num - Mu_q)
         # print(f'error Mu_q: {error}')
-
-        coo.extend(dense, (self.uDOF, self.qDOF))
 
     def h(self, t, q, u):
         theta1, theta2, theta3 = q
@@ -193,7 +189,7 @@ class SliderCrankFlores:
         h3 = 0
         return np.array([h1, h2, h3])
 
-    def h_q(self, t, q, u, coo):
+    def h_q(self, t, q, u):
         theta1, theta2, theta3 = q
         omega1, omega2, omega3 = u
 
@@ -210,36 +206,36 @@ class SliderCrankFlores:
             * (np.cos(theta2) * np.cos(theta1) + np.sin(theta2) * np.sin(theta1))
         )
 
-        dense = np.zeros((3, 3))
-        dense[0, 0] = factor1_theta1 * omega2**2 + (
+        h_q = np.zeros((3, 3))
+        h_q[0, 0] = factor1_theta1 * omega2**2 + (
             self.m1 / 2 + self.m2 + self.m3
         ) * self.g * self.l1 * np.sin(theta1)
-        dense[0, 1] = factor1_theta2 * omega2**2
-        dense[1, 0] = -factor1_theta1 * omega1**2
-        dense[1, 1] = -factor1_theta2 * omega1**2 + (
+        h_q[0, 1] = factor1_theta2 * omega2**2
+        h_q[1, 0] = -factor1_theta1 * omega1**2
+        h_q[1, 1] = -factor1_theta2 * omega1**2 + (
             self.m2 / 2 + self.m3
         ) * self.g * self.l2 * np.sin(theta2)
 
-        # dense_num = Numerical_derivative(self.f_npot, order=2)._x(t, q, u)
-        # error = np.linalg.norm(dense_num - dense)
+        # h_q_num = Numerical_derivative(self.f_npot, order=2)._x(t, q, u)
+        # error = np.linalg.norm(h_q_num - h_q)
         # print(f'error f_npot_q: {error}')
 
-        coo.extend(dense, (self.uDOF, self.qDOF))
+        return h_q
 
-    def h_u(self, t, q, u, coo):
+    def h_u(self, t, q, u):
         theta1, theta2, theta3 = q
         omega1, omega2, omega3 = u
         factor1 = (self.m2 / 2 + self.m3) * self.l1 * self.l2 * np.sin(theta2 - theta1)
 
-        dense = np.zeros((3, 3))
-        dense[0, 1] = 2 * factor1 * omega2
-        dense[1, 0] = -2 * factor1 * omega1
+        h_u = np.zeros((3, 3))
+        h_u[0, 1] = 2 * factor1 * omega2
+        h_u[1, 0] = -2 * factor1 * omega1
 
-        # dense_num = Numerical_derivative(self.f_npot, order=2)._y(t, q, u)
-        # error = np.linalg.norm(dense_num - dense)
+        # h_u_num = Numerical_derivative(self.f_npot, order=2)._y(t, q, u)
+        # error = np.linalg.norm(h_u_num - h_u)
         # print(f'error f_npot_u: {error}')
 
-        coo.extend(dense, (self.uDOF, self.uDOF))
+        return h_u
 
     #####################
     # kinematic equations
@@ -250,8 +246,8 @@ class SliderCrankFlores:
     def q_ddot(self, t, q, u, u_dot):
         return u_dot
 
-    def B(self, t, q, coo):
-        coo.extend_diag(np.ones(3), (self.qDOF, self.uDOF))
+    def B(self, t, q):
+        return np.ones(3)
 
     #################
     # normal contacts
@@ -276,7 +272,7 @@ class SliderCrankFlores:
         )
         return np.array([g_N1, g_N2, g_N3, g_N4])
 
-    def g_N_q_dense(self, t, q):
+    def g_N_q(self, t, q):
         theta1, theta2, theta3 = q
         cth1 = np.cos(theta1)
         cth2 = np.cos(theta2)
@@ -315,9 +311,6 @@ class SliderCrankFlores:
 
         return g_N_q_dense
 
-    def g_N_q(self, t, q, coo):
-        coo.extend(self.g_N_q_dense(t, q), (self.la_NDOF, self.qDOF))
-
     def g_N_dot(self, t, q, u):
         theta1, theta2, theta3 = q
         omega1, omega2, omega3 = u
@@ -352,30 +345,19 @@ class SliderCrankFlores:
         return np.array([g_N1_dot, g_N2_dot, g_N3_dot, g_N4_dot])
 
     # TODO!
-    def g_N_dot_q_dense(self, t, q, u):
+    def g_N_dot_q(self, t, q, u):
         return approx_fprime(q, lambda q: self.g_N_dot(t, q, u))
 
-    def g_N_dot_q(self, t, q, u, coo):
-        coo.extend(self.g_N_dot_q_dense(t, q, u), (self.la_NDOF, self.qDOF))
+    def g_N_dot_u(self, t, q):
+        return self.g_N_q(t, q)
 
-    def g_N_dot_u_dense(self, t, q):
-        return self.g_N_q_dense(t, q)
+    def xi_N_q(self, t, q, u_pre, u_post):
+        g_N_q_pre = self.g_N_dot_q(t, q, u_pre)
+        g_N_q_post = self.g_N_dot_q(t, q, u_post)
+        return g_N_q_post + np.diag(self.e_N) @ g_N_q_pre
 
-    def g_N_dot_u(self, t, q, coo):
-        coo.extend(self.g_N_dot_u_dense(t, q), (self.la_NDOF, self.uDOF))
-
-    def xi_N(self, t, q, u_pre, u_post):
-        return self.g_N_dot(t, q, u_post) + self.e_N * self.g_N_dot(t, q, u_pre)
-
-    def xi_N_q(self, t, q, u_pre, u_post, coo):
-        g_N_q_pre = self.g_N_dot_q_dense(t, q, u_pre)
-        g_N_q_post = self.g_N_dot_q_dense(t, q, u_post)
-        dense = g_N_q_post + np.diag(self.e_N) @ g_N_q_pre
-        coo.extend(dense, (self.la_NDOF, self.qDOF))
-
-    def W_N(self, t, q, coo):
-        dense = self.g_N_dot_u_dense(t, q).T
-        coo.extend(dense, (self.uDOF, self.la_NDOF))
+    def W_N(self, t, q):
+        return self.g_N_dot_u(t, q).T
 
     def g_N_ddot(self, t, q, u, u_dot):
         theta1, theta2, theta3 = q
@@ -424,24 +406,17 @@ class SliderCrankFlores:
         return np.array([g_N1_ddot, g_N2_ddot, g_N3_ddot, g_N4_ddot])
 
     # TODO:
-    def g_N_ddot_q(self, t, q, u, u_dot, coo):
-        dense = approx_fprime(
-            q, lambda q: self.g_N_ddot(t, q, u, u_dot), method="2-point", eps=1e-6
-        )
-        coo.extend(dense, (self.la_NDOF, self.qDOF))
+    def g_N_ddot_q(self, t, q, u, u_dot):
+        return approx_fprime(q, lambda q: self.g_N_ddot(t, q, u, u_dot))
 
     # TODO:
-    def g_N_ddot_u(self, t, q, u, u_dot, coo):
-        dense = approx_fprime(
-            u, lambda u: self.g_N_ddot(t, q, u, u_dot), method="2-point", eps=1e-6
-        )
-        coo.extend(dense, (self.la_NDOF, self.uDOF))
+    def g_N_ddot_u(self, t, q, u, u_dot):
+        return approx_fprime(u, lambda u: self.g_N_ddot(t, q, u, u_dot))
 
     # TODO:
-    def Wla_N_q(self, t, q, la_N, coo):
-        Wla_N = lambda q: self.g_N_dot_u_dense(t, q).T @ la_N
-        dense = approx_fprime(q, Wla_N, method="2-point", eps=1e-6)
-        coo.extend(dense, (self.uDOF, self.qDOF))
+    def Wla_N_q(self, t, q, la_N):
+        Wla_N = lambda q: self.g_N_dot_u(t, q).T @ la_N
+        return approx_fprime(q, Wla_N)
 
     #################
     # tanget contacts
@@ -479,13 +454,10 @@ class SliderCrankFlores:
         )
         return np.array([gamma_1, gamma_2, gamma_3, gamma_4])
 
-    def gamma_F_q_dense(self, t, q, u):
+    def gamma_F_q(self, t, q, u):
         return approx_fprime(q, lambda q: self.__gamma_F(t, q, u))
 
-    def gamma_F_q(self, t, q, u, coo):
-        coo.extend(self.gamma_F_q_dense(t, q, u), (self.la_FDOF, self.qDOF))
-
-    def gamma_F_u_dense(self, t, q):
+    def gamma_F_u(self, t, q):
         theta1, theta2, theta3 = q
         sth1 = np.sin(theta1)
         sth2 = np.sin(theta2)
@@ -530,16 +502,12 @@ class SliderCrankFlores:
         # print(f"error gamma_F_u_dense: {error}")
         # return num
 
-    def gamma_F_u(self, t, q, coo):
-        coo.extend(self.gamma_F_u_dense(t, q), (self.la_FDOF, self.uDOF))
+    def W_F(self, t, q):
+        return self.gamma_F_u(t, q).T
 
-    def W_F(self, t, q, coo):
-        coo.extend(self.gamma_F_u_dense(t, q).T, (self.uDOF, self.la_FDOF))
-
-    def Wla_F_q(self, t, q, la_T, coo):
-        Wla_T = lambda t, q: self.gamma_F_u_dense(t, q).T @ la_T
-        dense = approx_fprime(q, Wla_T)
-        coo.extend(dense, (self.uDOF, self.qDOF))
+    def Wla_F_q(self, t, q, la_T):
+        Wla_T = lambda t, q: self.gamma_F_u(t, q).T @ la_T
+        return approx_fprime(q, Wla_T)
 
     def gamma_F_dot(self, t, q, u, u_dot):
         theta1, theta2, theta3 = q
@@ -587,26 +555,11 @@ class SliderCrankFlores:
         )
         return np.array([gamma_1_dot, gamma_2_dot, gamma_3_dot, gamma_4_dot])
 
-    def gamma_F_dot_q(self, t, q, u, u_dot, coo):
-        dense = approx_fprime(
-            q, lambda q: self.gamma_F_dot(t, q, u, u_dot), method="2-point", eps=1e-6
-        )
-        coo.extend(dense, (self.la_FDOF, self.qDOF))
+    def gamma_F_dot_q(self, t, q, u, u_dot):
+        return approx_fprime(q, lambda q: self.gamma_F_dot(t, q, u, u_dot))
 
-    def gamma_F_dot_u(self, t, q, u, u_dot, coo):
-        dense = approx_fprime(
-            u, lambda u: self.gamma_F_dot(t, q, u, u_dot), method="2-point", eps=1e-6
-        )
-        coo.extend(dense, (self.la_FDOF, self.uDOF))
-
-    def xi_F(self, t, q, u_pre, u_post):
-        return self.gamma_F(t, q, u_post) + self.e_F * self.gamma_F(t, q, u_pre)
-
-    def xi_F_q(self, t, q, u_pre, u_post, coo):
-        gamma_T_q_pre = self.gamma_F_q_dense(t, q, u_pre)
-        gamma_T_q_post = self.gamma_F_q_dense(t, q, u_post)
-        dense = gamma_T_q_post + np.diag(self.e_F) @ gamma_T_q_pre
-        coo.extend(dense, (self.la_FDOF, self.qDOF))
+    def gamma_F_dot_u(self, t, q, u, u_dot):
+        return approx_fprime(u, lambda u: self.gamma_F_dot(t, q, u, u_dot))
 
 
 class SliderCrankDAE:
@@ -738,7 +691,7 @@ class SliderCrankDAE:
     #####################
     # equations of motion
     #####################
-    def M_dense(self, t, q):
+    def M(self, t, q):
         return np.diag(
             [
                 self.m1,
@@ -753,9 +706,6 @@ class SliderCrankDAE:
             ]
         )
 
-    def M(self, t, q, coo):
-        coo.extend(self.M_dense(t, q), (self.uDOF, self.uDOF))
-
     def h(self, t, q, u):
         return -np.array([0, self.m1, 0, 0, self.m2, 0, 0, self.m3, 0]) * self.grav
 
@@ -768,8 +718,8 @@ class SliderCrankDAE:
     def q_ddot(self, t, q, u, u_dot):
         return u_dot
 
-    def B(self, t, q, coo):
-        coo.extend_diag(np.ones(self.nq), (self.qDOF, self.uDOF))
+    def B(self, t, q):
+        return np.ones(self.nq)
 
     #######################
     # bilateral constraints
@@ -817,9 +767,8 @@ class SliderCrankDAE:
 
         # return g_dot_num
 
-    def g_dot_q(self, t, q, u, coo):
-        dense = approx_fprime(q, lambda q: self.g_dot(t, q, u))
-        coo.extend(dense, (self.la_gDOF, self.qDOF))
+    def g_dot_q(self, t, q, u):
+        return approx_fprime(q, lambda q: self.g_dot(t, q, u))
 
     def g_ddot(self, t, q, u, u_dot):
         x1, y1, theta1, x2, y2, theta2, x3, y3, theta3 = q
@@ -894,17 +843,16 @@ class SliderCrankDAE:
         # print(f"error g_q: {error}")
         # return g_q_num
 
-    def g_q(self, t, q, coo):
-        coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
+    def g_q(self, t, q):
+        return self.g_q_dense(t, q)
 
-    def W_g(self, t, q, coo):
-        coo.extend(self.g_q_dense(t, q).T, (self.uDOF, self.la_gDOF))
+    def W_g(self, t, q):
+        return self.g_q_dense(t, q).T
 
     # TODO:
-    def Wla_g_q(self, t, q, la_g, coo):
+    def Wla_g_q(self, t, q, la_g):
         Wla_g = lambda q: self.g_q_dense(t, q).T @ la_g
-        dense = approx_fprime(q, Wla_g)
-        coo.extend(dense, (self.uDOF, self.qDOF))
+        return approx_fprime(q, Wla_g)
 
     #################
     # normal contacts
@@ -919,7 +867,7 @@ class SliderCrankDAE:
         g_N4 = 0.5 * self.d + (y3 + self.a * sin - self.b * cos)
         return np.array([g_N1, g_N2, g_N3, g_N4])
 
-    def g_N_q_dense(self, t, q):
+    def g_N_q(self, t, q):
         _, _, _, _, _, _, x3, y3, theta3 = q
         sin = np.sin(theta3)
         cos = np.cos(theta3)
@@ -932,42 +880,25 @@ class SliderCrankDAE:
 
         return g_N_q
 
-    def g_N_q(self, t, q, coo):
-        coo.extend(self.g_N_q_dense(t, q), (self.la_NDOF, self.qDOF))
-
     def g_N_dot(self, t, q, u):
-        return self.g_N_q_dense(t, q) @ u
+        return self.g_N_q(t, q) @ u
 
     def g_N_ddot(self, t, q, u, u_dot):
         return (
-            self.g_N_q_dense(t, q) @ u_dot
+            self.g_N_q(t, q) @ u_dot
             + approx_fprime(q, lambda q: self.g_N_dot(t, q, u)) @ u
         )
 
-    def g_N_dot_q_dense(self, t, q, u):
+    def g_N_dot_q(self, t, q, u):
         return approx_fprime(q, lambda q: self.g_N_dot(t, q, u))
 
-    def g_N_dot_q(self, t, q, u, coo):
-        coo.extend(self.g_N_dot_q_dense(t, q, u), (self.la_NDOF, self.qDOF))
-
-    def W_N(self, t, q, coo):
-        dense = self.g_N_q_dense(t, q).T
-        coo.extend(dense, (self.uDOF, self.la_NDOF))
+    def W_N(self, t, q):
+        return self.g_N_q(t, q).T
 
     # TODO:
-    def Wla_N_q(self, t, q, la_N, coo):
-        Wla_N = lambda q: self.g_N_q_dense(t, q).T @ la_N
-        dense = approx_fprime(q, Wla_N)
-        coo.extend(dense, (self.uDOF, self.qDOF))
-
-    def xi_N(self, t, q, u_pre, u_post):
-        return self.g_N_dot(t, q, u_post) + self.e_N * self.g_N_dot(t, q, u_pre)
-
-    def xi_N_q(self, t, q, u_pre, u_post, coo):
-        g_N_q_pre = self.g_N_dot_q_dense(t, q, u_pre)
-        g_N_q_post = self.g_N_dot_q_dense(t, q, u_post)
-        dense = g_N_q_post + np.diag(self.e_N) @ g_N_q_pre
-        coo.extend(dense, (self.la_NDOF, self.qDOF))
+    def Wla_N_q(self, t, q, la_N):
+        Wla_N = lambda q: self.g_N_q(t, q).T @ la_N
+        return approx_fprime(q, Wla_N)
 
     #################
     # tanget contacts
@@ -985,17 +916,14 @@ class SliderCrankDAE:
 
     def gamma_F_dot(self, t, q, u, u_dot):
         return (
-            self.W_F_dense(t, q).T @ u_dot
+            self.W_F(t, q).T @ u_dot
             + approx_fprime(q, lambda q: self.gamma_F(t, q, u)) @ u
         )
 
-    def gamma_F_q_dense(self, t, q, u):
+    def gamma_F_q(self, t, q, u):
         return approx_fprime(q, lambda q: self.__gamma_F(t, q, u))
 
-    def gamma_F_q(self, t, q, u, coo):
-        coo.extend(self.gamma_F_q_dense(t, q, u), (self.la_FDOF, self.qDOF))
-
-    def W_F_dense(self, t, q):
+    def W_F(self, t, q):
         _, _, _, _, _, _, x3, y3, theta3 = q
         sin = np.sin(theta3)
         cos = np.cos(theta3)
@@ -1007,20 +935,15 @@ class SliderCrankDAE:
         W_F[-2:, 3] = np.array([1, -self.a * sin + self.b * cos])
         return W_F
 
-    def W_F(self, t, q, coo):
-        coo.extend(self.W_F_dense(t, q), (self.uDOF, self.la_FDOF))
-
     # TODO:
-    def Wla_F_q(self, t, q, la_F, coo):
-        Wla_F = lambda q: self.W_F_dense(t, q) @ la_F
-        dense = approx_fprime(q, Wla_F)
-        coo.extend(dense, (self.uDOF, self.qDOF))
+    def Wla_F_q(self, t, q, la_F):
+        Wla_F = lambda q: self.W_F(t, q) @ la_F
+        return approx_fprime(q, Wla_F)
 
-    def xi_F_q(self, t, q, u_pre, u_post, coo):
-        gamma_T_q_pre = self.gamma_F_q_dense(t, q, u_pre)
-        gamma_T_q_post = self.gamma_F_q_dense(t, q, u_post)
-        dense = gamma_T_q_post + np.diag(self.e_F) @ gamma_T_q_pre
-        coo.extend(dense, (self.la_FDOF, self.qDOF))
+    def xi_F_q(self, t, q, u_pre, u_post):
+        gamma_T_q_pre = self.gamma_F_q(t, q, u_pre)
+        gamma_T_q_post = self.gamma_F_q(t, q, u_post)
+        return gamma_T_q_post + np.diag(self.e_F) @ gamma_T_q_pre
 
 
 def run_Flores():
@@ -1188,12 +1111,12 @@ def run_DAE(export=True):
     dt1 = 1e-3
     dt2 = 1e-3
 
-    # sol1, label1 = (
-    #     NPIRK(system, t_final, dt1, RadauIIATableau(2)).solve(),
-    #     "NPIRK",
-    # )
+    sol1, label1 = (
+        NPIRK(system, t_final, dt1, RadauIIATableau(2)).solve(),
+        "NPIRK",
+    )
 
-    sol1, label1 = Rattle(system, t_final, dt1, atol=1e-8).solve(), "Rattle"
+    # sol1, label1 = Rattle(system, t_final, dt1, atol=1e-8).solve(), "Rattle"
     # sol1, label1 = (
     #     MoreauShifted(system, t_final, dt2, fix_point_max_iter=5).solve(),
     #     "MoreauShifted",

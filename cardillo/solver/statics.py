@@ -150,6 +150,7 @@ class Newton:
         )
         g_q = self.system.g_q(t, q, scipy_matrix=csr_matrix)
         g_S_q = self.system.g_S_q(t, q, scipy_matrix=csr_matrix)
+        # g_S_q = approx_fprime(q, lambda q: self.system.g_S(t, q))
 
         # note: csr_matrix is best for row slicing, see
         # (https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csr_matrix.html#scipy.sparse.csr_matrix)
@@ -172,21 +173,25 @@ class Newton:
                     [Rla_N_q, None,       Rla_N_la_N]], format="csc")
         # fmt: on
 
-        # J = bmat([[      K,  W_g,        W_N],
-        #             [    g_q, None,       None],
-        #             [  g_S_q, None,       None],
-        #             [Rla_N_q, None, Rla_N_la_N]], format="csc")
+        # fmt: off
+        J = bmat([[      K,  W_g,        W_N],
+                  [    g_q, None,       None],
+                  [  g_S_q, None,       None],
+                  [Rla_N_q, None, Rla_N_la_N]], format="csc")
+        # fmt: on
 
-        # # J_num = approx_fprime(x, lambda x: self.fun(t, x), method="3-point", eps=1e-6)
+        J_num = approx_fprime(x, lambda x: self.fun(t, x), method="3-point", eps=1e-6)
         # J_num = approx_fprime(x, lambda x: self.fun(t, x), method="cs", eps=1e-12)
-        # diff = J - J_num
-        # # diff = diff[: self.nu]
-        # # diff = diff[: self.nu, : self.nu]
-        # # diff = diff[: self.nu, self.nu :]
-        # # diff = diff[self.nu :]
-        # error = np.linalg.norm(diff)
-        # print(f"error J: {error}")
-        # yield J_num
+        diff = J - J_num
+        # diff = diff[: self.nu]
+        # diff = diff[: self.nu, : self.nu]
+        # diff = diff[: self.nu, self.nu :]
+        # diff = diff[self.nu : self.nu + self.nla_g]
+        # diff = diff[self.nu + self.nla_g : self.nu + self.nla_g + self.nla_S]
+        diff = diff[self.nu + self.nla_g : self.nu + self.nla_g + self.nla_S, : self.nq]
+        error = np.linalg.norm(diff)
+        print(f"error J: {error}")
+        yield J_num
 
     def __residual(self, t, x):
         return next(self.__eval__(t, x))

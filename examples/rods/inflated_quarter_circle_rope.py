@@ -1,8 +1,9 @@
 from cardillo.discrete import Frame
-from cardillo.constraints import Linear_guidance_xyz, Spherical
+from cardillo.constraints import Spherical
+from cardillo.constraints._base import PositionOrientationBase
 from cardillo.beams import (
     Rope,
-    animate_rope,
+    animate_beam,
 )
 
 from cardillo.beams.rope import QuadraticMaterial
@@ -11,7 +12,7 @@ from cardillo.solver import (
     Newton,
     ScipyIVP,
 )
-from cardillo.math import pi, e3, rodriguez, approx_fprime, norm
+from cardillo.math import pi, e3, Exp_SO3, approx_fprime, norm
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -75,20 +76,16 @@ class Inflated(Rope):
                 )
         return f_el
 
-    def h_q(self, t, q, u, coo):
-        super().h_q(t, q, u, coo)
+    def h_q(self, t, q, u):
+        coo = super().h_q(t, q, u)
         for el in range(self.nelement):
             elDOF = self.elDOF[el]
-            f_npot_q_el = self.f_npot_q_el(t, q[elDOF], u[elDOF], el)
+            coo[elDOF, elDOF] = self.f_npot_q_el(t, q[elDOF], u[elDOF], el)
 
-            # sparse assemble element internal stiffness matrix
-            coo.extend(f_npot_q_el, (self.uDOF[elDOF], self.qDOF[elDOF]))
+        return coo
 
     def f_npot_q_el(self, t, qe, ue, el):
-        f_npot_q_el_num = approx_fprime(
-            qe, lambda qe: self.f_npot_el(t, qe, ue, el), eps=1.0e-10, method="cs"
-        )
-        return f_npot_q_el_num
+        return approx_fprime(qe, lambda qe: self.f_npot_el(t, qe, ue, el))
 
 
 case = "statics"
@@ -171,17 +168,29 @@ if __name__ == "__main__":
 
     # left joint
     r_OP0 = r0[:, 0]
-    A_IK0 = rodriguez(pi / 2 * e3)
+    A_IK0 = Exp_SO3(pi / 2 * e3)
     frame0 = Frame(r_OP=r_OP0, A_IK=A_IK0)
-    # joint0 = SphericalJoint(frame0, rope, r_OP0, frame_ID2=(0,))
-    joint0 = Linear_guidance_xyz(frame0, rope, r_OP0, A_IK0, frame_ID2=(0,))
+    joint0 = Spherical(frame0, rope, r_OP0, frame_ID2=(0,))
+    # joint0 = Linear_guidance_xyz(frame0, rope, r_OP0, A_IK0, frame_ID2=(0,))
+    # joint0 = PositionOrientationBase(
+    #     subsystem1=frame0,
+    #     subsystem2=rope,
+    #     projection_pairs_rotation=[],
+    #     frame_ID2=(0,),
+    # )
 
     # left joint
     r_OP1 = r0[:, -1]
     A_IK1 = np.eye(3, dtype=float)
     frame1 = Frame(r_OP=r_OP1, A_IK=A_IK1)
-    # joint1 = SphericalJoint(frame1, rope, r_OP1, frame_ID2=(1,))
-    joint1 = Linear_guidance_xyz(frame1, rope, r_OP1, A_IK1, frame_ID2=(1,))
+    joint1 = Spherical(frame1, rope, r_OP1, frame_ID2=(1,))
+    # joint1 = Linear_guidance_xyz(frame1, rope, r_OP1, A_IK1, frame_ID2=(1,))
+    # joint1 = Cylindrical(
+    #     subsystem1=frame1,
+    #     subsystem2=rope,
+    #     axis=2,
+    #     frame_ID2=(1,),
+    # )
 
     ############################################################################
     #                   model
@@ -195,7 +204,7 @@ if __name__ == "__main__":
     system.assemble()
 
     # # show initial configuration
-    # animate_rope([0], [q0], [rope], R, show=True)
+    # animate_beam([0], [q0], [rope], R, show=True, n_frames=0)
 
     ############################################################################
     #                   solver
@@ -283,7 +292,7 @@ if __name__ == "__main__":
     scale_z = 0.2
 
     # TODO: resolve problem with last frame not showing
-    fig1, ax1, anim1 = animate_rope(t, q, [rope], scale_plane, show=False, repeat=True)
+    fig1, ax1, anim1 = animate_beam(t, q, [rope], scale_plane, show=False, n_frames=0)
 
     # plane with x-direction as normal
     Y_x = np.linspace(0, scale_plane, num=2)

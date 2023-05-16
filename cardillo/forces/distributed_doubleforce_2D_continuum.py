@@ -30,7 +30,7 @@ class DistributedDoubleforce2DContinuum:
             t, q, self.doubleforce_distr2D, self.srf_idx, self.srf_w_J0, self.Nb_X
         )
 
-    def h_q(self, t, q, u, coo):
-        self.subsystem.doubleforce_distr2D_q(
-            t, q, coo, self.doubleforce_distr2D, self.srf_idx, self.srf_w_J0
+    def h_q(self, t, q, u):
+        return self.subsystem.doubleforce_distr2D_q(
+            t, q, self.doubleforce_distr2D, self.srf_idx, self.srf_w_J0
         )

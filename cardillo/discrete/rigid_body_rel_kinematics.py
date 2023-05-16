@@ -171,26 +171,23 @@ class RigidBodyRelKinematics:
 
         self.is_assembled = True
 
-    def M(self, t, q, coo):
+    def M(self, t, q):
         J_S = self.J_P(t, q)
         J_R = self.K_J_R(t, q)
-        M = self.m * J_S.T @ J_S + J_R.T @ self.K_theta_S @ J_R
-        coo.extend(M, (self.uDOF, self.uDOF))
+        return self.m * J_S.T @ J_S + J_R.T @ self.K_theta_S @ J_R
 
-    def Mu_q(self, t, q, u, coo):
+    def Mu_q(self, t, q, u):
         J_S = self.J_P(t, q)
         J_R = self.K_J_R(t, q)
         J_S_q = self.J_P_q(t, q)
         J_R_q = self.K_J_R_q(t, q)
 
-        Mu_q = (
+        return (
             np.einsum("ijl,ik,k->jl", J_S_q, J_S, self.m * u)
             + np.einsum("ij,ikl,k->jl", J_S, J_S_q, self.m * u)
             + np.einsum("ijl,ik,k->jl", J_R_q, self.K_theta_S @ J_R, u)
             + np.einsum("ij,jkl,k->il", J_R.T @ self.K_theta_S, J_R_q, u)
         )
-
-        coo.extend(Mu_q, (self.uDOF, self.qDOF))
 
     def h(self, t, q, u):
         Omega = self.K_Omega(t, q, u)
@@ -203,7 +200,7 @@ class RigidBodyRelKinematics:
             )
         )
 
-    def h_q(self, t, q, u, coo):
+    def h_q(self, t, q, u):
         Omega = self.K_Omega(t, q, u)
         Omega_q = self.K_Omega_q(t, q, u)
         J_P_q = self.J_P_q(t, q)
@@ -220,10 +217,9 @@ class RigidBodyRelKinematics:
             + np.einsum("jik,j->ik", J_P_q, tmp1 + tmp2)
             + self.K_J_R(t, q).T @ (tmp1_q + tmp2_q)
         )
+        return f_gyr_q
 
-        coo.extend(f_gyr_q, (self.uDOF, self.qDOF))
-
-    def h_u(self, t, q, u, coo):
+    def h_u(self, t, q, u):
         Omega = self.K_Omega(t, q, u)
         Omega_u = self.K_J_R(t, q)
         tmp1_u = self.K_theta_S @ self.K_kappa_R_u(t, q, u)
@@ -231,15 +227,14 @@ class RigidBodyRelKinematics:
             ax2skew(Omega) @ self.K_theta_S - ax2skew(self.K_theta_S @ Omega)
         ) @ Omega_u
 
-        h_u = -(
+        f_gyr_u = -(
             self.m * self.J_P(t, q).T @ self.kappa_P_u(t, q, u)
             + self.K_J_R(t, q).T @ (tmp1_u + tmp2_u)
         )
-        coo.extend(h_u, (self.uDOF, self.uDOF))
+        return f_gyr_u
 
         # f_gyr_u_num = Numerical_derivative(self.f_gyr, order=2)._y(t, q, u)
         # print(f'f_gyr_u error = {np.linalg.norm(f_gyr_u - f_gyr_u_num)}')
-        # coo.extend(f_gyr_u_num, (self.uDOF, self.uDOF))
 
     #########################################
     # helper functions

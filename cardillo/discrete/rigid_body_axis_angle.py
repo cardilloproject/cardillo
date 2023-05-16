@@ -45,32 +45,29 @@ class RigidBodyAxisAngle(RigidBodyBase):
         T_inv = T_SO3_inv(q[3:])
         return T_inv
 
-    def q_dot_q_dense(self, t, q, u):
-        dense = np.zeros((self.nq, self.nq), dtype=float)
-        dense[3:, 3:] = np.einsum("ijk,j->ik", T_SO3_inv_psi(q[3:]), u[3:])
-        return dense
-
-    def q_dot_q(self, t, q, u, coo):
-        coo.extend(self.q_dot_q_dense(t, q, u), (self.qDOF, self.qDOF))
+    def q_dot_q(self, t, q, u):
+        q_dot_q = np.zeros((self.nq, self.nq), dtype=float)
+        q_dot_q[3:, 3:] = np.einsum("ijk,j->ik", T_SO3_inv_psi(q[3:]), u[3:])
+        return q_dot_q
 
     def q_ddot(self, t, q, u, u_dot):
         q_ddot = np.zeros(self.nq, dtype=np.common_type(q, u, u_dot))
         q_ddot[:3] = u_dot[:3]
         q_ddot[3:] = self.B_omega(q) @ u_dot[3:]
 
-        q_ddot += self.q_dot_q_dense(t, q, u) @ self.q_dot(t, q, u)
+        q_ddot += self.q_dot_q(t, q, u) @ self.q_dot(t, q, u)
         return q_ddot
 
-    def B(self, t, q, coo):
+    def B(self, t, q):
         B = np.zeros((self.nq, self.nu), dtype=q.dtype)
         B[:3, :3] = np.eye(3)
         B[3:, 3:] = self.B_omega(q)
-        coo.extend(B, (self.qDOF, self.uDOF))
+        return B
 
     def A_IK(self, t, q, frame_ID=None):
         return Exp_SO3(q[3:])
 
     def A_IK_q(self, t, q, frame_ID=None):
-        dense = np.zeros((3, 3, self.nq), dtype=q.dtype)
-        dense[:, :, 3:] = Exp_SO3_psi(q[3:])
-        return dense
+        A_IK_q = np.zeros((3, 3, self.nq), dtype=q.dtype)
+        A_IK_q[:, :, 3:] = Exp_SO3_psi(q[3:])
+        return A_IK_q

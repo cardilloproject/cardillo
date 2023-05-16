@@ -75,7 +75,8 @@ class DisplacementConstraint:
                     )
         return ge_q
 
-    def g_q_dense(self, t, q):
+    # TODO: Make this sparse!
+    def g_q(self, t, q):
         g_z = np.zeros((self.nla_g, self.subsystem.nz))
         z = self.subsystem.z(t, q)
         for el in range(self.con_mesh.nelement):
@@ -85,12 +86,8 @@ class DisplacementConstraint:
             g_z[np.ix_(la_elDOF_el, elDOF_el)] += self.g_el_q(t, qe, el)
         return g_z[:, self.subsystem.fDOF]  # g_q = g_z[:, self.subsystem.fDOF]
 
-    def g_q(self, t, q, coo):
-        coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
-
-    def W_g(self, t, q, coo):
-        # TODO: uDOF instead of qDOF!
-        coo.extend(self.g_q_dense(t, q).T, (self.uDOF, self.la_gDOF))
+    def W_g(self, t, q):
+        return self.g_q(t, q).T
 
     # def Wla_g_q_el(self, t, qel, lael, el):
     #     Wla_g_q_el = np.zeros((qel.shape[0], qel.shape[0]))
@@ -104,7 +101,7 @@ class DisplacementConstraint:
     #                 Wla_g_q_el[self.con_mesh.nodalDOF[a, self.x], idx] += 0
     #     return Wla_g_q_el
 
-    def Wla_g_q(self, t, q, la_g, coo):
+    def Wla_g_q(self, t, q, la_g):
         pass
         # Wla_g_q = np.zeros((self.subsystem.nz, self.subsystem.nz))
         # z = self.subsystem.z(t, q)
@@ -191,7 +188,8 @@ class GradientConstraint:
                     )
         return ge_q
 
-    def g_q_dense(self, t, q):
+    # TODO: Make this sparse!
+    def g_q(self, t, q):
         g_z = np.zeros((self.nla_g, self.subsystem.nz))
         z = self.subsystem.z(t, q)
         for el in range(self.con_mesh.nelement):
@@ -201,11 +199,8 @@ class GradientConstraint:
             g_z[np.ix_(la_elDOF_el, elDOF_el)] += self.g_el_q(t, qe, el)
         return g_z[:, self.subsystem.fDOF]
 
-    def g_q(self, t, q, coo):
-        coo.extend(self.g_q_dense(t, q), (self.la_gDOF, self.qDOF))
+    def W_g(self, t, q):
+        return self.g_q(t, q).T
 
-    def W_g(self, t, q, coo):
-        coo.extend(self.g_q_dense(t, q).T, (self.uDOF, self.la_gDOF))
-
-    def Wla_g_q(self, t, q, la_g, coo):
+    def Wla_g_q(self, t, q, la_g):
         pass

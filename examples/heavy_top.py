@@ -17,10 +17,10 @@ from cardillo.solver import (
     GeneralizedAlphaSecondOrder,
     Rattle,
     NPIRK,
-    RadauIIATableau,
     NonsmoothGeneralizedAlpha,
     MoreauShifted,
 )
+from cardillo.solver._butcher_tableaus import RadauIIATableau
 
 
 class HeavyTopQuaternion(RigidBodyQuaternion):
@@ -38,9 +38,8 @@ class HeavyTopQuaternion(RigidBodyQuaternion):
     def h(self, t, q, u):
         return self.f_g @ self.J_P(t, q)
 
-    def h_q(self, t, q, u, coo):
-        dense = np.einsum("i,ijk->jk", self.f_g, self.J_P_q(t, q))
-        coo.extend(dense, (self.uDOF, self.qDOF))
+    def h_q(self, t, q, u):
+        return np.einsum("i,ijk->jk", self.f_g, self.J_P_q(t, q))
 
 
 ########################################

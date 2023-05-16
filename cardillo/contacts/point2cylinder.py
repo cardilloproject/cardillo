@@ -130,7 +130,7 @@ class Point2Cylinder:
         r_QP = r_OP - r_OQ
         return np.array([r_QP @ r_QP - self.radius**2])
 
-    def g_N_q_dense(self, t, q):
+    def g_N_q(self, t, q):
         r_OB = self.r_OB(t)
         r_OP = self.r_OP(t, q)
         r_BP = r_OP - r_OB
@@ -141,36 +141,18 @@ class Point2Cylinder:
         r_OP_q = self.r_OP_q(t, q)
         return np.array([2 * r_QP @ r_OP_q])
 
-    def g_N_q(self, t, q, coo):
-        coo.extend(self.g_N_q_dense(t, q), (self.la_NDOF, self.qDOF))
-
     # def g_N_dot(self, t, q, u):
     #     # TODO: n_dot(t)
     #     return np.array([self.d3(t) @ (self.v_P(t, q, u) - self.v_B(t))])
 
-    # def g_N_dot_q_dense(self, t, q, u):
+    # def g_N_dot_q(self, t, q, u):
     #     return np.array([self.d3(t) @ self.v_P_q(t, q, u)])
 
-    # def g_N_dot_q(self, t, q, u, coo):
-    #     coo.extend(self.g_N_dot_q_dense(t, q, u), (self.la_NDOF, self.qDOF))
-
-    # def g_N_dot_u_dense(self, t, q):
+    # def g_N_dot_u(self, t, q):
     #     # TODO: n_dot(t)
     #     return np.array([self.d3(t) @ self.J_P(t, q)])
 
-    # def g_N_dot_u(self, t, q, coo):
-    #     coo.extend(self.g_N_dot_u_dense(t, q), (self.la_NDOF, self.uDOF))
-
-    # def xi_N(self, t, q, u_pre, u_post):
-    #     return self.g_N_dot(t, q, u_post) + self.e_N * self.g_N_dot(t, q, u_pre)
-
-    # def xi_N_q(self, t, q, u_pre, u_post, coo):
-    #     g_N_q_pre = self.g_N_dot_q_dense(t, q, u_pre)
-    #     g_N_q_post = self.g_N_dot_q_dense(t, q, u_post)
-    #     dense = g_N_q_post + self.e_N * g_N_q_pre
-    #     coo.extend(dense, (self.la_NDOF, self.qDOF))
-
-    def W_N_dense(self, t, q):
+    def W_N(self, t, q):
         r_OB = self.r_OB(t)
         r_OP = self.r_OP(t, q)
         r_BP = r_OP - r_OB
@@ -182,30 +164,15 @@ class Point2Cylinder:
         # return np.array([J_P.T @ r_QP * 2])
         return np.array([2 * r_QP @ J_P]).T
 
-    def W_N(self, t, q, coo):
-        coo.extend(self.W_N_dense(t, q), (self.uDOF, self.la_NDOF))
-
     # def g_N_ddot(self, t, q, u, u_dot):
     #     return np.array([self.d3(t) @ (self.a_P(t, q, u, u_dot) - self.a_B(t))])
 
-    # def g_N_ddot_q(self, t, q, u, u_dot, coo):
-    #     dense = np.array([self.d3(t) @ self.a_P_q(t, q, u, u_dot)])
-    #     coo.extend(dense, (self.la_NDOF, self.qDOF))
+    # def g_N_ddot_q(self, t, q, u, u_dot):
+    #     return np.array([self.d3(t) @ self.a_P_q(t, q, u, u_dot)])
 
-    # def g_N_ddot_u(self, t, q, u, u_dot, coo):
-    #     dense = np.array([self.d3(t) @ self.a_P_u(t, q, u, u_dot)])
-    #     coo.extend(dense, (self.la_NDOF, self.uDOF))
+    # def g_N_ddot_u(self, t, q, u, u_dot):
+    #     return np.array([self.d3(t) @ self.a_P_u(t, q, u, u_dot)])
 
-    def Wla_N_q(self, t, q, la_N, coo):
-        f = lambda q: self.W_N_dense(t, q) @ la_N
-        dense = approx_fprime(q, f)
-        coo.extend(dense, (self.uDOF, self.qDOF))
-
-    # def xi_N(self, t, q, u_pre, u_post):
-    #     return self.g_N_dot(t, q, u_post) + self.e_N * self.g_N_dot(t, q, u_pre)
-
-    # def xi_N_q(self, t, q, u_pre, u_post, coo):
-    #     g_N_q_pre = self.g_N_dot_q_dense(t, q, u_pre)
-    #     g_N_q_post = self.g_N_dot_q_dense(t, q, u_post)
-    #     dense = g_N_q_post + self.e_N * g_N_q_pre
-    #     coo.extend(dense, (self.la_NDOF, self.qDOF))
+    def Wla_N_q(self, t, q, la_N):
+        f = lambda q: self.W_N(t, q) @ la_N
+        return approx_fprime(q, f)

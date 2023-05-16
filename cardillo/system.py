@@ -1,5 +1,5 @@
 import numpy as np
-from cardillo.utility.coo import Coo
+from cardillo.utility.coo_matrix import CooMatrix
 from cardillo.discrete.frame import Frame
 from cardillo.solver import consistent_initial_conditions
 from scipy.sparse import coo_matrix, csc_matrix, csr_matrix
@@ -27,12 +27,26 @@ properties.extend(["assembler_callback", "pre_iteration_update", "step_callback"
 
 
 class System:
-    """Sparse model implementation which assembles all global objects without copying on body and element level.
+    """Sparse model implementation which assembles all global objects without
+    copying on body and element level.
 
     Notes
     -----
 
-    All model functions which return matrices have :py:class:`scipy.sparse.coo_matrix` as default scipy sparse matrix type (:py:class:`scipy.sparse.spmatrix`). This is due to the fact that the assembling of global iteration matrices is done using :py:func:`scipy.sparse.bmat` which in a first step transforms all matrices to :py:class:`scipy.sparse.coo_matrix`. A :py:class:`scipy.sparse.coo_matrix`, inherits form :py:class:`scipy.sparse._data_matrix` `[1] <https://github.com/scipy/scipy/blob/adc4f4f7bab120ccfab9383aba272954a0a12fb0/scipy/sparse/data.py#L21-L126>`_, have limited support for arithmetic operations, only a few operations as :py:func:`__neg__`, :py:func:`__imul__`, :py:func:`__itruediv__` are implemented. For all other operations the matrix is first transformed to a :py:class:`scipy.sparse.csr_matrix` `[2] <https://github.com/scipy/scipy/blob/adc4f4f7bab120ccfab9383aba272954a0a12fb0/scipy/sparse/base.py#L330-L335>`_. Slicing is also not supported for matrices of type :py:class:`scipy.sparse.coo_matrix`, we have to use other formats as :py:class:`scipy.sparse.csr_matrix` or :py:class:`scipy.sparse.csc_matrix` for that.
+    All model functions which return matrices have :py:class:`scipy.sparse.coo_matrix`
+    as default scipy sparse matrix type (:py:class:`scipy.sparse.spmatrix`).
+    This is due to the fact that the assembling of global iteration matrices
+    is done using :py:func:`scipy.sparse.bmat` which in a first step transforms
+    all matrices to :py:class:`scipy.sparse.coo_matrix`. A :py:class:`scipy.sparse.coo_matrix`,
+    inherits form :py:class:`scipy.sparse._data_matrix`
+    `[1] <https://github.com/scipy/scipy/blob/adc4f4f7bab120ccfab9383aba272954a0a12fb0/scipy/sparse/data.py#L21-L126>`_,
+    have limited support for arithmetic operations, only a few operations as
+    :py:func:`__neg__`, :py:func:`__imul__`, :py:func:`__itruediv__` are implemented.
+    For all other operations the matrix is first transformed to a :py:class:`scipy.sparse.csr_matrix`
+    `[2] <https://github.com/scipy/scipy/blob/adc4f4f7bab120ccfab9383aba272954a0a12fb0/scipy/sparse/base.py#L330-L335>`_.
+    Slicing is also not supported for matrices of type :py:class:`scipy.sparse.coo_matrix`,
+    we have to use other formats as :py:class:`scipy.sparse.csr_matrix` or
+    :py:class:`scipy.sparse.csc_matrix` for that.
 
     """
 
@@ -72,7 +86,9 @@ class System:
 
     def deepcopy(self, solution):
         """
-        Create a deepcopy of the system and set the original system, which is accessed by `self`, to the state given by the passed Solution. Additionally reassemble the original system.
+        Create a deepcopy of the system and set the original system, which is
+        accessed by `self`, to the state given by the passed Solution.
+        Additionally reassemble the original system.
 
         Args:
             solution (Solution): previously calculated solution of system
@@ -242,15 +258,15 @@ class System:
         return q_dot
 
     def q_dot_q(self, t, q, u, scipy_matrix=coo_matrix):
-        coo = Coo((self.nq, self.nq))
+        coo = CooMatrix((self.nq, self.nq))
         for contr in self.__q_dot_q_contr:
-            contr.q_dot_q(t, q[contr.qDOF], u[contr.uDOF], coo)
+            coo[contr.qDOF, contr.qDOF] = contr.q_dot_q(t, q[contr.qDOF], u[contr.uDOF])
         return coo.tosparse(scipy_matrix)
 
     def B(self, t, q, scipy_matrix=coo_matrix):
-        coo = Coo((self.nq, self.nu))
+        coo = CooMatrix((self.nq, self.nu))
         for contr in self.__B_contr:
-            contr.B(t, q[contr.qDOF], coo)
+            coo[contr.qDOF, contr.uDOF] = contr.B(t, q[contr.qDOF])
         return coo.tosparse(scipy_matrix)
 
     def q_ddot(self, t, q, u, u_dot):
@@ -292,15 +308,15 @@ class System:
     # equations of motion
     #####################
     def M(self, t, q, scipy_matrix=coo_matrix):
-        coo = Coo((self.nu, self.nu))
+        coo = CooMatrix((self.nu, self.nu))
         for contr in self.__M_contr:
-            contr.M(t, q[contr.qDOF], coo)
+            coo[contr.uDOF, contr.uDOF] = contr.M(t, q[contr.qDOF])
         return coo.tosparse(scipy_matrix)
 
     def Mu_q(self, t, q, u, scipy_matrix=coo_matrix):
-        coo = Coo((self.nu, self.nq))
+        coo = CooMatrix((self.nu, self.nq))
         for contr in self.__Mu_q_contr:
-            contr.Mu_q(t, q[contr.qDOF], u[contr.uDOF], coo)
+            coo[contr.uDOF, contr.qDOF] = contr.Mu_q(t, q[contr.qDOF], u[contr.uDOF])
         return coo.tosparse(scipy_matrix)
 
     def h(self, t, q, u):
@@ -310,15 +326,15 @@ class System:
         return h
 
     def h_q(self, t, q, u, scipy_matrix=coo_matrix):
-        coo = Coo((self.nu, self.nq))
+        coo = CooMatrix((self.nu, self.nq))
         for contr in self.__h_q_contr:
-            contr.h_q(t, q[contr.qDOF], u[contr.uDOF], coo)
+            coo[contr.uDOF, contr.qDOF] = contr.h_q(t, q[contr.qDOF], u[contr.uDOF])
         return coo.tosparse(scipy_matrix)
 
     def h_u(self, t, q, u, scipy_matrix=coo_matrix):
-        coo = Coo((self.nu, self.nu))
+        coo = CooMatrix((self.nu, self.nu))
         for contr in self.__h_u_contr:
-            contr.h_u(t, q[contr.qDOF], u[contr.uDOF], coo)
+            coo[contr.uDOF, contr.uDOF] = contr.h_u(t, q[contr.qDOF], u[contr.uDOF])
         return coo.tosparse(scipy_matrix)
 
     #########################################
@@ -331,27 +347,31 @@ class System:
         return g
 
     def g_q(self, t, q, scipy_matrix=coo_matrix):
-        coo = Coo((self.nla_g, self.nq))
+        coo = CooMatrix((self.nla_g, self.nq))
         for contr in self.__g_contr:
-            contr.g_q(t, q[contr.qDOF], coo)
+            coo[contr.la_gDOF, contr.qDOF] = contr.g_q(t, q[contr.qDOF])
         return coo.tosparse(scipy_matrix)
 
     def g_q_T_mu_q(self, t, q, mu_g, scipy_matrix=coo_matrix):
-        coo = Coo((self.nq, self.nq))
+        coo = CooMatrix((self.nq, self.nq))
         for contr in self.__g_contr:
-            contr.g_q_T_mu_q(t, q[contr.qDOF], mu_g[contr.la_gDOF], coo)
+            coo[contr.qDOF, contr.qDOF] = contr.g_q_T_mu_q(
+                t, q[contr.qDOF], mu_g[contr.la_gDOF]
+            )
         return coo.tosparse(scipy_matrix)
 
     def W_g(self, t, q, scipy_matrix=coo_matrix):
-        coo = Coo((self.nu, self.nla_g))
+        coo = CooMatrix((self.nu, self.nla_g))
         for contr in self.__g_contr:
-            contr.W_g(t, q[contr.qDOF], coo)
+            coo[contr.uDOF, contr.la_gDOF] = contr.W_g(t, q[contr.qDOF])
         return coo.tosparse(scipy_matrix)
 
     def Wla_g_q(self, t, q, la_g, scipy_matrix=coo_matrix):
-        coo = Coo((self.nu, self.nq))
+        coo = CooMatrix((self.nu, self.nq))
         for contr in self.__g_contr:
-            contr.Wla_g_q(t, q[contr.qDOF], la_g[contr.la_gDOF], coo)
+            coo[contr.uDOF, contr.qDOF] = contr.Wla_g_q(
+                t, q[contr.qDOF], la_g[contr.la_gDOF]
+            )
         return coo.tosparse(scipy_matrix)
 
     def g_dot(self, t, q, u):
@@ -365,15 +385,17 @@ class System:
         return self.g_dot(t, q, np.zeros(self.nu))
 
     def g_dot_u(self, t, q, scipy_matrix=coo_matrix):
-        coo = Coo((self.nla_g, self.nu))
+        coo = CooMatrix((self.nla_g, self.nu))
         for contr in self.__g_contr:
-            contr.g_dot_u(t, q[contr.qDOF], coo)
+            coo[contr.la_gDOF, contr.uDOF] = contr.g_dot_u(t, q[contr.qDOF])
         return coo.tosparse(scipy_matrix)
 
     def g_dot_q(self, t, q, u, scipy_matrix=coo_matrix):
-        coo = Coo((self.nla_g, self.nq))
+        coo = CooMatrix((self.nla_g, self.nq))
         for contr in self.__g_contr:
-            contr.g_dot_q(t, q[contr.qDOF], u[contr.uDOF], coo)
+            coo[contr.la_gDOF, contr.qDOF] = contr.g_dot_q(
+                t, q[contr.qDOF], u[contr.uDOF]
+            )
         return coo.tosparse(scipy_matrix)
 
     def g_ddot(self, t, q, u, u_dot):
@@ -385,15 +407,19 @@ class System:
         return g_ddot
 
     def g_ddot_q(self, t, q, u, u_dot, scipy_matrix=coo_matrix):
-        coo = Coo((self.nla_g, self.nq))
+        coo = CooMatrix((self.nla_g, self.nq))
         for contr in self.__g_contr:
-            contr.g_ddot_q(t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF], coo)
+            coo[contr.la_gDOF, contr.qDOF] = contr.g_ddot_q(
+                t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF]
+            )
         return coo.tosparse(scipy_matrix)
 
     def g_ddot_u(self, t, q, u, u_dot, scipy_matrix=coo_matrix):
-        coo = Coo((self.nla_g, self.nu))
+        coo = CooMatrix((self.nla_g, self.nu))
         for contr in self.__g_contr:
-            contr.g_ddot_u(t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF], coo)
+            coo[contr.la_gDOF, contr.uDOF] = contr.g_ddot_u(
+                t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF]
+            )
         return coo.tosparse(scipy_matrix)
 
     # TODO: Assemble zeta_g for efficency
@@ -426,39 +452,47 @@ class System:
         return self.gamma_dot(t, q, u, np.zeros(self.nu))
 
     def gamma_q(self, t, q, u, scipy_matrix=coo_matrix):
-        coo = Coo((self.nla_gamma, self.nq))
+        coo = CooMatrix((self.nla_gamma, self.nq))
         for contr in self.__gamma_contr:
-            contr.gamma_q(t, q[contr.qDOF], u[contr.uDOF], coo)
-        return coo.tosparse(scipy_matrix)
-
-    def gamma_dot_q(self, t, q, u, u_dot, scipy_matrix=coo_matrix):
-        coo = Coo((self.nla_gamma, self.nq))
-        for contr in self.__gamma_contr:
-            contr.gamma_dot_q(t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF], coo)
-        return coo.tosparse(scipy_matrix)
-
-    def gamma_dot_u(self, t, q, u, u_dot, scipy_matrix=coo_matrix):
-        coo = Coo((self.nla_gamma, self.nu))
-        for contr in self.__gamma_contr:
-            contr.gamma_dot_u(t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF], coo)
+            coo[contr.la_gammaDOF, contr.qDOF] = contr.gamma_q(
+                t, q[contr.qDOF], u[contr.uDOF]
+            )
         return coo.tosparse(scipy_matrix)
 
     def gamma_u(self, t, q, scipy_matrix=coo_matrix):
-        coo = Coo((self.nla_gamma, self.nu))
+        coo = CooMatrix((self.nla_gamma, self.nu))
         for contr in self.__gamma_contr:
-            contr.gamma_u(t, q[contr.qDOF], coo)
+            coo[contr.la_gammaDOF, contr.uDOF] = contr.gamma_u(t, q[contr.qDOF])
+        return coo.tosparse(scipy_matrix)
+
+    def gamma_dot_q(self, t, q, u, u_dot, scipy_matrix=coo_matrix):
+        coo = CooMatrix((self.nla_gamma, self.nq))
+        for contr in self.__gamma_contr:
+            coo[contr.la_gammaDOF, contr.qDOF] = contr.gamma_dot_q(
+                t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF]
+            )
+        return coo.tosparse(scipy_matrix)
+
+    def gamma_dot_u(self, t, q, u, u_dot, scipy_matrix=coo_matrix):
+        coo = CooMatrix((self.nla_gamma, self.nu))
+        for contr in self.__gamma_contr:
+            coo[contr.la_gammaDOF, contr.uDOF] = contr.gamma_dot_u(
+                t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF]
+            )
         return coo.tosparse(scipy_matrix)
 
     def W_gamma(self, t, q, scipy_matrix=coo_matrix):
-        coo = Coo((self.nu, self.nla_gamma))
+        coo = CooMatrix((self.nu, self.nla_gamma))
         for contr in self.__gamma_contr:
-            contr.W_gamma(t, q[contr.qDOF], coo)
+            coo[contr.uDOF, contr.la_gammaDOF] = contr.W_gamma(t, q[contr.qDOF])
         return coo.tosparse(scipy_matrix)
 
     def Wla_gamma_q(self, t, q, la_gamma, scipy_matrix=coo_matrix):
-        coo = Coo((self.nu, self.nq))
+        coo = CooMatrix((self.nu, self.nq))
         for contr in self.__gamma_contr:
-            contr.Wla_gamma_q(t, q[contr.qDOF], la_gamma[contr.la_gammaDOF], coo)
+            coo[contr.uDOF, contr.qDOF] = contr.Wla_gamma_q(
+                t, q[contr.qDOF], la_gamma[contr.la_gammaDOF]
+            )
         return coo.tosparse(scipy_matrix)
 
     #####################################################
@@ -471,15 +505,17 @@ class System:
         return g_S
 
     def g_S_q(self, t, q, scipy_matrix=coo_matrix):
-        coo = Coo((self.nla_S, self.nq))
+        coo = CooMatrix((self.nla_S, self.nq))
         for contr in self.__g_S_contr:
-            contr.g_S_q(t, q[contr.qDOF], coo)
+            coo[contr.la_SDOF, contr.qDOF] = contr.g_S_q(t, q[contr.qDOF])
         return coo.tosparse(scipy_matrix)
 
     def g_S_q_T_mu_q(self, t, q, mu, scipy_matrix=coo_matrix):
-        coo = Coo((self.nq, self.nq))
+        coo = CooMatrix((self.nq, self.nq))
         for contr in self.__g_S_contr:
-            contr.g_S_q_T_mu_q(t, q[contr.qDOF], mu[contr.la_SDOF], coo)
+            coo[contr.qDOF, contr.qDOF] = contr.g_S_q_T_mu_q(
+                t, q[contr.qDOF], mu[contr.la_SDOF]
+            )
         return coo.tosparse(scipy_matrix)
 
     #################
@@ -500,15 +536,15 @@ class System:
         return g_N
 
     def g_N_q(self, t, q, scipy_matrix=coo_matrix):
-        coo = Coo((self.nla_N, self.nq))
+        coo = CooMatrix((self.nla_N, self.nq))
         for contr in self.__g_N_contr:
-            contr.g_N_q(t, q[contr.qDOF], coo)
+            coo[contr.la_NDOF, contr.qDOF] = contr.g_N_q(t, q[contr.qDOF])
         return coo.tosparse(scipy_matrix)
 
     def W_N(self, t, q, scipy_matrix=coo_matrix):
-        coo = Coo((self.nu, self.nla_N))
+        coo = CooMatrix((self.nu, self.nla_N))
         for contr in self.__g_N_contr:
-            contr.W_N(t, q[contr.qDOF], coo)
+            coo[contr.uDOF, contr.la_NDOF] = contr.W_N(t, q[contr.qDOF])
         return coo.tosparse(scipy_matrix)
 
     def g_N_dot(self, t, q, u):
@@ -534,9 +570,11 @@ class System:
         return xi_N
 
     def xi_N_q(self, t, q, u_pre, u_post, scipy_matrix=coo_matrix):
-        coo = Coo((self.nla_N, self.nq))
+        coo = CooMatrix((self.nla_N, self.nq))
         for contr in self.__g_N_contr:
-            contr.xi_N_q(t, q[contr.qDOF], u_pre[contr.uDOF], u_post[contr.uDOF], coo)
+            coo[contr.la_NDOF, contr.qDOF] = contr.xi_N_q(
+                t, q[contr.qDOF], u_pre[contr.uDOF], u_post[contr.uDOF]
+            )
         return coo.tosparse(scipy_matrix)
 
     # TODO: Assemble chi_N for efficency
@@ -544,27 +582,33 @@ class System:
         return self.g_N_dot(t, q, np.zeros(self.nu), dtype=q.dtype)
 
     def g_N_dot_u(self, t, q, scipy_matrix=coo_matrix):
-        coo = Coo((self.nla_N, self.nu))
+        coo = CooMatrix((self.nla_N, self.nu))
         for contr in self.__g_N_contr:
-            contr.g_N_dot_u(t, q[contr.qDOF], coo)
+            coo[contr.la_NDOF, contr.uDOF] = contr.g_N_dot_u(t, q[contr.qDOF])
         return coo.tosparse(scipy_matrix)
 
     def g_N_ddot_q(self, t, q, u, u_dot, scipy_matrix=coo_matrix):
-        coo = Coo((self.nla_N, self.nu))
+        coo = CooMatrix((self.nla_N, self.nu))
         for contr in self.__g_N_contr:
-            contr.g_N_ddot_q(t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF], coo)
+            coo[contr.la_NDOF, contr.qDOF] = contr.g_N_ddot_q(
+                t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF]
+            )
         return coo.tosparse(scipy_matrix)
 
     def g_N_ddot_u(self, t, q, u, u_dot, scipy_matrix=coo_matrix):
-        coo = Coo((self.nla_N, self.nu))
+        coo = CooMatrix((self.nla_N, self.nu))
         for contr in self.__g_N_contr:
-            contr.g_N_ddot_u(t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF], coo)
+            coo[contr.la_NDOF, contr.uDOF] = contr.g_N_ddot_u(
+                t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF]
+            )
         return coo.tosparse(scipy_matrix)
 
     def Wla_N_q(self, t, q, la_N, scipy_matrix=coo_matrix):
-        coo = Coo((self.nu, self.nq))
+        coo = CooMatrix((self.nu, self.nq))
         for contr in self.__g_N_contr:
-            contr.Wla_N_q(t, q[contr.qDOF], la_N[contr.la_NDOF], coo)
+            coo[contr.uDOF, contr.qDOF] = contr.Wla_N_q(
+                t, q[contr.qDOF], la_N[contr.la_NDOF]
+            )
         return coo.tosparse(scipy_matrix)
 
     #################
@@ -603,43 +647,53 @@ class System:
         return xi_F
 
     def xi_F_q(self, t, q, u_pre, u_post, scipy_matrix=coo_matrix):
-        coo = Coo((self.nla_F, self.nq))
+        coo = CooMatrix((self.nla_F, self.nq))
         for contr in self.__gamma_F_contr:
-            contr.xi_F_q(t, q[contr.qDOF], u_pre[contr.uDOF], u_post[contr.uDOF], coo)
+            coo[contr.la_FDOF, contr.qDOF] = contr.xi_F_q(
+                t, q[contr.qDOF], u_pre[contr.uDOF], u_post[contr.uDOF]
+            )
         return coo.tosparse(scipy_matrix)
 
     def gamma_F_q(self, t, q, u, scipy_matrix=coo_matrix):
-        coo = Coo((self.nla_F, self.nq))
+        coo = CooMatrix((self.nla_F, self.nq))
         for contr in self.__gamma_F_contr:
-            contr.gamma_F_q(t, q[contr.qDOF], u[contr.uDOF], coo)
+            coo[contr.la_FDOF, contr.qDOF] = contr.gamma_F_q(
+                t, q[contr.qDOF], u[contr.uDOF]
+            )
         return coo.tosparse(scipy_matrix)
 
     def gamma_F_u(self, t, q, scipy_matrix=coo_matrix):
-        coo = Coo((self.nla_F, self.nu))
+        coo = CooMatrix((self.nla_F, self.nu))
         for contr in self.__gamma_F_contr:
-            contr.gamma_F_u(t, q[contr.qDOF], coo)
+            coo[contr.la_FDOF, contr.uDOF] = contr.gamma_F_u(t, q[contr.qDOF])
         return coo.tosparse(scipy_matrix)
 
     def gamma_F_dot_q(self, t, q, u, u_dot, scipy_matrix=coo_matrix):
-        coo = Coo((self.nla_F, self.nq))
+        coo = CooMatrix((self.nla_F, self.nq))
         for contr in self.__gamma_F_contr:
-            contr.gamma_F_dot_q(t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF], coo)
+            coo[contr.la_FDOF, contr.qDOF] = contr.gamma_F_dot_q(
+                t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF]
+            )
         return coo.tosparse(scipy_matrix)
 
     def gamma_F_dot_u(self, t, q, u, u_dot, scipy_matrix=coo_matrix):
-        coo = Coo((self.nla_F, self.nu))
+        coo = CooMatrix((self.nla_F, self.nu))
         for contr in self.__gamma_F_contr:
-            contr.gamma_F_dot_u(t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF], coo)
+            coo[contr.la_FDOF, contr.uDOF] = contr.gamma_F_dot_u(
+                t, q[contr.qDOF], u[contr.uDOF], u_dot[contr.uDOF]
+            )
         return coo.tosparse(scipy_matrix)
 
     def W_F(self, t, q, scipy_matrix=coo_matrix):
-        coo = Coo((self.nu, self.nla_F))
+        coo = CooMatrix((self.nu, self.nla_F))
         for contr in self.__gamma_F_contr:
-            contr.W_F(t, q[contr.qDOF], coo)
+            coo[contr.uDOF, contr.la_FDOF] = contr.W_F(t, q[contr.qDOF])
         return coo.tosparse(scipy_matrix)
 
     def Wla_F_q(self, t, q, la_F, scipy_matrix=coo_matrix):
-        coo = Coo((self.nu, self.nq))
+        coo = CooMatrix((self.nu, self.nq))
         for contr in self.__gamma_F_contr:
-            contr.Wla_F_q(t, q[contr.qDOF], la_F[contr.la_FDOF], coo)
+            coo[contr.uDOF, contr.qDOF] = contr.Wla_F_q(
+                t, q[contr.qDOF], la_F[contr.la_FDOF]
+            )
         return coo.tosparse(scipy_matrix)

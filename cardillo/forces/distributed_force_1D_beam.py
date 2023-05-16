@@ -16,5 +16,5 @@ class DistributedForce1DBeam:
     def h(self, t, q, u):
         return self.subsystem.distributed_force1D(t, q, self.force)
 
-    def h_q(self, t, q, u, coo):
-        self.subsystem.distributed_force1D_q(t, q, coo, self.force)
+    def h_q(self, t, q, u):
+        return self.subsystem.distributed_force1D_q(t, q, self.force)
