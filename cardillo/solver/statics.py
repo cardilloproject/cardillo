@@ -167,10 +167,10 @@ class Newton:
         # Rla_N_q = fb_b(la_N, g_N) @ g_N_q
 
         # fmt: off
-        yield bmat([[      K,  W_g.copy(),        W_N.copy()],
-                    [    g_q, None,       None],
-                    [  g_S_q, None,       None],
-                    [Rla_N_q, None, Rla_N_la_N]], format="csc")
+        yield bmat([[      K, W_g.copy(), W_N.copy()], 
+                    [    g_q, None,             None],
+                    [  g_S_q, None,             None],
+                    [Rla_N_q, None,       Rla_N_la_N]], format="csc")
         # fmt: on
 
         # fmt: off
@@ -328,7 +328,7 @@ class Riks:
     def a_x(self, x):
         nq = self.nq
         dq = x[:nq] - self.xk[:nq]
-        return 2 * dq, np.zeros(self.nla), 0
+        return 2 * dq, np.zeros(self.nla_g), 0
 
     def R(self, x):
         return next(self.gen_analytic(x))
@@ -340,10 +340,13 @@ class Riks:
     def gen_analytic(self, x):
         # extract generalized coordinates and Lagrange multipliers
         nq = self.nq
-        nla = self.nla
+        nu = self.nu
+        nla_g = self.nla_g
+        nla_S = self.nla_S
+
         q = x[:nq]
-        la = x[nq : nq + nla]
-        la_arc = x[nq + nla]
+        la_g = x[nq : nq + nla_g]
+        la_arc = x[-1]
 
         # evaluate all functions with t = la_arc -> model does not change!
         # - this requires the external force that should be scaled to be of the form
@@ -357,9 +360,10 @@ class Riks:
 
         # build residual
         R = np.zeros(self.nx)
-        R[:nq] = h + W_g @ la
-        R[nq : nq + nla] = g
-        R[nq + nla] = self.a(x) - self.ds**2
+        R[:nu] = h + W_g @ la_g
+        R[nu : nu + nla_g] = g
+        R[nu + nla_g : nu + nla_g + nla_S] = self.model.g_S(t, q)
+        R[-1] = self.a(x) - self.ds**2
 
         yield R
 
@@ -369,9 +373,10 @@ class Riks:
         # - the constraints for displacement control have to be of the form
         #   g(t, q) = t * g(q)
         h_q = self.model.h_q(t, q, self.u0)
-        Wla_g_q = self.model.Wla_g_q(t, q, la)
-        g_q = self.model.g_q(t, q)
+        Wla_g_q = self.model.Wla_g_q(t, q, la_g)
         Rq_q = h_q + Wla_g_q
+        g_q = self.model.g_q(t, q)
+        g_S_q = self.model.g_S_q(t, q)
 
         # TODO: this is a hack and can't be fixed without specifying the scaled equations
         # but it is only two addition evaluations of the h vector and the constraints
@@ -386,6 +391,7 @@ class Riks:
             [
                 [Rq_q, W_g, f_arc[:, None]],
                 [g_q, None, g_arc[:, None]],
+                [g_S_q, None, None],
                 [a_q, a_la, a_la_arc],
             ],
             format="csr",
@@ -393,19 +399,19 @@ class Riks:
 
     def __init__(
         self,
-        model,
-        tol=1e-10,
-        max_newton_iter=50,
+        system,
+        atol=1e-8,
+        max_iter=50,
         iter_goal=4,
         la_arc0=1.0e-3,
-        la_arc_span=np.array([1.0, 1.0]),
+        la_arc_span=np.array([0, 1], dtype=float),
         numerical_jacobian=False,
         scale_exponent=0.5,
         debug=0,
     ):
-        self.tol = tol
-        self.max_newton_iter = max_newton_iter
-        self.model = model
+        self.atol = atol
+        self.max_iter = max_iter
+        self.model = system
         self.iter_goal = iter_goal
         self.la_arc0 = la_arc0
         self.la_arc_span = la_arc_span
@@ -417,10 +423,6 @@ class Riks:
         else:
             self.gen = self.gen_analytic
 
-        # # check if we have an external force that is scaled by scalar parameter
-        # if not len(model._Model__f_scaled_contr):
-        #     raise RuntimeError('No scaled external force is given.')
-
         # parameter for the step size scaling
         self.MIN_FACTOR = 0.25  # minimal scaling factor
         self.MAX_FACTOR = 1.5  # maximal scaling factor
@@ -428,14 +430,15 @@ class Riks:
         # dimensions
         self.nq = self.model.nq
         self.nu = self.model.nu
-        self.nla = self.model.nla_g
-        self.nx = self.nq + self.nla + 1
+        self.nla_g = self.model.nla_g
+        self.nla_S = self.model.nla_S
+        self.nx = self.nq + self.nla_g + 1
 
         # initial
         self.q0 = self.model.q0
         self.la_g0 = self.model.la_g0
         self.la_arc0 = la_arc0
-        self.u0 = np.zeros(model.nu)  # statics
+        self.u0 = np.zeros(system.nu)  # statics
 
         # initial values for generalized coordinates, lagrange multipliers and force scaling
         self.x0 = self.xk = np.concatenate(
@@ -456,7 +459,7 @@ class Riks:
         error = self.newton_error_function(R)
         newton_iter = 0
         print(f"   * iter = {newton_iter}, error = {error:2.4e}")
-        while error > self.tol:
+        while error > self.atol:
             newton_iter += 1
             R_x = next(gen)[:-1, :-1]
             xk1[:-1] -= spsolve(R_x, R)
@@ -488,7 +491,7 @@ class Riks:
 
         # extract number of generalized coordinates and number of Lagrange multipliers
         nq = self.nq
-        nla = self.nla
+        nla = self.nla_g
 
         # initialize current generalized coordinates, Lagrange multipliers and force scaling
         la_arc = [self.la_arc0]
@@ -545,7 +548,7 @@ class Riks:
             newton_iter = 0
             if self.debug > 0:
                 print(f"   * iter = {newton_iter}, error = {error:2.4e}")
-            while (error > self.tol) and (newton_iter <= self.max_newton_iter):
+            while (error > self.atol) and (newton_iter <= self.max_iter):
                 # solve linear system of equations
                 R_x = next(gen)
                 dx = spsolve(R_x, R)
@@ -559,7 +562,7 @@ class Riks:
                 if self.debug > 0:
                     print(f"   * iter = {newton_iter}, error = {error:2.4e}")
 
-            if newton_iter >= self.max_newton_iter:
+            if newton_iter >= self.max_iter:
                 print(
                     f" - internal Newton not converged for lambda = {xk1[-1]:2.4e} with error {error:2.2e}."
                 )
@@ -591,7 +594,7 @@ class Riks:
             # these copies are essential!
             q.append(xk1[:nq].copy())
             la_g.append(xk1[nq : nq + nla].copy())
-            la_arc.append(xk1[nq + nla].copy())
+            la_arc.append(xk1[-1].copy())
 
         # return solution object
         return Solution(t=np.asarray(la_arc), q=np.asarray(q), la_g=np.asarray(la_g))
