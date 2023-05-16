@@ -8,8 +8,8 @@ from cardillo.math import inv3D, approx_fprime, A_IK_basic
 class RigidBodyEuler(RigidBodyBase):
     def __init__(
         self,
-        m: float,
-        K_theta_S: npt.NDArray,
+        mass: float,
+        K_Theta_S: npt.NDArray,
         axis: str = "zxy",
         q0: Optional[npt.NDArray] = None,
         u0: Optional[npt.NDArray] = None,
@@ -33,7 +33,7 @@ class RigidBodyEuler(RigidBodyBase):
         self.dA_12 = eval(f"lambda q: A_IK_basic(q[4]).d{axis[1]}()")
         self.dA_2K = eval(f"lambda q: A_IK_basic(q[5]).d{axis[2]}()")
 
-        super().__init__(m, K_theta_S, q0, u0)
+        super().__init__(mass, K_Theta_S, q0, u0)
 
     def q_dot(self, t, q, u):
         q_dot = np.zeros(self.nq, dtype=np.common_type(q, u))

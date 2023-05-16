@@ -5,16 +5,16 @@ from cardillo.math import cross3, ax2skew, ax2skew_a, approx_fprime
 class RigidBodyRelKinematics:
     def __init__(
         self,
-        m,
-        K_theta_S,
+        mass,
+        K_Theta_S,
         joint,
         predecessor,
         frame_IDp=np.zeros(3),
         r_OS0=np.zeros(3),
         A_IK0=np.eye(3),
     ):
-        self.m = m
-        self.K_theta_S = K_theta_S
+        self.m = mass
+        self.K_Theta_S = K_Theta_S
         self.r_OS0 = r_OS0
         self.A_IK0 = A_IK0
 
@@ -174,7 +174,7 @@ class RigidBodyRelKinematics:
     def M(self, t, q):
         J_S = self.J_P(t, q)
         J_R = self.K_J_R(t, q)
-        return self.m * J_S.T @ J_S + J_R.T @ self.K_theta_S @ J_R
+        return self.m * J_S.T @ J_S + J_R.T @ self.K_Theta_S @ J_R
 
     def Mu_q(self, t, q, u):
         J_S = self.J_P(t, q)
@@ -185,8 +185,8 @@ class RigidBodyRelKinematics:
         return (
             np.einsum("ijl,ik,k->jl", J_S_q, J_S, self.m * u)
             + np.einsum("ij,ikl,k->jl", J_S, J_S_q, self.m * u)
-            + np.einsum("ijl,ik,k->jl", J_R_q, self.K_theta_S @ J_R, u)
-            + np.einsum("ij,jkl,k->il", J_R.T @ self.K_theta_S, J_R_q, u)
+            + np.einsum("ijl,ik,k->jl", J_R_q, self.K_Theta_S @ J_R, u)
+            + np.einsum("ij,jkl,k->il", J_R.T @ self.K_Theta_S, J_R_q, u)
         )
 
     def h(self, t, q, u):
@@ -195,8 +195,8 @@ class RigidBodyRelKinematics:
             self.m * self.J_P(t, q).T @ self.kappa_P(t, q, u)
             + self.K_J_R(t, q).T
             @ (
-                self.K_theta_S @ self.K_kappa_R(t, q, u)
-                + cross3(Omega, self.K_theta_S @ Omega)
+                self.K_Theta_S @ self.K_kappa_R(t, q, u)
+                + cross3(Omega, self.K_Theta_S @ Omega)
             )
         )
 
@@ -204,11 +204,11 @@ class RigidBodyRelKinematics:
         Omega = self.K_Omega(t, q, u)
         Omega_q = self.K_Omega_q(t, q, u)
         J_P_q = self.J_P_q(t, q)
-        tmp1 = self.K_theta_S @ self.K_kappa_R(t, q, u)
-        tmp1_q = self.K_theta_S @ self.K_kappa_R_q(t, q, u)
-        tmp2 = cross3(Omega, self.K_theta_S @ Omega)
+        tmp1 = self.K_Theta_S @ self.K_kappa_R(t, q, u)
+        tmp1_q = self.K_Theta_S @ self.K_kappa_R_q(t, q, u)
+        tmp2 = cross3(Omega, self.K_Theta_S @ Omega)
         tmp2_q = (
-            ax2skew(Omega) @ self.K_theta_S - ax2skew(self.K_theta_S @ Omega)
+            ax2skew(Omega) @ self.K_Theta_S - ax2skew(self.K_Theta_S @ Omega)
         ) @ Omega_q
 
         f_gyr_q = -(
@@ -222,9 +222,9 @@ class RigidBodyRelKinematics:
     def h_u(self, t, q, u):
         Omega = self.K_Omega(t, q, u)
         Omega_u = self.K_J_R(t, q)
-        tmp1_u = self.K_theta_S @ self.K_kappa_R_u(t, q, u)
+        tmp1_u = self.K_Theta_S @ self.K_kappa_R_u(t, q, u)
         tmp2_u = (
-            ax2skew(Omega) @ self.K_theta_S - ax2skew(self.K_theta_S @ Omega)
+            ax2skew(Omega) @ self.K_Theta_S - ax2skew(self.K_Theta_S @ Omega)
         ) @ Omega_u
 
         f_gyr_u = -(
