@@ -1,6 +1,6 @@
 import warnings
 from scipy.sparse import csc_array, csr_array, coo_array
-from scipy.sparse.sputils import isshape, check_shape
+from scipy.sparse._sputils import isshape, check_shape
 from scipy.sparse import spmatrix
 from numpy import repeat, tile
 from array import array
