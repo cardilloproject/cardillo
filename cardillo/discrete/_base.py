@@ -146,9 +146,9 @@ class RigidBodyBase(ABC):
         return np.zeros((3, self.nu), dtype=np.common_type(q, u))
 
     def K_J_R(self, t, q, frame_ID=None):
-        J_R = np.zeros((3, self.nu), dtype=q.dtype)
-        J_R[:, 3:] = np.eye(3)
-        return J_R
+        K_J_R = np.zeros((3, self.nu), dtype=q.dtype)
+        K_J_R[:, 3:] = np.eye(3)
+        return K_J_R
 
     def K_J_R_q(self, t, q, frame_ID=None):
         return np.zeros((3, self.nu, self.nq), dtype=q.dtype)

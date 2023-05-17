@@ -173,20 +173,20 @@ class RigidBodyRelKinematics:
 
     def M(self, t, q):
         J_S = self.J_P(t, q)
-        J_R = self.K_J_R(t, q)
-        return self.m * J_S.T @ J_S + J_R.T @ self.K_Theta_S @ J_R
+        K_J_R = self.K_J_R(t, q)
+        return self.m * J_S.T @ J_S + K_J_R.T @ self.K_Theta_S @ K_J_R
 
     def Mu_q(self, t, q, u):
         J_S = self.J_P(t, q)
-        J_R = self.K_J_R(t, q)
+        K_J_R = self.K_J_R(t, q)
         J_S_q = self.J_P_q(t, q)
-        J_R_q = self.K_J_R_q(t, q)
+        K_J_R_q = self.K_J_R_q(t, q)
 
         return (
             np.einsum("ijl,ik,k->jl", J_S_q, J_S, self.m * u)
             + np.einsum("ij,ikl,k->jl", J_S, J_S_q, self.m * u)
-            + np.einsum("ijl,ik,k->jl", J_R_q, self.K_Theta_S @ J_R, u)
-            + np.einsum("ij,jkl,k->il", J_R.T @ self.K_Theta_S, J_R_q, u)
+            + np.einsum("ijl,ik,k->jl", K_J_R_q, self.K_Theta_S @ K_J_R, u)
+            + np.einsum("ij,jkl,k->il", K_J_R.T @ self.K_Theta_S, K_J_R_q, u)
         )
 
     def h(self, t, q, u):
@@ -519,19 +519,19 @@ class RigidBodyRelKinematics:
         return K_Omega_q
 
     def K_J_R(self, t, q, frame_ID=None):
-        # J_R = np.zeros((3, self.__nu))
+        # K_J_R = np.zeros((3, self.__nu))
         # nu_R = self.K_Omega(t, q, np.zeros(self.__nu))
         # I = np.eye(self.__nu)
         # for i in range(self.__nu):
-        #     J_R[:, i] = self.K_Omega(t, q, I[i]) - nu_R
-        # return J_R
+        #     K_J_R[:, i] = self.K_Omega(t, q, I[i]) - nu_R
+        # return K_J_R
 
-        J_R = np.zeros((3, self.__nu))
+        K_J_R = np.zeros((3, self.__nu))
         A_KB1 = (self.A_B1B2(t, q) @ self.A_B2K).T
-        J_R[:, : self.nup] = A_KB1 @ self.B1_J_Rp(t, q)
-        J_R[:, self.nup :] = A_KB1 @ self.B1_J_R_B1B2(t, q)
+        K_J_R[:, : self.nup] = A_KB1 @ self.B1_J_Rp(t, q)
+        K_J_R[:, self.nup :] = A_KB1 @ self.B1_J_R_B1B2(t, q)
 
-        return J_R
+        return K_J_R
 
     def K_J_R_q(self, t, q, frame_ID=None):
         # return Numerical_derivative(lambda t, q: self.K_J_R(t, q))._x(t, q)
