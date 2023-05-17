@@ -9,8 +9,8 @@ from cardillo.math import Exp_SO3, Exp_SO3_psi, T_SO3_inv, T_SO3_inv_psi, pi
 class RigidBodyAxisAngle(RigidBodyBase):
     def __init__(
         self,
-        m: float,
-        K_theta_S: npt.NDArray,
+        mass: float,
+        K_Theta_S: npt.NDArray,
         q0: Optional[npt.NDArray] = None,
         u0: Optional[npt.NDArray] = None,
     ):
@@ -20,7 +20,7 @@ class RigidBodyAxisAngle(RigidBodyBase):
         q0 = np.zeros(self.nq) if q0 is None else q0
         u0 = np.zeros(self.nu) if u0 is None else u0
 
-        super().__init__(m, K_theta_S, q0, u0)
+        super().__init__(mass, K_Theta_S, q0, u0)
 
     def step_callback(self, t, q, u):
         psi = q[3:]

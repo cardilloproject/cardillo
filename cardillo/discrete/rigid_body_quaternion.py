@@ -31,8 +31,8 @@ class RigidBodyQuaternion(RigidBodyBase):
 
     def __init__(
         self,
-        m: float,
-        K_theta_S: npt.ArrayLike,
+        mass: float,
+        K_Theta_S: npt.ArrayLike,
         q0: npt.ArrayLike,
         u0: Optional[npt.ArrayLike] = None,
     ):
@@ -48,7 +48,7 @@ class RigidBodyQuaternion(RigidBodyBase):
         u0 = np.zeros(self.nu, dtype=float) if u0 is None else np.asarray(u0)
         self.la_S0 = np.zeros(self.nla_S, dtype=float)
 
-        super().__init__(m, K_theta_S, q0, u0)
+        super().__init__(mass, K_Theta_S, q0, u0)
 
     def g_S(self, t, q):
         P = q[3:]
@@ -83,7 +83,6 @@ class RigidBodyQuaternion(RigidBodyBase):
         return B
 
     def q_ddot(self, t, q, u, u_dot):
-        # raise RuntimeWarning("RigidBodyQuaternion.q_ddot is not tested yet!")
         p = q[3:]
         p2 = p @ p
         B = T_SO3_inv_quat(p) / (p @ p)

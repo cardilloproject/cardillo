@@ -8,18 +8,18 @@ from cardillo.math import cross3, ax2skew
 class RigidBodyBase(ABC):
     def __init__(
         self,
-        m: float,
-        K_theta_S: npt.NDArray[np.float_],
+        mass: float,
+        K_Theta_S: npt.NDArray[np.float_],
         q0: npt.NDArray[np.float_],
         u0: npt.NDArray[np.float_],
     ) -> None:
         super().__init__()
-        self.m = m
-        self.K_theta_S = K_theta_S
+        self.mass = mass
+        self.K_Theta_S = K_Theta_S
 
         self.__M = np.zeros((self.nu, self.nu), dtype=float)
-        self.__M[:3, :3] = self.m * np.eye(3, dtype=float)
-        self.__M[3:, 3:] = self.K_theta_S
+        self.__M[:3, :3] = self.mass * np.eye(3, dtype=float)
+        self.__M[3:, 3:] = self.K_Theta_S
 
         assert q0.size == self.nq
         assert u0.size == self.nu
@@ -38,13 +38,13 @@ class RigidBodyBase(ABC):
     def h(self, t, q, u):
         omega = u[3:]
         f = np.zeros(self.nu, dtype=np.common_type(q, u))
-        f[3:] = -cross3(omega, self.K_theta_S @ omega)
+        f[3:] = -cross3(omega, self.K_Theta_S @ omega)
         return f
 
     def h_u(self, t, q, u):
         omega = u[3:]
         h_u = np.zeros((self.nu, self.nu), dtype=np.common_type(q, u))
-        h_u[3:, 3:] = ax2skew(self.K_theta_S @ omega) - ax2skew(omega) @ self.K_theta_S
+        h_u[3:, 3:] = ax2skew(self.K_Theta_S @ omega) - ax2skew(omega) @ self.K_Theta_S
         return h_u
 
     def local_qDOF_P(self, frame_ID=None):
@@ -146,9 +146,9 @@ class RigidBodyBase(ABC):
         return np.zeros((3, self.nu), dtype=np.common_type(q, u))
 
     def K_J_R(self, t, q, frame_ID=None):
-        J_R = np.zeros((3, self.nu), dtype=q.dtype)
-        J_R[:, 3:] = np.eye(3)
-        return J_R
+        K_J_R = np.zeros((3, self.nu), dtype=q.dtype)
+        K_J_R[:, 3:] = np.eye(3)
+        return K_J_R
 
     def K_J_R_q(self, t, q, frame_ID=None):
         return np.zeros((3, self.nu, self.nq), dtype=q.dtype)

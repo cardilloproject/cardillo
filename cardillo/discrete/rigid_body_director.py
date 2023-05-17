@@ -360,17 +360,17 @@ class RigidBodyDirector:
 
 
 class RigidBodyDirectorAngularVelocities:
-    def __init__(self, m, K_Theta_S, q0=None, u0=None, nka_c0=None):
-        self.m = m
-        self.theta = K_Theta_S
+    def __init__(self, mass, K_Theta_S, q0=None, u0=None, nka_c0=None):
+        self.mass = mass
+        self.K_Theta_S = K_Theta_S
 
         self.nq = 12
         self.nu = 6
         self.nla_S = 6
 
         self.M_ = np.zeros((self.nu, self.nu))
-        self.M_[:3, :3] = m * np.eye(3)
-        self.M_[3:, 3:] = self.theta
+        self.M_[:3, :3] = mass * np.eye(3)
+        self.M_[3:, 3:] = self.K_Theta_S
 
         if q0 is None:
             e1 = np.array([1, 0, 0])
@@ -392,13 +392,13 @@ class RigidBodyDirectorAngularVelocities:
     def h(self, t, q, u):
         omega = u[3:]
         h = np.zeros(self.nu)
-        h[3:] = -cross3(omega, self.theta @ omega)
+        h[3:] = -cross3(omega, self.K_Theta_S @ omega)
         return h
 
     def h_u(self, t, q, u):
         omega = u[3:]
         h_u = np.zeros((self.nu, self.nu))
-        h_u[3:, 3:] = ax2skew(self.theta @ omega) - ax2skew(omega) @ self.theta
+        h_u[3:, 3:] = ax2skew(self.K_Theta_S @ omega) - ax2skew(omega) @ self.K_Theta_S
         return h_u
 
     #########################################
