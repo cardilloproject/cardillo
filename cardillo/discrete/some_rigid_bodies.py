@@ -267,7 +267,7 @@ def Cylinder(RigidBodyParametrization):
 
 def FromSTL(RigidBodyParametrization):
     class _FromSTL(RigidBodyParametrization):
-        def __init__(self, path, mass, r_SP, K_Theta_S, q0=None, u0=None):
+        def __init__(self, path, mass, K_r_SP, K_Theta_S, q0=None, u0=None):
             warnings.warn("Use this with caution. This is not ready for serious usage!")
             self.path = path
 
@@ -275,7 +275,7 @@ def FromSTL(RigidBodyParametrization):
 
             super().__init__(mass, K_Theta_S, q0, u0)
 
-            self.K_r_SP = self.A_IK(0, self.q0).T @ r_SP
+            self.K_r_SP = K_r_SP
 
         def export(self, sol_i, base_export=False, **kwargs):
             if base_export:
