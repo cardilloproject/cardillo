@@ -267,17 +267,15 @@ def Cylinder(RigidBodyParametrization):
 
 def FromSTL(RigidBodyParametrization):
     class _FromSTL(RigidBodyParametrization):
-        def __init__(self, path, mass, r_PS, K_Theta_P, q0=None, u0=None):
+        def __init__(self, path, mass, r_SP, K_Theta_S, q0=None, u0=None):
             warnings.warn("Use this with caution. This is not ready for serious usage!")
             self.path = path
-
-            K_Theta_S = K_Theta_P + mass * ax2skew(r_PS) @ ax2skew(r_PS).T
 
             self.meshio_mesh = meshio.read(path)
 
             super().__init__(mass, K_Theta_S, q0, u0)
 
-            self.K_r_SP = -self.A_IK(0, self.q0).T @ r_PS
+            self.K_r_SP = self.A_IK(0, self.q0).T @ r_SP
 
         def export(self, sol_i, base_export=False, **kwargs):
             if base_export:
