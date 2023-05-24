@@ -1,9 +1,10 @@
 import numpy as np
-from scipy.sparse import csc_matrix, csr_matrix, lil_matrix, eye, diags, bmat
+from scipy.sparse import csc_matrix, csr_matrix, eye, diags, bmat
 from tqdm import tqdm
 
 from cardillo.math import fsolve, approx_fprime
-from cardillo.solver import Solution
+from cardillo.solver import Solution, consistent_initial_conditions
+from cardillo.utility.coo_matrix import CooMatrix
 
 
 class EulerBackward:
@@ -49,32 +50,29 @@ class EulerBackward:
         #######################################################################
         # initial conditions
         #######################################################################
-        t0 = system.t0
-        self.qn = system.q0
-        self.un = system.u0
-        q_dot0 = system.q_dot0
-        u_dot0 = system.u_dot0
-        la_g0 = system.la_g0
-        la_gamma0 = system.la_gamma0
-
-        self.y = np.zeros(self.ny, dtype=float)
-        self.y[: self.nq] = q_dot0
-        self.y[self.nq : self.nq + self.nu] = u_dot0
-        self.y[self.nq + self.nu : self.nq + self.nu + self.nla_g] = la_g0
-        self.y[
-            self.nq
-            + self.nu
-            + self.nla_g : self.nq
-            + self.nu
-            + self.nla_g
-            + self.nla_gamma
-        ] = la_gamma0
+        (
+            t0,
+            self.qn,
+            self.un,
+            q_dot0,
+            u_dot0,
+            la_g0,
+            la_gamma0,
+            _,
+            _,
+        ) = consistent_initial_conditions(system)
 
         self.split_y = np.cumsum(
             np.array(
                 [self.nq, self.nu, self.nla_g, self.nla_gamma, self.nla_S], dtype=int
             )
         )
+
+        self.y = np.zeros(self.ny, dtype=float)
+        self.y[: self.split_y[0]] = q_dot0
+        self.y[self.split_y[0] : self.split_y[1]] = u_dot0
+        self.y[self.split_y[1] : self.split_y[2]] = la_g0
+        self.y[self.split_y[2] : self.split_y[3]] = la_gamma0
 
     def _update(self, y):
         q_dot = y[: self.nq]
@@ -94,6 +92,7 @@ class EulerBackward:
         t = self.t
         q_dot, u_dot, la_g, la_gamma, mu_S, mu_g = a = np.array_split(y, self.split_y)
         q, u = self._update(y)
+        self.system.pre_iteration_update(t, q, u)
 
         self.M = self.system.M(t, q, scipy_matrix=csr_matrix)
         self.W_g = self.system.W_g(t, q, scipy_matrix=csr_matrix)
@@ -353,15 +352,17 @@ class NonsmoothBackwardEuler:
         #######################################################################
         # initial conditions
         #######################################################################
-        self.tn = system.t0
-        self.qn = system.q0
-        self.un = system.u0
-        self.q_dotn = system.q_dot0
-        self.u_dotn = system.u_dot0
-        self.la_gn = system.la_g0
-        self.la_gamman = system.la_gamma0
-        self.la_Nn = system.la_N0
-        self.la_Fn = system.la_F0
+        (
+            self.tn,
+            self.qn,
+            self.un,
+            self.q_dotn,
+            self.u_dotn,
+            self.la_gn,
+            self.la_gamman,
+            self.la_Nn,
+            self.la_Fn,
+        ) = consistent_initial_conditions(system)
 
         #######################################################################
         # initial values
@@ -390,6 +391,7 @@ class NonsmoothBackwardEuler:
         tn1 = tn + dt
         qn1 = qn + dt * q_dotn1
         un1 = un + dt * u_dotn1
+        self.system.pre_iteration_update(tn1, qn1, un1)
 
         ###################
         # evaluate residual
@@ -518,11 +520,11 @@ class NonsmoothBackwardEuler:
             # (https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csr_matrix.html#scipy.sparse.csr_matrix)
             g_N_q = dt * self.system.g_N_q(tn1, qn1, scipy_matrix=csr_matrix)
 
-        Rla_N_q = lil_matrix((self.nla_N, self.nq))
-        Rla_N_la_N = lil_matrix((self.nla_N, self.nla_N))
+        Rla_N_q = CooMatrix((self.nla_N, self.nq))
+        Rla_N_la_N = CooMatrix((self.nla_N, self.nla_N))
         for i in range(self.nla_N):
             if self.I_N[i]:
-                Rla_N_q[i] = g_N_q[i]
+                Rla_N_q[i, : self.nq] = g_N_q[i]
             else:
                 Rla_N_la_N[i, i] = 1.0
 
@@ -541,10 +543,10 @@ class NonsmoothBackwardEuler:
         # (https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csr_matrix.html#scipy.sparse.csr_matrix)
         gamma_F_u = self.system.W_F(tn1, qn1, scipy_matrix=csc_matrix).T
 
-        Rla_F_q = lil_matrix((self.nla_F, self.nq))
-        Rla_F_u = lil_matrix((self.nla_F, self.nu))
-        Rla_F_la_N = lil_matrix((self.nla_F, self.nla_N))
-        Rla_F_la_F = lil_matrix((self.nla_F, self.nla_F))
+        Rla_F_q = CooMatrix((self.nla_F, self.nq))
+        Rla_F_u = CooMatrix((self.nla_F, self.nu))
+        Rla_F_la_N = CooMatrix((self.nla_F, self.nla_N))
+        Rla_F_la_F = CooMatrix((self.nla_F, self.nla_F))
 
         for i_N, i_F in enumerate(self.system.NF_connectivity):
             i_F = np.array(i_F)
@@ -559,28 +561,39 @@ class NonsmoothBackwardEuler:
                 norm_arg_F = np.linalg.norm(arg_F)
 
                 if norm_arg_F < radius:
-                    Rla_F_q[i_F] = gamma_F_q[i_F]
-                    Rla_F_u[i_F] = gamma_F_u[i_F]
+                    Rla_F_q[i_F, : self.nq] = gamma_F_q[i_F]
+                    Rla_F_u[i_F, : self.nu] = gamma_F_u[i_F]
                 else:
                     if norm_arg_F > 0:
                         slip_dir = arg_F / norm_arg_F
                         factor = (
                             np.eye(n_F) - np.outer(slip_dir, slip_dir)
                         ) / norm_arg_F
-                        Rla_F_q[i_F] = (
+                        Rla_F_q[i_F, : self.nq] = (
                             radius * factor @ diags(prox_r_F[i_F]) @ gamma_F_q[i_F]
                         )
-                        Rla_F_u[i_F] = (
+                        Rla_F_u[i_F, : self.nu] = (
                             radius * factor @ diags(prox_r_F[i_F]) @ gamma_F_u[i_F]
                         )
-                        Rla_F_la_N[i_F[:, None], i_N] = mui * slip_dir
-                        Rla_F_la_F[i_F[:, None], i_F] = np.eye(n_F) - radius * factor
+                        Rla_F_la_N[i_F, i_N] = mui * slip_dir
+                        Rla_F_la_F[i_F, i_F] = np.eye(n_F) - radius * factor
                     else:
                         slip_dir = arg_F
-                        Rla_F_q[i_F] = radius * diags(prox_r_F[i_F]) @ gamma_F_q[i_F]
-                        Rla_F_u[i_F] = radius * diags(prox_r_F[i_F]) @ gamma_F_u[i_F]
-                        Rla_F_la_N[i_F[:, None], i_N] = mui * slip_dir
-                        Rla_F_la_F[i_F[:, None], i_F] = (1 - radius) * eye(n_F)
+                        Rla_F_q[i_F, : self.nq] = (
+                            radius * diags(prox_r_F[i_F]) @ gamma_F_q[i_F]
+                        )
+                        Rla_F_u[i_F, : self.nu] = (
+                            radius * diags(prox_r_F[i_F]) @ gamma_F_u[i_F]
+                        )
+                        Rla_F_la_N[i_F, i_N] = mui * slip_dir
+                        Rla_F_la_F[i_F, i_F] = (1 - radius) * eye(n_F)
+
+        Rla_N_q = Rla_N_q.tocoo()
+        Rla_N_la_N = Rla_N_la_N.tocoo()
+        Rla_F_q = Rla_F_q.tocoo()
+        Rla_F_u = Rla_F_u.tocoo()
+        Rla_F_la_N = Rla_F_la_N.tocoo()
+        Rla_F_la_F = Rla_F_la_F.tocoo()
 
         # fmt: off
         J = bmat(
