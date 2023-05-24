@@ -50,17 +50,8 @@ class EulerBackward:
         #######################################################################
         # initial conditions
         #######################################################################
-        (
-            t0,
-            self.qn,
-            self.un,
-            q_dot0,
-            u_dot0,
-            la_g0,
-            la_gamma0,
-            _,
-            _,
-        ) = consistent_initial_conditions(system)
+        self.qn = system.q0
+        self.un = system.u0
 
         self.split_y = np.cumsum(
             np.array(
@@ -69,10 +60,10 @@ class EulerBackward:
         )
 
         self.y = np.zeros(self.ny, dtype=float)
-        self.y[: self.split_y[0]] = q_dot0
-        self.y[self.split_y[0] : self.split_y[1]] = u_dot0
-        self.y[self.split_y[1] : self.split_y[2]] = la_g0
-        self.y[self.split_y[2] : self.split_y[3]] = la_gamma0
+        self.y[: self.split_y[0]] = system.q_dot0
+        self.y[self.split_y[0] : self.split_y[1]] = system.u_dot0
+        self.y[self.split_y[1] : self.split_y[2]] = system.la_g0
+        self.y[self.split_y[2] : self.split_y[3]] = system.la_gamma0
 
     def _update(self, y):
         q_dot = y[: self.nq]
@@ -352,17 +343,15 @@ class NonsmoothBackwardEuler:
         #######################################################################
         # initial conditions
         #######################################################################
-        (
-            self.tn,
-            self.qn,
-            self.un,
-            self.q_dotn,
-            self.u_dotn,
-            self.la_gn,
-            self.la_gamman,
-            self.la_Nn,
-            self.la_Fn,
-        ) = consistent_initial_conditions(system)
+        self.tn = system.t0
+        self.qn = system.q0
+        self.un = system.u0
+        self.q_dotn = system.q_dot0
+        self.u_dotn = system.u_dot0
+        self.la_gn = system.la_g0
+        self.la_gamman = system.la_gamma0
+        self.la_Nn = system.la_N0
+        self.la_Fn = system.la_F0
 
         #######################################################################
         # initial values
