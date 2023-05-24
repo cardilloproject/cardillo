@@ -7,4 +7,4 @@ from .rigid_body_euler import RigidBodyEuler
 from .rigid_body_quaternion import RigidBodyQuaternion
 from .rigid_body_rel_kinematics import RigidBodyRelKinematics
 from .convex_rigid_body import ConvexRigidBody, Mesh
-from .some_rigid_bodies import Ball, Box
+from .primitives import Ball, Box
