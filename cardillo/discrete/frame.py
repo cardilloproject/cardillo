@@ -148,6 +148,7 @@ class PlaneFixed(Frame):
         self,
         n,
         r_OP=np.zeros(3),
+        dim_export=(1, 1),
     ):
         self.n = n / norm(n)
         self.t1 = (
@@ -157,6 +158,8 @@ class PlaneFixed(Frame):
         )
         self.t2 = cross3(self.n, self.t1)
         A_IK = np.vstack([self.t1, self.t2, self.n]).T
+        assert len(dim_export) == 2, "2 dimensions are needed to draw a plane."
+        self.dim_export = dim_export
         super().__init__(r_OP, None, None, A_IK, None, None)
 
     def export(self, sol_i, base_export=False, **kwargs):
@@ -166,10 +169,18 @@ class PlaneFixed(Frame):
             r_OP = self.r_OP(sol_i.t)
             A_IK = self.A_IK(sol_i.t)
             points = [
-                r_OP + A_IK @ np.array([1, 1, 0]),
-                r_OP + A_IK @ np.array([1, -1, 0]),
-                r_OP + A_IK @ np.array([-1, -1, 0]),
-                r_OP + A_IK @ np.array([-1, 1, 0]),
+                r_OP
+                + A_IK
+                @ np.array([0.5 * self.dim_export[0], 0.5 * self.dim_export[1], 0]),
+                r_OP
+                + A_IK
+                @ np.array([0.5 * self.dim_export[0], -0.5 * self.dim_export[1], 0]),
+                r_OP
+                + A_IK
+                @ np.array([-0.5 * self.dim_export[0], -0.5 * self.dim_export[1], 0]),
+                r_OP
+                + A_IK
+                @ np.array([-0.5 * self.dim_export[0], 0.5 * self.dim_export[1], 0]),
             ]
             cells = [("quad", [np.arange(4)])]
             t1t2 = np.vstack([self.t1, self.t2]).T
