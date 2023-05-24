@@ -1,7 +1,7 @@
 import numpy as np
 from pathlib import Path
 from cardillo.discrete import RigidBodyQuaternion
-from cardillo.discrete.some_rigid_bodies import Box, Ball, Cylinder, FromSTL
+from cardillo.discrete.primitives import Box, Ball, Cylinder, FromSTL
 from cardillo import System
 from cardillo.solver import MoreauClassical
 from cardillo.visualization import Export

@@ -225,7 +225,6 @@ class LobattoIIIAB:
         )
 
     def solve(self):
-
         # lists storing output variables
         q = [self.qn]
         u = [self.un]

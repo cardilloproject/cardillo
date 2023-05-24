@@ -36,7 +36,11 @@ class Point2Plane:
         self.la_F0 = np.zeros(self.nla_F)
 
         self.is_assembled = False
-        raise(DeprecationWarning("Use sphere2plane contact implementation with radius=0 instead!"))
+        raise (
+            DeprecationWarning(
+                "Use sphere2plane contact implementation with radius=0 instead!"
+            )
+        )
 
     def assembler_callback(self):
         qDOF = self.subsystem.local_qDOF_P(self.frame_ID)
