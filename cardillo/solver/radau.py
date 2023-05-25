@@ -807,44 +807,21 @@ class RadauIIa:
         la_g0 = system.la_g0
         la_gamma0 = system.la_gamma0
 
+        self.split_y = np.cumsum(
+            np.array([self.nq, self.nu, self.nla_g, self.nla_gamma, self.nla_S])
+        )
+
         # consistent initial conditions
         self.y0 = np.zeros(self.ny, dtype=float)
-        self.y0[: self.nq] = q0
-        self.y0[self.nq : self.nq + self.nu] = u0
-        self.y0[self.nq + self.nu : self.nq + self.nu + self.nla_g] = la_g0
-        self.y0[
-            self.nq
-            + self.nu
-            + self.nla_g : self.nq
-            + self.nu
-            + self.nla_g
-            + self.nla_gamma
-        ] = la_gamma0
+        self.y0[: self.split_y[0]] = q0
+        self.y0[self.split_y[0] : self.split_y[1]] = u0
+        self.y0[self.split_y[1] : self.split_y[2]] = la_g0
+        self.y0[self.split_y[2] : self.split_y[3]] = la_gamma0
 
-    def unpack(self, y):
-        q = y[: self.nq]
-        u = y[self.nq : self.nq + self.nu]
-        la_g = y[self.nq + self.nu : self.nq + self.nu + self.nla_g]
-        la_gamma = y[
-            self.nq
-            + self.nu
-            + self.nla_g : self.nq
-            + self.nu
-            + self.nla_g
-            + self.nla_gamma
-        ]
-        mu_S = y[
-            self.nq
-            + self.nu
-            + self.nla_g
-            + self.nla_gamma : self.nq
-            + self.nu
-            + self.nla_g
-            + self.nla_gamma
-            + self.nla_S
-        ]
-        mu_g = y[self.nq + self.nu + self.nla_g + self.nla_gamma + self.nla_S :]
-        return q, u, la_g, la_gamma, mu_S, mu_g
+    def event(self, t, x):
+        q, u, _, _, _, _ = np.array_split(x, self.split_y)
+        q, u = self.system.step_callback(t, q, u)
+        return 1
 
     def fun(self, t, y):
         # update progress bar
@@ -854,7 +831,8 @@ class RadauIIa:
             self.pbar.set_description(f"t: {t:0.2e}s < {self.t1:0.2e}s")
             self.i = i1
 
-        q, u, la_g, la_gamma, mu_S, mu_g = self.unpack(y)
+        q, u, la_g, la_gamma, mu_S, mu_g = np.array_split(y, self.split_y)
+        q, u = self.pre_iteration_update(t, q, u)
 
         M = self.system.M(t, q, scipy_matrix=csc_matrix)
         h = self.system.h(t, q, u)
@@ -878,46 +856,24 @@ class RadauIIa:
         # is obtained in all tested cases.
         if self.lazy_mass_matrix:
             self.mass_matrix[
-                self.nq : self.nq + self.nu, self.nq : self.nq + self.nu
+                self.split_y[0] : self.split_y[1], self.split_y[0] : self.split_y[1]
             ] = M
-            dy[self.nq : self.nq + self.nu] = rhs
+            dy[self.split_y[0] : self.split_y[1]] = rhs
         else:
-            dy[self.nq : self.nq + self.nu] = spsolve(M, rhs)
+            dy[self.split_y[0] : self.split_y[1]] = spsolve(M, rhs)
 
         # bilateral constraints on velocity level
-        dy[
-            self.nq
-            + self.nu
-            + self.nla_g : self.nq
-            + self.nu
-            + self.nla_g
-            + self.nla_gamma
-        ] = self.system.gamma(t, q, u)
+        dy[self.split_y[2] : self.split_y[3]] = self.system.gamma(t, q, u)
 
         # bilateral constraints
-        dy[
-            self.nq
-            + self.nu
-            + self.nla_g
-            + self.nla_gamma : self.nq
-            + self.nu
-            + self.nla_g
-            + self.nla_gamma
-            + self.nla_S
-        ] = self.system.g_S(t, q)
+        dy[self.split_y[3] : self.split_y[4]] = self.system.g_S(t, q)
         if self.dae_index == 2:
-            dy[self.nq + self.nu : self.nq + self.nu + self.nla_g] = self.system.g_dot(
-                t, q, u
-            )
+            dy[self.split_y[1] : self.split_y[2]] = self.system.g_dot(t, q, u)
         elif self.dae_index == 3:
-            dy[self.nq + self.nu : self.nq + self.nu + self.nla_g] = self.system.g(t, q)
+            dy[self.split_y[1] : self.split_y[2]] = self.system.g(t, q)
         else:
-            dy[self.nq + self.nu : self.nq + self.nu + self.nla_g] = self.system.g_dot(
-                t, q, u
-            )
-            dy[
-                self.nq + self.nu + self.nla_g + self.nla_gamma + self.nla_S :
-            ] = self.system.g(t, q)
+            dy[self.split_y[1] : self.split_y[2]] = self.system.g_dot(t, q, u)
+            dy[self.split_y[4] :] = self.system.g(t, q)
         return dy
 
     def jac(self, t, y):
@@ -926,7 +882,7 @@ class RadauIIa:
                 y, lambda x: self.fun(t, x), method="2-point", eps=1e-6
             )
         else:
-            q, u, la_g, la_gamma, mu_S, mu_g = self.unpack(y)
+            q, u, la_g, la_gamma, mu_S, mu_g = np.array_split(y, self.split_y)
 
             q_dot_q = self.system.q_dot_q(t, q, u)
             B = self.system.B(t, q)
@@ -1031,6 +987,7 @@ class RadauIIa:
             dense_output=True,
             mass_matrix=self.mass_matrix,
             index_array=self.index_array,
+            events=[self.event],
             **self.kwargs,
         )
 
@@ -1043,6 +1000,8 @@ class RadauIIa:
         la_g = np.zeros((nt, self.nla_g), dtype=float)
         la_gamma = np.zeros((nt, self.nla_gamma), dtype=float)
         for i in range(nt):
-            q[i], u[i], la_g[i], la_gamma[i], _, _ = self.unpack(sol.y[:, i])
+            q[i], u[i], la_g[i], la_gamma[i], _, _ = np.array_split(
+                sol.y[:, i], self.split_y
+            )
 
         return Solution(t=t, q=q, u=u, la_g=la_g, la_gamma=la_gamma)
