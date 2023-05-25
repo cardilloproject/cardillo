@@ -1,4 +1,3 @@
-from typing import Optional
 import numpy as np
 from cardillo.discrete._base import RigidBodyBase
 from cardillo.math import inv3D, approx_fprime, A_IK_basic
