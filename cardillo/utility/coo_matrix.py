@@ -2,7 +2,7 @@ import warnings
 from scipy.sparse import csc_array, csr_array, coo_array
 from scipy.sparse._sputils import isshape, check_shape
 from scipy.sparse import spmatrix
-from numpy import repeat, tile
+from numpy import repeat, tile, atleast_1d, arange
 from array import array
 
 
@@ -78,6 +78,12 @@ class CooMatrix:
         if value is not None:
             # extract rows and columns to assign
             rows, cols = key
+            if isinstance(rows, slice):
+                rows = arange(*rows.indices(self.shape[0]))
+            if isinstance(cols, slice):
+                cols = arange(*cols.indices(self.shape[1]))
+            rows = atleast_1d(rows)
+            cols = atleast_1d(cols)
 
             if isinstance(value, CooMatrix):
                 # extend arrays from given CooMatrix
@@ -98,6 +104,7 @@ class CooMatrix:
                 # self.row.fromlist(rows[coo.row].tolist())
                 # self.col.fromlist(cols[coo.col].tolist())
             else:
+                value = atleast_1d(value)
                 ndim = value.ndim
                 if ndim > 1:
                     # # 2D array
@@ -111,7 +118,10 @@ class CooMatrix:
                     # 1D array
                     self.data.extend(value)
                     self.row.extend(rows)
-                    self.col.extend(cols)
+                    if rows.size > cols.size:
+                        self.col.extend(tile(cols, len(rows)))
+                    else:
+                        self.col.extend(cols)
                     # self.data.fromlist(value.tolist())
                     # self.row.fromlist(rows.tolist())
                     # self.col.fromlist(cols.tolist())

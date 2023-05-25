@@ -57,6 +57,8 @@ class MoreauShifted:
         self.P_Nk = la_N0 * dt
         self.P_Fk = la_F0 * dt
 
+        self.split_x = np.array([self.nu, self.nu + self.nla_g])
+
         # connectivity matrix of normal force directions and friction force directions
         self.NF_connectivity = self.system.NF_connectivity
 
@@ -69,6 +71,7 @@ class MoreauShifted:
         # explicit position update with projection
         qk1 = self.qk + dt * self.system.q_dot(self.tk, self.qk, uk)
         qk1, uk = self.system.step_callback(tk1, qk1, uk)
+        qk1, uk = self.system.pre_iteration_update(tk1, qk1, uk)
 
         # get quantities from model
         M = self.system.M(tk1, qk1)
@@ -140,9 +143,7 @@ class MoreauShifted:
         # solve for initial velocities and percussions of the bilateral
         # constraints for the fixed point iteration
         x = lu.solve(b)
-        uk1 = x[: self.nu]
-        P_gk1 = x[self.nu : self.nu + self.nla_g]
-        P_gammak1 = x[self.nu + self.nla_g :]
+        uk1, P_gk1, P_gammak1 = np.array_split(x, self.split_x)
 
         P_Nk1 = np.zeros(self.nla_N, dtype=float)
         P_Fk1 = np.zeros(self.nla_F, dtype=float)
@@ -183,9 +184,7 @@ class MoreauShifted:
 
                 # solve for new velocities and Lagrange multipliers of bilateral constraints
                 x = lu.solve(b)
-                uk1 = x[: self.nu]
-                P_gk1 = x[self.nu : self.nu + self.nla_g]
-                P_gammak1 = x[self.nu + self.nla_g :]
+                uk1, P_gk1, P_gammak1 = np.array_split(x, self.split_x)
 
                 # check for convergence
                 error = self.fix_point_error_function(uk1 - uk_fixed_point)
@@ -207,7 +206,8 @@ class MoreauShifted:
         P_N = [self.P_Nk]
         P_F = [self.P_Fk]
 
-        pbar = tqdm(self.t[:-1])
+        nfrac = 100
+        pbar = tqdm(self.t[1:], leave=True, mininterval=0.5, miniters=nfrac)
         for _ in pbar:
             (
                 (converged, j, error),
@@ -302,7 +302,7 @@ class MoreauShiftedNew:
         self.nR = self.nR_smooth + self.nla_N + self.nla_F
 
         # connectivity matrix of normal force directions and friction force directions
-        self.NF_connectivity = self.system.NF_connectivity
+        self.NF_connectivity = np.array(self.system.NF_connectivity)
 
         # initial conditions
         self.tn = system.t0
@@ -350,13 +350,22 @@ class MoreauShiftedNew:
 
         # fixed-point update friction (Gauss-Seidel)
         xi_F = self.system.xi_F(tn1, qn1, un, un1)
-        for i_N, i_F in enumerate(self.NF_connectivity):
-            if I_N[i_N] and len(i_F):
-                P_F[i_F] = prox_sphere(
-                    P_F[i_F] - prox_r_F[i_N] * xi_F[i_F],
-                    mu[i_N] * P_N[i_N],
+        P_F[I_F] = np.array(
+            list(
+                map(
+                    prox_sphere,
+                    P_F[I_F] - prox_r_F[I_F] * xi_F[I_F],
+                    mu[I_F][:, 0] * P_N[I_N],
                 )
-
+            )
+        )
+        # for i_N, i_F in enumerate(self.NF_connectivity):
+        #     if I_N[i_N] and len(i_F):
+        #         P_F[i_F] = prox_sphere(
+        #             P_F[i_F] - prox_r_F[i_N] * xi_F[i_F],
+        #             mu[i_N] * P_N[i_N],
+        #         )
+        I_F = I_F.flatten()
         # update rhs
         bb = b.copy()
         bb[: self.nu] += W_N[:, I_N] @ P_N[I_N] + W_F[:, I_F] @ P_F[I_F]
@@ -373,8 +382,10 @@ class MoreauShiftedNew:
         un = self.un
         tn1 = self.tn + dt
 
-        # explicit position update
+        # explicit position update with projection
         qn1 = self.qn + dt * self.system.q_dot(self.tn, self.qn, un)
+        qn1, un = self.system.step_callback(tn1, qn1, un)
+        qn1, un = self.system.pre_iteration_update(tn1, qn1, un)
 
         # get quantities from model
         M = self.system.M(tn1, qn1)
@@ -393,7 +404,8 @@ class MoreauShiftedNew:
 
         # identify active tangent contacts based on active normal contacts and
         # NF-connectivity lists
-        I_F = compute_I_F(I_N, self.system.NF_connectivity)
+        I_F = self.NF_connectivity[I_N]
+        # I_F = compute_I_F(I_N, self.system.NF_connectivity)
 
         # compute new estimates for prox parameters and get friction coefficient
         prox_r_N = self.system.prox_r_N(tn1, qn1)
@@ -481,7 +493,8 @@ class MoreauShiftedNew:
         P_N = [self.P_Nn]
         P_F = [self.P_Fn]
 
-        pbar = tqdm(self.t[:-1])
+        nfrac = 100
+        pbar = tqdm(self.t[1:], leave=True, mininterval=0.5, miniters=nfrac)
         for _ in pbar:
             (
                 (converged, j, error),
@@ -577,7 +590,7 @@ class MoreauClassical:
         self.nR = self.nR_smooth + self.nla_N + self.nla_F
 
         # connectivity matrix of normal force directions and friction force directions
-        self.NF_connectivity = self.system.NF_connectivity
+        self.NF_connectivity = np.array(self.system.NF_connectivity)
 
         # initial conditions
         self.tn = system.t0
@@ -625,12 +638,22 @@ class MoreauClassical:
 
         # fixed-point update friction (Gauss-Seidel)
         xi_F = self.system.xi_F(tn1, qn1, un, un1)
-        for i_N, i_F in enumerate(self.NF_connectivity):
-            if I_N[i_N] and len(i_F):
-                P_F[i_F] = prox_sphere(
-                    P_F[i_F] - prox_r_F[i_N] * xi_F[i_F],
-                    mu[i_N] * P_N[i_N],
+        P_F[I_F] = np.array(
+            list(
+                map(
+                    prox_sphere,
+                    P_F[I_F] - prox_r_F[I_F] * xi_F[I_F],
+                    mu[I_F][:, 0] * P_N[I_N],
                 )
+            )
+        )
+        # for i_N, i_F in enumerate(self.NF_connectivity):
+        #     if I_N[i_N] and len(i_F):
+        #         P_F[i_F] = prox_sphere(
+        #             P_F[i_F] - prox_r_F[i_N] * xi_F[i_F],
+        #             mu[i_N] * P_N[i_N],
+        #         )
+        I_F = I_F.flatten()
 
         # update rhs
         bb = b.copy()
@@ -649,8 +672,10 @@ class MoreauClassical:
         tn1 = self.tn + dt
         tn12 = self.tn + 0.5 * dt
 
-        # explicit position update (midpoint)
+        # explicit position update (midpoint) with projection
         qn12 = self.qn + 0.5 * dt * self.system.q_dot(self.tn, self.qn, un)
+        qn1, un = self.system.step_callback(tn1, qn1, un)
+        qn1, un = self.system.pre_iteration_update(tn1, qn1, un)
 
         # get quantities from model
         M = self.system.M(tn12, qn12)
@@ -669,7 +694,8 @@ class MoreauClassical:
 
         # identify active tangent contacts based on active normal contacts and
         # NF-connectivity lists
-        I_F = compute_I_F(I_N, self.system.NF_connectivity)
+        # I_F = compute_I_F(I_N, self.system.NF_connectivity)
+        I_F = self.NF_connectivity[I_N]
 
         # compute new estimates for prox parameters and get friction coefficient
         prox_r_N = self.system.prox_r_N(tn12, qn12)
@@ -760,7 +786,8 @@ class MoreauClassical:
         P_N = [self.P_Nn]
         P_F = [self.P_Fn]
 
-        pbar = tqdm(self.t[:-1])
+        nfrac = 100
+        pbar = tqdm(self.t[1:], leave=True, mininterval=0.5, miniters=nfrac)
         for _ in pbar:
             (
                 (converged, j, error),
