@@ -1,5 +1,3 @@
-from typing import Optional
-import numpy.typing as npt
 import numpy as np
 from cardillo.discrete._base import RigidBodyBase
 from cardillo.math import (
@@ -31,10 +29,10 @@ class RigidBodyQuaternion(RigidBodyBase):
 
     def __init__(
         self,
-        mass: float,
-        K_Theta_S: npt.ArrayLike,
-        q0: npt.ArrayLike,
-        u0: Optional[npt.ArrayLike] = None,
+        mass,
+        K_Theta_S,
+        q0=None,
+        u0=None,
     ):
         self.nq = 7
         self.nu = 6

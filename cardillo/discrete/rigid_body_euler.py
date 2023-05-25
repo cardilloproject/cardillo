@@ -1,6 +1,4 @@
-from typing import Optional
 import numpy as np
-import numpy.typing as npt
 from cardillo.discrete._base import RigidBodyBase
 from cardillo.math import inv3D, approx_fprime, A_IK_basic
 
@@ -8,11 +6,11 @@ from cardillo.math import inv3D, approx_fprime, A_IK_basic
 class RigidBodyEuler(RigidBodyBase):
     def __init__(
         self,
-        mass: float,
-        K_Theta_S: npt.NDArray,
-        axis: str = "zxy",
-        q0: Optional[npt.NDArray] = None,
-        u0: Optional[npt.NDArray] = None,
+        mass,
+        K_Theta_S,
+        axis="zxy",
+        q0=None,
+        u0=None,
     ):
         self.nq = 6
         self.nu = 6

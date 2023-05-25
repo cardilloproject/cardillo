@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-import numpy.typing as npt
 import numpy as np
 
 from cardillo.math import cross3, ax2skew
@@ -8,10 +7,10 @@ from cardillo.math import cross3, ax2skew
 class RigidBodyBase(ABC):
     def __init__(
         self,
-        mass: float,
-        K_Theta_S: npt.NDArray[np.float_],
-        q0: npt.NDArray[np.float_],
-        u0: npt.NDArray[np.float_],
+        mass,
+        K_Theta_S,
+        q0,
+        u0,
     ) -> None:
         super().__init__()
         self.mass = mass

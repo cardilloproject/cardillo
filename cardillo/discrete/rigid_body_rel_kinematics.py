@@ -13,7 +13,7 @@ class RigidBodyRelKinematics:
         r_OS0=np.zeros(3),
         A_IK0=np.eye(3),
     ):
-        self.m = mass
+        self.mass = mass
         self.K_Theta_S = K_Theta_S
         self.r_OS0 = r_OS0
         self.A_IK0 = A_IK0
@@ -174,7 +174,7 @@ class RigidBodyRelKinematics:
     def M(self, t, q):
         J_S = self.J_P(t, q)
         K_J_R = self.K_J_R(t, q)
-        return self.m * J_S.T @ J_S + K_J_R.T @ self.K_Theta_S @ K_J_R
+        return self.mass * J_S.T @ J_S + K_J_R.T @ self.K_Theta_S @ K_J_R
 
     def Mu_q(self, t, q, u):
         J_S = self.J_P(t, q)
@@ -183,8 +183,8 @@ class RigidBodyRelKinematics:
         K_J_R_q = self.K_J_R_q(t, q)
 
         return (
-            np.einsum("ijl,ik,k->jl", J_S_q, J_S, self.m * u)
-            + np.einsum("ij,ikl,k->jl", J_S, J_S_q, self.m * u)
+            np.einsum("ijl,ik,k->jl", J_S_q, J_S, self.mass * u)
+            + np.einsum("ij,ikl,k->jl", J_S, J_S_q, self.mass * u)
             + np.einsum("ijl,ik,k->jl", K_J_R_q, self.K_Theta_S @ K_J_R, u)
             + np.einsum("ij,jkl,k->il", K_J_R.T @ self.K_Theta_S, K_J_R_q, u)
         )
@@ -192,7 +192,7 @@ class RigidBodyRelKinematics:
     def h(self, t, q, u):
         Omega = self.K_Omega(t, q, u)
         return -(
-            self.m * self.J_P(t, q).T @ self.kappa_P(t, q, u)
+            self.mass * self.J_P(t, q).T @ self.kappa_P(t, q, u)
             + self.K_J_R(t, q).T
             @ (
                 self.K_Theta_S @ self.K_kappa_R(t, q, u)
@@ -212,8 +212,8 @@ class RigidBodyRelKinematics:
         ) @ Omega_q
 
         f_gyr_q = -(
-            np.einsum("jik,j->ik", J_P_q, self.m * self.kappa_P(t, q, u))
-            + self.m * self.J_P(t, q).T @ self.kappa_P_q(t, q, u)
+            np.einsum("jik,j->ik", J_P_q, self.mass * self.kappa_P(t, q, u))
+            + self.mass * self.J_P(t, q).T @ self.kappa_P_q(t, q, u)
             + np.einsum("jik,j->ik", J_P_q, tmp1 + tmp2)
             + self.K_J_R(t, q).T @ (tmp1_q + tmp2_q)
         )
@@ -228,7 +228,7 @@ class RigidBodyRelKinematics:
         ) @ Omega_u
 
         f_gyr_u = -(
-            self.m * self.J_P(t, q).T @ self.kappa_P_u(t, q, u)
+            self.mass * self.J_P(t, q).T @ self.kappa_P_u(t, q, u)
             + self.K_J_R(t, q).T @ (tmp1_u + tmp2_u)
         )
         return f_gyr_u
@@ -280,7 +280,8 @@ class RigidBodyRelKinematics:
     def v_P(self, t, q, u, frame_ID=None, K_r_SP=np.zeros(3)):
         # v_B1 + A_IB1 B1_v_B1B2 + A_IK ( K_Omega x (K_r_SP - self.K_r_SB2) )
         v_B2 = self.v_B1(t, q, u) + self.A_IB1(t, q) @ (
-            self.B1_v_B1B2(t, q, u) + cross3(self.B1_Omegap(t, q), self.B1_r_B1B2(t, q))
+            self.B1_v_B1B2(t, q, u)
+            + cross3(self.B1_Omegap(t, q, u), self.B1_r_B1B2(t, q))
         )
         v_B2P = self.A_IK(t, q) @ cross3(self.K_Omega(t, q, u), K_r_SP - self.K_r_SB2)
         return v_B2 + v_B2P

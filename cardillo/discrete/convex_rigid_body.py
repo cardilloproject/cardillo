@@ -1,5 +1,4 @@
 import numpy as np
-import numpy.typing as npt
 from scipy.spatial import ConvexHull
 
 from cardillo.math import norm, cross3
@@ -11,11 +10,11 @@ def ConvexRigidBody(
     class _ConvexRigidBody(RigidBodyParametrization):
         def __init__(
             self,
-            points: npt.ArrayLike,
-            rho: float = None,
-            mass: float = None,
-            q0: np.ndarray = None,
-            u0: np.ndarray = None,
+            points,
+            rho=None,
+            mass=None,
+            q0=None,
+            u0=None,
         ):
             """body of type Rigid_body_quaternion with arbitrary convex surface described by a pointcloud
 
@@ -108,7 +107,7 @@ def ConvexRigidBody(
 
 
 class Mesh:
-    def __init__(self, points: npt.ArrayLike) -> None:
+    def __init__(self, points) -> None:
         """wrapper class for mesh created by convex hull
 
         Args:
