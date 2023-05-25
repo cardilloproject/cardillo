@@ -49,9 +49,8 @@ class ScipyIVP:
         self.pbar.set_description(f"t: {t:0.2e}s < {self.t1:0.2e}s")
         self.i = i1
 
-        q = x[: self.nq]
-        u = x[self.nq :]
-        # q, u = self.system.step_callback(t, q, u)
+        q, u = np.array_split(x, [self.nq])
+        q, u = self.system.pre_iteration_update(t, q, u)
 
         M = self.system.M(t, q)
         h = self.system.h(t, q, u)
@@ -104,8 +103,7 @@ class ScipyIVP:
             )
         )
         la = spsolve(G, -mu)
-        la_g = la[: self.nla_g]
-        la_gamma = la[self.nla_g :]
+        la_g, la_gamma = np.array_split(la, [self.nla_g])
         u_dot = spsolve(M, h + W_g @ la_g + W_gamma @ la_gamma)
         return u_dot, la_g, la_gamma
 
