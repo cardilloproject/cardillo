@@ -1,6 +1,6 @@
 import numpy as np
 from cardillo.utility.check_time_derivatives import check_time_derivatives
-from cardillo.math import cross3, norm, skew2ax
+from cardillo.math import skew2ax
 
 
 class Frame:
@@ -141,50 +141,3 @@ class Frame:
             cell_data["a"] = [[self.a_P(sol_i.t)]]
             cell_data["Psi"] = [[self.A_IK(sol_i.t) @ self.K_Psi(sol_i.t)]]
         return points, cells, None, cell_data
-
-
-class PlaneFixed(Frame):
-    def __init__(
-        self,
-        n,
-        r_OP=np.zeros(3),
-        dim_export=(1, 1),
-    ):
-        self.n = n / norm(n)
-        self.t1 = (
-            np.array([-n[1], n[0], 0])
-            if (n[1] != 0) or (n[0] != 0)
-            else np.array([0, -n[2], n[1]])
-        )
-        self.t2 = cross3(self.n, self.t1)
-        A_IK = np.vstack([self.t1, self.t2, self.n]).T
-        assert len(dim_export) == 2, "2 dimensions are needed to draw a plane."
-        self.dim_export = dim_export
-        super().__init__(r_OP, None, None, A_IK, None, None)
-
-    def export(self, sol_i, base_export=False, **kwargs):
-        if base_export:
-            return super().export(sol_i)
-        else:
-            r_OP = self.r_OP(sol_i.t)
-            A_IK = self.A_IK(sol_i.t)
-            points = [
-                r_OP
-                + A_IK
-                @ np.array([0.5 * self.dim_export[0], 0.5 * self.dim_export[1], 0]),
-                r_OP
-                + A_IK
-                @ np.array([0.5 * self.dim_export[0], -0.5 * self.dim_export[1], 0]),
-                r_OP
-                + A_IK
-                @ np.array([-0.5 * self.dim_export[0], -0.5 * self.dim_export[1], 0]),
-                r_OP
-                + A_IK
-                @ np.array([-0.5 * self.dim_export[0], 0.5 * self.dim_export[1], 0]),
-            ]
-            cells = [("quad", [np.arange(4)])]
-            t1t2 = np.vstack([self.t1, self.t2]).T
-            point_data = dict(
-                n=[self.n, self.n, self.n, self.n], t=[t1t2, t1t2, t1t2, t1t2]
-            )
-        return points, cells, point_data, None
