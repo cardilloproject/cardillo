@@ -83,7 +83,7 @@ class EulerBackward:
         t = self.t
         q_dot, u_dot, la_g, la_gamma, mu_S, mu_g = a = np.array_split(y, self.split_y)
         q, u = self._update(y)
-        self.system.pre_iteration_update(t, q, u)
+        q, u = self.system.pre_iteration_update(t, q, u)
 
         self.M = self.system.M(t, q, scipy_matrix=csr_matrix)
         self.W_g = self.system.W_g(t, q, scipy_matrix=csr_matrix)
@@ -370,6 +370,7 @@ class NonsmoothBackwardEuler:
 
         # initialize index sets
         self.I_N = np.zeros(self.nla_N, dtype=bool)
+        self.NF_connectivity = np.array(self.system.NF_connectivity)
 
     def R(self, yn1, update_index=False):
         tn, dt, qn, un = self.tn, self.dt, self.qn, self.un
@@ -380,7 +381,7 @@ class NonsmoothBackwardEuler:
         tn1 = tn + dt
         qn1 = qn + dt * q_dotn1
         un1 = un + dt * u_dotn1
-        self.system.pre_iteration_update(tn1, qn1, un1)
+        qn1, un1 = self.system.pre_iteration_update(tn1, qn1, un1)
 
         ###################
         # evaluate residual
@@ -430,7 +431,7 @@ class NonsmoothBackwardEuler:
         mu = self.system.mu
         gamma_F = self.system.gamma_F(tn1, qn1, un1)
 
-        for i_N, i_F in enumerate(self.system.NF_connectivity):
+        for i_N, i_F in enumerate(self.NF_connectivity):
             i_F = np.array(i_F)
             n_F = len(i_F)
             if n_F > 0:
@@ -438,7 +439,7 @@ class NonsmoothBackwardEuler:
                 la_Fi = la_Fn1[i_F]
                 gamma_Fi = gamma_F[i_F]
                 arg_F = prox_r_F[i_F] * gamma_Fi - la_Fi
-                mui = mu[i_N]
+                mui = mu[i_F][0]
                 radius = mui * la_Ni
                 norm_arg_F = np.linalg.norm(arg_F)
 
@@ -476,7 +477,7 @@ class NonsmoothBackwardEuler:
         g_S_q = self.system.g_S_q(tn1, qn1)
 
         ########################
-        # euations of motion (1)
+        # equations of motion (1)
         ########################
         M = self.system.M(tn1, qn1)
         W_g = self.system.W_g(tn1, qn1)
@@ -537,7 +538,7 @@ class NonsmoothBackwardEuler:
         Rla_F_la_N = CooMatrix((self.nla_F, self.nla_N))
         Rla_F_la_F = CooMatrix((self.nla_F, self.nla_F))
 
-        for i_N, i_F in enumerate(self.system.NF_connectivity):
+        for i_N, i_F in enumerate(self.NF_connectivity):
             i_F = np.array(i_F)
             n_F = len(i_F)
             if n_F > 0:
@@ -545,7 +546,7 @@ class NonsmoothBackwardEuler:
                 la_Fi = la_Fn1[i_F]
                 gamma_Fi = gamma_F[i_F]
                 arg_F = prox_r_F[i_F] * gamma_Fi - la_Fi
-                mui = mu[i_N]
+                mui = mu[i_F][0]
                 radius = mui * la_Ni
                 norm_arg_F = np.linalg.norm(arg_F)
 
@@ -646,7 +647,7 @@ class NonsmoothBackwardEuler:
             self.prox_r_N = self.system.prox_r_N(self.tn, self.qn)
             self.prox_r_F = self.system.prox_r_F(self.tn, self.qn)
 
-            # perform a sovler step
+            # perform a solver step
             tn1 = self.tn + self.dt
 
             yn1, converged, error, n_iter, _ = fsolve(
