@@ -1,7 +1,7 @@
 import numpy as np
 from pathlib import Path
 from cardillo.discrete import Frame, RigidBodyQuaternion, RigidBodyRelKinematics
-from cardillo.discrete.shapes import Box, Ball, Cylinder, FromSTL
+from cardillo.discrete.shapes import Rectangle, Cuboid, Ball, Cylinder, FromSTL
 from cardillo.joints import RigidConnection
 from cardillo.math import Exp_SO3
 from cardillo import System
@@ -11,6 +11,14 @@ from cardillo.visualization import Export
 if __name__ == "__main__":
     path = Path(__file__)
     u0 = np.random.rand(6)
+
+    ############################
+    # plane attatched to a frame
+    ############################
+    rectangle = Rectangle(Frame)(
+        r_OP=np.array([0, 0, -1]),
+        dimensions=(3, 2),
+    )
 
     ########################
     # stl attatched to frame
@@ -29,7 +37,7 @@ if __name__ == "__main__":
     # box primitive
     ###############
     dimensions = np.array([3, 2, 1])
-    box = Box(RigidBodyQuaternion)(dimensions=dimensions, density=0.0078, u0=u0)
+    box = Cuboid(RigidBodyQuaternion)(dimensions=dimensions, density=0.0078, u0=u0)
 
     #############################
     # identical stl box primitive
@@ -53,7 +61,7 @@ if __name__ == "__main__":
     # identical relativ rigid body rigidly connected to the box
     ###########################################################
     joint = RigidConnection()
-    relative_box = Box(RigidBodyRelKinematics)(joint=joint, predecessor=box, dimensions=dimensions, density=0.0078)
+    relative_box = Cuboid(RigidBodyRelKinematics)(joint=joint, predecessor=box, dimensions=dimensions, density=0.0078)
 
     assert np.isclose(box.mass, stl_box.mass)
     assert np.isclose(box.mass, relative_box.mass)
@@ -79,13 +87,14 @@ if __name__ == "__main__":
     # solve system and generate vtk export
     ######################################
     system = System()
-    system.add(disk, ball, box, cylinder, stl_box, joint, relative_box)
+    system.add(rectangle, disk, ball, box, cylinder, stl_box, joint, relative_box)
     system.assemble()
 
     # sol = MoreauClassical(system, 10, 1e-1).solve()
     sol = MoreauClassical(system, 1, 1e-1).solve()
 
     e = Export(path.parent, path.stem, True, 30, sol)
+    e.export_contr(rectangle)
     e.export_contr(disk)
     e.export_contr(ball)
     e.export_contr(box)

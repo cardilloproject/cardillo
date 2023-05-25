@@ -1,7 +1,14 @@
 import numpy as np
 from pathlib import Path
 
-from cardillo.discrete import PointMass, Ball, Box, RigidBodyQuaternion, PlaneFixed
+from cardillo.discrete import (
+    Frame,
+    PointMass,
+    Ball,
+    Cuboid,
+    RigidBodyQuaternion,
+    Rectangle,
+)
 from cardillo.forces import (
     Force,
     ScalarForceTranslational,
@@ -50,8 +57,8 @@ if __name__ == "__main__":
 
     # cube = ConvexRigidBody(points_cube, mass=m, u0=u0, q0=q0)
     # cube = newConvexRigidBody(RigidBodyQuaternion, points_cube, mass=m, u0=u0, q0=q0)
-    cube = Box(RigidBodyQuaternion)(1, 2, 3, mass=m, q0=q0, u0=u0)
-    cube2 = Box(RigidBodyQuaternion)(1, 2, 3, mass=m, q0=q0, u0=u0)
+    cube = Cuboid(RigidBodyQuaternion)(dimensions=[1, 2, 3], mass=m, q0=q0, u0=u0)
+    cube2 = Cuboid(RigidBodyQuaternion)(dimensions=[1, 2, 3], mass=m, q0=q0, u0=u0)
     r = 0.5
     # ball = Ball(RigidBodyQuaternion)(m, r, q0, u0)
 
@@ -64,8 +71,7 @@ if __name__ == "__main__":
 
     k = 1e2
     spring = ScalarForceTranslational(pm0, pm1, LinearSpring(k))
-    # frame = Frame(r_OS1)
-    frame = PlaneFixed(np.array([0, 1, 0]), r_OS1)
+    frame = Rectangle(Frame)(axis=1, r_OP=r_OS1)
     joint = Spherical(frame, pm1, r_OS1)
 
     system = System()
