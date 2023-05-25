@@ -1,18 +1,16 @@
 import numpy as np
-import numpy.typing as npt
-
 from cardillo.math import norm
 
 
 class nElScalarForceTranslational:
     def __init__(
         self,
-        subsystem_list: list,
-        connectivity: list[tuple[int, int]],
+        subsystem_list,
+        connectivity,
         force_law_spring=None,
         force_law_damper=None,
-        frame_ID_list: list[npt.ArrayLike] = None,
-        K_r_SP_list: list[npt.ArrayLike] = None,
+        frame_ID_list=None,
+        K_r_SP_list=None,
     ) -> None:
         self.force_law_spring = force_law_spring
         self.force_law_damper = force_law_damper
