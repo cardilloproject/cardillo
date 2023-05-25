@@ -1,20 +1,29 @@
 import numpy as np
 from cardillo.visualization import vtk_sphere
-from cardillo.math import ax2skew
-import warnings
 import meshio
 
 
 def Ball(RigidBodyParametrization):
     class _Ball(RigidBodyParametrization):
-        def __init__(self, mass, radius, q0=None, u0=None):
-            K_theta_S = 2 / 5 * mass * radius**2 * np.eye(3)
-            self.radius = radius
-            super().__init__(mass, K_theta_S, q0, u0)
+        def __init__(self, **kwargs):
+            self.radius = kwargs.pop("radius")
+            mass = kwargs.pop("mass", None)
+            density = kwargs.pop("density", None)
 
-        def export(self, sol_i, resolution=20, base_export=False, **kwargs):
+            if density is not None:
+                mass = density * (4 / 3) * np.pi * self.radius**3
+            elif mass is None:
+                raise TypeError("mass and density cannot both have type None")
+
+            K_Theta_S = 2 / 5 * mass * self.radius**2 * np.eye(3)
+
+            kwargs.update({"mass": mass, "K_Theta_S": K_Theta_S})
+
+            super().__init__(**kwargs)
+
+        def export(self, sol_i, base_export=False, **kwargs):
             if base_export:
-                points, cells, point_data, cell_data = super().export(sol_i)
+                return super().export(sol_i, **kwargs)
             else:
                 points_sphere, cell, point_data = vtk_sphere(self.radius)
                 cells = [cell]
@@ -43,18 +52,22 @@ def Ball(RigidBodyParametrization):
                 if sol_i.u_dot is not None:
                     point_data.update({"a": acc})
 
-            return points, cells, point_data, None
+                return points, cells, point_data, None
 
     return _Ball
 
 
 def Box(RigidBodyParametrization):
     class _Box(RigidBodyParametrization):
-        def __init__(
-            self, dimensions, mass=None, density=None, K_theta_S=None, q0=None, u0=None
-        ):
-            assert len(dimensions) == 3, "3 dimensions are needed to generate a box"
-            self.a, self.b, self.c = dimensions
+        def __init__(self, **kwargs):
+            self.dimensions = kwargs.pop("dimensions")
+            mass = kwargs.pop("mass", None)
+            density = kwargs.pop("density", None)
+
+            assert (
+                len(self.dimensions) == 3
+            ), "3 dimensions are needed to generate a box"
+            self.a, self.b, self.c = self.dimensions
 
             p1 = np.array([0.5 * self.a, -0.5 * self.b, 0.5 * self.c])
             p2 = np.array([0.5 * self.a, 0.5 * self.b, 0.5 * self.c])
@@ -68,30 +81,24 @@ def Box(RigidBodyParametrization):
 
             if density is not None:
                 mass = density * self.a * self.b * self.c
-            elif mass is not None:
-                mass = mass
-            else:
+            elif mass is None:
                 raise TypeError("mass and density cannot both have type None")
 
-            K_theta_S = (
-                (mass / 12)
-                * np.array(
-                    [
-                        [self.b**2 + self.c**2, 0, 0],
-                        [0, self.a**2 + self.c**2, 0],
-                        [0, 0, self.a**2 + self.b**2],
-                    ]
-                )
-                if K_theta_S is None
-                else K_theta_S
+            K_Theta_S = (mass / 12) * np.array(
+                [
+                    [self.b**2 + self.c**2, 0, 0],
+                    [0, self.a**2 + self.c**2, 0],
+                    [0, 0, self.a**2 + self.b**2],
+                ]
             )
 
-            super().__init__(mass, K_theta_S, q0, u0)
+            kwargs.update({"mass": mass, "K_Theta_S": K_Theta_S})
+
+            super().__init__(**kwargs)
 
         def export(self, sol_i, base_export=False, **kwargs):
             if base_export:
-                points, cells, point_data, cell_data = super().export(sol_i)
-                return points, cells, point_data, cell_data
+                return super().export(sol_i, **kwargs)
             else:
                 points, vel, acc = [], [], []
                 for point in self.points:
@@ -129,31 +136,37 @@ def Box(RigidBodyParametrization):
 
 def Cylinder(RigidBodyParametrization):
     class _Cylinder(RigidBodyParametrization):
-        def __init__(self, length, radius, density, axis=1, q0=None, u0=None):
-            self.length = length
-            self.radius = radius
-            self.density = density
-            assert axis in [0, 1, 2]
-            self.axis = axis
+        def __init__(self, **kwargs):
+            self.length = kwargs.pop("length")
+            self.radius = kwargs.pop("radius")
+            mass = kwargs.pop("mass", None)
+            density = kwargs.pop("density", None)
+            self.axis = kwargs.pop("axis")
+            assert self.axis in [0, 1, 2]
 
-            volume = length * np.pi * radius**2
-            mass = volume * density
+            volume = self.length * np.pi * self.radius**2
+            if density is not None:
+                mass = density * volume
+            elif mass is None:
+                raise TypeError("mass and density cannot both have type None")
+
             diag = np.array(
                 [
-                    6 * radius**2,
-                    3 * radius**2 + length**2,
-                    3 * radius**2 + length**2,
+                    6 * self.radius**2,
+                    3 * self.radius**2 + self.length**2,
+                    3 * self.radius**2 + self.length**2,
                 ],
                 dtype=float,
             )
-            K_theta_S = np.diag(np.roll(diag, shift=axis))
+            K_Theta_S = np.diag(np.roll(diag, shift=self.axis))
 
-            super().__init__(mass, K_theta_S, q0, u0)
+            kwargs.update({"mass": mass, "K_Theta_S": K_Theta_S})
+
+            super().__init__(**kwargs)
 
         def export(self, sol_i, base_export=False, **kwargs):
             if base_export:
-                points, cells, point_data, cell_data = super().export(sol_i)
-                return points, cells, point_data, cell_data
+                return super().export(sol_i, **kwargs)
             else:
                 ##################################
                 # compute position and orientation
@@ -267,23 +280,22 @@ def Cylinder(RigidBodyParametrization):
 
 def FromSTL(RigidBodyParametrization):
     class _FromSTL(RigidBodyParametrization):
-        def __init__(self, path, mass, K_r_SP, K_Theta_S, q0=None, u0=None):
-            warnings.warn("Use this with caution. This is not ready for serious usage!")
-            self.path = path
+        def __init__(self, scale=1.0, **kwargs):
+            self.path = kwargs.pop("path")
+            self.K_r_SP = kwargs.pop("K_r_SP")
 
-            self.meshio_mesh = meshio.read(path)
+            self.meshio_mesh = meshio.read(self.path)
+            self.meshio_mesh.points *= scale
 
-            super().__init__(mass, K_Theta_S, q0, u0)
-
-            self.K_r_SP = K_r_SP
+            super().__init__(**kwargs)
 
         def export(self, sol_i, base_export=False, **kwargs):
             if base_export:
-                points, cells, point_data, cell_data = super().export(sol_i)
-                return points, cells, point_data, cell_data
+                return super().export(sol_i, **kwargs)
             else:
                 points, vel, acc = [], [], []
                 for K_r_PQ in self.meshio_mesh.points:
+                    # center of mass (S) over stl origin (P) to arbitrary stl point (Q)
                     K_r_SQ = self.K_r_SP + K_r_PQ
                     points.append(self.r_OP(sol_i.t, sol_i.q[self.qDOF], K_r_SP=K_r_SQ))
 

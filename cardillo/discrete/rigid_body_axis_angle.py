@@ -1,6 +1,4 @@
-from typing import Optional
 import numpy as np
-import numpy.typing as npt
 from cardillo.discrete._base import RigidBodyBase
 from cardillo.math import norm
 from cardillo.math import Exp_SO3, Exp_SO3_psi, T_SO3_inv, T_SO3_inv_psi, pi
@@ -9,10 +7,10 @@ from cardillo.math import Exp_SO3, Exp_SO3_psi, T_SO3_inv, T_SO3_inv_psi, pi
 class RigidBodyAxisAngle(RigidBodyBase):
     def __init__(
         self,
-        mass: float,
-        K_Theta_S: npt.NDArray,
-        q0: Optional[npt.NDArray] = None,
-        u0: Optional[npt.NDArray] = None,
+        mass,
+        K_Theta_S,
+        q0=None,
+        u0=None,
     ):
         self.nq = 6
         self.nu = 6
