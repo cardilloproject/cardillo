@@ -439,7 +439,7 @@ class NonsmoothBackwardEuler:
                 la_Fi = la_Fn1[i_F]
                 gamma_Fi = gamma_F[i_F]
                 arg_F = prox_r_F[i_F] * gamma_Fi - la_Fi
-                mui = mu[i_F][0]
+                mui = mu[i_N]
                 radius = mui * la_Ni
                 norm_arg_F = np.linalg.norm(arg_F)
 
@@ -546,7 +546,7 @@ class NonsmoothBackwardEuler:
                 la_Fi = la_Fn1[i_F]
                 gamma_Fi = gamma_F[i_F]
                 arg_F = prox_r_F[i_F] * gamma_Fi - la_Fi
-                mui = mu[i_F][0]
+                mui = mu[i_N]
                 radius = mui * la_Ni
                 norm_arg_F = np.linalg.norm(arg_F)
 

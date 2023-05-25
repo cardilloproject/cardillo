@@ -20,8 +20,11 @@ class Sphere2Plane:
         self.frame = frame
         self.subsystem = subsystem
         self.r = r
-        self.mu = np.array([mu, mu])
+        self.mu = np.array([mu])
         self.nla_N = 1
+        assert (
+            self.nla_N == self.mu.size
+        ), "Friction coefficient must have the same dimension as normal contact dim."
 
         if mu == 0:
             self.nla_F = 0

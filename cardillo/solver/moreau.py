@@ -355,7 +355,7 @@ class MoreauShiftedNew:
                 map(
                     prox_sphere,
                     P_F[I_F] - prox_r_F[I_F] * xi_F[I_F],
-                    mu[I_F][:, 0] * P_N[I_N],
+                    mu[I_N] * P_N[I_N],
                 )
             )
         )
@@ -643,7 +643,7 @@ class MoreauClassical:
                 map(
                     prox_sphere,
                     P_F[I_F] - prox_r_F[I_F] * xi_F[I_F],
-                    mu[I_F][:, 0] * P_N[I_N],
+                    mu[I_N] * P_N[I_N],
                 )
             )
         )
