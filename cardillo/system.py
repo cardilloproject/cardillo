@@ -220,9 +220,10 @@ class System:
                     Ncontr_connectivity.append(n_laN_contr)
                 n_laN_contr += 1
 
-        self.NF_connectivity = np.array(
-            [np.array(con, dtype=int) for con in NF_connectivity], dtype=object
-        )
+        self.NF_connectivity = NF_connectivity
+        # self.NF_connectivity = np.array(
+        #     [np.array(con, dtype=int) for con in NF_connectivity], dtype=object
+        # )
         self.N_has_friction = np.array(N_has_friction, dtype=bool)
         self.Ncontr_connectivity = np.array(Ncontr_connectivity, dtype=int)
         self.e_N = np.array(e_N)

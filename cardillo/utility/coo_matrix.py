@@ -117,11 +117,20 @@ class CooMatrix:
                 else:
                     # 1D array
                     self.data.extend(value)
-                    self.row.extend(rows)
+                    # self.row.extend(rows)
                     if rows.size > cols.size:
+                        warnings.warn(
+                            "Testing needed for adding column vectors to CooMatrix",
+                            RuntimeWarning,
+                        )
                         self.col.extend(tile(cols, len(rows)))
                     else:
                         self.col.extend(cols)
+                    if cols.size > rows.size:
+                        raise RuntimeError("This implementation is not tested yet!")
+                        self.row.extend(tile(rows, len(cols)))
+                    else:
+                        self.row.extend(rows)
                     # self.data.fromlist(value.tolist())
                     # self.row.fromlist(rows.tolist())
                     # self.col.fromlist(cols.tolist())
