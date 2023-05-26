@@ -1,4 +1,5 @@
 import numpy as np
+import warnings
 from cardillo.utility.coo_matrix import CooMatrix
 from cardillo.discrete.frame import Frame
 from cardillo.solver import consistent_initial_conditions
@@ -219,12 +220,15 @@ class System:
                     Ncontr_connectivity.append(n_laN_contr)
                 n_laN_contr += 1
 
-        self.NF_connectivity = NF_connectivity
+        self.NF_connectivity = np.array(
+            [np.array(con, dtype=int) for con in NF_connectivity], dtype=object
+        )
         self.N_has_friction = np.array(N_has_friction, dtype=bool)
         self.Ncontr_connectivity = np.array(Ncontr_connectivity, dtype=int)
         self.e_N = np.array(e_N)
         self.e_F = np.array(e_F)
         self.mu = np.array(mu)
+        self._alpha = 1
 
         # call assembler callback: call methods that require first an assembly of the system
         self.assembler_callback()
@@ -521,11 +525,25 @@ class System:
     #################
     # normal contacts
     #################
+    @property
+    def alpha(self):
+        return self._alpha
+
+    @alpha.setter
+    def alpha(self, alpha):
+        if alpha > 0 and alpha < 2:
+            self._alpha = alpha
+        else:
+            warnings.warn(
+                "Invalid value for alpha. alpha must be in (0,2). Value not changed.",
+                RuntimeWarning,
+            )
+
     def prox_r_N(self, t, q):
         M = self.M(t, q, csc_matrix)
         W_N = self.W_N(t, q, csc_matrix)
         try:
-            return 1.0 / csr_matrix(W_N.T @ spsolve(M, W_N)).diagonal()
+            return self.alpha / csr_matrix(W_N.T @ spsolve(M, W_N)).diagonal()
         except:
             return np.ones(self.nla_N, dtype=q.dtype)
 
@@ -618,7 +636,7 @@ class System:
         M = self.M(t, q, csc_matrix)
         W_F = self.W_F(t, q, csc_matrix)
         try:
-            return 1.0 / csr_matrix(W_F.T @ spsolve(M, W_F)).diagonal()
+            return self.alpha / csr_matrix(W_F.T @ spsolve(M, W_F)).diagonal()
         except:
             return np.ones(self.nla_N, dtype=q.dtype)
 

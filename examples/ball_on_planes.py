@@ -5,8 +5,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
 from cardillo import System
-from cardillo.discrete import RigidBodyEuler
-from cardillo.discrete import PlaneFixed
+from cardillo.discrete import RigidBodyEuler, PlaneFixed
 from cardillo.forces import Force
 from cardillo.contacts import Sphere2Plane
 from cardillo.solver import (

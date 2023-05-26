@@ -16,6 +16,8 @@ from cardillo.solver import (
     Rattle,
     NonsmoothBackwardEuler,
     NPIRK,
+    MoreauShiftedNew,
+    MoreauClassical,
 )
 from cardillo.solver._butcher_tableaus import RadauIIATableau
 
@@ -29,7 +31,14 @@ Solver1, label1, dt1, kwargs1 = (
 # Solver1, label1, dt1, kwargs1 = NonsmoothBackwardEuler, "Euler backward", 1e-2, {}
 # Solver1, label1, dt1, kwargs1 = Rattle, "Rattle", 1e-2, {}
 # Solver1, label1, dt1, kwargs1 = MoreauShifted, "MoreauShifted", 2e-2, {}
-Solver2, label2, dt2, kwargs2 = MoreauShifted, "MoreauShifted", 1e-2, {}
+Solver1, label1, dt1, kwargs1 = (
+    MoreauShiftedNew,
+    "MoreauShiftedNew",
+    1e-2,
+    {"alpha": 0.6},
+)
+Solver2, label2, dt2, kwargs2 = MoreauShifted, "MoreauShifted", 1e-2, {"alpha": 0.6}
+# Solver2, label2, dt2, kwargs2 = MoreauClassical, "MoreauClassical", 1e-2, {"alpha": 0.6}
 
 
 class Ball(RigidBodyEuler):
@@ -80,6 +89,7 @@ def run():
     e1, e2, e3 = A_IK_basic(beta).z().T
     frame_right = Frame(A_IK=np.vstack((e3, e1, e2)).T)
     mu = 0.3
+    # mu = 0
     e_N = 0.5
     # e_N = 0.0  # TODO: Remove this
     e_F = 0.0

@@ -370,7 +370,7 @@ class NonsmoothBackwardEuler:
 
         # initialize index sets
         self.I_N = np.zeros(self.nla_N, dtype=bool)
-        self.NF_connectivity = np.array(self.system.NF_connectivity)
+        self.NF_connectivity = self.system.NF_connectivity
 
     def R(self, yn1, update_index=False):
         tn, dt, qn, un = self.tn, self.dt, self.qn, self.un
