@@ -5,14 +5,10 @@ from cardillo.beams import (
 )
 from cardillo.constraints import RigidConnection
 
-# from cardillo.beams import K_R12_PetrovGalerkin_Quaternion as Rod
+from cardillo.beams import K_R12_PetrovGalerkin_Quaternion as Rod
 
-from cardillo.beams import K_R12_PetrovGalerkin_AxisAngle as Rod
+# from cardillo.beams import K_R12_PetrovGalerkin_AxisAngle as Rod
 
-# from cardillo.beams import K_SE3_PetrovGalerkin_AxisAngle as Rod
-# from cardillo.beams import K_SE3_PetrovGalerkin_Quaternion as Rod
-# from cardillo.beams import K_SE3_PetrovGalerkin_R9 as Rod
-# from cardillo.beams import K_R3_SO3_PetrovGalerkin_AxisAngle as Rod
 from cardillo.beams import animate_beam
 from cardillo.forces import K_Moment
 from cardillo import System
@@ -25,7 +21,7 @@ import numpy as np
 
 if __name__ == "__main__":
     # number of elements
-    nelements = 4
+    nelements = 5
 
     # used polynomial degree
     polynomial_degree = 2
@@ -113,7 +109,7 @@ if __name__ == "__main__":
 
         return np.vstack((e_x, e_y, e_z)).T
 
-    nxi = 37
+    nxi = 100
     xis = np.linspace(0, 1, num=nxi)
 
     r_OPs = np.array([r(xi, phi0=np.pi) for xi in xis])

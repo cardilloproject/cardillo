@@ -1,4 +1,4 @@
-from cardillo.math import e3, A_IK_basic
+from cardillo.math import A_IK_basic
 from cardillo.beams import (
     RectangularCrossSection,
     Simo1986,
@@ -6,6 +6,7 @@ from cardillo.beams import (
 from cardillo.constraints import RigidConnection, Revolute
 
 from cardillo.beams import K_R12_PetrovGalerkin_Quaternion as Rod
+
 # from cardillo.beams import K_R12_PetrovGalerkin_AxisAngle as Rod
 
 from cardillo import System
@@ -84,7 +85,7 @@ if __name__ == "__main__":
     )
 
     # pivot
-    hp = - width_r # pivot height
+    hp = -width_r  # pivot height
 
     # helix
     n_coils = 2  # number of helix coils
@@ -118,36 +119,35 @@ if __name__ == "__main__":
     # k = Gp * Jp / hp
 
     # # reference solution
-    # def r(xi, R=RO, phi0=0.0, dor=1, c=cO):
-    #     alpha = dor * 2 * np.pi * n_coils * xi
+    # def r(xi, R=RO, phi0=0.0, alpha=1, c=cO):
+    #     alpha = alpha * 2 * np.pi * n_coils * xi
     #     return R * np.array(
-    #         [np.sin(alpha + phi0), -np.cos(alpha + phi0), dor * c * alpha]
+    #         [np.sin(alpha + phi0), -np.cos(alpha + phi0), alpha * c * alpha]
     #     )
 
-    # def A_IK(xi, phi0=0.0, dor=1, c=cO):
-    #     alpha = dor * 2 * np.pi * n_coils * xi
+    # def A_IK(xi, phi0=0.0, alpha=1, c=cO):
+    #     alpha = alpha * 2 * np.pi * n_coils * xi
     #     sa = np.sin(alpha + phi0)
     #     ca = np.cos(alpha + phi0)
 
     #     # # strange directors
-    #     # e_x = np.array([dor * ca, dor * sa, c]) / np.sqrt(1 + c**2)
+    #     # e_x = np.array([alpha * ca, alpha * sa, c]) / np.sqrt(1 + c**2)
     #     # e_y = np.array([-sa, ca, 0])
-    #     # e_z = np.array([-c * ca, -c * sa, dor]) / np.sqrt(1 + c**2)
+    #     # e_z = np.array([-c * ca, -c * sa, alpha]) / np.sqrt(1 + c**2)
 
-    #     # e_x = dor * np.array([ca, sa, dor * c]) / np.sqrt(1 + c**2)
-    #     # e_y = dor * np.array([-sa, ca, 0])
-    #     # e_z = np.array([-c * dor * ca, -dor * c * sa, 1]) / np.sqrt(1 + c**2)
+    #     # e_x = alpha * np.array([ca, sa, alpha * c]) / np.sqrt(1 + c**2)
+    #     # e_y = alpha * np.array([-sa, ca, 0])
+    #     # e_z = np.array([-c * alpha * ca, -alpha * c * sa, 1]) / np.sqrt(1 + c**2)
 
     #     # correct directors
-    #     e_x = dor * np.array([ca, sa, dor * c]) / np.sqrt(1 + c**2)
-    #     e_y = np.array([-c * ca, -c * sa, dor]) / np.sqrt(1 + c**2)
+    #     e_x = alpha * np.array([ca, sa, alpha * c]) / np.sqrt(1 + c**2)
+    #     e_y = np.array([-c * ca, -c * sa, alpha]) / np.sqrt(1 + c**2)
     #     e_z = -np.array([-sa, ca, 0])
 
     #     return np.vstack((e_x, e_y, e_z)).T
 
     # reference solution
-    def r(xi, R=RO, phi0=0.0, dor=1, c=cO):
-        alpha = dor
+    def r(xi, R=RO, phi0=0.0, alpha=1, c=cO):
         Delta_phi = 2 * np.pi * n_coils * xi
         return R * np.array(
             [
@@ -158,8 +158,7 @@ if __name__ == "__main__":
         )
 
     # Serret-Frenet basis
-    def A_IK(xi, phi0=0.0, dor=1, c=cO):
-        alpha = dor
+    def A_IK(xi, phi0=0.0, alpha=1, c=cO):
         Delta_phi = 2 * np.pi * n_coils * xi
         sa = np.sin(alpha * Delta_phi + phi0)
         ca = np.cos(alpha * Delta_phi + phi0)
@@ -188,7 +187,9 @@ if __name__ == "__main__":
     import copy
 
     path = Path(__file__)
-    folder = Path(path.parent, "results", path.stem, 'torsion_ccw_2_coils_el=40', "hp=%s" % hp)
+    folder = Path(
+        path.parent, "results", path.stem, "torsion_ccw_2_coils_el=40", "hp=%s" % hp
+    )
     Path(folder).mkdir(parents=True, exist_ok=True)
     filename = Path(folder, "initial_config")
     if load_config:
@@ -208,8 +209,8 @@ if __name__ == "__main__":
         for n in range(n_rod):
             rod_ccw = copy.deepcopy(rod)
             phi0 = 2 * np.pi * n / n_rod
-            r_OP_ccw = np.array([r(xi, R=RO, dor=1, c=cO, phi0=phi0) for xi in xis])
-            A_IK_ccw = np.array([A_IK(xi, dor=1, phi0=phi0) for xi in xis])
+            r_OP_ccw = np.array([r(xi, R=RO, alpha=1, c=cO, phi0=phi0) for xi in xis])
+            A_IK_ccw = np.array([A_IK(xi, alpha=1, phi0=phi0) for xi in xis])
             Q0_ccw = fit_configuration(rod_ccw, r_OP_ccw, A_IK_ccw)
             rod_ccw.q0 = Q0_ccw.copy()
             Q0_list.append(Q0_ccw)
@@ -217,8 +218,8 @@ if __name__ == "__main__":
             rod_ccw_list.append(rod_ccw)
 
             rod_cw = copy.deepcopy(rod)
-            r_OP_cw = np.array([r(xi, R=RI, dor=-1, c=cI, phi0=phi0) for xi in xis])
-            A_IK_cw = np.array([A_IK(xi, dor=-1, c=cI, phi0=phi0) for xi in xis])
+            r_OP_cw = np.array([r(xi, R=RI, alpha=-1, c=cI, phi0=phi0) for xi in xis])
+            A_IK_cw = np.array([A_IK(xi, alpha=-1, c=cI, phi0=phi0) for xi in xis])
             Q0_cw = fit_configuration(rod_cw, r_OP_cw, A_IK_cw)
             Q0_list.append(Q0_cw)
             rod_cw.q0 = Q0_cw.copy()
@@ -234,7 +235,7 @@ if __name__ == "__main__":
         phi0 = 2 * np.pi * n / n_rod
         rod_ccw = rod_list[2 * n]
         for nn in range(n_rod):
-            for nc in range(n_coils*2):
+            for nc in range(n_coils * 2):
                 dphi0 = (np.pi * (nn - n) / n_rod + nc * np.pi) % (2 * np.pi * n_coils)
                 xi = dphi0 / (2 * np.pi * n_coils)
                 if 0 < xi < 1:
@@ -264,7 +265,7 @@ if __name__ == "__main__":
                         )
                         revolute_joint_list.append(joint)
 
-                    elif joint_type == 'spring':
+                    elif joint_type == "spring":
                         joint = PDRotational(Revolute, Spring=LinearSpring)(
                             subsystem1=rod_ccw,
                             subsystem2=rod_cw,
@@ -281,10 +282,10 @@ if __name__ == "__main__":
     # ax = plt.axes(projection="3d")
     # for n in range(n_rod):
     #     phi0 = 2 * np.pi * n / n_rod
-    #     r_OP_ccw = np.array([r(xi, R=RO, dor=1, c=cO, phi0=phi0) for xi in xis])
-    #     A_IK_ccw = np.array([A_IK(xi, dor=1, phi0=phi0) for xi in xis])
-    #     r_OP_cw = np.array([r(xi, R=RI, dor=-1, c=cI, phi0=phi0) for xi in xis])
-    #     A_IK_cw = np.array([A_IK(xi, dor=-1, phi0=phi0, c=cI) for xi in xis])
+    #     r_OP_ccw = np.array([r(xi, R=RO, alpha=1, c=cO, phi0=phi0) for xi in xis])
+    #     A_IK_ccw = np.array([A_IK(xi, alpha=1, phi0=phi0) for xi in xis])
+    #     r_OP_cw = np.array([r(xi, R=RI, alpha=-1, c=cI, phi0=phi0) for xi in xis])
+    #     A_IK_cw = np.array([A_IK(xi, alpha=-1, phi0=phi0, c=cI) for xi in xis])
     #     # for i,xi in enumerate(xis):
     #     ax.plot3D(*r_OP_ccw.T, color="k")
     #     # ax.quiver(*r_OP_ccw[0].T, *A_IK_ccw[0].T[0],color='r')
@@ -328,11 +329,9 @@ if __name__ == "__main__":
     elif test == "shear":
         r_OP_top = lambda t: np.array([0, 2 * RO * t, Z_max])
     elif test == "torsion":
-        A_IK_top = lambda t: A_IK_basic( t * np.pi / 4).z()
+        A_IK_top = lambda t: A_IK_basic(t * np.pi / 4).z()
 
     frame_top = Frame(r_OP=r_OP_top, A_IK=A_IK_top)
-    
-
 
     for rod in rod_list:
         joint_bottom = RigidConnection(system.origin, rod, frame_ID2=(0,))
@@ -349,7 +348,6 @@ if __name__ == "__main__":
 
     # solve static system
     if load_sol == False:
-        # n_load_steps = 1
         n_load_steps = 30
         solver = Newton(
             system,
@@ -386,9 +384,6 @@ if __name__ == "__main__":
     # pr = cProfile.Profile()
     # pr.enable()
 
-    
-
-
     # export centerline with directors and solution
     size = (nt, 3, 101)
     centerlines = np.zeros((2 * n_rod, 4, nt, 3, 101))
@@ -405,17 +400,17 @@ if __name__ == "__main__":
 
     # export total internal energy
     size = (nt, 3)
-    E_pot = np.zeros((2*n_rod, nt))
+    E_pot = np.zeros((2 * n_rod, nt))
     file_E_pot = open(Path(folder_test, "total_energy"), "wb")
-    for i,rod in enumerate(rod_list):
+    for i, rod in enumerate(rod_list):
         for ti in range(nt):
-            E_pot[i,ti] = rod.E_pot(ti,sol.q[ti,rod.qDOF])
+            E_pot[i, ti] = rod.E_pot(ti, sol.q[ti, rod.qDOF])
 
     pickle.dump(E_pot, file_E_pot)
 
     folder_vtk = Path(folder_test, "vtk_files")
     e = Export(folder_vtk.parent, folder_vtk.stem, True, nt, sol)
-    e.export_contr(rod[0], level="centerline + directors", num=100)
+    e.export_contr(rod_list[0], level="centerline + directors", num=100)
     for rod in rod_list:
         # e.export_contr(rod, level="centerline + directors", num=100)
         e.export_contr(rod, level="volume")
