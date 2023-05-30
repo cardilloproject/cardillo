@@ -1058,12 +1058,6 @@ def L2_projection_Bezier_curve(target_points, n, case="C1", cDOF=[0, -1]):
         return K
 
     def solve_L2(z0):
-        # raise NotImplementedError
-        # # set constraint points
-        # z = np.zeros(nz, dtype=z0.dtype)
-        # z[fDOF] = x
-        # z[cDOF] = z0[cDOF]
-
         # compute unique points depending on required continuity
         unique_points = z0.reshape(-1, dim)
         if case == "C-1":
@@ -1073,19 +1067,11 @@ def L2_projection_Bezier_curve(target_points, n, case="C1", cDOF=[0, -1]):
         elif case == "C1":
             points = C1_continous_control_points(unique_points)
 
-        # # reshape point such that every curve segment has four points
-        # points_segments = points.reshape(-1, 4, dim)
-
         # number of unknowns
-        # N = len(x0)
-        # points = unique_points
         N = points.size
         N_up = unique_points.size
 
         # quadratic shape function matrix and rhs
-        from scipy.sparse import lil_matrix
-
-        # A = lil_matrix((N, N), dtype=float)
         A = np.zeros((N, N), dtype=float)
         b = np.zeros(N, dtype=float)
 
