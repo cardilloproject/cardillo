@@ -67,7 +67,7 @@ if __name__ == "__main__":
         basis,
         nelements,
         L,
-        #A_IK=np.array([[-1,0,0],[0,-1,0],[0,0,1]],dtype=float)
+        # A_IK=np.array([[-1,0,0],[0,-1,0],[0,0,1]],dtype=float)
     )
     rod = Rod(
         cross_section,
@@ -98,11 +98,11 @@ if __name__ == "__main__":
     print(f"L: {L}")
 
     # reference solution
-    def r(xi, phi0=0.):
+    def r(xi, phi0=0.0):
         alpha = 2 * np.pi * n * xi
         return R0 * np.array([np.sin(alpha + phi0), -np.cos(alpha + phi0), c * alpha])
 
-    def A_IK(xi, phi0=0.):
+    def A_IK(xi, phi0=0.0):
         alpha = 2 * np.pi * n * xi
         sa = np.sin(alpha + phi0)
         ca = np.cos(alpha + phi0)

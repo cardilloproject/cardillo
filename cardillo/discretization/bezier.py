@@ -10,6 +10,7 @@ import meshio
 
 from scipy.sparse import lil_matrix
 
+
 class BernsteinBasis:
     def __init__(self, degree, interval=[0, 1]):
         """Bernstein basis functions, see wiki:
@@ -686,8 +687,9 @@ def C2_continous_control_points(unique_points):
 
     return points
 
+
 def reduced_matrix_C1_continous(A, dim):
-    # 
+    #
     N_p = A.shape[0]
     n_first = 4 * dim
     n_other = (N_p - n_first) // (4 * dim)
@@ -698,20 +700,26 @@ def reduced_matrix_C1_continous(A, dim):
     A_red = np.zeros((N_p, N_up), dtype=float)
     A_red[:, :n_first] = A[:, :n_first]
 
-    for j in range(1,n):
+    for j in range(1, n):
         for d in range(dim):
-
             # C0 continuity
-            A_red[:, n_first + (j-1) * 2 * dim + d - dim] = A[:, j * n_first + d - dim] + A[:, j * n_first + d]
+            A_red[:, n_first + (j - 1) * 2 * dim + d - dim] = (
+                A[:, j * n_first + d - dim] + A[:, j * n_first + d]
+            )
 
             # C1 continuity
-            A_red[:, n_first + (j-1) * 2 * dim + d - dim] += 2 * A[:, j * n_first + d + dim] 
-            A_red[:, n_first + (j-1) * 2 * dim + d - 2 * dim] = A[:, j * n_first + d - 2 * dim] - A[:, j * n_first + d + dim]
+            A_red[:, n_first + (j - 1) * 2 * dim + d - dim] += (
+                2 * A[:, j * n_first + d + dim]
+            )
+            A_red[:, n_first + (j - 1) * 2 * dim + d - 2 * dim] = (
+                A[:, j * n_first + d - 2 * dim] - A[:, j * n_first + d + dim]
+            )
 
             # Third and fourth point
-            A_red[:, n_first + (j-1) * 2 * dim + d] = A[:, j * n_first + d + 2 * dim]
-            A_red[:, n_first + (j-1) * 2 * dim + d + dim] = A[:, j * n_first + d + 3 * dim]
-
+            A_red[:, n_first + (j - 1) * 2 * dim + d] = A[:, j * n_first + d + 2 * dim]
+            A_red[:, n_first + (j - 1) * 2 * dim + d + dim] = A[
+                :, j * n_first + d + 3 * dim
+            ]
 
     return A_red
 
@@ -993,7 +1001,7 @@ def L2_projection_Bezier_curve(target_points, n, case="C1", cDOF=[0, -1]):
     fDOF = np.setdiff1d(zDOF, cDOF)
 
     # linearize unconstrainte points
-    z0 = unique_initial_guess.reshape(-1) # inkl. constraint points
+    z0 = unique_initial_guess.reshape(-1)  # inkl. constraint points
     x0 = unique_initial_guess[fDOF].reshape(-1)
 
     # knot vector
@@ -1123,7 +1131,7 @@ def L2_projection_Bezier_curve(target_points, n, case="C1", cDOF=[0, -1]):
             raise NotImplementedError
 
         # remove boundary equations from the system
-        cDOF = np.concatenate((cDOF1,cDOF2))
+        cDOF = np.concatenate((cDOF1, cDOF2))
         qDOF = np.arange(N)
         qDOF_up = np.arange(N_up)
         fDOF = np.setdiff1d(qDOF, qDOF[cDOF])
@@ -1136,8 +1144,7 @@ def L2_projection_Bezier_curve(target_points, n, case="C1", cDOF=[0, -1]):
         # unique_points = np.zeros(N_up, dtype=float)
         # unique_points[fDOF] = spsolve(A.tocsc()[fDOF[:, None], fDOF_up], b[fDOF])
         # unkown_points,*_ = lsqr(A_red.tocsc()[fDOF[:, None], fDOF_up], b[fDOF])
-        unkown_points,*_ = lsqr(A_red[fDOF[:, None], fDOF_up], b[fDOF])
-
+        unkown_points, *_ = lsqr(A_red[fDOF[:, None], fDOF_up], b[fDOF])
 
         # set first and last node to given values
         # unique_points[cDOF1] = points[0]
@@ -1215,7 +1222,7 @@ def line2vtk(points_segments):
 
 
 # def fit_Bezier(case="C-1"):
-    # def fit_Bezier(case="C0"):
+# def fit_Bezier(case="C0"):
 def fit_Bezier(case="C1"):
     num = 200
     xis = np.linspace(0, 1, num=num)

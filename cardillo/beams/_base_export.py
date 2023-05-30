@@ -305,7 +305,8 @@ class RodExportBase(ABC):
                             vtk_points_weights.append(points_layer3[j])
 
                         # first and second
-                        for j in [0, 1, 3, 2]:
+                        # for j in [0, 1, 3, 2]:  # ordering for vtu file version<2.0, e.g. 0.1
+                        for j in range(4):  # ordering for vtu file version>=2.0
                             vtk_points_weights.append(points_layer1[j])
                             vtk_points_weights.append(points_layer2[j])
 
@@ -398,9 +399,9 @@ class RodExportBase(ABC):
                     ##########
                     # 2. edges
                     ##########
-
                     # first and second
-                    for j in [0, 1, 3, 2]:
+                    # for j in [0, 1, 3, 2]:  # ordering for vtu file version<2.0, e.g. 0.1
+                    for j in range(4):  # ordering for vtu file version>=2.0
                         vtk_points_weights.append(points_layer1[j])
                         vtk_points_weights.append(points_layer2[j])
                         vtk_d1_weights.append(d1_layer1[j])
@@ -409,6 +410,7 @@ class RodExportBase(ABC):
                         vtk_d2_weights.append(d2_layer2[j])
                         vtk_d3_weights.append(d3_layer1[j])
                         vtk_d3_weights.append(d3_layer2[j])
+
             p_zeta = 3
             if isinstance(self.cross_section, CircularCrossSection):
                 if circle_as_wedge:

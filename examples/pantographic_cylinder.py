@@ -5,9 +5,9 @@ from cardillo.beams import (
 )
 from cardillo.constraints import RigidConnection, Revolute
 
-# from cardillo.beams import K_R12_PetrovGalerkin_Quaternion as Rod
+from cardillo.beams import K_R12_PetrovGalerkin_Quaternion as Rod
 
-from cardillo.beams import K_R12_PetrovGalerkin_AxisAngle as Rod
+# from cardillo.beams import K_R12_PetrovGalerkin_AxisAngle as Rod
 
 # from cardillo.beams import K_SE3_PetrovGalerkin_AxisAngle as Rod
 # from cardillo.beams import K_SE3_PetrovGalerkin_Quaternion as Rod
@@ -93,7 +93,7 @@ if __name__ == "__main__":
     )
 
     # pivot
-    hp = 3.0 # pivot height
+    hp = 3.0  # pivot height
 
     # helix
     n_coils = 1  # number of helix coils
@@ -117,25 +117,56 @@ if __name__ == "__main__":
     # test = "compression"
     test = "extension"
 
+    # # reference solution
+    # def r(xi, R=RO, phi0=0.0, dor=1, c=cO):
+    #     alpha = dor * 2 * np.pi * n_coils * xi
+    #     return R * np.array(
+    #         [np.sin(alpha + phi0), -np.cos(alpha + phi0), dor * c * alpha]
+    #     )
+
+    # def A_IK(xi, phi0=0.0, dor=1, c=cO):
+    #     alpha = dor * 2 * np.pi * n_coils * xi
+    #     sa = np.sin(alpha + phi0)
+    #     ca = np.cos(alpha + phi0)
+
+    #     # # strange directors
+    #     # e_x = np.array([dor * ca, dor * sa, c]) / np.sqrt(1 + c**2)
+    #     # e_y = np.array([-sa, ca, 0])
+    #     # e_z = np.array([-c * ca, -c * sa, dor]) / np.sqrt(1 + c**2)
+
+    #     # e_x = dor * np.array([ca, sa, dor * c]) / np.sqrt(1 + c**2)
+    #     # e_y = dor * np.array([-sa, ca, 0])
+    #     # e_z = np.array([-c * dor * ca, -dor * c * sa, 1]) / np.sqrt(1 + c**2)
+
+    #     # correct directors
+    #     e_x = dor * np.array([ca, sa, dor * c]) / np.sqrt(1 + c**2)
+    #     e_y = np.array([-c * ca, -c * sa, dor]) / np.sqrt(1 + c**2)
+    #     e_z = -np.array([-sa, ca, 0])
+
+    #     return np.vstack((e_x, e_y, e_z)).T
+
     # reference solution
     def r(xi, R=RO, phi0=0.0, dor=1, c=cO):
-        alpha = dor * 2 * np.pi * n_coils * xi
+        alpha = dor
+        Delta_phi = 2 * np.pi * n_coils * xi
         return R * np.array(
-            [np.sin(alpha + phi0), -np.cos(alpha + phi0), dor * c * alpha]
+            [
+                np.sin(alpha * Delta_phi + phi0),
+                -np.cos(alpha * Delta_phi + phi0),
+                c * Delta_phi,
+            ]
         )
 
+    # Serret-Frenet basis
     def A_IK(xi, phi0=0.0, dor=1, c=cO):
-        alpha = dor * 2 * np.pi * n_coils * xi
-        sa = np.sin(alpha + phi0)
-        ca = np.cos(alpha + phi0)
+        alpha = dor
+        Delta_phi = 2 * np.pi * n_coils * xi
+        sa = np.sin(alpha * Delta_phi + phi0)
+        ca = np.cos(alpha * Delta_phi + phi0)
 
-        # e_x = dor * np.array([ca, sa, dor * c]) / np.sqrt(1 + c**2)
-        # e_y = dor * np.array([-sa, ca, 0])
-        # e_z = np.array([-c * dor * ca, -dor * c * sa, 1]) / np.sqrt(1 + c**2)
-
-        e_x = dor * np.array([ca, sa, dor * c]) / np.sqrt(1 + c**2)
-        e_y = np.array([-c * ca, -c * sa, dor]) / np.sqrt(1 + c**2)
-        e_z = -np.array([-sa, ca, 0])
+        e_x = np.array([alpha * ca, alpha * sa, c]) / np.sqrt(1 + c**2)
+        e_y = np.array([-sa, ca, 0])
+        e_z = np.array([-c * ca, -c * sa, alpha]) / np.sqrt(1 + c**2)
 
         return np.vstack((e_x, e_y, e_z)).T
 
@@ -150,7 +181,8 @@ if __name__ == "__main__":
     joint_list = []
 
     # load config and sol
-    load_config = True
+    # load_config = True
+    load_config = False
     load_sol = False
     from pathlib import Path
     import copy
@@ -303,6 +335,7 @@ if __name__ == "__main__":
 
     # solve static system
     if load_sol == False:
+        # n_load_steps = 1
         n_load_steps = 30
         solver = Newton(
             system,
@@ -355,6 +388,7 @@ if __name__ == "__main__":
 
     folder_vtk = Path(folder_test, "vtk_files")
     e = Export(folder_vtk.parent, folder_vtk.stem, True, nt, sol)
+    e.export_contr(rod[0], level="centerline + directors", num=100)
     for rod in rod_list:
         # e.export_contr(rod, level="centerline + directors", num=100)
         e.export_contr(rod, level="volume")

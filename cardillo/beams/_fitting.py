@@ -11,14 +11,9 @@ def fit_configuration(
     r_OPs,
     A_IKs,
     use_cord_length=False,
-    # nodal_cDOF=[0, -1],
+    nodal_cDOF=[0, -1],
+    verbose=0,
 ):
-    # # constrained nodes
-    # zDOF = np.arange(rod.nnodes)
-    # cDOF = np.asarray(cDOF, dtype=int)
-    # cDOF = zDOF[cDOF]
-    # fDOF = np.setdiff1d(zDOF, cDOF)
-
     # number of sample points
     n_samples = len(r_OPs)
 
@@ -39,7 +34,7 @@ def fit_configuration(
         xis = np.linspace(0, 1, n_samples)
 
     # initial vector of generalized coordinates
-    Q0 = np.zeros(rod.nq, dtype=float)
+    Z0 = np.zeros(rod.nq, dtype=float)
 
     ###########
     # warmstart
@@ -59,23 +54,40 @@ def fit_configuration(
     )
 
     for node, xi_idx in enumerate(xi_idx_r):
-        Q0[rod.nodalDOF_r[node]] = r_OPs[xi_idx]
+        Z0[rod.nodalDOF_r[node]] = r_OPs[xi_idx]
     for node, xi_idx in enumerate(xi_idx_psi):
-        Q0[rod.nodalDOF_psi[node]] = rod.RotationBase.Log_SO3(A_IKs[xi_idx])
+        Z0[rod.nodalDOF_psi[node]] = rod.RotationBase.Log_SO3(A_IKs[xi_idx])
 
-    # TODO: We should always use the axis-angle rotation parametrization for
-    # this fitting since it converges very good. Sadly, this breaks with the
-    # current way the rod hierarchie is implemented.
+    # constrained nodes
+    zDOF = np.arange(rod.nq)
+    cDOF_r = rod.nodalDOF_r[nodal_cDOF]
+    cDOF_psi = rod.nodalDOF_psi[nodal_cDOF]
+    cDOF = np.concatenate((cDOF_r.flatten(), cDOF_psi.flatten()))
+    fDOF = np.setdiff1d(zDOF, cDOF)
+
+    # generate redundant coordinates
+    Z0_boundary_r = Z0[cDOF_r]
+    Z0_boundary_psi = Z0[cDOF_psi]
+
+    def make_redundant_coordinates(q):
+        z = np.zeros(rod.nq, dtype=q.dtype)
+        z[fDOF] = q
+        z[cDOF_r] = Z0_boundary_r
+        z[cDOF_psi] = Z0_boundary_psi
+        return z
+
     def residual(q):
-        R = np.zeros(6 * n_samples, dtype=q.dtype)
+        z = make_redundant_coordinates(q)
+
+        R = np.zeros(6 * n_samples, dtype=z.dtype)
         for i, xi in enumerate(xis):
             # find element number and extract elemt degrees of freedom
             el = rod.element_number(xi)
             elDOF = rod.elDOF[el]
-            qe = q[elDOF]
+            ze = z[elDOF]
 
             # interpolate position and orientation
-            r_OP, A_IK, _, _ = rod._eval(qe, xi)
+            r_OP, A_IK, _, _ = rod._eval(ze, xi)
 
             # compute homogeneous transformation
             H = SE3(A_IK, r_OP)
@@ -86,63 +98,46 @@ def fit_configuration(
         return R
 
     def jac(q):
-        J = np.zeros((6 * n_samples, len(q)), dtype=q.dtype)
+        z = make_redundant_coordinates(q)
+
+        J = np.zeros((6 * n_samples, len(z)), dtype=z.dtype)
         for i, xi in enumerate(xis):
-            # # find element number and extract elemt degrees of freedom
-            # el = node_vector.element_number(xii)[0]
-            # elDOF = mesh.elDOF[el]
-            # qe = q[elDOF]
-            # nqe = len(qe)
-
-            # # evaluate shape functions
-            # N = mesh.eval_basis(xii)
-
-            # # interpoalte rotations
-            # A_IK = np.zeros((3, 3), dtype=float)
-            # A_IK_qe = np.zeros((3, 3, nqe), dtype=float)
-            # for node in range(mesh.nnodes_per_element):
-            #     nodalDOF = mesh.nodalDOF_element[node]
-            #     qe_node = qe[nodalDOF]
-            #     A_IK += N[node] * Exp_SO3(qe_node)
-            #     A_IK_qe[:, :, nodalDOF] += N[node] * Exp_SO3_psi(qe_node)
-
             # find element number and extract elemt degrees of freedom
             el = rod.element_number(xi)
             elDOF = rod.elDOF[el]
-            qe = q[elDOF]
-            H_qe = np.zeros((4, 4, len(qe)))
+            ze = z[elDOF]
+            H_qe = np.zeros((4, 4, len(ze)))
 
             # interpolate position and orientation
-            # r_OP, A_IK, _, _ = rod._eval(qe, xi)
             (
                 r_OP,
                 A_IK,
-                K_Gamma_bar,
-                K_Kappa_bar,
-                r_OP_qe,
-                A_IK_qe,
-                K_Gamma_bar_qe,
-                K_Kappa_bar_qe,
-            ) = rod._deval(qe, xi)
+                _,
+                _,
+                r_OP_ze,
+                A_IK_ze,
+                _,
+                _,
+            ) = rod._deval(ze, xi)
 
             # compute homogeneous transformation
             H = SE3(A_IK, r_OP)
 
             Log_invHsH_H = Log_SE3_H(SE3inv(Hs[i]) @ H)
 
-
-
-            H_qe[:3, :3, :] = A_IK_qe
-            H_qe[:3, 3, :] = r_OP_qe
+            H_qe[:3, :3, :] = A_IK_ze
+            H_qe[:3, 3, :] = r_OP_ze
 
             # compute relative rotation vector
             # psi_rel_A_rel = Log_SO3_A(r_OPs[i].T @ A_IK)
             # psi_rel_qe = np.einsum("ikl,mk,mlj->ij", psi_rel_A_rel, r_OPs[i], A_IK_qe)
 
-            invHsH_H = np.einsum('ij,jl,km->iklm', SE3inv(Hs[i]), np.eye(4), np.eye(4))
+            invHsH_H = np.einsum("ij,jl,km->iklm", SE3inv(Hs[i]), np.eye(4), np.eye(4))
 
             # insert to residual
-            J[6 * i : 6 * (i + 1), elDOF] = np.einsum('ikl,klmn,mno->io', Log_invHsH_H, invHsH_H,  H_qe)
+            J[6 * i : 6 * (i + 1), elDOF] = np.einsum(
+                "ikl,klmn,mno->io", Log_invHsH_H, invHsH_H, H_qe
+            )
 
             # def psi_rel(qe):
             #     # evaluate shape functions
@@ -164,37 +159,31 @@ def fit_configuration(
             # # insert to residual
             # J[3 * i:3 * (i + 1), elDOF] = psi_rel_qe_num
 
-        # return J
+        # jacobian w.r.t. to minimal coordinates
+        J = J[:, fDOF]
+        return J
 
         # from cardillo.math import approx_fprime
-
-        # J_num = approx_fprime(q, residual)
+        # J_num = approx_fprime(q, residual, method="cs")
         # diff = J - J_num
         # error = np.linalg.norm(diff)
         # print(f"error J: {error}")
         # return J_num
-        return J
+        # # return J
 
     res = least_squares(
         residual,
-        Q0,
+        Z0[fDOF],
         jac=jac,
+        # jac="2-point",
         method="trf",
-        verbose=2,
+        # method="lm",
+        # verbose=verbose,
+        verbose=0,
     )
-    Q0 = res.x
+    Z0 = res.x
+    Z0 = make_redundant_coordinates(Z0)
     print(f"res: {res}")
 
-    # def fun(q):
-    #     r = residual(q)
-    #     return 0.5 * (r @ r)
-
-    # # method = "SLSQP"
-    # method = "trust-constr"
-    # sol = minimize(fun, Q0, method=method, options={"verbose": 2})
-    # print(f"sol: {sol}")
-    # Q0 = sol.x
-
-    rod.set_initial_strains(Q0)
-
-    return Q0
+    rod.set_initial_strains(Z0)
+    return Z0
