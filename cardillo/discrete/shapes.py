@@ -286,6 +286,7 @@ def FromSTL(RigidBodyParametrization):
 
             self.meshio_mesh = meshio.read(self.path)
             self.meshio_mesh.points *= scale
+            self.points = self.meshio_mesh.points
 
             super().__init__(**kwargs)
 
