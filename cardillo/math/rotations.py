@@ -110,7 +110,7 @@ def Log_SO3(A: np.ndarray) -> np.ndarray:
     ], dtype=A.dtype)
     # fmt: on
 
-    if angle > angle_singular and angle < np.pi:
+    if angle > angle_singular:
         psi *= angle / np.sqrt(1.0 - ca * ca)
     return psi
 
@@ -127,7 +127,7 @@ def Log_SO3_A(A: np.ndarray) -> np.ndarray:
     angle = np.arccos(ca)
 
     psi_A = np.zeros((3, 3, 3), dtype=A.dtype)
-    if angle > angle_singular and angle < np.pi:
+    if angle > angle_singular:
         sa = np.sin(angle)
         b = 0.5 * angle / sa
 
