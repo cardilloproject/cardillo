@@ -45,5 +45,9 @@ jupyter_execute/
 *.vtu
 *.pvd
 
+# results
+examples/results
+
 # virtual environment
 myvenv
+
