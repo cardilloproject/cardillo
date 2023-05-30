@@ -1,6 +1,4 @@
 import numpy as np
-
-from scipy.optimize import minimize
 from scipy.optimize import least_squares
 from cardillo.math import SE3, SE3inv, Log_SE3, Log_SE3_H
 
@@ -12,7 +10,7 @@ def fit_configuration(
     A_IKs,
     use_cord_length=False,
     nodal_cDOF=[0, -1],
-    verbose=0,
+    verbose=1,
 ):
     # number of sample points
     n_samples = len(r_OPs)
@@ -106,7 +104,6 @@ def fit_configuration(
             el = rod.element_number(xi)
             elDOF = rod.elDOF[el]
             ze = z[elDOF]
-            H_qe = np.zeros((4, 4, len(ze)))
 
             # interpolate position and orientation
             (
@@ -120,44 +117,23 @@ def fit_configuration(
                 _,
             ) = rod._deval(ze, xi)
 
-            # compute homogeneous transformation
+            # compute homogeneous transformation and derivative
             H = SE3(A_IK, r_OP)
-
-            Log_invHsH_H = Log_SE3_H(SE3inv(Hs[i]) @ H)
-
+            H_qe = np.zeros((4, 4, len(ze)))
             H_qe[:3, :3, :] = A_IK_ze
             H_qe[:3, 3, :] = r_OP_ze
 
-            # compute relative rotation vector
-            # psi_rel_A_rel = Log_SO3_A(r_OPs[i].T @ A_IK)
-            # psi_rel_qe = np.einsum("ikl,mk,mlj->ij", psi_rel_A_rel, r_OPs[i], A_IK_qe)
-
-            invHsH_H = np.einsum("ij,jl,km->iklm", SE3inv(Hs[i]), np.eye(4), np.eye(4))
-
-            # insert to residual
+            # insert to jacobian
             J[6 * i : 6 * (i + 1), elDOF] = np.einsum(
-                "ikl,klmn,mno->io", Log_invHsH_H, invHsH_H, H_qe
+                # "ijk,jkl->il",
+                # Log_SE3_H(SE3inv(Hs[i]) @ H),
+                # np.einsum("mn,nop->mop", SE3inv(Hs[i]), H_qe)
+                #
+                "ijk,jn,nkl->il",
+                Log_SE3_H(SE3inv(Hs[i]) @ H),
+                SE3inv(Hs[i]),
+                H_qe,
             )
-
-            # def psi_rel(qe):
-            #     # evaluate shape functions
-            #     N = mesh.eval_basis(xii)
-
-            #     # interpoalte rotations
-            #     A_IK = np.zeros((3, 3), dtype=q.dtype)
-            #     for node in range(mesh.nnodes_per_element):
-            #         A_IK += N[node] * Exp_SO3(qe[mesh.nodalDOF_element[node]])
-
-            #     # compute relative rotation vector
-            #     return Log_SO3(A_IKs[i].T @ A_IK)
-
-            # psi_rel_qe_num = approx_fprime(qe, psi_rel)
-            # diff = psi_rel_qe - psi_rel_qe_num
-            # error = np.linalg.norm(diff)
-            # print(f"error psi_rel_qe: {error}")
-
-            # # insert to residual
-            # J[3 * i:3 * (i + 1), elDOF] = psi_rel_qe_num
 
         # jacobian w.r.t. to minimal coordinates
         J = J[:, fDOF]
@@ -169,21 +145,16 @@ def fit_configuration(
         # error = np.linalg.norm(diff)
         # print(f"error J: {error}")
         # return J_num
-        # # return J
 
     res = least_squares(
         residual,
         Z0[fDOF],
         jac=jac,
-        # jac="2-point",
         method="trf",
-        # method="lm",
-        # verbose=verbose,
-        verbose=0,
+        verbose=verbose,
     )
-    Z0 = res.x
-    Z0 = make_redundant_coordinates(Z0)
-    print(f"res: {res}")
+    Q0 = res.x
+    Z0 = make_redundant_coordinates(Q0)
 
     rod.set_initial_strains(Z0)
     return Z0
