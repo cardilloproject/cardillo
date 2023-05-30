@@ -113,7 +113,7 @@ if __name__ == "__main__":
 
         return np.vstack((e_x, e_y, e_z)).T
 
-    nxi = 30
+    nxi = 37
     xis = np.linspace(0, 1, num=nxi)
 
     r_OPs = np.array([r(xi, phi0=np.pi) for xi in xis])

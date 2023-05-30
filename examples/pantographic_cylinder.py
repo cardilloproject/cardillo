@@ -1,4 +1,4 @@
-from cardillo.math import e3
+from cardillo.math import e3, A_IK_basic
 from cardillo.beams import (
     RectangularCrossSection,
     Simo1986,
@@ -6,32 +6,23 @@ from cardillo.beams import (
 from cardillo.constraints import RigidConnection, Revolute
 
 from cardillo.beams import K_R12_PetrovGalerkin_Quaternion as Rod
-
 # from cardillo.beams import K_R12_PetrovGalerkin_AxisAngle as Rod
 
-# from cardillo.beams import K_SE3_PetrovGalerkin_AxisAngle as Rod
-# from cardillo.beams import K_SE3_PetrovGalerkin_Quaternion as Rod
-# from cardillo.beams import K_SE3_PetrovGalerkin_R9 as Rod
-# from cardillo.beams import K_R3_SO3_PetrovGalerkin_AxisAngle as Rod
-from cardillo.beams import animate_beam
-
-# from cardillo.forces import K_Moment
 from cardillo import System
+
+from cardillo.forces import LinearSpring, PDRotational
 from cardillo.solver import Newton
 from cardillo.discrete import Frame
 from cardillo.beams._fitting import fit_configuration
 
 from cardillo.utility import Export
 
-import matplotlib.pyplot as plt
-from mpl_toolkits import mplot3d
-
 import numpy as np
 import pickle
 
 if __name__ == "__main__":
     # number of elements
-    nelements = 20
+    nelements = 40
 
     # used polynomial degree
     polynomial_degree = 2
@@ -93,29 +84,38 @@ if __name__ == "__main__":
     )
 
     # pivot
-    hp = 3.0  # pivot height
+    hp = - width_r # pivot height
 
     # helix
-    n_coils = 1  # number of helix coils
+    n_coils = 2  # number of helix coils
     RO = (35.0 - width_r / 2) * scale  # helix outer radius
     RI = (RO - hp - width_r) * scale  # helix inner radius
-    h = 150.0 * scale  # helix height
+    h = 600.0 * scale  # helix height
     # h = RO * 2 * np.pi * n_coils
     cO = h / (RO * 2 * np.pi * n_coils)
     LO = np.sqrt(1 + cO**2) * RO * 2 * np.pi * n_coils
     cI = h / (RI * 2 * np.pi * n_coils)
     LI = np.sqrt(1 + cI**2) * RI * 2 * np.pi * n_coils
-    # print(f"R0: {R0}")
+    print(f"R0: {RO}")
     print(f"h: {h}")
     # print(f"c: {c}")
     print(f"n: {n_coils}")
     # print(f"L: {L}")
 
     # joint_type = "revolute"
-    # joint_type = "rigid"
-    joint_type = "no_joint"
+    joint_type = "rigid"
+    # joint_type = "no_joint"
+    # joint_type = "spring"
     # test = "compression"
-    test = "extension"
+    # test = "extension"
+    test = "torsion"
+    # test = "shear"
+
+    Gp = G
+    rp = 2.0
+    Jp = np.pi * rp**4 / 2
+
+    # k = Gp * Jp / hp
 
     # # reference solution
     # def r(xi, R=RO, phi0=0.0, dor=1, c=cO):
@@ -170,7 +170,7 @@ if __name__ == "__main__":
 
         return np.vstack((e_x, e_y, e_z)).T
 
-    nxi = 41
+    nxi = 81
     xis = np.linspace(0, 1, num=nxi)
 
     # individual rods
@@ -188,8 +188,8 @@ if __name__ == "__main__":
     import copy
 
     path = Path(__file__)
-    folder = Path(path.parent, "results", path.stem, "hp=%s" % hp)
-    Path(folder).mkdir(exist_ok=True)
+    folder = Path(path.parent, "results", path.stem, 'torsion_ccw_2_coils_el=40', "hp=%s" % hp)
+    Path(folder).mkdir(parents=True, exist_ok=True)
     filename = Path(folder, "initial_config")
     if load_config:
         Q0_list = pickle.load(open(filename, "rb"))
@@ -234,8 +234,8 @@ if __name__ == "__main__":
         phi0 = 2 * np.pi * n / n_rod
         rod_ccw = rod_list[2 * n]
         for nn in range(n_rod):
-            for nc in range(n_coils * 2):
-                dphi0 = (np.pi * (nn - n) / n_rod + nc * np.pi) % (2 * np.pi)
+            for nc in range(n_coils*2):
+                dphi0 = (np.pi * (nn - n) / n_rod + nc * np.pi) % (2 * np.pi * n_coils)
                 xi = dphi0 / (2 * np.pi * n_coils)
                 if 0 < xi < 1:
                     r_OP_joint = r(xi, phi0=phi0)
@@ -262,7 +262,19 @@ if __name__ == "__main__":
                             frame_ID1=frame_ID_ccw,
                             frame_ID2=frame_ID_cw,
                         )
+                        revolute_joint_list.append(joint)
 
+                    elif joint_type == 'spring':
+                        joint = PDRotational(Revolute, Spring=LinearSpring)(
+                            subsystem1=rod_ccw,
+                            subsystem2=rod_cw,
+                            axis=2,
+                            r_OB0=r_OP_joint,
+                            # A_IB0=A_IK0,
+                            k=k,
+                            frame_ID1=frame_ID_ccw,
+                            frame_ID2=frame_ID_cw,
+                        )
                         revolute_joint_list.append(joint)
 
     # test plot
@@ -294,7 +306,7 @@ if __name__ == "__main__":
     #                 r_OP_joint = r(xi, phi0=phi0)
     #                 A_IK_ccw = A_IK(xi, phi0=phi0)
     #                 ax.quiver(*r_OP_joint, *A_IK_ccw.T[2], color="r")
-    #                 plt.show(block=False)
+    #                 plt.show()
     #                 print(n,nn,nc,xi)
     #                 print("\n")
 
@@ -307,23 +319,25 @@ if __name__ == "__main__":
     Z_max = r(1)[-1]
     folder_test = Path(folder, test + "_" + joint_type)
     Path(folder_test).mkdir(exist_ok=True)
+    r_OP_top = lambda t: np.array([0, 0, Z_max])
+    A_IK_top = lambda t: np.eye(3)
     if test == "compression":
         r_OP_top = lambda t: np.array([0, 0, Z_max - h / 3 * t])
     elif test == "extension":
         r_OP_top = lambda t: np.array([0, 0, Z_max + h / 3 * t])
     elif test == "shear":
         r_OP_top = lambda t: np.array([0, 2 * RO * t, Z_max])
-    frame_top = Frame(r_OP=r_OP_top, A_IK=np.eye(3))
+    elif test == "torsion":
+        A_IK_top = lambda t: A_IK_basic( t * np.pi / 4).z()
+
+    frame_top = Frame(r_OP=r_OP_top, A_IK=A_IK_top)
+    
+
+
     for rod in rod_list:
         joint_bottom = RigidConnection(system.origin, rod, frame_ID2=(0,))
         joint_top = RigidConnection(frame_top, rod, frame_ID2=(1,))
         joint_list.extend((joint_bottom, joint_top))
-
-    # moment at right beam's tip
-    # Fi = material_model.Fi
-    # m = Fi[2] * 2 * np.pi / (2 * L) * 0.25 * 0.1
-    # M = lambda t: t * e3 * m
-    # moment = K_Moment(M, rod, (1,))
 
     # assemble the system
     system.add(*rod_list)
@@ -341,9 +355,12 @@ if __name__ == "__main__":
             system,
             n_load_steps=n_load_steps,
             atol=atol,
-            max_iter=50,
+            max_iter=30,
         )
         sol = solver.solve()
+        filename = Path(folder_test, "sol")
+        file_sol = open(filename, "wb")
+        pickle.dump(sol, file_sol)
     elif load_sol:
         filename = Path(folder_test, "sol")
         sol = pickle.load(open(filename, "rb"))
@@ -351,6 +368,7 @@ if __name__ == "__main__":
     q = sol.q
     nt = len(q)
     t = sol.t[:nt]
+    sol.t = t
 
     # t = [0, 1]
     # q = [q0, q0]
@@ -368,23 +386,32 @@ if __name__ == "__main__":
     # pr = cProfile.Profile()
     # pr.enable()
 
-    # export centerline with directors and solution
-    size = (len(sol.t), 3, 101)
-    centerlines = np.zeros((2 * n_rod, 4, len(sol.t), 3, 101))
-    file_centerlines = open(Path(folder_test, "centerlines"), "wb")
-    for i, rod in enumerate(rod_list):
-        r_OP = np.zeros([len(sol.t), 3, 101])
-        d1 = np.zeros([len(sol.t), 3, 101])
-        d2 = np.zeros([len(sol.t), 3, 101])
-        d3 = np.zeros([len(sol.t), 3, 101])
-        for ti in range(len(sol.t)):
-            r_OP[ti], d1[ti], d2[ti], d3[ti] = rod.frames(sol.q[ti], 101)
-        centerlines[i] = r_OP, d1, d2, d3
+    
 
-    pickle.dump(centerlines, file_centerlines)
-    filename = Path(folder_test, "sol")
-    file_sol = open(filename, "wb")
-    pickle.dump(sol, file_sol)
+
+    # export centerline with directors and solution
+    size = (nt, 3, 101)
+    centerlines = np.zeros((2 * n_rod, 4, nt, 3, 101))
+    file_centerlines = open(Path(folder_test, "centerlines"), "wb")
+    # for i, rod in enumerate(rod_list):
+    #     r_OP = np.zeros([nt, 3, 101])
+    #     d1 = np.zeros([nt, 3, 101])
+    #     d2 = np.zeros([nt, 3, 101])
+    #     d3 = np.zeros([nt, 3, 101])
+    #     for ti in range(nt):
+    #         r_OP[ti], d1[ti], d2[ti], d3[ti] = rod.frames(sol.q[ti], 101)
+    #     centerlines[i] = r_OP, d1, d2, d3
+    # pickle.dump(centerlines, file_centerlines)
+
+    # export total internal energy
+    size = (nt, 3)
+    E_pot = np.zeros((2*n_rod, nt))
+    file_E_pot = open(Path(folder_test, "total_energy"), "wb")
+    for i,rod in enumerate(rod_list):
+        for ti in range(nt):
+            E_pot[i,ti] = rod.E_pot(ti,sol.q[ti,rod.qDOF])
+
+    pickle.dump(E_pot, file_E_pot)
 
     folder_vtk = Path(folder_test, "vtk_files")
     e = Export(folder_vtk.parent, folder_vtk.stem, True, nt, sol)
