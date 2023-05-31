@@ -3,8 +3,43 @@ from cardillo.visualization import vtk_sphere
 import meshio
 
 
-def Ball(RigidBodyParametrization):
-    class _Ball(RigidBodyParametrization):
+def Rectangle(Base):
+    class _Rectangle(Base):
+        def __init__(self, **kwargs):
+            axis = kwargs.pop("axis", 2)
+            assert axis in (0, 1, 2)
+
+            dimensions = kwargs.pop("dimensions", (1, 1))
+            assert len(dimensions) == 2
+
+            self.rolled_axis = np.roll([0, 1, 2], -axis)
+            self.dimensions = dimensions
+
+            super().__init__(**kwargs)
+
+        def export(self, sol_i, base_export=False, **kwargs):
+            if base_export:
+                return super().export(sol_i, **kwargs)
+            else:
+                r_OP = self.r_OP(sol_i.t)
+                A_IK = self.A_IK(sol_i.t)
+                n, t1, t2 = A_IK[:, self.rolled_axis].T
+                points = [
+                    r_OP + t1 * self.dimensions[0] + t2 * self.dimensions[1],
+                    r_OP + t1 * self.dimensions[0] - t2 * self.dimensions[1],
+                    r_OP - t1 * self.dimensions[0] - t2 * self.dimensions[1],
+                    r_OP - t1 * self.dimensions[0] + t2 * self.dimensions[1],
+                ]
+                cells = [("quad", [np.arange(4)])]
+                t1t2 = np.vstack([t1, t2]).T
+                point_data = dict(n=[n, n, n, n], t=[t1t2, t1t2, t1t2, t1t2])
+            return points, cells, point_data, None
+
+    return _Rectangle
+
+
+def Ball(Base):
+    class _Ball(Base):
         def __init__(self, **kwargs):
             self.radius = kwargs.pop("radius")
             mass = kwargs.pop("mass", None)
@@ -57,8 +92,8 @@ def Ball(RigidBodyParametrization):
     return _Ball
 
 
-def Box(RigidBodyParametrization):
-    class _Box(RigidBodyParametrization):
+def Cuboid(Base):
+    class _Box(Base):
         def __init__(self, **kwargs):
             self.dimensions = kwargs.pop("dimensions")
             mass = kwargs.pop("mass", None)
@@ -134,8 +169,8 @@ def Box(RigidBodyParametrization):
     return _Box
 
 
-def Cylinder(RigidBodyParametrization):
-    class _Cylinder(RigidBodyParametrization):
+def Cylinder(Base):
+    class _Cylinder(Base):
         def __init__(self, **kwargs):
             self.length = kwargs.pop("length")
             self.radius = kwargs.pop("radius")
@@ -278,8 +313,8 @@ def Cylinder(RigidBodyParametrization):
     return _Cylinder
 
 
-def FromSTL(RigidBodyParametrization):
-    class _FromSTL(RigidBodyParametrization):
+def FromSTL(Base):
+    class _FromSTL(Base):
         def __init__(self, scale=1.0, **kwargs):
             self.path = kwargs.pop("path")
             self.K_r_SP = kwargs.pop("K_r_SP")

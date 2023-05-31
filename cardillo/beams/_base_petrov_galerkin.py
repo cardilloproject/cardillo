@@ -1696,19 +1696,24 @@ def make_K_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
                 np.zeros(self.nu, dtype=float) if u0 is None else u0
             )  # initial velocities
 
+            self.set_initial_strains(self.q0)
+
+        def set_initial_strains(self, Q):
+            self.Q = Q.copy()
+
             # precompute values of the reference configuration in order to save computation time
             # J in Harsch2020b (5)
-            self.J = np.zeros((nelement, nquadrature), dtype=float)
-            self.J_dyn = np.zeros((nelement, nquadrature_dyn), dtype=float)
+            self.J = np.zeros((self.nelement, self.nquadrature), dtype=float)
+            self.J_dyn = np.zeros((self.nelement, self.nquadrature_dyn), dtype=float)
             # dilatation and shear strains of the reference configuration
-            self.K_Gamma0 = np.zeros((nelement, nquadrature, 3), dtype=float)
+            self.K_Gamma0 = np.zeros((self.nelement, self.nquadrature, 3), dtype=float)
             # curvature of the reference configuration
-            self.K_Kappa0 = np.zeros((nelement, nquadrature, 3), dtype=float)
+            self.K_Kappa0 = np.zeros((self.nelement, self.nquadrature, 3), dtype=float)
 
-            for el in range(nelement):
+            for el in range(self.nelement):
                 qe = self.Q[self.elDOF[el]]
 
-                for i in range(nquadrature):
+                for i in range(self.nquadrature):
                     # current quadrature point
                     qpi = self.qp[el, i]
 
@@ -1729,7 +1734,7 @@ def make_K_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
                     self.K_Gamma0[el, i] = K_Gamma
                     self.K_Kappa0[el, i] = K_Kappa
 
-                for i in range(nquadrature_dyn):
+                for i in range(self.nquadrature_dyn):
                     # current quadrature point
                     qpi = self.qp_dyn[el, i]
 

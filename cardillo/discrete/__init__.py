@@ -1,4 +1,4 @@
-from .frame import Frame, PlaneFixed
+from .frame import Frame
 from .point_mass import PointMass
 from ._base import RigidBodyBase
 from .rigid_body_axis_angle import RigidBodyAxisAngle
