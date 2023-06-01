@@ -473,7 +473,6 @@ class NonsmoothBackwardEuler:
             + self.system.g_S_q_T_mu_q(tn1, qn1, mu_Sn1)
         )
         Rq_u = -dt * self.system.B(tn1, qn1)
-        # Rq_mu_S = -self.system.g_S_q(tn1, qn1).T
         g_S_q = self.system.g_S_q(tn1, qn1)
 
         ########################
@@ -514,7 +513,7 @@ class NonsmoothBackwardEuler:
         Rla_N_la_N = CooMatrix((self.nla_N, self.nla_N))
         for i in range(self.nla_N):
             if self.I_N[i]:
-                Rla_N_q[i, : self.nq] = g_N_q[i]
+                Rla_N_q[i, :] = g_N_q[i]
             else:
                 Rla_N_la_N[i, i] = 1.0
 
@@ -551,30 +550,26 @@ class NonsmoothBackwardEuler:
                 norm_arg_F = np.linalg.norm(arg_F)
 
                 if norm_arg_F < radius:
-                    Rla_F_q[i_F, : self.nq] = gamma_F_q[i_F]
-                    Rla_F_u[i_F, : self.nu] = gamma_F_u[i_F]
+                    Rla_F_q[i_F, :] = gamma_F_q[i_F]
+                    Rla_F_u[i_F, :] = gamma_F_u[i_F]
                 else:
                     if norm_arg_F > 0:
                         slip_dir = arg_F / norm_arg_F
                         factor = (
                             np.eye(n_F) - np.outer(slip_dir, slip_dir)
                         ) / norm_arg_F
-                        Rla_F_q[i_F, : self.nq] = (
+                        Rla_F_q[i_F, :] = (
                             radius * factor @ diags(prox_r_F[i_F]) @ gamma_F_q[i_F]
                         )
-                        Rla_F_u[i_F, : self.nu] = (
+                        Rla_F_u[i_F, :] = (
                             radius * factor @ diags(prox_r_F[i_F]) @ gamma_F_u[i_F]
                         )
                         Rla_F_la_N[i_F, i_N] = mui * slip_dir
                         Rla_F_la_F[i_F, i_F] = np.eye(n_F) - radius * factor
                     else:
                         slip_dir = arg_F
-                        Rla_F_q[i_F, : self.nq] = (
-                            radius * diags(prox_r_F[i_F]) @ gamma_F_q[i_F]
-                        )
-                        Rla_F_u[i_F, : self.nu] = (
-                            radius * diags(prox_r_F[i_F]) @ gamma_F_u[i_F]
-                        )
+                        Rla_F_q[i_F, :] = radius * diags(prox_r_F[i_F]) @ gamma_F_q[i_F]
+                        Rla_F_u[i_F, :] = radius * diags(prox_r_F[i_F]) @ gamma_F_u[i_F]
                         Rla_F_la_N[i_F, i_N] = mui * slip_dir
                         Rla_F_la_F[i_F, i_F] = (1 - radius) * eye(n_F)
 

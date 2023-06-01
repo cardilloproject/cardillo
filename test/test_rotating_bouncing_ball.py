@@ -107,7 +107,7 @@ def run(case, export=True):
     system.assemble()
 
     # solver1, label1 = LobattoIIIAB(system, t_final, dt, stages=3), "LobattoIIIAB"
-    solver1, label1 = NPIRK(system, t_final, dt, RadauIIATableau(2)), "NPIRK"
+    # solver1, label1 = NPIRK(system, t_final, dt, RadauIIATableau(2)), "NPIRK"
     # solver1, label1 = NPIRK(system, t_final, dt, AlexanderTableau(3)), "NPIRK"
     # solver1, label1 = (
     #     SimplifiedNonsmoothGeneralizedAlpha(system, t_final, dt),
@@ -123,7 +123,7 @@ def run(case, export=True):
     # solver1, label1 = MoreauShifted(system, t_final, dt), "MoreauShifted"
     # solver1, label1 = MoreauShiftedNew(system, t_final, dt), "MoreauShiftedNew"
     # solver1, label1 = MoreauClassical(system, t_final, dt), "MoreauClassical"
-    # solver1, label1 = NonsmoothBackwardEuler(system, t_final, dt), "Euler backward"
+    solver1, label1 = NonsmoothBackwardEuler(system, t_final, dt), "Euler backward"
 
     sol1 = solver1.solve()
     t1 = sol1.t
