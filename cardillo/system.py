@@ -532,13 +532,28 @@ class System:
 
     @alpha.setter
     def alpha(self, alpha):
-        if alpha > 0 and alpha < 2:
+        if 0 < alpha < 2:
             self._alpha = alpha
         else:
             warnings.warn(
                 "Invalid value for alpha. alpha must be in (0,2). Value not changed.",
                 RuntimeWarning,
             )
+
+    """
+    Estimation of relaxation parameter $\vr_N$ of prox function for normal contacts.
+    The parameter is calculated as follows, whereby $\alpha\in(0,2)$ is some scaling factor used for both normal and frictional contact.
+    $$
+        \vr_N = (\alpha^{-1}\vG_N)^{-1},
+    $$
+    where $\vG_N = \vW_N^T\vM^{-1}\vW_N$.
+
+
+    References
+    ----------
+    Studer2008: https://doi.org/10.3929/ethz-a-005556821
+    Schweizer2015: https://doi.org/10.3929/ethz-a-010464319
+    """
 
     def prox_r_N(self, t, q):
         M = self.M(t, q, csc_matrix)
@@ -633,6 +648,21 @@ class System:
     #################
     # friction
     #################
+    """
+    Estimation of relaxation parameter $\vr_F$ of prox function for frictional contacts.
+    The parameter is calculated as follows, whereby $\alpha\in(0,2)$ is some scaling factor used for both normal and frictional contact.
+    $$
+        \vr_F = (\alpha^{-1}\vG_F)^{-1},
+    $$
+    where $\vG_F = \vW_F^T\vM^{-1}\vW_F$.
+
+
+    References
+    ----------
+    Studer2008: https://doi.org/10.3929/ethz-a-005556821
+    Schweizer2015: https://doi.org/10.3929/ethz-a-010464319
+    """
+
     def prox_r_F(self, t, q):
         M = self.M(t, q, csc_matrix)
         W_F = self.W_F(t, q, csc_matrix)

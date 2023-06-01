@@ -83,10 +83,6 @@ class MoreauShifted:
         W_gamma = self.system.W_gamma(tk1, qk1)
         chi_g = self.system.g_dot(tk1, qk1, np.zeros_like(uk))
         chi_gamma = self.system.gamma(tk1, qk1, np.zeros_like(uk))
-        # note: we use csc_matrix for efficient column slicing later,
-        # see https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csc_array.html#scipy.sparse.csc_array
-        W_N = self.system.W_N(tk1, qk1, scipy_matrix=csc_matrix)
-        W_F = self.system.W_F(tk1, qk1, scipy_matrix=csc_matrix)
 
         # identify active contacts
         I_N = self.system.g_N(tk1, qk1) <= 0
@@ -137,6 +133,10 @@ class MoreauShifted:
         uk_fixed_point = uk.copy()
         # only enter fixed-point loop if any contact is active
         if np.any(I_N):
+            # note: we use csc_matrix for efficient column slicing later,
+            # see https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csc_array.html#scipy.sparse.csc_array
+            W_N = self.system.W_N(tk1, qk1, scipy_matrix=csc_matrix)
+            W_F = self.system.W_F(tk1, qk1, scipy_matrix=csc_matrix)
             # identify active tangent contacts based on active normal contacts and
             # NF-connectivity lists
             # I_F = self.NF_connectivity[I_N]
@@ -356,25 +356,12 @@ class MoreauShiftedNew:
 
         # fixed-point update friction (Gauss-Seidel)
         xi_F = self.system.xi_F(tn1, qn1, un, un1)
-        # muP_N = mu[I_N] * P_N[I_N]
-        # for i, i_F in enumerate(I_F):
-        #     prox_sphere(P_F[i_F] - prox_r_F[i_F] * xi_F[i_F], muP_N[i])
-        # # P_F[I_F] = np.array(
-        # #     list(
-        # #         map(
-        # #             prox_sphere,
-        # #             P_F[I_F] - prox_r_F[I_F] * xi_F[I_F],
-        # #             mu[I_N] * P_N[I_N],
-        # #         )
-        # #     )
-        # # )
         for i_N, i_F in enumerate(self.NF_connectivity):
             if I_N[i_N] and len(i_F):
                 P_F[i_F] = prox_sphere(
                     P_F[i_F] - prox_r_F[i_N] * xi_F[i_F],
                     mu[i_N] * P_N[i_N],
                 )
-        # self.I_F = np.hstack(I_F)
         # update rhs
         bb = b.copy()
         bb[: self.nu] += W_N[:, I_N] @ P_N[I_N] + W_F[:, I_F] @ P_F[I_F]
@@ -657,7 +644,6 @@ class MoreauClassical:
                     P_F[i_F] - prox_r_F[i_N] * xi_F[i_F],
                     mu[i_N] * P_N[i_N],
                 )
-        # I_F = I_F.flatten()
 
         # update rhs
         bb = b.copy()
@@ -735,7 +721,6 @@ class MoreauClassical:
             # identify active tangent contacts based on active normal contacts and
             # NF-connectivity lists
             I_F = compute_I_F(I_N, self.system.NF_connectivity)
-            # I_F = self.NF_connectivity[I_N]
             # compute new estimates for prox parameters and get friction coefficient
             prox_r_N = self.system.prox_r_N(tn12, qn12)
             prox_r_F = self.system.prox_r_F(tn12, qn12)

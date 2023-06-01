@@ -12,9 +12,10 @@ def Rectangle(Base):
             dimensions = kwargs.pop("dimensions", (1, 1))
             assert len(dimensions) == 2
 
-            self.rolled_axis = np.roll([0, 1, 2], -axis)
+            self.rolled_axis = np.roll([0, 1, 2], axis)
             self.dimensions = dimensions
 
+            kwargs.update({"A_IK": kwargs.pop("A_IK", np.eye(3))[:, self.rolled_axis]})
             super().__init__(**kwargs)
 
         def export(self, sol_i, base_export=False, **kwargs):
@@ -23,7 +24,7 @@ def Rectangle(Base):
             else:
                 r_OP = self.r_OP(sol_i.t)
                 A_IK = self.A_IK(sol_i.t)
-                n, t1, t2 = A_IK[:, self.rolled_axis].T
+                t1, t2, n = A_IK.T
                 points = [
                     r_OP + t1 * self.dimensions[0] + t2 * self.dimensions[1],
                     r_OP + t1 * self.dimensions[0] - t2 * self.dimensions[1],

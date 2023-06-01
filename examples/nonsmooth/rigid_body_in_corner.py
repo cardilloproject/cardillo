@@ -27,8 +27,8 @@ path = Path(__file__).parents[2] / "geometry/box/box.stl"
 
 Shape = {
     "ball": (Ball, {"radius": r}),
-    "cube": (Box, {"dimensions": (r, r, r)}),
-    "box": (Box, {"dimensions": (r / 2, r, 3 * r / 2)}),
+    "cube": (Cuboid, {"dimensions": (r, r, r)}),
+    "box": (Cuboid, {"dimensions": (r / 2, r, 3 * r / 2)}),
     "cylinder": (Cylinder, {"length": r, "radius": r, "axis": 0}),
     "stl": (FromSTL, {"path": path, "K_r_SP": np.zeros(3), "K_Theta_S": None}),  # TODO
 }
@@ -38,14 +38,15 @@ Parametrization = {
     "axis_angle": RigidBodyAxisAngle,
     "euler": RigidBodyEuler,
 }
+alpha = 0.4
 
 Solver = {
     "NPIRK": (NPIRK, "NPIRK", 5e-2, {"butcher_tableau": RadauIIATableau(2)}),
     "BackwardEuler": (NonsmoothBackwardEuler, "Euler backward", 1e-2, {}),
     "Rattle": (Rattle, "Rattle", 1e-2, {}),
-    "MoreauShifted": (MoreauShifted, "MoreauShifted", 2e-2, {"alpha": 0.4}),
-    "MoreauShiftedNew": (MoreauShiftedNew, "MoreauShiftedNew", 1e-2, {"alpha": 0.4}),
-    "Moreau": (MoreauClassical, "MoreauClassical", 1e-2, {"alpha": 0.4}),
+    "MoreauShifted": (MoreauShifted, "MoreauShifted", 2e-2, {"alpha": alpha}),
+    "MoreauShiftedNew": (MoreauShiftedNew, "MoreauShiftedNew", 1e-2, {"alpha": alpha}),
+    "Moreau": (MoreauClassical, "MoreauClassical", 1e-2, {"alpha": alpha}),
 }
 
 
@@ -68,7 +69,7 @@ def run(
     ##############################################################
     x0 = -0.5
     y0 = 1
-    phi0 = 0
+    phi0 = 0.1
     x_dot0 = 0
     y_dot0 = 0
     phi_dot0 = 0
@@ -88,16 +89,18 @@ def run(
     ##############################################################
     #               Contact
     ##############################################################
-    alpha = -pi / 4 * 1.1
-    e1, e2, e3 = A_IK_basic(alpha).z().T
-    frame_left = PlaneFixed(n=e2)
+    alpha = pi / 4 * 1.1
+    # alpha=0
+    A_IK1 = A_IK_basic(alpha).z().T
+    frame_left = Rectangle(Frame)(axis=1, A_IK=A_IK1)
     mu1 = 0.3
     e_N1 = 0.0
     e_F1 = 0.0
 
-    beta = pi / 4
-    e1, e2, e3 = A_IK_basic(beta).z().T
-    frame_right = PlaneFixed(n=e2)
+    beta = -pi / 4
+    # beta=0
+    A_IK2 = A_IK_basic(beta).z().T
+    frame_right = Rectangle(Frame)(axis=1, A_IK=A_IK2)
     mu2 = 0.3
     # mu2 = 0
     e_N2 = 0.5
@@ -139,7 +142,7 @@ def run(
     system.add(F_G)
     system.add(*contacts)
     system.add(frame_left)
-    system.add(frame_right)
+    # system.add(frame_right)
 
     system.assemble()
 
@@ -301,7 +304,7 @@ def run(
     ##############################################################
     if vtk_export:
         file_path = Path(__file__)
-        path = Path(file_path.parents[1], "sim_data")
+        path = Path(file_path.parents[2], "sim_data")
         folder = file_path.stem
         e = Export(path, folder, overwrite=True, fps=30, solution=sol1)
         e.export_contr(frame_left, file_name="PlaneLeft")
@@ -313,9 +316,9 @@ def run(
 
 
 if __name__ == "__main__":
-    # parametrization = "quaternion"
+    parametrization = "quaternion"
     # parametrization = "euler"
-    parametrization = "axis_angle"
+    # parametrization = "axis_angle"
     # shape = "box"
     # shape = "cube"
     # shape = "stl"
