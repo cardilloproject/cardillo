@@ -93,7 +93,7 @@ if __name__ == "__main__":
     # sol = MoreauClassical(system, 10, 1e-1).solve()
     sol = MoreauClassical(system, 1, 1e-1).solve()
 
-    e = Export(path.parent, path.stem, True, 30, sol)
+    e = Export(path.parent, path.stem, True, 30, sol, system)
     e.export_contr(rectangle)
     e.export_contr(disk)
     e.export_contr(ball)
