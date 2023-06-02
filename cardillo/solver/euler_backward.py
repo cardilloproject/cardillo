@@ -1,4 +1,5 @@
 import numpy as np
+import warnings
 from scipy.sparse import csc_matrix, csr_matrix, lil_matrix, eye, diags, bmat
 from tqdm import tqdm
 
@@ -16,6 +17,7 @@ class EulerBackward:
         max_iter=10,
         error_function=lambda x: np.max(np.abs(x)),
         method="index 2 GGL",
+        debug=False,
     ):
         self.system = system
         assert method in ["index 1", "index 2", "index 3", "index 2 GGL"]
@@ -23,6 +25,12 @@ class EulerBackward:
         self.atol = atol
         self.max_iter = max_iter
         self.error_function = error_function
+        self.debug = debug
+        if debug:
+            warnings.warn(
+                "Debug mode active, jacobian is computed using numerical derivatives. This will likely affect performanace.",
+                RuntimeWarning,
+            )
 
         #######################################################################
         # integration time
@@ -203,20 +211,21 @@ class EulerBackward:
             raise NotImplementedError
         # fmt: on
 
-        return J
-
-        # J_num = csc_matrix(approx_fprime(y, self._R, method="2-point", eps=1.0e-6))
-        J_num = csc_matrix(approx_fprime(y, self._R, method="3-point", eps=1.0e-6))
-        # J_num = csc_matrix(approx_fprime(y, self._R, method="cs", eps=1.0e-12))
-        diff = (J - J_num).toarray()
-        # diff = diff[: self.split_y[0]]
-        # diff = diff[self.split_y[0] : self.split_y[1]]
-        # diff = diff[self.split_y[0] : self.split_y[1], : self.split_y[0]]
-        # diff = diff[self.split_y[0] : self.split_y[1], self.split_y[0] :]
-        # diff = diff[self.split_y[1] :]
-        error = np.linalg.norm(diff)
-        print(f"error Jacobian: {error}")
-        return J_num
+        if self.debug:
+            # J_num = csc_matrix(approx_fprime(y, self._R, method="2-point", eps=1.0e-6))
+            J_num = csc_matrix(approx_fprime(y, self._R, method="3-point", eps=1.0e-6))
+            # J_num = csc_matrix(approx_fprime(y, self._R, method="cs", eps=1.0e-12))
+            diff = (J - J_num).toarray()
+            # diff = diff[: self.split_y[0]]
+            # diff = diff[self.split_y[0] : self.split_y[1]]
+            # diff = diff[self.split_y[0] : self.split_y[1], : self.split_y[0]]
+            # diff = diff[self.split_y[0] : self.split_y[1], self.split_y[0] :]
+            # diff = diff[self.split_y[1] :]
+            error = np.linalg.norm(diff)
+            print(f"error Jacobian: {error}")
+            return J_num
+        else:
+            return J
 
     def solve(self):
         q_dot, u_dot, la_g, la_gamma, mu_S, mu_g = np.array_split(self.y, self.split_y)
