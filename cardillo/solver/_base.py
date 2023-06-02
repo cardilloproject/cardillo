@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.sparse import csr_matrix, bmat, csc_matrix
+from scipy.sparse import csr_matrix, bmat, csc_matrix, lil_matrix
 from cardillo.math import prox_sphere, prox_R0_nm, fsolve, norm, approx_fprime
 
 
@@ -117,10 +117,15 @@ def consistent_initial_conditions(
         return R
 
     def J(x):
-        u_dot, _, _, la_N, _ = np.array_split(x, split)
+        Rla_N_u_dot = lil_matrix((system.nla_N, system.nu))
+        Rla_N_la_N = lil_matrix((system.nla_N, system.nla_N))
+        for i in range(system.nla_N):
+            if I_N[i]:
+                Rla_N_u_dot[i] = W_N.T[i]
+            else:
+                Rla_N_la_N[i, i] = 1.0
 
-        R_N_la_N = np.eye(system.nla_N) * (1 - B_N)
-        R_F_u_dot, _, _, R_F_la_N, R_F_la_F = np.array_split(
+        Rla_F_u_dot, _, _, Rla_F_la_N, Rla_F_la_F = np.array_split(
             approx_fprime(x, lambda x: _R_F(x)), split, axis=1
         )
         _J = bmat(
@@ -128,8 +133,8 @@ def consistent_initial_conditions(
                 [M, -W_g, -W_gamma, -W_N, -W_F],
                 [W_g.T, None, None, None, None],
                 [W_gamma.T, None, None, None, None],
-                [B_N * W_N.T, None, None, R_N_la_N, None],
-                [R_F_u_dot, None, None, R_F_la_N, R_F_la_F],
+                [Rla_N_u_dot, None, None, Rla_N_la_N, None],
+                [Rla_F_u_dot, None, None, Rla_F_la_N, Rla_F_la_F],
             ],
             format="csc",
         )
