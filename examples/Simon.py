@@ -183,15 +183,15 @@ def helix():
             joint = RigidConnection(frame, beam, r_OP0, frame_ID2=(0,))
 
             # assemble the model
-            model = System()
-            model.add(beam)
-            model.add(frame)
-            model.add(joint)
-            model.add(K_Moment(K_M, beam, (1,)))
-            model.assemble()
+            system = System()
+            system.add(beam)
+            system.add(frame)
+            system.add(joint)
+            system.add(K_Moment(K_M, beam, (1,)))
+            system.assemble()
 
             sol = Newton(
-                model,
+                system,
                 n_load_steps=n_load_steps,
                 max_iter=100,
                 atol=atol,
@@ -215,7 +215,14 @@ def helix():
 
     path = Path(__file__)
     fps = 60
-    e = Export(path.parent, path.stem, True, fps, sol)
+    e = Export(
+        path=path.parent,
+        folder_name=path.stem,
+        overwrite=True,
+        fps=fps,
+        solution=sol,
+        system=system,
+    )
     e.export_contr(beam, level="centerline + directors", num=50)
     e.export_contr(beam, continuity="C0", level="volume", num=50)
 
@@ -382,7 +389,14 @@ def SE3_vs_Crisfield(r_OP0, psi0, r_OP1, psi1, L, cross_section):
 
     path = Path(__file__)
     fps = 60
-    e = Export(path.parent, path.stem, True, fps, sol)
+    e = Export(
+        path=path.parent,
+        folder_name=path.stem,
+        overwrite=True,
+        fps=fps,
+        solution=sol,
+        system=system,
+    )
     e.export_contr(
         rod_SE3, file_name="SE3_centerline", level="centerline + directors", num=10
     )

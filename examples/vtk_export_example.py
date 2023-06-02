@@ -104,7 +104,14 @@ if __name__ == "__main__":
     # sol_export = prepare_data(solution, t1, fps=60)
     # VtkExport.convex_body(path_vtk, sol_export, cube)
 
-    e = Export(path.parent, path.stem, True, 30, solution)
+    e = Export(
+        path=path.parent,
+        folder_name=path.stem,
+        overwrite=True,
+        fps=30,
+        solution=solution,
+        system=system,
+    )
     # e.export_contr([pm0, pm1], file_name="points")
     # e.export_contr(pm0)
     e.export_contr([cube, cube2])
