@@ -185,15 +185,17 @@ def Cylinder(Base):
             elif mass is None:
                 raise TypeError("mass and density cannot both have type None")
 
-            diag = np.array(
-                [
-                    6 * self.radius**2,
-                    3 * self.radius**2 + self.length**2,
-                    3 * self.radius**2 + self.length**2,
-                ],
-                dtype=float,
-            )
-            K_Theta_S = np.diag(np.roll(diag, shift=self.axis))
+            K_Theta_S = kwargs.pop("K_Theta_S", None)
+            if K_Theta_S is None:
+                diag = np.array(
+                    [
+                        6 * self.radius**2,
+                        3 * self.radius**2 + self.length**2,
+                        3 * self.radius**2 + self.length**2,
+                    ],
+                    dtype=float,
+                )
+                K_Theta_S = np.diag(np.roll(diag, shift=self.axis))
 
             kwargs.update({"mass": mass, "K_Theta_S": K_Theta_S})
 

@@ -23,8 +23,16 @@ from cardillo.discrete.shapes import Cylinder
 from cardillo.discrete import RigidBodyQuaternion
 
 from cardillo.forces import Force
+from cardillo.forces import DistributedForce1DBeam
+
 from cardillo import System
-from cardillo.solver import Newton, EulerBackward
+from cardillo.solver import (
+    Newton,
+    EulerBackward,
+    ScipyIVP,
+    RadauIIa,
+    SimplifiedNonsmoothGeneralizedAlpha,
+)
 from cardillo.visualization import Export
 
 import numpy as np
@@ -38,18 +46,16 @@ from cardillo.beams import animate_beam
 # R12 interpolation
 ###################
 # Rod = K_R12_PetrovGalerkin_AxisAngle
-# Rod = K_R12_PetrovGalerkin_Quaternion
-# Rod = K_R12_PetrovGalerkin_R9
+Rod = K_R12_PetrovGalerkin_Quaternion
 
 #####################
 # SE(3)-interpolation
 #####################
 # Rod = K_SE3_PetrovGalerkin_AxisAngle
-Rod = K_SE3_PetrovGalerkin_Quaternion
-# Rod = K_SE3_PetrovGalerkin_R9
+# Rod = K_SE3_PetrovGalerkin_Quaternion
 
-statics = True
-# statics = False
+# statics = True
+statics = False
 
 # ecc = 6.5e-3 # best eccentricity - n = 10
 ecc = 7.25e-3  # best eccentricity - n = 20
@@ -177,32 +183,6 @@ def Wilberforce_bob(R, h, debug=True):
     return m, Theta
 
 
-# def helix3D(t, r, c, plane="xyz"):
-#     """Helix function in xyz plane, see https://mathworld.wolfram.com/Helix.html"""
-#     assert len(plane) == 3
-#     orientation = "xyz"
-#     perm = []
-#     for i in plane:
-#         perm.append(orientation.find(i))
-
-#     nt = len(t)
-#     P = np.zeros((nt, 3))
-#     dP = np.zeros((nt, 3))
-#     ddP = np.zeros((nt, 3))
-
-#     pi2 = 2 * np.pi
-#     rc_phi = r * np.cos(pi2 * t)
-#     rs_phi = r * np.sin(pi2 * t)
-
-#     P[:, perm] = np.array([rc_phi, rs_phi, c * t]).T
-#     dP[:, perm] = np.array([-pi2 * rs_phi, pi2 * rc_phi, c * np.ones_like(t)]).T
-#     ddP[:, perm] = np.array(
-#         [-(pi2**2) * rc_phi, -(pi2**2) * rs_phi, np.zeros_like(t)]
-#     ).T
-
-#     return P, dP, ddP
-
-
 if __name__ == "__main__":
     ####################################################################
     # beam parameters, taken from
@@ -236,10 +216,11 @@ if __name__ == "__main__":
     ###########################
     # discretization properties
     ###########################
-    nelements, nturns = 4, 1
+    # nelements, nturns = 4, 1
     # nelements, nturns = 8, 2
-    # nelements, nturns = 16, 4
+    nelements, nturns = 16, 4
     # nelements, nturns = 32, 8
+    # nelements, nturns = 64, 16
     # nelements, nturns = 80, 20
     # nelements = 16  # 2 turns
     # nelements = 32 # 5 turns
@@ -249,16 +230,43 @@ if __name__ == "__main__":
     ############################################
     # build rod with dummy initial configuration
     ############################################
-    Q0 = Rod.straight_configuration(nelements, L=1)
-    rod = Rod(
-        cross_section,
-        material_model,
-        A_rho0,
-        K_S_rho0,
-        K_I_rho0,
-        nelements,
-        Q0,
-    )
+    if Rod in [K_SE3_PetrovGalerkin_AxisAngle, K_SE3_PetrovGalerkin_Quaternion]:
+        Q0 = Rod.straight_configuration(nelements, L=1)
+        rod = Rod(
+            cross_section,
+            material_model,
+            A_rho0,
+            K_S_rho0,
+            K_I_rho0,
+            nelements,
+            Q0,
+        )
+    elif Rod in [K_R12_PetrovGalerkin_AxisAngle, K_R12_PetrovGalerkin_Quaternion]:
+        p = 2
+        basis = "Lagrange"
+        Q0 = Rod.straight_configuration(
+            p,
+            p,
+            basis,
+            basis,
+            nelements,
+            L=1,
+        )
+        rod = Rod(
+            cross_section,
+            material_model,
+            A_rho0,
+            K_S_rho0,
+            K_I_rho0,
+            polynomial_degree_r=p,
+            polynomial_degree_psi=p,
+            nelement=nelements,
+            Q=Q0,
+            basis_r=basis,
+            basis_psi=basis,
+        )
+    else:
+        raise NotImplementedError
 
     #############################
     # fit reference configuration
@@ -304,6 +312,15 @@ if __name__ == "__main__":
     Q0 = fit_configuration(rod, r_OPs, A_IKs, nodal_cDOF=[])
     rod.q0 = Q0.copy()
 
+    #############
+    # rod gravity
+    #############
+    if statics:
+        f_g_rod = lambda t, xi: -t * m * g * e3
+    else:
+        f_g_rod = lambda t, xi: -m * g * e3
+    force_rod = DistributedForce1DBeam(f_g_rod, rod)
+
     #############################################
     # joint between origin and top side of spring
     #############################################
@@ -320,45 +337,57 @@ if __name__ == "__main__":
     r_OS0 = np.array([0, 0, -h / 2 - wire_radius])
     p0 = np.array([1, 0, 0, 0], dtype=float)
     q0 = np.concatenate((r_OS0, p0))
+    # # bob = Cylinder(RigidBodyQuaternion)(
+    # #     length=h, radius=R, axis=2, mass=m, K_Theta_S=K_Theta_S, q0=q0
+    # # )
+    # bob = RigidBodyQuaternion(
+    #     mass=m, K_Theta_S=K_Theta_S, q0=q0
+    # )
+    density = 7850  # [kg / m^3]; steel
     bob = Cylinder(RigidBodyQuaternion)(
-        length=h, radius=R, axis=2, mass=m, K_Theta_S=K_Theta_S, q0=q0
+        length=h, radius=R, axis=2, density=density, q0=q0
     )
 
     ########################
     # connect spring and bob
     ########################
-    joint2 = RigidConnection(bob, rod, frame_ID2=(0,))
+    # joint2 = RigidConnection(bob, rod, frame_ID2=(0,))
+    joint2 = RigidConnection(rod, bob, frame_ID1=(0,))
 
     ################
     # external force
     ################
     if statics:
-        f = lambda t: -t * m * g * e3
+        f_g_bob = lambda t: -t * A_rho0 * g * e3
     else:
-        f = lambda t: -m * g * e3
-    force = Force(f, bob)
+        f_g_bob = lambda t: -m * A_rho0 * e3
+    force_bob = Force(f_g_bob, bob)
 
     #####################
     # assemble the system
     #####################
-    system.add(rod, joint1)
-    system.add(bob, joint2, force)
+    system.add(rod, joint1, force_rod)
+    system.add(bob, joint2, force_bob)
     system.assemble()
 
     #####################
     # solve static system
     #####################
     if statics:
-        n_load_steps = 1
+        n_load_steps = 30
         solver = Newton(
             system,
             n_load_steps=n_load_steps,
         )
     else:
-        t1 = 0.002
+        t1 = 3
         # dt = 1e-2
-        dt = 1e-3
+        dt = 5e-3
+
         solver = EulerBackward(system, t1, dt, method="index 3")
+        # solver = ScipyIVP(system, t1, dt)
+        # solver = RadauIIa(system, t1, dt, dae_index=2, max_step=dt)
+        # solver = SimplifiedNonsmoothGeneralizedAlpha(system, t1, dt, rho_inf=0.8)
 
     sol = solver.solve()
     q = sol.q
@@ -371,7 +400,8 @@ if __name__ == "__main__":
     r_OS = np.array([bob.r_OP(ti, qi[bob.qDOF]) for (ti, qi) in zip(sol.t, sol.q)])
 
     # ordering = "zxz"
-    ordering = "xyz"
+    # ordering = "xyz"
+    ordering = "zyx"
     angles = np.array(
         [
             Rotation.from_matrix(bob.A_IK(ti, qi[bob.qDOF])).as_euler(ordering)
@@ -516,10 +546,10 @@ if __name__ == "__main__":
     moment = K_Moment(M, rod, (1,))
 
     # force at the beam's tip
-    f = m / L
-    F = lambda t: t * f * e3
+    f_g_rod = m / L
+    F = lambda t: t * f_g_rod * e3
     print(f"f_max: {F(1)}")
-    force = Force(F, rod, frame_ID=(1,))
+    force_bob = Force(F, rod, frame_ID=(1,))
 
     # # moment at right end
     # Fi = material_model.Fi
@@ -548,7 +578,7 @@ if __name__ == "__main__":
     system.add(frame1)
     system.add(joint1)
     system.add(moment)
-    system.add(force)
+    system.add(force_bob)
     system.assemble()
 
     if statics:
