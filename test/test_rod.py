@@ -67,7 +67,7 @@ def comparison_mathematical_pendulum3D(
     t1=1, plot_graphs=True, animate=True, animate_ref=False
 ):
     t0 = 0
-    dt = 5e-3
+    dt = 1e-3
 
     m = 0.1
     L = 0.2
@@ -138,11 +138,13 @@ def comparison_mathematical_pendulum3D(
 
     system.assemble()
 
-    # solver = EulerBackward(system, t1, dt, method="index 1")
-    solver = EulerBackward(system, t1, dt, method="index 2")
-    # solver = EulerBackward(system, t1, dt, method="index 3")
-    # solver = EulerBackward(system, t1, dt, method="index 2 GGL")
-    # solver = ScipyIVP(model, t1, dt)
+    debug = False
+
+    # solver = EulerBackward(system, t1, dt, method="index 1", debug=debug)
+    # solver = EulerBackward(system, t1, dt, method="index 2", debug=debug)
+    solver = EulerBackward(system, t1, dt, method="index 3", debug=debug)
+    # solver = EulerBackward(system, t1, dt, method="index 2 GGL", debug=debug)
+    # solver = ScipyIVP(system, t1, dt)
 
     sol = solver.solve()
     t = sol.t
@@ -229,4 +231,4 @@ def comparison_mathematical_pendulum3D(
 
 
 if __name__ == "__main__":
-    comparison_mathematical_pendulum3D(t1=5, animate=True, animate_ref=False)
+    comparison_mathematical_pendulum3D(t1=2, animate=True, animate_ref=False)

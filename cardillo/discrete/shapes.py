@@ -108,7 +108,7 @@ def Cuboid(Base):
                 dimensions:     length, width and heigth of Cuboid
                 mass:           mass of Cuboid. Either mass or density must be set
                 density:        density of Cuboid. Either mass or density must be set
-                kwargs:         further arguments needed by Base
+                **kwargs:         further arguments needed by Base
             """
             self.dimensions = kwargs.pop("dimensions")
             mass = kwargs.pop("mass", None)

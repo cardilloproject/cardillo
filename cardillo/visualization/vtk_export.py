@@ -1,5 +1,4 @@
 import numpy as np
-from collections import namedtuple
 import meshio
 from xml.dom import minidom
 from pathlib import Path
@@ -125,7 +124,7 @@ class Export:
     def __export_list(self, sol_i, **kwargs):
         points, cells, point_data, cell_data = [], [], {}, {}
         l = 0
-        for contr in contr_list:
+        for contr in self.contr_list:
             p, c, p_data, c_data = contr.export(sol_i, **kwargs)
             l = len(points)
             points.extend(p)
@@ -147,16 +146,6 @@ class Export:
 
         return points, cells, point_data, cell_data
 
-    def __export_contr(self, sol_i, contr, **kwargs):
-        return contr.export(sol_i, **kwargs)
-
-    def __set_contr_name(self, contr, kwargs):
-        if "file_name" in kwargs and kwargs["file_name"] is not None:
-            contr_name = kwargs["file_name"]
-        else:
-            contr_name = contr.__class__.__name__
-        return contr_name
-
     def export_contr(self, contr, **kwargs):
         """_summary_
 
@@ -166,6 +155,7 @@ class Export:
             file_name (string): kwargs arg, set custom file name instead of class name of exported contr
         """
         self.__vtk_file()
+
         # export one contr
         if not isinstance(contr, (list, tuple, np.ndarray)):
             if "file_name" in kwargs:
@@ -181,13 +171,14 @@ class Export:
                 contr_name = contr[0].__class__.__name__
             self.contr_list = contr
             export = self.__export_list
+
         file_name = self.__unique_file_name(contr_name)
         for i, sol_i in enumerate(self.solution):
             file_i = self.path / f"{file_name}_{i}.vtu"
             self.__write_time_step_and_name(sol_i.t, file_i)
 
             self.system.pre_iteration_update(sol_i.t, sol_i.q, sol_i.u)
-            points, cells, point_data, cell_data = export(sol_i, contr, **kwargs)
+            points, cells, point_data, cell_data = export(sol_i, **kwargs)
 
             meshio.write_points_cells(
                 filename=file_i,
