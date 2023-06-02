@@ -462,12 +462,17 @@ class RodExportBase(ABC):
             vtk_points_weights = np.array(vtk_points_weights)
             vtk_points = vtk_points_weights[:, :3]
 
-            point_data = {
-                "RationalWeights": vtk_points_weights[:, 3],
-                "d1": vtk_d1_weights,
-                "d2": vtk_d2_weights,
-                "d3": vtk_d3_weights,
-            }
+            if isinstance(self.cross_section, RectangularCrossSection):
+                point_data = {
+                    "RationalWeights": vtk_points_weights[:, 3],
+                    "d1": vtk_d1_weights,
+                    "d2": vtk_d2_weights,
+                    "d3": vtk_d3_weights,
+                }
+            else:
+                point_data = {
+                    "RationalWeights": vtk_points_weights[:, 3],
+                }
 
             cell_data = {
                 "HigherOrderDegrees": higher_order_degrees,
