@@ -5,6 +5,7 @@ from cardillo.solver import consistent_initial_conditions
 from scipy.sparse import coo_matrix, csc_matrix, csr_matrix
 from scipy.sparse.linalg import spsolve
 from copy import deepcopy
+import warnings
 
 properties = []
 
@@ -138,7 +139,7 @@ class System:
         self.assemble()
         return system_copy
 
-    def assemble(self):
+    def assemble(self, **kwargs):
         self.nq = 0
         self.nu = 0
         self.nla_g = 0
@@ -242,7 +243,7 @@ class System:
             self.la_gamma0,
             self.la_N0,
             self.la_F0,
-        ) = consistent_initial_conditions(self)
+        ) = consistent_initial_conditions(self, **kwargs)
 
     def assembler_callback(self):
         for contr in self.__assembler_callback_contr:
@@ -521,6 +522,20 @@ class System:
     #################
     # normal contacts
     #################
+    @property
+    def alpha(self):
+        return self._alpha
+
+    @alpha.setter
+    def alpha(self, alpha):
+        if alpha > 0 and alpha < 2:
+            self._alpha = alpha
+        else:
+            warnings.warn(
+                "Invalid value for alpha. alpha must be in (0,2). Value not changed.",
+                RuntimeWarning,
+            )
+
     def prox_r_N(self, t, q):
         M = self.M(t, q, csc_matrix)
         W_N = self.W_N(t, q, csc_matrix)
@@ -620,7 +635,7 @@ class System:
         try:
             return 1.0 / csr_matrix(W_F.T @ spsolve(M, W_F)).diagonal()
         except:
-            return np.ones(self.nla_N, dtype=q.dtype)
+            return np.ones(self.nla_F, dtype=q.dtype)
 
     def gamma_F(self, t, q, u):
         gamma_F = np.zeros(self.nla_F, dtype=np.common_type(q, u))

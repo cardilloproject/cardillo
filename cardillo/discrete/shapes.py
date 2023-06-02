@@ -6,6 +6,13 @@ import meshio
 def Rectangle(Base):
     class _Rectangle(Base):
         def __init__(self, **kwargs):
+            """Create a rectangle, defined by its normal vector and dimensions.
+            The normal vector is aligned with one of the rectangles three body-fixed axes. Orientation of the body-fixed frameis dependent of chosen Base.
+            Args:
+                axis:       one of (0, 1, 2)
+                dimensions: 2d tuple defining length and width
+                **kwargs:   dependent on Base
+            """
             axis = kwargs.pop("axis", 2)
             assert axis in (0, 1, 2)
 
@@ -95,6 +102,14 @@ def Ball(Base):
 def Cuboid(Base):
     class _Box(Base):
         def __init__(self, **kwargs):
+            """Generate a box shaped object with Base chosen on generation. Inertia K_Theta_S if needed by Base is computed.
+
+            Args:
+                dimensions:     length, width and heigth of Cuboid
+                mass:           mass of Cuboid. Either mass or density must be set
+                density:        density of Cuboid. Either mass or density must be set
+                kwargs:         further arguments needed by Base
+            """
             self.dimensions = kwargs.pop("dimensions")
             mass = kwargs.pop("mass", None)
             density = kwargs.pop("density", None)

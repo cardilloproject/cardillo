@@ -16,14 +16,13 @@ class Export:
         overwrite: bool,
         fps: float,
         solution: Solution,
-        # system = None,
+        system,
     ) -> None:
         super().__init__()
         self.path = path
         self.folder = self.__create_vtk_folder(folder_name, overwrite)
         self.fps = fps
-
-        # self.system = system
+        self.system = system
         self.__prepare_data(solution)
 
     # helper functions
@@ -126,7 +125,7 @@ class Export:
     def __export_list(self, sol_i, **kwargs):
         points, cells, point_data, cell_data = [], [], {}, {}
         l = 0
-        for contr in self.contr_list:
+        for contr in contr_list:
             p, c, p_data, c_data = contr.export(sol_i, **kwargs)
             l = len(points)
             points.extend(p)
@@ -147,6 +146,16 @@ class Export:
                         point_data[key].extend(p_data[key])
 
         return points, cells, point_data, cell_data
+
+    def __export_contr(self, sol_i, contr, **kwargs):
+        return contr.export(sol_i, **kwargs)
+
+    def __set_contr_name(self, contr, kwargs):
+        if "file_name" in kwargs and kwargs["file_name"] is not None:
+            contr_name = kwargs["file_name"]
+        else:
+            contr_name = contr.__class__.__name__
+        return contr_name
 
     def export_contr(self, contr, **kwargs):
         """_summary_
@@ -177,7 +186,8 @@ class Export:
             file_i = self.path / f"{file_name}_{i}.vtu"
             self.__write_time_step_and_name(sol_i.t, file_i)
 
-            points, cells, point_data, cell_data = export(sol_i, **kwargs)
+            self.system.pre_iteration_update(sol_i.t, sol_i.q, sol_i.u)
+            points, cells, point_data, cell_data = export(sol_i, contr, **kwargs)
 
             meshio.write_points_cells(
                 filename=file_i,

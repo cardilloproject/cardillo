@@ -209,11 +209,10 @@ class nElScalarForceTranslational:
         return -self._W(t, q) * self.force_law_spring.la(t, self._g(t, q))
 
     def _f_spring_q(self, t, q):
+        g = self._g(t, q)
         f_spring_q = -self._W_q(t, q) * self.force_law_spring.la(
-            t, self._g(t, q)
-        ) - self.force_law_spring.la_g(t, self._g(t, q)) * np.outer(
-            self._W(t, q), self._g_q(t, q)
-        )
+            t, g
+        ) - self.force_law_spring.la_g(t, g) * np.outer(self._W(t, q), self._g_q(t, q))
         # f_q_num = approx_fprime(q, lambda q: self._f_spring(t, q), method = "cs")
         # diff = np.linalg.norm(f_q_num - f_spring_q)
         # print(f"diff: {diff}")

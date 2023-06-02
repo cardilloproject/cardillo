@@ -25,6 +25,13 @@ class RigidBodyQuaternion(RigidBodyBase):
     Nuetzi2016: https://www.research-collection.ethz.ch/handle/20.500.11850/117165 \\
     Schweizer2015: https://www.research-collection.ethz.ch/handle/20.500.11850/101867 \\
     Egenland2002: https://folk.ntnu.no/oe/Modeling%20and%20Simulation.pdf
+
+    Args
+    ----------
+    mass:       mass of rigid body
+    K_Theta_S:  inertia of rigid body in body fixed K-frame
+    q0:         generalized coordinates at t0
+    u0:         generalized velocities at t0
     """
 
     def __init__(

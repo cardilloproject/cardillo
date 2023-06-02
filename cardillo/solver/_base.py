@@ -4,7 +4,12 @@ from cardillo.math import prox_sphere, prox_R0_nm, fsolve, norm
 
 
 def consistent_initial_conditions(
-    system, rtol=1.0e-5, atol=1.0e-8, newton_atol=1e-10, newton_max_iter=10
+    system,
+    rtol=1.0e-5,
+    atol=1.0e-8,
+    newton_atol=1e-10,
+    newton_max_iter=10,
+    jac="3-point",
 ):
     t0 = system.t0
     q0 = system.q0
@@ -109,7 +114,7 @@ def consistent_initial_conditions(
         system.nu + system.nla_g + system.nla_gamma + system.nla_N + system.nla_F
     )
     x0, converged, error, i, f = fsolve(
-        R, x0, atol=newton_atol, max_iter=newton_max_iter
+        R, x0, atol=newton_atol, max_iter=newton_max_iter, jac=jac
     )
     assert (
         converged
