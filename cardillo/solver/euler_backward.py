@@ -28,7 +28,7 @@ class EulerBackward:
         self.debug = debug
         if debug:
             warnings.warn(
-                "Debug mode active, jacobian is computed using numerical derivatives. This will likely affect performanace.",
+                "Debug mode active, jacobian is computed using numerical derivatives. This will likely affect performance.",
                 RuntimeWarning,
             )
 

@@ -85,7 +85,7 @@ class System:
     def extend(self, contr_list):
         list(map(self.add, contr_list))
 
-    def deepcopy(self, solution):
+    def deepcopy(self, solution, **kwargs):
         """
         Create a deepcopy of the system and set the original system, which is
         accessed by `self`, to the state given by the passed Solution.
@@ -136,7 +136,7 @@ class System:
             for contr in self.contributions:
                 if hasattr(contr, "nla_F"):
                     contr.la_F0 = la_F0[contr.la_FDOF]
-        self.assemble()
+        self.assemble(**kwargs)
         return system_copy
 
     def assemble(self, **kwargs):
