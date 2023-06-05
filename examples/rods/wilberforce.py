@@ -222,6 +222,7 @@ if __name__ == "__main__":
     # nelements, nturns = 32, 8
     # nelements, nturns = 64, 16
     # nelements, nturns = 80, 20
+
     # nelements = 16  # 2 turns
     # nelements = 32 # 5 turns
     # nelements = 64 # 10 turns
@@ -276,15 +277,6 @@ if __name__ == "__main__":
     pitch_unloaded = 1.0e-3  # 1mm
     c = pitch_unloaded / coil_radius
 
-    # nturns = 1
-    # # # turns = 0.5
-    # # turns = 2
-    # # # turns = 5
-    # # # turns = 10
-    # # # turns = 20 # used in the paper
-    # # nxi = 1000
-    # # # nxi = 10000 # used in the paper
-
     def r(xi, phi0=0.0):
         alpha = 2 * np.pi * nturns * xi
         return coil_radius * np.array(
@@ -337,22 +329,22 @@ if __name__ == "__main__":
     r_OS0 = np.array([0, 0, -h / 2 - wire_radius])
     p0 = np.array([1, 0, 0, 0], dtype=float)
     q0 = np.concatenate((r_OS0, p0))
-    # # bob = Cylinder(RigidBodyQuaternion)(
-    # #     length=h, radius=R, axis=2, mass=m, K_Theta_S=K_Theta_S, q0=q0
-    # # )
+    bob = Cylinder(RigidBodyQuaternion)(
+        length=h, radius=R, axis=2, mass=m, K_Theta_S=K_Theta_S, q0=q0
+    )
     # bob = RigidBodyQuaternion(
     #     mass=m, K_Theta_S=K_Theta_S, q0=q0
     # )
-    density = 7850  # [kg / m^3]; steel
-    bob = Cylinder(RigidBodyQuaternion)(
-        length=h, radius=R, axis=2, density=density, q0=q0
-    )
+    # density = 7850  # [kg / m^3]; steel
+    # bob = Cylinder(RigidBodyQuaternion)(
+    #     length=h, radius=R, axis=2, density=density, q0=q0
+    # )
 
     ########################
     # connect spring and bob
     ########################
-    # joint2 = RigidConnection(bob, rod, frame_ID2=(0,))
-    joint2 = RigidConnection(rod, bob, frame_ID1=(0,))
+    joint2 = RigidConnection(bob, rod, frame_ID2=(0,))
+    # joint2 = RigidConnection(rod, bob, frame_ID1=(0,))
 
     ################
     # external force
@@ -380,7 +372,9 @@ if __name__ == "__main__":
             n_load_steps=n_load_steps,
         )
     else:
-        t1 = 3
+        # t1 = 3
+        t1 = 1
+        # t1 = 0.1
         # dt = 1e-2
         dt = 5e-3
 
