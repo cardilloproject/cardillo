@@ -188,11 +188,11 @@ def Cylinder(Base):
 
             K_Theta_S = kwargs.pop("K_Theta_S", None)
             if K_Theta_S is None:
-                diag = np.array(
+                diag = mass * np.array(
                     [
-                        6 * self.radius**2,
-                        3 * self.radius**2 + self.length**2,
-                        3 * self.radius**2 + self.length**2,
+                        (1 / 2) * self.radius**2,
+                        (1 / 12) * (3 * self.radius**2 + self.length**2),
+                        (1 / 12) * (3 * self.radius**2 + self.length**2),
                     ],
                     dtype=float,
                 )

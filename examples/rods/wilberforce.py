@@ -46,13 +46,13 @@ from cardillo.beams import animate_beam
 # R12 interpolation
 ###################
 # Rod = K_R12_PetrovGalerkin_AxisAngle
-Rod = K_R12_PetrovGalerkin_Quaternion
+# Rod = K_R12_PetrovGalerkin_Quaternion
 
 #####################
 # SE(3)-interpolation
 #####################
 # Rod = K_SE3_PetrovGalerkin_AxisAngle
-# Rod = K_SE3_PetrovGalerkin_Quaternion
+Rod = K_SE3_PetrovGalerkin_Quaternion
 
 # statics = True
 statics = False
@@ -218,8 +218,11 @@ if __name__ == "__main__":
     ###########################
     # nelements, nturns = 4, 1
     # nelements, nturns = 8, 2
-    nelements, nturns = 16, 4
+    # nelements, nturns = 16, 2
+    # nelements, nturns = 16, 4
+    # nelements, nturns = 32, 4
     # nelements, nturns = 32, 8
+    nelements, nturns = 64, 8
     # nelements, nturns = 64, 16
     # nelements, nturns = 80, 20
 
@@ -308,9 +311,9 @@ if __name__ == "__main__":
     # rod gravity
     #############
     if statics:
-        f_g_rod = lambda t, xi: -t * m * g * e3
+        f_g_rod = lambda t, xi: -t * A_rho0 * g * e3
     else:
-        f_g_rod = lambda t, xi: -m * g * e3
+        f_g_rod = -A_rho0 * g * e3
     force_rod = DistributedForce1DBeam(f_g_rod, rod)
 
     #############################################
@@ -352,7 +355,7 @@ if __name__ == "__main__":
     if statics:
         f_g_bob = lambda t: -t * A_rho0 * g * e3
     else:
-        f_g_bob = lambda t: -m * A_rho0 * e3
+        f_g_bob = lambda t: -m * A_rho0 * g * e3
     force_bob = Force(f_g_bob, bob)
 
     #####################
@@ -372,14 +375,17 @@ if __name__ == "__main__":
             n_load_steps=n_load_steps,
         )
     else:
-        # t1 = 3
-        t1 = 1
-        # t1 = 0.1
+        t1 = 3
+        # t1 = 1
+        # t1 = 0.5
+        # dt = 1e-1
         # dt = 1e-2
-        dt = 5e-3
+        # dt = 5e-3
+        dt = 1e-3  # 16 turns
+        # dt = 5e-4
 
         solver = EulerBackward(system, t1, dt, method="index 3")
-        # solver = ScipyIVP(system, t1, dt)
+        # solver = ScipyIVP(system, t1, dt, method="RK23", rtol=1e-3, atol=1e-3)
         # solver = RadauIIa(system, t1, dt, dae_index=2, max_step=dt)
         # solver = SimplifiedNonsmoothGeneralizedAlpha(system, t1, dt, rho_inf=0.8)
 
@@ -417,21 +423,22 @@ if __name__ == "__main__":
     ax[1].legend()
     ax[1].grid()
 
-    plt.show()
+    # plt.show()
 
     ###########
     # animation
     ###########
-    animate_beam(t, q, [rod], 0.05, scale_di=0.01, show=True)
+    animate_beam(t, q, [rod], 0.05, scale_di=0.01, show=False)
 
     ############
     # VTK export
     ############
     path = Path(__file__)
     e = Export(path.parent, path.stem, True, 30, sol)
-    # e.export_contr(rod, level="centerline + directors", num=20)
     e.export_contr(rod, level="volume", n_segments=nelements, num=3 * nelements)
     e.export_contr(bob)
+
+    plt.show()
 
     exit()
 
