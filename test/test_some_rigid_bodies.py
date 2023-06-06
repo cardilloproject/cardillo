@@ -28,7 +28,7 @@ def test_some_rigid_bodies():
         [   0.0,   0.0, 0.0507],
     ])
     stl_box = FromSTL(RigidBodyQuaternion)(
-        path.parent / "stl" / "box.stl",
+        path=path.parent / ".." / "geometry" / "box" / "box.stl",
         mass=0.0468,
         K_r_SP=K_r_SP,
         K_Theta_S=K_Theta_S,
@@ -43,7 +43,7 @@ def test_some_rigid_bodies():
     ####################
     q0 = np.array([0, 0, -dimensions[-1], 1, 0, 0, 0], dtype=float)
     cylinder = Cylinder(RigidBodyQuaternion)(
-        length=3, radius=1, density=1, q0=q0, u0=u0
+        length=3, radius=1, density=1, axis=2, q0=q0, u0=u0
     )
 
     ################

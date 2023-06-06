@@ -50,8 +50,8 @@ show = False
 
 def run(
     joint,
-    Solver,
     RigidBody,
+    Solver,
     **solver_kwargs,
 ):
     #############
@@ -379,16 +379,17 @@ test_parameters = []
 
 for RB in rigid_bodies:
     for SK in solver_and_kwargs:
-        test_parameters.append((RB, *SK))  
+        test_parameters.append((RB, *SK))
 
 
 @pytest.mark.parametrize("RigidBody, Solver, kwargs", test_parameters)
 def test_cylindrical(RigidBody, Solver, kwargs):
-    run("Cylindrical", Solver, RigidBody, **kwargs)
+    run("Cylindrical", RigidBody, Solver, **kwargs)
+
 
 @pytest.mark.parametrize("RigidBody, Solver, kwargs", test_parameters)
 def test_prismatic(RigidBody, Solver, kwargs):
-    run("Prismatic", Solver, RigidBody, **kwargs)
+    run("Prismatic", RigidBody, Solver, **kwargs)
 
 
 if __name__ == "__main__":
@@ -401,7 +402,8 @@ if __name__ == "__main__":
 
     # run("Cylindrical", MoreauClassical)
 
-    run("Cylindrical", EulerBackward, method="index 1")
+    # run("Cylindrical", EulerBackward, method="index 1")
+    run("Cylindrical", RigidBodyQuaternion, EulerBackward, **{"method": "index 1"})
     # run("Cylindrical", EulerBackward, method="index 2")
     # run("Cylindrical", EulerBackward, method="index 3")
     # run("Cylindrical", EulerBackward, method="index 2 GGL")
