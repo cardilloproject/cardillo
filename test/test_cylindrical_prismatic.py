@@ -51,8 +51,7 @@ show = False
 def run(
     joint,
     Solver,
-    RigidBody=RigidBodyQuaternion,
-    # RigidBody=RigidBodyAxisAngle,
+    RigidBody,
     **solver_kwargs,
 ):
     #############
@@ -371,15 +370,25 @@ solver_and_kwargs = [
     (RadauIIa, {"dae_index": "GGL", "rtol": 1e-3, "atol": 1e-3, "max_step": dt}),
 ]
 
+rigid_bodies = [
+    RigidBodyAxisAngle,
+    RigidBodyQuaternion,
+]
 
-@pytest.mark.parametrize("Solver, kwargs", solver_and_kwargs)
-def test_cylindrical(Solver, kwargs):
-    run("Cylindrical", Solver, **kwargs)
+test_parameters = []
+
+for RB in rigid_bodies:
+    for SK in solver_and_kwargs:
+        test_parameters.append((RB, *SK))  
 
 
-@pytest.mark.parametrize("Solver, kwargs", solver_and_kwargs)
-def test_prismatic(Solver, kwargs):
-    run("Prismatic", Solver, **kwargs)
+@pytest.mark.parametrize("RigidBody, Solver, kwargs", test_parameters)
+def test_cylindrical(RigidBody, Solver, kwargs):
+    run("Cylindrical", Solver, RigidBody, **kwargs)
+
+@pytest.mark.parametrize("RigidBody, Solver, kwargs", test_parameters)
+def test_prismatic(RigidBody, Solver, kwargs):
+    run("Prismatic", Solver, RigidBody, **kwargs)
 
 
 if __name__ == "__main__":
@@ -392,9 +401,9 @@ if __name__ == "__main__":
 
     # run("Cylindrical", MoreauClassical)
 
-    # run("Cylindrical", EulerBackward, method="index 1")
+    run("Cylindrical", EulerBackward, method="index 1")
     # run("Cylindrical", EulerBackward, method="index 2")
-    run("Cylindrical", EulerBackward, method="index 3")
+    # run("Cylindrical", EulerBackward, method="index 3")
     # run("Cylindrical", EulerBackward, method="index 2 GGL")
 
     # run("Cylindrical", RadauIIa, dae_index=2, rtol=1e-3, atol=1e-3)
@@ -412,7 +421,7 @@ if __name__ == "__main__":
 
     # run("Prismatic", EulerBackward, method="index 1")
     # run("Prismatic", EulerBackward, method="index 2")
-    run("Prismatic", EulerBackward, method="index 3")
+    # run("Prismatic", EulerBackward, method="index 3")
     # run("Prismatic", EulerBackward, method="index 2 GGL")
 
     # run("Prismatic", RadauIIa, dae_index=2, rtol=1e-3, atol=1e-3)
