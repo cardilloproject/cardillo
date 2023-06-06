@@ -1,43 +1,21 @@
 import numpy as np
 from pathlib import Path
-from cardillo.discrete import Frame, RigidBodyQuaternion, RigidBodyRelKinematics
-from cardillo.discrete.shapes import Rectangle, Cuboid, Ball, Cylinder, FromSTL
-from cardillo.joints import RigidConnection
-from cardillo.math import Exp_SO3
+from cardillo.discrete import RigidBodyQuaternion
+from cardillo.discrete.some_rigid_bodies import Box, Ball, Cylinder, FromSTL
 from cardillo import System
 from cardillo.solver import MoreauClassical
 from cardillo.visualization import Export
 
-if __name__ == "__main__":
+
+def test_some_rigid_bodies():
     path = Path(__file__)
     u0 = np.random.rand(6)
-
-    ############################
-    # plane attatched to a frame
-    ############################
-    rectangle = Rectangle(Frame)(
-        r_OP=np.array([0, 0, -1]),
-        dimensions=(3, 2),
-    )
-
-    ########################
-    # stl attatched to frame
-    ########################
-    v_S = np.random.rand(3)
-    psi = np.random.rand(3)
-    disk = FromSTL(Frame)(
-        scale=10,
-        path=path.parent / ".." / "geometry" / "tippedisk" / "tippedisk.stl",
-        K_r_SP=np.zeros(3),
-        r_OP=lambda t: np.array([0, -1, 1]) + t * v_S,
-        A_IK=lambda t: Exp_SO3(t * psi),
-    )
 
     ###############
     # box primitive
     ###############
     dimensions = np.array([3, 2, 1])
-    box = Cuboid(RigidBodyQuaternion)(dimensions=dimensions, density=0.0078, u0=u0)
+    box = Box(RigidBodyQuaternion)(dimensions=dimensions, density=0.0078, u0=u0)
 
     #############################
     # identical stl box primitive
@@ -50,31 +28,22 @@ if __name__ == "__main__":
         [   0.0,   0.0, 0.0507],
     ])
     stl_box = FromSTL(RigidBodyQuaternion)(
-        path=path.parent / ".." / "geometry" / "box" / "box.stl",
+        path.parent / "stl" / "box.stl",
         mass=0.0468,
         K_r_SP=K_r_SP,
         K_Theta_S=K_Theta_S,
         u0=u0,
     )
 
-    ###########################################################
-    # identical relativ rigid body rigidly connected to the box
-    ###########################################################
-    joint = RigidConnection()
-    relative_box = Cuboid(RigidBodyRelKinematics)(joint=joint, predecessor=box, dimensions=dimensions, density=0.0078)
-
     assert np.isclose(box.mass, stl_box.mass)
-    assert np.isclose(box.mass, relative_box.mass)
     assert np.allclose(box.K_Theta_S, stl_box.K_Theta_S)
-    assert np.allclose(box.K_Theta_S, relative_box.K_Theta_S)
 
     ####################
     # cylinder primitive
     ####################
-    radius = 1
-    q0 = np.array([0, 0, -0.5 * dimensions[-1] - radius, 1, 0, 0, 0], dtype=float)
+    q0 = np.array([0, 0, -dimensions[-1], 1, 0, 0, 0], dtype=float)
     cylinder = Cylinder(RigidBodyQuaternion)(
-        length=3, radius=radius, density=1, axis=1, q0=q0, u0=u0
+        length=3, radius=1, density=1, q0=q0, u0=u0
     )
 
     ################
@@ -87,17 +56,17 @@ if __name__ == "__main__":
     # solve system and generate vtk export
     ######################################
     system = System()
-    system.add(rectangle, disk, ball, box, cylinder, stl_box, joint, relative_box)
+    system.add(ball, box, cylinder, stl_box)
     system.assemble()
 
-    # sol = MoreauClassical(system, 10, 1e-1).solve()
-    sol = MoreauClassical(system, 1, 1e-1).solve()
+    sol = MoreauClassical(system, 10, 1e-2).solve()
 
     e = Export(path.parent, path.stem, True, 30, sol)
-    e.export_contr(rectangle)
-    e.export_contr(disk)
     e.export_contr(ball)
     e.export_contr(box)
     e.export_contr(cylinder)
     e.export_contr(stl_box)
-    e.export_contr(relative_box)
+
+
+if __name__ == "__main__":
+    test_some_rigid_bodies()

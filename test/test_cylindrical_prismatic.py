@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from scipy.integrate import solve_ivp
+import pytest
 
 from cardillo import System
 from cardillo.solver import ScipyIVP, EulerBackward, RadauIIa, MoreauClassical
@@ -44,11 +45,14 @@ def RigidCylinder(RigidBody):
     return _RigidCylinder
 
 
+show = False
+
+
 def run(
     joint,
     Solver,
-    # RigidBody=RigidBodyQuaternion,
-    RigidBody=RigidBodyAxisAngle,
+    RigidBody=RigidBodyQuaternion,
+    # RigidBody=RigidBodyAxisAngle,
     **solver_kwargs,
 ):
     #############
@@ -351,24 +355,52 @@ def run(
         fig, animate, frames=frames, interval=interval, blit=False
     )
 
-    plt.show()
+    if show:
+        plt.show()
+
+
+solver_and_kwargs = [
+    (ScipyIVP, {}),
+    (MoreauClassical, {}),
+    (EulerBackward, {"method": "index 1"}),
+    (EulerBackward, {"method": "index 2"}),
+    (EulerBackward, {"method": "index 3"}),
+    (EulerBackward, {"method": "index 2 GGL"}),
+    (RadauIIa, {"dae_index": 2, "rtol": 1e-3, "atol": 1e-3, "max_step": dt}),
+    # (RadauIIa, {"dae_index": 3, "rtol": 1e-2, "atol": 1e-2, "max_step": dt}), # not working
+    (RadauIIa, {"dae_index": "GGL", "rtol": 1e-3, "atol": 1e-3, "max_step": dt}),
+]
+
+
+@pytest.mark.parametrize("Solver, kwargs", solver_and_kwargs)
+def test_cylindrical(Solver, kwargs):
+    run("Cylindrical", Solver, **kwargs)
+
+
+@pytest.mark.parametrize("Solver, kwargs", solver_and_kwargs)
+def test_prismatic(Solver, kwargs):
+    run("Prismatic", Solver, **kwargs)
 
 
 if __name__ == "__main__":
+    show = True
+
     #############
     # Cylindrical
     #############
-    run("Cylindrical", ScipyIVP)
+    # run("Cylindrical", ScipyIVP)
 
     # run("Cylindrical", MoreauClassical)
 
     # run("Cylindrical", EulerBackward, method="index 1")
     # run("Cylindrical", EulerBackward, method="index 2")
-    # run("Cylindrical", EulerBackward, method="index 3")
+    run("Cylindrical", EulerBackward, method="index 3")
     # run("Cylindrical", EulerBackward, method="index 2 GGL")
 
-    # run("Cylindrical", RadauIIa, dae_index=2, rtol=1e-4, atol=1e-4)
-    # run("Cylindrical", RadauIIa, dae_index=3, rtol=1e-2, atol=1e-2, max_step=dt) # this is not working
+    # run("Cylindrical", RadauIIa, dae_index=2, rtol=1e-3, atol=1e-3)
+    # run(
+    #     "Cylindrical", RadauIIa, dae_index=3, rtol=1e-2, atol=1e-2, max_step=dt
+    # )  # this is not working
     # run("Cylindrical", RadauIIa, dae_index="GGL", rtol=1e-4, atol=1e-4)
 
     ###########
@@ -380,9 +412,11 @@ if __name__ == "__main__":
 
     # run("Prismatic", EulerBackward, method="index 1")
     # run("Prismatic", EulerBackward, method="index 2")
-    # run("Prismatic", EulerBackward, method="index 3")
+    run("Prismatic", EulerBackward, method="index 3")
     # run("Prismatic", EulerBackward, method="index 2 GGL")
 
-    # run("Prismatic", RadauIIa, dae_index=2)
-    # run("Prismatic", RadauIIa, dae_index=3)
-    # run("Prismatic", RadauIIa, dae_index="GGL")
+    # run("Prismatic", RadauIIa, dae_index=2, rtol=1e-3, atol=1e-3)
+    # run(
+    #     "Prismatic", RadauIIa, dae_index=3, rtol=1e-2, atol=1e-2, max_step=dt
+    # )  # this is not working
+    # run("Prismatic", RadauIIa, dae_index="GGL", rtol=1e-3, atol=1e-3)
