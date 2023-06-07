@@ -30,7 +30,7 @@ jobs:
     - name: install test dependencies
       run: pip install pytest
     - name: test with pytest
-      run: pytest
+      run: pytest ./test/
     
     # TODO save artifacts
     # - name: upload artifacts
