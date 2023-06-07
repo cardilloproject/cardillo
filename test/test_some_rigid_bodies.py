@@ -1,7 +1,7 @@
 import numpy as np
 from pathlib import Path
 from cardillo.discrete import RigidBodyQuaternion
-from cardillo.discrete.some_rigid_bodies import Box, Ball, Cylinder, FromSTL
+from cardillo.discrete.shapes import Cuboid, Ball, Cylinder, FromSTL
 from cardillo import System
 from cardillo.solver import MoreauClassical
 from cardillo.visualization import Export
@@ -15,7 +15,7 @@ def test_some_rigid_bodies():
     # box primitive
     ###############
     dimensions = np.array([3, 2, 1])
-    box = Box(RigidBodyQuaternion)(dimensions=dimensions, density=0.0078, u0=u0)
+    box = Cuboid(RigidBodyQuaternion)(dimensions=dimensions, density=0.0078, u0=u0)
 
     #############################
     # identical stl box primitive
