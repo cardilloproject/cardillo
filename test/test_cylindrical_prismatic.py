@@ -7,7 +7,7 @@ import pytest
 from cardillo import System
 from cardillo.solver import ScipyIVP, EulerBackward, RadauIIa, MoreauClassical
 from cardillo.constraints import RigidConnection, Cylindrical, Prismatic
-from cardillo.discrete import Frame, RigidBodyQuaternion, RigidBodyAxisAngle
+from cardillo.discrete import Frame, RigidBodyQuaternion, RigidBodyAxisAngle, Cylinder
 from cardillo.forces import Force, ScalarForceTranslational, LinearSpring, LinearDamper
 from cardillo.math import (
     e1,
@@ -20,7 +20,7 @@ from cardillo.math import (
     ax2skew,
 )
 
-# setup solver
+# solver parameters
 t_span = (0.0, 5.0)
 t0, t1 = t_span
 dt = 1.0e-2
@@ -36,20 +36,10 @@ C = 1 / 2 * m * r**2
 A = 1 / 4 * m * r**2 + 1 / 12 * m * l**2
 K_theta_S = np.diag(np.array([C, A, A]))
 
-
-def RigidCylinder(RigidBody):
-    class _RigidCylinder(RigidBody):
-        def __init__(self, q0=None, u0=None):
-            super().__init__(m, K_theta_S, q0=q0, u0=u0)
-
-    return _RigidCylinder
-
-
 show = False
 
-
 def run(
-    joint,
+    joint:str,
     RigidBody,
     Solver,
     **solver_kwargs,
@@ -130,9 +120,9 @@ def run(
 
     u0 = np.array([*v_P0, *B0_omega_IB0])
 
-    if RigidBody is RigidBodyAxisAngle:
+    if RigidBody == RigidBodyAxisAngle:
         q0 = np.array([*r_OB0, *Log_SO3(A_IB0)])
-    elif RigidBody is RigidBodyQuaternion:
+    elif RigidBody == RigidBodyQuaternion:
         q0 = np.array([*r_OB0, *Spurrier(A_IB0)])
     else:
         raise NotImplementedError
@@ -147,13 +137,13 @@ def run(
     v_S0 = v_P0 + A_IK0 @ cross3(K0_omega_IK0, np.array([0.5 * l, 0, 0]))
 
     u0 = np.array([*v_S0, *K0_omega_IK0])
-    if RigidBody is RigidBodyAxisAngle:
+    if RigidBody == RigidBodyAxisAngle:
         q0 = np.array([*r_OS0, *Log_SO3(A_IK0)])
-    elif RigidBody is RigidBodyQuaternion:
+    elif RigidBody == RigidBodyQuaternion:
         q0 = np.array([*r_OS0, *Spurrier(A_IK0)])
     else:
         raise NotImplementedError
-    RB2 = RigidCylinder(RigidBody)(q0, u0)
+    RB2 = RigidBody(m, K_theta_S, q0, u0)
 
     f_g = Force(np.array([0, 0, -m * g]), RB2)
 
@@ -186,10 +176,17 @@ def run(
     system.add(spring)
     system.assemble()
 
+    ############################################################################
+    #                   DAE solution
+    ############################################################################
+
     sol = Solver(system, t1, dt, **solver_kwargs).solve()
 
     t, q = sol.t, sol.q
 
+    ############################################################################
+    #                   post processing
+    ############################################################################
     zs = np.array(
         [
             A_IB(ti)[:, 2] @ (RB2.r_OP(ti, qi[RB2.qDOF]) - r_OB(ti))
@@ -207,9 +204,9 @@ def run(
         elif diff < -np.pi:
             alphas[i:] -= diff
 
-    ##############
-    # ODE solution
-    ##############
+    ############################################################################
+    #                   reference ODE solution
+    ############################################################################
     def eqm(t, y):
         z, alpha = y[:2]
         z_dot, alpha_dot = y[2:]
@@ -280,6 +277,9 @@ def run(
 
     t_ref, y_ref = sol_ref.t, sol_ref.y
 
+    ############################################################################
+    #                   plot
+    ############################################################################
     fig, ax = plt.subplots(2, 2)
 
     ax[0, 0].set_title("z")
@@ -357,6 +357,9 @@ def run(
     if show:
         plt.show()
 
+################################################################################
+# test setup
+################################################################################
 
 solver_and_kwargs = [
     (ScipyIVP, {}),
