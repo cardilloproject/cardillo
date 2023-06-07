@@ -44,6 +44,11 @@ def run(
     Solver,
     **solver_kwargs,
 ):
+    
+    ############################################################################
+    #                   system setup
+    ############################################################################
+
     #############
     # origin axis
     #############
@@ -101,9 +106,9 @@ def run(
     else:
         raise NotImplementedError
 
-    ##############
-    # DAE solution
-    ##############
+    ######################
+    # define contributions
+    ######################
     frame = Frame(
         r_OP=r_OB,
         r_OP_t=r_OB_t,
@@ -168,6 +173,10 @@ def run(
         LinearDamper(d),
         K_r_SP2=np.array([-0.5 * l, 0, 0]),
     )
+
+    #################
+    # assemble system
+    #################
 
     system = System()
     system.add(frame, RB1, rigid_connection)
