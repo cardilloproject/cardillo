@@ -1,12 +1,12 @@
 name: Build examples
 
 # TODO change this before merge
-on: [push]
-# on:
-#   pull_request:
-#     branches:
-#       - master
-#       - main
+# on: [push]
+on:
+  pull_request:
+    branches:
+      - master
+      - main
 
 jobs:
   build:
@@ -25,8 +25,6 @@ jobs:
         cache-dependency-path: setup.py
     - name: install dependencies
       run: pip install -e .
-    - name: run hello world
-      run: echo "Hello World"
     - name: install test dependencies
       run: pip install pytest
     - name: test with pytest
