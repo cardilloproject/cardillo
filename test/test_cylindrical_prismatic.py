@@ -109,6 +109,8 @@ def run(
     ######################
     # define contributions
     ######################
+    system = System()
+
     frame = Frame(
         r_OP=r_OB,
         r_OP_t=r_OB_t,
@@ -178,7 +180,7 @@ def run(
     # assemble system
     #################
 
-    system = System()
+    
     system.add(frame, RB1, rigid_connection)
     system.add(RB2, f_g)
     system.add(constraint)
@@ -188,9 +190,7 @@ def run(
     ############################################################################
     #                   DAE solution
     ############################################################################
-
     sol = Solver(system, t1, dt, **solver_kwargs).solve()
-
     t, q = sol.t, sol.q
 
     ############################################################################
