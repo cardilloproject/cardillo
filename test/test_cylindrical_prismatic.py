@@ -366,7 +366,6 @@ solver_and_kwargs = [
     (EulerBackward, {"method": "index 3"}),
     (EulerBackward, {"method": "index 2 GGL"}),
     (RadauIIa, {"dae_index": 2, "rtol": 1e-3, "atol": 1e-3, "max_step": dt}),
-    # (RadauIIa, {"dae_index": 3, "rtol": 1e-2, "atol": 1e-2, "max_step": dt}), # not working
     (RadauIIa, {"dae_index": "GGL", "rtol": 1e-3, "atol": 1e-3, "max_step": dt}),
 ]
 
@@ -395,39 +394,40 @@ def test_prismatic(RigidBody, Solver, kwargs):
 if __name__ == "__main__":
     show = True
 
+    # simulations with RigidBodyAxisAngle only within tests
+
     #############
     # Cylindrical
     #############
-    # run("Cylindrical", ScipyIVP)
+    run("Cylindrical", RigidBodyQuaternion, ScipyIVP)
 
-    # run("Cylindrical", MoreauClassical)
+    # run("Cylindrical", RigidBodyQuaternion, MoreauClassical)
 
-    # run("Cylindrical", EulerBackward, method="index 1")
-    run("Cylindrical", RigidBodyQuaternion, EulerBackward, **{"method": "index 1"})
-    # run("Cylindrical", EulerBackward, method="index 2")
-    # run("Cylindrical", EulerBackward, method="index 3")
-    # run("Cylindrical", EulerBackward, method="index 2 GGL")
+    # run("Cylindrical", RigidBodyQuaternion, EulerBackward, method="index 1")
+    # run("Cylindrical", RigidBodyQuaternion, EulerBackward, method="index 2")
+    # run("Cylindrical", RigidBodyQuaternion, EulerBackward, method="index 3")
+    # run("Cylindrical", RigidBodyQuaternion, EulerBackward, method="index 2 GGL")
 
-    # run("Cylindrical", RadauIIa, dae_index=2, rtol=1e-3, atol=1e-3)
-    # run(
-    #     "Cylindrical", RadauIIa, dae_index=3, rtol=1e-2, atol=1e-2, max_step=dt
-    # )  # this is not working
-    # run("Cylindrical", RadauIIa, dae_index="GGL", rtol=1e-4, atol=1e-4)
+    # run("Cylindrical", RigidBodyQuaternion, RadauIIa, dae_index=2, rtol=1e-3, atol=1e-3)
+    # run("Cylindrical", RigidBodyQuaternion, RadauIIa, dae_index="GGL", rtol=1e-4, atol=1e-4)
+
+    # Radau dae_index=3 is not working and thus not included in tests:
+    # run("Cylindrical", RigidBodyQuaternion, RadauIIa, dae_index=3, rtol=1e-2, atol=1e-2, max_step=dt)
 
     ###########
     # Prismatic
     ###########
-    # run("Prismatic", ScipyIVP)
+    # run("Prismatic", RigidBodyQuaternion, ScipyIVP)
 
-    # run("Prismatic", MoreauClassical)
+    # run("Prismatic", RigidBodyQuaternion, MoreauClassical)
 
-    # run("Prismatic", EulerBackward, method="index 1")
-    # run("Prismatic", EulerBackward, method="index 2")
-    # run("Prismatic", EulerBackward, method="index 3")
-    # run("Prismatic", EulerBackward, method="index 2 GGL")
+    # run("Prismatic", RigidBodyQuaternion, EulerBackward, method="index 1")
+    # run("Prismatic", RigidBodyQuaternion, EulerBackward, method="index 2")
+    # run("Prismatic", RigidBodyQuaternion, EulerBackward, method="index 3")
+    # run("Prismatic", RigidBodyQuaternion, EulerBackward, method="index 2 GGL")
 
-    # run("Prismatic", RadauIIa, dae_index=2, rtol=1e-3, atol=1e-3)
-    # run(
-    #     "Prismatic", RadauIIa, dae_index=3, rtol=1e-2, atol=1e-2, max_step=dt
-    # )  # this is not working
-    # run("Prismatic", RadauIIa, dae_index="GGL", rtol=1e-3, atol=1e-3)
+    # run("Prismatic", RigidBodyQuaternion, RadauIIa, dae_index=2, rtol=1e-3, atol=1e-3)
+    # run("Prismatic", RigidBodyQuaternion, RadauIIa, dae_index="GGL", rtol=1e-4, atol=1e-4)
+
+    # Radau dae_index=3 is not working and thus not included in tests:
+    # run("Prismatic", RigidBodyQuaternion, RadauIIa, dae_index=3, rtol=1e-2, atol=1e-2, max_step=dt)
