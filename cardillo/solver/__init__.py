@@ -14,9 +14,8 @@ from .moreau import (
     MoreauClassical,
 )
 from .euler_backward import EulerBackward, NonsmoothBackwardEuler
-from .generalized_alpha import (
-    GeneralizedAlphaFirstOrder,
-    GeneralizedAlphaSecondOrder,
+from .generalized_alpha import GeneralizedAlphaFirstOrder
+from .nonsmooth_generalized_alpha import (
     NonsmoothGeneralizedAlpha,
     SimplifiedNonsmoothGeneralizedAlpha,
     SimplifiedNonsmoothGeneralizedAlphaFirstOrder,
