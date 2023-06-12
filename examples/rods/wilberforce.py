@@ -3,7 +3,7 @@ from cardillo.beams import (
     CircularCrossSection,
     Simo1986,
 )
-from cardillo.discrete import Frame
+from cardillo.discrete import Frame, PointMass
 
 from cardillo.beams import (
     K_R12_PetrovGalerkin_AxisAngle,
@@ -17,7 +17,7 @@ from cardillo.beams import (
 )
 from cardillo.beams._fitting import fit_configuration
 
-from cardillo.constraints import RigidConnection
+from cardillo.constraints import RigidConnection, Spherical
 
 from cardillo.discrete.shapes import Cylinder
 from cardillo.discrete import RigidBodyQuaternion
@@ -32,7 +32,10 @@ from cardillo.solver import (
     ScipyIVP,
     RadauIIa,
     SimplifiedNonsmoothGeneralizedAlpha,
+    SimplifiedNonsmoothGeneralizedAlphaFirstOrder,
+    NPIRK,
 )
+from cardillo.solver._butcher_tableaus import RadauIIATableau
 from cardillo.visualization import Export
 
 import numpy as np
@@ -54,8 +57,8 @@ from cardillo.beams import animate_beam
 # Rod = K_SE3_PetrovGalerkin_AxisAngle
 Rod = K_SE3_PetrovGalerkin_Quaternion
 
-statics = True
-# statics = False
+# statics = True
+statics = False
 
 # ecc = 6.5e-3 # best eccentricity - n = 10
 ecc = 7.25e-3  # best eccentricity - n = 20
@@ -191,7 +194,7 @@ if __name__ == "__main__":
 
     # Federstahl nach EN 10270-1
     rho = 7850  # [kg / m^3]
-    E = 206e9  # Pa
+    # E = 206e9  # Pa
     # G = 81.5e9  # Pa
 
     # Berg1991
@@ -199,16 +202,11 @@ if __name__ == "__main__":
     nu = 0.23
     E = 2 * G * (1 + nu)
 
-    # # TODO:
-    # scale = 1e-2
-    # E *= scale
-    # G *= scale
-
     # 1mm cross sectional diameter
-    d = 1e-3
-    r = wire_radius = d / 2
+    wire_diameter = 1e-3
+    wire_radius = wire_diameter / 2
 
-    cross_section = CircularCrossSection(rho, r)
+    cross_section = CircularCrossSection(rho, wire_radius)
     A_rho0 = rho * cross_section.area
     K_S_rho0 = rho * cross_section.first_moment
     K_I_rho0 = rho * cross_section.second_moment
@@ -230,14 +228,12 @@ if __name__ == "__main__":
     # discretization properties
     ###########################
     # nelements, nturns = 4, 1
-    # nelements, nturns = 8, 2
-    nelements, nturns = 16, 2
-    # nelements, nturns = 16, 4
-    # nelements, nturns = 32, 4
-    # nelements, nturns = 32, 8
-    # nelements, nturns = 64, 8
-    # nelements, nturns = 64, 16
-    # nelements, nturns = 80, 20
+    # nelements, nturns = 6, 1
+    # nelements, nturns = 12, 2
+    nelements, nturns = 24, 4
+    # nelements, nturns = 48, 8
+    # nelements, nturns = 96, 16
+    # nelements, nturns = 120, 20 # works for SE(3)-quaternion
 
     # nelements, nturns = 1000, 130
 
@@ -295,13 +291,13 @@ if __name__ == "__main__":
     coil_radius = 15.35e-3
     coil_diameter = 2 * coil_radius
     pitch_unloaded = 1.0e-3  # 1mm
-    c = pitch_unloaded / coil_radius
+    # pitch_unloaded = 0
+    c = pitch_unloaded / (coil_radius * 2 * np.pi)
 
-    # # Berg1991
-    # k = G * d**4 / (64 * nturns * coil_radius**3)
-    # # delta = ???
-    # print(f"k: {k}")
-    # exit()
+    # Berg1991
+    k = G * wire_diameter**4 / (64 * nturns * coil_radius**3)
+    # delta = ???
+    print(f"k: {k}")
 
     def r(xi, phi0=0.0):
         alpha = 2 * np.pi * nturns * xi
@@ -345,6 +341,20 @@ if __name__ == "__main__":
     system = System()
     joint1 = RigidConnection(system.origin, rod, frame_ID2=(1,))
 
+    # #############################
+    # # external fore at spring end
+    # #############################
+    # # pm = PointMass(1, q0=np.zeros(3))
+    # # joint2 = Spherical(rod, pm, r_OB0=np.zeros(3), frame_ID1=(0,))
+
+    # rb = RigidBodyQuaternion(mass=1, K_Theta_S=np.eye(3), q0=np.array([0, 0, 0, 1, 0, 0, 0]))
+    # joint2 = RigidConnection(rb, rod, frame_ID2=(0,))
+    # assert statics
+    # m_bob = 0.4905
+    # g = 9.81
+    # f_g = lambda t: -t * e3 * m_bob * g
+    # force = Force(f_g, rb)
+
     ##############
     # pendulum bob
     ##############
@@ -376,9 +386,9 @@ if __name__ == "__main__":
     # external force
     ################
     if statics:
-        f_g_bob = lambda t: -t * A_rho0 * g * e3
+        f_g_bob = lambda t: -t * m * g * e3
     else:
-        f_g_bob = lambda t: -m * A_rho0 * g * e3
+        f_g_bob = lambda t: -m * g * e3
     force_bob = Force(f_g_bob, bob)
 
     #####################
@@ -393,16 +403,16 @@ if __name__ == "__main__":
     # solve static system
     #####################
     if statics:
-        n_load_steps = 30
+        n_load_steps = 50
         solver = Newton(
             system,
             n_load_steps=n_load_steps,
         )
     else:
-        t1 = 30
+        # t1 = 30
         # t1 = 10
         # t1 = 3
-        # t1 = 1
+        t1 = 1
         # t1 = 0.5
         # dt = 1e-1
         dt = 1e-2
@@ -410,24 +420,60 @@ if __name__ == "__main__":
         # dt = 1e-3  # 16 turns
         # dt = 5e-4
 
-        solver = EulerBackward(system, t1, dt, method="index 3")
+        # solver = EulerBackward(system, t1, dt, method="index 3")
         # solver = ScipyIVP(system, t1, dt)
         # solver = ScipyIVP(system, t1, dt, method="RK23", rtol=1e-3, atol=1e-3)
         # solver = RadauIIa(system, t1, dt, dae_index=2, max_step=dt)
         # solver = SimplifiedNonsmoothGeneralizedAlpha(system, t1, dt, rho_inf=0.8)
+        # solver = NPIRK(system, t1, dt, RadauIIATableau(2))
+        solver = SimplifiedNonsmoothGeneralizedAlphaFirstOrder(
+            system, t1, dt, rho_inf=0.8
+        )
 
     sol = solver.solve()
     q = sol.q
     nt = len(q)
     t = sol.t[:nt]
 
+    # #####################
+    # # spring dispalcement
+    # #####################
+    # # r_OP = np.array([
+    # #     rod.r_OP(ti, qi[rod.qDOF][rod.local_qDOF_P((0,))], frame_ID=(0,)) for ti, qi in zip(sol.t, sol.q)
+    # # ])
+    # r_OP = np.array([
+    #     rb.r_OP(ti, qi[rb.qDOF]) for ti, qi in zip(sol.t, sol.q)
+    # ])
+
+    # f = f_g(1)
+    # delta = r_OP[-1] - r_OP[0]
+    # k_rod = (f_g(t[-1]) - f_g(t[-2])) / (r_OP[-1] - r_OP[-2])
+    # print(f"applied force: {f}")
+    # print(f"spring displacement: {delta}")
+    # print(f"k_rod: {k_rod}")
+
+    # fig, ax = plt.subplots()
+    # ax.plot(sol.t, r_OP[:, -1], label="z")
+    # ax.grid()
+    # ax.legend()
+
+    # plt.show()
+
+    # ############
+    # # VTK export
+    # ############
+    # path = Path(__file__)
+    # e = Export(path.parent, path.stem, True, 30, sol)
+    # e.export_contr(rod, level="volume", n_segments=nelements, num=3 * nelements)
+    # e.export_contr(bob)
+
+    # exit()
+
     ################################
     # plot characteristic quantities
     ################################
     r_OS = np.array([bob.r_OP(ti, qi[bob.qDOF]) for (ti, qi) in zip(sol.t, sol.q)])
 
-    # ordering = "zxz"
-    # ordering = "xyz"
     ordering = "zyx"
     angles = np.array(
         [
