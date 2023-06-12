@@ -54,8 +54,8 @@ from cardillo.beams import animate_beam
 # Rod = K_SE3_PetrovGalerkin_AxisAngle
 Rod = K_SE3_PetrovGalerkin_Quaternion
 
-# statics = True
-statics = False
+statics = True
+# statics = False
 
 # ecc = 6.5e-3 # best eccentricity - n = 10
 ecc = 7.25e-3  # best eccentricity - n = 20
@@ -192,12 +192,17 @@ if __name__ == "__main__":
     # Federstahl nach EN 10270-1
     rho = 7850  # [kg / m^3]
     E = 206e9  # Pa
-    G = 81.5e9  # Pa
+    # G = 81.5e9  # Pa
 
-    # TODO:
-    scale = 1e-2
-    E *= scale
-    G *= scale
+    # Berg1991
+    G = 8.1e10
+    nu = 0.23
+    E = 2 * G * (1 + nu)
+
+    # # TODO:
+    # scale = 1e-2
+    # E *= scale
+    # G *= scale
 
     # 1mm cross sectional diameter
     d = 1e-3
@@ -212,6 +217,9 @@ if __name__ == "__main__":
     Ei = np.array([E * A, G * A, G * A])
     Fi = np.array([G * Ip, E * I2, E * I3])
     material_model = Simo1986(Ei, Fi)
+
+    print(f"Ei: {Ei}")
+    print(f"Fi: {Fi}")
 
     ##########
     # gravity
@@ -230,6 +238,8 @@ if __name__ == "__main__":
     # nelements, nturns = 64, 8
     # nelements, nturns = 64, 16
     # nelements, nturns = 80, 20
+
+    # nelements, nturns = 1000, 130
 
     # nelements = 16  # 2 turns
     # nelements = 32 # 5 turns
@@ -280,10 +290,18 @@ if __name__ == "__main__":
     #############################
     # fit reference configuration
     #############################
-    coil_diameter = 32.0e-3  # 32mm
-    coil_radius = coil_diameter / 2
+    # coil_diameter = 32.0e-3  # 32mm
+    # coil_radius = coil_diameter / 2
+    coil_radius = 15.35e-3
+    coil_diameter = 2 * coil_radius
     pitch_unloaded = 1.0e-3  # 1mm
     c = pitch_unloaded / coil_radius
+
+    # # Berg1991
+    # k = G * d**4 / (64 * nturns * coil_radius**3)
+    # # delta = ???
+    # print(f"k: {k}")
+    # exit()
 
     def r(xi, phi0=0.0):
         alpha = 2 * np.pi * nturns * xi
