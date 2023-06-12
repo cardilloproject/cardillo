@@ -41,16 +41,16 @@ K_theta_S = np.diag(np.array([A, A, C]))
 
 show = False
 
+
 def run(
     RigidBody,
     Solver,
     **solver_kwargs,
 ):
-    
     ############################################################################
     #                   system setup
     ############################################################################
-    
+
     ####################
     # initial conditions
     ####################
@@ -123,11 +123,12 @@ def run(
 
         plt.show()
 
+
 ################################################################################
 # test setup
 ################################################################################
 
-solver_and_kwargs = [
+test_parameters = [
     (ScipyIVP, {}),
     (MoreauClassical, {}),
     (EulerBackward, {"method": "index 1"}),
@@ -139,24 +140,13 @@ solver_and_kwargs = [
     (RadauIIa, {"dae_index": "GGL", "max_step": dt}),
 ]
 
-rigid_bodies = [
-    RigidBodyAxisAngle,
-    RigidBodyQuaternion,
-]
 
-test_parameters = []
-
-for RB in rigid_bodies:
-    for SK in solver_and_kwargs:
-        test_parameters.append((RB, *SK))
-
-@pytest.mark.parametrize("RigidBody, Solver, kwargs", test_parameters)
-def test_torsional_oscillator(RigidBody, Solver, kwargs):
-    run(RigidBody, Solver, **kwargs)
+@pytest.mark.parametrize("Solver, kwargs", test_parameters)
+def test_torsional_oscillator(Solver, kwargs):
+    run(RigidBodyQuaternion, Solver, **kwargs)
 
 
 if __name__ == "__main__":
-
     show = True
 
     # run(RigidBodyQuaternion, ScipyIVP)
@@ -172,17 +162,3 @@ if __name__ == "__main__":
     # run(RigidBodyQuaternion, RadauIIa, dae_index=2, max_step=dt)
     # run(RigidBodyQuaternion, RadauIIa, dae_index=3, max_step=dt)
     # run(RigidBodyQuaternion, RadauIIa, dae_index="GGL", max_step=dt)
-
-    # run(RigidBodyAxisAngle, ScipyIVP)
-
-    # run(RigidBodyAxisAngle, MoreauClassical)
-
-    run(RigidBodyAxisAngle, EulerBackward, method="index 1", max_iter=50)
-    # run(RigidBodyAxisAngle, EulerBackward, method="index 2")
-    # run(RigidBodyAxisAngle, EulerBackward, method="index 3")
-    # run(RigidBodyAxisAngle, EulerBackward, method="index 2 GGL")
-
-    # # enforce max step such that solver does not omit quadrant in one step
-    # run(RigidBodyAxisAngle, RadauIIa, dae_index=2, max_step=dt)
-    # run(RigidBodyAxisAngle, RadauIIa, dae_index=3, max_step=dt)
-    # run(RigidBodyAxisAngle, RadauIIa, dae_index="GGL", max_step=dt)

@@ -38,13 +38,13 @@ K_theta_S = np.diag(np.array([C, A, A]))
 
 show = False
 
+
 def run(
-    joint:str,
+    joint: str,
     RigidBody,
     Solver,
     **solver_kwargs,
 ):
-    
     ############################################################################
     #                   system setup
     ############################################################################
@@ -180,7 +180,6 @@ def run(
     # assemble system
     #################
 
-    
     system.add(frame, RB1, rigid_connection)
     system.add(RB2, f_g)
     system.add(constraint)
@@ -365,6 +364,7 @@ def run(
 
     if show:
         plt.show()
+
 
 ################################################################################
 # test setup
