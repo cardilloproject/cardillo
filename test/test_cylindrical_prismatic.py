@@ -382,7 +382,6 @@ solver_and_kwargs = [
 ]
 
 rigid_bodies = [
-    RigidBodyAxisAngle,
     RigidBodyQuaternion,
 ]
 

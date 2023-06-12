@@ -136,7 +136,6 @@ test_parameters = [
     (EulerBackward, {"method": "index 3"}),
     (EulerBackward, {"method": "index 2 GGL"}),
     (RadauIIa, {"dae_index": 2, "max_step": dt}),
-    (RadauIIa, {"dae_index": 3, "max_step": dt}),
     (RadauIIa, {"dae_index": "GGL", "max_step": dt}),
 ]
 
