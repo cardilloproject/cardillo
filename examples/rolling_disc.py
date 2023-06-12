@@ -23,6 +23,7 @@ from cardillo.solver import (
     MoreauShifted,
     NonsmoothGeneralizedAlpha,
     LobattoIIIAB,
+    GeneralizedAlphaFirstOrder,
 )
 from cardillo.solver._butcher_tableaus import RadauIIATableau
 
@@ -142,10 +143,12 @@ def state():
     # dt = 5e-2
     # dt = 2.5e-2
     dt = 1.0e-2  # used for GAMM with R = 10 * r
+    # dt = 5.0e-3
     # dt = 1.0e-3
+    print(f"t1: {t1}; dt: {dt}")
 
     # rho_inf = 0.99
-    rho_inf = 0.96  # used for GAMM (high oszillations)
+    # rho_inf = 0.96  # used for GAMM (high oszillations)
     # rho_inf = 0.85  # used for GAMM (low oszillations)
     # rho_inf = 0.1
     # see Arnold2016, p. 118
@@ -168,9 +171,11 @@ def state():
     # dae_index = "GGL"
     # sol = RadauIIa(system, t1, dt, rtol=rtol, atol=atol, dae_index=dae_index).solve()
 
-    sol = Rattle(system, t1, dt, atol=tol).solve()
+    # sol = Rattle(system, t1, dt, atol=tol).solve()
 
     # sol = NPIRK(system, t1, dt, RadauIIATableau(2)).solve()
+
+    sol = GeneralizedAlphaFirstOrder(system, t1, dt, atol=tol, rho_inf=0.85).solve()
 
     t = sol.t
     q = sol.q

@@ -31,8 +31,7 @@ from cardillo.solver import (
     EulerBackward,
     ScipyIVP,
     RadauIIa,
-    SimplifiedNonsmoothGeneralizedAlpha,
-    SimplifiedNonsmoothGeneralizedAlphaFirstOrder,
+    GeneralizedAlphaFirstOrder,
     NPIRK,
 )
 from cardillo.solver._butcher_tableaus import RadauIIATableau
@@ -187,17 +186,43 @@ def Wilberforce_bob(R, h, debug=True):
 
 
 if __name__ == "__main__":
+    ###########################
+    # discretization properties
+    ###########################
+    # nelements, nturns = 4, 1
+    # nelements, nturns = 8, 1
+    nelements, nturns = 20, 1
+    # nelements, nturns = 12, 2
+    # nelements, nturns = 24, 4
+    # nelements, nturns = 48, 8
+    # nelements, nturns = 150, 10
+    # nelements, nturns = 96, 16
+    # nelements, nturns = 120, 20 # works for SE(3)-quaternion
+
+    # nelements, nturns = 1000, 130
+
+    # nelements = 16  # 2 turns
+    # nelements = 32 # 5 turns
+    # nelements = 64 # 10 turns
+    # nelements = 128 # 20 turns
+
     ####################################################################
     # beam parameters, taken from
     # https://faraday.physics.utoronto.ca/PHY182S/WilberforceRefBerg.pdf
     ####################################################################
 
-    # Federstahl nach EN 10270-1
-    rho = 7850  # [kg / m^3]
-    # E = 206e9  # Pa
-    # G = 81.5e9  # Pa
+    # ############
+    # # Harsch2021
+    # ############
+    # # Federstahl nach EN 10270-1
+    # rho = 7850  # [kg / m^3]
+    # # E = 206e9  # Pa
+    # # G = 81.5e9  # Pa
 
+    ##########
     # Berg1991
+    ##########
+    rho = 7850  # [kg / m^3]
     G = 8.1e10
     nu = 0.23
     E = 2 * G * (1 + nu)
@@ -206,6 +231,37 @@ if __name__ == "__main__":
     wire_diameter = 1e-3
     wire_radius = wire_diameter / 2
 
+    # helix parameter
+    # coil_diameter = 32.0e-3  # 32mm
+    # coil_radius = coil_diameter / 2
+    coil_radius = 15.35e-3
+    coil_diameter = 2 * coil_radius
+    pitch_unloaded = 1.0e-3  # 1mm
+    # pitch_unloaded = 0
+    c = pitch_unloaded / (coil_radius * 2 * np.pi)
+
+    # Berg1991
+    k = G * wire_diameter**4 / (64 * nturns * coil_radius**3)
+    # delta = ???
+    print(f"k: {k}")
+
+    # ############
+    # # Marino2017
+    # ############
+    # rho = 7850  # [kg / m^3]
+    # E = 1e11
+    # nu = 0.2
+    # G = E / (2 * (1 + nu))
+
+    # wire_diameter = 1e-3
+    # wire_radius = wire_diameter / 2
+    # coil_diameter = 2e-2
+    # coil_radius = coil_diameter / 2
+
+    # pitch_unloaded = 5e-3
+    # c = pitch_unloaded / (coil_radius * 2 * np.pi)
+
+    # rod cross-section
     cross_section = CircularCrossSection(rho, wire_radius)
     A_rho0 = rho * cross_section.area
     K_S_rho0 = rho * cross_section.first_moment
@@ -223,24 +279,6 @@ if __name__ == "__main__":
     # gravity
     #########
     g = 9.81
-
-    ###########################
-    # discretization properties
-    ###########################
-    # nelements, nturns = 4, 1
-    # nelements, nturns = 6, 1
-    # nelements, nturns = 12, 2
-    nelements, nturns = 24, 4
-    # nelements, nturns = 48, 8
-    # nelements, nturns = 96, 16
-    # nelements, nturns = 120, 20 # works for SE(3)-quaternion
-
-    # nelements, nturns = 1000, 130
-
-    # nelements = 16  # 2 turns
-    # nelements = 32 # 5 turns
-    # nelements = 64 # 10 turns
-    # nelements = 128 # 20 turns
 
     ############################################
     # build rod with dummy initial configuration
@@ -286,19 +324,6 @@ if __name__ == "__main__":
     #############################
     # fit reference configuration
     #############################
-    # coil_diameter = 32.0e-3  # 32mm
-    # coil_radius = coil_diameter / 2
-    coil_radius = 15.35e-3
-    coil_diameter = 2 * coil_radius
-    pitch_unloaded = 1.0e-3  # 1mm
-    # pitch_unloaded = 0
-    c = pitch_unloaded / (coil_radius * 2 * np.pi)
-
-    # Berg1991
-    k = G * wire_diameter**4 / (64 * nturns * coil_radius**3)
-    # delta = ???
-    print(f"k: {k}")
-
     def r(xi, phi0=0.0):
         alpha = 2 * np.pi * nturns * xi
         return coil_radius * np.array(
@@ -326,14 +351,14 @@ if __name__ == "__main__":
     Q0 = fit_configuration(rod, r_OPs, A_IKs, nodal_cDOF=[])
     rod.q0 = Q0.copy()
 
-    #############
-    # rod gravity
-    #############
-    if statics:
-        f_g_rod = lambda t, xi: -t * A_rho0 * g * e3
-    else:
-        f_g_rod = -A_rho0 * g * e3
-    force_rod = DistributedForce1DBeam(f_g_rod, rod)
+    # #############
+    # # rod gravity
+    # #############
+    # if statics:
+    #     f_g_rod = lambda t, xi: -t * A_rho0 * g * e3
+    # else:
+    #     f_g_rod = -A_rho0 * g * e3
+    # force_rod = DistributedForce1DBeam(f_g_rod, rod)
 
     #############################################
     # joint between origin and top side of spring
@@ -347,12 +372,12 @@ if __name__ == "__main__":
     # # pm = PointMass(1, q0=np.zeros(3))
     # # joint2 = Spherical(rod, pm, r_OB0=np.zeros(3), frame_ID1=(0,))
 
-    # rb = RigidBodyQuaternion(mass=1, K_Theta_S=np.eye(3), q0=np.array([0, 0, 0, 1, 0, 0, 0]))
+    # rb = RigidBodyQuaternion(
+    #     mass=1, K_Theta_S=np.eye(3), q0=np.array([0, 0, 0, 1, 0, 0, 0])
+    # )
     # joint2 = RigidConnection(rb, rod, frame_ID2=(0,))
     # assert statics
-    # m_bob = 0.4905
-    # g = 9.81
-    # f_g = lambda t: -t * e3 * m_bob * g
+    # f_g = lambda t: -t * e3 * 100
     # force = Force(f_g, rb)
 
     ##############
@@ -361,6 +386,10 @@ if __name__ == "__main__":
     R = 18e-3  # radius of the main cylinder
     h = 50e-3  # height of the main cylinder
     m, K_Theta_S = Wilberforce_bob(R, h)
+    # # TODO:
+    # scale = 4
+    # m *= scale
+    # K_Theta_S *= scale
     # center of mass is shifted (wire starts out of the top cylinder surface)
     r_OS0 = np.array([0, 0, -h / 2 - wire_radius])
     p0 = np.array([1, 0, 0, 0], dtype=float)
@@ -380,7 +409,6 @@ if __name__ == "__main__":
     # connect spring and bob
     ########################
     joint2 = RigidConnection(bob, rod, frame_ID2=(0,))
-    # joint2 = RigidConnection(rod, bob, frame_ID1=(0,))
 
     ################
     # external force
@@ -396,6 +424,7 @@ if __name__ == "__main__":
     #####################
     # system.add(rod, joint1, force_rod)
     system.add(rod, joint1)
+    # system.add(rb, joint2, force)
     system.add(bob, joint2, force_bob)
     system.assemble()
 
@@ -403,7 +432,8 @@ if __name__ == "__main__":
     # solve static system
     #####################
     if statics:
-        n_load_steps = 50
+        # n_load_steps = 50
+        n_load_steps = 500
         solver = Newton(
             system,
             n_load_steps=n_load_steps,
@@ -411,14 +441,13 @@ if __name__ == "__main__":
     else:
         # t1 = 30
         # t1 = 10
-        # t1 = 3
-        t1 = 1
+        t1 = 3
+        # t1 = 1
         # t1 = 0.5
-        # dt = 1e-1
-        dt = 1e-2
+        # t1 = 1e-1
+        # dt = 1e-2
         # dt = 5e-3
-        # dt = 1e-3  # 16 turns
-        # dt = 5e-4
+        dt = 1e-3
 
         # solver = EulerBackward(system, t1, dt, method="index 3")
         # solver = ScipyIVP(system, t1, dt)
@@ -426,8 +455,13 @@ if __name__ == "__main__":
         # solver = RadauIIa(system, t1, dt, dae_index=2, max_step=dt)
         # solver = SimplifiedNonsmoothGeneralizedAlpha(system, t1, dt, rho_inf=0.8)
         # solver = NPIRK(system, t1, dt, RadauIIATableau(2))
-        solver = SimplifiedNonsmoothGeneralizedAlphaFirstOrder(
-            system, t1, dt, rho_inf=0.8
+        solver = GeneralizedAlphaFirstOrder(
+            system,
+            t1,
+            dt,
+            rho_inf=0.8,
+            atol=1e-6,
+            method="index 3",
         )
 
     sol = solver.solve()
@@ -441,9 +475,7 @@ if __name__ == "__main__":
     # # r_OP = np.array([
     # #     rod.r_OP(ti, qi[rod.qDOF][rod.local_qDOF_P((0,))], frame_ID=(0,)) for ti, qi in zip(sol.t, sol.q)
     # # ])
-    # r_OP = np.array([
-    #     rb.r_OP(ti, qi[rb.qDOF]) for ti, qi in zip(sol.t, sol.q)
-    # ])
+    # r_OP = np.array([rb.r_OP(ti, qi[rb.qDOF]) for ti, qi in zip(sol.t, sol.q)])
 
     # f = f_g(1)
     # delta = r_OP[-1] - r_OP[0]
@@ -465,7 +497,6 @@ if __name__ == "__main__":
     # path = Path(__file__)
     # e = Export(path.parent, path.stem, True, 30, sol)
     # e.export_contr(rod, level="volume", n_segments=nelements, num=3 * nelements)
-    # e.export_contr(bob)
 
     # exit()
 
