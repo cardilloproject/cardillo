@@ -1,17 +1,11 @@
 import numpy as np
-from scipy.sparse import csc_matrix, csr_matrix, eye, diags, bmat
+from scipy.sparse import csc_matrix, csr_matrix, eye, bmat
+from scipy.sparse.linalg import splu
 from tqdm import tqdm
+from warnings import warn
 
 from cardillo.math import fsolve, approx_fprime
 from cardillo.solver import Solution
-
-
-# Factors taken from https://github.com/scipy/scipy/blob/main/scipy/integrate/_ivp/radau.py.
-# See also Hairer1993 around (4.13).
-# NEWTON_MAXITER = 6  # Maximum number of Newton iterations.
-NEWTON_MAXITER = 10  # Maximum number of Newton iterations.
-MIN_FACTOR = 0.2  # Minimum allowed decrease in a step size.
-MAX_FACTOR = 10  # Maximum allowed increase in a step size.
 
 
 class GeneralizedAlphaFirstOrder:
@@ -22,7 +16,7 @@ class GeneralizedAlphaFirstOrder:
         h,
         rho_inf=0.8,
         atol=1e-8,
-        max_iter=10,
+        max_iter=8,
         error_function=lambda x: np.max(np.abs(x)),
         # method="index 2 GGL",
         method="index 3",
@@ -50,8 +44,6 @@ class GeneralizedAlphaFirstOrder:
         # integration time
         #######################################################################
         self.tn = t0 = system.t0
-        self.frac = (t1 - t0) / 101
-        self.i = 0
         self.t1 = (
             t1 if t1 > t0 else ValueError("t1 must be larger than initial time t0.")
         )
@@ -125,7 +117,7 @@ class GeneralizedAlphaFirstOrder:
         u = self.un + h * ((1 - gamma) * self.an + gamma * a)
 
         if store:
-            # self.tn = t
+            self.tn = t
             self.qn = q.copy()
             self.un = u.copy()
             self.q_dotn = q_dot.copy()
@@ -183,6 +175,11 @@ class GeneralizedAlphaFirstOrder:
         chain = self.h * self.gamma * (1 - self.alpha_f) / (1 - self.alpha_m)
 
         t, q, u, q_dot, u_dot, la_g, la_gamma, mu_S, mu_g = self._split_and_update(y)
+
+        # self.g_S_q = self.system.g_S_q(t, q, scipy_matrix=csc_matrix)
+        # self.M = self.system.M(t, q, scipy_matrix=csr_matrix)
+        # self.W_g = self.system.W_g(t, q, scipy_matrix=csr_matrix)
+        # self.W_gamma = self.system.W_gamma(t, q, scipy_matrix=csr_matrix)
 
         A = (
             eye(self.nq, format="csc")
@@ -271,83 +268,45 @@ class GeneralizedAlphaFirstOrder:
         mu_S_list = [mu_S]
         mu_g_list = [mu_g]
 
-        # pbar = tqdm(self.t_eval[1:])
-        # for _ in pbar:
-        pbar = tqdm(total=100, leave=True)
-        while self.tn <= self.t1:
-            step_accepted = False
-            while not step_accepted:
-                sol = fsolve(
-                    self._R,
-                    self.y,
-                    # jac="2-point",
-                    jac=self._J,
-                    error_function=self.error_function,
-                    atol=self.atol,
-                    max_iter=self.max_iter,
-                )
-                converged = sol[1]
+        pbar = tqdm(self.t_eval[1:])
+        for _ in pbar:
+            # ################
+            # # fsolve version
+            # ################
+            # sol = fsolve(
+            #     self._R,
+            #     self.y,
+            #     jac=self._J,
+            #     error_function=self.error_function,
+            #     atol=self.atol,
+            #     max_iter=self.max_iter,
+            # )
+            # self.y = sol[0]
+            # converged = sol[1]
+            # error = sol[2]
+            # n_iter = sol[3]
+            # assert converged
 
-                # halve step size if fsolve does not converge
-                if not converged:
-                    print(
-                        f"fsolve is not converged at t: {self.tn + self.h} => halve time step"
-                    )
-                    self.h *= 0.5
-                    continue
+            ##############
+            # splu version
+            ##############
+            R = self._R(self.y)
+            error = self.error_function(R)
+            converged = error <= self.atol
 
-                self.y = sol[0]
-                error = sol[2]
-                n_iter = sol[3]
-                assert converged
+            # Newton loop
+            LU = splu(self._J(self.y))
+            n_iter = 0
+            while (not converged) and (n_iter < self.max_iter):
+                n_iter += 1
+                self.y -= LU.solve(R)
+                R = self._R(self.y)
+                error = self.error_function(R)
+                converged = error <= self.atol
 
-                (
-                    t,
-                    q,
-                    u,
-                    q_dot,
-                    u_dot,
-                    la_g,
-                    la_gamma,
-                    mu_S,
-                    mu_g,
-                ) = self._split_and_update(self.y, store=False)
-                # self.qn, self.un = self.system.step_callback(t, q, u)
-
-                ########################################
-                # error estimate of Rang2013 Section 4.1
-                ########################################
-                # backward Euler solution
-                q_Euler = self.qn + self.h * q_dot
-                u_Euler = self.un + self.h * u_dot
-                e = np.concatenate((q, u)) - np.concatenate((q_Euler, u_Euler))
-                # q = 1
-                q = 2
-
-                # scaled tolerance of Hairer1993 (4.10)
-                scale = np.ones_like(e) * 1e-5
-
-                # error measure of Hairer1993 (4.11)
-                err = np.sqrt(sum(e * e / scale) / len(e))
-
-                # safety factor depending on required Newton iterations,
-                # see https://github.com/scipy/scipy/blob/main/scipy/integrate/_ivp/radau.py#L475L476
-                safety = 0.9 * (2 * NEWTON_MAXITER + 1) / (2 * NEWTON_MAXITER + n_iter)
-
-                # step size selection of Hairer1993 (4.13)
-                fac = min(
-                    MAX_FACTOR, max(MIN_FACTOR, safety * (1 / err) ** (1 / (q + 1)))
-                )
-                h_new = self.h * fac
-
-                # accept step if err < 1, see Hairer1993 after (4.13)
-                if err < 1:
-                    step_accepted = True
-                    self.tn = t
-                else:
-                    print(f"step rejected at t: {t}")
-
-                self.h = h_new
+            if not converged:
+                # warn(f"fsolve is not converged after {n_iter} iterations with error {error:2.3f} => compute new LU")
+                continue
 
             t, q, u, q_dot, u_dot, la_g, la_gamma, mu_S, mu_g = self._split_and_update(
                 self.y, store=True
@@ -356,14 +315,6 @@ class GeneralizedAlphaFirstOrder:
             pbar.set_description(
                 f"t: {t:0.2e}; {n_iter}/{self.max_iter} iterations; error: {error:0.2e}"
             )
-
-            # update progress bar
-            i1 = int(t // self.frac)
-            pbar.update(i1 - self.i)
-            pbar.set_description(
-                f"t: {t:0.2e}s < {self.t1:0.2e}s; {n_iter}/{self.max_iter} iterations; error: {error:0.2e}"
-            )
-            self.i = i1
 
             t_list.append(t)
             q_list.append(q)
@@ -374,17 +325,6 @@ class GeneralizedAlphaFirstOrder:
             la_gamma_list.append(la_gamma)
             mu_S_list.append(mu_S)
             mu_g_list.append(mu_g)
-
-            # # update step size
-            # min_factor = 0.2
-            # max_factor = 5
-            # target_iter = 4.2
-            # factor = target_iter / n_iter
-            # factor = max(min_factor, min(max_factor, factor))
-            # print(f"factor: {factor}")
-            # self.h *= factor
-
-            # self.tn += self.h
 
         # write solution
         return Solution(
