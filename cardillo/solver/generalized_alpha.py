@@ -2,9 +2,8 @@ import numpy as np
 from scipy.sparse import csc_matrix, csr_matrix, eye, bmat
 from scipy.sparse.linalg import splu
 from tqdm import tqdm
-from warnings import warn
 
-from cardillo.math import fsolve, approx_fprime
+from cardillo.math import approx_fprime, fsolve
 from cardillo.solver import Solution
 
 
@@ -16,13 +15,10 @@ class GeneralizedAlphaFirstOrder:
         h,
         rho_inf=0.8,
         atol=1e-8,
-        max_iter=8,
+        max_iter=10,
         error_function=lambda x: np.max(np.abs(x)),
-        # method="index 2 GGL",
         method="index 3",
-        # method="index 2",
-        # method="index 1",
-        # debug=True,
+        jac_method=None,
         debug=False,
     ):
         self.system = system
@@ -32,6 +28,7 @@ class GeneralizedAlphaFirstOrder:
         self.atol = atol
         self.max_iter = max_iter
         self.error_function = error_function
+        self.jac_method = jac_method
         self.debug = debug
 
         # generalized alpha constants
@@ -270,43 +267,40 @@ class GeneralizedAlphaFirstOrder:
 
         pbar = tqdm(self.t_eval[1:])
         for _ in pbar:
-            # ################
-            # # fsolve version
-            # ################
-            # sol = fsolve(
-            #     self._R,
-            #     self.y,
-            #     jac=self._J,
-            #     error_function=self.error_function,
-            #     atol=self.atol,
-            #     max_iter=self.max_iter,
-            # )
-            # self.y = sol[0]
-            # converged = sol[1]
-            # error = sol[2]
-            # n_iter = sol[3]
-            # assert converged
+            ################
+            # fsolve version
+            ################
+            sol = fsolve(
+                self._R,
+                self.y,
+                jac=self.jac_method if self.jac_method is not None else self._J,
+                error_function=self.error_function,
+                atol=self.atol,
+                max_iter=self.max_iter,
+            )
+            self.y, converged, error, n_iter = sol[:4]
+            assert converged
 
-            ##############
-            # splu version
-            ##############
-            R = self._R(self.y)
-            error = self.error_function(R)
-            converged = error <= self.atol
+            # ##############
+            # # splu version
+            # ##############
+            # R = self._R(self.y)
+            # error = self.error_function(R)
+            # converged = error <= self.atol
 
-            # Newton loop
-            LU = splu(self._J(self.y))
-            n_iter = 0
-            while (not converged) and (n_iter < self.max_iter):
-                n_iter += 1
-                self.y -= LU.solve(R)
-                R = self._R(self.y)
-                error = self.error_function(R)
-                converged = error <= self.atol
+            # # Newton loop
+            # LU = splu(self._J(self.y))
+            # n_iter = 0
+            # while (not converged) and (n_iter < self.max_iter):
+            #     n_iter += 1
+            #     self.y -= LU.solve(R)
+            #     R = self._R(self.y)
+            #     error = self.error_function(R)
+            #     converged = error <= self.atol
 
-            if not converged:
-                # warn(f"fsolve is not converged after {n_iter} iterations with error {error:2.3f} => compute new LU")
-                continue
+            # if not converged:
+            #     print(f"fsolve is not converged after {n_iter} iterations with error {error:2.3f} => compute new LU")
+            #     continue
 
             t, q, u, q_dot, u_dot, la_g, la_gamma, mu_S, mu_g = self._split_and_update(
                 self.y, store=True
