@@ -183,13 +183,13 @@ def Wilberforce_bob(R, h, debug=True):
     return m, Theta
 
 
-if __name__ == "__main__":
+def run_rod():
     ###########################
     # discretization properties
     ###########################
     elements_per_turn = 8
     # elements_per_turn = 6
-    nturns = 4
+    nturns = 20
     nelements = elements_per_turn * nturns
     # nelements, nturns = 4, 1
     # nelements, nturns = 8, 1
@@ -469,10 +469,10 @@ if __name__ == "__main__":
         )
     else:
         # t1 = 30
-        # t1 = 10
+        t1 = 10
         # t1 = 3
-        t1 = 2
-        # t1 = 0.5
+        # t1 = 2
+        # t1 = 0.01
         # t1 = 1e-1
         # dt = 1e-2
         # dt = 5e-3
@@ -577,3 +577,11 @@ if __name__ == "__main__":
     e.export_contr(bob)
 
     plt.show()
+
+
+def run_ODE():
+    pass
+
+
+if __name__ == "__main__":
+    run_ODE()
