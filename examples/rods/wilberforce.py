@@ -3,8 +3,6 @@ from cardillo.beams import (
     CircularCrossSection,
     Simo1986,
 )
-from cardillo.discrete import Frame, PointMass
-
 from cardillo.beams import (
     K_R12_PetrovGalerkin_AxisAngle,
     K_R12_PetrovGalerkin_Quaternion,
@@ -189,9 +187,13 @@ if __name__ == "__main__":
     ###########################
     # discretization properties
     ###########################
+    elements_per_turn = 8
+    # elements_per_turn = 6
+    nturns = 4
+    nelements = elements_per_turn * nturns
     # nelements, nturns = 4, 1
     # nelements, nturns = 8, 1
-    nelements, nturns = 20, 1
+    # nelements, nturns = 20, 1
     # nelements, nturns = 12, 2
     # nelements, nturns = 24, 4
     # nelements, nturns = 48, 8
@@ -237,11 +239,21 @@ if __name__ == "__main__":
     coil_radius = 15.35e-3
     coil_diameter = 2 * coil_radius
     pitch_unloaded = 1.0e-3  # 1mm
-    # pitch_unloaded = 0
+    # pitch_unloaded = 5e-2
     c = pitch_unloaded / (coil_radius * 2 * np.pi)
 
-    # Berg1991
+    # Wahl1944, p. 48 eq. (52)
+    alpha = np.arctan(pitch_unloaded / (2 * np.pi * coil_radius))
+    spring_index = 2 * coil_radius / wire_diameter
+    psi = (
+        np.cos(alpha) / (1 + (3 / 16) * np.cos(alpha) ** 4 / (spring_index**2 - 1))
+        + 2 * G * np.sin(alpha) * np.tan(alpha) / E
+    )
     k = G * wire_diameter**4 / (64 * nturns * coil_radius**3)
+    k /= psi
+
+    # Berg1991
+    # k = G * wire_diameter**4 / (64 * nturns * coil_radius**3)
     # delta = ???
     print(f"k: {k}")
 
@@ -369,41 +381,58 @@ if __name__ == "__main__":
     # #############################
     # # external fore at spring end
     # #############################
-    # # pm = PointMass(1, q0=np.zeros(3))
-    # # joint2 = Spherical(rod, pm, r_OB0=np.zeros(3), frame_ID1=(0,))
-
     # rb = RigidBodyQuaternion(
     #     mass=1, K_Theta_S=np.eye(3), q0=np.array([0, 0, 0, 1, 0, 0, 0])
     # )
     # joint2 = RigidConnection(rb, rod, frame_ID2=(0,))
     # assert statics
-    # f_g = lambda t: -t * e3 * 100
+    # f_g = lambda t: -t * e3 * 20
     # force = Force(f_g, rb)
 
     ##############
     # pendulum bob
     ##############
-    R = 18e-3  # radius of the main cylinder
-    h = 50e-3  # height of the main cylinder
-    m, K_Theta_S = Wilberforce_bob(R, h)
-    # # TODO:
-    # scale = 4
-    # m *= scale
-    # K_Theta_S *= scale
-    # center of mass is shifted (wire starts out of the top cylinder surface)
+    # R = 18e-3  # radius of the main cylinder
+    # h = 50e-3  # height of the main cylinder
+    # m, K_Theta_S = Wilberforce_bob(R, h)
+    # print(f"m: {m}\nK_Theta_S:\n{K_Theta_S}")
+    # # # TODO:
+    # # scale = 4
+    # # m *= scale
+    # # K_Theta_S *= scale
+    # # center of mass is shifted (wire starts out of the top cylinder surface)
+    # r_OS0 = np.array([0, 0, -h / 2 - wire_radius])
+    # p0 = np.array([1, 0, 0, 0], dtype=float)
+    # q0 = np.concatenate((r_OS0, p0))
+    # bob = Cylinder(RigidBodyQuaternion)(
+    #     length=h, radius=R, axis=2, mass=m, K_Theta_S=K_Theta_S, q0=q0
+    # )
+    # # bob = RigidBodyQuaternion(
+    # #     mass=m, K_Theta_S=K_Theta_S, q0=q0
+    # # )
+    # # density = 7850  # [kg / m^3]; steel
+    # # bob = Cylinder(RigidBodyQuaternion)(
+    # #     length=h, radius=R, axis=2, density=density, q0=q0
+    # # )
+
+    # cylinder_radius = np.sqrt(2 * K_Theta_S[-1, -1] / m)
+    # cylinder_height = m / (rho * cylinder_radius**2 * np.pi)
+    # print(f"cylinder_height: {cylinder_height}; cylinder_radius: {cylinder_radius}")
+    # bob = Cylinder(RigidBodyQuaternion)(
+    #     length=cylinder_height, radius=cylinder_radius, axis=2, density=rho, q0=q0
+    # )
+    # print(f"m: {bob.mass}\nK_Theta_S:\n{bob.K_Theta_S}")
+
+    # PAMM2023
+    R = 23e-3  # radius of the main cylinder
+    h = 36e-3  # height of the main cylinder
+    density = 7850  # [kg / m^3]; steel
     r_OS0 = np.array([0, 0, -h / 2 - wire_radius])
     p0 = np.array([1, 0, 0, 0], dtype=float)
     q0 = np.concatenate((r_OS0, p0))
     bob = Cylinder(RigidBodyQuaternion)(
-        length=h, radius=R, axis=2, mass=m, K_Theta_S=K_Theta_S, q0=q0
+        length=h, radius=R, axis=2, density=density, q0=q0
     )
-    # bob = RigidBodyQuaternion(
-    #     mass=m, K_Theta_S=K_Theta_S, q0=q0
-    # )
-    # density = 7850  # [kg / m^3]; steel
-    # bob = Cylinder(RigidBodyQuaternion)(
-    #     length=h, radius=R, axis=2, density=density, q0=q0
-    # )
 
     ########################
     # connect spring and bob
@@ -414,9 +443,9 @@ if __name__ == "__main__":
     # external force
     ################
     if statics:
-        f_g_bob = lambda t: -t * m * g * e3
+        f_g_bob = lambda t: -t * bob.mass * g * e3
     else:
-        f_g_bob = lambda t: -m * g * e3
+        f_g_bob = lambda t: -bob.mass * g * e3
     force_bob = Force(f_g_bob, bob)
 
     #####################
@@ -432,8 +461,8 @@ if __name__ == "__main__":
     # solve static system
     #####################
     if statics:
-        # n_load_steps = 50
-        n_load_steps = 500
+        n_load_steps = 50
+        # n_load_steps = 500
         solver = Newton(
             system,
             n_load_steps=n_load_steps,
@@ -442,8 +471,8 @@ if __name__ == "__main__":
         # t1 = 30
         # t1 = 10
         # t1 = 3
-        # t1 = 1
-        t1 = 0.5
+        t1 = 2
+        # t1 = 0.5
         # t1 = 1e-1
         # dt = 1e-2
         # dt = 5e-3
@@ -479,13 +508,18 @@ if __name__ == "__main__":
 
     # f = f_g(1)
     # delta = r_OP[-1] - r_OP[0]
-    # k_rod = (f_g(t[-1]) - f_g(t[-2])) / (r_OP[-1] - r_OP[-2])
+    # k_rod = (f_g(t[0]) - f_g(t[1])) / (r_OP[0] - r_OP[1])
     # print(f"applied force: {f}")
     # print(f"spring displacement: {delta}")
     # print(f"k_rod: {k_rod}")
 
     # fig, ax = plt.subplots()
-    # ax.plot(sol.t, r_OP[:, -1], label="z")
+    # fs = np.array([f_g(ti) for ti in sol.t])
+    # displacement = -(r_OP[:, -1] - r_OP[0, -1])
+    # ax.plot(displacement, -fs[:, -1], "-b", label="rod")
+    # ax.plot([displacement[0], displacement[-1]], [displacement[0] * k, displacement[-1] * k], "--k", label="linear")
+    # ax.set_xlabel("Delta z")
+    # ax.set_ylabel("f")
     # ax.grid()
     # ax.legend()
 
