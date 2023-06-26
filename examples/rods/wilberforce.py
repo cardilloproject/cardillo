@@ -47,13 +47,13 @@ from cardillo.beams import animate_beam
 # R12 interpolation
 ###################
 # Rod = K_R12_PetrovGalerkin_AxisAngle
-# Rod = K_R12_PetrovGalerkin_Quaternion
+Rod = K_R12_PetrovGalerkin_Quaternion
 
 #####################
 # SE(3)-interpolation
 #####################
 # Rod = K_SE3_PetrovGalerkin_AxisAngle
-Rod = K_SE3_PetrovGalerkin_Quaternion
+# Rod = K_SE3_PetrovGalerkin_Quaternion
 
 # elements_per_turn = 10 # R12 - p1
 # elements_per_turn = 8 # SE(3)
@@ -75,6 +75,7 @@ wire_diameter = 1e-3
 wire_radius = wire_diameter / 2
 
 # helix parameter
+# TODO: Should we 15/32 mm?
 # coil_diameter = 32.0e-3
 # coil_radius = coil_diameter / 2
 coil_radius = 15.35e-3
@@ -524,7 +525,7 @@ def run_FEM_dynamics():
     # dt = 1e-2
 
     # nturns = 3
-    t1 = 5
+    t1 = 4
     dt = 1e-3  # nturns = 3
 
     # nturns = 10 # TODO: Not working yet!
@@ -564,9 +565,9 @@ def run_FEM_dynamics():
     np.savetxt(
         Path(__file__).parent
         / f"wilberforce_rigid_body_state_nturns_{nturns}_t1_{t1}_dt_{dt}.txt",
-        np.hstack([r_OS, angles]),
+        np.hstack([t[:, None], r_OS, angles]),
         delimiter=", ",
-        header="x, y, z, alpha, beta, gamma",
+        header="t, x, y, z, alpha, beta, gamma",
         comments="",
     )
 
