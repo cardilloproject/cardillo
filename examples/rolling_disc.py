@@ -435,8 +435,11 @@ def convergence():
     # get_solver = lambda t_final, dt, atol: NPIRK(
     #     system, t_final, dt, RadauIIATableau(2), atol=atol
     # )
-    get_solver = lambda t_final, dt, atol: LobattoIIIAB(
-        system, t_final, dt, atol=atol, stages=3
+    # get_solver = lambda t_final, dt, atol: LobattoIIIAB(
+    #     system, t_final, dt, atol=atol, stages=3
+    # )
+    get_solver = lambda t_final, dt, atol: GeneralizedAlphaFirstOrder(
+        system, t_final, dt, atol=atol, rho_inf=0.85
     )
 
     errors = convergence_analysis(
@@ -452,17 +455,17 @@ def convergence():
         # dt_ref=4e-4,
         # final_power=6,
         # power_span=(1, 4),
-        dt_ref=2e-4,
-        final_power=7,
-        power_span=(2, 5),
-        # dt_ref=1e-4,
-        # final_power=9,
-        # power_span=(1, 6),
-        states=["q", "u"],
+        # dt_ref=2e-4,
+        # final_power=7,
+        # power_span=(2, 5),
+        dt_ref=1e-4,
+        final_power=8,
+        power_span=(1, 6),
+        # states=["q", "u"],
         # states=["q", "u", "P_g", "P_gamma"],
-        # states=["q", "u", "la_g", "la_gamma"],
+        states=["q", "u", "la_g", "la_gamma"],
         split_fractions=[],
-        atol=1e-12,
+        atol=1e-14,
         measure="lp",
         # measure="uniform",
         # measure="hausdorff",
@@ -934,5 +937,5 @@ def convergence():
 
 
 if __name__ == "__main__":
-    state()
-    # convergence()
+    # state()
+    convergence()

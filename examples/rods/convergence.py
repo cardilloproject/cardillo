@@ -186,7 +186,8 @@ test_rods = ["R12p1", "R12p2"]
 nnodes_list = np.array([5, 9, 17, 33, 65, 129], dtype=int)
 nnodes_ref = 513
 
-volume_correction = False
+# volume_correction = False
+volume_correction = True
 
 
 def convergence():
