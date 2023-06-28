@@ -31,16 +31,22 @@ Rod = K_R12_PetrovGalerkin_Quaternion
 #####################
 # Rod = K_SE3_PetrovGalerkin_Quaternion
 
-# Marino2017: nnodes = 151, p = 6 => 150 two-node elements
+nturns = 10
+
+# Marino2017: nnodes = 151, p = 6
+# => 150 two-node elements
+# =>  75 three-node elements
 
 # discretization
-elements_per_turn = 10  # R12 - p1
-# elements_per_turn = 15 # R12 - p1
-# elements_per_turn = 20 # R12 - p1
-nturns = 10
-# nturns = 2
-nelements = elements_per_turn * nturns
-p = 1
+# p = 1
+# # elements_per_turn = 10
+# # elements_per_turn = 15 # Marino20171
+# # elements_per_turn = 20
+
+p = 2
+elements_per_turn = 7.5
+
+nelements = int(elements_per_turn * nturns)
 
 ############
 # Marino2017
@@ -83,6 +89,7 @@ eps = k * coil_radius * nu * np.sin(2 * alpha)
 # eps = k * coil_radius * nu * np.sin(2 * alpha)
 
 print(f"k: {k}; delta: {delta}; eps: {eps}")
+# exit()
 
 # rod cross-section
 cross_section = CircularCrossSection(rho, wire_radius)
@@ -137,6 +144,8 @@ elif Rod is K_R12_PetrovGalerkin_Quaternion:
     )
 else:
     raise NotImplementedError
+
+print(f"rod.nnodes_r: {rod.nnodes_r}")
 
 
 #############################
@@ -212,8 +221,8 @@ def run(case="force"):
     # n_load_steps = 250
     # n_load_steps = 300
     # n_load_steps = 400
-    # n_load_steps = 500 # works with volume correction
-    n_load_steps = 1000  # works without volume correction
+    n_load_steps = 500  # works with volume correction
+    # n_load_steps = 1000  # works without volume correction
     sol = Newton(
         system,
         n_load_steps=n_load_steps,

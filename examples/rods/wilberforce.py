@@ -53,12 +53,17 @@ Rod = K_R12_PetrovGalerkin_Quaternion
 # Rod = K_SE3_PetrovGalerkin_AxisAngle
 # Rod = K_SE3_PetrovGalerkin_Quaternion
 
-elements_per_turn = 15  # R12 - p1
+# p = 1
+# elements_per_turn = 25
+# elements_per_turn = 20 # R12 - p1 + no volume correction
+# elements_per_turn = 15
 # elements_per_turn = 10 # R12 - p1 + volume correction
+
+p = 2
+elements_per_turn = 4  # R12 - p1 + no volume correction
 # elements_per_turn = 8 # SE(3)
 nturns = 3
 nelements = elements_per_turn * nturns
-p = 1
 
 ##########
 # Berg1991
