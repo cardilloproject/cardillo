@@ -688,8 +688,37 @@ def C2_continous_control_points(unique_points):
     return points
 
 
+def reduced_matrix_C0_continous(A, dim):
+    N_p = A.shape[0]
+    n_first = 4 * dim
+    n_other = (N_p - n_first) // (4 * dim)
+    N_up = (4 + 3 * n_other) * dim
+
+    n = n_other + 1
+
+    A_red = np.zeros((N_p, N_up), dtype=float)
+    A_red[:, :n_first] = A[:, :n_first]
+
+    for j in range(1, n):
+        for d in range(dim):
+            # C0 continuity
+            A_red[:, n_first + (j - 1) * 3 * dim + d - dim] = (
+                A[:, j * n_first + d - dim] + A[:, j * n_first + d]
+            )
+
+            # Second, third and fourth point
+            A_red[:, n_first + (j - 1) * 3 * dim + d] = A[:, j * n_first + d + dim]
+            A_red[:, n_first + (j - 1) * 3 * dim + d + dim] = A[
+                :, j * n_first + d + 2 * dim
+            ]
+            A_red[:, n_first + (j - 1) * 3 * dim + d + 2 * dim] = A[
+                :, j * n_first + d + 3 * dim
+            ]
+
+    return A_red
+
+
 def reduced_matrix_C1_continous(A, dim):
-    #
     N_p = A.shape[0]
     n_first = 4 * dim
     n_other = (N_p - n_first) // (4 * dim)
@@ -1001,7 +1030,7 @@ def L2_projection_Bezier_curve(target_points, n, case="C1", cDOF=[0, -1]):
     fDOF = np.setdiff1d(zDOF, cDOF)
 
     # linearize unconstrainte points
-    z0 = unique_initial_guess.reshape(-1)  # inkl. constraint points
+    z0 = unique_initial_guess.reshape(-1)  # incl. constraint points
     x0 = unique_initial_guess[fDOF].reshape(-1)
 
     # knot vector
@@ -1114,7 +1143,7 @@ def L2_projection_Bezier_curve(target_points, n, case="C1", cDOF=[0, -1]):
         elif case == "C1":
             A_red = reduced_matrix_C1_continous(A, dim)
         else:
-            raise NotImplementedError
+            A_red = reduced_matrix_C0_continous(A, dim)
 
         # remove boundary equations from the system
         cDOF = np.concatenate((cDOF1, cDOF2))
