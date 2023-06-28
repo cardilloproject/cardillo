@@ -6,12 +6,10 @@ from cardillo.beams import (
 from cardillo.beams import (
     K_R12_PetrovGalerkin_AxisAngle,
     K_R12_PetrovGalerkin_Quaternion,
-    K_R12_PetrovGalerkin_R9,
 )
 from cardillo.beams import (
     K_SE3_PetrovGalerkin_AxisAngle,
     K_SE3_PetrovGalerkin_Quaternion,
-    K_SE3_PetrovGalerkin_R9,
 )
 from cardillo.beams._fitting import fit_configuration
 
@@ -55,9 +53,9 @@ Rod = K_R12_PetrovGalerkin_Quaternion
 # Rod = K_SE3_PetrovGalerkin_AxisAngle
 # Rod = K_SE3_PetrovGalerkin_Quaternion
 
-# elements_per_turn = 10 # R12 - p1
+elements_per_turn = 15  # R12 - p1
+# elements_per_turn = 10 # R12 - p1 + volume correction
 # elements_per_turn = 8 # SE(3)
-elements_per_turn = 10
 nturns = 3
 nelements = elements_per_turn * nturns
 p = 1
@@ -69,6 +67,7 @@ rho = 7850  # [kg / m^3]
 G = 8.1e10
 nu = 0.23
 E = 2 * G * (1 + nu)
+print(f"G: {G}; E: {E}")
 
 # 1mm cross sectional diameter
 wire_diameter = 1e-3
@@ -76,10 +75,10 @@ wire_radius = wire_diameter / 2
 
 # helix parameter
 # TODO: Should we 15/32 mm?
-# coil_diameter = 32.0e-3
-# coil_radius = coil_diameter / 2
-coil_radius = 15.35e-3
-coil_diameter = 2 * coil_radius
+coil_diameter = 32.0e-3
+coil_radius = coil_diameter / 2
+# coil_radius = 15.35e-3
+# coil_diameter = 2 * coil_radius
 pitch_unloaded = 1.0e-3
 # pitch_unloaded = 1.4e-2
 
@@ -186,7 +185,8 @@ elif Rod in [K_R12_PetrovGalerkin_AxisAngle, K_R12_PetrovGalerkin_Quaternion]:
         Q=Q0,
         basis_r=basis,
         basis_psi=basis,
-        volume_correction=(p == 1),
+        # volume_correction=True,
+        volume_correction=False,
     )
 else:
     raise NotImplementedError
@@ -400,99 +400,6 @@ def run_FEM_statics(use_force=True):
 
 
 def run_FEM_dynamics():
-    # # rod cross-section
-    # cross_section = CircularCrossSection(rho, wire_radius)
-    # A_rho0 = rho * cross_section.area
-    # K_S_rho0 = rho * cross_section.first_moment
-    # K_I_rho0 = rho * cross_section.second_moment
-    # A = cross_section.area
-    # Ip, I2, I3 = np.diag(cross_section.second_moment)
-    # Ei = np.array([E * A, G * A, G * A])
-    # Fi = np.array([G * Ip, E * I2, E * I3])
-    # material_model = Simo1986(Ei, Fi)
-    # print(f"Ei: {Ei}")
-    # print(f"Fi: {Fi}")
-
-    # ############################################
-    # # build rod with dummy initial configuration
-    # ############################################
-    # if Rod in [K_SE3_PetrovGalerkin_AxisAngle, K_SE3_PetrovGalerkin_Quaternion]:
-    #     Q0 = Rod.straight_configuration(nelements, L=1)
-    #     rod = Rod(
-    #         cross_section,
-    #         material_model,
-    #         A_rho0,
-    #         K_S_rho0,
-    #         K_I_rho0,
-    #         nelements,
-    #         Q0,
-    #     )
-    # elif Rod in [K_R12_PetrovGalerkin_AxisAngle, K_R12_PetrovGalerkin_Quaternion]:
-    #     basis = "Lagrange"
-    #     Q0 = Rod.straight_configuration(
-    #         p,
-    #         p,
-    #         basis,
-    #         basis,
-    #         nelements,
-    #         L=1,
-    #     )
-    #     rod = Rod(
-    #         cross_section,
-    #         material_model,
-    #         A_rho0,
-    #         K_S_rho0,
-    #         K_I_rho0,
-    #         polynomial_degree_r=p,
-    #         polynomial_degree_psi=p,
-    #         nelement=nelements,
-    #         Q=Q0,
-    #         basis_r=basis,
-    #         basis_psi=basis,
-    #         volume_correction=(p==1),
-    #     )
-    # else:
-    #     raise NotImplementedError
-
-    # #############################
-    # # fit reference configuration
-    # #############################
-    # def r(xi, phi0=0.0):
-    #     alpha = 2 * np.pi * nturns * xi
-    #     return coil_radius * np.array(
-    #         [np.sin(alpha + phi0), -np.cos(alpha + phi0), c * alpha]
-    #     )
-
-    # def A_IK(xi, phi0=0.0):
-    #     alpha = 2 * np.pi * nturns * xi
-    #     sa = np.sin(alpha + phi0)
-    #     ca = np.cos(alpha + phi0)
-
-    #     e_x = np.array([ca, sa, c]) / np.sqrt(1 + c**2)
-    #     e_y = np.array([-sa, ca, 0])
-    #     e_z = np.array([-c * ca, -c * sa, 1]) / np.sqrt(1 + c**2)
-
-    #     return np.vstack((e_x, e_y, e_z)).T
-
-    # # nxi = nturns * 25
-    # nxi = nturns * 15
-    # xis = np.linspace(0, 1, num=nxi)
-
-    # r_OPs = np.array([r(xi, phi0=np.pi) for xi in xis])
-    # A_IKs = np.array([A_IK(xi, phi0=np.pi) for xi in xis])
-
-    # Q0 = fit_configuration(rod, r_OPs, A_IKs, nodal_cDOF=[])
-    # rod.q0 = Q0.copy()
-
-    # #############
-    # # rod gravity
-    # #############
-    # if statics:
-    #     f_g_rod = lambda t, xi: -t * A_rho0 * g * e3
-    # else:
-    #     f_g_rod = -A_rho0 * g * e3
-    # force_rod = DistributedForce1DBeam(f_g_rod, rod)
-
     #############################################
     # joint between origin and top side of spring
     #############################################
@@ -525,8 +432,11 @@ def run_FEM_dynamics():
     # dt = 1e-2
 
     # nturns = 3
-    t1 = 4
-    dt = 1e-3  # nturns = 3
+    # t1 = 4
+    t1 = 8
+    dt = 5e-3
+    # dt = 1e-3  # nturns = 3
+    # dt = 5e-4  # nturns = 3
 
     # nturns = 10 # TODO: Not working yet!
     # t1 = 10
@@ -537,7 +447,7 @@ def run_FEM_dynamics():
         t1,
         dt,
         rho_inf=0.8,
-        atol=1e-6,
+        atol=1e-8,
         method="index 3",
     )
 
@@ -598,7 +508,26 @@ def run_FEM_dynamics():
     ############
     path = Path(__file__)
     e = Export(path.parent, path.stem, True, 30, sol)
-    e.export_contr(rod, level="volume", n_segments=nelements, num=3 * nelements)
+    if (
+        Rod in [K_R12_PetrovGalerkin_AxisAngle, K_R12_PetrovGalerkin_Quaternion]
+        and p == 1
+    ):
+        e.export_contr(
+            rod,
+            continuity="C0",
+            level="volume",
+            n_segments=nelements,
+            num=3 * nelements,
+        )
+        # e.export_contr(rod, continuity="C1", level="volume", n_segments=nelements, num=3 * nelements)
+    else:
+        e.export_contr(
+            rod,
+            continuity="C1",
+            level="volume",
+            n_segments=nelements,
+            num=3 * nelements,
+        )
     e.export_contr(bob)
 
     plt.show()

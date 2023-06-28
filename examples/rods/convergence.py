@@ -177,21 +177,21 @@ test_rods = ["R12p1", "R12p2"]
 # dummy parameters for testing setup
 # nnodes_list = np.array([5], dtype=int)
 # nnodes_ref = 9
-# nnodes_list = np.array([5, 9], dtype=int)
-# nnodes_ref = 17
-# # nnodes_list = np.array([5, 9, 17], dtype=int)
-# # nnodes_ref = 65
+nnodes_list = np.array([5, 9], dtype=int)
+nnodes_ref = 35
+# nnodes_list = np.array([5, 9, 17], dtype=int)
+# nnodes_ref = 65
 
-# used parameters for the paper
-nnodes_list = np.array([5, 9, 17, 33, 65, 129], dtype=int)
-nnodes_ref = 513
+# # used parameters for the paper
+# nnodes_list = np.array([5, 9, 17, 33, 65, 129], dtype=int)
+# nnodes_ref = 513
 
 # volume_correction = False
 volume_correction = True
 
 
 def convergence():
-    def solve(nnodes, rod):
+    def solve(nnodes, rod, volume_correction):
         assert nnodes % 2 == 1
         if rod == "SE3":
             nelements = nnodes - 1
@@ -263,7 +263,7 @@ def convergence():
         return rod, sol
 
     # solve system with reference rod
-    rod_ref, sol_ref = solve(nnodes_ref, reference_rod)
+    rod_ref, sol_ref = solve(nnodes_ref, reference_rod, volume_correction=True)
 
     # sample centerline deflection of reference solution
     num = 100
@@ -281,7 +281,7 @@ def convergence():
     for i, rod_name in enumerate(test_rods):
         print(f"rod: {rod_name}")
         for j, nnodes in enumerate(nnodes_list):
-            rod, sol = solve(nnodes, rod_name)
+            rod, sol = solve(nnodes, rod_name, volume_correction=volume_correction)
 
             # centerline errors
             r_OPi = rod.centerline(sol.q[-1], num=num)
