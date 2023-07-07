@@ -25,7 +25,7 @@ class RigidBodyAxisAngle(RigidBodyBase):
         angle = norm(psi)
         # Ibrahimbegovic1995 after (62)
         if angle > pi:
-            print(f"complement rotation vector chosen")
+            print(f"\ncomplement rotation vector chosen")
             n = int((angle + pi) / (2 * pi))
             e = psi / angle
             psi_C = psi - 2 * n * pi * e
