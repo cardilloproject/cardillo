@@ -1,9 +1,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
+import pytest
 
 from cardillo import System
-from cardillo.solver import ScipyIVP, EulerBackward, RadauIIa
+from cardillo.solver import ScipyIVP, EulerBackward, RadauIIa, MoreauClassical
 from cardillo.constraints import Revolute
 from cardillo.discrete import RigidBodyAxisAngle, RigidBodyQuaternion
 from cardillo.forces import (
@@ -13,6 +14,24 @@ from cardillo.forces import (
 )
 from cardillo.math import Exp_SO3, axis_angle2quat, norm
 
+# solver parameters
+t_span = (0.0, 2.0)
+t0, t1 = t_span
+dt = 1.0e-3
+
+# axis angle rotation axis
+psi = np.random.rand(3)
+A_IK0 = Exp_SO3(psi)
+print(f"A_IK0:\n{A_IK0}")
+
+# initial rotational velocity e_z^K axis
+alpha_dot0 = 2
+rotation_axis = 0
+
+# parameters
+k = 1e1
+d = 0.05
+g_ref = 2 * np.pi
 l = 0.1
 m = 1
 r = 0.2
@@ -20,43 +39,41 @@ A = 1 / 4 * m * r**2 + 1 / 12 * m * l**2
 C = 1 / 2 * m * r**2
 K_theta_S = np.diag(np.array([A, A, C]))
 
-
-def RigidCylinder(RigidBodyParametrization):
-    class _RigidCylinder(RigidBodyParametrization):
-        def __init__(self, q0=None, u0=None):
-            super().__init__(m, K_theta_S, q0=q0, u0=u0)
-
-    return _RigidCylinder
+show = False
 
 
 def run(
-    k,
-    d,
-    psi,
-    alpha_dot0,
-    g_ref=0,
-    RigidBodyParametrization=RigidBodyQuaternion,
-    solver_type="EulerBackward",
-    plot=True,
-    rotation_axis=2,
+    RigidBody,
+    Solver,
+    **solver_kwargs,
 ):
+    ############################################################################
+    #                   system setup
+    ############################################################################
+
+    ####################
+    # initial conditions
+    ####################
     r_OP0 = np.zeros(3)
     v_P0 = np.zeros(3)
-    K_Omega0 = np.array((0, 0, alpha_dot0))
+    K_Omega0 = alpha_dot0 * np.eye(3)[rotation_axis]
     u0 = np.hstack((v_P0, K_Omega0))
 
-    if type(RigidBodyParametrization) is type(RigidBodyAxisAngle):
+    ######################
+    # define contributions
+    ######################
+    system = System()
+
+    if RigidBody == RigidBodyAxisAngle:
         q0 = np.hstack((r_OP0, psi))
-        rigid_body = RigidCylinder(RigidBodyAxisAngle)(q0, u0)
-    elif type(RigidBodyParametrization) is type(RigidBodyQuaternion):
+    elif RigidBody == RigidBodyQuaternion:
         n_psi = norm(psi)
         p = axis_angle2quat(psi / n_psi, n_psi)
         q0 = np.hstack((r_OP0, p))
-        rigid_body = RigidCylinder(RigidBodyQuaternion)(q0, u0)
     else:
         raise (TypeError)
+    rigid_body = RigidBody(m, K_theta_S, q0, u0)
 
-    system = System()
     joint = PDRotational(Revolute, Spring=LinearSpring, Damper=LinearDamper)(
         subsystem1=system.origin,
         subsystem2=rigid_body,
@@ -72,38 +89,15 @@ def run(
     system.assemble()
 
     ############################################################################
-    #                   solver
+    #                   DAE solution
     ############################################################################
-    t1 = 2
-    dt = 1.0e-2
-    # dt = 5.0e-3
-    match solver_type:
-        case "ScipyIVP":
-            solver = ScipyIVP(system, t1, dt, atol=1e-8)
-        case "RadauIIaDAE2":
-            solver = RadauIIa(
-                system, t1, dt, atol=1e-2, rtol=1e-2, dae_index=2, max_step=dt
-            )
-        case "RadauIIaDAE3":
-            solver = RadauIIa(
-                system, t1, dt, atol=1e-4, rtol=1e-4, dae_index=3, max_step=dt
-            )
-        case "RaudauIIaGGL":
-            solver = RadauIIa(
-                system, t1, dt, atol=1e-3, rtol=1e-3, dae_index="GGL", max_step=dt
-            )
-        case "EulerBackward" | _:
-            solver = EulerBackward(system, t1, dt)
-
-    sol = solver.solve()
-    t = sol.t
-    q = sol.q
-    u = sol.u
+    sol = Solver(system, t1, dt, **solver_kwargs).solve()
+    t, q = sol.t, sol.q
 
     ############################################################################
     #                   plot
     ############################################################################
-    if plot:
+    if show:
         joint.reset()
         alpha_cmp = [joint.angle(ti, qi[joint.qDOF]) for ti, qi in zip(t, q)]
 
@@ -130,76 +124,40 @@ def run(
         plt.show()
 
 
+################################################################################
+# test setup
+################################################################################
+
+test_parameters = [
+    (ScipyIVP, {}),
+    (MoreauClassical, {}),
+    (EulerBackward, {"method": "index 1"}),
+    (EulerBackward, {"method": "index 2"}),
+    (EulerBackward, {"method": "index 3"}),
+    (EulerBackward, {"method": "index 2 GGL"}),
+    (RadauIIa, {"dae_index": 2, "max_step": dt}),
+    (RadauIIa, {"dae_index": "GGL", "max_step": dt}),
+]
+
+
+@pytest.mark.parametrize("Solver, kwargs", test_parameters)
+def test_torsional_oscillator(Solver, kwargs):
+    run(RigidBodyQuaternion, Solver, **kwargs)
+
+
 if __name__ == "__main__":
-    profiling = False
+    show = True
 
-    # initial rotational velocity e_z^K axis
-    alpha_dot0 = 0
+    # run(RigidBodyQuaternion, ScipyIVP)
 
-    # axis angle rotation
-    psi = np.random.rand(3)
-    # psi = np.array((0, 1, 0))
-    # psi = np.array((1, 0, 0))
-    # Following rotations result in linear eqms, Radau Solver without max step argument set rotates more than 360° in one time step.
-    # psi = np.array((0, 0, 1))
-    # psi = np.zeros(3)
+    # run(RigidBodyQuaternion, MoreauClassical)
 
-    A_IK0 = Exp_SO3(psi)
-    print(f"A_IK0:\n{A_IK0}")
+    # run(RigidBodyQuaternion, EulerBackward, method="index 1")
+    # run(RigidBodyQuaternion, EulerBackward, method="index 2")
+    # run(RigidBodyQuaternion, EulerBackward, method="index 3")
+    # run(RigidBodyQuaternion, EulerBackward, method="index 2 GGL")
 
-    # spring stiffness and damper parameter
-    k = 1e1
-    d = 0.05
-    # k=d=0
-    g_ref = 2 * np.pi
-    rotation_axis = 1
-
-    # Rigid body parametrization
-    RigidBodyParametrization = RigidBodyQuaternion
-    # RigidBodyParametrization = RigidBodyAxisAngle
-
-    # Solver
-    solver = [
-        "ScipyIVP",
-        "RadauIIaDAE2",
-        "RadauIIaDAE3",
-        "RaudauIIaGGL",
-        "EulerBackward",
-    ]
-
-    if profiling:
-        import cProfile, pstats
-
-        profiler = cProfile.Profile()
-
-        profiler.enable()
-        run(
-            k=k,
-            d=d,
-            psi=psi,
-            alpha_dot0=alpha_dot0,
-            g_ref=g_ref,
-            RigidBodyParametrization=RigidBodyParametrization,
-            solver_type=solver[2],
-            plot=False,
-            rotation_axis=rotation_axis,
-        )
-        profiler.disable()
-
-        stats = pstats.Stats(profiler)
-        # stats.print_stats(20)
-        stats.sort_stats(pstats.SortKey.TIME, pstats.SortKey.CUMULATIVE).print_stats(
-            0.5, "cardillo"
-        )
-    else:
-        run(
-            k=k,
-            d=d,
-            psi=psi,
-            alpha_dot0=alpha_dot0,
-            g_ref=g_ref,
-            RigidBodyParametrization=RigidBodyParametrization,
-            solver_type=solver[1],
-            plot=True,
-            rotation_axis=rotation_axis,
-        )
+    # # enforce max step such that solver does not omit quadrant in one step
+    # run(RigidBodyQuaternion, RadauIIa, dae_index=2, max_step=dt)
+    # run(RigidBodyQuaternion, RadauIIa, dae_index=3, max_step=dt)
+    # run(RigidBodyQuaternion, RadauIIa, dae_index="GGL", max_step=dt)

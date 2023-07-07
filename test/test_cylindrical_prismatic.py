@@ -2,11 +2,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from scipy.integrate import solve_ivp
+import pytest
 
 from cardillo import System
 from cardillo.solver import ScipyIVP, EulerBackward, RadauIIa, MoreauClassical
 from cardillo.constraints import RigidConnection, Cylindrical, Prismatic
-from cardillo.discrete import Frame, RigidBodyQuaternion, RigidBodyAxisAngle
+from cardillo.discrete import Frame, RigidBodyQuaternion, RigidBodyAxisAngle, Cylinder
 from cardillo.forces import Force, ScalarForceTranslational, LinearSpring, LinearDamper
 from cardillo.math import (
     e1,
@@ -19,7 +20,7 @@ from cardillo.math import (
     ax2skew,
 )
 
-# setup solver
+# solver parameters
 t_span = (0.0, 5.0)
 t0, t1 = t_span
 dt = 1.0e-2
@@ -35,22 +36,19 @@ C = 1 / 2 * m * r**2
 A = 1 / 4 * m * r**2 + 1 / 12 * m * l**2
 K_theta_S = np.diag(np.array([C, A, A]))
 
-
-def RigidCylinder(RigidBody):
-    class _RigidCylinder(RigidBody):
-        def __init__(self, q0=None, u0=None):
-            super().__init__(m, K_theta_S, q0=q0, u0=u0)
-
-    return _RigidCylinder
+show = False
 
 
 def run(
-    joint,
+    joint: str,
+    RigidBody,
     Solver,
-    # RigidBody=RigidBodyQuaternion,
-    RigidBody=RigidBodyAxisAngle,
     **solver_kwargs,
 ):
+    ############################################################################
+    #                   system setup
+    ############################################################################
+
     #############
     # origin axis
     #############
@@ -108,9 +106,11 @@ def run(
     else:
         raise NotImplementedError
 
-    ##############
-    # DAE solution
-    ##############
+    ######################
+    # define contributions
+    ######################
+    system = System()
+
     frame = Frame(
         r_OP=r_OB,
         r_OP_t=r_OB_t,
@@ -127,9 +127,9 @@ def run(
 
     u0 = np.array([*v_P0, *B0_omega_IB0])
 
-    if RigidBody is RigidBodyAxisAngle:
+    if RigidBody == RigidBodyAxisAngle:
         q0 = np.array([*r_OB0, *Log_SO3(A_IB0)])
-    elif RigidBody is RigidBodyQuaternion:
+    elif RigidBody == RigidBodyQuaternion:
         q0 = np.array([*r_OB0, *Spurrier(A_IB0)])
     else:
         raise NotImplementedError
@@ -144,13 +144,13 @@ def run(
     v_S0 = v_P0 + A_IK0 @ cross3(K0_omega_IK0, np.array([0.5 * l, 0, 0]))
 
     u0 = np.array([*v_S0, *K0_omega_IK0])
-    if RigidBody is RigidBodyAxisAngle:
+    if RigidBody == RigidBodyAxisAngle:
         q0 = np.array([*r_OS0, *Log_SO3(A_IK0)])
-    elif RigidBody is RigidBodyQuaternion:
+    elif RigidBody == RigidBodyQuaternion:
         q0 = np.array([*r_OS0, *Spurrier(A_IK0)])
     else:
         raise NotImplementedError
-    RB2 = RigidCylinder(RigidBody)(q0, u0)
+    RB2 = RigidBody(m, K_theta_S, q0, u0)
 
     f_g = Force(np.array([0, 0, -m * g]), RB2)
 
@@ -176,17 +176,25 @@ def run(
         K_r_SP2=np.array([-0.5 * l, 0, 0]),
     )
 
-    system = System()
+    #################
+    # assemble system
+    #################
+
     system.add(frame, RB1, rigid_connection)
     system.add(RB2, f_g)
     system.add(constraint)
     system.add(spring)
     system.assemble()
 
+    ############################################################################
+    #                   DAE solution
+    ############################################################################
     sol = Solver(system, t1, dt, **solver_kwargs).solve()
-
     t, q = sol.t, sol.q
 
+    ############################################################################
+    #                   post processing
+    ############################################################################
     zs = np.array(
         [
             A_IB(ti)[:, 2] @ (RB2.r_OP(ti, qi[RB2.qDOF]) - r_OB(ti))
@@ -204,9 +212,9 @@ def run(
         elif diff < -np.pi:
             alphas[i:] -= diff
 
-    ##############
-    # ODE solution
-    ##############
+    ############################################################################
+    #                   reference ODE solution
+    ############################################################################
     def eqm(t, y):
         z, alpha = y[:2]
         z_dot, alpha_dot = y[2:]
@@ -277,6 +285,9 @@ def run(
 
     t_ref, y_ref = sol_ref.t, sol_ref.y
 
+    ############################################################################
+    #                   plot
+    ############################################################################
     fig, ax = plt.subplots(2, 2)
 
     ax[0, 0].set_title("z")
@@ -351,38 +362,83 @@ def run(
         fig, animate, frames=frames, interval=interval, blit=False
     )
 
-    plt.show()
+    if show:
+        plt.show()
+
+
+################################################################################
+# test setup
+################################################################################
+
+solver_and_kwargs = [
+    (ScipyIVP, {}),
+    (MoreauClassical, {}),
+    (EulerBackward, {"method": "index 1"}),
+    (EulerBackward, {"method": "index 2"}),
+    (EulerBackward, {"method": "index 3"}),
+    (EulerBackward, {"method": "index 2 GGL"}),
+    (RadauIIa, {"dae_index": 2, "rtol": 1e-3, "atol": 1e-3, "max_step": dt}),
+    (RadauIIa, {"dae_index": "GGL", "rtol": 1e-3, "atol": 1e-3, "max_step": dt}),
+]
+
+rigid_bodies = [
+    RigidBodyQuaternion,
+]
+
+test_parameters = []
+
+for RB in rigid_bodies:
+    for SK in solver_and_kwargs:
+        test_parameters.append((RB, *SK))
+
+
+@pytest.mark.parametrize("RigidBody, Solver, kwargs", test_parameters)
+def test_cylindrical(RigidBody, Solver, kwargs):
+    run("Cylindrical", RigidBody, Solver, **kwargs)
+
+
+@pytest.mark.parametrize("RigidBody, Solver, kwargs", test_parameters)
+def test_prismatic(RigidBody, Solver, kwargs):
+    run("Prismatic", RigidBody, Solver, **kwargs)
 
 
 if __name__ == "__main__":
+    show = True
+
+    # simulations with RigidBodyAxisAngle only within tests
+
     #############
     # Cylindrical
     #############
-    run("Cylindrical", ScipyIVP)
+    run("Cylindrical", RigidBodyQuaternion, ScipyIVP)
 
-    # run("Cylindrical", MoreauClassical)
+    # run("Cylindrical", RigidBodyQuaternion, MoreauClassical)
 
-    # run("Cylindrical", EulerBackward, method="index 1")
-    # run("Cylindrical", EulerBackward, method="index 2")
-    # run("Cylindrical", EulerBackward, method="index 3")
-    # run("Cylindrical", EulerBackward, method="index 2 GGL")
+    # run("Cylindrical", RigidBodyQuaternion, EulerBackward, method="index 1")
+    # run("Cylindrical", RigidBodyQuaternion, EulerBackward, method="index 2")
+    # run("Cylindrical", RigidBodyQuaternion, EulerBackward, method="index 3")
+    # run("Cylindrical", RigidBodyQuaternion, EulerBackward, method="index 2 GGL")
 
-    # run("Cylindrical", RadauIIa, dae_index=2, rtol=1e-4, atol=1e-4)
-    # run("Cylindrical", RadauIIa, dae_index=3, rtol=1e-2, atol=1e-2, max_step=dt) # this is not working
-    # run("Cylindrical", RadauIIa, dae_index="GGL", rtol=1e-4, atol=1e-4)
+    # run("Cylindrical", RigidBodyQuaternion, RadauIIa, dae_index=2, rtol=1e-3, atol=1e-3)
+    # run("Cylindrical", RigidBodyQuaternion, RadauIIa, dae_index="GGL", rtol=1e-4, atol=1e-4)
+
+    # Radau dae_index=3 is not working and thus not included in tests:
+    # run("Cylindrical", RigidBodyQuaternion, RadauIIa, dae_index=3, rtol=1e-2, atol=1e-2, max_step=dt)
 
     ###########
     # Prismatic
     ###########
-    # run("Prismatic", ScipyIVP)
+    # run("Prismatic", RigidBodyQuaternion, ScipyIVP)
 
-    # run("Prismatic", MoreauClassical)
+    # run("Prismatic", RigidBodyQuaternion, MoreauClassical)
 
-    # run("Prismatic", EulerBackward, method="index 1")
-    # run("Prismatic", EulerBackward, method="index 2")
-    # run("Prismatic", EulerBackward, method="index 3")
-    # run("Prismatic", EulerBackward, method="index 2 GGL")
+    # run("Prismatic", RigidBodyQuaternion, EulerBackward, method="index 1")
+    # run("Prismatic", RigidBodyQuaternion, EulerBackward, method="index 2")
+    # run("Prismatic", RigidBodyQuaternion, EulerBackward, method="index 3")
+    # run("Prismatic", RigidBodyQuaternion, EulerBackward, method="index 2 GGL")
 
-    # run("Prismatic", RadauIIa, dae_index=2)
-    # run("Prismatic", RadauIIa, dae_index=3)
-    # run("Prismatic", RadauIIa, dae_index="GGL")
+    # run("Prismatic", RigidBodyQuaternion, RadauIIa, dae_index=2, rtol=1e-3, atol=1e-3)
+    # run("Prismatic", RigidBodyQuaternion, RadauIIa, dae_index="GGL", rtol=1e-4, atol=1e-4)
+
+    # Radau dae_index=3 is not working and thus not included in tests:
+    # run("Prismatic", RigidBodyQuaternion, RadauIIa, dae_index=3, rtol=1e-2, atol=1e-2, max_step=dt)
