@@ -410,7 +410,14 @@ if __name__ == "__main__":
     #############
     # Cylindrical
     #############
-    run("Cylindrical", RigidBodyQuaternion, ScipyIVP)
+    # run("Cylindrical", RigidBodyQuaternion, ScipyIVP)
+    # run("Cylindrical", rigid_bodies[0], solver_and_kwargs[6][0], **solver_and_kwargs[6][1])
+    run(
+        "Cylindrical",
+        rigid_bodies[0],
+        solver_and_kwargs[7][0],
+        **solver_and_kwargs[7][1],
+    )
 
     # run("Cylindrical", RigidBodyQuaternion, MoreauClassical)
 

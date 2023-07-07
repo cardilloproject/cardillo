@@ -832,7 +832,7 @@ class RadauIIa:
             self.i = i1
 
         q, u, la_g, la_gamma, mu_S, mu_g = np.array_split(y, self.split_y)
-        q, u = self.pre_iteration_update(t, q, u)
+        q, u = self.system.pre_iteration_update(t, q, u)
 
         M = self.system.M(t, q, scipy_matrix=csc_matrix)
         h = self.system.h(t, q, u)
