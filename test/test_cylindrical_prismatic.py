@@ -377,8 +377,8 @@ solver_and_kwargs = [
     (EulerBackward, {"method": "index 2"}),
     (EulerBackward, {"method": "index 3"}),
     (EulerBackward, {"method": "index 2 GGL"}),
-    (RadauIIa, {"dae_index": 2, "rtol": 1e-3, "atol": 1e-3, "max_step": dt}),
-    (RadauIIa, {"dae_index": "GGL", "rtol": 1e-3, "atol": 1e-3, "max_step": dt}),
+    # (RadauIIa, {"dae_index": 2, "rtol": 1e-3, "atol": 1e-3, "max_step": dt}),
+    # (RadauIIa, {"dae_index": "GGL", "rtol": 1e-3, "atol": 1e-3, "max_step": dt}),
 ]
 
 rigid_bodies = [

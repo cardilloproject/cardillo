@@ -85,11 +85,7 @@ def matrix_valued():
         n, m = X.shape
         assert n == m
 
-        return np.einsum(
-            "ij,kl->ijkl", 
-            X, 
-            np.eye(n),
-        ) + np.einsum(
+        return np.einsum("ij,kl->ijkl", X, np.eye(n),) + np.einsum(
             "mm,ik,jl->ijkl",
             X,
             np.eye(n),
