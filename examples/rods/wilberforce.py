@@ -55,12 +55,13 @@ Rod = K_R12_PetrovGalerkin_Quaternion
 
 # p = 1
 # elements_per_turn = 25
-# elements_per_turn = 20 # R12 - p1 + no volume correction
+# elements_per_turn = 20 # R12 + p1 + no volume correction
 # elements_per_turn = 15
-# elements_per_turn = 10 # R12 - p1 + volume correction
+# elements_per_turn = 10 # R12 + p1 + volume correction
 
 p = 2
-elements_per_turn = 4  # R12 - p1 + no volume correction
+elements_per_turn = 6
+# elements_per_turn = 4  # R12 + p2 + no volume correction
 # elements_per_turn = 8 # SE(3)
 nturns = 3
 nelements = elements_per_turn * nturns
@@ -439,6 +440,7 @@ def run_FEM_dynamics():
     # nturns = 3
     # t1 = 4
     t1 = 8
+    # t1 = 1e-2
     dt = 5e-3
     # dt = 1e-3  # nturns = 3
     # dt = 5e-4  # nturns = 3
@@ -515,7 +517,6 @@ def run_FEM_dynamics():
     e = Export(path.parent, path.stem, True, 30, sol)
     if (
         Rod in [K_R12_PetrovGalerkin_AxisAngle, K_R12_PetrovGalerkin_Quaternion]
-        and p == 1
     ):
         e.export_contr(
             rod,
