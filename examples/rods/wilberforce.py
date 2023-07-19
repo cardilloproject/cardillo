@@ -515,9 +515,7 @@ def run_FEM_dynamics():
     ############
     path = Path(__file__)
     e = Export(path.parent, path.stem, True, 30, sol)
-    if (
-        Rod in [K_R12_PetrovGalerkin_AxisAngle, K_R12_PetrovGalerkin_Quaternion]
-    ):
+    if Rod in [K_R12_PetrovGalerkin_AxisAngle, K_R12_PetrovGalerkin_Quaternion]:
         e.export_contr(
             rod,
             continuity="C0",
