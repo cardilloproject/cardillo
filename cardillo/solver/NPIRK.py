@@ -8,7 +8,6 @@ from cardillo.math import (
     approx_fprime,
     fsolve,
     lu_solve,
-    rank_revealing_qr_spsolve,
     rank_revealing_qr_solve,
 )
 from cardillo.solver import Solution
@@ -1381,9 +1380,9 @@ class NPIRK:
                 fun_args=(True,),
                 jac_args=(False,),
                 max_iter=self.max_iter,
-                linear_solver=lu_solve,
+                # linear_solver=lu_solve,
                 # linear_solver=rank_revealing_qr_spsolve,
-                # linear_solver=rank_revealing_qr_solve,
+                linear_solver=rank_revealing_qr_solve,
                 # linear_solver=ridge_solve,
                 # linear_solver=svd_solve,
             )
