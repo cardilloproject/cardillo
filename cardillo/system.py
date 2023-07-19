@@ -2,7 +2,7 @@ import numpy as np
 from cardillo.utility.coo_matrix import CooMatrix
 from cardillo.discrete.frame import Frame
 from cardillo.solver import consistent_initial_conditions
-from scipy.sparse import coo_matrix, csc_matrix, csr_matrix
+from scipy.sparse import coo_matrix, csc_matrix, csr_matrix, diags
 from scipy.sparse.linalg import spsolve
 from copy import deepcopy
 
@@ -572,9 +572,12 @@ class System:
     def xi_N_q(self, t, q, u_pre, u_post, scipy_matrix=coo_matrix):
         coo = CooMatrix((self.nla_N, self.nq))
         for contr in self.__g_N_contr:
-            coo[contr.la_NDOF, contr.qDOF] = contr.xi_N_q(
-                t, q[contr.qDOF], u_pre[contr.uDOF], u_post[contr.uDOF]
-            )
+            # coo[contr.la_NDOF, contr.qDOF] = contr.xi_N_q(
+            #     t, q[contr.qDOF], u_pre[contr.uDOF], u_post[contr.uDOF]
+            # )
+            coo[contr.la_NDOF, contr.qDOF] = contr.g_N_dot_q(
+                t, q[contr.qDOF], u_post[contr.uDOF]
+            ) + diags(contr.e_N) @ contr.g_N_dot_q(t, q[contr.qDOF], u_pre[contr.uDOF])
         return coo.tosparse(scipy_matrix)
 
     # TODO: Assemble chi_N for efficency
@@ -649,8 +652,13 @@ class System:
     def xi_F_q(self, t, q, u_pre, u_post, scipy_matrix=coo_matrix):
         coo = CooMatrix((self.nla_F, self.nq))
         for contr in self.__gamma_F_contr:
-            coo[contr.la_FDOF, contr.qDOF] = contr.xi_F_q(
-                t, q[contr.qDOF], u_pre[contr.uDOF], u_post[contr.uDOF]
+            # coo[contr.la_FDOF, contr.qDOF] = contr.xi_F_q(
+            #     t, q[contr.qDOF], u_pre[contr.uDOF], u_post[contr.uDOF]
+            # )
+            coo[contr.la_FDOF, contr.qDOF] = contr.gamma_F_q(
+                t, q[contr.qDOF], u_post[contr.uDOF]
+            ) + diags(self.e_F[contr.la_FDOF]) @ contr.gamma_F_q(
+                t, q[contr.qDOF], u_pre[contr.uDOF]
             )
         return coo.tosparse(scipy_matrix)
 
