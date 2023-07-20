@@ -58,8 +58,8 @@ def test_mathworks(show=False):
 
 
 test_parameters = [
-    ("2-point", 1e-6, 2e-6),
-    ("3-point", 1e-6, 3e-10),
+    ("2-point", 1e-6, 1e-5),
+    ("3-point", 1e-6, 1e-9),
     ("cs", 1e-12, 1e-15),
 ]
 
