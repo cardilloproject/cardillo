@@ -7,7 +7,6 @@ from ._common import convergence_analysis
 
 # dynamic solvers
 from .scipy_ivp import ScipyIVP
-from .radau import RadauIIa
 from .moreau import (
     MoreauShifted,
     MoreauShiftedNew,
