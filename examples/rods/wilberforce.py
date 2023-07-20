@@ -24,11 +24,7 @@ from cardillo.forces import DistributedForce1DBeam
 from cardillo import System
 from cardillo.solver import (
     Newton,
-    EulerBackward,
-    ScipyIVP,
-    RadauIIa,
     GeneralizedAlphaFirstOrder,
-    NPIRK,
 )
 from cardillo.solver._butcher_tableaus import RadauIIATableau
 from cardillo.visualization import Export
@@ -438,8 +434,8 @@ def run_FEM_dynamics():
     # dt = 1e-2
 
     # nturns = 3
-    # t1 = 4
-    t1 = 8
+    t1 = 4
+    # t1 = 8
     # t1 = 1e-2
     dt = 5e-3
     # dt = 1e-3  # nturns = 3
