@@ -164,7 +164,13 @@ def state():
     # sol = NonsmoothHalfExplicitRungeKutta(system, t1, dt).solve()
     # sol = NonsmoothPartitionedHalfExplicitEuler(system, t1, dt).solve()
 
-    # sol = Rattle(system, t1, dt, atol=tol).solve()
+    # rtol = atol = 1.0e-5
+    # # dae_index = 2
+    # # dae_index = 3
+    # dae_index = "GGL"
+    # sol = RadauIIa(system, t1, dt, rtol=rtol, atol=atol, dae_index=dae_index).solve()
+
+    sol = Rattle(system, t1, dt, atol=tol).solve()
 
     # sol = NPIRK(system, t1, dt, RadauIIATableau(2)).solve()
 
