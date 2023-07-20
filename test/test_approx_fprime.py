@@ -2,9 +2,10 @@ import numpy as np
 from cardillo.math import approx_fprime
 from scipy.optimize._numdiff import approx_derivative
 import matplotlib.pyplot as plt
+import pytest
 
 
-def mathworks():
+def test_mathworks(show=False):
     # Complex Step Differentiation example from
     # https://blogs.mathworks.com/cleve/2013/10/14/complex-step-differentiation/
     def f(x):
@@ -40,22 +41,31 @@ def mathworks():
             - f_x(x0)
         )
 
-    fig, ax = plt.subplots()
-    ax.loglog(eps, err[:, 0], label="2-point")
-    ax.loglog(eps, err[:, 1], label="3-point")
-    ax.loglog(eps, err[:, 2], label="cs")
-    ax.loglog(eps, err[:, 3], "--", label="scipy 2-point")
-    ax.loglog(eps, err[:, 4], "--", label="scipy 3-point")
-    ax.loglog(eps, err[:, 5], "--", label="scipy cs")
-    ax.invert_xaxis()
-    ax.set_xlabel("eps")
-    ax.set_ylabel("error")
-    ax.legend()
-    ax.grid()
-    plt.show()
+    if show:
+        fig, ax = plt.subplots()
+        ax.loglog(eps, err[:, 0], label="2-point")
+        ax.loglog(eps, err[:, 1], label="3-point")
+        ax.loglog(eps, err[:, 2], label="cs")
+        ax.loglog(eps, err[:, 3], "--", label="scipy 2-point")
+        ax.loglog(eps, err[:, 4], "--", label="scipy 3-point")
+        ax.loglog(eps, err[:, 5], "--", label="scipy cs")
+        ax.invert_xaxis()
+        ax.set_xlabel("eps")
+        ax.set_ylabel("error")
+        ax.legend()
+        ax.grid()
+        plt.show()
 
 
-def quadratic_form():
+test_parameters = [
+    ("2-point", 1e-6, 2e-6),
+    ("3-point", 1e-6, 3e-10),
+    ("cs", 1e-12, 1e-15),
+]
+
+
+@pytest.mark.parametrize("method, eps, tol", test_parameters)
+def test_quadratic_form(method, eps, tol, show=False):
     A = np.random.rand(2, 2)
 
     def f(x):
@@ -66,18 +76,19 @@ def quadratic_form():
 
     x0 = np.array([1, 2])
 
-    # f_x_num = approx_fprime(x0, f, method="2-point")
-    # f_x_num = approx_fprime(x0, f, method="3-point")
-    f_x_num = approx_fprime(x0, f, method="cs", eps=1.0e-12)
+    f_x_num = approx_fprime(x0, f, method=method, eps=eps)
     f_x_ = f_x(x0)
     diff = f_x_ - f_x_num
     error = np.linalg.norm(diff)
-    print(f"f_x_num: {f_x_num}")
-    print(f"f_x_: {f_x_}")
-    print(f"error: {error}")
+    assert error < tol
+    if show:
+        print(f"f_x_num: {f_x_num}")
+        print(f"f_x_: {f_x_}")
+        print(f"error: {error}")
 
 
-def matrix_valued():
+@pytest.mark.parametrize("method, eps, tol", test_parameters)
+def test_matrix_valued(method, eps, tol, show=False):
     def f(X):
         return np.trace(X) * X
 
@@ -98,18 +109,18 @@ def matrix_valued():
 
     x0 = np.random.rand(2, 2)
 
-    # f_x_num = approx_fprime(x0, f, method="2-point")
-    # f_x_num = approx_fprime(x0, f, method="3-point")
-    f_x_num = approx_fprime(x0, f, method="cs", eps=1.0e-12)
+    f_x_num = approx_fprime(x0, f, method=method, eps=eps)
     f_x_ = f_x(x0)
     diff = f_x_ - f_x_num
     error = np.linalg.norm(diff)
-    print(f"f_x_num:\n{f_x_num}")
-    print(f"f_x_:\n{f_x_}")
-    print(f"error: {error}")
+    assert error < tol
+    if show:
+        print(f"f_x_num:\n{f_x_num}")
+        print(f"f_x_:\n{f_x_}")
+        print(f"error: {error}")
 
 
 if __name__ == "__main__":
-    # mathworks()
-    # quadratic_form()
-    matrix_valued()
+    test_mathworks(show=True)
+    test_quadratic_form(method="cs", eps=1e-12, tol=1e-12, show=True)
+    test_matrix_valued(method="cs", eps=1e-12, tol=1e-12, show=True)
