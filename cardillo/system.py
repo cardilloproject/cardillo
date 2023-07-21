@@ -1,4 +1,5 @@
 import numpy as np
+import warnings
 from cardillo.utility.coo_matrix import CooMatrix
 from cardillo.discrete.frame import Frame
 from cardillo.solver import consistent_initial_conditions
@@ -220,11 +221,15 @@ class System:
                 n_laN_contr += 1
 
         self.NF_connectivity = NF_connectivity
+        # self.NF_connectivity = np.array(
+        #     [np.array(con, dtype=int) for con in NF_connectivity], dtype=object
+        # )
         self.N_has_friction = np.array(N_has_friction, dtype=bool)
         self.Ncontr_connectivity = np.array(Ncontr_connectivity, dtype=int)
         self.e_N = np.array(e_N)
         self.e_F = np.array(e_F)
         self.mu = np.array(mu)
+        self._alpha = 1
 
         # call assembler callback: call methods that require first an assembly of the system
         self.assembler_callback()
@@ -521,11 +526,40 @@ class System:
     #################
     # normal contacts
     #################
+    @property
+    def alpha(self):
+        return self._alpha
+
+    @alpha.setter
+    def alpha(self, alpha):
+        if 0 < alpha < 2:
+            self._alpha = alpha
+        else:
+            warnings.warn(
+                "Invalid value for alpha. alpha must be in (0,2). Value not changed.",
+                RuntimeWarning,
+            )
+
+    """
+    Estimation of relaxation parameter $\vr_N$ of prox function for normal contacts.
+    The parameter is calculated as follows, whereby $\alpha\in(0,2)$ is some scaling factor used for both normal and frictional contact.
+    $$
+        \vr_N = (\alpha\vG_N)^{-1},
+    $$
+    where $\vG_N = \vW_N^T\vM^{-1}\vW_N$.
+
+
+    References
+    ----------
+    Studer2008: https://doi.org/10.3929/ethz-a-005556821
+    Schweizer2015: https://doi.org/10.3929/ethz-a-010464319
+    """
+
     def prox_r_N(self, t, q):
         M = self.M(t, q, csc_matrix)
         W_N = self.W_N(t, q, csc_matrix)
         try:
-            return 1.0 / csr_matrix(W_N.T @ spsolve(M, W_N)).diagonal()
+            return self.alpha / csr_matrix(W_N.T @ spsolve(M, W_N)).diagonal()
         except:
             return np.ones(self.nla_N, dtype=q.dtype)
 
@@ -617,11 +651,26 @@ class System:
     #################
     # friction
     #################
+    """
+    Estimation of relaxation parameter $\vr_F$ of prox function for frictional contacts.
+    The parameter is calculated as follows, whereby $\alpha\in(0,2)$ is some scaling factor used for both normal and frictional contact.
+    $$
+        \vr_F = (\alpha\vG_F)^{-1},
+    $$
+    where $\vG_F = \vW_F^T\vM^{-1}\vW_F$.
+
+
+    References
+    ----------
+    Studer2008: https://doi.org/10.3929/ethz-a-005556821
+    Schweizer2015: https://doi.org/10.3929/ethz-a-010464319
+    """
+
     def prox_r_F(self, t, q):
         M = self.M(t, q, csc_matrix)
         W_F = self.W_F(t, q, csc_matrix)
         try:
-            return 1.0 / csr_matrix(W_F.T @ spsolve(M, W_F)).diagonal()
+            return self.alpha / csr_matrix(W_F.T @ spsolve(M, W_F)).diagonal()
         except:
             return np.ones(self.nla_N, dtype=q.dtype)
 

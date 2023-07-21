@@ -17,7 +17,7 @@
 
 import numpy as np
 from numpy.linalg import norm
-from scipy.sparse import csc_matrix
+from scipy.sparse import csc_matrix, coo_matrix
 from scipy.sparse.linalg import spsolve
 from scipy.sparse import csr_matrix, bmat, eye, block_diag
 from tqdm import tqdm
@@ -32,7 +32,7 @@ class GeneralizedAlphaFirstOrder:
 
     def __init__(
         self,
-        model,
+        system,
         t1,
         dt,
         rho_inf=0.9,
@@ -52,7 +52,7 @@ class GeneralizedAlphaFirstOrder:
         # # GGL=True,
         GGL=0,
     ):
-        self.model = model
+        self.system = system
         assert DAE_index >= 1 and DAE_index <= 3, "DAE_index hast to be in [1, 3]!"
         self.DAE_index = DAE_index
         self.unknowns = unknowns
@@ -67,7 +67,7 @@ class GeneralizedAlphaFirstOrder:
         #######################################################################
         # integration time
         #######################################################################
-        self.t0 = t0 = model.t0
+        self.t0 = t0 = system.t0
         self.t1 = (
             t1 if t1 > t0 else ValueError("t1 must be larger than initial time t0.")
         )
@@ -95,10 +95,10 @@ class GeneralizedAlphaFirstOrder:
         #######################################################################
         # dimensions
         #######################################################################
-        self.nq = model.nq
-        self.nu = model.nu
-        self.nla_g = model.nla_g
-        self.nla_gamma = model.nla_gamma
+        self.nq = system.nq
+        self.nu = system.nu
+        self.nla_g = system.nla_g
+        self.nla_gamma = system.nla_gamma
         self.nx = self.ny = self.nq + self.nu  # dimension of the state space
         self.ns = self.nx + self.nla_g + self.nla_gamma  # vector of unknowns
         if self.GGL == 1:
@@ -122,7 +122,7 @@ class GeneralizedAlphaFirstOrder:
 
             # TODO: Scaling of second equation by h and solving for h u_dot
             # comes from the fact that we know that u_dot are accelerations,
-            # so for having consisten units this equations has to be scaled.
+            # so for having consistent units this equations has to be scaled.
             # This might not be correct in the sense of a preconditioner.
             # fmt: off
             if unknowns == "positions":
@@ -153,15 +153,15 @@ class GeneralizedAlphaFirstOrder:
 
         def initial_values(t0, q0, u0):
             # initial velocites
-            q_dot0 = self.model.q_dot(t0, q0, u0)
+            q_dot0 = self.system.q_dot(t0, q0, u0)
 
             # solve for consistent initial accelerations and Lagrange mutlipliers
-            M0 = self.model.M(t0, q0, scipy_matrix=csr_matrix)
-            h0 = self.model.h(t0, q0, u0)
-            W_g0 = self.model.W_g(t0, q0, scipy_matrix=csr_matrix)
-            W_gamma0 = self.model.W_gamma(t0, q0, scipy_matrix=csr_matrix)
-            zeta_g0 = self.model.zeta_g(t0, q0, u0)
-            zeta_gamma0 = self.model.zeta_gamma(t0, q0, u0)
+            M0 = self.system.M(t0, q0, scipy_matrix=csr_matrix)
+            h0 = self.system.h(t0, q0, u0)
+            W_g0 = self.system.W_g(t0, q0, scipy_matrix=csr_matrix)
+            W_gamma0 = self.system.W_gamma(t0, q0, scipy_matrix=csr_matrix)
+            zeta_g0 = self.system.zeta_g(t0, q0, u0)
+            zeta_gamma0 = self.system.zeta_gamma(t0, q0, u0)
             A = bmat(
                 [
                     [M0, -W_g0, -W_gamma0],
@@ -234,15 +234,15 @@ class GeneralizedAlphaFirstOrder:
             """compute physically consistent initial values"""
 
             # initial velocites
-            q_dot0 = self.model.q_dot(t0, q0, u0)
+            q_dot0 = self.system.q_dot(t0, q0, u0)
 
             # solve for consistent initial accelerations and Lagrange mutlipliers
-            M0 = self.model.M(t0, q0, scipy_matrix=csr_matrix)
-            h0 = self.model.h(t0, q0, u0)
-            W_g0 = self.model.W_g(t0, q0, scipy_matrix=csr_matrix)
-            W_gamma0 = self.model.W_gamma(t0, q0, scipy_matrix=csr_matrix)
-            zeta_g0 = self.model.zeta_g(t0, q0, u0)
-            zeta_gamma0 = self.model.zeta_gamma(t0, q0, u0)
+            M0 = self.system.M(t0, q0, scipy_matrix=csr_matrix)
+            h0 = self.system.h(t0, q0, u0)
+            W_g0 = self.system.W_g(t0, q0, scipy_matrix=csr_matrix)
+            W_gamma0 = self.system.W_gamma(t0, q0, scipy_matrix=csr_matrix)
+            zeta_g0 = self.system.zeta_g(t0, q0, u0)
+            zeta_gamma0 = self.system.zeta_gamma(t0, q0, u0)
             # fmt: off
             A = bmat(
                 [
@@ -278,7 +278,7 @@ class GeneralizedAlphaFirstOrder:
             t0_plus = t0 + s * dt
             u0_plus = u0 + s * dt * u_dot0
             # q0_plus = q0 + s * dt * q_dot0
-            q0_plus = q0 + s * dt * self.model.q_dot(t0, q0, u0)
+            q0_plus = q0 + s * dt * self.system.q_dot(t0, q0, u0)
             # q0_plus = q0 + s * dt * self.model.q_dot(t0, q0, u0_plus)
             # q0_plus = q0 + s * dt * self.model.q_dot(t0, q0, u0) + 0.5 * s**2 * dt**2 * self.model.q_ddot(t0, q0, u0, u_dot0)
             # q0_plus = q0 + s * dt * self.model.q_dot(
@@ -298,7 +298,7 @@ class GeneralizedAlphaFirstOrder:
             t0_minus = t0 - s * dt
             u0_minus = u0 - s * dt * u_dot0
             # q0_minus = q0 - s * dt * q_dot0
-            q0_minus = q0 - s * dt * self.model.q_dot(t0, q0, u0)
+            q0_minus = q0 - s * dt * self.system.q_dot(t0, q0, u0)
             # q0_minus = q0 - s * dt * self.model.q_dot(t0, q0, u0_minus)
             # q0_minus = q0 - s * dt * self.model.q_dot(t0, q0, u0) - 0.5 * s**2 * dt**2 * self.model.q_ddot(t0, q0, u0, u_dot0)
             # q0_minus = q0 + self.model.q_dot(t0, q0, u0_minus - s**2 * dt**2 * u_dot0 / 2)
@@ -364,16 +364,16 @@ class GeneralizedAlphaFirstOrder:
             self.sk = s0
 
         # compute consistent initial conditions
-        initial_values(t0, model.q0, model.u0)
+        initial_values(t0, system.q0, system.u0)
         # initial_values_Martin(t0, model.q0, model.u0)
 
         # check if initial conditions satisfy constraints on position, velocity
         # and acceleration level
-        g0 = model.g(self.tk, self.qk)
-        g_dot0 = model.g_dot(self.tk, self.qk, self.uk)
-        g_ddot0 = model.g_ddot(self.tk, self.qk, self.uk, self.u_dotk)
-        gamma0 = model.gamma(self.tk, self.qk, self.uk)
-        gamma_dot0 = model.gamma_dot(self.tk, self.qk, self.uk, self.u_dotk)
+        g0 = system.g(self.tk, self.qk)
+        g_dot0 = system.g_dot(self.tk, self.qk, self.uk)
+        g_ddot0 = system.g_ddot(self.tk, self.qk, self.uk, self.u_dotk)
+        gamma0 = system.gamma(self.tk, self.qk, self.uk)
+        gamma_dot0 = system.gamma_dot(self.tk, self.qk, self.uk, self.u_dotk)
 
         # TODO: These tolerances should be used defined. Maybe all these
         #       initial computations and checks should be moved to a
@@ -434,7 +434,7 @@ class GeneralizedAlphaFirstOrder:
             self.x_dotk = x_dotk1.copy()
             self.yk = yk1.copy()
 
-        # extract generaliezd coordinates and velocities
+        # extract generalized coordinates and velocities
         qk1 = xk1[:nq]
         uk1 = xk1[nq : nq + nu]
         q_dotk1 = x_dotk1[:nq]
@@ -507,9 +507,9 @@ class GeneralizedAlphaFirstOrder:
         qk1, uk1, q_dotk1, u_dotk1 = self.update(sk1, store=False)
 
         # evaluate repeated used quantities
-        Mk1 = self.model.M(tk1, qk1, scipy_matrix=csr_matrix)
-        W_gk1 = self.model.W_g(tk1, qk1, scipy_matrix=csr_matrix)
-        W_gammak1 = self.model.W_gamma(tk1, qk1, scipy_matrix=csr_matrix)
+        Mk1 = self.system.M(tk1, qk1, scipy_matrix=csr_matrix)
+        W_gk1 = self.system.W_g(tk1, qk1, scipy_matrix=csr_matrix)
+        W_gammak1 = self.system.W_gamma(tk1, qk1, scipy_matrix=csr_matrix)
 
         if self.GGL == 2:
             uk1 += Uk1
@@ -521,15 +521,15 @@ class GeneralizedAlphaFirstOrder:
 
         # kinematic differential equation
         # TODO: Use Bk1
-        R[:nq] = q_dotk1 - self.model.q_dot(tk1, qk1, uk1)
+        R[:nq] = q_dotk1 - self.system.q_dot(tk1, qk1, uk1)
         if self.GGL >= 1:
-            g_qk1 = self.model.g_q(tk1, qk1)
+            g_qk1 = self.system.g_q(tk1, qk1)
             R[:nq] -= g_qk1.T @ mu_gk1
 
         # equations of motion
         R[nq:nx] = (
             Mk1 @ u_dotk1
-            - self.model.h(tk1, qk1, uk1)
+            - self.system.h(tk1, qk1, uk1)
             - W_gk1 @ la_gk1
             - W_gammak1 @ la_gammak1
         )
@@ -537,32 +537,32 @@ class GeneralizedAlphaFirstOrder:
         # bilateral constraints
         if self.GGL == 0:
             if self.DAE_index == 3:
-                R[nx : nx + nla_g] = self.model.g(tk1, qk1)
-                R[nx + nla_g :] = self.model.gamma(tk1, qk1, uk1)
+                R[nx : nx + nla_g] = self.system.g(tk1, qk1)
+                R[nx + nla_g :] = self.system.gamma(tk1, qk1, uk1)
             elif self.DAE_index == 2:
-                R[nx : nx + nla_g] = self.model.g_dot(tk1, qk1, uk1)
-                R[nx + nla_g :] = self.model.gamma(tk1, qk1, uk1)
+                R[nx : nx + nla_g] = self.system.g_dot(tk1, qk1, uk1)
+                R[nx + nla_g :] = self.system.gamma(tk1, qk1, uk1)
             elif self.DAE_index == 1:
-                R[nx : nx + nla_g] = self.model.g_ddot(tk1, qk1, uk1, u_dotk1)
-                R[nx + nla_g :] = self.model.gamma_dot(tk1, qk1, uk1, u_dotk1)
+                R[nx : nx + nla_g] = self.system.g_ddot(tk1, qk1, uk1, u_dotk1)
+                R[nx + nla_g :] = self.system.gamma_dot(tk1, qk1, uk1, u_dotk1)
         if self.GGL == 1:
-            R[nx : nx + nla_g] = self.model.g_dot(tk1, qk1, uk1)
-            R[nx + nla_g : nx + nla_g + nla_gamma] = self.model.gamma(tk1, qk1, uk1)
-            R[nx + nla_g + nla_gamma : nx + 2 * nla_g + nla_gamma] = self.model.g(
+            R[nx : nx + nla_g] = self.system.g_dot(tk1, qk1, uk1)
+            R[nx + nla_g : nx + nla_g + nla_gamma] = self.system.gamma(tk1, qk1, uk1)
+            R[nx + nla_g + nla_gamma : nx + 2 * nla_g + nla_gamma] = self.system.g(
                 tk1, qk1
             )
         if self.GGL == 2:
-            R[nx : nx + nla_g] = self.model.g(tk1, qk1)
-            R[nx + nla_g : nx + nla_g + nla_gamma] = self.model.gamma(tk1, qk1, uk1)
-            R[nx + nla_g + nla_gamma : nx + 2 * nla_g + nla_gamma] = self.model.g_dot(
+            R[nx : nx + nla_g] = self.system.g(tk1, qk1)
+            R[nx + nla_g : nx + nla_g + nla_gamma] = self.system.gamma(tk1, qk1, uk1)
+            R[nx + nla_g + nla_gamma : nx + 2 * nla_g + nla_gamma] = self.system.g_dot(
                 tk1, qk1, uk1
             )
             R[
                 nx + 2 * nla_g + nla_gamma : nx + 3 * nla_g + nla_gamma
-            ] = self.model.g_ddot(tk1, qk1, uk1, u_dotk1)
+            ] = self.system.g_ddot(tk1, qk1, uk1, u_dotk1)
             R[
                 nx + 3 * nla_g + nla_gamma : nx + 3 * nla_g + 2 * nla_gamma
-            ] = self.model.gamma_dot(tk1, qk1, uk1, u_dotk1)
+            ] = self.system.gamma_dot(tk1, qk1, uk1, u_dotk1)
             R[nx + 3 * nla_g + 2 * nla_gamma : nx + 3 * nla_g + 2 * nla_gamma + nu] = (
                 Uk1 - W_gk1 @ kappa_gk1 + W_gammak1 @ kappa_gammak1
             )
@@ -575,22 +575,22 @@ class GeneralizedAlphaFirstOrder:
         # evaluate jacobian
         ###################
         eye_nq = eye(self.nq)
-        A = self.model.q_dot_q(tk1, qk1, uk1)
-        Bk1 = self.model.B(tk1, qk1, scipy_matrix=csr_matrix)
+        A = self.system.q_dot_q(tk1, qk1, uk1)
+        Bk1 = self.system.B(tk1, qk1, scipy_matrix=csr_matrix)
         K = (
-            self.model.Mu_q(tk1, qk1, u_dotk1)
-            - self.model.h_q(tk1, qk1, uk1)
-            - self.model.Wla_g_q(tk1, qk1, la_gk1)
-            - self.model.Wla_gamma_q(tk1, qk1, la_gammak1)
+            self.system.Mu_q(tk1, qk1, u_dotk1)
+            - self.system.h_q(tk1, qk1, uk1)
+            - self.system.Wla_g_q(tk1, qk1, la_gk1)
+            - self.system.Wla_gamma_q(tk1, qk1, la_gammak1)
         )
-        h_uk1 = self.model.h_u(tk1, qk1, uk1)
-        g_qk1 = self.model.g_q(tk1, qk1)
-        gamma_qk1 = self.model.gamma_q(tk1, qk1, uk1)
+        h_uk1 = self.system.h_u(tk1, qk1, uk1)
+        g_qk1 = self.system.g_q(tk1, qk1)
+        gamma_qk1 = self.system.gamma_q(tk1, qk1, uk1)
 
         # sparse assemble global tangent matrix
         if self.GGL:
-            g_dot_qk1 = self.model.g_dot_q(tk1, qk1, uk1)
-            C = A + self.model.g_q_T_mu_g(tk1, qk1, mu_gk1)
+            g_dot_qk1 = self.system.g_dot_q(tk1, qk1, uk1)
+            C = A + self.system.g_q_T_mu_g(tk1, qk1, mu_gk1)
             if self.unknowns == "positions":
                 eta = self.eta
                 # fmt: off
@@ -787,7 +787,7 @@ class GeneralizedAlphaFirstOrder:
             qk1, uk1, q_dotk1, u_dotk1 = self.update(sk1, store=True)
 
             # modify converged quantities
-            qk1, uk1 = self.model.step_callback(tk1, qk1, uk1)
+            qk1, uk1 = self.system.step_callback(tk1, qk1, uk1)
 
             # extract Lagrange multipliers
             if self.GGL == 0:
@@ -904,6 +904,9 @@ class GeneralizedAlphaSecondOrder:
             self.mu_gn = np.zeros_like(self.la_gn)
 
         # initial state
+        self.split_x = np.cumsum(
+            np.array([self.nu, self.nla_g, self.nla_gamma], dtype=int)
+        )
         if self.GGL:
             self.xn = np.concatenate(
                 (self.u_dotn, self.la_gn, self.la_gamman, self.mu_gn)
@@ -962,6 +965,8 @@ class GeneralizedAlphaSecondOrder:
             self.qn = qn1
             self.an = an1
 
+        self.system.pre_iteratoin_update(self.tn, qn1, un1)
+
         return qn1, un1
 
     def pack(self, *args):
@@ -972,11 +977,11 @@ class GeneralizedAlphaSecondOrder:
         nla_g = self.nla_g
         nla_gamma = self.nla_gamma
 
-        a = x[:nu]
-        la_g = x[nu : nu + nla_g]
-        la_gamma = x[nu + nla_g : nu + nla_g + nla_gamma]
+        a = x[: self.split_x[0]]
+        la_g = x[self.split_x[0] : self.split_x[1]]
+        la_gamma = x[self.split_x[1] : self.split_x[2]]
         if self.GGL:
-            mu_g = x[nu + nla_g + nla_gamma :]
+            mu_g = x[self.split_x[2] :]
             return a, la_g, la_gamma, mu_g
         else:
             return a, la_g, la_gamma
@@ -2437,6 +2442,8 @@ class SimplifiedNonsmoothGeneralizedAlpha:
             self.R_F_barn = R_F_barn1.copy()
             # self.P_Fn = P_Fn1.copy()
 
+        qn1, un1 = self.system.pre_iteration_update(tn1, qn1, un1)
+
         return (
             tn1,
             qn1,
@@ -2847,6 +2854,8 @@ class SimplifiedNonsmoothGeneralizedAlphaFirstOrder:
         P_Fn12 = h * ((1 - gamma) * self.R_F_barn + gamma * R_F_barn1)
         P_Fn1 = P_Fn12 + Delta_R_Fn2
 
+        qn1, un1 = self.system.pre_iteration_update(tn1, qn1, un1)
+
         if store:
             # update local variables for accepted time step
             self.tn = tn1
@@ -3129,7 +3138,7 @@ class SimplifiedNonsmoothGeneralizedAlphaFirstOrder:
 class NonsmoothGeneralizedAlphaOriginal:
     def __init__(
         self,
-        model,
+        system,
         t1,
         dt,
         rho_inf=1,
@@ -3143,10 +3152,10 @@ class NonsmoothGeneralizedAlphaOriginal:
         numerical_jacobian=False,
         debug=False,
     ):
-        self.model = model
+        self.system = system
 
         # integration time
-        self.t0 = t0 = model.t0
+        self.t0 = t0 = system.t0
         self.t1 = (
             t1 if t1 > t0 else ValueError("t1 must be larger than initial time t0.")
         )
@@ -3172,35 +3181,35 @@ class NonsmoothGeneralizedAlphaOriginal:
         self.newton_error_function = newton_error_function
 
         # dimensions
-        self.nq = model.nq
-        self.nu = model.nu
-        self.nla_g = model.nla_g
-        self.nla_gamma = model.nla_gamma
-        self.nla_N = model.nla_N
-        self.nla_T = model.nla_T
+        self.nq = system.nq
+        self.nu = system.nu
+        self.nla_g = system.nla_g
+        self.nla_gamma = system.nla_gamma
+        self.nla_N = system.nla_N
+        self.nla_T = system.nla_T
 
         self.nR_smooth = 3 * self.nu + 3 * self.nla_g + self.nla_gamma
         self.nR = self.nR_smooth + 3 * self.nla_N + 2 * self.nla_T
 
-        self.tk = model.t0
-        self.qk = model.q0
-        self.uk = model.u0
-        self.kappa_gk = np.zeros_like(model.la_g0)
-        self.la_gk = model.la_g0
-        self.La_gk = np.zeros_like(model.la_g0)
-        self.la_gammak = model.la_gamma0
-        self.kappa_Nk = np.zeros_like(model.la_N0)
-        self.la_Nk = model.la_N0
-        self.La_Nk = np.zeros_like(model.la_N0)
-        self.la_Tk = model.la_T0
-        self.La_Tk = np.zeros_like(model.la_T0)
+        self.tk = system.t0
+        self.qk = system.q0
+        self.uk = system.u0
+        self.kappa_gk = np.zeros_like(system.la_g0)
+        self.la_gk = system.la_g0
+        self.La_gk = np.zeros_like(system.la_g0)
+        self.la_gammak = system.la_gamma0
+        self.kappa_Nk = np.zeros_like(system.la_N0)
+        self.la_Nk = system.la_N0
+        self.La_Nk = np.zeros_like(system.la_N0)
+        self.la_Tk = system.la_T0
+        self.La_Tk = np.zeros_like(system.la_T0)
         self.ak = spsolve(
-            model.M(t0, model.q0).tocsr(),
-            self.model.h(t0, model.q0, model.u0)
-            + self.model.W_g(t0, model.q0) @ model.la_g0
-            + self.model.W_gamma(t0, model.q0) @ model.la_gamma0
-            + self.model.W_N(t0, model.q0, scipy_matrix=csc_matrix) @ model.la_N0
-            + self.model.W_T(t0, model.q0, scipy_matrix=csc_matrix) @ model.la_T0,
+            system.M(t0, system.q0).tocsr(),
+            self.system.h(t0, system.q0, system.u0)
+            + self.system.W_g(t0, system.q0) @ system.la_g0
+            + self.system.W_gamma(t0, system.q0) @ system.la_gamma0
+            + self.system.W_N(t0, system.q0, scipy_matrix=csc_matrix) @ system.la_N0
+            + self.system.W_T(t0, system.q0, scipy_matrix=csc_matrix) @ system.la_T0,
         )
         self.Qk = np.zeros(self.nu)
         self.Uk = np.zeros(self.nu)
@@ -3208,6 +3217,25 @@ class NonsmoothGeneralizedAlphaOriginal:
         self.la_gbark = self.la_Nk.copy()
         self.la_Nbark = self.la_Nk.copy()
         self.la_Tbark = self.la_Tk.copy()
+
+        self.split_x = np.cumsum(
+            np.array(
+                [
+                    self.nu,
+                    self.nu,
+                    self.nu,
+                    self.nla_g,
+                    self.nla_g,
+                    self.nla_g,
+                    self.nla_gamma,
+                    self.nla_N,
+                    self.nla_N,
+                    self.nla_N,
+                    self.nla_T,
+                ],
+                dtype=int,
+            )
+        )
 
         self.debug = debug
         if numerical_jacobian:
@@ -3255,10 +3283,11 @@ class NonsmoothGeneralizedAlphaOriginal:
         a_beta = (0.5 - self.beta) * self.a_bark + self.beta * a_bark1
         qk1 = (
             self.qk
-            + dt * self.model.q_dot(self.tk, self.qk, self.uk)
-            + dt2 * self.model.q_ddot(self.tk, self.qk, self.uk, a_beta)
-            + self.model.B(self.tk, self.qk) @ Qk1
+            + dt * self.system.q_dot(self.tk, self.qk, self.uk)
+            + dt2 * self.system.q_ddot(self.tk, self.qk, self.uk, a_beta)
+            + self.system.B(self.tk, self.qk) @ Qk1
         )
+        qk1, uk1 = self.system.pre_iteration_update(tk1, qk1, uk1)
 
         la_Nbark1 = (
             self.alpha_f * self.la_Nk
@@ -3277,23 +3306,23 @@ class NonsmoothGeneralizedAlphaOriginal:
         ) / (1 - self.alpha_m)
         P_T = La_Tk1 + dt * ((1 - self.gamma) * self.la_Tbark + self.gamma * la_Tbark1)
 
-        Mk1 = self.model.M(tk1, qk1)
-        W_gk1 = self.model.W_g(tk1, qk1)
-        W_gammak1 = self.model.W_gamma(tk1, qk1)
-        W_Nk1 = self.model.W_N(tk1, qk1, scipy_matrix=csc_matrix)
-        W_Tk1 = self.model.W_T(tk1, qk1, scipy_matrix=csc_matrix)
+        Mk1 = self.system.M(tk1, qk1)
+        W_gk1 = self.system.W_g(tk1, qk1)
+        W_gammak1 = self.system.W_gamma(tk1, qk1)
+        W_Nk1 = self.system.W_N(tk1, qk1, scipy_matrix=csc_matrix)
+        W_Tk1 = self.system.W_T(tk1, qk1, scipy_matrix=csc_matrix)
 
-        g_N = self.model.g_N(tk1, qk1)
-        xi_N = self.model.xi_N(tk1, qk1, self.uk, uk1)
-        xi_T = self.model.xi_T(tk1, qk1, self.uk, uk1)
-        g_N_ddot_post = self.model.g_N_ddot(tk1, qk1, uk1, ak1)
-        gamma_T_dot_post = self.model.gamma_T_dot(tk1, qk1, uk1, ak1)
-        gamma_T_post = self.model.gamma_T(tk1, qk1, uk1)
+        g_N = self.system.g_N(tk1, qk1)
+        xi_N = self.system.xi_N(tk1, qk1, self.uk, uk1)
+        xi_T = self.system.xi_T(tk1, qk1, self.uk, uk1)
+        g_N_ddot_post = self.system.g_N_ddot(tk1, qk1, uk1, ak1)
+        gamma_T_dot_post = self.system.gamma_T_dot(tk1, qk1, uk1, ak1)
+        gamma_T_post = self.system.gamma_T(tk1, qk1, uk1)
 
         # evaluate residual
         R = np.zeros(self.nR)
         R[:nu] = Mk1 @ ak1 - (
-            self.model.h(tk1, qk1, uk1)
+            self.system.h(tk1, qk1, uk1)
             + W_gk1 @ la_gk1
             + W_gammak1 @ la_gammak1
             + W_Nk1 @ la_Nk1
@@ -3301,60 +3330,60 @@ class NonsmoothGeneralizedAlphaOriginal:
         )
         R[nu : 2 * nu] = Mk1 @ Uk1 - W_gk1 @ La_gk1 - W_Nk1 @ La_Nk1 - W_Tk1 @ La_Tk1
         R[2 * nu : 3 * nu] = Mk1 @ Qk1 - W_gk1 @ kappa_gk1 - W_Nk1 @ kappa_Nk1
-        R[3 * nu : 3 * nu + nla_g] = self.model.g(tk1, qk1)
-        R[3 * nu + nla_g : 3 * nu + 2 * nla_g] = self.model.g_dot(tk1, qk1, uk1)
-        R[3 * nu + 2 * nla_g : 3 * nu + 3 * nla_g] = self.model.g_ddot(
+        R[3 * nu : 3 * nu + nla_g] = self.system.g(tk1, qk1)
+        R[3 * nu + nla_g : 3 * nu + 2 * nla_g] = self.system.g_dot(tk1, qk1, uk1)
+        R[3 * nu + 2 * nla_g : 3 * nu + 3 * nla_g] = self.system.g_ddot(
             tk1, qk1, uk1, ak1
         )
-        R[3 * nu + 3 * nla_g : 3 * nu + 3 * nla_g + nla_gamma] = self.model.gamma(
+        R[3 * nu + 3 * nla_g : 3 * nu + 3 * nla_g + nla_gamma] = self.system.gamma(
             tk1, qk1, uk1
         )
 
-        I_N = kappa_Nast - self.model.prox_r_N * g_N >= 0
+        I_N = kappa_Nast - self.system.prox_r_N * g_N >= 0
         I_N_ind = np.where(I_N)[0]
         _I_N_ind = np.where(~I_N)[0]
         R[self.nR_smooth + I_N_ind] = g_N[I_N]
         R[self.nR_smooth + _I_N_ind] = kappa_Nast[~I_N]
 
-        A_N_ = (P_N - self.model.prox_r_N * xi_N) >= 0
+        A_N_ = (P_N - self.system.prox_r_N * xi_N) >= 0
         A_N = I_N * A_N_
         A_N_ind = np.where(A_N)[0]
         _A_N_ind = np.where(~A_N)[0]
         R[self.nR_smooth + nla_N + A_N_ind] = xi_N[A_N]
         R[self.nR_smooth + nla_N + _A_N_ind] = P_N[~A_N]
 
-        B_N_ = (la_Nk1 - self.model.prox_r_N * g_N_ddot_post) >= 0
+        B_N_ = (la_Nk1 - self.system.prox_r_N * g_N_ddot_post) >= 0
         B_N = A_N * B_N_
         B_N_ind = np.where(B_N)[0]
         _B_N_ind = np.where(~B_N)[0]
         R[self.nR_smooth + 2 * nla_N + B_N_ind] = g_N_ddot_post[B_N]
         R[self.nR_smooth + 2 * nla_N + _B_N_ind] = la_Nk1[~B_N]
 
-        C_N = I_N * self.model.N_has_friction
+        C_N = I_N * self.system.N_has_friction
         C_T = []
-        for i_N, i_T in enumerate(self.model.NT_connectivity):
+        for i_N, i_T in enumerate(self.system.NT_connectivity):
             C_T.append(
-                np.linalg.norm(P_T[i_T] - self.model.prox_r_T[i_N] * xi_T[i_T])
-                <= self.model.mu[i_N] * P_N[i_N]
+                np.linalg.norm(P_T[i_T] - self.system.prox_r_T[i_N] * xi_T[i_T])
+                <= self.system.mu[i_N] * P_N[i_N]
             )
         C_T = np.array(C_T, dtype=bool)
-        N_open = ~I_N * self.model.N_has_friction
+        N_open = ~I_N * self.system.N_has_friction
         N_stick = C_N * C_T
         N_slip = C_N * ~C_T
         N_open_ind = np.where(N_open)[0]
         N_stick_ind = np.where(N_stick)[0]
         N_slip_ind = np.where(N_slip)[0]
         T_open_ind = np.array(
-            [j for i in N_open_ind for j in self.model.NT_connectivity[i]], dtype=int
+            [j for i in N_open_ind for j in self.system.NT_connectivity[i]], dtype=int
         )
         T_stick_ind = np.array(
-            [j for i in N_stick_ind for j in self.model.NT_connectivity[i]], dtype=int
+            [j for i in N_stick_ind for j in self.system.NT_connectivity[i]], dtype=int
         )
         T_slip_ind = np.array(
-            [j for i in N_slip_ind for j in self.model.NT_connectivity[i]], dtype=int
+            [j for i in N_slip_ind for j in self.system.NT_connectivity[i]], dtype=int
         )
         T_slip_ind_mat = np.array(
-            [self.model.NT_connectivity[i] for i in N_slip_ind], dtype=int
+            [self.system.NT_connectivity[i] for i in N_slip_ind], dtype=int
         )
 
         R[self.nR_smooth + 3 * nla_N + T_open_ind] = P_T[T_open_ind]
@@ -3364,7 +3393,8 @@ class NonsmoothGeneralizedAlphaOriginal:
         norm_xi = np.ones_like(norm_xi_)
         norm_xi[norm_xi_ > 0] = norm_xi_[norm_xi_ > 0]
         R[self.nR_smooth + 3 * nla_N + T_slip_ind] = P_T[T_slip_ind] + (
-            (self.model.mu[N_slip_ind] * P_N[N_slip_ind] / norm_xi).reshape(-1, 1) * tmp
+            (self.system.mu[N_slip_ind] * P_N[N_slip_ind] / norm_xi).reshape(-1, 1)
+            * tmp
         ).reshape(-1)
 
         R[self.nR_smooth + 3 * nla_N + nla_T + T_open_ind] = la_Tk1[T_open_ind]
@@ -3376,84 +3406,84 @@ class NonsmoothGeneralizedAlphaOriginal:
         norm_xi = np.ones_like(norm_xi_)
         norm_xi[norm_xi_ > 0] = norm_xi_[norm_xi_ > 0]
         R[self.nR_smooth + 3 * nla_N + nla_T + T_slip_ind] = la_Tk1[T_slip_ind] + (
-            (self.model.mu[N_slip_ind] * la_Nk1[N_slip_ind] / norm_xi).reshape(-1, 1)
+            (self.system.mu[N_slip_ind] * la_Nk1[N_slip_ind] / norm_xi).reshape(-1, 1)
             * tmp
         ).reshape(-1)
 
         yield R
 
-        g_N_q = self.model.g_N_q(tk1, qk1, scipy_matrix=csc_matrix)
-        g_N_dot_u = self.model.g_N_dot_u(tk1, qk1, scipy_matrix=csc_matrix)
-        xi_N_q = self.model.xi_N_q(tk1, qk1, self.uk, uk1, scipy_matrix=csc_matrix)
-        g_N_ddot_post_q = self.model.g_N_ddot_q(
+        g_N_q = self.system.g_N_q(tk1, qk1, scipy_matrix=csc_matrix)
+        g_N_dot_u = self.system.g_N_dot_u(tk1, qk1, scipy_matrix=csc_matrix)
+        xi_N_q = self.system.xi_N_q(tk1, qk1, self.uk, uk1, scipy_matrix=csc_matrix)
+        g_N_ddot_post_q = self.system.g_N_ddot_q(
             tk1, qk1, uk1, ak1, scipy_matrix=csc_matrix
         )
-        g_N_ddot_post_u = self.model.g_N_ddot_u(
+        g_N_ddot_post_u = self.system.g_N_ddot_u(
             tk1, qk1, uk1, ak1, scipy_matrix=csc_matrix
         )
-        xi_T_q = self.model.xi_T_q(tk1, qk1, self.uk, uk1, scipy_matrix=csc_matrix)
-        xi_T_u = gamma_T_u = self.model.gamma_T_u(tk1, qk1, scipy_matrix=csc_matrix)
-        gamma_T_q = self.model.gamma_T_q(tk1, qk1, uk1, scipy_matrix=csc_matrix)
-        gamma_T_dot_post_q = self.model.gamma_T_dot_q(
+        xi_T_q = self.system.xi_T_q(tk1, qk1, self.uk, uk1, scipy_matrix=csc_matrix)
+        xi_T_u = gamma_T_u = self.system.gamma_T_u(tk1, qk1, scipy_matrix=csc_matrix)
+        gamma_T_q = self.system.gamma_T_q(tk1, qk1, uk1, scipy_matrix=csc_matrix)
+        gamma_T_dot_post_q = self.system.gamma_T_dot_q(
             tk1, qk1, uk1, ak1, scipy_matrix=csc_matrix
         )
-        gamma_T_dot_post_u = self.model.gamma_T_dot_u(
+        gamma_T_dot_post_u = self.system.gamma_T_dot_u(
             tk1, qk1, uk1, ak1, scipy_matrix=csc_matrix
         )
 
         # R[:nu] = Mk1 @ ak1 - ( self.model.h(tk1, qk1, uk1) + W_gk1 @ la_gk1 + W_gammak1 @ la_gammak1 + W_Nk1 @ la_Nk1 + W_Tk1 @ la_Tk1)
-        Ra_q = self.model.Mu_q(tk1, qk1, ak1) - (
-            self.model.h_q(tk1, qk1, uk1)
-            + self.model.Wla_g_q(tk1, qk1, la_gk1)
-            + self.model.Wla_gamma_q(tk1, qk1, la_gammak1)
-            + self.model.Wla_N_q(tk1, qk1, la_Nk1)
-            + self.model.Wla_T_q(tk1, qk1, la_Tk1)
+        Ra_q = self.system.Mu_q(tk1, qk1, ak1) - (
+            self.system.h_q(tk1, qk1, uk1)
+            + self.system.Wla_g_q(tk1, qk1, la_gk1)
+            + self.system.Wla_gamma_q(tk1, qk1, la_gammak1)
+            + self.system.Wla_N_q(tk1, qk1, la_Nk1)
+            + self.system.Wla_T_q(tk1, qk1, la_Tk1)
         )
-        Ra_u = -self.model.h_u(tk1, qk1, uk1)
+        Ra_u = -self.system.h_u(tk1, qk1, uk1)
         Ra_a = Mk1 + Ra_q @ self.q_a + Ra_u * self.u_a
         Ra_U = Ra_u
         Ra_Q = Ra_q @ self.q_Q
 
         # R[nu:2*nu] = Mk1 @ Uk1 - W_Nk1 @ La_Nk1 - W_Tk1 @ La_Tk1
         RU_q = (
-            self.model.Mu_q(tk1, qk1, Uk1)
-            - self.model.Wla_g_q(tk1, qk1, La_gk1)
-            - self.model.Wla_N_q(tk1, qk1, La_Nk1)
-            - self.model.Wla_T_q(tk1, qk1, La_Tk1)
+            self.system.Mu_q(tk1, qk1, Uk1)
+            - self.system.Wla_g_q(tk1, qk1, La_gk1)
+            - self.system.Wla_N_q(tk1, qk1, La_Nk1)
+            - self.system.Wla_T_q(tk1, qk1, La_Tk1)
         )
         RU_a = RU_q @ self.q_a
         RU_Q = RU_q @ self.q_Q
 
         # R[2*nu:3*nu] = Mk1 @ Qk1 - W_Nk1 @ kappa_Nk1
         RQ_q = (
-            self.model.Mu_q(tk1, qk1, Qk1)
-            - self.model.Wla_g_q(tk1, qk1, kappa_gk1)
-            - self.model.Wla_N_q(tk1, qk1, kappa_Nk1)
+            self.system.Mu_q(tk1, qk1, Qk1)
+            - self.system.Wla_g_q(tk1, qk1, kappa_gk1)
+            - self.system.Wla_N_q(tk1, qk1, kappa_Nk1)
         )
         RQ_a = RQ_q @ self.q_a
         RQ_Q = Mk1 + RQ_q @ self.q_Q
 
         # R[3*nu:3*nu+nla_g] = self.model.g(tk1, qk1)
-        Rka_g_q = self.model.g_q(tk1, qk1)
+        Rka_g_q = self.system.g_q(tk1, qk1)
         Rka_g_a = Rka_g_q @ self.q_a
         Rka_g_Q = Rka_g_q @ self.q_Q
 
         # R[3*nu+nla_g:3*nu+2*nla_g] = self.model.g_dot(tk1, qk1, uk1)
-        RLa_g_q = self.model.g_dot_q(tk1, qk1, uk1)
-        RLa_g_u = self.model.g_dot_u(tk1, qk1)
+        RLa_g_q = self.system.g_dot_q(tk1, qk1, uk1)
+        RLa_g_u = self.system.g_dot_u(tk1, qk1)
         RLa_g_a = RLa_g_q @ self.q_a + RLa_g_u * self.u_a
         RLa_g_Q = RLa_g_q @ self.q_Q
 
         # R[3*nu+2*nla_g:3*nu+3*nla_g] = self.model.g_ddot(tk1, qk1, uk1, ak1)
-        Rla_g_q = self.model.g_ddot_q(tk1, qk1, uk1, ak1)
-        Rla_g_u = self.model.g_ddot_u(tk1, qk1, uk1, ak1)
-        Rla_g_a = self.model.g_dot_u(tk1, qk1)
+        Rla_g_q = self.system.g_ddot_q(tk1, qk1, uk1, ak1)
+        Rla_g_u = self.system.g_ddot_u(tk1, qk1, uk1, ak1)
+        Rla_g_a = self.system.g_dot_u(tk1, qk1)
         Rla_g_a += Rla_g_q @ self.q_a + Rla_g_u * self.u_a
         Rla_g_Q = Rla_g_q @ self.q_Q
 
         # R[3*nu+nla_g:3*nu+nla_g+nla_gamma] = self.model.gamma(tk1, qk1, uk1)
-        Rla_gamma_q = self.model.gamma_q(tk1, qk1, uk1)
-        Rla_gamma_u = self.model.gamma_u(tk1, qk1)  # == Rla_gamma_U
+        Rla_gamma_q = self.system.gamma_q(tk1, qk1, uk1)
+        Rla_gamma_u = self.system.gamma_u(tk1, qk1)  # == Rla_gamma_U
         Rla_gamma_a = Rla_gamma_q @ self.q_a + Rla_gamma_u * self.u_a
         Rla_gamma_Q = Rla_gamma_q @ self.q_Q
 
@@ -3543,7 +3573,7 @@ class NonsmoothGeneralizedAlphaOriginal:
         P_N_row = []
         P_N_col = []
         for i_N in N_slip_ind:
-            i_T = self.model.NT_connectivity[i_N]
+            i_T = self.system.NT_connectivity[i_N]
             xi_T_loc = xi_T[i_T]
             xi_T_u_loc = xi_T_u[i_T]
             xi_T_q_loc = xi_T_q[i_T]
@@ -3551,17 +3581,17 @@ class NonsmoothGeneralizedAlphaOriginal:
             norm_T2 = norm_T**2
 
             if norm_T > 0:
-                tmp_u = (self.model.mu[i_N] * P_N[i_N] / norm_T) * (
+                tmp_u = (self.system.mu[i_N] * P_N[i_N] / norm_T) * (
                     xi_T_u_loc - np.outer(xi_T_loc / norm_T2, xi_T_loc @ xi_T_u_loc)
                 )
-                tmp_q = (self.model.mu[i_N] * P_N[i_N] / norm_T) * (
+                tmp_q = (self.system.mu[i_N] * P_N[i_N] / norm_T) * (
                     xi_T_q_loc - np.outer(xi_T_loc / norm_T2, xi_T_loc @ xi_T_q_loc)
                 )
-                tmp_P_N = (self.model.mu[i_N] / norm_T) * xi_T_loc
+                tmp_P_N = (self.system.mu[i_N] / norm_T) * xi_T_loc
             else:
-                tmp_u = (self.model.mu[i_N] * P_N[i_N]) * xi_T_u_loc.toarray()
-                tmp_q = (self.model.mu[i_N] * P_N[i_N]) * xi_T_q_loc.toarray()
-                tmp_P_N = (self.model.mu[i_N]) * xi_T_loc
+                tmp_u = (self.system.mu[i_N] * P_N[i_N]) * xi_T_u_loc.toarray()
+                tmp_q = (self.system.mu[i_N] * P_N[i_N]) * xi_T_q_loc.toarray()
+                tmp_P_N = (self.system.mu[i_N]) * xi_T_loc
 
             u_data.extend(np.asarray(tmp_u).reshape(-1, order="C").tolist())
             u_row.extend(np.repeat(i_T, nu).tolist())
@@ -3630,7 +3660,7 @@ class NonsmoothGeneralizedAlphaOriginal:
         la_N_row = []
         la_N_col = []
         for i_N in N_slip_ind:
-            i_T = self.model.NT_connectivity[i_N]
+            i_T = self.system.NT_connectivity[i_N]
             gamma_T_loc = gamma_T_post[i_T]
             gamma_T_u_loc = gamma_T_u[i_T]
             gamma_T_q_loc = gamma_T_q[i_T]
@@ -3638,19 +3668,19 @@ class NonsmoothGeneralizedAlphaOriginal:
             norm_T2 = norm_T**2
 
             if norm_T > 0:
-                tmp_u = (self.model.mu[i_N] * la_Nk1[i_N] / norm_T) * (
+                tmp_u = (self.system.mu[i_N] * la_Nk1[i_N] / norm_T) * (
                     gamma_T_u_loc
                     - np.outer(gamma_T_loc / norm_T2, gamma_T_loc @ gamma_T_u_loc)
                 )
-                tmp_q = (self.model.mu[i_N] * la_Nk1[i_N] / norm_T) * (
+                tmp_q = (self.system.mu[i_N] * la_Nk1[i_N] / norm_T) * (
                     gamma_T_q_loc
                     - np.outer(gamma_T_loc / norm_T2, gamma_T_loc @ gamma_T_q_loc)
                 )
-                tmp_la_N = (self.model.mu[i_N] / norm_T) * gamma_T_loc
+                tmp_la_N = (self.system.mu[i_N] / norm_T) * gamma_T_loc
             else:
-                tmp_u = (self.model.mu[i_N] * la_Nk1[i_N]) * gamma_T_u_loc.toarray()
-                tmp_q = (self.model.mu[i_N] * la_Nk1[i_N]) * gamma_T_q_loc.toarray()
-                tmp_la_N = (self.model.mu[i_N]) * gamma_T_loc
+                tmp_u = (self.system.mu[i_N] * la_Nk1[i_N]) * gamma_T_u_loc.toarray()
+                tmp_q = (self.system.mu[i_N] * la_Nk1[i_N]) * gamma_T_q_loc.toarray()
+                tmp_la_N = (self.system.mu[i_N]) * gamma_T_loc
 
             u_data.extend(np.asarray(tmp_u).reshape(-1, order="C").tolist())
             u_row.extend(np.repeat(i_T, nu).tolist())
@@ -3867,7 +3897,7 @@ class NonsmoothGeneralizedAlphaOriginal:
         return next(self.__R_gen_analytic(tk1, xk1))
 
     def __R_x_num(self, tk1, xk1):
-        return Numerical_derivative(self.__R, order=2)._x(tk1, xk1)
+        return approx_fprime(xk1, lambda x: self.__R(tk1, x))
 
     def step(self):
         nu = self.nu
@@ -3880,22 +3910,18 @@ class NonsmoothGeneralizedAlphaOriginal:
 
         # initial guess for Newton-Raphson solver
         xk1 = np.zeros(self.nR)
-        xk1[:nu] = self.ak
-        xk1[nu : 2 * nu] = self.Uk
-        xk1[2 * nu : 3 * nu] = self.Qk
-        xk1[3 * nu : 3 * nu + nla_g] = self.kappa_gk
-        xk1[3 * nu + nla_g : 3 * nu + 2 * nla_g] = self.La_gk
-        xk1[3 * nu + 2 * nla_g : 3 * nu + 3 * nla_g] = self.la_gk
-        xk1[3 * nu + 3 * nla_g : 3 * nu + 3 * nla_g + nla_gamma] = self.la_gammak
-        xk1[self.nR_smooth : self.nR_smooth + nla_N] = self.kappa_Nk
-        xk1[self.nR_smooth + nla_N : self.nR_smooth + 2 * nla_N] = self.La_Nk
-        xk1[self.nR_smooth + 2 * nla_N : self.nR_smooth + 3 * nla_N] = self.la_Nk
-        xk1[
-            self.nR_smooth + 3 * nla_N : self.nR_smooth + 3 * nla_N + nla_T
-        ] = self.La_Tk
-        xk1[
-            self.nR_smooth + 3 * nla_N + nla_T : self.nR_smooth + 3 * nla_N + 2 * nla_T
-        ] = self.la_Tk
+        xk1[: self.split_x[0]] = self.ak
+        xk1[self.split_x[0] : self.split_x[1]] = self.Uk
+        xk1[self.split_x[1] : self.split_x[2]] = self.Qk
+        xk1[self.split_x[2] : self.split_x[3]] = self.kappa_gk
+        xk1[self.split_x[3] : self.split_x[4]] = self.La_gk
+        xk1[self.split_x[4] : self.split_x[5]] = self.la_gk
+        xk1[self.split_x[5] : self.split_x[6]] = self.la_gammak
+        xk1[self.split_x[6] : self.split_x[7]] = self.kappa_Nk
+        xk1[self.split_x[7] : self.split_x[8]] = self.La_Nk
+        xk1[self.split_x[8] : self.split_x[9]] = self.la_Nk
+        xk1[self.split_x[9] : self.split_x[10]] = self.La_Tk
+        xk1[self.split_x[10] :] = self.la_Tk
 
         # initial residual and error
         R_gen = self.__R_gen(tk1, xk1)
@@ -3923,20 +3949,20 @@ class NonsmoothGeneralizedAlphaOriginal:
                 converged = error < self.newton_tol
                 if converged:
                     break
-        ak1 = xk1[:nu]
-        Uk1 = xk1[nu : 2 * nu]
-        Qk1 = xk1[2 * nu : 3 * nu]
-        kappa_gk1 = xk1[3 * nu : 3 * nu + nla_g]
-        La_gk1 = xk1[3 * nu + nla_g : 3 * nu + 2 * nla_g]
-        la_gk1 = xk1[3 * nu + 2 * nla_g : 3 * nu + 3 * nla_g]
-        la_gammak1 = xk1[3 * nu + 3 * nla_g : 3 * nu + 3 * nla_g + nla_gamma]
-        kappa_Nk1 = xk1[self.nR_smooth : self.nR_smooth + nla_N]
-        La_Nk1 = xk1[self.nR_smooth + nla_N : self.nR_smooth + 2 * nla_N]
-        la_Nk1 = xk1[self.nR_smooth + 2 * nla_N : self.nR_smooth + 3 * nla_N]
-        La_Tk1 = xk1[self.nR_smooth + 3 * nla_N : self.nR_smooth + 3 * nla_N + nla_T]
-        la_Tk1 = xk1[
-            self.nR_smooth + 3 * nla_N + nla_T : self.nR_smooth + 3 * nla_N + 2 * nla_T
-        ]
+        (
+            ak1,
+            Uk1,
+            Qk1,
+            kappa_gk1,
+            La_gk1,
+            la_gk1,
+            la_gammak1,
+            kappa_Nk1,
+            La_Nk1,
+            la_Nk1,
+            La_Tk1,
+            la_Tk1,
+        ) = np.array_split(xk1, self.split_x)
 
         return (
             (converged, j, error),
@@ -3978,7 +4004,7 @@ class NonsmoothGeneralizedAlphaOriginal:
 
         pbar = tqdm(np.arange(self.t0, self.t1, self.dt))
         for _ in pbar:
-            Bk = self.model.B(self.tk, self.qk)
+            Bk = self.system.B(self.tk, self.qk)
             self.q_a = dt2 * self.beta * self.alpha_ratio * Bk
             self.q_Q = Bk
             self.u_a = dt * self.gamma * self.alpha_ratio
@@ -4025,8 +4051,8 @@ class NonsmoothGeneralizedAlphaOriginal:
             a_beta = (0.5 - self.beta) * self.a_bark + self.beta * a_bark1
             qk1 = (
                 self.qk
-                + dt * self.model.q_dot(self.tk, self.qk, self.uk)
-                + dt2 * self.model.q_ddot(self.tk, self.qk, self.uk, a_beta)
+                + dt * self.system.q_dot(self.tk, self.qk, self.uk)
+                + dt2 * self.system.q_ddot(self.tk, self.qk, self.uk, a_beta)
                 + Bk @ Qk1
             )
 
@@ -4048,7 +4074,7 @@ class NonsmoothGeneralizedAlphaOriginal:
                 (1 - self.gamma) * self.la_Tbark + self.gamma * la_Tbark1
             )
 
-            qk1, uk1 = self.model.step_callback(tk1, qk1, uk1)
+            qk1, uk1 = self.system.step_callback(tk1, qk1, uk1)
 
             t.append(tk1)
             q.append(qk1)

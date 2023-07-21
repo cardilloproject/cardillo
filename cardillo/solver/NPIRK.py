@@ -608,6 +608,7 @@ class NPIRK:
             ti = tn + self.c[i] * h
             Qi = qn + dq @ self.A[i]
             Ui = un + du @ self.A[i]
+            Qi, Ui = self.system.pre_iteration_update(ti, Qi, Ui)
 
             idxi = i * self.nq
             idxi1 = (i + 1) * self.nq
@@ -628,6 +629,7 @@ class NPIRK:
             ti = tn + self.c[i] * h
             Qi = qn + dq @ self.A[i]
             Ui = un + du @ self.A[i]
+            Qi, Ui = self.system.pre_iteration_update(ti, Qi, Ui)
 
             idxi = self.split_y[0] + i * self.nu
             idxi1 = self.split_y[0] + (i + 1) * self.nu
@@ -678,6 +680,7 @@ class NPIRK:
         for i in range(self.stages):
             ti = tn + self.c[i] * h
             Qi = qn + dq @ self.A[i]
+            Qi, Ui = self.system.pre_iteration_update(ti, Qi, Ui)
 
             idxi = self.split_y[1] + i * self.nla_g
             idxi1 = self.split_y[1] + (i + 1) * self.nla_g
@@ -691,6 +694,7 @@ class NPIRK:
             ti = tn + self.c[i] * h
             Qi = qn + dq @ self.A[i]
             Ui = un + du @ self.A[i]
+            Qi, Ui = self.system.pre_iteration_update(ti, Qi, Ui)
 
             idxi = self.split_y[2] + i * self.nla_gamma
             idxi1 = self.split_y[2] + (i + 1) * self.nla_gamma
@@ -709,6 +713,7 @@ class NPIRK:
         for i in range(self.stages):
             ti = tn + self.c[i] * h
             Qi = qn + dq @ self.A[i]
+            Qi, Ui = self.system.pre_iteration_update(ti, Qi, Ui)
 
             idxi = self.split_y[3] + i * self.nla_N
             idxi1 = self.split_y[3] + (i + 1) * self.nla_N
@@ -731,6 +736,7 @@ class NPIRK:
             ti = tn + self.c[i] * h
             Qi = qn + dq @ self.A[i]
             Ui = un + du @ self.A[i]
+            Qi, Ui = self.system.pre_iteration_update(ti, Qi, Ui)
             P_Ni = dP_N @ self.A[i]
             P_Fi = dP_F @ self.A[i]
 
@@ -902,6 +908,7 @@ class NPIRK:
         xi_Fn1_u = self.system.W_F(tn1, qn1, scipy_matrix=csc_matrix).T
 
         # local derivatives that have to be distributed with kron
+        # TODO CooMatrix instead of Lil?
         Rla_F_q = lil_matrix((self.nla_F, self.nq))
         Rla_F_u = lil_matrix((self.nla_F, self.nu))
         Rla_F_la_N = lil_matrix((self.nla_F, self.nla_N))
@@ -1086,6 +1093,7 @@ class NPIRK:
             ti = tn + self.c[i] * h
             Qi = qn + dq @ self.A[i]
             Ui = un + du @ self.A[i]
+            Qi, Ui = self.system.pre_iteration_update(ti, Qi, Ui)
 
             ####################
             # kinematic equation
