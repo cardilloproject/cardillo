@@ -22,6 +22,7 @@ from cardillo.beams import (
     I_R12_BubonvGalerkin_R12_Integral,
     K_Cardona,
     K_TimoshenkoLerp,
+    K_PetrovGalerkinQuaternionInterpolation,
 )
 from cardillo.forces import K_Moment, Force
 from cardillo import System
@@ -36,7 +37,7 @@ from pathlib import Path
 # R12 interpolation
 ###################
 # Rod = K_R12_PetrovGalerkin_AxisAngle
-Rod = K_R12_PetrovGalerkin_Quaternion
+# Rod = K_R12_PetrovGalerkin_Quaternion
 # Rod = K_R12_PetrovGalerkin_R9
 
 #####################
@@ -46,8 +47,10 @@ Rod = K_R12_PetrovGalerkin_Quaternion
 # Rod = K_SE3_PetrovGalerkin_Quaternion
 # Rod = K_SE3_PetrovGalerkin_R9
 
-# statics = True
-statics = False
+Rod = K_PetrovGalerkinQuaternionInterpolation
+
+statics = True
+# statics = False
 
 slenderness = 1.0e1
 atol = 1.0e-8
@@ -59,8 +62,8 @@ atol = 1.0e-8
 # atol = 1.0e-14
 
 # number of elements
-nelements = 10
-# nelements = 1
+# nelements = 10
+nelements = 4
 
 # used polynomial degree
 # polynomial_degree = 1
@@ -149,6 +152,27 @@ if __name__ == "__main__":
             basis_r=basis,
             basis_psi=basis,
         )
+    elif Rod is K_PetrovGalerkinQuaternionInterpolation:
+        q0 = Rod.straight_configuration(
+            polynomial_degree,
+            basis,
+            nelements,
+            L,
+            r_OP=r_OP0,
+            A_IK=A_IK0,
+        )
+        rod = Rod(
+            cross_section,
+            material_model,
+            A_rho0,
+            K_S_rho0,
+            K_I_rho0,
+            polynomial_degree,
+            nelements,
+            Q=q0,
+            q0=q0,
+            basis=basis,
+        )
     else:
         raise NotImplementedError
 
@@ -157,27 +181,26 @@ if __name__ == "__main__":
     # left and right joint
     joint1 = RigidConnection(frame1, rod, frame_ID2=(0,))
 
-    # moment at the beam's tip
-    Fi = material_model.Fi
-    m = Fi[2] * 2 * np.pi / L * 0.25
-    M = lambda t: t * e3 * m
-    moment = K_Moment(M, rod, (1,))
-
-    # force at the beam's tip
-    f = m / L
-    F = lambda t: t * f * e3
-    print(f"f_max: {F(1)}")
-    force = Force(F, rod, frame_ID=(1,))
-
-    # # moment at right end
+    # # moment at the beam's tip
     # Fi = material_model.Fi
-    # # M = lambda t: (e3 * 2 * np.pi * Fi[2] / L * t) * 2
-    # M = lambda t: 2 * np.pi / L * (e1 * Fi[0] + e3 * Fi[2]) * t * 2
-    # # if statics:
-    # #     M = lambda t: (e1 * Fi[0] + e3 * Fi[2]) * 1.0 * t * 2 * np.pi / L * 0.5
-    # # else:
-    # #     M = lambda t: (e1 * Fi[0] + e3 * Fi[2]) * 1.0 * 2 * np.pi / L * 0.05
-    # moment = K_Moment(M, beam, (1,))
+    # m = Fi[2] * 2 * np.pi / L * 0.25
+    # M = lambda t: t * e3 * m
+    # moment = K_Moment(M, rod, (1,))
+
+    # # force at the beam's tip
+    # f = m / L
+    # F = lambda t: t * f * e3
+    # print(f"f_max: {F(1)}")
+    # force = Force(F, rod, frame_ID=(1,))
+
+    # moment at right end
+    Fi = material_model.Fi
+    M = lambda t: 2 * np.pi / L * (e1 * Fi[0] + e3 * Fi[2]) * t * 1
+    # if statics:
+    #     M = lambda t: (e1 * Fi[0] + e3 * Fi[2]) * 1.0 * t * 2 * np.pi / L * 0.5
+    # else:
+    #     M = lambda t: (e1 * Fi[0] + e3 * Fi[2]) * 1.0 * 2 * np.pi / L * 0.05
+    moment = K_Moment(M, rod, (1,))
 
     # # force at the rght end
     # f = lambda t: t * e1 * 1.0e3
@@ -196,11 +219,11 @@ if __name__ == "__main__":
     system.add(frame1)
     system.add(joint1)
     system.add(moment)
-    system.add(force)
+    # system.add(force)
     system.assemble()
 
     if statics:
-        n_load_steps = 10
+        n_load_steps = 20
         solver = Newton(
             system,
             n_load_steps=n_load_steps,
@@ -226,15 +249,15 @@ if __name__ == "__main__":
     nt = len(q)
     t = sol.t[:nt]
 
-    # ###########
-    # # animation
-    # ###########
-    # animate_beam(t, q, [rod], L, show=True)
+    ###########
+    # animation
+    ###########
+    animate_beam(t, q, [rod], L, show=True)
 
-    ############
-    # VTK export
-    ############
-    path = Path(__file__)
-    e = Export(path.parent, path.stem, True, 30, sol)
-    e.export_contr(rod, level="centerline + directors", num=20)
-    e.export_contr(rod, level="volume", n_segments=5, num=50)
+    # ############
+    # # VTK export
+    # ############
+    # path = Path(__file__)
+    # e = Export(path.parent, path.stem, True, 30, sol)
+    # e.export_contr(rod, level="centerline + directors", num=20)
+    # e.export_contr(rod, level="volume", n_segments=5, num=50)
