@@ -29,6 +29,9 @@ class SphereInSphere:
         self.prox_r_F = np.array([prox_r_F])
 
         self.nla_N = 1
+        assert (
+            self.nla_N == self.mu.size
+        ), "Friction coefficient must have the same dimension as normal contact dim."
 
         if mu == 0:
             self.nla_F = 0

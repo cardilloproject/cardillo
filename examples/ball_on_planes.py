@@ -5,8 +5,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
 from cardillo import System
-from cardillo.discrete import RigidBodyEuler
-from cardillo.discrete import Frame
+from cardillo.discrete import RigidBodyEuler, PlaneFixed
 from cardillo.forces import Force
 from cardillo.contacts import Sphere2Plane
 from cardillo.solver import (
@@ -37,25 +36,12 @@ class Ball(RigidBodyEuler):
 
 
 def run(case, export=True):
-    """Example 10.1 of Capobianco2021.
-
-    Three different cases are implemented:
-    * case 1: e_N = 0.5, omega = 0 => Figure 1
-    * case 2: e_N = 0, omega = 50 => Figure 2 (left)
-    * case 3: e_N = 0, omega = 10 => Figure 2 (right)
-    * case 4: TODO
-
-    References:
-    -----------
-    Capobianco2021: https://doi.org/10.1002/nme.6801
-    """
-
-    y0 = 1
+    y0 = 1.5
     y_dot0 = 0
     # dt = 5e-4
     # dt = 1e-3
-    # dt = 5e-3
-    dt = 1e-2
+    dt = 5e-3
+    # dt = 1e-2
     # dt = 5e-2
 
     if case == 1:
@@ -78,12 +64,13 @@ def run(case, export=True):
         t_final = 1.1
     elif case == 4:
         # more complex example for benchmarking purposes
-        e_N, e_F, mu = 0.5, 0, 0.2
-        x0 = -0.5
-        x_dot0 = 1
+        e_N, e_F, mu = 0, 0, 0.2
+        x0 = 0
+        x_dot0 = 2
         omega = 50
         # t_final = 1.5
         t_final = 2
+        # t_final = 0.3
     else:
         raise AssertionError("Case not found!")
 
@@ -96,13 +83,18 @@ def run(case, export=True):
     RB = Ball(m, R, q0, u0)
 
     e1, e2, e3 = np.eye(3, dtype=float)
-    frame = Frame(A_IK=np.vstack((e3, e1, e2)).T, r_OP=np.zeros(3, dtype=float))
-    plane = Sphere2Plane(frame, RB, R, mu, e_N=e_N, e_F=e_F)
+    plane1 = PlaneFixed(np.array((1, 1, 0)))
+    plane2 = PlaneFixed(np.array((-1, 1, 0)))
+    plane1_contact = Sphere2Plane(plane1, RB, R, mu, e_N=e_N, e_F=e_F)
+    plane2_contact = Sphere2Plane(plane2, RB, R, mu, e_N=e_N, e_F=e_F)
 
     system = System()
     system.add(RB)
+    system.add(plane1)
+    system.add(plane2)
     system.add(Force(np.array([0, -g * m, 0]), RB))
-    system.add(plane)
+    system.add(plane1_contact)
+    system.add(plane2_contact)
 
     system.assemble()
 
@@ -121,9 +113,9 @@ def run(case, export=True):
     # solver1, label1 = NonsmoothGeneralizedAlpha(system, t_final, dt, method="newton"), "Gen-alpha"
     # solver1, label1 = Rattle(system, t_final, dt), "Rattle"
     # solver1, label1 = MoreauShifted(system, t_final, dt), "MoreauShifted"
-    # solver1, label1 = MoreauShiftedNew(system, t_final, dt), "MoreauShiftedNew"
+    solver1, label1 = MoreauShiftedNew(system, t_final, dt), "MoreauShiftedNew"
     # solver1, label1 = MoreauClassical(system, t_final, dt), "MoreauClassical"
-    solver1, label1 = NonsmoothBackwardEuler(system, t_final, dt), "Euler backward"
+    # solver1, label1 = NonsmoothBackwardEuler(system, t_final, dt), "Euler backward"
 
     sol1 = solver1.solve()
     t1 = sol1.t
@@ -136,12 +128,12 @@ def run(case, export=True):
     P_N1 = sol1.P_N
     P_F1 = sol1.P_F
 
-    solver2, label2 = (
-        NonsmoothGeneralizedAlpha(system, t_final, dt),
-        "Gen-alpha",
-    )
-    # solver2, label2 = MoreauClassical(system, t_final, dt), "Moreau"
-    # solver2, label2 = Rattle(system, t_final, dt), "Rattle"
+    # solver2, label2 = (
+    #     NonsmoothGeneralizedAlpha(system, t_final, dt),
+    #     "Gen-alpha",
+    # )
+    # solver2, label2 = MoreauShiftedNew(system, t_final, dt), "Moreau"
+    solver2, label2 = Rattle(system, t_final, dt), "Rattle"
     sol2 = solver2.solve()
     t2 = sol2.t
     q2 = sol2.q
@@ -307,8 +299,8 @@ def run(case, export=True):
     ax.set_xlabel("x [m]")
     ax.set_ylabel("y [m]")
     ax.axis("equal")
-    ax.set_xlim(-2 * y0, 2 * y0)
-    ax.set_ylim(-2 * y0, 2 * y0)
+    ax.set_xlim(-2, 2)
+    ax.set_ylim(-1, 3)
 
     # prepare data for animation
     frames = len(t)
@@ -321,8 +313,9 @@ def run(case, export=True):
     t = t[::frac]
     q = q[::frac]
 
-    # horizontal plane
-    ax.plot([-2 * y0, 2 * y0], [0, 0], "-k")
+    # planes
+    ax.plot([-2, 0], [2, 0], "-k")
+    ax.plot([0, 2], [0, 2], "-k")
 
     def create(t, q):
         x_S, y_S, _ = RB.r_OP(t, q)
@@ -372,4 +365,4 @@ if __name__ == "__main__":
     # run(1)
     # run(2)
     # run(3)
-    run(4)
+    run(4, export=False)

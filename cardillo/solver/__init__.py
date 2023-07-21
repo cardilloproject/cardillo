@@ -7,16 +7,14 @@ from ._common import convergence_analysis
 
 # dynamic solvers
 from .scipy_ivp import ScipyIVP
-from .radau import RadauIIa
 from .moreau import (
     MoreauShifted,
     MoreauShiftedNew,
     MoreauClassical,
 )
 from .euler_backward import EulerBackward, NonsmoothBackwardEuler
-from .generalized_alpha import (
-    GeneralizedAlphaFirstOrder,
-    GeneralizedAlphaSecondOrder,
+from .generalized_alpha_first_order import GeneralizedAlphaFirstOrder
+from .nonsmooth_generalized_alpha import (
     NonsmoothGeneralizedAlpha,
     SimplifiedNonsmoothGeneralizedAlpha,
     SimplifiedNonsmoothGeneralizedAlphaFirstOrder,

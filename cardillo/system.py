@@ -1,8 +1,9 @@
 import numpy as np
+import warnings
 from cardillo.utility.coo_matrix import CooMatrix
 from cardillo.discrete.frame import Frame
 from cardillo.solver import consistent_initial_conditions
-from scipy.sparse import coo_matrix, csc_matrix, csr_matrix
+from scipy.sparse import coo_matrix, csc_matrix, csr_matrix, diags
 from scipy.sparse.linalg import spsolve
 from copy import deepcopy
 import warnings
@@ -221,11 +222,15 @@ class System:
                 n_laN_contr += 1
 
         self.NF_connectivity = NF_connectivity
+        # self.NF_connectivity = np.array(
+        #     [np.array(con, dtype=int) for con in NF_connectivity], dtype=object
+        # )
         self.N_has_friction = np.array(N_has_friction, dtype=bool)
         self.Ncontr_connectivity = np.array(Ncontr_connectivity, dtype=int)
         self.e_N = np.array(e_N)
         self.e_F = np.array(e_F)
         self.mu = np.array(mu)
+        self._alpha = 1
 
         # call assembler callback: call methods that require first an assembly of the system
         self.assembler_callback()
@@ -528,7 +533,7 @@ class System:
 
     @alpha.setter
     def alpha(self, alpha):
-        if alpha > 0 and alpha < 2:
+        if 0 < alpha < 2:
             self._alpha = alpha
         else:
             warnings.warn(
@@ -536,11 +541,26 @@ class System:
                 RuntimeWarning,
             )
 
+    """
+    Estimation of relaxation parameter $\vr_N$ of prox function for normal contacts.
+    The parameter is calculated as follows, whereby $\alpha\in(0,2)$ is some scaling factor used for both normal and frictional contact.
+    $$
+        \vr_N = (\alpha\vG_N)^{-1},
+    $$
+    where $\vG_N = \vW_N^T\vM^{-1}\vW_N$.
+
+
+    References
+    ----------
+    Studer2008: https://doi.org/10.3929/ethz-a-005556821
+    Schweizer2015: https://doi.org/10.3929/ethz-a-010464319
+    """
+
     def prox_r_N(self, t, q):
         M = self.M(t, q, csc_matrix)
         W_N = self.W_N(t, q, csc_matrix)
         try:
-            return 1.0 / csr_matrix(W_N.T @ spsolve(M, W_N)).diagonal()
+            return self.alpha / csr_matrix(W_N.T @ spsolve(M, W_N)).diagonal()
         except:
             return np.ones(self.nla_N, dtype=q.dtype)
 
@@ -587,9 +607,12 @@ class System:
     def xi_N_q(self, t, q, u_pre, u_post, scipy_matrix=coo_matrix):
         coo = CooMatrix((self.nla_N, self.nq))
         for contr in self.__g_N_contr:
-            coo[contr.la_NDOF, contr.qDOF] = contr.xi_N_q(
-                t, q[contr.qDOF], u_pre[contr.uDOF], u_post[contr.uDOF]
-            )
+            # coo[contr.la_NDOF, contr.qDOF] = contr.xi_N_q(
+            #     t, q[contr.qDOF], u_pre[contr.uDOF], u_post[contr.uDOF]
+            # )
+            coo[contr.la_NDOF, contr.qDOF] = contr.g_N_dot_q(
+                t, q[contr.qDOF], u_post[contr.uDOF]
+            ) + diags(contr.e_N) @ contr.g_N_dot_q(t, q[contr.qDOF], u_pre[contr.uDOF])
         return coo.tosparse(scipy_matrix)
 
     # TODO: Assemble chi_N for efficency
@@ -629,11 +652,26 @@ class System:
     #################
     # friction
     #################
+    """
+    Estimation of relaxation parameter $\vr_F$ of prox function for frictional contacts.
+    The parameter is calculated as follows, whereby $\alpha\in(0,2)$ is some scaling factor used for both normal and frictional contact.
+    $$
+        \vr_F = (\alpha\vG_F)^{-1},
+    $$
+    where $\vG_F = \vW_F^T\vM^{-1}\vW_F$.
+
+
+    References
+    ----------
+    Studer2008: https://doi.org/10.3929/ethz-a-005556821
+    Schweizer2015: https://doi.org/10.3929/ethz-a-010464319
+    """
+
     def prox_r_F(self, t, q):
         M = self.M(t, q, csc_matrix)
         W_F = self.W_F(t, q, csc_matrix)
         try:
-            return 1.0 / csr_matrix(W_F.T @ spsolve(M, W_F)).diagonal()
+            return self.alpha / csr_matrix(W_F.T @ spsolve(M, W_F)).diagonal()
         except:
             return np.ones(self.nla_F, dtype=q.dtype)
 
@@ -664,8 +702,13 @@ class System:
     def xi_F_q(self, t, q, u_pre, u_post, scipy_matrix=coo_matrix):
         coo = CooMatrix((self.nla_F, self.nq))
         for contr in self.__gamma_F_contr:
-            coo[contr.la_FDOF, contr.qDOF] = contr.xi_F_q(
-                t, q[contr.qDOF], u_pre[contr.uDOF], u_post[contr.uDOF]
+            # coo[contr.la_FDOF, contr.qDOF] = contr.xi_F_q(
+            #     t, q[contr.qDOF], u_pre[contr.uDOF], u_post[contr.uDOF]
+            # )
+            coo[contr.la_FDOF, contr.qDOF] = contr.gamma_F_q(
+                t, q[contr.qDOF], u_post[contr.uDOF]
+            ) + diags(self.e_F[contr.la_FDOF]) @ contr.gamma_F_q(
+                t, q[contr.qDOF], u_pre[contr.uDOF]
             )
         return coo.tosparse(scipy_matrix)
 

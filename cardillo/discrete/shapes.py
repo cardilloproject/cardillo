@@ -19,9 +19,10 @@ def Rectangle(Base):
             dimensions = kwargs.pop("dimensions", (1, 1))
             assert len(dimensions) == 2
 
-            self.rolled_axis = np.roll([0, 1, 2], -axis)
+            self.rolled_axis = np.roll([0, 1, 2], axis)
             self.dimensions = dimensions
 
+            kwargs.update({"A_IK": kwargs.pop("A_IK", np.eye(3))[:, self.rolled_axis]})
             super().__init__(**kwargs)
 
         def export(self, sol_i, base_export=False, **kwargs):
@@ -30,7 +31,7 @@ def Rectangle(Base):
             else:
                 r_OP = self.r_OP(sol_i.t)
                 A_IK = self.A_IK(sol_i.t)
-                n, t1, t2 = A_IK[:, self.rolled_axis].T
+                t1, t2, n = A_IK.T
                 points = [
                     r_OP + t1 * self.dimensions[0] + t2 * self.dimensions[1],
                     r_OP + t1 * self.dimensions[0] - t2 * self.dimensions[1],
@@ -195,20 +196,23 @@ def Cylinder(Base):
             assert self.axis in [0, 1, 2]
 
             volume = self.length * np.pi * self.radius**2
-            if density is not None:
-                mass = density * volume
-            elif mass is None:
-                raise TypeError("mass and density cannot both have type None")
+            if mass is None:
+                if density is None:
+                    raise TypeError("mass and density cannot both have type None")
+                else:
+                    mass = density * volume
 
-            diag = np.array(
-                [
-                    6 * self.radius**2,
-                    3 * self.radius**2 + self.length**2,
-                    3 * self.radius**2 + self.length**2,
-                ],
-                dtype=float,
-            )
-            K_Theta_S = np.diag(np.roll(diag, shift=self.axis))
+            K_Theta_S = kwargs.pop("K_Theta_S", None)
+            if K_Theta_S is None:
+                diag = mass * np.array(
+                    [
+                        (1 / 2) * self.radius**2,
+                        (1 / 12) * (3 * self.radius**2 + self.length**2),
+                        (1 / 12) * (3 * self.radius**2 + self.length**2),
+                    ],
+                    dtype=float,
+                )
+                K_Theta_S = np.diag(np.roll(diag, shift=self.axis))
 
             kwargs.update({"mass": mass, "K_Theta_S": K_Theta_S})
 
@@ -222,8 +226,10 @@ def Cylinder(Base):
                 # compute position and orientation
                 ##################################
                 r_OS = self.r_OP(sol_i.t, sol_i.q[self.qDOF])
-                A_IK0 = self.A_IK(sol_i.t, sol_i.q[self.qDOF])
-                d1, d2, d3 = np.roll(A_IK0, shift=self.axis, axis=0).T
+                A_IK = self.A_IK(sol_i.t, sol_i.q[self.qDOF])
+
+                rolled_axes = np.roll([0, 1, 2], -self.axis)
+                d1, d2, d3 = A_IK[:, rolled_axes].T
                 r_OP0 = r_OS - 0.5 * d1 * self.length
                 r_OP1 = r_OS + 0.5 * d1 * self.length
 
@@ -336,6 +342,7 @@ def FromSTL(Base):
 
             self.meshio_mesh = meshio.read(self.path)
             self.meshio_mesh.points *= scale
+            self.points = self.meshio_mesh.points
 
             super().__init__(**kwargs)
 

@@ -63,7 +63,8 @@ try:
         return x
 
 except:
-    pass
+    sparse_qr_solve = None
+    rank_revealing_qr_spsolve = None
 
 
 def lu_solve(A, b):

@@ -5,7 +5,7 @@ from scipy.integrate import solve_ivp
 import pytest
 
 from cardillo import System
-from cardillo.solver import ScipyIVP, EulerBackward, RadauIIa, MoreauClassical
+from cardillo.solver import ScipyIVP, EulerBackward, MoreauClassical
 from cardillo.constraints import RigidConnection, Cylindrical, Prismatic
 from cardillo.discrete import Frame, RigidBodyQuaternion, RigidBodyAxisAngle, Cylinder
 from cardillo.forces import Force, ScalarForceTranslational, LinearSpring, LinearDamper
@@ -377,8 +377,6 @@ solver_and_kwargs = [
     (EulerBackward, {"method": "index 2"}),
     (EulerBackward, {"method": "index 3"}),
     (EulerBackward, {"method": "index 2 GGL"}),
-    (RadauIIa, {"dae_index": 2, "rtol": 1e-3, "atol": 1e-3, "max_step": dt}),
-    (RadauIIa, {"dae_index": "GGL", "rtol": 1e-3, "atol": 1e-3, "max_step": dt}),
 ]
 
 rigid_bodies = [
@@ -410,7 +408,14 @@ if __name__ == "__main__":
     #############
     # Cylindrical
     #############
-    run("Cylindrical", RigidBodyQuaternion, ScipyIVP)
+    # run("Cylindrical", RigidBodyQuaternion, ScipyIVP)
+    # run("Cylindrical", rigid_bodies[0], solver_and_kwargs[6][0], **solver_and_kwargs[6][1])
+    run(
+        "Cylindrical",
+        rigid_bodies[0],
+        solver_and_kwargs[7][0],
+        **solver_and_kwargs[7][1],
+    )
 
     # run("Cylindrical", RigidBodyQuaternion, MoreauClassical)
 
@@ -418,12 +423,6 @@ if __name__ == "__main__":
     # run("Cylindrical", RigidBodyQuaternion, EulerBackward, method="index 2")
     # run("Cylindrical", RigidBodyQuaternion, EulerBackward, method="index 3")
     # run("Cylindrical", RigidBodyQuaternion, EulerBackward, method="index 2 GGL")
-
-    # run("Cylindrical", RigidBodyQuaternion, RadauIIa, dae_index=2, rtol=1e-3, atol=1e-3)
-    # run("Cylindrical", RigidBodyQuaternion, RadauIIa, dae_index="GGL", rtol=1e-4, atol=1e-4)
-
-    # Radau dae_index=3 is not working and thus not included in tests:
-    # run("Cylindrical", RigidBodyQuaternion, RadauIIa, dae_index=3, rtol=1e-2, atol=1e-2, max_step=dt)
 
     ###########
     # Prismatic
@@ -436,9 +435,3 @@ if __name__ == "__main__":
     # run("Prismatic", RigidBodyQuaternion, EulerBackward, method="index 2")
     # run("Prismatic", RigidBodyQuaternion, EulerBackward, method="index 3")
     # run("Prismatic", RigidBodyQuaternion, EulerBackward, method="index 2 GGL")
-
-    # run("Prismatic", RigidBodyQuaternion, RadauIIa, dae_index=2, rtol=1e-3, atol=1e-3)
-    # run("Prismatic", RigidBodyQuaternion, RadauIIa, dae_index="GGL", rtol=1e-4, atol=1e-4)
-
-    # Radau dae_index=3 is not working and thus not included in tests:
-    # run("Prismatic", RigidBodyQuaternion, RadauIIa, dae_index=3, rtol=1e-2, atol=1e-2, max_step=dt)

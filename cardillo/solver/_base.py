@@ -14,6 +14,10 @@ def consistent_initial_conditions(
     t0 = system.t0
     q0 = system.q0
     u0 = system.u0
+
+    # normalize quaternions etc.
+    system.step_callback(t0, q0, u0)
+
     q_dot0 = system.q_dot(t0, q0, u0)
 
     g_N = system.g_N(t0, q0)

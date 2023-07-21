@@ -73,21 +73,24 @@ class RigidBodyQuaternion(RigidBodyBase):
     def q_dot(self, t, q, u):
         q_dot = np.zeros(self.nq, dtype=np.common_type(q, u))
         q_dot[:3] = u[:3]
-        q_dot[3:] = T_SO3_inv_quat(q[3:]) @ u[3:]
+        q_dot[3:] = T_SO3_inv_quat(q[3:], normalize=False) @ u[3:]
         return q_dot
 
     def q_dot_q(self, t, q, u):
         q_dot_q = np.zeros((self.nq, self.nq), dtype=np.common_type(q, u))
-        q_dot_q[3:, 3:] = np.einsum("ijk,j->ik", T_SO3_inv_quat_P(q[3:]), u[3:])
+        q_dot_q[3:, 3:] = np.einsum(
+            "ijk,j->ik", T_SO3_inv_quat_P(q[3:], normalize=False), u[3:]
+        )
         return q_dot_q
 
     def B(self, t, q):
         B = np.zeros((self.nq, self.nu), dtype=q.dtype)
         B[:3, :3] = np.eye(3, dtype=q.dtype)
-        B[3:, 3:] = T_SO3_inv_quat(q[3:])
+        B[3:, 3:] = T_SO3_inv_quat(q[3:], normalize=False)
         return B
 
     def q_ddot(self, t, q, u, u_dot):
+        raise NotImplementedError
         p = q[3:]
         p2 = p @ p
         B = T_SO3_inv_quat(p) / (p @ p)

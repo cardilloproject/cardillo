@@ -1,5 +1,6 @@
 from cardillo.math import e3
 from cardillo.beams import (
+    CircularCrossSection,
     RectangularCrossSection,
     Simo1986,
 )
@@ -15,6 +16,7 @@ from cardillo import System
 from cardillo.solver import Newton
 
 from cardillo.beams._fitting import fit_configuration
+from cardillo.visualization import Export
 
 import numpy as np
 
@@ -24,7 +26,7 @@ if __name__ == "__main__":
     nelements = 5
 
     # used polynomial degree
-    polynomial_degree = 2
+    polynomial_degree = 1
     basis = "Lagrange"
 
     # Young's and shear modulus
@@ -42,11 +44,12 @@ if __name__ == "__main__":
     width = L / slenderness
 
     # cross section
-    line_density = 1
-    cross_section = RectangularCrossSection(line_density, width, width)
-    A_rho0 = line_density * cross_section.area
-    K_S_rho0 = line_density * cross_section.first_moment
-    K_I_rho0 = line_density * cross_section.second_moment
+    density = 1
+    cross_section = CircularCrossSection(density, 0.5 * width)
+    # cross_section = RectangularCrossSection(density, width, width)
+    A_rho0 = density * cross_section.area
+    K_S_rho0 = density * cross_section.first_moment
+    K_I_rho0 = density * cross_section.second_moment
     A = cross_section.area
 
     # quadratic beam material
@@ -152,3 +155,12 @@ if __name__ == "__main__":
     # animation
     ###########
     animate_beam(t, q, [rod], 2 * scale, show=True)
+
+    ###########
+    # export
+    ###########
+    from pathlib import Path
+
+    path = Path(__file__)
+    e = Export(path.parent, path.stem, True, nt, sol)
+    e.export_contr(rod, level="volume", export_fields=["strains"], continuity="C0")
