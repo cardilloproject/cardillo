@@ -18,7 +18,7 @@ from cardillo.forces import (
     LinearDamper,
     LinearSpring,
 )
-from cardillo.solver import EulerBackward, RadauIIa, ScipyIVP
+from cardillo.solver import EulerBackward, ScipyIVP
 
 
 def run(joint, Solver, k=None, d=None, **solver_args):
@@ -374,7 +374,6 @@ if __name__ == "__main__":
     # run("Spherical", EulerBackward, method="index 2")
     # run("Spherical", EulerBackward, method="index 3")
     # run("Spherical", EulerBackward, method="index 2 GGL")
-    # run("Spherical", RadauIIa)
     run("Spherical", ScipyIVP)
 
     ######################
@@ -384,7 +383,6 @@ if __name__ == "__main__":
     # run("Revolute", EulerBackward, method="index 2")
     # run("Revolute", EulerBackward, method="index 3")
     # run("Revolute", EulerBackward, method="index 2 GGL")
-    # run("Revolute", RadauIIa)
     run("Revolute", ScipyIVP)
 
     ###########################
@@ -398,16 +396,6 @@ if __name__ == "__main__":
     # run("PDRotational", EulerBackward, method="index 2", k=k, d=d)
     # run("PDRotational", EulerBackward, method="index 3", k=k, d=d)
     # run("PDRotational", EulerBackward, method="index 2 GGL", k=k, d=d)
-
-    # # accurate
-    # atol = 1e-4
-    # rtol = 1e-4
-    # # # fast
-    # # atol = 1e-2
-    # # rtol = 1e-2
-    # run("PDRotational", RadauIIa, k=k, d=d, atol=atol, rtol=rtol, dae_index=2)
-    # # run("PDRotational", RadauIIa, k=k, d=d, atol=atol, rtol=rtol, dae_index=3)
-    # # run("PDRotational", RadauIIa, k=k, d=d, atol=atol, rtol=rtol, dae_index="GGL")
 
     atol = 1e-8
     rtol = 1e-8

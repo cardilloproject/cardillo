@@ -181,20 +181,23 @@ def Cylinder(Base):
             assert self.axis in [0, 1, 2]
 
             volume = self.length * np.pi * self.radius**2
-            if density is not None:
-                mass = density * volume
-            elif mass is None:
-                raise TypeError("mass and density cannot both have type None")
+            if mass is None:
+                if density is None:
+                    raise TypeError("mass and density cannot both have type None")
+                else:
+                    mass = density * volume
 
-            diag = np.array(
-                [
-                    6 * self.radius**2,
-                    3 * self.radius**2 + self.length**2,
-                    3 * self.radius**2 + self.length**2,
-                ],
-                dtype=float,
-            )
-            K_Theta_S = np.diag(np.roll(diag, shift=self.axis))
+            K_Theta_S = kwargs.pop("K_Theta_S", None)
+            if K_Theta_S is None:
+                diag = mass * np.array(
+                    [
+                        (1 / 2) * self.radius**2,
+                        (1 / 12) * (3 * self.radius**2 + self.length**2),
+                        (1 / 12) * (3 * self.radius**2 + self.length**2),
+                    ],
+                    dtype=float,
+                )
+                K_Theta_S = np.diag(np.roll(diag, shift=self.axis))
 
             kwargs.update({"mass": mass, "K_Theta_S": K_Theta_S})
 
@@ -208,8 +211,10 @@ def Cylinder(Base):
                 # compute position and orientation
                 ##################################
                 r_OS = self.r_OP(sol_i.t, sol_i.q[self.qDOF])
-                A_IK0 = self.A_IK(sol_i.t, sol_i.q[self.qDOF])
-                d1, d2, d3 = np.roll(A_IK0, shift=self.axis, axis=0).T
+                A_IK = self.A_IK(sol_i.t, sol_i.q[self.qDOF])
+
+                rolled_axes = np.roll([0, 1, 2], -self.axis)
+                d1, d2, d3 = A_IK[:, rolled_axes].T
                 r_OP0 = r_OS - 0.5 * d1 * self.length
                 r_OP1 = r_OS + 0.5 * d1 * self.length
 

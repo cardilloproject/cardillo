@@ -4,7 +4,7 @@ from scipy.integrate import solve_ivp
 import pytest
 
 from cardillo import System
-from cardillo.solver import ScipyIVP, EulerBackward, RadauIIa, MoreauClassical
+from cardillo.solver import ScipyIVP, EulerBackward, MoreauClassical
 from cardillo.constraints import Revolute
 from cardillo.discrete import RigidBodyAxisAngle, RigidBodyQuaternion
 from cardillo.forces import (
@@ -135,8 +135,6 @@ test_parameters = [
     (EulerBackward, {"method": "index 2"}),
     (EulerBackward, {"method": "index 3"}),
     (EulerBackward, {"method": "index 2 GGL"}),
-    # (RadauIIa, {"dae_index": 2, "max_step": dt}),
-    # (RadauIIa, {"dae_index": "GGL", "max_step": dt}),
 ]
 
 
@@ -156,8 +154,3 @@ if __name__ == "__main__":
     # run(RigidBodyQuaternion, EulerBackward, method="index 2")
     # run(RigidBodyQuaternion, EulerBackward, method="index 3")
     # run(RigidBodyQuaternion, EulerBackward, method="index 2 GGL")
-
-    # # enforce max step such that solver does not omit quadrant in one step
-    # run(RigidBodyQuaternion, RadauIIa, dae_index=2, max_step=dt)
-    # run(RigidBodyQuaternion, RadauIIa, dae_index=3, max_step=dt)
-    # run(RigidBodyQuaternion, RadauIIa, dae_index="GGL", max_step=dt)

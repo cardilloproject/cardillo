@@ -17,12 +17,12 @@ from cardillo.solver import (
     convergence_analysis,
     ScipyIVP,
     EulerBackward,
-    RadauIIa,
     Rattle,
     NPIRK,
     MoreauShifted,
     NonsmoothGeneralizedAlpha,
     LobattoIIIAB,
+    GeneralizedAlphaFirstOrder,
 )
 from cardillo.solver._butcher_tableaus import RadauIIATableau
 
@@ -142,10 +142,12 @@ def state():
     # dt = 5e-2
     # dt = 2.5e-2
     dt = 1.0e-2  # used for GAMM with R = 10 * r
+    # dt = 5.0e-3
     # dt = 1.0e-3
+    print(f"t1: {t1}; dt: {dt}")
 
     # rho_inf = 0.99
-    rho_inf = 0.96  # used for GAMM (high oszillations)
+    # rho_inf = 0.96  # used for GAMM (high oszillations)
     # rho_inf = 0.85  # used for GAMM (low oszillations)
     # rho_inf = 0.1
     # see Arnold2016, p. 118
@@ -171,6 +173,8 @@ def state():
     sol = Rattle(system, t1, dt, atol=tol).solve()
 
     # sol = NPIRK(system, t1, dt, RadauIIATableau(2)).solve()
+
+    sol = GeneralizedAlphaFirstOrder(system, t1, dt, atol=tol, rho_inf=0.85).solve()
 
     t = sol.t
     q = sol.q
@@ -430,8 +434,11 @@ def convergence():
     # get_solver = lambda t_final, dt, atol: NPIRK(
     #     system, t_final, dt, RadauIIATableau(2), atol=atol
     # )
-    get_solver = lambda t_final, dt, atol: LobattoIIIAB(
-        system, t_final, dt, atol=atol, stages=3
+    # get_solver = lambda t_final, dt, atol: LobattoIIIAB(
+    #     system, t_final, dt, atol=atol, stages=3
+    # )
+    get_solver = lambda t_final, dt, atol: GeneralizedAlphaFirstOrder(
+        system, t_final, dt, atol=atol, rho_inf=0.85
     )
 
     errors = convergence_analysis(
@@ -447,17 +454,17 @@ def convergence():
         # dt_ref=4e-4,
         # final_power=6,
         # power_span=(1, 4),
-        dt_ref=2e-4,
-        final_power=7,
-        power_span=(2, 5),
-        # dt_ref=1e-4,
-        # final_power=9,
-        # power_span=(1, 6),
-        states=["q", "u"],
+        # dt_ref=2e-4,
+        # final_power=7,
+        # power_span=(2, 5),
+        dt_ref=1e-4,
+        final_power=8,
+        power_span=(1, 6),
+        # states=["q", "u"],
         # states=["q", "u", "P_g", "P_gamma"],
-        # states=["q", "u", "la_g", "la_gamma"],
+        states=["q", "u", "la_g", "la_gamma"],
         split_fractions=[],
-        atol=1e-12,
+        atol=1e-14,
         measure="lp",
         # measure="uniform",
         # measure="hausdorff",
@@ -929,5 +936,5 @@ def convergence():
 
 
 if __name__ == "__main__":
-    state()
-    # convergence()
+    # state()
+    convergence()

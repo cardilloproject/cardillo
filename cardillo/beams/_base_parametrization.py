@@ -152,20 +152,20 @@ class QuaternionRotationParameterization(RotationParameterizationBase):
 
     @staticmethod
     def q_dot(psi, K_omega_IK):
-        return T_SO3_inv_quat(psi) @ K_omega_IK
+        return T_SO3_inv_quat(psi, normalize=False) @ K_omega_IK
 
     @staticmethod
     def q_dot_q(psi, K_omega_IK):
         return np.einsum(
             "ijk,j->ik",
-            T_SO3_inv_quat_P(psi),
+            T_SO3_inv_quat_P(psi, normalize=False),
             K_omega_IK,
         )
 
     @staticmethod
     def B(psi):
         psi = psi / norm(psi)
-        return T_SO3_inv_quat(psi)
+        return T_SO3_inv_quat(psi, normalize=False)
 
     @staticmethod
     def q_ddot(psi, K_omega_IK, K_omega_IK_dot):

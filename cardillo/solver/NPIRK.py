@@ -4,14 +4,19 @@ from scipy.sparse import csr_matrix, csc_matrix, lil_matrix, eye, diags, kron
 from tqdm import tqdm
 
 from cardillo.math.prox import prox_R0_nm, prox_R0_np, prox_sphere
-from cardillo.math import approx_fprime, fsolve
+from cardillo.math import (
+    approx_fprime,
+    fsolve,
+    lu_solve,
+    rank_revealing_qr_solve,
+)
 from cardillo.solver import Solution
 from cardillo.solver._butcher_tableaus import *
 
 
 # TODO:
-# - analytical Jacobian
 # - uncouple projection stage
+# - analytical Jacobian
 # - implement fixed point iteration as done in rattle
 class NPIRK:
     def __init__(
@@ -23,7 +28,7 @@ class NPIRK:
         atol=1e-8,
         max_iter=50,
     ):
-        """Nonsmooth projected implicit Runge-Kutta (N-NPIRK) methods.
+        """Nonsmooth projected implicit Runge-Kutta (NPIRK) methods.
         See Ascher1991, Haierer1996 p. 502-503, Hairer2006 Section IV.4.
 
         References:
@@ -86,16 +91,16 @@ class NPIRK:
             (
                 0 * np.tile(self.q_dotn, self.stages),
                 0 * np.tile(self.u_dotn, self.stages),
-                0 * np.tile(self.la_gn, self.stages),
-                0 * np.tile(self.la_gamman, self.stages),
-                0 * np.tile(self.la_Nn, self.stages),
-                0 * np.tile(self.la_Fn, self.stages),
-                # np.outer(self.q_dotn, self.b).reshape(-1, order="F"),
-                # np.outer(self.u_dotn, self.b).reshape(-1, order="F"),
-                # np.outer(self.la_gn, self.b).reshape(-1, order="F"),
-                # np.outer(self.la_gamman, self.b).reshape(-1, order="F"),
-                # np.outer(self.la_Nn, self.b).reshape(-1, order="F"),
-                # np.outer(self.la_Fn, self.b).reshape(-1, order="F"),
+                # np.tile(self.q_dotn, self.stages),
+                # np.tile(self.u_dotn, self.stages),
+                # 0 * np.tile(self.la_gn, self.stages),
+                # 0 * np.tile(self.la_gamman, self.stages),
+                # 0 * np.tile(self.la_Nn, self.stages),
+                # 0 * np.tile(self.la_Fn, self.stages),
+                np.outer(self.la_gn, h / self.b).reshape(-1, order="F"),
+                np.outer(self.la_gamman, h / self.b).reshape(-1, order="F"),
+                np.outer(self.la_Nn, h / self.b).reshape(-1, order="F"),
+                np.outer(self.la_Fn, h / self.b).reshape(-1, order="F"),
                 0 * self.un,
                 0 * self.la_gn,
                 0 * self.la_gamman,
@@ -126,6 +131,7 @@ class NPIRK:
         self.I_N = np.zeros((self.stages, self.nla_N), dtype=bool)
         self.A_N = np.zeros(self.nla_N, dtype=bool)
         self.B_N = np.zeros(self.nla_N, dtype=bool)
+        self.I_N = np.zeros((self.stages, self.nla_N), dtype=bool)
 
     def unpack_reshape(self, y):
         """Unpack and reshape vector of unknowns and return arrays of unkowns
@@ -191,16 +197,21 @@ class NPIRK:
         ) = self.unpack_reshape(yn1)
 
         # quadrature for position and velocity
-        qn1 = qn + h * dq @ self.b
-        un1 = un + h * du @ self.b + Delta_U
-        # qn1 = qn + dq @ self.b
-        # un1 = un + du @ self.b + Delta_U
+        # qn1 = qn + h * dq @ self.b
+        # un1 = un + h * du @ self.b + Delta_U
+        qn1 = qn + dq @ self.b
+        un1 = un + du @ self.b + Delta_U
 
         # quadrature for percussions
-        P_gn1 = h * dP_g @ self.b + Delta_P_g
-        P_gamman1 = h * dP_gamma @ self.b + Delta_P_gamma
-        P_Nn1 = h * dP_N @ self.b + Delta_P_N
-        P_Fn1 = h * dP_F @ self.b + Delta_P_F
+        # P_gn1 = h * dP_g @ self.b + Delta_P_g
+        # P_gamman1 = h * dP_gamma @ self.b + Delta_P_gamma
+        # P_Nn1 = h * dP_N @ self.b + Delta_P_N
+        # P_Fn1 = h * dP_F @ self.b + Delta_P_F
+        P_gn1 = dP_g @ self.b + Delta_P_g
+        P_gamman1 = dP_gamma @ self.b + Delta_P_gamma
+        P_Nn1 = dP_N @ self.b + Delta_P_N
+        P_Fn1 = dP_F @ self.b + Delta_P_F
+
         # P_gn1 = self.P_gn + h * dP_g @ self.b + Delta_P_g
         # P_gamman1 = self.P_gamman + h * dP_gamma @ self.b + Delta_P_gamma
         # P_Nn1 = self.P_Nn + h * dP_N @ self.b + Delta_P_N
@@ -246,16 +257,21 @@ class NPIRK:
 
         # initialize residual
         R = np.zeros(self.ny, dtype=yn1.dtype)
-        # R = yn1.copy()  # TODO: Remove this!
+        R = yn1.copy()  # TODO: Remove this!
 
         #####################
         # kinematic equations
         #####################
         for i in range(self.stages):
             ti = tn + self.c[i] * h
-            Qi = qn + h * dq @ self.A[i]
-            Ui = un + h * du @ self.A[i]
-            R[i * self.nq : (i + 1) * self.nq] = dq[:, i] - self.system.q_dot(
+            # Qi = qn + h * dq @ self.A[i]
+            # Ui = un + h * du @ self.A[i]
+            Qi = qn + dq @ self.A[i]
+            Ui = un + du @ self.A[i]
+            # R[i * self.nq : (i + 1) * self.nq] = dq[:, i] - self.system.q_dot(
+            #     ti, Qi, Ui
+            # )
+            R[i * self.nq : (i + 1) * self.nq] = dq[:, i] - h * self.system.q_dot(
                 ti, Qi, Ui
             )
 
@@ -264,12 +280,29 @@ class NPIRK:
         ####################
         for i in range(self.stages):
             ti = tn + self.c[i] * h
-            Qi = qn + h * dq @ self.A[i]
-            Ui = un + h * du @ self.A[i]
-            Qi, Ui = self.system.pre_iteration_update(ti, Qi, Ui)
+            # Qi = qn + h * dq @ self.A[i]
+            # Ui = un + h * du @ self.A[i]
+            Qi = qn + dq @ self.A[i]
+            Ui = un + du @ self.A[i]
+            # R[self.split_y[0] + i * self.nu : self.split_y[0] + (i + 1) * self.nu] = (
+            #     self.system.M(ti, Qi, scipy_matrix=csr_matrix) @ du[:, i]
+            #     - self.system.h(ti, Qi, Ui)
+            #     - self.system.W_g(ti, Qi) @ dP_g[:, i]
+            #     - self.system.W_gamma(ti, Qi) @ dP_gamma[:, i]
+            #     - self.system.W_N(ti, Qi) @ dP_N[:, i]
+            #     - self.system.W_F(ti, Qi) @ dP_F[:, i]
+            # )
+            # R[self.split_y[0] + i * self.nu : self.split_y[0] + (i + 1) * self.nu] = (
+            #     self.system.M(ti, Qi, scipy_matrix=csr_matrix) @ du[:, i] * h
+            #     - h * self.system.h(ti, Qi, Ui)
+            #     - self.system.W_g(ti, Qi) @ dP_g[:, i]
+            #     - self.system.W_gamma(ti, Qi) @ dP_gamma[:, i]
+            #     - self.system.W_N(ti, Qi) @ dP_N[:, i]
+            #     - self.system.W_F(ti, Qi) @ dP_F[:, i]
+            # )
             R[self.split_y[0] + i * self.nu : self.split_y[0] + (i + 1) * self.nu] = (
                 self.system.M(ti, Qi, scipy_matrix=csr_matrix) @ du[:, i]
-                - self.system.h(ti, Qi, Ui)
+                - h * self.system.h(ti, Qi, Ui)
                 - self.system.W_g(ti, Qi) @ dP_g[:, i]
                 - self.system.W_gamma(ti, Qi) @ dP_gamma[:, i]
                 - self.system.W_N(ti, Qi) @ dP_N[:, i]
@@ -281,8 +314,8 @@ class NPIRK:
         #########################################
         for i in range(self.stages):
             ti = tn + self.c[i] * h
-            Qi = qn + h * dq @ self.A[i]
-            Qi, Ui = self.system.pre_iteration_update(ti, Qi, Ui)
+            # Qi = qn + h * dq @ self.A[i]
+            Qi = qn + dq @ self.A[i]
             R[
                 self.split_y[1]
                 + i * self.nla_g : self.split_y[1]
@@ -294,9 +327,10 @@ class NPIRK:
         #########################################
         for i in range(self.stages):
             ti = tn + self.c[i] * h
-            Qi = qn + h * dq @ self.A[i]
-            Ui = un + h * du @ self.A[i]
-            Qi, Ui = self.system.pre_iteration_update(ti, Qi, Ui)
+            # Qi = qn + h * dq @ self.A[i]
+            # Ui = un + h * du @ self.A[i]
+            Qi = qn + dq @ self.A[i]
+            Ui = un + du @ self.A[i]
             R[
                 self.split_y[2]
                 + i * self.nla_gamma : self.split_y[2]
@@ -309,14 +343,17 @@ class NPIRK:
         prox_r_N = self.prox_r_N
         for i in range(self.stages):
             ti = tn + self.c[i] * h
-            Qi = qn + h * dq @ self.A[i]
-            Ui = un + h * du @ self.A[i]
-            Qi, Ui = self.system.pre_iteration_update(ti, Qi, Ui)
+            # Qi = qn + h * dq @ self.A[i]
+            # Ui = un + h * du @ self.A[i]
+            Qi = qn + dq @ self.A[i]
+            Ui = un + du @ self.A[i]
 
             #################
             # single integral
             #################
-            P_Ni = h * dP_N @ self.A[i]
+            # P_Ni = h * dP_N @ self.A[i]
+            P_Ni = dP_N @ self.A[i]
+
             # P_Ni = self.P_Nn + h * dP_N @ self.A[i]
 
             # #################
@@ -335,8 +372,8 @@ class NPIRK:
 
             g_Ni = self.system.g_N(ti, Qi)
 
-            prox_arg = g_Ni - prox_r_N * P_Ni
-            # prox_arg = prox_r_N * g_Ni - P_Ni
+            # prox_arg = g_Ni - prox_r_N * P_Ni
+            prox_arg = prox_r_N * g_Ni - P_Ni
             if update_index:
                 self.I_N[i] = prox_arg <= 0.0
 
@@ -356,18 +393,23 @@ class NPIRK:
             # ] = P_Ni + prox_R0_nm(prox_r_N * g_Ni - P_Ni)
             # # ] = g_Ni - prox_R0_nm(-prox_r_N * P_Ni + g_Ni)
 
-        ##################
-        # Coulomb friction
-        ##################
+        ##########
+        # friction
+        ##########
         prox_r_F = self.prox_r_F
         mu = self.system.mu
         for i in range(self.stages):
             ti = tn + self.c[i] * h
-            Qi = qn + h * dq @ self.A[i]
-            Ui = un + h * du @ self.A[i]
-            Qi, Ui = self.system.pre_iteration_update(ti, Qi, Ui)
-            P_Ni = h * dP_N @ self.A[i]
-            P_Fi = h * dP_F @ self.A[i]
+            # Qi = qn + h * dq @ self.A[i]
+            # Ui = un + h * du @ self.A[i]
+            # P_Ni = h * dP_N @ self.A[i]
+            # P_Fi = h * dP_F @ self.A[i]
+
+            Qi = qn + dq @ self.A[i]
+            Ui = un + du @ self.A[i]
+            P_Ni = dP_N @ self.A[i]
+            P_Fi = dP_F @ self.A[i]
+
             # P_Ni = self.P_Nn + h * dP_N @ self.A[i]
             # P_Fi = self.P_Fn + h * dP_F @ self.A[i]
 
@@ -375,14 +417,19 @@ class NPIRK:
 
             for i_N, i_F in enumerate(self.system.NF_connectivity):
                 i_F = np.array(i_F)
-                n_F = len(i_F)
-                if n_F > 0:
+                if len(i_F) > 0:
+                    # R[self.split_y[4] + i * self.nla_F + i_F] = P_Fi[i_F] + prox_sphere(
+                    #     prox_r_F[i_N] * gamma_Fi[i_F] - P_Fi[i_F],
+                    #     mu[i_N] * P_Ni[i_N],
+                    # )
+
                     arg_F = prox_r_F[i_F] * gamma_Fi[i_F] - P_Fi[i_F]
                     norm_arg_F = np.linalg.norm(arg_F)
                     radius = mu[i_N] * P_Ni[i_N]
 
                     # TODO: Investigate why strict smaller is important!
-                    if norm_arg_F < radius:
+                    # if norm_arg_F < radius:
+                    if norm_arg_F <= radius:
                         R[self.split_y[4] + i * self.nla_F + i_F] = gamma_Fi[i_F]
                     else:
                         if norm_arg_F > 0:
@@ -441,30 +488,37 @@ class NPIRK:
         prox_arg = xi_Nn1 - prox_r_N * P_Nn1
         if update_index:
             self.A_N = np.any(self.I_N, axis=0)
-            # self.A_N = self.I_N[-1]
-            self.B_N = self.A_N * (prox_arg <= 0)
+            # # self.A_N = self.I_N[-1]
+            # self.B_N = self.A_N * (prox_arg <= 0)
+
+        # R[self.split_y[8] : self.split_y[9]] = np.where(
+        #     self.B_N,
+        #     xi_Nn1,
+        #     P_Nn1,
+        # )
 
         R[self.split_y[8] : self.split_y[9]] = np.where(
-            self.B_N,
-            xi_Nn1,
+            np.any(self.I_N, axis=0),
+            # self.I_N[-1],
+            P_Nn1 + prox_R0_nm(prox_r_N * xi_Nn1 - P_Nn1),
             P_Nn1,
         )
 
-        ##################################################
+        ###############################################
         # mixed Coulomb friction and tangent impact law
-        ##################################################
+        ###############################################
         xi_Fn1 = self.system.xi_F(tn1, qn1, un, un1)
 
         for i_N, i_F in enumerate(self.system.NF_connectivity):
             i_F = np.array(i_F)
-            n_F = len(i_F)
-            if n_F > 0:
+            if len(i_F) > 0:
                 arg_F = prox_r_F[i_F] * xi_Fn1[i_F] - P_Fn1[i_F]
                 norm_arg_F = np.linalg.norm(arg_F)
                 radius = mu[i_N] * P_Nn1[i_N]
 
                 # TODO: Investigate why strict smaller is important!
-                if norm_arg_F < radius:
+                # if norm_arg_F < radius:
+                if norm_arg_F <= radius:
                     R[self.split_y[9] + i_F] = xi_Fn1[i_F]
                 else:
                     if norm_arg_F > 0:
@@ -473,6 +527,11 @@ class NPIRK:
                         )
                     else:
                         R[self.split_y[9] + i_F] = P_Fn1[i_F] + radius * arg_F
+
+                # R[self.split_y[9] + i_F] = P_Fn1[i_F] + prox_sphere(
+                #     prox_r_F[i_N] * xi_Fn1[i_F] - P_Fn1[i_F],
+                #     mu[i_N] * P_Nn1[i_N],
+                # )
 
         # save integrated solutions
         # TODO: This is inefficient; unpack yn1 if it is converged.
@@ -537,7 +596,10 @@ class NPIRK:
         P_Nn1 = dP_N @ self.b + Delta_P_N
         P_Fn1 = dP_F @ self.b + Delta_P_F
 
+        # TODO: Move to coo_matrix
         J = lil_matrix((self.ny, self.ny))
+        # from scipy.sparse import identity
+        # J = identity(self.ny, format="lil")
 
         #####################
         # kinematic equations
@@ -664,9 +726,9 @@ class NPIRK:
                 self.A[i], diags(np.asarray(~self.I_N[i], dtype=float))
             )
 
-        ##################
-        # Coulomb friction
-        ##################
+        ##########
+        # friction
+        ##########
         prox_r_F = self.prox_r_F
         mu = self.system.mu
 
@@ -698,6 +760,7 @@ class NPIRK:
 
                     # TODO: Investigate why strict smaller is important!
                     if norm_arg_F < radius:
+                        # if norm_arg_F <= radius:
                         # print(f"stick")
                         Rla_F_q[i_F] = gamma_Fi_q[i_F]
                         Rla_F_u[i_F] = gamma_Fi_u[i_F]
@@ -732,6 +795,10 @@ class NPIRK:
             idxi = self.split_y[4] + i * self.nla_F
             idxi1 = self.split_y[4] + (i + 1) * self.nla_F
 
+            # J[idxi:idxi1, : self.split_y[0]] = kron(
+            #     self.A[i],
+            #     diags(np.asarray(self.I_N[i], dtype=float)) @ self.system.g_N_q(ti, Qi),
+            # )
             J[idxi:idxi1, : self.split_y[0]] = kron(self.A[i], Rla_F_q)
             J[idxi:idxi1, self.split_y[0] : self.split_y[1]] = kron(self.A[i], Rla_F_u)
             J[idxi:idxi1, self.split_y[3] : self.split_y[4]] = kron(
@@ -803,6 +870,8 @@ class NPIRK:
             self.b, gamma_u
         )
 
+        # J[self.split_y[8]:, self.split_y[8]:] = np.eye(self.ny - self.split_y[8])
+
         ##################################################
         # mixed Singorini on velocity level and impact law
         ##################################################
@@ -829,6 +898,8 @@ class NPIRK:
             self.split_y[8] : self.split_y[9], self.split_y[8] : self.split_y[9]
         ] = B_N_bar
 
+        # J[self.split_y[9] :, self.split_y[9] :] = np.eye(self.ny - self.split_y[9])
+
         ##################################################
         # mixed Coulomb friction and tangent impact law
         ##################################################
@@ -852,7 +923,8 @@ class NPIRK:
                 radius = mu[i_N] * P_Nn1[i_N]
 
                 # TODO: Investigate why strict smaller is important!
-                if norm_arg_F < radius:
+                # if norm_arg_F < radius:
+                if norm_arg_F <= radius:
                     # print(f"stick")
                     Rla_F_q[i_F] = xi_Fn1_q[i_F]
                     Rla_F_u[i_F] = xi_Fn1_u[i_F]
@@ -895,38 +967,80 @@ class NPIRK:
             )
             J[self.split_y[9] :, self.split_y[9] :] = Rla_F_la_F
 
-        return J.tocsc()
+        # return J.tocsc()
 
         J_num = approx_fprime(yn1, self.R)
         diff = J - J_num
+
+        #####################
+        # kinematic equations
+        #####################
         # diff = diff[: self.split_y[0]]
+
+        #####################
+        # equations of motion
+        #####################
         # diff = diff[self.split_y[0] : self.split_y[1]]
+
+        #########################################
+        # bilateral constraints on position level
+        #########################################
         # diff = diff[self.split_y[1] : self.split_y[2]]
+
+        #########################################
+        # bilateral constraints on velocity level
+        #########################################
         # diff = diff[self.split_y[2] : self.split_y[3]]
+
+        ###########
+        # Signorini
+        ###########
         # diff = diff[self.split_y[3] : self.split_y[4]]
 
+        ##########
+        # friction
+        ##########
         # diff = diff[self.split_y[4] : self.split_y[5]]  # TODO:
         # diff = diff[self.split_y[4] : self.split_y[5], : self.split_y[0]]
         # diff = diff[self.split_y[4] : self.split_y[5], self.split_y[0] : self.split_y[1]]
-        # diff = diff[self.split_y[4] : self.split_y[5], self.split_y[3] : self.split_y[4]]
+        # diff = diff[self.split_y[4] : self.split_y[5], self.split_y[3] : self.split_y[4]] # TODO
         # diff = diff[self.split_y[4] : self.split_y[5], self.split_y[4] : self.split_y[5]]
 
+        #################
+        # impact equation
+        #################
         # diff = diff[self.split_y[5] : self.split_y[6]]
+
+        ###################################################
+        # impulsive bilateral constraints on position level
+        ###################################################
         # diff = diff[self.split_y[6] : self.split_y[7]]
-        # diff = diff[self.split_y[7] : self.split_y[8]]
+
+        ###################################################
+        # impulsive bilateral constraints on velocity level
+        ###################################################
+        diff = diff[self.split_y[7] : self.split_y[8]]
+
+        ##################################################
+        # mixed Singorini on velocity level and impact law
+        ##################################################
         # diff = diff[self.split_y[8] : self.split_y[9]]
 
+        ###############################################
+        # mixed Coulomb friction and tangent impact law
+        ###############################################
         # diff = diff[self.split_y[9] :] # TODO:
         # diff = diff[self.split_y[9] :, : self.split_y[0]]
-        diff = diff[self.split_y[9] :, self.split_y[0] : self.split_y[1]]
+        # diff = diff[self.split_y[9] :, self.split_y[0] : self.split_y[1]]
         # diff = diff[self.split_y[9] :, self.split_y[3] : self.split_y[4]]
         # # diff = diff[self.split_y[9] :, self.split_y[4] : self.split_y[5]]
         # # diff = diff[self.split_y[9] :, self.split_y[5] : self.split_y[6]]
         # # diff = diff[self.split_y[9] :, self.split_y[8] : self.split_y[9]]
 
         error = np.linalg.norm(diff)
-        if error > 1.0e-10:
+        if error > 1.0e-8:
             print(f"error J: {error}")
+        # print(f"error J: {error}")
         return csc_matrix(J_num)
 
     def R_fixed_point(self, yn1):
@@ -1221,10 +1335,14 @@ class NPIRK:
         # lists storing output variables
         sol_q = [self.qn]
         sol_u = [self.un]
-        sol_P_g = [self.h * self.la_gn]
-        sol_P_gamma = [self.h * self.la_gamman]
-        sol_P_N = [self.h * self.la_Nn]
-        sol_P_F = [self.h * self.la_Fn]
+        # sol_P_g = [self.h * self.la_gn]
+        # sol_P_gamma = [self.h * self.la_gamman]
+        # sol_P_N = [self.h * self.la_Nn]
+        # sol_P_F = [self.h * self.la_Fn]
+        sol_P_g = [self.la_gn]
+        sol_P_gamma = [self.la_gamman]
+        sol_P_N = [self.la_Nn]
+        sol_P_F = [self.la_Fn]
         iterations = []
 
         pbar = tqdm(self.t[:-1])
@@ -1232,14 +1350,20 @@ class NPIRK:
             # only compute optimized proxparameters once per time step
             self.prox_r_N = self.system.prox_r_N(self.tn, self.qn)
             self.prox_r_F = self.system.prox_r_F(self.tn, self.qn)
+            # # self.prox_r_N *= 0.25
+            # # self.prox_r_F *= 0.25
             # print(f"self.prox_r_N: {self.prox_r_N}")
             # print(f"self.prox_r_F: {self.prox_r_F}")
             # self.prox_r_N = np.ones(self.nla_N) * 1.0
             # self.prox_r_F = np.ones(self.nla_F) * 0.285
             # self.prox_r_N = np.ones(self.nla_N) * 0.1
             # self.prox_r_F = np.ones(self.nla_F) * 0.1
-            # self.prox_r_N = np.ones(self.nla_N) * 0.01
-            # self.prox_r_F = np.ones(self.nla_F) * 0.01
+
+            # self.prox_r_N = np.ones(self.nla_N) * 0.1
+            # self.prox_r_F = np.ones(self.nla_F) * 0.1
+
+            # self.prox_r_N = np.ones(self.nla_N) * 1e-4
+            # self.prox_r_F = np.ones(self.nla_F) * 1e-4
 
             # # no percussions as initial guess
             # self.yn[self.split_y[1] : self.split_y[2]] = 0
@@ -1252,16 +1376,23 @@ class NPIRK:
             # self.yn[self.split_y[8] : ] = 0
 
             yn1, converged, error, i, _ = fsolve(
+                # yn1, converged, error, i, _ = lm_solve(
+                # yn1, converged, error, i, _ = trust_region_solve(
                 self.R,
                 self.yn,
-                # jac=self.J,
-                jac="2-point",
+                jac=self.J,
+                # jac="2-point",
                 # jac="3-point",  # TODO: keep this, otherwise sinuglairites arise if g_N0=0!
                 eps=1.0e-6,
                 atol=self.atol,
                 fun_args=(True,),
                 jac_args=(False,),
-                max_iter=20,
+                max_iter=self.max_iter,
+                # linear_solver=lu_solve,
+                # linear_solver=rank_revealing_qr_spsolve,
+                linear_solver=rank_revealing_qr_solve,
+                # linear_solver=ridge_solve,
+                # linear_solver=svd_solve,
             )
 
             tn1 = self.tn1
@@ -1277,10 +1408,14 @@ class NPIRK:
 
             sol_q.append(self.qn1)
             sol_u.append(self.un1)
-            sol_P_g.append(self.P_gn1)
-            sol_P_gamma.append(self.P_gamman1)
-            sol_P_N.append(self.P_Nn1)
-            sol_P_F.append(self.P_Fn1)
+            # sol_P_g.append(self.P_gn1)
+            # sol_P_gamma.append(self.P_gamman1)
+            # sol_P_N.append(self.P_Nn1)
+            # sol_P_F.append(self.P_Fn1)
+            sol_P_g.append(self.P_gn1 / self.h)
+            sol_P_gamma.append(self.P_gamman1 / self.h)
+            sol_P_N.append(self.P_Nn1 / self.h)
+            sol_P_F.append(self.P_Fn1 / self.h)
             iterations.append(i)
 
             # update local variables for accepted time step
