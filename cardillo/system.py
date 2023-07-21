@@ -544,7 +544,7 @@ class System:
     Estimation of relaxation parameter $\vr_N$ of prox function for normal contacts.
     The parameter is calculated as follows, whereby $\alpha\in(0,2)$ is some scaling factor used for both normal and frictional contact.
     $$
-        \vr_N = (\alpha^{-1}\vG_N)^{-1},
+        \vr_N = (\alpha\vG_N)^{-1},
     $$
     where $\vG_N = \vW_N^T\vM^{-1}\vW_N$.
 
@@ -655,7 +655,7 @@ class System:
     Estimation of relaxation parameter $\vr_F$ of prox function for frictional contacts.
     The parameter is calculated as follows, whereby $\alpha\in(0,2)$ is some scaling factor used for both normal and frictional contact.
     $$
-        \vr_F = (\alpha^{-1}\vG_F)^{-1},
+        \vr_F = (\alpha\vG_F)^{-1},
     $$
     where $\vG_F = \vW_F^T\vM^{-1}\vW_F$.
 
