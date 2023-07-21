@@ -8,7 +8,7 @@ from cardillo.beams import (
 from cardillo.beams.cable import QuadraticMaterial
 from cardillo.forces import DistributedForce1DBeam
 from cardillo import System
-from cardillo.solver import RadauIIa, EulerBackward, Newton
+from cardillo.solver import EulerBackward, Newton
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -87,7 +87,6 @@ if __name__ == "__main__":
     rtol = 1.0e-2
     atol = 1.0e-2
     dae_index = "GGL"
-    # sol = RadauIIa(system, t1, dt, rtol, atol, dae_index).solve()
     # sol = EulerBackward(system, t1, dt).solve()
 
     sol = Newton(system, n_load_steps=10).solve()

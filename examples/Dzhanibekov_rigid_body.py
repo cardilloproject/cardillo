@@ -6,7 +6,7 @@ from cardillo.discrete import Cuboid, RigidBodyQuaternion
 from cardillo.math import axis_angle2quat, Log_SO3
 from cardillo.system import System
 from cardillo.constraints import Planarizer
-from cardillo.solver import ScipyIVP, RadauIIa, EulerBackward
+from cardillo.solver import ScipyIVP, EulerBackward
 from cardillo.visualization import Export
 
 planarize = True
@@ -35,7 +35,6 @@ if __name__ == "__main__":
 
     t1 = 5
     dt = 1e-2
-    # solver = RadauIIa(system, t1, dt, dae_index=3)
     solver = EulerBackward(system, t1, dt, method="index 3")
     # solver = ScipyIVP(system, t1, dt)
     sol = solver.solve()
