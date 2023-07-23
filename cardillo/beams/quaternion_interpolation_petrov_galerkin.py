@@ -101,35 +101,45 @@ class K_PetrovGalerkinQuaternionInterpolation(K_TimoshenkoPetrovGalerkinBaseQuat
         # transformation matrix
         A_IK = Exp_SO3_quat(Q, normalize=True)
 
-        # derivative of transformation matrix w.r.t. xi
-        Q2 = Q @ Q
-        q0 = Q[0]
-        q = Q[1:]
-        q0_xi = Q_xi[0]
-        q_xi = Q_xi[1:]
-        q_tilde = ax2skew(q)
-        q_xi_tilde = ax2skew(q_xi)
-        A_IK_xi = (np.eye(3) - A_IK) * 2 * (Q @ Q_xi) / Q2 + (
-            q_xi_tilde @ q_tilde
-            + q_tilde @ q_xi_tilde
-            + q0_xi * q_tilde
-            + q0 * q_xi_tilde
-        ) * 2 / Q2
+        # # derivative of transformation matrix w.r.t. xi
+        # Q2 = Q @ Q
+        # q0 = Q[0]
+        # q = Q[1:]
+        # q0_xi = Q_xi[0]
+        # q_xi = Q_xi[1:]
+        # q_tilde = ax2skew(q)
+        # q_xi_tilde = ax2skew(q_xi)
+        # A_IK_xi = (np.eye(3) - A_IK) * 2 * (Q @ Q_xi) / Q2 + (
+        #     q_xi_tilde @ q_tilde
+        #     + q_tilde @ q_xi_tilde
+        #     + q0_xi * q_tilde
+        #     + q0 * q_xi_tilde
+        # ) * 2 / Q2
 
         # axial and shear strains
         K_Gamma_bar = A_IK.T @ r_OP_xi
 
-        # torsional and flexural strains
-        # TODO: Directly compute curvature from Q and Q_xi.
-        d1, d2, d3 = A_IK.T
-        d1_xi, d2_xi, d3_xi = A_IK_xi.T
-        K_Kappa_bar = np.array(
-            [
-                0.5 * (d3 @ d2_xi - d2 @ d3_xi),
-                0.5 * (d1 @ d3_xi - d3 @ d1_xi),
-                0.5 * (d2 @ d1_xi - d1 @ d2_xi),
-            ]
+        # # torsional and flexural strains
+        # # TODO: Directly compute curvature from Q and Q_xi.
+        # d1, d2, d3 = A_IK.T
+        # d1_xi, d2_xi, d3_xi = A_IK_xi.T
+        # K_Kappa_bar = np.array(
+        #     [
+        #         0.5 * (d3 @ d2_xi - d2 @ d3_xi),
+        #         0.5 * (d1 @ d3_xi - d3 @ d1_xi),
+        #         0.5 * (d2 @ d1_xi - d1 @ d2_xi),
+        #     ]
+        # )
+
+        # curvature, Rucker2018 (17)
+        q0 = Q[0]
+        q = Q[1:]
+        K_Kappa_bar = (
+            2 * np.hstack((-q[:, None], q0 * np.eye(3) - ax2skew(q))) @ Q_xi / (Q @ Q)
         )
+
+        # diff = K_Kappa_bar - K_Kappa_bar2
+        # print(f"kappa error: {np.linalg.norm(diff)}")
 
         return r_OP, A_IK, K_Gamma_bar, K_Kappa_bar
 
