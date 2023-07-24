@@ -8,8 +8,8 @@ from cardillo.discrete import Frame
 from cardillo.constraints import RigidConnection
 from cardillo.beams import (
     animate_beam,
-    K_TimoshenkoAxisAngleSE3,
-    K_Cardona,
+    K_R12_PetrovGalerkin_Quaternion,
+    K_PetrovGalerkinQuaternionInterpolation,
 )
 from cardillo.forces import K_Force, K_Moment
 from cardillo import System
@@ -18,8 +18,8 @@ from cardillo.solver import Newton
 import numpy as np
 import matplotlib.pyplot as plt
 
-# Beam = K_TimoshenkoAxisAngleSE3
-Beam = K_Cardona
+# Rod = K_R12_PetrovGalerkin_Quaternion
+Rod = K_PetrovGalerkinQuaternionInterpolation
 
 
 def objectivity_quarter_circle():
@@ -43,7 +43,7 @@ def objectivity_quarter_circle():
     n = 2
     n_load_steps = 100
     t_star = 0.1  # fraction of deformation pseudo time
-    t_star = 0.0001
+    # t_star = 0.0001
 
     L = 1.0e3
     slenderness = 1.0e2
@@ -78,84 +78,37 @@ def objectivity_quarter_circle():
         return Exp_SO3(e1 * phi)
         # return Exp_SO3(e * phi)
 
-    if Beam == K_TimoshenkoAxisAngleSE3:
-        q0 = Beam.straight_configuration(
-            nelements,
-            L,
-            r_OP=r_OP0,
-            A_IK=A_IK0(0),
-        )
-        beam = Beam(
-            cross_section,
-            material_model,
-            A_rho0,
-            K_S_rho0,
-            K_I_rho0,
-            nelements,
-            q0,
-        )
-    elif Beam == K_Cardona:
-        q0 = Beam.straight_configuration(
+    if Rod is K_PetrovGalerkinQuaternionInterpolation:
+        q0 = Rod.straight_configuration(
             polynomial_degree,
-            polynomial_degree,
-            basis,
             basis,
             nelements,
             L,
             r_OP=r_OP0,
             A_IK=A_IK0(0),
         )
-        q0 = np.array(
-            [
-                0.00000000e00,
-                3.21975275e02,
-                5.57677536e02,
-                6.43950551e02,
-                0.00000000e00,
-                8.62730151e01,
-                3.21975276e02,
-                6.43950551e02,
-                0.00000000e00,
-                0.00000000e00,
-                0.00000000e00,
-                0.00000000e00,
-                0.00000000e00,
-                0.00000000e00,
-                0.00000000e00,
-                0.00000000e00,
-                0.00000000e00,
-                0.00000000e00,
-                0.00000000e00,
-                0.00000000e00,
-                0.00000000e00,
-                5.23598776e-01,
-                1.04719755e00,
-                1.57079633e00,
-            ]
-        )
-        beam = Beam(
+        rod = Rod(
             cross_section,
             material_model,
             A_rho0,
             K_S_rho0,
             K_I_rho0,
             polynomial_degree,
-            polynomial_degree,
             nelements,
-            q0,
-            basis_r=basis,
-            basis_psi=basis,
+            Q=q0,
+            q0=q0,
+            basis=basis,
         )
     else:
         raise NotImplementedError
 
     frame1 = Frame(r_OP=r_OP0, A_IK=A_IK0)
-    joint1 = RigidConnection(frame1, beam, r_OP0, frame_ID2=(0,))
+    joint1 = RigidConnection(frame1, rod, r_OP0, frame_ID2=(0,))
 
     # moment at the beam's tip
     Fi = material_model.Fi
 
-    m = Fi[2] * 2 * np.pi / L * 0.25 * 0
+    m = Fi[2] * 2 * np.pi / L * 0.25
 
     def M(t):
         M_max = m * e3
@@ -164,7 +117,7 @@ def objectivity_quarter_circle():
         else:
             return M_max
 
-    moment = K_Moment(M, beam, (1,))
+    moment = K_Moment(M, rod, (1,))
 
     # force at the beam's tip
     def f(t):
@@ -174,11 +127,11 @@ def objectivity_quarter_circle():
         else:
             return f_max
 
-    force = K_Force(f, beam, frame_ID=(1,))
+    force = K_Force(f, rod, frame_ID=(1,))
 
     # assemble the model
     model = System()
-    model.add(beam)
+    model.add(rod)
     model.add(frame1)
     model.add(joint1)
     model.add(moment)
@@ -202,12 +155,12 @@ def objectivity_quarter_circle():
     #################################
     fig, ax = plt.subplots()
 
-    psi0 = q[:, beam.qDOF[beam.nodalDOF_psi[0]]]
-    ax.plot(t, psi0[:, 0], "-r", label=f"psi0_0")
-    ax.plot(t, psi0[:, 1], "--g", label=f"psi0_1")
-    ax.plot(t, psi0[:, 2], "-.b", label=f"psi0_2")
-    # for i, psi in enumerate(psi0.T):
-    #     ax.plot(t, psi, label=f"psi0_{i}")
+    psi0 = q[:, rod.qDOF[rod.nodalDOF_psi[0]]]
+    # ax.plot(t, psi0[:, 0], "-r", label=f"psi0_0")
+    # ax.plot(t, psi0[:, 1], "--g", label=f"psi0_1")
+    # ax.plot(t, psi0[:, 2], "-.b", label=f"psi0_2")
+    for i, psi in enumerate(psi0.T):
+        ax.plot(t, psi, label=f"psi0_{i}")
 
     ax.set_xlabel("t")
     ax.set_ylabel("nodal rotation vector left")
@@ -216,7 +169,7 @@ def objectivity_quarter_circle():
 
     fig, ax = plt.subplots()
 
-    psi1 = q[:, beam.qDOF[beam.nodalDOF_psi[-1]]]
+    psi1 = q[:, rod.qDOF[rod.nodalDOF_psi[-1]]]
     for i, psi in enumerate(psi1.T):
         ax.plot(t, psi, label=f"psi1_{i}")
 
@@ -230,7 +183,7 @@ def objectivity_quarter_circle():
     #####################################
     fig, ax = plt.subplots()
 
-    r1 = q[:, beam.qDOF[beam.nodalDOF_r[-1]]]
+    r1 = q[:, rod.qDOF[rod.nodalDOF_r[-1]]]
     for i, r in enumerate(r1.T):
         ax.plot(t, r, label=f"r1_{i}")
 
@@ -256,6 +209,13 @@ def objectivity_quarter_circle():
     ax[1].set_xlabel("t")
     ax[1].set_ylabel("E_pot")
     ax[1].grid()
+
+    ###########
+    # animation
+    ###########
+    animate_beam(t, q, [rod], L, show=True)
+
+    exit()
 
     ##############
     # export plots
@@ -306,11 +266,6 @@ def objectivity_quarter_circle():
     # e = Export(path.parent, path.stem, True, 50, sol)
     # e.export_contr(beam, level="centerline + directors", num=50)
     # e.export_contr(beam, level="volume", n_segments=5, num=50)
-
-    ###########
-    # animation
-    ###########
-    animate_beam(t, q, [beam], L, show=True)
 
 
 if __name__ == "__main__":
