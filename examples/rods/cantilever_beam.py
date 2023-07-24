@@ -196,10 +196,6 @@ if __name__ == "__main__":
     # moment at right end
     Fi = material_model.Fi
     M = lambda t: 2 * np.pi / L * (e1 * Fi[0] + e3 * Fi[2]) * t * 1
-    # if statics:
-    #     M = lambda t: (e1 * Fi[0] + e3 * Fi[2]) * 1.0 * t * 2 * np.pi / L * 0.5
-    # else:
-    #     M = lambda t: (e1 * Fi[0] + e3 * Fi[2]) * 1.0 * 2 * np.pi / L * 0.05
     moment = K_Moment(M, rod, (1,))
 
     # # force at the rght end
