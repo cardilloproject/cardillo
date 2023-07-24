@@ -358,11 +358,11 @@ def run(
 
     frames = len(t_ref)
     interval = dt * 1000
-    anim = animation.FuncAnimation(
-        fig, animate, frames=frames, interval=interval, blit=False
-    )
 
     if show:
+        anim = animation.FuncAnimation(
+            fig, animate, frames=frames, interval=interval, blit=False
+        )
         plt.show()
     else:
         plt.close()
