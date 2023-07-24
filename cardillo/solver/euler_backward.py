@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.sparse import csc_matrix, csr_matrix, eye, diags, bmat
 from tqdm import tqdm
+import warnings
 
 from cardillo.math import fsolve, approx_fprime
 from cardillo.solver import Solution, consistent_initial_conditions

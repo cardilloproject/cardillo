@@ -364,6 +364,8 @@ def run(
 
     if show:
         plt.show()
+    else:
+        plt.close()
 
 
 ################################################################################
@@ -413,8 +415,8 @@ if __name__ == "__main__":
     run(
         "Cylindrical",
         rigid_bodies[0],
-        solver_and_kwargs[7][0],
-        **solver_and_kwargs[7][1],
+        solver_and_kwargs[0][0],
+        **solver_and_kwargs[0][1],
     )
 
     # run("Cylindrical", RigidBodyQuaternion, MoreauClassical)
