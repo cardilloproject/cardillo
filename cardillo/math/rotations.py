@@ -560,8 +560,8 @@ def Exp_SO3_quat(P, normalize=True):
     p0, p = np.array_split(P, [1])
     p_tilde = ax2skew(p)
     if normalize:
-        s = P @ P
-        return np.eye(3, dtype=P.dtype) + (2 / s) * (p0 * p_tilde + p_tilde @ p_tilde)
+        P2 = P @ P
+        return np.eye(3, dtype=P.dtype) + (2 / P2) * (p0 * p_tilde + p_tilde @ p_tilde)
     else:
         return np.eye(3, dtype=P.dtype) + 2 * (p0 * p_tilde + p_tilde @ p_tilde)
 

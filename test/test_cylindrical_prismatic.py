@@ -403,8 +403,6 @@ def test_prismatic(RigidBody, Solver, kwargs):
 if __name__ == "__main__":
     show = True
 
-    # simulations with RigidBodyAxisAngle only within tests
-
     #############
     # Cylindrical
     #############
