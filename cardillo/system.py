@@ -6,6 +6,7 @@ from cardillo.solver import consistent_initial_conditions
 from scipy.sparse import coo_matrix, csc_matrix, csr_matrix, diags
 from scipy.sparse.linalg import spsolve
 from copy import deepcopy
+import warnings
 
 properties = []
 
@@ -85,7 +86,7 @@ class System:
     def extend(self, contr_list):
         list(map(self.add, contr_list))
 
-    def deepcopy(self, solution):
+    def deepcopy(self, solution, **kwargs):
         """
         Create a deepcopy of the system and set the original system, which is
         accessed by `self`, to the state given by the passed Solution.
@@ -136,10 +137,10 @@ class System:
             for contr in self.contributions:
                 if hasattr(contr, "nla_F"):
                     contr.la_F0 = la_F0[contr.la_FDOF]
-        self.assemble()
+        self.assemble(**kwargs)
         return system_copy
 
-    def assemble(self):
+    def assemble(self, **kwargs):
         self.nq = 0
         self.nu = 0
         self.nla_g = 0
@@ -247,7 +248,7 @@ class System:
             self.la_gamma0,
             self.la_N0,
             self.la_F0,
-        ) = consistent_initial_conditions(self)
+        ) = consistent_initial_conditions(self, **kwargs)
 
     def assembler_callback(self):
         for contr in self.__assembler_callback_contr:
@@ -672,7 +673,7 @@ class System:
         try:
             return self.alpha / csr_matrix(W_F.T @ spsolve(M, W_F)).diagonal()
         except:
-            return np.ones(self.nla_N, dtype=q.dtype)
+            return np.ones(self.nla_F, dtype=q.dtype)
 
     def gamma_F(self, t, q, u):
         gamma_F = np.zeros(self.nla_F, dtype=np.common_type(q, u))

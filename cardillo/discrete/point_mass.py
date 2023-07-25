@@ -84,9 +84,7 @@ class PointMass:
             ]
         cells = [("vertex", [[0]])]
         if sol_i.u_dot is not None:
-            cell_data = dict(v=[vel], a=[acc])
-            point_data = dict(v=[vel], a=[acc])
+            cell_data = dict(v=[[vel]], a=[[acc]])
         else:
-            cell_data = dict(v=[vel])
-            point_data = dict(v=[vel])
-        return points, cells, point_data, cell_data
+            cell_data = dict(v=[[vel]])
+        return points, cells, None, cell_data

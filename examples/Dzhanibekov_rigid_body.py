@@ -76,6 +76,13 @@ if __name__ == "__main__":
     # vtk export
     ############
     path = Path(__file__)
-    e = Export(path.parent, path.stem, overwrite=True, fps=100, solution=sol)
+    e = Export(
+        path=path.parent,
+        folder_name=path.stem,
+        overwrite=True,
+        fps=100,
+        solution=sol,
+        system=system,
+    )
     e.export_contr(box)
     e.export_contr(box, base_export=True)

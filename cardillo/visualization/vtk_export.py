@@ -1,5 +1,4 @@
 import numpy as np
-from collections import namedtuple
 import meshio
 from xml.dom import minidom
 from pathlib import Path
@@ -16,14 +15,13 @@ class Export:
         overwrite: bool,
         fps: float,
         solution: Solution,
-        # system = None,
+        system,
     ) -> None:
         super().__init__()
         self.path = path
         self.folder = self.__create_vtk_folder(folder_name, overwrite)
         self.fps = fps
-
-        # self.system = system
+        self.system = system
         self.__prepare_data(solution)
 
     # helper functions
@@ -157,6 +155,7 @@ class Export:
             file_name (string): kwargs arg, set custom file name instead of class name of exported contr
         """
         self.__vtk_file()
+
         # export one contr
         if not isinstance(contr, (list, tuple, np.ndarray)):
             if "file_name" in kwargs:
@@ -172,11 +171,13 @@ class Export:
                 contr_name = contr[0].__class__.__name__
             self.contr_list = contr
             export = self.__export_list
+
         file_name = self.__unique_file_name(contr_name)
         for i, sol_i in enumerate(self.solution):
             file_i = self.path / f"{file_name}_{i}.vtu"
             self.__write_time_step_and_name(sol_i.t, file_i)
 
+            self.system.pre_iteration_update(sol_i.t, sol_i.q, sol_i.u)
             points, cells, point_data, cell_data = export(sol_i, **kwargs)
 
             meshio.write_points_cells(

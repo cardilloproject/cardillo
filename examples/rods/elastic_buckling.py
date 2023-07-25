@@ -137,7 +137,14 @@ if __name__ == "__main__":
     # VTK export
     ############
     path = Path(__file__)
-    e = Export(path.parent, path.stem, True, n_load_steps, sol)
+    e = Export(
+        path=path.parent,
+        folder_name=path.stem,
+        overwrite=True,
+        fps=n_load_steps,
+        solution=sol,
+        system=system,
+    )
     # e.export_contr(rod, level="centerline + directors", num=20)
     e.export_contr(rod, level="volume", n_segments=nelements, num=50)
 

@@ -61,7 +61,13 @@ def test_some_rigid_bodies():
 
     sol = MoreauClassical(system, 10, 1e-2).solve()
 
-    e = Export(path.parent, path.stem, True, 30, sol)
+    e = Export(
+        path=path.parent, 
+        folder_name=path.stem, 
+        overwrite=True, 
+        fps=30, 
+        solution=sol, 
+        system=system)
     e.export_contr(ball)
     e.export_contr(box)
     e.export_contr(cylinder)

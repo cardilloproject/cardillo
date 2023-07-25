@@ -1,10 +1,15 @@
 import numpy as np
-from scipy.sparse import csr_matrix
-from cardillo.math import prox_sphere, prox_R0_nm, fsolve, norm
+from scipy.sparse import csr_matrix, bmat, csc_matrix, lil_matrix, diags
+from cardillo.math import prox_sphere, prox_R0_nm, fsolve, norm, approx_fprime
 
 
 def consistent_initial_conditions(
-    system, rtol=1.0e-5, atol=1.0e-8, newton_atol=1e-10, newton_max_iter=10
+    system,
+    rtol=1.0e-5,
+    atol=1.0e-8,
+    newton_atol=1e-10,
+    newton_max_iter=10,
+    jac=None,
 ):
     t0 = system.t0
     q0 = system.q0
@@ -48,7 +53,46 @@ def consistent_initial_conditions(
         ]
     )
 
-    def R(x):
+    global C_N
+    C_N = np.zeros(system.nla_N, dtype=bool)
+
+    def _R_F(x):
+        u_dot, _, _, la_N, la_F = np.array_split(x, split)
+        gamma_F_dot = system.gamma_F_dot(t0, q0, u0, u_dot)
+        R_la_F = np.zeros_like(la_F)
+
+        for i_N, i_F in enumerate(system.NF_connectivity):
+            i_F = np.array(i_F)
+            n_F = len(i_F)
+            if n_F > 0:
+                gamma_Fi = gamma_F[i_F]
+                norm_gamma_Fi = norm(gamma_Fi)
+                if norm_gamma_Fi > 0:
+                    # slip
+                    R_la_F[i_F] = la_F[i_F] + prox_sphere(
+                        prox_r_F[i_F] * gamma_Fi - la_F[i_F],
+                        mu[i_N] * la_N[i_N],
+                    )
+                else:
+                    # possibly stick
+                    R_la_F[i_F] = la_F[i_F] + prox_sphere(
+                        prox_r_F[i_F] * gamma_F_dot[i_F] - la_F[i_F],
+                        mu[i_N] * la_N[i_N],
+                    )
+
+                    # arg_F = prox_r_F[i_F] * gamma_F_dot[i_F] - la_F[i_F]
+                    # norm_arg_F = norm(arg_F)
+                    # radius = mu[i_N] * la_N[i_N]
+                    # if norm_arg_F < radius:
+                    #     R[split[3] + i_F] = gamma_F_dot[i_F]
+                    # else:
+                    #     if norm_arg_F > 0:
+                    #         R[split[3] + i_F] = la_F[i_F] + radius * arg_F / norm_arg_F
+                    #     else:
+                    #         R[split[3] + i_F] = la_F[i_F]
+        return R_la_F
+
+    def R(x, update_index=False):
         u_dot, la_g, la_gamma, la_N, la_F = np.array_split(x, split)
 
         R = np.zeros_like(x)
@@ -70,50 +114,67 @@ def consistent_initial_conditions(
         # Signorini on acceleration level
         #################################
         g_N_ddot = system.g_N_ddot(t0, q0, u0, u_dot)
-        R[split[2] : split[3]] = la_N + B_N * prox_R0_nm(prox_r_N * g_N_ddot - la_N)
+        prox_arg = prox_r_N * g_N_ddot - la_N
+        global C_N
+        if update_index:
+            C_N = B_N * (prox_arg <= 0)
+        R[split[2] : split[3]] = np.where(C_N, g_N_ddot, la_N)
 
         ################################
         # friction on acceleration level
         ################################
-        gamma_F_dot = system.gamma_F_dot(t0, q0, u0, u_dot)
-
-        for i_N, i_F in enumerate(system.NF_connectivity):
-            i_F = np.array(i_F)
-            n_F = len(i_F)
-            if n_F > 0:
-                gamma_Fi = gamma_F[i_F]
-                norm_gamma_Fi = norm(gamma_Fi)
-                if norm_gamma_Fi > 0:
-                    # slip
-                    R[split[3] + i_F] = la_F[i_F] + prox_sphere(
-                        prox_r_F[i_F] * gamma_Fi - la_F[i_F],
-                        mu[i_N] * la_N[i_N],
-                    )
-                else:
-                    # possibly stick
-                    R[split[3] + i_F] = la_F[i_F] + prox_sphere(
-                        prox_r_F[i_F] * gamma_F_dot[i_F] - la_F[i_F],
-                        mu[i_N] * la_N[i_N],
-                    )
-
-                    # arg_F = prox_r_F[i_F] * gamma_F_dot[i_F] - la_F[i_F]
-                    # norm_arg_F = norm(arg_F)
-                    # radius = mu[i_N] * la_N[i_N]
-                    # if norm_arg_F < radius:
-                    #     R[split[3] + i_F] = gamma_F_dot[i_F]
-                    # else:
-                    #     if norm_arg_F > 0:
-                    #         R[split[3] + i_F] = la_F[i_F] + radius * arg_F / norm_arg_F
-                    #     else:
-                    #         R[split[3] + i_F] = la_F[i_F]
+        R[split[3] :] = _R_F(x)
 
         return R
+
+    def J(x, *args, **kwargs):
+        global C_N
+        # TODO: Sparse matrix matrix or sparse matrix slicing?
+        Rla_N_u_dot = diags(C_N.astype(float)) @ W_N.T
+        # Rla_N_u_dot = lil_matrix((system.nla_N, system.nu))
+        # Rla_N_u_dot[C_N] = W_N.T[C_N]
+        Rla_N_la_N = diags((~C_N).astype(float))
+
+        Rla_F_u_dot, _, _, Rla_F_la_N, Rla_F_la_F = np.array_split(
+            approx_fprime(x, lambda x: _R_F(x)), split, axis=1
+        )
+
+        # fmt: off
+        _J = bmat(
+            [
+                [          M, -W_g, -W_gamma,       -W_N,       -W_F],
+                [      W_g.T, None,     None,       None,       None],
+                [  W_gamma.T, None,     None,       None,       None],
+                [Rla_N_u_dot, None,     None, Rla_N_la_N,       None],
+                [Rla_F_u_dot, None,     None, Rla_F_la_N, Rla_F_la_F],
+            ],
+            format="csc",
+        )
+        # fmt: on
+
+        return _J
+
+        J_num = csc_matrix(approx_fprime(x, R, method="3-point", eps=1.0e-6))
+        diff = (_J - J_num).toarray()
+        error = np.linalg.norm(diff)
+        print(f"error Jacobian: {error}")
+        return J_num
 
     x0 = np.zeros(
         system.nu + system.nla_g + system.nla_gamma + system.nla_N + system.nla_F
     )
+    if jac is None:
+        jac = J
+    else:
+        jac = "3-point"
     x0, converged, error, i, f = fsolve(
-        R, x0, atol=newton_atol, max_iter=newton_max_iter
+        R,
+        x0,
+        atol=newton_atol,
+        max_iter=newton_max_iter,
+        jac=jac,
+        fun_args=(True,),
+        jac_args=(False,),
     )
     assert (
         converged

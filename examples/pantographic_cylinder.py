@@ -409,7 +409,14 @@ if __name__ == "__main__":
     pickle.dump(E_pot, file_E_pot)
 
     folder_vtk = Path(folder_test, "vtk_files")
-    e = Export(folder_vtk.parent, folder_vtk.stem, True, nt, sol)
+    e = Export(
+        path=folder_vtk.parent,
+        folder_name=folder_vtk.stem,
+        overwrite=True,
+        fps=nt,
+        solution=sol,
+        system=system,
+    )
     e.export_contr(rod_list[0], level="centerline + directors", num=100)
     for rod in rod_list:
         # e.export_contr(rod, level="centerline + directors", num=100)
