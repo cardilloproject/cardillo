@@ -466,30 +466,28 @@ def Spurrier(R: np.ndarray) -> np.ndarray:
     Simo1986: https://doi.org/10.1016/0045-7825(86)90079-4 \\
     Crisfield1997: http://inis.jinr.ru/sl/M_Mathematics/MN_Numerical%20methods/MNf_Finite%20elements/Crisfield%20M.A.%20Vol.2.%20Non-linear%20Finite%20Element%20Analysis%20of%20Solids%20and%20Structures..%20Advanced%20Topics%20(Wiley,1996)(ISBN%20047195649X)(509s).pdf
     """
-    trace = R[0, 0] + R[1, 1] + R[2, 2]
+    decision = np.zeros(4, dtype=float)
+    decision[:3] = np.diag(R)
+    decision[3] = np.trace(R)
+    i = np.argmax(decision)
 
-    A = np.array([trace, R[0, 0], R[1, 1], R[2, 2]])
-    idx = A.argmax()
-    a = A[idx]
+    quat = np.zeros(4, dtype=float)
+    if i != 3:
+        j = (i + 1) % 3
+        k = (j + 1) % 3
 
-    if idx > 0:
-        i = idx - 1
-        # make i, j, k a cyclic permutation of 0, 1, 2
-        i, j, k = np.roll(np.arange(3), -i)
+        quat[i + 1] = np.sqrt(0.5 * R[i, i] + 0.25 * (1 - decision[3]))
+        quat[0] = (R[k, j] - R[j, k]) / (4 * quat[i + 1])
+        quat[j + 1] = (R[j, i] + R[i, j]) / (4 * quat[i + 1])
+        quat[k + 1] = (R[k, i] + R[i, k]) / (4 * quat[i + 1])
 
-        q = np.zeros(4)
-        q[i + 1] = sqrt(0.5 * a + 0.25 * (1 - trace))
-        q[0] = 0.25 * (R[k, j] - R[j, k]) / q[i + 1]
-        q[j + 1] = 0.25 * (R[j, i] + R[i, j]) / q[i + 1]
-        q[k + 1] = 0.25 * (R[k, i] + R[i, k]) / q[i + 1]
     else:
-        q0 = 0.5 * sqrt(1 + trace)
-        q1 = 0.25 * (R[2, 1] - R[1, 2]) / q0
-        q2 = 0.25 * (R[0, 2] - R[2, 0]) / q0
-        q3 = 0.25 * (R[1, 0] - R[0, 1]) / q0
-        q = np.array([q0, q1, q2, q3])
+        quat[0] = 0.5 * np.sqrt(1 + decision[3])
+        quat[1] = (R[2, 1] - R[1, 2]) / (4 * quat[0])
+        quat[2] = (R[0, 2] - R[2, 0]) / (4 * quat[0])
+        quat[3] = (R[1, 0] - R[0, 1]) / (4 * quat[0])
 
-    return q
+    return quat
 
 
 def quat2axis_angle(Q: np.ndarray) -> np.ndarray:
@@ -606,15 +604,54 @@ def Exp_SO3_quat_p(P, normalize=True):
 
 Log_SO3_quat = Spurrier
 # def Log_SO3_quat(A):
-#     from scipy.spatial.transform import Rotation
-#     return Rotation.from_matrix(A).as_quat()
-#     # psi = Log_SO3(A)
-#     # angle = norm(psi)
-#     # if angle > 0:
-#     #     axis = psi / angle
-#     # else:
-#     #     axis = np.array([1, 0, 0])
-#     # return axis_angle2quat(axis, angle)
+#     # from scipy.spatial.transform import Rotation
+#     # return Rotation.from_matrix(A).as_quat()
+#     psi = Log_SO3(A)
+#     angle = norm(psi)
+#     if angle > 0:
+#         axis = psi / angle
+#     else:
+#         axis = np.array([1, 0, 0])
+#     return axis_angle2quat(axis, angle)
+
+# def Log_SO3_quat(A):
+#     """Unit quaternion from rotation matrix, see scipy and Markley2012
+
+#     References:
+#     -----------
+#     Markley2012: https://doi.org/10.2514/1.31730 \\
+#     scipy: https://github.com/scipy/scipy/blob/main/scipy/spatial/transform/_rotation.pyx#L848-L995
+#     """
+#     decision = np.zeros(4, dtype=float)
+#     decision[:3] = np.diag(A)
+#     decision[3] = np.trace(A)
+#     choice = np.argmax(decision)
+
+#     quat = np.zeros(4, dtype=float)
+#     if choice != 3:
+#         i = choice
+#         j = (i + 1) % 3
+#         k = (j + 1) % 3
+
+#         quat[i] = 1 + 2 * A[i, i] - decision[3]
+#         quat[j] = A[j, i] - A[i, j]
+#         quat[k] = A[k, i] - A[i, k]
+#         quat[3] = A[k, j] - A[j, k]
+#     #     quat[i] = 0.5 * np.sqrt(1 + 2 * A[i, i] - decision[3])
+#     #     quat[j] = 0.5 * (A[j, i] - A[i, j]) / (4 * quat[i])
+#     #     quat[k] = 0.5 * (A[k, i] - A[i, k]) / (4 * quat[i])
+#     #     quat[3] = 0.5 * (A[k, j] - A[j, k]) / (4 * quat[i])
+#     else:
+#         quat[0] = A[2, 1] - A[1, 2]
+#         quat[1] = A[0, 2] - A[2, 0]
+#         quat[2] = A[1, 0] - A[0, 1]
+#         quat[3] = 1 + decision[3]
+#         # quat[3] = 0.5 * np.sqrt(1 + decision[3])
+#         # quat[0] = (A[2, 1] - A[1, 2]) / (4 * quat[3])
+#         # quat[1] = (A[0, 2] - A[2, 0]) / (4 * quat[3])
+#         # quat[2] = (A[1, 0] - A[0, 1]) / (4 * quat[3])
+
+#     return quat / norm(quat)
 
 
 def T_SO3_quat(P, normalize=True):
