@@ -573,11 +573,11 @@ def Exp_SO3_quat_p(P, normalize=True):
     p_tilde_p = ax2skew_a()
 
     if normalize:
-        s = P @ P
+        P2 = P @ P
         A_P = np.einsum(
-            "ij,k->ijk", p0 * p_tilde + p_tilde @ p_tilde, -(4 / (s * s)) * P
+            "ij,k->ijk", p0 * p_tilde + p_tilde @ p_tilde, -(4 / (P2 * P2)) * P
         )
-        s2 = 2 / s
+        s2 = 2 / P2
         A_P[:, :, 0] += s2 * p_tilde
         A_P[:, :, 1:] += (
             s2 * p0 * p_tilde_p
@@ -605,6 +605,16 @@ def Exp_SO3_quat_p(P, normalize=True):
 
 
 Log_SO3_quat = Spurrier
+# def Log_SO3_quat(A):
+#     from scipy.spatial.transform import Rotation
+#     return Rotation.from_matrix(A).as_quat()
+#     # psi = Log_SO3(A)
+#     # angle = norm(psi)
+#     # if angle > 0:
+#     #     axis = psi / angle
+#     # else:
+#     #     axis = np.array([1, 0, 0])
+#     # return axis_angle2quat(axis, angle)
 
 
 def T_SO3_quat(P, normalize=True):
@@ -616,8 +626,9 @@ def T_SO3_quat(P, normalize=True):
     """
     p0, p = np.array_split(P, [1])
     if normalize:
-        s = P @ P
-        raise NotImplementedError
+        return (2 / (P @ P)) * np.hstack(
+            (-p[:, None], p0 * np.eye(3, dtype=P.dtype) - ax2skew(p))
+        )
     else:
         return 2 * np.hstack((-p.T, p0 * np.eye(3, dtype=P.dtype) - ax2skew(p)))
 
@@ -633,10 +644,41 @@ def T_SO3_inv_quat(P, normalize=True):
     """
     p0, p = np.array_split(P, [1])
     if normalize:
-        s = P @ P
-        return (0.5 / s) * np.vstack((-p.T, p0 * np.eye(3, dtype=P.dtype) + ax2skew(p)))
+        return (0.5 / (P @ P)) * np.vstack(
+            (-p.T, p0 * np.eye(3, dtype=P.dtype) + ax2skew(p))
+        )
     else:
         return 0.5 * np.vstack((-p.T, p0 * np.eye(3, dtype=P.dtype) + ax2skew(p)))
+
+
+def T_SO3_quat_P(P, normalize=True):
+    if normalize:
+        p0, p = np.array_split(P, [1])
+        P2 = P @ P
+        T_P = np.einsum(
+            "ij,k->ijk",
+            np.hstack((-p[:, None], p0 * np.eye(3, dtype=P.dtype) - ax2skew(p))),
+            -4 * P / (P2 * P2),
+        )
+        P22 = 2 / P2
+        T_P[:, 0, 1:] -= P22 * np.eye(3, dtype=float)
+        T_P[:, 1:, 0] += P22 * np.eye(3, dtype=float)
+        T_P[:, 1:, 1:] -= P22 * ax2skew_a()
+    else:
+        T_P = np.zeros((3, 4, 4), dtype=float)
+        T_P[:, 0, 1:] -= 2 * np.eye(3, dtype=float)
+        T_P[:, 1:, 0] += 2 * np.eye(3, dtype=float)
+        T_P[:, 1:, 1:] -= 2 * ax2skew_a()
+
+    return T_P
+
+    # from cardillo.math import approx_fprime
+
+    # T_P_num = approx_fprime(P, T_SO3_quat, method="3-point", eps=1e-6)
+    # diff = T_P - T_P_num
+    # error = np.linalg.norm(diff)
+    # print(f"error T_P: {error}")
+    # return T_P_num
 
 
 def T_SO3_inv_quat_P(P, normalize=True):

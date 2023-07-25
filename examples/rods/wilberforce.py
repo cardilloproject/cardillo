@@ -11,6 +11,7 @@ from cardillo.beams import (
     K_SE3_PetrovGalerkin_AxisAngle,
     K_SE3_PetrovGalerkin_Quaternion,
 )
+from cardillo.beams import K_PetrovGalerkinQuaternionInterpolation
 from cardillo.beams._fitting import fit_configuration
 
 from cardillo.constraints import RigidConnection, Spherical
@@ -41,13 +42,15 @@ from cardillo.beams import animate_beam
 # R12 interpolation
 ###################
 # Rod = K_R12_PetrovGalerkin_AxisAngle
-Rod = K_R12_PetrovGalerkin_Quaternion
+# Rod = K_R12_PetrovGalerkin_Quaternion
 
 #####################
 # SE(3)-interpolation
 #####################
 # Rod = K_SE3_PetrovGalerkin_AxisAngle
 # Rod = K_SE3_PetrovGalerkin_Quaternion
+
+Rod = K_PetrovGalerkinQuaternionInterpolation
 
 # p = 1
 # elements_per_turn = 25
@@ -59,8 +62,9 @@ p = 2
 elements_per_turn = 6
 # elements_per_turn = 4  # R12 + p2 + no volume correction
 # elements_per_turn = 8 # SE(3)
-nturns = 3
-nelements = elements_per_turn * nturns
+# nturns = 3
+nturns = 0.25
+nelements = int(elements_per_turn * nturns)
 
 ##########
 # Berg1991
@@ -190,6 +194,26 @@ elif Rod in [K_R12_PetrovGalerkin_AxisAngle, K_R12_PetrovGalerkin_Quaternion]:
         # volume_correction=True,
         volume_correction=False,
     )
+elif Rod is K_PetrovGalerkinQuaternionInterpolation:
+    basis = "Lagrange"
+    Q0 = Rod.straight_configuration(
+        p,
+        basis,
+        nelements,
+        L=1,
+    )
+    rod = Rod(
+        cross_section,
+        material_model,
+        A_rho0,
+        K_S_rho0,
+        K_I_rho0,
+        p,
+        nelements,
+        Q=Q0,
+        q0=Q0,
+        basis=basis,
+    )
 else:
     raise NotImplementedError
 
@@ -216,7 +240,7 @@ def A_IK(xi, phi0=0.0):
     return np.vstack((e_x, e_y, e_z)).T
 
 
-nxi = nturns * 15
+nxi = int(nturns * 15)
 xis = np.linspace(0, 1, num=nxi)
 
 r_OPs = np.array([r(xi, phi0=np.pi) for xi in xis])
