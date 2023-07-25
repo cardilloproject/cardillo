@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.sparse import csr_matrix, bmat, csc_matrix, lil_matrix
+from scipy.sparse import csr_matrix, bmat, csc_matrix, lil_matrix, diags
 from cardillo.math import prox_sphere, prox_R0_nm, fsolve, norm, approx_fprime
 
 
@@ -53,6 +53,9 @@ def consistent_initial_conditions(
         ]
     )
 
+    global C_N
+    C_N = np.zeros(system.nla_N, dtype=bool)
+
     def _R_F(x):
         u_dot, _, _, la_N, la_F = np.array_split(x, split)
         gamma_F_dot = system.gamma_F_dot(t0, q0, u0, u_dot)
@@ -89,7 +92,7 @@ def consistent_initial_conditions(
                     #         R[split[3] + i_F] = la_F[i_F]
         return R_la_F
 
-    def R(x):
+    def R(x, update_index=False):
         u_dot, la_g, la_gamma, la_N, la_F = np.array_split(x, split)
 
         R = np.zeros_like(x)
@@ -111,7 +114,11 @@ def consistent_initial_conditions(
         # Signorini on acceleration level
         #################################
         g_N_ddot = system.g_N_ddot(t0, q0, u0, u_dot)
-        R[split[2] : split[3]] = la_N + B_N * prox_R0_nm(prox_r_N * g_N_ddot - la_N)
+        prox_arg = prox_r_N * g_N_ddot - la_N
+        global C_N
+        if update_index:
+            C_N = B_N * (prox_arg <= 0)
+        R[split[2] : split[3]] = np.where(C_N, g_N_ddot, la_N)
 
         ################################
         # friction on acceleration level
@@ -120,36 +127,35 @@ def consistent_initial_conditions(
 
         return R
 
-    def J(x):
-        Rla_N_u_dot = lil_matrix((system.nla_N, system.nu))
-        Rla_N_la_N = lil_matrix((system.nla_N, system.nla_N))
-        for i in range(system.nla_N):
-            if I_N[i]:
-                Rla_N_u_dot[i] = W_N.T[i]
-            else:
-                Rla_N_la_N[i, i] = 1.0
+    def J(x, *args, **kwargs):
+        global C_N
+        # TODO: Sparse matrix matrix or sparse matrix slicing?
+        Rla_N_u_dot = diags(C_N.astype(float)) @ W_N.T
+        # Rla_N_u_dot = lil_matrix((system.nla_N, system.nu))
+        # Rla_N_u_dot[C_N] = W_N.T[C_N]
+        Rla_N_la_N = diags((~C_N).astype(float))
 
         Rla_F_u_dot, _, _, Rla_F_la_N, Rla_F_la_F = np.array_split(
             approx_fprime(x, lambda x: _R_F(x)), split, axis=1
         )
+
+        # fmt: off
         _J = bmat(
             [
-                [M, -W_g, -W_gamma, -W_N, -W_F],
-                [W_g.T, None, None, None, None],
-                [W_gamma.T, None, None, None, None],
-                [Rla_N_u_dot, None, None, Rla_N_la_N, None],
-                [Rla_F_u_dot, None, None, Rla_F_la_N, Rla_F_la_F],
+                [          M, -W_g, -W_gamma,       -W_N,       -W_F],
+                [      W_g.T, None,     None,       None,       None],
+                [  W_gamma.T, None,     None,       None,       None],
+                [Rla_N_u_dot, None,     None, Rla_N_la_N,       None],
+                [Rla_F_u_dot, None,     None, Rla_F_la_N, Rla_F_la_F],
             ],
             format="csc",
         )
+        # fmt: on
 
         return _J
 
-        J_num = csc_matrix(approx_fprime(x, R, method="2-point", eps=1.0e-6))
-        # J_num = csc_matrix(approx_fprime(y, R, method="3-point", eps=1.0e-6))
-        # J_num = csc_matrix(approx_fprime(y, R, method="cs", eps=1.0e-12))
+        J_num = csc_matrix(approx_fprime(x, R, method="3-point", eps=1.0e-6))
         diff = (_J - J_num).toarray()
-        # diff = diff[: split[0]]
         error = np.linalg.norm(diff)
         print(f"error Jacobian: {error}")
         return J_num
@@ -159,8 +165,16 @@ def consistent_initial_conditions(
     )
     if jac is None:
         jac = J
+    else:
+        jac = "3-point"
     x0, converged, error, i, f = fsolve(
-        R, x0, atol=newton_atol, max_iter=newton_max_iter, jac=jac
+        R,
+        x0,
+        atol=newton_atol,
+        max_iter=newton_max_iter,
+        jac=jac,
+        fun_args=(True,),
+        jac_args=(False,),
     )
     assert (
         converged
