@@ -55,3 +55,8 @@ if __name__ == "__main__":
     plt.plot(t, q[:, 1], "--g")
     plt.plot(t, q[:, 2], "-.b")
     plt.show()
+
+    # save current state of main:
+    from cardillo.utility.save_load_state import save_state
+
+    save_state("harmonic_oscillator_fcn.pkl")
