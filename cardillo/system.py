@@ -1,12 +1,12 @@
 import numpy as np
 import warnings
+from copy import deepcopy
+from scipy.sparse import coo_matrix, csc_matrix, csr_matrix, diags
+from scipy.sparse.linalg import spsolve
+
 from cardillo.utility.coo_matrix import CooMatrix
 from cardillo.discrete.frame import Frame
 from cardillo.solver import consistent_initial_conditions
-from scipy.sparse import coo_matrix, csc_matrix, csr_matrix, diags
-from scipy.sparse.linalg import spsolve
-from copy import deepcopy
-import warnings
 
 properties = []
 
@@ -139,6 +139,19 @@ class System:
                     contr.la_F0 = la_F0[contr.la_FDOF]
         self.assemble(**kwargs)
         return system_copy
+
+    def get_contributions(self, name):
+        """return contributions whose class name contains "name"
+
+        Args:
+            name (_type_): class name or part of class name of contributions which are returned
+        """
+        ret = []
+        for contr in self.contributions:
+            contr_type = ".".join([type(contr).__module__, type(contr).__name__])
+            if contr_type.find(name) != -1:
+                ret.append(contr)
+        return ret
 
     def assemble(self, **kwargs):
         self.nq = 0
