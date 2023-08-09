@@ -9,6 +9,7 @@ from cardillo.beams import (
     K_SE3_PetrovGalerkin_Quaternion,
     K_R3_SO3_PetrovGalerkin_Quaternion,
     K_R12_PetrovGalerkin_Quaternion,
+    HigherOrder_K_SE3_PetrovGalerkin_Quaternion,
 )
 from cardillo.forces import K_Moment, Force
 from cardillo import System
@@ -131,6 +132,40 @@ def make_R12_rod(polynomial_degree, volume_correction=False):
     return make
 
 
+def make_higher_order_SE3_rod(polynomial_degree):
+    def make(
+        L,
+        r_OP0,
+        A_IK0,
+        cross_section,
+        material_model,
+        A_rho0,
+        K_S_rho0,
+        K_I_rho0,
+        nelements,
+    ):
+        q0 = HigherOrder_K_SE3_PetrovGalerkin_Quaternion.straight_configuration(
+            polynomial_degree,
+            nelements,
+            L,
+            r_OP=r_OP0,
+            A_IK=A_IK0,
+        )
+        rod = HigherOrder_K_SE3_PetrovGalerkin_Quaternion(
+            cross_section,
+            material_model,
+            A_rho0,
+            K_S_rho0,
+            K_I_rho0,
+            polynomial_degree,
+            nelements,
+            q0,
+        )
+        return q0, rod
+
+    return make
+
+
 # Young's and shear modulus
 E = 1.0  # Meier2015
 G = 0.5  # Meier2015
@@ -172,13 +207,14 @@ A_IK0 = np.eye(3, dtype=float)
 reference_rod = "R12p2"
 # test_rods = ["R3xSO3", "SE3", "R12p1", "R12p2"]
 # test_rods = ["SE3", "R12p1"]
-test_rods = ["R12p1", "R12p2"]
+# test_rods = ["R12p1", "R12p2"]
+test_rods = ["SE3p1", "SE3p2"]
 
 # dummy parameters for testing setup
-# nnodes_list = np.array([5], dtype=int)
-# nnodes_ref = 9
-nnodes_list = np.array([5, 9], dtype=int)
-nnodes_ref = 35
+nnodes_list = np.array([5], dtype=int)
+nnodes_ref = 9
+# nnodes_list = np.array([5, 9], dtype=int)
+# nnodes_ref = 35
 # nnodes_list = np.array([5, 9, 17], dtype=int)
 # nnodes_ref = 65
 
@@ -205,6 +241,12 @@ def convergence():
         elif rod == "R12p2":
             nelements = int((nnodes - 1) / 2)
             make_rod = make_R12_rod(2, volume_correction=volume_correction)
+        elif rod == "SE3p1":
+            nelements = nnodes - 1
+            make_rod = make_higher_order_SE3_rod(1)
+        elif rod == "SE3p2":
+            nelements = int((nnodes - 1) / 2)
+            make_rod = make_higher_order_SE3_rod(2)
         else:
             print(f"wrong rod: '{rod}'")
             raise NotImplementedError

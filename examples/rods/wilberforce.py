@@ -63,8 +63,8 @@ elements_per_turn = 6
 # elements_per_turn = 4  # R12 + p2 + no volume correction
 # elements_per_turn = 8 # SE(3)
 # nturns = 3
-elements_per_turn = 12
-nturns = 0.5
+# elements_per_turn = 12
+nturns = 1
 nelements = int(elements_per_turn * nturns)
 
 ##########

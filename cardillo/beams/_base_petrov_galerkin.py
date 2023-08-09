@@ -1701,6 +1701,33 @@ def make_K_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
         def set_initial_strains(self, Q):
             self.Q = Q.copy()
 
+            # # # ensure quaternions on same hemisphere, see Gosh2008 above (35)
+            # # # TODO: Why is this not sufficient?
+            # # for i in range(self.nnodes_psi):
+            # #     if self.Q[self.nodalDOF_psi[i][0]] < 0:
+            # #         self.Q[self.nodalDOF_psi[i]] = -self.Q[self.nodalDOF_psi[i]]
+
+            # # ensure quaternions on same hemisphere
+            # # for i in range(1, len(quats)):
+            # # Q0 = self.Q[self.nodalDOF_psi[0]]
+            # # for i in range(1, self.nnodes_psi):
+            # #     Qi = self.Q[self.nodalDOF_psi[i]]
+            # #     inner = Q0 @ Qi
+            # #     if inner < 0:
+            # #         self.Q[self.nodalDOF_psi[i]] *= -1
+            # for i in range(self.nnodes_psi - 1):
+            #     Qi = self.Q[self.nodalDOF_psi[i]]
+            #     Qi1 = self.Q[self.nodalDOF_psi[i + 1]]
+            #     if np.linalg.norm(Qi1 - Qi) > 1:
+            #         self.Q[self.nodalDOF_psi[i + 1]] *= -1
+            #     # inner = Qi @ Qi1
+            #     # if inner < 0:
+            #     # # angle = np.arccos(Qi @ Qi1)
+            #     # # print(f"angle: {angle}")
+            #     # # if angle > np.pi:
+            #     #     print(f"flip quaternion")
+            #     #     self.Q[self.nodalDOF_psi[i + 1]] *= -1
+
             # precompute values of the reference configuration in order to save computation time
             # J in Harsch2020b (5)
             self.J = np.zeros((self.nelement, self.nquadrature), dtype=float)
