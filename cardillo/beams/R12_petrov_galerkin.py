@@ -30,7 +30,7 @@ def __make_R12(Base):
             basis_r="Lagrange",
             basis_psi="Lagrange",
             volume_correction=False,
-            reduced_integration=False,
+            reduced_integration=True,
         ):
             self.volume_correction = volume_correction
 

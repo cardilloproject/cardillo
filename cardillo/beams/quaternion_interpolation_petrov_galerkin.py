@@ -261,17 +261,19 @@ class K_PetrovGalerkinQuaternionInterpolation(K_TimoshenkoPetrovGalerkinBaseQuat
         )
 
     def A_IK(self, t, q, frame_ID):
-        # evaluate shape functions
-        N_psi, _ = self.basis_functions_psi(frame_ID[0])
+        return self._eval(q, frame_ID[0])[1]
+        # # evaluate shape functions
+        # N_psi, _ = self.basis_functions_psi(frame_ID[0])
 
-        # interpolate orientation
-        A_IK = np.zeros((3, 3), dtype=q.dtype)
-        for node in range(self.nnodes_element_psi):
-            A_IK += N_psi[node] * self.RotationBase.Exp_SO3(
-                q[self.nodalDOF_element_psi[node]]
-            )
+        # # interpolate orientation
+        # A_IK = np.zeros((3, 3), dtype=q.dtype)
+        # for node in range(self.nnodes_element_psi):
+        #     A_IK += N_psi[node] * self.RotationBase.Exp_SO3(
+        #         q[self.nodalDOF_element_psi[node]]
+        #     )
 
-        return A_IK
+        # return A_IK
 
     def A_IK_q(self, t, q, frame_ID):
-        return approx_fprime(q, lambda q: self.A_IK(t, q, frame_ID))
+        # return approx_fprime(q, lambda q: self.A_IK(t, q, frame_ID))
+        return self._deval(q, frame_ID[0])[5]
