@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.optimize import least_squares
 from cardillo.math import SE3, SE3inv, Log_SE3, Log_SE3_H
+from cardillo.beams._base_parametrization import QuaternionRotationParameterization
 
 
 # TODO: Add clamping for first and last node
@@ -55,6 +56,33 @@ def fit_configuration(
         Z0[rod.nodalDOF_r[node]] = r_OPs[xi_idx]
     for node, xi_idx in enumerate(xi_idx_psi):
         Z0[rod.nodalDOF_psi[node]] = rod.RotationBase.Log_SO3(A_IKs[xi_idx])
+
+    # TODO: Ensure that all quaternions are on the same hemisphere
+    # quats = np.array([
+    #     Z0[rod.nodalDOF_psi[node]] for node in range(rod.nnodes_psi)
+    # ])
+    # P0 = Z0[rod.nodalDOF_psi[0]]
+    # for i in range(1, rod.nnodes_psi):
+    #     Pi = Z0[rod.nodalDOF_psi[i]]
+    #     inner = P0 @ Pi
+    #     print(f"i: {i}")
+    #     if inner < 0:
+    #         print("wrong hemisphere!")
+    #         Z0[rod.nodalDOF_psi[i]] *= -1
+    #     else:
+    #         print(f"correct hemisphere")
+
+    if rod.RotationBase is QuaternionRotationParameterization:
+        for i in range(rod.nnodes_psi - 1):
+            Pi = Z0[rod.nodalDOF_psi[i]]
+            Pi1 = Z0[rod.nodalDOF_psi[i + 1]]
+            inner = Pi @ Pi1
+            print(f"i: {i}")
+            if inner < 0:
+                print("wrong hemisphere!")
+                Z0[rod.nodalDOF_psi[i + 1]] *= -1
+            else:
+                print(f"correct hemisphere")
 
     # constrained nodes
     zDOF = np.arange(rod.nq)

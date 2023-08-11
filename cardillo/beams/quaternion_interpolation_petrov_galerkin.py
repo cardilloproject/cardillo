@@ -92,21 +92,21 @@ class K_PetrovGalerkinQuaternionInterpolation(K_TimoshenkoPetrovGalerkinBaseQuat
         # evaluate shape functions
         N_r, N_r_xi = self.basis_functions_r(xi)
 
-        quats = np.array(
-            [
-                qe[self.nodalDOF_element_psi[node]].copy()
-                for node in range(self.nnodes_element_r)
-            ]
-        )
-        signs = np.ones(len(quats))
-        Q0 = quats[0]
-        for i in range(1, len(quats)):
-            Qi = quats[i]
-            # inner = Q0 @ Qi
-            # if inner < 0:
-            if np.linalg.norm(Qi - Q0) > 1:
-                quats[i] *= -1
-                signs[i] = -1
+        # quats = np.array(
+        #     [
+        #         qe[self.nodalDOF_element_psi[node]].copy()
+        #         for node in range(self.nnodes_element_r)
+        #     ]
+        # )
+        # signs = np.ones(len(quats))
+        # Q0 = quats[0]
+        # for i in range(1, len(quats)):
+        #     Qi = quats[i]
+        #     # inner = Q0 @ Qi
+        #     # if inner < 0:
+        #     if np.linalg.norm(Qi - Q0) > 1:
+        #         quats[i] *= -1
+        #         signs[i] = -1
 
         # interpolate
         r_OP = np.zeros(3, dtype=qe.dtype)
@@ -118,8 +118,8 @@ class K_PetrovGalerkinQuaternionInterpolation(K_TimoshenkoPetrovGalerkinBaseQuat
             r_OP += N_r[node] * r_OP_node
             r_OP_xi += N_r_xi[node] * r_OP_node
 
-            # Q_node = qe[self.nodalDOF_element_psi[node]]
-            Q_node = quats[i]
+            Q_node = qe[self.nodalDOF_element_psi[node]]
+            # Q_node = quats[i]
             Q += N_r[node] * Q_node
             Q_xi += N_r_xi[node] * Q_node
             # Q += signs[node] * N_r[node] * Q_node
@@ -143,111 +143,111 @@ class K_PetrovGalerkinQuaternionInterpolation(K_TimoshenkoPetrovGalerkinBaseQuat
         return r_OP, A_IK, K_Gamma_bar, K_Kappa_bar
 
     def _deval(self, qe, xi):
-        # # evaluate shape functions
-        # N_r, N_r_xi = self.basis_functions_r(xi)
+        # evaluate shape functions
+        N_r, N_r_xi = self.basis_functions_r(xi)
 
-        # # interpolate
-        # r_OP = np.zeros(3, dtype=qe.dtype)
-        # r_OP_qe = np.zeros((3, self.nq_element), dtype=qe.dtype)
-        # r_OP_xi = np.zeros(3, dtype=qe.dtype)
-        # r_OP_xi_qe = np.zeros((3, self.nq_element), dtype=qe.dtype)
+        # interpolate
+        r_OP = np.zeros(3, dtype=qe.dtype)
+        r_OP_qe = np.zeros((3, self.nq_element), dtype=qe.dtype)
+        r_OP_xi = np.zeros(3, dtype=qe.dtype)
+        r_OP_xi_qe = np.zeros((3, self.nq_element), dtype=qe.dtype)
 
-        # Q = np.zeros(4, dtype=float)
-        # Q_qe = np.zeros((4, self.nq_element), dtype=qe.dtype)
-        # Q_xi = np.zeros(4, dtype=float)
-        # Q_xi_qe = np.zeros((4, self.nq_element), dtype=qe.dtype)
+        Q = np.zeros(4, dtype=float)
+        Q_qe = np.zeros((4, self.nq_element), dtype=qe.dtype)
+        Q_xi = np.zeros(4, dtype=float)
+        Q_xi_qe = np.zeros((4, self.nq_element), dtype=qe.dtype)
 
-        # for node in range(self.nnodes_element_r):
-        #     nodalDOF_r = self.nodalDOF_element_r[node]
-        #     r_OP_node = qe[nodalDOF_r]
+        for node in range(self.nnodes_element_r):
+            nodalDOF_r = self.nodalDOF_element_r[node]
+            r_OP_node = qe[nodalDOF_r]
 
-        #     r_OP += N_r[node] * r_OP_node
-        #     r_OP_qe[:, nodalDOF_r] += N_r[node] * np.eye(3, dtype=float)
+            r_OP += N_r[node] * r_OP_node
+            r_OP_qe[:, nodalDOF_r] += N_r[node] * np.eye(3, dtype=float)
 
-        #     r_OP_xi += N_r_xi[node] * r_OP_node
-        #     r_OP_xi_qe[:, nodalDOF_r] += N_r_xi[node] * np.eye(3, dtype=float)
+            r_OP_xi += N_r_xi[node] * r_OP_node
+            r_OP_xi_qe[:, nodalDOF_r] += N_r_xi[node] * np.eye(3, dtype=float)
 
-        #     nodalDOF_psi = self.nodalDOF_element_psi[node]
-        #     Q_node = qe[nodalDOF_psi]
+            nodalDOF_psi = self.nodalDOF_element_psi[node]
+            Q_node = qe[nodalDOF_psi]
 
-        #     Q += N_r[node] * Q_node
-        #     Q_qe[:, nodalDOF_psi] += N_r[node] * np.eye(4, dtype=float)
+            Q += N_r[node] * Q_node
+            Q_qe[:, nodalDOF_psi] += N_r[node] * np.eye(4, dtype=float)
 
-        #     Q_xi += N_r_xi[node] * Q_node
-        #     Q_xi_qe[:, nodalDOF_psi] += N_r_xi[node] * np.eye(4, dtype=float)
+            Q_xi += N_r_xi[node] * Q_node
+            Q_xi_qe[:, nodalDOF_psi] += N_r_xi[node] * np.eye(4, dtype=float)
 
-        # # transformation matrix
-        # A_IK = Exp_SO3_quat(Q, normalize=True)
-        # # q0, q = np.array_split(Q, [1])
-        # # q_tilde = ax2skew(q)
-        # # Q2 = Q @ Q
-        # # A_IK = np.eye(3, dtype=Q.dtype) + (2 / Q2) * (q0 * q_tilde + q_tilde @ q_tilde)
+        # transformation matrix
+        A_IK = Exp_SO3_quat(Q, normalize=True)
+        # q0, q = np.array_split(Q, [1])
+        # q_tilde = ax2skew(q)
+        # Q2 = Q @ Q
+        # A_IK = np.eye(3, dtype=Q.dtype) + (2 / Q2) * (q0 * q_tilde + q_tilde @ q_tilde)
 
-        # # derivative w.r.t. generalized coordinates
-        # A_IK_qe = Exp_SO3_quat_p(Q, normalize=True) @ Q_qe
-        # # q_tilde_q = ax2skew_a()
-        # # A_IK_Q = np.einsum(
-        # #     "ij,k->ijk", q0 * q_tilde + q_tilde @ q_tilde, -(4 / (Q2 * Q2)) * Q
-        # # )
-        # # Q22 = 2 / Q2
-        # # A_IK_Q[:, :, 0] += Q22 * q_tilde
-        # # A_IK_Q[:, :, 1:] += (
-        # #     Q22 * q0 * q_tilde_q
-        # #     + np.einsum("ijl,jk->ikl", q_tilde_q, Q22 * q_tilde)
-        # #     + np.einsum("ij,jkl->ikl", Q22 * q_tilde, q_tilde_q)
-        # # )
-        # # A_IK_qe = A_IK_Q @ Q_qe
+        # derivative w.r.t. generalized coordinates
+        A_IK_qe = Exp_SO3_quat_p(Q, normalize=True) @ Q_qe
+        # q_tilde_q = ax2skew_a()
+        # A_IK_Q = np.einsum(
+        #     "ij,k->ijk", q0 * q_tilde + q_tilde @ q_tilde, -(4 / (Q2 * Q2)) * Q
+        # )
+        # Q22 = 2 / Q2
+        # A_IK_Q[:, :, 0] += Q22 * q_tilde
+        # A_IK_Q[:, :, 1:] += (
+        #     Q22 * q0 * q_tilde_q
+        #     + np.einsum("ijl,jk->ikl", q_tilde_q, Q22 * q_tilde)
+        #     + np.einsum("ij,jkl->ikl", Q22 * q_tilde, q_tilde_q)
+        # )
+        # A_IK_qe = A_IK_Q @ Q_qe
 
-        # # axial and shear strains
-        # K_Gamma_bar = A_IK.T @ r_OP_xi
-        # K_Gamma_bar_qe = np.einsum("k,kij", r_OP_xi, A_IK_qe) + A_IK.T @ r_OP_xi_qe
+        # axial and shear strains
+        K_Gamma_bar = A_IK.T @ r_OP_xi
+        K_Gamma_bar_qe = np.einsum("k,kij", r_OP_xi, A_IK_qe) + A_IK.T @ r_OP_xi_qe
 
-        # # curvature, Rucker2018 (17)
-        # T = T_SO3_quat(Q, normalize=True)
-        # K_Kappa_bar = T @ Q_xi
-        # # K_Kappa_bar = (
-        # #     (2 / Q2) * np.hstack((-q[:, None], q0 * np.eye(3) - ax2skew(q))) @ Q_xi
-        # # )
-
-        # # K_Kappa_bar_qe = approx_fprime(qe, lambda qe: self._eval(qe, xi)[3])
-        # K_Kappa_bar_qe = (
-        #     np.einsum(
-        #         "ijk,j->ik",
-        #         T_SO3_quat_P(Q, normalize=True),
-        #         Q_xi,
-        #     )
-        #     @ Q_qe
-        #     + T @ Q_xi_qe
+        # curvature, Rucker2018 (17)
+        T = T_SO3_quat(Q, normalize=True)
+        K_Kappa_bar = T @ Q_xi
+        # K_Kappa_bar = (
+        #     (2 / Q2) * np.hstack((-q[:, None], q0 * np.eye(3) - ax2skew(q))) @ Q_xi
         # )
 
-        ###################################
-        # compare with numerical derivative
-        ###################################
-        r_OP_qe_num = approx_fprime(qe, lambda qe: self._eval(qe, xi)[0])
-        # diff = r_OP_qe - r_OP_qe_num
-        # error = np.linalg.norm(diff)
-        # print(f"error r_OP_qe: {error}")
+        # K_Kappa_bar_qe = approx_fprime(qe, lambda qe: self._eval(qe, xi)[3])
+        K_Kappa_bar_qe = (
+            np.einsum(
+                "ijk,j->ik",
+                T_SO3_quat_P(Q, normalize=True),
+                Q_xi,
+            )
+            @ Q_qe
+            + T @ Q_xi_qe
+        )
 
-        A_IK_qe_num = approx_fprime(qe, lambda qe: self._eval(qe, xi)[1])
-        # diff = A_IK_qe - A_IK_qe_num
-        # error = np.linalg.norm(diff)
-        # print(f"error A_IK_qe: {error}")
+        # ###################################
+        # # compare with numerical derivative
+        # ###################################
+        # r_OP_qe_num = approx_fprime(qe, lambda qe: self._eval(qe, xi)[0])
+        # # diff = r_OP_qe - r_OP_qe_num
+        # # error = np.linalg.norm(diff)
+        # # print(f"error r_OP_qe: {error}")
 
-        K_Gamma_bar_qe_num = approx_fprime(qe, lambda qe: self._eval(qe, xi)[2])
-        # diff = K_Gamma_bar_qe - K_Gamma_bar_qe_num
-        # error = np.linalg.norm(diff)
-        # print(f"error K_Gamma_bar_qe: {error}")
+        # A_IK_qe_num = approx_fprime(qe, lambda qe: self._eval(qe, xi)[1])
+        # # diff = A_IK_qe - A_IK_qe_num
+        # # error = np.linalg.norm(diff)
+        # # print(f"error A_IK_qe: {error}")
 
-        K_Kappa_bar_qe_num = approx_fprime(qe, lambda qe: self._eval(qe, xi)[3])
-        # diff = K_Kappa_bar_qe - K_Kappa_bar_qe_num
-        # error = np.linalg.norm(diff)
-        # print(f"error K_Kappa_bar_qe: {error}")
+        # K_Gamma_bar_qe_num = approx_fprime(qe, lambda qe: self._eval(qe, xi)[2])
+        # # diff = K_Gamma_bar_qe - K_Gamma_bar_qe_num
+        # # error = np.linalg.norm(diff)
+        # # print(f"error K_Gamma_bar_qe: {error}")
 
-        r_OP, A_IK, K_Gamma_bar, K_Kappa_bar = self._eval(qe, xi)
-        r_OP_qe = r_OP_qe_num
-        A_IK_qe = A_IK_qe_num
-        K_Gamma_bar_qe = K_Gamma_bar_qe_num
-        K_Kappa_bar_qe = K_Kappa_bar_qe_num
+        # K_Kappa_bar_qe_num = approx_fprime(qe, lambda qe: self._eval(qe, xi)[3])
+        # # diff = K_Kappa_bar_qe - K_Kappa_bar_qe_num
+        # # error = np.linalg.norm(diff)
+        # # print(f"error K_Kappa_bar_qe: {error}")
+
+        # r_OP, A_IK, K_Gamma_bar, K_Kappa_bar = self._eval(qe, xi)
+        # r_OP_qe = r_OP_qe_num
+        # A_IK_qe = A_IK_qe_num
+        # K_Gamma_bar_qe = K_Gamma_bar_qe_num
+        # K_Kappa_bar_qe = K_Kappa_bar_qe_num
 
         return (
             r_OP,

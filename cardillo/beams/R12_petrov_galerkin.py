@@ -30,6 +30,7 @@ def __make_R12(Base):
             basis_r="Lagrange",
             basis_psi="Lagrange",
             volume_correction=False,
+            reduced_integration=False,
         ):
             self.volume_correction = volume_correction
 
@@ -38,12 +39,15 @@ def __make_R12(Base):
                     "For polynomial_degree_psi == 1 volume_correction is recommended!"
                 )
 
-            p = max(polynomial_degree_r, polynomial_degree_psi)
-            nquadrature = p
-            nquadrature_dyn = int(np.ceil((p + 1) ** 2 / 2))
+            polynomial_degree = max(polynomial_degree_r, polynomial_degree_psi)
+            nquadrature = polynomial_degree
+            nquadrature_dyn = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
 
-            # warnings.warn("'DirectorAxisAngle: Full integration is used!")
-            # nquadrature = nquadrature_dyn
+            if not reduced_integration:
+                import warnings
+
+                warnings.warn("'R12_PetrovGalerkin': Full integration is used!")
+                nquadrature = nquadrature_dyn
 
             super().__init__(
                 cross_section,

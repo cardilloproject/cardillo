@@ -30,6 +30,7 @@ def __make_SE3(Base):
             Q,
             q0=None,
             u0=None,
+            reduced_integration=True,
         ):
             super().__init__(
                 cross_section,
@@ -40,7 +41,7 @@ def __make_SE3(Base):
                 1,
                 1,
                 nelement,
-                2,
+                1 if reduced_integration else 2,
                 2,
                 Q,
                 q0=q0,

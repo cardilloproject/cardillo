@@ -1680,6 +1680,18 @@ def make_K_basis_TimoshenkoPetrovGalerkinBase(RotationBase):
             self.qp_dyn = self.mesh_r_dyn.qp  # quadrature points for dynamics
             self.qw_dyn = self.mesh_r_dyn.wp  # quadrature weights for dynamics
 
+            # if RotationBase is QuaternionRotationParameterization:
+            #     for i in range(self.nnodes_psi - 1):
+            #         Pi = Q[self.nodalDOF_psi[i]]
+            #         Pi1 = Q[self.nodalDOF_psi[i + 1]]
+            #         inner = Pi @ Pi1
+            #         print(f"i: {i}")
+            #         if inner < 0:
+            #             print("wrong hemisphere!")
+            #             Q[self.nodalDOF_psi[i + 1]] *= -1
+            #         else:
+            #             print(f"correct hemisphere")
+
             # reference generalized coordinates, initial coordinates and initial velocities
             self.Q = Q
             self.q0 = Q.copy() if q0 is None else q0

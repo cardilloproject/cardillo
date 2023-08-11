@@ -28,14 +28,19 @@ class HigherOrder_K_SE3_PetrovGalerkin_Quaternion(
         q0=None,
         u0=None,
         symmetric_reference=True,
+        reduced_integration=True,
     ):
-        p = polynomial_degree
-        # TODO: Use full quadrature everywhere for locking investigations.
-        nquadrature = p
-        nquadrature_dyn = int(np.ceil((p + 1) ** 2 / 2))
+        self.polynomial_degree = polynomial_degree
+        nquadrature = polynomial_degree
+        nquadrature_dyn = int(np.ceil((polynomial_degree + 1) ** 2 / 2))
 
-        # warnings.warn("'HigherOrder_K_SE3_PetrovGalerkin_Quaternion: Full integration is used!")
-        # nquadrature = nquadrature_dyn
+        if not reduced_integration:
+            import warnings
+
+            warnings.warn(
+                "'HigherOrder_K_SE3_PetrovGalerkin_Quaternion': Full integration is used!"
+            )
+            nquadrature = nquadrature_dyn
 
         # reference nodes for relative twist, cf. Crisfield1999 (5.8)
         self.symmetric_reference = symmetric_reference
@@ -118,8 +123,8 @@ class HigherOrder_K_SE3_PetrovGalerkin_Quaternion(
 
             return H_IK_A @ Exp_SE3(0.5 * Log_SE3(SE3inv(H_IK_A) @ H_IK_B))
         else:
-            r_OP0 = qe[self.nodalDOF_element_r[self.node_A]]
-            P0 = qe[self.nodalDOF_element_psi[self.node_A]]
+            r_OP0 = qe[self.nodalDOF_element_r[0]]
+            P0 = qe[self.nodalDOF_element_psi[0]]
             A_IK0 = self.RotationBase.Exp_SO3(P0)
             return SE3(A_IK0, r_OP0)
 
@@ -152,7 +157,11 @@ class HigherOrder_K_SE3_PetrovGalerkin_Quaternion(
         A_IK = H_IK[:3, :3]
 
         # strain measures
-        K_eps_bar = T_SE3(theta_MK) @ theta_MK_xi
+        if self.polynomial_degree > 1:
+            K_eps_bar = T_SE3(theta_MK) @ theta_MK_xi
+        else:
+            K_eps_bar = theta_MK_xi
+
         K_Gamma_bar, K_Kappa_bar = np.array_split(K_eps_bar, 2)
 
         return r_OP, A_IK, K_Gamma_bar, K_Kappa_bar

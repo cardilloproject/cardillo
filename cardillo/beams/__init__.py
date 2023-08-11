@@ -21,6 +21,9 @@ from .quaternion_interpolation_petrov_galerkin import (
 )
 
 from .higherOrder_SE3_petrov_galerkin import HigherOrder_K_SE3_PetrovGalerkin_Quaternion
+from .higherOrder_R3xSO3_petrov_galerkin import (
+    HigherOrder_K_R3xSO3_PetrovGalerkin_Quaternion,
+)
 
 
 from ._animate import animate_beam

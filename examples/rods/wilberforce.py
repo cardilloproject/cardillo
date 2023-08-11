@@ -26,6 +26,7 @@ from cardillo import System
 from cardillo.solver import (
     Newton,
     GeneralizedAlphaFirstOrder,
+    EulerBackward,
 )
 from cardillo.solver._butcher_tableaus import RadauIIATableau
 from cardillo.visualization import Export
@@ -34,7 +35,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.spatial.transform import Rotation
 from pathlib import Path
-from shutil import rmtree
 
 from cardillo.beams import animate_beam
 
@@ -64,7 +64,8 @@ elements_per_turn = 6
 # elements_per_turn = 8 # SE(3)
 # nturns = 3
 # elements_per_turn = 12
-nturns = 1
+# nturns = 1
+nturns = 1.0
 nelements = int(elements_per_turn * nturns)
 
 ##########
@@ -451,6 +452,9 @@ def run_FEM_dynamics():
     system.add(bob, joint2, force_bob)
     system.assemble()
 
+    # animate_beam(t=[0, 1], q=[Q0, Q0], beams=[rod], scale=max(R, h), show=True)
+    # exit()
+
     ##################
     # time integration
     ##################
@@ -470,14 +474,15 @@ def run_FEM_dynamics():
     # t1 = 10
     # dt = 1e-4 # nturns = 10
 
-    solver = GeneralizedAlphaFirstOrder(
-        system,
-        t1,
-        dt,
-        rho_inf=0.8,
-        atol=1e-8,
-        method="index 3",
-    )
+    solver = EulerBackward(system, t1, dt, method="index 3")
+    # solver = GeneralizedAlphaFirstOrder(
+    #     system,
+    #     t1,
+    #     dt,
+    #     rho_inf=0.8,
+    #     atol=1e-8,
+    #     method="index 3",
+    # )
 
     sol = solver.solve()
     q = sol.q

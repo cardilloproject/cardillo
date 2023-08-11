@@ -15,6 +15,18 @@ def consistent_initial_conditions(
 
     q_dot0 = system.q_dot(t0, q0, u0)
 
+    # return (
+    #     t0,
+    #     q0,
+    #     u0,
+    #     q_dot0,
+    #     np.zeros(system.nu),
+    #     np.zeros(system.nla_g),
+    #     np.zeros(system.nla_gamma),
+    #     np.zeros(system.nla_N),
+    #     np.zeros(system.nla_F),
+    # )
+
     g_N = system.g_N(t0, q0)
     g_N_dot = system.g_N_dot(t0, q0, u0)
     I_N = np.isclose(g_N, np.zeros(system.nla_N), rtol, atol)
