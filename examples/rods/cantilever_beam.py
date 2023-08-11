@@ -203,22 +203,22 @@ if __name__ == "__main__":
     # left and right joint
     joint1 = RigidConnection(frame1, rod, frame_ID2=(0,))
 
-    # moment at the beam's tip
-    Fi = material_model.Fi
-    m = Fi[2] * 2 * np.pi / L * 1.5
-    M = lambda t: t * e3 * m
-    moment = K_Moment(M, rod, (1,))
-
-    # force at the beam's tip
-    f = m / L * 10e-1
-    F = lambda t: t * f * e3
-    print(f"f_max: {F(1)}")
-    force = Force(F, rod, frame_ID=(1,))
-
-    # # moment at right end
+    # # moment at the beam's tip
     # Fi = material_model.Fi
-    # M = lambda t: 2 * np.pi / L * (e1 * Fi[0] + e3 * Fi[2]) * t * 1
+    # m = Fi[2] * 2 * np.pi / L * 1.5
+    # M = lambda t: t * e3 * m
     # moment = K_Moment(M, rod, (1,))
+
+    # # force at the beam's tip
+    # f = m / L * 10e-1
+    # F = lambda t: t * f * e3
+    # print(f"f_max: {F(1)}")
+    # force = Force(F, rod, frame_ID=(1,))
+
+    # moment at right end
+    Fi = material_model.Fi
+    M = lambda t: 2 * np.pi / L * (e1 * Fi[0] + e3 * Fi[2]) * t * 1.5
+    moment = K_Moment(M, rod, (1,))
 
     # # force at the rght end
     # f = lambda t: t * e1 * 1.0e3
@@ -237,7 +237,7 @@ if __name__ == "__main__":
     system.add(frame1)
     system.add(joint1)
     system.add(moment)
-    system.add(force)
+    # system.add(force)
     system.assemble()
 
     if statics:
@@ -266,6 +266,17 @@ if __name__ == "__main__":
     q = sol.q
     nt = len(q)
     t = sol.t[:nt]
+
+    q1 = q[-1]
+    for i in range(rod.nnodes_psi - 1):
+        Pi = q1[rod.nodalDOF_psi[i]]
+        Pi1 = q1[rod.nodalDOF_psi[i + 1]]
+        inner = Pi @ Pi1
+        print(f"i: {i}")
+        if inner < 0:
+            print("wrong hemisphere!")
+        else:
+            print(f"correct hemisphere")
 
     ###########
     # animation
