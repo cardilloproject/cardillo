@@ -12,7 +12,7 @@ from cardillo.beams import (
     K_SE3_PetrovGalerkin_Quaternion,
 )
 from cardillo.beams import K_PetrovGalerkinQuaternionInterpolation
-from cardillo.beams._fitting import fit_configuration
+from cardillo.beams._fitting import fit_configuration, fit_configuration_quaternion
 
 from cardillo.constraints import RigidConnection, Spherical
 
@@ -27,6 +27,7 @@ from cardillo.solver import (
     Newton,
     GeneralizedAlphaFirstOrder,
     EulerBackward,
+    MoreauClassical,
 )
 from cardillo.solver._butcher_tableaus import RadauIIATableau
 from cardillo.visualization import Export
@@ -52,20 +53,24 @@ from cardillo.beams import animate_beam
 
 Rod = K_PetrovGalerkinQuaternionInterpolation
 
-# p = 1
+p = 1
 # elements_per_turn = 25
 # elements_per_turn = 20 # R12 + p1 + no volume correction
 # elements_per_turn = 15
 # elements_per_turn = 10 # R12 + p1 + volume correction
+elements_per_turn = 15
 
-p = 2
-elements_per_turn = 6
-# elements_per_turn = 4  # R12 + p2 + no volume correction
-# elements_per_turn = 8 # SE(3)
-# nturns = 3
-# elements_per_turn = 12
-# nturns = 1
-nturns = 1.0
+# p = 2
+# elements_per_turn = 6
+# # elements_per_turn = 4  # R12 + p2 + no volume correction
+# # elements_per_turn = 8 # SE(3)
+# # nturns = 3
+# # elements_per_turn = 12
+# # nturns = 1
+
+nturns = 3
+# nturns = 1.0
+# nturns = 0.6
 nelements = int(elements_per_turn * nturns)
 
 ##########
@@ -248,7 +253,12 @@ xis = np.linspace(0, 1, num=nxi)
 r_OPs = np.array([r(xi, phi0=np.pi) for xi in xis])
 A_IKs = np.array([A_IK(xi, phi0=np.pi) for xi in xis])
 
-Q0 = fit_configuration(rod, r_OPs, A_IKs, nodal_cDOF=[])
+if Rod is K_PetrovGalerkinQuaternionInterpolation:
+    Q0 = fit_configuration(rod, r_OPs, A_IKs, nodal_cDOF=[])
+    # Q0 = fit_configuration_quaternion(rod, r_OPs, A_IKs, nodal_cDOF=[])
+    # Q0 = fit_configuration_quaternion(rod, r_OPs, A_IKs, nodal_cDOF=[0, -1])
+else:
+    Q0 = fit_configuration(rod, r_OPs, A_IKs, nodal_cDOF=[])
 rod.q0 = Q0.copy()
 
 
@@ -448,12 +458,22 @@ def run_FEM_dynamics():
     #####################
     # assemble the system
     #####################
+    # system.add(rod)
     system.add(rod, joint1)
     system.add(bob, joint2, force_bob)
     system.assemble()
 
-    # animate_beam(t=[0, 1], q=[Q0, Q0], beams=[rod], scale=max(R, h), show=True)
-    # exit()
+    animate_beam(
+        t=[0, 1],
+        q=[Q0, Q0],
+        beams=[rod],
+        scale=max(R, h),
+        scale_di=0.1 * R,
+        show=True,
+        n_frames=50,
+    )
+    # animate_beam(t=[0, 1], q=[Q0, Q0], beams=[rod], scale=0.1 * R, show=True)
+    exit()
 
     ##################
     # time integration
@@ -463,18 +483,22 @@ def run_FEM_dynamics():
     # dt = 1e-2
 
     # nturns = 3
-    t1 = 4
+    # t1 = 0.01
+    t1 = 1
+    # t1 = 4
     # t1 = 8
     # t1 = 1e-2
     dt = 5e-3
     # dt = 1e-3  # nturns = 3
     # dt = 5e-4  # nturns = 3
+    # dt = 1e-4
 
     # nturns = 10 # TODO: Not working yet!
     # t1 = 10
     # dt = 1e-4 # nturns = 10
 
     solver = EulerBackward(system, t1, dt, method="index 3")
+    # solver = MoreauClassical(system, t1, dt)
     # solver = GeneralizedAlphaFirstOrder(
     #     system,
     #     t1,
@@ -489,52 +513,53 @@ def run_FEM_dynamics():
     nt = len(q)
     t = sol.t[:nt]
 
-    ################################
-    # plot characteristic quantities
-    ################################
-    r_OS = np.array([bob.r_OP(ti, qi[bob.qDOF]) for (ti, qi) in zip(sol.t, sol.q)])
+    # ################################
+    # # plot characteristic quantities
+    # ################################
+    # r_OS = np.array([bob.r_OP(ti, qi[bob.qDOF]) for (ti, qi) in zip(sol.t, sol.q)])
 
-    ordering = "zyx"
-    angles = np.array(
-        [
-            Rotation.from_matrix(bob.A_IK(ti, qi[bob.qDOF])).as_euler(ordering)
-            for (ti, qi) in zip(sol.t, sol.q)
-        ]
-    )
+    # ordering = "zyx"
+    # angles = np.array(
+    #     [
+    #         Rotation.from_matrix(bob.A_IK(ti, qi[bob.qDOF])).as_euler(ordering)
+    #         for (ti, qi) in zip(sol.t, sol.q)
+    #     ]
+    # )
 
-    ########
-    # export
-    ########
-    np.savetxt(
-        Path(__file__).parent
-        / f"wilberforce_rigid_body_state_nturns_{nturns}_t1_{t1}_dt_{dt}.txt",
-        np.hstack([t[:, None], r_OS, angles]),
-        delimiter=", ",
-        header="t, x, y, z, alpha, beta, gamma",
-        comments="",
-    )
+    # ########
+    # # export
+    # ########
+    # np.savetxt(
+    #     Path(__file__).parent
+    #     / f"wilberforce_rigid_body_state_nturns_{nturns}_t1_{t1}_dt_{dt}.txt",
+    #     np.hstack([t[:, None], r_OS, angles]),
+    #     delimiter=", ",
+    #     header="t, x, y, z, alpha, beta, gamma",
+    #     comments="",
+    # )
 
-    ###############
-    # visualization
-    ###############
-    fig, ax = plt.subplots(2, 1)
+    # ###############
+    # # visualization
+    # ###############
+    # fig, ax = plt.subplots(2, 1)
 
-    ax[0].plot(t, r_OS[:, 0], label="x")
-    ax[0].plot(t, r_OS[:, 1], label="y")
-    ax[0].plot(t, r_OS[:, 2], label="z")
-    ax[0].legend()
-    ax[0].grid()
+    # ax[0].plot(t, r_OS[:, 0], label="x")
+    # ax[0].plot(t, r_OS[:, 1], label="y")
+    # ax[0].plot(t, r_OS[:, 2], label="z")
+    # ax[0].legend()
+    # ax[0].grid()
 
-    ax[1].plot(t, angles[:, 0], label="alpha")
-    ax[1].plot(t, angles[:, 1], label="beta")
-    ax[1].plot(t, angles[:, 2], label="gamma")
-    ax[1].legend()
-    ax[1].grid()
+    # ax[1].plot(t, angles[:, 0], label="alpha")
+    # ax[1].plot(t, angles[:, 1], label="beta")
+    # ax[1].plot(t, angles[:, 2], label="gamma")
+    # ax[1].legend()
+    # ax[1].grid()
 
     ###########
     # animation
     ###########
     _ = animate_beam(t, q, [rod], 0.05, scale_di=0.01, show=False)
+    plt.show()
 
     ############
     # VTK export

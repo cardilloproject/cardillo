@@ -28,7 +28,7 @@ class HigherOrder_K_R3xSO3_PetrovGalerkin_Quaternion(
         u0=None,
         basis_r="Lagrange",
         basis_psi="Lagrange",
-        symmetric_reference=True,
+        symmetric_reference=False,
         reduced_integration=True,
     ):
         polynomial_degree = max(polynomial_degree_r, polynomial_degree_psi)

@@ -233,10 +233,10 @@ L = 1.0e3
 # # slenderness = 1.0e4
 # # atol = 1.0e-14
 
-# slendernesses = [1e1, 1e2, 1e3, 1e4]
-# atols = [1e-8, 1e-10, 1e-12, 1e-14]
-slendernesses = [1e1, 1e2]
-atols = [1e-8, 1e-10]
+slendernesses = [1e1, 1e2, 1e3, 1e4]
+atols = [1e-8, 1e-10, 1e-12, 1e-14]
+# slendernesses = [1e1, 1e2]
+# atols = [1e-8, 1e-10]
 
 # starting point and orientation of initial point, initial length
 r_OP0 = np.zeros(3, dtype=float)
@@ -249,18 +249,20 @@ A_IK0 = np.eye(3, dtype=float)
 reference_rod = "R12p2"
 # test_rods = ["R3xSO3", "SE3", "R12p1", "R12p2"]
 # test_rods = ["SE3", "R12p1"]
+# test_rods = ["R12p1"]
 # test_rods = ["R12p1", "R12p2"]
 # test_rods = ["SE3p1", "SE3p2"]
 # test_rods = ["R12p1", "R12p2", "SE3p1", "SE3p2"]
 # test_rods = ["R12p1", "SE3p1", "SE3p2"]
 # test_rods = ["R3xSO3p1", "R3xSO3p2"]
-test_rods = ["SE3p1"]
+# test_rods = ["R12p1", "R12p2", "R3xSO3p1", "R3xSO3p2", "SE3p1", "SE3p2"]
+test_rods = ["SE3p1", "SE3p2"]
 
 # # dummy parameters for testing setup
 # nnodes_list = np.array([5], dtype=int)
 # nnodes_ref = 9
-# # nnodes_list = np.array([5, 9], dtype=int)
-# # nnodes_ref = 35
+# nnodes_list = np.array([5, 9], dtype=int)
+# nnodes_ref = 35
 # # nnodes_list = np.array([5, 9, 17], dtype=int)
 # # nnodes_ref = 65
 # # nnodes_list = np.array([5, 9, 17, 33], dtype=int)
@@ -272,11 +274,11 @@ test_rods = ["SE3p1"]
 nnodes_list = np.array([5, 9, 17, 33, 65, 129], dtype=int)
 nnodes_ref = 513
 
-# volume_correction = False
-volume_correction = True
+volume_correction = False
+# volume_correction = True
 
-# reduced_integration = True
-reduced_integration = False
+reduced_integration = True
+# reduced_integration = False
 
 
 def convergence():

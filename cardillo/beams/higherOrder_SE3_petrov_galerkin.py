@@ -28,7 +28,7 @@ class HigherOrder_K_SE3_PetrovGalerkin_Quaternion(
         q0=None,
         u0=None,
         symmetric_reference=True,
-        reduced_integration=True,
+        reduced_integration=False,
     ):
         self.polynomial_degree = polynomial_degree
         nquadrature = polynomial_degree

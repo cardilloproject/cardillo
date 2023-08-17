@@ -35,6 +35,8 @@ def __make_R12(Base):
             self.volume_correction = volume_correction
 
             if polynomial_degree_psi == 1 and not volume_correction:
+                import warnings
+
                 warnings.warn(
                     "For polynomial_degree_psi == 1 volume_correction is recommended!"
                 )

@@ -90,7 +90,7 @@ class K_PetrovGalerkinQuaternionInterpolation(K_TimoshenkoPetrovGalerkinBaseQuat
 
     def _eval(self, qe, xi):
         # evaluate shape functions
-        N_r, N_r_xi = self.basis_functions_r(xi)
+        N, N_xi = self.basis_functions_r(xi)
 
         # quats = np.array(
         #     [
@@ -115,13 +115,13 @@ class K_PetrovGalerkinQuaternionInterpolation(K_TimoshenkoPetrovGalerkinBaseQuat
         Q_xi = np.zeros(4, dtype=float)
         for node in range(self.nnodes_element_r):
             r_OP_node = qe[self.nodalDOF_element_r[node]]
-            r_OP += N_r[node] * r_OP_node
-            r_OP_xi += N_r_xi[node] * r_OP_node
+            r_OP += N[node] * r_OP_node
+            r_OP_xi += N_xi[node] * r_OP_node
 
             Q_node = qe[self.nodalDOF_element_psi[node]]
             # Q_node = quats[i]
-            Q += N_r[node] * Q_node
-            Q_xi += N_r_xi[node] * Q_node
+            Q += N[node] * Q_node
+            Q_xi += N_xi[node] * Q_node
             # Q += signs[node] * N_r[node] * Q_node
             # Q_xi += N_r_xi[node] * Q_node
 
