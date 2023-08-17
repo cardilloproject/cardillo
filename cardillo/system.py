@@ -74,11 +74,12 @@ class System:
             else:
                 raise ValueError(f"contribution {str(contr)} already added")
 
-    def remove(self, contr):
-        if contr in self.contributions:
-            self.contributions.remove(contr)
-        else:
-            raise ValueError(f"no contribution {str(contr)} to remove")
+    def remove(self, *contrs):
+        for contr in contrs:
+            if contr in self.contributions:
+                self.contributions.remove(contr)
+            else:
+                raise ValueError(f"no contribution {str(contr)} to remove")
 
     def pop(self, index):
         self.contributions.pop(index)
