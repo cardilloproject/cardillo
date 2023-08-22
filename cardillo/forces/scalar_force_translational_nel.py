@@ -22,15 +22,20 @@ class nElScalarForceTranslational:
         if self.force_law_spring is not None:
             self.E_pot = lambda t, q: self.force_law_spring.E_pot(t, self._g(t, q))
             if self.force_law_damper is not None:
+                self._la = lambda t, g, gamma: self.force_law_damper.la(
+                    t, gamma
+                ) + self.force_law_spring.la(t, g)
                 self._h = lambda t, q, u: self._f_spring(t, q) + self._f_damper(t, q, u)
                 self._h_q = lambda t, q, u: self._f_spring_q(t, q) + self._f_damper_q(
                     t, q, u
                 )
                 self.h_u = lambda t, q, u: self._f_damper_u(t, q, u)
             else:
+                self._la = lambda t, g, gamma: self.force_law_spring.la(t, g)
                 self._h = lambda t, q, u: self._f_spring(t, q)
                 self._h_q = lambda t, q, u: self._f_spring_q(t, q)
         else:
+            self._la = lambda t, g, gamma: self.force_law_damper.la(t, gamma)
             self._h = lambda t, q, u: self._f_damper(t, q, u)
             self._h_q = lambda t, q, u: self._f_damper_q(t, q, u)
             self.h_u = lambda t, q, u: self._f_damper_u(t, q, u)
@@ -248,25 +253,26 @@ class nElScalarForceTranslational:
             points.append(self.r_OPk(sol_i.t, sol_i.q[self.qDOF], i))
 
         cells = [("line", self.connectivity)]
-        h = self.h(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF])
-        la = -self._W(sol_i.t, sol_i.q[self.qDOF]).T @ h
-        # n = self._n(sol_i.t, sol_i.q[self.qDOF])
-        point_data = dict(la=len(self.subsystems) * [la])  # , n=[n, -n])
         g = self._g(sol_i.t, sol_i.q[self.qDOF])
+        gamma = self._gamma(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF])
+        la = self._la(sol_i.t, g, gamma)
+        point_data = dict(la=len(self.subsystems) * [la])  # , n=[n, -n])
         cell_data = dict(
-            # n=[[n]],
             delta_g=[
-                [
-                    g - self.force_law_spring.g_ref
-                    if self.force_law_spring is not None
-                    else g
+                len(self.connectivity)
+                * [
+                    [
+                        g - self.force_law_spring.g_ref
+                        if self.force_law_spring is not None
+                        else g
+                    ]
                 ]
             ],
-            la=[[la]]
-            # g_dot=[[self._g_dot(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF])]],
+            gamma=[len(self.connectivity) * [[gamma]]],
+            la=[len(self.connectivity) * [[la]]],
         )
         # if hasattr(self, "E_pot"):
         #     E_pot = self.E_pot(sol_i.t, sol_i.q[self.qDOF])
         #     cell_data["E_pot"] = [[E_pot, E_pot, E_pot]]
 
-        return points, cells, point_data, None
+        return points, cells, point_data, cell_data
