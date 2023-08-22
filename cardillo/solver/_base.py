@@ -10,6 +10,7 @@ def consistent_initial_conditions(
     newton_atol=1e-10,
     newton_max_iter=10,
     jac=None,
+    error_function=lambda x: np.max(np.absolute(x)),
 ):
     t0 = system.t0
     q0 = system.q0
@@ -175,6 +176,7 @@ def consistent_initial_conditions(
         jac=jac,
         fun_args=(True,),
         jac_args=(False,),
+        error_function=error_function,
     )
     assert (
         converged

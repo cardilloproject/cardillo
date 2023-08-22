@@ -57,16 +57,16 @@ class Solution:
                 try:
                     result = self._retVal(
                         *(
-                            self._solution.__getattribute__(key)[self._index]
-                            if self._solution.__getattribute__(key) is not None
-                            else None
+                            None
+                            if self._solution.__getattribute__(key) is None
+                            else self._solution.__getattribute__(key)[:, self._index]
+                            if self._solution.__getattribute__(key).shape[0] == 0
+                            else self._solution.__getattribute__(key)[self._index]
                             for key in self._solution.__dict__
                         )
                     )
                 except:
-                    print(f"here!")
-                # result = self._retVal(*(eval(f'self._solution.{key}[{self._index}]') \
-                # for key in self._solution.__dict__))
+                    RuntimeWarning("Solution iterator failed.")
                 self._index += 1
                 return result
             raise StopIteration
