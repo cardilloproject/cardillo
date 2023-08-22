@@ -15,27 +15,28 @@ class Rod:
         subsystem2,
         frame_ID1=np.zeros(3),
         frame_ID2=np.zeros(3),
-        K1_r_SP1=np.zeros(3),
-        K2_r_SP2=np.zeros(3),
+        K1_r_P1B1=np.zeros(3),
+        K2_r_P2B2=np.zeros(3),
     ):
         self.nla_g = 1
 
         self.subsystem1 = subsystem1
         self.frame_ID1 = frame_ID1
-        self.K1_r_SP1 = K1_r_SP1
+        self.K1_r_P1B1 = K1_r_P1B1
 
         self.subsystem2 = subsystem2
         self.frame_ID2 = frame_ID2
-        self.K2_r_SP2 = K2_r_SP2
+        self.K2_r_P2B2 = K2_r_P2B2
 
     def assembler_callback(self):
         concatenate_qDOF(self)
         concatenate_uDOF(self)
 
-        auxiliary_functions(self, self.K1_r_SP1, self.K2_r_SP2, np.eye(3), np.eye(3))
+        auxiliary_functions(self, self.K1_r_P1B1, self.K2_r_P2B2, np.eye(3), np.eye(3))
 
-        r_OB10 = self.r_OB1(self.subsystem1.t0, self.subsystem1.q0)
-        r_OB20 = self.r_OB2(self.subsystem2.t0, self.subsystem2.q0)
+        q0 = np.hstack((self.subsystem1.q0, self.subsystem2.q0))
+        r_OB10 = self.r_OB1(self.subsystem1.t0, q0)
+        r_OB20 = self.r_OB2(self.subsystem2.t0, q0)
         self.dist = np.linalg.norm(r_OB20 - r_OB10)
 
         if self.dist < 1e-6:
