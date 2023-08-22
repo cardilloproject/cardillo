@@ -22,7 +22,9 @@ class nElScalarForceTranslational:
         if self.force_law_spring is not None:
             self.E_pot = lambda t, q: self.force_law_spring.E_pot(t, self._g(t, q))
             if self.force_law_damper is not None:
-                self.la = lambda t, q, u: self.force_law_damper.la(t, self._gamma(t, q, u)) + self.force_law_spring.la(t, self._g(t, q))
+                self.la = lambda t, q, u: self.force_law_damper.la(
+                    t, self._gamma(t, q, u)
+                ) + self.force_law_spring.la(t, self._g(t, q))
                 self._h = lambda t, q, u: self._f_spring(t, q) + self._f_damper(t, q, u)
                 self._h_q = lambda t, q, u: self._f_spring_q(t, q) + self._f_damper_q(
                     t, q, u
