@@ -22,15 +22,18 @@ class nElScalarForceTranslational:
         if self.force_law_spring is not None:
             self.E_pot = lambda t, q: self.force_law_spring.E_pot(t, self._g(t, q))
             if self.force_law_damper is not None:
+                self.la = lambda t, q, u: self.force_law_damper.la(t, self._gamma(t, q, u)) + self.force_law_spring.la(t, self._g(t, q))
                 self._h = lambda t, q, u: self._f_spring(t, q) + self._f_damper(t, q, u)
                 self._h_q = lambda t, q, u: self._f_spring_q(t, q) + self._f_damper_q(
                     t, q, u
                 )
                 self.h_u = lambda t, q, u: self._f_damper_u(t, q, u)
             else:
+                self.la = self.force_law_spring.la(t, self._g(t, q))
                 self._h = lambda t, q, u: self._f_spring(t, q)
                 self._h_q = lambda t, q, u: self._f_spring_q(t, q)
         else:
+            self.la = lambda t, q, u: self.force_law_damper.la(t, self._gamma(t, q, u))
             self._h = lambda t, q, u: self._f_damper(t, q, u)
             self._h_q = lambda t, q, u: self._f_damper_q(t, q, u)
             self.h_u = lambda t, q, u: self._f_damper_u(t, q, u)
@@ -248,8 +251,7 @@ class nElScalarForceTranslational:
             points.append(self.r_OPk(sol_i.t, sol_i.q[self.qDOF], i))
 
         cells = [("line", self.connectivity)]
-        h = self.h(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF])
-        la = -self._W(sol_i.t, sol_i.q[self.qDOF]).T @ h
+        la = self.la(sol_i.t, sol_i.q[self.qDOF], sol_i.u[self.uDOF])
         # n = self._n(sol_i.t, sol_i.q[self.qDOF])
         point_data = dict(la=len(self.subsystems) * [la])  # , n=[n, -n])
         g = self._g(sol_i.t, sol_i.q[self.qDOF])
