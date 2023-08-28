@@ -336,9 +336,16 @@ def Cylinder(Base):
 
 def FromSTL(Base):
     class _FromSTL(Base):
-        def __init__(self, scale=1.0, **kwargs):
-            self.path = kwargs.pop("path")
-            self.K_r_SP = kwargs.pop("K_r_SP")
+        def __init__(self, path, K_r_SP, scale: float = 1.0, **kwargs):
+            """Generate an object (typically with Base `Frame` or `RigidBody`) from a given STL file
+
+            Args:
+                path (str, Path): path of STL file
+                K_r_SP (np.ndarray): offset center of mass (S) from STL origin (P) in body fixed K-frame
+                scale (float, optional): scaling factor of STL file. Defaults to 1.0.
+            """
+            self.path = path
+            self.K_r_SP = K_r_SP
 
             self.meshio_mesh = meshio.read(self.path)
             self.meshio_mesh.points *= scale
