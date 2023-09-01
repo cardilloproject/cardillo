@@ -43,7 +43,7 @@ from cardillo.beams import animate_beam
 # R12 interpolation
 ###################
 # Rod = K_R12_PetrovGalerkin_AxisAngle
-# Rod = K_R12_PetrovGalerkin_Quaternion
+Rod = K_R12_PetrovGalerkin_Quaternion
 
 #####################
 # SE(3)-interpolation
@@ -51,26 +51,23 @@ from cardillo.beams import animate_beam
 # Rod = K_SE3_PetrovGalerkin_AxisAngle
 # Rod = K_SE3_PetrovGalerkin_Quaternion
 
-Rod = K_PetrovGalerkinQuaternionInterpolation
+# Rod = K_PetrovGalerkinQuaternionInterpolation
 
 p = 1
 # elements_per_turn = 25
 # elements_per_turn = 20 # R12 + p1 + no volume correction
 # elements_per_turn = 15
 # elements_per_turn = 10 # R12 + p1 + volume correction
-elements_per_turn = 15
+elements_per_turn = 15 # quaternion interpolation
 
 # p = 2
-# elements_per_turn = 6
-# # elements_per_turn = 4  # R12 + p2 + no volume correction
-# # elements_per_turn = 8 # SE(3)
-# # nturns = 3
+# elements_per_turn = 6 # quaternion interpolation
+# elements_per_turn = 6  # R12 + p2 + no volume correction
+# elements_per_turn = 8 # SE(3)
+nturns = 3
 # # elements_per_turn = 12
 # # nturns = 1
 
-nturns = 3
-# nturns = 1.0
-# nturns = 0.6
 nelements = int(elements_per_turn * nturns)
 
 ##########
@@ -247,7 +244,10 @@ def A_IK(xi, phi0=0.0):
     return np.vstack((e_x, e_y, e_z)).T
 
 
-nxi = int(nturns * 15)
+# nxi = int(nturns * 15) # p = 1 quaternion
+# nxi = int(nturns * 30) # p=2 quaternion
+# nxi = int(nturns * elements_per_turn * 5) # p=2 quaternion
+nxi = int(nturns * elements_per_turn) # p=1 quaternion
 xis = np.linspace(0, 1, num=nxi)
 
 r_OPs = np.array([r(xi, phi0=np.pi) for xi in xis])
@@ -473,7 +473,7 @@ def run_FEM_dynamics():
         n_frames=50,
     )
     # animate_beam(t=[0, 1], q=[Q0, Q0], beams=[rod], scale=0.1 * R, show=True)
-    exit()
+    # exit()
 
     ##################
     # time integration
@@ -484,29 +484,30 @@ def run_FEM_dynamics():
 
     # nturns = 3
     # t1 = 0.01
-    t1 = 1
-    # t1 = 4
+    # t1 = 1e-2
+    t1 = 4
     # t1 = 8
     # t1 = 1e-2
-    dt = 5e-3
-    # dt = 1e-3  # nturns = 3
+    # dt = 5e-4
+    dt = 5e-3  # nturns = 3, p=1 quaternion interpolation
     # dt = 5e-4  # nturns = 3
-    # dt = 1e-4
+    # dt = 5e-4 # nturns = 3, p=2 quaternion interpolation
 
     # nturns = 10 # TODO: Not working yet!
     # t1 = 10
     # dt = 1e-4 # nturns = 10
 
-    solver = EulerBackward(system, t1, dt, method="index 3")
+    # solver = EulerBackward(system, t1, dt, method="index 3")
     # solver = MoreauClassical(system, t1, dt)
-    # solver = GeneralizedAlphaFirstOrder(
-    #     system,
-    #     t1,
-    #     dt,
-    #     rho_inf=0.8,
-    #     atol=1e-8,
-    #     method="index 3",
-    # )
+    solver = GeneralizedAlphaFirstOrder(
+        system,
+        t1,
+        dt,
+        rho_inf=0.8,
+        atol=1e-8,
+        method="index 3",
+        max_iter=10,
+    )
 
     sol = solver.solve()
     q = sol.q
@@ -516,15 +517,15 @@ def run_FEM_dynamics():
     # ################################
     # # plot characteristic quantities
     # ################################
-    # r_OS = np.array([bob.r_OP(ti, qi[bob.qDOF]) for (ti, qi) in zip(sol.t, sol.q)])
+    r_OS = np.array([bob.r_OP(ti, qi[bob.qDOF]) for (ti, qi) in zip(sol.t, sol.q)])
 
-    # ordering = "zyx"
-    # angles = np.array(
-    #     [
-    #         Rotation.from_matrix(bob.A_IK(ti, qi[bob.qDOF])).as_euler(ordering)
-    #         for (ti, qi) in zip(sol.t, sol.q)
-    #     ]
-    # )
+    ordering = "zyx"
+    angles = np.array(
+        [
+            Rotation.from_matrix(bob.A_IK(ti, qi[bob.qDOF])).as_euler(ordering)
+            for (ti, qi) in zip(sol.t, sol.q)
+        ]
+    )
 
     # ########
     # # export
@@ -538,35 +539,35 @@ def run_FEM_dynamics():
     #     comments="",
     # )
 
-    # ###############
-    # # visualization
-    # ###############
-    # fig, ax = plt.subplots(2, 1)
+    ###############
+    # visualization
+    ###############
+    fig, ax = plt.subplots(2, 1)
 
-    # ax[0].plot(t, r_OS[:, 0], label="x")
-    # ax[0].plot(t, r_OS[:, 1], label="y")
-    # ax[0].plot(t, r_OS[:, 2], label="z")
-    # ax[0].legend()
-    # ax[0].grid()
+    ax[0].plot(t, r_OS[:, 0], label="x")
+    ax[0].plot(t, r_OS[:, 1], label="y")
+    ax[0].plot(t, r_OS[:, 2], label="z")
+    ax[0].legend()
+    ax[0].grid()
 
-    # ax[1].plot(t, angles[:, 0], label="alpha")
-    # ax[1].plot(t, angles[:, 1], label="beta")
-    # ax[1].plot(t, angles[:, 2], label="gamma")
-    # ax[1].legend()
-    # ax[1].grid()
+    ax[1].plot(t, angles[:, 0], label="alpha")
+    ax[1].plot(t, angles[:, 1], label="beta")
+    ax[1].plot(t, angles[:, 2], label="gamma")
+    ax[1].legend()
+    ax[1].grid()
 
     ###########
     # animation
     ###########
     _ = animate_beam(t, q, [rod], 0.05, scale_di=0.01, show=False)
-    plt.show()
+    # plt.show()
 
     ############
     # VTK export
     ############
     path = Path(__file__)
     e = Export(path.parent, path.stem, True, 30, sol)
-    if Rod in [K_R12_PetrovGalerkin_AxisAngle, K_R12_PetrovGalerkin_Quaternion]:
+    if Rod in [K_R12_PetrovGalerkin_AxisAngle, K_R12_PetrovGalerkin_Quaternion, K_PetrovGalerkinQuaternionInterpolation]:
         e.export_contr(
             rod,
             continuity="C0",
