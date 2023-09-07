@@ -39,36 +39,53 @@ from pathlib import Path
 
 from cardillo.beams import animate_beam
 
+
+# nturns = 3      # number of coils
+nturns = 20      # number of coils Harsch2021
+t1 = 4          # around one time period of beat
+
 ###################
 # R12 interpolation
 ###################
-# Rod = K_R12_PetrovGalerkin_AxisAngle
 Rod = K_R12_PetrovGalerkin_Quaternion
+# becomes unstable
+# p = 1
+# elements_per_turn = 20
+# dt = 5e-3
+# xi_per_element = 1
+
+# p = 2
+# elements_per_turn = 6
+# dt = 5e-3
+# xi_per_element = 3
+
+p = 3
+elements_per_turn = 12
+dt = 5e-4
+xi_per_element = 3
 
 #####################
 # SE(3)-interpolation
 #####################
-# Rod = K_SE3_PetrovGalerkin_AxisAngle
 # Rod = K_SE3_PetrovGalerkin_Quaternion
+# elements_per_turn = 10
+# dt = 5e-3
+# xi_per_element = 2
 
+#########################
+# Quaternioninterpolation
+#########################
 # Rod = K_PetrovGalerkinQuaternionInterpolation
-
-p = 1
-# elements_per_turn = 25
-# elements_per_turn = 20 # R12 + p1 + no volume correction
+# p = 1
 # elements_per_turn = 15
-# elements_per_turn = 10 # R12 + p1 + volume correction
-elements_per_turn = 15 # quaternion interpolation
-
 # p = 2
-# elements_per_turn = 6 # quaternion interpolation
-# elements_per_turn = 6  # R12 + p2 + no volume correction
-# elements_per_turn = 8 # SE(3)
-nturns = 3
-# # elements_per_turn = 12
-# # nturns = 1
+# elements_per_turn = 16
+# dt = 5e-3
+# xi_per_element = 5
 
 nelements = int(elements_per_turn * nturns)
+# nelements = 128
+
 
 ##########
 # Berg1991
@@ -98,8 +115,30 @@ c = pitch_unloaded / (coil_radius * 2 * np.pi)
 k = G * wire_diameter**4 / (64 * nturns * coil_radius**3)
 delta = k * coil_radius**2 * (1 + nu * np.cos(alpha) ** 2)
 eps = k * coil_radius * nu * np.sin(2 * alpha)
-# eps *= 450
-# eps *= 50
+
+
+############
+# Harsch2021
+############
+rho = 7850  # [kg / m^3]
+G = 81.5e9
+E = 206e9
+print(f"G: {G}; E: {E}")
+
+# 1mm cross sectional diameter
+wire_diameter = 1e-3
+wire_radius = wire_diameter / 2
+
+# helix parameter
+coil_diameter = 32.0e-3
+coil_radius = coil_diameter / 2
+pitch_unloaded = 1.0e-3
+
+alpha = np.arctan(pitch_unloaded / (2 * np.pi * coil_radius))
+c = pitch_unloaded / (coil_radius * 2 * np.pi)
+k = G * wire_diameter**4 / (64 * nturns * coil_radius**3)
+delta = k * coil_radius**2 * (1 + nu * np.cos(alpha) ** 2)
+eps = k * coil_radius * nu * np.sin(2 * alpha)
 
 # ##########################
 # # Wahl1944, p. 48 eq. (52)
@@ -130,21 +169,10 @@ density = 7850  # [kg / m^3]; steel
 r_OS0 = np.array([0, 0, -h / 2 - wire_radius])
 p0 = np.array([1, 0, 0, 0], dtype=float)
 q0 = np.concatenate((r_OS0, p0))
-bob = Cylinder(RigidBodyQuaternion)(length=h, radius=R, axis=2, density=density, q0=q0)
-omega_z = np.sqrt(k / bob.mass)
-omega_theta = np.sqrt(delta / bob.K_Theta_S[-1, -1])
-print(
-    f"omega_z = np.sqrt(k / m): {omega_z}; omega_theta = np.sqrt(delta / Izz): {omega_theta}"
-)
-print(
-    f"|omega_z - omega_theta| / |omega_z|: {np.abs(omega_z - omega_theta) / np.abs(omega_z)}"
-)
-
-omega = 28.6
-omega_B = 2.56
-eps_rod = 2 * omega * omega_B * np.sqrt(bob.mass * bob.K_Theta_S[-1, -1])
-eps = eps_rod
-print(f"eps_rod: {eps_rod}")
+mass_bob = 0.469
+K_Theta_S_bob = np.diag([1.468e-4, 1.468e-4, 1.247e-4])
+# bob = Cylinder(RigidBodyQuaternion)(length=h, radius=R, axis=2, density=density, q0=q0)
+bob = RigidBodyQuaternion(mass_bob, K_Theta_S_bob, q0=q0)
 
 # rod cross-section
 cross_section = CircularCrossSection(rho, wire_radius)
@@ -243,11 +271,7 @@ def A_IK(xi, phi0=0.0):
 
     return np.vstack((e_x, e_y, e_z)).T
 
-
-# nxi = int(nturns * 15) # p = 1 quaternion
-# nxi = int(nturns * 30) # p=2 quaternion
-# nxi = int(nturns * elements_per_turn * 5) # p=2 quaternion
-nxi = int(nturns * elements_per_turn) # p=1 quaternion
+nxi = int(nelements * xi_per_element)
 xis = np.linspace(0, 1, num=nxi)
 
 r_OPs = np.array([r(xi, phi0=np.pi) for xi in xis])
@@ -344,7 +368,7 @@ def run_FEM_statics(use_force=True):
     # plt.show()
 
     #####################
-    # spring dispalcement
+    # spring displacement
     #####################
     f_max = f_t(1)
 
@@ -472,24 +496,16 @@ def run_FEM_dynamics():
         show=True,
         n_frames=50,
     )
-    # animate_beam(t=[0, 1], q=[Q0, Q0], beams=[rod], scale=0.1 * R, show=True)
     # exit()
 
     ##################
     # time integration
     ##################
-    # nturns = 1
-    # t1 = 3
-    # dt = 1e-2
-
-    # nturns = 3
-    # t1 = 0.01
-    # t1 = 1e-2
     t1 = 4
     # t1 = 8
     # t1 = 1e-2
     # dt = 5e-4
-    dt = 5e-3  # nturns = 3, p=1 quaternion interpolation
+    # dt = 5e-3  # nturns = 3, p=1 quaternion interpolation
     # dt = 5e-4  # nturns = 3
     # dt = 5e-4 # nturns = 3, p=2 quaternion interpolation
 
@@ -503,7 +519,8 @@ def run_FEM_dynamics():
         system,
         t1,
         dt,
-        rho_inf=0.8,
+        # rho_inf=0.8,
+        rho_inf=0.5,
         atol=1e-8,
         method="index 3",
         max_iter=10,
