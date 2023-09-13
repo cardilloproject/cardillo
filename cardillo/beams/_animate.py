@@ -3,18 +3,18 @@ from matplotlib.animation import FuncAnimation
 import numpy as np
 
 
-def animate_beam(t, q, beams, scale, scale_di=1, n_r=100, n_frames=10, show=True):
+def animate_beam(t, q, beams, scale, scale_di=1, n_r=100, n_frames=10, show=True, repeat=True):
     fig, ax = plt.subplots(figsize=(8, 8), subplot_kw=dict(projection="3d"))
-    ax.set_xlabel("x [m]")
-    ax.set_ylabel("y [m]")
-    ax.set_zlabel("z [m]")
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
+    ax.set_zlabel("z")
 
     ax.set_xlim3d(left=-scale, right=scale)
     ax.set_ylim3d(bottom=-scale, top=scale)
     ax.set_zlim3d(bottom=-scale, top=scale)
 
     # prepare data for animation
-    frames = len(q) - 1
+    frames = len(q)
     if frames > 0:
         target_frames = min(frames, 100)
         frac = max(1, int(np.ceil(frames / target_frames)))
@@ -35,7 +35,7 @@ def animate_beam(t, q, beams, scale, scale_di=1, n_r=100, n_frames=10, show=True
     d3s = []
     for beam in beams:
         # beam nodes
-        nodes.extend(ax.plot(*beam.nodes(q[0]), "--ob"))
+        nodes.extend(ax.plot(*beam.nodes(q[0]), "--.b"))
 
         # beam centerline
         center_lines.extend(ax.plot(*beam.centerline(q[0], num=n_r), "-k"))
@@ -100,7 +100,7 @@ def animate_beam(t, q, beams, scale, scale_di=1, n_r=100, n_frames=10, show=True
         update(t[i], q[i])
 
     anim = FuncAnimation(
-        fig, animate, frames=target_frames, interval=interval, blit=False
+        fig, animate, frames=target_frames, interval=interval, blit=False, repeat=repeat
     )
     if show:
         plt.show()
