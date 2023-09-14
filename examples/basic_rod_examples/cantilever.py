@@ -1,4 +1,5 @@
 from cardillo.beams import (
+    CosseratRodPG_SE3,
     K_R12_PetrovGalerkin_Quaternion,
     K_SE3_PetrovGalerkin_Quaternion,
     K_PetrovGalerkinQuaternionInterpolation,
@@ -33,16 +34,17 @@ load_type = "follower_force": 6.3 Cantilever beam subject to follower end load
 
 def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VTK_export=False):
     # interpolation of Ansatz/trial functions
-    Rod = K_SE3_PetrovGalerkin_Quaternion
+    # Rod = K_SE3_PetrovGalerkin_Quaternion
+    Rod = CosseratRodPG_SE3
     # Rod = K_R12_PetrovGalerkin_Quaternion
     # Rod = K_PetrovGalerkinQuaternionInterpolation
 
     # nelements_Lagrangian = 5
-    nelements_Lagrangian = 20
+    nelements_Lagrangian = 10
     polynomial_degree = 2
     
     # number of elements
-    if Rod is K_SE3_PetrovGalerkin_Quaternion:
+    if Rod in [K_SE3_PetrovGalerkin_Quaternion, CosseratRodPG_SE3]:
         nelements = nelements_Lagrangian * polynomial_degree
     else:
         nelements = nelements_Lagrangian
@@ -94,7 +96,7 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
     system = System()
 
     # construct cantilever in a straight initial configuration
-    if Rod is K_SE3_PetrovGalerkin_Quaternion:
+    if Rod in [K_SE3_PetrovGalerkin_Quaternion, CosseratRodPG_SE3]:
         q0 = Rod.straight_configuration(
             nelements,
             length,
@@ -200,7 +202,7 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
     # add Newton solver
     solver = Newton(
         system,
-        n_load_steps=90,
+        n_load_steps=50,
         max_iter=30,
         atol=atol,
     )
@@ -242,7 +244,7 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
         scale_di=0.05,
         show=False,
         n_frames=cantilever.nelement + 1,
-        repeat=False,
+        repeat=True,
     )
 
     # add plane with z-direction as normal
@@ -371,11 +373,11 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
 
 if __name__ == "__main__":
     # # load: moment at cantilever tip
-    # cantilever(load_type="moment", VTK_export=False)
+    cantilever(load_type="moment", VTK_export=False)
 
     # load: dead load at cantilever tip
     # cantilever(load_type="dead_load", rod_hypothesis_penalty="shear_deformable", VTK_export=False)
     # cantilever(load_type="dead_load", rod_hypothesis_penalty="shear_rigid", VTK_export=False)
     # cantilever(load_type="dead_load", rod_hypothesis_penalty="inextensilbe_shear_rigid", VTK_export=False)
 
-    cantilever(load_type="follower_force", VTK_export=False)
+    # cantilever(load_type="follower_force", VTK_export=False)
