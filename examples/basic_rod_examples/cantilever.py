@@ -37,8 +37,9 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
     # Rod = K_R12_PetrovGalerkin_Quaternion
     # Rod = K_PetrovGalerkinQuaternionInterpolation
 
-    nelements_Lagrangian = 5
-    polynomial_degree = 3
+    # nelements_Lagrangian = 5
+    nelements_Lagrangian = 20
+    polynomial_degree = 2
     
     # number of elements
     if Rod is K_SE3_PetrovGalerkin_Quaternion:
@@ -72,6 +73,17 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
         Ei = np.array([5, 1, 1]) * 1e4
             
     Fi = np.array([0.5, 2, 2])
+
+    if load_type == "follower_force":
+        E = 2100
+        A = 20e-4
+        I = 1.667e-8
+        nu = 0.3
+        G = E/(2 + 2 * nu)
+        # G*=1e1
+        length = 1
+        Ei = np.array([E*A, G*A, G*A])
+        Fi = np.array([2*G*I, E*I, E*I])
     material_model = Simo1986(Ei, Fi)
 
     # position and orientation of left point
@@ -176,7 +188,10 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
         moment = K_Moment(M, cantilever, (1,))
         system.add(moment)
     elif load_type == "follower_force":
-        pass
+        # spatially fixed load at cantilever tip
+        F = lambda t: - 3e-3 * t * e2
+        force = K_Force(F, cantilever, (1,))
+        system.add(force)
     else:
         raise NotImplementedError
 
@@ -185,7 +200,7 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
     # add Newton solver
     solver = Newton(
         system,
-        n_load_steps=50,
+        n_load_steps=90,
         max_iter=30,
         atol=atol,
     )
@@ -224,10 +239,10 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
         q,
         [cantilever],
         scale=length,
-        scale_di=0.75,
+        scale_di=0.05,
         show=False,
         n_frames=cantilever.nelement + 1,
-        repeat=True,
+        repeat=False,
     )
 
     # add plane with z-direction as normal
@@ -255,6 +270,53 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
         ax1.azim = -90
         ax1.elev = 47
         ax1.dist = 8
+
+    elif load_type == "follower_force":
+        centerline_T = np.loadtxt(Path(path.parent, "cantilever_data","follower_force_centerline_T.txt"), delimiter=",", skiprows=1)
+        ax1.plot(centerline_T[:, 0], centerline_T[:, 1], np.zeros_like(centerline_T[:, 0]), "-b")
+        # centerline_T = np.loadtxt(Path(path.parent, "cantilever_data","follower_force_centerline_IEB.txt"), delimiter=",", skiprows=1)
+        # ax1.plot(centerline_T[:, 0], centerline_T[:, 1], np.zeros_like(centerline_T[:, 0]), "-r")
+
+        # plot animation
+        ax1.azim = -90
+        ax1.elev = 72
+        ax1.dist = 8
+
+
+        fig2, ax2 = plt.subplots()
+        Deltas_T = np.loadtxt(Path(path.parent, "cantilever_data", "follower_force_Deltas_T.txt"), delimiter=",", skiprows=1)
+        ax2.plot(Deltas_T[:, 1], Deltas_T[:, 0], 'o', color='blue', label='Timoshenko (numeric)')
+        ax2.plot(Deltas_T[:, 2], Deltas_T[:, 0], 'o', color='blue')
+        
+        # Deltas_EB = np.loadtxt(Path(path.parent, "cantilever_data", "dead_load_Deltas_EB.txt"), delimiter=",", skiprows=1)
+        # ax2.plot(Deltas_EB[:, 0], Deltas_EB[:, 1],  'o', color='green', label='Euler-Bernoulli (numeric)')
+        # ax2.plot(Deltas_EB[:, 0], Deltas_EB[:, 2],  'o', color='green')
+
+        # solution Argyris
+        Delta_x_Argyris = np.loadtxt(Path(path.parent, "cantilever_data", "follower_force_Delta_x_Argyris.csv"), delimiter=";", skiprows=0)
+        ax2.plot(Delta_x_Argyris[:, 0] / 10, Delta_x_Argyris[:, 1] / 300,  'x', color='red', label='- u_x / L (Argyris)')
+        Delta_y_Argyris = np.loadtxt(Path(path.parent, "cantilever_data", "follower_force_Delta_y_Argyris.csv"), delimiter=";", skiprows=0)
+        ax2.plot(Delta_y_Argyris[:, 0] / 10, Delta_y_Argyris[:, 1] / 300,  'x', color='red', label='- u_y / L (Argyris)')
+        # ax2.plot(Deltas_IEB_A[:, 0], Deltas_IEB_A[:, 2],  's', color='red')
+
+        Delta_num = np.zeros(len(t))
+        delta_num = np.zeros(len(t))
+
+        for i in range(len(t)):
+            r_OP_L = cantilever.nodes(q[i])[:, -1]
+            Delta_num[i] = -(r_OP_L[0] - length) / length
+            delta_num[i] = - r_OP_L[1] / length
+
+        # Kirchhoff rod
+        ax2.plot(delta_num, t, '-', color='black', label='Cosserat (numeric)')
+        ax2.plot(Delta_num, t, '-', color='black')
+        
+
+        ax2.set_xlabel("alpha^2")
+        ax2.set_ylabel("Delta=x(L)/L, delta=-y(L)/L")
+        ax2.legend()
+        ax2.grid()
+
 
     elif load_type == "dead_load":
 
@@ -312,6 +374,8 @@ if __name__ == "__main__":
     # cantilever(load_type="moment", VTK_export=False)
 
     # load: dead load at cantilever tip
-    cantilever(load_type="dead_load", rod_hypothesis_penalty="shear_deformable", VTK_export=False)
-    cantilever(load_type="dead_load", rod_hypothesis_penalty="shear_rigid", VTK_export=False)
-    cantilever(load_type="dead_load", rod_hypothesis_penalty="inextensilbe_shear_rigid", VTK_export=False)
+    # cantilever(load_type="dead_load", rod_hypothesis_penalty="shear_deformable", VTK_export=False)
+    # cantilever(load_type="dead_load", rod_hypothesis_penalty="shear_rigid", VTK_export=False)
+    # cantilever(load_type="dead_load", rod_hypothesis_penalty="inextensilbe_shear_rigid", VTK_export=False)
+
+    cantilever(load_type="follower_force", VTK_export=False)
