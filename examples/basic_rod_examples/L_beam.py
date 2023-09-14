@@ -1,0 +1,470 @@
+from cardillo.beams import (
+    CosseratRodPG_SE3,
+    K_R12_PetrovGalerkin_Quaternion,
+    K_SE3_PetrovGalerkin_Quaternion,
+    K_PetrovGalerkinQuaternionInterpolation,
+    RectangularCrossSection,
+    CircularCrossSection,
+    Simo1986,
+    animate_beam,
+)
+from cardillo.constraints import RigidConnection
+from cardillo.solver import Newton
+from cardillo.forces import Force, K_Force, K_Moment
+
+from cardillo.math import e1, e2, e3, A_IK_basic
+from cardillo.visualization import Export
+
+from cardillo import System
+
+from math import pi
+import numpy as np
+
+import matplotlib.pyplot as plt
+from pathlib import Path
+
+""" Cantilever beam examples from Harsch, J. and Eugster, S. R., "Finite element analysis of planar nonlinear classical beam theories", 2020. 
+https://simonreugster.com/literature/book_contributions/Harsch2020a.pdf
+load_type = "moment":         6.1 Pure bending of a cantilever beam
+load_type = "dead_load":      6.2 Cantilever beam subjected to constant end load
+load_type = "follower_force": 6.3 Cantilever beam subject to follower end load
+"""
+
+def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VTK_export=False):
+    # interpolation of Ansatz/trial functions
+    # Rod = K_SE3_PetrovGalerkin_Quaternion
+    Rod1 = CosseratRodPG_SE3 # it is a class = CosseratRodPG_SE3
+    Rod2 = CosseratRodPG_SE3 # it is a class = CosseratRodPG_SE3
+    # Rod = K_R12_PetrovGalerkin_Quaternion
+    # Rod = K_PetrovGalerkinQuaternionInterpolation
+
+    nelements_Lagrangian = 10
+    polynomial_degree = 2
+    
+    # number of elements
+    if Rod1 in [K_SE3_PetrovGalerkin_Quaternion,K_R12_PetrovGalerkin_Quaternion, CosseratRodPG_SE3]:
+        nelements = nelements_Lagrangian * polynomial_degree
+    else:
+        nelements = nelements_Lagrangian
+
+    if Rod2 in [K_SE3_PetrovGalerkin_Quaternion,K_R12_PetrovGalerkin_Quaternion, CosseratRodPG_SE3]:
+        nelements = nelements_Lagrangian * polynomial_degree
+    else:
+        nelements = nelements_Lagrangian
+
+    # geometry of the rod
+    length = 2 * np.pi
+    slenderness = 1.0e2
+    width = length / slenderness
+
+    # cross section
+    line_density = 1
+    cross_section = RectangularCrossSection(line_density, width, width)
+    #     cross_section = CircularCrossSection(line_density, width)
+
+    A = cross_section.area
+    A_rho0 = line_density * cross_section.area
+    K_S_rho0 = line_density * cross_section.first_moment
+    K_I_rho0 = line_density * cross_section.second_moment
+
+    atol = 1e-8
+
+    # material model
+    if rod_hypothesis_penalty == "shear_deformable":
+        Ei = np.array([5, 1, 1])
+    elif rod_hypothesis_penalty == "shear_rigid":
+        Ei = np.array([5, 1e3, 1e3])
+    elif rod_hypothesis_penalty == "inextensilbe_shear_rigid":
+        Ei = np.array([5, 1, 1]) * 1e4
+            
+    Fi = np.array([0.5, 2, 2])
+
+    if load_type == "follower_force":
+        E = 2100
+        A = 20e-4
+        I = 1.667e-8
+        nu = 0.3
+        G = E/(2 + 2 * nu)
+        # G*=1e1
+        length = 1
+        Ei = np.array([E*A, G*A, G*A])
+        Fi = np.array([2*G*I, E*I, E*I])
+    material_model = Simo1986(Ei, Fi)
+
+    # position and orientation of left point
+    r_OP01 = np.zeros(3, dtype=float)
+    A_IK01 = np.eye(3, dtype=float)
+
+    r_OP02 = np.zeros(3, dtype=float)
+    r_OP02[0]= length
+    A_IK02_p = np.eye(3, dtype=float)
+    angolo_rad = np.radians(90)
+    matrice_rotazione = np.array([
+    [np.cos(angolo_rad), -np.sin(angolo_rad), 0],
+    [np.sin(angolo_rad), np.cos(angolo_rad), 0],
+    [0, 0, 1]
+    ], dtype=float)
+    A_IK02 = np.dot(A_IK02_p, matrice_rotazione)
+
+    # construct system
+    system = System()
+
+    # construct cantilever1 in a straight initial configuration
+    if Rod1 in [K_SE3_PetrovGalerkin_Quaternion, CosseratRodPG_SE3]:
+        q01 = Rod1.straight_configuration(
+            nelements,
+            length,
+            r_OP=r_OP01,
+            A_IK=A_IK01,
+        )
+
+        cantilever1 = Rod1(
+            cross_section,
+            material_model,
+            A_rho0,
+            K_S_rho0,
+            K_I_rho0,
+            nelements,
+            q01,
+        )
+    elif Rod1 is K_R12_PetrovGalerkin_Quaternion:
+        q01 = Rod1.straight_configuration(
+            polynomial_degree,
+            polynomial_degree,
+            "Lagrange",
+            "Lagrange",
+            nelements,
+            length,
+            r_OP=r_OP01,
+            A_IK=A_IK01,
+        )
+        cantilever = Rod1(
+            cross_section,
+            material_model,
+            A_rho0,
+            K_S_rho0,
+            K_I_rho0,
+            polynomial_degree,
+            polynomial_degree,
+            nelements,
+            Q=q01,
+            q0=q01,
+            basis_r="Lagrange",
+            basis_psi="Lagrange",
+        )
+    elif Rod1 is K_PetrovGalerkinQuaternionInterpolation:
+        q01 = Rod1.straight_configuration(
+            polynomial_degree,
+            "Lagrange",
+            nelements,
+            length,
+            r_OP=r_OP01,
+            A_IK=A_IK01,
+        )
+        cantilever = Rod1(
+            cross_section,
+            material_model,
+            A_rho0,
+            K_S_rho0,
+            K_I_rho0,
+            polynomial_degree,
+            nelements,
+            Q=q01,
+            q0=q01,
+            basis="Lagrange",
+        )
+    else:
+        raise NotImplementedError
+    
+
+    # construct cantilever2 in a straight initial configuration
+    if Rod2 in [K_SE3_PetrovGalerkin_Quaternion, CosseratRodPG_SE3]:
+        q02 = Rod2.straight_configuration(
+            nelements,
+            length,
+            r_OP=r_OP02,
+            A_IK=A_IK02,
+        )
+
+        cantilever2 = Rod2(
+            cross_section,
+            material_model,
+            A_rho0,
+            K_S_rho0,
+            K_I_rho0,
+            nelements,
+            q02,
+        )
+    elif Rod2 is K_R12_PetrovGalerkin_Quaternion:
+        q02 = Rod2.straight_configuration(
+            polynomial_degree,
+            polynomial_degree,
+            "Lagrange",
+            "Lagrange",
+            nelements,
+            length,
+            r_OP=r_OP02,
+            A_IK=A_IK02,
+        )
+        cantilever2 = Rod2(
+            cross_section,
+            material_model,
+            A_rho0,
+            K_S_rho0,
+            K_I_rho0,
+            polynomial_degree,
+            polynomial_degree,
+            nelements,
+            Q=q02,
+            q0=q02,
+            basis_r="Lagrange",
+            basis_psi="Lagrange",
+        )
+    elif Rod2 is K_PetrovGalerkinQuaternionInterpolation:
+        q02 = Rod2.straight_configuration(
+            polynomial_degree,
+            "Lagrange",
+            nelements,
+            length,
+            r_OP=r_OP02,
+            A_IK=A_IK02,
+        )
+        cantilever2 = Rod2(
+            cross_section,
+            material_model,
+            A_rho0,
+            K_S_rho0,
+            K_I_rho0,
+            polynomial_degree,
+            nelements,
+            Q=q02,
+            q0=q02,
+            basis="Lagrange",
+        )
+    else:
+        raise NotImplementedError
+
+
+    clamping_left1 = RigidConnection(system.origin, cantilever1, frame_ID2=(0,))
+    clamping_left2 = RigidConnection(cantilever1, cantilever2,frame_ID1=(1,), frame_ID2=(0,))
+
+    # assemble the system
+    system.add(cantilever1)
+    system.add(clamping_left1)
+    system.add(cantilever2)
+    system.add(clamping_left2)
+
+    if load_type == "moment":
+        # moment at cantilever tip
+        m = material_model.Fi[2] * 2 * np.pi / length
+        M = lambda t: t * e3 * m
+        moment = K_Moment(M, cantilever2, (1,))
+        system.add(moment)
+    elif load_type == "dead_load":
+        # spatially fixed load at cantilever tip
+        P = lambda t: material_model.Fi[2] * (10 * t) / length**2
+        F = lambda t: - P(t) * e2
+        force = Force(F, cantilever2, (1,))
+        system.add(force)
+    elif load_type == "dead_load_and_moment":
+        # spatially fixed load at cantilever tip
+        P = lambda t: material_model.Fi[2] * (10 * t) / length**2
+        F = lambda t: - P(t) * e2
+        force = Force(F, cantilever, (1,))
+        system.add(force)
+        # moment at cantilever tip
+        M = lambda t: 2.5 * P(t) * e3
+        moment = K_Moment(M, cantilever2, (1,))
+        system.add(moment)
+    elif load_type == "follower_force":
+        # spatially fixed load at cantilever tip
+        F = lambda t: - 3e-3 * t * e2
+        force = K_Force(F, cantilever2, (1,))
+        system.add(force)
+    else:
+        raise NotImplementedError
+
+    system.assemble()
+
+    # add Newton solver
+    solver = Newton(
+        system,
+        n_load_steps=50,
+        max_iter=30,
+        atol=atol,
+    )
+
+    # solve nonlinear static equilibrium equations
+    sol = solver.solve()
+
+    # extract solutions
+    q = sol.q
+    nt = len(q)
+    t = sol.t[:nt]
+
+    # VTK export
+    if VTK_export:
+        path = Path(__file__)
+        e = Export(path.parent, path.stem, True, 30, sol)
+        e.export_contr(
+            cantilever1,cantilever2,
+            level="centerline + directors",
+            num=3 * nelements,
+            file_name="cantilever_curve",
+        )
+        e.export_contr(
+            cantilever1,cantilever2,
+            continuity="C0",
+            level="volume",
+            n_segments=nelements,
+            num=3 * nelements,
+            file_name="cantilever_volume",
+        )
+
+    # matplotlib visualization
+    # construct animation of beam
+    fig1, ax1, anim1 = animate_beam(
+        t,
+        q,
+        [cantilever1,cantilever2],
+        scale=length,
+        scale_di=0.05,
+        show=False,
+        n_frames=cantilever1.nelement + 1,
+        repeat=True,
+    )
+
+    # add plane with z-direction as normal
+    X_z = np.linspace(-1.1 * length, 1.1 * length, num=2)
+    Y_z = np.linspace(-1.1 * length, 1.1 * length, num=2)
+    X_z, Y_z = np.meshgrid(X_z, Y_z)
+    Z_z = np.zeros_like(X_z)
+    ax1.plot_surface(X_z, Y_z, Z_z, alpha=0.2)
+
+    path = Path(__file__)
+
+    if load_type == "moment":
+        # analytic solution
+        nticks = 100
+        ts = np.linspace(0, 1, num=nticks)
+        xL_analytic = np.zeros(nticks)
+        yL_analytic = np.zeros(nticks)
+        zL_analytic = np.zeros(nticks)
+        xL_analytic[0] = length  # for singulartiy avoidance
+        xL_analytic[1:] = length / (2 * pi * ts[1:]) * np.sin(2 * pi * ts[1:])
+        yL_analytic[1:] = length / (2 * pi * ts[1:]) * (1 - np.cos(2 * pi * ts[1:]))
+        ax1.plot(xL_analytic, yL_analytic, zL_analytic, "-r")
+
+        # plot animation
+        ax1.azim = -90
+        ax1.elev = 47
+        ax1.dist = 8
+
+    elif load_type == "follower_force":
+        centerline_T = np.loadtxt(Path(path.parent, "cantilever_data","follower_force_centerline_T.txt"), delimiter=",", skiprows=1)
+        ax1.plot(centerline_T[:, 0], centerline_T[:, 1], np.zeros_like(centerline_T[:, 0]), "-b")
+        # centerline_T = np.loadtxt(Path(path.parent, "cantilever_data","follower_force_centerline_IEB.txt"), delimiter=",", skiprows=1)
+        # ax1.plot(centerline_T[:, 0], centerline_T[:, 1], np.zeros_like(centerline_T[:, 0]), "-r")
+
+        # plot animation
+        ax1.azim = -90
+        ax1.elev = 72
+        ax1.dist = 8
+
+
+        fig2, ax2 = plt.subplots()
+        Deltas_T = np.loadtxt(Path(path.parent, "cantilever_data", "follower_force_Deltas_T.txt"), delimiter=",", skiprows=1)
+        ax2.plot(Deltas_T[:, 1], Deltas_T[:, 0], 'o', color='blue', label='Timoshenko (numeric)')
+        ax2.plot(Deltas_T[:, 2], Deltas_T[:, 0], 'o', color='blue')
+        
+        # Deltas_EB = np.loadtxt(Path(path.parent, "cantilever_data", "dead_load_Deltas_EB.txt"), delimiter=",", skiprows=1)
+        # ax2.plot(Deltas_EB[:, 0], Deltas_EB[:, 1],  'o', color='green', label='Euler-Bernoulli (numeric)')
+        # ax2.plot(Deltas_EB[:, 0], Deltas_EB[:, 2],  'o', color='green')
+
+        # solution Argyris
+        Delta_x_Argyris = np.loadtxt(Path(path.parent, "cantilever_data", "follower_force_Delta_x_Argyris.csv"), delimiter=";", skiprows=0)
+        ax2.plot(Delta_x_Argyris[:, 0] / 10, Delta_x_Argyris[:, 1] / 300,  'x', color='red', label='- u_x / L (Argyris)')
+        Delta_y_Argyris = np.loadtxt(Path(path.parent, "cantilever_data", "follower_force_Delta_y_Argyris.csv"), delimiter=";", skiprows=0)
+        ax2.plot(Delta_y_Argyris[:, 0] / 10, Delta_y_Argyris[:, 1] / 300,  'x', color='red', label='- u_y / L (Argyris)')
+        # ax2.plot(Deltas_IEB_A[:, 0], Deltas_IEB_A[:, 2],  's', color='red')
+
+        Delta_num = np.zeros(len(t))
+        delta_num = np.zeros(len(t))
+
+        for i in range(len(t)):
+            r_OP_L = cantilever.nodes(q[i])[:, -1]
+            Delta_num[i] = -(r_OP_L[0] - length) / length
+            delta_num[i] = - r_OP_L[1] / length
+
+        # Kirchhoff rod
+        ax2.plot(delta_num, t, '-', color='black', label='Cosserat (numeric)')
+        ax2.plot(Delta_num, t, '-', color='black')
+        
+
+        ax2.set_xlabel("alpha^2")
+        ax2.set_ylabel("Delta=x(L)/L, delta=-y(L)/L")
+        ax2.legend()
+        ax2.grid()
+
+
+    elif load_type == "dead_load":
+
+        centerline_T = np.loadtxt(Path(path.parent, "cantilever_data","dead_load_centerline_T.txt"), delimiter=",", skiprows=1)
+        ax1.plot(centerline_T[:, 0], centerline_T[:, 1], np.zeros_like(centerline_T[:, 0]), "-b")
+        centerline_EB = np.loadtxt(Path(path.parent, "cantilever_data", "dead_load_centerline_EB.txt"), delimiter=",", skiprows=1)
+        ax1.plot(centerline_EB[:, 0], centerline_EB[:, 1], np.zeros_like(centerline_EB[:, 0]), "-g")
+        centerline_IEB = np.loadtxt(Path(path.parent, "cantilever_data", "dead_load_centerline_IEB.txt"), delimiter=",", skiprows=1)
+        ax1.plot(centerline_IEB[:, 0], centerline_IEB[:, 1], np.zeros_like(centerline_IEB[:, 0]), "-r")
+
+
+        fig2, ax2 = plt.subplots()
+        Deltas_T = np.loadtxt(Path(path.parent, "cantilever_data", "dead_load_Deltas_T.txt"), delimiter=",", skiprows=1)
+        ax2.plot(Deltas_T[:, 0], Deltas_T[:, 1],  's', color='blue', label='Timoshenko (numeric)')
+        ax2.plot(Deltas_T[:, 0], Deltas_T[:, 2],  's', color='blue')
+        
+        Deltas_EB = np.loadtxt(Path(path.parent, "cantilever_data", "dead_load_Deltas_EB.txt"), delimiter=",", skiprows=1)
+        ax2.plot(Deltas_EB[:, 0], Deltas_EB[:, 1],  'o', color='green', label='Euler-Bernoulli (numeric)')
+        ax2.plot(Deltas_EB[:, 0], Deltas_EB[:, 2],  'o', color='green')
+
+        # elastica: analytical solution of Bisshopp, K.E. and Drucker, D.C. "Large deflection of cantilever beams", 1945
+        Deltas_IEB_A = np.loadtxt(Path(path.parent, "cantilever_data", "dead_load_Deltas_IEB_A.txt"), delimiter=",", skiprows=1)
+        ax2.plot(Deltas_IEB_A[:, 0], Deltas_IEB_A[:, 1],  's', color='red', label='Elastica (analytic)')
+        ax2.plot(Deltas_IEB_A[:, 0], Deltas_IEB_A[:, 2],  's', color='red')
+
+        Delta_num = np.zeros(len(t))
+        delta_num = np.zeros(len(t))
+
+        for i in range(len(t)):
+            r_OP_L = cantilever.nodes(q[i])[:, -1]
+            Delta_num[i] = r_OP_L[0] / length
+            delta_num[i] = - r_OP_L[1] / length
+
+        # Kirchhoff rod
+        ax2.plot(10 * t, delta_num, '-', color='black', label='Cosserat (numeric)')
+        ax2.plot(10 * t, Delta_num, '-', color='black')
+        
+
+        ax2.set_xlabel("alpha^2")
+        ax2.set_ylabel("Delta=x(L)/L, delta=-y(L)/L")
+        ax2.legend()
+        ax2.grid()
+
+        # plot animation
+        ax1.azim = -90
+        ax1.elev = 72
+        ax1.dist = 8
+
+
+    plt.show()
+    
+
+if __name__ == "__main__":
+    # # load: moment at cantilever tip
+    cantilever(load_type="moment", VTK_export=False)
+
+    # load: dead load at cantilever tip
+    # cantilever(load_type="dead_load", rod_hypothesis_penalty="shear_deformable", VTK_export=False)
+    # cantilever(load_type="dead_load", rod_hypothesis_penalty="shear_rigid", VTK_export=False)
+    # cantilever(load_type="dead_load", rod_hypothesis_penalty="inextensilbe_shear_rigid", VTK_export=False)
+
+    # cantilever(load_type="follower_force", VTK_export=False)
