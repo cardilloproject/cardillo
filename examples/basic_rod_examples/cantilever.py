@@ -36,12 +36,9 @@ load_type = "follower_force": 6.3 Cantilever beam subject to follower end load
 
 def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VTK_export=False):
     # interpolation of Ansatz/trial functions
-    # Rod = K_SE3_PetrovGalerkin_Quaternion
-    Rod = CosseratRodPG_SE3
-    # Rod = K_R12_PetrovGalerkin_Quaternion
+    # Rod = CosseratRodPG_SE3
     # Rod = CosseratRodPG_R12
-    # Rod = K_PetrovGalerkinQuaternionInterpolation
-    # Rod = CosseratRodPG_Quat
+    Rod = CosseratRodPG_Quat
 
     # nelements_Lagrangian = 5
     nelements_Lagrangian = 4

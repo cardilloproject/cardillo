@@ -87,8 +87,8 @@ class CosseratRodPG_SE3(CosseratRodPG):
         psi0, psi1 = qe[self.nodalDOF_element_psi]
 
         # nodal transformations
-        A_IK0 = self.RotationBase.Exp_SO3(psi0)
-        A_IK1 = self.RotationBase.Exp_SO3(psi1)
+        A_IK0 = Exp_SO3_quat(psi0)
+        A_IK1 = Exp_SO3_quat(psi1)
         H_IK0 = SE3(A_IK0, r_OP0)
         H_IK1 = SE3(A_IK1, r_OP1)
 
@@ -145,24 +145,23 @@ class CosseratRodPG_SE3(CosseratRodPG):
         psi1 = h1[3:]
 
         # nodal transformations
-        A_IK0 = self.RotationBase.Exp_SO3(psi0)
-        A_IK1 = self.RotationBase.Exp_SO3(psi1)
+        A_IK0 = Exp_SO3_quat(psi0)
+        A_IK1 = Exp_SO3_quat(psi1)
         H_IK0 = SE3(A_IK0, r_OP0)
         H_IK1 = SE3(A_IK1, r_OP1)
-        A_IK0_psi0 = self.RotationBase.Exp_SO3_psi(psi0)
-        A_IK1_psi1 = self.RotationBase.Exp_SO3_psi(psi1)
+        A_IK0_psi0 = Exp_SO3_quat_p(psi0)
+        A_IK1_psi1 = Exp_SO3_quat_p(psi1)
 
-        n_psi = self.RotationBase.dim()
-        H_IK0_h0 = np.zeros((4, 4, 3 + n_psi), dtype=float)
+        H_IK0_h0 = np.zeros((4, 4, 7), dtype=float)
         H_IK0_h0[:3, :3, 3:] = A_IK0_psi0
         H_IK0_h0[:3, 3, :3] = np.eye(3, dtype=float)
-        H_IK1_h1 = np.zeros((4, 4, 3 + n_psi), dtype=float)
+        H_IK1_h1 = np.zeros((4, 4, 7), dtype=float)
         H_IK1_h1[:3, :3, 3:] = A_IK1_psi1
         H_IK1_h1[:3, 3, :3] = np.eye(3, dtype=float)
 
         # inverse transformation of first node
         H_IK0_inv = SE3inv(H_IK0)
-        H_IK0_inv_h0 = np.zeros((4, 4, 3 + n_psi), dtype=float)
+        H_IK0_inv_h0 = np.zeros((4, 4, 7), dtype=float)
         H_IK0_inv_h0[:3, :3, 3:] = A_IK0_psi0.transpose(1, 0, 2)
         H_IK0_inv_h0[:3, 3, 3:] = -np.einsum("k,kij->ij", r_OP0, A_IK0_psi0)
         H_IK0_inv_h0[:3, 3, :3] = -A_IK0.T
@@ -260,17 +259,8 @@ class CosseratRodPG_R12(CosseratRodPG):
         u0=None,
         basis_r="Lagrange",
         basis_psi="Lagrange",
-        volume_correction=False,
         reduced_integration=True,
     ):
-        self.volume_correction = volume_correction
-
-        if polynomial_degree_psi == 1 and not volume_correction:
-            import warnings
-
-            warnings.warn(
-                "For polynomial_degree_psi == 1 volume_correction is recommended!"
-            )
 
         polynomial_degree = max(polynomial_degree_r, polynomial_degree_psi)
         nquadrature = polynomial_degree
@@ -300,6 +290,7 @@ class CosseratRodPG_R12(CosseratRodPG):
             basis_psi=basis_psi,
         )
 
+    # returns interpolated positions, orientations and strains at xi in [0,1]
     def _eval(self, qe, xi):
         # evaluate shape functions
         N_r, N_r_xi = self.basis_functions_r(xi)
@@ -317,7 +308,7 @@ class CosseratRodPG_R12(CosseratRodPG):
         A_IK = np.zeros((3, 3), dtype=qe.dtype)
         A_IK_xi = np.zeros((3, 3), dtype=qe.dtype)
         for node in range(self.nnodes_element_psi):
-            A_IK_node = self.RotationBase.Exp_SO3(
+            A_IK_node = Exp_SO3_quat(
                 qe[self.nodalDOF_element_psi[node]]
             )
             A_IK += N_psi[node] * A_IK_node
@@ -336,10 +327,6 @@ class CosseratRodPG_R12(CosseratRodPG):
                 0.5 * (d2 @ d1_xi - d1 @ d2_xi),
             ]
         )
-
-        if self.volume_correction:
-            half_d = d1 @ cross3(d2, d3)
-            K_Kappa_bar /= half_d
 
         return r_OP, A_IK, K_Gamma_bar, K_Kappa_bar
 
@@ -371,8 +358,8 @@ class CosseratRodPG_R12(CosseratRodPG):
         for node in range(self.nnodes_element_psi):
             nodalDOF_psi = self.nodalDOF_element_psi[node]
             psi_node = qe[nodalDOF_psi]
-            A_IK_node = self.RotationBase.Exp_SO3(psi_node)
-            A_IK_q_node = self.RotationBase.Exp_SO3_psi(psi_node)
+            A_IK_node = Exp_SO3_quat(psi_node)
+            A_IK_q_node = Exp_SO3_quat_p(psi_node)
 
             A_IK += N_psi[node] * A_IK_node
             A_IK_qe[:, :, nodalDOF_psi] += N_psi[node] * A_IK_q_node
@@ -408,18 +395,6 @@ class CosseratRodPG_R12(CosseratRodPG):
                 * (d2 @ d1_xi_qe + d1_xi @ d2_qe - d1 @ d2_xi_qe - d2_xi @ d1_qe),
             ]
         )
-
-        if self.volume_correction:
-            half_d = d1 @ cross3(d2, d3)
-            half_d_qe = (
-                cross3(d2, d3) @ d1_qe
-                + cross3(d3, d1) @ d2_qe
-                + cross3(d1, d2) @ d3_qe
-            )
-
-            K_Kappa_bar /= half_d
-            K_Kappa_bar_qe /= half_d
-            K_Kappa_bar_qe -= np.outer(K_Kappa_bar / half_d, half_d_qe)
 
         # from cardillo.math import approx_fprime
 
@@ -473,7 +448,7 @@ class CosseratRodPG_R12(CosseratRodPG):
         # interpolate orientation
         A_IK = np.zeros((3, 3), dtype=q.dtype)
         for node in range(self.nnodes_element_psi):
-            A_IK += N_psi[node] * self.RotationBase.Exp_SO3(
+            A_IK += N_psi[node] * Exp_SO3_quat(
                 q[self.nodalDOF_element_psi[node]]
             )
 
@@ -489,7 +464,7 @@ class CosseratRodPG_R12(CosseratRodPG):
             nodalDOF_psi = self.nodalDOF_element_psi[node]
             A_IK_q[:, :, nodalDOF_psi] += N_psi[
                 node
-            ] * self.RotationBase.Exp_SO3_psi(q[nodalDOF_psi])
+            ] * Exp_SO3_quat_p(q[nodalDOF_psi])
 
         return A_IK_q
     
@@ -747,7 +722,7 @@ class CosseratRodPG_Quat(CosseratRodPG):
         # # interpolate orientation
         # A_IK = np.zeros((3, 3), dtype=q.dtype)
         # for node in range(self.nnodes_element_psi):
-        #     A_IK += N_psi[node] * self.RotationBase.Exp_SO3(
+        #     A_IK += N_psi[node] * self.Exp_SO3_quat(
         #         q[self.nodalDOF_element_psi[node]]
         #     )
 
