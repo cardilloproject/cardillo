@@ -47,7 +47,6 @@ class CosseratRodPG(RodExportBase, ABC):
         """
 
         super().__init__(cross_section)
-        self.RotationBase = QuaternionRotationParameterization
 
         # beam properties
         self.material_model = material_model  # material model
@@ -535,7 +534,7 @@ class CosseratRodPG(RodExportBase, ABC):
         g_S = np.zeros(self.nla_S, dtype=q.dtype)
         for node in range(self.nnodes_psi):
             psi = q[self.nodalDOF_psi[node]]
-            g_S[self.nodalDOF_la_S[node]] = self.RotationBase.g_S(psi)
+            g_S[self.nodalDOF_la_S[node]] = np.array([psi @ psi - 1])
         return g_S
 
     def __g_S_q(self, t, q):
@@ -544,7 +543,7 @@ class CosseratRodPG(RodExportBase, ABC):
             nodalDOF = self.nodalDOF_psi[node]
             nodalDOF_S = self.nodalDOF_la_S[node]
             psi = q[nodalDOF]
-            coo[nodalDOF_S, nodalDOF] = self.RotationBase.g_S_q(psi)
+            coo[nodalDOF_S, nodalDOF] = 2 * psi.reshape(1, -1)
         return coo
 
     def __g_S_q_T_mu_q(self, t, q, mu):
@@ -552,9 +551,7 @@ class CosseratRodPG(RodExportBase, ABC):
         for node in range(self.nnodes_psi):
             nodalDOF = self.nodalDOF_psi[node]
             nodalDOF_S = self.nodalDOF_la_S[node]
-            coo[nodalDOF, nodalDOF] = self.RotationBase.g_S_q_T_mu_q(
-                q[nodalDOF], mu[nodalDOF_S]
-            )
+            coo[nodalDOF, nodalDOF] = 2 * mu * np.eye(4)
         return coo
 
     #########################################
