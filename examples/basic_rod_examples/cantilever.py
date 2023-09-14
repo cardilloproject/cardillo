@@ -1,5 +1,7 @@
 from cardillo.beams import (
     CosseratRodPG_SE3,
+    CosseratRodPG_R12,
+    CosseratRodPG_Quat,
     K_R12_PetrovGalerkin_Quaternion,
     K_SE3_PetrovGalerkin_Quaternion,
     K_PetrovGalerkinQuaternionInterpolation,
@@ -37,10 +39,12 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
     # Rod = K_SE3_PetrovGalerkin_Quaternion
     Rod = CosseratRodPG_SE3
     # Rod = K_R12_PetrovGalerkin_Quaternion
+    # Rod = CosseratRodPG_R12
     # Rod = K_PetrovGalerkinQuaternionInterpolation
+    # Rod = CosseratRodPG_Quat
 
     # nelements_Lagrangian = 5
-    nelements_Lagrangian = 10
+    nelements_Lagrangian = 4
     polynomial_degree = 2
     
     # number of elements
@@ -112,7 +116,7 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
             nelements,
             q0,
         )
-    elif Rod is K_R12_PetrovGalerkin_Quaternion:
+    elif Rod in [K_R12_PetrovGalerkin_Quaternion, CosseratRodPG_R12]:
         q0 = Rod.straight_configuration(
             polynomial_degree,
             polynomial_degree,
@@ -137,7 +141,7 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
             basis_r="Lagrange",
             basis_psi="Lagrange",
         )
-    elif Rod is K_PetrovGalerkinQuaternionInterpolation:
+    elif Rod in [K_PetrovGalerkinQuaternionInterpolation, CosseratRodPG_Quat]:
         q0 = Rod.straight_configuration(
             polynomial_degree,
             "Lagrange",
@@ -202,7 +206,7 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
     # add Newton solver
     solver = Newton(
         system,
-        n_load_steps=50,
+        n_load_steps=10,
         max_iter=30,
         atol=atol,
     )

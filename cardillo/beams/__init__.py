@@ -21,7 +21,7 @@ from .quaternion_interpolation_petrov_galerkin import (
     K_PetrovGalerkinQuaternionInterpolation,
 )
 
-from .cosseratRodPG_SE3 import CosseratRodPG_SE3
+from .cosseratRodPG import CosseratRodPG_SE3, CosseratRodPG_R12, CosseratRodPG_Quat
 
 from .higherOrder_SE3_petrov_galerkin import HigherOrder_K_SE3_PetrovGalerkin_Quaternion
 from .higherOrder_R3xSO3_petrov_galerkin import (
