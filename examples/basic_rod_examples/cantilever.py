@@ -36,12 +36,12 @@ load_type = "follower_force": 6.3 Cantilever beam subject to follower end load
 
 def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VTK_export=False):
     # interpolation of Ansatz/trial functions
-    # Rod = CosseratRodPG_SE3
+    Rod = CosseratRodPG_SE3
     # Rod = CosseratRodPG_R12
-    Rod = CosseratRodPG_Quat
+    # Rod = CosseratRodPG_Quat
 
     # nelements_Lagrangian = 5
-    nelements_Lagrangian = 4
+    nelements_Lagrangian = 10
     polynomial_degree = 2
     
     # number of elements
@@ -58,7 +58,6 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
     # cross section
     line_density = 1
     cross_section = RectangularCrossSection(line_density, width, width)
-    #     cross_section = CircularCrossSection(line_density, width)
 
     A = cross_section.area
     A_rho0 = line_density * cross_section.area
@@ -180,6 +179,11 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
         F = lambda t: - P(t) * e2
         force = Force(F, cantilever, (1,))
         system.add(force)
+    elif load_type == "follower_force":
+        # spatially fixed load at cantilever tip
+        F = lambda t: - 3e-3 * t * e2 * 3 / 7
+        force = K_Force(F, cantilever, (1,))
+        system.add(force)
     elif load_type == "dead_load_and_moment":
         # spatially fixed load at cantilever tip
         P = lambda t: material_model.Fi[2] * (10 * t) / length**2
@@ -190,11 +194,6 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
         M = lambda t: 2.5 * P(t) * e3
         moment = K_Moment(M, cantilever, (1,))
         system.add(moment)
-    elif load_type == "follower_force":
-        # spatially fixed load at cantilever tip
-        F = lambda t: - 3e-3 * t * e2
-        force = K_Force(F, cantilever, (1,))
-        system.add(force)
     else:
         raise NotImplementedError
 
@@ -203,7 +202,7 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
     # add Newton solver
     solver = Newton(
         system,
-        n_load_steps=10,
+        n_load_steps=50,
         max_iter=30,
         atol=atol,
     )
@@ -245,7 +244,7 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
         scale_di=0.05,
         show=False,
         n_frames=cantilever.nelement + 1,
-        repeat=True,
+        repeat=False,
     )
 
     # add plane with z-direction as normal
@@ -258,7 +257,7 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
     path = Path(__file__)
 
     if load_type == "moment":
-        # analytic solution
+        # add analytic solution to the animation
         nticks = 100
         ts = np.linspace(0, 1, num=nticks)
         xL_analytic = np.zeros(nticks)
@@ -269,60 +268,13 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
         yL_analytic[1:] = length / (2 * pi * ts[1:]) * (1 - np.cos(2 * pi * ts[1:]))
         ax1.plot(xL_analytic, yL_analytic, zL_analytic, "-r")
 
-        # plot animation
+        # camera settings for 3D plot
         ax1.azim = -90
         ax1.elev = 47
         ax1.dist = 8
 
-    elif load_type == "follower_force":
-        centerline_T = np.loadtxt(Path(path.parent, "cantilever_data","follower_force_centerline_T.txt"), delimiter=",", skiprows=1)
-        ax1.plot(centerline_T[:, 0], centerline_T[:, 1], np.zeros_like(centerline_T[:, 0]), "-b")
-        # centerline_T = np.loadtxt(Path(path.parent, "cantilever_data","follower_force_centerline_IEB.txt"), delimiter=",", skiprows=1)
-        # ax1.plot(centerline_T[:, 0], centerline_T[:, 1], np.zeros_like(centerline_T[:, 0]), "-r")
-
-        # plot animation
-        ax1.azim = -90
-        ax1.elev = 72
-        ax1.dist = 8
-
-
-        fig2, ax2 = plt.subplots()
-        Deltas_T = np.loadtxt(Path(path.parent, "cantilever_data", "follower_force_Deltas_T.txt"), delimiter=",", skiprows=1)
-        ax2.plot(Deltas_T[:, 1], Deltas_T[:, 0], 'o', color='blue', label='Timoshenko (numeric)')
-        ax2.plot(Deltas_T[:, 2], Deltas_T[:, 0], 'o', color='blue')
-        
-        # Deltas_EB = np.loadtxt(Path(path.parent, "cantilever_data", "dead_load_Deltas_EB.txt"), delimiter=",", skiprows=1)
-        # ax2.plot(Deltas_EB[:, 0], Deltas_EB[:, 1],  'o', color='green', label='Euler-Bernoulli (numeric)')
-        # ax2.plot(Deltas_EB[:, 0], Deltas_EB[:, 2],  'o', color='green')
-
-        # solution Argyris
-        Delta_x_Argyris = np.loadtxt(Path(path.parent, "cantilever_data", "follower_force_Delta_x_Argyris.csv"), delimiter=";", skiprows=0)
-        ax2.plot(Delta_x_Argyris[:, 0] / 10, Delta_x_Argyris[:, 1] / 300,  'x', color='red', label='- u_x / L (Argyris)')
-        Delta_y_Argyris = np.loadtxt(Path(path.parent, "cantilever_data", "follower_force_Delta_y_Argyris.csv"), delimiter=";", skiprows=0)
-        ax2.plot(Delta_y_Argyris[:, 0] / 10, Delta_y_Argyris[:, 1] / 300,  'x', color='red', label='- u_y / L (Argyris)')
-        # ax2.plot(Deltas_IEB_A[:, 0], Deltas_IEB_A[:, 2],  's', color='red')
-
-        Delta_num = np.zeros(len(t))
-        delta_num = np.zeros(len(t))
-
-        for i in range(len(t)):
-            r_OP_L = cantilever.nodes(q[i])[:, -1]
-            Delta_num[i] = -(r_OP_L[0] - length) / length
-            delta_num[i] = - r_OP_L[1] / length
-
-        # Kirchhoff rod
-        ax2.plot(delta_num, t, '-', color='black', label='Cosserat (numeric)')
-        ax2.plot(Delta_num, t, '-', color='black')
-        
-
-        ax2.set_xlabel("alpha^2")
-        ax2.set_ylabel("Delta=x(L)/L, delta=-y(L)/L")
-        ax2.legend()
-        ax2.grid()
-
-
     elif load_type == "dead_load":
-
+        # add reference solution to the animation
         centerline_T = np.loadtxt(Path(path.parent, "cantilever_data","dead_load_centerline_T.txt"), delimiter=",", skiprows=1)
         ax1.plot(centerline_T[:, 0], centerline_T[:, 1], np.zeros_like(centerline_T[:, 0]), "-b")
         centerline_EB = np.loadtxt(Path(path.parent, "cantilever_data", "dead_load_centerline_EB.txt"), delimiter=",", skiprows=1)
@@ -330,7 +282,7 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
         centerline_IEB = np.loadtxt(Path(path.parent, "cantilever_data", "dead_load_centerline_IEB.txt"), delimiter=",", skiprows=1)
         ax1.plot(centerline_IEB[:, 0], centerline_IEB[:, 1], np.zeros_like(centerline_IEB[:, 0]), "-r")
 
-
+        # add normalized force-displacement diagram
         fig2, ax2 = plt.subplots()
         Deltas_T = np.loadtxt(Path(path.parent, "cantilever_data", "dead_load_Deltas_T.txt"), delimiter=",", skiprows=1)
         ax2.plot(Deltas_T[:, 0], Deltas_T[:, 1],  's', color='blue', label='Timoshenko (numeric)')
@@ -357,7 +309,6 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
         ax2.plot(10 * t, delta_num, '-', color='black', label='Cosserat (numeric)')
         ax2.plot(10 * t, Delta_num, '-', color='black')
         
-
         ax2.set_xlabel("alpha^2")
         ax2.set_ylabel("Delta=x(L)/L, delta=-y(L)/L")
         ax2.legend()
@@ -368,17 +319,65 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
         ax1.elev = 72
         ax1.dist = 8
 
+    elif load_type == "follower_force":
+        # add reference solution to the animation
+        # Timoshenko beam
+        centerline_T = np.loadtxt(Path(path.parent, "cantilever_data","follower_force_centerline_T_lambda_3_7.txt"), delimiter=",", skiprows=1)
+        ax1.plot(centerline_T[:, 0], centerline_T[:, 1], np.zeros_like(centerline_T[:, 0]), "-b")
+        # # Euler-Bernoulli beam
+        # centerline_T = np.loadtxt(Path(path.parent, "cantilever_data","follower_force_centerline_EB_lambda_3_7.txt"), delimiter=",", skiprows=1)
+        # ax1.plot(centerline_T[:, 0], centerline_T[:, 1], np.zeros_like(centerline_T[:, 0]), "-r")
+
+        # camera settings for 3D plot
+        ax1.azim = -90
+        ax1.elev = 72
+        ax1.dist = 8
+
+        # add normalized force-displacement diagram
+        fig2, ax2 = plt.subplots()
+        # Timoshenko beam
+        Deltas_T = np.loadtxt(Path(path.parent, "cantilever_data", "follower_force_Deltas_T.txt"), delimiter=",", skiprows=1)
+        ax2.plot(Deltas_T[:43, 1], Deltas_T[:43, 0], 'o', color='blue', label='Timoshenko (numeric)')
+        ax2.plot(Deltas_T[:43, 2], Deltas_T[:43, 0], 'o', color='blue')
+        # Euler-Bernoulli beam
+        Deltas_EB = np.loadtxt(Path(path.parent, "cantilever_data", "follower_force_Deltas_EB.txt"), delimiter=",", skiprows=1)
+        ax2.plot(Deltas_EB[:43, 1], Deltas_EB[:43, 0], 'o', color='green', label='Euler-Bernoulli (numeric)')
+        ax2.plot(Deltas_EB[:43, 2], Deltas_EB[:43, 0], 'o', color='green')
+
+        # solution Argyris
+        Delta_x_Argyris = np.loadtxt(Path(path.parent, "cantilever_data", "follower_force_Delta_x_Argyris.csv"), delimiter=";", skiprows=0)
+        ax2.plot(Delta_x_Argyris[:-3, 0] / 10, Delta_x_Argyris[:-3, 1] / 300,  'x', color='red', label='- u_x / L (Argyris)')
+        Delta_y_Argyris = np.loadtxt(Path(path.parent, "cantilever_data", "follower_force_Delta_y_Argyris.csv"), delimiter=";", skiprows=0)
+        ax2.plot(Delta_y_Argyris[:-3, 0] / 10, Delta_y_Argyris[:-3, 1] / 300,  'x', color='red', label='- u_y / L (Argyris)')
+
+        Delta_num = np.zeros(len(t))
+        delta_num = np.zeros(len(t))
+
+        for i in range(len(t)):
+            r_OP_L = cantilever.nodes(q[i])[:, -1]
+            Delta_num[i] = -(r_OP_L[0] - length) / length
+            delta_num[i] = - r_OP_L[1] / length
+
+        # Kirchhoff rod
+        ax2.plot(delta_num, t * 3 / 7, '-', color='black', label='Cosserat (numeric)')
+        ax2.plot(Delta_num, t * 3 / 7, '-', color='black')
+        
+        ax2.set_ylabel("lambda")
+        ax2.set_xlabel("- u_x / L, - u_y / L")
+        ax2.legend()
+        ax2.grid()
+
 
     plt.show()
     
 
 if __name__ == "__main__":
     # # load: moment at cantilever tip
-    cantilever(load_type="moment", VTK_export=False)
+    # cantilever(load_type="moment", VTK_export=False)
 
     # load: dead load at cantilever tip
     # cantilever(load_type="dead_load", rod_hypothesis_penalty="shear_deformable", VTK_export=False)
     # cantilever(load_type="dead_load", rod_hypothesis_penalty="shear_rigid", VTK_export=False)
     # cantilever(load_type="dead_load", rod_hypothesis_penalty="inextensilbe_shear_rigid", VTK_export=False)
 
-    # cantilever(load_type="follower_force", VTK_export=False)
+    cantilever(load_type="follower_force", VTK_export=False)
