@@ -32,7 +32,7 @@ load_type = "dead_load":      6.2 Cantilever beam subjected to constant end load
 load_type = "follower_force": 6.3 Cantilever beam subject to follower end load
 """
 
-def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VTK_export=False):
+def cantilever(load_type="force", rod_hypothesis_penalty="shear_deformable", VTK_export=False):
     # interpolation of Ansatz/trial functions
     # Rod = K_SE3_PetrovGalerkin_Quaternion
     Rod = CosseratRodPG_SE3 # it is a class = CosseratRodPG_SE3
@@ -54,9 +54,9 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
         nelements = nelements_Lagrangian
 
     # geometry of the rod
-    length = 2 * np.pi
+    length = 10
     slenderness = 1.0e2
-    width = length / slenderness
+    width = 1
 
     # cross section
     line_density = 1
@@ -72,24 +72,26 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
 
     # material model
     if rod_hypothesis_penalty == "shear_deformable":
-        Ei = np.array([5, 1, 1])
+        Ei = np.array([1e6, 1e6, 1e6])
     elif rod_hypothesis_penalty == "shear_rigid":
-        Ei = np.array([5, 1e3, 1e3])
+        Ei = np.array([1e6,1e10*1e6, 1e10*1e6])
     elif rod_hypothesis_penalty == "inextensilbe_shear_rigid":
-        Ei = np.array([5, 1, 1]) * 1e4
+        Ei = np.array([1e6, 1e6, 1e6]) * 1e10
             
-    Fi = np.array([0.5, 2, 2])
+    Fi = np.array([1e3, 1e3, 1e3])
 
-    if load_type == "follower_force":
-        E = 2100
-        A = 20e-4
-        I = 1.667e-8
-        nu = 0.3
+    """ if load_type == "follower_force":
+        E = 1e6
+        A = 1
+        I = 1
+        nu = 0.
         G = E/(2 + 2 * nu)
         # G*=1e1
-        length = 1
+        length = 10
         Ei = np.array([E*A, G*A, G*A])
-        Fi = np.array([2*G*I, E*I, E*I])
+        Fi = np.array([G*I, E*I, E*I]) """ # per commentare più righe contemporaneamente 
+                                           # puoi usare la shortcut "Alt+Shift+A"
+    
     material_model = Simo1986(Ei, Fi)
 
     # position and orientation of left point
@@ -98,19 +100,13 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
 
     r_OP02 = np.zeros(3, dtype=float)
     r_OP02[0]= length
-    # A_IK02_p = np.eye(3, dtype=float)
     angolo_rad = np.radians(90)
-    # matrice_rotazione = np.array([
-    # [np.cos(angolo_rad), -np.sin(angolo_rad), 0],
-    # [np.sin(angolo_rad), np.cos(angolo_rad), 0],
-    # [0, 0, 1]
-    # ], dtype=float)
-    # A_IK02 = np.dot(A_IK02_p, matrice_rotazione)
-
-    A_IK02 = A_IK_basic(-angolo_rad).z()
+    A_IK02 = A_IK_basic(angolo_rad).z() # rotazione base nello spazio Euclideo (file _rotations.py)
+                                         # A_IK_basic è una classe
+                                         # z è un metodo della classe, indica una rotazione attorno all'asse z
 
     # construct system
-    system = System()
+    system = System() # è una classe,
 
     # construct cantilever1 in a straight initial configuration
     if Rod in [K_SE3_PetrovGalerkin_Quaternion, CosseratRodPG_SE3]:
@@ -199,7 +195,7 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
         raise NotImplementedError
     
 
-    A_IK_clamping = lambda t: A_IK_basic(t * 2 * pi * np.maximum(t - 0.5, 0)).y()
+    A_IK_clamping = lambda t: A_IK_basic(t * 20 * pi * np.maximum(t - 0.5, 0)).z()
 
     clamping_point = Frame(A_IK=A_IK_clamping)
     # clamping_left1 = RigidConnection(system.origin, cantilever1, frame_ID2=(0,))
@@ -219,6 +215,12 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
         M = lambda t: 2 * np.minimum(t, 0.5) * e3 * m
         moment = K_Moment(M, cantilever2, (1,))
         system.add(moment)
+    elif load_type == "force":
+        # force at the beam's tip
+        #f = m / L * 10e-1
+        F = lambda t: t *5.* min(t, 0.5) * e3
+        force = Force(F, cantilever2, frame_ID=(1,))
+        system.add(force)
     elif load_type == "dead_load":
         # spatially fixed load at cantilever tip
         P = lambda t: material_model.Fi[2] * (10 * t) / length**2
@@ -284,7 +286,7 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
     # construct animation of beam
     fig1, ax1, anim1 = animate_beam(
         t,
-        q,
+        q, # nuova configurazione derivata dal linearSolve
         [cantilever1,cantilever2],
         scale=length,
         scale_di=0.05,
@@ -302,7 +304,7 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
 
     path = Path(__file__)
 
-    if load_type == "moment":
+    if load_type == "force":
         # analytic solution
         nticks = 100
         ts = np.linspace(0, 1, num=nticks)
@@ -419,7 +421,7 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
 
 if __name__ == "__main__":
     # # load: moment at cantilever tip
-    cantilever(load_type="moment", VTK_export=False)
+    cantilever(load_type="force", VTK_export=False)
 
     # load: dead load at cantilever tip
     # cantilever(load_type="dead_load", rod_hypothesis_penalty="shear_deformable", VTK_export=False)
