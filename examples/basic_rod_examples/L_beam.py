@@ -195,7 +195,7 @@ def cantilever(load_type="force", rod_hypothesis_penalty="shear_deformable", VTK
         raise NotImplementedError
     
 
-    A_IK_clamping = lambda t: A_IK_basic(t * 20 * pi * np.maximum(t - 0.5, 0)).z()
+    A_IK_clamping = lambda t: A_IK_basic(1 / 0.9* t * 2 * pi * np.maximum(t - 1 / 10, 0)).z()
 
     clamping_point = Frame(A_IK=A_IK_clamping)
     # clamping_left1 = RigidConnection(system.origin, cantilever1, frame_ID2=(0,))
@@ -212,13 +212,13 @@ def cantilever(load_type="force", rod_hypothesis_penalty="shear_deformable", VTK
     if load_type == "moment":
         # moment at cantilever tip
         m = material_model.Fi[2] * 2 * np.pi / length
-        M = lambda t: 2 * np.minimum(t, 0.5) * e3 * m
+        M = lambda t: 10 * np.minimum(t, 0.1) * e3 * m
         moment = K_Moment(M, cantilever2, (1,))
         system.add(moment)
     elif load_type == "force":
         # force at the beam's tip
         #f = m / L * 10e-1
-        F = lambda t: t *5.* min(t, 0.5) * e3
+        F = lambda t: 10 * t *5.* min(t, 1 / 10) * e3
         force = Force(F, cantilever2, frame_ID=(1,))
         system.add(force)
     elif load_type == "dead_load":
@@ -250,7 +250,7 @@ def cantilever(load_type="force", rod_hypothesis_penalty="shear_deformable", VTK
     # add Newton solver
     solver = Newton(
         system,
-        n_load_steps=50,
+        n_load_steps=20,
         max_iter=30,
         atol=atol,
     )
