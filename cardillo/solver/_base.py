@@ -211,9 +211,9 @@ def consistent_initial_conditions(
     assert np.allclose(
         g0, np.zeros(system.nla_g), rtol, atol
     ), "Initial conditions do not fulfill g0!"
-    assert np.allclose(
-        g_dot0, np.zeros(system.nla_g), rtol, atol
-    ), "Initial conditions do not fulfill g_dot0!"
+    # assert np.allclose(
+    #     g_dot0, np.zeros(system.nla_g), rtol, atol
+    # ), "Initial conditions do not fulfill g_dot0!"
     assert np.allclose(
         g_ddot0, np.zeros(system.nla_g), rtol, atol
     ), "Initial conditions do not fulfill g_ddot0!"

@@ -8,6 +8,8 @@ from cardillo.beams import (
     Simo1986,
     animate_beam,
 )
+
+from cardillo.discrete import Frame
 from cardillo.constraints import RigidConnection
 from cardillo.solver import Newton
 from cardillo.forces import Force, K_Force, K_Moment
@@ -33,8 +35,7 @@ load_type = "follower_force": 6.3 Cantilever beam subject to follower end load
 def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VTK_export=False):
     # interpolation of Ansatz/trial functions
     # Rod = K_SE3_PetrovGalerkin_Quaternion
-    Rod1 = CosseratRodPG_SE3 # it is a class = CosseratRodPG_SE3
-    Rod2 = CosseratRodPG_SE3 # it is a class = CosseratRodPG_SE3
+    Rod = CosseratRodPG_SE3 # it is a class = CosseratRodPG_SE3
     # Rod = K_R12_PetrovGalerkin_Quaternion
     # Rod = K_PetrovGalerkinQuaternionInterpolation
 
@@ -42,12 +43,12 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
     polynomial_degree = 2
     
     # number of elements
-    if Rod1 in [K_SE3_PetrovGalerkin_Quaternion,K_R12_PetrovGalerkin_Quaternion, CosseratRodPG_SE3]:
+    if Rod in [K_SE3_PetrovGalerkin_Quaternion,K_R12_PetrovGalerkin_Quaternion, CosseratRodPG_SE3]:
         nelements = nelements_Lagrangian * polynomial_degree
     else:
         nelements = nelements_Lagrangian
 
-    if Rod2 in [K_SE3_PetrovGalerkin_Quaternion,K_R12_PetrovGalerkin_Quaternion, CosseratRodPG_SE3]:
+    if Rod in [K_SE3_PetrovGalerkin_Quaternion,K_R12_PetrovGalerkin_Quaternion, CosseratRodPG_SE3]:
         nelements = nelements_Lagrangian * polynomial_degree
     else:
         nelements = nelements_Lagrangian
@@ -97,28 +98,30 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
 
     r_OP02 = np.zeros(3, dtype=float)
     r_OP02[0]= length
-    A_IK02_p = np.eye(3, dtype=float)
+    # A_IK02_p = np.eye(3, dtype=float)
     angolo_rad = np.radians(90)
-    matrice_rotazione = np.array([
-    [np.cos(angolo_rad), -np.sin(angolo_rad), 0],
-    [np.sin(angolo_rad), np.cos(angolo_rad), 0],
-    [0, 0, 1]
-    ], dtype=float)
-    A_IK02 = np.dot(A_IK02_p, matrice_rotazione)
+    # matrice_rotazione = np.array([
+    # [np.cos(angolo_rad), -np.sin(angolo_rad), 0],
+    # [np.sin(angolo_rad), np.cos(angolo_rad), 0],
+    # [0, 0, 1]
+    # ], dtype=float)
+    # A_IK02 = np.dot(A_IK02_p, matrice_rotazione)
+
+    A_IK02 = A_IK_basic(-angolo_rad).z()
 
     # construct system
     system = System()
 
     # construct cantilever1 in a straight initial configuration
-    if Rod1 in [K_SE3_PetrovGalerkin_Quaternion, CosseratRodPG_SE3]:
-        q01 = Rod1.straight_configuration(
+    if Rod in [K_SE3_PetrovGalerkin_Quaternion, CosseratRodPG_SE3]:
+        q01 = Rod.straight_configuration(
             nelements,
             length,
             r_OP=r_OP01,
             A_IK=A_IK01,
         )
 
-        cantilever1 = Rod1(
+        cantilever1 = Rod(
             cross_section,
             material_model,
             A_rho0,
@@ -127,8 +130,27 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
             nelements,
             q01,
         )
-    elif Rod1 is K_R12_PetrovGalerkin_Quaternion:
-        q01 = Rod1.straight_configuration(
+
+        q02 = Rod.straight_configuration(
+            nelements,
+            length,
+            r_OP=r_OP02,
+            A_IK=A_IK02,
+        )
+
+        cantilever2 = Rod(
+            cross_section,
+            material_model,
+            A_rho0,
+            K_S_rho0,
+            K_I_rho0,
+            nelements,
+            q02,
+        )
+
+
+    elif Rod is K_R12_PetrovGalerkin_Quaternion:
+        q01 = Rod.straight_configuration(
             polynomial_degree,
             polynomial_degree,
             "Lagrange",
@@ -138,7 +160,7 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
             r_OP=r_OP01,
             A_IK=A_IK01,
         )
-        cantilever = Rod1(
+        cantilever = Rod(
             cross_section,
             material_model,
             A_rho0,
@@ -152,8 +174,8 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
             basis_r="Lagrange",
             basis_psi="Lagrange",
         )
-    elif Rod1 is K_PetrovGalerkinQuaternionInterpolation:
-        q01 = Rod1.straight_configuration(
+    elif Rod is K_PetrovGalerkinQuaternionInterpolation:
+        q01 = Rod.straight_configuration(
             polynomial_degree,
             "Lagrange",
             nelements,
@@ -161,7 +183,7 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
             r_OP=r_OP01,
             A_IK=A_IK01,
         )
-        cantilever = Rod1(
+        cantilever = Rod(
             cross_section,
             material_model,
             A_rho0,
@@ -177,78 +199,15 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
         raise NotImplementedError
     
 
-    # construct cantilever2 in a straight initial configuration
-    if Rod2 in [K_SE3_PetrovGalerkin_Quaternion, CosseratRodPG_SE3]:
-        q02 = Rod2.straight_configuration(
-            nelements,
-            length,
-            r_OP=r_OP02,
-            A_IK=A_IK02,
-        )
+    A_IK_clamping = lambda t: A_IK_basic(t * 2 * pi * np.maximum(t - 0.5, 0)).y()
 
-        cantilever2 = Rod2(
-            cross_section,
-            material_model,
-            A_rho0,
-            K_S_rho0,
-            K_I_rho0,
-            nelements,
-            q02,
-        )
-    elif Rod2 is K_R12_PetrovGalerkin_Quaternion:
-        q02 = Rod2.straight_configuration(
-            polynomial_degree,
-            polynomial_degree,
-            "Lagrange",
-            "Lagrange",
-            nelements,
-            length,
-            r_OP=r_OP02,
-            A_IK=A_IK02,
-        )
-        cantilever2 = Rod2(
-            cross_section,
-            material_model,
-            A_rho0,
-            K_S_rho0,
-            K_I_rho0,
-            polynomial_degree,
-            polynomial_degree,
-            nelements,
-            Q=q02,
-            q0=q02,
-            basis_r="Lagrange",
-            basis_psi="Lagrange",
-        )
-    elif Rod2 is K_PetrovGalerkinQuaternionInterpolation:
-        q02 = Rod2.straight_configuration(
-            polynomial_degree,
-            "Lagrange",
-            nelements,
-            length,
-            r_OP=r_OP02,
-            A_IK=A_IK02,
-        )
-        cantilever2 = Rod2(
-            cross_section,
-            material_model,
-            A_rho0,
-            K_S_rho0,
-            K_I_rho0,
-            polynomial_degree,
-            nelements,
-            Q=q02,
-            q0=q02,
-            basis="Lagrange",
-        )
-    else:
-        raise NotImplementedError
-
-
-    clamping_left1 = RigidConnection(system.origin, cantilever1, frame_ID2=(0,))
+    clamping_point = Frame(A_IK=A_IK_clamping)
+    # clamping_left1 = RigidConnection(system.origin, cantilever1, frame_ID2=(0,))
+    clamping_left1 = RigidConnection(clamping_point, cantilever1, frame_ID2=(0,))
     clamping_left2 = RigidConnection(cantilever1, cantilever2,frame_ID1=(1,), frame_ID2=(0,))
 
     # assemble the system
+    system.add(clamping_point)
     system.add(cantilever1)
     system.add(clamping_left1)
     system.add(cantilever2)
@@ -257,7 +216,7 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
     if load_type == "moment":
         # moment at cantilever tip
         m = material_model.Fi[2] * 2 * np.pi / length
-        M = lambda t: t * e3 * m
+        M = lambda t: 2 * np.minimum(t, 0.5) * e3 * m
         moment = K_Moment(M, cantilever2, (1,))
         system.add(moment)
     elif load_type == "dead_load":
@@ -307,13 +266,13 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
         path = Path(__file__)
         e = Export(path.parent, path.stem, True, 30, sol)
         e.export_contr(
-            cantilever1,cantilever2,
+            [cantilever1, cantilever2],
             level="centerline + directors",
             num=3 * nelements,
             file_name="cantilever_curve",
         )
         e.export_contr(
-            cantilever1,cantilever2,
+            [cantilever1, cantilever2],
             continuity="C0",
             level="volume",
             n_segments=nelements,
