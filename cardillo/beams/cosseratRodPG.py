@@ -16,6 +16,8 @@ from cardillo.math import (
 
 from cardillo.beams._base_CosseratRodPG import CosseratRodPG
 
+
+
 class CosseratRodPG_SE3(CosseratRodPG):
     def __init__(
         self,
@@ -241,6 +243,10 @@ class CosseratRodPG_SE3(CosseratRodPG):
         return self._eval(q, frame_ID[0])[1]
 
     def A_IK_q(self, t, q, frame_ID):
+        
+        # from cardillo.math import approx_fprime
+        # return approx_fprime(q, lambda q_argument: self.A_IK(t, q_argument, frame_ID), method="3-point", eps=1e-6)
+
         return self._deval(q, frame_ID[0])[5]
 
 class CosseratRodPG_R12(CosseratRodPG):
