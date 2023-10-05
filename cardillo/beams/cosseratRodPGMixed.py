@@ -308,15 +308,12 @@ class CosseratRodPG_SE3Mixed(CosseratRodPGMixed):
             K_S_rho0,
             K_I_rho0,
             1,
-            1,
             nelement,
             1 if reduced_integration else 2,
             2,
             Q,
             q0=q0,
             u0=u0,
-            basis_r="Lagrange",
-            basis_psi="Lagrange",
         )
 
     @staticmethod
@@ -555,7 +552,6 @@ class CosseratRodPG_R12Mixed(CosseratRodPGMixed):
             K_S_rho0,
             K_I_rho0,
             polynomial_degree,
-            polynomial_degree,
             nelement,
             nquadrature,
             nquadrature_dyn,
@@ -767,15 +763,12 @@ class CosseratRodPG_QuatMixed(CosseratRodPGMixed):
             K_S_rho0,
             K_I_rho0,
             polynomial_degree,
-            polynomial_degree,
             nelement,
             nquadrature,
             nquadrature_dyn,
             Q,
             q0=q0,
             u0=u0,
-            basis_r="Lagrange",
-            basis_psi="Lagrange",
         )
 
 

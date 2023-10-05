@@ -32,16 +32,13 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         A_rho0,
         K_S_rho0,
         K_I_rho0,
-        polynomial_degree_r,
-        polynomial_degree_psi,
+        polynomial_degree,
         nelement,
         nquadrature,
         nquadrature_dyn,
         Q,
         q0=None,
         u0=None,
-        basis_r="Lagrange",
-        basis_psi="Lagrange",
     ):
         """Base class for Petrov-Galerkin Cosserat rod formulations that uses quaternions for the parametrization of the nodal orientations.
         """
@@ -61,8 +58,8 @@ class CosseratRodPGMixed(RodExportBase, ABC):
             self.constant_mass_matrix = False
 
         # discretization parameters
-        self.polynomial_degree_r = polynomial_degree_r
-        self.polynomial_degree_psi = polynomial_degree_psi
+        self.polynomial_degree_r = polynomial_degree
+        self.polynomial_degree_psi = polynomial_degree
 
         # distinguish between inertia quadrature and other parts
         self.nquadrature_dyn = nquadrature_dyn
@@ -72,37 +69,39 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         print(f"nquadrature: {nquadrature}")
 
         # chose basis functions
-        self.basis_r = basis_r
-        self.basis_psi = basis_psi
+        self.basis_r = "Lagrange"
+        basis_r = "Lagrange"
+        self.basis_psi = "Lagrange"
+        basis_psi = "Lagrange"
 
         if basis_r == "Lagrange":
-            self.knot_vector_r = LagrangeKnotVector(polynomial_degree_r, nelement)
+            self.knot_vector_r = LagrangeKnotVector(polynomial_degree, nelement)
         elif basis_r == "Lagrange_Disc":
-            self.knot_vector_r = LagrangeKnotVector(polynomial_degree_r-1, nelement)
+            self.knot_vector_r = LagrangeKnotVector(polynomial_degree-1, nelement)
         elif basis_r == "B-spline":
-            self.knot_vector_r = BSplineKnotVector(polynomial_degree_r, nelement)
+            self.knot_vector_r = BSplineKnotVector(polynomial_degree, nelement)
         elif basis_r == "Hermite":
             assert (
-                polynomial_degree_r == 3
+                polynomial_degree == 3
             ), "only cubic Hermite splines are implemented!"
-            self.knot_vector_r = HermiteNodeVector(polynomial_degree_r, nelement)
+            self.knot_vector_r = HermiteNodeVector(polynomial_degree, nelement)
         else:
             raise RuntimeError(f'wrong basis_r: "{basis_r}" was chosen')
 
         if basis_psi == "Lagrange":
             self.knot_vector_psi = LagrangeKnotVector(
-                polynomial_degree_psi, nelement
+                polynomial_degree, nelement
             )
         elif basis_psi == "B-spline":
             self.knot_vector_psi = BSplineKnotVector(
-                polynomial_degree_psi, nelement
+                polynomial_degree, nelement
             )
         elif basis_psi == "Hermite":
             assert (
-                polynomial_degree_psi == 3
+                polynomial_degree == 3
             ), "only cubic Hermite splines are implemented!"
             self.knot_vector_psi = HermiteNodeVector(
-                polynomial_degree_psi, nelement
+                polynomial_degree, nelement
             )
         else:
             raise RuntimeError(f'wrong basis_psi: "{basis_psi}" was chosen')
