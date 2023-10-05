@@ -12,7 +12,7 @@ from cardillo.beams import (
 )
 from cardillo.constraints import RigidConnection
 from cardillo.solver import Newton
-from cardillo.forces import Force, K_Force, K_Moment
+from cardillo.forces import Force, K_Force, K_Moment, distributed_force_1D_beam
 
 from cardillo.math import e1, e2, e3, A_IK_basic
 
