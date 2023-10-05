@@ -40,8 +40,8 @@ from pathlib import Path
 from cardillo.beams import animate_beam
 
 
-# nturns = 3      # number of coils
-nturns = 20      # number of coils Harsch2021
+nturns = 10      # number of coils
+# nturns = 20      # number of coils Harsch2021
 t1 = 4          # around one time period of beat
 
 ###################
@@ -54,22 +54,22 @@ Rod = K_R12_PetrovGalerkin_Quaternion
 # dt = 5e-3
 # xi_per_element = 1
 
-# p = 2
-# elements_per_turn = 6
-# dt = 5e-3
-# xi_per_element = 3
-
-p = 3
-elements_per_turn = 12
-dt = 5e-4
+p = 2
+elements_per_turn = 6
+dt = 1e-3
 xi_per_element = 3
+
+# p = 3
+# elements_per_turn = 12
+# dt = 5e-4
+# xi_per_element = 3
 
 #####################
 # SE(3)-interpolation
 #####################
 # Rod = K_SE3_PetrovGalerkin_Quaternion
 # elements_per_turn = 10
-# dt = 5e-3
+# dt = 1e-3
 # xi_per_element = 2
 
 #########################
@@ -117,28 +117,28 @@ delta = k * coil_radius**2 * (1 + nu * np.cos(alpha) ** 2)
 eps = k * coil_radius * nu * np.sin(2 * alpha)
 
 
-############
-# Harsch2021
-############
-rho = 7850  # [kg / m^3]
-G = 81.5e9
-E = 206e9
-print(f"G: {G}; E: {E}")
+# ############
+# # Harsch2021
+# ############
+# rho = 7850  # [kg / m^3]
+# G = 81.5e9
+# E = 206e9
+# print(f"G: {G}; E: {E}")
 
-# 1mm cross sectional diameter
-wire_diameter = 1e-3
-wire_radius = wire_diameter / 2
+# # 1mm cross sectional diameter
+# wire_diameter = 1e-3
+# wire_radius = wire_diameter / 2
 
-# helix parameter
-coil_diameter = 32.0e-3
-coil_radius = coil_diameter / 2
-pitch_unloaded = 1.0e-3
+# # helix parameter
+# coil_diameter = 32.0e-3
+# coil_radius = coil_diameter / 2
+# pitch_unloaded = 1.0e-3
 
-alpha = np.arctan(pitch_unloaded / (2 * np.pi * coil_radius))
-c = pitch_unloaded / (coil_radius * 2 * np.pi)
-k = G * wire_diameter**4 / (64 * nturns * coil_radius**3)
-delta = k * coil_radius**2 * (1 + nu * np.cos(alpha) ** 2)
-eps = k * coil_radius * nu * np.sin(2 * alpha)
+# alpha = np.arctan(pitch_unloaded / (2 * np.pi * coil_radius))
+# c = pitch_unloaded / (coil_radius * 2 * np.pi)
+# k = G * wire_diameter**4 / (64 * nturns * coil_radius**3)
+# delta = k * coil_radius**2 * (1 + nu * np.cos(alpha) ** 2)
+# eps = k * coil_radius * nu * np.sin(2 * alpha)
 
 # ##########################
 # # Wahl1944, p. 48 eq. (52)
@@ -163,6 +163,7 @@ g = 9.81
 # pendulum bob
 ##############
 R = 23e-3  # radius of the main cylinder
+# R = 30e-3  # radius of the main cylinder
 h = 36e-3  # height of the main cylinder
 # R = np.sqrt(2 * delta / k)
 density = 7850  # [kg / m^3]; steel
@@ -171,8 +172,8 @@ p0 = np.array([1, 0, 0, 0], dtype=float)
 q0 = np.concatenate((r_OS0, p0))
 mass_bob = 0.469
 K_Theta_S_bob = np.diag([1.468e-4, 1.468e-4, 1.247e-4])
-# bob = Cylinder(RigidBodyQuaternion)(length=h, radius=R, axis=2, density=density, q0=q0)
-bob = RigidBodyQuaternion(mass_bob, K_Theta_S_bob, q0=q0)
+bob = Cylinder(RigidBodyQuaternion)(length=h, radius=R, axis=2, density=density, q0=q0)
+# bob = RigidBodyQuaternion(mass_bob, K_Theta_S_bob, q0=q0)
 
 # rod cross-section
 cross_section = CircularCrossSection(rho, wire_radius)
@@ -461,6 +462,8 @@ def run_FEM_statics(use_force=True):
     e.export_contr(bob)
 
 
+
+
 def run_FEM_dynamics():
     #############################################
     # joint between origin and top side of spring
@@ -479,11 +482,14 @@ def run_FEM_dynamics():
     f_g_bob = lambda t: -bob.mass * g * e3
     force_bob = Force(f_g_bob, bob)
 
+   
+    force_spring = DistributedForce1DBeam(-A_rho0 * g * e3, rod)
+
     #####################
     # assemble the system
     #####################
     # system.add(rod)
-    system.add(rod, joint1)
+    system.add(rod, joint1, force_spring)
     system.add(bob, joint2, force_bob)
     system.assemble()
 
@@ -501,7 +507,7 @@ def run_FEM_dynamics():
     ##################
     # time integration
     ##################
-    t1 = 4
+    t1 = 20
     # t1 = 8
     # t1 = 1e-2
     # dt = 5e-4
@@ -513,18 +519,18 @@ def run_FEM_dynamics():
     # t1 = 10
     # dt = 1e-4 # nturns = 10
 
-    # solver = EulerBackward(system, t1, dt, method="index 3")
+    solver = EulerBackward(system, t1, dt, method="index 3")
     # solver = MoreauClassical(system, t1, dt)
-    solver = GeneralizedAlphaFirstOrder(
-        system,
-        t1,
-        dt,
-        # rho_inf=0.8,
-        rho_inf=0.5,
-        atol=1e-8,
-        method="index 3",
-        max_iter=10,
-    )
+    # solver = GeneralizedAlphaFirstOrder(
+    #     system,
+    #     t1,
+    #     dt,
+    #     # rho_inf=0.8,
+    #     rho_inf=0.2,
+    #     atol=1e-8,
+    #     method="index 3",
+    #     max_iter=10,
+    # )
 
     sol = solver.solve()
     q = sol.q
