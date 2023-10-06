@@ -60,10 +60,22 @@ class Simo1986:
         self.C_n = np.diag(self.Ei)
         self.C_m = np.diag(self.Fi)
 
+        self.C_n_inv = np.linalg.inv(self.C_n)
+        self.C_m_inv = np.linalg.inv(self.C_m)
+
     def potential(self, K_Gamma, K_Gamma0, K_Kappa, K_Kappa0):
         dG = K_Gamma - K_Gamma0
         dK = K_Kappa - K_Kappa0
         return 0.5 * dG @ self.C_n @ dG + 0.5 * dK @ self.C_m @ dK
+    
+    def complementary_potential(self, K_n_S, K_m_S):
+        return 0.5 * K_n_S @ self.C_n_inv @ K_n_S + 0.5 * K_m_S @ self.C_m_inv @ K_m_S
+    
+    def K_gam_comp(self, K_n_S):
+        return self.C_n_inv @ K_n_S
+    
+    def K_kap_comp(self, K_m_S): 
+        return self.C_m_inv @ K_m_S
 
     def K_n(self, K_Gamma, K_Gamma0, K_Kappa, K_Kappa0):
         dG = K_Gamma - K_Gamma0

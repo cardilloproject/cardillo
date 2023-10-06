@@ -45,7 +45,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         """
 
         super().__init__(cross_section)
-
+        self.mixed = mixed
         # beam properties
         self.material_model = material_model  # material model
         self.A_rho0 = A_rho0
@@ -61,7 +61,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         # discretization parameters
         self.polynomial_degree_r = polynomial_degree
         self.polynomial_degree_psi = polynomial_degree
-        if mixed:
+        if self.mixed:
             self.polynomial_degree_n = polynomial_degree - 1
             self.polynomial_degree_m = polynomial_degree - 1
 
@@ -80,7 +80,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
 
         self.knot_vector_r = LagrangeKnotVector(self.polynomial_degree_r, nelement)
         self.knot_vector_psi = LagrangeKnotVector(self.polynomial_degree_psi, nelement)
-        if mixed:
+        if self.mixed:
             self.knot_vector_n = LagrangeKnotVector(self.polynomial_degree_n, nelement)
             self.knot_vector_m = LagrangeKnotVector(self.polynomial_degree_m, nelement)
 
@@ -121,7 +121,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
             dim_u=3,
         )
 
-        if mixed:
+        if self.mixed:
             self.mesh_n = Mesh1D(
                 self.knot_vector_n,
                 nquadrature,
@@ -144,7 +144,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         # total number of nodes
         self.nnodes_r = self.mesh_r.nnodes
         self.nnodes_psi = self.mesh_psi.nnodes
-        if mixed:
+        if self.mixed:
             self.nnodes_n = self.mesh_n.nnodes
             self.nnodes_m = self.mesh_m.nnodes
 
@@ -161,7 +161,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         # number of nodes per element
         self.nnodes_element_r = self.mesh_r.nnodes_per_element
         self.nnodes_element_psi = self.mesh_psi.nnodes_per_element
-        if mixed:
+        if self.mixed:
             self.nnodes_element_n = self.mesh_n.nnodes_per_element
             self.nnodes_element_m = self.mesh_m.nnodes_per_element
 
@@ -174,7 +174,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         self.nu_psi = self.mesh_psi.nu
         self.nu = self.nu_r + self.nu_psi
 
-        if mixed: 
+        if self.mixed: 
             self.nq_n = self.mesh_n.nq
             self.nq_m = self.mesh_m.nq
             self.nq += self.nq_n + self.nq_m
@@ -193,7 +193,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         self.nu_element_psi = self.mesh_psi.nu_per_element
         self.nu_element = self.nu_element_r + self.nu_element_psi
 
-        if mixed:
+        if self.mixed:
             self.nq_element_n = self.mesh_n.nq_per_element
             self.nq_element_m = self.mesh_m.nq_per_element
             self.nq_element += self.nq_element_n + self.nq_element_m
@@ -207,7 +207,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         self.elDOF_psi = self.mesh_psi.elDOF + self.nq_r
         self.elDOF_r_u = self.mesh_r.elDOF_u
         self.elDOF_psi_u = self.mesh_psi.elDOF_u + self.nu_r
-        if mixed:
+        if self.mixed:
             self.elDOF_n = self.mesh_n.elDOF + self.nq_r + self.nq_psi
             self.elDOF_m = self.mesh_m.elDOF + self.nq_r + self.nq_psi + self.nq_n
 
@@ -220,7 +220,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         self.nodalDOF_psi = self.mesh_psi.nodalDOF + self.nq_r
         self.nodalDOF_r_u = self.mesh_r.nodalDOF_u
         self.nodalDOF_psi_u = self.mesh_psi.nodalDOF_u + self.nu_r
-        if mixed:
+        if self.mixed:
             self.nodalDOF_n = self.mesh_n.nodalDOF + self.nq_r + self.nq_psi
             self.nodalDOF_m = self.mesh_m.nodalDOF + self.nq_r + self.nq_psi + self.nq_n
             self.nodalDOF_n_u = self.mesh_n.nodalDOF_u + self.nu_r + self.nu_psi
@@ -237,7 +237,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
             self.mesh_psi.nodalDOF_element_u + self.nu_element_r
         )
 
-        if mixed:
+        if self.mixed:
             self.nodalDOF_element_n = (
             self.mesh_n.nodalDOF_element + self.nq_element_r + self.nq_element_psi
             )
@@ -263,7 +263,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
             self.elDOF[el, self.nq_element_r : self.nq_element_r + self.nq_element_psi] = self.elDOF_psi[el]
             self.elDOF_u[el, : self.nu_element_r] = self.elDOF_r_u[el]
             self.elDOF_u[el, self.nu_element_r : self.nu_element_r + self.nu_element_psi] = self.elDOF_psi_u[el]
-            if mixed:
+            if self.mixed:
                 self.elDOF[el, self.nq_element_r + self.nq_element_psi : self.nq_element_r + self.nq_element_psi + self.nq_element_n] = self.elDOF_n[el]
                 self.elDOF[el, self.nq_element_r + self.nq_element_psi + self.nq_element_n :] = self.elDOF_m[el]
                 self.elDOF_u[el, self.nu_element_r + self.nu_element_psi : self.nu_element_r + self.nu_element_psi + self.nu_element_n] = self.elDOF_n_u[el]
@@ -279,7 +279,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         self.N_r_dyn = self.mesh_r_dyn.N
         self.N_psi_dyn = self.mesh_psi_dyn.N
 
-        if mixed:
+        if self.mixed:
             self.N_n = self.mesh_n.N
             self.N_m = self.mesh_m.N
 
@@ -310,7 +310,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         # evaluate shape functions at specific xi
         self.basis_functions_r = self.mesh_r.eval_basis
         self.basis_functions_psi = self.mesh_psi.eval_basis
-        if mixed:
+        if self.mixed:
             self.basis_functions_n = self.mesh_n.eval_basis
             self.basis_functions_m = self.mesh_m.eval_basis
 
@@ -323,6 +323,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         )  # initial velocities
 
         self.set_initial_strains(self.q0)
+
 
     def set_initial_strains(self, Q):
         self.Q = Q.copy()
@@ -363,6 +364,11 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         # curvature of the reference configuration
         self.K_Kappa0 = np.zeros((self.nelement, self.nquadrature, 3), dtype=float)
 
+        if self.mixed:
+            self.K_n0 = np.zeros((self.nelement, self.nquadrature, 3), dtype=float)
+            self.K_m0 = np.zeros((self.nelement, self.nquadrature, 3), dtype=float)
+
+
         for el in range(self.nelement):
             qe = self.Q[self.elDOF[el]]
 
@@ -387,11 +393,15 @@ class CosseratRodPGMixed(RodExportBase, ABC):
                 self.K_Gamma0[el, i] = K_Gamma
                 self.K_Kappa0[el, i] = K_Kappa
 
+
+
             for i in range(self.nquadrature_dyn):
                 # current quadrature point
                 qpi = self.qp_dyn[el, i]
 
                 # evaluate required quantities
+                # _, _, K_Gamma_bar, K_Kappa_bar = self._eval(qe, qpi)
+
                 _, _, K_Gamma_bar, K_Kappa_bar = self._eval(qe, qpi)
 
                 # length of reference tangential vector
@@ -437,72 +447,128 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         return q
 
     # TODO: revise straight initial configuration
+    # @staticmethod
+    # def straight_initial_configuration(
+    #     polynomial_degree_r,
+    #     polynomial_degree_psi,
+    #     basis_r,
+    #     basis_psi,
+    #     nelement,
+    #     L,
+    #     r_OP=np.zeros(3, dtype=float),
+    #     A_IK=np.eye(3, dtype=float),
+    #     v_P=np.zeros(3, dtype=float),
+    #     K_omega_IK=np.zeros(3, dtype=float),
+    #     rotation_parameterization=QuaternionRotationParameterization(),
+    # ):
+    #     if basis_r == "Lagrange":
+    #         nnodes_r = polynomial_degree_r * nelement + 1
+    #     elif basis_r == "B-spline":
+    #         nnodes_r = polynomial_degree_r + nelement
+    #     elif basis_r == "Hermite":
+    #         nnodes_r = nelement + 1
+    #     else:
+    #         raise RuntimeError(f'wrong basis_r: "{basis_r}" was chosen')
+
+    #     if basis_psi == "Lagrange":
+    #         nnodes_psi = polynomial_degree_psi * nelement + 1
+    #     elif basis_psi == "B-spline":
+    #         nnodes_psi = polynomial_degree_psi + nelement
+    #     elif basis_psi == "Hermite":
+    #         nnodes_psi = nelement + 1
+    #     else:
+    #         raise RuntimeError(f'wrong basis_psi: "{basis_psi}" was chosen')
+
+    #     #################################
+    #     # compute generalized coordinates
+    #     #################################
+    #     if basis_r == "B-spline" or basis_r == "Lagrange":
+    #         x0 = np.linspace(0, L, num=nnodes_r)
+    #         y0 = np.zeros(nnodes_r)
+    #         z0 = np.zeros(nnodes_r)
+    #         if basis_r == "B-spline":
+    #             # build Greville abscissae for B-spline basis
+    #             kv = BSplineKnotVector.uniform(polynomial_degree_r, nelement)
+    #             for i in range(nnodes_r):
+    #                 x0[i] = np.sum(kv[i + 1 : i + polynomial_degree_r + 1])
+    #             x0 = x0 * L / polynomial_degree_r
+
+    #         r_OC0 = np.vstack((x0, y0, z0))
+    #         for i in range(nnodes_r):
+    #             r_OC0[:, i] = r_OP + A_IK @ r_OC0[:, i]
+
+    #     elif basis_r == "Hermite":
+    #         xis = np.linspace(0, 1, num=nnodes_r)
+    #         r_OC0 = np.zeros((6, nnodes_r))
+    #         t0 = A_IK @ (L * e1)
+    #         for i, xi in enumerate(xis):
+    #             ri = r_OP + xi * t0
+    #             r_OC0[:3, i] = ri
+    #             r_OC0[3:, i] = t0
+
+    #     # reshape generalized coordinates to nodal ordering
+    #     q_r = r_OC0.reshape(-1, order="C")
+
+    #     # we have to extract the rotation vector from the given rotation matrix
+    #     # and set its value for each node
+    #     if basis_psi == "Hermite":
+    #         raise NotImplementedError
+    #     psi = rotation_parameterization.Log_SO3(A_IK)
+    #     q_psi = np.repeat(psi, nnodes_psi)
+
+    #     ################################
+    #     # compute generalized velocities
+    #     ################################
+    #     # centerline velocities
+    #     v_C0 = np.zeros_like(r_OC0, dtype=float)
+    #     for i in range(nnodes_r):
+    #         v_C0[:, i] = v_P + cross3(
+    #             A_IK @ K_omega_IK, (r_OC0[:, i] - r_OC0[:, 0])
+    #         )
+
+    #     # reshape generalized velocities to nodal ordering
+    #     u_r = v_C0.reshape(-1, order="C")
+
+    #     # all nodes share the same angular velocity
+    #     u_psi = np.repeat(K_omega_IK, nnodes_psi)
+
+    #     q0 = np.concatenate([q_r, q_psi])
+    #     u0 = np.concatenate([u_r, u_psi])
+
+    #     return q0, u0
+
+    
+        
+
     @staticmethod
     def straight_initial_configuration(
-        polynomial_degree_r,
-        polynomial_degree_psi,
-        basis_r,
-        basis_psi,
         nelement,
         L,
+        polynomial_degree=1,
         r_OP=np.zeros(3, dtype=float),
         A_IK=np.eye(3, dtype=float),
         v_P=np.zeros(3, dtype=float),
         K_omega_IK=np.zeros(3, dtype=float),
         rotation_parameterization=QuaternionRotationParameterization(),
+        mixed=False
     ):
-        if basis_r == "Lagrange":
-            nnodes_r = polynomial_degree_r * nelement + 1
-        elif basis_r == "B-spline":
-            nnodes_r = polynomial_degree_r + nelement
-        elif basis_r == "Hermite":
-            nnodes_r = nelement + 1
-        else:
-            raise RuntimeError(f'wrong basis_r: "{basis_r}" was chosen')
+        nnodes_r = polynomial_degree * nelement + 1
+        nnodes_psi = polynomial_degree * nelement + 1
+        nnodes_n = polynomial_degree * nelement
+        nnodes_m = polynomial_degree * nelement
 
-        if basis_psi == "Lagrange":
-            nnodes_psi = polynomial_degree_psi * nelement + 1
-        elif basis_psi == "B-spline":
-            nnodes_psi = polynomial_degree_psi + nelement
-        elif basis_psi == "Hermite":
-            nnodes_psi = nelement + 1
-        else:
-            raise RuntimeError(f'wrong basis_psi: "{basis_psi}" was chosen')
+        x0 = np.linspace(0, L, num=nnodes_r)
+        y0 = np.zeros(nnodes_r)
+        z0 = np.zeros(nnodes_r)
+            
 
-        #################################
-        # compute generalized coordinates
-        #################################
-        if basis_r == "B-spline" or basis_r == "Lagrange":
-            x0 = np.linspace(0, L, num=nnodes_r)
-            y0 = np.zeros(nnodes_r)
-            z0 = np.zeros(nnodes_r)
-            if basis_r == "B-spline":
-                # build Greville abscissae for B-spline basis
-                kv = BSplineKnotVector.uniform(polynomial_degree_r, nelement)
-                for i in range(nnodes_r):
-                    x0[i] = np.sum(kv[i + 1 : i + polynomial_degree_r + 1])
-                x0 = x0 * L / polynomial_degree_r
-
-            r_OC0 = np.vstack((x0, y0, z0))
-            for i in range(nnodes_r):
-                r_OC0[:, i] = r_OP + A_IK @ r_OC0[:, i]
-
-        elif basis_r == "Hermite":
-            xis = np.linspace(0, 1, num=nnodes_r)
-            r_OC0 = np.zeros((6, nnodes_r))
-            t0 = A_IK @ (L * e1)
-            for i, xi in enumerate(xis):
-                ri = r_OP + xi * t0
-                r_OC0[:3, i] = ri
-                r_OC0[3:, i] = t0
+        r_OC0 = np.vstack((x0, y0, z0))
+        for i in range(nnodes_r):
+            r_OC0[:, i] = r_OP + A_IK @ r_OC0[:, i]
 
         # reshape generalized coordinates to nodal ordering
         q_r = r_OC0.reshape(-1, order="C")
 
-        # we have to extract the rotation vector from the given rotation matrix
-        # and set its value for each node
-        if basis_psi == "Hermite":
-            raise NotImplementedError
         psi = rotation_parameterization.Log_SO3(A_IK)
         q_psi = np.repeat(psi, nnodes_psi)
 
@@ -524,8 +590,16 @@ class CosseratRodPGMixed(RodExportBase, ABC):
 
         q0 = np.concatenate([q_r, q_psi])
         u0 = np.concatenate([u_r, u_psi])
+    
+        if mixed:
+            q0 = np.concatenate([q_r, q_psi, np.zeros(3 * nnodes_n + 3 * nnodes_m)])
+            u0 = np.concatenate([u_r, u_psi, np.zeros(3 * nnodes_n + 3 * nnodes_m)])
 
         return q0, u0
+    
+
+
+
 
     def element_number(self, xi):
         """Compute element number from given xi."""
@@ -542,8 +616,9 @@ class CosseratRodPGMixed(RodExportBase, ABC):
     # abstract methods
     ##################
     @abstractmethod
-    def _eval(self, qe, xi):
-        """Compute (r_OP, A_IK, K_Gamma_bar, K_Kappa_bar)."""
+    def _eval(self, qe, xi, mixed=False):
+        """Compute (r_OP, A_IK, K_Gamma_bar, K_Kappa_bar)
+           and K_n_s, K_m_s in the mixed formulation """
         ...
 
     # @abstractmethod
@@ -748,16 +823,58 @@ class CosseratRodPGMixed(RodExportBase, ABC):
             # torsional and flexural strains
             K_Kappa = K_Kappa_bar / J
 
-            # compute contact forces and couples from partial derivatives of
-            # the strain energy function w.r.t. strain measures
-            K_n = self.material_model.K_n(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
-            K_m = self.material_model.K_m(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
+
+            if self.mixed:
+                N_n = self.basis_functions_n(qpi)
+                N_m = self.basis_functions_m(qpi)
+
+                # interpolation of the n and m
+                K_n = np.zeros(3, dtype=qe.dtype)
+                K_m = np.zeros(3, dtype=qe.dtype)
+                for node in range(self.nnodes_element_n):
+                    n_node = qe[self.nodalDOF_element_n[node]]
+                    K_n += N_n[node] * n_node
+
+                for node in range(self.nnodes_element_m):
+                    m_node = qe[self.nodalDOF_element_m[node]]
+                    K_m += N_m[node] * m_node
+
+
+                # compute contact forces and couples from partial derivatives of
+                # the strain energy function w.r.t. strain measures
+                K_gam_comp = self.material_model.K_gam_comp(K_n)
+                K_kap_comp = self.material_model.K_kap_comp(K_m)
+
+
+                ############################
+                # virtual work contributions of the internal stresses
+                ############################
+                for node in range(self.nnodes_element_n):
+                    f_pot_el[self.nodalDOF_element_n_u[node]] -= (
+                        self.N_n[el, i, node] * (K_Gamma_bar - J * K_gam_comp) * qwi
+                    )
+
+                for node in range(self.nnodes_element_m):
+                    f_pot_el[self.nodalDOF_element_m_u[node]] -= (
+                        self.N_m[el, i, node] * (K_Kappa_bar - J * K_kap_comp) * qwi
+                    )
+
+
+
+
+            else:
+                 # compute contact forces and couples from partial derivatives of
+                # the strain energy function w.r.t. strain measures
+                K_n = self.material_model.K_n(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
+                K_m = self.material_model.K_m(K_Gamma, K_Gamma0, K_Kappa, K_Kappa0)
+            
+
 
             ############################
             # virtual work contributions
             ############################
             for node in range(self.nnodes_element_r):
-                f_pot_el[self.nodalDOF_element_r[node]] -= (
+                f_pot_el[self.nodalDOF_element_r_u[node]] -= (
                     self.N_r_xi[el, i, node] * A_IK @ K_n * qwi
                 )
 
@@ -771,11 +888,14 @@ class CosseratRodPGMixed(RodExportBase, ABC):
                     * (cross3(K_Gamma_bar, K_n) + cross3(K_Kappa_bar, K_m))
                     * qwi
                 )
+            
 
         return f_pot_el
+    
 
     def f_pot_el_q(self, qe, el):
-        if not hasattr(self, "_deval"):
+        # if not hasattr(self, "_deval"):
+        if True:
             warnings.warn(
                 "Class derived from TimoshenkoPetrovGalerkinBase does not implement _deval. We use a numerical Jacobian!"
             )

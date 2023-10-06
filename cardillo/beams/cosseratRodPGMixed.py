@@ -534,6 +534,7 @@ class CosseratRodPG_R12Mixed(CosseratRodPGMixed):
         u0=None,
         polynomial_degree=1,
         reduced_integration=True,
+        mixed=False,
     ):
 
         nquadrature = polynomial_degree
@@ -558,6 +559,7 @@ class CosseratRodPG_R12Mixed(CosseratRodPGMixed):
             Q,
             q0=q0,
             u0=u0,
+            mixed=mixed,
         )
 
     # returns interpolated positions, orientations and strains at xi in [0,1]
@@ -565,7 +567,7 @@ class CosseratRodPG_R12Mixed(CosseratRodPGMixed):
         # evaluate shape functions
         N_r, N_r_xi = self.basis_functions_r(xi)
         N_psi, N_psi_xi = self.basis_functions_psi(xi)
-
+            
         # interpolate position and tangent vector
         r_OP = np.zeros(3, dtype=qe.dtype)
         r_OP_xi = np.zeros(3, dtype=qe.dtype)
@@ -599,6 +601,7 @@ class CosseratRodPG_R12Mixed(CosseratRodPGMixed):
         )
 
         return r_OP, A_IK, K_Gamma_bar, K_Kappa_bar
+    
 
     def _deval(self, qe, xi):
         # evaluate shape functions

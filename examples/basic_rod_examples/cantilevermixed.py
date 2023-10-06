@@ -46,7 +46,7 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
     # Rod = CosseratRodPG_QuatMixed
     # Rod = CosseratRodPG_SE3Mixed
     # nelements_Lagrangian = 5
-    nelements_Lagrangian = 4
+    nelements_Lagrangian = 2
     polynomial_degree = 2
     
     # number of elements
@@ -107,6 +107,7 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
         polynomial_degree=polynomial_degree,
         r_OP=r_OP0,
         A_IK=A_IK0,
+        mixed=True,
     )
     cantilever = Rod(
         cross_section,
@@ -117,7 +118,9 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
         nelements,
         Q=q0,
         q0=q0,
-        polynomial_degree=polynomial_degree
+        polynomial_degree=polynomial_degree,
+        reduced_integration=False,
+        mixed=True
     )
 
     clamping_left = RigidConnection(system.origin, cantilever, frame_ID2=(0,))
