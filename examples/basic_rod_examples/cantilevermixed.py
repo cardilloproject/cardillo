@@ -45,8 +45,8 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
     Rod = CosseratRodPG_R12Mixed
     # Rod = CosseratRodPG_QuatMixed
     # Rod = CosseratRodPG_SE3Mixed
-    # nelements_Lagrangian = 5
-    nelements_Lagrangian = 2
+    nelements_Lagrangian = 5
+    # nelements_Lagrangian = 1
     polynomial_degree = 2
     
     # number of elements
@@ -164,7 +164,7 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
     # add Newton solver
     solver = Newton(
         system,
-        n_load_steps=10,
+        n_load_steps=4,
         max_iter=30,
         atol=atol,
     )
