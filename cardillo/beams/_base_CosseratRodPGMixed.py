@@ -963,12 +963,12 @@ class CosseratRodPGMixed(RodExportBase, ABC):
                     ############################
                     for node in range(self.nnodes_element_n):
                         f_pot_q_el[self.nodalDOF_element_n_u[node], :] -= (
-                            self.N_n[el, i, node] * (K_Gamma_bar_qe - J * C_n_inv * K_n_qe) * qwi
+                            self.N_n[el, i, node] * (K_Gamma_bar_qe - J * C_n_inv @ K_n_qe) * qwi
                         )
 
                     for node in range(self.nnodes_element_m):
                         f_pot_q_el[self.nodalDOF_element_m_u[node], :] -= (
-                            self.N_m[el, i, node] * (K_Kappa_bar_qe - J * C_m_inv * K_m_qe) * qwi
+                            self.N_m[el, i, node] * (K_Kappa_bar_qe - J * C_m_inv @ K_m_qe) * qwi
                         )
 
                     
@@ -1028,18 +1028,18 @@ class CosseratRodPGMixed(RodExportBase, ABC):
                         )
                     )
 
-            # return f_pot_q_el
+            return f_pot_q_el
 
-            f_pot_q_el_num = approx_fprime(
-                qe, lambda qe: self.f_pot_el(qe, el), eps=1.0e-10, method="cs"
-            )
             # f_pot_q_el_num = approx_fprime(
-            #     qe, lambda qe: self.f_pot_el(qe, el), eps=5.0e-6, method="2-point"
+            #     qe, lambda qe: self.f_pot_el(qe, el), eps=1.0e-10, method="cs"
             # )
-            diff = f_pot_q_el - f_pot_q_el_num
-            error = np.linalg.norm(diff)
-            print(f"error f_pot_q_el: {error}")
-            return f_pot_q_el_num
+            # # f_pot_q_el_num = approx_fprime(
+            # #     qe, lambda qe: self.f_pot_el(qe, el), eps=5.0e-6, method="2-point"
+            # # )
+            # diff = f_pot_q_el - f_pot_q_el_num
+            # error = np.linalg.norm(diff)
+            # print(f"error f_pot_q_el: {error}")
+            # return f_pot_q_el_num
 
     #########################################
     # equations of motion
