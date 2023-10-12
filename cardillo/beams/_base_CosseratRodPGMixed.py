@@ -414,7 +414,6 @@ class CosseratRodPGMixed(RodExportBase, ABC):
         polynomial_degree=1,
         r_OP=np.zeros(3, dtype=float),
         A_IK=np.eye(3, dtype=float),
-        rotation_parameterization=QuaternionRotationParameterization(),
         mixed=False
     ):
         nnodes_r = polynomial_degree * nelement + 1
@@ -436,7 +435,7 @@ class CosseratRodPGMixed(RodExportBase, ABC):
 
         # we have to extract the rotation vector from the given rotation matrix
         # and set its value for each node
-        psi = rotation_parameterization.Log_SO3(A_IK)
+        psi = QuaternionRotationParameterization().Log_SO3(A_IK)
         q_psi = np.repeat(psi, nnodes_psi)
 
 
