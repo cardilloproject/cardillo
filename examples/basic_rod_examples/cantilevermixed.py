@@ -48,6 +48,8 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
     # nelements_Lagrangian = 5
     nelements_Lagrangian = 10
     polynomial_degree = 2
+
+    mixed=False
     
     # number of elements
     if Rod is CosseratRodPG_SE3Mixed:
@@ -107,7 +109,7 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
         polynomial_degree=polynomial_degree,
         r_OP=r_OP0,
         A_IK=A_IK0,
-        mixed=True,
+        mixed=mixed,
     )
     cantilever = Rod(
         cross_section,
@@ -120,7 +122,7 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
         q0=q0,
         polynomial_degree=polynomial_degree,
         reduced_integration=False,
-        mixed=True
+        mixed=mixed
     )
 
     clamping_left = RigidConnection(system.origin, cantilever, frame_ID2=(0,))
@@ -164,7 +166,7 @@ def cantilever(load_type="moment", rod_hypothesis_penalty="shear_deformable", VT
     # add Newton solver
     solver = Newton(
         system,
-        n_load_steps=10,
+        n_load_steps=16,
         max_iter=30,
         atol=atol,
     )
